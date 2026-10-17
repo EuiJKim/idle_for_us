@@ -8,6 +8,7 @@ import {
   PETS, PET_EGG_COST, PET_GRADE_WEIGHT, petFoodCost, PET_DUPLICATE_FOOD, PET_ATTACK_INTERVAL, petDamageMult,
   BOND_PER_SEC, BOND_PER_LV, BOND_MAX, bondLevel, ENGRAVE_MIN_LV, engraveCost,
   ATTEND_CYCLE, attendReward, BOOST_PER_DAY, BOOST_SEC, BOOST_MULT, mobGroupSize,
+  MELEE_RANGE, HERO_SPEED, MOB_SPAWN_NEAR, MOB_SPAWN_FAR, MOB_RESPAWN_SEC,
   RELICS, RELIC_DIG_COST,
   SKILLS, SKILL_SLOTS, skillBookCost,
   DUNGEONS, DUNGEON_KEYS, DUNGEON_TIME, DUNGEON_MOBS, dungeonStage, dungeonReward,
@@ -120,7 +121,12 @@ export class Game {
     this.cd = Object.fromEntries(SKILLS.map((s) => [s.id, 1.5]));
     this.rng = Math.random;
     this.queue = [];
-    this.adds = [];   // 주 타겟과 함께 몰려온 졸개들
+    this.adds = [];   // (호환) 지금은 mons를 쓴다
+    this.mons = [];   // 들판에 흩어진 적들
+    this.heroX = 0;   // 무인의 위치(월드 좌표)
+    this.heroFacing = 1;
+    this.walking = false;
+    this.respawn = 0; // 다음 적이 나타나기까지
     this.petTimer = PET_ATTACK_INTERVAL;
     this.atkTimer = 0.3;
     this.heroHp = this.stats().hp;
@@ -224,30 +230,75 @@ export class Game {
     return undefined;
   }
 
+  // 들판에 적 하나를 세운다 — 무인 앞뒤 적당한 거리에
+  makeFieldMob() {
+    const s = this.s.stage;
+    this.fillQueue(() => this.pickMob());
+    const hp = monsterHp(s);
+    const dir = this.rng() < 0.78 ? 1 : -1; // 대체로 앞쪽에 나타난다
+    const dist = MOB_SPAWN_NEAR + this.rng() * (MOB_SPAWN_FAR - MOB_SPAWN_NEAR);
+    return {
+      hp, maxHp: hp, isBoss: false, def: this.queue.shift(),
+      atk: monsterAtk(s), atkTimer: 1 + this.rng(), alive: true, stun: 0,
+      x: this.heroX + dir * dist,
+      lane: (this.rng() - 0.5) * 34, // 앞뒤로 살짝 어긋나게 서서 겹치지 않게
+    };
+  }
+
+  // 들판 유지: 쓰러진 자리는 잠시 뒤 다시 채워진다
+  refillField(dt) {
+    const live = this.mons.filter((m) => m.alive);
+    if (live.length !== this.mons.length) this.mons = live;
+    // 열 명을 베면 두목이 길을 막는다
+    if (!this.s.farming && this.s.kills >= KILLS_PER_STAGE && !live.some((m) => m.isBoss)) {
+      this.spawnStage();
+      return;
+    }
+    if (live.some((m) => m.isBoss)) return; // 두목전에는 잡졸이 끼어들지 않는다
+    const want = mobGroupSize(this.s.stage);
+    if (live.length >= want) return;
+    this.respawn -= dt;
+    if (this.respawn > 0) return;
+    this.respawn = MOB_RESPAWN_SEC;
+    this.mons.push(this.makeFieldMob());
+  }
+
+  // 가장 가까운 적을 노린다
+  retarget() {
+    const live = this.mons.filter((m) => m.alive);
+    if (!live.length) { this.mon = null; return null; }
+    let best = live[0];
+    let bd = Math.abs(best.x - this.heroX);
+    for (const m of live) {
+      const d = Math.abs(m.x - this.heroX);
+      if (d < bd) { best = m; bd = d; }
+    }
+    this.mon = best;
+    return best;
+  }
+
   spawnStage() {
     const s = this.s.stage;
     const isBoss = !this.s.farming && this.s.kills >= KILLS_PER_STAGE;
     this.fillQueue(() => this.pickMob());
-    const def = isBoss ? zoneOf(s).boss : this.queue.shift();
-    const hp = monsterHp(s) * (isBoss ? BOSS_HP_MULT : 1);
-    this.mon = {
-      hp, maxHp: hp, isBoss, def,
-      atk: monsterAtk(s) * (isBoss ? BOSS_ATK_MULT : 1),
-      atkTimer: 1.2, alive: true, stun: 0,
-    };
-    // 두목은 혼자 나오고, 평소에는 여럿이 몰려온다
-    this.adds = [];
-    if (!isBoss) {
-      const extra = mobGroupSize(s) - 1;
-      for (let i = 0; i < extra; i++) {
-        this.fillQueue(() => this.pickMob());
-        const h = monsterHp(s);
-        this.adds.push({
-          hp: h, maxHp: h, isBoss: false, def: this.queue.shift(),
-          atk: monsterAtk(s), atkTimer: 1.2 + 0.25 * (i + 1), alive: true, stun: 0, add: true,
-        });
-      }
+    if (isBoss) {
+      // 두목은 혼자, 무인 앞쪽에서 기다린다
+      const def = zoneOf(s).boss;
+      const hp = monsterHp(s) * BOSS_HP_MULT;
+      this.mons = [{
+        hp, maxHp: hp, isBoss: true, def,
+        atk: monsterAtk(s) * BOSS_ATK_MULT,
+        atkTimer: 1.2, alive: true, stun: 0,
+        x: this.heroX + 320, lane: 0,
+      }];
+      this.mon = this.mons[0];
+    } else {
+      const want = mobGroupSize(s);
+      this.mons = [];
+      for (let i = 0; i < want; i++) this.mons.push(this.makeFieldMob());
+      this.retarget();
     }
+    this.adds = [];
     this.bossTimer = isBoss ? this.stats().bossTime : 0;
     this.bossTimeMax = this.bossTimer;
     this.spawnTimer = 0;
@@ -266,9 +317,10 @@ export class Game {
 
   // 광역 피해: 주 타겟에게 주고, 졸개들에게도 같은 피해를 준다
   dealAoe(amount, kind = 'skill', crit = false) {
-    const adds = this.adds.filter((a) => a.alive);
+    const main = this.mon;
+    const others = this.mons.filter((m) => m.alive && m !== main && Math.abs(m.x - this.heroX) <= 360);
     this.dealDamage(amount, kind, crit);
-    for (const a of adds) {
+    for (const a of others) {
       if (!a.alive) continue;
       a.hp -= amount;
       this.emit('dmg', { amount, kind, crit, add: true });
@@ -348,16 +400,11 @@ export class Game {
     } else if (!this.s.farming) {
       this.s.kills++;
     }
-    // 아직 졸개가 남아 있으면 바로 이어서 싸운다
-    if (this.mode === 'stage' && !m.isBoss) {
-      const next = this.adds.find((a) => a.alive);
-      if (next) {
-        this.adds = this.adds.filter((a) => a !== next);
-        next.add = false;
-        this.mon = next;
-        this.spawnTimer = 0;
-        return undefined;
-      }
+    // 들판에서는 다음 적을 알아서 찾아간다
+    if (this.mode === 'stage') {
+      this.mons = this.mons.filter((x) => x.alive);
+      this.retarget();
+      return undefined;
     }
     this.spawnTimer = SPAWN_DELAY;
     return undefined;
@@ -403,12 +450,34 @@ export class Game {
       if (this.mode === 'raid' && this.mon.hp <= 0) return this.endContest('done');
     }
 
-    if (!this.mon?.alive) {
+    // 들판 사냥: 적을 찾아 걸어가서 벤다
+    if (this.mode === 'stage') {
+      this.refillField(dt);
+      const target = this.retarget();
+      if (!target) {
+        this.walking = false;
+        this.heroHp = Math.min(st.hp, this.heroHp + st.hp * 0.25 * dt);
+        return undefined;
+      }
+      const dx = target.x - this.heroX;
+      const dist = Math.abs(dx);
+      if (dist > MELEE_RANGE) {
+        const step = Math.min(HERO_SPEED * dt, dist - MELEE_RANGE);
+        this.heroX += Math.sign(dx) * step;
+        this.heroFacing = dx >= 0 ? 1 : -1;
+        this.walking = true;
+        this.heroHp = Math.min(st.hp, this.heroHp + st.hp * 0.08 * dt);
+        this.atkTimer = Math.min(this.atkTimer, 0.25);
+        return undefined; // 걷는 동안에는 베지 않는다
+      }
+      this.walking = false;
+    } else if (!this.mon?.alive) {
       this.spawnTimer -= dt;
       this.heroHp = Math.min(st.hp, this.heroHp + st.hp * 0.25 * dt);
       if (this.spawnTimer <= 0) this.spawn();
       return undefined;
     }
+    if (!this.mon?.alive) return undefined;
     if (this.mon.stun > 0) this.mon.stun = Math.max(0, this.mon.stun - dt);
 
     if (this.mon.isBoss && this.mode === 'stage') {
@@ -425,13 +494,13 @@ export class Game {
         if (id === 'heal' && this.heroHp > st.hp * 0.6) continue;
         if (this.buffs[id] > 0) continue;
         this.useSkill(id);
-        if (!this.mon.alive) return undefined;
+        if (!this.mon?.alive) return undefined;
       }
     }
 
     // 영웅 공격
     this.atkTimer -= dt;
-    while (this.atkTimer <= 0 && this.mon.alive) {
+    while (this.atkTimer <= 0 && this.mon?.alive) {
       this.atkTimer += 1 / st.speed;
       const crit = this.rng() < st.crit;
       this.emit('attack');
@@ -439,17 +508,17 @@ export class Game {
     }
 
     // 펫 공격
-    if (st.petHit > 0 && this.mon.alive) {
+    if (st.petHit > 0 && this.mon?.alive) {
       this.petTimer -= dt;
       if (this.petTimer <= 0) {
         this.petTimer += PET_ATTACK_INTERVAL;
         this.emit('petAttack');
-        this.dealDamage(st.petHit, 'pet');
+        if (this.mon?.alive) this.dealDamage(st.petHit, 'pet');
       }
     }
 
     // 상대 공격 (레이드 보스는 공격하지 않는다)
-    if (this.mode !== 'raid' && this.mon.alive && this.mon.stun <= 0) {
+    if (this.mode !== 'raid' && this.mon?.alive && this.mon.stun <= 0) {
       const m = this.mon;
       m.atkTimer -= dt;
       while (m.atkTimer <= 0 && this.heroHp > 0) {
@@ -471,9 +540,10 @@ export class Game {
       if (this.heroHp <= 0) return this.heroDied();
     }
 
-    // 졸개들도 함께 때린다 (주 타겟보다 약하게)
-    if (this.mode === 'stage' && this.adds.length) {
-      for (const a of this.adds) {
+    // 가까이 붙은 다른 적들도 함께 때린다
+    if (this.mode === 'stage') {
+      const near = this.mons.filter((m) => m.alive && m !== this.mon && Math.abs(m.x - this.heroX) <= MELEE_RANGE + 40);
+      for (const a of near) {
         if (!a.alive || a.stun > 0) { if (a.stun > 0) a.stun = Math.max(0, a.stun - dt); continue; }
         a.atkTimer -= dt;
         while (a.atkTimer <= 0 && this.heroHp > 0) {

@@ -52,8 +52,15 @@ export class BattleView {
   }
 
   get groundY() { return this.h * 0.8; }
-  get heroX() { return this.w * 0.27; }
-  get monX() { return this.w * 0.7; }
+  get heroX() { return this.w * (this.fieldMode ? 0.42 : 0.27); }
+  // 들판에서는 적의 화면 위치가 무인과의 거리로 정해진다(카메라가 무인을 따라감)
+  get monX() {
+    const g = this.game;
+    if (this.fieldMode && g?.mon) return this.heroX + (g.mon.x - g.heroX);
+    return this.w * 0.7;
+  }
+  get fieldMode() { return this.game?.mode === 'stage'; }
+  screenXOf(m) { const g = this.game; return this.heroX + (m.x - g.heroX); }
 
   handle(ev, game) {
     switch (ev.type) {
@@ -170,6 +177,7 @@ export class BattleView {
       this.hitstop = Math.max(0, this.hitstop - dt);
       dt *= 0.18;
     }
+    this.game = game;
     this.t += dt;
     const { ctx } = this;
     const decay = (v, k) => Math.max(0, v - dt * k);
@@ -181,8 +189,10 @@ export class BattleView {
     this.heroFlash = decay(this.heroFlash, 6);
     this.shake = decay(this.shake, 1);
     this.flash = decay(this.flash, 2);
-    const moving = !game.mon?.alive && game.mode === 'stage';
-    this.scroll += dt * (moving ? 220 : 12);
+    const moving = this.fieldMode ? !!game.walking : (!game.mon?.alive && game.mode === 'stage');
+    // 들판에서는 무인이 실제로 움직인 만큼 배경이 흐른다
+    if (this.fieldMode) this.scroll = game.heroX;
+    else this.scroll += dt * (moving ? 220 : 12);
 
     ctx.save();
     if (this.shake > 0) ctx.translate((Math.random() - 0.5) * 12 * this.shake, (Math.random() - 0.5) * 12 * this.shake);
@@ -460,12 +470,14 @@ export class BattleView {
     const opts = {
       t: this.t, lunge: this.heroLunge, flash: this.heroFlash, run: moving, weapon: 'sword',
       blade: wg >= 0 ? GRADES[wg].color : '#e5e7eb', glow: wg >= 3, rage: raging,
+      // 왼쪽으로 갈 때는 몸을 돌린다
+      flip: this.fieldMode && game.heroFacing < 0,
     };
     if (gale) { // 잔상
       for (let i = 3; i >= 1; i--) {
         this.ctx.save();
         this.ctx.globalAlpha = 0.12 * (4 - i);
-        drawFighter(this.ctx, x - i * 16, this.groundY, look, { ...opts, flash: 0 });
+        drawFighter(this.ctx, x - i * 16 * (opts.flip ? -1 : 1), this.groundY, look, { ...opts, flash: 0 });
         this.ctx.restore();
       }
     }
@@ -481,25 +493,28 @@ export class BattleView {
   }
 
   // ---------- 적 ----------
-  // 함께 몰려온 졸개들 — 주 타겟 뒤쪽으로 줄지어 선다
+  // 들판에 흩어진 다른 적들 — 각자 제자리에 선다
   drawAdds(game, dt) {
-    const adds = game.adds || [];
-    if (!adds.length) return;
+    if (!this.fieldMode) return;
+    const others = (game.mons || []).filter((m) => m.alive && m !== game.mon);
+    if (!others.length) return;
     const { ctx } = this;
-    adds.forEach((a, i) => {
-      if (!a.alive) return;
-      const x = this.monX + 70 + i * 62;
+    for (const a of others) {
+      const x = this.screenXOf(a);
+      if (x < -90 || x > this.w + 90) continue; // 화면 밖은 그리지 않는다
+      const y = this.groundY + (a.lane || 0);
       const def = a.def || {};
+      const face = a.x >= game.heroX; // 무인 쪽을 본다
       ctx.save();
       ctx.globalAlpha = 0.95;
-      if (def.emoji) emoji(ctx, def.emoji, x, this.groundY, 44, true);
-      else drawFighter(ctx, x, this.groundY, def.look || {}, {
-        t: this.t + 0.7 + i * 0.4, flip: true, scale: (def.look?.scale || 1) * 0.92,
+      if (def.emoji) emoji(ctx, def.emoji, x, y, 44, face);
+      else drawFighter(ctx, x, y, def.look || {}, {
+        t: this.t + 0.7 + (a.x % 7) * 0.2, flip: face, scale: (def.look?.scale || 1) * 0.94,
         weapon: def.look?.weapon, flash: 0,
       });
-      hpBar(ctx, x - 22, this.groundY - 92, 44, 5, Math.max(0, a.hp / a.maxHp), '#b45309');
+      hpBar(ctx, x - 22, y - 92, 44, 5, Math.max(0, a.hp / a.maxHp), '#b45309');
       ctx.restore();
-    });
+    }
   }
 
   drawQueue(game) {

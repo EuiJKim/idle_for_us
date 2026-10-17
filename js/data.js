@@ -5,7 +5,13 @@ export const OFFLINE_CAP_SEC = 12 * 3600;
 export const KILLS_PER_STAGE = 10;
 // 한 번에 나오는 적 수(최대). 관문이 오를수록 더 몰려온다.
 // 근거: Blade Idle은 한 스테이지에 적 그룹(wavegroup)이 보통 4개씩 잡혀 있고 47초 안에 정리된다.
-export const MOB_GROUP_MAX = 4;
+export const MOB_GROUP_MAX = 5;
+// 필드 사냥: 무인이 직접 돌아다니며 적을 찾아 벤다
+export const MELEE_RANGE = 62;        // 이 거리 안에 들어와야 벨 수 있다
+export const HERO_SPEED = 185;        // 걸어가는 속도(초당)
+export const MOB_SPAWN_NEAR = 260;    // 적이 생기는 가장 가까운 거리
+export const MOB_SPAWN_FAR = 720;     // 적이 생기는 가장 먼 거리
+export const MOB_RESPAWN_SEC = 1.1;   // 한 명 쓰러지면 이만큼 뒤에 새로 나타난다
 export const mobGroupSize = (stage) => Math.min(MOB_GROUP_MAX, 1 + Math.floor(stage / 8));
 export const BOSS_TIME = 30;
 export const SPAWN_DELAY = 0.45;
