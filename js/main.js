@@ -97,7 +97,7 @@ $('btn-settings').addEventListener('click', openSettings);
 $('btn-missions').addEventListener('click', () => openMissions(app));
 
 // ---------- 화면 갱신 ----------
-const MODE_TITLE = { raid: '혈마 토벌', trial: '심마 대결', pvp: '비무대', dungeon: '비경' };
+const MODE_TITLE = { raid: '혈마 토벌', trial: '심마 대결', pvp: '겨루기', dungeon: '수련터' };
 function refreshUI(full = false) {
   const s = game.s;
   const c = game.contest;
@@ -164,7 +164,7 @@ function handleEvents() {
         if (ev.stage % 10 === 0) { toast(`🎉 ${zoneOf(ev.stage + 1).name}에 도착했어요!`); net.pushProfile(true); }
         const sk = SKILLS.find((x) => x.unlock === ev.stage + 1);
         if (sk) toast(`${sk.icon} 새 무공 「${sk.name}」 해금!`);
-        if ([10, 20, 30, 40].includes(ev.stage)) toast('🏯 새 비경이 열렸어요!');
+        if ([10, 20, 30, 40].includes(ev.stage)) toast('🏯 새 수련터이 열렸어요!');
         break;
       }
       case 'levelUp': updateDots(); break;
@@ -189,7 +189,7 @@ function showResult(r) {
     let title = '';
     let body = '';
     if (r.mode === 'dungeon') {
-      title = win ? '비경 돌파!' : '비경 실패';
+      title = win ? '수련터 돌파!' : '수련터 실패';
       body = win ? `${r.level}단계 클리어! 다음 단계가 열렸어요.` : '시간 안에 못 잡았어요. 열쇠는 그대로예요. 수련하고 다시 도전!';
     } else if (r.mode === 'trial') {
       title = win ? `경지 돌파 · ${RANKS[r.rank].name}` : '심마에게 패했다';
@@ -226,7 +226,7 @@ function startTrial() {
 
 function startDungeon(id) {
   if (!canStart()) return;
-  if (!game.startDungeon(id)) toast('비경에 들어갈 수 없어요 (열쇠·해금 확인)');
+  if (!game.startDungeon(id)) toast('수련터에 들어갈 수 없어요 (열쇠·해금 확인)');
   refreshUI(true);
 }
 
@@ -253,7 +253,7 @@ async function startRaid(btn) {
   if (btn) btn.disabled = true;
   try {
     const r = await net.ensureRaid();
-    if (r.total >= r.maxHp) return toast('오늘의 두목는 이미 처치됐어요');
+    if (r.total >= r.maxHp) return toast('오늘의 두목은 이미 처치됐어요');
     if (!game.startRaid(r.maxHp - r.total, r.maxHp)) return toast('오늘 도전 횟수를 다 썼어요');
     pendingRaid = r.id;
     toast('30초 동안 최대한 때려요!');
@@ -456,7 +456,7 @@ window.addEventListener('pagehide', () => save());
 if (document.fonts?.load) {
   const glyphs = '回歸武銀寶秘鐵草片拳氣穴破快力體殺鬪財悟劍衣玉蔘蟾乳匕香月飛旋風血魔解放運調息雷霆疾步千金手氷魄神掌萬宗錢獸洞修兵靈盟令設境進心';
   document.fonts.load(`20px "Yuji Syuku"`, glyphs).catch(() => {});
-  document.fonts.load(`20px "Nanum Brush Script"`, '관문돌파두목경지비경입장비무시작문파토벌혈마심마와의대결레벨').catch(() => {});
+  document.fonts.load(`20px "Nanum Brush Script"`, '관문돌파두목경지수련터입장비무시작문파토벌혈마심마와의대결레벨').catch(() => {});
 }
 showTab('growth');
 netChanged('status');

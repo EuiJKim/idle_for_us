@@ -29,6 +29,8 @@ export class BattleView {
     this.monLunge = 0;
     this.monShake = 0;
     this.monFlash = 0;
+    this.hitstop = 0;   // 타격 순간 연출을 잠깐 느리게
+    this.monKnock = 0;  // 맞고 밀려나는 거리
     this.heroFlash = 0;
     this.monDeath = 0;
     this.shake = 0;
@@ -70,7 +72,14 @@ export class BattleView {
         const size = ev.kind === 'pet' ? 14 : skill ? 28 : ev.crit ? 26 : 17;
         this.float(fmt(ev.amount) + (ev.crit ? '!' : ''), this.monX + (Math.random() - 0.5) * 60, this.groundY - 120, color, size, 1, ev.crit || skill);
         this.effects.push({ kind: 'cut', life: 0.18, max: 0.18, a: Math.random() * 0.8 - 0.4, crit: ev.crit });
-        if (ev.crit) this.ink(this.monX - 10, this.groundY - 60, 10, '#7f1d1d', 160);
+        // 때린 순간 화면을 아주 잠깐 늦추고 상대를 밀어낸다 — 타격감
+        this.hitstop = Math.max(this.hitstop, ev.crit || skill ? 0.075 : 0.032);
+        this.monKnock = Math.max(this.monKnock, ev.crit || skill ? 16 : 7);
+        if (ev.crit) {
+          this.ink(this.monX - 10, this.groundY - 60, 10, '#7f1d1d', 160);
+          this.shake = Math.max(this.shake, 0.32);
+          this.flash = Math.max(this.flash, 0.22);
+        }
         break;
       }
       case 'kill':
@@ -114,7 +123,7 @@ export class BattleView {
         break;
       case 'contestStart':
         this.monDeath = 0;
-        this.showBanner({ dungeon: '비경 입장', trial: '심마(心魔)와의 대결', pvp: '비무 시작', raid: '문파 토벌 · 혈마' }[ev.mode] || '', '#fde68a', 1.4);
+        this.showBanner({ dungeon: '수련터 입장', trial: '심마(마음속의 적)', pvp: '겨루기 시작', raid: '문파 토벌 · 혈마' }[ev.mode] || '', '#fde68a', 1.4);
         break;
       default:
     }
@@ -156,9 +165,15 @@ export class BattleView {
   }
 
   draw(game, dt) {
+    // 히트스톱: 맞은 직후 아주 짧게 연출만 느려진다(게임 진행은 그대로)
+    if (this.hitstop > 0) {
+      this.hitstop = Math.max(0, this.hitstop - dt);
+      dt *= 0.18;
+    }
     this.t += dt;
     const { ctx } = this;
     const decay = (v, k) => Math.max(0, v - dt * k);
+    this.monKnock = decay(this.monKnock, 55);
     this.heroLunge = decay(this.heroLunge, 6);
     this.monLunge = decay(this.monLunge, 5);
     this.monShake = decay(this.monShake, 7);
@@ -491,7 +506,7 @@ export class BattleView {
       if (this.monDeath <= 0) return;
     }
     const alpha = m.alive ? 1 : this.monDeath;
-    const x = this.monX + (Math.random() - 0.5) * this.monShake * 6 - this.monLunge * 18;
+    const x = this.monX + (Math.random() - 0.5) * this.monShake * 6 - this.monLunge * 18 + this.monKnock;
     const y = this.groundY;
     let def = m.def || {};
     let look = def.look;

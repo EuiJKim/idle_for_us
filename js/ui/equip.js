@@ -22,7 +22,7 @@ export function equipTab(app) {
       h('div', { class: 'btn-row', style: 'margin-top:8px' }, mergeBtn),
       h('p', { class: 'muted', style: 'margin:8px 0 0' },
         `같은 등급 ${MERGE_COUNT}개 → 상위 1개. 보유한 등급마다 보유 효과가 더해져요.`)),
-    h('div', { class: 'section-title' }, h('span', {}, '鐵 제련석 ', stones), h('span', {}, '비경·두목·의뢰에서 획득')));
+    h('div', { class: 'section-title' }, h('span', {}, '鐵 제련석 ', stones), h('span', {}, '수련터·두목·의뢰에서 획득')));
 
   for (const [type, def] of Object.entries(EQUIP_TYPES)) {
     const grid = h('div', { class: 'grades' });

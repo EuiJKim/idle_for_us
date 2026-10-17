@@ -1,4 +1,4 @@
-// 비경 탭
+// 수련터 탭
 import { DUNGEONS, DUNGEON_KEYS, DUNGEON_TIME, DUNGEON_MOBS, dungeonReward } from '../data.js';
 import { h, rewardText } from './common.js';
 
@@ -7,7 +7,7 @@ export function dungeonTab(app) {
   const cards = {};
   const root = h('div', {},
     h('p', { class: 'muted', style: 'margin:2px 2px 10px' },
-      `비경마다 하루 ${DUNGEON_KEYS}번. ${DUNGEON_TIME}초 안에 적 ${DUNGEON_MOBS}마리와 두목를 잡으면 클리어, 다음 단계가 열려요. 실패하면 열쇠는 그대로예요. 깬 단계는 "소탕"으로 바로 보상을 받을 수 있어요.`));
+      `수련터마다 하루 ${DUNGEON_KEYS}번. ${DUNGEON_TIME}초 안에 적 ${DUNGEON_MOBS}마리와 두목를 잡으면 클리어, 다음 단계가 열려요. 실패하면 열쇠는 그대로예요. 깬 단계는 "소탕"으로 바로 보상을 받을 수 있어요.`));
 
   for (const d of DUNGEONS) {
     const lvl = h('small');

@@ -931,7 +931,7 @@ export class Game {
   regressPreview() { return regressGain(this.s.maxStage); }
 
   // 관문·은자·수련·레벨·스탯 포인트를 처음으로 되돌리고 전생의 기억을 얻는다.
-  // 경지·병기·제련·무공·영수·신물·비경 기록·원보는 그대로 남는다.
+  // 경지·병기·제련·무공·영수·신물·수련터 기록·원보는 그대로 남는다.
   regress() {
     const gain = this.regressPreview();
     if (!gain || this.mode !== 'stage') return 0;

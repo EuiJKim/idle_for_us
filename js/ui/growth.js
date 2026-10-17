@@ -183,7 +183,7 @@ function regressView(app) {
       h('h3', {}, '무엇이 남고 무엇이 사라지나'),
       h('p', { class: 'muted', style: 'line-height:1.7;margin:0' },
         '사라짐: 관문, 은자, 은자 수련, 레벨·스탯 포인트', h('br'),
-        '남음: 경지, 병기·제련, 무공, 영수, 신물, 비경 기록, 원보·비급·한철·영초·신물 조각, 문파')));
+        '남음: 경지, 병기·제련, 무공, 영수, 신물, 수련터 기록, 원보·비급·한철·영수 먹이·신물 조각, 문파')));
   function update() {
     const s = game.s;
     const g = game.regressPreview();

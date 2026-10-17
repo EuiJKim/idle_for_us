@@ -22,7 +22,7 @@ export const CUR = {
   gems: { name: '원보', hz: '寶' },
   books: { name: '비급', hz: '秘' },
   stones: { name: '한철', hz: '鐵' },
-  food: { name: '영초', hz: '草' },
+  food: { name: '영수 먹이', hz: '草' },
   relicShards: { name: '신물 조각', hz: '片' },
 };
 
@@ -222,7 +222,7 @@ export const skillBookCost = (l) => Math.ceil(2 * Math.pow(1.15, l - 1));
 const F = (name, look) => ({ name, look });
 const B = (name, emoji) => ({ name, emoji }); // 짐승은 이모지
 
-// ---------- 비경 ----------
+// ---------- 수련터 ----------
 export const DUNGEONS = [
   { id: 'gold', name: '흑도 전장', icon: '錢', unlock: 10, reward: '은자',
     mob: F('전장 호위', { robe: '#3f3a36', head: 'band', band: '#111', weapon: 'saber' }),
@@ -230,7 +230,7 @@ export const DUNGEONS = [
   { id: 'stone', name: '한철 광산', icon: '鐵', unlock: 20, reward: '한철',
     mob: F('광산 파수꾼', { robe: '#44403c', head: 'hood', weapon: 'axe' }),
     boss: F('철갑 거한', { robe: '#1f2937', trim: '#9ca3af', head: 'bald', weapon: 'fist', scale: 1.5 }) },
-  { id: 'pet', name: '영수 계곡', icon: '獸', unlock: 30, reward: '영초',
+  { id: 'pet', name: '영수 계곡', icon: '獸', unlock: 30, reward: '영수 먹이',
     mob: B('계곡 늑대', '🐺'), boss: B('산군(山君)', '🐅') },
   { id: 'relic', name: '고수의 동부', icon: '洞', unlock: 40, reward: '신물 조각',
     mob: F('동부 강시', { robe: '#1e3a5f', head: 'jiangshi', skin: '#a3b8a0', weapon: 'claw', jiangshi: true }),
@@ -256,7 +256,7 @@ export const MISSIONS = [
   { id: 'kill', name: '적 500명 처치', goal: 500, reward: { gems: 50 } },
   { id: 'boss', name: '두목 5명 처치', goal: 5, reward: { gems: 50, books: 5 } },
   { id: 'upgrade', name: '수련·제련 30회', goal: 30, reward: { gems: 50, stones: 20 } },
-  { id: 'dungeon', name: '비경 3회 도전', goal: 3, reward: { gems: 100 } },
+  { id: 'dungeon', name: '수련터 3회 도전', goal: 3, reward: { gems: 100 } },
   { id: 'gacha', name: '뽑기 10회 (병기·영수)', goal: 10, reward: { gems: 50 } },
   { id: 'pvp', name: '비무 3회', goal: 3, reward: { gems: 100 } },
   { id: 'raid', name: '문파 토벌 1회', goal: 1, reward: { gems: 100 } },

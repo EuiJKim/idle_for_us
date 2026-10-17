@@ -14,7 +14,7 @@ function petView(app) {
     h('div', { class: 'card' },
       h('h3', {}, '🥚 영수 부화', h('small', {}, '중복이면 먹이로 바뀌어요')),
       h('div', { class: 'btn-row' }, b1, b10),
-      h('p', { class: 'muted', style: 'margin:8px 0 0' }, '草 영초 ', food, '개 · 짐승의 숲 비경에서 얻어요. 데려간 영수가 함께 싸우고, 가진 영수는 모두 보유 효과를 줘요. 데리고 다니면 교감이 쌓여 그 영수의 효과가 커지고, 각인하면 데려가지 않아도 그 효과가 남아요.')));
+      h('p', { class: 'muted', style: 'margin:8px 0 0' }, '草 영수 먹이 ', food, '개 · 짐승의 숲 수련터에서 얻어요. 데려간 영수가 함께 싸우고, 가진 영수는 모두 보유 효과를 줘요. 데리고 다니면 교감이 쌓여 그 영수의 효과가 커지고, 각인하면 데려가지 않아도 그 효과가 남아요.')));
 
   for (const pet of PETS) {
     const lv = h('small');
@@ -108,7 +108,7 @@ function relicView(app) {
     h('div', { class: 'card' },
       h('h3', {}, '🏺 신물 발굴', h('small', {}, '무작위 신물 +1')),
       h('div', { class: 'btn-row' }, b1, b10),
-      h('p', { class: 'muted', style: 'margin:8px 0 0' }, '片 신물 조각 ', shards, '개 · 고대 유적 비경, 두목 첫 처치, 토벌에서 얻어요.')));
+      h('p', { class: 'muted', style: 'margin:8px 0 0' }, '片 신물 조각 ', shards, '개 · 고대 유적 수련터, 두목 첫 처치, 토벌에서 얻어요.')));
   for (const r of RELICS) {
     const lv = h('small');
     const desc = h('div', { class: 'desc' });
