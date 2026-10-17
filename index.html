@@ -47,21 +47,26 @@
         <div id="contest-title"></div>
         <div id="contest-sub"></div>
       </div>
-    </section>
 
-    <div id="skillbar"></div>
+      <!-- 창 버튼은 들판 위에 떠 있다. 누르면 아래에서 창이 올라온다. -->
+      <nav id="tabs">
+        <div class="tabcol left">
+          <button data-tab="companion"><span>靈</span>영수</button>
+          <button data-tab="dungeon"><span>洞</span>비경</button>
+          <button data-tab="social"><span>盟</span>무림</button>
+        </div>
+        <div class="tabcol right">
+          <button data-tab="growth"><span>修</span>수련</button>
+          <button data-tab="equip"><span>兵</span>병기</button>
+          <button data-tab="skill"><span>武</span>무공</button>
+        </div>
+      </nav>
+
+      <div id="skillbar"></div>
+    </section>
 
     <div id="panel-dim"></div>
     <main id="panel"></main>
-
-    <nav id="tabs">
-      <button data-tab="growth" class="active"><span>修</span>수련</button>
-      <button data-tab="equip"><span>兵</span>병기</button>
-      <button data-tab="skill"><span>武</span>무공</button>
-      <button data-tab="companion"><span>靈</span>영수</button>
-      <button data-tab="dungeon"><span>洞</span>비경</button>
-      <button data-tab="social"><span>盟</span>무림</button>
-    </nav>
   </div>
 
   <div id="modal" class="hidden"><div class="sheet"></div></div>

@@ -8,7 +8,7 @@ import {
   PETS, PET_EGG_COST, PET_GRADE_WEIGHT, petFoodCost, PET_DUPLICATE_FOOD, PET_ATTACK_INTERVAL, petDamageMult,
   BOND_PER_SEC, BOND_PER_LV, BOND_MAX, bondLevel, ENGRAVE_MIN_LV, engraveCost,
   ATTEND_CYCLE, attendReward, BOOST_PER_DAY, BOOST_SEC, BOOST_MULT, mobGroupSize,
-  MELEE_RANGE, HERO_SPEED, MOB_SPAWN_NEAR, MOB_SPAWN_FAR, MOB_RESPAWN_SEC,
+  MELEE_RANGE, HERO_SPEED, MOB_SPEED, MOB_SEPARATION, FIELD_ASPECT, FIELD_SQUASH, MOB_SPAWN_NEAR, MOB_SPAWN_FAR, MOB_RESPAWN_SEC,
   RELICS, RELIC_DIG_COST,
   SKILLS, SKILL_SLOTS, skillBookCost,
   DUNGEONS, DUNGEON_KEYS, DUNGEON_TIME, DUNGEON_MOBS, dungeonStage, dungeonReward,
@@ -123,8 +123,10 @@ export class Game {
     this.queue = [];
     this.adds = [];   // (호환) 지금은 mons를 쓴다
     this.mons = [];   // 들판에 흩어진 적들
-    this.heroX = 0;   // 무인의 위치(월드 좌표)
-    this.heroFacing = 1;
+    this.heroX = 0;   // 무인의 위치(월드 좌표 X)
+    this.heroY = 0;   // 무인의 위치(월드 좌표 Y) — 평면이라 위아래로도 움직인다
+    this.heroFacing = 1;    // 좌우 반전용(그림)
+    this.heroAngle = 0;     // 바라보는 방향(라디안)
     this.walking = false;
     this.respawn = 0; // 다음 적이 나타나기까지
     this.petTimer = PET_ATTACK_INTERVAL;
@@ -230,19 +232,68 @@ export class Game {
     return undefined;
   }
 
-  // 들판에 적 하나를 세운다 — 무인 앞뒤 적당한 거리에
+  // 무인과 대상 사이의 거리 — 화면에 보이는 대로 잰다(Y는 눌려 보이므로 함께 누른다)
+  distTo(m) { return Math.hypot(m.x - this.heroX, (m.y - this.heroY) * FIELD_SQUASH); }
+  // 어떤 방향으로 D만큼 가면 화면에서 얼마나 멀어지는지
+  static viewScale(ux, uy) { return Math.hypot(ux, uy * FIELD_SQUASH) || 1; }
+
+  // 들판에 적 하나를 세운다 — 무인 둘레 사방 아무 데나
   makeFieldMob() {
     const s = this.s.stage;
     this.fillQueue(() => this.pickMob());
     const hp = monsterHp(s);
-    const dir = this.rng() < 0.78 ? 1 : -1; // 대체로 앞쪽에 나타난다
+    // 세로로 긴 화면이라 위아래 방향을 조금 더 자주 고른다
+    const ang = this.rng() * Math.PI * 2;
     const dist = MOB_SPAWN_NEAR + this.rng() * (MOB_SPAWN_FAR - MOB_SPAWN_NEAR);
+    const ky = 1 / Math.max(0.3, FIELD_ASPECT); // 가로보다 세로로 더 멀리
+    // 화면 아래쪽은 스킬 슬롯·창 버튼이 덮으므로, 아래로는 덜 멀리 내보낸다
+    const sy = Math.sin(ang);
     return {
       hp, maxHp: hp, isBoss: false, def: this.queue.shift(),
       atk: monsterAtk(s), atkTimer: 1 + this.rng(), alive: true, stun: 0,
-      x: this.heroX + dir * dist,
-      lane: (this.rng() - 0.5) * 34, // 앞뒤로 살짝 어긋나게 서서 겹치지 않게
+      x: this.heroX + Math.cos(ang) * dist,
+      y: this.heroY + sy * dist * ky * (sy > 0 ? 0.42 : 1),
+      face: 1,
     };
+  }
+
+  // 적들이 무인 쪽으로 다가오고, 서로 겹치지 않게 밀어낸다
+  moveMobs(dt) {
+    const live = this.mons;
+    for (const m of live) {
+      if (!m.alive || m.stun > 0) continue;
+      const dx = this.heroX - m.x;
+      const dy = this.heroY - m.y;
+      const d = Math.hypot(dx, dy) || 1;
+      m.face = dx >= 0 ? 1 : -1;
+      const k = Game.viewScale(dx / d, dy / d);
+      const seen = d * k;                                   // 화면에서 보이는 거리
+      const stop = (m.isBoss ? MELEE_RANGE * 0.8 : MELEE_RANGE * 0.85);
+      if (seen > stop) {
+        const step = Math.min(MOB_SPEED * dt, (seen - stop) / k);
+        m.x += (dx / d) * step;
+        m.y += (dy / d) * step;
+      }
+    }
+    // 서로 밀어내기 — 한 점에 뭉치지 않게
+    for (let i = 0; i < live.length; i++) {
+      const a = live[i];
+      if (!a.alive) continue;
+      for (let j = i + 1; j < live.length; j++) {
+        const b = live[j];
+        if (!b.alive) continue;
+        let dx = b.x - a.x;
+        let dy = b.y - a.y;
+        let d = Math.hypot(dx, dy);
+        if (d < 0.001) { dx = (this.rng() - 0.5); dy = (this.rng() - 0.5); d = Math.hypot(dx, dy) || 1; }
+        const k = Game.viewScale(dx / d, dy / d);
+        const seen = d * k;
+        if (seen >= MOB_SEPARATION) continue;
+        const push = (MOB_SEPARATION - seen) / k / 2;
+        a.x -= (dx / d) * push; a.y -= (dy / d) * push;
+        b.x += (dx / d) * push; b.y += (dy / d) * push;
+      }
+    }
   }
 
   // 들판 유지: 쓰러진 자리는 잠시 뒤 다시 채워진다
@@ -268,9 +319,9 @@ export class Game {
     const live = this.mons.filter((m) => m.alive);
     if (!live.length) { this.mon = null; return null; }
     let best = live[0];
-    let bd = Math.abs(best.x - this.heroX);
+    let bd = this.distTo(best);
     for (const m of live) {
-      const d = Math.abs(m.x - this.heroX);
+      const d = this.distTo(m);
       if (d < bd) { best = m; bd = d; }
     }
     this.mon = best;
@@ -289,7 +340,7 @@ export class Game {
         hp, maxHp: hp, isBoss: true, def,
         atk: monsterAtk(s) * BOSS_ATK_MULT,
         atkTimer: 1.2, alive: true, stun: 0,
-        x: this.heroX + 320, lane: 0,
+        x: this.heroX + 150, y: this.heroY - 230, face: 1,
       }];
       this.mon = this.mons[0];
     } else {
@@ -315,15 +366,15 @@ export class Game {
     return out;
   }
 
-  // 광역 피해: 주 타겟에게 주고, 졸개들에게도 같은 피해를 준다
-  dealAoe(amount, kind = 'skill', crit = false) {
+  // 광역 피해: 무인 발밑을 중심으로 한 원 안의 적 전부 (탑다운 — 바닥 장판)
+  dealAoe(amount, kind = 'skill', crit = false, radius = 220) {
     const main = this.mon;
-    const others = this.mons.filter((m) => m.alive && m !== main && Math.abs(m.x - this.heroX) <= 360);
+    const others = this.mons.filter((m) => m.alive && m !== main && this.distTo(m) <= radius);
     this.dealDamage(amount, kind, crit);
     for (const a of others) {
       if (!a.alive) continue;
       a.hp -= amount;
-      this.emit('dmg', { amount, kind, crit, add: true });
+      this.emit('dmg', { amount, kind, crit, add: true, at: a });
       if (a.hp <= 0) this.killAdd(a);
     }
   }
@@ -339,7 +390,7 @@ export class Game {
     this.addExp(expPerKill(s) * st.expMul);
     this.s.stats.kills++;
     this.progress('kill');
-    this.emit('kill', { gold, isBoss: false, add: true });
+    this.emit('kill', { gold, isBoss: false, add: true, at: a });
     if (!this.s.farming) this.s.kills++;
   }
 
@@ -453,6 +504,7 @@ export class Game {
     // 들판 사냥: 적을 찾아 걸어가서 벤다
     if (this.mode === 'stage') {
       this.refillField(dt);
+      this.moveMobs(dt);
       const target = this.retarget();
       if (!target) {
         this.walking = false;
@@ -460,12 +512,17 @@ export class Game {
         return undefined;
       }
       const dx = target.x - this.heroX;
-      const dist = Math.abs(dx);
-      this.heroFacing = dx >= 0 ? 1 : -1; // 싸울 때도 상대 쪽을 본다
-      if (dist > MELEE_RANGE) {
-        const step = Math.min(HERO_SPEED * dt, dist - MELEE_RANGE);
-        this.heroX += Math.sign(dx) * step;
-        this.heroFacing = dx >= 0 ? 1 : -1;
+      const dy = target.y - this.heroY;
+      const dist = Math.hypot(dx, dy) || 1;
+      // 싸울 때도 상대 쪽을 본다
+      this.heroAngle = Math.atan2(dy, dx);
+      this.heroFacing = dx >= 0 ? 1 : -1;
+      const k = Game.viewScale(dx / dist, dy / dist);
+      const seen = dist * k; // 화면에서 보이는 거리로 사거리를 잰다
+      if (seen > MELEE_RANGE) {
+        const step = Math.min(HERO_SPEED * dt, (seen - MELEE_RANGE) / k);
+        this.heroX += (dx / dist) * step;
+        this.heroY += (dy / dist) * step;
         this.walking = true;
         this.heroHp = Math.min(st.hp, this.heroHp + st.hp * 0.08 * dt);
         this.atkTimer = Math.min(this.atkTimer, 0.25);
@@ -543,7 +600,7 @@ export class Game {
 
     // 가까이 붙은 다른 적들도 함께 때린다
     if (this.mode === 'stage') {
-      const near = this.mons.filter((m) => m.alive && m !== this.mon && Math.abs(m.x - this.heroX) <= MELEE_RANGE + 40);
+      const near = this.mons.filter((m) => m.alive && m !== this.mon && this.distTo(m) <= MELEE_RANGE + 40);
       for (const a of near) {
         if (!a.alive || a.stun > 0) { if (a.stun > 0) a.stun = Math.max(0, a.stun - dt); continue; }
         a.atkTimer -= dt;
@@ -599,8 +656,14 @@ export class Game {
     const r = this.s.rank + 1;
     const boss = trialBoss(r);
     this.beginContest('trial', TRIAL_TIME, { rank: r });
-    this.mon = { hp: boss.hp, maxHp: boss.hp, isBoss: true, def: { name: '심마(心魔)' }, trial: true, atk: boss.atk, atkTimer: 1.5, alive: true, stun: 0 };
+    this.mon = { hp: boss.hp, maxHp: boss.hp, isBoss: true, def: { name: '심마(心魔)' }, trial: true, atk: boss.atk, atkTimer: 1.5, alive: true, stun: 0, ...this.duelSpot() };
     return true;
+  }
+
+  // 겨루기류(던전·시련·결투·토벌)는 적이 처음부터 사거리 안에 서 있다.
+  // 걸어가는 시간이 생기면 제한시간 밸런스가 바뀌므로 거리를 두지 않는다.
+  duelSpot() {
+    return { x: this.heroX + MELEE_RANGE * 0.75, y: this.heroY - MELEE_RANGE * 0.5, face: 1 };
   }
 
   // ---------- 공통: 던전·시련·결투·레이드 ----------
@@ -683,6 +746,7 @@ export class Game {
     this.mon = {
       hp, maxHp: hp, isBoss, def: isBoss ? c.def.boss : this.queue.shift(),
       atk: monsterAtk(c.eq) * (isBoss ? BOSS_ATK_MULT : 1), atkTimer: 1.2, alive: true, stun: 0,
+      ...this.duelSpot(),
     };
     if (c.kills + 1 + this.queue.length > DUNGEON_MOBS) this.queue.length = Math.max(0, DUNGEON_MOBS - c.kills - 1);
     this.spawnTimer = 0;
@@ -710,6 +774,7 @@ export class Game {
       atk: opp.atk || 1, crit: Math.min(CRIT_CAP, opp.crit || 0), critDmg: opp.critDmg || 1.5,
       atkInterval: 1 / Math.max(0.2, opp.speed || 1), atkTimer: 0.6,
       petHit: opp.petHit || 0, petTimer: PET_ATTACK_INTERVAL, alive: true, stun: 0,
+      ...this.duelSpot(),
     };
     return true;
   }
@@ -743,12 +808,13 @@ export class Game {
     const lv = this.s.skills[id];
     const st = this.stats();
     if (sk.kind === 'dmg') {
+      this.emit('skillArea', { id, radius: sk.radius || 0, target: sk.target || 'single' });
       if (sk.stun) this.mon.stun = sk.stun;
       this.emit('skill', { id, target: sk.target || 'single' });
       let dmg = st.atk * sk.mult(lv);
       // 한 명만 노리는 무공은 두목에게 더 아프게 들어간다
       if (sk.bossMult && this.mon.isBoss) dmg *= sk.bossMult;
-      if (sk.target === 'all') this.dealAoe(dmg, id);
+      if (sk.target === 'all') this.dealAoe(dmg, id, false, sk.radius || 220);
       else this.dealDamage(dmg, id);
     } else if (sk.kind === 'buff') {
       this.buffs[id] = sk.dur;
@@ -1071,7 +1137,7 @@ export class Game {
     if (this.mode !== 'stage' || this.s.daily.raidTickets <= 0 || remainingHp <= 0) return false;
     this.s.daily.raidTickets--;
     this.beginContest('raid', RAID_TIME);
-    this.mon = { hp: remainingHp, maxHp, isBoss: true, isRaid: true, def: RAID_BOSS, alive: true, atk: 0, atkTimer: 99, stun: 0 };
+    this.mon = { hp: remainingHp, maxHp, isBoss: true, isRaid: true, def: RAID_BOSS, alive: true, atk: 0, atkTimer: 99, stun: 0, ...this.duelSpot() };
     return true;
   }
 

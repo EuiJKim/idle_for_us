@@ -6,12 +6,25 @@ export const KILLS_PER_STAGE = 10;
 // 한 번에 나오는 적 수(최대). 관문이 오를수록 더 몰려온다.
 // 근거: Blade Idle은 한 스테이지에 적 그룹(wavegroup)이 보통 4개씩 잡혀 있고 47초 안에 정리된다.
 export const MOB_GROUP_MAX = 5;
-// 필드 사냥: 무인이 직접 돌아다니며 적을 찾아 벤다
-export const MELEE_RANGE = 62;        // 이 거리 안에 들어와야 벨 수 있다
+// 평면 사냥: 무인이 들판을 사방으로 돌아다니며 적을 찾아 벤다.
+// 근거: Blade Idle은 카메라가 X축 90도(수직 하향) 직교 투영이고 배경 60장이 전부
+// 위에서 내려다본 바닥이다. 즉 전투는 1축이 아니라 X·Y 평면에서 일어난다.
+// (docs/BladeIdle_화면구조.md)
+// 사거리는 화면 폭의 약 1/4. Blade Idle 기준(가로 5.625유닛, 인물 약 1유닛)으로 맞췄다.
+// 이보다 좁으면 인물끼리 그림이 겹쳐서 누가 누군지 안 보인다.
+export const MELEE_RANGE = 96;        // 이 거리(화면 기준) 안에 들어와야 벨 수 있다
 export const HERO_SPEED = 185;        // 걸어가는 속도(초당)
-export const MOB_SPAWN_NEAR = 110;    // 적이 생기는 가장 가까운 거리
-export const MOB_SPAWN_FAR = 330;     // 적이 생기는 가장 먼 거리(화면 안에 보이도록)
+export const MOB_SPEED = 46;          // 적이 무인 쪽으로 다가오는 속도
+export const MOB_SPAWN_NEAR = 170;    // 적이 생기는 가장 가까운 거리
+export const MOB_SPAWN_FAR = 320;     // 적이 생기는 가장 먼 거리
 export const MOB_RESPAWN_SEC = 1.1;   // 한 명 쓰러지면 이만큼 뒤에 새로 나타난다
+export const MOB_SEPARATION = 72;     // 적끼리 이만큼(화면 기준)은 떨어져 선다
+// 화면 비율: Blade Idle은 직교 size 5 → 세로 10유닛, 가로 10×(720/1280)=5.625유닛.
+// 세로로 긴 평면이라 적이 위아래에서 더 많이 들어온다.
+export const FIELD_ASPECT = 720 / 1280;
+// 월드 Y는 화면에서 이만큼 눌러 그린다. 사거리·간격은 전부 '화면에서 보이는 거리'로
+// 재므로, 적이 위아래에 서도 좌우에 선 것과 똑같이 떨어져 보인다.
+export const FIELD_SQUASH = 0.62;
 export const mobGroupSize = (stage) => Math.min(MOB_GROUP_MAX, 1 + Math.floor(stage / 8));
 export const BOSS_TIME = 30;
 export const SPAWN_DELAY = 0.45;
@@ -206,21 +219,21 @@ export const RELIC_DIG_COST = 10; // 신물 조각
 
 // ---------- 무공 ----------
 export const SKILLS = [
-  { id: 'slash', name: '선풍검', hz: '旋風劍', icon: '旋', unlock: 1, cd: 6, kind: 'dmg', target: 'all',
+  { id: 'slash', name: '선풍검', hz: '旋風劍', icon: '旋', unlock: 1, cd: 6, kind: 'dmg', target: 'all', radius: 150,
     mult: (l) => 4 + l * 0.6, desc: (m) => `적 전체에게 공격력의 ${m.toFixed(1)}배 검기` },
   { id: 'rage', name: '혈마해방', hz: '血魔解放', icon: '血', unlock: 5, cd: 25, dur: 8, kind: 'buff',
     mult: (l) => 1.5 + l * 0.06, desc: (m) => `8초간 공격력 ${m.toFixed(2)}배` },
   { id: 'heal', name: '운기조식', hz: '運氣調息', icon: '息', unlock: 12, cd: 18, kind: 'heal',
     mult: (l) => Math.min(1, 0.3 + l * 0.02), desc: (m) => `체력 ${Math.round(m * 100)}% 회복` },
-  { id: 'thunder', name: '뇌정검', hz: '雷霆劍', icon: '雷', unlock: 25, cd: 15, kind: 'dmg', target: 'all',
+  { id: 'thunder', name: '뇌정검', hz: '雷霆劍', icon: '雷', unlock: 25, cd: 15, kind: 'dmg', target: 'all', radius: 210,
     mult: (l) => 12 + l * 1.8, desc: (m) => `적 전체에게 공격력의 ${m.toFixed(1)}배 낙뢰` },
   { id: 'gale', name: '질풍보', hz: '疾風步', icon: '疾', unlock: 40, cd: 30, dur: 10, kind: 'buff',
     mult: (l) => 1.5 + l * 0.03, desc: (m) => `10초간 공격 속도 ${m.toFixed(2)}배 (한계 돌파)` },
   { id: 'midas', name: '천금수', hz: '千金手', icon: '金', unlock: 60, cd: 45, dur: 15, kind: 'buff',
     mult: (l) => 2 + l * 0.1, desc: (m) => `15초간 은자 ${m.toFixed(1)}배` },
-  { id: 'frost', name: '빙백신장', hz: '氷魄神掌', icon: '氷', unlock: 80, cd: 20, kind: 'dmg', stun: 3, target: 'single', bossMult: 1.8,
+  { id: 'frost', name: '빙백신장', hz: '氷魄神掌', icon: '氷', unlock: 80, cd: 20, kind: 'dmg', stun: 3, target: 'single', bossMult: 1.8, radius: 70,
     mult: (l) => 8 + l * 1.2, desc: (m) => `한 명에게 공격력의 ${m.toFixed(1)}배 + 3초 빙결 · 두목에겐 1.8배` },
-  { id: 'meteor', name: '만검귀종', hz: '萬劍歸宗', icon: '萬', unlock: 100, cd: 40, kind: 'dmg', target: 'all',
+  { id: 'meteor', name: '만검귀종', hz: '萬劍歸宗', icon: '萬', unlock: 100, cd: 40, kind: 'dmg', target: 'all', radius: 300,
     mult: (l) => 40 + l * 6, desc: (m) => `적 전체에게 검 비 · 공격력의 ${m.toFixed(0)}배` },
 ];
 export const SKILL_SLOTS = 4;
