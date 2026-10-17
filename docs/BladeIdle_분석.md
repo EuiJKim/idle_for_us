@@ -90,7 +90,31 @@
 5. **지역 티어 재활용**: 8지역 × (일반/혈사/마교) 티어로 늘리면 에셋 추가 없이 구간 3배
 6. 적 ATK가 HP보다 빨리 오르는 비대칭 — 체력 관리 긴장감 유지
 
+## 추가 추출 결과 (2026-10-17, Addressables·IL2CPP 메타데이터)
+
+**수치 테이블은 APK에 없다.** Addressables 번들 342개 중 341개가 언어 파일이고,
+게임 데이터 번들은 7KB짜리 하나뿐이다. 즉 장비·스킬·보상 수치는 전부 서버에서 받는다.
+APK에 들어 있던 건 StageTable(스테이지 밸런스)뿐이고, 그건 이미 뽑았다.
+
+대신 `global-metadata.dat`(IL2CPP)에서 **클래스 이름 2,492개 / 데이터 테이블 345종**을 확보했다.
+수치는 없지만 "이 게임이 어떤 시스템을 갖췄는지"는 전부 드러난다.
+
+### 성장 축이 15개가 넘는다
+
+| 축 | 관련 테이블 |
+|---|---|
+| 장비 | ItemTable, ItemEnchantTable, ItemAccEnchantTable, ItemSlotEnchantTable, ItemTreasureEnchantTable |
+| 펫 | PetTable, PetTypeTable, **PetIntimacyTable(친밀도)**, **PetEngraveLevelTable(각인)**, PetSpecialAbilTable |
+| 유물·고대 | ArtifactTable, ArtifactLevelTable, AncientRuneEnchantTable, OopartEnchantTable |
+| 후반 전용 | EternalSealTable(영원의 인장), EgoUpgradeTable(에고), ConstellationTable(별자리), DoppelgangerTable(분신), MonsterCardTable, EmblemTable, PatternTable, CoreCardTable, FigureResonanceStoneTable |
+| 부가 콘텐츠 | MineTable(광산), AlchemyTable(연금술), FortuneTellingTable(점술), LibraryTable(도서관) |
+| 운영·과금 | AttendanceTable(출석), AdBuffTable(광고 버프), EventBladePassTable(시즌 패스), GoblinVipShopTable |
+
+우리 게임의 성장 축은 7개(레벨·경지·무공·병기·영수·신물·회귀)다. 숫자로는 절반이지만
+소규모 프로젝트에는 이 정도가 맞다. 다만 **친밀도·각인처럼 "오래 쓸수록 강해지는" 장치**와
+**출석·광고 버프 같은 복귀 장치**는 우리에게 없고, 넣는 비용도 작다.
+
 ## 아직 안 본 것
 
-- 보상 실수치(rewardrepeat는 ID) · 캐릭터/장비/스킬 테이블 → Unity Addressables(`assets/bin/Data` 1.17GB, `catalog.json`)에 있음. 필요하면 UnityPy로 추가 추출 가능
+- 보상·장비·스킬 실수치 → **서버에서 받으므로 APK에서는 못 얻는다**(위 추가 추출 결과 참조)
 - IL2CPP 네이티브 로직(데미지 계산식) → Ghidra/IDA 필요. 수치표로 역산 가능해서 우선순위 낮음

@@ -310,7 +310,35 @@ export const ZONES = [
 ];
 export const RAID_BOSS = F('혈마(血魔)', { robe: '#1a0505', trim: '#ef4444', head: 'topknot', hair: '#7f1d1d', weapon: 'saber', aura: '#dc2626', eyes: '#fca5a5', scale: 2.1 });
 
-export const zoneOf = (stage) => ZONES[Math.floor((stage - 1) / 10) % ZONES.length];
+// 지역 티어 — 8지역(80관문)을 한 바퀴 돌 때마다 같은 땅이 더 험해진다.
+// 근거: Blade Idle은 배경 8종을 S·T 티어로 재활용해 23개 구간을 만든다(에셋 추가 없이 볼륨 3배).
+export const ZONE_TIERS = [
+  { prefix: '', sun: null },
+  { prefix: '흉지 ', sun: '#7f1d1d' },
+  { prefix: '마경 ', sun: '#4c1d95' },
+  { prefix: '구천 ', sun: '#0c4a6e' },
+  { prefix: '무간 ', sun: '#18181b' },
+];
+export const ZONE_CYCLE = 10 * ZONES.length; // 한 바퀴 = 80관문
+export const zoneTierOf = (stage) => Math.min(Math.floor((stage - 1) / ZONE_CYCLE), ZONE_TIERS.length - 1);
+const _zoneCache = new Map();
+export const zoneOf = (stage) => {
+  const i = Math.floor((stage - 1) / 10) % ZONES.length;
+  const t = zoneTierOf(stage);
+  const key = i * 100 + t;
+  let z = _zoneCache.get(key);
+  if (!z) {
+    const base = ZONES[i];
+    const tier = ZONE_TIERS[t];
+    z = t === 0 ? base : { ...base, name: tier.prefix + base.name, sun: tier.sun || base.sun, tier: t };
+    _zoneCache.set(key, z);
+  }
+  return z;
+};
+
+// 관문 하나를 깨는 데 목표로 삼는 시간(초). 밸런스를 고칠 때 이 값에서 크게 벗어나는지 본다.
+// 근거: Blade Idle은 메인 스테이지 19,010개가 전부 클리어 시간 47초로 고정돼 있다.
+export const TARGET_STAGE_SEC = 45;
 // 밸런스 근거: Blade Idle 1.82.0 분석 (2026-10-17)
 // - 적 ATK가 HP보다 2배 빠르게 증가 (2%/관문 vs 1%/관문) → 체력 관리 압박
 // - 초반 15관문은 ATK 고정, HP만 증가 → 초반 이탈 방지
