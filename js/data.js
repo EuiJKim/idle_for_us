@@ -1,6 +1,6 @@
 // 게임 수치·세계관 테이블. 모든 공식은 여기에서만 정의한다. (무협 회귀 테마)
 
-export const SAVE_VERSION = 3;
+export const SAVE_VERSION = 4;
 export const OFFLINE_CAP_SEC = 12 * 3600;
 export const KILLS_PER_STAGE = 10;
 export const BOSS_TIME = 30;
@@ -147,6 +147,38 @@ export const petFoodCost = (lv) => 10 * lv;
 export const PET_DUPLICATE_FOOD = (grade) => 15 * (grade + 1);
 export const PET_ATTACK_INTERVAL = 1.2;
 export const petDamageMult = (pet, lv) => pet.atk * (1 + 0.1 * (lv - 1));
+
+// ---------- 영수 교감 / 각인 ----------
+// 근거: Blade Idle은 펫에 친밀도(PetIntimacyTable)와 각인(PetEngraveLevelTable)을 따로 두어
+// "오래 데리고 다닌 것"과 "한 번 키워둔 것"을 모두 보상한다. 그래서 모든 펫을 키울 이유가 생긴다.
+export const BOND_PER_SEC = 1;                     // 데리고 싸우는 1초당 교감
+export const BOND_MAX = 10;                        // 교감 최고 단계
+export const BOND_PER_LV = 0.12;                   // 교감 한 단계마다 그 영수의 고유 효과 +12%
+export const bondNeed = (lv) => Math.round(900 * Math.pow(1.55, lv)); // 다음 단계까지 필요한 교감
+export const bondLevel = (bond) => {
+  let lv = 0; let rest = bond || 0;
+  while (lv < BOND_MAX && rest >= bondNeed(lv)) { rest -= bondNeed(lv); lv += 1; }
+  return lv;
+};
+export const bondProgress = (bond) => {
+  let lv = 0; let rest = bond || 0;
+  while (lv < BOND_MAX && rest >= bondNeed(lv)) { rest -= bondNeed(lv); lv += 1; }
+  return lv >= BOND_MAX ? { lv, cur: 0, need: 0 } : { lv, cur: Math.floor(rest), need: bondNeed(lv) };
+};
+// ---------- 출석(연공 일지) / 기연 ----------
+// 근거: Blade Idle은 AttendanceTable(출석)과 AdBuffTable(광고 버프)로 매일 들어올 이유를 만든다.
+export const ATTEND_CYCLE = 7;              // 7일 주기
+export const attendReward = (day) => {      // day: 1~7
+  if (day >= ATTEND_CYCLE) return { gems: 500, books: 5, stones: 20, food: 300 };
+  if (day % 3 === 0) return { gems: 200, stones: 10, food: 150 };
+  return { gems: 100, food: 80 };
+};
+export const BOOST_PER_DAY = 3;             // 기연은 하루 3번
+export const BOOST_SEC = 1800;              // 30분 동안
+export const BOOST_MULT = 2;                // 공격력 2배
+
+export const ENGRAVE_MIN_LV = 3;                   // 이 교감 단계부터 각인할 수 있다
+export const engraveCost = (lv) => 300 * lv;       // 각인에 드는 영수 먹이
 export const OWN_STAT_NAMES = { atk: '공격력', hp: '체력', gold: '은자', exp: '경험치', critDmg: '치명 피해', boss: '두목 피해' };
 
 // ---------- 신물 ----------

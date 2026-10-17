@@ -6,6 +6,8 @@ import {
   expPerKill, expToNext, SP_PER_LEVEL, SP_RESET_GEMS, SP_STATS,
   RANKS, RANK_MULT, TRIAL_TIME, trialBoss,
   PETS, PET_EGG_COST, PET_GRADE_WEIGHT, petFoodCost, PET_DUPLICATE_FOOD, PET_ATTACK_INTERVAL, petDamageMult,
+  BOND_PER_SEC, BOND_PER_LV, BOND_MAX, bondLevel, ENGRAVE_MIN_LV, engraveCost,
+  ATTEND_CYCLE, attendReward, BOOST_PER_DAY, BOOST_SEC, BOOST_MULT,
   RELICS, RELIC_DIG_COST,
   SKILLS, SKILL_SLOTS, skillBookCost,
   DUNGEONS, DUNGEON_KEYS, DUNGEON_TIME, DUNGEON_MOBS, dungeonStage, dungeonReward,
@@ -29,6 +31,7 @@ const freshDaily = (date) => ({
   missions: {},
   claimed: {},
   allClaimed: false,
+  boostUsed: 0,
 });
 
 export function newSave(now = Date.now()) {
@@ -61,6 +64,9 @@ export function newSave(now = Date.now()) {
     autoSkill: true,
     pets: {},
     pet: null,
+    attend: { last: '', streak: 0, claimed: false },  // 연공 일지(출석)
+    bond: {},      // 영수별 교감 누적(초)
+    engrave: {},   // 영수별 각인된 교감 단계
     relics: {},
     dungeons: Object.fromEntries(DUNGEONS.map((d) => [d.id, 0])), // 클리어한 최고 단계
     milestone: 0,
@@ -94,6 +100,9 @@ export function migrate(raw, now = Date.now()) {
   while (s.skillSlots.length < SKILL_SLOTS) s.skillSlots.push(null);
   s.bestStage = Math.max(raw.bestStage || 1, s.maxStage || 1);
   s.pets = { ...(raw.pets || {}) };
+  s.attend = { ...base.attend, ...(raw.attend || {}) };
+  s.bond = { ...(raw.bond || {}) };
+  s.engrave = { ...(raw.engrave || {}) };
   s.relics = { ...(raw.relics || {}) };
   s.v = SAVE_VERSION;
   return s;
@@ -145,7 +154,12 @@ export class Game {
     for (const [k, def] of Object.entries(SP_STATS)) m[k] += (this.s.spAlloc[k] || 0) * def.per;
     for (const pet of PETS) {
       const lv = this.s.pets[pet.id];
-      if (lv) m[pet.own[0]] += pet.own[1] * lv;
+      if (!lv) continue;
+      // 데리고 다니는 중이면 지금 교감 단계, 아니면 각인해 둔 단계만큼 고유 효과가 오른다
+      const bondLv = this.s.pet === pet.id
+        ? Math.max(bondLevel(this.s.bond?.[pet.id] || 0), this.s.engrave?.[pet.id] || 0)
+        : (this.s.engrave?.[pet.id] || 0);
+      m[pet.own[0]] += pet.own[1] * lv * (1 + BOND_PER_LV * bondLv);
     }
     for (const r of RELICS) {
       const lv = this.s.relics[r.id];
@@ -169,7 +183,8 @@ export class Game {
     const guild = 1 + guildAtkBonus(this.guildExp);
     const rank = this.rankMult();
     const past = this.regressMult();
-    const atk = UPGRADES.atk.value(u.atk) * this.equipMult('weapon') * (1 + m.atk) * rank * guild * rage * past;
+    const boost = (b.boost || 0) > 0 ? BOOST_MULT : 1;
+    const atk = UPGRADES.atk.value(u.atk) * this.equipMult('weapon') * (1 + m.atk) * rank * guild * rage * past * boost;
     const hp = UPGRADES.hp.value(u.hp) * this.equipMult('armor') * (1 + m.hp) * rank * past;
     const crit = Math.min(CRIT_CAP, UPGRADES.crit.value(u.crit));
     const critDmg = UPGRADES.critDmg.value(u.critDmg) + m.critDmg;
@@ -312,6 +327,10 @@ export class Game {
   }
 
   tick(dt) {
+    if (this.s.pet && this.mon?.alive) {
+      const b = this.s.bond || (this.s.bond = {});
+      b[this.s.pet] = (b[this.s.pet] || 0) + BOND_PER_SEC * dt;
+    }
     for (const k in this.buffs) if (this.buffs[k] > 0) this.buffs[k] = Math.max(0, this.buffs[k] - dt);
     for (const k in this.cd) this.cd[k] = Math.max(0, this.cd[k] - dt);
     const st = this.stats();
@@ -739,6 +758,28 @@ export class Game {
     return true;
   }
 
+  // 교감 단계 (데리고 싸운 시간으로 오른다)
+  bondLv(id) { return bondLevel(this.s.bond?.[id] || 0); }
+
+  // 각인하면 지금 교감 단계가 영구히 새겨져, 데리고 다니지 않아도 그만큼 효과가 남는다
+  canEngrave(id) {
+    if (!this.s.pets[id]) return false;
+    const lv = this.bondLv(id);
+    if (lv < ENGRAVE_MIN_LV) return false;
+    if ((this.s.engrave?.[id] || 0) >= lv) return false;
+    return this.s.food >= engraveCost(lv);
+  }
+
+  engravePet(id) {
+    if (!this.canEngrave(id)) return false;
+    const lv = this.bondLv(id);
+    this.s.food -= engraveCost(lv);
+    if (!this.s.engrave) this.s.engrave = {};
+    this.s.engrave[id] = lv;
+    this.emit('engrave', { id, lv });
+    return true;
+  }
+
   // ---------- 유물 ----------
   digRelic(times = 1) {
     const out = [];
@@ -832,9 +873,44 @@ export class Game {
   checkDaily(now = Date.now()) {
     const today = dayKey(now);
     if (this.s.daily.date === today) return null;
+    const prev = this.s.daily.date;
     this.s.daily = freshDaily(today);
     this.s.gems += DAILY_GEMS;
+    // 연공 일지: 어제 받았으면 이어지고, 하루라도 건너뛰면 처음부터
+    const a = this.s.attend;
+    const yesterday = dayKey(now - 86400000);
+    if (a.last !== today) {
+      a.streak = a.last === yesterday ? a.streak : 0;
+      a.claimed = false;
+    }
+    void prev;
     return { gems: DAILY_GEMS };
+  }
+
+  // 연공 일지: 오늘 몇 번째 날인지(1~7)
+  attendDay() { return (this.s.attend.streak % ATTEND_CYCLE) + 1; }
+  canAttend() { return !this.s.attend.claimed; }
+
+  claimAttend(now = Date.now()) {
+    if (!this.canAttend()) return null;
+    const day = this.attendDay();
+    const r = attendReward(day);
+    this.grant(r);
+    this.s.attend.claimed = true;
+    this.s.attend.streak += 1;
+    this.s.attend.last = dayKey(now);
+    this.emit('attend', { day, reward: r });
+    return { day, reward: r };
+  }
+
+  // 기연: 하루 몇 번, 일정 시간 공격력이 오른다
+  boostLeft() { return Math.max(0, BOOST_PER_DAY - (this.s.daily.boostUsed || 0)); }
+  takeBoost() {
+    if (this.boostLeft() <= 0) return false;
+    this.s.daily.boostUsed = (this.s.daily.boostUsed || 0) + 1;
+    this.buffs.boost = Math.max(this.buffs.boost || 0, BOOST_SEC);
+    this.emit('boost', { sec: BOOST_SEC });
+    return true;
   }
 
   // ---------- 레이드 ----------

@@ -1,5 +1,6 @@
 // 동료 탭: 영수 / 신물
-import { PETS, GRADES, PET_EGG_COST, OWN_STAT_NAMES, PET_ATTACK_INTERVAL, petDamageMult, RELICS, RELIC_DIG_COST } from '../data.js';
+import { PETS, GRADES, PET_EGG_COST, OWN_STAT_NAMES, PET_ATTACK_INTERVAL, petDamageMult, RELICS, RELIC_DIG_COST,
+  BOND_PER_LV, BOND_MAX, bondProgress, ENGRAVE_MIN_LV, engraveCost } from '../data.js';
 import { fmt, pct } from '../fmt.js';
 import { h, toast, openModal, closeModal, subTabs } from './common.js';
 
@@ -13,7 +14,7 @@ function petView(app) {
     h('div', { class: 'card' },
       h('h3', {}, '🥚 영수 부화', h('small', {}, '중복이면 먹이로 바뀌어요')),
       h('div', { class: 'btn-row' }, b1, b10),
-      h('p', { class: 'muted', style: 'margin:8px 0 0' }, '草 영초 ', food, '개 · 짐승의 숲 비경에서 얻어요. 장착한 영수이 함께 싸우고, 가진 영수은 모두 보유 효과를 줘요.')));
+      h('p', { class: 'muted', style: 'margin:8px 0 0' }, '草 영초 ', food, '개 · 짐승의 숲 비경에서 얻어요. 데려간 영수가 함께 싸우고, 가진 영수는 모두 보유 효과를 줘요. 데리고 다니면 교감이 쌓여 그 영수의 효과가 커지고, 각인하면 데려가지 않아도 그 효과가 남아요.')));
 
   for (const pet of PETS) {
     const lv = h('small');
@@ -21,10 +22,14 @@ function petView(app) {
     const lvBtn = h('button', { class: 'buy', onclick: () => { if (game.levelPet(pet.id, 1)) app.refresh(); } });
     const eqBtn = h('button', { class: 'btn', style: 'padding:6px 8px;font-size:12px', onclick: () => { game.equipPet(pet.id); app.refresh(); } });
     const icon = h('div', { class: 'ico pet-ico' }, pet.emoji);
-    rows[pet.id] = { lv, desc, lvBtn, eqBtn, icon, row: null };
+    const bond = h('div', { class: 'desc', style: 'margin-top:4px' });
+    const engBtn = h('button', { class: 'btn', style: 'padding:6px 8px;font-size:12px', onclick: () => {
+      if (game.engravePet(pet.id)) { toast(`${pet.name} 각인 완료`); app.refresh(); } else toast('각인 조건이 안 돼요');
+    } });
+    rows[pet.id] = { lv, desc, lvBtn, eqBtn, icon, bond, engBtn, row: null };
     rows[pet.id].row = h('div', { class: 'row' }, icon,
-      h('div', { class: 'info' }, h('div', { class: 'name', style: `color:${GRADES[pet.grade].color}` }, pet.name, lv), desc),
-      h('div', { style: 'display:flex;flex-direction:column;gap:6px' }, lvBtn, eqBtn));
+      h('div', { class: 'info' }, h('div', { class: 'name', style: `color:${GRADES[pet.grade].color}` }, pet.name, lv), desc, bond),
+      h('div', { style: 'display:flex;flex-direction:column;gap:6px' }, lvBtn, eqBtn, engBtn));
     root.append(rows[pet.id].row);
   }
 
@@ -62,6 +67,32 @@ function petView(app) {
       r.lvBtn.disabled = !owned || game.s.food < game.petLevelCost(pet.id);
       r.eqBtn.textContent = game.s.pet === pet.id ? '함께하는 중' : '데려가기';
       r.eqBtn.disabled = !owned || game.s.pet === pet.id;
+
+      // 교감 / 각인
+      const bp = bondProgress(game.s.bond?.[pet.id] || 0);
+      const eng = game.s.engrave?.[pet.id] || 0;
+      const applied = game.s.pet === pet.id ? Math.max(bp.lv, eng) : eng;
+      if (!owned) {
+        r.bond.textContent = '';
+        r.engBtn.style.display = 'none';
+      } else {
+        const gauge = bp.lv >= BOND_MAX ? '교감 최고 단계' : `${fmt(bp.cur)} / ${fmt(bp.need)}`;
+        r.bond.innerHTML = `교감 <b>${bp.lv}단계</b> <span class="muted">${gauge}</span>`
+          + (eng ? ` · 각인 <b>${eng}단계</b>` : '')
+          + `<br>지금 적용: 고유 효과 <b>+${pct(BOND_PER_LV * applied)}</b>`;
+        r.engBtn.style.display = '';
+        const cost = engraveCost(bp.lv);
+        if (bp.lv < ENGRAVE_MIN_LV) {
+          r.engBtn.textContent = `각인 ${ENGRAVE_MIN_LV}단계부터`;
+          r.engBtn.disabled = true;
+        } else if (eng >= bp.lv) {
+          r.engBtn.textContent = '각인 완료';
+          r.engBtn.disabled = true;
+        } else {
+          r.engBtn.textContent = `각인 草${fmt(cost)}`;
+          r.engBtn.disabled = game.s.food < cost;
+        }
+      }
     }
   }
   return { root, update };
