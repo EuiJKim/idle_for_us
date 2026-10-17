@@ -3,6 +3,10 @@
 export const SAVE_VERSION = 4;
 export const OFFLINE_CAP_SEC = 12 * 3600;
 export const KILLS_PER_STAGE = 10;
+// 한 번에 나오는 적 수(최대). 관문이 오를수록 더 몰려온다.
+// 근거: Blade Idle은 한 스테이지에 적 그룹(wavegroup)이 보통 4개씩 잡혀 있고 47초 안에 정리된다.
+export const MOB_GROUP_MAX = 4;
+export const mobGroupSize = (stage) => Math.min(MOB_GROUP_MAX, 1 + Math.floor(stage / 8));
 export const BOSS_TIME = 30;
 export const SPAWN_DELAY = 0.45;
 export const RAID_TIME = 30;
@@ -196,22 +200,22 @@ export const RELIC_DIG_COST = 10; // 신물 조각
 
 // ---------- 무공 ----------
 export const SKILLS = [
-  { id: 'slash', name: '선풍검', hz: '旋風劍', icon: '旋', unlock: 1, cd: 6, kind: 'dmg',
-    mult: (l) => 4 + l * 0.6, desc: (m) => `공격력의 ${m.toFixed(1)}배 검기` },
+  { id: 'slash', name: '선풍검', hz: '旋風劍', icon: '旋', unlock: 1, cd: 6, kind: 'dmg', target: 'all',
+    mult: (l) => 4 + l * 0.6, desc: (m) => `적 전체에게 공격력의 ${m.toFixed(1)}배 검기` },
   { id: 'rage', name: '혈마해방', hz: '血魔解放', icon: '血', unlock: 5, cd: 25, dur: 8, kind: 'buff',
     mult: (l) => 1.5 + l * 0.06, desc: (m) => `8초간 공격력 ${m.toFixed(2)}배` },
   { id: 'heal', name: '운기조식', hz: '運氣調息', icon: '息', unlock: 12, cd: 18, kind: 'heal',
     mult: (l) => Math.min(1, 0.3 + l * 0.02), desc: (m) => `체력 ${Math.round(m * 100)}% 회복` },
-  { id: 'thunder', name: '뇌정검', hz: '雷霆劍', icon: '雷', unlock: 25, cd: 15, kind: 'dmg',
-    mult: (l) => 12 + l * 1.8, desc: (m) => `공격력의 ${m.toFixed(1)}배 낙뢰` },
+  { id: 'thunder', name: '뇌정검', hz: '雷霆劍', icon: '雷', unlock: 25, cd: 15, kind: 'dmg', target: 'all',
+    mult: (l) => 12 + l * 1.8, desc: (m) => `적 전체에게 공격력의 ${m.toFixed(1)}배 낙뢰` },
   { id: 'gale', name: '질풍보', hz: '疾風步', icon: '疾', unlock: 40, cd: 30, dur: 10, kind: 'buff',
     mult: (l) => 1.5 + l * 0.03, desc: (m) => `10초간 공격 속도 ${m.toFixed(2)}배 (한계 돌파)` },
   { id: 'midas', name: '천금수', hz: '千金手', icon: '金', unlock: 60, cd: 45, dur: 15, kind: 'buff',
     mult: (l) => 2 + l * 0.1, desc: (m) => `15초간 은자 ${m.toFixed(1)}배` },
-  { id: 'frost', name: '빙백신장', hz: '氷魄神掌', icon: '氷', unlock: 80, cd: 20, kind: 'dmg', stun: 3,
-    mult: (l) => 8 + l * 1.2, desc: (m) => `공격력의 ${m.toFixed(1)}배 장력 + 3초 빙결` },
-  { id: 'meteor', name: '만검귀종', hz: '萬劍歸宗', icon: '萬', unlock: 100, cd: 40, kind: 'dmg',
-    mult: (l) => 40 + l * 6, desc: (m) => `하늘에서 검 비 · 공격력의 ${m.toFixed(0)}배` },
+  { id: 'frost', name: '빙백신장', hz: '氷魄神掌', icon: '氷', unlock: 80, cd: 20, kind: 'dmg', stun: 3, target: 'single', bossMult: 1.8,
+    mult: (l) => 8 + l * 1.2, desc: (m) => `한 명에게 공격력의 ${m.toFixed(1)}배 + 3초 빙결 · 두목에겐 1.8배` },
+  { id: 'meteor', name: '만검귀종', hz: '萬劍歸宗', icon: '萬', unlock: 100, cd: 40, kind: 'dmg', target: 'all',
+    mult: (l) => 40 + l * 6, desc: (m) => `적 전체에게 검 비 · 공격력의 ${m.toFixed(0)}배` },
 ];
 export const SKILL_SLOTS = 4;
 export const skillBookCost = (l) => Math.ceil(2 * Math.pow(1.15, l - 1));

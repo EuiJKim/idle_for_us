@@ -7,7 +7,7 @@ import {
   RANKS, RANK_MULT, TRIAL_TIME, trialBoss,
   PETS, PET_EGG_COST, PET_GRADE_WEIGHT, petFoodCost, PET_DUPLICATE_FOOD, PET_ATTACK_INTERVAL, petDamageMult,
   BOND_PER_SEC, BOND_PER_LV, BOND_MAX, bondLevel, ENGRAVE_MIN_LV, engraveCost,
-  ATTEND_CYCLE, attendReward, BOOST_PER_DAY, BOOST_SEC, BOOST_MULT,
+  ATTEND_CYCLE, attendReward, BOOST_PER_DAY, BOOST_SEC, BOOST_MULT, mobGroupSize,
   RELICS, RELIC_DIG_COST,
   SKILLS, SKILL_SLOTS, skillBookCost,
   DUNGEONS, DUNGEON_KEYS, DUNGEON_TIME, DUNGEON_MOBS, dungeonStage, dungeonReward,
@@ -120,6 +120,7 @@ export class Game {
     this.cd = Object.fromEntries(SKILLS.map((s) => [s.id, 1.5]));
     this.rng = Math.random;
     this.queue = [];
+    this.adds = [];   // 주 타겟과 함께 몰려온 졸개들
     this.petTimer = PET_ATTACK_INTERVAL;
     this.atkTimer = 0.3;
     this.heroHp = this.stats().hp;
@@ -234,12 +235,60 @@ export class Game {
       atk: monsterAtk(s) * (isBoss ? BOSS_ATK_MULT : 1),
       atkTimer: 1.2, alive: true, stun: 0,
     };
+    // 두목은 혼자 나오고, 평소에는 여럿이 몰려온다
+    this.adds = [];
+    if (!isBoss) {
+      const extra = mobGroupSize(s) - 1;
+      for (let i = 0; i < extra; i++) {
+        this.fillQueue(() => this.pickMob());
+        const h = monsterHp(s);
+        this.adds.push({
+          hp: h, maxHp: h, isBoss: false, def: this.queue.shift(),
+          atk: monsterAtk(s), atkTimer: 1.2 + 0.25 * (i + 1), alive: true, stun: 0, add: true,
+        });
+      }
+    }
     this.bossTimer = isBoss ? this.stats().bossTime : 0;
     this.bossTimeMax = this.bossTimer;
     this.spawnTimer = 0;
     this.atkTimer = Math.min(this.atkTimer, 0.3);
     this.fillQueue(() => this.pickMob());
     this.emit('spawn', { isBoss });
+  }
+
+  // 살아 있는 적 전부(주 타겟 + 졸개)
+  liveMons() {
+    const out = [];
+    if (this.mon?.alive) out.push(this.mon);
+    for (const a of this.adds) if (a.alive) out.push(a);
+    return out;
+  }
+
+  // 광역 피해: 주 타겟에게 주고, 졸개들에게도 같은 피해를 준다
+  dealAoe(amount, kind = 'skill', crit = false) {
+    const adds = this.adds.filter((a) => a.alive);
+    this.dealDamage(amount, kind, crit);
+    for (const a of adds) {
+      if (!a.alive) continue;
+      a.hp -= amount;
+      this.emit('dmg', { amount, kind, crit, add: true });
+      if (a.hp <= 0) this.killAdd(a);
+    }
+  }
+
+  // 졸개 처치: 보상과 관문 진행만 처리한다
+  killAdd(a) {
+    a.alive = false;
+    a.hp = 0;
+    const s = this.s.stage;
+    const st = this.stats();
+    const gold = monsterGold(s) * st.goldMul;
+    this.addGold(gold);
+    this.addExp(expPerKill(s) * st.expMul);
+    this.s.stats.kills++;
+    this.progress('kill');
+    this.emit('kill', { gold, isBoss: false, add: true });
+    if (!this.s.farming) this.s.kills++;
   }
 
   dealDamage(amount, kind = 'hit', crit = false) {
@@ -299,9 +348,22 @@ export class Game {
     } else if (!this.s.farming) {
       this.s.kills++;
     }
+    // 아직 졸개가 남아 있으면 바로 이어서 싸운다
+    if (this.mode === 'stage' && !m.isBoss) {
+      const next = this.adds.find((a) => a.alive);
+      if (next) {
+        this.adds = this.adds.filter((a) => a !== next);
+        next.add = false;
+        this.mon = next;
+        this.spawnTimer = 0;
+        return undefined;
+      }
+    }
     this.spawnTimer = SPAWN_DELAY;
     return undefined;
   }
+
+  clearAdds() { this.adds = []; }
 
   heroDied() {
     if (this.mode === 'dungeon' || this.mode === 'trial') return this.endContest('fail');
@@ -408,6 +470,20 @@ export class Game {
       }
       if (this.heroHp <= 0) return this.heroDied();
     }
+
+    // 졸개들도 함께 때린다 (주 타겟보다 약하게)
+    if (this.mode === 'stage' && this.adds.length) {
+      for (const a of this.adds) {
+        if (!a.alive || a.stun > 0) { if (a.stun > 0) a.stun = Math.max(0, a.stun - dt); continue; }
+        a.atkTimer -= dt;
+        while (a.atkTimer <= 0 && this.heroHp > 0) {
+          a.atkTimer += 1.6;
+          this.heroHp -= a.atk * 0.6;
+          this.emit('heroHit', { amount: a.atk * 0.6 });
+        }
+      }
+      if (this.heroHp <= 0) return this.heroDied();
+    }
     if (this.mode !== 'pvp') this.heroHp = Math.min(st.hp, this.heroHp + st.hp * 0.02 * dt);
     return undefined;
   }
@@ -465,6 +541,7 @@ export class Game {
     this.atkTimer = 0.4;
     this.petTimer = PET_ATTACK_INTERVAL;
     this.queue = [];
+    this.adds = [];
     this.emit('contestStart', { mode });
   }
 
@@ -506,6 +583,7 @@ export class Game {
     this.contest = null;
     this.raid = null;
     this.queue = [];
+    this.adds = [];
     this.heroHp = this.stats().hp;
     this.emit('contestEnd', out);
     if (out.mode === 'raid') this.emit('raidEnd', { damage: out.damage });
@@ -595,8 +673,12 @@ export class Game {
     const st = this.stats();
     if (sk.kind === 'dmg') {
       if (sk.stun) this.mon.stun = sk.stun;
-      this.emit('skill', { id });
-      this.dealDamage(st.atk * sk.mult(lv), id);
+      this.emit('skill', { id, target: sk.target || 'single' });
+      let dmg = st.atk * sk.mult(lv);
+      // 한 명만 노리는 무공은 두목에게 더 아프게 들어간다
+      if (sk.bossMult && this.mon.isBoss) dmg *= sk.bossMult;
+      if (sk.target === 'all') this.dealAoe(dmg, id);
+      else this.dealDamage(dmg, id);
     } else if (sk.kind === 'buff') {
       this.buffs[id] = sk.dur;
       this.emit('skill', { id });
@@ -951,6 +1033,7 @@ export class Game {
     for (const k of Object.keys(s.spAlloc)) s.spAlloc[k] = 0;
     this.buffs = { rage: 0, gale: 0, midas: 0 };
     this.queue = [];
+    this.adds = [];
     this.heroHp = this.stats().hp;
     this.emit('regress', { gain, count: s.regress.count });
     this.spawnStage();

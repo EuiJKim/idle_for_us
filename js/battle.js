@@ -189,6 +189,7 @@ export class BattleView {
     const scene = this.scene(game);
     this.drawBackground(scene);
     this.drawQueue(game);
+    this.drawAdds(game, dt);
     this.drawMonster(game, dt);
     this.drawHeroUnit(game, moving);
     this.drawProjectiles(dt);
@@ -480,7 +481,29 @@ export class BattleView {
   }
 
   // ---------- 적 ----------
+  // 함께 몰려온 졸개들 — 주 타겟 뒤쪽으로 줄지어 선다
+  drawAdds(game, dt) {
+    const adds = game.adds || [];
+    if (!adds.length) return;
+    const { ctx } = this;
+    adds.forEach((a, i) => {
+      if (!a.alive) return;
+      const x = this.monX + 70 + i * 62;
+      const def = a.def || {};
+      ctx.save();
+      ctx.globalAlpha = 0.95;
+      if (def.emoji) emoji(ctx, def.emoji, x, this.groundY, 44, true);
+      else drawFighter(ctx, x, this.groundY, def.look || {}, {
+        t: this.t + 0.7 + i * 0.4, flip: true, scale: (def.look?.scale || 1) * 0.92,
+        weapon: def.look?.weapon, flash: 0,
+      });
+      hpBar(ctx, x - 22, this.groundY - 92, 44, 5, Math.max(0, a.hp / a.maxHp), '#b45309');
+      ctx.restore();
+    });
+  }
+
   drawQueue(game) {
+    if ((game.adds || []).some((a) => a.alive)) return; // 졸개가 있으면 미리보기는 숨긴다
     if (!game.queue.length || (game.mode !== 'stage' && game.mode !== 'dungeon')) return;
     const { ctx } = this;
     game.queue.slice(0, 2).forEach((def, i) => {
