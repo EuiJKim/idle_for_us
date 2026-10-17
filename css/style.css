@@ -73,6 +73,10 @@ input { font: inherit; user-select: text; -webkit-user-select: text; }
   width: 62%; height: 16px; background: rgba(0, 0, 0, 0.55); border-radius: 999px; overflow: hidden;
   z-index: 11;
 }
+/* 비경 구간 안내 — 아껴 쓰는 판단을 돕는 줄 */
+.tier-hint { color: var(--accent-2); font-weight: 700; }
+.dungeon-card .name small.full { color: var(--bad); }
+
 /* 병기보 — 지금은 없어도 한 번 쥐어본 등급 */
 .grade.noted { opacity: 0.72; border-style: dashed; }
 .grade.noted .g-cnt { color: #a8a29e; font-size: 10px; }

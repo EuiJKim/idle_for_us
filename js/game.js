@@ -9,10 +9,12 @@ import {
   PETS, PET_EGG_COST, PET_GRADE_WEIGHT, petFoodCost, PET_DUPLICATE_FOOD, PET_ATTACK_INTERVAL, petDamageMult,
   BOND_PER_SEC, BOND_PER_LV, BOND_MAX, bondLevel, ENGRAVE_MIN_LV, engraveCost,
   ATTEND_CYCLE, attendReward, BOOST_PER_DAY, BOOST_SEC, BOOST_MULT, mobGroupSize,
-  MELEE_RANGE, HERO_SPEED, MOB_SPEED, MOB_SEPARATION, FIELD_ASPECT, FIELD_SQUASH, MOB_SPAWN_NEAR, MOB_SPAWN_FAR, MOB_RESPAWN_SEC,
+  MELEE_RANGE, HERO_SPEED, MOB_SPEED, MOB_SEPARATION, FIELD_ASPECT, FIELD_SQUASH, MOB_SPAWN_NEAR, MOB_SPAWN_FAR,
+  refillRate, fieldRadius, MAX_ATTACKERS, FIELD_WIDE, FIELD_TALL,
   RELICS, RELIC_DIG_COST,
   SKILLS, SKILL_SLOTS, skillBookCost,
   DUNGEONS, DUNGEON_KEYS, DUNGEON_TIME, DUNGEON_MOBS, dungeonStage, dungeonReward,
+  DUNGEON_KEY_CAP, RAID_TICKET_CAP, PVP_TICKET_CAP,
   MISSIONS, MISSION_ALL_REWARD, stageMilestone, STAGE_MILESTONE_EVERY,
   PVP_TICKETS, PVP_TIME, PVP_WIN, PVP_LOSE, PVP_REWARD,
   zoneOf, monsterHp, monsterAtk, monsterGold, BOSS_HP_MULT, BOSS_ATK_MULT, BOSS_GOLD_MULT, RAID_BOSS,
@@ -279,17 +281,23 @@ export class Game {
     const s = this.s.stage;
     this.fillQueue(() => this.pickMob());
     const hp = monsterHp(s);
-    // 세로로 긴 화면이라 위아래 방향을 조금 더 자주 고른다
     const ang = this.rng() * Math.PI * 2;
-    const dist = MOB_SPAWN_NEAR + this.rng() * (MOB_SPAWN_FAR - MOB_SPAWN_NEAR);
-    const ky = 1 / Math.max(0.3, FIELD_ASPECT); // 가로보다 세로로 더 멀리
-    // 화면 아래쪽은 스킬 슬롯·창 버튼이 덮으므로, 아래로는 덜 멀리 내보낸다
+    // 자리는 화면 기준으로 정한다. 가로는 좁고 세로는 긴 타원이라
+    // 세로로 긴 화면 안에 최대한 많이 들어온다. 넓게 잡으면 100마리를
+    // 만들어놔도 화면엔 몇 마리 안 보인다.
+    const far = fieldRadius(mobGroupSize(s));
+    // 타원 안에 고르게 흩뿌리려면 sqrt를 써야 한다(그냥 곱하면 가운데로 몰린다)
+    const near = Math.min(0.9, MOB_SPAWN_NEAR / Math.max(far, 1));
+    const k = near + Math.sqrt(this.rng()) * (1 - near);
     const sy = Math.sin(ang);
+    const screenX = Math.cos(ang) * far * FIELD_WIDE * k;
+    // 화면 아래쪽은 스킬 슬롯·창 버튼이 덮으므로 아래로는 조금 덜 내보낸다
+    const screenY = sy * far * FIELD_TALL * k * (sy > 0 ? 0.78 : 1);
     return {
       hp, maxHp: hp, isBoss: false, def: this.queue.shift(),
       atk: monsterAtk(s), atkTimer: 1 + this.rng(), alive: true, stun: 0,
-      x: this.heroX + Math.cos(ang) * dist,
-      y: this.heroY + sy * dist * ky * (sy > 0 ? 0.42 : 1),
+      x: this.heroX + screenX,
+      y: this.heroY + screenY / FIELD_SQUASH,   // 화면 좌표 → 월드 좌표
       face: 1,
     };
   }
@@ -312,13 +320,30 @@ export class Game {
         m.y += (dy / d) * step;
       }
     }
-    // 서로 밀어내기 — 한 점에 뭉치지 않게
-    for (let i = 0; i < live.length; i++) {
-      const a = live[i];
-      if (!a.alive) continue;
-      for (let j = i + 1; j < live.length; j++) {
-        const b = live[j];
-        if (!b.alive) continue;
+    // 서로 밀어내기 — 한 점에 뭉치지 않게.
+    // 100마리면 전부 비교할 때 4,950쌍이라, 격자를 만들어 이웃 칸만 본다.
+    const cell = MOB_SEPARATION;
+    const grid = new Map();
+    for (const m of live) {
+      if (!m.alive) continue;
+      const k = `${Math.floor(m.x / cell)},${Math.floor((m.y * FIELD_SQUASH) / cell)}`;
+      const bucket = grid.get(k);
+      if (bucket) bucket.push(m); else grid.set(k, [m]);
+    }
+    for (const [k, bucket] of grid) {
+      const ci = k.indexOf(',');
+      const cx = +k.slice(0, ci);
+      const cy = +k.slice(ci + 1);
+      // 자기 칸과 오른쪽·아래 이웃만 보면 모든 쌍을 한 번씩 본다
+      for (const [dx0, dy0] of [[0, 0], [1, 0], [0, 1], [1, 1], [1, -1]]) {
+        const other = dx0 === 0 && dy0 === 0 ? bucket : grid.get(`${cx + dx0},${cy + dy0}`);
+        if (!other) continue;
+        for (let i = 0; i < bucket.length; i++) {
+          const a = bucket[i];
+          if (!a.alive) continue;
+          for (let j = other === bucket ? i + 1 : 0; j < other.length; j++) {
+            const b = other[j];
+            if (!b.alive) continue;
         let dx = b.x - a.x;
         let dy = b.y - a.y;
         let d = Math.hypot(dx, dy);
@@ -329,6 +354,8 @@ export class Game {
         const push = (MOB_SEPARATION - seen) / k / 2;
         a.x -= (dx / d) * push; a.y -= (dy / d) * push;
         b.x += (dx / d) * push; b.y += (dy / d) * push;
+          }
+        }
       }
     }
   }
@@ -344,11 +371,15 @@ export class Game {
     }
     if (live.some((m) => m.isBoss)) return; // 두목전에는 잡졸이 끼어들지 않는다
     const want = mobGroupSize(this.s.stage);
-    if (live.length >= want) return;
-    this.respawn -= dt;
-    if (this.respawn > 0) return;
-    this.respawn = MOB_RESPAWN_SEC;
-    this.mons.push(this.makeFieldMob());
+    const missing = want - live.length;
+    if (missing <= 0) return;
+    // 빈 자리에 비례해 채운다. 광역기로 수십이 한꺼번에 사라져도 2~3초면 다시 찬다.
+    this.respawn += refillRate(missing, want) * dt;
+    let n = Math.floor(this.respawn);
+    if (n <= 0) return;
+    this.respawn -= n;
+    n = Math.min(n, missing);
+    for (let i = 0; i < n; i++) this.mons.push(this.makeFieldMob());
   }
 
   // 가장 가까운 적을 노린다
@@ -407,6 +438,7 @@ export class Game {
   dealAoe(amount, kind = 'skill', crit = false, radius = 220) {
     const main = this.mon;
     const others = this.mons.filter((m) => m.alive && m !== main && this.distTo(m) <= radius);
+    this.emit('skillHits', { hits: others.length + (main?.alive ? 1 : 0) });
     this.dealDamage(amount, kind, crit);
     for (const a of others) {
       if (!a.alive) continue;
@@ -637,7 +669,12 @@ export class Game {
 
     // 가까이 붙은 다른 적들도 함께 때린다
     if (this.mode === 'stage') {
-      const near = this.mons.filter((m) => m.alive && m !== this.mon && this.distTo(m) <= MELEE_RANGE + 40);
+      // 사거리 안에 몇십이 몰려도 때릴 수 있는 건 가장 가까운 몇 명뿐이다.
+      // 제한이 없으면 100마리가 동시에 때려서 즉사한다.
+      const near = this.mons
+        .filter((m) => m.alive && m !== this.mon && this.distTo(m) <= MELEE_RANGE + 40)
+        .sort((x, y) => this.distTo(x) - this.distTo(y))
+        .slice(0, MAX_ATTACKERS - 1);
       for (const a of near) {
         if (!a.alive || a.stun > 0) { if (a.stun > 0) a.stun = Math.max(0, a.stun - dt); continue; }
         a.atkTimer -= dt;
@@ -1132,8 +1169,22 @@ export class Game {
     const today = dayKey(now);
     if (this.s.daily.date === today) return null;
     const prev = this.s.daily.date;
+    // 못 들른 날만큼 한꺼번에 받는다(최대 닷새치). 자정에 사라지는 게 아니라 쌓인다.
+    let days = 1;
+    if (prev) {
+      const gap = Math.round((Date.parse(`${today}T00:00:00`) - Date.parse(`${prev}T00:00:00`)) / 86400000);
+      if (Number.isFinite(gap) && gap > 1) days = Math.min(5, gap);
+    }
+    const kept = this.s.daily;
     this.s.daily = freshDaily(today);
-    this.s.gems += DAILY_GEMS;
+    // 안 쓴 열쇠·패는 그대로 두고 오늘 몫을 더한다. 상한을 넘으면 버려진다.
+    const add = (cur, per, cap) => Math.min(cap, (cur || 0) + per * days);
+    for (const d of DUNGEONS) {
+      this.s.daily.keys[d.id] = add(kept.keys?.[d.id], DUNGEON_KEYS, DUNGEON_KEY_CAP);
+    }
+    this.s.daily.raidTickets = add(kept.raidTickets, RAID_TICKETS, RAID_TICKET_CAP);
+    this.s.daily.pvpTickets = add(kept.pvpTickets, PVP_TICKETS, PVP_TICKET_CAP);
+    this.s.gems += DAILY_GEMS * days;
     // 연공 일지: 어제 받았으면 이어지고, 하루라도 건너뛰면 처음부터
     const a = this.s.attend;
     const yesterday = dayKey(now - 86400000);

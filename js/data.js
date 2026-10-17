@@ -5,7 +5,7 @@ export const OFFLINE_CAP_SEC = 12 * 3600;
 export const KILLS_PER_STAGE = 10;
 // 한 번에 나오는 적 수(최대). 관문이 오를수록 더 몰려온다.
 // 근거: Blade Idle은 한 스테이지에 적 그룹(wavegroup)이 보통 4개씩 잡혀 있고 47초 안에 정리된다.
-export const MOB_GROUP_MAX = 5;
+export const MOB_GROUP_MAX = 100;
 // 평면 사냥: 무인이 들판을 사방으로 돌아다니며 적을 찾아 벤다.
 // 근거: Blade Idle은 카메라가 X축 90도(수직 하향) 직교 투영이고 배경 60장이 전부
 // 위에서 내려다본 바닥이다. 즉 전투는 1축이 아니라 X·Y 평면에서 일어난다.
@@ -17,7 +17,18 @@ export const HERO_SPEED = 185;        // 걸어가는 속도(초당)
 export const MOB_SPEED = 46;          // 적이 무인 쪽으로 다가오는 속도
 export const MOB_SPAWN_NEAR = 170;    // 적이 생기는 가장 가까운 거리
 export const MOB_SPAWN_FAR = 320;     // 적이 생기는 가장 먼 거리
-export const MOB_RESPAWN_SEC = 1.1;   // 한 명 쓰러지면 이만큼 뒤에 새로 나타난다
+// ---------- 젠 속도 ----------
+// 기준: "광역기 한 방에 빈 자리를 몇 초 안에 메울 것인가". 우리는 2~3초로 잡는다.
+// 그보다 느리면 광역기 쓰고 나서 들판이 휑하고, 더 빠르면 광역기를 쓴 보람이 없다.
+//
+// 평시 처치 속도는 관문 10마리 / 45초 = 0.22마리/초라 고정 간격으로도 충분하다.
+// 문제는 광역기다. 만검귀종(반경 300)은 한 방에 최대 62마리, 뇌정검(210)은 30마리를
+// 동시에 지운다. 그래서 고정 간격이 아니라 '빈 자리에 비례'해서 채운다.
+export const MOB_REFILL_BASE = 3;     // 가득 찬 상태에서도 초당 이만큼은 채운다
+export const MOB_REFILL_BURST = 34;   // 자리가 전부 비면 여기까지 빨라진다
+// 빈 자리 비율에 따라 초당 몇 마리를 채울지
+export const refillRate = (missing, want) =>
+  MOB_REFILL_BASE + MOB_REFILL_BURST * (want > 0 ? missing / want : 0);
 export const MOB_SEPARATION = 72;     // 적끼리 이만큼(화면 기준)은 떨어져 선다
 // 화면 비율: Blade Idle은 직교 size 5 → 세로 10유닛, 가로 10×(720/1280)=5.625유닛.
 // 세로로 긴 평면이라 적이 위아래에서 더 많이 들어온다.
@@ -25,7 +36,21 @@ export const FIELD_ASPECT = 720 / 1280;
 // 월드 Y는 화면에서 이만큼 눌러 그린다. 사거리·간격은 전부 '화면에서 보이는 거리'로
 // 재므로, 적이 위아래에 서도 좌우에 선 것과 똑같이 떨어져 보인다.
 export const FIELD_SQUASH = 0.62;
-export const mobGroupSize = (stage) => Math.min(MOB_GROUP_MAX, 1 + Math.floor(stage / 8));
+// 관문이 오를수록 몰려오는 수가 는다. 196관문에서 상한에 닿는다.
+export const mobGroupSize = (stage) => Math.min(MOB_GROUP_MAX, 2 + Math.floor(stage / 2));
+// 들판은 몰려오는 수에 맞춰 넓어진다. 안 그러면 100마리가 한 점에 뭉친다.
+// 크기는 '다 들어가되 화면을 벗어나진 않을 만큼'으로 잡는다 — 육각 밀집 기준
+// 한 마리가 MOB_SEPARATION^2 x 0.866 의 자리를 차지하므로, n마리가 들어갈
+// 타원 넓이에서 역산한다. 넓게 잡으면 100마리를 만들어놔도 화면엔 몇 마리 안 보인다.
+export const FIELD_WIDE = 0.55;   // 가로는 좁게
+export const FIELD_TALL = 1.35;   // 세로는 길게 (세로로 긴 화면에 맞춘다)
+export const fieldRadius = (n) => {
+  const need = n * MOB_SEPARATION * MOB_SEPARATION * 0.866;  // 필요한 화면 넓이
+  const r = Math.sqrt(need / (Math.PI * FIELD_WIDE * FIELD_TALL));
+  return Math.max(MOB_SPAWN_FAR, r);
+};
+// 한 번에 무인을 때릴 수 있는 적 수. 없으면 100마리가 동시에 때려서 즉사한다.
+export const MAX_ATTACKERS = 6;
 export const BOSS_TIME = 30;
 export const SPAWN_DELAY = 0.45;
 export const RAID_TIME = 30;
@@ -298,7 +323,23 @@ export function nextUnlock(bestStage) {
   return best;
 }
 
-export const DUNGEON_KEYS = 2;
+export const DUNGEON_KEYS = 2;      // 하루에 이만큼 들어온다
+// ---------- 아껴 쓰는 자원 ----------
+// 열쇠와 패는 날마다 초기화되지 않고 쌓인다. 안 그러면 '아꼈다 쓴다'는 판단 자체가
+// 성립하지 않는다 — 어차피 자정에 사라지니 지금 써야 하는 것이다.
+// 근거: Blade Idle 공략의 핵심 판단은 전부 "지금 쓰면 손해, 나중에 쓰면 이득"이다.
+// 레이드 티켓은 1단계에서 쓰지 말고 2단계(20-50)에서, 펫 소탕권은 전설 펫을
+// 클리어한 뒤에 쓴다. (docs/BladeIdle_설계원리.md 4절)
+// 상한을 두는 이유: 무한히 모으면 반대로 '영원히 안 쓰는 게 이득'이 된다.
+export const DUNGEON_KEY_CAP = 10;  // 비경 열쇠는 닷새치까지 쌓인다
+export const RAID_TICKET_CAP = 9;   // 토벌 패는 사흘치
+export const PVP_TICKET_CAP = 10;   // 결투 패는 닷새치
+
+// 비경 보상은 단계마다 조금씩 오르다가, 이 단계들에서 한 번씩 크게 뛴다.
+// 선형 증가만 있으면 지금 쓰나 나중에 쓰나 같아서 아낄 이유가 없다.
+export const DUNGEON_TIERS = [5, 10, 15, 20];
+export const dungeonTierOf = (lv) => DUNGEON_TIERS.filter((t) => lv >= t).length;
+export const DUNGEON_TIER_MULT = 1.8;  // 구간 하나 넘을 때마다 보상 배수
 export const DUNGEON_TIME = 40;
 export const DUNGEON_MOBS = 12;
 // 비경 난이도는 예전 기준(base)을 쓴다. 개방 관문(unlock)을 벽으로 옮기면서
@@ -306,14 +347,19 @@ export const DUNGEON_MOBS = 12;
 export const dungeonStage = (d, lv) => d.base + (lv - 1) * 4;
 export function dungeonReward(id, lv) {
   const eq = dungeonStage(DUNGEONS.find((d) => d.id === id), lv);
+  const step = Math.pow(DUNGEON_TIER_MULT, dungeonTierOf(lv));
+  const r = (v) => Math.max(1, Math.floor(v * step));
   switch (id) {
-    case 'gold': return { gold: monsterGold(eq) * 400 };
-    case 'stone': return { stones: 30 + lv * 8 };
-    case 'pet': return { food: 20 + lv * 6 };
-    case 'relic': return { relicShards: 10 + lv * 2 };
+    case 'gold': return { gold: monsterGold(eq) * 400 * step };
+    case 'stone': return { stones: r(30 + lv * 8) };
+    case 'pet': return { food: r(20 + lv * 6) };
+    case 'relic': return { relicShards: r(10 + lv * 2) };
     default: return {};
   }
 }
+
+// 다음 구간까지 몇 단계 남았나 (없으면 null)
+export const nextDungeonTier = (lv) => DUNGEON_TIERS.find((t) => lv < t) ?? null;
 
 // ---------- 일일 의뢰 / 업적 ----------
 export const MISSIONS = [

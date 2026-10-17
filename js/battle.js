@@ -3,6 +3,8 @@ import { zoneOf, RANKS, GRADES, PETS, SKILLS, FIELD_SQUASH } from './data.js';
 import { fmt } from './fmt.js';
 
 export const BRUSH = '"Yuji Syuku", "Nanum Brush Script", "Gowun Batang", serif';
+const HP_BAR_RANGE = 230;   // 이 거리 안의 적만 체력바를 보여준다
+const AOE_FLOAT_MAX = 6;    // 광역 피해 숫자는 이만큼만 띄우고 나머지는 합친다
 const EMOJI_FONT = '"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif';
 const SHADOW_LOOK = { robe: '#0b0b0d', trim: '#3f0d12', sash: '#1f0a0c', band: '#7f1d1d', aura: '#4c0519', eyes: '#ef4444', hair: '#000' };
 const SPECIAL_INK = {
@@ -37,6 +39,8 @@ export class BattleView {
     this.banner = null;
     this.hanja = null;
     this.flash = 0;
+    this.aoeHits = 0;
+    this.aoeAmount = 0;
     this.resize();
     window.addEventListener('resize', () => this.resize());
   }
@@ -65,6 +69,12 @@ export class BattleView {
   get monX() { const g = this.game; return g?.mon ? this.sx(g.mon) : this.w * 0.5; }
   get monY() { const g = this.game; return g?.mon ? this.sy(g.mon) : this.groundY; }
   get fieldMode() { return this.game?.mode === 'stage'; }
+  // 적이 많을수록 조금씩 작게 그린다. 100마리가 원래 크기면 화면이 메워진다.
+  get crowdScale() {
+    const n = this.game?.mons?.length || 0;
+    if (n <= 12) return 1;
+    return Math.max(0.62, 1 - (n - 12) * 0.0045);
+  }
   screenXOf(m) { return this.sx(m); }
 
   handle(ev, game) {
@@ -85,7 +95,16 @@ export class BattleView {
         const skill = ev.kind !== 'hit' && ev.kind !== 'pet';
         const color = ev.kind === 'pet' ? '#f9a8d4' : skill ? '#fde68a' : ev.crit ? '#ef4444' : '#ffffff';
         const size = ev.kind === 'pet' ? 14 : skill ? 28 : ev.crit ? 26 : 17;
-        this.float(fmt(ev.amount) + (ev.crit ? '!' : ''), atX + (Math.random() - 0.5) * 60, atY - 120, color, size, 1, ev.crit || skill);
+        if (ev.add) {
+          // 광역기는 한 방에 수십을 때린다. 숫자를 전부 띄우면 화면이 숫자로 덮인다.
+          this.aoeHits++;
+          this.aoeAmount = ev.amount;
+          if (this.aoeHits <= AOE_FLOAT_MAX) {
+            this.float(fmt(ev.amount), atX + (Math.random() - 0.5) * 60, atY - 120, color, size * 0.7, 0.8);
+          }
+        } else {
+          this.float(fmt(ev.amount) + (ev.crit ? '!' : ''), atX + (Math.random() - 0.5) * 60, atY - 120, color, size, 1, ev.crit || skill);
+        }
         this.effects.push({ kind: 'cut', life: 0.18, max: 0.18, a: Math.random() * 0.8 - 0.4, crit: ev.crit });
         // 때린 순간 화면을 아주 잠깐 늦추고 상대를 밀어낸다 — 타격감
         this.hitstop = Math.max(this.hitstop, ev.crit || skill ? 0.075 : 0.032);
@@ -131,6 +150,11 @@ export class BattleView {
       case 'regress':
         this.effects.push({ kind: 'regress', life: 2.2, max: 2.2 });
         this.hanja = { text: '回歸', life: 2.2, max: 2.2, color: '#f5f5f4' };
+        break;
+      case 'skillHits':
+        if (ev.hits > AOE_FLOAT_MAX) {
+          this.float(`${ev.hits}명 적중`, this.heroX, this.groundY - 190, '#fde68a', 20, 1.1, true);
+        }
         break;
       case 'skillArea':
         // 광역기는 발밑에 원형 장판이 퍼진다 (Blade Idle의 FX_Shader_SkillArea_01 문법)
@@ -401,9 +425,15 @@ export class BattleView {
         this.ctx.restore();
       }
     }
-    // 발밑 그림자
+    // 발밑 표식 — 적이 수십이면 똑같이 생긴 사람들 틈에서 내가 안 보인다
+    this.ctx.save();
     this.ctx.fillStyle = 'rgba(0,0,0,0.34)';
     this.ctx.beginPath(); this.ctx.ellipse(x, y + 2, 24, 9, 0, 0, Math.PI * 2); this.ctx.fill();
+    const pulse = 0.5 + Math.sin(this.t * 3) * 0.12;
+    this.ctx.strokeStyle = `rgba(253,224,71,${pulse})`;
+    this.ctx.lineWidth = 2.5;
+    this.ctx.beginPath(); this.ctx.ellipse(x, y + 2, 30, 12, 0, 0, Math.PI * 2); this.ctx.stroke();
+    this.ctx.restore();
     drawFighter(this.ctx, x, y, look, opts);
     if (game.s.pet) {
       const pet = PETS.find((p) => p.id === game.s.pet);
@@ -429,9 +459,10 @@ export class BattleView {
     if (main && (main.alive || this.monDeath > 0)) {
       list.push({ y: main.y ?? game.heroY, go: () => this.drawMonster(game, dt) });
     }
-    list.push({ y: game.heroY, go: () => this.drawHeroUnit(game, moving) });
     list.sort((a, b) => a.y - b.y);
     for (const e of list) e.go();
+    // 무인은 깊이와 상관없이 맨 위에 그린다. 적이 수십이면 파묻혀서 누가 나인지 모른다.
+    this.drawHeroUnit(game, moving);
   }
 
   // ---------- 적 ----------
@@ -449,11 +480,14 @@ export class BattleView {
     ctx.beginPath(); ctx.ellipse(x, y + 2, 20, 8, 0, 0, Math.PI * 2); ctx.fill();
     if (def.emoji) emoji(ctx, def.emoji, x, y, 44, face);
     else drawFighter(ctx, x, y, def.look || {}, {
-      t: this.t + 0.7 + (Math.abs(a.x) % 7) * 0.2, flip: face, scale: (def.look?.scale || 1) * 0.94,
+      t: this.t + 0.7 + (Math.abs(a.x) % 7) * 0.2, flip: face,
+      scale: (def.look?.scale || 1) * 0.94 * this.crowdScale,
       weapon: def.look?.weapon, flash: 0,
     });
     if (a.stun > 0) iceBlock(ctx, x, y, 26, 88);
-    hpBar(ctx, x - 22, y - 92, 44, 5, Math.max(0, a.hp / a.maxHp), '#b45309');
+    // 체력바는 가까이 붙은 적만. 수십 마리가 전부 달면 주황 막대가 화면을 덮는다.
+    const near = Math.hypot(x - this.heroX, y - this.groundY) <= HP_BAR_RANGE;
+    if (near) hpBar(ctx, x - 22, y - 92, 44, 5, Math.max(0, a.hp / a.maxHp), '#b45309');
     ctx.restore();
   }
 
