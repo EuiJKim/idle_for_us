@@ -44,16 +44,26 @@ function save() {
 // ---------- 탭 ----------
 const tabs = {};
 let activeTab = null;
+function closePanel() {
+  activeTab = null;
+  $('panel').classList.remove('open');
+  $('panel-dim').classList.remove('open');
+  document.querySelectorAll('#tabs button').forEach((b) => b.classList.remove('active'));
+}
 function showTab(name) {
+  if (activeTab === name) return closePanel(); // 같은 탭을 다시 누르면 내려간다
   if (!tabs[name]) tabs[name] = TABS[name](app);
   activeTab = name;
   $('panel').replaceChildren(tabs[name].root);
   $('panel').scrollTop = 0;
+  $('panel').classList.add('open');
+  $('panel-dim').classList.add('open');
   document.querySelectorAll('#tabs button').forEach((b) => b.classList.toggle('active', b.dataset.tab === name));
   tabs[name].shown?.();
   tabs[name].update();
 }
 document.querySelectorAll('#tabs button').forEach((b) => b.addEventListener('click', () => showTab(b.dataset.tab)));
+$('panel-dim').addEventListener('click', closePanel);
 
 function netChanged(what) {
   const badge = $('net-badge');
@@ -458,7 +468,8 @@ if (document.fonts?.load) {
   document.fonts.load(`20px "Yuji Syuku"`, glyphs).catch(() => {});
   document.fonts.load(`20px "Nanum Brush Script"`, '관문돌파두목경지수련터입장비무시작문파토벌혈마심마와의대결레벨').catch(() => {});
 }
-showTab('growth');
+// 시작할 때는 들판이 먼저 보인다. 창은 탭을 눌러야 올라온다.
+// showTab('growth');
 netChanged('status');
 refreshUI(true);
 requestAnimationFrame((t) => { last = t; frame(t); });

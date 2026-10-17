@@ -461,6 +461,7 @@ export class Game {
       }
       const dx = target.x - this.heroX;
       const dist = Math.abs(dx);
+      this.heroFacing = dx >= 0 ? 1 : -1; // 싸울 때도 상대 쪽을 본다
       if (dist > MELEE_RANGE) {
         const step = Math.min(HERO_SPEED * dt, dist - MELEE_RANGE);
         this.heroX += Math.sign(dx) * step;

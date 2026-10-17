@@ -9,8 +9,8 @@ export const MOB_GROUP_MAX = 5;
 // 필드 사냥: 무인이 직접 돌아다니며 적을 찾아 벤다
 export const MELEE_RANGE = 62;        // 이 거리 안에 들어와야 벨 수 있다
 export const HERO_SPEED = 185;        // 걸어가는 속도(초당)
-export const MOB_SPAWN_NEAR = 260;    // 적이 생기는 가장 가까운 거리
-export const MOB_SPAWN_FAR = 720;     // 적이 생기는 가장 먼 거리
+export const MOB_SPAWN_NEAR = 110;    // 적이 생기는 가장 가까운 거리
+export const MOB_SPAWN_FAR = 330;     // 적이 생기는 가장 먼 거리(화면 안에 보이도록)
 export const MOB_RESPAWN_SEC = 1.1;   // 한 명 쓰러지면 이만큼 뒤에 새로 나타난다
 export const mobGroupSize = (stage) => Math.min(MOB_GROUP_MAX, 1 + Math.floor(stage / 8));
 export const BOSS_TIME = 30;
