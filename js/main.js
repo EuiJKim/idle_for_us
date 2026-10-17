@@ -1,6 +1,7 @@
 import { Game, newSave, migrate } from './game.js';
 import {
   SKILLS, KILLS_PER_STAGE, DUNGEON_MOBS, RANKS, MISSIONS, PETS, zoneOf, expToNext,
+  isWallStage, nextUnlock, unlocksAt,
 } from './data.js';
 import { BattleView } from './battle.js';
 import { Net } from './net.js';
@@ -117,8 +118,23 @@ function refreshUI(full = false) {
     $('stage-label').textContent = c.mode === 'dungeon' ? `${c.def.name} ${c.level}단계` : MODE_TITLE[c.mode];
     $('zone-label').textContent = c.mode === 'pvp' ? `vs ${c.opponent.nickname}` : c.mode === 'trial' ? `${RANKS[c.rank].name} 경지 도전` : '시간 안에 쓰러뜨리세요';
   } else {
+    const wall = isWallStage(s.stage);
     $('stage-label').textContent = `제 ${s.stage} 관문${s.farming ? ' (수련 중)' : ''}`;
-    $('zone-label').textContent = `${zoneOf(s.stage).name} · ${RANKS[s.rank].name} · Lv.${s.level}${s.regress.count ? ` · ${s.regress.count + 1}회차` : ''}`;
+    // 벽 표시는 짧게 앞에 붙인다. 제목에 붙이면 길어서 잘린다.
+    $('zone-label').textContent = `${wall ? '관문지기 · ' : ''}${zoneOf(s.stage).name} · ${RANKS[s.rank].name} · Lv.${s.level}${s.regress.count ? ` · ${s.regress.count + 1}회차` : ''}`;
+    $('stage-label').classList.toggle('wall', wall);
+  }
+  // 이 관문을 깨면 뭐가 열리는지 알려준다. 벽이 그냥 어려워지기만 하면 벽일 이유가 없다.
+  const nx = c ? null : nextUnlock(s.bestStage);
+  const gate = $('gate-hint');
+  if (nx) {
+    const left = nx.stage - s.stage;
+    gate.textContent = left <= 0 ? `이 관문을 넘으면 ${nx.items.join(' · ')} 열림`
+      : `${nx.stage}관문까지 ${left} — ${nx.items.join(' · ')}`;
+    gate.classList.toggle('near', left <= 0);
+    gate.classList.remove('hidden');
+  } else {
+    gate.classList.add('hidden');
   }
   $('power-label').textContent = `전투력 ${fmt(game.power().power)}`;
   $('exp-bar').firstChild.style.width = `${Math.min(100, (s.exp / expToNext(s.level)) * 100)}%`;

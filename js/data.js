@@ -221,19 +221,19 @@ export const RELIC_DIG_COST = 10; // 신물 조각
 export const SKILLS = [
   { id: 'slash', name: '선풍검', hz: '旋風劍', icon: '旋', unlock: 1, cd: 6, kind: 'dmg', target: 'all', radius: 150,
     mult: (l) => 4 + l * 0.6, desc: (m) => `적 전체에게 공격력의 ${m.toFixed(1)}배 검기` },
-  { id: 'rage', name: '혈마해방', hz: '血魔解放', icon: '血', unlock: 5, cd: 25, dur: 8, kind: 'buff',
+  { id: 'rage', name: '혈마해방', hz: '血魔解放', icon: '血', unlock: 10, cd: 25, dur: 8, kind: 'buff',
     mult: (l) => 1.5 + l * 0.06, desc: (m) => `8초간 공격력 ${m.toFixed(2)}배` },
-  { id: 'heal', name: '운기조식', hz: '運氣調息', icon: '息', unlock: 12, cd: 18, kind: 'heal',
+  { id: 'heal', name: '운기조식', hz: '運氣調息', icon: '息', unlock: 30, cd: 18, kind: 'heal',
     mult: (l) => Math.min(1, 0.3 + l * 0.02), desc: (m) => `체력 ${Math.round(m * 100)}% 회복` },
-  { id: 'thunder', name: '뇌정검', hz: '雷霆劍', icon: '雷', unlock: 25, cd: 15, kind: 'dmg', target: 'all', radius: 210,
+  { id: 'thunder', name: '뇌정검', hz: '雷霆劍', icon: '雷', unlock: 50, cd: 15, kind: 'dmg', target: 'all', radius: 210,
     mult: (l) => 12 + l * 1.8, desc: (m) => `적 전체에게 공격력의 ${m.toFixed(1)}배 낙뢰` },
-  { id: 'gale', name: '질풍보', hz: '疾風步', icon: '疾', unlock: 40, cd: 30, dur: 10, kind: 'buff',
+  { id: 'gale', name: '질풍보', hz: '疾風步', icon: '疾', unlock: 70, cd: 30, dur: 10, kind: 'buff',
     mult: (l) => 1.5 + l * 0.03, desc: (m) => `10초간 공격 속도 ${m.toFixed(2)}배 (한계 돌파)` },
-  { id: 'midas', name: '천금수', hz: '千金手', icon: '金', unlock: 60, cd: 45, dur: 15, kind: 'buff',
+  { id: 'midas', name: '천금수', hz: '千金手', icon: '金', unlock: 90, cd: 45, dur: 15, kind: 'buff',
     mult: (l) => 2 + l * 0.1, desc: (m) => `15초간 은자 ${m.toFixed(1)}배` },
-  { id: 'frost', name: '빙백신장', hz: '氷魄神掌', icon: '氷', unlock: 80, cd: 20, kind: 'dmg', stun: 3, target: 'single', bossMult: 1.8, radius: 70,
+  { id: 'frost', name: '빙백신장', hz: '氷魄神掌', icon: '氷', unlock: 100, cd: 20, kind: 'dmg', stun: 3, target: 'single', bossMult: 1.8, radius: 70,
     mult: (l) => 8 + l * 1.2, desc: (m) => `한 명에게 공격력의 ${m.toFixed(1)}배 + 3초 빙결 · 두목에겐 1.8배` },
-  { id: 'meteor', name: '만검귀종', hz: '萬劍歸宗', icon: '萬', unlock: 100, cd: 40, kind: 'dmg', target: 'all', radius: 300,
+  { id: 'meteor', name: '만검귀종', hz: '萬劍歸宗', icon: '萬', unlock: 110, cd: 40, kind: 'dmg', target: 'all', radius: 300,
     mult: (l) => 40 + l * 6, desc: (m) => `적 전체에게 검 비 · 공격력의 ${m.toFixed(0)}배` },
 ];
 export const SKILL_SLOTS = 4;
@@ -247,22 +247,53 @@ const B = (name, emoji) => ({ name, emoji }); // 짐승은 이모지
 
 // ---------- 수련터 ----------
 export const DUNGEONS = [
-  { id: 'gold', name: '흑도 전장', icon: '錢', unlock: 10, reward: '은자',
+  { id: 'gold', name: '흑도 전장', icon: '錢', unlock: 20, base: 10, reward: '은자',
     mob: F('전장 호위', { robe: '#3f3a36', head: 'band', band: '#111', weapon: 'saber' }),
     boss: F('전장주', { robe: '#78350f', trim: '#d4a64a', head: 'topknot', weapon: 'axe', beard: true, scale: 1.35 }) },
-  { id: 'stone', name: '한철 광산', icon: '鐵', unlock: 20, reward: '한철',
+  { id: 'stone', name: '한철 광산', icon: '鐵', unlock: 40, base: 20, reward: '한철',
     mob: F('광산 파수꾼', { robe: '#44403c', head: 'hood', weapon: 'axe' }),
     boss: F('철갑 거한', { robe: '#1f2937', trim: '#9ca3af', head: 'bald', weapon: 'fist', scale: 1.5 }) },
-  { id: 'pet', name: '영수 계곡', icon: '獸', unlock: 30, reward: '영수 먹이',
+  { id: 'pet', name: '영수 계곡', icon: '獸', unlock: 60, base: 30, reward: '영수 먹이',
     mob: B('계곡 늑대', '🐺'), boss: B('산군(山君)', '🐅') },
-  { id: 'relic', name: '고수의 동부', icon: '洞', unlock: 40, reward: '신물 조각',
+  { id: 'relic', name: '고수의 동부', icon: '洞', unlock: 80, base: 40, reward: '신물 조각',
     mob: F('동부 강시', { robe: '#1e3a5f', head: 'jiangshi', skin: '#a3b8a0', weapon: 'claw', jiangshi: true }),
     boss: F('천년 강시', { robe: '#0f172a', trim: '#d4a64a', head: 'jiangshi', skin: '#8fa08a', weapon: 'claw', jiangshi: true, scale: 1.45 }) },
 ];
+// ---------- 벽에서 열리는 것 ----------
+// 벽은 그냥 어려워지는 자리가 아니라 뭔가 열리는 자리여야 한다.
+// 근거: Blade Idle의 해금 13곳이 전부 난이도 벽과 같은 자리에 있다.
+// (docs/BladeIdle_설계원리.md)
+let _unlockMap = null;
+function unlockMap() {
+  if (_unlockMap) return _unlockMap;
+  _unlockMap = new Map();
+  const add = (stage, text) => {
+    if (stage <= 1) return;
+    if (!_unlockMap.has(stage)) _unlockMap.set(stage, []);
+    _unlockMap.get(stage).push(text);
+  };
+  for (const sk of SKILLS) add(sk.unlock, `무공 〈${sk.name}〉`);
+  for (const d of DUNGEONS) add(d.unlock, `비경 〈${d.name}〉`);
+  return _unlockMap;
+}
+// 그 관문을 깨면 열리는 것들
+export const unlocksAt = (stage) => unlockMap().get(stage) || [];
+// 아직 안 열린 것 중 가장 가까운 것 {stage, items}
+export function nextUnlock(bestStage) {
+  let best = null;
+  for (const [stage, items] of unlockMap()) {
+    if (stage <= bestStage) continue;
+    if (!best || stage < best.stage) best = { stage, items };
+  }
+  return best;
+}
+
 export const DUNGEON_KEYS = 2;
 export const DUNGEON_TIME = 40;
 export const DUNGEON_MOBS = 12;
-export const dungeonStage = (d, lv) => d.unlock + (lv - 1) * 4;
+// 비경 난이도는 예전 기준(base)을 쓴다. 개방 관문(unlock)을 벽으로 옮기면서
+// 난이도까지 같이 밀리면 보상이 뒤집힌다.
+export const dungeonStage = (d, lv) => d.base + (lv - 1) * 4;
 export function dungeonReward(id, lv) {
   const eq = dungeonStage(DUNGEONS.find((d) => d.id === id), lv);
   switch (id) {
@@ -398,8 +429,54 @@ export const TARGET_STAGE_SEC = 45;
 // - 적 ATK가 HP보다 2배 빠르게 증가 (2%/관문 vs 1%/관문) → 체력 관리 압박
 // - 초반 15관문은 ATK 고정, HP만 증가 → 초반 이탈 방지
 // - 보상 증가율이 적 체력 증가율에 너무 뒤처지면 구매력이 붕괴한다
-export const monsterHp = (s) => 20 * Math.pow(1.17, s - 1);
-export const monsterAtk = (s) => (s <= 15 ? 6 : 6 * Math.pow(1.19, s - 15));
+// ---------- 난이도 곡선: 톱니 ----------
+// 근거: Blade Idle은 적 HP 증가율이 주기 안에서 2.55%→1.63%로 체감하다가
+// 주기 끝에서 ×1.39로 한 번 크게 뛴다(벽). 로그로 보면 벽이 주기 전체 성장의
+// 약 40%를 혼자 차지한다. 그리고 그 벽 자리마다 새 콘텐츠가 열린다.
+// (docs/BladeIdle_진행구조.md · docs/BladeIdle_설계원리.md)
+//
+// 우리는 10관문이 한 주기다 — 지역이 바뀌는 자리와 같다.
+// 주기 전체 배수는 예전 공식(×1.17^10)과 똑같이 두고 모양만 바꿨으므로,
+// 10관문 경계에서는 예전 값과 정확히 일치한다. 밸런스 총량은 그대로다.
+export const WALL_CYCLE = 10;
+export const isWallStage = (s) => s % WALL_CYCLE === 0;
+export const nextWall = (s) => Math.ceil((s + 1) / WALL_CYCLE) * WALL_CYCLE;
+
+const WALL_SHARE = 0.4;   // 벽이 한 주기 성장에서 차지하는 비중(로그 기준)
+const DECAY = 0.64;       // 주기 안에서 증가율이 이만큼까지 떨어진다
+
+// 주기 안 k번째(0~8) 평범한 관문의 로그 증가율. k가 커질수록 완만해진다.
+function stepLog(cycleLog, k) {
+  const mean = (cycleLog * (1 - WALL_SHARE)) / (WALL_CYCLE - 1);
+  const a = (2 * mean) / (1 + DECAY);
+  const b = a * DECAY;
+  return a + (b - a) * (k / (WALL_CYCLE - 2));
+}
+
+// 1관문부터 s관문까지의 누적 로그 배수. 어느 10구간을 잘라도 합은 cycleLog라
+// 예전 지수 공식과 10관문마다 다시 만난다.
+function cumLog(s, base) {
+  if (s <= 1) return 0;
+  const cycleLog = WALL_CYCLE * Math.log(base);
+  let total = 0;
+  for (let c = 0; c < WALL_CYCLE; c++) {
+    let first = c + 1;
+    if (first < 2) first += WALL_CYCLE;      // c=0은 11관문부터
+    if (s < first) continue;
+    const n = Math.floor((s - first) / WALL_CYCLE) + 1;
+    total += n * (c === WALL_CYCLE - 1 ? cycleLog * WALL_SHARE : stepLog(cycleLog, c));
+  }
+  return total;
+}
+
+// 이 관문으로 넘어올 때 적이 몇 배 세지는가 (화면에 보여주려고 따로 둔다)
+export const stageJump = (s) => (s <= 1 ? 1 : Math.exp(cumLog(s, 1.17) - cumLog(s - 1, 1.17)));
+
+export const monsterHp = (s) => 20 * Math.exp(cumLog(s, 1.17));
+// 적 공격력은 15관문까지 고정이고, 그 뒤로는 HP보다 조금 더 가파르게 오른다.
+const ATK_ANCHOR = cumLog(15, 1.19);
+export const monsterAtk = (s) => (s <= 15 ? 6 : 6 * Math.exp(cumLog(s, 1.19) - ATK_ANCHOR));
+// 보상은 톱니로 만들지 않는다. 벽에서 보상까지 튀면 벽 앞에서 버티는 게 이득이 된다.
 export const monsterGold = (s) => 5 * Math.pow(1.105, s - 1);
 export const BOSS_HP_MULT = 9;
 export const BOSS_ATK_MULT = 2.5;
