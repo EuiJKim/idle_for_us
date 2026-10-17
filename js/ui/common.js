@@ -47,12 +47,12 @@ export const gradeChip = (g) => h('span', { style: `color:${GRADES[g].color};fon
 // 보상 묶음을 한 줄로: {gold, gems, books, stones, food, relicShards}
 export function rewardText(r = {}) {
   const parts = [];
-  if (r.gold) parts.push(`🪙${fmt(r.gold)}`);
-  if (r.gems) parts.push(`💎${fmt(r.gems)}`);
-  if (r.books) parts.push(`📕${fmt(r.books)}`);
-  if (r.stones) parts.push(`🔷${fmt(r.stones)}`);
-  if (r.food) parts.push(`🍖${fmt(r.food)}`);
-  if (r.relicShards) parts.push(`🧩${fmt(r.relicShards)}`);
+  if (r.gold) parts.push(`銀${fmt(r.gold)}`);
+  if (r.gems) parts.push(`寶${fmt(r.gems)}`);
+  if (r.books) parts.push(`秘${fmt(r.books)}`);
+  if (r.stones) parts.push(`鐵${fmt(r.stones)}`);
+  if (r.food) parts.push(`草${fmt(r.food)}`);
+  if (r.relicShards) parts.push(`片${fmt(r.relicShards)}`);
   return parts.join(' ');
 }
 

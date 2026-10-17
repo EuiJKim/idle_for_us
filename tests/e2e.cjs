@@ -71,19 +71,19 @@ async function finishContest(page, { win = true } = {}) {
   assert(await G(p, () => window.__game.s.upgrades.atk) === 10, '공격력 x10 강화');
 
   console.log('# 레벨·승급');
-  await G(p, () => { window.__game.s.sp = 12; window.__game.s.level = 15; });
+  await G(p, () => { window.__game.s.sp = 12; window.__game.s.level = 15; window.__game.s.upgrades.hp = 300; });
   await sub(p, '레벨');
   await p.locator('#panel .row button:has-text("+10")').first().click();
   assert(await G(p, () => window.__game.s.spAlloc.atk) === 10, '스탯 포인트 공격력 +10');
   await shot(p, '02-level.png');
-  await sub(p, '승급');
-  await p.click('button:has-text("승급 시련 도전")');
-  assert(await G(p, () => window.__game.mode) === 'trial', '승급 시련 시작');
+  await sub(p, '경지');
+  await p.click('button:has-text("경지 돌파")');
+  assert(await G(p, () => window.__game.mode) === 'trial', '경지 돌파(심마) 시작');
   await sleep(1200);
   await shot(p, '03-trial.png');
   await finishContest(p);
-  await p.waitForSelector('.result-title:has-text("승급")');
-  assert(await G(p, () => window.__game.s.rank) === 1, '승급 성공 → 수련 기사');
+  await p.waitForSelector('.result-title:has-text("경지 돌파")');
+  assert(await G(p, () => window.__game.s.rank) === 1, '경지 돌파 → 이류');
   await shot(p, '04-rankup.png');
   await p.click('#modal >> text=확인');
 
@@ -101,12 +101,12 @@ async function finishContest(page, { win = true } = {}) {
   await shot(p, '05-equip.png');
 
   console.log('# 스킬');
-  await G(p, () => { window.__game.s.maxStage = 50; window.__game.s.books = 100; });
+  await G(p, () => { window.__game.s.maxStage = 50; window.__game.s.bestStage = 50; window.__game.s.books = 100; });
   await tab(p, 'skill');
-  await p.locator('#panel .row:has-text("질풍") button:has-text("장착")').click();
-  assert(await G(p, () => window.__game.s.skillSlots.includes('gale')), '질풍 장착');
-  await p.locator('#panel .row:has-text("회전베기") .buy').click();
-  assert(await G(p, () => window.__game.s.skills.slash) === 2, '스킬북으로 회전베기 Lv.2');
+  await p.locator('#panel .row:has-text("질풍보") button:has-text("장착")').click();
+  assert(await G(p, () => window.__game.s.skillSlots.includes('gale')), '질풍보 장착');
+  await p.locator('#panel .row:has-text("선풍검") .buy').click();
+  assert(await G(p, () => window.__game.s.skills.slash) === 2, '비급으로 선풍검 Lv.2');
   await shot(p, '06-skill.png');
 
   console.log('# 펫·유물');
@@ -124,34 +124,47 @@ async function finishContest(page, { win = true } = {}) {
   await sleep(1500);
   await shot(p, '07-pet.png');
   await G(p, () => { window.__game.s.relicShards = 100; });
-  await sub(p, '유물');
+  await sub(p, '신물');
   await p.click('button:has-text("발굴 10회")');
-  assert(await G(p, () => Object.values(window.__game.s.relics).reduce((x, y) => x + y, 0)) === 10, '유물 발굴 10회');
+  assert(await G(p, () => Object.values(window.__game.s.relics).reduce((x, y) => x + y, 0)) === 10, '신물 발굴 10회');
   await shot(p, '08-relic.png');
 
   console.log('# 던전');
   await tab(p, 'dungeon');
-  await p.locator('.dungeon-card:has-text("황금 동굴") button:has-text("도전")').click();
-  assert(await G(p, () => window.__game.mode) === 'dungeon', '황금 동굴 입장');
+  await p.locator('.dungeon-card:has-text("흑도 전장") button:has-text("도전")').click();
+  assert(await G(p, () => window.__game.mode) === 'dungeon', '흑도 전장 입장');
   await sleep(1500);
   await shot(p, '09-dungeon.png');
   await finishContest(p);
-  await p.waitForSelector('.result-title:has-text("던전 클리어")');
+  await p.waitForSelector('.result-title:has-text("비경 돌파")');
   const dg = await G(p, () => ({ lv: window.__game.s.dungeons.gold, keys: window.__game.s.daily.keys.gold }));
   assert(dg.lv === 1 && dg.keys === 1, '1단계 클리어, 열쇠 1개 남음');
   await p.click('#modal >> text=확인');
-  await p.locator('.dungeon-card:has-text("황금 동굴") button:has-text("소탕")').click();
+  await p.locator('.dungeon-card:has-text("흑도 전장") button:has-text("소탕")').click();
   assert(await G(p, () => window.__game.s.daily.keys.gold) === 0, '소탕으로 열쇠 사용');
   await shot(p, '10-dungeon-tab.png');
 
   console.log('# 미션');
   await p.click('#btn-missions');
-  await p.waitForSelector('#modal h2:has-text("일일 미션")');
+  await p.waitForSelector('#modal h2:has-text("일일 의뢰")');
   const gemsBefore = await G(p, () => window.__game.s.gems);
   await p.locator('#modal .row:has-text("뽑기") button:has-text("받기")').click();
-  assert(await G(p, () => window.__game.s.gems) === gemsBefore + 50, '뽑기 미션 보상');
+  assert(await G(p, () => window.__game.s.gems) === gemsBefore + 50, '뽑기 의뢰 보상');
   await shot(p, '11-missions.png');
   await p.click('#modal >> text=닫기');
+
+  console.log('# 회귀');
+  await G(p, () => { window.__game.s.maxStage = 100; window.__game.s.stage = 100; window.__game.s.gold = 1e9; });
+  await tab(p, 'growth');
+  await sub(p, '회귀');
+  await p.click('button:has-text("회귀한다 (+10)")');
+  await p.waitForSelector('#modal .regress-hz');
+  await shot(p, '12-regress-modal.png');
+  await p.click('#modal button:has-text("회귀한다")');
+  const rg = await G(p, () => ({ ...window.__game.s.regress, stage: window.__game.s.stage, gold: window.__game.s.gold, best: window.__game.s.bestStage, rank: window.__game.s.rank }));
+  assert(rg.count === 1 && rg.points === 10 && rg.stage === 1 && rg.gold === 0 && rg.best === 100 && rg.rank === 1, '회귀: 1관문으로, 기억 +10, 경지·역대 관문 유지');
+  await sleep(1500);
+  await shot(p, '13-after-regress.png');
 
   console.log('# 방치 보상·저장');
   await G(p, () => { window.__game.s.lastSeen = Date.now() - 2 * 3600 * 1000; });
@@ -166,7 +179,7 @@ async function finishContest(page, { win = true } = {}) {
   await p.reload();
   await sleep(1500);
   const re = await G(p, () => ({ rank: window.__game.s.rank, pet: window.__game.s.pet, gold: window.__game.s.dungeons.gold }));
-  assert(re.rank === 1 && re.pet === petId && re.gold === 1, '새로고침 후 승급·펫·던전 유지');
+  assert(re.rank === 1 && re.pet === petId && re.gold === 1, '새로고침 후 경지·영수·비경 유지');
 
   if (!PKG) {
     assert((await p.textContent('#net-badge')).includes('오프라인'), 'Firebase 없이 오프라인 모드');
@@ -180,18 +193,18 @@ async function finishContest(page, { win = true } = {}) {
   console.log('# 온라인: 길드');
   await p.waitForSelector('#net-badge.online', { timeout: 15000 });
   await tab(p, 'social');
-  await sub(p, '길드');
-  await p.fill('input[placeholder^="길드 이름"]', '우리끼리');
-  await p.click('button:has-text("길드 만들기")');
+  await sub(p, '문파');
+  await p.fill('input[placeholder^="문파 이름"]', '우리끼리');
+  await p.click('button:has-text("문파 만들기")');
   await p.waitForSelector('text=🏰 우리끼리');
   const code = (await p.textContent('.card b[style*="letter-spacing"]')).trim();
-  assert(/^[A-Z0-9]{6}$/.test(code), `길드 생성, 코드 ${code}`);
+  assert(/^[A-Z0-9]{6}$/.test(code), `문파 생성, 코드 ${code}`);
 
   const b = await newPlayer(browser, '영희');
   const q = b.page;
   await q.waitForSelector('#net-badge.online', { timeout: 15000 });
   await tab(q, 'social');
-  await sub(q, '길드');
+  await sub(q, '문파');
   await q.fill('input[placeholder^="친구에게"]', code.toLowerCase());
   await q.click('button:has-text("가입하기")');
   await q.waitForSelector('text=🏰 우리끼리');
@@ -218,31 +231,31 @@ async function finishContest(page, { win = true } = {}) {
   const shards0 = await G(p, () => window.__game.s.relicShards);
   await p.click('text=보상 받기');
   await p.waitForSelector('text=보상을 받았어요', { timeout: 10000 });
-  assert(await G(p, () => window.__game.s.relicShards) === shards0 + 20, '레이드 처치 보상 (유물 조각 포함)');
+  assert(await G(p, () => window.__game.s.relicShards) === shards0 + 20, '토벌 성공 보상 (신물 조각 포함)');
 
   console.log('# 결투');
-  await sub(q, '결투장');
-  await q.waitForSelector('.rank-row:has-text("철수") button:has-text("결투")', { timeout: 10000 });
+  await sub(q, '비무대');
+  await q.waitForSelector('.rank-row:has-text("철수") button:has-text("비무")', { timeout: 10000 });
   await shot(q, '13-pvp-list.png');
-  await q.click('.rank-row:has-text("철수") button:has-text("결투")');
+  await q.click('.rank-row:has-text("철수") button:has-text("비무")');
   await q.waitForFunction(() => window.__game.mode === 'pvp');
   await sleep(2000);
   await shot(q, '14-pvp.png');
   await finishContest(q, { win: false });
   await q.waitForSelector('.result-title');
   const pvp = await G(q, () => ({ ...window.__game.s.pvp, t: window.__game.s.daily.pvpTickets }));
-  assert(pvp.wins + pvp.losses === 1 && pvp.t === 4 && pvp.score !== 1000, `결투 결과 반영 (${pvp.wins}승 ${pvp.losses}패, ${pvp.score}점)`);
+  assert(pvp.wins + pvp.losses === 1 && pvp.t === 4 && pvp.score !== 1000, `비무 결과 반영 (${pvp.wins}승 ${pvp.losses}패, ${pvp.score}점)`);
   await shot(q, '15-pvp-result.png');
   await q.click('#modal >> text=확인');
 
   console.log('# 랭킹');
-  await sub(q, '랭킹');
+  await sub(q, '서열');
   await q.waitForSelector('.rank-row:has-text("철수")', { timeout: 10000 });
-  assert((await q.$$('.rank-row')).length === 2, '랭킹 2명');
+  assert((await q.$$('.rank-row')).length === 2, '서열 2명');
   await q.click('.rank-row:has-text("철수")');
   await q.waitForSelector('#modal h2:has-text("철수")');
   await shot(q, '16-profile.png');
-  assert((await q.textContent('#modal')).includes('수련 기사'), '프로필에 승급 단계 표시');
+  assert((await q.textContent('#modal')).includes('이류'), '프로필에 경지 표시');
 
   const errs = [...a.errors, ...b.errors];
   console.log('errors:', errs);

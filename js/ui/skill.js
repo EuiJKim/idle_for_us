@@ -1,4 +1,4 @@
-// 스킬 탭: 스킬북으로 강화, 4칸 장착
+// 무공 탭: 비급으로 연마, 4칸 장착
 import { SKILLS, SKILL_SLOTS } from '../data.js';
 import { fmt } from '../fmt.js';
 import { h, openModal, closeModal } from './common.js';
@@ -11,9 +11,9 @@ export function skillTab(app) {
   const slotsEl = h('div', { class: 'slots' });
   const root = h('div', {},
     h('div', { class: 'card' },
-      h('h3', {}, '장착 스킬', autoBtn),
+      h('h3', {}, '장착 무공', autoBtn),
       slotsEl,
-      h('p', { class: 'muted', style: 'margin:8px 0 0' }, '📕 스킬북 ', books, '개 · 보스를 잡거나 미션을 깨면 얻어요')));
+      h('p', { class: 'muted', style: 'margin:8px 0 0' }, '秘 비급 ', books, '개 · 두목를 잡거나 의뢰을 깨면 얻어요')));
 
   SKILLS.forEach((sk) => {
     const lv = h('small');
@@ -66,9 +66,9 @@ export function skillTab(app) {
       const unlocked = game.skillUnlocked(sk);
       const equipped = game.s.skillSlots.includes(sk.id);
       r.row.style.opacity = unlocked ? '' : '0.5';
-      r.lv.textContent = unlocked ? `Lv.${l}` : `STAGE ${sk.unlock} 해금`;
+      r.lv.textContent = unlocked ? `Lv.${l}` : `관문 ${sk.unlock} 해금`;
       r.desc.innerHTML = `${sk.desc(sk.mult(l))} · 쿨 ${sk.cd}초<br>다음: <b>${sk.desc(sk.mult(l + 1))}</b>`;
-      r.btn.textContent = `📕 ${game.skillUpgradeCost(sk.id)}`;
+      r.btn.textContent = `秘 ${game.skillUpgradeCost(sk.id)}`;
       r.btn.disabled = !unlocked || game.s.books < game.skillUpgradeCost(sk.id);
       r.eq.textContent = equipped ? '해제' : '장착';
       r.eq.disabled = !unlocked;

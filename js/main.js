@@ -26,7 +26,7 @@ const game = new Game(loadSave() || newSave());
 const view = new BattleView($('cv'));
 const app = {
   game, net: null, refresh: () => refreshUI(true),
-  startRaid, startTrial, startDungeon, sweepDungeon, startPvp,
+  startRaid, startTrial, startDungeon, sweepDungeon, startPvp, regress,
 };
 const net = new Net(game, { onChange: (what) => netChanged(what) });
 app.net = net;
@@ -75,7 +75,7 @@ function updateDots() {
   setDot(document.querySelector('#tabs button[data-tab="growth"]'), game.s.sp > 0 || game.canTrial());
 }
 
-// ---------- 스킬 바 ----------
+// ---------- 무공 바 ----------
 let skillEls = [];
 let slotSig = '';
 const autoBtn = h('button', { class: 'auto-btn', onclick: () => { game.s.autoSkill = !game.s.autoSkill; refreshUI(true); } }, 'AUTO');
@@ -97,7 +97,7 @@ $('btn-settings').addEventListener('click', openSettings);
 $('btn-missions').addEventListener('click', () => openMissions(app));
 
 // ---------- 화면 갱신 ----------
-const MODE_TITLE = { raid: '🐲 길드 레이드', trial: '⚔️ 승급 시련', pvp: '⚔️ 결투', dungeon: '🏯 던전' };
+const MODE_TITLE = { raid: '혈마 토벌', trial: '심마 대결', pvp: '비무대', dungeon: '비경' };
 function refreshUI(full = false) {
   const s = game.s;
   const c = game.contest;
@@ -105,10 +105,10 @@ function refreshUI(full = false) {
   $('gems').textContent = fmt(s.gems);
   if (c) {
     $('stage-label').textContent = c.mode === 'dungeon' ? `${c.def.name} ${c.level}단계` : MODE_TITLE[c.mode];
-    $('zone-label').textContent = c.mode === 'pvp' ? `vs ${c.opponent.nickname}` : c.mode === 'trial' ? `${RANKS[c.rank].name} 승급 도전` : '시간 안에 쓰러뜨리세요';
+    $('zone-label').textContent = c.mode === 'pvp' ? `vs ${c.opponent.nickname}` : c.mode === 'trial' ? `${RANKS[c.rank].name} 경지 도전` : '시간 안에 쓰러뜨리세요';
   } else {
-    $('stage-label').textContent = `STAGE ${s.stage}${s.farming ? ' (반복)' : ''}`;
-    $('zone-label').textContent = `${zoneOf(s.stage).name} · ${RANKS[s.rank].name} Lv.${s.level}`;
+    $('stage-label').textContent = `제 ${s.stage} 관문${s.farming ? ' (수련 중)' : ''}`;
+    $('zone-label').textContent = `${zoneOf(s.stage).name} · ${RANKS[s.rank].name} · Lv.${s.level}${s.regress.count ? ` · ${s.regress.count + 1}회차` : ''}`;
   }
   $('power-label').textContent = `전투력 ${fmt(game.power().power)}`;
   $('exp-bar').firstChild.style.width = `${Math.min(100, (s.exp / expToNext(s.level)) * 100)}%`;
@@ -122,17 +122,17 @@ function refreshUI(full = false) {
   } else if (m?.isBoss && m.alive) {
     prog.classList.add('boss');
     $('progress-fill').style.width = `${(game.bossTimer / game.bossTimeMax) * 100}%`;
-    $('progress-text').textContent = `보스 ${Math.ceil(game.bossTimer)}초`;
+    $('progress-text').textContent = `두목 ${Math.ceil(game.bossTimer)}초`;
   } else {
     prog.classList.remove('boss');
     const k = s.farming ? KILLS_PER_STAGE : Math.min(KILLS_PER_STAGE, s.kills);
     $('progress-fill').style.width = `${(k / KILLS_PER_STAGE) * 100}%`;
-    $('progress-text').textContent = s.farming ? '골드 모으는 중' : `${k} / ${KILLS_PER_STAGE}`;
+    $('progress-text').textContent = s.farming ? '은자 모으는 중' : `${k} / ${KILLS_PER_STAGE}`;
   }
   $('btn-boss').classList.toggle('hidden', !s.farming || !!c);
   $('contest-hud').classList.toggle('hidden', !c || c.mode !== 'raid');
   if (c?.mode === 'raid') {
-    $('contest-title').textContent = `🐲 길드 레이드 ${Math.ceil(c.time)}초`;
+    $('contest-title').textContent = `문파 토벌 · 혈마 ${Math.ceil(c.time)}초`;
     $('contest-sub').textContent = `내 피해 ${fmt(c.damage)}`;
   }
 
@@ -141,7 +141,7 @@ function refreshUI(full = false) {
     if (!sk) { btn.classList.add('locked'); continue; }
     const unlocked = game.skillUnlocked(sk);
     btn.classList.toggle('locked', !unlocked || game.mode === 'pvp');
-    lock.textContent = unlocked ? `Lv.${s.skills[sk.id]}` : `ST.${sk.unlock}`;
+    lock.textContent = unlocked ? `Lv.${s.skills[sk.id]}` : `${sk.unlock}관`;
     const left = game.cd[sk.id];
     cd.style.height = unlocked ? `${(left / sk.cd) * 100}%` : '0';
     btn.classList.toggle('ready', unlocked && left <= 0);
@@ -159,17 +159,18 @@ function handleEvents() {
   for (const ev of game.events) {
     view.handle(ev, game);
     switch (ev.type) {
-      case 'gems': toast(`💎 +${ev.amount}`); break;
+      case 'gems': toast(`寶 +${ev.amount}`); break;
       case 'stageClear': {
         if (ev.stage % 10 === 0) { toast(`🎉 ${zoneOf(ev.stage + 1).name}에 도착했어요!`); net.pushProfile(true); }
         const sk = SKILLS.find((x) => x.unlock === ev.stage + 1);
-        if (sk) toast(`${sk.icon} 새 스킬 「${sk.name}」 해금!`);
-        if ([10, 20, 30, 40].includes(ev.stage)) toast('🏯 새 던전이 열렸어요!');
+        if (sk) toast(`${sk.icon} 새 무공 「${sk.name}」 해금!`);
+        if ([10, 20, 30, 40].includes(ev.stage)) toast('🏯 새 비경이 열렸어요!');
         break;
       }
       case 'levelUp': updateDots(); break;
-      case 'missionDone': toast(`📜 미션 완료: ${MISSIONS.find((x) => x.id === ev.id).name}`); updateDots(); break;
-      case 'heroDied': if (ev.boss) toast('보스를 못 잡았어요. 강화하고 다시 도전!'); break;
+      case 'regress': toast(`回歸 · 전생의 기억 +${ev.gain}`); break;
+      case 'missionDone': toast(`📜 의뢰 완료: ${MISSIONS.find((x) => x.id === ev.id).name}`); updateDots(); break;
+      case 'heroDied': if (ev.boss) toast('두목를 못 잡았어요. 수련하고 다시 도전!'); break;
       case 'raidEnd': finishRaid(ev.damage); break;
       case 'contestEnd': if (ev.mode !== 'raid') showResult(ev); break;
       default:
@@ -188,14 +189,14 @@ function showResult(r) {
     let title = '';
     let body = '';
     if (r.mode === 'dungeon') {
-      title = win ? '던전 클리어!' : '던전 실패';
-      body = win ? `${r.level}단계 클리어! 다음 단계가 열렸어요.` : '시간 안에 못 잡았어요. 열쇠는 그대로예요. 강화하고 다시 도전!';
+      title = win ? '비경 돌파!' : '비경 실패';
+      body = win ? `${r.level}단계 클리어! 다음 단계가 열렸어요.` : '시간 안에 못 잡았어요. 열쇠는 그대로예요. 수련하고 다시 도전!';
     } else if (r.mode === 'trial') {
-      title = win ? `승급! ${RANKS[r.rank].name}` : '시련 실패';
-      body = win ? '공격력·체력 ×1.5, 외형이 바뀌었어요!' : '시련의 기사가 너무 강해요. 조금 더 강해져서 다시 도전하세요.';
+      title = win ? `경지 돌파 · ${RANKS[r.rank].name}` : '심마에게 패했다';
+      body = win ? '마음속 마귀를 베었다. 공격력·체력 ×1.5, 기운이 달라졌어요!' : '심마가 아직 강해요. 더 수련하고 다시 도전하세요.';
     } else if (r.mode === 'pvp') {
       title = win ? '승리!' : '패배…';
-      body = `vs ${r.opponent.nickname} · 결투 점수 ${r.delta > 0 ? '+' : ''}${r.delta} (${game.s.pvp.score}점)`;
+      body = `vs ${r.opponent.nickname} · 비무 점수 ${r.delta > 0 ? '+' : ''}${r.delta} (${game.s.pvp.score}점)`;
     }
     s.append(h('div', { class: `result-title ${win ? 'win' : 'lose'}` }, title), h('p', { style: 'text-align:center' }, body));
     if (r.reward && rewardText(r.reward)) s.append(h('div', { class: 'big-reward', style: 'font-size:20px' }, rewardText(r.reward)));
@@ -208,15 +209,24 @@ function canStart() {
   return true;
 }
 
+function regress() {
+  if (!canStart()) return;
+  const gain = game.regress();
+  if (!gain) return;
+  save();
+  net.pushProfile(true);
+  refreshUI(true);
+}
+
 function startTrial() {
   if (!canStart()) return;
-  if (!game.startTrial()) return toast('아직 승급 조건이 안 돼요');
+  if (!game.startTrial()) return toast('아직 경지 조건이 안 돼요');
   return undefined;
 }
 
 function startDungeon(id) {
   if (!canStart()) return;
-  if (!game.startDungeon(id)) toast('던전에 들어갈 수 없어요 (열쇠·해금 확인)');
+  if (!game.startDungeon(id)) toast('비경에 들어갈 수 없어요 (열쇠·해금 확인)');
   refreshUI(true);
 }
 
@@ -230,8 +240,8 @@ function sweepDungeon(id) {
 
 function startPvp(p) {
   if (!canStart()) return;
-  if (p.uid === net.uid) return toast('자기 자신과는 결투할 수 없어요');
-  if (game.s.daily.pvpTickets <= 0) return toast('오늘 결투를 다 했어요. 내일 다시!');
+  if (p.uid === net.uid) return toast('자기 자신과는 비무할 수 없어요');
+  if (game.s.daily.pvpTickets <= 0) return toast('오늘 비무를 다 했어요. 내일 다시!');
   const pet = PETS.find((x) => x.id === p.pet);
   game.startPvp({ ...p, petEmoji: p.petEmoji || pet?.emoji || null });
   refreshUI(true);
@@ -243,13 +253,13 @@ async function startRaid(btn) {
   if (btn) btn.disabled = true;
   try {
     const r = await net.ensureRaid();
-    if (r.total >= r.maxHp) return toast('오늘의 보스는 이미 처치됐어요');
+    if (r.total >= r.maxHp) return toast('오늘의 두목는 이미 처치됐어요');
     if (!game.startRaid(r.maxHp - r.total, r.maxHp)) return toast('오늘 도전 횟수를 다 썼어요');
     pendingRaid = r.id;
     toast('30초 동안 최대한 때려요!');
     save();
   } catch (err) {
-    toast(err.message || '레이드를 시작하지 못했어요');
+    toast(err.message || '토벌을 시작하지 못했어요');
   } finally {
     if (btn) btn.disabled = false;
     refreshUI(true);
@@ -263,7 +273,7 @@ async function finishRaid(damage) {
   if (!raidId) return;
   try {
     const killed = await net.commitRaidDamage(damage, raidId);
-    toast(killed ? '🐲 보스 처치! 친구 → 길드에서 보상을 받으세요' : `레이드 피해 ${fmt(damage)} 기록!`);
+    toast(killed ? '혈마 토벌 성공! 무림 → 문파에서 보상을 받으세요' : `토벌 피해 ${fmt(damage)} 기록!`);
   } catch (err) {
     toast(`피해 기록 실패: ${err.message}`);
   }
@@ -273,7 +283,7 @@ async function finishRaid(damage) {
 // ---------- 방치 보상 / 일일 보상 ----------
 function checkReturn(now = Date.now()) {
   const daily = game.checkDaily(now);
-  if (daily) toast(`📅 오늘의 출석 보상 💎${daily.gems}`);
+  if (daily) toast(`📅 오늘의 출석 보상 寶${daily.gems}`);
   net.refreshDay?.();
   const reward = game.offlineReward(now);
   game.s.lastSeen = now;
@@ -281,8 +291,8 @@ function checkReturn(now = Date.now()) {
   openModal((s) => {
     s.append(
       h('h2', {}, '🌙 다녀오셨어요!'),
-      h('p', { class: 'muted' }, `${duration(reward.sec)} 동안 캐릭터가 STAGE ${game.s.stage}에서 사냥했어요.`),
-      h('div', { class: 'big-reward' }, `🪙 ${fmt(reward.gold)}`),
+      h('p', { class: 'muted' }, `${duration(reward.sec)} 동안 제 ${game.s.stage} 관문에서 홀로 수련했어요.`),
+      h('div', { class: 'big-reward' }, `銀 ${fmt(reward.gold)}`),
       h('p', { style: 'text-align:center;margin-top:-6px' }, `📘 경험치 ${fmt(reward.exp)}`),
       h('button', { class: 'btn primary', style: 'width:100%', onclick: closeModal }, '받기'),
     );
@@ -310,8 +320,8 @@ function askNickname(first = false) {
     ok.onclick = submit;
     input.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.isComposing) submit(); });
     s.append(
-      h('h2', {}, first ? '⚔️ 우리끼리 키우기' : '닉네임 변경'),
-      first ? h('p', { class: 'muted' }, '친구들에게 보일 닉네임을 정해 주세요. 나중에 설정에서 바꿀 수 있어요.') : null,
+      h('h2', {}, first ? '우리끼리 회귀무림' : '닉네임 변경'),
+      first ? h('p', { class: 'muted' }, '강호에서 불릴 이름(별호)을 정해 주세요. 나중에 설정에서 바꿀 수 있어요.') : null,
       input, ok);
     setTimeout(() => input.focus(), 50);
   }, { dismissable: !first, onClose: first ? () => checkReturn() : null });
@@ -385,7 +395,7 @@ function importSave() {
 function resetSave() {
   openModal((s) => {
     const input = h('input', { class: 'field', placeholder: '"초기화"라고 입력' });
-    s.append(h('h2', {}, '정말 처음부터 할까요?'), h('p', { class: 'muted' }, '모든 진행 상황이 지워져요. 길드에서도 나가게 돼요.'), input,
+    s.append(h('h2', {}, '정말 처음부터 할까요?'), h('p', { class: 'muted' }, '모든 진행 상황이 지워져요. 문파에서도 나가게 돼요.'), input,
       h('div', { class: 'btn-row', style: 'margin-top:8px' },
         h('button', { class: 'btn', onclick: closeModal }, '취소'),
         h('button', { class: 'btn danger', onclick: async () => {
@@ -421,7 +431,7 @@ function frame(now) {
     net.pushProfile();
     // 켜 둔 채로 자정을 넘긴 경우
     const daily = game.checkDaily();
-    if (daily) toast(`📅 오늘의 출석 보상 💎${daily.gems}`);
+    if (daily) toast(`📅 오늘의 출석 보상 寶${daily.gems}`);
     net.refreshDay();
     updateDots();
   }
@@ -430,7 +440,7 @@ function frame(now) {
 
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) {
-    if (game.mode === 'raid') game.endRaid(); // 레이드 중 앱을 내리면 지금까지 피해를 기록
+    if (game.mode === 'raid') game.endRaid(); // 토벌 중 앱을 내리면 지금까지 피해를 기록
     handleEvents();
     save();
     net.pushProfile(true);
@@ -442,6 +452,12 @@ document.addEventListener('visibilitychange', () => {
 window.addEventListener('pagehide', () => save());
 
 // ---------- 시작 ----------
+// 캔버스에서 쓰는 붓글씨 한자를 미리 받아 둔다 (웹폰트는 쓰이는 글자만 내려받음)
+if (document.fonts?.load) {
+  const glyphs = '回歸武銀寶秘鐵草片拳氣穴破快力體殺鬪財悟劍衣玉蔘蟾乳匕香月飛旋風血魔解放運調息雷霆疾步千金手氷魄神掌萬宗錢獸洞修兵靈盟令設境進心';
+  document.fonts.load(`20px "Yuji Syuku"`, glyphs).catch(() => {});
+  document.fonts.load(`20px "Nanum Brush Script"`, '관문돌파두목경지비경입장비무시작문파토벌혈마심마와의대결레벨').catch(() => {});
+}
 showTab('growth');
 netChanged('status');
 refreshUI(true);

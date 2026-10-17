@@ -11,7 +11,8 @@ import {
   DUNGEONS, DUNGEON_KEYS, DUNGEON_TIME, DUNGEON_MOBS, dungeonStage, dungeonReward,
   MISSIONS, MISSION_ALL_REWARD, stageMilestone, STAGE_MILESTONE_EVERY,
   PVP_TICKETS, PVP_TIME, PVP_WIN, PVP_LOSE, PVP_REWARD,
-  zoneOf, monsterHp, monsterAtk, monsterGold, BOSS_HP_MULT, BOSS_ATK_MULT, BOSS_GOLD_MULT, BOSS_MOBS,
+  zoneOf, monsterHp, monsterAtk, monsterGold, BOSS_HP_MULT, BOSS_ATK_MULT, BOSS_GOLD_MULT, RAID_BOSS,
+  REGRESS_PER_POINT, regressGain,
   bossGems, bossRelicShards, guildAtkBonus,
 } from './data.js';
 
@@ -43,6 +44,8 @@ export function newSave(now = Date.now()) {
     relicShards: 0,
     stage: 1,
     maxStage: 1,
+    bestStage: 1, // 회귀해도 남는 역대 최고 관문
+    regress: { count: 0, points: 0 },
     kills: 0,
     farming: false,
     level: 1,
@@ -74,7 +77,7 @@ export function migrate(raw, now = Date.now()) {
   const base = newSave(now);
   if (!raw || typeof raw !== 'object') return base;
   const s = { ...base, ...raw };
-  for (const key of ['upgrades', 'skills', 'stats', 'spAlloc', 'enhance', 'dungeons', 'pvp']) {
+  for (const key of ['upgrades', 'skills', 'stats', 'spAlloc', 'enhance', 'dungeons', 'pvp', 'regress']) {
     s[key] = { ...base[key], ...(raw[key] || {}) };
   }
   s.daily = { ...freshDaily(raw.daily?.date || ''), ...(raw.daily || {}) };
@@ -86,9 +89,10 @@ export function migrate(raw, now = Date.now()) {
   }
   if (!Array.isArray(raw.skillSlots)) {
     // v1 → v2: 해금된 스킬을 순서대로 장착
-    s.skillSlots = SKILLS.filter((sk) => s.maxStage >= sk.unlock).slice(0, SKILL_SLOTS).map((sk) => sk.id);
+    s.skillSlots = SKILLS.filter((sk) => (raw.maxStage || 1) >= sk.unlock).slice(0, SKILL_SLOTS).map((sk) => sk.id);
   }
   while (s.skillSlots.length < SKILL_SLOTS) s.skillSlots.push(null);
+  s.bestStage = Math.max(raw.bestStage || 1, s.maxStage || 1);
   s.pets = { ...(raw.pets || {}) };
   s.relics = { ...(raw.relics || {}) };
   s.v = SAVE_VERSION;
@@ -152,6 +156,9 @@ export class Game {
 
   rankMult() { return Math.pow(RANK_MULT, this.s.rank); }
 
+  // 전생의 기억: 회귀로 쌓은 포인트만큼 공격력·체력·은자·경험치 증가
+  regressMult() { return 1 + REGRESS_PER_POINT * (this.s.regress.points || 0); }
+
   stats({ buffs = true } = {}) {
     const u = this.s.upgrades;
     const m = this.mods();
@@ -161,13 +168,14 @@ export class Game {
     const midas = b.midas > 0 ? SKILLS[5].mult(this.s.skills.midas) : 1;
     const guild = 1 + guildAtkBonus(this.guildExp);
     const rank = this.rankMult();
-    const atk = UPGRADES.atk.value(u.atk) * this.equipMult('weapon') * (1 + m.atk) * rank * guild * rage;
-    const hp = UPGRADES.hp.value(u.hp) * this.equipMult('armor') * (1 + m.hp) * rank;
+    const past = this.regressMult();
+    const atk = UPGRADES.atk.value(u.atk) * this.equipMult('weapon') * (1 + m.atk) * rank * guild * rage * past;
+    const hp = UPGRADES.hp.value(u.hp) * this.equipMult('armor') * (1 + m.hp) * rank * past;
     const crit = Math.min(CRIT_CAP, UPGRADES.crit.value(u.crit));
     const critDmg = UPGRADES.critDmg.value(u.critDmg) + m.critDmg;
     const speed = Math.min(SPEED_CAP, UPGRADES.speed.value(u.speed)) * (1 + m.speed) * gale;
-    const goldMul = UPGRADES.gold.value(u.gold) * this.equipMult('ring') * (1 + m.gold) * midas;
-    const expMul = 1 + m.exp;
+    const goldMul = UPGRADES.gold.value(u.gold) * this.equipMult('ring') * (1 + m.gold) * midas * past;
+    const expMul = (1 + m.exp) * past;
     const bossMul = 1 + m.boss;
     const pet = this.s.pet ? PETS.find((p) => p.id === this.s.pet) : null;
     const petHit = pet ? atk * petDamageMult(pet, this.s.pets[pet.id] || 1) : 0;
@@ -204,10 +212,10 @@ export class Game {
     const s = this.s.stage;
     const isBoss = !this.s.farming && this.s.kills >= KILLS_PER_STAGE;
     this.fillQueue(() => this.pickMob());
-    const emoji = isBoss ? BOSS_MOBS[Math.floor((s - 1) / 10) % BOSS_MOBS.length] : this.queue.shift();
+    const def = isBoss ? zoneOf(s).boss : this.queue.shift();
     const hp = monsterHp(s) * (isBoss ? BOSS_HP_MULT : 1);
     this.mon = {
-      hp, maxHp: hp, isBoss, emoji,
+      hp, maxHp: hp, isBoss, def,
       atk: monsterAtk(s) * (isBoss ? BOSS_ATK_MULT : 1),
       atkTimer: 1.2, alive: true, stun: 0,
     };
@@ -261,7 +269,7 @@ export class Game {
       this.progress('boss');
       this.s.books += 1;
       this.s.stones += 2;
-      if (s >= this.s.maxStage) {
+      if (s >= this.s.maxStage) { // 이번 생에서 처음 넘는 관문
         const gems = bossGems(s);
         this.s.gems += gems;
         this.s.relicShards += bossRelicShards(s);
@@ -269,6 +277,7 @@ export class Game {
       }
       this.s.stage = s + 1;
       this.s.maxStage = Math.max(this.s.maxStage, this.s.stage);
+      this.s.bestStage = Math.max(this.s.bestStage, this.s.maxStage);
       this.s.kills = 0;
       this.autoSlotSkills();
       this.emit('stageClear', { stage: s });
@@ -424,7 +433,7 @@ export class Game {
     const r = this.s.rank + 1;
     const boss = trialBoss(r);
     this.beginContest('trial', TRIAL_TIME, { rank: r });
-    this.mon = { hp: boss.hp, maxHp: boss.hp, isBoss: true, emoji: '🛡️', trial: true, atk: boss.atk, atkTimer: 1.5, alive: true, stun: 0 };
+    this.mon = { hp: boss.hp, maxHp: boss.hp, isBoss: true, def: { name: '심마(心魔)' }, trial: true, atk: boss.atk, atkTimer: 1.5, alive: true, stun: 0 };
     return true;
   }
 
@@ -487,7 +496,7 @@ export class Game {
   }
 
   // ---------- 던전 ----------
-  dungeonUnlocked(d) { return this.s.maxStage >= d.unlock; }
+  dungeonUnlocked(d) { return this.s.bestStage >= d.unlock; }
 
   startDungeon(id) {
     const d = DUNGEONS.find((x) => x.id === id);
@@ -504,7 +513,7 @@ export class Game {
     const hp = monsterHp(c.eq) * (isBoss ? BOSS_HP_MULT * 1.5 : 1.2);
     this.fillQueue(() => c.def.mob);
     this.mon = {
-      hp, maxHp: hp, isBoss, emoji: isBoss ? c.def.boss : this.queue.shift(),
+      hp, maxHp: hp, isBoss, def: isBoss ? c.def.boss : this.queue.shift(),
       atk: monsterAtk(c.eq) * (isBoss ? BOSS_ATK_MULT : 1), atkTimer: 1.2, alive: true, stun: 0,
     };
     if (c.kills + 1 + this.queue.length > DUNGEON_MOBS) this.queue.length = Math.max(0, DUNGEON_MOBS - c.kills - 1);
@@ -538,7 +547,7 @@ export class Game {
   }
 
   // ---------- 스킬 ----------
-  skillUnlocked(sk) { return this.s.maxStage >= sk.unlock; }
+  skillUnlocked(sk) { return this.s.bestStage >= sk.unlock; }
 
   autoSlotSkills() {
     for (const sk of SKILLS) {
@@ -776,7 +785,7 @@ export class Game {
   }
 
   milestonesReady() {
-    return Math.max(0, Math.floor((this.s.maxStage - 1) / STAGE_MILESTONE_EVERY) - this.s.milestone);
+    return Math.max(0, Math.floor((this.s.bestStage - 1) / STAGE_MILESTONE_EVERY) - this.s.milestone);
   }
 
   claimMilestone() {
@@ -833,13 +842,43 @@ export class Game {
     if (this.mode !== 'stage' || this.s.daily.raidTickets <= 0 || remainingHp <= 0) return false;
     this.s.daily.raidTickets--;
     this.beginContest('raid', RAID_TIME);
-    this.mon = { hp: remainingHp, maxHp, isBoss: true, isRaid: true, emoji: '🐲', alive: true, atk: 0, atkTimer: 99, stun: 0 };
+    this.mon = { hp: remainingHp, maxHp, isBoss: true, isRaid: true, def: RAID_BOSS, alive: true, atk: 0, atkTimer: 99, stun: 0 };
     return true;
   }
 
   endRaid() {
     if (this.mode !== 'raid') return 0;
     return this.endContest('quit')?.damage || 0;
+  }
+
+  // ---------- 회귀 ----------
+  regressPreview() { return regressGain(this.s.maxStage); }
+
+  // 관문·은자·수련·레벨·스탯 포인트를 처음으로 되돌리고 전생의 기억을 얻는다.
+  // 경지·병기·제련·무공·영수·신물·비경 기록·원보는 그대로 남는다.
+  regress() {
+    const gain = this.regressPreview();
+    if (!gain || this.mode !== 'stage') return 0;
+    const s = this.s;
+    s.bestStage = Math.max(s.bestStage, s.maxStage);
+    s.regress.points += gain;
+    s.regress.count++;
+    s.stage = 1;
+    s.maxStage = 1;
+    s.kills = 0;
+    s.farming = false;
+    s.gold = 0;
+    for (const k of Object.keys(s.upgrades)) s.upgrades[k] = 0;
+    s.level = 1;
+    s.exp = 0;
+    s.sp = 0;
+    for (const k of Object.keys(s.spAlloc)) s.spAlloc[k] = 0;
+    this.buffs = { rage: 0, gale: 0, midas: 0 };
+    this.queue = [];
+    this.heroHp = this.stats().hp;
+    this.emit('regress', { gain, count: s.regress.count });
+    this.spawnStage();
+    return gain;
   }
 
   toJSON(now = Date.now()) {

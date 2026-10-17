@@ -1,4 +1,4 @@
-// 일일 미션 / 업적 모달
+// 일일 의뢰 / 업적 모달
 import { MISSIONS, MISSION_ALL_REWARD, STAGE_MILESTONE_EVERY, stageMilestone } from '../data.js';
 import { h, toast, openModal, closeModal, rewardText } from './common.js';
 
@@ -6,7 +6,7 @@ export function openMissions(app) {
   const { game } = app;
   openModal((s) => {
     const body = h('div');
-    s.append(h('h2', {}, '📜 일일 미션'), h('p', { class: 'muted', style: 'margin-top:0' }, '매일 0시(한국 시간)에 초기화돼요.'), body,
+    s.append(h('h2', {}, '📜 일일 의뢰'), h('p', { class: 'muted', style: 'margin-top:0' }, '매일 0시(한국 시간)에 초기화돼요.'), body,
       h('button', { class: 'btn', style: 'width:100%;margin-top:10px', onclick: closeModal }, '닫기'));
     const render = () => {
       body.replaceChildren();
@@ -34,7 +34,7 @@ export function openMissions(app) {
       msBtn.onclick = () => { const r = game.claimMilestone(); if (r) toast(rewardText(r)); app.refresh(); render(); };
       body.append(h('div', { class: 'section-title', style: 'margin-top:14px' }, '🏅 업적'),
         h('div', { class: 'row' }, h('div', { class: 'info' },
-          h('div', { class: 'name' }, `STAGE ${next} 도달`), h('div', { class: 'desc' }, `${STAGE_MILESTONE_EVERY}스테이지마다 ${rewardText(stageMilestone())}`)), msBtn));
+          h('div', { class: 'name' }, `관문 ${next} 도달`), h('div', { class: 'desc' }, `${STAGE_MILESTONE_EVERY}관문마다 ${rewardText(stageMilestone())}`)), msBtn));
     };
     render();
   });

@@ -1,4 +1,4 @@
-// Firebase 연동: 익명 로그인, 프로필·랭킹, 길드·채팅, 길드 레이드.
+// Firebase 연동: 익명 로그인, 프로필·서열, 문파·채팅, 문파 토벌.
 // SDK를 동적으로 불러오므로 실패해도 혼자 하기는 그대로 동작한다.
 import { firebaseConfig, FIREBASE_SDK_VERSION } from './firebase-config.js';
 import { dayKey } from './game.js';
@@ -59,7 +59,7 @@ export class Net {
 
   ref(...path) { return this.fs.doc(this.db, ...path); }
 
-  // ---------- 프로필 / 랭킹 ----------
+  // ---------- 프로필 / 서열 ----------
   profileData() {
     const g = this.game;
     const p = g.power();
@@ -69,7 +69,8 @@ export class Net {
       nickname: g.s.nickname || '이름없음',
       power: p.power, dps: p.dps, atk: p.atk, hp: p.hp,
       crit: p.crit, critDmg: p.critDmg, speed: p.speed, petHit: p.petHit,
-      maxStage: g.s.maxStage, stage: g.s.stage, level: g.s.level, rank: g.s.rank,
+      maxStage: g.s.maxStage, bestStage: g.s.bestStage, stage: g.s.stage, level: g.s.level, rank: g.s.rank,
+      regress: g.s.regress.count,
       pet: pet?.id || null, petLv: pet ? g.s.pets[pet.id] : 0, petEmoji: pet?.emoji || null,
       weaponGrade: best.weapon, enhance: { ...g.s.enhance },
       pvp: { ...g.s.pvp },
@@ -102,7 +103,7 @@ export class Net {
     return snap.exists() ? { uid, ...snap.data() } : null;
   }
 
-  // ---------- 길드 ----------
+  // ---------- 문파 ----------
   async createGuild(name) {
     const { runTransaction, serverTimestamp } = this.fs;
     const nick = this.game.s.nickname;
@@ -120,7 +121,7 @@ export class Net {
       });
       if (ok) return this.enterGuild(code);
     }
-    throw new Error('길드 코드를 만들지 못했어요. 다시 시도해 주세요.');
+    throw new Error('문파 코드를 만들지 못했어요. 다시 시도해 주세요.');
   }
 
   async joinGuild(rawCode) {
@@ -129,10 +130,10 @@ export class Net {
     const ref = this.ref('guilds', code);
     await runTransaction(this.db, async (tx) => {
       const snap = await tx.get(ref);
-      if (!snap.exists()) throw new Error('그런 길드 코드가 없어요.');
+      if (!snap.exists()) throw new Error('그런 문파 코드가 없어요.');
       const g = snap.data();
       if (g.memberIds.includes(this.uid)) return;
-      if (g.memberIds.length >= GUILD_MAX) throw new Error(`길드가 가득 찼어요 (최대 ${GUILD_MAX}명).`);
+      if (g.memberIds.length >= GUILD_MAX) throw new Error(`문파가 가득 찼어요 (최대 ${GUILD_MAX}명).`);
       tx.update(ref, {
         memberIds: [...g.memberIds, this.uid],
         members: { ...g.members, [this.uid]: this.game.s.nickname },
@@ -180,7 +181,7 @@ export class Net {
     const { onSnapshot, collection, query, orderBy, limit } = this.fs;
     this.unsubs.push(onSnapshot(this.ref('guilds', gid), (snap) => {
       if (!snap.exists() || !snap.data().memberIds.includes(this.uid)) {
-        // 길드가 사라졌거나 내보내졌을 때
+        // 문파가 사라졌거나 내보내졌을 때
         this.stopWatching();
         this.game.s.guildId = null;
         this.game.guildExp = 0;
@@ -217,7 +218,7 @@ export class Net {
     this.unsubs.push(unsub);
   }
 
-  // 날짜가 바뀌면 새 레이드 문서를 본다
+  // 날짜가 바뀌면 새 토벌 문서를 본다
   refreshDay() {
     if (this.guild && this.raidDay !== dayKey()) this.watchGuild(this.guild.id);
   }
@@ -255,15 +256,15 @@ export class Net {
     return true;
   }
 
-  // ---------- 레이드 ----------
+  // ---------- 토벌 ----------
   async ensureRaid() {
-    if (!this.guild) throw new Error('길드에 먼저 들어가 주세요.');
+    if (!this.guild) throw new Error('문파에 먼저 들어가 주세요.');
     const day = dayKey();
     const ref = this.ref('guilds', this.guild.id, 'raids', day);
     const existing = await this.fs.getDoc(ref);
     if (existing.exists()) return { id: day, ...existing.data() };
 
-    // 길드원들의 DPS 합으로 오늘 보스 체력을 정한다
+    // 문파원들의 DPS 합으로 오늘 두목 체력을 정한다
     const profiles = await Promise.all(this.guild.memberIds.map((id) => this.player(id).catch(() => null)));
     const mine = this.game.power().dps;
     const sum = profiles.reduce((acc, p) => acc + (p?.uid === this.uid ? mine : (p?.dps || 0)), 0) || mine;
@@ -299,7 +300,7 @@ export class Net {
       return nowKilled;
     });
     if (killed) {
-      await this.sendChat(`🐲 ${this.game.s.nickname}님이 마무리 일격! 오늘의 레이드 보스 처치! 보상을 받아 가세요.`, 'system')
+      await this.sendChat(`🐲 ${this.game.s.nickname}님이 마무리 일격! 오늘의 토벌 두목 처치! 보상을 받아 가세요.`, 'system')
         .catch(() => {});
     }
     return killed;

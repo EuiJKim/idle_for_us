@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><title>무인 도감</title>
+<link href="https://fonts.googleapis.com/css2?family=Nanum+Brush+Script&display=swap" rel="stylesheet">
+<style>body{margin:0;background:#e9dfc8}canvas{display:block}</style></head>
+<body><canvas id="c" width="1000" height="1300"></canvas>
+<script type="module">
+// 그림 확인용 도감: 경지별 주인공, 지역별 적과 두목, 비경·토벌 적
+import { drawFighter } from '../js/battle.js';
+import { RANKS, ZONES, DUNGEONS, RAID_BOSS } from '../js/data.js';
+const ctx = document.getElementById('c').getContext('2d');
+function draw(t) {
+  ctx.clearRect(0, 0, 1000, 1300);
+  ctx.font = '13px sans-serif';
+  RANKS.forEach((r, i) => {
+    const x = 50 + i * 95, y = 150;
+    drawFighter(ctx, x, y, r.look, { t, lunge: (Math.sin(t * 3 + i) + 1) / 2 * 0.8, blade: '#e5e7eb' });
+    ctx.fillStyle = '#000'; ctx.fillText(r.name, x - 18, y + 22);
+  });
+  ZONES.forEach((z, zi) => {
+    const y = 300 + zi * 120;
+    [...z.mobs, z.boss].forEach((m, i) => {
+      const x = 80 + i * 170;
+      ctx.save(); ctx.translate(x, y); const s = m.look.scale || 1; ctx.scale(-s * 0.8, s * 0.8);
+      drawFighter(ctx, 0, 0, m.look, { t: t + i, weapon: m.look.weapon });
+      ctx.restore();
+      ctx.fillStyle = '#000'; ctx.fillText(m.name, x - 20, y + 18);
+    });
+  });
+  [...DUNGEONS.filter((d) => d.boss.look).map((d) => d.boss), RAID_BOSS].forEach((m, i) => {
+    const x = 120 + i * 230, y = 1280;
+    ctx.save(); ctx.translate(x, y); const s = (m.look.scale || 1) * 0.7; ctx.scale(-s, s);
+    drawFighter(ctx, 0, 0, m.look, { t, weapon: m.look.weapon }); ctx.restore();
+    ctx.fillStyle = '#000'; ctx.fillText(m.name, x - 20, y + 16);
+  });
+}
+draw(1.3);
+window.__done = true;
+</script></body></html>

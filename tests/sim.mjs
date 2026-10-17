@@ -13,6 +13,8 @@ const dt = 0.1;
 let farmT = 0;
 const tried = {};
 let nextTrial = 0;
+let lastBest = 0;
+let lastProgressT = 0;
 const marks = [0.25, 0.5, 1, 2, 4, 8, 12, 24, 48, 72, 168].filter((h) => h <= hours);
 for (let t = 0, step = 0; t < hours * 3600; t += dt, step++) {
   g.tick(dt);
@@ -43,10 +45,12 @@ for (let t = 0, step = 0; t < hours * 3600; t += dt, step++) {
       g.startDungeon(d.id);
     }
   }
+  if (g.s.maxStage > lastBest) { lastBest = g.s.maxStage; lastProgressT = t; }
+  if (g.mode === 'stage' && t - lastProgressT > 1800 && g.regressPreview() >= 6) { g.regress(); lastBest = 0; lastProgressT = t; nextTrial = 0; }
   if (g.s.farming) { farmT += 1; if (farmT > 90) { farmT = 0; g.challengeBoss(); } }
   const h = t / 3600;
   if (marks.length && h >= marks[0]) {
     const p = g.power();
-    console.log(`${String(marks.shift()).padStart(5)}h  stage ${String(g.s.maxStage).padStart(4)}  Lv ${String(g.s.level).padStart(4)}  rank ${g.s.rank}  power ${p.power.toExponential(2)}  dung ${JSON.stringify(g.s.dungeons)}  enh ${g.s.enhance.weapon}  relics ${Object.values(g.s.relics).reduce((a, b) => a + b, 0)}  pets ${Object.keys(g.s.pets).length}`);
+    console.log(`${String(marks.shift()).padStart(5)}h  stage ${String(g.s.maxStage).padStart(4)} best ${String(g.s.bestStage).padStart(4)} 회귀 ${g.s.regress.count}회/${g.s.regress.points}pt  Lv ${String(g.s.level).padStart(4)}  rank ${g.s.rank}  power ${p.power.toExponential(2)}  dung ${JSON.stringify(g.s.dungeons)}  enh ${g.s.enhance.weapon}  relics ${Object.values(g.s.relics).reduce((a, b) => a + b, 0)}  pets ${Object.keys(g.s.pets).length}`);
   }
 }

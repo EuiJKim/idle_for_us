@@ -1,4 +1,4 @@
-// 친구 탭: 랭킹 / 결투장 / 길드
+// 친구 탭: 서열 / 비무대 / 문파
 import {
   GRADES, EQUIP_TYPES, SKILLS, RANKS, PETS, RAID_TICKETS, PVP_TICKETS,
   guildLevel, guildAtkBonus, GUILD_DONATE_GEMS, GUILD_DONATE_EXP, GUILD_CHECKIN_EXP, GUILD_MAX, raidReward,
@@ -30,7 +30,7 @@ function playerList(app, { sortKey, valueLabel, empty, onPick, action }) {
       h('div', { class: 'rank-no' }, i < 3 ? ['🥇', '🥈', '🥉'][i] : i + 1),
       h('div', { class: 'info' },
         h('div', { class: 'name' }, p.nickname, h('small', {}, `${RANKS[p.rank || 0]?.name || ''}${p.guildName ? ` · 🏰 ${p.guildName}` : ''}`)),
-        h('div', { class: 'desc' }, `Lv.${p.level || 1} · STAGE ${p.maxStage} · ${lastSeen(p)}`)),
+        h('div', { class: 'desc' }, `Lv.${p.level || 1} · ${p.maxStage}관문${p.regress ? ` · ${p.regress + 1}회차` : ''} · ${lastSeen(p)}`)),
       h('div', { style: 'text-align:right' },
         h('div', { style: 'font-weight:900;color:#fde68a' }, valueLabel(p)),
         action && p.uid !== net.uid ? action(p) : null))));
@@ -63,15 +63,15 @@ function pvpView(app) {
   const pl = playerList(app, {
     sortKey: (p) => p.pvp?.score ?? 1000,
     valueLabel: (p) => `${p.pvp?.score ?? 1000}점`,
-    empty: { hint: '친구를 골라 결투하세요. 상대가 접속하지 않아도 돼요.', none: '아직 상대가 없어요.' },
+    empty: { hint: '친구를 골라 비무하세요. 상대가 접속하지 않아도 돼요.', none: '아직 상대가 없어요.' },
     onPick: (p) => showProfile(app, p),
-    action: (p) => h('button', { class: 'btn primary', style: 'padding:5px 10px;margin-top:4px;font-size:12px', onclick: (e) => { e.stopPropagation(); app.startPvp(p); } }, '⚔️ 결투'),
+    action: (p) => h('button', { class: 'btn primary', style: 'padding:5px 10px;margin-top:4px;font-size:12px', onclick: (e) => { e.stopPropagation(); app.startPvp(p); } }, '⚔️ 비무'),
   });
   const root = h('div', {},
     h('div', { class: 'card', style: 'text-align:center' },
-      h('div', { class: 'muted' }, '내 결투 점수'), score, record,
-      h('p', { class: 'muted', style: 'margin:6px 0 0' }, '오늘 남은 결투 ', tickets, ` / ${PVP_TICKETS} · 이기면 +20점 💎50, 지면 -8점 💎10`)),
-    h('div', { class: 'section-title' }, h('span', {}, '결투 순위'), pl.refreshBtn), pl.status, pl.list);
+      h('div', { class: 'muted' }, '내 비무 점수'), score, record,
+      h('p', { class: 'muted', style: 'margin:6px 0 0' }, '오늘 남은 비무 ', tickets, ` / ${PVP_TICKETS} · 이기면 +20점 寶50, 지면 -8점 寶10`)),
+    h('div', { class: 'section-title' }, h('span', {}, '비무 순위'), pl.refreshBtn), pl.status, pl.list);
   function update() {
     score.textContent = game.s.pvp.score;
     record.textContent = `${game.s.pvp.wins}승 ${game.s.pvp.losses}패`;
@@ -87,31 +87,32 @@ export function showProfile(app, p) {
     s.append(h('p', { class: 'muted' }, `${rank.name} · Lv.${p.level || 1}${p.guildName ? ` · 🏰 ${p.guildName}` : ''} · 접속 ${lastSeen(p) || '-'}`));
     s.append(h('div', { class: 'stat-grid' },
       h('div', {}, '전투력', h('b', { style: 'color:#fde68a' }, fmt(p.power))),
-      h('div', {}, '최고 스테이지', h('b', {}, `STAGE ${p.maxStage}`)),
+      h('div', {}, '현재 / 역대 관문', h('b', {}, `${p.maxStage} / ${p.bestStage || p.maxStage}`)),
+      h('div', {}, '회귀', h('b', {}, `${p.regress || 0}회`)),
       h('div', {}, '공격력', h('b', {}, fmt(p.atk))),
       h('div', {}, '체력', h('b', {}, fmt(p.hp))),
       h('div', {}, '치명타', h('b', {}, `${pct(p.crit || 0)} / ${pct(p.critDmg || 1.5)}`)),
-      h('div', {}, '결투 점수', h('b', {}, `${p.pvp?.score ?? 1000}점`))));
+      h('div', {}, '비무 점수', h('b', {}, `${p.pvp?.score ?? 1000}점`))));
     const eq = h('div', { class: 'stat-grid' });
     for (const [type, def] of Object.entries(EQUIP_TYPES)) {
       const g = p.best?.[type] ?? -1;
       eq.append(h('div', {}, `${def.icon} ${def.name} +${p.enhance?.[type] || 0}`, g >= 0 ? h('b', { style: `color:${GRADES[g].color}` }, GRADES[g].name) : h('b', { class: 'muted' }, '없음')));
     }
     const pet = PETS.find((x) => x.id === p.pet);
-    eq.append(h('div', {}, '🐾 펫', h('b', {}, pet ? `${pet.emoji} ${pet.name} Lv.${p.petLv || 1}` : '없음')));
-    s.append(h('div', { class: 'section-title' }, '장비 · 펫'), eq);
-    s.append(h('div', { class: 'section-title' }, '장착 스킬'),
+    eq.append(h('div', {}, '🐾 영수', h('b', {}, pet ? `${pet.emoji} ${pet.name} Lv.${p.petLv || 1}` : '없음')));
+    s.append(h('div', { class: 'section-title' }, '병기 · 영수'), eq);
+    s.append(h('div', { class: 'section-title' }, '장착 무공'),
       h('div', { class: 'members' }, ...(p.skillSlots || []).filter(Boolean).map((id) => {
         const sk = SKILLS.find((x) => x.id === id);
         return sk ? h('span', { class: 'chip' }, `${sk.icon} ${sk.name} Lv.${p.skills?.[id] ?? 1}`) : null;
       })));
     const btns = h('div', { class: 'btn-row', style: 'margin-top:14px' }, h('button', { class: 'btn', onclick: closeModal }, '닫기'));
-    if (p.uid !== app.net.uid) btns.append(h('button', { class: 'btn primary', onclick: () => { closeModal(); app.startPvp(p); } }, '⚔️ 결투'));
+    if (p.uid !== app.net.uid) btns.append(h('button', { class: 'btn primary', onclick: () => { closeModal(); app.startPvp(p); } }, '⚔️ 비무'));
     s.append(btns);
   });
 }
 
-// ---------- 길드 ----------
+// ---------- 문파 ----------
 function guildView(app) {
   const { game, net } = app;
   const root = h('div');
@@ -126,36 +127,36 @@ function guildView(app) {
     if (!net.online) {
       view = 'offline';
       root.append(h('div', { class: 'card' },
-        h('h3', {}, '🏰 길드'),
-        h('p', { class: 'muted' }, net.status === 'connecting' ? '서버에 연결하는 중이에요…' : '인터넷에 연결되면 길드·레이드·채팅을 할 수 있어요.'),
+        h('h3', {}, '🏰 문파'),
+        h('p', { class: 'muted' }, net.status === 'connecting' ? '서버에 연결하는 중이에요…' : '인터넷에 연결되면 문파·토벌·채팅을 할 수 있어요.'),
         net.status === 'offline' ? h('button', { class: 'btn primary', onclick: () => { net.status = 'connecting'; render(); net.init(); } }, '다시 연결') : null));
       return;
     }
     if (!game.s.guildId || !net.guild) {
       view = game.s.guildId ? 'loading' : 'none';
-      if (view === 'loading') { root.append(h('p', { class: 'muted' }, '길드 정보를 불러오는 중…')); return; }
-      const nameIn = h('input', { class: 'field', maxlength: 16, placeholder: '길드 이름 (예: 우리끼리)' });
+      if (view === 'loading') { root.append(h('p', { class: 'muted' }, '문파 정보를 불러오는 중…')); return; }
+      const nameIn = h('input', { class: 'field', maxlength: 16, placeholder: '문파 이름 (예: 우리끼리)' });
       const codeIn = h('input', { class: 'field', maxlength: 6, placeholder: '친구에게 받은 6자리 코드', style: 'text-transform:uppercase' });
       const busy = (btn, fn) => async () => {
         btn.disabled = true;
         try { await fn(); } catch (err) { toast(err.message || '실패했어요'); } finally { btn.disabled = false; }
       };
-      const createBtn = h('button', { class: 'btn primary' }, '길드 만들기');
+      const createBtn = h('button', { class: 'btn primary' }, '문파 만들기');
       createBtn.onclick = busy(createBtn, async () => {
         const name = nameIn.value.trim();
-        if (name.length < 2) throw new Error('길드 이름은 2글자 이상이에요');
+        if (name.length < 2) throw new Error('문파 이름은 2글자 이상이에요');
         await net.createGuild(name);
-        toast('길드를 만들었어요! 코드를 친구들에게 보내 주세요');
+        toast('문파를 만들었어요! 코드를 친구들에게 보내 주세요');
       });
       const joinBtn = h('button', { class: 'btn good' }, '가입하기');
       joinBtn.onclick = busy(joinBtn, async () => {
         if (codeIn.value.trim().length !== 6) throw new Error('코드는 6자리예요');
         await net.joinGuild(codeIn.value);
-        toast('길드에 가입했어요!');
+        toast('문파에 가입했어요!');
       });
       root.append(
-        h('div', { class: 'card' }, h('h3', {}, '🏰 새 길드'),
-          h('p', { class: 'muted' }, '한 명이 길드를 만들고, 나온 코드를 친구들에게 보내 주세요.'),
+        h('div', { class: 'card' }, h('h3', {}, '🏰 새 문파'),
+          h('p', { class: 'muted' }, '한 명이 문파를 만들고, 나온 코드를 친구들에게 보내 주세요.'),
           h('div', { class: 'chat-input' }, nameIn, createBtn)),
         h('div', { class: 'card' }, h('h3', {}, '🤝 코드로 가입'),
           h('div', { class: 'chat-input' }, codeIn, joinBtn)));
@@ -166,7 +167,7 @@ function guildView(app) {
     update();
   }
 
-  // 길드 정보
+  // 문파 정보
   let infoEls;
   function infoCard() {
     const lvl = h('small');
@@ -176,18 +177,18 @@ function guildView(app) {
     const checkBtn = h('button', { class: 'btn good' });
     checkBtn.onclick = async () => {
       checkBtn.disabled = true;
-      try { if (await net.checkin()) toast(`출석 완료! 길드 경험치 +${GUILD_CHECKIN_EXP}`); } catch (err) { toast(err.message); }
+      try { if (await net.checkin()) toast(`출석 완료! 문파 경험치 +${GUILD_CHECKIN_EXP}`); } catch (err) { toast(err.message); }
     };
-    const donateBtn = h('button', { class: 'btn primary' }, `기부 💎${GUILD_DONATE_GEMS}`);
+    const donateBtn = h('button', { class: 'btn primary' }, `기부 寶${GUILD_DONATE_GEMS}`);
     donateBtn.onclick = async () => {
       donateBtn.disabled = true;
-      try { if (await net.donate()) { toast(`기부 완료! 길드 경험치 +${GUILD_DONATE_EXP}`); app.refresh(); } } catch (err) { toast(err.message); }
+      try { if (await net.donate()) { toast(`기부 완료! 문파 경험치 +${GUILD_DONATE_EXP}`); app.refresh(); } } catch (err) { toast(err.message); }
       donateBtn.disabled = false;
     };
     const code = h('b', { style: 'letter-spacing:2px;color:#fde68a' });
     const share = h('button', { class: 'btn', style: 'padding:6px 10px' }, '복사');
     share.onclick = async () => {
-      const text = `우리끼리 키우기 길드 "${net.guild.name}" 가입 코드: ${net.guild.code}\n${location.origin}${location.pathname}`;
+      const text = `우리끼리 키우기 문파 "${net.guild.name}" 가입 코드: ${net.guild.code}\n${location.origin}${location.pathname}`;
       try {
         if (navigator.share) await navigator.share({ text });
         else { await navigator.clipboard.writeText(text); toast('코드를 복사했어요'); }
@@ -195,7 +196,7 @@ function guildView(app) {
     };
     const leave = h('button', { class: 'btn danger', style: 'padding:6px 10px' }, '탈퇴');
     leave.onclick = () => openModal((s) => {
-      s.append(h('h2', {}, '길드를 떠날까요?'), h('p', { class: 'muted' }, '길드 버프가 사라지고, 다시 코드로 가입할 수 있어요.'),
+      s.append(h('h2', {}, '문파를 떠날까요?'), h('p', { class: 'muted' }, '문파 버프가 사라지고, 다시 코드로 가입할 수 있어요.'),
         h('div', { class: 'btn-row' }, h('button', { class: 'btn', onclick: closeModal }, '취소'),
           h('button', { class: 'btn danger', onclick: async () => { closeModal(); await net.leaveGuild().catch((e) => toast(e.message)); } }, '탈퇴')));
     });
@@ -209,12 +210,12 @@ function guildView(app) {
       h('div', { class: 'btn-row', style: 'margin-top:10px' }, checkBtn, donateBtn));
   }
 
-  // 레이드
+  // 토벌
   let raidEls;
   function raidCard() {
     const body = h('div');
     raidEls = { body, sig: '' };
-    return h('div', { class: 'card' }, h('h3', {}, '🐲 오늘의 길드 레이드', h('small', {}, '매일 0시 새 보스')), body);
+    return h('div', { class: 'card' }, h('h3', {}, '🐲 오늘의 문파 토벌', h('small', {}, '매일 0시 새 두목')), body);
   }
 
   function renderRaid() {
@@ -230,7 +231,7 @@ function guildView(app) {
     attackBtn.disabled = tickets <= 0 || game.mode === 'raid';
     attackBtn.onclick = () => app.startRaid(attackBtn);
     if (!r) {
-      body.append(h('p', { class: 'muted' }, '아직 아무도 오늘의 보스를 깨우지 않았어요. 첫 공격으로 소환돼요. 길드원 모두의 피해를 합쳐서 잡는 보스예요.'), attackBtn);
+      body.append(h('p', { class: 'muted' }, '아직 아무도 오늘의 두목를 깨우지 않았어요. 첫 공격으로 소환돼요. 문파원 모두의 피해를 합쳐서 잡는 두목예요.'), attackBtn);
       return;
     }
     const ratio = r.total / r.maxHp;
@@ -245,7 +246,7 @@ function guildView(app) {
           claim.disabled = true;
           try {
             const got = await net.claimRaid();
-            if (got) { toast(`레이드 보상! ${rewardText(got)}`); app.refresh(); }
+            if (got) { toast(`토벌 보상! ${rewardText(got)}`); app.refresh(); }
           } catch (err) { toast(err.message); claim.disabled = false; }
         };
         body.append(h('p', {}, '🎉 처치 완료!'), claim);
@@ -278,7 +279,7 @@ function guildView(app) {
     };
     send.onclick = doSend;
     input.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.isComposing) doSend(); });
-    return h('div', { class: 'card' }, h('h3', {}, '💬 길드 채팅'), chatBox, h('div', { class: 'chat-input' }, input, send));
+    return h('div', { class: 'card' }, h('h3', {}, '💬 문파 채팅'), chatBox, h('div', { class: 'chat-input' }, input, send));
   }
 
   function renderChat() {
@@ -305,7 +306,7 @@ function guildView(app) {
     infoEls.lvl.textContent = `Lv.${lv}${lv >= 20 ? ' (최대)' : ''}`;
     infoEls.bar.firstChild.style.width = `${lv >= 20 ? 100 : (into / 200) * 100}%`;
     infoEls.bar.lastChild.textContent = lv >= 20 ? 'MAX' : `${into} / 200`;
-    infoEls.buff.textContent = `길드 버프: 전원 공격력 +${pct(guildAtkBonus(gd.exp))} · 인원 ${gd.memberIds.length}/${GUILD_MAX}`;
+    infoEls.buff.textContent = `문파 버프: 전원 공격력 +${pct(guildAtkBonus(gd.exp))} · 인원 ${gd.memberIds.length}/${GUILD_MAX}`;
     infoEls.code.textContent = gd.code;
     const names = Object.entries(gd.members || {});
     const membersSig = names.map(([u, n]) => u + n + (gd.checkins?.[u] || '')).join('|');
@@ -339,8 +340,8 @@ function guildView(app) {
 
 export function socialTab(app) {
   return subTabs([
-    { key: 'rank', label: '랭킹', make: () => rankView(app) },
-    { key: 'pvp', label: '결투장', make: () => pvpView(app) },
-    { key: 'guild', label: '길드', make: () => guildView(app) },
+    { key: 'rank', label: '서열', make: () => rankView(app) },
+    { key: 'pvp', label: '비무대', make: () => pvpView(app) },
+    { key: 'guild', label: '문파', make: () => guildView(app) },
   ]);
 }

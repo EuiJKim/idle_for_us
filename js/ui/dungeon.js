@@ -1,4 +1,4 @@
-// 던전 탭
+// 비경 탭
 import { DUNGEONS, DUNGEON_KEYS, DUNGEON_TIME, DUNGEON_MOBS, dungeonReward } from '../data.js';
 import { h, rewardText } from './common.js';
 
@@ -7,7 +7,7 @@ export function dungeonTab(app) {
   const cards = {};
   const root = h('div', {},
     h('p', { class: 'muted', style: 'margin:2px 2px 10px' },
-      `던전마다 하루 ${DUNGEON_KEYS}번. ${DUNGEON_TIME}초 안에 몬스터 ${DUNGEON_MOBS}마리와 보스를 잡으면 클리어, 다음 단계가 열려요. 실패하면 열쇠는 그대로예요. 깬 단계는 "소탕"으로 바로 보상을 받을 수 있어요.`));
+      `비경마다 하루 ${DUNGEON_KEYS}번. ${DUNGEON_TIME}초 안에 적 ${DUNGEON_MOBS}마리와 두목를 잡으면 클리어, 다음 단계가 열려요. 실패하면 열쇠는 그대로예요. 깬 단계는 "소탕"으로 바로 보상을 받을 수 있어요.`));
 
   for (const d of DUNGEONS) {
     const lvl = h('small');
@@ -30,7 +30,7 @@ export function dungeonTab(app) {
       const best = game.s.dungeons[d.id] || 0;
       const keys = game.s.daily.keys[d.id];
       c.card.style.opacity = unlocked ? '' : '0.5';
-      c.lvl.textContent = unlocked ? `· 열쇠 ${keys}/${DUNGEON_KEYS}` : `· STAGE ${d.unlock} 해금`;
+      c.lvl.textContent = unlocked ? `· 열쇠 ${keys}/${DUNGEON_KEYS}` : `· 관문 ${d.unlock} 해금`;
       c.info.innerHTML = `보상: ${d.reward} · 최고 <b>${best}단계</b><br>다음 ${best + 1}단계 보상 ${rewardText(dungeonReward(d.id, best + 1))}`;
       c.go.textContent = `⚔️ ${best + 1}단계 도전`;
       c.go.disabled = !unlocked || keys <= 0 || game.mode !== 'stage';

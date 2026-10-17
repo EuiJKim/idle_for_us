@@ -3,16 +3,19 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-  <title>우리끼리 키우기</title>
-  <meta name="description" content="친구끼리 하는 방치형 RPG">
-  <meta name="theme-color" content="#0b1020">
+  <title>우리끼리 회귀무림</title>
+  <meta name="description" content="친구끼리 하는 무협 회귀 방치형 RPG">
+  <meta name="theme-color" content="#14110e">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icons/icon-192.png">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="우리끼리">
+  <meta name="apple-mobile-web-app-title" content="회귀무림">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Yuji+Syuku&family=Nanum+Brush+Script&family=Gowun+Batang:wght@400;700&display=swap">
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -22,10 +25,10 @@
         <div id="stage-label">STAGE 1</div>
         <div id="zone-label">고요한 들판</div>
       </div>
-      <div class="res"><span>🪙</span><b id="gold">0</b></div>
-      <div class="res"><span>💎</span><b id="gems">0</b></div>
-      <button id="btn-missions" class="icon-btn" aria-label="미션">📜</button>
-      <button id="btn-settings" class="icon-btn" aria-label="설정">⚙️</button>
+      <div class="res"><span class="cur silver">銀</span><b id="gold">0</b></div>
+      <div class="res"><span class="cur gem">寶</span><b id="gems">0</b></div>
+      <button id="btn-missions" class="icon-btn hz" aria-label="일일 의뢰">令</button>
+      <button id="btn-settings" class="icon-btn hz" aria-label="설정">設</button>
     </header>
 
     <section id="battle">
@@ -38,7 +41,7 @@
         <div id="progress-fill"></div>
         <span id="progress-text">0 / 10</span>
       </div>
-      <button id="btn-boss" class="hidden">👑 보스 도전</button>
+      <button id="btn-boss" class="hidden">두목 도전</button>
       <div id="exp-bar"><div></div></div>
       <div id="contest-hud" class="hidden">
         <div id="contest-title"></div>
@@ -51,12 +54,12 @@
     <main id="panel"></main>
 
     <nav id="tabs">
-      <button data-tab="growth" class="active"><span>💪</span>성장</button>
-      <button data-tab="equip"><span>🗡️</span>장비</button>
-      <button data-tab="skill"><span>🌀</span>스킬</button>
-      <button data-tab="companion"><span>🐾</span>동료</button>
-      <button data-tab="dungeon"><span>🏯</span>던전</button>
-      <button data-tab="social"><span>👥</span>친구</button>
+      <button data-tab="growth" class="active"><span>修</span>수련</button>
+      <button data-tab="equip"><span>兵</span>병기</button>
+      <button data-tab="skill"><span>武</span>무공</button>
+      <button data-tab="companion"><span>靈</span>영수</button>
+      <button data-tab="dungeon"><span>洞</span>비경</button>
+      <button data-tab="social"><span>盟</span>무림</button>
     </nav>
   </div>
 
