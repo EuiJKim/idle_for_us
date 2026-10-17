@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <title>우리끼리 키우기</title>
+  <meta name="description" content="친구끼리 하는 방치형 RPG">
+  <meta name="theme-color" content="#0b1020">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="우리끼리">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div id="app">
+    <header id="topbar">
+      <div class="stage-box">
+        <div id="stage-label">STAGE 1</div>
+        <div id="zone-label">고요한 들판</div>
+      </div>
+      <div class="res"><span>🪙</span><b id="gold">0</b></div>
+      <div class="res"><span>💎</span><b id="gems">0</b></div>
+      <button id="btn-settings" class="icon-btn" aria-label="설정">⚙️</button>
+    </header>
+
+    <section id="battle">
+      <canvas id="cv"></canvas>
+      <div id="hud">
+        <div id="power-label">전투력 0</div>
+        <div id="net-badge" class="net connecting">연결 중</div>
+      </div>
+      <div id="progress">
+        <div id="progress-fill"></div>
+        <span id="progress-text">0 / 10</span>
+      </div>
+      <button id="btn-boss" class="hidden">👑 보스 도전</button>
+      <div id="raid-hud" class="hidden">
+        <div>🐲 길드 레이드 <b id="raid-time">30</b>초</div>
+        <div>내 피해 <b id="raid-dmg">0</b></div>
+      </div>
+    </section>
+
+    <div id="skillbar"></div>
+
+    <main id="panel"></main>
+
+    <nav id="tabs">
+      <button data-tab="upgrade" class="active"><span>⚔️</span>강화</button>
+      <button data-tab="equip"><span>🗡️</span>장비</button>
+      <button data-tab="skill"><span>🌀</span>스킬</button>
+      <button data-tab="rank"><span>🏆</span>랭킹</button>
+      <button data-tab="guild"><span>🏰</span>길드</button>
+    </nav>
+  </div>
+
+  <div id="modal" class="hidden"><div class="sheet"></div></div>
+  <div id="toast"></div>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
