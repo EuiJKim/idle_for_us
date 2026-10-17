@@ -311,9 +311,13 @@ export const ZONES = [
 export const RAID_BOSS = F('혈마(血魔)', { robe: '#1a0505', trim: '#ef4444', head: 'topknot', hair: '#7f1d1d', weapon: 'saber', aura: '#dc2626', eyes: '#fca5a5', scale: 2.1 });
 
 export const zoneOf = (stage) => ZONES[Math.floor((stage - 1) / 10) % ZONES.length];
+// 밸런스 근거: Blade Idle 1.82.0 분석 (2026-10-17)
+// - 적 ATK가 HP보다 2배 빠르게 증가 (2%/관문 vs 1%/관문) → 체력 관리 압박
+// - 초반 15관문은 ATK 고정, HP만 증가 → 초반 이탈 방지
+// - 보상 증가율이 적 체력 증가율에 너무 뒤처지면 구매력이 붕괴한다
 export const monsterHp = (s) => 20 * Math.pow(1.17, s - 1);
-export const monsterAtk = (s) => 6 * Math.pow(1.17, s - 1);
-export const monsterGold = (s) => 5 * Math.pow(1.1, s - 1);
+export const monsterAtk = (s) => (s <= 15 ? 6 : 6 * Math.pow(1.19, s - 15));
+export const monsterGold = (s) => 5 * Math.pow(1.105, s - 1);
 export const BOSS_HP_MULT = 9;
 export const BOSS_ATK_MULT = 2.5;
 export const BOSS_GOLD_MULT = 12;
