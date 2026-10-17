@@ -73,6 +73,12 @@ input { font: inherit; user-select: text; -webkit-user-select: text; }
   width: 62%; height: 16px; background: rgba(0, 0, 0, 0.55); border-radius: 999px; overflow: hidden;
   z-index: 11;
 }
+/* 병기보 — 지금은 없어도 한 번 쥐어본 등급 */
+.grade.noted { opacity: 0.72; border-style: dashed; }
+.grade.noted .g-cnt { color: #a8a29e; font-size: 10px; }
+.codex-tag { margin-left: 6px; font-size: 10px; color: var(--muted); font-weight: 700; }
+.codex-tag.full { color: var(--accent-2); }
+
 /* 다음 해금까지 남은 관문 — 벽이 왜 벽인지 알려주는 줄 */
 #gate-hint {
   position: absolute; left: 50%; top: 56px; transform: translateX(-50%); z-index: 11;

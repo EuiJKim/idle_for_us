@@ -3,6 +3,7 @@ import {
   SAVE_VERSION, OFFLINE_CAP_SEC, KILLS_PER_STAGE, BOSS_TIME, SPAWN_DELAY, RAID_TIME, RAID_TICKETS,
   MERGE_COUNT, GACHA_COST, GACHA10_COST, DAILY_GEMS, START_GEMS, SPEED_CAP, CRIT_CAP,
   UPGRADES, GRADES, GACHA_RATES, EQUIP_TYPES, ENHANCE_PER, enhanceCost,
+  CODEX_PER_TYPE, CODEX_ALL,
   expPerKill, expToNext, SP_PER_LEVEL, SP_RESET_GEMS, SP_STATS,
   RANKS, RANK_MULT, TRIAL_TIME, trialBoss,
   PETS, PET_EGG_COST, PET_GRADE_WEIGHT, petFoodCost, PET_DUPLICATE_FOOD, PET_ATTACK_INTERVAL, petDamageMult,
@@ -59,6 +60,8 @@ export function newSave(now = Date.now()) {
     rank: 0,
     upgrades: Object.fromEntries(Object.keys(UPGRADES).map((k) => [k, 0])),
     equips: Object.fromEntries(Object.keys(EQUIP_TYPES).map((k) => [k, zero()])),
+    // 병기보: 한 번이라도 손에 쥔 등급(합성해 없어져도 남는다)
+    codex: Object.fromEntries(Object.keys(EQUIP_TYPES).map((k) => [k, GRADES.map(() => 0)])),
     enhance: Object.fromEntries(Object.keys(EQUIP_TYPES).map((k) => [k, 0])),
     skills: Object.fromEntries(SKILLS.map((s) => [s.id, 1])),
     skillSlots: ['slash', null, null, null],
@@ -93,6 +96,21 @@ export function migrate(raw, now = Date.now()) {
   for (const k of Object.keys(EQUIP_TYPES)) {
     const src = raw.equips?.[k];
     if (Array.isArray(src)) s.equips[k] = GRADES.map((_, i) => Math.max(0, src[i] | 0));
+  }
+  // 병기보가 없던 세이브: 지금 가진 최고 등급까지는 전부 거쳐왔다고 본다.
+  // 합성으로 올라간 것이므로 실제로 손에 쥐었던 게 맞다.
+  s.codex = { ...base.codex };
+  for (const k of Object.keys(EQUIP_TYPES)) {
+    const seen = GRADES.map(() => 0);
+    const src = raw.codex?.[k];
+    if (Array.isArray(src)) {
+      GRADES.forEach((_, i) => { if (src[i]) seen[i] = 1; });
+    } else {
+      let best = -1;
+      s.equips[k].forEach((c, g) => { if (c > 0) best = g; });
+      for (let g = 0; g <= best; g++) seen[g] = 1;
+    }
+    s.codex[k] = seen;
   }
   if (!Array.isArray(raw.skillSlots)) {
     // v1 → v2: 해금된 스킬을 순서대로 장착
@@ -147,19 +165,31 @@ export class Game {
     return -1;
   }
 
+  // 병기보에 적는다. 한 번 적히면 지워지지 않는다.
+  noteCodex(type, grade) {
+    const seen = this.s.codex?.[type];
+    if (!seen || seen[grade]) return false;
+    seen[grade] = 1;
+    return true;
+  }
+
+  codexComplete(type) { return (this.s.codex?.[type] || []).every((v) => v); }
+  codexCount(type) { return (this.s.codex?.[type] || []).filter((v) => v).length; }
+
   equipMult(type) {
     const def = EQUIP_TYPES[type];
-    const arr = this.s.equips[type];
     let m = 1;
     const best = this.bestGrade(type);
     if (best >= 0) m += def.equip[best];
-    arr.forEach((c, g) => { if (c > 0) m += def.own[g]; });
+    // 보유 효과는 '지금 갖고 있는 것'이 아니라 '병기보에 적힌 것' 기준이다.
+    // 개수 기준이면 합성할 때마다 효과가 날아가서 합성이 손해가 된다.
+    (this.s.codex?.[type] || []).forEach((v, g) => { if (v) m += def.own[g]; });
     return m * (1 + ENHANCE_PER * (this.s.enhance[type] || 0));
   }
 
   // 스탯 포인트·펫 보유 효과·유물에서 오는 덧셈 보너스
   mods() {
-    const m = { atk: 0, hp: 0, gold: 0, exp: 0, critDmg: 0, boss: 0, bossTime: 0, offline: 0, speed: 0 };
+    const m = { atk: 0, hp: 0, gold: 0, exp: 0, crit: 0, critDmg: 0, boss: 0, bossTime: 0, offline: 0, speed: 0 };
     for (const [k, def] of Object.entries(SP_STATS)) m[k] += (this.s.spAlloc[k] || 0) * def.per;
     for (const pet of PETS) {
       const lv = this.s.pets[pet.id];
@@ -173,6 +203,13 @@ export class Game {
     for (const r of RELICS) {
       const lv = this.s.relics[r.id];
       if (lv) m[r.stat] += r.per * lv;
+    }
+    // 병기보 완성 효과
+    let done = 0;
+    for (const type of Object.keys(EQUIP_TYPES)) if (this.codexComplete(type)) done++;
+    if (done) for (const [k, v] of Object.entries(CODEX_PER_TYPE)) m[k] += v * done;
+    if (done === Object.keys(EQUIP_TYPES).length) {
+      for (const [k, v] of Object.entries(CODEX_ALL)) m[k] += v;
     }
     return m;
   }
@@ -195,7 +232,7 @@ export class Game {
     const boost = (b.boost || 0) > 0 ? BOOST_MULT : 1;
     const atk = UPGRADES.atk.value(u.atk) * this.equipMult('weapon') * (1 + m.atk) * rank * guild * rage * past * boost;
     const hp = UPGRADES.hp.value(u.hp) * this.equipMult('armor') * (1 + m.hp) * rank * past;
-    const crit = Math.min(CRIT_CAP, UPGRADES.crit.value(u.crit));
+    const crit = Math.min(CRIT_CAP, UPGRADES.crit.value(u.crit) + m.crit);
     const critDmg = UPGRADES.critDmg.value(u.critDmg) + m.critDmg;
     const speed = Math.min(SPEED_CAP, UPGRADES.speed.value(u.speed)) * (1 + m.speed) * gale;
     const goldMul = UPGRADES.gold.value(u.gold) * this.equipMult('ring') * (1 + m.gold) * midas * past;
@@ -889,7 +926,8 @@ export class Game {
       const type = types[Math.floor(this.rng() * types.length)];
       const grade = this.rollGrade();
       this.s.equips[type][grade]++;
-      out.push({ type, grade });
+      const first = this.noteCodex(type, grade);
+      out.push({ type, grade, first });
     }
     this.s.stats.gachas += count;
     this.progress('gacha', count);
@@ -902,6 +940,7 @@ export class Game {
     const n = Math.floor(arr[grade] / MERGE_COUNT);
     arr[grade] -= n * MERGE_COUNT;
     arr[grade + 1] += n;
+    this.noteCodex(type, grade + 1);
     return n;
   }
 

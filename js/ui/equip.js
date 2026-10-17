@@ -1,5 +1,5 @@
 // 병기 탭: 뽑기·합성·제련
-import { GRADES, EQUIP_TYPES, MERGE_COUNT, GACHA_COST, GACHA10_COST, ENHANCE_PER } from '../data.js';
+import { GRADES, EQUIP_TYPES, MERGE_COUNT, GACHA_COST, GACHA10_COST, ENHANCE_PER, CODEX_PER_TYPE, CODEX_ALL } from '../data.js';
 import { fmt, pct } from '../fmt.js';
 import { h, toast, openModal, closeModal, gradeChip } from './common.js';
 
@@ -21,7 +21,11 @@ export function equipTab(app) {
       h('div', { class: 'btn-row' }, b1, b10),
       h('div', { class: 'btn-row', style: 'margin-top:8px' }, mergeBtn),
       h('p', { class: 'muted', style: 'margin:8px 0 0' },
-        `같은 등급 ${MERGE_COUNT}개 → 상위 1개. 보유한 등급마다 보유 효과가 더해져요.`)),
+        `같은 등급 ${MERGE_COUNT}개 → 상위 1개. 한 번 손에 쥔 등급은 병기보에 남아서, `
+        + '합성에 써도 보유 효과는 그대로예요.'),
+      h('p', { class: 'muted', style: 'margin:4px 0 0' },
+        `한 부위를 빠짐없이 채우면 치명타 확률 +${pct(CODEX_PER_TYPE.crit)}, `
+        + `세 부위 모두 채우면 치명타 피해 +${pct(CODEX_ALL.critDmg)}`)),
     h('div', { class: 'section-title' }, h('span', {}, '鐵 제련석 ', stones), h('span', {}, '수련터·두목·의뢰에서 획득')));
 
   for (const [type, def] of Object.entries(EQUIP_TYPES)) {
@@ -34,12 +38,13 @@ export function equipTab(app) {
       return { cell, cnt, i };
     });
     const bonus = h('div', { class: 'equip-bonus' });
+    const codexLv = h('small', { class: 'codex-tag' });
     const enhLv = h('small');
     const enhBtn = h('button', { class: 'buy', onclick: () => { if (game.enhanceEquip(type, 1)) app.refresh(); } });
     const enh10 = h('button', { class: 'buy', style: 'min-width:56px', onclick: () => { if (game.enhanceEquip(type, 10)) app.refresh(); } }, 'x10');
-    cards[type] = { cells, bonus, def, enhLv, enhBtn, enh10 };
+    cards[type] = { cells, bonus, def, enhLv, enhBtn, enh10, codexLv };
     root.append(h('div', { class: 'card' },
-      h('h3', {}, `${def.icon} ${def.name}`, enhLv), grid, bonus,
+      h('h3', {}, `${def.icon} ${def.name}`, codexLv, enhLv), grid, bonus,
       h('div', { style: 'display:flex;gap:6px;margin-top:8px;align-items:center' },
         h('span', { class: 'muted', style: 'flex:1' }, `제련 1단계마다 ${def.label} 배율 +${pct(ENHANCE_PER)}`), enhBtn, enh10)));
   }
@@ -73,18 +78,24 @@ export function equipTab(app) {
     stones.textContent = fmt(game.s.stones);
     for (const [type, c] of Object.entries(cards)) {
       const arr = game.s.equips[type];
+      const seen = game.s.codex?.[type] || [];
       const best = game.bestGrade(type);
       for (const { cell, cnt, i } of c.cells) {
-        cnt.textContent = arr[i];
-        cell.classList.toggle('none', arr[i] === 0);
+        // 지금 없어도 병기보에 적혀 있으면 표시를 남긴다
+        cnt.textContent = arr[i] ? arr[i] : (seen[i] ? '기록' : 0);
+        cell.classList.toggle('none', arr[i] === 0 && !seen[i]);
+        cell.classList.toggle('noted', arr[i] === 0 && !!seen[i]);
         cell.classList.toggle('best', i === best);
       }
-      const own = arr.reduce((acc, n, g) => acc + (n > 0 ? c.def.own[g] : 0), 0);
+      const done = game.codexCount(type);
+      c.codexLv.textContent = `병기보 ${done}/${GRADES.length}`;
+      c.codexLv.classList.toggle('full', done === GRADES.length);
+      const own = seen.reduce((acc, v, g) => acc + (v ? c.def.own[g] : 0), 0);
       const e = game.s.enhance[type] || 0;
       c.enhLv.textContent = `+${e} 제련`;
       c.bonus.innerHTML = best < 0
         ? '아직 병기가 없어요'
-        : `장착(${GRADES[best].name}) <b>+${pct(c.def.equip[best])}</b> · 보유 <b>+${pct(own)}</b> · 제련 <b>×${(1 + ENHANCE_PER * e).toFixed(2)}</b> → ${c.def.label} <b>×${fmt(game.equipMult(type))}</b>`;
+        : `장착(${GRADES[best].name}) <b>+${pct(c.def.equip[best])}</b> · 병기보 <b>+${pct(own)}</b> · 제련 <b>×${(1 + ENHANCE_PER * e).toFixed(2)}</b> → ${c.def.label} <b>×${fmt(game.equipMult(type))}</b>`;
       c.enhBtn.textContent = `鐵 ${fmt(game.enhanceCost(type))}`;
       c.enhBtn.disabled = game.s.stones < game.enhanceCost(type);
       c.enh10.disabled = c.enhBtn.disabled;

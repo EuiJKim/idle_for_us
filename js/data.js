@@ -141,7 +141,10 @@ export const GRADES = [
 ];
 export const GACHA_RATES = [0.6, 0.28, 0.09, 0.025, 0.0045, 0.0005];
 
-// equip: 가장 좋은 등급 하나의 보너스, own: 보유한 등급마다 더해지는 보너스
+// equip: 지금 가진 것 중 가장 좋은 등급 하나의 보너스
+// own:   도감에 적힌 등급마다 더해지는 보너스 — 합성에 써서 없어져도 남는다
+//        근거: Blade Idle은 피규어를 '등급별로 하나씩 갖고만 있어도' 공격력이 14.78배가 된다.
+//        장착 슬롯 경쟁이 없으니 모으는 것 자체가 성장이다. (docs/BladeIdle_설계원리.md)
 export const EQUIP_TYPES = {
   weapon: { name: '검', icon: '劍', stat: 'atk', label: '공격력',
     equip: [0.2, 0.5, 1.2, 3, 8, 20], own: [0.05, 0.12, 0.3, 0.75, 2, 5] },
@@ -151,6 +154,13 @@ export const EQUIP_TYPES = {
     equip: [0.1, 0.25, 0.6, 1.5, 4, 10], own: [0.03, 0.06, 0.15, 0.4, 1, 2.5] },
 };
 export const ENHANCE_PER = 0.08; // 제련 1단계마다 해당 부위 배율에 +8%p (선형)
+
+// ---------- 병기보(도감) ----------
+// 한 부위의 모든 등급을 한 번씩 손에 쥐면 그 부위의 보법을 익힌 것으로 친다.
+// 근거: Blade Idle은 무기 4슬롯이 전부 신화 이상이면 치명타 보유효과가 켜진다.
+// 좋은 옵션 하나보다 '빈칸 없이 채우기'가 먼저가 되는 장치다.
+export const CODEX_PER_TYPE = { crit: 0.05 };  // 부위 하나 완성마다 치명타 확률 +5%p
+export const CODEX_ALL = { critDmg: 0.5 };     // 세 부위 모두 완성하면 치명타 피해 +50%p
 export const enhanceCost = (e) => 5 + e * 3; // 한철
 
 // ---------- 영수 ----------
