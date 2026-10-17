@@ -24,6 +24,7 @@
       </div>
       <div class="res"><span>🪙</span><b id="gold">0</b></div>
       <div class="res"><span>💎</span><b id="gems">0</b></div>
+      <button id="btn-missions" class="icon-btn" aria-label="미션">📜</button>
       <button id="btn-settings" class="icon-btn" aria-label="설정">⚙️</button>
     </header>
 
@@ -38,9 +39,10 @@
         <span id="progress-text">0 / 10</span>
       </div>
       <button id="btn-boss" class="hidden">👑 보스 도전</button>
-      <div id="raid-hud" class="hidden">
-        <div>🐲 길드 레이드 <b id="raid-time">30</b>초</div>
-        <div>내 피해 <b id="raid-dmg">0</b></div>
+      <div id="exp-bar"><div></div></div>
+      <div id="contest-hud" class="hidden">
+        <div id="contest-title"></div>
+        <div id="contest-sub"></div>
       </div>
     </section>
 
@@ -49,11 +51,12 @@
     <main id="panel"></main>
 
     <nav id="tabs">
-      <button data-tab="upgrade" class="active"><span>⚔️</span>강화</button>
+      <button data-tab="growth" class="active"><span>💪</span>성장</button>
       <button data-tab="equip"><span>🗡️</span>장비</button>
       <button data-tab="skill"><span>🌀</span>스킬</button>
-      <button data-tab="rank"><span>🏆</span>랭킹</button>
-      <button data-tab="guild"><span>🏰</span>길드</button>
+      <button data-tab="companion"><span>🐾</span>동료</button>
+      <button data-tab="dungeon"><span>🏯</span>던전</button>
+      <button data-tab="social"><span>👥</span>친구</button>
     </nav>
   </div>
 

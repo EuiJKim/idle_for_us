@@ -3,7 +3,7 @@
 import { firebaseConfig, FIREBASE_SDK_VERSION } from './firebase-config.js';
 import { dayKey } from './game.js';
 import {
-  EQUIP_TYPES, GUILD_MAX, GUILD_CHECKIN_EXP, GUILD_DONATE_GEMS, GUILD_DONATE_EXP, RAID_HP_SECONDS, raidReward,
+  EQUIP_TYPES, PETS, GUILD_MAX, GUILD_CHECKIN_EXP, GUILD_DONATE_GEMS, GUILD_DONATE_EXP, RAID_HP_SECONDS, raidReward,
 } from './data.js';
 
 const CDN = `https://www.gstatic.com/firebasejs/${FIREBASE_SDK_VERSION}`;
@@ -64,11 +64,16 @@ export class Net {
     const g = this.game;
     const p = g.power();
     const best = Object.fromEntries(Object.keys(EQUIP_TYPES).map((t) => [t, g.bestGrade(t)]));
+    const pet = PETS.find((x) => x.id === g.s.pet);
     return {
       nickname: g.s.nickname || '이름없음',
       power: p.power, dps: p.dps, atk: p.atk, hp: p.hp,
-      maxStage: g.s.maxStage, stage: g.s.stage,
-      best, skills: { ...g.s.skills }, upgrades: { ...g.s.upgrades },
+      crit: p.crit, critDmg: p.critDmg, speed: p.speed, petHit: p.petHit,
+      maxStage: g.s.maxStage, stage: g.s.stage, level: g.s.level, rank: g.s.rank,
+      pet: pet?.id || null, petLv: pet ? g.s.pets[pet.id] : 0, petEmoji: pet?.emoji || null,
+      weaponGrade: best.weapon, enhance: { ...g.s.enhance },
+      pvp: { ...g.s.pvp },
+      best, skills: { ...g.s.skills }, skillSlots: [...g.s.skillSlots], upgrades: { ...g.s.upgrades },
       guildId: g.s.guildId || null, guildName: this.guild?.name || null,
       updatedAt: this.fs.serverTimestamp(),
     };
@@ -316,9 +321,6 @@ export class Net {
       return true;
     });
     if (!ok) return null;
-    const reward = raidReward(this.game.s.maxStage);
-    this.game.s.gems += reward.gems;
-    this.game.addGold(reward.gold);
-    return reward;
+    return this.game.grant(raidReward(this.game.s.maxStage));
   }
 }

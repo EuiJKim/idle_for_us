@@ -1,292 +1,118 @@
-// 하단 탭 화면과 모달·토스트. 각 탭은 한 번 그리고, update()로 숫자만 갱신한다.
+// 친구 탭: 랭킹 / 결투장 / 길드
 import {
-  UPGRADES, GRADES, EQUIP_TYPES, SKILLS, MERGE_COUNT, GACHA_COST, GACHA10_COST, RAID_TICKETS,
+  GRADES, EQUIP_TYPES, SKILLS, RANKS, PETS, RAID_TICKETS, PVP_TICKETS,
   guildLevel, guildAtkBonus, GUILD_DONATE_GEMS, GUILD_DONATE_EXP, GUILD_CHECKIN_EXP, GUILD_MAX, raidReward,
-} from './data.js';
-import { fmt, pct, ago, escapeHtml } from './fmt.js';
-import { dayKey } from './game.js';
+} from '../data.js';
+import { fmt, pct, ago } from '../fmt.js';
+import { dayKey } from '../game.js';
+import { h, toast, openModal, closeModal, subTabs, rewardText } from './common.js';
 
-// ---------- 작은 DOM 도우미 ----------
-export function h(tag, attrs = {}, ...kids) {
-  const el = document.createElement(tag);
-  for (const [k, v] of Object.entries(attrs || {})) {
-    if (v === undefined || v === null || v === false) continue;
-    if (k === 'class') el.className = v;
-    else if (k === 'html') el.innerHTML = v;
-    else if (k.startsWith('on')) el.addEventListener(k.slice(2), v);
-    else el.setAttribute(k, v === true ? '' : v);
-  }
-  for (const kid of kids.flat()) if (kid !== null && kid !== undefined && kid !== false) el.append(kid);
-  return el;
-}
+const lastSeen = (p) => ago(p.updatedAt?.toMillis?.());
 
-export function toast(text) {
-  const box = document.getElementById('toast');
-  const el = h('div', { class: 'toast' }, text);
-  box.append(el);
-  setTimeout(() => el.remove(), 2700);
-  while (box.children.length > 3) box.firstChild.remove();
-}
-
-let modalOnClose = null;
-export function openModal(build, { dismissable = true, onClose } = {}) {
-  const modal = document.getElementById('modal');
-  const sheet = modal.querySelector('.sheet');
-  sheet.replaceChildren();
-  build(sheet);
-  modal.classList.remove('hidden');
-  modal.onclick = dismissable ? (e) => { if (e.target === modal) closeModal(); } : null;
-  modalOnClose = onClose || null;
-}
-export function closeModal() {
-  document.getElementById('modal').classList.add('hidden');
-  const cb = modalOnClose;
-  modalOnClose = null;
-  if (cb) cb();
-}
-export const modalOpen = () => !document.getElementById('modal').classList.contains('hidden');
-
-const fmtValue = (def, v) => (def.fmt === 'pct' ? pct(v) : def.fmt === 'x' ? `${v.toFixed(2)}배` : fmt(v));
-const gradeChip = (g) => h('span', { style: `color:${GRADES[g].color};font-weight:800` }, GRADES[g].name);
-
-// ---------- 강화 ----------
-function upgradeTab(app) {
-  const { game } = app;
-  let mult = 1;
-  const rows = {};
-  const seg = h('div', { class: 'seg' }, ...[1, 10, 'MAX'].map((m) =>
-    h('button', { class: m === 1 ? 'on' : '', onclick: (e) => {
-      mult = m;
-      seg.querySelectorAll('button').forEach((b) => b.classList.toggle('on', b === e.currentTarget));
-      update();
-    } }, m === 'MAX' ? 'MAX' : `x${m}`)));
-
-  const root = h('div', {},
-    h('div', { class: 'section-title' }, h('span', {}, '골드로 캐릭터를 강화하세요'), seg));
-
-  for (const [key, def] of Object.entries(UPGRADES)) {
-    const lv = h('small');
-    const desc = h('div', { class: 'desc' });
-    const btn = h('button', { class: 'buy gold-cost', onclick: () => {
-      const n = game.buyUpgrade(key, mult === 'MAX' ? 10000 : mult);
-      if (n) app.refresh();
-    } });
-    rows[key] = { lv, desc, btn, def };
-    root.append(h('div', { class: 'row' },
-      h('div', { class: 'ico' }, def.icon),
-      h('div', { class: 'info' }, h('div', { class: 'name' }, def.name, lv), desc),
-      btn));
-  }
-
-  function plannedCost(key) {
-    const def = UPGRADES[key];
-    let l = game.s.upgrades[key];
-    let total = 0;
-    let n = 0;
-    const want = mult === 'MAX' ? Infinity : mult;
-    while (n < want && (def.max === undefined || l < def.max)) {
-      const c = def.cost(l);
-      if (mult === 'MAX' && total + c > game.s.gold && n > 0) break;
-      total += c; l++; n++;
-      if (mult === 'MAX' && total > game.s.gold) break;
-    }
-    return { total, n, to: l };
-  }
-
-  function update() {
-    for (const [key, r] of Object.entries(rows)) {
-      const l = game.s.upgrades[key];
-      r.lv.textContent = `Lv.${l}`;
-      if (game.upgradeMaxed(key)) {
-        r.desc.innerHTML = `<b>${fmtValue(r.def, r.def.value(l))}</b> (최대)`;
-        r.btn.textContent = 'MAX';
-        r.btn.disabled = true;
-        continue;
-      }
-      const p = plannedCost(key);
-      r.desc.innerHTML = `${fmtValue(r.def, r.def.value(l))} → <b>${fmtValue(r.def, r.def.value(p.to))}</b>`;
-      r.btn.textContent = `${fmt(p.total)}${p.n > 1 ? ` (+${p.n})` : ''}`;
-      r.btn.disabled = game.s.gold < game.upgradeCost(key);
-    }
-  }
-  return { root, update };
-}
-
-// ---------- 장비 ----------
-function equipTab(app) {
-  const { game } = app;
-  const cards = {};
-  const b1 = h('button', { class: 'btn primary', onclick: () => doGacha(1) });
-  const b10 = h('button', { class: 'btn primary', onclick: () => doGacha(10) });
-  const mergeBtn = h('button', { class: 'btn good', onclick: () => {
-    const n = game.mergeAll();
-    toast(n ? `합성 ${n}회 완료!` : `같은 등급 장비가 ${MERGE_COUNT}개 있어야 합성돼요`);
-    app.refresh();
-  } }, '⚒️ 모두 합성');
-
-  const root = h('div', {},
-    h('div', { class: 'card' },
-      h('h3', {}, '장비 뽑기', h('small', {}, '가장 좋은 장비가 자동 장착돼요')),
-      h('div', { class: 'btn-row' }, b1, b10),
-      h('div', { class: 'btn-row', style: 'margin-top:8px' }, mergeBtn),
-      h('p', { class: 'muted', style: 'margin:8px 0 0' },
-        `같은 등급 ${MERGE_COUNT}개 → 상위 등급 1개. 보유한 등급마다 보유 효과가 더해져요.`)));
-
-  for (const [type, def] of Object.entries(EQUIP_TYPES)) {
-    const grid = h('div', { class: 'grades' });
-    const cells = GRADES.map((g, i) => {
-      const cnt = h('span', { class: 'g-cnt' });
-      const cell = h('div', { class: 'grade', style: `border-color:${g.color}` },
-        h('span', { class: 'g-ico' }, def.icon), h('span', { style: `color:${g.color};font-weight:800` }, g.name), h('br'), cnt);
-      grid.append(cell);
-      return { cell, cnt, i };
-    });
-    const bonus = h('div', { class: 'equip-bonus' });
-    cards[type] = { cells, bonus, def };
-    root.append(h('div', { class: 'card' }, h('h3', {}, `${def.icon} ${def.name}`, h('small', {}, `${def.label} 증가`)), grid, bonus));
-  }
-
-  function doGacha(n) {
-    const res = game.gacha(n);
-    if (!res) return toast('💎 다이아가 부족해요');
-    app.refresh();
-    res.sort((a, b) => b.grade - a.grade);
-    openModal((s) => {
-      s.append(h('h2', {}, `뽑기 결과 (${n}회)`));
-      const grid = h('div', { class: 'gacha-grid' });
-      res.forEach((r, i) => grid.append(h('div', {
-        class: 'gacha-item', style: `border-color:${GRADES[r.grade].color};animation-delay:${i * 0.05}s`,
-      }, h('span', {}, EQUIP_TYPES[r.type].icon), h('small', { style: `color:${GRADES[r.grade].color}` }, GRADES[r.grade].name))));
-      s.append(grid);
-      const best = res[0];
-      if (best.grade >= 3) s.append(h('p', { style: 'text-align:center' }, '✨ ', gradeChip(best.grade), ` ${EQUIP_TYPES[best.type].name} 획득!`));
-      s.append(h('div', { class: 'btn-row' },
-        h('button', { class: 'btn', onclick: closeModal }, '닫기'),
-        h('button', { class: 'btn primary', onclick: () => { closeModal(); doGacha(n); } }, `한 번 더 (💎${n === 10 ? GACHA10_COST : GACHA_COST * n})`)));
-    });
-  }
-
-  function update() {
-    b1.textContent = `1회 💎${GACHA_COST}`;
-    b10.textContent = `10회 💎${GACHA10_COST}`;
-    b1.disabled = game.s.gems < GACHA_COST;
-    b10.disabled = game.s.gems < GACHA10_COST;
-    for (const [type, c] of Object.entries(cards)) {
-      const arr = game.s.equips[type];
-      const best = game.bestGrade(type);
-      for (const { cell, cnt, i } of c.cells) {
-        cnt.textContent = arr[i];
-        cell.classList.toggle('none', arr[i] === 0);
-        cell.classList.toggle('best', i === best);
-      }
-      const own = arr.reduce((acc, n, g) => acc + (n > 0 ? c.def.own[g] : 0), 0);
-      c.bonus.innerHTML = best < 0
-        ? '아직 장비가 없어요'
-        : `장착(${GRADES[best].name}) <b>+${pct(c.def.equip[best])}</b> · 보유 효과 <b>+${pct(own)}</b> → ${c.def.label} <b>×${(game.equipMult(type)).toFixed(2)}</b>`;
-    }
-  }
-  return { root, update };
-}
-
-// ---------- 스킬 ----------
-function skillTab(app) {
-  const { game } = app;
-  const rows = {};
-  const autoBtn = h('button', { class: 'btn', onclick: () => { game.s.autoSkill = !game.s.autoSkill; app.refresh(); } });
-  const root = h('div', {},
-    h('div', { class: 'section-title' }, h('span', {}, '스킬은 스테이지를 깨면 열려요'), autoBtn));
-  SKILLS.forEach((sk) => {
-    const lv = h('small');
-    const desc = h('div', { class: 'desc' });
-    const btn = h('button', { class: 'buy gold-cost', onclick: () => { if (game.upgradeSkill(sk.id)) app.refresh(); } });
-    rows[sk.id] = { lv, desc, btn };
-    root.append(h('div', { class: 'row' },
-      h('div', { class: 'ico' }, sk.icon),
-      h('div', { class: 'info' }, h('div', { class: 'name' }, sk.name, lv), desc), btn));
-  });
-  function update() {
-    autoBtn.textContent = game.s.autoSkill ? '자동 사용 ON' : '자동 사용 OFF';
-    autoBtn.classList.toggle('good', game.s.autoSkill);
-    for (const sk of SKILLS) {
-      const r = rows[sk.id];
-      const l = game.s.skills[sk.id];
-      const unlocked = game.skillUnlocked(sk);
-      r.lv.textContent = unlocked ? `Lv.${l}` : `STAGE ${sk.unlock} 해금`;
-      r.desc.innerHTML = `${escapeHtml(sk.desc(sk.mult(l)))} · 쿨타임 ${sk.cd}초<br>다음 레벨: <b>${escapeHtml(sk.desc(sk.mult(l + 1)))}</b>`;
-      r.btn.textContent = fmt(game.skillUpgradeCost(sk.id));
-      r.btn.disabled = !unlocked || game.s.gold < game.skillUpgradeCost(sk.id);
-    }
-  }
-  return { root, update };
-}
-
-// ---------- 랭킹 ----------
-function rankTab(app) {
+function playerList(app, { sortKey, valueLabel, empty, onPick, action }) {
   const { net } = app;
   const list = h('div');
   const status = h('p', { class: 'muted' });
-  const refreshBtn = h('button', { class: 'btn', onclick: () => load() }, '🔄 새로고침');
-  const root = h('div', {}, h('div', { class: 'section-title' }, h('span', {}, '친구들 전투력 순위'), refreshBtn), status, list);
+  const refreshBtn = h('button', { class: 'btn', style: 'padding:6px 10px' }, '🔄 새로고침');
   let loadedAt = 0;
-
   async function load() {
-    if (!net.online) {
-      status.textContent = '인터넷에 연결되면 랭킹을 볼 수 있어요.';
-      return;
-    }
+    if (!net.online) { status.textContent = '인터넷에 연결되면 볼 수 있어요.'; return; }
     refreshBtn.disabled = true;
     status.textContent = '불러오는 중…';
     try {
       await net.pushProfile(true);
-      const rows = await net.ranking();
+      const rows = (await net.ranking()).sort((a, b) => sortKey(b) - sortKey(a));
       loadedAt = Date.now();
-      status.textContent = rows.length ? '이름을 누르면 캐릭터를 구경할 수 있어요.' : '아직 아무도 없어요.';
+      status.textContent = rows.length ? empty.hint : empty.none;
       list.replaceChildren(...rows.map((p, i) => h('div', {
-        class: `row rank-row${p.uid === net.uid ? ' me' : ''}`, onclick: () => showProfile(app, p),
+        class: `row rank-row${p.uid === net.uid ? ' me' : ''}`, onclick: () => onPick(p),
       },
       h('div', { class: 'rank-no' }, i < 3 ? ['🥇', '🥈', '🥉'][i] : i + 1),
       h('div', { class: 'info' },
-        h('div', { class: 'name' }, p.nickname, p.guildName ? h('small', {}, `🏰 ${p.guildName}`) : null),
-        h('div', { class: 'desc' }, `STAGE ${p.maxStage} · ${ago(p.updatedAt?.toMillis?.())}`)),
-      h('div', { style: 'font-weight:900;color:#fde68a' }, fmt(p.power)))));
+        h('div', { class: 'name' }, p.nickname, h('small', {}, `${RANKS[p.rank || 0]?.name || ''}${p.guildName ? ` · 🏰 ${p.guildName}` : ''}`)),
+        h('div', { class: 'desc' }, `Lv.${p.level || 1} · STAGE ${p.maxStage} · ${lastSeen(p)}`)),
+      h('div', { style: 'text-align:right' },
+        h('div', { style: 'font-weight:900;color:#fde68a' }, valueLabel(p)),
+        action && p.uid !== net.uid ? action(p) : null))));
     } catch (err) {
-      status.textContent = `랭킹을 불러오지 못했어요: ${err.message}`;
+      status.textContent = `불러오지 못했어요: ${err.message}`;
     } finally {
       refreshBtn.disabled = false;
     }
   }
-  return {
-    root,
-    update() {},
-    shown() { if (Date.now() - loadedAt > 30000) load(); },
-    netChanged(what) { if (what === 'status') load(); },
-  };
+  refreshBtn.onclick = load;
+  return { list, status, refreshBtn, load, stale: () => Date.now() - loadedAt > 30000 };
+}
+
+function rankView(app) {
+  const pl = playerList(app, {
+    sortKey: (p) => p.power || 0,
+    valueLabel: (p) => fmt(p.power),
+    empty: { hint: '이름을 누르면 캐릭터를 구경할 수 있어요.', none: '아직 아무도 없어요.' },
+    onPick: (p) => showProfile(app, p),
+  });
+  const root = h('div', {}, h('div', { class: 'section-title' }, h('span', {}, '전투력 순위'), pl.refreshBtn), pl.status, pl.list);
+  return { root, update() {}, shown() { if (pl.stale()) pl.load(); }, netChanged(w) { if (w === 'status') pl.load(); } };
+}
+
+function pvpView(app) {
+  const { game } = app;
+  const score = h('b', { style: 'font-size:20px;color:#fde68a' });
+  const record = h('div', { class: 'muted' });
+  const tickets = h('b');
+  const pl = playerList(app, {
+    sortKey: (p) => p.pvp?.score ?? 1000,
+    valueLabel: (p) => `${p.pvp?.score ?? 1000}점`,
+    empty: { hint: '친구를 골라 결투하세요. 상대가 접속하지 않아도 돼요.', none: '아직 상대가 없어요.' },
+    onPick: (p) => showProfile(app, p),
+    action: (p) => h('button', { class: 'btn primary', style: 'padding:5px 10px;margin-top:4px;font-size:12px', onclick: (e) => { e.stopPropagation(); app.startPvp(p); } }, '⚔️ 결투'),
+  });
+  const root = h('div', {},
+    h('div', { class: 'card', style: 'text-align:center' },
+      h('div', { class: 'muted' }, '내 결투 점수'), score, record,
+      h('p', { class: 'muted', style: 'margin:6px 0 0' }, '오늘 남은 결투 ', tickets, ` / ${PVP_TICKETS} · 이기면 +20점 💎50, 지면 -8점 💎10`)),
+    h('div', { class: 'section-title' }, h('span', {}, '결투 순위'), pl.refreshBtn), pl.status, pl.list);
+  function update() {
+    score.textContent = game.s.pvp.score;
+    record.textContent = `${game.s.pvp.wins}승 ${game.s.pvp.losses}패`;
+    tickets.textContent = game.s.daily.pvpTickets;
+  }
+  return { root, update, shown() { if (pl.stale()) pl.load(); }, netChanged(w) { if (w === 'status' || w === 'pvp') pl.load(); } };
 }
 
 export function showProfile(app, p) {
   openModal((s) => {
+    const rank = RANKS[p.rank || 0];
     s.append(h('h2', {}, `${p.nickname}`, p.uid === app.net.uid ? h('small', { class: 'muted' }, ' (나)') : null));
-    s.append(h('p', { class: 'muted' }, `${p.guildName ? `🏰 ${p.guildName} · ` : ''}마지막 접속 ${ago(p.updatedAt?.toMillis?.()) || '-'}`));
+    s.append(h('p', { class: 'muted' }, `${rank.name} · Lv.${p.level || 1}${p.guildName ? ` · 🏰 ${p.guildName}` : ''} · 접속 ${lastSeen(p) || '-'}`));
     s.append(h('div', { class: 'stat-grid' },
       h('div', {}, '전투력', h('b', { style: 'color:#fde68a' }, fmt(p.power))),
       h('div', {}, '최고 스테이지', h('b', {}, `STAGE ${p.maxStage}`)),
       h('div', {}, '공격력', h('b', {}, fmt(p.atk))),
       h('div', {}, '체력', h('b', {}, fmt(p.hp))),
-      h('div', {}, '초당 피해', h('b', {}, fmt(p.dps)))));
+      h('div', {}, '치명타', h('b', {}, `${pct(p.crit || 0)} / ${pct(p.critDmg || 1.5)}`)),
+      h('div', {}, '결투 점수', h('b', {}, `${p.pvp?.score ?? 1000}점`))));
     const eq = h('div', { class: 'stat-grid' });
     for (const [type, def] of Object.entries(EQUIP_TYPES)) {
       const g = p.best?.[type] ?? -1;
-      eq.append(h('div', {}, `${def.icon} ${def.name}`, g >= 0 ? h('b', { style: `color:${GRADES[g].color}` }, GRADES[g].name) : h('b', { class: 'muted' }, '없음')));
+      eq.append(h('div', {}, `${def.icon} ${def.name} +${p.enhance?.[type] || 0}`, g >= 0 ? h('b', { style: `color:${GRADES[g].color}` }, GRADES[g].name) : h('b', { class: 'muted' }, '없음')));
     }
-    s.append(h('div', { class: 'section-title' }, '장비'), eq);
-    s.append(h('div', { class: 'section-title' }, '스킬'),
-      h('div', { class: 'members' }, ...SKILLS.map((sk) => h('span', { class: 'chip' }, `${sk.icon} Lv.${p.skills?.[sk.id] ?? 1}`))));
-    s.append(h('div', { class: 'btn-row', style: 'margin-top:14px' }, h('button', { class: 'btn', onclick: closeModal }, '닫기')));
+    const pet = PETS.find((x) => x.id === p.pet);
+    eq.append(h('div', {}, '🐾 펫', h('b', {}, pet ? `${pet.emoji} ${pet.name} Lv.${p.petLv || 1}` : '없음')));
+    s.append(h('div', { class: 'section-title' }, '장비 · 펫'), eq);
+    s.append(h('div', { class: 'section-title' }, '장착 스킬'),
+      h('div', { class: 'members' }, ...(p.skillSlots || []).filter(Boolean).map((id) => {
+        const sk = SKILLS.find((x) => x.id === id);
+        return sk ? h('span', { class: 'chip' }, `${sk.icon} ${sk.name} Lv.${p.skills?.[id] ?? 1}`) : null;
+      })));
+    const btns = h('div', { class: 'btn-row', style: 'margin-top:14px' }, h('button', { class: 'btn', onclick: closeModal }, '닫기'));
+    if (p.uid !== app.net.uid) btns.append(h('button', { class: 'btn primary', onclick: () => { closeModal(); app.startPvp(p); } }, '⚔️ 결투'));
+    s.append(btns);
   });
 }
 
 // ---------- 길드 ----------
-function guildTab(app) {
+function guildView(app) {
   const { game, net } = app;
   const root = h('div');
   let view = null;
@@ -414,12 +240,12 @@ function guildTab(app) {
     if (killed) {
       const reward = raidReward(game.s.maxStage);
       if (net.canClaimRaid()) {
-        const claim = h('button', { class: 'btn good' }, `🎁 보상 받기 (💎${reward.gems} + 🪙${fmt(reward.gold)})`);
+        const claim = h('button', { class: 'btn good' }, `🎁 보상 받기 (${rewardText(reward)})`);
         claim.onclick = async () => {
           claim.disabled = true;
           try {
             const got = await net.claimRaid();
-            if (got) { toast(`레이드 보상! 💎${got.gems} 🪙${fmt(got.gold)}`); app.refresh(); }
+            if (got) { toast(`레이드 보상! ${rewardText(got)}`); app.refresh(); }
           } catch (err) { toast(err.message); claim.disabled = false; }
         };
         body.append(h('p', {}, '🎉 처치 완료!'), claim);
@@ -510,4 +336,11 @@ function guildTab(app) {
   };
 }
 
-export const TABS = { upgrade: upgradeTab, equip: equipTab, skill: skillTab, rank: rankTab, guild: guildTab };
+
+export function socialTab(app) {
+  return subTabs([
+    { key: 'rank', label: '랭킹', make: () => rankView(app) },
+    { key: 'pvp', label: '결투장', make: () => pvpView(app) },
+    { key: 'guild', label: '길드', make: () => guildView(app) },
+  ]);
+}

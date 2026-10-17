@@ -1,16 +1,34 @@
 // 게임 규칙과 상태. DOM을 모르는 순수 로직이라 Node에서도 돌아간다.
 import {
   SAVE_VERSION, OFFLINE_CAP_SEC, KILLS_PER_STAGE, BOSS_TIME, SPAWN_DELAY, RAID_TIME, RAID_TICKETS,
-  MERGE_COUNT, GACHA_COST, GACHA10_COST, DAILY_GEMS, START_GEMS,
-  UPGRADES, GRADES, GACHA_RATES, EQUIP_TYPES, SKILLS, skillCost,
-  zoneOf, monsterHp, monsterAtk, monsterGold, BOSS_HP_MULT, BOSS_ATK_MULT, BOSS_GOLD_MULT, BOSS_MOBS, bossGems,
-  guildAtkBonus,
+  MERGE_COUNT, GACHA_COST, GACHA10_COST, DAILY_GEMS, START_GEMS, SPEED_CAP, CRIT_CAP,
+  UPGRADES, GRADES, GACHA_RATES, EQUIP_TYPES, ENHANCE_PER, enhanceCost,
+  expPerKill, expToNext, SP_PER_LEVEL, SP_RESET_GEMS, SP_STATS,
+  RANKS, RANK_MULT, TRIAL_TIME, trialBoss,
+  PETS, PET_EGG_COST, PET_GRADE_WEIGHT, petFoodCost, PET_DUPLICATE_FOOD, PET_ATTACK_INTERVAL, petDamageMult,
+  RELICS, RELIC_DIG_COST,
+  SKILLS, SKILL_SLOTS, skillBookCost,
+  DUNGEONS, DUNGEON_KEYS, DUNGEON_TIME, DUNGEON_MOBS, dungeonStage, dungeonReward,
+  MISSIONS, MISSION_ALL_REWARD, stageMilestone, STAGE_MILESTONE_EVERY,
+  PVP_TICKETS, PVP_TIME, PVP_WIN, PVP_LOSE, PVP_REWARD,
+  zoneOf, monsterHp, monsterAtk, monsterGold, BOSS_HP_MULT, BOSS_ATK_MULT, BOSS_GOLD_MULT, BOSS_MOBS,
+  bossGems, bossRelicShards, guildAtkBonus,
 } from './data.js';
 
 export const dayKey = (t = Date.now()) => {
   const d = new Date(t + 9 * 3600 * 1000); // 한국 시간 기준 하루
   return d.toISOString().slice(0, 10);
 };
+
+const freshDaily = (date) => ({
+  date,
+  raidTickets: RAID_TICKETS,
+  pvpTickets: PVP_TICKETS,
+  keys: Object.fromEntries(DUNGEONS.map((d) => [d.id, DUNGEON_KEYS])),
+  missions: {},
+  claimed: {},
+  allClaimed: false,
+});
 
 export function newSave(now = Date.now()) {
   const zero = () => GRADES.map(() => 0);
@@ -19,15 +37,32 @@ export function newSave(now = Date.now()) {
     nickname: '',
     gold: 0,
     gems: START_GEMS,
+    stones: 0,
+    books: 0,
+    food: 0,
+    relicShards: 0,
     stage: 1,
     maxStage: 1,
     kills: 0,
     farming: false,
+    level: 1,
+    exp: 0,
+    sp: 0,
+    spAlloc: Object.fromEntries(Object.keys(SP_STATS).map((k) => [k, 0])),
+    rank: 0,
     upgrades: Object.fromEntries(Object.keys(UPGRADES).map((k) => [k, 0])),
     equips: Object.fromEntries(Object.keys(EQUIP_TYPES).map((k) => [k, zero()])),
+    enhance: Object.fromEntries(Object.keys(EQUIP_TYPES).map((k) => [k, 0])),
     skills: Object.fromEntries(SKILLS.map((s) => [s.id, 1])),
+    skillSlots: ['slash', null, null, null],
     autoSkill: true,
-    daily: { date: '', raidTickets: RAID_TICKETS, checkin: false },
+    pets: {},
+    pet: null,
+    relics: {},
+    dungeons: Object.fromEntries(DUNGEONS.map((d) => [d.id, 0])), // 클리어한 최고 단계
+    milestone: 0,
+    pvp: { score: 1000, wins: 0, losses: 0 },
+    daily: freshDaily(''),
     guildId: null,
     stats: { kills: 0, bossKills: 0, gold: 0, gachas: 0 },
     lastSeen: now,
@@ -39,15 +74,23 @@ export function migrate(raw, now = Date.now()) {
   const base = newSave(now);
   if (!raw || typeof raw !== 'object') return base;
   const s = { ...base, ...raw };
-  s.upgrades = { ...base.upgrades, ...raw.upgrades };
-  s.skills = { ...base.skills, ...raw.skills };
-  s.daily = { ...base.daily, ...raw.daily };
-  s.stats = { ...base.stats, ...raw.stats };
+  for (const key of ['upgrades', 'skills', 'stats', 'spAlloc', 'enhance', 'dungeons', 'pvp']) {
+    s[key] = { ...base[key], ...(raw[key] || {}) };
+  }
+  s.daily = { ...freshDaily(raw.daily?.date || ''), ...(raw.daily || {}) };
+  s.daily.keys = { ...freshDaily('').keys, ...(raw.daily?.keys || {}) };
   s.equips = { ...base.equips };
   for (const k of Object.keys(EQUIP_TYPES)) {
     const src = raw.equips?.[k];
     if (Array.isArray(src)) s.equips[k] = GRADES.map((_, i) => Math.max(0, src[i] | 0));
   }
+  if (!Array.isArray(raw.skillSlots)) {
+    // v1 → v2: 해금된 스킬을 순서대로 장착
+    s.skillSlots = SKILLS.filter((sk) => s.maxStage >= sk.unlock).slice(0, SKILL_SLOTS).map((sk) => sk.id);
+  }
+  while (s.skillSlots.length < SKILL_SLOTS) s.skillSlots.push(null);
+  s.pets = { ...(raw.pets || {}) };
+  s.relics = { ...(raw.relics || {}) };
   s.v = SAVE_VERSION;
   return s;
 }
@@ -58,17 +101,21 @@ export class Game {
     this.guildExp = 0;
     this.events = [];
     this.mode = 'stage';
-    this.raid = null;
-    this.buffs = { rage: 0 };
+    this.contest = null;
+    this.raid = null; // 하위 호환: 레이드 진행 정보
+    this.buffs = { rage: 0, gale: 0, midas: 0 };
     this.cd = Object.fromEntries(SKILLS.map((s) => [s.id, 1.5]));
     this.rng = Math.random;
+    this.queue = [];
+    this.petTimer = PET_ATTACK_INTERVAL;
+    this.atkTimer = 0.3;
     this.heroHp = this.stats().hp;
     this.spawn();
   }
 
   emit(type, data = {}) {
     this.events.push({ type, ...data });
-    if (this.events.length > 200) this.events.splice(0, this.events.length - 200);
+    if (this.events.length > 300) this.events.splice(0, this.events.length - 300);
   }
 
   // ---------- 능력치 ----------
@@ -85,94 +132,156 @@ export class Game {
     const best = this.bestGrade(type);
     if (best >= 0) m += def.equip[best];
     arr.forEach((c, g) => { if (c > 0) m += def.own[g]; });
+    return m * (1 + ENHANCE_PER * (this.s.enhance[type] || 0));
+  }
+
+  // 스탯 포인트·펫 보유 효과·유물에서 오는 덧셈 보너스
+  mods() {
+    const m = { atk: 0, hp: 0, gold: 0, exp: 0, critDmg: 0, boss: 0, bossTime: 0, offline: 0, speed: 0 };
+    for (const [k, def] of Object.entries(SP_STATS)) m[k] += (this.s.spAlloc[k] || 0) * def.per;
+    for (const pet of PETS) {
+      const lv = this.s.pets[pet.id];
+      if (lv) m[pet.own[0]] += pet.own[1] * lv;
+    }
+    for (const r of RELICS) {
+      const lv = this.s.relics[r.id];
+      if (lv) m[r.stat] += r.per * lv;
+    }
     return m;
   }
 
-  stats() {
+  rankMult() { return Math.pow(RANK_MULT, this.s.rank); }
+
+  stats({ buffs = true } = {}) {
     const u = this.s.upgrades;
-    const rage = this.buffs.rage > 0 ? SKILLS[1].mult(this.s.skills.rage) : 1;
+    const m = this.mods();
+    const b = buffs ? this.buffs : {};
+    const rage = b.rage > 0 ? SKILLS[1].mult(this.s.skills.rage) : 1;
+    const gale = b.gale > 0 ? SKILLS[4].mult(this.s.skills.gale) : 1;
+    const midas = b.midas > 0 ? SKILLS[5].mult(this.s.skills.midas) : 1;
     const guild = 1 + guildAtkBonus(this.guildExp);
-    const atk = UPGRADES.atk.value(u.atk) * this.equipMult('weapon') * guild * rage;
-    const hp = UPGRADES.hp.value(u.hp) * this.equipMult('armor');
-    const crit = Math.min(0.5, UPGRADES.crit.value(u.crit));
-    const critDmg = UPGRADES.critDmg.value(u.critDmg);
-    const speed = Math.min(3, UPGRADES.speed.value(u.speed)) * (this.buffs.rage > 0 ? 1.5 : 1);
-    const goldMul = UPGRADES.gold.value(u.gold) * this.equipMult('ring');
-    const dps = atk * speed * (1 + crit * (critDmg - 1));
-    return { atk, hp, crit, critDmg, speed, goldMul, dps };
+    const rank = this.rankMult();
+    const atk = UPGRADES.atk.value(u.atk) * this.equipMult('weapon') * (1 + m.atk) * rank * guild * rage;
+    const hp = UPGRADES.hp.value(u.hp) * this.equipMult('armor') * (1 + m.hp) * rank;
+    const crit = Math.min(CRIT_CAP, UPGRADES.crit.value(u.crit));
+    const critDmg = UPGRADES.critDmg.value(u.critDmg) + m.critDmg;
+    const speed = Math.min(SPEED_CAP, UPGRADES.speed.value(u.speed)) * (1 + m.speed) * gale;
+    const goldMul = UPGRADES.gold.value(u.gold) * this.equipMult('ring') * (1 + m.gold) * midas;
+    const expMul = 1 + m.exp;
+    const bossMul = 1 + m.boss;
+    const pet = this.s.pet ? PETS.find((p) => p.id === this.s.pet) : null;
+    const petHit = pet ? atk * petDamageMult(pet, this.s.pets[pet.id] || 1) : 0;
+    const dps = atk * speed * (1 + crit * (critDmg - 1)) + petHit / PET_ATTACK_INTERVAL;
+    return {
+      atk, hp, crit, critDmg, speed, goldMul, expMul, bossMul, petHit, dps,
+      bossTime: BOSS_TIME + m.bossTime, offlineMul: 1 + m.offline,
+    };
   }
 
-  // 버프를 뺀 기본 능력치로 계산한 전투력 (랭킹용)
+  // 버프를 뺀 기본 능력치로 계산한 전투력 (랭킹·결투용)
   power() {
-    const saved = this.buffs.rage;
-    this.buffs.rage = 0;
-    const st = this.stats();
-    this.buffs.rage = saved;
-    return { power: Math.round(st.dps * 10 + st.hp), dps: st.dps, atk: st.atk, hp: st.hp };
+    const st = this.stats({ buffs: false });
+    return { ...st, power: Math.round(st.dps * 10 + st.hp) };
   }
 
-  // ---------- 전투 ----------
+  // ---------- 몬스터 ----------
+  pickMob() {
+    const zone = zoneOf(this.s.stage);
+    return zone.mobs[Math.floor(this.rng() * zone.mobs.length)];
+  }
+
+  fillQueue(make) {
+    while (this.queue.length < 3) this.queue.push(make());
+  }
+
   spawn() {
+    if (this.mode === 'stage') return this.spawnStage();
+    if (this.mode === 'dungeon') return this.spawnDungeon();
+    return undefined;
+  }
+
+  spawnStage() {
     const s = this.s.stage;
-    if (this.mode === 'raid') return;
     const isBoss = !this.s.farming && this.s.kills >= KILLS_PER_STAGE;
-    const zone = zoneOf(s);
-    const emoji = isBoss
-      ? BOSS_MOBS[Math.floor((s - 1) / 10) % BOSS_MOBS.length]
-      : zone.mobs[Math.floor(this.rng() * zone.mobs.length)];
+    this.fillQueue(() => this.pickMob());
+    const emoji = isBoss ? BOSS_MOBS[Math.floor((s - 1) / 10) % BOSS_MOBS.length] : this.queue.shift();
     const hp = monsterHp(s) * (isBoss ? BOSS_HP_MULT : 1);
     this.mon = {
       hp, maxHp: hp, isBoss, emoji,
       atk: monsterAtk(s) * (isBoss ? BOSS_ATK_MULT : 1),
-      atkTimer: 1.2, alive: true,
+      atkTimer: 1.2, alive: true, stun: 0,
     };
-    this.bossTimer = isBoss ? BOSS_TIME : 0;
+    this.bossTimer = isBoss ? this.stats().bossTime : 0;
+    this.bossTimeMax = this.bossTimer;
     this.spawnTimer = 0;
-    this.atkTimer = Math.min(this.atkTimer ?? 0.3, 0.3);
+    this.atkTimer = Math.min(this.atkTimer, 0.3);
+    this.fillQueue(() => this.pickMob());
     this.emit('spawn', { isBoss });
   }
 
   dealDamage(amount, kind = 'hit', crit = false) {
-    if (!this.mon?.alive) return;
+    const m = this.mon;
+    if (!m?.alive) return;
+    if (m.isBoss) amount *= this.stats().bossMul;
     if (this.mode === 'raid') {
-      this.raid.damage += amount;
-      this.mon.hp = Math.max(0, this.mon.hp - amount);
+      this.contest.damage += amount;
+      m.hp = Math.max(0, m.hp - amount);
       this.emit('dmg', { amount, kind, crit });
       return;
     }
-    this.mon.hp -= amount;
+    m.hp -= amount;
     this.emit('dmg', { amount, kind, crit });
-    if (this.mon.hp <= 0) this.killMonster();
+    if (m.hp <= 0) this.killMonster();
   }
 
   killMonster() {
     const m = this.mon;
     m.alive = false;
     m.hp = 0;
+    if (this.mode === 'dungeon') {
+      this.contest.kills++;
+      this.emit('kill', { gold: 0, isBoss: m.isBoss });
+      if (m.isBoss) return this.endContest('clear');
+      this.spawnTimer = 0.25;
+      return undefined;
+    }
+    if (this.mode === 'trial') return this.endContest('clear');
+    if (this.mode === 'pvp') return this.endContest('win');
+
     const s = this.s.stage;
     const st = this.stats();
     const gold = monsterGold(s) * (m.isBoss ? BOSS_GOLD_MULT : 1) * st.goldMul;
     this.addGold(gold);
+    this.addExp(expPerKill(s) * (m.isBoss ? 10 : 1) * st.expMul);
     this.s.stats.kills++;
+    this.progress('kill');
     this.emit('kill', { gold, isBoss: m.isBoss });
     if (m.isBoss) {
       this.s.stats.bossKills++;
+      this.progress('boss');
+      this.s.books += 1;
+      this.s.stones += 2;
       if (s >= this.s.maxStage) {
         const gems = bossGems(s);
         this.s.gems += gems;
+        this.s.relicShards += bossRelicShards(s);
         this.emit('gems', { amount: gems });
       }
       this.s.stage = s + 1;
       this.s.maxStage = Math.max(this.s.maxStage, this.s.stage);
       this.s.kills = 0;
+      this.autoSlotSkills();
       this.emit('stageClear', { stage: s });
     } else if (!this.s.farming) {
       this.s.kills++;
     }
     this.spawnTimer = SPAWN_DELAY;
+    return undefined;
   }
 
   heroDied() {
+    if (this.mode === 'dungeon' || this.mode === 'trial') return this.endContest('fail');
+    if (this.mode === 'pvp') return this.endContest('lose');
     const wasBoss = this.mon?.isBoss;
     this.emit('heroDied', { boss: wasBoss });
     if (wasBoss) {
@@ -182,6 +291,7 @@ export class Game {
     this.heroHp = this.stats().hp;
     this.mon.alive = false;
     this.spawnTimer = 1.2;
+    return undefined;
   }
 
   challengeBoss() {
@@ -189,25 +299,27 @@ export class Game {
     this.s.farming = false;
     this.s.kills = KILLS_PER_STAGE;
     this.heroHp = this.stats().hp;
-    this.spawn();
+    this.spawnStage();
   }
 
   tick(dt) {
-    const st = this.stats();
-    if (this.buffs.rage > 0) this.buffs.rage = Math.max(0, this.buffs.rage - dt);
+    for (const k in this.buffs) if (this.buffs[k] > 0) this.buffs[k] = Math.max(0, this.buffs[k] - dt);
     for (const k in this.cd) this.cd[k] = Math.max(0, this.cd[k] - dt);
+    const st = this.stats();
 
-    if (this.mode === 'raid') {
-      this.raid.time -= dt;
-      if (this.raid.time <= 0 || this.mon.hp <= 0) return this.endRaid();
+    if (this.contest) {
+      this.contest.time -= dt;
+      if (this.contest.time <= 0) return this.endContest('timeout');
+      if (this.mode === 'raid' && this.mon.hp <= 0) return this.endContest('done');
     }
 
     if (!this.mon?.alive) {
       this.spawnTimer -= dt;
       this.heroHp = Math.min(st.hp, this.heroHp + st.hp * 0.25 * dt);
       if (this.spawnTimer <= 0) this.spawn();
-      return;
+      return undefined;
     }
+    if (this.mon.stun > 0) this.mon.stun = Math.max(0, this.mon.stun - dt);
 
     if (this.mon.isBoss && this.mode === 'stage') {
       this.bossTimer -= dt;
@@ -217,12 +329,13 @@ export class Game {
       }
     }
 
-    // 자동 스킬
-    if (this.s.autoSkill) {
-      for (const sk of SKILLS) {
-        if (sk.id === 'heal' && this.heroHp > st.hp * 0.6) continue;
-        if (sk.id === 'rage' && this.buffs.rage > 0) continue;
-        this.useSkill(sk.id);
+    if (this.s.autoSkill && this.mode !== 'pvp') {
+      for (const id of this.s.skillSlots) {
+        if (!id) continue;
+        if (id === 'heal' && this.heroHp > st.hp * 0.6) continue;
+        if (this.buffs[id] > 0) continue;
+        this.useSkill(id);
+        if (!this.mon.alive) return undefined;
       }
     }
 
@@ -231,59 +344,255 @@ export class Game {
     while (this.atkTimer <= 0 && this.mon.alive) {
       this.atkTimer += 1 / st.speed;
       const crit = this.rng() < st.crit;
-      this.dealDamage(st.atk * (crit ? st.critDmg : 1), 'hit', crit);
       this.emit('attack');
+      this.dealDamage(st.atk * (crit ? st.critDmg : 1), 'hit', crit);
     }
 
-    // 몬스터 공격 (레이드 보스는 공격하지 않는다)
-    if (this.mode === 'stage' && this.mon.alive) {
-      this.mon.atkTimer -= dt;
-      if (this.mon.atkTimer <= 0) {
-        this.mon.atkTimer += 1.5;
-        this.heroHp -= this.mon.atk;
-        this.emit('heroHit', { amount: this.mon.atk });
-        if (this.heroHp <= 0) return this.heroDied();
+    // 펫 공격
+    if (st.petHit > 0 && this.mon.alive) {
+      this.petTimer -= dt;
+      if (this.petTimer <= 0) {
+        this.petTimer += PET_ATTACK_INTERVAL;
+        this.emit('petAttack');
+        this.dealDamage(st.petHit, 'pet');
       }
-      this.heroHp = Math.min(st.hp, this.heroHp + st.hp * 0.02 * dt);
     }
+
+    // 상대 공격 (레이드 보스는 공격하지 않는다)
+    if (this.mode !== 'raid' && this.mon.alive && this.mon.stun <= 0) {
+      const m = this.mon;
+      m.atkTimer -= dt;
+      while (m.atkTimer <= 0 && this.heroHp > 0) {
+        m.atkTimer += m.atkInterval || 1.5;
+        let dmg = m.atk;
+        let crit = false;
+        if (m.crit && this.rng() < m.crit) { dmg *= m.critDmg; crit = true; }
+        this.heroHp -= dmg;
+        this.emit('heroHit', { amount: dmg, crit });
+      }
+      if (m.petHit) {
+        m.petTimer -= dt;
+        if (m.petTimer <= 0) {
+          m.petTimer += PET_ATTACK_INTERVAL;
+          this.heroHp -= m.petHit;
+          this.emit('heroHit', { amount: m.petHit, pet: true });
+        }
+      }
+      if (this.heroHp <= 0) return this.heroDied();
+    }
+    if (this.mode !== 'pvp') this.heroHp = Math.min(st.hp, this.heroHp + st.hp * 0.02 * dt);
+    return undefined;
+  }
+
+  // ---------- 레벨 / 스탯 포인트 ----------
+  addExp(x) {
+    this.s.exp += x;
+    let ups = 0;
+    while (this.s.exp >= expToNext(this.s.level)) {
+      this.s.exp -= expToNext(this.s.level);
+      this.s.level++;
+      this.s.sp += SP_PER_LEVEL;
+      ups++;
+    }
+    if (ups) this.emit('levelUp', { level: this.s.level, ups });
+  }
+
+  allocSp(key, n = 1) {
+    if (!SP_STATS[key]) return 0;
+    const k = Math.min(n, this.s.sp);
+    this.s.spAlloc[key] += k;
+    this.s.sp -= k;
+    return k;
+  }
+
+  resetSp() {
+    if (this.s.gems < SP_RESET_GEMS) return false;
+    const total = Object.values(this.s.spAlloc).reduce((a, b) => a + b, 0);
+    if (!total) return false;
+    this.s.gems -= SP_RESET_GEMS;
+    for (const k of Object.keys(this.s.spAlloc)) this.s.spAlloc[k] = 0;
+    this.s.sp += total;
+    return true;
+  }
+
+  // ---------- 승급 ----------
+  nextRank() { return RANKS[this.s.rank + 1] || null; }
+  canTrial() { const r = this.nextRank(); return !!r && this.s.level >= r.level && this.mode === 'stage'; }
+
+  startTrial() {
+    if (!this.canTrial()) return false;
+    const r = this.s.rank + 1;
+    const boss = trialBoss(r);
+    this.beginContest('trial', TRIAL_TIME, { rank: r });
+    this.mon = { hp: boss.hp, maxHp: boss.hp, isBoss: true, emoji: '🛡️', trial: true, atk: boss.atk, atkTimer: 1.5, alive: true, stun: 0 };
+    return true;
+  }
+
+  // ---------- 공통: 던전·시련·결투·레이드 ----------
+  beginContest(mode, time, extra = {}) {
+    this.mode = mode;
+    this.contest = { mode, time, maxTime: time, kills: 0, damage: 0, ...extra };
+    this.raid = mode === 'raid' ? this.contest : null;
+    this.heroHp = this.stats().hp;
+    this.atkTimer = 0.4;
+    this.petTimer = PET_ATTACK_INTERVAL;
+    this.queue = [];
+    this.emit('contestStart', { mode });
+  }
+
+  endContest(result) {
+    const c = this.contest;
+    if (!c) return null;
+    const out = { mode: c.mode, result };
+    if (c.mode === 'dungeon') {
+      out.id = c.id;
+      out.level = c.level;
+      out.win = result === 'clear';
+      this.progress('dungeon');
+      if (out.win) {
+        this.s.daily.keys[c.id]--;
+        this.s.dungeons[c.id] = Math.max(this.s.dungeons[c.id] || 0, c.level);
+        out.reward = this.grant(dungeonReward(c.id, c.level));
+      }
+    } else if (c.mode === 'trial') {
+      out.win = result === 'clear';
+      if (out.win) {
+        this.s.rank = c.rank;
+        out.rank = c.rank;
+      }
+    } else if (c.mode === 'pvp') {
+      let win = result === 'win';
+      if (result === 'timeout') win = this.heroHp / this.stats().hp >= this.mon.hp / this.mon.maxHp;
+      out.win = win;
+      out.opponent = c.opponent;
+      out.delta = win ? PVP_WIN : PVP_LOSE;
+      this.s.pvp.score = Math.max(0, this.s.pvp.score + out.delta);
+      this.s.pvp[win ? 'wins' : 'losses']++;
+      out.reward = this.grant(win ? PVP_REWARD.win : PVP_REWARD.lose);
+      this.progress('pvp');
+    } else if (c.mode === 'raid') {
+      out.damage = c.damage;
+      if (c.damage > 0) this.progress('raid');
+    }
+    this.mode = 'stage';
+    this.contest = null;
+    this.raid = null;
+    this.queue = [];
+    this.heroHp = this.stats().hp;
+    this.emit('contestEnd', out);
+    if (out.mode === 'raid') this.emit('raidEnd', { damage: out.damage });
+    if (out.mode === 'trial' && out.win) this.emit('rankUp', { rank: out.rank });
+    this.spawnStage();
+    return out;
+  }
+
+  // ---------- 던전 ----------
+  dungeonUnlocked(d) { return this.s.maxStage >= d.unlock; }
+
+  startDungeon(id) {
+    const d = DUNGEONS.find((x) => x.id === id);
+    if (!d || !this.dungeonUnlocked(d) || this.mode !== 'stage' || this.s.daily.keys[id] <= 0) return false;
+    const level = (this.s.dungeons[id] || 0) + 1;
+    this.beginContest('dungeon', DUNGEON_TIME, { id, level, eq: dungeonStage(d, level), def: d });
+    this.spawnDungeon();
+    return true;
+  }
+
+  spawnDungeon() {
+    const c = this.contest;
+    const isBoss = c.kills >= DUNGEON_MOBS;
+    const hp = monsterHp(c.eq) * (isBoss ? BOSS_HP_MULT * 1.5 : 1.2);
+    this.fillQueue(() => c.def.mob);
+    this.mon = {
+      hp, maxHp: hp, isBoss, emoji: isBoss ? c.def.boss : this.queue.shift(),
+      atk: monsterAtk(c.eq) * (isBoss ? BOSS_ATK_MULT : 1), atkTimer: 1.2, alive: true, stun: 0,
+    };
+    if (c.kills + 1 + this.queue.length > DUNGEON_MOBS) this.queue.length = Math.max(0, DUNGEON_MOBS - c.kills - 1);
+    this.spawnTimer = 0;
+    this.emit('spawn', { isBoss });
+  }
+
+  sweepDungeon(id) {
+    const best = this.s.dungeons[id] || 0;
+    if (!best || this.s.daily.keys[id] <= 0 || this.mode !== 'stage') return null;
+    this.s.daily.keys[id]--;
+    this.progress('dungeon');
+    return this.grant(dungeonReward(id, best));
+  }
+
+  // ---------- 결투 ----------
+  // opp: 상대 프로필 스냅샷 {nickname, atk, hp, crit, critDmg, speed, petHit, rank, pet}
+  startPvp(opp) {
+    if (this.mode !== 'stage' || this.s.daily.pvpTickets <= 0) return false;
+    this.s.daily.pvpTickets--;
+    this.beginContest('pvp', PVP_TIME, { opponent: { uid: opp.uid, nickname: opp.nickname } });
+    const hp = Math.max(1, opp.hp || 1);
+    this.mon = {
+      hp, maxHp: hp, isBoss: false, isHero: true, name: opp.nickname, rank: opp.rank || 0, petEmoji: opp.petEmoji || null,
+      weaponGrade: opp.weaponGrade ?? -1,
+      atk: opp.atk || 1, crit: Math.min(CRIT_CAP, opp.crit || 0), critDmg: opp.critDmg || 1.5,
+      atkInterval: 1 / Math.max(0.2, opp.speed || 1), atkTimer: 0.6,
+      petHit: opp.petHit || 0, petTimer: PET_ATTACK_INTERVAL, alive: true, stun: 0,
+    };
+    return true;
   }
 
   // ---------- 스킬 ----------
   skillUnlocked(sk) { return this.s.maxStage >= sk.unlock; }
 
-  useSkill(id) {
-    const sk = SKILLS.find((x) => x.id === id);
-    if (!sk || !this.skillUnlocked(sk) || this.cd[id] > 0 || !this.mon?.alive) return false;
-    const lv = this.s.skills[id];
-    const st = this.stats();
-    if (id === 'slash' || id === 'thunder') {
-      this.dealDamage(st.atk * sk.mult(lv), id);
-    } else if (id === 'rage') {
-      this.buffs.rage = sk.dur;
-    } else if (id === 'heal') {
-      this.heroHp = Math.min(st.hp, this.heroHp + st.hp * sk.mult(lv));
+  autoSlotSkills() {
+    for (const sk of SKILLS) {
+      if (!this.skillUnlocked(sk) || this.s.skillSlots.includes(sk.id)) continue;
+      const free = this.s.skillSlots.indexOf(null);
+      if (free < 0) return;
+      this.s.skillSlots[free] = sk.id;
     }
-    this.cd[id] = sk.cd;
-    this.emit('skill', { id });
+  }
+
+  setSkillSlot(slot, id) {
+    if (slot < 0 || slot >= SKILL_SLOTS) return false;
+    const sk = SKILLS.find((x) => x.id === id);
+    if (id && (!sk || !this.skillUnlocked(sk))) return false;
+    const cur = this.s.skillSlots.indexOf(id);
+    if (id && cur >= 0) this.s.skillSlots[cur] = this.s.skillSlots[slot];
+    this.s.skillSlots[slot] = id;
     return true;
   }
 
-  skillUpgradeCost(id) {
-    const idx = SKILLS.findIndex((x) => x.id === id);
-    return skillCost(idx, this.s.skills[id]);
+  useSkill(id) {
+    const sk = SKILLS.find((x) => x.id === id);
+    if (!sk || !this.skillUnlocked(sk) || this.cd[id] > 0 || !this.mon?.alive || this.mode === 'pvp') return false;
+    if (!this.s.skillSlots.includes(id)) return false;
+    const lv = this.s.skills[id];
+    const st = this.stats();
+    if (sk.kind === 'dmg') {
+      if (sk.stun) this.mon.stun = sk.stun;
+      this.emit('skill', { id });
+      this.dealDamage(st.atk * sk.mult(lv), id);
+    } else if (sk.kind === 'buff') {
+      this.buffs[id] = sk.dur;
+      this.emit('skill', { id });
+    } else if (sk.kind === 'heal') {
+      this.heroHp = Math.min(st.hp, this.heroHp + st.hp * sk.mult(lv));
+      this.emit('skill', { id });
+    }
+    this.cd[id] = sk.cd;
+    return true;
   }
+
+  skillUpgradeCost(id) { return skillBookCost(this.s.skills[id]); }
 
   upgradeSkill(id) {
     const sk = SKILLS.find((x) => x.id === id);
     if (!sk || !this.skillUnlocked(sk)) return false;
     const cost = this.skillUpgradeCost(id);
-    if (this.s.gold < cost) return false;
-    this.s.gold -= cost;
+    if (this.s.books < cost) return false;
+    this.s.books -= cost;
     this.s.skills[id]++;
     return true;
   }
 
-  // ---------- 강화 ----------
+  // ---------- 골드 강화 ----------
   upgradeCost(key) { return UPGRADES[key].cost(this.s.upgrades[key]); }
   upgradeMaxed(key) { const m = UPGRADES[key].max; return m !== undefined && this.s.upgrades[key] >= m; }
 
@@ -297,13 +606,20 @@ export class Game {
       this.s.upgrades[key]++;
       bought++;
     }
-    if (bought && key === 'hp') this.heroHp = Math.min(this.stats().hp, this.heroHp + 1);
+    if (bought) this.progress('upgrade', bought);
     return bought;
   }
 
   addGold(g) {
     this.s.gold += g;
     this.s.stats.gold += g;
+  }
+
+  // 보상 묶음 지급: {gold, gems, books, stones, food, relicShards}
+  grant(r = {}) {
+    if (r.gold) this.addGold(r.gold);
+    for (const k of ['gems', 'books', 'stones', 'food', 'relicShards']) if (r[k]) this.s[k] += r[k];
+    return r;
   }
 
   // ---------- 장비 ----------
@@ -329,6 +645,7 @@ export class Game {
       out.push({ type, grade });
     }
     this.s.stats.gachas += count;
+    this.progress('gacha', count);
     return out;
   }
 
@@ -349,55 +666,180 @@ export class Game {
     return total;
   }
 
-  // ---------- 방치 / 일일 ----------
-  idleGoldRate() {
-    const s = this.s.farming ? this.s.stage : Math.max(1, this.s.stage);
-    const st = this.power();
-    const full = this.stats();
-    const hits = Math.max(1, Math.ceil(monsterHp(s) / (st.atk * (1 + full.crit * (full.critDmg - 1)))));
-    const killTime = hits / full.speed + SPAWN_DELAY;
-    return (monsterGold(s) * full.goldMul) / killTime;
+  enhanceCost(type) { return enhanceCost(this.s.enhance[type] || 0); }
+
+  enhanceEquip(type, times = 1) {
+    let n = 0;
+    for (let i = 0; i < times; i++) {
+      const cost = this.enhanceCost(type);
+      if (this.s.stones < cost) break;
+      this.s.stones -= cost;
+      this.s.enhance[type]++;
+      n++;
+    }
+    if (n) this.progress('upgrade', n);
+    return n;
   }
+
+  // ---------- 펫 ----------
+  hatchPets(count) {
+    const cost = PET_EGG_COST * count;
+    if (this.s.gems < cost) return null;
+    this.s.gems -= cost;
+    const total = PETS.reduce((a, p) => a + PET_GRADE_WEIGHT[p.grade], 0);
+    const out = [];
+    for (let i = 0; i < count; i++) {
+      let r = this.rng() * total;
+      let pet = PETS[0];
+      for (const p of PETS) {
+        r -= PET_GRADE_WEIGHT[p.grade];
+        if (r <= 0) { pet = p; break; }
+      }
+      if (this.s.pets[pet.id]) {
+        const food = PET_DUPLICATE_FOOD(pet.grade);
+        this.s.food += food;
+        out.push({ id: pet.id, dup: true, food });
+      } else {
+        this.s.pets[pet.id] = 1;
+        out.push({ id: pet.id, dup: false });
+        if (!this.s.pet || PETS.find((p) => p.id === this.s.pet).grade < pet.grade) this.s.pet = pet.id;
+      }
+    }
+    this.progress('gacha', count);
+    return out;
+  }
+
+  petLevelCost(id) { return petFoodCost(this.s.pets[id] || 1); }
+
+  levelPet(id, times = 1) {
+    if (!this.s.pets[id]) return 0;
+    let n = 0;
+    for (let i = 0; i < times; i++) {
+      const cost = this.petLevelCost(id);
+      if (this.s.food < cost) break;
+      this.s.food -= cost;
+      this.s.pets[id]++;
+      n++;
+    }
+    return n;
+  }
+
+  equipPet(id) {
+    if (!this.s.pets[id]) return false;
+    this.s.pet = id;
+    return true;
+  }
+
+  // ---------- 유물 ----------
+  digRelic(times = 1) {
+    const out = [];
+    for (let i = 0; i < times; i++) {
+      const open = RELICS.filter((r) => (this.s.relics[r.id] || 0) < r.max);
+      if (!open.length || this.s.relicShards < RELIC_DIG_COST) break;
+      this.s.relicShards -= RELIC_DIG_COST;
+      const r = open[Math.floor(this.rng() * open.length)];
+      this.s.relics[r.id] = (this.s.relics[r.id] || 0) + 1;
+      out.push(r.id);
+    }
+    return out;
+  }
+
+  // ---------- 미션 / 업적 ----------
+  progress(id, n = 1) {
+    const m = MISSIONS.find((x) => x.id === id);
+    if (!m) return;
+    const cur = this.s.daily.missions[id] || 0;
+    if (cur >= m.goal) return;
+    this.s.daily.missions[id] = Math.min(m.goal, cur + n);
+    if (this.s.daily.missions[id] >= m.goal) this.emit('missionDone', { id });
+  }
+
+  missionState(id) {
+    const m = MISSIONS.find((x) => x.id === id);
+    const cur = this.s.daily.missions[id] || 0;
+    return { cur, goal: m.goal, done: cur >= m.goal, claimed: !!this.s.daily.claimed[id] };
+  }
+
+  claimMission(id) {
+    const st = this.missionState(id);
+    if (!st.done || st.claimed) return null;
+    this.s.daily.claimed[id] = true;
+    return this.grant(MISSIONS.find((x) => x.id === id).reward);
+  }
+
+  allMissionsClaimed() { return MISSIONS.every((m) => this.s.daily.claimed[m.id]); }
+
+  claimAllBonus() {
+    if (this.s.daily.allClaimed || !this.allMissionsClaimed()) return null;
+    this.s.daily.allClaimed = true;
+    return this.grant(MISSION_ALL_REWARD);
+  }
+
+  milestonesReady() {
+    return Math.max(0, Math.floor((this.s.maxStage - 1) / STAGE_MILESTONE_EVERY) - this.s.milestone);
+  }
+
+  claimMilestone() {
+    if (!this.milestonesReady()) return null;
+    this.s.milestone++;
+    return this.grant(stageMilestone(this.s.milestone));
+  }
+
+  claimableCount() {
+    const missions = MISSIONS.filter((m) => { const st = this.missionState(m.id); return st.done && !st.claimed; }).length;
+    const all = !this.s.daily.allClaimed && this.allMissionsClaimed() ? 1 : 0;
+    return missions + all + this.milestonesReady();
+  }
+
+  // ---------- 방치 / 일일 ----------
+  idleRates() {
+    const s = Math.max(1, this.s.stage);
+    const st = this.stats({ buffs: false });
+    const perHit = st.atk * (1 + st.crit * (st.critDmg - 1));
+    const hits = Math.max(1, Math.ceil(monsterHp(s) / perHit));
+    const killTime = hits / st.speed + SPAWN_DELAY;
+    return {
+      gold: (monsterGold(s) * st.goldMul) / killTime,
+      exp: (expPerKill(s) * st.expMul) / killTime,
+      offlineMul: st.offlineMul,
+    };
+  }
+
+  idleGoldRate() { return this.idleRates().gold; }
 
   offlineReward(now = Date.now()) {
     const sec = Math.min(OFFLINE_CAP_SEC, Math.max(0, (now - (this.s.lastSeen || now)) / 1000));
     if (sec < 60) return null;
-    return { sec, gold: this.idleGoldRate() * sec };
+    const r = this.idleRates();
+    return { sec, gold: r.gold * sec * r.offlineMul, exp: r.exp * sec * r.offlineMul };
   }
 
   claimOffline(reward) {
-    if (reward) this.addGold(reward.gold);
+    if (!reward) return;
+    this.addGold(reward.gold);
+    if (reward.exp) this.addExp(reward.exp);
   }
 
   checkDaily(now = Date.now()) {
     const today = dayKey(now);
     if (this.s.daily.date === today) return null;
-    this.s.daily = { date: today, raidTickets: RAID_TICKETS, checkin: false };
+    this.s.daily = freshDaily(today);
     this.s.gems += DAILY_GEMS;
     return { gems: DAILY_GEMS };
   }
 
   // ---------- 레이드 ----------
   startRaid(remainingHp, maxHp) {
-    if (this.mode === 'raid' || this.s.daily.raidTickets <= 0 || remainingHp <= 0) return false;
+    if (this.mode !== 'stage' || this.s.daily.raidTickets <= 0 || remainingHp <= 0) return false;
     this.s.daily.raidTickets--;
-    this.mode = 'raid';
-    this.raid = { time: RAID_TIME, damage: 0 };
-    this.mon = { hp: remainingHp, maxHp, isBoss: true, isRaid: true, emoji: '🐲', alive: true, atk: 0, atkTimer: 99 };
-    this.heroHp = this.stats().hp;
-    this.atkTimer = 0.3;
-    this.emit('raidStart');
+    this.beginContest('raid', RAID_TIME);
+    this.mon = { hp: remainingHp, maxHp, isBoss: true, isRaid: true, emoji: '🐲', alive: true, atk: 0, atkTimer: 99, stun: 0 };
     return true;
   }
 
   endRaid() {
-    const damage = this.raid?.damage || 0;
-    this.mode = 'stage';
-    this.raid = null;
-    this.emit('raidEnd', { damage });
-    this.heroHp = this.stats().hp;
-    this.spawn();
-    return damage;
+    if (this.mode !== 'raid') return 0;
+    return this.endContest('quit')?.damage || 0;
   }
 
   toJSON(now = Date.now()) {
