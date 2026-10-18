@@ -1,0 +1,90 @@
+# Blade Idle 스킬 구조 분석 (2026-10-18)
+
+> 수치는 못 가져온다. 스킬 이름·설명·배율은 전부 서버에 있다.
+> 로컬라이제이션 번들 345개를 꺼내봤더니 전부 2.6KB짜리 빈 껍데기였다 —
+> 번역 문자열도 런타임에 서버에서 받는다.
+> 대신 **동작 방식(아키타입)과 시스템 구조**는 클라이언트에 그대로 남아 있다.
+
+## 1. 스킬이 '움직인다'
+
+`SkillTable` 컬럼 (global-metadata.dat에서 추출):
+
+```
+skillID  skillgroupid  skilleffectid  skillbookid  skillexp
+skillmovespeed                  ← 스킬이 날아가는 속도
+skillmovetime                   ← 얼마나 오래 날아가는가
+skillmovestopintervaldistance   ← 가다가 멈추는 간격
+skillslottableid  skilltranscendence  skilltranscendenceid
+```
+
+클라이언트 코드에 있는 처리기:
+
+```
+SkillShootProjectile        발사체를 쏜다
+SkillMoveStraightHandler    직선으로 간다
+SkillChainTrace             적에서 적으로 옮겨탄다
+SkillChainTraceProjectile   옮겨타는 발사체
+SkillCreateEffOn            그 자리에 효과를 깐다
+SkillMove
+```
+
+→ 스킬에 **속도·지속시간·정지간격**이 있다는 건, 즉발이 아니라 **날아가고 번지는** 것이 기본이라는 뜻이다.
+
+## 2. 동작 아키타입 (주인공 이펙트 프리팹 135개에서 추출)
+
+```
+EF_MainCha_Atk01 / Atk02 / AtkSkill01      기본 공격
+EF_MainCha_ArtSword01                      검기(오의)
+EF_MainCha_SwordDown01                     내려찍기
+EF_MainCha_Shock01                         충격파
+EF_MainCha_SkillChaRange01                 내 주변 범위
+EF_MainCha_Projectile01                    투사체
+EF_MainCha_SwordProjectile01               검 투사체
+EF_MainCha_ChainLighting01~05              ★ 연쇄 번개 (적→적)
+EF_MainCha_FieldLightning01                 장판 낙뢰
+EF_MainCha_SkillField01                     ★ 지속 장판
+EF_MainCha_SkillWaterField01 / 10           ★ 지속 장판(물)
+EF_MainCha_SkillDash01 / Dash02             ★ 돌진
+EF_MainCha_TeleportSlash_01                 ★ 순간이동 베기
+EF_MainCha_Tornado01                        ★ 회오리(움직이는 장판)
+```
+
+★ 표시가 우리에게 **없는** 동작이다.
+
+## 3. 시스템 구조
+
+| 요소 | Blade Idle | 우리 (v0.7) |
+|---|---|---|
+| 액티브/패시브 | `SkillGet_Active` / `SkillGet_Passive` 구분 | 액티브만 |
+| 스킬 초월 | `SkillTranscendenceTable`, `ActiveSkillTranscendence` | 없음 |
+| 슬롯 | `SkillSlotTable` — 슬롯 자체가 테이블(성장) | 4칸 고정 |
+| 성장 | `ActiveSkillOpen / LvUp / Growth / Transcendence` 4단계 | 책으로 레벨업만 |
+
+## 4. 우리 스킬의 문제
+
+8개 전부가 **"즉발 + 범위"** 하나의 동작이다.
+
+| 무공 | 종류 | 동작 |
+|---|---|---|
+| 선풍검 | 광역 | 즉발, 반경 150 |
+| 뇌정검 | 광역 | 즉발, 반경 210 |
+| 만검귀종 | 광역 | 즉발, 반경 300 |
+| 빙백신장 | 단일 | 즉발 + 빙결 |
+| 혈마해방 / 질풍보 / 천금수 | 버프 | 수치만 |
+| 운기조식 | 회복 | 수치만 |
+
+반경 숫자만 다르다. **80마리가 몰려오는 들판에서 셋을 구분할 이유가 없다.**
+
+## 5. 가져올 수 있는 것
+
+수치는 못 가져오지만 **동작은 전부 만들 수 있다.** 탑다운 평면이라 전부 성립한다.
+
+| 아키타입 | 우리 식 이름(안) | 동작 | 80마리 들판에서의 쓰임 |
+|---|---|---|---|
+| ChainLighting | 연환벽력 | 가장 가까운 적부터 N명에게 옮겨탄다 | 흩어진 적 정리 |
+| Dash | 발도돌격 | 무인이 직선으로 관통하며 벤다 | 뭉친 줄을 가른다 |
+| TeleportSlash | 축지참 | 가장 먼 적/두목에게 순간이동 후 일격 | 두목 특화 |
+| Field (지속) | 매화검진 | 그 자리에 N초간 남아 들어온 적을 벤다 | 길목 막기 |
+| Tornado | 선풍장 | 장판이 스스로 굴러다닌다 | 방치형에 어울림 |
+| Projectile 관통 | 일자검기 | 직선상의 적 전부 | 줄 세워진 적 |
+
