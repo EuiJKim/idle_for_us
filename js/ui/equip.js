@@ -26,7 +26,7 @@ export function equipTab(app) {
       h('p', { class: 'muted', style: 'margin:4px 0 0' },
         `한 부위를 빠짐없이 채우면 치명타 확률 +${pct(CODEX_PER_TYPE.crit)}, `
         + `세 부위 모두 채우면 치명타 피해 +${pct(CODEX_ALL.critDmg)}`)),
-    h('div', { class: 'section-title' }, h('span', {}, '鐵 제련석 ', stones), h('span', {}, '수련터·두목·의뢰에서 획득')));
+    h('div', { class: 'section-title' }, h('span', {}, '제련석 ', stones), h('span', {}, '수련터·두목·의뢰에서 획득')));
 
   for (const [type, def] of Object.entries(EQUIP_TYPES)) {
     const grid = h('div', { class: 'grades' });
@@ -51,7 +51,7 @@ export function equipTab(app) {
 
   function doGacha(n) {
     const res = game.gacha(n);
-    if (!res) return toast('寶 원보가 부족해요');
+    if (!res) return toast('원보가 부족해요');
     app.refresh();
     res.sort((a, b) => b.grade - a.grade);
     openModal((s) => {
@@ -65,14 +65,14 @@ export function equipTab(app) {
       if (best.grade >= 3) s.append(h('p', { style: 'text-align:center' }, '✨ ', gradeChip(best.grade), ` ${EQUIP_TYPES[best.type].name} 획득!`));
       s.append(h('div', { class: 'btn-row' },
         h('button', { class: 'btn', onclick: closeModal }, '닫기'),
-        h('button', { class: 'btn primary', onclick: () => { closeModal(); doGacha(n); } }, `한 번 더 (寶${n === 10 ? GACHA10_COST : GACHA_COST * n})`)));
+        h('button', { class: 'btn primary', onclick: () => { closeModal(); doGacha(n); } }, `한 번 더 (원보 ${n === 10 ? GACHA10_COST : GACHA_COST * n})`)));
     });
     return undefined;
   }
 
   function update() {
-    b1.textContent = `1회 寶${GACHA_COST}`;
-    b10.textContent = `10회 寶${GACHA10_COST}`;
+    b1.textContent = `1회 원보 ${GACHA_COST}`;
+    b10.textContent = `10회 원보 ${GACHA10_COST}`;
     b1.disabled = game.s.gems < GACHA_COST;
     b10.disabled = game.s.gems < GACHA10_COST;
     stones.textContent = fmt(game.s.stones);
@@ -96,7 +96,7 @@ export function equipTab(app) {
       c.bonus.innerHTML = best < 0
         ? '아직 병기가 없어요'
         : `장착(${GRADES[best].name}) <b>+${pct(c.def.equip[best])}</b> · 병기보 <b>+${pct(own)}</b> · 제련 <b>×${(1 + ENHANCE_PER * e).toFixed(2)}</b> → ${c.def.label} <b>×${fmt(game.equipMult(type))}</b>`;
-      c.enhBtn.textContent = `鐵 ${fmt(game.enhanceCost(type))}`;
+      c.enhBtn.textContent = `한철 ${fmt(game.enhanceCost(type))}`;
       c.enhBtn.disabled = game.s.stones < game.enhanceCost(type);
       c.enh10.disabled = c.enhBtn.disabled;
     }

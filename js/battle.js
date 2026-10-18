@@ -122,7 +122,7 @@ export class BattleView {
         if (!ev.add) this.monDeath = 1;
         this.ink(kx, ky - 50, ev.isBoss ? 34 : 16, ev.isBoss ? '#450a0a' : '#111');
         if (ev.gold) {
-          this.float('+' + fmt(ev.gold) + ' 銀', kx, ky - 165, '#e5e7eb', 15);
+          this.float('+' + fmt(ev.gold) + ' 은자', kx, ky - 165, '#e5e7eb', 13);
           for (let i = 0; i < (ev.isBoss ? 10 : 3); i++) this.ingot(kx, ky - 40);
         }
         break;
@@ -136,20 +136,20 @@ export class BattleView {
         this.float(ev.boss ? '두목에게 패배…' : '쓰러졌다!', this.w / 2, this.h * 0.42, '#fca5a5', 24, 1.6, true);
         break;
       case 'stageClear':
-        this.showBanner(`${ev.stage} 관문 돌파`, '#fef3c7', 1.5, '破');
+        this.showBanner(`${ev.stage} 관문 돌파`, '#fef3c7', 1.5, '돌파');
         break;
       case 'levelUp':
         this.effects.push({ kind: 'pillar', life: 1, max: 1 });
         this.float(`레벨 ${ev.level}`, this.heroX, this.groundY - 155, '#fde68a', 24, 1.4, true);
         break;
       case 'rankUp':
-        this.showBanner(`경지 돌파 · ${RANKS[ev.rank].name}`, '#fde68a', 2.4, '境');
+        this.showBanner(`경지 돌파 · ${RANKS[ev.rank].name}`, '#fde68a', 2.4, '경지');
         this.effects.push({ kind: 'pillar', life: 1.6, max: 1.6 });
         this.flash = 0.8;
         break;
       case 'regress':
         this.effects.push({ kind: 'regress', life: 2.2, max: 2.2 });
-        this.hanja = { text: '回歸', life: 2.2, max: 2.2, color: '#f5f5f4' };
+        this.hanja = { text: '회귀', life: 2.2, max: 2.2, color: '#f5f5f4' };
         break;
       case 'skillHits':
         if (ev.hits > AOE_FLOAT_MAX) {
@@ -571,7 +571,7 @@ export class BattleView {
     if (m.alive && !m.isRaid) {
       const bw = boss || m.trial || m.isHero ? 110 : 66;
       hpBar(ctx, x - bw / 2, top - 6, bw, 6, m.hp / m.maxHp, boss || m.trial ? '#b91c1c' : '#ea580c');
-      const name = m.isHero ? `${RANKS[m.rank || 0].name} ${m.name}` : m.trial ? '심마(心魔)' : def.name || '';
+      const name = m.isHero ? `${RANKS[m.rank || 0].name} ${m.name}` : m.trial ? '심마' : def.name || '';
       nameTag(ctx, name, x, top - 12, boss || m.trial);
     }
   }
@@ -1069,7 +1069,7 @@ function drawWeapon(ctx, weapon, o, t, lunge) {
       ctx.beginPath(); ctx.moveTo(0, 0); ctx.arc(0, 0, 22, -Math.PI * 0.85, -Math.PI * 0.15); ctx.fill();
       ctx.strokeStyle = 'rgba(0,0,0,0.5)'; ctx.lineWidth = 1;
       for (let i = 0; i < 6; i++) { const a = -Math.PI * 0.85 + i * (Math.PI * 0.7 / 5); ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(Math.cos(a) * 22, Math.sin(a) * 22); ctx.stroke(); }
-      ctx.fillStyle = '#111'; ctx.font = `10px ${BRUSH}`; ctx.textAlign = 'center'; ctx.fillText('風', 0, -10);
+      ctx.fillStyle = '#111'; ctx.font = `9px ${BRUSH}`; ctx.textAlign = 'center'; ctx.fillText('바람', 0, -10);
       break;
     case 'claw':
       ctx.strokeStyle = blade === '#e5e7eb' ? '#d1d5db' : blade; ctx.lineWidth = 2;
@@ -1093,7 +1093,7 @@ function drawWeapon(ctx, weapon, o, t, lunge) {
   }
 }
 
-// 직검(劍): 손잡이가 (x, y), 칼날이 +y 방향 (호출 측에서 회전)
+// 직검: 손잡이가 (x, y), 칼날이 +y 방향 (호출 측에서 회전)
 function drawJian(ctx, x, y, blade, glow, s = 1, t = 0, rage = false) {
   ctx.save();
   ctx.translate(x, y);

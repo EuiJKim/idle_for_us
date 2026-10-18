@@ -173,8 +173,8 @@ input { font: inherit; user-select: text; -webkit-user-select: text; }
 }
 .buy:active:not(:disabled) { transform: translateY(2px); box-shadow: 0 1px 0 #312e81; }
 .buy:disabled { background: #2a3352; box-shadow: none; color: #7280a6; }
-.buy.gold-cost::before { content: '銀 '; font-family: var(--brush); }
-.buy.gem-cost::before { content: '寶 '; font-family: var(--brush); }
+.buy.gold-cost::before { content: '은자 '; }
+.buy.gem-cost::before { content: '원보 '; }
 .seg { display: inline-flex; background: var(--card); border-radius: 999px; padding: 2px; }
 .seg button { padding: 4px 10px; border-radius: 999px; font-size: 11px; font-weight: 800; background: transparent; color: var(--muted); }
 .seg button.on { background: var(--accent); color: #fff; }
@@ -255,7 +255,7 @@ input { font: inherit; user-select: text; -webkit-user-select: text; }
   font-size: 9px; color: var(--muted); font-weight: 700; line-height: 1.1;
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
 }
-#tabs button span { display: block; font-size: 19px; }
+#tabs button span { display: block; font-size: 13px; font-weight: 800; }
 #tabs button.active { color: #fff; border-color: var(--accent-2); background: rgba(13, 19, 38, 0.92); }
 #tabs button .dot { position: absolute; top: -3px; right: -3px; width: 9px; height: 9px; border-radius: 50%; background: var(--bad); }
 
@@ -316,10 +316,10 @@ body { background: radial-gradient(ellipse at top, #1d1712, #0b0907 70%); }
 #topbar { position: relative; z-index: 45; background: #120f0b; }
 #stage-label { font-family: var(--brush); font-size: 22px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 400; letter-spacing: 1px; line-height: 1; color: #f5e9cf; }
 #zone-label { font-family: var(--serif); }
-.cur { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 50%; font-family: var(--brush); font-size: 15px; line-height: 1; flex: none; }
+.cur { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 50%; font-weight: 800; font-size: 11px; line-height: 1; flex: none; }
 .cur.silver { background: #d1d5db; color: #1f2937; }
 .cur.gem { background: #b8860b; color: #fff7e0; }
-.icon-btn.hz { font-family: var(--brush); font-size: 20px; color: #f5e9cf; border: 1px solid var(--line); }
+.icon-btn { font-size: 17px; color: #f5e9cf; border: 1px solid var(--line); }
 #power-label { background: rgba(10,8,6,0.65); color: var(--gold); font-family: var(--serif); }
 #progress { background: rgba(10,8,6,0.65); }
 #progress-fill { background: linear-gradient(90deg, #8b5e1a, #d4a64a); }
@@ -329,7 +329,7 @@ body { background: radial-gradient(ellipse at top, #1d1712, #0b0907 70%); }
 .skill-btn.ready { border-color: var(--accent-2); box-shadow: 0 0 10px rgba(212,166,74,0.35) inset; }
 .skill-btn .lock { font-family: system-ui, sans-serif; }
 .auto-btn { background: rgba(27,23,18,0.82); backdrop-filter: blur(3px); }
-.row .ico { font-family: var(--brush), "Apple Color Emoji", "Segoe UI Emoji", sans-serif; font-size: 26px; color: #f5e9cf;
+.row .ico { font-family: var(--serif), "Apple Color Emoji", "Segoe UI Emoji", sans-serif; font-size: 17px; font-weight: 800; color: #f5e9cf;
   width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; border-radius: 50%;
   background: radial-gradient(circle at 35% 30%, #3a3026, #1a1510); border: 1px solid var(--line); }
 .row .name, .card h3, #modal h2, .section-title { font-family: var(--serif); }
@@ -341,7 +341,7 @@ body { background: radial-gradient(ellipse at top, #1d1712, #0b0907 70%); }
 .seg button.on { background: var(--accent); }
 .bar > div { background: linear-gradient(90deg, #8b5e1a, #d4a64a); }
 #tabs button { background: rgba(18,15,11,0.78); border-color: rgba(212,166,74,0.25); }
-#tabs button span { font-family: var(--brush); font-size: 22px; line-height: 1.1; }
+#tabs button span { font-size: 14px; line-height: 1.15; letter-spacing: -0.5px; }
 #tabs button.active { color: #f5e9cf; background: rgba(18,15,11,0.94); }
 #tabs button.active span { color: var(--accent-2); }
 #modal .sheet { background: linear-gradient(180deg, #1f1a14, #15120e); border-color: #4a3d2e; }
@@ -351,8 +351,8 @@ body { background: radial-gradient(ellipse at top, #1d1712, #0b0907 70%); }
 .slot span { font-family: var(--brush); font-size: 28px; color: #f5e9cf; }
 .dg-ico { font-family: var(--brush); font-size: 34px; color: #f5e9cf; background: radial-gradient(circle at 35% 30%, #3a3026, #1a1510); }
 .regress-card { background: linear-gradient(180deg, #1a1410, #0e0b08); border: 1px solid #4a3d2e; text-align: left; }
-.regress-hz { font-family: var(--brush); font-size: 72px; text-align: center; color: #f5e9cf; line-height: 1; text-shadow: 0 0 18px rgba(212,166,74,0.35); }
-.regress-hz.small { font-size: 48px; }
+.regress-hz { font-family: var(--brush); font-size: 56px; text-align: center; color: #f5e9cf; line-height: 1; text-shadow: 0 0 18px rgba(212,166,74,0.35); }
+.regress-hz.small { font-size: 38px; }
 .regress-gain { margin-top: 8px; color: var(--muted); font-size: 13px; }
 .regress-gain b { color: var(--gold); }
 .chip { background: #1b1712; }

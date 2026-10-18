@@ -4,9 +4,9 @@
 <style>body{margin:0;background:#000}canvas{display:block}</style></head>
 <body><canvas id="c" width="1024" height="1024"></canvas>
 <script>
-// 앱 아이콘: 한지 + 먹 원상(圓相) + 붓글씨 回 + 붉은 낙관. ?pad=0.2 이면 maskable 여백
+// 앱 아이콘: 한지 + 먹 원상 + 붓글씨 회 + 붉은 낙관. ?pad=0.2 이면 maskable 여백
 const pad = Number(new URLSearchParams(location.search).get('pad') || 0.06);
-document.fonts.load('400px "Yuji Syuku"', '回武').then(() => {
+document.fonts.load('400px "Yuji Syuku"', '회무').then(() => {
   const c = document.getElementById('c').getContext('2d');
   const S = 1024;
   const g = c.createRadialGradient(S * 0.4, S * 0.35, 50, S / 2, S / 2, S * 0.75);
@@ -25,11 +25,11 @@ document.fonts.load('400px "Yuji Syuku"', '回武').then(() => {
   c.fillStyle = '#100c09';
   c.font = '620px "Yuji Syuku"';
   c.textAlign = 'center'; c.textBaseline = 'middle';
-  c.fillText('回', S / 2 - 10, S / 2 + 40);
+  c.fillText('회', S / 2 - 10, S / 2 + 40);
   // 붉은 낙관
   c.save(); c.translate(S * 0.76, S * 0.78); c.rotate(-0.08);
   c.fillStyle = '#b3261e'; c.fillRect(-90, -90, 180, 180);
-  c.fillStyle = '#f8ecd8'; c.font = '150px "Yuji Syuku"'; c.fillText('武', 0, 12);
+  c.fillStyle = '#f8ecd8'; c.font = '150px "Yuji Syuku"'; c.fillText('무', 0, 12);
   c.restore();
   c.restore();
   window.__done = true;

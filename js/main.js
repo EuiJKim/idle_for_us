@@ -185,7 +185,7 @@ function handleEvents() {
   for (const ev of game.events) {
     view.handle(ev, game);
     switch (ev.type) {
-      case 'gems': toast(`寶 +${ev.amount}`); break;
+      case 'gems': toast(`원보 +${ev.amount}`); break;
       case 'stageClear': {
         if (ev.stage % 10 === 0) { toast(`🎉 ${zoneOf(ev.stage + 1).name}에 도착했어요!`); net.pushProfile(true); }
         const sk = SKILLS.find((x) => x.unlock === ev.stage + 1);
@@ -194,7 +194,7 @@ function handleEvents() {
         break;
       }
       case 'levelUp': updateDots(); break;
-      case 'regress': toast(`回歸 · 전생의 기억 +${ev.gain}`); break;
+      case 'regress': toast(`회귀 · 전생의 기억 +${ev.gain}`); break;
       case 'missionDone': toast(`📜 의뢰 완료: ${MISSIONS.find((x) => x.id === ev.id).name}`); updateDots(); break;
       case 'heroDied': if (ev.boss) toast('두목를 못 잡았어요. 수련하고 다시 도전!'); break;
       case 'raidEnd': finishRaid(ev.damage); break;
@@ -309,7 +309,7 @@ async function finishRaid(damage) {
 // ---------- 방치 보상 / 일일 보상 ----------
 function checkReturn(now = Date.now()) {
   const daily = game.checkDaily(now);
-  if (daily) toast(`📅 오늘의 출석 보상 寶${daily.gems}`);
+  if (daily) toast(`📅 오늘의 출석 보상 원보 ${daily.gems}`);
   net.refreshDay?.();
   const reward = game.offlineReward(now);
   game.s.lastSeen = now;
@@ -318,7 +318,7 @@ function checkReturn(now = Date.now()) {
     s.append(
       h('h2', {}, '🌙 다녀오셨어요!'),
       h('p', { class: 'muted' }, `${duration(reward.sec)} 동안 제 ${game.s.stage} 관문에서 홀로 수련했어요.`),
-      h('div', { class: 'big-reward' }, `銀 ${fmt(reward.gold)}`),
+      h('div', { class: 'big-reward' }, `은자 ${fmt(reward.gold)}`),
       h('p', { style: 'text-align:center;margin-top:-6px' }, `📘 경험치 ${fmt(reward.exp)}`),
       h('button', { class: 'btn primary', style: 'width:100%', onclick: closeModal }, '받기'),
     );
@@ -457,7 +457,7 @@ function frame(now) {
     net.pushProfile();
     // 켜 둔 채로 자정을 넘긴 경우
     const daily = game.checkDaily();
-    if (daily) toast(`📅 오늘의 출석 보상 寶${daily.gems}`);
+    if (daily) toast(`📅 오늘의 출석 보상 원보 ${daily.gems}`);
     net.refreshDay();
     updateDots();
   }
@@ -478,9 +478,9 @@ document.addEventListener('visibilitychange', () => {
 window.addEventListener('pagehide', () => save());
 
 // ---------- 시작 ----------
-// 캔버스에서 쓰는 붓글씨 한자를 미리 받아 둔다 (웹폰트는 쓰이는 글자만 내려받음)
+// 캔버스에서 쓰는 붓글씨 글자를 미리 받아 둔다 (웹폰트는 쓰이는 글자만 내려받음)
 if (document.fonts?.load) {
-  const glyphs = '回歸武銀寶秘鐵草片拳氣穴破快力體殺鬪財悟劍衣玉蔘蟾乳匕香月飛旋風血魔解放運調息雷霆疾步千金手氷魄神掌萬宗錢獸洞修兵靈盟令設境進心';
+  const glyphs = '회귀돌파경지은자원보';
   document.fonts.load(`20px "Yuji Syuku"`, glyphs).catch(() => {});
   document.fonts.load(`20px "Nanum Brush Script"`, '관문돌파두목경지수련터입장비무시작문파토벌혈마심마와의대결레벨').catch(() => {});
 }

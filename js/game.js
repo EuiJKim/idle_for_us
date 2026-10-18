@@ -149,6 +149,7 @@ export class Game {
     this.heroAngle = 0;     // 바라보는 방향(라디안)
     this.walking = false;
     this.respawn = 0; // 다음 적이 나타나기까지
+    this.fields = []; // 바닥에 남아 계속 베는 검진·회오리
     this.petTimer = PET_ATTACK_INTERVAL;
     this.atkTimer = 0.3;
     this.heroHp = this.stats().hp;
@@ -434,6 +435,153 @@ export class Game {
     return out;
   }
 
+  // ---------- 무공 동작 ----------
+  // 살아 있는 적 중 조건에 맞는 것들
+  aliveMons() { return (this.mons || []).filter((m) => m.alive); }
+
+  // (x, y)에서 반경 r 안의 적 전부에게 피해
+  hitCircle(x, y, r, amount, kind) {
+    const rr = r * r;
+    let hits = 0;
+    for (const m of this.aliveMons()) {
+      const dx = m.x - x;
+      const dy = (m.y - y) * FIELD_SQUASH;   // 거리는 화면에 보이는 대로 잰다
+      if (dx * dx + dy * dy > rr) continue;
+      hits++;
+      this.damageMob(m, amount, kind);
+    }
+    return hits;
+  }
+
+  // 무인에서 각도 ang 쪽으로 길이 len, 폭 width인 띠 안의 적 전부
+  hitBeam(ang, len, width, amount, kind) {
+    const ux = Math.cos(ang);
+    const uy = Math.sin(ang);
+    const half = width / 2;
+    let hits = 0;
+    for (const m of this.aliveMons()) {
+      const dx = m.x - this.heroX;
+      const dy = (m.y - this.heroY) * FIELD_SQUASH;
+      const along = dx * ux + dy * uy;          // 진행 방향으로 얼마나 갔나
+      if (along < -20 || along > len) continue;
+      const side = Math.abs(dx * -uy + dy * ux); // 축에서 얼마나 벗어났나
+      if (side > half) continue;
+      hits++;
+      this.damageMob(m, amount, kind);
+    }
+    return hits;
+  }
+
+  // 적 하나에게 피해. 주 타겟이면 기존 처리를, 아니면 졸개 처리를 탄다.
+  damageMob(m, amount, kind) {
+    if (m === this.mon) { this.dealDamage(amount, kind, false); return; }
+    m.hp -= amount;
+    this.emit('dmg', { amount, kind, crit: false, add: true, at: m });
+    if (m.hp <= 0) this.killAdd(m);
+  }
+
+  // 가까운 적부터 옮겨타며 때린다 (연환벽력)
+  castChain(sk, dmg, id) {
+    const hit = new Set();
+    let from = { x: this.heroX, y: this.heroY };
+    let amount = dmg;
+    const jumps = sk.chain(this.s.skills[id] || 1);
+    const path = [];
+    for (let i = 0; i < jumps; i++) {
+      let best = null;
+      let bd = Infinity;
+      for (const m of this.aliveMons()) {
+        if (hit.has(m)) continue;
+        const dx = m.x - from.x;
+        const dy = (m.y - from.y) * FIELD_SQUASH;
+        const d = Math.hypot(dx, dy);
+        if (d > sk.chainRange || d >= bd) continue;
+        best = m; bd = d;
+      }
+      if (!best) break;
+      hit.add(best);
+      path.push({ x: best.x, y: best.y });
+      this.damageMob(best, amount, id);
+      amount *= sk.chainFalloff;
+      from = best;
+    }
+    this.emit('skillPath', { id, path, kind: 'chain' });
+    return hit.size;
+  }
+
+  // 앞으로 파고들며 지나간 길의 적을 벤다 (발도돌격)
+  castDash(sk, dmg, id) {
+    const ang = this.heroAngle || 0;
+    const hits = this.hitBeam(ang, sk.dashDist, sk.dashWidth, dmg, id);
+    const fromX = this.heroX;
+    const fromY = this.heroY;
+    this.heroX += Math.cos(ang) * sk.dashDist;
+    this.heroY += (Math.sin(ang) * sk.dashDist) / FIELD_SQUASH;
+    this.emit('skillPath', { id, kind: 'dash', path: [{ x: fromX, y: fromY }, { x: this.heroX, y: this.heroY }] });
+    return hits;
+  }
+
+  // 가장 먼 적(두목 우선)에게 순간이동해 일격 (축지참)
+  castBlink(sk, dmg, id) {
+    const live = this.aliveMons();
+    if (!live.length) return 0;
+    const boss = live.find((m) => m.isBoss);
+    let target = boss;
+    if (!target) {
+      let bd = -1;
+      for (const m of live) {
+        const d = Math.hypot(m.x - this.heroX, (m.y - this.heroY) * FIELD_SQUASH);
+        if (d > bd) { target = m; bd = d; }
+      }
+    }
+    if (!target) return 0;
+    const fromX = this.heroX;
+    const fromY = this.heroY;
+    // 대상 옆에 선다
+    const ang = Math.atan2((target.y - this.heroY) * FIELD_SQUASH, target.x - this.heroX);
+    this.heroX = target.x - Math.cos(ang) * MELEE_RANGE * 0.8;
+    this.heroY = target.y - (Math.sin(ang) * MELEE_RANGE * 0.8) / FIELD_SQUASH;
+    this.heroAngle = ang;
+    const amount = dmg * (target.isBoss && sk.bossMult ? sk.bossMult : 1);
+    this.damageMob(target, amount, id);
+    this.emit('skillPath', { id, kind: 'blink', path: [{ x: fromX, y: fromY }, { x: this.heroX, y: this.heroY }] });
+    return 1;
+  }
+
+  // 바닥에 남아 계속 베는 것 (매화검진·선풍장)
+  castField(sk, dmg, id, moving) {
+    const ang = this.rng() * Math.PI * 2;
+    this.fields.push({
+      id,
+      x: this.heroX,
+      y: this.heroY,
+      r: sk.radius,
+      life: sk.fieldSec,
+      max: sk.fieldSec,
+      every: sk.tickSec,
+      tick: 0,
+      amount: dmg,
+      vx: moving ? Math.cos(ang) * sk.moveSpeed : 0,
+      vy: moving ? (Math.sin(ang) * sk.moveSpeed) / FIELD_SQUASH : 0,
+    });
+    return 0;
+  }
+
+  updateFields(dt) {
+    if (!this.fields.length) return;
+    for (const f of this.fields) {
+      f.life -= dt;
+      f.x += f.vx * dt;
+      f.y += f.vy * dt;
+      f.tick -= dt;
+      if (f.tick > 0) continue;
+      f.tick += f.every;
+      const n = this.hitCircle(f.x, f.y, f.r, f.amount, f.id);
+      if (n) this.emit('fieldTick', { id: f.id, x: f.x, y: f.y, r: f.r, hits: n });
+    }
+    this.fields = this.fields.filter((f) => f.life > 0);
+  }
+
   // 광역 피해: 무인 발밑을 중심으로 한 원 안의 적 전부 (탑다운 — 바닥 장판)
   dealAoe(amount, kind = 'skill', crit = false, radius = 220) {
     const main = this.mon;
@@ -571,6 +719,8 @@ export class Game {
     }
 
     // 들판 사냥: 적을 찾아 걸어가서 벤다
+    this.updateFields(dt);
+
     if (this.mode === 'stage') {
       this.refillField(dt);
       this.moveMobs(dt);
@@ -730,7 +880,7 @@ export class Game {
     const r = this.s.rank + 1;
     const boss = trialBoss(r);
     this.beginContest('trial', TRIAL_TIME, { rank: r });
-    this.mon = { hp: boss.hp, maxHp: boss.hp, isBoss: true, def: { name: '심마(心魔)' }, trial: true, atk: boss.atk, atkTimer: 1.5, alive: true, stun: 0, ...this.duelSpot() };
+    this.mon = { hp: boss.hp, maxHp: boss.hp, isBoss: true, def: { name: '심마' }, trial: true, atk: boss.atk, atkTimer: 1.5, alive: true, stun: 0, ...this.duelSpot() };
     return true;
   }
 
@@ -878,6 +1028,9 @@ export class Game {
   useSkill(id) {
     const sk = SKILLS.find((x) => x.id === id);
     if (!sk || !this.skillUnlocked(sk) || this.cd[id] > 0 || !this.mon?.alive || this.mode === 'pvp') return false;
+    // 자리를 옮기거나 들판에 남는 무공은 1:1 겨루기에서 쓸 자리가 없다
+    const roams = sk.motion === 'dash' || sk.motion === 'blink' || sk.motion === 'tornado';
+    if (roams && this.mode !== 'stage') return false;
     if (!this.s.skillSlots.includes(id)) return false;
     const lv = this.s.skills[id];
     const st = this.stats();
@@ -888,8 +1041,17 @@ export class Game {
       let dmg = st.atk * sk.mult(lv);
       // 한 명만 노리는 무공은 두목에게 더 아프게 들어간다
       if (sk.bossMult && this.mon.isBoss) dmg *= sk.bossMult;
-      if (sk.target === 'all') this.dealAoe(dmg, id, false, sk.radius || 220);
-      else this.dealDamage(dmg, id);
+      switch (sk.motion) {
+        case 'chain': this.castChain(sk, dmg, id); break;
+        case 'dash': this.castDash(sk, dmg, id); break;
+        case 'blink': this.castBlink(sk, dmg, id); break;
+        case 'field': this.castField(sk, dmg, id, false); break;
+        case 'tornado': this.castField(sk, dmg, id, true); break;
+        case 'pierce': this.hitBeam(this.heroAngle || 0, sk.pierceLen, sk.pierceWidth, dmg, id); break;
+        default:
+          if (sk.target === 'all') this.dealAoe(dmg, id, false, sk.radius || 220);
+          else this.dealDamage(dmg, id);
+      }
     } else if (sk.kind === 'buff') {
       this.buffs[id] = sk.dur;
       this.emit('skill', { id });

@@ -7,14 +7,14 @@ import { h, toast, openModal, closeModal, subTabs } from './common.js';
 function petView(app) {
   const { game } = app;
   const food = h('b', { style: 'color:#fdba74' });
-  const b1 = h('button', { class: 'btn primary', onclick: () => hatch(1) }, `알 1개 寶${PET_EGG_COST}`);
-  const b10 = h('button', { class: 'btn primary', onclick: () => hatch(10) }, `알 10개 寶${PET_EGG_COST * 10}`);
+  const b1 = h('button', { class: 'btn primary', onclick: () => hatch(1) }, `알 1개 원보 ${PET_EGG_COST}`);
+  const b10 = h('button', { class: 'btn primary', onclick: () => hatch(10) }, `알 10개 원보 ${PET_EGG_COST * 10}`);
   const rows = {};
   const root = h('div', {},
     h('div', { class: 'card' },
       h('h3', {}, '🥚 영수 부화', h('small', {}, '중복이면 먹이로 바뀌어요')),
       h('div', { class: 'btn-row' }, b1, b10),
-      h('p', { class: 'muted', style: 'margin:8px 0 0' }, '草 영수 먹이 ', food, '개 · 짐승의 숲 수련터에서 얻어요. 데려간 영수가 함께 싸우고, 가진 영수는 모두 보유 효과를 줘요. 데리고 다니면 교감이 쌓여 그 영수의 효과가 커지고, 각인하면 데려가지 않아도 그 효과가 남아요.')));
+      h('p', { class: 'muted', style: 'margin:8px 0 0' }, '영수 먹이 ', food, '개 · 짐승의 숲 수련터에서 얻어요. 데려간 영수가 함께 싸우고, 가진 영수는 모두 보유 효과를 줘요. 데리고 다니면 교감이 쌓여 그 영수의 효과가 커지고, 각인하면 데려가지 않아도 그 효과가 남아요.')));
 
   for (const pet of PETS) {
     const lv = h('small');
@@ -35,7 +35,7 @@ function petView(app) {
 
   function hatch(n) {
     const res = game.hatchPets(n);
-    if (!res) return toast('寶 원보가 부족해요');
+    if (!res) return toast('원보가 부족해요');
     app.refresh();
     openModal((s) => {
       s.append(h('h2', {}, '부화 결과'));
@@ -43,7 +43,7 @@ function petView(app) {
       res.forEach((r, i) => {
         const pet = PETS.find((p) => p.id === r.id);
         grid.append(h('div', { class: `gacha-item${pet.grade >= 3 ? ' shine' : ''}`, style: `border-color:${GRADES[pet.grade].color};animation-delay:${i * 0.06}s` },
-          h('span', {}, pet.emoji), h('small', { style: `color:${GRADES[pet.grade].color}` }, r.dup ? `草+${r.food}` : 'NEW!')));
+          h('span', {}, pet.emoji), h('small', { style: `color:${GRADES[pet.grade].color}` }, r.dup ? `먹이+${r.food}` : 'NEW!')));
       });
       s.append(grid, h('button', { class: 'btn primary', style: 'width:100%', onclick: closeModal }, '확인'));
     });
@@ -63,7 +63,7 @@ function petView(app) {
       r.lv.textContent = owned ? `Lv.${l}` : `${GRADES[pet.grade].name} · 미보유`;
       const [stat, per] = pet.own;
       r.desc.innerHTML = `${PET_ATTACK_INTERVAL}초마다 공격력의 <b>${pct(petDamageMult(pet, Math.max(1, l)))}</b> 피해<br>보유 효과: ${OWN_STAT_NAMES[stat]} <b>+${pct(per * Math.max(1, l))}</b>`;
-      r.lvBtn.textContent = `草 ${fmt(game.petLevelCost(pet.id))}`;
+      r.lvBtn.textContent = `먹이 ${fmt(game.petLevelCost(pet.id))}`;
       r.lvBtn.disabled = !owned || game.s.food < game.petLevelCost(pet.id);
       r.eqBtn.textContent = game.s.pet === pet.id ? '함께하는 중' : '데려가기';
       r.eqBtn.disabled = !owned || game.s.pet === pet.id;
@@ -89,7 +89,7 @@ function petView(app) {
           r.engBtn.textContent = '각인 완료';
           r.engBtn.disabled = true;
         } else {
-          r.engBtn.textContent = `각인 草${fmt(cost)}`;
+          r.engBtn.textContent = `각인 먹이 ${fmt(cost)}`;
           r.engBtn.disabled = game.s.food < cost;
         }
       }
@@ -101,14 +101,14 @@ function petView(app) {
 function relicView(app) {
   const { game } = app;
   const shards = h('b', { style: 'color:#fcd34d' });
-  const b1 = h('button', { class: 'btn primary', onclick: () => dig(1) }, `발굴 1회 片${RELIC_DIG_COST}`);
-  const b10 = h('button', { class: 'btn primary', onclick: () => dig(10) }, `발굴 10회 片${RELIC_DIG_COST * 10}`);
+  const b1 = h('button', { class: 'btn primary', onclick: () => dig(1) }, `발굴 1회 조각 ${RELIC_DIG_COST}`);
+  const b10 = h('button', { class: 'btn primary', onclick: () => dig(10) }, `발굴 10회 조각 ${RELIC_DIG_COST * 10}`);
   const rows = {};
   const root = h('div', {},
     h('div', { class: 'card' },
       h('h3', {}, '🏺 신물 발굴', h('small', {}, '무작위 신물 +1')),
       h('div', { class: 'btn-row' }, b1, b10),
-      h('p', { class: 'muted', style: 'margin:8px 0 0' }, '片 신물 조각 ', shards, '개 · 고대 유적 수련터, 두목 첫 처치, 토벌에서 얻어요.')));
+      h('p', { class: 'muted', style: 'margin:8px 0 0' }, '신물 조각 ', shards, '개 · 고대 유적 수련터, 두목 첫 처치, 토벌에서 얻어요.')));
   for (const r of RELICS) {
     const lv = h('small');
     const desc = h('div', { class: 'desc' });
@@ -120,7 +120,7 @@ function relicView(app) {
 
   function dig(n) {
     const got = game.digRelic(n);
-    if (!got.length) return toast('片 신물 조각이 부족해요');
+    if (!got.length) return toast('신물 조각이 부족해요');
     const count = {};
     got.forEach((id) => { count[id] = (count[id] || 0) + 1; });
     toast(Object.entries(count).map(([id, c]) => `${RELICS.find((x) => x.id === id).icon}+${c}`).join(' '));

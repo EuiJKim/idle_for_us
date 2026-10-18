@@ -66,48 +66,48 @@ export const CRIT_CAP = 0.5;
 
 // 재화 이름과 한자 표기 (save 키는 그대로 두고 화면 이름만 무협식)
 export const CUR = {
-  gold: { name: '은자', hz: '銀' },
-  gems: { name: '원보', hz: '寶' },
-  books: { name: '비급', hz: '秘' },
-  stones: { name: '한철', hz: '鐵' },
-  food: { name: '영수 먹이', hz: '草' },
-  relicShards: { name: '신물 조각', hz: '片' },
+  gold: { name: '은자', hz: '은' },
+  gems: { name: '원보', hz: '원' },
+  books: { name: '비급', hz: '비' },
+  stones: { name: '한철', hz: '철' },
+  food: { name: '영수 먹이', hz: '먹' },
+  relicShards: { name: '신물 조각', hz: '조' },
 };
 
 // ---------- 은자 수련 ----------
 export const UPGRADES = {
   atk: {
-    name: '외공(공격력)', icon: '拳',
+    name: '외공(공격력)', icon: '외공',
     value: (l) => 10 * Math.pow(1.05, l),
     cost: (l) => 10 * Math.pow(1.06, l),
     fmt: 'num',
   },
   hp: {
-    name: '내공(체력)', icon: '氣',
+    name: '내공(체력)', icon: '내공',
     value: (l) => 100 * Math.pow(1.05, l),
     cost: (l) => 10 * Math.pow(1.06, l),
     fmt: 'num',
   },
   crit: {
-    name: '혈도 찌르기(치명 확률)', icon: '穴', max: 90,
+    name: '혈도 찌르기(치명 확률)', icon: '혈도', max: 90,
     value: (l) => 0.05 + l * 0.005,
     cost: (l) => 40 * Math.pow(1.13, l),
     fmt: 'pct',
   },
   critDmg: {
-    name: '파괴력(치명 피해)', icon: '破',
+    name: '파괴력(치명 피해)', icon: '파괴',
     value: (l) => 1.5 + l * 0.05,
     cost: (l) => 30 * Math.pow(1.12, l),
     fmt: 'pct',
   },
   speed: {
-    name: '쾌검(공격 속도)', icon: '快', max: 100,
+    name: '쾌검(공격 속도)', icon: '쾌검', max: 100,
     value: (l) => 1 + l * 0.02,
     cost: (l) => 40 * Math.pow(1.11, l),
     fmt: 'x',
   },
   gold: {
-    name: '상재(은자 획득)', icon: '銀',
+    name: '상재(은자 획득)', icon: '상재',
     value: (l) => 1 + l * 0.05,
     cost: (l) => 25 * Math.pow(1.12, l),
     fmt: 'pct',
@@ -120,12 +120,12 @@ export const expToNext = (lv) => 60 * Math.pow(1.1, lv - 1);
 export const SP_PER_LEVEL = 2;
 export const SP_RESET_GEMS = 200;
 export const SP_STATS = {
-  atk: { name: '근력', icon: '力', per: 0.02, desc: (v) => `공격력 +${pctText(v)}` },
-  hp: { name: '체질', icon: '體', per: 0.02, desc: (v) => `체력 +${pctText(v)}` },
-  critDmg: { name: '살기', icon: '殺', per: 0.01, desc: (v) => `치명 피해 +${pctText(v)}` },
-  boss: { name: '투지', icon: '鬪', per: 0.02, desc: (v) => `두목에게 주는 피해 +${pctText(v)}` },
-  gold: { name: '재운', icon: '財', per: 0.01, desc: (v) => `은자 +${pctText(v)}` },
-  exp: { name: '오성', icon: '悟', per: 0.01, desc: (v) => `경험치 +${pctText(v)}` },
+  atk: { name: '근력', icon: '근력', per: 0.02, desc: (v) => `공격력 +${pctText(v)}` },
+  hp: { name: '체질', icon: '체질', per: 0.02, desc: (v) => `체력 +${pctText(v)}` },
+  critDmg: { name: '살기', icon: '살기', per: 0.01, desc: (v) => `치명 피해 +${pctText(v)}` },
+  boss: { name: '투지', icon: '투지', per: 0.02, desc: (v) => `두목에게 주는 피해 +${pctText(v)}` },
+  gold: { name: '재운', icon: '재운', per: 0.01, desc: (v) => `은자 +${pctText(v)}` },
+  exp: { name: '오성', icon: '오성', per: 0.01, desc: (v) => `경험치 +${pctText(v)}` },
 };
 function pctText(v) { return `${Math.round(v * 1000) / 10}%`; }
 
@@ -171,11 +171,11 @@ export const GACHA_RATES = [0.6, 0.28, 0.09, 0.025, 0.0045, 0.0005];
 //        근거: Blade Idle은 피규어를 '등급별로 하나씩 갖고만 있어도' 공격력이 14.78배가 된다.
 //        장착 슬롯 경쟁이 없으니 모으는 것 자체가 성장이다. (docs/BladeIdle_설계원리.md)
 export const EQUIP_TYPES = {
-  weapon: { name: '검', icon: '劍', stat: 'atk', label: '공격력',
+  weapon: { name: '검', icon: '검', stat: 'atk', label: '공격력',
     equip: [0.2, 0.5, 1.2, 3, 8, 20], own: [0.05, 0.12, 0.3, 0.75, 2, 5] },
-  armor: { name: '호신의', icon: '衣', stat: 'hp', label: '체력',
+  armor: { name: '호신의', icon: '호신', stat: 'hp', label: '체력',
     equip: [0.2, 0.5, 1.2, 3, 8, 20], own: [0.05, 0.12, 0.3, 0.75, 2, 5] },
-  ring: { name: '옥패', icon: '玉', stat: 'gold', label: '은자',
+  ring: { name: '옥패', icon: '옥패', stat: 'gold', label: '은자',
     equip: [0.1, 0.25, 0.6, 1.5, 4, 10], own: [0.03, 0.06, 0.15, 0.4, 1, 2.5] },
 };
 export const ENHANCE_PER = 0.08; // 제련 1단계마다 해당 부위 배율에 +8%p (선형)
@@ -193,7 +193,7 @@ export const PETS = [
   { id: 'dog', name: '백학', emoji: '🦢', grade: 0, atk: 0.3, own: ['hp', 0.03] },
   { id: 'cat', name: '영묘', emoji: '🐈', grade: 0, atk: 0.3, own: ['gold', 0.03] },
   { id: 'fox', name: '구미호', emoji: '🦊', grade: 1, atk: 0.5, own: ['atk', 0.03] },
-  { id: 'owl', name: '영원(靈猿)', emoji: '🐒', grade: 2, atk: 0.7, own: ['exp', 0.04] },
+  { id: 'owl', name: '영원', emoji: '🐒', grade: 2, atk: 0.7, own: ['exp', 0.04] },
   { id: 'panda', name: '식철수', emoji: '🐼', grade: 2, atk: 0.8, own: ['critDmg', 0.04] },
   { id: 'unicorn', name: '기린', emoji: '🦌', grade: 3, atk: 1.2, own: ['boss', 0.05] },
   { id: 'tiger', name: '백호', emoji: '🐯', grade: 4, atk: 2, own: ['atk', 0.08] },
@@ -241,35 +241,73 @@ export const OWN_STAT_NAMES = { atk: '공격력', hp: '체력', gold: '은자', 
 
 // ---------- 신물 ----------
 export const RELICS = [
-  { id: 'sword', name: '만년한철', icon: '鐵', stat: 'atk', per: 0.06, max: 100, text: '공격력' },
-  { id: 'heart', name: '천년설삼', icon: '蔘', stat: 'hp', per: 0.06, max: 100, text: '체력' },
-  { id: 'grail', name: '금두꺼비', icon: '蟾', stat: 'gold', per: 0.05, max: 100, text: '은자' },
-  { id: 'orb', name: '공청석유', icon: '乳', stat: 'exp', per: 0.05, max: 100, text: '경험치' },
-  { id: 'fang', name: '탈혼비수', icon: '匕', stat: 'boss', per: 0.06, max: 100, text: '두목 피해' },
-  { id: 'glass', name: '선향', icon: '香', stat: 'bossTime', per: 0.5, max: 30, text: '두목 제한시간', unit: '초' },
-  { id: 'moon', name: '월광옥패', icon: '月', stat: 'offline', per: 0.05, max: 60, text: '방치 보상' },
-  { id: 'feather', name: '능공허도 비급', icon: '飛', stat: 'speed', per: 0.01, max: 50, text: '공격 속도(한계 돌파)' },
+  { id: 'sword', name: '만년한철', icon: '만년', stat: 'atk', per: 0.06, max: 100, text: '공격력' },
+  { id: 'heart', name: '천년설삼', icon: '설삼', stat: 'hp', per: 0.06, max: 100, text: '체력' },
+  { id: 'grail', name: '금두꺼비', icon: '금두', stat: 'gold', per: 0.05, max: 100, text: '은자' },
+  { id: 'orb', name: '공청석유', icon: '석유', stat: 'exp', per: 0.05, max: 100, text: '경험치' },
+  { id: 'fang', name: '탈혼비수', icon: '비수', stat: 'boss', per: 0.06, max: 100, text: '두목 피해' },
+  { id: 'glass', name: '선향', icon: '선향', stat: 'bossTime', per: 0.5, max: 30, text: '두목 제한시간', unit: '초' },
+  { id: 'moon', name: '월광옥패', icon: '월광', stat: 'offline', per: 0.05, max: 60, text: '방치 보상' },
+  { id: 'feather', name: '능공허도 비급', icon: '능공', stat: 'speed', per: 0.01, max: 50, text: '공격 속도(한계 돌파)' },
 ];
 export const RELIC_DIG_COST = 10; // 신물 조각
 
 // ---------- 무공 ----------
+// motion = 어떻게 맞히는가. 근거: Blade Idle의 SkillTable에는 skillmovespeed,
+// skillmovetime, skillmovestopintervaldistance가 있다. 즉발이 아니라 날아가고
+// 번지는 게 기본이다. 주인공 이펙트 프리팹에서 뽑은 동작이 아래 여섯 가지다.
+// (docs/BladeIdle_스킬구조.md)
+//
+//   aoe     발밑 원형 장판 (기본)
+//   single  한 명
+//   chain   가까운 적부터 옮겨탄다        ← ChainLighting
+//   dash    직선으로 관통하며 벤다        ← SkillDash
+//   blink   가장 먼 적에게 순간이동 일격   ← TeleportSlash
+//   field   그 자리에 남아 계속 벤다      ← SkillField
+//   tornado 장판이 스스로 굴러다닌다      ← Tornado
+//   pierce  직선상의 적 전부             ← SwordProjectile
 export const SKILLS = [
-  { id: 'slash', name: '선풍검', hz: '旋風劍', icon: '旋', unlock: 1, cd: 6, kind: 'dmg', target: 'all', radius: 150,
-    mult: (l) => 4 + l * 0.6, desc: (m) => `적 전체에게 공격력의 ${m.toFixed(1)}배 검기` },
-  { id: 'rage', name: '혈마해방', hz: '血魔解放', icon: '血', unlock: 10, cd: 25, dur: 8, kind: 'buff',
+  { id: 'slash', name: '선풍검', icon: '선풍', unlock: 1, cd: 6, kind: 'dmg', motion: 'aoe', target: 'all', radius: 150,
+    mult: (l) => 4 + l * 0.6, desc: (m) => `발밑 반경 150 안의 적 전체에게 공격력의 ${m.toFixed(1)}배` },
+  { id: 'rage', name: '혈마해방', icon: '혈마', unlock: 10, cd: 25, dur: 8, kind: 'buff',
     mult: (l) => 1.5 + l * 0.06, desc: (m) => `8초간 공격력 ${m.toFixed(2)}배` },
-  { id: 'heal', name: '운기조식', hz: '運氣調息', icon: '息', unlock: 30, cd: 18, kind: 'heal',
+  { id: 'heal', name: '운기조식', icon: '조식', unlock: 30, cd: 18, kind: 'heal',
     mult: (l) => Math.min(1, 0.3 + l * 0.02), desc: (m) => `체력 ${Math.round(m * 100)}% 회복` },
-  { id: 'thunder', name: '뇌정검', hz: '雷霆劍', icon: '雷', unlock: 50, cd: 15, kind: 'dmg', target: 'all', radius: 210,
-    mult: (l) => 12 + l * 1.8, desc: (m) => `적 전체에게 공격력의 ${m.toFixed(1)}배 낙뢰` },
-  { id: 'gale', name: '질풍보', hz: '疾風步', icon: '疾', unlock: 70, cd: 30, dur: 10, kind: 'buff',
+  { id: 'thunder', name: '뇌정검', icon: '뇌정', unlock: 50, cd: 15, kind: 'dmg', motion: 'aoe', target: 'all', radius: 210,
+    mult: (l) => 12 + l * 1.8, desc: (m) => `발밑 반경 210 안의 적 전체에게 공격력의 ${m.toFixed(1)}배 낙뢰` },
+  { id: 'gale', name: '질풍보', icon: '질풍', unlock: 70, cd: 30, dur: 10, kind: 'buff',
     mult: (l) => 1.5 + l * 0.03, desc: (m) => `10초간 공격 속도 ${m.toFixed(2)}배 (한계 돌파)` },
-  { id: 'midas', name: '천금수', hz: '千金手', icon: '金', unlock: 90, cd: 45, dur: 15, kind: 'buff',
+  { id: 'midas', name: '천금수', icon: '천금', unlock: 90, cd: 45, dur: 15, kind: 'buff',
     mult: (l) => 2 + l * 0.1, desc: (m) => `15초간 은자 ${m.toFixed(1)}배` },
-  { id: 'frost', name: '빙백신장', hz: '氷魄神掌', icon: '氷', unlock: 100, cd: 20, kind: 'dmg', stun: 3, target: 'single', bossMult: 1.8, radius: 70,
+  { id: 'frost', name: '빙백신장', icon: '빙백', unlock: 100, cd: 20, kind: 'dmg', motion: 'single', stun: 3, target: 'single', bossMult: 1.8, radius: 70,
     mult: (l) => 8 + l * 1.2, desc: (m) => `한 명에게 공격력의 ${m.toFixed(1)}배 + 3초 빙결 · 두목에겐 1.8배` },
-  { id: 'meteor', name: '만검귀종', hz: '萬劍歸宗', icon: '萬', unlock: 110, cd: 40, kind: 'dmg', target: 'all', radius: 300,
-    mult: (l) => 40 + l * 6, desc: (m) => `적 전체에게 검 비 · 공격력의 ${m.toFixed(0)}배` },
+  { id: 'meteor', name: '만검귀종', icon: '만검', unlock: 110, cd: 40, kind: 'dmg', motion: 'aoe', target: 'all', radius: 300,
+    mult: (l) => 40 + l * 6, desc: (m) => `발밑 반경 300 안의 적 전체에게 검 비 · 공격력의 ${m.toFixed(0)}배` },
+
+  // --- 여기부터 동작이 다른 무공 ---
+  { id: 'chain', name: '연환벽력', icon: '연환', unlock: 120, cd: 18, kind: 'dmg', motion: 'chain',
+    chainRange: 190, chainFalloff: 0.88, chain: (l) => 5 + Math.floor(l / 3),
+    mult: (l) => 18 + l * 2.4,
+    desc: (m, l) => `가까운 적부터 ${5 + Math.floor(l / 3)}명에게 옮겨타며 공격력의 ${m.toFixed(0)}배 · 옮길수록 12%씩 약해져요` },
+  { id: 'dash', name: '발도돌격', icon: '발도', unlock: 130, cd: 22, kind: 'dmg', motion: 'dash',
+    dashDist: 300, dashWidth: 110,
+    mult: (l) => 30 + l * 4,
+    desc: (m) => `앞으로 300만큼 파고들며 지나간 길의 적 전부에게 공격력의 ${m.toFixed(0)}배` },
+  { id: 'blink', name: '축지참', icon: '축지', unlock: 140, cd: 26, kind: 'dmg', motion: 'blink', bossMult: 2.2,
+    mult: (l) => 55 + l * 8,
+    desc: (m) => `가장 먼 적(두목 우선)에게 순간이동해 공격력의 ${m.toFixed(0)}배 · 두목에겐 2.2배` },
+  { id: 'plum', name: '매화검진', icon: '매화', unlock: 150, cd: 35, kind: 'dmg', motion: 'field',
+    radius: 190, fieldSec: 6, tickSec: 0.5,
+    mult: (l) => 9 + l * 1.2,
+    desc: (m) => `그 자리에 6초간 검진을 남겨 0.5초마다 반경 190의 적에게 공격력의 ${m.toFixed(1)}배` },
+  { id: 'tornado', name: '선풍장', icon: '회선', unlock: 160, cd: 40, kind: 'dmg', motion: 'tornado',
+    radius: 150, fieldSec: 8, tickSec: 0.4, moveSpeed: 90,
+    mult: (l) => 7 + l * 1,
+    desc: (m) => `회오리가 8초간 들판을 돌아다니며 0.4초마다 공격력의 ${m.toFixed(1)}배` },
+  { id: 'pierce', name: '일자검기', icon: '일자', unlock: 170, cd: 28, kind: 'dmg', motion: 'pierce',
+    pierceLen: 520, pierceWidth: 90,
+    mult: (l) => 35 + l * 5,
+    desc: (m) => `바라보는 방향 520 거리의 일직선상 적 전부에게 공격력의 ${m.toFixed(0)}배` },
 ];
 export const SKILL_SLOTS = 4;
 export const skillBookCost = (l) => Math.ceil(2 * Math.pow(1.15, l - 1));
@@ -282,15 +320,15 @@ const B = (name, emoji) => ({ name, emoji }); // 짐승은 이모지
 
 // ---------- 수련터 ----------
 export const DUNGEONS = [
-  { id: 'gold', name: '흑도 전장', icon: '錢', unlock: 20, base: 10, reward: '은자',
+  { id: 'gold', name: '흑도 전장', icon: '전장', unlock: 20, base: 10, reward: '은자',
     mob: F('전장 호위', { robe: '#3f3a36', head: 'band', band: '#111', weapon: 'saber' }),
     boss: F('전장주', { robe: '#78350f', trim: '#d4a64a', head: 'topknot', weapon: 'axe', beard: true, scale: 1.35 }) },
-  { id: 'stone', name: '한철 광산', icon: '鐵', unlock: 40, base: 20, reward: '한철',
+  { id: 'stone', name: '한철 광산', icon: '광산', unlock: 40, base: 20, reward: '한철',
     mob: F('광산 파수꾼', { robe: '#44403c', head: 'hood', weapon: 'axe' }),
     boss: F('철갑 거한', { robe: '#1f2937', trim: '#9ca3af', head: 'bald', weapon: 'fist', scale: 1.5 }) },
-  { id: 'pet', name: '영수 계곡', icon: '獸', unlock: 60, base: 30, reward: '영수 먹이',
-    mob: B('계곡 늑대', '🐺'), boss: B('산군(山君)', '🐅') },
-  { id: 'relic', name: '고수의 동부', icon: '洞', unlock: 80, base: 40, reward: '신물 조각',
+  { id: 'pet', name: '영수 계곡', icon: '계곡', unlock: 60, base: 30, reward: '영수 먹이',
+    mob: B('계곡 늑대', '🐺'), boss: B('산군', '🐅') },
+  { id: 'relic', name: '고수의 동부', icon: '동부', unlock: 80, base: 40, reward: '신물 조각',
     mob: F('동부 강시', { robe: '#1e3a5f', head: 'jiangshi', skin: '#a3b8a0', weapon: 'claw', jiangshi: true }),
     boss: F('천년 강시', { robe: '#0f172a', trim: '#d4a64a', head: 'jiangshi', skin: '#8fa08a', weapon: 'claw', jiangshi: true, scale: 1.45 }) },
 ];
@@ -448,9 +486,9 @@ export const ZONES = [
       F('마교 사자', { robe: '#450a0a', head: 'hood', weapon: 'claw', eyes: '#ef4444' }),
       F('마교 장로', { robe: '#1c1917', trim: '#a855f7', head: 'topknot', hair: '#e5e7eb', beard: true, weapon: 'fan' }),
     ],
-    boss: F('천마(天魔)', { robe: '#050505', trim: '#dc2626', head: 'topknot', hair: '#111', weapon: 'sword', aura: '#dc2626', eyes: '#ef4444', scale: 1.55 }) },
+    boss: F('천마', { robe: '#050505', trim: '#dc2626', head: 'topknot', hair: '#111', weapon: 'sword', aura: '#dc2626', eyes: '#ef4444', scale: 1.55 }) },
 ];
-export const RAID_BOSS = F('혈마(血魔)', { robe: '#1a0505', trim: '#ef4444', head: 'topknot', hair: '#7f1d1d', weapon: 'saber', aura: '#dc2626', eyes: '#fca5a5', scale: 2.1 });
+export const RAID_BOSS = F('혈마', { robe: '#1a0505', trim: '#ef4444', head: 'topknot', hair: '#7f1d1d', weapon: 'saber', aura: '#dc2626', eyes: '#fca5a5', scale: 2.1 });
 
 // 지역 티어 — 8지역(80관문)을 한 바퀴 돌 때마다 같은 땅이 더 험해진다.
 // 근거: Blade Idle은 배경 8종을 S·T 티어로 재활용해 23개 구간을 만든다(에셋 추가 없이 볼륨 3배).

@@ -70,7 +70,7 @@ function pvpView(app) {
   const root = h('div', {},
     h('div', { class: 'card', style: 'text-align:center' },
       h('div', { class: 'muted' }, '내 비무 점수'), score, record,
-      h('p', { class: 'muted', style: 'margin:6px 0 0' }, '오늘 남은 비무 ', tickets, ` / ${PVP_TICKETS} · 이기면 +20점 寶50, 지면 -8점 寶10`)),
+      h('p', { class: 'muted', style: 'margin:6px 0 0' }, '오늘 남은 비무 ', tickets, ` / ${PVP_TICKETS} · 이기면 +20점 원보 50, 지면 -8점 원보 10`)),
     h('div', { class: 'section-title' }, h('span', {}, '비무 순위'), pl.refreshBtn), pl.status, pl.list);
   function update() {
     score.textContent = game.s.pvp.score;
@@ -179,7 +179,7 @@ function guildView(app) {
       checkBtn.disabled = true;
       try { if (await net.checkin()) toast(`출석 완료! 문파 경험치 +${GUILD_CHECKIN_EXP}`); } catch (err) { toast(err.message); }
     };
-    const donateBtn = h('button', { class: 'btn primary' }, `기부 寶${GUILD_DONATE_GEMS}`);
+    const donateBtn = h('button', { class: 'btn primary' }, `기부 원보 ${GUILD_DONATE_GEMS}`);
     donateBtn.onclick = async () => {
       donateBtn.disabled = true;
       try { if (await net.donate()) { toast(`기부 완료! 문파 경험치 +${GUILD_DONATE_EXP}`); app.refresh(); } } catch (err) { toast(err.message); }

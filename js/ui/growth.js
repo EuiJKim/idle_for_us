@@ -59,9 +59,9 @@ function levelView(app) {
   const lvl = h('b', { style: 'font-size:18px' });
   const bar = h('div', { class: 'bar' }, h('div'), h('span'));
   const spText = h('b', { style: 'color:#fde68a' });
-  const resetBtn = h('button', { class: 'btn', style: 'padding:6px 10px' }, `초기화 寶${SP_RESET_GEMS}`);
+  const resetBtn = h('button', { class: 'btn', style: 'padding:6px 10px' }, `초기화 원보 ${SP_RESET_GEMS}`);
   resetBtn.onclick = () => openModal((s) => {
-    s.append(h('h2', {}, '스탯 포인트 초기화'), h('p', { class: 'muted' }, `寶${SP_RESET_GEMS}을 쓰고 모든 포인트를 돌려받아요.`),
+    s.append(h('h2', {}, '스탯 포인트 초기화'), h('p', { class: 'muted' }, `원보 ${SP_RESET_GEMS}을 쓰고 모든 포인트를 돌려받아요.`),
       h('div', { class: 'btn-row' }, h('button', { class: 'btn', onclick: closeModal }, '취소'),
         h('button', { class: 'btn primary', onclick: () => { closeModal(); toast(game.resetSp() ? '초기화했어요' : '원보가 부족하거나 쓴 포인트가 없어요'); app.refresh(); } }, '초기화')));
   });
@@ -138,7 +138,7 @@ function rankView(app) {
     } else {
       btn.classList.remove('hidden');
       next.innerHTML = `다음: <b>${nx.name}</b> (레벨 ${nx.level} 필요) → 공격력·체력 <b>×${RANK_MULT}</b>`;
-      btn.textContent = s.level >= nx.level ? '심마(心魔)와 대결 · 경지 돌파' : `레벨 ${nx.level}에 도전 가능 (현재 ${s.level})`;
+      btn.textContent = s.level >= nx.level ? '심마와 대결 · 경지 돌파' : `레벨 ${nx.level}에 도전 가능 (현재 ${s.level})`;
       btn.disabled = !game.canTrial();
     }
     drawPreview();
@@ -163,14 +163,14 @@ function regressView(app) {
   btn.onclick = () => openModal((s) => {
     const g = game.regressPreview();
     s.append(
-      h('div', { class: 'regress-hz' }, '回歸'),
+      h('div', { class: 'regress-hz' }, '회귀'),
       h('p', { style: 'text-align:center;line-height:1.7', html: `회귀하면 1관문, 레벨 1로 돌아가요.<br>전생의 기억 <b>+${g}</b> → 모든 능력 <b>+${Math.round(g * REGRESS_PER_POINT * 100)}%</b>` }),
       h('div', { class: 'btn-row' }, h('button', { class: 'btn', onclick: closeModal }, '아직'),
         h('button', { class: 'btn primary', onclick: () => { closeModal(); app.regress(); } }, '회귀한다')));
   });
   const root = h('div', {},
     h('div', { class: 'card regress-card' },
-      h('div', { class: 'regress-hz small' }, '回歸'),
+      h('div', { class: 'regress-hz small' }, '회귀'),
       h('p', { style: 'margin:4px 0 10px;line-height:1.6' },
         '죽음 직전, 눈을 뜨니 강호에 첫발을 디딘 그날이었다. ',
         '회귀하면 처음부터 다시 시작하지만, 전생의 기억이 남아 더 빨리 강해진다.'),
