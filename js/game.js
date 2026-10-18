@@ -9,6 +9,7 @@ import {
   ACC_SLOTS, ACC_STAR_MAX, ACC_PIERCE_MAX, ACC_MERGE, accPierceCost, accPower,
   ACC_SET_GRADE, ACC_SET, ACC_BOX_RATES,
   CODEX_KINDS, CODEX_GRADE_MULT, CODEX_KIND_FULL, CODEX_ALL_FULL, codexEntryPower, codexGradeOf,
+  OUTFITS, OUTFIT_ALL,
   expPerKill, expToNext, SP_PER_LEVEL, SP_RESET_GEMS, SP_STATS,
   RANKS, RANK_MULT, TRIAL_TIME, trialBoss,
   PETS, PET_EGG_COST, PET_GRADE_WEIGHT, petFoodCost, PET_DUPLICATE_FOOD, PET_ATTACK_INTERVAL, petDamageMult,
@@ -73,6 +74,8 @@ export function newSave(now = Date.now()) {
     options: Object.fromEntries(Object.keys(EQUIP_TYPES).map((k) => [k, Array(OPTION_SLOTS).fill(null)])),
     optionLock: Object.fromEntries(Object.keys(EQUIP_TYPES).map((k) => [k, Array(OPTION_SLOTS).fill(false)])),
     // 장신구: 자리마다 끼운 것 하나 + 쌓아둔 조각(등급별 개수)
+    outfits: {},   // 가진 의복 (입지 않아도 효과가 붙는다)
+    outfit: null,  // 지금 입은 것 (겉모습만)
     // 인물도감: 종류×등급 칸을 한 번이라도 채웠는가 (회귀해도 남는다)
     lore: Object.fromEntries(CODEX_KINDS.map((k) => [k.id, GRADES.map(() => 0)])),
     acc: Object.fromEntries(ACC_SLOTS.map((a) => [a.id, null])),      // { grade, star, pierce }
@@ -127,6 +130,8 @@ export function migrate(raw, now = Date.now()) {
     }
     s.codex[k] = seen;
   }
+  s.outfits = { ...(raw.outfits || {}) };
+  s.outfit = raw.outfit || null;
   s.lore = { ...base.lore };
   for (const k of CODEX_KINDS) {
     const src = raw.lore?.[k.id];
@@ -206,6 +211,26 @@ export class Game {
     const arr = this.s.equips[type];
     for (let g = arr.length - 1; g >= 0; g--) if (arr[g] > 0) return g;
     return -1;
+  }
+
+  // ---------- 의복 ----------
+  hasOutfit(id) { return !!this.s.outfits?.[id]; }
+  outfitCount() { return OUTFITS.filter((o) => this.hasOutfit(o.id)).length; }
+  outfitAll() { return this.outfitCount() === OUTFITS.length; }
+
+  buyOutfit(id) {
+    const o = OUTFITS.find((x) => x.id === id);
+    if (!o || this.hasOutfit(id) || this.s.gems < o.cost) return false;
+    this.s.gems -= o.cost;
+    this.s.outfits[id] = 1;
+    if (!this.s.outfit) this.s.outfit = id;
+    return true;
+  }
+
+  wearOutfit(id) {
+    if (id && !this.hasOutfit(id)) return false;
+    this.s.outfit = id || null;
+    return true;
   }
 
   // ---------- 인물도감 ----------
@@ -429,6 +454,16 @@ export class Game {
       if (low >= OPTION_SET_GRADE) for (const [k, v] of Object.entries(OPTION_SET)) m[k] += v;
       if (low >= OPTION_SET_FULL_GRADE) for (const [k, v] of Object.entries(OPTION_SET_FULL)) m[k] += v;
     }
+
+    // 의복 — 입은 것과 상관없이 가진 것 전부가 더해진다
+    for (const o of OUTFITS) {
+      if (!this.hasOutfit(o.id)) continue;
+      for (const [k, v] of Object.entries(o.own)) {
+        if (m[k] === undefined) m[k] = 0;
+        m[k] += v;
+      }
+    }
+    if (this.outfitAll()) for (const [k, v] of Object.entries(OUTFIT_ALL)) m[k] += v;
 
     // 인물도감
     let loreDone = 0;

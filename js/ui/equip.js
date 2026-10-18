@@ -63,7 +63,7 @@ export function equipTab(app) {
     const enh10 = h('button', { class: 'buy', style: 'min-width:56px', onclick: () => { if (game.enhanceEquip(type, 10)) app.refresh(); } }, 'x10');
     cards[type] = { cells, bonus, def, enhLv, enhBtn, enh10, codexLv, optCells, optInfo, rerollBtn, optWrap };
     root.append(h('div', { class: 'card' },
-      h('h3', {}, `${def.icon} ${def.name}`, codexLv, enhLv), grid, bonus,
+      h('h3', {}, def.name, codexLv, enhLv), grid, bonus,
       h('div', { style: 'display:flex;gap:6px;margin-top:8px;align-items:center' },
         h('span', { class: 'muted', style: 'flex:1' }, `제련 1단계마다 ${def.label} 배율 +${pct(ENHANCE_PER)}`), enhBtn, enh10),
       h('div', { class: 'section-title', style: 'margin:12px 2px 6px' }, h('span', {}, '옵션 칸'), optInfo),

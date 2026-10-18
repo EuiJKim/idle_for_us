@@ -1,7 +1,7 @@
 // 밸런스 시뮬레이션: 단순한 자동 플레이어로 시간대별 도달 스테이지를 본다.
 // node tests/sim.mjs [hours]
 import { Game, newSave } from '../js/game.js';
-import { UPGRADES, SKILLS, DUNGEONS, PETS, EQUIP_TYPES, ACC_SLOTS } from '../js/data.js';
+import { UPGRADES, SKILLS, DUNGEONS, PETS, EQUIP_TYPES, ACC_SLOTS, OUTFITS } from '../js/data.js';
 
 const hours = Number(process.argv[2] || 24);
 const T0 = Date.UTC(2026, 0, 1);
@@ -29,6 +29,8 @@ for (let t = 0, step = 0; t < hours * 3600; t += dt, step++) {
   }
   for (const sk of SKILLS) while (g.upgradeSkill(sk.id));
   while (g.s.sp > 0) g.allocSp(g.s.spAlloc.atk <= g.s.spAlloc.hp ? 'atk' : 'hp');
+  // 의복은 사두면 영구히 효과가 붙으므로 뽑기보다 먼저 산다
+  for (const o of OUTFITS) g.buyOutfit(o.id);
   while (g.s.gems >= 900) { g.gacha(10); if (g.s.gems >= 150) g.hatchPets(1); }
   g.mergeAll();
   for (const t2 of Object.keys(EQUIP_TYPES)) g.enhanceEquip(t2, 5);

@@ -356,6 +356,32 @@ export const codexEntryPower = (kind, grade) => {
 // 적이 어느 종류·등급으로 기록되는가 — 관문이 오를수록 높은 등급이 나온다
 export const codexGradeOf = (stage) => Math.min(5, Math.floor(stage / 40));
 
+// ---------- 의복 (저쪽의 '코스튬') ----------
+// 근거: SkinInfoTable / SkinOptionTable / skinoptionid / skinslotnum.
+// 공략: "'보유' 효과 입니다. 갖고만 있어도 적용되는 효과들이니 일단 구매할 수
+// 있는 건 전부 구매하시는 게 좋습니다." 다이아 27.5만으로 코어공격력 +210%,
+// 골드 +30%, 경험치 +20%. (docs/BladeIdle_설계원리.md 2절)
+//
+// 입는 것은 하나지만 효과는 가진 것 전부가 더해진다. 그래서 '사 모으는' 축이 된다.
+export const OUTFITS = [
+  { id: 'student', name: '청의 서생', cost: 15000, own: { atk: 0.4 }, color: '#60a5fa' },
+  { id: 'cat', name: '흑묘 야행의', cost: 30000, own: { atk: 0.2, gold: 0.2 }, color: '#a3a3a3' },
+  { id: 'royal', name: '금수 궁장', cost: 30000, own: { atk: 0.2, critDmg: 0.3 }, color: '#f59e0b' },
+  { id: 'teacher', name: '백록 도포', cost: 30000, own: { atk: 0.2, exp: 0.2 }, color: '#e5e7eb' },
+  { id: 'slayer', name: '적룡 전포', cost: 30000, own: { atk: 0.2, boss: 0.2 }, color: '#ef4444' },
+  { id: 'chick', name: '황조 경장', cost: 30000, own: { atk: 0.2, speed: 0.08 }, color: '#fde047' },
+  // 무기 치장
+  { id: 'moonblade', name: '월하검 장식', cost: 10000, own: { atk: 0.2 }, color: '#bae6fd' },
+  { id: 'grass', name: '초결 매듭', cost: 20000, own: { atk: 0.1, gold: 0.1 }, color: '#86efac' },
+  { id: 'doom', name: '흑철 검집', cost: 20000, own: { atk: 0.1, critDmg: 0.15 }, color: '#71717a' },
+  { id: 'love', name: '홍매 수실', cost: 20000, own: { atk: 0.1, exp: 0.1 }, color: '#f9a8d4' },
+  { id: 'dragon', name: '용린 손잡이', cost: 20000, own: { atk: 0.1, boss: 0.1 }, color: '#fb923c' },
+  { id: 'bell', name: '은방울 끈', cost: 20000, own: { atk: 0.1, speed: 0.04 }, color: '#fcd34d' },
+];
+// 전부 모으면 한 번 더
+export const OUTFIT_ALL = { atk: 0.5, crit: 0.03 };
+export const outfitTotalCost = () => OUTFITS.reduce((a, o) => a + o.cost, 0);
+
 export const RELIC_DIG_COST = 10; // 신물 조각
 
 // ---------- 무공 ----------

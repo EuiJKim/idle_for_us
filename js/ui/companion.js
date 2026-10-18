@@ -1,7 +1,7 @@
 // 동료 탭: 영수 / 신물
 import { PETS, GRADES, PET_EGG_COST, OWN_STAT_NAMES, PET_ATTACK_INTERVAL, petDamageMult, RELICS, RELIC_DIG_COST,
   BOND_PER_LV, BOND_MAX, bondProgress, ENGRAVE_MIN_LV, engraveCost,
-  CODEX_KINDS, codexEntryPower } from '../data.js';
+  CODEX_KINDS, codexEntryPower, OUTFITS, OUTFIT_ALL, outfitTotalCost } from '../data.js';
 import { fmt, pct } from '../fmt.js';
 import { h, toast, openModal, closeModal, subTabs } from './common.js';
 
@@ -150,7 +150,61 @@ export function companionTab(app) {
     { key: 'pet', label: '영수', make: () => petView(app) },
     { key: 'relic', label: '신물', make: () => relicView(app) },
     { key: 'lore', label: '인물도감', make: () => loreCard(app) },
+    { key: 'outfit', label: '의복', make: () => outfitView(app) },
   ]);
+}
+
+const OWN_LABEL = { atk: '공격력', hp: '체력', gold: '은자', exp: '경험치',
+  crit: '치명 확률', critDmg: '치명 피해', boss: '두목 피해', speed: '공격 속도' };
+const ownText = (own) => Object.entries(own)
+  .map(([k, v]) => `${OWN_LABEL[k] || k} +${pct(v)}`).join(' · ');
+
+// ---------- 의복 ----------
+// 입는 것은 하나지만 효과는 가진 것 전부가 더해진다.
+// 근거: 공략 "'보유' 효과입니다. 갖고만 있어도 적용되는 효과들이니
+// 일단 구매할 수 있는 건 전부 구매하시는 게 좋습니다."
+function outfitView(app) {
+  const { game } = app;
+  const rows = {};
+  const sum = h('div', { class: 'desc' });
+  const root = h('div', {},
+    h('p', { class: 'muted', style: 'margin:2px 2px 8px' },
+      `입는 건 하나지만 효과는 가진 것 전부가 더해져요. 그래서 일단 사 모으면 돼요. `
+      + `전부 모으면 공격력 +${pct(OUTFIT_ALL.atk)} · 치명 확률 +${pct(OUTFIT_ALL.crit)}가 더 붙어요.`),
+    h('div', { class: 'section-title' }, h('span', {}, '가진 의복'), sum));
+
+  for (const o of OUTFITS) {
+    const name = h('div', { class: 'name', style: 'font-weight:800' });
+    const eff = h('div', { class: 'desc' });
+    const btn = h('button', { class: 'buy' });
+    btn.addEventListener('click', () => {
+      if (game.hasOutfit(o.id)) { game.wearOutfit(game.s.outfit === o.id ? null : o.id); app.refresh(); return; }
+      if (game.buyOutfit(o.id)) app.refresh(); else toast('원보가 부족해요');
+    });
+    const row = h('div', { class: 'row' },
+      h('div', { class: 'ico', style: `color:${o.color}` }, o.name.slice(0, 1)),
+      h('div', { style: 'flex:1;min-width:0' }, name, eff), btn);
+    root.append(row);
+    rows[o.id] = { name, eff, btn, def: o, row };
+  }
+
+  function update() {
+    const have = game.outfitCount();
+    sum.innerHTML = game.outfitAll()
+      ? '<b style="color:var(--accent-2)">전부 모음</b>'
+      : `${have}/${OUTFITS.length} · 전부 모으는 데 원보 ${fmt(outfitTotalCost())}`;
+    for (const o of OUTFITS) {
+      const r = rows[o.id];
+      const owned = game.hasOutfit(o.id);
+      const worn = game.s.outfit === o.id;
+      r.name.textContent = o.name + (worn ? ' (입는 중)' : '');
+      r.eff.textContent = ownText(o.own);
+      r.row.style.opacity = owned ? '' : '0.62';
+      r.btn.textContent = owned ? (worn ? '벗기' : '입기') : `원보 ${fmt(o.cost)}`;
+      r.btn.disabled = !owned && game.s.gems < o.cost;
+    }
+  }
+  return { root, update };
 }
 
 // ---------- 인물도감 ----------
