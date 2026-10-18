@@ -6,13 +6,15 @@ import {
   CODEX_PER_TYPE, CODEX_ALL,
   OPTION_SLOTS, OPTION_STATS, OPTION_GRADE_RATES, OPTION_ROLL_MIN, OPTION_ROLL_MAX,
   optionSlotCount, optionRerollCost, OPTION_SET_GRADE, OPTION_SET, OPTION_SET_FULL_GRADE, OPTION_SET_FULL,
+  ACC_SLOTS, ACC_STAR_MAX, ACC_PIERCE_MAX, ACC_MERGE, accPierceCost, accPower,
+  ACC_SET_GRADE, ACC_SET, ACC_BOX_RATES,
   expPerKill, expToNext, SP_PER_LEVEL, SP_RESET_GEMS, SP_STATS,
   RANKS, RANK_MULT, TRIAL_TIME, trialBoss,
   PETS, PET_EGG_COST, PET_GRADE_WEIGHT, petFoodCost, PET_DUPLICATE_FOOD, PET_ATTACK_INTERVAL, petDamageMult,
   BOND_PER_SEC, BOND_PER_LV, BOND_MAX, bondLevel, ENGRAVE_MIN_LV, engraveCost,
   ATTEND_CYCLE, attendReward, BOOST_PER_DAY, BOOST_SEC, BOOST_MULT, mobGroupSize,
   MELEE_RANGE, HERO_SPEED, MOB_SPEED, MOB_SEPARATION, FIELD_ASPECT, FIELD_SQUASH, MOB_SPAWN_NEAR, MOB_SPAWN_FAR,
-  refillRate, fieldRadius, MAX_ATTACKERS, FIELD_WIDE, FIELD_TALL,
+  refillRate, fieldRadius, MAX_ATTACKERS, FIELD_WIDE, FIELD_TALL, isWallStage,
   RELICS, RELIC_DIG_COST,
   SKILLS, SKILL_SLOTS, skillBookCost,
   DUNGEONS, DUNGEON_KEYS, DUNGEON_TIME, DUNGEON_MOBS, dungeonStage, dungeonReward,
@@ -69,6 +71,9 @@ export function newSave(now = Date.now()) {
     // 장비 옵션 칸: [{ stat, grade, roll } | null] × 4, lock은 다시 굴릴 때 지킬 칸
     options: Object.fromEntries(Object.keys(EQUIP_TYPES).map((k) => [k, Array(OPTION_SLOTS).fill(null)])),
     optionLock: Object.fromEntries(Object.keys(EQUIP_TYPES).map((k) => [k, Array(OPTION_SLOTS).fill(false)])),
+    // 장신구: 자리마다 끼운 것 하나 + 쌓아둔 조각(등급별 개수)
+    acc: Object.fromEntries(ACC_SLOTS.map((a) => [a.id, null])),      // { grade, star, pierce }
+    accBag: Object.fromEntries(ACC_SLOTS.map((a) => [a.id, GRADES.map(() => 0)])),
     enhance: Object.fromEntries(Object.keys(EQUIP_TYPES).map((k) => [k, 0])),
     skills: Object.fromEntries(SKILLS.map((s) => [s.id, 1])),
     skillSlots: ['slash', null, null, null],
@@ -118,6 +123,15 @@ export function migrate(raw, now = Date.now()) {
       for (let g = 0; g <= best; g++) seen[g] = 1;
     }
     s.codex[k] = seen;
+  }
+  s.acc = { ...base.acc };
+  s.accBag = { ...base.accBag };
+  for (const a of ACC_SLOTS) {
+    const cur = raw.acc?.[a.id];
+    s.acc[a.id] = cur && typeof cur === 'object'
+      ? { grade: cur.grade | 0, star: cur.star | 0, pierce: cur.pierce | 0 } : null;
+    const bag = raw.accBag?.[a.id];
+    s.accBag[a.id] = GRADES.map((_, i) => Math.max(0, (Array.isArray(bag) ? bag[i] : 0) | 0));
   }
   s.options = { ...base.options };
   s.optionLock = { ...base.optionLock };
@@ -184,6 +198,98 @@ export class Game {
     const arr = this.s.equips[type];
     for (let g = arr.length - 1; g >= 0; g--) if (arr[g] > 0) return g;
     return -1;
+  }
+
+  // ---------- 장신구 ----------
+  // 장신구 상자 하나를 연다. 자리는 무작위.
+  openAccBox(n = 1) {
+    const out = [];
+    for (let i = 0; i < n; i++) {
+      const slot = ACC_SLOTS[Math.floor(this.rng() * ACC_SLOTS.length)];
+      let r = this.rng();
+      let grade = 0;
+      for (let g = ACC_BOX_RATES.length - 1; g >= 0; g--) {
+        if (r < ACC_BOX_RATES[g]) { grade = g; break; }
+        r -= ACC_BOX_RATES[g];
+      }
+      this.s.accBag[slot.id][grade]++;
+      out.push({ slot: slot.id, grade });
+    }
+    this.autoEquipAcc();
+    return out;
+  }
+
+  // 자리마다 쌓인 것 중 가장 좋은 등급을 끼운다 (비어 있을 때만)
+  autoEquipAcc() {
+    for (const a of ACC_SLOTS) {
+      if (this.s.acc[a.id]) continue;
+      const bag = this.s.accBag[a.id];
+      for (let g = bag.length - 1; g >= 0; g--) {
+        if (!bag[g]) continue;
+        bag[g]--;
+        this.s.acc[a.id] = { grade: g, star: 0, pierce: 0 };
+        break;
+      }
+    }
+  }
+
+  // 같은 등급 ACC_MERGE개로 한 성 올린다
+  canAccStar(id) {
+    const cur = this.s.acc?.[id];
+    if (!cur || cur.star >= ACC_STAR_MAX) return false;
+    return (this.s.accBag?.[id]?.[cur.grade] || 0) >= ACC_MERGE;
+  }
+
+  accStarUp(id) {
+    if (!this.canAccStar(id)) return false;
+    const cur = this.s.acc[id];
+    this.s.accBag[id][cur.grade] -= ACC_MERGE;
+    cur.star++;
+    return true;
+  }
+
+  // 6성이 되면 다음 등급으로 올릴 수 있다 (같은 등급 하나를 더 쓴다)
+  canAccGrade(id) {
+    const cur = this.s.acc?.[id];
+    if (!cur || cur.star < ACC_STAR_MAX || cur.grade >= GRADES.length - 1) return false;
+    return (this.s.accBag?.[id]?.[cur.grade] || 0) >= 1;
+  }
+
+  accGradeUp(id) {
+    if (!this.canAccGrade(id)) return false;
+    const cur = this.s.acc[id];
+    this.s.accBag[id][cur.grade] -= 1;
+    cur.grade++;
+    cur.star = 0;      // 등급이 오르면 성은 다시 0부터
+    return true;       // 초월은 그대로 남는다
+  }
+
+  accPierceCost(id) {
+    const cur = this.s.acc?.[id];
+    if (!cur) return Infinity;
+    return accPierceCost(cur.pierce);
+  }
+
+  // 초월. 공략이 "하느냐 마느냐 차이가 어마어마"라고 한 것.
+  accPierce(id) {
+    const cur = this.s.acc?.[id];
+    if (!cur || cur.pierce >= ACC_PIERCE_MAX) return false;
+    const cost = this.accPierceCost(id);
+    if (this.s.stones < cost) return false;
+    this.s.stones -= cost;
+    cur.pierce++;
+    return true;
+  }
+
+  // 세 자리를 전부 채우고 전부 이 등급 이상인가
+  accSetGrade() {
+    let low = 99;
+    for (const a of ACC_SLOTS) {
+      const cur = this.s.acc?.[a.id];
+      if (!cur) return -1;
+      low = Math.min(low, cur.grade);
+    }
+    return low;
   }
 
   // ---------- 장비 옵션 칸 ----------
@@ -301,6 +407,16 @@ export class Game {
       const low = this.optionSetGrade(type);
       if (low >= OPTION_SET_GRADE) for (const [k, v] of Object.entries(OPTION_SET)) m[k] += v;
       if (low >= OPTION_SET_FULL_GRADE) for (const [k, v] of Object.entries(OPTION_SET_FULL)) m[k] += v;
+    }
+
+    // 장신구
+    for (const a of ACC_SLOTS) {
+      const cur = this.s.acc?.[a.id];
+      if (!cur) continue;
+      m[a.stat] += accPower(a, cur.grade, cur.star, cur.pierce);
+    }
+    if (this.accSetGrade() >= ACC_SET_GRADE) {
+      for (const [k, v] of Object.entries(ACC_SET)) m[k] += v;
     }
 
     // 병기보 완성 효과
@@ -749,6 +865,12 @@ export class Game {
       this.progress('boss');
       this.s.books += 1;
       this.s.stones += 2;
+      // 장신구 상자는 벽(관문지기)에서만 나온다. 근거: Blade Idle도 장신구 상자는
+      // 특정 스테이지(11-25, 13-50 …)에서부터 떨어지고, 그 자리가 전부 벽이다.
+      if (isWallStage(s)) {
+        const boxes = this.openAccBox(1 + Math.floor(s / 100));
+        this.emit('accBox', { boxes });
+      }
       if (s >= this.s.maxStage) { // 이번 생에서 처음 넘는 관문
         const gems = bossGems(s);
         this.s.gems += gems;

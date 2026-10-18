@@ -288,6 +288,43 @@ export const RELICS = [
   { id: 'moon', name: '월광옥패', icon: '월광', stat: 'offline', per: 0.05, max: 60, text: '방치 보상' },
   { id: 'feather', name: '능공허도 비급', icon: '능공', stat: 'speed', per: 0.01, max: 50, text: '공격 속도(한계 돌파)' },
 ];
+// ---------- 장신구 ----------
+// 근거: AccessoryTable의 컬럼은 accessoryid, accessorymaterial{N},
+// accessorymaterial{N}_count, accessoryspecialabilid 다. 즉 장신구는
+// '재료를 모아 승급'하고 '특수 능력'을 따로 가진다.
+// 공략: 승급(성)과 초월은 별개다. "장신구는 초월을 하느냐 안 하느냐의
+// 스펙 차이가 어마어마하다. 현재 6초월 = 한 등급 위 3초월 = 두 등급 위 1초월."
+// (docs/BladeIdle_설계원리.md)
+export const ACC_SLOTS = [
+  { id: 'ring', name: '가락지', stat: 'atk', label: '공격력', per: 0.25 },
+  // 치명 피해는 곱이 아니라 더하기로 들어가므로 수치를 작게 잡는다
+  { id: 'ear', name: '귀걸이', stat: 'critDmg', label: '치명 피해', per: 0.04 },
+  { id: 'pin', name: '비녀', stat: 'hp', label: '체력', per: 0.25 },
+];
+export const ACC_STAR_MAX = 6;      // 승급(성)
+export const ACC_PIERCE_MAX = 6;    // 초월
+// 같은 등급 장신구 이만큼을 모으면 한 성 오른다
+export const ACC_MERGE = 3;
+// 초월은 한철을 쓴다. 단계가 오를수록 가파르게 비싸진다.
+export const accPierceCost = (step) => Math.ceil(300 * Math.pow(3.1, step));
+// 승급 1성마다, 초월 1단계마다 붙는 배수.
+// 공략의 '6초월 = 한 등급 위 3초월 = 두 등급 위 1초월'이 성립하도록 맞췄다.
+export const ACC_STAR_MULT = 0.35;    // 성 하나에 +35%p
+export const ACC_PIERCE_MULT = 0.55;  // 초월 하나에 +55%p
+// 장신구 하나가 주는 배수
+// 등급 배수. 공략의 "6초월 = 한 등급 위 3초월 = 두 등급 위 1초월"이 성립하려면
+//   G x (1+0.55x3) = (1+0.55x6)  ->  G = 4.3 / 2.65 = 1.62
+//   G x (1+0.55x1) = (1+0.55x3)  ->  G = 2.65 / 1.55 = 1.71
+// 둘의 가운데인 1.66으로 잡는다.
+export const ACC_GRADE_MULT = 1.66;
+export const accPower = (def, grade, star, pierce) =>
+  def.per * Math.pow(ACC_GRADE_MULT, grade) * (1 + ACC_STAR_MULT * star) * (1 + ACC_PIERCE_MULT * pierce);
+// 세 자리를 전부 채우고 전부 이 등급 이상이면 보유 효과
+export const ACC_SET_GRADE = 3;
+export const ACC_SET = { boss: 0.5, gold: 0.3 };
+// 장신구 상자는 두목과 비경에서 나온다
+export const ACC_BOX_RATES = [0.42, 0.27, 0.17, 0.09, 0.04, 0.01];
+
 export const RELIC_DIG_COST = 10; // 신물 조각
 
 // ---------- 무공 ----------

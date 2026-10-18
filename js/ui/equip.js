@@ -1,7 +1,9 @@
 // 병기 탭: 뽑기·합성·제련
 import { GRADES, EQUIP_TYPES, MERGE_COUNT, GACHA_COST, GACHA10_COST, ENHANCE_PER, CODEX_PER_TYPE, CODEX_ALL,
   OPTION_SLOTS, OPTION_STATS, OPTION_SET_GRADE, OPTION_SET, OPTION_SET_FULL_GRADE, OPTION_SET_FULL,
-  nextOptionSlotAt } from '../data.js';
+  nextOptionSlotAt,
+  ACC_SLOTS, ACC_STAR_MAX, ACC_PIERCE_MAX, ACC_MERGE, accPower,
+  ACC_SET_GRADE, ACC_SET } from '../data.js';
 import { fmt, pct } from '../fmt.js';
 import { h, toast, openModal, closeModal, gradeChip } from './common.js';
 
@@ -70,6 +72,62 @@ export function equipTab(app) {
         h('span', { class: 'muted', style: 'flex:1' },
           `네 칸을 ${GRADES[OPTION_SET_GRADE].name} 이상으로 채우면 치명 확률 +${pct(OPTION_SET.crit)} · 치명 피해 +${pct(OPTION_SET.critDmg)}`),
         rerollBtn)));
+  }
+
+  // ---------- 장신구 ----------
+  const accCards = {};
+  const accSetInfo = h('div', { class: 'desc' });
+  root.append(h('div', { class: 'section-title', style: 'margin-top:14px' },
+    h('span', {}, '장신구'), accSetInfo));
+  root.append(h('p', { class: 'muted', style: 'margin:0 2px 8px' },
+    `관문지기를 넘으면 장신구 상자가 나와요. 같은 등급 ${ACC_MERGE}개로 한 성, `
+    + `${ACC_STAR_MAX}성이 되면 다음 등급으로 올라가요. 초월은 한철을 쓰고 성과 따로 쌓여요.`));
+
+  for (const a of ACC_SLOTS) {
+    const title = h('div', { style: 'font-weight:900;font-size:14px' });
+    const info = h('div', { class: 'desc' });
+    const bag = h('div', { class: 'desc' });
+    const starBtn = h('button', { class: 'buy', onclick: () => {
+      if (game.accStarUp(a.id)) app.refresh(); else toast(`같은 등급 ${ACC_MERGE}개가 필요해요`);
+    } });
+    const gradeBtn = h('button', { class: 'buy', onclick: () => {
+      if (game.accGradeUp(a.id)) app.refresh(); else toast(`${ACC_STAR_MAX}성이 된 뒤 같은 등급 1개가 더 필요해요`);
+    } });
+    const pierceBtn = h('button', { class: 'buy', onclick: () => {
+      if (game.accPierce(a.id)) app.refresh(); else toast('한철이 부족하거나 초월이 끝났어요');
+    } });
+    root.append(h('div', { class: 'card' },
+      title, info, bag,
+      h('div', { class: 'btn-row', style: 'margin-top:8px' }, starBtn, gradeBtn, pierceBtn)));
+    accCards[a.id] = { title, info, bag, starBtn, gradeBtn, pierceBtn, def: a };
+  }
+
+  function updateAcc() {
+    for (const a of ACC_SLOTS) {
+      const c = accCards[a.id];
+      const cur = game.s.acc?.[a.id];
+      const bag = game.s.accBag?.[a.id] || [];
+      if (!cur) {
+        c.title.textContent = `${a.name} — 아직 없음`;
+        c.info.textContent = `관문지기에게서 장신구 상자를 얻어요`;
+      } else {
+        c.title.innerHTML = `${a.name} <span style="color:${GRADES[cur.grade].color}">${GRADES[cur.grade].name}</span>`
+          + ` <small>${cur.star}성 · ${cur.pierce}초월</small>`;
+        c.info.innerHTML = `${a.label} <b>+${pct(accPower(a, cur.grade, cur.star, cur.pierce))}</b>`;
+      }
+      c.bag.textContent = '쌓인 것 ' + GRADES.map((g, i) => `${g.name} ${bag[i] || 0}`).join(' · ');
+      c.starBtn.textContent = cur && cur.star >= ACC_STAR_MAX ? '성 최대' : `승급 (${a.name} ${ACC_MERGE}개)`;
+      c.starBtn.disabled = !game.canAccStar(a.id);
+      c.gradeBtn.textContent = '등급 올리기';
+      c.gradeBtn.disabled = !game.canAccGrade(a.id);
+      const pc = cur ? game.accPierceCost(a.id) : Infinity;
+      c.pierceBtn.textContent = cur && cur.pierce >= ACC_PIERCE_MAX ? '초월 최대' : `초월 한철 ${fmt(pc)}`;
+      c.pierceBtn.disabled = !cur || cur.pierce >= ACC_PIERCE_MAX || game.s.stones < pc;
+    }
+    const low = game.accSetGrade();
+    accSetInfo.innerHTML = low >= ACC_SET_GRADE
+      ? `<b style="color:${GRADES[ACC_SET_GRADE].color}">보유 효과 켜짐</b>`
+      : `세 자리를 ${GRADES[ACC_SET_GRADE].name} 이상으로 채우면 두목 피해 +${pct(ACC_SET.boss)} · 은자 +${pct(ACC_SET.gold)}`;
   }
 
   function doGacha(n) {
@@ -158,6 +216,7 @@ export function equipTab(app) {
       c.enhBtn.disabled = game.s.stones < game.enhanceCost(type);
       c.enh10.disabled = c.enhBtn.disabled;
     }
+    updateAcc();
   }
   return { root, update };
 }

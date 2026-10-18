@@ -1,7 +1,7 @@
 // 밸런스 시뮬레이션: 단순한 자동 플레이어로 시간대별 도달 스테이지를 본다.
 // node tests/sim.mjs [hours]
 import { Game, newSave } from '../js/game.js';
-import { UPGRADES, SKILLS, DUNGEONS, PETS, EQUIP_TYPES } from '../js/data.js';
+import { UPGRADES, SKILLS, DUNGEONS, PETS, EQUIP_TYPES, ACC_SLOTS } from '../js/data.js';
 
 const hours = Number(process.argv[2] || 24);
 const T0 = Date.UTC(2026, 0, 1);
@@ -49,6 +49,12 @@ for (let t = 0, step = 0; t < hours * 3600; t += dt, step++) {
       }
       if (g.optionSetGrade(t2) >= 4) break;
     }
+  }
+  // 장신구: 올릴 수 있으면 올리고, 남는 한철로 초월한다
+  for (const a2 of ACC_SLOTS) {
+    while (g.accStarUp(a2.id));
+    if (g.canAccGrade(a2.id)) { g.accGradeUp(a2.id); while (g.accStarUp(a2.id)); }
+    while (g.s.stones > g.accPierceCost(a2.id) * 3 && g.accPierce(a2.id));
   }
   for (const p of PETS) g.levelPet(p.id, 5);
   g.digRelic(5);
