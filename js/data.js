@@ -2,10 +2,10 @@
 
 export const SAVE_VERSION = 4;
 export const OFFLINE_CAP_SEC = 12 * 3600;
-export const KILLS_PER_STAGE = 10;
+export const KILLS_PER_STAGE = 20;
 // 한 번에 나오는 적 수(최대). 관문이 오를수록 더 몰려온다.
 // 근거: Blade Idle은 한 스테이지에 적 그룹(wavegroup)이 보통 4개씩 잡혀 있고 47초 안에 정리된다.
-export const MOB_GROUP_MAX = 100;
+export const MOB_GROUP_MAX = 80;
 // 평면 사냥: 무인이 들판을 사방으로 돌아다니며 적을 찾아 벤다.
 // 근거: Blade Idle은 카메라가 X축 90도(수직 하향) 직교 투영이고 배경 60장이 전부
 // 위에서 내려다본 바닥이다. 즉 전투는 1축이 아니라 X·Y 평면에서 일어난다.
