@@ -77,6 +77,24 @@ input { font: inherit; user-select: text; -webkit-user-select: text; }
 .tier-hint { color: var(--accent-2); font-weight: 700; }
 .dungeon-card .name small.full { color: var(--bad); }
 
+/* 장비 옵션 칸 */
+.opt-wrap { display: flex; flex-direction: column; gap: 5px; }
+.opt-cell {
+  display: flex; align-items: center; gap: 8px;
+  background: var(--card-2); border: 1px solid var(--line); border-radius: 10px;
+  padding: 7px 8px; font-size: 12px;
+}
+.opt-cell.closed { opacity: 0.45; }
+.opt-cell.locked { border-color: var(--accent-2); }
+.opt-txt { flex: 1; min-width: 0; }
+.opt-txt i { color: var(--muted); font-style: normal; }
+.opt-lock {
+  flex: none; font-size: 10px; font-weight: 800; padding: 4px 8px; border-radius: 8px;
+  background: var(--card); color: var(--muted); border: 1px solid var(--line);
+}
+.opt-lock.on { background: var(--accent); color: #fff; border-color: var(--accent-2); }
+.opt-lock:disabled { opacity: 0.35; }
+
 /* 병기보 — 지금은 없어도 한 번 쥐어본 등급 */
 .grade.noted { opacity: 0.72; border-style: dashed; }
 .grade.noted .g-cnt { color: #a8a29e; font-size: 10px; }

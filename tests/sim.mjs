@@ -32,6 +32,24 @@ for (let t = 0, step = 0; t < hours * 3600; t += dt, step++) {
   while (g.s.gems >= 900) { g.gacha(10); if (g.s.gems >= 150) g.hatchPets(1); }
   g.mergeAll();
   for (const t2 of Object.keys(EQUIP_TYPES)) g.enhanceEquip(t2, 5);
+  // 옵션 칸: 신품 미만이 섞여 있으면 다시 굴린다. 좋은 칸은 잠가 둔다.
+  for (const t2 of Object.keys(EQUIP_TYPES)) {
+    const n = g.optionSlots(t2);
+    if (!n) continue;
+    for (let i = 0; i < n; i++) {
+      const o = g.s.options[t2][i];
+      g.s.optionLock[t2][i] = !!(o && o.grade >= 4);
+    }
+    if (g.optionSetGrade(t2) >= 4) continue;
+    let guard = 0;
+    while (g.rerollOptions(t2) && guard++ < 50) {
+      for (let i = 0; i < n; i++) {
+        const o = g.s.options[t2][i];
+        g.s.optionLock[t2][i] = !!(o && o.grade >= 4);
+      }
+      if (g.optionSetGrade(t2) >= 4) break;
+    }
+  }
   for (const p of PETS) g.levelPet(p.id, 5);
   g.digRelic(5);
   while (g.claimMilestone());

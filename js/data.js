@@ -180,6 +180,44 @@ export const EQUIP_TYPES = {
 };
 export const ENHANCE_PER = 0.08; // 제련 1단계마다 해당 부위 배율에 +8%p (선형)
 
+// ---------- 장비 옵션 칸 ----------
+// 근거: Blade Idle의 아이템 테이블은 abil{N}_type / abil{N}_value 쌍을 가지고,
+// special_abil_open{0}으로 칸이 하나씩 열리며, specialabil_slotmax가 칸 수,
+// special_abil_min/max가 값의 범위다. 즉 "칸마다 {종류, 값}이고 칸은 차차 열린다".
+// 공략에서는 분량의 1/3이 이것이다 — 좋은 옵션 하나보다 '네 칸을 신품 이상으로
+// 채워서 보유 효과를 켜는 것'이 먼저다. (docs/BladeIdle_설계원리.md)
+export const OPTION_SLOTS = 4;
+// 제련 단계가 오르면 칸이 하나씩 열린다 (저쪽은 장비 레벨 50단위)
+export const OPTION_SLOT_AT = [4, 10, 18, 28];
+export const optionSlotCount = (enhanceLv) => OPTION_SLOT_AT.filter((v) => enhanceLv >= v).length;
+export const nextOptionSlotAt = (enhanceLv) => OPTION_SLOT_AT.find((v) => enhanceLv < v) ?? null;
+
+// 칸에 붙을 수 있는 능력. per는 등급별 수치(범품~천품).
+export const OPTION_STATS = [
+  { id: 'atk', name: '공격력', per: [0.06, 0.12, 0.25, 0.5, 1.0, 2.0] },
+  { id: 'hp', name: '체력', per: [0.06, 0.12, 0.25, 0.5, 1.0, 2.0] },
+  { id: 'critDmg', name: '치명 피해', per: [0.08, 0.16, 0.3, 0.6, 1.2, 2.4] },
+  { id: 'crit', name: '치명 확률', per: [0.01, 0.02, 0.03, 0.05, 0.08, 0.12] },
+  { id: 'speed', name: '공격 속도', per: [0.02, 0.04, 0.07, 0.12, 0.2, 0.32] },
+  { id: 'gold', name: '은자 획득', per: [0.05, 0.1, 0.2, 0.4, 0.8, 1.6] },
+  { id: 'boss', name: '두목 피해', per: [0.06, 0.12, 0.25, 0.5, 1.0, 2.0] },
+];
+export const OPTION_GRADE_RATES = [0.40, 0.28, 0.18, 0.09, 0.04, 0.01];
+// 같은 등급이라도 값이 조금씩 다르다 (special_abil_min/max)
+export const OPTION_ROLL_MIN = 0.8;
+export const OPTION_ROLL_MAX = 1.2;
+
+// 다시 굴리는 값. 잠근 칸이 많을수록 비싸다 —
+// 공략: "처음 아무 옵션도 자물쇠가 안 잠겨있을 때 비용이 제일 저렴하다"
+export const optionRerollCost = (enhanceLv, locked) =>
+  Math.ceil((40 + enhanceLv * 25) * Math.pow(2.2, locked));
+
+// 네 칸을 전부 이 등급 이상으로 채우면 보유 효과가 켜진다
+export const OPTION_SET_GRADE = 4;          // 신품
+export const OPTION_SET = { crit: 0.06, critDmg: 0.4 };
+export const OPTION_SET_FULL_GRADE = 5;     // 천품
+export const OPTION_SET_FULL = { crit: 0.06, critDmg: 0.6 };
+
 // ---------- 병기보(도감) ----------
 // 한 부위의 모든 등급을 한 번씩 손에 쥐면 그 부위의 보법을 익힌 것으로 친다.
 // 근거: Blade Idle은 무기 4슬롯이 전부 신화 이상이면 치명타 보유효과가 켜진다.

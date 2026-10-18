@@ -4,6 +4,8 @@ import {
   MERGE_COUNT, GACHA_COST, GACHA10_COST, DAILY_GEMS, START_GEMS, SPEED_CAP, CRIT_CAP,
   UPGRADES, GRADES, GACHA_RATES, EQUIP_TYPES, ENHANCE_PER, enhanceCost,
   CODEX_PER_TYPE, CODEX_ALL,
+  OPTION_SLOTS, OPTION_STATS, OPTION_GRADE_RATES, OPTION_ROLL_MIN, OPTION_ROLL_MAX,
+  optionSlotCount, optionRerollCost, OPTION_SET_GRADE, OPTION_SET, OPTION_SET_FULL_GRADE, OPTION_SET_FULL,
   expPerKill, expToNext, SP_PER_LEVEL, SP_RESET_GEMS, SP_STATS,
   RANKS, RANK_MULT, TRIAL_TIME, trialBoss,
   PETS, PET_EGG_COST, PET_GRADE_WEIGHT, petFoodCost, PET_DUPLICATE_FOOD, PET_ATTACK_INTERVAL, petDamageMult,
@@ -64,6 +66,9 @@ export function newSave(now = Date.now()) {
     equips: Object.fromEntries(Object.keys(EQUIP_TYPES).map((k) => [k, zero()])),
     // 병기보: 한 번이라도 손에 쥔 등급(합성해 없어져도 남는다)
     codex: Object.fromEntries(Object.keys(EQUIP_TYPES).map((k) => [k, GRADES.map(() => 0)])),
+    // 장비 옵션 칸: [{ stat, grade, roll } | null] × 4, lock은 다시 굴릴 때 지킬 칸
+    options: Object.fromEntries(Object.keys(EQUIP_TYPES).map((k) => [k, Array(OPTION_SLOTS).fill(null)])),
+    optionLock: Object.fromEntries(Object.keys(EQUIP_TYPES).map((k) => [k, Array(OPTION_SLOTS).fill(false)])),
     enhance: Object.fromEntries(Object.keys(EQUIP_TYPES).map((k) => [k, 0])),
     skills: Object.fromEntries(SKILLS.map((s) => [s.id, 1])),
     skillSlots: ['slash', null, null, null],
@@ -113,6 +118,19 @@ export function migrate(raw, now = Date.now()) {
       for (let g = 0; g <= best; g++) seen[g] = 1;
     }
     s.codex[k] = seen;
+  }
+  s.options = { ...base.options };
+  s.optionLock = { ...base.optionLock };
+  for (const k of Object.keys(EQUIP_TYPES)) {
+    const src = raw.options?.[k];
+    if (Array.isArray(src)) {
+      s.options[k] = Array.from({ length: OPTION_SLOTS }, (_, i) => {
+        const o = src[i];
+        return o && typeof o === 'object' ? { stat: o.stat, grade: o.grade | 0, roll: o.roll || 1 } : null;
+      });
+    }
+    const lk = raw.optionLock?.[k];
+    s.optionLock[k] = Array.from({ length: OPTION_SLOTS }, (_, i) => !!(Array.isArray(lk) && lk[i]));
   }
   if (!Array.isArray(raw.skillSlots)) {
     // v1 → v2: 해금된 스킬을 순서대로 장착
@@ -168,6 +186,71 @@ export class Game {
     return -1;
   }
 
+  // ---------- 장비 옵션 칸 ----------
+  // 제련 단계만큼 칸이 열린다
+  optionSlots(type) { return optionSlotCount(this.s.enhance?.[type] || 0); }
+
+  // 지금 켜져 있는 칸만 (열렸고 비지 않은 것)
+  activeOptions(type) {
+    const n = this.optionSlots(type);
+    return (this.s.options?.[type] || []).slice(0, n).filter(Boolean);
+  }
+
+  // 네 칸을 전부 이 등급 이상으로 채웠는가
+  optionSetGrade(type) {
+    if (this.optionSlots(type) < OPTION_SLOTS) return -1;
+    const arr = this.s.options?.[type] || [];
+    let low = 99;
+    for (let i = 0; i < OPTION_SLOTS; i++) {
+      if (!arr[i]) return -1;
+      low = Math.min(low, arr[i].grade);
+    }
+    return low;
+  }
+
+  optionRerollCost(type) {
+    const n = this.optionSlots(type);
+    const locked = (this.s.optionLock?.[type] || []).slice(0, n).filter(Boolean).length;
+    return optionRerollCost(this.s.enhance?.[type] || 0, locked);
+  }
+
+  rollOptionGrade() {
+    let r = this.rng();
+    for (let g = OPTION_GRADE_RATES.length - 1; g >= 0; g--) {
+      if (r < OPTION_GRADE_RATES[g]) return g;
+      r -= OPTION_GRADE_RATES[g];
+    }
+    return 0;
+  }
+
+  // 잠그지 않은 칸을 전부 다시 굴린다. 한철을 쓴다.
+  rerollOptions(type) {
+    const n = this.optionSlots(type);
+    if (!n) return null;
+    const cost = this.optionRerollCost(type);
+    if (this.s.stones < cost) return null;
+    this.s.stones -= cost;
+    const arr = this.s.options[type];
+    const lock = this.s.optionLock[type];
+    const out = [];
+    for (let i = 0; i < n; i++) {
+      if (lock[i] && arr[i]) { out.push(null); continue; }
+      const def = OPTION_STATS[Math.floor(this.rng() * OPTION_STATS.length)];
+      const grade = this.rollOptionGrade();
+      const roll = OPTION_ROLL_MIN + this.rng() * (OPTION_ROLL_MAX - OPTION_ROLL_MIN);
+      arr[i] = { stat: def.id, grade, roll };
+      out.push(arr[i]);
+    }
+    return { cost, rolled: out };
+  }
+
+  toggleOptionLock(type, i) {
+    const lock = this.s.optionLock?.[type];
+    if (!lock || i < 0 || i >= OPTION_SLOTS) return false;
+    lock[i] = !lock[i];
+    return lock[i];
+  }
+
   // 병기보에 적는다. 한 번 적히면 지워지지 않는다.
   noteCodex(type, grade) {
     const seen = this.s.codex?.[type];
@@ -207,6 +290,19 @@ export class Game {
       const lv = this.s.relics[r.id];
       if (lv) m[r.stat] += r.per * lv;
     }
+    // 장비 옵션 칸
+    for (const type of Object.keys(EQUIP_TYPES)) {
+      for (const o of this.activeOptions(type)) {
+        const def = OPTION_STATS.find((x) => x.id === o.stat);
+        if (!def) continue;
+        m[o.stat] += def.per[o.grade] * (o.roll || 1);
+      }
+      // 네 칸을 신품 이상으로 채우면 보유 효과, 천품이면 한 번 더
+      const low = this.optionSetGrade(type);
+      if (low >= OPTION_SET_GRADE) for (const [k, v] of Object.entries(OPTION_SET)) m[k] += v;
+      if (low >= OPTION_SET_FULL_GRADE) for (const [k, v] of Object.entries(OPTION_SET_FULL)) m[k] += v;
+    }
+
     // 병기보 완성 효과
     let done = 0;
     for (const type of Object.keys(EQUIP_TYPES)) if (this.codexComplete(type)) done++;

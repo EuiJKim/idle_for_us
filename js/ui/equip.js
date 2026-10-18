@@ -1,5 +1,7 @@
 // 병기 탭: 뽑기·합성·제련
-import { GRADES, EQUIP_TYPES, MERGE_COUNT, GACHA_COST, GACHA10_COST, ENHANCE_PER, CODEX_PER_TYPE, CODEX_ALL } from '../data.js';
+import { GRADES, EQUIP_TYPES, MERGE_COUNT, GACHA_COST, GACHA10_COST, ENHANCE_PER, CODEX_PER_TYPE, CODEX_ALL,
+  OPTION_SLOTS, OPTION_STATS, OPTION_SET_GRADE, OPTION_SET, OPTION_SET_FULL_GRADE, OPTION_SET_FULL,
+  nextOptionSlotAt } from '../data.js';
 import { fmt, pct } from '../fmt.js';
 import { h, toast, openModal, closeModal, gradeChip } from './common.js';
 
@@ -40,13 +42,34 @@ export function equipTab(app) {
     const bonus = h('div', { class: 'equip-bonus' });
     const codexLv = h('small', { class: 'codex-tag' });
     const enhLv = h('small');
+    const optWrap = h('div', { class: 'opt-wrap' });
+    const optCells = Array.from({ length: OPTION_SLOTS }, (_, i) => {
+      const txt = h('span', { class: 'opt-txt' });
+      const lock = h('button', { class: 'opt-lock', onclick: () => { game.toggleOptionLock(type, i); app.refresh(); } }, '잠금');
+      const cell = h('div', { class: 'opt-cell' }, txt, lock);
+      optWrap.append(cell);
+      return { cell, txt, lock, i };
+    });
+    const optInfo = h('div', { class: 'desc' });
+    const rerollBtn = h('button', { class: 'buy', onclick: () => {
+      const r = game.rerollOptions(type);
+      if (!r) return toast('한철이 부족하거나 아직 칸이 안 열렸어요');
+      app.refresh();
+      return undefined;
+    } });
     const enhBtn = h('button', { class: 'buy', onclick: () => { if (game.enhanceEquip(type, 1)) app.refresh(); } });
     const enh10 = h('button', { class: 'buy', style: 'min-width:56px', onclick: () => { if (game.enhanceEquip(type, 10)) app.refresh(); } }, 'x10');
-    cards[type] = { cells, bonus, def, enhLv, enhBtn, enh10, codexLv };
+    cards[type] = { cells, bonus, def, enhLv, enhBtn, enh10, codexLv, optCells, optInfo, rerollBtn, optWrap };
     root.append(h('div', { class: 'card' },
       h('h3', {}, `${def.icon} ${def.name}`, codexLv, enhLv), grid, bonus,
       h('div', { style: 'display:flex;gap:6px;margin-top:8px;align-items:center' },
-        h('span', { class: 'muted', style: 'flex:1' }, `제련 1단계마다 ${def.label} 배율 +${pct(ENHANCE_PER)}`), enhBtn, enh10)));
+        h('span', { class: 'muted', style: 'flex:1' }, `제련 1단계마다 ${def.label} 배율 +${pct(ENHANCE_PER)}`), enhBtn, enh10),
+      h('div', { class: 'section-title', style: 'margin:12px 2px 6px' }, h('span', {}, '옵션 칸'), optInfo),
+      optWrap,
+      h('div', { style: 'display:flex;gap:6px;margin-top:8px;align-items:center' },
+        h('span', { class: 'muted', style: 'flex:1' },
+          `네 칸을 ${GRADES[OPTION_SET_GRADE].name} 이상으로 채우면 치명 확률 +${pct(OPTION_SET.crit)} · 치명 피해 +${pct(OPTION_SET.critDmg)}`),
+        rerollBtn)));
   }
 
   function doGacha(n) {
@@ -96,6 +119,41 @@ export function equipTab(app) {
       c.bonus.innerHTML = best < 0
         ? '아직 병기가 없어요'
         : `장착(${GRADES[best].name}) <b>+${pct(c.def.equip[best])}</b> · 병기보 <b>+${pct(own)}</b> · 제련 <b>×${(1 + ENHANCE_PER * e).toFixed(2)}</b> → ${c.def.label} <b>×${fmt(game.equipMult(type))}</b>`;
+      // ----- 옵션 칸 -----
+      const slots = game.optionSlots(type);
+      const opts = game.s.options?.[type] || [];
+      const lock = game.s.optionLock?.[type] || [];
+      for (const o of c.optCells) {
+        const open = o.i < slots;
+        const v = open ? opts[o.i] : null;
+        o.cell.classList.toggle('closed', !open);
+        o.cell.classList.toggle('locked', open && !!lock[o.i]);
+        if (!open) {
+          const need = nextOptionSlotAt(game.s.enhance?.[type] || 0);
+          o.txt.innerHTML = `<i>제련 ${need ?? '-'} 단계에 열려요</i>`;
+        } else if (!v) {
+          o.txt.innerHTML = '<i>비어 있음</i>';
+        } else {
+          const sd = OPTION_STATS.find((x) => x.id === v.stat);
+          const amount = sd ? sd.per[v.grade] * (v.roll || 1) : 0;
+          o.txt.innerHTML = `<b style="color:${GRADES[v.grade].color}">${GRADES[v.grade].name}</b> ${sd ? sd.name : v.stat} <b>+${pct(amount)}</b>`;
+        }
+        o.lock.classList.toggle('on', open && !!lock[o.i]);
+        o.lock.disabled = !open || !v;
+        o.lock.textContent = lock[o.i] ? '잠김' : '잠금';
+      }
+      const low = game.optionSetGrade(type);
+      c.optInfo.innerHTML = slots === 0
+        ? '아직 안 열림'
+        : low >= OPTION_SET_FULL_GRADE
+          ? `<b style="color:${GRADES[OPTION_SET_FULL_GRADE].color}">보유 효과 (천품) 켜짐</b>`
+          : low >= OPTION_SET_GRADE
+            ? `<b style="color:${GRADES[OPTION_SET_GRADE].color}">보유 효과 켜짐</b>`
+            : `${slots}/${OPTION_SLOTS}칸`;
+      const rc = game.optionRerollCost(type);
+      c.rerollBtn.textContent = `다시 굴리기 한철 ${fmt(rc)}`;
+      c.rerollBtn.disabled = slots === 0 || game.s.stones < rc;
+
       c.enhBtn.textContent = `한철 ${fmt(game.enhanceCost(type))}`;
       c.enhBtn.disabled = game.s.stones < game.enhanceCost(type);
       c.enh10.disabled = c.enhBtn.disabled;
