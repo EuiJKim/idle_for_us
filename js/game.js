@@ -8,6 +8,7 @@ import {
   optionSlotCount, optionRerollCost, OPTION_SET_GRADE, OPTION_SET, OPTION_SET_FULL_GRADE, OPTION_SET_FULL,
   ACC_SLOTS, ACC_STAR_MAX, ACC_PIERCE_MAX, ACC_MERGE, accPierceCost, accPower,
   ACC_SET_GRADE, ACC_SET, ACC_BOX_RATES,
+  CODEX_KINDS, CODEX_GRADE_MULT, CODEX_KIND_FULL, CODEX_ALL_FULL, codexEntryPower, codexGradeOf,
   expPerKill, expToNext, SP_PER_LEVEL, SP_RESET_GEMS, SP_STATS,
   RANKS, RANK_MULT, TRIAL_TIME, trialBoss,
   PETS, PET_EGG_COST, PET_GRADE_WEIGHT, petFoodCost, PET_DUPLICATE_FOOD, PET_ATTACK_INTERVAL, petDamageMult,
@@ -72,6 +73,8 @@ export function newSave(now = Date.now()) {
     options: Object.fromEntries(Object.keys(EQUIP_TYPES).map((k) => [k, Array(OPTION_SLOTS).fill(null)])),
     optionLock: Object.fromEntries(Object.keys(EQUIP_TYPES).map((k) => [k, Array(OPTION_SLOTS).fill(false)])),
     // 장신구: 자리마다 끼운 것 하나 + 쌓아둔 조각(등급별 개수)
+    // 인물도감: 종류×등급 칸을 한 번이라도 채웠는가 (회귀해도 남는다)
+    lore: Object.fromEntries(CODEX_KINDS.map((k) => [k.id, GRADES.map(() => 0)])),
     acc: Object.fromEntries(ACC_SLOTS.map((a) => [a.id, null])),      // { grade, star, pierce }
     accBag: Object.fromEntries(ACC_SLOTS.map((a) => [a.id, GRADES.map(() => 0)])),
     enhance: Object.fromEntries(Object.keys(EQUIP_TYPES).map((k) => [k, 0])),
@@ -123,6 +126,11 @@ export function migrate(raw, now = Date.now()) {
       for (let g = 0; g <= best; g++) seen[g] = 1;
     }
     s.codex[k] = seen;
+  }
+  s.lore = { ...base.lore };
+  for (const k of CODEX_KINDS) {
+    const src = raw.lore?.[k.id];
+    s.lore[k.id] = GRADES.map((_, i) => (Array.isArray(src) && src[i] ? 1 : 0));
   }
   s.acc = { ...base.acc };
   s.accBag = { ...base.accBag };
@@ -199,6 +207,19 @@ export class Game {
     for (let g = arr.length - 1; g >= 0; g--) if (arr[g] > 0) return g;
     return -1;
   }
+
+  // ---------- 인물도감 ----------
+  // 쓰러뜨린 상대를 기록한다. 한 번 적히면 지워지지 않는다.
+  noteLore(kindId, grade) {
+    const row = this.s.lore?.[kindId];
+    if (!row || grade < 0 || grade >= row.length || row[grade]) return false;
+    row[grade] = 1;
+    this.emit('lore', { kind: kindId, grade });
+    return true;
+  }
+
+  loreCount(kindId) { return (this.s.lore?.[kindId] || []).filter(Boolean).length; }
+  loreFull(kindId) { return (this.s.lore?.[kindId] || []).every((v) => v); }
 
   // ---------- 장신구 ----------
   // 장신구 상자 하나를 연다. 자리는 무작위.
@@ -407,6 +428,24 @@ export class Game {
       const low = this.optionSetGrade(type);
       if (low >= OPTION_SET_GRADE) for (const [k, v] of Object.entries(OPTION_SET)) m[k] += v;
       if (low >= OPTION_SET_FULL_GRADE) for (const [k, v] of Object.entries(OPTION_SET_FULL)) m[k] += v;
+    }
+
+    // 인물도감
+    let loreDone = 0;
+    for (const k of CODEX_KINDS) {
+      const row = this.s.lore?.[k.id] || [];
+      row.forEach((v, g) => {
+        if (!v) return;
+        const add = codexEntryPower(k, g);
+        for (const [kk, vv] of Object.entries(add)) m[kk] += vv;
+      });
+      if (this.loreFull(k.id)) {
+        loreDone++;
+        for (const [kk, vv] of Object.entries(CODEX_KIND_FULL)) m[kk] += vv;
+      }
+    }
+    if (loreDone === CODEX_KINDS.length) {
+      for (const [kk, vv] of Object.entries(CODEX_ALL_FULL)) m[kk] += vv;
     }
 
     // 장신구
@@ -819,6 +858,7 @@ export class Game {
     this.addExp(expPerKill(s) * st.expMul);
     this.s.stats.kills++;
     this.progress('kill');
+    this.noteLore('mob', codexGradeOf(s));
     this.emit('kill', { gold, isBoss: false, add: true, at: a });
     if (!this.s.farming) this.s.kills++;
   }
@@ -860,6 +900,8 @@ export class Game {
     this.s.stats.kills++;
     this.progress('kill');
     this.emit('kill', { gold, isBoss: m.isBoss });
+    // 인물도감에 적는다
+    this.noteLore(m.isBoss ? 'boss' : 'mob', codexGradeOf(s));
     if (m.isBoss) {
       this.s.stats.bossKills++;
       this.progress('boss');
@@ -1134,6 +1176,9 @@ export class Game {
         this.s.daily.keys[c.id]--;
         this.s.dungeons[c.id] = Math.max(this.s.dungeons[c.id] || 0, c.level);
         out.reward = this.grant(dungeonReward(c.id, c.level));
+      }
+      if (result === 'clear' || result === 'win' || result === 'done') {
+        this.noteLore('lord', codexGradeOf(this.s.bestStage));
       }
     } else if (c.mode === 'trial') {
       out.win = result === 'clear';

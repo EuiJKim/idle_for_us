@@ -1,6 +1,7 @@
 // 동료 탭: 영수 / 신물
 import { PETS, GRADES, PET_EGG_COST, OWN_STAT_NAMES, PET_ATTACK_INTERVAL, petDamageMult, RELICS, RELIC_DIG_COST,
-  BOND_PER_LV, BOND_MAX, bondProgress, ENGRAVE_MIN_LV, engraveCost } from '../data.js';
+  BOND_PER_LV, BOND_MAX, bondProgress, ENGRAVE_MIN_LV, engraveCost,
+  CODEX_KINDS, codexEntryPower } from '../data.js';
 import { fmt, pct } from '../fmt.js';
 import { h, toast, openModal, closeModal, subTabs } from './common.js';
 
@@ -148,5 +149,65 @@ export function companionTab(app) {
   return subTabs([
     { key: 'pet', label: '영수', make: () => petView(app) },
     { key: 'relic', label: '신물', make: () => relicView(app) },
+    { key: 'lore', label: '인물도감', make: () => loreCard(app) },
   ]);
+}
+
+// ---------- 인물도감 ----------
+// 쓰러뜨린 상대가 기록으로 남아 상시 효과를 준다. 장착하지 않는다.
+// 근거: 공략의 "모든 등급 피규어를 하나씩 보유만 해도 공격력 14.78배".
+function loreCard(app) {
+  const { game } = app;
+  const rows = {};
+  const total = h('div', { class: 'desc' });
+  const root = h('div', {},
+    h('div', { class: 'section-title', style: 'margin-top:14px' }, h('span', {}, '인물도감'), total),
+    h('p', { class: 'muted', style: 'margin:0 2px 8px' },
+      '한 번 쓰러뜨린 상대는 기록에 남아요. 끼우지 않아도 효과가 붙고, 회귀해도 지워지지 않아요.'));
+
+  for (const k of CODEX_KINDS) {
+    const grid = h('div', { class: 'grades' });
+    const cells = GRADES.map((g, i) => {
+      const mark = h('span', { class: 'g-cnt' });
+      const cell = h('div', { class: 'grade', style: `border-color:${g.color}` },
+        h('span', { style: `color:${g.color};font-weight:800` }, g.name), h('br'), mark);
+      grid.append(cell);
+      return { cell, mark, i };
+    });
+    const sub = h('div', { class: 'desc' });
+    root.append(h('div', { class: 'card' },
+      h('h3', {}, k.name, h('small', { class: 'codex-tag' })), grid, sub));
+    rows[k.id] = { cells, sub, def: k, tag: root.lastChild.querySelector('.codex-tag') };
+  }
+
+  function update() {
+    let done = 0;
+    for (const k of CODEX_KINDS) {
+      const r = rows[k.id];
+      const row = game.s.lore?.[k.id] || [];
+      for (const c of r.cells) {
+        const got = !!row[c.i];
+        c.mark.textContent = got ? '기록' : '—';
+        c.cell.classList.toggle('none', !got);
+        c.cell.classList.toggle('noted', got);
+      }
+      const n = game.loreCount(k.id);
+      const full = game.loreFull(k.id);
+      if (full) done++;
+      r.tag.textContent = `${n}/${GRADES.length}`;
+      r.tag.classList.toggle('full', full);
+      const sum = { atk: 0, hp: 0 };
+      row.forEach((v, g) => {
+        if (!v) return;
+        const add = codexEntryPower(k, g);
+        for (const kk in add) sum[kk] += add[kk];
+      });
+      r.sub.innerHTML = `공격력 <b>+${pct(sum.atk)}</b> · 체력 <b>+${pct(sum.hp)}</b>`
+        + (full ? ` · <b style="color:var(--accent-2)">완성 효과 켜짐</b>` : '');
+    }
+    total.innerHTML = done === CODEX_KINDS.length
+      ? '<b style="color:var(--accent-2)">전부 완성</b>'
+      : `${done}/${CODEX_KINDS.length} 종류 완성`;
+  }
+  return { root, update };
 }

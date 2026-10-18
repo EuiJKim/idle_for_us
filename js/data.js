@@ -325,6 +325,37 @@ export const ACC_SET = { boss: 0.5, gold: 0.3 };
 // 장신구 상자는 두목과 비경에서 나온다
 export const ACC_BOX_RATES = [0.42, 0.27, 0.17, 0.09, 0.04, 0.01];
 
+// ---------- 인물도감 (저쪽의 '피규어') ----------
+// 근거: 공략에서 가장 큰 한 줄. "모든 등급 몬스터·마스터·코스튬 피규어를 하나씩
+// 보유만 하고 레벨을 하나도 안 올렸을 때, 공격력 14.78배 · 생명력 6.13배 ·
+// 방어력 4배." 장착 슬롯 경쟁이 없어서 모으는 것 자체가 성장이고,
+// 그래서 뽑기를 돌릴 이유가 영구히 생긴다. (docs/BladeIdle_설계원리.md 2절)
+//
+// 우리는 '한 번 쓰러뜨린 상대를 기록한다'로 옮긴다. 병기보가 장비 쪽이라면
+// 이건 사람 쪽이다. 기록은 회귀해도 남는다.
+// 수치는 공략의 결과(공격력 14.78배 / 생명력 6.13배)에서 역산했다.
+// 등급 배수 합이 11.55이므로, 종류별 합 x 11.55 + 전체완성 보너스 = 목표 - 1.
+export const CODEX_KINDS = [
+  { id: 'mob', name: '잡졸', mult: { atk: 0.16, hp: 0.07 } },
+  { id: 'boss', name: '관문지기', mult: { atk: 0.29, hp: 0.11 } },
+  { id: 'lord', name: '패왕', mult: { atk: 0.57, hp: 0.18 } },
+];
+// 등급이 높을수록 한 칸이 크다 (범품~천품)
+export const CODEX_GRADE_MULT = [0.35, 0.6, 1, 1.7, 2.9, 5];
+// 한 종류를 등급까지 빠짐없이 채우면 보유 효과
+export const CODEX_KIND_FULL = { crit: 0.04, boss: 0.25 };
+// 세 종류를 전부 채우면 한 번 더
+export const CODEX_ALL_FULL = { atk: 2, hp: 1, gold: 0.5 };
+
+// 인물 한 칸이 주는 값
+export const codexEntryPower = (kind, grade) => {
+  const out = {};
+  for (const [k, v] of Object.entries(kind.mult)) out[k] = v * CODEX_GRADE_MULT[grade];
+  return out;
+};
+// 적이 어느 종류·등급으로 기록되는가 — 관문이 오를수록 높은 등급이 나온다
+export const codexGradeOf = (stage) => Math.min(5, Math.floor(stage / 40));
+
 export const RELIC_DIG_COST = 10; // 신물 조각
 
 // ---------- 무공 ----------
