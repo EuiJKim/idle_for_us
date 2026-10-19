@@ -50,6 +50,9 @@ function spendSlow(now) {
   g.collectMine(now);
   while (g.s.gold > g.mineDepthCost() * 4 && g.digDeeper(now));
   while (g.s.gold > g.mineHandCost() * 4 && g.hireMiner(now));
+  // 탑과 탐색: 열려 있으면 들어간다
+  if (g.mode === 'stage' && g.towerOpen() && !g.towerDone()) g.startTower();
+  if (g.mode === 'stage' && g.canSeek()) g.startSeek(g.huntOpen() ? 'hunt' : 'rift');
   // 그림자 무림: 도전이 남으면 쓰고, 티어 보상은 바로 받는다
   if (g.canShadow() && g.mode === 'stage') g.startShadow();
   if (g.shadowRewardReady()) g.claimShadowRewards();

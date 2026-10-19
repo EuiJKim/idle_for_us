@@ -25,6 +25,9 @@ import {
   WAVE_MAX, waveCount, waveKills, waveDensity,
   SHADOW_TIERS, SHADOW_TRIES, SHADOW_TRY_CAP, SHADOW_TIME, shadowTierOf, shadowStage, weekKey,
   MINE_OPEN_STAGE, MINE_DEPTH_MAX, MINE_HAND_MAX, mineDepthCost, mineHandCost, mineRate, mineCap,
+  TOWER_OPEN_STAGE, TOWER_FLOOR_MAX, TOWER_TIME, towerStage, towerReward, TOWER_PER_FLOOR,
+  SEEK_PER_DAY, SEEK_CAP, RIFT_TIME, HUNT_TIME, RIFT_OPEN_STAGE, HUNT_OPEN_STAGE,
+  riftStage, huntStage, riftReward, huntReward,
   RELICS, RELIC_DIG_COST,
   SKILLS, SKILL_SLOTS, skillBookCost,
   DUNGEONS, DUNGEON_KEYS, DUNGEON_TIME, DUNGEON_MOBS, dungeonStage, dungeonReward,
@@ -93,6 +96,8 @@ export function newSave(now = Date.now()) {
     accBag: Object.fromEntries(ACC_SLOTS.map((a) => [a.id, GRADES.map(() => 0)])),
     enhance: Object.fromEntries(Object.keys(EQUIP_TYPES).map((k) => [k, 0])),
     skills: Object.fromEntries(SKILLS.map((s) => [s.id, 1])),
+    tower: { floor: 0 },   // 오른 층 (한 번 오르면 내려가지 않는다)
+    seek: SEEK_PER_DAY,    // 균열·탐색에 같이 쓰는 패
     // 한철 광맥: 싸우지 않는 동안에도 쌓인다
     mine: { depth: 0, hands: 0, held: 0, at: now },
     // 그림자 무림: 주마다 초기화되는 티어 도전
@@ -148,6 +153,8 @@ export function migrate(raw, now = Date.now()) {
     }
     s.codex[k] = seen;
   }
+  s.tower = { ...base.tower, ...(raw.tower || {}) };
+  s.seek = Number.isFinite(raw.seek) ? raw.seek : SEEK_PER_DAY;
   s.mine = { ...base.mine, ...(raw.mine || {}) };
   if (!s.mine.at) s.mine.at = now;
   s.shadow = { ...base.shadow, ...(raw.shadow || {}) };
@@ -244,6 +251,45 @@ export class Game {
     const arr = this.s.equips[type];
     for (let g = arr.length - 1; g >= 0; g--) if (arr[g] > 0) return g;
     return -1;
+  }
+
+  // ---------- 혈마의 탑 ----------
+  towerOpen() { return this.s.bestStage >= TOWER_OPEN_STAGE; }
+  towerFloor() { return this.s.tower?.floor || 0; }
+  towerNext() { return this.towerFloor() + 1; }
+  towerDone() { return this.towerFloor() >= TOWER_FLOOR_MAX; }
+
+  startTower() {
+    if (!this.towerOpen() || this.towerDone() || this.mode !== 'stage') return false;
+    const f = this.towerNext();
+    const eq = towerStage(f);
+    const hp = monsterHp(eq) * BOSS_HP_MULT * 2;
+    this.beginContest('tower', TOWER_TIME, { floor: f, eq });
+    this.mon = {
+      hp, maxHp: hp, isBoss: true, def: { name: `혈마의 탑 ${f}층 수문장` },
+      atk: monsterAtk(eq) * BOSS_ATK_MULT, atkTimer: 1.1, alive: true, stun: 0, ...this.duelSpot(),
+    };
+    return true;
+  }
+
+  // ---------- 마기 균열 / 비급 탐색 ----------
+  riftOpen() { return this.s.bestStage >= RIFT_OPEN_STAGE; }
+  huntOpen() { return this.s.bestStage >= HUNT_OPEN_STAGE; }
+  canSeek() { return this.mode === 'stage' && (this.s.seek || 0) > 0; }
+
+  startSeek(kind) {
+    const open = kind === 'rift' ? this.riftOpen() : this.huntOpen();
+    if (!open || !this.canSeek()) return false;
+    this.s.seek--;
+    const eq = kind === 'rift' ? riftStage(this.s.bestStage) : huntStage(this.s.bestStage);
+    const hp = monsterHp(eq) * BOSS_HP_MULT * (kind === 'rift' ? 1.1 : 0.9);
+    this.beginContest(kind, kind === 'rift' ? RIFT_TIME : HUNT_TIME, { eq });
+    this.mon = {
+      hp, maxHp: hp, isBoss: true,
+      def: { name: kind === 'rift' ? '균열의 마기' : '보물을 지키는 자' },
+      atk: monsterAtk(eq) * BOSS_ATK_MULT * 0.8, atkTimer: 1.3, alive: true, stun: 0, ...this.duelSpot(),
+    };
+    return true;
   }
 
   // ---------- 한철 광맥 ----------
@@ -747,6 +793,10 @@ export class Game {
       if (low >= OPTION_SET_GRADE) for (const [k, v] of Object.entries(OPTION_SET)) m[k] += v;
       if (low >= OPTION_SET_FULL_GRADE) for (const [k, v] of Object.entries(OPTION_SET_FULL)) m[k] += v;
     }
+
+    // 혈마의 탑 — 오른 층은 영구히 남는다
+    const tf = this.towerFloor();
+    if (tf) for (const [k, v] of Object.entries(TOWER_PER_FLOOR)) m[k] += v * tf;
 
     // 심검
     for (const e of EGO_PARTS) {
@@ -1273,6 +1323,8 @@ export class Game {
     if (this.mode === 'trial') return this.endContest('clear');
     if (this.mode === 'ego') return this.endContest('clear');
     if (this.mode === 'shadow') return this.endContest('clear');
+    if (this.mode === 'tower') return this.endContest('clear');
+    if (this.mode === 'rift' || this.mode === 'hunt') return this.endContest('clear');
     if (this.mode === 'pvp') return this.endContest('win');
 
     const s = this.s.stage;
@@ -1564,6 +1616,25 @@ export class Game {
       }
       if (result === 'clear' || result === 'win' || result === 'done') {
         this.noteLore('lord', codexGradeOf(this.s.bestStage));
+      }
+    } else if (c.mode === 'tower') {
+      if (result === 'clear') {
+        this.s.tower.floor = c.floor;
+        const r = towerReward(c.floor);
+        const boxes = r.accBox || 0;
+        delete r.accBox;
+        this.grant(r);
+        if (boxes) this.openAccBox(boxes);
+        this.emit('towerUp', { floor: c.floor, reward: { ...r, accBox: boxes } });
+      }
+    } else if (c.mode === 'rift' || c.mode === 'hunt') {
+      if (result === 'clear') {
+        const r = c.mode === 'rift' ? riftReward(this.s.bestStage) : huntReward(this.s.bestStage);
+        const boxes = r.accBox || 0;
+        delete r.accBox;
+        this.grant(r);
+        if (boxes) this.openAccBox(boxes);
+        this.emit('seekWin', { kind: c.mode, reward: { ...r, accBox: boxes } });
       }
     } else if (c.mode === 'shadow') {
       if (result === 'clear') {
@@ -2016,6 +2087,7 @@ export class Game {
     }
     this.s.daily.raidTickets = add(kept.raidTickets, RAID_TICKETS, RAID_TICKET_CAP);
     this.s.daily.pvpTickets = add(kept.pvpTickets, PVP_TICKETS, PVP_TICKET_CAP);
+    this.s.seek = Math.min(SEEK_CAP, (this.s.seek || 0) + SEEK_PER_DAY * days);
     if (this.s.shadow) {
       this.s.shadow.tries = add(this.s.shadow.tries, SHADOW_TRIES, SHADOW_TRY_CAP);
       this.checkShadowWeek(now);

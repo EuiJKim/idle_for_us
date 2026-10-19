@@ -110,6 +110,56 @@ export function weekKey(t = Date.now()) {
   return new Date(mon).toISOString().slice(0, 10);
 }
 
+// ---------- 혈마의 탑 / 마기 균열 / 비급 탐색 ----------
+// 근거: CurseTable(저주탑), Rift*Table(균열), Treasurehunt*Table(보물찾기).
+// APK에서 저주탑은 보스 수치가 들어 있는 유일한 콘텐츠였다 —
+// 240층(12챕터 x 20층), 45초 고정, 층마다 HP가 3~90배로 뛴다.
+// 메인과 달리 매끈한 지수가 아니라 손으로 깎은 벽이다.
+// 균열은 25초, 보물찾기는 30초로 둘 다 짧다.
+
+export const TOWER_OPEN_STAGE = 70;
+export const TOWER_FLOOR_MAX = 240;      // 저쪽과 같은 층수
+export const TOWER_TIME = 45;            // 저쪽과 같은 제한시간
+// 층이 요구하는 관문급. 20층마다 한 단(챕터)이고 단이 바뀔 때 더 가파르다.
+export const towerStage = (floor) =>
+  Math.max(1, Math.round(28 + floor * 3.1 + Math.floor(floor / 20) * 14));
+// 층 보상
+export function towerReward(floor) {
+  const band = Math.floor(floor / 20);
+  // 층당 증가율을 얕게 잡는다. 1.11로 두자 12시간 도달 관문이
+  // 370에서 455로 튀었다 — 탑 하나가 다른 축을 전부 눌렀다.
+  const r = {
+    gems: Math.ceil(200 * Math.pow(1.075, floor)),
+    stones: Math.ceil(120 * Math.pow(1.07, floor)),
+    books: Math.ceil(60 * Math.pow(1.07, floor)),
+  };
+  if (floor % 20 === 0) r.accBox = 2 + band;   // 단이 바뀌는 층에서 크게
+  return r;
+}
+// 오른 층마다 영구히 붙는 효과 (탑은 한 번 오르면 내려가지 않는다)
+export const TOWER_PER_FLOOR = { atk: 0.02, hp: 0.015 };
+
+// 균열과 탐색은 '탐색패' 하나를 같이 쓴다. 자원 종류를 늘리지 않으려는 것.
+export const SEEK_PER_DAY = 3;
+export const SEEK_CAP = 12;
+export const RIFT_TIME = 25;             // 저쪽과 같다
+export const HUNT_TIME = 30;             // 저쪽과 같다
+export const RIFT_OPEN_STAGE = 45;
+export const HUNT_OPEN_STAGE = 55;
+// 둘 다 '지금 내 최고 관문'에 맞춰 상대가 나온다
+export const riftStage = (bestStage) => Math.max(1, Math.round(bestStage * 0.88));
+export const huntStage = (bestStage) => Math.max(1, Math.round(bestStage * 0.8));
+export const riftReward = (bestStage) => ({
+  gems: Math.ceil(300 + bestStage * 6),
+  relicShards: Math.ceil(8 + bestStage * 0.12),
+  books: Math.ceil(80 + bestStage * 2.2),
+});
+export const huntReward = (bestStage) => ({
+  gold: monsterGold(bestStage) * 900,
+  stones: Math.ceil(150 + bestStage * 3.5),
+  accBox: 1,
+});
+
 export const RAID_TIME = 30;
 export const RAID_TICKETS = 3;
 export const RAID_HP_SECONDS = 60; // 토벌 두목 HP = 문파원 DPS 합 × 이 값

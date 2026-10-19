@@ -1,8 +1,11 @@
 // 수련터 탭
 import { DUNGEONS, DUNGEON_KEYS, DUNGEON_TIME, DUNGEON_MOBS, dungeonReward,
   DUNGEON_KEY_CAP, nextDungeonTier, DUNGEON_TIER_MULT,
-  MINE_OPEN_STAGE, MINE_DEPTH_MAX, MINE_HAND_MAX, MINE_CAP_HOURS } from '../data.js';
-import { fmt } from '../fmt.js';
+  MINE_OPEN_STAGE, MINE_DEPTH_MAX, MINE_HAND_MAX, MINE_CAP_HOURS,
+  TOWER_OPEN_STAGE, TOWER_FLOOR_MAX, TOWER_TIME, towerStage, towerReward, TOWER_PER_FLOOR,
+  SEEK_CAP, RIFT_TIME, HUNT_TIME, RIFT_OPEN_STAGE, HUNT_OPEN_STAGE,
+  riftStage, huntStage, riftReward, huntReward } from '../data.js';
+import { fmt, pct } from '../fmt.js';
 import { h, rewardText, toast, subTabs } from './common.js';
 
 function dungeonView(app) {
@@ -117,9 +120,99 @@ function mineView(app) {
   return { root, update };
 }
 
+
+// ---------- 혈마의 탑 ----------
+// 한 번 오른 층은 내려가지 않고 영구 효과가 붙는다.
+// 근거: CurseTable — APK에서 보스 수치가 들어 있던 유일한 콘텐츠.
+// 240층, 45초 고정, 층마다 벽이 가파르다.
+function towerView(app) {
+  const { game } = app;
+  const head = h('div', { class: 'desc' });
+  const rew = h('div', { class: 'desc' });
+  const perk = h('div', { class: 'desc' });
+  const goBtn = h('button', { class: 'btn primary', style: 'width:100%;margin-top:8px' });
+  goBtn.addEventListener('click', () => {
+    if (game.startTower()) app.refresh();
+    else toast('아직 안 열렸거나 다른 싸움 중이에요');
+  });
+  const root = h('div', {},
+    h('p', { class: 'muted', style: 'margin:2px 2px 8px' },
+      `${TOWER_TIME}초 안에 수문장을 잡으면 한 층 올라요. 오른 층은 내려가지 않고 영구 효과가 붙어요.`),
+    h('div', { class: 'card' }, head, rew, perk, goBtn));
+
+  function update() {
+    const open = game.towerOpen();
+    const f = game.towerFloor();
+    const nx = game.towerNext();
+    const done = game.towerDone();
+    head.innerHTML = !open
+      ? `관문 ${TOWER_OPEN_STAGE}에 열려요`
+      : done ? `<b>${TOWER_FLOOR_MAX}층 — 끝까지 올랐어요</b>`
+        : `지금 <b>${f}층</b> / ${TOWER_FLOOR_MAX} · 다음 ${nx}층은 <b>${towerStage(nx)}관문급</b>`;
+    rew.innerHTML = open && !done ? `${nx}층 보상 ${rewardText(towerReward(nx))}`
+      + (towerReward(nx).accBox ? ` · 장신구 상자 ${towerReward(nx).accBox}` : '') : '';
+    perk.innerHTML = f
+      ? `지금까지 오른 ${f}층 — 공격력 <b>+${pct(TOWER_PER_FLOOR.atk * f)}</b> · 체력 <b>+${pct(TOWER_PER_FLOOR.hp * f)}</b>`
+      : '';
+    goBtn.textContent = done ? '끝까지 올랐어요' : !open ? '아직 안 열림' : `${nx}층 오르기`;
+    goBtn.disabled = !open || done || game.mode !== 'stage';
+  }
+  return { root, update };
+}
+
+// ---------- 마기 균열 / 비급 탐색 ----------
+// 둘 다 짧고, 패 하나를 같이 쓴다.
+function seekView(app) {
+  const { game } = app;
+  const seekEl = h('div', { class: 'desc' });
+  const cards = {};
+  const root = h('div', {},
+    h('p', { class: 'muted', style: 'margin:2px 2px 8px' },
+      `짧은 도전이에요. 균열은 ${RIFT_TIME}초, 탐색은 ${HUNT_TIME}초. 탐색패를 같이 써요.`),
+    seekEl);
+
+  for (const k of [
+    { id: 'rift', name: '마기 균열', open: RIFT_OPEN_STAGE, time: RIFT_TIME, stage: riftStage, reward: riftReward,
+      desc: '원보와 신물 조각, 비급을 줘요' },
+    { id: 'hunt', name: '비급 탐색', open: HUNT_OPEN_STAGE, time: HUNT_TIME, stage: huntStage, reward: huntReward,
+      desc: '은자와 한철, 장신구 상자를 줘요' },
+  ]) {
+    const info = h('div', { class: 'desc' });
+    const btn = h('button', { class: 'btn primary', style: 'width:100%;margin-top:8px' });
+    btn.addEventListener('click', () => {
+      if (game.startSeek(k.id)) app.refresh();
+      else toast('탐색패가 없거나 아직 안 열렸어요');
+    });
+    root.append(h('div', { class: 'card' }, h('h3', {}, k.name), info, btn));
+    cards[k.id] = { info, btn, def: k };
+  }
+
+  function update() {
+    seekEl.innerHTML = `남은 탐색패 <b>${game.s.seek || 0}</b> / ${SEEK_CAP}`;
+    for (const id of Object.keys(cards)) {
+      const c = cards[id];
+      const k = c.def;
+      const open = id === 'rift' ? game.riftOpen() : game.huntOpen();
+      const r = k.reward(game.s.bestStage);
+      const boxes = r.accBox || 0;
+      const shown = { ...r };
+      delete shown.accBox;
+      c.info.innerHTML = !open
+        ? `관문 ${k.open}에 열려요`
+        : `${k.stage(game.s.bestStage)}관문급 · ${k.time}초<br>${rewardText(shown)}`
+          + (boxes ? ` · 장신구 상자 ${boxes}` : '');
+      c.btn.textContent = open ? `${k.name} 들어가기` : '아직 안 열림';
+      c.btn.disabled = !open || !game.canSeek();
+    }
+  }
+  return { root, update };
+}
+
 export function dungeonTab(app) {
   return subTabs([
     { key: 'dungeon', label: '수련터', make: () => dungeonView(app) },
     { key: 'mine', label: '광맥', make: () => mineView(app) },
+    { key: 'tower', label: '탑', make: () => towerView(app) },
+    { key: 'seek', label: '탐색', make: () => seekView(app) },
   ]);
 }
