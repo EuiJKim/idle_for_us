@@ -108,7 +108,7 @@ $('btn-settings').addEventListener('click', openSettings);
 $('btn-missions').addEventListener('click', () => openMissions(app));
 
 // ---------- 화면 갱신 ----------
-const MODE_TITLE = { raid: '혈마 토벌', trial: '심마 대결', pvp: '겨루기', dungeon: '수련터', ego: '심검 승급' };
+const MODE_TITLE = { raid: '혈마 토벌', trial: '심마 대결', pvp: '겨루기', dungeon: '수련터', ego: '심검 승급', shadow: '그림자 무림' };
 function refreshUI(full = false) {
   const s = game.s;
   const c = game.contest;

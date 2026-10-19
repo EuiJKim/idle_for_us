@@ -73,6 +73,43 @@ export const waveDensity = (wave, total) => 0.7 + 0.3 * (total <= 1 ? 1 : wave /
 
 export const BOSS_TIME = 30;
 export const SPAWN_DELAY = 0.45;
+// ---------- 그림자 무림 (저쪽의 '도플갱어') ----------
+// 근거: DoppelgangerTable, DoppelTierTable, DoppelTierRewardTable.
+// 공략: "매주 컨텐츠를 꼬박꼬박 진행만 해주셔도 골드티어까지는 확정적으로
+// 가실 수 있어서 매주 신화4·갓4·갓3등급 선택상자를 하나씩 받을 수 있습니다.
+// 매주 티어가 초기화되어 월요일에는 처음부터 다시 보상을 획득하실 수 있으니
+// 꼭 잊지 마세요!"  그리고 "랭킹이 오를수록 난이도가 낮은 도플갱어가 등장할
+// 확률이 높아지는 구조" — 즉 올라갈수록 쉬워지는 역-난이도 곡선이다.
+export const SHADOW_TIERS = [
+  { id: 'iron', name: '무명', need: 0, reward: { stones: 2000, books: 300 } },
+  { id: 'bronze', name: '삼류', need: 2, reward: { stones: 6000, books: 900, accBox: 1 } },
+  { id: 'silver', name: '이류', need: 5, reward: { stones: 18000, books: 2500, accBox: 2 } },
+  { id: 'gold', name: '일류', need: 9, reward: { stones: 55000, books: 7000, accBox: 3, gems: 3000 } },
+  { id: 'jade', name: '절정', need: 14, reward: { stones: 160000, books: 20000, accBox: 5, gems: 8000 } },
+  { id: 'black', name: '초절정', need: 20, reward: { stones: 480000, books: 60000, accBox: 8, gems: 20000 } },
+];
+export const SHADOW_TRIES = 3;        // 하루에 쓸 수 있는 도전 수
+export const SHADOW_TRY_CAP = 12;     // 쌓이는 상한
+export const SHADOW_TIME = 40;
+// 이긴 횟수로 티어가 정해진다
+export const shadowTierOf = (wins) => {
+  let i = 0;
+  SHADOW_TIERS.forEach((t2, idx) => { if (wins >= t2.need) i = idx; });
+  return i;
+};
+export const nextShadowTier = (wins) => SHADOW_TIERS.find((t2) => wins < t2.need) ?? null;
+// 상대 세기. 이길수록 조금씩 세지지만, 티어가 오르면 되레 완만해진다.
+// 공략의 "랭킹이 오를수록 난이도가 낮은 도플갱어가 나온다"를 옮긴 것.
+export const shadowStage = (bestStage, wins) =>
+  Math.max(1, Math.round(bestStage * (0.62 + wins * 0.035) * (1 - shadowTierOf(wins) * 0.045)));
+// 월요일 기준 주차 키
+export function weekKey(t = Date.now()) {
+  const d = new Date(t);
+  const day = (d.getUTCDay() + 6) % 7;            // 월=0
+  const mon = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()) - day * 86400000;
+  return new Date(mon).toISOString().slice(0, 10);
+}
+
 export const RAID_TIME = 30;
 export const RAID_TICKETS = 3;
 export const RAID_HP_SECONDS = 60; // 토벌 두목 HP = 문파원 DPS 합 × 이 값

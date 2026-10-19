@@ -2,6 +2,7 @@
 import {
   GRADES, EQUIP_TYPES, SKILLS, RANKS, PETS, RAID_TICKETS, PVP_TICKETS,
   guildLevel, guildAtkBonus, GUILD_DONATE_GEMS, GUILD_DONATE_EXP, GUILD_CHECKIN_EXP, GUILD_MAX, raidReward,
+  SHADOW_TIERS, SHADOW_TRY_CAP, nextShadowTier, shadowStage,
 } from '../data.js';
 import { fmt, pct, ago } from '../fmt.js';
 import { dayKey } from '../game.js';
@@ -338,10 +339,78 @@ function guildView(app) {
 }
 
 
+
+// ---------- 그림자 무림 ----------
+// 주마다 티어가 초기화된다. 올라갈수록 상대가 되레 완만해진다.
+// 근거: DoppelTierTable + 공략 "랭킹이 오를수록 난이도가 낮은 도플갱어가
+// 등장할 확률이 높아지는 구조", "매주 티어가 초기화되어 월요일에 다시 받는다"
+function shadowView(app) {
+  const { game } = app;
+  const head = h('div', { class: 'desc' });
+  const tierWrap = h('div', {});
+  const rows = SHADOW_TIERS.map((tier, i) => {
+    const mark = h('span', { class: 'g-cnt' });
+    const name = h('b');
+    const rew = h('span', { class: 'desc' });
+    const row = h('div', { class: 'row shadow-row' },
+      h('div', { class: 'ico' }, mark),
+      h('div', { style: 'flex:1;min-width:0' }, name, rew));
+    tierWrap.append(row);
+    return { row, mark, name, rew, tier, i };
+  });
+  const goBtn = h('button', { class: 'btn primary', style: 'width:100%' });
+  goBtn.addEventListener('click', () => {
+    if (game.startShadow()) app.refresh();
+    else toast('오늘 도전이 남아있지 않거나 다른 싸움 중이에요');
+  });
+  const claimBtn = h('button', { class: 'buy', style: 'width:100%;margin-top:8px' });
+  claimBtn.addEventListener('click', () => {
+    const got = game.claimShadowRewards();
+    if (!got) return toast('아직 받을 보상이 없어요');
+    toast('티어 보상을 받았어요');
+    app.refresh();
+    return undefined;
+  });
+
+  const root = h('div', {},
+    h('p', { class: 'muted', style: 'margin:2px 2px 8px' },
+      '내 그림자와 겨뤄요. 이길수록 티어가 오르고, 티어가 오를수록 상대가 되레 완만해져요. '
+      + '월요일마다 처음부터 다시 시작해요.'),
+    h('div', { class: 'card' }, head, goBtn, claimBtn),
+    h('div', { class: 'section-title', style: 'margin-top:12px' }, h('span', {}, '티어 보상')),
+    tierWrap);
+
+  function update() {
+    const s = game.s.shadow || { wins: 0, tries: 0, taken: -1 };
+    const cur = game.shadowTier();
+    const nx = nextShadowTier(s.wins || 0);
+    head.innerHTML = `이번 주 <b>${s.wins || 0}승</b> · 지금 <b style="color:var(--accent-2)">${SHADOW_TIERS[cur].name}</b>`
+      + (nx ? ` · ${nx.name}까지 ${nx.need - (s.wins || 0)}승` : ' · 끝까지 올랐어요')
+      + `<br>남은 도전 ${s.tries || 0} / ${SHADOW_TRY_CAP} · 상대는 ${shadowStage(game.s.bestStage, s.wins || 0)}관문급`;
+    goBtn.textContent = `그림자와 겨루기 (${s.tries || 0}회 남음)`;
+    goBtn.disabled = !game.canShadow();
+    const ready = game.shadowRewardReady();
+    claimBtn.textContent = ready ? '티어 보상 받기' : '받을 보상 없음';
+    claimBtn.disabled = !ready;
+    claimBtn.classList.toggle('ready', ready);
+    for (const r of rows) {
+      const reached = cur >= r.i;
+      const taken = (s.taken ?? -1) >= r.i;
+      r.row.style.opacity = reached ? '' : '0.5';
+      r.mark.textContent = taken ? '받음' : reached ? '대기' : `${r.tier.need}승`;
+      r.name.textContent = r.tier.name;
+      r.rew.innerHTML = '<br>' + rewardText(r.tier.reward)
+        + (r.tier.reward.accBox ? ` · 장신구 상자 ${r.tier.reward.accBox}` : '');
+    }
+  }
+  return { root, update };
+}
+
 export function socialTab(app) {
   return subTabs([
     { key: 'rank', label: '서열', make: () => rankView(app) },
     { key: 'pvp', label: '비무대', make: () => pvpView(app) },
     { key: 'guild', label: '문파', make: () => guildView(app) },
+    { key: 'shadow', label: '그림자', make: () => shadowView(app) },
   ]);
 }

@@ -46,6 +46,9 @@ function spendSlow() {
     if (g.canAccGrade(a2.id)) { g.accGradeUp(a2.id); while (g.accStarUp(a2.id)); }
     while (g.s.stones > g.accPierceCost(a2.id) * 3 && g.accPierce(a2.id));
   }
+  // 그림자 무림: 도전이 남으면 쓰고, 티어 보상은 바로 받는다
+  if (g.canShadow() && g.mode === 'stage') g.startShadow();
+  if (g.shadowRewardReady()) g.claimShadowRewards();
   // 심검: 남는 상위 장비를 먹이고, 차면 승급에 도전한다
   for (const e of EGO_PARTS) {
     if (!g.egoOpen(e.id)) continue;

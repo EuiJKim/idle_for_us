@@ -23,6 +23,7 @@ import {
   MELEE_RANGE, HERO_SPEED, MOB_SPEED, MOB_SEPARATION, FIELD_ASPECT, FIELD_SQUASH, MOB_SPAWN_NEAR, MOB_SPAWN_FAR,
   refillRate, fieldRadius, MAX_ATTACKERS, FIELD_WIDE, FIELD_TALL, isWallStage,
   WAVE_MAX, waveCount, waveKills, waveDensity,
+  SHADOW_TIERS, SHADOW_TRIES, SHADOW_TRY_CAP, SHADOW_TIME, shadowTierOf, shadowStage, weekKey,
   RELICS, RELIC_DIG_COST,
   SKILLS, SKILL_SLOTS, skillBookCost,
   DUNGEONS, DUNGEON_KEYS, DUNGEON_TIME, DUNGEON_MOBS, dungeonStage, dungeonReward,
@@ -91,6 +92,8 @@ export function newSave(now = Date.now()) {
     accBag: Object.fromEntries(ACC_SLOTS.map((a) => [a.id, GRADES.map(() => 0)])),
     enhance: Object.fromEntries(Object.keys(EQUIP_TYPES).map((k) => [k, 0])),
     skills: Object.fromEntries(SKILLS.map((s) => [s.id, 1])),
+    // 그림자 무림: 주마다 초기화되는 티어 도전
+    shadow: { week: '', wins: 0, tries: SHADOW_TRIES, taken: -1 },
     // 심검: 장비를 먹여 키우는 전용 무기. { step, exp, ready }
     ego: Object.fromEntries(EGO_PARTS.map((e) => [e.id, { step: 0, exp: 0 }])),
     skillPierce: {},   // 무공별 초월 단계
@@ -142,6 +145,7 @@ export function migrate(raw, now = Date.now()) {
     }
     s.codex[k] = seen;
   }
+  s.shadow = { ...base.shadow, ...(raw.shadow || {}) };
   s.ego = { ...base.ego };
   for (const e of EGO_PARTS) {
     const src = raw.ego?.[e.id];
@@ -235,6 +239,66 @@ export class Game {
     const arr = this.s.equips[type];
     for (let g = arr.length - 1; g >= 0; g--) if (arr[g] > 0) return g;
     return -1;
+  }
+
+  // ---------- 그림자 무림 ----------
+  // 주가 바뀌면 티어가 초기화된다. 공략: "매주 티어가 초기화되어 월요일에는
+  // 처음부터 다시 보상을 획득하실 수 있으니 꼭 잊지 마세요"
+  checkShadowWeek(now = Date.now()) {
+    const wk = weekKey(now);
+    const s = this.s.shadow;
+    if (s.week === wk) return false;
+    s.week = wk;
+    s.wins = 0;
+    s.taken = -1;
+    return true;
+  }
+
+  shadowTier() { return shadowTierOf(this.s.shadow?.wins || 0); }
+
+  // 아직 안 받은 티어 보상이 있는가
+  shadowRewardReady() {
+    const s = this.s.shadow;
+    return !!s && this.shadowTier() > (s.taken ?? -1);
+  }
+
+  claimShadowRewards() {
+    const s = this.s.shadow;
+    if (!this.shadowRewardReady()) return null;
+    const total = {};
+    let boxes = 0;
+    while ((s.taken ?? -1) < this.shadowTier()) {
+      s.taken = (s.taken ?? -1) + 1;
+      const r = SHADOW_TIERS[s.taken].reward;
+      for (const [k, v] of Object.entries(r)) {
+        if (k === 'accBox') { boxes += v; continue; }
+        total[k] = (total[k] || 0) + v;
+      }
+    }
+    this.grant(total);
+    if (boxes) this.openAccBox(boxes);
+    return { ...total, accBox: boxes };
+  }
+
+  canShadow() {
+    return this.mode === 'stage' && (this.s.shadow?.tries || 0) > 0;
+  }
+
+  startShadow() {
+    if (!this.canShadow()) return false;
+    this.s.shadow.tries--;
+    const wins = this.s.shadow.wins || 0;
+    const eq = shadowStage(this.s.bestStage, wins);
+    const hp = monsterHp(eq) * BOSS_HP_MULT * 1.6;
+    this.beginContest('shadow', SHADOW_TIME, { eq });
+    this.mon = {
+      hp, maxHp: hp, isBoss: true, isHero: true, rank: this.s.rank,
+      name: `그림자 ${this.s.nickname || '무인'}`,
+      weaponGrade: this.bestGrade('weapon'),
+      atk: monsterAtk(eq) * BOSS_ATK_MULT * 0.9, atkTimer: 1.1,
+      crit: 0.15, critDmg: 1.8, alive: true, stun: 0, ...this.duelSpot(),
+    };
+    return true;
   }
 
   // ---------- 심검 ----------
@@ -1148,6 +1212,8 @@ export class Game {
       return undefined;
     }
     if (this.mode === 'trial') return this.endContest('clear');
+    if (this.mode === 'ego') return this.endContest('clear');
+    if (this.mode === 'shadow') return this.endContest('clear');
     if (this.mode === 'pvp') return this.endContest('win');
 
     const s = this.s.stage;
@@ -1439,6 +1505,11 @@ export class Game {
       }
       if (result === 'clear' || result === 'win' || result === 'done') {
         this.noteLore('lord', codexGradeOf(this.s.bestStage));
+      }
+    } else if (c.mode === 'shadow') {
+      if (result === 'clear') {
+        this.s.shadow.wins = (this.s.shadow.wins || 0) + 1;
+        this.emit('shadowWin', { wins: this.s.shadow.wins, tier: this.shadowTier() });
       }
     } else if (c.mode === 'ego') {
       if (result === 'clear') {
@@ -1886,6 +1957,10 @@ export class Game {
     }
     this.s.daily.raidTickets = add(kept.raidTickets, RAID_TICKETS, RAID_TICKET_CAP);
     this.s.daily.pvpTickets = add(kept.pvpTickets, PVP_TICKETS, PVP_TICKET_CAP);
+    if (this.s.shadow) {
+      this.s.shadow.tries = add(this.s.shadow.tries, SHADOW_TRIES, SHADOW_TRY_CAP);
+      this.checkShadowWeek(now);
+    }
     this.s.gems += DAILY_GEMS * days;
     // 연공 일지: 어제 받았으면 이어지고, 하루라도 건너뛰면 처음부터
     const a = this.s.attend;
