@@ -1,7 +1,8 @@
 // 무공 탭: 비급으로 연마, 4칸 장착
-import { SKILLS, SKILL_SLOTS } from '../data.js';
+import { SKILLS, SKILL_SLOTS, SKILL_PIERCE_MAX, SKILL_PIERCE_AT, SKILL_PIERCE_MULT,
+  skillTotalBonus, nextSkillTotalStep } from '../data.js';
 import { fmt } from '../fmt.js';
-import { h, openModal, closeModal } from './common.js';
+import { h, openModal, closeModal, toast } from './common.js';
 
 export function skillTab(app) {
   const { game } = app;
@@ -9,11 +10,18 @@ export function skillTab(app) {
   const books = h('b', { style: 'color:#fca5a5' });
   const autoBtn = h('button', { class: 'btn', style: 'padding:6px 10px', onclick: () => { game.s.autoSkill = !game.s.autoSkill; app.refresh(); } });
   const slotsEl = h('div', { class: 'slots' });
+  const totalLv = h('small');
+  const totalInfo = h('div', { class: 'desc' });
   const root = h('div', {},
     h('div', { class: 'card' },
       h('h3', {}, '장착 무공', autoBtn),
       slotsEl,
-      h('p', { class: 'muted', style: 'margin:8px 0 0' }, '비급 ', books, '개 · 두목를 잡거나 의뢰을 깨면 얻어요')));
+      h('p', { class: 'muted', style: 'margin:8px 0 0' }, '비급 ', books, '개 · 두목를 잡거나 의뢰을 깨면 얻어요')),
+    h('div', { class: 'card' },
+      h('h3', {}, '무공 총 연마', totalLv),
+      totalInfo,
+      h('p', { class: 'muted', style: 'margin:8px 0 0' },
+        '모든 무공 레벨을 더한 값에 보너스가 붙어요. 칸은 넷뿐이지만 안 쓰는 무공을 올릴 이유가 돼요.')));
 
   SKILLS.forEach((sk) => {
     const lv = h('small');
@@ -21,11 +29,15 @@ export function skillTab(app) {
     const eq = h('button', { class: 'btn', style: 'padding:6px 8px;font-size:12px' });
     eq.onclick = () => toggleEquip(sk);
     const btn = h('button', { class: 'buy', onclick: () => { if (game.upgradeSkill(sk.id)) app.refresh(); } });
-    rows[sk.id] = { lv, desc, btn, eq, row: null };
+    const pierce = h('button', { class: 'buy', style: 'font-size:11px', onclick: () => {
+      if (game.skillPierce(sk.id)) app.refresh();
+      else toast(`${SKILL_PIERCE_AT}레벨부터 초월할 수 있고 비급이 필요해요`);
+    } });
+    rows[sk.id] = { lv, desc, btn, eq, pierce, row: null };
     rows[sk.id].row = h('div', { class: 'row' },
       h('div', { class: 'ico' }, sk.icon),
       h('div', { class: 'info' }, h('div', { class: 'name' }, sk.name, lv), desc),
-      h('div', { style: 'display:flex;flex-direction:column;gap:6px;align-items:stretch' }, btn, eq));
+      h('div', { style: 'display:flex;flex-direction:column;gap:6px;align-items:stretch' }, btn, pierce, eq));
     root.append(rows[sk.id].row);
   });
 
@@ -52,6 +64,14 @@ export function skillTab(app) {
     autoBtn.textContent = game.s.autoSkill ? '자동 ON' : '자동 OFF';
     autoBtn.classList.toggle('good', game.s.autoSkill);
     books.textContent = fmt(game.s.books);
+    const tot = game.skillTotalLevel();
+    const tb = skillTotalBonus(tot);
+    const nx = nextSkillTotalStep(tot);
+    totalLv.textContent = `합계 ${tot}`;
+    totalInfo.innerHTML = `공격력 <b>+${Math.round(tb.atk * 100)}%</b>`
+      + (tb.crit ? ` · 치명 확률 <b>+${(tb.crit * 100).toFixed(0)}%p</b>` : '')
+      + (tb.critDmg ? ` · 치명 피해 <b>+${Math.round(tb.critDmg * 100)}%p</b>` : '')
+      + (nx ? `<br><span class="tier-hint">합계 ${nx.at}에서 공격력 +${Math.round(nx.atk * 100)}% — ${nx.at - tot} 남음</span>` : '');
     const sig = game.s.skillSlots.join(',');
     if (sig !== slotSig) {
       slotSig = sig;
@@ -67,9 +87,19 @@ export function skillTab(app) {
       const equipped = game.s.skillSlots.includes(sk.id);
       r.row.style.opacity = unlocked ? '' : '0.5';
       r.lv.textContent = unlocked ? `Lv.${l}` : `관문 ${sk.unlock} 해금`;
-      r.desc.innerHTML = `${sk.desc(sk.mult(l))} · 쿨 ${sk.cd}초<br>다음: <b>${sk.desc(sk.mult(l + 1))}</b>`;
+      const pi = game.skillPierceOf(sk.id);
+      const boost = 1 + SKILL_PIERCE_MULT * pi;
+      r.desc.innerHTML = `${sk.desc(sk.mult(l) * boost, l)} · 쿨 ${sk.cd}초`
+        + (pi ? ` · <b style="color:var(--accent-2)">${pi}초월</b>` : '')
+        + `<br>다음: <b>${sk.desc(sk.mult(l + 1) * boost, l + 1)}</b>`;
       r.btn.textContent = `비급 ${game.skillUpgradeCost(sk.id)}`;
       r.btn.disabled = !unlocked || game.s.books < game.skillUpgradeCost(sk.id);
+      const canP = game.canSkillPierce(sk.id);
+      const pcost = game.skillPierceCost(sk.id);
+      r.pierce.textContent = pi >= SKILL_PIERCE_MAX ? '초월 최대'
+        : l < SKILL_PIERCE_AT ? `초월 Lv.${SKILL_PIERCE_AT}`
+          : `초월 비급 ${fmt(pcost)}`;
+      r.pierce.disabled = !canP || game.s.books < pcost;
       r.eq.textContent = equipped ? '해제' : '장착';
       r.eq.disabled = !unlocked;
       r.eq.classList.toggle('good', equipped);

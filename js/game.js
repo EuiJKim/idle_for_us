@@ -11,6 +11,7 @@ import {
   CODEX_KINDS, CODEX_GRADE_MULT, CODEX_KIND_FULL, CODEX_ALL_FULL, codexEntryPower, codexGradeOf,
   OUTFITS, OUTFIT_ALL,
   GACHA_KINDS, GACHA_LV_MAX, gachaLvNeed, gachaMaxGrade, GACHA_LV_TILT, gachaLvReward,
+  SKILL_PIERCE_MAX, SKILL_PIERCE_AT, SKILL_PIERCE_MULT, skillPierceCost, skillTotalBonus,
   expPerKill, expToNext, SP_PER_LEVEL, SP_RESET_GEMS, SP_STATS,
   RANKS, RANK_MULT, TRIAL_TIME, trialBoss,
   PETS, PET_EGG_COST, PET_GRADE_WEIGHT, petFoodCost, PET_DUPLICATE_FOOD, PET_ATTACK_INTERVAL, petDamageMult,
@@ -85,6 +86,7 @@ export function newSave(now = Date.now()) {
     accBag: Object.fromEntries(ACC_SLOTS.map((a) => [a.id, GRADES.map(() => 0)])),
     enhance: Object.fromEntries(Object.keys(EQUIP_TYPES).map((k) => [k, 0])),
     skills: Object.fromEntries(SKILLS.map((s) => [s.id, 1])),
+    skillPierce: {},   // 무공별 초월 단계
     skillSlots: ['slash', null, null, null],
     autoSkill: true,
     pets: {},
@@ -133,6 +135,7 @@ export function migrate(raw, now = Date.now()) {
     }
     s.codex[k] = seen;
   }
+  s.skillPierce = { ...(raw.skillPierce || {}) };
   s.gacha = { ...base.gacha };
   for (const k of GACHA_KINDS) {
     const g2 = raw.gacha?.[k.id];
@@ -220,6 +223,37 @@ export class Game {
     const arr = this.s.equips[type];
     for (let g = arr.length - 1; g >= 0; g--) if (arr[g] > 0) return g;
     return -1;
+  }
+
+  // ---------- 무공 초월 / 총 레벨 ----------
+  skillTotalLevel() {
+    return SKILLS.reduce((a, sk) => a + (this.s.skills[sk.id] || 0), 0);
+  }
+
+  skillPierceOf(id) { return this.s.skillPierce?.[id] || 0; }
+
+  canSkillPierce(id) {
+    const sk = SKILLS.find((x) => x.id === id);
+    if (!sk || !this.skillUnlocked(sk)) return false;
+    if ((this.s.skills[id] || 0) < SKILL_PIERCE_AT) return false;
+    return this.skillPierceOf(id) < SKILL_PIERCE_MAX;
+  }
+
+  skillPierceCost(id) { return skillPierceCost(this.skillPierceOf(id)); }
+
+  skillPierce(id) {
+    if (!this.canSkillPierce(id)) return false;
+    const cost = this.skillPierceCost(id);
+    if (this.s.books < cost) return false;
+    this.s.books -= cost;
+    this.s.skillPierce[id] = this.skillPierceOf(id) + 1;
+    return true;
+  }
+
+  // 초월이 붙은 최종 배율
+  skillMult(sk) {
+    const lv = this.s.skills[sk.id] || 1;
+    return sk.mult(lv) * (1 + SKILL_PIERCE_MULT * this.skillPierceOf(sk.id));
   }
 
   // ---------- 소환 레벨 ----------
@@ -503,6 +537,10 @@ export class Game {
       if (low >= OPTION_SET_GRADE) for (const [k, v] of Object.entries(OPTION_SET)) m[k] += v;
       if (low >= OPTION_SET_FULL_GRADE) for (const [k, v] of Object.entries(OPTION_SET_FULL)) m[k] += v;
     }
+
+    // 무공 총 레벨 — 슬롯이 넷뿐이라 이게 없으면 안 쓰는 무공은 영영 1레벨이다
+    const tb = skillTotalBonus(this.skillTotalLevel());
+    for (const [k, v] of Object.entries(tb)) m[k] += v;
 
     // 의복 — 입은 것과 상관없이 가진 것 전부가 더해진다
     for (const o of OUTFITS) {
@@ -1385,7 +1423,7 @@ export class Game {
       this.emit('skillArea', { id, radius: sk.radius || 0, target: sk.target || 'single' });
       if (sk.stun) this.mon.stun = sk.stun;
       this.emit('skill', { id, target: sk.target || 'single' });
-      let dmg = st.atk * sk.mult(lv);
+      let dmg = st.atk * this.skillMult(sk);
       // 한 명만 노리는 무공은 두목에게 더 아프게 들어간다
       if (sk.bossMult && this.mon.isBoss) dmg *= sk.bossMult;
       switch (sk.motion) {
@@ -1400,10 +1438,10 @@ export class Game {
           else this.dealDamage(dmg, id);
       }
     } else if (sk.kind === 'buff') {
-      this.buffs[id] = sk.dur;
+      this.buffs[id] = sk.dur * (1 + SKILL_PIERCE_MULT * this.skillPierceOf(id) * 0.5);
       this.emit('skill', { id });
     } else if (sk.kind === 'heal') {
-      this.heroHp = Math.min(st.hp, this.heroHp + st.hp * sk.mult(lv));
+      this.heroHp = Math.min(st.hp, this.heroHp + st.hp * Math.min(1, this.skillMult(sk)));
       this.emit('skill', { id });
     }
     this.cd[id] = sk.cd;

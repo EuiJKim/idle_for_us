@@ -8,6 +8,9 @@ const T0 = Date.UTC(2026, 0, 1);
 const g = new Game(newSave(T0), T0);
 let seed = 12345;
 g.rng = () => ((seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648);
+// 생성자가 Math.random으로 첫 스폰을 끝낸 뒤에 rng를 갈아끼우므로,
+// 그대로 두면 첫 적 위치가 매번 달라져 결과가 갈린다. 시드로 다시 깐다.
+g.spawn();
 g.checkDaily(T0);
 const dt = 0.1;
 let farmT = 0;
@@ -16,24 +19,8 @@ let nextTrial = 0;
 let lastBest = 0;
 let lastProgressT = 0;
 const marks = [0.25, 0.5, 1, 2, 4, 8, 12, 24, 48, 72, 168].filter((h) => h <= hours);
-for (let t = 0, step = 0; t < hours * 3600; t += dt, step++) {
-  g.tick(dt);
-  g.events.length = 0;
-  if (step % 10 !== 0) continue;
-  const now = T0 + t * 1000;
-  g.checkDaily(now);
-  for (;;) {
-    const keys = Object.keys(UPGRADES).filter((k) => !g.upgradeMaxed(k));
-    const k = keys.reduce((a, b) => (g.upgradeCost(a) <= g.upgradeCost(b) ? a : b));
-    if (!g.buyUpgrade(k)) break;
-  }
-  for (const sk of SKILLS) while (g.upgradeSkill(sk.id));
-  while (g.s.sp > 0) g.allocSp(g.s.spAlloc.atk <= g.s.spAlloc.hp ? 'atk' : 'hp');
-  // 의복은 사두면 영구히 효과가 붙으므로 뽑기보다 먼저 산다
-  for (const o of OUTFITS) g.buyOutfit(o.id);
-  while (g.s.gems >= 900) { g.gacha(10); if (g.s.gems >= 150) g.hatchPets(1); }
-  g.mergeAll();
-  for (const t2 of Object.keys(EQUIP_TYPES)) g.enhanceEquip(t2, 5);
+// 매 초 돌릴 필요가 없고 비용도 큰 소비. 1분에 한 번만 한다.
+function spendSlow() {
   // 옵션 칸: 신품 미만이 섞여 있으면 다시 굴린다. 좋은 칸은 잠가 둔다.
   for (const t2 of Object.keys(EQUIP_TYPES)) {
     const n = g.optionSlots(t2);
@@ -58,6 +45,29 @@ for (let t = 0, step = 0; t < hours * 3600; t += dt, step++) {
     if (g.canAccGrade(a2.id)) { g.accGradeUp(a2.id); while (g.accStarUp(a2.id)); }
     while (g.s.stones > g.accPierceCost(a2.id) * 3 && g.accPierce(a2.id));
   }
+  // 비급이 남으면 무공을 초월한다
+  for (const sk of SKILLS) while (g.s.books > g.skillPierceCost(sk.id) * 2 && g.skillPierce(sk.id));
+}
+
+for (let t = 0, step = 0; t < hours * 3600; t += dt, step++) {
+  g.tick(dt);
+  g.events.length = 0;
+  if (step % 10 !== 0) continue;
+  const now = T0 + t * 1000;
+  g.checkDaily(now);
+  for (;;) {
+    const keys = Object.keys(UPGRADES).filter((k) => !g.upgradeMaxed(k));
+    const k = keys.reduce((a, b) => (g.upgradeCost(a) <= g.upgradeCost(b) ? a : b));
+    if (!g.buyUpgrade(k)) break;
+  }
+  for (const sk of SKILLS) while (g.upgradeSkill(sk.id));
+  while (g.s.sp > 0) g.allocSp(g.s.spAlloc.atk <= g.s.spAlloc.hp ? 'atk' : 'hp');
+  // 의복은 사두면 영구히 효과가 붙으므로 뽑기보다 먼저 산다
+  for (const o of OUTFITS) g.buyOutfit(o.id);
+  while (g.s.gems >= 900) { g.gacha(10); if (g.s.gems >= 150) g.hatchPets(1); }
+  g.mergeAll();
+  for (const t2 of Object.keys(EQUIP_TYPES)) g.enhanceEquip(t2, 5);
+  if (step % 600 === 0) spendSlow();   // 무거운 것은 1분마다만
   for (const p of PETS) g.levelPet(p.id, 5);
   g.digRelic(5);
   while (g.claimMilestone());

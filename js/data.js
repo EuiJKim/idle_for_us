@@ -485,6 +485,37 @@ export const SKILLS = [
     mult: (l) => 35 + l * 5,
     desc: (m) => `바라보는 방향 520 거리의 일직선상 적 전부에게 공격력의 ${m.toFixed(0)}배` },
 ];
+// ---------- 무공 초월 / 총 레벨 ----------
+// 근거: SkillTranscendenceTable, SkillTotalLevelTable, ActiveSkillTranscendence.
+// 레벨 위에 한 겹(초월)이 더 있고, '모든 무공 레벨의 합'이 따로 보너스를 준다.
+// 총 레벨 보너스가 있으면 안 쓰는 무공도 올릴 이유가 생긴다 —
+// 슬롯이 넷뿐인데 무공이 열넷이라 이게 없으면 열 개는 영영 1레벨이다.
+export const SKILL_PIERCE_MAX = 5;
+export const SKILL_PIERCE_AT = 20;   // 이 레벨부터 초월할 수 있다
+// 초월 한 단계에 그 무공의 배율이 이만큼 더 붙는다
+export const SKILL_PIERCE_MULT = 0.25;
+// 초월 비용은 비급으로 낸다
+export const skillPierceCost = (step) => Math.ceil(400 * Math.pow(3.4, step));
+
+// 모든 무공 레벨을 더한 값에 따라 붙는 보너스
+export const SKILL_TOTAL_STEPS = [
+  { at: 20, atk: 0.15 },
+  { at: 60, atk: 0.35, crit: 0.02 },
+  { at: 140, atk: 0.7, critDmg: 0.3 },
+  { at: 280, atk: 1.3, crit: 0.03, critDmg: 0.5 },
+  { at: 500, atk: 2.2, crit: 0.04, critDmg: 0.8 },
+  { at: 900, atk: 4, crit: 0.05, critDmg: 1.2 },
+];
+export const skillTotalBonus = (total) => {
+  const out = { atk: 0, crit: 0, critDmg: 0 };
+  for (const s of SKILL_TOTAL_STEPS) {
+    if (total < s.at) break;
+    for (const k of Object.keys(out)) if (s[k]) out[k] = s[k];
+  }
+  return out;
+};
+export const nextSkillTotalStep = (total) => SKILL_TOTAL_STEPS.find((s) => total < s.at) ?? null;
+
 export const SKILL_SLOTS = 4;
 export const skillBookCost = (l) => Math.ceil(2 * Math.pow(1.15, l - 1));
 
