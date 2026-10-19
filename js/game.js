@@ -12,6 +12,7 @@ import {
   OUTFITS, OUTFIT_ALL,
   GACHA_KINDS, GACHA_LV_MAX, gachaLvNeed, gachaMaxGrade, GACHA_LV_TILT, gachaLvReward,
   SKILL_PIERCE_MAX, SKILL_PIERCE_AT, SKILL_PIERCE_MULT, skillPierceCost, skillTotalBonus,
+  equipSetBonus, equipTotalBonus,
   expPerKill, expToNext, SP_PER_LEVEL, SP_RESET_GEMS, SP_STATS,
   RANKS, RANK_MULT, TRIAL_TIME, trialBoss,
   PETS, PET_EGG_COST, PET_GRADE_WEIGHT, petFoodCost, PET_DUPLICATE_FOOD, PET_ATTACK_INTERVAL, petDamageMult,
@@ -421,6 +422,22 @@ export class Game {
     return low;
   }
 
+  // ---------- 장비 세트 / 총 제련 ----------
+  // 세 부위 중 가장 낮은 '최고 등급'. 한 부위만 좋아선 세트가 안 붙는다.
+  equipSetGrade() {
+    let low = 99;
+    for (const type of Object.keys(EQUIP_TYPES)) {
+      const b = this.bestGrade(type);
+      if (b < 0) return -1;
+      low = Math.min(low, b);
+    }
+    return low;
+  }
+
+  equipTotalEnhance() {
+    return Object.keys(EQUIP_TYPES).reduce((a, k) => a + (this.s.enhance?.[k] || 0), 0);
+  }
+
   // ---------- 장비 옵션 칸 ----------
   // 제련 단계만큼 칸이 열린다
   optionSlots(type) { return optionSlotCount(this.s.enhance?.[type] || 0); }
@@ -537,6 +554,16 @@ export class Game {
       if (low >= OPTION_SET_GRADE) for (const [k, v] of Object.entries(OPTION_SET)) m[k] += v;
       if (low >= OPTION_SET_FULL_GRADE) for (const [k, v] of Object.entries(OPTION_SET_FULL)) m[k] += v;
     }
+
+    // 장비 세트 — 세 부위를 고르게 맞춰야 붙는다
+    const setLow = this.equipSetGrade();
+    if (setLow >= 0) {
+      const sb = equipSetBonus(setLow);
+      for (const [k, v] of Object.entries(sb)) m[k] += v;
+    }
+    // 총 제련 — 한 부위에 몰아 쓰는 것과 고르게 쓰는 것을 구분한다
+    const eb = equipTotalBonus(this.equipTotalEnhance());
+    for (const [k, v] of Object.entries(eb)) m[k] += v;
 
     // 무공 총 레벨 — 슬롯이 넷뿐이라 이게 없으면 안 쓰는 무공은 영영 1레벨이다
     const tb = skillTotalBonus(this.skillTotalLevel());

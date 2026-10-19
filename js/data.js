@@ -180,6 +180,49 @@ export const EQUIP_TYPES = {
 };
 export const ENHANCE_PER = 0.08; // 제련 1단계마다 해당 부위 배율에 +8%p (선형)
 
+// ---------- 장비 세트 / 총 제련 ----------
+// 근거: SetTable, SetAbilTable, SetComponentsTable (세트),
+// EquipmentTotalLevelTable, GradeTotalLevelTable (총 레벨).
+// 세트는 '세 부위를 같은 등급으로 맞추면' 붙고, 총 레벨은 부위별 제련을
+// 전부 더한 값으로 붙는다. 한 부위에 몰아 쓰는 것과 고르게 쓰는 것이
+// 서로 다른 보상을 주게 만드는 장치다.
+//
+// 세트: 세 부위의 '가장 좋은 등급' 중 제일 낮은 것을 기준으로 삼는다.
+export const EQUIP_SET_STEPS = [
+  { grade: 2, atk: 0.25, hp: 0.2 },
+  { grade: 3, atk: 0.6, hp: 0.45, crit: 0.02 },
+  { grade: 4, atk: 1.3, hp: 0.9, crit: 0.03, critDmg: 0.4 },
+  { grade: 5, atk: 2.6, hp: 1.8, crit: 0.05, critDmg: 0.9 },
+];
+export const equipSetBonus = (lowGrade) => {
+  const out = { atk: 0, hp: 0, crit: 0, critDmg: 0 };
+  for (const s of EQUIP_SET_STEPS) {
+    if (lowGrade < s.grade) break;
+    for (const k of Object.keys(out)) if (s[k]) out[k] = s[k];
+  }
+  return out;
+};
+export const nextEquipSetStep = (lowGrade) => EQUIP_SET_STEPS.find((s) => lowGrade < s.grade) ?? null;
+
+// 총 제련: 세 부위의 제련 단계를 더한 값
+export const EQUIP_TOTAL_STEPS = [
+  { at: 15, gold: 0.2 },
+  { at: 40, gold: 0.5, atk: 0.3 },
+  { at: 80, gold: 1, atk: 0.7, speed: 0.05 },
+  { at: 150, gold: 1.8, atk: 1.4, speed: 0.1 },
+  { at: 260, gold: 3, atk: 2.6, speed: 0.16 },
+  { at: 420, gold: 5, atk: 4.5, speed: 0.24 },
+];
+export const equipTotalBonus = (total) => {
+  const out = { atk: 0, gold: 0, speed: 0 };
+  for (const s of EQUIP_TOTAL_STEPS) {
+    if (total < s.at) break;
+    for (const k of Object.keys(out)) if (s[k]) out[k] = s[k];
+  }
+  return out;
+};
+export const nextEquipTotalStep = (total) => EQUIP_TOTAL_STEPS.find((s) => total < s.at) ?? null;
+
 // ---------- 장비 옵션 칸 ----------
 // 근거: Blade Idle의 아이템 테이블은 abil{N}_type / abil{N}_value 쌍을 가지고,
 // special_abil_open{0}으로 칸이 하나씩 열리며, specialabil_slotmax가 칸 수,

@@ -3,7 +3,8 @@ import { GRADES, EQUIP_TYPES, MERGE_COUNT, GACHA_COST, GACHA10_COST, ENHANCE_PER
   OPTION_SLOTS, OPTION_STATS, OPTION_SET_GRADE, OPTION_SET, OPTION_SET_FULL_GRADE, OPTION_SET_FULL,
   nextOptionSlotAt,
   ACC_SLOTS, ACC_STAR_MAX, ACC_PIERCE_MAX, ACC_MERGE, accPower,
-  ACC_SET_GRADE, ACC_SET } from '../data.js';
+  ACC_SET_GRADE, ACC_SET,
+  equipSetBonus, nextEquipSetStep, equipTotalBonus, nextEquipTotalStep } from '../data.js';
 import { fmt, pct } from '../fmt.js';
 import { h, toast, openModal, closeModal, gradeChip, gachaLevelBar } from './common.js';
 
@@ -20,6 +21,8 @@ export function equipTab(app) {
   const stones = h('b', { style: 'color:#93c5fd' });
 
   const lvBar = gachaLevelBar(app, 'equip');
+  const setInfo = h('div', { class: 'desc' });
+  const totInfo = h('div', { class: 'desc' });
   const root = h('div', {},
     h('div', { class: 'card' },
       h('h3', {}, '병기 뽑기', h('small', {}, '가장 좋은 병기 자동 장착')),
@@ -32,6 +35,13 @@ export function equipTab(app) {
         `한 부위를 빠짐없이 채우면 치명타 확률 +${pct(CODEX_PER_TYPE.crit)}, `
         + `세 부위 모두 채우면 치명타 피해 +${pct(CODEX_ALL.critDmg)}`)),
     lvBar.root,
+    h('div', { class: 'card' },
+      h('h3', {}, '한 벌 갖춤'),
+      setInfo,
+      h('h3', { style: 'margin-top:10px' }, '총 제련'),
+      totInfo,
+      h('p', { class: 'muted', style: 'margin:8px 0 0' },
+        '세 부위를 고르게 맞출수록 커져요. 한 부위에만 몰아 쓰면 둘 다 안 붙어요.')),
     h('div', { class: 'section-title' }, h('span', {}, '제련석 ', stones), h('span', {}, '수련터·두목·의뢰에서 획득')));
 
   for (const [type, def] of Object.entries(EQUIP_TYPES)) {
@@ -218,6 +228,22 @@ export function equipTab(app) {
       c.enhBtn.disabled = game.s.stones < game.enhanceCost(type);
       c.enh10.disabled = c.enhBtn.disabled;
     }
+    const low = game.equipSetGrade();
+    const sb = low >= 0 ? equipSetBonus(low) : { atk: 0, hp: 0, crit: 0, critDmg: 0 };
+    const ns = nextEquipSetStep(Math.max(0, low));
+    setInfo.innerHTML = low < 0
+      ? '세 부위를 다 갖추면 붙어요'
+      : `지금 <b style="color:${GRADES[low].color}">${GRADES[low].name}</b> 한 벌 — 공격력 <b>+${pct(sb.atk)}</b> · 체력 <b>+${pct(sb.hp)}</b>`
+        + (sb.crit ? ` · 치명 <b>+${pct(sb.crit)}</b>` : '')
+        + (sb.critDmg ? ` · 치명 피해 <b>+${pct(sb.critDmg)}</b>` : '')
+        + (ns ? `<br><span class="tier-hint">세 부위를 ${GRADES[ns.grade].name} 이상으로 맞추면 공격력 +${pct(ns.atk)}</span>` : '');
+    const tot = game.equipTotalEnhance();
+    const tb = equipTotalBonus(tot);
+    const nt = nextEquipTotalStep(tot);
+    totInfo.innerHTML = `제련 합 <b>${tot}</b> — 은자 <b>+${pct(tb.gold)}</b>`
+      + (tb.atk ? ` · 공격력 <b>+${pct(tb.atk)}</b>` : '')
+      + (tb.speed ? ` · 공격 속도 <b>+${pct(tb.speed)}</b>` : '')
+      + (nt ? `<br><span class="tier-hint">합 ${nt.at}에서 은자 +${pct(nt.gold)} — ${nt.at - tot} 남음</span>` : '');
     updateAcc();
     lvBar.update();
   }
