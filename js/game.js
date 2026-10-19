@@ -10,6 +10,7 @@ import {
   ACC_SET_GRADE, ACC_SET, ACC_BOX_RATES,
   CODEX_KINDS, CODEX_GRADE_MULT, CODEX_KIND_FULL, CODEX_ALL_FULL, codexEntryPower, codexGradeOf,
   OUTFITS, OUTFIT_ALL,
+  GACHA_KINDS, GACHA_LV_MAX, gachaLvNeed, gachaMaxGrade, GACHA_LV_TILT, gachaLvReward,
   expPerKill, expToNext, SP_PER_LEVEL, SP_RESET_GEMS, SP_STATS,
   RANKS, RANK_MULT, TRIAL_TIME, trialBoss,
   PETS, PET_EGG_COST, PET_GRADE_WEIGHT, petFoodCost, PET_DUPLICATE_FOOD, PET_ATTACK_INTERVAL, petDamageMult,
@@ -74,6 +75,8 @@ export function newSave(now = Date.now()) {
     options: Object.fromEntries(Object.keys(EQUIP_TYPES).map((k) => [k, Array(OPTION_SLOTS).fill(null)])),
     optionLock: Object.fromEntries(Object.keys(EQUIP_TYPES).map((k) => [k, Array(OPTION_SLOTS).fill(false)])),
     // 장신구: 자리마다 끼운 것 하나 + 쌓아둔 조각(등급별 개수)
+    // 소환 레벨: 뽑은 횟수가 쌓여 레벨이 오르고, 레벨이 상위 등급을 연다
+    gacha: Object.fromEntries(GACHA_KINDS.map((k) => [k.id, { lv: 0, cnt: 0, taken: 0 }])),
     outfits: {},   // 가진 의복 (입지 않아도 효과가 붙는다)
     outfit: null,  // 지금 입은 것 (겉모습만)
     // 인물도감: 종류×등급 칸을 한 번이라도 채웠는가 (회귀해도 남는다)
@@ -129,6 +132,12 @@ export function migrate(raw, now = Date.now()) {
       for (let g = 0; g <= best; g++) seen[g] = 1;
     }
     s.codex[k] = seen;
+  }
+  s.gacha = { ...base.gacha };
+  for (const k of GACHA_KINDS) {
+    const g2 = raw.gacha?.[k.id];
+    s.gacha[k.id] = g2 && typeof g2 === 'object'
+      ? { lv: g2.lv | 0, cnt: g2.cnt | 0, taken: g2.taken | 0 } : { lv: 0, cnt: 0, taken: 0 };
   }
   s.outfits = { ...(raw.outfits || {}) };
   s.outfit = raw.outfit || null;
@@ -211,6 +220,46 @@ export class Game {
     const arr = this.s.equips[type];
     for (let g = arr.length - 1; g >= 0; g--) if (arr[g] > 0) return g;
     return -1;
+  }
+
+  // ---------- 소환 레벨 ----------
+  gachaInfo(kind) { return this.s.gacha?.[kind] || { lv: 0, cnt: 0, taken: 0 }; }
+
+  // 뽑은 만큼 쌓고, 넘치면 레벨이 오른다
+  addGachaCount(kind, n) {
+    const g = this.s.gacha?.[kind];
+    if (!g) return 0;
+    g.cnt += n;
+    let up = 0;
+    while (g.lv < GACHA_LV_MAX && g.cnt >= gachaLvNeed(g.lv)) {
+      g.cnt -= gachaLvNeed(g.lv);
+      g.lv++;
+      up++;
+    }
+    if (up) this.emit('gachaLv', { kind, lv: g.lv });
+    return up;
+  }
+
+  // 아직 안 받은 레벨 보상이 있는가
+  gachaRewardReady(kind) { return this.gachaInfo(kind).lv > this.gachaInfo(kind).taken; }
+
+  // 받지 않은 레벨 보상을 전부 받는다
+  claimGachaRewards(kind) {
+    const g = this.s.gacha?.[kind];
+    if (!g || g.lv <= g.taken) return null;
+    const total = {};
+    let boxes = 0;
+    while (g.taken < g.lv) {
+      g.taken++;
+      const r = gachaLvReward(kind, g.taken);
+      for (const [k, v] of Object.entries(r)) {
+        if (k === 'accBox') { boxes += v; continue; }
+        total[k] = (total[k] || 0) + v;
+      }
+    }
+    this.grant(total);
+    if (boxes) this.openAccBox(boxes);
+    return { ...total, accBox: boxes };
   }
 
   // ---------- 의복 ----------
@@ -1404,11 +1453,18 @@ export class Game {
   }
 
   // ---------- 장비 ----------
-  rollGrade() {
-    let r = this.rng();
-    for (let g = 0; g < GACHA_RATES.length; g++) {
-      if (r < GACHA_RATES[g]) return g;
-      r -= GACHA_RATES[g];
+  // 소환 레벨이 '열어준' 등급까지만 나온다. 레벨이 오를수록 윗등급 쪽으로 쏠린다.
+  // 근거: 공략 "갓4,3등급은 소환 5레벨 이후, 갓1등급은 12레벨 이후 나온다"
+  rollGrade(kind = 'equip') {
+    const lv = this.gachaInfo(kind).lv;
+    const cap = gachaMaxGrade(lv);
+    const w = [];
+    for (let g = 0; g <= cap; g++) w.push(GACHA_RATES[g] * Math.pow(1 + GACHA_LV_TILT, g * lv));
+    const sum = w.reduce((a, b) => a + b, 0);
+    let r = this.rng() * sum;
+    for (let g = 0; g < w.length; g++) {
+      if (r < w[g]) return g;
+      r -= w[g];
     }
     return 0;
   }
@@ -1427,6 +1483,7 @@ export class Game {
       out.push({ type, grade, first });
     }
     this.s.stats.gachas += count;
+    this.addGachaCount('equip', count);
     this.progress('gacha', count);
     return out;
   }
@@ -1488,6 +1545,7 @@ export class Game {
         if (!this.s.pet || PETS.find((p) => p.id === this.s.pet).grade < pet.grade) this.s.pet = pet.id;
       }
     }
+    this.addGachaCount('pet', count);
     this.progress('gacha', count);
     return out;
   }
@@ -1546,6 +1604,7 @@ export class Game {
       this.s.relics[r.id] = (this.s.relics[r.id] || 0) + 1;
       out.push(r.id);
     }
+    if (out.length) this.addGachaCount('relic', out.length);
     return out;
   }
 

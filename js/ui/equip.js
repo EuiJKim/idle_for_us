@@ -5,7 +5,7 @@ import { GRADES, EQUIP_TYPES, MERGE_COUNT, GACHA_COST, GACHA10_COST, ENHANCE_PER
   ACC_SLOTS, ACC_STAR_MAX, ACC_PIERCE_MAX, ACC_MERGE, accPower,
   ACC_SET_GRADE, ACC_SET } from '../data.js';
 import { fmt, pct } from '../fmt.js';
-import { h, toast, openModal, closeModal, gradeChip } from './common.js';
+import { h, toast, openModal, closeModal, gradeChip, gachaLevelBar } from './common.js';
 
 export function equipTab(app) {
   const { game } = app;
@@ -19,6 +19,7 @@ export function equipTab(app) {
   } }, '⚒️ 모두 합성');
   const stones = h('b', { style: 'color:#93c5fd' });
 
+  const lvBar = gachaLevelBar(app, 'equip');
   const root = h('div', {},
     h('div', { class: 'card' },
       h('h3', {}, '병기 뽑기', h('small', {}, '가장 좋은 병기 자동 장착')),
@@ -30,6 +31,7 @@ export function equipTab(app) {
       h('p', { class: 'muted', style: 'margin:4px 0 0' },
         `한 부위를 빠짐없이 채우면 치명타 확률 +${pct(CODEX_PER_TYPE.crit)}, `
         + `세 부위 모두 채우면 치명타 피해 +${pct(CODEX_ALL.critDmg)}`)),
+    lvBar.root,
     h('div', { class: 'section-title' }, h('span', {}, '제련석 ', stones), h('span', {}, '수련터·두목·의뢰에서 획득')));
 
   for (const [type, def] of Object.entries(EQUIP_TYPES)) {
@@ -217,6 +219,7 @@ export function equipTab(app) {
       c.enh10.disabled = c.enhBtn.disabled;
     }
     updateAcc();
+    lvBar.update();
   }
   return { root, update };
 }

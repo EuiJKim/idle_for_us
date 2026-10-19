@@ -3,10 +3,11 @@ import { PETS, GRADES, PET_EGG_COST, OWN_STAT_NAMES, PET_ATTACK_INTERVAL, petDam
   BOND_PER_LV, BOND_MAX, bondProgress, ENGRAVE_MIN_LV, engraveCost,
   CODEX_KINDS, codexEntryPower, OUTFITS, OUTFIT_ALL, outfitTotalCost } from '../data.js';
 import { fmt, pct } from '../fmt.js';
-import { h, toast, openModal, closeModal, subTabs } from './common.js';
+import { h, toast, openModal, closeModal, subTabs, gachaLevelBar } from './common.js';
 
 function petView(app) {
   const { game } = app;
+  const lvBar = gachaLevelBar(app, 'pet');
   const food = h('b', { style: 'color:#fdba74' });
   const b1 = h('button', { class: 'btn primary', onclick: () => hatch(1) }, `알 1개 원보 ${PET_EGG_COST}`);
   const b10 = h('button', { class: 'btn primary', onclick: () => hatch(10) }, `알 10개 원보 ${PET_EGG_COST * 10}`);
@@ -15,7 +16,8 @@ function petView(app) {
     h('div', { class: 'card' },
       h('h3', {}, '🥚 영수 부화', h('small', {}, '중복이면 먹이로 바뀌어요')),
       h('div', { class: 'btn-row' }, b1, b10),
-      h('p', { class: 'muted', style: 'margin:8px 0 0' }, '영수 먹이 ', food, '개 · 짐승의 숲 수련터에서 얻어요. 데려간 영수가 함께 싸우고, 가진 영수는 모두 보유 효과를 줘요. 데리고 다니면 교감이 쌓여 그 영수의 효과가 커지고, 각인하면 데려가지 않아도 그 효과가 남아요.')));
+      h('p', { class: 'muted', style: 'margin:8px 0 0' }, '영수 먹이 ', food, '개 · 짐승의 숲 수련터에서 얻어요. 데려간 영수가 함께 싸우고, 가진 영수는 모두 보유 효과를 줘요. 데리고 다니면 교감이 쌓여 그 영수의 효과가 커지고, 각인하면 데려가지 않아도 그 효과가 남아요.')),
+    lvBar.root);
 
   for (const pet of PETS) {
     const lv = h('small');
@@ -52,6 +54,7 @@ function petView(app) {
   }
 
   function update() {
+    lvBar.update();
     food.textContent = fmt(game.s.food);
     b1.disabled = game.s.gems < PET_EGG_COST;
     b10.disabled = game.s.gems < PET_EGG_COST * 10;
@@ -101,6 +104,7 @@ function petView(app) {
 
 function relicView(app) {
   const { game } = app;
+  const lvBar = gachaLevelBar(app, 'relic');
   const shards = h('b', { style: 'color:#fcd34d' });
   const b1 = h('button', { class: 'btn primary', onclick: () => dig(1) }, `발굴 1회 조각 ${RELIC_DIG_COST}`);
   const b10 = h('button', { class: 'btn primary', onclick: () => dig(10) }, `발굴 10회 조각 ${RELIC_DIG_COST * 10}`);
@@ -109,7 +113,8 @@ function relicView(app) {
     h('div', { class: 'card' },
       h('h3', {}, '🏺 신물 발굴', h('small', {}, '무작위 신물 +1')),
       h('div', { class: 'btn-row' }, b1, b10),
-      h('p', { class: 'muted', style: 'margin:8px 0 0' }, '신물 조각 ', shards, '개 · 고대 유적 수련터, 두목 첫 처치, 토벌에서 얻어요.')));
+      h('p', { class: 'muted', style: 'margin:8px 0 0' }, '신물 조각 ', shards, '개 · 고대 유적 수련터, 두목 첫 처치, 토벌에서 얻어요.')),
+    lvBar.root);
   for (const r of RELICS) {
     const lv = h('small');
     const desc = h('div', { class: 'desc' });
@@ -130,6 +135,7 @@ function relicView(app) {
   }
 
   function update() {
+    lvBar.update();
     shards.textContent = fmt(game.s.relicShards);
     b1.disabled = game.s.relicShards < RELIC_DIG_COST;
     b10.disabled = game.s.relicShards < RELIC_DIG_COST * 10;

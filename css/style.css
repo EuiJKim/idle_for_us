@@ -77,6 +77,10 @@ input { font: inherit; user-select: text; -webkit-user-select: text; }
 .tier-hint { color: var(--accent-2); font-weight: 700; }
 .dungeon-card .name small.full { color: var(--bad); }
 
+/* 소환 레벨 막대 */
+.gacha-lv .bar { margin-top: 8px; height: 6px; }
+.buy.ready { background: linear-gradient(180deg, #3f7d5a, #2c5a40); box-shadow: 0 3px 0 #173323; animation: pulse 1.2s infinite; }
+
 /* 장비 옵션 칸 */
 .opt-wrap { display: flex; flex-direction: column; gap: 5px; }
 .opt-cell {

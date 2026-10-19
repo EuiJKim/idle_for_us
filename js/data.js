@@ -382,6 +382,50 @@ export const OUTFITS = [
 export const OUTFIT_ALL = { atk: 0.5, crit: 0.03 };
 export const outfitTotalCost = () => OUTFITS.reduce((a, o) => a + o.cost, 0);
 
+// ---------- 소환 레벨 ----------
+// 근거: GachaLvUpTable. 공략의 두 줄이 핵심이다.
+//  "갓4,3등급은 무기소환 5레벨 이후부터, 갓2등급은 11레벨, 갓1등급은 12레벨 이후 나온다"
+//   -> 소환 레벨이 '상위 등급을 연다'. 돈만 쓴다고 최상위가 나오지 않는다.
+//  "장신구 소환 6레벨 달성보상은 전설 선택상자 8개 (누적 21개)"
+//   -> 레벨 자체가 보상이다. 그래서 뽑는 행위에 바닥이 생긴다.
+// (docs/BladeIdle_설계원리.md)
+export const GACHA_KINDS = [
+  { id: 'equip', name: '병기 소환' },
+  { id: 'pet', name: '영수 알' },
+  { id: 'relic', name: '신물 발굴' },
+];
+export const GACHA_LV_MAX = 20;
+// 다음 레벨까지 더 뽑아야 하는 횟수
+export const gachaLvNeed = (lv) => Math.ceil(10 * Math.pow(1.32, lv));
+// 등급마다 열리는 소환 레벨. 공략의 "갓1등급은 12레벨 이후"를 그대로 옮겼다.
+export const GACHA_GRADE_OPEN = [0, 0, 2, 5, 9, 12];
+export const gachaMaxGrade = (lv) => {
+  let cap = 0;
+  GACHA_GRADE_OPEN.forEach((need, g) => { if (lv >= need) cap = g; });
+  return cap;
+};
+// 레벨이 오를수록 윗등급 쪽으로 무게가 쏠린다
+export const GACHA_LV_TILT = 0.055;
+
+// 레벨 달성 보상. 짝수 레벨마다 조금, 5·10·15·20에서 크게.
+export function gachaLvReward(kind, lv) {
+  const big = lv % 5 === 0;
+  const r = {};
+  if (kind === 'equip') {
+    r.stones = Math.ceil((big ? 400 : 90) * Math.pow(1.5, lv));
+    if (big) r.gems = 500 * lv;
+  } else if (kind === 'pet') {
+    r.food = Math.ceil((big ? 350 : 80) * Math.pow(1.5, lv));
+    if (big) r.gems = 400 * lv;
+  } else {
+    r.relicShards = Math.ceil((big ? 40 : 10) * Math.pow(1.42, lv));
+    if (big) r.gems = 400 * lv;
+  }
+  // 5레벨마다 장신구 상자 — 공략의 '달성보상 선택상자'에 해당
+  if (big) r.accBox = Math.max(1, Math.floor(lv / 5) * 3);
+  return r;
+}
+
 export const RELIC_DIG_COST = 10; // 신물 조각
 
 // ---------- 무공 ----------

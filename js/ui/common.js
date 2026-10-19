@@ -1,5 +1,5 @@
 // 공통 DOM 도우미, 모달, 토스트, 하위 탭
-import { GRADES } from '../data.js';
+import { GRADES, GACHA_LV_MAX, GACHA_GRADE_OPEN, gachaLvNeed, gachaMaxGrade } from '../data.js';
 import { fmt, pct } from '../fmt.js';
 
 export function h(tag, attrs = {}, ...kids) {
@@ -109,4 +109,41 @@ export function busy(btn, fn) {
     btn.disabled = true;
     try { await fn(); } catch (err) { toast(err.message || '실패했어요'); } finally { btn.disabled = false; }
   };
+}
+
+// 소환 레벨 막대. 레벨이 상위 등급을 열고, 레벨 자체가 보상이 된다.
+// 근거: GachaLvUpTable + 공략 "갓1등급은 소환 12레벨 이후" / "6레벨 달성보상 선택상자 8개"
+export function gachaLevelBar(app, kind) {
+  const { game } = app;
+  const title = h('div', { style: 'font-weight:800;font-size:13px' });
+  const sub = h('div', { class: 'desc' });
+  const fill = h('div');
+  const bar = h('div', { class: 'bar' }, fill);
+  const btn = h('button', { class: 'buy', onclick: () => {
+    const got = game.claimGachaRewards(kind);
+    if (!got) return toast('아직 받을 보상이 없어요');
+    toast(`소환 레벨 보상을 받았어요`);
+    app.refresh();
+    return undefined;
+  } });
+  const root = h('div', { class: 'card gacha-lv' },
+    h('div', { style: 'display:flex;gap:8px;align-items:center' },
+      h('div', { style: 'flex:1;min-width:0' }, title, sub), btn),
+    bar);
+
+  function update() {
+    const g = game.gachaInfo(kind);
+    const need = gachaLvNeed(g.lv);
+    const cap = gachaMaxGrade(g.lv);
+    title.textContent = `소환 레벨 ${g.lv} / ${GACHA_LV_MAX}`;
+    const nextOpen = GACHA_GRADE_OPEN.findIndex((v, i) => i > cap && v > g.lv);
+    sub.innerHTML = `지금은 <b style="color:${GRADES[cap].color}">${GRADES[cap].name}</b>까지 나와요`
+      + (nextOpen > 0 ? ` · ${GACHA_GRADE_OPEN[nextOpen]}레벨에 <b style="color:${GRADES[nextOpen].color}">${GRADES[nextOpen].name}</b>` : '');
+    fill.style.width = `${g.lv >= GACHA_LV_MAX ? 100 : Math.min(100, (g.cnt / need) * 100)}%`;
+    const ready = game.gachaRewardReady(kind);
+    btn.textContent = ready ? '보상 받기' : `다음까지 ${Math.max(0, need - g.cnt)}회`;
+    btn.disabled = !ready;
+    btn.classList.toggle('ready', ready);
+  }
+  return { root, update };
 }
