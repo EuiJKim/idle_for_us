@@ -151,6 +151,10 @@ export class BattleView {
         this.effects.push({ kind: 'regress', life: 2.2, max: 2.2 });
         this.hanja = { text: '회귀', life: 2.2, max: 2.2, color: '#f5f5f4' };
         break;
+      case 'wave':
+        this.showBanner(`${ev.wave + 1}번째 물결`, '#fde68a', 1.2);
+        this.shake = Math.max(this.shake, 0.25);
+        break;
       case 'skillHits':
         if (ev.hits > AOE_FLOAT_MAX) {
           this.float(`${ev.hits}명 적중`, this.heroX, this.groundY - 190, '#fde68a', 20, 1.1, true);

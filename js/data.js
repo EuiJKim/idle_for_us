@@ -51,6 +51,26 @@ export const fieldRadius = (n) => {
 };
 // 한 번에 무인을 때릴 수 있는 적 수. 없으면 100마리가 동시에 때려서 즉사한다.
 export const MAX_ATTACKERS = 6;
+// ---------- 물결(웨이브) ----------
+// 근거: StageTable의 wavegroup1~20. 메인 스테이지 19,950개 중 19,010개가
+// 정확히 4웨이브다. 그리고 처음 네 챕터만 1→2→3→4로 늘어난다.
+//   ch1 1웨이브 25초 / ch2 2웨이브 30초 / ch3 3웨이브 40초 / ch4~399 4웨이브 47초
+// (docs/BladeIdle_진행구조.md 2절)
+//
+// 우리는 관문 단위로 같은 모양을 만든다. 한 관문의 처치 수(KILLS_PER_STAGE)를
+// 물결로 나누고, 뒤쪽 물결일수록 더 몰려오게 한다.
+export const WAVE_MAX = 4;
+export const waveCount = (stage) => Math.min(WAVE_MAX, 1 + Math.floor(stage / 20));
+// 그 물결에서 잡아야 하는 수 (합이 KILLS_PER_STAGE가 되게 나눈다)
+export function waveKills(stage, wave) {
+  const n = waveCount(stage);
+  const base = Math.floor(KILLS_PER_STAGE / n);
+  const extra = KILLS_PER_STAGE - base * n;
+  return base + (wave >= n - extra ? 1 : 0);   // 남는 건 뒤쪽 물결에 얹는다
+}
+// 물결이 뒤로 갈수록 더 몰려온다
+export const waveDensity = (wave, total) => 0.7 + 0.3 * (total <= 1 ? 1 : wave / (total - 1));
+
 export const BOSS_TIME = 30;
 export const SPAWN_DELAY = 0.45;
 export const RAID_TIME = 30;

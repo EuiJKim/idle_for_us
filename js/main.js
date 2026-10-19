@@ -151,9 +151,19 @@ function refreshUI(full = false) {
     $('progress-text').textContent = `두목 ${Math.ceil(game.bossTimer)}초`;
   } else {
     prog.classList.remove('boss');
-    const k = s.farming ? KILLS_PER_STAGE : Math.min(KILLS_PER_STAGE, s.kills);
-    $('progress-fill').style.width = `${(k / KILLS_PER_STAGE) * 100}%`;
-    $('progress-text').textContent = s.farming ? '은자 모으는 중' : `${k} / ${KILLS_PER_STAGE}`;
+    if (s.farming) {
+      $('progress-fill').style.width = '100%';
+      $('progress-text').textContent = '은자 모으는 중';
+    } else {
+      // 물결 단위로 보여준다. 한 관문이 여러 물결로 나뉜다.
+      const total = game.waveTotal();
+      const need = game.waveNeed();
+      const done = Math.min(need, game.waveDone());
+      $('progress-fill').style.width = `${(done / need) * 100}%`;
+      $('progress-text').textContent = total > 1
+        ? `${s.wave + 1}번째 물결 · ${done} / ${need}`
+        : `${done} / ${need}`;
+    }
   }
   $('btn-boss').classList.toggle('hidden', !s.farming || !!c);
   $('contest-hud').classList.toggle('hidden', !c || c.mode !== 'raid');

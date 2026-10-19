@@ -22,6 +22,7 @@ import {
   ATTEND_CYCLE, attendReward, BOOST_PER_DAY, BOOST_SEC, BOOST_MULT, mobGroupSize,
   MELEE_RANGE, HERO_SPEED, MOB_SPEED, MOB_SEPARATION, FIELD_ASPECT, FIELD_SQUASH, MOB_SPAWN_NEAR, MOB_SPAWN_FAR,
   refillRate, fieldRadius, MAX_ATTACKERS, FIELD_WIDE, FIELD_TALL, isWallStage,
+  WAVE_MAX, waveCount, waveKills, waveDensity,
   RELICS, RELIC_DIG_COST,
   SKILLS, SKILL_SLOTS, skillBookCost,
   DUNGEONS, DUNGEON_KEYS, DUNGEON_TIME, DUNGEON_MOBS, dungeonStage, dungeonReward,
@@ -65,6 +66,7 @@ export function newSave(now = Date.now()) {
     bestStage: 1, // 회귀해도 남는 역대 최고 관문
     regress: { count: 0, points: 0 },
     kills: 0,
+    wave: 0,        // 이번 관문의 몇 번째 물결인가
     farming: false,
     level: 1,
     exp: 0,
@@ -746,6 +748,34 @@ export class Game {
     return undefined;
   }
 
+  // ---------- 물결 ----------
+  waveTotal() { return waveCount(this.s.stage); }
+
+  // 이번 물결에서 잡아야 하는 수
+  waveNeed() { return waveKills(this.s.stage, this.s.wave || 0); }
+
+  // 이번 물결에서 지금까지 잡은 수
+  waveDone() {
+    let before = 0;
+    for (let w = 0; w < (this.s.wave || 0); w++) before += waveKills(this.s.stage, w);
+    return Math.max(0, (this.s.kills || 0) - before);
+  }
+
+  // 물결이 넘어갈 때가 됐는지 본다. 넘어가면 들판을 비우고 다시 몰려오게 한다.
+  advanceWave() {
+    const total = this.waveTotal();
+    if ((this.s.wave || 0) >= total - 1) return false;
+    if (this.waveDone() < this.waveNeed()) return false;
+    this.s.wave = (this.s.wave || 0) + 1;
+    // 남아 있던 적은 물러난다
+    for (const m of this.mons) m.alive = false;
+    this.mons = [];
+    this.mon = null;
+    this.respawn = 0;
+    this.emit('wave', { wave: this.s.wave, total });
+    return true;
+  }
+
   // 무인과 대상 사이의 거리 — 화면에 보이는 대로 잰다(Y는 눌려 보이므로 함께 누른다)
   distTo(m) { return Math.hypot(m.x - this.heroX, (m.y - this.heroY) * FIELD_SQUASH); }
   // 어떤 방향으로 D만큼 가면 화면에서 얼마나 멀어지는지
@@ -839,13 +869,18 @@ export class Game {
   refillField(dt) {
     const live = this.mons.filter((m) => m.alive);
     if (live.length !== this.mons.length) this.mons = live;
-    // 열 명을 베면 두목이 길을 막는다
+    // 물결이 끝났으면 다음 물결로
+    if (!this.s.farming && this.advanceWave()) return;
+    // 마지막 물결까지 끝내면 관문지기가 길을 막는다
     if (!this.s.farming && this.s.kills >= KILLS_PER_STAGE && !live.some((m) => m.isBoss)) {
       this.spawnStage();
       return;
     }
     if (live.some((m) => m.isBoss)) return; // 두목전에는 잡졸이 끼어들지 않는다
-    const want = mobGroupSize(this.s.stage);
+    // 뒤쪽 물결일수록 더 몰려온다
+    const want = Math.max(1, Math.round(
+      mobGroupSize(this.s.stage) * waveDensity(this.s.wave || 0, this.waveTotal()),
+    ));
     const missing = want - live.length;
     if (missing <= 0) return;
     // 빈 자리에 비례해 채운다. 광역기로 수십이 한꺼번에 사라져도 2~3초면 다시 찬다.
@@ -1146,6 +1181,7 @@ export class Game {
       this.s.maxStage = Math.max(this.s.maxStage, this.s.stage);
       this.s.bestStage = Math.max(this.s.bestStage, this.s.maxStage);
       this.s.kills = 0;
+      this.s.wave = 0;
       this.autoSlotSkills();
       this.emit('stageClear', { stage: s });
     } else if (!this.s.farming) {
@@ -1164,6 +1200,7 @@ export class Game {
   clearAdds() { this.adds = []; }
 
   heroDied() {
+    this.s.wave = 0;
     if (this.mode === 'dungeon' || this.mode === 'trial') return this.endContest('fail');
     if (this.mode === 'pvp') return this.endContest('lose');
     const wasBoss = this.mon?.isBoss;
