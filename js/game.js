@@ -13,6 +13,8 @@ import {
   GACHA_KINDS, GACHA_LV_MAX, gachaLvNeed, gachaMaxGrade, GACHA_LV_TILT, gachaLvReward,
   SKILL_PIERCE_MAX, SKILL_PIERCE_AT, SKILL_PIERCE_MULT, skillPierceCost, skillTotalBonus,
   equipSetBonus, equipTotalBonus,
+  EGO_PARTS, EGO_STEP_MAX, EGO_FEED_MIN_GRADE, EGO_FEED_EXP, egoNeed, egoPower,
+  egoTrialStage, EGO_TRIAL_TIME,
   expPerKill, expToNext, SP_PER_LEVEL, SP_RESET_GEMS, SP_STATS,
   RANKS, RANK_MULT, TRIAL_TIME, trialBoss,
   PETS, PET_EGG_COST, PET_GRADE_WEIGHT, petFoodCost, PET_DUPLICATE_FOOD, PET_ATTACK_INTERVAL, petDamageMult,
@@ -87,6 +89,8 @@ export function newSave(now = Date.now()) {
     accBag: Object.fromEntries(ACC_SLOTS.map((a) => [a.id, GRADES.map(() => 0)])),
     enhance: Object.fromEntries(Object.keys(EQUIP_TYPES).map((k) => [k, 0])),
     skills: Object.fromEntries(SKILLS.map((s) => [s.id, 1])),
+    // 심검: 장비를 먹여 키우는 전용 무기. { step, exp, ready }
+    ego: Object.fromEntries(EGO_PARTS.map((e) => [e.id, { step: 0, exp: 0 }])),
     skillPierce: {},   // 무공별 초월 단계
     skillSlots: ['slash', null, null, null],
     autoSkill: true,
@@ -135,6 +139,11 @@ export function migrate(raw, now = Date.now()) {
       for (let g = 0; g <= best; g++) seen[g] = 1;
     }
     s.codex[k] = seen;
+  }
+  s.ego = { ...base.ego };
+  for (const e of EGO_PARTS) {
+    const src = raw.ego?.[e.id];
+    s.ego[e.id] = src && typeof src === 'object' ? { step: src.step | 0, exp: src.exp | 0 } : { step: 0, exp: 0 };
   }
   s.skillPierce = { ...(raw.skillPierce || {}) };
   s.gacha = { ...base.gacha };
@@ -224,6 +233,65 @@ export class Game {
     const arr = this.s.equips[type];
     for (let g = arr.length - 1; g >= 0; g--) if (arr[g] > 0) return g;
     return -1;
+  }
+
+  // ---------- 심검 ----------
+  egoOf(id) { return this.s.ego?.[id] || { step: 0, exp: 0 }; }
+
+  // 그 부위가 열렸는가. 심의는 심검을 끝내야 열린다.
+  egoOpen(id) {
+    const def = EGO_PARTS.find((e) => e.id === id);
+    if (!def) return false;
+    if (def.open) return this.s.bestStage >= def.open;
+    const first = EGO_PARTS[0];
+    return this.egoOf(first.id).step >= EGO_STEP_MAX;
+  }
+
+  egoNeed(id) { return egoNeed(this.egoOf(id).step); }
+
+  // 장비를 먹인다. 남은 양보다 많이 주는 건 그대로 버려지므로,
+  // 몇 개가 필요한지 보고 먹이는 판단이 생긴다. (공략: "엄청난 낭비")
+  egoFeedCount(id, grade) {
+    const e = this.egoOf(id);
+    const per = EGO_FEED_EXP[grade] || 0;
+    if (!per) return 0;
+    return Math.max(0, Math.ceil((this.egoNeed(id) - e.exp) / per));
+  }
+
+  feedEgo(id, grade, count = 1) {
+    if (!this.egoOpen(id) || grade < EGO_FEED_MIN_GRADE) return 0;
+    const e = this.s.ego[id];
+    if (e.step >= EGO_STEP_MAX) return 0;
+    const need = this.egoNeed(id);
+    if (e.exp >= need) return 0;
+    const bag = this.s.equips;
+    let fed = 0;
+    for (let i = 0; i < count; i++) {
+      // 어느 부위든 그 등급이 있으면 하나 쓴다
+      const type = Object.keys(EQUIP_TYPES).find((k) => bag[k][grade] > 0);
+      if (!type) break;
+      bag[type][grade]--;
+      e.exp = Math.min(need, e.exp + (EGO_FEED_EXP[grade] || 0));
+      fed++;
+      if (e.exp >= need) break;
+    }
+    return fed;
+  }
+
+  egoReady(id) { return this.egoOf(id).exp >= this.egoNeed(id) && this.egoOf(id).step < EGO_STEP_MAX; }
+
+  // 승급 도전. 이기면 다음 단계가 열리고 경험치는 0부터 다시 시작한다.
+  startEgoTrial(id) {
+    if (!this.egoReady(id) || this.mode !== 'stage') return false;
+    const e = this.egoOf(id);
+    const eq = egoTrialStage(this.s.bestStage, e.step);
+    const hp = monsterHp(eq) * BOSS_HP_MULT * 2.2;
+    this.beginContest('ego', EGO_TRIAL_TIME, { egoId: id, eq });
+    this.mon = {
+      hp, maxHp: hp, isBoss: true, def: { name: `${EGO_PARTS.find((x) => x.id === id).name}의 그림자` },
+      atk: monsterAtk(eq) * BOSS_ATK_MULT, atkTimer: 1.2, alive: true, stun: 0, ...this.duelSpot(),
+    };
+    return true;
   }
 
   // ---------- 무공 초월 / 총 레벨 ----------
@@ -553,6 +621,12 @@ export class Game {
       const low = this.optionSetGrade(type);
       if (low >= OPTION_SET_GRADE) for (const [k, v] of Object.entries(OPTION_SET)) m[k] += v;
       if (low >= OPTION_SET_FULL_GRADE) for (const [k, v] of Object.entries(OPTION_SET_FULL)) m[k] += v;
+    }
+
+    // 심검
+    for (const e of EGO_PARTS) {
+      const cur = this.egoOf(e.id);
+      if (cur.step) m[e.stat] += egoPower(cur.step);
     }
 
     // 장비 세트 — 세 부위를 고르게 맞춰야 붙는다
@@ -1328,6 +1402,13 @@ export class Game {
       }
       if (result === 'clear' || result === 'win' || result === 'done') {
         this.noteLore('lord', codexGradeOf(this.s.bestStage));
+      }
+    } else if (c.mode === 'ego') {
+      if (result === 'clear') {
+        const e = this.s.ego[c.egoId];
+        e.step++;
+        e.exp = 0;   // 초과분은 넘어가지 않는다
+        this.emit('egoUp', { id: c.egoId, step: e.step });
       }
     } else if (c.mode === 'trial') {
       out.win = result === 'clear';

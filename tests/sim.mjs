@@ -1,7 +1,8 @@
 // 밸런스 시뮬레이션: 단순한 자동 플레이어로 시간대별 도달 스테이지를 본다.
 // node tests/sim.mjs [hours]
 import { Game, newSave } from '../js/game.js';
-import { UPGRADES, SKILLS, DUNGEONS, PETS, EQUIP_TYPES, ACC_SLOTS, OUTFITS } from '../js/data.js';
+import { UPGRADES, SKILLS, DUNGEONS, PETS, EQUIP_TYPES, ACC_SLOTS, OUTFITS,
+  EGO_PARTS, EGO_FEED_MIN_GRADE } from '../js/data.js';
 
 const hours = Number(process.argv[2] || 24);
 const T0 = Date.UTC(2026, 0, 1);
@@ -44,6 +45,12 @@ function spendSlow() {
     while (g.accStarUp(a2.id));
     if (g.canAccGrade(a2.id)) { g.accGradeUp(a2.id); while (g.accStarUp(a2.id)); }
     while (g.s.stones > g.accPierceCost(a2.id) * 3 && g.accPierce(a2.id));
+  }
+  // 심검: 남는 상위 장비를 먹이고, 차면 승급에 도전한다
+  for (const e of EGO_PARTS) {
+    if (!g.egoOpen(e.id)) continue;
+    for (let gr = EGO_FEED_MIN_GRADE; gr < 6; gr++) g.feedEgo(e.id, gr, 999);
+    if (g.egoReady(e.id) && g.mode === 'stage') g.startEgoTrial(e.id);
   }
   // 비급이 남으면 무공을 초월한다
   for (const sk of SKILLS) while (g.s.books > g.skillPierceCost(sk.id) * 2 && g.skillPierce(sk.id));

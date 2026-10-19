@@ -4,7 +4,8 @@ import { GRADES, EQUIP_TYPES, MERGE_COUNT, GACHA_COST, GACHA10_COST, ENHANCE_PER
   nextOptionSlotAt,
   ACC_SLOTS, ACC_STAR_MAX, ACC_PIERCE_MAX, ACC_MERGE, accPower,
   ACC_SET_GRADE, ACC_SET,
-  equipSetBonus, nextEquipSetStep, equipTotalBonus, nextEquipTotalStep } from '../data.js';
+  equipSetBonus, nextEquipSetStep, equipTotalBonus, nextEquipTotalStep,
+  EGO_PARTS, EGO_STEP_MAX, EGO_FEED_MIN_GRADE, EGO_FEED_EXP, egoPower } from '../data.js';
 import { fmt, pct } from '../fmt.js';
 import { h, toast, openModal, closeModal, gradeChip, gachaLevelBar } from './common.js';
 
@@ -84,6 +85,71 @@ export function equipTab(app) {
         h('span', { class: 'muted', style: 'flex:1' },
           `네 칸을 ${GRADES[OPTION_SET_GRADE].name} 이상으로 채우면 치명 확률 +${pct(OPTION_SET.crit)} · 치명 피해 +${pct(OPTION_SET.critDmg)}`),
         rerollBtn)));
+  }
+
+  // ---------- 심검 ----------
+  // 장비를 먹여 키우는 전용 무기. 남은 양보다 많이 먹이면 그대로 버려진다.
+  const egoCards = {};
+  root.append(h('div', { class: 'section-title', style: 'margin-top:14px' }, h('span', {}, '심검')));
+  root.append(h('p', { class: 'muted', style: 'margin:0 2px 8px' },
+    `${GRADES[EGO_FEED_MIN_GRADE].name} 이상 장비를 먹여 키워요. 다 차면 승급에 도전하고, `
+    + '남은 양보다 많이 먹이면 넘치는 만큼은 그냥 사라져요.'));
+
+  for (const e of EGO_PARTS) {
+    const title = h('div', { style: 'font-weight:900;font-size:14px' });
+    const info = h('div', { class: 'desc' });
+    const fill = h('div');
+    const bar = h('div', { class: 'bar', style: 'margin-top:6px' }, fill);
+    const feedRow = h('div', { class: 'btn-row', style: 'margin-top:8px' });
+    const feeds = {};
+    for (let gr = EGO_FEED_MIN_GRADE; gr < GRADES.length; gr++) {
+      const b = h('button', { class: 'buy', style: 'font-size:11px' });
+      const grade = gr;
+      b.addEventListener('click', () => {
+        const n = game.feedEgo(e.id, grade, 999);
+        if (!n) return toast('먹일 장비가 없거나 이미 꽉 찼어요');
+        toast(`${GRADES[grade].name} ${n}개를 먹였어요`);
+        app.refresh();
+        return undefined;
+      });
+      feedRow.append(b);
+      feeds[gr] = b;
+    }
+    const upBtn = h('button', { class: 'btn primary', style: 'margin-top:8px;width:100%' });
+    upBtn.addEventListener('click', () => {
+      if (game.startEgoTrial(e.id)) app.refresh();
+      else toast('아직 경험치가 모자라거나 다른 싸움 중이에요');
+    });
+    root.append(h('div', { class: 'card' }, title, info, bar, feedRow, upBtn));
+    egoCards[e.id] = { title, info, fill, feeds, upBtn, def: e };
+  }
+
+  function updateEgo() {
+    for (const e of EGO_PARTS) {
+      const c = egoCards[e.id];
+      const open = game.egoOpen(e.id);
+      const cur = game.egoOf(e.id);
+      const need = game.egoNeed(e.id);
+      const done = cur.step >= EGO_STEP_MAX;
+      c.title.textContent = `${e.name} ${cur.step}단계${done ? ' (끝)' : ''}`;
+      c.info.innerHTML = !open
+        ? (e.open ? `관문 ${e.open}에 열려요` : `${EGO_PARTS[0].name}을 끝내면 열려요`)
+        : `${e.label} <b>+${pct(egoPower(cur.step))}</b>`
+          + (done ? '' : ` · 다음 단계 <b>+${pct(egoPower(cur.step + 1))}</b> · ${fmt(cur.exp)}/${fmt(need)}`);
+      c.fill.style.width = done ? '100%' : `${Math.min(100, (cur.exp / need) * 100)}%`;
+      for (let gr = EGO_FEED_MIN_GRADE; gr < GRADES.length; gr++) {
+        const b = c.feeds[gr];
+        const have = Object.keys(EQUIP_TYPES).reduce((a, k) => a + game.s.equips[k][gr], 0);
+        const want = open && !done ? game.egoFeedCount(e.id, gr) : 0;
+        b.textContent = `${GRADES[gr].name} ${Math.min(have, want || have)}/${have}`;
+        b.style.color = GRADES[gr].color;
+        b.disabled = !open || done || !have;
+      }
+      c.upBtn.textContent = done ? '끝까지 올렸어요'
+        : !open ? '아직 안 열림'
+          : game.egoReady(e.id) ? `${cur.step + 1}단계 승급 도전` : '경험치를 더 채우세요';
+      c.upBtn.disabled = !open || done || !game.egoReady(e.id) || game.mode !== 'stage';
+    }
   }
 
   // ---------- 장신구 ----------
@@ -244,6 +310,7 @@ export function equipTab(app) {
       + (tb.atk ? ` · 공격력 <b>+${pct(tb.atk)}</b>` : '')
       + (tb.speed ? ` · 공격 속도 <b>+${pct(tb.speed)}</b>` : '')
       + (nt ? `<br><span class="tier-hint">합 ${nt.at}에서 은자 +${pct(nt.gold)} — ${nt.at - tot} 남음</span>` : '');
+    updateEgo();
     updateAcc();
     lvBar.update();
   }

@@ -180,6 +180,33 @@ export const EQUIP_TYPES = {
 };
 export const ENHANCE_PER = 0.08; // 제련 1단계마다 해당 부위 배율에 +8%p (선형)
 
+// ---------- 심검 (저쪽의 '에고') ----------
+// 근거: EgoUpgradeTable, EgoEnchantTable, EgoBonusTable.
+// 공략: "여기까지 모두 완료하신 여러분은 이제 튜토리얼을 끝내셨다고 보셔도
+// 됩니다. 길고 긴 튜토리얼 끝에 본게임 에고 작업을 시작하시면 됩니다."
+//   - 갓3등급 이상의 장비를 '먹여서' 경험치를 채운다
+//   - 다 차면 승급 도전(던전)을 깨야 다음 단계가 열린다
+//   - 초과 경험치는 넘어가지 않는다. "경험치가 5 남은 상태에서 1등급 장비를
+//     먹이는 건 엄청난 낭비다" — 그래서 남은 양에 맞춰 먹이는 판단이 생긴다
+//   - 소드를 끝내면 아머가 열린다
+export const EGO_PARTS = [
+  { id: 'blade', name: '심검', stat: 'atk', label: '공격력', open: 150 },
+  { id: 'robe', name: '심의', stat: 'hp', label: '체력', open: 0 },  // 심검을 끝내야 열린다
+];
+export const EGO_STEP_MAX = 5;        // 단계 (1~5)
+// 먹일 수 있는 최소 등급. 공략의 "갓3등급 이상"에 해당한다.
+export const EGO_FEED_MIN_GRADE = 3;
+// 등급별로 주는 경험치
+export const EGO_FEED_EXP = [0, 0, 0, 10, 45, 220];
+// 단계를 올리는 데 필요한 경험치
+export const egoNeed = (step) => Math.ceil(120 * Math.pow(3.6, step));
+// 단계마다 붙는 배수
+export const EGO_PER_STEP = 1.1;
+export const egoPower = (step) => EGO_PER_STEP * step;
+// 승급 도전 상대의 세기 (관문 기준)
+export const egoTrialStage = (bestStage, step) => Math.round(bestStage * (0.8 + step * 0.12));
+export const EGO_TRIAL_TIME = 45;
+
 // ---------- 장비 세트 / 총 제련 ----------
 // 근거: SetTable, SetAbilTable, SetComponentsTable (세트),
 // EquipmentTotalLevelTable, GradeTotalLevelTable (총 레벨).
