@@ -307,10 +307,13 @@ console.log('\n=== 8. 장신구 특기 ===');
       `+${(got * 100).toFixed(1)}%`);
   }
 
-  // 치명은 상한이 있으니 특기가 상한을 못 넘긴다
-  g.s.upgrades.crit = 999;
-  ok(g.stats().crit <= D.CRIT_CAP + 1e-9, '연격이 치명 상한을 넘기지 않는다',
-    `${g.stats().crit} ≤ ${D.CRIT_CAP}`);
+  // 특기가 '이미 꽉 찬 축'에 붙으면 아무 일도 안 일어난다.
+  // 처음에 연격을 치명 확률에 붙였다가 그 사고를 냈다. 다시는 안 되게 막는다.
+  for (const a2 of D.ACC_SLOTS) {
+    if (a2.special?.stat !== 'crit') continue;
+    fail++;
+    console.log('  !!   특기가 치명 확률에 붙어 있다 — 수련 90레벨이면 상한이라 0이 된다');
+  }
 
   // 자리가 비면 0
   const g2 = new Game(newSave());
