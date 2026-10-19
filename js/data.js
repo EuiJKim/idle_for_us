@@ -144,8 +144,8 @@ export const SEEK_PER_DAY = 3;
 export const SEEK_CAP = 12;
 export const RIFT_TIME = 25;             // 저쪽과 같다
 export const HUNT_TIME = 30;             // 저쪽과 같다
-export const RIFT_OPEN_STAGE = 45;
-export const HUNT_OPEN_STAGE = 55;
+export const RIFT_OPEN_STAGE = 50;
+export const HUNT_OPEN_STAGE = 60;
 // 둘 다 '지금 내 최고 관문'에 맞춰 상대가 나온다
 export const riftStage = (bestStage) => Math.max(1, Math.round(bestStage * 0.88));
 export const huntStage = (bestStage) => Math.max(1, Math.round(bestStage * 0.8));
@@ -301,12 +301,15 @@ export const EGO_PARTS = [
   { id: 'robe', name: '심의', stat: 'hp', label: '체력', open: 0 },  // 심검을 끝내야 열린다
 ];
 export const EGO_STEP_MAX = 5;        // 단계 (1~5)
-// 먹일 수 있는 최소 등급. 공략의 "갓3등급 이상"에 해당한다.
-export const EGO_FEED_MIN_GRADE = 3;
+// 먹일 수 있는 최소 등급. 공략은 "갓3등급 이상"이지만 그쪽은 장비가 넘쳐난다.
+// 우리는 150관문에서 보품이 1개뿐이라(점검에서 측정) 진품부터 받는다.
+export const EGO_FEED_MIN_GRADE = 2;
 // 등급별로 주는 경험치
-export const EGO_FEED_EXP = [0, 0, 0, 10, 45, 220];
+export const EGO_FEED_EXP = [0, 0, 3, 10, 45, 220];
 // 단계를 올리는 데 필요한 경험치
-export const egoNeed = (step) => Math.ceil(120 * Math.pow(3.6, step));
+// 첫 단계는 가볍게 둔다. 120으로 두면 보품 12개가 필요한데,
+// 그 무렵엔 합성에 다 써버려서 열려도 못 올린다(점검에서 잡힌 문제).
+export const egoNeed = (step) => Math.ceil(24 * Math.pow(4.4, step));
 // 단계마다 붙는 배수
 export const EGO_PER_STEP = 1.1;
 export const egoPower = (step) => EGO_PER_STEP * step;
@@ -611,7 +614,7 @@ export function gachaLvReward(kind, lv) {
 // 그 자원이 다른 축(제련·옵션 다시 굴리기·장신구 초월)의 연료가 된다.
 // 우리는 한철이 이미 세 군데(제련·옵션·장신구 초월)에서 쓰이므로 광맥을
 // 한철에 붙인다. 쓰임이 많은 자원일수록 '아껴 쓰는' 판단이 생긴다.
-export const MINE_OPEN_STAGE = 35;
+export const MINE_OPEN_STAGE = 40;   // 벽 자리에 맞춘다
 export const MINE_DEPTH_MAX = 50;      // 갱도 깊이
 export const MINE_HAND_MAX = 20;       // 광부 수
 export const MINE_CAP_HOURS = 8;       // 이만큼 지나면 더 안 쌓인다

@@ -21,7 +21,7 @@ let lastBest = 0;
 let lastProgressT = 0;
 const marks = [0.25, 0.5, 1, 2, 4, 8, 12, 24, 48, 72, 168].filter((h) => h <= hours);
 // 매 초 돌릴 필요가 없고 비용도 큰 소비. 1분에 한 번만 한다.
-function spendSlow(now) {
+function spendSlow(now, step) {
   // 옵션 칸: 신품 미만이 섞여 있으면 다시 굴린다. 좋은 칸은 잠가 둔다.
   for (const t2 of Object.keys(EQUIP_TYPES)) {
     const n = g.optionSlots(t2);
@@ -50,17 +50,25 @@ function spendSlow(now) {
   g.collectMine(now);
   while (g.s.gold > g.mineDepthCost() * 4 && g.digDeeper(now));
   while (g.s.gold > g.mineHandCost() * 4 && g.hireMiner(now));
-  // 탑과 탐색: 열려 있으면 들어간다
-  if (g.mode === 'stage' && g.towerOpen() && !g.towerDone()) g.startTower();
-  if (g.mode === 'stage' && g.canSeek()) g.startSeek(g.huntOpen() ? 'hunt' : 'rift');
-  // 그림자 무림: 도전이 남으면 쓰고, 티어 보상은 바로 받는다
-  if (g.canShadow() && g.mode === 'stage') g.startShadow();
-  if (g.shadowRewardReady()) g.claimShadowRewards();
-  // 심검: 남는 상위 장비를 먹이고, 차면 승급에 도전한다
+  // 심검은 먹이기만 먼저 해둔다
   for (const e of EGO_PARTS) {
     if (!g.egoOpen(e.id)) continue;
     for (let gr = EGO_FEED_MIN_GRADE; gr < 6; gr++) g.feedEgo(e.id, gr, 999);
-    if (g.egoReady(e.id) && g.mode === 'stage') g.startEgoTrial(e.id);
+  }
+  if (g.shadowRewardReady()) g.claimShadowRewards();
+  // 겨루기류는 한 번에 하나만 들어갈 수 있다. 매번 탑부터 넣으면 나머지가
+  // 영영 차례를 못 받고(심검이 0단계로 멈춰 드러났다), 1분마다 넣으면
+  // 겨루기만 하느라 관문을 못 깬다(최고 354인데 현재 41로 주저앉았다).
+  // 5분에 한 번만, 돌아가며 들어간다.
+  if (step % 3000 === 0) {
+    const turn = Math.floor(step / 3000) % 4;
+    const tryList = [
+      () => g.egoReady('blade') && g.startEgoTrial('blade'),
+      () => g.canShadow() && g.startShadow(),
+      () => g.towerOpen() && !g.towerDone() && g.startTower(),
+      () => g.canSeek() && g.startSeek(g.huntOpen() ? 'hunt' : 'rift'),
+    ];
+    for (let i = 0; i < 4 && g.mode === 'stage'; i++) tryList[(turn + i) % 4]();
   }
   // 비급이 남으면 무공을 초월한다
   for (const sk of SKILLS) while (g.s.books > g.skillPierceCost(sk.id) * 2 && g.skillPierce(sk.id));
@@ -84,7 +92,7 @@ for (let t = 0, step = 0; t < hours * 3600; t += dt, step++) {
   while (g.s.gems >= 900) { g.gacha(10); if (g.s.gems >= 150) g.hatchPets(1); }
   g.mergeAll();
   for (const t2 of Object.keys(EQUIP_TYPES)) g.enhanceEquip(t2, 5);
-  if (step % 600 === 0) spendSlow(now);   // 무거운 것은 1분마다만
+  if (step % 600 === 0) spendSlow(now, step);   // 무거운 것은 1분마다만
   for (const p of PETS) g.levelPet(p.id, 5);
   g.digRelic(5);
   while (g.claimMilestone());
