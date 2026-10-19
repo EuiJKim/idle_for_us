@@ -2,9 +2,10 @@
 import { GRADES, EQUIP_TYPES, MERGE_COUNT, GACHA_COST, GACHA10_COST, ENHANCE_PER, CODEX_PER_TYPE, CODEX_ALL,
   OPTION_SLOTS, OPTION_STATS, OPTION_SET_GRADE, OPTION_SET, OPTION_SET_FULL_GRADE, OPTION_SET_FULL,
   nextOptionSlotAt,
-  ACC_SLOTS, ACC_STAR_MAX, ACC_PIERCE_MAX, ACC_MERGE, accPower,
+  ACC_SLOTS, ACC_STAR_MAX, ACC_PIERCE_MAX, ACC_MERGE, accPower, ACC_PICK_MIN,
   ACC_SET_GRADE, ACC_SET,
   equipSetBonus, nextEquipSetStep, equipTotalBonus, nextEquipTotalStep,
+  EQUIP_PIERCE_MAX, EQUIP_PIERCE_MULT,
   EGO_PARTS, EGO_STEP_MAX, EGO_FEED_MIN_GRADE, EGO_FEED_EXP, egoPower } from '../data.js';
 import { fmt, pct } from '../fmt.js';
 import { h, toast, openModal, closeModal, gradeChip, gachaLevelBar } from './common.js';
@@ -72,13 +73,19 @@ export function equipTab(app) {
       app.refresh();
       return undefined;
     } });
+    const prcBtn = h('button', { class: 'buy', onclick: () => {
+      if (game.equipPierceUp(type)) app.refresh();
+      else toast(`${GRADES[GRADES.length - 1].name} 병기가 더 필요해요 (끼운 하나는 남겨둬요)`);
+    } });
+    const prcTxt = h('span', { class: 'muted', style: 'flex:1' });
     const enhBtn = h('button', { class: 'buy', onclick: () => { if (game.enhanceEquip(type, 1)) app.refresh(); } });
     const enh10 = h('button', { class: 'buy', style: 'min-width:56px', onclick: () => { if (game.enhanceEquip(type, 10)) app.refresh(); } }, 'x10');
-    cards[type] = { cells, bonus, def, enhLv, enhBtn, enh10, codexLv, optCells, optInfo, rerollBtn, optWrap };
+    cards[type] = { cells, bonus, def, enhLv, enhBtn, enh10, prcBtn, prcTxt, codexLv, optCells, optInfo, rerollBtn, optWrap };
     root.append(h('div', { class: 'card' },
       h('h3', {}, def.name, codexLv, enhLv), grid, bonus,
       h('div', { style: 'display:flex;gap:6px;margin-top:8px;align-items:center' },
         h('span', { class: 'muted', style: 'flex:1' }, `제련 1단계마다 ${def.label} 배율 +${pct(ENHANCE_PER)}`), enhBtn, enh10),
+      h('div', { style: 'display:flex;gap:6px;margin-top:6px;align-items:center' }, prcTxt, prcBtn),
       h('div', { class: 'section-title', style: 'margin:12px 2px 6px' }, h('span', {}, '옵션 칸'), optInfo),
       optWrap,
       h('div', { style: 'display:flex;gap:6px;margin-top:8px;align-items:center' },
@@ -161,6 +168,20 @@ export function equipTab(app) {
     `관문지기를 넘으면 장신구 상자가 나와요. 같은 등급 ${ACC_MERGE}개로 한 성, `
     + `${ACC_STAR_MAX}성이 되면 다음 등급으로 올라가요. 초월은 한철을 쓰고 성과 따로 쌓여요.`));
 
+  // 선택 상자
+  const pickInfo = h('div', { class: 'desc' });
+  const pickBtns = ACC_SLOTS.map((a) => h('button', { class: 'buy', onclick: () => {
+    const got = game.openAccPick(a.id, 1);
+    if (!got) return toast('선택 상자가 없어요');
+    app.refresh();
+    toast(`${a.name} ${GRADES[got[0].grade].name}`);
+  } }, a.name));
+  const pickCard = h('div', { class: 'card' },
+    h('div', { style: 'font-weight:900;font-size:14px' }, '선택 상자'),
+    pickInfo,
+    h('div', { class: 'btn-row', style: 'margin-top:8px' }, ...pickBtns));
+  root.append(pickCard);
+
   for (const a of ACC_SLOTS) {
     const title = h('div', { style: 'font-weight:900;font-size:14px' });
     const info = h('div', { class: 'desc' });
@@ -181,6 +202,11 @@ export function equipTab(app) {
   }
 
   function updateAcc() {
+    const np = game.s.accPick || 0;
+    pickCard.style.display = np > 0 ? '' : 'none';
+    pickInfo.innerHTML = `<b>${np}개</b> — 자리를 골라서 열어요. `
+      + `<span style="color:${GRADES[ACC_PICK_MIN].color}">${GRADES[ACC_PICK_MIN].name}</span> 이상만 나와요.`;
+    for (const b of pickBtns) b.disabled = np <= 0;
     for (const a of ACC_SLOTS) {
       const c = accCards[a.id];
       const cur = game.s.acc?.[a.id];
@@ -251,10 +277,13 @@ export function equipTab(app) {
       c.codexLv.classList.toggle('full', done === GRADES.length);
       const own = seen.reduce((acc, v, g) => acc + (v ? c.def.own[g] : 0), 0);
       const e = game.s.enhance[type] || 0;
-      c.enhLv.textContent = `+${e} 제련`;
+      const pr = game.s.equipPierce?.[type] || 0;
+      c.enhLv.textContent = pr > 0 ? `+${e} 제련 · ${pr}초월` : `+${e} 제련`;
       c.bonus.innerHTML = best < 0
         ? '아직 병기가 없어요'
-        : `장착(${GRADES[best].name}) <b>+${pct(c.def.equip[best])}</b> · 병기보 <b>+${pct(own)}</b> · 제련 <b>×${(1 + ENHANCE_PER * e).toFixed(2)}</b> → ${c.def.label} <b>×${fmt(game.equipMult(type))}</b>`;
+        : `장착(${GRADES[best].name}) <b>+${pct(c.def.equip[best])}</b> · 병기보 <b>+${pct(own)}</b> · 제련 <b>×${(1 + ENHANCE_PER * e).toFixed(2)}</b>`
+          + (pr > 0 ? ` · 초월 <b>×${(1 + EQUIP_PIERCE_MULT * pr).toFixed(2)}</b>` : '')
+          + ` → ${c.def.label} <b>×${fmt(game.equipMult(type))}</b>`;
       // ----- 옵션 칸 -----
       const slots = game.optionSlots(type);
       const opts = game.s.options?.[type] || [];
@@ -293,6 +322,20 @@ export function equipTab(app) {
       c.enhBtn.textContent = `한철 ${fmt(game.enhanceCost(type))}`;
       c.enhBtn.disabled = game.s.stones < game.enhanceCost(type);
       c.enh10.disabled = c.enhBtn.disabled;
+
+      const top = GRADES.length - 1;
+      const pcost = game.equipPierceCost(type);
+      const held = game.s.equips[type]?.[top] || 0;
+      if (pr >= EQUIP_PIERCE_MAX) {
+        c.prcTxt.innerHTML = `<b>초월 최대</b> — ${c.def.label} 배율 ×${(1 + EQUIP_PIERCE_MULT * pr).toFixed(2)}`;
+        c.prcBtn.textContent = '초월 최대';
+        c.prcBtn.disabled = true;
+      } else {
+        c.prcTxt.innerHTML = `초월 1단계마다 ${c.def.label} 배율 ×${(1 + EQUIP_PIERCE_MULT).toFixed(2)}`
+          + ` · 가진 <b style="color:${GRADES[top].color}">${GRADES[top].name}</b> ${fmt(held)}개`;
+        c.prcBtn.textContent = `초월 ${GRADES[top].name} ${pcost}개`;
+        c.prcBtn.disabled = !game.canEquipPierce(type);
+      }
     }
     const low = game.equipSetGrade();
     const sb = low >= 0 ? equipSetBonus(low) : { atk: 0, hp: 0, crit: 0, critDmg: 0 };

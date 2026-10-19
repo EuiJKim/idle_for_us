@@ -190,5 +190,87 @@ console.log('\n=== 6. 한 바퀴 돌려 모든 시스템에 닿는가 (6시간) 
   ok(accAny, '장신구를 얻음', D.ACC_SLOTS.map((a) => (g.s.acc[a.id] ? a.name : '')).filter(Boolean).join(',') || '없음');
 }
 
+// ---------- 7. 이번에 더한 다섯 ----------
+console.log('\n=== 7. 무공 칸·물결 보상·상태이상·선택 상자·장비 초월 ===');
+{
+  // 무공 칸
+  ok(D.skillSlotCount(1) === 4 && D.skillSlotCount(180) === 5 && D.skillSlotCount(260) === 6,
+    '무공 칸이 관문에 따라 늘어난다',
+    `1→${D.skillSlotCount(1)} / 180→${D.skillSlotCount(180)} / 260→${D.skillSlotCount(260)}`);
+  ok(D.SKILL_SLOT_AT.every((v) => D.isWallStage(v)), '칸이 열리는 관문이 벽 자리', D.SKILL_SLOT_AT.join(','));
+  const g0 = strong(300);
+  ok(g0.skillSlotCount() === 6, '300관문이면 여섯 칸', `${g0.skillSlotCount()}칸`);
+  const g1 = strong(50);
+  ok(g1.setSkillSlot(5, 'thunder') === false, '안 열린 칸에는 못 넣는다');
+
+  // 물결 보상
+  const total = D.waveCount(300);
+  const rs = Array.from({ length: total }, (_, w) => D.waveReward(300, w, total));
+  ok(rs.every((r) => r.gold > 0 && r.stones > 0), '물결마다 보상이 있다', rs.map((r) => Math.round(r.gold)).join(' / '));
+  ok(rs[total - 1].gold > rs[0].gold, '뒤쪽 물결이 더 크다', `${Math.round(rs[0].gold)} → ${Math.round(rs[total - 1].gold)}`);
+  ok(rs[total - 1].books > 0 && rs[0].books === 0, '비급은 마지막 물결에만');
+  // 물결은 '관문 안의 작은 성취'다. 처치 은자를 넘으면 본 보상이 뒤집힌다.
+  const waveGold = rs.slice(0, total - 1).reduce((s2, r) => s2 + r.gold, 0);
+  const killGold = D.monsterGold(300) * D.KILLS_PER_STAGE;
+  ok(waveGold < killGold, '물결 보상이 처치 은자보다 작다',
+    `물결 ${Math.round(waveGold)} vs 처치 ${Math.round(killGold)}`);
+
+  // 상태이상 — 적이 살아남도록 일부러 약하게 만든다
+  const s2 = newSave();
+  Object.assign(s2, { stage: 150, bestStage: 150, level: 200,
+    skillSlots: ['slash', 'thunder', 'frost', 'meteor'], autoSkill: false });
+  Object.assign(s2.upgrades, { atk: 60, hp: 60 });
+  for (const k in s2.skills) s2.skills[k] = 3;
+  const g2 = new Game(s2); g2.rng = seeded(7); g2.spawn();
+  for (let i2 = 0; i2 < 900; i2++) g2.tick(1 / 60);
+  const alive = () => g2.mons.filter((z) => z.alive);
+  g2.useSkill('thunder'); const nSlow = alive().filter((z) => z.slow > 0).length;
+  g2.useSkill('slash'); const nBleed = alive().filter((z) => z.bleed > 0).length;
+  g2.useSkill('meteor'); const nWeak = alive().filter((z) => z.weak > 0).length;
+  ok(nSlow > 0, '둔화가 걸린다', `${nSlow}마리`);
+  ok(nBleed > 0, '출혈이 걸린다', `${nBleed}마리`);
+  ok(nWeak > 0, '파쇄가 걸린다', `${nWeak}마리`);
+  const bled = alive().filter((z) => z.bleed > 0);
+  const hp0 = bled.reduce((s3, z) => s3 + z.hp, 0);
+  for (let i2 = 0; i2 < 60; i2++) g2.tickCC(1 / 60);
+  ok(bled.reduce((s3, z) => s3 + z.hp, 0) < hp0, '출혈이 실제로 피해를 준다');
+  const slowOnes = alive().filter((z) => z.slow > 0);
+  for (let i2 = 0; i2 < 60 * 8; i2++) g2.tickCC(1 / 60);
+  ok(slowOnes.every((z) => !(z.slow > 0)), '상태이상이 시간이 지나면 풀린다');
+  ok(D.SKILLS.filter((k) => k.cc).length >= 9, '상태이상을 가진 무공 수',
+    `${D.SKILLS.filter((k) => k.cc).length}종`);
+
+  // 선택 상자
+  const g3 = new Game(newSave()); g3.rng = seeded(3);
+  ok(g3.openAccPick('ring', 1) === null, '없으면 못 연다');
+  g3.s.accPick = 300;
+  const got = g3.openAccPick('ring', 300);
+  ok(got.length === 300 && g3.s.accPick === 0, '가진 만큼만 열린다');
+  ok(got.every((o) => o.grade >= D.ACC_PICK_MIN), `${D.GRADES[D.ACC_PICK_MIN].name} 이상만 나온다`);
+  ok(got.every((o) => o.slot === 'ring'), '고른 자리로만 나온다');
+  ok(D.towerReward(20).accPick > 0 && !D.towerReward(21).accPick, '탑은 단이 바뀔 때만 선택 상자');
+  const g4 = new Game(newSave()); g4.grant({ accPick: 5 });
+  ok(g4.s.accPick === 5, '보상으로 받으면 쌓인다');
+  ok(migrate({ accPick: 'xx' }).accPick === 0 && migrate({ accPick: 7 }).accPick === 7,
+    '옛 세이브에서도 멀쩡');
+
+  // 장비 초월
+  const g5 = new Game(newSave()); const top = D.GRADES.length - 1;
+  ok(!g5.canEquipPierce('weapon'), '천품이 없으면 초월 못 함');
+  g5.s.equips.weapon[top] = 1;
+  ok(!g5.canEquipPierce('weapon'), '끼운 하나는 남겨야 한다');
+  g5.s.equips.weapon[top] = 1 + D.equipPierceCost(0);
+  const before = g5.equipMult('weapon');
+  ok(g5.equipPierceUp('weapon'), '천품을 먹여 초월한다');
+  ok(Math.abs(g5.equipMult('weapon') / before - (1 + D.EQUIP_PIERCE_MULT)) < 1e-9,
+    '초월 1단계가 배율에 그대로 반영', `×${(g5.equipMult('weapon') / before).toFixed(2)}`);
+  g5.s.equips.weapon[top] = 1000;
+  let st = 1; while (g5.equipPierceUp('weapon')) st++;
+  ok(st === D.EQUIP_PIERCE_MAX, '초월 상한에서 멈춘다', `${st}단계`);
+  const used = 1000 - g5.s.equips.weapon[top] + D.equipPierceCost(0);
+  ok(used === 21, '6초월에 천품 21개', `${used}개`);
+  ok(Object.keys(migrate({}).equipPierce).length === 3, '옛 세이브에 초월 칸이 생긴다');
+}
+
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);

@@ -4,6 +4,27 @@ import { fmt } from './fmt.js';
 
 export const BRUSH = '"Yuji Syuku", "Nanum Brush Script", "Gowun Batang", serif';
 const HP_BAR_RANGE = 230;   // 이 거리 안의 적만 체력바를 보여준다
+
+// 상태이상 표시. 빙결은 얼음 덩어리로 크게 보이지만 둔화·출혈·파쇄는
+// 걸려도 표가 안 났다 — 효과가 있어도 플레이어가 모르면 없는 것이다.
+// 수십 마리가 동시에 걸리므로 글자가 아니라 작은 점으로 찍는다.
+const CC_DOT = [
+  ['slow', '#a5b4fc'],
+  ['bleed', '#fca5a5'],
+  ['weak', '#fcd34d'],
+];
+function ccDots(ctx, m, cx, y) {
+  const on = CC_DOT.filter(([k]) => m[k] > 0);
+  if (!on.length) return;
+  const r = 2.6;
+  const w = on.length * (r * 2 + 3) - 3;
+  let x = cx - w / 2 + r;
+  for (const [, color] of on) {
+    ctx.fillStyle = color;
+    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+    x += r * 2 + 3;
+  }
+}
 const AOE_FLOAT_MAX = 6;    // 광역 피해 숫자는 이만큼만 띄우고 나머지는 합친다
 const EMOJI_FONT = '"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif';
 const SHADOW_LOOK = { robe: '#0b0b0d', trim: '#3f0d12', sash: '#1f0a0c', band: '#7f1d1d', aura: '#4c0519', eyes: '#ef4444', hair: '#000' };
@@ -64,8 +85,8 @@ export class BattleView {
   get heroX() { return this.w * 0.5; }
   // 월드 Y는 화면에서 살짝 눌러 그린다 — 평면이 너무 넓어 보이지 않게
   get squash() { return FIELD_SQUASH; }
-  sx(m) { const g = this.game; return this.heroX + (m.x - g.heroX); }
-  sy(m) { const g = this.game; return this.groundY + (m.y - g.heroY) * this.squash; }
+  sx(m) { const g = this.game; return this.heroX + (m.x - (g?.heroX || 0)); }
+  sy(m) { const g = this.game; return this.groundY + (m.y - (g?.heroY || 0)) * this.squash; }
   get monX() { const g = this.game; return g?.mon ? this.sx(g.mon) : this.w * 0.5; }
   get monY() { const g = this.game; return g?.mon ? this.sy(g.mon) : this.groundY; }
   get fieldMode() { return this.game?.mode === 'stage'; }
@@ -182,7 +203,8 @@ export class BattleView {
   skillEffect(id) {
     const sk = SKILLS.find((x) => x.id === id);
     const add = (kind, life, extra = {}) => this.effects.push({ kind, life, max: life, ...extra });
-    if (sk) this.hanja = { text: sk.hz, life: 1, max: 1, color: id === 'rage' ? '#fca5a5' : id === 'frost' ? '#bae6fd' : '#fef3c7' };
+    // sk.hz는 한자를 뺄 때 사라진 필드다. 무공 이름을 쓴다.
+    if (sk) this.hanja = { text: sk.name, life: 1, max: 1, color: id === 'rage' ? '#fca5a5' : id === 'frost' ? '#bae6fd' : '#fef3c7' };
     if (id === 'slash') for (let i = 0; i < 3; i++) this.projectiles.push({ kind: 'wave', x: this.heroX + 20, y: this.groundY - 50 - i * 18, life: 0.35 + i * 0.07, max: 0.35 + i * 0.07 });
     if (id === 'slash') this.shake = 0.18;
     if (id === 'thunder') { add('thunder', 0.45); this.shake = 0.4; this.flash = 0.5; }
@@ -491,7 +513,10 @@ export class BattleView {
     if (a.stun > 0) iceBlock(ctx, x, y, 26, 88);
     // 체력바는 가까이 붙은 적만. 수십 마리가 전부 달면 주황 막대가 화면을 덮는다.
     const near = Math.hypot(x - this.heroX, y - this.groundY) <= HP_BAR_RANGE;
-    if (near) hpBar(ctx, x - 22, y - 92, 44, 5, Math.max(0, a.hp / a.maxHp), '#b45309');
+    if (near) {
+      hpBar(ctx, x - 22, y - 92, 44, 5, Math.max(0, a.hp / a.maxHp), '#b45309');
+      ccDots(ctx, a, x, y - 99);
+    }
     ctx.restore();
   }
 
@@ -577,6 +602,7 @@ export class BattleView {
       hpBar(ctx, x - bw / 2, top - 6, bw, 6, m.hp / m.maxHp, boss || m.trial ? '#b91c1c' : '#ea580c');
       const name = m.isHero ? `${RANKS[m.rank || 0].name} ${m.name}` : m.trial ? '심마' : def.name || '';
       nameTag(ctx, name, x, top - 12, boss || m.trial);
+      ccDots(ctx, m, x, top - 13);
     }
   }
 
@@ -764,7 +790,7 @@ export class BattleView {
   // 무공 이름 한자를 화면 가운데에 크게
   drawHanja(dt) {
     const hj = this.hanja;
-    if (!hj) return;
+    if (!hj || !hj.text) { this.hanja = null; return; }
     hj.life -= dt;
     if (hj.life <= 0) { this.hanja = null; return; }
     const { ctx, w } = this;

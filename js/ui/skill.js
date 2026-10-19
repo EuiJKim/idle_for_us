@@ -1,6 +1,6 @@
 // 무공 탭: 비급으로 연마, 4칸 장착
 import { SKILLS, SKILL_SLOTS, SKILL_PIERCE_MAX, SKILL_PIERCE_AT, SKILL_PIERCE_MULT,
-  skillTotalBonus, nextSkillTotalStep, PRESET_SLOTS } from '../data.js';
+  skillTotalBonus, nextSkillTotalStep, PRESET_SLOTS, nextSkillSlotAt } from '../data.js';
 import { fmt } from '../fmt.js';
 import { h, openModal, closeModal, toast } from './common.js';
 
@@ -10,6 +10,7 @@ export function skillTab(app) {
   const books = h('b', { style: 'color:#fca5a5' });
   const autoBtn = h('button', { class: 'btn', style: 'padding:6px 10px', onclick: () => { game.s.autoSkill = !game.s.autoSkill; app.refresh(); } });
   const slotsEl = h('div', { class: 'slots' });
+  const slotInfo = h('small');
   const totalLv = h('small');
   const totalInfo = h('div', { class: 'desc' });
   // 출진 준비: 무공 넷 + 영수를 한 벌로 담아 두고 바꿔 끼운다
@@ -46,9 +47,9 @@ export function skillTab(app) {
   });
   const root = h('div', {},
     h('div', { class: 'card' },
-      h('h3', {}, '장착 무공', autoBtn),
+      h('h3', {}, '장착 무공', slotInfo, autoBtn),
       slotsEl,
-      h('p', { class: 'muted', style: 'margin:8px 0 0' }, '비급 ', books, '개 · 두목를 잡거나 의뢰을 깨면 얻어요')),
+      h('p', { class: 'muted', style: 'margin:8px 0 0' }, '비급 ', books, '개 · 두목을 잡거나 의뢰를 깨면 얻어요')),
     h('div', { class: 'card' },
       h('h3', {}, '무공 총 연마', totalLv),
       totalInfo,
@@ -101,6 +102,9 @@ export function skillTab(app) {
     autoBtn.textContent = game.s.autoSkill ? '자동 ON' : '자동 OFF';
     autoBtn.classList.toggle('good', game.s.autoSkill);
     books.textContent = fmt(game.s.books);
+    const nSlot = game.skillSlotCount();
+    const nextAt = nextSkillSlotAt(game.s.bestStage);
+    slotInfo.textContent = nextAt ? `${nSlot}칸 · ${nextAt}관문에 한 칸 더` : `${nSlot}칸 (최대)`;
     for (const r of presetRows) {
       const p2 = game.s.presets[r.i];
       const on = game.presetReady(r.i);
@@ -118,10 +122,10 @@ export function skillTab(app) {
       + (tb.crit ? ` · 치명 확률 <b>+${(tb.crit * 100).toFixed(0)}%p</b>` : '')
       + (tb.critDmg ? ` · 치명 피해 <b>+${Math.round(tb.critDmg * 100)}%p</b>` : '')
       + (nx ? `<br><span class="tier-hint">합계 ${nx.at}에서 공격력 +${Math.round(nx.atk * 100)}% — ${nx.at - tot} 남음</span>` : '');
-    const sig = game.s.skillSlots.join(',');
+    const sig = game.s.skillSlots.join(',') + ':' + game.skillSlotCount();
     if (sig !== slotSig) {
       slotSig = sig;
-      slotsEl.replaceChildren(...Array.from({ length: SKILL_SLOTS }, (_, i) => {
+      slotsEl.replaceChildren(...Array.from({ length: game.skillSlotCount() }, (_, i) => {
         const sk = SKILLS.find((x) => x.id === game.s.skillSlots[i]);
         return h('div', { class: 'slot' }, h('span', {}, sk?.icon || '＋'), h('small', {}, sk ? `${sk.name} Lv.${game.s.skills[sk.id]}` : '빈 칸'));
       }));

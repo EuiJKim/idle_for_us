@@ -71,6 +71,19 @@ export function waveKills(stage, wave) {
 // 물결이 뒤로 갈수록 더 몰려온다
 export const waveDensity = (wave, total) => 0.7 + 0.3 * (total <= 1 ? 1 : wave / (total - 1));
 
+// 물결을 넘길 때 주는 것. 저쪽은 WaveRewardTable이 따로 있다.
+// 물결만 넣고 보상을 안 두면 한 관문 안의 작은 성취가 비어 버린다.
+// 뒤쪽 물결일수록 크고, 마지막 물결은 관문지기로 이어지므로 더 준다.
+export function waveReward(stage, wave, total) {
+  const last = wave >= total - 1;
+  const k = 1 + wave * 0.45 + (last ? 0.8 : 0);
+  return {
+    gold: monsterGold(stage) * 4 * k,
+    stones: Math.max(1, Math.round((1 + stage * 0.035) * k)),
+    books: last ? Math.max(1, Math.round((0.6 + stage * 0.02) * k)) : 0,
+  };
+}
+
 export const BOSS_TIME = 30;
 export const SPAWN_DELAY = 0.45;
 // ---------- 그림자 무림 (저쪽의 '도플갱어') ----------
@@ -85,8 +98,8 @@ export const SHADOW_TIERS = [
   { id: 'bronze', name: '삼류', need: 2, reward: { stones: 6000, books: 900, accBox: 1 } },
   { id: 'silver', name: '이류', need: 5, reward: { stones: 18000, books: 2500, accBox: 2 } },
   { id: 'gold', name: '일류', need: 9, reward: { stones: 55000, books: 7000, accBox: 3, gems: 3000 } },
-  { id: 'jade', name: '절정', need: 14, reward: { stones: 160000, books: 20000, accBox: 5, gems: 8000 } },
-  { id: 'black', name: '초절정', need: 20, reward: { stones: 480000, books: 60000, accBox: 8, gems: 20000 } },
+  { id: 'jade', name: '절정', need: 14, reward: { stones: 160000, books: 20000, accBox: 5, accPick: 1, gems: 8000 } },
+  { id: 'black', name: '초절정', need: 20, reward: { stones: 480000, books: 60000, accBox: 8, accPick: 3, gems: 20000 } },
 ];
 export const SHADOW_TRIES = 3;        // 하루에 쓸 수 있는 도전 수
 export const SHADOW_TRY_CAP = 12;     // 쌓이는 상한
@@ -134,7 +147,10 @@ export function towerReward(floor) {
     stones: Math.ceil(120 * Math.pow(1.07, floor)),
     books: Math.ceil(60 * Math.pow(1.07, floor)),
   };
-  if (floor % 20 === 0) r.accBox = 2 + band;   // 단이 바뀌는 층에서 크게
+  if (floor % 20 === 0) {
+    r.accBox = 2 + band;   // 단이 바뀌는 층에서 크게
+    r.accPick = 1 + Math.floor(floor / 60);   // 선택 상자는 단이 바뀔 때만
+  }
   return r;
 }
 // 오른 층마다 영구히 붙는 효과 (탑은 한 번 오르면 내려가지 않는다)
@@ -287,6 +303,17 @@ export const EQUIP_TYPES = {
     equip: [0.1, 0.25, 0.6, 1.5, 4, 10], own: [0.03, 0.06, 0.15, 0.4, 1, 2.5] },
 };
 export const ENHANCE_PER = 0.08; // 제련 1단계마다 해당 부위 배율에 +8%p (선형)
+
+// 장비 초월. 근거: TranscendenceTable — 저쪽은 장비에도 초월이 따로 있다.
+// 우리는 초월을 장신구와 무공에만 뒀다.
+//
+// 제련과 겹치지 않게 '값을 다르게' 받는다. 제련은 한철이지만 초월은
+// 천품 장비 자체를 먹는다. 천품은 더 합성할 윗등급이 없어서 남는 것이
+// 영원히 쌓이기만 했다 — 그 자리를 쓰는 것이다.
+// 끼운 하나는 남겨야 하므로 실제로는 비용 + 1개를 들고 있어야 한다.
+export const EQUIP_PIERCE_MAX = 6;
+export const EQUIP_PIERCE_MULT = 0.5;   // 한 단계마다 그 부위 배율 ×(1+0.5)
+export const equipPierceCost = (step) => 1 + step;   // 천품 장비 개수 (합 21)
 
 // ---------- 심검 (저쪽의 '에고') ----------
 // 근거: EgoUpgradeTable, EgoEnchantTable, EgoBonusTable.
@@ -508,6 +535,13 @@ export const ACC_SET = { boss: 0.5, gold: 0.3 };
 // 장신구 상자는 두목과 비경에서 나온다
 export const ACC_BOX_RATES = [0.42, 0.27, 0.17, 0.09, 0.04, 0.01];
 
+// 선택 상자. 근거: SelectionBoxTable, 그리고 공략에서 가장 자주 나온 보상이
+// "전설 장신구 선택상자"였다. 무작위 상자만 있으면 공략의 핵심 판단인
+// "가락지만 집중해서 올린다"가 성립하지 않는다 — 자리를 못 고르니까.
+// 그래서 무작위 상자와 따로, 더 드물게 주되 자리를 고르고 등급 바닥을 보장한다.
+export const ACC_PICK_MIN = 3;        // 보품 이상만 나온다
+export const ACC_PICK_RATES = [0.62, 0.28, 0.10];   // 보품 / 신품 / 천품
+
 // ---------- 인물도감 (저쪽의 '피규어') ----------
 // 근거: 공략에서 가장 큰 한 줄. "모든 등급 몬스터·마스터·코스튬 피규어를 하나씩
 // 보유만 하고 레벨을 하나도 안 올렸을 때, 공격력 14.78배 · 생명력 6.13배 ·
@@ -606,6 +640,7 @@ export function gachaLvReward(kind, lv) {
   }
   // 5레벨마다 장신구 상자 — 공략의 '달성보상 선택상자'에 해당
   if (big) r.accBox = Math.max(1, Math.floor(lv / 5) * 3);
+  if (big && lv % 10 === 0) r.accPick = Math.floor(lv / 10);
   return r;
 }
 
@@ -631,6 +666,19 @@ export const mineCap = (depth, hands) => mineRate(depth, hands) * MINE_CAP_HOURS
 
 export const RELIC_DIG_COST = 10; // 신물 조각
 
+// ---------- 상태이상 ----------
+// 근거: CrowdControlTable. 우리는 빙결 하나뿐이라, 동작은 여섯 가지로
+// 갈라놨는데 효과는 전부 '피해'였다. 무공을 고르는 이유가 수치밖에 없었다.
+export const CC = {
+  freeze: { id: 'freeze', name: '빙결', color: '#bae6fd', desc: (s) => `${s}초간 멈춤` },
+  slow: { id: 'slow', name: '둔화', color: '#a5b4fc', desc: (s) => `${s}초간 걸음 절반` },
+  bleed: { id: 'bleed', name: '출혈', color: '#fca5a5', desc: (s) => `${s}초간 초당 피해` },
+  weak: { id: 'weak', name: '파쇄', color: '#fcd34d', desc: (s) => `${s}초간 받는 피해 증가` },
+};
+export const CC_SLOW_MULT = 0.45;     // 둔화 때 걸음
+export const CC_BLEED_PER = 0.22;     // 출혈 1초당 그 일격의 이만큼
+export const CC_WEAK_MULT = 1.35;     // 파쇄 중에는 받는 피해가 이만큼
+
 // ---------- 무공 ----------
 // motion = 어떻게 맞히는가. 근거: Blade Idle의 SkillTable에는 skillmovespeed,
 // skillmovetime, skillmovestopintervaldistance가 있다. 즉발이 아니라 날아가고
@@ -647,44 +695,47 @@ export const RELIC_DIG_COST = 10; // 신물 조각
 //   pierce  직선상의 적 전부             ← SwordProjectile
 export const SKILLS = [
   { id: 'slash', name: '선풍검', icon: '선풍', unlock: 1, cd: 6, kind: 'dmg', motion: 'aoe', target: 'all', radius: 150,
+    cc: 'bleed', ccSec: 4,
     mult: (l) => 4 + l * 0.6, desc: (m) => `발밑 반경 150 안의 적 전체에게 공격력의 ${m.toFixed(1)}배` },
   { id: 'rage', name: '혈마해방', icon: '혈마', unlock: 10, cd: 25, dur: 8, kind: 'buff',
     mult: (l) => 1.5 + l * 0.06, desc: (m) => `8초간 공격력 ${m.toFixed(2)}배` },
   { id: 'heal', name: '운기조식', icon: '조식', unlock: 30, cd: 18, kind: 'heal',
     mult: (l) => Math.min(1, 0.3 + l * 0.02), desc: (m) => `체력 ${Math.round(m * 100)}% 회복` },
   { id: 'thunder', name: '뇌정검', icon: '뇌정', unlock: 50, cd: 15, kind: 'dmg', motion: 'aoe', target: 'all', radius: 210,
+    cc: 'slow', ccSec: 5,
     mult: (l) => 12 + l * 1.8, desc: (m) => `발밑 반경 210 안의 적 전체에게 공격력의 ${m.toFixed(1)}배 낙뢰` },
   { id: 'gale', name: '질풍보', icon: '질풍', unlock: 70, cd: 30, dur: 10, kind: 'buff',
     mult: (l) => 1.5 + l * 0.03, desc: (m) => `10초간 공격 속도 ${m.toFixed(2)}배 (한계 돌파)` },
   { id: 'midas', name: '천금수', icon: '천금', unlock: 90, cd: 45, dur: 15, kind: 'buff',
     mult: (l) => 2 + l * 0.1, desc: (m) => `15초간 은자 ${m.toFixed(1)}배` },
-  { id: 'frost', name: '빙백신장', icon: '빙백', unlock: 100, cd: 20, kind: 'dmg', motion: 'single', stun: 3, target: 'single', bossMult: 1.8, radius: 70,
+  { id: 'frost', name: '빙백신장', icon: '빙백', unlock: 100, cd: 20, kind: 'dmg', motion: 'single', stun: 3, cc: 'freeze', ccSec: 3, target: 'single', bossMult: 1.8, radius: 70,
     mult: (l) => 8 + l * 1.2, desc: (m) => `한 명에게 공격력의 ${m.toFixed(1)}배 + 3초 빙결 · 두목에겐 1.8배` },
   { id: 'meteor', name: '만검귀종', icon: '만검', unlock: 110, cd: 40, kind: 'dmg', motion: 'aoe', target: 'all', radius: 300,
+    cc: 'weak', ccSec: 8,
     mult: (l) => 40 + l * 6, desc: (m) => `발밑 반경 300 안의 적 전체에게 검 비 · 공격력의 ${m.toFixed(0)}배` },
 
   // --- 여기부터 동작이 다른 무공 ---
   { id: 'chain', name: '연환벽력', icon: '연환', unlock: 120, cd: 18, kind: 'dmg', motion: 'chain',
-    chainRange: 190, chainFalloff: 0.88, chain: (l) => 5 + Math.floor(l / 3),
+    chainRange: 190, chainFalloff: 0.88, chain: (l) => 5 + Math.floor(l / 3), cc: 'slow', ccSec: 4,
     mult: (l) => 18 + l * 2.4,
     desc: (m, l) => `가까운 적부터 ${5 + Math.floor(l / 3)}명에게 옮겨타며 공격력의 ${m.toFixed(0)}배 · 옮길수록 12%씩 약해져요` },
   { id: 'dash', name: '발도돌격', icon: '발도', unlock: 130, cd: 22, kind: 'dmg', motion: 'dash',
-    dashDist: 300, dashWidth: 110,
+    dashDist: 300, dashWidth: 110, cc: 'bleed', ccSec: 6,
     mult: (l) => 30 + l * 4,
     desc: (m) => `앞으로 300만큼 파고들며 지나간 길의 적 전부에게 공격력의 ${m.toFixed(0)}배` },
   { id: 'blink', name: '축지참', icon: '축지', unlock: 140, cd: 26, kind: 'dmg', motion: 'blink', bossMult: 2.2,
     mult: (l) => 55 + l * 8,
     desc: (m) => `가장 먼 적(두목 우선)에게 순간이동해 공격력의 ${m.toFixed(0)}배 · 두목에겐 2.2배` },
   { id: 'plum', name: '매화검진', icon: '매화', unlock: 150, cd: 35, kind: 'dmg', motion: 'field',
-    radius: 190, fieldSec: 6, tickSec: 0.5,
+    radius: 190, fieldSec: 6, tickSec: 0.5, cc: 'weak', ccSec: 4,
     mult: (l) => 9 + l * 1.2,
     desc: (m) => `그 자리에 6초간 검진을 남겨 0.5초마다 반경 190의 적에게 공격력의 ${m.toFixed(1)}배` },
   { id: 'tornado', name: '선풍장', icon: '회선', unlock: 160, cd: 40, kind: 'dmg', motion: 'tornado',
-    radius: 150, fieldSec: 8, tickSec: 0.4, moveSpeed: 90,
+    radius: 150, fieldSec: 8, tickSec: 0.4, moveSpeed: 90, cc: 'slow', ccSec: 3,
     mult: (l) => 7 + l * 1,
     desc: (m) => `회오리가 8초간 들판을 돌아다니며 0.4초마다 공격력의 ${m.toFixed(1)}배` },
   { id: 'pierce', name: '일자검기', icon: '일자', unlock: 170, cd: 28, kind: 'dmg', motion: 'pierce',
-    pierceLen: 520, pierceWidth: 90,
+    pierceLen: 520, pierceWidth: 90, cc: 'bleed', ccSec: 5,
     mult: (l) => 35 + l * 5,
     desc: (m) => `바라보는 방향 520 거리의 일직선상 적 전부에게 공격력의 ${m.toFixed(0)}배` },
 ];
@@ -731,7 +782,14 @@ export const nextSkillTotalStep = (total) => SKILL_TOTAL_STEPS.find((s) => total
 export const PRESET_SLOTS = 3;
 export const PRESET_NAMES = ['사냥', '두목', '벌이'];
 
-export const SKILL_SLOTS = 4;
+// 무공 칸. 저쪽은 SkillSlotTable이 따로 있어 칸 자체가 성장한다.
+// 우리는 무공이 열넷인데 칸이 넷이라 열 개를 못 썼다.
+export const SKILL_SLOTS = 6;          // 끝까지 열었을 때
+export const SKILL_SLOT_BASE = 4;      // 처음 열려 있는 칸
+export const SKILL_SLOT_AT = [180, 260];   // 다섯째·여섯째 칸이 열리는 관문 (벽 자리)
+export const skillSlotCount = (bestStage) =>
+  SKILL_SLOT_BASE + SKILL_SLOT_AT.filter((v) => bestStage >= v).length;
+export const nextSkillSlotAt = (bestStage) => SKILL_SLOT_AT.find((v) => bestStage < v) ?? null;
 export const skillBookCost = (l) => Math.ceil(2 * Math.pow(1.15, l - 1));
 
 // ---------- 적 무인 외형 ----------

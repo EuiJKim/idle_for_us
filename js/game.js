@@ -3,11 +3,12 @@ import {
   SAVE_VERSION, OFFLINE_CAP_SEC, KILLS_PER_STAGE, BOSS_TIME, SPAWN_DELAY, RAID_TIME, RAID_TICKETS,
   MERGE_COUNT, GACHA_COST, GACHA10_COST, DAILY_GEMS, START_GEMS, SPEED_CAP, CRIT_CAP,
   UPGRADES, GRADES, GACHA_RATES, EQUIP_TYPES, ENHANCE_PER, enhanceCost,
+  EQUIP_PIERCE_MAX, EQUIP_PIERCE_MULT, equipPierceCost,
   CODEX_PER_TYPE, CODEX_ALL,
   OPTION_SLOTS, OPTION_STATS, OPTION_GRADE_RATES, OPTION_ROLL_MIN, OPTION_ROLL_MAX,
   optionSlotCount, optionRerollCost, OPTION_SET_GRADE, OPTION_SET, OPTION_SET_FULL_GRADE, OPTION_SET_FULL,
   ACC_SLOTS, ACC_STAR_MAX, ACC_PIERCE_MAX, ACC_MERGE, accPierceCost, accPower,
-  ACC_SET_GRADE, ACC_SET, ACC_BOX_RATES,
+  ACC_SET_GRADE, ACC_SET, ACC_BOX_RATES, ACC_PICK_MIN, ACC_PICK_RATES,
   CODEX_KINDS, CODEX_GRADE_MULT, CODEX_KIND_FULL, CODEX_ALL_FULL, codexEntryPower, codexGradeOf,
   OUTFITS, OUTFIT_ALL,
   GACHA_KINDS, GACHA_LV_MAX, gachaLvNeed, gachaMaxGrade, GACHA_LV_TILT, gachaLvReward,
@@ -23,14 +24,15 @@ import {
   ATTEND_CYCLE, attendReward, BOOST_PER_DAY, BOOST_SEC, BOOST_MULT, mobGroupSize,
   MELEE_RANGE, HERO_SPEED, MOB_SPEED, MOB_SEPARATION, FIELD_ASPECT, FIELD_SQUASH, MOB_SPAWN_NEAR, MOB_SPAWN_FAR,
   refillRate, fieldRadius, MAX_ATTACKERS, FIELD_WIDE, FIELD_TALL, isWallStage,
-  WAVE_MAX, waveCount, waveKills, waveDensity,
+  WAVE_MAX, waveCount, waveKills, waveDensity, waveReward,
+  CC_SLOW_MULT, CC_BLEED_PER, CC_WEAK_MULT,
   SHADOW_TIERS, SHADOW_TRIES, SHADOW_TRY_CAP, SHADOW_TIME, shadowTierOf, shadowStage, weekKey,
   MINE_OPEN_STAGE, MINE_DEPTH_MAX, MINE_HAND_MAX, mineDepthCost, mineHandCost, mineRate, mineCap,
   TOWER_OPEN_STAGE, TOWER_FLOOR_MAX, TOWER_TIME, towerStage, towerReward, TOWER_PER_FLOOR,
   SEEK_PER_DAY, SEEK_CAP, RIFT_TIME, HUNT_TIME, RIFT_OPEN_STAGE, HUNT_OPEN_STAGE,
   riftStage, huntStage, riftReward, huntReward,
   RELICS, RELIC_DIG_COST,
-  SKILLS, SKILL_SLOTS, skillBookCost,
+  SKILLS, SKILL_SLOTS, skillSlotCount, skillBookCost,
   DUNGEONS, DUNGEON_KEYS, DUNGEON_TIME, DUNGEON_MOBS, dungeonStage, dungeonReward,
   DUNGEON_KEY_CAP, RAID_TICKET_CAP, PVP_TICKET_CAP,
   MISSIONS, MISSION_ALL_REWARD, stageMilestone, STAGE_MILESTONE_EVERY,
@@ -95,7 +97,9 @@ export function newSave(now = Date.now()) {
     lore: Object.fromEntries(CODEX_KINDS.map((k) => [k.id, GRADES.map(() => 0)])),
     acc: Object.fromEntries(ACC_SLOTS.map((a) => [a.id, null])),      // { grade, star, pierce }
     accBag: Object.fromEntries(ACC_SLOTS.map((a) => [a.id, GRADES.map(() => 0)])),
+    accPick: 0,    // 손에 든 선택 상자. 열 때 자리를 고른다.
     enhance: Object.fromEntries(Object.keys(EQUIP_TYPES).map((k) => [k, 0])),
+    equipPierce: Object.fromEntries(Object.keys(EQUIP_TYPES).map((k) => [k, 0])),
     skills: Object.fromEntries(SKILLS.map((s) => [s.id, 1])),
     tower: { floor: 0 },   // 오른 층 (한 번 오르면 내려가지 않는다)
     seek: SEEK_PER_DAY,    // 균열·탐색에 같이 쓰는 패
@@ -131,7 +135,7 @@ export function migrate(raw, now = Date.now()) {
   const base = newSave(now);
   if (!raw || typeof raw !== 'object') return base;
   const s = { ...base, ...raw };
-  for (const key of ['upgrades', 'skills', 'stats', 'spAlloc', 'enhance', 'dungeons', 'pvp', 'regress']) {
+  for (const key of ['upgrades', 'skills', 'stats', 'spAlloc', 'enhance', 'equipPierce', 'dungeons', 'pvp', 'regress']) {
     s[key] = { ...base[key], ...(raw[key] || {}) };
   }
   s.daily = { ...freshDaily(raw.daily?.date || ''), ...(raw.daily || {}) };
@@ -200,6 +204,7 @@ export function migrate(raw, now = Date.now()) {
     const bag = raw.accBag?.[a.id];
     s.accBag[a.id] = GRADES.map((_, i) => Math.max(0, (Array.isArray(bag) ? bag[i] : 0) | 0));
   }
+  s.accPick = Math.max(0, raw.accPick | 0);
   s.options = { ...base.options };
   s.optionLock = { ...base.optionLock };
   for (const k of Object.keys(EQUIP_TYPES)) {
@@ -267,6 +272,9 @@ export class Game {
     return -1;
   }
 
+  // 지금 열려 있는 무공 칸 수
+  skillSlotCount() { return skillSlotCount(this.s.bestStage); }
+
   // ---------- 출진 준비 ----------
   // 지금 세팅을 그 칸에 담는다
   savePreset(i) {
@@ -289,7 +297,7 @@ export class Game {
       const sk = SKILLS.find((x) => x.id === id);
       return sk && this.skillUnlocked(sk) ? id : null;
     });
-    for (let k = 0; k < SKILL_SLOTS; k++) this.s.skillSlots[k] = next[k] ?? null;
+    for (let k = 0; k < this.skillSlotCount(); k++) this.s.skillSlots[k] = next[k] ?? null;
     if (p2.pet && this.s.pets?.[p2.pet]) this.s.pet = p2.pet;
     this.s.autoSkill = p2.auto !== false;
     return true;
@@ -341,6 +349,8 @@ export class Game {
     if (this.mineOpen() && (s.mine?.depth || 0) === 0) return { tab: 'dungeon', sub: 'mine', text: '광맥이 열렸어요. 갱도를 파면 싸우지 않아도 한철이 쌓여요' };
     // 5) 올릴 수 있는 것
     for (const e of EGO_PARTS) if (this.egoReady(e.id)) return { tab: 'equip', sub: null, text: `${e.name} 승급에 도전할 수 있어요` };
+    if ((this.s.accPick || 0) > 0) return { tab: 'equip', sub: null, text: `선택 상자 ${this.s.accPick}개 — 자리를 골라 열어요` };
+    for (const k of Object.keys(EQUIP_TYPES)) if (this.canEquipPierce(k)) return { tab: 'equip', sub: null, text: `${EQUIP_TYPES[k].name}을 초월할 수 있어요` };
     for (const a of ACC_SLOTS) if (this.canAccStar(a.id) || this.canAccGrade(a.id)) return { tab: 'equip', sub: null, text: `${a.name}를 올릴 수 있어요` };
     if (this.canTrial()) return { tab: 'growth', sub: 'rank', text: '경지 돌파에 도전할 수 있어요' };
     // 6) 평소에 할 것
@@ -683,6 +693,29 @@ export class Game {
     return out;
   }
 
+  // 선택 상자를 연다. 자리를 고르고, 등급은 보품 이상에서 뽑는다.
+  openAccPick(slotId, n = 1) {
+    const def = ACC_SLOTS.find((a) => a.id === slotId);
+    if (!def) return null;
+    const have = Math.min(n, this.s.accPick || 0);
+    if (have <= 0) return null;
+    this.s.accPick -= have;
+    const out = [];
+    for (let i = 0; i < have; i++) {
+      let r = this.rng();
+      let g = ACC_PICK_MIN;
+      for (let k = 0; k < ACC_PICK_RATES.length; k++) {
+        if (r < ACC_PICK_RATES[k]) { g = ACC_PICK_MIN + k; break; }
+        r -= ACC_PICK_RATES[k];
+        g = ACC_PICK_MIN + k;
+      }
+      this.s.accBag[slotId][Math.min(g, GRADES.length - 1)]++;
+      out.push({ slot: slotId, grade: Math.min(g, GRADES.length - 1) });
+    }
+    this.autoEquipAcc();
+    return out;
+  }
+
   // 자리마다 쌓인 것 중 가장 좋은 등급을 끼운다 (비어 있을 때만)
   autoEquipAcc() {
     for (const a of ACC_SLOTS) {
@@ -856,7 +889,8 @@ export class Game {
     // 보유 효과는 '지금 갖고 있는 것'이 아니라 '병기보에 적힌 것' 기준이다.
     // 개수 기준이면 합성할 때마다 효과가 날아가서 합성이 손해가 된다.
     (this.s.codex?.[type] || []).forEach((v, g) => { if (v) m += def.own[g]; });
-    return m * (1 + ENHANCE_PER * (this.s.enhance[type] || 0));
+    const pierce = this.s.equipPierce?.[type] || 0;
+    return m * (1 + ENHANCE_PER * (this.s.enhance[type] || 0)) * (1 + EQUIP_PIERCE_MULT * pierce);
   }
 
   // 스탯 포인트·펫 보유 효과·유물에서 오는 덧셈 보너스
@@ -1034,13 +1068,16 @@ export class Game {
     const total = this.waveTotal();
     if ((this.s.wave || 0) >= total - 1) return false;
     if (this.waveDone() < this.waveNeed()) return false;
+    // 넘긴 물결의 보상을 준다
+    const got = waveReward(this.s.stage, this.s.wave || 0, total);
+    this.grant(got);
     this.s.wave = (this.s.wave || 0) + 1;
     // 남아 있던 적은 물러난다
     for (const m of this.mons) m.alive = false;
     this.mons = [];
     this.mon = null;
     this.respawn = 0;
-    this.emit('wave', { wave: this.s.wave, total });
+    this.emit('wave', { wave: this.s.wave, total, reward: got });
     return true;
   }
 
@@ -1088,7 +1125,8 @@ export class Game {
       const seen = d * k;                                   // 화면에서 보이는 거리
       const stop = (m.isBoss ? MELEE_RANGE * 0.8 : MELEE_RANGE * 0.85);
       if (seen > stop) {
-        const step = Math.min(MOB_SPEED * dt, (seen - stop) / k);
+        const sp = MOB_SPEED * (m.slow > 0 ? CC_SLOW_MULT : 1);   // 둔화
+        const step = Math.min(sp * dt, (seen - stop) / k);
         m.x += (dx / d) * step;
         m.y += (dy / d) * step;
       }
@@ -1226,6 +1264,7 @@ export class Game {
       if (dx * dx + dy * dy > rr) continue;
       hits++;
       this.damageMob(m, amount, kind);
+      if (this.ccNow) this.applyCC(m, this.ccNow.cc, this.ccNow.sec, amount);
     }
     return hits;
   }
@@ -1245,15 +1284,48 @@ export class Game {
       if (side > half) continue;
       hits++;
       this.damageMob(m, amount, kind);
+      if (this.ccNow) this.applyCC(m, this.ccNow.cc, this.ccNow.sec, amount);
     }
     return hits;
   }
 
+  // 상태이상을 건다. 같은 것이 겹치면 더 긴 쪽이 남는다.
+  applyCC(m, kind, sec, amount) {
+    if (!m || !kind || !sec) return;
+    if (kind === 'freeze') { m.stun = Math.max(m.stun || 0, sec); return; }
+    if (kind === 'slow') { m.slow = Math.max(m.slow || 0, sec); return; }
+    if (kind === 'weak') { m.weak = Math.max(m.weak || 0, sec); return; }
+    if (kind === 'bleed') {
+      const per = (amount || 0) * CC_BLEED_PER;
+      // 더 아픈 출혈이 들어오면 갈아끼운다
+      if (!m.bleed || per >= (m.bleedPer || 0)) { m.bleed = sec; m.bleedPer = per; }
+      else m.bleed = Math.max(m.bleed, sec);
+    }
+  }
+
+  // 상태이상이 시간에 따라 풀리고, 출혈은 계속 피해를 준다
+  tickCC(dt) {
+    const one = (m, isMain) => {
+      if (!m || !m.alive) return;
+      if (m.slow > 0) m.slow = Math.max(0, m.slow - dt);
+      if (m.weak > 0) m.weak = Math.max(0, m.weak - dt);
+      if (m.bleed > 0) {
+        m.bleed = Math.max(0, m.bleed - dt);
+        m.hp -= (m.bleedPer || 0) * dt;
+        if (m.hp <= 0) { if (isMain) this.killMonster(); else this.killAdd(m); }
+      }
+    };
+    for (const m of this.mons.slice()) one(m, m === this.mon);
+    if (this.mon && !this.mons.includes(this.mon)) one(this.mon, true);
+  }
+
   // 적 하나에게 피해. 주 타겟이면 기존 처리를, 아니면 졸개 처리를 탄다.
   damageMob(m, amount, kind) {
-    if (m === this.mon) { this.dealDamage(amount, kind, false); return; }
-    m.hp -= amount;
-    this.emit('dmg', { amount, kind, crit: false, add: true, at: m });
+    // 파쇄가 걸린 적은 더 아프게 맞는다
+    const amt = amount * (m?.weak > 0 ? CC_WEAK_MULT : 1);
+    if (m === this.mon) { this.dealDamage(amt, kind, false); return; }
+    m.hp -= amt;
+    this.emit('dmg', { amount: amt, kind, crit: false, add: true, at: m });
     if (m.hp <= 0) this.killAdd(m);
   }
 
@@ -1279,6 +1351,7 @@ export class Game {
       hit.add(best);
       path.push({ x: best.x, y: best.y });
       this.damageMob(best, amount, id);
+      if (this.ccNow) this.applyCC(best, this.ccNow.cc, this.ccNow.sec, amount);
       amount *= sk.chainFalloff;
       from = best;
     }
@@ -1321,6 +1394,7 @@ export class Game {
     this.heroAngle = ang;
     const amount = dmg * (target.isBoss && sk.bossMult ? sk.bossMult : 1);
     this.damageMob(target, amount, id);
+    if (this.ccNow) this.applyCC(target, this.ccNow.cc, this.ccNow.sec, amount);
     this.emit('skillPath', { id, kind: 'blink', path: [{ x: fromX, y: fromY }, { x: this.heroX, y: this.heroY }] });
     return 1;
   }
@@ -1338,6 +1412,8 @@ export class Game {
       every: sk.tickSec,
       tick: 0,
       amount: dmg,
+      cc: sk.cc || null,
+      ccSec: sk.ccSec || 0,
       vx: moving ? Math.cos(ang) * sk.moveSpeed : 0,
       vy: moving ? (Math.sin(ang) * sk.moveSpeed) / FIELD_SQUASH : 0,
     });
@@ -1353,7 +1429,9 @@ export class Game {
       f.tick -= dt;
       if (f.tick > 0) continue;
       f.tick += f.every;
+      this.ccNow = f.cc ? { cc: f.cc, sec: f.ccSec } : null;
       const n = this.hitCircle(f.x, f.y, f.r, f.amount, f.id);
+      this.ccNow = null;
       if (n) this.emit('fieldTick', { id: f.id, x: f.x, y: f.y, r: f.r, hits: n });
     }
     this.fields = this.fields.filter((f) => f.life > 0);
@@ -1369,6 +1447,7 @@ export class Game {
       if (!a.alive) continue;
       a.hp -= amount;
       this.emit('dmg', { amount, kind, crit, add: true, at: a });
+      if (this.ccNow) this.applyCC(a, this.ccNow.cc, this.ccNow.sec, amount);
       if (a.hp <= 0) this.killAdd(a);
     }
   }
@@ -1442,6 +1521,8 @@ export class Game {
       if (isWallStage(s)) {
         const boxes = this.openAccBox(1 + Math.floor(s / 100));
         this.emit('accBox', { boxes });
+        // 백 단위 벽은 선택 상자까지. 여기가 공략이 말한 '집중할 자리를 고르는' 지점이다.
+        if (s % 100 === 0) { this.s.accPick++; this.emit('accPick', { n: 1 }); }
       }
       if (s >= this.s.maxStage) { // 이번 생에서 처음 넘는 관문
         const gems = bossGems(s);
@@ -1511,6 +1592,7 @@ export class Game {
     }
 
     // 들판 사냥: 적을 찾아 걸어가서 벤다
+    this.tickCC(dt);
     this.updateFields(dt);
 
     if (this.mode === 'stage') {
@@ -1842,7 +1924,7 @@ export class Game {
   }
 
   setSkillSlot(slot, id) {
-    if (slot < 0 || slot >= SKILL_SLOTS) return false;
+    if (slot < 0 || slot >= this.skillSlotCount()) return false;
     const sk = SKILLS.find((x) => x.id === id);
     if (id && (!sk || !this.skillUnlocked(sk))) return false;
     const cur = this.s.skillSlots.indexOf(id);
@@ -1867,6 +1949,8 @@ export class Game {
       let dmg = st.atk * this.skillMult(sk);
       // 한 명만 노리는 무공은 두목에게 더 아프게 들어간다
       if (sk.bossMult && this.mon.isBoss) dmg *= sk.bossMult;
+      // 이번 무공이 거는 상태이상. 맞은 적마다 applyCC가 집어간다.
+      this.ccNow = sk.cc ? { cc: sk.cc, sec: sk.ccSec || 3 } : null;
       switch (sk.motion) {
         case 'chain': this.castChain(sk, dmg, id); break;
         case 'dash': this.castDash(sk, dmg, id); break;
@@ -1878,6 +1962,7 @@ export class Game {
           if (sk.target === 'all') this.dealAoe(dmg, id, false, sk.radius || 220);
           else this.dealDamage(dmg, id);
       }
+      this.ccNow = null;
     } else if (sk.kind === 'buff') {
       this.buffs[id] = sk.dur * (1 + SKILL_PIERCE_MULT * this.skillPierceOf(id) * 0.5);
       this.emit('skill', { id });
@@ -1927,7 +2012,7 @@ export class Game {
   // 보상 묶음 지급: {gold, gems, books, stones, food, relicShards}
   grant(r = {}) {
     if (r.gold) this.addGold(r.gold);
-    for (const k of ['gems', 'books', 'stones', 'food', 'relicShards']) if (r[k]) this.s[k] += r[k];
+    for (const k of ['gems', 'books', 'stones', 'food', 'relicShards', 'accPick']) if (r[k]) this.s[k] += r[k];
     return r;
   }
 
@@ -1986,6 +2071,29 @@ export class Game {
   }
 
   enhanceCost(type) { return enhanceCost(this.s.enhance[type] || 0); }
+
+  // ---------- 장비 초월 ----------
+  equipPierceCost(type) { return equipPierceCost(this.s.equipPierce?.[type] || 0); }
+
+  canEquipPierce(type) {
+    const step = this.s.equipPierce?.[type] || 0;
+    if (step >= EQUIP_PIERCE_MAX) return false;
+    const top = GRADES.length - 1;
+    // 끼울 하나는 남겨둬야 한다
+    return (this.s.equips[type]?.[top] || 0) >= equipPierceCost(step) + 1;
+  }
+
+  equipPierceUp(type) {
+    if (!this.canEquipPierce(type)) return false;
+    const top = GRADES.length - 1;
+    this.s.equips[type][top] -= this.equipPierceCost(type);
+    this.s.equipPierce[type] = (this.s.equipPierce[type] || 0) + 1;
+    return true;
+  }
+
+  equipPierceTotal() {
+    return Object.keys(EQUIP_TYPES).reduce((a, k) => a + (this.s.equipPierce?.[k] || 0), 0);
+  }
 
   enhanceEquip(type, times = 1) {
     let n = 0;

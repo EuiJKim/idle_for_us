@@ -468,13 +468,29 @@ function resetSave() {
 let last = performance.now();
 let uiTimer = 0;
 let saveTimer = 0;
+let loopErr = 0;
 function frame(now) {
+  // 한 프레임에서 예외가 나면 그 뒤의 requestAnimationFrame까지 못 가서
+  // 루프가 **영구히** 멈춰 있었다. 화면이 까맣게 굳고 복구가 안 된다.
+  // 다음 프레임은 반드시 예약한다.
+  try {
+    step(now);
+  } catch (e) {
+    if (loopErr++ < 5) console.error('[프레임]', e);
+  }
+  requestAnimationFrame(frame);
+}
+
+function step(now) {
   let dt = (now - last) / 1000;
   last = now;
   if (dt > 3) dt = 0; // 백그라운드에서 돌아온 경우는 방치 보상으로 처리
   dt = Math.min(dt, 0.25);
   const steps = Math.ceil(dt / 0.05);
   for (let i = 0; i < steps; i++) game.tick(dt / steps);
+  // handleEvents가 draw보다 먼저 돌기 때문에, 첫 프레임에 view.game이 비어 있다.
+  // 시작하자마자 쌓인 사건 하나가 좌표를 물으면 거기서 터졌다.
+  view.game = game;
   handleEvents();
   view.draw(game, dt);
   uiTimer += dt;
@@ -490,7 +506,6 @@ function frame(now) {
     net.refreshDay();
     updateDots();
   }
-  requestAnimationFrame(frame);
 }
 
 document.addEventListener('visibilitychange', () => {
@@ -527,3 +542,4 @@ if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.
 }
 
 window.__game = game; // 디버그용
+window.__view = view; // 디버그용 — 화면이 안 그려질 때 직접 한 장 그려본다
