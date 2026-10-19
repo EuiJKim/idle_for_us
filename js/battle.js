@@ -5,6 +5,44 @@ import { fmt } from './fmt.js';
 export const BRUSH = '"Yuji Syuku", "Nanum Brush Script", "Gowun Batang", serif';
 const HP_BAR_RANGE = 230;   // 이 거리 안의 적만 체력바를 보여준다
 
+// ---------- 졸개 스프라이트 캐시 ----------
+// 졸개 하나를 벡터로 그리는 데 54us가 들었다. 화면에 70마리면 그것만 3.7ms다
+// (375x812 / dpr 2에서 잰 값). 폰은 여기서 서너 배 더 느리다.
+// 생김새는 몇 종류뿐이고 매 프레임 달라지는 건 걸음 위상뿐이라,
+// 위상을 여섯 칸으로 끊어 미리 구워 두고 붙인다.
+// cycle은 몸이 흔들리는 주기(sin(t*4) -> 2PI/4)에 맞춘다. 맞춰 놔야
+// 한 바퀴가 이어 붙고, 돌 때마다 툭 끊기지 않는다.
+const SPR = { w: 80, h: 160, ox: 44, oy: 146, phases: 8, cycle: Math.PI / 2, max: 48 };
+const sprCache = new Map();
+const lookIds = new WeakMap();
+let lookSeq = 0;
+function lookId(look) {
+  let id = lookIds.get(look);
+  if (id === undefined) { id = ++lookSeq; lookIds.set(look, id); }
+  return id;
+}
+// 기운·후광이 붙은 인물은 시간에 따라 계속 흔들려서 캐시가 안 맞는다.
+// 그런 인물은 몇 안 되므로 그냥 매번 그린다.
+const sprCacheable = (look) => !!look && !look.aura && !look.halo && !look.jiangshi;
+function fighterSprite(look, time, weapon, dpr) {
+  if (!sprCacheable(look)) return null;
+  const ph = Math.floor((((time % SPR.cycle) + SPR.cycle) % SPR.cycle) / SPR.cycle * SPR.phases);
+  const key = `${lookId(look)}|${ph}|${weapon || ''}|${dpr}`;
+  let c = sprCache.get(key);
+  if (c) return c;
+  if (sprCache.size >= SPR.max) sprCache.clear();   // 구역이 바뀌면 통째로 비운다
+  c = document.createElement('canvas');
+  c.width = Math.ceil(SPR.w * dpr);
+  c.height = Math.ceil(SPR.h * dpr);
+  const sc = c.getContext('2d');
+  sc.setTransform(dpr, 0, 0, dpr, 0, 0);
+  drawFighter(sc, SPR.ox, SPR.oy, look, {
+    t: (ph + 0.5) / SPR.phases * SPR.cycle, weapon, flash: 0,
+  });
+  sprCache.set(key, c);
+  return c;
+}
+
 // 상태이상 표시. 빙결은 얼음 덩어리로 크게 보이지만 둔화·출혈·파쇄는
 // 걸려도 표가 안 났다 — 효과가 있어도 플레이어가 모르면 없는 것이다.
 // 수십 마리가 동시에 걸리므로 글자가 아니라 작은 점으로 찍는다.
@@ -69,6 +107,7 @@ export class BattleView {
   resize() {
     const r = this.cv.getBoundingClientRect();
     const dpr = Math.min(2, window.devicePixelRatio || 1);
+    this.dpr = dpr;
     this.w = Math.max(1, r.width);
     this.h = Math.max(1, r.height);
     this.cv.width = Math.round(this.w * dpr);
@@ -504,12 +543,24 @@ export class BattleView {
     // 발밑 그림자 — 위에서 보는 화면이라 이게 있어야 바닥에 붙어 보인다
     ctx.fillStyle = 'rgba(0,0,0,0.3)';
     ctx.beginPath(); ctx.ellipse(x, y + 2, 20, 8, 0, 0, Math.PI * 2); ctx.fill();
+    const sc = (def.look?.scale || 1) * 0.94 * this.crowdScale;
+    const time = this.t + 0.7 + (Math.abs(a.x) % 7) * 0.2;
     if (def.emoji) emoji(ctx, def.emoji, x, y, 44, face);
-    else drawFighter(ctx, x, y, def.look || {}, {
-      t: this.t + 0.7 + (Math.abs(a.x) % 7) * 0.2, flip: face,
-      scale: (def.look?.scale || 1) * 0.94 * this.crowdScale,
-      weapon: def.look?.weapon, flash: 0,
-    });
+    else {
+      const spr = fighterSprite(def.look || {}, time, def.look?.weapon, this.dpr || 1);
+      if (spr) {
+        ctx.save();
+        ctx.translate(x, y);
+        if (sc !== 1) ctx.scale(sc, sc);
+        if (face) ctx.scale(-1, 1);
+        ctx.drawImage(spr, -SPR.ox, -SPR.oy, SPR.w, SPR.h);
+        ctx.restore();
+      } else {
+        drawFighter(ctx, x, y, def.look || {}, {
+          t: time, flip: face, scale: sc, weapon: def.look?.weapon, flash: 0,
+        });
+      }
+    }
     if (a.stun > 0) iceBlock(ctx, x, y, 26, 88);
     // 체력바는 가까이 붙은 적만. 수십 마리가 전부 달면 주황 막대가 화면을 덮는다.
     const near = Math.hypot(x - this.heroX, y - this.groundY) <= HP_BAR_RANGE;
@@ -867,6 +918,11 @@ export function drawFighter(ctx, x, y, look = {}, o = {}) {
 
   ctx.save();
   ctx.translate(x, y);
+  // o.scale / o.flip은 호출부가 계속 넘겨주고 있었는데 여기서 안 읽었다.
+  // 그래서 '적이 많으면 작게 그린다(crowdScale)'도, '무인 쪽을 본다'도
+  // 값만 계산되고 화면에는 한 번도 반영되지 않았다.
+  if (o.scale && o.scale !== 1) ctx.scale(o.scale, o.scale);
+  if (o.flip) ctx.scale(-1, 1);
   // 그림자
   ctx.fillStyle = 'rgba(0,0,0,0.28)';
   ctx.beginPath(); ctx.ellipse(0, 2, 24, 6, 0, 0, Math.PI * 2); ctx.fill();

@@ -272,5 +272,52 @@ console.log('\n=== 7. 무공 칸·물결 보상·상태이상·선택 상자·�
   ok(Object.keys(migrate({}).equipPierce).length === 3, '옛 세이브에 초월 칸이 생긴다');
 }
 
+// ---------- 8. 장신구 특기 ----------
+console.log('\n=== 8. 장신구 특기 ===');
+{
+  const g = new Game(newSave());
+  // 안 열리는 구간
+  ok(D.accSpecialStep(0, 0) === 0 && D.accSpecialStep(D.ACC_SPECIAL_STAR - 1, 6) === 0,
+    `${D.ACC_SPECIAL_STAR}성 미만이면 초월이 있어도 안 열린다`);
+  ok(D.accSpecialStep(D.ACC_SPECIAL_STAR, 0) === 1, '열리는 성에서 1단');
+  ok(D.accSpecialStep(D.ACC_STAR_MAX, D.ACC_PIERCE_MAX) === 10, '끝까지 올리면 10단',
+    `${D.accSpecialStep(D.ACC_STAR_MAX, D.ACC_PIERCE_MAX)}단`);
+
+  // 세 자리가 서로 다른 축을 민다 — 이게 깨지면 특기를 넣은 이유가 사라진다
+  const stats = D.ACC_SLOTS.filter((a2) => a2.special).map((a2) => a2.special.stat);
+  ok(new Set(stats).size === stats.length, '특기가 서로 다른 능력치에 붙는다', stats.join(','));
+  ok(D.ACC_SLOTS.every((a2) => !a2.special || a2.special.stat !== a2.stat),
+    '특기는 그 자리의 기본 능력과 다른 축');
+
+  // 미달이면 mods에 안 들어간다
+  for (const a2 of D.ACC_SLOTS) g.s.acc[a2.id] = { grade: 4, star: D.ACC_SPECIAL_STAR - 1, pierce: 6 };
+  const low = g.mods();
+  ok(Math.abs(low.boss - D.ACC_SET.boss) < 1e-9 && Math.abs(low.gold - D.ACC_SET.gold) < 1e-9,
+    '미달이면 보유 효과만 남는다', `boss ${low.boss} / gold ${low.gold}`);
+  ok(D.ACC_SLOTS.every((a2) => g.accSpecial(a2.id).open === false), '미달이면 열림 표시도 꺼짐');
+
+  // 끝까지 올리면 mods에 들어간다
+  for (const a2 of D.ACC_SLOTS) g.s.acc[a2.id] = { grade: 4, star: D.ACC_STAR_MAX, pierce: D.ACC_PIERCE_MAX };
+  const hi = g.mods();
+  for (const a2 of D.ACC_SLOTS) {
+    if (!a2.special) continue;
+    const want = a2.special.per * 10;
+    const got = hi[a2.special.stat] - low[a2.special.stat];
+    ok(Math.abs(got - want) < 1e-9, `${a2.name} 〈${a2.special.name}〉이 능력치에 들어간다`,
+      `+${(got * 100).toFixed(1)}%`);
+  }
+
+  // 치명은 상한이 있으니 특기가 상한을 못 넘긴다
+  g.s.upgrades.crit = 999;
+  ok(g.stats().crit <= D.CRIT_CAP + 1e-9, '연격이 치명 상한을 넘기지 않는다',
+    `${g.stats().crit} ≤ ${D.CRIT_CAP}`);
+
+  // 자리가 비면 0
+  const g2 = new Game(newSave());
+  ok(D.ACC_SLOTS.every((a2) => g2.accSpecial(a2.id).amount === 0), '장신구가 없으면 특기도 0');
+  ok(migrate({}).acc && Object.keys(migrate({}).acc).length === D.ACC_SLOTS.length,
+    '옛 세이브에서도 자리가 그대로');
+}
+
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);

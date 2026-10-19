@@ -3,6 +3,7 @@ import { GRADES, EQUIP_TYPES, MERGE_COUNT, GACHA_COST, GACHA10_COST, ENHANCE_PER
   OPTION_SLOTS, OPTION_STATS, OPTION_SET_GRADE, OPTION_SET, OPTION_SET_FULL_GRADE, OPTION_SET_FULL,
   nextOptionSlotAt,
   ACC_SLOTS, ACC_STAR_MAX, ACC_PIERCE_MAX, ACC_MERGE, accPower, ACC_PICK_MIN,
+  ACC_SPECIAL_STAR,
   ACC_SET_GRADE, ACC_SET,
   equipSetBonus, nextEquipSetStep, equipTotalBonus, nextEquipTotalStep,
   EQUIP_PIERCE_MAX, EQUIP_PIERCE_MULT,
@@ -166,7 +167,9 @@ export function equipTab(app) {
     h('span', {}, '장신구'), accSetInfo));
   root.append(h('p', { class: 'muted', style: 'margin:0 2px 8px' },
     `관문지기를 넘으면 장신구 상자가 나와요. 같은 등급 ${ACC_MERGE}개로 한 성, `
-    + `${ACC_STAR_MAX}성이 되면 다음 등급으로 올라가요. 초월은 한철을 쓰고 성과 따로 쌓여요.`));
+    + `${ACC_STAR_MAX}성이 되면 다음 등급으로 올라가요. 초월은 한철을 쓰고 성과 따로 쌓여요. `
+    + `${ACC_SPECIAL_STAR}성부터는 자리마다 다른 특기가 열려요 — `
+    + ACC_SLOTS.filter((a) => a.special).map((a) => `${a.name} 〈${a.special.name}〉 ${a.special.label}`).join(' · ')));
 
   // 선택 상자
   const pickInfo = h('div', { class: 'desc' });
@@ -185,6 +188,7 @@ export function equipTab(app) {
   for (const a of ACC_SLOTS) {
     const title = h('div', { style: 'font-weight:900;font-size:14px' });
     const info = h('div', { class: 'desc' });
+    const spec = h('div', { class: 'desc' });
     const bag = h('div', { class: 'desc' });
     const starBtn = h('button', { class: 'buy', onclick: () => {
       if (game.accStarUp(a.id)) app.refresh(); else toast(`같은 등급 ${ACC_MERGE}개가 필요해요`);
@@ -196,9 +200,9 @@ export function equipTab(app) {
       if (game.accPierce(a.id)) app.refresh(); else toast('한철이 부족하거나 초월이 끝났어요');
     } });
     root.append(h('div', { class: 'card' },
-      title, info, bag,
+      title, info, spec, bag,
       h('div', { class: 'btn-row', style: 'margin-top:8px' }, starBtn, gradeBtn, pierceBtn)));
-    accCards[a.id] = { title, info, bag, starBtn, gradeBtn, pierceBtn, def: a };
+    accCards[a.id] = { title, info, spec, bag, starBtn, gradeBtn, pierceBtn, def: a };
   }
 
   function updateAcc() {
@@ -218,6 +222,14 @@ export function equipTab(app) {
         c.title.innerHTML = `${a.name} <span style="color:${GRADES[cur.grade].color}">${GRADES[cur.grade].name}</span>`
           + ` <small>${cur.star}성 · ${cur.pierce}초월</small>`;
         c.info.innerHTML = `${a.label} <b>+${pct(accPower(a, cur.grade, cur.star, cur.pierce))}</b>`;
+      }
+      // 특기
+      const sp = game.accSpecial(a.id);
+      if (!sp) c.spec.textContent = '';
+      else if (!sp.open) {
+        c.spec.innerHTML = `<i>특기 〈${sp.name}〉 — ${ACC_SPECIAL_STAR}성부터 열려요</i>`;
+      } else {
+        c.spec.innerHTML = `특기 <b>〈${sp.name}〉</b> ${sp.step}단 · ${sp.label} <b>+${pct(sp.amount)}</b>`;
       }
       c.bag.textContent = '쌓인 것 ' + GRADES.map((g, i) => `${g.name} ${bag[i] || 0}`).join(' · ');
       c.starBtn.textContent = cur && cur.star >= ACC_STAR_MAX ? '성 최대' : `승급 (${a.name} ${ACC_MERGE}개)`;

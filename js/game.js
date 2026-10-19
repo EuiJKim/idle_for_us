@@ -9,6 +9,7 @@ import {
   optionSlotCount, optionRerollCost, OPTION_SET_GRADE, OPTION_SET, OPTION_SET_FULL_GRADE, OPTION_SET_FULL,
   ACC_SLOTS, ACC_STAR_MAX, ACC_PIERCE_MAX, ACC_MERGE, accPierceCost, accPower,
   ACC_SET_GRADE, ACC_SET, ACC_BOX_RATES, ACC_PICK_MIN, ACC_PICK_RATES,
+  ACC_SPECIAL_STAR, accSpecialStep, accSpecialPower,
   CODEX_KINDS, CODEX_GRADE_MULT, CODEX_KIND_FULL, CODEX_ALL_FULL, codexEntryPower, codexGradeOf,
   OUTFITS, OUTFIT_ALL,
   GACHA_KINDS, GACHA_LV_MAX, gachaLvNeed, gachaMaxGrade, GACHA_LV_TILT, gachaLvReward,
@@ -716,6 +717,25 @@ export class Game {
     return out;
   }
 
+  // 한 자리의 특기가 지금 어떤 상태인가
+  accSpecial(id) {
+    const def = ACC_SLOTS.find((a) => a.id === id);
+    if (!def?.special) return null;
+    const cur = this.s.acc?.[id];
+    const star = cur?.star || 0;
+    const pierce = cur?.pierce || 0;
+    const step = cur ? accSpecialStep(star, pierce) : 0;
+    return {
+      ...def.special,
+      open: step > 0,
+      step,
+      need: ACC_SPECIAL_STAR,
+      amount: cur ? accSpecialPower(def, star, pierce) : 0,
+      // 한 단 더 올리면 얼마나 느는가 (성이든 초월이든 1단이 같은 값이다)
+      nextGain: def.special.per,
+    };
+  }
+
   // 자리마다 쌓인 것 중 가장 좋은 등급을 끼운다 (비어 있을 때만)
   autoEquipAcc() {
     for (const a of ACC_SLOTS) {
@@ -980,6 +1000,8 @@ export class Game {
       const cur = this.s.acc?.[a.id];
       if (!cur) continue;
       m[a.stat] += accPower(a, cur.grade, cur.star, cur.pierce);
+      // 특기 — 성이 조건이고, 기본 능력과 다른 축에 붙는다
+      if (a.special) m[a.special.stat] += accSpecialPower(a, cur.star, cur.pierce);
     }
     if (this.accSetGrade() >= ACC_SET_GRADE) {
       for (const [k, v] of Object.entries(ACC_SET)) m[k] += v;

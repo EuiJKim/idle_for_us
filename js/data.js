@@ -505,12 +505,38 @@ export const RELICS = [
 // 공략: 승급(성)과 초월은 별개다. "장신구는 초월을 하느냐 안 하느냐의
 // 스펙 차이가 어마어마하다. 현재 6초월 = 한 등급 위 3초월 = 두 등급 위 1초월."
 // (docs/BladeIdle_설계원리.md)
+// 특기(특수 능력)의 근거: AccessoryTableData가 mAbilDataList(보통 능력)와
+// mSpecialAbilList(특기)를 따로 들고, AccessorySpecialAbillTableData에
+// IsSpecialAbilCheck · mStar · mWithAccessoryIDList가 있다.
+// 즉 "성 수가 조건이 되어 켜지는, 기본 능력과 다른 두 번째 능력"이다.
+//
+// 저쪽의 mWithAccessoryIDList(다른 장신구를 같이 껴야 켜짐)는 안 옮겼다.
+// 공략이 말하는 올바른 수는 "가락지만 집중해서 올린다"인데, 조합을 요구하면
+// 그 수를 깎는다. 우리는 '자기 자리에 쏟은 만큼 세지는' 쪽으로만 간다.
+//
+// 특기가 필요한 진짜 이유: 세 자리가 공격력·치명 피해·체력이라
+// 선택 상자를 넣어도 답은 언제나 가락지였다. 고르는 칸만 만들고
+// 고를 이유는 안 만든 셈이다. 특기로 세 자리를 서로 다른 축에 세운다.
 export const ACC_SLOTS = [
-  { id: 'ring', name: '가락지', stat: 'atk', label: '공격력', per: 0.25 },
+  { id: 'ring', name: '가락지', stat: 'atk', label: '공격력', per: 0.25,
+    // 벽(관문지기)이 진행의 병목이다. 거기를 직접 뚫는다.
+    special: { name: '파옥', stat: 'boss', label: '두목 피해', per: 0.22 } },
   // 치명 피해는 곱이 아니라 더하기로 들어가므로 수치를 작게 잡는다
-  { id: 'ear', name: '귀걸이', stat: 'critDmg', label: '치명 피해', per: 0.04 },
-  { id: 'pin', name: '비녀', stat: 'hp', label: '체력', per: 0.25 },
+  { id: 'ear', name: '귀걸이', stat: 'critDmg', label: '치명 피해', per: 0.04,
+    // 치명 확률은 상한(CRIT_CAP)이 있다. 일찍 세고 나중에 포화된다 — 그래서
+    // "지금은 귀걸이, 나중엔 딴 데"라는 갈아타기가 생긴다.
+    special: { name: '연격', stat: 'crit', label: '치명 확률', per: 0.018 } },
+  { id: 'pin', name: '비녀', stat: 'hp', label: '체력', per: 0.25,
+    // 체력은 그 자체로는 진행을 못 민다. 은자로 바꿔 수련에 꽂게 한다.
+    special: { name: '축재', stat: 'gold', label: '은자 획득', per: 0.30 } },
 ];
+// 특기가 열리는 성. 여기부터 성과 초월이 1단씩 특기를 키운다.
+export const ACC_SPECIAL_STAR = 3;
+// 특기 단수 — 3성 0초월이 1단, 6성 6초월이 10단
+export const accSpecialStep = (star, pierce) =>
+  (star >= ACC_SPECIAL_STAR ? star - ACC_SPECIAL_STAR + 1 : 0) + (star >= ACC_SPECIAL_STAR ? pierce : 0);
+export const accSpecialPower = (def, star, pierce) =>
+  (def.special ? def.special.per : 0) * accSpecialStep(star, pierce);
 export const ACC_STAR_MAX = 6;      // 승급(성)
 export const ACC_PIERCE_MAX = 6;    // 초월
 // 같은 등급 장신구 이만큼을 모으면 한 성 오른다
