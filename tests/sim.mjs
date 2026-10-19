@@ -21,7 +21,7 @@ let lastBest = 0;
 let lastProgressT = 0;
 const marks = [0.25, 0.5, 1, 2, 4, 8, 12, 24, 48, 72, 168].filter((h) => h <= hours);
 // 매 초 돌릴 필요가 없고 비용도 큰 소비. 1분에 한 번만 한다.
-function spendSlow() {
+function spendSlow(now) {
   // 옵션 칸: 신품 미만이 섞여 있으면 다시 굴린다. 좋은 칸은 잠가 둔다.
   for (const t2 of Object.keys(EQUIP_TYPES)) {
     const n = g.optionSlots(t2);
@@ -81,7 +81,7 @@ for (let t = 0, step = 0; t < hours * 3600; t += dt, step++) {
   while (g.s.gems >= 900) { g.gacha(10); if (g.s.gems >= 150) g.hatchPets(1); }
   g.mergeAll();
   for (const t2 of Object.keys(EQUIP_TYPES)) g.enhanceEquip(t2, 5);
-  if (step % 600 === 0) spendSlow();   // 무거운 것은 1분마다만
+  if (step % 600 === 0) spendSlow(now);   // 무거운 것은 1분마다만
   for (const p of PETS) g.levelPet(p.id, 5);
   g.digRelic(5);
   while (g.claimMilestone());

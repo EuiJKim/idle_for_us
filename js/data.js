@@ -351,7 +351,9 @@ export const OPTION_SET_FULL = { crit: 0.06, critDmg: 0.6 };
 // 좋은 옵션 하나보다 '빈칸 없이 채우기'가 먼저가 되는 장치다.
 export const CODEX_PER_TYPE = { crit: 0.05 };  // 부위 하나 완성마다 치명타 확률 +5%p
 export const CODEX_ALL = { critDmg: 0.5 };     // 세 부위 모두 완성하면 치명타 피해 +50%p
-export const enhanceCost = (e) => 5 + e * 3; // 한철
+// 제련 비용. 선형이면 한철이 조금만 많이 들어와도 제련이 무한히 올라간다.
+// (광맥을 넣자 제련이 208,458단계까지 치솟아서 드러난 문제다)
+export const enhanceCost = (e) => Math.ceil((5 + e * 3) * Math.pow(1.06, e)); // 한철
 
 // ---------- 영수 ----------
 export const PETS = [
@@ -564,12 +566,13 @@ export const MINE_DEPTH_MAX = 50;      // 갱도 깊이
 export const MINE_HAND_MAX = 20;       // 광부 수
 export const MINE_CAP_HOURS = 8;       // 이만큼 지나면 더 안 쌓인다
 // 깊이를 한 칸 내리는 값 (은자)
-export const mineDepthCost = (d) => Math.ceil(5e4 * Math.pow(1.9, d));
+export const mineDepthCost = (d) => Math.ceil(5e4 * Math.pow(1.55, d));
 // 광부를 한 명 더 쓰는 값 (은자)
-export const mineHandCost = (h) => Math.ceil(2e5 * Math.pow(2.3, h));
-// 초당 캐는 한철
+export const mineHandCost = (h) => Math.ceil(2e5 * Math.pow(1.9, h));
+// 초당 캐는 한철. 지수를 얕게 잡는다 — 한철은 귀한 자원이라
+// 광맥이 다른 수급을 압도하면 제련이 통째로 망가진다.
 export const mineRate = (depth, hands) =>
-  depth <= 0 ? 0 : 0.35 * Math.pow(1.42, depth) * (1 + hands * 0.55);
+  (depth <= 0 ? 0 : 0.02 * Math.pow(1.075, depth) * (1 + hands * 0.55));
 export const mineCap = (depth, hands) => mineRate(depth, hands) * MINE_CAP_HOURS * 3600;
 
 export const RELIC_DIG_COST = 10; // 신물 조각
