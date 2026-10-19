@@ -63,7 +63,7 @@ export function subTabs(views) {
   const body = h('div');
   const seg = h('div', { class: 'seg wide' });
   const buttons = views.map((v) => {
-    const b = h('button', { onclick: () => select(v.key) }, v.label);
+    const b = h('button', { 'data-key': v.key, onclick: () => select(v.key) }, v.label);
     seg.append(b);
     return [v.key, b];
   });

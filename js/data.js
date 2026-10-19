@@ -81,7 +81,7 @@ export const SPAWN_DELAY = 0.45;
 // 꼭 잊지 마세요!"  그리고 "랭킹이 오를수록 난이도가 낮은 도플갱어가 등장할
 // 확률이 높아지는 구조" — 즉 올라갈수록 쉬워지는 역-난이도 곡선이다.
 export const SHADOW_TIERS = [
-  { id: 'iron', name: '무명', need: 0, reward: { stones: 2000, books: 300 } },
+  { id: 'iron', name: '무명', need: 1, reward: { stones: 2000, books: 300 } },
   { id: 'bronze', name: '삼류', need: 2, reward: { stones: 6000, books: 900, accBox: 1 } },
   { id: 'silver', name: '이류', need: 5, reward: { stones: 18000, books: 2500, accBox: 2 } },
   { id: 'gold', name: '일류', need: 9, reward: { stones: 55000, books: 7000, accBox: 3, gems: 3000 } },
@@ -91,17 +91,18 @@ export const SHADOW_TIERS = [
 export const SHADOW_TRIES = 3;        // 하루에 쓸 수 있는 도전 수
 export const SHADOW_TRY_CAP = 12;     // 쌓이는 상한
 export const SHADOW_TIME = 40;
-// 이긴 횟수로 티어가 정해진다
+// 이긴 횟수로 티어가 정해진다. 한 번도 못 이겼으면 -1(아직 티어 없음).
 export const shadowTierOf = (wins) => {
-  let i = 0;
+  let i = -1;
   SHADOW_TIERS.forEach((t2, idx) => { if (wins >= t2.need) i = idx; });
   return i;
 };
+export const shadowTierName = (i) => (i < 0 ? '무위' : SHADOW_TIERS[i].name);
 export const nextShadowTier = (wins) => SHADOW_TIERS.find((t2) => wins < t2.need) ?? null;
 // 상대 세기. 이길수록 조금씩 세지지만, 티어가 오르면 되레 완만해진다.
 // 공략의 "랭킹이 오를수록 난이도가 낮은 도플갱어가 나온다"를 옮긴 것.
 export const shadowStage = (bestStage, wins) =>
-  Math.max(1, Math.round(bestStage * (0.62 + wins * 0.035) * (1 - shadowTierOf(wins) * 0.045)));
+  Math.max(1, Math.round(bestStage * (0.62 + wins * 0.035) * (1 - Math.max(0, shadowTierOf(wins)) * 0.045)));
 // 월요일 기준 주차 키
 export function weekKey(t = Date.now()) {
   const d = new Date(t);

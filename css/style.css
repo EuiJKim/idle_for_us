@@ -105,6 +105,16 @@ input { font: inherit; user-select: text; -webkit-user-select: text; }
 .codex-tag { margin-left: 6px; font-size: 10px; color: var(--muted); font-weight: 700; }
 .codex-tag.full { color: var(--accent-2); }
 
+/* 지금 뭘 하면 좋은지 한 줄 */
+#advice {
+  position: absolute; left: 50%; top: 78px; transform: translateX(-50%); z-index: 11;
+  max-width: 88%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  background: rgba(60, 38, 10, 0.78); border: 1px solid rgba(212, 166, 74, 0.45);
+  padding: 4px 12px; border-radius: 999px;
+  font-size: 11px; font-weight: 700; color: #fde68a;
+}
+#advice:active { background: rgba(80, 52, 14, 0.9); }
+
 /* 다음 해금까지 남은 관문 — 벽이 왜 벽인지 알려주는 줄 */
 #gate-hint {
   position: absolute; left: 50%; top: 56px; transform: translateX(-50%); z-index: 11;

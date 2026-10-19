@@ -384,7 +384,7 @@ function shadowView(app) {
     const s = game.s.shadow || { wins: 0, tries: 0, taken: -1 };
     const cur = game.shadowTier();
     const nx = nextShadowTier(s.wins || 0);
-    head.innerHTML = `이번 주 <b>${s.wins || 0}승</b> · 지금 <b style="color:var(--accent-2)">${SHADOW_TIERS[cur].name}</b>`
+    head.innerHTML = `이번 주 <b>${s.wins || 0}승</b> · 지금 <b style="color:var(--accent-2)">${shadowTierName(cur)}</b>`
       + (nx ? ` · ${nx.name}까지 ${nx.need - (s.wins || 0)}승` : ' · 끝까지 올랐어요')
       + `<br>남은 도전 ${s.tries || 0} / ${SHADOW_TRY_CAP} · 상대는 ${shadowStage(game.s.bestStage, s.wins || 0)}관문급`;
     goBtn.textContent = `그림자와 겨루기 (${s.tries || 0}회 남음)`;

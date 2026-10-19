@@ -124,6 +124,25 @@ function refreshUI(full = false) {
     $('zone-label').textContent = `${wall ? '관문지기 · ' : ''}${zoneOf(s.stage).name} · ${RANKS[s.rank].name} · Lv.${s.level}${s.regress.count ? ` · ${s.regress.count + 1}회차` : ''}`;
     $('stage-label').classList.toggle('wall', wall);
   }
+  // 성장 축이 83개다. 지금 뭘 하면 가장 이득인지 한 줄로 짚어준다.
+  const adv = c ? null : game.nextAdvice();
+  const advEl = $('advice');
+  if (adv) {
+    advEl.textContent = adv.text;
+    advEl.classList.remove('hidden');
+    advEl.onclick = () => {
+      if (!adv.tab) return;
+      showTab(adv.tab);
+      if (adv.sub) {
+        setTimeout(() => {
+          const b2 = [...document.querySelectorAll('#panel .seg button, #panel .subtabs button')]
+            .find((x) => x.dataset.key === adv.sub);
+          if (b2) b2.click();
+        }, 30);
+      }
+    };
+  } else advEl.classList.add('hidden');
+
   // 이 관문을 깨면 뭐가 열리는지 알려준다. 벽이 그냥 어려워지기만 하면 벽일 이유가 없다.
   const nx = c ? null : nextUnlock(s.bestStage);
   const gate = $('gate-hint');

@@ -253,6 +253,52 @@ export class Game {
     return -1;
   }
 
+  // ---------- 성장 안내 ----------
+  // 성장 축이 83개다. 공략 한 편이 통째로 "무엇부터 하라"였던 이유가 이것이다.
+  // 지금 상태를 보고 다음 할 일 하나를 고른다. 위에서부터 보고 첫 번째로
+  // 걸리는 것을 돌려준다 — 순서 자체가 추천이다.
+  nextAdvice(now = Date.now()) {
+    const s = this.s;
+    // 1) 공짜로 받을 수 있는 것부터
+    if (this.shadowRewardReady()) return { tab: 'social', sub: 'shadow', text: '그림자 무림 티어 보상을 받으세요' };
+    for (const k of GACHA_KINDS) {
+      if (this.gachaRewardReady(k.id)) {
+        return { tab: k.id === 'equip' ? 'equip' : 'companion', sub: k.id === 'relic' ? 'relic' : k.id === 'pet' ? 'pet' : null,
+          text: `${k.name} 레벨 보상이 쌓여 있어요` };
+      }
+    }
+    if (this.mineOpen() && this.mineCap() > 0 && this.mineHeld(now) >= this.mineCap() * 0.9) {
+      return { tab: 'dungeon', sub: 'mine', text: '광맥이 가득 찼어요. 거두지 않으면 더 안 쌓여요' };
+    }
+    if (s.daily && !s.daily.allClaimed && this.missionsReady?.()) {
+      return { tab: null, sub: null, text: '일일 의뢰 보상이 남아 있어요' };
+    }
+    // 2) 쓰지 않으면 사라지거나 상한에 닿는 것
+    const keyFull = DUNGEONS.find((d) => this.dungeonUnlocked(d) && (s.daily?.keys?.[d.id] || 0) >= DUNGEON_KEY_CAP);
+    if (keyFull) return { tab: 'dungeon', sub: 'dungeon', text: `${keyFull.name} 열쇠가 가득 찼어요. 더 들어와도 버려져요` };
+    if ((s.seek || 0) >= SEEK_CAP) return { tab: 'dungeon', sub: 'seek', text: '탐색패가 가득 찼어요' };
+    if ((s.shadow?.tries || 0) >= SHADOW_TRY_CAP) return { tab: 'social', sub: 'shadow', text: '그림자 도전이 가득 찼어요' };
+    // 3) 켜면 바로 커지는 보유 효과
+    for (const type of Object.keys(EQUIP_TYPES)) {
+      if (this.optionSlots(type) >= OPTION_SLOTS && this.optionSetGrade(type) < OPTION_SET_GRADE) {
+        return { tab: 'equip', sub: null, text: `${EQUIP_TYPES[type].name} 옵션 네 칸을 신품 이상으로 채우면 보유 효과가 켜져요` };
+      }
+    }
+    const outLeft = OUTFITS.filter((o) => !this.hasOutfit(o.id) && s.gems >= o.cost);
+    if (outLeft.length) return { tab: 'companion', sub: 'outfit', text: `지금 살 수 있는 의복이 ${outLeft.length}벌 있어요. 갖고만 있어도 효과가 붙어요` };
+    // 4) 열렸는데 손도 안 댄 것
+    if (this.towerOpen() && this.towerFloor() === 0) return { tab: 'dungeon', sub: 'tower', text: '혈마의 탑이 열렸어요. 오른 층은 영구히 남아요' };
+    if (this.egoOpen('blade') && this.egoOf('blade').step === 0) return { tab: 'equip', sub: null, text: '심검이 열렸어요. 장비를 먹여 키우세요' };
+    if (this.mineOpen() && (s.mine?.depth || 0) === 0) return { tab: 'dungeon', sub: 'mine', text: '광맥이 열렸어요. 갱도를 파면 싸우지 않아도 한철이 쌓여요' };
+    // 5) 올릴 수 있는 것
+    for (const e of EGO_PARTS) if (this.egoReady(e.id)) return { tab: 'equip', sub: null, text: `${e.name} 승급에 도전할 수 있어요` };
+    for (const a of ACC_SLOTS) if (this.canAccStar(a.id) || this.canAccGrade(a.id)) return { tab: 'equip', sub: null, text: `${a.name}를 올릴 수 있어요` };
+    if (this.canTrial()) return { tab: 'growth', sub: 'rank', text: '경지 돌파에 도전할 수 있어요' };
+    // 6) 평소에 할 것
+    if (this.towerOpen() && !this.towerDone()) return { tab: 'dungeon', sub: 'tower', text: `혈마의 탑 ${this.towerNext()}층에 오르세요` };
+    return { tab: null, sub: null, text: '관문을 올리세요' };
+  }
+
   // ---------- 혈마의 탑 ----------
   towerOpen() { return this.s.bestStage >= TOWER_OPEN_STAGE; }
   towerFloor() { return this.s.tower?.floor || 0; }
