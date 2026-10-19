@@ -1,6 +1,6 @@
 // 무공 탭: 비급으로 연마, 4칸 장착
 import { SKILLS, SKILL_SLOTS, SKILL_PIERCE_MAX, SKILL_PIERCE_AT, SKILL_PIERCE_MULT,
-  skillTotalBonus, nextSkillTotalStep } from '../data.js';
+  skillTotalBonus, nextSkillTotalStep, PRESET_SLOTS } from '../data.js';
 import { fmt } from '../fmt.js';
 import { h, openModal, closeModal, toast } from './common.js';
 
@@ -12,6 +12,38 @@ export function skillTab(app) {
   const slotsEl = h('div', { class: 'slots' });
   const totalLv = h('small');
   const totalInfo = h('div', { class: 'desc' });
+  // 출진 준비: 무공 넷 + 영수를 한 벌로 담아 두고 바꿔 끼운다
+  const presetWrap = h('div', { class: 'preset-wrap' });
+  const presetRows = Array.from({ length: PRESET_SLOTS }, (_, i) => {
+    // prompt()는 PWA·웹뷰에서 막히는 곳이 있다(점검에서 잡혔다). 모달로 받는다.
+    const label = h('button', { class: 'preset-name', onclick: () => {
+      openModal((s) => {
+        const input = h('input', { class: 'field', maxlength: '8', value: game.s.presets[i].name });
+        s.append(
+          h('h2', {}, '준비 이름'),
+          h('p', { class: 'muted' }, '여덟 글자까지 쓸 수 있어요.'),
+          input,
+          h('div', { class: 'btn-row', style: 'margin-top:10px' },
+            h('button', { class: 'btn', onclick: closeModal }, '취소'),
+            h('button', { class: 'btn primary', onclick: () => {
+              game.renamePreset(i, input.value);
+              closeModal();
+              app.refresh();
+            } }, '바꾸기')),
+        );
+        setTimeout(() => input.focus(), 30);
+      });
+    } });
+    const load = h('button', { class: 'buy', style: 'font-size:11px', onclick: () => {
+      if (game.loadPreset(i)) { toast(`${game.s.presets[i].name} 준비로 바꿨어요`); app.refresh(); }
+      else toast('아직 담아둔 게 없어요');
+    } });
+    const save = h('button', { class: 'btn', style: 'padding:5px 9px;font-size:11px', onclick: () => {
+      game.savePreset(i); toast(`${game.s.presets[i].name}에 담았어요`); app.refresh();
+    } }, '담기');
+    presetWrap.append(h('div', { class: 'preset-row' }, label, load, save));
+    return { label, load, save, i };
+  });
   const root = h('div', {},
     h('div', { class: 'card' },
       h('h3', {}, '장착 무공', autoBtn),
@@ -21,7 +53,12 @@ export function skillTab(app) {
       h('h3', {}, '무공 총 연마', totalLv),
       totalInfo,
       h('p', { class: 'muted', style: 'margin:8px 0 0' },
-        '모든 무공 레벨을 더한 값에 보너스가 붙어요. 칸은 넷뿐이지만 안 쓰는 무공을 올릴 이유가 돼요.')));
+        '모든 무공 레벨을 더한 값에 보너스가 붙어요. 칸은 넷뿐이지만 안 쓰는 무공을 올릴 이유가 돼요.')),
+    h('div', { class: 'card' },
+      h('h3', {}, '출진 준비'),
+      presetWrap,
+      h('p', { class: 'muted', style: 'margin:8px 0 0' },
+        '무공 넷과 영수를 한 벌로 담아 두고 바꿔 끼워요. 사냥용·두목용·벌이용을 따로 두면 편해요.')));
 
   SKILLS.forEach((sk) => {
     const lv = h('small');
@@ -64,6 +101,15 @@ export function skillTab(app) {
     autoBtn.textContent = game.s.autoSkill ? '자동 ON' : '자동 OFF';
     autoBtn.classList.toggle('good', game.s.autoSkill);
     books.textContent = fmt(game.s.books);
+    for (const r of presetRows) {
+      const p2 = game.s.presets[r.i];
+      const on = game.presetReady(r.i);
+      r.label.textContent = p2.name;
+      const names = on ? p2.slots.map((id) => SKILLS.find((x) => x.id === id)?.name || '빈칸').join('·') : '비어 있음';
+      r.load.textContent = '꺼내기';
+      r.load.disabled = !on;
+      r.load.title = names;
+    }
     const tot = game.skillTotalLevel();
     const tb = skillTotalBonus(tot);
     const nx = nextSkillTotalStep(tot);

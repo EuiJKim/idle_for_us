@@ -52,6 +52,18 @@ service cloud.firestore {
       match /raids/{day} {
         allow read, write: if isMember(gid);
       }
+
+      // 문파 창고: 길드원이면 넣고 꺼낼 수 있다. 넣은 사람은 본인으로 기록된다.
+      match /stash/{sid} {
+        allow read: if isMember(gid);
+        allow create: if isMember(gid)
+          && request.resource.data.uid == request.auth.uid
+          && request.resource.data.kind in ['equip', 'acc']
+          && request.resource.data.grade is int
+          && request.resource.data.grade >= 0
+          && request.resource.data.grade <= 5;
+        allow delete: if isMember(gid);
+      }
     }
   }
 }

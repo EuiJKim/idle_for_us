@@ -719,6 +719,18 @@ export const skillTotalBonus = (total) => {
 };
 export const nextSkillTotalStep = (total) => SKILL_TOTAL_STEPS.find((s) => total < s.at) ?? null;
 
+// ---------- 출진 준비 (저쪽의 '장비 프리셋') ----------
+// 근거: ItemEquipPresetTable, PresetGroupTable.
+// 공략 13절이 통째로 '골드·경험치 작업(골경작)'이고, 그 전제가
+// "장비의 옵션작에 골드·경험치 옵션을 도배해둔 별도의 세팅"이다.
+//
+// 다만 옵션 칸까지 프리셋에 넣지는 않는다. 넣으면 다시 굴려서 망해도
+// 되돌릴 수 있게 되어, '잠근 칸이 많을수록 비싸진다'는 장치가 무의미해진다.
+// 대신 무공 넷과 영수를 한 벌로 묶는다 — 무공이 열넷인데 칸이 넷이라
+// 사냥용·두목용·벌이용을 바꿔 끼우는 것만으로도 충분히 다르다.
+export const PRESET_SLOTS = 3;
+export const PRESET_NAMES = ['사냥', '두목', '벌이'];
+
 export const SKILL_SLOTS = 4;
 export const skillBookCost = (l) => Math.ceil(2 * Math.pow(1.15, l - 1));
 

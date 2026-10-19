@@ -18,6 +18,7 @@ export class Net {
     this.uid = null;
     this.guild = null;
     this.messages = [];
+    this.stash = [];
     this.raid = null;
     this.unsubs = [];
     this.lastProfile = 0;
@@ -190,7 +191,9 @@ export class Net {
         return;
       }
       const prevName = this.guild?.name;
+      const firstTime = !this.guild;
       this.guild = { id: gid, ...snap.data() };
+      if (firstTime) this.watchStash(gid);
       this.game.guildExp = this.guild.exp || 0;
       if (prevName !== this.guild.name) this.pushProfile(true);
       this.changed('guild');
@@ -221,6 +224,81 @@ export class Net {
   // 날짜가 바뀌면 새 토벌 문서를 본다
   refreshDay() {
     if (this.guild && this.raidDay !== dayKey()) this.watchGuild(this.guild.id);
+  }
+
+  // ---------- 문파 창고 ----------
+  // 근거: 공략에서 피규어를 '거래소'에서 사는 장면이 핵심이었다.
+  //   "전설·신화·갓등급 피규어는 거래소를 통해 가격정렬을 오름차순으로 바꾸고
+  //    가장 저렴한 가격으로 꼭 하나씩은 구매해서 장착하시는 게 무조건 좋습니다."
+  // 우리는 둘이 하는 게임이라 사고파는 시장이 설 수 없다. 대신 문파에
+  // 창고를 두고 남는 것을 서로 넘긴다 — 둘이 한다는 성격이 처음으로 기능이 된다.
+  watchStash(gid) {
+    const { onSnapshot, collection, query, orderBy, limit } = this.fs;
+    this.unsubs.push(onSnapshot(
+      query(collection(this.db, 'guilds', gid, 'stash'), orderBy('at', 'desc'), limit(40)),
+      (snap) => {
+        this.stash = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        this.changed('stash');
+      },
+      (err) => console.warn('[net] stash', err),
+    ));
+  }
+
+  // 장비 한 개를 창고에 넣는다
+  async putEquip(type, grade) {
+    if (!this.guild || !this.online) return false;
+    const bag = this.game.s.equips?.[type];
+    if (!bag || bag[grade] <= 0) return false;
+    bag[grade]--;
+    try {
+      await this.fs.addDoc(this.fs.collection(this.db, 'guilds', this.guild.id, 'stash'), {
+        kind: 'equip', type, grade, uid: this.uid,
+        name: this.game.s.nickname || '무명', at: Date.now(),
+      });
+      return true;
+    } catch (e) {
+      bag[grade]++;   // 실패하면 되돌린다
+      console.warn('[net] putEquip', e);
+      return false;
+    }
+  }
+
+  // 장신구 하나를 창고에 넣는다
+  async putAcc(slot, grade) {
+    if (!this.guild || !this.online) return false;
+    const bag = this.game.s.accBag?.[slot];
+    if (!bag || bag[grade] <= 0) return false;
+    bag[grade]--;
+    try {
+      await this.fs.addDoc(this.fs.collection(this.db, 'guilds', this.guild.id, 'stash'), {
+        kind: 'acc', slot, grade, uid: this.uid,
+        name: this.game.s.nickname || '무명', at: Date.now(),
+      });
+      return true;
+    } catch (e) {
+      bag[grade]++;
+      console.warn('[net] putAcc', e);
+      return false;
+    }
+  }
+
+  // 창고에서 하나 꺼낸다. 먼저 지우고 받는다 — 둘이 동시에 눌러도 하나만 가져간다.
+  async takeStash(item) {
+    if (!this.guild || !this.online || !item) return false;
+    try {
+      await this.fs.deleteDoc(this.ref('guilds', this.guild.id, 'stash', item.id));
+    } catch (e) {
+      console.warn('[net] takeStash', e);
+      return false;
+    }
+    if (item.kind === 'equip' && this.game.s.equips?.[item.type]) {
+      this.game.s.equips[item.type][item.grade]++;
+      this.game.noteCodex(item.type, item.grade);
+    } else if (item.kind === 'acc' && this.game.s.accBag?.[item.slot]) {
+      this.game.s.accBag[item.slot][item.grade]++;
+      this.game.autoEquipAcc();
+    }
+    return true;
   }
 
   async sendChat(text, type = 'chat') {

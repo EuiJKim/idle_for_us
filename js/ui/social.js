@@ -2,7 +2,8 @@
 import {
   GRADES, EQUIP_TYPES, SKILLS, RANKS, PETS, RAID_TICKETS, PVP_TICKETS,
   guildLevel, guildAtkBonus, GUILD_DONATE_GEMS, GUILD_DONATE_EXP, GUILD_CHECKIN_EXP, GUILD_MAX, raidReward,
-  SHADOW_TIERS, SHADOW_TRY_CAP, nextShadowTier, shadowStage,
+  SHADOW_TIERS, SHADOW_TRY_CAP, nextShadowTier, shadowStage, shadowTierName,
+  ACC_SLOTS,
 } from '../data.js';
 import { fmt, pct, ago } from '../fmt.js';
 import { dayKey } from '../game.js';
@@ -406,11 +407,109 @@ function shadowView(app) {
   return { root, update };
 }
 
+
+// ---------- 문파 창고 ----------
+// 둘이 하는 게임이라 사고파는 시장이 설 수 없다. 대신 남는 것을 서로 넘긴다.
+// 근거: 공략에서 피규어를 거래소에서 사 모으는 장면이 핵심이었다.
+function stashView(app) {
+  const { game } = app;
+  const head = h('div', { class: 'desc' });
+  const listEl = h('div', {});
+  const putWrap = h('div', {});
+
+  // 넣기: 부위·등급마다 버튼 하나
+  const putRows = [];
+  for (const [type, def] of Object.entries(EQUIP_TYPES)) {
+    const row = h('div', { class: 'stash-put' });
+    const cells = GRADES.map((g2, gi) => {
+      const b = h('button', { class: 'buy', style: `font-size:11px;color:${g2.color}` });
+      b.addEventListener('click', async () => {
+        const net = app.net;
+        if (!net?.online || !net.guild) return toast('문파에 들어가야 써요');
+        const okd = await net.putEquip(type, gi);
+        toast(okd ? `${def.name} ${g2.name}을 넣었어요` : '넣지 못했어요');
+        app.refresh();
+        return undefined;
+      });
+      row.append(b);
+      return { b, gi };
+    });
+    putWrap.append(h('div', { class: 'section-title', style: 'margin:8px 2px 4px' }, h('span', {}, def.name)), row);
+    putRows.push({ type, def, cells });
+  }
+  const accRows = [];
+  for (const a of ACC_SLOTS) {
+    const row = h('div', { class: 'stash-put' });
+    const cells = GRADES.map((g2, gi) => {
+      const b = h('button', { class: 'buy', style: `font-size:11px;color:${g2.color}` });
+      b.addEventListener('click', async () => {
+        const net = app.net;
+        if (!net?.online || !net.guild) return toast('문파에 들어가야 써요');
+        const okd = await net.putAcc(a.id, gi);
+        toast(okd ? `${a.name} ${g2.name}을 넣었어요` : '넣지 못했어요');
+        app.refresh();
+        return undefined;
+      });
+      row.append(b);
+      return { b, gi };
+    });
+    putWrap.append(h('div', { class: 'section-title', style: 'margin:8px 2px 4px' }, h('span', {}, a.name)), row);
+    accRows.push({ slot: a.id, def: a, cells });
+  }
+
+  const root = h('div', {},
+    h('p', { class: 'muted', style: 'margin:2px 2px 8px' },
+      '남는 병기와 장신구를 문파에 넣어 두면 문파원이 꺼내 쓸 수 있어요. 넣은 것도 병기보에는 그대로 남아요.'),
+    h('div', { class: 'card' }, h('h3', {}, '창고에 든 것'), head, listEl),
+    h('div', { class: 'card' }, h('h3', {}, '넣기'), putWrap));
+
+  function update() {
+    const net = app.net;
+    const on = !!(net?.online && net.guild);
+    const items = (net?.stash) || [];
+    head.textContent = !on ? '문파에 들어가면 쓸 수 있어요' : items.length ? `${items.length}개` : '아직 비어 있어요';
+    listEl.replaceChildren(...items.slice(0, 30).map((it) => {
+      const g2 = GRADES[it.grade] || GRADES[0];
+      const what = it.kind === 'equip'
+        ? (EQUIP_TYPES[it.type]?.name || it.type)
+        : (ACC_SLOTS.find((a) => a.id === it.slot)?.name || it.slot);
+      const take = h('button', { class: 'buy', style: 'font-size:11px' }, '꺼내기');
+      take.addEventListener('click', async () => {
+        const okd = await net.takeStash(it);
+        toast(okd ? `${what} ${g2.name}을 꺼냈어요` : '누가 먼저 가져갔어요');
+        app.refresh();
+      });
+      return h('div', { class: 'row' },
+        h('div', { class: 'ico', style: `color:${g2.color}` }, g2.name.slice(0, 1)),
+        h('div', { style: 'flex:1;min-width:0' },
+          h('div', { class: 'name', style: 'font-weight:800' }, `${what} `, h('span', { style: `color:${g2.color}` }, g2.name)),
+          h('div', { class: 'desc' }, `${it.name || '무명'}이 넣음`)),
+        take);
+    }));
+    for (const r of putRows) {
+      for (const c of r.cells) {
+        const n = game.s.equips?.[r.type]?.[c.gi] || 0;
+        c.b.textContent = `${GRADES[c.gi].name} ${n}`;
+        c.b.disabled = !on || n <= 0;
+      }
+    }
+    for (const r of accRows) {
+      for (const c of r.cells) {
+        const n = game.s.accBag?.[r.slot]?.[c.gi] || 0;
+        c.b.textContent = `${GRADES[c.gi].name} ${n}`;
+        c.b.disabled = !on || n <= 0;
+      }
+    }
+  }
+  return { root, update, netChanged: () => update() };
+}
+
 export function socialTab(app) {
   return subTabs([
     { key: 'rank', label: '서열', make: () => rankView(app) },
     { key: 'pvp', label: '비무대', make: () => pvpView(app) },
     { key: 'guild', label: '문파', make: () => guildView(app) },
     { key: 'shadow', label: '그림자', make: () => shadowView(app) },
+    { key: 'stash', label: '창고', make: () => stashView(app) },
   ]);
 }

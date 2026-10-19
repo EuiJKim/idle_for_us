@@ -12,6 +12,7 @@ import {
   OUTFITS, OUTFIT_ALL,
   GACHA_KINDS, GACHA_LV_MAX, gachaLvNeed, gachaMaxGrade, GACHA_LV_TILT, gachaLvReward,
   SKILL_PIERCE_MAX, SKILL_PIERCE_AT, SKILL_PIERCE_MULT, skillPierceCost, skillTotalBonus,
+  PRESET_SLOTS, PRESET_NAMES,
   equipSetBonus, equipTotalBonus,
   EGO_PARTS, EGO_STEP_MAX, EGO_FEED_MIN_GRADE, EGO_FEED_EXP, egoNeed, egoPower,
   egoTrialStage, EGO_TRIAL_TIME,
@@ -105,6 +106,8 @@ export function newSave(now = Date.now()) {
     // 심검: 장비를 먹여 키우는 전용 무기. { step, exp, ready }
     ego: Object.fromEntries(EGO_PARTS.map((e) => [e.id, { step: 0, exp: 0 }])),
     skillPierce: {},   // 무공별 초월 단계
+    // 출진 준비: 무공 넷 + 영수를 한 벌로 저장해 두고 바꿔 끼운다
+    presets: Array.from({ length: PRESET_SLOTS }, (_, i) => ({ name: PRESET_NAMES[i] || `준비 ${i + 1}`, slots: null, pet: null, auto: true })),
     skillSlots: ['slash', null, null, null],
     autoSkill: true,
     pets: {},
@@ -163,6 +166,17 @@ export function migrate(raw, now = Date.now()) {
     const src = raw.ego?.[e.id];
     s.ego[e.id] = src && typeof src === 'object' ? { step: src.step | 0, exp: src.exp | 0 } : { step: 0, exp: 0 };
   }
+  s.presets = Array.from({ length: PRESET_SLOTS }, (_, i) => {
+    const src = Array.isArray(raw.presets) ? raw.presets[i] : null;
+    const base2 = { name: PRESET_NAMES[i] || `준비 ${i + 1}`, slots: null, pet: null, auto: true };
+    if (!src || typeof src !== 'object') return base2;
+    return {
+      name: String(src.name || base2.name).slice(0, 8),
+      slots: Array.isArray(src.slots) ? src.slots.slice(0, SKILL_SLOTS) : null,
+      pet: src.pet || null,
+      auto: src.auto !== false,
+    };
+  });
   s.skillPierce = { ...(raw.skillPierce || {}) };
   s.gacha = { ...base.gacha };
   for (const k of GACHA_KINDS) {
@@ -251,6 +265,41 @@ export class Game {
     const arr = this.s.equips[type];
     for (let g = arr.length - 1; g >= 0; g--) if (arr[g] > 0) return g;
     return -1;
+  }
+
+  // ---------- 출진 준비 ----------
+  // 지금 세팅을 그 칸에 담는다
+  savePreset(i) {
+    const p2 = this.s.presets?.[i];
+    if (!p2) return false;
+    p2.slots = this.s.skillSlots.slice();
+    p2.pet = this.s.pet || null;
+    p2.auto = !!this.s.autoSkill;
+    return true;
+  }
+
+  presetReady(i) { return !!this.s.presets?.[i]?.slots; }
+
+  // 그 칸의 세팅을 꺼내 쓴다. 잠긴 무공은 건너뛴다.
+  loadPreset(i) {
+    const p2 = this.s.presets?.[i];
+    if (!p2?.slots) return false;
+    const next = p2.slots.map((id) => {
+      if (!id) return null;
+      const sk = SKILLS.find((x) => x.id === id);
+      return sk && this.skillUnlocked(sk) ? id : null;
+    });
+    for (let k = 0; k < SKILL_SLOTS; k++) this.s.skillSlots[k] = next[k] ?? null;
+    if (p2.pet && this.s.pets?.[p2.pet]) this.s.pet = p2.pet;
+    this.s.autoSkill = p2.auto !== false;
+    return true;
+  }
+
+  renamePreset(i, name) {
+    const p2 = this.s.presets?.[i];
+    if (!p2) return false;
+    p2.name = String(name || '').trim().slice(0, 8) || (PRESET_NAMES[i] || `준비 ${i + 1}`);
+    return true;
   }
 
   // ---------- 성장 안내 ----------
