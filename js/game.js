@@ -24,6 +24,7 @@ import {
   refillRate, fieldRadius, MAX_ATTACKERS, FIELD_WIDE, FIELD_TALL, isWallStage,
   WAVE_MAX, waveCount, waveKills, waveDensity,
   SHADOW_TIERS, SHADOW_TRIES, SHADOW_TRY_CAP, SHADOW_TIME, shadowTierOf, shadowStage, weekKey,
+  MINE_OPEN_STAGE, MINE_DEPTH_MAX, MINE_HAND_MAX, mineDepthCost, mineHandCost, mineRate, mineCap,
   RELICS, RELIC_DIG_COST,
   SKILLS, SKILL_SLOTS, skillBookCost,
   DUNGEONS, DUNGEON_KEYS, DUNGEON_TIME, DUNGEON_MOBS, dungeonStage, dungeonReward,
@@ -92,6 +93,8 @@ export function newSave(now = Date.now()) {
     accBag: Object.fromEntries(ACC_SLOTS.map((a) => [a.id, GRADES.map(() => 0)])),
     enhance: Object.fromEntries(Object.keys(EQUIP_TYPES).map((k) => [k, 0])),
     skills: Object.fromEntries(SKILLS.map((s) => [s.id, 1])),
+    // 한철 광맥: 싸우지 않는 동안에도 쌓인다
+    mine: { depth: 0, hands: 0, held: 0, at: now },
     // 그림자 무림: 주마다 초기화되는 티어 도전
     shadow: { week: '', wins: 0, tries: SHADOW_TRIES, taken: -1 },
     // 심검: 장비를 먹여 키우는 전용 무기. { step, exp, ready }
@@ -145,6 +148,8 @@ export function migrate(raw, now = Date.now()) {
     }
     s.codex[k] = seen;
   }
+  s.mine = { ...base.mine, ...(raw.mine || {}) };
+  if (!s.mine.at) s.mine.at = now;
   s.shadow = { ...base.shadow, ...(raw.shadow || {}) };
   s.ego = { ...base.ego };
   for (const e of EGO_PARTS) {
@@ -239,6 +244,60 @@ export class Game {
     const arr = this.s.equips[type];
     for (let g = arr.length - 1; g >= 0; g--) if (arr[g] > 0) return g;
     return -1;
+  }
+
+  // ---------- 한철 광맥 ----------
+  mineOpen() { return this.s.bestStage >= MINE_OPEN_STAGE; }
+  mineRate() { return mineRate(this.s.mine?.depth || 0, this.s.mine?.hands || 0); }
+  mineCap() { return mineCap(this.s.mine?.depth || 0, this.s.mine?.hands || 0); }
+
+  // 마지막으로 본 때부터 지금까지 쌓인 양 (상한까지)
+  mineHeld(now = Date.now()) {
+    const mn = this.s.mine;
+    if (!mn || !this.mineOpen()) return 0;
+    const sec = Math.max(0, (now - (mn.at || now)) / 1000);
+    return Math.min(this.mineCap(), (mn.held || 0) + this.mineRate() * sec);
+  }
+
+  collectMine(now = Date.now()) {
+    const got = Math.floor(this.mineHeld(now));
+    const mn = this.s.mine;
+    mn.held = 0;
+    mn.at = now;
+    if (got > 0) { this.s.stones += got; this.emit('mine', { stones: got }); }
+    return got;
+  }
+
+  // 깊이·광부를 올리기 전에 지금까지 쌓인 건 확정해 둔다
+  mineSettle(now = Date.now()) {
+    const mn = this.s.mine;
+    mn.held = this.mineHeld(now);
+    mn.at = now;
+  }
+
+  mineDepthCost() { return mineDepthCost(this.s.mine?.depth || 0); }
+  mineHandCost() { return mineHandCost(this.s.mine?.hands || 0); }
+
+  digDeeper(now = Date.now()) {
+    const mn = this.s.mine;
+    if (!this.mineOpen() || mn.depth >= MINE_DEPTH_MAX) return false;
+    const cost = this.mineDepthCost();
+    if (this.s.gold < cost) return false;
+    this.mineSettle(now);
+    this.s.gold -= cost;
+    mn.depth++;
+    return true;
+  }
+
+  hireMiner(now = Date.now()) {
+    const mn = this.s.mine;
+    if (!this.mineOpen() || mn.depth <= 0 || mn.hands >= MINE_HAND_MAX) return false;
+    const cost = this.mineHandCost();
+    if (this.s.gold < cost) return false;
+    this.mineSettle(now);
+    this.s.gold -= cost;
+    mn.hands++;
+    return true;
   }
 
   // ---------- 그림자 무림 ----------

@@ -553,6 +553,25 @@ export function gachaLvReward(kind, lv) {
   return r;
 }
 
+// ---------- 한철 광맥 (저쪽의 '광산') ----------
+// 근거: MineTable, MinerTable. 광맥 자체를 키우고, 캐는 사람을 따로 붙인다.
+// 방치형에서 이게 하는 일은 분명하다 — 싸우지 않는 동안에도 자원이 쌓이고,
+// 그 자원이 다른 축(제련·옵션 다시 굴리기·장신구 초월)의 연료가 된다.
+// 우리는 한철이 이미 세 군데(제련·옵션·장신구 초월)에서 쓰이므로 광맥을
+// 한철에 붙인다. 쓰임이 많은 자원일수록 '아껴 쓰는' 판단이 생긴다.
+export const MINE_OPEN_STAGE = 35;
+export const MINE_DEPTH_MAX = 50;      // 갱도 깊이
+export const MINE_HAND_MAX = 20;       // 광부 수
+export const MINE_CAP_HOURS = 8;       // 이만큼 지나면 더 안 쌓인다
+// 깊이를 한 칸 내리는 값 (은자)
+export const mineDepthCost = (d) => Math.ceil(5e4 * Math.pow(1.9, d));
+// 광부를 한 명 더 쓰는 값 (은자)
+export const mineHandCost = (h) => Math.ceil(2e5 * Math.pow(2.3, h));
+// 초당 캐는 한철
+export const mineRate = (depth, hands) =>
+  depth <= 0 ? 0 : 0.35 * Math.pow(1.42, depth) * (1 + hands * 0.55);
+export const mineCap = (depth, hands) => mineRate(depth, hands) * MINE_CAP_HOURS * 3600;
+
 export const RELIC_DIG_COST = 10; // 신물 조각
 
 // ---------- 무공 ----------

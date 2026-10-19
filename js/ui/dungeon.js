@@ -1,9 +1,11 @@
 // 수련터 탭
 import { DUNGEONS, DUNGEON_KEYS, DUNGEON_TIME, DUNGEON_MOBS, dungeonReward,
-  DUNGEON_KEY_CAP, nextDungeonTier, DUNGEON_TIER_MULT } from '../data.js';
-import { h, rewardText } from './common.js';
+  DUNGEON_KEY_CAP, nextDungeonTier, DUNGEON_TIER_MULT,
+  MINE_OPEN_STAGE, MINE_DEPTH_MAX, MINE_HAND_MAX, MINE_CAP_HOURS } from '../data.js';
+import { fmt } from '../fmt.js';
+import { h, rewardText, toast, subTabs } from './common.js';
 
-export function dungeonTab(app) {
+function dungeonView(app) {
   const { game } = app;
   const cards = {};
   const root = h('div', {},
@@ -49,4 +51,75 @@ export function dungeonTab(app) {
     }
   }
   return { root, update };
+}
+
+// ---------- 한철 광맥 ----------
+// 싸우지 않는 동안에도 쌓인다. 쌓인 건 상한까지만.
+// 근거: MineTable / MinerTable — 광맥을 키우고 캐는 사람을 따로 붙인다.
+function mineView(app) {
+  const { game } = app;
+  const head = h('div', { class: 'desc' });
+  const heldEl = h('div', { style: 'font-weight:900;font-size:17px;color:#93c5fd' });
+  const fill = h('div');
+  const bar = h('div', { class: 'bar', style: 'margin-top:6px' }, fill);
+  const takeBtn = h('button', { class: 'btn primary', style: 'width:100%;margin-top:8px' });
+  takeBtn.addEventListener('click', () => {
+    const got = game.collectMine();
+    if (!got) return toast('아직 캔 게 없어요');
+    toast(`한철 ${fmt(got)}을 거뒀어요`);
+    app.refresh();
+    return undefined;
+  });
+  const depthInfo = h('div', { class: 'desc' });
+  const handInfo = h('div', { class: 'desc' });
+  const depthBtn = h('button', { class: 'buy' });
+  const handBtn = h('button', { class: 'buy' });
+  depthBtn.addEventListener('click', () => { if (game.digDeeper()) app.refresh(); else toast('은자가 부족해요'); });
+  handBtn.addEventListener('click', () => { if (game.hireMiner()) app.refresh(); else toast('은자가 부족하거나 갱도를 먼저 파야 해요'); });
+
+  const root = h('div', {},
+    h('p', { class: 'muted', style: 'margin:2px 2px 8px' },
+      `싸우지 않는 동안에도 한철이 쌓여요. ${MINE_CAP_HOURS}시간치까지만 모이니 그 전에 거두세요.`),
+    h('div', { class: 'card' }, head, heldEl, bar, takeBtn),
+    h('div', { class: 'card' },
+      h('h3', {}, '갱도 파기'), depthInfo,
+      h('div', { class: 'btn-row', style: 'margin-top:8px' }, depthBtn)),
+    h('div', { class: 'card' },
+      h('h3', {}, '광부 들이기'), handInfo,
+      h('div', { class: 'btn-row', style: 'margin-top:8px' }, handBtn)));
+
+  function update() {
+    const open = game.mineOpen();
+    const mn = game.s.mine || { depth: 0, hands: 0 };
+    const rate = game.mineRate();
+    const cap = game.mineCap();
+    const held = game.mineHeld();
+    head.innerHTML = !open
+      ? `관문 ${MINE_OPEN_STAGE}에 열려요`
+      : `깊이 <b>${mn.depth}</b> · 광부 <b>${mn.hands}</b>명 · 초당 <b>${fmt(rate)}</b>`;
+    heldEl.textContent = open ? `${fmt(Math.floor(held))} / ${fmt(Math.floor(cap))}` : '-';
+    fill.style.width = cap > 0 ? `${Math.min(100, (held / cap) * 100)}%` : '0%';
+    takeBtn.textContent = open ? '한철 거두기' : '아직 안 열림';
+    takeBtn.disabled = !open || held < 1;
+    const dc = game.mineDepthCost();
+    const hc = game.mineHandCost();
+    depthInfo.innerHTML = mn.depth >= MINE_DEPTH_MAX
+      ? '더 팔 수 없어요'
+      : `한 칸 내리면 캐는 양이 1.42배가 돼요 · 지금 깊이 ${mn.depth} / ${MINE_DEPTH_MAX}`;
+    depthBtn.textContent = mn.depth >= MINE_DEPTH_MAX ? '끝까지 팠어요' : `은자 ${fmt(dc)}`;
+    depthBtn.disabled = !open || mn.depth >= MINE_DEPTH_MAX || game.s.gold < dc;
+    handInfo.innerHTML = mn.hands >= MINE_HAND_MAX
+      ? '더 들일 수 없어요'
+      : `한 명마다 캐는 양이 55%씩 늘어요 · 지금 ${mn.hands} / ${MINE_HAND_MAX}명`;
+    handBtn.textContent = mn.hands >= MINE_HAND_MAX ? '다 들였어요' : `은자 ${fmt(hc)}`;
+    handBtn.disabled = !open || mn.depth <= 0 || mn.hands >= MINE_HAND_MAX || game.s.gold < hc;
+  }
+  return { root, update };
+}
+
+export function dungeonTab(app) {
+  return subTabs([
+    { key: 'dungeon', label: '수련터', make: () => dungeonView(app) },
+    { key: 'mine', label: '광맥', make: () => mineView(app) },
+  ]);
 }

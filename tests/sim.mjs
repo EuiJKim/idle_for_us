@@ -46,6 +46,10 @@ function spendSlow() {
     if (g.canAccGrade(a2.id)) { g.accGradeUp(a2.id); while (g.accStarUp(a2.id)); }
     while (g.s.stones > g.accPierceCost(a2.id) * 3 && g.accPierce(a2.id));
   }
+  // 광맥: 거두고, 은자가 남으면 깊이와 광부를 늘린다
+  g.collectMine(now);
+  while (g.s.gold > g.mineDepthCost() * 4 && g.digDeeper(now));
+  while (g.s.gold > g.mineHandCost() * 4 && g.hireMiner(now));
   // 그림자 무림: 도전이 남으면 쓰고, 티어 보상은 바로 받는다
   if (g.canShadow() && g.mode === 'stage') g.startShadow();
   if (g.shadowRewardReady()) g.claimShadowRewards();
