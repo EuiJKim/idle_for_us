@@ -501,5 +501,43 @@ console.log('\n=== 12. 시뮬이 전부 만지는가 ===');
     missing.length ? '빠짐: ' + missing.join(', ') : `${MUST.length}가지 전부`);
 }
 
+// ---------- 13. 장신구가 가방에서 썩지 않는가 ----------
+console.log('\n=== 13. 장신구 자동 장착 ===');
+{
+  // autoEquipAcc가 '비어 있을 때만' 채웠다. 그래서 범품을 끼고 있으면 가방에
+  // 천품이 들어와도 안 바꿨고, 승급은 같은 등급만 재료로 받으므로 그 천품은
+  // 쓸 데가 없었다 — 선택 상자를 가락지에 몰아줘도 통째로 잠겼다.
+  const g = new Game(newSave());
+  g.s.accBag.ring[0] = 1;
+  g.autoEquipAcc();
+  ok(g.s.acc.ring?.grade === 0, '빈 자리는 채운다');
+
+  g.s.acc.ring.pierce = 4;
+  g.s.accBag.ring[D.GRADES.length - 1] = 1;
+  g.autoEquipAcc();
+  ok(g.s.acc.ring.grade === D.GRADES.length - 1, '가방에 더 센 게 있으면 갈아낀다',
+    `${D.GRADES[g.s.acc.ring.grade].name}`);
+  ok(g.s.acc.ring.pierce === 4, '초월은 자리에 남는다 (한철로 산 것이다)',
+    `${g.s.acc.ring.pierce}초월`);
+  ok(g.s.accBag.ring[0] >= 1, '빼낸 것은 가방으로 돌아온다');
+
+  const before = g.s.acc.ring.grade;
+  g.s.accBag.ring[1] = 5;
+  g.autoEquipAcc();
+  ok(g.s.acc.ring.grade === before, '더 약한 게 들어와도 안 바꾼다');
+
+  // 선택 상자를 몰아줬을 때 실제로 세지는가 — 넣을 때 이걸 안 봤다
+  const a2 = new Game(newSave());
+  let s1 = 9;
+  a2.rng = () => ((s1 = (s1 * 1103515245 + 12345) % 2147483648) / 2147483648);
+  a2.openAccBox(6);
+  const low = a2.mods().atk;
+  a2.s.accPick = 20;
+  a2.openAccPick('ring', 20);
+  const high = a2.mods().atk;
+  ok(high > low * 1.5, '선택 상자를 몰아주면 실제로 세진다',
+    `공격력 기여 +${(low * 100).toFixed(0)}% → +${(high * 100).toFixed(0)}%`);
+}
+
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);

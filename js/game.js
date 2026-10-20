@@ -757,16 +757,31 @@ export class Game {
   }
 
   // 자리마다 쌓인 것 중 가장 좋은 등급을 끼운다 (비어 있을 때만)
+  // 자리마다 가장 센 것을 낀다.
+  //
+  // 전에는 '비어 있을 때만' 채웠다. 그래서 범품을 끼고 있으면 가방에 천품이
+  // 들어와도 영영 안 바꿨고, 승급은 장착한 것과 같은 등급만 재료로 받으므로
+  // 그 천품은 쓸 데가 없었다 — 선택 상자로 보품 15·신품 4·천품 1을 받아도
+  // 전부 잠겨 있었다. '가락지만 집중해서 올린다'가 성립하지 않던 이유다.
+  //
+  // 초월은 자리에 붙어 남는다. 한철을 들여 산 것이라 갈아낀다고 날리면 안 된다.
+  // (공략에서도 승급과 초월은 별개 축이다)
   autoEquipAcc() {
     for (const a of ACC_SLOTS) {
-      if (this.s.acc[a.id]) continue;
       const bag = this.s.accBag[a.id];
-      for (let g = bag.length - 1; g >= 0; g--) {
-        if (!bag[g]) continue;
-        bag[g]--;
-        this.s.acc[a.id] = { grade: g, star: 0, pierce: 0 };
-        break;
-      }
+      let best = -1;
+      for (let g = bag.length - 1; g >= 0; g--) if (bag[g] > 0) { best = g; break; }
+      if (best < 0) continue;
+      const cur = this.s.acc[a.id];
+      const pierce = cur?.pierce || 0;
+      // 가방 것은 0성이다. 그래도 지금 낀 것보다 세면 바꾼다.
+      const now = cur ? accPower(a, cur.grade, cur.star, pierce) : -1;
+      const next = accPower(a, best, 0, pierce);
+      if (next <= now) continue;
+      bag[best]--;
+      // 빼낸 것은 가방으로 돌려 둔다 (등급만 남고 성은 사라진다)
+      if (cur) bag[cur.grade] = (bag[cur.grade] || 0) + 1;
+      this.s.acc[a.id] = { grade: best, star: 0, pierce };
     }
   }
 
