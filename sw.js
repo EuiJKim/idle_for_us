@@ -1,5 +1,5 @@
 // 앱 껍데기를 캐시해 오프라인에서도 열리게 한다. 온라인이면 항상 새 파일을 먼저 받는다.
-const CACHE = 'ifu-v29';
+const CACHE = 'ifu-v30';
 const SHELL = [
   './', 'index.html', 'css/style.css', 'manifest.webmanifest',
   'js/main.js', 'js/game.js', 'js/data.js', 'js/battle.js', 'js/net.js', 'js/fmt.js', 'js/firebase-config.js',
@@ -31,8 +31,13 @@ self.addEventListener('fetch', (e) => {
   // cache: 'no-cache'를 붙여야 브라우저 HTTP 캐시를 건너뛰고 서버에 물어본다.
   // 안 붙이면 "온라인이면 새 파일"이라고 해놓고도 브라우저가 캐시한 옛 파일을
   // 그대로 돌려줘서, 배포해도 반영이 안 된 것처럼 보인다.
-  // 다만 navigate 요청은 init을 덧붙이면 예외가 나므로 그대로 둔다.
-  const req = e.request.mode === 'navigate' ? e.request : new Request(e.request, { cache: 'no-cache' });
+  // navigate 요청은 new Request(e.request, init)이 예외를 내므로 **주소로 새로 만든다**.
+  // 전에는 그냥 흘려보냈는데, 그러면 브라우저 HTTP 캐시가 옛 index.html을
+  // 돌려줘서 배포해도 기기에는 반영이 안 됐다. 그림도 창 머리의 은자도
+  // 배포본에는 있는데 기기에서는 안 보이던 이유다.
+  const req = e.request.mode === 'navigate'
+    ? new Request(e.request.url, { cache: 'no-cache', credentials: 'same-origin' })
+    : new Request(e.request, { cache: 'no-cache' });
   e.respondWith(
     fetch(req)
       .then((res) => {

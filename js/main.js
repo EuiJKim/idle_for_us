@@ -1,5 +1,6 @@
 import { Game, newSave, migrate, slimSave } from './game.js';
 import {
+  BUILD,
   SKILLS, KILLS_PER_STAGE, DUNGEON_MOBS, RANKS, MISSIONS, PETS, zoneOf, expToNext,
   CODEX_KINDS, GRADES,
   isWallStage, nextUnlock, unlocksAt,
@@ -437,6 +438,8 @@ function openSettings() {
       h('h2', {}, '⚙️ 설정'),
       h('div', { class: 'stat-grid' },
         h('div', {}, '닉네임', h('b', {}, game.s.nickname)),
+        // 기기가 옛 판을 들고 있으면 여기 숫자가 뒤처진다. 추측 대신 눈으로 본다.
+        h('div', {}, '판', h('b', {}, BUILD)),
         h('div', {}, '서버', h('b', {}, net.online ? '온라인' : '오프라인')),
         h('div', {}, '공격력', h('b', {}, fmt(st.atk))),
         h('div', {}, '체력', h('b', {}, fmt(st.hp))),
@@ -671,7 +674,19 @@ else checkReturn();
 net.init();
 
 if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
-  navigator.serviceWorker.register('sw.js').catch((err) => console.warn('sw', err));
+  // 새 빌드를 올려도 기기에 안 들어가는 일이 잦았다. 세 가지를 같이 한다.
+  //  - 열릴 때마다 워커를 다시 확인한다(update)
+  //  - 새 워커가 주도권을 잡으면 **한 번만** 새로고침한다
+  //  - 새로고침 한 번으로 끝나게 표시를 남긴다(무한 새로고침 방지)
+  navigator.serviceWorker.register('sw.js')
+    .then((reg) => { reg.update(); })
+    .catch((err) => console.warn('sw', err));
+  let swReloaded = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (swReloaded) return;
+    swReloaded = true;
+    location.reload();
+  });
 }
 
 window.__game = game; // 디버그용

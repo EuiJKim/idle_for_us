@@ -1,5 +1,9 @@
 // 게임 수치·세계관 테이블. 모든 공식은 여기에서만 정의한다. (무협 회귀 테마)
 
+// 지금 돌고 있는 빌드. 설정 창에 적어 둔다 — 기기가 옛 판을 들고 있는지
+// 한눈에 보려고 둔다. sw.js의 CACHE와 같은 값으로 맞춘다.
+export const BUILD = 'ifu-v30';
+
 export const SAVE_VERSION = 4;
 export const OFFLINE_CAP_SEC = 12 * 3600;
 export const KILLS_PER_STAGE = 20;
@@ -93,7 +97,10 @@ export function waveReward(stage, wave, total) {
 //
 // 처치 수를 다 채워도 이 시간이 안 지났으면 다음 물결로 안 넘어간다.
 // 그동안 잡는 적은 그대로 은자가 되니 시간이 버려지지는 않는다.
-export const WAVE_MIN_SEC = 11;      // 4물결 x 11초 + 관문지기 = 45초쯤
+export const WAVE_MIN_SEC = 6;
+// 11초로 뒀다가 6초로 줄였다. 회귀가 이 게임의 축인데, 되돌아와서 다시
+// 뚫는 데 한 관문 47초면 그 축이 느려서 못 쓴다는 지적을 받았다.
+// 4물결 x 6초 + 관문지기 = 한 관문 26초쯤.      // 4물결 x 11초 + 관문지기 = 45초쯤
 
 // **이미 깬 길은 빨리 지나간다.**
 //
@@ -103,7 +110,7 @@ export const WAVE_MIN_SEC = 11;      // 4물결 x 11초 + 관문지기 = 45초�
 // Blade Idle에도 같은 장치가 있다 — 하단 우측 줄의 LoopAndGo(반복 이동).
 // 회귀해서 강해지는 게 이 게임의 축이다. 되돌아가는 길이 비싸면 그 축이 죽는다.
 // 0.22로 뒀더니 72시간에 회귀가 31번 돌았는데도 도달 관문이 안 올랐다.
-export const WAVE_RECLIMB = 0.06;
+export const WAVE_RECLIMB = 0.03;
 export const waveMinSec = (stage, best) => WAVE_MIN_SEC * (stage < (best || 0) ? WAVE_RECLIMB : 1);
 
 export const BOSS_TIME = 30;
