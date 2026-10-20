@@ -33,6 +33,23 @@ export function loopBtn(app, kind, id = null) {
   return b;
 }
 
+// 올랐을 때 화면이 반응하게 한다. 그림 파일 없이 CSS만 쓴다.
+//
+// 근거: Blade Idle UI에 FX_UI_LevelUp 계열이 53개 있다. 저쪽은 올릴 때마다
+// 뭔가 터지는데 우리는 숫자만 조용히 바뀌어서, 눌러도 올린 느낌이 없었다.
+export function popUp(el, text) {
+  if (!el) return;
+  el.classList.remove('lvup');
+  void el.offsetWidth;            // 연달아 눌러도 다시 터지게 한다
+  el.classList.add('lvup');
+  if (text) {
+    const tag = h('span', { class: 'lvup-tag' }, text);
+    el.append(tag);
+    setTimeout(() => tag.remove(), 900);
+  }
+  setTimeout(() => el.classList.remove('lvup'), 500);
+}
+
 export function toast(text) {
   const box = document.getElementById('toast');
   const el = h('div', { class: 'toast' }, text);

@@ -4,7 +4,7 @@ import { UPGRADES, SP_STATS, SP_RESET_GEMS, RANKS, RANK_MULT, expToNext, REGRESS
   TASTE_RANK, jobSkillOf } from '../data.js';
 import { fmt } from '../fmt.js';
 import { drawFighter } from '../battle.js';
-import { h, toast, openModal, closeModal, fmtValue, subTabs, multSelector } from './common.js';
+import { h, toast, openModal, closeModal, fmtValue, subTabs, multSelector, popUp } from './common.js';
 
 function upgradeView(app) {
   const { game } = app;
@@ -15,11 +15,18 @@ function upgradeView(app) {
   for (const [key, def] of Object.entries(UPGRADES)) {
     const lv = h('small');
     const desc = h('div', { class: 'desc' });
-    const btn = h('button', { class: 'buy gold-cost', onclick: () => { if (game.buyUpgrade(key, sel.times())) app.refresh(); } });
-    rows[key] = { lv, desc, btn, def };
-    root.append(h('div', { class: 'row' },
+    const btn = h('button', { class: 'buy gold-cost', onclick: () => {
+      const before = game.s.upgrades[key];
+      if (!game.buyUpgrade(key, sel.times())) return;
+      const got = game.s.upgrades[key] - before;
+      popUp(rows[key].row, got > 1 ? `+${got}` : '+1');
+      app.refresh();
+    } });
+    const row = h('div', { class: 'row' },
       h('div', { class: 'ico' }, def.icon),
-      h('div', { class: 'info' }, h('div', { class: 'name' }, def.name, lv), desc), btn));
+      h('div', { class: 'info' }, h('div', { class: 'name' }, def.name, lv), desc), btn);
+    rows[key] = { lv, desc, btn, def, row };
+    root.append(row);
   }
 
   function planned(key) {

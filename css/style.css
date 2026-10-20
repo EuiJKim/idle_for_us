@@ -515,3 +515,26 @@ body { background: radial-gradient(ellipse at top, #1d1712, #0b0907 70%); }
 /* 한 줄에 버튼이 넷 이상이면 min-width 때문에 가로로 삐져나간다.
    심검 먹이 줄(진품·보품·신품·천품)이 392px인데 칸은 331px이었다. */
 .btn-row > .buy { min-width: 0; }
+
+/* 올렸을 때의 반응.
+   근거: Blade Idle UI 프리팹에 FX_UI_LevelUp 계열이 53개 있다. 저쪽은 올릴
+   때마다 뭔가 터지는데 우리는 숫자만 조용히 바뀌어서 올린 느낌이 없었다.
+   그림 파일 없이 CSS만 쓴다. */
+.row { position: relative; }
+.lvup { animation: lvup 0.42s ease-out; }
+@keyframes lvup {
+  0%   { box-shadow: 0 0 0 0 rgba(212,166,74,0.0); transform: none; }
+  22%  { box-shadow: 0 0 0 2px rgba(212,166,74,0.85), 0 0 18px rgba(212,166,74,0.5); transform: translateY(-2px) scale(1.012); }
+  100% { box-shadow: 0 0 0 0 rgba(212,166,74,0); transform: none; }
+}
+.lvup-tag {
+  position: absolute; right: 14px; top: 6px; pointer-events: none;
+  font-family: var(--brush); font-size: 22px; font-weight: 400; color: var(--gold);
+  text-shadow: 0 0 10px rgba(212,166,74,0.6), 0 2px 3px #000;
+  animation: lvup-tag 0.9s ease-out forwards;
+}
+@keyframes lvup-tag {
+  0%   { opacity: 0; transform: translateY(6px) scale(0.8); }
+  18%  { opacity: 1; transform: translateY(-2px) scale(1.1); }
+  100% { opacity: 0; transform: translateY(-26px) scale(1); }
+}

@@ -2,7 +2,7 @@
 import { SKILLS, SKILL_SLOTS, SKILL_PIERCE_MAX, SKILL_PIERCE_AT, SKILL_PIERCE_MULT,
   skillTotalBonus, nextSkillTotalStep, PRESET_SLOTS, nextSkillSlotAt, jobOf } from '../data.js';
 import { fmt } from '../fmt.js';
-import { h, openModal, closeModal, toast } from './common.js';
+import { h, openModal, closeModal, toast, popUp } from './common.js';
 
 export function skillTab(app) {
   const { game } = app;
@@ -66,7 +66,11 @@ export function skillTab(app) {
     const desc = h('div', { class: 'desc' });
     const eq = h('button', { class: 'btn', style: 'padding:6px 8px;font-size:12px' });
     eq.onclick = () => toggleEquip(sk);
-    const btn = h('button', { class: 'buy', onclick: () => { if (game.upgradeSkill(sk.id)) app.refresh(); } });
+    const btn = h('button', { class: 'buy', onclick: () => {
+      if (!game.upgradeSkill(sk.id)) return;
+      popUp(rows[sk.id].row, `Lv.${game.s.skills[sk.id]}`);
+      app.refresh();
+    } });
     const pierce = h('button', { class: 'buy', style: 'font-size:11px', onclick: () => {
       if (game.skillPierce(sk.id)) app.refresh();
       else toast(`${SKILL_PIERCE_AT}레벨부터 초월할 수 있고 비급이 필요해요`);
