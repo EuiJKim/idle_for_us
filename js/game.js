@@ -133,6 +133,27 @@ export function newSave(now = Date.now()) {
   };
 }
 
+// 기본값과 같은 것은 백업 코드에서 뺀다. migrate가 어차피 다시 채워 준다.
+// 한 겹 안쪽(객체 속 키)까지 본다 — skills·upgrades처럼 대부분이 기본값인 것이 많다.
+export function slimSave(save, now = Date.now()) {
+  const base = newSave(now);
+  const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+  const out = {};
+  for (const [k, v] of Object.entries(save)) {
+    if (k in base && same(v, base[k])) continue;
+    const bothPlain = v && typeof v === 'object' && !Array.isArray(v)
+      && base[k] && typeof base[k] === 'object' && !Array.isArray(base[k]);
+    if (bothPlain) {
+      const sub = {};
+      for (const [k2, v2] of Object.entries(v)) if (!same(v2, base[k][k2])) sub[k2] = v2;
+      if (Object.keys(sub).length) out[k] = sub;
+      continue;
+    }
+    out[k] = v;
+  }
+  return out;
+}
+
 export function migrate(raw, now = Date.now()) {
   const base = newSave(now);
   if (!raw || typeof raw !== 'object') return base;
@@ -222,7 +243,9 @@ export function migrate(raw, now = Date.now()) {
     if (Array.isArray(src)) {
       s.options[k] = Array.from({ length: OPTION_SLOTS }, (_, i) => {
         const o = src[i];
-        return o && typeof o === 'object' ? { stat: o.stat, grade: o.grade | 0, roll: o.roll || 1 } : null;
+        return o && typeof o === 'object'
+          ? { stat: o.stat, grade: o.grade | 0, roll: Math.round((o.roll || 1) * 1000) / 1000 }
+          : null;
       });
     }
     const lk = raw.optionLock?.[k];
@@ -993,7 +1016,10 @@ export class Game {
       if (lock[i] && arr[i]) { out.push(null); continue; }
       const def = OPTION_STATS[Math.floor(this.rng() * OPTION_STATS.length)];
       const grade = this.rollOptionGrade();
-      const roll = OPTION_ROLL_MIN + this.rng() * (OPTION_ROLL_MAX - OPTION_ROLL_MIN);
+      // 소수점을 세 자리로 끊는다. 그냥 두면 0.9017060756683349처럼 18자가 되고,
+      // 칸이 12개(3부위 x 4칸)라 백업 코드의 20%를 이 숫자들이 먹었다.
+      // 셋째 자리까지면 능력치 차이가 0.1%도 안 된다.
+      const roll = Math.round((OPTION_ROLL_MIN + this.rng() * (OPTION_ROLL_MAX - OPTION_ROLL_MIN)) * 1000) / 1000;
       arr[i] = { stat: def.id, grade, roll };
       out.push(arr[i]);
     }

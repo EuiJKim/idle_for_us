@@ -1,4 +1,4 @@
-import { Game, newSave, migrate } from './game.js';
+import { Game, newSave, migrate, slimSave } from './game.js';
 import {
   SKILLS, KILLS_PER_STAGE, DUNGEON_MOBS, RANKS, MISSIONS, PETS, zoneOf, expToNext,
   isWallStage, nextUnlock, unlocksAt,
@@ -400,7 +400,10 @@ function openSettings() {
         h('button', { class: 'btn', onclick: () => askNickname(false) }, '닉네임 변경'),
         h('button', { class: 'btn', onclick: () => net.online && showProfile(app, { uid: net.uid, ...net.profileData(), updatedAt: null }) }, '내 프로필')),
       h('div', { class: 'section-title', style: 'margin-top:14px' }, '저장 데이터 옮기기'),
-      h('p', { class: 'muted' }, '폰을 바꾸거나 앱을 지우기 전에 백업 코드를 복사해 두세요.'),
+      h('p', { class: 'muted' }, '폰을 바꾸거나 앱을 지우기 전에 백업해 두세요. 파일이 가장 안전해요.'),
+      h('div', { class: 'btn-row' },
+        h('button', { class: 'btn primary', onclick: exportFile }, '백업 파일 받기'),
+        h('button', { class: 'btn', onclick: importFile }, '백업 파일 넣기')),
       h('div', { class: 'btn-row' },
         h('button', { class: 'btn', onclick: exportSave }, '백업 코드 복사'),
         h('button', { class: 'btn', onclick: importSave }, '백업 코드 넣기')),
@@ -413,18 +416,104 @@ function openSettings() {
   });
 }
 
-const encode = (obj) => btoa(unescape(encodeURIComponent(JSON.stringify(obj))));
-const decode = (str) => JSON.parse(decodeURIComponent(escape(atob(str.trim()))));
+// ---------- 백업 ----------
+// 전에는 세이브 JSON을 그대로 base64로 감쌌다. 그래서 4,500자가 나왔다 —
+// 카톡으로 주고받기엔 너무 길다. 셋을 겹쳐 1,400자대로 줄인다.
+//   1) 기본값과 같은 항목은 뺀다 (migrate가 다시 채운다)
+//   2) gzip으로 압축한다 (브라우저 내장 CompressionStream)
+//   3) 옵션 칸의 roll 소수점을 세 자리로 끊는다 (game.js)
+// 앞에 '~'를 붙여 새 코드임을 표시한다. base64에는 '~'가 없으니
+// 옛 코드와 헷갈릴 일이 없다.
+const NEW_MARK = '~';
+
+const b64 = (bytes) => {
+  let s = '';
+  for (const b of bytes) s += String.fromCharCode(b);
+  return btoa(s);
+};
+const unb64 = (str) => Uint8Array.from(atob(str), (c) => c.charCodeAt(0));
+
+async function squeeze(bytes) {
+  if (typeof CompressionStream !== 'function') return null;
+  const cs = new CompressionStream('gzip');
+  const buf = await new Response(new Blob([bytes]).stream().pipeThrough(cs)).arrayBuffer();
+  return new Uint8Array(buf);
+}
+async function unsqueeze(bytes) {
+  const ds = new DecompressionStream('gzip');
+  const buf = await new Response(new Blob([bytes]).stream().pipeThrough(ds)).arrayBuffer();
+  return new Uint8Array(buf);
+}
+
+async function makeCode() {
+  const json = JSON.stringify(slimSave(game.toJSON()));
+  const bytes = new TextEncoder().encode(json);
+  const gz = await squeeze(bytes);
+  // 압축을 못 쓰는 브라우저면 걷어내기만 한 것으로 간다 (그래도 17%는 줄어든다)
+  return NEW_MARK + b64(gz || bytes) + (gz ? '' : '.raw');
+}
+
+async function readCode(str) {
+  const s = str.trim();
+  if (!s.startsWith(NEW_MARK)) return JSON.parse(decodeURIComponent(escape(atob(s))));  // 옛 코드
+  const raw = s.endsWith('.raw');
+  const body = s.slice(1, raw ? -4 : undefined);
+  const bytes = unb64(body);
+  const out = raw ? bytes : await unsqueeze(bytes);
+  return JSON.parse(new TextDecoder().decode(out));
+}
 
 async function exportSave() {
-  const code = encode(game.toJSON());
+  const code = await makeCode();
   try {
     await navigator.clipboard.writeText(code);
-    toast('백업 코드를 복사했어요');
+    toast(`백업 코드를 복사했어요 (${code.length}자)`);
   } catch {
     openModal((s) => s.append(h('h2', {}, '백업 코드'), h('textarea', { class: 'field', readonly: true }, code),
       h('button', { class: 'btn primary', style: 'width:100%;margin-top:8px', onclick: closeModal }, '닫기')));
   }
+}
+
+// 파일로 받으면 길이는 아예 신경 쓸 일이 없다. 사람이 열어볼 수도 있게
+// 압축 없이 보기 좋은 JSON으로 저장한다.
+function exportFile() {
+  const json = JSON.stringify(game.toJSON(), null, 1);
+  const d = new Date();
+  const two = (n) => String(n).padStart(2, '0');
+  const name = `회귀무림_백업_${d.getFullYear()}${two(d.getMonth() + 1)}${two(d.getDate())}.json`;
+  const url = URL.createObjectURL(new Blob([json], { type: 'application/json' }));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+  toast('백업 파일을 받았어요');
+}
+
+function applySave(data) {
+  const out = migrate(data);
+  out.lastSeen = Date.now();
+  localStorage.setItem(SAVE_KEY, JSON.stringify(out));
+  stopSaving = true;
+  location.reload();
+}
+
+function importFile() {
+  const inp = document.createElement('input');
+  inp.type = 'file';
+  inp.accept = 'application/json,.json,.txt';
+  inp.addEventListener('change', async () => {
+    const f = inp.files && inp.files[0];
+    if (!f) return;
+    try {
+      const text = await f.text();
+      // 파일에 코드를 넣어 둔 경우도 받아 준다
+      applySave(text.trim().startsWith('{') ? JSON.parse(text) : await readCode(text));
+    } catch {
+      toast('파일을 읽지 못했어요');
+    }
+  });
+  inp.click();
 }
 
 function importSave() {
@@ -433,13 +522,9 @@ function importSave() {
     s.append(h('h2', {}, '백업 코드 넣기'), h('p', { class: 'muted' }, '지금 진행 상황은 덮어씌워져요.'), ta,
       h('div', { class: 'btn-row', style: 'margin-top:8px' },
         h('button', { class: 'btn', onclick: closeModal }, '취소'),
-        h('button', { class: 'btn primary', onclick: () => {
+        h('button', { class: 'btn primary', onclick: async () => {
           try {
-            const data = migrate(decode(ta.value));
-            data.lastSeen = Date.now();
-            localStorage.setItem(SAVE_KEY, JSON.stringify(data));
-            stopSaving = true;
-            location.reload();
+            applySave(await readCode(ta.value));
           } catch {
             toast('코드가 올바르지 않아요');
           }

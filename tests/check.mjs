@@ -1,6 +1,6 @@
 // 전체 점검: 모드 전환·세이브 이주·시스템 도달·값 이상 여부를 한 번에 본다.
 // node tests/check.mjs
-import { Game, newSave, migrate } from '../js/game.js';
+import { Game, newSave, migrate, slimSave } from '../js/game.js';
 import * as D from '../js/data.js';
 
 let fail = 0;
@@ -537,6 +537,54 @@ console.log('\n=== 13. 장신구 자동 장착 ===');
   const high = a2.mods().atk;
   ok(high > low * 1.5, '선택 상자를 몰아주면 실제로 세진다',
     `공격력 기여 +${(low * 100).toFixed(0)}% → +${(high * 100).toFixed(0)}%`);
+}
+
+// ---------- 14. 백업 ----------
+console.log('\n=== 14. 백업 코드 ===');
+{
+  // 백업 코드가 4,500자였다. 카톡으로 주고받기엔 너무 길다.
+  // 기본값을 빼고(slimSave) gzip으로 줄여 1/5로 만들었다.
+  // 여기서는 압축 전 단계(slimSave)와 roll 자릿수만 본다 — gzip은 브라우저 것이라
+  // node에서는 같은 알고리즘(zlib)으로 대신 잰다.
+  const zlib = await import('node:zlib');
+  const g = strong(300);
+  for (const t2 of Object.keys(D.EQUIP_TYPES)) {
+    g.s.options[t2] = Array.from({ length: D.OPTION_SLOTS }, () => ({ stat: 'atk', grade: 4, roll: 0.9017060756683349 }));
+  }
+  const full = JSON.parse(JSON.stringify(g.toJSON()));
+  const slim = slimSave(full);
+
+  const b64len = (o) => Buffer.from(JSON.stringify(o), 'utf8').toString('base64').length;
+  const gzlen = (o) => zlib.gzipSync(Buffer.from(JSON.stringify(o), 'utf8')).toString('base64').length;
+  const before = b64len(full);
+  const after = gzlen(slim);
+  ok(after < before * 0.4, '백업 코드가 절반 아래로 줄었다',
+    `${before}자 → ${after}자 (${Math.round(100 - after / before * 100)}% 감소)`);
+
+  // 걷어낸 것이 migrate로 되돌아오는가
+  const back = migrate(JSON.parse(JSON.stringify(slim)));
+  const keys = ['bestStage', 'level', 'rank', 'gold', 'gems', 'stones', 'books'];
+  const bad = keys.filter((k) => String(back[k]) !== String(full[k]));
+  ok(bad.length === 0, '걷어낸 코드에서 되돌려도 값이 같다', bad.length ? bad.join(',') : keys.join(','));
+  for (const k of ['upgrades', 'skills', 'acc', 'enhance', 'equips', 'codex']) {
+    ok(JSON.stringify(back[k]) === JSON.stringify(migrate(JSON.parse(JSON.stringify(full)))[k]),
+      `${k}가 그대로 돌아온다`);
+  }
+
+  // roll 자릿수 — 저장할 때 세 자리로 끊는다
+  const rolls = Object.values(back.options).flat().filter(Boolean).map((o) => o.roll);
+  ok(rolls.every((r) => String(r).replace(/^\d*\.?/, '').length <= 3),
+    '옵션 roll이 소수점 세 자리로 끊긴다', rolls.slice(0, 3).join(', '));
+  const g2 = new Game(migrate(JSON.parse(JSON.stringify(full))));
+  const twice = migrate(slimSave(g2.toJSON()));
+  ok(JSON.stringify(twice.options) === JSON.stringify(back.options),
+    '한 번 끊은 뒤에는 왕복해도 안 변한다');
+
+  // 새 세이브는 거의 비어야 한다 — 기본값이 전부 빠지므로
+  const fresh = slimSave(newSave());
+  ok(Object.keys(fresh).length < Object.keys(newSave()).length / 2,
+    '새 세이브는 걷어내면 거의 빈다',
+    `${Object.keys(fresh).length} / ${Object.keys(newSave()).length}개 키`);
 }
 
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
