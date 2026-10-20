@@ -1,6 +1,6 @@
 // 성장 탭: 은자 수련 / 레벨(스탯 포인트) / 경지
 import { UPGRADES, SP_STATS, SP_RESET_GEMS, RANKS, RANK_MULT, expToNext, REGRESS_MIN_STAGE, REGRESS_PER_POINT,
-  CRIT_CAP, REGRESS_ADVISE_POINTS } from '../data.js';
+  CRIT_CAP, REGRESS_ADVISE_POINTS, JOBS, JOB_RANK, JOB_UNLOCK} from '../data.js';
 import { fmt } from '../fmt.js';
 import { drawFighter } from '../battle.js';
 import { h, toast, openModal, closeModal, fmtValue, subTabs, multSelector } from './common.js';
@@ -221,11 +221,70 @@ function regressView(app) {
   return { root, update };
 }
 
+// 문파 — 화경에 닿으면 여덟 계열 중 하나를 고른다. 언제든 바꿀 수 있다.
+function jobView(app) {
+  const { game } = app;
+  const head = h('p', { class: 'muted', style: 'margin:2px 2px 10px;line-height:1.7' });
+  const root = h('div', {}, head);
+  const cards = {};
+
+  // 보너스를 사람 말로 적는다
+  const WORD = {
+    atk: '공격력', hp: '체력', speed: '공격 속도', gold: '은자 획득',
+    boss: '두목 피해', offline: '방치 보상', bleed: '출혈 피해',
+    ccDur: '상태이상 지속', critDmg: '치명 피해',
+  };
+  const bonusText = (j) => Object.entries({ ...(j.mult || {}), ...(j.add || {}) })
+    .map(([k, v]) => `${WORD[k] || k} <b>×${v}</b>`).join(' · ');
+
+  for (const j of JOBS) {
+    const title = h('div', { style: `font-weight:900;font-size:15px;color:${j.color}` });
+    const tag = h('div', { class: 'desc', style: 'margin-top:1px' }, j.tag);
+    const eff = h('div', { class: 'desc', style: 'margin-top:4px' });
+    const note = h('div', { class: 'desc', style: 'margin-top:2px' }, j.desc);
+    const btn = h('button', { class: 'buy', onclick: () => {
+      if (game.s.job === j.id) { game.setJob(null); app.refresh(); return; }
+      if (game.setJob(j.id)) { app.refresh(); toast(`${j.name}이 되었어요`); }
+      else toast('아직 안 열린 문파예요');
+    } });
+    const row = h('div', { class: 'card' },
+      h('div', { style: 'display:flex;align-items:flex-start;gap:8px' },
+        h('div', { style: 'flex:1;min-width:0' }, title, tag, eff, note), btn));
+    root.append(row);
+    cards[j.id] = { title, eff, btn, row, def: j };
+  }
+
+  function update() {
+    const open = game.jobOpen();
+    const at = game.nextJobAt();
+    head.innerHTML = !open
+      ? `<b>${RANKS[JOB_RANK].name}</b>에 오르면 문파를 고를 수 있어요. (지금 ${RANKS[game.s.rank].name})`
+      : `여덟 중 하나를 골라요. <b>언제든 바꿀 수 있고, 바꿔도 잃는 게 없어요.</b>`
+        + `<br>열린 문파 ${game.jobUnlockedCount()}/${JOBS.length}`
+        + (at ? ` · 다음은 <b>${at}관문</b>` : ' · 전부 열림');
+    for (const j of JOBS) {
+      const c = cards[j.id];
+      const picked = game.s.job === j.id;
+      const unlocked = game.jobUnlocked(j.id);
+      const need = JOB_UNLOCK[JOBS.indexOf(j)] || 0;
+      c.title.innerHTML = `${j.name} <small style="color:var(--muted)">${j.weapon}</small>`
+        + (picked ? ' <b style="color:var(--accent-2)">· 지금 이것</b>' : '');
+      c.eff.innerHTML = bonusText(j);
+      c.row.style.opacity = unlocked ? '' : '0.5';
+      c.row.style.outline = picked ? `1px solid ${j.color}` : '';
+      c.btn.textContent = picked ? '그만두기' : unlocked ? '입문' : (!open ? '경지 부족' : `${need}관문`);
+      c.btn.disabled = !unlocked && !picked;
+    }
+  }
+  return { root, update };
+}
+
 export function growthTab(app) {
   return subTabs([
     { key: 'upgrade', label: '수련', make: () => upgradeView(app) },
     { key: 'level', label: '레벨', make: () => levelView(app) },
     { key: 'rank', label: '경지', make: () => rankView(app) },
+    { key: 'job', label: '문파', make: () => jobView(app) },
     { key: 'regress', label: '회귀', make: () => regressView(app) },
   ]);
 }

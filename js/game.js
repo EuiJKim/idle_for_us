@@ -41,6 +41,7 @@ import {
   PVP_TICKETS, PVP_TIME, PVP_WIN, PVP_LOSE, PVP_REWARD,
   zoneOf, monsterHp, monsterAtk, monsterGold, BOSS_HP_MULT, BOSS_ATK_MULT, BOSS_GOLD_MULT, RAID_BOSS,
   REGRESS_PER_POINT, regressGain, REGRESS_ADVISE_POINTS, REGRESS_STUCK_SEC,
+  JOBS, JOB_RANK, JOB_UNLOCK, jobOf,
   bossGems, bossRelicShards, guildAtkBonus,
 } from './data.js';
 
@@ -115,6 +116,8 @@ export function newSave(now = Date.now()) {
     // 출진 준비: 무공 넷 + 영수를 한 벌로 저장해 두고 바꿔 끼운다
     presets: Array.from({ length: PRESET_SLOTS }, (_, i) => ({ name: PRESET_NAMES[i] || `준비 ${i + 1}`, slots: null, pet: null, auto: true })),
     skillSlots: ['slash', null, null, null],
+    job: null,          // 고른 계열 (화경부터)
+    jobSeen: [],        // 거쳐 본 계열 — 나중에 각인에 쓴다
     autoSkill: true,
     pets: {},
     pet: null,
@@ -239,6 +242,11 @@ export function migrate(raw, now = Date.now()) {
     s.accBag[a.id] = GRADES.map((_, i) => Math.max(0, (Array.isArray(bag) ? bag[i] : 0) | 0));
   }
   s.accPick = Math.max(0, raw.accPick | 0);
+  // 직업: 없는 계열 id가 들어오면 버린다
+  s.job = JOBS.some((j) => j.id === raw.job) ? raw.job : null;
+  s.jobSeen = Array.isArray(raw.jobSeen)
+    ? [...new Set(raw.jobSeen.filter((x) => JOBS.some((j) => j.id === x)))] : [];
+  if (s.job && !s.jobSeen.includes(s.job)) s.jobSeen.push(s.job);
 
   // ---------- 숫자 자리를 숫자로 ----------
   // 백업 코드가 손상되거나 보상 계산 어딘가에서 undefined가 새면 숫자 자리에
@@ -379,6 +387,41 @@ export class Game {
   // 지금 열려 있는 무공 칸 수
   skillSlotCount() { return skillSlotCount(this.s.bestStage); }
 
+  // ---------- 직업 ----------
+  // 화경에 닿으면 고를 수 있다. 언제든 바꿀 수 있고, 바꿔도 잃는 것은 없다.
+  jobOpen() { return this.s.rank >= JOB_RANK; }
+
+  // 계열이 열렸는가 (첫 계열은 화경 즉시, 나머지는 관문으로)
+  jobUnlocked(id) {
+    const i = JOBS.findIndex((j) => j.id === id);
+    if (i < 0) return false;
+    return this.jobOpen() && this.s.bestStage >= (JOB_UNLOCK[i] || 0);
+  }
+
+  jobUnlockedCount() { return JOBS.filter((j) => this.jobUnlocked(j.id)).length; }
+
+  // 다음 계열이 열리는 관문 (없으면 null)
+  nextJobAt() {
+    if (!this.jobOpen()) return null;
+    for (let i = 0; i < JOBS.length; i++) {
+      const need = JOB_UNLOCK[i] || 0;
+      if (this.s.bestStage < need) return need;
+    }
+    return null;
+  }
+
+  setJob(id) {
+    if (id === null) { this.s.job = null; return true; }
+    if (!this.jobUnlocked(id)) return false;
+    this.s.job = id;
+    if (!this.s.jobSeen.includes(id)) this.s.jobSeen.push(id);
+    this.heroHp = Math.min(this.heroHp, this.stats().hp);
+    this.emit('job', { id });
+    return true;
+  }
+
+  job() { return jobOf(this.s.job); }
+
   // ---------- 출진 준비 ----------
   // 지금 세팅을 그 칸에 담는다
   savePreset(i) {
@@ -462,6 +505,9 @@ export class Game {
       if (!en.max && en.exp + this.egoOfferWorth() >= en.need) {
         return { tab: 'equip', sub: null, text: `${e.name}에 남는 장신구를 바칠 수 있어요` };
       }
+    }
+    if (this.jobOpen() && !this.s.job) {
+      return { tab: 'growth', sub: 'job', text: '문파를 고를 수 있어요 — 언제든 바꿀 수 있어요' };
     }
     if (this.canTrial()) return { tab: 'growth', sub: 'rank', text: '경지 돌파에 도전할 수 있어요' };
     // 막혀 있는데 회귀로 받을 게 많으면 그게 답이다.
@@ -1244,9 +1290,25 @@ export class Game {
   // 전생의 기억: 회귀로 쌓은 포인트만큼 공격력·체력·은자·경험치 증가
   regressMult() { return 1 + REGRESS_PER_POINT * (this.s.regress.points || 0); }
 
+  // 고른 계열이 주는 배수. 없으면 전부 1이다.
+  //
+  // mods()에 더하지 않고 **따로 곱한다.** 지금 m.atk가 27쯤이라 거기에 0.3을
+  // 더하면 1%밖에 안 된다 — 장신구 특기에서 그 실수를 한 번 했다.
+  // 곱으로 두면 적힌 숫자가 곧 체감이다.
+  jobMult() {
+    const j = jobOf(this.s.job);
+    const out = { atk: 1, hp: 1, speed: 1, gold: 1, boss: 1, offline: 1, bleed: 1, ccDur: 1, critDmg: 1, exp: 1 };
+    const add = { crit: 0, critDmg: 0 };
+    if (!j) return { ...out, add };
+    for (const [k, v] of Object.entries(j.mult || {})) if (k in out) out[k] = v;
+    for (const [k, v] of Object.entries(j.add || {})) if (k in add) add[k] = v;
+    return { ...out, add };
+  }
+
   stats({ buffs = true } = {}) {
     const u = this.s.upgrades;
     const m = this.mods();
+    const jb = this.jobMult();
     const b = buffs ? this.buffs : {};
     const rage = b.rage > 0 ? SKILLS[1].mult(this.s.skills.rage) : 1;
     const gale = b.gale > 0 ? SKILLS[4].mult(this.s.skills.gale) : 1;
@@ -1255,20 +1317,21 @@ export class Game {
     const rank = this.rankMult();
     const past = this.regressMult();
     const boost = (b.boost || 0) > 0 ? BOOST_MULT : 1;
-    const atk = UPGRADES.atk.value(u.atk) * this.equipMult('weapon') * (1 + m.atk) * rank * guild * rage * past * boost;
-    const hp = UPGRADES.hp.value(u.hp) * this.equipMult('armor') * (1 + m.hp) * rank * past;
-    const crit = Math.min(CRIT_CAP, UPGRADES.crit.value(u.crit) + m.crit);
-    const critDmg = UPGRADES.critDmg.value(u.critDmg) + m.critDmg;
-    const speed = Math.min(SPEED_CAP, UPGRADES.speed.value(u.speed)) * (1 + m.speed) * gale;
-    const goldMul = UPGRADES.gold.value(u.gold) * this.equipMult('ring') * (1 + m.gold) * midas * past;
-    const expMul = (1 + m.exp) * past;
-    const bossMul = 1 + m.boss;
+    const atk = UPGRADES.atk.value(u.atk) * this.equipMult('weapon') * (1 + m.atk) * rank * guild * rage * past * boost * jb.atk;
+    const hp = UPGRADES.hp.value(u.hp) * this.equipMult('armor') * (1 + m.hp) * rank * past * jb.hp;
+    const crit = Math.min(CRIT_CAP, UPGRADES.crit.value(u.crit) + m.crit + jb.add.crit);
+    const critDmg = (UPGRADES.critDmg.value(u.critDmg) + m.critDmg + jb.add.critDmg) * jb.critDmg;
+    const speed = Math.min(SPEED_CAP, UPGRADES.speed.value(u.speed)) * (1 + m.speed) * gale * jb.speed;
+    const goldMul = UPGRADES.gold.value(u.gold) * this.equipMult('ring') * (1 + m.gold) * midas * past * jb.gold;
+    const expMul = (1 + m.exp) * past * jb.exp;
+    const bossMul = (1 + m.boss) * jb.boss;
     const pet = this.s.pet ? PETS.find((p) => p.id === this.s.pet) : null;
     const petHit = pet ? atk * petDamageMult(pet, this.s.pets[pet.id] || 1) : 0;
     const dps = atk * speed * (1 + crit * (critDmg - 1)) + petHit / PET_ATTACK_INTERVAL;
     return {
       atk, hp, crit, critDmg, speed, goldMul, expMul, bossMul, petHit, dps,
-      bossTime: BOSS_TIME + m.bossTime, offlineMul: 1 + m.offline,
+      bossTime: BOSS_TIME + m.bossTime, offlineMul: (1 + m.offline) * jb.offline,
+      bleedMult: jb.bleed, ccDurMult: jb.ccDur,
     };
   }
 
@@ -1534,13 +1597,16 @@ export class Game {
   }
 
   // 상태이상을 건다. 같은 것이 겹치면 더 긴 쪽이 남는다.
-  applyCC(m, kind, sec, amount) {
-    if (!m || !kind || !sec) return;
+  applyCC(m, kind, sec0, amount) {
+    if (!m || !kind || !sec0) return;
+    // 환마·독마는 상태이상이 더 오래간다
+    const sec = sec0 * (this.stats({ buffs: false }).ccDurMult || 1);
     if (kind === 'freeze') { m.stun = Math.max(m.stun || 0, sec); return; }
     if (kind === 'slow') { m.slow = Math.max(m.slow || 0, sec); return; }
     if (kind === 'weak') { m.weak = Math.max(m.weak || 0, sec); return; }
     if (kind === 'bleed') {
-      const per = (amount || 0) * CC_BLEED_PER;
+      // 독마는 출혈이 더 아프다
+      const per = (amount || 0) * CC_BLEED_PER * (this.stats({ buffs: false }).bleedMult || 1);
       // 더 아픈 출혈이 들어오면 갈아끼운다
       if (!m.bleed || per >= (m.bleedPer || 0)) { m.bleed = sec; m.bleedPer = per; }
       else m.bleed = Math.max(m.bleed, sec);

@@ -2,7 +2,7 @@
 // node tests/sim.mjs [hours]
 import { Game, newSave } from '../js/game.js';
 import { UPGRADES, SKILLS, DUNGEONS, PETS, EQUIP_TYPES, ACC_SLOTS, OUTFITS,
-  EGO_PARTS, EGO_FEED_MIN_GRADE, GACHA_KINDS, MISSIONS, GRADES } from '../js/data.js';
+  EGO_PARTS, EGO_FEED_MIN_GRADE, GACHA_KINDS, MISSIONS, GRADES, JOBS } from '../js/data.js';
 
 const hours = Number(process.argv[2] || 24);
 const T0 = Date.UTC(2026, 0, 1);
@@ -103,6 +103,9 @@ for (let t = 0, step = 0; t < hours * 3600; t += dt, step++) {
   for (const type of Object.keys(EQUIP_TYPES)) while (g.equipPierceUp(type));
   // 심검 강화: 승급에 못 쓰고 썩는 장신구를 바친다
   for (const e of EGO_PARTS) g.offerAcc(e.id, true);
+  // 문파: 열리면 고른다. 1차에서는 두목 피해가 진행에 가장 직결되므로
+  // 일화검존을 기본으로 삼는다 (계열별 비교는 변종으로 따로 잰다).
+  if (g.jobOpen() && !g.s.job) g.setJob(JOBS[0].id);
   g.mergeAll();
   for (const t2 of Object.keys(EQUIP_TYPES)) g.enhanceEquip(t2, 5);
   if (step % 600 === 0) spendSlow(now, step);   // 무거운 것은 1분마다만

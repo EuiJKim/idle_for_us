@@ -791,5 +791,70 @@ console.log('\n=== 17. 방치와 날짜 ===');
   ok(g5.mode === 'stage', '자정을 넘긴 겨루기도 끝난다');
 }
 
+// ---------- 18. 문파 (직업 8계열) ----------
+console.log('\n=== 18. 문파 ===');
+{
+  const g = strong(500);
+  g.s.rank = D.JOB_RANK - 1;
+  ok(!g.jobOpen(), `${D.RANKS[D.JOB_RANK].name} 전에는 못 고른다`, D.RANKS[g.s.rank].name);
+  g.s.rank = D.JOB_RANK;
+  ok(g.jobOpen(), `${D.RANKS[D.JOB_RANK].name}부터 고를 수 있다`);
+
+  // 해금은 관문으로 하나씩
+  g.s.bestStage = 1;
+  ok(g.jobUnlockedCount() === 1, '화경에 닿으면 첫 계열만 열린다', `${g.jobUnlockedCount()}개`);
+  g.s.bestStage = 9999;
+  ok(g.jobUnlockedCount() === D.JOBS.length, '관문을 다 올리면 전부 열린다',
+    `${g.jobUnlockedCount()}/${D.JOBS.length}`);
+  ok(D.JOB_UNLOCK.length === D.JOBS.length, '해금 지점이 계열 수만큼 있다');
+  ok(D.JOB_UNLOCK.every((v, k) => k === 0 || v > D.JOB_UNLOCK[k - 1]),
+    '해금 관문이 오름차순이다', D.JOB_UNLOCK.join(','));
+
+  // 안 열린 계열은 못 고른다
+  g.s.bestStage = 1;
+  const locked = D.JOBS[D.JOBS.length - 1].id;
+  ok(g.setJob(locked) === false, '안 열린 계열은 못 고른다');
+  ok(g.s.job === null, '못 골랐으면 비어 있다');
+
+  // 고르고 바꾸고 그만두기
+  g.s.bestStage = 9999;
+  ok(g.setJob(D.JOBS[0].id), '첫 계열을 고른다');
+  ok(g.setJob(D.JOBS[1].id), '언제든 바꿀 수 있다');
+  ok(g.s.jobSeen.length === 2, '거쳐 본 계열이 쌓인다 (나중에 각인에 쓴다)',
+    g.s.jobSeen.join(','));
+  ok(g.setJob(null) && g.s.job === null, '그만둘 수 있다');
+
+  // 여덟이 서로 다른 축을 민다 — 같은 축이면 고르는 의미가 사라진다
+  const mainAxis = D.JOBS.map((j) => Object.keys({ ...(j.mult || {}), ...(j.add || {}) })[0]);
+  ok(new Set(mainAxis).size >= 6, '주축이 대부분 서로 다르다',
+    `${new Set(mainAxis).size}종 / ${D.JOBS.length}계열`);
+  // 치명 '확률'은 안 쓴다 (상한에 막혀 죽는다)
+  const usesCrit = D.JOBS.filter((j) => 'crit' in { ...(j.mult || {}), ...(j.add || {}) });
+  ok(usesCrit.length === 0, '치명 확률을 보너스로 쓰지 않는다 (상한에 막힌다)',
+    usesCrit.map((j) => j.name).join(',') || '없음');
+
+  // 보너스가 실제로 체감되는 크기인가 — 장신구 특기에서 ×1.04로 죽은 적이 있다
+  const base = (() => { const gg = strong(500); gg.s.job = null; return gg.stats({ buffs: false }); })();
+  let weak = [];
+  for (const j of D.JOBS) {
+    const gg = strong(500);
+    gg.s.rank = 9; gg.s.bestStage = 9999;
+    gg.setJob(j.id);
+    const s = gg.stats({ buffs: false });
+    const best = Math.max(s.dps / base.dps, (s.dps * s.bossMul) / (base.dps * base.bossMul),
+      s.hp / base.hp, s.goldMul / base.goldMul, s.bleedMult, s.ccDurMult, s.offlineMul / base.offlineMul);
+    if (best < 1.2) weak.push(`${j.name} ×${best.toFixed(2)}`);
+  }
+  ok(weak.length === 0, '여덟 계열이 전부 체감되는 크기다', weak.join(', ') || '전부 ×1.2 이상');
+
+  // 세이브
+  ok(migrate({ job: '없는것' }).job === null, '없는 계열 id는 버린다');
+  const seen = migrate({ jobSeen: ['sword', '없는것', 'sword'] }).jobSeen;
+  ok(seen.length === 1 && seen[0] === 'sword', '거쳐 본 목록이 정리된다', seen.join(','));
+  ok(migrate({}).job === null, '옛 세이브는 계열이 없다');
+  const g2 = new Game(migrate({ job: D.JOBS[0].id }));
+  ok(g2.s.jobSeen.includes(D.JOBS[0].id), '고른 계열은 거쳐 본 것에 들어간다');
+}
+
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);
