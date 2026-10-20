@@ -322,5 +322,49 @@ console.log('\n=== 8. 장신구 특기 ===');
     '옛 세이브에서도 자리가 그대로');
 }
 
+// ---------- 9. 상한이 다른 시스템을 죽이고 있지 않은가 ----------
+console.log('\n=== 9. 상한과 여유 ===');
+{
+  // 치명 수련이 혼자 CRIT_CAP을 채우면, 치명 확률을 주는 다른 시스템이 전부 0이 된다.
+  // 실제로 그랬다 — 8시간 차에 39.5%p가 버려지고 있었다. 다시는 못 그러게 막는다.
+  const capLv = D.UPGRADES.crit.max;
+  const fromTrain = D.UPGRADES.crit.value(capLv);
+  const room = D.CRIT_CAP - fromTrain;
+  ok(room > 0.2, '치명은 수련을 다 해도 상한까지 여유가 남는다',
+    `수련 ${(fromTrain * 100).toFixed(0)}% / 상한 ${(D.CRIT_CAP * 100).toFixed(0)}% → 여유 ${(room * 100).toFixed(0)}%p`);
+
+  // 치명 확률을 주는 시스템이 실제로 몇 %p나 되는지 세어, 여유 안에 들어오는지 본다
+  let give = 0;
+  const add = (o) => { if (o && o.crit) give += o.crit; };
+  add(D.CODEX_PER_TYPE); add(D.CODEX_ALL); add(D.OPTION_SET); add(D.OPTION_SET_FULL);
+  add(D.ACC_SET); add(D.OUTFIT_ALL); add(D.CODEX_KIND_FULL); add(D.CODEX_ALL_FULL);
+  for (const s of D.EQUIP_SET_STEPS) add(s);
+  ok(give > 0, '치명 확률을 주는 시스템이 있다', `보유 효과만 합쳐 +${(give * 100).toFixed(0)}%p`);
+  ok(give <= room + 0.25, '그 시스템들이 여유를 통째로 넘지는 않는다',
+    `시스템 +${(give * 100).toFixed(0)}%p vs 여유 ${(room * 100).toFixed(0)}%p`);
+
+  // 실제 진행 상태에서 버려지는 양 — 강한 세이브로 확인
+  const g = strong(300);
+  for (const t2 of Object.keys(D.EQUIP_TYPES)) {
+    g.s.options[t2] = Array.from({ length: D.OPTION_SLOTS }, () => ({ stat: 'crit', grade: 5, roll: 1 }));
+  }
+  const raw = D.UPGRADES.crit.value(g.s.upgrades.crit) + g.mods().crit;
+  const used = g.stats({ buffs: false }).crit;
+  // 옵션 칸을 전부 천품 치명으로 채운 극단이므로 넘치는 건 당연하다.
+  // 여기서 보려는 건 '넘치더라도 수련만으로는 안 넘는다'는 것.
+  ok(D.UPGRADES.crit.value(g.s.upgrades.crit) < D.CRIT_CAP,
+    '수련만으로는 상한에 못 닿는다',
+    `수련 ${(D.UPGRADES.crit.value(g.s.upgrades.crit) * 100).toFixed(0)}% < ${(D.CRIT_CAP * 100).toFixed(0)}%`);
+  ok(used <= D.CRIT_CAP + 1e-9, '상한은 지켜진다', `${(used * 100).toFixed(1)}%`);
+  ok(raw > used, '극단으로 채우면 넘치기는 한다 (상한이 목표가 된다)',
+    `합 ${(raw * 100).toFixed(0)}% → 적용 ${(used * 100).toFixed(0)}%`);
+
+  // 옛 세이브의 넘치는 수련 레벨이 정리되는가
+  const old = migrate({ upgrades: { crit: 90, speed: 999 } });
+  ok(old.upgrades.crit === D.UPGRADES.crit.max, '옛 세이브의 치명 수련이 새 상한으로 맞춰진다',
+    `90 → ${old.upgrades.crit}`);
+  ok(old.upgrades.speed === D.UPGRADES.speed.max, '속도 수련도 마찬가지', `999 → ${old.upgrades.speed}`);
+}
+
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);

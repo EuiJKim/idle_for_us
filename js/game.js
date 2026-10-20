@@ -139,6 +139,12 @@ export function migrate(raw, now = Date.now()) {
   for (const key of ['upgrades', 'skills', 'stats', 'spAlloc', 'enhance', 'equipPierce', 'dungeons', 'pvp', 'regress']) {
     s[key] = { ...base[key], ...(raw[key] || {}) };
   }
+  // 수련 상한이 내려간 것들을 맞춘다. 치명은 90이 상한이었는데 50으로 내렸다.
+  // 남는 레벨을 그냥 두면 화면에 '90/50'이 뜨고 새로 시작한 사람과 값이 달라진다.
+  for (const [k, def] of Object.entries(UPGRADES)) {
+    if (!def.max) continue;
+    s.upgrades[k] = Math.max(0, Math.min(def.max, s.upgrades[k] | 0));
+  }
   s.daily = { ...freshDaily(raw.daily?.date || ''), ...(raw.daily || {}) };
   s.daily.keys = { ...freshDaily('').keys, ...(raw.daily?.keys || {}) };
   s.equips = { ...base.equips };

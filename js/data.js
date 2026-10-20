@@ -186,7 +186,9 @@ export const GACHA10_COST = 900;
 export const DAILY_GEMS = 300;
 export const START_GEMS = 1000;
 export const SPEED_CAP = 3;
-export const CRIT_CAP = 0.5;
+// 수련만으로는 30%까지다. 나머지 45%p는 병기보·옵션 칸·세트·의복·인물도감처럼
+// '갖춰야 오르는' 것들이 채운다. 그래야 그 시스템들이 숫자가 아니라 효과가 된다.
+export const CRIT_CAP = 0.75;
 
 // 재화 이름과 한자 표기 (save 키는 그대로 두고 화면 이름만 무협식)
 export const CUR = {
@@ -213,8 +215,12 @@ export const UPGRADES = {
     fmt: 'num',
   },
   crit: {
-    name: '혈도 찌르기(치명 확률)', icon: '혈도', max: 90,
-    value: (l) => 0.05 + l * 0.005,
+    // 상한이 90이던 때 value(90) = 0.05 + 0.45 = 0.50 으로 CRIT_CAP과 정확히
+    // 같았다. 그래서 수련을 끝내는 순간(실측 30분, 관문 175) 치명 확률을 주는
+    // 다른 아홉 시스템이 전부 0이 됐다 — 8시간 차에 39.5%p가 버려지고 있었다.
+    // 상한을 50(값 30%)으로 내려 CRIT_CAP까지 45%p를 비워 둔다.
+    name: '혈도 찌르기(치명 확률)', icon: '혈도', max: 50,
+    value: (l) => 0.05 + Math.min(l, 50) * 0.005,
     cost: (l) => 40 * Math.pow(1.13, l),
     fmt: 'pct',
   },

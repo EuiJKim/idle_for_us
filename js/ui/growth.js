@@ -1,5 +1,6 @@
 // 성장 탭: 은자 수련 / 레벨(스탯 포인트) / 경지
-import { UPGRADES, SP_STATS, SP_RESET_GEMS, RANKS, RANK_MULT, expToNext, REGRESS_MIN_STAGE, REGRESS_PER_POINT } from '../data.js';
+import { UPGRADES, SP_STATS, SP_RESET_GEMS, RANKS, RANK_MULT, expToNext, REGRESS_MIN_STAGE, REGRESS_PER_POINT,
+  CRIT_CAP } from '../data.js';
 import { fmt } from '../fmt.js';
 import { drawFighter } from '../battle.js';
 import { h, toast, openModal, closeModal, fmtValue, subTabs, multSelector } from './common.js';
@@ -40,7 +41,14 @@ function upgradeView(app) {
       const l = game.s.upgrades[key];
       r.lv.textContent = `Lv.${l}`;
       if (game.upgradeMaxed(key)) {
-        r.desc.innerHTML = `<b>${fmtValue(r.def, r.def.value(l))}</b> (최대)`;
+        // 치명은 수련으로 30%까지고 나머지는 갖춘 것들이 채운다.
+        // 그걸 안 적어 두면 '30%가 천장'으로 읽혀서, 치명을 주는 시스템을
+        // 전부 쓸모없는 것으로 지나친다.
+        const extra = key === 'crit'
+          ? ` <small>· 지금 <b>${Math.round(game.stats({ buffs: false }).crit * 100)}%</b>`
+            + ` (상한 ${Math.round(CRIT_CAP * 100)}% — 나머지는 병기보·옵션 칸·세트·의복에서)</small>`
+          : '';
+        r.desc.innerHTML = `<b>${fmtValue(r.def, r.def.value(l))}</b> (수련 최대)${extra}`;
         r.btn.textContent = 'MAX';
         r.btn.disabled = true;
         continue;
