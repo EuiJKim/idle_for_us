@@ -366,5 +366,42 @@ console.log('\n=== 9. 상한과 여유 ===');
   ok(old.upgrades.speed === D.UPGRADES.speed.max, '속도 수련도 마찬가지', `999 → ${old.upgrades.speed}`);
 }
 
+// ---------- 10. 아무도 안 읽는 스탯을 주고 있지 않은가 ----------
+console.log('\n=== 10. 죽은 스탯 ===');
+{
+  // 전에 의복이 '비급'과 '영수밥'을 올려 줬는데 그 둘을 읽는 곳이 없었다.
+  // 숫자는 오르는데 아무 일도 안 일어나는 종류의 사고라 눈으로는 안 잡힌다.
+  // mods()가 세는 키 = stats()가 읽는 키. 그 바깥을 주면 그대로 버려진다.
+  const READ = ['atk', 'hp', 'gold', 'exp', 'crit', 'critDmg', 'boss', 'bossTime', 'offline', 'speed'];
+  const bad = [];
+  const look = (o, where) => {
+    if (!o) return;
+    for (const k of Object.keys(o)) if (!READ.includes(k)) bad.push(`${where}.${k}`);
+  };
+  look(D.CODEX_PER_TYPE, '병기보 부위완성'); look(D.CODEX_ALL, '병기보 전부');
+  look(D.OPTION_SET, '옵션칸 보유효과'); look(D.OPTION_SET_FULL, '옵션칸 천품');
+  look(D.ACC_SET, '장신구 보유효과'); look(D.OUTFIT_ALL, '의복 전부');
+  look(D.CODEX_KIND_FULL, '도감 종류완성'); look(D.CODEX_ALL_FULL, '도감 전부');
+  look(D.TOWER_PER_FLOOR, '탑 층당');
+  for (const o of D.OUTFITS) look(o.own, `의복 ${o.name}`);
+  for (const s of D.EQUIP_SET_STEPS) look(Object.fromEntries(Object.entries(s).filter(([k]) => k !== 'grade')), '장비 세트');
+  for (const s of D.EQUIP_TOTAL_STEPS) look(Object.fromEntries(Object.entries(s).filter(([k]) => k !== 'at')), '총 제련');
+  for (const r of D.RELICS) if (!READ.includes(r.stat)) bad.push(`유물 ${r.name}.${r.stat}`);
+  for (const pet of D.PETS) if (pet.own && !READ.includes(pet.own[0])) bad.push(`영수 ${pet.name}.${pet.own[0]}`);
+  for (const o of D.OPTION_STATS) if (!READ.includes(o.id)) bad.push(`옵션 칸.${o.id}`);
+  for (const a2 of D.ACC_SLOTS) {
+    if (!READ.includes(a2.stat)) bad.push(`장신구 ${a2.name}.${a2.stat}`);
+    if (a2.special && !READ.includes(a2.special.stat)) bad.push(`특기 ${a2.special.name}.${a2.special.stat}`);
+  }
+  for (const k of Object.keys(D.SP_STATS || {})) if (!READ.includes(k)) bad.push(`스탯 포인트.${k}`);
+
+  ok(bad.length === 0, '주는 스탯이 전부 읽힌다', bad.length ? bad.join(', ') : READ.join(', '));
+
+  // mods()가 실제로 그 열 개를 들고 있는지도 본다 (키 이름이 바뀌면 여기서 걸린다)
+  const keys = Object.keys(new Game(newSave()).mods());
+  const missing = READ.filter((k) => !keys.includes(k));
+  ok(missing.length === 0, 'mods()가 그 열 개를 전부 센다', missing.join(',') || '전부 있음');
+}
+
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);
