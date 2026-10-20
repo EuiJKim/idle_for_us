@@ -5,6 +5,19 @@ import { fmt } from './fmt.js';
 export const BRUSH = '"Yuji Syuku", "Nanum Brush Script", "Gowun Batang", serif';
 const HP_BAR_RANGE = 230;   // 이 거리 안의 적만 체력바를 보여준다
 
+// ---------- 깊이 ----------
+// 위에서 내려다보는 직교 투영이라 원근이 없다. 멀리 있는 적도 가까운 적과
+// 똑같이 선명해서 화면이 종이처럼 평평하게 읽혔다.
+// 무인과의 거리로 흐림을 줘서 깊이를 만든다 — 배경이 어두우니 투명도만
+// 낮춰도 '안개에 묻힌' 느낌이 난다. 비용은 globalAlpha 한 줄이다.
+const DEPTH_NEAR = 70;     // 이 안쪽은 또렷하게
+const DEPTH_FAR = 380;     // 이 바깥은 가장 흐리게
+const DEPTH_MIN = 0.3;     // 가장 흐릴 때의 진하기
+function depthOf(dist) {
+  const k = Math.min(1, Math.max(0, (dist - DEPTH_NEAR) / (DEPTH_FAR - DEPTH_NEAR)));
+  return 1 - (1 - DEPTH_MIN) * k * k;   // 가까운 쪽은 덜 깎고 먼 쪽을 많이 깎는다
+}
+
 // ---------- 졸개 스프라이트 캐시 ----------
 // 졸개 하나를 벡터로 그리는 데 54us가 들었다. 화면에 70마리면 그것만 3.7ms다
 // (375x812 / dpr 2에서 잰 값). 폰은 여기서 서너 배 더 느리다.
@@ -12,6 +25,43 @@ const HP_BAR_RANGE = 230;   // 이 거리 안의 적만 체력바를 보여준�
 // 위상을 여섯 칸으로 끊어 미리 구워 두고 붙인다.
 // cycle은 몸이 흔들리는 주기(sin(t*4) -> 2PI/4)에 맞춘다. 맞춰 놔야
 // 한 바퀴가 이어 붙고, 돌 때마다 툭 끊기지 않는다.
+// 무인 뒤에 까는 빛. 한 번만 굽는다.
+let heroHaloImg = null;
+function heroHalo() {
+  if (heroHaloImg) return heroHaloImg;
+  const S = 128;
+  const c = document.createElement('canvas');
+  c.width = S; c.height = S;
+  const x = c.getContext('2d');
+  const g2 = x.createRadialGradient(S / 2, S / 2, S * 0.03, S / 2, S / 2, S / 2);
+  g2.addColorStop(0, 'rgba(253,224,71,0.3)');
+  g2.addColorStop(0.45, 'rgba(253,224,71,0.1)');
+  g2.addColorStop(1, 'rgba(253,224,71,0)');
+  x.fillStyle = g2;
+  x.fillRect(0, 0, S, S);
+  heroHaloImg = c;
+  return c;
+}
+
+// 빛 한 덩이를 미리 구워 둔다. 색마다 한 장이면 충분하다.
+const sparkCache = new Map();
+function sparkImage(color) {
+  let c = sparkCache.get(color);
+  if (c) return c;
+  const S = 64;
+  c = document.createElement('canvas');
+  c.width = S; c.height = S;
+  const x = c.getContext('2d');
+  const g2 = x.createRadialGradient(S / 2, S / 2, 0, S / 2, S / 2, S / 2);
+  g2.addColorStop(0, hexA(color, 0.85));
+  g2.addColorStop(0.5, hexA(color, 0.28));
+  g2.addColorStop(1, hexA(color, 0));
+  x.fillStyle = g2;
+  x.fillRect(0, 0, S, S);
+  sparkCache.set(color, c);
+  return c;
+}
+
 const SPR = { w: 80, h: 160, ox: 44, oy: 146, phases: 8, cycle: Math.PI / 2, max: 48 };
 const sprCache = new Map();
 const lookIds = new WeakMap();
@@ -100,6 +150,7 @@ export class BattleView {
     this.flash = 0;
     this.aoeHits = 0;
     this.aoeAmount = 0;
+    this.sparks = [];   // 맞은 자리·쓰러진 자리의 짧은 빛
     this.resize();
     window.addEventListener('resize', () => this.resize());
   }
@@ -166,6 +217,8 @@ export class BattleView {
           this.float(fmt(ev.amount) + (ev.crit ? '!' : ''), atX + (Math.random() - 0.5) * 60, atY - 120, color, size, 1, ev.crit || skill);
         }
         this.effects.push({ kind: 'cut', life: 0.18, max: 0.18, a: Math.random() * 0.8 - 0.4, crit: ev.crit });
+        // 맞은 자리에 섬광 하나. 수십 마리가 동시에 맞으므로 아주 작고 짧게.
+        this.sparks.push({ x: atX, y: atY - 46, life: 0.17, max: 0.17, r: ev.crit ? 26 : skill ? 20 : 13, color });
         // 때린 순간 화면을 아주 잠깐 늦추고 상대를 밀어낸다 — 타격감
         this.hitstop = Math.max(this.hitstop, ev.crit || skill ? 0.075 : 0.032);
         this.monKnock = Math.max(this.monKnock, ev.crit || skill ? 16 : 7);
@@ -181,6 +234,17 @@ export class BattleView {
         const ky = ev.at ? this.sy(ev.at) : this.monY;
         if (!ev.add) this.monDeath = 1;
         this.ink(kx, ky - 50, ev.isBoss ? 34 : 16, ev.isBoss ? '#450a0a' : '#111');
+        this.sparks.push({ x: kx, y: ky - 40, life: 0.3, max: 0.3,
+          r: ev.isBoss ? 90 : 30, color: ev.isBoss ? '#fde68a' : '#e7e5e4' });
+        for (let i = 0; i < (ev.isBoss ? 14 : 4); i++) {
+          const a2 = Math.random() * Math.PI * 2;
+          const sp = 60 + Math.random() * 140;
+          this.particles.push({
+            x: kx, y: ky - 30, vx: Math.cos(a2) * sp, vy: Math.sin(a2) * sp - 90,
+            life: 0.45 + Math.random() * 0.25, size: 2 + Math.random() * 2.5,
+            color: 'rgba(28,25,23,0.75)', drop: true,
+          });
+        }
         if (ev.gold) {
           this.float('+' + fmt(ev.gold) + ' 은자', kx, ky - 165, '#e5e7eb', 13);
           for (let i = 0; i < (ev.isBoss ? 10 : 3); i++) this.ingot(kx, ky - 40);
@@ -308,6 +372,7 @@ export class BattleView {
     this.drawUnits(game, dt, moving);
     this.drawProjectiles(dt);
     this.drawEffects(dt, game);
+    this.drawSparks(dt);
     this.drawParticles(dt);
     this.drawWeather(scene, dt);
     this.drawFloats(dt);
@@ -492,12 +557,23 @@ export class BattleView {
     }
     // 발밑 표식 — 적이 수십이면 똑같이 생긴 사람들 틈에서 내가 안 보인다
     this.ctx.save();
-    this.ctx.fillStyle = 'rgba(0,0,0,0.34)';
+    // 무인 뒤 은은한 빛 — 적 수십 틈에서 내가 어디 있는지 한눈에 들어오게
+    // 무인 뒤 빛은 매 프레임 같은 그림이다. 구워 두고 붙인다.
+    this.ctx.save();
+    this.ctx.globalCompositeOperation = 'lighter';
+    this.ctx.drawImage(heroHalo(), x - 118, y - 162, 236, 236);
+    this.ctx.restore();
+    this.ctx.fillStyle = 'rgba(0,0,0,0.38)';
     this.ctx.beginPath(); this.ctx.ellipse(x, y + 2, 24, 9, 0, 0, Math.PI * 2); this.ctx.fill();
     const pulse = 0.5 + Math.sin(this.t * 3) * 0.12;
+    // 고리 두 겹 — 안쪽은 또렷하고 바깥은 숨을 쉰다
     this.ctx.strokeStyle = `rgba(253,224,71,${pulse})`;
     this.ctx.lineWidth = 2.5;
     this.ctx.beginPath(); this.ctx.ellipse(x, y + 2, 30, 12, 0, 0, Math.PI * 2); this.ctx.stroke();
+    this.ctx.strokeStyle = `rgba(253,224,71,${pulse * 0.3})`;
+    this.ctx.lineWidth = 1.5;
+    const br = 38 + Math.sin(this.t * 3) * 4;
+    this.ctx.beginPath(); this.ctx.ellipse(x, y + 2, br, br * 0.4, 0, 0, Math.PI * 2); this.ctx.stroke();
     this.ctx.restore();
     drawFighter(this.ctx, x, y, look, opts);
     if (game.s.pet) {
@@ -540,18 +616,26 @@ export class BattleView {
     const def = a.def || {};
     const face = a.x >= game.heroX; // 무인 쪽을 본다
     ctx.save();
-    // 발밑 그림자 — 위에서 보는 화면이라 이게 있어야 바닥에 붙어 보인다
-    ctx.fillStyle = 'rgba(0,0,0,0.3)';
-    ctx.beginPath(); ctx.ellipse(x, y + 2, 20, 8, 0, 0, Math.PI * 2); ctx.fill();
     const sc = (def.look?.scale || 1) * 0.94 * this.crowdScale;
     const time = this.t + 0.7 + (Math.abs(a.x) % 7) * 0.2;
+    // 깊이 — 무인에게서 멀수록 흐리다
+    const dist = Math.hypot(x - this.heroX, (y - this.groundY) / this.squash);
+    const depth = depthOf(dist);
+    // 멀수록 아주 살짝 작게. 과하면 평면이 깨지니 10%까지만 줄인다.
+    const persp = 0.9 + 0.1 * depth;
+    ctx.globalAlpha = depth;
+    // 발밑 그림자 — 위에서 보는 화면이라 이게 있어야 바닥에 붙어 보인다.
+    // 가까울수록 진하고 또렷하다.
+    ctx.fillStyle = `rgba(0,0,0,${0.34 * depth})`;
+    ctx.beginPath(); ctx.ellipse(x, y + 2, 20 * sc, 8 * sc, 0, 0, Math.PI * 2); ctx.fill();
     if (def.emoji) emoji(ctx, def.emoji, x, y, 44, face);
     else {
       const spr = fighterSprite(def.look || {}, time, def.look?.weapon, this.dpr || 1);
       if (spr) {
         ctx.save();
         ctx.translate(x, y);
-        if (sc !== 1) ctx.scale(sc, sc);
+        const s2 = sc * persp;
+        if (s2 !== 1) ctx.scale(s2, s2);
         if (face) ctx.scale(-1, 1);
         ctx.drawImage(spr, -SPR.ox, -SPR.oy, SPR.w, SPR.h);
         ctx.restore();
@@ -565,9 +649,12 @@ export class BattleView {
     // 체력바는 가까이 붙은 적만. 수십 마리가 전부 달면 주황 막대가 화면을 덮는다.
     const near = Math.hypot(x - this.heroX, y - this.groundY) <= HP_BAR_RANGE;
     if (near) {
-      hpBar(ctx, x - 22, y - 92, 44, 5, Math.max(0, a.hp / a.maxHp), '#b45309');
-      ccDots(ctx, a, x, y - 99);
+      // 가로로 긴 주황 막대가 수십 개면 화면이 막대로 덮인다. 가늘게, 짧게.
+      ctx.globalAlpha = depth;
+      hpBar(ctx, x - 17, y - 90, 34, 3, Math.max(0, a.hp / a.maxHp), '#b45309');
+      ccDots(ctx, a, x, y - 96);
     }
+    ctx.globalAlpha = 1;
     ctx.restore();
   }
 
@@ -692,6 +779,9 @@ export class BattleView {
     for (const e of this.effects) {
       e.life -= dt;
       const k = Math.max(0, e.life / e.max);
+      // 무공 빛은 더하기로 겹친다 — 겹칠수록 밝아져야 '빛'으로 읽힌다.
+      // 화면을 덮는 먹물(회귀)만 보통 합성이다.
+      ctx.globalCompositeOperation = e.kind === 'regress' ? 'source-over' : 'lighter';
       if (e.kind === 'area') {
         // 바닥에 퍼지는 원 — 탑다운이라 원이 그대로 "사거리"로 읽힌다
         const p = 1 - k;
@@ -790,8 +880,33 @@ export class BattleView {
         ctx.fillRect(-20, -20, this.w + 40, this.h + 40);
       }
     }
+    ctx.globalCompositeOperation = 'source-over';
     this.effects = this.effects.filter((e) => e.life > 0);
     void game;
+  }
+
+  // 맞은 자리에 뜨는 짧은 빛. 더하기로 겹쳐 밝아진다.
+  //
+  // 빛 한 덩이를 그릴 때마다 radial gradient를 새로 만들면 비싸다 —
+  // 수십 개가 동시에 뜨니 그것만 1ms가 나왔다. 색마다 한 장 구워 두고 붙인다.
+  drawSparks(dt) {
+    if (!this.sparks.length) return;
+    const { ctx } = this;
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    for (const s of this.sparks) {
+      s.life -= dt;
+      const k = Math.max(0, s.life / s.max);
+      const r = s.r * (1.4 - k * 0.4);
+      const img = sparkImage(s.color);
+      ctx.globalAlpha = Math.max(0, k);
+      ctx.drawImage(img, s.x - r, s.y - r, r * 2, r * 2);
+    }
+    ctx.globalAlpha = 1;
+    ctx.restore();
+    this.sparks = this.sparks.filter((s) => s.life > 0);
+    // 한 번에 수십 마리가 맞으면 빛이 수십 개가 된다. 최근 것만 남긴다.
+    if (this.sparks.length > 12) this.sparks.splice(0, this.sparks.length - 12);
   }
 
   drawParticles(dt) {
