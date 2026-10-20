@@ -203,6 +203,28 @@ console.log('\n=== 7. 무공 칸·물결 보상·상태이상·선택 상자·�
   const g1 = strong(50);
   ok(g1.setSkillSlot(5, 'thunder') === false, '안 열린 칸에는 못 넣는다');
 
+  // 칸을 4에서 6으로 올리면서 '채우는 쪽' 경로를 안 고쳤다. 그래서 180관문
+  // 전인데도 여섯이 장착돼 자동 시전이 여섯을 다 돌렸다 — 화면엔 네 칸만
+  // 보이는데. 모든 구간에서 '열린 칸 = 장착 = 실제 쓰는 것'이어야 한다.
+  for (const best of [50, 150, 179, 180, 259, 260, 400]) {
+    const gx = new Game(migrate({ maxStage: best, bestStage: best, autoSkill: true }));
+    gx.autoSlotSkills();
+    const open = gx.skillSlotCount();
+    const filled = gx.s.skillSlots.filter(Boolean).length;
+    const active = gx.activeSlots().filter(Boolean).length;
+    ok(filled <= open && active === filled, `${best}관문에서 장착 수가 열린 칸을 안 넘는다`,
+      `열린 ${open} · 장착 ${filled} · 쓰는 것 ${active}`);
+  }
+
+  // 옛 세이브가 안 열린 칸까지 들고 있으면 비워 준다
+  const oldSave = migrate({ maxStage: 150, bestStage: 150,
+    skillSlots: ['slash', 'rage', 'heal', 'thunder', 'gale', 'midas'] });
+  const gOld = new Game(oldSave);
+  ok(oldSave.skillSlots.filter(Boolean).length === gOld.skillSlotCount(),
+    '옛 세이브의 넘치는 무공이 정리된다',
+    `6개 → ${oldSave.skillSlots.filter(Boolean).length}개`);
+  ok(gOld.useSkill('gale') === false, '안 열린 칸에 남은 무공은 안 나간다');
+
   // 물결 보상
   const total = D.waveCount(300);
   const rs = Array.from({ length: total }, (_, w) => D.waveReward(300, w, total));

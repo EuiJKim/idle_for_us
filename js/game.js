@@ -251,12 +251,21 @@ export function migrate(raw, now = Date.now()) {
     const lk = raw.optionLock?.[k];
     s.optionLock[k] = Array.from({ length: OPTION_SLOTS }, (_, i) => !!(Array.isArray(lk) && lk[i]));
   }
+  s.bestStage = Math.max(raw.bestStage || 1, s.maxStage || 1);
+  // 무공 칸은 관문에 따라 열린다(4 → 6). 배열은 늘 최대 길이로 들고 있되,
+  // **아직 안 열린 칸은 비워 둔다.**
+  //
+  // 전에는 SKILL_SLOTS(최대 6)까지 채웠다. 그래서 180관문 전인데도 여섯이
+  // 장착돼 자동 시전이 여섯을 다 돌렸다 — 화면에는 네 칸만 보이는데.
+  // 칸 수를 4에서 6으로 올리면서 이 경로를 안 고친 탓이다.
+  const openSlots = skillSlotCount(s.bestStage);
   if (!Array.isArray(raw.skillSlots)) {
-    // v1 → v2: 해금된 스킬을 순서대로 장착
-    s.skillSlots = SKILLS.filter((sk) => (raw.maxStage || 1) >= sk.unlock).slice(0, SKILL_SLOTS).map((sk) => sk.id);
+    // v1 → v2: 해금된 무공을 순서대로 장착 (열린 칸만큼만)
+    s.skillSlots = SKILLS.filter((sk) => (raw.maxStage || 1) >= sk.unlock).slice(0, openSlots).map((sk) => sk.id);
   }
   while (s.skillSlots.length < SKILL_SLOTS) s.skillSlots.push(null);
-  s.bestStage = Math.max(raw.bestStage || 1, s.maxStage || 1);
+  s.skillSlots.length = SKILL_SLOTS;
+  for (let i = openSlots; i < SKILL_SLOTS; i++) s.skillSlots[i] = null;
   s.pets = { ...(raw.pets || {}) };
   s.attend = { ...base.attend, ...(raw.attend || {}) };
   s.bond = { ...(raw.bond || {}) };
@@ -1816,7 +1825,7 @@ export class Game {
     }
 
     if (this.s.autoSkill && this.mode !== 'pvp') {
-      for (const id of this.s.skillSlots) {
+      for (const id of this.activeSlots()) {
         if (!id) continue;
         if (id === 'heal' && this.heroHp > st.hp * 0.6) continue;
         if (this.buffs[id] > 0) continue;
@@ -2091,13 +2100,19 @@ export class Game {
   skillUnlocked(sk) { return this.s.bestStage >= sk.unlock; }
 
   autoSlotSkills() {
+    const open = this.skillSlotCount();
     for (const sk of SKILLS) {
       if (!this.skillUnlocked(sk) || this.s.skillSlots.includes(sk.id)) continue;
-      const free = this.s.skillSlots.indexOf(null);
+      // 빈 칸을 찾되 **열린 칸 안에서만** 찾는다
+      let free = -1;
+      for (let i = 0; i < open; i++) if (!this.s.skillSlots[i]) { free = i; break; }
       if (free < 0) return;
       this.s.skillSlots[free] = sk.id;
     }
   }
+
+  // 지금 실제로 쓰는 무공 (열린 칸 안의 것만)
+  activeSlots() { return this.s.skillSlots.slice(0, this.skillSlotCount()); }
 
   setSkillSlot(slot, id) {
     if (slot < 0 || slot >= this.skillSlotCount()) return false;
@@ -2115,7 +2130,8 @@ export class Game {
     // 자리를 옮기거나 들판에 남는 무공은 1:1 겨루기에서 쓸 자리가 없다
     const roams = sk.motion === 'dash' || sk.motion === 'blink' || sk.motion === 'tornado';
     if (roams && this.mode !== 'stage') return false;
-    if (!this.s.skillSlots.includes(id)) return false;
+    // 안 열린 칸에 남아 있는 무공은 안 나간다 (옛 세이브 보호)
+    if (!this.activeSlots().includes(id)) return false;
     const lv = this.s.skills[id];
     const st = this.stats();
     if (sk.kind === 'dmg') {

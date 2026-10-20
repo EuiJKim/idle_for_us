@@ -91,8 +91,9 @@ let skillEls = [];
 let slotSig = '';
 const autoBtn = h('button', { class: 'auto-btn', onclick: () => { game.s.autoSkill = !game.s.autoSkill; refreshUI(true); } }, 'AUTO');
 function buildSkillbar() {
-  slotSig = game.s.skillSlots.join(',');
-  skillEls = game.s.skillSlots.map((id) => {
+  // 전투 바도 열린 칸만 그린다
+  slotSig = game.activeSlots().join(',');
+  skillEls = game.activeSlots().map((id) => {
     const sk = SKILLS.find((x) => x.id === id);
     const cd = h('div', { class: 'cd' });
     const lock = h('div', { class: 'lock' });
@@ -191,7 +192,7 @@ function refreshUI(full = false) {
     $('contest-sub').textContent = `내 피해 ${fmt(c.damage)}`;
   }
 
-  if (game.s.skillSlots.join(',') !== slotSig) buildSkillbar();
+  if (game.activeSlots().join(',') !== slotSig) buildSkillbar();
   for (const { sk, btn, cd, lock } of skillEls) {
     if (!sk) { btn.classList.add('locked'); continue; }
     const unlocked = game.skillUnlocked(sk);
