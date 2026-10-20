@@ -15,6 +15,24 @@ export function h(tag, attrs = {}, ...kids) {
   return el;
 }
 
+// 연속 도전 토글. 켜 두면 한 판이 끝날 때마다 알아서 다시 들어간다.
+// (지면 끊긴다 — game.js retryLoop)
+export function loopBtn(app, kind, id = null) {
+  const b = h('button', { class: 'btn loop-btn' });
+  b.addEventListener('click', () => {
+    const on = app.game.setLoop(kind, id);
+    app.refresh();
+    toast(on ? '연속 도전을 켰어요 — 질 때까지 이어서 해요' : '연속 도전을 껐어요');
+  });
+  b.update = () => {
+    const on = app.game.loopOn(kind, id);
+    b.textContent = on ? '연속 ON' : '연속';
+    b.classList.toggle('good', on);
+  };
+  b.update();
+  return b;
+}
+
 export function toast(text) {
   const box = document.getElementById('toast');
   const el = h('div', { class: 'toast' }, text);

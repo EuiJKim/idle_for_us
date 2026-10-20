@@ -7,7 +7,7 @@ import {
 } from '../data.js';
 import { fmt, pct, ago } from '../fmt.js';
 import { dayKey } from '../game.js';
-import { h, toast, openModal, closeModal, subTabs, rewardText } from './common.js';
+import { h, toast, openModal, closeModal, subTabs, rewardText, loopBtn } from './common.js';
 
 const lastSeen = (p) => ago(p.updatedAt?.toMillis?.());
 
@@ -363,7 +363,8 @@ function shadowView(app) {
     tierWrap.append(row);
     return { row, mark, name, rew, tier, i };
   });
-  const goBtn = h('button', { class: 'btn primary', style: 'width:100%' });
+  const goBtn = h('button', { class: 'btn primary' });
+  const shadowLoop = loopBtn(app, 'shadow');
   goBtn.addEventListener('click', () => {
     if (game.startShadow()) app.refresh();
     else toast('오늘 도전이 남아있지 않거나 다른 싸움 중이에요');

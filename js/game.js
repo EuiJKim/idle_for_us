@@ -120,6 +120,7 @@ export function newSave(now = Date.now()) {
     job: null,          // 고른 계열 (화경부터)
     jobSeen: [],        // 거쳐 본 계열 — 나중에 각인에 쓴다
     taste: null,        // 맛보기로 걸어 둔 계열 (화경 전까지)
+    loop: null,         // 연속 도전 {kind, id}
     autoSkill: true,
     pets: {},
     pet: null,
@@ -250,6 +251,10 @@ export function migrate(raw, now = Date.now()) {
     ? [...new Set(raw.jobSeen.filter((x) => JOBS.some((j) => j.id === x)))] : [];
   if (s.job && !s.jobSeen.includes(s.job)) s.jobSeen.push(s.job);
   s.taste = JOBS.some((j) => j.id === raw.taste) ? raw.taste : null;
+  // 연속 도전. 모르는 종류가 들어오면 그냥 끈다.
+  const LOOPS = ['dungeon', 'tower', 'rift', 'hunt', 'shadow', 'ego'];
+  s.loop = raw.loop && LOOPS.includes(raw.loop.kind)
+    ? { kind: raw.loop.kind, id: raw.loop.id ? String(raw.loop.id).slice(0, 16) : null } : null;
 
   // ---------- 숫자 자리를 숫자로 ----------
   // 백업 코드가 손상되거나 보상 계산 어딘가에서 undefined가 새면 숫자 자리에
@@ -2255,7 +2260,45 @@ export class Game {
     if (out.mode === 'raid') this.emit('raidEnd', { damage: out.damage });
     if (out.mode === 'trial' && out.win) this.emit('rankUp', { rank: out.rank });
     this.spawnStage();
+    // 연속 도전이 켜져 있으면 바로 다시 들어간다
+    if (this.s.loop) {
+      const again = this.retryLoop(result === 'win' ? 'clear' : result);
+      this.emit('loopAgain', { kind: this.s.loop?.kind || null, on: again });
+    }
     return out;
+  }
+
+  // ---------- 연속 도전 ----------
+  //
+  // 이 게임의 축은 '회귀해서 강해지기'다. 한 판 끝날 때마다 창을 열어
+  // 다시 누르게 하면 그 축이 느려진다. 켜 두면 알아서 다시 들어간다.
+  //
+  // **지면 끊긴다.** 안 그러면 못 깨는 층에서 영원히 헛돈다
+  // (던전은 이겨야 열쇠를 쓰므로 지는 쪽은 아무것도 소모하지 않는다).
+  loopOn(kind, id = null) {
+    const l = this.s.loop;
+    return !!l && l.kind === kind && (l.id || null) === (id || null);
+  }
+
+  setLoop(kind, id = null) {
+    this.s.loop = this.loopOn(kind, id) ? null : { kind, id: id || null };
+    return !!this.s.loop;
+  }
+
+  // 겨루기가 끝난 뒤 다시 들어갈 수 있으면 들어간다
+  retryLoop(result) {
+    const l = this.s.loop;
+    if (!l || this.mode !== 'stage') return false;
+    if (result !== 'clear') { this.s.loop = null; return false; }
+    let ok = false;
+    if (l.kind === 'dungeon') ok = this.startDungeon(l.id);
+    else if (l.kind === 'tower') ok = this.startTower();
+    else if (l.kind === 'rift') ok = this.startSeek('rift');
+    else if (l.kind === 'hunt') ok = this.startSeek('hunt');
+    else if (l.kind === 'shadow') ok = this.startShadow();
+    else if (l.kind === 'ego') ok = this.startEgoTrial(l.id);
+    if (!ok) this.s.loop = null;   // 열쇠가 떨어졌거나 끝까지 올랐다
+    return ok;
   }
 
   // ---------- 던전 ----------

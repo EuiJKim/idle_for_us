@@ -10,7 +10,7 @@ import { GRADES, EQUIP_TYPES, MERGE_COUNT, GACHA_COST, GACHA10_COST, ENHANCE_PER
   EGO_PARTS, EGO_STEP_MAX, EGO_FEED_MIN_GRADE, EGO_FEED_EXP, egoPower,
   EGO_ENCHANT_MAX, EGO_ENCHANT_WORTH } from '../data.js';
 import { fmt, pct } from '../fmt.js';
-import { h, toast, openModal, closeModal, gradeChip, gachaLevelBar } from './common.js';
+import { h, toast, openModal, closeModal, gradeChip, gachaLevelBar, loopBtn } from './common.js';
 
 export function equipTab(app) {
   const { game } = app;
@@ -124,7 +124,8 @@ export function equipTab(app) {
       feedRow.append(b);
       feeds[gr] = b;
     }
-    const upBtn = h('button', { class: 'btn primary', style: 'margin-top:8px;width:100%' });
+    const upBtn = h('button', { class: 'btn primary' });
+    const upLoop = loopBtn(app, 'ego', e.id);
     upBtn.addEventListener('click', () => {
       if (game.startEgoTrial(e.id)) app.refresh();
       else toast('아직 경험치가 모자라거나 다른 싸움 중이에요');

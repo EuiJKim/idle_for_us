@@ -137,9 +137,15 @@ $('btn-missions').addEventListener('click', () => openMissions(app));
 const MODE_TITLE = { raid: '혈마 토벌', trial: '심마 대결', pvp: '겨루기', dungeon: '수련터', ego: '심검 승급', shadow: '그림자 무림', tower: '혈마의 탑', rift: '마기 균열', hunt: '비급 탐색' };
 function refreshUI(full = false) {
   const s = game.s;
+  // 창이 화면을 다 덮으므로, 겨루기가 시작되면 닫아야 싸우는 게 보인다.
+  // (예전엔 창이 72vh라 들판이 일부 보였다)
+  if (activeTab && game.mode !== 'stage') closePanel();
   const c = game.contest;
   $('gold').textContent = fmt(s.gold);
   $('gems').textContent = fmt(s.gems);
+  // 창이 상단바를 덮으므로 창 머리에도 같이 적는다
+  $('p-gold').textContent = $('gold').textContent;
+  $('p-gems').textContent = $('gems').textContent;
   if (c) {
     $('stage-label').textContent = c.mode === 'dungeon' ? `${c.def.name} ${c.level}단계` : MODE_TITLE[c.mode];
     $('zone-label').textContent = c.mode === 'pvp' ? `vs ${c.opponent.nickname}` : c.mode === 'trial' ? `${RANKS[c.rank].name} 경지 도전` : '시간 안에 쓰러뜨리세요';

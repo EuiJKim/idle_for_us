@@ -6,7 +6,7 @@ import { DUNGEONS, DUNGEON_KEYS, DUNGEON_TIME, DUNGEON_MOBS, dungeonReward,
   SEEK_CAP, RIFT_TIME, HUNT_TIME, RIFT_OPEN_STAGE, HUNT_OPEN_STAGE,
   riftStage, huntStage, riftReward, huntReward } from '../data.js';
 import { fmt, pct } from '../fmt.js';
-import { h, rewardText, toast, subTabs } from './common.js';
+import { h, rewardText, toast, subTabs, loopBtn } from './common.js';
 
 function dungeonView(app) {
   const { game } = app;
@@ -24,12 +24,13 @@ function dungeonView(app) {
     const info = h('div', { class: 'desc' });
     const go = h('button', { class: 'btn primary', onclick: () => app.startDungeon(d.id) });
     const sweep = h('button', { class: 'btn', onclick: () => app.sweepDungeon(d.id) });
+    const loop = loopBtn(app, 'dungeon', d.id);
     const card = h('div', { class: 'card dungeon-card' },
       h('div', { style: 'display:flex;gap:12px;align-items:center' },
         h('div', { class: 'dg-ico' }, d.icon),
         h('div', { style: 'flex:1;min-width:0' }, h('div', { class: 'name', style: 'font-weight:900;font-size:15px' }, d.name, ' ', lvl), info)),
-      h('div', { class: 'btn-row', style: 'margin-top:10px' }, sweep, go));
-    cards[d.id] = { card, lvl, info, go, sweep };
+      h('div', { class: 'btn-row', style: 'margin-top:10px' }, sweep, go, loop));
+    cards[d.id] = { card, lvl, info, go, sweep, loop };
     root.append(card);
   }
 
@@ -40,6 +41,7 @@ function dungeonView(app) {
       const best = game.s.dungeons[d.id] || 0;
       const keys = game.s.daily.keys[d.id];
       c.card.style.opacity = unlocked ? '' : '0.5';
+      c.loop.update();
       c.lvl.textContent = unlocked ? `· 열쇠 ${keys}/${DUNGEON_KEY_CAP}` : `· 관문 ${d.unlock} 해금`;
       c.lvl.classList.toggle('full', keys >= DUNGEON_KEY_CAP);
       const tier = nextDungeonTier(best);
@@ -130,7 +132,8 @@ function towerView(app) {
   const head = h('div', { class: 'desc' });
   const rew = h('div', { class: 'desc' });
   const perk = h('div', { class: 'desc' });
-  const goBtn = h('button', { class: 'btn primary', style: 'width:100%;margin-top:8px' });
+  const goBtn = h('button', { class: 'btn primary' });
+  const towerLoop = loopBtn(app, 'tower');
   goBtn.addEventListener('click', () => {
     if (game.startTower()) app.refresh();
     else toast('아직 안 열렸거나 다른 싸움 중이에요');
@@ -138,9 +141,11 @@ function towerView(app) {
   const root = h('div', {},
     h('p', { class: 'muted', style: 'margin:2px 2px 8px' },
       `${TOWER_TIME}초 안에 수문장을 잡으면 한 층 올라요. 오른 층은 내려가지 않고 영구 효과가 붙어요.`),
-    h('div', { class: 'card' }, head, rew, perk, goBtn));
+    h('div', { class: 'card' }, head, rew, perk,
+      h('div', { class: 'btn-row', style: 'margin-top:8px' }, goBtn, towerLoop)));
 
   function update() {
+    towerLoop.update();
     const open = game.towerOpen();
     const f = game.towerFloor();
     const nx = game.towerNext();
@@ -178,17 +183,20 @@ function seekView(app) {
       desc: '은자와 한철, 장신구 상자를 줘요' },
   ]) {
     const info = h('div', { class: 'desc' });
-    const btn = h('button', { class: 'btn primary', style: 'width:100%;margin-top:8px' });
+    const btn = h('button', { class: 'btn primary' });
+    const loop = loopBtn(app, k.id);
     btn.addEventListener('click', () => {
       if (game.startSeek(k.id)) app.refresh();
       else toast('탐색패가 없거나 아직 안 열렸어요');
     });
-    root.append(h('div', { class: 'card' }, h('h3', {}, k.name), info, btn));
-    cards[k.id] = { info, btn, def: k };
+    root.append(h('div', { class: 'card' }, h('h3', {}, k.name), info,
+      h('div', { class: 'btn-row', style: 'margin-top:8px' }, btn, loop)));
+    cards[k.id] = { info, btn, loop, def: k };
   }
 
   function update() {
     seekEl.innerHTML = `남은 탐색패 <b>${game.s.seek || 0}</b> / ${SEEK_CAP}`;
+    for (const id of Object.keys(cards)) cards[id].loop.update();
     for (const id of Object.keys(cards)) {
       const c = cards[id];
       const k = c.def;

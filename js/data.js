@@ -101,7 +101,9 @@ export const WAVE_MIN_SEC = 11;      // 4물결 x 11초 + 관문지기 = 45초�
 // 1관문부터 다시 올라와야 하는데 한 관문이 47초라 되돌아가는 데만 4시간 반이다.
 // 그래서 하루가 지나면 24시간당 +10관문으로 납작해졌다.
 // Blade Idle에도 같은 장치가 있다 — 하단 우측 줄의 LoopAndGo(반복 이동).
-export const WAVE_RECLIMB = 0.22;
+// 회귀해서 강해지는 게 이 게임의 축이다. 되돌아가는 길이 비싸면 그 축이 죽는다.
+// 0.22로 뒀더니 72시간에 회귀가 31번 돌았는데도 도달 관문이 안 올랐다.
+export const WAVE_RECLIMB = 0.06;
 export const waveMinSec = (stage, best) => WAVE_MIN_SEC * (stage < (best || 0) ? WAVE_RECLIMB : 1);
 
 export const BOSS_TIME = 30;
@@ -1296,15 +1298,38 @@ function cumLog(s, base) {
 
 // 관문 하나가 몇 배씩 세지는가. **성장 속도의 주 손잡이**다.
 //
-// 전에는 x1.17이었다. Blade Idle은 관문당 x1.0327(25관문마다 x1.39 벽)이고
-// 관문이 19,950개다. 우리 관문 하나가 저쪽 다섯 개 몫이라, 480관문짜리
-// 콘텐츠를 여덟 시간에 다 열어 버렸다. 수치도 관문 540에 x1.2e+38까지 불었다.
-export const STAGE_HP_RATE = 1.18;
+// 전에는 끝까지 x1.17 고정이었다. 그런데 고정이면 후반이 막힌다 —
+// 일주일 시뮬에서 회귀를 31번 돌려 능력을 165배로 쌓고도 관문 349에서
+// 더 못 갔다. 관문 하나에 +18%가 필요한데 165배는 29관문어치뿐이다.
+//
+// Blade Idle은 **증가율 자체가 체감한다**(한 주기 안에서 x1.0255 -> x1.0163).
+// 우리는 그 모양을 10관문 주기 안에서만 만들어 뒀고 주기 총합은 어디서나
+// 같았다. 이제 총합도 관문이 오를수록 완만해진다.
+// (docs/BladeIdle_진행구조.md 3절)
+export const STAGE_HP_RATE = 1.18;        // 첫 관문
+export const STAGE_HP_RATE_LATE = 1.10;   // 다 완만해졌을 때
+export const STAGE_EASE_AT = 400;         // 여기쯤에서 끝 값에 닿는다
+export const stageRate = (s) => STAGE_HP_RATE
+  + (STAGE_HP_RATE_LATE - STAGE_HP_RATE) * Math.min(1, Math.max(0, s - 1) / STAGE_EASE_AT);
+
+// 증가율이 관문마다 다르면 닫힌 식으로 못 센다. 1관문부터 쌓아 두고 꺼내 쓴다.
+// (monsterHp는 매 프레임 불린다 — 매번 수백 번 더하면 안 된다)
+const _cum = [0, 0];
+function cumEase(s) {
+  const n = Math.max(1, Math.floor(s));
+  for (let k = _cum.length; k <= n; k++) {
+    const c = (k - 1) % WALL_CYCLE;                  // 주기 안 자리. 9가 벽이다.
+    const cycleLog = WALL_CYCLE * Math.log(stageRate(k));
+    _cum[k] = _cum[k - 1]
+      + (c === WALL_CYCLE - 1 ? cycleLog * WALL_SHARE : stepLog(cycleLog, c));
+  }
+  return _cum[n];
+}
 
 // 이 관문으로 넘어올 때 적이 몇 배 세지는가 (화면에 보여주려고 따로 둔다)
-export const stageJump = (s) => (s <= 1 ? 1 : Math.exp(cumLog(s, STAGE_HP_RATE) - cumLog(s - 1, STAGE_HP_RATE)));
+export const stageJump = (s) => (s <= 1 ? 1 : Math.exp(cumEase(s) - cumEase(s - 1)));
 
-export const monsterHp = (s) => 20 * Math.exp(cumLog(s, STAGE_HP_RATE));
+export const monsterHp = (s) => 20 * Math.exp(cumEase(s));
 // 적 공격력.
 //
 // 전에는 끝까지 x1.19였다. 그런데 **플레이어 체력은 관문당 x1.14로밖에 안 자란다** —

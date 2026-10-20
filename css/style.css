@@ -494,7 +494,10 @@ body { background: radial-gradient(ellipse at top, #1d1712, #0b0907 70%); }
   padding: calc(10px + var(--safe-top)) 14px 10px;
   border-bottom: 1px solid var(--line); background: #120f0b;
 }
-#panel-title { font-family: var(--brush); font-size: 26px; font-weight: 400; color: #f5e9cf; line-height: 1; }
+#panel-title { font-family: var(--brush); font-size: 26px; font-weight: 400; color: #f5e9cf; line-height: 1; flex: none; }
+/* 창이 화면을 다 덮으니 상단바가 가려진다. 쓸 돈은 창 안에서도 보여야 한다. */
+#panel-head .res-row { flex: 1; display: flex; justify-content: flex-end; gap: 5px; margin: 0 8px; min-width: 0; }
+#panel-head .res { min-width: 0; padding: 3px 8px 3px 5px; font-size: 12px; }
 #panel-close {
   width: 38px; height: 38px; border-radius: 11px; font-size: 17px;
   background: var(--card); border: 1px solid var(--line); color: #f5e9cf;
@@ -504,3 +507,7 @@ body { background: radial-gradient(ellipse at top, #1d1712, #0b0907 70%); }
   padding: 12px 10px calc(18px + var(--safe-bottom, 0px));
 }
 .subtabs { top: -12px; }
+
+/* 연속 도전 토글 — 한 판 끝날 때마다 알아서 다시 들어간다 */
+.loop-btn { flex: 0 0 82px; font-size: 12px; padding: 10px 6px; }
+.loop-btn.good { background: linear-gradient(180deg, #3f7d5a, #2c5a40); border: 0; box-shadow: 0 3px 0 #173323; color: #eafff2; }
