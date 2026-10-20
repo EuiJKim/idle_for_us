@@ -511,3 +511,7 @@ body { background: radial-gradient(ellipse at top, #1d1712, #0b0907 70%); }
 /* 연속 도전 토글 — 한 판 끝날 때마다 알아서 다시 들어간다 */
 .loop-btn { flex: 0 0 82px; font-size: 12px; padding: 10px 6px; }
 .loop-btn.good { background: linear-gradient(180deg, #3f7d5a, #2c5a40); border: 0; box-shadow: 0 3px 0 #173323; color: #eafff2; }
+
+/* 한 줄에 버튼이 넷 이상이면 min-width 때문에 가로로 삐져나간다.
+   심검 먹이 줄(진품·보품·신품·천품)이 392px인데 칸은 331px이었다. */
+.btn-row > .buy { min-width: 0; }

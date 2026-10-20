@@ -382,7 +382,8 @@ function shadowView(app) {
     h('p', { class: 'muted', style: 'margin:2px 2px 8px' },
       '내 그림자와 겨뤄요. 이길수록 티어가 오르고, 티어가 오를수록 상대가 되레 완만해져요. '
       + '월요일마다 처음부터 다시 시작해요.'),
-    h('div', { class: 'card' }, head, goBtn, claimBtn),
+    h('div', { class: 'card' }, head,
+      h('div', { class: 'btn-row' }, goBtn, shadowLoop), claimBtn),
     h('div', { class: 'section-title', style: 'margin-top:12px' }, h('span', {}, '티어 보상')),
     tierWrap);
 
@@ -395,6 +396,7 @@ function shadowView(app) {
       + `<br>남은 도전 ${s.tries || 0} / ${SHADOW_TRY_CAP} · 상대는 ${shadowStage(game.s.bestStage, s.wins || 0)}관문급`;
     goBtn.textContent = `그림자와 겨루기 (${s.tries || 0}회 남음)`;
     goBtn.disabled = !game.canShadow();
+    shadowLoop.update();
     const ready = game.shadowRewardReady();
     claimBtn.textContent = ready ? '티어 보상 받기' : '받을 보상 없음';
     claimBtn.disabled = !ready;

@@ -143,8 +143,9 @@ export function equipTab(app) {
     const enchRow = h('div', { style: 'display:flex;gap:6px;align-items:center;margin-top:6px' },
       h('span', { class: 'muted', style: 'flex:1' },
         '승급에 못 쓰는 장신구를 바쳐요 (낮은 등급부터)'), enchBtn);
-    root.append(h('div', { class: 'card' }, title, info, bar, feedRow, upBtn, enchInfo, enchRow));
-    egoCards[e.id] = { title, info, fill, feeds, upBtn, enchInfo, enchBtn, def: e };
+    root.append(h('div', { class: 'card' }, title, info, bar, feedRow,
+      h('div', { class: 'btn-row', style: 'margin-top:8px' }, upBtn, upLoop), enchInfo, enchRow));
+    egoCards[e.id] = { title, info, fill, feeds, upBtn, upLoop, enchInfo, enchBtn, def: e };
   }
 
   function updateEgo() {
@@ -184,6 +185,7 @@ export function equipTab(app) {
         : !open ? '아직 안 열림'
           : game.egoReady(e.id) ? `${cur.step + 1}단계 승급 도전` : '경험치를 더 채우세요';
       c.upBtn.disabled = !open || done || !game.egoReady(e.id) || game.mode !== 'stage';
+      c.upLoop.update();
     }
   }
 

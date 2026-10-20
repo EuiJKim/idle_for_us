@@ -1307,8 +1307,12 @@ function cumLog(s, base) {
 // 같았다. 이제 총합도 관문이 오를수록 완만해진다.
 // (docs/BladeIdle_진행구조.md 3절)
 export const STAGE_HP_RATE = 1.18;        // 첫 관문
-export const STAGE_HP_RATE_LATE = 1.10;   // 다 완만해졌을 때
-export const STAGE_EASE_AT = 400;         // 여기쯤에서 끝 값에 닿는다
+export const STAGE_HP_RATE_LATE = 1.13;   // 다 완만해졌을 때
+export const STAGE_EASE_AT = 800;         // 여기쯤에서 끝 값에 닿는다
+// 맞춘 과정: x1.10/400관문으로 먼저 풀었더니 후반 벽은 뚫렸는데(사흘 349 -> 630)
+// 하루에 511관문까지 가서 콘텐츠(480)를 하루에 다 열어 버렸다.
+// 끝 값을 올리고 완만해지는 지점을 멀리 밀어 세 조합을 재 봤다:
+//   x1.14/600 -> 3시간 165 · x1.15/500 -> 173 · x1.13/800 -> **151**
 export const stageRate = (s) => STAGE_HP_RATE
   + (STAGE_HP_RATE_LATE - STAGE_HP_RATE) * Math.min(1, Math.max(0, s - 1) / STAGE_EASE_AT);
 
