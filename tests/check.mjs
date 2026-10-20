@@ -720,5 +720,76 @@ console.log('\n=== 16. 망가진 값 ===');
   ok(!threw, `없는 것을 물어도 ${calls.length}가지 전부 안 터진다`, threw || '통과');
 }
 
+// ---------- 17. 오래 안 켰다가 켜면 ----------
+console.log('\n=== 17. 방치와 날짜 ===');
+{
+  // 며칠 만에 켜는 건 이 게임에서 흔한 일이다. 그때 값이 깨지거나
+  // 열쇠가 상한을 넘거나 하면 안 된다.
+  const DAY = 86400000;
+  const T0 = Date.UTC(2026, 0, 10, 12, 0);
+  const mk = () => {
+    const s = newSave(T0);
+    Object.assign(s, { stage: 250, bestStage: 250, maxStage: 250, level: 600, rank: 5,
+      gold: 1e15, gems: 1e5, stones: 1e8, books: 1e7 });
+    Object.assign(s.upgrades, { atk: 200, hp: 200 });
+    const gg = new Game(s, T0);
+    gg.rng = seeded(99);
+    gg.spawn();
+    gg.checkDaily(T0);
+    return gg;
+  };
+
+  for (const days of [1, 7, 365]) {
+    const g = mk();
+    const r = g.offlineReward(T0 + days * DAY);
+    if (r) g.claimOffline(r);
+    g.checkDaily(T0 + days * DAY);
+    ok(Number.isFinite(g.s.gold) && g.s.gold > 0, `${days}일 만에 켜도 은자가 멀쩡하다`,
+      g.s.gold.toExponential(2));
+    const keys = Object.values(g.s.daily.keys);
+    ok(keys.every((k) => Number.isFinite(k) && k >= 0 && k <= D.DUNGEON_KEY_CAP),
+      `${days}일: 수련터 열쇠가 범위 안`, keys.join(','));
+    ok(g.s.seek >= 0 && g.s.seek <= D.SEEK_CAP, `${days}일: 탐색패가 범위 안`, `${g.s.seek}`);
+    ok(Number.isFinite(g.stats({ buffs: false }).dps), `${days}일: 능력치가 유한하다`);
+  }
+
+  // 방치 보상에 상한이 있다 (오래 비워도 무한정 쌓이지 않는다)
+  const g2 = mk();
+  const short = g2.offlineReward(T0 + D.OFFLINE_CAP_SEC * 1000);
+  const long = g2.offlineReward(T0 + 365 * DAY);
+  ok(short && long && Math.abs(short.gold - long.gold) < 1e-6,
+    '방치 보상이 상한에서 멈춘다', `${D.OFFLINE_CAP_SEC / 3600}시간치`);
+
+  // 시계가 거꾸로 가도 (기기 시각을 바꾸는 경우)
+  const g3 = mk();
+  const back = g3.offlineReward(T0 - 5 * DAY);
+  if (back) g3.claimOffline(back);
+  g3.checkDaily(T0 - 5 * DAY);
+  ok(Number.isFinite(g3.s.gold) && g3.s.gold > 0, '시계가 거꾸로 가도 은자가 안 깨진다');
+  ok(Object.values(g3.s.daily.keys).every((k) => Number.isFinite(k) && k >= 0),
+    '시계가 거꾸로 가도 열쇠가 안 깨진다');
+
+  // 출석을 여러 날 연달아
+  const g4 = mk();
+  let got = 0;
+  for (let d2 = 0; d2 < 12; d2++) {
+    const tt = T0 + d2 * DAY;
+    g4.checkDaily(tt);
+    if (g4.claimAttend(tt)) got++;
+  }
+  ok(got === 12, '12일 연속 출석이 전부 받아진다', `${got}번`);
+  ok(Number.isFinite(g4.s.gems), '출석 보상이 숫자로 쌓인다', g4.s.gems.toExponential(2));
+
+  // 자정이 겨루기 중에 지나가도
+  const g5 = mk();
+  g5.s.daily.keys.gold = 2;
+  g5.startDungeon('gold');
+  const inContest = g5.mode !== 'stage';
+  g5.checkDaily(T0 + DAY);
+  ok(inContest && (g5.mode !== 'stage' || !g5.contest), '자정을 넘겨도 겨루기가 안 깨진다');
+  for (let k = 0; k < 60 * 180 && g5.mode !== 'stage'; k++) g5.tick(1 / 60);
+  ok(g5.mode === 'stage', '자정을 넘긴 겨루기도 끝난다');
+}
+
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);
