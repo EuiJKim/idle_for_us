@@ -11,7 +11,7 @@ import {
   ACC_SET_GRADE, ACC_SET, ACC_BOX_RATES, ACC_PICK_MIN, ACC_PICK_RATES,
   ACC_SPECIAL_STAR, accSpecialStep, accSpecialPower,
   CODEX_KINDS, CODEX_GRADE_MULT, CODEX_KIND_FULL, CODEX_ALL_FULL, codexEntryPower, codexGradeOf,
-  OUTFITS, OUTFIT_ALL,
+  OUTFITS, OUTFIT_ALL, isOutfitGachaLv, nextOutfitGachaLv,
   GACHA_KINDS, GACHA_LV_MAX, gachaLvNeed, gachaMaxGrade, GACHA_LV_TILT, gachaLvReward,
   SKILL_PIERCE_MAX, SKILL_PIERCE_AT, SKILL_PIERCE_MULT, skillPierceCost, skillTotalBonus,
   PRESET_SLOTS, PRESET_NAMES,
@@ -635,6 +635,7 @@ export class Game {
     if (!g || g.lv <= g.taken) return null;
     const total = {};
     let boxes = 0;
+    const outfits = [];
     while (g.taken < g.lv) {
       g.taken++;
       const r = gachaLvReward(kind, g.taken);
@@ -642,10 +643,23 @@ export class Game {
         if (k === 'accBox') { boxes += v; continue; }
         total[k] = (total[k] || 0) + v;
       }
+      // 병기 소환 레벨이 오르면 의복이 하나씩 온다.
+      // 특정 의복을 지정하지 않고 '아직 없는 것 중 첫 번째'를 준다 —
+      // 원보로 미리 사 둔 것이 있어도 버려지지 않게.
+      if (kind === 'equip' && isOutfitGachaLv(g.taken)) {
+        const next = OUTFITS.find((o) => !this.hasOutfit(o.id));
+        if (next) { this.s.outfits[next.id] = 1; outfits.push(next); }
+      }
     }
     this.grant(total);
     if (boxes) this.openAccBox(boxes);
-    return { ...total, accBox: boxes };
+    return { ...total, accBox: boxes, outfits };
+  }
+
+  // 아직 못 받은 의복이 몇 레벨에 오는가 (없으면 null)
+  nextOutfitAt() {
+    if (this.outfitAll()) return null;
+    return nextOutfitGachaLv(this.s.gacha?.equip?.taken ?? 0);
   }
 
   // ---------- 의복 ----------

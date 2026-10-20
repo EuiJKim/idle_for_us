@@ -2,7 +2,7 @@
 // node tests/sim.mjs [hours]
 import { Game, newSave } from '../js/game.js';
 import { UPGRADES, SKILLS, DUNGEONS, PETS, EQUIP_TYPES, ACC_SLOTS, OUTFITS,
-  EGO_PARTS, EGO_FEED_MIN_GRADE } from '../js/data.js';
+  EGO_PARTS, EGO_FEED_MIN_GRADE, GACHA_KINDS, MISSIONS, GRADES } from '../js/data.js';
 
 const hours = Number(process.argv[2] || 24);
 const T0 = Date.UTC(2026, 0, 1);
@@ -90,6 +90,17 @@ for (let t = 0, step = 0; t < hours * 3600; t += dt, step++) {
   // 의복은 사두면 영구히 효과가 붙으므로 뽑기보다 먼저 산다
   for (const o of OUTFITS) g.buyOutfit(o.id);
   while (g.s.gems >= 900) { g.gacha(10); if (g.s.gems >= 150) g.hatchPets(1); }
+  // 소환 레벨 달성 보상. 이걸 안 받고 있었다 — 한철·원보·장신구 상자·선택 상자·
+  // 의복이 전부 안 들어와서, 지금까지의 측정이 '보상을 안 받는 사람' 기준이었다.
+  for (const k of GACHA_KINDS) if (g.gachaRewardReady(k.id)) g.claimGachaRewards(k.id);
+  // 출석·의뢰도 안 받고 있었다
+  g.claimAttend(now);
+  for (const ms of MISSIONS) g.claimMission(ms.id);
+  g.claimAllBonus();
+  // 선택 상자: 공략의 수를 따라 가락지에 몰아 연다
+  while ((g.s.accPick || 0) > 0) if (!g.openAccPick('ring', 1)) break;
+  // 장비 초월: 천품이 남으면 쓴다 (안 쓰면 영영 쌓이기만 한다)
+  for (const type of Object.keys(EQUIP_TYPES)) while (g.equipPierceUp(type));
   g.mergeAll();
   for (const t2 of Object.keys(EQUIP_TYPES)) g.enhanceEquip(t2, 5);
   if (step % 600 === 0) spendSlow(now, step);   // 무거운 것은 1분마다만

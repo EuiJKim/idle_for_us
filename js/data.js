@@ -618,20 +618,35 @@ export const codexGradeOf = (stage) => Math.min(5, Math.floor(stage / 40));
 // 골드 +30%, 경험치 +20%. (docs/BladeIdle_설계원리.md 2절)
 //
 // 입는 것은 하나지만 효과는 가진 것 전부가 더해진다. 그래서 '사 모으는' 축이 된다.
+// 의복은 원보로만 살 수 있었는데, 원보는 뽑기에도 쓴다. 그리고 뽑기 쪽이
+// 압도적으로 이득이라(병기보를 끄면 43%가 떨어진다) 아무도 의복을 사지 않았다.
+// 실측: 4시간에 번 원보 36,450 중 33,300이 뽑기로 갔고, 8시간 세이브가
+// 12종 중 1종만 갖고 있었다. 끄고 재 보니 체감 0.7%.
+//
+// 그래서 '뽑기냐 의복이냐'를 고르게 하는 대신, **뽑는 행위가 의복도 모아 준다**로
+// 바꿨다. 병기 소환 레벨이 아래 값에 닿을 때마다 아직 없는 의복이 하나씩 온다.
+// 원보 구매는 '먼저 갖고 싶으면'으로 남기되 값을 3분의 1로 내렸다.
+// (Blade Idle도 코스튬은 뽑기에서 나온다)
+export const OUTFIT_GACHA_LVS = [1, 2, 3, 4, 5, 6, 8, 10, 12, 14, 16, 18];
+// 그 레벨에 의복을 하나 주는가
+export const isOutfitGachaLv = (lv) => OUTFIT_GACHA_LVS.includes(lv);
+// 아직 안 받은 의복이 몇 레벨에 오는가
+export const nextOutfitGachaLv = (lv) => OUTFIT_GACHA_LVS.find((v) => v > lv) ?? null;
+
 export const OUTFITS = [
-  { id: 'student', name: '청의 서생', cost: 15000, own: { atk: 0.4 }, color: '#60a5fa' },
-  { id: 'cat', name: '흑묘 야행의', cost: 30000, own: { atk: 0.2, gold: 0.2 }, color: '#a3a3a3' },
-  { id: 'royal', name: '금수 궁장', cost: 30000, own: { atk: 0.2, critDmg: 0.3 }, color: '#f59e0b' },
-  { id: 'teacher', name: '백록 도포', cost: 30000, own: { atk: 0.2, exp: 0.2 }, color: '#e5e7eb' },
-  { id: 'slayer', name: '적룡 전포', cost: 30000, own: { atk: 0.2, boss: 0.2 }, color: '#ef4444' },
-  { id: 'chick', name: '황조 경장', cost: 30000, own: { atk: 0.2, speed: 0.08 }, color: '#fde047' },
+  { id: 'student', name: '청의 서생', cost: 5000, own: { atk: 0.4 }, color: '#60a5fa' },
+  { id: 'cat', name: '흑묘 야행의', cost: 10000, own: { atk: 0.2, gold: 0.2 }, color: '#a3a3a3' },
+  { id: 'royal', name: '금수 궁장', cost: 10000, own: { atk: 0.2, critDmg: 0.3 }, color: '#f59e0b' },
+  { id: 'teacher', name: '백록 도포', cost: 10000, own: { atk: 0.2, exp: 0.2 }, color: '#e5e7eb' },
+  { id: 'slayer', name: '적룡 전포', cost: 10000, own: { atk: 0.2, boss: 0.2 }, color: '#ef4444' },
+  { id: 'chick', name: '황조 경장', cost: 10000, own: { atk: 0.2, speed: 0.08 }, color: '#fde047' },
   // 무기 치장
-  { id: 'moonblade', name: '월하검 장식', cost: 10000, own: { atk: 0.2 }, color: '#bae6fd' },
-  { id: 'grass', name: '초결 매듭', cost: 20000, own: { atk: 0.1, gold: 0.1 }, color: '#86efac' },
-  { id: 'doom', name: '흑철 검집', cost: 20000, own: { atk: 0.1, critDmg: 0.15 }, color: '#71717a' },
-  { id: 'love', name: '홍매 수실', cost: 20000, own: { atk: 0.1, exp: 0.1 }, color: '#f9a8d4' },
-  { id: 'dragon', name: '용린 손잡이', cost: 20000, own: { atk: 0.1, boss: 0.1 }, color: '#fb923c' },
-  { id: 'bell', name: '은방울 끈', cost: 20000, own: { atk: 0.1, speed: 0.04 }, color: '#fcd34d' },
+  { id: 'moonblade', name: '월하검 장식', cost: 3300, own: { atk: 0.2 }, color: '#bae6fd' },
+  { id: 'grass', name: '초결 매듭', cost: 6700, own: { atk: 0.1, gold: 0.1 }, color: '#86efac' },
+  { id: 'doom', name: '흑철 검집', cost: 6700, own: { atk: 0.1, critDmg: 0.15 }, color: '#71717a' },
+  { id: 'love', name: '홍매 수실', cost: 6700, own: { atk: 0.1, exp: 0.1 }, color: '#f9a8d4' },
+  { id: 'dragon', name: '용린 손잡이', cost: 6700, own: { atk: 0.1, boss: 0.1 }, color: '#fb923c' },
+  { id: 'bell', name: '은방울 끈', cost: 6700, own: { atk: 0.1, speed: 0.04 }, color: '#fcd34d' },
 ];
 // 전부 모으면 한 번 더
 export const OUTFIT_ALL = { atk: 0.5, crit: 0.03 };

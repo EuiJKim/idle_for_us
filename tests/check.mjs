@@ -403,5 +403,103 @@ console.log('\n=== 10. 죽은 스탯 ===');
   ok(missing.length === 0, 'mods()가 그 열 개를 전부 센다', missing.join(',') || '전부 있음');
 }
 
+// ---------- 11. 의복이 손에 들어오는가 ----------
+console.log('\n=== 11. 의복 ===');
+{
+  // 의복은 원보로만 살 수 있었고, 원보는 뽑기에도 쓴다. 뽑기 쪽이 압도적이라
+  // 8시간을 해도 12종 중 1종밖에 없었다 — 끄고 재니 체감 0.7%.
+  // 이제 병기 소환 레벨이 오르면 하나씩 온다. 그게 실제로 도는지 본다.
+  ok(D.OUTFIT_GACHA_LVS.length >= D.OUTFITS.length,
+    '해금 지점이 의복 수만큼 있다', `${D.OUTFIT_GACHA_LVS.length}곳 / ${D.OUTFITS.length}종`);
+  ok(Math.max(...D.OUTFIT_GACHA_LVS) <= D.GACHA_LV_MAX,
+    '마지막 해금이 소환 레벨 상한 안에 있다',
+    `${Math.max(...D.OUTFIT_GACHA_LVS)} ≤ ${D.GACHA_LV_MAX}`);
+
+  const g = new Game(newSave());
+  g.s.gacha.equip.lv = D.GACHA_LV_MAX;
+  g.claimGachaRewards('equip');
+  ok(g.outfitAll(), '소환 레벨만 올려도 전부 모인다', `${g.outfitCount()}/${D.OUTFITS.length}`);
+
+  // 원보로 미리 산 것과 겹치지 않는가
+  const g2 = new Game(newSave());
+  g2.s.gems = 1e9;
+  g2.buyOutfit(D.OUTFITS[4].id);
+  g2.buyOutfit(D.OUTFITS[7].id);
+  const before = g2.outfitCount();
+  g2.s.gacha.equip.lv = D.GACHA_LV_MAX;
+  const r = g2.claimGachaRewards('equip');
+  const ids = Object.keys(g2.s.outfits);
+  ok(before === 2 && ids.length === new Set(ids).size, '미리 산 것과 겹치지 않는다',
+    `미리 ${before}개 + 받은 ${r.outfits.length}개 = ${g2.outfitCount()}개`);
+  ok(g2.outfitCount() === D.OUTFITS.length, '겹쳐도 결국 전부 모인다',
+    `${g2.outfitCount()}/${D.OUTFITS.length}`);
+
+  // 중간 단계에서 '다음은 몇 레벨'이 맞는가
+  const g3 = new Game(newSave());
+  g3.s.gacha.equip.lv = 5;
+  g3.claimGachaRewards('equip');
+  const at = g3.nextOutfitAt();
+  ok(at !== null && at > 5, '다음 해금 레벨을 알려준다', `${g3.outfitCount()}개 보유 · 다음 ${at}레벨`);
+  g3.s.gacha.equip.lv = D.GACHA_LV_MAX;
+  g3.claimGachaRewards('equip');
+  ok(g3.nextOutfitAt() === null, '다 모으면 다음이 없다');
+
+  // 다른 소환(영수·신물)으로는 안 나온다 — 병기 소환만이다
+  const g4 = new Game(newSave());
+  g4.s.gacha.pet.lv = D.GACHA_LV_MAX;
+  g4.s.gacha.relic.lv = D.GACHA_LV_MAX;
+  g4.claimGachaRewards('pet');
+  g4.claimGachaRewards('relic');
+  ok(g4.outfitCount() === 0, '영수·신물 소환으로는 의복이 안 나온다', `${g4.outfitCount()}개`);
+
+  // 전부 모았을 때의 효과가 체감할 크기인가
+  const full = new Game(newSave());
+  for (const o of D.OUTFITS) full.s.outfits[o.id] = 1;
+  const none = new Game(newSave());
+  const gain = full.mods().atk - none.mods().atk;
+  ok(gain > 2, '전부 모으면 공격력 기여가 유의미하다', `+${(gain * 100).toFixed(0)}%p`);
+}
+
+// ---------- 12. 시뮬이 빠뜨린 행동이 없는가 ----------
+console.log('\n=== 12. 시뮬이 전부 만지는가 ===');
+{
+  // tests/sim.mjs가 소환 레벨 보상을 한 번도 안 받고 있었다. 그래서 한철·원보·
+  // 장신구 상자·선택 상자·의복이 전부 안 들어왔고, 밸런스 수치가 통째로
+  // '보상을 안 받는 사람' 기준이었다. 선택 상자와 장비 초월도 안 쓰고 있었다.
+  // 측정 도구가 틀리면 그 위의 판단이 전부 틀린다. 눈으로는 안 보이니 검사로 박는다.
+  const fs = await import('node:fs');
+  const url = await import('node:url');
+  const simPath = url.fileURLToPath(new URL('./sim.mjs', import.meta.url));
+  const sim = fs.readFileSync(simPath, 'utf8');
+
+  // 시뮬이 반드시 불러야 하는 것들 — 빼먹으면 그 시스템이 측정에서 통째로 빠진다
+  const MUST = [
+    ['claimGachaRewards', '소환 레벨 보상'],
+    ['claimAttend', '출석'],
+    ['claimMission', '일일 의뢰'],
+    ['claimMilestone', '달성 보상'],
+    ['openAccPick', '선택 상자 개봉'],
+    ['equipPierceUp', '장비 초월'],
+    ['accStarUp', '장신구 승급'],
+    ['accPierce', '장신구 초월'],
+    ['buyOutfit', '의복'],
+    ['feedEgo', '심검'],
+    ['collectMine', '광맥'],
+    ['startTower', '혈마의 탑'],
+    ['startSeek', '균열·탐색'],
+    ['startShadow', '그림자'],
+    ['rerollOptions', '옵션 칸'],
+    ['levelPet', '영수'],
+    ['digRelic', '유물'],
+    ['upgradeSkill', '무공 연마'],
+    ['enhanceEquip', '제련'],
+    ['mergeAll', '합성'],
+    ['allocSp', '스탯 포인트'],
+  ];
+  const missing = MUST.filter(([m]) => !sim.includes(m + '(')).map(([, name]) => name);
+  ok(missing.length === 0, '시뮬이 모든 성장 수단을 만진다',
+    missing.length ? '빠짐: ' + missing.join(', ') : `${MUST.length}가지 전부`);
+}
+
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);

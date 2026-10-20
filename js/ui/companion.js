@@ -1,7 +1,8 @@
 // 동료 탭: 영수 / 신물
 import { PETS, GRADES, PET_EGG_COST, OWN_STAT_NAMES, PET_ATTACK_INTERVAL, petDamageMult, RELICS, RELIC_DIG_COST,
   BOND_PER_LV, BOND_MAX, bondProgress, ENGRAVE_MIN_LV, engraveCost,
-  CODEX_KINDS, codexEntryPower, OUTFITS, OUTFIT_ALL, outfitTotalCost } from '../data.js';
+  CODEX_KINDS, codexEntryPower, OUTFITS, OUTFIT_ALL, outfitTotalCost,
+  OUTFIT_GACHA_LVS } from '../data.js';
 import { fmt, pct } from '../fmt.js';
 import { h, toast, openModal, closeModal, subTabs, gachaLevelBar } from './common.js';
 
@@ -175,7 +176,9 @@ function outfitView(app) {
   const sum = h('div', { class: 'desc' });
   const root = h('div', {},
     h('p', { class: 'muted', style: 'margin:2px 2px 8px' },
-      `입는 건 하나지만 효과는 가진 것 전부가 더해져요. 그래서 일단 사 모으면 돼요. `
+      `입는 건 하나지만 효과는 가진 것 전부가 더해져요. `
+      + `병기 소환 레벨이 오르면 하나씩 와요 (${OUTFIT_GACHA_LVS.join('·')}레벨). `
+      + `먼저 갖고 싶으면 원보로 사도 돼요. `
       + `전부 모으면 공격력 +${pct(OUTFIT_ALL.atk)} · 치명 확률 +${pct(OUTFIT_ALL.crit)}가 더 붙어요.`),
     h('div', { class: 'section-title' }, h('span', {}, '가진 의복'), sum));
 
@@ -196,9 +199,12 @@ function outfitView(app) {
 
   function update() {
     const have = game.outfitCount();
+    const at = game.nextOutfitAt();
     sum.innerHTML = game.outfitAll()
       ? '<b style="color:var(--accent-2)">전부 모음</b>'
-      : `${have}/${OUTFITS.length} · 전부 모으는 데 원보 ${fmt(outfitTotalCost())}`;
+      : `${have}/${OUTFITS.length}`
+        + (at ? ` · 다음은 병기 소환 <b>${at}레벨</b>` : '')
+        + ` · 전부 사면 원보 ${fmt(outfitTotalCost())}`;
     for (const o of OUTFITS) {
       const r = rows[o.id];
       const owned = game.hasOutfit(o.id);
