@@ -1,6 +1,6 @@
 // 성장 탭: 은자 수련 / 레벨(스탯 포인트) / 경지
 import { UPGRADES, SP_STATS, SP_RESET_GEMS, RANKS, RANK_MULT, expToNext, REGRESS_MIN_STAGE, REGRESS_PER_POINT,
-  CRIT_CAP } from '../data.js';
+  CRIT_CAP, REGRESS_ADVISE_POINTS } from '../data.js';
 import { fmt } from '../fmt.js';
 import { drawFighter } from '../battle.js';
 import { h, toast, openModal, closeModal, fmtValue, subTabs, multSelector } from './common.js';
@@ -191,17 +191,31 @@ function regressView(app) {
       h('h3', {}, '무엇이 남고 무엇이 사라지나'),
       h('p', { class: 'muted', style: 'line-height:1.7;margin:0' },
         '사라짐: 관문, 은자, 은자 수련, 레벨·스탯 포인트', h('br'),
-        '남음: 경지, 병기·제련, 무공, 영수, 신물, 수련터 기록, 원보·비급·한철·영수 먹이·신물 조각, 문파')));
+        '남음: 경지, 병기·제련, 무공, 영수, 신물, 수련터 기록, 원보·비급·한철·영수 먹이·신물 조각, 문파')),
+    // 회귀는 '손해처럼 보이는 이득'이다. 누르는 순간 능력치가 바닥으로 가니
+    // 안 적어 두면 아무도 안 한다. 실제로는 적극적으로 할수록 빠르다
+    // (측정: 12시간 도달 관문 452 → 540).
+    h('div', { class: 'card' },
+      h('h3', {}, '언제 하나'),
+      h('p', { class: 'muted', style: 'line-height:1.7;margin:0' },
+        '누르는 순간 약해 보이지만 금방 돌아와요. 전생의 기억이 공격력·체력·은자·경험치에 ',
+        '전부 붙어서, 돌아오는 길이 처음보다 훨씬 빨라요.', h('br'),
+        h('b', {}, `전생의 기억을 ${REGRESS_ADVISE_POINTS} 넘게 받을 수 있고 관문이 한동안 안 올라가면, 그때가 회귀할 때예요.`))));
   function update() {
     const s = game.s;
     const g = game.regressPreview();
     count.textContent = `${s.regress.count}회`;
     points.textContent = `${s.regress.points}`;
     bonus.textContent = `+${Math.round(s.regress.points * REGRESS_PER_POINT * 100)}%`;
+    const worth = game.regressWorth();
+    const stuck = Math.floor(game.stuckFor() / 60);
     gain.innerHTML = g
-      ? `지금 회귀하면 전생의 기억 <b>+${g}</b> (최고 ${s.maxStage}관문 기준)`
+      ? `지금 회귀하면 전생의 기억 <b>+${g}</b> → 모든 능력 <b>+${Math.round((s.regress.points + g) * REGRESS_PER_POINT * 100)}%</b>`
+        + ` (최고 ${s.maxStage}관문 기준)`
+        + (worth ? `<br><b style="color:var(--accent-2)">지금이 그때예요 — ${stuck}분째 관문이 안 올라갔어요</b>` : '')
       : `${REGRESS_MIN_STAGE}관문을 넘으면 회귀할 수 있어요. (지금 ${s.maxStage}관문)`;
     btn.textContent = g ? `회귀한다 (+${g})` : `${REGRESS_MIN_STAGE}관문 이후 가능`;
+    btn.classList.toggle('primary', !!worth);
     btn.disabled = !g || game.mode !== 'stage';
   }
   return { root, update };

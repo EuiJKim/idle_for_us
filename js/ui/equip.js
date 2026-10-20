@@ -7,7 +7,8 @@ import { GRADES, EQUIP_TYPES, MERGE_COUNT, GACHA_COST, GACHA10_COST, ENHANCE_PER
   ACC_SET_GRADE, ACC_SET,
   equipSetBonus, nextEquipSetStep, equipTotalBonus, nextEquipTotalStep,
   EQUIP_PIERCE_MAX, EQUIP_PIERCE_MULT,
-  EGO_PARTS, EGO_STEP_MAX, EGO_FEED_MIN_GRADE, EGO_FEED_EXP, egoPower } from '../data.js';
+  EGO_PARTS, EGO_STEP_MAX, EGO_FEED_MIN_GRADE, EGO_FEED_EXP, egoPower,
+  EGO_ENCHANT_MAX, EGO_ENCHANT_WORTH } from '../data.js';
 import { fmt, pct } from '../fmt.js';
 import { h, toast, openModal, closeModal, gradeChip, gachaLevelBar } from './common.js';
 
@@ -128,11 +129,36 @@ export function equipTab(app) {
       if (game.startEgoTrial(e.id)) app.refresh();
       else toast('아직 경험치가 모자라거나 다른 싸움 중이에요');
     });
-    root.append(h('div', { class: 'card' }, title, info, bar, feedRow, upBtn));
-    egoCards[e.id] = { title, info, fill, feeds, upBtn, def: e };
+    // 강화 — 승급에 못 쓰고 가방에서 썩는 장신구를 바친다
+    const enchInfo = h('div', { class: 'desc', style: 'margin-top:10px' });
+    const enchBtn = h('button', { class: 'buy' });
+    enchBtn.addEventListener('click', () => {
+      const n = game.offerAcc(e.id, true);
+      if (!n) return toast('바칠 장신구가 모자라요');
+      app.refresh();
+      toast(`${e.name} 강화 ${n}단계`);
+      return undefined;
+    });
+    const enchRow = h('div', { style: 'display:flex;gap:6px;align-items:center;margin-top:6px' },
+      h('span', { class: 'muted', style: 'flex:1' },
+        '승급에 못 쓰는 장신구를 바쳐요 (낮은 등급부터)'), enchBtn);
+    root.append(h('div', { class: 'card' }, title, info, bar, feedRow, upBtn, enchInfo, enchRow));
+    egoCards[e.id] = { title, info, fill, feeds, upBtn, enchInfo, enchBtn, def: e };
   }
 
   function updateEgo() {
+    for (const e of EGO_PARTS) {
+      const c = egoCards[e.id];
+      const en = game.egoEnch(e.id);
+      const have = game.egoOfferWorth();
+      c.enchInfo.innerHTML = en.max
+        ? `강화 <b>${en.step}강 (최대)</b> · ${en.label} <b>+${pct(en.amount)}</b>`
+        : `강화 <b>${en.step}강</b>`
+          + (en.step ? ` · ${en.label} <b>+${pct(en.amount)}</b>` : '')
+          + ` · 다음 단계까지 <b>${fmt(Math.max(0, en.need - en.exp))}</b> (가진 것 ${fmt(have)})`;
+      c.enchBtn.textContent = en.max ? '최대' : '바치기';
+      c.enchBtn.disabled = en.max || !game.egoOpen(e.id) || en.exp + have < en.need;
+    }
     for (const e of EGO_PARTS) {
       const c = egoCards[e.id];
       const open = game.egoOpen(e.id);

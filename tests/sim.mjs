@@ -101,6 +101,8 @@ for (let t = 0, step = 0; t < hours * 3600; t += dt, step++) {
   while ((g.s.accPick || 0) > 0) if (!g.openAccPick('ring', 1)) break;
   // 장비 초월: 천품이 남으면 쓴다 (안 쓰면 영영 쌓이기만 한다)
   for (const type of Object.keys(EQUIP_TYPES)) while (g.equipPierceUp(type));
+  // 심검 강화: 승급에 못 쓰고 썩는 장신구를 바친다
+  for (const e of EGO_PARTS) g.offerAcc(e.id, true);
   g.mergeAll();
   for (const t2 of Object.keys(EQUIP_TYPES)) g.enhanceEquip(t2, 5);
   if (step % 600 === 0) spendSlow(now, step);   // 무거운 것은 1분마다만
@@ -118,7 +120,10 @@ for (let t = 0, step = 0; t < hours * 3600; t += dt, step++) {
     }
   }
   if (g.s.maxStage > lastBest) { lastBest = g.s.maxStage; lastProgressT = t; }
-  if (g.mode === 'stage' && t - lastProgressT > 1800 && g.regressPreview() >= 6) { g.regress(); lastBest = 0; lastProgressT = t; nextTrial = 0; }
+  // 회귀 조건. 전에는 '30분 정체 + 6pt'였는데 그러면 8시간에 한 번도 안 터졌다.
+  // 측정해 보니 적극적으로 회귀하는 쪽이 12시간 도달 관문 452 -> 540으로 훨씬 빠르다.
+  // 게임 안 안내(regressWorth)와 같은 기준을 쓴다.
+  if (g.regressWorth()) { g.regress(); lastBest = 0; lastProgressT = t; nextTrial = 0; }
   if (g.s.farming) { farmT += 1; if (farmT > 90) { farmT = 0; g.challengeBoss(); } }
   const h = t / 3600;
   if (marks.length && h >= marks[0]) {

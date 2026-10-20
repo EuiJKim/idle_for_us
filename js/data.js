@@ -285,6 +285,18 @@ export const REGRESS_MIN_STAGE = 80;
 export const REGRESS_PER_POINT = 0.1; // 전생의 기억 1개당 공격력·체력·은자·경험치 +10%
 export const regressGain = (maxStage) => (maxStage < REGRESS_MIN_STAGE ? 0 : Math.floor((maxStage - 50) / 5));
 
+// 회귀를 '권할' 시점.
+//
+// 측정으로 나온 사실: 적극적으로 회귀하면 12시간 도달 관문이 452 → 540이다(+22%).
+// 그런데 아무도 안 했다. 계산만 보면 손해로 보이기 때문이다 — 회귀하는 순간
+// DPS가 10^19배 떨어진다. 실제로는 전생 배수가 공격력·체력·은자·경험치에
+// 전부 붙어서 되돌아오는 데 얼마 안 걸리는데, 그게 화면에 안 보였다.
+//
+// 그래서 '지금 회귀하면 이득'을 직접 띄운다.
+export const REGRESS_ADVISE_POINTS = 30;   // 이만큼 받을 수 있으면 권한다 (200관문쯤)
+// 막혀 있다고 보는 시간 (초). 이만큼 최고 관문이 안 올라가면 회귀가 답이다.
+export const REGRESS_STUCK_SEC = 600;
+
 // ---------- 병기 ----------
 export const GRADES = [
   { name: '범품', color: '#a8a29e' },
@@ -351,6 +363,29 @@ export const egoPower = (step) => EGO_PER_STEP * step;
 export const egoTrialStage = (bestStage, step) => Math.round(bestStage * (0.8 + step * 0.12));
 export const EGO_TRIAL_TIME = 45;
 
+// ---------- 심검 강화 ----------
+// 근거: EgoEnchantTableData는 mItemList(등록하는 아이템) · mAbilList(붙는 능력) ·
+// specialAbil을 들고, GetRegistItemList · IsMaxEnchant · FindEnchantStep이 붙어 있다.
+// 즉 **아이템을 바쳐서 영구 능력을 얻는** 축이고, 지금 우리 심검의
+// '먹여서 경험치 → 승급 도전'과는 별개다.
+//
+// 무엇을 바칠 것인가가 설계의 전부였다. 천품 장비는 장비 초월이 쓰고,
+// 비급은 무공이, 한철은 제련이 쓴다. 새 자원을 만들면 축만 는다.
+//
+// 그래서 **쓸 데가 없어서 남는 장신구**를 받는다. 장신구 승급은 '장착한 것과
+// 같은 등급'만 재료로 받으므로, 다른 등급은 가방에서 영원히 썩는다
+// (점검에서 보품 15개가 통째로 잠긴 걸 확인했다). 그 출구를 만드는 것이다.
+export const EGO_ENCHANT_MAX = 6;
+// 등급별로 쳐주는 값. 낮은 등급도 받되 윗등급이 훨씬 쳐준다.
+export const EGO_ENCHANT_WORTH = [1, 2, 5, 14, 40, 120];
+// 단계마다 필요한 값
+export const egoEnchantNeed = (step) => Math.ceil(12 * Math.pow(3.2, step));
+// 단계마다 붙는 능력. 심검과 심의가 서로 다른 것을 준다.
+export const EGO_ENCHANT_ABIL = {
+  blade: { stat: 'boss', label: '두목 피해', per: 0.18 },
+  robe: { stat: 'offline', label: '방치 보상', per: 0.12 },
+};
+export const egoEnchantPower = (id, step) => (EGO_ENCHANT_ABIL[id]?.per || 0) * step;
 // ---------- 장비 세트 / 총 제련 ----------
 // 근거: SetTable, SetAbilTable, SetComponentsTable (세트),
 // EquipmentTotalLevelTable, GradeTotalLevelTable (총 레벨).

@@ -17,6 +17,7 @@ import {
   PRESET_SLOTS, PRESET_NAMES,
   equipSetBonus, equipTotalBonus,
   EGO_PARTS, EGO_STEP_MAX, EGO_FEED_MIN_GRADE, EGO_FEED_EXP, egoNeed, egoPower,
+  EGO_ENCHANT_MAX, EGO_ENCHANT_WORTH, egoEnchantNeed, EGO_ENCHANT_ABIL, egoEnchantPower,
   egoTrialStage, EGO_TRIAL_TIME,
   expPerKill, expToNext, SP_PER_LEVEL, SP_RESET_GEMS, SP_STATS,
   RANKS, RANK_MULT, TRIAL_TIME, trialBoss,
@@ -39,7 +40,7 @@ import {
   MISSIONS, MISSION_ALL_REWARD, stageMilestone, STAGE_MILESTONE_EVERY,
   PVP_TICKETS, PVP_TIME, PVP_WIN, PVP_LOSE, PVP_REWARD,
   zoneOf, monsterHp, monsterAtk, monsterGold, BOSS_HP_MULT, BOSS_ATK_MULT, BOSS_GOLD_MULT, RAID_BOSS,
-  REGRESS_PER_POINT, regressGain,
+  REGRESS_PER_POINT, regressGain, REGRESS_ADVISE_POINTS, REGRESS_STUCK_SEC,
   bossGems, bossRelicShards, guildAtkBonus,
 } from './data.js';
 
@@ -109,7 +110,7 @@ export function newSave(now = Date.now()) {
     // 그림자 무림: 주마다 초기화되는 티어 도전
     shadow: { week: '', wins: 0, tries: SHADOW_TRIES, taken: -1 },
     // 심검: 장비를 먹여 키우는 전용 무기. { step, exp, ready }
-    ego: Object.fromEntries(EGO_PARTS.map((e) => [e.id, { step: 0, exp: 0 }])),
+    ego: Object.fromEntries(EGO_PARTS.map((e) => [e.id, { step: 0, exp: 0, ench: 0, enchExp: 0 }])),
     skillPierce: {},   // 무공별 초월 단계
     // 출진 준비: 무공 넷 + 영수를 한 벌로 저장해 두고 바꿔 끼운다
     presets: Array.from({ length: PRESET_SLOTS }, (_, i) => ({ name: PRESET_NAMES[i] || `준비 ${i + 1}`, slots: null, pet: null, auto: true })),
@@ -175,7 +176,9 @@ export function migrate(raw, now = Date.now()) {
   s.ego = { ...base.ego };
   for (const e of EGO_PARTS) {
     const src = raw.ego?.[e.id];
-    s.ego[e.id] = src && typeof src === 'object' ? { step: src.step | 0, exp: src.exp | 0 } : { step: 0, exp: 0 };
+    s.ego[e.id] = src && typeof src === 'object'
+      ? { step: src.step | 0, exp: src.exp | 0, ench: src.ench | 0, enchExp: src.enchExp | 0 }
+      : { step: 0, exp: 0, ench: 0, enchExp: 0 };
   }
   s.presets = Array.from({ length: PRESET_SLOTS }, (_, i) => {
     const src = Array.isArray(raw.presets) ? raw.presets[i] : null;
@@ -359,7 +362,20 @@ export class Game {
     if ((this.s.accPick || 0) > 0) return { tab: 'equip', sub: null, text: `선택 상자 ${this.s.accPick}개 — 자리를 골라 열어요` };
     for (const k of Object.keys(EQUIP_TYPES)) if (this.canEquipPierce(k)) return { tab: 'equip', sub: null, text: `${EQUIP_TYPES[k].name}을 초월할 수 있어요` };
     for (const a of ACC_SLOTS) if (this.canAccStar(a.id) || this.canAccGrade(a.id)) return { tab: 'equip', sub: null, text: `${a.name}를 올릴 수 있어요` };
+    for (const e of EGO_PARTS) {
+      if (!this.egoOpen(e.id)) continue;
+      const en = this.egoEnch(e.id);
+      if (!en.max && en.exp + this.egoOfferWorth() >= en.need) {
+        return { tab: 'equip', sub: null, text: `${e.name}에 남는 장신구를 바칠 수 있어요` };
+      }
+    }
     if (this.canTrial()) return { tab: 'growth', sub: 'rank', text: '경지 돌파에 도전할 수 있어요' };
+    // 막혀 있는데 회귀로 받을 게 많으면 그게 답이다.
+    // 회귀는 '손해처럼 보이는 이득'이라 안 띄우면 아무도 안 한다.
+    if (this.regressWorth()) {
+      const gp = this.regressPreview();
+      return { tab: 'growth', sub: 'regress', text: `회귀할 때예요 — 전생의 기억 +${gp} (모든 능력 +${Math.round(gp * REGRESS_PER_POINT * 100)}%)` };
+    }
     // 6) 평소에 할 것
     if (this.towerOpen() && !this.towerDone()) return { tab: 'dungeon', sub: 'tower', text: `혈마의 탑 ${this.towerNext()}층에 오르세요` };
     return { tab: null, sub: null, text: '관문을 올리세요' };
@@ -654,6 +670,72 @@ export class Game {
     this.grant(total);
     if (boxes) this.openAccBox(boxes);
     return { ...total, accBox: boxes, outfits };
+  }
+
+  // ---------- 심검 강화 ----------
+  // 가방에서 썩는 장신구를 바쳐 영구 능력을 얻는다.
+  egoEnch(id) {
+    const e = this.s.ego?.[id] || {};
+    const step = e.ench || 0;
+    const ab = EGO_ENCHANT_ABIL[id];
+    return {
+      step,
+      exp: e.enchExp || 0,
+      need: egoEnchantNeed(step),
+      max: step >= EGO_ENCHANT_MAX,
+      stat: ab?.stat,
+      label: ab?.label,
+      amount: egoEnchantPower(id, step),
+      nextGain: ab?.per || 0,
+    };
+  }
+
+  // 가방에 남는 장신구를 전부 합치면 값이 얼마인가
+  egoOfferWorth() {
+    let w = 0;
+    for (const a of ACC_SLOTS) {
+      const bag = this.s.accBag?.[a.id] || [];
+      bag.forEach((n, gr) => { w += (n || 0) * (EGO_ENCHANT_WORTH[gr] || 0); });
+    }
+    return w;
+  }
+
+  // 자리 id의 심검을 강화한다. 가방의 장신구를 낮은 등급부터 가져간다.
+  // 낮은 것부터 쓰는 이유: 높은 등급은 승급에 쓸 수 있으니 남겨 둔다.
+  offerAcc(id, all = false) {
+    const info = this.egoEnch(id);
+    if (!this.egoOpen(id) || info.max) return 0;
+    let steps = 0;
+    for (;;) {
+      const cur = this.egoEnch(id);
+      if (cur.max) break;
+      let exp = cur.exp;
+      const taken = [];
+      // 필요한 만큼만 가져간다. **등급이 바깥 루프**라 세 자리의 범품을 전부 쓴 뒤에야
+      // 양품으로 넘어간다 — 승급에 쓸 윗등급을 먼저 태우면 손해다.
+      outer: for (let gr = 0; gr < EGO_ENCHANT_WORTH.length; gr++) {
+        for (const a of ACC_SLOTS) {
+          const bag = this.s.accBag?.[a.id];
+          if (!bag) continue;
+          while (bag[gr] > 0 && exp < cur.need) {
+            bag[gr]--;
+            exp += EGO_ENCHANT_WORTH[gr] || 0;
+            taken.push([a.id, gr]);
+            if (exp >= cur.need) break outer;
+          }
+        }
+      }
+      if (exp < cur.need) {
+        // 모자라면 가져간 것을 돌려놓는다
+        for (const [slot, gr] of taken) this.s.accBag[slot][gr]++;
+        break;
+      }
+      this.s.ego[id].ench = cur.step + 1;
+      this.s.ego[id].enchExp = exp - cur.need;
+      steps++;
+      if (!all) break;
+    }
+    return steps;
   }
 
   // 아직 못 받은 의복이 몇 레벨에 오는가 (없으면 null)
@@ -1028,6 +1110,13 @@ export class Game {
     }
     if (loreDone === CODEX_KINDS.length) {
       for (const [kk, vv] of Object.entries(CODEX_ALL_FULL)) m[kk] += vv;
+    }
+
+    // 심검 강화 — 바친 장신구가 영구 능력이 된다
+    for (const e of EGO_PARTS) {
+      const st = this.s.ego?.[e.id]?.ench || 0;
+      const ab = EGO_ENCHANT_ABIL[e.id];
+      if (st > 0 && ab) m[ab.stat] += egoEnchantPower(e.id, st);
     }
 
     // 장신구
@@ -1582,6 +1671,7 @@ export class Game {
         if (s % 100 === 0) { this.s.accPick++; this.emit('accPick', { n: 1 }); }
       }
       if (s >= this.s.maxStage) { // 이번 생에서 처음 넘는 관문
+        this.s.climbAt = this.clock || 0;
         const gems = bossGems(s);
         this.s.gems += gems;
         this.s.relicShards += bossRelicShards(s);
@@ -1634,6 +1724,9 @@ export class Game {
   }
 
   tick(dt) {
+    // 게임 안의 시간. 실제 시계(Date.now)를 쓰면 시뮬레이션처럼 가상 시간으로
+    // 도는 쪽에서 어긋난다 — 회귀 권유가 영영 안 뜨는 버그가 그래서 났다.
+    this.clock = (this.clock || 0) + dt;
     if (this.s.pet && this.mon?.alive) {
       const b = this.s.bond || (this.s.bond = {});
       b[this.s.pet] = (b[this.s.pet] || 0) + BOND_PER_SEC * dt;
@@ -2407,6 +2500,18 @@ export class Game {
   // ---------- 회귀 ----------
   regressPreview() { return regressGain(this.s.maxStage); }
 
+  // 회귀가 지금 이득인가 — 받을 게 충분하고, 한동안 최고 관문이 안 올랐을 때
+  regressWorth() {
+    if (this.mode !== 'stage') return false;
+    if (this.regressPreview() < REGRESS_ADVISE_POINTS) return false;
+    return this.stuckFor() > REGRESS_STUCK_SEC;
+  }
+
+  // 최고 관문이 안 오른 지 몇 초 됐나 (게임 안 시간 기준)
+  stuckFor() {
+    return Math.max(0, (this.clock || 0) - (this.s.climbAt || 0));
+  }
+
   // 관문·은자·수련·레벨·스탯 포인트를 처음으로 되돌리고 전생의 기억을 얻는다.
   // 경지·병기·제련·무공·영수·신물·수련터 기록·원보는 그대로 남는다.
   regress() {
@@ -2418,6 +2523,7 @@ export class Game {
     s.regress.count++;
     s.stage = 1;
     s.maxStage = 1;
+    this.s.climbAt = this.clock || 0;
     s.kills = 0;
     s.farming = false;
     s.gold = 0;
