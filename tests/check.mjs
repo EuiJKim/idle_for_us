@@ -1039,5 +1039,54 @@ console.log('\n=== 22. 세이브 (전용 무공) ===');
   ok(m2.skillSlots.filter(Boolean).length > 0, '옛 세이브에 일반 무공은 채워진다');
 }
 
+// ---------- 23. 체력 축이 살아 있는가 ----------
+console.log('\n=== 23. 체력 축 ===');
+{
+  // 적 공격력이 플레이어 체력보다 빠르게 자라면 체력 수련·호신의·심의·
+  // 운기조식·마불의 체력이 통째로 죽는다. 실제로 그랬다(관문 387에서 한 대 = 체력의 1878배).
+  ok(D.ATK_RATE_LATE <= 1.15, `${D.ATK_FLAT_AT}관문 뒤 적 공격력이 플레이어 체력 성장(x1.14)을 안 넘는다`,
+    `x${D.ATK_RATE_LATE}`);
+  ok(D.ATK_RATE_LATE < D.ATK_RATE_EARLY, '평탄화 뒤 증가율이 더 완만하다');
+
+  // 이음매가 없어야 한다 — 150관문에서 값이 튀면 벽이 하나 더 생긴다
+  const jump = D.monsterAtk(D.ATK_FLAT_AT + 1) / D.monsterAtk(D.ATK_FLAT_AT);
+  ok(jump < 1.5, '평탄화 지점에서 값이 안 튄다', `x${jump.toFixed(3)}`);
+  ok(D.monsterAtk(D.ATK_FLAT_AT) > D.monsterAtk(D.ATK_FLAT_AT - 1), '그래도 계속 오르기는 한다');
+
+  // 오래 가면 적 공격력이 적 체력보다 **느리게** 자라야 한다.
+  // 플레이어 공격력에는 치명·속도·영수·심검이 붙지만 체력에는 아무것도 안 붙는다.
+  const far = 800;
+  const slower = (D.monsterAtk(far) / D.monsterAtk(400)) < (D.monsterHp(far) / D.monsterHp(400));
+  ok(slower, '멀리 가면 적 공격력이 적 체력보다 느리게 자란다',
+    `400→${far}관문 공격 x${(D.monsterAtk(far) / D.monsterAtk(400)).toExponential(1)}`
+    + ` / 체력 x${(D.monsterHp(far) / D.monsterHp(400)).toExponential(1)}`);
+
+  // 체력을 올리면 실제로 더 버티는가 — 숫자가 아니라 전투로 확인한다
+  // 관문 140은 이 시험 캐릭터가 '밀어붙이는' 자리다 — 12초쯤 버틴다.
+  // 더 낮으면 안 죽어서, 더 높으면 뭘 해도 즉사해서 차이가 안 보인다.
+  const TRY_AT = 140;
+  const liveFor = (tune) => {
+    const g = strong(TRY_AT);
+    if (tune) tune(g);
+    g.heroHp = g.stats({ buffs: false }).hp;   // 수치를 바꿨으면 체력도 다시 채운다
+    g.s.farming = true;
+    g.spawn();
+    for (let i = 0; i < 60 * 30; i++) {
+      g.s.stage = TRY_AT;
+      g.tick(1 / 60);
+      for (const e of g.events) if (e.type === 'heroDied') { g.events.length = 0; return i / 60; }
+      g.events.length = 0;
+    }
+    return 30;
+  };
+  const plain = liveFor(null);
+  const tough = liveFor((g) => { g.s.upgrades.hp += 40; });
+  ok(tough > plain * 1.3, '체력을 올리면 더 오래 버틴다',
+    `${plain.toFixed(1)}초 → ${tough.toFixed(1)}초 (x${(tough / plain).toFixed(2)})`);
+  const monk = liveFor((g) => { g.s.bestStage = 9999; g.setJob('monk'); });
+  ok(monk > plain * 1.3, '마불의 체력 x2.5가 실제로 버티게 해 준다',
+    `${plain.toFixed(1)}초 → ${monk.toFixed(1)}초 (x${(monk / plain).toFixed(2)})`);
+}
+
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);

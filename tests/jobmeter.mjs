@@ -16,6 +16,8 @@ if (!SAVE_PATH) throw new Error('JOBMETER_SAVE=세이브경로 가 필요하다 
 const STAGE = Number(process.argv[2] || 387);
 const SEC = Number(process.argv[3] || 90);
 const DT = 1 / 30;
+// 버티기는 제 관문보다 조금 위에서 잰다 — 제 관문에서는 아무도 안 죽어 차이가 안 보인다
+const TOUGH_UP = Number(process.env.JOBMETER_PUSH || 25);
 
 const seeded = (s = 20261020) => () => ((s = (s * 1103515245 + 12345) % 2147483648) / 2147483648);
 
@@ -83,8 +85,9 @@ function fieldRun(g) {
 function toughRun(g) {
   g.s.farming = true;
   g.spawn();
+  const push = STAGE + TOUGH_UP;
   for (let i = 0; i < SEC / DT; i++) {
-    g.s.stage = STAGE;
+    g.s.stage = push;
     g.tick(DT);
     for (const e of g.events) if (e.type === 'heroDied') { g.events.length = 0; return i * DT; }
     g.events.length = 0;
@@ -103,7 +106,7 @@ const base = measure(null, false);
 const r = (a, b) => (b > 0 ? a / b : a > 0 ? Infinity : 1);
 
 console.log(`\n관문 ${STAGE} · ${SEC}초 전투 · 직업없음 = 1.00`);
-console.log('계열      전용무공       두목   졸개   은자  경험치   무공의 몫(두목)');
+console.log('계열      전용무공       두목   졸개   은자  경험치  버티기   무공의 몫(두목)');
 for (const j of JOBS) {
   const only = measure(j.id, false);
   const all = measure(j.id, true);
@@ -112,13 +115,10 @@ for (const j of JOBS) {
     `${j.name.padEnd(6)} ${(jobSkillOf(j.id)?.name || '').padEnd(9)}`
     + ` ${f(r(all.boss, base.boss))} ${f(r(all.kills, base.kills))}`
     + ` ${f(r(all.gold, base.gold))} ${f(r(all.exp, base.exp))}`
+    + ` ${f(r(all.alive, base.alive))}`
     + `   x${r(all.boss, only.boss).toFixed(2)}`,
   );
 }
 console.log(`\n바탕: 두목 ${base.boss.toExponential(2)}/초 · 졸개 ${base.kills}마리`
   + ` · 은자 ${base.gold.toExponential(2)} · 경험치 ${base.exp.toExponential(2)}`
   + ` · 들판에서 ${base.alive.toFixed(1)}초 만에 쓰러짐`);
-// 버티기는 칸으로 안 적는다 — 관문 387에서는 여덟이 전부 1.00이다.
-// 졸개 한 마리의 공격이 6.65e+28인데 내 체력은 3.54e+25다. 한 대에 죽는다.
-// 체력을 2.5배로 올려도 1878배가 1879배가 될 뿐이다.
-console.log('버티기: 여덟 모두 차이 없음 — 이 관문에서는 적 한 대가 내 체력의 1878배라 체력 축이 죽어 있다.');

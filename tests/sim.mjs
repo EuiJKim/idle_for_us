@@ -4,6 +4,7 @@ import { Game, newSave } from '../js/game.js';
 import { UPGRADES, SKILLS, DUNGEONS, PETS, EQUIP_TYPES, ACC_SLOTS, OUTFITS,
   EGO_PARTS, EGO_FEED_MIN_GRADE, GACHA_KINDS, MISSIONS, GRADES, JOBS } from '../js/data.js';
 
+import * as D2 from '../js/data.js';
 const hours = Number(process.argv[2] || 24);
 // SIM_SAVE=경로 를 주면 끝났을 때 세이브를 떨군다 (계열 측정에 쓴다)
 const SAVE_TO = process.env.SIM_SAVE || '';
@@ -135,6 +136,9 @@ for (let t = 0, step = 0; t < hours * 3600; t += dt, step++) {
   const h = t / 3600;
   if (marks.length && h >= marks[0]) {
     const p = g.power();
+    const _st = g.stats({ buffs: false });
+    const _mh = D2.monsterHp(g.s.stage), _ma = D2.monsterAtk(g.s.stage);
+    console.log(`      체력/졸개체력 ${(_st.hp / _mh).toExponential(2)}  한대/체력 ${(_ma / _st.hp).toExponential(2)}  공격/졸개체력 ${(_st.atk / _mh).toExponential(2)}`);
     console.log(`${String(marks.shift()).padStart(5)}h  stage ${String(g.s.maxStage).padStart(4)} best ${String(g.s.bestStage).padStart(4)} 회귀 ${g.s.regress.count}회/${g.s.regress.points}pt  Lv ${String(g.s.level).padStart(4)}  rank ${g.s.rank}  power ${p.power.toExponential(2)}  dung ${JSON.stringify(g.s.dungeons)}  enh ${g.s.enhance.weapon}  relics ${Object.values(g.s.relics).reduce((a, b) => a + b, 0)}  pets ${Object.keys(g.s.pets).length}`);
   }
 }

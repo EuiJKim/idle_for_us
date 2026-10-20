@@ -931,10 +931,10 @@ export const SKILLS = [
       + ` · 걸린 적은 12초간 파쇄(맞는 피해 1.35배)` },
   { id: 'jmonk', name: '금강부동', icon: '금강', job: 'monk', unlock: 0, cd: 16,
     kind: 'dmg', motion: 'aoe', target: 'all', radius: 220, selfHeal: 0.35,
-    hpScale: (l) => 18 + l * 1.3,
+    hpScale: (l) => 45 + l * 3.2,
     mult: (l) => 18 + l * 2.4,
     desc: (m, l) => `반경 220을 쓸고 체력을 35% 회복한다 · 공격력의 ${m.toFixed(1)}배`
-      + ` + 내 체력의 ${(18 + l * 1.3).toFixed(0)}배` },
+      + ` + 내 체력의 ${(45 + l * 3.2).toFixed(0)}배` },
   { id: 'jpoison', name: '만독강림', icon: '만독', job: 'poison', unlock: 0, cd: 34,
     kind: 'dmg', motion: 'field', radius: 210, fieldSec: 8, tickSec: 0.5, cc: 'weak', ccSec: 6,
     boon: { stat: 'exp', dur: 12, mult: (l) => 2 + l * 0.09 },
@@ -1259,9 +1259,27 @@ function cumLog(s, base) {
 export const stageJump = (s) => (s <= 1 ? 1 : Math.exp(cumLog(s, 1.17) - cumLog(s - 1, 1.17)));
 
 export const monsterHp = (s) => 20 * Math.exp(cumLog(s, 1.17));
-// 적 공격력은 15관문까지 고정이고, 그 뒤로는 HP보다 조금 더 가파르게 오른다.
-const ATK_ANCHOR = cumLog(15, 1.19);
-export const monsterAtk = (s) => (s <= 15 ? 6 : 6 * Math.exp(cumLog(s, 1.19) - ATK_ANCHOR));
+// 적 공격력.
+//
+// 전에는 끝까지 x1.19였다. 그런데 **플레이어 체력은 관문당 x1.14로밖에 안 자란다** —
+// 재 보니 85→493관문 구간에서 x1.126~x1.162였다. 공격력에만 붙는 배수(치명·속도·
+// 영수·심검·무공 총연마·문파)가 체력에는 하나도 안 붙기 때문이다.
+// 두 곡선의 격차가 관문 400개 동안 3천만 배로 벌어져서, 관문 150을 넘으면
+// 졸개 한 대에 죽었다. 관문 387에서는 한 대가 내 체력의 **1878배**였다.
+// 체력 수련·호신의·심의·운기조식·마불의 체력 x2.5가 통째로 죽어 있었다.
+//
+// 그래서 **150관문부터는 플레이어 체력과 같은 속도(x1.14)로** 올린다.
+// 150관문은 한 대가 체력의 10%쯤 되는 지점이다 — 거기서 평탄해진다.
+// 150관문 전까지는 예전 곡선 그대로라 초반 체감은 안 바뀐다.
+export const ATK_FLAT_AT = 150;
+export const ATK_RATE_EARLY = 1.19;
+export const ATK_RATE_LATE = 1.14;
+const ATK_ANCHOR = cumLog(15, ATK_RATE_EARLY);
+const ATK_AT_FLAT = 6 * Math.exp(cumLog(ATK_FLAT_AT, ATK_RATE_EARLY) - ATK_ANCHOR);
+const ATK_LATE_ANCHOR = cumLog(ATK_FLAT_AT, ATK_RATE_LATE);
+export const monsterAtk = (s) => (s <= 15 ? 6
+  : s <= ATK_FLAT_AT ? 6 * Math.exp(cumLog(s, ATK_RATE_EARLY) - ATK_ANCHOR)
+    : ATK_AT_FLAT * Math.exp(cumLog(s, ATK_RATE_LATE) - ATK_LATE_ANCHOR));
 // 보상은 톱니로 만들지 않는다. 벽에서 보상까지 튀면 벽 앞에서 버티는 게 이득이 된다.
 export const monsterGold = (s) => 5 * Math.pow(1.105, s - 1);
 export const BOSS_HP_MULT = 9;
