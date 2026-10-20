@@ -408,7 +408,9 @@ export class Game {
   jobUnlockedCount() { return JOBS.filter((j) => this.jobUnlocked(j.id)).length; }
 
   // 맛보기 — 일류부터 화경 전까지. 여덟 계열 무공을 공짜로 바꿔 가며 써 본다.
-  tasteOpen() { return this.s.rank >= TASTE_RANK && !this.jobOpen(); }
+  // 회귀로 경지가 화경 아래로 내려가도 고른 문파는 그대로 둔다(잃는 게 없어야 한다).
+  // 그때 맛보기까지 같이 열리면 화면이 엉킨다 — 문파가 있으면 맛보기는 없다.
+  tasteOpen() { return !this.s.job && this.s.rank >= TASTE_RANK && !this.jobOpen(); }
 
   setTaste(id) {
     if (!this.tasteOpen()) return false;

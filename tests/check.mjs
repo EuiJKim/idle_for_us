@@ -959,6 +959,15 @@ console.log('\n=== 20. 맛보기 ===');
   const g2 = strong(500);
   g2.s.rank = D.JOB_RANK; g2.s.taste = 'drunk'; g2.s.job = null;
   ok(g2.jobSkillId() === null, '화경에 오르면 맛보기 무공이 사라진다 (문파를 고르라는 뜻)');
+
+  // 회귀로 경지가 내려가도 문파는 남는다 — 그때 맛보기까지 열리면 화면이 엉킨다
+  const g3 = strong(500);
+  g3.s.rank = 9; g3.s.bestStage = 9999;
+  g3.setJob('sword');
+  g3.s.rank = D.TASTE_RANK;
+  ok(g3.s.job === 'sword', '회귀로 경지가 내려가도 문파는 남는다');
+  ok(!g3.tasteOpen(), '문파가 있으면 맛보기는 안 열린다');
+  ok(g3.jobSkillId() === 'jsword', '그래도 전용 무공은 그대로 쓴다');
 }
 
 // ---------- 21. 전용 무공이 자기 축을 미는가 ----------
