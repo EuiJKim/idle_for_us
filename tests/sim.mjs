@@ -5,6 +5,8 @@ import { UPGRADES, SKILLS, DUNGEONS, PETS, EQUIP_TYPES, ACC_SLOTS, OUTFITS,
   EGO_PARTS, EGO_FEED_MIN_GRADE, GACHA_KINDS, MISSIONS, GRADES, JOBS } from '../js/data.js';
 
 const hours = Number(process.argv[2] || 24);
+// SIM_SAVE=경로 를 주면 끝났을 때 세이브를 떨군다 (계열 측정에 쓴다)
+const SAVE_TO = process.env.SIM_SAVE || '';
 const T0 = Date.UTC(2026, 0, 1);
 const g = new Game(newSave(T0), T0);
 let seed = 12345;
@@ -105,7 +107,9 @@ for (let t = 0, step = 0; t < hours * 3600; t += dt, step++) {
   for (const e of EGO_PARTS) g.offerAcc(e.id, true);
   // 문파: 열리면 고른다. 1차에서는 두목 피해가 진행에 가장 직결되므로
   // 일화검존을 기본으로 삼는다 (계열별 비교는 변종으로 따로 잰다).
-  if (g.jobOpen() && !g.s.job) g.setJob(JOBS[0].id);
+  const WANT = process.env.SIM_JOB || JOBS[0].id;
+  if (g.tasteOpen() && !g.s.taste) g.setTaste(WANT);   // 맛보기도 써 본다
+  if (g.jobOpen() && !g.s.job) g.setJob(WANT);
   g.mergeAll();
   for (const t2 of Object.keys(EQUIP_TYPES)) g.enhanceEquip(t2, 5);
   if (step % 600 === 0) spendSlow(now, step);   // 무거운 것은 1분마다만
@@ -133,4 +137,10 @@ for (let t = 0, step = 0; t < hours * 3600; t += dt, step++) {
     const p = g.power();
     console.log(`${String(marks.shift()).padStart(5)}h  stage ${String(g.s.maxStage).padStart(4)} best ${String(g.s.bestStage).padStart(4)} 회귀 ${g.s.regress.count}회/${g.s.regress.points}pt  Lv ${String(g.s.level).padStart(4)}  rank ${g.s.rank}  power ${p.power.toExponential(2)}  dung ${JSON.stringify(g.s.dungeons)}  enh ${g.s.enhance.weapon}  relics ${Object.values(g.s.relics).reduce((a, b) => a + b, 0)}  pets ${Object.keys(g.s.pets).length}`);
   }
+}
+
+if (SAVE_TO) {
+  const fs = await import('node:fs');
+  fs.writeFileSync(SAVE_TO, JSON.stringify(g.toJSON()));
+  console.log(`세이브를 ${SAVE_TO}에 떨궜다 (관문 ${g.s.bestStage})`);
 }

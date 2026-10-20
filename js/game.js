@@ -41,7 +41,7 @@ import {
   PVP_TICKETS, PVP_TIME, PVP_WIN, PVP_LOSE, PVP_REWARD,
   zoneOf, monsterHp, monsterAtk, monsterGold, BOSS_HP_MULT, BOSS_ATK_MULT, BOSS_GOLD_MULT, RAID_BOSS,
   REGRESS_PER_POINT, regressGain, REGRESS_ADVISE_POINTS, REGRESS_STUCK_SEC,
-  JOBS, JOB_RANK, JOB_UNLOCK, jobOf,
+  JOBS, JOB_RANK, JOB_UNLOCK, jobOf, JOB_SKILLS, jobSkillOf, BOON_SKILLS, TASTE_RANK,
   bossGems, bossRelicShards, guildAtkBonus,
 } from './data.js';
 
@@ -118,6 +118,7 @@ export function newSave(now = Date.now()) {
     skillSlots: ['slash', null, null, null],
     job: null,          // 고른 계열 (화경부터)
     jobSeen: [],        // 거쳐 본 계열 — 나중에 각인에 쓴다
+    taste: null,        // 맛보기로 걸어 둔 계열 (화경 전까지)
     autoSkill: true,
     pets: {},
     pet: null,
@@ -247,6 +248,7 @@ export function migrate(raw, now = Date.now()) {
   s.jobSeen = Array.isArray(raw.jobSeen)
     ? [...new Set(raw.jobSeen.filter((x) => JOBS.some((j) => j.id === x)))] : [];
   if (s.job && !s.jobSeen.includes(s.job)) s.jobSeen.push(s.job);
+  s.taste = JOBS.some((j) => j.id === raw.taste) ? raw.taste : null;
 
   // ---------- 숫자 자리를 숫자로 ----------
   // 백업 코드가 손상되거나 보상 계산 어딘가에서 undefined가 새면 숫자 자리에
@@ -331,11 +333,16 @@ export function migrate(raw, now = Date.now()) {
   const openSlots = skillSlotCount(s.bestStage);
   if (!Array.isArray(raw.skillSlots)) {
     // v1 → v2: 해금된 무공을 순서대로 장착 (열린 칸만큼만)
-    s.skillSlots = SKILLS.filter((sk) => (raw.maxStage || 1) >= sk.unlock).slice(0, openSlots).map((sk) => sk.id);
+    s.skillSlots = SKILLS.filter((sk) => !sk.job && (raw.maxStage || 1) >= sk.unlock)
+      .slice(0, openSlots).map((sk) => sk.id);
   }
   while (s.skillSlots.length < SKILL_SLOTS) s.skillSlots.push(null);
   s.skillSlots.length = SKILL_SLOTS;
   for (let i = openSlots; i < SKILL_SLOTS; i++) s.skillSlots[i] = null;
+  // 계열 무공은 문파 칸에만 산다. 일반 칸에 섞여 있으면 빼낸다.
+  for (let i = 0; i < s.skillSlots.length; i++) {
+    if (JOB_SKILLS.some((sk) => sk.id === s.skillSlots[i])) s.skillSlots[i] = null;
+  }
   s.pets = { ...(raw.pets || {}) };
   s.attend = { ...base.attend, ...(raw.attend || {}) };
   s.bond = { ...(raw.bond || {}) };
@@ -400,6 +407,25 @@ export class Game {
 
   jobUnlockedCount() { return JOBS.filter((j) => this.jobUnlocked(j.id)).length; }
 
+  // 맛보기 — 일류부터 화경 전까지. 여덟 계열 무공을 공짜로 바꿔 가며 써 본다.
+  tasteOpen() { return this.s.rank >= TASTE_RANK && !this.jobOpen(); }
+
+  setTaste(id) {
+    if (!this.tasteOpen()) return false;
+    if (id !== null && !JOBS.some((j) => j.id === id)) return false;
+    this.s.taste = id;
+    return true;
+  }
+
+  // 지금 문파 칸에 들어가는 무공. 문파를 골랐으면 그 계열, 아니면 맛보기.
+  jobSkill() {
+    if (this.s.job) return jobSkillOf(this.s.job);
+    if (this.tasteOpen() && this.s.taste) return jobSkillOf(this.s.taste);
+    return null;
+  }
+
+  jobSkillId() { return this.jobSkill()?.id || null; }
+
   // 다음 계열이 열리는 관문 (없으면 null)
   nextJobAt() {
     if (!this.jobOpen()) return null;
@@ -414,6 +440,7 @@ export class Game {
     if (id === null) { this.s.job = null; return true; }
     if (!this.jobUnlocked(id)) return false;
     this.s.job = id;
+    this.s.taste = null;   // 고른 뒤에는 맛보기가 없다
     if (!this.s.jobSeen.includes(id)) this.s.jobSeen.push(id);
     this.heroHp = Math.min(this.heroHp, this.stats().hp);
     this.emit('job', { id });
@@ -1313,6 +1340,13 @@ export class Game {
     const rage = b.rage > 0 ? SKILLS[1].mult(this.s.skills.rage) : 1;
     const gale = b.gale > 0 ? SKILLS[4].mult(this.s.skills.gale) : 1;
     const midas = b.midas > 0 ? SKILLS[5].mult(this.s.skills.midas) : 1;
+    // 계열 무공이 거는 보너스 (취마의 은자, 독마의 경험치)
+    let boonGold = 1, boonExp = 1;
+    for (const sk of BOON_SKILLS) {
+      if (!((b[sk.id] || 0) > 0)) continue;
+      const v = sk.boon.mult(this.s.skills[sk.id] || 1);
+      if (sk.boon.stat === 'gold') boonGold *= v; else if (sk.boon.stat === 'exp') boonExp *= v;
+    }
     const guild = 1 + guildAtkBonus(this.guildExp);
     const rank = this.rankMult();
     const past = this.regressMult();
@@ -1322,8 +1356,8 @@ export class Game {
     const crit = Math.min(CRIT_CAP, UPGRADES.crit.value(u.crit) + m.crit + jb.add.crit);
     const critDmg = (UPGRADES.critDmg.value(u.critDmg) + m.critDmg + jb.add.critDmg) * jb.critDmg;
     const speed = Math.min(SPEED_CAP, UPGRADES.speed.value(u.speed)) * (1 + m.speed) * gale * jb.speed;
-    const goldMul = UPGRADES.gold.value(u.gold) * this.equipMult('ring') * (1 + m.gold) * midas * past * jb.gold;
-    const expMul = (1 + m.exp) * past * jb.exp;
+    const goldMul = UPGRADES.gold.value(u.gold) * this.equipMult('ring') * (1 + m.gold) * midas * past * jb.gold * boonGold;
+    const expMul = (1 + m.exp) * past * jb.exp * boonExp;
     const bossMul = (1 + m.boss) * jb.boss;
     const pet = this.s.pet ? PETS.find((p) => p.id === this.s.pet) : null;
     const petHit = pet ? atk * petDamageMult(pet, this.s.pets[pet.id] || 1) : 0;
@@ -1675,8 +1709,13 @@ export class Game {
     const hits = this.hitBeam(ang, sk.dashDist, sk.dashWidth, dmg, id);
     const fromX = this.heroX;
     const fromY = this.heroY;
-    this.heroX += Math.cos(ang) * sk.dashDist;
-    this.heroY += (Math.sin(ang) * sk.dashDist) / FIELD_SQUASH;
+    // 베는 길이는 그대로 두되, **몸은 목표 앞에서 멈춘다.**
+    // 지나쳐 버리면 돌아오느라 때릴 시간을 잃는다 — 재 보니 두목에게 넣는
+    // 피해가 오히려 줄었다(x0.96). 발도돌격도 같은 문제를 갖고 있었다.
+    const away = this.mon?.alive ? this.distTo(this.mon) - 70 : sk.dashDist;
+    const go = Math.max(60, Math.min(sk.dashDist, away));
+    this.heroX += Math.cos(ang) * go;
+    this.heroY += (Math.sin(ang) * go) / FIELD_SQUASH;
     this.emit('skillPath', { id, kind: 'dash', path: [{ x: fromX, y: fromY }, { x: this.heroX, y: this.heroY }] });
     return hits;
   }
@@ -2239,11 +2278,16 @@ export class Game {
   }
 
   // ---------- 스킬 ----------
-  skillUnlocked(sk) { return this.s.bestStage >= sk.unlock; }
+  // 계열 무공은 관문이 아니라 **문파(또는 맛보기)**가 연다
+  skillUnlocked(sk) {
+    if (sk.job) return this.jobSkillId() === sk.id;
+    return this.s.bestStage >= sk.unlock;
+  }
 
   autoSlotSkills() {
     const open = this.skillSlotCount();
     for (const sk of SKILLS) {
+      if (sk.job) continue;   // 계열 무공은 문파 칸 전용
       if (!this.skillUnlocked(sk) || this.s.skillSlots.includes(sk.id)) continue;
       // 빈 칸을 찾되 **열린 칸 안에서만** 찾는다
       let free = -1;
@@ -2254,11 +2298,18 @@ export class Game {
   }
 
   // 지금 실제로 쓰는 무공 (열린 칸 안의 것만)
-  activeSlots() { return this.s.skillSlots.slice(0, this.skillSlotCount()); }
+  // 일반 칸 + 문파 칸. 문파 칸은 일반 칸을 먹지 않고 하나 더 붙는다.
+  activeSlots() {
+    const out = this.s.skillSlots.slice(0, this.skillSlotCount());
+    const j = this.jobSkillId();
+    if (j) out.push(j);
+    return out;
+  }
 
   setSkillSlot(slot, id) {
     if (slot < 0 || slot >= this.skillSlotCount()) return false;
     const sk = SKILLS.find((x) => x.id === id);
+    if (sk?.job) return false;   // 계열 무공은 일반 칸에 못 넣는다
     if (id && (!sk || !this.skillUnlocked(sk))) return false;
     const cur = this.s.skillSlots.indexOf(id);
     if (id && cur >= 0) this.s.skillSlots[cur] = this.s.skillSlots[slot];
@@ -2281,6 +2332,10 @@ export class Game {
       if (sk.stun) this.mon.stun = sk.stun;
       this.emit('skill', { id, target: sk.target || 'single' });
       let dmg = st.atk * this.skillMult(sk);
+      // 단지멸은 반드시 치명으로 들어간다 (극악소마의 축이 치명 피해다)
+      if (sk.sure) dmg *= st.critDmg;
+      // 금강부동은 체력이 곧 주먹이다. 마불만 체력 x2.5라 마불에게만 크게 들어온다.
+      if (sk.hpScale) dmg += st.hp * sk.hpScale(lv);
       // 한 명만 노리는 무공은 두목에게 더 아프게 들어간다
       if (sk.bossMult && this.mon.isBoss) dmg *= sk.bossMult;
       // 이번 무공이 거는 상태이상. 맞은 적마다 applyCC가 집어간다.
@@ -2297,6 +2352,10 @@ export class Game {
           else this.dealDamage(dmg, id);
       }
       this.ccNow = null;
+      // 금강부동은 베면서 숨을 돌린다
+      if (sk.selfHeal) this.heroHp = Math.min(st.hp, this.heroHp + st.hp * sk.selfHeal);
+      // 취보난무·만독강림은 도는 동안 은자·경험치가 붙는다
+      if (sk.boon) this.buffs[id] = sk.boon.dur;
     } else if (sk.kind === 'buff') {
       this.buffs[id] = sk.dur * (1 + SKILL_PIERCE_MULT * this.skillPierceOf(id) * 0.5);
       this.emit('skill', { id });

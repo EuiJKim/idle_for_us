@@ -856,5 +856,179 @@ console.log('\n=== 18. 문파 ===');
   ok(g2.s.jobSeen.includes(D.JOBS[0].id), '고른 계열은 거쳐 본 것에 들어간다');
 }
 
+// ---------- 19. 계열 전용 무공 ----------
+console.log('\n=== 19. 계열 전용 무공 ===');
+{
+  ok(D.JOB_SKILLS.length === D.JOBS.length, '계열마다 전용 무공이 하나씩 있다',
+    `${D.JOB_SKILLS.length}종 / ${D.JOBS.length}계열`);
+  const miss = D.JOBS.filter((j) => !D.jobSkillOf(j.id));
+  ok(miss.length === 0, '빠진 계열이 없다', miss.map((j) => j.name).join(',') || '없음');
+  // 번호로 집는 자리가 밀리면 안 된다 — stats()가 SKILLS[1]·[4]·[5]를 쓴다
+  ok(D.SKILLS[1].id === 'rage' && D.SKILLS[4].id === 'gale' && D.SKILLS[5].id === 'midas',
+    '일반 무공 자리가 안 밀렸다', `${D.SKILLS[1].id}/${D.SKILLS[4].id}/${D.SKILLS[5].id}`);
+  // 설명이 안 터지는가 (레벨 1과 높은 레벨)
+  let bad = [];
+  for (const sk of D.JOB_SKILLS) {
+    for (const l of [1, 40]) {
+      try {
+        const s = sk.desc(sk.mult(l), l);
+        if (!s || /NaN|undefined/.test(s)) bad.push(`${sk.name} Lv.${l}`);
+      } catch (e) { bad.push(`${sk.name} Lv.${l} 터짐`); }
+    }
+  }
+  ok(bad.length === 0, '전용 무공 설명이 멀쩡하다', bad.join(',') || '여덟 다 멀쩡');
+
+  const g = strong(500);
+  g.s.rank = 9; g.s.bestStage = 9999;
+  const normal = g.skillSlotCount();
+
+  // 문파가 없으면 전용 칸도 없다
+  g.setJob(null);
+  ok(g.jobSkillId() === null, '문파가 없으면 전용 무공도 없다');
+  ok(g.activeSlots().length === normal, '문파가 없으면 칸이 그대로다',
+    `${g.activeSlots().length}칸`);
+
+  // 문파 칸은 일반 칸을 먹지 않는다 — 이게 2차의 핵심 약속이다
+  g.setJob('sword');
+  ok(g.activeSlots().length === normal + 1, '문파 칸이 일반 칸 뒤에 하나 더 붙는다',
+    `${normal} → ${g.activeSlots().length}`);
+  ok(g.activeSlots().includes('jsword'), '전용 무공이 실제로 나간다');
+  ok(!g.s.skillSlots.includes('jsword'), '전용 무공이 일반 칸을 차지하지 않는다');
+
+  // 바꾸면 무공도 바뀐다
+  g.setJob('poison');
+  ok(g.jobSkillId() === 'jpoison', '문파를 바꾸면 전용 무공도 바뀐다', g.jobSkillId());
+  ok(!g.skillUnlocked(D.SKILLS.find((x) => x.id === 'jsword')),
+    '안 고른 계열의 무공은 못 쓴다');
+
+  // 일반 칸에 억지로 넣으려 해도 안 들어간다
+  ok(g.setSkillSlot(0, 'jpoison') === false, '전용 무공은 일반 칸에 못 넣는다');
+  g.autoSlotSkills();
+  ok(!g.s.skillSlots.some((id) => D.JOB_SKILLS.some((sk) => sk.id === id)),
+    '자동 장착도 전용 무공을 일반 칸에 안 넣는다', g.s.skillSlots.join(','));
+
+  // 실제로 나가는가 — 적이 피를 흘려야 한다
+  for (const j of D.JOBS) {
+    const gg = strong(300);
+    gg.s.rank = 9; gg.s.bestStage = 9999;
+    gg.setJob(j.id);
+    const id = gg.jobSkillId();
+    gg.cd[id] = 0;
+    gg.spawn();
+    const hp0 = gg.mon.hp;
+    const fired = gg.useSkill(id);
+    // 장판류는 시간이 지나야 들어간다
+    for (let k = 0; k < 60 * 3; k++) { gg.tick(1 / 60); gg.events.length = 0; if (!gg.mon?.alive) break; }
+    const hurt = !gg.mon?.alive || gg.mon.hp < hp0;
+    ok(fired && hurt, `${j.name}의 ${D.jobSkillOf(j.id).name}이 실제로 들어간다`);
+  }
+}
+
+// ---------- 20. 맛보기 ----------
+console.log('\n=== 20. 맛보기 ===');
+{
+  const g = strong(500);
+  g.s.rank = D.TASTE_RANK - 1;
+  ok(!g.tasteOpen(), `${D.RANKS[D.TASTE_RANK].name} 전에는 맛볼 수 없다`);
+  g.s.rank = D.TASTE_RANK;
+  ok(g.tasteOpen(), `${D.RANKS[D.TASTE_RANK].name}부터 맛볼 수 있다`);
+  ok(D.TASTE_RANK < D.JOB_RANK, '맛보기가 문파보다 먼저 온다');
+
+  // 공짜로 몇 번이든 바꾼다
+  ok(g.setTaste('drunk') && g.jobSkillId() === 'jdrunk', '맛보기로 전용 무공이 들어온다');
+  ok(g.setTaste('monk') && g.jobSkillId() === 'jmonk', '몇 번이든 바꿀 수 있다');
+  ok(g.setTaste('없는것') === false, '없는 계열은 못 맛본다');
+  ok(g.activeSlots().length === g.skillSlotCount() + 1, '맛보기도 문파 칸에 들어간다');
+  // 맛보기 중에는 능력치 보너스가 없다 — 그건 입문해야 붙는다
+  ok(g.s.job === null, '맛보기는 입문이 아니다');
+
+  // 올린 레벨은 남는다
+  g.setTaste('monk');
+  g.s.books = 1e9;
+  const before = g.s.skills.jmonk;
+  g.upgradeSkill('jmonk');
+  ok(g.s.skills.jmonk === before + 1, '맛보는 무공을 올릴 수 있다');
+  g.s.rank = D.JOB_RANK;
+  ok(!g.tasteOpen(), `${D.RANKS[D.JOB_RANK].name}에 오르면 맛보기가 끝난다`);
+  g.setJob('monk');
+  ok(g.s.taste === null, '입문하면 맛보기가 내려간다');
+  ok(g.s.skills.jmonk === before + 1, '맛보기에서 올린 레벨이 그대로 남는다',
+    `Lv.${g.s.skills.jmonk}`);
+
+  // 맛보기가 끝났는데 남아 있으면 안 된다
+  const g2 = strong(500);
+  g2.s.rank = D.JOB_RANK; g2.s.taste = 'drunk'; g2.s.job = null;
+  ok(g2.jobSkillId() === null, '화경에 오르면 맛보기 무공이 사라진다 (문파를 고르라는 뜻)');
+}
+
+// ---------- 21. 전용 무공이 자기 축을 미는가 ----------
+console.log('\n=== 21. 전용 무공의 축 ===');
+{
+  // 취마의 은자, 독마의 경험치가 실제로 붙는가
+  for (const [job, id, key] of [['drunk', 'jdrunk', 'goldMul'], ['poison', 'jpoison', 'expMul']]) {
+    const g = strong(300);
+    g.s.rank = 9; g.s.bestStage = 9999;
+    g.setJob(job);
+    const before = g.stats()[key];
+    g.cd[id] = 0;
+    g.useSkill(id);
+    const after = g.stats()[key];
+    ok(after > before * 1.5, `${D.jobOf(job).name}의 ${D.jobSkillOf(job).name}이 ${key}를 올린다`,
+      `x${(after / before).toFixed(2)}`);
+    // 보너스가 끝나면 돌아와야 한다
+    for (let k = 0; k < 60 * 20; k++) g.tick(1 / 60);
+    ok(Math.abs(g.stats()[key] / g.stats({ buffs: false })[key] - 1) < 1e-9,
+      `${D.jobSkillOf(job).name}의 보너스가 시간이 지나면 끝난다`);
+  }
+
+  // 단지멸은 반드시 치명 — 치명 확률과 무관하게 치명 피해만큼 들어가야 한다
+  {
+    const g = strong(300);
+    g.s.rank = 9; g.s.bestStage = 9999;
+    g.setJob('ring');
+    const st = g.stats();
+    g.spawn();
+    g.mon.hp = Infinity; g.mon.maxHp = Infinity; g.mon.isBoss = false;
+    g.cd.jring = 0;
+    g.events.length = 0;
+    g.useSkill('jring');
+    const dealt = g.events.filter((e) => e.type === 'dmg').reduce((a2, e) => a2 + e.amount, 0);
+    const sk = D.SKILLS.find((x) => x.id === 'jring');
+    const want = st.atk * g.skillMult(sk) * st.critDmg;
+    ok(Math.abs(dealt / want - 1) < 1e-6, '단지멸이 반드시 치명으로 들어간다',
+      `들어간 ${dealt.toExponential(2)} / 기대 ${want.toExponential(2)}`);
+  }
+
+  // 금강부동은 체력을 돌려준다
+  {
+    const g = strong(300);
+    g.s.rank = 9; g.s.bestStage = 9999;
+    g.setJob('monk');
+    g.heroHp = g.stats().hp * 0.2;
+    const before = g.heroHp;
+    g.cd.jmonk = 0;
+    g.spawn();
+    g.useSkill('jmonk');
+    ok(g.heroHp > before, '금강부동이 체력을 돌려준다',
+      `${Math.round(before / g.stats().hp * 100)}% → ${Math.round(g.heroHp / g.stats().hp * 100)}%`);
+  }
+}
+
+// ---------- 22. 세이브 (2차) ----------
+console.log('\n=== 22. 세이브 (전용 무공) ===');
+{
+  ok(migrate({ taste: '없는것' }).taste === null, '없는 계열 맛보기는 버린다');
+  ok(migrate({}).taste === null, '옛 세이브는 맛보기가 없다');
+  // 전용 무공이 일반 칸에 섞여 들어오면 빼낸다
+  const m = migrate({ bestStage: 500, skillSlots: ['slash', 'jsword', 'thunder', 'jpoison'] });
+  ok(!m.skillSlots.some((id) => D.JOB_SKILLS.some((sk) => sk.id === id)),
+    '일반 칸에 섞인 전용 무공을 빼낸다', m.skillSlots.slice(0, 4).join(','));
+  // 아주 옛날 세이브(skillSlots 없음)를 채울 때도 안 섞여야 한다
+  const m2 = migrate({ maxStage: 500 });
+  ok(!m2.skillSlots.some((id) => D.JOB_SKILLS.some((sk) => sk.id === id)),
+    '옛 세이브를 채울 때도 안 섞인다', m2.skillSlots.filter(Boolean).join(','));
+  ok(m2.skillSlots.filter(Boolean).length > 0, '옛 세이브에 일반 무공은 채워진다');
+}
+
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);

@@ -1,6 +1,6 @@
 // 무공 탭: 비급으로 연마, 4칸 장착
 import { SKILLS, SKILL_SLOTS, SKILL_PIERCE_MAX, SKILL_PIERCE_AT, SKILL_PIERCE_MULT,
-  skillTotalBonus, nextSkillTotalStep, PRESET_SLOTS, nextSkillSlotAt } from '../data.js';
+  skillTotalBonus, nextSkillTotalStep, PRESET_SLOTS, nextSkillSlotAt, jobOf } from '../data.js';
 import { fmt } from '../fmt.js';
 import { h, openModal, closeModal, toast } from './common.js';
 
@@ -80,6 +80,7 @@ export function skillTab(app) {
   });
 
   function toggleEquip(sk) {
+    if (sk.job) { toast('계열 무공은 문파 칸에만 들어가요'); return; }
     const slots = game.s.skillSlots;
     const at = slots.indexOf(sk.id);
     if (at >= 0) { game.setSkillSlot(at, null); app.refresh(); return; }
@@ -122,13 +123,23 @@ export function skillTab(app) {
       + (tb.crit ? ` · 치명 확률 <b>+${(tb.crit * 100).toFixed(0)}%p</b>` : '')
       + (tb.critDmg ? ` · 치명 피해 <b>+${Math.round(tb.critDmg * 100)}%p</b>` : '')
       + (nx ? `<br><span class="tier-hint">합계 ${nx.at}에서 공격력 +${Math.round(nx.atk * 100)}% — ${nx.at - tot} 남음</span>` : '');
-    const sig = game.s.skillSlots.join(',') + ':' + game.skillSlotCount();
+    const jsk = game.jobSkill();
+    const sig = game.s.skillSlots.join(',') + ':' + game.skillSlotCount() + ':' + (jsk?.id || '-')
+      + ':' + (jsk ? game.s.skills[jsk.id] : 0) + ':' + (game.s.job ? 1 : 0);
     if (sig !== slotSig) {
       slotSig = sig;
-      slotsEl.replaceChildren(...Array.from({ length: game.skillSlotCount() }, (_, i) => {
+      const cells = Array.from({ length: game.skillSlotCount() }, (_, i) => {
         const sk = SKILLS.find((x) => x.id === game.s.skillSlots[i]);
         return h('div', { class: 'slot' }, h('span', {}, sk?.icon || '＋'), h('small', {}, sk ? `${sk.name} Lv.${game.s.skills[sk.id]}` : '빈 칸'));
-      }));
+      });
+      // 문파 칸 — 일반 칸을 먹지 않고 하나 더 붙는다
+      if (jsk || game.tasteOpen() || game.jobOpen()) {
+        const col = jobOf(game.s.job || game.s.taste)?.color || 'var(--muted)';
+        cells.push(h('div', { class: 'slot', style: `outline:1px solid ${col}` },
+          h('span', {}, jsk?.icon || '문파'),
+          h('small', {}, jsk ? `${jsk.name} Lv.${game.s.skills[jsk.id]}` : '문파 칸')));
+      }
+      slotsEl.replaceChildren(...cells);
     }
     for (const sk of SKILLS) {
       const r = rows[sk.id];
@@ -136,7 +147,8 @@ export function skillTab(app) {
       const unlocked = game.skillUnlocked(sk);
       const equipped = game.s.skillSlots.includes(sk.id);
       r.row.style.opacity = unlocked ? '' : '0.5';
-      r.lv.textContent = unlocked ? `Lv.${l}` : `관문 ${sk.unlock} 해금`;
+      r.lv.textContent = unlocked ? `Lv.${l}`
+        : sk.job ? `${jobOf(sk.job)?.name || ''} 전용` : `관문 ${sk.unlock} 해금`;
       const pi = game.skillPierceOf(sk.id);
       const boost = 1 + SKILL_PIERCE_MULT * pi;
       r.desc.innerHTML = `${sk.desc(sk.mult(l) * boost, l)} · 쿨 ${sk.cd}초`
@@ -150,9 +162,15 @@ export function skillTab(app) {
         : l < SKILL_PIERCE_AT ? `초월 Lv.${SKILL_PIERCE_AT}`
           : `초월 비급 ${fmt(pcost)}`;
       r.pierce.disabled = !canP || game.s.books < pcost;
-      r.eq.textContent = equipped ? '해제' : '장착';
-      r.eq.disabled = !unlocked;
-      r.eq.classList.toggle('good', equipped);
+      if (sk.job) {
+        r.eq.textContent = unlocked ? '문파 칸' : '잠김';
+        r.eq.disabled = true;
+        r.eq.classList.toggle('good', unlocked);
+      } else {
+        r.eq.textContent = equipped ? '해제' : '장착';
+        r.eq.disabled = !unlocked;
+        r.eq.classList.toggle('good', equipped);
+      }
     }
   }
   return { root, update };

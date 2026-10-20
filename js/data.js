@@ -336,11 +336,11 @@ export const JOBS = [
   { id: 'blade', name: '혈천도마', weapon: '도', color: '#ef4444',
     tag: '베어 넘긴다',
     desc: '순수한 힘. 들판을 빨리 치운다.',
-    mult: { atk: 1.75 } },
+    mult: { atk: 1.5 } },
   { id: 'fist', name: '권마', weapon: '권갑', color: '#f59e0b',
     tag: '맞붙는다',
     desc: '때리는 속도가 빠르다. 평타와 무공이 같이 빨라진다.',
-    mult: { speed: 1.4, atk: 1.2 } },
+    mult: { speed: 1.45, atk: 1.3 } },
   { id: 'ring', name: '극악소마', weapon: '지환', color: '#a855f7',
     tag: '한 번에 끝낸다',
     desc: '치명 피해가 크다. 터질 때 크게 터진다.',
@@ -894,7 +894,59 @@ export const SKILLS = [
     pierceLen: 520, pierceWidth: 90, cc: 'bleed', ccSec: 5,
     mult: (l) => 35 + l * 5,
     desc: (m) => `바라보는 방향 520 거리의 일직선상 적 전부에게 공격력의 ${m.toFixed(0)}배` },
+
+  // --- 계열 전용 무공 ---
+  // 여덟 계열마다 하나씩. 일반 칸을 먹지 않고 **문파 칸**에 따로 들어간다.
+  // unlock은 안 쓴다 — 문파(또는 맛보기)가 곧 해금이다.
+  // 각자 1차에서 잰 자기 축을 그대로 민다. 축이 겹치면 고르는 의미가 사라진다.
+  { id: 'jsword', name: '일점혈로', icon: '일점', job: 'sword', unlock: 0, cd: 20,
+    kind: 'dmg', motion: 'blink', bossMult: 2.6,
+    mult: (l) => 50 + l * 7,
+    desc: (m) => `가장 먼 적(두목 우선)에게 파고들어 공격력의 ${m.toFixed(0)}배 · 두목에겐 2.6배` },
+  { id: 'jblade', name: '혈풍참', icon: '혈풍', job: 'blade', unlock: 0, cd: 12,
+    kind: 'dmg', motion: 'dash', dashDist: 380, dashWidth: 220, cc: 'bleed', ccSec: 6,
+    bossMult: 0.5,
+    mult: (l) => 80 + l * 11,
+    desc: (m) => `앞으로 380만큼 베어 나가며 지나간 길 폭 220의 적 전부에게 공격력의 ${m.toFixed(0)}배`
+      + ` · 혼자 선 두목에게는 절반만` },
+  { id: 'jfist', name: '붕권', icon: '붕권', job: 'fist', unlock: 0, cd: 5,
+    kind: 'dmg', motion: 'aoe', target: 'all', radius: 170,
+    mult: (l) => 24 + l * 3.4,
+    desc: (m) => `5초마다 반경 170을 내지른다 · 공격력의 ${m.toFixed(1)}배` },
+  { id: 'jring', name: '단지멸', icon: '단지', job: 'ring', unlock: 0, cd: 14,
+    kind: 'dmg', motion: 'single', target: 'single', sure: true,
+    mult: (l) => 13 + l * 1.7,
+    desc: (m) => `한 명에게 공격력의 ${m.toFixed(1)}배 · **반드시 치명**으로 들어간다` },
+  { id: 'jdrunk', name: '취보난무', icon: '취보', job: 'drunk', unlock: 0, cd: 32,
+    kind: 'dmg', motion: 'tornado', radius: 160, fieldSec: 8, tickSec: 0.4, moveSpeed: 110,
+    cc: 'slow', ccSec: 3,
+    boon: { stat: 'gold', dur: 10, mult: (l) => 2 + l * 0.08 },
+    mult: (l) => 8 + l * 1.1,
+    desc: (m, l) => `비틀대며 8초간 들판을 돌아 0.4초마다 공격력의 ${m.toFixed(1)}배 · 그동안 은자 ${(2 + l * 0.08).toFixed(1)}배` },
+  { id: 'jfan', name: '환영진', icon: '환영', job: 'fan', unlock: 0, cd: 26,
+    kind: 'dmg', motion: 'field', radius: 210, fieldSec: 7, tickSec: 0.6, cc: 'weak', ccSec: 12,
+    bossMult: 0.6,
+    mult: (l) => 5 + l * 0.7,
+    desc: (m) => `반경 210에 7초짜리 환영을 깔아 0.6초마다 공격력의 ${m.toFixed(1)}배`
+      + ` · 걸린 적은 12초간 파쇄(맞는 피해 1.35배)` },
+  { id: 'jmonk', name: '금강부동', icon: '금강', job: 'monk', unlock: 0, cd: 16,
+    kind: 'dmg', motion: 'aoe', target: 'all', radius: 220, selfHeal: 0.35,
+    hpScale: (l) => 18 + l * 1.3,
+    mult: (l) => 18 + l * 2.4,
+    desc: (m, l) => `반경 220을 쓸고 체력을 35% 회복한다 · 공격력의 ${m.toFixed(1)}배`
+      + ` + 내 체력의 ${(18 + l * 1.3).toFixed(0)}배` },
+  { id: 'jpoison', name: '만독강림', icon: '만독', job: 'poison', unlock: 0, cd: 34,
+    kind: 'dmg', motion: 'field', radius: 210, fieldSec: 8, tickSec: 0.5, cc: 'weak', ccSec: 6,
+    boon: { stat: 'exp', dur: 12, mult: (l) => 2 + l * 0.09 },
+    mult: (l) => 6 + l * 0.9,
+    desc: (m, l) => `반경 210에 8초간 독무를 깔아 0.5초마다 공격력의 ${m.toFixed(1)}배 · 그동안 경험치 ${(2 + l * 0.09).toFixed(1)}배` },
 ];
+
+// 계열 무공만 따로. 문파 칸에 들어가고 일반 칸에는 절대 안 들어간다.
+export const JOB_SKILLS = SKILLS.filter((s) => s.job);
+export const jobSkillOf = (jobId) => SKILLS.find((s) => s.job === jobId) || null;
+// 보너스(은자·경험치)를 거는 계열 무공만 추려 둔다. stats()가 매 프레임 도는 곳이다.
+export const BOON_SKILLS = SKILLS.filter((s) => s.boon);
 // ---------- 무공 초월 / 총 레벨 ----------
 // 근거: SkillTranscendenceTable, SkillTotalLevelTable, ActiveSkillTranscendence.
 // 레벨 위에 한 겹(초월)이 더 있고, '모든 무공 레벨의 합'이 따로 보너스를 준다.
@@ -947,6 +999,10 @@ export const skillSlotCount = (bestStage) =>
   SKILL_SLOT_BASE + SKILL_SLOT_AT.filter((v) => bestStage >= v).length;
 export const nextSkillSlotAt = (bestStage) => SKILL_SLOT_AT.find((v) => bestStage < v) ?? null;
 export const skillBookCost = (l) => Math.ceil(2 * Math.pow(1.15, l - 1));
+
+// 맛보기 — 일류에 오르면 화경 전까지 여덟 계열 무공을 하나씩 써 볼 수 있다.
+// 공짜로 몇 번이든 바꾼다. 올린 레벨은 남아서, 그 계열로 입문하면 이어진다.
+export const TASTE_RANK = 2;
 
 // ---------- 적 무인 외형 ----------
 // head: band(머리띠) topknot(상투) hat(삿갓) hood(두건) mask(복면) bald(민머리) jiangshi(강시 관)

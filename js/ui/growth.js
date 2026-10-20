@@ -1,6 +1,7 @@
 // 성장 탭: 은자 수련 / 레벨(스탯 포인트) / 경지
 import { UPGRADES, SP_STATS, SP_RESET_GEMS, RANKS, RANK_MULT, expToNext, REGRESS_MIN_STAGE, REGRESS_PER_POINT,
-  CRIT_CAP, REGRESS_ADVISE_POINTS, JOBS, JOB_RANK, JOB_UNLOCK} from '../data.js';
+  CRIT_CAP, REGRESS_ADVISE_POINTS, JOBS, JOB_RANK, JOB_UNLOCK,
+  TASTE_RANK, jobSkillOf } from '../data.js';
 import { fmt } from '../fmt.js';
 import { drawFighter } from '../battle.js';
 import { h, toast, openModal, closeModal, fmtValue, subTabs, multSelector } from './common.js';
@@ -242,37 +243,55 @@ function jobView(app) {
     const tag = h('div', { class: 'desc', style: 'margin-top:1px' }, j.tag);
     const eff = h('div', { class: 'desc', style: 'margin-top:4px' });
     const note = h('div', { class: 'desc', style: 'margin-top:2px' }, j.desc);
+    const art = h('div', { class: 'desc', style: 'margin-top:4px' });
     const btn = h('button', { class: 'buy', onclick: () => {
+      // 화경 전에는 맛보기 — 공짜로 몇 번이든 바꾼다
+      if (game.tasteOpen()) {
+        const off = game.s.taste === j.id;
+        game.setTaste(off ? null : j.id);
+        app.refresh();
+        toast(off ? '맛보기를 내려놨어요' : `${jobSkillOf(j.id)?.name}을 써 봐요`);
+        return;
+      }
       if (game.s.job === j.id) { game.setJob(null); app.refresh(); return; }
       if (game.setJob(j.id)) { app.refresh(); toast(`${j.name}이 되었어요`); }
       else toast('아직 안 열린 문파예요');
     } });
     const row = h('div', { class: 'card' },
       h('div', { style: 'display:flex;align-items:flex-start;gap:8px' },
-        h('div', { style: 'flex:1;min-width:0' }, title, tag, eff, note), btn));
+        h('div', { style: 'flex:1;min-width:0' }, title, tag, eff, art, note), btn));
     root.append(row);
-    cards[j.id] = { title, eff, btn, row, def: j };
+    cards[j.id] = { title, eff, art, btn, row, def: j };
   }
 
   function update() {
     const open = game.jobOpen();
+    const taste = game.tasteOpen();
     const at = game.nextJobAt();
-    head.innerHTML = !open
-      ? `<b>${RANKS[JOB_RANK].name}</b>에 오르면 문파를 고를 수 있어요. (지금 ${RANKS[game.s.rank].name})`
-      : `여덟 중 하나를 골라요. <b>언제든 바꿀 수 있고, 바꿔도 잃는 게 없어요.</b>`
+    head.innerHTML = open
+      ? `여덟 중 하나를 골라요. <b>언제든 바꿀 수 있고, 바꿔도 잃는 게 없어요.</b>`
         + `<br>열린 문파 ${game.jobUnlockedCount()}/${JOBS.length}`
-        + (at ? ` · 다음은 <b>${at}관문</b>` : ' · 전부 열림');
+        + (at ? ` · 다음은 <b>${at}관문</b>` : ' · 전부 열림')
+      : taste
+        ? `<b>맛보기</b> — 계열 무공을 하나씩 써 볼 수 있어요. 공짜로 몇 번이든 바꿔요.`
+          + `<br>올린 무공 레벨은 그대로 남아요. <b>${RANKS[JOB_RANK].name}</b>에서 하나를 정합니다.`
+        : `<b>${RANKS[TASTE_RANK].name}</b>에 오르면 계열 무공을 맛볼 수 있어요.`
+          + ` <b>${RANKS[JOB_RANK].name}</b>에서 문파를 정해요. (지금 ${RANKS[game.s.rank].name})`;
     for (const j of JOBS) {
       const c = cards[j.id];
-      const picked = game.s.job === j.id;
-      const unlocked = game.jobUnlocked(j.id);
+      const tasting = taste && game.s.taste === j.id;
+      const picked = game.s.job === j.id || tasting;
+      const unlocked = taste ? true : game.jobUnlocked(j.id);
       const need = JOB_UNLOCK[JOBS.indexOf(j)] || 0;
       c.title.innerHTML = `${j.name} <small style="color:var(--muted)">${j.weapon}</small>`
-        + (picked ? ' <b style="color:var(--accent-2)">· 지금 이것</b>' : '');
-      c.eff.innerHTML = bonusText(j);
+        + (picked ? ` <b style="color:var(--accent-2)">· ${tasting ? '써 보는 중' : '지금 이것'}</b>` : '');
+      const sk = jobSkillOf(j.id);
+      c.art.innerHTML = sk ? `전용 무공 <b style="color:${j.color}">${sk.name}</b> · 쿨 ${sk.cd}초` : '';
+      c.eff.innerHTML = taste ? '<span class="muted">문파에 들면 능력치 보너스가 붙어요</span>' : bonusText(j);
       c.row.style.opacity = unlocked ? '' : '0.5';
       c.row.style.outline = picked ? `1px solid ${j.color}` : '';
-      c.btn.textContent = picked ? '그만두기' : unlocked ? '입문' : (!open ? '경지 부족' : `${need}관문`);
+      c.btn.textContent = tasting ? '내려놓기' : taste ? '맛보기'
+        : picked ? '그만두기' : unlocked ? '입문' : (!open ? '경지 부족' : `${need}관문`);
       c.btn.disabled = !unlocked && !picked;
     }
   }
