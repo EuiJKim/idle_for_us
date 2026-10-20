@@ -653,5 +653,72 @@ console.log('\n=== 15. 겨루기 중 사망 ===');
     `관문지기였나 ${wasBoss} · farming ${g2.s.farming}`);
 }
 
+// ---------- 16. 망가진 값이 들어와도 살아남는가 ----------
+console.log('\n=== 16. 망가진 값 ===');
+{
+  // 숫자 자리에 숫자가 아닌 게 한 번 들어오면 그 자원은 영영 NaN이 되고
+  // 세이브를 지우기 전까지 복구가 안 된다. 실제로 regress.points가 문자열이면
+  // 공격력·체력·은자·경험치가 전부 NaN이 됐다.
+  const g = new Game(newSave());
+  g.s.gold = 1e18;
+  g.addGold(undefined); g.addGold(NaN); g.addGold('abc'); g.addGold(Infinity);
+  ok(Number.isFinite(g.s.gold) && g.s.gold === 1e18, '쓰레기를 더해도 은자가 안 깨진다',
+    g.s.gold.toExponential(2));
+  g.addExp(undefined); g.addExp(NaN);
+  ok(Number.isFinite(g.s.exp), '경험치도 안 깨진다');
+  g.grant({ gems: undefined, stones: NaN, books: 100 });
+  ok(Number.isFinite(g.s.gems) && Number.isFinite(g.s.stones) && g.s.books >= 100,
+    'grant가 쓰레기를 걸러낸다');
+  g.claimOffline(Date.now());
+  ok(Number.isFinite(g.s.gold), '방치 보상에 엉뚱한 값을 넘겨도 안 깨진다');
+
+  // 망가진 세이브들
+  const bads = ['{}', '{"gold":"abc"}', '{"upgrades":null}', '{"skillSlots":"x"}',
+    '{"acc":{"ring":"x"}}', '{"equips":{"weapon":"x"}}', '{"ego":{"blade":5}}',
+    '{"daily":"x"}', '{"stage":-99,"level":-5,"rank":99}', '{"regress":{"points":"x"}}',
+    '{"tower":{"floor":"x"}}', '{"mine":"x"}', '{"enhance":{"weapon":"x"}}'];
+  let broke = '';
+  for (const b of bads) {
+    try {
+      const gg = new Game(migrate(JSON.parse(b)));
+      const st = gg.stats({ buffs: false });
+      gg.tick(1 / 60);
+      if (!Number.isFinite(st.dps) || !Number.isFinite(st.hp)) broke = `${b} → 능력치 NaN`;
+    } catch (e) { broke = `${b} → ${e.message}`; }
+    if (broke) break;
+  }
+  ok(!broke, `망가진 세이브 ${bads.length}가지를 넣어도 돌아간다`, broke || '전부 통과');
+
+  // 상한을 넘는 값이 들어오면 깎인다
+  const over = migrate({
+    rank: 999, regress: { points: 1e9, count: -5 },
+    acc: { ring: { grade: 99, star: 99, pierce: 99 } },
+    equipPierce: { weapon: 99 },
+    ego: { blade: { step: 99, ench: 99 } },
+  });
+  ok(over.rank <= D.RANKS.length - 1, '경지가 상한으로 깎인다', `${over.rank}`);
+  ok(over.acc.ring.star <= D.ACC_STAR_MAX && over.acc.ring.pierce <= D.ACC_PIERCE_MAX
+    && over.acc.ring.grade <= D.GRADES.length - 1, '장신구가 상한으로 깎인다',
+    `${over.acc.ring.grade}등급 ${over.acc.ring.star}성 ${over.acc.ring.pierce}초월`);
+  ok(over.equipPierce.weapon <= D.EQUIP_PIERCE_MAX, '장비 초월이 상한으로 깎인다');
+  ok(over.ego.blade.step <= D.EGO_STEP_MAX && over.ego.blade.ench <= D.EGO_ENCHANT_MAX,
+    '심검이 상한으로 깎인다');
+  ok(over.regress.count >= 0, '음수 회귀 횟수가 0으로');
+
+  // 없는 것을 물어도 안 터진다
+  const g2 = new Game(newSave());
+  let threw = '';
+  const calls = [
+    () => g2.claimMission('없음'), () => g2.openAccPick('없음', 1),
+    () => g2.useSkill('없음'), () => g2.setSkillSlot(-1, 'slash'),
+    () => g2.merge('weapon', 99), () => g2.levelPet('없음', 1),
+    () => g2.buyOutfit('없음'), () => g2.loadPreset(99),
+    () => g2.startDungeon('없음'), () => g2.startSeek('없음'),
+    () => g2.endContest('fail'), () => g2.toggleOptionLock('weapon', 99),
+  ];
+  for (const f of calls) { try { f(); } catch (e) { threw = e.message; break; } }
+  ok(!threw, `없는 것을 물어도 ${calls.length}가지 전부 안 터진다`, threw || '통과');
+}
+
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);

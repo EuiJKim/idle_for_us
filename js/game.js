@@ -239,6 +239,65 @@ export function migrate(raw, now = Date.now()) {
     s.accBag[a.id] = GRADES.map((_, i) => Math.max(0, (Array.isArray(bag) ? bag[i] : 0) | 0));
   }
   s.accPick = Math.max(0, raw.accPick | 0);
+
+  // ---------- 숫자 자리를 숫자로 ----------
+  // 백업 코드가 손상되거나 보상 계산 어딘가에서 undefined가 새면 숫자 자리에
+  // 숫자가 아닌 게 들어온다. 그 한 자리가 능력치 전체를 NaN으로 만든다 —
+  // regress.points가 문자열이면 공격력·체력·은자·경험치가 전부 NaN이 됐다.
+  // 한 번 그렇게 되면 세이브를 지우기 전까지 복구가 안 되므로 여기서 막는다.
+  const num = (v, def = 0, min = -Infinity) => {
+    const n = typeof v === 'number' ? v : Number(v);
+    return Number.isFinite(n) ? Math.max(min, n) : def;
+  };
+  for (const k of ['gold', 'gems', 'stones', 'books', 'food', 'relicShards', 'exp', 'sp', 'seek', 'accPick']) {
+    s[k] = num(s[k], 0, 0);
+  }
+  s.level = Math.max(1, Math.floor(num(s.level, 1, 1)));
+  s.rank = Math.min(RANKS.length - 1, Math.max(0, Math.floor(num(s.rank, 0, 0))));
+  s.stage = Math.max(1, Math.floor(num(s.stage, 1, 1)));
+  s.maxStage = Math.max(1, Math.floor(num(s.maxStage, 1, 1)));
+  s.bestStage = Math.max(s.maxStage, Math.floor(num(s.bestStage, 1, 1)));
+  s.kills = Math.max(0, Math.floor(num(s.kills, 0, 0)));
+  s.wave = Math.max(0, Math.floor(num(s.wave, 0, 0)));
+  s.regress = {
+    count: Math.max(0, Math.floor(num(s.regress?.count, 0, 0))),
+    points: Math.max(0, Math.floor(num(s.regress?.points, 0, 0))),
+  };
+  s.tower = { ...s.tower, floor: Math.max(0, Math.floor(num(s.tower?.floor, 0, 0))) };
+  s.mine = {
+    ...s.mine,
+    depth: Math.max(0, Math.floor(num(s.mine?.depth, 0, 0))),
+    miners: Math.max(0, Math.floor(num(s.mine?.miners, 0, 0))),
+    held: num(s.mine?.held, 0, 0),
+    at: num(s.mine?.at, now),
+  };
+  for (const k of Object.keys(s.upgrades)) s.upgrades[k] = Math.max(0, Math.floor(num(s.upgrades[k], 0, 0)));
+  for (const k of Object.keys(s.spAlloc)) s.spAlloc[k] = Math.max(0, Math.floor(num(s.spAlloc[k], 0, 0)));
+  for (const k of Object.keys(s.skills)) s.skills[k] = Math.max(1, Math.floor(num(s.skills[k], 1, 1)));
+  for (const k of Object.keys(s.enhance)) s.enhance[k] = Math.max(0, Math.floor(num(s.enhance[k], 0, 0)));
+  for (const k of Object.keys(s.equipPierce)) {
+    s.equipPierce[k] = Math.min(EQUIP_PIERCE_MAX, Math.max(0, Math.floor(num(s.equipPierce[k], 0, 0))));
+  }
+  for (const k of Object.keys(s.pets)) s.pets[k] = Math.max(0, Math.floor(num(s.pets[k], 0, 0)));
+  for (const k of Object.keys(s.relics)) s.relics[k] = Math.max(0, Math.floor(num(s.relics[k], 0, 0)));
+  for (const a of ACC_SLOTS) {
+    const c = s.acc[a.id];
+    if (!c) continue;
+    s.acc[a.id] = {
+      grade: Math.min(GRADES.length - 1, Math.max(0, Math.floor(num(c.grade, 0, 0)))),
+      star: Math.min(ACC_STAR_MAX, Math.max(0, Math.floor(num(c.star, 0, 0)))),
+      pierce: Math.min(ACC_PIERCE_MAX, Math.max(0, Math.floor(num(c.pierce, 0, 0)))),
+    };
+  }
+  for (const e of EGO_PARTS) {
+    const x = s.ego[e.id];
+    s.ego[e.id] = {
+      step: Math.min(EGO_STEP_MAX, Math.max(0, Math.floor(num(x?.step, 0, 0)))),
+      exp: Math.max(0, num(x?.exp, 0, 0)),
+      ench: Math.min(EGO_ENCHANT_MAX, Math.max(0, Math.floor(num(x?.ench, 0, 0)))),
+      enchExp: Math.max(0, num(x?.enchExp, 0, 0)),
+    };
+  }
   s.options = { ...base.options };
   s.optionLock = { ...base.optionLock };
   for (const k of Object.keys(EQUIP_TYPES)) {
@@ -1917,6 +1976,7 @@ export class Game {
 
   // ---------- 레벨 / 스탯 포인트 ----------
   addExp(x) {
+    if (!Number.isFinite(x)) return;
     this.s.exp += x;
     let ups = 0;
     while (this.s.exp >= expToNext(this.s.level)) {
@@ -2212,7 +2272,15 @@ export class Game {
     return bought;
   }
 
+  // 자원에 들어오는 값은 전부 여기를 지난다.
+  //
+  // 숫자가 아닌 값이 한 번 더해지면 그 자원은 영영 NaN이 되고,
+  // 세이브를 지우기 전까지 복구가 안 된다. 보상 계산 어딘가에서 undefined가
+  // 하나만 새어 나와도 그렇게 된다 — 실제로 claimOffline에 엉뚱한 값을 넘겨
+  // 은자가 1.0e+18에서 NaN이 되는 걸 확인했다.
+  // 막는 비용은 한 줄이고, 안 막으면 되돌릴 수 없다.
   addGold(g) {
+    if (!Number.isFinite(g)) return;
     this.s.gold += g;
     this.s.stats.gold += g;
   }
@@ -2220,7 +2288,9 @@ export class Game {
   // 보상 묶음 지급: {gold, gems, books, stones, food, relicShards}
   grant(r = {}) {
     if (r.gold) this.addGold(r.gold);
-    for (const k of ['gems', 'books', 'stones', 'food', 'relicShards', 'accPick']) if (r[k]) this.s[k] += r[k];
+    for (const k of ['gems', 'books', 'stones', 'food', 'relicShards', 'accPick']) {
+      if (Number.isFinite(r[k]) && r[k]) this.s[k] += r[k];
+    }
     return r;
   }
 
@@ -2420,6 +2490,7 @@ export class Game {
   }
 
   claimMission(id) {
+    if (!MISSIONS.some((x) => x.id === id)) return null;   // 없는 의뢰를 물으면 조용히 넘긴다
     const st = this.missionState(id);
     if (!st.done || st.claimed) return null;
     this.s.daily.claimed[id] = true;
@@ -2474,7 +2545,7 @@ export class Game {
   }
 
   claimOffline(reward) {
-    if (!reward) return;
+    if (!reward || typeof reward !== 'object') return;
     this.addGold(reward.gold);
     if (reward.exp) this.addExp(reward.exp);
   }
