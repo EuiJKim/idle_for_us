@@ -2,7 +2,7 @@
 
 // 지금 돌고 있는 빌드. 설정 창에 적어 둔다 — 기기가 옛 판을 들고 있는지
 // 한눈에 보려고 둔다. sw.js의 CACHE와 같은 값으로 맞춘다.
-export const BUILD = 'ifu-v30';
+export const BUILD = 'ifu-v31';
 
 export const SAVE_VERSION = 4;
 export const OFFLINE_CAP_SEC = 12 * 3600;
@@ -898,47 +898,47 @@ export const CC_WEAK_MULT = 1.35;     // 파쇄 중에는 받는 피해가 이�
 //   tornado 장판이 스스로 굴러다닌다      ← Tornado
 //   pierce  직선상의 적 전부             ← SwordProjectile
 export const SKILLS = [
-  { id: 'slash', name: '선풍검', icon: '선풍', unlock: 1, cd: 6, kind: 'dmg', motion: 'aoe', target: 'all', radius: 150,
+  { id: 'slash', name: '선풍검', icon: '선풍', unlock: 1, cd: 5, kind: 'dmg', motion: 'aoe', target: 'all', radius: 150,
     cc: 'bleed', ccSec: 4,
     mult: (l) => 4 + l * 0.6, desc: (m) => `발밑 반경 150 안의 적 전체에게 공격력의 ${m.toFixed(1)}배` },
-  { id: 'rage', name: '혈마해방', icon: '혈마', unlock: 10, cd: 25, dur: 8, kind: 'buff',
+  { id: 'rage', name: '혈마해방', icon: '혈마', unlock: 10, cd: 18, dur: 8, kind: 'buff',
     mult: (l) => 1.5 + l * 0.06, desc: (m) => `8초간 공격력 ${m.toFixed(2)}배` },
-  { id: 'heal', name: '운기조식', icon: '조식', unlock: 30, cd: 18, kind: 'heal',
+  { id: 'heal', name: '운기조식', icon: '조식', unlock: 30, cd: 14, kind: 'heal',
     mult: (l) => Math.min(1, 0.3 + l * 0.02), desc: (m) => `체력 ${Math.round(m * 100)}% 회복` },
-  { id: 'thunder', name: '뇌정검', icon: '뇌정', unlock: 50, cd: 15, kind: 'dmg', motion: 'aoe', target: 'all', radius: 210,
+  { id: 'thunder', name: '뇌정검', icon: '뇌정', unlock: 50, cd: 11, kind: 'dmg', motion: 'aoe', target: 'all', radius: 210,
     cc: 'slow', ccSec: 5,
     mult: (l) => 12 + l * 1.8, desc: (m) => `발밑 반경 210 안의 적 전체에게 공격력의 ${m.toFixed(1)}배 낙뢰` },
-  { id: 'gale', name: '질풍보', icon: '질풍', unlock: 70, cd: 30, dur: 10, kind: 'buff',
+  { id: 'gale', name: '질풍보', icon: '질풍', unlock: 70, cd: 22, dur: 10, kind: 'buff',
     mult: (l) => 1.5 + l * 0.03, desc: (m) => `10초간 공격 속도 ${m.toFixed(2)}배 (한계 돌파)` },
-  { id: 'midas', name: '천금수', icon: '천금', unlock: 90, cd: 45, dur: 15, kind: 'buff',
+  { id: 'midas', name: '천금수', icon: '천금', unlock: 90, cd: 30, dur: 15, kind: 'buff',
     mult: (l) => 2 + l * 0.1, desc: (m) => `15초간 은자 ${m.toFixed(1)}배` },
-  { id: 'frost', name: '빙백신장', icon: '빙백', unlock: 100, cd: 20, kind: 'dmg', motion: 'single', stun: 3, cc: 'freeze', ccSec: 3, target: 'single', bossMult: 1.8, radius: 70,
+  { id: 'frost', name: '빙백신장', icon: '빙백', unlock: 100, cd: 14, kind: 'dmg', motion: 'single', stun: 3, cc: 'freeze', ccSec: 3, target: 'single', bossMult: 1.8, radius: 70,
     mult: (l) => 8 + l * 1.2, desc: (m) => `한 명에게 공격력의 ${m.toFixed(1)}배 + 3초 빙결 · 두목에겐 1.8배` },
-  { id: 'meteor', name: '만검귀종', icon: '만검', unlock: 110, cd: 40, kind: 'dmg', motion: 'aoe', target: 'all', radius: 300,
+  { id: 'meteor', name: '만검귀종', icon: '만검', unlock: 110, cd: 26, kind: 'dmg', motion: 'aoe', target: 'all', radius: 300,
     cc: 'weak', ccSec: 8,
     mult: (l) => 40 + l * 6, desc: (m) => `발밑 반경 300 안의 적 전체에게 검 비 · 공격력의 ${m.toFixed(0)}배` },
 
   // --- 여기부터 동작이 다른 무공 ---
-  { id: 'chain', name: '연환벽력', icon: '연환', unlock: 120, cd: 18, kind: 'dmg', motion: 'chain',
+  { id: 'chain', name: '연환벽력', icon: '연환', unlock: 120, cd: 13, kind: 'dmg', motion: 'chain',
     chainRange: 190, chainFalloff: 0.88, chain: (l) => 5 + Math.floor(l / 3), cc: 'slow', ccSec: 4,
     mult: (l) => 18 + l * 2.4,
     desc: (m, l) => `가까운 적부터 ${5 + Math.floor(l / 3)}명에게 옮겨타며 공격력의 ${m.toFixed(0)}배 · 옮길수록 12%씩 약해져요` },
-  { id: 'dash', name: '발도돌격', icon: '발도', unlock: 130, cd: 22, kind: 'dmg', motion: 'dash',
+  { id: 'dash', name: '발도돌격', icon: '발도', unlock: 130, cd: 16, kind: 'dmg', motion: 'dash',
     dashDist: 300, dashWidth: 110, cc: 'bleed', ccSec: 6,
     mult: (l) => 30 + l * 4,
     desc: (m) => `앞으로 300만큼 파고들며 지나간 길의 적 전부에게 공격력의 ${m.toFixed(0)}배` },
-  { id: 'blink', name: '축지참', icon: '축지', unlock: 140, cd: 26, kind: 'dmg', motion: 'blink', bossMult: 2.2,
+  { id: 'blink', name: '축지참', icon: '축지', unlock: 140, cd: 18, kind: 'dmg', motion: 'blink', bossMult: 2.2,
     mult: (l) => 55 + l * 8,
     desc: (m) => `가장 먼 적(두목 우선)에게 순간이동해 공격력의 ${m.toFixed(0)}배 · 두목에겐 2.2배` },
-  { id: 'plum', name: '매화검진', icon: '매화', unlock: 150, cd: 35, kind: 'dmg', motion: 'field',
+  { id: 'plum', name: '매화검진', icon: '매화', unlock: 150, cd: 24, kind: 'dmg', motion: 'field',
     radius: 190, fieldSec: 6, tickSec: 0.5, cc: 'weak', ccSec: 4,
     mult: (l) => 9 + l * 1.2,
     desc: (m) => `그 자리에 6초간 검진을 남겨 0.5초마다 반경 190의 적에게 공격력의 ${m.toFixed(1)}배` },
-  { id: 'tornado', name: '선풍장', icon: '회선', unlock: 160, cd: 40, kind: 'dmg', motion: 'tornado',
+  { id: 'tornado', name: '선풍장', icon: '회선', unlock: 160, cd: 28, kind: 'dmg', motion: 'tornado',
     radius: 150, fieldSec: 8, tickSec: 0.4, moveSpeed: 90, cc: 'slow', ccSec: 3,
     mult: (l) => 7 + l * 1,
     desc: (m) => `회오리가 8초간 들판을 돌아다니며 0.4초마다 공격력의 ${m.toFixed(1)}배` },
-  { id: 'pierce', name: '일자검기', icon: '일자', unlock: 170, cd: 28, kind: 'dmg', motion: 'pierce',
+  { id: 'pierce', name: '일자검기', icon: '일자', unlock: 170, cd: 20, kind: 'dmg', motion: 'pierce',
     pierceLen: 520, pierceWidth: 90, cc: 'bleed', ccSec: 5,
     mult: (l) => 35 + l * 5,
     desc: (m) => `바라보는 방향 520 거리의 일직선상 적 전부에게 공격력의 ${m.toFixed(0)}배` },
@@ -947,43 +947,43 @@ export const SKILLS = [
   // 여덟 계열마다 하나씩. 일반 칸을 먹지 않고 **문파 칸**에 따로 들어간다.
   // unlock은 안 쓴다 — 문파(또는 맛보기)가 곧 해금이다.
   // 각자 1차에서 잰 자기 축을 그대로 민다. 축이 겹치면 고르는 의미가 사라진다.
-  { id: 'jsword', name: '일점혈로', icon: '일점', job: 'sword', unlock: 0, cd: 20,
+  { id: 'jsword', name: '일점혈로', icon: '일점', job: 'sword', unlock: 0, cd: 15,
     kind: 'dmg', motion: 'blink', bossMult: 2.6,
     mult: (l) => 50 + l * 7,
     desc: (m) => `가장 먼 적(두목 우선)에게 파고들어 공격력의 ${m.toFixed(0)}배 · 두목에겐 2.6배` },
-  { id: 'jblade', name: '혈풍참', icon: '혈풍', job: 'blade', unlock: 0, cd: 12,
+  { id: 'jblade', name: '혈풍참', icon: '혈풍', job: 'blade', unlock: 0, cd: 9,
     kind: 'dmg', motion: 'dash', dashDist: 380, dashWidth: 220, cc: 'bleed', ccSec: 6,
     bossMult: 0.5,
     mult: (l) => 80 + l * 11,
     desc: (m) => `앞으로 380만큼 베어 나가며 지나간 길 폭 220의 적 전부에게 공격력의 ${m.toFixed(0)}배`
       + ` · 혼자 선 두목에게는 절반만` },
-  { id: 'jfist', name: '붕권', icon: '붕권', job: 'fist', unlock: 0, cd: 5,
+  { id: 'jfist', name: '붕권', icon: '붕권', job: 'fist', unlock: 0, cd: 4,
     kind: 'dmg', motion: 'aoe', target: 'all', radius: 170,
     mult: (l) => 24 + l * 3.4,
     desc: (m) => `5초마다 반경 170을 내지른다 · 공격력의 ${m.toFixed(1)}배` },
-  { id: 'jring', name: '단지멸', icon: '단지', job: 'ring', unlock: 0, cd: 14,
+  { id: 'jring', name: '단지멸', icon: '단지', job: 'ring', unlock: 0, cd: 10,
     kind: 'dmg', motion: 'single', target: 'single', sure: true,
     mult: (l) => 13 + l * 1.7,
     desc: (m) => `한 명에게 공격력의 ${m.toFixed(1)}배 · **반드시 치명**으로 들어간다` },
-  { id: 'jdrunk', name: '취보난무', icon: '취보', job: 'drunk', unlock: 0, cd: 32,
+  { id: 'jdrunk', name: '취보난무', icon: '취보', job: 'drunk', unlock: 0, cd: 24,
     kind: 'dmg', motion: 'tornado', radius: 160, fieldSec: 8, tickSec: 0.4, moveSpeed: 110,
     cc: 'slow', ccSec: 3,
     boon: { stat: 'gold', dur: 10, mult: (l) => 2 + l * 0.08 },
     mult: (l) => 8 + l * 1.1,
     desc: (m, l) => `비틀대며 8초간 들판을 돌아 0.4초마다 공격력의 ${m.toFixed(1)}배 · 그동안 은자 ${(2 + l * 0.08).toFixed(1)}배` },
-  { id: 'jfan', name: '환영진', icon: '환영', job: 'fan', unlock: 0, cd: 26,
+  { id: 'jfan', name: '환영진', icon: '환영', job: 'fan', unlock: 0, cd: 20,
     kind: 'dmg', motion: 'field', radius: 210, fieldSec: 7, tickSec: 0.6, cc: 'weak', ccSec: 12,
     bossMult: 0.6,
     mult: (l) => 5 + l * 0.7,
     desc: (m) => `반경 210에 7초짜리 환영을 깔아 0.6초마다 공격력의 ${m.toFixed(1)}배`
       + ` · 걸린 적은 12초간 파쇄(맞는 피해 1.35배)` },
-  { id: 'jmonk', name: '금강부동', icon: '금강', job: 'monk', unlock: 0, cd: 16,
+  { id: 'jmonk', name: '금강부동', icon: '금강', job: 'monk', unlock: 0, cd: 12,
     kind: 'dmg', motion: 'aoe', target: 'all', radius: 220, selfHeal: 0.35,
     hpScale: (l) => 45 + l * 3.2,
     mult: (l) => 18 + l * 2.4,
     desc: (m, l) => `반경 220을 쓸고 체력을 35% 회복한다 · 공격력의 ${m.toFixed(1)}배`
       + ` + 내 체력의 ${(45 + l * 3.2).toFixed(0)}배` },
-  { id: 'jpoison', name: '만독강림', icon: '만독', job: 'poison', unlock: 0, cd: 34,
+  { id: 'jpoison', name: '만독강림', icon: '만독', job: 'poison', unlock: 0, cd: 26,
     kind: 'dmg', motion: 'field', radius: 210, fieldSec: 8, tickSec: 0.5, cc: 'weak', ccSec: 6,
     boon: { stat: 'exp', dur: 12, mult: (l) => 2 + l * 0.09 },
     mult: (l) => 6 + l * 0.9,
@@ -1047,6 +1047,18 @@ export const skillSlotCount = (bestStage) =>
   SKILL_SLOT_BASE + SKILL_SLOT_AT.filter((v) => bestStage >= v).length;
 export const nextSkillSlotAt = (bestStage) => SKILL_SLOT_AT.find((v) => bestStage < v) ?? null;
 export const skillBookCost = (l) => Math.ceil(2 * Math.pow(1.15, l - 1));
+
+// 무공을 올려도 '더 자주 나간다'는 느낌이 없었다. 배율만 오르고 쿨은 그대로라
+// 뒤에 열리는 센 무공일수록(쿨 40~45초) 손이 비는 시간이 늘었다.
+// Blade Idle에는 ActiveSkillGrowth라는 성장 단계가 따로 있다(docs/BladeIdle_스킬구조.md 3절).
+// 우리는 레벨과 초월에 쿨 감소를 얹는다.
+export const SKILL_CD_PER_LV = 0.006;    // 레벨 1당 0.6%
+export const SKILL_CD_PER_PIERCE = 0.04; // 초월 1단당 4%
+export const SKILL_CD_MIN = 0.45;        // 아무리 올려도 절반 아래로는 안 간다
+export const skillCd = (base, lv = 1, pierce = 0) => base * Math.max(
+  SKILL_CD_MIN,
+  1 - SKILL_CD_PER_LV * Math.max(0, lv - 1) - SKILL_CD_PER_PIERCE * pierce,
+);
 
 // 맛보기 — 일류에 오르면 화경 전까지 여덟 계열 무공을 하나씩 써 볼 수 있다.
 // 공짜로 몇 번이든 바꾼다. 올린 레벨은 남아서, 그 계열로 입문하면 이어진다.

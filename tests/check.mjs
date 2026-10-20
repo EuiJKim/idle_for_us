@@ -984,8 +984,10 @@ console.log('\n=== 21. 전용 무공의 축 ===');
     const after = g.stats()[key];
     ok(after > before * 1.5, `${D.jobOf(job).name}의 ${D.jobSkillOf(job).name}이 ${key}를 올린다`,
       `x${(after / before).toFixed(2)}`);
-    // 보너스가 끝나면 돌아와야 한다
-    for (let k = 0; k < 60 * 20; k++) g.tick(1 / 60);
+    // 보너스가 끝나면 돌아와야 한다.
+    // 자동 시전을 꺼야 한다 — 쿨이 줄면서 20초 안에 다시 나가 버린다.
+    g.s.autoSkill = false;
+    for (let k = 0; k < 60 * 14; k++) { g.tick(1 / 60); g.events.length = 0; }
     ok(Math.abs(g.stats()[key] / g.stats({ buffs: false })[key] - 1) < 1e-9,
       `${D.jobSkillOf(job).name}의 보너스가 시간이 지나면 끝난다`);
   }

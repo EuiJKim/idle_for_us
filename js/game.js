@@ -36,6 +36,7 @@ import {
   riftStage, huntStage, riftReward, huntReward,
   RELICS, RELIC_DIG_COST,
   SKILLS, SKILL_SLOTS, skillSlotCount, skillBookCost,
+  skillCd,
   DUNGEONS, DUNGEON_KEYS, DUNGEON_TIME, DUNGEON_MOBS, dungeonStage, dungeonReward,
   DUNGEON_KEY_CAP, RAID_TICKET_CAP, PVP_TICKET_CAP,
   MISSIONS, MISSION_ALL_REWARD, stageMilestone, STAGE_MILESTONE_EVERY,
@@ -791,6 +792,11 @@ export class Game {
     this.s.books -= cost;
     this.s.skillPierce[id] = this.skillPierceOf(id) + 1;
     return true;
+  }
+
+  // 레벨·초월이 붙은 최종 쿨타임
+  skillCdOf(sk) {
+    return skillCd(sk.cd, this.s.skills[sk.id] || 1, this.skillPierceOf(sk.id));
   }
 
   // 초월이 붙은 최종 배율
@@ -2440,7 +2446,7 @@ export class Game {
       this.heroHp = Math.min(st.hp, this.heroHp + st.hp * Math.min(1, this.skillMult(sk)));
       this.emit('skill', { id });
     }
-    this.cd[id] = sk.cd;
+    this.cd[id] = this.skillCdOf(sk);
     return true;
   }
 

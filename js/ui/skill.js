@@ -151,7 +151,9 @@ export function skillTab(app) {
         : sk.job ? `${jobOf(sk.job)?.name || ''} 전용` : `관문 ${sk.unlock} 해금`;
       const pi = game.skillPierceOf(sk.id);
       const boost = 1 + SKILL_PIERCE_MULT * pi;
-      r.desc.innerHTML = `${sk.desc(sk.mult(l) * boost, l)} · 쿨 ${sk.cd}초`
+      const cdNow = game.skillCdOf(sk);
+      r.desc.innerHTML = `${sk.desc(sk.mult(l) * boost, l)} · 쿨 ${cdNow.toFixed(1)}초`
+        + (cdNow < sk.cd - 0.05 ? ` <small style="color:var(--muted)">(본디 ${sk.cd}초)</small>` : '')
         + (pi ? ` · <b style="color:var(--accent-2)">${pi}초월</b>` : '')
         + `<br>다음: <b>${sk.desc(sk.mult(l + 1) * boost, l + 1)}</b>`;
       r.btn.textContent = `비급 ${game.skillUpgradeCost(sk.id)}`;
