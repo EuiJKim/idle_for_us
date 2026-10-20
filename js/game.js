@@ -1,6 +1,7 @@
 // 게임 규칙과 상태. DOM을 모르는 순수 로직이라 Node에서도 돌아간다.
 import {
   SAVE_VERSION, OFFLINE_CAP_SEC, KILLS_PER_STAGE, BOSS_TIME, SPAWN_DELAY, RAID_TIME, RAID_TICKETS,
+  WAVE_MIN_SEC,
   MERGE_COUNT, GACHA_COST, GACHA10_COST, DAILY_GEMS, START_GEMS, SPEED_CAP, CRIT_CAP,
   UPGRADES, GRADES, GACHA_RATES, EQUIP_TYPES, ENHANCE_PER, enhanceCost,
   EQUIP_PIERCE_MAX, EQUIP_PIERCE_MULT, equipPierceCost,
@@ -1406,15 +1407,39 @@ export class Game {
     return Math.max(0, (this.s.kills || 0) - before);
   }
 
+  // 이번 물결 몫을 다 채웠으면 처치를 더 세지 않는다.
+  //
+  // 이게 없으면 물결 바닥 시간이 아무 소용이 없다 — 광역기 한 방에 80마리가
+  // 지워지면서 20처치가 한꺼번에 차고, 물결을 건너뛰고 관문지기가 바로 나왔다.
+  // 재 보니 한 관문이 10초였다(설계 목표 45초).
+  //
+  // 세지 않을 뿐 잡는 건 그대로다. 은자도 경험치도 들어온다.
+  // 관문지기가 길을 막을 때가 됐는가. 마지막 물결에는 advanceWave가 안 걸리므로
+  // 여기서도 바닥 시간을 본다.
+  bossReady() {
+    return (this.s.kills || 0) >= KILLS_PER_STAGE && (this.waveT || 0) >= WAVE_MIN_SEC;
+  }
+
+  countKill() {
+    if (this.s.farming) return;
+    if ((this.s.kills || 0) >= KILLS_PER_STAGE) return;
+    if (this.waveDone() >= this.waveNeed()) return;
+    this.s.kills++;
+  }
+
   // 물결이 넘어갈 때가 됐는지 본다. 넘어가면 들판을 비우고 다시 몰려오게 한다.
   advanceWave() {
     const total = this.waveTotal();
     if ((this.s.wave || 0) >= total - 1) return false;
     if (this.waveDone() < this.waveNeed()) return false;
+    // 처치 수를 다 채웠어도 바닥 시간은 채워야 넘어간다.
+    // 이게 없으면 광역기 한 방에 관문이 끝난다 — 재 보니 10초였다.
+    if ((this.waveT || 0) < WAVE_MIN_SEC) return false;
     // 넘긴 물결의 보상을 준다
     const got = waveReward(this.s.stage, this.s.wave || 0, total);
     this.grant(got);
     this.s.wave = (this.s.wave || 0) + 1;
+    this.waveT = 0;
     // 남아 있던 적은 물러난다
     for (const m of this.mons) m.alive = false;
     this.mons = [];
@@ -1521,7 +1546,7 @@ export class Game {
     // 물결이 끝났으면 다음 물결로
     if (!this.s.farming && this.advanceWave()) return;
     // 마지막 물결까지 끝내면 관문지기가 길을 막는다
-    if (!this.s.farming && this.s.kills >= KILLS_PER_STAGE && !live.some((m) => m.isBoss)) {
+    if (!this.s.farming && this.bossReady() && !live.some((m) => m.isBoss)) {
       this.spawnStage();
       return;
     }
@@ -1557,7 +1582,7 @@ export class Game {
 
   spawnStage() {
     const s = this.s.stage;
-    const isBoss = !this.s.farming && this.s.kills >= KILLS_PER_STAGE;
+    const isBoss = !this.s.farming && this.bossReady();
     this.fillQueue(() => this.pickMob());
     if (isBoss) {
       // 두목은 혼자, 무인 앞쪽에서 기다린다
@@ -1580,6 +1605,7 @@ export class Game {
     this.bossTimer = isBoss ? this.stats().bossTime : 0;
     this.bossTimeMax = this.bossTimer;
     this.spawnTimer = 0;
+    this.waveT = 0;
     this.atkTimer = Math.min(this.atkTimer, 0.3);
     this.fillQueue(() => this.pickMob());
     this.emit('spawn', { isBoss });
@@ -1818,7 +1844,7 @@ export class Game {
     this.emit('kill', { gold, isBoss: false, add: true, at: a });
     // 관문지기가 나온 뒤에도 졸개를 잡으면 계속 올랐다(20 기준인데 30까지).
     // 화면은 Math.min으로 가려 뒀지만 값 자체를 막는 게 맞다.
-    if (!this.s.farming) this.s.kills = Math.min(KILLS_PER_STAGE, this.s.kills + 1);
+    this.countKill();
   }
 
   dealDamage(amount, kind = 'hit', crit = false) {
@@ -1891,8 +1917,8 @@ export class Game {
       this.s.wave = 0;
       this.autoSlotSkills();
       this.emit('stageClear', { stage: s });
-    } else if (!this.s.farming) {
-      this.s.kills++;
+    } else {
+      this.countKill();
     }
     // 들판에서는 다음 적을 알아서 찾아간다
     if (this.mode === 'stage') {
@@ -1960,6 +1986,7 @@ export class Game {
 
     // 들판 사냥: 적을 찾아 걸어가서 벤다
     this.tickCC(dt);
+    this.waveT = (this.waveT || 0) + dt;
     this.updateFields(dt);
 
     if (this.mode === 'stage') {

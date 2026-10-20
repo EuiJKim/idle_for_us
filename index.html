@@ -20,16 +20,36 @@
 </head>
 <body>
   <div id="app">
+    <!-- 상단: 내 정보 한 덩어리.
+         근거: Blade Idle의 Status(720x136)가 초상화·이름·경지·경험치를 한 블록으로 묶는다.
+         (docs/BladeIdle_화면구조.md 4절) -->
     <header id="topbar">
+      <div class="hero-box">
+        <canvas id="portrait" width="104" height="104" aria-hidden="true"></canvas>
+        <div class="hero-txt">
+          <div class="hero-line"><b id="hero-name">무명</b></div>
+          <div class="hero-sub"><span id="hero-rank">삼류</span><span id="hero-lv">Lv.1</span></div>
+          <div id="exp-bar"><div></div></div>
+        </div>
+      </div>
+      <div class="res-col">
+        <div class="res"><span class="cur silver">은</span><b id="gold">0</b></div>
+        <div class="res"><span class="cur gem">원</span><b id="gems">0</b></div>
+      </div>
+      <button id="btn-settings" class="icon-btn" aria-label="설정">⚙</button>
+    </header>
+
+    <!-- 관문 진행도. 들판 위에 띄우지 않고 상단에 고정한다 -->
+    <div id="stagebar">
       <div class="stage-box">
-        <div id="stage-label">STAGE 1</div>
+        <div id="stage-label">제 1 관문</div>
         <div id="zone-label">고요한 들판</div>
       </div>
-      <div class="res"><span class="cur silver">은</span><b id="gold">0</b></div>
-      <div class="res"><span class="cur gem">원</span><b id="gems">0</b></div>
-      <button id="btn-missions" class="icon-btn" aria-label="일일 의뢰">📜</button>
-      <button id="btn-settings" class="icon-btn" aria-label="설정">⚙️</button>
-    </header>
+      <div id="progress">
+        <div id="progress-fill"></div>
+        <span id="progress-text">0 / 10</span>
+      </div>
+    </div>
 
     <section id="battle">
       <canvas id="cv"></canvas>
@@ -39,12 +59,7 @@
       </div>
       <div id="gate-hint" class="hidden"></div>
       <button id="advice" class="hidden"></button>
-      <div id="progress">
-        <div id="progress-fill"></div>
-        <span id="progress-text">0 / 10</span>
-      </div>
       <button id="btn-boss" class="hidden">두목 도전</button>
-      <div id="exp-bar"><div></div></div>
       <div id="contest-hud" class="hidden">
         <div id="contest-title"></div>
         <div id="contest-sub"></div>
@@ -53,14 +68,16 @@
       <!-- 창 버튼은 들판 위에 떠 있다. 누르면 아래에서 창이 올라온다. -->
       <nav id="tabs">
         <div class="tabcol left">
-          <button data-tab="companion"><span>영수</span></button>
-          <button data-tab="dungeon"><span>비경</span></button>
-          <button data-tab="social"><span>무림</span></button>
+          <button data-tab="companion"><i>영</i><span>영수</span></button>
+          <button data-tab="dungeon"><i>비</i><span>비경</span></button>
+          <button data-tab="social"><i>무</i><span>무림</span></button>
+          <button id="btn-missions" type="button"><i>령</i><span>의뢰</span></button>
         </div>
         <div class="tabcol right">
-          <button data-tab="growth"><span>수련</span></button>
-          <button data-tab="equip"><span>병기</span></button>
-          <button data-tab="skill"><span>무공</span></button>
+          <button data-tab="growth"><i>수</i><span>수련</span></button>
+          <button data-tab="equip"><i>병</i><span>병기</span></button>
+          <button data-tab="skill"><i>공</i><span>무공</span></button>
+          <button id="btn-auto" type="button"><i>자</i><span>자동</span></button>
         </div>
       </nav>
 
@@ -68,7 +85,13 @@
     </section>
 
     <div id="panel-dim"></div>
-    <main id="panel"></main>
+    <main id="panel">
+      <div id="panel-head">
+        <b id="panel-title"></b>
+        <button id="panel-close" aria-label="닫기">✕</button>
+      </div>
+      <div id="panel-body"></div>
+    </main>
   </div>
 
   <div id="modal" class="hidden"><div class="sheet"></div></div>

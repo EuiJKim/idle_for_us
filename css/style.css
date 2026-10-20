@@ -200,6 +200,7 @@ input { font: inherit; user-select: text; -webkit-user-select: text; }
   opacity: 0; pointer-events: none; transition: opacity 0.22s ease;
 }
 #panel-dim.open { opacity: 1; pointer-events: auto; }
+#panel-dim { z-index: 47; }
 .section-title { display: flex; justify-content: space-between; align-items: center; margin: 4px 2px 8px; font-weight: 800; color: var(--muted); font-size: 12px; }
 .row {
   display: flex; align-items: center; gap: 10px; background: var(--card); border-radius: 12px; padding: 10px; margin-bottom: 8px;
@@ -404,3 +405,102 @@ body { background: radial-gradient(ellipse at top, #1d1712, #0b0907 70%); }
 .gacha-item span { font-family: var(--brush), "Apple Color Emoji", "Segoe UI Emoji", sans-serif; }
 .grade { background: #1b1712; }
 .grade .g-ico { font-family: var(--brush); font-size: 22px; color: #f5e9cf; }
+
+/* ============================================================
+   v0.5 — Blade Idle 배치
+   근거: docs/BladeIdle_화면구조.md 4절 (Canvas_IngameUI, 720x1280 기준)
+   - 상단 Status 720x136 한 덩어리 (초상화·이름·경지·경험치)
+   - 진행도 게이지는 Status 바로 아래 가로로 길게
+   - 창 버튼은 82x82 정사각이 좌우 가장자리에 세로로
+   - 창은 아래에서 올라오는 시트가 아니라 **전체를 덮는다**
+   ============================================================ */
+
+/* 상단 — 내 정보 한 덩어리 */
+#topbar { align-items: stretch; gap: 8px; padding: 7px 9px; }
+.hero-box {
+  flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px;
+  background: linear-gradient(180deg, #1d1811, #14110c);
+  border: 1px solid var(--line); border-radius: 12px; padding: 5px 9px 5px 5px;
+}
+#portrait {
+  width: 44px; height: 44px; flex: none; border-radius: 10px;
+  background: radial-gradient(circle at 50% 35%, #3a3026, #120f0b);
+  border: 1px solid var(--line);
+}
+.hero-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.hero-line { min-width: 0; }
+.hero-sub { display: flex; align-items: center; gap: 6px; }
+#hero-name {
+  font-family: var(--serif); font-size: 14px; font-weight: 700; color: #f5e9cf;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+#hero-rank {
+  flex: none; font-family: var(--brush); font-size: 16px; line-height: 1.1;
+  color: var(--accent-2);
+}
+#hero-lv { font-size: 11px; color: var(--muted); font-weight: 700; }
+/* 경험치 바가 들판 바닥의 3px 선이었다. 내 정보 안으로 올린다. */
+#exp-bar { position: static; height: 5px; border-radius: 999px; background: #0b0907; overflow: hidden; }
+#exp-bar div { border-radius: 999px; }
+
+.res-col { display: flex; flex-direction: column; gap: 4px; justify-content: center; }
+.res-col .res { min-width: 86px; padding: 3px 8px 3px 5px; }
+
+/* 관문 줄 */
+#stagebar {
+  display: flex; align-items: center; gap: 9px;
+  padding: 5px 10px 7px; background: #120f0b; border-bottom: 1px solid var(--line);
+  position: relative; z-index: 44;
+}
+#stagebar .stage-box { flex: none; max-width: 48%; }
+#stagebar #stage-label { font-size: 19px; }
+#progress {
+  position: static; transform: none; flex: 1; width: auto; height: 17px;
+  border-radius: 999px; background: #0b0907; border: 1px solid var(--line);
+}
+#progress-text { line-height: 15px; }
+
+/* 창 버튼 — 정사각 타일 + 글리프 + 라벨 */
+.tabcol { bottom: calc(74px + var(--safe-bottom, 0px)); gap: 6px; }
+#tabs button {
+  width: 52px; height: 52px; border-radius: 12px; gap: 0;
+  background: rgba(18, 15, 11, 0.82); border-color: rgba(212, 166, 74, 0.28);
+}
+#tabs button i {
+  font-family: var(--brush); font-style: normal; font-size: 22px; line-height: 1.05;
+  color: #f5e9cf;
+}
+#tabs button span { font-family: var(--serif); font-size: 9px; font-weight: 700; color: var(--muted); letter-spacing: -0.5px; white-space: nowrap; }
+#tabs button.active i, #tabs button.on i { color: var(--accent-2); }
+#tabs button.active span, #tabs button.on span { color: #f5e9cf; }
+#tabs button.on { border-color: var(--good); }
+
+/* 무공 바 — 자동 버튼이 빠져서 칸이 고르게 넓어진다 */
+#skillbar { gap: 6px; padding: 0 9px; }
+.skill-btn { height: 50px; border-radius: 11px; }
+
+/* 창 — 전체를 덮는다 */
+#panel {
+  /* 상단바(z-index 45)·관문줄(44)보다 위에 와야 제목과 닫기가 보인다.
+     Blade Idle도 창이 열리면 화면 전체를 덮는다. */
+  z-index: 48;
+  top: 0; max-height: none; height: 100%; border-radius: 0; border-top: 0;
+  padding: 0; overflow: hidden; display: flex; flex-direction: column;
+  background: linear-gradient(180deg, #1a1611, var(--panel) 120px);
+}
+#panel::before { display: none; }
+#panel-head {
+  flex: none; display: flex; align-items: center; justify-content: space-between;
+  padding: calc(10px + var(--safe-top)) 14px 10px;
+  border-bottom: 1px solid var(--line); background: #120f0b;
+}
+#panel-title { font-family: var(--brush); font-size: 26px; font-weight: 400; color: #f5e9cf; line-height: 1; }
+#panel-close {
+  width: 38px; height: 38px; border-radius: 11px; font-size: 17px;
+  background: var(--card); border: 1px solid var(--line); color: #f5e9cf;
+}
+#panel-body {
+  flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch;
+  padding: 12px 10px calc(18px + var(--safe-bottom, 0px));
+}
+.subtabs { top: -12px; }

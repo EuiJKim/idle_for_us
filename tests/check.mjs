@@ -1062,9 +1062,9 @@ console.log('\n=== 23. 체력 축 ===');
     + ` / 체력 x${(D.monsterHp(far) / D.monsterHp(400)).toExponential(1)}`);
 
   // 체력을 올리면 실제로 더 버티는가 — 숫자가 아니라 전투로 확인한다
-  // 관문 140은 이 시험 캐릭터가 '밀어붙이는' 자리다 — 12초쯤 버틴다.
-  // 더 낮으면 안 죽어서, 더 높으면 뭘 해도 즉사해서 차이가 안 보인다.
-  const TRY_AT = 140;
+  // 이 시험 캐릭터가 '밀어붙이는' 자리. 더 낮으면 안 죽어서, 더 높으면
+  // 뭘 해도 즉사해서 차이가 안 보인다. 곡선을 손보면 여기도 다시 잡아야 한다.
+  const TRY_AT = 260;
   const liveFor = (tune) => {
     const g = strong(TRY_AT);
     if (tune) tune(g);

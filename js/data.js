@@ -84,6 +84,17 @@ export function waveReward(stage, wave, total) {
   };
 }
 
+// 한 물결이 최소 이만큼은 걸린다.
+//
+// 전에는 바닥이 없어서 한 관문이 **10초**에 끝났다. 설계 목표는 45초인데,
+// 광역기 한 방에 들판의 80마리가 지워지고 그게 20처치를 한꺼번에 채웠기
+// 때문이다. Blade Idle은 `monsterrespawntime`으로 한 판을 **47초에 고정**한다
+// (docs/BladeIdle_진행구조.md 2절).
+//
+// 처치 수를 다 채워도 이 시간이 안 지났으면 다음 물결로 안 넘어간다.
+// 그동안 잡는 적은 그대로 은자가 되니 시간이 버려지지는 않는다.
+export const WAVE_MIN_SEC = 11;      // 4물결 x 11초 + 관문지기 = 45초쯤
+
 export const BOSS_TIME = 30;
 export const SPAWN_DELAY = 0.45;
 // ---------- 그림자 무림 (저쪽의 '도플갱어') ----------
@@ -201,17 +212,24 @@ export const CUR = {
 };
 
 // ---------- 은자 수련 ----------
+// 수련 한 레벨이 주는 값과 드는 값. 둘의 비(ln cost / ln value)가
+// **파워가 시간에 대해 몇 제곱으로 자라는지**를 정한다. 전에는 1.06/1.05라
+// 비가 1.19였고, 그 위에 회귀·경지·장비·영수·유물이 겹쳐 파워가 t^14~t^26으로
+// 불었다. 목표는 t^6쯤이다(3시간 150관문 · 하루 300 · 일주일 480).
+export const UP_VALUE_RATE = 1.05;
+export const UP_COST_RATE = 1.07;
+
 export const UPGRADES = {
   atk: {
     name: '외공(공격력)', icon: '외공',
-    value: (l) => 10 * Math.pow(1.05, l),
-    cost: (l) => 10 * Math.pow(1.06, l),
+    value: (l) => 10 * Math.pow(UP_VALUE_RATE, l),
+    cost: (l) => 10 * Math.pow(UP_COST_RATE, l),
     fmt: 'num',
   },
   hp: {
     name: '내공(체력)', icon: '내공',
-    value: (l) => 100 * Math.pow(1.05, l),
-    cost: (l) => 10 * Math.pow(1.06, l),
+    value: (l) => 100 * Math.pow(UP_VALUE_RATE, l),
+    cost: (l) => 10 * Math.pow(UP_COST_RATE, l),
     fmt: 'num',
   },
   crit: {
@@ -245,8 +263,14 @@ export const UPGRADES = {
 };
 
 // ---------- 레벨 / 스탯 포인트 ----------
-export const expPerKill = (s) => 4 * Math.pow(1.1, s - 1);
-export const expToNext = (lv) => 60 * Math.pow(1.1, lv - 1);
+// 경험치가 사실상 **성장 속도의 주 엔진**이다.
+// 둘 다 1.1이면 한 관문이 언제나 정확히 1.33레벨이 된다(20처치 x 4 / 60).
+// 그래서 관문 254에 레벨 293, 경지 7이 나왔다 — 세 시간 만에 생사경이다.
+// 요구치를 조금 더 가파르게 두면 레벨당 관문 수가 점점 늘어난다.
+export const EXP_KILL_RATE = 1.10;
+export const EXP_LEVEL_RATE = 1.15;
+export const expPerKill = (s) => 4 * Math.pow(EXP_KILL_RATE, s - 1);
+export const expToNext = (lv) => 60 * Math.pow(EXP_LEVEL_RATE, lv - 1);
 export const SP_PER_LEVEL = 2;
 export const SP_RESET_GEMS = 200;
 export const SP_STATS = {
@@ -283,7 +307,10 @@ export const trialBoss = (r) => ({
 // ---------- 회귀 ----------
 export const REGRESS_MIN_STAGE = 80;
 export const REGRESS_PER_POINT = 0.1; // 전생의 기억 1개당 공격력·체력·은자·경험치 +10%
-export const regressGain = (maxStage) => (maxStage < REGRESS_MIN_STAGE ? 0 : Math.floor((maxStage - 50) / 5));
+// 관문 몇 개마다 전생의 기억 1개인가. 관문 눈금이 촘촘해지면 여기도 같이 넓혀야
+// 회귀가 공짜 가속 장치가 되지 않는다.
+export const REGRESS_PER_STAGES = 10;
+export const regressGain = (maxStage) => (maxStage < REGRESS_MIN_STAGE ? 0 : Math.floor((maxStage - 50) / REGRESS_PER_STAGES));
 
 // 회귀를 '권할' 시점.
 //
@@ -1255,10 +1282,17 @@ function cumLog(s, base) {
   return total;
 }
 
-// 이 관문으로 넘어올 때 적이 몇 배 세지는가 (화면에 보여주려고 따로 둔다)
-export const stageJump = (s) => (s <= 1 ? 1 : Math.exp(cumLog(s, 1.17) - cumLog(s - 1, 1.17)));
+// 관문 하나가 몇 배씩 세지는가. **성장 속도의 주 손잡이**다.
+//
+// 전에는 x1.17이었다. Blade Idle은 관문당 x1.0327(25관문마다 x1.39 벽)이고
+// 관문이 19,950개다. 우리 관문 하나가 저쪽 다섯 개 몫이라, 480관문짜리
+// 콘텐츠를 여덟 시간에 다 열어 버렸다. 수치도 관문 540에 x1.2e+38까지 불었다.
+export const STAGE_HP_RATE = 1.18;
 
-export const monsterHp = (s) => 20 * Math.exp(cumLog(s, 1.17));
+// 이 관문으로 넘어올 때 적이 몇 배 세지는가 (화면에 보여주려고 따로 둔다)
+export const stageJump = (s) => (s <= 1 ? 1 : Math.exp(cumLog(s, STAGE_HP_RATE) - cumLog(s - 1, STAGE_HP_RATE)));
+
+export const monsterHp = (s) => 20 * Math.exp(cumLog(s, STAGE_HP_RATE));
 // 적 공격력.
 //
 // 전에는 끝까지 x1.19였다. 그런데 **플레이어 체력은 관문당 x1.14로밖에 안 자란다** —
@@ -1272,8 +1306,8 @@ export const monsterHp = (s) => 20 * Math.exp(cumLog(s, 1.17));
 // 150관문은 한 대가 체력의 10%쯤 되는 지점이다 — 거기서 평탄해진다.
 // 150관문 전까지는 예전 곡선 그대로라 초반 체감은 안 바뀐다.
 export const ATK_FLAT_AT = 150;
-export const ATK_RATE_EARLY = 1.19;
-export const ATK_RATE_LATE = 1.14;
+export const ATK_RATE_EARLY = 1.09;
+export const ATK_RATE_LATE = 1.07;
 const ATK_ANCHOR = cumLog(15, ATK_RATE_EARLY);
 const ATK_AT_FLAT = 6 * Math.exp(cumLog(ATK_FLAT_AT, ATK_RATE_EARLY) - ATK_ANCHOR);
 const ATK_LATE_ANCHOR = cumLog(ATK_FLAT_AT, ATK_RATE_LATE);
@@ -1281,7 +1315,10 @@ export const monsterAtk = (s) => (s <= 15 ? 6
   : s <= ATK_FLAT_AT ? 6 * Math.exp(cumLog(s, ATK_RATE_EARLY) - ATK_ANCHOR)
     : ATK_AT_FLAT * Math.exp(cumLog(s, ATK_RATE_LATE) - ATK_LATE_ANCHOR));
 // 보상은 톱니로 만들지 않는다. 벽에서 보상까지 튀면 벽 앞에서 버티는 게 이득이 된다.
-export const monsterGold = (s) => 5 * Math.pow(1.105, s - 1);
+// 벌이가 관문당 몇 배씩 느는가. 적 체력보다 느려야 한 관문에 머무는 시간이
+// 길어진다 — 이 차이가 곧 감속 장치다.
+export const STAGE_GOLD_RATE = 1.06;
+export const monsterGold = (s) => 5 * Math.pow(STAGE_GOLD_RATE, s - 1);
 export const BOSS_HP_MULT = 9;
 export const BOSS_ATK_MULT = 2.5;
 export const BOSS_GOLD_MULT = 12;

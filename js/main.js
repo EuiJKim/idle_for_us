@@ -4,7 +4,7 @@ import {
   CODEX_KINDS, GRADES,
   isWallStage, nextUnlock, unlocksAt,
 } from './data.js';
-import { BattleView } from './battle.js';
+import { BattleView, drawFighter } from './battle.js';
 import { Net } from './net.js';
 import {
   TABS, h, toast, openModal, closeModal, modalOpen, showProfile, openMissions, rewardText,
@@ -46,26 +46,30 @@ function save() {
 // ---------- 탭 ----------
 const tabs = {};
 let activeTab = null;
+// 창이 전체를 덮으므로 제목이 필요하다 (전에는 버튼이 보여서 안 적어도 됐다)
+const TAB_TITLE = { companion: '영수', dungeon: '비경', social: '무림', growth: '수련', equip: '병기', skill: '무공' };
 function closePanel() {
   activeTab = null;
   $('panel').classList.remove('open');
   $('panel-dim').classList.remove('open');
-  document.querySelectorAll('#tabs button').forEach((b) => b.classList.remove('active'));
+  document.querySelectorAll('#tabs button[data-tab]').forEach((b) => b.classList.remove('active'));
 }
 function showTab(name) {
   if (activeTab === name) return closePanel(); // 같은 탭을 다시 누르면 내려간다
   if (!tabs[name]) tabs[name] = TABS[name](app);
   activeTab = name;
-  $('panel').replaceChildren(tabs[name].root);
-  $('panel').scrollTop = 0;
+  $('panel-body').replaceChildren(tabs[name].root);
+  $('panel-body').scrollTop = 0;
+  $('panel-title').textContent = TAB_TITLE[name] || '';
   $('panel').classList.add('open');
   $('panel-dim').classList.add('open');
-  document.querySelectorAll('#tabs button').forEach((b) => b.classList.toggle('active', b.dataset.tab === name));
+  document.querySelectorAll('#tabs button[data-tab]').forEach((b) => b.classList.toggle('active', b.dataset.tab === name));
   tabs[name].shown?.();
   tabs[name].update();
 }
-document.querySelectorAll('#tabs button').forEach((b) => b.addEventListener('click', () => showTab(b.dataset.tab)));
+document.querySelectorAll('#tabs button[data-tab]').forEach((b) => b.addEventListener('click', () => showTab(b.dataset.tab)));
 $('panel-dim').addEventListener('click', closePanel);
+$('panel-close').addEventListener('click', closePanel);
 
 function netChanged(what) {
   const badge = $('net-badge');
@@ -87,10 +91,30 @@ function updateDots() {
   setDot(document.querySelector('#tabs button[data-tab="growth"]'), game.s.sp > 0 || game.canTrial());
 }
 
+// ---------- 초상화 ----------
+// 그림 파일 없이 전투 화면과 같은 붓으로 그린다. 경지가 바뀔 때만 다시 그린다.
+let portraitAt = -1;
+function drawPortrait() {
+  const r = game.s.rank;
+  if (r === portraitAt) return;
+  portraitAt = r;
+  const cv = $('portrait');
+  const ctx = cv.getContext('2d');
+  ctx.clearRect(0, 0, cv.width, cv.height);
+  // 수련 탭 미리보기와 같은 좌표계(160x160, 발끝 70,136)를 그대로 줄여 쓴다
+  const k = cv.width / 160;
+  ctx.setTransform(k, 0, 0, k, 0, 0);
+  try {
+    drawFighter(ctx, 70, 136, RANKS[r].look, { t: 0, blade: '#e5e7eb', weapon: 'sword' });
+  } catch (e) { /* 초상화가 없다고 게임이 멈추면 안 된다 */ }
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+}
+
 // ---------- 무공 바 ----------
 let skillEls = [];
 let slotSig = '';
-const autoBtn = h('button', { class: 'auto-btn', onclick: () => { game.s.autoSkill = !game.s.autoSkill; refreshUI(true); } }, 'AUTO');
+const autoBtn = $('btn-auto');
+autoBtn.addEventListener('click', () => { game.s.autoSkill = !game.s.autoSkill; refreshUI(true); });
 function buildSkillbar() {
   // 전투 바도 열린 칸만 그린다
   slotSig = game.activeSlots().join(',');
@@ -101,7 +125,7 @@ function buildSkillbar() {
     const btn = h('button', { class: 'skill-btn', 'aria-label': sk?.name || '빈 칸', onclick: () => (sk ? game.useSkill(sk.id) : showTab('skill')) }, sk?.icon || '＋', cd, lock);
     return { sk, btn, cd, lock };
   });
-  $('skillbar').replaceChildren(...skillEls.map((e) => e.btn), autoBtn);
+  $('skillbar').replaceChildren(...skillEls.map((e) => e.btn));
 }
 buildSkillbar();
 
@@ -123,7 +147,8 @@ function refreshUI(full = false) {
     const wall = isWallStage(s.stage);
     $('stage-label').textContent = `제 ${s.stage} 관문${s.farming ? ' (수련 중)' : ''}`;
     // 벽 표시는 짧게 앞에 붙인다. 제목에 붙이면 길어서 잘린다.
-    $('zone-label').textContent = `${wall ? '관문지기 · ' : ''}${zoneOf(s.stage).name} · ${RANKS[s.rank].name} · Lv.${s.level}${s.regress.count ? ` · ${s.regress.count + 1}회차` : ''}`;
+    // 경지·레벨은 위쪽 내 정보 블록이 맡는다. 여기는 자리 이름만.
+    $('zone-label').textContent = `${wall ? '관문지기 · ' : ''}${zoneOf(s.stage).name}${s.regress.count ? ` · ${s.regress.count + 1}회차` : ''}`;
     $('stage-label').classList.toggle('wall', wall);
   }
   // 성장 축이 83개다. 지금 뭘 하면 가장 이득인지 한 줄로 짚어준다.
@@ -157,6 +182,10 @@ function refreshUI(full = false) {
   } else {
     gate.classList.add('hidden');
   }
+  $('hero-name').textContent = s.nickname || '무명';
+  $('hero-rank').textContent = RANKS[s.rank].name;
+  $('hero-lv').textContent = `Lv.${s.level}`;
+  drawPortrait();
   $('power-label').textContent = `전투력 ${fmt(game.power().power)}`;
   $('exp-bar').firstChild.style.width = `${Math.min(100, (s.exp / expToNext(s.level)) * 100)}%`;
 
@@ -204,7 +233,7 @@ function refreshUI(full = false) {
     btn.classList.toggle('ready', unlocked && left <= 0);
   }
   autoBtn.classList.toggle('on', s.autoSkill);
-  autoBtn.textContent = s.autoSkill ? 'AUTO\nON' : 'AUTO\nOFF';
+  autoBtn.querySelector('span').textContent = s.autoSkill ? '자동 켬' : '자동 끔';
 
   if (activeTab) tabs[activeTab].update();
   if (full) updateDots();
