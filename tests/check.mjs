@@ -609,5 +609,49 @@ console.log('\n=== 14. 백업 코드 ===');
     `${Object.keys(fresh).length} / ${Object.keys(newSave()).length}개 키`);
 }
 
+// ---------- 15. 겨루기 중에 쓰러지면 끝나는가 ----------
+console.log('\n=== 15. 겨루기 중 사망 ===');
+{
+  // heroDied가 수련터·시련·결투만 처리했다. 그래서 탑·균열·탐색·그림자·심검에서는
+  // 죽어도 안 끝나고 제한시간이 다 될 때까지 빈 화면을 보다가 풀렸다.
+  // 게다가 farming이 켜진 채 들판으로 돌아와 관문 진행까지 멈췄다.
+  const mk = () => {
+    const s = newSave();
+    Object.assign(s, { stage: 200, bestStage: 200, maxStage: 200, level: 500 });
+    Object.assign(s.upgrades, { atk: 1, hp: 1 });
+    const gg = new Game(s);
+    gg.rng = seeded(5);
+    gg.spawn();
+    return gg;
+  };
+  const cases = [
+    ['혈마의 탑', (gg) => gg.startTower()],
+    ['그림자 무림', (gg) => { gg.s.shadow.tries = 1; gg.startShadow(); }],
+    ['마기 균열', (gg) => { gg.s.seek = 3; gg.startSeek('rift'); }],
+    ['수련터', (gg) => { gg.s.daily.keys.gold = 3; gg.startDungeon('gold'); }],
+  ];
+  for (const [name, start] of cases) {
+    const gg = mk();
+    start(gg);
+    if (gg.mode === 'stage') { ok(true, `${name}는 조건이 안 돼 건너뜀`); continue; }
+    gg.heroHp = 1;
+    gg.heroDied();
+    ok(gg.mode === 'stage', `${name}에서 쓰러지면 바로 들판으로 돌아온다`, `모드 ${gg.mode}`);
+    ok(!gg.contest, `${name} 겨루기가 정리된다`);
+    ok(gg.s.farming !== true, `${name}에서 죽어도 farming이 안 켜진다`);
+  }
+
+  // 들판에서 관문지기에게 지는 건 그대로여야 한다 (여긴 farming이 켜지는 게 맞다)
+  const g2 = mk();
+  g2.s.kills = D.KILLS_PER_STAGE;
+  g2.spawnStage();
+  const wasBoss = !!(g2.mon && g2.mon.isBoss);
+  g2.heroHp = 1;
+  g2.heroDied();
+  ok(g2.mode === 'stage', '들판에서 죽어도 들판이다');
+  ok(!wasBoss || g2.s.farming === true, '관문지기에게 지면 farming이 켜진다 (기존 동작)',
+    `관문지기였나 ${wasBoss} · farming ${g2.s.farming}`);
+}
+
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);

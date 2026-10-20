@@ -1742,8 +1742,18 @@ export class Game {
 
   heroDied() {
     this.s.wave = 0;
-    if (this.mode === 'dungeon' || this.mode === 'trial') return this.endContest('fail');
-    if (this.mode === 'pvp') return this.endContest('lose');
+    // 겨루기 중에 쓰러지면 그 자리에서 끝난다.
+    //
+    // 전에는 수련터·시련·결투만 처리했다. 그래서 탑·균열·탐색·그림자·심검에서는
+    // 죽어도 안 끝나고, 제한시간이 다 될 때까지 **빈 화면을 35초쯤 보다가** 풀렸다.
+    // 게다가 아래 farming 처리까지 타고 내려가서, 들판으로 돌아왔을 때
+    // farming이 켜진 채였다 — 관문지기를 다시 부르기 전까지 관문이 안 올라간다.
+    // 탑에서 한 번 지면 진행이 멈춘 것처럼 보이던 이유다.
+    if (this.contest) {
+      if (this.mode === 'pvp') return this.endContest('lose');
+      if (this.mode === 'raid') return this.endContest('done');   // 토벌은 넣은 피해를 기록한다
+      return this.endContest('fail');
+    }
     const wasBoss = this.mon?.isBoss;
     this.emit('heroDied', { boss: wasBoss });
     if (wasBoss) {
