@@ -37,7 +37,11 @@ function playerList(app, { sortKey, valueLabel, empty, onPick, action }) {
         h('div', { style: 'font-weight:900;color:#fde68a' }, valueLabel(p)),
         action && p.uid !== net.uid ? action(p) : null))));
     } catch (err) {
-      status.textContent = `불러오지 못했어요: ${err.message}`;
+      // 권한이 막힌 경우는 '인터넷이 느린 것'이 아니라 서버 설정 문제다.
+      // 영어 오류를 그대로 보여주면 플레이어는 뭘 해야 할지 모른다.
+      status.textContent = net.denied(err)
+        ? '서버가 닫혀 있어요. 잠시 뒤에 다시 열릴 거예요.'
+        : `불러오지 못했어요: ${err.message}`;
     } finally {
       refreshBtn.disabled = false;
     }

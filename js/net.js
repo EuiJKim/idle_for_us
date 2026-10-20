@@ -81,15 +81,36 @@ export class Net {
     };
   }
 
+  // 권한이 막힌 경우를 가려낸다.
+  //
+  // Firestore 규칙이 막혀 있으면(테스트 모드 만료, 규칙 미게시 등) 모든 요청이
+  // 'permission-denied'로 떨어진다. 그런데 로그인 자체는 성공하므로
+  // 화면에는 계속 '온라인'이라고 떴고, 5초마다 다시 던져서 콘솔이 같은
+  // 경고로 도배됐다. 될 리 없는 요청을 반복하는 것이다.
+  //
+  // 한 번 막히면 끊긴 것으로 보고 멈춘다. 그래야 화면도 솔직해진다.
+  denied(err) {
+    const code = err?.code || '';
+    const msg = String(err?.message || err);
+    if (code !== 'permission-denied' && !msg.includes('insufficient permissions')) return false;
+    if (this.status !== 'offline') {
+      console.warn('[net] 서버 권한이 막혀 있어 끊습니다 (Firestore 규칙을 확인하세요)');
+      this.status = 'offline';
+      this.blocked = true;
+      this.changed('status');
+    }
+    return true;
+  }
+
   async pushProfile(force = false) {
-    if (!this.online || !this.game.s.nickname) return;
+    if (!this.online || this.blocked || !this.game.s.nickname) return;
     const now = Date.now();
     if (!force && now - this.lastProfile < PROFILE_INTERVAL) return;
     this.lastProfile = now;
     try {
       await this.fs.setDoc(this.ref('players', this.uid), this.profileData(), { merge: true });
     } catch (err) {
-      console.warn('[net] profile', err);
+      if (!this.denied(err)) console.warn('[net] profile', err);
     }
   }
 

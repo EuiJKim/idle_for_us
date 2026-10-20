@@ -137,9 +137,12 @@ export function newSave(now = Date.now()) {
 // 한 겹 안쪽(객체 속 키)까지 본다 — skills·upgrades처럼 대부분이 기본값인 것이 많다.
 export function slimSave(save, now = Date.now()) {
   const base = newSave(now);
+  // 시각은 기본값과 우연히 같아도 빼면 안 된다 — 방치 보상 계산에 쓴다
+  const KEEP = ['lastSeen', 'created', 'climbAt'];
   const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
   const out = {};
   for (const [k, v] of Object.entries(save)) {
+    if (KEEP.includes(k)) { out[k] = v; continue; }
     if (k in base && same(v, base[k])) continue;
     const bothPlain = v && typeof v === 'object' && !Array.isArray(v)
       && base[k] && typeof base[k] === 'object' && !Array.isArray(base[k]);
@@ -1037,7 +1040,8 @@ export class Game {
 
   toggleOptionLock(type, i) {
     const lock = this.s.optionLock?.[type];
-    if (!lock || i < 0 || i >= OPTION_SLOTS) return false;
+    // 아직 안 열린 칸은 잠글 수 없다 (열린 칸 수는 제련으로 늘어난다)
+    if (!lock || i < 0 || i >= this.optionSlots(type)) return false;
     lock[i] = !lock[i];
     return lock[i];
   }
@@ -1646,7 +1650,9 @@ export class Game {
     this.progress('kill');
     this.noteLore('mob', codexGradeOf(s));
     this.emit('kill', { gold, isBoss: false, add: true, at: a });
-    if (!this.s.farming) this.s.kills++;
+    // 관문지기가 나온 뒤에도 졸개를 잡으면 계속 올랐다(20 기준인데 30까지).
+    // 화면은 Math.min으로 가려 뒀지만 값 자체를 막는 게 맞다.
+    if (!this.s.farming) this.s.kills = Math.min(KILLS_PER_STAGE, this.s.kills + 1);
   }
 
   dealDamage(amount, kind = 'hit', crit = false) {

@@ -1,6 +1,7 @@
 import { Game, newSave, migrate, slimSave } from './game.js';
 import {
   SKILLS, KILLS_PER_STAGE, DUNGEON_MOBS, RANKS, MISSIONS, PETS, zoneOf, expToNext,
+  CODEX_KINDS, GRADES,
   isWallStage, nextUnlock, unlocksAt,
 } from './data.js';
 import { BattleView } from './battle.js';
@@ -226,7 +227,18 @@ function handleEvents() {
       case 'levelUp': updateDots(); break;
       case 'regress': toast(`회귀 · 전생의 기억 +${ev.gain}`); break;
       case 'missionDone': toast(`📜 의뢰 완료: ${MISSIONS.find((x) => x.id === ev.id).name}`); updateDots(); break;
-      case 'heroDied': if (ev.boss) toast('두목를 못 잡았어요. 수련하고 다시 도전!'); break;
+      case 'heroDied': if (ev.boss) toast('두목을 못 잡았어요. 수련하고 다시 도전!'); break;
+      // 아래 넷은 게임이 쏘기만 하고 아무도 안 받고 있었다.
+      // 뭔가 얻었는데 화면에 아무 일도 안 일어나면 플레이어는 얻은 줄 모른다.
+      case 'accBox': toast(`🎁 장신구 상자 ${ev.boxes}개를 열었어요`); updateDots(); break;
+      case 'accPick': toast('🎁 선택 상자를 얻었어요 — 자리를 골라 열어요'); updateDots(); break;
+      case 'lore': {
+        const kd = CODEX_KINDS.find((x) => x.id === ev.kind);
+        toast(`📖 인물도감: ${GRADES[ev.grade].name} ${kd ? kd.name : ''} 기록`);
+        break;
+      }
+      // 소환 레벨은 자주 오른다. 토스트를 띄우면 시끄러우니 점으로만 알린다.
+      case 'gachaLv': updateDots(); break;
       case 'raidEnd': finishRaid(ev.damage); break;
       case 'contestEnd': if (ev.mode !== 'raid') showResult(ev); break;
       default:
