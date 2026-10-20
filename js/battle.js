@@ -1,5 +1,6 @@
 // 전투 화면 캔버스 렌더러 (수묵화 무협풍). 게임 이벤트를 받아 연출만 담당한다.
 import { zoneOf, RANKS, GRADES, PETS, SKILLS, FIELD_SQUASH } from './data.js';
+import { artReady, putArt, loadArt, FIT, headKey, bodyKey, weaponKey } from './art.js';
 import { fmt } from './fmt.js';
 
 export const BRUSH = '"Yuji Syuku", "Nanum Brush Script", "Gowun Batang", serif';
@@ -64,6 +65,8 @@ function sparkImage(color) {
 
 const SPR = { w: 80, h: 160, ox: 44, oy: 146, phases: 8, cycle: Math.PI / 2, max: 48 };
 const sprCache = new Map();
+// 그림이 늦게 도착하면 벡터로 구워 둔 것을 버려야 한다
+loadArt(() => sprCache.clear());
 const lookIds = new WeakMap();
 let lookSeq = 0;
 function lookId(look) {
@@ -1110,12 +1113,15 @@ export function drawFighter(ctx, x, y, look = {}, o = {}) {
     ctx.beginPath(); ctx.ellipse(15 + swing, -1, 7, 3, 0, 0, Math.PI * 2); ctx.fill();
   }
 
-  // 뒷팔 (넓은 소매)
-  ctx.fillStyle = shade(robe, -0.2);
-  ctx.beginPath();
-  ctx.moveTo(-8, -70);
-  if (jiang) { ctx.lineTo(26, -66); ctx.lineTo(28, -56); ctx.lineTo(-6, -58); } else { ctx.lineTo(-20, -48); ctx.lineTo(-12, -44); ctx.lineTo(-2, -62); }
-  ctx.fill();
+  // 뒷팔 (넓은 소매) — 그림 몸통에는 소매가 이미 그려져 있다.
+  // 이걸 안 끄면 화면에서 회색 판자가 가슴 앞에 하나 더 붙는다.
+  if (!artReady() || jiang) {
+    ctx.fillStyle = shade(robe, -0.2);
+    ctx.beginPath();
+    ctx.moveTo(-8, -70);
+    if (jiang) { ctx.lineTo(26, -66); ctx.lineTo(28, -56); ctx.lineTo(-6, -58); } else { ctx.lineTo(-20, -48); ctx.lineTo(-12, -44); ctx.lineTo(-2, -62); }
+    ctx.fill();
+  }
 
   // 도포 아랫자락
   const flap = Math.sin(t * 5) * 2 + (o.run ? 4 : 0);
@@ -1133,7 +1139,10 @@ export function drawFighter(ctx, x, y, look = {}, o = {}) {
   ctx.beginPath(); ctx.moveTo(19, -14); ctx.quadraticCurveTo(0, -10, -20 - flap, -12); ctx.stroke();
   ctx.beginPath(); ctx.moveTo(2, -46); ctx.lineTo(5, -12); ctx.stroke();
 
-  // 상체
+  // 상체 — 그림 조각이 있으면 도포·상체·허리띠를 한 장으로 갈음한다
+  if (artReady() && !jiang && !look.ghost && putArt(ctx, bodyKey(look), FIT.body)) {
+    // 그림 한 장이 도포·상체·허리띠를 한꺼번에 갈음한다
+  } else {
   ctx.fillStyle = robeNow;
   roundRect(ctx, -12, -74, 24, 30, 7);
   ctx.fill();
@@ -1148,8 +1157,12 @@ export function drawFighter(ctx, x, y, look = {}, o = {}) {
   ctx.strokeStyle = sash;
   ctx.lineWidth = 3;
   ctx.beginPath(); ctx.moveTo(-9, -46); ctx.quadraticCurveTo(-14 - flap, -36, -12 - flap, -26); ctx.stroke();
+  }
 
   // 머리
+  if (artReady() && !jiang && look.head !== 'mask' && putArt(ctx, headKey(look), FIT.head)) {
+    // 머리카락까지 한 장
+  } else {
   ctx.fillStyle = skin;
   ctx.fillRect(-3, -80, 7, 6);
   circle(ctx, 1, -88, 11);
@@ -1165,7 +1178,8 @@ export function drawFighter(ctx, x, y, look = {}, o = {}) {
     ctx.fillStyle = look.eyes || '#f8fafc';
     ctx.fillRect(6, -90, 4, 2);
   }
-  if (look.beard) {
+  }
+  if (look.beard && !artReady()) {
     ctx.fillStyle = look.hair === '#e5e7eb' || look.hair === '#f1f5f9' ? '#e5e7eb' : '#1c1917';
     ctx.beginPath(); ctx.moveTo(2, -82); ctx.lineTo(12, -82); ctx.lineTo(6, -68); ctx.fill();
   }
@@ -1178,12 +1192,17 @@ export function drawFighter(ctx, x, y, look = {}, o = {}) {
   else if (weapon === 'spear') ang = -1.45 + lunge * 0.15;
   else ang = -0.2 - (lunge > 0 ? 1 - lunge : 0) * 0.9 + lunge * 1.1 - 0.4;
   ctx.rotate(ang + Math.PI / 2);
-  ctx.fillStyle = shade(robeNow, -0.05);
-  ctx.beginPath(); ctx.moveTo(-5, -2); ctx.lineTo(7, -2); ctx.lineTo(9, 18); ctx.lineTo(-7, 18); ctx.fill(); // 소매
+  if (!artReady()) {
+    ctx.fillStyle = shade(robeNow, -0.05);
+    ctx.beginPath(); ctx.moveTo(-5, -2); ctx.lineTo(7, -2); ctx.lineTo(9, 18); ctx.lineTo(-7, 18); ctx.fill(); // 소매
+  }
   ctx.fillStyle = skin;
   circle(ctx, 1, 22, 4.5);
   ctx.translate(1, 22);
-  drawWeapon(ctx, weapon, o, t, lunge);
+  const wk = artReady() ? weaponKey(weapon) : null;
+  if (!(wk && putArt(ctx, wk, FIT.weapon))) {
+    drawWeapon(ctx, weapon, o, t, lunge);
+  }
   ctx.restore();
 
   drawOrbit(true);

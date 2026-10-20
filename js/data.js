@@ -95,6 +95,15 @@ export function waveReward(stage, wave, total) {
 // 그동안 잡는 적은 그대로 은자가 되니 시간이 버려지지는 않는다.
 export const WAVE_MIN_SEC = 11;      // 4물결 x 11초 + 관문지기 = 45초쯤
 
+// **이미 깬 길은 빨리 지나간다.**
+//
+// 바닥 시간을 넣고 나니 회귀가 못 쓸 물건이 됐다. 관문 350에서 회귀하면
+// 1관문부터 다시 올라와야 하는데 한 관문이 47초라 되돌아가는 데만 4시간 반이다.
+// 그래서 하루가 지나면 24시간당 +10관문으로 납작해졌다.
+// Blade Idle에도 같은 장치가 있다 — 하단 우측 줄의 LoopAndGo(반복 이동).
+export const WAVE_RECLIMB = 0.22;
+export const waveMinSec = (stage, best) => WAVE_MIN_SEC * (stage < (best || 0) ? WAVE_RECLIMB : 1);
+
 export const BOSS_TIME = 30;
 export const SPAWN_DELAY = 0.45;
 // ---------- 그림자 무림 (저쪽의 '도플갱어') ----------
@@ -309,7 +318,7 @@ export const REGRESS_MIN_STAGE = 80;
 export const REGRESS_PER_POINT = 0.1; // 전생의 기억 1개당 공격력·체력·은자·경험치 +10%
 // 관문 몇 개마다 전생의 기억 1개인가. 관문 눈금이 촘촘해지면 여기도 같이 넓혀야
 // 회귀가 공짜 가속 장치가 되지 않는다.
-export const REGRESS_PER_STAGES = 10;
+export const REGRESS_PER_STAGES = 5;
 export const regressGain = (maxStage) => (maxStage < REGRESS_MIN_STAGE ? 0 : Math.floor((maxStage - 50) / REGRESS_PER_STAGES));
 
 // 회귀를 '권할' 시점.
@@ -320,7 +329,10 @@ export const regressGain = (maxStage) => (maxStage < REGRESS_MIN_STAGE ? 0 : Mat
 // 전부 붙어서 되돌아오는 데 얼마 안 걸리는데, 그게 화면에 안 보였다.
 //
 // 그래서 '지금 회귀하면 이득'을 직접 띄운다.
-export const REGRESS_ADVISE_POINTS = 30;   // 이만큼 받을 수 있으면 권한다 (200관문쯤)
+// 관문 눈금을 촘촘하게 바꾼 뒤 이 값이 너무 높아져서, 일주일 시뮬에서
+// 회귀가 **한 번도 안 터지고** 관문 200에 사흘을 묶여 있었다.
+// 회귀는 벽을 뚫는 유일한 장치라 안 터지면 게임이 멈춘다.
+export const REGRESS_ADVISE_POINTS = 18;   // 이만큼 받을 수 있으면 권한다 (200관문쯤)
 // 막혀 있다고 보는 시간 (초). 이만큼 최고 관문이 안 올라가면 회귀가 답이다.
 export const REGRESS_STUCK_SEC = 600;
 

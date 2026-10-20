@@ -1,7 +1,7 @@
 // 게임 규칙과 상태. DOM을 모르는 순수 로직이라 Node에서도 돌아간다.
 import {
   SAVE_VERSION, OFFLINE_CAP_SEC, KILLS_PER_STAGE, BOSS_TIME, SPAWN_DELAY, RAID_TIME, RAID_TICKETS,
-  WAVE_MIN_SEC,
+  WAVE_MIN_SEC, waveMinSec,
   MERGE_COUNT, GACHA_COST, GACHA10_COST, DAILY_GEMS, START_GEMS, SPEED_CAP, CRIT_CAP,
   UPGRADES, GRADES, GACHA_RATES, EQUIP_TYPES, ENHANCE_PER, enhanceCost,
   EQUIP_PIERCE_MAX, EQUIP_PIERCE_MULT, equipPierceCost,
@@ -1414,10 +1414,15 @@ export class Game {
   // 재 보니 한 관문이 10초였다(설계 목표 45초).
   //
   // 세지 않을 뿐 잡는 건 그대로다. 은자도 경험치도 들어온다.
+  // 한 물결이 최소 몇 초 걸리는가. 이미 깬 길은 빨리 지나간다.
+  // maxStage는 회귀할 때 1로 돌아간다 — 그걸 쓰면 되돌아가는 길을 못 알아본다.
+  // 전생까지 쳐서 가장 멀리 간 bestStage로 봐야 한다.
+  waveFloor() { return waveMinSec(this.s.stage, this.s.bestStage); }
+
   // 관문지기가 길을 막을 때가 됐는가. 마지막 물결에는 advanceWave가 안 걸리므로
   // 여기서도 바닥 시간을 본다.
   bossReady() {
-    return (this.s.kills || 0) >= KILLS_PER_STAGE && (this.waveT || 0) >= WAVE_MIN_SEC;
+    return (this.s.kills || 0) >= KILLS_PER_STAGE && (this.waveT || 0) >= this.waveFloor();
   }
 
   countKill() {
@@ -1434,7 +1439,7 @@ export class Game {
     if (this.waveDone() < this.waveNeed()) return false;
     // 처치 수를 다 채웠어도 바닥 시간은 채워야 넘어간다.
     // 이게 없으면 광역기 한 방에 관문이 끝난다 — 재 보니 10초였다.
-    if ((this.waveT || 0) < WAVE_MIN_SEC) return false;
+    if ((this.waveT || 0) < this.waveFloor()) return false;
     // 넘긴 물결의 보상을 준다
     const got = waveReward(this.s.stage, this.s.wave || 0, total);
     this.grant(got);

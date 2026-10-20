@@ -2,3 +2,6 @@ tests/shots/
 node_modules/
 .DS_Store
 _boot_tmp.html
+
+# 참고용 그림 조각 — 배포에 안 들어간다
+art/
