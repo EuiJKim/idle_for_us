@@ -72,7 +72,7 @@ export function skillTab(app) {
       app.refresh();
     } });
     const pierce = h('button', { class: 'buy', style: 'font-size:11px', onclick: () => {
-      if (game.skillPierce(sk.id)) app.refresh();
+      if (game.skillPierce(sk.id)) { popUp(rows[sk.id].row, '초월!'); app.refresh(); }
       else toast(`${SKILL_PIERCE_AT}레벨부터 초월할 수 있고 비급이 필요해요`);
     } });
     rows[sk.id] = { lv, desc, btn, eq, pierce, row: null };

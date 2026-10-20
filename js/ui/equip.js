@@ -10,7 +10,7 @@ import { GRADES, EQUIP_TYPES, MERGE_COUNT, GACHA_COST, GACHA10_COST, ENHANCE_PER
   EGO_PARTS, EGO_STEP_MAX, EGO_FEED_MIN_GRADE, EGO_FEED_EXP, egoPower,
   EGO_ENCHANT_MAX, EGO_ENCHANT_WORTH } from '../data.js';
 import { fmt, pct } from '../fmt.js';
-import { h, toast, openModal, closeModal, gradeChip, gachaLevelBar, loopBtn } from './common.js';
+import { h, toast, openModal, closeModal, gradeChip, gachaLevelBar, loopBtn, popUp } from './common.js';
 
 export function equipTab(app) {
   const { game } = app;
@@ -75,19 +75,29 @@ export function equipTab(app) {
       app.refresh();
       return undefined;
     } });
+    const prcRow = h('div', { style: 'display:flex;gap:6px;margin-top:6px;align-items:center;position:relative' });
     const prcBtn = h('button', { class: 'buy', onclick: () => {
-      if (game.equipPierceUp(type)) app.refresh();
+      if (game.equipPierceUp(type)) { popUp(prcRow, '초월!'); app.refresh(); }
       else toast(`${GRADES[GRADES.length - 1].name} 병기가 더 필요해요 (끼운 하나는 남겨둬요)`);
     } });
     const prcTxt = h('span', { class: 'muted', style: 'flex:1' });
-    const enhBtn = h('button', { class: 'buy', onclick: () => { if (game.enhanceEquip(type, 1)) app.refresh(); } });
-    const enh10 = h('button', { class: 'buy', style: 'min-width:56px', onclick: () => { if (game.enhanceEquip(type, 10)) app.refresh(); } }, 'x10');
+    const enhRow = h('div', { style: 'display:flex;gap:6px;margin-top:8px;align-items:center;position:relative' });
+    const enhUp = (n) => {
+      const before = game.s.enhance[type];
+      if (!game.enhanceEquip(type, n)) return;
+      const got = game.s.enhance[type] - before;
+      popUp(enhRow, got > 1 ? `+${got}` : `${game.s.enhance[type]}단`);
+      app.refresh();
+    };
+    const enhBtn = h('button', { class: 'buy', onclick: () => enhUp(1) });
+    const enh10 = h('button', { class: 'buy', style: 'min-width:56px', onclick: () => enhUp(10) }, 'x10');
+    enhRow.append(h('span', { class: 'muted', style: 'flex:1' },
+      `제련 1단계마다 ${def.label} 배율 +${pct(ENHANCE_PER)}`), enhBtn, enh10);
+    prcRow.append(prcTxt, prcBtn);
     cards[type] = { cells, bonus, def, enhLv, enhBtn, enh10, prcBtn, prcTxt, codexLv, optCells, optInfo, rerollBtn, optWrap };
     root.append(h('div', { class: 'card' },
       h('h3', {}, def.name, codexLv, enhLv), grid, bonus,
-      h('div', { style: 'display:flex;gap:6px;margin-top:8px;align-items:center' },
-        h('span', { class: 'muted', style: 'flex:1' }, `제련 1단계마다 ${def.label} 배율 +${pct(ENHANCE_PER)}`), enhBtn, enh10),
-      h('div', { style: 'display:flex;gap:6px;margin-top:6px;align-items:center' }, prcTxt, prcBtn),
+      enhRow, prcRow,
       h('div', { class: 'section-title', style: 'margin:12px 2px 6px' }, h('span', {}, '옵션 칸'), optInfo),
       optWrap,
       h('div', { style: 'display:flex;gap:6px;margin-top:8px;align-items:center' },
@@ -127,7 +137,7 @@ export function equipTab(app) {
     const upBtn = h('button', { class: 'btn primary' });
     const upLoop = loopBtn(app, 'ego', e.id);
     upBtn.addEventListener('click', () => {
-      if (game.startEgoTrial(e.id)) app.refresh();
+      if (game.startEgoTrial(e.id)) { popUp(upBtn.parentElement, '승급 도전'); app.refresh(); }
       else toast('아직 경험치가 모자라거나 다른 싸움 중이에요');
     });
     // 강화 — 승급에 못 쓰고 가방에서 썩는 장신구를 바친다
