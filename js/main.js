@@ -6,6 +6,8 @@ import {
   isWallStage, nextUnlock, unlocksAt,
 } from './data.js';
 import { BattleView, drawFighter } from './battle.js';
+import { loadIcons } from './icons.js';
+loadIcons();
 import { Net } from './net.js';
 import {
   TABS, h, toast, openModal, closeModal, modalOpen, showProfile, openMissions, rewardText,

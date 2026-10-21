@@ -1,7 +1,7 @@
 // 전투 화면 캔버스 렌더러 (수묵화 무협풍). 게임 이벤트를 받아 연출만 담당한다.
 import { zoneOf, RANKS, GRADES, PETS, SKILLS, FIELD_SQUASH } from './data.js';
 import { artReady, putArt, loadArt, FIT, headKey, bodyKey, weaponKey } from './art.js';
-import { fxReady, putFx, loadFx } from './fx.js';
+import { fxReady, putFx, loadFx, zoneTile } from './fx.js';
 import { fmt } from './fmt.js';
 
 export const BRUSH = '"Yuji Syuku", "Nanum Brush Script", "Gowun Batang", serif';
@@ -419,6 +419,18 @@ export class BattleView {
     // 흙바닥 기본색
     ctx.fillStyle = ground;
     ctx.fillRect(-20, -20, w + 40, h + 40);
+
+    // 바닥 질감 — 그림이 있으면 카메라를 따라 흐르는 타일로 덮는다.
+    // 기본색을 먼저 깔아 두므로, 그림이 늦게 와도 빈 화면이 안 보인다.
+    const pat = zoneTile(ctx, z.idx ?? 0);
+    if (pat) {
+      ctx.save();
+      ctx.globalAlpha = 0.85;
+      ctx.translate(-camX % 512, (-camY * this.squash) % 512);
+      ctx.fillStyle = pat;
+      ctx.fillRect(-532, -532, w + 1064, h + 1064);
+      ctx.restore();
+    }
 
     // 땅 얼룩 — 큰 붓자국 두 겹이 카메라와 함께 흐른다
     const blot = (cell, alpha, rx, ry, color) => {

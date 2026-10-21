@@ -5,6 +5,7 @@ import { PETS, GRADES, PET_EGG_COST, OWN_STAT_NAMES, PET_ATTACK_INTERVAL, petDam
   OUTFIT_GACHA_LVS } from '../data.js';
 import { fmt, pct } from '../fmt.js';
 import { h, toast, openModal, closeModal, subTabs, gachaLevelBar, popUp } from './common.js';
+import { iconSkin } from '../icons.js';
 
 function petView(app) {
   const { game } = app;
@@ -30,6 +31,7 @@ function petView(app) {
     } });
     const eqBtn = h('button', { class: 'btn', style: 'padding:6px 8px;font-size:12px', onclick: () => { game.equipPet(pet.id); app.refresh(); } });
     const icon = h('div', { class: 'ico pet-ico' }, pet.emoji);
+    iconSkin(icon, 'pet', PETS.indexOf(pet));
     const bond = h('div', { class: 'desc', style: 'margin-top:4px' });
     const engBtn = h('button', { class: 'btn', style: 'padding:6px 8px;font-size:12px', onclick: () => {
       if (game.engravePet(pet.id)) { toast(`${pet.name} 각인 완료`); app.refresh(); } else toast('각인 조건이 안 돼요');
@@ -125,7 +127,9 @@ function relicView(app) {
     const desc = h('div', { class: 'desc' });
     const bar = h('div', { class: 'bar', style: 'height:8px;margin:4px 0 0' }, h('div'));
     rows[r.id] = { lv, desc, bar };
-    root.append(h('div', { class: 'row' }, h('div', { class: 'ico' }, r.icon),
+    const rico = h('div', { class: 'ico' }, r.icon);
+    iconSkin(rico, 'relic', RELICS.indexOf(r));
+    root.append(h('div', { class: 'row' }, rico,
       h('div', { class: 'info' }, h('div', { class: 'name' }, r.name, lv), desc, bar)));
   }
 

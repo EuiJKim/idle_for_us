@@ -23,6 +23,29 @@ let tried = false;
 
 export function fxReady() { return ready; }
 
+// ---------- 지역 바닥 ----------
+// 카메라를 따라 흐르며 타일로 반복된다. 빛과 달리 **하나씩 따로** 불러온다 —
+// 한 지역이 안 와도 나머지 일곱은 그대로 쓸 수 있어야 한다.
+const zoneImg = {};
+const zonePat = {};
+export function zoneTile(ctx, i) {
+  if (zonePat[i] !== undefined) return zonePat[i];
+  const im = zoneImg[i];
+  if (!im) {
+    if (zoneImg[i] === undefined) {
+      zoneImg[i] = null;                 // 한 번만 시도한다
+      const x = new Image();
+      x.onload = () => { zoneImg[i] = x; delete zonePat[i]; };
+      x.onerror = () => {};
+      x.src = `art/zone/zone-${i}.jpg`;
+    }
+    return null;
+  }
+  const p = ctx.createPattern(im, 'repeat');
+  zonePat[i] = p;
+  return p;
+}
+
 export function loadFx(onDone) {
   if (tried) return;
   tried = true;

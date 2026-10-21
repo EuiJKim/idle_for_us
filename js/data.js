@@ -2,7 +2,7 @@
 
 // 지금 돌고 있는 빌드. 설정 창에 적어 둔다 — 기기가 옛 판을 들고 있는지
 // 한눈에 보려고 둔다. sw.js의 CACHE와 같은 값으로 맞춘다.
-export const BUILD = 'ifu-v38';
+export const BUILD = 'ifu-v39';
 
 export const SAVE_VERSION = 4;
 export const OFFLINE_CAP_SEC = 12 * 3600;
@@ -1267,7 +1267,9 @@ export const zoneOf = (stage) => {
   if (!z) {
     const base = ZONES[i];
     const tier = ZONE_TIERS[t];
-    z = t === 0 ? base : { ...base, name: tier.prefix + base.name, sun: tier.sun || base.sun, tier: t };
+    // idx는 바닥 그림(art/zone/zone-N.png)을 찾는 데 쓴다
+    z = t === 0 ? { ...base, idx: i }
+      : { ...base, idx: i, name: tier.prefix + base.name, sun: tier.sun || base.sun, tier: t };
     _zoneCache.set(key, z);
   }
   return z;

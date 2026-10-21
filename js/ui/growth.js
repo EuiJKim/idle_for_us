@@ -5,6 +5,7 @@ import { UPGRADES, SP_STATS, SP_RESET_GEMS, RANKS, RANK_MULT, expToNext, REGRESS
 import { fmt } from '../fmt.js';
 import { drawFighter } from '../battle.js';
 import { h, toast, openModal, closeModal, fmtValue, subTabs, multSelector, popUp } from './common.js';
+import { iconSkin } from '../icons.js';
 
 function upgradeView(app) {
   const { game } = app;
@@ -22,8 +23,10 @@ function upgradeView(app) {
       popUp(rows[key].row, got > 1 ? `+${got}` : '+1');
       app.refresh();
     } });
+    const ico = h('div', { class: 'ico' }, def.icon);
+    iconSkin(ico, 'up', Object.keys(UPGRADES).indexOf(key));
     const row = h('div', { class: 'row' },
-      h('div', { class: 'ico' }, def.icon),
+      ico,
       h('div', { class: 'info' }, h('div', { class: 'name' }, def.name, lv), desc), btn);
     rows[key] = { lv, desc, btn, def, row };
     root.append(row);

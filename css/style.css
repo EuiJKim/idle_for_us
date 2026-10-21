@@ -556,3 +556,6 @@ body { background: radial-gradient(ellipse at top, #1d1712, #0b0907 70%); }
 /* 틀이 두꺼우니 안쪽 여백을 줄인다 */
 .card { padding: 8px; }
 #panel-body .card:first-child { margin-top: 2px; }
+
+/* 아이콘 그림이 있으면 글자를 가리고 그림만 보인다 */
+.ico.has-art { background-size: contain; background-repeat: no-repeat; background-position: center; color: transparent; text-indent: -999px; overflow: hidden; }
