@@ -3,3 +3,9 @@ node_modules/
 .DS_Store
 _boot_tmp.html
 
+
+# 셸 변수가 안 풀려서 생긴 가짜 폴더. 여기에 키가 들어간 적이 있다.
+$USERPROFILE/
+.openai/
+*.key
+key.txt
