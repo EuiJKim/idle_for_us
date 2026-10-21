@@ -8,6 +8,12 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    // 운영자 한 사람. 이 값이 맞는지는 **여기(서버)에서** 본다 —
+    // 화면 쪽에 같은 값이 적혀 있지만 그건 '버튼을 보여 줄까'일 뿐이다.
+    function isAdmin() {
+      return signedIn() && request.auth.uid == 'hUNkOEQQ6XgSb94Ih6PP2sMEkTl2';
+    }
+
     function isMember(gid) {
       return signedIn()
         && request.auth.uid in get(/databases/$(database)/documents/guilds/$(gid)).data.memberIds;
@@ -29,7 +35,13 @@ service cloud.firestore {
     // 운영자가 하는 일: 입금 확인 → 이 경로에 문서 하나 만들기
     //   entitlements/{그 사람 uid}  ->  { noAds: true }
     match /entitlements/{uid} {
-      allow read: if signedIn() && request.auth.uid == uid;
+      allow read: if signedIn() && (request.auth.uid == uid || isAdmin());
+      // 켜고 끄는 건 운영자만. 담을 수 있는 것도 noAds 하나로 못박는다 —
+      // 나중에 다른 걸 끼워 넣고 싶어지면 규칙부터 고치게 된다.
+      allow create, update: if isAdmin()
+        && request.resource.data.noAds is bool
+        && request.resource.data.keys().hasOnly(['noAds', 'at', 'memo']);
+      allow delete: if isAdmin();
     }
 
     // 상점에 띄울 계좌 정보. **저장소에 안 둔다** — 공개 저장소라서다.
@@ -37,6 +49,7 @@ service cloud.firestore {
     //   config/shop  ->  { bank: '○○은행 000-0000-0000 홍길동', price: '5,000원', note: '...' }
     match /config/{doc} {
       allow read: if signedIn();
+      allow write: if isAdmin();   // 계좌 정보를 폰에서 고칠 수 있게
     }
 
     match /guilds/{gid} {

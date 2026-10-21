@@ -1,6 +1,6 @@
 // Firebase 연동: 익명 로그인, 프로필·서열, 문파·채팅, 문파 토벌.
 // SDK를 동적으로 불러오므로 실패해도 혼자 하기는 그대로 동작한다.
-import { firebaseConfig, FIREBASE_SDK_VERSION } from './firebase-config.js';
+import { firebaseConfig, FIREBASE_SDK_VERSION, ADMIN_UID } from './firebase-config.js';
 import { dayKey } from './game.js';
 import {
   EQUIP_TYPES, PETS, GUILD_MAX, GUILD_CHECKIN_EXP, GUILD_DONATE_GEMS, GUILD_DONATE_EXP, RAID_HP_SECONDS, raidReward,
@@ -94,6 +94,58 @@ export class Net {
     } catch (err) {
       if (!this.denied(err)) console.warn('[net] shop', err);
     }
+  }
+
+  // ---------- 운영자 ----------
+  //
+  // 여기서 참이라고 **허락되는 건 아니다.** 서버 규칙이 같은 값을 다시 본다.
+  // 이건 '버튼을 보여 줄까'만 정한다 — 누가 코드를 고쳐 true로 만들어도
+  // 쓰기는 서버에서 거부된다.
+  isAdmin() { return !!this.uid && this.uid === ADMIN_UID; }
+
+  // 광고 제거를 켜고 끈다. 끌 때는 문서를 지운다 — 꺼진 흔적을 남길 이유가 없다.
+  async setNoAds(uid, on) {
+    if (!this.isAdmin() || !uid) return false;
+    try {
+      if (on) await this.fs.setDoc(this.ref('entitlements', uid), { noAds: true, at: Date.now() });
+      else await this.fs.deleteDoc(this.ref('entitlements', uid));
+      return true;
+    } catch (err) { console.warn('[net] setNoAds', err); return false; }
+  }
+
+  // 누가 켜져 있는지 한 번에 본다 (운영자만 남의 것을 읽을 수 있다)
+  async whoHasNoAds(uids) {
+    if (!this.isAdmin()) return {};
+    const out = {};
+    await Promise.all(uids.map(async (u) => {
+      try {
+        const s = await this.fs.getDoc(this.ref('entitlements', u));
+        out[u] = s.exists() && !!s.data().noAds;
+      } catch { out[u] = null; }
+    }));
+    return out;
+  }
+
+  // 서열 상위를 불러온다 — 운영자 화면에서 별호로 고르게 하려고
+  async topPlayers(n = 30) {
+    try {
+      const snap = await this.fs.getDocs(this.fs.query(
+        this.fs.collection(this.db, 'players'), this.fs.orderBy('power', 'desc'), this.fs.limit(n)));
+      const rows = [];
+      snap.forEach((d) => rows.push({ uid: d.id, ...d.data() }));
+      return rows;
+    } catch (err) { console.warn('[net] topPlayers', err); return []; }
+  }
+
+  // 계좌 정보를 폰에서 고친다
+  async saveShop(data) {
+    if (!this.isAdmin()) return false;
+    try {
+      await this.fs.setDoc(this.ref('config', 'shop'), data, { merge: true });
+      this.shop = { ...(this.shop || {}), ...data };
+      this.changed('shop');
+      return true;
+    } catch (err) { console.warn('[net] saveShop', err); return false; }
   }
 
   // ---------- 서버 점검 ----------

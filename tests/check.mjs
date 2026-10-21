@@ -1192,10 +1192,12 @@ console.log('\n=== 25. 광고 / 광고 제거 ===');
     `x${(b.atk / a.atk).toFixed(3)}`);
   ok(Math.abs(b.hp / a.hp - D.NOADS_HP) < 1e-9, `광고를 지우면 체력 x${D.NOADS_HP}`,
     `x${(b.hp / a.hp).toFixed(3)}`);
-  // 돈이 실력을 덮으면 같이 하는 재미가 없다. 문파 보너스보다 작아야 한다.
+  // x4는 어떤 문파 보너스보다도 크다(최대 x1.5). **알고 둔 값이다** —
+  // 운영자가 정했다. 검사는 '작아야 한다'가 아니라 '공격력과 체력이 같은
+  // 값인가'를 본다. 한쪽만 바꾸면 체력 쪽이 조용히 죽는다.
   const topJob = Math.max(...D.JOBS.map((j) => j.mult?.atk || 1));
-  ok(D.NOADS_ATK < topJob, '광고 제거 보너스가 문파 보너스보다 작다',
-    `x${D.NOADS_ATK} < x${topJob}`);
+  ok(D.NOADS_ATK === D.NOADS_HP, '광고 제거는 공격력과 체력을 같이 올린다',
+    `공격 x${D.NOADS_ATK} · 체력 x${D.NOADS_HP} (문파 최대 x${topJob})`);
 
   // **공짜로 주던 것을 광고 뒤로 옮기지 않는다.** 있던 걸 빼앗으면 개악이다.
   const g2 = strong(200);
@@ -1234,8 +1236,15 @@ console.log('\n=== 25. 광고 / 광고 제거 ===');
   // 중괄호를 세려 하면 {uid}의 }에 걸린다.
   const entBlock = (rules.split('match /entitlements')[1] || '').split('match /')[0];
   ok(entBlock.includes('allow read'), '권한 문서를 본인이 읽을 수 있다');
-  ok(!entBlock.includes('allow write') && !entBlock.includes('allow create'),
-    '권한 문서는 아무도 못 쓴다 (운영자 콘솔 전용)');
+  // **쓰는 길은 전부 운영자를 거쳐야 한다.** 하나라도 isAdmin() 없이 열리면
+  // 누구나 스스로 광고를 지운다 — 돈 받고 파는 것이 공짜가 된다.
+  const allowLines = entBlock.split(/\r?\n/)
+    .filter((l) => /allow\s+(write|create|update|delete)/.test(l));
+  ok(allowLines.length > 0, '운영자가 켜고 끌 수 있다', `${allowLines.length}줄`);
+  ok(allowLines.every((l) => l.includes('isAdmin()')),
+    '권한 문서를 쓰는 길은 전부 운영자만 통과한다',
+    allowLines.map((l) => l.trim()).join(' / '));
+  ok(entBlock.includes('noAds is bool'), '켤 때 noAds가 참거짓인지 본다');
 }
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);

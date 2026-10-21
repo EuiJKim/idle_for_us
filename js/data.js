@@ -2,7 +2,7 @@
 
 // 지금 돌고 있는 빌드. 설정 창에 적어 둔다 — 기기가 옛 판을 들고 있는지
 // 한눈에 보려고 둔다. sw.js의 CACHE와 같은 값으로 맞춘다.
-export const BUILD = 'ifu-v57';
+export const BUILD = 'ifu-v58';
 
 export const SAVE_VERSION = 4;
 export const OFFLINE_CAP_SEC = 12 * 3600;
@@ -1453,10 +1453,13 @@ export const AD_SEC = 5;              // 흉내 광고를 보는 시간
 export const AD_BOOST_EXTRA = 1;      // 광고로 더 받는 기연 횟수 (하루)
 export const AD_OFFLINE_MULT = 2;     // 광고 보면 방치 보상 2배
 
-// 광고를 지우면 붙는 영구 보너스. 문파 보너스가 x1.3~2.5이므로
-// 그보다는 작게 둔다 — 돈이 실력을 덮으면 같이 하는 재미가 없다.
-export const NOADS_ATK = 1.2;
-export const NOADS_HP = 1.2;
+// 광고를 지우면 붙는 영구 보너스.
+//
+// **x4는 어떤 문파 보너스보다도 크다**(가장 큰 것이 혈천도마의 공격력 x1.5).
+// 즉 돈이 계열 선택을 덮는다 — 처음엔 x1.2로 뒀다가 운영자가 x4로 정했다.
+// 모르고 둔 게 아니라 알고 둔 값이라는 뜻으로 적어 둔다.
+export const NOADS_ATK = 4;
+export const NOADS_HP = 4;
 export const BOSS_HP_MULT = 9;
 export const BOSS_ATK_MULT = 2.5;
 export const BOSS_GOLD_MULT = 12;

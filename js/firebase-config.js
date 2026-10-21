@@ -10,3 +10,8 @@ export const firebaseConfig = {
 };
 
 export const FIREBASE_SDK_VERSION = '10.12.2';
+
+// 운영자. **비밀이 아니다** — 이 값이 맞는지는 서버(firestore.rules)가 본다.
+// 여기 적힌 건 '누구에게 운영자 화면을 보여 줄까'를 정할 뿐이고,
+// 남이 이 값을 흉내 내도 서버가 거부한다.
+export const ADMIN_UID = 'hUNkOEQQ6XgSb94Ih6PP2sMEkTl2';

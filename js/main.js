@@ -486,6 +486,83 @@ function askNickname(first = false) {
   }, { dismissable: !first, onClose: first ? () => checkReturn() : null });
 }
 
+// ---------- 운영자 화면 ----------
+//
+// 입금이 들어올 때마다 Firebase 콘솔을 여는 건 번거롭다. 폰에서 켤 수 있게 한다.
+// **여기 보이는 것만으로는 아무것도 못 한다** — 쓰기는 서버 규칙이 다시 본다.
+function openAdmin() {
+  openModal((s) => {
+    const list = h('div');
+    const manual = h('input', { class: 'field', placeholder: '신청 번호 붙여넣기' });
+    const bank = h('input', { class: 'field', placeholder: '계좌 (은행 번호 예금주)', value: net.shop?.bank || '' });
+    const price = h('input', { class: 'field', placeholder: '값 (예: 5,000원)', value: net.shop?.price || '' });
+    const note = h('input', { class: 'field', placeholder: '안내 한 줄 (없어도 됨)', value: net.shop?.note || '' });
+
+    const paint = async () => {
+      list.replaceChildren(h('p', { class: 'muted' }, '불러오는 중…'));
+      const rows = await net.topPlayers(30);
+      const on = await net.whoHasNoAds(rows.map((r) => r.uid));
+      list.replaceChildren();
+      if (!rows.length) return list.append(h('p', { class: 'muted' }, '아무도 없어요'));
+      for (const r of rows) {
+        const isOn = on[r.uid] === true;
+        const btn = h('button', { class: `btn ${isOn ? '' : 'primary'}`, style: 'padding:6px 10px;min-width:62px' },
+          isOn ? '끄기' : '켜기');
+        btn.onclick = async () => {
+          btn.disabled = true;
+          const ok = await net.setNoAds(r.uid, !isOn);
+          toast(ok ? `${r.nickname} — ${isOn ? '껐어요' : '켰어요'}` : '서버가 거부했어요');
+          paint();
+        };
+        list.append(h('div', { class: 'row' },
+          h('div', { class: 'info' },
+            h('div', { class: 'name' }, r.nickname || '이름없음',
+              isOn ? h('small', { style: 'color:var(--accent-2)' }, ' · 광고 없음') : null),
+            h('div', { class: 'desc' }, `Lv.${r.level} · ${r.bestStage}관문`),
+            h('div', { class: 'uidbox' }, r.uid)),
+          btn));
+      }
+    };
+
+    s.append(
+      h('h2', {}, '🛡️ 운영자'),
+      h('p', { class: 'muted', style: 'margin-top:0' },
+        '입금이 확인되면 켜 주세요. 끄면 기록이 지워져요.'),
+
+      h('div', { class: 'section-title' }, '신청 번호로 직접'),
+      manual,
+      h('div', { class: 'btn-row' },
+        h('button', { class: 'btn primary', onclick: async () => {
+          const u = manual.value.trim();
+          if (u.length < 20) return toast('신청 번호를 통째로 붙여넣어 주세요');
+          toast(await net.setNoAds(u, true) ? '켰어요' : '서버가 거부했어요');
+          manual.value = '';
+          paint();
+        } }, '켜기'),
+        h('button', { class: 'btn', onclick: async () => {
+          const u = manual.value.trim();
+          if (u.length < 20) return toast('신청 번호를 통째로 붙여넣어 주세요');
+          toast(await net.setNoAds(u, false) ? '껐어요' : '서버가 거부했어요');
+          manual.value = '';
+          paint();
+        } }, '끄기')),
+
+      h('div', { class: 'section-title', style: 'margin-top:14px' }, '계좌 정보'),
+      h('p', { class: 'muted' }, '고치면 바로 모두의 화면에 반영돼요.'),
+      bank, price, note,
+      h('div', { class: 'btn-row' },
+        h('button', { class: 'btn primary', onclick: async () => {
+          const ok = await net.saveShop({ bank: bank.value.trim(), price: price.value.trim(), note: note.value.trim() });
+          toast(ok ? '저장했어요' : '서버가 거부했어요');
+        } }, '계좌 정보 저장')),
+
+      h('div', { class: 'section-title', style: 'margin-top:14px' }, '서열 상위에서 고르기'),
+      list,
+      h('button', { class: 'btn', style: 'width:100%;margin-top:10px', onclick: closeModal }, '닫기'));
+    paint();
+  });
+}
+
 function openSettings() {
   openModal((s) => {
     const st = game.stats({ buffs: false });
@@ -502,6 +579,8 @@ function openSettings() {
         h('div', {}, '공격 속도', h('b', {}, `${st.speed.toFixed(2)}회/초`)),
         h('div', {}, '처치 수', h('b', {}, fmt(game.s.stats.kills))),
         h('div', {}, '뽑기 횟수', h('b', {}, fmt(game.s.stats.gachas)))),
+      net.isAdmin() ? h('div', { class: 'btn-row' },
+        h('button', { class: 'btn primary', onclick: openAdmin }, '🛡️ 운영자')) : null,
       h('div', { class: 'btn-row' },
         h('button', { class: 'btn', onclick: () => {
           // 자동 → 높음 → 가벼움 순으로 돌린다
