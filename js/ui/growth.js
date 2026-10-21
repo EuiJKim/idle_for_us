@@ -187,31 +187,39 @@ function regressView(app) {
       h('div', { class: 'btn-row' }, h('button', { class: 'btn', onclick: closeModal }, '아직'),
         h('button', { class: 'btn primary', onclick: () => { closeModal(); app.regress(); } }, '회귀한다')));
   });
+  // **이득을 맨 위로.** 전에는 '회귀란 무엇인가' 글이 먼저고 이득이 맨 아래였다.
+  // 회귀는 누르는 순간 약해 보이는 선택이라, 얼마나 세지는지를 못 보면 아무도 안 한다.
+  const keepRow = (lose, keep) => h('div', { class: 'keeprow' },
+    h('div', { class: 'lose' }, lose), h('div', { class: 'keep' }, keep));
+  // 설명은 처음 한 번만. 두 번째부터는 접어 둔다 — 아는 걸 매번 읽힐 이유가 없다.
+  const firstTime = () => (game.s.regress?.count || 0) === 0;
+  const lore = h('details', { class: 'card lore' },
+    h('summary', {}, '회귀란 무엇인가'),
+    h('p', { style: 'margin:6px 0 0;line-height:1.6' },
+      '죽음 직전, 눈을 뜨니 강호에 첫발을 디딘 그날이었다. ',
+      '회귀하면 처음부터 다시 시작하지만, 전생의 기억이 남아 더 빨리 강해진다.'),
+    h('p', { class: 'muted', style: 'line-height:1.7;margin:8px 0 0' },
+      '누르는 순간 약해 보이지만 금방 돌아와요. 전생의 기억이 공격력·체력·은자·경험치에 ',
+      '전부 붙어서, 돌아오는 길이 처음보다 훨씬 빨라요.', h('br'),
+      h('b', {}, `전생의 기억을 ${REGRESS_ADVISE_POINTS} 넘게 받을 수 있고 관문이 한동안 안 올라가면, 그때가 회귀할 때예요.`)));
   const root = h('div', {},
     h('div', { class: 'card regress-card' },
       h('div', { class: 'regress-hz small' }, '회귀'),
-      h('p', { style: 'margin:4px 0 10px;line-height:1.6' },
-        '죽음 직전, 눈을 뜨니 강호에 첫발을 디딘 그날이었다. ',
-        '회귀하면 처음부터 다시 시작하지만, 전생의 기억이 남아 더 빨리 강해진다.'),
-      h('div', { class: 'stat-grid' },
+      gain, btn,
+      h('div', { class: 'stat-grid', style: 'margin-top:10px' },
         h('div', {}, '회귀 횟수', count),
         h('div', {}, '전생의 기억', points),
-        h('div', { style: 'grid-column:1/3' }, '기억의 힘 (공격력·체력·은자·경험치)', bonus)),
-      gain, btn),
+        h('div', { style: 'grid-column:1/3' }, '기억의 힘 (공격력·체력·은자·경험치)', bonus))),
+    // 글로 나열하면 안 읽는다. 두 칸 표로 보여 준다.
     h('div', { class: 'card' },
-      h('h3', {}, '무엇이 남고 무엇이 사라지나'),
-      h('p', { class: 'muted', style: 'line-height:1.7;margin:0' },
-        '사라짐: 관문, 은자, 은자 수련, 레벨·스탯 포인트', h('br'),
-        '남음: 경지, 병기·제련, 무공, 영수, 신물, 수련터 기록, 원보·비급·한철·영수 먹이·신물 조각, 문파')),
-    // 회귀는 '손해처럼 보이는 이득'이다. 누르는 순간 능력치가 바닥으로 가니
-    // 안 적어 두면 아무도 안 한다. 실제로는 적극적으로 할수록 빠르다
-    // (측정: 12시간 도달 관문 452 → 540).
-    h('div', { class: 'card' },
-      h('h3', {}, '언제 하나'),
-      h('p', { class: 'muted', style: 'line-height:1.7;margin:0' },
-        '누르는 순간 약해 보이지만 금방 돌아와요. 전생의 기억이 공격력·체력·은자·경험치에 ',
-        '전부 붙어서, 돌아오는 길이 처음보다 훨씬 빨라요.', h('br'),
-        h('b', {}, `전생의 기억을 ${REGRESS_ADVISE_POINTS} 넘게 받을 수 있고 관문이 한동안 안 올라가면, 그때가 회귀할 때예요.`))));
+      h('h3', {}, '회귀하면'),
+      h('div', { class: 'keeprow head' }, h('div', { class: 'lose' }, '사라짐'), h('div', { class: 'keep' }, '남음')),
+      keepRow('관문', '경지'),
+      keepRow('은자 · 은자 수련', '병기 · 제련 · 초월'),
+      keepRow('레벨 · 스탯 포인트', '무공 · 영수 · 신물'),
+      keepRow('', '원보 · 비급 · 한철 · 먹이 · 조각'),
+      keepRow('', '수련터 기록 · 문파')),
+    lore);
   function update() {
     const s = game.s;
     const g = game.regressPreview();
@@ -228,6 +236,8 @@ function regressView(app) {
     btn.textContent = g ? `회귀한다 (+${g})` : `${REGRESS_MIN_STAGE}관문 이후 가능`;
     btn.classList.toggle('primary', !!worth);
     btn.disabled = !g || game.mode !== 'stage';
+    // 첫 회귀 전에는 펴 두고, 한 번 해 봤으면 접는다
+    lore.open = firstTime();
   }
   return { root, update };
 }

@@ -617,3 +617,14 @@ body { background: radial-gradient(ellipse at top, #1d1712, #0b0907 70%); }
   padding: 5px 7px; word-break: break-all;
   user-select: all;   /* 한 번 누르면 통째로 선택된다 */
 }
+
+/* 회귀 — 남는 것/사라지는 것을 두 칸 표로. 글로 나열하면 안 읽는다. */
+.keeprow { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 4px; }
+.keeprow > div { padding: 5px 8px; border-radius: 5px; font-size: 12.5px; line-height: 1.4; }
+.keeprow .lose { background: rgba(127, 29, 29, 0.22); color: #fca5a5; }
+.keeprow .keep { background: rgba(20, 83, 45, 0.22); color: #86efac; }
+.keeprow.head > div { font-weight: 800; text-align: center; opacity: 0.85; }
+.keeprow .lose:empty, .keeprow .keep:empty { background: none; }
+/* 설명은 처음 한 번만 펴 둔다 */
+.card.lore > summary { cursor: pointer; font-weight: 800; font-size: 14px; }
+.card.lore > summary::-webkit-details-marker { color: var(--muted); }
