@@ -6,6 +6,7 @@ import { DUNGEONS, DUNGEON_KEYS, DUNGEON_TIME, DUNGEON_MOBS, dungeonReward,
   SEEK_CAP, RIFT_TIME, HUNT_TIME, RIFT_OPEN_STAGE, HUNT_OPEN_STAGE,
   riftStage, huntStage, riftReward, huntReward } from '../data.js';
 import { fmt, pct } from '../fmt.js';
+import { iconSkin } from '../icons.js';
 import { h, rewardText, toast, subTabs, loopBtn } from './common.js';
 
 function dungeonView(app) {
@@ -27,7 +28,7 @@ function dungeonView(app) {
     const loop = loopBtn(app, 'dungeon', d.id);
     const card = h('div', { class: 'card dungeon-card' },
       h('div', { style: 'display:flex;gap:12px;align-items:center' },
-        h('div', { class: 'dg-ico' }, d.icon),
+        (() => { const e = h('div', { class: 'dg-ico' }, d.icon); iconSkin(e, 'dg', DUNGEONS.indexOf(d)); return e; })(),
         h('div', { style: 'flex:1;min-width:0' }, h('div', { class: 'name', style: 'font-weight:900;font-size:15px' }, d.name, ' ', lvl), info)),
       h('div', { class: 'btn-row', style: 'margin-top:10px' }, sweep, go, loop));
     cards[d.id] = { card, lvl, info, go, sweep, loop };

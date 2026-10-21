@@ -108,7 +108,26 @@ console.log('\n=== 3. 서비스워커가 받아 두는 것 ↔ 실제 파일 ===
   ok(a === b, 'sw.js와 data.js의 판 번호가 같다', `${a} / ${b}`);
 }
 
-console.log('\n=== 4. index.html의 id ↔ 코드가 찾는 id ===');
+console.log('\n=== 4. 아이콘 개수 ↔ 데이터 개수 ===');
+{
+  // icons.js의 KINDS가 데이터보다 적으면 **뒤쪽 몇 개만 글자로 남는다.**
+  // 장신구를 넷으로 늘리면서 여기를 안 늘리면 네 번째만 조용히 글자다.
+  const D = await import('../js/data.js');
+  const K = (await import('../js/icons.js')).KINDS;
+  const want = {
+    pet: D.PETS.length, relic: D.RELICS.length,
+    up: Object.keys(D.UPGRADES).length,
+    eqweapon: D.GRADES.length, eqarmor: D.GRADES.length, eqring: D.GRADES.length,
+    acc: D.ACC_SLOTS.length, ego: D.EGO_PARTS.length, dg: D.DUNGEONS.length,
+  };
+  for (const [k, n] of Object.entries(want)) {
+    ok(K[k] === n, `${k} 아이콘 수가 데이터와 같다`, `${K[k]} / ${n}`);
+  }
+  ok(Object.keys(K).every((k) => k in want), 'KINDS에 데이터 없는 묶음이 없다',
+    Object.keys(K).filter((k) => !(k in want)).join(',') || '없음');
+}
+
+console.log('\n=== 5. index.html의 id ↔ 코드가 찾는 id ===');
 {
   const html = read('index.html');
   const have = new Set([...html.matchAll(/\bid="([a-zA-Z0-9_-]+)"/g)].map((m) => m[1]));

@@ -10,6 +10,7 @@ import { GRADES, EQUIP_TYPES, MERGE_COUNT, GACHA_COST, GACHA10_COST, ENHANCE_PER
   EGO_PARTS, EGO_STEP_MAX, EGO_FEED_MIN_GRADE, EGO_FEED_EXP, egoPower,
   EGO_ENCHANT_MAX, EGO_ENCHANT_WORTH } from '../data.js';
 import { fmt, pct } from '../fmt.js';
+import { iconSkin } from '../icons.js';
 import { h, toast, openModal, closeModal, gradeChip, gachaLevelBar, loopBtn, popUp } from './common.js';
 
 export function equipTab(app) {
@@ -52,8 +53,10 @@ export function equipTab(app) {
     const grid = h('div', { class: 'grades' });
     const cells = GRADES.map((g, i) => {
       const cnt = h('span', { class: 'g-cnt' });
+      const gico = h('span', { class: 'g-ico' }, def.icon);
+      iconSkin(gico, `eq${type}`, i);
       const cell = h('div', { class: 'grade', style: `border-color:${g.color}` },
-        h('span', { class: 'g-ico' }, def.icon), h('span', { style: `color:${g.color};font-weight:800` }, g.name), h('br'), cnt);
+        gico, h('span', { style: `color:${g.color};font-weight:800` }, g.name), h('br'), cnt);
       grid.append(cell);
       return { cell, cnt, i };
     });
@@ -153,8 +156,13 @@ export function equipTab(app) {
     const enchRow = h('div', { style: 'display:flex;gap:6px;align-items:center;margin-top:6px' },
       h('span', { class: 'muted', style: 'flex:1' },
         '승급에 못 쓰는 장신구를 바쳐요 (낮은 등급부터)'), enchBtn);
-    root.append(h('div', { class: 'card' }, title, info, bar, feedRow,
-      h('div', { class: 'btn-row', style: 'margin-top:8px' }, upBtn, upLoop), enchInfo, enchRow));
+    const eico = h('div', { class: 'ico' }, e.name);
+    iconSkin(eico, 'ego', EGO_PARTS.indexOf(e));
+    root.append(h('div', { class: 'card' },
+      h('div', { style: 'display:flex;gap:8px;align-items:flex-start' },
+        eico, h('div', { style: 'flex:1;min-width:0' }, title, info, bar)),
+      feedRow, h('div', { class: 'btn-row', style: 'margin-top:8px' }, upBtn, upLoop),
+      enchInfo, enchRow));
     egoCards[e.id] = { title, info, fill, feeds, upBtn, upLoop, enchInfo, enchBtn, def: e };
   }
 
@@ -238,8 +246,11 @@ export function equipTab(app) {
     const pierceBtn = h('button', { class: 'buy', onclick: () => {
       if (game.accPierce(a.id)) app.refresh(); else toast('한철이 부족하거나 초월이 끝났어요');
     } });
+    const aico = h('div', { class: 'ico' }, a.name.slice(0, 2));
+    iconSkin(aico, 'acc', ACC_SLOTS.indexOf(a));
     root.append(h('div', { class: 'card' },
-      title, info, spec, bag,
+      h('div', { style: 'display:flex;gap:8px;align-items:flex-start' },
+        aico, h('div', { style: 'flex:1;min-width:0' }, title, info, spec, bag)),
       h('div', { class: 'btn-row', style: 'margin-top:8px' }, starBtn, gradeBtn, pierceBtn)));
     accCards[a.id] = { title, info, spec, bag, starBtn, gradeBtn, pierceBtn, def: a };
   }
