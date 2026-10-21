@@ -1056,27 +1056,29 @@ console.log('\n=== 23. 체력 축 ===');
 {
   // 적 공격력이 플레이어 체력보다 빠르게 자라면 체력 수련·호신의·심의·
   // 운기조식·마불의 체력이 통째로 죽는다. 실제로 그랬다(관문 387에서 한 대 = 체력의 1878배).
-  ok(D.ATK_RATE_LATE <= 1.15, `${D.ATK_FLAT_AT}관문 뒤 적 공격력이 플레이어 체력 성장(x1.14)을 안 넘는다`,
-    `x${D.ATK_RATE_LATE}`);
-  ok(D.ATK_RATE_LATE < D.ATK_RATE_EARLY, '평탄화 뒤 증가율이 더 완만하다');
+  // **적 공격력이 내 체력과 같은 속도로 자라야 한다.** 느리면 안 죽는 캐릭터가
+  // 되고(실측: 관문 375에서 한 대가 체력의 1천만분의 1), 빠르면 한 대에 죽는다
+  // (전에 그랬다 — 관문 387에서 한 대 = 체력의 1878배).
+  // 실측한 내 체력 성장은 관문당 x1.146~1.161이다.
+  ok(D.ATK_RATE >= 1.13 && D.ATK_RATE <= 1.17,
+    '적 공격력이 내 체력과 같은 속도로 자란다 (x1.146~1.161)', `x${D.ATK_RATE}`);
+  // 한 줄기로 간다 — 구간을 나누면 이음매에서 값이 튄다
+  const jump = D.monsterAtk(151) / D.monsterAtk(150);
+  ok(Math.abs(jump - D.ATK_RATE) < 1e-6, '곡선에 이음매가 없다', `x${jump.toFixed(4)}`);
+  ok(D.monsterAtk(D.ATK_FROM + 1) > D.monsterAtk(D.ATK_FROM), `초반 ${D.ATK_FROM}관문 뒤부터 오른다`);
 
-  // 이음매가 없어야 한다 — 150관문에서 값이 튀면 벽이 하나 더 생긴다
-  const jump = D.monsterAtk(D.ATK_FLAT_AT + 1) / D.monsterAtk(D.ATK_FLAT_AT);
-  ok(jump < 1.5, '평탄화 지점에서 값이 안 튄다', `x${jump.toFixed(3)}`);
-  ok(D.monsterAtk(D.ATK_FLAT_AT) > D.monsterAtk(D.ATK_FLAT_AT - 1), '그래도 계속 오르기는 한다');
-
-  // 오래 가면 적 공격력이 적 체력보다 **느리게** 자라야 한다.
-  // 플레이어 공격력에는 치명·속도·영수·심검이 붙지만 체력에는 아무것도 안 붙는다.
-  const far = 800;
-  const slower = (D.monsterAtk(far) / D.monsterAtk(400)) < (D.monsterHp(far) / D.monsterHp(400));
-  ok(slower, '멀리 가면 적 공격력이 적 체력보다 느리게 자란다',
-    `400→${far}관문 공격 x${(D.monsterAtk(far) / D.monsterAtk(400)).toExponential(1)}`
-    + ` / 체력 x${(D.monsterHp(far) / D.monsterHp(400)).toExponential(1)}`);
+  // '적 공격력이 적 체력보다 느리게 자라야 한다'는 검사가 여기 있었다.
+  // 그건 적 공격력을 **적 체력**에 견주던 때의 이야기다. 이제는 **내 체력**에
+  // 견준다 — 안 죽는 것이 문제였고 적 체력은 그 사이에서 상관이 없다.
+  // 실제 세이브로 재는 일은 tests/dps_taken.mjs가 맡는다.
 
   // 체력을 올리면 실제로 더 버티는가 — 숫자가 아니라 전투로 확인한다
-  // 이 시험 캐릭터가 '밀어붙이는' 자리. 더 낮으면 안 죽어서, 더 높으면
-  // 뭘 해도 즉사해서 차이가 안 보인다. 곡선을 손보면 여기도 다시 잡아야 한다.
-  const TRY_AT = 260;
+  //
+  // **strong()은 합성 캐릭터다.** 관문 260으로 두고 재 보니 체력이 1.7e10인데
+  // 같은 자리의 진짜 세이브는 2.5e15였다 — 10만 배 차이다. 있을 수 없는
+  // 캐릭터를 재고 있었다(계열 계측에서 같은 실수를 한 적이 있다).
+  // 이 캐릭터의 세기에 **맞는** 관문에서 잰다.
+  const TRY_AT = 180;
   const liveFor = (tune) => {
     const g = strong(TRY_AT);
     if (tune) tune(g);

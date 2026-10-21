@@ -2,7 +2,7 @@
 
 // 지금 돌고 있는 빌드. 설정 창에 적어 둔다 — 기기가 옛 판을 들고 있는지
 // 한눈에 보려고 둔다. sw.js의 CACHE와 같은 값으로 맞춘다.
-export const BUILD = 'ifu-v60';
+export const BUILD = 'ifu-v61';
 
 export const SAVE_VERSION = 4;
 export const OFFLINE_CAP_SEC = 12 * 3600;
@@ -1418,25 +1418,32 @@ export const stageJump = (s) => (s <= 1 ? 1 : Math.exp(cumEase(s) - cumEase(s - 
 export const monsterHp = (s) => 20 * Math.exp(cumEase(s));
 // 적 공격력.
 //
-// 전에는 끝까지 x1.19였다. 그런데 **플레이어 체력은 관문당 x1.14로밖에 안 자란다** —
-// 재 보니 85→493관문 구간에서 x1.126~x1.162였다. 공격력에만 붙는 배수(치명·속도·
-// 영수·심검·무공 총연마·문파)가 체력에는 하나도 안 붙기 때문이다.
-// 두 곡선의 격차가 관문 400개 동안 3천만 배로 벌어져서, 관문 150을 넘으면
-// 졸개 한 대에 죽었다. 관문 387에서는 한 대가 내 체력의 **1878배**였다.
-// 체력 수련·호신의·심의·운기조식·마불의 체력 x2.5가 통째로 죽어 있었다.
+// **내 체력과 같은 속도로 올린다.** 그래야 비율이 평평해진다.
 //
-// 그래서 **150관문부터는 플레이어 체력과 같은 속도(x1.14)로** 올린다.
-// 150관문은 한 대가 체력의 10%쯤 되는 지점이다 — 거기서 평탄해진다.
-// 150관문 전까지는 예전 곡선 그대로라 초반 체감은 안 바뀐다.
-export const ATK_FLAT_AT = 150;
-export const ATK_RATE_EARLY = 1.09;
-export const ATK_RATE_LATE = 1.07;
-const ATK_ANCHOR = cumLog(15, ATK_RATE_EARLY);
-const ATK_AT_FLAT = 6 * Math.exp(cumLog(ATK_FLAT_AT, ATK_RATE_EARLY) - ATK_ANCHOR);
-const ATK_LATE_ANCHOR = cumLog(ATK_FLAT_AT, ATK_RATE_LATE);
-export const monsterAtk = (s) => (s <= 15 ? 6
-  : s <= ATK_FLAT_AT ? 6 * Math.exp(cumLog(s, ATK_RATE_EARLY) - ATK_ANCHOR)
-    : ATK_AT_FLAT * Math.exp(cumLog(s, ATK_RATE_LATE) - ATK_LATE_ANCHOR));
+// 재 본 것(실제 세이브 셋, 각자의 제 관문에서 초당 받는 피해 / 내 체력):
+//   관문 188  5.25e-3%     관문 252  9.28e-5%     관문 375  1.81e-8%
+// 관문당 x0.935씩 떨어진다 — 적 공격력 x1.07 대 내 체력 x1.145의 차이다.
+// 관문 375에서는 졸개 한 대가 내 체력의 **1천만분의 1**이고, 초당 2% 재생이
+// 그걸 통째로 지운다. 체력 수련·호신의·심의·마불 x2.5·광고 제거 x4가
+// 전부 여기서 죽어 있었다 — 안 죽는 캐릭터의 체력을 올려 봐야 소용이 없다.
+//
+// 내 체력이 관문당 x1.145로 자란다(85~493관문 구간 실측). 적 공격력도
+// 같은 값으로 두면 **어느 관문에서든 같은 비율**로 맞는다.
+// 하나의 값으로 끝까지 간다 — 구간을 나눌 이유가 없어졌다.
+export const ATK_RATE = 1.145;
+// 기준점. **비율만 맞추고 기준점을 안 맞추면 한 대에 죽는다** — 처음에
+// 15관문부터 x1.145를 먹였더니 검사에서 1.3초 만에 죽었다.
+//
+// 재 본 값에서 역산한다: 관문 188에서 지금 초당 받는 피해가 내 체력의
+// 5.25e-3%다. 목표는 **4%/초** — 재생이 2%/초이므로 가만히 서 있으면
+// 50초에 죽고, 베면서 가면 버틴다. 762배가 필요하고, x1.145로 그만큼
+// 벌리려면 34관문부터 시작하면 된다.
+export const ATK_BASE = 6;
+export const ATK_FROM = 34;
+export const monsterAtk = (s) => (s <= ATK_FROM
+  ? ATK_BASE
+  : ATK_BASE * Math.pow(ATK_RATE, s - ATK_FROM));
+
 // 보상은 톱니로 만들지 않는다. 벽에서 보상까지 튀면 벽 앞에서 버티는 게 이득이 된다.
 // 벌이가 관문당 몇 배씩 느는가. 적 체력보다 느려야 한 관문에 머무는 시간이
 // 길어진다 — 이 차이가 곧 감속 장치다.
