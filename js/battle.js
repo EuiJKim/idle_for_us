@@ -1,6 +1,7 @@
 // 전투 화면 캔버스 렌더러 (수묵화 무협풍). 게임 이벤트를 받아 연출만 담당한다.
 import { zoneOf, RANKS, GRADES, PETS, SKILLS, FIELD_SQUASH } from './data.js';
 import { artReady, putArt, loadArt, FIT, headKey, bodyKey, weaponKey } from './art.js';
+import { fxReady, putFx, loadFx } from './fx.js';
 import { fmt } from './fmt.js';
 
 export const BRUSH = '"Yuji Syuku", "Nanum Brush Script", "Gowun Batang", serif';
@@ -67,6 +68,7 @@ const SPR = { w: 80, h: 160, ox: 44, oy: 146, phases: 8, cycle: Math.PI / 2, max
 const sprCache = new Map();
 // 그림이 늦게 도착하면 벡터로 구워 둔 것을 버려야 한다
 loadArt(() => sprCache.clear());
+loadFx(() => {});
 const lookIds = new WeakMap();
 let lookSeq = 0;
 function lookId(look) {
@@ -793,6 +795,9 @@ export class BattleView {
         ctx.translate(this.heroX, this.groundY);
         ctx.scale(1, this.squash);
         const r = e.r * (0.25 + p * 0.75);
+        // 그림이 있으면 흑백 고리에 색을 입혀 쓴다
+        // 흑백 마스크는 벡터 고리보다 옅게 읽힌다. 밝기를 올려 준다.
+        if (fxReady() && putFx(ctx, 'fx-ring', col, r * 2.2, Math.min(1, k * 1.7))) { ctx.restore(); continue; }
         const g2 = ctx.createRadialGradient(0, 0, r * 0.3, 0, 0, r);
         g2.addColorStop(0, `rgba(${col},0)`);
         g2.addColorStop(0.75, `rgba(${col},${0.16 * k})`);
@@ -814,6 +819,8 @@ export class BattleView {
         ctx.save();
         ctx.translate(this.monX - 6, this.monY - 62);
         ctx.rotate(e.a);
+        if (fxReady() && putFx(ctx, 'fx-slash', e.crit ? '248,113,113' : '255,255,255',
+          (e.crit ? 78 : 56) * (0.7 + k * 0.4), Math.min(1, k * 1.6))) { ctx.restore(); continue; }
         ctx.strokeStyle = e.crit ? `rgba(185,28,28,${k})` : `rgba(255,255,255,${k * 0.9})`;
         ctx.lineWidth = (e.crit ? 7 : 4) * k + 1;
         ctx.beginPath(); ctx.moveTo(-34, -24); ctx.quadraticCurveTo(0, 6, 34, 22); ctx.stroke();
