@@ -222,6 +222,8 @@ export class BattleView {
           this.float(fmt(ev.amount) + (ev.crit ? '!' : ''), atX + (Math.random() - 0.5) * 60, atY - 120, color, size, 1, ev.crit || skill);
         }
         this.effects.push({ kind: 'cut', life: 0.18, max: 0.18, a: Math.random() * 0.8 - 0.4, crit: ev.crit });
+        // 치명타는 터지는 느낌이 있어야 한다
+        if (ev.crit) this.effects.push({ kind: 'burst', life: 0.3, max: 0.3, crit: true });
         // 맞은 자리에 섬광 하나. 수십 마리가 동시에 맞으므로 아주 작고 짧게.
         this.sparks.push({ x: atX, y: atY - 46, life: 0.17, max: 0.17, r: ev.crit ? 26 : skill ? 20 : 13, color });
         // 때린 순간 화면을 아주 잠깐 늦추고 상대를 밀어낸다 — 타격감
@@ -317,6 +319,7 @@ export class BattleView {
     if (id === 'slash') this.shake = 0.18;
     if (id === 'thunder') { add('thunder', 0.45); this.shake = 0.4; this.flash = 0.5; }
     if (id === 'frost') add('frost', 0.7);
+    if (id === 'frost' || id === 'jring' || id === 'jsword') add('burst', 0.34, { big: true });
     if (id === 'meteor') add('swords', 1.1, { seeds: Array.from({ length: 22 }, () => [Math.random(), Math.random()]) });
     if (id === 'heal') add('qi', 1, { color: '134,239,172' });
     if (id === 'midas') for (let i = 0; i < 16; i++) this.ingot(this.heroX + (Math.random() - 0.5) * 60, this.groundY - 140, true);
@@ -374,6 +377,7 @@ export class BattleView {
     const scene = this.scene(game);
     this.drawBackground(scene);
     this.drawQueue(game);
+    this.drawFields(game);        // 바닥 장판은 사람보다 아래에
     this.drawUnits(game, dt, moving);
     this.drawProjectiles(dt);
     this.drawEffects(dt, game);
@@ -779,6 +783,35 @@ export class BattleView {
     this.projectiles = this.projectiles.filter((p) => p.life > 0);
   }
 
+  // 바닥에 남는 장판(매화검진·환영진·만독강림·선풍장·취보난무).
+  // 렌더러가 game.fields를 아예 안 읽고 있어서 **화면에 안 보였다.**
+  drawFields(game) {
+    const fs = game?.fields;
+    if (!fs?.length) return;
+    const { ctx } = this;
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    for (const f of fs) {
+      const k = Math.max(0, Math.min(1, f.life / f.max));
+      const col = f.id === 'jpoison' ? '134,239,172'
+        : f.id === 'jfan' ? '216,180,254'
+          : f.id === 'tornado' || f.id === 'jdrunk' ? '186,230,253' : '253,224,71';
+      ctx.save();
+      ctx.translate(this.sx(f), this.sy(f));
+      ctx.scale(1, this.squash);
+      // 천천히 돈다 — 멈춰 있으면 바닥 무늬로 보인다
+      ctx.rotate((performance.now() / 1000) * (f.vx || f.vy ? 1.1 : 0.45));
+      if (!(fxReady() && putFx(ctx, 'fx-field', col, f.r * 2.1, 0.35 + k * 0.5))) {
+        ctx.strokeStyle = `rgba(${col},${0.5 * k + 0.2})`;
+        ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(0, 0, f.r, 0, Math.PI * 2); ctx.stroke();
+      }
+      ctx.restore();
+    }
+    ctx.restore();
+    ctx.globalCompositeOperation = 'source-over';
+  }
+
   drawEffects(dt, game) {
     const { ctx } = this;
     for (const e of this.effects) {
@@ -812,6 +845,15 @@ export class BattleView {
           ctx.strokeStyle = `rgba(${col},${0.4 * k})`;
           ctx.lineWidth = 1.5;
           ctx.beginPath(); ctx.arc(0, 0, r * 0.62, 0, Math.PI * 2); ctx.stroke();
+        }
+        ctx.restore();
+      } else if (e.kind === 'burst') {
+        ctx.save();
+        ctx.translate(this.monX, this.monY - 56);
+        const w = (e.big ? 150 : 86) * (0.55 + (1 - k) * 0.7);
+        if (!(fxReady() && putFx(ctx, 'fx-burst', e.crit ? '254,202,202' : '254,243,199', w, k))) {
+          ctx.fillStyle = `rgba(254,243,199,${k * 0.5})`;
+          ctx.beginPath(); ctx.arc(0, 0, w * 0.22, 0, Math.PI * 2); ctx.fill();
         }
         ctx.restore();
       } else if (e.kind === 'cut') {
