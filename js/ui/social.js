@@ -132,6 +132,18 @@ function guildView(app) {
     renderedMsgs = '';
     if (!net.online) {
       view = 'offline';
+      // **막힌 것과 끊긴 것은 다르다.** 전에는 둘 다 "인터넷에 연결되면"이라고
+      // 적었는데, 서버가 거부하는 경우에는 거짓말이다 — 인터넷은 멀쩡하다.
+      // 친구들이 자기 연결을 탓하게 된다. 다시 눌러도 될 리가 없고.
+      if (net.blocked) {
+        root.append(h('div', { class: 'card' },
+          h('h3', {}, '🏰 문파'),
+          h('p', {}, '서버가 요청을 거부하고 있어요. ', h('b', {}, '인터넷 문제가 아니에요.')),
+          h('p', { class: 'muted' },
+            'Firestore 보안 규칙이 아직 안 올라갔어요. 만든 사람이 한 번만 올리면 바로 열려요 — ',
+            h('b', {}, '저장소의 firestore.rules'), '를 Firebase 콘솔 → Firestore Database → 규칙에 붙여넣고 게시하면 돼요.')));
+        return;
+      }
       root.append(h('div', { class: 'card' },
         h('h3', {}, '🏰 문파'),
         h('p', { class: 'muted' }, net.status === 'connecting' ? '서버에 연결하는 중이에요…' : '인터넷에 연결되면 문파·토벌·채팅을 할 수 있어요.'),

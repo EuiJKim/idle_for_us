@@ -22,6 +22,7 @@ export class Net {
     this.raid = null;
     this.unsubs = [];
     this.lastProfile = 0;
+    this.blocked = false;   // 서버가 거부해서 멈춘 상태 (끊긴 것과 다르다)
   }
 
   get online() { return this.status === 'online'; }
