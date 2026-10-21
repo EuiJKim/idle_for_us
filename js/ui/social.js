@@ -18,7 +18,13 @@ function playerList(app, { sortKey, valueLabel, empty, onPick, action }) {
   const refreshBtn = h('button', { class: 'btn', style: 'padding:6px 10px' }, '🔄 새로고침');
   let loadedAt = 0;
   async function load() {
-    if (!net.online) { status.textContent = '인터넷에 연결되면 볼 수 있어요.'; return; }
+    // 서열 쪽에도 같은 거짓말이 있었다. 막힌 거면 인터넷 탓이 아니다.
+    if (!net.online) {
+      status.textContent = net.blocked
+        ? '서버가 요청을 거부하고 있어요 (인터넷 문제 아님). 문파 탭에서 〈서버 점검〉을 눌러 보세요.'
+        : '인터넷에 연결되면 볼 수 있어요.';
+      return;
+    }
     refreshBtn.disabled = true;
     status.textContent = '불러오는 중…';
     try {
@@ -126,6 +132,23 @@ function guildView(app) {
   let chatBox = null;
   let renderedMsgs = '';
 
+  // "무림이 안 돼요"의 원인은 다섯 가지쯤 되는데 화면에는 전부 똑같이 보인다.
+  // 어디서 막히는지 한 줄씩 짚어 준다 — 올린 뒤 됐는지 확인하는 데도 쓴다.
+  async function runCheck(btn) {
+    if (btn) { btn.disabled = true; btn.textContent = '점검 중…'; }
+    const rows = await net.diagnose();
+    openModal((s) => {
+      s.append(h('h2', {}, '서버 점검'));
+      for (const r of rows) {
+        s.append(h('div', { class: 'desc', style: 'margin:3px 0' },
+          h('b', { style: `color:${r.ok ? 'var(--accent-2)' : '#ef4444'}` }, r.ok ? '✓ ' : '✗ '),
+          r.name, r.extra ? h('span', { class: 'muted' }, ` — ${r.extra}`) : null));
+      }
+      s.append(h('button', { class: 'btn primary', style: 'width:100%;margin-top:10px', onclick: () => { closeModal(); render(); } }, '확인'));
+    });
+    if (btn) { btn.disabled = false; btn.textContent = '서버 점검'; }
+  }
+
   function render() {
     root.replaceChildren();
     chatBox = null;
@@ -141,7 +164,9 @@ function guildView(app) {
           h('p', {}, '서버가 요청을 거부하고 있어요. ', h('b', {}, '인터넷 문제가 아니에요.')),
           h('p', { class: 'muted' },
             'Firestore 보안 규칙이 아직 안 올라갔어요. 만든 사람이 한 번만 올리면 바로 열려요 — ',
-            h('b', {}, '저장소의 firestore.rules'), '를 Firebase 콘솔 → Firestore Database → 규칙에 붙여넣고 게시하면 돼요.')));
+            h('b', {}, '저장소의 firestore.rules'), '를 Firebase 콘솔 → Firestore Database → 규칙에 붙여넣고 게시하면 돼요.'),
+          h('div', { class: 'btn-row' },
+            h('button', { class: 'btn primary', onclick: (e) => runCheck(e.target) }, '서버 점검'))));
         return;
       }
       root.append(h('div', { class: 'card' },

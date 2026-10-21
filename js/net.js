@@ -61,6 +61,59 @@ export class Net {
 
   ref(...path) { return this.fs.doc(this.db, ...path); }
 
+  // ---------- 서버 점검 ----------
+  //
+  // "무림이 안 돼요"는 원인이 다섯 가지쯤 된다 — 인터넷, SDK 못 받음,
+  // 익명 로그인 꺼짐, 규칙 미게시, 규칙은 올렸는데 조건이 안 맞음.
+  // 화면에는 전부 똑같이 '오프라인'으로 보인다. 그래서 **한 줄씩 짚어 준다.**
+  //
+  // 남의 문서는 안 건드린다. 내 프로필에 쓰고, 내 프로필을 읽고,
+  // 서열 한 줄을 읽어 보는 것까지다.
+  async diagnose() {
+    const out = [];
+    const step = async (name, fn) => {
+      try { const extra = await fn(); out.push({ name, ok: true, extra: extra || '' }); return true; } catch (e) {
+        out.push({ name, ok: false, extra: e?.code || String(e?.message || e).slice(0, 80) });
+        return false;
+      }
+    };
+    if (!this.fs || !this.db) {
+      out.push({ name: 'Firebase 불러오기', ok: false, extra: '아직 연결 전이에요 — 잠시 뒤 다시 눌러 주세요' });
+      return out;
+    }
+    out.push({ name: 'Firebase 불러오기', ok: true, extra: '' });
+    const signed = await step('익명 로그인', async () => {
+      if (!this.uid) throw new Error('로그인 안 됨');
+      return `uid ${this.uid.slice(0, 6)}…`;
+    });
+    if (!signed) return out;
+    const wrote = await step('내 기록 쓰기', async () => {
+      await this.fs.setDoc(this.ref('players', this.uid), this.profileData(), { merge: true });
+      return '';
+    });
+    await step('내 기록 읽기', async () => {
+      const s = await this.fs.getDoc(this.ref('players', this.uid));
+      return s.exists() ? '' : '아직 비어 있음';
+    });
+    await step('서열 읽기', async () => {
+      const q = this.fs.query(this.fs.collection(this.db, 'players'),
+        this.fs.orderBy('power', 'desc'), this.fs.limit(1));
+      const s = await this.fs.getDocs(q);
+      return `${s.size}명 보임`;
+    });
+    // 전부 막혔으면 원인은 거의 하나다
+    if (!wrote && out.some((x) => !x.ok && x.extra === 'permission-denied')) {
+      out.push({ name: '진단', ok: false,
+        extra: '규칙이 안 올라갔어요 — firestore.rules를 Firebase 콘솔에 게시하세요' });
+    } else if (wrote) {
+      // 다시 살려 둔다. 점검에 성공했는데 화면이 계속 끊긴 상태면 이상하다.
+      this.blocked = false;
+      if (this.status !== 'online') { this.status = 'online'; this.changed('status'); }
+    }
+    return out;
+  }
+
+
   // ---------- 프로필 / 서열 ----------
   profileData() {
     const g = this.game;
