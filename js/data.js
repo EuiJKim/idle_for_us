@@ -2,7 +2,7 @@
 
 // 지금 돌고 있는 빌드. 설정 창에 적어 둔다 — 기기가 옛 판을 들고 있는지
 // 한눈에 보려고 둔다. sw.js의 CACHE와 같은 값으로 맞춘다.
-export const BUILD = 'ifu-v45';
+export const BUILD = 'ifu-v47';
 
 export const SAVE_VERSION = 4;
 export const OFFLINE_CAP_SEC = 12 * 3600;
