@@ -531,7 +531,6 @@ export class Game {
     this.s.taste = null;   // 고른 뒤에는 맛보기가 없다
     if (!this.s.jobSeen.includes(id)) this.s.jobSeen.push(id);
     this.heroHp = Math.min(this.heroHp, this.stats().hp);
-    this.emit('job', { id });
     return true;
   }
 
@@ -693,7 +692,7 @@ export class Game {
     const mn = this.s.mine;
     mn.held = 0;
     mn.at = now;
-    if (got > 0) { this.s.stones += got; this.emit('mine', { stones: got }); }
+    if (got > 0) { this.s.stones += got; }
     return got;
   }
 
@@ -1905,7 +1904,6 @@ export class Game {
       this.ccNow = f.cc ? { cc: f.cc, sec: f.ccSec } : null;
       const n = this.hitCircle(f.x, f.y, f.r, f.amount, f.id);
       this.ccNow = null;
-      if (n) this.emit('fieldTick', { id: f.id, x: f.x, y: f.y, r: f.r, hits: n });
     }
     this.fields = this.fields.filter((f) => f.life > 0);
   }
@@ -2310,35 +2308,42 @@ export class Game {
         this.noteLore('lord', codexGradeOf(this.s.bestStage));
       }
     } else if (c.mode === 'tower') {
-      if (result === 'clear') {
+      out.win = result === 'clear';
+      out.floor = c.floor;
+      if (out.win) {
         this.s.tower.floor = c.floor;
         const r = towerReward(c.floor);
         const boxes = r.accBox || 0;
         delete r.accBox;
         this.grant(r);
         if (boxes) this.openAccBox(boxes);
-        this.emit('towerUp', { floor: c.floor, reward: { ...r, accBox: boxes } });
+        out.reward = { ...r, accBox: boxes };
       }
     } else if (c.mode === 'rift' || c.mode === 'hunt') {
-      if (result === 'clear') {
+      out.win = result === 'clear';
+      if (out.win) {
         const r = c.mode === 'rift' ? riftReward(this.s.bestStage) : huntReward(this.s.bestStage);
         const boxes = r.accBox || 0;
         delete r.accBox;
         this.grant(r);
         if (boxes) this.openAccBox(boxes);
-        this.emit('seekWin', { kind: c.mode, reward: { ...r, accBox: boxes } });
+        out.reward = { ...r, accBox: boxes };
       }
     } else if (c.mode === 'shadow') {
-      if (result === 'clear') {
+      out.win = result === 'clear';
+      if (out.win) {
         this.s.shadow.wins = (this.s.shadow.wins || 0) + 1;
-        this.emit('shadowWin', { wins: this.s.shadow.wins, tier: this.shadowTier() });
+        out.wins = this.s.shadow.wins;
+        out.tier = this.shadowTier();
       }
     } else if (c.mode === 'ego') {
-      if (result === 'clear') {
+      out.win = result === 'clear';
+      out.egoId = c.egoId;
+      if (out.win) {
         const e = this.s.ego[c.egoId];
         e.step++;
         e.exp = 0;   // 초과분은 넘어가지 않는다
-        this.emit('egoUp', { id: c.egoId, step: e.step });
+        out.step = e.step;
       }
     } else if (c.mode === 'jobtest') {
       // 부동은 시간이 다 되면 붙는다 — 버티는 게 시험이라 이길 일이 없다.
@@ -2375,7 +2380,6 @@ export class Game {
     this.emit('contestEnd', out);
     if (out.mode === 'raid') this.emit('raidEnd', { damage: out.damage });
     if (out.mode === 'trial' && out.win) this.emit('rankUp', { rank: out.rank });
-    if (out.mode === 'jobtest') this.emit('jobTest', { job: out.job, win: out.win, miss: out.miss });
     this.spawnStage();
     // 연속 도전이 켜져 있으면 바로 다시 들어간다
     if (this.s.loop) {
@@ -2776,7 +2780,6 @@ export class Game {
     this.s.food -= engraveCost(lv);
     if (!this.s.engrave) this.s.engrave = {};
     this.s.engrave[id] = lv;
-    this.emit('engrave', { id, lv });
     return true;
   }
 
@@ -2920,7 +2923,6 @@ export class Game {
     this.s.attend.claimed = true;
     this.s.attend.streak += 1;
     this.s.attend.last = dayKey(now);
-    this.emit('attend', { day, reward: r });
     return { day, reward: r };
   }
 
@@ -2930,7 +2932,6 @@ export class Game {
     if (this.boostLeft() <= 0) return false;
     this.s.daily.boostUsed = (this.s.daily.boostUsed || 0) + 1;
     this.buffs.boost = Math.max(this.buffs.boost || 0, BOOST_SEC);
-    this.emit('boost', { sec: BOOST_SEC });
     return true;
   }
 

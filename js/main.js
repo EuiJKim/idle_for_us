@@ -1,6 +1,6 @@
 import { Game, newSave, migrate, slimSave } from './game.js';
 import {
-  BUILD, JOBS, jobTestOf,
+  BUILD, JOBS, jobTestOf, EGO_PARTS,
   SKILLS, KILLS_PER_STAGE, DUNGEON_MOBS, RANKS, MISSIONS, PETS, zoneOf, expToNext,
   CODEX_KINDS, GRADES,
   isWallStage, nextUnlock, unlocksAt,
@@ -277,6 +277,11 @@ function handleEvents() {
       }
       // 소환 레벨은 자주 오른다. 토스트를 띄우면 시끄러우니 점으로만 알린다.
       case 'gachaLv': updateDots(); break;
+      // 관문지기 시간이 다 되면 heroDied로 넘어가 '쓰러졌다'가 뜬다.
+      // 실제로는 못 이긴 것이라 말이 틀렸다. 먼저 바로잡는다.
+      case 'bossTimeout': toast('⏳ 관문지기를 시간 안에 못 잡았어요'); break;
+      // 연속 도전이 끊기면 알려야 한다. 모르면 계속 도는 줄 안다.
+      case 'loopAgain': if (!ev.on) toast('연속 도전을 멈췄어요'); break;
       case 'raidEnd': finishRaid(ev.damage); break;
       case 'contestEnd': if (ev.mode !== 'raid') showResult(ev); break;
       default:
@@ -300,6 +305,25 @@ function showResult(r) {
     } else if (r.mode === 'trial') {
       title = win ? `경지 돌파 · ${RANKS[r.rank].name}` : '심마에게 패했다';
       body = win ? '마음속 마귀를 베었다. 공격력·체력 ×1.5, 기운이 달라졌어요!' : '심마가 아직 강해요. 더 수련하고 다시 도전하세요.';
+    } else if (r.mode === 'tower') {
+      // 여기 없는 모드는 **제목도 내용도 없는 빈 창**이 떴다. 탑·균열·탐색·
+      // 그림자·심검 다섯이 전부 그랬다 — 깼는데 아무 말도 안 해 줬다.
+      title = win ? `혈마의 탑 ${r.floor}층 돌파` : '탑에서 밀려났다';
+      body = win ? '오른 층은 영구히 남아요. 다음 층이 열렸어요.'
+        : '아직 못 올라가요. 수련하고 다시 올라가세요.';
+    } else if (r.mode === 'rift' || r.mode === 'hunt') {
+      const nm = r.mode === 'rift' ? '균열' : '토벌';
+      title = win ? `${nm} 성공` : `${nm} 실패`;
+      body = win ? '탐색패를 쓴 보람이 있었어요.' : '시간 안에 못 잡았어요.';
+    } else if (r.mode === 'shadow') {
+      title = win ? '그림자를 베었다' : '그림자에게 졌다';
+      body = win ? `연승 ${r.wins} · ${r.tier != null ? `${r.tier}단계` : ''}`
+        : '내 그림자가 아직 세요. 더 수련하고 다시 겨루세요.';
+    } else if (r.mode === 'ego') {
+      const ep = EGO_PARTS.find((x) => x.id === r.egoId);
+      title = win ? `${ep ? ep.name : '심검'} ${r.step}단계` : '승급 실패';
+      body = win ? '한 단계 올랐어요. 경험치는 0부터 다시 쌓여요.'
+        : '아직 일러요. 장비를 더 먹이고 다시 도전하세요.';
     } else if (r.mode === 'jobtest') {
       // 시험 결과를 아무 데서도 안 받고 있었다 — 치르고 나면 아무 일도 안 일어났다.
       const j = JOBS.find((x) => x.id === r.job);

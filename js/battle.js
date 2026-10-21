@@ -165,6 +165,7 @@ export class BattleView {
     this.aoeHits = 0;
     this.aoeAmount = 0;
     this.sparks = [];   // 맞은 자리·쓰러진 자리의 짧은 빛
+    this.paths = [];    // 번개가 튄 길·파고든 길 (연환벽력·발도돌격)
     this.resize();
     window.addEventListener('resize', () => this.resize());
   }
@@ -300,6 +301,19 @@ export class BattleView {
           this.float(`${ev.hits}명 적중`, this.heroX, this.groundY - 190, '#fde68a', 20, 1.1, true);
         }
         break;
+      // 연환벽력이 **누구를 거쳐 갔는지**, 발도돌격이 **어디서 어디까지 갔는지**를
+      // game이 줄곧 보내고 있었는데 그리는 쪽이 없었다. 번개가 튀는 무공인데
+      // 화면에는 숫자만 떴다 — 장판을 안 그리던 것과 같은 경우다.
+      case 'skillPath':
+        if (ev.path && ev.path.length >= 2) {
+          this.paths.push({
+            pts: ev.path.map((p2) => ({ x: this.sx(p2), y: this.sy(p2) })),
+            kind: ev.kind, life: ev.kind === 'chain' ? 0.3 : 0.22,
+            max: ev.kind === 'chain' ? 0.3 : 0.22,
+          });
+          if (this.paths.length > 6) this.paths.shift();
+        }
+        break;
       case 'skillArea':
         // 광역기는 발밑에 원형 장판이 퍼진다 (Blade Idle의 FX_Shader_SkillArea_01 문법)
         if (ev.radius) this.effects.push({ kind: 'area', life: 0.55, max: 0.55, r: ev.radius, id: ev.id });
@@ -398,6 +412,7 @@ export class BattleView {
     this.drawUnits(game, dt, moving);
     this.drawProjectiles(dt);
     this.drawEffects(dt, game);
+    this.drawPaths(dt);
     this.drawSparks(dt);
     this.drawParticles(dt);
     this.drawWeather(scene, dt);
@@ -1057,6 +1072,48 @@ export class BattleView {
     ctx.globalCompositeOperation = 'source-over';
     this.effects = this.effects.filter((e) => e.life > 0);
     void game;
+  }
+
+  // 무공이 지나간 길. 연환벽력은 꺾이는 번개, 발도돌격은 곧은 잔상.
+  drawPaths(dt) {
+    if (!this.paths.length) return;
+    const { ctx } = this;
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    for (const p of this.paths) {
+      p.life -= dt;
+      const k = Math.max(0, p.life / p.max);
+      if (p.kind === 'chain') {
+        // 두 번 긋는다 — 굵고 흐린 것 위에 가늘고 밝은 것
+        for (const [lw, col] of [[7, `rgba(253,224,71,${0.22 * k})`], [2.5, `rgba(255,251,235,${0.9 * k})`]]) {
+          ctx.lineWidth = lw;
+          ctx.strokeStyle = col;
+          ctx.beginPath();
+          ctx.moveTo(p.pts[0].x, p.pts[0].y - 46);
+          for (let i = 1; i < p.pts.length; i++) {
+            const a = p.pts[i - 1], b = p.pts[i];
+            // 가운데를 흔들어 번개처럼 꺾는다
+            const mx = (a.x + b.x) / 2 + (((i * 37) % 19) - 9) * 1.6;
+            const my = (a.y + b.y) / 2 - 46 + (((i * 53) % 17) - 8) * 1.4;
+            ctx.quadraticCurveTo(mx, my, b.x, b.y - 46);
+          }
+          ctx.stroke();
+        }
+      } else {
+        const a = p.pts[0], b = p.pts[p.pts.length - 1];
+        ctx.lineWidth = 26 * k;
+        ctx.strokeStyle = `rgba(248,250,252,${0.3 * k})`;
+        ctx.beginPath(); ctx.moveTo(a.x, a.y - 40); ctx.lineTo(b.x, b.y - 40); ctx.stroke();
+        ctx.lineWidth = 4;
+        ctx.strokeStyle = `rgba(255,255,255,${0.8 * k})`;
+        ctx.beginPath(); ctx.moveTo(a.x, a.y - 40); ctx.lineTo(b.x, b.y - 40); ctx.stroke();
+      }
+    }
+    ctx.globalAlpha = 1;
+    ctx.restore();
+    this.paths = this.paths.filter((p) => p.life > 0);
   }
 
   // 맞은 자리에 뜨는 짧은 빛. 더하기로 겹쳐 밝아진다.
