@@ -30,9 +30,20 @@ const BODIES = {
   black: [0x14, 0x12, 0x10],
 };
 
+// 경지 전용 도포. 열 단계 중 초절정·화경·천인합일이 전부 흰색이라
+// 옷 색으로만 고르면 셋이 똑같이 보인다. 색이 정확히 맞으면 전용 옷을 쓴다.
+// (RANKS[i].look.robe 값과 같아야 한다 — data.js를 고치면 여기도 고친다)
+const RANK_ROBES = {
+  '#6b5640': 'body-r0', '#344563': 'body-r1', '#1f5f8b': 'body-r2',
+  '#1c1917': 'body-r3', '#f5f0e6': 'body-r4', '#f8f4ea': 'body-r5',
+  '#4c1d5f': 'body-r6', '#0b0b0d': 'body-r7', '#134e4a': 'body-r8',
+  '#fffbeb': 'body-r9',
+};
+
 const FILES = [
   ...HEADS.map((h) => `head-${h}`), 'head',
   ...Object.keys(BODIES).map((b) => `body-${b}`),
+  ...new Set(Object.values(RANK_ROBES)),
   ...WEAPONS.map((w) => `wp-${w}`),
 ];
 
@@ -57,6 +68,9 @@ function bodyFor(robe) {
   if (!robe) return 'body-dark';
   let hit = bodyCache.get(robe);
   if (hit) return hit;
+  // 경지 옷이 먼저다 — 색이 정확히 같으면 그 단계 전용 도포
+  const rk = RANK_ROBES[String(robe).toLowerCase()];
+  if (rk) { bodyCache.set(robe, rk); return rk; }
   const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(robe);
   if (!m) return 'body-dark';
   const c = [1, 2, 3].map((i) => parseInt(m[i], 16));

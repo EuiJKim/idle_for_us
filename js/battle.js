@@ -320,6 +320,14 @@ export class BattleView {
     if (id === 'thunder') { add('thunder', 0.45); this.shake = 0.4; this.flash = 0.5; }
     if (id === 'frost') add('frost', 0.7);
     if (id === 'frost' || id === 'jring' || id === 'jsword') add('burst', 0.34, { big: true });
+    // 그림이 없으면 아무 일도 안 일어난다 — putFx가 false를 돌려주고 끝난다
+    if (id === 'chain') { add('thunder', 0.4); this.shake = 0.3; }
+    if (id === 'pierce' || id === 'jblade') add('beam', 0.3, { a: 0, col: id === 'jblade' ? '252,165,165' : '186,230,253' });
+    if (id === 'blink' || id === 'dash' || id === 'jsword') add('blink', 0.3);
+    if (id === 'rage') add('aura', 0.9, { col: '252,165,165' });
+    if (id === 'gale') add('aura', 0.9, { col: '147,197,253' });
+    if (id === 'midas') add('aura', 0.9, { col: '253,224,71' });
+    if (id === 'tornado' || id === 'jdrunk') add('swirl', 0.9);
     if (id === 'meteor') add('swords', 1.1, { seeds: Array.from({ length: 22 }, () => [Math.random(), Math.random()]) });
     if (id === 'heal') add('qi', 1, { color: '134,239,172' });
     if (id === 'midas') for (let i = 0; i < 16; i++) this.ingot(this.heroX + (Math.random() - 0.5) * 60, this.groundY - 140, true);
@@ -847,6 +855,27 @@ export class BattleView {
           ctx.beginPath(); ctx.arc(0, 0, r * 0.62, 0, Math.PI * 2); ctx.stroke();
         }
         ctx.restore();
+      } else if (e.kind === 'beam') {
+        ctx.save();
+        ctx.translate(this.heroX, this.groundY - 56);
+        ctx.rotate(e.a || 0);
+        putFx(ctx, 'fx-beam', e.col || '186,230,253', 420 * (0.5 + (1 - k) * 0.6), k);
+        ctx.restore();
+      } else if (e.kind === 'blink') {
+        ctx.save();
+        ctx.translate(this.heroX, this.groundY - 58);
+        putFx(ctx, 'fx-blink', e.col || '226,232,240', 200, Math.min(1, k * 1.5));
+        ctx.restore();
+      } else if (e.kind === 'aura') {
+        ctx.save();
+        ctx.translate(this.heroX, this.groundY - 26);
+        putFx(ctx, 'fx-aura', e.col || '252,165,165', 120, k * 0.85);
+        ctx.restore();
+      } else if (e.kind === 'swirl') {
+        ctx.save();
+        ctx.translate(this.heroX, this.groundY - 40);
+        putFx(ctx, 'fx-swirl', e.col || '186,230,253', 170, k * 0.9);
+        ctx.restore();
       } else if (e.kind === 'burst') {
         ctx.save();
         ctx.translate(this.monX, this.monY - 56);
@@ -868,6 +897,13 @@ export class BattleView {
         ctx.beginPath(); ctx.moveTo(-34, -24); ctx.quadraticCurveTo(0, 6, 34, 22); ctx.stroke();
         ctx.restore();
       } else if (e.kind === 'thunder') {
+        if (fxReady()) {
+          ctx.save();
+          ctx.translate(this.monX, this.monY - 60);
+          putFx(ctx, 'fx-bolt', '254,240,138', 120, Math.min(1, k * 1.8));
+          ctx.restore();
+          continue;
+        }
         ctx.strokeStyle = `rgba(254,240,138,${k})`;
         ctx.lineWidth = 5;
         ctx.shadowColor = '#fde047';

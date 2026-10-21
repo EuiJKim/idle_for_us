@@ -1,5 +1,5 @@
 // 앱 껍데기를 캐시해 오프라인에서도 열리게 한다. 온라인이면 항상 새 파일을 먼저 받는다.
-const CACHE = 'ifu-v36';
+const CACHE = 'ifu-v37';
 const SHELL = [
   './', 'index.html', 'css/style.css', 'manifest.webmanifest',
   'js/main.js', 'js/game.js', 'js/data.js', 'js/battle.js', 'js/net.js', 'js/fmt.js', 'js/firebase-config.js',
@@ -8,7 +8,9 @@ const SHELL = [
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png',
   'js/art.js', 'js/fx.js',
   // 무공 빛. 흑백 마스크를 코드에서 물들여 쓴다.
-  'art/fx/fx-burst.png', 'art/fx/fx-field.png', 'art/fx/fx-ring.png', 'art/fx/fx-slash.png',
+  'art/fx/fx-aura.png', 'art/fx/fx-beam.png', 'art/fx/fx-blink.png',
+  'art/fx/fx-bolt.png', 'art/fx/fx-burst.png', 'art/fx/fx-field.png',
+  'art/fx/fx-ring.png', 'art/fx/fx-slash.png', 'art/fx/fx-swirl.png',
   // 사람 그림 조각. 한 장이라도 빠지면 전부 벡터로 떨어지므로 같이 받아 둔다.
   'art/hero/body-black.png', 'art/hero/body-blue.png', 'art/hero/body-brown.png', 'art/hero/body-dark.png',
   'art/hero/body-red.png', 'art/hero/body-white.png', 'art/hero/head-bald.png', 'art/hero/head-band.png',

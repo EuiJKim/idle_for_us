@@ -5,7 +5,17 @@
 // 으로만 뽑고 코드에서 색을 입힌다 — 한 장으로 여러 무공에 돌려 쓴다.
 //
 // **읽는 파일은 아래 FILES로 고정이다.** 다른 이름으로 그려 넣어도 안 뜬다.
-const FILES = ['fx-ring', 'fx-slash', 'fx-field', 'fx-burst'];
+const FILES = [
+  'fx-ring',   // 모든 광역기 발밑
+  'fx-slash',  // 모든 타격
+  'fx-field',  // 바닥에 남는 장판
+  'fx-burst',  // 단일 타격·치명
+  'fx-bolt',   // 뇌정검·연환벽력
+  'fx-beam',   // 일자검기·혈풍참
+  'fx-blink',  // 축지참·일점혈로·발도돌격
+  'fx-aura',   // 혈마해방·질풍보·천금수
+  'fx-swirl',  // 선풍장·취보난무
+];
 
 const img = {};
 let ready = false;
