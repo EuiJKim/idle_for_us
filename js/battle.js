@@ -1,6 +1,6 @@
 // 전투 화면 캔버스 렌더러 (수묵화 무협풍). 게임 이벤트를 받아 연출만 담당한다.
 import { zoneOf, RANKS, GRADES, PETS, SKILLS, FIELD_SQUASH } from './data.js';
-import { artReady, putArt, loadArt, FIT, headKey, bodyKey, weaponKey } from './art.js';
+import { artReady, putArt, loadArt, FIT, ART_SHOULDER, ART_BAND, headKey, bodyKey, weaponKey } from './art.js';
 import { fxReady, putFx, loadFx, zoneTile } from './fx.js';
 import { fmt } from './fmt.js';
 
@@ -1180,15 +1180,24 @@ export function drawFighter(ctx, x, y, look = {}, o = {}) {
   drawOrbit(false);
 
   // 머리끈 끝자락 (뒤로 날림)
-  if (look.band || !look.head || look.head === 'band' || look.head === 'topknot') {
+  // 그림 머리에는 띠가 **그려져 있는 것과 없는 것**이 있다. 삿갓·복면·민머리
+  // 까지 붉은 끈이 날려서 머리 뒤 허공에 리본이 붙은 꼴이었다.
+  const bandHead = artReady() && !jiang
+    ? (look.head === 'band' || look.head === 'topknot')
+    : (look.band || !look.head || look.head === 'band' || look.head === 'topknot');
+  if (bandHead) {
     ctx.strokeStyle = look.band || '#7f1d1d';
-    ctx.lineWidth = 3;
+    ctx.lineWidth = artReady() && !jiang ? 2 : 3;
     ctx.lineCap = 'round';
+    // 벡터 머리는 -90이 뒤통수지만 그림 머리는 더 낮다. 한 좌표로 쓰면
+    // 그림 쪽에서 끈이 정수리 위 허공에서 시작한다.
+    const bd = artReady() && !jiang ? ART_BAND : { x: -8, y: -90 };
     for (let i = 0; i < 2; i++) {
       ctx.beginPath();
-      ctx.moveTo(-8, -90);
+      ctx.moveTo(bd.x, bd.y);
       const wv = Math.sin(t * 6 + i) * 4;
-      ctx.quadraticCurveTo(-22, -88 + wv + i * 4, -34 - (o.run ? 6 : 0), -82 + wv * 1.5 + i * 6);
+      ctx.quadraticCurveTo(bd.x - 9, bd.y + 2 + wv + i * 3,
+        bd.x - 17 - (o.run ? 5 : 0), bd.y + 8 + wv * 1.5 + i * 5);
       ctx.stroke();
     }
   }
@@ -1282,8 +1291,12 @@ export function drawFighter(ctx, x, y, look = {}, o = {}) {
   }
 
   // 앞팔 + 무기
+  // 어깨가 벡터 뼈대와 그림 도포에서 서로 다른 자리다. 벡터는 상체가
+  // -74..-44지만 그림 도포는 어깨가 -67이고 소매가 이미 그려져 있다.
+  // 한 좌표로 둘 다 쓰면 한쪽에서 무기가 몸 밖에 뜬다.
   ctx.save();
-  ctx.translate(7, -70);
+  const sh0 = artReady() && !jiang ? ART_SHOULDER : { x: 7, y: -70 };
+  ctx.translate(sh0.x, sh0.y);
   let ang;
   if (jiang) ang = -1.5;
   else if (weapon === 'spear') ang = -1.45 + lunge * 0.15;
@@ -1293,8 +1306,10 @@ export function drawFighter(ctx, x, y, look = {}, o = {}) {
     ctx.fillStyle = shade(robeNow, -0.05);
     ctx.beginPath(); ctx.moveTo(-5, -2); ctx.lineTo(7, -2); ctx.lineTo(9, 18); ctx.lineTo(-7, 18); ctx.fill(); // 소매
   }
-  ctx.fillStyle = skin;
-  circle(ctx, 1, 22, 4.5);
+  if (!(artReady() && !jiang)) {
+    ctx.fillStyle = skin;
+    circle(ctx, 1, 22, 4.5);
+  }
   ctx.translate(1, 22);
   const wk = artReady() ? weaponKey(weapon) : null;
   if (!(wk && putArt(ctx, wk, FIT.weapon))) {

@@ -1,0 +1,31 @@
+<!doctype html><meta charset="utf-8"><title>조각 맞춤 확인</title>
+<style>body{background:#2a241b;margin:0;color:#e7e0d0;font:12px sans-serif}
+canvas{display:block}</style>
+<canvas id="c" width="1200" height="640"></canvas>
+<script type="module">
+import { drawFighter } from './js/battle.js';
+import { loadArt, artReady } from './js/art.js';
+import { RANKS } from './js/data.js';
+const WP = ['sword','saber','spear','axe','claw','dagger','fist'];
+const HD = ['band','topknot','hat','hood','bald', undefined];
+const c = document.getElementById('c'), x = c.getContext('2d');
+function go() {
+  x.fillStyle = '#2a241b'; x.fillRect(0, 0, c.width, c.height);
+  x.fillStyle = '#e7e0d0'; x.fillText('art=' + artReady(), 8, 14);
+  // 경지 도포 10종 — 같은 머리·무기로
+  for (let r = 0; r < 10; r++) {
+    x.save(); x.translate(70 + r * 112, 230); x.scale(2.6, 2.6);
+    drawFighter(x, 0, 0, RANKS[r].look, { t: 0, weapon: 'sword' });
+    x.restore();
+    x.fillText('r' + r, 56 + r * 112, 250);
+  }
+  // 무기 7종 + 머리 6종
+  for (let i = 0; i < WP.length; i++) {
+    x.save(); x.translate(70 + i * 112, 500); x.scale(2.6, 2.6);
+    drawFighter(x, 0, 0, { ...RANKS[3].look, head: HD[i % HD.length] }, { t: 0, weapon: WP[i] });
+    x.restore();
+    x.fillText(WP[i] + '/' + (HD[i % HD.length] || '기본'), 40 + i * 112, 520);
+  }
+}
+loadArt(go); go(); setTimeout(go, 600); setTimeout(go, 1500);
+</script>
