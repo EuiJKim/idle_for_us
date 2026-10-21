@@ -44,6 +44,7 @@ import {
   zoneOf, monsterHp, monsterAtk, monsterGold, BOSS_HP_MULT, BOSS_ATK_MULT, BOSS_GOLD_MULT, RAID_BOSS,
   REGRESS_PER_POINT, regressGain, REGRESS_ADVISE_POINTS, REGRESS_STUCK_SEC,
   JOBS, JOB_RANK, JOB_UNLOCK, jobOf, JOB_SKILLS, jobSkillOf, BOON_SKILLS, TASTE_RANK,
+  JOB_TESTS, jobTestOf, jobTestStage,
   bossGems, bossRelicShards, guildAtkBonus,
 } from './data.js';
 
@@ -120,6 +121,7 @@ export function newSave(now = Date.now()) {
     skillSlots: ['slash', null, null, null],
     job: null,          // 고른 계열 (화경부터)
     jobSeen: [],        // 거쳐 본 계열 — 나중에 각인에 쓴다
+    jobTests: {},       // 붙은 전직 시험 { sword: true, ... }
     taste: null,        // 맛보기로 걸어 둔 계열 (화경 전까지)
     loop: null,         // 연속 도전 {kind, id}
     autoSkill: true,
@@ -248,6 +250,13 @@ export function migrate(raw, now = Date.now()) {
   s.accPick = Math.max(0, raw.accPick | 0);
   // 직업: 없는 계열 id가 들어오면 버린다
   s.job = JOBS.some((j) => j.id === raw.job) ? raw.job : null;
+  // 전직 시험이 생기기 전 세이브는 시험을 본 적이 없다. 이미 들어간 문파를
+  // 시험 때문에 잃으면 안 된다 — 거쳐 본 계열은 전부 붙은 것으로 본다.
+  s.jobTests = {};
+  for (const j of JOBS) if (raw.jobTests?.[j.id]) s.jobTests[j.id] = true;
+  for (const id of [raw.job, ...(Array.isArray(raw.jobSeen) ? raw.jobSeen : [])]) {
+    if (JOBS.some((j) => j.id === id)) s.jobTests[id] = true;
+  }
   s.jobSeen = Array.isArray(raw.jobSeen)
     ? [...new Set(raw.jobSeen.filter((x) => JOBS.some((j) => j.id === x)))] : [];
   if (s.job && !s.jobSeen.includes(s.job)) s.jobSeen.push(s.job);
@@ -405,14 +414,84 @@ export class Game {
   // 화경에 닿으면 고를 수 있다. 언제든 바꿀 수 있고, 바꿔도 잃는 것은 없다.
   jobOpen() { return this.s.rank >= JOB_RANK; }
 
-  // 계열이 열렸는가 (첫 계열은 화경 즉시, 나머지는 관문으로)
-  jobUnlocked(id) {
+  // 계열의 문이 열렸는가 (첫 계열은 화경 즉시, 나머지는 관문으로).
+  // 문이 열린 것과 들어갈 수 있는 것은 다르다 — 사이에 시험이 있다.
+  jobStageOpen(id) {
     const i = JOBS.findIndex((j) => j.id === id);
     if (i < 0) return false;
     return this.jobOpen() && this.s.bestStage >= (JOB_UNLOCK[i] || 0);
   }
 
+  // 들어갈 수 있는가 — 문이 열렸고 시험에 붙었을 때
+  jobUnlocked(id) { return this.jobStageOpen(id) && this.jobTestPassed(id); }
+
+  // ---------- 전직 시험 ----------
+  jobTestPassed(id) { return !!this.s.jobTests?.[id]; }
+  jobTestsPassed() { return JOBS.filter((j) => this.jobTestPassed(j.id)).length; }
+  canJobTest(id) {
+    return this.jobStageOpen(id) && !this.jobTestPassed(id) && this.mode === 'stage';
+  }
+
+  startJobTest(id) {
+    if (!this.canJobTest(id)) return false;
+    const def = jobTestOf(id);
+    if (!def) return false;
+    const eq = jobTestStage(this.s.bestStage);
+    this.beginContest('jobtest', def.time, {
+      job: id, eq, goal: def.goal, need: def.need || 0,
+      // 판정에 쓰는 것들. 하나도 새 축이 아니다 — 전부 여기서만 센다.
+      kills: 0, hit: 0, bigHit: 0, lowest: 1, casts: 0,
+    });
+    this.spawnJobTest();
+    return true;
+  }
+
+  spawnJobTest() {
+    const c = this.contest;
+    const def = jobTestOf(c.job);
+    const wave = c.goal === 'kills';
+    const hp = monsterHp(c.eq) * (wave ? def.hpMult : BOSS_HP_MULT * def.hpMult);
+    this.mon = {
+      hp, maxHp: hp, isBoss: !wave, def: { name: def.boss },
+      // 공격을 내 최대 체력의 몇 %로 못박으면 사람이 달라도 같은 시험이 된다
+      atk: def.atkHpFrac
+        ? this.stats().hp * def.atkHpFrac
+        : monsterAtk(c.eq) * (wave ? 1 : BOSS_ATK_MULT) * (def.atkMult || 1),
+      atkTimer: def.atkFirst ?? 1.2, alive: true, stun: 0, ...this.duelSpot(),
+    };
+    this.spawnTimer = 0;
+  }
+
+  // 벤 순간 조건을 따진다. 시간이 남아도 조건이 안 맞으면 떨어진다.
+  jobTestOk(c) {
+    switch (c.goal) {
+      case 'noskill': return c.casts === 0;
+      case 'lowhp': return c.lowest <= c.need;
+      case 'keephp': return c.lowest >= c.need;
+      case 'nohit': return c.hit === 0;
+      default: return true;      // quick·grind는 시간 안에 벴으면 끝
+    }
+  }
+
+  // 왜 떨어졌는지 한 줄로. "실패"만 띄우면 뭘 고쳐야 할지 모른다.
+  jobTestMiss(c) {
+    switch (c.goal) {
+      case 'noskill': return '무공을 썼어요';
+      case 'lowhp': return '멀쩡한 채로 이겼어요 — 체력이 40% 아래로 내려가야 해요';
+      case 'keephp': return '너무 오래 끌어서 체력이 80% 아래로 내려갔어요';
+      case 'nohit': return '한 대 맞았어요';
+      default: return '시간이 모자랐어요';
+    }
+  }
+
+  // 겨루기 중 맞은 것을 센다 (환영·취생 판정)
+  noteHeroHit() {
+    if (this.mode !== 'jobtest' || !this.contest) return;
+    this.contest.hit++;
+  }
+
   jobUnlockedCount() { return JOBS.filter((j) => this.jobUnlocked(j.id)).length; }
+  jobStageOpenCount() { return JOBS.filter((j) => this.jobStageOpen(j.id)).length; }
 
   // 맛보기 — 일류부터 화경 전까지. 여덟 계열 무공을 공짜로 바꿔 가며 써 본다.
   // 회귀로 경지가 화경 아래로 내려가도 고른 문파는 그대로 둔다(잃는 게 없어야 한다).
@@ -1402,6 +1481,7 @@ export class Game {
   spawn() {
     if (this.mode === 'stage') return this.spawnStage();
     if (this.mode === 'dungeon') return this.spawnDungeon();
+    if (this.mode === 'jobtest') return this.spawnJobTest();
     return undefined;
   }
 
@@ -1864,6 +1944,12 @@ export class Game {
   }
 
   dealDamage(amount, kind = 'hit', crit = false) {
+    // 일격(극악소마 시험)은 '한 번에 얼마나'가 전부다. 누적 피해로는 못 잰다.
+    if (this.mode === 'jobtest' && this.contest?.goal === 'burst' && this.mon?.maxHp) {
+      const c = this.contest;
+      c.bigHit = Math.max(c.bigHit, amount / this.mon.maxHp);
+      if (c.bigHit >= c.need) return this.endContest('clear');
+    }
     const m = this.mon;
     if (!m?.alive) return;
     if (m.isBoss) amount *= this.stats().bossMul;
@@ -1888,6 +1974,18 @@ export class Game {
       if (m.isBoss) return this.endContest('clear');
       this.spawnTimer = 0.25;
       return undefined;
+    }
+    if (this.mode === 'jobtest') {
+      const c = this.contest;
+      if (c.goal === 'kills') {
+        c.kills++;
+        this.emit('kill', { gold: 0, isBoss: false });
+        if (c.kills >= c.need) return this.endContest('clear');
+        this.spawnTimer = 0.15;
+        return undefined;
+      }
+      // 일격은 벨 필요가 없다. 여기까지 왔다면 한 방이 모자랐다는 뜻이다.
+      return this.endContest(this.jobTestOk(c) ? 'clear' : 'fail');
     }
     if (this.mode === 'trial') return this.endContest('clear');
     if (this.mode === 'ego') return this.endContest('clear');
@@ -1995,6 +2093,9 @@ export class Game {
     const st = this.stats();
 
     if (this.contest) {
+      if (this.mode === 'jobtest' && (this.contest.goal === 'lowhp' || this.contest.goal === 'keephp')) {
+        this.contest.lowest = Math.min(this.contest.lowest, this.heroHp / Math.max(1, st.hp));
+      }
       this.contest.time -= dt;
       if (this.contest.time <= 0) return this.endContest('timeout');
       if (this.mode === 'raid' && this.mon.hp <= 0) return this.endContest('done');
@@ -2088,6 +2189,7 @@ export class Game {
         let crit = false;
         if (m.crit && this.rng() < m.crit) { dmg *= m.critDmg; crit = true; }
         this.heroHp -= dmg;
+        this.noteHeroHit();
         this.emit('heroHit', { amount: dmg, crit });
       }
       if (m.petHit) {
@@ -2095,6 +2197,7 @@ export class Game {
         if (m.petTimer <= 0) {
           m.petTimer += PET_ATTACK_INTERVAL;
           this.heroHp -= m.petHit;
+          this.noteHeroHit();
           this.emit('heroHit', { amount: m.petHit, pet: true });
         }
       }
@@ -2115,6 +2218,7 @@ export class Game {
         while (a.atkTimer <= 0 && this.heroHp > 0) {
           a.atkTimer += 1.6;
           this.heroHp -= a.atk * 0.6;
+          this.noteHeroHit();
           this.emit('heroHit', { amount: a.atk * 0.6 });
         }
       }
@@ -2236,6 +2340,12 @@ export class Game {
         e.exp = 0;   // 초과분은 넘어가지 않는다
         this.emit('egoUp', { id: c.egoId, step: e.step });
       }
+    } else if (c.mode === 'jobtest') {
+      // 부동은 시간이 다 되면 붙는다 — 버티는 게 시험이라 이길 일이 없다.
+      out.win = c.goal === 'endure' ? result === 'timeout' : result === 'clear';
+      out.job = c.job;
+      out.miss = out.win ? null : this.jobTestMiss(c);
+      if (out.win) this.s.jobTests[c.job] = true;
     } else if (c.mode === 'trial') {
       out.win = result === 'clear';
       if (out.win) {
@@ -2265,6 +2375,7 @@ export class Game {
     this.emit('contestEnd', out);
     if (out.mode === 'raid') this.emit('raidEnd', { damage: out.damage });
     if (out.mode === 'trial' && out.win) this.emit('rankUp', { rank: out.rank });
+    if (out.mode === 'jobtest') this.emit('jobTest', { job: out.job, win: out.win, miss: out.miss });
     this.spawnStage();
     // 연속 도전이 켜져 있으면 바로 다시 들어간다
     if (this.s.loop) {
@@ -2403,6 +2514,9 @@ export class Game {
   useSkill(id) {
     const sk = SKILLS.find((x) => x.id === id);
     if (!sk || !this.skillUnlocked(sk) || this.cd[id] > 0 || !this.mon?.alive || this.mode === 'pvp') return false;
+    // 육합(권마 시험)은 맨몸이 시험이다. 자동 무공이 켜진 채로 들어와서
+    // 모르는 사이에 떨어지는 일이 없도록 **막는다** — 세고 나서 떨구지 않는다.
+    if (this.mode === 'jobtest' && this.contest?.goal === 'noskill') return false;
     // 자리를 옮기거나 들판에 남는 무공은 1:1 겨루기에서 쓸 자리가 없다
     const roams = sk.motion === 'dash' || sk.motion === 'blink' || sk.motion === 'tornado';
     if (roams && this.mode !== 'stage') return false;

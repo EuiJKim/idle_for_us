@@ -559,3 +559,13 @@ body { background: radial-gradient(ellipse at top, #1d1712, #0b0907 70%); }
 
 /* 아이콘 그림이 있으면 글자를 가리고 그림만 보인다 */
 .ico.has-art { background-size: contain; background-repeat: no-repeat; background-position: center; color: transparent; text-indent: -999px; overflow: hidden; }
+
+/* 프레임 표시 — 설정에서 켜면 뜬다. 끊김은 쓰는 기기에서만 보이므로
+   숫자를 눈으로 보고 말할 수 있어야 한다. */
+#perf {
+  position: fixed; left: 6px; bottom: 6px; z-index: 99;
+  font: 11px/1.4 ui-monospace, monospace;
+  color: #fde68a; background: rgba(0, 0, 0, 0.62);
+  padding: 3px 7px; border-radius: 5px; pointer-events: none;
+  white-space: nowrap;
+}

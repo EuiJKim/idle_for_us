@@ -2,7 +2,7 @@
 
 // 지금 돌고 있는 빌드. 설정 창에 적어 둔다 — 기기가 옛 판을 들고 있는지
 // 한눈에 보려고 둔다. sw.js의 CACHE와 같은 값으로 맞춘다.
-export const BUILD = 'ifu-v41';
+export const BUILD = 'ifu-v43';
 
 export const SAVE_VERSION = 4;
 export const OFFLINE_CAP_SEC = 12 * 3600;
@@ -416,6 +416,62 @@ export const JOBS = [
     mult: { bleed: 2.0, ccDur: 1.4, exp: 1.8 } },
 ];
 export const jobOf = (id) => JOBS.find((j) => j.id === id) || null;
+
+// ---------- 전직 시험 ----------
+// 고르면 그냥 되는 게 허전했다. 여덟 장 카드에서 하나를 누르면 끝이라
+// "왜 이 계열인가"가 아니라 "고르면 된다"만 남았다. 사이에 관문 하나를 둔다.
+//
+// **계열마다 다른 걸 요구한다.** 시험이 곧 그 계열의 설명이 되게 한다 —
+// 일화검존은 한 점을 빨리 꿰뚫고, 마불은 그냥 버틴다. 읽지 않아도 몸이 안다.
+//
+// 판정은 **이미 집계되고 있는 값으로만** 한다(처치 수·단일 타격·받은 피해·
+// 체력 바닥·시간). 새로 세는 축을 만들면 그 축이 또 어딘가에서 죽는다.
+export const JOB_TESTS = [
+  { job: 'sword', name: '일점', hanja: '一點', boss: '검을 시험하는 자',
+    goal: 'quick', time: 20, hpMult: 1.1,
+    ask: '관문지기를 20초 안에 벤다',
+    why: '한 점을 꿰뚫는 자리다. 오래 걸리면 그 자리가 아니다.' },
+  { job: 'blade', name: '혈로', hanja: '血路', boss: '떼로 덤비는 자들',
+    goal: 'kills', time: 35, need: 40, hpMult: 0.8,
+    ask: '35초 안에 졸개 40을 벤다',
+    why: '베어 넘기는 자리다. 하나씩 세고 있을 틈이 없다.' },
+  { job: 'fist', name: '육합', hanja: '六合', boss: '맨손으로 맞는 자',
+    goal: 'noskill', time: 30, hpMult: 2.6,
+    ask: '무공 없이 평타만으로 벤다',
+    why: '맞붙는 자리다. 무공은 이 시험 동안 나가지 않는다.' },
+  { job: 'ring', name: '일격', hanja: '一擊', boss: '단단한 바위',
+    goal: 'burst', time: 30, need: 0.25, hpMult: 40,
+    ask: '한 번의 타격으로 적 체력의 25%를 깎는다',
+    why: '한 번에 끝내는 자리다. 벨 필요도 없다 — 한 방이면 된다.' },
+  // 아래 셋은 적의 공격을 **내 최대 체력의 몇 %**로 못박는다.
+  // monsterAtk로 두면 세기가 사람마다 제멋대로다 — 재 보니 관문 200에서는
+  // 한 대에 죽고 관문 390에서는 한 대도 안 아팠다. 같은 시험이 아니게 된다.
+  { job: 'drunk', name: '취생', hanja: '醉生', boss: '술을 뺏는 자',
+    // 적이 **먼저** 때려야 한다. 재 보니 세 세이브 모두 첫 공격(1.2초) 전에
+    // 베어 버려서 체력이 안 깎였고, 그래서 아무도 못 붙었다.
+    goal: 'lowhp', time: 40, need: 0.4, hpMult: 8, atkHpFrac: 0.32, atkFirst: 0.3,
+    ask: '체력이 40% 아래로 떨어진 뒤에 벤다',
+    why: '비틀거리며 사는 자리다. 멀쩡히 이기면 취한 게 아니다 — 맞아 가며 이겨라.' },
+  { job: 'fan', name: '환영', hanja: '幻影', boss: '헛손질하는 자',
+    goal: 'keephp', time: 30, need: 0.8, hpMult: 1.6, atkHpFrac: 0.07,
+    ask: '체력 80% 위를 지킨 채로 벤다',
+    why: '홀리는 자리다. 오래 끌면 손이 닿는다 — 닿기 전에 끝내라.' },
+  { job: 'monk', name: '부동', hanja: '不動', boss: '무너뜨리려는 자',
+    // 37대를 맞는다. 0.022면 81%라 그냥 통과라 긴장이 없었다.
+    goal: 'endure', time: 45, hpMult: 400, atkHpFrac: 0.025,
+    ask: '45초를 버틴다 (벨 수 없다)',
+    why: '버티는 자리다. 이길 필요가 없다 — 서 있기만 하면 된다.' },
+  { job: 'poison', name: '적공', hanja: '積功', boss: '쉬이 죽지 않는 것',
+    goal: 'grind', time: 90, hpMult: 26,
+    ask: '90초 안에 아주 단단한 것을 눕힌다',
+    why: '서서히 죽이는 자리다. 한 방은 없다.' },
+];
+// 시험은 **이미 넘은 관문**에서 치른다. 지금 서 있는 벽에서 보면 관문지기보다
+// 센 상대가 되어 아무도 못 붙는다 — 관문 200에서 재 보니 0/8이었다.
+export const JOB_TEST_BACK = 20;
+export const jobTestStage = (best) => Math.max(1, (best || 1) - JOB_TEST_BACK);
+export const jobTestOf = (id) => JOB_TESTS.find((t) => t.job === id) || null;
+
 export const jobUnlockStage = (i) => JOB_UNLOCK[i] ?? 0;
 
 // ---------- 병기 ----------

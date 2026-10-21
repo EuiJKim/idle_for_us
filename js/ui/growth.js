@@ -1,7 +1,7 @@
 // 성장 탭: 은자 수련 / 레벨(스탯 포인트) / 경지
 import { UPGRADES, SP_STATS, SP_RESET_GEMS, RANKS, RANK_MULT, expToNext, REGRESS_MIN_STAGE, REGRESS_PER_POINT,
   CRIT_CAP, REGRESS_ADVISE_POINTS, JOBS, JOB_RANK, JOB_UNLOCK,
-  TASTE_RANK, jobSkillOf } from '../data.js';
+  TASTE_RANK, jobSkillOf, jobTestOf, jobTestStage } from '../data.js';
 import { fmt } from '../fmt.js';
 import { drawFighter } from '../battle.js';
 import { h, toast, openModal, closeModal, fmtValue, subTabs, multSelector, popUp } from './common.js';
@@ -254,6 +254,8 @@ function jobView(app) {
     const eff = h('div', { class: 'desc', style: 'margin-top:4px' });
     const note = h('div', { class: 'desc', style: 'margin-top:2px' }, j.desc);
     const art = h('div', { class: 'desc', style: 'margin-top:4px' });
+    // 전직 시험 — 문이 열렸는데 아직 안 붙었으면 여기 뭘 해야 하는지 적힌다
+    const test = h('div', { class: 'desc', style: 'margin-top:4px' });
     const btn = h('button', { class: 'buy', onclick: () => {
       // 화경 전에는 맛보기 — 공짜로 몇 번이든 바꾼다
       if (game.tasteOpen()) {
@@ -264,14 +266,32 @@ function jobView(app) {
         return;
       }
       if (game.s.job === j.id) { game.setJob(null); app.refresh(); return; }
+      // 문은 열렸는데 시험을 안 봤으면 시험부터
+      if (game.canJobTest(j.id)) {
+        const d = jobTestOf(j.id);
+        openModal((s) => s.append(
+          h('h2', {}, `${d.name}(${d.hanja}) — ${j.name} 입문 시험`),
+          h('p', {}, h('b', { style: `color:${j.color}` }, d.ask)),
+          h('p', { class: 'muted' }, d.why),
+          h('p', { class: 'muted' },
+            `제 ${jobTestStage(game.s.bestStage)} 관문의 힘으로 겨룹니다 · 제한 ${d.time}초`,
+            h('br'), '떨어져도 잃는 건 없어요. 몇 번이든 다시 볼 수 있어요.'),
+          h('div', { class: 'btn-row' },
+            h('button', { class: 'btn primary', onclick: () => {
+              if (game.startJobTest(j.id)) { closeModal(); app.closePanel?.(); }
+              else toast('들판에서만 시험을 볼 수 있어요');
+            } }, '시험 보기'),
+            h('button', { class: 'btn', onclick: closeModal }, '나중에'))));
+        return;
+      }
       if (game.setJob(j.id)) { app.refresh(); toast(`${j.name}이 되었어요`); }
       else toast('아직 안 열린 문파예요');
     } });
     const row = h('div', { class: 'card' },
       h('div', { style: 'display:flex;align-items:flex-start;gap:8px' },
-        h('div', { style: 'flex:1;min-width:0' }, title, tag, eff, art, note), btn));
+        h('div', { style: 'flex:1;min-width:0' }, title, tag, eff, art, test, note), btn));
     root.append(row);
-    cards[j.id] = { title, eff, art, btn, row, def: j };
+    cards[j.id] = { title, eff, art, test, btn, row, def: j };
   }
 
   function update() {
@@ -280,7 +300,7 @@ function jobView(app) {
     const at = game.nextJobAt();
     head.innerHTML = open
       ? `여덟 중 하나를 골라요. <b>언제든 바꿀 수 있고, 바꿔도 잃는 게 없어요.</b>`
-        + `<br>열린 문파 ${game.jobUnlockedCount()}/${JOBS.length}`
+        + `<br>문 열림 ${game.jobStageOpenCount()}/${JOBS.length} · 시험 통과 ${game.jobTestsPassed()}`
         + (at ? ` · 다음은 <b>${at}관문</b>` : ' · 전부 열림')
       : taste
         ? `<b>맛보기</b> — 계열 무공을 하나씩 써 볼 수 있어요. 공짜로 몇 번이든 바꿔요.`
@@ -291,18 +311,27 @@ function jobView(app) {
       const c = cards[j.id];
       const tasting = taste && game.s.taste === j.id;
       const picked = game.s.job === j.id || tasting;
-      const unlocked = taste ? true : game.jobUnlocked(j.id);
+      const stageOpen = taste ? true : game.jobStageOpen(j.id);
+      const passed = game.jobTestPassed(j.id);
+      const unlocked = taste ? true : (stageOpen && passed);
       const need = JOB_UNLOCK[JOBS.indexOf(j)] || 0;
       c.title.innerHTML = `${j.name} <small style="color:var(--muted)">${j.weapon}</small>`
         + (picked ? ` <b style="color:var(--accent-2)">· ${tasting ? '써 보는 중' : '지금 이것'}</b>` : '');
       const sk = jobSkillOf(j.id);
       c.art.innerHTML = sk ? `전용 무공 <b style="color:${j.color}">${sk.name}</b> · 쿨 ${sk.cd}초` : '';
       c.eff.innerHTML = taste ? '<span class="muted">문파에 들면 능력치 보너스가 붙어요</span>' : bonusText(j);
-      c.row.style.opacity = unlocked ? '' : '0.5';
+      // 시험 줄 — 뭘 해야 하는지 카드에 적어 둔다. 눌러 보고서야 알면 늦다.
+      const d = jobTestOf(j.id);
+      c.test.innerHTML = taste || !d ? ''
+        : passed ? `<span style="color:var(--accent-2)">입문 시험 〈${d.name}〉 통과</span>`
+          : stageOpen ? `입문 시험 <b>〈${d.name}〉</b> — ${d.ask}`
+            : `<span class="muted">입문 시험 〈${d.name}〉</span>`;
+      c.row.style.opacity = stageOpen ? '' : '0.5';
       c.row.style.outline = picked ? `1px solid ${j.color}` : '';
       c.btn.textContent = tasting ? '내려놓기' : taste ? '맛보기'
-        : picked ? '그만두기' : unlocked ? '입문' : (!open ? '경지 부족' : `${need}관문`);
-      c.btn.disabled = !unlocked && !picked;
+        : picked ? '그만두기' : unlocked ? '입문'
+          : stageOpen ? '시험 보기' : (!open ? '경지 부족' : `${need}관문`);
+      c.btn.disabled = !stageOpen && !picked;
     }
   }
   return { root, update };

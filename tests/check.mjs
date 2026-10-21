@@ -23,6 +23,9 @@ function strong(stage = 150) {
   for (const t of ['weapon', 'armor', 'ring']) { s.codex[t] = [1, 1, 1, 1, 1, 1]; s.equips[t] = [0, 0, 0, 40, 20, 6]; }
   s.enhance = { weapon: 40, armor: 34, ring: 30 };
   const g = new Game(s);
+  // 전직 시험은 18절에서 따로 본다. 다른 축을 재는 캐릭터까지 시험을
+  // 치르게 하면 재려는 것이 시험 결과에 가린다.
+  for (const j of D.JOBS) g.s.jobTests[j.id] = true;
   g.rng = seeded();
   g.spawn();
   return g;
@@ -795,17 +798,21 @@ console.log('\n=== 17. 방치와 날짜 ===');
 console.log('\n=== 18. 문파 ===');
 {
   const g = strong(500);
+  g.s.jobTests = {};          // 이 절은 시험 문턱 자체를 본다
   g.s.rank = D.JOB_RANK - 1;
   ok(!g.jobOpen(), `${D.RANKS[D.JOB_RANK].name} 전에는 못 고른다`, D.RANKS[g.s.rank].name);
   g.s.rank = D.JOB_RANK;
   ok(g.jobOpen(), `${D.RANKS[D.JOB_RANK].name}부터 고를 수 있다`);
 
-  // 해금은 관문으로 하나씩
+  // 해금은 관문으로 하나씩. **문이 열린 것과 들어갈 수 있는 건 다르다** —
+  // 사이에 전직 시험이 있다.
   g.s.bestStage = 1;
-  ok(g.jobUnlockedCount() === 1, '화경에 닿으면 첫 계열만 열린다', `${g.jobUnlockedCount()}개`);
+  ok(g.jobStageOpenCount() === 1, '화경에 닿으면 첫 계열 문만 열린다', `${g.jobStageOpenCount()}개`);
   g.s.bestStage = 9999;
-  ok(g.jobUnlockedCount() === D.JOBS.length, '관문을 다 올리면 전부 열린다',
-    `${g.jobUnlockedCount()}/${D.JOBS.length}`);
+  ok(g.jobStageOpenCount() === D.JOBS.length, '관문을 다 올리면 문이 전부 열린다',
+    `${g.jobStageOpenCount()}/${D.JOBS.length}`);
+  ok(g.jobUnlockedCount() === 0, '문이 열려도 시험을 안 봤으면 못 들어간다',
+    `${g.jobUnlockedCount()}개`);
   ok(D.JOB_UNLOCK.length === D.JOBS.length, '해금 지점이 계열 수만큼 있다');
   ok(D.JOB_UNLOCK.every((v, k) => k === 0 || v > D.JOB_UNLOCK[k - 1]),
     '해금 관문이 오름차순이다', D.JOB_UNLOCK.join(','));
@@ -818,7 +825,9 @@ console.log('\n=== 18. 문파 ===');
 
   // 고르고 바꾸고 그만두기
   g.s.bestStage = 9999;
-  ok(g.setJob(D.JOBS[0].id), '첫 계열을 고른다');
+  ok(g.setJob(D.JOBS[0].id) === false, '시험을 안 봤으면 못 들어간다');
+  for (const j of D.JOBS) g.s.jobTests[j.id] = true;
+  ok(g.setJob(D.JOBS[0].id), '시험에 붙으면 들어간다');
   ok(g.setJob(D.JOBS[1].id), '언제든 바꿀 수 있다');
   ok(g.s.jobSeen.length === 2, '거쳐 본 계열이 쌓인다 (나중에 각인에 쓴다)',
     g.s.jobSeen.join(','));
@@ -1090,5 +1099,85 @@ console.log('\n=== 23. 체력 축 ===');
     `${plain.toFixed(1)}초 → ${monk.toFixed(1)}초 (x${(monk / plain).toFixed(2)})`);
 }
 
+
+console.log('\n=== 24. 전직 시험 ===');
+{
+  ok(D.JOB_TESTS.length === D.JOBS.length, '계열마다 시험이 하나씩 있다',
+    `${D.JOB_TESTS.length}/${D.JOBS.length}`);
+  ok(D.JOBS.every((j) => D.jobTestOf(j.id)), '빠진 계열이 없다');
+
+  // 여덟이 **서로 다른 것을 묻는다.** 같은 걸 물으면 시험이 계열을 설명하지 못한다.
+  const goals = new Set(D.JOB_TESTS.map((x) => x.goal));
+  ok(goals.size === D.JOB_TESTS.length, '여덟이 서로 다른 것을 묻는다',
+    `${goals.size}종 / ${D.JOB_TESTS.length}`);
+
+  // 시험은 **이미 넘은 관문**에서 본다. 지금 벽에서 보면 아무도 못 붙는다 —
+  // 관문 200 세이브로 재 보니 0/8이었다.
+  ok(D.jobTestStage(200) < 200, '시험은 지금 벽보다 아래에서 본다',
+    `200관문 → ${D.jobTestStage(200)}관문`);
+  ok(D.jobTestStage(1) >= 1, '1관문에서도 아래로 안 내려간다', `${D.jobTestStage(1)}`);
+
+  const g = strong(500);
+  g.s.jobTests = {};
+  ok(g.jobStageOpen('sword') && !g.jobUnlocked('sword'),
+    '문이 열려도 시험 전에는 못 들어간다');
+  ok(g.canJobTest('sword'), '문이 열렸으면 시험을 볼 수 있다');
+  ok(g.startJobTest('sword') && g.mode === 'jobtest', '시험이 시작된다', g.mode);
+  ok(!g.canJobTest('blade'), '시험 중에는 다른 시험을 못 연다');
+
+  // 육합은 무공이 **안 나가야** 한다. 세고 나서 떨구면 모르는 사이에 떨어진다.
+  const g2 = strong(500);
+  g2.s.jobTests = {};
+  g2.startJobTest('fist');
+  const anySkill = g2.activeSlots().find((id) => id && g2.s.skills[id]);
+  g2.cd = {};
+  ok(anySkill ? g2.useSkill(anySkill) === false : true,
+    '육합에서는 무공이 아예 안 나간다', anySkill || '무공 없음');
+
+  // 떨어져도 잃는 게 없어야 한다
+  const g3 = strong(500);
+  g3.s.jobTests = {};
+  const gold0 = g3.s.gold, lv0 = g3.s.level, stage0 = g3.s.stage;
+  g3.startJobTest('sword');
+  g3.endContest('fail');
+  ok(g3.s.gold === gold0 && g3.s.level === lv0 && g3.s.stage === stage0,
+    '떨어져도 잃는 게 없다');
+  ok(!g3.jobTestPassed('sword'), '떨어지면 안 붙은 채로 남는다');
+  ok(g3.mode === 'stage', '끝나면 들판으로 돌아온다', g3.mode);
+
+  g3.startJobTest('sword');
+  g3.endContest('clear');
+  ok(g3.jobTestPassed('sword'), '붙으면 기록된다');
+  ok(g3.setJob('sword'), '붙은 뒤에는 들어간다');
+
+  // 부동은 **시간이 다 되면** 붙는다 (이기는 시험이 아니다)
+  const g4 = strong(500);
+  g4.s.jobTests = {};
+  g4.startJobTest('monk');
+  g4.endContest('timeout');
+  ok(g4.jobTestPassed('monk'), '부동은 버티면(시간초과) 붙는다');
+
+  // 옛 세이브 구제 — 이미 들어간 문파를 시험 때문에 잃으면 안 된다
+  const oldSv = migrate({ job: 'ring', jobSeen: ['ring', 'fan'], rank: 9, bestStage: 9999 });
+  ok(oldSv.jobTests.ring && oldSv.jobTests.fan,
+    '시험 전 세이브는 거쳐 본 계열이 붙은 걸로 들어온다',
+    Object.keys(oldSv.jobTests).join(','));
+  ok(new Game(oldSv).s.job === 'ring', '들어가 있던 문파를 그대로 들고 온다');
+
+  // 체력 비율로 못박은 시험은 사람이 달라도 같은 세기여야 한다 —
+  // monsterAtk로 두니 관문 200에서는 한 대에 죽고 390에서는 안 아팠다.
+  const frac = D.JOB_TESTS.filter((x) => x.atkHpFrac);
+  ok(frac.length >= 3, '적의 공격을 체력 비율로 못박은 시험이 있다',
+    frac.map((x) => x.name).join(','));
+  for (const d of frac) {
+    const gg = strong(500);
+    gg.s.jobTests = {};
+    gg.startJobTest(d.job);
+    const want = gg.stats().hp * d.atkHpFrac;
+    ok(Math.abs(gg.mon.atk - want) < want * 0.01,
+      `${d.name}의 적 공격이 내 체력의 ${Math.round(d.atkHpFrac * 100)}%다`,
+      `${gg.mon.atk.toExponential(2)} / ${want.toExponential(2)}`);
+  }
+}
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);

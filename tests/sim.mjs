@@ -110,7 +110,12 @@ for (let t = 0, step = 0; t < hours * 3600; t += dt, step++) {
   // 일화검존을 기본으로 삼는다 (계열별 비교는 변종으로 따로 잰다).
   const WANT = process.env.SIM_JOB || JOBS[0].id;
   if (g.tasteOpen() && !g.s.taste) g.setTaste(WANT);   // 맛보기도 써 본다
-  if (g.jobOpen() && !g.s.job) g.setJob(WANT);
+  // 시험은 **실제로 치른다.** "붙을 수 있는 시험인가"가 밸런스의 전부다 —
+  // 통과한 셈 치고 넘기면 영영 모른다. 못 붙으면 문파 없이 계속 간다.
+  if (g.jobOpen() && !g.s.job) {
+    if (g.jobTestPassed(WANT)) g.setJob(WANT);
+    else if (g.canJobTest(WANT)) { g.jobTryN = (g.jobTryN || 0) + 1; g.startJobTest(WANT); }
+  }
   g.mergeAll();
   for (const t2 of Object.keys(EQUIP_TYPES)) g.enhanceEquip(t2, 5);
   if (step % 600 === 0) spendSlow(now, step);   // 무거운 것은 1분마다만

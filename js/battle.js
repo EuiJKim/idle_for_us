@@ -64,7 +64,11 @@ function sparkImage(color) {
   return c;
 }
 
-const SPR = { w: 80, h: 160, ox: 44, oy: 146, phases: 8, cycle: Math.PI / 2, max: 48 };
+// max는 **한 구역이 쓰는 칸 수보다 넉넉해야 한다.** 한 구역에 졸개 4종 + 두목 1종이고
+// 한 인물이 8위상을 쓰므로 40칸이다. 전에는 상한이 48이라 구역이 바뀌는 10관문마다
+// 80칸이 필요해져 통째로 비우고 48장을 다시 구웠다 — 그때마다 화면이 한 번 걸렸다.
+// 두 구역이 같이 들어가고도 남게 둔다.
+const SPR = { w: 80, h: 160, ox: 44, oy: 146, phases: 8, cycle: Math.PI / 2, max: 192 };
 const sprCache = new Map();
 // 그림이 늦게 도착하면 벡터로 구워 둔 것을 버려야 한다
 loadArt(() => sprCache.clear());
@@ -85,7 +89,12 @@ function fighterSprite(look, time, weapon, dpr) {
   const key = `${lookId(look)}|${ph}|${weapon || ''}|${dpr}`;
   let c = sprCache.get(key);
   if (c) return c;
-  if (sprCache.size >= SPR.max) sprCache.clear();   // 구역이 바뀌면 통째로 비운다
+  // 통째로 비우면 아직 화면에 있는 것까지 날아가 그 프레임에 전부 다시 굽는다.
+  // Map은 넣은 순서를 지키므로 오래된 쪽 절반만 버린다.
+  if (sprCache.size >= SPR.max) {
+    let drop = SPR.max >> 1;
+    for (const k of sprCache.keys()) { if (drop-- <= 0) break; sprCache.delete(k); }
+  }
   c = document.createElement('canvas');
   c.width = Math.ceil(SPR.w * dpr);
   c.height = Math.ceil(SPR.h * dpr);
@@ -426,34 +435,21 @@ export class BattleView {
     if (pat) {
       ctx.save();
       ctx.globalAlpha = 0.85;
-      ctx.translate(-camX % 512, (-camY * this.squash) % 512);
+      // 나머지 연산이 음수를 낼 수 있어서(-512~512) 양쪽으로 512씩 덧칠하고 있었다.
+      // 554x502 화면에 1618x1566을 칠한 꼴 — **쓸데없이 9배다.**
+      // 오프셋을 (-512, 0]으로 못박으면 한쪽만 덮으면 된다.
+      ctx.translate(-(((camX % 512) + 512) % 512),
+        -(((((camY * this.squash) % 512) + 512) % 512)));
       ctx.fillStyle = pat;
-      ctx.fillRect(-532, -532, w + 1064, h + 1064);
+      ctx.fillRect(-20, -20, w + 552, h + 552);
       ctx.restore();
     }
 
-    // 땅 얼룩 — 큰 붓자국 두 겹이 카메라와 함께 흐른다
-    const blot = (cell, alpha, rx, ry, color) => {
-      ctx.fillStyle = hexA(color, alpha);
-      const ox = camX, oy = camY * this.squash;
-      const i0 = Math.floor((ox - w) / cell), i1 = Math.ceil((ox + w) / cell);
-      const j0 = Math.floor((oy - h) / cell), j1 = Math.ceil((oy + h) / cell);
-      for (let i = i0; i <= i1; i++) {
-        for (let j = j0; j <= j1; j++) {
-          const n = rnd2(i, j);
-          if (n > 0.62) continue;
-          const px = this.heroX + (i * cell + (n * 897 % cell)) - ox;
-          const py = this.groundY + (j * cell + (n * 613 % cell)) - oy;
-          if (px < -rx * 2 || px > w + rx * 2 || py < -ry * 2 || py > h + ry * 2) continue;
-          ctx.beginPath();
-          ctx.ellipse(px, py, rx * (0.6 + n), ry * (0.6 + n), n * 3, 0, Math.PI * 2);
-          ctx.fill();
-        }
-      }
-    };
-    blot(260, 0.35, 90, 58, mid);
-    blot(150, 0.22, 44, 28, far);
-    blot(95, 0.3, 16, 10, edge);
+    // 땅 얼룩·소품은 **미리 구워 둔 한 장**으로 깐다.
+    // 전에는 매 프레임 타원을 300개 가까이 다시 그렸다(얼룩 3겹 + 소품).
+    // 둘 다 월드 격자에 박혀 있어서 카메라와 같이 흐를 뿐 모양은 안 변한다 —
+    // 한 번 구워 두고 밀어서 그리면 된다.
+    this.putDecor(z, camX, camY * this.squash);
 
     // 관문 한가운데 문양 — 이 자리에서 싸움이 시작된다
     const cx = this.heroX - camX;
@@ -477,31 +473,109 @@ export class BattleView {
       ctx.restore();
     }
 
-    // 풀·돌 — 작은 소품이 바닥에 흩어져 있다
-    this.scatter(z, camX, camY);
+    this.putVignette(z);
+  }
 
-    // 가장자리 어둠 — 들판 밖은 흐리게 (직교 투영이라 원근이 없으니 이걸로 깊이를 준다)
-    const vg = ctx.createRadialGradient(w / 2, h * 0.5, Math.min(w, h) * 0.34, w / 2, h * 0.5, Math.max(w, h) * 0.78);
-    vg.addColorStop(0, 'rgba(0,0,0,0)');
-    vg.addColorStop(1, z.night ? 'rgba(0,0,0,0.62)' : 'rgba(10,8,6,0.4)');
-    ctx.fillStyle = vg;
-    ctx.fillRect(-20, -20, w + 40, h + 40);
+  // 얼룩·소품 한 장. 카메라가 가장자리(M)를 넘어갈 때만 다시 굽는다.
+  putDecor(z, ox, oy) {
+    const { ctx, w, h } = this;
+    const M = 220;
+    const d = this._decor;
+    const stale = !d || d.w !== w || d.h !== h || d.z !== z
+      || Math.abs(ox - d.ox) > M || Math.abs(oy - d.oy) > M;
+    if (stale) this.bakeDecor(z, ox, oy, M);
+    const k = this._decor;
+    ctx.drawImage(k.cv, -M - (ox - k.ox), -M - (oy - k.oy), k.cv.width / k.q, k.cv.height / k.q);
+  }
+
+  bakeDecor(z, ox, oy, M) {
+    const { w, h } = this;
+    const q = this.dpr || 1;
+    const cv = this._decor?.cv && this._decor.w === w && this._decor.h === h
+      ? this._decor.cv : document.createElement('canvas');
+    cv.width = Math.ceil((w + M * 2) * q);
+    cv.height = Math.ceil((h + M * 2) * q);
+    const x = cv.getContext('2d');
+    x.setTransform(q, 0, 0, q, 0, 0);
+    x.clearRect(0, 0, w + M * 2, h + M * 2);
+    this.decorInto(x, z, ox, oy, M);
+    this._decor = { cv, q, w, h, z, ox, oy, M };
+  }
+
+  // 구워 넣는 실제 그림. (ox, oy)를 기준으로 (M, M)만큼 밀어서 그린다.
+  decorInto(ctx, z, camX, camY, M) {
+    const w = this.w + M * 2;
+    const h = this.h + M * 2;
+    const [far, mid, edge] = z.ink;
+    const heroX = this.heroX + M;
+    const groundY = this.groundY + M;
+    const blot = (cell, alpha, rx, ry, color) => {
+      ctx.fillStyle = hexA(color, alpha);
+      const ox = camX, oy = camY;
+      // 보이는 칸만 돈다. 전에는 ox를 중심으로 ±w를 돌았는데, 실제로 보이는
+      // 구간은 (ox - heroX) 쪽이라 **중심이 어긋난 채 두 배를 돌고** 있었다.
+      const b = ox - heroX;
+      const i0 = Math.floor((b - cell) / cell), i1 = Math.ceil((b + w) / cell);
+      const c2 = oy - groundY;
+      const j0 = Math.floor((c2 - cell) / cell), j1 = Math.ceil((c2 + h) / cell);
+      for (let i = i0; i <= i1; i++) {
+        for (let j = j0; j <= j1; j++) {
+          const n = rnd2(i, j);
+          if (n > 0.62) continue;
+          const px = heroX + (i * cell + (n * 897 % cell)) - ox;
+          const py = groundY + (j * cell + (n * 613 % cell)) - oy;
+          if (px < -rx * 2 || px > w + rx * 2 || py < -ry * 2 || py > h + ry * 2) continue;
+          ctx.beginPath();
+          ctx.ellipse(px, py, rx * (0.6 + n), ry * (0.6 + n), n * 3, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+    };
+    blot(260, 0.35, 90, 58, mid);
+    blot(150, 0.22, 44, 28, far);
+    blot(95, 0.3, 16, 10, edge);
+    this.scatterInto(ctx, z, camX, camY, heroX, groundY, w, h);
+  }
+
+  // 가장자리 어둠. 매 프레임 radialGradient를 만들어 화면 전체를 칠하고 있었다 —
+  // 화소마다 그라디언트를 계산하는 가장 비싼 연산이다. 한 번 구워서 깐다.
+  putVignette(z) {
+    const { ctx, w, h } = this;
+    const night = !!z.night;
+    let v = this._vig;
+    if (!v || v.w !== w || v.h !== h || v.night !== night) {
+      // 부드러운 번짐이라 1/3로 구워도 눈에 차이가 없다
+      const s = 3;
+      const cv = document.createElement('canvas');
+      cv.width = Math.max(2, Math.ceil(w / s));
+      cv.height = Math.max(2, Math.ceil(h / s));
+      const x = cv.getContext('2d');
+      const g2 = x.createRadialGradient(cv.width / 2, cv.height / 2, Math.min(cv.width, cv.height) * 0.34,
+        cv.width / 2, cv.height / 2, Math.max(cv.width, cv.height) * 0.78);
+      g2.addColorStop(0, 'rgba(0,0,0,0)');
+      g2.addColorStop(1, night ? 'rgba(0,0,0,0.62)' : 'rgba(10,8,6,0.4)');
+      x.fillStyle = g2;
+      x.fillRect(0, 0, cv.width, cv.height);
+      v = this._vig = { cv, w, h, night };
+    }
+    ctx.drawImage(v.cv, -20, -20, w + 40, h + 40);
   }
 
   // 바닥 소품: 지역에 따라 대나무·바위·눈더미 등이 격자 위에 고정돼 있다
-  scatter(z, camX, camY) {
-    const { ctx, w, h } = this;
+  // 바닥 소품. 얼룩과 같이 한 장에 구워지므로 ctx와 기준점을 받는다.
+  scatterInto(ctx, z, camX, camY, heroX, groundY, w, h) {
     const cell = 170;
-    const ox = camX, oy = camY * this.squash;
-    const i0 = Math.floor((ox - w) / cell), i1 = Math.ceil((ox + w) / cell);
-    const j0 = Math.floor((oy - h) / cell), j1 = Math.ceil((oy + h) / cell);
+    const ox = camX, oy = camY;
+    const b = ox - heroX, c2 = oy - groundY;
+    const i0 = Math.floor((b - cell) / cell), i1 = Math.ceil((b + w) / cell);
+    const j0 = Math.floor((c2 - cell) / cell), j1 = Math.ceil((c2 + h) / cell);
     const ink = z.night ? 'rgba(6,6,9,0.8)' : 'rgba(22,20,16,0.72)';
     for (let i = i0; i <= i1; i++) {
       for (let j = j0; j <= j1; j++) {
         const n = rnd2(i * 3 + 11, j * 7 + 5);
         if (n > 0.42) continue;
-        const px = this.heroX + (i * cell + (n * 1301 % cell)) - ox;
-        const py = this.groundY + (j * cell + (n * 787 % cell)) - oy;
+        const px = heroX + (i * cell + (n * 1301 % cell)) - ox;
+        const py = groundY + (j * cell + (n * 787 % cell)) - oy;
         if (px < -60 || px > w + 60 || py < -60 || py > h + 60) continue;
         ctx.save();
         ctx.translate(px, py);

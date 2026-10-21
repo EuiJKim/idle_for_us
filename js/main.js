@@ -1,6 +1,6 @@
 import { Game, newSave, migrate, slimSave } from './game.js';
 import {
-  BUILD,
+  BUILD, JOBS, jobTestOf,
   SKILLS, KILLS_PER_STAGE, DUNGEON_MOBS, RANKS, MISSIONS, PETS, zoneOf, expToNext,
   CODEX_KINDS, GRADES,
   isWallStage, nextUnlock, unlocksAt,
@@ -300,6 +300,14 @@ function showResult(r) {
     } else if (r.mode === 'trial') {
       title = win ? `경지 돌파 · ${RANKS[r.rank].name}` : '심마에게 패했다';
       body = win ? '마음속 마귀를 베었다. 공격력·체력 ×1.5, 기운이 달라졌어요!' : '심마가 아직 강해요. 더 수련하고 다시 도전하세요.';
+    } else if (r.mode === 'jobtest') {
+      // 시험 결과를 아무 데서도 안 받고 있었다 — 치르고 나면 아무 일도 안 일어났다.
+      const j = JOBS.find((x) => x.id === r.job);
+      const d = jobTestOf(r.job);
+      title = win ? `입문 시험 〈${d?.name || ''}〉 통과` : `입문 시험 〈${d?.name || ''}〉 실패`;
+      body = win
+        ? `${j?.name || ''}에 들어갈 수 있어요. 문파 창에서 입문하세요.`
+        : `${r.miss || '조건을 못 채웠어요'} — 잃는 건 없어요. 몇 번이든 다시 볼 수 있어요.`;
     } else if (r.mode === 'pvp') {
       title = win ? '승리!' : '패배…';
       body = `vs ${r.opponent.nickname} · 비무 점수 ${r.delta > 0 ? '+' : ''}${r.delta} (${game.s.pvp.score}점)`;
@@ -450,6 +458,16 @@ function openSettings() {
         h('div', {}, '처치 수', h('b', {}, fmt(game.s.stats.kills))),
         h('div', {}, '뽑기 횟수', h('b', {}, fmt(game.s.stats.gachas)))),
       h('div', { class: 'btn-row' },
+        h('button', { class: 'btn', onclick: () => {
+          // 끊김은 쓰는 기기에서만 보인다. 숫자를 눈으로 보고 말할 수 있게 한다.
+          perf.on = !perf.on;
+          let el = document.getElementById('perf');
+          if (perf.on && !el) {
+            el = h('div', { id: 'perf' }, '재는 중…');
+            document.body.appendChild(el);
+          } else if (!perf.on && el) el.remove();
+          toast(perf.on ? '프레임 표시를 켰어요' : '프레임 표시를 껐어요');
+        } }, '프레임 보기'),
         h('button', { class: 'btn', onclick: () => askNickname(false) }, '닉네임 변경'),
         h('button', { class: 'btn', onclick: () => net.online && showProfile(app, { uid: net.uid, ...net.profileData(), updatedAt: null }) }, '내 프로필')),
       h('div', { class: 'section-title', style: 'margin-top:14px' }, '저장 데이터 옮기기'),
@@ -603,6 +621,34 @@ function resetSave() {
 }
 
 // ---------- 루프 ----------
+// 끊김은 평균으로는 안 잡힌다. "가끔 한 프레임이 길다"가 끊김이다.
+// 그래서 **최악값과 어느 단계가 길었는지**를 같이 들고 있는다.
+// 끄면 거의 공짜다(덧셈 몇 번). 설정에서 켜면 화면 위에 뜬다.
+export const perf = {
+  on: false, fps: 0, worst: 0, tick: 0, draw: 0, ui: 0,
+  _n: 0, _t0: 0, _gap: [],
+};
+function perfFrame(now, parts) {
+  if (!perf.on) return;
+  if (!perf._t0) perf._t0 = now;
+  perf._n++;
+  perf.tick = Math.max(perf.tick, parts.tick);
+  perf.draw = Math.max(perf.draw, parts.draw);
+  perf.ui = Math.max(perf.ui, parts.ui);
+  perf._gap.push(parts.gap);
+  if (now - perf._t0 >= 1000) {
+    const g2 = perf._gap.sort((a, b) => a - b);
+    perf.fps = Math.round(perf._n / ((now - perf._t0) / 1000));
+    perf.worst = Math.round(g2[g2.length - 1]);
+    perf.p99 = Math.round(g2[Math.floor(g2.length * 0.95)] || 0);
+    perf._n = 0; perf._t0 = now; perf._gap = [];
+    const el = document.getElementById('perf');
+    if (el) el.textContent = `${perf.fps}fps 최악 ${perf.worst}ms (p95 ${perf.p99})`
+      + ` · 셈 ${perf.tick.toFixed(1)} 그림 ${perf.draw.toFixed(1)} 창 ${perf.ui.toFixed(1)}ms`;
+    perf.tick = perf.draw = perf.ui = 0;
+  }
+}
+
 let last = performance.now();
 let uiTimer = 0;
 let saveTimer = 0;
@@ -621,19 +667,34 @@ function frame(now) {
 
 function step(now) {
   let dt = (now - last) / 1000;
+  const gap = now - last;
+  const P = perf.on ? { tick: 0, draw: 0, ui: 0, gap } : null;
+  const mark = P ? () => performance.now() : null;
   last = now;
   if (dt > 3) dt = 0; // 백그라운드에서 돌아온 경우는 방치 보상으로 처리
   dt = Math.min(dt, 0.25);
-  const steps = Math.ceil(dt / 0.05);
+  // **느려지면 더 느려지던 자리다.** dt가 길수록 tick을 더 많이 돌리는데,
+  // 그래서 다음 프레임이 더 늦고, 그래서 또 더 돌린다. 한 번 걸리면 그대로
+  // 주저앉는다. 쪼개는 건 물리가 튀지 않을 만큼만 하고 거기서 끊는다.
+  const steps = Math.min(3, Math.ceil(dt / 0.05));
+  const m0 = P ? mark() : 0;
   for (let i = 0; i < steps; i++) game.tick(dt / steps);
+  if (P) P.tick = mark() - m0;
   // handleEvents가 draw보다 먼저 돌기 때문에, 첫 프레임에 view.game이 비어 있다.
   // 시작하자마자 쌓인 사건 하나가 좌표를 물으면 거기서 터졌다.
   view.game = game;
   handleEvents();
+  const m1 = P ? mark() : 0;
   view.draw(game, dt);
+  if (P) P.draw = mark() - m1;
   uiTimer += dt;
   saveTimer += dt;
-  if (uiTimer > 0.2) { uiTimer = 0; refreshUI(); }
+  if (uiTimer > 0.2) {
+    uiTimer = 0;
+    const m2 = P ? mark() : 0;
+    refreshUI();
+    if (P) P.ui = mark() - m2;
+  }
   if (saveTimer > 5) {
     saveTimer = 0;
     save();
@@ -644,6 +705,7 @@ function step(now) {
     net.refreshDay();
     updateDots();
   }
+  if (P) perfFrame(now, P);
 }
 
 document.addEventListener('visibilitychange', () => {

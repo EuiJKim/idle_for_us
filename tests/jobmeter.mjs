@@ -32,6 +32,9 @@ function make(job, withSkill) {
   s.job = null; s.taste = null;
   const g = new Game(s);
   g.rng = seeded();
+  // 여기서 재는 건 계열 보너스의 크기다. 전직 시험은 통과한 셈 치고 넣는다.
+  for (const id of Object.keys(g.s.jobTests)) g.s.jobTests[id] = true;
+  if (job) g.s.jobTests[job] = true;
   if (job && !g.setJob(job)) throw new Error(`${job} 입문 실패`);
   // 전용 무공을 뺀 채로도 잰다 — 보너스의 몫과 무공의 몫을 가르기 위해서다
   if (!withSkill) g.jobSkillId = () => null;
