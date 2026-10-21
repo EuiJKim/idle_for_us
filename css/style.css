@@ -538,3 +538,21 @@ body { background: radial-gradient(ellipse at top, #1d1712, #0b0907 70%); }
   18%  { opacity: 1; transform: translateY(-2px) scale(1.1); }
   100% { opacity: 0; transform: translateY(-26px) scale(1); }
 }
+
+/* 창틀 — 생성형으로 뽑은 무협 금테를 9조각으로 늘려 쓴다.
+   Kenney UI 팩에는 창틀이 한 장도 없었고(버튼·화살표·체크뿐) 둥근 서양
+   톤이라 안 맞았다. 192x192에 테두리 26px, 가운데는 완전히 비어 있다.
+   border-image는 가운데를 버리고 테두리만 늘리므로 카드 크기와 무관하다. */
+.card, #modal .sheet {
+  border: 13px solid transparent;
+  border-image: url('../art/ui/frame.png') 26 fill round;
+  border-image-outset: 0;
+  background-clip: padding-box;
+}
+/* 틀이 안 받아지는 브라우저에서는 원래 배경이 그대로 보인다 */
+@supports not (border-image: url('../art/ui/frame.png') 26 fill round) {
+  .card { border: 0; }
+}
+/* 틀이 두꺼우니 안쪽 여백을 줄인다 */
+.card { padding: 8px; }
+#panel-body .card:first-child { margin-top: 2px; }
