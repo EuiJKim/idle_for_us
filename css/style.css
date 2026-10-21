@@ -606,3 +606,14 @@ body { background: radial-gradient(ellipse at top, #1d1712, #0b0907 70%); }
 .adsub { font-size: 12px; color: #a8a29e; margin: 4px 0 12px; }
 .adleft { font-size: 12px; color: #fcd34d; margin-bottom: 10px; }
 .adbox .btn { width: 100%; }
+
+/* 신청 번호 — 보이는 것과 복사되는 것이 같아야 한다.
+   28자라 길지만, 잘라 보여 주면 보이는 대로 적어 보내는 사람이 생긴다. */
+.uidbox {
+  display: block; margin-top: 3px;
+  font: 12px/1.45 ui-monospace, monospace;
+  color: #fde68a; background: rgba(0, 0, 0, 0.3);
+  border: 1px solid #44403c; border-radius: 5px;
+  padding: 5px 7px; word-break: break-all;
+  user-select: all;   /* 한 번 누르면 통째로 선택된다 */
+}

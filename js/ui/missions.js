@@ -70,8 +70,11 @@ export function openMissions(app) {
       if (nf) {
         card.append(h('p', { class: 'muted' }, '이미 켜져 있어요. 고맙습니다.'));
       } else {
+        // **보이는 것과 쓰이는 것이 같아야 한다.** 앞 8자만 보여 주고 복사는
+        // 28자를 하고 있었다 — 복사를 안 쓰고 보이는 대로 적어 보내면
+        // 운영자가 만든 문서 ID가 안 맞아 영영 안 켜진다.
         const idRow = h('p', { class: 'muted' },
-          '신청 번호 ', h('b', { id: 'ad-uid' }, app.net?.uid ? app.net.uid.slice(0, 8) : '연결 중…'));
+          '신청 번호', h('span', { class: 'uidbox' }, app.net?.uid || '서버에 연결되면 나와요'));
         const copy = h('button', { class: 'btn', onclick: () => {
           const u = app.net?.uid;
           if (!u) return toast('서버에 연결된 뒤에 눌러 주세요');
