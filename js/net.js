@@ -23,6 +23,7 @@ export class Net {
     this.unsubs = [];
     this.lastProfile = 0;
     this.blocked = false;   // 서버가 거부해서 멈춘 상태 (끊긴 것과 다르다)
+    this.shop = null;       // 상점에 띄울 계좌 정보 (config/shop)
   }
 
   get online() { return this.status === 'online'; }
@@ -51,6 +52,8 @@ export class Net {
       this.status = 'online';
       this.changed('status');
       await this.pushProfile(true);
+      await this.syncEntitlement();
+      await this.loadShop();
       if (this.game.s.guildId) this.watchGuild(this.game.s.guildId);
     } catch (err) {
       console.warn('[net] offline:', err?.message || err);
@@ -60,6 +63,38 @@ export class Net {
   }
 
   ref(...path) { return this.fs.doc(this.db, ...path); }
+
+  // ---------- 광고 제거 ----------
+  //
+  // 참말은 서버에 있다(entitlements/{uid}). 세이브의 noAds는 사본일 뿐이다 —
+  // 오프라인에서도 쓸 수 있게 두는 것이고, 접속하면 서버 값으로 맞춘다.
+  //
+  // **켜 주기만 하고 뺏지는 않는다.** 서버에 없다고 꺼 버리면, 입금했는데
+  // 운영자가 아직 안 켠 사람이 쓰던 걸 잃는다. 그건 돈 받고 하는 짓이 아니다.
+  async syncEntitlement() {
+    if (!this.online || this.blocked || !this.uid) return;
+    try {
+      const snap = await this.fs.getDoc(this.ref('entitlements', this.uid));
+      if (snap.exists() && snap.data().noAds && !this.game.s.noAds) {
+        this.game.s.noAds = true;
+        this.changed('noAds');
+      }
+    } catch (err) {
+      if (!this.denied(err)) console.warn('[net] entitlement', err);
+    }
+  }
+
+  // 계좌 정보는 **저장소에 안 둔다.** 공개 저장소라서다.
+  // 운영자가 콘솔에서 config/shop을 고치면 배포 없이 바뀐다.
+  async loadShop() {
+    if (!this.online || this.blocked) return;
+    try {
+      const snap = await this.fs.getDoc(this.ref('config', 'shop'));
+      if (snap.exists()) { this.shop = snap.data(); this.changed('shop'); }
+    } catch (err) {
+      if (!this.denied(err)) console.warn('[net] shop', err);
+    }
+  }
 
   // ---------- 서버 점검 ----------
   //

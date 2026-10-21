@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 // 전체 점검: 모드 전환·세이브 이주·시스템 도달·값 이상 여부를 한 번에 본다.
 // node tests/check.mjs
 import { Game, newSave, migrate, slimSave } from '../js/game.js';
@@ -1178,6 +1179,63 @@ console.log('\n=== 24. 전직 시험 ===');
       `${d.name}의 적 공격이 내 체력의 ${Math.round(d.atkHpFrac * 100)}%다`,
       `${gg.mon.atk.toExponential(2)} / ${want.toExponential(2)}`);
   }
+}
+
+console.log('\n=== 25. 광고 / 광고 제거 ===');
+{
+  const g = strong(200);
+  g.s.noAds = false;
+  const a = g.stats();
+  g.s.noAds = true;
+  const b = g.stats();
+  ok(Math.abs(b.atk / a.atk - D.NOADS_ATK) < 1e-9, `광고를 지우면 공격력 x${D.NOADS_ATK}`,
+    `x${(b.atk / a.atk).toFixed(3)}`);
+  ok(Math.abs(b.hp / a.hp - D.NOADS_HP) < 1e-9, `광고를 지우면 체력 x${D.NOADS_HP}`,
+    `x${(b.hp / a.hp).toFixed(3)}`);
+  // 돈이 실력을 덮으면 같이 하는 재미가 없다. 문파 보너스보다 작아야 한다.
+  const topJob = Math.max(...D.JOBS.map((j) => j.mult?.atk || 1));
+  ok(D.NOADS_ATK < topJob, '광고 제거 보너스가 문파 보너스보다 작다',
+    `x${D.NOADS_ATK} < x${topJob}`);
+
+  // **공짜로 주던 것을 광고 뒤로 옮기지 않는다.** 있던 걸 빼앗으면 개악이다.
+  const g2 = strong(200);
+  ok(g2.boostLeft() === D.BOOST_PER_DAY, '공짜 기연 횟수는 그대로다',
+    `${g2.boostLeft()}/${D.BOOST_PER_DAY}`);
+  ok(g2.adBoostLeft() === D.AD_BOOST_EXTRA, '광고 기연은 덤으로 더 있다',
+    `+${g2.adBoostLeft()}`);
+
+  // 광고 기연도 실제로 버프가 걸려야 한다
+  const g3 = strong(200);
+  const before = g3.stats().atk;
+  ok(g3.takeAdBoost(), '광고 기연을 받는다');
+  ok(g3.stats().atk > before * 1.5, '광고 기연이 실제로 공격력을 올린다',
+    `x${(g3.stats().atk / before).toFixed(2)}`);
+  ok(g3.adBoostLeft() === 0, '하루 한 번만 받는다');
+  ok(!g3.takeAdBoost(), '두 번은 안 된다');
+
+  // 날이 바뀌면 광고 기연도 돌아온다
+  const g4 = strong(200);
+  g4.takeAdBoost();
+  g4.s.daily.date = '2000-01-01';
+  g4.checkDaily(Date.now());
+  ok(g4.adBoostLeft() === D.AD_BOOST_EXTRA, '날이 바뀌면 광고 기연이 돌아온다',
+    `${g4.adBoostLeft()}`);
+
+  // 세이브에 남고 돌아온다
+  const g5 = strong(200);
+  g5.s.noAds = true;
+  ok(migrate(JSON.parse(JSON.stringify(g5.toJSON()))).noAds === true, '광고 제거가 세이브에 남는다');
+  ok(migrate({}).noAds === false, '옛 세이브는 꺼진 채로 들어온다');
+
+  // 규칙에서 플레이어가 **못 쓰는** 자리에 둬야 한다.
+  // players/{uid}는 본인이 자유롭게 쓰므로 거기 두면 누구나 스스로 켠다.
+  const rules = fs.readFileSync(new URL('../firestore.rules', import.meta.url), 'utf-8');
+  // 다음 match가 나오기 전까지가 entitlements 블록이다.
+  // 중괄호를 세려 하면 {uid}의 }에 걸린다.
+  const entBlock = (rules.split('match /entitlements')[1] || '').split('match /')[0];
+  ok(entBlock.includes('allow read'), '권한 문서를 본인이 읽을 수 있다');
+  ok(!entBlock.includes('allow write') && !entBlock.includes('allow create'),
+    '권한 문서는 아무도 못 쓴다 (운영자 콘솔 전용)');
 }
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);

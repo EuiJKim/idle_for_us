@@ -1,7 +1,9 @@
 // 일일 의뢰 / 업적 모달
 import { MISSIONS, MISSION_ALL_REWARD, STAGE_MILESTONE_EVERY, stageMilestone,
-  ATTEND_CYCLE, attendReward, BOOST_PER_DAY, BOOST_SEC, BOOST_MULT } from '../data.js';
+  ATTEND_CYCLE, attendReward, BOOST_PER_DAY, BOOST_SEC, BOOST_MULT,
+  NOADS_ATK, NOADS_HP, AD_BOOST_EXTRA, AD_OFFLINE_MULT } from '../data.js';
 import { h, toast, openModal, closeModal, rewardText } from './common.js';
+import { showAd } from '../ads.js';
 
 export function openMissions(app) {
   const { game } = app;
@@ -41,9 +43,53 @@ export function openMissions(app) {
            : left > 0 ? `⚡ 기연 받기 (오늘 ${left}/${BOOST_PER_DAY}회)` : '오늘 기연을 다 썼어요');
       boostBtn.disabled = left <= 0 || on;
       boostBtn.onclick = () => { if (game.takeBoost()) { toast(`${BOOST_SEC / 60}분 동안 공격력 ${BOOST_MULT}배`); app.refresh(); render(); } };
+      // 광고로 더 받는 기연. **공짜 횟수는 그대로 둔다** — 덤이다.
+      const adLeft = game.adBoostLeft();
+      const adBtn = h('button', { class: `btn ${adLeft > 0 && !on ? 'good' : ''}`, style: 'width:100%;margin-top:6px' },
+        adLeft <= 0 ? '오늘 다 받았어요'
+          : game.s.noAds ? `⚡ 기연 한 번 더 (광고 없이)` : `📺 광고 보고 기연 한 번 더`);
+      adBtn.disabled = adLeft <= 0 || on;
+      adBtn.onclick = async () => {
+        adBtn.disabled = true;
+        const ok = await showAd(game.s.noAds);
+        if (!ok) { adBtn.disabled = false; return toast('끝까지 봐야 받을 수 있어요'); }
+        if (game.takeAdBoost()) { toast(`${BOOST_SEC / 60}분 동안 공격력 ${BOOST_MULT}배`); app.refresh(); }
+        render();
+      };
       body.append(h('div', { class: 'card' },
         h('h3', {}, '⚡ 기연', h('small', {}, `${BOOST_SEC / 60}분 동안 공격력 ${BOOST_MULT}배`)),
-        boostBtn));
+        boostBtn, adBtn));
+
+      // ---------- 광고 제거 ----------
+      const nf = game.s.noAds;
+      const shop = app.net?.shop;
+      const card = h('div', { class: 'card' },
+        h('h3', {}, nf ? '✅ 광고 없음' : '🚫 광고 제거'),
+        h('p', { class: 'desc' },
+          `공격력 ×${NOADS_ATK} · 체력 ×${NOADS_HP} 영구 · 기연·방치 보상을 광고 없이 바로 받아요.`));
+      if (nf) {
+        card.append(h('p', { class: 'muted' }, '이미 켜져 있어요. 고맙습니다.'));
+      } else {
+        const idRow = h('p', { class: 'muted' },
+          '신청 번호 ', h('b', { id: 'ad-uid' }, app.net?.uid ? app.net.uid.slice(0, 8) : '연결 중…'));
+        const copy = h('button', { class: 'btn', onclick: () => {
+          const u = app.net?.uid;
+          if (!u) return toast('서버에 연결된 뒤에 눌러 주세요');
+          navigator.clipboard?.writeText(u).then(() => toast('신청 번호를 복사했어요'))
+            .catch(() => toast(u));
+        } }, '신청 번호 복사');
+        // **append는 null을 "null" 글자로 넣는다.** h()는 걸러 주지만 append는
+        // 아니다 — 화면에 null이 한 줄 찍혔다. 걸러서 넘긴다.
+        card.append(...[
+          h('p', {}, shop?.price ? h('b', {}, shop.price) : h('span', { class: 'muted' }, '값은 운영자에게 물어보세요')),
+          h('p', { class: 'desc' }, shop?.bank || '계좌 정보가 아직 등록되지 않았어요.'),
+          shop?.note ? h('p', { class: 'muted' }, shop.note) : null,
+          idRow,
+          h('p', { class: 'muted' }, '입금하고 이 번호를 운영자에게 보내면 켜 드려요. 켜지면 다음 접속 때 바로 적용돼요.'),
+          h('div', { class: 'btn-row' }, copy),
+        ].filter(Boolean));
+      }
+      body.append(card);
 
       for (const m of MISSIONS) {
         const st = game.missionState(m.id);

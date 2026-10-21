@@ -576,3 +576,33 @@ body { background: radial-gradient(ellipse at top, #1d1712, #0b0907 70%); }
   padding: 3px 7px; border-radius: 5px; pointer-events: none;
   white-space: nowrap;
 }
+
+/* 광고 — 지금은 흉내만 낸다(5초 기다리는 가짜 화면).
+   나중에 진짜 광고망을 붙이면 이 자리에 그쪽 iframe이 들어간다. */
+#adwrap {
+  position: fixed; inset: 0; z-index: 120;
+  background: rgba(0, 0, 0, 0.86);
+  display: none; align-items: center; justify-content: center;
+  padding: 16px;
+}
+#adwrap.on { display: flex; }
+.adbox {
+  position: relative; width: min(380px, 92vw);
+  background: #15120e; border: 1px solid #3a3026; border-radius: 12px;
+  padding: 22px 18px 16px; text-align: center; color: #e7e0d0;
+}
+.adtag {
+  position: absolute; top: 8px; left: 10px;
+  font-size: 10px; color: #a8a29e; border: 1px solid #44403c;
+  border-radius: 3px; padding: 1px 5px;
+}
+.adx {
+  position: absolute; top: 4px; right: 6px;
+  background: none; border: 0; color: #78716c; font-size: 16px;
+  cursor: pointer; padding: 4px 8px;
+}
+.adart { font-size: 54px; line-height: 1.1; margin: 6px 0 10px; }
+.adtitle { font-weight: 800; font-size: 15px; }
+.adsub { font-size: 12px; color: #a8a29e; margin: 4px 0 12px; }
+.adleft { font-size: 12px; color: #fcd34d; margin-bottom: 10px; }
+.adbox .btn { width: 100%; }

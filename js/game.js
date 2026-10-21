@@ -45,6 +45,7 @@ import {
   REGRESS_PER_POINT, regressGain, REGRESS_ADVISE_POINTS, REGRESS_STUCK_SEC,
   JOBS, JOB_RANK, JOB_UNLOCK, jobOf, JOB_SKILLS, jobSkillOf, BOON_SKILLS, TASTE_RANK,
   JOB_TESTS, jobTestOf, jobTestStage,
+  NOADS_ATK, NOADS_HP, AD_BOOST_EXTRA,
   bossGems, bossRelicShards, guildAtkBonus,
 } from './data.js';
 
@@ -62,6 +63,7 @@ const freshDaily = (date) => ({
   claimed: {},
   allClaimed: false,
   boostUsed: 0,
+  adBoostUsed: 0,   // 광고로 받은 기연 — 매일 0으로 돌아간다
 });
 
 export function newSave(now = Date.now()) {
@@ -122,6 +124,7 @@ export function newSave(now = Date.now()) {
     job: null,          // 고른 계열 (화경부터)
     jobSeen: [],        // 거쳐 본 계열 — 나중에 각인에 쓴다
     jobTests: {},       // 붙은 전직 시험 { sword: true, ... }
+    noAds: false,       // 광고 제거 — 서버(entitlements)가 참말이고 여기는 사본이다
     taste: null,        // 맛보기로 걸어 둔 계열 (화경 전까지)
     loop: null,         // 연속 도전 {kind, id}
     autoSkill: true,
@@ -252,6 +255,7 @@ export function migrate(raw, now = Date.now()) {
   s.job = JOBS.some((j) => j.id === raw.job) ? raw.job : null;
   // 전직 시험이 생기기 전 세이브는 시험을 본 적이 없다. 이미 들어간 문파를
   // 시험 때문에 잃으면 안 된다 — 거쳐 본 계열은 전부 붙은 것으로 본다.
+  s.noAds = !!raw.noAds;
   s.jobTests = {};
   for (const j of JOBS) if (raw.jobTests?.[j.id]) s.jobTests[j.id] = true;
   for (const id of [raw.job, ...(Array.isArray(raw.jobSeen) ? raw.jobSeen : [])]) {
@@ -1443,8 +1447,12 @@ export class Game {
     const rank = this.rankMult();
     const past = this.regressMult();
     const boost = (b.boost || 0) > 0 ? BOOST_MULT : 1;
-    const atk = UPGRADES.atk.value(u.atk) * this.equipMult('weapon') * (1 + m.atk) * rank * guild * rage * past * boost * jb.atk;
-    const hp = UPGRADES.hp.value(u.hp) * this.equipMult('armor') * (1 + m.hp) * rank * past * jb.hp;
+    // 광고를 지운 사람에게 붙는 영구 보너스. **따로 곱한다** — 더하기로 두면
+    // 다른 배수에 묻혀서 산 값을 못 느낀다(장신구 특기에서 겪은 실수다).
+    const ad = this.s.noAds ? NOADS_ATK : 1;
+    const adHp = this.s.noAds ? NOADS_HP : 1;
+    const atk = UPGRADES.atk.value(u.atk) * this.equipMult('weapon') * (1 + m.atk) * rank * guild * rage * past * boost * jb.atk * ad;
+    const hp = UPGRADES.hp.value(u.hp) * this.equipMult('armor') * (1 + m.hp) * rank * past * jb.hp * adHp;
     const crit = Math.min(CRIT_CAP, UPGRADES.crit.value(u.crit) + m.crit + jb.add.crit);
     const critDmg = (UPGRADES.critDmg.value(u.critDmg) + m.critDmg + jb.add.critDmg) * jb.critDmg;
     const speed = Math.min(SPEED_CAP, UPGRADES.speed.value(u.speed)) * (1 + m.speed) * gale * jb.speed;
@@ -2928,6 +2936,16 @@ export class Game {
 
   // 기연: 하루 몇 번, 일정 시간 공격력이 오른다
   boostLeft() { return Math.max(0, BOOST_PER_DAY - (this.s.daily.boostUsed || 0)); }
+
+  // 광고로 더 받는 기연. **공짜 횟수를 뺏지 않는다** — 덤으로 더 주는 것이다.
+  // 광고를 지운 사람은 광고 없이 바로 받는다.
+  adBoostLeft() { return Math.max(0, AD_BOOST_EXTRA - (this.s.daily.adBoostUsed || 0)); }
+  takeAdBoost() {
+    if (this.adBoostLeft() <= 0) return false;
+    this.s.daily.adBoostUsed = (this.s.daily.adBoostUsed || 0) + 1;
+    this.buffs.boost = Math.max(this.buffs.boost || 0, BOOST_SEC);
+    return true;
+  }
   takeBoost() {
     if (this.boostLeft() <= 0) return false;
     this.s.daily.boostUsed = (this.s.daily.boostUsed || 0) + 1;

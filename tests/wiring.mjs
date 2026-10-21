@@ -97,6 +97,18 @@ console.log('\n=== 3. 서비스워커가 받아 두는 것 ↔ 실제 파일 ===
   const miss = listed.filter((f) => f !== 'sw.js' && !fs.existsSync(path.join(R, f)));
   ok(miss.length === 0, 'sw.js가 적어 둔 파일이 전부 있다',
     miss.length ? `없음: ${miss.join(', ')}` : `${listed.length}개`);
+  // **js 파일도 sw가 알아야 한다.** 빠지면 오프라인에서 그 모듈만 못 받아
+  // 게임이 통째로 안 뜬다. icons.js가 실제로 빠져 있었다 — 그림 검사는
+  // 있었는데 코드 파일 검사가 없었다.
+  const jsFiles = walk('js').filter((f) => f.endsWith('.js'));
+  const noSw = jsFiles.filter((f) => !sw.includes(`'${f}'`));
+  ok(noSw.length === 0, 'js 파일을 sw.js가 전부 알고 있다',
+    noSw.length ? `모름: ${noSw.join(', ')}` : `${jsFiles.length}개`);
+  const cssFiles = walk('css');
+  const noCss = cssFiles.filter((f) => !sw.includes(`'${f}'`));
+  ok(noCss.length === 0, 'css 파일을 sw.js가 전부 알고 있다',
+    noCss.length ? `모름: ${noCss.join(', ')}` : `${cssFiles.length}개`);
+
   // 반대 — art에 있는데 sw가 모르는 것 (받아 두지 않으면 오프라인에서 빠진다)
   const artFiles = walk('art');
   const unlisted = artFiles.filter((f) => !sw.includes(`'${f}'`));

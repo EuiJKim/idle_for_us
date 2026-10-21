@@ -2,7 +2,7 @@
 
 // 지금 돌고 있는 빌드. 설정 창에 적어 둔다 — 기기가 옛 판을 들고 있는지
 // 한눈에 보려고 둔다. sw.js의 CACHE와 같은 값으로 맞춘다.
-export const BUILD = 'ifu-v53';
+export const BUILD = 'ifu-v56';
 
 export const SAVE_VERSION = 4;
 export const OFFLINE_CAP_SEC = 12 * 3600;
@@ -1442,6 +1442,21 @@ export const monsterAtk = (s) => (s <= 15 ? 6
 // 길어진다 — 이 차이가 곧 감속 장치다.
 export const STAGE_GOLD_RATE = 1.06;
 export const monsterGold = (s) => 5 * Math.pow(STAGE_GOLD_RATE, s - 1);
+// ---------- 광고 / 광고 제거 ----------
+//
+// 지금 광고는 **흉내만** 낸다(5초 기다리는 가짜 화면). 나중에 진짜 광고망을
+// 붙일 때 js/ads.js의 showAd 하나만 갈아 끼우면 되게 해 뒀다.
+//
+// 광고가 막는 건 **덤으로 더 주는 것**뿐이다. 원래 공짜이던 걸 광고 뒤로
+// 옮기지 않는다 — 있던 걸 빼앗으면 그건 개악이다.
+export const AD_SEC = 5;              // 흉내 광고를 보는 시간
+export const AD_BOOST_EXTRA = 1;      // 광고로 더 받는 기연 횟수 (하루)
+export const AD_OFFLINE_MULT = 2;     // 광고 보면 방치 보상 2배
+
+// 광고를 지우면 붙는 영구 보너스. 문파 보너스가 x1.3~2.5이므로
+// 그보다는 작게 둔다 — 돈이 실력을 덮으면 같이 하는 재미가 없다.
+export const NOADS_ATK = 1.2;
+export const NOADS_HP = 1.2;
 export const BOSS_HP_MULT = 9;
 export const BOSS_ATK_MULT = 2.5;
 export const BOSS_GOLD_MULT = 12;

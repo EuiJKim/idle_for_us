@@ -1,12 +1,13 @@
 import { Game, newSave, migrate, slimSave } from './game.js';
 import {
-  BUILD, JOBS, jobTestOf, EGO_PARTS,
+  BUILD, JOBS, jobTestOf, EGO_PARTS, AD_OFFLINE_MULT,
   SKILLS, KILLS_PER_STAGE, DUNGEON_MOBS, RANKS, MISSIONS, PETS, zoneOf, expToNext,
   CODEX_KINDS, GRADES,
   isWallStage, nextUnlock, unlocksAt,
 } from './data.js';
 import { BattleView, drawFighter } from './battle.js';
 import { loadIcons } from './icons.js';
+import { showAd } from './ads.js';
 loadIcons();
 import { Net } from './net.js';
 import {
@@ -426,15 +427,35 @@ function checkReturn(now = Date.now()) {
   const reward = game.offlineReward(now);
   game.s.lastSeen = now;
   if (!reward || modalOpen()) return;
+  // 두 배로 받을지는 **닫기 전에** 정한다. 받은 뒤에 물으면 이미 늦다.
+  let mult = 1;
   openModal((s) => {
+    const gold = h('div', { class: 'big-reward' }, `은자 ${fmt(reward.gold)}`);
+    const exp = h('p', { style: 'text-align:center;margin-top:-6px' }, `📘 경험치 ${fmt(reward.exp)}`);
+    const paint = () => {
+      gold.textContent = `은자 ${fmt(reward.gold * mult)}`;
+      exp.textContent = `📘 경험치 ${fmt(reward.exp * mult)}`;
+    };
+    const dbl = h('button', { class: 'btn good', style: 'width:100%;margin-bottom:6px' },
+      game.s.noAds ? `✨ ${AD_OFFLINE_MULT}배로 받기 (광고 없이)` : `📺 광고 보고 ${AD_OFFLINE_MULT}배 받기`);
+    dbl.onclick = async () => {
+      dbl.disabled = true;
+      const ok = await showAd(game.s.noAds);
+      if (!ok) { dbl.disabled = false; return toast('끝까지 봐야 두 배로 받아요'); }
+      mult = AD_OFFLINE_MULT;
+      paint();
+      dbl.textContent = `✅ ${AD_OFFLINE_MULT}배로 받아요`;
+    };
     s.append(
       h('h2', {}, '🌙 다녀오셨어요!'),
       h('p', { class: 'muted' }, `${duration(reward.sec)} 동안 제 ${game.s.stage} 관문에서 홀로 수련했어요.`),
-      h('div', { class: 'big-reward' }, `은자 ${fmt(reward.gold)}`),
-      h('p', { style: 'text-align:center;margin-top:-6px' }, `📘 경험치 ${fmt(reward.exp)}`),
+      gold, exp, dbl,
       h('button', { class: 'btn primary', style: 'width:100%', onclick: closeModal }, '받기'),
     );
-  }, { dismissable: false, onClose: () => { game.claimOffline(reward); save(); refreshUI(true); } });
+  }, { dismissable: false, onClose: () => {
+    game.claimOffline({ ...reward, gold: reward.gold * mult, exp: reward.exp * mult });
+    save(); refreshUI(true);
+  } });
 }
 
 // ---------- 닉네임 / 설정 ----------
