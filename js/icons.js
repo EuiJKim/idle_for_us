@@ -17,6 +17,8 @@ export const KINDS = {
   acc: 3,        // 장신구 — ACC_SLOTS 차례대로(가락지·귀걸이·비녀)
   ego: 2,        // 심검·심의
   dg: 4,         // 수련터 — DUNGEONS 차례대로
+  sp: 6,         // 스탯 포인트 — SP_STATS 차례대로(근력·체질·살기·투지·재운·오성)
+  codex: 3,      // 인물도감 — CODEX_KINDS 차례대로(잡졸·관문지기·패왕)
 };
 
 const have = {};   // 'pet-0' → true/false, 아직 모르면 undefined

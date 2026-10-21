@@ -45,6 +45,9 @@ const FILES = [
   ...Object.keys(BODIES).map((b) => `body-${b}`),
   ...new Set(Object.values(RANK_ROBES)),
   ...WEAPONS.map((w) => `wp-${w}`),
+  // 의복 — 도포 여섯, 검 장식 여섯
+  'body-o0', 'body-o1', 'body-o2', 'body-o3', 'body-o4', 'body-o5',
+  'wp-s0', 'wp-s1', 'wp-s2', 'wp-s3', 'wp-s4', 'wp-s5',
 ];
 
 // 그림을 어디에 얼마만큼 그릴지. 뼈대 좌표계 그대로다.
@@ -100,8 +103,20 @@ export function headKey(look) {
   const h = look?.head;
   return HEADS.includes(h) ? `head-${h}` : 'head';
 }
-export function bodyKey(look) { return bodyFor(look?.robe); }
-export function weaponKey(w) { return WEAPONS.includes(w) ? `wp-${w}` : null; }
+// 의복을 입으면 경지 도포 대신 그 옷을 입는다.
+// s.outfit 주석에 '지금 입은 것 (겉모습만)'이라고 적혀 있었는데 **읽는 쪽이 없었다** —
+// 옷을 사도 모습이 안 바뀌었다. 장판·번개와 같은 경우다.
+export const OUTFIT_BODY = ['body-o0', 'body-o1', 'body-o2', 'body-o3', 'body-o4', 'body-o5'];
+export const OUTFIT_WEAPON = ['wp-s0', 'wp-s1', 'wp-s2', 'wp-s3', 'wp-s4', 'wp-s5'];
+
+export function bodyKey(look) {
+  if (look?.outfitBody != null && OUTFIT_BODY[look.outfitBody]) return OUTFIT_BODY[look.outfitBody];
+  return bodyFor(look?.robe);
+}
+export function weaponKey(w, look) {
+  if (look?.outfitWeapon != null && OUTFIT_WEAPON[look.outfitWeapon]) return OUTFIT_WEAPON[look.outfitWeapon];
+  return WEAPONS.includes(w) ? `wp-${w}` : null;
+}
 
 // 한 장이라도 없으면 전부 벡터로 간다 — 머리만 그림이고 몸은 벡터면 더 이상해 보인다.
 export function loadArt(onDone) {

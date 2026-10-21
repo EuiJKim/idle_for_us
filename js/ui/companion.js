@@ -249,8 +249,14 @@ function loreCard(app) {
       return { cell, mark, i };
     });
     const sub = h('div', { class: 'desc' });
+    // 작은 글자 상자만 늘어놓으면 뭘 모았는지 안 읽힌다. 그 종류의 그림을 크게 건다.
+    const face = h('div', { class: 'codex-face' }, k.name.slice(0, 1));
+    iconSkin(face, 'codex', CODEX_KINDS.indexOf(k));
     root.append(h('div', { class: 'card' },
-      h('h3', {}, k.name, h('small', { class: 'codex-tag' })), grid, sub));
+      h('div', { class: 'codex-head' }, face,
+        h('div', { style: 'flex:1;min-width:0' },
+          h('h3', { style: 'margin:0' }, k.name, h('small', { class: 'codex-tag' })), sub)),
+      grid));
     rows[k.id] = { cells, sub, def: k, tag: root.lastChild.querySelector('.codex-tag') };
   }
 

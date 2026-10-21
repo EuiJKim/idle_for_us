@@ -1,6 +1,15 @@
 // 전투 화면 캔버스 렌더러 (수묵화 무협풍). 게임 이벤트를 받아 연출만 담당한다.
 import { zoneOf, RANKS, GRADES, PETS, SKILLS, FIELD_SQUASH } from './data.js';
 import { artReady, putArt, loadArt, FIT, ART_SHOULDER, ART_BAND, headKey, bodyKey, weaponKey } from './art.js';
+import { OUTFITS } from './data.js';
+
+// 의복 열둘 중 앞 여섯은 도포(몸), 뒤 여섯은 검 장식(무기)이다.
+function outfitLook(id) {
+  if (!id) return {};
+  const i = OUTFITS.findIndex((o) => o.id === id);
+  if (i < 0) return {};
+  return i < 6 ? { outfitBody: i } : { outfitWeapon: i - 6 };
+}
 import { fxReady, putFx, loadFx, zoneTile } from './fx.js';
 import { fmt } from './fmt.js';
 
@@ -690,7 +699,8 @@ export class BattleView {
   // ---------- 영웅 ----------
   drawHeroUnit(game, moving) {
     const st = game.stats();
-    const look = { ...RANKS[game.s.rank].look };
+    // 입은 의복이 있으면 그 모습으로. 도포 여섯은 몸, 검 장식 여섯은 무기.
+    const look = { ...RANKS[game.s.rank].look, ...outfitLook(game.s.outfit) };
     const wg = game.bestGrade('weapon');
     const raging = game.buffs.rage > 0;
     const gale = game.buffs.gale > 0;
@@ -1489,7 +1499,7 @@ export function drawFighter(ctx, x, y, look = {}, o = {}) {
     circle(ctx, 1, 22, 4.5);
   }
   ctx.translate(1, 22);
-  const wk = artReady() ? weaponKey(weapon) : null;
+  const wk = artReady() ? weaponKey(weapon, look) : null;
   if (!(wk && putArt(ctx, wk, FIT.weapon))) {
     drawWeapon(ctx, weapon, o, t, lunge);
   }

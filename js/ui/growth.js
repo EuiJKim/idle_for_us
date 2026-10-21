@@ -93,16 +93,29 @@ function levelView(app) {
         h('span', {}, '남은 스탯 포인트 ', spText), resetBtn)),
     h('p', { class: 'muted', style: 'margin:0 2px 8px' }, `레벨이 오를 때마다 포인트 2개. 원하는 능력치에 투자하세요.`));
 
+  // 줄마다 버튼 셋(+1/+10/전부)이면 여섯 줄에 열여덟 개다. 화면이 버튼으로 덮인다.
+  // 수련 화면처럼 **위에서 한 번 고르고** 줄마다 버튼은 하나만 둔다.
+  let spMul = 1;   // 1 · 10 · 전부
+  const mulBtns = [1, 10, 0].map((v) => {
+    const b = h('button', { class: 'seg-btn' }, v === 0 ? '전부' : `+${v}`);
+    b.onclick = () => { spMul = v; paintMul(); update(); };
+    return b;
+  });
+  const paintMul = () => mulBtns.forEach((b, i) => b.classList.toggle('on', [1, 10, 0][i] === spMul));
+  paintMul();
+  root.append(h('div', { class: 'seg sp-seg' }, ...mulBtns));
+
+  let i = 0;
   for (const [key, def] of Object.entries(SP_STATS)) {
     const pts = h('small');
     const desc = h('div', { class: 'desc' });
-    const b1 = h('button', { class: 'buy', style: 'min-width:48px', onclick: () => { game.allocSp(key, 1); app.refresh(); } }, '+1');
-    const b10 = h('button', { class: 'buy', style: 'min-width:48px', onclick: () => { game.allocSp(key, 10); app.refresh(); } }, '+10');
-    const bAll = h('button', { class: 'buy', style: 'min-width:48px', onclick: () => { game.allocSp(key, game.s.sp); app.refresh(); } }, '전부');
-    rows[key] = { pts, desc, btns: [b1, b10, bAll], def };
-    root.append(h('div', { class: 'row' }, h('div', { class: 'ico' }, def.icon),
-      h('div', { class: 'info' }, h('div', { class: 'name' }, def.name, pts), desc),
-      h('div', { style: 'display:flex;gap:4px' }, b1, b10, bAll)));
+    const btn = h('button', { class: 'buy', style: 'min-width:60px',
+      onclick: () => { game.allocSp(key, spMul === 0 ? game.s.sp : spMul); app.refresh(); } });
+    const ico = h('div', { class: 'ico' }, def.icon);
+    iconSkin(ico, 'sp', i++);
+    rows[key] = { pts, desc, btns: [btn], btn, def };
+    root.append(h('div', { class: 'row' }, ico,
+      h('div', { class: 'info' }, h('div', { class: 'name' }, def.name, pts), desc), btn));
   }
 
   function update() {
@@ -115,6 +128,7 @@ function levelView(app) {
     for (const [key, r] of Object.entries(rows)) {
       const n = s.spAlloc[key] || 0;
       r.pts.textContent = `${n}pt`;
+      if (r.btn) r.btn.textContent = spMul === 0 ? '전부' : `+${spMul}`;
       r.desc.textContent = r.def.desc(n * r.def.per);
       r.btns.forEach((b) => { b.disabled = s.sp <= 0; });
     }

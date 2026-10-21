@@ -61,22 +61,22 @@ console.log('\n=== 2. 코드가 찾는 그림 파일 ↔ 실제 파일 ===');
   ok(missing.length === 0, '코드가 적어 둔 그림이 전부 있다',
     missing.length ? `없음: ${missing.join(', ')}` : `${want.size}장`);
 
-  // art.js가 읽는 목록과 실제 art/hero
+  // art.js가 읽는 목록. **재구성하지 말고 FILES를 그대로 읽는다** —
+  // 손으로 다시 만들면 의복처럼 나중에 더한 것을 놓친다(실제로 놓쳤다).
   const art = read('js/art.js');
-  const heads = (art.match(/const HEADS = \[([^\]]+)\]/) || [])[1] || '';
-  const weps = (art.match(/const WEAPONS = \[([^\]]+)\]/) || [])[1] || '';
-  const bodies = (art.match(/const BODIES = \{([\s\S]*?)\};/) || [])[1] || '';
-  const robes = (art.match(/const RANK_ROBES = \{([\s\S]*?)\};/) || [])[1] || '';
-  const names = [
-    'head',
-    ...[...heads.matchAll(/'([a-z]+)'/g)].map((m) => `head-${m[1]}`),
-    ...[...weps.matchAll(/'([a-z]+)'/g)].map((m) => `wp-${m[1]}`),
-    ...[...bodies.matchAll(/(\w+)\s*:/g)].map((m) => `body-${m[1]}`),
-    ...[...robes.matchAll(/'(body-r\d)'/g)].map((m) => m[1]),
+  const grab = (re) => (art.match(re) || ['', ''])[1];
+  const names = [...grab(/const FILES = \[([\s\S]*?)\n\];/).matchAll(/'([a-z0-9-]+)'/g)].map((m) => m[1]);
+  const spread = [
+    ...[...grab(/const HEADS = \[([^\]]+)\]/).matchAll(/'([a-z]+)'/g)].map((m) => `head-${m[1]}`),
+    ...[...grab(/const WEAPONS = \[([^\]]+)\]/).matchAll(/'([a-z]+)'/g)].map((m) => `wp-${m[1]}`),
+    ...[...grab(/const BODIES = \{([\s\S]*?)\};/).matchAll(/(\w+)\s*:/g)].map((m) => `body-${m[1]}`),
+    ...[...grab(/const RANK_ROBES = \{([\s\S]*?)\};/).matchAll(/'(body-r\d)'/g)].map((m) => m[1]),
+    ...[...art.matchAll(/'(body-o\d|wp-s\d)'/g)].map((m) => m[1]),
   ];
-  const miss2 = [...new Set(names)].filter((n) => !have.has(`art/hero/${n}.png`));
+  const wantArt = [...new Set([...names, ...spread, 'head'])];
+  const miss2 = wantArt.filter((n) => !have.has(`art/hero/${n}.png`));
   ok(miss2.length === 0, 'art.js가 읽는 조각이 전부 구워져 있다',
-    miss2.length ? `없음: ${miss2.join(', ')}` : `${new Set(names).size}장`);
+    miss2.length ? `없음: ${miss2.join(', ')}` : `${wantArt.length}장`);
 
   // **도포는 전부 같은 크기여야 한다** — 다르면 머리가 뜬다 (오늘 그 일)
   const bodyFiles = [...have].filter((f) => /art\/hero\/body-/.test(f));
@@ -131,6 +131,7 @@ console.log('\n=== 4. 아이콘 개수 ↔ 데이터 개수 ===');
     up: Object.keys(D.UPGRADES).length,
     eqweapon: D.GRADES.length, eqarmor: D.GRADES.length, eqring: D.GRADES.length,
     acc: D.ACC_SLOTS.length, ego: D.EGO_PARTS.length, dg: D.DUNGEONS.length,
+    sp: Object.keys(D.SP_STATS).length, codex: D.CODEX_KINDS.length,
   };
   for (const [k, n] of Object.entries(want)) {
     ok(K[k] === n, `${k} 아이콘 수가 데이터와 같다`, `${K[k]} / ${n}`);

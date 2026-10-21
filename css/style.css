@@ -628,3 +628,16 @@ body { background: radial-gradient(ellipse at top, #1d1712, #0b0907 70%); }
 /* 설명은 처음 한 번만 펴 둔다 */
 .card.lore > summary { cursor: pointer; font-weight: 800; font-size: 14px; }
 .card.lore > summary::-webkit-details-marker { color: var(--muted); }
+
+/* 레벨 화면의 배율 고르기 — 수련 화면과 같은 모양으로 맞춘다 */
+.sp-seg { margin: 0 0 8px auto; display: flex; }
+
+/* 인물도감 — 작은 글자 상자만 있으면 뭘 모았는지 안 읽힌다. 얼굴을 크게 건다. */
+.codex-head { display: flex; gap: 10px; align-items: center; margin-bottom: 8px; }
+.codex-face {
+  width: 56px; height: 56px; flex: none; border-radius: 10px;
+  background: radial-gradient(circle at 35% 30%, #3a3026, #1a1510);
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--brush); font-size: 26px; color: #f5e9cf;
+}
+.codex-face.has-art { background-size: contain; }
