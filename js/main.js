@@ -483,6 +483,13 @@ function openSettings() {
         h('div', {}, '뽑기 횟수', h('b', {}, fmt(game.s.stats.gachas)))),
       h('div', { class: 'btn-row' },
         h('button', { class: 'btn', onclick: () => {
+          // 자동 → 높음 → 가벼움 순으로 돌린다
+          perf.mode = perf.mode === 'auto' ? 'high' : perf.mode === 'high' ? 'light' : 'auto';
+          try { localStorage.setItem('ifu.q', perf.mode); } catch (e) { /* 비공개 모드 */ }
+          applyQuality();
+          toast(`화질: ${perf.mode === 'auto' ? '자동' : perf.mode === 'high' ? '높음' : '가벼움'}`);
+        } }, '화질 바꾸기'),
+        h('button', { class: 'btn', onclick: () => {
           // 끊김은 쓰는 기기에서만 보인다. 숫자를 눈으로 보고 말할 수 있게 한다.
           perf.on = !perf.on;
           let el = document.getElementById('perf');
@@ -651,7 +658,40 @@ function resetSave() {
 export const perf = {
   on: false, fps: 0, worst: 0, tick: 0, draw: 0, ui: 0,
   _n: 0, _t0: 0, _gap: [],
+  // 화질: 'auto'(기본) · 'high' · 'light'. 설정에서 바꾸면 자동이 꺼진다.
+  mode: (() => { try { return localStorage.getItem('ifu.q') || 'auto'; } catch (e) { return 'auto'; } })(),
+  light: false, _slow: 0, _fast: 0, _g2: [],
 };
+
+// **느리면 알아서 가벼워진다.**
+//
+// 끊김은 쓰는 기기에서만 보인다. 숫자를 받아서 고치는 길만 두면 말 안 하는
+// 사람은 영영 버벅이는 화면을 본다. 그래서 게임이 스스로 내려가게 둔다.
+// 재는 건 덧셈 몇 번이라 공짜다 — 끄지 않는다.
+const SLOW_MS = 26;    // 이보다 느린 프레임이 이어지면 내려간다 (38fps 아래)
+const FAST_MS = 18;    // 이보다 빠르면 올라간다 (55fps 위)
+function autoQuality(gap) {
+  // 숨은 탭은 브라우저가 1fps로 늦춘다. 그걸 느린 기기로 오해하면
+  // 창을 내렸다 올릴 때마다 혼자 가벼워진다.
+  if (document.hidden || gap > 200) { perf._g2.length = 0; return; }
+  perf._g2.push(gap);
+  if (perf._g2.length < 60) return;
+  const g = perf._g2.sort((a, b) => a - b);
+  const mid = g[g.length >> 1];
+  perf._g2 = [];
+  if (perf.mode !== 'auto') return;
+  if (mid > SLOW_MS) { perf._fast = 0; perf._slow++; } else if (mid < FAST_MS) { perf._slow = 0; perf._fast++; } else { perf._slow = perf._fast = 0; }
+  // 한 번 느렸다고 바로 내리지 않는다 — 창을 열거나 할 때 한두 번은 튄다.
+  if (!perf.light && perf._slow >= 3) { perf.light = true; perf._slow = 0; applyQuality(); }
+  // 올릴 때는 더 신중하게. 오르내리기를 반복하면 그게 더 거슬린다.
+  else if (perf.light && perf._fast >= 10) { perf.light = false; perf._fast = 0; applyQuality(); }
+}
+function applyQuality() {
+  const want = perf.mode === 'light' ? true : perf.mode === 'high' ? false : perf.light;
+  if (view.setLight(want)) {
+    toast(want ? '화면이 느려서 가볍게 바꿨어요 (설정에서 되돌릴 수 있어요)' : '화면이 빨라져서 원래대로 돌렸어요');
+  }
+}
 function perfFrame(now, parts) {
   if (!perf.on) return;
   if (!perf._t0) perf._t0 = now;
@@ -668,7 +708,8 @@ function perfFrame(now, parts) {
     perf._n = 0; perf._t0 = now; perf._gap = [];
     const el = document.getElementById('perf');
     if (el) el.textContent = `${perf.fps}fps 최악 ${perf.worst}ms (p95 ${perf.p99})`
-      + ` · 셈 ${perf.tick.toFixed(1)} 그림 ${perf.draw.toFixed(1)} 창 ${perf.ui.toFixed(1)}ms`;
+      + ` · 셈 ${perf.tick.toFixed(1)} 그림 ${perf.draw.toFixed(1)} 창 ${perf.ui.toFixed(1)}ms`
+      + ` · ${view.light ? '가벼움' : '높음'}${perf.mode === 'auto' ? '(자동)' : ''}`;
     perf.tick = perf.draw = perf.ui = 0;
   }
 }
@@ -730,6 +771,7 @@ function step(now) {
     updateDots();
   }
   if (P) perfFrame(now, P);
+  autoQuality(gap);
 }
 
 document.addEventListener('visibilitychange', () => {
@@ -755,6 +797,7 @@ if (document.fonts?.load) {
 // 시작할 때는 들판이 먼저 보인다. 창은 탭을 눌러야 올라온다.
 // showTab('growth');
 netChanged('status');
+if (perf.mode !== 'auto') applyQuality();   // 저장해 둔 화질을 되살린다
 refreshUI(true);
 requestAnimationFrame((t) => { last = t; frame(t); });
 if (!game.s.nickname) askNickname(true);

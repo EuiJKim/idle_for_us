@@ -28,21 +28,35 @@ export function fxReady() { return ready; }
 // 한 지역이 안 와도 나머지 일곱은 그대로 쓸 수 있어야 한다.
 const zoneImg = {};
 const zonePat = {};
-export function zoneTile(ctx, i) {
-  if (zonePat[i] !== undefined) return zonePat[i];
+// 바닥색(ground)을 **타일에 미리 섞어** 굽는다.
+//
+// 전에는 바닥색으로 화면을 한 번 칠하고 그 위에 타일을 알파 0.85로 또
+// 칠했다 — 화면을 두 번 덮는 데다 둘째는 알파 합성이다. 섞어 두면
+// **한 번, 그것도 불투명으로** 끝난다. 결과 픽셀은 똑같다.
+export function zoneTile(ctx, i, ground) {
+  const key = `${i}|${ground}`;
+  if (zonePat[key] !== undefined) return zonePat[key];
   const im = zoneImg[i];
   if (!im) {
     if (zoneImg[i] === undefined) {
       zoneImg[i] = null;                 // 한 번만 시도한다
       const x = new Image();
-      x.onload = () => { zoneImg[i] = x; delete zonePat[i]; };
+      x.onload = () => { zoneImg[i] = x; for (const k in zonePat) if (k.startsWith(`${i}|`)) delete zonePat[k]; };
       x.onerror = () => {};
       x.src = `art/zone/zone-${i}.jpg`;
     }
     return null;
   }
-  const p = ctx.createPattern(im, 'repeat');
-  zonePat[i] = p;
+  const c = document.createElement('canvas');
+  c.width = im.width;
+  c.height = im.height;
+  const x = c.getContext('2d');
+  x.fillStyle = ground || '#000';
+  x.fillRect(0, 0, c.width, c.height);
+  x.globalAlpha = 0.85;
+  x.drawImage(im, 0, 0);
+  const p = ctx.createPattern(c, 'repeat');
+  zonePat[key] = p;
   return p;
 }
 

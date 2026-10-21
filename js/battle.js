@@ -68,6 +68,7 @@ function sparkImage(color) {
 // 한 인물이 8위상을 쓰므로 40칸이다. 전에는 상한이 48이라 구역이 바뀌는 10관문마다
 // 80칸이 필요해져 통째로 비우고 48장을 다시 구웠다 — 그때마다 화면이 한 번 걸렸다.
 // 두 구역이 같이 들어가고도 남게 둔다.
+const LIGHT_MOBS = 26;   // 가벼운 모드에서 그리는 적의 최대 수
 const SPR = { w: 80, h: 160, ox: 44, oy: 146, phases: 8, cycle: Math.PI / 2, max: 192 };
 const sprCache = new Map();
 // 그림이 늦게 도착하면 벡터로 구워 둔 것을 버려야 한다
@@ -166,13 +167,30 @@ export class BattleView {
     this.aoeAmount = 0;
     this.sparks = [];   // 맞은 자리·쓰러진 자리의 짧은 빛
     this.paths = [];    // 번개가 튄 길·파고든 길 (연환벽력·발도돌격)
+    // 가벼운 모드 — 느린 기기에서 알아서 켜진다(main.js가 프레임을 보고 정한다).
+    // 끊김은 **쓰는 기기에서만** 보인다. 숫자를 받아 고치는 길만 두면
+    // 영영 못 고치는 사람이 생긴다 — 게임이 스스로 내려가게 둔다.
+    this.light = false;
     this.resize();
     window.addEventListener('resize', () => this.resize());
   }
 
+  // 가벼운 모드를 켜고 끈다. 해상도가 바뀌므로 구워 둔 것을 전부 버린다.
+  setLight(on) {
+    if (this.light === !!on) return false;
+    this.light = !!on;
+    this._decor = null;
+    this._vig = null;
+    sprCache.clear();
+    this.resize();
+    return true;
+  }
+
   resize() {
     const r = this.cv.getBoundingClientRect();
-    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    // **해상도가 채우는 화소를 제곱으로 바꾼다.** dpr 2에서 1로 내리면 1/4다.
+    // 이 게임 그림체는 선이 굵어서 1로 내려도 거의 티가 안 난다.
+    const dpr = this.light ? 1 : Math.min(2, window.devicePixelRatio || 1);
     this.dpr = dpr;
     this.w = Math.max(1, r.width);
     this.h = Math.max(1, r.height);
@@ -440,24 +458,31 @@ export class BattleView {
     const camX = g ? g.heroX : 0;
     const camY = g ? g.heroY : 0;
 
-    // 흙바닥 기본색
-    ctx.fillStyle = ground;
-    ctx.fillRect(-20, -20, w + 40, h + 40);
-
-    // 바닥 질감 — 그림이 있으면 카메라를 따라 흐르는 타일로 덮는다.
-    // 기본색을 먼저 깔아 두므로, 그림이 늦게 와도 빈 화면이 안 보인다.
-    const pat = zoneTile(ctx, z.idx ?? 0);
-    if (pat) {
-      ctx.save();
-      ctx.globalAlpha = 0.85;
-      // 나머지 연산이 음수를 낼 수 있어서(-512~512) 양쪽으로 512씩 덧칠하고 있었다.
-      // 554x502 화면에 1618x1566을 칠한 꼴 — **쓸데없이 9배다.**
-      // 오프셋을 (-512, 0]으로 못박으면 한쪽만 덮으면 된다.
-      ctx.translate(-(((camX % 512) + 512) % 512),
-        -(((((camY * this.squash) % 512) + 512) % 512)));
-      ctx.fillStyle = pat;
-      ctx.fillRect(-20, -20, w + 552, h + 552);
-      ctx.restore();
+    // 바닥 — 바닥색이 섞여 구워진 타일 한 장으로 덮는다.
+    //
+    // **화면을 몇 겹 칠하느냐가 폰에서 전부다.** 390x844 dpr3이면 한 겹이
+    // 300만 화소다. 전에는 바닥색 한 겹 + 타일 3.5겹 = 4.5겹이었다.
+    // 바닥색을 타일에 섞고(fx.js), 밀어야 할 만큼은 **패턴 자체를 밀어서**
+    // 화면 밖을 안 칠한다 — 한 겹으로 끝난다.
+    const pat = zoneTile(ctx, z.idx ?? 0, ground);
+    if (!pat) {
+      ctx.fillStyle = ground;
+      ctx.fillRect(-20, -20, w + 40, h + 40);
+    } else {
+      const tx = -(((camX % 512) + 512) % 512);
+      const ty = -(((((camY * this.squash) % 512) + 512) % 512));
+      if (pat.setTransform) {
+        pat.setTransform(new DOMMatrix([1, 0, 0, 1, tx, ty]));
+        ctx.fillStyle = pat;
+        ctx.fillRect(-20, -20, w + 40, h + 40);
+      } else {
+        // 아주 옛 브라우저 — 밀고 그만큼 더 칠한다
+        ctx.save();
+        ctx.translate(tx, ty);
+        ctx.fillStyle = pat;
+        ctx.fillRect(-20, -20, w + 552, h + 552);
+        ctx.restore();
+      }
     }
 
     // 땅 얼룩·소품은 **미리 구워 둔 한 장**으로 깐다.
@@ -488,6 +513,8 @@ export class BattleView {
       ctx.restore();
     }
 
+    // 가장자리 어둠은 가벼운 모드에서도 남긴다. 구워 둔 한 장을 붙이는
+    // 것뿐이라 아껴 봐야 얼마 안 되는데, 빼면 분위기가 확 달라진다.
     this.putVignette(z);
   }
 
@@ -500,7 +527,19 @@ export class BattleView {
       || Math.abs(ox - d.ox) > M || Math.abs(oy - d.oy) > M;
     if (stale) this.bakeDecor(z, ox, oy, M);
     const k = this._decor;
-    ctx.drawImage(k.cv, -M - (ox - k.ox), -M - (oy - k.oy), k.cv.width / k.q, k.cv.height / k.q);
+    // 구워 둔 장은 (화면+440)x(화면+440)이다 — 통째로 그리면 폰에서 화면의
+    // 3배가 넘는다. **보이는 조각만** 떠서 그린다.
+    const dx = -M - (ox - k.ox);
+    const dy = -M - (oy - k.oy);
+    const lw = k.cv.width / k.q;
+    const lh = k.cv.height / k.q;
+    const sx = Math.max(0, -20 - dx);
+    const sy = Math.max(0, -20 - dy);
+    const sw = Math.min(lw, w + 20 - dx) - sx;
+    const sh = Math.min(lh, h + 20 - dy) - sy;
+    if (sw > 0 && sh > 0) {
+      ctx.drawImage(k.cv, sx * k.q, sy * k.q, sw * k.q, sh * k.q, dx + sx, dy + sy, sw, sh);
+    }
   }
 
   bakeDecor(z, ox, oy, M) {
@@ -719,6 +758,14 @@ export class BattleView {
       list.push({ y: main.y ?? game.heroY, go: () => this.drawMonster(game, dt) });
     }
     list.sort((a, b) => a.y - b.y);
+    // 가벼운 모드에서는 **가까운 것만** 그린다. 멀리 있는 건 어차피 흐리게
+    // 깔려 있어서 빠져도 티가 잘 안 난다.
+    if (this.light && list.length > LIGHT_MOBS) {
+      const hy = game.heroY || 0;
+      list.sort((a, b) => Math.abs(a.y - hy) - Math.abs(b.y - hy));
+      list.length = LIGHT_MOBS;
+      list.sort((a, b) => a.y - b.y);
+    }
     for (const e of list) e.go();
     // 무인은 깊이와 상관없이 맨 위에 그린다. 적이 수십이면 파묻혀서 누가 나인지 모른다.
     this.drawHeroUnit(game, moving);
