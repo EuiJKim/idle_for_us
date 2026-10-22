@@ -172,7 +172,34 @@ console.log('\n=== 5. index.html의 id ↔ 코드가 찾는 id ===');
 }
 
 
-console.log('\n=== 6. 화면이 올린 자원 ↔ RES_DEFS ===');
+console.log('');
+console.log('=== 6. 문파 특성 ↔ 그리는 쪽 ===');
+{
+  // 특성의 fx 이름이 battle.js가 실제로 그리는 kind로 이어지는가.
+  // 오타 하나면 그 문파만 **아무 빛도 안 난다** — 눈으로는 영영 못 잡는다.
+  const bat = read('js/battle.js');
+  const dat = read('js/data.js');
+  const kinds = new Set([...bat.matchAll(/e\.kind === '([a-z]+)'/g)].map((m) => m[1]));
+  // skillEffect가 fx 이름을 kind로 바꾸는 표 (battle.js의 그 줄과 같아야 한다)
+  const MAP = { slash: 'burst', pierce: 'beam', field: 'area', swirl: 'swirl', aura: 'aura', burst: 'burst' };
+  const used = [...dat.matchAll(/fx: '([a-z]+)'/g)].map((m) => m[1]);
+  ok(used.length > 0, '특성에 fx가 적혀 있다', `${used.length}개`);
+  const bad = [...new Set(used)].filter((f) => !MAP[f] || !kinds.has(MAP[f]));
+  ok(bad.length === 0, '특성 fx가 전부 그려지는 kind로 이어진다',
+    bad.length ? `안 그려짐: ${bad.join(', ')}` : [...new Set(used)].join(', '));
+  // 보내는 쪽과 받는 쪽
+  ok(read('js/game.js').includes("this.emit('skill', { id, target:"), 'game.js가 무공 사건을 보낸다');
+  ok(/skillEffect\(ev\.id, ev\.job\)/.test(bat), 'battle.js가 그 사건에서 문파를 집어간다');
+  ok(bat.includes('JOB_TRAITS'), 'battle.js가 특성 표를 읽는다');
+  // 취마의 은자는 사건으로 나간다 — 받는 쪽이 없으면 안 보인다
+  ok(read('js/game.js').includes("this.emit('gold', { amount: got, fromSkill: true })"), '취마가 은자 사건을 보낸다');
+  ok(/case 'gold':/.test(bat), 'battle.js가 은자 사건을 받는다');
+  // 계열 무공이 셋인데 화면이 하나만 그리면 둘은 영영 안 보인다
+  ok(read('js/ui/skill.js').includes('JOB_SLOTS'), '무공 화면이 문파 칸 수를 읽는다');
+  ok(read('js/ui/skill.js').includes('game.jobSkills()'), '무공 화면이 계열 무공 전부를 그린다');
+}
+
+console.log('\n=== 7. 화면이 올린 자원 ↔ RES_DEFS ===');
 {
   // 화면이 res: ['books'] 하고 올려도 RES_DEFS에 그 이름이 없으면
   // 창 머리에서 **조용히 사라진다**. 오타 하나면 끝이라 기계가 본다.

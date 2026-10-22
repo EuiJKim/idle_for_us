@@ -6,6 +6,7 @@
 // 이제 쓰는 자원(비급)은 창 머리에 붙고, 무공 목록은 상태별로 묶인다.
 import { SKILLS, SKILL_PIERCE_MAX, SKILL_PIERCE_AT, SKILL_PIERCE_MULT,
   skillTotalBonus, nextSkillTotalStep, PRESET_SLOTS, nextSkillSlotAt, jobOf,
+  skillTierInfo, JOB_SLOTS, JOB_SKILL_OPEN,
   PASSIVE_KINDS, PASSIVES, passivesOf, passiveId, PASSIVE_MAX, PASSIVE_STAT_NAME } from '../data.js';
 import { fmt, pct } from '../fmt.js';
 import { h, openModal, closeModal, toast, popUp, subTabs } from './common.js';
@@ -77,7 +78,16 @@ function activeView(app) {
     return { ...g, head, body, wrap: h('div', {}, head, body) };
   });
 
+  // 문파 특성 — 전직하면 **쓰는 모든 무공에** 그 문파의 기운이 실린다.
+  // 전에는 전용 무공 하나만 달라져서 전직해도 달라진 게 안 보였다.
+  const traitCard = h('div', { class: 'card trait-card' });
+  const traitName = h('h3');
+  const traitText = h('p', { class: 'desc', style: 'margin:4px 0 0' });
+  const traitSub = h('p', { class: 'muted', style: 'margin:6px 0 0' });
+  traitCard.append(traitName, traitText, traitSub);
+
   const root = h('div', {},
+    traitCard,
     h('div', { class: 'card' },
       h('h3', {}, '장착 무공', slotInfo, autoBtn),
       slotsEl,
@@ -99,10 +109,13 @@ function activeView(app) {
       if (game.skillPierce(sk.id)) { popUp(rows[sk.id].row, '초월!'); app.refresh(); }
       else toast(`${SKILL_PIERCE_AT}레벨부터 초월할 수 있고 비급이 필요해요`);
     } });
-    rows[sk.id] = { lv, desc, btn, eq, pierce, row: null };
+    const nm = h('span');
+    const tierHint = h('div', { class: 'tier-hint' });
+    const bar = h('div', { class: 'bar', style: 'height:4px;margin:5px 0 0' }, h('div'));
+    rows[sk.id] = { lv, desc, btn, eq, pierce, nm, tierHint, bar, row: null };
     rows[sk.id].row = h('div', { class: 'row' },
       h('div', { class: 'ico' }, sk.icon),
-      h('div', { class: 'info' }, h('div', { class: 'name' }, sk.name, lv), desc),
+      h('div', { class: 'info' }, h('div', { class: 'name' }, nm, lv), desc, bar, tierHint),
       h('div', { style: 'display:flex;flex-direction:column;gap:6px;align-items:stretch' }, btn, pierce, eq));
   });
 
@@ -139,7 +152,20 @@ function activeView(app) {
     autoBtn.classList.toggle('good', game.s.autoSkill);
     const nSlot = game.skillSlotCount();
     const nextAt = nextSkillSlotAt(game.s.bestStage);
-    slotInfo.textContent = nextAt ? `${nSlot}칸 · ${nextAt}관문에 한 칸 더` : `${nSlot}칸 (최대)`;
+    const jNext = game.nextJobSkillAt();
+    slotInfo.textContent = (nextAt ? `${nSlot}칸 · ${nextAt}관문에 한 칸 더` : `${nSlot}칸 (최대)`)
+      + (jNext ? ` · 문파 ${jNext}관문` : '');
+    // 특성 카드
+    const job = jobOf(game.s.job);
+    const tr = game.jobTrait();
+    traitCard.style.display = tr ? '' : 'none';
+    if (tr) {
+      traitCard.style.borderColor = `rgb(${tr.col})`;
+      traitName.innerHTML = `<span style="color:rgb(${tr.col})">〈${tr.name}〉</span>`
+        + ` <small>${job?.name || ''}의 기운</small>`;
+      traitText.textContent = tr.text;
+      traitSub.textContent = '전직을 하면 쓰는 무공 전부에 실려요. 들판에 보이는 빛깔도 바뀌어요.';
+    }
     for (const r of presetRows) {
       const p2 = game.s.presets[r.i];
       const on = game.presetReady(r.i);
@@ -158,20 +184,27 @@ function activeView(app) {
       + (tb.critDmg ? ` · 치명 피해 <b>+${Math.round(tb.critDmg * 100)}%p</b>` : '')
       + (nx ? `<br><span class="tier-hint">합계 ${nx.at}에서 공격력 +${Math.round(nx.atk * 100)}% — ${nx.at - tot} 남음</span>` : '');
     const jsk = game.jobSkill();
-    const sig = game.s.skillSlots.join(',') + ':' + game.skillSlotCount() + ':' + (jsk?.id || '-')
-      + ':' + (jsk ? game.s.skills[jsk.id] : 0) + ':' + (game.s.job ? 1 : 0);
+    const sig = game.s.skillSlots.join(',') + ':' + game.skillSlotCount()
+      + ':' + game.jobSkillIds().join('|') + ':' + game.jobSlotCount()
+      + ':' + game.jobSkillIds().map((x) => game.s.skills[x]).join('|') + ':' + (game.s.job ? 1 : 0);
     if (sig !== slotSig) {
       slotSig = sig;
       const cells = Array.from({ length: game.skillSlotCount() }, (_, i) => {
         const sk = SKILLS.find((x) => x.id === game.s.skillSlots[i]);
         return h('div', { class: 'slot' }, h('span', {}, sk?.icon || '＋'), h('small', {}, sk ? `${sk.name} Lv.${game.s.skills[sk.id]}` : '빈 칸'));
       });
-      // 문파 칸 — 일반 칸을 먹지 않고 하나 더 붙는다
+      // 문파 칸 — 일반 칸을 먹지 않고 뒤에 더 붙는다. 셋이고, 관문으로 열린다.
       if (jsk || game.tasteOpen() || game.jobOpen()) {
         const col = jobOf(game.s.job || game.s.taste)?.color || 'var(--muted)';
-        cells.push(h('div', { class: 'slot', style: `outline:1px solid ${col}` },
-          h('span', {}, jsk?.icon || '문파'),
-          h('small', {}, jsk ? `${jsk.name} Lv.${game.s.skills[jsk.id]}` : '문파 칸')));
+        const mine = game.jobSkills();
+        const open = game.jobSlotCount();
+        for (let i = 0; i < JOB_SLOTS; i++) {
+          const s2 = mine[i];
+          const shut = i >= open;
+          cells.push(h('div', { class: `slot${shut ? ' closed' : ''}`, style: `outline:1px solid ${shut ? 'var(--muted)' : col}` },
+            h('span', {}, s2?.icon || (shut ? '잠김' : '문파')),
+            h('small', {}, s2 ? `${s2.name} Lv.${game.s.skills[s2.id]}` : shut ? `${JOB_SKILL_OPEN[i]}관문` : '문파 칸')));
+        }
       }
       slotsEl.replaceChildren(...cells);
     }
@@ -191,8 +224,18 @@ function activeView(app) {
       const unlocked = game.skillUnlocked(sk);
       const equipped = game.s.skillSlots.includes(sk.id);
       r.row.style.opacity = unlocked ? '' : '0.5';
-      r.lv.textContent = unlocked ? `Lv.${l}`
+      // 차수 — 50레벨마다 이름이 바뀌고 배율이 한 번 더 곱해진다
+      const ti = skillTierInfo(sk, l);
+      r.nm.textContent = ti.name;
+      r.nm.style.color = ti.tier ? 'var(--accent-2)' : '';
+      r.lv.textContent = unlocked
+        ? (ti.tier ? `Lv.${l} · ${ti.tier + 1}차 ${ti.inTier}/${ti.step}` : `Lv.${l} · ${ti.inTier}/${ti.step}`)
         : sk.job ? `${jobOf(sk.job)?.name || ''} 전용` : `관문 ${sk.unlock} 해금`;
+      r.bar.firstChild.style.width = `${(ti.inTier / ti.step) * 100}%`;
+      r.bar.style.display = unlocked ? '' : 'none';
+      r.tierHint.innerHTML = unlocked
+        ? `${ti.left}레벨 뒤 <b>${ti.nextName}</b> — 배율 ×${ti.mult.toFixed(1)} → <b>×${ti.nextMult.toFixed(1)}</b>`
+        : '';
       const pi = game.skillPierceOf(sk.id);
       const boost = 1 + SKILL_PIERCE_MULT * pi;
       const cdNow = game.skillCdOf(sk);

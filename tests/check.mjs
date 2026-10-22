@@ -921,10 +921,25 @@ console.log('\n=== 18. 문파 ===');
 // ---------- 19. 계열 전용 무공 ----------
 console.log('\n=== 19. 계열 전용 무공 ===');
 {
-  ok(D.JOB_SKILLS.length === D.JOBS.length, '계열마다 전용 무공이 하나씩 있다',
-    `${D.JOB_SKILLS.length}종 / ${D.JOBS.length}계열`);
-  const miss = D.JOBS.filter((j) => !D.jobSkillOf(j.id));
-  ok(miss.length === 0, '빠진 계열이 없다', miss.map((j) => j.name).join(',') || '없음');
+  ok(D.JOB_SKILLS.length === D.JOBS.length * D.JOB_SLOTS, '계열마다 전용 무공이 셋씩 있다',
+    `${D.JOB_SKILLS.length}종 / ${D.JOBS.length}계열 x ${D.JOB_SLOTS}`);
+  const miss = D.JOBS.filter((j) => D.jobSkillsOf(j.id).length !== D.JOB_SLOTS);
+  ok(miss.length === 0, '셋이 안 되는 계열이 없다', miss.map((j) => j.name).join(',') || '없음');
+  // 차수가 0 · 1 · 2로 빠짐없이 매겨져야 한다. 하나라도 겹치면 그 칸이 영영 빈다.
+  for (const j of D.JOBS) {
+    const tiers = D.jobSkillsOf(j.id).map((s) => s.jobTier);
+    ok(tiers.join(',') === [...Array(D.JOB_SLOTS).keys()].join(','),
+      `${j.name} 무공 차수가 0부터 차례대로`, tiers.join(','));
+  }
+  // 모든 계열에 특성이 있어야 한다 — 하나라도 빠지면 그 문파만 전직해도 아무 일이 없다
+  for (const j of D.JOBS) {
+    const tr = D.jobTraitOf(j.id);
+    ok(!!tr, `${j.name}에 특성이 있다`, tr?.name || '없음');
+    ok(!!tr && !!tr.text && !!tr.col, `${j.name} 특성에 설명과 빛깔이 있다`);
+    // 특성이 **실제로 하는 일**이 있어야 한다. 이름만 있고 효과가 없으면 죽은 특성이다.
+    const does = ['cc', 'bossBonus', 'critChance', 'cdCut', 'goldOnSkill', 'heal'].some((k) => tr && tr[k]);
+    ok(does, `${j.name} 특성이 실제로 뭔가를 한다`);
+  }
   // 번호로 집는 자리가 밀리면 안 된다 — stats()가 SKILLS[1]·[4]·[5]를 쓴다
   ok(D.SKILLS[1].id === 'rage' && D.SKILLS[4].id === 'gale' && D.SKILLS[5].id === 'midas',
     '일반 무공 자리가 안 밀렸다', `${D.SKILLS[1].id}/${D.SKILLS[4].id}/${D.SKILLS[5].id}`);
@@ -952,8 +967,16 @@ console.log('\n=== 19. 계열 전용 무공 ===');
 
   // 문파 칸은 일반 칸을 먹지 않는다 — 이게 2차의 핵심 약속이다
   g.setJob('sword');
-  ok(g.activeSlots().length === normal + 1, '문파 칸이 일반 칸 뒤에 하나 더 붙는다',
-    `${normal} → ${g.activeSlots().length}`);
+  const jn = g.jobSlotCount();
+  ok(g.activeSlots().length === normal + jn, '문파 칸이 일반 칸 뒤에 더 붙는다',
+    `${normal} → ${g.activeSlots().length} (문파 ${jn}칸)`);
+  // 2차·3차는 관문으로 열린다. 처음부터 셋을 다 주면 열리는 맛이 없다.
+  ok(jn < D.JOB_SLOTS || g.s.bestStage >= D.JOB_SKILL_OPEN[D.JOB_SLOTS - 1],
+    '아직 안 열린 문파 칸은 안 나간다', `${jn}/${D.JOB_SLOTS}칸`);
+  const far = new Game(migrate({ job: 'sword', bestStage: 9999, maxStage: 9999, stage: 9999 }));
+  ok(far.jobSlotCount() === D.JOB_SLOTS, '멀리 가면 문파 칸이 전부 열린다', `${far.jobSlotCount()}칸`);
+  ok(far.jobSkillIds().length === D.JOB_SLOTS, '열린 칸마다 무공이 들어간다',
+    far.jobSkillIds().join(','));
   ok(g.activeSlots().includes('jsword'), '전용 무공이 실제로 나간다');
   ok(!g.s.skillSlots.includes('jsword'), '전용 무공이 일반 칸을 차지하지 않는다');
 
@@ -1400,6 +1423,156 @@ console.log('\n=== 26. 계열 패시브 / 장착 칸 ===');
   ok(back.passives['ring-wai'] === 7, '패시브 레벨이 세이브에 남는다', `${back.passives['ring-wai']}`);
   ok(migrate({}).passives && Object.keys(migrate({}).passives).length === 0,
     '옛 세이브는 빈 채로 들어온다');
+
+// ---------- 27. 문파 특성이 실제로 들어가는가 ----------
+//
+// **주고도 안 읽는 자리**를 만들지 않는다. 오늘만 해도 사건을 보내 놓고
+// 받는 쪽을 안 만든 적이 세 번 있었다. 특성은 여덟 개나 되므로 하나씩 돌린다.
+console.log('');
+console.log('=== 27. 문파 특성 ===');
+{
+  // 특성이 붙은 채로 무공을 한 번 쓰고, 그 결과를 본다
+  const cast = (job, skillId = 'slash', tune) => {
+    const g = strong(200);
+    g.s.job = job;
+    g.rng = (() => { let s2 = 7; return () => ((s2 = (s2 * 1103515245 + 12345) % 2147483648) / 2147483648); })();
+    g.spawn();
+    tune?.(g);
+    g.cd = {};
+    const before = {
+      gold: g.s.gold, hp: g.heroHp,
+      bleed: g.mon?.bleed || 0, weak: g.mon?.weak || 0,
+    };
+    const ok2 = g.useSkill(skillId);
+    return { g, ok: ok2, before, mon: g.mon };
+  };
+
+  // 혈천도마 〈혈기〉 — 모든 무공이 출혈을 건다. 선풍검은 본래도 출혈이라
+  // 출혈이 **없는** 무공으로 본다(뇌정검은 둔화만 건다).
+  {
+    const no = cast(null, 'thunder');
+    const yes = cast('blade', 'thunder');
+    ok(no.ok && yes.ok, '뇌정검이 나갔다');
+    ok(!(no.mon.bleed > 0), '문파가 없으면 뇌정검은 출혈을 안 건다', `${no.mon.bleed || 0}초`);
+    ok(yes.mon.bleed > 0, '혈천도마는 뇌정검에도 출혈이 붙는다', `${yes.mon.bleed.toFixed(1)}초`);
+  }
+  // 환마 〈환기〉 — 파쇄
+  {
+    const no = cast(null, 'thunder');
+    const yes = cast('fan', 'thunder');
+    ok(!(no.mon.weak > 0), '문파가 없으면 파쇄가 안 붙는다');
+    ok(yes.mon.weak > 0, '환마는 모든 무공에 파쇄가 붙는다', `${yes.mon.weak.toFixed(1)}초`);
+  }
+  // 독마 〈독기〉 — 출혈이 더 아프다
+  {
+    const b = cast('blade', 'thunder');
+    const p = cast('poison', 'thunder');
+    ok(p.mon.bleedPer > b.mon.bleedPer, '독마의 중독이 혈천도마의 출혈보다 아프다',
+      `${b.mon.bleedPer.toExponential(2)} → ${p.mon.bleedPer.toExponential(2)}`);
+  }
+  // 마불 〈불력〉 — 무공을 쓰면 체력이 찬다
+  {
+    const r = cast('monk', 'thunder', (g) => { g.heroHp = g.stats().hp * 0.5; });
+    ok(r.g.heroHp > r.before.hp, '마불은 무공을 쓰면 체력이 찬다',
+      `${r.before.hp.toExponential(2)} → ${r.g.heroHp.toExponential(2)}`);
+    const n = cast(null, 'thunder', (g) => { g.heroHp = g.stats().hp * 0.5; });
+    ok(Math.abs(n.g.heroHp - n.before.hp) < 1e-9, '문파가 없으면 안 찬다');
+  }
+  // 취마 〈주기〉 — 무공을 쓰면 은자가 떨어진다
+  {
+    const r = cast('drunk', 'thunder');
+    ok(r.g.s.gold > r.before.gold, '취마는 무공을 쓰면 은자가 들어온다',
+      `+${(r.g.s.gold - r.before.gold).toExponential(2)}`);
+    // 보이는 쪽도 있어야 한다 — 사건을 보내 놓고 받는 쪽이 없으면 없는 것과 같다
+    ok(r.g.events.some((e) => e.type === 'gold' && e.fromSkill), '은자가 떨어진 사건을 보낸다');
+  }
+  // 권마 〈강기〉 — 다른 무공의 쿨이 줄어든다
+  {
+    const g = strong(200);
+    g.s.job = 'fist';
+    g.spawn();
+    g.cd = { frost: 10 };
+    g.useSkill('thunder');
+    ok(g.cd.frost < 10, '권마는 무공을 쓰면 다른 무공 쿨이 준다', `10 → ${g.cd.frost.toFixed(1)}초`);
+    const g2 = strong(200);
+    g2.spawn();
+    g2.cd = { frost: 10 };
+    g2.useSkill('thunder');
+    ok(g2.cd.frost === 10, '문파가 없으면 안 준다');
+  }
+  // 일화검존 〈검의〉 — 두목에게 더 아프다
+  {
+    // **체력을 1e300으로 두고 뺄셈을 하면 안 된다.** 피해가 1e10이라
+    // 자리수가 290이나 차이 나서 뺀 값이 그대로 0으로 나왔다(여기서 겪었다).
+    // 보낸 피해 사건을 그대로 센다.
+    const hit = (job) => {
+      const g = strong(200);
+      g.s.job = job;
+      g.rng = () => 0.99;                 // 치명이 안 터지게 고정한다
+      g.spawn();
+      g.mon.isBoss = true;
+      g.mon.hp = Infinity;
+      g.cd = {};
+      g.events.length = 0;
+      g.useSkill('thunder');
+      return g.events.filter((e) => e.type === 'dmg').reduce((a, e) => a + (e.amount || 0), 0);
+    };
+    const a = hit(null), b = hit('sword');
+    ok(b > a * 1.2, '일화검존은 모든 무공이 두목에게 더 아프다',
+      `${a.toExponential(2)} → ${b.toExponential(2)}`);
+  }
+  // 극악소마 〈지력〉 — 치명이 뜰 수 있다
+  {
+    const hit = (job, roll) => {
+      const g = strong(200);
+      g.s.job = job;
+      g.rng = () => roll;
+      g.spawn();
+      g.mon.hp = Infinity;
+      g.cd = {};
+      g.events.length = 0;
+      g.useSkill('thunder');
+      return g.events.filter((e) => e.type === 'dmg').reduce((a, e) => a + (e.amount || 0), 0);
+    };
+    ok(hit('ring', 0.01) > hit(null, 0.01) * 1.2, '극악소마는 무공도 치명이 터진다',
+      `${hit(null, 0.01).toExponential(2)} → ${hit('ring', 0.01).toExponential(2)}`);
+    ok(Math.abs(hit('ring', 0.99) - hit(null, 0.99)) < 1e-6, '안 터질 때는 그대로');
+  }
+  // 맛보기로는 특성이 안 붙는다 — 그러면 전직할 이유가 없다
+  {
+    const g = strong(200);
+    g.s.taste = 'blade';
+    g.s.job = null;
+    ok(g.jobTrait() === null, '맛보기만으로는 특성이 안 붙는다');
+    ok(g.jobSkills().length <= 1, '맛보기는 1차 무공 하나만', `${g.jobSkills().length}개`);
+  }
+}
+
+// ---------- 28. 무공 차수 ----------
+console.log('');
+console.log('=== 28. 무공 차수 ===');
+{
+  const sk = D.SKILLS[0];
+  ok(D.skillTierOf(0) === 0 && D.skillTierOf(49) === 0 && D.skillTierOf(50) === 1,
+    '50레벨마다 차수가 오른다');
+  ok(D.skillTierMult(50) > D.skillTierMult(49), '차수가 오르면 배율이 붙는다',
+    `${D.skillTierMult(49)} → ${D.skillTierMult(50)}`);
+  const names = [0, 50, 100, 500, 1000].map((l) => D.skillTierName(sk, l));
+  ok(new Set(names).size === names.length, '차수마다 이름이 다르다', names.join(' / '));
+  // 끝이 없다
+  ok(D.skillTierMult(5000) > D.skillTierMult(4000) && Number.isFinite(D.skillTierMult(5000)),
+    '차수에 끝이 없다');
+  // 실제 피해에 들어가는가
+  const g = strong(200);
+  g.s.skills.slash = 49;
+  const a = g.skillMult(sk);
+  g.s.skills.slash = 50;
+  const b = g.skillMult(sk);
+  ok(b > a * 1.5, '차수가 오르면 실제 피해가 뛴다', `${a.toFixed(1)} → ${b.toFixed(1)}`);
+  const ti = D.skillTierInfo(sk, 62);
+  ok(ti.tier === 1 && ti.inTier === 12 && ti.left === 38, '차수 안 진행도가 맞는다',
+    `${ti.name} ${ti.inTier}/${ti.step}`);
+}
 }
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);

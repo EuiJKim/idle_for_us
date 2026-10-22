@@ -660,3 +660,9 @@ body { background: radial-gradient(ellipse at top, #1d1712, #0b0907 70%); }
 .fold[open] > summary::after { content: '▴'; }
 .fold > summary small { color: var(--muted); font-weight: 700; font-size: 11px; }
 .fold > *:not(summary) { margin-top: 8px; }
+
+/* 문파 특성 카드 — 전직하면 뜬다. 테두리를 그 문파 빛깔로 준다. */
+.trait-card { border: 1px solid transparent; }
+.trait-card h3 small { color: var(--muted); font-weight: 700; font-size: 11px; margin-left: 4px; }
+/* 아직 안 열린 문파 칸 */
+.slot.closed { opacity: 0.45; }

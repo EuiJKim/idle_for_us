@@ -1,5 +1,5 @@
 // 전투 화면 캔버스 렌더러 (수묵화 무협풍). 게임 이벤트를 받아 연출만 담당한다.
-import { zoneOf, RANKS, GRADES, PETS, SKILLS, FIELD_SQUASH } from './data.js';
+import { zoneOf, RANKS, GRADES, PETS, SKILLS, FIELD_SQUASH, JOB_TRAITS } from './data.js';
 import { artReady, putArt, loadArt, FIT, ART_SHOULDER, ART_BAND, headKey, bodyKey, weaponKey } from './art.js';
 import { OUTFITS } from './data.js';
 
@@ -343,10 +343,14 @@ export class BattleView {
         break;
       case 'skillArea':
         // 광역기는 발밑에 원형 장판이 퍼진다 (Blade Idle의 FX_Shader_SkillArea_01 문법)
-        if (ev.radius) this.effects.push({ kind: 'area', life: 0.55, max: 0.55, r: ev.radius, id: ev.id });
+        if (ev.radius) this.effects.push({ kind: 'area', life: 0.55, max: 0.55, r: ev.radius, id: ev.id, job: ev.job });
         break;
       case 'skill':
-        this.skillEffect(ev.id);
+        this.skillEffect(ev.id, ev.job);
+        break;
+      case 'gold':
+        // 취마 〈주기〉 — 무공을 쓸 때마다 은자가 떨어진다. 안 보이면 없는 것과 같다.
+        if (ev.fromSkill) for (let i = 0; i < 5; i++) this.ingot(this.heroX + (Math.random() - 0.5) * 70, this.groundY - 120, true);
         break;
       case 'spawn':
         this.monDeath = 0;
@@ -360,11 +364,21 @@ export class BattleView {
     }
   }
 
-  skillEffect(id) {
+  skillEffect(id, job = null) {
     const sk = SKILLS.find((x) => x.id === id);
     const add = (kind, life, extra = {}) => this.effects.push({ kind, life, max: life, ...extra });
+    // ---- 문파 기운 ----
+    // 전직을 하면 **쓰는 모든 무공**에 그 문파 빛깔의 기운이 한 겹 더 실린다.
+    // 전에는 전용 무공 하나만 달라 보여서, 전직을 해도 들판이 그대로였다.
+    const tr = job ? JOB_TRAITS[job] : null;
+    if (tr) {
+      add(tr.fx === 'slash' ? 'burst' : tr.fx === 'pierce' ? 'beam' : tr.fx === 'field' ? 'area'
+        : tr.fx === 'swirl' ? 'swirl' : tr.fx === 'aura' ? 'aura' : 'burst',
+        0.5, { col: tr.col, job, r: sk?.radius || 180, a: 0, big: true });
+      this.ink(this.heroX, this.groundY - 60, 6, `rgb(${tr.col})`, 150);
+    }
     // sk.hz는 한자를 뺄 때 사라진 필드다. 무공 이름을 쓴다.
-    if (sk) this.hanja = { text: sk.name, life: 1, max: 1, color: id === 'rage' ? '#fca5a5' : id === 'frost' ? '#bae6fd' : '#fef3c7' };
+    if (sk) this.hanja = { text: sk.name, life: 1, max: 1, color: tr ? `rgb(${tr.col})` : id === 'rage' ? '#fca5a5' : id === 'frost' ? '#bae6fd' : '#fef3c7' };
     if (id === 'slash') for (let i = 0; i < 3; i++) this.projectiles.push({ kind: 'wave', x: this.heroX + 20, y: this.groundY - 50 - i * 18, life: 0.35 + i * 0.07, max: 0.35 + i * 0.07 });
     if (id === 'slash') this.shake = 0.18;
     if (id === 'thunder') { add('thunder', 0.45); this.shake = 0.4; this.flash = 0.5; }
@@ -989,7 +1003,8 @@ export class BattleView {
       if (e.kind === 'area') {
         // 바닥에 퍼지는 원 — 탑다운이라 원이 그대로 "사거리"로 읽힌다
         const p = 1 - k;
-        const col = e.id === 'thunder' ? '254,240,138' : e.id === 'meteor' ? '224,242,254' : '253,224,71';
+        // 문파 기운이 실린 장판은 그 문파 빛깔이다
+        const col = e.col || (e.id === 'thunder' ? '254,240,138' : e.id === 'meteor' ? '224,242,254' : '253,224,71');
         ctx.save();
         ctx.translate(this.heroX, this.groundY);
         ctx.scale(1, this.squash);

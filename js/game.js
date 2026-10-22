@@ -37,7 +37,8 @@ import {
   riftStage, huntStage, riftReward, huntReward,
   RELICS, RELIC_DIG_COST,
   SKILLS, SKILL_SLOTS, skillSlotCount, skillBookCost,
-  skillCd,
+  skillCd, skillTierMult, jobSkillsOf, jobSlotCount, nextJobSkillAt, JOB_SLOTS,
+  jobTraitOf,
   DUNGEONS, DUNGEON_KEYS, DUNGEON_TIME, DUNGEON_MOBS, dungeonStage, dungeonReward,
   DUNGEON_KEY_CAP, RAID_TICKET_CAP, PVP_TICKET_CAP,
   MISSIONS, MISSION_ALL_REWARD, stageMilestone, STAGE_MILESTONE_EVERY,
@@ -523,13 +524,25 @@ export class Game {
   }
 
   // 지금 문파 칸에 들어가는 무공. 문파를 골랐으면 그 계열, 아니면 맛보기.
-  jobSkill() {
-    if (this.s.job) return jobSkillOf(this.s.job);
-    if (this.tasteOpen() && this.s.taste) return jobSkillOf(this.s.taste);
-    return null;
+  // 문파 칸은 셋이다. 관문을 넘으면 2차·3차가 열린다.
+  jobSlotCount() { return jobSlotCount(this.s.bestStage); }
+  nextJobSkillAt() { return nextJobSkillAt(this.s.bestStage); }
+
+  // 지금 쓸 수 있는 계열 무공 전부 (열린 칸만큼)
+  jobSkills() {
+    const id = this.s.job || (this.tasteOpen() ? this.s.taste : null);
+    if (!id) return [];
+    // **맛보기는 1차만 준다.** 맛만 보는 자리에 셋을 다 주면 전직할 이유가 없다.
+    const n = this.s.job ? this.jobSlotCount() : 1;
+    return jobSkillsOf(id).slice(0, n);
   }
 
+  jobSkill() { return this.jobSkills()[0] || null; }
   jobSkillId() { return this.jobSkill()?.id || null; }
+  jobSkillIds() { return this.jobSkills().map((s) => s.id); }
+
+  // 지금 문파의 특성. 전직을 해야 붙는다 — 맛보기로는 안 붙는다.
+  jobTrait() { return this.s.job ? jobTraitOf(this.s.job) : null; }
 
   // 다음 계열이 열리는 관문 (없으면 null)
   nextJobAt() {
@@ -901,7 +914,8 @@ export class Game {
   // 초월이 붙은 최종 배율
   skillMult(sk) {
     const lv = this.s.skills[sk.id] || 1;
-    return sk.mult(lv) * (1 + SKILL_PIERCE_MULT * this.skillPierceOf(sk.id));
+    // 차수 — 50레벨마다 한 번씩 더 곱해진다 (선풍검 -> 극선풍검 -> 현선풍검 …)
+    return sk.mult(lv) * skillTierMult(lv) * (1 + SKILL_PIERCE_MULT * this.skillPierceOf(sk.id));
   }
 
   // ---------- 소환 레벨 ----------
@@ -1817,7 +1831,7 @@ export class Game {
       if (dx * dx + dy * dy > rr) continue;
       hits++;
       this.damageMob(m, amount, kind);
-      if (this.ccNow) this.applyCC(m, this.ccNow.cc, this.ccNow.sec, amount);
+      this.applyHitCC(m, amount);
     }
     return hits;
   }
@@ -1837,12 +1851,18 @@ export class Game {
       if (side > half) continue;
       hits++;
       this.damageMob(m, amount, kind);
-      if (this.ccNow) this.applyCC(m, this.ccNow.cc, this.ccNow.sec, amount);
+      this.applyHitCC(m, amount);
     }
     return hits;
   }
 
   // 상태이상을 건다. 같은 것이 겹치면 더 긴 쪽이 남는다.
+  // 이번 타격이 거는 상태이상 전부 (무공 본래 것 + 문파 특성)
+  applyHitCC(m, amount) {
+    if (this.ccNow) this.applyCC(m, this.ccNow.cc, this.ccNow.sec, amount);
+    if (this.ccJob) this.applyCC(m, this.ccJob.cc, this.ccJob.sec, amount * this.ccJob.mult);
+  }
+
   applyCC(m, kind, sec0, amount) {
     if (!m || !kind || !sec0) return;
     // 환마·독마는 상태이상이 더 오래간다
@@ -1907,7 +1927,7 @@ export class Game {
       hit.add(best);
       path.push({ x: best.x, y: best.y });
       this.damageMob(best, amount, id);
-      if (this.ccNow) this.applyCC(best, this.ccNow.cc, this.ccNow.sec, amount);
+      this.applyHitCC(best, amount);
       amount *= sk.chainFalloff;
       from = best;
     }
@@ -1955,7 +1975,7 @@ export class Game {
     this.heroAngle = ang;
     const amount = dmg * (target.isBoss && sk.bossMult ? sk.bossMult : 1);
     this.damageMob(target, amount, id);
-    if (this.ccNow) this.applyCC(target, this.ccNow.cc, this.ccNow.sec, amount);
+    this.applyHitCC(target, amount);
     this.emit('skillPath', { id, kind: 'blink', path: [{ x: fromX, y: fromY }, { x: this.heroX, y: this.heroY }] });
     return 1;
   }
@@ -2007,7 +2027,7 @@ export class Game {
       if (!a.alive) continue;
       a.hp -= amount;
       this.emit('dmg', { amount, kind, crit, add: true, at: a });
-      if (this.ccNow) this.applyCC(a, this.ccNow.cc, this.ccNow.sec, amount);
+      this.applyHitCC(a, amount);
       if (a.hp <= 0) this.killAdd(a);
     }
   }
@@ -2611,7 +2631,7 @@ export class Game {
   // ---------- 스킬 ----------
   // 계열 무공은 관문이 아니라 **문파(또는 맛보기)**가 연다
   skillUnlocked(sk) {
-    if (sk.job) return this.jobSkillId() === sk.id;
+    if (sk.job) return this.jobSkillIds().includes(sk.id);
     return this.s.bestStage >= sk.unlock;
   }
 
@@ -2632,8 +2652,7 @@ export class Game {
   // 일반 칸 + 문파 칸. 문파 칸은 일반 칸을 먹지 않고 하나 더 붙는다.
   activeSlots() {
     const out = this.s.skillSlots.slice(0, this.skillSlotCount());
-    const j = this.jobSkillId();
-    if (j) out.push(j);
+    for (const id of this.jobSkillIds()) out.push(id);
     return out;
   }
 
@@ -2662,18 +2681,28 @@ export class Game {
     const lv = this.s.skills[id];
     const st = this.stats();
     if (sk.kind === 'dmg') {
-      this.emit('skillArea', { id, radius: sk.radius || 0, target: sk.target || 'single' });
+      // 문파 특성. 전직하면 **쓰는 모든 무공에** 그 문파의 기운이 실린다.
+      // 들판에 보이는 빛깔까지 바뀌므로 사건에 같이 실어 보낸다.
+      const tr = this.jobTrait();
+      this.emit('skillArea', { id, radius: sk.radius || 0, target: sk.target || 'single', job: this.s.job || null });
       if (sk.stun) this.mon.stun = sk.stun;
-      this.emit('skill', { id, target: sk.target || 'single' });
+      this.emit('skill', { id, target: sk.target || 'single', job: this.s.job || null });
       let dmg = st.atk * this.skillMult(sk);
       // 단지멸은 반드시 치명으로 들어간다 (극악소마의 축이 치명 피해다)
       if (sk.sure) dmg *= st.critDmg;
+      // 극악소마 〈지력〉 — 반드시 치명이 아니어도 치명이 뜰 수 있다
+      else if (tr?.critChance && this.rng() < tr.critChance) dmg *= st.critDmg;
+      // 일화검존 〈검의〉 — 모든 무공이 관문지기에게 더 아프다
+      if (tr?.bossBonus && this.mon.isBoss) dmg *= 1 + tr.bossBonus;
       // 금강부동은 체력이 곧 주먹이다. 마불만 체력 x2.5라 마불에게만 크게 들어온다.
       if (sk.hpScale) dmg += st.hp * sk.hpScale(lv);
       // 한 명만 노리는 무공은 두목에게 더 아프게 들어간다
       if (sk.bossMult && this.mon.isBoss) dmg *= sk.bossMult;
       // 이번 무공이 거는 상태이상. 맞은 적마다 applyCC가 집어간다.
       this.ccNow = sk.cc ? { cc: sk.cc, sec: sk.ccSec || 3 } : null;
+      // 문파 특성이 거는 상태이상은 **무공 본래 것에 더해서** 들어간다.
+      // 본래 것과 같은 종류면 더 긴 쪽이 남는다(applyCC가 알아서 고른다).
+      this.ccJob = tr?.cc ? { cc: tr.cc, sec: tr.ccSec || 4, mult: tr.bleedMult || 1 } : null;
       switch (sk.motion) {
         case 'chain': this.castChain(sk, dmg, id); break;
         case 'dash': this.castDash(sk, dmg, id); break;
@@ -2686,8 +2715,23 @@ export class Game {
           else this.dealDamage(dmg, id);
       }
       this.ccNow = null;
+      this.ccJob = null;
       // 금강부동은 베면서 숨을 돌린다
       if (sk.selfHeal) this.heroHp = Math.min(st.hp, this.heroHp + st.hp * sk.selfHeal);
+      // 마불 〈불력〉 — 무공을 쓸 때마다 조금씩 돌아온다
+      if (tr?.heal) this.heroHp = Math.min(st.hp, this.heroHp + st.hp * tr.heal);
+      // 취마 〈주기〉 — 무공을 쓰면 은자가 떨어진다
+      if (tr?.goldOnSkill) {
+        const got = monsterGold(this.s.stage) * tr.goldOnSkill * st.goldMul;
+        this.s.gold += got;
+        this.emit('gold', { amount: got, fromSkill: true });
+      }
+      // 권마 〈강기〉 — 한 대 지르면 다른 무공의 숨이 돌아온다
+      if (tr?.cdCut) {
+        for (const k of Object.keys(this.cd)) {
+          if (k !== id && this.cd[k] > 0) this.cd[k] = Math.max(0, this.cd[k] - tr.cdCut);
+        }
+      }
       // 취보난무·만독강림은 도는 동안 은자·경험치가 붙는다
       if (sk.boon) this.buffs[id] = sk.boon.dur;
     } else if (sk.kind === 'buff') {
