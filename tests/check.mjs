@@ -1249,5 +1249,77 @@ console.log('\n=== 25. 광고 / 광고 제거 ===');
     allowLines.map((l) => l.trim()).join(' / '));
   ok(entBlock.includes('noAds is bool'), '켤 때 noAds가 참거짓인지 본다');
 }
+
+console.log('\n=== 26. 계열 패시브 / 장착 칸 ===');
+{
+  ok(D.SKILL_SLOTS === 8, '장착 칸이 여덟이다', `${D.SKILL_SLOTS}칸`);
+  ok(D.SKILL_SLOT_AT.length === D.SKILL_SLOTS - D.SKILL_SLOT_BASE,
+    '열리는 관문 수가 칸 수와 맞는다', `${D.SKILL_SLOT_BASE} + ${D.SKILL_SLOT_AT.length}`);
+  ok(D.SKILL_SLOT_AT.every((v, i) => i === 0 || v > D.SKILL_SLOT_AT[i - 1]),
+    '칸이 열리는 관문이 오름차순이다', D.SKILL_SLOT_AT.join(','));
+  ok(D.skillSlotCount(9999) === D.SKILL_SLOTS, '끝까지 가면 여덟 칸이 전부 열린다');
+
+  // 계열마다 세 갈래(내공·외공·무공)가 하나씩 있어야 한다
+  ok(D.PASSIVES.length === D.JOBS.length * D.PASSIVE_KINDS.length,
+    '계열마다 갈래가 하나씩 있다', `${D.PASSIVES.length} = ${D.JOBS.length} x ${D.PASSIVE_KINDS.length}`);
+  for (const j of D.JOBS) {
+    const kinds = D.passivesOf(j.id).map((p) => p.kind);
+    ok(new Set(kinds).size === D.PASSIVE_KINDS.length, `${j.name}에 세 갈래가 다 있다`, kinds.join(','));
+  }
+  // **계열마다 값이 달라야 한다.** 같으면 고른 계열이 패시브에서 안 드러난다.
+  const neiPer = D.JOBS.map((j) => D.passivesOf(j.id).find((p) => p.kind === 'nei').per);
+  ok(new Set(neiPer).size >= 4, '같은 갈래라도 계열마다 세기가 다르다',
+    `내공 ${new Set(neiPer).size}종`);
+  // 축 이름이 전부 사람 말로 적혀 있어야 한다 — 없으면 화면에 영문이 뜬다
+  const noName = D.PASSIVES.filter((p) => !D.PASSIVE_STAT_NAME[p.stat]);
+  ok(noName.length === 0, '패시브가 미는 축에 전부 이름이 있다',
+    noName.map((p) => p.stat).join(',') || '없음');
+
+  // 지금 들어간 계열 것만 켜진다
+  const g = strong(600);
+  g.s.books = 1e12;
+  g.s.bestStage = 9999;
+  for (const j of D.JOBS) g.s.jobTests[j.id] = true;
+  ok(g.setJob('monk'), '마불에 들어간다');
+  ok(g.passiveUp('monk-nei', 10) === 10, '내 계열 패시브는 올라간다');
+  ok(g.passiveUp('sword-nei', 1) === 0, '남의 계열 패시브는 못 올린다');
+  const hpOn = g.stats().hp;
+  ok(Object.keys(g.passiveSum()).length > 0, '켜져 있다', JSON.stringify(g.passiveSum()));
+  g.setJob('poison');
+  ok(Object.keys(g.passiveSum()).length === 0, '문파를 바꾸면 그쪽 패시브가 꺼진다');
+  g.setJob('monk');
+  ok(g.passiveLv('monk-nei') === 10, '돌아오면 올려 둔 게 그대로다');
+  ok(Math.abs(g.stats().hp - hpOn) < 1, '돌아오면 효과도 그대로다');
+
+  // 쿨타임은 바닥이 있어야 한다 — 0이 되면 평타·영수가 의미를 잃는다
+  const g2 = strong(600);
+  g2.s.books = 1e12; g2.s.bestStage = 9999;
+  for (const j of D.JOBS) g2.s.jobTests[j.id] = true;
+  g2.setJob('blade');
+  g2.passiveUp('blade-mu', D.PASSIVE_MAX);
+  const sk = D.SKILLS.find((x) => x.id === 'slash');
+  ok(g2.skillCdOf(sk) >= sk.cd * 0.3 - 1e-9, '쿨타임이 원래의 30% 아래로는 안 내려간다',
+    `${g2.skillCdOf(sk).toFixed(2)}초 / 바닥 ${(sk.cd * 0.3).toFixed(2)}초`);
+
+  // 받는 피해 감소도 바닥이 있어야 한다
+  const g3 = strong(600);
+  g3.s.books = 1e12; g3.s.bestStage = 9999;
+  for (const j of D.JOBS) g3.s.jobTests[j.id] = true;
+  g3.setJob('fist');
+  g3.passiveUp('fist-nei', D.PASSIVE_MAX);
+  ok(g3.stats().guard >= 0.2 - 1e-9, '받는 피해를 80%까지만 줄인다',
+    `guard ${g3.stats().guard.toFixed(3)}`);
+
+  // 세이브에 남는다
+  const g4 = strong(600);
+  g4.s.books = 1e12; g4.s.bestStage = 9999;
+  for (const j of D.JOBS) g4.s.jobTests[j.id] = true;
+  g4.setJob('ring');
+  g4.passiveUp('ring-wai', 7);
+  const back = migrate(JSON.parse(JSON.stringify(g4.toJSON())));
+  ok(back.passives['ring-wai'] === 7, '패시브 레벨이 세이브에 남는다', `${back.passives['ring-wai']}`);
+  ok(migrate({}).passives && Object.keys(migrate({}).passives).length === 0,
+    '옛 세이브는 빈 채로 들어온다');
+}
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);

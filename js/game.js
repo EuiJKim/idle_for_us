@@ -46,6 +46,7 @@ import {
   REGRESS_PER_POINT, regressGain, REGRESS_ADVISE_POINTS, REGRESS_STUCK_SEC,
   JOBS, JOB_RANK, JOB_UNLOCK, jobOf, JOB_SKILLS, jobSkillOf, BOON_SKILLS, TASTE_RANK,
   JOB_TESTS, jobTestOf, jobTestStage,
+  PASSIVES, passivesOf, passiveId, PASSIVE_MAX, passiveCost,
   NOADS_ATK, NOADS_HP, AD_BOOST_EXTRA,
   bossGems, bossRelicShards, guildAtkBonus,
 } from './data.js';
@@ -103,6 +104,7 @@ export function newSave(now = Date.now()) {
     outfits: {},   // 가진 의복 (입지 않아도 효과가 붙는다)
     outfit: null,  // 지금 입은 것 (겉모습만)
     rankSub: 0,    // 경지 안의 소단계 (0~39). 레벨만 차면 바로 오른다.
+    passives: {},  // 계열 패시브 레벨 { 'sword-nei': 12, ... }
     petTeam: [],   // 데려가는 영수들. **참말은 여기 하나뿐이다** —
                    // 예전 s.pet(한 마리)은 이 배열의 첫 자리로 옮겼다.
     // 인물도감: 종류×등급 칸을 한 번이라도 채웠는가 (회귀해도 남는다)
@@ -265,6 +267,11 @@ export function migrate(raw, now = Date.now()) {
   // 시험 때문에 잃으면 안 된다 — 거쳐 본 계열은 전부 붙은 것으로 본다.
   s.noAds = !!raw.noAds;
   s.rankSub = Math.max(0, Math.min(RANK_SUBS - 1, Math.floor(raw.rankSub || 0)));
+  s.passives = {};
+  for (const pv of PASSIVES) {
+    const v = Math.floor(raw.passives?.[passiveId(pv)] || 0);
+    if (v > 0) s.passives[passiveId(pv)] = Math.min(PASSIVE_MAX, v);
+  }
   s.jobTests = {};
   for (const j of JOBS) if (raw.jobTests?.[j.id]) s.jobTests[j.id] = true;
   for (const id of [raw.job, ...(Array.isArray(raw.jobSeen) ? raw.jobSeen : [])]) {
@@ -887,7 +894,11 @@ export class Game {
 
   // 레벨·초월이 붙은 최종 쿨타임
   skillCdOf(sk) {
-    return skillCd(sk.cd, this.s.skills[sk.id] || 1, this.skillPierceOf(sk.id));
+    const base = skillCd(sk.cd, this.s.skills[sk.id] || 1, this.skillPierceOf(sk.id));
+    // 패시브로 더 줄인다. 아무리 쌓아도 원래의 30% 아래로는 안 내려간다 —
+    // 0에 닿으면 무공이 끊임없이 나가서 평타·영수가 전부 의미를 잃는다.
+    const cut = this.passiveSum().skillCd || 0;
+    return Math.max(sk.cd * 0.3, base * (1 - cut));
   }
 
   // 초월이 붙은 최종 배율
@@ -1444,6 +1455,37 @@ export class Game {
   // mods()에 더하지 않고 **따로 곱한다.** 지금 m.atk가 27쯤이라 거기에 0.3을
   // 더하면 1%밖에 안 된다 — 장신구 특기에서 그 실수를 한 번 했다.
   // 곱으로 두면 적힌 숫자가 곧 체감이다.
+  // ---------- 계열 패시브 ----------
+  // 지금 들어간 계열의 것만 켜진다. 문파를 바꾸면 그쪽 패시브로 갈아탄다 —
+  // 올려 둔 레벨은 안 없어지므로 돌아오면 그대로다.
+  passiveLv(id) { return this.s.passives?.[id] || 0; }
+  passiveCostOf(id) { return passiveCost(this.passiveLv(id)); }
+  passiveUp(id, times = 1) {
+    const pv = PASSIVES.find((x) => passiveId(x) === id);
+    if (!pv || pv.job !== this.s.job) return 0;
+    let n = 0;
+    for (let i = 0; i < times; i++) {
+      if (this.passiveLv(id) >= PASSIVE_MAX) break;
+      const cost = this.passiveCostOf(id);
+      if (this.s.books < cost) break;
+      this.s.books -= cost;
+      this.s.passives[id] = this.passiveLv(id) + 1;
+      n++;
+    }
+    return n;
+  }
+
+  // 켜져 있는 패시브를 축별로 합친다
+  passiveSum() {
+    const out = {};
+    if (!this.s.job) return out;
+    for (const pv of passivesOf(this.s.job)) {
+      const lv = this.passiveLv(passiveId(pv));
+      if (lv > 0) out[pv.stat] = (out[pv.stat] || 0) + pv.per * lv;
+    }
+    return out;
+  }
+
   jobMult() {
     const j = jobOf(this.s.job);
     const out = { atk: 1, hp: 1, speed: 1, gold: 1, boss: 1, offline: 1, bleed: 1, ccDur: 1, critDmg: 1, exp: 1 };
@@ -1472,30 +1514,37 @@ export class Game {
     const guild = 1 + guildAtkBonus(this.guildExp);
     const rank = this.rankMult();
     const past = this.regressMult();
+    // 계열 패시브. 전부 **따로 곱한다** — 다른 배수에 더하면 묻혀서
+    // 올려도 체감이 없다(장신구 특기에서 그 실수를 했다).
+    const pv = this.passiveSum();
+    const pvm = (k) => 1 + (pv[k] || 0);
+
     const boost = (b.boost || 0) > 0 ? BOOST_MULT : 1;
     // 광고를 지운 사람에게 붙는 영구 보너스. **따로 곱한다** — 더하기로 두면
     // 다른 배수에 묻혀서 산 값을 못 느낀다(장신구 특기에서 겪은 실수다).
     const ad = this.s.noAds ? NOADS_ATK : 1;
     const adHp = this.s.noAds ? NOADS_HP : 1;
-    const atk = UPGRADES.atk.value(u.atk) * this.equipMult('weapon') * (1 + m.atk) * rank * guild * rage * past * boost * jb.atk * ad;
-    const hp = UPGRADES.hp.value(u.hp) * this.equipMult('armor') * (1 + m.hp) * rank * past * jb.hp * adHp;
+    const atk = UPGRADES.atk.value(u.atk) * this.equipMult('weapon') * (1 + m.atk) * rank * guild * rage * past * boost * jb.atk * ad * pvm('atk');
+    const hp = UPGRADES.hp.value(u.hp) * this.equipMult('armor') * (1 + m.hp) * rank * past * jb.hp * adHp * pvm('hp');
     const crit = Math.min(CRIT_CAP, UPGRADES.crit.value(u.crit) + m.crit + jb.add.crit);
-    const critDmg = (UPGRADES.critDmg.value(u.critDmg) + m.critDmg + jb.add.critDmg) * jb.critDmg;
-    const speed = Math.min(SPEED_CAP, UPGRADES.speed.value(u.speed)) * (1 + m.speed) * gale * jb.speed;
-    const goldMul = UPGRADES.gold.value(u.gold) * this.equipMult('ring') * (1 + m.gold) * midas * past * jb.gold * boonGold;
-    const expMul = (1 + m.exp) * past * jb.exp * boonExp;
-    const bossMul = (1 + m.boss) * jb.boss;
+    const critDmg = (UPGRADES.critDmg.value(u.critDmg) + m.critDmg + jb.add.critDmg + (pv.critDmgAdd || 0)) * jb.critDmg;
+    const speed = Math.min(SPEED_CAP, UPGRADES.speed.value(u.speed)) * (1 + m.speed) * gale * jb.speed * pvm('speed');
+    const goldMul = UPGRADES.gold.value(u.gold) * this.equipMult('ring') * (1 + m.gold) * midas * past * jb.gold * boonGold * pvm('gold');
+    const expMul = (1 + m.exp) * past * jb.exp * boonExp * pvm('exp');
+    const bossMul = (1 + m.boss) * jb.boss * pvm('boss');
     // 데려간 영수 전부가 각자 때린다. 하나만 세던 자리다.
     const team = this.petTeam();
     const hits = team.map((p) => ({ pet: p, hit: atk * petDamageMult(p, this.s.pets[p.id] || 1) }));
     const petHit = hits.reduce((a, x) => a + x.hit, 0);
     // 식철수는 때리는 대신 받는 피해를 줄인다
-    const guard = team.reduce((a, p) => (p.act === 'shield' ? a * (1 - p.actVal) : a), 1);
+    const guard = team.reduce((a, p) => (p.act === 'shield' ? a * (1 - p.actVal) : a), 1)
+      * Math.max(0.2, 1 - (pv.guard || 0));   // 아무리 쌓아도 80%까지만
     const dps = atk * speed * (1 + crit * (critDmg - 1)) + petHit / PET_ATTACK_INTERVAL;
     return {
       atk, hp, crit, critDmg, speed, goldMul, expMul, bossMul, petHit, petHits: hits, guard, dps,
       bossTime: BOSS_TIME + m.bossTime, offlineMul: (1 + m.offline) * jb.offline,
-      bleedMult: jb.bleed, ccDurMult: jb.ccDur,
+      bleedMult: jb.bleed * pvm('bleed'), ccDurMult: jb.ccDur * pvm('ccDur'),
+      skillDmgMult: pvm('skillDmg'), skillCdCut: pv.skillCd || 0,
     };
   }
 

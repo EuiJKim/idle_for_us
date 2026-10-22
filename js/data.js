@@ -2,7 +2,7 @@
 
 // 지금 돌고 있는 빌드. 설정 창에 적어 둔다 — 기기가 옛 판을 들고 있는지
 // 한눈에 보려고 둔다. sw.js의 CACHE와 같은 값으로 맞춘다.
-export const BUILD = 'ifu-v64';
+export const BUILD = 'ifu-v65';
 
 export const SAVE_VERSION = 4;
 export const OFFLINE_CAP_SEC = 12 * 3600;
@@ -437,6 +437,74 @@ export const JOBS = [
     mult: { bleed: 2.0, ccDur: 1.4, exp: 1.8 } },
 ];
 export const jobOf = (id) => JOBS.find((j) => j.id === id) || null;
+
+// ---------- 계열 패시브 ----------
+//
+// 지금까지 무공은 **액티브뿐**이었다. Blade Idle은 SkillGet_Active /
+// SkillGet_Passive로 갈라져 있는데(docs/BladeIdle_스킬구조.md 58행) 우리는
+// 액티브만 가져왔다. 강해지는 갈래가 하나 통째로 비어 있었다.
+//
+// 무협이니 갈래 이름도 그쪽으로 간다:
+//   내공 — 버틴다 (체력·재생·피해 감소)
+//   외공 — 때린다 (공격력·치명·속도)
+//   무공 — 무공을 키운다 (쿨타임·무공 피해)
+//
+// **계열마다 값이 다르다.** 같은 '내공'이라도 마불의 내공은 두텁고
+// 일화검존의 내공은 얕다 — 고른 계열이 패시브에서도 드러나야 한다.
+// 지금 들어간 계열의 패시브만 켜진다.
+export const PASSIVE_KINDS = [
+  { id: 'nei', name: '내공', desc: '버틴다' },
+  { id: 'wai', name: '외공', desc: '때린다' },
+  { id: 'mu', name: '무공', desc: '무공을 키운다' },
+];
+// 비급으로 올린다. 무공과 같은 자원이라 '무공에 쓸까 패시브에 쓸까'가 생긴다.
+export const PASSIVE_MAX = 50;
+export const passiveCost = (lv) => Math.ceil(80 * Math.pow(1.11, lv));
+// per는 1레벨당 붙는 값. 50레벨이면 per x 50이다.
+export const PASSIVES = [
+  // 일화검존 — 한 점을 꿰뚫는다
+  { job: 'sword', kind: 'nei', name: '단전', stat: 'hp', per: 0.02 },
+  { job: 'sword', kind: 'wai', name: '검심', stat: 'boss', per: 0.03 },
+  { job: 'sword', kind: 'mu', name: '일점귀일', stat: 'skillDmg', per: 0.025 },
+  // 혈천도마 — 베어 넘긴다
+  { job: 'blade', kind: 'nei', name: '혈기', stat: 'hp', per: 0.022 },
+  { job: 'blade', kind: 'wai', name: '쾌도', stat: 'atk', per: 0.03 },
+  { job: 'blade', kind: 'mu', name: '연격', stat: 'skillCd', per: 0.004 },
+  // 권마 — 맞붙는다
+  { job: 'fist', kind: 'nei', name: '철피', stat: 'guard', per: 0.004 },
+  { job: 'fist', kind: 'wai', name: '연환권', stat: 'speed', per: 0.02 },
+  { job: 'fist', kind: 'mu', name: '육합', stat: 'skillDmg', per: 0.02 },
+  // 극악소마 — 한 번에 끝낸다
+  { job: 'ring', kind: 'nei', name: '혈맥', stat: 'hp', per: 0.015 },
+  { job: 'ring', kind: 'wai', name: '지환', stat: 'critDmgAdd', per: 0.06 },
+  { job: 'ring', kind: 'mu', name: '일격필살', stat: 'skillDmg', per: 0.03 },
+  // 취마 — 비틀거리며 산다
+  { job: 'drunk', kind: 'nei', name: '취권', stat: 'guard', per: 0.005 },
+  { job: 'drunk', kind: 'wai', name: '주정', stat: 'gold', per: 0.05 },
+  { job: 'drunk', kind: 'mu', name: '취보', stat: 'skillCd', per: 0.003 },
+  // 환마 — 홀린다
+  { job: 'fan', kind: 'nei', name: '허보', stat: 'guard', per: 0.0045 },
+  { job: 'fan', kind: 'wai', name: '환영보', stat: 'critDmgAdd', per: 0.05 },
+  { job: 'fan', kind: 'mu', name: '미혹', stat: 'ccDur', per: 0.02 },
+  // 마불 — 버틴다
+  { job: 'monk', kind: 'nei', name: '금강', stat: 'hp', per: 0.05 },
+  { job: 'monk', kind: 'wai', name: '항마', stat: 'atk', per: 0.015 },
+  { job: 'monk', kind: 'mu', name: '부동명왕', stat: 'skillDmg', per: 0.02 },
+  // 독마 — 서서히 죽인다
+  { job: 'poison', kind: 'nei', name: '만독불침', stat: 'guard', per: 0.0045 },
+  { job: 'poison', kind: 'wai', name: '산공', stat: 'bleed', per: 0.04 },
+  { job: 'poison', kind: 'mu', name: '적공', stat: 'exp', per: 0.04 },
+];
+export const passivesOf = (job) => PASSIVES.filter((p) => p.job === job);
+export const passiveId = (p) => `${p.job}-${p.kind}`;
+// 패시브가 미는 축을 사람 말로
+export const PASSIVE_STAT_NAME = {
+  hp: '체력', atk: '공격력', speed: '공격 속도', gold: '은자', exp: '경험치',
+  boss: '두목 피해', bleed: '출혈 피해', ccDur: '상태이상 지속',
+  critDmgAdd: '치명 피해', guard: '받는 피해 감소', skillDmg: '무공 피해',
+  skillCd: '무공 쿨타임 감소',
+};
+
 
 // ---------- 전직 시험 ----------
 // 고르면 그냥 되는 게 허전했다. 여덟 장 카드에서 하나를 누르면 끝이라
@@ -1142,9 +1210,10 @@ export const PRESET_NAMES = ['사냥', '두목', '벌이'];
 
 // 무공 칸. 저쪽은 SkillSlotTable이 따로 있어 칸 자체가 성장한다.
 // 우리는 무공이 열넷인데 칸이 넷이라 열 개를 못 썼다.
-export const SKILL_SLOTS = 6;          // 끝까지 열었을 때
+export const SKILL_SLOTS = 8;          // 끝까지 열었을 때
 export const SKILL_SLOT_BASE = 4;      // 처음 열려 있는 칸
-export const SKILL_SLOT_AT = [180, 260];   // 다섯째·여섯째 칸이 열리는 관문 (벽 자리)
+// 다섯째~여덟째 칸이 열리는 관문 (전부 벽 자리에 맞춘다)
+export const SKILL_SLOT_AT = [180, 260, 340, 420];
 export const skillSlotCount = (bestStage) =>
   SKILL_SLOT_BASE + SKILL_SLOT_AT.filter((v) => bestStage >= v).length;
 export const nextSkillSlotAt = (bestStage) => SKILL_SLOT_AT.find((v) => bestStage < v) ?? null;

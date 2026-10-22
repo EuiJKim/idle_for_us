@@ -1,7 +1,8 @@
 // 무공 탭: 비급으로 연마, 4칸 장착
 import { SKILLS, SKILL_SLOTS, SKILL_PIERCE_MAX, SKILL_PIERCE_AT, SKILL_PIERCE_MULT,
-  skillTotalBonus, nextSkillTotalStep, PRESET_SLOTS, nextSkillSlotAt, jobOf } from '../data.js';
-import { fmt } from '../fmt.js';
+  skillTotalBonus, nextSkillTotalStep, PRESET_SLOTS, nextSkillSlotAt, jobOf,
+  PASSIVE_KINDS, PASSIVES, passivesOf, passiveId, PASSIVE_MAX, PASSIVE_STAT_NAME } from '../data.js';
+import { fmt, pct } from '../fmt.js';
 import { h, openModal, closeModal, toast, popUp } from './common.js';
 
 export function skillTab(app) {
@@ -45,7 +46,31 @@ export function skillTab(app) {
     presetWrap.append(h('div', { class: 'preset-row' }, label, load, save));
     return { label, load, save, i };
   });
+  // ---------- 계열 패시브 ----------
+  // 무공은 지금까지 액티브뿐이었다. 패시브는 칸을 안 먹는다 —
+  // 올려 두면 늘 켜져 있다. **지금 들어간 계열 것만** 켜진다.
+  const pvWrap = h('div');
+  const pvHead = h('p', { class: 'muted', style: 'margin:0 0 8px' });
+  const pvRows = {};
+  for (const pv of PASSIVES) {
+    const id = passiveId(pv);
+    const lv = h('small');
+    const desc = h('div', { class: 'desc' });
+    const btn = h('button', { class: 'buy', style: 'min-width:76px', onclick: () => {
+      if (game.passiveUp(id, 1)) { popUp(pvRows[id].row, `Lv.${game.passiveLv(id)}`); app.refresh(); }
+      else toast('비급이 모자라거나 최고 단계예요');
+    } });
+    const kind = PASSIVE_KINDS.find((k) => k.id === pv.kind);
+    const row = h('div', { class: 'row' },
+      h('div', { class: 'ico' }, kind.name),
+      h('div', { class: 'info' }, h('div', { class: 'name' }, pv.name, lv), desc), btn);
+    pvRows[id] = { row, lv, desc, btn, def: pv };
+    pvWrap.append(row);
+  }
   const root = h('div', {},
+    h('div', { class: 'card' },
+      h('h3', {}, '내공 · 외공 · 무공', h('small', {}, '계열 패시브')),
+      pvHead, pvWrap),
     h('div', { class: 'card' },
       h('h3', {}, '장착 무공', slotInfo, autoBtn),
       slotsEl,
@@ -104,6 +129,7 @@ export function skillTab(app) {
 
   let slotSig = '';
   function update() {
+    updatePassives();
     autoBtn.textContent = game.s.autoSkill ? '자동 ON' : '자동 OFF';
     autoBtn.classList.toggle('good', game.s.autoSkill);
     books.textContent = fmt(game.s.books);
@@ -179,6 +205,27 @@ export function skillTab(app) {
       }
     }
   }
+  function updatePassives() {
+    const job = jobOf(game.s.job);
+    pvHead.innerHTML = job
+      ? `<b style="color:${job.color}">${job.name}</b>의 패시브예요. 칸을 안 먹고 늘 켜져 있어요.`
+        + `<br>문파를 바꾸면 그쪽 패시브로 갈아타요 — 올려 둔 건 안 없어져요.`
+      : '문파에 들면 그 계열의 패시브가 열려요. 칸을 안 먹고 늘 켜져 있어요.';
+    const mine = game.s.job ? passivesOf(game.s.job) : [];
+    for (const [id, r] of Object.entries(pvRows)) {
+      const on = mine.includes(r.def);
+      r.row.style.display = on ? '' : 'none';
+      if (!on) continue;
+      const l = game.passiveLv(id);
+      const nm = PASSIVE_STAT_NAME[r.def.stat] || r.def.stat;
+      r.lv.textContent = `Lv.${l}/${PASSIVE_MAX}`;
+      r.desc.innerHTML = `${nm} <b>+${pct(r.def.per * l)}</b>`
+        + (l < PASSIVE_MAX ? ` <span class="muted">→ +${pct(r.def.per * (l + 1))}</span>` : ' <span class="muted">(최고)</span>');
+      r.btn.textContent = l >= PASSIVE_MAX ? '최고' : `비급 ${fmt(game.passiveCostOf(id))}`;
+      r.btn.disabled = l >= PASSIVE_MAX || game.s.books < game.passiveCostOf(id);
+    }
+  }
+
   return { root, update };
 }
 
