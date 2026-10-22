@@ -4,7 +4,8 @@ import { PETS, GRADES, PET_EGG_COST, OWN_STAT_NAMES, PET_ATTACK_INTERVAL, petDam
   CODEX_KINDS, codexEntryPower, OUTFITS, OUTFIT_ALL, outfitTotalCost,
   OUTFIT_GACHA_LVS, PET_SLOTS_AT } from '../data.js';
 import { fmt, pct } from '../fmt.js';
-import { h, toast, openModal, closeModal, subTabs, gachaLevelBar, popUp } from './common.js';
+import { h, toast, openModal, closeModal, subTabs, gachaLevelBar, popUp,
+  holdRepeat, softRefresh } from './common.js';
 import { iconSkin } from '../icons.js';
 
 function petView(app) {
@@ -41,11 +42,13 @@ function petView(app) {
   for (const pet of PETS) {
     const lv = h('small');
     const desc = h('div', { class: 'desc' });
-    const lvBtn = h('button', { class: 'buy', onclick: () => {
+    const lvUp = (soft) => {
       if (!game.levelPet(pet.id, 1)) return;
       popUp(rows[pet.id].row, `Lv.${game.s.pets[pet.id]}`);
-      app.refresh();
-    } });
+      if (soft) softRefresh(app); else app.refresh();
+    };
+    const lvBtn = h('button', { class: 'buy', onclick: () => lvUp(false) });
+    holdRepeat(lvBtn, () => lvUp(true));
     const eqBtn = h('button', { class: 'btn', style: 'padding:6px 8px;font-size:12px', onclick: () => { game.togglePet(pet.id); app.refresh(); } });
     const icon = h('div', { class: 'ico pet-ico' }, pet.emoji);
     iconSkin(icon, 'pet', PETS.indexOf(pet));

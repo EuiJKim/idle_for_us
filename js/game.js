@@ -45,6 +45,7 @@ import {
   MISSIONS, MISSION_ALL_REWARD, stageMilestone, STAGE_MILESTONE_EVERY,
   PVP_TICKETS, PVP_TIME, PVP_WIN, PVP_LOSE, PVP_REWARD,
   zoneOf, monsterHp, monsterAtk, monsterGold, BOSS_HP_MULT, BOSS_ATK_MULT, BOSS_GOLD_MULT, RAID_BOSS,
+  OFFLINE_STAGE_MAX, OFFLINE_PACE_DRIFT, PACE_EMA, PACE_MAX_SEC, stageGold,
   regressGain, regressMult, REGRESS_WORTH_MULT, REGRESS_STUCK_SEC,
   JOBS, JOB_RANK, JOB_UNLOCK, jobOf, JOB_SKILLS, jobSkillOf, BOON_SKILLS, TASTE_RANK,
   JOB_TESTS, jobTestOf, jobTestStage,
@@ -115,6 +116,9 @@ export function newSave(now = Date.now()) {
     accBag: Object.fromEntries(ACC_SLOTS.map((a) => [a.id, GRADES.map(() => 0)])),
     accPick: 0,    // 손에 든 선택 상자. 열 때 자리를 고른다.
     merit: 0,      // 문파 공적. 특성 단련과 문파 교체에만 쓴다.
+    pace: 0,       // 한 관문에 실제로 걸린 시간(초). 따라잡기가 쓴다.
+    autoTrain: true,   // 방치하는 동안 번 은자를 수련에 붓는다
+    keepAwake: true,   // 켜 두면 화면이 안 꺼진다
     traitLv: {},   // 문파마다 따로 쌓인다 — 갈아타면 그 공적은 두고 간다
     jobSwitches: 0,
     enhance: Object.fromEntries(Object.keys(EQUIP_TYPES).map((k) => [k, 0])),
@@ -297,7 +301,7 @@ export function migrate(raw, now = Date.now()) {
     const n = typeof v === 'number' ? v : Number(v);
     return Number.isFinite(n) ? Math.max(min, n) : def;
   };
-  for (const k of ['gold', 'gems', 'stones', 'books', 'food', 'relicShards', 'exp', 'sp', 'seek', 'accPick', 'merit', 'jobSwitches']) {
+  for (const k of ['gold', 'gems', 'stones', 'books', 'food', 'relicShards', 'exp', 'sp', 'seek', 'accPick', 'merit', 'jobSwitches', 'pace']) {
     s[k] = num(s[k], 0, 0);
   }
   s.level = Math.max(1, Math.floor(num(s.level, 1, 1)));
@@ -2192,6 +2196,8 @@ export class Game {
       this.s.stones += bossStones(s);
       this.s.merit += bossMerit(s);
       if (s >= this.s.maxStage) { // 이번 생에서 처음 넘는 관문
+        // 이 관문을 깨는 데 실제로 몇 초가 걸렸나. 따라잡기가 이 값을 쓴다.
+        this.notePace((this.clock || 0) - (this.s.climbAt || 0));
         this.s.climbAt = this.clock || 0;
         const gems = bossGems(s);
         this.s.gems += gems;
@@ -3146,17 +3152,162 @@ export class Game {
 
   idleGoldRate() { return this.idleRates().gold; }
 
-  offlineReward(now = Date.now()) {
+  // 한 관문에 실제로 몇 초가 걸리나. **재서 적어 둔 값이다.**
+  // 아직 잰 적이 없으면 물결 바닥 시간으로 둔다(그보다 빠를 수는 없다).
+  stageSeconds(stage = this.s.stage) {
+    const floor = waveCount(stage) * WAVE_MIN_SEC;
+    const p = this.s.pace || 0;
+    return p > 0 ? Math.max(floor, p) : Math.max(floor, 30);
+  }
+
+  // 관문 하나를 깰 때마다 걸린 시간을 섞어 넣는다
+  notePace(sec) {
+    if (!(sec > 0) || sec > PACE_MAX_SEC) return;
+    const p = this.s.pace || 0;
+    this.s.pace = p > 0 ? p * (1 - PACE_EMA) + sec * PACE_EMA : sec;
+  }
+
+  // ---------- 관문 이동 ----------
+  // 넘어 본 관문이면 어디로든 간다. 벌이가 좋은 자리로 내려가 수련하거나,
+  // 되돌아가 두목을 다시 잡으려고 쓴다.
+  canGoStage(n) {
+    return this.mode === 'stage' && Number.isFinite(n)
+      && n >= 1 && n <= Math.max(1, this.s.maxStage);
+  }
+
+  goStage(n) {
+    const to = Math.floor(n);
+    if (!this.canGoStage(to)) return false;
+    this.s.stage = to;
+    this.s.kills = 0;
+    this.s.wave = 0;
+    // 올라간 게 아니라 옮긴 것이므로 최고 기록은 건드리지 않는다
+    this.s.climbAt = this.clock || 0;
+    this.autoSlotSkills();
+    this.spawn();
+    this.emit('goStage', { stage: to });
+    return true;
+  }
+
+  // 번 은자를 가장 싼 수련에 붓는다. 사람이 앉아서 하는 짓과 같다.
+  // **이게 없으면 방치는 스무 관문쯤에서 멈춘다** — 안 세지니까 벽에 걸린다.
+  autoTrain(times = 400) {
+    let n = 0;
+    for (let i = 0; i < times; i++) {
+      let best = null;
+      let cheap = Infinity;
+      for (const k of Object.keys(UPGRADES)) {
+        const c = this.upgradeCost(k);
+        if (c < cheap) { cheap = c; best = k; }
+      }
+      if (!best || this.s.gold < cheap) break;
+      if (!this.buyUpgrade(best, 1)) break;
+      n++;
+    }
+    return n;
+  }
+
+  // 자리를 비운 동안 관문이 얼마나 밀렸나.
+  // **수련 중이면 안 민다** — 밀지 말라고 켜 둔 자리다.
+  //
+  // apply=false면 **미리 보기**다. 수련 레벨·은자를 잠깐 썼다가 되돌린다 —
+  // 보여 주는 숫자와 실제로 받는 숫자가 달라지면 안 되므로 같은 길을 쓴다.
+  offlineClimb(sec, apply = false) {
+    if (this.s.farming) return { stages: 0, gold: 0, exp: 0, to: this.s.stage, left: sec, trained: 0 };
+    const snap = {
+      upgrades: { ...this.s.upgrades }, gold: this.s.gold, exp: this.s.exp, level: this.s.level,
+      sp: this.s.sp, spAlloc: { ...this.s.spAlloc },
+    };
+    let left = sec;
+    let pace = this.stageSeconds(this.s.stage);
+    let stage = this.s.stage;
+    let gold = 0;
+    let exp = 0;
+    let n = 0;
+    let trained = 0;
+    const train = this.s.autoTrain !== false;
+    while (n < OFFLINE_STAGE_MAX) {
+      const st = this.stats({ buffs: false });
+      // **빗장을 따로 걸지 않는다.** 느려지는 건 pace가 이미 셈한다
+      // (관문마다 x OFFLINE_PACE_DRIFT). '몇 대 버티나'를 따로 걸었더니
+      // 몇 시간을 비워도 스물세 관문에서 딱 멈췄다 — 같은 자리에서 실제로
+      // 앉아 있으면 시간당 예순 관문을 민다. 두 번 세고 있었다.
+      //
+      // 막힌 사람은 pace 자체가 크므로 저절로 조금만 민다. 그게 맞는 빗장이다.
+      if (!Number.isFinite(pace) || pace > left) break;
+      left -= pace;
+      pace *= OFFLINE_PACE_DRIFT;   // 서 있는 동안에도 적은 세진다
+      const g = stageGold(stage) * st.goldMul;
+      const e = expPerKill(stage) * KILLS_PER_STAGE * st.expMul;
+      gold += g;
+      exp += e;
+      stage++;
+      n++;
+      // 번 것을 바로 수련에 붓는다. 그래야 다음 관문을 민다.
+      if (train) {
+        this.s.gold += g;
+        this.addExp(e);
+        trained += this.autoTrain();
+      }
+    }
+    const out = { stages: n, gold, exp, to: stage, left, trained };
+    if (!apply) {
+      this.s.upgrades = snap.upgrades;
+      this.s.gold = snap.gold;
+      this.s.exp = snap.exp;
+      this.s.level = snap.level;
+      this.s.sp = snap.sp;
+      this.s.spAlloc = snap.spAlloc;
+    } else if (train) {
+      // 이미 넣어 둔 은자·경험치는 돌려받은 셈이므로 밖에서 또 주면 안 된다
+      out.alreadyGiven = true;
+    }
+    return out;
+  }
+
+  // allowClimb=false면 관문은 안 민다. **앱을 껐던 경우**가 그렇다 —
+  // 켜 둔 채 화면만 꺼졌으면 실제로 싸우고 있던 셈이므로 관문을 민다.
+  offlineReward(now = Date.now(), allowClimb = true) {
     const sec = Math.min(OFFLINE_CAP_SEC, Math.max(0, (now - (this.s.lastSeen || now)) / 1000));
     if (sec < 60) return null;
     const r = this.idleRates();
-    return { sec, gold: r.gold * sec * r.offlineMul, exp: r.exp * sec * r.offlineMul };
+    const climb = allowClimb
+      ? this.offlineClimb(sec, false)
+      : { stages: 0, gold: 0, exp: 0, to: this.s.stage, left: sec };
+    // 민 만큼은 그 관문들에서 벌고, 남은 시간은 선 자리에서 번다
+    const rest = Math.max(0, climb.left ?? sec);
+    return {
+      sec,
+      gold: (climb.gold + r.gold * rest) * r.offlineMul,
+      exp: (climb.exp + r.exp * rest) * r.offlineMul,
+      stages: climb.stages,
+      from: this.s.stage,
+      to: climb.to,
+      farming: !!this.s.farming,
+    };
   }
 
-  claimOffline(reward) {
+  claimOffline(reward, mult = 1) {
     if (!reward || typeof reward !== 'object') return;
-    this.addGold(reward.gold);
-    if (reward.exp) this.addExp(reward.exp);
+    // 미리 본 것과 같은 길을 다시 걸어 실제로 적용한다
+    const climb = reward.stages > 0 ? this.offlineClimb(reward.sec, true) : null;
+    const rest = Math.max(0, climb ? (climb.left ?? 0) : reward.sec);
+    const r = this.idleRates();
+    // 민 관문에서 번 것은 offlineClimb이 이미 넣었다. 남은 시간치만 더한다.
+    this.addGold(r.gold * rest * r.offlineMul + (climb ? climb.gold * (mult - 1) : 0)
+      + (climb ? 0 : reward.gold));
+    this.addExp(r.exp * rest * r.offlineMul + (climb ? climb.exp * (mult - 1) : 0)
+      + (climb ? 0 : reward.exp));
+    if (climb && climb.stages > 0 && climb.to > this.s.stage) {
+      this.s.stage = climb.to;
+      this.s.maxStage = Math.max(this.s.maxStage, this.s.stage);
+      this.s.bestStage = Math.max(this.s.bestStage, this.s.maxStage);
+      this.s.kills = 0;
+      this.s.wave = 0;
+      this.s.climbAt = this.clock || 0;
+      this.autoSlotSkills();
+      this.spawn();
+    }
   }
 
   checkDaily(now = Date.now()) {

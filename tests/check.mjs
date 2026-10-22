@@ -1811,5 +1811,114 @@ console.log('=== 31. 회귀 ===');
     ok(gg.stats({ buffs: false }).atk < before, '수련은 지워진다');
   }
 }
+
+// ---------- 32. 방치 ----------
+//
+// '방치형'인데 자리를 비우면 관문이 안 밀렸다. 돌아오면 은자와 경험치만
+// 쥐여 주고 관문은 그대로였다 — 켜 놓고 기다린다는 말이 성립하지 않았다.
+//
+// 보여 준 숫자와 실제로 받는 것이 같은지가 핵심이다. 숫자만 띄우고
+// 안 옮기면 거짓말이 된다.
+console.log('');
+console.log('=== 32. 방치 ===');
+{
+  const away = (tune, hours = 6, climb = true) => {
+    const g = strong(300);
+    g.s.pace = 30;
+    g.s.maxStage = g.s.stage;
+    tune?.(g);
+    g.s.lastSeen = Date.now() - hours * 3600 * 1000;
+    return { g, r: g.offlineReward(Date.now(), climb) };
+  };
+
+  // 잰 속도를 쓴다 — 추측하면 274배가 틀린다(평타만 세던 때 실제로 그랬다)
+  {
+    const g = strong(300);
+    g.s.pace = 0;
+    ok(g.stageSeconds(300) > 0, '잰 적이 없어도 값이 나온다', `${g.stageSeconds(300).toFixed(0)}초`);
+    g.notePace(40);
+    ok(Math.abs(g.s.pace - 40) < 1e-9, '한 번 재면 그 값이 들어간다', `${g.s.pace}`);
+    g.notePace(20);
+    ok(g.s.pace < 40 && g.s.pace > 20, '여러 번 재면 섞인다', `${g.s.pace.toFixed(1)}초`);
+    g.notePace(99999);
+    ok(g.s.pace < 40, '말도 안 되는 값은 안 섞는다');
+  }
+
+  // 비운 만큼 관문이 밀린다
+  {
+    const a = away(null, 1);
+    const b = away(null, 6);
+    ok(a.r.stages > 0, '한 시간을 비우면 관문이 밀린다', `${a.r.stages}관문`);
+    ok(b.r.stages > a.r.stages, '오래 비울수록 더 민다', `1시간 ${a.r.stages} → 6시간 ${b.r.stages}`);
+    // 끝없이 늘면 안 된다 — 서 있는 동안 적도 세진다
+    const c = away(null, 24);
+    ok(c.r.stages < b.r.stages * 3, '오래 비운다고 비례해서 늘지는 않는다',
+      `6시간 ${b.r.stages} → 24시간 ${c.r.stages}`);
+  }
+
+  // **수련 중이면 안 민다** — 밀지 말라고 켜 둔 자리다
+  {
+    const f = away((g) => { g.s.farming = true; }, 6);
+    ok(f.r.stages === 0, '수련 중이면 관문은 제자리', `${f.r.stages}관문`);
+    ok(f.r.gold > 0, '그래도 은자는 번다');
+  }
+
+  // 앱을 껐던 경우는 은자·경험치만
+  {
+    const off = away(null, 6, false);
+    ok(off.r.stages === 0, '앱을 껐던 경우는 관문을 안 민다');
+    ok(off.r.gold > 0 && off.r.exp > 0, '은자·경험치는 준다');
+  }
+
+  // **보여 준 대로 실제로 옮겨지는가.** 미리 보기와 받기가 같은 길을 써야 한다.
+  {
+    const { g, r } = away(null, 6);
+    const shown = r.to;
+    const beforeUp = { ...g.s.upgrades };
+    ok(g.s.stage === r.from, '미리 보기는 아무것도 안 바꾼다');
+    ok(JSON.stringify(g.s.upgrades) === JSON.stringify(beforeUp), '수련 레벨도 안 바뀐다');
+    g.claimOffline(r);
+    ok(g.s.stage === shown, '받으면 보여 준 관문으로 옮겨진다', `${r.from} → ${g.s.stage}`);
+    ok(g.s.maxStage >= shown, '최고 기록도 따라 오른다');
+  }
+
+  // 방치하는 동안 번 걸 수련에 붓는다 — 안 그러면 금세 벽에 걸린다
+  {
+    const on = away((g) => { g.s.autoTrain = true; }, 6);
+    const off = away((g) => { g.s.autoTrain = false; }, 6);
+    ok(on.r.stages >= off.r.stages, '수련을 켜 두면 더 멀리 간다',
+      `켬 ${on.r.stages} / 끔 ${off.r.stages}`);
+    const g2 = away((g) => { g.s.autoTrain = true; }, 6);
+    const before = Object.values(g2.g.s.upgrades).reduce((a, b) => a + b, 0);
+    g2.g.claimOffline(g2.r);
+    const after = Object.values(g2.g.s.upgrades).reduce((a, b) => a + b, 0);
+    ok(after > before, '받고 나면 수련 레벨이 실제로 올라 있다', `${before} → ${after}`);
+  }
+
+  // 너무 짧게 비운 건 아무것도 아니다
+  {
+    const g = strong(300);
+    g.s.lastSeen = Date.now() - 10 * 1000;
+    ok(g.offlineReward() === null, '십 초 비운 건 보상이 없다');
+  }
+}
+
+// ---------- 33. 관문 이동 ----------
+console.log('');
+console.log('=== 33. 관문 이동 ===');
+{
+  const g = strong(300);
+  g.s.maxStage = 300;
+  ok(g.canGoStage(150), '넘어 본 관문으로는 간다');
+  ok(!g.canGoStage(301), '안 넘어 본 관문으로는 못 간다');
+  ok(!g.canGoStage(0), '0관문으로는 못 간다');
+  ok(g.goStage(150) && g.s.stage === 150, '실제로 옮겨진다', `${g.s.stage}`);
+  ok(g.s.maxStage === 300, '되돌아가도 최고 기록은 안 깎인다', `${g.s.maxStage}`);
+  ok(g.s.kills === 0 && g.s.wave === 0, '옮기면 물결이 처음부터');
+  ok(g.goStage(300) && g.s.stage === 300, '최고로 돌아올 수 있다');
+  // 싸우는 중에는 못 옮긴다
+  g.mode = 'dungeon';
+  ok(!g.canGoStage(100), '싸우는 중에는 못 옮긴다');
+}
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);

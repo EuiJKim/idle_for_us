@@ -259,5 +259,48 @@ console.log('=== 8. 새 판이 기기에 들어가는 길 ===');
   const b = (read('js/data.js').match(/BUILD = '([^']+)'/) || [])[1];
   ok(a === b, '두 판 번호가 같다', `${a} / ${b}`);
 }
+
+
+console.log('');
+console.log('=== 9. append(null)이 "null" 글자로 찍히는 자리 ===');
+{
+  // h()는 null을 걸러 주지만 **Element.append는 "null" 글자를 넣는다.**
+  // 화면에 null이 한 줄 보이는 사고가 세 번 났다(상점 카드, 설정, 닉네임 창).
+  //
+  // **맨 바깥 인자만 본다.** 안쪽 h(...)에 든 null은 h()가 걸러 주므로 괜찮다 —
+  // 통째로 봤더니 멀쩡한 다섯 군데가 잘못 잡혔다.
+  // [...]로 싸서 .filter(Boolean)을 거는 꼴도 괜찮으므로 같이 건너뛴다.
+  const bad = [];
+  for (const f of JS_FILES) {
+    const src = read(f);
+    const re = /\.append\(/g;
+    let m;
+    while ((m = re.exec(src))) {
+      let i = m.index + m[0].length;
+      let depth = 1;
+      while (i < src.length && depth > 0) {
+        if (src[i] === '(') depth++;
+        else if (src[i] === ')') depth--;
+        i++;
+      }
+      let top = '';
+      let par = 1;
+      let br = 0;
+      for (let k = m.index + m[0].length; k < i - 1; k++) {
+        const ch = src[k];
+        if (ch === '(') par++;
+        else if (ch === ')') par--;
+        else if (ch === '[') br++;
+        else if (ch === ']') br--;
+        top += (par === 1 && br === 0) ? ch : ' ';
+      }
+      if (/(^|[,(\s])null\s*(,|$)/.test(top.trim())) {
+        bad.push(`${f}:${src.slice(0, m.index).split('\n').length}`);
+      }
+    }
+  }
+  ok(bad.length === 0, 'append에 null을 넘기는 곳이 없다',
+    bad.length ? bad.join(', ') : `${JS_FILES.length}개 파일 깨끗`);
+}
 console.log(`\n${fail === 0 ? '짝이 전부 맞는다' : `짝이 안 맞는 것 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);

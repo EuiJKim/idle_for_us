@@ -11,7 +11,8 @@ import { GRADES, EQUIP_TYPES, MERGE_COUNT, GACHA_COST, GACHA10_COST, ENHANCE_PER
   EGO_ENCHANT_MAX, EGO_ENCHANT_WORTH } from '../data.js';
 import { fmt, pct } from '../fmt.js';
 import { iconSkin } from '../icons.js';
-import { h, toast, openModal, closeModal, gradeChip, gachaLevelBar, loopBtn, popUp, subTabs } from './common.js';
+import { h, toast, openModal, closeModal, gradeChip, gachaLevelBar, loopBtn, popUp, subTabs,
+  holdRepeat, softRefresh } from './common.js';
 
 // 한 덩어리로 짓고 뿌리만 셋으로 나눈다. 갱신은 하나가 전부를 맡는다 —
 // 장신구를 바쳐 심검이 오르는 식으로 서로 물려 있어서, 보이는 것만 갱신하면
@@ -90,15 +91,17 @@ function buildEquip(app) {
     } });
     const prcTxt = h('span', { class: 'muted', style: 'flex:1' });
     const enhRow = h('div', { style: 'display:flex;gap:6px;margin-top:8px;align-items:center;position:relative' });
-    const enhUp = (n) => {
+    const enhUp = (n, soft) => {
       const before = game.s.enhance[type];
       if (!game.enhanceEquip(type, n)) return;
       const got = game.s.enhance[type] - before;
       popUp(enhRow, got > 1 ? `+${got}` : `${game.s.enhance[type]}단`);
-      app.refresh();
+      if (soft) softRefresh(app); else app.refresh();
     };
     const enhBtn = h('button', { class: 'buy', onclick: () => enhUp(1) });
     const enh10 = h('button', { class: 'buy', style: 'min-width:56px', onclick: () => enhUp(10) }, 'x10');
+    holdRepeat(enhBtn, () => enhUp(1, true));
+    holdRepeat(enh10, () => enhUp(10, true));
     enhRow.append(h('span', { class: 'muted', style: 'flex:1' },
       `제련 1단계마다 ${def.label} 배율 +${pct(ENHANCE_PER)}`), enhBtn, enh10);
     prcRow.append(prcTxt, prcBtn);

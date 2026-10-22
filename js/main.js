@@ -161,6 +161,46 @@ function buildSkillbar() {
 }
 buildSkillbar();
 
+// ---------- 관문 이동 ----------
+// 관문 이름을 누르면 넘어 본 관문 어디로든 간다. 벌이가 좋은 자리로
+// 내려가 수련하거나, 두목을 다시 잡으러 되돌아갈 때 쓴다.
+function openStageJump() {
+  if (!game.canGoStage(game.s.stage)) return toast('싸우는 중에는 못 옮겨요');
+  openModal((s) => {
+    const max = Math.max(1, game.s.maxStage);
+    const input = h('input', { class: 'field', type: 'number', min: '1', max: String(max), value: String(game.s.stage) });
+    const label = h('p', { class: 'muted', style: 'text-align:center;margin:6px 0 0' });
+    const paint = () => {
+      const n = Math.max(1, Math.min(max, Math.floor(Number(input.value) || 1)));
+      label.innerHTML = `제 <b>${n}</b> 관문 · ${zoneOf(n).name}`
+        + (n < game.s.stage ? ' <span class="muted">(되돌아가요)</span>' : '');
+    };
+    input.addEventListener('input', paint);
+    const go = (n) => {
+      if (game.goStage(n)) { closeModal(); refreshUI(true); save(); }
+      else toast('그 관문에는 못 가요');
+    };
+    const quick = h('div', { class: 'btn-row', style: 'margin-top:8px' },
+      ...[-50, -10, +10, +50].map((d) => h('button', { class: 'buy', onclick: () => {
+        input.value = String(Math.max(1, Math.min(max, (Number(input.value) || 1) + d)));
+        paint();
+      } }, d > 0 ? `+${d}` : `${d}`)));
+    s.append(
+      h('h2', {}, '관문 이동'),
+      h('p', { class: 'muted', style: 'margin-top:0' }, `넘어 본 곳이면 어디든 갈 수 있어요. 최고 제 ${max} 관문.`),
+      input, label, quick,
+      h('div', { class: 'btn-row', style: 'margin-top:10px' },
+        h('button', { class: 'btn', onclick: () => go(1) }, '처음으로'),
+        h('button', { class: 'btn', onclick: () => go(max) }, '최고로')),
+      h('div', { class: 'btn-row' },
+        h('button', { class: 'btn', onclick: closeModal }, '그만'),
+        h('button', { class: 'btn primary', onclick: () => go(Number(input.value)) }, '옮기기')));
+    paint();
+  });
+  return undefined;
+}
+$('stagebar').addEventListener('click', openStageJump);
+
 $('btn-boss').addEventListener('click', () => game.challengeBoss());
 $('btn-settings').addEventListener('click', openSettings);
 $('btn-missions').addEventListener('click', () => openMissions(app));
@@ -313,6 +353,7 @@ function handleEvents() {
       // 조용히 오르면 올라간 줄 모른다 — 만들어 놓고 안 쓴 사건이었다.
       case 'rankSubUp': toast(`${game.rankLabel()} — 기운이 한 겹 두터워졌어요`); break;
       case 'traitUp': toast(`${game.job()?.name || ''} 특성 ${ev.lv}단 — 쓰는 무공 전부가 세졌어요`); break;
+      case 'goStage': toast(`제 ${ev.stage} 관문으로 옮겼어요`); break;
       case 'bossTimeout': toast('⏳ 관문지기를 시간 안에 못 잡았어요'); break;
       // 연속 도전이 끊기면 알려야 한다. 모르면 계속 도는 줄 안다.
       case 'loopAgain': if (!ev.on) toast('연속 도전을 멈췄어요'); break;
@@ -453,11 +494,11 @@ async function finishRaid(damage) {
 }
 
 // ---------- 방치 보상 / 일일 보상 ----------
-function checkReturn(now = Date.now()) {
+function checkReturn(now = Date.now(), allowClimb = false) {
   const daily = game.checkDaily(now);
   if (daily) toast(`📅 오늘의 출석 보상 원보 ${daily.gems}`);
   net.refreshDay?.();
-  const reward = game.offlineReward(now);
+  const reward = game.offlineReward(now, allowClimb);
   game.s.lastSeen = now;
   if (!reward || modalOpen()) return;
   // 두 배로 받을지는 **닫기 전에** 정한다. 받은 뒤에 물으면 이미 늦다.
@@ -481,14 +522,37 @@ function checkReturn(now = Date.now()) {
     };
     s.append(
       h('h2', {}, '🌙 다녀오셨어요!'),
-      h('p', { class: 'muted' }, `${duration(reward.sec)} 동안 제 ${game.s.stage} 관문에서 홀로 수련했어요.`),
+      // 관문을 밀었으면 그걸 먼저 말한다. 은자보다 그게 큰 소식이다.
+      reward.stages > 0
+        ? h('p', { style: 'text-align:center;font-size:15px;font-weight:800;margin:0 0 6px' },
+          `제 ${reward.from} 관문 → `,
+          h('b', { style: 'color:var(--accent-2)' }, `제 ${reward.to} 관문`),
+          h('span', { class: 'muted' }, ` (${reward.stages}관문)`))
+        : h('p', { class: 'muted' },
+          reward.farming
+            ? `${duration(reward.sec)} 동안 제 ${game.s.stage} 관문에서 수련했어요. (수련 중이라 관문은 안 밀었어요)`
+            : `${duration(reward.sec)} 동안 제 ${game.s.stage} 관문에서 홀로 수련했어요.`),
       gold, exp, dbl,
       h('button', { class: 'btn primary', style: 'width:100%', onclick: closeModal }, '받기'),
     );
   }, { dismissable: false, onClose: () => {
-    game.claimOffline({ ...reward, gold: reward.gold * mult, exp: reward.exp * mult });
+    game.claimOffline(reward, mult);
     save(); refreshUI(true);
   } });
+}
+
+// 켜고 끄는 줄. 설정에서 쓴다.
+function toggleRow(label, on, desc, onChange) {
+  const btn = h('button', { class: `btn ${on ? 'good' : ''}`, style: 'padding:6px 12px;min-width:62px' },
+    on ? '켜짐' : '꺼짐');
+  btn.addEventListener('click', () => {
+    const next = btn.textContent === '꺼짐';
+    btn.textContent = next ? '켜짐' : '꺼짐';
+    btn.classList.toggle('good', next);
+    onChange(next);
+  });
+  return h('div', { class: 'row' },
+    h('div', { class: 'info' }, h('div', { class: 'name' }, label), h('div', { class: 'desc' }, desc)), btn);
 }
 
 // ---------- 닉네임 / 설정 ----------
@@ -513,7 +577,8 @@ function askNickname(first = false) {
     input.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.isComposing) submit(); });
     s.append(
       h('h2', {}, first ? '우리끼리 회귀무림' : '닉네임 변경'),
-      first ? h('p', { class: 'muted' }, '강호에서 불릴 이름(별호)을 정해 주세요. 나중에 설정에서 바꿀 수 있어요.') : null,
+      // append(null)은 "null" 글자가 된다. 닉네임을 바꿀 때마다 한 줄 찍혔다.
+      ...(first ? [h('p', { class: 'muted' }, '강호에서 불릴 이름(별호)을 정해 주세요. 나중에 설정에서 바꿀 수 있어요.')] : []),
       input, ok);
     setTimeout(() => input.focus(), 50);
   }, { dismissable: !first, onClose: first ? () => checkReturn() : null });
@@ -612,6 +677,16 @@ function openSettings() {
         h('div', {}, '공격 속도', h('b', {}, `${st.speed.toFixed(2)}회/초`)),
         h('div', {}, '처치 수', h('b', {}, fmt(game.s.stats.kills))),
         h('div', {}, '뽑기 횟수', h('b', {}, fmt(game.s.stats.gachas)))),
+      // 방치 설정 두 가지. 둘 다 켜 두는 게 기본이다.
+      h('div', { class: 'section-title', style: 'margin:12px 2px 6px' }, '방치'),
+      toggleRow('화면 안 꺼지게', game.s.keepAwake !== false,
+        '켜 두면 자는 동안에도 계속 싸워요. 배터리를 더 써요.',
+        (on) => { game.s.keepAwake = on; keepAwake(on); save(); }),
+      toggleRow('방치하는 동안 수련하기', game.s.autoTrain !== false,
+        '번 은자를 가장 싼 수련에 알아서 부어요. 꺼 두면 은자만 쌓여요.',
+        (on) => { game.s.autoTrain = on; save(); }),
+      h('p', { class: 'muted', style: 'margin:4px 2px 0;font-size:11px' },
+        '관문을 밀지 않고 제자리에서 벌고 싶으면 들판의 「수련」을 켜세요.'),
       // 기기가 옛 판에 붙들렸을 때의 마지막 수단. 워커·캐시를 통째로 버린다.
       // 세이브는 localStorage라 안 지워진다.
       h('div', { class: 'btn-row' },
@@ -621,8 +696,10 @@ function openSettings() {
         } }, '🔄 새로 받기')),
       h('p', { class: 'muted', style: 'margin:4px 2px 0;font-size:11px' },
         '화면이 옛것 같으면 눌러 보세요. 기록은 안 지워져요.'),
-      net.isAdmin() ? h('div', { class: 'btn-row' },
-        h('button', { class: 'btn primary', onclick: openAdmin }, '🛡️ 운영자')) : null,
+      // **append는 null을 "null" 글자로 찍는다.** h()는 걸러 주지만 append는
+      // 아니다 — 운영자가 아닌 사람 화면에 null이 한 줄 보이고 있었다.
+      ...(net.isAdmin() ? [h('div', { class: 'btn-row' },
+        h('button', { class: 'btn primary', onclick: openAdmin }, '🛡️ 운영자'))] : []),
       h('div', { class: 'btn-row' },
         h('button', { class: 'btn', onclick: () => {
           // 자동 → 높음 → 가벼움 순으로 돌린다
@@ -916,15 +993,43 @@ function step(now) {
   autoQuality(gap);
 }
 
+// ---------- 화면 안 꺼지게 ----------
+//
+// 방치형인데 **화면이 꺼지면 아무 일도 안 일어난다.** 켜 놓고 기다린다는
+// 말이 성립하려면 화면이 안 꺼져야 한다. 브라우저가 주는 길이 이것뿐이다.
+// (안 되는 기기도 있다 — 그래서 돌아올 때 따라잡기가 따로 있다)
+let wakeLock = null;
+async function keepAwake(on) {
+  try {
+    if (!on) { await wakeLock?.release?.(); wakeLock = null; return; }
+    if (wakeLock || !navigator.wakeLock?.request) return;
+    wakeLock = await navigator.wakeLock.request('screen');
+    // 화면이 한 번 꺼졌다 켜지면 풀린다. 다시 잡는다.
+    wakeLock.addEventListener?.('release', () => { wakeLock = null; });
+  } catch (err) {
+    wakeLock = null;   // 기기가 안 해 주면 그냥 넘어간다
+  }
+}
+const wantAwake = () => game.s.keepAwake !== false;
+if (wantAwake()) keepAwake(true);
+
+// 켜 둔 채 화면만 꺼진 것인지, 앱을 아예 껐던 것인지 가른다.
+// 켜 둔 채였으면 싸우고 있던 셈이라 관문을 민다.
+let hiddenAt = 0;
+
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) {
+    hiddenAt = Date.now();
     if (game.mode === 'raid') game.endRaid(); // 토벌 중 앱을 내리면 지금까지 피해를 기록
     handleEvents();
     save();
     net.pushProfile(true);
   } else {
     last = performance.now();
-    checkReturn();
+    // 켜 둔 채 가려져 있었다 = 절전/뒤로 돌림. 관문을 민다.
+    checkReturn(Date.now(), hiddenAt > 0);
+    hiddenAt = 0;
+    if (wantAwake()) keepAwake(true);
   }
 });
 window.addEventListener('pagehide', () => save());

@@ -519,6 +519,11 @@ body { background: radial-gradient(ellipse at top, #1d1712, #0b0907 70%); }
 .loop-btn { flex: 0 0 82px; font-size: 12px; padding: 10px 6px; }
 .loop-btn.good { background: linear-gradient(180deg, #3f7d5a, #2c5a40); border: 0; box-shadow: 0 3px 0 #173323; color: #eafff2; }
 
+/* 넷이 한 줄에 들어가면 글자가 세로로 쪼개진다(화질 바꾸기 -> 화/질/바/꾸/기).
+   줄을 바꾸게 둔다 — 쪼개진 글자보다 두 줄이 낫다. */
+.btn-row { flex-wrap: wrap; }
+.btn-row > .btn { min-width: 0; }
+
 /* 한 줄에 버튼이 넷 이상이면 min-width 때문에 가로로 삐져나간다.
    심검 먹이 줄(진품·보품·신품·천품)이 392px인데 칸은 331px이었다. */
 .btn-row > .buy { min-width: 0; }
@@ -692,3 +697,13 @@ body { background: radial-gradient(ellipse at top, #1d1712, #0b0907 70%); }
 .update-bar span { flex: 1; min-width: 0; }
 .update-bar .btn { padding: 6px 10px; font-size: 12px; }
 #app.has-update { padding-top: 46px; }
+
+/* 꾹 누르는 중 — 눌리고 있다는 게 보여야 한다 */
+.buy.holding, .btn.holding { filter: brightness(1.25); transform: scale(0.97); }
+/* 꾹 누를 때 글자가 잡히거나 길게 눌러 메뉴가 뜨면 안 된다 */
+.buy, .skill-btn, .slot { -webkit-touch-callout: none; user-select: none; -webkit-user-select: none; }
+
+/* 관문 이름을 누르면 옮길 수 있다 — 누를 수 있다는 걸 보여 준다 */
+#stagebar { cursor: pointer; }
+/* 관문 이름 뒤에 붙인다. .stage-box에 붙였더니 블록 자식 때문에 줄이 바뀌었다. */
+#stage-label::after { content: ' ⇅'; color: var(--muted); font-size: 11px; vertical-align: middle; }

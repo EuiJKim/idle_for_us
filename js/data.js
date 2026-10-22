@@ -2,10 +2,34 @@
 
 // 지금 돌고 있는 빌드. 설정 창에 적어 둔다 — 기기가 옛 판을 들고 있는지
 // 한눈에 보려고 둔다. sw.js의 CACHE와 같은 값으로 맞춘다.
-export const BUILD = 'ifu-v75';
+export const BUILD = 'ifu-v76';
 
 export const SAVE_VERSION = 4;
 export const OFFLINE_CAP_SEC = 12 * 3600;
+// ---------- 방치 ----------
+//
+// '방치형'인데 **자리를 비우면 관문이 안 밀렸다.** 돌아오면 은자와 경험치만
+// 쥐여 주고 관문은 그대로였다. 화면이 꺼지면 아무 일도 안 일어나니,
+// 켜 놓고 기다린다는 말이 성립하지 않았다.
+//
+// 이제 비운 시간만큼 관문을 민다. 다만 **수련 중(farming)이면 제자리**다 —
+// 밀지 말고 벌라고 켜 두는 자리이므로 그 뜻을 지킨다.
+//
+// 미는 속도는 평타만 센다(무공·영수는 안 센다). 그래서 실제로 앉아 있을
+// 때보다 느리다 — 방치가 직접 하는 것보다 나아지면 게임을 켤 이유가 없다.
+// **얼마나 빨리 미는지는 추측하지 않고 잰다.**
+// 처음엔 평타로 어림했는데 무공·영수를 빼먹어서 274배가 느렸다
+// (어림 7690초 vs 실제 28초). 그래서 관문을 깰 때마다 실제 걸린 시간을
+// 적어 두고(s.pace), 따라잡을 때 그 값을 쓴다.
+export const PACE_EMA = 0.25;           // 새로 잰 값을 이만큼 섞는다
+export const PACE_MAX_SEC = 3600;       // 한 관문에 한 시간을 넘게 잡지는 않는다
+// 서 있는 동안에도 적은 세진다. 따라잡을수록 한 관문이 이만큼씩 길어진다.
+export const OFFLINE_PACE_DRIFT = 1.02;
+export const OFFLINE_STAGE_MAX = 400;   // 한 번에 이보다 많이는 안 민다
+// '몇 대 버티나'로 막는 빗장은 **뺐다.** 느려지는 건 OFFLINE_PACE_DRIFT가
+// 이미 셈하는데 거기에 또 걸었더니, 몇 시간을 비워도 스물세 관문에서 딱
+// 멈췄다 — 같은 자리에서 실제로 앉아 있으면 시간당 예순 관문을 민다.
+// 막힌 사람은 잰 pace 자체가 크므로 저절로 조금만 민다.
 export const KILLS_PER_STAGE = 20;
 // 한 번에 나오는 적 수(최대). 관문이 오를수록 더 몰려온다.
 // 근거: Blade Idle은 한 스테이지에 적 그룹(wavegroup)이 보통 4개씩 잡혀 있고 47초 안에 정리된다.
@@ -2094,6 +2118,14 @@ export const STAGE_BOOK_RATE = 1.036;
 export const STAGE_STONE_RATE = 1.042;
 export const STAGE_FOOD_RATE = 1.030;
 export const STAGE_SHARD_RATE = 1.012;
+// 한 관문을 깨면 은자가 얼마나 들어오나. 처치 + 물결 + 관문지기를 **다 센다**.
+// 처치만 세면 실제의 1/4이다 — 방치 따라잡기가 그만큼 가난해진다.
+export function stageGold(s) {
+  const total = waveCount(s);
+  const sumK = total + 0.45 * (total * (total - 1)) / 2 + 0.8;
+  return monsterGold(s) * (KILLS_PER_STAGE + 4 * sumK + BOSS_GOLD_MULT);
+}
+
 // 한 관문을 깨는 동안 들어오는 양(물결 전부를 합친 값)
 // 기본값(관문 1에서 나오는 양)은 **옛 값과 비슷해야 한다.** 처음에 12/16/14로
 // 뒀더니 관문 100에서 옛 수입의 15~40배가 들어와, 초반 성장이 관문당 23%로

@@ -150,13 +150,61 @@ export function subTabs(views) {
 // x1 / x10 / MAX 선택기
 export function multSelector(onChange) {
   let mult = 1;
-  const seg = h('div', { class: 'seg' }, ...[1, 10, 'MAX'].map((m) =>
+  // x100을 더했다. 수련 축이 열여섯이라 x10으로는 손가락이 먼저 지친다.
+  const seg = h('div', { class: 'seg' }, ...[1, 10, 100, 'MAX'].map((m) =>
     h('button', { class: m === 1 ? 'on' : '', onclick: (e) => {
       mult = m;
       seg.querySelectorAll('button').forEach((b) => b.classList.toggle('on', b === e.currentTarget));
       onChange?.(m);
     } }, m === 'MAX' ? 'MAX' : `x${m}`)));
   return { el: seg, get: () => mult, times: () => (mult === 'MAX' ? 100000 : mult) };
+}
+
+// ---------- 꾹 누르기 ----------
+//
+// 올릴 게 많아지면서 한 번에 한 칸씩 누르는 게 일이 됐다. 누르고 있으면
+// 알아서 계속 눌린다. 처음엔 느리게, 쥐고 있을수록 빨라진다.
+//
+// 포인터 사건 하나로 마우스·손가락을 같이 받는다. 손을 떼거나 버튼이
+// 꺼지거나 창이 가려지면 멈춘다 — 안 멈추면 가진 걸 다 써 버린다.
+// 꾹 누르는 동안은 화면을 **몰아서** 고친다. 한 번 누를 때마다 전체를
+// 다시 그리면 초당 열여덟 번이라 손이 먼저 느껴진다.
+let softTimer = null;
+export function softRefresh(app) {
+  if (softTimer) return;
+  softTimer = setTimeout(() => { softTimer = null; app.refresh(); }, 90);
+}
+
+export const HOLD_FIRST_MS = 420;   // 이만큼 쥐고 있으면 되풀이가 시작된다
+export const HOLD_MIN_MS = 55;      // 가장 빠를 때 간격
+export function holdRepeat(btn, fn) {
+  let timer = null;
+  let gap = 260;
+  let held = 0;
+  const stop = () => {
+    if (timer) clearTimeout(timer);
+    timer = null;
+    gap = 260;
+    held = 0;
+    btn.classList.remove('holding');
+  };
+  const step = () => {
+    if (btn.disabled) return stop();
+    fn();
+    held += 1;
+    // 쥐고 있을수록 빨라진다. 열 번쯤 지나면 최고 속도다.
+    gap = Math.max(HOLD_MIN_MS, gap * 0.82);
+    timer = setTimeout(step, gap);
+    return undefined;
+  };
+  btn.addEventListener('pointerdown', (e) => {
+    if (btn.disabled || e.button > 0) return;
+    btn.classList.add('holding');
+    timer = setTimeout(step, HOLD_FIRST_MS);
+  });
+  for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) btn.addEventListener(ev, stop);
+  document.addEventListener('visibilitychange', () => { if (document.hidden) stop(); });
+  return stop;
 }
 
 export function busy(btn, fn) {

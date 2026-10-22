@@ -6,7 +6,8 @@ import { UPGRADES, UP_GROUPS, UP_STAT_LABEL, upAdds, upNext, upTierInfo, upStatA
   jobTestOf, jobTestStage } from '../data.js';
 import { fmt } from '../fmt.js';
 import { drawFighter } from '../battle.js';
-import { h, toast, openModal, closeModal, fmtValue, subTabs, multSelector, popUp } from './common.js';
+import { h, toast, openModal, closeModal, fmtValue, subTabs, multSelector, popUp,
+  holdRepeat, softRefresh } from './common.js';
 import { iconSkin } from '../icons.js';
 
 function upgradeView(app) {
@@ -31,13 +32,16 @@ function upgradeView(app) {
     const desc = h('div', { class: 'desc' });
     const bar = h('div', { class: 'bar', style: 'height:5px;margin:6px 0 0' }, h('div'));
     const nextTier = h('div', { class: 'tier-hint' });
-    const btn = h('button', { class: 'buy gold-cost', onclick: () => {
+    const buy = (soft) => {
       const before = game.s.upgrades[key];
-      if (!game.buyUpgrade(key, sel.times())) return;
+      if (!game.buyUpgrade(key, sel.times())) return false;
       const got = game.s.upgrades[key] - before;
       popUp(rows[key].row, got > 1 ? `+${got}` : '+1');
-      app.refresh();
-    } });
+      if (soft) softRefresh(app); else app.refresh();
+      return true;
+    };
+    const btn = h('button', { class: 'buy gold-cost', onclick: () => buy(false) });
+    holdRepeat(btn, () => buy(true));
     const ico = h('div', { class: 'ico' }, def.icon);
     iconSkin(ico, 'up', keys.indexOf(key));
     const row = h('div', { class: 'row' },
