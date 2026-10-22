@@ -23,6 +23,7 @@ import {
   expPerKill, expToNext, SP_PER_LEVEL, SP_RESET_GEMS, SP_STATS,
   RANKS, RANK_MULT, TRIAL_TIME, trialBoss,
   PETS, PET_EGG_COST, PET_GRADE_WEIGHT, petFoodCost, PET_DUPLICATE_FOOD, PET_ATTACK_INTERVAL, petDamageMult,
+  petSlotCount,
   BOND_PER_SEC, BOND_PER_LV, BOND_MAX, bondLevel, ENGRAVE_MIN_LV, engraveCost,
   ATTEND_CYCLE, attendReward, BOOST_PER_DAY, BOOST_SEC, BOOST_MULT, mobGroupSize,
   MELEE_RANGE, HERO_SPEED, MOB_SPEED, MOB_SEPARATION, FIELD_ASPECT, FIELD_SQUASH, MOB_SPAWN_NEAR, MOB_SPAWN_FAR,
@@ -101,6 +102,8 @@ export function newSave(now = Date.now()) {
     gacha: Object.fromEntries(GACHA_KINDS.map((k) => [k.id, { lv: 0, cnt: 0, taken: 0 }])),
     outfits: {},   // 가진 의복 (입지 않아도 효과가 붙는다)
     outfit: null,  // 지금 입은 것 (겉모습만)
+    petTeam: [],   // 데려가는 영수들. **참말은 여기 하나뿐이다** —
+                   // 예전 s.pet(한 마리)은 이 배열의 첫 자리로 옮겼다.
     // 인물도감: 종류×등급 칸을 한 번이라도 채웠는가 (회귀해도 남는다)
     lore: Object.fromEntries(CODEX_KINDS.map((k) => [k.id, GRADES.map(() => 0)])),
     acc: Object.fromEntries(ACC_SLOTS.map((a) => [a.id, null])),      // { grade, star, pierce }
@@ -235,6 +238,10 @@ export function migrate(raw, now = Date.now()) {
       ? { lv: g2.lv | 0, cnt: g2.cnt | 0, taken: g2.taken | 0 } : { lv: 0, cnt: 0, taken: 0 };
   }
   s.outfits = { ...(raw.outfits || {}) };
+  // 옛 세이브는 영수를 한 마리만 들고 있었다. 첫 자리로 옮긴다.
+  s.petTeam = (Array.isArray(raw.petTeam) ? raw.petTeam : (raw.pet ? [raw.pet] : []))
+    .filter((id) => PETS.some((p) => p.id === id));
+  s.petTeam = [...new Set(s.petTeam)].slice(0, PETS.length);
   s.outfit = raw.outfit || null;
   s.lore = { ...base.lore };
   for (const k of CODEX_KINDS) {
@@ -1459,11 +1466,15 @@ export class Game {
     const goldMul = UPGRADES.gold.value(u.gold) * this.equipMult('ring') * (1 + m.gold) * midas * past * jb.gold * boonGold;
     const expMul = (1 + m.exp) * past * jb.exp * boonExp;
     const bossMul = (1 + m.boss) * jb.boss;
-    const pet = this.s.pet ? PETS.find((p) => p.id === this.s.pet) : null;
-    const petHit = pet ? atk * petDamageMult(pet, this.s.pets[pet.id] || 1) : 0;
+    // 데려간 영수 전부가 각자 때린다. 하나만 세던 자리다.
+    const team = this.petTeam();
+    const hits = team.map((p) => ({ pet: p, hit: atk * petDamageMult(p, this.s.pets[p.id] || 1) }));
+    const petHit = hits.reduce((a, x) => a + x.hit, 0);
+    // 식철수는 때리는 대신 받는 피해를 줄인다
+    const guard = team.reduce((a, p) => (p.act === 'shield' ? a * (1 - p.actVal) : a), 1);
     const dps = atk * speed * (1 + crit * (critDmg - 1)) + petHit / PET_ATTACK_INTERVAL;
     return {
-      atk, hp, crit, critDmg, speed, goldMul, expMul, bossMul, petHit, dps,
+      atk, hp, crit, critDmg, speed, goldMul, expMul, bossMul, petHit, petHits: hits, guard, dps,
       bossTime: BOSS_TIME + m.bossTime, offlineMul: (1 + m.offline) * jb.offline,
       bleedMult: jb.bleed, ccDurMult: jb.ccDur,
     };
@@ -2090,9 +2101,10 @@ export class Game {
     // 게임 안의 시간. 실제 시계(Date.now)를 쓰면 시뮬레이션처럼 가상 시간으로
     // 도는 쪽에서 어긋난다 — 회귀 권유가 영영 안 뜨는 버그가 그래서 났다.
     this.clock = (this.clock || 0) + dt;
-    if (this.s.pet && this.mon?.alive) {
+    for (const p of this.petTeam()) {
+      if (!this.mon?.alive) break;
       const b = this.s.bond || (this.s.bond = {});
-      b[this.s.pet] = (b[this.s.pet] || 0) + BOND_PER_SEC * dt;
+      b[p.id] = (b[p.id] || 0) + BOND_PER_SEC * dt;
     }
     for (const k in this.buffs) if (this.buffs[k] > 0) this.buffs[k] = Math.max(0, this.buffs[k] - dt);
     for (const k in this.cd) this.cd[k] = Math.max(0, this.cd[k] - dt);
@@ -2175,13 +2187,43 @@ export class Game {
       this.dealDamage(st.atk * (crit ? st.critDmg : 1), 'hit', crit);
     }
 
-    // 펫 공격
-    if (st.petHit > 0 && this.mon?.alive) {
+    // 영수 — **저마다 다른 짓을 한다.** 전에는 여덟이 전부 같은 한 대였다.
+    if (st.petHits?.length && this.mon?.alive) {
       this.petTimer -= dt;
       if (this.petTimer <= 0) {
         this.petTimer += PET_ATTACK_INTERVAL;
         this.emit('petAttack');
-        if (this.mon?.alive) this.dealDamage(st.petHit, 'pet');
+        for (const { pet, hit } of st.petHits) {
+          if (!this.mon?.alive && pet.act !== 'heal') break;
+          switch (pet.act) {
+            case 'heal':   // 백학 — 때리는 대신 숨을 돌려 준다
+              this.heroHp = Math.min(st.hp, this.heroHp + st.hp * pet.actVal);
+              break;
+            case 'gold':   // 영묘 — 때리면서 은자를 떨군다
+              this.dealDamage(hit, 'pet');
+              this.addGold(monsterGold(this.s.stage) * st.goldMul * pet.actVal);
+              break;
+            case 'aoe':    // 구미호 — 주변 전부
+              this.dealAoe(hit, 'pet', false, pet.actVal);
+              break;
+            case 'triple': // 영원 — 세 대씩
+              for (let k = 0; k < pet.actVal && this.mon?.alive; k++) this.dealDamage(hit / pet.actVal, 'pet');
+              break;
+            case 'boss':   // 기린 — 관문지기에게 크게
+              this.dealDamage(hit * (this.mon.isBoss ? pet.actVal : 1), 'pet');
+              break;
+            case 'crit':   // 백호 — 반드시 치명
+              this.dealDamage(hit * st.critDmg, 'pet', true);
+              break;
+            case 'storm':  // 청룡 — 주변 전부를 치명으로
+              this.dealAoe(hit * st.critDmg, 'pet', true, pet.actVal);
+              break;
+            case 'shield': // 식철수 — 때리지 않는다. 받는 피해를 줄인다(stats의 guard).
+              break;
+            default:
+              this.dealDamage(hit, 'pet');
+          }
+        }
       }
     }
 
@@ -2194,7 +2236,7 @@ export class Game {
         let dmg = m.atk;
         let crit = false;
         if (m.crit && this.rng() < m.crit) { dmg *= m.critDmg; crit = true; }
-        this.heroHp -= dmg;
+        this.heroHp -= dmg * st.guard;
         this.noteHeroHit();
         this.emit('heroHit', { amount: dmg, crit });
       }
@@ -2202,7 +2244,7 @@ export class Game {
         m.petTimer -= dt;
         if (m.petTimer <= 0) {
           m.petTimer += PET_ATTACK_INTERVAL;
-          this.heroHp -= m.petHit;
+          this.heroHp -= m.petHit * st.guard;
           this.noteHeroHit();
           this.emit('heroHit', { amount: m.petHit, pet: true });
         }
@@ -2223,7 +2265,7 @@ export class Game {
         a.atkTimer -= dt;
         while (a.atkTimer <= 0 && this.heroHp > 0) {
           a.atkTimer += 1.6;
-          this.heroHp -= a.atk * 0.6;
+          this.heroHp -= a.atk * 0.6 * st.guard;
           this.noteHeroHit();
           this.emit('heroHit', { amount: a.atk * 0.6 });
         }
@@ -2741,12 +2783,35 @@ export class Game {
       } else {
         this.s.pets[pet.id] = 1;
         out.push({ id: pet.id, dup: false });
-        if (!this.s.pet || PETS.find((p) => p.id === this.s.pet).grade < pet.grade) this.s.pet = pet.id;
+        if ((this.s.petTeam || []).length < this.petSlots()) this.togglePet(pet.id);
       }
     }
     this.addGachaCount('pet', count);
     this.progress('gacha', count);
     return out;
+  }
+
+  // ---------- 영수 팀 ----------
+  petSlots() { return petSlotCount(this.s.bestStage); }
+  petTeam() {
+    return (this.s.petTeam || [])
+      .slice(0, this.petSlots())
+      .map((id) => PETS.find((p) => p.id === id))
+      .filter((p) => p && this.s.pets[p.id]);
+  }
+  petLead() { return this.petTeam()[0]?.id || null; }
+  petOn(id) { return (this.s.petTeam || []).includes(id); }
+
+  // 데려가기/내려놓기. 칸이 차 있으면 가장 먼저 넣은 것을 밀어낸다 —
+  // '칸이 찼어요'라고 막으면 뭘 빼야 하는지 또 찾아야 한다.
+  togglePet(id) {
+    if (!this.s.pets[id]) return false;
+    const team = this.s.petTeam || (this.s.petTeam = []);
+    const at = team.indexOf(id);
+    if (at >= 0) { team.splice(at, 1); return true; }
+    team.push(id);
+    while (team.length > this.petSlots()) team.shift();
+    return true;
   }
 
   petLevelCost(id) { return petFoodCost(this.s.pets[id] || 1); }
@@ -2764,11 +2829,7 @@ export class Game {
     return n;
   }
 
-  equipPet(id) {
-    if (!this.s.pets[id]) return false;
-    this.s.pet = id;
-    return true;
-  }
+  equipPet(id) { return this.togglePet(id); }
 
   // 교감 단계 (데리고 싸운 시간으로 오른다)
   bondLv(id) { return bondLevel(this.s.bond?.[id] || 0); }

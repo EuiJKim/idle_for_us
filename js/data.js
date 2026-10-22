@@ -2,7 +2,7 @@
 
 // 지금 돌고 있는 빌드. 설정 창에 적어 둔다 — 기기가 옛 판을 들고 있는지
 // 한눈에 보려고 둔다. sw.js의 CACHE와 같은 값으로 맞춘다.
-export const BUILD = 'ifu-v61';
+export const BUILD = 'ifu-v63';
 
 export const SAVE_VERSION = 4;
 export const OFFLINE_CAP_SEC = 12 * 3600;
@@ -655,16 +655,36 @@ export const CODEX_ALL = { critDmg: 0.5 };     // 세 부위 모두 완성하면
 export const enhanceCost = (e) => Math.ceil((5 + e * 3) * Math.pow(1.06, e)); // 한철
 
 // ---------- 영수 ----------
+// 영수.
+//
+// 여덟이 전부 **같은 짓**을 했다 — 1.2초마다 지금 상대를 한 번 때린다.
+// 다른 건 퍼센트뿐이라, 좋은 걸 데려가면 끝이고 고를 일이 없었다.
+// 이제 **하는 일이 다르다.** act가 그걸 정한다.
+//
+// 보유 효과도 키웠다(+3~12% → +12~50%). 전투력이 10^20을 넘는 판에서
+// +3%는 눈에 안 띈다 — 모으는 보람이 느껴져야 모은다.
 export const PETS = [
-  { id: 'dog', name: '백학', emoji: '🦢', grade: 0, atk: 0.3, own: ['hp', 0.03] },
-  { id: 'cat', name: '영묘', emoji: '🐈', grade: 0, atk: 0.3, own: ['gold', 0.03] },
-  { id: 'fox', name: '구미호', emoji: '🦊', grade: 1, atk: 0.5, own: ['atk', 0.03] },
-  { id: 'owl', name: '영원', emoji: '🐒', grade: 2, atk: 0.7, own: ['exp', 0.04] },
-  { id: 'panda', name: '식철수', emoji: '🐼', grade: 2, atk: 0.8, own: ['critDmg', 0.04] },
-  { id: 'unicorn', name: '기린', emoji: '🦌', grade: 3, atk: 1.2, own: ['boss', 0.05] },
-  { id: 'tiger', name: '백호', emoji: '🐯', grade: 4, atk: 2, own: ['atk', 0.08] },
-  { id: 'dragon', name: '청룡', emoji: '🐲', grade: 5, atk: 3.5, own: ['atk', 0.12] },
+  { id: 'dog', name: '백학', emoji: '🦢', grade: 0, atk: 0.3, own: ['hp', 0.12],
+    act: 'heal', actVal: 0.03, actText: '때리는 대신 체력을 3% 회복해요' },
+  { id: 'cat', name: '영묘', emoji: '🐈', grade: 0, atk: 0.3, own: ['gold', 0.12],
+    act: 'gold', actVal: 3, actText: '때릴 때마다 은자를 3배로 더 떨궈요' },
+  { id: 'fox', name: '구미호', emoji: '🦊', grade: 1, atk: 0.5, own: ['atk', 0.12],
+    act: 'aoe', actVal: 170, actText: '한 마리가 아니라 주변 전부를 때려요' },
+  { id: 'owl', name: '영원', emoji: '🐒', grade: 2, atk: 0.7, own: ['exp', 0.16],
+    act: 'triple', actVal: 3, actText: '한 번에 세 대씩 때려요' },
+  { id: 'panda', name: '식철수', emoji: '🐼', grade: 2, atk: 0.8, own: ['critDmg', 0.16],
+    act: 'shield', actVal: 0.25, actText: '받는 피해를 25% 줄여요' },
+  { id: 'unicorn', name: '기린', emoji: '🦌', grade: 3, atk: 1.2, own: ['boss', 0.2],
+    act: 'boss', actVal: 4, actText: '관문지기에게 4배로 때려요' },
+  { id: 'tiger', name: '백호', emoji: '🐯', grade: 4, atk: 2, own: ['atk', 0.3],
+    act: 'crit', actVal: 1, actText: '반드시 치명타로 때려요' },
+  { id: 'dragon', name: '청룡', emoji: '🐲', grade: 5, atk: 3.5, own: ['atk', 0.5],
+    act: 'storm', actVal: 220, actText: '주변 전부를 반드시 치명타로 때려요' },
 ];
+// 데려가는 칸. 하나로는 고를 일이 없다 — 둘·셋이 되어야 조합이 생긴다.
+// 벽 자리에 맞춘다(관문 120·220).
+export const PET_SLOTS_AT = [120, 220];
+export const petSlotCount = (bestStage) => 1 + PET_SLOTS_AT.filter((v) => (bestStage || 0) >= v).length;
 export const PET_EGG_COST = 150;
 export const PET_GRADE_WEIGHT = [45, 30, 15, 7, 2.5, 0.5];
 export const petFoodCost = (lv) => 10 * lv;

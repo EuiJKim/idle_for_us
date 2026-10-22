@@ -2,7 +2,7 @@
 import { PETS, GRADES, PET_EGG_COST, OWN_STAT_NAMES, PET_ATTACK_INTERVAL, petDamageMult, RELICS, RELIC_DIG_COST,
   BOND_PER_LV, BOND_MAX, bondProgress, ENGRAVE_MIN_LV, engraveCost,
   CODEX_KINDS, codexEntryPower, OUTFITS, OUTFIT_ALL, outfitTotalCost,
-  OUTFIT_GACHA_LVS } from '../data.js';
+  OUTFIT_GACHA_LVS, PET_SLOTS_AT } from '../data.js';
 import { fmt, pct } from '../fmt.js';
 import { h, toast, openModal, closeModal, subTabs, gachaLevelBar, popUp } from './common.js';
 import { iconSkin } from '../icons.js';
@@ -14,11 +14,14 @@ function petView(app) {
   const b1 = h('button', { class: 'btn primary', onclick: () => hatch(1) }, `알 1개 원보 ${PET_EGG_COST}`);
   const b10 = h('button', { class: 'btn primary', onclick: () => hatch(10) }, `알 10개 원보 ${PET_EGG_COST * 10}`);
   const rows = {};
+  // 칸이 몇이고 지금 누가 나가 있는지. 하나만 데려가던 때는 필요 없던 줄이다.
+  const slotLine = h('p', { style: 'margin:8px 0 0' });
   const root = h('div', {},
     h('div', { class: 'card' },
       h('h3', {}, '🥚 영수 부화', h('small', {}, '중복이면 먹이로 바뀌어요')),
       h('div', { class: 'btn-row' }, b1, b10),
-      h('p', { class: 'muted', style: 'margin:8px 0 0' }, '영수 먹이 ', food, '개 · 짐승의 숲 수련터에서 얻어요. 데려간 영수가 함께 싸우고, 가진 영수는 모두 보유 효과를 줘요. 데리고 다니면 교감이 쌓여 그 영수의 효과가 커지고, 각인하면 데려가지 않아도 그 효과가 남아요.')),
+      h('p', { class: 'muted', style: 'margin:8px 0 0' }, '영수 먹이 ', food, '개 · 짐승의 숲 수련터에서 얻어요. 가진 영수는 모두 보유 효과를 줘요. 데리고 다니면 교감이 쌓여 그 영수의 효과가 커지고, 각인하면 데려가지 않아도 그 효과가 남아요.'),
+      slotLine),
     lvBar.root);
 
   for (const pet of PETS) {
@@ -29,7 +32,7 @@ function petView(app) {
       popUp(rows[pet.id].row, `Lv.${game.s.pets[pet.id]}`);
       app.refresh();
     } });
-    const eqBtn = h('button', { class: 'btn', style: 'padding:6px 8px;font-size:12px', onclick: () => { game.equipPet(pet.id); app.refresh(); } });
+    const eqBtn = h('button', { class: 'btn', style: 'padding:6px 8px;font-size:12px', onclick: () => { game.togglePet(pet.id); app.refresh(); } });
     const icon = h('div', { class: 'ico pet-ico' }, pet.emoji);
     iconSkin(icon, 'pet', PETS.indexOf(pet));
     const bond = h('div', { class: 'desc', style: 'margin-top:4px' });
@@ -65,24 +68,37 @@ function petView(app) {
     food.textContent = fmt(game.s.food);
     b1.disabled = game.s.gems < PET_EGG_COST;
     b10.disabled = game.s.gems < PET_EGG_COST * 10;
+    // 칸이 몇이고 지금 누가 나가 있는지. **만들어 두고 안 채우면 빈 줄이다** —
+    // 오늘 내내 잡던 그 유형을 여기서 또 했다.
+    const slots = game.petSlots();
+    const team = game.petTeam();
+    slotLine.innerHTML = `데려가는 칸 <b>${team.length}/${slots}</b>`
+      + (team.length ? ` — ${team.map((x) => x.name).join(' · ')}` : ' — 아직 아무도 안 데려갔어요')
+      + (slots < PET_SLOTS_AT.length + 1
+        ? `<br><span class="muted">${PET_SLOTS_AT[slots - 1]}관문에서 한 칸 더 열려요</span>` : '');
     for (const pet of PETS) {
       const r = rows[pet.id];
       const l = game.s.pets[pet.id] || 0;
       const owned = l > 0;
       r.row.style.opacity = owned ? '' : '0.5';
-      r.icon.classList.toggle('equipped', game.s.pet === pet.id);
+      r.icon.classList.toggle('equipped', game.petOn(pet.id));
       r.lv.textContent = owned ? `Lv.${l}` : `${GRADES[pet.grade].name} · 미보유`;
       const [stat, per] = pet.own;
-      r.desc.innerHTML = `${PET_ATTACK_INTERVAL}초마다 공격력의 <b>${pct(petDamageMult(pet, Math.max(1, l)))}</b> 피해<br>보유 효과: ${OWN_STAT_NAMES[stat]} <b>+${pct(per * Math.max(1, l))}</b>`;
+      // **하는 일**을 먼저 적는다. 퍼센트만 다를 때는 볼 게 없었지만 이제 다르다.
+      r.desc.innerHTML = `<b style="color:var(--accent-2)">${pet.actText}</b>`
+        + `<br>${PET_ATTACK_INTERVAL}초마다 공격력의 <b>${pct(petDamageMult(pet, Math.max(1, l)))}</b>`
+        + `<br>보유 효과: ${OWN_STAT_NAMES[stat]} <b>+${pct(per * Math.max(1, l))}</b>`;
       r.lvBtn.textContent = `먹이 ${fmt(game.petLevelCost(pet.id))}`;
       r.lvBtn.disabled = !owned || game.s.food < game.petLevelCost(pet.id);
-      r.eqBtn.textContent = game.s.pet === pet.id ? '함께하는 중' : '데려가기';
-      r.eqBtn.disabled = !owned || game.s.pet === pet.id;
+      const on = game.petOn(pet.id);
+      r.eqBtn.textContent = on ? '내려놓기' : '데려가기';
+      r.eqBtn.classList.toggle('good', on);
+      r.eqBtn.disabled = !owned;
 
       // 교감 / 각인
       const bp = bondProgress(game.s.bond?.[pet.id] || 0);
       const eng = game.s.engrave?.[pet.id] || 0;
-      const applied = game.s.pet === pet.id ? Math.max(bp.lv, eng) : eng;
+      const applied = game.petOn(pet.id) ? Math.max(bp.lv, eng) : eng;
       if (!owned) {
         r.bond.textContent = '';
         r.engBtn.style.display = 'none';
