@@ -3,6 +3,8 @@ import fs from 'node:fs';
 // node tests/check.mjs
 import { Game, newSave, migrate, slimSave } from '../js/game.js';
 import { fmt, alphaUnit } from '../js/fmt.js';
+import { createRequire } from 'node:module';
+const require = createRequire(import.meta.url);
 import * as D from '../js/data.js';
 
 let fail = 0;
@@ -2032,7 +2034,19 @@ console.log('=== 35. 자리와 큰 수 ===');
   ok(/2순/.test(D.zoneOf(1 + D.ZONE_CYCLE * D.ZONE_TIERS.length).name),
     '두 번째 바퀴는 이름에 적힌다', D.zoneOf(1 + D.ZONE_CYCLE * D.ZONE_TIERS.length).name);
 
-  // 바닥 그림은 여덟 장뿐이다. idx가 그 범위를 벗어나면 바닥이 안 그려진다.
+  // 자리마다 바닥 그림이 한 장씩 있어야 한다. 하나라도 없으면 그 자리만
+  // 바닥이 맨땅으로 나온다 — 자리를 늘리면서 그림을 안 구우면 그렇게 된다.
+  {
+    const fs2 = require('node:fs');
+    const miss = [];
+    for (let i = 0; i < D.ZONES.length; i++) {
+      if (!fs2.existsSync(`art/zone/zone-${i}.jpg`)) miss.push(i);
+    }
+    ok(miss.length === 0, '자리마다 바닥 그림이 있다',
+      miss.length ? `없음: zone-${miss.join(', zone-')}` : `${D.ZONES.length}장`);
+  }
+
+  // 바닥 그림 번호가 범위를 벗어나면 바닥이 안 그려진다.
   let badIdx = 0;
   for (let s = 1; s <= 5000; s += 7) {
     const z = D.zoneOf(s);

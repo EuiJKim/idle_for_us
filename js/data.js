@@ -2,7 +2,7 @@
 
 // 지금 돌고 있는 빌드. 설정 창에 적어 둔다 — 기기가 옛 판을 들고 있는지
 // 한눈에 보려고 둔다. sw.js의 CACHE와 같은 값으로 맞춘다.
-export const BUILD = 'ifu-v78';
+export const BUILD = 'ifu-v79';
 
 export const SAVE_VERSION = 4;
 export const OFFLINE_CAP_SEC = 12 * 3600;
@@ -1941,6 +1941,74 @@ export const ZONES = [
       F('마교 장로', { robe: '#1c1917', trim: '#a855f7', head: 'topknot', hair: '#e5e7eb', beard: true, weapon: 'fan' }),
     ],
     boss: F('천마', { robe: '#050505', trim: '#dc2626', head: 'topknot', hair: '#111', weapon: 'sword', aura: '#dc2626', eyes: '#ef4444', scale: 1.55 }) },
+  // ---- 여기부터 더한 여덟 자리 ----
+  // 앞말과 빛깔만 돌리는 걸로는 바닥 그림 여덟 장이 계속 반복되는 게 보인다.
+  // 자리를 열여섯으로 늘려 한 바퀴를 160관문으로 넓힌다.
+  // 바닥 그림(art/zone/zone-N.jpg)도 자리마다 한 장씩 있어야 한다.
+  { name: '장강 수로', ink: ['#cfd8dc', '#8aa2ad', '#44555e', '#2c3a42'], sun: '#0e7490', prop: 'dock',
+    mobs: [
+      F('수적', { robe: '#1e3a5f', head: 'band', band: '#0c4a6e', weapon: 'saber' }),
+      F('뱃사공', { robe: '#64748b', head: 'hat', weapon: 'spear' }),
+      F('물귀신', { robe: '#134e4a', head: 'hood', skin: '#9fb8b0', weapon: 'claw', ghost: true }),
+      F('장강 호위', { robe: '#334155', trim: '#38bdf8', head: 'band', band: '#0284c7', weapon: 'sword' }),
+    ],
+    boss: F('십팔채주', { robe: '#082f49', trim: '#38bdf8', head: 'band', band: '#0ea5e9', weapon: 'axe', beard: true, aura: '#0ea5e9', scale: 1.45 }) },
+  { name: '소림 사원', ink: ['#f4ead7', '#ddc9a3', '#8a7355', '#6b573e'], sun: '#b45309', prop: 'temple',
+    mobs: [
+      F('소림 무승', { robe: '#d97706', head: 'bald', weapon: 'fist' }),
+      F('봉술 제자', { robe: '#b45309', head: 'bald', weapon: 'spear' }),
+      F('나한당 승', { robe: '#92400e', trim: '#fcd34d', head: 'bald', weapon: 'fist', scale: 1.1 }),
+      F('계율원 승', { robe: '#78350f', trim: '#fde68a', head: 'bald', weapon: 'sword', beard: true }),
+    ],
+    boss: F('달마원 수좌', { robe: '#fbbf24', trim: '#78350f', head: 'bald', weapon: 'fist', beard: true, aura: '#fcd34d', scale: 1.5 }) },
+  { name: '낙양 야시장', ink: ['#4a3b2a', '#2e2419', '#1a1410', '#120d0a'], sun: '#f59e0b', prop: 'lantern', night: true,
+    mobs: [
+      F('저잣거리 건달', { robe: '#57534e', head: 'band', band: '#a16207', weapon: 'dagger' }),
+      F('암상인', { robe: '#422006', trim: '#fbbf24', head: 'hood', weapon: 'dagger' }),
+      F('야행 자객', { robe: '#1c1917', head: 'mask', weapon: 'sword' }),
+      F('취객 무인', { robe: '#713f12', head: 'topknot', weapon: 'saber', beard: true }),
+    ],
+    boss: F('낙양 흑도주', { robe: '#1c1917', trim: '#f59e0b', head: 'band', band: '#f59e0b', weapon: 'saber', beard: true, aura: '#fbbf24', scale: 1.45 }) },
+  { name: '화산 절벽', ink: ['#e7e5e4', '#b8b3ad', '#6b6761', '#4a4743'], sun: '#be123c', prop: 'cliff',
+    mobs: [
+      F('화산 제자', { robe: '#e11d48', trim: '#fecdd3', head: 'topknot', weapon: 'sword' }),
+      F('매화 검수', { robe: '#fda4af', trim: '#9f1239', head: 'topknot', weapon: 'sword' }),
+      F('절벽 산적', { robe: '#57534e', head: 'hat', weapon: 'axe' }),
+      F('화산 장로', { robe: '#9f1239', trim: '#fecdd3', head: 'topknot', hair: '#e5e7eb', weapon: 'sword', beard: true }),
+    ],
+    boss: F('매화검존', { robe: '#fff1f2', trim: '#e11d48', head: 'topknot', hair: '#f1f5f9', weapon: 'sword', aura: '#fb7185', beard: true, scale: 1.45 }) },
+  { name: '남만 독림', ink: ['#cfe3c0', '#8aa86f', '#3f5a33', '#2b3d23'], sun: '#65a30d', prop: 'vine',
+    mobs: [
+      F('남만 전사', { robe: '#4d7c0f', head: 'band', band: '#365314', weapon: 'spear' }),
+      F('독충 술사', { robe: '#365314', trim: '#a3e635', head: 'hood', weapon: 'fan' }),
+      F('만독 교도', { robe: '#166534', head: 'mask', weapon: 'claw', eyes: '#86efac' }),
+      F('밀림 사냥꾼', { robe: '#3f6212', head: 'hat', weapon: 'dagger' }),
+    ],
+    boss: F('오독교주', { robe: '#14532d', trim: '#4ade80', head: 'topknot', weapon: 'claw', aura: '#4ade80', eyes: '#86efac', beard: true, scale: 1.5 }) },
+  { name: '고묘 지하', ink: ['#6b7280', '#3f4654', '#23272f', '#15181d'], sun: '#a3e635', prop: 'tomb', night: true,
+    mobs: [
+      F('고묘 수호귀', { robe: '#1f2937', trim: '#84cc16', head: 'mask', weapon: 'spear' }),
+      F('도굴꾼', { robe: '#44403c', head: 'hood', weapon: 'dagger' }),
+      F('석상 무사', { robe: '#57534e', trim: '#a8a29e', head: 'bald', skin: '#9ca3af', weapon: 'axe', scale: 1.2 }),
+      F('고묘 검귀', { robe: '#312e81', head: 'topknot', hair: '#111', weapon: 'sword', ghost: true }),
+    ],
+    boss: F('고묘주', { robe: '#1e1b4b', trim: '#a3e635', head: 'topknot', hair: '#d1d5db', weapon: 'claw', aura: '#84cc16', eyes: '#bef264', scale: 1.5 }) },
+  { name: '동해 해안', ink: ['#dbeafe', '#a5c4dd', '#5b7e99', '#3d5a70'], sun: '#0284c7', prop: 'shore',
+    mobs: [
+      F('해적 검객', { robe: '#1e40af', head: 'band', band: '#1e3a8a', weapon: 'saber' }),
+      F('동해 무사', { robe: '#0c4a6e', trim: '#7dd3fc', head: 'topknot', weapon: 'spear' }),
+      F('조개 갑사', { robe: '#475569', trim: '#e0f2fe', head: 'mask', weapon: 'axe', scale: 1.15 }),
+      F('파도 술사', { robe: '#075985', head: 'hood', weapon: 'fan' }),
+    ],
+    boss: F('동해 교룡왕', { robe: '#082f49', trim: '#22d3ee', head: 'topknot', hair: '#a5f3fc', weapon: 'spear', aura: '#22d3ee', eyes: '#67e8f9', scale: 1.55 }) },
+  { name: '천외천', ink: ['#eef2ff', '#c7d2fe', '#818cf8', '#4338ca'], sun: '#fde68a', prop: 'void', clouds: true,
+    mobs: [
+      F('천외 수문장', { robe: '#e0e7ff', trim: '#4338ca', head: 'topknot', weapon: 'spear' }),
+      F('선학 검사', { robe: '#f8fafc', trim: '#6366f1', head: 'topknot', weapon: 'sword' }),
+      F('허공 보살', { robe: '#c7d2fe', trim: '#fbbf24', head: 'bald', weapon: 'fist' }),
+      F('천외 도인', { robe: '#a5b4fc', trim: '#fde68a', head: 'topknot', hair: '#f1f5f9', weapon: 'fan', beard: true }),
+    ],
+    boss: F('천외천존', { robe: '#ffffff', trim: '#fbbf24', head: 'topknot', hair: '#ffffff', weapon: 'sword', aura: '#fde68a', beard: true, scale: 1.6 }) },
 ];
 export const RAID_BOSS = F('혈마', { robe: '#1a0505', trim: '#ef4444', head: 'topknot', hair: '#7f1d1d', weapon: 'saber', aura: '#dc2626', eyes: '#fca5a5', scale: 2.1 });
 

@@ -1,5 +1,5 @@
 // 앱 껍데기를 캐시해 오프라인에서도 열리게 한다. 온라인이면 항상 새 파일을 먼저 받는다.
-const CACHE = 'ifu-v78';
+const CACHE = 'ifu-v79';
 const SHELL = [
   './', 'index.html', 'css/style.css', 'manifest.webmanifest',
   'js/main.js', 'js/game.js', 'js/data.js', 'js/battle.js', 'js/net.js', 'js/fmt.js', 'js/firebase-config.js',
@@ -75,6 +75,14 @@ const SHELL = [
   // 지역 바닥. 카메라를 따라 흐르는 타일이라 투명이 필요 없어 JPEG다.
   'art/zone/zone-0.jpg', 'art/zone/zone-1.jpg', 'art/zone/zone-2.jpg', 'art/zone/zone-3.jpg',
   'art/zone/zone-4.jpg', 'art/zone/zone-5.jpg', 'art/zone/zone-6.jpg', 'art/zone/zone-7.jpg',
+  'art/zone/zone-8.jpg',
+  'art/zone/zone-9.jpg',
+  'art/zone/zone-10.jpg',
+  'art/zone/zone-11.jpg',
+  'art/zone/zone-12.jpg',
+  'art/zone/zone-13.jpg',
+  'art/zone/zone-14.jpg',
+  'art/zone/zone-15.jpg',
 
   // 무공 빛. 흑백 마스크를 코드에서 물들여 쓴다.
   'art/fx/fx-aura.png', 'art/fx/fx-beam.png', 'art/fx/fx-blink.png',
