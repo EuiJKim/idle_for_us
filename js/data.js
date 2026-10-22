@@ -2,7 +2,7 @@
 
 // 지금 돌고 있는 빌드. 설정 창에 적어 둔다 — 기기가 옛 판을 들고 있는지
 // 한눈에 보려고 둔다. sw.js의 CACHE와 같은 값으로 맞춘다.
-export const BUILD = 'ifu-v73';
+export const BUILD = 'ifu-v75';
 
 export const SAVE_VERSION = 4;
 export const OFFLINE_CAP_SEC = 12 * 3600;
@@ -1546,6 +1546,8 @@ export const qiOf = (id) => SKILL_QI[id] || null;
 
 // 계열 무공만 따로. 문파 칸에 들어가고 일반 칸에는 절대 안 들어간다.
 export const JOB_SKILLS = SKILLS.filter((s) => s.job);
+// 계열이 아닌(누구나 쓰는) 무공. 아이콘 차례가 여기에 매여 있다.
+export const GEN_SKILLS = SKILLS.filter((s) => !s.job);
 // 한 계열의 무공 셋을 차례대로. jobTier 0 · 1 · 2다.
 export const jobSkillsOf = (jobId) => SKILLS.filter((s) => s.job === jobId)
   .sort((a, b) => (a.jobTier || 0) - (b.jobTier || 0));

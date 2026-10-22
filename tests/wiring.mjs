@@ -148,7 +148,7 @@ console.log('\n=== 4. 아이콘 개수 ↔ 데이터 개수 ===');
     eqweapon: D.GRADES.length, eqarmor: D.GRADES.length, eqring: D.GRADES.length,
     acc: D.ACC_SLOTS.length, ego: D.EGO_PARTS.length, dg: D.DUNGEONS.length,
     sp: Object.keys(D.SP_STATS).length, codex: D.CODEX_KINDS.length,
-    jskill: D.JOB_SKILLS.length,
+    jskill: D.JOB_SKILLS.length, skill: D.GEN_SKILLS.length,
   };
   for (const [k, n] of Object.entries(want)) {
     ok(K[k] === n, `${k} 아이콘 수가 데이터와 같다`, `${K[k]} / ${n}`);
@@ -219,6 +219,45 @@ console.log('\n=== 7. 화면이 올린 자원 ↔ RES_DEFS ===');
   // 창 머리를 채우는 쪽도 있어야 한다
   ok(read('js/main.js').includes('RES_DEFS[id].get('), 'main.js가 자원칸을 채운다');
   ok(read('js/ui/common.js').includes("res: () => made[cur]?.res"), '하위 탭이 자원을 위로 올린다');
+}
+
+console.log('');
+console.log('=== 8. 새 판이 기기에 들어가는 길 ===');
+{
+  // 배포는 멀쩡한데 기기에만 안 들어간 일이 실제로 났다. 길이 끊기면
+  // 쓰는 사람은 영영 옛 화면을 본다 — 눈으로는 절대 못 잡는 종류다.
+  const sw = read('sw.js');
+  const mn = read('js/main.js');
+
+  // 1) 설치가 통째로 실패하면 안 된다. addAll은 한 장만 빠져도 전부 실패다.
+  ok(!/c\.addAll\(SHELL\)/.test(sw), '설치가 addAll(통째로)이 아니다');
+  ok(/allSettled/.test(sw), '한 장씩 담아서 한 장이 빠져도 판이 올라간다');
+  ok(/skipWaiting/.test(sw) && /clients\.claim/.test(sw), '새 워커가 바로 주도권을 잡는다');
+
+  // 2) 온라인이면 늘 새 파일을 본다 (cache-first로 돌아가면 또 묶인다)
+  ok(/cache: 'no-cache'/.test(sw), '브라우저 HTTP 캐시를 건너뛴다');
+  ok(sw.indexOf('fetch(req)') < sw.indexOf('caches.match'), '네트워크를 먼저 본다');
+
+  // 3) 판이 다르면 알린다 — 워커가 꼬여 있어도 도는 길이 있어야 한다
+  ok(/function checkBuild/.test(mn), '서버 판과 지금 판을 직접 견준다');
+  ok(/const CACHE = '\(\[\^'\]\+\)'|const CACHE = '\(\.\*\?\)'|CACHE = '\(\[\^'\]\*\)'/.test(mn)
+    || /match\(\/const CACHE/.test(mn), 'sw.js에서 판을 읽어 온다');
+  ok(/showUpdate\(/.test(mn), '다르면 화면에 띄운다');
+  ok(/updatefound/.test(mn), '새 워커가 설치되면 알아챈다');
+  ok(/visibilitychange/.test(mn), '돌아올 때마다 다시 본다');
+
+  // 4) 꼬였을 때 손으로 푸는 길 — 이게 없으면 쓰는 사람이 할 수 있는 게 없다
+  ok(/async function hardReload/.test(mn), '워커·캐시를 통째로 버리는 길이 있다');
+  ok(/unregister\(\)/.test(mn) && /caches\.delete/.test(mn), '워커와 캐시를 둘 다 지운다');
+  ok(/새로 받기/.test(mn), '설정에 버튼이 있다');
+
+  // 5) 띄우는 쪽과 꾸미는 쪽이 짝이 맞는가
+  ok(read('css/style.css').includes('.update-bar'), '알림 띠에 꾸밈이 있다');
+
+  // 6) sw.js의 판과 data.js의 판이 같아야 알림이 엉뚱하게 안 뜬다 (3절과 같은 약속)
+  const a = (sw.match(/const CACHE = '([^']+)'/) || [])[1];
+  const b = (read('js/data.js').match(/BUILD = '([^']+)'/) || [])[1];
+  ok(a === b, '두 판 번호가 같다', `${a} / ${b}`);
 }
 console.log(`\n${fail === 0 ? '짝이 전부 맞는다' : `짝이 안 맞는 것 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);

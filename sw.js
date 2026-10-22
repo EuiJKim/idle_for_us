@@ -1,5 +1,5 @@
 // 앱 껍데기를 캐시해 오프라인에서도 열리게 한다. 온라인이면 항상 새 파일을 먼저 받는다.
-const CACHE = 'ifu-v73';
+const CACHE = 'ifu-v75';
 const SHELL = [
   './', 'index.html', 'css/style.css', 'manifest.webmanifest',
   'js/main.js', 'js/game.js', 'js/data.js', 'js/battle.js', 'js/net.js', 'js/fmt.js', 'js/firebase-config.js',
@@ -56,6 +56,20 @@ const SHELL = [
   'art/icon/jskill-21.png',
   'art/icon/jskill-22.png',
   'art/icon/jskill-23.png',
+  'art/icon/skill-0.png',
+  'art/icon/skill-1.png',
+  'art/icon/skill-2.png',
+  'art/icon/skill-3.png',
+  'art/icon/skill-4.png',
+  'art/icon/skill-5.png',
+  'art/icon/skill-6.png',
+  'art/icon/skill-7.png',
+  'art/icon/skill-8.png',
+  'art/icon/skill-9.png',
+  'art/icon/skill-10.png',
+  'art/icon/skill-11.png',
+  'art/icon/skill-12.png',
+  'art/icon/skill-13.png',
   'art/icon/up-7.png',
   'art/icon/up-6.png',
   // 지역 바닥. 카메라를 따라 흐르는 타일이라 투명이 필요 없어 JPEG다.
@@ -80,8 +94,20 @@ const SHELL = [
   'art/hero/wp-sword.png',
 ];
 
+// **addAll은 하나라도 실패하면 통째로 실패한다.**
+// 그러면 새 워커가 영영 설치되지 않고, 기기는 옛 워커에 붙들린 채로 남는다.
+// 배포는 멀쩡한데 기기에만 반영이 안 되는 일이 실제로 그래서 났다.
+// 한 장씩 따로 담는다 — 한 장이 빠져도 나머지는 담기고 판은 올라간다.
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
+  e.waitUntil(caches.open(CACHE)
+    .then((c) => Promise.allSettled(SHELL.map((u) => c.add(u))))
+    .then(() => self.skipWaiting())
+    .catch(() => self.skipWaiting()));   // 캐시를 못 열어도 판은 올린다
+});
+
+// 화면에서 '지금 받기'를 누르면 기다리던 워커를 바로 올린다
+self.addEventListener('message', (e) => {
+  if (e.data && e.data.type === 'SKIP_WAITING') self.skipWaiting();
 });
 
 self.addEventListener('activate', (e) => {

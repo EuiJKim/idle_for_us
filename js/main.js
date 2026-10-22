@@ -1,12 +1,12 @@
 import { Game, newSave, migrate, slimSave } from './game.js';
 import {
   BUILD, JOBS, jobTestOf, EGO_PARTS, AD_OFFLINE_MULT,
-  SKILLS, KILLS_PER_STAGE, DUNGEON_MOBS, RANKS, MISSIONS, PETS, zoneOf, expToNext,
+  SKILLS, JOB_SKILLS, GEN_SKILLS, KILLS_PER_STAGE, DUNGEON_MOBS, RANKS, MISSIONS, PETS, zoneOf, expToNext,
   CODEX_KINDS, GRADES,
   isWallStage, nextUnlock, unlocksAt,
 } from './data.js';
 import { BattleView, drawFighter } from './battle.js';
-import { loadIcons } from './icons.js';
+import { loadIcons, iconSkin } from './icons.js';
 import { showAd } from './ads.js';
 loadIcons();
 import { Net } from './net.js';
@@ -153,6 +153,8 @@ function buildSkillbar() {
     const cd = h('div', { class: 'cd' });
     const lock = h('div', { class: 'lock' });
     const btn = h('button', { class: 'skill-btn', 'aria-label': sk?.name || '빈 칸', onclick: () => (sk ? game.useSkill(sk.id) : showTab('skill')) }, sk?.icon || '＋', cd, lock);
+    // 들판 바에도 그림을 깐다. 창 안에만 그림이면 두 곳이 서로 다른 게임 같다.
+    if (sk) iconSkin(btn, sk.job ? 'jskill' : 'skill', (sk.job ? JOB_SKILLS : GEN_SKILLS).indexOf(sk));
     return { sk, btn, cd, lock };
   });
   $('skillbar').replaceChildren(...skillEls.map((e) => e.btn));
@@ -610,6 +612,15 @@ function openSettings() {
         h('div', {}, '공격 속도', h('b', {}, `${st.speed.toFixed(2)}회/초`)),
         h('div', {}, '처치 수', h('b', {}, fmt(game.s.stats.kills))),
         h('div', {}, '뽑기 횟수', h('b', {}, fmt(game.s.stats.gachas)))),
+      // 기기가 옛 판에 붙들렸을 때의 마지막 수단. 워커·캐시를 통째로 버린다.
+      // 세이브는 localStorage라 안 지워진다.
+      h('div', { class: 'btn-row' },
+        h('button', { class: 'btn', onclick: () => {
+          toast('새로 받는 중이에요…');
+          hardReload();
+        } }, '🔄 새로 받기')),
+      h('p', { class: 'muted', style: 'margin:4px 2px 0;font-size:11px' },
+        '화면이 옛것 같으면 눌러 보세요. 기록은 안 지워져요.'),
       net.isAdmin() ? h('div', { class: 'btn-row' },
         h('button', { class: 'btn primary', onclick: openAdmin }, '🛡️ 운영자')) : null,
       h('div', { class: 'btn-row' },
@@ -935,13 +946,78 @@ if (!game.s.nickname) askNickname(true);
 else checkReturn();
 net.init();
 
+// ---------- 새 판 알림 ----------
+//
+// 배포는 멀쩡한데 기기에만 안 들어가는 일이 실제로 났다. 조용히 새로고침만
+// 거는 방식은 그게 안 됐을 때 **쓰는 사람이 할 수 있는 게 없다.**
+// 그래서 세 겹으로 둔다:
+//   1) 서버의 sw.js에 적힌 판과 지금 돌고 있는 판을 **직접 견준다** —
+//      워커가 꼬여 있어도 이건 그냥 fetch라서 늘 맞는 답을 준다
+//   2) 다르면 화면 위에 띄운다. 누르면 받는다.
+//   3) 설정에 '새로 받기'를 둔다 — 워커·캐시를 통째로 지우고 다시 받는다
+let updateBar = null;
+function showUpdate(ver) {
+  if (updateBar) return;
+  updateBar = h('div', { class: 'update-bar' },
+    h('span', {}, `새 판이 나왔어요 (${ver || '최신'})`),
+    h('button', { class: 'btn primary', onclick: () => hardReload() }, '지금 받기'),
+    h('button', { class: 'btn', onclick: () => {
+      updateBar.remove();
+      updateBar = null;
+      document.getElementById('app').classList.remove('has-update');
+    } }, '나중에'));
+  const app = document.getElementById('app');
+  app.append(updateBar);
+  // 띠가 상단바를 덮으면 은자·원보가 안 보인다. 그만큼 아래로 민다.
+  app.classList.add('has-update');
+}
+
+// 워커와 캐시를 통째로 버리고 다시 받는다. 꼬였을 때의 마지막 수단이다.
+async function hardReload() {
+  try {
+    const regs = await navigator.serviceWorker?.getRegistrations?.() || [];
+    await Promise.all(regs.map((r) => r.unregister()));
+    const keys = await caches?.keys?.() || [];
+    await Promise.all(keys.map((k) => caches.delete(k)));
+  } catch (err) {
+    console.warn('hardReload', err);
+  }
+  // 주소에 표시를 남겨 브라우저 HTTP 캐시까지 건너뛴다
+  const u = new URL(location.href);
+  u.searchParams.set('v', Date.now().toString(36));
+  location.replace(u.toString());
+}
+
+// 서버의 sw.js에 적힌 판을 읽어 지금 판과 견준다
+async function checkBuild() {
+  try {
+    const r = await fetch(`sw.js?ts=${Date.now()}`, { cache: 'no-store' });
+    if (!r.ok) return;
+    const m = (await r.text()).match(/const CACHE = '([^']+)'/);
+    if (m && m[1] !== BUILD) showUpdate(m[1]);
+  } catch { /* 오프라인이면 그냥 넘어간다 */ }
+}
+
 if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
-  // 새 빌드를 올려도 기기에 안 들어가는 일이 잦았다. 세 가지를 같이 한다.
-  //  - 열릴 때마다 워커를 다시 확인한다(update)
-  //  - 새 워커가 주도권을 잡으면 **한 번만** 새로고침한다
-  //  - 새로고침 한 번으로 끝나게 표시를 남긴다(무한 새로고침 방지)
   navigator.serviceWorker.register('sw.js')
-    .then((reg) => { reg.update(); })
+    .then((reg) => {
+      reg.update();
+      // 기다리는 워커가 이미 있으면 바로 알린다
+      if (reg.waiting && navigator.serviceWorker.controller) showUpdate(null);
+      reg.addEventListener('updatefound', () => {
+        const w = reg.installing;
+        if (!w) return;
+        w.addEventListener('statechange', () => {
+          // 이미 돌고 있는 워커가 있는데 새것이 설치됐다 = 새 판이다
+          if (w.state === 'installed' && navigator.serviceWorker.controller) showUpdate(null);
+        });
+      });
+      // 열어 둔 채로 며칠 지나는 사람이 있다. 돌아올 때마다 다시 본다.
+      document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) { reg.update(); checkBuild(); }
+      });
+      setInterval(() => reg.update(), 10 * 60 * 1000);
+    })
     .catch((err) => console.warn('sw', err));
   let swReloaded = false;
   navigator.serviceWorker.addEventListener('controllerchange', () => {
@@ -950,6 +1026,9 @@ if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.
     location.reload();
   });
 }
+// 워커가 없거나 꼬여 있어도 이건 돈다
+checkBuild();
+setInterval(checkBuild, 10 * 60 * 1000);
 
 window.__game = game; // 디버그용
 window.__view = view; // 디버그용 — 화면이 안 그려질 때 직접 한 장 그려본다

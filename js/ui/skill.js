@@ -6,7 +6,7 @@
 // 이제 쓰는 자원(비급)은 창 머리에 붙고, 무공 목록은 상태별로 묶인다.
 import { SKILLS, SKILL_PIERCE_MAX, SKILL_PIERCE_AT, SKILL_PIERCE_MULT,
   skillTotalBonus, nextSkillTotalStep, PRESET_SLOTS, nextSkillSlotAt, jobOf,
-  skillTierInfo, JOB_SLOTS, JOB_SKILL_OPEN, JOB_SKILLS, qiOf, QI,
+  skillTierInfo, JOB_SLOTS, JOB_SKILL_OPEN, JOB_SKILLS, GEN_SKILLS, qiOf, QI,
   PASSIVE_KINDS, PASSIVES, passivesOf, passiveId, PASSIVE_MAX, PASSIVE_STAT_NAME } from '../data.js';
 import { fmt, pct } from '../fmt.js';
 import { h, openModal, closeModal, toast, popUp, subTabs } from './common.js';
@@ -131,9 +131,9 @@ function activeView(app) {
     const tierHint = h('div', { class: 'tier-hint' });
     const bar = h('div', { class: 'bar', style: 'height:4px;margin:5px 0 0' }, h('div'));
     rows[sk.id] = { lv, desc, btn, eq, pierce, nm, tierHint, bar, row: null };
-    // 계열 무공에는 그림이 있다. 일반 무공은 아직 글자다.
     const ico = h('div', { class: 'ico' }, sk.icon);
     if (sk.job) iconSkin(ico, 'jskill', JOB_SKILLS.indexOf(sk));
+    else iconSkin(ico, 'skill', GEN_SKILLS.indexOf(sk));
     rows[sk.id].row = h('div', { class: 'row' },
       ico,
       h('div', { class: 'info' }, h('div', { class: 'name' }, nm, lv, qiRow), desc, bar, tierHint),

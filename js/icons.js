@@ -22,9 +22,20 @@ export const KINDS = {
   // 계열 전용 무공 스물넷. **차례는 JOB_SKILLS 차례와 같다** —
   // 1차 여덟 · 2차 여덟 · 3차 여덟이지 계열별로 묶여 있지 않다.
   jskill: 24,
+  // 누구나 쓰는 무공 열넷. 차례는 GEN_SKILLS 차례와 같다.
+  skill: 14,
 };
 
-const have = {};   // 'pet-0' → true/false, 아직 모르면 undefined
+const have = {};     // 'pet-0' → true/false, 아직 모르면 undefined
+const waiting = {};  // 그림이 오기 전에 자리를 달라고 한 칸들
+
+// **그림이 오기 전에 부르면 그냥 지나가 버렸다.**
+// 들판 무공 바는 시작하자마자 한 번 만들어지는데 그때는 아직 그림이 안 와서,
+// 창 안에는 그림이 뜨고 들판 바에는 글자가 남았다. 나중에 와도 붙게 적어 둔다.
+function apply(el, key) {
+  el.style.backgroundImage = `url('art/icon/${key}.png')`;
+  el.classList.add('has-art');
+}
 
 // 한 장씩 따로 본다. 하나가 없어도 나머지는 쓴다 —
 // 사람 그림과 달리 섞여 있어도 이상하지 않다(아이콘은 서로 독립이다).
@@ -32,7 +43,12 @@ function probe(key) {
   if (have[key] !== undefined) return;
   have[key] = false;
   const im = new Image();
-  im.onload = () => { have[key] = true; };
+  im.onload = () => {
+    have[key] = true;
+    for (const el of waiting[key] || []) apply(el, key);
+    delete waiting[key];
+  };
+  im.onerror = () => { delete waiting[key]; };
   im.src = `art/icon/${key}.png`;
 }
 
@@ -46,7 +62,8 @@ export function loadIcons() {
 export function iconSkin(el, kind, i) {
   if (!el) return;
   const key = `${kind}-${i}`;
-  if (!have[key]) return;
-  el.style.backgroundImage = `url('art/icon/${key}.png')`;
-  el.classList.add('has-art');
+  if (have[key]) { apply(el, key); return; }
+  // 아직 안 왔으면 줄을 세워 둔다. 와서 붙는다.
+  (waiting[key] = waiting[key] || []).push(el);
+  probe(key);
 }
