@@ -78,6 +78,22 @@ console.log('\n=== 2. 코드가 찾는 그림 파일 ↔ 실제 파일 ===');
   ok(miss2.length === 0, 'art.js가 읽는 조각이 전부 구워져 있다',
     miss2.length ? `없음: ${miss2.join(', ')}` : `${wantArt.length}장`);
 
+  // **의복 검 장식 여섯은 같은 검이다.** 길이가 제각각일 이유가 없다.
+  // 폭만 맞춰 구웠더니 80~194px이 됐고(기본 검은 65px), 입으면 칼이 키보다
+  // 길었다 — 도포에서 배운 걸 무기에 안 쓴 것이다.
+  const skinH = [...have].filter((f) => /art\/hero\/wp-s\d\.png$/.test(f)).map((f) => {
+    const b = fs.readFileSync(path.join(R, f));
+    const i = b.indexOf('IHDR');
+    return b.readUInt32BE(i + 8);
+  });
+  ok(skinH.length > 0 && new Set(skinH).size === 1,
+    '의복 검 장식이 전부 같은 길이다', `${skinH.length}자루 / ${[...new Set(skinH)].join(', ')}px`);
+  // 기본 무기보다 지나치게 길면 안 된다
+  const swordB = fs.readFileSync(path.join(R, 'art/hero/wp-sword.png'));
+  const swordH = swordB.readUInt32BE(swordB.indexOf('IHDR') + 8);
+  ok(skinH.every((h2) => h2 <= swordH * 1.5),
+    '검 장식이 기본 검보다 많이 길지 않다', `${skinH[0]}px / 기본 ${swordH}px`);
+
   // **도포는 전부 같은 크기여야 한다** — 다르면 머리가 뜬다 (오늘 그 일)
   const bodyFiles = [...have].filter((f) => /art\/hero\/body-/.test(f));
   const sizes = new Set();

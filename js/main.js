@@ -280,6 +280,9 @@ function handleEvents() {
       case 'gachaLv': updateDots(); break;
       // 관문지기 시간이 다 되면 heroDied로 넘어가 '쓰러졌다'가 뜬다.
       // 실제로는 못 이긴 것이라 말이 틀렸다. 먼저 바로잡는다.
+      // 소단계가 오르면 알려 준다. **자주 오르는 맛**이 이 시스템의 전부인데
+      // 조용히 오르면 올라간 줄 모른다 — 만들어 놓고 안 쓴 사건이었다.
+      case 'rankSubUp': toast(`${game.rankLabel()} — 기운이 한 겹 두터워졌어요`); break;
       case 'bossTimeout': toast('⏳ 관문지기를 시간 안에 못 잡았어요'); break;
       // 연속 도전이 끊기면 알려야 한다. 모르면 계속 도는 줄 안다.
       case 'loopAgain': if (!ev.on) toast('연속 도전을 멈췄어요'); break;
