@@ -35,7 +35,13 @@ function run(stage, tweak) {
 }
 
 console.log('관문   내 체력      초당 받는 피해   체력의 %/초   재생 2%/초 대비   초당 맞는 횟수   적');
-for (const st of [100, 200, 300, 375, 450]) {
+// **관문을 손으로 적어 두면 안 된다.** 100~450으로 고정해 뒀더니, 진행이
+// 빨라져 세이브가 898관문이 된 뒤로는 전 구간이 0%로 나와 아무것도 못 쟀다.
+// 세이브가 서 있는 자리를 기준으로 앞뒤를 본다.
+const HERE = migrate(JSON.parse(fs.readFileSync(SAVE, 'utf-8'))).bestStage || 300;
+const BAND = [0.4, 0.6, 0.8, 1.0, 1.15].map((f) => Math.max(10, Math.round(HERE * f)));
+console.log(`세이브 관문 ${HERE} 기준`);
+for (const st of BAND) {
   const r = run(st);
   const pct = (r.perSec / r.hp) * 100;
   console.log(`${String(st).padStart(4)}  ${r.hp.toExponential(2)}   ${r.perSec.toExponential(2)}      `

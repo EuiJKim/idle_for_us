@@ -1,5 +1,6 @@
 // 성장 탭: 은자 수련 / 레벨(스탯 포인트) / 경지
-import { UPGRADES, SP_STATS, SP_RESET_GEMS, RANKS, RANK_MULT, expToNext, REGRESS_MIN_STAGE, REGRESS_PER_POINT,
+import { UPGRADES, UP_GROUPS, UP_STAT_LABEL, upAdds, upNext, upTierInfo, upStatAt, josaRo,
+  SP_STATS, SP_RESET_GEMS, RANKS, RANK_MULT, expToNext, REGRESS_MIN_STAGE, REGRESS_PER_POINT,
   CRIT_CAP, REGRESS_ADVISE_POINTS, JOBS, JOB_RANK, JOB_UNLOCK, RANK_SUBS, rankSubLevel,
   TASTE_RANK, jobSkillOf, jobTestOf, jobTestStage } from '../data.js';
 import { fmt } from '../fmt.js';
@@ -13,9 +14,22 @@ function upgradeView(app) {
   const sel = multSelector(() => update());
   const root = h('div', {}, h('div', { class: 'section-title' }, h('span', {}, '은자로 능력치를 올려요'), sel.el));
 
-  for (const [key, def] of Object.entries(UPGRADES)) {
+  // 아홉 축을 계열로 묶는다. 한 줄로 늘어놓으면 뭘 올려야 할지 안 보인다.
+  const keys = Object.keys(UPGRADES);
+  for (const grp of UP_GROUPS) {
+    const mine = keys.filter((k) => UPGRADES[k].group === grp.id);
+    if (!mine.length) continue;
+    root.append(h('div', { class: 'section-title', style: 'margin:14px 2px 6px' }, h('span', {}, grp.name)));
+    for (const key of mine) root.append(makeRow(key));
+  }
+
+  function makeRow(key) {
+    const def = UPGRADES[key];
+    const name = h('div', { class: 'name' });
     const lv = h('small');
     const desc = h('div', { class: 'desc' });
+    const bar = h('div', { class: 'bar', style: 'height:5px;margin:6px 0 0' }, h('div'));
+    const nextTier = h('div', { class: 'tier-hint' });
     const btn = h('button', { class: 'buy gold-cost', onclick: () => {
       const before = game.s.upgrades[key];
       if (!game.buyUpgrade(key, sel.times())) return;
@@ -24,12 +38,12 @@ function upgradeView(app) {
       app.refresh();
     } });
     const ico = h('div', { class: 'ico' }, def.icon);
-    iconSkin(ico, 'up', Object.keys(UPGRADES).indexOf(key));
+    iconSkin(ico, 'up', keys.indexOf(key));
     const row = h('div', { class: 'row' },
       ico,
-      h('div', { class: 'info' }, h('div', { class: 'name' }, def.name, lv), desc), btn);
-    rows[key] = { lv, desc, btn, def, row };
-    root.append(row);
+      h('div', { class: 'info' }, h('div', {}, name, lv), desc, bar, nextTier), btn);
+    rows[key] = { name, lv, desc, bar, nextTier, btn, def, ico, row };
+    return row;
   }
 
   function planned(key) {
@@ -38,34 +52,69 @@ function upgradeView(app) {
     let total = 0;
     let n = 0;
     const want = sel.get() === 'MAX' ? Infinity : sel.get();
-    while (n < want && (def.max === undefined || l < def.max)) {
+    while (n < want) {
       const c = def.cost(l);
       if (sel.get() === 'MAX' && n > 0 && total + c > game.s.gold) break;
       total += c; l++; n++;
       if (sel.get() === 'MAX' && total > game.s.gold) break;
+      if (n > 5000) break;              // MAX가 영원히 돌지 않게
     }
     return { total, n, to: l };
+  }
+
+  const pp = (v) => `${(Math.abs(v * 100) < 10 ? (v * 100).toFixed(1) : Math.round(v * 100))}%`;
+  // 이 축이 지금까지 준 것(기본값은 뺀다 — 수련이 준 몫만 보여 준다)
+  function gaveText(key, l) {
+    const def = UPGRADES[key];
+    const now = upAdds(key, l);
+    const base = def.base || {};
+    const parts = [];
+    for (const [stat, v] of Object.entries(now)) {
+      const got = v - (base[stat] || 0);
+      if (got <= 1e-9) continue;
+      parts.push(`${UP_STAT_LABEL[stat]} <b>+${pp(got)}</b>`);
+    }
+    return parts.join(' · ') || '아직 없음';
   }
 
   function update() {
     for (const [key, r] of Object.entries(rows)) {
       const l = game.s.upgrades[key];
-      r.lv.textContent = `Lv.${l}`;
-      if (game.upgradeMaxed(key)) {
-        // 치명은 수련으로 30%까지고 나머지는 갖춘 것들이 채운다.
-        // 그걸 안 적어 두면 '30%가 천장'으로 읽혀서, 치명을 주는 시스템을
-        // 전부 쓸모없는 것으로 지나친다.
-        const extra = key === 'crit'
-          ? ` <small>· 지금 <b>${Math.round(game.stats({ buffs: false }).crit * 100)}%</b>`
-            + ` (상한 ${Math.round(CRIT_CAP * 100)}% — 나머지는 병기보·옵션 칸·세트·의복에서)</small>`
-          : '';
-        r.desc.innerHTML = `<b>${fmtValue(r.def, r.def.value(l))}</b> (수련 최대)${extra}`;
-        r.btn.textContent = 'MAX';
-        r.btn.disabled = true;
-        continue;
-      }
+      const ti = upTierInfo(key, l);
+      r.name.textContent = ti.name;
+      r.name.style.color = ti.tier ? 'var(--accent-2)' : '';
+      // 레벨과 차수를 같이 적는다. 차수는 이름만 바뀌는 게 아니라 효과가 커진다.
+      r.lv.textContent = ti.tier ? `Lv.${l} · ${ti.tier + 1}차 ${ti.inTier}/${ti.step}`
+        : `Lv.${l} · ${ti.inTier}/${ti.step}`;
+      r.bar.firstChild.style.width = `${(ti.inTier / ti.step) * 100}%`;
       const p = planned(key);
-      r.desc.innerHTML = `${fmtValue(r.def, r.def.value(l))} → <b>${fmtValue(r.def, r.def.value(p.to))}</b>`;
+      if (r.def.kind === 'mul') {
+        const extra = gaveText(key, l);
+        r.desc.innerHTML = `${fmtValue(r.def, r.def.value(l))} → <b>${fmtValue(r.def, r.def.value(p.to))}</b>`
+          + (extra === '아직 없음' ? '' : `<br><span class="muted">덤: ${extra}</span>`);
+      } else {
+        const nx = upNext(key, l);
+        r.desc.innerHTML = `${gaveText(key, l)}`
+          + `<br><span class="muted">다음 한 칸: ${UP_STAT_LABEL[nx.stat]} +${pp(nx.amount)}</span>`;
+      }
+      // 다음 차수 예고. **올리면 뭐가 되는지를 먼저 보여 준다** — 50레벨을
+      // 다 찍고서야 다음이 있다는 걸 알면 그때까지는 죽은 축으로 읽힌다.
+      if (ti.nextStat) {
+        const now = upStatAt(key, ti.tier);
+        const label = UP_STAT_LABEL[ti.nextStat];
+        r.nextTier.innerHTML = `${ti.left}레벨 뒤 <b>${ti.nextName}</b> — `
+          + (ti.nextStat === now ? `한 칸당 ${label} +${pp(ti.nextAmount)}`
+            : now ? `${label}${josaRo(label)} 바뀌어요 (한 칸당 +${pp(ti.nextAmount)})`
+              : `${label}가 덤으로 붙어요 (한 칸당 +${pp(ti.nextAmount)})`);
+      } else {
+        r.nextTier.innerHTML = `${ti.left}레벨 뒤 <b>${ti.nextName}</b>`;
+      }
+      // 치명 확률만은 상한이 있다. 1차가 끝나면 치명 피해로 넘어가므로
+      // '30%가 천장'으로 읽히지 않게 지금 값과 상한을 같이 적는다.
+      if (key === 'crit' && ti.tier === 0) {
+        r.nextTier.innerHTML += `<br>지금 치명 <b>${Math.round(game.stats({ buffs: false }).crit * 100)}%</b>`
+          + ` (상한 ${Math.round(CRIT_CAP * 100)}% — 나머지는 병기보·옵션 칸·세트·의복에서)`;
+      }
       r.btn.textContent = `${fmt(p.total)}${p.n > 1 ? ` (+${p.n})` : ''}`;
       r.btn.disabled = game.s.gold < game.upgradeCost(key);
     }

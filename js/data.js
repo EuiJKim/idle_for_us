@@ -2,7 +2,7 @@
 
 // 지금 돌고 있는 빌드. 설정 창에 적어 둔다 — 기기가 옛 판을 들고 있는지
 // 한눈에 보려고 둔다. sw.js의 CACHE와 같은 값으로 맞춘다.
-export const BUILD = 'ifu-v68';
+export const BUILD = 'ifu-v70';
 
 export const SAVE_VERSION = 4;
 export const OFFLINE_CAP_SEC = 12 * 3600;
@@ -81,10 +81,15 @@ export const waveDensity = (wave, total) => 0.7 + 0.3 * (total <= 1 ? 1 : wave /
 export function waveReward(stage, wave, total) {
   const last = wave >= total - 1;
   const k = 1 + wave * 0.45 + (last ? 0.8 : 0);
+  // 물결 몫. 한 관문의 물결을 다 합치면 stageXxx(stage) 한 번치가 되게 나눈다 —
+  // 물결 수는 관문마다 다르므로(waveCount) 그때그때 총합으로 나눈다.
+  const sum = total + 0.45 * (total * (total - 1)) / 2 + 0.8;
+  const share = k / Math.max(1, sum);
   return {
     gold: monsterGold(stage) * 4 * k,
-    stones: Math.max(1, Math.round((1 + stage * 0.035) * k)),
-    books: last ? Math.max(1, Math.round((0.6 + stage * 0.02) * k)) : 0,
+    stones: Math.max(1, Math.round(stageStones(stage) * share)),
+    books: Math.max(1, Math.round(stageBooks(stage) * share)),
+    food: Math.max(1, Math.round(stageFood(stage) * share)),
   };
 }
 
@@ -200,12 +205,12 @@ export const riftStage = (bestStage) => Math.max(1, Math.round(bestStage * 0.88)
 export const huntStage = (bestStage) => Math.max(1, Math.round(bestStage * 0.8));
 export const riftReward = (bestStage) => ({
   gems: Math.ceil(300 + bestStage * 6),
-  relicShards: Math.ceil(8 + bestStage * 0.12),
-  books: Math.ceil(80 + bestStage * 2.2),
+  relicShards: Math.ceil(stageShards(bestStage) * 10),
+  books: Math.ceil(stageBooks(bestStage) * 6),
 });
 export const huntReward = (bestStage) => ({
   gold: monsterGold(bestStage) * 900,
-  stones: Math.ceil(150 + bestStage * 3.5),
+  stones: Math.ceil(stageStones(bestStage) * 8),
   accBox: 1,
 });
 
@@ -239,49 +244,196 @@ export const CUR = {
 // 불었다. 목표는 t^6쯤이다(3시간 150관문 · 하루 300 · 일주일 480).
 export const UP_VALUE_RATE = 1.0408;
 export const UP_COST_RATE = 1.057;
+// 내공만 증가율이 따로다.
+//
+// 넷(적 체력·적 공격·내 DPS·내 체력)이 같은 속도로 자라야 하는데, 재 보니
+// 내 DPS는 관문당 x1.0816인데 **내 체력만 x1.0677**이었다. 치명·연격은 차수가
+// 오를수록 곱해지는데 체력은 더하기뿐이라 혼자 뒤처진 것이다.
+// 그 결과 관문 898에서 초당 받는 피해가 체력의 0.0008%(안 죽음), 관문 1033에서
+// 311%(즉사)로 **절벽**이 생겼다. 체력 쪽 증가율을 올려 보폭을 맞춘다.
+export const UP_HP_VALUE_RATE = 1.0408;
+
+// ---------- 수련 차수 ----------
+//
+// 전에는 치명 확률이 50레벨, 공격 속도가 100레벨에서 **끝났다.** 다 찍으면
+// 그 축은 그걸로 죽은 축이 됐고, 실측에서도 2시간을 넘기면 성장이 꺾였다.
+//
+// 이제 축마다 **차수**가 있다. 한 차수를 다 채우면 다음 차수가 열린다 —
+// 혈도 찌르기 -> 극혈도 -> 현혈도 -> 천혈도 ... 끝이 없다.
+// 상한이 있는 통계(치명 확률 CRIT_CAP, 공격 속도 SPEED_CAP)는 다음 차수에서
+// **상한이 없는 짝 통계로 갈아탄다.** 그래야 올려도 버려지지 않는다.
+export const UP_GROUPS = [
+  { id: 'atk', name: '때리는 힘' },
+  { id: 'def', name: '버티는 힘' },
+  { id: 'etc', name: '벌이' },
+];
+// 차수 배율. 처음엔 2.4로 뒀는데 **플레이어 피해가 1e7배로 불었다** —
+// 관문 898에서 치명 피해가 6450만 배, 연격이 1.5만 배가 되어 적이 때리기도
+// 전에 죽었다(초당 맞는 횟수 0.0 / 패치 전 4.6). 체력 축이 통째로 죽는다.
+export const UP_TIER_GAIN = 1.5;
+export const UP_TIER_NAMES = ['', '극', '현', '천', '신', '무극', '혼원', '태초'];
+export const upTierName = (base, t) => (t <= 0 ? base
+  : t < UP_TIER_NAMES.length ? `${UP_TIER_NAMES[t]}${base}` : `${base} ${t + 1}중`);
+
+// 가산 통계가 레벨 하나에 주는 기본값. 차수마다 여기에 UP_TIER_GAIN^t가 곱해진다.
+export const UP_STAT_PER = {
+  crit: 0.005,      // 치명 확률 +0.5%p
+  critDmg: 0.05,    // 치명 피해 +5%p
+  speed: 0.02,      // 공격 속도 +2%p
+  gold: 0.05,       // 은자 +5%p
+  guard: 0.01,      // 받는 피해 -1%p
+  hpAdd: 0.03,      // 체력 +3%p
+  hitMul: 0.02,     // 연격 피해 +2%p
+};
+export const UP_STAT_LABEL = {
+  crit: '치명 확률', critDmg: '치명 피해', speed: '공격 속도', gold: '은자',
+  guard: '받는 피해 감소', hpAdd: '체력', hitMul: '연격 피해',
+};
+// 그 통계가 더하기로 쌓이는가(=차수 계산이 필요한가)
+export const UP_IS_ADD = (stat) => stat in UP_STAT_PER;
+// 받침이 있으면 '으로', 없으면 '로'. "체력로 바뀌어요"가 화면에 떴다.
+export function josaRo(word) {
+  const c = (word || '').charCodeAt((word || '').length - 1);
+  if (Number.isNaN(c) || c < 0xac00 || c > 0xd7a3) return '로';
+  const jong = (c - 0xac00) % 28;
+  return jong === 0 || jong === 8 ? '로' : '으로';   // 받침 없음 또는 ㄹ
+}
 
 export const UPGRADES = {
+  // 곱하기 축은 이미 상한이 없다. 그래서 차수가 **증가율**을 올리게 두면
+  // 초지수가 되어 곡선이 통째로 터진다(레벨 600에서 1.4만 배). 대신 2차부터
+  // 덤 통계를 하나 더 얹는다 — line[0]이 null이라 1차에는 아무것도 안 붙는다.
   atk: {
-    name: '외공(공격력)', icon: '외공',
+    name: '외공(공격력)', icon: '외공', kind: 'mul', tier: 60, group: 'atk',
+    line: [null, 'critDmg'], base: {},
     value: (l) => 10 * Math.pow(UP_VALUE_RATE, l),
     cost: (l) => 10 * Math.pow(UP_COST_RATE, l),
     fmt: 'num',
   },
   hp: {
-    name: '내공(체력)', icon: '내공',
-    value: (l) => 100 * Math.pow(UP_VALUE_RATE, l),
+    name: '내공(체력)', icon: '내공', kind: 'mul', tier: 60, group: 'def',
+    line: [null, 'hpAdd'], base: {},
+    value: (l) => 100 * Math.pow(UP_HP_VALUE_RATE, l),
     cost: (l) => 10 * Math.pow(UP_COST_RATE, l),
     fmt: 'num',
   },
   crit: {
-    // 상한이 90이던 때 value(90) = 0.05 + 0.45 = 0.50 으로 CRIT_CAP과 정확히
-    // 같았다. 그래서 수련을 끝내는 순간(실측 30분, 관문 175) 치명 확률을 주는
-    // 다른 아홉 시스템이 전부 0이 됐다 — 8시간 차에 39.5%p가 버려지고 있었다.
-    // 상한을 50(값 30%)으로 내려 CRIT_CAP까지 45%p를 비워 둔다.
-    name: '혈도 찌르기(치명 확률)', icon: '혈도', max: 50,
-    value: (l) => 0.05 + Math.min(l, 50) * 0.005,
+    // 1차는 치명 확률이다. CRIT_CAP(0.75)까지 가지 않고 0.30에서 한 차수가 끝난다 —
+    // 나머지 45%p는 장비 옵션·장신구·유물이 채우라고 비워 둔 자리다.
+    // 2차 극혈도부터는 **치명 피해**로 간다. 이게 곧 더 센 치명타다.
+    name: '혈도 찌르기(치명)', icon: '혈도', kind: 'add', tier: 50, group: 'atk',
+    line: ['crit', 'critDmg'], base: { crit: 0.05 },
     cost: (l) => 40 * Math.pow(1.13, l),
     fmt: 'pct',
   },
   critDmg: {
-    name: '파괴력(치명 피해)', icon: '파괴',
-    value: (l) => 1.5 + l * 0.05,
+    name: '파괴력(치명 피해)', icon: '파괴', kind: 'add', tier: 50, group: 'atk',
+    line: ['critDmg'], base: { critDmg: 1.5 },
     cost: (l) => 30 * Math.pow(1.12, l),
     fmt: 'pct',
   },
   speed: {
-    name: '쾌검(공격 속도)', icon: '쾌검', max: 100,
-    value: (l) => 1 + l * 0.02,
+    // 1차는 공격 속도. SPEED_CAP(x3)에 닿는 100레벨이 한 차수다.
+    // 2차 극쾌검부터는 **연격** — 평타 한 대가 더 세게 들어간다. 상한이 없다.
+    name: '쾌검(공격 속도)', icon: '쾌검', kind: 'add', tier: 100, group: 'atk',
+    line: ['speed', 'hitMul'], base: { speed: 1 },
     cost: (l) => 40 * Math.pow(1.11, l),
     fmt: 'x',
   },
   gold: {
-    name: '상재(은자 획득)', icon: '상재',
-    value: (l) => 1 + l * 0.05,
+    name: '상재(은자 획득)', icon: '상재', kind: 'add', tier: 50, group: 'etc',
+    line: ['gold'], base: { gold: 1 },
     cost: (l) => 25 * Math.pow(1.12, l),
     fmt: 'pct',
   },
+  // ---- 아래 셋은 이번에 더한 축이다 ----
+  guard: {
+    // 체력을 늘리는 대신 **맞는 피해를 줄인다.** 받는 피해 감소는 80%가 한계라
+    // 2차 극호신강기부터는 체력(가산)으로 간다.
+    name: '호신강기(받는 피해)', icon: '호신', kind: 'add', tier: 50, group: 'def',
+    line: ['guard', 'hpAdd'], base: {},
+    cost: (l) => 50 * Math.pow(1.12, l),
+    fmt: 'pct',
+  },
+  hpAdd: {
+    // 내공은 곱하기 축이고 이쪽은 더하기 축이다. 둘을 같이 올리는 게 이득이다.
+    name: '역근경(체력)', icon: '역근', kind: 'add', tier: 50, group: 'def',
+    line: ['hpAdd'], base: {},
+    cost: (l) => 60 * Math.pow(1.115, l),
+    fmt: 'pct',
+  },
+  hitMul: {
+    name: '연격(추가 타격)', icon: '연격', kind: 'add', tier: 50, group: 'atk',
+    line: ['hitMul'], base: {},
+    cost: (l) => 70 * Math.pow(1.125, l),
+    fmt: 'pct',
+  },
 };
+
+// 지금 몇 차수인가. 레벨은 **리셋되지 않는다** — 차수는 레벨에서 읽는다.
+export const upTierOf = (key, l) => Math.floor((l || 0) / (UPGRADES[key].tier || 50));
+export const upTierLv = (key) => UPGRADES[key].tier || 50;
+// 그 차수에서 이 축이 주는 통계
+export function upStatAt(key, tier) {
+  const line = UPGRADES[key].line;
+  if (!line) return null;
+  return line[Math.min(tier, line.length - 1)];
+}
+// 레벨 l까지 이 축이 쌓아 준 가산 통계. { critDmg: 3.2, crit: 0.25 } 꼴.
+export function upAdds(key, l) {
+  const def = UPGRADES[key];
+  const out = {};
+  if (!def.line) return out;
+  for (const [k, v] of Object.entries(def.base || {})) out[k] = v;
+  const step = upTierLv(key);
+  // 1차가 비어 있는 축(외공·내공)은 2차를 첫 차수로 센다. 안 그러면
+  // 2차가 대뜸 2.4배로 시작한다.
+  const off = def.line[0] ? 0 : 1;
+  let left = Math.max(0, l || 0);
+  for (let tier = 0; left > 0; tier++) {
+    const n = Math.min(left, step);
+    const stat = upStatAt(key, tier);
+    if (stat) out[stat] = (out[stat] || 0) + UP_STAT_PER[stat] * Math.pow(UP_TIER_GAIN, tier - off) * n;
+    left -= n;
+  }
+  return out;
+}
+// 모든 축을 합친 가산 통계
+export function upTotals(upgrades) {
+  const out = {};
+  for (const key of Object.keys(UPGRADES)) {
+    for (const [k, v] of Object.entries(upAdds(key, upgrades?.[key] || 0))) {
+      out[k] = (out[k] || 0) + v;
+    }
+  }
+  return out;
+}
+// 다음 한 레벨이 주는 양 (화면에 "다음: +X" 로 적는다)
+export function upNext(key, l) {
+  const def = UPGRADES[key];
+  if (!def.line) return null;
+  const tier = upTierOf(key, l);
+  const stat = upStatAt(key, tier);
+  if (!stat) return null;
+  const off = def.line[0] ? 0 : 1;
+  return { stat, amount: UP_STAT_PER[stat] * Math.pow(UP_TIER_GAIN, tier - off) };
+}
+// 이번 차수가 끝나기까지 몇 레벨 남았나, 그리고 그 다음 차수는 뭘 주나
+export function upTierInfo(key, l) {
+  const step = upTierLv(key);
+  const tier = upTierOf(key, l);
+  const inTier = (l || 0) - tier * step;
+  const nextStat = upStatAt(key, tier + 1);
+  return {
+    tier, step, inTier, left: step - inTier,
+    name: upTierName(UPGRADES[key].name.replace(/\(.*\)$/, ''), tier),
+    nextName: upTierName(UPGRADES[key].name.replace(/\(.*\)$/, ''), tier + 1),
+    nextStat,
+    nextAmount: nextStat
+      ? UP_STAT_PER[nextStat] * Math.pow(UP_TIER_GAIN, tier + 1 - (UPGRADES[key].line[0] ? 0 : 1))
+      : 0,
+  };
+}
 
 // ---------- 레벨 / 스탯 포인트 ----------
 // 경험치가 사실상 **성장 속도의 주 엔진**이다.
@@ -776,7 +928,10 @@ export const PET_SLOTS_AT = [120, 220];
 export const petSlotCount = (bestStage) => 1 + PET_SLOTS_AT.filter((v) => (bestStage || 0) >= v).length;
 export const PET_EGG_COST = 150;
 export const PET_GRADE_WEIGHT = [45, 30, 15, 7, 2.5, 0.5];
-export const petFoodCost = (lv) => 10 * lv;
+// 먹이 수입을 관문에 맞춰 지수로 올리고 나니, 비용이 선형이라 영수가
+// 2시간에 3164레벨까지 올라 다른 축을 전부 눌렀다(실측). 비용도 지수로 둔다 —
+// 초반 50레벨까지는 오히려 전보다 싸고(10x50=500 -> 184), 그 뒤로 가팔라진다.
+export const petFoodCost = (lv) => Math.ceil(10 * Math.pow(1.06, lv));
 export const PET_DUPLICATE_FOOD = (grade) => 15 * (grade + 1);
 export const PET_ATTACK_INTERVAL = 1.2;
 export const petDamageMult = (pet, lv) => pet.atk * (1 + 0.1 * (lv - 1));
@@ -1312,9 +1467,11 @@ export function dungeonReward(id, lv) {
   const r = (v) => Math.max(1, Math.floor(v * step));
   switch (id) {
     case 'gold': return { gold: monsterGold(eq) * 400 * step };
-    case 'stone': return { stones: r(30 + lv * 8) };
-    case 'pet': return { food: r(20 + lv * 6) };
-    case 'relic': return { relicShards: r(10 + lv * 2) };
+    // 전에는 단계(lv)에 선형이라 관문이 오를수록 먼지가 됐다.
+    // 그 비경의 환산 관문(eq)을 기준으로 관문치를 준다.
+    case 'stone': return { stones: r(stageStones(eq) * 9) };
+    case 'pet': return { food: r(stageFood(eq) * 11) };
+    case 'relic': return { relicShards: r(stageShards(eq) * 8) };
     default: return {};
   }
 }
@@ -1508,7 +1665,7 @@ function cumLog(s, base) {
 // 숫자도 같이 작아진다: 관문 400에서 1.36e28 → 1e18 언저리.
 // 관문이 빨리 넘어가는 건 괜찮다 — 관문은 얼마든지 늘리면 된다.
 export const STAGE_HP_RATE = 1.13;        // 첫 관문
-export const STAGE_HP_RATE_LATE = 1.10;   // 다 완만해졌을 때
+export const STAGE_HP_RATE_LATE = 1.085;  // 다 완만해졌을 때
 export const STAGE_EASE_AT = 800;         // 여기쯤에서 끝 값에 닿는다
 // 맞춘 과정: x1.10/400관문으로 먼저 풀었더니 후반 벽은 뚫렸는데(사흘 349 -> 630)
 // 하루에 511관문까지 가서 콘텐츠(480)를 하루에 다 열어 버렸다.
@@ -1549,7 +1706,7 @@ export const monsterHp = (s) => 20 * Math.exp(cumEase(s));
 // 내 체력이 관문당 x1.145로 자란다(85~493관문 구간 실측). 적 공격력도
 // 같은 값으로 두면 **어느 관문에서든 같은 비율**로 맞는다.
 // 하나의 값으로 끝까지 간다 — 구간을 나눌 이유가 없어졌다.
-export const ATK_RATE = 1.11;
+export const ATK_RATE = 1.11;             // 첫 관문
 // 기준점. 적 체력을 낮추니 **같은 관문에 훨씬 일찍·약한 채로** 도착한다 —
 // 공격력은 그대로라 관문 236에서 초당 158%를 맞고 2초에 한 번씩 쓰러졌다.
 // 10분에 308번 죽고 65%를 수련 상태로 보냈다. 그게 '관문이 안 넘어간다'의 정체였다.
@@ -1559,15 +1716,68 @@ export const ATK_RATE = 1.11;
 //   203관문에서 1/10이 필요하다 → 시작을 18관문 뒤로 민다
 export const ATK_BASE = 6;
 export const ATK_FROM = 52;
-export const monsterAtk = (s) => (s <= ATK_FROM
-  ? ATK_BASE
-  : ATK_BASE * Math.pow(ATK_RATE, s - ATK_FROM));
+// 적 체력처럼 **완만해지는 꼴**이다. 한 비율로 쭉 가면 둘 중 하나가 된다:
+// 1.11로 두면 후반에 한 대가 내 체력의 3500배가 되어 손도 못 쓰고 죽고(실측),
+// 1.068로 평평하게 깔면 거꾸로 5e10대를 버티는 불사신이 된다(이것도 실측).
+// 초반 기울기는 그대로 두고 **뒤로 갈수록만** 완만하게 한다.
+export const ATK_RATE_LATE = 1.060;
+export const ATK_EASE_AT = 800;
+export const atkRate = (s) => ATK_RATE
+  + (ATK_RATE_LATE - ATK_RATE) * Math.min(1, Math.max(0, s - ATK_FROM) / ATK_EASE_AT);
+// 관문마다 비율이 달라 닫힌 식으로 못 센다. 쌓아 두고 꺼내 쓴다(monsterHp와 같은 수법).
+const _atkCum = [0];
+function atkCum(s) {
+  const n = Math.max(0, Math.floor(s) - ATK_FROM);
+  for (let k = _atkCum.length; k <= n; k++) _atkCum[k] = _atkCum[k - 1] + Math.log(atkRate(ATK_FROM + k));
+  return _atkCum[n];
+}
+export const monsterAtk = (s) => (s <= ATK_FROM ? ATK_BASE : ATK_BASE * Math.exp(atkCum(s)));
 
 // 보상은 톱니로 만들지 않는다. 벽에서 보상까지 튀면 벽 앞에서 버티는 게 이득이 된다.
 // 벌이가 관문당 몇 배씩 느는가. 적 체력보다 느려야 한 관문에 머무는 시간이
 // 길어진다 — 이 차이가 곧 감속 장치다.
 export const STAGE_GOLD_RATE = 1.0489;
 export const monsterGold = (s) => 5 * Math.pow(STAGE_GOLD_RATE, s - 1);
+
+// ---------- 보조 자원도 관문을 따라 지수로 늘린다 ----------
+//
+// 은자만 관문에 맞춰 지수로 늘고 비급·한철·먹이는 **관문에 선형**이었다.
+// 쓰는 쪽은 전부 지수다(무공 1.15^lv · 제련 1.06^e). 그래서 3시간을 재 보면
+// 관문은 68 -> 283으로 4.2배가 되는데 제련 합은 76 -> 130(1.7배)에 멈추고
+// 비급 보유는 **내내 0**이었다. 넷이 전부 말라붙어 성장이 급격히 꺾였다.
+//
+// 비율은 각자 쓰는 쪽에서 거꾸로 뽑았다. 무공을 관문의 0.25배 레벨까지
+// 올리려면 1.15^(0.25s) = 1.036^s 만큼 비급이 들어와야 한다. 한철·먹이도 같은 식.
+export const STAGE_BOOK_RATE = 1.036;
+export const STAGE_STONE_RATE = 1.042;
+export const STAGE_FOOD_RATE = 1.030;
+export const STAGE_SHARD_RATE = 1.012;
+// 한 관문을 깨는 동안 들어오는 양(물결 전부를 합친 값)
+// 기본값(관문 1에서 나오는 양)은 **옛 값과 비슷해야 한다.** 처음에 12/16/14로
+// 뒀더니 관문 100에서 옛 수입의 15~40배가 들어와, 초반 성장이 관문당 23%로
+// 폭주했다(적 체력은 13%다). 그러면 적이 때려 보지도 못하고 죽는다.
+// 기울기만 지수로 두고 시작점은 옛 값의 두 배쯤에 맞춘다.
+export const stageBooks = (s) => 1.5 * Math.pow(STAGE_BOOK_RATE, Math.max(0, s - 1));
+export const stageStones = (s) => 3 * Math.pow(STAGE_STONE_RATE, Math.max(0, s - 1));
+export const stageFood = (s) => 3 * Math.pow(STAGE_FOOD_RATE, Math.max(0, s - 1));
+export const stageShards = (s) => 1.2 * Math.pow(STAGE_SHARD_RATE, Math.max(0, s - 1));
+
+// 고정 보상(일일 의뢰·업적·연공·토벌)은 관문이 오르면 금세 먼지가 된다.
+// 그래서 **고정값이 아니라 '몇 관문치'로 적는다.** books: 5 는 비급 5관문치다.
+// 원보·상자는 쓰는 곳도 고정값이라 그대로 둔다.
+export function scaleReward(r, s) {
+  const at = Math.max(1, s || 1);
+  const out = {};
+  if (r.gold) out.gold = Math.ceil(monsterGold(at) * r.gold);
+  if (r.books) out.books = Math.ceil(stageBooks(at) * r.books);
+  if (r.stones) out.stones = Math.ceil(stageStones(at) * r.stones);
+  if (r.food) out.food = Math.ceil(stageFood(at) * r.food);
+  if (r.relicShards) out.relicShards = Math.ceil(stageShards(at) * r.relicShards);
+  if (r.gems) out.gems = r.gems;
+  if (r.accBox) out.accBox = r.accBox;
+  if (r.accPick) out.accPick = r.accPick;
+  return out;
+}
 // ---------- 광고 / 광고 제거 ----------
 //
 // 지금 광고는 **흉내만** 낸다(5초 기다리는 가짜 화면). 나중에 진짜 광고망을
@@ -1590,7 +1800,11 @@ export const BOSS_HP_MULT = 9;
 export const BOSS_ATK_MULT = 2.5;
 export const BOSS_GOLD_MULT = 12;
 export const bossGems = (s) => (s % 10 === 0 ? 100 : 10);
-export const bossRelicShards = (s) => (s % 10 === 0 ? 5 : 1);
+// 두목은 한 관문에서 한 번뿐이라 **관문치를 통째로** 준다. 물결 보상과 합쳐
+// 한 관문에서 비급 2관문치·한철 2관문치쯤이 들어온다.
+export const bossRelicShards = (s) => Math.ceil(stageShards(s) * (s % 10 === 0 ? 5 : 1));
+export const bossBooks = (s) => Math.ceil(stageBooks(s) * (s % 10 === 0 ? 2.5 : 1));
+export const bossStones = (s) => Math.ceil(stageStones(s) * (s % 10 === 0 ? 2.5 : 1));
 
 // ---------- 문파 ----------
 export const guildLevel = (exp) => Math.min(20, 1 + Math.floor((exp || 0) / 200));

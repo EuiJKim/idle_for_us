@@ -3,7 +3,7 @@ import {
   SAVE_VERSION, OFFLINE_CAP_SEC, KILLS_PER_STAGE, BOSS_TIME, SPAWN_DELAY, RAID_TIME, RAID_TICKETS,
   WAVE_MIN_SEC, waveMinSec,
   MERGE_COUNT, GACHA_COST, GACHA10_COST, DAILY_GEMS, START_GEMS, SPEED_CAP, CRIT_CAP,
-  UPGRADES, GRADES, GACHA_RATES, EQUIP_TYPES, ENHANCE_PER, enhanceCost,
+  UPGRADES, upTotals, GRADES, GACHA_RATES, EQUIP_TYPES, ENHANCE_PER, enhanceCost,
   EQUIP_PIERCE_MAX, EQUIP_PIERCE_MULT, equipPierceCost,
   CODEX_PER_TYPE, CODEX_ALL,
   OPTION_SLOTS, OPTION_STATS, OPTION_GRADE_RATES, OPTION_ROLL_MIN, OPTION_ROLL_MAX,
@@ -48,7 +48,7 @@ import {
   JOB_TESTS, jobTestOf, jobTestStage,
   PASSIVES, passivesOf, passiveId, PASSIVE_MAX, passiveCost,
   NOADS_ATK, NOADS_HP, AD_BOOST_EXTRA,
-  bossGems, bossRelicShards, guildAtkBonus,
+  bossGems, bossRelicShards, bossBooks, bossStones, guildAtkBonus,
 } from './data.js';
 
 export const dayKey = (t = Date.now()) => {
@@ -182,12 +182,9 @@ export function migrate(raw, now = Date.now()) {
   for (const key of ['upgrades', 'skills', 'stats', 'spAlloc', 'enhance', 'equipPierce', 'dungeons', 'pvp', 'regress']) {
     s[key] = { ...base[key], ...(raw[key] || {}) };
   }
-  // 수련 상한이 내려간 것들을 맞춘다. 치명은 90이 상한이었는데 50으로 내렸다.
-  // 남는 레벨을 그냥 두면 화면에 '90/50'이 뜨고 새로 시작한 사람과 값이 달라진다.
-  for (const [k, def] of Object.entries(UPGRADES)) {
-    if (!def.max) continue;
-    s.upgrades[k] = Math.max(0, Math.min(def.max, s.upgrades[k] | 0));
-  }
+  // 수련에는 더 이상 상한이 없다. 전에 치명 90 -> 50으로 깎으며 넘치는 레벨을
+  // 잘라 냈는데, 이제 그 레벨은 **다음 차수**로 넘어간다 — 잘라내면 안 된다.
+  for (const k of Object.keys(UPGRADES)) s.upgrades[k] = Math.max(0, s.upgrades[k] | 0);
   s.daily = { ...freshDaily(raw.daily?.date || ''), ...(raw.daily || {}) };
   s.daily.keys = { ...freshDaily('').keys, ...(raw.daily?.keys || {}) };
   s.equips = { ...base.equips };
@@ -1524,12 +1521,17 @@ export class Game {
     // 다른 배수에 묻혀서 산 값을 못 느낀다(장신구 특기에서 겪은 실수다).
     const ad = this.s.noAds ? NOADS_ATK : 1;
     const adHp = this.s.noAds ? NOADS_HP : 1;
+    // 수련 아홉 축이 쌓아 준 가산 통계를 한 번에 받는다. 차수가 올라가면
+    // 같은 축이 다른 통계를 주므로(혈도 2차는 치명 피해) 축별로 못 읽는다.
+    const ua = upTotals(u);
     const atk = UPGRADES.atk.value(u.atk) * this.equipMult('weapon') * (1 + m.atk) * rank * guild * rage * past * boost * jb.atk * ad * pvm('atk');
-    const hp = UPGRADES.hp.value(u.hp) * this.equipMult('armor') * (1 + m.hp) * rank * past * jb.hp * adHp * pvm('hp');
-    const crit = Math.min(CRIT_CAP, UPGRADES.crit.value(u.crit) + m.crit + jb.add.crit);
-    const critDmg = (UPGRADES.critDmg.value(u.critDmg) + m.critDmg + jb.add.critDmg + (pv.critDmgAdd || 0)) * jb.critDmg;
-    const speed = Math.min(SPEED_CAP, UPGRADES.speed.value(u.speed)) * (1 + m.speed) * gale * jb.speed * pvm('speed');
-    const goldMul = UPGRADES.gold.value(u.gold) * this.equipMult('ring') * (1 + m.gold) * midas * past * jb.gold * boonGold * pvm('gold');
+    const hp = UPGRADES.hp.value(u.hp) * this.equipMult('armor') * (1 + m.hp + (ua.hpAdd || 0)) * rank * past * jb.hp * adHp * pvm('hp');
+    const crit = Math.min(CRIT_CAP, (ua.crit || 0) + m.crit + jb.add.crit);
+    const critDmg = ((ua.critDmg || 0) + m.critDmg + jb.add.critDmg + (pv.critDmgAdd || 0)) * jb.critDmg;
+    const speed = Math.min(SPEED_CAP, ua.speed || 1) * (1 + m.speed) * gale * jb.speed * pvm('speed');
+    // 연격 — 쾌검 2차부터 붙는다. 평타 한 대가 그만큼 더 아프다.
+    const hitMul = 1 + (ua.hitMul || 0);
+    const goldMul = (ua.gold || 1) * this.equipMult('ring') * (1 + m.gold) * midas * past * jb.gold * boonGold * pvm('gold');
     const expMul = (1 + m.exp) * past * jb.exp * boonExp * pvm('exp');
     const bossMul = (1 + m.boss) * jb.boss * pvm('boss');
     // 데려간 영수 전부가 각자 때린다. 하나만 세던 자리다.
@@ -1538,10 +1540,10 @@ export class Game {
     const petHit = hits.reduce((a, x) => a + x.hit, 0);
     // 식철수는 때리는 대신 받는 피해를 줄인다
     const guard = team.reduce((a, p) => (p.act === 'shield' ? a * (1 - p.actVal) : a), 1)
-      * Math.max(0.2, 1 - (pv.guard || 0));   // 아무리 쌓아도 80%까지만
-    const dps = atk * speed * (1 + crit * (critDmg - 1)) + petHit / PET_ATTACK_INTERVAL;
+      * Math.max(0.2, 1 - (pv.guard || 0) - (ua.guard || 0));   // 아무리 쌓아도 80%까지만
+    const dps = atk * speed * hitMul * (1 + crit * (critDmg - 1)) + petHit / PET_ATTACK_INTERVAL;
     return {
-      atk, hp, crit, critDmg, speed, goldMul, expMul, bossMul, petHit, petHits: hits, guard, dps,
+      atk, hp, crit, critDmg, speed, hitMul, goldMul, expMul, bossMul, petHit, petHits: hits, guard, dps,
       bossTime: BOSS_TIME + m.bossTime, offlineMul: (1 + m.offline) * jb.offline,
       bleedMult: jb.bleed * pvm('bleed'), ccDurMult: jb.ccDur * pvm('ccDur'),
       skillDmgMult: pvm('skillDmg'), skillCdCut: pv.skillCd || 0,
@@ -2102,6 +2104,11 @@ export class Game {
         // 백 단위 벽은 선택 상자까지. 여기가 공략이 말한 '집중할 자리를 고르는' 지점이다.
         if (s % 100 === 0) { this.s.accPick++; this.emit('accPick', { n: 1 }); }
       }
+      // 관문지기는 **넘을 때마다** 비급과 한철을 준다. 물결 보상과 합쳐
+      // 한 관문에서 두 관문치쯤이 들어온다. 옛 관문을 다시 깨도 그 관문의
+      // 양이라 지수로 작아지므로 되돌아가 버는 짓은 이득이 안 된다.
+      this.s.books += bossBooks(s);
+      this.s.stones += bossStones(s);
       if (s >= this.s.maxStage) { // 이번 생에서 처음 넘는 관문
         this.s.climbAt = this.clock || 0;
         const gems = bossGems(s);
@@ -2252,7 +2259,7 @@ export class Game {
       this.atkTimer += 1 / st.speed;
       const crit = this.rng() < st.crit;
       this.emit('attack');
-      this.dealDamage(st.atk * (crit ? st.critDmg : 1), 'hit', crit);
+      this.dealDamage(st.atk * st.hitMul * (crit ? st.critDmg : 1), 'hit', crit);
     }
 
     // 영수 — **저마다 다른 짓을 한다.** 전에는 여덟이 전부 같은 한 대였다.
@@ -2708,7 +2715,8 @@ export class Game {
 
   // ---------- 골드 강화 ----------
   upgradeCost(key) { return UPGRADES[key].cost(this.s.upgrades[key]); }
-  upgradeMaxed(key) { const m = UPGRADES[key].max; return m !== undefined && this.s.upgrades[key] >= m; }
+  // 수련에 상한은 없다. 차수가 올라갈 뿐이다 — 이 함수는 화면이 쓰던 자리라 남긴다.
+  upgradeMaxed() { return false; }
 
   buyUpgrade(key, times = 1) {
     let bought = 0;
@@ -2995,7 +3003,7 @@ export class Game {
   idleRates() {
     const s = Math.max(1, this.s.stage);
     const st = this.stats({ buffs: false });
-    const perHit = st.atk * (1 + st.crit * (st.critDmg - 1));
+    const perHit = st.atk * st.hitMul * (1 + st.crit * (st.critDmg - 1));
     const hits = Math.max(1, Math.ceil(monsterHp(s) / perHit));
     const killTime = hits / st.speed + SPAWN_DELAY;
     return {

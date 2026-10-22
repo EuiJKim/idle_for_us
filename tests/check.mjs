@@ -235,7 +235,10 @@ console.log('\n=== 7. 무공 칸·물결 보상·상태이상·선택 상자·�
   const rs = Array.from({ length: total }, (_, w) => D.waveReward(300, w, total));
   ok(rs.every((r) => r.gold > 0 && r.stones > 0), '물결마다 보상이 있다', rs.map((r) => Math.round(r.gold)).join(' / '));
   ok(rs[total - 1].gold > rs[0].gold, '뒤쪽 물결이 더 크다', `${Math.round(rs[0].gold)} → ${Math.round(rs[total - 1].gold)}`);
-  ok(rs[total - 1].books > 0 && rs[0].books === 0, '비급은 마지막 물결에만');
+  // 비급은 전에 마지막 물결에만 나왔다. 수입이 띄엄띄엄해서 초반에 체감이 없었고,
+  // 무엇보다 양이 관문에 선형이라 3시간이면 말라붙었다. 물결마다 나누어 준다.
+  ok(rs.every((r) => r.books > 0), '물결마다 비급이 나온다', rs.map((r) => r.books).join(' / '));
+  ok(rs[total - 1].books > rs[0].books, '뒤쪽 물결이 비급도 더 준다');
   // 물결은 '관문 안의 작은 성취'다. 처치 은자를 넘으면 본 보상이 뒤집힌다.
   const waveGold = rs.slice(0, total - 1).reduce((s2, r) => s2 + r.gold, 0);
   const killGold = D.monsterGold(300) * D.KILLS_PER_STAGE;
@@ -349,48 +352,96 @@ console.log('\n=== 8. 장신구 특기 ===');
     '옛 세이브에서도 자리가 그대로');
 }
 
-// ---------- 9. 상한이 다른 시스템을 죽이고 있지 않은가 ----------
-console.log('\n=== 9. 상한과 여유 ===');
+// ---------- 9. 상한과 여유 / 수련 차수 ----------
+console.log('');
+console.log('=== 9. 상한과 여유 ===');
 {
   // 치명 수련이 혼자 CRIT_CAP을 채우면, 치명 확률을 주는 다른 시스템이 전부 0이 된다.
   // 실제로 그랬다 — 8시간 차에 39.5%p가 버려지고 있었다. 다시는 못 그러게 막는다.
-  const capLv = D.UPGRADES.crit.max;
-  const fromTrain = D.UPGRADES.crit.value(capLv);
+  // 이제 혈도는 **1차(50레벨)까지만 치명 확률**이고 2차부터는 치명 피해로 간다.
+  const capLv = D.upTierLv('crit');
+  const fromTrain = D.upAdds('crit', capLv).crit;
   const room = D.CRIT_CAP - fromTrain;
-  ok(room > 0.2, '치명은 수련을 다 해도 상한까지 여유가 남는다',
-    `수련 ${(fromTrain * 100).toFixed(0)}% / 상한 ${(D.CRIT_CAP * 100).toFixed(0)}% → 여유 ${(room * 100).toFixed(0)}%p`);
+  ok(room > 0.2, '치명은 1차를 다 해도 상한까지 여유가 남는다',
+    `1차 ${(fromTrain * 100).toFixed(0)}% / 상한 ${(D.CRIT_CAP * 100).toFixed(0)}% → 여유 ${(room * 100).toFixed(0)}%p`);
 
   // 치명 확률을 주는 시스템이 실제로 몇 %p나 되는지 세어, 여유 안에 들어오는지 본다
   let give = 0;
   const add = (o) => { if (o && o.crit) give += o.crit; };
   add(D.CODEX_PER_TYPE); add(D.CODEX_ALL); add(D.OPTION_SET); add(D.OPTION_SET_FULL);
   add(D.ACC_SET); add(D.OUTFIT_ALL); add(D.CODEX_KIND_FULL); add(D.CODEX_ALL_FULL);
-  for (const s of D.EQUIP_SET_STEPS) add(s);
+  for (const s2 of D.EQUIP_SET_STEPS) add(s2);
   ok(give > 0, '치명 확률을 주는 시스템이 있다', `보유 효과만 합쳐 +${(give * 100).toFixed(0)}%p`);
   ok(give <= room + 0.25, '그 시스템들이 여유를 통째로 넘지는 않는다',
     `시스템 +${(give * 100).toFixed(0)}%p vs 여유 ${(room * 100).toFixed(0)}%p`);
 
-  // 실제 진행 상태에서 버려지는 양 — 강한 세이브로 확인
+  // 실제 진행 상태에서 상한이 지켜지는가 — 강한 세이브로 확인
   const g = strong(300);
   for (const t2 of Object.keys(D.EQUIP_TYPES)) {
     g.s.options[t2] = Array.from({ length: D.OPTION_SLOTS }, () => ({ stat: 'crit', grade: 5, roll: 1 }));
   }
-  const raw = D.UPGRADES.crit.value(g.s.upgrades.crit) + g.mods().crit;
   const used = g.stats({ buffs: false }).crit;
-  // 옵션 칸을 전부 천품 치명으로 채운 극단이므로 넘치는 건 당연하다.
-  // 여기서 보려는 건 '넘치더라도 수련만으로는 안 넘는다'는 것.
-  ok(D.UPGRADES.crit.value(g.s.upgrades.crit) < D.CRIT_CAP,
-    '수련만으로는 상한에 못 닿는다',
-    `수련 ${(D.UPGRADES.crit.value(g.s.upgrades.crit) * 100).toFixed(0)}% < ${(D.CRIT_CAP * 100).toFixed(0)}%`);
   ok(used <= D.CRIT_CAP + 1e-9, '상한은 지켜진다', `${(used * 100).toFixed(1)}%`);
-  ok(raw > used, '극단으로 채우면 넘치기는 한다 (상한이 목표가 된다)',
-    `합 ${(raw * 100).toFixed(0)}% → 적용 ${(used * 100).toFixed(0)}%`);
 
-  // 옛 세이브의 넘치는 수련 레벨이 정리되는가
+  // ---- 수련 차수: 끝이 없어야 한다 ----
+  // 전에는 치명 50레벨, 속도 100레벨에서 축이 죽었다. 다 찍으면 그 은자가
+  // 갈 곳이 없어 성장이 꺾였다(실측: 2시간을 넘기면 관문이 시간당 26밖에 안 늘었다).
+  for (const k of Object.keys(D.UPGRADES)) {
+    ok(D.UPGRADES[k].max === undefined, `${k}에 상한이 없다`);
+    // 현실적인 윗자리에서 본다. 10000레벨을 넣으면 1.13^10000이 Infinity라
+    // 'Infinity > Infinity'가 false가 되어 멀쩡한 곡선이 틀린 것처럼 잡혔다.
+    ok(D.UPGRADES[k].cost(2000) > D.UPGRADES[k].cost(1999) && Number.isFinite(D.UPGRADES[k].cost(2000)),
+      `${k} 비용은 끝없이 오른다`);
+  }
+  const gm = strong(300);
+  ok(gm.upgradeMaxed('crit') === false, '다 찍었다는 상태가 없다');
+
+  // 상한이 있는 통계는 다음 차수에서 상한 없는 통계로 갈아탄다
+  for (const [k, cap] of [['crit', 'critDmg'], ['speed', 'hitMul']]) {
+    ok(D.upStatAt(k, 0) === k, `${k} 1차는 본래 통계를 준다`);
+    ok(D.upStatAt(k, 1) === cap, `${k} 2차는 상한 없는 ${cap}으로 간다`);
+    ok(D.upStatAt(k, 99) === cap, `${k} 99차도 그대로`, D.upStatAt(k, 99));
+  }
+  // 레벨을 아무리 올려도 값이 계속 는다
+  for (const k of Object.keys(D.UPGRADES)) {
+    const def = D.UPGRADES[k];
+    const val = (l) => (def.kind === 'mul' ? def.value(l)
+      : Object.values(D.upAdds(k, l)).reduce((a, b) => a + b, 0));
+    ok(val(1000) > val(500) && val(500) > val(200), `${k}는 올릴수록 계속 는다`);
+  }
+  // 차수 이름이 겹치지 않는다
+  const names = Array.from({ length: 20 }, (_, i) => D.upTierName('혈도', i));
+  ok(new Set(names).size === names.length, '차수 이름이 겹치지 않는다', `${names[0]} … ${names[19]}`);
+
+  // 옛 세이브의 넘치는 수련 레벨은 **잘리지 않고** 다음 차수가 된다
   const old = migrate({ upgrades: { crit: 90, speed: 999 } });
-  ok(old.upgrades.crit === D.UPGRADES.crit.max, '옛 세이브의 치명 수련이 새 상한으로 맞춰진다',
-    `90 → ${old.upgrades.crit}`);
-  ok(old.upgrades.speed === D.UPGRADES.speed.max, '속도 수련도 마찬가지', `999 → ${old.upgrades.speed}`);
+  ok(old.upgrades.crit === 90, '옛 세이브의 치명 레벨이 안 잘린다', `90 → ${old.upgrades.crit}`);
+  ok(old.upgrades.speed === 999, '속도도 마찬가지', `999 → ${old.upgrades.speed}`);
+  ok(D.upTierOf('crit', 90) === 1, '90레벨이면 2차에 들어가 있다');
+
+  // 연격이 실제로 피해에 들어가는가 (주고도 안 읽는 자리를 만들지 않는다)
+  const g0 = strong(200);
+  g0.s.upgrades.speed = 0; g0.s.upgrades.hitMul = 0;
+  const d0 = g0.stats({ buffs: false }).dps;
+  g0.s.upgrades.hitMul = 50;
+  const d1 = g0.stats({ buffs: false }).dps;
+  ok(d1 > d0 * 1.5, '연격을 올리면 피해가 는다', `${d0.toExponential(2)} → ${d1.toExponential(2)}`);
+  // 호신강기도 마찬가지
+  const g1 = strong(200);
+  g1.s.upgrades.guard = 0;
+  const v0 = g1.stats({ buffs: false }).guard;
+  g1.s.upgrades.guard = 40;
+  const v1 = g1.stats({ buffs: false }).guard;
+  ok(v1 < v0, '호신강기를 올리면 받는 피해가 준다', `x${v0.toFixed(2)} → x${v1.toFixed(2)}`);
+  // 역근경(체력 가산)
+  // **strong()에는 이미 hpAdd가 잔뜩 쌓여 있다.** 거기에 50레벨을 더해 봐야
+  // 8%밖에 안 움직여서, 멀쩡한 축이 안 붙은 것처럼 잡혔다. 다른 축을 비워 두고 본다.
+  const g2 = strong(200);
+  for (const k of ['hp', 'guard', 'hpAdd']) g2.s.upgrades[k] = 0;
+  const h0 = g2.stats({ buffs: false }).hp;
+  g2.s.upgrades.hpAdd = 50;
+  const h1 = g2.stats({ buffs: false }).hp;
+  ok(h1 > h0 * 1.5, '역근경을 올리면 체력이 는다', `${h0.toExponential(2)} → ${h1.toExponential(2)}`);
 }
 
 // ---------- 10. 아무도 안 읽는 스탯을 주고 있지 않은가 ----------
@@ -1064,12 +1115,26 @@ console.log('\n=== 23. 체력 축 ===');
   // '내 체력 성장률'은 상수가 아니라 경제에서 나온다 — 정적 검사로는 못 본다.
   // 여기서는 **적 체력과 같은 줄에 있는가**만 본다(경제를 통째로 압축했으므로
   // 셋이 같은 속도여야 한다). 실제 비율은 tests/dps_taken.mjs가 잰다.
-  const hpRate = D.STAGE_HP_RATE_LATE;
-  ok(Math.abs(Math.log(D.ATK_RATE) / Math.log(hpRate) - 1) < 0.25,
-    '적 공격력이 적 체력과 같은 줄에 있다', `공격 x${D.ATK_RATE} / 체력 x${hpRate}`);
-  // 한 줄기로 간다 — 구간을 나누면 이음매에서 값이 튄다
-  const jump = D.monsterAtk(151) / D.monsterAtk(150);
-  ok(Math.abs(jump - D.ATK_RATE) < 1e-6, '곡선에 이음매가 없다', `x${jump.toFixed(4)}`);
+  // 둘 다 **완만해지는 꼴**이라 상수 하나로는 못 본다. 관문마다 재서 견준다.
+  // 적 공격은 적 체력보다 조금 느려야 한다 — 같으면 관문이 안 넘어가고,
+  // 더 빠르면 어느 관문부터 손도 못 쓰고 죽는다(둘 다 실측으로 겪었다).
+  for (const at of [100, 300, 600, 900]) {
+    const hpR = D.monsterHp(at + 1) / D.monsterHp(at);
+    const atkR = D.monsterAtk(at + 1) / D.monsterAtk(at);
+    // 초반에는 공격이 아주 조금 빠를 수 있다(쉬는 구간 52관문 때문이다).
+    // 보는 것은 '둘이 같은 줄에 있는가'다 — 실제 %는 tests/fourcurves.mjs가 잰다.
+    ok(atkR < hpR * 1.01 && atkR > Math.pow(hpR, 0.5),
+      `관문 ${at}에서 적 공격이 적 체력과 같은 줄에 있다`,
+      `공격 x${atkR.toFixed(4)} / 체력 x${hpR.toFixed(4)}`);
+  }
+  // 한 줄기로 간다 — 구간을 나누면 이음매에서 값이 튄다.
+  // 완만해지는 곡선이라 관문마다 비율이 조금씩 **줄어들기만** 해야 한다.
+  for (const at of [150, 400, 900]) {
+    const a1 = D.monsterAtk(at + 1) / D.monsterAtk(at);
+    const a2 = D.monsterAtk(at + 2) / D.monsterAtk(at + 1);
+    ok(a2 <= a1 + 1e-9 && a1 / a2 < 1.01, `관문 ${at} 둘레에 이음매가 없다`,
+      `x${a1.toFixed(5)} → x${a2.toFixed(5)}`);
+  }
   ok(D.monsterAtk(D.ATK_FROM + 1) > D.monsterAtk(D.ATK_FROM), `초반 ${D.ATK_FROM}관문 뒤부터 오른다`);
 
   // '적 공격력이 적 체력보다 느리게 자라야 한다'는 검사가 여기 있었다.

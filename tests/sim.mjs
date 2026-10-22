@@ -143,6 +143,14 @@ for (let t = 0, step = 0; t < hours * 3600; t += dt, step++) {
     const p = g.power();
     const _st = g.stats({ buffs: false });
     const _mh = D2.monsterHp(g.s.stage), _ma = D2.monsterAtk(g.s.stage);
+    // 자원이 말라붙었는지 본다. 관문은 오르는데 무공 레벨·제련이 안 따라오면
+    // 그 자원의 수입 곡선이 지출 곡선보다 완만하다는 뜻이다.
+    const _sk = Object.values(g.s.skills).reduce((a, b) => a + b, 0);
+    const _enh = Object.values(g.s.enhance).reduce((a, b) => a + b, 0);
+    const _pet = Object.values(g.s.pets).reduce((a, b) => a + b, 0);
+    const _up = Object.keys(UPGRADES).map((k) => g.s.upgrades[k]).reduce((a, b) => a + b, 0);
+    console.log(`      무공합 ${String(_sk).padStart(4)}  제련합 ${String(_enh).padStart(4)}  수련합 ${String(_up).padStart(4)}  영수합 ${String(_pet).padStart(4)}`
+      + `  비급 ${g.s.books.toExponential(1)}  한철 ${g.s.stones.toExponential(1)}  먹이 ${g.s.food.toExponential(1)}  조각 ${g.s.relicShards.toExponential(1)}`);
     console.log(`      체력/졸개체력 ${(_st.hp / _mh).toExponential(2)}  한대/체력 ${(_ma / _st.hp).toExponential(2)}  공격/졸개체력 ${(_st.atk / _mh).toExponential(2)}`);
     console.log(`${String(marks.shift()).padStart(5)}h  stage ${String(g.s.maxStage).padStart(4)} best ${String(g.s.bestStage).padStart(4)} 회귀 ${g.s.regress.count}회/${g.s.regress.points}pt  Lv ${String(g.s.level).padStart(4)}  rank ${g.s.rank}  power ${p.power.toExponential(2)}  dung ${JSON.stringify(g.s.dungeons)}  enh ${g.s.enhance.weapon}  relics ${Object.values(g.s.relics).reduce((a, b) => a + b, 0)}  pets ${Object.keys(g.s.pets).length}`);
   }
