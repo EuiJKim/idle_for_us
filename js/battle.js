@@ -671,23 +671,120 @@ export class BattleView {
         ctx.fillStyle = 'rgba(0,0,0,0.26)';
         ctx.beginPath(); ctx.ellipse(0, 2, 16 * sc, 9 * sc, 0, 0, Math.PI * 2); ctx.fill();
         ctx.fillStyle = ink;
-        if (z.prop === 'bamboo') {
+        this.propShape(ctx, z, sc, n, ink);
+        ctx.restore();
+      }
+    }
+  }
+
+  // 자리마다 다른 소품을 그린다.
+  //
+  // **열여섯 자리인데 대나무와 눈만 따로 그려지고 나머지 열넷은 전부 같은
+  // 돌멩이였다.** 바닥 그림은 달라도 위에 깔린 건 똑같아서, 새 자리에 와도
+  // 어딘가 본 데 같았다. 한 줄짜리 모양이라도 자리마다 달라야 한다.
+  propShape(ctx, z, sc, n, ink) {
+    const blob = (rx, ry, rot, col) => {
+      ctx.fillStyle = col;
+      ctx.beginPath(); ctx.ellipse(0, 0, rx * sc, ry * sc, rot, 0, Math.PI * 2); ctx.fill();
+    };
+    const bar = (w2, h2, col, dx = 0, dy = 0, rot = 0) => {
+      ctx.save(); ctx.translate(dx * sc, dy * sc); ctx.rotate(rot);
+      ctx.fillStyle = col;
+      ctx.fillRect(-w2 * sc / 2, -h2 * sc / 2, w2 * sc, h2 * sc);
+      ctx.restore();
+    };
+    switch (z.prop) {
+      case 'bamboo':   // 대나무 — 가는 줄기 셋
+        for (let k = 0; k < 3; k++) {
           ctx.fillStyle = hexA('#3f6212', 0.75);
-          for (let k = 0; k < 3; k++) {
-            ctx.beginPath();
-            ctx.ellipse((k - 1) * 9 * sc, -2, 3 * sc, 13 * sc, (k - 1) * 0.4, 0, Math.PI * 2);
-            ctx.fill();
-          }
-        } else if (z.snow) {
-          ctx.fillStyle = 'rgba(241,245,249,0.8)';
-          ctx.beginPath(); ctx.ellipse(0, 0, 18 * sc, 10 * sc, n * 2, 0, Math.PI * 2); ctx.fill();
+          ctx.beginPath();
+          ctx.ellipse((k - 1) * 9 * sc, -2, 3 * sc, 13 * sc, (k - 1) * 0.4, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        break;
+      case 'dock':     // 부두 — 널빤지 두 장
+        bar(26, 6, hexA('#5c4631', 0.9), 0, -3, n * 0.5);
+        bar(22, 5, hexA('#43331f', 0.85), 2, 4, n * 0.5);
+        break;
+      case 'temple':   // 사원 — 둥근 방석
+        blob(12, 7, 0, hexA('#b45309', 0.55));
+        blob(6, 3.5, 0, hexA('#fcd34d', 0.35));
+        break;
+      case 'lantern':  // 야시장 — 등불
+        blob(8, 8, 0, hexA('#f59e0b', 0.5));
+        blob(4, 4, 0, hexA('#fde68a', 0.7));
+        break;
+      case 'cliff':    // 절벽 — 모난 돌
+        ctx.fillStyle = hexA('#9ca3af', 0.7);
+        ctx.beginPath();
+        ctx.moveTo(-12 * sc, 5 * sc); ctx.lineTo(-3 * sc, -9 * sc);
+        ctx.lineTo(9 * sc, -2 * sc); ctx.lineTo(11 * sc, 6 * sc);
+        ctx.closePath(); ctx.fill();
+        break;
+      case 'vine':     // 독림 — 넓은 잎 셋
+        for (let k = 0; k < 3; k++) {
+          ctx.fillStyle = hexA(k === 1 ? '#4d7c0f' : '#3f6212', 0.8);
+          ctx.beginPath();
+          ctx.ellipse((k - 1) * 8 * sc, (k % 2) * 4 * sc, 9 * sc, 5 * sc, k * 1.1 + n, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        break;
+      case 'tomb':     // 고묘 — 넘어진 비석
+        bar(14, 18, hexA('#4b5563', 0.85), 0, 0, n * 0.4);
+        bar(8, 2, hexA('#84cc16', 0.3), 0, -4, n * 0.4);
+        break;
+      case 'shore':    // 해안 — 조개와 해초
+        blob(9, 6, n * 2, hexA('#e2e8f0', 0.7));
+        bar(2, 12, hexA('#166534', 0.5), 7, -2, 0.5);
+        break;
+      case 'void':     // 천외천 — 떠 있는 옥 조각
+        ctx.fillStyle = hexA('#c7d2fe', 0.55);
+        ctx.beginPath();
+        ctx.moveTo(0, -10 * sc); ctx.lineTo(10 * sc, 0);
+        ctx.lineTo(0, 10 * sc); ctx.lineTo(-10 * sc, 0);
+        ctx.closePath(); ctx.fill();
+        blob(3, 3, 0, hexA('#fde68a', 0.6));
+        break;
+      case 'grave':    // 귀곡 — 작은 봉분과 묘표
+        blob(14, 8, 0, hexA('#374151', 0.8));
+        bar(3, 12, hexA('#6b7280', 0.8), 0, -8);
+        break;
+      case 'banner':   // 마교 — 깃대
+        bar(2.5, 26, hexA('#1c1917', 0.9), 0, -8);
+        bar(12, 9, hexA('#991b1b', 0.75), 6, -14);
+        break;
+      case 'pavilion': // 운해 — 낮은 난간
+        bar(26, 3, hexA('#94a3b8', 0.7), 0, -6);
+        bar(3, 10, hexA('#64748b', 0.7), -9, -1);
+        bar(3, 10, hexA('#64748b', 0.7), 9, -1);
+        break;
+      case 'village':  // 마을 — 깨진 기와
+        blob(13, 7, n * 3, hexA('#7c2d12', 0.75));
+        blob(7, 4, n * 3 + 1, hexA('#a16207', 0.5));
+        break;
+      case 'rock':     // 혈사곡 — 피 먹은 바위
+        blob(14, 9, n * 3, hexA('#7f1d1d', 0.7));
+        blob(6, 4, n * 3 + 1, hexA('#dc2626', 0.35));
+        break;
+      case 'snowpine': // 설원 — 눈 덮인 솔
+        ctx.fillStyle = hexA('#1e3a2f', 0.8);
+        ctx.beginPath();
+        ctx.moveTo(0, -16 * sc); ctx.lineTo(9 * sc, 6 * sc); ctx.lineTo(-9 * sc, 6 * sc);
+        ctx.closePath(); ctx.fill();
+        blob(7, 3, 0, 'rgba(241,245,249,0.75)');
+        break;
+      case 'dune':     // 사막 — 마른 뼈
+        bar(16, 3, hexA('#e7e5e4', 0.8), 0, 0, n * 2);
+        blob(4, 4, 0, hexA('#e7e5e4', 0.8));
+        break;
+      default:
+        if (z.snow) {
+          blob(18, 10, n * 2, 'rgba(241,245,249,0.8)');
         } else {
-          ctx.beginPath(); ctx.ellipse(0, 0, 13 * sc, 8 * sc, n * 3, 0, Math.PI * 2); ctx.fill();
+          blob(13, 8, n * 3, ink);
           ctx.fillStyle = 'rgba(255,255,255,0.10)';
           ctx.beginPath(); ctx.ellipse(-3 * sc, -2 * sc, 6 * sc, 3 * sc, n * 3, 0, Math.PI * 2); ctx.fill();
         }
-        ctx.restore();
-      }
     }
   }
 

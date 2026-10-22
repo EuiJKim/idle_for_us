@@ -302,5 +302,25 @@ console.log('=== 9. append(null)이 "null" 글자로 찍히는 자리 ===');
   ok(bad.length === 0, 'append에 null을 넘기는 곳이 없다',
     bad.length ? bad.join(', ') : `${JS_FILES.length}개 파일 깨끗`);
 }
+
+console.log('');
+console.log('=== 10. 자리마다 소품이 있는가 ===');
+{
+  // 열여섯 자리인데 대나무와 눈만 따로 그려지고 나머지 열넷은 전부 같은
+  // 돌멩이였다. 바닥 그림은 달라도 위에 깔린 게 똑같으면 어딘가 본 데 같다.
+  // 자리를 늘리면서 소품을 안 더하면 조용히 돌멩이로 떨어진다.
+  const D2 = await import('../js/data.js');
+  const bat = read('js/battle.js');
+  const body = bat.slice(bat.indexOf('propShape(ctx'), bat.indexOf('drawWeather(z, dt)'));
+  ok(body.length > 100, 'propShape가 있다');
+  const drawn = new Set([...body.matchAll(/case '([a-z]+)':/g)].map((m) => m[1]));
+  const props = [...new Set(D2.ZONES.map((z) => z.prop))];
+  const miss = props.filter((p) => !drawn.has(p));
+  ok(miss.length === 0, '자리마다 제 소품이 그려진다',
+    miss.length ? `돌멩이로 떨어짐: ${miss.join(', ')}` : `${props.length}종`);
+  // 자리마다 소품 이름이 적혀 있어야 한다
+  const noProp = D2.ZONES.filter((z) => !z.prop).map((z) => z.name);
+  ok(noProp.length === 0, '소품 이름이 빠진 자리가 없다', noProp.join(', ') || '없음');
+}
 console.log(`\n${fail === 0 ? '짝이 전부 맞는다' : `짝이 안 맞는 것 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);

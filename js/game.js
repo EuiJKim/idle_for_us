@@ -46,6 +46,7 @@ import {
   PVP_TICKETS, PVP_TIME, PVP_WIN, PVP_LOSE, PVP_REWARD,
   zoneOf, monsterHp, monsterAtk, monsterGold, BOSS_HP_MULT, BOSS_ATK_MULT, stageBossAtkMult, BOSS_GOLD_MULT, RAID_BOSS,
   OFFLINE_STAGE_MAX, OFFLINE_PACE_DRIFT, PACE_EMA, PACE_MAX_SEC, stageGold,
+  stageBooks, stageStones, stageFood,
   regressGain, regressMult, REGRESS_WORTH_MULT, REGRESS_STUCK_SEC,
   JOBS, JOB_RANK, JOB_UNLOCK, jobOf, JOB_SKILLS, jobSkillOf, BOON_SKILLS, TASTE_RANK,
   JOB_TESTS, jobTestOf, jobTestStage,
@@ -3294,6 +3295,66 @@ export class Game {
     return n;
   }
 
+  // 비급으로 가장 싼 무공을 올린다
+  autoSkills(times = 200) {
+    let n = 0;
+    for (let i = 0; i < times; i++) {
+      let best = null;
+      let cheap = Infinity;
+      for (const sk of SKILLS) {
+        if (!this.skillUnlocked(sk)) continue;
+        const c = this.skillUpgradeCost(sk.id);
+        if (c < cheap) { cheap = c; best = sk.id; }
+      }
+      if (!best || this.s.books < cheap) break;
+      if (!this.upgradeSkill(best)) break;
+      n++;
+    }
+    return n;
+  }
+
+  // 먹이로 가장 싼 영수를 올린다 (가진 영수만)
+  autoPets(times = 200) {
+    let n = 0;
+    for (let i = 0; i < times; i++) {
+      let best = null;
+      let cheap = Infinity;
+      for (const p of PETS) {
+        if (!(this.s.pets[p.id] > 0)) continue;
+        const c = this.petLevelCost(p.id);
+        if (c < cheap) { cheap = c; best = p.id; }
+      }
+      if (!best || this.s.food < cheap) break;
+      if (!this.levelPet(best, 1)) break;
+      n++;
+    }
+    return n;
+  }
+
+  // 한철로 가장 싼 부위를 제련한다
+  autoRefine(times = 200) {
+    let n = 0;
+    for (let i = 0; i < times; i++) {
+      let best = null;
+      let cheap = Infinity;
+      for (const type of Object.keys(EQUIP_TYPES)) {
+        const c = this.enhanceCost(type);
+        if (c < cheap) { cheap = c; best = type; }
+      }
+      if (!best || this.s.stones < cheap) break;
+      if (!this.enhanceEquip(best, 1)) break;
+      n++;
+    }
+    return n;
+  }
+
+  // 방치하는 동안 번 것을 **네 군데에** 붓는다.
+  // 은자만 쓰면 돌아왔을 때 수련만 잔뜩 올라 있고 무공·영수·제련이
+  // 그대로라, 쓰는 사람이 손으로 메워야 하는 숙제가 쌓인다.
+  autoGrow() {
+    return this.autoTrain() + this.autoSkills() + this.autoPets() + this.autoRefine();
+  }
+
   // 자리를 비운 동안 관문이 얼마나 밀렸나.
   // **수련 중이면 안 민다** — 밀지 말라고 켜 둔 자리다.
   //
@@ -3304,12 +3365,18 @@ export class Game {
     const snap = {
       upgrades: { ...this.s.upgrades }, gold: this.s.gold, exp: this.s.exp, level: this.s.level,
       sp: this.s.sp, spAlloc: { ...this.s.spAlloc },
+      skills: { ...this.s.skills }, pets: { ...this.s.pets }, enhance: { ...this.s.enhance },
+      books: this.s.books, stones: this.s.stones, food: this.s.food, merit: this.s.merit,
     };
     let left = sec;
     let pace = this.stageSeconds(this.s.stage);
     let stage = this.s.stage;
     let gold = 0;
     let exp = 0;
+    let books = 0;
+    let stones = 0;
+    let food = 0;
+    let merit = 0;
     let n = 0;
     let trained = 0;
     const train = this.s.autoTrain !== false;
@@ -3328,16 +3395,27 @@ export class Game {
       const e = expPerKill(stage) * KILLS_PER_STAGE * st.expMul;
       gold += g;
       exp += e;
+      // 물결과 관문지기가 떨어뜨리는 것도 같이 센다 — 은자만 세면
+      // 돌아왔을 때 무공·영수·제련이 그대로다
+      const bk = stageBooks(stage) + bossBooks(stage);
+      const sn = stageStones(stage) + bossStones(stage);
+      const fd = stageFood(stage) + bossFood(stage);
+      const mr = bossMerit(stage);
+      books += bk; stones += sn; food += fd; merit += mr;
       stage++;
       n++;
-      // 번 것을 바로 수련에 붓는다. 그래야 다음 관문을 민다.
+      // 번 것을 바로 쏟아붓는다. 그래야 다음 관문을 민다.
       if (train) {
         this.s.gold += g;
         this.addExp(e);
-        trained += this.autoTrain();
+        this.s.books += bk;
+        this.s.stones += sn;
+        this.s.food += fd;
+        this.s.merit += mr;
+        trained += this.autoGrow();
       }
     }
-    const out = { stages: n, gold, exp, to: stage, left, trained };
+    const out = { stages: n, gold, exp, books, stones, food, merit, to: stage, left, trained };
     if (!apply) {
       this.s.upgrades = snap.upgrades;
       this.s.gold = snap.gold;
@@ -3345,6 +3423,13 @@ export class Game {
       this.s.level = snap.level;
       this.s.sp = snap.sp;
       this.s.spAlloc = snap.spAlloc;
+      this.s.skills = snap.skills;
+      this.s.pets = snap.pets;
+      this.s.enhance = snap.enhance;
+      this.s.books = snap.books;
+      this.s.stones = snap.stones;
+      this.s.food = snap.food;
+      this.s.merit = snap.merit;
     } else if (train) {
       // 이미 넣어 둔 은자·경험치는 돌려받은 셈이므로 밖에서 또 주면 안 된다
       out.alreadyGiven = true;

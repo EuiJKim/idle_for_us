@@ -532,7 +532,13 @@ function checkReturn(now = Date.now(), allowClimb = false) {
           reward.farming
             ? `${duration(reward.sec)} 동안 제 ${game.s.stage} 관문에서 수련했어요. (수련 중이라 관문은 안 밀었어요)`
             : `${duration(reward.sec)} 동안 제 ${game.s.stage} 관문에서 홀로 수련했어요.`),
-      gold, exp, dbl,
+      gold, exp,
+      // 무엇이 얼마나 자랐는지 적는다. 숫자만 주고 끝내면 뭘 받았는지 모른다.
+      ...(reward.stages > 0 && game.s.autoTrain !== false
+        ? [h('p', { class: 'muted', style: 'text-align:center;margin:2px 0 8px' },
+          '번 것은 수련 · 무공 · 영수 · 제련에 알아서 부었어요')]
+        : []),
+      dbl,
       h('button', { class: 'btn primary', style: 'width:100%', onclick: closeModal }, '받기'),
     );
   }, { dismissable: false, onClose: () => {
