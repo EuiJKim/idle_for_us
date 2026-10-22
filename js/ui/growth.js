@@ -70,7 +70,7 @@ function upgradeView(app) {
       r.btn.disabled = game.s.gold < game.upgradeCost(key);
     }
   }
-  return { root, update };
+  return { root, update, res: ['gold'] };
 }
 
 function levelView(app) {
@@ -133,7 +133,7 @@ function levelView(app) {
       r.btns.forEach((b) => { b.disabled = s.sp <= 0; });
     }
   }
-  return { root, update };
+  return { root, update, res: ['gold', 'gems'] };
 }
 
 function rankView(app) {

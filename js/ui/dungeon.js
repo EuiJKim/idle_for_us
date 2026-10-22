@@ -56,7 +56,7 @@ function dungeonView(app) {
       c.sweep.disabled = !unlocked || !best || keys <= 0 || game.mode !== 'stage';
     }
   }
-  return { root, update };
+  return { root, update, res: ['stones', 'food'] };
 }
 
 // ---------- 한철 광맥 ----------
@@ -120,7 +120,7 @@ function mineView(app) {
     handBtn.textContent = mn.hands >= MINE_HAND_MAX ? '다 들였어요' : `은자 ${fmt(hc)}`;
     handBtn.disabled = !open || mn.depth <= 0 || mn.hands >= MINE_HAND_MAX || game.s.gold < hc;
   }
-  return { root, update };
+  return { root, update, res: ['gold', 'stones'] };
 }
 
 
@@ -163,7 +163,7 @@ function towerView(app) {
     goBtn.textContent = done ? '끝까지 올랐어요' : !open ? '아직 안 열림' : `${nx}층 오르기`;
     goBtn.disabled = !open || done || game.mode !== 'stage';
   }
-  return { root, update };
+  return { root, update, res: ['gems'] };
 }
 
 // ---------- 마기 균열 / 비급 탐색 ----------
@@ -214,7 +214,7 @@ function seekView(app) {
       c.btn.disabled = !open || !game.canSeek();
     }
   }
-  return { root, update };
+  return { root, update, res: ['books', 'shards'] };
 }
 
 export function dungeonTab(app) {

@@ -171,5 +171,26 @@ console.log('\n=== 5. index.html의 id ↔ 코드가 찾는 id ===');
     miss.length ? `없음: ${miss.join(', ')}` : `${wanted.size}개`);
 }
 
+
+console.log('\n=== 6. 화면이 올린 자원 ↔ RES_DEFS ===');
+{
+  // 화면이 res: ['books'] 하고 올려도 RES_DEFS에 그 이름이 없으면
+  // 창 머리에서 **조용히 사라진다**. 오타 하나면 끝이라 기계가 본다.
+  const defs = new Set([...read('js/ui/common.js')
+    .matchAll(/^\s{2}([a-z]+):\s*\{\s*cur:/gm)].map((m) => m[1]));
+  const used = new Set();
+  for (const f of JS_FILES) {
+    for (const m of read(f).matchAll(/\bres:\s*\[([^\]]*)\]/g)) {
+      for (const n of m[1].matchAll(/'([a-z]+)'/g)) used.add(n[1]);
+    }
+  }
+  const miss = [...used].filter((k) => !defs.has(k)).sort();
+  ok(defs.size > 0, 'RES_DEFS를 읽었다', `${defs.size}종`);
+  ok(miss.length === 0, '화면이 올린 자원이 전부 정의돼 있다',
+    miss.length ? `없음: ${miss.join(', ')}` : `${used.size}종 사용`);
+  // 창 머리를 채우는 쪽도 있어야 한다
+  ok(read('js/main.js').includes('RES_DEFS[id].get('), 'main.js가 자원칸을 채운다');
+  ok(read('js/ui/common.js').includes("res: () => made[cur]?.res"), '하위 탭이 자원을 위로 올린다');
+}
 console.log(`\n${fail === 0 ? '짝이 전부 맞는다' : `짝이 안 맞는 것 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);

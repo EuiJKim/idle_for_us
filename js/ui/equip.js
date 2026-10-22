@@ -11,9 +11,12 @@ import { GRADES, EQUIP_TYPES, MERGE_COUNT, GACHA_COST, GACHA10_COST, ENHANCE_PER
   EGO_ENCHANT_MAX, EGO_ENCHANT_WORTH } from '../data.js';
 import { fmt, pct } from '../fmt.js';
 import { iconSkin } from '../icons.js';
-import { h, toast, openModal, closeModal, gradeChip, gachaLevelBar, loopBtn, popUp } from './common.js';
+import { h, toast, openModal, closeModal, gradeChip, gachaLevelBar, loopBtn, popUp, subTabs } from './common.js';
 
-export function equipTab(app) {
+// 한 덩어리로 짓고 뿌리만 셋으로 나눈다. 갱신은 하나가 전부를 맡는다 —
+// 장신구를 바쳐 심검이 오르는 식으로 서로 물려 있어서, 보이는 것만 갱신하면
+// 넘어갔을 때 옛 숫자가 한 박자 남는다.
+function buildEquip(app) {
   const { game } = app;
   const cards = {};
   const b1 = h('button', { class: 'btn primary', onclick: () => doGacha(1) });
@@ -23,7 +26,6 @@ export function equipTab(app) {
     toast(n ? `합성 ${n}회 완료!` : `같은 등급 병기가 ${MERGE_COUNT}개 있어야 합성돼요`);
     app.refresh();
   } }, '⚒️ 모두 합성');
-  const stones = h('b', { style: 'color:#93c5fd' });
 
   const lvBar = gachaLevelBar(app, 'equip');
   const setInfo = h('div', { class: 'desc' });
@@ -47,7 +49,10 @@ export function equipTab(app) {
       totInfo,
       h('p', { class: 'muted', style: 'margin:8px 0 0' },
         '세 부위를 고르게 맞출수록 커져요. 한 부위에만 몰아 쓰면 둘 다 안 붙어요.')),
-    h('div', { class: 'section-title' }, h('span', {}, '제련석 ', stones), h('span', {}, '수련터·두목·의뢰에서 획득')));
+    h('div', { class: 'section-title' }, h('span', {}, '부위별 제련'), h('span', {}, '한철은 수련터·두목·의뢰에서 얻어요')));
+  // 심검·장신구는 각자 창을 쓴다
+  const egoRoot = h('div', {});
+  const accRoot = h('div', {});
 
   for (const [type, def] of Object.entries(EQUIP_TYPES)) {
     const grid = h('div', { class: 'grades' });
@@ -112,8 +117,7 @@ export function equipTab(app) {
   // ---------- 심검 ----------
   // 장비를 먹여 키우는 전용 무기. 남은 양보다 많이 먹이면 그대로 버려진다.
   const egoCards = {};
-  root.append(h('div', { class: 'section-title', style: 'margin-top:14px' }, h('span', {}, '심검')));
-  root.append(h('p', { class: 'muted', style: 'margin:0 2px 8px' },
+  egoRoot.append(h('p', { class: 'muted', style: 'margin:0 2px 8px' },
     `${GRADES[EGO_FEED_MIN_GRADE].name} 이상 장비를 먹여 키워요. 다 차면 승급에 도전하고, `
     + '남은 양보다 많이 먹이면 넘치는 만큼은 그냥 사라져요.'));
 
@@ -158,7 +162,7 @@ export function equipTab(app) {
         '승급에 못 쓰는 장신구를 바쳐요 (낮은 등급부터)'), enchBtn);
     const eico = h('div', { class: 'ico' }, e.name);
     iconSkin(eico, 'ego', EGO_PARTS.indexOf(e));
-    root.append(h('div', { class: 'card' },
+    egoRoot.append(h('div', { class: 'card' },
       h('div', { style: 'display:flex;gap:8px;align-items:flex-start' },
         eico, h('div', { style: 'flex:1;min-width:0' }, title, info, bar)),
       feedRow, h('div', { class: 'btn-row', style: 'margin-top:8px' }, upBtn, upLoop),
@@ -210,9 +214,9 @@ export function equipTab(app) {
   // ---------- 장신구 ----------
   const accCards = {};
   const accSetInfo = h('div', { class: 'desc' });
-  root.append(h('div', { class: 'section-title', style: 'margin-top:14px' },
-    h('span', {}, '장신구'), accSetInfo));
-  root.append(h('p', { class: 'muted', style: 'margin:0 2px 8px' },
+  accRoot.append(h('div', { class: 'section-title' },
+    h('span', {}, '한 벌 효과'), accSetInfo));
+  accRoot.append(h('p', { class: 'muted', style: 'margin:0 2px 8px' },
     `관문지기를 넘으면 장신구 상자가 나와요. 같은 등급 ${ACC_MERGE}개로 한 성, `
     + `${ACC_STAR_MAX}성이 되면 다음 등급으로 올라가요. 초월은 한철을 쓰고 성과 따로 쌓여요. `
     + `${ACC_SPECIAL_STAR}성부터는 자리마다 다른 특기가 열려요 — `
@@ -230,7 +234,7 @@ export function equipTab(app) {
     h('div', { style: 'font-weight:900;font-size:14px' }, '선택 상자'),
     pickInfo,
     h('div', { class: 'btn-row', style: 'margin-top:8px' }, ...pickBtns));
-  root.append(pickCard);
+  accRoot.append(pickCard);
 
   for (const a of ACC_SLOTS) {
     const title = h('div', { style: 'font-weight:900;font-size:14px' });
@@ -248,7 +252,7 @@ export function equipTab(app) {
     } });
     const aico = h('div', { class: 'ico' }, a.name.slice(0, 2));
     iconSkin(aico, 'acc', ACC_SLOTS.indexOf(a));
-    root.append(h('div', { class: 'card' },
+    accRoot.append(h('div', { class: 'card' },
       h('div', { style: 'display:flex;gap:8px;align-items:flex-start' },
         aico, h('div', { style: 'flex:1;min-width:0' }, title, info, spec, bag)),
       h('div', { class: 'btn-row', style: 'margin-top:8px' }, starBtn, gradeBtn, pierceBtn)));
@@ -322,7 +326,6 @@ export function equipTab(app) {
     b10.textContent = `10회 원보 ${GACHA10_COST}`;
     b1.disabled = game.s.gems < GACHA_COST;
     b10.disabled = game.s.gems < GACHA10_COST;
-    stones.textContent = fmt(game.s.stones);
     for (const [type, c] of Object.entries(cards)) {
       const arr = game.s.equips[type];
       const seen = game.s.codex?.[type] || [];
@@ -419,5 +422,14 @@ export function equipTab(app) {
     updateAcc();
     lvBar.update();
   }
-  return { root, update };
+  return { root, egoRoot, accRoot, update };
+}
+
+export function equipTab(app) {
+  const v = buildEquip(app);
+  return subTabs([
+    { key: 'weapon', label: '병기', make: () => ({ root: v.root, update: v.update, res: ['gems', 'stones'] }) },
+    { key: 'acc', label: '장신구', make: () => ({ root: v.accRoot, update: v.update, res: ['stones'] }) },
+    { key: 'ego', label: '심검', make: () => ({ root: v.egoRoot, update: v.update, res: ['gems'] }) },
+  ]);
 }

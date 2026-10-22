@@ -5,7 +5,7 @@ import { companionTab } from './companion.js';
 import { dungeonTab } from './dungeon.js';
 import { socialTab } from './social.js';
 
-export { h, toast, openModal, closeModal, modalOpen, rewardText } from './common.js';
+export { h, toast, openModal, closeModal, modalOpen, rewardText, RES_DEFS } from './common.js';
 export { showProfile } from './social.js';
 export { openMissions } from './missions.js';
 

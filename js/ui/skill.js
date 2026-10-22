@@ -1,14 +1,19 @@
-// 무공 탭: 비급으로 연마, 4칸 장착
-import { SKILLS, SKILL_SLOTS, SKILL_PIERCE_MAX, SKILL_PIERCE_AT, SKILL_PIERCE_MULT,
+// 무공 탭: 하위 탭 둘 — 무공(액티브) / 패시브
+//
+// 전에는 한 창에 계열 패시브 → 장착 칸 → 총 연마 → 출진 준비 → 무공 22줄이
+// 세로로 쭉 쌓여 있었다. 비급으로 올리는 화면인데 **내 비급이 몇 개인지는
+// 글 속 한 줄**이었고, 올릴 무공을 찾으려면 스크롤을 해야 했다.
+// 이제 쓰는 자원(비급)은 창 머리에 붙고, 무공 목록은 상태별로 묶인다.
+import { SKILLS, SKILL_PIERCE_MAX, SKILL_PIERCE_AT, SKILL_PIERCE_MULT,
   skillTotalBonus, nextSkillTotalStep, PRESET_SLOTS, nextSkillSlotAt, jobOf,
   PASSIVE_KINDS, PASSIVES, passivesOf, passiveId, PASSIVE_MAX, PASSIVE_STAT_NAME } from '../data.js';
 import { fmt, pct } from '../fmt.js';
-import { h, openModal, closeModal, toast, popUp } from './common.js';
+import { h, openModal, closeModal, toast, popUp, subTabs } from './common.js';
 
-export function skillTab(app) {
+// ---------- 무공(액티브) ----------
+function activeView(app) {
   const { game } = app;
   const rows = {};
-  const books = h('b', { style: 'color:#fca5a5' });
   const autoBtn = h('button', { class: 'btn', style: 'padding:6px 10px', onclick: () => { game.s.autoSkill = !game.s.autoSkill; app.refresh(); } });
   const slotsEl = h('div', { class: 'slots' });
   const slotInfo = h('small');
@@ -46,45 +51,39 @@ export function skillTab(app) {
     presetWrap.append(h('div', { class: 'preset-row' }, label, load, save));
     return { label, load, save, i };
   });
-  // ---------- 계열 패시브 ----------
-  // 무공은 지금까지 액티브뿐이었다. 패시브는 칸을 안 먹는다 —
-  // 올려 두면 늘 켜져 있다. **지금 들어간 계열 것만** 켜진다.
-  const pvWrap = h('div');
-  const pvHead = h('p', { class: 'muted', style: 'margin:0 0 8px' });
-  const pvRows = {};
-  for (const pv of PASSIVES) {
-    const id = passiveId(pv);
-    const lv = h('small');
-    const desc = h('div', { class: 'desc' });
-    const btn = h('button', { class: 'buy', style: 'min-width:76px', onclick: () => {
-      if (game.passiveUp(id, 1)) { popUp(pvRows[id].row, `Lv.${game.passiveLv(id)}`); app.refresh(); }
-      else toast('비급이 모자라거나 최고 단계예요');
-    } });
-    const kind = PASSIVE_KINDS.find((k) => k.id === pv.kind);
-    const row = h('div', { class: 'row' },
-      h('div', { class: 'ico' }, kind.name),
-      h('div', { class: 'info' }, h('div', { class: 'name' }, pv.name, lv), desc), btn);
-    pvRows[id] = { row, lv, desc, btn, def: pv };
-    pvWrap.append(row);
-  }
+
+  // 총 연마·출진 준비는 자주 보지 않는다. 접어 두고 필요할 때만 펼친다 —
+  // 올릴 무공을 찾는 길에 늘 끼어 있을 이유가 없다.
+  const extra = h('details', { class: 'fold' },
+    h('summary', {}, '무공 총 연마 · 출진 준비', totalLv),
+    totalInfo,
+    h('p', { class: 'muted', style: 'margin:8px 0 0' },
+      '모든 무공 레벨을 더한 값에 보너스가 붙어요. 칸은 넷뿐이지만 안 쓰는 무공을 올릴 이유가 돼요.'),
+    h('div', { class: 'section-title', style: 'margin:12px 2px 6px' }, '출진 준비'),
+    presetWrap,
+    h('p', { class: 'muted', style: 'margin:8px 0 0' },
+      '무공 넷과 영수를 한 벌로 담아 두고 바꿔 끼워요. 사냥용·두목용·벌이용을 따로 두면 편해요.'));
+
+  // 상태별 묶음. 전에는 22줄이 data.js 순서대로 한 줄이어서
+  // 장착 중인 것과 아직 잠긴 것이 섞여 있었다.
+  const groups = [
+    { key: 'on', title: '장착 중', hint: '' },
+    { key: 'free', title: '쓸 수 있는 무공', hint: '비급으로 올려요' },
+    { key: 'lock', title: '아직 잠긴 무공', hint: '관문을 넘으면 열려요' },
+  ].map((g) => {
+    const head = h('div', { class: 'section-title', style: 'margin:14px 2px 6px' },
+      h('span', {}, g.title), h('span', {}, g.hint));
+    const body = h('div');
+    return { ...g, head, body, wrap: h('div', {}, head, body) };
+  });
+
   const root = h('div', {},
-    h('div', { class: 'card' },
-      h('h3', {}, '내공 · 외공 · 무공', h('small', {}, '계열 패시브')),
-      pvHead, pvWrap),
     h('div', { class: 'card' },
       h('h3', {}, '장착 무공', slotInfo, autoBtn),
       slotsEl,
-      h('p', { class: 'muted', style: 'margin:8px 0 0' }, '비급 ', books, '개 · 두목을 잡거나 의뢰를 깨면 얻어요')),
-    h('div', { class: 'card' },
-      h('h3', {}, '무공 총 연마', totalLv),
-      totalInfo,
-      h('p', { class: 'muted', style: 'margin:8px 0 0' },
-        '모든 무공 레벨을 더한 값에 보너스가 붙어요. 칸은 넷뿐이지만 안 쓰는 무공을 올릴 이유가 돼요.')),
-    h('div', { class: 'card' },
-      h('h3', {}, '출진 준비'),
-      presetWrap,
-      h('p', { class: 'muted', style: 'margin:8px 0 0' },
-        '무공 넷과 영수를 한 벌로 담아 두고 바꿔 끼워요. 사냥용·두목용·벌이용을 따로 두면 편해요.')));
+      h('p', { class: 'muted', style: 'margin:8px 0 0' }, '두목을 잡거나 의뢰를 깨면 비급을 얻어요')),
+    extra,
+    ...groups.map((g) => g.wrap));
 
   SKILLS.forEach((sk) => {
     const lv = h('small');
@@ -105,7 +104,6 @@ export function skillTab(app) {
       h('div', { class: 'ico' }, sk.icon),
       h('div', { class: 'info' }, h('div', { class: 'name' }, sk.name, lv), desc),
       h('div', { style: 'display:flex;flex-direction:column;gap:6px;align-items:stretch' }, btn, pierce, eq));
-    root.append(rows[sk.id].row);
   });
 
   function toggleEquip(sk) {
@@ -127,12 +125,18 @@ export function skillTab(app) {
     });
   }
 
+  // 어느 묶음에 들어갈지. 문파 무공은 열려 있으면 문파 칸에 늘 들어가 있다.
+  const groupOf = (sk) => {
+    if (!game.skillUnlocked(sk)) return 'lock';
+    if (sk.job || game.s.skillSlots.includes(sk.id)) return 'on';
+    return 'free';
+  };
+
   let slotSig = '';
+  let groupSig = '';
   function update() {
-    updatePassives();
     autoBtn.textContent = game.s.autoSkill ? '자동 ON' : '자동 OFF';
     autoBtn.classList.toggle('good', game.s.autoSkill);
-    books.textContent = fmt(game.s.books);
     const nSlot = game.skillSlotCount();
     const nextAt = nextSkillSlotAt(game.s.bestStage);
     slotInfo.textContent = nextAt ? `${nSlot}칸 · ${nextAt}관문에 한 칸 더` : `${nSlot}칸 (최대)`;
@@ -171,6 +175,16 @@ export function skillTab(app) {
       }
       slotsEl.replaceChildren(...cells);
     }
+    // 묶음이 바뀌었을 때만 줄을 옮긴다. 매 갱신마다 옮기면 누르는 중에 튄다.
+    const gsig = SKILLS.map((sk) => groupOf(sk)[0]).join('');
+    if (gsig !== groupSig) {
+      groupSig = gsig;
+      for (const g of groups) {
+        const mine = SKILLS.filter((sk) => groupOf(sk) === g.key);
+        g.body.replaceChildren(...mine.map((sk) => rows[sk.id].row));
+        g.wrap.style.display = mine.length ? '' : 'none';
+      }
+    }
     for (const sk of SKILLS) {
       const r = rows[sk.id];
       const l = game.s.skills[sk.id];
@@ -205,7 +219,40 @@ export function skillTab(app) {
       }
     }
   }
-  function updatePassives() {
+  return { root, update, res: ['books'] };
+}
+
+// ---------- 계열 패시브 ----------
+// 무공은 지금까지 액티브뿐이었다. 패시브는 칸을 안 먹는다 —
+// 올려 두면 늘 켜져 있다. **지금 들어간 계열 것만** 켜진다.
+function passiveView(app) {
+  const { game } = app;
+  const pvHead = h('p', { class: 'muted', style: 'margin:0 0 8px' });
+  const pvRows = {};
+  // 같은 계열(내공·외공·무공)끼리 묶는다. 전에는 셋이 섞여 한 줄이었다.
+  const kindWrap = {};
+  const kindCards = PASSIVE_KINDS.map((k) => {
+    const body = h('div');
+    kindWrap[k.id] = body;
+    return h('div', { class: 'card' }, h('h3', {}, k.name, h('small', {}, k.desc)), body);
+  });
+  for (const pv of PASSIVES) {
+    const id = passiveId(pv);
+    const lv = h('small');
+    const desc = h('div', { class: 'desc' });
+    const btn = h('button', { class: 'buy', style: 'min-width:76px', onclick: () => {
+      if (game.passiveUp(id, 1)) { popUp(pvRows[id].row, `Lv.${game.passiveLv(id)}`); app.refresh(); }
+      else toast('비급이 모자라거나 최고 단계예요');
+    } });
+    const bar = h('div', { class: 'bar', style: 'height:5px;margin:6px 0 0' }, h('div'));
+    const row = h('div', { class: 'row' },
+      h('div', { class: 'info' }, h('div', { class: 'name' }, pv.name, lv), desc, bar), btn);
+    pvRows[id] = { row, lv, desc, btn, bar, def: pv };
+    kindWrap[pv.kind].append(row);
+  }
+  const root = h('div', {}, pvHead, ...kindCards);
+
+  function update() {
     const job = jobOf(game.s.job);
     pvHead.innerHTML = job
       ? `<b style="color:${job.color}">${job.name}</b>의 패시브예요. 칸을 안 먹고 늘 켜져 있어요.`
@@ -221,11 +268,22 @@ export function skillTab(app) {
       r.lv.textContent = `Lv.${l}/${PASSIVE_MAX}`;
       r.desc.innerHTML = `${nm} <b>+${pct(r.def.per * l)}</b>`
         + (l < PASSIVE_MAX ? ` <span class="muted">→ +${pct(r.def.per * (l + 1))}</span>` : ' <span class="muted">(최고)</span>');
+      r.bar.firstChild.style.width = `${(l / PASSIVE_MAX) * 100}%`;
       r.btn.textContent = l >= PASSIVE_MAX ? '최고' : `비급 ${fmt(game.passiveCostOf(id))}`;
       r.btn.disabled = l >= PASSIVE_MAX || game.s.books < game.passiveCostOf(id);
     }
+    // 계열 카드 자체도, 그 안이 다 비면 숨긴다 (문파에 안 든 동안)
+    for (const k of PASSIVE_KINDS) {
+      const any = PASSIVES.some((pv) => pv.kind === k.id && mine.includes(pv));
+      kindWrap[k.id].parentElement.style.display = any ? '' : 'none';
+    }
   }
-
-  return { root, update };
+  return { root, update, res: ['books'] };
 }
 
+export function skillTab(app) {
+  return subTabs([
+    { key: 'active', label: '무공', make: () => activeView(app) },
+    { key: 'passive', label: '패시브', make: () => passiveView(app) },
+  ]);
+}

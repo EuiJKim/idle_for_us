@@ -12,6 +12,7 @@ loadIcons();
 import { Net } from './net.js';
 import {
   TABS, h, toast, openModal, closeModal, modalOpen, showProfile, openMissions, rewardText,
+  RES_DEFS,
 } from './ui/index.js';
 import { fmt, duration } from './fmt.js';
 
@@ -67,11 +68,36 @@ function showTab(name) {
   $('panel-title').textContent = TAB_TITLE[name] || '';
   $('panel').classList.add('open');
   $('panel-dim').classList.add('open');
+  panelRes();                       // 창이 열리는 그 순간에 자원칸도 맞춘다
   document.querySelectorAll('#tabs button[data-tab]').forEach((b) => b.classList.toggle('active', b.dataset.tab === name));
   tabs[name].shown?.();
   tabs[name].update();
 }
 document.querySelectorAll('#tabs button[data-tab]').forEach((b) => b.addEventListener('click', () => showTab(b.dataset.tab)));
+
+// ---------- 창 머리 자원칸 ----------
+// 탭(또는 그 안의 하위 탭)이 res로 올려 준 목록을 띄운다. 없으면 은자·원보다.
+const RES_FALLBACK = ['gold', 'gems'];
+let resSig = '';
+const resCells = {};
+function panelRes() {
+  const ids = (activeTab && tabs[activeTab]?.res?.()) || RES_FALLBACK;
+  const sig = ids.join(',');
+  const row = document.querySelector('#panel-head .res-row');
+  if (sig !== resSig) {
+    resSig = sig;
+    for (const k of Object.keys(resCells)) delete resCells[k];
+    row.replaceChildren(...ids.map((id) => {
+      const d = RES_DEFS[id];
+      if (!d) return null;
+      const b = h('b');
+      resCells[id] = b;
+      return h('div', { class: 'res', title: d.name }, h('span', { class: `cur ${d.cur}` }, d.ch), b);
+    }).filter(Boolean));
+  }
+  for (const [id, b] of Object.entries(resCells)) b.textContent = fmt(RES_DEFS[id].get(game));
+}
+document.addEventListener('subtab', () => panelRes());
 $('panel-dim').addEventListener('click', closePanel);
 $('panel-close').addEventListener('click', closePanel);
 
@@ -147,9 +173,10 @@ function refreshUI(full = false) {
   const c = game.contest;
   $('gold').textContent = fmt(s.gold);
   $('gems').textContent = fmt(s.gems);
-  // 창이 상단바를 덮으므로 창 머리에도 같이 적는다
-  $('p-gold').textContent = $('gold').textContent;
-  $('p-gems').textContent = $('gems').textContent;
+  // 창이 상단바를 덮으므로 창 머리에도 같이 적는다.
+  // 어떤 자원을 적을지는 **지금 보고 있는 화면**이 정한다 — 무공은 비급,
+  // 병기는 한철처럼 쓰는 것이 다르다.
+  panelRes();
   if (c) {
     $('stage-label').textContent = c.mode === 'dungeon' ? `${c.def.name} ${c.level}단계` : MODE_TITLE[c.mode];
     $('zone-label').textContent = c.mode === 'pvp' ? `vs ${c.opponent.nickname}` : c.mode === 'trial' ? `${RANKS[c.rank].name} 경지 도전` : '시간 안에 쓰러뜨리세요';

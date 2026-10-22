@@ -363,6 +363,12 @@ body { background: radial-gradient(ellipse at top, #1d1712, #0b0907 70%); }
 .cur { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 50%; font-weight: 800; font-size: 11px; line-height: 1; flex: none; }
 .cur.silver { background: #d1d5db; color: #1f2937; }
 .cur.gem { background: #b8860b; color: #fff7e0; }
+/* 창 머리에 올라오는 나머지 자원. 글 속에서 쓰던 색을 그대로 가져왔다 —
+   비급은 연붉은색, 한철은 하늘색, 먹이는 주황, 조각은 연보라로 적어 왔다. */
+.cur.book { background: #7f1d1d; color: #fecaca; }
+.cur.stone { background: #1e3a8a; color: #bfdbfe; }
+.cur.food { background: #7c2d12; color: #fed7aa; }
+.cur.shard { background: #4c1d95; color: #ddd6fe; }
 .icon-btn { font-size: 17px; color: #f5e9cf; border: 1px solid var(--line); }
 #power-label { background: rgba(10,8,6,0.65); color: var(--gold); font-family: var(--serif); }
 #progress { background: rgba(10,8,6,0.65); }
@@ -641,3 +647,16 @@ body { background: radial-gradient(ellipse at top, #1d1712, #0b0907 70%); }
   font-family: var(--brush); font-size: 26px; color: #f5e9cf;
 }
 .codex-face.has-art { background-size: contain; }
+
+/* 접이식 카드 — 자주 안 보는 덩어리(총 연마·출진 준비 같은 것)를 접어 둔다.
+   카드와 같은 테두리를 쓰되 닫혀 있을 때는 제목 한 줄만 차지한다. */
+.fold { background: var(--card); border-radius: 14px; padding: 10px 12px; margin: 0 0 10px; }
+.fold > summary {
+  list-style: none; cursor: pointer; font-family: var(--serif); font-weight: 800;
+  font-size: 14px; display: flex; align-items: center; gap: 6px;
+}
+.fold > summary::-webkit-details-marker { display: none; }
+.fold > summary::after { content: '▾'; margin-left: auto; color: var(--muted); font-size: 12px; }
+.fold[open] > summary::after { content: '▴'; }
+.fold > summary small { color: var(--muted); font-weight: 700; font-size: 11px; }
+.fold > *:not(summary) { margin-top: 8px; }

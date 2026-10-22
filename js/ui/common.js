@@ -91,7 +91,22 @@ export function rewardText(r = {}) {
   return parts.join(' ');
 }
 
+// 쓰는 자원을 창 머리에 띄우기 위한 정의.
+//
+// 전에는 창 머리에 은자·원보만 박혀 있었다. 그런데 무공은 비급으로 올리고
+// 병기는 한철로 제련한다 — **쓰는 자원이 화면에 없어서** 글 속 "비급 480"을
+// 읽고도 내가 몇 개인지 알 수 없었다. 화면마다 자기가 쓰는 것만 올린다.
+export const RES_DEFS = {
+  gold:   { cur: 'silver', ch: '은', name: '은자', get: (g) => g.s.gold },
+  gems:   { cur: 'gem',    ch: '원', name: '원보', get: (g) => g.s.gems },
+  books:  { cur: 'book',   ch: '비', name: '비급', get: (g) => g.s.books },
+  stones: { cur: 'stone',  ch: '철', name: '한철', get: (g) => g.s.stones },
+  food:   { cur: 'food',   ch: '먹', name: '먹이', get: (g) => g.s.food },
+  shards: { cur: 'shard',  ch: '조', name: '조각', get: (g) => g.s.relicShards },
+};
+
 // 탭 안의 하위 탭(세그먼트). views: [{key, label, make: () => view}]
+// 고른 화면이 res를 들고 있으면 그대로 올려 준다 — 창 머리가 그걸 띄운다.
 export function subTabs(views) {
   let cur = null;
   const made = {};
@@ -107,6 +122,9 @@ export function subTabs(views) {
     if (!made[key]) made[key] = views.find((v) => v.key === key).make();
     body.replaceChildren(made[key].root);
     buttons.forEach(([k, b]) => b.classList.toggle('on', k === key));
+    // 창 머리 자원칸이 바로 따라오게 알린다. UI 갱신은 0.2초마다라
+    // 이 알림이 없으면 하위 탭을 눌러도 잠깐 옛 자원이 남아 있었다.
+    document.dispatchEvent(new CustomEvent('subtab'));
     made[key].shown?.();
     made[key].update();
   }
@@ -114,6 +132,7 @@ export function subTabs(views) {
   select(views[0].key);
   return {
     root,
+    res: () => made[cur]?.res || null,
     update() { made[cur]?.update(); },
     shown() { made[cur]?.shown?.(); },
     netChanged(what) { Object.values(made).forEach((v) => v.netChanged?.(what)); },
