@@ -48,7 +48,8 @@ const ds = b.stage - a.stage;
 const st = (sv) => new Game({ ...sv }).stats({ buffs: false });
 const sa = st(a), sb = st(b);
 const r = (x, y) => Math.exp(Math.log(y / x) / ds);
-console.log(`\n관문 ${a.stage} → ${b.stage} (${H / 2}시간 → ${H}시간)`);
+console.log(`\n관문 ${a.stage} → ${b.stage} (${H / 2}시간 → ${H}시간)`
+  + `  회귀 ${a.regress?.count || 0} → ${b.regress?.count || 0}회`);
 console.log('  내 체력 x' + r(sa.hp, sb.hp).toFixed(4)
   + '   내 DPS x' + r(sa.dps, sb.dps).toFixed(4)
   + '   적 체력 x' + r(D.monsterHp(a.stage), D.monsterHp(b.stage)).toFixed(4)

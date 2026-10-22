@@ -2,7 +2,7 @@
 
 // 지금 돌고 있는 빌드. 설정 창에 적어 둔다 — 기기가 옛 판을 들고 있는지
 // 한눈에 보려고 둔다. sw.js의 CACHE와 같은 값으로 맞춘다.
-export const BUILD = 'ifu-v72';
+export const BUILD = 'ifu-v73';
 
 export const SAVE_VERSION = 4;
 export const OFFLINE_CAP_SEC = 12 * 3600;
@@ -265,6 +265,7 @@ export const UP_HP_VALUE_RATE = 1.0408;
 export const UP_GROUPS = [
   { id: 'atk', name: '때리는 힘' },
   { id: 'def', name: '버티는 힘' },
+  { id: 'mu', name: '무공 다루기' },
   { id: 'etc', name: '벌이' },
 ];
 // 차수 배율. 처음엔 2.4로 뒀는데 **플레이어 피해가 1e7배로 불었다** —
@@ -284,10 +285,20 @@ export const UP_STAT_PER = {
   guard: 0.01,      // 받는 피해 -1%p
   hpAdd: 0.03,      // 체력 +3%p
   hitMul: 0.02,     // 연격 피해 +2%p
+  boss: 0.04,       // 두목 피해 +4%p
+  exp: 0.03,        // 경험치 +3%p
+  skillDmg: 0.03,   // 무공 피해 +3%p
+  skillCd: 0.004,   // 무공 쿨 -0.4%p
+  ccDur: 0.03,      // 상태이상 지속 +3%p
+  bleed: 0.05,      // 출혈 피해 +5%p
+  offline: 0.04,    // 방치 보상 +4%p
 };
 export const UP_STAT_LABEL = {
   crit: '치명 확률', critDmg: '치명 피해', speed: '공격 속도', gold: '은자',
   guard: '받는 피해 감소', hpAdd: '체력', hitMul: '연격 피해',
+  boss: '두목 피해', exp: '경험치', skillDmg: '무공 피해',
+  skillCd: '무공 쿨 감소', ccDur: '상태이상 지속', bleed: '출혈 피해',
+  offline: '방치 보상',
 };
 // 그 통계가 더하기로 쌓이는가(=차수 계산이 필요한가)
 export const UP_IS_ADD = (stat) => stat in UP_STAT_PER;
@@ -366,6 +377,54 @@ export const UPGRADES = {
     name: '연격(추가 타격)', icon: '연격', kind: 'add', tier: 50, group: 'atk',
     line: ['hitMul'], base: {},
     cost: (l) => 70 * Math.pow(1.125, l),
+    fmt: 'pct',
+  },
+  // ---- 여기부터는 '여러 갈래로 올릴 수 있게' 더한 축이다 ----
+  // 아홉으로는 올릴 데가 금세 다 떨어졌다. 지금 stats()가 실제로 읽는
+  // 통계 가운데 수련에 자리가 없던 것들을 모두 축으로 뺐다.
+  // 안 읽는 통계를 축으로 만들면 올려도 아무 일이 없다(tests 10절이 본다).
+  boss: {
+    name: '투지결(두목 피해)', icon: '투지', kind: 'add', tier: 50, group: 'atk',
+    line: ['boss'], base: {},
+    cost: (l) => 55 * Math.pow(1.125, l),
+    fmt: 'pct',
+  },
+  skillDmg: {
+    name: '심법(무공 피해)', icon: '심법', kind: 'add', tier: 50, group: 'mu',
+    line: ['skillDmg'], base: {},
+    cost: (l) => 65 * Math.pow(1.12, l),
+    fmt: 'pct',
+  },
+  skillCd: {
+    // 쿨은 아무리 깎아도 본래의 30% 아래로는 안 내려간다. 거기 닿으면
+    // 올린 은자가 그냥 버려지므로 2차부터는 무공 피해로 간다.
+    name: '토납(무공 쿨)', icon: '토납', kind: 'add', tier: 50, group: 'mu',
+    line: ['skillCd', 'skillDmg'], base: {},
+    cost: (l) => 75 * Math.pow(1.13, l),
+    fmt: 'pct',
+  },
+  ccDur: {
+    name: '미혹결(상태이상)', icon: '미혹', kind: 'add', tier: 50, group: 'mu',
+    line: ['ccDur'], base: {},
+    cost: (l) => 45 * Math.pow(1.115, l),
+    fmt: 'pct',
+  },
+  bleed: {
+    name: '혈조(출혈 피해)', icon: '혈조', kind: 'add', tier: 50, group: 'mu',
+    line: ['bleed'], base: {},
+    cost: (l) => 50 * Math.pow(1.118, l),
+    fmt: 'pct',
+  },
+  exp: {
+    name: '오성결(경험치)', icon: '오성', kind: 'add', tier: 50, group: 'etc',
+    line: ['exp'], base: {},
+    cost: (l) => 40 * Math.pow(1.122, l),
+    fmt: 'pct',
+  },
+  offline: {
+    name: '좌망(방치 보상)', icon: '좌망', kind: 'add', tier: 50, group: 'etc',
+    line: ['offline'], base: {},
+    cost: (l) => 60 * Math.pow(1.115, l),
     fmt: 'pct',
   },
 };
@@ -500,7 +559,17 @@ export const trialBoss = (r) => ({
 
 // ---------- 회귀 ----------
 export const REGRESS_MIN_STAGE = 80;
-export const REGRESS_PER_POINT = 0.16;   // 1pt당 +16% (0.10 -> 0.16)
+// **배수가 더하기면 후반에 회귀가 손해다.**
+// 1 + 0.16 x pt 였다. 관문 600에서 x18.6, 900에서 x28.2 — 재서 돌아오는 데
+// 드는 힘은 관문당 1.085배씩 느는데 돌려받는 건 300관문에 1.5배뿐이었다.
+// 그래서 시뮬에서 여덟 시간에 회귀가 0~1번밖에 안 터졌고, 2시간을 넘기면
+// 관문이 꺾였다. 회귀는 벽을 뚫는 유일한 장치인데 그게 안 돌았다.
+//
+// 곱하기로 바꾼다. 기억 하나가 x REGRESS_BASE다 — 쌓을수록 지수로 는다.
+export const REGRESS_BASE = 1.08;
+export const regressMult = (points) => Math.pow(REGRESS_BASE, points || 0);
+// 옛 글(+N%)을 그대로 쓰는 자리가 있어서 남겨 둔다. 화면 문구에만 쓴다.
+export const REGRESS_PER_POINT = 0.16;
 // 회귀는 이 게임에서 가장 큰 도파민이다. 돌아왔을 때 '확 세졌다'가 바로
 // 느껴져야 한 번 더 돌린다. 수익을 키우고 되돌아가는 길도 거의 공짜다. // 전생의 기억 1개당 공격력·체력·은자·경험치 +10%
 // 관문 몇 개마다 전생의 기억 1개인가. 관문 눈금이 촘촘해지면 여기도 같이 넓혀야
@@ -519,9 +588,13 @@ export const regressGain = (maxStage) => (maxStage < REGRESS_MIN_STAGE ? 0 : Mat
 // 관문 눈금을 촘촘하게 바꾼 뒤 이 값이 너무 높아져서, 일주일 시뮬에서
 // 회귀가 **한 번도 안 터지고** 관문 200에 사흘을 묶여 있었다.
 // 회귀는 벽을 뚫는 유일한 장치라 안 터지면 게임이 멈춘다.
-export const REGRESS_ADVISE_POINTS = 18;   // 이만큼 받을 수 있으면 권한다 (200관문쯤)
+// 회귀를 권하는 기준을 '포인트 수'가 아니라 **몇 배 세지는가**로 바꾼다.
+// 포인트로 재면 관문 눈금을 바꿀 때마다 같이 틀어진다 — 실제로 한 번 틀어져
+// 일주일 시뮬에서 회귀가 한 번도 안 터진 적이 있다.
+export const REGRESS_WORTH_MULT = 1.7;     // 이만큼 세지면 권한다
+export const REGRESS_ADVISE_POINTS = 18;   // 옛 화면 문구가 쓰는 값
 // 막혀 있다고 보는 시간 (초). 이만큼 최고 관문이 안 올라가면 회귀가 답이다.
-export const REGRESS_STUCK_SEC = 600;
+export const REGRESS_STUCK_SEC = 90;
 
 // ---------- 직업 (8계열) ----------
 // 근거: 없다. Blade Idle APK에는 직업 테이블이 하나도 없다 — 이건 우리 설계다.

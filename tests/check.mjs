@@ -1746,5 +1746,70 @@ console.log('=== 30. 특성 단련 · 문파 교체 ===');
   ok(migrate({}).traitLv && Object.keys(migrate({}).traitLv).length === 0,
     '옛 세이브는 빈 채로 들어온다');
 }
+
+// ---------- 31. 회귀가 벽을 뚫는가 ----------
+//
+// 회귀는 후반 벽을 뚫는 **유일한** 장치다. 그런데 배수가 더하기(1 + 0.16 x pt)라
+// 관문 600에서 x18.6, 900에서 x28.2였다 — 300관문을 더 가는 데 드는 힘은
+// 1.085^300 = 2e11배인데 돌려받는 건 1.5배였다. 그래서 여덟 시간에 회귀가
+// 0~1번밖에 안 터졌고 두 시간을 넘기면 관문이 꺾였다.
+console.log('');
+console.log('=== 31. 회귀 ===');
+{
+  // 곱하기여야 한다. 더하기면 뒤로 갈수록 반드시 손해가 된다.
+  const m1 = D.regressMult(100);
+  const m2 = D.regressMult(200);
+  const m3 = D.regressMult(300);
+  ok(m2 / m1 > 1.5 && Math.abs((m2 / m1) - (m3 / m2)) < 1e-6,
+    '기억의 힘이 곱하기로 는다 (100개마다 같은 배수)',
+    `x${m1.toExponential(1)} → x${m2.toExponential(1)} → x${m3.toExponential(1)}`);
+  ok(D.regressMult(0) === 1, '기억이 없으면 배수도 1');
+  ok(Number.isFinite(D.regressMult(1200)), '한참 쌓아도 숫자가 안 터진다',
+    `x${D.regressMult(1200).toExponential(1)}`);
+
+  // 관문을 더 갈수록 돌려받는 것도 더 커져야 한다
+  const at = (s2) => D.regressMult(D.regressGain(s2));
+  ok(at(900) / at(600) > at(600) / at(400), '멀리 갈수록 회귀 이득이 더 커진다',
+    `400→600 x${(at(600) / at(400)).toExponential(1)} · 600→900 x${(at(900) / at(600)).toExponential(1)}`);
+
+  // 실제로 적용되는가 — 주고도 안 읽으면 없는 것과 같다
+  const g = strong(300);
+  g.s.regress.points = 0;
+  const a0 = g.stats({ buffs: false });
+  g.s.regress.points = 60;
+  const a1 = g.stats({ buffs: false });
+  ok(a1.atk > a0.atk * 2, '기억이 공격력에 붙는다', `${a0.atk.toExponential(2)} → ${a1.atk.toExponential(2)}`);
+  ok(a1.hp > a0.hp * 2, '체력에도 붙는다');
+  ok(a1.goldMul > a0.goldMul * 2, '은자에도 붙는다');
+  ok(a1.expMul > a0.expMul * 2, '경험치에도 붙는다');
+
+  // 회귀가 실제로 돌아가는가 — 조건이 너무 빡빡하면 영영 안 터진다
+  {
+    const gg = strong(600);
+    gg.s.maxStage = 600;
+    gg.s.climbAt = 0;
+    gg.clock = D.REGRESS_STUCK_SEC + 10;      // 막힌 지 한참 됐다
+    ok(gg.regressWorthMult() >= D.REGRESS_WORTH_MULT,
+      '관문 600이면 회귀할 값어치가 있다', `x${gg.regressWorthMult().toExponential(1)}`);
+    ok(gg.regressWorth(), '막혀 있으면 회귀를 권한다');
+    gg.clock = 1;                              // 방금 올라갔다
+    gg.s.climbAt = 0;
+    ok(!gg.regressWorth(), '잘 올라가는 중이면 안 권한다');
+  }
+  // 되돌아간 뒤에 실제로 세져 있는가
+  {
+    const gg = strong(600);
+    gg.s.maxStage = 600;
+    gg.s.regress.points = 0;
+    const before = gg.stats({ buffs: false }).atk;
+    const got = gg.regress();
+    ok(got > 0, '회귀하면 기억을 받는다', `+${got}`);
+    ok(gg.s.stage === 1 && gg.s.maxStage === 1, '관문이 1로 돌아간다');
+    ok(gg.s.bestStage >= 600, '최고 기록은 남는다', `${gg.s.bestStage}`);
+    ok(gg.regressMult() > 100, '기억의 힘이 크게 붙는다', `x${gg.regressMult().toExponential(1)}`);
+    // 수련이 지워졌으니 그 자리의 공격력은 떨어지는 게 맞다. 보는 건 배수다.
+    ok(gg.stats({ buffs: false }).atk < before, '수련은 지워진다');
+  }
+}
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);

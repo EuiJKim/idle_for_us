@@ -45,7 +45,7 @@ import {
   MISSIONS, MISSION_ALL_REWARD, stageMilestone, STAGE_MILESTONE_EVERY,
   PVP_TICKETS, PVP_TIME, PVP_WIN, PVP_LOSE, PVP_REWARD,
   zoneOf, monsterHp, monsterAtk, monsterGold, BOSS_HP_MULT, BOSS_ATK_MULT, BOSS_GOLD_MULT, RAID_BOSS,
-  REGRESS_PER_POINT, regressGain, REGRESS_ADVISE_POINTS, REGRESS_STUCK_SEC,
+  regressGain, regressMult, REGRESS_WORTH_MULT, REGRESS_STUCK_SEC,
   JOBS, JOB_RANK, JOB_UNLOCK, jobOf, JOB_SKILLS, jobSkillOf, BOON_SKILLS, TASTE_RANK,
   JOB_TESTS, jobTestOf, jobTestStage,
   PASSIVES, passivesOf, passiveId, PASSIVE_MAX, passiveCost,
@@ -712,7 +712,7 @@ export class Game {
     // 회귀는 '손해처럼 보이는 이득'이라 안 띄우면 아무도 안 한다.
     if (this.regressWorth()) {
       const gp = this.regressPreview();
-      return { tab: 'growth', sub: 'regress', text: `회귀할 때예요 — 전생의 기억 +${gp} (모든 능력 +${Math.round(gp * REGRESS_PER_POINT * 100)}%)` };
+      return { tab: 'growth', sub: 'regress', text: `회귀할 때예요 — 전생의 기억 +${gp} (모든 능력 ×${this.regressWorthMult().toFixed(1)})` };
     }
     // 6) 평소에 할 것
     if (this.towerOpen() && !this.towerDone()) return { tab: 'dungeon', sub: 'tower', text: `혈마의 탑 ${this.towerNext()}층에 오르세요` };
@@ -959,9 +959,12 @@ export class Game {
   // 레벨·초월이 붙은 최종 쿨타임
   skillCdOf(sk) {
     const base = skillCd(sk.cd, this.s.skills[sk.id] || 1, this.skillPierceOf(sk.id));
-    // 패시브로 더 줄인다. 아무리 쌓아도 원래의 30% 아래로는 안 내려간다 —
-    // 0에 닿으면 무공이 끊임없이 나가서 평타·영수가 전부 의미를 잃는다.
-    const cut = this.passiveSum().skillCd || 0;
+    // 패시브와 수련(토납)으로 더 줄인다. 아무리 쌓아도 원래의 30% 아래로는
+    // 안 내려간다 — 0에 닿으면 무공이 끊임없이 나가서 평타·영수가 의미를 잃는다.
+    // **여기서 패시브만 보고 있었다.** 수련 축을 더하면서 같이 읽게 했다.
+    // stats()를 부르면 안 된다 — 화면이 38줄을 초당 다섯 번 갱신하는 자리다.
+    // 필요한 두 값만 직접 더한다.
+    const cut = (this.passiveSum().skillCd || 0) + (upTotals(this.s.upgrades).skillCd || 0);
     return Math.max(sk.cd * 0.3, base * (1 - cut));
   }
 
@@ -1513,7 +1516,7 @@ export class Game {
   }
 
   // 전생의 기억: 회귀로 쌓은 포인트만큼 공격력·체력·은자·경험치 증가
-  regressMult() { return 1 + REGRESS_PER_POINT * (this.s.regress.points || 0); }
+  regressMult() { return regressMult(this.s.regress.points || 0); }
 
   // 고른 계열이 주는 배수. 없으면 전부 1이다.
   //
@@ -1600,8 +1603,8 @@ export class Game {
     // 연격 — 쾌검 2차부터 붙는다. 평타 한 대가 그만큼 더 아프다.
     const hitMul = 1 + (ua.hitMul || 0);
     const goldMul = (ua.gold || 1) * this.equipMult('ring') * (1 + m.gold) * midas * past * jb.gold * boonGold * pvm('gold');
-    const expMul = (1 + m.exp) * past * jb.exp * boonExp * pvm('exp');
-    const bossMul = (1 + m.boss) * jb.boss * pvm('boss');
+    const expMul = (1 + m.exp + (ua.exp || 0)) * past * jb.exp * boonExp * pvm('exp');
+    const bossMul = (1 + m.boss + (ua.boss || 0)) * jb.boss * pvm('boss');
     // 데려간 영수 전부가 각자 때린다. 하나만 세던 자리다.
     const team = this.petTeam();
     const hits = team.map((p) => ({ pet: p, hit: atk * petDamageMult(p, this.s.pets[p.id] || 1) }));
@@ -1612,9 +1615,13 @@ export class Game {
     const dps = atk * speed * hitMul * (1 + crit * (critDmg - 1)) + petHit / PET_ATTACK_INTERVAL;
     return {
       atk, hp, crit, critDmg, speed, hitMul, goldMul, expMul, bossMul, petHit, petHits: hits, guard, dps,
-      bossTime: BOSS_TIME + m.bossTime, offlineMul: (1 + m.offline) * jb.offline,
-      bleedMult: jb.bleed * pvm('bleed'), ccDurMult: jb.ccDur * pvm('ccDur'),
-      skillDmgMult: pvm('skillDmg'), skillCdCut: pv.skillCd || 0,
+      bossTime: BOSS_TIME + m.bossTime,
+      offlineMul: (1 + m.offline + (ua.offline || 0)) * jb.offline,
+      bleedMult: jb.bleed * pvm('bleed') * (1 + (ua.bleed || 0)),
+      ccDurMult: jb.ccDur * pvm('ccDur') * (1 + (ua.ccDur || 0)),
+      skillDmgMult: pvm('skillDmg') * (1 + (ua.skillDmg || 0)),
+      // 쿨 감소는 패시브와 수련을 **같이** 더한다. 바닥(본래의 30%)은 skillCdOf가 지킨다.
+      skillCdCut: (pv.skillCd || 0) + (ua.skillCd || 0),
     };
   }
 
@@ -3238,11 +3245,17 @@ export class Game {
 
   // ---------- 회귀 ----------
   regressPreview() { return regressGain(this.s.maxStage); }
+  // 지금 회귀하면 전생 배수가 몇 배가 되나
+  regressWorthMult() {
+    const now = this.s.regress.points || 0;
+    return regressMult(now + this.regressPreview()) / regressMult(now);
+  }
 
   // 회귀가 지금 이득인가 — 받을 게 충분하고, 한동안 최고 관문이 안 올랐을 때
   regressWorth() {
     if (this.mode !== 'stage') return false;
-    if (this.regressPreview() < REGRESS_ADVISE_POINTS) return false;
+    // '몇 배 세지는가'로 본다. 포인트 수로 재면 관문 눈금이 바뀔 때마다 틀어진다.
+    if (this.regressWorthMult() < REGRESS_WORTH_MULT) return false;
     return this.stuckFor() > REGRESS_STUCK_SEC;
   }
 

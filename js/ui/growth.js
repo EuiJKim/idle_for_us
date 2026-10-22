@@ -1,7 +1,7 @@
 // 성장 탭: 은자 수련 / 레벨(스탯 포인트) / 경지
 import { UPGRADES, UP_GROUPS, UP_STAT_LABEL, upAdds, upNext, upTierInfo, upStatAt, josaRo,
-  SP_STATS, SP_RESET_GEMS, RANKS, RANK_MULT, expToNext, REGRESS_MIN_STAGE, REGRESS_PER_POINT,
-  CRIT_CAP, REGRESS_ADVISE_POINTS, JOBS, JOB_RANK, JOB_UNLOCK, RANK_SUBS, rankSubLevel,
+  SP_STATS, SP_RESET_GEMS, RANKS, RANK_MULT, expToNext, REGRESS_MIN_STAGE,
+  CRIT_CAP, REGRESS_WORTH_MULT, JOBS, JOB_RANK, JOB_UNLOCK, RANK_SUBS, rankSubLevel,
   TASTE_RANK, jobSkillOf, jobSkillsOf, JOB_SKILL_OPEN, jobTraitOf, traitCost,
   jobTestOf, jobTestStage } from '../data.js';
 import { fmt } from '../fmt.js';
@@ -260,7 +260,7 @@ function regressView(app) {
     const g = game.regressPreview();
     s.append(
       h('div', { class: 'regress-hz' }, '회귀'),
-      h('p', { style: 'text-align:center;line-height:1.7', html: `회귀하면 1관문, 레벨 1로 돌아가요.<br>전생의 기억 <b>+${g}</b> → 모든 능력 <b>+${Math.round(g * REGRESS_PER_POINT * 100)}%</b>` }),
+      h('p', { style: 'text-align:center;line-height:1.7', html: `회귀하면 1관문, 레벨 1로 돌아가요.<br>전생의 기억 <b>+${g}</b> → 모든 능력 <b>×${fmt(game.regressWorthMult())}</b>` }),
       h('div', { class: 'btn-row' }, h('button', { class: 'btn', onclick: closeModal }, '아직'),
         h('button', { class: 'btn primary', onclick: () => { closeModal(); app.regress(); } }, '회귀한다')));
   });
@@ -278,7 +278,10 @@ function regressView(app) {
     h('p', { class: 'muted', style: 'line-height:1.7;margin:8px 0 0' },
       '누르는 순간 약해 보이지만 금방 돌아와요. 전생의 기억이 공격력·체력·은자·경험치에 ',
       '전부 붙어서, 돌아오는 길이 처음보다 훨씬 빨라요.', h('br'),
-      h('b', {}, `전생의 기억을 ${REGRESS_ADVISE_POINTS} 넘게 받을 수 있고 관문이 한동안 안 올라가면, 그때가 회귀할 때예요.`)));
+      h('b', {}, `지금보다 ${REGRESS_WORTH_MULT}배 넘게 세질 수 있고 관문이 한동안 안 올라가면, 그때가 회귀할 때예요.`),
+      h('br'),
+      '기억의 힘은 ', h('b', {}, '더하기가 아니라 곱하기'),
+      '예요 — 기억 하나마다 곱해지니, 쌓을수록 크게 벌어져요.'));
   const root = h('div', {},
     h('div', { class: 'card regress-card' },
       h('div', { class: 'regress-hz small' }, '회귀'),
@@ -302,12 +305,14 @@ function regressView(app) {
     const g = game.regressPreview();
     count.textContent = `${s.regress.count}회`;
     points.textContent = `${s.regress.points}`;
-    bonus.textContent = `+${Math.round(s.regress.points * REGRESS_PER_POINT * 100)}%`;
+    bonus.textContent = `×${fmt(game.regressMult())}`;
     const worth = game.regressWorth();
     const stuck = Math.floor(game.stuckFor() / 60);
     gain.innerHTML = g
-      ? `지금 회귀하면 전생의 기억 <b>+${g}</b> → 모든 능력 <b>+${Math.round((s.regress.points + g) * REGRESS_PER_POINT * 100)}%</b>`
-        + ` (최고 ${s.maxStage}관문 기준)`
+      ? `지금 회귀하면 전생의 기억 <b>+${g}</b> → 기억의 힘이 <b>×${fmt(game.regressMult())}</b>에서`
+        + ` <b style="color:var(--accent-2)">×${fmt(game.regressMult() * game.regressWorthMult())}</b>로`
+        + ` (지금보다 ${game.regressWorthMult() < 100 ? `${game.regressWorthMult().toFixed(1)}배` : fmt(game.regressWorthMult()) + '배'} 세져요)`
+        + `<br><span class="muted">최고 ${s.maxStage}관문 기준</span>`
         + (worth ? `<br><b style="color:var(--accent-2)">지금이 그때예요 — ${stuck}분째 관문이 안 올라갔어요</b>` : '')
       : `${REGRESS_MIN_STAGE}관문을 넘으면 회귀할 수 있어요. (지금 ${s.maxStage}관문)`;
     btn.textContent = g ? `회귀한다 (+${g})` : `${REGRESS_MIN_STAGE}관문 이후 가능`;
