@@ -2,7 +2,7 @@
 
 // 지금 돌고 있는 빌드. 설정 창에 적어 둔다 — 기기가 옛 판을 들고 있는지
 // 한눈에 보려고 둔다. sw.js의 CACHE와 같은 값으로 맞춘다.
-export const BUILD = 'ifu-v66';
+export const BUILD = 'ifu-v67';
 
 export const SAVE_VERSION = 4;
 export const OFFLINE_CAP_SEC = 12 * 3600;
@@ -237,8 +237,8 @@ export const CUR = {
 // **파워가 시간에 대해 몇 제곱으로 자라는지**를 정한다. 전에는 1.06/1.05라
 // 비가 1.19였고, 그 위에 회귀·경지·장비·영수·유물이 겹쳐 파워가 t^14~t^26으로
 // 불었다. 목표는 t^6쯤이다(3시간 150관문 · 하루 300 · 일주일 480).
-export const UP_VALUE_RATE = 1.05;
-export const UP_COST_RATE = 1.07;
+export const UP_VALUE_RATE = 1.0408;
+export const UP_COST_RATE = 1.057;
 
 export const UPGRADES = {
   atk: {
@@ -288,8 +288,8 @@ export const UPGRADES = {
 // 둘 다 1.1이면 한 관문이 언제나 정확히 1.33레벨이 된다(20처치 x 4 / 60).
 // 그래서 관문 254에 레벨 293, 경지 7이 나왔다 — 세 시간 만에 생사경이다.
 // 요구치를 조금 더 가파르게 두면 레벨당 관문 수가 점점 늘어난다.
-export const EXP_KILL_RATE = 1.10;
-export const EXP_LEVEL_RATE = 1.15;
+export const EXP_KILL_RATE = 1.0812;
+export const EXP_LEVEL_RATE = 1.1214;
 export const expPerKill = (s) => 4 * Math.pow(EXP_KILL_RATE, s - 1);
 export const expToNext = (lv) => 60 * Math.pow(EXP_LEVEL_RATE, lv - 1);
 export const SP_PER_LEVEL = 2;
@@ -1498,8 +1498,17 @@ function cumLog(s, base) {
 // 우리는 그 모양을 10관문 주기 안에서만 만들어 뒀고 주기 총합은 어디서나
 // 같았다. 이제 총합도 관문이 오를수록 완만해진다.
 // (docs/BladeIdle_진행구조.md 3절)
-export const STAGE_HP_RATE = 1.18;        // 첫 관문
-export const STAGE_HP_RATE_LATE = 1.13;   // 다 완만해졌을 때
+// 적 체력이 관문당 몇 배씩 세지는가.
+//
+// **내 DPS보다 느려야 한다.** 재 보니 적 체력 x1.16 대 내 DPS x1.15로
+// 적이 더 빨랐다. 관문당 0.9%씩 벌어져서 200관문이면 한 관문에 5.6배가
+// 걸린다 — 뒤로 갈수록 안 넘어가고, 그게 제일 큰 스트레스였다.
+//
+// 이제 적을 **더 느리게** 둔다. 관문마다 조금씩 쉬워져서 가속이 붙는다.
+// 숫자도 같이 작아진다: 관문 400에서 1.36e28 → 1e18 언저리.
+// 관문이 빨리 넘어가는 건 괜찮다 — 관문은 얼마든지 늘리면 된다.
+export const STAGE_HP_RATE = 1.13;        // 첫 관문
+export const STAGE_HP_RATE_LATE = 1.10;   // 다 완만해졌을 때
 export const STAGE_EASE_AT = 800;         // 여기쯤에서 끝 값에 닿는다
 // 맞춘 과정: x1.10/400관문으로 먼저 풀었더니 후반 벽은 뚫렸는데(사흘 349 -> 630)
 // 하루에 511관문까지 가서 콘텐츠(480)를 하루에 다 열어 버렸다.
@@ -1540,16 +1549,16 @@ export const monsterHp = (s) => 20 * Math.exp(cumEase(s));
 // 내 체력이 관문당 x1.145로 자란다(85~493관문 구간 실측). 적 공격력도
 // 같은 값으로 두면 **어느 관문에서든 같은 비율**로 맞는다.
 // 하나의 값으로 끝까지 간다 — 구간을 나눌 이유가 없어졌다.
-export const ATK_RATE = 1.145;
-// 기준점. **비율만 맞추고 기준점을 안 맞추면 한 대에 죽는다** — 처음에
-// 15관문부터 x1.145를 먹였더니 검사에서 1.3초 만에 죽었다.
+export const ATK_RATE = 1.11;
+// 기준점. 적 체력을 낮추니 **같은 관문에 훨씬 일찍·약한 채로** 도착한다 —
+// 공격력은 그대로라 관문 236에서 초당 158%를 맞고 2초에 한 번씩 쓰러졌다.
+// 10분에 308번 죽고 65%를 수련 상태로 보냈다. 그게 '관문이 안 넘어간다'의 정체였다.
 //
-// 재 본 값에서 역산한다: 관문 188에서 지금 초당 받는 피해가 내 체력의
-// 5.25e-3%다. 목표는 **4%/초** — 재생이 2%/초이므로 가만히 서 있으면
-// 50초에 죽고, 베면서 가면 버틴다. 762배가 필요하고, x1.145로 그만큼
-// 벌리려면 34관문부터 시작하면 된다.
+// 다시 재서 맞춘다(관문 203·236·306 실측):
+//   비율이 관문당 x1.0091씩 나빠졌다 → 배율을 그만큼 늦춘다
+//   203관문에서 1/10이 필요하다 → 시작을 18관문 뒤로 민다
 export const ATK_BASE = 6;
-export const ATK_FROM = 34;
+export const ATK_FROM = 52;
 export const monsterAtk = (s) => (s <= ATK_FROM
   ? ATK_BASE
   : ATK_BASE * Math.pow(ATK_RATE, s - ATK_FROM));
@@ -1557,7 +1566,7 @@ export const monsterAtk = (s) => (s <= ATK_FROM
 // 보상은 톱니로 만들지 않는다. 벽에서 보상까지 튀면 벽 앞에서 버티는 게 이득이 된다.
 // 벌이가 관문당 몇 배씩 느는가. 적 체력보다 느려야 한 관문에 머무는 시간이
 // 길어진다 — 이 차이가 곧 감속 장치다.
-export const STAGE_GOLD_RATE = 1.06;
+export const STAGE_GOLD_RATE = 1.0489;
 export const monsterGold = (s) => 5 * Math.pow(STAGE_GOLD_RATE, s - 1);
 // ---------- 광고 / 광고 제거 ----------
 //
