@@ -19,6 +19,9 @@ export const KINDS = {
   dg: 4,         // 수련터 — DUNGEONS 차례대로
   sp: 6,         // 스탯 포인트 — SP_STATS 차례대로(근력·체질·살기·투지·재운·오성)
   codex: 3,      // 인물도감 — CODEX_KINDS 차례대로(잡졸·관문지기·패왕)
+  // 계열 전용 무공 스물넷. **차례는 JOB_SKILLS 차례와 같다** —
+  // 1차 여덟 · 2차 여덟 · 3차 여덟이지 계열별로 묶여 있지 않다.
+  jskill: 24,
 };
 
 const have = {};   // 'pet-0' → true/false, 아직 모르면 undefined

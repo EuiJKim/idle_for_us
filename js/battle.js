@@ -1,5 +1,5 @@
 // 전투 화면 캔버스 렌더러 (수묵화 무협풍). 게임 이벤트를 받아 연출만 담당한다.
-import { zoneOf, RANKS, GRADES, PETS, SKILLS, FIELD_SQUASH, JOB_TRAITS } from './data.js';
+import { zoneOf, RANKS, GRADES, PETS, SKILLS, FIELD_SQUASH, JOB_TRAITS, QI } from './data.js';
 import { artReady, putArt, loadArt, FIT, ART_SHOULDER, ART_BAND, headKey, bodyKey, weaponKey } from './art.js';
 import { OUTFITS } from './data.js';
 
@@ -348,6 +348,16 @@ export class BattleView {
       case 'skill':
         this.skillEffect(ev.id, ev.job);
         break;
+      case 'combo': {
+        // 연계가 터졌다. 먹은 기운의 빛깔로 글자를 띄운다 —
+        // 안 보이면 연계는 없는 것과 같다.
+        const q = QI[ev.qi];
+        this.showBanner(`連 ${ev.streak}연계 ×${ev.mult.toFixed(1)}`, `rgb(${q?.col || '253,224,71'})`, 0.9);
+        this.effects.push({ kind: 'area', life: 0.45, max: 0.45, r: 240, col: q?.col, id: ev.id });
+        this.ink(this.heroX, this.groundY - 70, 8, `rgb(${q?.col || '253,224,71'})`, 190);
+        this.shake = Math.max(this.shake, 0.22);
+        break;
+      }
       case 'gold':
         // 취마 〈주기〉 — 무공을 쓸 때마다 은자가 떨어진다. 안 보이면 없는 것과 같다.
         if (ev.fromSkill) for (let i = 0; i < 5; i++) this.ingot(this.heroX + (Math.random() - 0.5) * 70, this.groundY - 120, true);

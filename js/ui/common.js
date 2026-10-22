@@ -103,6 +103,7 @@ export const RES_DEFS = {
   stones: { cur: 'stone',  ch: '철', name: '한철', get: (g) => g.s.stones },
   food:   { cur: 'food',   ch: '먹', name: '먹이', get: (g) => g.s.food },
   shards: { cur: 'shard',  ch: '조', name: '조각', get: (g) => g.s.relicShards },
+  merit:  { cur: 'merit',  ch: '공', name: '공적', get: (g) => g.s.merit },
 };
 
 // 탭 안의 하위 탭(세그먼트). views: [{key, label, make: () => view}]

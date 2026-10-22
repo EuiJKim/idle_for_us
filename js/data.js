@@ -2,7 +2,7 @@
 
 // 지금 돌고 있는 빌드. 설정 창에 적어 둔다 — 기기가 옛 판을 들고 있는지
 // 한눈에 보려고 둔다. sw.js의 CACHE와 같은 값으로 맞춘다.
-export const BUILD = 'ifu-v71';
+export const BUILD = 'ifu-v72';
 
 export const SAVE_VERSION = 4;
 export const OFFLINE_CAP_SEC = 12 * 3600;
@@ -1395,6 +1395,82 @@ export const SKILLS = [
     desc: (m, l) => `독무가 10초간 들판을 돈다 · 0.4초마다 공격력의 ${m.toFixed(1)}배 · 그동안 경험치 ${(2.6 + l * 0.12).toFixed(1)}배` },
 ];
 
+// ---------- 무공 연계 ----------
+//
+// 무공이 서른여덟 개가 됐는데 고르는 기준은 여전히 "센 것 여덟 개"뿐이었다.
+// 칸이 여덟인데 고민이 없으면 칸이 여덟일 이유도 없다.
+//
+// 그래서 무공마다 **남기는 기운**과 **먹는 기운**을 둔다.
+// 앞선 무공이 남긴 기운을 다음 무공이 먹으면 연계가 터진다 —
+// 피해가 커지고 상태이상이 길어진다. 연달아 이으면 더 커진다.
+//
+// 이러면 '센 것 여덟'이 아니라 '이어지는 여덟'을 고르게 된다.
+export const QI = {
+  blade: { name: '인', hanja: '刃', col: '226,232,240' },   // 베는 기운
+  bolt: { name: '뇌', hanja: '雷', col: '254,240,138' },    // 뇌전
+  frost: { name: '한', hanja: '寒', col: '186,230,253' },   // 한기
+  wind: { name: '풍', hanja: '風', col: '167,243,208' },    // 바람
+  venom: { name: '독', hanja: '毒', col: '134,239,172' },   // 독
+  inner: { name: '기', hanja: '氣', col: '252,211,77' },    // 내공
+};
+export const QI_KEYS = Object.keys(QI);
+export const COMBO_SEC = 3;        // 남긴 기운이 머무는 시간
+export const COMBO_MULT = 1.9;     // 연계가 터지면 피해 배수
+export const COMBO_CC = 1.6;       // 상태이상도 이만큼 길어진다
+export const COMBO_STREAK_ADD = 0.35;  // 연달아 이으면 한 번마다 더 붙는다
+export const COMBO_STREAK_MAX = 6;
+export const comboMult = (streak) =>
+  COMBO_MULT + COMBO_STREAK_ADD * Math.min(COMBO_STREAK_MAX - 1, Math.max(0, streak - 1));
+
+// 무공마다 남기는 기운 / 먹는 기운. 생김새를 보고 정했다 —
+// 뇌정검은 뇌를 남기고, 빙백신장은 한을 남긴다.
+// **고리가 막히면 안 된다.** 여섯 기운이 모두 남겨지고 모두 먹혀야 한다
+// (tests/check.mjs 29절이 본다).
+export const SKILL_QI = {
+  slash: { leaves: 'blade', feeds: 'wind' },
+  rage: { leaves: 'inner', feeds: 'blade' },
+  heal: { leaves: 'inner', feeds: 'venom' },
+  thunder: { leaves: 'bolt', feeds: 'inner' },
+  gale: { leaves: 'wind', feeds: 'inner' },
+  midas: { leaves: 'inner', feeds: 'wind' },
+  frost: { leaves: 'frost', feeds: 'bolt' },
+  meteor: { leaves: 'blade', feeds: 'inner' },
+  chain: { leaves: 'bolt', feeds: 'frost' },
+  dash: { leaves: 'blade', feeds: 'wind' },
+  blink: { leaves: 'wind', feeds: 'blade' },
+  plum: { leaves: 'blade', feeds: 'frost' },
+  tornado: { leaves: 'wind', feeds: 'blade' },
+  pierce: { leaves: 'blade', feeds: 'bolt' },
+  // 계열 1차
+  jsword: { leaves: 'blade', feeds: 'inner' },
+  jblade: { leaves: 'blade', feeds: 'wind' },
+  jfist: { leaves: 'inner', feeds: 'blade' },
+  jring: { leaves: 'venom', feeds: 'blade' },
+  jdrunk: { leaves: 'wind', feeds: 'inner' },
+  jfan: { leaves: 'frost', feeds: 'wind' },
+  jmonk: { leaves: 'inner', feeds: 'frost' },
+  jpoison: { leaves: 'venom', feeds: 'wind' },
+  // 계열 2차
+  jsword2: { leaves: 'blade', feeds: 'frost' },
+  jblade2: { leaves: 'wind', feeds: 'blade' },
+  jfist2: { leaves: 'inner', feeds: 'venom' },
+  jring2: { leaves: 'venom', feeds: 'bolt' },
+  jdrunk2: { leaves: 'wind', feeds: 'venom' },
+  jfan2: { leaves: 'frost', feeds: 'inner' },
+  jmonk2: { leaves: 'inner', feeds: 'blade' },
+  jpoison2: { leaves: 'venom', feeds: 'frost' },
+  // 계열 3차
+  jsword3: { leaves: 'blade', feeds: 'bolt' },
+  jblade3: { leaves: 'blade', feeds: 'venom' },
+  jfist3: { leaves: 'inner', feeds: 'wind' },
+  jring3: { leaves: 'bolt', feeds: 'venom' },
+  jdrunk3: { leaves: 'wind', feeds: 'frost' },
+  jfan3: { leaves: 'frost', feeds: 'blade' },
+  jmonk3: { leaves: 'inner', feeds: 'bolt' },
+  jpoison3: { leaves: 'venom', feeds: 'inner' },
+};
+export const qiOf = (id) => SKILL_QI[id] || null;
+
 // 계열 무공만 따로. 문파 칸에 들어가고 일반 칸에는 절대 안 들어간다.
 export const JOB_SKILLS = SKILLS.filter((s) => s.job);
 // 한 계열의 무공 셋을 차례대로. jobTier 0 · 1 · 2다.
@@ -1487,6 +1563,28 @@ export const JOB_TRAITS = {
   },
 };
 export const jobTraitOf = (id) => JOB_TRAITS[id] || null;
+
+// ---------- 특성 단련 / 문파 교체 ----------
+//
+// 전직하면 특성이 붙기는 하는데 **값이 고정**이라, 전직한 날 이후로는
+// 문파가 성장의 축이 아니었다. 그리고 바꾸는 데 아무것도 안 들어서
+// 상황마다 갈아타는 게 늘 이득이었다 — 고르는 게 고르는 일이 아니었다.
+//
+// 둘 다 '공적'으로 푼다. 관문지기를 넘으면 쌓이고, 쓰는 곳은 이 둘뿐이다.
+// **특성 레벨은 문파마다 따로 쌓인다.** 그래서 갈아타는 진짜 값은 은자가
+// 아니라 '그 문파에 들인 공적을 두고 간다'는 것이다.
+export const MERIT_RATE = 1.034;                // 관문당 느는 비율
+export const stageMerit = (s) => 0.8 * Math.pow(MERIT_RATE, Math.max(0, s - 1));
+export const bossMerit = (s) => Math.ceil(stageMerit(s) * (s % 10 === 0 ? 3 : 1));
+// 특성 한 단계에 드는 공적. 끝이 없다.
+export const traitCost = (lv) => Math.ceil(30 * Math.pow(1.13, lv || 0));
+// 특성이 레벨당 얼마나 세지나 — 1레벨마다 처음 값의 이만큼이 더 붙는다.
+export const TRAIT_PER_LV = 0.22;
+export const traitScale = (lv) => 1 + TRAIT_PER_LV * (lv || 0);
+// 문파를 바꾸는 값. 거쳐 본 적 있는 문파로 돌아갈 때는 절반이다.
+export const JOB_SWITCH_BASE = 400;
+export const jobSwitchCost = (switches, seen) =>
+  Math.ceil(JOB_SWITCH_BASE * Math.pow(1.8, switches || 0) * (seen ? 0.5 : 1));
 // 보너스(은자·경험치)를 거는 계열 무공만 추려 둔다. stats()가 매 프레임 도는 곳이다.
 export const BOON_SKILLS = SKILLS.filter((s) => s.boon);
 // ---------- 무공 초월 / 총 레벨 ----------

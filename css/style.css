@@ -369,6 +369,7 @@ body { background: radial-gradient(ellipse at top, #1d1712, #0b0907 70%); }
 .cur.stone { background: #1e3a8a; color: #bfdbfe; }
 .cur.food { background: #7c2d12; color: #fed7aa; }
 .cur.shard { background: #4c1d95; color: #ddd6fe; }
+.cur.merit { background: #713f12; color: #fde68a; }
 .icon-btn { font-size: 17px; color: #f5e9cf; border: 1px solid var(--line); }
 #power-label { background: rgba(10,8,6,0.65); color: var(--gold); font-family: var(--serif); }
 #progress { background: rgba(10,8,6,0.65); }
@@ -666,3 +667,11 @@ body { background: radial-gradient(ellipse at top, #1d1712, #0b0907 70%); }
 .trait-card h3 small { color: var(--muted); font-weight: 700; font-size: 11px; margin-left: 4px; }
 /* 아직 안 열린 문파 칸 */
 .slot.closed { opacity: 0.45; }
+
+/* 연계 기운 — 먹는 것 → 남기는 것. 칸을 어떻게 짜느냐가 여기서 읽혀야 한다. */
+.qi-row { display: inline-flex; align-items: center; gap: 2px; margin-left: 6px; vertical-align: middle; }
+.qi {
+  font-style: normal; font-size: 10px; font-weight: 800; line-height: 1;
+  border: 1px solid currentColor; border-radius: 4px; padding: 2px 3px; opacity: 0.9;
+}
+.qi-arrow { font-size: 9px; color: var(--muted); }

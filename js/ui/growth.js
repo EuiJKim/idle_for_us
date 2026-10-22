@@ -2,7 +2,8 @@
 import { UPGRADES, UP_GROUPS, UP_STAT_LABEL, upAdds, upNext, upTierInfo, upStatAt, josaRo,
   SP_STATS, SP_RESET_GEMS, RANKS, RANK_MULT, expToNext, REGRESS_MIN_STAGE, REGRESS_PER_POINT,
   CRIT_CAP, REGRESS_ADVISE_POINTS, JOBS, JOB_RANK, JOB_UNLOCK, RANK_SUBS, rankSubLevel,
-  TASTE_RANK, jobSkillOf, jobTestOf, jobTestStage } from '../data.js';
+  TASTE_RANK, jobSkillOf, jobSkillsOf, JOB_SKILL_OPEN, jobTraitOf, traitCost,
+  jobTestOf, jobTestStage } from '../data.js';
 import { fmt } from '../fmt.js';
 import { drawFighter } from '../battle.js';
 import { h, toast, openModal, closeModal, fmtValue, subTabs, multSelector, popUp } from './common.js';
@@ -340,6 +341,7 @@ function jobView(app) {
     const eff = h('div', { class: 'desc', style: 'margin-top:4px' });
     const note = h('div', { class: 'desc', style: 'margin-top:2px' }, j.desc);
     const art = h('div', { class: 'desc', style: 'margin-top:4px' });
+    const trait = h('div', { class: 'desc', style: 'margin-top:2px' });
     // 전직 시험 — 문이 열렸는데 아직 안 붙었으면 여기 뭘 해야 하는지 적힌다
     const test = h('div', { class: 'desc', style: 'margin-top:4px' });
     const btn = h('button', { class: 'buy', onclick: () => {
@@ -375,9 +377,9 @@ function jobView(app) {
     } });
     const row = h('div', { class: 'card' },
       h('div', { style: 'display:flex;align-items:flex-start;gap:8px' },
-        h('div', { style: 'flex:1;min-width:0' }, title, tag, eff, art, test, note), btn));
+        h('div', { style: 'flex:1;min-width:0' }, title, tag, eff, art, trait, test, note), btn));
     root.append(row);
-    cards[j.id] = { title, eff, art, test, btn, row, def: j };
+    cards[j.id] = { title, eff, art, trait, test, btn, row, def: j };
   }
 
   function update() {
@@ -385,7 +387,8 @@ function jobView(app) {
     const taste = game.tasteOpen();
     const at = game.nextJobAt();
     head.innerHTML = open
-      ? `여덟 중 하나를 골라요. <b>언제든 바꿀 수 있고, 바꿔도 잃는 게 없어요.</b>`
+      ? `여덟 중 하나를 골라요. <b>처음 드는 건 공짜</b>지만, 바꿀 때마다 공적이 들어요.`
+        + `<br><b>특성 단련은 문파마다 따로 쌓여요</b> — 갈아타면 들인 공적은 두고 가요.`
         + `<br>문 열림 ${game.jobStageOpenCount()}/${JOBS.length} · 시험 통과 ${game.jobTestsPassed()}`
         + (at ? ` · 다음은 <b>${at}관문</b>` : ' · 전부 열림')
       : taste
@@ -403,8 +406,20 @@ function jobView(app) {
       const need = JOB_UNLOCK[JOBS.indexOf(j)] || 0;
       c.title.innerHTML = `${j.name} <small style="color:var(--muted)">${j.weapon}</small>`
         + (picked ? ` <b style="color:var(--accent-2)">· ${tasting ? '써 보는 중' : '지금 이것'}</b>` : '');
-      const sk = jobSkillOf(j.id);
-      c.art.innerHTML = sk ? `전용 무공 <b style="color:${j.color}">${sk.name}</b> · 쿨 ${sk.cd}초` : '';
+      const mine = jobSkillsOf(j.id);
+      const openN = taste ? 1 : game.jobSlotCount();
+      c.art.innerHTML = mine.length
+        ? '전용 무공 ' + mine.map((s2, i2) => (i2 < openN
+          ? `<b style="color:${j.color}">${s2.name}</b>`
+          : `<span class="muted">${s2.name}(${JOB_SKILL_OPEN[i2]}관문)</span>`)).join(' · ')
+        : '';
+      // 특성 — 전직하면 쓰는 모든 무공에 실린다. 레벨은 문파마다 따로 쌓인다.
+      const tr = jobTraitOf(j.id);
+      const tlv = game.traitLvOf(j.id);
+      c.trait.innerHTML = tr
+        ? `특성 <b style="color:rgb(${tr.col})">〈${tr.name}〉</b> ${tr.text}`
+          + (tlv ? ` <b>${tlv}단</b>` : '')
+        : '';
       c.eff.innerHTML = taste ? '<span class="muted">문파에 들면 능력치 보너스가 붙어요</span>' : bonusText(j);
       // 시험 줄 — 뭘 해야 하는지 카드에 적어 둔다. 눌러 보고서야 알면 늦다.
       const d = jobTestOf(j.id);
@@ -414,13 +429,15 @@ function jobView(app) {
             : `<span class="muted">입문 시험 〈${d.name}〉</span>`;
       c.row.style.opacity = stageOpen ? '' : '0.5';
       c.row.style.outline = picked ? `1px solid ${j.color}` : '';
+      const cost = taste ? 0 : game.jobSwitchCost(j.id);
       c.btn.textContent = tasting ? '내려놓기' : taste ? '맛보기'
-        : picked ? '그만두기' : unlocked ? '입문'
+        : picked ? '그만두기' : unlocked ? (cost ? `공적 ${fmt(cost)}` : '입문')
           : stageOpen ? '시험 보기' : (!open ? '경지 부족' : `${need}관문`);
-      c.btn.disabled = !stageOpen && !picked;
+      // 값이 모자라면 못 누른다. 누르고 나서 안 된다고 알려 주면 늦다.
+      c.btn.disabled = (!stageOpen && !picked) || (unlocked && !picked && cost > game.s.merit);
     }
   }
-  return { root, update };
+  return { root, update, res: ['merit'] };
 }
 
 export function growthTab(app) {

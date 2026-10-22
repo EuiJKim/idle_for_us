@@ -148,6 +148,7 @@ console.log('\n=== 4. 아이콘 개수 ↔ 데이터 개수 ===');
     eqweapon: D.GRADES.length, eqarmor: D.GRADES.length, eqring: D.GRADES.length,
     acc: D.ACC_SLOTS.length, ego: D.EGO_PARTS.length, dg: D.DUNGEONS.length,
     sp: Object.keys(D.SP_STATS).length, codex: D.CODEX_KINDS.length,
+    jskill: D.JOB_SKILLS.length,
   };
   for (const [k, n] of Object.entries(want)) {
     ok(K[k] === n, `${k} 아이콘 수가 데이터와 같다`, `${K[k]} / ${n}`);

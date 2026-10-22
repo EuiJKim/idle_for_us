@@ -1,5 +1,5 @@
 // 앱 껍데기를 캐시해 오프라인에서도 열리게 한다. 온라인이면 항상 새 파일을 먼저 받는다.
-const CACHE = 'ifu-v71';
+const CACHE = 'ifu-v72';
 const SHELL = [
   './', 'index.html', 'css/style.css', 'manifest.webmanifest',
   'js/main.js', 'js/game.js', 'js/data.js', 'js/battle.js', 'js/net.js', 'js/fmt.js', 'js/firebase-config.js',
@@ -25,6 +25,30 @@ const SHELL = [
   'art/icon/up-0.png', 'art/icon/up-1.png', 'art/icon/up-2.png', 'art/icon/up-3.png',
   'art/icon/up-4.png', 'art/icon/up-5.png',
   'art/icon/up-8.png',
+  'art/icon/jskill-0.png',
+  'art/icon/jskill-1.png',
+  'art/icon/jskill-2.png',
+  'art/icon/jskill-3.png',
+  'art/icon/jskill-4.png',
+  'art/icon/jskill-5.png',
+  'art/icon/jskill-6.png',
+  'art/icon/jskill-7.png',
+  'art/icon/jskill-8.png',
+  'art/icon/jskill-9.png',
+  'art/icon/jskill-10.png',
+  'art/icon/jskill-11.png',
+  'art/icon/jskill-12.png',
+  'art/icon/jskill-13.png',
+  'art/icon/jskill-14.png',
+  'art/icon/jskill-15.png',
+  'art/icon/jskill-16.png',
+  'art/icon/jskill-17.png',
+  'art/icon/jskill-18.png',
+  'art/icon/jskill-19.png',
+  'art/icon/jskill-20.png',
+  'art/icon/jskill-21.png',
+  'art/icon/jskill-22.png',
+  'art/icon/jskill-23.png',
   'art/icon/up-7.png',
   'art/icon/up-6.png',
   // 지역 바닥. 카메라를 따라 흐르는 타일이라 투명이 필요 없어 JPEG다.

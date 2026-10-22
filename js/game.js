@@ -38,7 +38,8 @@ import {
   RELICS, RELIC_DIG_COST,
   SKILLS, SKILL_SLOTS, skillSlotCount, skillBookCost,
   skillCd, skillTierMult, jobSkillsOf, jobSlotCount, nextJobSkillAt, JOB_SLOTS,
-  jobTraitOf,
+  jobTraitOf, qiOf, COMBO_SEC, COMBO_CC, comboMult,
+  bossMerit, traitCost, traitScale, jobSwitchCost,
   DUNGEONS, DUNGEON_KEYS, DUNGEON_TIME, DUNGEON_MOBS, dungeonStage, dungeonReward,
   DUNGEON_KEY_CAP, RAID_TICKET_CAP, PVP_TICKET_CAP,
   MISSIONS, MISSION_ALL_REWARD, stageMilestone, STAGE_MILESTONE_EVERY,
@@ -113,6 +114,9 @@ export function newSave(now = Date.now()) {
     acc: Object.fromEntries(ACC_SLOTS.map((a) => [a.id, null])),      // { grade, star, pierce }
     accBag: Object.fromEntries(ACC_SLOTS.map((a) => [a.id, GRADES.map(() => 0)])),
     accPick: 0,    // 손에 든 선택 상자. 열 때 자리를 고른다.
+    merit: 0,      // 문파 공적. 특성 단련과 문파 교체에만 쓴다.
+    traitLv: {},   // 문파마다 따로 쌓인다 — 갈아타면 그 공적은 두고 간다
+    jobSwitches: 0,
     enhance: Object.fromEntries(Object.keys(EQUIP_TYPES).map((k) => [k, 0])),
     equipPierce: Object.fromEntries(Object.keys(EQUIP_TYPES).map((k) => [k, 0])),
     skills: Object.fromEntries(SKILLS.map((s) => [s.id, 1])),
@@ -180,7 +184,7 @@ export function migrate(raw, now = Date.now()) {
   const base = newSave(now);
   if (!raw || typeof raw !== 'object') return base;
   const s = { ...base, ...raw };
-  for (const key of ['upgrades', 'skills', 'stats', 'spAlloc', 'enhance', 'equipPierce', 'dungeons', 'pvp', 'regress']) {
+  for (const key of ['upgrades', 'skills', 'stats', 'spAlloc', 'enhance', 'equipPierce', 'dungeons', 'pvp', 'regress', 'traitLv']) {
     s[key] = { ...base[key], ...(raw[key] || {}) };
   }
   // 수련에는 더 이상 상한이 없다. 전에 치명 90 -> 50으로 깎으며 넘치는 레벨을
@@ -293,7 +297,7 @@ export function migrate(raw, now = Date.now()) {
     const n = typeof v === 'number' ? v : Number(v);
     return Number.isFinite(n) ? Math.max(min, n) : def;
   };
-  for (const k of ['gold', 'gems', 'stones', 'books', 'food', 'relicShards', 'exp', 'sp', 'seek', 'accPick']) {
+  for (const k of ['gold', 'gems', 'stones', 'books', 'food', 'relicShards', 'exp', 'sp', 'seek', 'accPick', 'merit', 'jobSwitches']) {
     s[k] = num(s[k], 0, 0);
   }
   s.level = Math.max(1, Math.floor(num(s.level, 1, 1)));
@@ -395,6 +399,8 @@ export class Game {
     this.contest = null;
     this.raid = null; // 하위 호환: 레이드 진행 정보
     this.buffs = { rage: 0, gale: 0, midas: 0 };
+    // 연계 — 앞선 무공이 남긴 기운과 그게 머무는 시간, 연달아 이은 횟수
+    this.qiNow = null; this.qiLeft = 0; this.comboStreak = 0;
     this.cd = Object.fromEntries(SKILLS.map((s) => [s.id, 1.5]));
     this.rng = Math.random;
     this.queue = [];
@@ -541,8 +547,7 @@ export class Game {
   jobSkillId() { return this.jobSkill()?.id || null; }
   jobSkillIds() { return this.jobSkills().map((s) => s.id); }
 
-  // 지금 문파의 특성. 전직을 해야 붙는다 — 맛보기로는 안 붙는다.
-  jobTrait() { return this.s.job ? jobTraitOf(this.s.job) : null; }
+
 
   // 다음 계열이 열리는 관문 (없으면 null)
   nextJobAt() {
@@ -554,9 +559,58 @@ export class Game {
     return null;
   }
 
+  // ---------- 공적 / 특성 ----------
+  traitLvOf(job = this.s.job) { return this.s.traitLv?.[job] || 0; }
+  traitCostOf(job = this.s.job) { return traitCost(this.traitLvOf(job)); }
+  canTraitUp(job = this.s.job) { return !!job && this.s.merit >= this.traitCostOf(job); }
+
+  traitUp(job = this.s.job) {
+    if (!this.canTraitUp(job)) return false;
+    this.s.merit -= this.traitCostOf(job);
+    this.s.traitLv[job] = this.traitLvOf(job) + 1;
+    this.emit('traitUp', { job, lv: this.s.traitLv[job] });
+    return true;
+  }
+
+  // 지금 문파의 특성. 레벨만큼 세진 값으로 돌려준다.
+  jobTrait() {
+    if (!this.s.job) return null;
+    const base = jobTraitOf(this.s.job);
+    if (!base) return null;
+    const k = traitScale(this.traitLvOf(this.s.job));
+    const out = { ...base, lv: this.traitLvOf(this.s.job), scale: k };
+    for (const f of ['bossBonus', 'critChance', 'cdCut', 'goldOnSkill', 'heal']) {
+      if (base[f]) out[f] = base[f] * k;
+    }
+    if (base.ccSec) out.ccSec = base.ccSec * k;
+    if (base.bleedMult) out.bleedMult = base.bleedMult * k;
+    // 치명 확률은 1을 넘을 수 없다 — 넘으면 올린 공적이 그냥 버려진다
+    if (out.critChance) out.critChance = Math.min(1, out.critChance);
+    return out;
+  }
+
+  // ---------- 문파 교체 ----------
+  // 처음 드는 건 공짜다. 바꿀 때마다 값이 오르고, 거쳐 본 곳은 절반이다.
+  jobSwitchCost(id) {
+    if (!this.s.job) return 0;
+    if (this.s.job === id) return 0;
+    return jobSwitchCost(this.s.jobSwitches || 0, this.s.jobSeen.includes(id));
+  }
+
+  canSetJob(id) {
+    if (!id || !this.jobUnlocked(id)) return false;
+    return this.s.merit >= this.jobSwitchCost(id);
+  }
+
   setJob(id) {
     if (id === null) { this.s.job = null; return true; }
     if (!this.jobUnlocked(id)) return false;
+    const cost = this.jobSwitchCost(id);
+    if (cost > 0) {
+      if (this.s.merit < cost) return false;
+      this.s.merit -= cost;
+      this.s.jobSwitches = (this.s.jobSwitches || 0) + 1;
+    }
     this.s.job = id;
     this.s.taste = null;   // 고른 뒤에는 맛보기가 없다
     if (!this.s.jobSeen.includes(id)) this.s.jobSeen.push(id);
@@ -2129,6 +2183,7 @@ export class Game {
       // 양이라 지수로 작아지므로 되돌아가 버는 짓은 이득이 안 된다.
       this.s.books += bossBooks(s);
       this.s.stones += bossStones(s);
+      this.s.merit += bossMerit(s);
       if (s >= this.s.maxStage) { // 이번 생에서 처음 넘는 관문
         this.s.climbAt = this.clock || 0;
         const gems = bossGems(s);
@@ -2214,6 +2269,12 @@ export class Game {
       if (this.mode === 'raid' && this.mon.hp <= 0) return this.endContest('done');
     }
 
+    // 남긴 기운이 식는다. 식으면 이어 온 횟수도 끊긴다.
+    if (this.qiLeft > 0) {
+      this.qiLeft = Math.max(0, this.qiLeft - dt);
+      if (this.qiLeft === 0) { this.qiNow = null; this.comboStreak = 0; }
+    }
+
     // 들판 사냥: 적을 찾아 걸어가서 벤다
     this.tickCC(dt);
     this.waveT = (this.waveT || 0) + dt;
@@ -2264,8 +2325,14 @@ export class Game {
     }
 
     if (this.s.autoSkill && this.mode !== 'pvp') {
-      for (const id of this.activeSlots()) {
-        if (!id) continue;
+      // **연계를 노린다.** 칸 차례대로만 쓰면 연계는 운으로만 터진다 —
+      // 칸을 어떻게 짜느냐가 뜻을 가지려면 자동도 이을 줄 알아야 한다.
+      // 지금 남은 기운을 먹는 무공을 먼저 보고, 없으면 칸 차례대로 간다.
+      const slots = this.activeSlots().filter(Boolean);
+      const eats = this.qiLeft > 0
+        ? slots.filter((id) => qiOf(id)?.feeds === this.qiNow && !(this.cd[id] > 0))
+        : [];
+      for (const id of [...eats, ...slots]) {
         if (id === 'heal' && this.heroHp > st.hp * 0.6) continue;
         if (this.buffs[id] > 0) continue;
         this.useSkill(id);
@@ -2687,7 +2754,19 @@ export class Game {
       this.emit('skillArea', { id, radius: sk.radius || 0, target: sk.target || 'single', job: this.s.job || null });
       if (sk.stun) this.mon.stun = sk.stun;
       this.emit('skill', { id, target: sk.target || 'single', job: this.s.job || null });
-      let dmg = st.atk * this.skillMult(sk);
+      // ---- 연계 ----
+      // 앞선 무공이 남긴 기운을 이 무공이 먹으면 터진다.
+      const qi = qiOf(id);
+      const combo = !!(qi && this.qiLeft > 0 && this.qiNow === qi.feeds);
+      if (combo) this.comboStreak = (this.comboStreak || 0) + 1;
+      else if (!qi || this.qiLeft <= 0) this.comboStreak = 0;
+      const cMult = combo ? comboMult(this.comboStreak) : 1;
+      // 이 무공이 남기는 기운으로 갈아 끼운다
+      if (qi) { this.qiNow = qi.leaves; this.qiLeft = COMBO_SEC; }
+      if (combo) {
+        this.emit('combo', { id, qi: qi.feeds, streak: this.comboStreak, mult: cMult });
+      }
+      let dmg = st.atk * this.skillMult(sk) * cMult;
       // 단지멸은 반드시 치명으로 들어간다 (극악소마의 축이 치명 피해다)
       if (sk.sure) dmg *= st.critDmg;
       // 극악소마 〈지력〉 — 반드시 치명이 아니어도 치명이 뜰 수 있다
@@ -2699,10 +2778,11 @@ export class Game {
       // 한 명만 노리는 무공은 두목에게 더 아프게 들어간다
       if (sk.bossMult && this.mon.isBoss) dmg *= sk.bossMult;
       // 이번 무공이 거는 상태이상. 맞은 적마다 applyCC가 집어간다.
-      this.ccNow = sk.cc ? { cc: sk.cc, sec: sk.ccSec || 3 } : null;
+      const ccLong = combo ? COMBO_CC : 1;
+      this.ccNow = sk.cc ? { cc: sk.cc, sec: (sk.ccSec || 3) * ccLong } : null;
       // 문파 특성이 거는 상태이상은 **무공 본래 것에 더해서** 들어간다.
       // 본래 것과 같은 종류면 더 긴 쪽이 남는다(applyCC가 알아서 고른다).
-      this.ccJob = tr?.cc ? { cc: tr.cc, sec: tr.ccSec || 4, mult: tr.bleedMult || 1 } : null;
+      this.ccJob = tr?.cc ? { cc: tr.cc, sec: (tr.ccSec || 4) * ccLong, mult: tr.bleedMult || 1 } : null;
       switch (sk.motion) {
         case 'chain': this.castChain(sk, dmg, id); break;
         case 'dash': this.castDash(sk, dmg, id); break;
@@ -3192,6 +3272,8 @@ export class Game {
     s.sp = 0;
     for (const k of Object.keys(s.spAlloc)) s.spAlloc[k] = 0;
     this.buffs = { rage: 0, gale: 0, midas: 0 };
+    // 연계 — 앞선 무공이 남긴 기운과 그게 머무는 시간, 연달아 이은 횟수
+    this.qiNow = null; this.qiLeft = 0; this.comboStreak = 0;
     this.queue = [];
     this.adds = [];
     this.heroHp = this.stats().hp;

@@ -881,9 +881,23 @@ console.log('\n=== 18. 문파 ===');
   ok(g.setJob(D.JOBS[0].id) === false, '시험을 안 봤으면 못 들어간다');
   for (const j of D.JOBS) g.s.jobTests[j.id] = true;
   ok(g.setJob(D.JOBS[0].id), '시험에 붙으면 들어간다');
-  ok(g.setJob(D.JOBS[1].id), '언제든 바꿀 수 있다');
+  // **처음 드는 건 공짜, 바꾸는 건 공적이 든다.** 전에는 공짜로 갈아탈 수
+  // 있어서 상황마다 바꾸는 게 늘 이득이었다 — 고르는 게 고르는 일이 아니었다.
+  ok(g.jobSwitchCost(D.JOBS[1].id) > 0, '바꾸는 데 공적이 든다',
+    `${g.jobSwitchCost(D.JOBS[1].id)}`);
+  ok(g.setJob(D.JOBS[1].id) === false, '공적이 없으면 못 바꾼다');
+  g.s.merit = 1e9;
+  ok(g.setJob(D.JOBS[1].id), '공적이 있으면 바꾼다');
   ok(g.s.jobSeen.length === 2, '거쳐 본 계열이 쌓인다 (나중에 각인에 쓴다)',
     g.s.jobSeen.join(','));
+  // 바꿀수록 비싸지고, 거쳐 본 곳으로 돌아가는 건 절반이다
+  const back = g.jobSwitchCost(D.JOBS[0].id);
+  const fresh = g.jobSwitchCost(D.JOBS[2].id);
+  ok(back < fresh, '거쳐 본 문파로 돌아가는 게 더 싸다', `${back} < ${fresh}`);
+  const before = g.s.jobSwitches;
+  g.setJob(D.JOBS[2].id);
+  ok(g.s.jobSwitches === before + 1, '바꾼 횟수가 쌓인다');
+  ok(g.jobSwitchCost(D.JOBS[3].id) > fresh, '바꿀수록 값이 오른다');
   ok(g.setJob(null) && g.s.job === null, '그만둘 수 있다');
 
   // 여덟이 서로 다른 축을 민다 — 같은 축이면 고르는 의미가 사라진다
@@ -980,7 +994,8 @@ console.log('\n=== 19. 계열 전용 무공 ===');
   ok(g.activeSlots().includes('jsword'), '전용 무공이 실제로 나간다');
   ok(!g.s.skillSlots.includes('jsword'), '전용 무공이 일반 칸을 차지하지 않는다');
 
-  // 바꾸면 무공도 바뀐다
+  // 바꾸면 무공도 바뀐다 (이제 공적이 드니 먼저 쥐여 준다)
+  g.s.merit = 1e9;
   g.setJob('poison');
   ok(g.jobSkillId() === 'jpoison', '문파를 바꾸면 전용 무공도 바뀐다', g.jobSkillId());
   ok(!g.skillUnlocked(D.SKILLS.find((x) => x.id === 'jsword')),
@@ -1382,6 +1397,7 @@ console.log('\n=== 26. 계열 패시브 / 장착 칸 ===');
   const g = strong(600);
   g.s.books = 1e12;
   g.s.bestStage = 9999;
+  g.s.merit = 1e9;                  // 문파를 바꾸는 데 공적이 든다
   for (const j of D.JOBS) g.s.jobTests[j.id] = true;
   ok(g.setJob('monk'), '마불에 들어간다');
   ok(g.passiveUp('monk-nei', 10) === 10, '내 계열 패시브는 올라간다');
@@ -1573,6 +1589,162 @@ console.log('=== 28. 무공 차수 ===');
   ok(ti.tier === 1 && ti.inTier === 12 && ti.left === 38, '차수 안 진행도가 맞는다',
     `${ti.name} ${ti.inTier}/${ti.step}`);
 }
+}
+
+// ---------- 29. 무공 연계 ----------
+//
+// 무공이 서른여덟인데 고르는 기준이 "센 것 여덟"뿐이면 칸이 여덟일 이유가 없다.
+// 연계가 **실제로 터지고, 실제로 더 아프고, 고리가 막히지 않는가**를 본다.
+console.log('');
+console.log('=== 29. 무공 연계 ===');
+{
+  // 고리가 막히면 안 된다 — 여섯 기운이 모두 남겨지고 모두 먹혀야 한다
+  const leaves = new Set(Object.values(D.SKILL_QI).map((q) => q.leaves));
+  const feeds = new Set(Object.values(D.SKILL_QI).map((q) => q.feeds));
+  ok(D.QI_KEYS.every((k) => leaves.has(k)), '여섯 기운이 모두 남겨진다',
+    D.QI_KEYS.filter((k) => !leaves.has(k)).join(',') || '빠짐없음');
+  ok(D.QI_KEYS.every((k) => feeds.has(k)), '여섯 기운이 모두 먹힌다',
+    D.QI_KEYS.filter((k) => !feeds.has(k)).join(',') || '빠짐없음');
+  const noQi = D.SKILLS.filter((s) => !D.SKILL_QI[s.id]);
+  ok(noQi.length === 0, '기운이 안 적힌 무공이 없다', noQi.map((s) => s.id).join(',') || '없음');
+  // 자기 자신으로 이어지면 한 무공만 연타해도 계속 터진다
+  const self = Object.entries(D.SKILL_QI).filter(([, q]) => q.leaves === q.feeds);
+  ok(self.length === 0, '자기가 남긴 걸 자기가 먹는 무공은 없다',
+    self.map(([k]) => k).join(',') || '없음');
+
+  // 실제로 터지는가
+  const run = (first, second) => {
+    const g = strong(200);
+    g.rng = () => 0.99;
+    g.spawn();
+    g.mon.hp = Infinity;
+    g.cd = {};
+    g.useSkill(first);
+    g.events.length = 0;
+    g.cd = {};
+    g.useSkill(second);
+    const dmg = g.events.filter((e) => e.type === 'dmg').reduce((a, e) => a + (e.amount || 0), 0);
+    const combo = g.events.some((e) => e.type === 'combo');
+    return { dmg, combo, g };
+  };
+  // 뇌정검(뇌를 남긴다) → 빙백신장(뇌를 먹는다)
+  ok(D.qiOf('thunder').leaves === D.qiOf('frost').feeds, '뇌정검 다음 빙백신장이 이어진다');
+  const linked = run('thunder', 'frost');
+  ok(linked.combo, '이어 쓰면 연계가 터진다');
+  // 안 이어지는 짝 — 빙백신장(한)은 선풍검(풍)이 안 먹는다
+  ok(D.qiOf('frost').leaves !== D.qiOf('slash').feeds, '빙백신장 다음 선풍검은 안 이어진다');
+  const plain = run('frost', 'slash');
+  ok(!plain.combo, '안 이어지면 연계가 안 터진다');
+
+  // 더 아픈가 — 같은 무공을 연계로 쓸 때와 아닐 때
+  const alone = (() => {
+    const g = strong(200);
+    g.rng = () => 0.99;
+    g.spawn();
+    g.mon.hp = Infinity;
+    g.cd = {};
+    g.events.length = 0;
+    g.useSkill('frost');
+    return g.events.filter((e) => e.type === 'dmg').reduce((a, e) => a + (e.amount || 0), 0);
+  })();
+  ok(linked.dmg > alone * 1.5, '연계로 들어가면 훨씬 아프다',
+    `${alone.toExponential(2)} → ${linked.dmg.toExponential(2)}`);
+
+  // 기운은 식는다 — 시간이 지나면 안 이어진다
+  {
+    const g = strong(200);
+    g.spawn();
+    g.cd = {};
+    g.useSkill('thunder');
+    ok(g.qiLeft > 0 && g.qiNow === 'bolt', '쓴 뒤에 기운이 남는다', `${g.qiNow} ${g.qiLeft}초`);
+    for (let i = 0; i < 60 * (D.COMBO_SEC + 1); i++) g.tick(1 / 60);
+    ok(g.qiLeft === 0 && g.qiNow === null, '시간이 지나면 식는다');
+    ok(g.comboStreak === 0, '식으면 이어 온 횟수도 끊긴다');
+  }
+
+  // 연달아 이으면 더 커진다
+  ok(D.comboMult(3) > D.comboMult(1), '연달아 이으면 배수가 커진다',
+    `${D.comboMult(1).toFixed(2)} → ${D.comboMult(3).toFixed(2)}`);
+  ok(D.comboMult(99) === D.comboMult(D.COMBO_STREAK_MAX), '끝없이 커지지는 않는다',
+    `×${D.comboMult(99).toFixed(2)}`);
+
+  // 자동 시전이 연계를 노리는가 — 운으로만 터지면 칸을 짜는 뜻이 없다.
+  // 돌려서 본다: 이어지는 무공만 넣어 두고 연계가 실제로 터지는지.
+  {
+    const g2 = strong(200);
+    g2.s.skillSlots = ['thunder', 'frost', 'chain', 'plum'];
+    g2.s.autoSkill = true;
+    g2.spawn();
+    let combos = 0;
+    for (let i = 0; i < 60 * 30; i++) {
+      g2.tick(1 / 60);
+      combos += g2.events.filter((e) => e.type === 'combo').length;
+      g2.events.length = 0;
+      if (g2.mon) g2.mon.hp = Infinity;        // 안 죽게 두고 30초를 본다
+    }
+    ok(combos > 0, '자동으로 두고 봐도 연계가 터진다', `30초에 ${combos}번`);
+  }
+}
+
+// ---------- 30. 특성 단련 / 문파 교체 ----------
+console.log('');
+console.log('=== 30. 특성 단련 · 문파 교체 ===');
+{
+  const g = strong(500);
+  g.s.rank = 9; g.s.bestStage = 9999;
+  for (const j of D.JOBS) g.s.jobTests[j.id] = true;
+  g.s.merit = 1e6;
+  g.setJob('blade');
+
+  const t0 = g.jobTrait();
+  ok(t0.lv === 0, '처음엔 0단');
+  ok(g.traitUp(), '공적으로 올린다');
+  const t1 = g.jobTrait();
+  ok(t1.lv === 1, '한 단 올랐다');
+  ok(t1.ccSec > t0.ccSec, '올리면 특성이 세진다', `${t0.ccSec} → ${t1.ccSec.toFixed(2)}`);
+  // 끝이 없다
+  ok(D.traitCost(500) > D.traitCost(499) && Number.isFinite(D.traitCost(500)), '단련에 끝이 없다');
+  ok(D.traitScale(100) > D.traitScale(50), '올릴수록 계속 세진다');
+  // 치명 확률만은 1을 넘으면 버려지므로 막는다
+  {
+    const gr = strong(500);
+    gr.s.rank = 9; gr.s.bestStage = 9999;
+    for (const j of D.JOBS) gr.s.jobTests[j.id] = true;
+    gr.s.merit = 1e12;
+    gr.setJob('ring');
+    gr.s.traitLv.ring = 500;
+    ok(gr.jobTrait().critChance <= 1, '치명 확률 특성이 1을 안 넘는다',
+      `${gr.jobTrait().critChance}`);
+  }
+
+  // 특성 레벨은 문파마다 따로 쌓인다 — 갈아타는 진짜 값이 이것이다
+  g.traitUp(); g.traitUp();
+  const bladeLv = g.traitLvOf('blade');
+  g.setJob('poison');
+  ok(g.jobTrait().lv === 0, '갈아타면 그쪽은 0단부터');
+  ok(g.traitLvOf('blade') === bladeLv, '두고 온 단련은 남아 있다', `${bladeLv}단`);
+  g.setJob('blade');
+  ok(g.jobTrait().lv === bladeLv, '돌아오면 그대로다');
+
+  // 공적이 실제로 들어오는가 — 안 들어오면 올릴 길이 없다
+  ok(D.bossMerit(300) > D.bossMerit(100), '관문이 오를수록 공적도 는다',
+    `${D.bossMerit(100)} → ${D.bossMerit(300)}`);
+  // 관문지기를 실제로 넘겨 보고 공적이 들어오는지 본다
+  {
+    const gm = strong(200);
+    const m0 = gm.s.merit;
+    gm.spawn();
+    gm.mon.isBoss = true;
+    gm.mon.hp = 1;
+    gm.dealDamage(1e30);
+    ok(gm.s.merit > m0, '관문지기를 넘으면 공적이 들어온다', `+${gm.s.merit - m0}`);
+  }
+  // 세이브에 남는가
+  const back = migrate(JSON.parse(JSON.stringify(g.toJSON())));
+  ok(back.traitLv?.blade === bladeLv, '특성 단련이 세이브에 남는다', `${back.traitLv?.blade}`);
+  ok(typeof back.merit === 'number', '공적이 세이브에 남는다');
+  ok(migrate({}).traitLv && Object.keys(migrate({}).traitLv).length === 0,
+    '옛 세이브는 빈 채로 들어온다');
 }
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);

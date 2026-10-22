@@ -310,6 +310,7 @@ function handleEvents() {
       // 소단계가 오르면 알려 준다. **자주 오르는 맛**이 이 시스템의 전부인데
       // 조용히 오르면 올라간 줄 모른다 — 만들어 놓고 안 쓴 사건이었다.
       case 'rankSubUp': toast(`${game.rankLabel()} — 기운이 한 겹 두터워졌어요`); break;
+      case 'traitUp': toast(`${game.job()?.name || ''} 특성 ${ev.lv}단 — 쓰는 무공 전부가 세졌어요`); break;
       case 'bossTimeout': toast('⏳ 관문지기를 시간 안에 못 잡았어요'); break;
       // 연속 도전이 끊기면 알려야 한다. 모르면 계속 도는 줄 안다.
       case 'loopAgain': if (!ev.on) toast('연속 도전을 멈췄어요'); break;

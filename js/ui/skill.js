@@ -6,10 +6,11 @@
 // 이제 쓰는 자원(비급)은 창 머리에 붙고, 무공 목록은 상태별로 묶인다.
 import { SKILLS, SKILL_PIERCE_MAX, SKILL_PIERCE_AT, SKILL_PIERCE_MULT,
   skillTotalBonus, nextSkillTotalStep, PRESET_SLOTS, nextSkillSlotAt, jobOf,
-  skillTierInfo, JOB_SLOTS, JOB_SKILL_OPEN,
+  skillTierInfo, JOB_SLOTS, JOB_SKILL_OPEN, JOB_SKILLS, qiOf, QI,
   PASSIVE_KINDS, PASSIVES, passivesOf, passiveId, PASSIVE_MAX, PASSIVE_STAT_NAME } from '../data.js';
 import { fmt, pct } from '../fmt.js';
 import { h, openModal, closeModal, toast, popUp, subTabs } from './common.js';
+import { iconSkin } from '../icons.js';
 
 // ---------- 무공(액티브) ----------
 function activeView(app) {
@@ -84,14 +85,23 @@ function activeView(app) {
   const traitName = h('h3');
   const traitText = h('p', { class: 'desc', style: 'margin:4px 0 0' });
   const traitSub = h('p', { class: 'muted', style: 'margin:6px 0 0' });
-  traitCard.append(traitName, traitText, traitSub);
+  const traitBtn = h('button', { class: 'buy', onclick: () => {
+    if (game.traitUp()) { popUp(traitCard, `${game.traitLvOf()}단`); app.refresh(); }
+    else toast('공적이 모자라요 — 관문지기를 넘으면 쌓여요');
+  } });
+  traitCard.append(traitName, traitText,
+    h('div', { style: 'display:flex;gap:8px;align-items:center;margin-top:8px' },
+      traitSub, traitBtn));
 
   const root = h('div', {},
     traitCard,
     h('div', { class: 'card' },
       h('h3', {}, '장착 무공', slotInfo, autoBtn),
       slotsEl,
-      h('p', { class: 'muted', style: 'margin:8px 0 0' }, '두목을 잡거나 의뢰를 깨면 비급을 얻어요')),
+      h('p', { class: 'muted', style: 'margin:8px 0 0' },
+        '앞 무공이 남긴 기운을 다음 무공이 먹으면 ', h('b', {}, '연계'),
+        '가 터져요 — 피해가 커지고 상태이상이 길어져요. 이어지게 짜 보세요.'),
+      h('p', { class: 'muted', style: 'margin:4px 0 0' }, '두목을 잡거나 의뢰를 깨면 비급을 얻어요')),
     extra,
     ...groups.map((g) => g.wrap));
 
@@ -110,12 +120,23 @@ function activeView(app) {
       else toast(`${SKILL_PIERCE_AT}레벨부터 초월할 수 있고 비급이 필요해요`);
     } });
     const nm = h('span');
+    // 연계 — 이 무공이 남기는 기운과 먹는 기운. 칸을 짜는 기준이다.
+    const q = qiOf(sk.id);
+    const qiRow = q ? h('span', { class: 'qi-row' },
+      h('i', { class: 'qi', style: `color:rgb(${QI[q.feeds].col});border-color:rgb(${QI[q.feeds].col})`,
+        title: `${QI[q.feeds].name} 기운을 먹어요` }, QI[q.feeds].name),
+      h('span', { class: 'qi-arrow' }, '→'),
+      h('i', { class: 'qi', style: `color:rgb(${QI[q.leaves].col});border-color:rgb(${QI[q.leaves].col})`,
+        title: `${QI[q.leaves].name} 기운을 남겨요` }, QI[q.leaves].name)) : null;
     const tierHint = h('div', { class: 'tier-hint' });
     const bar = h('div', { class: 'bar', style: 'height:4px;margin:5px 0 0' }, h('div'));
     rows[sk.id] = { lv, desc, btn, eq, pierce, nm, tierHint, bar, row: null };
+    // 계열 무공에는 그림이 있다. 일반 무공은 아직 글자다.
+    const ico = h('div', { class: 'ico' }, sk.icon);
+    if (sk.job) iconSkin(ico, 'jskill', JOB_SKILLS.indexOf(sk));
     rows[sk.id].row = h('div', { class: 'row' },
-      h('div', { class: 'ico' }, sk.icon),
-      h('div', { class: 'info' }, h('div', { class: 'name' }, nm, lv), desc, bar, tierHint),
+      ico,
+      h('div', { class: 'info' }, h('div', { class: 'name' }, nm, lv, qiRow), desc, bar, tierHint),
       h('div', { style: 'display:flex;flex-direction:column;gap:6px;align-items:stretch' }, btn, pierce, eq));
   });
 
@@ -163,8 +184,13 @@ function activeView(app) {
       traitCard.style.borderColor = `rgb(${tr.col})`;
       traitName.innerHTML = `<span style="color:rgb(${tr.col})">〈${tr.name}〉</span>`
         + ` <small>${job?.name || ''}의 기운</small>`;
-      traitText.textContent = tr.text;
-      traitSub.textContent = '전직을 하면 쓰는 무공 전부에 실려요. 들판에 보이는 빛깔도 바뀌어요.';
+      traitText.innerHTML = `${tr.text}`
+        + (tr.lv ? ` <b style="color:rgb(${tr.col})">${tr.lv}단</b> (지금 세기 ×${tr.scale.toFixed(2)})` : '');
+      traitSub.innerHTML = '<span style="flex:1">공적으로 단련해요. '
+        + '문파마다 따로 쌓이니 갈아타면 두고 가요.</span>';
+      traitSub.style.flex = '1';
+      traitBtn.textContent = `공적 ${fmt(game.traitCostOf())}`;
+      traitBtn.disabled = !game.canTraitUp();
     }
     for (const r of presetRows) {
       const p2 = game.s.presets[r.i];
@@ -262,7 +288,7 @@ function activeView(app) {
       }
     }
   }
-  return { root, update, res: ['books'] };
+  return { root, update, res: ['books', 'merit'] };
 }
 
 // ---------- 계열 패시브 ----------
