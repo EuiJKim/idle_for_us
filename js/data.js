@@ -2,7 +2,7 @@
 
 // 지금 돌고 있는 빌드. 설정 창에 적어 둔다 — 기기가 옛 판을 들고 있는지
 // 한눈에 보려고 둔다. sw.js의 CACHE와 같은 값으로 맞춘다.
-export const BUILD = 'ifu-v63';
+export const BUILD = 'ifu-v64';
 
 export const SAVE_VERSION = 4;
 export const OFFLINE_CAP_SEC = 12 * 3600;
@@ -319,6 +319,27 @@ export const RANKS = [
   { name: '천인합일', level: 400, stage: 400, look: { robe: '#fffbeb', trim: '#f59e0b', sash: '#fde68a', band: '#f59e0b', aura: '#fde68a', swords: 4, halo: true, hair: '#ffffff' } },
 ];
 export const RANK_MULT = 1.5; // 경지마다 공격력·체력 ×1.5
+
+// 경지 안의 **소단계**. 큰 경지 열 개는 그대로 두고(이름·도포·심마),
+// 그 안을 마흔으로 쪼갠다 — 10 x 40 = 400단계.
+//
+// 왜 쪼개나: 큰 경지는 한참 만에 한 번 오른다. 그 사이에는 레벨을 올려도
+// 아무 일도 안 일어난다. 자주 오르는 맛이 없다.
+// 왜 심마는 그대로 두나: 400번 싸우게 할 수는 없다. 소단계는 레벨만 차면
+// 바로 오르고, **큰 경지를 넘을 때만** 심마와 겨룬다.
+export const RANK_SUBS = 40;
+// 소단계 하나가 요구하는 레벨. 이 경지와 다음 경지 사이를 마흔으로 나눈다.
+export const rankSubLevel = (r, sub) => {
+  const a = RANKS[r]?.level ?? 1;
+  const b = RANKS[r + 1]?.level ?? (a + Math.max(50, a * 0.3));
+  return Math.round(a + ((b - a) * sub) / RANK_SUBS);
+};
+// 경지 + 소단계가 주는 배율. 소단계 마흔을 다 채우면 다음 경지와 같아진다.
+export const rankPower = (r, sub = 0) =>
+  Math.pow(RANK_MULT, (r || 0) + Math.min(RANK_SUBS, sub || 0) / RANK_SUBS);
+// 화면에 쓰는 이름 — '현경 23단'
+export const rankName = (r, sub = 0) =>
+  `${RANKS[r]?.name ?? ''}${sub ? ` ${sub}단` : ''}`;
 export const TRIAL_TIME = 40;
 export const trialBoss = (r) => ({
   hp: monsterHp(RANKS[r].stage) * BOSS_HP_MULT * 2,

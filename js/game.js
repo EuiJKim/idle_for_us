@@ -21,7 +21,7 @@ import {
   EGO_ENCHANT_MAX, EGO_ENCHANT_WORTH, egoEnchantNeed, EGO_ENCHANT_ABIL, egoEnchantPower,
   egoTrialStage, EGO_TRIAL_TIME,
   expPerKill, expToNext, SP_PER_LEVEL, SP_RESET_GEMS, SP_STATS,
-  RANKS, RANK_MULT, TRIAL_TIME, trialBoss,
+  RANKS, RANK_MULT, RANK_SUBS, rankSubLevel, rankPower, rankName, TRIAL_TIME, trialBoss,
   PETS, PET_EGG_COST, PET_GRADE_WEIGHT, petFoodCost, PET_DUPLICATE_FOOD, PET_ATTACK_INTERVAL, petDamageMult,
   petSlotCount,
   BOND_PER_SEC, BOND_PER_LV, BOND_MAX, bondLevel, ENGRAVE_MIN_LV, engraveCost,
@@ -102,6 +102,7 @@ export function newSave(now = Date.now()) {
     gacha: Object.fromEntries(GACHA_KINDS.map((k) => [k.id, { lv: 0, cnt: 0, taken: 0 }])),
     outfits: {},   // 가진 의복 (입지 않아도 효과가 붙는다)
     outfit: null,  // 지금 입은 것 (겉모습만)
+    rankSub: 0,    // 경지 안의 소단계 (0~39). 레벨만 차면 바로 오른다.
     petTeam: [],   // 데려가는 영수들. **참말은 여기 하나뿐이다** —
                    // 예전 s.pet(한 마리)은 이 배열의 첫 자리로 옮겼다.
     // 인물도감: 종류×등급 칸을 한 번이라도 채웠는가 (회귀해도 남는다)
@@ -263,6 +264,7 @@ export function migrate(raw, now = Date.now()) {
   // 전직 시험이 생기기 전 세이브는 시험을 본 적이 없다. 이미 들어간 문파를
   // 시험 때문에 잃으면 안 된다 — 거쳐 본 계열은 전부 붙은 것으로 본다.
   s.noAds = !!raw.noAds;
+  s.rankSub = Math.max(0, Math.min(RANK_SUBS - 1, Math.floor(raw.rankSub || 0)));
   s.jobTests = {};
   for (const j of JOBS) if (raw.jobTests?.[j.id]) s.jobTests[j.id] = true;
   for (const id of [raw.job, ...(Array.isArray(raw.jobSeen) ? raw.jobSeen : [])]) {
@@ -1415,7 +1417,24 @@ export class Game {
     return m;
   }
 
-  rankMult() { return Math.pow(RANK_MULT, this.s.rank); }
+  // 경지 + 소단계. 소단계 마흔을 다 채우면 다음 경지와 같은 배율이 된다 —
+  // 그래서 돌파 순간에 숫자가 안 튄다.
+  rankMult() { return rankPower(this.s.rank, this.s.rankSub); }
+  rankLabel() { return rankName(this.s.rank, this.s.rankSub); }
+
+  // 소단계는 레벨만 차면 바로 오른다. 심마는 큰 경지에서만 만난다.
+  // 한 번에 여럿 오를 수 있다 — 초반에는 한 레벨에 두세 단씩 오른다.
+  tickRankSub() {
+    if (this.s.rank >= RANKS.length - 1 && this.s.rankSub >= RANK_SUBS - 1) return 0;
+    let up = 0;
+    while (this.s.rankSub < RANK_SUBS - 1
+      && this.s.level >= rankSubLevel(this.s.rank, this.s.rankSub + 1)) {
+      this.s.rankSub++;
+      up++;
+    }
+    if (up) this.emit('rankSubUp', { rank: this.s.rank, sub: this.s.rankSub, up });
+    return up;
+  }
 
   // 전생의 기억: 회귀로 쌓은 포인트만큼 공격력·체력·은자·경험치 증가
   regressMult() { return 1 + REGRESS_PER_POINT * (this.s.regress.points || 0); }
@@ -2287,7 +2306,10 @@ export class Game {
       this.s.sp += SP_PER_LEVEL;
       ups++;
     }
-    if (ups) this.emit('levelUp', { level: this.s.level, ups });
+    if (ups) {
+      this.emit('levelUp', { level: this.s.level, ups });
+      this.tickRankSub();   // 레벨이 오르면 소단계가 따라 오른다
+    }
   }
 
   allocSp(key, n = 1) {
@@ -2310,7 +2332,11 @@ export class Game {
 
   // ---------- 승급 ----------
   nextRank() { return RANKS[this.s.rank + 1] || null; }
-  canTrial() { const r = this.nextRank(); return !!r && this.s.level >= r.level && this.mode === 'stage'; }
+  // 소단계를 다 채운 뒤라야 심마를 만난다 — 마흔 단을 건너뛰고 갈 수는 없다.
+  canTrial() {
+    const r = this.nextRank();
+    return !!r && this.s.rankSub >= RANK_SUBS - 1 && this.s.level >= r.level && this.mode === 'stage';
+  }
 
   startTrial() {
     if (!this.canTrial()) return false;
@@ -2405,6 +2431,7 @@ export class Game {
       out.win = result === 'clear';
       if (out.win) {
         this.s.rank = c.rank;
+        this.s.rankSub = 0;   // 새 경지의 1단부터 다시
         out.rank = c.rank;
       }
     } else if (c.mode === 'pvp') {

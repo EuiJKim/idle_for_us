@@ -1,6 +1,6 @@
 // 성장 탭: 은자 수련 / 레벨(스탯 포인트) / 경지
 import { UPGRADES, SP_STATS, SP_RESET_GEMS, RANKS, RANK_MULT, expToNext, REGRESS_MIN_STAGE, REGRESS_PER_POINT,
-  CRIT_CAP, REGRESS_ADVISE_POINTS, JOBS, JOB_RANK, JOB_UNLOCK,
+  CRIT_CAP, REGRESS_ADVISE_POINTS, JOBS, JOB_RANK, JOB_UNLOCK, RANK_SUBS, rankSubLevel,
   TASTE_RANK, jobSkillOf, jobTestOf, jobTestStage } from '../data.js';
 import { fmt } from '../fmt.js';
 import { drawFighter } from '../battle.js';
@@ -141,13 +141,15 @@ function rankView(app) {
   const cv = h('canvas', { width: 160, height: 160, style: 'width:120px;height:120px;flex:none' });
   const name = h('div', { style: 'font-size:18px;font-weight:900' });
   const bonus = h('div', { class: 'muted' });
+  // 소단계 막대 — 자주 차오르는 것이라 눈에 보여야 한다
+  const subBar = h('div', { class: 'bar', style: 'margin-top:6px' }, h('div'), h('span'));
   const next = h('div', { style: 'margin-top:8px' });
   const btn = h('button', { class: 'btn primary', style: 'margin-top:8px;width:100%' });
   btn.onclick = () => app.startTrial();
   const list = h('div');
   const root = h('div', {},
     h('div', { class: 'card', style: 'display:flex;gap:12px;align-items:center' }, cv,
-      h('div', { style: 'flex:1;min-width:0' }, name, bonus, next, btn)),
+      h('div', { style: 'flex:1;min-width:0' }, name, bonus, subBar, next, btn)),
     h('div', { class: 'section-title' }, '경지 단계'), list);
   let drawn = -1;
 
@@ -163,15 +165,26 @@ function rankView(app) {
     const s = game.s;
     const r = RANKS[s.rank];
     const nx = game.nextRank();
-    name.textContent = `${r.name}`;
-    bonus.textContent = `공격력·체력 ×${fmt(Math.pow(RANK_MULT, s.rank))}`;
+    // 소단계가 생겼다. 큰 경지는 한참 만에 한 번 오르지만 소단계는 자주 오른다 —
+    // 그 '자주 오르는 것'이 화면에 보여야 한다.
+    name.textContent = game.rankLabel();
+    const sub = s.rankSub || 0;
+    bonus.innerHTML = `공격력·체력 <b>×${fmt(game.rankMult())}</b>`
+      + `<br><span class="muted">${RANK_SUBS}단을 채우면 ${nx ? nx.name : '끝'}</span>`;
+    subBar.firstChild.style.width = `${(sub / (RANK_SUBS - 1)) * 100}%`;
+    const needLv = rankSubLevel(s.rank, sub + 1);
+    subBar.lastChild.textContent = sub >= RANK_SUBS - 1
+      ? `${RANK_SUBS}단 — 다 찼어요`
+      : `${sub + 1}단까지 레벨 ${needLv} (지금 ${s.level})`;
     if (!nx) {
       next.textContent = '천인합일, 무의 끝에 이르렀어요!';
       btn.classList.add('hidden');
     } else {
       btn.classList.remove('hidden');
-      next.innerHTML = `다음: <b>${nx.name}</b> (레벨 ${nx.level} 필요) → 공격력·체력 <b>×${RANK_MULT}</b>`;
-      btn.textContent = s.level >= nx.level ? '심마와 대결 · 경지 돌파' : `레벨 ${nx.level}에 도전 가능 (현재 ${s.level})`;
+      next.innerHTML = `다음 경지: <b>${nx.name}</b> (${RANK_SUBS}단 + 레벨 ${nx.level}) → 공격력·체력 <b>×${RANK_MULT}</b>`;
+      btn.textContent = game.canTrial() ? '심마와 대결 · 경지 돌파'
+        : sub < RANK_SUBS - 1 ? `${RANK_SUBS}단을 먼저 채워요 (지금 ${sub}단)`
+          : `레벨 ${nx.level}에 도전 가능 (현재 ${s.level})`;
       btn.disabled = !game.canTrial();
     }
     drawPreview();
@@ -330,7 +343,7 @@ function jobView(app) {
         ? `<b>맛보기</b> — 계열 무공을 하나씩 써 볼 수 있어요. 공짜로 몇 번이든 바꿔요.`
           + `<br>올린 무공 레벨은 그대로 남아요. <b>${RANKS[JOB_RANK].name}</b>에서 하나를 정합니다.`
         : `<b>${RANKS[TASTE_RANK].name}</b>에 오르면 계열 무공을 맛볼 수 있어요.`
-          + ` <b>${RANKS[JOB_RANK].name}</b>에서 문파를 정해요. (지금 ${RANKS[game.s.rank].name})`;
+          + ` <b>${RANKS[JOB_RANK].name}</b>에서 문파를 정해요. (지금 ${game.rankLabel()})`;
     for (const j of JOBS) {
       const c = cards[j.id];
       const tasting = taste && game.s.taste === j.id;

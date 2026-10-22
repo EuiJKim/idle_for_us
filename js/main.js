@@ -193,7 +193,7 @@ function refreshUI(full = false) {
     gate.classList.add('hidden');
   }
   $('hero-name').textContent = s.nickname || '무명';
-  $('hero-rank').textContent = RANKS[s.rank].name;
+  $('hero-rank').textContent = game.rankLabel();   // '현경 23단'
   $('hero-lv').textContent = `Lv.${s.level}`;
   drawPortrait();
   $('power-label').textContent = `전투력 ${fmt(game.power().power)}`;

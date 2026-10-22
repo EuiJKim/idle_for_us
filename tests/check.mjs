@@ -50,7 +50,8 @@ console.log('\n=== 1. 겨루기류가 전부 결판나는가 ===');
 {
   const cases = [
     ['수련터', (g) => g.startDungeon('gold')],
-    ['시련', (g) => g.canTrial() && g.startTrial()],
+    // 소단계를 다 채운 뒤라야 심마를 만난다 — 실제로 플레이어가 그렇게 간다
+    ['시련', (g) => { g.s.rankSub = D.RANK_SUBS - 1; return g.canTrial() && g.startTrial(); }],
     ['심검 승급', (g) => { g.s.ego.blade = { step: 0, exp: 0 }; g.s.equips.weapon[3] = 99; g.feedEgo('blade', 3, 999); return g.startEgoTrial('blade'); }],
     ['그림자 무림', (g) => g.startShadow()],
     ['혈마의 탑', (g) => g.startTower()],
