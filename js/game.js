@@ -44,14 +44,14 @@ import {
   DUNGEON_KEY_CAP, RAID_TICKET_CAP, PVP_TICKET_CAP,
   MISSIONS, MISSION_ALL_REWARD, stageMilestone, STAGE_MILESTONE_EVERY,
   PVP_TICKETS, PVP_TIME, PVP_WIN, PVP_LOSE, PVP_REWARD,
-  zoneOf, monsterHp, monsterAtk, monsterGold, BOSS_HP_MULT, BOSS_ATK_MULT, BOSS_GOLD_MULT, RAID_BOSS,
+  zoneOf, monsterHp, monsterAtk, monsterGold, BOSS_HP_MULT, BOSS_ATK_MULT, stageBossAtkMult, BOSS_GOLD_MULT, RAID_BOSS,
   OFFLINE_STAGE_MAX, OFFLINE_PACE_DRIFT, PACE_EMA, PACE_MAX_SEC, stageGold,
   regressGain, regressMult, REGRESS_WORTH_MULT, REGRESS_STUCK_SEC,
   JOBS, JOB_RANK, JOB_UNLOCK, jobOf, JOB_SKILLS, jobSkillOf, BOON_SKILLS, TASTE_RANK,
   JOB_TESTS, jobTestOf, jobTestStage,
   PASSIVES, passivesOf, passiveId, PASSIVE_MAX, passiveCost,
   NOADS_ATK, NOADS_HP, AD_BOOST_EXTRA,
-  bossGems, bossRelicShards, bossBooks, bossStones, guildAtkBonus,
+  bossGems, bossRelicShards, bossBooks, bossStones, bossFood, guildAtkBonus,
 } from './data.js';
 
 export const dayKey = (t = Date.now()) => {
@@ -118,6 +118,7 @@ export function newSave(now = Date.now()) {
     merit: 0,      // 문파 공적. 특성 단련과 문파 교체에만 쓴다.
     pace: 0,       // 한 관문에 실제로 걸린 시간(초). 따라잡기가 쓴다.
     autoTrain: true,   // 방치하는 동안 번 은자를 수련에 붓는다
+    bossRush: true,    // 관문지기를 잡으면 다음 관문도 바로 관문지기부터
     keepAwake: true,   // 켜 두면 화면이 안 꺼진다
     traitLv: {},   // 문파마다 따로 쌓인다 — 갈아타면 그 공적은 두고 간다
     jobSwitches: 0,
@@ -478,12 +479,30 @@ export class Game {
     const c = this.contest;
     const def = jobTestOf(c.job);
     const wave = c.goal === 'kills';
-    const hp = monsterHp(c.eq) * (wave ? def.hpMult : BOSS_HP_MULT * def.hpMult);
+    // **시험은 절대 체력이 아니라 시간으로 맞춘다.**
+    // monsterHp x 배수로 두면 사람이 세질수록 시험이 쉬워진다 — 여덟 시험이
+    // 전부 0.4초에 끝나서, 적이 때려 보지도 못하고 죽는 바람에 '맞아 가며
+    // 이겨라'(취생)와 '버텨라'(부동)는 아무도 못 붙었다.
+    // hpSec을 적어 두면 **지금 이 사람의 초당 피해 x hpSec**이 적 체력이 된다.
+    const st = this.stats({ buffs: false });
+    // 무공을 못 쓰는 시험(육합)은 평타만 센다 — 그게 그 시험의 전부다.
+    // **두목에게는 bossMul이 곱해진다**(투지결·패시브·문파로 x233까지 간다).
+    // 이걸 빼먹어서 열한 초짜리 시험이 0.6초에 끝났다.
+    const boss = wave ? 1 : st.bossMul;
+    const dps = (c.goal === 'noskill' ? st.dps : this.realDps()) * boss;
+    const hp = def.hpSec
+      ? Math.max(1, dps * def.hpSec * (wave ? 1 / Math.max(1, def.need || 1) : 1))
+      : monsterHp(c.eq) * (wave ? def.hpMult : BOSS_HP_MULT * def.hpMult);
     this.mon = {
       hp, maxHp: hp, isBoss: !wave, def: { name: def.boss },
+      // 부동은 벨 수 없다. 글에 그렇게 적혀 있는데 실제로는 벨 수 있었다.
+      immortal: !!def.immortal,
       // 공격을 내 최대 체력의 몇 %로 못박으면 사람이 달라도 같은 시험이 된다
+      // **받는 피해 감소를 되돌려 준다.** atkHpFrac은 '내 최대 체력의 몇 %를
+      // 맞는다'는 약속인데, 호신강기·패시브가 guard로 깎아서 62%로 적어 둔 것이
+      // 12%로 들어갔다 — 그래서 '맞아 가며 이겨라'(취생)에 아무도 못 붙었다.
       atk: def.atkHpFrac
-        ? this.stats().hp * def.atkHpFrac
+        ? (st.hp * def.atkHpFrac) / Math.max(0.05, st.guard)
         : monsterAtk(c.eq) * (wave ? 1 : BOSS_ATK_MULT) * (def.atkMult || 1),
       atkTimer: def.atkFirst ?? 1.2, alive: true, stun: 0, ...this.duelSpot(),
     };
@@ -1635,6 +1654,62 @@ export class Game {
     return { ...st, power: Math.round(st.dps * 10 + st.hp) };
   }
 
+  // 장착한 무공이 쉬지 않고 돌 때의 초당 피해.
+  // **stats().dps는 평타와 영수만 센다** — 무공이 빠져 있다. 시험 체력을
+  // dps로 맞췄더니 열한 초짜리 시험이 0.6초에 끝났다(무공이 18배였다).
+  skillDps() {
+    const st = this.stats({ buffs: false });
+    let d = 0;
+    for (const id of this.activeSlots()) {
+      if (!id) continue;
+      const sk = SKILLS.find((x) => x.id === id);
+      if (!sk || sk.kind !== 'dmg') continue;
+      d += st.atk * this.skillMult(sk) * st.skillDmgMult / Math.max(0.5, this.skillCdOf(sk));
+    }
+    return d;
+  }
+
+  // 평타 + 영수 + 무공. 시험은 이 값으로 맞춘다.
+  realDps() { return this.stats({ buffs: false }).dps + this.skillDps(); }
+
+  // ---------- 어디에 부을까 ----------
+  //
+  // 수련 축이 열여섯이 되면서 **어디에 부을지가 숙제**가 됐다.
+  // 글로 설명하지 않고 **실제로 한 칸 올려 보고** 전투력이 얼마나 오르는지
+  // 잰다. 값당 오름폭이 가장 큰 축이 답이다 — 설명이 필요 없다.
+  //
+  // 열여섯 축을 한 칸씩 올렸다 되돌리므로 stats()를 서른두 번 부른다.
+  // 화면이 초당 다섯 번 갱신하는 자리라 **결과를 적어 두고 다시 쓴다**.
+  upgradeGains() {
+    const sig = Object.values(this.s.upgrades).join(',') + ':' + Math.round(this.s.gold);
+    if (this._gainSig === sig) return this._gains;
+    // **power()로 재면 안 된다.** power는 dps x 10 + hp라, dps가 1e40쯤 되면
+    // 체력이 통째로 묻혀서 열여섯 축이 전부 '외공'이라고 답한다.
+    // 때리는 힘과 버티는 힘을 같이 보려면 **곱**으로 봐야 한다.
+    // 숫자가 커서 바로 곱하면 넘치므로 로그로 더한다 — 로그 차이가 곧 비율이다.
+    const score = () => {
+      const st = this.stats({ buffs: false });
+      return Math.log(Math.max(1e-300, st.dps)) + Math.log(Math.max(1e-300, st.hp));
+    };
+    const base = score();
+    const out = [];
+    for (const k of Object.keys(UPGRADES)) {
+      const before = this.s.upgrades[k];
+      const cost = this.upgradeCost(k);
+      this.s.upgrades[k] = before + 1;
+      const gain = score() - base;    // 로그 차 = 몇 % 오르나
+      this.s.upgrades[k] = before;
+      out.push({ key: k, gain, cost, per: cost > 0 ? gain / cost : 0 });
+    }
+    out.sort((a, b) => b.per - a.per);
+    this._gainSig = sig;
+    this._gains = out;
+    return out;
+  }
+
+  // 지금 가장 이득인 수련 축
+  bestUpgrade() { return this.upgradeGains()[0] || null; }
+
   // ---------- 몬스터 ----------
   pickMob() {
     const zone = zoneOf(this.s.stage);
@@ -1853,7 +1928,7 @@ export class Game {
       const hp = monsterHp(s) * BOSS_HP_MULT;
       this.mons = [{
         hp, maxHp: hp, isBoss: true, def,
-        atk: monsterAtk(s) * BOSS_ATK_MULT,
+        atk: monsterAtk(s) * stageBossAtkMult(s),
         atkTimer: 1.2, alive: true, stun: 0,
         x: this.heroX + 150, y: this.heroY - 230, face: 1,
       }];
@@ -2131,6 +2206,12 @@ export class Game {
       this.emit('dmg', { amount, kind, crit });
       return;
     }
+    // 부동(마불 시험)의 상대는 벨 수 없다. 글에 그렇게 적혀 있는데
+    // 실제로는 베여서, 45초를 버티는 시험이 '빨리 베는 시험'이 돼 있었다.
+    if (m.immortal) {
+      this.emit('dmg', { amount, kind, crit });
+      return;
+    }
     m.hp -= amount;
     this.emit('dmg', { amount, kind, crit });
     if (m.hp <= 0) this.killMonster();
@@ -2194,6 +2275,7 @@ export class Game {
       // 양이라 지수로 작아지므로 되돌아가 버는 짓은 이득이 안 된다.
       this.s.books += bossBooks(s);
       this.s.stones += bossStones(s);
+      this.s.food += bossFood(s);
       this.s.merit += bossMerit(s);
       if (s >= this.s.maxStage) { // 이번 생에서 처음 넘는 관문
         // 이 관문을 깨는 데 실제로 몇 초가 걸렸나. 따라잡기가 이 값을 쓴다.
@@ -2207,8 +2289,13 @@ export class Game {
       this.s.stage = s + 1;
       this.s.maxStage = Math.max(this.s.maxStage, this.s.stage);
       this.s.bestStage = Math.max(this.s.bestStage, this.s.maxStage);
-      this.s.kills = 0;
-      this.s.wave = 0;
+      // **관문지기를 잡았으면 다음 관문도 바로 관문지기다.**
+      // 잡을 수 있다는 걸 방금 보여 줬는데 졸개 스무 마리를 다시 세게 하는 건
+      // 기다리게만 한다. 지면 farming으로 떨어져 물결부터 다시 돈다 —
+      // 그게 안전장치다. 물결 보상이 아쉬우면 「수련」을 켜면 된다.
+      this.s.kills = this.s.bossRush === false ? 0 : KILLS_PER_STAGE;
+      this.s.wave = this.s.bossRush === false ? 0 : Math.max(0, this.waveTotal() - 1);
+      this.waveT = 0;   // 바닥 시간은 다시 채운다 — 한 호흡은 둔다
       this.autoSlotSkills();
       this.emit('stageClear', { stage: s });
     } else {

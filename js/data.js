@@ -2,7 +2,7 @@
 
 // 지금 돌고 있는 빌드. 설정 창에 적어 둔다 — 기기가 옛 판을 들고 있는지
 // 한눈에 보려고 둔다. sw.js의 CACHE와 같은 값으로 맞춘다.
-export const BUILD = 'ifu-v76';
+export const BUILD = 'ifu-v77';
 
 export const SAVE_VERSION = 4;
 export const OFFLINE_CAP_SEC = 12 * 3600;
@@ -766,41 +766,49 @@ export const PASSIVE_STAT_NAME = {
 // 체력 바닥·시간). 새로 세는 축을 만들면 그 축이 또 어딘가에서 죽는다.
 export const JOB_TESTS = [
   { job: 'sword', name: '일점', hanja: '一點', boss: '검을 시험하는 자',
-    goal: 'quick', time: 20, hpMult: 1.1,
+    goal: 'quick', time: 20, hpSec: 48,
     ask: '관문지기를 20초 안에 벤다',
     why: '한 점을 꿰뚫는 자리다. 오래 걸리면 그 자리가 아니다.' },
   { job: 'blade', name: '혈로', hanja: '血路', boss: '떼로 덤비는 자들',
-    goal: 'kills', time: 35, need: 40, hpMult: 0.8,
+    goal: 'kills', time: 35, need: 40, hpSec: 42,
     ask: '35초 안에 졸개 40을 벤다',
     why: '베어 넘기는 자리다. 하나씩 세고 있을 틈이 없다.' },
   { job: 'fist', name: '육합', hanja: '六合', boss: '맨손으로 맞는 자',
-    goal: 'noskill', time: 30, hpMult: 2.6,
+    goal: 'noskill', time: 30, hpSec: 16,
     ask: '무공 없이 평타만으로 벤다',
     why: '맞붙는 자리다. 무공은 이 시험 동안 나가지 않는다.' },
   { job: 'ring', name: '일격', hanja: '一擊', boss: '단단한 바위',
-    goal: 'burst', time: 30, need: 0.25, hpMult: 40,
+    goal: 'burst', time: 30, need: 0.25, hpSec: 78,
     ask: '한 번의 타격으로 적 체력의 25%를 깎는다',
     why: '한 번에 끝내는 자리다. 벨 필요도 없다 — 한 방이면 된다.' },
+  // hpSec = **지금 이 사람의 초당 피해 x 이 초**가 적 체력이다.
+  // 절대 체력(monsterHp x 배수)으로 두면 사람이 세질수록 시험이 쉬워진다 —
+  // 재 보니 여덟이 전부 0.4초에 끝나서, 적이 때려 보지도 못하고 죽는 바람에
+  // '맞아 가며 이겨라'와 '버텨라'는 아무도 못 붙었다.
+  //
   // 아래 셋은 적의 공격을 **내 최대 체력의 몇 %**로 못박는다.
   // monsterAtk로 두면 세기가 사람마다 제멋대로다 — 재 보니 관문 200에서는
   // 한 대에 죽고 관문 390에서는 한 대도 안 아팠다. 같은 시험이 아니게 된다.
   { job: 'drunk', name: '취생', hanja: '醉生', boss: '술을 뺏는 자',
     // 적이 **먼저** 때려야 한다. 재 보니 세 세이브 모두 첫 공격(1.2초) 전에
     // 베어 버려서 체력이 안 깎였고, 그래서 아무도 못 붙었다.
-    goal: 'lowhp', time: 40, need: 0.4, hpMult: 8, atkHpFrac: 0.32, atkFirst: 0.3,
+    // 한 대를 **크게** 맞게 한다. 여러 대로 깎게 두면 싸움이 그만큼 길어야 하는데
+    // 지금은 큰 무공 한 방에 끝나서 두 번째 대가 안 들어온다. 재 보니 세 번
+    // 고쳐도 계속 떨어졌다 — 한 대에 62%를 맞으면 그 한 대로 38%가 된다.
+    goal: 'lowhp', time: 40, need: 0.4, hpSec: 60, atkHpFrac: 0.62, atkFirst: 0.4,
     ask: '체력이 40% 아래로 떨어진 뒤에 벤다',
     why: '비틀거리며 사는 자리다. 멀쩡히 이기면 취한 게 아니다 — 맞아 가며 이겨라.' },
   { job: 'fan', name: '환영', hanja: '幻影', boss: '헛손질하는 자',
-    goal: 'keephp', time: 30, need: 0.8, hpMult: 1.6, atkHpFrac: 0.07,
+    goal: 'keephp', time: 30, need: 0.8, hpSec: 49, atkHpFrac: 0.07,
     ask: '체력 80% 위를 지킨 채로 벤다',
     why: '홀리는 자리다. 오래 끌면 손이 닿는다 — 닿기 전에 끝내라.' },
   { job: 'monk', name: '부동', hanja: '不動', boss: '무너뜨리려는 자',
     // 37대를 맞는다. 0.022면 81%라 그냥 통과라 긴장이 없었다.
-    goal: 'endure', time: 45, hpMult: 400, atkHpFrac: 0.025,
+    goal: 'endure', time: 45, immortal: true, atkHpFrac: 0.025,
     ask: '45초를 버틴다 (벨 수 없다)',
     why: '버티는 자리다. 이길 필요가 없다 — 서 있기만 하면 된다.' },
   { job: 'poison', name: '적공', hanja: '積功', boss: '쉬이 죽지 않는 것',
-    goal: 'grind', time: 90, hpMult: 26,
+    goal: 'grind', time: 90, hpSec: 1050,
     ask: '90초 안에 아주 단단한 것을 눕힌다',
     why: '서서히 죽이는 자리다. 한 방은 없다.' },
 ];
@@ -2172,6 +2180,22 @@ export const NOADS_ATK = 4;
 export const NOADS_HP = 4;
 export const BOSS_HP_MULT = 9;
 export const BOSS_ATK_MULT = 2.5;
+// 들판 관문지기만 따로 더 세게 때린다.
+//
+// 관문지기 직행을 켜면 **졸개 떼를 건너뛴다.** 전에는 들판의 여든 마리가
+// 초당 서너 대를 때려서 그게 위협이었는데, 직행하면 적이 하나뿐이라
+// 초당 맞는 횟수가 0에 가까워진다 — 체력·호신강기·역근경이 통째로 죽는다.
+// 떼를 건너뛴 만큼 관문지기가 그 몫을 져야 한다.
+// (수련터·탑·심검 같은 겨루기는 그대로 둔다 — 거긴 직행이 없다)
+// **그냥 30을 곱하면 첫 관문지기가 새 사람을 한 방에 죽인다**
+// (적 공격 6 x 30 = 180 vs 시작 체력 100). 검사에서 바로 잡혔다.
+// 떼가 줄어드는 건 뒤로 갈수록이므로 배수도 뒤로 갈수록 올린다.
+export const STAGE_BOSS_ATK_MIN = 2.5;
+export const STAGE_BOSS_ATK_MAX = 30;
+export const STAGE_BOSS_ATK_AT = 220;   // 여기쯤에서 끝 값에 닿는다
+export const stageBossAtkMult = (s) => STAGE_BOSS_ATK_MIN
+  + (STAGE_BOSS_ATK_MAX - STAGE_BOSS_ATK_MIN)
+    * Math.min(1, Math.max(0, (s || 1) - 1) / STAGE_BOSS_ATK_AT);
 export const BOSS_GOLD_MULT = 12;
 export const bossGems = (s) => (s % 10 === 0 ? 100 : 10);
 // 두목은 한 관문에서 한 번뿐이라 **관문치를 통째로** 준다. 물결 보상과 합쳐
@@ -2179,6 +2203,9 @@ export const bossGems = (s) => (s % 10 === 0 ? 100 : 10);
 export const bossRelicShards = (s) => Math.ceil(stageShards(s) * (s % 10 === 0 ? 5 : 1));
 export const bossBooks = (s) => Math.ceil(stageBooks(s) * (s % 10 === 0 ? 2.5 : 1));
 export const bossStones = (s) => Math.ceil(stageStones(s) * (s % 10 === 0 ? 2.5 : 1));
+// 먹이는 물결에서만 나왔다. 관문지기 직행을 켜면 물결을 건너뛰므로
+// 영수가 굶는다 — 관문지기도 먹이를 떨어뜨리게 한다.
+export const bossFood = (s) => Math.ceil(stageFood(s) * (s % 10 === 0 ? 2.5 : 1));
 
 // ---------- 문파 ----------
 export const guildLevel = (exp) => Math.min(20, 1 + Math.floor((exp || 0) / 200));

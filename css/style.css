@@ -707,3 +707,11 @@ body { background: radial-gradient(ellipse at top, #1d1712, #0b0907 70%); }
 #stagebar { cursor: pointer; }
 /* 관문 이름 뒤에 붙인다. .stage-box에 붙였더니 블록 자식 때문에 줄이 바뀌었다. */
 #stage-label::after { content: ' ⇅'; color: var(--muted); font-size: 11px; vertical-align: middle; }
+
+/* 값당 가장 많이 오르는 칸 — 열여섯 중에 어디에 부을지가 숙제라 표를 단다 */
+.best-tag {
+  font-style: normal; font-size: 10px; font-weight: 800; margin-left: 6px;
+  padding: 2px 5px; border-radius: 5px; background: var(--accent-2); color: #14110e;
+  vertical-align: middle;
+}
+.row.best-row { outline: 1px solid var(--accent-2); }

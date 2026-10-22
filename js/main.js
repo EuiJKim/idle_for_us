@@ -685,6 +685,9 @@ function openSettings() {
       toggleRow('방치하는 동안 수련하기', game.s.autoTrain !== false,
         '번 은자를 가장 싼 수련에 알아서 부어요. 꺼 두면 은자만 쌓여요.',
         (on) => { game.s.autoTrain = on; save(); }),
+      toggleRow('관문지기 바로 가기', game.s.bossRush !== false,
+        '관문지기를 잡으면 다음 관문도 바로 관문지기부터예요. 꺼 두면 졸개부터 돌아요.',
+        (on) => { game.s.bossRush = on; save(); }),
       h('p', { class: 'muted', style: 'margin:4px 2px 0;font-size:11px' },
         '관문을 밀지 않고 제자리에서 벌고 싶으면 들판의 「수련」을 켜세요.'),
       // 기기가 옛 판에 붙들렸을 때의 마지막 수단. 워커·캐시를 통째로 버린다.

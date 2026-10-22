@@ -123,8 +123,37 @@ console.log('\n=== 4. 물결이 끝까지 도는가 ===');
     g.events.length = 0;
   }
   ok(clears >= 3, '관문을 연달아 돌파한다', `${clears}관문`);
-  ok(waves.length >= 6, '물결이 넘어간다', waves.slice(0, 9).join('→'));
   ok(g.s.wave < g.waveTotal(), '물결 번호가 범위 안', `${g.s.wave + 1}/${g.waveTotal()}`);
+  // 관문지기 직행이 켜져 있으면 첫 관문만 물결을 돌고 그 뒤로는 바로 두목이다.
+  // 끄면 물결이 매 관문 돌아야 한다 — 그쪽을 따로 본다.
+  {
+    const g2 = strong(100);
+    g2.s.bossRush = false;
+    const w2 = [];
+    let c2 = 0;
+    for (let i = 0; i < 60 * 600 && c2 < 3; i++) {
+      g2.tick(1 / 60);
+      for (const e of g2.events) {
+        if (e.type === 'wave') w2.push(e.wave + 1);
+        if (e.type === 'stageClear') c2++;
+      }
+      g2.events.length = 0;
+    }
+    ok(w2.length >= 6, '직행을 끄면 물결이 매 관문 넘어간다', w2.slice(0, 9).join('→'));
+  }
+  // 직행이 켜져 있으면 관문을 깬 직후 바로 두목 차례여야 한다
+  {
+    const g3 = strong(100);
+    let cleared = false;
+    for (let i = 0; i < 60 * 600 && !cleared; i++) {
+      g3.tick(1 / 60);
+      cleared = g3.events.some((e) => e.type === 'stageClear');
+      g3.events.length = 0;
+    }
+    ok(cleared, '한 관문을 깼다');
+    ok(g3.s.kills >= D.KILLS_PER_STAGE, '깨자마자 다음 관문도 두목 차례다',
+      `${g3.s.kills}/${D.KILLS_PER_STAGE}`);
+  }
 }
 
 console.log('\n=== 5. 해금 관문이 전부 벽인가 ===');
@@ -1589,7 +1618,6 @@ console.log('=== 28. 무공 차수 ===');
   ok(ti.tier === 1 && ti.inTier === 12 && ti.left === 38, '차수 안 진행도가 맞는다',
     `${ti.name} ${ti.inTier}/${ti.step}`);
 }
-}
 
 // ---------- 29. 무공 연계 ----------
 //
@@ -1919,6 +1947,64 @@ console.log('=== 33. 관문 이동 ===');
   // 싸우는 중에는 못 옮긴다
   g.mode = 'dungeon';
   ok(!g.canGoStage(100), '싸우는 중에는 못 옮긴다');
+}
+
+// ---------- 34. 전직 시험이 사람을 따라오는가 ----------
+//
+// 시험을 **절대 체력**으로 맞춰 두면 사람이 세질수록 저절로 쉬워진다.
+// 재 보니 여덟이 전부 0.4초에 끝나서, 적이 때려 보지도 못하고 죽는 바람에
+// '맞아 가며 이겨라'(취생)와 '버텨라'(부동)는 **아무도 못 붙었다.**
+console.log('');
+console.log('=== 34. 전직 시험 ===');
+{
+  for (const d of D.JOB_TESTS) {
+    ok(!!d.hpSec || !!d.immortal, `${d.name}이 절대 체력으로 안 맞춰져 있다`,
+      d.hpSec ? `hpSec ${d.hpSec}` : '벨 수 없음');
+    ok(!d.hpMult, `${d.name}에 옛 hpMult가 안 남아 있다`);
+  }
+  // '벨 수 없다'고 적은 시험은 실제로 벨 수 없어야 한다
+  const endure = D.JOB_TESTS.find((d) => d.goal === 'endure');
+  ok(endure && endure.immortal, '부동의 상대는 실제로 벨 수 없다');
+
+  // 체력의 몇 %를 맞는다고 적었으면 **그만큼 맞아야 한다.**
+  // 호신강기가 guard로 깎아서 62%로 적어 둔 것이 12%로 들어가고 있었다 —
+  // 그래서 '맞아 가며 이겨라'(취생)에 아무도 못 붙었다.
+  // 받는 피해를 많이 깎아 둔 사람도 적어 둔 만큼은 맞아야 한다
+  {
+    // strong()은 이것저것 쥐여 주는 도우미라 여기선 깨끗한 세이브로 본다 —
+    // 재는 것은 '적어 둔 비율이 그대로 들어가는가' 하나다.
+    const s2 = newSave();
+    Object.assign(s2, { stage: 300, bestStage: 300, maxStage: 300, level: 1200, rank: 7 });
+    Object.assign(s2.upgrades, { atk: 320, hp: 230, guard: 120 });
+    const g = new Game(s2);
+    g.jobStageOpen = () => true;
+    g.spawn();
+    const want = D.jobTestOf('drunk').atkHpFrac;
+    g.startJobTest('drunk');
+    const st = g.stats({ buffs: false });
+    ok(st.guard < 0.9, '받는 피해가 실제로 깎여 있다', `x${st.guard.toFixed(2)}`);
+    const landed = (g.mon.atk * st.guard) / st.hp;
+    ok(Math.abs(landed - want) < 0.02, '적어 둔 만큼 실제로 맞는다',
+      `적은 값 ${(want * 100).toFixed(0)}% / 들어가는 값 ${(landed * 100).toFixed(1)}%`);
+  }
+
+  // 시험 체력이 사람을 따라오는가 — 같은 사람이 세지면 상대도 단단해져야 한다
+  {
+    const g = strong(300);
+    g.s.rank = Math.max(g.s.rank, D.JOB_RANK);
+    g.jobStageOpen = () => true;
+    g.spawn();
+    g.startJobTest('sword');
+    const before = g.mon.hp;
+    g.endContest('fail');
+    g.s.upgrades.atk += 300;        // 같은 사람이 훨씬 세졌다
+    g.s.jobTests = {};
+    g.spawn();
+    g.startJobTest('sword');
+    ok(g.mon.hp > before * 10, '세지면 상대도 그만큼 단단해진다',
+      `${before.toExponential(1)} → ${g.mon.hp.toExponential(1)}`);
+  }
+}
 }
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);

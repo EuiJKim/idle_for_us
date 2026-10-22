@@ -14,7 +14,8 @@ function upgradeView(app) {
   const { game } = app;
   const rows = {};
   const sel = multSelector(() => update());
-  const root = h('div', {}, h('div', { class: 'section-title' }, h('span', {}, '은자로 능력치를 올려요'), sel.el));
+  const head = h('span', {}, '은자로 능력치를 올려요');
+  const root = h('div', {}, h('div', { class: 'section-title' }, head, sel.el));
 
   // 아홉 축을 계열로 묶는다. 한 줄로 늘어놓으면 뭘 올려야 할지 안 보인다.
   const keys = Object.keys(UPGRADES);
@@ -44,10 +45,12 @@ function upgradeView(app) {
     holdRepeat(btn, () => buy(true));
     const ico = h('div', { class: 'ico' }, def.icon);
     iconSkin(ico, 'up', keys.indexOf(key));
+    // 어디에 부을지가 숙제다. 값당 가장 많이 오르는 칸에 표를 달아 준다.
+    const best = h('i', { class: 'best-tag' }, '이득');
     const row = h('div', { class: 'row' },
       ico,
-      h('div', { class: 'info' }, h('div', {}, name, lv), desc, bar, nextTier), btn);
-    rows[key] = { name, lv, desc, bar, nextTier, btn, def, ico, row };
+      h('div', { class: 'info' }, h('div', {}, name, lv, best), desc, bar, nextTier), btn);
+    rows[key] = { name, lv, desc, bar, nextTier, btn, def, ico, row, best };
     return row;
   }
 
@@ -83,6 +86,13 @@ function upgradeView(app) {
   }
 
   function update() {
+    // 값당 오름폭 순위. 1등에 표를 달고, 줄마다 얼마나 오르는지 적는다.
+    const gains = game.upgradeGains();
+    const rank = Object.fromEntries(gains.map((g, i) => [g.key, { i, gain: g.gain }]));
+    const top = gains[0];
+    head.innerHTML = top
+      ? `지금은 <b style="color:var(--accent-2)">${UPGRADES[top.key].name.replace(/\(.*\)$/, '')}</b>이 값당 가장 많이 올라요`
+      : '';
     for (const [key, r] of Object.entries(rows)) {
       const l = game.s.upgrades[key];
       const ti = upTierInfo(key, l);
@@ -119,6 +129,13 @@ function upgradeView(app) {
       if (key === 'crit' && ti.tier === 0) {
         r.nextTier.innerHTML += `<br>지금 치명 <b>${Math.round(game.stats({ buffs: false }).crit * 100)}%</b>`
           + ` (상한 ${Math.round(CRIT_CAP * 100)}% — 나머지는 병기보·옵션 칸·세트·의복에서)`;
+      }
+      // 값당 얼마나 오르나. 1등은 표를 단다.
+      const g2 = rank[key];
+      r.best.style.display = g2 && g2.i === 0 ? '' : 'none';
+      r.row.classList.toggle('best-row', !!g2 && g2.i === 0);
+      if (g2 && g2.gain > 0) {
+        r.lv.title = `한 칸에 전투력 +${(g2.gain * 100).toFixed(2)}%`;
       }
       r.btn.textContent = `${fmt(p.total)}${p.n > 1 ? ` (+${p.n})` : ''}`;
       r.btn.disabled = game.s.gold < game.upgradeCost(key);
