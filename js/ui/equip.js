@@ -1,5 +1,6 @@
 // 병기 탭: 뽑기·합성·제련
-import { GRADES, EQUIP_TYPES, MERGE_COUNT, GACHA_COST, GACHA10_COST, ENHANCE_PER, CODEX_PER_TYPE, CODEX_ALL,
+import { GRADES, EQUIP_TYPES, MERGE_COUNT, GACHA_COST, GACHA10_COST, GACHA100_COST,
+  gachaCost, AUTO_GACHA_KEEP, ENHANCE_PER, CODEX_PER_TYPE, CODEX_ALL,
   OPTION_SLOTS, OPTION_STATS, OPTION_SET_GRADE, OPTION_SET, OPTION_SET_FULL_GRADE, OPTION_SET_FULL,
   nextOptionSlotAt,
   ACC_SLOTS, ACC_STAR_MAX, ACC_PIERCE_MAX, ACC_MERGE, accPower, ACC_PICK_MIN,
@@ -22,6 +23,16 @@ function buildEquip(app) {
   const cards = {};
   const b1 = h('button', { class: 'btn primary', onclick: () => doGacha(1) });
   const b10 = h('button', { class: 'btn primary', onclick: () => doGacha(10) });
+  const b100 = h('button', { class: 'btn primary', onclick: () => doGacha(100) });
+  // 자동 뽑기는 결과 창을 안 띄운다. 두 초마다 창이 뜨면 아무것도 못 한다.
+  const autoBtn = h('button', { class: 'btn', onclick: () => {
+    game.s.autoGacha = !game.s.autoGacha;
+    app.save();
+    toast(game.s.autoGacha
+      ? `자동 뽑기 켬 — 원보 ${AUTO_GACHA_KEEP}개는 남겨 둬요`
+      : '자동 뽑기 끔');
+    update();
+  } });
   const mergeBtn = h('button', { class: 'btn good', onclick: () => {
     const n = game.mergeAll();
     toast(n ? `합성 ${n}회 완료!` : `같은 등급 병기가 ${MERGE_COUNT}개 있어야 합성돼요`);
@@ -34,11 +45,14 @@ function buildEquip(app) {
   const root = h('div', {},
     h('div', { class: 'card' },
       h('h3', {}, '병기 뽑기', h('small', {}, '가장 좋은 병기 자동 장착')),
-      h('div', { class: 'btn-row' }, b1, b10),
-      h('div', { class: 'btn-row', style: 'margin-top:8px' }, mergeBtn),
+      h('div', { class: 'btn-row' }, b1, b10, b100),
+      h('div', { class: 'btn-row', style: 'margin-top:8px' }, mergeBtn, autoBtn),
       h('p', { class: 'muted', style: 'margin:8px 0 0' },
         `같은 등급 ${MERGE_COUNT}개 → 상위 1개. 한 번 손에 쥔 등급은 병기보에 남아서, `
         + '합성에 써도 보유 효과는 그대로예요.'),
+      h('p', { class: 'muted', style: 'margin:4px 0 0' },
+        `자동 뽑기를 켜면 원보가 쌓이는 대로 알아서 뽑고 바로 합성해요. `
+        + `다시 찍기용으로 원보 ${AUTO_GACHA_KEEP}개는 남겨 둬요.`),
       h('p', { class: 'muted', style: 'margin:4px 0 0' },
         `한 부위를 빠짐없이 채우면 치명타 확률 +${pct(CODEX_PER_TYPE.crit)}, `
         + `세 부위 모두 채우면 치명타 피해 +${pct(CODEX_ALL.critDmg)}`)),
@@ -311,15 +325,29 @@ function buildEquip(app) {
     openModal((s) => {
       s.append(h('h2', {}, `뽑기 결과 (${n}회)`));
       const grid = h('div', { class: 'gacha-grid' });
-      res.forEach((r, i) => grid.append(h('div', {
-        class: `gacha-item${r.grade >= 3 ? ' shine' : ''}`, style: `border-color:${GRADES[r.grade].color};animation-delay:${i * 0.05}s`,
-      }, h('span', {}, EQUIP_TYPES[r.type].icon), h('small', { style: `color:${GRADES[r.grade].color}` }, GRADES[r.grade].name))));
+      // 백 번을 칸 백 개로 펼치면 아무것도 안 읽힌다. 많이 뽑으면 등급별로 센다.
+      if (res.length > 20) {
+        const by = GRADES.map(() => 0);
+        for (const r of res) by[r.grade]++;
+        by.forEach((cnt, gi) => {
+          if (!cnt) return;
+          grid.append(h('div', {
+            class: `gacha-item${gi >= 3 ? ' shine' : ''}`,
+            style: `border-color:${GRADES[gi].color};animation-delay:${gi * 0.05}s`,
+          }, h('span', { style: 'font-weight:800' }, `×${cnt}`),
+            h('small', { style: `color:${GRADES[gi].color}` }, GRADES[gi].name)));
+        });
+      } else {
+        res.forEach((r, i) => grid.append(h('div', {
+          class: `gacha-item${r.grade >= 3 ? ' shine' : ''}`, style: `border-color:${GRADES[r.grade].color};animation-delay:${i * 0.05}s`,
+        }, h('span', {}, EQUIP_TYPES[r.type].icon), h('small', { style: `color:${GRADES[r.grade].color}` }, GRADES[r.grade].name))));
+      }
       s.append(grid);
       const best = res[0];
       if (best.grade >= 3) s.append(h('p', { style: 'text-align:center' }, '✨ ', gradeChip(best.grade), ` ${EQUIP_TYPES[best.type].name} 획득!`));
       s.append(h('div', { class: 'btn-row' },
         h('button', { class: 'btn', onclick: closeModal }, '닫기'),
-        h('button', { class: 'btn primary', onclick: () => { closeModal(); doGacha(n); } }, `한 번 더 (원보 ${n === 10 ? GACHA10_COST : GACHA_COST * n})`)));
+        h('button', { class: 'btn primary', onclick: () => { closeModal(); doGacha(n); } }, `한 번 더 (원보 ${fmt(gachaCost(n))})`)));
     });
     return undefined;
   }
@@ -327,8 +355,13 @@ function buildEquip(app) {
   function update() {
     b1.textContent = `1회 원보 ${GACHA_COST}`;
     b10.textContent = `10회 원보 ${GACHA10_COST}`;
+    b100.textContent = `100회 원보 ${fmt(GACHA100_COST)}`;
     b1.disabled = game.s.gems < GACHA_COST;
     b10.disabled = game.s.gems < GACHA10_COST;
+    b100.disabled = game.s.gems < GACHA100_COST;
+    const auto = !!game.s.autoGacha;
+    autoBtn.textContent = auto ? '🔄 자동 뽑기 켜짐' : '🔄 자동 뽑기';
+    autoBtn.classList.toggle('good', auto);
     for (const [type, c] of Object.entries(cards)) {
       const arr = game.s.equips[type];
       const seen = game.s.codex?.[type] || [];

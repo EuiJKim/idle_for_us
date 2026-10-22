@@ -2168,5 +2168,93 @@ console.log('=== 36. 건너뛰기와 두목 바로 ===');
   }
 }
 
+
+// ---------- 37. 병기 뽑기: 묶음과 자동 ----------
+//
+// x10을 백 번 누르는 게 일이라는 말이 나왔다. 묶음을 키우고 자동을 단다.
+// 조심할 것은 **자동이 원보를 바닥까지 긁는 것**이다 — 다시 찍기(원보 200)가
+// 영영 막히면 자동을 켠 사람만 손해를 본다.
+console.log('');
+console.log('=== 37. 병기 뽑기 ===');
+{
+  // 많이 뽑을수록 싸다. 안 그러면 묶음 단추가 있을 이유가 없다.
+  const per = (n) => D.gachaCost(n) / n;
+  ok(per(10) < per(1) && per(100) < per(10), '많이 뽑을수록 한 번 값이 싸다',
+    `1회 ${per(1)} · 10회 ${per(10)} · 100회 ${per(100)}`);
+  ok(D.GACHA_BULK.every((n) => Number.isFinite(D.gachaCost(n)) && D.gachaCost(n) > 0),
+    '묶음마다 값이 매겨져 있다', D.GACHA_BULK.map((n) => `${n}회 ${D.gachaCost(n)}`).join(' · '));
+
+  // 뽑은 수만큼 실제로 나온다
+  {
+    const g = strong(300);
+    g.s.gems = D.gachaCost(100) * 3;
+    const res = g.gacha(100);
+    ok(res && res.length === 100, '100회를 뽑으면 100개가 나온다', `${res?.length}개`);
+    ok(g.s.gems === D.gachaCost(100) * 3 - D.gachaCost(100), '값이 딱 한 번만 빠진다',
+      `${g.s.gems}`);
+    ok(res.every((r) => D.EQUIP_TYPES[r.type] && r.grade >= 0 && r.grade < D.GRADES.length),
+      '나온 것이 전부 제대로 된 병기');
+  }
+  {
+    const g = strong(300);
+    g.s.gems = 0;
+    ok(g.gacha(100) === null, '원보가 모자라면 안 뽑힌다');
+  }
+
+  // **남겨 둘 몫을 지킨다**
+  {
+    const g = strong(300);
+    g.s.gems = D.AUTO_GACHA_KEEP + D.gachaCost(1) - 1;
+    ok(g.autoGachaSize() === 0, '남겨 둘 몫을 깨면서까지 뽑지는 않는다', `원보 ${g.s.gems}`);
+    g.s.gems = D.AUTO_GACHA_KEEP + D.gachaCost(1);
+    ok(g.autoGachaSize() === 1, '딱 맞으면 한 번은 뽑는다');
+    g.s.gems = D.AUTO_GACHA_KEEP + D.gachaCost(100);
+    ok(g.autoGachaSize() === 100, '넉넉하면 가장 큰 묶음으로', `${g.autoGachaSize()}회`);
+    ok(D.AUTO_GACHA_KEEP >= D.SP_RESET_GEMS, '다시 찍기 값만큼은 남는다',
+      `${D.AUTO_GACHA_KEEP} ≥ ${D.SP_RESET_GEMS}`);
+  }
+
+  // 켜 두면 가만 있어도 돈다 — 그리고 합성까지 한다
+  {
+    const g = strong(300);
+    g.s.gems = D.gachaCost(100) * 2;
+    g.s.autoGacha = true;
+    const before = g.s.stats.gachas;
+    for (let i = 0; i < 30 * (D.AUTO_GACHA_SEC + 1); i++) g.tick(1 / 30);
+    ok(g.s.stats.gachas > before, '켜 두면 알아서 뽑는다',
+      `${before} → ${g.s.stats.gachas}회`);
+    ok(g.s.gems >= D.AUTO_GACHA_KEEP || g.s.gems < D.gachaCost(1) + D.AUTO_GACHA_KEEP,
+      '돌고 나서도 남겨 둘 몫은 남는다', `원보 ${g.s.gems}`);
+    // 합성까지 해야 뜻이 있다 — 안 하면 손 가는 자리만 옮긴 것
+    const src = srcOf('js/game.js');
+    ok(/autoGacha\(\)\s*\{[\s\S]{0,400}?mergeAll\(\)/.test(src), '자동 뽑기는 합성까지 한다');
+  }
+  {
+    const g = strong(300);
+    g.s.gems = 1e9;
+    g.s.autoGacha = false;
+    const before = g.s.stats.gachas;
+    for (let i = 0; i < 30 * (D.AUTO_GACHA_SEC + 2); i++) g.tick(1 / 30);
+    ok(g.s.stats.gachas === before, '꺼 두면 한 번도 안 뽑는다');
+  }
+
+  // 값 셈이 두 군데로 갈라지지 않았는가 — 갈라지면 반드시 어긋난다
+  {
+    const files = ['js/game.js', 'js/ui/equip.js'];
+    const bad = files.filter((f) => /GACHA_COST \* count|=== 10 \? GACHA10_COST/.test(srcOf(f)));
+    ok(bad.length === 0, '값은 data.js의 gachaCost 하나만 본다', bad.join(', ') || '깨끗');
+  }
+
+  // 화면에도 달려 있는가
+  {
+    const ui = srcOf('js/ui/equip.js');
+    ok(/doGacha\(100\)/.test(ui), '100회 단추가 있다');
+    ok(/autoGacha = !game\.s\.autoGacha/.test(ui), '자동 켜고 끄는 단추가 있다');
+    ok(/res\.length > 20/.test(ui), '많이 뽑으면 등급별로 세어 보여 준다');
+    ok(/app\.save\(\)/.test(ui) && /save: \(\) => save\(\)/.test(srcOf('js/main.js')),
+      '켠 설정이 바로 저장된다');
+  }
+}
+
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);

@@ -3,6 +3,7 @@ import {
   SAVE_VERSION, OFFLINE_CAP_SEC, KILLS_PER_STAGE, BOSS_TIME, SPAWN_DELAY, RAID_TIME, RAID_TICKETS,
   WAVE_MIN_SEC, waveMinSec,
   MERGE_COUNT, GACHA_COST, GACHA10_COST, DAILY_GEMS, START_GEMS, SPEED_CAP, CRIT_CAP,
+  gachaCost, GACHA_BULK, AUTO_GACHA_KEEP, AUTO_GACHA_SEC,
   UPGRADES, upTotals, GRADES, GACHA_RATES, EQUIP_TYPES, ENHANCE_PER, enhanceCost,
   EQUIP_PIERCE_MAX, EQUIP_PIERCE_MULT, equipPierceCost,
   CODEX_PER_TYPE, CODEX_ALL,
@@ -121,6 +122,7 @@ export function newSave(now = Date.now()) {
     merit: 0,      // 문파 공적. 특성 단련과 문파 교체에만 쓴다.
     pace: 0,       // 한 관문에 실제로 걸린 시간(초). 따라잡기가 쓴다.
     autoTrain: true,   // 방치하는 동안 번 은자를 수련에 붓는다
+    autoGacha: false,  // 원보가 쌓이는 대로 알아서 병기를 뽑고 합성한다
     bossRush: true,    // 관문지기를 잡으면 다음 관문도 바로 관문지기부터
     keepAwake: true,   // 켜 두면 화면이 안 꺼진다
     traitLv: {},   // 문파마다 따로 쌓인다 — 갈아타면 그 공적은 두고 간다
@@ -2378,6 +2380,11 @@ export class Game {
     // 게임 안의 시간. 실제 시계(Date.now)를 쓰면 시뮬레이션처럼 가상 시간으로
     // 도는 쪽에서 어긋난다 — 회귀 권유가 영영 안 뜨는 버그가 그래서 났다.
     this.clock = (this.clock || 0) + dt;
+    // 자동 뽑기. 싸움과 무관하므로 맨 앞에서 한 번만 본다.
+    if (this.s.autoGacha) {
+      this.gachaT = (this.gachaT || 0) + dt;
+      if (this.gachaT >= AUTO_GACHA_SEC) { this.gachaT = 0; this.autoGacha(); }
+    }
     for (const p of this.petTeam()) {
       if (!this.mon?.alive) break;
       const b = this.s.bond || (this.s.bond = {});
@@ -3023,7 +3030,7 @@ export class Game {
   }
 
   gacha(count) {
-    const cost = count === 10 ? GACHA10_COST : GACHA_COST * count;
+    const cost = gachaCost(count);
     if (this.s.gems < cost) return null;
     this.s.gems -= cost;
     const types = Object.keys(EQUIP_TYPES);
@@ -3039,6 +3046,31 @@ export class Game {
     this.addGachaCount('equip', count);
     this.progress('gacha', count);
     return out;
+  }
+
+  // 지금 원보로 뽑을 수 있는 가장 큰 묶음. 남겨 둘 몫은 건드리지 않는다.
+  autoGachaSize(keep = AUTO_GACHA_KEEP) {
+    for (let i = GACHA_BULK.length - 1; i >= 0; i--) {
+      const n = GACHA_BULK[i];
+      if (this.s.gems - gachaCost(n) >= keep) return n;
+    }
+    return 0;
+  }
+
+  // 켜 두면 원보가 쌓이는 대로 알아서 뽑고, 쌓인 병기를 바로 합성한다.
+  //
+  // **합성까지 해야 뜻이 있다.** 백 번을 뽑아 놓고 합성을 손으로 눌러야 한다면
+  // 손이 덜 가는 게 아니라 손 가는 자리만 옮긴 것이다.
+  autoGacha() {
+    const n = this.autoGachaSize();
+    if (!n) return 0;
+    const res = this.gacha(n);
+    if (!res) return 0;
+    const merged = this.mergeAll();
+    let best = 0;
+    for (const r of res) if (r.grade > best) best = r.grade;
+    this.emit('autoGacha', { count: n, best, merged });
+    return n;
   }
 
   merge(type, grade) {

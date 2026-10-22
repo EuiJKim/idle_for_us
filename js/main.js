@@ -32,7 +32,9 @@ function loadSave() {
 const game = new Game(loadSave() || newSave());
 const view = new BattleView($('cv'));
 const app = {
-  game, net: null, refresh: () => refreshUI(true),
+  // save를 안 걸어 두면 화면 쪽에서 켠 설정이 다음 자동 저장 때까지 안 남는다.
+  // 껐다 켜면 되돌아가 있는 것처럼 보인다.
+  game, net: null, refresh: () => refreshUI(true), save: () => save(),
   startRaid, startTrial, startDungeon, sweepDungeon, startPvp, regress,
 };
 const net = new Net(game, { onChange: (what) => netChanged(what) });
@@ -357,6 +359,14 @@ function handleEvents() {
       // 전생의 기억으로 이미 깬 곳을 성큼 건너뛴다. 조용히 넘기면
       // 관문 숫자가 튀는 걸로만 보여서 버그처럼 읽힌다.
       case 'stageSkip': view.showBanner(`전생의 기억 — 제 ${ev.to} 관문까지 성큼`, '#c4b5fd', 1.1); break;
+      // 자동 뽑기는 두 초마다 돈다. 매번 알리면 화면이 그 소리로 덮인다 —
+      // 쓸 만한 게 나왔을 때만 한 줄 띄운다.
+      case 'autoGacha':
+        if (ev.best >= 3) {
+          view.showBanner(`${GRADES[ev.best].name} 병기! (자동 ${ev.count}회)`,
+            GRADES[ev.best].color, 0.9);
+        }
+        break;
       case 'bossTimeout': toast('⏳ 관문지기를 시간 안에 못 잡았어요'); break;
       // 연속 도전이 끊기면 알려야 한다. 모르면 계속 도는 줄 안다.
       case 'loopAgain': if (!ev.on) toast('연속 도전을 멈췄어요'); break;

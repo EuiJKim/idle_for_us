@@ -2,7 +2,7 @@
 
 // 지금 돌고 있는 빌드. 설정 창에 적어 둔다 — 기기가 옛 판을 들고 있는지
 // 한눈에 보려고 둔다. sw.js의 CACHE와 같은 값으로 맞춘다.
-export const BUILD = 'ifu-v81';
+export const BUILD = 'ifu-v82';
 
 export const SAVE_VERSION = 4;
 export const OFFLINE_CAP_SEC = 12 * 3600;
@@ -244,6 +244,11 @@ export const RAID_HP_SECONDS = 60; // 토벌 두목 HP = 문파원 DPS 합 × �
 export const MERGE_COUNT = 4;
 export const GACHA_COST = 100;
 export const GACHA10_COST = 900;
+// 한 번에 많이 뽑을수록 싸다. 열 번이 10% 싼 것과 같은 결로 백 번은 20% 싸다.
+// 값을 두 군데(게임 쪽·화면 쪽)에 따로 적어 두면 반드시 어긋난다 — 여기 하나만 본다.
+export const GACHA100_COST = 8000;
+export const GACHA_BULK = [1, 10, 100];
+export const gachaCost = (n) => (n === 100 ? GACHA100_COST : n === 10 ? GACHA10_COST : GACHA_COST * n);
 export const DAILY_GEMS = 300;
 export const START_GEMS = 1000;
 export const SPEED_CAP = 3;
@@ -529,6 +534,11 @@ export const expPerKill = (s) => 4 * Math.pow(EXP_KILL_RATE, s - 1);
 export const expToNext = (lv) => 60 * Math.pow(EXP_LEVEL_RATE, lv - 1);
 export const SP_PER_LEVEL = 2;
 export const SP_RESET_GEMS = 200;
+// 자동 뽑기가 원보를 바닥까지 긁으면 공격력 다시 찍기(원보 200)가 영영 막힌다.
+// 그만큼은 남겨 둔다.
+export const AUTO_GACHA_KEEP = SP_RESET_GEMS;
+export const AUTO_GACHA_SEC = 2;
+
 export const SP_STATS = {
   atk: { name: '근력', icon: '근력', per: 0.02, desc: (v) => `공격력 +${pctText(v)}` },
   hp: { name: '체질', icon: '체질', per: 0.02, desc: (v) => `체력 +${pctText(v)}` },
