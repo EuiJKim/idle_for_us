@@ -17,6 +17,12 @@ g.rng = () => ((seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648);
 g.spawn();
 g.checkDaily(T0);
 const dt = 0.1;
+// **끝이 있는 되풀이.** 자원이 아주 커지면 while이 영영 안 끝난다 —
+// 아홉 시간 시뮬이 통째로 멎어서 한 줄도 안 찍혔다. 몇 번까지만 돈다.
+function loop(n, fn) {
+  for (let i = 0; i < n; i++) if (!fn()) return i;
+  return n;
+}
 let farmT = 0;
 const tried = {};
 let nextTrial = 0;
@@ -45,14 +51,14 @@ function spendSlow(now, step) {
   }
   // 장신구: 올릴 수 있으면 올리고, 남는 한철로 초월한다
   for (const a2 of ACC_SLOTS) {
-    while (g.accStarUp(a2.id));
-    if (g.canAccGrade(a2.id)) { g.accGradeUp(a2.id); while (g.accStarUp(a2.id)); }
-    while (g.s.stones > g.accPierceCost(a2.id) * 3 && g.accPierce(a2.id));
+    loop(500, () => g.accStarUp(a2.id));
+    if (g.canAccGrade(a2.id)) { g.accGradeUp(a2.id); loop(500, () => g.accStarUp(a2.id)); }
+    loop(500, () => g.s.stones > g.accPierceCost(a2.id) * 3 && g.accPierce(a2.id));
   }
   // 광맥: 거두고, 은자가 남으면 깊이와 광부를 늘린다
   g.collectMine(now);
-  while (g.s.gold > g.mineDepthCost() * 4 && g.digDeeper(now));
-  while (g.s.gold > g.mineHandCost() * 4 && g.hireMiner(now));
+  loop(500, () => g.s.gold > g.mineDepthCost() * 4 && g.digDeeper(now));
+  loop(500, () => g.s.gold > g.mineHandCost() * 4 && g.hireMiner(now));
   // 심검은 먹이기만 먼저 해둔다
   for (const e of EGO_PARTS) {
     if (!g.egoOpen(e.id)) continue;
@@ -74,7 +80,7 @@ function spendSlow(now, step) {
     for (let i = 0; i < 4 && g.mode === 'stage'; i++) tryList[(turn + i) % 4]();
   }
   // 비급이 남으면 무공을 초월한다
-  for (const sk of SKILLS) while (g.s.books > g.skillPierceCost(sk.id) * 2 && g.skillPierce(sk.id));
+  for (const sk of SKILLS) loop(200, () => g.s.books > g.skillPierceCost(sk.id) * 2 && g.skillPierce(sk.id));
 }
 
 for (let t = 0, step = 0; t < hours * 3600; t += dt, step++) {
@@ -83,16 +89,16 @@ for (let t = 0, step = 0; t < hours * 3600; t += dt, step++) {
   if (step % 10 !== 0) continue;
   const now = T0 + t * 1000;
   g.checkDaily(now);
-  for (;;) {
+  loop(3000, () => {
     const keys = Object.keys(UPGRADES).filter((k) => !g.upgradeMaxed(k));
     const k = keys.reduce((a, b) => (g.upgradeCost(a) <= g.upgradeCost(b) ? a : b));
-    if (!g.buyUpgrade(k)) break;
-  }
-  for (const sk of SKILLS) while (g.upgradeSkill(sk.id));
-  while (g.s.sp > 0) g.allocSp(g.s.spAlloc.atk <= g.s.spAlloc.hp ? 'atk' : 'hp');
+    return !!g.buyUpgrade(k);
+  });
+  for (const sk of SKILLS) loop(500, () => g.upgradeSkill(sk.id));
+  loop(2000, () => g.s.sp > 0 && (g.allocSp(g.s.spAlloc.atk <= g.s.spAlloc.hp ? 'atk' : 'hp') || true));
   // 의복은 사두면 영구히 효과가 붙으므로 뽑기보다 먼저 산다
   for (const o of OUTFITS) g.buyOutfit(o.id);
-  while (g.s.gems >= 900) { g.gacha(10); if (g.s.gems >= 150) g.hatchPets(1); }
+  loop(500, () => { if (g.s.gems < 900) return false; g.gacha(10); if (g.s.gems >= 150) g.hatchPets(1); return true; });
   // 소환 레벨 달성 보상. 이걸 안 받고 있었다 — 한철·원보·장신구 상자·선택 상자·
   // 의복이 전부 안 들어와서, 지금까지의 측정이 '보상을 안 받는 사람' 기준이었다.
   for (const k of GACHA_KINDS) if (g.gachaRewardReady(k.id)) g.claimGachaRewards(k.id);
@@ -103,7 +109,7 @@ for (let t = 0, step = 0; t < hours * 3600; t += dt, step++) {
   // 선택 상자: 공략의 수를 따라 가락지에 몰아 연다
   while ((g.s.accPick || 0) > 0) if (!g.openAccPick('ring', 1)) break;
   // 장비 초월: 천품이 남으면 쓴다 (안 쓰면 영영 쌓이기만 한다)
-  for (const type of Object.keys(EQUIP_TYPES)) while (g.equipPierceUp(type));
+  for (const type of Object.keys(EQUIP_TYPES)) loop(200, () => g.equipPierceUp(type));
   // 심검 강화: 승급에 못 쓰고 썩는 장신구를 바친다
   for (const e of EGO_PARTS) g.offerAcc(e.id, true);
   // 문파: 열리면 고른다. 1차에서는 두목 피해가 진행에 가장 직결되므로
@@ -121,7 +127,7 @@ for (let t = 0, step = 0; t < hours * 3600; t += dt, step++) {
   if (step % 600 === 0) spendSlow(now, step);   // 무거운 것은 1분마다만
   for (const p of PETS) g.levelPet(p.id, 5);
   g.digRelic(5);
-  while (g.claimMilestone());
+  loop(500, () => g.claimMilestone());
   if (g.mode === 'stage') {
     if (g.canTrial() && t >= nextTrial) { g.startTrial(); nextTrial = t + 600; }
     else for (const d of DUNGEONS) {

@@ -354,6 +354,9 @@ function handleEvents() {
       case 'rankSubUp': toast(`${game.rankLabel()} — 기운이 한 겹 두터워졌어요`); break;
       case 'traitUp': toast(`${game.job()?.name || ''} 특성 ${ev.lv}단 — 쓰는 무공 전부가 세졌어요`); break;
       case 'goStage': toast(`제 ${ev.stage} 관문으로 옮겼어요`); break;
+      // 전생의 기억으로 이미 깬 곳을 성큼 건너뛴다. 조용히 넘기면
+      // 관문 숫자가 튀는 걸로만 보여서 버그처럼 읽힌다.
+      case 'stageSkip': view.showBanner(`전생의 기억 — 제 ${ev.to} 관문까지 성큼`, '#c4b5fd', 1.1); break;
       case 'bossTimeout': toast('⏳ 관문지기를 시간 안에 못 잡았어요'); break;
       // 연속 도전이 끊기면 알려야 한다. 모르면 계속 도는 줄 안다.
       case 'loopAgain': if (!ev.on) toast('연속 도전을 멈췄어요'); break;

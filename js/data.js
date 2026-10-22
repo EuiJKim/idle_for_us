@@ -2,7 +2,7 @@
 
 // 지금 돌고 있는 빌드. 설정 창에 적어 둔다 — 기기가 옛 판을 들고 있는지
 // 한눈에 보려고 둔다. sw.js의 CACHE와 같은 값으로 맞춘다.
-export const BUILD = 'ifu-v80';
+export const BUILD = 'ifu-v81';
 
 export const SAVE_VERSION = 4;
 export const OFFLINE_CAP_SEC = 12 * 3600;
@@ -617,6 +617,20 @@ export const regressGain = (maxStage) => (maxStage < REGRESS_MIN_STAGE ? 0 : Mat
 // 일주일 시뮬에서 회귀가 한 번도 안 터진 적이 있다.
 export const REGRESS_WORTH_MULT = 1.7;     // 이만큼 세지면 권한다
 export const REGRESS_ADVISE_POINTS = 18;   // 옛 화면 문구가 쓰는 값
+// ---------- 회귀하면 관문을 건너뛴다 ----------
+//
+// 회귀는 관문을 1로 되돌린다. 전생 배수가 붙어 있어 금방 돌아오지만,
+// **이미 깬 관문을 하나씩 다시 밟는 건 그냥 기다리는 시간**이다.
+// 전생의 기억이 많을수록 한 번에 여러 관문을 건너뛴다.
+//
+// 기억 스무 개마다 한 관문씩 더 — 기억 100이면 다섯 관문씩 간다.
+// **이미 넘어 본 곳(bestStage)까지만** 건너뛴다. 그 너머를 건너뛰면
+// 안 싸우고 관문을 버는 셈이라 곡선이 통째로 깨진다.
+export const REGRESS_SKIP_PER = 20;
+export const REGRESS_SKIP_MAX = 25;
+export const stageStep = (points) =>
+  1 + Math.min(REGRESS_SKIP_MAX, Math.floor((points || 0) / REGRESS_SKIP_PER));
+
 // 막혀 있다고 보는 시간 (초). 이만큼 최고 관문이 안 올라가면 회귀가 답이다.
 export const REGRESS_STUCK_SEC = 90;
 

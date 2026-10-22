@@ -47,7 +47,7 @@ import {
   zoneOf, monsterHp, monsterAtk, monsterGold, BOSS_HP_MULT, BOSS_ATK_MULT, stageBossAtkMult, BOSS_GOLD_MULT, RAID_BOSS,
   OFFLINE_STAGE_MAX, OFFLINE_PACE_DRIFT, PACE_EMA, PACE_MAX_SEC, stageGold,
   stageBooks, stageStones, stageFood,
-  regressGain, regressMult, REGRESS_WORTH_MULT, REGRESS_STUCK_SEC,
+  regressGain, regressMult, REGRESS_WORTH_MULT, REGRESS_STUCK_SEC, stageStep,
   JOBS, JOB_RANK, JOB_UNLOCK, jobOf, JOB_SKILLS, jobSkillOf, BOON_SKILLS, TASTE_RANK,
   JOB_TESTS, jobTestOf, jobTestStage,
   PASSIVES, passivesOf, passiveId, PASSIVE_MAX, passiveCost,
@@ -86,7 +86,9 @@ export function newSave(now = Date.now()) {
     stage: 1,
     maxStage: 1,
     bestStage: 1, // 회귀해도 남는 역대 최고 관문
-    regress: { count: 0, points: 0 },
+    // paidTo — 여기까지는 이미 기억으로 바꿔 받았다. 같은 땅을 다시 밟아도
+    // 또 주면 '회귀 → 빨리 되돌아오기 → 또 회귀'가 공짜 기억 기계가 된다.
+    regress: { count: 0, points: 0, paidTo: 0 },
     kills: 0,
     wave: 0,        // 이번 관문의 몇 번째 물결인가
     farming: false,
@@ -192,6 +194,11 @@ export function migrate(raw, now = Date.now()) {
   const s = { ...base, ...raw };
   for (const key of ['upgrades', 'skills', 'stats', 'spAlloc', 'enhance', 'equipPierce', 'dungeons', 'pvp', 'regress', 'traitLv']) {
     s[key] = { ...base[key], ...(raw[key] || {}) };
+  }
+  // 옛 세이브에는 regress.paidTo가 없다. 이미 회귀해 본 사람이라면 지금
+  // 기록까지는 받은 것으로 본다 — 0으로 두면 한 번 공짜 회귀가 생긴다.
+  if (raw.regress && raw.regress.paidTo === undefined && (raw.regress.count || 0) > 0) {
+    s.regress.paidTo = Math.max(0, Math.floor(Number(raw.maxStage) || 0));
   }
   // 수련에는 더 이상 상한이 없다. 전에 치명 90 -> 50으로 깎으며 넘치는 레벨을
   // 잘라 냈는데, 이제 그 레벨은 **다음 차수**로 넘어간다 — 잘라내면 안 된다.
@@ -316,6 +323,9 @@ export function migrate(raw, now = Date.now()) {
   s.regress = {
     count: Math.max(0, Math.floor(num(s.regress?.count, 0, 0))),
     points: Math.max(0, Math.floor(num(s.regress?.points, 0, 0))),
+    // **여기서 paidTo를 빠뜨렸더니** 세이브를 다시 읽을 때마다 0으로
+    // 돌아갔다 — 같은 땅으로 기억을 또 받는 구멍이 그대로 열린다.
+    paidTo: Math.max(0, Math.floor(num(s.regress?.paidTo, 0, 0))),
   };
   s.tower = { ...s.tower, floor: Math.max(0, Math.floor(num(s.tower?.floor, 0, 0))) };
   s.mine = {
@@ -2287,16 +2297,32 @@ export class Game {
         this.s.relicShards += bossRelicShards(s);
         this.emit('gems', { amount: gems });
       }
-      this.s.stage = s + 1;
+      // **이미 넘어 본 곳은 건너뛴다.** 전생의 기억이 많을수록 성큼성큼 간다.
+      // 한 번 깬 관문을 하나씩 다시 밟는 건 그냥 기다리는 시간이다.
+      let step = 1;
+      if (s < this.s.bestStage) {
+        step = Math.min(stageStep(this.s.regress.points), this.s.bestStage - s);
+        // **건너뛴 관문의 보상은 안 준다.**
+        // 처음엔 '건너뛸수록 가난해지면 안 된다'며 몫을 다 챙겨 줬는데,
+        // 그러면 건너뛰기가 시간도 벌고 돈도 버는 공짜가 된다 — 재 보니
+        // 반 시간에 관문 350에서 1238로 뛰고, 은자가 넘쳐서 시뮬이 멎었다.
+        // 건너뛰기가 버는 것은 **시간**이다. 그게 전부여야 한다.
+        if (step > 1) this.emit('stageSkip', { from: s + 1, to: s + step });
+      }
+      this.s.stage = s + step;
       this.s.maxStage = Math.max(this.s.maxStage, this.s.stage);
       this.s.bestStage = Math.max(this.s.bestStage, this.s.maxStage);
       // **관문지기를 잡았으면 다음 관문도 바로 관문지기다.**
       // 잡을 수 있다는 걸 방금 보여 줬는데 졸개 스무 마리를 다시 세게 하는 건
       // 기다리게만 한다. 지면 farming으로 떨어져 물결부터 다시 돈다 —
       // 그게 안전장치다. 물결 보상이 아쉬우면 「수련」을 켜면 된다.
-      this.s.kills = this.s.bossRush === false ? 0 : KILLS_PER_STAGE;
-      this.s.wave = this.s.bossRush === false ? 0 : Math.max(0, this.waveTotal() - 1);
-      this.waveT = 0;   // 바닥 시간은 다시 채운다 — 한 호흡은 둔다
+      const rush = this.s.bossRush !== false;
+      this.s.kills = rush ? KILLS_PER_STAGE : 0;
+      this.s.wave = rush ? Math.max(0, this.waveTotal() - 1) : 0;
+      // **바닥 시간을 0으로 두면 그만큼 기다린다.** '한 호흡'을 두려고
+      // 그랬는데, 바로 나와야 바로 가기인데 안 나온다는 말이 맞다.
+      // 직행이면 바닥 시간을 이미 채운 걸로 둔다 — 넘기자마자 두목이다.
+      this.waveT = rush ? this.waveFloor() : 0;
       this.autoSlotSkills();
       this.emit('stageClear', { stage: s });
     } else {
@@ -3567,7 +3593,14 @@ export class Game {
   }
 
   // ---------- 회귀 ----------
-  regressPreview() { return regressGain(this.s.maxStage); }
+  // **이미 받은 땅은 또 안 준다.**
+  // 전에는 maxStage만 보고 줬다. 그러면 관문 500에서 회귀하고, 건너뛰기로
+  // 금방 500까지 돌아와 또 회귀 — 같은 땅으로 기억을 무한히 찍어 낸다.
+  // 재 보니 두 시간에 전투력이 1.5e93까지 뛰어서, 몇 시간 뒤면 숫자가 넘친다.
+  regressPreview() {
+    const paid = this.s.regress.paidTo || 0;
+    return Math.max(0, regressGain(this.s.maxStage) - regressGain(paid));
+  }
   // 지금 회귀하면 전생 배수가 몇 배가 되나
   regressWorthMult() {
     const now = this.s.regress.points || 0;
@@ -3595,6 +3628,7 @@ export class Game {
     const s = this.s;
     s.bestStage = Math.max(s.bestStage, s.maxStage);
     s.regress.points += gain;
+    s.regress.paidTo = Math.max(s.regress.paidTo || 0, s.maxStage);
     s.regress.count++;
     s.stage = 1;
     s.maxStage = 1;

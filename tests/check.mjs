@@ -13,6 +13,8 @@ const ok = (cond, label, extra = '') => {
   console.log(`${cond ? '  OK  ' : '  !!  '} ${label}${extra ? '  — ' + extra : ''}`);
 };
 
+const srcOf = (rel) => fs.readFileSync(new URL('../' + rel, import.meta.url), 'utf-8');
+
 const seeded = (s = 12345) => () => ((s = (s * 1103515245 + 12345) % 2147483648) / 2147483648);
 
 function strong(stage = 150) {
@@ -2081,5 +2083,90 @@ console.log('=== 35. 자리와 큰 수 ===');
   for (let i = 0; i < 400; i++) units.push(alphaUnit(i));
   ok(new Set(units).size === units.length, '단위 글자가 겹치지 않는다', `${units.length}개`);
 }
+
+// ---------- 36. 건너뛰기와 두목 바로 ----------
+//
+// "관문 깨면 바로 두목이 나와야 하는데 안 나온다"와 "회귀 수치에 따라
+// 관문을 건너뛰어야 한다"가 이 절의 두 가지다.
+//
+// 건너뛰기에서 꼭 지켜야 하는 것: **건너뛴 몫의 보상은 안 준다.** 한 번
+// 공짜로 줘 봤더니 반 시간에 관문 350 → 1238로 뛰고 시뮬이 멎었다.
+// 그리고 **같은 땅으로 기억을 두 번 받지 않는다.** 이것도 안 막았을 때
+// 회귀 → 빨리 되밀기 → 또 회귀로 기억이 공짜로 찍혀 나왔다(2시간에 1.5e93).
+console.log('');
+console.log('=== 36. 건너뛰기와 두목 바로 ===');
+{
+  // 사용자가 든 예: 기억 100개면 다섯씩
+  ok(D.stageStep(0) === 1, '기억이 없으면 하나씩', `${D.stageStep(0)}`);
+  ok(D.stageStep(100) === 6, '기억 100개면 다섯 관문을 건너뛴다', `${D.stageStep(100)}관문씩`);
+  ok(D.stageStep(20) === 2 && D.stageStep(40) === 3, '20개마다 한 칸 더');
+  ok(D.stageStep(99999) === 1 + D.REGRESS_SKIP_MAX, '끝없이 늘지는 않는다',
+    `최대 ${D.stageStep(99999)}관문씩`);
+
+  // 되밀 때만 성큼성큼 — 그리고 기록은 안 넘는다
+  {
+    const g = strong(100);
+    const full = D.REGRESS_SKIP_PER * D.REGRESS_SKIP_MAX;   // 이만큼 모아야 최대치
+    g.s.regress.points = full;
+    g.s.bestStage = 1000;
+    g.s.maxStage = 100;
+    const step = Math.min(D.stageStep(full), g.s.bestStage - g.s.stage);
+    ok(step === 1 + D.REGRESS_SKIP_MAX, '기억을 다 모으면 최대치로 건너뛴다',
+      `기억 ${full}개 → ${step}관문`);
+    // 기록 바로 아래에서는 남은 만큼만
+    g.s.stage = 998;
+    const near = Math.min(D.stageStep(full), g.s.bestStage - g.s.stage);
+    ok(near === 2, '기록 바로 아래면 남은 만큼만', `${near}관문`);
+    ok(g.s.stage + near <= g.s.bestStage, '건너뛰어도 기록을 넘지 않는다');
+  }
+
+  // 건너뛰기 코드가 실제로 그 자리에 있는가 — 상수만 있고 안 쓰면 없는 것
+  {
+    const src = srcOf('js/game.js');
+    ok(/stageStep\(this\.s\.regress\.points\)/.test(src), '관문을 깰 때 실제로 건너뛴다');
+    ok(/if \(s < this\.s\.bestStage\)/.test(src), '되밀 때만 건너뛴다');
+    ok(/stageSkip/.test(src) && /stageSkip/.test(srcOf('js/main.js')),
+      '건너뛴 걸 화면에도 알린다');
+  }
+
+  // 두목이 바로 나온다 — 관문을 깨면 물결이 이미 다 차 있어야 한다
+  {
+    const g = strong(300);
+    g.s.bossRush = true;
+    const total = g.waveTotal();
+    ok(total >= 1, '물결 수가 센다', `${total}`);
+    const src = srcOf('js/game.js');
+    ok(/rush \? this\.waveFloor\(\)/.test(src), '바닥 시간도 이미 차 있다');
+    ok(/rush \? KILLS_PER_STAGE : 0/.test(src), '졸개도 다 잡은 것으로 둔다');
+  }
+
+  // **같은 땅으로 기억을 두 번 받지 않는다**
+  {
+    const g = strong(500);
+    g.s.maxStage = 500;
+    g.s.regress.paidTo = 0;
+    const first = g.regressPreview();
+    ok(first > 0, '관문 500까지 밀면 기억을 받는다', `${first}개`);
+    g.regress();
+    ok(g.s.regress.paidTo === 500, '받은 데까지 적어 둔다', `${g.s.regress.paidTo}`);
+    g.s.maxStage = 500;                 // 같은 자리까지 되밀었다
+    ok(g.regressPreview() === 0, '같은 땅으로는 또 안 준다', `${g.regressPreview()}개`);
+    g.s.maxStage = 700;                 // 더 멀리 갔다
+    ok(g.regressPreview() > 0, '더 멀리 가면 그만큼 더 준다', `${g.regressPreview()}개`);
+    ok(g.regressPreview() < first, '처음 500보다는 적다 (500까지는 이미 받았다)');
+  }
+
+  // 옛 세이브에 paidTo가 없어도 안 터진다
+  {
+    const g = new Game(migrate({ maxStage: 300, bestStage: 300,
+      regress: { count: 2, points: 50 } }));
+    ok(g.s.regress.paidTo === 300, '옛 세이브는 지금 기록까지 받은 것으로 본다',
+      `${g.s.regress.paidTo}`);
+    ok(new Game(migrate({ maxStage: 300, bestStage: 300 })).s.regress.paidTo === 0,
+      '회귀한 적이 없으면 0부터');
+    ok(Number.isFinite(g.regressPreview()), '옛 세이브로도 미리 보기가 돈다');
+  }
+}
+
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);
