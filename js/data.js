@@ -2,7 +2,7 @@
 
 // 지금 돌고 있는 빌드. 설정 창에 적어 둔다 — 기기가 옛 판을 들고 있는지
 // 한눈에 보려고 둔다. sw.js의 CACHE와 같은 값으로 맞춘다.
-export const BUILD = 'ifu-v77';
+export const BUILD = 'ifu-v78';
 
 export const SAVE_VERSION = 4;
 export const OFFLINE_CAP_SEC = 12 * 3600;
@@ -1946,27 +1946,71 @@ export const RAID_BOSS = F('혈마', { robe: '#1a0505', trim: '#ef4444', head: '
 
 // 지역 티어 — 8지역(80관문)을 한 바퀴 돌 때마다 같은 땅이 더 험해진다.
 // 근거: Blade Idle은 배경 8종을 S·T 티어로 재활용해 23개 구간을 만든다(에셋 추가 없이 볼륨 3배).
+// 자리 이름 앞에 붙는 말. **다섯에서 멈춰 있었다** — 관문 321부터는 끝까지
+// 전부 '무간 OO'라, 한 시간이면 1500관문을 가는 지금은 눈에 보이는 게
+// 영영 안 바뀌었다. 열로 늘리고, 다 쓰면 처음부터 다시 돈다(몇 순인지 적는다).
 export const ZONE_TIERS = [
-  { prefix: '', sun: null },
-  { prefix: '흉지 ', sun: '#7f1d1d' },
-  { prefix: '마경 ', sun: '#4c1d95' },
-  { prefix: '구천 ', sun: '#0c4a6e' },
-  { prefix: '무간 ', sun: '#18181b' },
+  { prefix: '', sun: null, tint: null },
+  { prefix: '흉지 ', sun: '#7f1d1d', tint: '#7f1d1d' },
+  { prefix: '마경 ', sun: '#4c1d95', tint: '#6d28d9' },
+  { prefix: '구천 ', sun: '#0c4a6e', tint: '#0369a1' },
+  { prefix: '무간 ', sun: '#18181b', tint: '#27272a' },
+  { prefix: '나락 ', sun: '#431407', tint: '#9a3412' },
+  { prefix: '황천 ', sun: '#064e3b', tint: '#047857' },
+  { prefix: '적멸 ', sun: '#4a044e', tint: '#a21caf' },
+  { prefix: '혼돈 ', sun: '#422006', tint: '#a16207' },
+  { prefix: '허무 ', sun: '#0c0a09', tint: '#e5e7eb' },
 ];
 export const ZONE_CYCLE = 10 * ZONES.length; // 한 바퀴 = 80관문
-export const zoneTierOf = (stage) => Math.min(Math.floor((stage - 1) / ZONE_CYCLE), ZONE_TIERS.length - 1);
+// 몇 번째 앞말인가. 다 쓰면 처음으로 돌아간다 — 끝에서 멈추지 않는다.
+export const zoneTierOf = (stage) => Math.floor((stage - 1) / ZONE_CYCLE) % ZONE_TIERS.length;
+// 앞말을 몇 바퀴 돌았나 (0이면 첫 바퀴)
+export const zoneLoopOf = (stage) => Math.floor(Math.floor((stage - 1) / ZONE_CYCLE) / ZONE_TIERS.length);
+
+// 빛깔 섞기. 같은 적이라도 자리마다 다른 빛을 띠게 한다.
+function mixHex(a, b, k) {
+  const p = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+  const [r1, g1, b1] = p(a);
+  const [r2, g2, b2] = p(b);
+  const q = (x, y) => Math.round(x + (y - x) * k).toString(16).padStart(2, '0');
+  return `#${q(r1, r2)}${q(g1, g2)}${q(b1, b2)}`;
+}
+
 const _zoneCache = new Map();
 export const zoneOf = (stage) => {
   const i = Math.floor((stage - 1) / 10) % ZONES.length;
   const t = zoneTierOf(stage);
-  const key = i * 100 + t;
+  const loop = zoneLoopOf(stage);
+  const key = (i * 100 + t) * 100 + Math.min(9, loop);
   let z = _zoneCache.get(key);
   if (!z) {
     const base = ZONES[i];
     const tier = ZONE_TIERS[t];
     // idx는 바닥 그림(art/zone/zone-N.png)을 찾는 데 쓴다
-    z = t === 0 ? { ...base, idx: i }
-      : { ...base, idx: i, name: tier.prefix + base.name, sun: tier.sun || base.sun, tier: t };
+    if (t === 0 && loop === 0) {
+      z = { ...base, idx: i };
+    } else {
+      // 적 옷·터럭에도 그 자리의 빛을 섞는다. 이름만 바뀌면 똑같아 보인다.
+      const k = tier.tint ? 0.42 + Math.min(0.25, loop * 0.08) : 0;
+      const paint = (f) => (!tier.tint ? f : {
+        ...f,
+        look: {
+          ...f.look,
+          robe: mixHex(f.look.robe || '#57534e', tier.tint, k),
+          trim: f.look.trim ? mixHex(f.look.trim, tier.tint, k * 0.6) : f.look.trim,
+        },
+      });
+      z = {
+        ...base,
+        idx: i,
+        name: tier.prefix + base.name + (loop > 0 ? ` ${loop + 1}순` : ''),
+        sun: tier.sun || base.sun,
+        tier: t,
+        loop,
+        mobs: base.mobs.map(paint),
+        boss: paint(base.boss),
+      };
+    }
     _zoneCache.set(key, z);
   }
   return z;

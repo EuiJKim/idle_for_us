@@ -2,6 +2,7 @@ import fs from 'node:fs';
 // 전체 점검: 모드 전환·세이브 이주·시스템 도달·값 이상 여부를 한 번에 본다.
 // node tests/check.mjs
 import { Game, newSave, migrate, slimSave } from '../js/game.js';
+import { fmt, alphaUnit } from '../js/fmt.js';
 import * as D from '../js/data.js';
 
 let fail = 0;
@@ -2005,6 +2006,66 @@ console.log('=== 34. 전직 시험 ===');
       `${before.toExponential(1)} → ${g.mon.hp.toExponential(1)}`);
   }
 }
+}
+
+// ---------- 35. 자리가 계속 바뀌는가 / 큰 수가 읽히는가 ----------
+//
+// 앞말이 다섯에서 멈춰 있어서 **관문 321부터는 끝까지 전부 '무간 OO'**였다.
+// 한 시간에 1500관문을 가는 지금은 눈에 보이는 게 영영 안 바뀐다는 뜻이다.
+console.log('');
+console.log('=== 35. 자리와 큰 수 ===');
+{
+  // 멀리 가도 이름이 계속 바뀐다
+  const names = [];
+  for (let s = 1; s <= 4000; s += 40) names.push(D.zoneOf(s).name);
+  const uniq = new Set(names);
+  ok(uniq.size >= 60, '멀리 가도 자리 이름이 계속 바뀐다', `${uniq.size}가지`);
+  // 어느 구간에서도 멈추지 않는다 — 1000~2000 사이에만도 여러 가지가 나와야 한다
+  const late = new Set();
+  for (let s = 1000; s <= 2000; s += 40) late.add(D.zoneOf(s).name);
+  ok(late.size >= 10, '관문 1000~2000 사이에서도 계속 바뀐다', `${late.size}가지`);
+  // 끝에서 멈추지 않고 **다시 돈다**
+  ok(D.zoneTierOf(1) === D.zoneTierOf(1 + D.ZONE_CYCLE * D.ZONE_TIERS.length),
+    '앞말을 다 쓰면 처음부터 다시 돈다');
+  ok(D.zoneLoopOf(1) === 0 && D.zoneLoopOf(1 + D.ZONE_CYCLE * D.ZONE_TIERS.length) === 1,
+    '몇 순째인지 센다');
+  ok(/2순/.test(D.zoneOf(1 + D.ZONE_CYCLE * D.ZONE_TIERS.length).name),
+    '두 번째 바퀴는 이름에 적힌다', D.zoneOf(1 + D.ZONE_CYCLE * D.ZONE_TIERS.length).name);
+
+  // 바닥 그림은 여덟 장뿐이다. idx가 그 범위를 벗어나면 바닥이 안 그려진다.
+  let badIdx = 0;
+  for (let s = 1; s <= 5000; s += 7) {
+    const z = D.zoneOf(s);
+    if (!(z.idx >= 0 && z.idx < D.ZONES.length)) badIdx++;
+  }
+  ok(badIdx === 0, '바닥 그림 번호가 늘 범위 안', `${badIdx}건`);
+
+  // 적 생김새도 같이 바뀐다 — 이름만 바뀌면 똑같아 보인다
+  const robes = new Set();
+  for (let s = 1; s <= 4000; s += 40) robes.add(D.zoneOf(s).mobs[0].look.robe);
+  ok(robes.size >= 20, '적 옷 빛깔도 자리마다 바뀐다', `${robes.size}가지`);
+  // 빛깔이 제대로 된 색인가 (#rrggbb)
+  let badHex = 0;
+  for (const c of robes) if (!/^#[0-9a-f]{6}$/i.test(c)) badHex++;
+  ok(badHex === 0, '빛깔이 전부 제대로 된 색', `${badHex}건`);
+
+  // ---- 큰 수 ----
+  // 한글 단위가 끝나면 알파벳이 이어받는다. 지수(1.00e60)가 뜨면 안 읽힌다.
+  ok(fmt(1e52).endsWith('a'), '한글 단위가 끝나면 a부터', fmt(1e52));
+  ok(fmt(1e56).endsWith('b'), '그 다음은 b', fmt(1e56));
+  const seq = [0, 1, 25, 26, 27, 51, 52, 701, 702].map((i) => alphaUnit(i));
+  ok(seq.join(',') === 'a,b,z,aa,ab,az,ba,zz,aaa', 'a-z 다음은 aa-az, ba …', seq.join(' '));
+  // 아무리 커도 지수 표기로 안 샌다
+  let bad = [];
+  for (let e = 4; e <= 300; e += 4) {
+    const s = fmt(Math.pow(10, e));
+    if (/e[+-]?\d/.test(s)) bad.push(`1e${e}→${s}`);
+  }
+  ok(bad.length === 0, '아무리 커도 지수로 안 샌다', bad.slice(0, 3).join(', ') || '전부 읽힘');
+  // 글자가 겹치지 않는다 — 겹치면 어느 쪽이 큰지 알 수 없다
+  const units = [];
+  for (let i = 0; i < 400; i++) units.push(alphaUnit(i));
+  ok(new Set(units).size === units.length, '단위 글자가 겹치지 않는다', `${units.length}개`);
 }
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);
