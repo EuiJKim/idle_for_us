@@ -5,12 +5,53 @@
 import { Big, big } from './big.js';
 import { mx } from './fmt.js';
 
+// ---------- 수치 눌러 담기 (2026-10-23) ----------
+// 공격력이 관문 2000에서 10^56, 적 체력이 10^77이었다 — 숫자가 말이 안 되게 컸다.
+// 적의 성장, 그리고 장비·보너스 합·회귀·무공 레벨·영수 레벨처럼 **쌓이며 커지는 배수**를
+// 지수 1/8로 눌러 담는다(POWER_K).
+//
+// 수련은 다르게 다룬다. 한 칸의 값(+4%)을 눌러 담았더니 **사도 아무 일이 없었다** —
+// 15분 동안 공격력이 10에서 18이 되고 두목마다 죽었다. 그래서 한 칸은 그대로 두고
+// **은자가 관문마다 느는 비율을 낮춰** 덜 사게 한다(STAGE_GOLD_RATE). 한 칸이 곧 체감이다.
+// 줄어든 성장 몫은 **치명 단계**(치명 → 슈퍼 → 하이퍼 …)가 곱으로 메운다.
+export const POWER_K = 1 / 8;
+export const kpow = (x) => (x > 0 ? Math.pow(x, POWER_K) : x);
+export const kbig = (b) => {
+  const v = big(b);
+  if (!v.gt(0)) return v;
+  const l = v.log10();
+  return Number.isFinite(l) ? Big.pow10(l * POWER_K) : v;
+};
+
+// ---------- 치명 단계 ----------
+// 치명 확률에 **상한이 없다.** 100%를 채우면 그다음 100%는 '슈퍼 치명' 확률이 된다.
+//   치명 확률 C = 2.35 → 모든 타격이 슈퍼 치명(2단) + 35% 확률로 하이퍼 치명(3단)
+// 치명은 ×D(치명 피해), 그 위로는 단계마다 **고정 배수 CRIT_STEP**을 더 곱한다:
+//   치명 ×D · 슈퍼 ×D·2.5 · 하이퍼 ×D·2.5² …
+// 단계마다 D를 거듭 곱하면(D, D², D³) D도 확률도 관문 따라 크니 **제곱으로** 커져서
+// 적이 영영 못 따라왔다(시뮬 30분에 관문 1,300). 고정 배수면 곧게 큰다.
+export const CRIT_STEP = 2.5;
+export const critTierMult = (n, D) => (n <= 0 ? 1 : D * Math.pow(CRIT_STEP, n - 1));
+export const CRIT_TIERS = ['', '치명', '슈퍼 치명', '하이퍼 치명', '울트라 치명', '레전드 치명', '미식 치명', '갓 치명'];
+export const critTierName = (t) => (t <= 0 ? '' : CRIT_TIERS[t] || `치명 ${t}단`);
+// 확률 C로 한 대를 굴린다 → 몇 단 치명인가
+export const rollCritTier = (C, rng) => {
+  const t = Math.floor(Math.max(0, C));
+  return t + (rng() < C - t ? 1 : 0);
+};
+// 평균 배수 (초당 피해 어림·시험 체력에 쓴다)
+export const critExpect = (C, D) => {
+  const t = Math.floor(Math.max(0, C));
+  const now = critTierMult(t, D);
+  return now + (C - t) * (critTierMult(t + 1, D) - now);
+};
+
 // 아래 곡선 가운데 **관문·레벨을 따라 끝없이 오르는 것**은 전부 Big으로
 // 돌려준다. 보통 숫자로 두면 1.8e308에서 Infinity가 되고, 거기서 빼는 순간
 // NaN이 된다 — 재 보니 적 체력이 관문 8467에서 그 선을 넘었다.
 // 반대로 상한이 있는 값(경지 배수·초월 단계처럼)은 보통 숫자 그대로 둔다.
 
-export const BUILD = 'ifu-v90';
+export const BUILD = 'ifu-v91';
 
 export const SAVE_VERSION = 4;
 export const OFFLINE_CAP_SEC = 12 * 3600;
@@ -330,8 +371,8 @@ export const upTierName = (base, t) => (t <= 0 ? base
 
 // 가산 통계가 레벨 하나에 주는 기본값. 차수마다 여기에 UP_TIER_GAIN^t가 곱해진다.
 export const UP_STAT_PER = {
-  crit: 0.005,      // 치명 확률 +0.5%p
-  critDmg: 0.05,    // 치명 피해 +5%p
+  crit: 0.015,      // 치명 확률 +1.5%p (상한이 없다 — 100%마다 한 단계)
+  critDmg: 0.02,    // 치명 피해 +2%p — 치명 단계마다 거듭 곱해지므로 작게(차수 덤도 없다)
   speed: 0.02,      // 공격 속도 +2%p
   gold: 0.05,       // 은자 +5%p
   guard: 0.01,      // 받는 피해 -1%p
@@ -352,6 +393,9 @@ export const UP_STAT_LABEL = {
   skillCd: '무공 쿨 감소', ccDur: '상태이상 지속', bleed: '출혈 피해',
   offline: '방치 보상',
 };
+// 차수가 올라도 한 칸의 값이 안 커지는 통계 (치명 확률 — 단계 자체가 곱이다)
+export const UP_FLAT = { crit: true, critDmg: true };
+const tierGain = (stat, t) => (UP_FLAT[stat] ? big(1) : Big.pow(UP_TIER_GAIN, t));
 // 그 통계가 더하기로 쌓이는가(=차수 계산이 필요한가)
 export const UP_IS_ADD = (stat) => stat in UP_STAT_PER;
 // 받침이 있으면 '으로', 없으면 '로'. "체력로 바뀌어요"가 화면에 떴다.
@@ -384,8 +428,10 @@ export const UPGRADES = {
     // 1차는 치명 확률이다. CRIT_CAP(0.75)까지 가지 않고 0.30에서 한 차수가 끝난다 —
     // 나머지 45%p는 장비 옵션·장신구·유물이 채우라고 비워 둔 자리다.
     // 2차 극혈도부터는 **치명 피해**로 간다. 이게 곧 더 센 치명타다.
+    // 치명 확률은 이제 상한이 없다 — 100%를 넘기면 슈퍼 치명·하이퍼 치명으로 간다.
+    // 그래서 2차부터 치명 피해로 갈아타지 않고 끝까지 치명 확률이다(한 칸 +1.5%p, 차수 덤 없음).
     name: '혈도 찌르기(치명)', icon: '혈도', kind: 'add', tier: 50, group: 'atk',
-    line: ['crit', 'critDmg'], base: { crit: 0.05 },
+    line: ['crit'], base: { crit: 0.05 },
     cost: (l) => Big.pow(1.13, l).mul(40),
     fmt: 'pct',
   },
@@ -490,8 +536,11 @@ export const UPGRADES = {
 export const UP_STAGE_EVERY = 50;
 // 열린 단계 수 (1부터). maxStage는 회귀하면 1로 돌아간다.
 export const upStagesOpen = (maxStage) => 1 + Math.floor(Math.max(0, (maxStage || 1) - 1) / UP_STAGE_EVERY);
+// 한 단계에 오를 수 있는 레벨. 은자를 덜 벌게 된 뒤(2026-10-23) 외공은 50관문에 15레벨쯤
+// 산다 — 한 단계를 차수(60레벨)로 두면 영영 안 막힌다. 차수의 1/5로 둔다.
+export const upStageLv = (key) => Math.ceil(upTierLv(key) / 5);
 // 이 축을 지금 몇 레벨까지 올릴 수 있나
-export const upCap = (key, maxStage) => upStagesOpen(maxStage) * upTierLv(key);
+export const upCap = (key, maxStage) => upStagesOpen(maxStage) * upStageLv(key);
 // 다음 단계가 열리는 관문 (이 관문을 넘으면 열린다)
 export const upNextStageAt = (maxStage) => upStagesOpen(maxStage) * UP_STAGE_EVERY;
 
@@ -520,7 +569,7 @@ export function upAdds(key, l) {
     const stat = upStatAt(key, tier);
     if (stat) {
       // 차수 배수는 끝없이 오른다 — Math.pow로는 1750차쯤에서 터진다.
-      const add = Big.pow(UP_TIER_GAIN, tier - off).mul(UP_STAT_PER[stat] * n);
+      const add = tierGain(stat, tier - off).mul(UP_STAT_PER[stat] * n);
       out[stat] = out[stat] === undefined ? add : big(out[stat]).add(add);
     }
     left -= n;
@@ -551,7 +600,7 @@ export function upNext(key, l) {
   const stat = upStatAt(key, tier);
   if (!stat) return null;
   const off = def.line[0] ? 0 : 1;
-  const amount = Big.pow(UP_TIER_GAIN, tier - off).mul(UP_STAT_PER[stat]);
+  const amount = tierGain(stat, tier - off).mul(UP_STAT_PER[stat]);
   return { stat, amount: UP_SMALL_STATS.includes(stat) ? amount.toNumber() : amount };
 }
 // 이번 차수가 끝나기까지 몇 레벨 남았나, 그리고 그 다음 차수는 뭘 주나
@@ -567,7 +616,7 @@ export function upTierInfo(key, l) {
     nextStat,
     nextAmount: nextStat
       ? (() => {
-        const a = Big.pow(UP_TIER_GAIN, tier + 1 - (UPGRADES[key].line[0] ? 0 : 1)).mul(UP_STAT_PER[nextStat]);
+        const a = tierGain(nextStat, tier + 1 - (UPGRADES[key].line[0] ? 0 : 1)).mul(UP_STAT_PER[nextStat]);
         return UP_SMALL_STATS.includes(nextStat) ? a.toNumber() : a;
       })()
       : 0,
@@ -613,8 +662,20 @@ export const RANKS = [
   { name: '생사경', level: 240, stage: 240, look: { robe: '#0b0b0d', trim: '#dc2626', sash: '#7f1d1d', band: '#dc2626', aura: '#ef4444', swords: 2 } },
   { name: '자연경', level: 310, stage: 310, look: { robe: '#134e4a', trim: '#99f6e4', sash: '#ccfbf1', band: '#5eead4', aura: '#5eead4', swords: 3, hair: '#f1f5f9' } },
   { name: '천인합일', level: 400, stage: 400, look: { robe: '#fffbeb', trim: '#f59e0b', sash: '#fde68a', band: '#f59e0b', aura: '#fde68a', swords: 4, halo: true, hair: '#ffffff' } },
+  // ---- 2026-10-23: 열을 더했다 ----
+  { name: '탈태환골', level: 500, stage: 500, look: { robe: '#7f1d1d', trim: '#fde68a', sash: '#fbbf24', band: '#fbbf24', aura: '#f87171', swords: 4, halo: true } },
+  { name: '반박귀진', level: 610, stage: 610, look: { robe: '#f1e8d6', trim: '#78716c', sash: '#57534e', band: '#57534e', aura: '#e7e5e4', swords: 4, halo: true, hair: '#d6d3d1' } },
+  { name: '등봉조극', level: 730, stage: 730, look: { robe: '#1e3a8a', trim: '#93c5fd', sash: '#bfdbfe', band: '#60a5fa', aura: '#93c5fd', swords: 5, halo: true } },
+  { name: '입신', level: 860, stage: 860, look: { robe: '#fffbeb', trim: '#a855f7', sash: '#e9d5ff', band: '#c084fc', aura: '#d8b4fe', swords: 5, halo: true, hair: '#ffffff' } },
+  { name: '신화경', level: 1000, stage: 1000, look: { robe: '#0b0b0d', trim: '#fde68a', sash: '#f59e0b', band: '#fde68a', aura: '#fde68a', swords: 6, halo: true } },
+  { name: '조화경', level: 1150, stage: 1150, look: { robe: '#134e4a', trim: '#fde68a', sash: '#99f6e4', band: '#fde68a', aura: '#99f6e4', swords: 6, halo: true, hair: '#ffffff' } },
+  { name: '현천', level: 1310, stage: 1310, look: { robe: '#4c1d5f', trim: '#fde68a', sash: '#f0abfc', band: '#fde68a', aura: '#f0abfc', swords: 7, halo: true } },
+  { name: '무극', level: 1480, stage: 1480, look: { robe: '#f8f4ea', trim: '#0b0b0d', sash: '#0b0b0d', band: '#0b0b0d', aura: '#f5f5f4', swords: 7, halo: true, hair: '#0b0b0d' } },
+  { name: '태허', level: 1660, stage: 1660, look: { robe: '#0c4a6e', trim: '#e0f2fe', sash: '#bae6fd', band: '#e0f2fe', aura: '#e0f2fe', swords: 8, halo: true, hair: '#ffffff' } },
+  { name: '천외천', level: 1850, stage: 1850, look: { robe: '#fffbeb', trim: '#ef4444', sash: '#fde68a', band: '#ef4444', aura: '#fde68a', swords: 8, halo: true, hair: '#ffffff' } },
 ];
-export const RANK_MULT = 1.5; // 경지마다 공격력·체력 ×1.5
+// 경지마다 공격력·체력 ×RANK_MULT. 경지가 스물로 늘고 수치를 눌러 담으면서 1.5 → 1.2.
+export const RANK_MULT = 1.2;
 
 // 경지 안의 **소단계**. 큰 경지 열 개는 그대로 두고(이름·도포·심마),
 // 그 안을 마흔으로 쪼갠다 — 10 x 40 = 400단계.
@@ -1099,7 +1160,8 @@ export const PET_GRADE_WEIGHT = [45, 30, 15, 7, 2.5, 0.5];
 export const petFoodCost = (lv) => Big.pow(1.06, lv).mul(10);
 export const PET_DUPLICATE_FOOD = (grade) => 15 * (grade + 1);
 export const PET_ATTACK_INTERVAL = 1.2;
-export const petDamageMult = (pet, lv) => pet.atk * (1 + 0.1 * (lv - 1));
+// 레벨로 느는 몫은 눌러 담는다 (POWER_K)
+export const petDamageMult = (pet, lv) => pet.atk * kpow(1 + 0.1 * (lv - 1));
 
 // ---------- 영수 교감 / 각인 ----------
 // 근거: Blade Idle은 펫에 친밀도(PetIntimacyTable)와 각인(PetEngraveLevelTable)을 따로 두어
@@ -2191,7 +2253,12 @@ function cumEase(s) {
 export const stageJump = (s) => (s <= 1 ? 1 : Math.exp(cumEase(s) - cumEase(s - 1)));
 
 // cumEase는 자연로그 누적이라 그 자체는 안 터진다. 터지는 건 exp()다.
-export const monsterHp = (s) => Big.pow10(cumEase(s) / Math.LN10).mul(20);
+// 적 체력 = 옛 곡선을 1/8로 눌러 담은 것 + 관문마다 조금씩 더 (진행 속도를 늦추는 몫).
+// MON_EXTRA는 시뮬로 맞췄다(30분 관문 ~220 · 1시간 ~600, 옛 판의 1/3쯤). 늘리면 느려진다.
+// 수련이 단계로 묶여 관문당 오르는 몫이 정해져 있다 — 적이 그보다 확실히 빨리 커야
+// 벽이 생기고 회귀가 돈다. 0.0075 아래로 내리면 벽이 없어져 끝없이 달린다(시뮬 실측).
+export const MON_EXTRA = 0.0085;
+export const monsterHp = (s) => Big.pow10(POWER_K * cumEase(s) / Math.LN10 + MON_EXTRA * Math.max(0, s - 1)).mul(20);
 // 적 공격력.
 //
 // **내 체력과 같은 속도로 올린다.** 그래야 비율이 평평해진다.
@@ -2214,7 +2281,7 @@ export const ATK_RATE = 1.11;             // 첫 관문
 // 다시 재서 맞춘다(관문 203·236·306 실측):
 //   비율이 관문당 x1.0091씩 나빠졌다 → 배율을 그만큼 늦춘다
 //   203관문에서 1/10이 필요하다 → 시작을 18관문 뒤로 민다
-export const ATK_BASE = 6;
+export const ATK_BASE = 3.5;
 export const ATK_FROM = 52;
 // 적 체력처럼 **완만해지는 꼴**이다. 한 비율로 쭉 가면 둘 중 하나가 된다:
 // 1.11로 두면 후반에 한 대가 내 체력의 3500배가 되어 손도 못 쓰고 죽고(실측),
@@ -2233,12 +2300,14 @@ function atkCum(s) {
 }
 export const monsterAtk = (s) => (s <= ATK_FROM
   ? big(ATK_BASE)
-  : Big.pow10(atkCum(s) / Math.LN10).mul(ATK_BASE));
+  : Big.pow10(POWER_K * atkCum(s) / Math.LN10 + MON_EXTRA * (s - ATK_FROM)).mul(ATK_BASE));
 
 // 보상은 톱니로 만들지 않는다. 벽에서 보상까지 튀면 벽 앞에서 버티는 게 이득이 된다.
 // 벌이가 관문당 몇 배씩 느는가. 적 체력보다 느려야 한 관문에 머무는 시간이
 // 길어진다 — 이 차이가 곧 감속 장치다.
-export const STAGE_GOLD_RATE = 1.0489;
+// 2026-10-23: 1.0489 → 1.017. 수치를 눌러 담으면서 은자를 덜 벌게 했다 —
+// 수련 한 칸(+4%)은 그대로 두고 덜 사게 해야 한 칸이 체감된다(위 POWER_K 설명).
+export const STAGE_GOLD_RATE = 1.017;
 export const monsterGold = (s) => Big.pow(STAGE_GOLD_RATE, s - 1).mul(5);
 
 // ---------- 보조 자원도 관문을 따라 지수로 늘린다 ----------
@@ -2306,7 +2375,7 @@ export const AD_OFFLINE_MULT = 2;     // 광고 보면 방치 보상 2배
 // 모르고 둔 게 아니라 알고 둔 값이라는 뜻으로 적어 둔다.
 export const NOADS_ATK = 4;
 export const NOADS_HP = 4;
-export const BOSS_HP_MULT = 9;
+export const BOSS_HP_MULT = 7;
 export const BOSS_ATK_MULT = 2.5;
 // 들판 관문지기만 따로 더 세게 때린다.
 //

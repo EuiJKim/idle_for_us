@@ -307,6 +307,11 @@ function refreshUI(full = false) {
     }
   }
   $('btn-boss').classList.toggle('hidden', !s.farming || !!c);
+  // 알아서 다시 도전하기까지 남은 시간을 단추에 적는다
+  if (s.farming && !c) {
+    const left = game.autoBossLeft();
+    $('btn-boss').textContent = left == null ? '두목 도전' : `두목 도전 (${Math.ceil(left)}초 뒤 자동)`;
+  }
   $('contest-hud').classList.toggle('hidden', !c || c.mode !== 'raid');
   if (c?.mode === 'raid') {
     $('contest-title').textContent = `문파 토벌 · 혈마 ${Math.ceil(c.time)}초`;
@@ -778,6 +783,9 @@ function openSettings() {
       toggleRow('방치하는 동안 수련하기', game.s.autoTrain !== false,
         '번 은자를 가장 싼 수련에 알아서 부어요. 꺼 두면 은자만 쌓여요.',
         (on) => { game.s.autoTrain = on; save(); }),
+      toggleRow('관문지기에게 지면 다시 도전', game.s.autoBoss !== false,
+        '지면 45초 동안 수련하다가 알아서 다시 붙어요. 꺼 두면 「두목 도전」을 눌러야 해요.',
+        (on) => { game.s.autoBoss = on; save(); }),
       toggleRow('관문지기 바로 가기', game.s.bossRush !== false,
         '관문지기를 잡으면 다음 관문도 바로 관문지기부터예요. 꺼 두면 졸개부터 돌아요.',
         (on) => { game.s.bossRush = on; save(); }),

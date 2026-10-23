@@ -52,6 +52,7 @@ import {
   stageBooks, stageStones, stageFood,
   regressGain, regressMult, REGRESS_WORTH_MULT, REGRESS_STUCK_SEC, stageStep,
   upCap, upStagesOpen, upNextStageAt,
+  kpow, kbig, rollCritTier, critExpect, critTierMult,
   JOBS, jobOf, OLD_JOBS, heroRangeOf, TIER_AT, TIER_MAX, tierName, tiersByStage, CLASS_CHANGE_GEMS,
   JOB_TESTS, jobTestOf, jobTestStage,
   PASSIVES, passivesOf, passiveId, PASSIVE_MAX, passiveCost,
@@ -129,6 +130,7 @@ export function newSave(now = Date.now()) {
     // 켜 놓고 노는 동안 실제로 번 속도(초당). 방치도 오프도 이 표를 쓴다.
     earn: Object.fromEntries(EARN_KEYS.map((k) => [k, big(0)])),
     bossRush: true,    // 관문지기를 잡으면 다음 관문도 바로 관문지기부터
+    autoBoss: true,    // 관문지기에게 지면 잠시 수련하다가 알아서 다시 도전한다
     keepAwake: true,   // 켜 두면 화면이 안 꺼진다
     traitLv: {},   // 문파마다 따로 쌓인다 — 갈아타면 그 공적은 두고 간다
     jobSwitches: 0,
@@ -214,6 +216,9 @@ export function safeBig(v) {
 
 // 보너스(boon)를 걸 수 있는 자리. stats()가 매 프레임 도는 곳이라 미리 추려 둔다.
 const BOON_IDS = ['plum'];
+
+// 관문지기에게 진 뒤 다시 도전하기까지 (초)
+const AUTO_BOSS_SEC = 45;
 
 export function migrate(raw, now = Date.now()) {
   const base = newSave(now);
@@ -1031,10 +1036,14 @@ export class Game {
   }
 
   // 초월이 붙은 최종 배율
-  skillMult(sk) {
-    const lv = this.s.skills[sk.id] || 1;
-    // 차수 — 50레벨마다 한 번씩 더 곱해진다 (선풍검 -> 극선풍검 -> 현선풍검 …)
-    return sk.mult(lv) * skillTierMult(lv) * (1 + SKILL_PIERCE_MULT * this.skillPierceOf(sk.id));
+  skillMult(sk) { return this.skillMultAt(sk, this.s.skills[sk.id] || 1); }
+
+  // 레벨 lv일 때의 배율. 레벨·차수·초월로 **느는 몫**은 눌러 담고(POWER_K),
+  // 1레벨 배율(무공마다의 세기 차이)은 그대로 둔다 — 그래야 무공끼리의 개성이 안 사라진다.
+  skillMultAt(sk, lv) {
+    const base = sk.mult(1);
+    const grow = (sk.mult(lv) / base) * skillTierMult(lv) * (1 + SKILL_PIERCE_MULT * this.skillPierceOf(sk.id));
+    return base * kpow(grow);
   }
 
   // ---------- 소환 레벨 ----------
@@ -1668,22 +1677,32 @@ export class Game {
     const ua = upTotals(u);
     // **보통 배수는 먼저 한데 모아 곱한다.** Big 셈을 열 번 하는 것보다 싸고,
     // 무엇보다 중간에 `*`를 하나라도 남기면 소리 없이 NaN이 된다.
-    const atkMul = this.equipMult('weapon') * (1 + m.atk) * rank * guild * rage * boost * jb.atk * ad * pvm('atk');
-    const atk = UPGRADES.atk.value(u.atk).mul(atkMul).mul(past);
+    // **수치 눌러 담기(POWER_K).** 자라는 몫(병기·보너스 합·회귀·수련)은 1/8 지수로 담는다.
+    // 버프·계열·광고처럼 고정된 몇 배는 그대로 — 그건 커지지 않는다.
+    const pastK = kbig(past);
+    const atkMul = kpow(this.equipMult('weapon')) * kpow(1 + m.atk) * rank * guild * rage * boost * jb.atk * ad * pvm('atk');
+    const atk = UPGRADES.atk.value(u.atk).mul(atkMul).mul(pastK);
     // 체력 덤(ua.hpAdd)은 Big이다 — 보통 배수와 따로 모은다.
-    const hpMul = this.equipMult('armor') * rank * jb.hp * adHp * pvm('hp');
-    const hpAdd = big(1 + m.hp).add(ua.hpAdd || 0);
-    const hp = UPGRADES.hp.value(u.hp).mul(hpMul).mul(hpAdd).mul(past);
-    const crit = Math.min(CRIT_CAP, (ua.crit || 0) + m.crit + jb.add.crit);
-    const critDmg = big(ua.critDmg || 0).add(m.critDmg + jb.add.critDmg + (pv.critDmgAdd || 0)).mul(jb.critDmg);
+    const hpMul = kpow(this.equipMult('armor')) * rank * jb.hp * adHp * pvm('hp');
+    // 장비·보물 합(m.hp)은 눌러 담고, 수련(역근경)이 준 몫은 그대로 곱한다
+    const hpAdd = big(kpow(1 + m.hp)).mul(big(1).add(ua.hpAdd || 0));
+    const hp = UPGRADES.hp.value(u.hp).mul(hpMul).mul(hpAdd).mul(pastK);
+    // 치명 확률 — 상한이 없다. 1을 넘으면 그 위는 슈퍼·하이퍼 치명 확률이다.
+    const crit = Math.max(0, (ua.crit || 0) + m.crit + jb.add.crit);
+    // 치명 피해 — 단계마다 거듭 곱해진다. 수련(파괴력)이 준 몫은 그대로, 장비·보물 합은 눌러 담는다.
+    const critDmg = Math.max(1.05, big(ua.critDmg || 1.5).toNumber())
+      * kpow(1 + m.critDmg + jb.add.critDmg + (pv.critDmgAdd || 0)) * jb.critDmg;
     const speed = Math.min(SPEED_CAP, ua.speed || 1) * (1 + m.speed) * gale * jb.speed * pvm('speed');
     // 연격 — 쾌검 2차부터 붙는다. 평타 한 대가 그만큼 더 아프다.
     const hitMul = big(1).add(ua.hitMul || 0);
     // 기억의 힘(past)이 Big이라 이 둘도 Big이 된다 — 쓰는 쪽에서 .mul()을 쓴다.
-    const goldMul = past.mul(big(ua.gold === undefined ? 1 : ua.gold))
-      .mul(this.equipMult('ring') * (1 + m.gold) * midas * jb.gold * boonGold * pvm('gold'));
+    // 은자 배수도 눌러 담는다(기억·상재·옥패·보너스 합). 그대로 두면 ×600쯤이 붙어
+    // 수련을 백 칸 넘게 미리 사 버린다 — 눌러 담은 세상에서는 그게 관문 수백 개 앞서는 몫이라
+    // 적이 아예 못 따라왔다(시뮬 30분에 관문 1,173).
+    const goldMul = pastK.mul(kbig(big(ua.gold === undefined ? 1 : ua.gold)))
+      .mul(kpow(this.equipMult('ring')) * kpow(1 + m.gold) * midas * jb.gold * boonGold * pvm('gold'));
     const expMul = past.mul(big(1 + m.exp).add(ua.exp || 0)).mul(jb.exp * boonExp * pvm('exp'));
-    const bossMul = big(1 + m.boss).add(ua.boss || 0).mul(jb.boss * pvm('boss'));
+    const bossMul = big(kpow(1 + m.boss)).mul(big(1).add(ua.boss || 0)).mul(jb.boss * pvm('boss'));
     // 데려간 영수 전부가 각자 때린다. 하나만 세던 자리다.
     const team = this.petTeam();
     const hits = team.map((p) => ({ pet: p, hit: atk.mul(petDamageMult(p, this.s.pets[p.id] || 1)) }));
@@ -1691,8 +1710,8 @@ export class Game {
     // 식철수는 때리는 대신 받는 피해를 줄인다
     const guard = team.reduce((a, p) => (p.act === 'shield' ? a * (1 - p.actVal) : a), 1)
       * Math.max(0.2, 1 - (pv.guard || 0) - (ua.guard || 0));   // 아무리 쌓아도 80%까지만
-    // 치명 피해·연격이 Big이라 괄호 안을 Big으로 푼다.
-    const critPart = critDmg.sub(1).mul(crit).add(1);
+    // 치명 단계의 평균 배수
+    const critPart = critExpect(crit, critDmg);
     const dps = atk.mul(hitMul).mul(critPart).mul(speed).add(petHit.div(PET_ATTACK_INTERVAL));
     return {
       atk, hp, crit, critDmg, speed, hitMul, goldMul, expMul, bossMul, petHit, petHits: hits, guard, dps,
@@ -1723,7 +1742,8 @@ export class Game {
       if (!id) continue;
       const sk = this.skillDef(id);
       if (!sk || sk.kind !== 'dmg') continue;
-      d = d.add(st.atk.mul(st.skillDmgMult).mul(this.skillMult(sk) / Math.max(0.5, this.skillCdOf(sk))));
+      const tc = Math.floor(st.crit) + (sk.sure ? 1 : 0);
+      d = d.add(st.atk.mul(st.skillDmgMult).mul(this.skillMult(sk) * critTierMult(tc, st.critDmg) / Math.max(0.5, this.skillCdOf(sk))));
     }
     return d;
   }
@@ -2443,8 +2463,15 @@ export class Game {
     return undefined;
   }
 
+  // 알아서 다시 도전하기까지 남은 초 (끄면 null)
+  autoBossLeft() {
+    if (!this.s.farming || this.s.autoBoss === false) return null;
+    return Math.max(0, AUTO_BOSS_SEC - (this.farmT || 0));
+  }
+
   challengeBoss() {
     if (this.mode !== 'stage') return;
+    this.farmT = 0;
     this.s.farming = false;
     this.s.kills = KILLS_PER_STAGE;
     this.heroHp = this.stats().hp;
@@ -2461,6 +2488,13 @@ export class Game {
       this.gachaT = (this.gachaT || 0) + dt;
       if (this.gachaT >= AUTO_GACHA_SEC) { this.gachaT = 0; this.autoGacha(); }
     }
+    // 관문지기에게 지면 수련(farming)으로 떨어진다. 전에는 '두목 도전'을 직접 눌러야만
+    // 다시 붙었다 — 수치를 눌러 담은 뒤로 벽이 일찍 와서, 안 누르는 사람은 79관문에서
+    // 여섯 시간을 서 있었다(tests 6절). 잠시 벌고 알아서 다시 도전한다.
+    if (this.s.farming && this.mode === 'stage' && this.s.autoBoss !== false) {
+      this.farmT = (this.farmT || 0) + dt;
+      if (this.farmT >= AUTO_BOSS_SEC) this.challengeBoss();
+    } else this.farmT = 0;
     for (const p of this.petTeam()) {
       if (!this.mon?.alive) break;
       const b = this.s.bond || (this.s.bond = {});
@@ -2555,12 +2589,13 @@ export class Game {
     this.atkTimer -= dt;
     while (this.atkTimer <= 0 && this.mon?.alive) {
       this.atkTimer += 1 / st.speed;
-      const crit = this.rng() < st.crit;
+      // 치명 단계를 굴린다 (0 = 보통, 1 = 치명, 2 = 슈퍼 치명 …)
+      const crit = rollCritTier(st.crit, this.rng);
       // 극악소마 — 적이 붙으면 지풍 대신 손가락으로 혈을 짚는다
       const cm = this.job()?.closeMult;
       const close = !!cm && this.mode === 'stage' && this.mon.x != null && this.distTo(this.mon) <= MELEE_RANGE + 10;
       this.emit('attack', { close });
-      let hitDmg = crit ? st.atk.mul(st.hitMul).mul(st.critDmg) : st.atk.mul(st.hitMul);
+      let hitDmg = st.atk.mul(st.hitMul).mul(critTierMult(crit, st.critDmg));
       if (close) hitDmg = hitDmg.mul(cm);
       this.dealDamage(hitDmg, 'hit', crit);
     }
@@ -2591,10 +2626,10 @@ export class Game {
               this.dealDamage(hit.mul(this.mon.isBoss ? pet.actVal : 1), 'pet');
               break;
             case 'crit':   // 백호 — 반드시 치명
-              this.dealDamage(hit.mul(st.critDmg), 'pet', true);
+              this.dealDamage(hit.mul(critTierMult(Math.floor(st.crit) + 1, st.critDmg)), 'pet', Math.floor(st.crit) + 1);
               break;
             case 'storm':  // 청룡 — 주변 전부를 치명으로
-              this.dealAoe(hit.mul(st.critDmg), 'pet', true, pet.actVal);
+              this.dealAoe(hit.mul(critTierMult(Math.floor(st.crit) + 1, st.critDmg)), 'pet', Math.floor(st.crit) + 1, pet.actVal);
               break;
             case 'shield': // 식철수 — 때리지 않는다. 받는 피해를 줄인다(stats의 guard).
               break;
@@ -2909,7 +2944,7 @@ export class Game {
     this.mon = {
       hp, maxHp: hp, isBoss: false, isHero: true, name: opp.nickname, rank: opp.rank || 0, petEmoji: opp.petEmoji || null,
       weaponGrade: opp.weaponGrade ?? -1,
-      atk: (safeBig(opp.atk) || big(1)).max(1), crit: Math.min(CRIT_CAP, opp.crit || 0), critDmg: opp.critDmg || 1.5,
+      atk: (safeBig(opp.atk) || big(1)).max(1), crit: Math.min(1, opp.crit || 0), critDmg: Math.min(10, Number(opp.critDmg) || 1.5),
       atkInterval: 1 / Math.max(0.2, opp.speed || 1), atkTimer: 0.6,
       petHit: safeBig(opp.petHit) || big(0), petTimer: PET_ATTACK_INTERVAL, alive: true, stun: 0,
       ...this.duelSpot(),
@@ -2985,10 +3020,13 @@ export class Game {
       let mult = this.skillMult(sk) * cMult;
       // 단지멸은 반드시 치명으로 들어간다 (극악소마의 축이 치명 피해다)
       // 치명 피해는 Big이다 — 보통 배수(mult)와 섞지 않고 따로 든다.
-      let critX = null;
-      if (sk.sure) critX = st.critDmg;
-      // 극악소마 〈지력〉 — 반드시 치명이 아니어도 치명이 뜰 수 있다
-      else if (tr?.critChance && this.rng() < tr.critChance) critX = st.critDmg;
+      // 무공도 치명 단계를 탄다. 확률로 굴리지 않고 **채운 단계만큼은 반드시** 들어간다
+      // (치명 확률 2.35면 무공은 늘 슈퍼 치명). 반드시 치명인 무공은 한 단 더.
+      let tierC = Math.floor(st.crit);
+      if (sk.sure) tierC += 1;
+      // 극악소마 〈지력〉 — 확률로 한 단 더
+      else if (tr?.critChance && this.rng() < tr.critChance) tierC += 1;
+      const critX = tierC > 0 ? critTierMult(tierC, st.critDmg) : null;
       // 일화검존 〈검의〉 — 모든 무공이 관문지기에게 더 아프다
       if (tr?.bossBonus && this.mon.isBoss) mult *= 1 + tr.bossBonus;
       // 한 명만 노리는 무공은 두목에게 더 아프게 들어간다

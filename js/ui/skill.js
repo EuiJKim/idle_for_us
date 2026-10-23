@@ -263,10 +263,11 @@ function activeView(app) {
       const pi = game.skillPierceOf(sk.id);
       const boost = 1 + SKILL_PIERCE_MULT * pi;
       const cdNow = game.skillCdOf(sk);
-      r.desc.innerHTML = `${sk.desc(sk.mult(l) * boost, l)} · 쿨 ${cdNow.toFixed(1)}초`
+      // 설명의 배율은 실제로 들어가는 값(레벨로 느는 몫을 눌러 담은 것)이다
+      r.desc.innerHTML = `${sk.desc(game.skillMultAt(sk, l), l)} · 쿨 ${cdNow.toFixed(1)}초`
         + (cdNow < sk.cd - 0.05 ? ` <small style="color:var(--muted)">(본디 ${sk.cd}초)</small>` : '')
         + (pi ? ` · <b style="color:var(--accent-2)">${pi}초월</b>` : '')
-        + `<br>다음: <b>${sk.desc(sk.mult(l + 1) * boost, l + 1)}</b>`;
+        + `<br>다음: <b>${sk.desc(game.skillMultAt(sk, l + 1), l + 1)}</b>`;
       r.btn.textContent = `비급 ${fmt(game.skillUpgradeCost(sk.id))}`;
       r.btn.disabled = !unlocked || short(game.s.books, game.skillUpgradeCost(sk.id));
       const canP = game.canSkillPierce(sk.id);

@@ -1,5 +1,5 @@
 // 전투 화면 캔버스 렌더러 (수묵화 무협풍). 게임 이벤트를 받아 연출만 담당한다.
-import { zoneOf, RANKS, GRADES, PETS, FIELD_SQUASH, JOB_TRAITS, QI, jobOf } from './data.js';
+import { zoneOf, RANKS, GRADES, PETS, FIELD_SQUASH, JOB_TRAITS, QI, jobOf, critTierName } from './data.js';
 import { artReady, putArt, loadArt, FIT, ART_SHOULDER, ART_BAND, headKey, bodyKey, weaponKey } from './art.js';
 import { OUTFITS } from './data.js';
 
@@ -40,6 +40,8 @@ const SHOT = {
   poison: { kind: 'glob', life: 0.24, pose: ['투척준비', '투척'] },
   ring: { kind: 'finger', life: 0.09, pose: ['지법겨눔', '손가락튕김'] },
 };
+// 치명 단계별 숫자 빛깔 (0 보통 · 1 치명 · 2 슈퍼 · 3 하이퍼 · 4+)
+const CRIT_COL = ['#ffffff', '#ef4444', '#fb923c', '#c084fc', '#facc15'];
 // 맞은 자국 빛깔 (없으면 흰 칼자국)
 const CUT_COL = { ring: '216,180,254', fan: '186,230,253' };
 const SHOT_DRAW = {
@@ -369,8 +371,10 @@ export class BattleView {
         this.monShake = 1;
         this.monFlash = 1;
         const skill = ev.kind !== 'hit' && ev.kind !== 'pet';
-        const color = ev.kind === 'pet' ? '#f9a8d4' : skill ? '#fde68a' : ev.crit ? '#ef4444' : '#ffffff';
-        const size = ev.kind === 'pet' ? 14 : skill ? 28 : ev.crit ? 26 : 17;
+        // 치명 단계 — 1 치명(빨강) · 2 슈퍼(주황) · 3 하이퍼(보라) · 4+ 금빛. 단계가 높을수록 크게.
+        const ct = typeof ev.crit === 'number' ? ev.crit : ev.crit ? 1 : 0;
+        const color = ev.kind === 'pet' ? '#f9a8d4' : skill ? '#fde68a' : CRIT_COL[Math.min(ct, CRIT_COL.length - 1)];
+        const size = ev.kind === 'pet' ? 14 : skill ? 28 : ct ? 24 + Math.min(4, ct) * 3 : 17;
         if (ev.add) {
           // 광역기는 한 방에 수십을 때린다. 숫자를 전부 띄우면 화면이 숫자로 덮인다.
           this.aoeHits++;
@@ -379,7 +383,8 @@ export class BattleView {
             this.float(fmt(ev.amount), atX + (Math.random() - 0.5) * 60, atY - 120, color, size * 0.7, 0.8);
           }
         } else {
-          this.float(fmt(ev.amount) + (ev.crit ? '!' : ''), atX + (Math.random() - 0.5) * 60, atY - 120, color, size, 1, ev.crit || skill);
+          const label = ct >= 2 && !skill ? `${critTierName(ct).replace(' 치명', '')}! ` : '';
+          this.float(label + fmt(ev.amount) + (ct === 1 ? '!' : ''), atX + (Math.random() - 0.5) * 60, atY - 120, color, size, 1, ct > 0 || skill);
         }
         // 맞은 자국은 캐릭터를 따른다 — 독마가 맞힌 자리에 칼자국이 나면 이상하다
         const cls = game.s.job;

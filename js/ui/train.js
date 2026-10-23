@@ -4,7 +4,7 @@
 // 상재(은자)·좌망(방치)을 찍으려면 한참 내려가야 했고 뭐가 뭔지 안 보였다.
 // 그리고 이제 **단계**가 있다 — 이번 생에 넘은 관문만큼만 올린다(data.js 수련 단계).
 import { UPGRADES, UP_GROUPS, UP_STAT_LABEL, upAdds, upNext, upTierInfo, upStatAt, josaRo,
-  CRIT_CAP } from '../data.js';
+  critTierName, CRIT_STEP } from '../data.js';
 import { fmt, pct } from '../fmt.js';
 import { big } from '../big.js';
 import { h, fmtValue, subTabs, multSelector, popUp, holdRepeat, softRefresh, short } from './common.js';
@@ -146,9 +146,15 @@ function groupView(app, grp) {
       }
       // 치명 확률만은 상한이 있다. 1차가 끝나면 치명 피해로 넘어가므로
       // '30%가 천장'으로 읽히지 않게 지금 값과 상한을 같이 적는다.
-      if (key === 'crit' && ti.tier === 0) {
-        r.nextTier.innerHTML += `<br>지금 치명 <b>${Math.round(game.stats({ buffs: false }).crit * 100)}%</b>`
-          + ` (상한 ${Math.round(CRIT_CAP * 100)}% — 나머지는 병기보·옵션 칸·세트·의복에서)`;
+      if (key === 'crit') {
+        // 치명 확률에는 상한이 없다 — 100%마다 한 단계씩 올라간다
+        const stc = game.stats({ buffs: false });
+        const t = Math.floor(stc.crit);
+        const now = critTierName(t) || '보통';
+        const nx = critTierName(t + 1);
+        r.nextTier.innerHTML += `<br>지금 치명 확률 <b>${Math.round(stc.crit * 100)}%</b> — 모든 타격이 <b>${now}</b>`
+          + `, ${Math.round((stc.crit - t) * 100)}% 확률로 <b style="color:var(--accent-2)">${nx}</b>`
+          + ` (치명 ×${stc.critDmg.toFixed(2)}, 그 위로 단계마다 ×${CRIT_STEP})`;
       }
       // 값당 얼마나 오르나. 1등은 표를 단다.
       const g2 = rank[key];
