@@ -693,7 +693,7 @@ export class Game {
     const p2 = this.s.presets?.[i];
     if (!p2) return false;
     p2.slots = this.s.skillSlots.slice();
-    p2.pet = this.s.pet || null;
+    p2.pets = (this.s.petTeam || []).slice();
     p2.auto = !!this.s.autoSkill;
     return true;
   }
@@ -710,7 +710,12 @@ export class Game {
       return sk && this.skillUnlocked(sk) ? id : null;
     });
     for (let k = 0; k < this.skillSlotCount(); k++) this.s.skillSlots[k] = next[k] ?? null;
-    if (p2.pet && this.s.pets?.[p2.pet]) this.s.pet = p2.pet;
+    // 영수는 이제 여럿을 데려간다(petTeam). 옛 칸은 한 마리(pet)만 담고 있다.
+    const pets = Array.isArray(p2.pets) ? p2.pets : p2.pet ? [p2.pet] : null;
+    if (pets) {
+      const own = pets.filter((id) => this.s.pets?.[id]);
+      if (own.length) this.s.petTeam = own.slice(0, this.petSlots());
+    }
     this.s.autoSkill = p2.auto !== false;
     return true;
   }
@@ -1464,7 +1469,7 @@ export class Game {
       const lv = this.s.pets[pet.id];
       if (!lv) continue;
       // 데리고 다니는 중이면 지금 교감 단계, 아니면 각인해 둔 단계만큼 고유 효과가 오른다
-      const bondLv = this.s.pet === pet.id
+      const bondLv = this.petOn(pet.id)
         ? Math.max(bondLevel(this.s.bond?.[pet.id] || 0), this.s.engrave?.[pet.id] || 0)
         : (this.s.engrave?.[pet.id] || 0);
       m[pet.own[0]] += pet.own[1] * lv * (1 + BOND_PER_LV * bondLv);
@@ -2100,7 +2105,7 @@ export class Game {
   // 이번 타격이 거는 상태이상 전부 (무공 본래 것 + 문파 특성)
   applyHitCC(m, amount) {
     if (this.ccNow) this.applyCC(m, this.ccNow.cc, this.ccNow.sec, amount);
-    if (this.ccJob) this.applyCC(m, this.ccJob.cc, this.ccJob.sec, amount * this.ccJob.mult);
+    if (this.ccJob) this.applyCC(m, this.ccJob.cc, this.ccJob.sec, big(amount).mul(this.ccJob.mult));
   }
 
   applyCC(m, kind, sec0, amount) {
@@ -2112,9 +2117,9 @@ export class Game {
     if (kind === 'weak') { m.weak = Math.max(m.weak || 0, sec); return; }
     if (kind === 'bleed') {
       // 독마는 출혈이 더 아프다
-      const per = (amount || 0) * CC_BLEED_PER * (this.stats({ buffs: false }).bleedMult || 1);
+      const per = big(amount || 0).mul(CC_BLEED_PER * (this.stats({ buffs: false }).bleedMult || 1));
       // 더 아픈 출혈이 들어오면 갈아끼운다
-      if (!m.bleed || per >= (m.bleedPer || 0)) { m.bleed = sec; m.bleedPer = per; }
+      if (!m.bleed || per.gte(big(m.bleedPer || 0))) { m.bleed = sec; m.bleedPer = per; }
       else m.bleed = Math.max(m.bleed, sec);
     }
   }
@@ -2138,10 +2143,12 @@ export class Game {
   // 적 하나에게 피해. 주 타겟이면 기존 처리를, 아니면 졸개 처리를 탄다.
   damageMob(m, amount, kind) {
     // 파쇄가 걸린 적은 더 아프게 맞는다
-    const amt = amount * (m?.weak > 0 ? CC_WEAK_MULT : 1);
-    if (m === this.mon) { this.dealDamage(amt, kind, false); return; }
+    // Big에 `*`를 쓰면 글자로 바뀐 뒤 보통 숫자가 된다 — 10^308을 넘으면 Infinity
+    const amt = m?.weak > 0 ? big(amount).mul(CC_WEAK_MULT) : amount;
+    const crit = this.critNow || false;
+    if (m === this.mon) { this.dealDamage(amt, kind, crit); return; }
     m.hp = m.hp.sub(amt);
-    this.emit('dmg', { amount: amt, kind, crit: false, add: true, at: m });
+    this.emit('dmg', { amount: amt, kind, crit, add: true, at: m });
     if (!m.hp.isPos()) this.killAdd(m);
   }
 
@@ -2169,7 +2176,7 @@ export class Game {
       path.push({ x: best.x, y: best.y });
       this.damageMob(best, amount, id);
       this.applyHitCC(best, amount);
-      amount *= sk.chainFalloff;
+      amount = big(amount).mul(sk.chainFalloff);
       from = best;
     }
     this.emit('skillPath', { id, path, kind: 'chain' });
@@ -2217,7 +2224,7 @@ export class Game {
     this.heroY = target.y - (side * Math.sin(ang) * MELEE_RANGE * 0.8) / FIELD_SQUASH;
     this.heroAngle = sk.behind ? ang + Math.PI : ang;
     this.heroFacing = target.x >= this.heroX ? 1 : -1;
-    const amount = dmg * (target.isBoss && sk.bossMult ? sk.bossMult : 1);
+    const amount = target.isBoss && sk.bossMult ? big(dmg).mul(sk.bossMult) : dmg;
     this.damageMob(target, amount, id);
     this.applyHitCC(target, amount);
     this.emit('skillPath', { id, kind: 'blink', path: [{ x: fromX, y: fromY }, { x: this.heroX, y: this.heroY }],
@@ -2239,6 +2246,7 @@ export class Game {
       every: sk.tickSec,
       tick: 0,
       amount: dmg,
+      crit: this.critNow || 0,
       cc: sk.cc || null,
       ccSec: sk.ccSec || 0,
       vx: moving ? Math.cos(ang) * sk.moveSpeed : 0,
@@ -2257,8 +2265,10 @@ export class Game {
       if (f.tick > 0) continue;
       f.tick += f.every;
       this.ccNow = f.cc ? { cc: f.cc, sec: f.ccSec } : null;
+      this.critNow = f.crit || 0;
       const n = this.hitCircle(f.x, f.y, f.r, f.amount, f.id);
       this.ccNow = null;
+      this.critNow = 0;
     }
     this.fields = this.fields.filter((f) => f.life > 0);
   }
@@ -2650,7 +2660,10 @@ export class Game {
         m.atkTimer += m.atkInterval || 1.5;
         let dmg = big(m.atk);
         let crit = false;
-        if (m.crit && this.rng() < m.crit) { dmg = dmg.mul(m.critDmg); crit = true; }
+        if (m.crit) {
+          const t = rollCritTier(m.crit, this.rng);
+          if (t > 0) { dmg = dmg.mul(critTierMult(t, m.critDmg || 1.5)); crit = t; }
+        }
         this.heroHp = this.heroHp.sub(dmg.mul(st.guard));
         this.noteHeroHit();
         this.emit('heroHit', { amount: dmg, crit });
@@ -2946,7 +2959,10 @@ export class Game {
     this.mon = {
       hp, maxHp: hp, isBoss: false, isHero: true, name: opp.nickname, rank: opp.rank || 0, petEmoji: opp.petEmoji || null,
       weaponGrade: opp.weaponGrade ?? -1,
-      atk: (safeBig(opp.atk) || big(1)).max(1), crit: Math.min(1, opp.crit || 0), critDmg: Math.min(10, Number(opp.critDmg) || 1.5),
+      job: jobOf(opp.job) ? opp.job : null,
+      // 치명은 100%를 넘으면 단계가 오른다 — 상대도 같은 사다리를 탄다.
+      // 남이 올린 값이라 터무니없는 수는 잘라 둔다.
+      atk: (safeBig(opp.atk) || big(1)).max(1), crit: Math.min(20, Math.max(0, Number(opp.crit) || 0)), critDmg: Math.min(50, Number(opp.critDmg) || 1.5),
       atkInterval: 1 / Math.max(0.2, opp.speed || 1), atkTimer: 0.6,
       petHit: safeBig(opp.petHit) || big(0), petTimer: PET_ATTACK_INTERVAL, alive: true, stun: 0,
       ...this.duelSpot(),
@@ -3046,6 +3062,8 @@ export class Game {
       // 문파 특성이 거는 상태이상은 **무공 본래 것에 더해서** 들어간다.
       // 본래 것과 같은 종류면 더 긴 쪽이 남는다(applyCC가 알아서 고른다).
       this.ccJob = tr?.cc ? { cc: tr.cc, sec: (tr.ccSec || 4) * ccLong, mult: tr.bleedMult || 1 } : null;
+      // 이번 무공이 탄 치명 단계 — 맞은 숫자 옆에 '슈퍼!' '하이퍼!'를 띄우는 데만 쓴다
+      this.critNow = tierC;
       switch (sk.motion) {
         case 'chain': this.castChain(sk, dmg, id); break;
         case 'dash': this.castDash(sk, dmg, id); break;
@@ -3054,10 +3072,11 @@ export class Game {
         case 'tornado': this.castField(sk, dmg, id, true); break;
         case 'pierce': this.hitBeam(this.heroAngle || 0, sk.pierceLen, sk.pierceWidth, dmg, id); break;
         default:
-          if (sk.target === 'all') this.dealAoe(dmg, id, false, sk.radius || 220);
-          else this.dealDamage(dmg, id);
+          if (sk.target === 'all') this.dealAoe(dmg, id, tierC, sk.radius || 220);
+          else this.dealDamage(dmg, id, tierC);
       }
       this.ccNow = null;
+      this.critNow = 0;
       this.ccJob = null;
       // 금강부동은 베면서 숨을 돌린다
       if (sk.selfHeal) this.heroHp = this.heroHp.add(st.hp.mul(sk.selfHeal)).min(st.hp);

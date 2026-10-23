@@ -1,5 +1,5 @@
 // 전투 화면 캔버스 렌더러 (수묵화 무협풍). 게임 이벤트를 받아 연출만 담당한다.
-import { zoneOf, RANKS, GRADES, PETS, FIELD_SQUASH, JOB_TRAITS, QI, jobOf, critTierName } from './data.js';
+import { zoneOf, RANKS, GRADES, FIELD_SQUASH, JOB_TRAITS, QI, jobOf, critTierName } from './data.js';
 import { artReady, putArt, loadArt, FIT, ART_SHOULDER, ART_BAND, headKey, bodyKey, weaponKey } from './art.js';
 import { OUTFITS } from './data.js';
 
@@ -373,6 +373,9 @@ export class BattleView {
         const skill = ev.kind !== 'hit' && ev.kind !== 'pet';
         // 치명 단계 — 1 치명(빨강) · 2 슈퍼(주황) · 3 하이퍼(보라) · 4+ 금빛. 단계가 높을수록 크게.
         const ct = typeof ev.crit === 'number' ? ev.crit : ev.crit ? 1 : 0;
+        // 무공은 치명 단계를 늘 타므로(채운 단계만큼은 반드시) 단계는 글자로만 알리고,
+        // 터지는 연출은 평타 치명에만 둔다 — 광역기 수십 대가 다 흔들면 화면이 멀미 난다
+        const crit = skill ? false : ev.crit;
         const color = ev.kind === 'pet' ? '#f9a8d4' : skill ? '#fde68a' : CRIT_COL[Math.min(ct, CRIT_COL.length - 1)];
         const size = ev.kind === 'pet' ? 14 : skill ? 28 : ct ? 24 + Math.min(4, ct) * 3 : 17;
         if (ev.add) {
@@ -383,26 +386,26 @@ export class BattleView {
             this.float(fmt(ev.amount), atX + (Math.random() - 0.5) * 60, atY - 120, color, size * 0.7, 0.8);
           }
         } else {
-          const label = ct >= 2 && !skill ? `${critTierName(ct).replace(' 치명', '')}! ` : '';
-          this.float(label + fmt(ev.amount) + (ct === 1 ? '!' : ''), atX + (Math.random() - 0.5) * 60, atY - 120, color, size, 1, ct > 0 || skill);
+          const label = ct >= 2 ? `${critTierName(ct).replace(' 치명', '')}! ` : skill && ct === 1 ? '치명! ' : '';
+          this.float(label + fmt(ev.amount) + (ct === 1 && !skill ? '!' : ''), atX + (Math.random() - 0.5) * 60, atY - 120, color, size, 1, ct > 0 || skill);
         }
         // 맞은 자국은 캐릭터를 따른다 — 독마가 맞힌 자리에 칼자국이 나면 이상하다
         const cls = game.s.job;
         if (cls === 'poison') {
           const w = ev.at || game.mon;
-          if (w?.x != null) this.effects.push({ kind: 'splash', life: 0.26, max: 0.26, wx: w.x, wy: w.y, r: ev.crit ? 70 : 44, v: game.jobTier() });
+          if (w?.x != null) this.effects.push({ kind: 'splash', life: 0.26, max: 0.26, wx: w.x, wy: w.y, r: crit ? 70 : 44, v: game.jobTier() });
         } else {
-          this.effects.push({ kind: 'cut', life: 0.18, max: 0.18, a: Math.random() * 0.8 - 0.4, crit: ev.crit, col: CUT_COL[cls] });
+          this.effects.push({ kind: 'cut', life: 0.18, max: 0.18, a: Math.random() * 0.8 - 0.4, crit: crit, col: CUT_COL[cls] });
         }
         // 치명타는 터지는 느낌이 있어야 한다
-        if (ev.crit) this.effects.push({ kind: 'burst', life: 0.3, max: 0.3, crit: true, col: CUT_COL[cls] });
+        if (crit) this.effects.push({ kind: 'burst', life: 0.3, max: 0.3, crit: true, col: CUT_COL[cls] });
         // 맞은 자리에 섬광 하나. 수십 마리가 동시에 맞으므로 아주 작고 짧게.
         const sparkCol = cls === 'poison' ? `rgb(${VENOM[game.jobTier()].glow})` : cls === 'ring' ? '#d8b4fe' : color;
-        this.sparks.push({ x: atX, y: atY - 46, life: 0.17, max: 0.17, r: (ev.crit ? 26 : skill ? 20 : 13) * (cls === 'poison' ? 0.7 : 1), color: sparkCol });
+        this.sparks.push({ x: atX, y: atY - 46, life: 0.17, max: 0.17, r: (crit ? 26 : skill ? 20 : 13) * (cls === 'poison' ? 0.7 : 1), color: sparkCol });
         // 때린 순간 화면을 아주 잠깐 늦추고 상대를 밀어낸다 — 타격감
-        this.hitstop = Math.max(this.hitstop, ev.crit || skill ? 0.075 : 0.032);
-        this.monKnock = Math.max(this.monKnock, ev.crit || skill ? 16 : 7);
-        if (ev.crit) {
+        this.hitstop = Math.max(this.hitstop, crit || skill ? 0.075 : 0.032);
+        this.monKnock = Math.max(this.monKnock, crit || skill ? 16 : 7);
+        if (crit) {
           this.ink(atX - 10, atY - 60, 10, '#7f1d1d', 160);
           this.shake = Math.max(this.shake, 0.32);
           this.flash = Math.max(this.flash, 0.22);
@@ -1198,12 +1201,13 @@ export class BattleView {
     this.ctx.beginPath(); this.ctx.ellipse(x, y + 2, br, br * 0.4, 0, 0, Math.PI * 2); this.ctx.stroke();
     this.ctx.restore();
     drawFighter(this.ctx, x, y, look, opts);
-    if (game.s.pet) {
-      const pet = PETS.find((p) => p.id === game.s.pet);
-      const px = x - 52;
-      const py = y + 10 - Math.abs(Math.sin(this.t * (moving ? 12 : 4))) * 6;
-      emoji(this.ctx, pet.emoji, px, py, 34, false);
-    }
+    // 데려간 영수들이 뒤를 따른다 (예전엔 s.pet 한 마리만 그렸는데, 영수가 여럿이 된 뒤로
+    // 그 값이 늘 비어 있어서 아무것도 안 그려졌다)
+    game.petTeam().forEach((pet, i) => {
+      const px = x - 52 - i * 30;
+      const py = y + 10 - (i % 2) * 14 - Math.abs(Math.sin(this.t * (moving ? 12 : 4) + i)) * 6;
+      emoji(this.ctx, pet.emoji, px, py, i ? 28 : 34, false);
+    });
     hpBar(this.ctx, x - 32, y - 128, 64, 6, ratio(game.heroHp, st.hp), '#16a34a');
     nameTag(this.ctx, `${RANKS[game.s.rank].name} ${game.s.nickname || ''}`, x, y - 136);
     this.ctx.restore();
@@ -1334,7 +1338,8 @@ export class BattleView {
     let weapon = look?.weapon;
     if (m.isHero) {
       look = RANKS[m.rank || 0].look;
-      weapon = 'sword';
+      // 상대 캐릭터의 무기를 든다 (캐릭터를 올리기 전 프로필이면 검)
+      weapon = jobOf(m.job)?.look || 'sword';
       scale = 1;
     } else if (m.trial) {
       look = { ...SHADOW_LOOK, swords: RANKS[game.s.rank].look.swords };

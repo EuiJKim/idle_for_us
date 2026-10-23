@@ -3087,5 +3087,65 @@ console.log('\n=== 관문지기 다시 도전 ===');
     '탑에서 돌아오면 수련 그대로, 45초를 처음부터 다시 센다', `${k.mode} · 남은 ${k.autoBossLeft()}초`);
 }
 
+// ---------- 무공 치명 단계 · Big 새는 곳 · 영수 여럿 · 비무 치명 ----------
+console.log('\n=== 무공 치명 단계 · Big 셈 · 영수 여럿 ===');
+{
+  // 무공도 채운 치명 단계를 타는데, 맞은 숫자에는 단계가 안 실려 '슈퍼!'가 안 떴다
+  const g = strong(150);
+  const was = g.stats.bind(g);
+  g.stats = (o) => ({ ...was(o), crit: 2.4 });
+  g.events.length = 0;
+  for (const k of Object.keys(g.cd)) g.cd[k] = 0;
+  g.useSkill('slash');
+  const ev = g.events.find((e) => e.type === 'dmg' && e.kind === 'slash');
+  ok(ev && ev.crit === 2, '치명 240%면 무공 피해가 2단(슈퍼)으로 찍힌다', `crit=${ev?.crit}`);
+  g.stats = was;
+
+  // Big에 `*`를 쓰면 글자 → 보통 숫자가 되어 10^308에서 Infinity가 된다
+  const h = strong(150);
+  const m = { x: 0, y: 0, alive: true, hp: big('1e500'), maxHp: big('1e500'), weak: 3 };
+  h.mons.push(m);
+  h.damageMob(m, big('1e400'), 'slash');
+  ok(fin(m.hp) && pos(m.hp) && m.hp.log10() > 499, '파쇄 걸린 졸개에게 10^400을 넣어도 체력이 Infinity로 안 깨진다', `10^${m.hp.log10().toFixed(1)}`);
+  h.applyCC(m, 'bleed', 3, big('1e400'));
+  ok(fin(m.bleedPer) && big(m.bleedPer).log10() > 390, '출혈 세기도 Big으로 남는다', `10^${big(m.bleedPer).log10().toFixed(0)}`);
+  h.ccJob = { cc: 'bleed', sec: 3, mult: 2 };
+  h.applyHitCC(m, big('1e450'));
+  h.ccJob = null;
+  ok(big(m.bleedPer).log10() > 440, '문파 특성 출혈도 Big으로 곱한다', `10^${big(m.bleedPer).log10().toFixed(0)}`);
+
+  // 영수는 여럿을 데려간다(petTeam). s.pet 한 마리를 보던 곳이 남아 있어서 교감이 안 먹었다.
+  const q = strong(400);
+  const pet = D.PETS.find((x) => x.own);
+  q.s.pets[pet.id] = 10;
+  q.s.bond = { [pet.id]: 1e9 };
+  q.s.petTeam = [];
+  const off = q.mods()[pet.own[0]];
+  q.s.petTeam = [pet.id];
+  const on = q.mods()[pet.own[0]];
+  ok(on > off, `데려간 영수(${pet.name})는 교감만큼 고유 효과가 더 오른다`, `${off.toFixed(3)} → ${on.toFixed(3)}`);
+  // 출진 준비 칸이 영수 무리를 담고 꺼낸다
+  if (q.s.presets?.[0]) {
+    q.savePreset(0);
+    q.s.petTeam = [];
+    q.loadPreset(0);
+    ok(q.s.petTeam[0] === pet.id, '출진 준비 칸이 데려간 영수를 담았다가 되돌린다', JSON.stringify(q.s.petTeam));
+  }
+
+  // 비무 상대도 치명 사다리를 탄다 (예전엔 100%에서 잘렸다)
+  const v = strong(150);
+  v.s.daily.pvpTickets = 5;
+  ok(v.startPvp({ uid: 'x', nickname: '상대', hp: '1e30', atk: '1', crit: 2.5, critDmg: '2', speed: 1, job: 'poison' }), '비무 시작');
+  ok(v.mon.job === 'poison' && v.mon.crit === 2.5, '비무 상대가 제 캐릭터와 치명 250%를 가져온다', `${v.mon.job} · ${v.mon.crit}`);
+  v.events.length = 0;
+  for (let i = 0; i < 60; i++) v.tick(0.05);
+  const hits = v.events.filter((e) => e.type === 'heroHit' && !e.pet && 'crit' in e);   // 상대 영수의 이빨은 빼고
+  ok(hits.length > 0 && hits.every((e) => e.crit >= 2), '치명 250% 상대의 칼은 늘 슈퍼 치명 이상', hits.map((e) => e.crit).join(','));
+  const w = strong(150);
+  w.s.daily.pvpTickets = 5;
+  w.startPvp({ uid: 'y', nickname: '이상한 값', hp: '10', atk: '1', crit: 1e9, critDmg: 'abc', job: 'nope' });
+  ok(w.mon.crit <= 20 && w.mon.critDmg === 1.5 && w.mon.job === null, '남이 올린 터무니없는 치명·캐릭터 값은 잘라 낸다', `${w.mon.crit} · ${w.mon.critDmg} · ${w.mon.job}`);
+}
+
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);

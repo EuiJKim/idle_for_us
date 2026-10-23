@@ -3,7 +3,7 @@ import {
   GRADES, EQUIP_TYPES, SKILLS, RANKS, PETS, RAID_TICKETS, PVP_TICKETS,
   guildLevel, guildAtkBonus, GUILD_DONATE_GEMS, GUILD_DONATE_EXP, GUILD_CHECKIN_EXP, GUILD_MAX, raidReward,
   SHADOW_TIERS, SHADOW_TRY_CAP, nextShadowTier, shadowStage, shadowTierName,
-  ACC_SLOTS,
+  ACC_SLOTS, jobOf, tierName, skillFor, critTierName,
 } from '../data.js';
 import { big } from '../big.js';
 import { fmt, pct, ago } from '../fmt.js';
@@ -38,7 +38,7 @@ function playerList(app, { sortKey, valueLabel, empty, onPick, action }) {
       },
       h('div', { class: 'rank-no' }, i < 3 ? ['🥇', '🥈', '🥉'][i] : i + 1),
       h('div', { class: 'info' },
-        h('div', { class: 'name' }, p.nickname, h('small', {}, `${RANKS[p.rank || 0]?.name || ''}${p.guildName ? ` · 🏰 ${p.guildName}` : ''}`)),
+        h('div', { class: 'name' }, p.nickname, h('small', {}, `${classLabel(p)}${RANKS[p.rank || 0]?.name || ''}${p.guildName ? ` · 🏰 ${p.guildName}` : ''}`)),
         h('div', { class: 'desc' }, `Lv.${p.level || 1} · ${p.maxStage}관문${p.regress ? ` · ${p.regress + 1}회차` : ''} · ${lastSeen(p)}`)),
       h('div', { style: 'text-align:right' },
         h('div', { style: 'font-weight:900;color:#fde68a' }, valueLabel(p)),
@@ -94,18 +94,32 @@ function pvpView(app) {
   return { root, update, shown() { if (pl.stale()) pl.load(); }, netChanged(w) { if (w === 'status' || w === 'pvp') pl.load(); } };
 }
 
+// 이름 옆 캐릭터 꼬리표 — '일화검존 · '. 캐릭터를 올리기 전 프로필이면 비워 둔다.
+function classLabel(p) {
+  const j = p.job && jobOf(p.job);
+  return j ? `${tierName(j.id, p.jobTier || 0)} · ` : '';
+}
+
+// 치명은 100%를 넘으면 단계가 오른다 — 235%면 모든 타격이 슈퍼 치명, 35%로 하이퍼
+function critText(p) {
+  const c = Math.max(0, Number(p.crit) || 0);
+  const now = critTierName(Math.floor(c));
+  const d = Number(p.critDmg) || 1.5;
+  return `${Math.round(c * 100)}%${now ? ` (늘 ${now})` : ''} · ×${d.toFixed(2)}`;
+}
+
 export function showProfile(app, p) {
   openModal((s) => {
     const rank = RANKS[p.rank || 0];
     s.append(h('h2', {}, `${p.nickname}`, p.uid === app.net.uid ? h('small', { class: 'muted' }, ' (나)') : null));
-    s.append(h('p', { class: 'muted' }, `${rank.name} · Lv.${p.level || 1}${p.guildName ? ` · 🏰 ${p.guildName}` : ''} · 접속 ${lastSeen(p) || '-'}`));
+    s.append(h('p', { class: 'muted' }, `${classLabel(p)}${rank.name} · Lv.${p.level || 1}${p.guildName ? ` · 🏰 ${p.guildName}` : ''} · 접속 ${lastSeen(p) || '-'}`));
     s.append(h('div', { class: 'stat-grid' },
       h('div', {}, '전투력', h('b', { style: 'color:#fde68a' }, fmt(big(p.powerBig ?? p.power ?? 0)))),
       h('div', {}, '현재 / 역대 관문', h('b', {}, `${p.maxStage} / ${p.bestStage || p.maxStage}`)),
       h('div', {}, '회귀', h('b', {}, `${p.regress || 0}회`)),
       h('div', {}, '공격력', h('b', {}, fmt(big(p.atk ?? 0)))),
       h('div', {}, '체력', h('b', {}, fmt(big(p.hp ?? 0)))),
-      h('div', {}, '치명타', h('b', {}, `${pct(p.crit || 0)} / ${pct(p.critDmg || 1.5)}`)),
+      h('div', {}, '치명타', h('b', {}, critText(p))),
       h('div', {}, '비무 점수', h('b', {}, `${p.pvp?.score ?? 1000}점`))));
     const eq = h('div', { class: 'stat-grid' });
     for (const [type, def] of Object.entries(EQUIP_TYPES)) {
@@ -117,7 +131,8 @@ export function showProfile(app, p) {
     s.append(h('div', { class: 'section-title' }, '병기 · 영수'), eq);
     s.append(h('div', { class: 'section-title' }, '장착 무공'),
       h('div', { class: 'members' }, ...(p.skillSlots || []).filter(Boolean).map((id) => {
-        const sk = SKILLS.find((x) => x.id === id);
+        // 그 사람 캐릭터·전직대로 각성한 이름으로 보여 준다 (예전 프로필은 기초 이름)
+        const sk = (p.job && skillFor(id, p.job, p.jobTier || 0)) || SKILLS.find((x) => x.id === id);
         return sk ? h('span', { class: 'chip' }, `${sk.icon} ${sk.name} Lv.${p.skills?.[id] ?? 1}`) : null;
       })));
     const btns = h('div', { class: 'btn-row', style: 'margin-top:14px' }, h('button', { class: 'btn', onclick: closeModal }, '닫기'));

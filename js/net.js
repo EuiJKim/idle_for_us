@@ -5,7 +5,7 @@ import { big } from './big.js';
 import { safeBig } from './game.js';
 import { dayKey } from './game.js';
 import {
-  EQUIP_TYPES, PETS, GUILD_MAX, GUILD_CHECKIN_EXP, GUILD_DONATE_GEMS, GUILD_DONATE_EXP, RAID_HP_SECONDS, raidReward,
+  EQUIP_TYPES, GUILD_MAX, GUILD_CHECKIN_EXP, GUILD_DONATE_GEMS, GUILD_DONATE_EXP, RAID_HP_SECONDS, raidReward,
 } from './data.js';
 
 const CDN = `https://www.gstatic.com/firebasejs/${FIREBASE_SDK_VERSION}`;
@@ -220,15 +220,20 @@ export class Net {
     const g = this.game;
     const p = g.power();
     const best = Object.fromEntries(Object.keys(EQUIP_TYPES).map((t) => [t, g.bestGrade(t)]));
-    const pet = PETS.find((x) => x.id === g.s.pet);
+    // 데려간 영수의 맨 앞 (예전엔 s.pet 한 마리였다 — 지금은 늘 비어 있다)
+    const pet = g.petTeam()[0];
     return {
       nickname: g.s.nickname || '이름없음',
       // Firestore에는 class를 못 넣는다. 그리고 power는 orderBy의 열쇠라
       // 보통 숫자여야 한다 — 1e300에서 자른다(순위용). 진짜 값은 글자로 따로.
       power: capNum(p.power), powerLog: logOf(p.power), powerBig: String(p.power),
       dps: String(p.dps), atk: String(p.atk), hp: String(p.hp),
+      // 토벌 두목 체력을 정하는 값. dps는 평타·영수만 세서 무공(3~8배)이 빠져 있었다 —
+      // 두목이 '문파 전원 60초'가 아니라 혼자 몇 초 만에 쓰러졌다.
+      raidDps: String(this.raidDpsOf(g)),
       crit: p.crit, critDmg: String(p.critDmg), speed: p.speed, petHit: String(p.petHit),
       maxStage: g.s.maxStage, bestStage: g.s.bestStage, stage: g.s.stage, level: g.s.level, rank: g.s.rank,
+      job: g.s.job || null, jobTier: g.jobTier(),
       regress: g.s.regress.count,
       pet: pet?.id || null, petLv: pet ? g.s.pets[pet.id] : 0, petEmoji: pet?.emoji || null,
       weaponGrade: best.weapon, enhance: { ...g.s.enhance },
@@ -514,6 +519,9 @@ export class Net {
   }
 
   // ---------- 토벌 ----------
+  // 두목을 때리는 실제 세기 — 평타·영수에 무공까지
+  raidDpsOf(g) { return big(g.power().dps).add(g.skillDps()); }
+
   async ensureRaid() {
     if (!this.guild) throw new Error('문파에 먼저 들어가 주세요.');
     const day = dayKey();
@@ -523,9 +531,9 @@ export class Net {
 
     // 문파원들의 DPS 합으로 오늘 두목 체력을 정한다
     const profiles = await Promise.all(this.guild.memberIds.map((id) => this.player(id).catch(() => null)));
-    const mine = this.game.power().dps;
+    const mine = this.raidDpsOf(this.game);
     const sum = profiles.reduce(
-      (acc, pr) => acc.add(pr?.uid === this.uid ? mine : (safeBig(pr?.dps) || big(0))),
+      (acc, pr) => acc.add(pr?.uid === this.uid ? mine : (safeBig(pr?.raidDps) || safeBig(pr?.dps) || big(0))),
       big(0),
     );
     // 두목 체력도 글자로 올린다. 보통 숫자로 두면 문파가 세질수록 터진다.

@@ -550,8 +550,9 @@ function checkReturn(now = Date.now(), allowClimb = false) {
     const gold = h('div', { class: 'big-reward' }, `은자 ${fmt(reward.gold)}`);
     const exp = h('p', { style: 'text-align:center;margin-top:-6px' }, `📘 경험치 ${fmt(reward.exp)}`);
     const paint = () => {
-      gold.textContent = `은자 ${fmt(reward.gold * mult)}`;
-      exp.textContent = `📘 경험치 ${fmt(reward.exp * mult)}`;
+      // 은자·경험치는 Big이다 — `*`를 쓰면 보통 숫자로 바뀌어 10^308에서 Infinity가 된다
+      gold.textContent = `은자 ${fmt(big(reward.gold).mul(mult))}`;
+      exp.textContent = `📘 경험치 ${fmt(big(reward.exp).mul(mult))}`;
     };
     const dbl = h('button', { class: 'btn good', style: 'width:100%;margin-bottom:6px' },
       game.s.noAds ? `✨ ${AD_OFFLINE_MULT}배로 받기 (광고 없이)` : `📺 광고 보고 ${AD_OFFLINE_MULT}배 받기`);
