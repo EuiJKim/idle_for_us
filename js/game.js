@@ -2185,15 +2185,19 @@ export class Game {
     if (!target) return 0;
     const fromX = this.heroX;
     const fromY = this.heroY;
-    // 대상 옆에 선다
+    // 대상 옆에 선다. sk.behind면 **꿰뚫고 지나가 등 뒤에** 선다 (일점혈로·천하제일검 —
+    // 베고 지나간 뒤 돌아보지 않는 그림). 거리는 같으니 사거리 계산은 그대로다.
     const ang = Math.atan2((target.y - this.heroY) * FIELD_SQUASH, target.x - this.heroX);
-    this.heroX = target.x - Math.cos(ang) * MELEE_RANGE * 0.8;
-    this.heroY = target.y - (Math.sin(ang) * MELEE_RANGE * 0.8) / FIELD_SQUASH;
-    this.heroAngle = ang;
+    const side = sk.behind ? -1 : 1;
+    this.heroX = target.x - side * Math.cos(ang) * MELEE_RANGE * 0.8;
+    this.heroY = target.y - (side * Math.sin(ang) * MELEE_RANGE * 0.8) / FIELD_SQUASH;
+    this.heroAngle = sk.behind ? ang + Math.PI : ang;
+    this.heroFacing = target.x >= this.heroX ? 1 : -1;
     const amount = dmg * (target.isBoss && sk.bossMult ? sk.bossMult : 1);
     this.damageMob(target, amount, id);
     this.applyHitCC(target, amount);
-    this.emit('skillPath', { id, kind: 'blink', path: [{ x: fromX, y: fromY }, { x: this.heroX, y: this.heroY }] });
+    this.emit('skillPath', { id, kind: 'blink', path: [{ x: fromX, y: fromY }, { x: this.heroX, y: this.heroY }],
+      target: { x: target.x, y: target.y } });
     return 1;
   }
 

@@ -9,7 +9,7 @@ import { Big, big } from './big.js';
 // NaN이 된다 — 재 보니 적 체력이 관문 8467에서 그 선을 넘었다.
 // 반대로 상한이 있는 값(경지 배수·초월 단계처럼)은 보통 숫자 그대로 둔다.
 
-export const BUILD = 'ifu-v85';
+export const BUILD = 'ifu-v86';
 
 export const SAVE_VERSION = 4;
 export const OFFLINE_CAP_SEC = 12 * 3600;
@@ -1440,7 +1440,7 @@ export const SKILLS = [
   // unlock은 안 쓴다 — 문파(또는 맛보기)가 곧 해금이다.
   // 각자 1차에서 잰 자기 축을 그대로 민다. 축이 겹치면 고르는 의미가 사라진다.
   { id: 'jsword', name: '일점혈로', icon: '일점', job: 'sword', jobTier: 0, unlock: 0, cd: 15,
-    kind: 'dmg', motion: 'blink', bossMult: 2.6,
+    kind: 'dmg', motion: 'blink', behind: true, bossMult: 2.6,
     mult: (l) => 50 + l * 7,
     desc: (m) => `가장 먼 적(두목 우선)에게 파고들어 공격력의 ${m.toFixed(0)}배 · 두목에겐 2.6배` },
   { id: 'jblade', name: '혈풍참', icon: '혈풍', job: 'blade', jobTier: 0, unlock: 0, cd: 9,
@@ -1523,7 +1523,7 @@ export const SKILLS = [
 
   // --- 계열 3차 무공 (관문 420) ---
   { id: 'jsword3', name: '천하제일검', icon: '천하', job: 'sword', jobTier: 2, unlock: 0, cd: 21,
-    kind: 'dmg', motion: 'blink', target: 'single', sure: true, bossMult: 4.0,
+    kind: 'dmg', motion: 'blink', behind: true, target: 'single', sure: true, bossMult: 4.0,
     mult: (l) => 90 + l * 13,
     desc: (m) => `가장 먼 적(두목 우선)을 베어 공격력의 ${m.toFixed(0)}배 · 반드시 치명 · 두목에겐 4배` },
   { id: 'jblade3', name: '혈해무정', icon: '혈해', job: 'blade', jobTier: 2, unlock: 0, cd: 16,

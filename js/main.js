@@ -32,6 +32,12 @@ function loadSave() {
 
 const game = new Game(loadSave() || newSave());
 const view = new BattleView($('cv'));
+// 연출 세기 — 이 기기에만 남긴다(세이브가 아니다). 폰이 버거우면 낮춘다.
+// 'high' 흑백·화면 가르기까지 · 'mid' 화면 전체를 다시 칠하는 것만 뺀다 · 'low' 잔상·알갱이도 줄인다
+const FX_PREF = ['low', 'mid', 'high'];
+const FX_NAME = { high: '높음', mid: '보통', low: '낮음' };
+function loadFxPref() { try { return localStorage.getItem('ifu.fx') || 'high'; } catch (e) { return 'high'; } }
+view.fxPref = Math.max(0, FX_PREF.indexOf(loadFxPref()));
 const app = {
   // save를 안 걸어 두면 화면 쪽에서 켠 설정이 다음 자동 저장 때까지 안 남는다.
   // 껐다 켜면 되돌아가 있는 것처럼 보인다.
@@ -735,6 +741,13 @@ function openSettings() {
           applyQuality();
           toast(`화질: ${perf.mode === 'auto' ? '자동' : perf.mode === 'high' ? '높음' : '가벼움'}`);
         } }, '화질 바꾸기'),
+        h('button', { class: 'btn', onclick: () => {
+          // 높음 → 보통 → 낮음 순으로 돌린다
+          const next = FX_PREF[(view.fxPref + 2) % 3];
+          view.fxPref = FX_PREF.indexOf(next);
+          try { localStorage.setItem('ifu.fx', next); } catch (e) { /* 비공개 모드 */ }
+          toast(`무공 연출: ${FX_NAME[next]}${next === 'high' ? '' : ' (가볍게)'}`);
+        } }, '연출 간소화'),
         h('button', { class: 'btn', onclick: () => {
           // 끊김은 쓰는 기기에서만 보인다. 숫자를 눈으로 보고 말할 수 있게 한다.
           perf.on = !perf.on;

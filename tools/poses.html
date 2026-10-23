@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>무인 자세 도감</title>
+<!-- 그림 경로를 저장소 맨 위 기준으로 (art/hero/*) -->
+<base href="../">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&display=swap">
+<style>
+  :root { --bg: #0f0d0b; --card: #221d17; --line: #3d3328; --text: #f1e8d6; --muted: #a8987f; --accent: #a3242a; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); font: 14px -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", system-ui, sans-serif; }
+  #wrap { max-width: 960px; margin: 0 auto; padding: 10px; }
+  h1 { font: 700 20px "Gowun Batang", serif; margin: 6px 0 10px; }
+  .bar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 10px; color: var(--muted); font-size: 12px; }
+  select, button { font: inherit; color: var(--text); background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 6px 9px; }
+  #grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+  .cell { background: var(--card); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+  .cell canvas { display: block; width: 100%; aspect-ratio: 3 / 4; background: #2b2620; }
+  .cell div { padding: 6px 8px; font-size: 13px; }
+  .cell small { color: var(--muted); display: block; font-size: 11px; }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <h1>무인 자세 도감</h1>
+  <div class="bar">
+    <label>경지 <select id="rank"></select></label>
+    <label>방향 <select id="flip"><option value="0">오른쪽</option><option value="1">왼쪽</option></select></label>
+    <span>js/pose.js의 POSES를 한 장씩 그린다. 자세를 고치면 새로 고침만 하면 된다.</span>
+  </div>
+  <div id="grid"></div>
+</div>
+<script type="module">
+import { drawFighter } from './js/battle.js';
+import { POSES, IDLE } from './js/pose.js';
+import { RANKS } from './js/data.js';
+import { loadArt } from './js/art.js';
+
+const $ = (id) => document.getElementById(id);
+$('rank').replaceChildren(...RANKS.map((r, i) => { const o = document.createElement('option'); o.value = i; o.textContent = r.name; return o; }));
+$('rank').value = '2';
+
+const cells = [];
+function make() {
+  const list = [['평소', null], ...Object.entries(POSES)];
+  $('grid').replaceChildren(...list.map(([name, pose]) => {
+    const cell = document.createElement('div');
+    cell.className = 'cell';
+    const cv = document.createElement('canvas');
+    cv.width = 300; cv.height = 400;
+    const label = document.createElement('div');
+    const p = pose || IDLE;
+    label.innerHTML = `${name}<small>기울 ${p.lean} · 웅크 ${p.crouch} · 칼 ${p.blade.toFixed(2)}</small>`;
+    cell.append(cv, label);
+    cells.push({ cv, pose });
+    return cell;
+  }));
+}
+
+let t = 0;
+function frame() {
+  t += 1 / 60;
+  const look = RANKS[Number($('rank').value)].look;
+  for (const { cv, pose } of cells) {
+    const ctx = cv.getContext('2d');
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, cv.width, cv.height);
+    // 땅 줄
+    ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+    ctx.beginPath(); ctx.moveTo(0, 330); ctx.lineTo(300, 330); ctx.stroke();
+    ctx.setTransform(2.2, 0, 0, 2.2, 0, 0);
+    drawFighter(ctx, 112 / 2.2, 330 / 2.2, look, { t, weapon: 'sword', pose: pose ? { ...pose, alpha: 1 } : null, flip: $('flip').value === '1' });
+  }
+  requestAnimationFrame(frame);
+}
+make();
+loadArt(() => {});
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

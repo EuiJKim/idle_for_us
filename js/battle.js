@@ -11,6 +11,8 @@ function outfitLook(id) {
   return i < 6 ? { outfitBody: i } : { outfitWeapon: i - 6 };
 }
 import { fxReady, putFx, loadFx, zoneTile } from './fx.js';
+import { PoseAnim } from './pose.js';
+import { CHOREO, Director, FX } from './skillfx.js';
 import { big } from './big.js';
 import { fmt } from './fmt.js';
 
@@ -181,6 +183,28 @@ export class BattleView {
     // 끊김은 **쓰는 기기에서만** 보인다. 숫자를 받아 고치는 길만 두면
     // 영영 못 고치는 사람이 생긴다 — 게임이 스스로 내려가게 둔다.
     this.light = false;
+    // ---- 초식 연출 (skillfx.js) ----
+    this.heroAnim = new PoseAnim();   // 무인 자세 이음
+    this.pending = null;   // 이번 프레임에 시전된 무공 — 결과를 모으는 중
+    this.director = null;  // 지금 돌고 있는 연출
+    this.beat = '';        // 지금 박자 (미리보기가 읽는다)
+    // 카메라. 무인이 순간이동하면 화면이 잠깐 머물렀다 따라간다 — 사라진 자리와
+    // 나타난 자리가 둘 다 보여야 '옮겨 갔다'가 읽힌다. 평소엔 무인에 딱 붙는다.
+    this.camX = null;
+    this.camY = null;
+    this.camPan = false;
+    this.camHold = 0;
+    this.camRate = 10;
+    this.camFocus = null;  // 연출이 잠깐 화면 가운데에 두고 싶은 자리 (들판 좌표)
+    this.faceOverride = 0; // 연출이 정한 무인 방향 (0이면 게임이 정한 대로)
+    // 화면 흑백 (0..1). 무인만 색이 남는다.
+    this.desat = 0;
+    this.desatTo = 0;
+    this.desatRate = 4;
+    this.slice = null;     // 화면 가르기
+    // 연출 세기: 2 높음 · 1 보통 · 0 낮음 (설정의 '연출 간소화'). 가벼운 모드면 보통까지만.
+    this.fxPref = 2;
+    this.brush = BRUSH;
     this.resize();
     window.addEventListener('resize', () => this.resize());
   }
@@ -214,8 +238,11 @@ export class BattleView {
   // (Blade Idle도 카메라 90도 하향 + 인물 빌보드. docs/BladeIdle_화면구조.md)
   // 카메라는 항상 무인을 화면 중앙에 둔다.
   // 아래쪽은 스킬 슬롯·창 버튼이 덮으므로 무인을 중앙보다 조금 위에 둔다
-  get groundY() { return this.h * 0.47; }   // 무인의 발이 닿는 화면 높이
-  get heroX() { return this.w * 0.5; }
+  // 카메라가 무인을 쫓아가는 중이면 무인은 가운데에서 그만큼 비켜 서 있다.
+  // sx·sy가 이 둘을 바탕으로 하므로 적·빛도 같이 맞춰진다.
+  get groundY() { const g = this.game; return this.h * 0.47 + (g && this.camY != null ? (g.heroY - this.camY) * this.squash : 0); }
+  get heroX() { const g = this.game; return this.w * 0.5 + (g && this.camX != null ? g.heroX - this.camX : 0); }
+  get fxLevel() { return this.light ? Math.min(1, this.fxPref) : this.fxPref; }
   // 월드 Y는 화면에서 살짝 눌러 그린다 — 평면이 너무 넓어 보이지 않게
   get squash() { return FIELD_SQUASH; }
   sx(m) { const g = this.game; return this.heroX + (m.x - (g?.heroX || 0)); }
@@ -232,6 +259,7 @@ export class BattleView {
   screenXOf(m) { return this.sx(m); }
 
   handle(ev, game) {
+    if (this.pending && !ev._released && this.hold(ev, game)) return;
     switch (ev.type) {
       case 'attack':
         this.heroLunge = 1;
@@ -347,7 +375,10 @@ export class BattleView {
         if (ev.radius) this.effects.push({ kind: 'area', life: 0.55, max: 0.55, r: ev.radius, id: ev.id, job: ev.job });
         break;
       case 'skill':
-        this.skillEffect(ev.id, ev.job);
+        // 연출표가 있는 무공은 결과를 모았다가 draw에서 감독에게 넘긴다
+        if (CHOREO[ev.id] && !ev._released) {
+          this.pending = { id: ev.id, job: ev.job, hits: [], kills: [], path: null };
+        } else this.skillEffect(ev.id, ev.job);
         break;
       case 'combo': {
         // 연계가 터졌다. 먹은 기운의 빛깔로 글자를 띄운다 —
@@ -373,6 +404,172 @@ export class BattleView {
         break;
       default:
     }
+  }
+
+  // 연출 중인 무공의 결과(맞은 숫자·쓰러짐·지나간 길)를 붙든다.
+  // 숫자는 연출의 '적중' 박자에 떠야 한다 — 시전 프레임에 바로 뜨면 칼이
+  // 닿기도 전에 숫자부터 보인다.
+  hold(ev, game) {
+    const p = this.pending;
+    const where = (a) => (a ? { x: a.x, y: a.y } : game.mon ? { x: game.mon.x, y: game.mon.y } : { x: game.heroX, y: game.heroY });
+    if (ev.type === 'dmg' && ev.kind === p.id) {
+      p.hits.push({ ...ev, ref: ev.at || game.mon, at: where(ev.at) });
+      return true;
+    }
+    if (ev.type === 'kill') {
+      // 주 대상의 쓰러짐은 그리기 상태(monDeath)가 걸려 있어 지금 바로 건다.
+      // 붙드는 건 먹물·은자 같은 겉모습뿐이다.
+      if (!ev.add) this.monDeath = 1;
+      p.kills.push({ ...ev, add: true, ref: ev.at || game.mon, at: where(ev.at) });
+      return true;
+    }
+    if (ev.type === 'skillPath' && ev.id === p.id) { p.path = ev; return true; }
+    return false;
+  }
+
+  // 연출 하나를 시작한다. 돌던 연출이 있으면 남은 결과를 털고 물러나게 한다.
+  startCast(game) {
+    const p = this.pending;
+    this.pending = null;
+    if (this.director) this.director.flush();
+    const d = new Director(this, p, game);
+    this.director = d;
+    CHOREO[p.id](d);
+  }
+
+  // 무인 하나를 아무 자리에나 그린다 (잔상). tint가 있으면 그 빛깔로 물들인다.
+  drawHeroAt(ctx, x, y, pose, flip, tint) {
+    const g = this.game;
+    if (!g) return;
+    const { look, opts } = this.heroLook(g, false);
+    const o = { ...opts, pose: pose ? { ...pose, alpha: 1 } : null, flip: !!flip, lunge: 0, flash: 0, run: false };
+    if (!tint) { drawFighter(ctx, x, y, look, o); return; }
+    const W = 180;
+    const H = 200;
+    const c = this._ghostCv || (this._ghostCv = document.createElement('canvas'));
+    if (c.width !== W) { c.width = W; c.height = H; }
+    const gx = c.getContext('2d');
+    gx.setTransform(1, 0, 0, 1, 0, 0);
+    gx.globalCompositeOperation = 'source-over';
+    gx.clearRect(0, 0, W, H);
+    drawFighter(gx, W / 2, H - 30, look, o);
+    gx.globalCompositeOperation = 'source-atop';
+    gx.fillStyle = `rgba(${tint},0.75)`;
+    gx.fillRect(0, 0, W, H);
+    ctx.drawImage(c, x - W / 2, y - (H - 30));
+  }
+
+  // 무인의 생김새와 그리기 옵션 — 본체와 잔상이 같이 쓴다
+  heroLook(game, moving) {
+    const look = { ...RANKS[game.s.rank].look, ...outfitLook(game.s.outfit) };
+    const wg = game.bestGrade('weapon');
+    const opts = {
+      t: this.t, lunge: this.heroLunge, flash: this.heroFlash, run: moving, weapon: 'sword',
+      blade: wg >= 0 ? GRADES[wg].color : '#e5e7eb', glow: wg >= 3, rage: game.buffs.rage > 0,
+      // 왼쪽으로 갈 때는 몸을 돌린다
+      flip: this.fieldMode && (this.faceOverride || game.heroFacing) < 0,
+    };
+    return { look, opts };
+  }
+
+  // 카메라 — 평소엔 무인에 붙고, 순간이동하면 잠깐 머물렀다 쫓아간다
+  updateCamera(game, dt) {
+    const field = this.fieldMode;
+    const jump = this._hx == null ? 0 : Math.hypot(game.heroX - this._hx, game.heroY - this._hy);
+    this._hx = game.heroX;
+    this._hy = game.heroY;
+    if (!field || this.camX == null) {
+      this.camX = game.heroX; this.camY = game.heroY; this.camPan = false; this.camHold = 0; this.camFocus = null;
+      return;
+    }
+    // 순간이동 거리만큼만 따라간다. 관문이 바뀌어 들판이 새로 깔리는 것처럼
+    // 아주 멀리 뛰면 미끄러지는 게 아니라 바로 붙는다.
+    if (jump > 900) { this.camX = game.heroX; this.camY = game.heroY; this.camPan = false; this.camFocus = null; return; }
+    if (jump > 40) this.camPan = true;
+    if (this.camHold > 0) { this.camHold -= dt; return; }
+    const f = this.camFocus;
+    if (!this.camPan && !f) { this.camX = game.heroX; this.camY = game.heroY; return; }
+    const tx = f ? f.x : game.heroX;
+    const ty = f ? f.y : game.heroY;
+    const k = 1 - Math.exp(-dt * this.camRate);
+    this.camX += (tx - this.camX) * k;
+    this.camY += (ty - this.camY) * k;
+    if (!f && Math.hypot(game.heroX - this.camX, game.heroY - this.camY) < 2) {
+      this.camPan = false;
+      this.camRate = 10;
+      this.camX = game.heroX; this.camY = game.heroY;
+    }
+  }
+
+  // 무인만 빼고 화면을 먹빛으로 바랜다. 높음은 진짜 흑백, 보통은 어둡게만.
+  applyDesat() {
+    if (this.desat <= 0.01) return;
+    const { ctx } = this;
+    ctx.save();
+    if (this.fxLevel >= 2) {
+      ctx.globalCompositeOperation = 'saturation';
+      ctx.globalAlpha = this.desat;
+      ctx.fillStyle = '#808080';
+      ctx.fillRect(-20, -20, this.w + 40, this.h + 40);
+    }
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = `rgba(12,10,8,${0.32 * this.desat})`;
+    ctx.fillRect(-20, -20, this.w + 40, this.h + 40);
+    ctx.restore();
+  }
+
+  // 화면이 한 줄을 따라 갈라졌다가 다시 붙는다 (천하제일검). 높음에서만.
+  drawSlice(dt) {
+    const sl = this.slice;
+    if (!sl) return;
+    sl.life -= dt;
+    if (sl.life <= 0) { this.slice = null; return; }
+    const p = 1 - sl.life / sl.max;
+    // 확 벌어졌다가 천천히 붙는다
+    const open = p < 0.15 ? p / 0.15 : 1 - ((p - 0.15) / 0.85) ** 0.7;
+    const off = sl.gap * open;
+    const { ctx, cv } = this;
+    const snap = this._snap || (this._snap = document.createElement('canvas'));
+    if (snap.width !== cv.width || snap.height !== cv.height) { snap.width = cv.width; snap.height = cv.height; }
+    const sc = snap.getContext('2d');
+    sc.setTransform(1, 0, 0, 1, 0, 0);
+    sc.globalCompositeOperation = 'copy';
+    sc.drawImage(cv, 0, 0);
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    const W = cv.width;
+    const H = cv.height;
+    const cx = W / 2;
+    const cy = H * 0.42;
+    const ux = Math.cos(sl.a);
+    const uy = Math.sin(sl.a);
+    const nx = -uy;
+    const ny = ux;
+    const R = W + H;
+    // 틈은 먹빛
+    ctx.fillStyle = '#0a0806';
+    ctx.fillRect(0, 0, W, H);
+    for (const side of [1, -1]) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(cx - ux * R, cy - uy * R);
+      ctx.lineTo(cx + ux * R, cy + uy * R);
+      ctx.lineTo(cx + ux * R + nx * R * side, cy + uy * R + ny * R * side);
+      ctx.lineTo(cx - ux * R + nx * R * side, cy - uy * R + ny * R * side);
+      ctx.closePath();
+      ctx.clip();
+      // 갈린 두 쪽이 줄을 따라 서로 어긋나며 벌어진다
+      const d = off * this.dpr;
+      ctx.drawImage(snap, nx * d * side + ux * d * 0.6 * side, ny * d * side + uy * d * 0.6 * side);
+      ctx.restore();
+    }
+    // 갈라진 줄 자체가 빛난다
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.strokeStyle = `rgba(255,255,255,${0.9 * open})`;
+    ctx.lineWidth = 2 * this.dpr;
+    ctx.beginPath(); ctx.moveTo(cx - ux * R, cy - uy * R); ctx.lineTo(cx + ux * R, cy + uy * R); ctx.stroke();
+    ctx.restore();
   }
 
   skillEffect(id, job = null) {
@@ -433,6 +630,20 @@ export class BattleView {
   }
 
   draw(game, dt) {
+    const rawDt = dt;
+    this.game = game;
+    // 연출표 — 시각표는 실제 시간으로 간다 (히트스톱이 걸려도 박자가 밀리지 않게)
+    if (this.pending) this.startCast(game);
+    if (this.director) {
+      this.director.tick(rawDt);
+      if (this.director.done) { this.director = null; this.beat = ''; }
+    }
+    this.heroAnim.tick(rawDt);
+    this.updateCamera(game, rawDt);
+    if (this.desat !== this.desatTo) {
+      const step = rawDt * this.desatRate;
+      this.desat = this.desat < this.desatTo ? Math.min(this.desatTo, this.desat + step) : Math.max(this.desatTo, this.desat - step);
+    }
     // 히트스톱: 맞은 직후 아주 짧게 연출만 느려진다(게임 진행은 그대로)
     if (this.hitstop > 0) {
       this.hitstop = Math.max(0, this.hitstop - dt);
@@ -451,8 +662,8 @@ export class BattleView {
     this.shake = decay(this.shake, 1);
     this.flash = decay(this.flash, 2);
     const moving = this.fieldMode ? !!game.walking : (!game.mon?.alive && game.mode === 'stage');
-    // 들판에서는 무인이 실제로 움직인 만큼 배경이 흐른다
-    if (this.fieldMode) this.scroll = game.heroX;
+    // 들판에서는 카메라가 움직인 만큼 배경이 흐른다
+    if (this.fieldMode) this.scroll = this.camX;
     else this.scroll += dt * (moving ? 220 : 12);
 
     ctx.save();
@@ -476,6 +687,7 @@ export class BattleView {
       ctx.fillRect(-20, -20, this.w + 40, this.h + 40);
     }
     ctx.restore();
+    if (this.slice) this.drawSlice(rawDt);
   }
 
   scene(game) {
@@ -489,8 +701,8 @@ export class BattleView {
     const { ctx, w, h } = this;
     const g = this.game;
     const [far, mid, edge, ground] = z.ink;
-    const camX = g ? g.heroX : 0;
-    const camY = g ? g.heroY : 0;
+    const camX = g ? this.camX ?? g.heroX : 0;
+    const camY = g ? this.camY ?? g.heroY : 0;
 
     // 바닥 — 바닥색이 섞여 구워진 타일 한 장으로 덮는다.
     //
@@ -822,20 +1034,21 @@ export class BattleView {
   drawHeroUnit(game, moving) {
     const st = game.stats();
     // 입은 의복이 있으면 그 모습으로. 도포 여섯은 몸, 검 장식 여섯은 무기.
-    const look = { ...RANKS[game.s.rank].look, ...outfitLook(game.s.outfit) };
-    const wg = game.bestGrade('weapon');
-    const raging = game.buffs.rage > 0;
+    const { look, opts } = this.heroLook(game, moving);
     const gale = game.buffs.gale > 0;
+    // 초식 자세가 걸려 있으면 그 자세로. 그동안은 평타의 움찔(lunge)을 끈다.
+    const pose = this.heroAnim.sample();
+    const lunge = pose ? 0 : this.heroLunge;
     // 벨 때 타겟 쪽으로 몸을 내민다 (평면이라 방향이 있다)
     const ha = game.heroAngle || 0;
-    const x = this.heroX + Math.cos(ha) * this.heroLunge * 24;
-    const y = this.groundY + Math.sin(ha) * this.heroLunge * 24 * this.squash;
-    const opts = {
-      t: this.t, lunge: this.heroLunge, flash: this.heroFlash, run: moving, weapon: 'sword',
-      blade: wg >= 0 ? GRADES[wg].color : '#e5e7eb', glow: wg >= 3, rage: raging,
-      // 왼쪽으로 갈 때는 몸을 돌린다
-      flip: this.fieldMode && game.heroFacing < 0,
-    };
+    const x = this.heroX + Math.cos(ha) * lunge * 24;
+    const y = this.groundY + Math.sin(ha) * lunge * 24 * this.squash;
+    if (pose) { opts.pose = { ...pose, alpha: 1 }; opts.lunge = 0; opts.run = false; }
+    // 순보로 사라진 동안은 발밑 고리·이름표까지 같이 옅어진다
+    const alpha = pose ? Math.max(0, Math.min(1, pose.alpha)) : 1;
+    if (alpha <= 0.01) return;
+    this.ctx.save();
+    this.ctx.globalAlpha = alpha;
     if (gale) { // 잔상
       for (let i = 3; i >= 1; i--) {
         this.ctx.save();
@@ -873,6 +1086,7 @@ export class BattleView {
     }
     hpBar(this.ctx, x - 32, y - 128, 64, 6, ratio(game.heroHp, st.hp), '#16a34a');
     nameTag(this.ctx, `${RANKS[game.s.rank].name} ${game.s.nickname || ''}`, x, y - 136);
+    this.ctx.restore();
   }
 
   // ---------- 유닛 ----------
@@ -900,6 +1114,8 @@ export class BattleView {
     }
     for (const e of list) e.go();
     // 무인은 깊이와 상관없이 맨 위에 그린다. 적이 수십이면 파묻혀서 누가 나인지 모른다.
+    // 흑백은 무인 바로 앞에서 건다 — 무인만 색이 남는다.
+    this.applyDesat();
     this.drawHeroUnit(game, moving);
   }
 
@@ -1108,6 +1324,12 @@ export class BattleView {
       // 무공 빛은 더하기로 겹친다 — 겹칠수록 밝아져야 '빛'으로 읽힌다.
       // 화면을 덮는 먹물(회귀)만 보통 합성이다.
       ctx.globalCompositeOperation = e.kind === 'regress' ? 'source-over' : 'lighter';
+      // 초식 연출 그림 (skillfx.js)
+      const fxDraw = FX[e.kind];
+      if (fxDraw) {
+        if (e.life > 0) { ctx.save(); fxDraw(this, ctx, e, k); ctx.restore(); }
+        continue;
+      }
       if (e.kind === 'area') {
         // 바닥에 퍼지는 원 — 탑다운이라 원이 그대로 "사거리"로 읽힌다
         const p = 1 - k;
@@ -1372,7 +1594,7 @@ export class BattleView {
     if (hj.life <= 0) { this.hanja = null; return; }
     const { ctx, w } = this;
     const k = hj.life / hj.max;
-    const size = Math.min(78, (w * 0.86) / Math.max(2, hj.text.length));
+    const size = Math.min(78, (w * 0.86) / Math.max(2, hj.text.length)) * (hj.scale || 1);
     ctx.save();
     ctx.globalAlpha = Math.min(1, k * 2.5) * 0.92;
     ctx.font = `${size * (1 + (1 - k) * 0.12)}px ${BRUSH}`;
@@ -1380,9 +1602,27 @@ export class BattleView {
     ctx.textBaseline = 'middle';
     ctx.lineWidth = 8;
     ctx.strokeStyle = 'rgba(0,0,0,0.85)';
-    ctx.strokeText(hj.text, w / 2, this.h * 0.42);
+    // 초식 연출은 이름을 화면 왼쪽에 세로로 쓴다 — 가운데에 크게 쓰면
+    // 칼이 닿는 자리와 맞은 숫자를 가린다. 족자처럼 위에서 아래로.
+    if (hj.vertical) {
+      const n = [...hj.text].length;
+      const vs = Math.min(40, (this.h * 0.5) / n);
+      ctx.font = `${vs}px ${BRUSH}`;
+      ctx.lineWidth = 6;
+      const x0 = Math.max(26, w * 0.09);
+      const y0 = this.h * 0.2 - (1 - Math.min(1, (1 - k) * 6)) * 14;
+      [...hj.text].forEach((ch, i) => {
+        ctx.strokeText(ch, x0, y0 + i * vs * 1.02);
+        ctx.fillStyle = hj.color;
+        ctx.fillText(ch, x0, y0 + i * vs * 1.02);
+      });
+      ctx.restore();
+      return;
+    }
+    const hy = this.h * (hj.y ?? 0.42);
+    ctx.strokeText(hj.text, w / 2, hy);
     ctx.fillStyle = hj.color;
-    ctx.fillText(hj.text, w / 2, this.h * 0.42);
+    ctx.fillText(hj.text, w / 2, hy);
     ctx.restore();
   }
 
@@ -1452,6 +1692,19 @@ export function drawFighter(ctx, x, y, look = {}, o = {}) {
   // 그림자
   ctx.fillStyle = 'rgba(0,0,0,0.28)';
   ctx.beginPath(); ctx.ellipse(0, 2, 24, 6, 0, 0, Math.PI * 2); ctx.fill();
+  // 자세(pose.js). 그림자는 땅에 두고 몸만 기울이고 띄운다.
+  const P = o.pose;
+  if (P) {
+    if (P.alpha < 1) ctx.globalAlpha *= Math.max(0, P.alpha);
+    ctx.translate(P.dx, -P.lift - 4);
+    // 발끝을 축으로 조금만 돈다 — 그림 한 장짜리 몸이라 허리를 못 꺾는다.
+    // 많이 돌리면 사람이 아니라 넘어지는 판자로 보인다 (자세 도감에서 확인).
+    ctx.rotate(P.lean * 0.32);
+    ctx.scale(1 + P.stretch * 0.6, (1 - P.crouch * 0.2) * (1 - P.stretch * 0.25));
+    ctx.translate(0, 4);
+    // 나머지 기울기는 위쪽만 미는 비틀기로 — 발은 땅에 남고 머리만 앞으로 간다
+    ctx.transform(1, 0, -Math.tan(P.lean * 0.42), 1, 0, 0);
+  }
   ctx.translate(0, bob + hop);
 
   // 기운
@@ -1514,7 +1767,7 @@ export function drawFighter(ctx, x, y, look = {}, o = {}) {
   }
 
   // 다리
-  const swing = o.run ? Math.sin(t * 14) * 8 : 0;
+  const swing = (o.run ? Math.sin(t * 14) * 8 : 0) + (P ? P.crouch * 9 : 0);
   ctx.strokeStyle = pants;
   ctx.lineWidth = 9;
   ctx.lineCap = 'round';
@@ -1608,6 +1861,30 @@ export function drawFighter(ctx, x, y, look = {}, o = {}) {
   ctx.save();
   const sh0 = artReady() && !jiang ? ART_SHOULDER : { x: 7, y: -70 };
   ctx.translate(sh0.x, sh0.y);
+  if (P) {
+    // 자세가 손 자리와 칼끝을 따로 정한다. 그림 몸통의 소매는 늘 아래로
+    // 처져 있으니, 손이 어깨를 떠나면 팔 하나를 그어 이어 준다.
+    const hx = Math.cos(P.hand[0]) * P.hand[1];
+    const hy = Math.sin(P.hand[0]) * P.hand[1];
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = '#1a1410';
+    ctx.lineWidth = 9;
+    ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(hx * 0.86, hy * 0.86); ctx.stroke();
+    ctx.strokeStyle = shade(robeNow, -0.08);
+    ctx.lineWidth = 6.5;
+    ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(hx * 0.86, hy * 0.86); ctx.stroke();
+    ctx.fillStyle = skin;
+    circle(ctx, hx, hy, 3.8);
+    ctx.translate(hx, hy);
+    ctx.rotate(P.blade + Math.PI / 2);
+    if (P.wscale && P.wscale !== 1) ctx.scale(P.wscale, P.wscale);
+    const wk2 = artReady() ? weaponKey(weapon, look) : null;
+    if (!(wk2 && putArt(ctx, wk2, FIT.weapon))) drawWeapon(ctx, weapon, o, t, 0);
+    ctx.restore();
+    drawOrbit(true);
+    ctx.restore();
+    return;
+  }
   let ang;
   if (jiang) ang = -1.5;
   else if (weapon === 'spear') ang = -1.45 + lunge * 0.15;

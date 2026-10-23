@@ -17,6 +17,10 @@
   #cv { display: block; width: 100%; height: 100%; }
   #hud { position: absolute; left: 8px; top: 8px; right: 8px; display: flex; justify-content: space-between; pointer-events: none; font-size: 12px; }
   #hud span { background: rgba(0,0,0,0.55); padding: 3px 9px; border-radius: 999px; }
+  #beat { position: absolute; left: 50%; bottom: 10px; transform: translateX(-50%); pointer-events: none;
+    display: flex; gap: 4px; font-size: 12px; }
+  #beat i { font-style: normal; padding: 3px 8px; border-radius: 999px; background: rgba(0,0,0,0.5); color: #8a7b66; }
+  #beat i.on { background: var(--accent); color: #fff; }
   .bar { display: flex; gap: 6px; flex-wrap: wrap; padding: 8px 10px; border-bottom: 1px solid var(--line); background: #120f0b; }
   .bar label { display: inline-flex; gap: 4px; align-items: center; color: var(--muted); font-size: 12px; }
   select, button { font: inherit; color: var(--text); background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 6px 9px; }
@@ -37,6 +41,8 @@
   <div id="stage">
     <canvas id="cv"></canvas>
     <div id="hud"><span id="hud-l">무공 미리보기</span><span id="hud-r"></span></div>
+    <!-- 네 박자 — 연출표(js/skillfx.js)가 있는 무공만 켜진다 -->
+    <div id="beat"><i>기수식</i><i>시전</i><i>적중</i><i>여운</i></div>
   </div>
 
   <div class="bar">
@@ -45,6 +51,10 @@
     <label>간격 <select id="every"><option value="1.2">1.2초</option><option value="2" selected>2초</option><option value="3">3초</option><option value="5">5초</option></select></label>
     <label>속도 <select id="speed"><option value="1" selected>1배</option><option value="0.5">0.5배</option><option value="0.25">0.25배</option><option value="0.1">0.1배</option></select></label>
     <label>지역 <select id="zone"></select></label>
+    <label>경지 <select id="rank"></select></label>
+    <button id="pause">⏸ 멈춤</button>
+    <button id="step">⏭ 한 칸</button>
+    <label>연출 <select id="fxlv"><option value="2" selected>높음</option><option value="1">보통</option><option value="0">낮음</option></select></label>
     <label><input type="checkbox" id="nohit" checked> 평타 끄기</label>
     <label><input type="checkbox" id="nojob"> 문파 기운 끄기</label>
   </div>
@@ -62,9 +72,10 @@
 // 않고, 고른 무공은 쿨타임 없이 바로 나간다. 그래서 여기서 보이는 게 곧 실제 연출이다.
 //
 // 주소 끝에 ?skill=jsword3&loop=1&speed=0.5 처럼 붙이면 그 상태로 바로 연다.
+// 멈춤(⏸) 상태에서 '한 칸'은 1/30초씩 넘긴다 — 박자 하나하나를 멈춰 놓고 본다.
 import { Game, newSave } from './js/game.js';
 import { BattleView } from './js/battle.js';
-import { SKILLS, JOBS, ZONES, jobOf, qiOf, QI } from './js/data.js';
+import { SKILLS, JOBS, ZONES, RANKS, jobOf, qiOf, QI } from './js/data.js';
 
 const $ = (id) => document.getElementById(id);
 const q = new URLSearchParams(location.search);
@@ -75,6 +86,7 @@ let view = null;
 let cur = q.get('skill') || 'slash';
 let looping = q.get('loop') === '1';
 let timer = 0;
+let paused = q.get('paused') === '1';
 
 const groupOf = (sk) => sk.job || 'common';
 const GROUPS = [{ id: 'common', name: '공용', color: '#f1e8d6' }, ...JOBS.map((j) => ({ id: j.id, name: j.name, color: j.color }))];
@@ -88,7 +100,7 @@ function build() {
   s.stage = STAGE_BASE + zi * 10 + 5;
   s.maxStage = s.stage;
   s.bestStage = s.stage;
-  s.rank = 9;
+  s.rank = Number($('rank').value);
   s.level = 500;
   s.autoSkill = false;
   // 계열 무공이면 그 문파로 전직해 둔다. 공용 무공은 '문파 기운 끄기'에 따라 정한다.
@@ -97,6 +109,7 @@ function build() {
   game.events.length = 0;
   if (!view) view = new BattleView($('cv'));
   view.game = game;
+  view.fxPref = Number($('fxlv').value);
   timer = 0;
 }
 
@@ -199,6 +212,12 @@ function frame(now) {
   let dt = Math.min(0.1, (now - last) / 1000);
   last = now;
   dt *= Number($('speed').value);
+  if (!paused) advance(dt);
+  requestAnimationFrame(frame);
+}
+
+const BEATS = ['기수식', '시전', '적중', '여운'];
+function advance(dt) {
   keepAlive();
   const steps = Math.max(1, Math.ceil(dt / 0.05));
   for (let i = 0; i < steps; i++) game.tick(dt / steps);
@@ -210,12 +229,21 @@ function frame(now) {
     timer += dt;
     if (timer >= Number($('every').value)) { timer = 0; cast(); }
   }
-  requestAnimationFrame(frame);
+  const b = view.beat || '';
+  [...$('beat').children].forEach((el, i) => el.classList.toggle('on', BEATS[i] === b));
+}
+
+// 멈춘 채로 sec초를 1/60초씩 넘긴다 (테스트와 '한 칸' 버튼이 쓴다)
+function step(sec = 1 / 30) {
+  for (let t = 0; t < sec - 1e-9; t += 1 / 60) advance(1 / 60);
 }
 
 // ---------- 시작 ----------
 $('zone').replaceChildren(...ZONES.map((z, i) => { const o = document.createElement('option'); o.value = i; o.textContent = z.name; return o; }));
 $('zone').value = q.get('zone') || '0';
+$('rank').replaceChildren(...RANKS.map((r, i) => { const o = document.createElement('option'); o.value = i; o.textContent = r.name; return o; }));
+$('rank').value = q.get('rank') || String(RANKS.length - 1);
+$('rank').onchange = () => { build(); };
 if (q.get('speed')) $('speed').value = q.get('speed');
 $('cast').onclick = cast;
 $('loop').onclick = () => { looping = !looping; $('loop').textContent = looping ? '반복 켬' : '반복 끔'; $('loop').classList.toggle('on', looping); };
@@ -223,15 +251,21 @@ $('loop').textContent = looping ? '반복 켬' : '반복 끔';
 $('loop').classList.toggle('on', looping);
 $('zone').onchange = () => { build(); };
 $('nojob').onchange = () => { build(); };
+$('fxlv').onchange = () => { view.fxPref = Number($('fxlv').value); };
+const setPaused = (on) => { paused = on; $('pause').textContent = on ? '▶ 재생' : '⏸ 멈춤'; $('pause').classList.toggle('on', on); };
+$('pause').onclick = () => setPaused(!paused);
+$('step').onclick = () => { setPaused(true); step(); };
+if (q.get('fx')) $('fxlv').value = q.get('fx');
+setPaused(paused);
 
 build();
 renderGroups();
 renderSkills();
 renderInfo();
 // 적이 들판에 깔릴 시간을 조금 준다
-setTimeout(cast, 700);
+setTimeout(() => { if (!paused) cast(); }, 700);
 requestAnimationFrame((t) => { last = t; frame(t); });
-window.__preview = { get game() { return game; }, cast, pick };
+window.__preview = { get game() { return game; }, get view() { return view; }, cast, pick, step, setPaused, build };
 </script>
 </body>
 </html>
