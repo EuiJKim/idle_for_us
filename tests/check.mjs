@@ -2424,9 +2424,19 @@ console.log('=== 35. 자리와 큰 수 ===');
   ok(badHex === 0, '빛깔이 전부 제대로 된 색', `${badHex}건`);
 
   // ---- 큰 수 ----
-  // 한글 단위가 끝나면 알파벳이 이어받는다. 지수(1.00e60)가 뜨면 안 읽힌다.
-  ok(fmt(1e52).endsWith('a'), '한글 단위가 끝나면 a부터', fmt(1e52));
-  ok(fmt(1e56).endsWith('b'), '그 다음은 b', fmt(1e56));
+  // 알파벳 단위 — 1,000이 1a이고 **한 글자가 100배**다 (100a 다음은 1b).
+  // 한글 단위(만·억·조·경)는 안 쓴다.
+  const table = [[999, '999'], [1000, '1.00a'], [1500, '1.50a'], [99000, '99.0a'], [99999, '99.9a'],
+    [100000, '1.00b'], [2500000, '25.0b'], [1e7, '1.00c'], [123456789, '12.3c']];
+  const wrong = table.filter(([n, want]) => fmt(n) !== want).map(([n, want]) => `${n}→${fmt(n)}(${want})`);
+  ok(wrong.length === 0, '1,000 = 1a, 100a 다음은 1b', wrong.join(', ') || table.map(([n]) => fmt(n)).join(' '));
+  let korean = [];
+  for (let e = 3; e <= 300; e += 1) { const t = fmt(Math.pow(10, e) * 3.7); if (/[만억조경해자양구간정재극]/.test(t)) korean.push(t); }
+  ok(korean.length === 0, '한글 단위가 안 나온다', korean.slice(0, 3).join(', ') || '전부 알파벳');
+  // 앞자리가 100을 넘지 않는다 (넘으면 다음 글자)
+  let over = [];
+  for (let e = 3; e <= 300; e += 0.37) { const t = fmt(Math.pow(10, e)); if (parseFloat(t) >= 100) over.push(t); }
+  ok(over.length === 0, '앞자리는 늘 100 아래', over.slice(0, 3).join(', ') || '전부 1~99.9');
   const seq = [0, 1, 25, 26, 27, 51, 52, 701, 702].map((i) => alphaUnit(i));
   ok(seq.join(',') === 'a,b,z,aa,ab,az,ba,zz,aaa', 'a-z 다음은 aa-az, ba …', seq.join(' '));
   // 아무리 커도 지수 표기로 안 샌다

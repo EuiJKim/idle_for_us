@@ -80,7 +80,7 @@ export const modalOpen = () => !document.getElementById('modal').classList.conta
 // v는 보통 숫자일 수도 Big일 수도 있다. 백분율·배수는 작은 값이라
 // 숫자로 써도 되지만, Big이 올 수 있으니 toFixed를 쓰는 쪽만 조심한다.
 export const fmtValue = (def, v) => (def.fmt === 'pct' ? pct(v)
-  : def.fmt === 'x' ? `${big(v).toFixed(2)}배` : fmt(v));
+  : def.fmt === 'x' ? (big(v).gte(1000) ? `${fmt(v)}배` : `${big(v).toFixed(2)}배`) : fmt(v));
 export const gradeChip = (g) => h('span', { style: `color:${GRADES[g].color};font-weight:800` }, GRADES[g].name);
 
 // 보상 묶음을 한 줄로: {gold, gems, books, stones, food, relicShards}
