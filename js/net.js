@@ -556,13 +556,15 @@ export class Net {
       const maxHp = safeBig(r.maxHp) || big(0);
       const was = safeBig(r.total) || big(0);
       if (was.gte(maxHp)) return false;
-      const total = String(was.add(amt).min(maxHp));
+      const sum = was.add(amt).min(maxHp);
+      const total = String(sum);
       const update = {
         total,
         [`damage.${this.uid}`]: String((safeBig(r.damage?.[this.uid]) || big(0)).add(amt)),
         [`names.${this.uid}`]: this.game.s.nickname,
       };
-      const nowKilled = total >= r.maxHp;
+      // 글자끼리 >=를 하면 사전 순으로 견준다 — '9e5' >= '1e6'이 참이 된다. Big으로 견준다.
+      const nowKilled = sum.gte(maxHp);
       if (nowKilled) update.killedAt = this.fs.serverTimestamp();
       tx.update(ref, update);
       return nowKilled;

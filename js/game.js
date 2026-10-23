@@ -2307,9 +2307,11 @@ export class Game {
     }
     const m = this.mon;
     if (!m?.alive) return;
-    if (m.isBoss) amount *= this.stats().bossMul;
+    // Big끼리 `*=`·`+=`를 쓰면 보통 숫자로 바뀌어 10^308을 넘는 순간 Infinity가 된다 —
+    // 두목에게 넣은 한 방이 Infinity로 찍히고 두목이 그냥 쓰러졌다. Big 셈으로 한다.
+    if (m.isBoss) amount = big(amount).mul(this.stats().bossMul);
     if (this.mode === 'raid') {
-      this.contest.damage += amount;
+      this.contest.damage = big(this.contest.damage || 0).add(amount);
       m.hp = m.hp.sub(amount).clampPos();
       this.emit('dmg', { amount, kind, crit });
       return;
@@ -2844,7 +2846,7 @@ export class Game {
       this.progress('pvp');
     } else if (c.mode === 'raid') {
       out.damage = c.damage;
-      if (c.damage > 0) this.progress('raid');
+      if (big(c.damage).gt(0)) this.progress('raid');
     }
     this.mode = 'stage';
     this.contest = null;

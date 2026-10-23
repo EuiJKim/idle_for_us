@@ -199,6 +199,7 @@ console.log('\n=== 6. 한 바퀴 돌려 모든 시스템에 닿는가 (6시간) 
     g.checkDaily(now);
     for (;;) {
       const keys = Object.keys(D.UPGRADES).filter((k) => !g.upgradeMaxed(k));
+      if (!keys.length) break;   // 수련 단계가 다 찼다
       const k = keys.reduce((a, b) => (gte(g.upgradeCost(b), g.upgradeCost(a)) ? a : b));
       if (!g.buyUpgrade(k)) break;
     }
@@ -405,57 +406,168 @@ console.log('\n=== 8. 장신구 특기 ===');
     '옛 세이브에서도 자리가 그대로');
 }
 
-// ---------- 9. 상한과 여유 / 수련 차수 ----------
+// ---------- 9. 치명 단계 / 수련 차수 ----------
 console.log('');
-console.log('=== 9. 상한과 여유 ===');
+console.log('=== 9. 치명 단계 ===');
 {
-  // 치명 수련이 혼자 CRIT_CAP을 채우면, 치명 확률을 주는 다른 시스템이 전부 0이 된다.
-  // 실제로 그랬다 — 8시간 차에 39.5%p가 버려지고 있었다. 다시는 못 그러게 막는다.
-  // 이제 혈도는 **1차(50레벨)까지만 치명 확률**이고 2차부터는 치명 피해로 간다.
-  const capLv = D.upTierLv('crit');
-  const fromTrain = D.upAdds('crit', capLv).crit;
-  const room = D.CRIT_CAP - fromTrain;
-  ok(room > 0.2, '치명은 1차를 다 해도 상한까지 여유가 남는다',
-    `1차 ${(fromTrain * 100).toFixed(0)}% / 상한 ${(D.CRIT_CAP * 100).toFixed(0)}% → 여유 ${(room * 100).toFixed(0)}%p`);
+  // 치명 확률에는 이제 상한이 없다. 100%를 채우면 그다음 100%는 슈퍼 치명 확률이 된다.
+  // 전에는 CRIT_CAP(75%)에서 막혀서, 치명을 주는 다른 시스템이 전부 버려졌다
+  // (8시간 차에 39.5%p). 상한을 없앤 대신 **넘친 몫이 실제로 다음 단계가 되는지**를 본다.
 
-  // 치명 확률을 주는 시스템이 실제로 몇 %p나 되는지 세어, 여유 안에 들어오는지 본다
+  // 단계 배수: 보통 ×1 · 치명 ×D · 슈퍼 ×D·2.5 · 하이퍼 ×D·2.5² …
+  const Dm = 2;
+  ok(D.critTierMult(0, Dm) === 1 && D.critTierMult(-1, Dm) === 1, '치명이 아니면 배수는 1');
+  ok(D.critTierMult(1, Dm) === Dm, '치명 한 단은 치명 피해 그대로', `×${D.critTierMult(1, Dm)}`);
+  ok(Math.abs(D.critTierMult(2, Dm) - Dm * D.CRIT_STEP) < 1e-9
+    && Math.abs(D.critTierMult(3, Dm) - Dm * D.CRIT_STEP ** 2) < 1e-9,
+    '그 위로는 단계마다 CRIT_STEP을 한 번씩 더 곱한다',
+    `×${D.critTierMult(1, Dm)} → ×${D.critTierMult(2, Dm)} → ×${D.critTierMult(3, Dm)}`);
+  // 치명 피해를 단계마다 거듭 곱하면(D, D², D³) 제곱으로 커져서 적이 못 따라왔다. 고정 배수인지 본다.
+  ok(Math.abs(D.critTierMult(5, 10) / D.critTierMult(4, 10) - D.CRIT_STEP) < 1e-9,
+    '단계 사이 배수는 치명 피해와 무관하다(제곱으로 안 큰다)');
+
+  // 평균 배수 — 채운 단계는 반드시, 남은 몫은 한 단 더 갈 확률이다
+  ok(D.critExpect(0, Dm) === 1, '치명 확률 0이면 평균도 1');
+  ok(Math.abs(D.critExpect(1, Dm) - Dm) < 1e-9, '치명 확률 100%면 평균이 치명 피해');
+  const e235 = D.critExpect(2.35, Dm);
+  const want235 = D.critTierMult(2, Dm) + 0.35 * (D.critTierMult(3, Dm) - D.critTierMult(2, Dm));
+  ok(Math.abs(e235 - want235) < 1e-9, '2.35면 슈퍼 치명과 하이퍼 치명 사이를 35%만큼 간다',
+    `×${e235.toFixed(3)}`);
+  let mono = true;
+  for (let c = 0, prev = 0; c <= 6; c += 0.05) { const v = D.critExpect(c, Dm); if (v < prev - 1e-9) mono = false; prev = v; }
+  ok(mono, '치명 확률이 오르면 평균 배수가 줄지 않는다 (단계 경계에서도)');
+
+  // 굴리기 — 시드를 고정해 많이 굴려 본다
+  const roll = (C, n = 20000) => {
+    const rng = seeded(4242);
+    const cnt = {};
+    let sum = 0;
+    for (let i = 0; i < n; i++) {
+      const t = D.rollCritTier(C, rng);
+      cnt[t] = (cnt[t] || 0) + 1;
+      sum += D.critTierMult(t, Dm);
+    }
+    return { cnt, mean: sum / n, n };
+  };
+  const r0 = roll(0);
+  ok(Object.keys(r0.cnt).join() === '0', '치명 확률 0이면 늘 보통 타격');
+  const r4 = roll(0.4);
+  ok(Object.keys(r4.cnt).every((t) => t === '0' || t === '1') && Math.abs(r4.cnt[1] / r4.n - 0.4) < 0.02,
+    '40%면 열에 넷쯤 치명', `${((r4.cnt[1] / r4.n) * 100).toFixed(1)}%`);
+  const r3 = roll(3);
+  ok(Object.keys(r3.cnt).join() === '3', '딱 300%면 늘 하이퍼 치명(3단)이고 그 위로는 안 간다');
+  const r235 = roll(2.35);
+  ok(Object.keys(r235.cnt).every((t) => t === '2' || t === '3'), '2.35면 늘 슈퍼 치명 이상, 하이퍼 치명까지만',
+    Object.entries(r235.cnt).map(([t, n]) => `${D.critTierName(+t)} ${n}`).join(' · '));
+  ok(Math.abs(r235.cnt[3] / r235.n - 0.35) < 0.02, '2.35면 35%쯤이 한 단 더 간다',
+    `${((r235.cnt[3] / r235.n) * 100).toFixed(1)}%`);
+  ok(Math.abs(r235.mean / e235 - 1) < 0.02, '굴린 평균이 critExpect와 맞는다',
+    `굴림 ×${r235.mean.toFixed(3)} / 어림 ×${e235.toFixed(3)}`);
+
+  // 이름
+  ok(D.critTierName(0) === '' && D.critTierName(1) === '치명' && D.critTierName(2) === '슈퍼 치명'
+    && D.critTierName(3) === '하이퍼 치명', '단계 이름이 치명 → 슈퍼 치명 → 하이퍼 치명');
+  const far = [8, 9, 15].map((t) => D.critTierName(t));
+  ok(far.every((n) => n && !n.includes('undefined')) && new Set(far).size === far.length,
+    '이름표를 넘어선 단계도 이름이 있다', far.join(' / '));
+
+  // 치명 확률을 주는 시스템이 실제로 몇 %p나 되는가 — 상한이 없으니 전부 살아 있어야 한다
   let give = 0;
   const add = (o) => { if (o && o.crit) give += o.crit; };
   add(D.CODEX_PER_TYPE); add(D.CODEX_ALL); add(D.OPTION_SET); add(D.OPTION_SET_FULL);
   add(D.ACC_SET); add(D.OUTFIT_ALL); add(D.CODEX_KIND_FULL); add(D.CODEX_ALL_FULL);
   for (const s2 of D.EQUIP_SET_STEPS) add(s2);
   ok(give > 0, '치명 확률을 주는 시스템이 있다', `보유 효과만 합쳐 +${(give * 100).toFixed(0)}%p`);
-  ok(give <= room + 0.25, '그 시스템들이 여유를 통째로 넘지는 않는다',
-    `시스템 +${(give * 100).toFixed(0)}%p vs 여유 ${(room * 100).toFixed(0)}%p`);
 
-  // 실제 진행 상태에서 상한이 지켜지는가 — 강한 세이브로 확인
+  // 실제 진행 상태에서 100%를 넘기는가 — 옵션 칸을 전부 치명으로 채운다
   const g = strong(300);
+  const plain = g.stats({ buffs: false }).crit;
   for (const t2 of Object.keys(D.EQUIP_TYPES)) {
     g.s.options[t2] = Array.from({ length: D.OPTION_SLOTS }, () => ({ stat: 'crit', grade: 5, roll: 1 }));
   }
   const used = g.stats({ buffs: false }).crit;
-  ok(used <= D.CRIT_CAP + 1e-9, '상한은 지켜진다', `${(used * 100).toFixed(1)}%`);
+  ok(used > 1, '치명 확률이 100%를 넘을 수 있다', `${(plain * 100).toFixed(1)}% → ${(used * 100).toFixed(1)}%`);
+  ok(used > Math.max(plain, D.CRIT_CAP) + 0.5, '옵션 칸이 준 치명이 옛 상한에서 안 버려진다');
+  const cd = g.stats({ buffs: false }).critDmg;
+  ok(typeof cd === 'number' && Number.isFinite(cd) && cd > 1, '치명 피해는 보통 숫자다', `×${Number(cd).toFixed(2)}`);
+
+  // 무인의 평타가 실제로 단계를 탄다 — 치명 확률을 2.35로 고정하고 때려 본다
+  {
+    const h = strong(150);
+    const orig = h.stats.bind(h);
+    h.stats = (o) => ({ ...orig(o), crit: 2.35 });
+    const tiers = [];
+    for (let i = 0; i < 30 * 40; i++) {
+      h.tick(1 / 30);
+      for (const e of h.events) if (e.type === 'dmg' && e.kind === 'hit') tiers.push(e.crit);
+      h.events.length = 0;
+    }
+    ok(tiers.length > 10, '평타가 들어간다', `${tiers.length}대`);
+    ok(tiers.every((t) => Number.isInteger(t)), '피해 기록에 치명 단계가 숫자로 실린다',
+      [...new Set(tiers)].sort().join(','));
+    ok(tiers.every((t) => t >= 2 && t <= 3), '2.35면 한 대도 빠짐없이 슈퍼 치명 이상');
+    ok(tiers.some((t) => t === 3), '하이퍼 치명도 나온다', `${tiers.filter((t) => t === 3).length}/${tiers.length}`);
+  }
+  // 100% 아래에서는 0과 1만 실린다
+  {
+    const h = strong(150);
+    const C = h.stats({ buffs: false }).crit;
+    const tiers = [];
+    for (let i = 0; i < 30 * 40; i++) {
+      h.tick(1 / 30);
+      for (const e of h.events) if (e.type === 'dmg' && e.kind === 'hit') tiers.push(e.crit);
+      h.events.length = 0;
+    }
+    const lo = Math.floor(C);
+    ok(tiers.length > 10 && tiers.every((t) => t === lo || t === lo + 1),
+      `치명 확률 ${(C * 100).toFixed(0)}%면 ${lo}단이나 ${lo + 1}단만 나온다`,
+      `${lo}단 ${tiers.filter((t) => t === lo).length} · ${lo + 1}단 ${tiers.filter((t) => t === lo + 1).length}`);
+  }
 
   // ---- 수련 차수: 끝이 없어야 한다 ----
   // 전에는 치명 50레벨, 속도 100레벨에서 축이 죽었다. 다 찍으면 그 은자가
   // 갈 곳이 없어 성장이 꺾였다(실측: 2시간을 넘기면 관문이 시간당 26밖에 안 늘었다).
   for (const k of Object.keys(D.UPGRADES)) {
-    ok(D.UPGRADES[k].max === undefined, `${k}에 상한이 없다`);
+    ok(D.UPGRADES[k].max === undefined, `${k} 축 자체에는 상한이 없다 (단계로만 막는다)`);
     // 현실적인 윗자리에서 본다. 10000레벨을 넣으면 1.13^10000이 Infinity라
     // 'Infinity > Infinity'가 false가 되어 멀쩡한 곡선이 틀린 것처럼 잡혔다.
     // 이제 Big이라 10000레벨도 안 터진다 — 옛날에 2000으로 낮춰 뒀던 걸 되돌린다
     ok(gt(D.UPGRADES[k].cost(10000), D.UPGRADES[k].cost(9999)) && fin(D.UPGRADES[k].cost(10000)),
       `${k} 비용은 끝없이 오른다`, D.UPGRADES[k].cost(10000).toExponential(1));
   }
+  // 수련에는 **단계별 상한**이 있다(수련 단계 절). 축 자체(def.max)에는 없고,
+  // 관문을 더 밀면 다음 단계가 열린다 — 끝이 없다는 뜻은 그쪽에서 지킨다.
   const gm = strong(300);
-  ok(gm.upgradeMaxed('crit') === false, '다 찍었다는 상태가 없다');
+  gm.s.maxStage = 300;
+  const capNow = gm.upCapOf('crit');
+  ok(capNow === D.upStagesOpen(300) * D.upStageLv('crit'), '300관문이면 혈도는 열린 단계만큼만',
+    `${D.upStagesOpen(300)}단계 × ${D.upStageLv('crit')} = ${capNow}레벨`);
+  gm.s.upgrades.crit = capNow - 1;
+  ok(gm.upgradeMaxed('crit') === false, '상한 아래면 더 살 수 있다');
+  gm.buyUpgrade('crit', 9999);
+  ok(gm.s.upgrades.crit === capNow && gm.upgradeMaxed('crit'), '상한에 닿으면 다 찬 것으로 본다',
+    `${gm.s.upgrades.crit}레벨`);
+  gm.s.maxStage = 300 + D.UP_STAGE_EVERY;
+  ok(gm.upgradeMaxed('crit') === false && gm.upCapOf('crit') > capNow, '관문을 더 밀면 다시 열린다',
+    `${capNow} → ${gm.upCapOf('crit')}레벨`);
+  ok(Object.keys(D.UPGRADES).every((k) => D.upCap(k, 100000) > D.upCap(k, 10000)),
+    '단계 상한도 관문을 따라 끝없이 오른다');
 
-  // 상한이 있는 통계는 다음 차수에서 상한 없는 통계로 갈아탄다
-  for (const [k, cap] of [['crit', 'critDmg'], ['speed', 'hitMul']]) {
-    ok(D.upStatAt(k, 0) === k, `${k} 1차는 본래 통계를 준다`);
-    ok(D.upStatAt(k, 1) === cap, `${k} 2차는 상한 없는 ${cap}으로 간다`);
-    ok(D.upStatAt(k, 99) === cap, `${k} 99차도 그대로`, D.upStatAt(k, 99));
-  }
+  // 혈도는 이제 끝까지 치명 확률이다 — 100%를 넘기면 그게 곧 슈퍼 치명이므로 갈아탈 이유가 없다
+  for (const t of [0, 1, 5, 99]) ok(D.upStatAt('crit', t) === 'crit', `crit ${t + 1}차도 치명 확률`, D.upStatAt('crit', t));
+  const c50 = big(D.upAdds('crit', 50).crit).toNumber();
+  const c1000 = big(D.upAdds('crit', 1000).crit).toNumber();
+  ok(Math.abs((c1000 - c50) - 950 * D.UP_STAT_PER.crit) < 1e-6, '치명 확률은 차수 덤 없이 한 칸에 1.5%p씩 곧게 쌓인다',
+    `50레벨 ${(c50 * 100).toFixed(0)}% · 1000레벨 ${(c1000 * 100).toFixed(0)}%`);
+  ok(c1000 > 10, '1000레벨이면 열 단 넘게 치명이 쌓인다', D.critTierName(Math.floor(c1000)));
+  const d100 = big(D.upAdds('critDmg', 100).critDmg).toNumber();
+  const d200 = big(D.upAdds('critDmg', 200).critDmg).toNumber();
+  ok(Math.abs((d200 - d100) - 100 * D.UP_STAT_PER.critDmg) < 1e-6, '치명 피해도 한 칸에 2%p씩 곧게 쌓인다',
+    `100레벨 ×${d100.toFixed(2)} · 200레벨 ×${d200.toFixed(2)}`);
+  // 공격 속도는 상한(SPEED_CAP)이 그대로라 2차부터 연격으로 갈아탄다
+  ok(D.upStatAt('speed', 0) === 'speed', 'speed 1차는 본래 통계를 준다');
+  ok(D.upStatAt('speed', 1) === 'hitMul', 'speed 2차는 상한 없는 hitMul으로 간다');
+  ok(D.upStatAt('speed', 99) === 'hitMul', 'speed 99차도 그대로', D.upStatAt('speed', 99));
   // 레벨을 아무리 올려도 값이 계속 는다
   for (const k of Object.keys(D.UPGRADES)) {
     const def = D.UPGRADES[k];
@@ -1949,12 +2061,23 @@ console.log('=== 28. 무공 차수 ===');
   ok(D.skillTierMult(5000) > D.skillTierMult(4000) && Number.isFinite(D.skillTierMult(5000)),
     '차수에 끝이 없다');
   // 실제 피해에 들어가는가
+  // 레벨·차수로 느는 몫은 눌러 담는다(POWER_K) — 무공 배율 = 1레벨 배율 × kpow(느는 몫).
+  // 그래서 차수 한 번의 뜀은 옛 판(×1.5 넘게)보다 작다. 보는 건 '눌러 담은 만큼 그대로 붙는가'와
+  // '보통 한 레벨보다 확실히 크게 뛰는가'다.
   const g = strong(200);
+  g.s.skills.slash = 48;
+  const a48 = g.skillMult(sk);
   g.s.skills.slash = 49;
   const a = g.skillMult(sk);
   g.s.skills.slash = 50;
   const b = g.skillMult(sk);
-  ok(b > a * 1.5, '차수가 오르면 실제 피해가 뛴다', `${a.toFixed(1)} → ${b.toFixed(1)}`);
+  const rawJump = (sk.mult(50) / sk.mult(49)) * (D.skillTierMult(50) / D.skillTierMult(49));
+  ok(Math.abs(b / a - D.kpow(rawJump)) < 1e-9, '차수 뜀은 눌러 담은 만큼 그대로 붙는다',
+    `×${(b / a).toFixed(4)} = (×${rawJump.toFixed(3)})^${D.POWER_K}`);
+  ok(b / a - 1 > (a / a48 - 1) * 10, '차수가 오르면 보통 한 레벨보다 열 배 넘게 뛴다',
+    `${a48.toFixed(2)} → ${a.toFixed(2)} → ${b.toFixed(2)}`);
+  ok(Math.abs(g.skillMultAt(sk, 1) - sk.mult(1) * D.kpow(1 + D.SKILL_PIERCE_MULT * g.skillPierceOf(sk.id))) < 1e-9,
+    '1레벨 배율(무공마다의 세기)은 눌러 담지 않는다', `${sk.mult(1)}`);
   const ti = D.skillTierInfo(sk, 62);
   ok(ti.tier === 1 && ti.inTier === 12 && ti.left === 38, '차수 안 진행도가 맞는다',
     `${ti.name} ${ti.inTier}/${ti.step}`);
@@ -2163,10 +2286,18 @@ console.log('=== 31. 회귀 ===');
   const a0 = g.stats({ buffs: false });
   g.s.regress.points = 60;
   const a1 = g.stats({ buffs: false });
-  ok(a1.atk > a0.atk * 2, '기억이 공격력에 붙는다', `${a0.atk.toExponential(2)} → ${a1.atk.toExponential(2)}`);
-  ok(a1.hp > a0.hp * 2, '체력에도 붙는다');
-  ok(a1.goldMul > a0.goldMul * 2, '은자에도 붙는다');
-  ok(a1.expMul > a0.expMul * 2, '경험치에도 붙는다');
+  // 전투(공격력·체력)와 은자에는 기억의 배수를 **눌러 담아** 곱한다(kbig, POWER_K).
+  // 경험치는 그대로 곱한다. 비율이 정확히 그만큼인지 본다 — 안 붙거나 두 번 붙으면 어긋난다.
+  const pk = D.kbig(D.regressMult(60)).toNumber();
+  const ratio = (x, y) => big(x).div(y).toNumber();
+  const near = (x, y) => Math.abs(x / y - 1) < 1e-6;
+  ok(pk > 1.3, '기억 60개면 눌러 담아도 체감이 된다', `×${D.regressMult(60).toFixed(0)} → 눌러 담아 ×${pk.toFixed(3)}`);
+  ok(near(ratio(a1.atk, a0.atk), pk), '기억이 공격력에 붙는다 (눌러 담은 배수)',
+    `${a0.atk.toExponential(2)} → ${a1.atk.toExponential(2)} (×${ratio(a1.atk, a0.atk).toFixed(3)})`);
+  ok(near(ratio(a1.hp, a0.hp), pk), '체력에도 붙는다 (눌러 담은 배수)', `×${ratio(a1.hp, a0.hp).toFixed(3)}`);
+  ok(near(ratio(a1.goldMul, a0.goldMul), pk), '은자에도 붙는다 (눌러 담은 배수)', `×${ratio(a1.goldMul, a0.goldMul).toFixed(3)}`);
+  ok(near(ratio(a1.expMul, a0.expMul), big(D.regressMult(60)).toNumber()), '경험치에는 그대로 붙는다',
+    `×${ratio(a1.expMul, a0.expMul).toFixed(1)}`);
 
   // 회귀가 실제로 돌아가는가 — 조건이 너무 빡빡하면 영영 안 터진다
   {
@@ -2824,8 +2955,10 @@ console.log('\n=== 수련 단계 ===');
 {
   const g = new Game(migrate({ nickname: 't', job: 'sword', stage: 30, maxStage: 30, bestStage: 30, gold: 1e300 }));
   ok(g.upStage() === 1, '처음엔 1단계', `${g.upStage()}단계`);
-  ok(g.upCapOf('atk') === D.upTierLv('atk') && g.upCapOf('crit') === D.upTierLv('crit'),
-    '한 단계 = 축마다 한 차수', `외공 ${g.upCapOf('atk')} · 혈도 ${g.upCapOf('crit')}`);
+  // 한 단계는 축마다 차수의 1/5 (외공 12 · 쾌검 20 · 나머지 10레벨)
+  ok(Object.keys(D.UPGRADES).every((k) => g.upCapOf(k) === D.upStageLv(k) && D.upStageLv(k) === Math.ceil(D.upTierLv(k) / 5)),
+    '한 단계 = 축마다 차수의 1/5', `외공 ${g.upCapOf('atk')} · 쾌검 ${g.upCapOf('speed')} · 혈도 ${g.upCapOf('crit')}`);
+  ok(D.upStageLv('atk') === 12 && D.upStageLv('speed') === 20 && D.upStageLv('crit') === 10, '외공 12 · 쾌검 20 · 혈도 10');
   const bought = g.buyUpgrade('atk', 9999);
   ok(bought === g.upCapOf('atk') && g.upgradeMaxed('atk'), '단계 끝에서 멈춘다', `${bought}레벨`);
   ok(g.buyUpgrade('atk', 1) === 0, '다 찬 축은 더 안 사진다');
@@ -2842,6 +2975,116 @@ console.log('\n=== 수련 단계 ===');
   // 옛 세이브가 단계보다 높이 올려 둔 건 깎지 않는다 (사기만 막는다)
   const old = new Game(migrate({ nickname: 't', job: 'sword', stage: 10, maxStage: 10, bestStage: 900, upgrades: { atk: 500 } }));
   ok(old.s.upgrades.atk === 500 && old.upgradeMaxed('atk'), '옛 세이브의 높은 수련은 그대로 두고 더 사지만 못한다');
+}
+
+// ---------- 수치 눌러 담기 · 경지 스물 · 다시 도전 ----------
+// 관문 2000에서 공격력 10^56, 적 체력 10^77이던 걸 지수 1/8로 눌러 담았다(POWER_K).
+// 숫자가 다시 불어나지 않는지, 눌러 담은 채로도 끝까지 안 터지는지 본다.
+console.log('\n=== 수치 눌러 담기 ===');
+{
+  for (const st of [100, 500, 1000]) {
+    const l = D.monsterHp(st).log10();
+    ok(l < 16, `관문 ${st} 적 체력이 10^16 아래`, `10^${l.toFixed(1)}`);
+  }
+  ok(D.kpow(256) === 2 && D.kpow(1) === 1 && D.kpow(0) === 0, 'kpow는 1/8 제곱이다', `256 → ${D.kpow(256)}`);
+  ok(Math.abs(D.kbig(big('1e800')).log10() - 100) < 1e-9 && D.kbig(big(1)).eq(1),
+    'kbig도 1/8 제곱이고 10^308을 넘어도 된다', `10^800 → 10^${D.kbig(big('1e800')).log10().toFixed(0)}`);
+  // 적 곡선 — 5000관문까지 전부 수이고, 관문을 따라 오른다
+  let bad = [], prevHp = 0, prevAtk = 0, prevGold = 0, dropped = [];
+  for (let st = 1; st <= 5000; st += st < 100 ? 1 : 7) {
+    const hp = D.monsterHp(st), at = D.monsterAtk(st), gd = D.monsterGold(st);
+    const boss = big(hp).mul(D.BOSS_HP_MULT);
+    if (![hp, at, gd, boss].every((v) => fin(v) && pos(v))) bad.push(st);
+    const lh = big(hp).log10(), la = big(at).log10(), lg = big(gd).log10();
+    if (st > 1 && (lh < prevHp || la < prevAtk || lg < prevGold)) dropped.push(st);
+    prevHp = lh; prevAtk = la; prevGold = lg;
+  }
+  ok(!bad.length, '5000관문까지 적 체력·공격·은자·두목 체력이 전부 수다', bad.slice(0, 5).join(',') || `5000관문 적 체력 10^${D.monsterHp(5000).log10().toFixed(0)}`);
+  ok(!dropped.length, '관문을 따라 적이 약해지는 자리가 없다', dropped.slice(0, 5).join(','));
+
+  // 무인 쪽 — 관문마다 그 관문쯤 되는 세이브를 만들어 돌려 보고, 값이 다 수인지 본다
+  const allFin = (v) => {
+    if (v == null || typeof v === 'boolean' || typeof v === 'string') return true;
+    if (typeof v === 'number') return Number.isFinite(v);
+    if (v instanceof Big) return fin(v);
+    if (Array.isArray(v)) return v.every((x) => allFin(x?.hit ?? x));
+    return true;
+  };
+  const leaks = [];
+  for (const st of [1, 100, 500, 1000, 2000, 3000, 4000, 5000]) {
+    const g = strong(st);
+    g.s.maxStage = st;
+    // 적 체력에 맞는 수련 레벨을 거꾸로 푼다 (nan.mjs와 같은 셈)
+    const need = Math.ceil(Math.max(0, D.monsterHp(st).log10() - 1) / Math.log10(D.UP_VALUE_RATE));
+    Object.assign(g.s.upgrades, { atk: need, hp: need, crit: Math.round(st / 4), critDmg: Math.round(st / 2), hitMul: Math.round(st / 3) });
+    g.s.regress.points = Math.round(st * 2);
+    for (const k in g.s.skills) g.s.skills[k] = Math.max(35, Math.round(st / 2));
+    for (let i = 0; i < 30 * 10; i++) { g.tick(1 / 30); g.events.length = 0; }
+    g.challengeBoss();
+    for (let i = 0; i < 30 * 5; i++) { g.tick(1 / 30); g.events.length = 0; }
+    const st2 = g.stats();
+    for (const [k, v] of Object.entries(st2)) if (!allFin(v)) leaks.push(`관문 ${st} 능력치.${k}`);
+    for (const m of [g.mon, ...g.mons].filter(Boolean)) {
+      for (const k of ['hp', 'maxHp', 'atk']) if (m[k] != null && !allFin(m[k])) leaks.push(`관문 ${st} 적.${k}`);
+    }
+    if (!allFin(g.heroHp)) leaks.push(`관문 ${st} 내 체력`);
+    if (!allFin(g.s.gold)) leaks.push(`관문 ${st} 은자`);
+    if (!pos(st2.dps)) leaks.push(`관문 ${st} 초당 피해 ${st2.dps}`);
+  }
+  ok(!leaks.length, '5000관문까지 무인·적 값이 Infinity/NaN이 안 된다', leaks.slice(0, 4).join(' · ') || '전부 정상');
+}
+
+console.log('\n=== 경지 스물 ===');
+{
+  ok(D.RANKS.length === 20, '경지가 스물이다', `${D.RANKS[0].name} … ${D.RANKS[D.RANKS.length - 1].name}`);
+  ok(D.RANKS.every((r, i) => i === 0 || (r.level > D.RANKS[i - 1].level && r.stage > D.RANKS[i - 1].stage)),
+    '경지마다 요구 레벨·관문이 오른다', D.RANKS.map((r) => r.level).join(','));
+  ok(new Set(D.RANKS.map((r) => r.name)).size === D.RANKS.length, '경지 이름이 겹치지 않는다');
+  ok(D.RANK_MULT === 1.2, '경지 배수는 1.2', `×${D.RANK_MULT}`);
+  const top = new Game(migrate({ nickname: 't', rank: D.RANKS.length - 1 }));
+  const rm = top.rankMult();
+  ok(Number.isFinite(rm) && Math.abs(rm / Math.pow(D.RANK_MULT, D.RANKS.length - 1) - 1) < 0.25,
+    '마지막 경지의 배수가 1.2^19쯤이다', `×${rm.toFixed(1)}`);
+}
+
+console.log('\n=== 관문지기 다시 도전 ===');
+{
+  ok(newSave().autoBoss === true, '새 세이브는 다시 도전이 켜져 있다');
+  ok(migrate({}).autoBoss !== false, '옛 세이브도 켜진 채로 들어온다');
+  ok(migrate({ autoBoss: false }).autoBoss === false, '끈 것은 끈 채로 남는다');
+
+  // 관문지기에게 진 자리(수련 중)에서 시작한다
+  const g = strong(150);
+  g.s.farming = true;
+  g.s.kills = 0;
+  ok(Math.abs(g.autoBossLeft() - 45) < 1e-9, '수련으로 떨어지면 45초를 센다', `${g.autoBossLeft()}초`);
+  let t = 0;
+  for (; t < 44; t += 0.1) { g.tick(0.1); g.events.length = 0; }
+  ok(g.s.farming === true && g.autoBossLeft() > 0 && g.autoBossLeft() < 2, '44초째에는 아직 수련 중',
+    `남은 ${g.autoBossLeft()?.toFixed(1)}초`);
+  for (; t < 46; t += 0.1) { g.tick(0.1); g.events.length = 0; }
+  ok(g.s.farming === false && g.s.kills === D.KILLS_PER_STAGE && g.mon?.isBoss, '45초가 지나면 알아서 관문지기에게 간다',
+    `처치 ${g.s.kills}/${D.KILLS_PER_STAGE} · 두목 ${!!g.mon?.isBoss}`);
+  ok(g.autoBossLeft() === null, '도전 중에는 세지 않는다');
+
+  // 끄면 안 간다
+  const h = strong(150);
+  h.s.farming = true;
+  h.s.autoBoss = false;
+  for (let i = 0; i < 10 * 120; i++) { h.tick(0.1); h.events.length = 0; }
+  ok(h.s.farming === true && h.autoBossLeft() === null, '끄면 2분이 지나도 수련 그대로');
+
+  // 겨루기 중에는 세지 않는다 — 탑에서 돌아오자마자 관문지기에게 끌려가면 안 된다
+  const k = strong(150);
+  k.checkDaily(Date.UTC(2026, 9, 19));
+  k.s.farming = true;
+  for (let i = 0; i < 10 * 30; i++) { k.tick(0.1); k.events.length = 0; }
+  const leftBefore = k.autoBossLeft();
+  ok(leftBefore > 10 && leftBefore < 20, '30초 수련하면 15초쯤 남는다', `${leftBefore.toFixed(1)}초`);
+  ok(k.startTower() && k.mode === 'tower', '그 사이 탑에 들어간다', k.mode);
+  for (let i = 0; i < 10 * 120 && k.mode !== 'stage'; i++) { k.tick(0.1); k.events.length = 0; }
+  ok(k.mode === 'stage' && k.s.farming === true && Math.abs(k.autoBossLeft() - 45) < 1e-9,
+    '탑에서 돌아오면 수련 그대로, 45초를 처음부터 다시 센다', `${k.mode} · 남은 ${k.autoBossLeft()}초`);
 }
 
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
