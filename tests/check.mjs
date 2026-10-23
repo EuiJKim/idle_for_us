@@ -3147,5 +3147,49 @@ console.log('\n=== 무공 치명 단계 · Big 셈 · 영수 여럿 ===');
   ok(w.mon.crit <= 20 && w.mon.critDmg === 1.5 && w.mon.job === null, '남이 올린 터무니없는 치명·캐릭터 값은 잘라 낸다', `${w.mon.crit} · ${w.mon.critDmg} · ${w.mon.job}`);
 }
 
+// ---------- 겨루기에서 헛손질하던 무공 · 전직 시험 ----------
+console.log('\n=== 겨루기 상대에게 무공이 들어가는가 ===');
+{
+  // 겨루기 상대(this.mon)는 들판 목록에 없어서 축지·연환·장판·관통이 한 대도 안 들어갔다
+  const g = strong(300);
+  g.setJob('sword');
+  g.s.jobTier = 0;
+  g.tierOpen = () => true;
+  ok(g.startJobTest(), '전직 시험 시작');
+  ok(g.mons.length === 0 && g.fields.length === 0, '겨루기에 들어가면 들판 졸개가 물러난다', `졸개 ${g.mons.length}`);
+  ok(g.aliveMons().includes(g.mon), '겨루기 상대가 무공 과녁 목록에 든다');
+  for (const id of ['blink', 'chain', 'plum', 'pierce']) {
+    g.s.skillSlots = [id];
+    g.mon.hp = g.mon.maxHp;
+    for (const k of Object.keys(g.cd)) g.cd[k] = 0;
+    g.buffs = {};
+    const before = g.mon.hp;
+    g.mon.immortal = false;
+    g.useSkill(id);
+    for (let i = 0; i < 10 && g.mode === 'jobtest'; i++) g.tick(0.1);
+    ok(g.mode === 'jobtest' && g.mon.hp.lt(before), `${iga(g.skillDef(id).name)} 시험 상대에게 들어간다`, `${pctOf(big(before).sub(g.mon.hp), before)} 깎음`);
+  }
+  // 시험은 숨을 고르고 시작한다 — 무공 숨이 남아 있으면 운에 따라 떨어졌다
+  const h = strong(300);
+  h.setJob('sword');
+  h.s.jobTier = 0;
+  h.tierOpen = () => true;
+  for (const k of Object.keys(h.cd)) h.cd[k] = 9;
+  h.heroHp = big(1);
+  h.startJobTest();
+  ok(Object.values(h.cd).every((v) => v === 0) && h.heroHp.gte(h.stats().hp), '전직 시험은 무공 숨을 비우고 체력을 채운 채 시작한다');
+  // 시험 상대는 전부 내 체력의 몇 %로 때린다 — 벽 바로 앞에서 치러도 같은 시험
+  ok(D.JOB_TESTS.every((t) => t.atkHpFrac > 0), '전직 시험 상대 다섯 모두 내 체력 비례로 때린다',
+    D.JOB_TESTS.map((t) => `${t.name} ${t.atkHpFrac}`).join(' · '));
+  // 장판 무공 어림은 깔린 동안의 대수를 센다
+  const q = strong(300);
+  q.s.skillSlots = ['plum'];
+  const one = q.skillDps();
+  const plum = q.skillDef('plum');
+  const per = big(q.stats({ buffs: false }).atk).mul(q.stats({ buffs: false }).skillDmgMult).mul(q.skillMult(plum) * D.critTierMult(Math.floor(q.stats({ buffs: false }).crit), q.stats({ buffs: false }).critDmg) / Math.max(0.5, q.skillCdOf(plum)));
+  const ticks = big(one).div(per).toNumber();
+  ok(Math.abs(ticks - (1 + Math.floor(plum.fieldSec / plum.tickSec))) < 0.01, '장판(매화검진) 어림이 깔린 동안 벤 대수를 센다', `${ticks.toFixed(1)}대`);
+}
+
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);

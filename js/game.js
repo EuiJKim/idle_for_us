@@ -545,6 +545,11 @@ export class Game {
     const def = jobTestOf(this.s.job);
     if (!def) return false;
     const eq = jobTestStage(this.s.bestStage);
+    // 숨을 고르고 시작한다 — 무공 숨(쿨타임)을 비우고 체력을 채운다.
+    // 시험은 '이 사람이 붙을 수 있나'를 재는데, 들판에서 막 빙결·강화를 쓴 뒤에 들어가면
+    // 20초 시험에서 큰 무공 둘이 한 번씩 빠져 떨어졌다(같은 사람이 16.6초 통과 ↔ 시간초과).
+    for (const k of Object.keys(this.cd)) this.cd[k] = 0;
+    this.heroHp = this.stats().hp;
     this.beginContest('jobtest', def.time, {
       job: this.s.job, tier: this.jobTier() + 1, eq, goal: def.goal, need: def.need || 0,
       // 판정에 쓰는 것들. 하나도 새 축이 아니다 — 전부 여기서만 센다.
@@ -1748,7 +1753,12 @@ export class Game {
       const sk = this.skillDef(id);
       if (!sk || sk.kind !== 'dmg') continue;
       const tc = Math.floor(st.crit) + (sk.sure ? 1 : 0);
-      d = d.add(st.atk.mul(st.skillDmgMult).mul(this.skillMult(sk) * critTierMult(tc, st.critDmg) / Math.max(0.5, this.skillCdOf(sk))));
+      // 장판은 깔린 동안 계속 벤다 — 한 번 쓰면 (지속/간격 + 1)대. 한 대로 세면
+      // 매화검진이 어림의 45배를 넣어서, 이 값으로 체력을 정하는 시험이 6초에 끝났다.
+      // 떠도는 회오리는 상대 위를 늘 지나지 않으니 절반만 센다.
+      const ticks = sk.fieldSec && sk.tickSec
+        ? (1 + Math.floor(sk.fieldSec / sk.tickSec)) * (sk.motion === 'tornado' ? 0.5 : 1) : 1;
+      d = d.add(st.atk.mul(st.skillDmgMult).mul(this.skillMult(sk) * ticks * critTierMult(tc, st.critDmg) / Math.max(0.5, this.skillCdOf(sk))));
     }
     return d;
   }
@@ -2064,7 +2074,14 @@ export class Game {
 
   // ---------- 무공 동작 ----------
   // 살아 있는 적 중 조건에 맞는 것들
-  aliveMons() { return (this.mons || []).filter((m) => m.alive); }
+  // 겨루기(시험·심마·비경·비무·토벌)의 상대는 this.mon 하나뿐이고 들판 목록(mons)에 없다.
+  // 그걸 빼고 찾으면 축지·연환·장판·관통 넷이 상대를 못 찾아 **한 대도 안 들어갔다**
+  // (전직 3차가 '20초 안에 베라'인데 무공 절반이 헛손질이라 늘 시간초과였다).
+  aliveMons() {
+    const list = (this.mons || []).filter((m) => m.alive);
+    if (this.mon?.alive && !list.includes(this.mon)) list.push(this.mon);
+    return list;
+  }
 
   // (x, y)에서 반경 r 안의 적 전부에게 피해
   hitCircle(x, y, r, amount, kind) {
@@ -2766,6 +2783,11 @@ export class Game {
   // ---------- 공통: 던전·시련·결투·레이드 ----------
   beginContest(mode, time, extra = {}) {
     this.mode = mode;
+    // 들판의 졸개는 물러난다. 남겨 두면 보이지도 않는 졸개가 광역기에 맞아 쓰러지며
+    // 겨루는 도중에 처치·은자가 들어왔다. 끝나면 endContest가 들판을 다시 깐다.
+    for (const m of this.mons || []) m.alive = false;
+    this.mons = [];
+    this.fields = [];
     this.contest = { mode, time, maxTime: time, kills: 0, damage: 0, ...extra };
     this.raid = mode === 'raid' ? this.contest : null;
     this.heroHp = this.stats().hp;

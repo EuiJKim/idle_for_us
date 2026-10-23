@@ -51,7 +51,7 @@ export const critExpect = (C, D) => {
 // NaN이 된다 — 재 보니 적 체력이 관문 8467에서 그 선을 넘었다.
 // 반대로 상한이 있는 값(경지 배수·초월 단계처럼)은 보통 숫자 그대로 둔다.
 
-export const BUILD = 'ifu-v93';
+export const BUILD = 'ifu-v94';
 
 export const SAVE_VERSION = 4;
 export const OFFLINE_CAP_SEC = 12 * 3600;
@@ -906,15 +906,15 @@ export const PASSIVE_STAT_NAME = {
 // 체력 바닥·시간). 새로 세는 축을 만들면 그 축이 또 어딘가에서 죽는다.
 export const JOB_TESTS = [
   { job: 'sword', name: '일점', hanja: '一點', boss: '검을 시험하는 자',
-    goal: 'quick', time: 20, hpSec: 48,
+    goal: 'quick', time: 20, hpSec: 48, atkHpFrac: 0.04,
     ask: '관문지기를 20초 안에 벤다',
     why: '한 점을 꿰뚫는 자리다. 오래 걸리면 그 자리가 아니다.' },
   { job: 'ring', name: '일격', hanja: '一擊', boss: '단단한 바위',
-    goal: 'burst', time: 30, need: 0.25, hpSec: 78,
+    goal: 'burst', time: 30, need: 0.25, hpSec: 78, atkHpFrac: 0.03,
     ask: '한 번의 타격으로 적 체력의 25%를 깎는다',
     why: '한 번에 끝내는 자리다. 벨 필요도 없다 — 한 방이면 된다.' },
   { job: 'fist', name: '육합', hanja: '六合', boss: '맨손으로 맞는 자',
-    goal: 'noskill', time: 30, hpSec: 16,
+    goal: 'noskill', time: 30, hpSec: 16, atkHpFrac: 0.03,
     ask: '무공 없이 평타만으로 벤다',
     why: '맞붙는 자리다. 무공은 이 시험 동안 나가지 않는다.' },
   // hpSec = **지금 이 사람의 초당 피해 x 이 초**가 적 체력이다.
@@ -922,7 +922,10 @@ export const JOB_TESTS = [
   // 재 보니 여덟이 전부 0.4초에 끝나서, 적이 때려 보지도 못하고 죽는 바람에
   // '맞아 가며 이겨라'와 '버텨라'는 아무도 못 붙었다.
   //
-  // 아래 셋은 적의 공격을 **내 최대 체력의 몇 %**로 못박는다.
+  // 시험 상대의 공격은 전부 **내 최대 체력의 몇 %**로 못박는다(atkHpFrac).
+  // 처음엔 아래 셋만 그랬고 나머지는 monsterAtk였다 — 3차 시험쯤엔 벽 바로 앞이라
+  // 그 상대가 4초 만에 무인을 눕혀서, 20초 안에 베라는 시험이 '죽지 마라'가 됐다.
+  // 버티라는 시험이 아니면 한 판 내내 맞아도 절반쯤 남게 둔다.
   // monsterAtk로 두면 세기가 사람마다 제멋대로다 — 재 보니 관문 200에서는
   // 한 대에 죽고 관문 390에서는 한 대도 안 아팠다. 같은 시험이 아니게 된다.
   { job: 'fan', name: '환영', hanja: '幻影', boss: '헛손질하는 자',
@@ -930,7 +933,7 @@ export const JOB_TESTS = [
     ask: '체력 80% 위를 지킨 채로 벤다',
     why: '홀리는 자리다. 오래 끌면 손이 닿는다 — 닿기 전에 끝내라.' },
   { job: 'poison', name: '적공', hanja: '積功', boss: '쉬이 죽지 않는 것',
-    goal: 'grind', time: 90, hpSec: 1050,
+    goal: 'grind', time: 90, hpSec: 200, atkHpFrac: 0.012,
     ask: '90초 안에 아주 단단한 것을 눕힌다',
     why: '서서히 죽이는 자리다. 한 방은 없다.' },
 ];
