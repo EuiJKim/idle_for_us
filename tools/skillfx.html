@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>무공 미리보기</title>
+<!-- 그림·모듈 경로를 저장소 맨 위 기준으로 맞춘다 (art/fx/*, art/zone/* 를 게임과 같은 길로 읽게) -->
+<base href="../">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Yuji+Syuku&family=Nanum+Brush+Script&family=Gowun+Batang:wght@400;700&display=swap">
+<style>
+  :root { --bg: #0f0d0b; --card: #221d17; --line: #3d3328; --text: #f1e8d6; --muted: #a8987f; --accent: #a3242a; --gold: #d4a64a; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); font: 14px -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", system-ui, sans-serif; }
+  #wrap { max-width: 560px; margin: 0 auto; }
+  #stage { position: relative; height: 52vh; min-height: 320px; max-height: 520px; }
+  #cv { display: block; width: 100%; height: 100%; }
+  #hud { position: absolute; left: 8px; top: 8px; right: 8px; display: flex; justify-content: space-between; pointer-events: none; font-size: 12px; }
+  #hud span { background: rgba(0,0,0,0.55); padding: 3px 9px; border-radius: 999px; }
+  .bar { display: flex; gap: 6px; flex-wrap: wrap; padding: 8px 10px; border-bottom: 1px solid var(--line); background: #120f0b; }
+  .bar label { display: inline-flex; gap: 4px; align-items: center; color: var(--muted); font-size: 12px; }
+  select, button { font: inherit; color: var(--text); background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 6px 9px; }
+  button.on { background: var(--accent); border-color: var(--accent); }
+  #groups { display: flex; gap: 5px; overflow-x: auto; padding: 8px 10px; }
+  #groups button { white-space: nowrap; flex: none; }
+  #skills { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; padding: 0 10px 10px; }
+  #skills button { text-align: left; padding: 8px; line-height: 1.3; }
+  #skills small { display: block; color: var(--muted); font-size: 11px; }
+  #info { margin: 0 10px 20px; padding: 10px 12px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; line-height: 1.6; }
+  #info h3 { margin: 0 0 4px; font-family: "Gowun Batang", serif; }
+  #info code { color: var(--gold); }
+  .tier { color: var(--gold); font-size: 11px; }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="stage">
+    <canvas id="cv"></canvas>
+    <div id="hud"><span id="hud-l">무공 미리보기</span><span id="hud-r"></span></div>
+  </div>
+
+  <div class="bar">
+    <button id="cast" class="on">▶ 시전</button>
+    <button id="loop">반복 끔</button>
+    <label>간격 <select id="every"><option value="1.2">1.2초</option><option value="2" selected>2초</option><option value="3">3초</option><option value="5">5초</option></select></label>
+    <label>속도 <select id="speed"><option value="1" selected>1배</option><option value="0.5">0.5배</option><option value="0.25">0.25배</option><option value="0.1">0.1배</option></select></label>
+    <label>지역 <select id="zone"></select></label>
+    <label><input type="checkbox" id="nohit" checked> 평타 끄기</label>
+    <label><input type="checkbox" id="nojob"> 문파 기운 끄기</label>
+  </div>
+
+  <div id="groups"></div>
+  <div id="skills"></div>
+  <div id="info"></div>
+</div>
+
+<script type="module">
+// 무공 하나를 골라 들판 위에서 되풀이해 보는 연습 무대.
+//
+// **게임과 같은 엔진·같은 그림으로 돈다.** Game과 BattleView를 그대로 쓰고,
+// 다른 점은 셋뿐이다 — 적은 죽지 않고(체력을 매 프레임 채운다), 무인은 다치지
+// 않고, 고른 무공은 쿨타임 없이 바로 나간다. 그래서 여기서 보이는 게 곧 실제 연출이다.
+//
+// 주소 끝에 ?skill=jsword3&loop=1&speed=0.5 처럼 붙이면 그 상태로 바로 연다.
+import { Game, newSave } from './js/game.js';
+import { BattleView } from './js/battle.js';
+import { SKILLS, JOBS, ZONES, jobOf, qiOf, QI } from './js/data.js';
+
+const $ = (id) => document.getElementById(id);
+const q = new URLSearchParams(location.search);
+const STAGE_BASE = 16 * 10 * 3;   // 지역 한 바퀴(16곳 x 10관문)를 세 번 돈 자리 — 3차 계열 무공(420)까지 다 열린다
+
+let game = null;
+let view = null;
+let cur = q.get('skill') || 'slash';
+let looping = q.get('loop') === '1';
+let timer = 0;
+
+const groupOf = (sk) => sk.job || 'common';
+const GROUPS = [{ id: 'common', name: '공용', color: '#f1e8d6' }, ...JOBS.map((j) => ({ id: j.id, name: j.name, color: j.color }))];
+
+// ---------- 무대 만들기 ----------
+function build() {
+  const zi = Number($('zone').value || 0);
+  const sk = SKILLS.find((x) => x.id === cur);
+  const s = newSave();
+  s.nickname = '미리보기';
+  s.stage = STAGE_BASE + zi * 10 + 5;
+  s.maxStage = s.stage;
+  s.bestStage = s.stage;
+  s.rank = 9;
+  s.level = 500;
+  s.autoSkill = false;
+  // 계열 무공이면 그 문파로 전직해 둔다. 공용 무공은 '문파 기운 끄기'에 따라 정한다.
+  s.job = sk?.job || ($('nojob').checked ? null : (s.job || null));
+  game = new Game(s);
+  game.events.length = 0;
+  if (!view) view = new BattleView($('cv'));
+  view.game = game;
+  timer = 0;
+}
+
+// 적은 죽지 않고, 무인은 다치지 않는다
+function keepAlive() {
+  for (const m of game.mons || []) {
+    if (!m.alive) continue;
+    m.hp = m.maxHp;
+    m.atkTimer = 99;
+  }
+  if (game.mon?.alive) { game.mon.hp = game.mon.maxHp; game.mon.atkTimer = 99; }
+  game.heroHp = game.stats().hp;
+  if ($('nohit').checked) game.atkTimer = 99;
+}
+
+function cast() {
+  const sk = SKILLS.find((x) => x.id === cur);
+  if (!sk || !game) return false;
+  if (!sk.job) {
+    if (game.s.skillSlots[0] !== sk.id) {
+      const at = game.s.skillSlots.indexOf(sk.id);
+      if (at > 0) game.s.skillSlots[at] = null;
+      game.s.skillSlots[0] = sk.id;
+    }
+  }
+  game.cd[sk.id] = 0;
+  const ok = game.useSkill(sk.id);
+  $('hud-r').textContent = ok ? `${sk.name} 시전` : '적이 아직 없어요';
+  return ok;
+}
+
+// ---------- 화면 ----------
+function renderGroups() {
+  const g = groupOf(SKILLS.find((x) => x.id === cur) || SKILLS[0]);
+  $('groups').replaceChildren(...GROUPS.map((gr) => {
+    const b = document.createElement('button');
+    b.textContent = gr.name;
+    b.style.borderColor = gr.color;
+    if (gr.id === g) b.classList.add('on');
+    b.onclick = () => {
+      const first = SKILLS.find((x) => groupOf(x) === gr.id);
+      if (first) pick(first.id);
+    };
+    return b;
+  }));
+}
+
+function renderSkills() {
+  const g = groupOf(SKILLS.find((x) => x.id === cur) || SKILLS[0]);
+  const list = SKILLS.filter((x) => groupOf(x) === g);
+  $('skills').replaceChildren(...list.map((sk) => {
+    const b = document.createElement('button');
+    if (sk.id === cur) b.classList.add('on');
+    const tier = sk.job ? `<span class="tier">${(sk.jobTier || 0) + 1}차</span> ` : '';
+    b.innerHTML = `${tier}${sk.name}<small>${sk.motion || sk.kind} · ${sk.id}</small>`;
+    b.onclick = () => pick(sk.id);
+    return b;
+  }));
+}
+
+function renderInfo() {
+  const sk = SKILLS.find((x) => x.id === cur);
+  if (!sk) return;
+  const job = jobOf(sk.job);
+  const qi = qiOf(sk.id);
+  const lv = 1;
+  const desc = sk.desc ? sk.desc(sk.mult(lv), lv) : '';
+  const facts = [
+    ['id', sk.id], ['종류', sk.kind], ['동작', sk.motion || '-'], ['대상', sk.target || '-'],
+    ['쿨타임', `${sk.cd}초`], sk.radius && ['반경', sk.radius], sk.dur && ['지속', `${sk.dur}초`],
+    sk.fieldSec && ['장판', `${sk.fieldSec}초 / ${sk.tickSec}초마다`], sk.dashDist && ['돌진', `${sk.dashDist} x ${sk.dashWidth}`],
+    sk.pierceLen && ['관통', `${sk.pierceLen} x ${sk.pierceWidth}`], sk.cc && ['상태이상', `${sk.cc} ${sk.ccSec}초`],
+    sk.bossMult && ['두목 배수', sk.bossMult], sk.sure && ['확정 치명', '예'],
+    qi && ['기운', `${QI[qi.leaves]?.name} 남김 · ${QI[qi.feeds]?.name} 먹음`],
+  ].filter(Boolean);
+  $('info').innerHTML = `<h3>${sk.name}${job ? ` <small style="color:${job.color}">· ${job.name} ${(sk.jobTier || 0) + 1}차</small>` : ''}</h3>`
+    + `<div>${desc}</div><div style="margin-top:6px;color:var(--muted)">`
+    + facts.map(([k, v]) => `${k} <code>${v}</code>`).join(' · ') + '</div>';
+  $('hud-l').textContent = `${sk.name}${job ? ` · ${job.name}` : ''}`;
+}
+
+function pick(id) {
+  const prev = SKILLS.find((x) => x.id === cur);
+  cur = id;
+  const sk = SKILLS.find((x) => x.id === id);
+  // 문파가 바뀌면 무대를 새로 깐다 (전직 상태가 달라지므로)
+  if (!prev || prev.job !== sk.job) build();
+  renderGroups();
+  renderSkills();
+  renderInfo();
+  const u = new URL(location.href);
+  u.searchParams.set('skill', id);
+  history.replaceState(null, '', u);
+  setTimeout(cast, 120);
+}
+
+// ---------- 루프 ----------
+let last = performance.now();
+function frame(now) {
+  let dt = Math.min(0.1, (now - last) / 1000);
+  last = now;
+  dt *= Number($('speed').value);
+  keepAlive();
+  const steps = Math.max(1, Math.ceil(dt / 0.05));
+  for (let i = 0; i < steps; i++) game.tick(dt / steps);
+  keepAlive();
+  for (const ev of game.events) view.handle(ev, game);
+  game.events.length = 0;
+  view.draw(game, dt);
+  if (looping) {
+    timer += dt;
+    if (timer >= Number($('every').value)) { timer = 0; cast(); }
+  }
+  requestAnimationFrame(frame);
+}
+
+// ---------- 시작 ----------
+$('zone').replaceChildren(...ZONES.map((z, i) => { const o = document.createElement('option'); o.value = i; o.textContent = z.name; return o; }));
+$('zone').value = q.get('zone') || '0';
+if (q.get('speed')) $('speed').value = q.get('speed');
+$('cast').onclick = cast;
+$('loop').onclick = () => { looping = !looping; $('loop').textContent = looping ? '반복 켬' : '반복 끔'; $('loop').classList.toggle('on', looping); };
+$('loop').textContent = looping ? '반복 켬' : '반복 끔';
+$('loop').classList.toggle('on', looping);
+$('zone').onchange = () => { build(); };
+$('nojob').onchange = () => { build(); };
+
+build();
+renderGroups();
+renderSkills();
+renderInfo();
+// 적이 들판에 깔릴 시간을 조금 준다
+setTimeout(cast, 700);
+requestAnimationFrame((t) => { last = t; frame(t); });
+window.__preview = { get game() { return game; }, cast, pick };
+</script>
+</body>
+</html>

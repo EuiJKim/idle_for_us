@@ -62,6 +62,8 @@ js/main.js      시작, 저장, 게임 루프, 방치 보상, 설정
 sw.js           오프라인 캐시 (파일을 바꾸면 CACHE 이름을 올릴 것)
 tools/gallery.html  모든 경지·적 무인을 한 장에 그려 보는 도감 (그림 확인용)
 tools/icon.html     앱 아이콘 생성 페이지
+tools/skillfx.html  무공 미리보기 — 무공 하나를 골라 들판 위에서 되풀이해 본다. 적은 안 죽고 무인은 안 다친다.
+                    주소에 ?skill=jsword3&loop=1&speed=0.5 처럼 붙이면 그 상태로 열린다.
 ```
 
 ### 창 구조
