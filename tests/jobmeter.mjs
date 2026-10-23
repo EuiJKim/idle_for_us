@@ -1,4 +1,4 @@
-// 계열을 공정하게 잰다 — 능력치만이 아니라 **전용 무공까지 돌려서**.
+// 캐릭터를 공정하게 잰다 — 능력치만이 아니라 **각성한 무공까지 돌려서**.
 //
 // 도달 관문으로 비교하면 두목 DPS 쪽으로 편향된다(1차에서 겪었다).
 // 그래서 같은 세이브에 계열만 바꿔 끼우고 실제 전투를 돌려 넷을 센다:
@@ -8,7 +8,7 @@
 //   JOBMETER_SAVE=save.json node tests/jobmeter.mjs [관문] [초]
 import fs from 'node:fs';
 import { Game, migrate } from '../js/game.js';
-import { JOBS, jobSkillOf, KILLS_PER_STAGE } from '../js/data.js';
+import { JOBS, KILLS_PER_STAGE, TIER_MAX, skillFor } from '../js/data.js';
 
 const SAVE_PATH = process.env.JOBMETER_SAVE;
 if (!SAVE_PATH) throw new Error('JOBMETER_SAVE=세이브경로 가 필요하다 (sim.mjs가 SIM_SAVE로 떨군다)');
@@ -29,15 +29,16 @@ function make(job, withSkill) {
   s.stage = STAGE;
   s.bestStage = 9999;     // 해금용. 적의 세기는 stage가 정하므로 비교는 안 깨진다
   s.autoSkill = true;
-  s.job = null; s.taste = null;
+  s.job = null; s.jobTier = 0; s.legacyJob = null;
   const g = new Game(s);
   g.rng = seeded();
-  // 여기서 재는 건 계열 보너스의 크기다. 전직 시험은 통과한 셈 치고 넣는다.
-  for (const id of Object.keys(g.s.jobTests)) g.s.jobTests[id] = true;
-  if (job) g.s.jobTests[job] = true;
-  if (job && !g.setJob(job)) throw new Error(`${job} 입문 실패`);
-  // 전용 무공을 뺀 채로도 잰다 — 보너스의 몫과 무공의 몫을 가르기 위해서다
-  if (!withSkill) g.jobSkillId = () => null;
+  // 여기서 재는 건 캐릭터 보너스의 크기다. 전직 시험은 붙은 셈 치고 끝 차수로 넣는다
+  // (bestStage 9999라 처음 고르면 바로 3차다).
+  if (job && !g.setJob(job)) throw new Error(`${job} 고르기 실패`);
+  if (job) g.s.jobTier = TIER_MAX;
+  // 각성 무공을 뺀 채로도 잰다 — 보너스의 몫과 무공의 몫을 가르기 위해서다.
+  // 무공을 캐릭터 없는 기본 모습으로 되돌린다(이름·형태·차수 배수가 다 빠진다).
+  if (!withSkill) g.skillDef = (id) => skillFor(id, null, 0);
   // 번 것을 센다 (s.stats에는 경험치 항목이 없다)
   g.earned = { gold: 0, exp: 0 };
   const ag = g.addGold.bind(g);
@@ -109,13 +110,13 @@ const base = measure(null, false);
 const r = (a, b) => (b > 0 ? a / b : a > 0 ? Infinity : 1);
 
 console.log(`\n관문 ${STAGE} · ${SEC}초 전투 · 직업없음 = 1.00`);
-console.log('계열      전용무공       두목   졸개   은자  경험치  버티기   무공의 몫(두목)');
+console.log('캐릭터    끝 차수        두목   졸개   은자  경험치  버티기   무공의 몫(두목)');
 for (const j of JOBS) {
   const only = measure(j.id, false);
   const all = measure(j.id, true);
   const f = (x) => x.toFixed(2).padStart(6);
   console.log(
-    `${j.name.padEnd(6)} ${(jobSkillOf(j.id)?.name || '').padEnd(9)}`
+    `${j.name.padEnd(6)} ${(j.tiers?.[TIER_MAX] || '').padEnd(9)}`
     + ` ${f(r(all.boss, base.boss))} ${f(r(all.kills, base.kills))}`
     + ` ${f(r(all.gold, base.gold))} ${f(r(all.exp, base.exp))}`
     + ` ${f(r(all.alive, base.alive))}`

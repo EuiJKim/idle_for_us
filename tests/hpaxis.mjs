@@ -3,7 +3,7 @@
 // 적 공격력은 관문당 자라는데 플레이어 체력은 그만큼 안 자란다.
 // 공격력에만 붙는 배수(치명·속도·영수·심검·무공 총연마·문파)가
 // 체력에는 하나도 안 붙기 때문이다. 격차가 벌어지면 체력 수련·호신의·
-// 심의·운기조식·마불의 체력 x2.5가 **통째로 죽는다.**
+// 심의·내공 패시브(옛 운기조식·마불의 체력 x2.5)가 **통째로 죽는다.**
 //
 //   HPAXIS_SAVE=.../now_24h.json node tests/hpaxis.mjs
 import fs from 'node:fs';
@@ -45,7 +45,8 @@ for (const [name, tw] of [
   ['체력 수련 +50', (s) => { s.upgrades.hp += 50; }],
   ['체력 수련 +200', (s) => { s.upgrades.hp += 200; }],
   ['호신의 천품 10개', (s) => { s.equips.armor[5] += 10; }],
-  ['마불 (체력 x2.5)', (s) => { s.bestStage = 9999; s.jobTests = Object.fromEntries(D.JOBS.map((j) => [j.id, true])); s.job = 'monk'; }],
+  // 체력 x2.5를 주던 마불은 없어졌다. 캐릭터가 주는 체력은 이제 검사 내공(단전) 패시브다.
+  ['검사 단전 50 (체력 x2)', (s) => { s.job = 'sword'; s.passives = { ...(s.passives || {}), 'sword-nei': D.PASSIVE_MAX }; }],
 ]) {
   const g = mk(tw);
   const h = g.stats().hp;

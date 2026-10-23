@@ -47,6 +47,18 @@ export const POSES = {
   내려베기: P({ lean: 0.44, crouch: 0.45, dx: 10, hand: [0.85, 27], blade: 0.95, wscale: W }),
   // 칼을 거꾸로 잡아 허리로 거둔다
   납도: P({ lean: 0.03, crouch: 0.08, hand: [2.0, 16], blade: PI - 0.5, wscale: W }),
+  // ---- 독낭 (독마) ----
+  투척준비: P({ lean: -0.18, crouch: 0.2, dx: -4, hand: [-2.3, 24], blade: -2.2, wscale: W }),
+  투척: P({ lean: 0.3, crouch: 0.18, dx: 8, hand: [-0.25, 30], blade: -0.35, stretch: 0.05, wscale: W }),
+  흩뿌리기: P({ lean: 0.22, crouch: 0.3, dx: 6, hand: [0.55, 30], blade: 0.7, wscale: W }),
+  땅짚기: P({ lean: 0.35, crouch: 0.75, dx: 6, hand: [1.35, 30], blade: 1.5, wscale: W }),
+  장타: P({ lean: 0.34, crouch: 0.32, dx: 12, hand: [0.02, 31], blade: -1.2, stretch: 0.06, wscale: W }),
+  // ---- 부채 (환마) ----
+  펼치기: P({ lean: -0.08, crouch: 0.1, hand: [-1.2, 22], blade: -1.4, wscale: W }),
+  휘두르기: P({ lean: 0.24, crouch: 0.16, dx: 6, hand: [0.1, 30], blade: -0.4, wscale: W }),
+  // ---- 지환 (극악소마) ----
+  지법겨눔: P({ lean: 0.12, crouch: 0.15, dx: 4, hand: [-0.08, 32], blade: -0.08, wscale: W }),
+  손가락튕김: P({ lean: -0.06, crouch: 0.12, hand: [-0.2, 30], blade: -0.5, wscale: W }),
 };
 
 const lerp = (a, b, k) => a + (b - a) * k;

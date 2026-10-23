@@ -23,12 +23,14 @@ const ok = (cond, label, extra = '') => {
 const srcOf = (rel) => fs.readFileSync(new URL('../' + rel, import.meta.url), 'utf-8');
 
 const seeded = (s = 12345) => () => ((s = (s * 1103515245 + 12345) % 2147483648) / 2147483648);
+// 이름 뒤 조사 '이/가' — 받침이 있으면 '이', 없으면 '가'
+const iga = (w) => { const c = String(w).charCodeAt(String(w).length - 1) - 0xac00; return `${w}${c >= 0 && c < 11172 && c % 28 ? '이' : '가'}`; };
 
 function strong(stage = 150) {
   const s = newSave();
   Object.assign(s, {
     stage, bestStage: stage, level: 1200, rank: 5, nickname: '시험',
-    skillSlots: ['slash', 'thunder', 'frost', 'meteor'], autoSkill: true,
+    skillSlots: ['slash', 'thunder', 'frost', 'plum'], autoSkill: true,
     gold: 1e18, gems: 1e7, stones: 1e9, books: 1e8, food: 1e7, relicShards: 1e6,
   });
   Object.assign(s.upgrades, { atk: 320, hp: 230, crit: 45, critDmg: 70, speed: 34 });
@@ -36,9 +38,8 @@ function strong(stage = 150) {
   for (const t of ['weapon', 'armor', 'ring']) { s.codex[t] = [1, 1, 1, 1, 1, 1]; s.equips[t] = [0, 0, 0, 40, 20, 6]; }
   s.enhance = { weapon: 40, armor: 34, ring: 30 };
   const g = new Game(s);
-  // 전직 시험은 18절에서 따로 본다. 다른 축을 재는 캐릭터까지 시험을
-  // 치르게 하면 재려는 것이 시험 결과에 가린다.
-  for (const j of D.JOBS) g.s.jobTests[j.id] = true;
+  // 캐릭터는 고르지 않은 채로 둔다(s.job = null). 계열을 보는 절(18~)에서
+  // 따로 고른다 — 다른 축을 재는 자리에 계열 배수가 섞이면 재려는 것이 가린다.
   g.rng = seeded();
   g.spawn();
   return g;
@@ -264,13 +265,15 @@ console.log('\n=== 7. 무공 칸·물결 보상·상태이상·선택 상자·�
   }
 
   // 옛 세이브가 안 열린 칸까지 들고 있으면 비워 준다
+  // (무공이 여덟으로 줄어서 지금 있는 무공으로만 채운다 — 없어진 무공은 22절에서 본다)
   const oldSave = migrate({ maxStage: 150, bestStage: 150,
-    skillSlots: ['slash', 'rage', 'heal', 'thunder', 'gale', 'midas'] });
+    skillSlots: ['slash', 'rage', 'thunder', 'frost', 'blink', 'chain'] });
   const gOld = new Game(oldSave);
   ok(oldSave.skillSlots.filter(Boolean).length === gOld.skillSlotCount(),
     '옛 세이브의 넘치는 무공이 정리된다',
     `6개 → ${oldSave.skillSlots.filter(Boolean).length}개`);
-  ok(gOld.useSkill('gale') === false, '안 열린 칸에 남은 무공은 안 나간다');
+  ok(D.SKILLS.find((x) => x.id === 'blink').unlock <= 150, '축지참은 150관문이면 이미 열려 있다');
+  ok(gOld.useSkill('blink') === false, '안 열린 칸에 남은 무공은 안 나간다');
 
   // 물결 보상
   const total = D.waveCount(300);
@@ -290,7 +293,7 @@ console.log('\n=== 7. 무공 칸·물결 보상·상태이상·선택 상자·�
   // 상태이상 — 적이 살아남도록 일부러 약하게 만든다
   const s2 = newSave();
   Object.assign(s2, { stage: 150, bestStage: 150, level: 200,
-    skillSlots: ['slash', 'thunder', 'frost', 'meteor'], autoSkill: false });
+    skillSlots: ['slash', 'thunder', 'frost', 'plum'], autoSkill: false });
   Object.assign(s2.upgrades, { atk: 60, hp: 60 });
   for (const k in s2.skills) s2.skills[k] = 3;
   const g2 = new Game(s2); g2.rng = seeded(7); g2.spawn();
@@ -298,7 +301,8 @@ console.log('\n=== 7. 무공 칸·물결 보상·상태이상·선택 상자·�
   const alive = () => g2.mons.filter((z) => z.alive);
   g2.useSkill('thunder'); const nSlow = alive().filter((z) => z.slow > 0).length;
   g2.useSkill('slash'); const nBleed = alive().filter((z) => z.bleed > 0).length;
-  g2.useSkill('meteor'); const nWeak = alive().filter((z) => z.weak > 0).length;
+  // 파쇄는 이제 매화검진(장판)이 건다. 장판은 깔린 뒤 첫 박자에 들어간다.
+  g2.useSkill('plum'); g2.updateFields(1 / 60); const nWeak = alive().filter((z) => z.weak > 0).length;
   ok(nSlow > 0, '둔화가 걸린다', `${nSlow}마리`);
   ok(nBleed > 0, '출혈이 걸린다', `${nBleed}마리`);
   ok(nWeak > 0, '파쇄가 걸린다', `${nWeak}마리`);
@@ -309,8 +313,15 @@ console.log('\n=== 7. 무공 칸·물결 보상·상태이상·선택 상자·�
   const slowOnes = alive().filter((z) => z.slow > 0);
   for (let i2 = 0; i2 < 60 * 8; i2++) g2.tickCC(1 / 60);
   ok(slowOnes.every((z) => !(z.slow > 0)), '상태이상이 시간이 지나면 풀린다');
-  ok(D.SKILLS.filter((k) => k.cc).length >= 9, '상태이상을 가진 무공 수',
-    `${D.SKILLS.filter((k) => k.cc).length}종`);
+  // 무공이 여덟으로 줄었다. 수 대신 '피해 무공 대부분이 상태이상을 갖고,
+  // 네 가지(출혈·둔화·파쇄·빙결)가 다 남아 있는가'를 본다.
+  const dmgSk = D.SKILLS.filter((k) => k.kind === 'dmg');
+  const ccSk = dmgSk.filter((k) => k.cc);
+  ok(ccSk.length >= dmgSk.length - 1, '피해 무공 거의 전부가 상태이상을 건다',
+    `${ccSk.length}/${dmgSk.length}종`);
+  const ccKinds = new Set(ccSk.map((k) => k.cc));
+  ok(['bleed', 'slow', 'weak', 'freeze'].every((c) => ccKinds.has(c)), '상태이상 네 가지가 다 남아 있다',
+    [...ccKinds].join(','));
 
   // 선택 상자
   const g3 = new Game(newSave()); g3.rng = seeded(3);
@@ -891,105 +902,236 @@ console.log('\n=== 17. 방치와 날짜 ===');
   ok(g5.mode === 'stage', '자정을 넘긴 겨루기도 끝난다');
 }
 
-// ---------- 18. 문파 (직업 8계열) ----------
-console.log('\n=== 18. 문파 ===');
+// ---------- 18. 캐릭터 ----------
+// 전에는 여덟 계열을 화경에서야 골랐다. 이제 몇 안 되는 캐릭터 중 하나를 처음 시작할 때 고른다.
+console.log('\n=== 18. 캐릭터 고르기 ===');
 {
-  const g = strong(500);
-  g.s.jobTests = {};          // 이 절은 시험 문턱 자체를 본다
-  g.s.rank = D.JOB_RANK - 1;
-  ok(!g.jobOpen(), `${D.RANKS[D.JOB_RANK].name} 전에는 못 고른다`, D.RANKS[g.s.rank].name);
-  g.s.rank = D.JOB_RANK;
-  ok(g.jobOpen(), `${D.RANKS[D.JOB_RANK].name}부터 고를 수 있다`);
+  // 캐릭터 수는 박아 두지 않는다 (늘거나 줄 수 있다). 겹치지 않고, 기본 넷이 있는지만 본다.
+  ok(new Set(D.JOBS.map((j) => j.id)).size === D.JOBS.length
+    && ['sword', 'fist', 'fan', 'poison'].every((id) => D.jobOf(id)), '캐릭터 목록이 겹치지 않고 기본 넷이 있다',
+    `${D.JOBS.length}명 — ${D.JOBS.map((j) => j.name).join(',')}`);
+  ok(D.OLD_JOBS.every((id) => !D.jobOf(id)), '없어진 계열은 JOBS에 안 남아 있다', D.OLD_JOBS.join(','));
+  for (const j of D.JOBS) {
+    const tiers = Array.isArray(j.tiers) ? j.tiers : [];
+    ok(tiers.length === D.TIER_MAX + 1 && new Set(tiers).size === tiers.length
+      && tiers.every((t) => typeof t === 'string' && t.length > 0),
+      `${j.name}에 차수 이름이 ${D.TIER_MAX + 1}개 다 있다`, tiers.join('→') || '없음');
+    ok(!!j.look && !!j.mult, `${j.name}에 생김새(look)와 배수(mult)가 있다`, j.look || '없음');
+    ok(D.tierName(j.id, D.TIER_MAX) === tiers[D.TIER_MAX], `${j.name}의 마지막 차수 이름을 읽는다`, D.tierName(j.id, D.TIER_MAX));
+  }
 
-  // 해금은 관문으로 하나씩. **문이 열린 것과 들어갈 수 있는 건 다르다** —
-  // 사이에 전직 시험이 있다.
-  g.s.bestStage = 1;
-  ok(g.jobStageOpenCount() === 1, '화경에 닿으면 첫 계열 문만 열린다', `${g.jobStageOpenCount()}개`);
-  g.s.bestStage = 9999;
-  ok(g.jobStageOpenCount() === D.JOBS.length, '관문을 다 올리면 문이 전부 열린다',
-    `${g.jobStageOpenCount()}/${D.JOBS.length}`);
-  ok(g.jobUnlockedCount() === 0, '문이 열려도 시험을 안 봤으면 못 들어간다',
-    `${g.jobUnlockedCount()}개`);
-  ok(D.JOB_UNLOCK.length === D.JOBS.length, '해금 지점이 계열 수만큼 있다');
-  ok(D.JOB_UNLOCK.every((v, k) => k === 0 || v > D.JOB_UNLOCK[k - 1]),
-    '해금 관문이 오름차순이다', D.JOB_UNLOCK.join(','));
+  // 처음에는 비어 있고, 고르라는 창이 떠야 한다
+  const g = new Game(newSave());
+  ok(g.s.job === null && g.needsClass(), '새 판은 캐릭터가 비어 있고 고르라고 한다');
+  ok(g.jobTier() === 0, '고르기 전 차수는 0');
+  ok(g.classChangeCost() === 0, '처음 고르는 값은 0');
 
-  // 안 열린 계열은 못 고른다
-  g.s.bestStage = 1;
-  const locked = D.JOBS[D.JOBS.length - 1].id;
-  ok(g.setJob(locked) === false, '안 열린 계열은 못 고른다');
-  ok(g.s.job === null, '못 골랐으면 비어 있다');
+  // 없는 것·없어진 것·비우기는 안 된다
+  ok(g.setJob(null) === false && g.s.job === null, '비우는 건 안 된다 (null)');
+  ok(g.setJob('없는것') === false, '없는 캐릭터는 못 고른다');
+  ok(D.OLD_JOBS.every((id) => g.setJob(id) === false), '없어진 계열은 못 고른다');
+  ok(g.s.job === null, '못 골랐으면 그대로 비어 있다');
 
-  // 고르고 바꾸고 그만두기
-  g.s.bestStage = 9999;
-  ok(g.setJob(D.JOBS[0].id) === false, '시험을 안 봤으면 못 들어간다');
-  for (const j of D.JOBS) g.s.jobTests[j.id] = true;
-  ok(g.setJob(D.JOBS[0].id), '시험에 붙으면 들어간다');
-  // **처음 드는 건 공짜, 바꾸는 건 공적이 든다.** 전에는 공짜로 갈아탈 수
-  // 있어서 상황마다 바꾸는 게 늘 이득이었다 — 고르는 게 고르는 일이 아니었다.
-  ok(g.jobSwitchCost(D.JOBS[1].id) > 0, '바꾸는 데 공적이 든다',
-    `${g.jobSwitchCost(D.JOBS[1].id)}`);
-  ok(g.setJob(D.JOBS[1].id) === false, '공적이 없으면 못 바꾼다');
-  g.s.merit = big(1e9);
-  ok(g.setJob(D.JOBS[1].id), '공적이 있으면 바꾼다');
-  ok(g.s.jobSeen.length === 2, '거쳐 본 계열이 쌓인다 (나중에 각인에 쓴다)',
-    g.s.jobSeen.join(','));
-  // 바꿀수록 비싸지고, 거쳐 본 곳으로 돌아가는 건 절반이다
-  const back = g.jobSwitchCost(D.JOBS[0].id);
-  const fresh = g.jobSwitchCost(D.JOBS[2].id);
-  ok(back < fresh, '거쳐 본 문파로 돌아가는 게 더 싸다', `${back} < ${fresh}`);
-  const before = g.s.jobSwitches;
-  g.setJob(D.JOBS[2].id);
-  ok(g.s.jobSwitches === before + 1, '바꾼 횟수가 쌓인다');
-  ok(g.jobSwitchCost(D.JOBS[3].id) > fresh, '바꿀수록 값이 오른다');
-  ok(g.setJob(null) && g.s.job === null, '그만둘 수 있다');
+  // 처음 고르는 건 공짜다
+  g.s.gems = 123;
+  ok(g.setJob('sword'), '처음 고르는 건 된다');
+  ok(g.s.gems === 123, '처음 고르는 데는 원보가 안 든다', `${g.s.gems}`);
+  ok(!g.needsClass(), '고른 뒤에는 고르라고 안 한다');
+  ok(g.setJob('sword') === false && g.s.gems === 123, '같은 캐릭터를 다시 고르면 아무 일도 없다');
+  ok(g.setJob(null) === false && g.s.job === 'sword', '고른 뒤에 비울 수도 없다');
 
-  // 여덟이 서로 다른 축을 민다 — 같은 축이면 고르는 의미가 사라진다
+  // 처음 고를 때 넘은 관문만큼 차수를 준다 — 옛 세이브가 시험을 세 번 다시 보면 벌이다
+  for (const [best, want] of [[1, 0], [D.TIER_AT[1] - 1, 0], [D.TIER_AT[1], 1], [300, 2], [9999, D.TIER_MAX]]) {
+    ok(D.tiersByStage(best) === want, `관문 ${best}이면 차수 ${want}에 닿는다`, `${D.tiersByStage(best)}`);
+    const gg = new Game(migrate({ bestStage: best, maxStage: best, stage: best }));
+    gg.setJob('fan');
+    ok(gg.jobTier() === want, `관문 ${best}에서 처음 고르면 ${want}차로 시작한다`, `${gg.jobTier()}차 ${gg.tierName()}`);
+  }
+  // 이미 올라 있는 차수를 깎지 않는다
+  {
+    const gg = new Game(newSave());
+    gg.s.jobTier = 2;
+    gg.setJob('fist');
+    ok(gg.jobTier() === 2, '처음 고를 때 이미 있는 차수는 안 깎인다', `${gg.jobTier()}차`);
+  }
+
+  // 바꿀 때는 원보가 든다. 차수·무공 레벨은 그대로 들고 간다.
+  {
+    const gg = strong(300);
+    ok(gg.setJob('sword'), '검사를 고른다');
+    const tier0 = gg.jobTier();
+    gg.s.skills.slash = 77;
+    ok(gg.classChangeCost() === D.CLASS_CHANGE_GEMS, '바꾸는 값은 원보다', `${gg.classChangeCost()}`);
+    gg.s.gems = D.CLASS_CHANGE_GEMS - 1;
+    ok(gg.setJob('poison') === false, '원보가 모자라면 못 바꾼다');
+    ok(gg.s.job === 'sword' && gg.s.gems === D.CLASS_CHANGE_GEMS - 1, '못 바꾸면 아무것도 안 빠진다', `원보 ${gg.s.gems}`);
+    gg.s.gems = D.CLASS_CHANGE_GEMS + 5;
+    ok(gg.setJob('poison') && gg.s.job === 'poison', '원보가 있으면 바꾼다');
+    ok(gg.s.gems === 5, `바꾸면 원보 ${D.CLASS_CHANGE_GEMS}가 빠진다`, `${gg.s.gems} 남음`);
+    ok(gg.jobTier() === tier0, '바꿔도 차수는 그대로다', `${tier0}차 → ${gg.jobTier()}차`);
+    ok(gg.s.skills.slash === 77, '바꿔도 무공 레벨은 그대로다', `Lv.${gg.s.skills.slash}`);
+    ok(gg.setJob('sword') === false && gg.s.job === 'poison', '원보가 떨어지면 또 못 바꾼다');
+  }
+
+  // 캐릭터마다 서로 다른 축을 민다 — 같은 축이면 고르는 의미가 사라진다
   const mainAxis = D.JOBS.map((j) => Object.keys({ ...(j.mult || {}), ...(j.add || {}) })[0]);
-  ok(new Set(mainAxis).size >= 6, '주축이 대부분 서로 다르다',
-    `${new Set(mainAxis).size}종 / ${D.JOBS.length}계열`);
+  ok(new Set(mainAxis).size === D.JOBS.length, '주축이 전부 서로 다르다', mainAxis.join(','));
   // 치명 '확률'은 안 쓴다 (상한에 막혀 죽는다)
   const usesCrit = D.JOBS.filter((j) => 'crit' in { ...(j.mult || {}), ...(j.add || {}) });
   ok(usesCrit.length === 0, '치명 확률을 보너스로 쓰지 않는다 (상한에 막힌다)',
     usesCrit.map((j) => j.name).join(',') || '없음');
 
   // 보너스가 실제로 체감되는 크기인가 — 장신구 특기에서 ×1.04로 죽은 적이 있다
-  const base = (() => { const gg = strong(500); gg.s.job = null; return gg.stats({ buffs: false }); })();
-  let weak = [];
+  const base = strong(500).stats({ buffs: false });
+  const rt = (a, b) => big(a).div(b).toNumber();
+  const weak = [];
   for (const j of D.JOBS) {
     const gg = strong(500);
     gg.s.rank = 9; gg.s.bestStage = 9999;
     gg.setJob(j.id);
     const s = gg.stats({ buffs: false });
-    const best = Math.max(s.dps / base.dps, (s.dps * s.bossMul) / (base.dps * base.bossMul),
-      s.hp / base.hp, s.goldMul / base.goldMul, s.bleedMult, s.ccDurMult, s.offlineMul / base.offlineMul);
-    if (best < 1.2) weak.push(`${j.name} ×${best.toFixed(2)}`);
+    const best = Math.max(rt(s.dps, base.dps), rt(s.dps.mul(s.bossMul), base.dps.mul(base.bossMul)),
+      rt(s.hp, base.hp), rt(s.goldMul, base.goldMul), rt(s.bleedMult, base.bleedMult),
+      rt(s.ccDurMult, base.ccDurMult), rt(s.offlineMul, base.offlineMul), rt(s.expMul, base.expMul));
+    if (!(best >= 1.2)) weak.push(`${j.name} ×${best.toFixed(2)}`);
   }
-  ok(weak.length === 0, '여덟 계열이 전부 체감되는 크기다', weak.join(', ') || '전부 ×1.2 이상');
+  ok(weak.length === 0, `${D.JOBS.length} 캐릭터가 전부 체감되는 크기다`, weak.join(', ') || '전부 ×1.2 이상');
 
   // 세이브
-  ok(migrate({ job: '없는것' }).job === null, '없는 계열 id는 버린다');
-  const seen = migrate({ jobSeen: ['sword', '없는것', 'sword'] }).jobSeen;
-  ok(seen.length === 1 && seen[0] === 'sword', '거쳐 본 목록이 정리된다', seen.join(','));
-  ok(migrate({}).job === null, '옛 세이브는 계열이 없다');
-  const g2 = new Game(migrate({ job: D.JOBS[0].id }));
-  ok(g2.s.jobSeen.includes(D.JOBS[0].id), '고른 계열은 거쳐 본 것에 들어간다');
+  ok(migrate({ job: '없는것' }).job === null, '없는 캐릭터 id는 버린다');
+  ok(migrate({}).job === null && migrate({}).jobTier === 0, '옛 세이브는 캐릭터가 없고 0차다');
+  ok(migrate({ job: 'sword', bestStage: 300, maxStage: 300 }).jobTier === D.tiersByStage(300),
+    '차수가 없는 옛 세이브는 넘은 관문만큼 전직한 것으로 본다',
+    `${migrate({ job: 'sword', bestStage: 300, maxStage: 300 }).jobTier}차`);
+  ok(migrate({ job: 'sword', bestStage: 300, jobTier: 1 }).jobTier === 1, '적혀 있는 차수는 그대로 둔다');
+  ok(migrate({ job: 'sword', jobTier: 99 }).jobTier === D.TIER_MAX && migrate({ job: 'sword', jobTier: -3 }).jobTier === 0,
+    '차수가 범위를 넘으면 깎인다');
+  const cleaned = migrate({ job: 'fan', jobSeen: ['fan', 'monk'], jobTests: { fan: true }, taste: 'drunk' });
+  ok(!('jobSeen' in cleaned) && !('jobTests' in cleaned) && !('taste' in cleaned),
+    '옛 문파 기록(jobSeen·jobTests·taste)은 세이브에서 지운다',
+    ['jobSeen', 'jobTests', 'taste'].filter((k) => k in cleaned).join(',') || '전부 지움');
+  const gs = new Game(migrate({ bestStage: 300, maxStage: 300 }));
+  gs.setJob('poison');
+  const back = migrate(JSON.parse(JSON.stringify(gs.toJSON())));
+  ok(back.job === 'poison' && back.jobTier === gs.jobTier(), '고른 캐릭터와 차수가 세이브에 남는다',
+    `${back.job} ${back.jobTier}차`);
 }
 
-// ---------- 19. 계열 전용 무공 ----------
-console.log('\n=== 19. 계열 전용 무공 ===');
+// ---------- 19. 무공 여덟 자리 / 캐릭터별 무공 ----------
+// 공용 열넷 + 계열 전용 스물넷이 여덟 자리로 줄었다. 자리는 같고 캐릭터·차수마다
+// 이름과 모습이 다르다(CLASS_SKILLS). 옛 전용 무공은 각성 형태(forms)로 들어갔다.
+console.log('\n=== 19. 캐릭터별 무공 ===');
 {
-  ok(D.JOB_SKILLS.length === D.JOBS.length * D.JOB_SLOTS, '계열마다 전용 무공이 셋씩 있다',
-    `${D.JOB_SKILLS.length}종 / ${D.JOBS.length}계열 x ${D.JOB_SLOTS}`);
-  const miss = D.JOBS.filter((j) => D.jobSkillsOf(j.id).length !== D.JOB_SLOTS);
-  ok(miss.length === 0, '셋이 안 되는 계열이 없다', miss.map((j) => j.name).join(',') || '없음');
-  // 차수가 0 · 1 · 2로 빠짐없이 매겨져야 한다. 하나라도 겹치면 그 칸이 영영 빈다.
+  const ROLES = ['slash', 'rage', 'thunder', 'frost', 'blink', 'chain', 'plum', 'pierce'];
+  ok(D.SKILLS.map((s) => s.id).join(',') === ROLES.join(','), '무공은 여덟 자리다',
+    D.SKILLS.map((s) => s.role).join('·'));
+  ok(new Set(D.SKILLS.map((s) => s.role)).size === D.SKILLS.length, '자리(역할)가 서로 안 겹친다');
+  const GONE = ['heal', 'gale', 'midas', 'meteor', 'dash', 'tornado'];
+  ok(GONE.every((id) => !D.skillOf(id)), '없어진 무공이 표에 안 남아 있다', GONE.join(','));
+  ok(D.SKILLS.every((s) => !s.job), '계열 전용 무공이 표에 안 남아 있다');
+  ok(D.SKILLS.map((s) => s.unlock).join(',') === '1,10,30,50,70,90,110,130', '여덟이 관문 따라 하나씩 열린다',
+    D.SKILLS.map((s) => s.unlock).join(','));
+  // 번호로 집지 않는다 — 전에는 stats()가 SKILLS[1]·[4]·[5]를 집었다. 자리가 밀리면
+  // 엉뚱한 무공이 버프가 된다. 이제는 id로만 찾는다.
+  ok(!/SKILLS\[\d+\]/.test(srcOf('js/game.js')), 'game.js가 무공을 번호로 집지 않는다');
+
+  // 4 x 8 x 4 이름이 전부 있고, 한 캐릭터·한 차수 안에서 안 겹친다
+  const missing = [], dup = [], same = [];
   for (const j of D.JOBS) {
-    const tiers = D.jobSkillsOf(j.id).map((s) => s.jobTier);
-    ok(tiers.join(',') === [...Array(D.JOB_SLOTS).keys()].join(','),
-      `${j.name} 무공 차수가 0부터 차례대로`, tiers.join(','));
+    const cs = D.CLASS_SKILLS[j.id];
+    ok(!!cs, `${j.name}의 무공표가 있다`);
+    for (let t = 0; t <= D.TIER_MAX; t++) {
+      const names = ROLES.map((id) => cs?.[id]?.names?.[t]);
+      names.forEach((n, i) => { if (typeof n !== 'string' || !n) missing.push(`${j.id}.${ROLES[i]}[${t}]`); });
+      if (new Set(names).size !== names.length) dup.push(`${j.name} ${t}차`);
+      // 화면·판정이 보는 skillFor가 실제로 그 이름을 쓴다
+      for (const id of ROLES) {
+        const d = D.skillFor(id, j.id, t);
+        if (!d || d.name !== cs?.[id]?.names?.[t]) missing.push(`skillFor ${j.id}.${id}[${t}]`);
+      }
+    }
+    // 전직할 때마다 여덟이 **전부** 이름이 바뀐다
+    for (const id of ROLES) {
+      for (let t = 1; t <= D.TIER_MAX; t++) {
+        if (cs?.[id]?.names?.[t] === cs?.[id]?.names?.[t - 1]) same.push(`${j.name} ${id} ${t}차`);
+      }
+    }
   }
-  // 모든 계열에 특성이 있어야 한다 — 하나라도 빠지면 그 문파만 전직해도 아무 일이 없다
+  ok(missing.length === 0, `${D.JOBS.length} x ${ROLES.length} x ${D.TIER_MAX + 1} 이름이 전부 있다`,
+    missing.slice(0, 6).join(', ') || `${D.JOBS.length * ROLES.length * (D.TIER_MAX + 1)}개`);
+  ok(dup.length === 0, '한 캐릭터·한 차수 안에서 이름이 안 겹친다', dup.join(', ') || '겹침 없음');
+  ok(same.length === 0, '차수가 오르면 여덟 이름이 전부 바뀐다', same.join(', ') || '전부 바뀜');
+  ok(Object.keys(D.CLASS_SKILLS).every((k) => D.jobOf(k)), '무공표에 없는 캐릭터가 없다',
+    Object.keys(D.CLASS_SKILLS).join(','));
+  // 각성 형태는 있는 자리·1~3차에만 붙는다
+  const badForm = [];
+  for (const [jid, cs] of Object.entries(D.CLASS_SKILLS)) {
+    for (const [id, c] of Object.entries(cs)) {
+      if (!D.skillOf(id)) badForm.push(`${jid}.${id} 없는 자리`);
+      for (const t of Object.keys(c.forms || {})) {
+        if (!(Number(t) >= 1 && Number(t) <= D.TIER_MAX)) badForm.push(`${jid}.${id} ${t}차`);
+      }
+    }
+  }
+  ok(badForm.length === 0, '각성 형태가 있는 자리·차수에만 붙어 있다', badForm.join(',') || '정상');
+
+  // 차수가 오르면 무공 피해가 커진다. 강화(버프)는 배수가 곧 효과라 안 건드린다.
+  ok(D.TIER_SKILL_MULT[0] === 1 && D.TIER_SKILL_MULT.every((v, i) => i === 0 || v > D.TIER_SKILL_MULT[i - 1]),
+    '차수 배수가 1부터 오른다', D.TIER_SKILL_MULT.join(' → '));
+  for (let t = 0; t <= D.TIER_MAX; t++) {
+    // 검사의 연쇄(연환검)는 형태가 안 바뀌어서 배수만 보인다
+    const got = D.skillFor('chain', 'sword', t).mult(10) / D.skillOf('chain').mult(10);
+    ok(Math.abs(got - D.TIER_SKILL_MULT[t]) < 1e-9, `${t}차 무공 피해가 x${D.TIER_SKILL_MULT[t]}`, `x${got.toFixed(2)}`);
+  }
+  ok(D.skillFor('rage', 'sword', D.TIER_MAX).mult(10) === D.skillOf('rage').mult(10),
+    '강화 무공의 배수는 차수로 안 불어난다');
+  ok(D.skillFor('rage', 'fist', 0).buff === 'speed',
+    '권마의 강화는 공격 속도다');
+  ok(['sword', 'fan', 'poison'].every((id) => D.skillFor('rage', id, 0).buff === 'atk'),
+    '검사·환마·독마의 강화는 공격력이다');
+
+  // game.skillDef는 지금 캐릭터·차수를 따른다
+  {
+    const gg = strong(300);
+    ok(gg.skillDef('slash').name === D.skillOf('slash').name, '캐릭터가 없으면 기본 이름이다', gg.skillDef('slash').name);
+    gg.setJob('fist');
+    gg.s.jobTier = 0;
+    ok(gg.skillDef('slash').name === D.CLASS_SKILLS.fist.slash.names[0], '권마 0차의 기본기', gg.skillDef('slash').name);
+    gg.s.jobTier = 1;
+    ok(gg.skillDef('slash').name === '붕권' && gg.skillDef('slash').formTier === 1, '권마 1차가 되면 기본기가 붕권이 된다',
+      `${gg.skillDef('slash').name} (형태 ${gg.skillDef('slash').formTier}차)`);
+  }
+
+  // 설명이 안 터지는가 — 모든 캐릭터(없음 포함) x 차수 x 무공, 레벨 1과 40
+  // 판정 모양마다 꼭 있어야 하는 값도 같이 본다. 형태가 덮어쓰다 하나 빠지면 그 무공은 헛손질이다.
+  const NEED = {
+    chain: ['chain', 'chainRange', 'chainFalloff'], field: ['radius', 'fieldSec', 'tickSec'],
+    tornado: ['radius', 'fieldSec', 'tickSec', 'moveSpeed'], pierce: ['pierceLen', 'pierceWidth'], aoe: ['radius'],
+  };
+  const bad = [];
+  const combos = [[null, 0], ...D.JOBS.flatMap((j) => [...Array(D.TIER_MAX + 1).keys()].map((t) => [j.id, t]))];
+  for (const [job, t] of combos) {
+    for (const id of ROLES) {
+      const sk = D.skillFor(id, job, t);
+      const where = `${job || '없음'} ${t}차 ${sk?.name || id}`;
+      if (!sk) { bad.push(`${where} 없음`); continue; }
+      if (!(sk.cd > 0)) bad.push(`${where} 쿨`);
+      if (sk.kind === 'dmg') for (const k of NEED[sk.motion] || []) if (sk[k] == null) bad.push(`${where} ${k} 빠짐`);
+      for (const l of [1, 40]) {
+        try {
+          const m = sk.mult(l);
+          const s = sk.desc(m, l);
+          if (!Number.isFinite(m) || !(m > 0)) bad.push(`${where} Lv.${l} 배수 ${m}`);
+          if (!s || /NaN|undefined/.test(s)) bad.push(`${where} Lv.${l}`);
+          if (sk.boon && !(sk.boon.mult(l) > 1)) bad.push(`${where} Lv.${l} 보너스`);
+        } catch (e) { bad.push(`${where} Lv.${l} 터짐`); }
+      }
+    }
+  }
+  ok(bad.length === 0, '모든 캐릭터·차수·무공의 설명과 판정 값이 멀쩡하다',
+    bad.slice(0, 6).join(', ') || `${combos.length * ROLES.length}가지 다 멀쩡`);
+
+  // 모든 캐릭터에 특성이 있어야 한다 — 하나라도 빠지면 그 캐릭터만 전직해도 아무 일이 없다
   for (const j of D.JOBS) {
     const tr = D.jobTraitOf(j.id);
     ok(!!tr, `${j.name}에 특성이 있다`, tr?.name || '없음');
@@ -998,192 +1140,263 @@ console.log('\n=== 19. 계열 전용 무공 ===');
     const does = ['cc', 'bossBonus', 'critChance', 'cdCut', 'goldOnSkill', 'heal'].some((k) => tr && tr[k]);
     ok(does, `${j.name} 특성이 실제로 뭔가를 한다`);
   }
-  // 번호로 집는 자리가 밀리면 안 된다 — stats()가 SKILLS[1]·[4]·[5]를 쓴다
-  ok(D.SKILLS[1].id === 'rage' && D.SKILLS[4].id === 'gale' && D.SKILLS[5].id === 'midas',
-    '일반 무공 자리가 안 밀렸다', `${D.SKILLS[1].id}/${D.SKILLS[4].id}/${D.SKILLS[5].id}`);
-  // 설명이 안 터지는가 (레벨 1과 높은 레벨)
-  let bad = [];
-  for (const sk of D.JOB_SKILLS) {
-    for (const l of [1, 40]) {
-      try {
-        const s = sk.desc(sk.mult(l), l);
-        if (!s || /NaN|undefined/.test(s)) bad.push(`${sk.name} Lv.${l}`);
-      } catch (e) { bad.push(`${sk.name} Lv.${l} 터짐`); }
+
+  // 문파 칸은 없어졌다 — 쓰는 무공은 열린 일반 칸뿐이다
+  {
+    const gg = strong(500);
+    const n = gg.skillSlotCount();
+    ok(gg.activeSlots().length === n, '캐릭터가 없을 때 쓰는 칸 = 열린 칸', `${n}칸`);
+    gg.s.bestStage = 9999;
+    gg.setJob('sword');
+    ok(gg.activeSlots().length === gg.skillSlotCount(), '고른 뒤에도 덧붙는 칸이 없다',
+      `${gg.activeSlots().length}/${gg.skillSlotCount()}칸`);
+  }
+  // 해금은 관문 하나로만 본다 (캐릭터·차수와 상관없다)
+  {
+    const gg = strong(300);
+    gg.setJob('poison');
+    const blink = D.skillOf('blink');
+    gg.s.bestStage = blink.unlock - 1;
+    ok(!gg.skillUnlocked(blink), `관문 ${blink.unlock} 전에는 이동 무공이 잠겨 있다`);
+    ok(gg.setSkillSlot(0, 'blink') === false, '잠긴 무공은 칸에 못 넣는다');
+    gg.s.bestStage = blink.unlock;
+    ok(gg.skillUnlocked(blink), `관문 ${blink.unlock}에 닿으면 열린다`);
+    gg.s.jobTier = D.TIER_MAX;
+    ok(gg.skillUnlocked(gg.skillDef('blink')), '각성한 모습도 같은 관문을 본다');
+  }
+
+  // 대표 초식(각성 형태)이 실제로 들어가는가 — 이름·연출만 바뀌고 피해가 안 들어가면 죽은 무공이다
+  for (const j of D.JOBS) {
+    for (const [id, c] of Object.entries(D.CLASS_SKILLS[j.id])) {
+      for (const t of Object.keys(c.forms || {}).map(Number)) {
+        const gg = strong(300);
+        gg.s.bestStage = 9999;
+        gg.setJob(j.id);
+        gg.s.jobTier = t;
+        gg.s.autoSkill = false;
+        gg.s.skillSlots = D.SKILLS.map((x) => x.id);
+        gg.spawn();
+        const def = gg.skillDef(id);
+        gg.cd = {};
+        gg.events.length = 0;
+        const fired = gg.useSkill(id);
+        // 그 무공 이름(kind)으로 들어간 피해만 센다 — 평타·영수는 빼고
+        let dealt = big(0);
+        const count = () => {
+          for (const e of gg.events) if (e.type === 'dmg' && e.kind === id) dealt = dealt.add(e.amount || 0);
+          gg.events.length = 0;
+        };
+        count();
+        // 장판류는 시간이 지나야 들어간다
+        for (let k = 0; k < 60 * 3; k++) { gg.tick(1 / 60); count(); }
+        ok(fired && def.formTier === t && pos(dealt), `${j.name} ${t}차 ${iga(def.name)} 실제로 들어간다`,
+          `${def.motion} · ${fmt(dealt)}`);
+      }
     }
   }
-  ok(bad.length === 0, '전용 무공 설명이 멀쩡하다', bad.join(',') || '여덟 다 멀쩡');
-
-  const g = strong(500);
-  g.s.rank = 9; g.s.bestStage = 9999;
-  const normal = g.skillSlotCount();
-
-  // 문파가 없으면 전용 칸도 없다
-  g.setJob(null);
-  ok(g.jobSkillId() === null, '문파가 없으면 전용 무공도 없다');
-  ok(g.activeSlots().length === normal, '문파가 없으면 칸이 그대로다',
-    `${g.activeSlots().length}칸`);
-
-  // 문파 칸은 일반 칸을 먹지 않는다 — 이게 2차의 핵심 약속이다
-  g.setJob('sword');
-  const jn = g.jobSlotCount();
-  ok(g.activeSlots().length === normal + jn, '문파 칸이 일반 칸 뒤에 더 붙는다',
-    `${normal} → ${g.activeSlots().length} (문파 ${jn}칸)`);
-  // 2차·3차는 관문으로 열린다. 처음부터 셋을 다 주면 열리는 맛이 없다.
-  ok(jn < D.JOB_SLOTS || g.s.bestStage >= D.JOB_SKILL_OPEN[D.JOB_SLOTS - 1],
-    '아직 안 열린 문파 칸은 안 나간다', `${jn}/${D.JOB_SLOTS}칸`);
-  const far = new Game(migrate({ job: 'sword', bestStage: 9999, maxStage: 9999, stage: 9999 }));
-  ok(far.jobSlotCount() === D.JOB_SLOTS, '멀리 가면 문파 칸이 전부 열린다', `${far.jobSlotCount()}칸`);
-  ok(far.jobSkillIds().length === D.JOB_SLOTS, '열린 칸마다 무공이 들어간다',
-    far.jobSkillIds().join(','));
-  ok(g.activeSlots().includes('jsword'), '전용 무공이 실제로 나간다');
-  ok(!g.s.skillSlots.includes('jsword'), '전용 무공이 일반 칸을 차지하지 않는다');
-
-  // 바꾸면 무공도 바뀐다 (이제 공적이 드니 먼저 쥐여 준다)
-  g.s.merit = big(1e9);
-  g.setJob('poison');
-  ok(g.jobSkillId() === 'jpoison', '문파를 바꾸면 전용 무공도 바뀐다', g.jobSkillId());
-  ok(!g.skillUnlocked(D.SKILLS.find((x) => x.id === 'jsword')),
-    '안 고른 계열의 무공은 못 쓴다');
-
-  // 일반 칸에 억지로 넣으려 해도 안 들어간다
-  ok(g.setSkillSlot(0, 'jpoison') === false, '전용 무공은 일반 칸에 못 넣는다');
-  g.autoSlotSkills();
-  ok(!g.s.skillSlots.some((id) => D.JOB_SKILLS.some((sk) => sk.id === id)),
-    '자동 장착도 전용 무공을 일반 칸에 안 넣는다', g.s.skillSlots.join(','));
-
-  // 실제로 나가는가 — 적이 피를 흘려야 한다
-  for (const j of D.JOBS) {
-    const gg = strong(300);
-    gg.s.rank = 9; gg.s.bestStage = 9999;
-    gg.setJob(j.id);
-    const id = gg.jobSkillId();
-    gg.cd[id] = 0;
-    gg.spawn();
-    const hp0 = gg.mon.hp;
-    const fired = gg.useSkill(id);
-    // 장판류는 시간이 지나야 들어간다
-    for (let k = 0; k < 60 * 3; k++) { gg.tick(1 / 60); gg.events.length = 0; if (!gg.mon?.alive) break; }
-    const hurt = !gg.mon?.alive || gg.mon.hp < hp0;
-    ok(fired && hurt, `${j.name}의 ${D.jobSkillOf(j.id).name}이 실제로 들어간다`);
-  }
 }
 
-// ---------- 20. 맛보기 ----------
-console.log('\n=== 20. 맛보기 ===');
+// ---------- 20. 기초(0차)와 1차 ----------
+// 맛보기가 하던 일(전직 전에 맛만 본다)은 이제 '기초' 차수가 한다. 처음부터
+// 그 캐릭터의 무공을 쓰지만, 계열 배수와 특성은 **1차 전직부터** 붙는다.
+// 처음부터 붙이면 첫 관문부터 x1.3~x1.8이 얹혀 앞쪽 균형이 통째로 바뀐다.
+console.log('\n=== 20. 기초 차수 ===');
 {
-  const g = strong(500);
-  g.s.rank = D.TASTE_RANK - 1;
-  ok(!g.tasteOpen(), `${D.RANKS[D.TASTE_RANK].name} 전에는 맛볼 수 없다`);
-  g.s.rank = D.TASTE_RANK;
-  ok(g.tasteOpen(), `${D.RANKS[D.TASTE_RANK].name}부터 맛볼 수 있다`);
-  ok(D.TASTE_RANK < D.JOB_RANK, '맛보기가 문파보다 먼저 온다');
+  const plain = strong(100);
+  const g = strong(100);
+  ok(g.setJob('sword') && g.jobTier() === 0, '관문 100에서 고르면 기초(0차)다', g.tierName());
+  const jm = g.jobMult();
+  ok(Object.entries(jm).every(([k, v]) => k === 'add' || v === 1) && jm.add.crit === 0 && jm.add.critDmg === 0,
+    '0차에는 계열 배수가 하나도 안 붙는다');
+  ok(g.jobTrait() === null, '0차에는 특성이 안 붙는다');
+  const a = plain.stats({ buffs: false });
+  const b = g.stats({ buffs: false });
+  ok(big(a.dps).eq(b.dps) && big(a.hp).eq(b.hp) && big(a.bossMul).eq(b.bossMul) && big(a.expMul).eq(b.expMul),
+    '0차는 고르기 전과 능력치가 같다', `두목 x${big(b.bossMul).div(a.bossMul).toNumber().toFixed(2)}`);
+  // 이름은 처음부터 그 캐릭터 것이다
+  ok(g.skillDef('slash').name === D.CLASS_SKILLS.sword.slash.names[0], '0차에도 무공 이름은 그 캐릭터 것이다',
+    g.skillDef('slash').name);
+  // 들판 빛깔(특성)은 0차 사건에 안 실린다
+  g.spawn(); g.cd = {}; g.events.length = 0;
+  g.useSkill('thunder');
+  const ev = g.events.find((e) => e.type === 'skill');
+  ok(!!ev && ev.job === null && ev.cls === 'sword', '0차 무공 사건에는 특성 빛깔이 안 실린다',
+    ev ? `job ${ev.job} · cls ${ev.cls}` : '사건 없음');
 
-  // 공짜로 몇 번이든 바꾼다
-  ok(g.setTaste('drunk') && g.jobSkillId() === 'jdrunk', '맛보기로 전용 무공이 들어온다');
-  ok(g.setTaste('monk') && g.jobSkillId() === 'jmonk', '몇 번이든 바꿀 수 있다');
-  ok(g.setTaste('없는것') === false, '없는 계열은 못 맛본다');
-  ok(g.activeSlots().length === g.skillSlotCount() + 1, '맛보기도 문파 칸에 들어간다');
-  // 맛보기 중에는 능력치 보너스가 없다 — 그건 입문해야 붙는다
-  ok(g.s.job === null, '맛보기는 입문이 아니다');
+  g.s.jobTier = 1;
+  const jm1 = g.jobMult();
+  const sw = D.jobOf('sword').mult;
+  ok(jm1.boss === sw.boss && jm1.atk === sw.atk, '1차가 되면 계열 배수가 붙는다', `두목 x${jm1.boss} · 공격 x${jm1.atk}`);
+  ok(!!g.jobTrait(), '1차가 되면 특성이 붙는다', g.jobTrait()?.name || '없음');
+  ok(gt(g.stats({ buffs: false }).bossMul, b.bossMul), '1차가 되면 두목 피해가 실제로 오른다',
+    `x${big(g.stats({ buffs: false }).bossMul).div(b.bossMul).toNumber().toFixed(2)}`);
+  g.spawn(); g.cd = {}; g.events.length = 0;
+  g.useSkill('thunder');
+  const ev1 = g.events.find((e) => e.type === 'skill');
+  ok(!!ev1 && ev1.job === 'sword', '1차 무공 사건에는 특성 빛깔이 실린다', ev1 ? `job ${ev1.job}` : '사건 없음');
 
-  // 올린 레벨은 남는다
-  g.setTaste('monk');
-  g.s.books = big(1e9);
-  const before = g.s.skills.jmonk;
-  g.upgradeSkill('jmonk');
-  ok(g.s.skills.jmonk === before + 1, '맛보는 무공을 올릴 수 있다');
-  g.s.rank = D.JOB_RANK;
-  ok(!g.tasteOpen(), `${D.RANKS[D.JOB_RANK].name}에 오르면 맛보기가 끝난다`);
-  g.setJob('monk');
-  ok(g.s.taste === null, '입문하면 맛보기가 내려간다');
-  ok(g.s.skills.jmonk === before + 1, '맛보기에서 올린 레벨이 그대로 남는다',
-    `Lv.${g.s.skills.jmonk}`);
-
-  // 맛보기가 끝났는데 남아 있으면 안 된다
-  const g2 = strong(500);
-  g2.s.rank = D.JOB_RANK; g2.s.taste = 'drunk'; g2.s.job = null;
-  ok(g2.jobSkillId() === null, '화경에 오르면 맛보기 무공이 사라진다 (문파를 고르라는 뜻)');
-
-  // 회귀로 경지가 내려가도 문파는 남는다 — 그때 맛보기까지 열리면 화면이 엉킨다
-  const g3 = strong(500);
-  g3.s.rank = 9; g3.s.bestStage = 9999;
-  g3.setJob('sword');
-  g3.s.rank = D.TASTE_RANK;
-  ok(g3.s.job === 'sword', '회귀로 경지가 내려가도 문파는 남는다');
-  ok(!g3.tasteOpen(), '문파가 있으면 맛보기는 안 열린다');
-  ok(g3.jobSkillId() === 'jsword', '그래도 전용 무공은 그대로 쓴다');
+  // 캐릭터가 없는데 차수만 적혀 있어도 0으로 본다
+  const g2 = strong(100);
+  g2.s.jobTier = 3;
+  ok(g2.jobTier() === 0 && g2.jobTrait() === null && g2.jobMult().boss === 1, '캐릭터가 없으면 차수도 특성도 없다');
 }
 
-// ---------- 21. 전용 무공이 자기 축을 미는가 ----------
-console.log('\n=== 21. 전용 무공의 축 ===');
+// ---------- 21. 대표 초식이 자기 축을 미는가 ----------
+console.log('\n=== 21. 대표 초식의 축 ===');
 {
-  // 취마의 은자, 독마의 경험치가 실제로 붙는가
-  for (const [job, id, key] of [['drunk', 'jdrunk', 'goldMul'], ['poison', 'jpoison', 'expMul']]) {
+  // 독마의 장판이 경험치를 올린다 — 1차(만독강림)와 3차(천독무) 둘 다
+  for (const t of [1, 3]) {
     const g = strong(300);
-    g.s.rank = 9; g.s.bestStage = 9999;
-    g.setJob(job);
-    const before = g.stats()[key];
-    g.cd[id] = 0;
-    g.useSkill(id);
-    const after = g.stats()[key];
-    ok(after > before * 1.5, `${D.jobOf(job).name}의 ${D.jobSkillOf(job).name}이 ${key}를 올린다`,
-      `x${(after / before).toFixed(2)}`);
+    g.s.bestStage = 9999;
+    g.setJob('poison');
+    g.s.jobTier = t;
+    g.s.skillSlots = D.SKILLS.map((x) => x.id);
+    const sk = g.skillDef('plum');
+    ok(sk.boon?.stat === 'exp', `독마 ${t}차 ${iga(sk.name)} 경험치 보너스를 건다`);
+    const before = g.stats().expMul;
+    g.cd = {};
+    g.useSkill('plum');
+    const after = g.stats().expMul;
+    ok(gt(after, big(before).mul(1.5)), `독마 ${t}차 ${iga(sk.name)} expMul을 올린다`,
+      `x${big(after).div(before).toNumber().toFixed(2)}`);
     // 보너스가 끝나면 돌아와야 한다.
-    // 자동 시전을 꺼야 한다 — 쿨이 줄면서 20초 안에 다시 나가 버린다.
+    // 자동 시전을 꺼야 한다 — 쿨이 줄면서 다시 나가 버린다.
     g.s.autoSkill = false;
-    for (let k = 0; k < 60 * 14; k++) { g.tick(1 / 60); g.events.length = 0; }
-    ok(Math.abs(g.stats()[key] / g.stats({ buffs: false })[key] - 1) < 1e-9,
-      `${D.jobSkillOf(job).name}의 보너스가 시간이 지나면 끝난다`);
+    for (let k = 0; k < 60 * ((sk.boon?.dur || 0) + 2); k++) { g.tick(1 / 60); g.events.length = 0; }
+    ok(Math.abs(big(g.stats().expMul).div(g.stats({ buffs: false }).expMul).toNumber() - 1) < 1e-9,
+      `${sk.name}의 보너스가 시간이 지나면 끝난다`);
   }
+  // stats()는 장판(plum) 자리만 보너스를 읽는다. 다른 자리에 boon을 달면 주고도 안 읽힌다.
+  const strayBoon = [];
+  for (const j of D.JOBS) {
+    for (let t = 0; t <= D.TIER_MAX; t++) {
+      for (const s of D.SKILLS) if (D.skillFor(s.id, j.id, t).boon && s.id !== 'plum') strayBoon.push(`${j.id}.${s.id}[${t}]`);
+    }
+  }
+  ok(strayBoon.length === 0, '보너스를 거는 무공이 전부 stats()가 읽는 자리(장판)에 있다', strayBoon.join(',') || '정상');
 
-  // 단지멸은 반드시 치명 — 치명 확률과 무관하게 치명 피해만큼 들어가야 한다
-  {
+  // 천하제일검(검사 3차 두목 무공)은 반드시 치명 — 치명 확률과 무관하게 치명 피해만큼 들어가야 한다
+  const sureHit = (tier) => {
     const g = strong(300);
-    g.s.rank = 9; g.s.bestStage = 9999;
-    g.setJob('ring');
-    const st = g.stats();
+    g.s.bestStage = 9999;
+    g.setJob('sword');
+    g.s.jobTier = tier;
+    g.s.skillSlots = D.SKILLS.map((x) => x.id);
+    g.rng = () => 0.99;                 // 굴려서 뜨는 치명은 없게 고정한다
     g.spawn();
     // 안 죽는 허수아비. Infinity를 꽂으면 Big 셈이 안 되므로 아주 큰 수를 쓴다.
-    g.mon.hp = Big.pow10(500); g.mon.maxHp = Big.pow10(500); g.mon.isBoss = false;
-    g.cd.jring = 0;
+    for (const m of [g.mon, ...g.mons]) if (m) { m.hp = Big.pow10(500); m.maxHp = Big.pow10(500); m.isBoss = false; }
+    const st = g.stats();
+    const sk = g.skillDef('frost');
+    g.cd = {};
     g.events.length = 0;
-    g.useSkill('jring');
-    const dealt = g.events.filter((e) => e.type === 'dmg').reduce((a2, e) => a2.add(e.amount), big(0));
-    const sk = D.SKILLS.find((x) => x.id === 'jring');
-    const want = st.atk.mul(g.skillMult(sk) * st.critDmg);
-    ok(Math.abs(dealt / want - 1) < 1e-6, '단지멸이 반드시 치명으로 들어간다',
-      `들어간 ${dealt.toExponential(2)} / 기대 ${want.toExponential(2)}`);
+    g.useSkill('frost');
+    const dealt = g.events.filter((e) => e.type === 'dmg' && e.kind === 'frost').reduce((a2, e) => a2.add(e.amount), big(0));
+    return { sk, dealt, plain: st.atk.mul(g.skillMult(sk)), crit: st.atk.mul(g.skillMult(sk)).mul(st.critDmg) };
+  };
+  {
+    const r3 = sureHit(3);
+    ok(r3.sk.name === '천하제일검' && r3.sk.sure && r3.sk.motion === 'blink', '검사 3차의 두목 무공은 천하제일검이다',
+      `${r3.sk.name} · ${r3.sk.motion}`);
+    ok(Math.abs(big(r3.dealt).div(r3.crit).toNumber() - 1) < 1e-6, '천하제일검이 반드시 치명으로 들어간다',
+      `들어간 ${r3.dealt.toExponential(2)} / 기대 ${r3.crit.toExponential(2)}`);
+    const r2 = sureHit(2);
+    ok(!r2.sk.sure && Math.abs(big(r2.dealt).div(r2.plain).toNumber() - 1) < 1e-6, '각성 전(2차)에는 치명이 아니다',
+      `${r2.sk.name} ${r2.dealt.toExponential(2)} / ${r2.plain.toExponential(2)}`);
   }
 
-  // 금강부동은 체력을 돌려준다
+  // 권마의 강화는 공격 속도, 다른 셋은 공격력
   {
-    const g = strong(300);
-    g.s.rank = 9; g.s.bestStage = 9999;
-    g.setJob('monk');
-    g.heroHp = g.stats().hp.mul(0.2);
-    const before = g.heroHp;
-    g.cd.jmonk = 0;
-    g.spawn();
-    g.useSkill('jmonk');
-    ok(gt(g.heroHp, before), '금강부동이 체력을 돌려준다',
-      `${pctOf(before, g.stats().hp)} → ${pctOf(g.heroHp, g.stats().hp)}`);
+    const mk = (job) => {
+      const g = strong(300);
+      g.s.bestStage = 9999;
+      g.setJob(job);
+      g.s.skillSlots = D.SKILLS.map((x) => x.id);
+      g.spawn();
+      g.cd = {};
+      return g;
+    };
+    const f = mk('fist');
+    const a0 = f.stats();
+    ok(f.useSkill('rage'), '권마가 강화를 쓴다');
+    const a1 = f.stats();
+    ok(a1.speed > a0.speed * 1.4 && big(a1.atk).eq(a0.atk), '권마의 강화는 공격력이 아니라 공격 속도를 올린다',
+      `속도 x${(a1.speed / a0.speed).toFixed(2)} · 공격 x${big(a1.atk).div(a0.atk).toNumber().toFixed(2)}`);
+    const s = mk('sword');
+    const b0 = s.stats();
+    s.useSkill('rage');
+    const b1 = s.stats();
+    ok(gt(b1.atk, big(b0.atk).mul(1.4)) && b1.speed === b0.speed, '검사의 강화는 공격력을 올린다',
+      `공격 x${big(b1.atk).div(b0.atk).toNumber().toFixed(2)} · 속도 x${(b1.speed / b0.speed).toFixed(2)}`);
   }
 }
 
-// ---------- 22. 세이브 (2차) ----------
-console.log('\n=== 22. 세이브 (전용 무공) ===');
+// ---------- 22. 세이브 (무공이 여덟으로) ----------
+console.log('\n=== 22. 세이브 (무공 여덟 · 없어진 계열) ===');
 {
-  ok(migrate({ taste: '없는것' }).taste === null, '없는 계열 맛보기는 버린다');
-  ok(migrate({}).taste === null, '옛 세이브는 맛보기가 없다');
-  // 전용 무공이 일반 칸에 섞여 들어오면 빼낸다
-  const m = migrate({ bestStage: 500, skillSlots: ['slash', 'jsword', 'thunder', 'jpoison'] });
-  ok(!m.skillSlots.some((id) => D.JOB_SKILLS.some((sk) => sk.id === id)),
-    '일반 칸에 섞인 전용 무공을 빼낸다', m.skillSlots.slice(0, 4).join(','));
-  // 아주 옛날 세이브(skillSlots 없음)를 채울 때도 안 섞여야 한다
+  const known = (id) => !id || D.SKILLS.some((x) => x.id === id);
+  // 없어진 무공이 칸·출진 준비에 남아 있으면 빼낸다
+  const m = migrate({ bestStage: 500, maxStage: 500,
+    skillSlots: ['slash', 'meteor', 'thunder', 'gale', 'jsword', 'heal', 'pierce', 'jpoison'],
+    presets: [{ name: '옛것', slots: ['meteor', 'slash', 'jfist2', null], pet: null, auto: true }] });
+  ok(m.skillSlots.every(known), '칸에 남은 없어진 무공을 빼낸다', m.skillSlots.map((x) => x || '빈칸').join(','));
+  ok(m.skillSlots[0] === 'slash' && m.skillSlots[2] === 'thunder' && m.skillSlots[6] === 'pierce',
+    '있는 무공은 제자리에 남는다');
+  ok(m.presets[0].slots.every(known) && m.presets[0].slots[1] === 'slash', '출진 준비에 남은 것도 빼낸다',
+    m.presets[0].slots.map((x) => x || '빈칸').join(','));
+  const gp = new Game(m);
+  ok(gp.loadPreset(0) && gp.s.skillSlots.every(known), '정리한 준비를 꺼내도 멀쩡하다');
+  // 아주 옛날 세이브(skillSlots 없음)를 채울 때도 있는 무공으로만
   const m2 = migrate({ maxStage: 500 });
-  ok(!m2.skillSlots.some((id) => D.JOB_SKILLS.some((sk) => sk.id === id)),
-    '옛 세이브를 채울 때도 안 섞인다', m2.skillSlots.filter(Boolean).join(','));
-  ok(m2.skillSlots.filter(Boolean).length > 0, '옛 세이브에 일반 무공은 채워진다');
+  ok(m2.skillSlots.every(known) && m2.skillSlots.filter(Boolean).length > 0, '옛 세이브를 채울 때도 있는 무공만 들어간다',
+    m2.skillSlots.filter(Boolean).join(','));
+
+  // 레벨·초월은 같은 자리 무공으로 옮긴다 — 둘 중 높은 쪽. 비급을 부어 둔 게 사라지면 안 된다.
+  const lv = migrate({
+    skills: { thunder: 3, meteor: 20, blink: 9, dash: 4, jsword: 15, rage: 2, gale: 30, heal: 5, midas: 11,
+      frost: 40, jring: 12, plum: 1, tornado: 6, jpoison3: 18 },
+    skillPierce: { meteor: 3, thunder: 1, jsword3: 2, dash: 1 },
+  });
+  ok(lv.skills.thunder === 20, '만검귀종 레벨이 광역(뇌정검)으로 온다', `Lv.${lv.skills.thunder}`);
+  ok(lv.skills.blink === 15, '일점혈로·발도돌격 중 높은 쪽이 이동으로 온다', `Lv.${lv.skills.blink}`);
+  ok(lv.skills.rage === 30, '질풍보·운기조식·천금수 중 높은 쪽이 강화로 온다', `Lv.${lv.skills.rage}`);
+  ok(lv.skills.plum === 18, '선풍장·천독무 중 높은 쪽이 장판으로 온다', `Lv.${lv.skills.plum}`);
+  ok(lv.skills.frost === 40, '옮겨 오는 쪽이 더 낮으면 원래 것을 안 깎는다', `Lv.${lv.skills.frost}`);
+  ok(lv.skillPierce.thunder === 3 && lv.skillPierce.frost === 2 && lv.skillPierce.blink === 1,
+    '초월도 같은 자리로 옮긴다', JSON.stringify(lv.skillPierce));
+  ok(Object.keys(lv.skills).every(known) && Object.keys(lv.skillPierce).every(known),
+    '없어진 무공 id는 세이브에서 지운다', [...Object.keys(lv.skills), ...Object.keys(lv.skillPierce)].filter((k) => !known(k)).join(',') || '깨끗');
+  ok(Object.keys(lv.skills).length === D.SKILLS.length, '무공 레벨 표가 여덟 칸이다', `${Object.keys(lv.skills).length}칸`);
+
+  // 없어진 계열(혈천도마)로 관문 300까지 온 세이브
+  const old = migrate({ job: 'blade', bestStage: 300, maxStage: 300, stage: 300, rank: 7, gems: 50,
+    traitLv: { blade: 7 }, passives: { 'blade-nei': 12, 'blade-wai': 5, 'blade-mu': 9 },
+    skills: { jblade: 25, dash: 10, blink: 3, slash: 8 }, skillSlots: ['slash', 'dash', 'jblade', 'thunder'] });
+  ok(old.job === null && old.legacyJob === 'blade', '없어진 계열은 비우고 따로 적어 둔다', `legacyJob ${old.legacyJob}`);
+  ok(old.jobTier === 0, '고르기 전에는 0차');
+  ok(old.skills.blink === 25, '혈풍참 레벨이 이동 무공으로 온다', `Lv.${old.skills.blink}`);
+  ok(old.skillSlots.every(known), '혈풍참·발도돌격이 칸에서 빠진다', old.skillSlots.map((x) => x || '빈칸').join(','));
+  ok(!Object.keys(old.passives).some((k) => k.startsWith('blade-')), '없어진 계열 패시브는 그대로 안 남는다');
+  // 고르기 전에 한 번 저장했다 읽어도 옮길 것이 남아 있어야 한다
+  const mid = migrate(JSON.parse(JSON.stringify(old)));
+  ok(mid.legacyJob === 'blade' && mid.legacyPassives?.nei === 12, '고르기 전에 저장해도 옮길 것이 남는다',
+    JSON.stringify(mid.legacyPassives));
+  const go = new Game(mid);
+  ok(go.needsClass(), '다시 고르라고 한다');
+  ok(go.setJob('fan'), '새로 고른다');
+  ok(go.s.gems === 50, '없어진 계열에서 옮겨 오는 건 공짜다', `원보 ${go.s.gems}`);
+  ok(go.jobTier() === D.tiersByStage(300), `관문 300이면 ${D.tiersByStage(300)}차로 시작한다`, `${go.jobTier()}차 ${go.tierName()}`);
+  ok(go.traitLvOf('fan') === 7, '특성 단련이 새 캐릭터로 온다', `${go.traitLvOf('fan')}단`);
+  ok(go.passiveLv('fan-nei') === 12 && go.passiveLv('fan-wai') === 5 && go.passiveLv('fan-mu') === 9,
+    '내공·외공·무공 패시브가 새 캐릭터로 온다',
+    `${go.passiveLv('fan-nei')}/${go.passiveLv('fan-wai')}/${go.passiveLv('fan-mu')}`);
+  ok(go.s.legacyJob === null && go.s.legacyPassives === null, '한 번 옮기면 지운다');
+  const again = migrate(JSON.parse(JSON.stringify(go.toJSON())));
+  ok(again.legacyJob === null && again.job === 'fan' && again.passives['fan-nei'] === 12,
+    '옮긴 뒤 다시 읽어도 두 번 옮기지 않는다');
+  go.s.gems = D.CLASS_CHANGE_GEMS;
+  ok(go.setJob('poison'), '그 뒤에 바꿔 탈 수 있다');
+  ok(go.traitLvOf('poison') === 0 && go.passiveLv('poison-nei') === 0, '옮겨 주는 건 처음 고를 때 한 번뿐이다');
 }
 
 // ---------- 23. 체력 축이 살아 있는가 ----------
@@ -1261,22 +1474,24 @@ console.log('\n=== 23. 체력 축 ===');
   const tough = liveFor((g) => { g.s.upgrades.hp += 40; });
   ok(tough > plain * 1.3, '체력을 올리면 더 오래 버틴다',
     `${plain.toFixed(1)}초 → ${tough.toFixed(1)}초 (x${(tough / plain).toFixed(2)})`);
-  const monk = liveFor((g) => { g.s.bestStage = 9999; g.setJob('monk'); });
-  ok(monk > plain * 1.3, '마불의 체력 x2.5가 실제로 버티게 해 준다',
-    `${plain.toFixed(1)}초 → ${monk.toFixed(1)}초 (x${(monk / plain).toFixed(2)})`);
+  // 체력 x2.5를 주던 마불은 없어졌다. 캐릭터가 주는 체력은 이제 내공 패시브(검사 단전)다 —
+  // 그 체력이 숫자만이 아니라 전투에서 실제로 버티게 해 주는지 본다.
+  const nei = liveFor((g) => { g.setJob('sword'); g.s.passives['sword-nei'] = D.PASSIVE_MAX; });
+  ok(nei > plain * 1.3, '검사 내공(단전) 패시브의 체력이 실제로 버티게 해 준다',
+    `${plain.toFixed(1)}초 → ${nei.toFixed(1)}초 (x${(nei / plain).toFixed(2)})`);
 }
 
 
 console.log('\n=== 24. 전직 시험 ===');
 {
-  ok(D.JOB_TESTS.length === D.JOBS.length, '계열마다 시험이 하나씩 있다',
+  ok(D.JOB_TESTS.length === D.JOBS.length, '캐릭터마다 시험이 하나씩 있다',
     `${D.JOB_TESTS.length}/${D.JOBS.length}`);
-  ok(D.JOBS.every((j) => D.jobTestOf(j.id)), '빠진 계열이 없다');
+  ok(D.JOBS.every((j) => D.jobTestOf(j.id)), '빠진 캐릭터가 없다');
+  ok(D.JOB_TESTS.every((x) => D.jobOf(x.job)), '없어진 계열의 시험이 안 남아 있다', D.JOB_TESTS.map((x) => x.job).join(','));
 
-  // 여덟이 **서로 다른 것을 묻는다.** 같은 걸 물으면 시험이 계열을 설명하지 못한다.
+  // 시험마다 **서로 다른 것을 묻는다.** 같은 걸 물으면 시험이 캐릭터를 설명하지 못한다.
   const goals = new Set(D.JOB_TESTS.map((x) => x.goal));
-  ok(goals.size === D.JOB_TESTS.length, '여덟이 서로 다른 것을 묻는다',
-    `${goals.size}종 / ${D.JOB_TESTS.length}`);
+  ok(goals.size === D.JOB_TESTS.length, '시험마다 서로 다른 것을 묻는다', [...goals].join(','));
 
   // 시험은 **이미 넘은 관문**에서 본다. 지금 벽에서 보면 아무도 못 붙는다 —
   // 관문 200 세이브로 재 보니 0/8이었다.
@@ -1284,66 +1499,144 @@ console.log('\n=== 24. 전직 시험 ===');
     `200관문 → ${D.jobTestStage(200)}관문`);
   ok(D.jobTestStage(1) >= 1, '1관문에서도 아래로 안 내려간다', `${D.jobTestStage(1)}`);
 
-  const g = strong(500);
-  g.s.jobTests = {};
-  ok(g.jobStageOpen('sword') && !g.jobUnlocked('sword'),
-    '문이 열려도 시험 전에는 못 들어간다');
-  ok(g.canJobTest('sword'), '문이 열렸으면 시험을 볼 수 있다');
-  ok(g.startJobTest('sword') && g.mode === 'jobtest', '시험이 시작된다', g.mode);
-  ok(!g.canJobTest('blade'), '시험 중에는 다른 시험을 못 연다');
+  // 전직이 열리는 관문
+  ok(D.TIER_AT.length === D.TIER_MAX + 1 && D.TIER_AT[0] === 0, '차수마다 열리는 관문이 있다', D.TIER_AT.join(','));
+  ok(D.TIER_AT.every((v, i) => i === 0 || v > D.TIER_AT[i - 1]), '전직 관문이 오름차순이다', D.TIER_AT.join(','));
+  ok(D.TIER_AT.slice(1).every((v) => D.isWallStage(v)), '전직이 열리는 관문이 벽 자리', D.TIER_AT.slice(1).join(','));
 
-  // 육합은 무공이 **안 나가야** 한다. 세고 나서 떨구면 모르는 사이에 떨어진다.
-  const g2 = strong(500);
-  g2.s.jobTests = {};
-  g2.startJobTest('fist');
-  const anySkill = g2.activeSlots().find((id) => id && g2.s.skills[id]);
-  g2.cd = {};
-  ok(anySkill ? g2.useSkill(anySkill) === false : true,
-    '육합에서는 무공이 아예 안 나간다', anySkill || '무공 없음');
+  // 캐릭터가 없으면 시험도 없다
+  {
+    const g = strong(500);
+    ok(g.nextTierAt() === null && !g.canJobTest(), '캐릭터가 없으면 시험이 안 열린다');
+    ok(g.startJobTest() === false && g.mode === 'stage', '캐릭터가 없으면 시작도 안 된다', g.mode);
+  }
+  // 관문 전에는 못 본다
+  {
+    const g = strong(D.TIER_AT[1] - 1);
+    g.setJob('sword');
+    ok(g.jobTier() === 0, `관문 ${D.TIER_AT[1] - 1}에서 고르면 0차`);
+    ok(g.nextTierAt() === D.TIER_AT[1], '다음 전직 관문을 알려 준다', `${g.nextTierAt()}`);
+    ok(!g.tierOpen() && !g.canJobTest(), `관문 ${D.TIER_AT[1]} 전에는 1차 시험이 안 열린다`);
+    ok(g.startJobTest() === false && g.mode === 'stage', '안 열렸으면 시작도 안 된다');
+    g.s.bestStage = D.TIER_AT[1];
+    ok(g.tierOpen() && g.canJobTest(), `관문 ${D.TIER_AT[1]}에 닿으면 열린다`);
+    g.s.jobTier = 1;
+    ok(g.nextTierAt() === D.TIER_AT[2] && !g.canJobTest(), '1차가 되면 다음 시험은 다음 관문까지 닫힌다',
+      `다음 ${g.nextTierAt()}`);
+  }
+  // 시작 / 시험 중 / 끝까지 오른 뒤
+  {
+    const g = strong(500);
+    g.setJob('sword');
+    g.s.jobTier = 0;
+    ok(g.startJobTest() && g.mode === 'jobtest', '시험이 시작된다', g.mode);
+    ok(g.contest?.tier === 1 && g.contest?.job === 'sword', '0차에서 보는 건 1차 시험이다',
+      `${g.contest?.job} ${g.contest?.tier}차`);
+    ok(!g.canJobTest() && g.startJobTest() === false, '시험 중에는 또 못 연다');
+    g.endContest('fail');
+    g.s.jobTier = D.TIER_MAX;
+    ok(g.nextTierAt() === null && !g.canJobTest() && g.startJobTest() === false, '끝까지 오르면 더 볼 시험이 없다');
+  }
 
-  // 떨어져도 잃는 게 없어야 한다
-  const g3 = strong(500);
-  g3.s.jobTests = {};
-  const gold0 = g3.s.gold, lv0 = g3.s.level, stage0 = g3.s.stage;
-  g3.startJobTest('sword');
-  g3.endContest('fail');
-  ok(g3.s.gold === gold0 && g3.s.level === lv0 && g3.s.stage === stage0,
-    '떨어져도 잃는 게 없다');
-  ok(!g3.jobTestPassed('sword'), '떨어지면 안 붙은 채로 남는다');
-  ok(g3.mode === 'stage', '끝나면 들판으로 돌아온다', g3.mode);
+  // 육합(권마)은 무공이 **안 나가야** 한다. 세고 나서 떨구면 모르는 사이에 떨어진다.
+  {
+    const g2 = strong(500);
+    g2.setJob('fist');
+    g2.s.jobTier = 0;
+    g2.startJobTest();
+    ok(g2.contest?.goal === 'noskill', '권마의 시험은 육합(무공 없이)이다', g2.contest?.goal);
+    const anySkill = g2.activeSlots().find((id) => id && g2.s.skills[id]);
+    g2.cd = {};
+    ok(anySkill ? g2.useSkill(anySkill) === false : false, '육합에서는 무공이 아예 안 나간다', anySkill || '무공 없음');
+    // 막는 것은 시험뿐이어야 한다
+    g2.endContest('fail');
+    g2.spawn();
+    g2.cd = {};
+    ok(g2.useSkill(anySkill), '시험이 끝나면 같은 무공이 다시 나간다');
+  }
 
-  g3.startJobTest('sword');
-  g3.endContest('clear');
-  ok(g3.jobTestPassed('sword'), '붙으면 기록된다');
-  ok(g3.setJob('sword'), '붙은 뒤에는 들어간다');
+  // 떨어져도 잃는 게 없어야 한다. 붙으면 한 차수 오르고 무공 여덟이 각성한다.
+  {
+    const g3 = strong(500);
+    g3.setJob('sword');
+    g3.s.jobTier = 0;
+    const gold0 = g3.s.gold, lv0 = g3.s.level, stage0 = g3.s.stage, gems0 = g3.s.gems;
+    const names0 = Object.fromEntries(D.SKILLS.map((s) => [s.id, g3.skillDef(s.id).name]));
+    g3.startJobTest();
+    const out = g3.endContest('fail');
+    ok(big(g3.s.gold).eq(gold0) && g3.s.level === lv0 && g3.s.stage === stage0 && g3.s.gems === gems0,
+      '떨어져도 잃는 게 없다');
+    ok(!!out && out.win === false && !!out.miss, '떨어지면 왜 떨어졌는지 알려 준다', out?.miss || '없음');
+    ok(g3.jobTier() === 0 && D.SKILLS.every((s) => g3.skillDef(s.id).name === names0[s.id]),
+      '떨어지면 차수도 무공도 그대로다');
+    ok(g3.mode === 'stage', '끝나면 들판으로 돌아온다', g3.mode);
+    // 시간이 다 되면 떨어진다 (버티면 붙던 부동은 마불과 같이 빠졌다)
+    g3.startJobTest();
+    const to = g3.endContest('timeout');
+    ok(!!to && !to.win && g3.jobTier() === 0, '시간이 다 되면 떨어진다');
 
-  // 부동은 **시간이 다 되면** 붙는다 (이기는 시험이 아니다)
-  const g4 = strong(500);
-  g4.s.jobTests = {};
-  g4.startJobTest('monk');
-  g4.endContest('timeout');
-  ok(g4.jobTestPassed('monk'), '부동은 버티면(시간초과) 붙는다');
+    const bossBefore = g3.stats({ buffs: false }).bossMul;
+    g3.startJobTest();
+    const win = g3.endContest('clear');
+    ok(!!win && win.win && win.tier === 1 && g3.jobTier() === 1, '붙으면 1차가 된다',
+      `${g3.jobTier()}차 ${g3.tierName()}`);
+    const changed = D.SKILLS.filter((s) => g3.skillDef(s.id).name !== names0[s.id]);
+    ok(changed.length === D.SKILLS.length, '붙으면 무공 여덟의 이름이 전부 바뀐다',
+      D.SKILLS.map((s) => `${names0[s.id]}→${g3.skillDef(s.id).name}`).slice(0, 3).join(', '));
+    ok(g3.skillDef('blink').name === '일점혈로' && g3.skillDef('blink').behind === true,
+      '검사 1차의 이동 무공은 등 뒤로 꿰뚫는 일점혈로가 된다', g3.skillDef('blink').name);
+    ok(!!g3.jobTrait() && gt(g3.stats({ buffs: false }).bossMul, bossBefore), '1차가 되면 특성과 배수가 붙는다');
+    // 한 번에 한 차수씩만 오른다 (관문 500이면 2차·3차 시험도 열려 있다)
+    ok(g3.startJobTest() && g3.contest?.tier === 2, '다음은 2차 시험이다', `${g3.contest?.tier}차`);
+    g3.endContest('clear');
+    ok(g3.jobTier() === 2 && g3.skillDef('pierce').name === '만류귀종', '붙으면 2차 — 관통 무공이 만류귀종이 된다',
+      `${g3.jobTier()}차 ${g3.skillDef('pierce').name}`);
+    g3.startJobTest();
+    g3.endContest('clear');
+    ok(g3.jobTier() === D.TIER_MAX && g3.skillDef('frost').name === '천하제일검', '3차가 끝이다 — 천하제일검',
+      `${g3.jobTier()}차 ${g3.tierName()}`);
+    ok(g3.startJobTest() === false, '3차 뒤에는 시험이 없다');
+  }
+  // 시험 도중에 캐릭터를 바꾸면, 붙어도 바뀐 캐릭터의 차수가 공짜로 오르지 않는다
+  {
+    const g = strong(500);
+    g.setJob('sword');
+    g.s.jobTier = 0;
+    g.startJobTest();
+    g.setJob('fist');
+    g.endContest('clear');
+    ok(g.jobTier() === 0, '남의 시험으로는 차수가 안 오른다', `${g.s.job} ${g.jobTier()}차`);
+  }
 
   // 옛 세이브 구제 — 이미 들어간 문파를 시험 때문에 잃으면 안 된다
-  const oldSv = migrate({ job: 'ring', jobSeen: ['ring', 'fan'], rank: 9, bestStage: 9999 });
-  ok(oldSv.jobTests.ring && oldSv.jobTests.fan,
-    '시험 전 세이브는 거쳐 본 계열이 붙은 걸로 들어온다',
-    Object.keys(oldSv.jobTests).join(','));
-  ok(new Game(oldSv).s.job === 'ring', '들어가 있던 문파를 그대로 들고 온다');
+  const oldSv = migrate({ job: 'fan', jobSeen: ['monk', 'fan'], rank: 9, bestStage: 9999, maxStage: 9999 });
+  ok(oldSv.job === 'fan' && oldSv.jobTier === D.TIER_MAX, '시험 전 세이브는 넘은 관문만큼 전직한 채로 들어온다',
+    `${oldSv.job} ${oldSv.jobTier}차`);
 
   // 체력 비율로 못박은 시험은 사람이 달라도 같은 세기여야 한다 —
   // monsterAtk로 두니 관문 200에서는 한 대에 죽고 390에서는 안 아팠다.
   const frac = D.JOB_TESTS.filter((x) => x.atkHpFrac);
-  ok(frac.length >= 3, '적의 공격을 체력 비율로 못박은 시험이 있다',
-    frac.map((x) => x.name).join(','));
+  ok(frac.length >= 1, '적의 공격을 체력 비율로 못박은 시험이 있다', frac.map((x) => x.name).join(','));
   for (const d of frac) {
-    const gg = strong(500);
-    gg.s.jobTests = {};
-    gg.startJobTest(d.job);
-    const want = gg.stats().hp * d.atkHpFrac;
-    ok(Math.abs(gg.mon.atk - want) < want * 0.01,
+    const open = (tune) => {
+      const gg = strong(500);
+      tune?.(gg);
+      gg.setJob(d.job);
+      gg.s.jobTier = 0;
+      gg.startJobTest();
+      return { gg, st: gg.stats() };
+    };
+    const { gg, st } = open();
+    const want = st.hp.mul(d.atkHpFrac / Math.max(0.05, st.guard));
+    ok(Math.abs(big(gg.mon.atk).div(want).toNumber() - 1) < 0.01,
       `${d.name}의 적 공격이 내 체력의 ${Math.round(d.atkHpFrac * 100)}%다`,
       `${gg.mon.atk.toExponential(2)} / ${want.toExponential(2)}`);
+    // 체력이 늘면 적 공격도 같은 비율로 는다
+    const { gg: g2, st: st2 } = open((x) => { x.s.upgrades.hp += 60; });
+    const hpR = big(st2.hp).div(st.hp).toNumber();
+    const atkR = big(g2.mon.atk).div(gg.mon.atk).toNumber();
+    ok(hpR > 1.5 && Math.abs(atkR / hpR - 1) < 0.01, `${d.name}: 체력이 늘면 적 공격도 그만큼 는다`,
+      `체력 x${hpR.toFixed(2)} · 적 공격 x${atkR.toFixed(2)}`);
   }
 }
 
@@ -1416,59 +1709,93 @@ console.log('\n=== 25. 광고 / 광고 제거 ===');
 console.log('\n=== 26. 계열 패시브 / 장착 칸 ===');
 {
   ok(D.SKILL_SLOTS === 8, '장착 칸이 여덟이다', `${D.SKILL_SLOTS}칸`);
+  ok(D.SKILL_SLOTS === D.SKILLS.length, '칸이 무공 수와 같다 — 끝까지 가면 여덟을 다 낀다',
+    `${D.SKILL_SLOTS}칸 / ${D.SKILLS.length}자리`);
   ok(D.SKILL_SLOT_AT.length === D.SKILL_SLOTS - D.SKILL_SLOT_BASE,
     '열리는 관문 수가 칸 수와 맞는다', `${D.SKILL_SLOT_BASE} + ${D.SKILL_SLOT_AT.length}`);
   ok(D.SKILL_SLOT_AT.every((v, i) => i === 0 || v > D.SKILL_SLOT_AT[i - 1]),
     '칸이 열리는 관문이 오름차순이다', D.SKILL_SLOT_AT.join(','));
   ok(D.skillSlotCount(9999) === D.SKILL_SLOTS, '끝까지 가면 여덟 칸이 전부 열린다');
 
-  // 계열마다 세 갈래(내공·외공·무공)가 하나씩 있어야 한다
+  // 캐릭터마다 여섯 갈래(내공·외공·무공·경공·안력·심법)가 하나씩 있어야 한다
+  ok(D.PASSIVE_KINDS.map((k) => k.id).join(',') === 'nei,wai,mu,qing,yan,xin', '패시브 갈래가 여섯이다',
+    D.PASSIVE_KINDS.map((k) => k.name).join('·'));
   ok(D.PASSIVES.length === D.JOBS.length * D.PASSIVE_KINDS.length,
-    '계열마다 갈래가 하나씩 있다', `${D.PASSIVES.length} = ${D.JOBS.length} x ${D.PASSIVE_KINDS.length}`);
+    '캐릭터마다 갈래가 하나씩 있다', `${D.PASSIVES.length} = ${D.JOBS.length} x ${D.PASSIVE_KINDS.length}`);
+  ok(D.PASSIVES.every((p) => D.jobOf(p.job)), '없어진 계열의 패시브가 안 남아 있다');
   for (const j of D.JOBS) {
     const kinds = D.passivesOf(j.id).map((p) => p.kind);
-    ok(new Set(kinds).size === D.PASSIVE_KINDS.length, `${j.name}에 세 갈래가 다 있다`, kinds.join(','));
+    ok(kinds.length === D.PASSIVE_KINDS.length && new Set(kinds).size === D.PASSIVE_KINDS.length,
+      `${j.name}에 여섯 갈래가 다 있다`, kinds.join(','));
   }
-  // **계열마다 값이 달라야 한다.** 같으면 고른 계열이 패시브에서 안 드러난다.
-  const neiPer = D.JOBS.map((j) => D.passivesOf(j.id).find((p) => p.kind === 'nei').per);
-  ok(new Set(neiPer).size >= 4, '같은 갈래라도 계열마다 세기가 다르다',
-    `내공 ${new Set(neiPer).size}종`);
+  // **캐릭터마다 값이 달라야 한다.** 같으면 고른 캐릭터가 패시브에서 안 드러난다.
+  const neiPer = D.JOBS.map((j) => D.passivesOf(j.id).find((p) => p.kind === 'nei')?.per);
+  ok(new Set(neiPer).size >= 3, '같은 갈래라도 캐릭터마다 세기가 다르다', `내공 ${new Set(neiPer).size}종 / ${D.JOBS.length}`);
+  const flat = D.PASSIVE_KINDS.filter((k) => new Set(D.JOBS.map((j) => {
+    const p = D.passivesOf(j.id).find((x) => x.kind === k.id);
+    return p ? `${p.stat}:${p.per}` : '';
+  })).size < 2);
+  ok(flat.length === 0, '어느 갈래도 캐릭터끼리 전부 똑같지는 않다', flat.map((k) => k.name).join(',') || '전부 갈린다');
   // 축 이름이 전부 사람 말로 적혀 있어야 한다 — 없으면 화면에 영문이 뜬다
   const noName = D.PASSIVES.filter((p) => !D.PASSIVE_STAT_NAME[p.stat]);
   ok(noName.length === 0, '패시브가 미는 축에 전부 이름이 있다',
     noName.map((p) => p.stat).join(',') || '없음');
+  // 패시브 전부가 실제로 능력치를 움직인다 — 주고도 안 읽는 자리를 만들지 않는다.
+  // 경공·안력·심법은 운기조식·천금수가 빠진 자리를 받으려고 새로 붙었다.
+  {
+    const dead = [];
+    const digest = (x) => {
+      const st = x.stats({ buffs: false });
+      return JSON.stringify([st.atk, st.hp, st.speed, st.critDmg, st.goldMul, st.expMul, st.bossMul, st.guard,
+        st.bleedMult, st.ccDurMult, st.skillDmgMult, st.skillCdCut, x.skillCdOf(D.skillOf('slash'))]);
+    };
+    for (const pv of D.PASSIVES) {
+      const gg = strong(600);
+      gg.s.bestStage = 9999;
+      gg.setJob(pv.job);
+      const a = digest(gg);
+      gg.s.passives[D.passiveId(pv)] = 20;
+      if (digest(gg) === a) dead.push(`${pv.job} ${pv.name}(${pv.stat})`);
+    }
+    ok(dead.length === 0, `패시브 ${D.PASSIVES.length}개가 전부 능력치에 들어간다`, dead.join(', ') || `${D.PASSIVES.length}개 전부`);
+  }
 
-  // 지금 들어간 계열 것만 켜진다
+  // 지금 고른 캐릭터 것만 켜진다
   const g = strong(600);
   g.s.books = big(1e12);
   g.s.bestStage = 9999;
-  g.s.merit = big(1e9);                  // 문파를 바꾸는 데 공적이 든다
-  for (const j of D.JOBS) g.s.jobTests[j.id] = true;
-  ok(g.setJob('monk'), '마불에 들어간다');
-  ok(g.passiveUp('monk-nei', 10) === 10, '내 계열 패시브는 올라간다');
-  ok(g.passiveUp('sword-nei', 1) === 0, '남의 계열 패시브는 못 올린다');
+  ok(g.setJob('sword'), '검사를 고른다');
+  ok(g.passiveUp('sword-nei', 10) === 10, '내 캐릭터 패시브는 올라간다');
+  ok(g.passiveUp('fist-nei', 1) === 0, '남의 캐릭터 패시브는 못 올린다');
   const hpOn = g.stats().hp;
   ok(Object.keys(g.passiveSum()).length > 0, '켜져 있다', JSON.stringify(g.passiveSum()));
-  g.setJob('poison');
-  ok(Object.keys(g.passiveSum()).length === 0, '문파를 바꾸면 그쪽 패시브가 꺼진다');
-  g.setJob('monk');
-  ok(g.passiveLv('monk-nei') === 10, '돌아오면 올려 둔 게 그대로다');
-  ok(Math.abs(g.stats().hp - hpOn) < 1, '돌아오면 효과도 그대로다');
+  ok(g.setJob('poison'), '독마로 바꾼다 (원보가 든다)');
+  ok(Object.keys(g.passiveSum()).length === 0, '캐릭터를 바꾸면 그쪽 패시브가 꺼진다');
+  ok(g.setJob('sword'), '검사로 돌아온다');
+  ok(g.passiveLv('sword-nei') === 10, '돌아오면 올려 둔 게 그대로다');
+  ok(big(g.stats().hp).eq(hpOn), '돌아오면 효과도 그대로다');
 
   // 쿨타임은 바닥이 있어야 한다 — 0이 되면 평타·영수가 의미를 잃는다
-  const g2 = strong(600);
-  g2.s.books = big(1e12); g2.s.bestStage = 9999;
-  for (const j of D.JOBS) g2.s.jobTests[j.id] = true;
-  g2.setJob('blade');
-  g2.passiveUp('blade-mu', D.PASSIVE_MAX);
-  const sk = D.SKILLS.find((x) => x.id === 'slash');
-  ok(g2.skillCdOf(sk) >= sk.cd * 0.3 - 1e-9, '쿨타임이 원래의 30% 아래로는 안 내려간다',
-    `${g2.skillCdOf(sk).toFixed(2)}초 / 바닥 ${(sk.cd * 0.3).toFixed(2)}초`);
+  for (const pid of D.PASSIVES.filter((p) => p.stat === 'skillCd').map(D.passiveId)) {
+    const g2 = strong(600);
+    g2.s.books = big(1e12); g2.s.bestStage = 9999;
+    g2.setJob(pid.split('-')[0]);
+    g2.passiveUp(pid, D.PASSIVE_MAX);
+    // 패시브만으로는 바닥에 안 닿는다 — 레벨·토납까지 끝까지 밀어 바닥을 실제로 건드린다
+    g2.s.skills.slash = 9999;
+    g2.s.upgrades.skillCd = D.upTierLv('skillCd');
+    const sk = D.skillOf('slash');
+    const cut = (g2.passiveSum().skillCd || 0) + big(D.upAdds('skillCd', g2.s.upgrades.skillCd).skillCd || 0).toNumber();
+    const raw = D.skillCd(sk.cd, 9999, 0) * (1 - cut);
+    ok(raw < sk.cd * 0.3, `${pid}: 바닥이 없으면 30% 아래로 내려갈 만큼 밀었다`, `${raw.toFixed(2)}초`);
+    ok(g2.passiveLv(pid) === D.PASSIVE_MAX && Math.abs(g2.skillCdOf(sk) - sk.cd * 0.3) < 1e-9,
+      `${pid}: 쿨타임이 원래의 30%에서 멈춘다`,
+      `${g2.skillCdOf(sk).toFixed(2)}초 / 바닥 ${(sk.cd * 0.3).toFixed(2)}초`);
+  }
 
   // 받는 피해 감소도 바닥이 있어야 한다
   const g3 = strong(600);
   g3.s.books = big(1e12); g3.s.bestStage = 9999;
-  for (const j of D.JOBS) g3.s.jobTests[j.id] = true;
   g3.setJob('fist');
   g3.passiveUp('fist-nei', D.PASSIVE_MAX);
   ok(g3.stats().guard >= 0.2 - 1e-9, '받는 피해를 80%까지만 줄인다',
@@ -1477,25 +1804,27 @@ console.log('\n=== 26. 계열 패시브 / 장착 칸 ===');
   // 세이브에 남는다
   const g4 = strong(600);
   g4.s.books = big(1e12); g4.s.bestStage = 9999;
-  for (const j of D.JOBS) g4.s.jobTests[j.id] = true;
-  g4.setJob('ring');
-  g4.passiveUp('ring-wai', 7);
+  g4.setJob('poison');
+  g4.passiveUp('poison-xin', 7);
   const back = migrate(JSON.parse(JSON.stringify(g4.toJSON())));
-  ok(back.passives['ring-wai'] === 7, '패시브 레벨이 세이브에 남는다', `${back.passives['ring-wai']}`);
+  ok(back.passives['poison-xin'] === 7, '새 갈래(심법) 레벨도 세이브에 남는다', `${back.passives['poison-xin']}`);
   ok(migrate({}).passives && Object.keys(migrate({}).passives).length === 0,
     '옛 세이브는 빈 채로 들어온다');
+}
 
-// ---------- 27. 문파 특성이 실제로 들어가는가 ----------
+// ---------- 27. 캐릭터 특성이 실제로 들어가는가 ----------
 //
 // **주고도 안 읽는 자리**를 만들지 않는다. 오늘만 해도 사건을 보내 놓고
-// 받는 쪽을 안 만든 적이 세 번 있었다. 특성은 여덟 개나 되므로 하나씩 돌린다.
+// 받는 쪽을 안 만든 적이 세 번 있었다. 특성마다 하나씩 돌린다.
+// 특성은 1차 전직부터 실리므로 여기서는 1차로 둔다.
 console.log('');
-console.log('=== 27. 문파 특성 ===');
+console.log('=== 27. 캐릭터 특성 ===');
 {
   // 특성이 붙은 채로 무공을 한 번 쓰고, 그 결과를 본다
-  const cast = (job, skillId = 'slash', tune) => {
+  const cast = (job, skillId = 'slash', tune, tier = 1) => {
     const g = strong(200);
     g.s.job = job;
+    g.s.jobTier = job ? tier : 0;
     g.rng = (() => { let s2 = 7; return () => ((s2 = (s2 * 1103515245 + 12345) % 2147483648) / 2147483648); })();
     g.spawn();
     tune?.(g);
@@ -1508,67 +1837,59 @@ console.log('=== 27. 문파 특성 ===');
     return { g, ok: ok2, before, mon: g.mon };
   };
 
-  // 혈천도마 〈혈기〉 — 모든 무공이 출혈을 건다. 선풍검은 본래도 출혈이라
-  // 출혈이 **없는** 무공으로 본다(뇌정검은 둔화만 건다).
-  {
-    const no = cast(null, 'thunder');
-    const yes = cast('blade', 'thunder');
-    ok(no.ok && yes.ok, '뇌정검이 나갔다');
-    ok(!(no.mon.bleed > 0), '문파가 없으면 뇌정검은 출혈을 안 건다', `${no.mon.bleed || 0}초`);
-    ok(yes.mon.bleed > 0, '혈천도마는 뇌정검에도 출혈이 붙는다', `${yes.mon.bleed.toFixed(1)}초`);
-  }
-  // 환마 〈환기〉 — 파쇄
+  // 환마 〈환기〉 — 모든 무공이 파쇄를 건다. 뇌정검은 본래 둔화만 건다.
   {
     const no = cast(null, 'thunder');
     const yes = cast('fan', 'thunder');
-    ok(!(no.mon.weak > 0), '문파가 없으면 파쇄가 안 붙는다');
-    ok(yes.mon.weak > 0, '환마는 모든 무공에 파쇄가 붙는다', `${yes.mon.weak.toFixed(1)}초`);
+    const base0 = cast('fan', 'thunder', null, 0);
+    ok(no.ok && yes.ok && base0.ok, '뇌정검(광역)이 나갔다');
+    ok(!(no.mon.weak > 0), '캐릭터가 없으면 파쇄가 안 붙는다', `${no.mon.weak || 0}초`);
+    ok(yes.mon.weak > 0, '환마 1차는 모든 무공에 파쇄가 붙는다', `${(yes.mon.weak || 0).toFixed(1)}초`);
+    ok(!(base0.mon.weak > 0), '환마라도 0차에는 안 붙는다');
   }
-  // 독마 〈독기〉 — 출혈이 더 아프다
+  // 독마 〈독기〉 — 모든 무공이 중독을 걸고, 더 아프다
   {
-    const b = cast('blade', 'thunder');
-    const p = cast('poison', 'thunder');
-    ok(p.mon.bleedPer > b.mon.bleedPer, '독마의 중독이 혈천도마의 출혈보다 아프다',
-      `${b.mon.bleedPer.toExponential(2)} → ${p.mon.bleedPer.toExponential(2)}`);
-  }
-  // 마불 〈불력〉 — 무공을 쓰면 체력이 찬다
-  {
-    const r = cast('monk', 'thunder', (g) => { g.heroHp = g.stats().hp.mul(0.5); });
-    ok(gt(r.g.heroHp, r.before.hp), '마불은 무공을 쓰면 체력이 찬다',
-      `${r.before.hp.toExponential(2)} → ${r.g.heroHp.toExponential(2)}`);
-    const n = cast(null, 'thunder', (g) => { g.heroHp = g.stats().hp.mul(0.5); });
-    ok(Math.abs(n.g.heroHp - n.before.hp) < 1e-9, '문파가 없으면 안 찬다');
-  }
-  // 취마 〈주기〉 — 무공을 쓰면 은자가 떨어진다
-  {
-    const r = cast('drunk', 'thunder');
-    ok(gt(r.g.s.gold, r.before.gold), '취마는 무공을 쓰면 은자가 들어온다',
-      `+${(r.g.s.gold - r.before.gold).toExponential(2)}`);
-    // 보이는 쪽도 있어야 한다 — 사건을 보내 놓고 받는 쪽이 없으면 없는 것과 같다
-    ok(r.g.events.some((e) => e.type === 'gold' && e.fromSkill), '은자가 떨어진 사건을 보낸다');
+    const no = cast(null, 'thunder');
+    const yes = cast('poison', 'thunder');
+    ok(!(no.mon.bleed > 0), '캐릭터가 없으면 뇌정검은 출혈을 안 건다', `${no.mon.bleed || 0}초`);
+    ok(yes.mon.bleed > 0, '독마 1차는 뇌정검에도 중독이 붙는다', `${(yes.mon.bleed || 0).toFixed(1)}초`);
+    // 본래 출혈을 거는 기본기로 세기를 견준다
+    const a = cast(null, 'slash');
+    const b = cast('poison', 'slash');
+    ok(a.mon.bleed > 0 && gt(b.mon.bleedPer, a.mon.bleedPer), '독마의 중독이 그냥 출혈보다 아프다',
+      `${big(a.mon.bleedPer || 0).toExponential(2)} → ${big(b.mon.bleedPer || 0).toExponential(2)}`);
   }
   // 권마 〈강기〉 — 다른 무공의 쿨이 줄어든다
   {
     const g = strong(200);
     g.s.job = 'fist';
+    g.s.jobTier = 1;
     g.spawn();
     g.cd = { frost: 10 };
     g.useSkill('thunder');
-    ok(g.cd.frost < 10, '권마는 무공을 쓰면 다른 무공 쿨이 준다', `10 → ${g.cd.frost.toFixed(1)}초`);
+    ok(g.cd.frost < 10, '권마 1차는 무공을 쓰면 다른 무공 쿨이 준다', `10 → ${g.cd.frost.toFixed(1)}초`);
     const g2 = strong(200);
     g2.spawn();
     g2.cd = { frost: 10 };
     g2.useSkill('thunder');
-    ok(g2.cd.frost === 10, '문파가 없으면 안 준다');
+    ok(g2.cd.frost === 10, '캐릭터가 없으면 안 준다');
+    const g0 = strong(200);
+    g0.s.job = 'fist';
+    g0.s.jobTier = 0;
+    g0.spawn();
+    g0.cd = { frost: 10 };
+    g0.useSkill('thunder');
+    ok(g0.cd.frost === 10, '권마라도 0차에는 안 준다');
   }
-  // 일화검존 〈검의〉 — 두목에게 더 아프다
+  // 검사 〈검의〉 — 두목에게 더 아프다
   {
     // **체력을 1e300으로 두고 뺄셈을 하면 안 된다.** 피해가 1e10이라
     // 자리수가 290이나 차이 나서 뺀 값이 그대로 0으로 나왔다(여기서 겪었다).
     // 보낸 피해 사건을 그대로 센다.
-    const hit = (job) => {
+    const hit = (job, tier = 1) => {
       const g = strong(200);
       g.s.job = job;
+      g.s.jobTier = job ? tier : 0;
       g.rng = () => 0.99;                 // 치명이 안 터지게 고정한다
       g.spawn();
       g.mon.isBoss = true;
@@ -1578,15 +1899,18 @@ console.log('=== 27. 문파 특성 ===');
       g.useSkill('thunder');
       return g.events.filter((e) => e.type === 'dmg').reduce((a, e) => a.add(e.amount || 0), big(0));
     };
-    const a = hit(null), b = hit('sword');
-    ok(gt(b, big(a).mul(1.2)), '일화검존은 모든 무공이 두목에게 더 아프다',
+    const a = hit(null), b = hit('sword'), c = hit('sword', 0);
+    ok(gt(b, big(a).mul(1.2)), '검사 1차는 모든 무공이 두목에게 더 아프다',
       `${a.toExponential(2)} → ${b.toExponential(2)}`);
+    ok(big(c).eq(a), '검사라도 0차에는 그대로다', `${a.toExponential(2)} / ${c.toExponential(2)}`);
   }
-  // 극악소마 〈지력〉 — 치명이 뜰 수 있다
-  {
-    const hit = (job, roll) => {
+  // 치명이 뜰 수 있게 하는 특성(옛 극악소마 〈지력〉)이 있으면 실제로 터져야 하고,
+  // 단련해도 확률이 1을 안 넘어야 한다 — 넘으면 올린 공적이 그냥 버려진다
+  for (const [job, tr] of Object.entries(D.JOB_TRAITS).filter(([, t]) => t.critChance)) {
+    const hit = (j, roll) => {
       const g = strong(200);
-      g.s.job = job;
+      g.s.job = j;
+      g.s.jobTier = j ? 1 : 0;
       g.rng = () => roll;
       g.spawn();
       g.mon.hp = Big.pow10(500);
@@ -1595,18 +1919,19 @@ console.log('=== 27. 문파 특성 ===');
       g.useSkill('thunder');
       return g.events.filter((e) => e.type === 'dmg').reduce((a, e) => a.add(e.amount || 0), big(0));
     };
-    ok(gt(hit('ring', 0.01), big(hit(null, 0.01)).mul(1.2)), '극악소마는 무공도 치명이 터진다',
-      `${hit(null, 0.01).toExponential(2)} → ${hit('ring', 0.01).toExponential(2)}`);
-    ok(big(hit('ring', 0.99)).eq(hit(null, 0.99)), '안 터질 때는 그대로');
+    const name = D.jobOf(job)?.name || job;
+    ok(gt(hit(job, 0.01), big(hit(null, 0.01)).mul(1.2)), `${name} 〈${tr.name}〉: 무공도 치명이 터진다`,
+      `${hit(null, 0.01).toExponential(2)} → ${hit(job, 0.01).toExponential(2)}`);
+    ok(gt(hit(job, 0.01), big(hit(job, 0.99)).mul(1.2)), `${name}: 굴림이 빗나가면 치명이 안 터진다`,
+      `${hit(job, 0.99).toExponential(2)} / ${hit(job, 0.01).toExponential(2)}`);
+    const gr = strong(500);
+    gr.s.bestStage = 9999;
+    gr.setJob(job);
+    gr.s.traitLv[job] = 500;
+    ok(gr.jobTrait().critChance <= 1, `${name}: 치명 확률 특성이 1을 안 넘는다`, `${gr.jobTrait().critChance}`);
   }
-  // 맛보기로는 특성이 안 붙는다 — 그러면 전직할 이유가 없다
-  {
-    const g = strong(200);
-    g.s.taste = 'blade';
-    g.s.job = null;
-    ok(g.jobTrait() === null, '맛보기만으로는 특성이 안 붙는다');
-    ok(g.jobSkills().length <= 1, '맛보기는 1차 무공 하나만', `${g.jobSkills().length}개`);
-  }
+  ok(Object.keys(D.JOB_TRAITS).every((k) => D.jobOf(k)) && D.JOBS.every((j) => D.JOB_TRAITS[j.id]),
+    '특성 표와 캐릭터가 하나씩 맞는다', Object.keys(D.JOB_TRAITS).join(','));
 }
 
 // ---------- 28. 무공 차수 ----------
@@ -1637,7 +1962,8 @@ console.log('=== 28. 무공 차수 ===');
 
 // ---------- 29. 무공 연계 ----------
 //
-// 무공이 서른여덟인데 고르는 기준이 "센 것 여덟"뿐이면 칸이 여덟일 이유가 없다.
+// 무공이 여덟으로 줄어 칸 수와 같아졌다. 그래도 칸이 열리는 동안은 고르고,
+// 끼우는 **차례**가 연계로 뜻을 가져야 한다 — 고르는 기준이 "센 것"뿐이면 안 된다.
 // 연계가 **실제로 터지고, 실제로 더 아프고, 고리가 막히지 않는가**를 본다.
 console.log('');
 console.log('=== 29. 무공 연계 ===');
@@ -1730,18 +2056,17 @@ console.log('=== 29. 무공 연계 ===');
   }
 }
 
-// ---------- 30. 특성 단련 / 문파 교체 ----------
+// ---------- 30. 특성 단련 / 캐릭터 교체 ----------
 console.log('');
-console.log('=== 30. 특성 단련 · 문파 교체 ===');
+console.log('=== 30. 특성 단련 · 캐릭터 교체 ===');
 {
   const g = strong(500);
   g.s.rank = 9; g.s.bestStage = 9999;
-  for (const j of D.JOBS) g.s.jobTests[j.id] = true;
   g.s.merit = big(1e6);
-  g.setJob('blade');
+  g.setJob('fan');            // 관문 9999라 바로 3차다 — 특성이 실려 있다
 
   const t0 = g.jobTrait();
-  ok(t0.lv === 0, '처음엔 0단');
+  ok(!!t0 && t0.lv === 0, '처음엔 0단');
   ok(g.traitUp(), '공적으로 올린다');
   const t1 = g.jobTrait();
   ok(t1.lv === 1, '한 단 올랐다');
@@ -1750,26 +2075,40 @@ console.log('=== 30. 특성 단련 · 문파 교체 ===');
   ok(gt(D.traitCost(500), D.traitCost(499)) && fin(D.traitCost(500)), '단련에 끝이 없다',
     D.traitCost(500).toExponential(1));
   ok(D.traitScale(100) > D.traitScale(50), '올릴수록 계속 세진다');
-  // 치명 확률만은 1을 넘으면 버려지므로 막는다
+  // 전부 단련하면 실제 값이 커진다 — 하나라도 그대로면 그 캐릭터만 공적이 버려진다
   {
-    const gr = strong(500);
-    gr.s.rank = 9; gr.s.bestStage = 9999;
-    for (const j of D.JOBS) gr.s.jobTests[j.id] = true;
-    gr.s.merit = big(1e12);
-    gr.setJob('ring');
-    gr.s.traitLv.ring = 500;
-    ok(gr.jobTrait().critChance <= 1, '치명 확률 특성이 1을 안 넘는다',
-      `${gr.jobTrait().critChance}`);
+    const flat = [];
+    for (const j of D.JOBS) {
+      const gg = strong(500);
+      gg.s.bestStage = 9999;
+      gg.setJob(j.id);
+      const a = gg.jobTrait();
+      gg.s.traitLv[j.id] = 10;
+      const b = gg.jobTrait();
+      const grew = ['bossBonus', 'cdCut', 'ccSec', 'bleedMult', 'critChance', 'goldOnSkill', 'heal']
+        .some((k) => typeof a[k] === 'number' && b[k] > a[k]);
+      if (!grew) flat.push(j.name);
+    }
+    ok(flat.length === 0, '어느 캐릭터든 단련하면 특성 값이 커진다', flat.join(',') || '전부 커진다');
+  }
+  // 0차에는 단련해 둬도 안 실린다 — 단련값은 남아 있다가 1차에 실린다
+  {
+    const gg = strong(100);
+    gg.setJob('sword');
+    gg.s.traitLv.sword = 5;
+    ok(gg.jobTier() === 0 && gg.jobTrait() === null, '0차에는 단련해 둔 특성도 안 실린다');
+    gg.s.jobTier = 1;
+    ok(gg.jobTrait()?.lv === 5, '1차가 되면 단련해 둔 만큼 실린다', `${gg.jobTrait()?.lv}단`);
   }
 
-  // 특성 레벨은 문파마다 따로 쌓인다 — 갈아타는 진짜 값이 이것이다
+  // 특성 레벨은 캐릭터마다 따로 쌓인다 — 갈아타는 진짜 값이 이것이다
   g.traitUp(); g.traitUp();
-  const bladeLv = g.traitLvOf('blade');
-  g.setJob('poison');
+  const fanLv = g.traitLvOf('fan');
+  ok(g.setJob('poison'), '독마로 갈아탄다 (원보가 든다)');
   ok(g.jobTrait().lv === 0, '갈아타면 그쪽은 0단부터');
-  ok(g.traitLvOf('blade') === bladeLv, '두고 온 단련은 남아 있다', `${bladeLv}단`);
-  g.setJob('blade');
-  ok(g.jobTrait().lv === bladeLv, '돌아오면 그대로다');
+  ok(g.traitLvOf('fan') === fanLv, '두고 온 단련은 남아 있다', `${fanLv}단`);
+  ok(g.setJob('fan'), '환마로 돌아온다');
+  ok(g.jobTrait().lv === fanLv, '돌아오면 그대로다');
 
   // 공적이 실제로 들어오는가 — 안 들어오면 올릴 길이 없다
   ok(D.bossMerit(300) > D.bossMerit(100), '관문이 오를수록 공적도 는다',
@@ -1786,7 +2125,7 @@ console.log('=== 30. 특성 단련 · 문파 교체 ===');
   }
   // 세이브에 남는가
   const back = migrate(JSON.parse(JSON.stringify(g.toJSON())));
-  ok(back.traitLv?.blade === bladeLv, '특성 단련이 세이브에 남는다', `${back.traitLv?.blade}`);
+  ok(back.traitLv?.fan === fanLv, '특성 단련이 세이브에 남는다', `${back.traitLv?.fan}`);
   // 공적은 이제 Big이다 — 세이브에는 "1.2e500" 글자로 들어갔다 나온다
   ok(fin(back.merit) && pos(back.merit), '공적이 세이브에 남는다', fmt(back.merit));
   ok(migrate({}).traitLv && Object.keys(migrate({}).traitLv).length === 0,
@@ -1976,17 +2315,24 @@ console.log('');
 console.log('=== 34. 전직 시험 ===');
 {
   for (const d of D.JOB_TESTS) {
-    ok(!!d.hpSec || !!d.immortal, `${d.name}이 절대 체력으로 안 맞춰져 있다`,
+    ok(!!d.hpSec || !!d.immortal, `${iga(d.name)} 절대 체력으로 안 맞춰져 있다`,
       d.hpSec ? `hpSec ${d.hpSec}` : '벨 수 없음');
     ok(!d.hpMult, `${d.name}에 옛 hpMult가 안 남아 있다`);
   }
-  // '벨 수 없다'고 적은 시험은 실제로 벨 수 없어야 한다
-  const endure = D.JOB_TESTS.find((d) => d.goal === 'endure');
-  ok(endure && endure.immortal, '부동의 상대는 실제로 벨 수 없다');
+  // '벨 수 없다'고 적은 시험은 실제로 벨 수 없어야 하고, 아닌 시험은 벨 수 있어야 한다.
+  // (버티는 부동·맞아야 붙는 취생은 계열과 같이 빠졌다)
+  for (const d of D.JOB_TESTS) {
+    const g = strong(500);
+    g.setJob(d.job);
+    g.s.jobTier = 0;
+    g.startJobTest();
+    ok(g.mode === 'jobtest' && !!g.mon && !!g.mon.immortal === !!d.immortal,
+      `${d.name}의 상대가 적힌 대로 ${d.immortal ? '벨 수 없다' : '벨 수 있다'}`);
+    g.endContest('fail');
+  }
 
   // 체력의 몇 %를 맞는다고 적었으면 **그만큼 맞아야 한다.**
   // 호신강기가 guard로 깎아서 62%로 적어 둔 것이 12%로 들어가고 있었다 —
-  // 그래서 '맞아 가며 이겨라'(취생)에 아무도 못 붙었다.
   // 받는 피해를 많이 깎아 둔 사람도 적어 둔 만큼은 맞아야 한다
   {
     // strong()은 이것저것 쥐여 주는 도우미라 여기선 깨끗한 세이브로 본다 —
@@ -1995,34 +2341,33 @@ console.log('=== 34. 전직 시험 ===');
     Object.assign(s2, { stage: 300, bestStage: 300, maxStage: 300, level: 1200, rank: 7 });
     Object.assign(s2.upgrades, { atk: 320, hp: 230, guard: 120 });
     const g = new Game(s2);
-    g.jobStageOpen = () => true;
+    g.setJob('fan');
+    g.s.jobTier = 1;                 // 2차 시험(관문 280)이 열려 있게 둔다
     g.spawn();
-    const want = D.jobTestOf('drunk').atkHpFrac;
-    g.startJobTest('drunk');
+    const want = D.jobTestOf('fan').atkHpFrac;
+    ok(g.startJobTest(), '환영 시험이 열린다');
     const st = g.stats({ buffs: false });
     ok(st.guard < 0.9, '받는 피해가 실제로 깎여 있다', `x${st.guard.toFixed(2)}`);
-    const landed = (g.mon.atk * st.guard) / st.hp;
-    ok(Math.abs(landed - want) < 0.02, '적어 둔 만큼 실제로 맞는다',
-      `적은 값 ${(want * 100).toFixed(0)}% / 들어가는 값 ${(landed * 100).toFixed(1)}%`);
+    const landed = big(g.mon.atk).mul(st.guard).div(st.hp).toNumber();
+    ok(Math.abs(landed / want - 1) < 0.02, '적어 둔 만큼 실제로 맞는다',
+      `적은 값 ${(want * 100).toFixed(1)}% / 들어가는 값 ${(landed * 100).toFixed(1)}%`);
   }
 
   // 시험 체력이 사람을 따라오는가 — 같은 사람이 세지면 상대도 단단해져야 한다
   {
     const g = strong(300);
-    g.s.rank = Math.max(g.s.rank, D.JOB_RANK);
-    g.jobStageOpen = () => true;
+    g.setJob('sword');
+    g.s.jobTier = 0;
     g.spawn();
-    g.startJobTest('sword');
+    g.startJobTest();
     const before = g.mon.hp;
     g.endContest('fail');
     g.s.upgrades.atk += 300;        // 같은 사람이 훨씬 세졌다
-    g.s.jobTests = {};
     g.spawn();
-    g.startJobTest('sword');
-    ok(g.mon.hp > before * 10, '세지면 상대도 그만큼 단단해진다',
+    g.startJobTest();
+    ok(gt(g.mon.hp, big(before).mul(10)), '세지면 상대도 그만큼 단단해진다',
       `${before.toExponential(1)} → ${g.mon.hp.toExponential(1)}`);
   }
-}
 }
 
 // ---------- 35. 자리가 계속 바뀌는가 / 큰 수가 읽히는가 ----------

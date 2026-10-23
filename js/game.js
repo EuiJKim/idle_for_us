@@ -51,7 +51,7 @@ import {
   EARN_WINDOW_SEC, EARN_EMA, EARN_KEYS, OFFLINE_KEYS,
   stageBooks, stageStones, stageFood,
   regressGain, regressMult, REGRESS_WORTH_MULT, REGRESS_STUCK_SEC, stageStep,
-  JOBS, jobOf, OLD_JOBS, TIER_AT, TIER_MAX, tierName, tiersByStage, CLASS_CHANGE_GEMS,
+  JOBS, jobOf, OLD_JOBS, heroRangeOf, TIER_AT, TIER_MAX, tierName, tiersByStage, CLASS_CHANGE_GEMS,
   JOB_TESTS, jobTestOf, jobTestStage,
   PASSIVES, passivesOf, passiveId, PASSIVE_MAX, passiveCost,
   NOADS_ATK, NOADS_HP, AD_BOOST_EXTRA,
@@ -1858,6 +1858,15 @@ export class Game {
 
   // 무인과 대상 사이의 거리 — 화면에 보이는 대로 잰다(Y는 눌려 보이므로 함께 누른다)
   distTo(m) { return Math.hypot(m.x - this.heroX, (m.y - this.heroY) * FIELD_SQUASH); }
+  // 평타 사거리. 환마·독마·극악소마는 멀리서 쏜다.
+  heroRange() { return heroRangeOf(this.s.job); }
+  ranged() { return this.heroRange() > MELEE_RANGE; }
+  // 광역·장판이 떨어지는 자리. 멀리서 쏘는 캐릭터는 **겨눈 적 자리**에 떨어진다 —
+  // 발밑에 깔면 사거리 밖에 서 있는 탓에 겨눈 적이 안 맞는다.
+  aoeCenter() {
+    if (this.ranged() && this.mode === 'stage' && this.mon?.alive && this.mon.x != null) return { x: this.mon.x, y: this.mon.y };
+    return { x: this.heroX, y: this.heroY };
+  }
   // 어떤 방향으로 D만큼 가면 화면에서 얼마나 멀어지는지
   static viewScale(ux, uy) { return Math.hypot(ux, uy * FIELD_SQUASH) || 1; }
 
@@ -2117,7 +2126,8 @@ export class Game {
   // 가까운 적부터 옮겨타며 때린다 (연환벽력)
   castChain(sk, dmg, id) {
     const hit = new Set();
-    let from = { x: this.heroX, y: this.heroY };
+    // 멀리서 쏘는 캐릭터는 겨눈 적에서부터 옮겨 탄다 (무인 둘레에는 적이 없다)
+    let from = this.ranged() && this.mon?.alive && this.mon.x != null ? { x: this.mon.x, y: this.mon.y } : { x: this.heroX, y: this.heroY };
     let amount = dmg;
     const jumps = sk.chain(this.s.skills[id] || 1);
     const path = [];
@@ -2196,10 +2206,11 @@ export class Game {
   // 바닥에 남아 계속 베는 것 (매화검진·선풍장)
   castField(sk, dmg, id, moving) {
     const ang = this.rng() * Math.PI * 2;
+    const c = this.aoeCenter();
     this.fields.push({
       id,
-      x: this.heroX,
-      y: this.heroY,
+      x: c.x,
+      y: c.y,
       r: sk.radius,
       life: sk.fieldSec,
       max: sk.fieldSec,
@@ -2233,7 +2244,9 @@ export class Game {
   // 광역 피해: 무인 발밑을 중심으로 한 원 안의 적 전부 (탑다운 — 바닥 장판)
   dealAoe(amount, kind = 'skill', crit = false, radius = 220) {
     const main = this.mon;
-    const others = this.mons.filter((m) => m.alive && m !== main && this.distTo(m) <= radius);
+    const c = this.aoeCenter();
+    const near = (m) => Math.hypot(m.x - c.x, (m.y - c.y) * FIELD_SQUASH) <= radius;
+    const others = this.mons.filter((m) => m.alive && m !== main && near(m));
     this.emit('skillHits', { hits: others.length + (main?.alive ? 1 : 0) });
     this.dealDamage(amount, kind, crit);
     for (const a of others) {
@@ -2492,8 +2505,9 @@ export class Game {
       this.heroFacing = dx >= 0 ? 1 : -1;
       const k = Game.viewScale(dx / dist, dy / dist);
       const seen = dist * k; // 화면에서 보이는 거리로 사거리를 잰다
-      if (seen > MELEE_RANGE) {
-        const step = Math.min(HERO_SPEED * dt, (seen - MELEE_RANGE) / k);
+      const reach = this.heroRange();
+      if (seen > reach) {
+        const step = Math.min(HERO_SPEED * dt, (seen - reach) / k);
         this.heroX += (dx / dist) * step;
         this.heroY += (dy / dist) * step;
         this.walking = true;
@@ -2540,8 +2554,12 @@ export class Game {
     while (this.atkTimer <= 0 && this.mon?.alive) {
       this.atkTimer += 1 / st.speed;
       const crit = this.rng() < st.crit;
-      this.emit('attack');
-      const hitDmg = crit ? st.atk.mul(st.hitMul).mul(st.critDmg) : st.atk.mul(st.hitMul);
+      // 극악소마 — 적이 붙으면 지풍 대신 손가락으로 혈을 짚는다
+      const cm = this.job()?.closeMult;
+      const close = !!cm && this.mode === 'stage' && this.mon.x != null && this.distTo(this.mon) <= MELEE_RANGE + 10;
+      this.emit('attack', { close });
+      let hitDmg = crit ? st.atk.mul(st.hitMul).mul(st.critDmg) : st.atk.mul(st.hitMul);
+      if (close) hitDmg = hitDmg.mul(cm);
       this.dealDamage(hitDmg, 'hit', crit);
     }
 
@@ -2943,10 +2961,12 @@ export class Game {
       // 문파 특성. 전직하면 **쓰는 모든 무공에** 그 문파의 기운이 실린다.
       // 들판에 보이는 빛깔까지 바뀌므로 사건에 같이 실어 보낸다.
       const tr = this.jobTrait();
-      this.emit('skillArea', { id, radius: sk.radius || 0, target: sk.target || 'single', job: this.jobTier() >= 1 ? this.s.job : null });
+      this.emit('skillArea', { id, radius: sk.radius || 0, target: sk.target || 'single', job: this.jobTier() >= 1 ? this.s.job : null,
+        at: this.ranged() ? this.aoeCenter() : null });
       if (sk.stun) this.mon.stun = sk.stun;
       this.emit('skill', { id, target: sk.target || 'single', job: this.jobTier() >= 1 ? this.s.job : null,
-        name: sk.name, fx: sk.fx || null, look: sk.look || id, cls: this.s.job || null });
+        name: sk.name, fx: sk.fx || null, look: sk.look || id, cls: this.s.job || null, tier: this.jobTier(),
+        at: this.ranged() ? this.aoeCenter() : null, radius: sk.radius || 0, motion: sk.motion, dur: sk.fieldSec || sk.dur || 0 });
       // ---- 연계 ----
       // 앞선 무공이 남긴 기운을 이 무공이 먹으면 터진다.
       const qi = qiOf(id);
@@ -3017,7 +3037,8 @@ export class Game {
       if (sk.boon) this.buffs[id] = sk.boon.dur;
     } else if (sk.kind === 'buff') {
       this.buffs[id] = sk.dur * (1 + SKILL_PIERCE_MULT * this.skillPierceOf(id) * 0.5);
-      this.emit('skill', { id, name: sk.name, look: sk.look || id, cls: this.s.job || null });
+      this.emit('skill', { id, name: sk.name, look: sk.look || id, cls: this.s.job || null, fx: sk.fx || null,
+        tier: this.jobTier(), dur: this.buffs[id] });
     } else if (sk.kind === 'heal') {
       this.heroHp = this.heroHp.add(st.hp.mul(Math.min(1, this.skillMult(sk)))).min(st.hp);
       this.emit('skill', { id });

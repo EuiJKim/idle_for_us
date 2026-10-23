@@ -9,7 +9,7 @@ import { Big, big } from './big.js';
 // NaN이 된다 — 재 보니 적 체력이 관문 8467에서 그 선을 넘었다.
 // 반대로 상한이 있는 값(경지 배수·초월 단계처럼)은 보통 숫자 그대로 둔다.
 
-export const BUILD = 'ifu-v87';
+export const BUILD = 'ifu-v88';
 
 export const SAVE_VERSION = 4;
 export const OFFLINE_CAP_SEC = 12 * 3600;
@@ -685,7 +685,11 @@ export const REGRESS_STUCK_SEC = 90;
 // 열렸고, 그 전까지는 모두가 똑같은 무인이었다 — 고른 뒤에도 바뀌는 건
 // 전용 무공 셋뿐이라 "내가 바뀌었다"는 느낌이 약했다. 여덟은 서로 겹치기도 했다.
 //
-// 이제 넷이고, 처음부터 그 캐릭터의 기초 무공 여덟을 쓴다.
+// 이제 다섯이고, 처음부터 그 캐릭터의 기초 무공 여덟을 쓴다.
+//
+// range: 평타 사거리(화면 px). 없으면 근접(MELEE_RANGE). 환마·독마·극악소마는
+//   멀리서 쏜다 — 광역·장판·연쇄도 무인 발밑이 아니라 **겨눈 적 자리**에 떨어진다.
+// closeMult: 적이 근접 거리 안에 붙었을 때 평타 배수 (극악소마 — 붙어도 세다)
 // 관문을 넘고 전직 시험에 붙을 때마다(1차·2차·3차) 여덟이 한꺼번에 각성한다 —
 // 이름·연출이 바뀌고, 차수마다 대표 초식 하나가 완전히 다른 무공이 된다.
 //
@@ -704,20 +708,28 @@ export const JOBS = [
     desc: '때리는 속도가 빠르다. 평타와 무공이 같이 빨라진다.',
     tiers: ['권사', '철권', '패권', '권마'],
     mult: { speed: 1.45, atk: 1.3 } },
-  { id: 'fan', name: '환마', weapon: '부채', look: 'fan', color: '#38bdf8',
+  { id: 'fan', name: '환마', weapon: '부채', look: 'fan', color: '#38bdf8', range: 230,
     tag: '홀린다',
-    desc: '상태이상이 오래간다. 둔화·파쇄가 길게 걸린다.',
+    desc: '멀리서 부채 바람을 날린다. 상태이상이 오래간다 — 둔화·파쇄가 길게 걸린다.',
     tiers: ['환술사', '환객', '환영', '환마'],
     mult: { ccDur: 1.8, critDmg: 1.45 } },
-  { id: 'poison', name: '독마', weapon: '독낭', look: 'dagger', color: '#22c55e',
+  { id: 'poison', name: '독마', weapon: '독낭', look: 'dagger', color: '#22c55e', range: 240,
     tag: '서서히 죽인다',
-    desc: '깨달음이 빠르다. 경지에 먼저 닿는다.',
+    desc: '멀리서 독을 던진다. 깨달음이 빠르다 — 경지에 먼저 닿는다.',
     tiers: ['독술사', '독객', '독군', '독마'],
     mult: { bleed: 2.0, ccDur: 1.4, exp: 1.8 } },
+  // 지풍으로 멀리서 쏘지만, 적이 붙으면 손가락으로 직접 혈을 짚어 더 아프다.
+  // 사거리를 환마·독마보다 짧게 둬서 적이 금방 붙고, 붙은 뒤가 진짜다.
+  { id: 'ring', name: '극악소마', weapon: '지환', look: 'claw', color: '#a855f7', range: 180, closeMult: 1.35,
+    tag: '한 번에 끝낸다',
+    desc: '지풍으로 멀리서 쏘고, 붙으면 혈을 짚어 더 세다. 치명 피해가 크다.',
+    tiers: ['지객', '지강', '소마', '극악소마'],
+    mult: { critDmg: 1.8, atk: 1.1 } },
 ];
 export const jobOf = (id) => JOBS.find((j) => j.id === id) || null;
 // 없어진 계열(혈천도마·극악소마·취마·마불). 옛 세이브에 남아 있으면 다시 고르게 한다.
-export const OLD_JOBS = ['blade', 'ring', 'drunk', 'monk'];
+export const OLD_JOBS = ['blade', 'drunk', 'monk'];
+export const heroRangeOf = (jobId) => jobOf(jobId)?.range || MELEE_RANGE;
 
 // ---------- 전직 (1차·2차·3차) ----------
 // 관문을 넘으면 시험이 열리고, 붙으면 한 차수 오른다. 차수가 오르면
@@ -788,6 +800,13 @@ export const PASSIVES = [
   { job: 'poison', kind: 'qing', name: '사행보', stat: 'skillCd', per: 0.003 },
   { job: 'poison', kind: 'yan', name: '독안', stat: 'critDmgAdd', per: 0.04 },
   { job: 'poison', kind: 'xin', name: '독경', stat: 'gold', per: 0.03 },
+  // 극악소마 — 한 번에 끝낸다
+  { job: 'ring', kind: 'nei', name: '혈맥', stat: 'hp', per: 0.015 },
+  { job: 'ring', kind: 'wai', name: '지환', stat: 'critDmgAdd', per: 0.06 },
+  { job: 'ring', kind: 'mu', name: '일격필살', stat: 'skillDmg', per: 0.03 },
+  { job: 'ring', kind: 'qing', name: '탄지보', stat: 'speed', per: 0.012 },
+  { job: 'ring', kind: 'yan', name: '혈안', stat: 'boss', per: 0.025 },
+  { job: 'ring', kind: 'xin', name: '탐심', stat: 'gold', per: 0.03 },
 ];
 export const passivesOf = (job) => PASSIVES.filter((p) => p.job === job);
 export const passiveId = (p) => `${p.job}-${p.kind}`;
@@ -814,6 +833,10 @@ export const JOB_TESTS = [
     goal: 'quick', time: 20, hpSec: 48,
     ask: '관문지기를 20초 안에 벤다',
     why: '한 점을 꿰뚫는 자리다. 오래 걸리면 그 자리가 아니다.' },
+  { job: 'ring', name: '일격', hanja: '一擊', boss: '단단한 바위',
+    goal: 'burst', time: 30, need: 0.25, hpSec: 78,
+    ask: '한 번의 타격으로 적 체력의 25%를 깎는다',
+    why: '한 번에 끝내는 자리다. 벨 필요도 없다 — 한 방이면 된다.' },
   { job: 'fist', name: '육합', hanja: '六合', boss: '맨손으로 맞는 자',
     goal: 'noskill', time: 30, hpSec: 16,
     ask: '무공 없이 평타만으로 벤다',
@@ -1444,7 +1467,8 @@ export const CLASS_SKILLS = {
       forms: { 3: { cd: 19, radius: 300, cc: 'weak', ccSec: 16, stun: 2, look: 'jfan3', art: ['jskill', 21],
         mult: (l) => 40 + l * 5.4,
         desc: (m) => `반경 300에 환영을 흩뿌린다 · 공격력의 ${m.toFixed(0)}배 · 16초 파쇄 · 2초 묶임` } } },
-    frost: { names: ['미혼향', '혼백선', '섭혼술', '탈혼대법'] },
+    frost: { names: ['미혼향', '혼백선', '섭혼술', '탈혼대법'], base: { stun: 2, cc: 'weak', ccSec: 6,
+      desc: (m) => `한 명을 홀려 공격력의 ${m.toFixed(1)}배 + 2초 묶고 6초 파쇄 · 두목에겐 1.8배` } },
     blink: { names: ['환영보', '이형환위', '환영분신', '천리환형'] },
     chain: { names: ['미혹', '연환미혹', '혼란선', '만혼유희'] },
     // 환마의 장판은 차수마다 바뀐다 — 깔리는 환영에서 떠도는 바람으로
@@ -1460,6 +1484,29 @@ export const CLASS_SKILLS = {
       } },
     pierce: { names: ['선풍인', '파공선', '단혼선', '천선일섬'] },
   },
+  ring: {
+    slash: { names: ['지풍', '탄지풍', '무형지풍', '천라지풍'] },
+    rage: { names: ['응지', '금강지', '혈지마공', '극악지체'] },
+    thunder: { names: ['산화지', '난화지', '천화지우', '만화멸천'] },
+    frost: { names: ['점혈', '단지멸', '파혼지', '절혼지'],
+      forms: {
+        1: { cd: 10, stun: 0, cc: null, sure: true, bossMult: null, look: 'jring', art: ['jskill', 3],
+          mult: (l) => 13 + l * 1.7,
+          desc: (m) => `한 명에게 공격력의 ${m.toFixed(1)}배 · 반드시 치명으로 들어간다` },
+        2: { cd: 13, sure: true, bossMult: 3.0, look: 'jring2', art: ['jskill', 11],
+          mult: (l) => 22 + l * 3,
+          desc: (m) => `한 명에게 공격력의 ${m.toFixed(1)}배 · 반드시 치명 · 두목에겐 3배` },
+      } },
+    blink: { names: ['환지보', '섬지', '귀영지', '무영지'] },
+    chain: { names: ['연지', '연환지', '사혼지', '멸절지'],
+      forms: { 3: { cd: 17, chainRange: 200, chainFalloff: 1, sure: true, chain: (l) => 6 + Math.floor(l / 4),
+        look: 'jring3', art: ['jskill', 19],
+        mult: (l) => 34 + l * 4.6,
+        desc: (m, l) => `${6 + Math.floor(l / 4)}명에게 옮겨타며 공격력의 ${m.toFixed(0)}배 · 반드시 치명 · 약해지지 않아요` } } },
+    plum: { names: ['지력장', '지강진', '혈지진', '극악지옥'] },
+    pierce: { names: ['일지', '일지선', '관혼지', '극악일지'] },
+  },
+  // 독마는 여덟 무공 전부에 연출표가 있다 (skillFx 'poison:역할') — 차수마다 독이 짙어진다
   poison: {
     slash: { names: ['독장', '부식장', '화골장', '만독장'] },
     rage: { names: ['독기', '독공', '독체', '만독불괴'] },
@@ -1467,7 +1514,9 @@ export const CLASS_SKILLS = {
       forms: { 2: { cd: 15, radius: 240, cc: 'bleed', ccSec: 14, look: 'jpoison2', art: ['jskill', 15],
         mult: (l) => 20 + l * 2.8,
         desc: (m) => `반경 240에 독을 뿌려 공격력의 ${m.toFixed(0)}배 · 14초간 중독` } } },
-    frost: { names: ['독침', '칠보독침', '단장독', '절명독'] },
+    // 독침은 얼리지 않는다 — 박혀서 중독시킨다
+    frost: { names: ['독침', '칠보독침', '단장독', '절명독'], base: { stun: 0, cc: 'bleed', ccSec: 8,
+      desc: (m) => `한 명에게 독침 · 공격력의 ${m.toFixed(1)}배 + 8초 중독 · 두목에겐 1.8배` } },
     blink: { names: ['사행보', '독영보', '귀영독보', '독룡잠행'] },
     chain: { names: ['독사', '연환독사', '백사독류', '만사독림'] },
     plum: { names: ['독무진', '만독강림', '독림', '천독무'],
@@ -1486,6 +1535,9 @@ export const CLASS_SKILLS = {
   },
 };
 
+// 무공 여덟 전부에 연출표가 있는 계열 (skillfx.js CHOREO['계열:역할'])
+export const FX_ALL = ['poison'];
+
 // 이 캐릭터·이 차수에서 무공 하나가 실제로 어떻게 생겼나.
 // 화면·판정이 전부 이걸 본다. (id, 계열, 차수)마다 한 번만 만든다.
 const skillCache = new Map();
@@ -1501,8 +1553,9 @@ export function skillFor(id, job = null, tier = 0) {
     const f = cs?.forms?.[t];
     if (f) Object.assign(def, f, { formTier: t });
   }
-  // 앞 차수 형태의 연출 열쇠가 다음 형태에 남지 않게 (형태가 fx를 안 적었으면 지운다)
-  if (def.formTier && !cs.forms[def.formTier].fx) def.fx = null;
+  // 연출표 열쇠: 형태가 적은 것 → 계열 전체 연출(FX_ALL) → 없음.
+  // 앞 차수 형태의 열쇠가 다음 형태에 남지 않게 형태 것만 본다.
+  def.fx = (def.formTier ? cs.forms[def.formTier].fx : null) || (FX_ALL.includes(job) ? `${job}:${id}` : null);
   if (cs?.names?.[tier]) {
     def.name = cs.names[tier];
     def.icon = def.name.slice(0, 2);
@@ -1606,6 +1659,11 @@ export const JOB_TRAITS = {
     name: '강기', hanja: '罡氣', col: '245,158,11', fx: 'burst',
     text: '무공을 쓸 때마다 다른 무공의 쿨이 조금 줄어요',
     cdCut: 0.7,
+  },
+  ring: {
+    name: '지력', hanja: '指力', col: '168,85,247', fx: 'burst',
+    text: '모든 무공이 치명으로 들어갈 수 있어요',
+    critChance: 0.35,
   },
   fan: {
     name: '환기', hanja: '幻氣', col: '56,189,248', fx: 'field',

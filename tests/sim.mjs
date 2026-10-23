@@ -27,6 +27,7 @@ function loop(n, fn) {
 let farmT = 0;
 const tried = {};
 let nextTrial = 0;
+let nextJobTest = 0;
 let lastBest = 0;
 let lastProgressT = 0;
 const marks = [0.25, 0.5, 1, 2, 3, 4, 8, 12, 24, 48, 72, 168].filter((h) => h <= hours);
@@ -113,15 +114,18 @@ for (let t = 0, step = 0; t < hours * 3600; t += dt, step++) {
   for (const type of Object.keys(EQUIP_TYPES)) loop(200, () => g.equipPierceUp(type));
   // 심검 강화: 승급에 못 쓰고 썩는 장신구를 바친다
   for (const e of EGO_PARTS) g.offerAcc(e.id, true);
-  // 문파: 열리면 고른다. 1차에서는 두목 피해가 진행에 가장 직결되므로
-  // 일화검존을 기본으로 삼는다 (계열별 비교는 변종으로 따로 잰다).
+  // 캐릭터: 처음 시작할 때 고른다(공짜). 두목 피해가 진행에 가장 직결되므로
+  // 검사를 기본으로 삼는다 (캐릭터별 비교는 SIM_JOB 변종으로 따로 잰다).
   const WANT = process.env.SIM_JOB || JOBS[0].id;
-  if (g.tasteOpen() && !g.s.taste) g.setTaste(WANT);   // 맛보기도 써 본다
-  // 시험은 **실제로 치른다.** "붙을 수 있는 시험인가"가 밸런스의 전부다 —
-  // 통과한 셈 치고 넘기면 영영 모른다. 못 붙으면 문파 없이 계속 간다.
-  if (g.jobOpen() && !g.s.job) {
-    if (g.jobTestPassed(WANT)) g.setJob(WANT);
-    else if (g.canJobTest(WANT)) { g.jobTryN = (g.jobTryN || 0) + 1; g.startJobTest(WANT); }
+  if (g.needsClass()) g.setJob(WANT);
+  // 전직 시험은 **실제로 치른다.** "붙을 수 있는 시험인가"가 밸런스의 전부다 —
+  // 붙은 셈 치고 넘기면 영영 모른다. 못 붙으면 그 차수로 계속 간다.
+  // 떨어지면 10분 뒤에 다시 본다. 매번 다시 보면 시험만 보다가 관문이 멈춘다
+  // (재 보니 관문 151에서 한 시간 넘게 그대로였다).
+  if (g.canJobTest() && t >= nextJobTest) {
+    g.jobTryN = (g.jobTryN || 0) + 1;
+    g.startJobTest();
+    nextJobTest = t + 600;
   }
   g.mergeAll();
   for (const t2 of Object.keys(EQUIP_TYPES)) g.enhanceEquip(t2, 5);
@@ -162,7 +166,7 @@ for (let t = 0, step = 0; t < hours * 3600; t += dt, step++) {
     // 정작 봐야 할 때 아무것도 안 보인다 — 실제로 8시간째에 전부 NaN이었다.
     const rt = (x, y) => big(x).div(y).toExponential(2);
     console.log(`      체력/졸개체력 ${rt(_st.hp, _mh)}  한대/체력 ${rt(_ma, _st.hp)}  공격/졸개체력 ${rt(_st.atk, _mh)}`);
-    console.log(`${String(marks.shift()).padStart(5)}h  stage ${String(g.s.maxStage).padStart(4)} best ${String(g.s.bestStage).padStart(4)} 회귀 ${g.s.regress.count}회/${g.s.regress.points}pt  Lv ${String(g.s.level).padStart(4)}  rank ${g.s.rank}  power ${p.power.toExponential(2)}  dung ${JSON.stringify(g.s.dungeons)}  enh ${g.s.enhance.weapon}  relics ${Object.values(g.s.relics).reduce((a, b) => a + b, 0)}  pets ${Object.keys(g.s.pets).length}`);
+    console.log(`${String(marks.shift()).padStart(5)}h  stage ${String(g.s.maxStage).padStart(4)} best ${String(g.s.bestStage).padStart(4)} 회귀 ${g.s.regress.count}회/${g.s.regress.points}pt  Lv ${String(g.s.level).padStart(4)}  rank ${g.s.rank}  ${g.s.job || '-'} ${g.jobTier()}차  power ${p.power.toExponential(2)}  dung ${JSON.stringify(g.s.dungeons)}  enh ${g.s.enhance.weapon}  relics ${Object.values(g.s.relics).reduce((a, b) => a + b, 0)}  pets ${Object.keys(g.s.pets).length}`);
   }
 }
 

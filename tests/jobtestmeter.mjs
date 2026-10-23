@@ -1,13 +1,14 @@
-// 전직 시험 여덟이 **실제로 붙을 수 있는 시험인지** 잰다.
+// 캐릭터마다 있는 전직 시험이 **실제로 붙을 수 있는 시험인지** 잰다.
 //
 // 숫자를 손으로 고르면 반드시 둘 중 하나가 된다 — 아무나 붙거나 아무도 못 붙거나.
 // 계열 보너스를 재던 실수를 여기서 반복하지 않으려고, 진짜 세이브로 진짜
 // 전투를 돌려서 통과 여부와 **여유**를 같이 본다.
 //
 //   JOBTEST_SAVE=.../save200.json node tests/jobtestmeter.mjs [관문]
+//   JOBTEST_TIER=1 을 주면 2차 시험을 잰다 (지금 차수를 그만큼으로 두고 다음 시험을 본다)
 import fs from 'node:fs';
 import { Game, migrate } from '../js/game.js';
-import { JOB_TESTS, JOB_RANK } from '../js/data.js';
+import { JOB_TESTS, TIER_MAX } from '../js/data.js';
 
 const SAVE_PATH = process.env.JOBTEST_SAVE;
 if (!SAVE_PATH) throw new Error('JOBTEST_SAVE=세이브경로 가 필요하다');
@@ -15,29 +16,33 @@ const STAGE = Number(process.argv[2] || 0);
 const DT = 1 / 30;
 const seeded = (s = 20261021) => () => ((s = (s * 1103515245 + 12345) % 2147483648) / 2147483648);
 
-function make() {
+const TIER = Math.max(0, Math.min(TIER_MAX - 1, Number(process.env.JOBTEST_TIER || 0)));
+
+function make(job) {
   const s = migrate(JSON.parse(fs.readFileSync(SAVE_PATH, 'utf-8')));
   if (STAGE) { s.stage = STAGE; s.bestStage = STAGE; }
-  s.rank = Math.max(s.rank, JOB_RANK);
   s.autoSkill = true;
-  // migrate가 jobSeen을 보고 시험을 붙여 준다(옛 세이브 구제). 재려면 비워야 한다.
-  s.job = null; s.taste = null; s.jobTests = {}; s.jobSeen = [];
+  // 세이브의 캐릭터를 비우고 재려는 캐릭터로 새로 고른다 (처음 고르는 건 공짜다)
+  s.job = null; s.legacyJob = null; s.jobTier = 0;
   const g = new Game(s);
+  if (job && !g.setJob(job)) throw new Error(`${job} 고르기 실패`);
+  // 처음 고르면 넘은 관문만큼 차수를 받는다. 재려는 차수로 되돌린다.
+  g.s.jobTier = TIER;
   // 관문 문턱은 비켜 간다. 재려는 건 "그 관문에 온 사람이 붙을 수 있나"인데,
   // bestStage를 480까지 올리면 적만 세지고 사람은 그대로라 불공평해진다.
-  g.jobStageOpen = () => true;
+  g.tierOpen = () => true;
   g.rng = seeded();
   g.spawn();
   return g;
 }
 
-console.log(`세이브 ${SAVE_PATH.split(/[\/]/).pop()} · 관문 ${make().s.bestStage}\n`);
+console.log(`세이브 ${SAVE_PATH.split(/[\/]/).pop()} · 관문 ${make(null).s.bestStage} · ${TIER + 1}차 시험\n`);
 console.log('계열      시험   조건                                   결과     걸린시간/여유');
 let pass = 0;
 for (const def of JOB_TESTS) {
-  const g = make();
-  if (!g.canJobTest(def.job)) { console.log(`${def.job.padEnd(8)} 시험을 열 수 없다`); continue; }
-  g.startJobTest(def.job);
+  const g = make(def.job);
+  if (!g.canJobTest()) { console.log(`${def.job.padEnd(8)} 시험을 열 수 없다`); continue; }
+  g.startJobTest();
   let out = null;
   g.on?.('contestEnd', (o) => { out = o; });
   const hook = g.endContest.bind(g);

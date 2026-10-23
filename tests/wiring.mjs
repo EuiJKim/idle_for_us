@@ -148,13 +148,39 @@ console.log('\n=== 4. 아이콘 개수 ↔ 데이터 개수 ===');
     eqweapon: D.GRADES.length, eqarmor: D.GRADES.length, eqring: D.GRADES.length,
     acc: D.ACC_SLOTS.length, ego: D.EGO_PARTS.length, dg: D.DUNGEONS.length,
     sp: Object.keys(D.SP_STATS).length, codex: D.CODEX_KINDS.length,
-    jskill: D.JOB_SKILLS.length, skill: D.GEN_SKILLS.length,
   };
   for (const [k, n] of Object.entries(want)) {
     ok(K[k] === n, `${k} 아이콘 수가 데이터와 같다`, `${K[k]} / ${n}`);
   }
-  ok(Object.keys(K).every((k) => k in want), 'KINDS에 데이터 없는 묶음이 없다',
-    Object.keys(K).filter((k) => !(k in want)).join(',') || '없음');
+  // 무공 그림은 이제 개수로 안 맞춘다. 무공이 여덟 자리로 줄고 옛 전용 무공은
+  // 각성 형태가 됐다 — 정의마다 art: [종류, 번호]로 그림을 직접 집는다.
+  // 번호가 KINDS를 넘으면 그 무공만 **조용히 글자로 남는다.**
+  const arts = [];
+  for (const sk of D.SKILLS) arts.push([`기본 ${sk.id}`, sk.art]);
+  for (const [job, cs] of Object.entries(D.CLASS_SKILLS)) {
+    for (const [id, c] of Object.entries(cs)) {
+      if (c.base?.art) arts.push([`${job}.${id} 바탕`, c.base.art]);
+      for (const [t, f] of Object.entries(c.forms || {})) if (f.art) arts.push([`${job}.${id} ${t}차`, f.art]);
+    }
+  }
+  const badArt = arts.filter(([, a]) => !Array.isArray(a) || !(a[0] in K)
+    || !Number.isInteger(a[1]) || a[1] < 0 || a[1] >= K[a[0]]);
+  ok(badArt.length === 0, '무공이 집는 그림 번호가 전부 KINDS 안에 있다',
+    badArt.length ? badArt.map(([w, a]) => `${w}→${JSON.stringify(a)}`).join(', ') : `${arts.length}곳`);
+  const noFile = arts.filter(([, a]) => Array.isArray(a) && !fs.existsSync(path.join(R, `art/icon/${a[0]}-${a[1]}.png`)));
+  ok(noFile.length === 0, '무공이 집는 그림 파일이 전부 있다',
+    noFile.length ? noFile.map(([w, a]) => `${w}→${a.join('-')}`).join(', ') : `${arts.length}곳`);
+  // 화면은 skillFor가 만든 최종 모습의 art를 쓴다 — 어느 캐릭터·차수에서도 비면 안 된다
+  const noArt = [];
+  for (const job of [null, ...D.JOBS.map((j) => j.id)]) {
+    for (let t = 0; t <= (job ? D.TIER_MAX : 0); t++) {
+      for (const sk of D.SKILLS) if (!D.skillFor(sk.id, job, t)?.art) noArt.push(`${job || '없음'}.${sk.id}[${t}]`);
+    }
+  }
+  ok(noArt.length === 0, '모든 캐릭터·차수의 무공에 그림이 있다', noArt.slice(0, 6).join(', ') || '빈 곳 없음');
+  const artKinds = new Set(arts.map(([, a]) => a?.[0]));
+  ok(Object.keys(K).every((k) => k in want || artKinds.has(k)), 'KINDS에 데이터 없는 묶음이 없다',
+    Object.keys(K).filter((k) => !(k in want) && !artKinds.has(k)).join(',') || '없음');
 }
 
 console.log('\n=== 5. index.html의 id ↔ 코드가 찾는 id ===');
@@ -190,14 +216,18 @@ console.log('=== 6. 문파 특성 ↔ 그리는 쪽 ===');
     bad.length ? `안 그려짐: ${bad.join(', ')}` : [...new Set(used)].join(', '));
   // 보내는 쪽과 받는 쪽
   ok(read('js/game.js').includes("this.emit('skill', { id, target:"), 'game.js가 무공 사건을 보낸다');
-  ok(/skillEffect\(ev\.id, ev\.job\)/.test(bat), 'battle.js가 그 사건에서 문파를 집어간다');
+  ok(/skillEffect\(ev\.look \|\| ev\.id, ev\.job/.test(bat), 'battle.js가 그 사건에서 문파를 집어간다');
   ok(bat.includes('JOB_TRAITS'), 'battle.js가 특성 표를 읽는다');
-  // 취마의 은자는 사건으로 나간다 — 받는 쪽이 없으면 안 보인다
-  ok(read('js/game.js').includes("this.emit('gold', { amount: got, fromSkill: true })"), '취마가 은자 사건을 보낸다');
+  // 무공 은자 덤(goldOnSkill)은 사건으로 나간다 — 받는 쪽이 없으면 안 보인다.
+  // 그 특성을 쓰던 취마는 없어졌지만 길은 game.js에 남아 있으니 짝은 계속 본다.
+  ok(read('js/game.js').includes("this.emit('gold', { amount: got, fromSkill: true })"), '무공 은자 덤이 은자 사건을 보낸다');
   ok(/case 'gold':/.test(bat), 'battle.js가 은자 사건을 받는다');
-  // 계열 무공이 셋인데 화면이 하나만 그리면 둘은 영영 안 보인다
-  ok(read('js/ui/skill.js').includes('JOB_SLOTS'), '무공 화면이 문파 칸 수를 읽는다');
-  ok(read('js/ui/skill.js').includes('game.jobSkills()'), '무공 화면이 계열 무공 전부를 그린다');
+  // 무공은 캐릭터·차수마다 이름과 그림이 바뀐다. 화면이 기본 표(SKILLS)만 읽으면
+  // 전직해도 화면만 옛 이름으로 남는다 — game.skillDef를 거쳐야 한다.
+  const ui = read('js/ui/skill.js');
+  ok(ui.includes('game.skillDef('), '무공 화면이 지금 캐릭터·차수의 모습을 읽는다');
+  ok(/game\.jobTier\(\)/.test(ui), '무공 화면이 차수가 바뀌면 다시 그린다');
+  ok(/skillDef\(/.test(read('js/main.js')), '들판 무공 단추도 지금 모습을 읽는다');
 }
 
 console.log('\n=== 7. 화면이 올린 자원 ↔ RES_DEFS ===');

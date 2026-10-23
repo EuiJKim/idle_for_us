@@ -53,7 +53,7 @@ function strong(stage) {
   const s = newSave();
   Object.assign(s, {
     stage, bestStage: stage, maxStage: stage, level: 1200, rank: 5, nickname: '시험',
-    skillSlots: ['slash', 'thunder', 'frost', 'meteor'], autoSkill: true,
+    skillSlots: ['slash', 'thunder', 'frost', 'plum'], autoSkill: true,
     gold: 1e18, gems: 1e7, stones: 1e9, books: 1e8, food: 1e7, relicShards: 1e6,
   });
   Object.assign(s.upgrades, { atk: 320, hp: 230, crit: 45, critDmg: 70, speed: 34 });

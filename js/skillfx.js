@@ -19,6 +19,14 @@ import { POSES } from './pose.js';
 export const FX_LEVELS = ['low', 'mid', 'high'];
 
 const TAU = Math.PI * 2;
+
+// 독은 차수가 오를수록 짙어진다 (연두 → 초록 → 청록 → 보랏빛이 도는 독)
+export const VENOM = [
+  { core: '190,242,100', glow: '132,204,22', dark: '54,83,20' },
+  { core: '134,239,172', glow: '34,197,94', dark: '20,83,45' },
+  { core: '110,231,183', glow: '16,185,129', dark: '76,29,149' },
+  { core: '216,180,254', glow: '34,197,94', dark: '59,7,100' },
+];
 const clamp01 = (v) => Math.max(0, Math.min(1, v));
 
 // ---------- 감독 ----------
@@ -48,6 +56,12 @@ export class Director {
     const c = Math.cos(this.ang);
     this.aim = c < -0.05 ? -1 : c > 0.05 ? 1 : this.face;
     this.lvl = view.fxLevel;
+    this.tier = pend.tier || 0;
+    this.venom = VENOM[Math.min(VENOM.length - 1, this.tier)];
+    // 광역·장판이 떨어지는 자리 (멀리서 쏘는 캐릭터는 겨눈 적 자리)
+    this.center = pend.at || now;
+    this.radius = pend.radius || 0;
+    this.dur = pend.dur || 0;
     const tr = pend.job ? JOB_TRAITS[pend.job] : null;
     this.col = tr?.col || '253,230,138';
   }
@@ -61,6 +75,8 @@ export class Director {
   tick(dt) {
     this.t += dt;
     while (this.q.length && this.q[0].t <= this.t) this.q.shift().fn(this);
+    // 연출이 다 끝났는데 안 푼 결과가 남았으면 마저 푼다 (숫자가 영영 안 뜨면 안 된다)
+    if (!this.q.length && (this.hits.length || this.kills.length)) this.release();
   }
 
   get done() { return !this.q.length; }
@@ -147,6 +163,33 @@ export class Director {
   ghost(wx, wy, pose, life, extra = {}) {
     this.fx('ghost', life, { wx, wy, pose: typeof pose === 'string' ? POSES[pose] : pose, flip: this.face < 0, ...extra });
   }
+  // 손에서 겨눈 자리로 무언가를 던진다 (들판 좌표 + 화면 높이 보정)
+  lob(kind, life, to, extra = {}) {
+    this.fx(kind, life, { wx0: this.to.x, wy0: this.to.y, ox0: 20 * this.face, oy0: -66,
+      wx1: to.x, wy1: to.y, oy1: extra.oy1 ?? -30, v: this.tier, ...extra });
+  }
+  // 독이 터지는 자리: 방울 + 부식 고리 + 웅덩이
+  burst(at, r, { puddle = 0.8, ring = true, drops = 14 } = {}) {
+    const v = this.v;
+    const sx = v.sx(at);
+    const sy = v.sy(at);
+    const n = Math.round(drops * (this.lvl >= 2 ? 1 : this.lvl >= 1 ? 0.6 : 0.3));
+    const c = this.venom;
+    for (let i = 0; i < n; i++) {
+      const a = Math.random() * TAU;
+      const sp = 60 + Math.random() * 170;
+      v.particles.push({ x: sx, y: sy - 22, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp * 0.5 - 160 - Math.random() * 90,
+        life: 0.55 + Math.random() * 0.3, size: 2.5 + Math.random() * 3, color: `rgba(${i % 3 ? c.glow : c.core},0.9)`, drop: true });
+    }
+    this.fx('splash', 0.35, { wx: at.x, wy: at.y, r: r * 0.6, v: this.tier });
+    if (ring) this.fx('corrode', 0.5, { wx: at.x, wy: at.y, r, v: this.tier, seed: Math.random() * 100 });
+    if (puddle > 0) this.fx('puddle', puddle, { wx: at.x, wy: at.y, r: r * 0.65, v: this.tier, seeds: seeds(10) });
+  }
+  // 맞은 적 위로 해골이 떠오른다 (3차 독의 표식)
+  skulls(list, max = 3) {
+    list.slice(0, max).forEach((h, i) => this.fx('skull', 0.9, { wx: h.at.x, wy: h.at.y, oy: -110 - i * 4, size: 13, v: this.tier, delay: i * 0.06 }));
+  }
+
   // 무인 화면 자리에서 칼끝(앞·위)까지의 대략. 자세마다 조금씩 다르지만 빛을 모으는 자리로 충분하다.
   tip(dx = 36, dy = -50) {
     const v = this.v;
@@ -428,9 +471,396 @@ export const FX = {
   },
 };
 
+// ---------- 독 그림 부품 ----------
+function seeds(n) { return Array.from({ length: n }, () => [Math.random(), Math.random(), Math.random()]); }
+// 독무 한 덩이. 색마다 한 장 구워 두고 붙인다 — 수십 덩이를 그라디언트로 그리면 무겁다.
+const puffCache = new Map();
+function puff(rgb) {
+  let c = puffCache.get(rgb);
+  if (c) return c;
+  c = document.createElement('canvas');
+  c.width = 64; c.height = 64;
+  const x = c.getContext('2d');
+  const g = x.createRadialGradient(32, 32, 2, 32, 32, 32);
+  g.addColorStop(0, `rgba(${rgb},0.75)`);
+  g.addColorStop(0.55, `rgba(${rgb},0.35)`);
+  g.addColorStop(1, `rgba(${rgb},0)`);
+  x.fillStyle = g;
+  x.fillRect(0, 0, 64, 64);
+  puffCache.set(rgb, c);
+  return c;
+}
+function skullAt(ctx, x, y, s, fill, ink) {
+  ctx.fillStyle = ink;
+  ctx.beginPath(); ctx.arc(x, y, s + 1.6, Math.PI * 0.9, Math.PI * 2.1); ctx.lineTo(x + s * 0.62, y + s * 1.05); ctx.lineTo(x - s * 0.62, y + s * 1.05); ctx.fill();
+  ctx.fillStyle = fill;
+  ctx.beginPath(); ctx.arc(x, y, s, Math.PI * 0.9, Math.PI * 2.1); ctx.lineTo(x + s * 0.55, y + s * 0.95); ctx.lineTo(x - s * 0.55, y + s * 0.95); ctx.fill();
+  ctx.fillStyle = ink;
+  ctx.beginPath(); ctx.ellipse(x - s * 0.38, y + s * 0.1, s * 0.24, s * 0.3, 0, 0, TAU); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(x + s * 0.38, y + s * 0.1, s * 0.24, s * 0.3, 0, 0, TAU); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(x, y + s * 0.42); ctx.lineTo(x - s * 0.1, y + s * 0.62); ctx.lineTo(x + s * 0.1, y + s * 0.62); ctx.fill();
+  ctx.fillRect(x - s * 0.36, y + s * 0.78, s * 0.72, s * 0.08);
+}
+
+// 독마의 장판 — 게임의 field(옮겨 다니는 것 포함)를 따라 그린다. battle.js drawFields가 부른다.
+export function drawPoisonField(v, ctx, f, k, tier) {
+  const c = VENOM[Math.min(VENOM.length - 1, tier || 0)];
+  if (!f.seeds) f.seeds = seeds(10 + (tier || 0) * 3);
+  const x = v.sx(f);
+  const y = v.sy(f);
+  const t = performance.now() / 1000;
+  const fade = Math.min(1, (1 - k) * 8) * Math.min(1, k * 4);   // 들어올 때·사라질 때
+  // 바닥 웅덩이
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.globalAlpha = 0.55 * fade;
+  ctx.fillStyle = `rgb(${c.dark})`;
+  ctx.beginPath(); ctx.ellipse(x, y, f.r * 0.92, f.r * 0.92 * v.squash, 0, 0, TAU); ctx.fill();
+  ctx.globalAlpha = 0.35 * fade;
+  ctx.fillStyle = `rgb(${c.glow})`;
+  ctx.beginPath(); ctx.ellipse(x, y, f.r * 0.7, f.r * 0.7 * v.squash, 0, 0, TAU); ctx.fill();
+  // 끓는 방울
+  ctx.globalCompositeOperation = 'lighter';
+  for (const [a, b, d] of f.seeds) {
+    const ph = (t * (0.6 + d * 0.8) + a * 5) % 1;
+    const bx = x + Math.cos(a * TAU) * f.r * 0.75 * b;
+    const by = y + Math.sin(a * TAU) * f.r * 0.75 * b * v.squash;
+    const r = 2 + ph * (4 + d * 4);
+    ctx.globalAlpha = fade * (ph < 0.85 ? 0.8 : (1 - ph) * 5);
+    ctx.strokeStyle = `rgb(${c.core})`;
+    ctx.lineWidth = 1.4;
+    ctx.beginPath(); ctx.arc(bx, by - ph * 6, r, 0, TAU); ctx.stroke();
+  }
+  // 위로 피어오르는 독무
+  const img = puff(c.glow);
+  const n = v.fxLevel >= 1 ? 7 : 3;
+  for (let i = 0; i < n; i++) {
+    const s2 = f.seeds[i % f.seeds.length];
+    const ph = (t * 0.35 + s2[2] + i / n) % 1;
+    const px = x + Math.cos((s2[0] + t * 0.05) * TAU) * f.r * 0.6 * s2[1];
+    const py = y - 10 - ph * 70;
+    const sz = f.r * (0.5 + ph * 0.6);
+    ctx.globalAlpha = fade * 0.5 * Math.sin(ph * Math.PI);
+    ctx.drawImage(img, px - sz / 2, py - sz / 2, sz, sz);
+  }
+  ctx.globalAlpha = 1;
+}
+
+// 독 연출 그림 — FX에 덧붙인다 (아래 Object.assign)
+const POISON_FX = {
+  // 포물선으로 날아가는 큰 독 덩이
+  pglob(v, ctx, e, k) {
+    const c = VENOM[e.v || 0];
+    const p = Math.min(1, (1 - k) / (e.fly ?? 1));
+    if (p >= 1) return;
+    const x0 = v.sx({ x: e.wx0 }) + (e.ox0 || 0);
+    const y0 = v.sy({ y: e.wy0 }) + (e.oy0 || 0);
+    const x1 = v.sx({ x: e.wx1 });
+    const y1 = v.sy({ y: e.wy1 }) + (e.oy1 || 0);
+    const H = e.h ?? 70;
+    const at = (q) => [x0 + (x1 - x0) * q, y0 + (y1 - y0) * q - Math.sin(q * Math.PI) * H];
+    const sz = e.size || 9;
+    for (let i = 5; i >= 1; i--) {
+      const [tx, ty] = at(Math.max(0, p - i * 0.045));
+      ctx.fillStyle = `rgba(${c.glow},${0.42 - i * 0.07})`;
+      ctx.beginPath(); ctx.arc(tx, ty + i * 1.5, sz * (1 - i * 0.13), 0, TAU); ctx.fill();
+    }
+    const [x, y] = at(p);
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.fillStyle = `rgb(${c.dark})`;
+    ctx.beginPath(); ctx.arc(x, y, sz + 2, 0, TAU); ctx.fill();
+    ctx.fillStyle = `rgb(${c.glow})`;
+    ctx.beginPath(); ctx.arc(x, y, sz, 0, TAU); ctx.fill();
+    ctx.fillStyle = `rgba(${c.core},0.95)`;
+    ctx.beginPath(); ctx.arc(x - sz * 0.35, y - sz * 0.35, sz * 0.35, 0, TAU); ctx.fill();
+  },
+  // 맞은 자리에서 사방으로 튀는 독 물보라 (선)
+  splash(v, ctx, e, k) {
+    const c = VENOM[e.v || 0];
+    const x = v.sx({ x: e.wx });
+    const y = v.sy({ y: e.wy }) - 20;
+    const p = 1 - k;
+    ctx.strokeStyle = `rgba(${c.core},${k})`;
+    ctx.lineWidth = 3 * k + 1;
+    ctx.lineCap = 'round';
+    for (let i = 0; i < 12; i++) {
+      const a = (i / 12) * TAU + 0.2;
+      const r0 = e.r * 0.2 + e.r * p * 0.5;
+      const r1 = r0 + 10 + 14 * k;
+      ctx.beginPath();
+      ctx.moveTo(x + Math.cos(a) * r0, y + Math.sin(a) * r0 * 0.55);
+      ctx.lineTo(x + Math.cos(a) * r1, y + Math.sin(a) * r1 * 0.55);
+      ctx.stroke();
+    }
+    const g = ctx.createRadialGradient(x, y, 0, x, y, e.r * 0.8);
+    g.addColorStop(0, `rgba(${c.core},${0.7 * k})`);
+    g.addColorStop(1, `rgba(${c.glow},0)`);
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.ellipse(x, y, e.r * 0.8, e.r * 0.8 * 0.55, 0, 0, TAU); ctx.fill();
+  },
+  // 부식 고리 — 들쭉날쭉한 독 고리가 바닥을 따라 번진다
+  corrode(v, ctx, e, k) {
+    const c = VENOM[e.v || 0];
+    const x = v.sx({ x: e.wx });
+    const y = v.sy({ y: e.wy });
+    const p = 1 - k;
+    const r = e.r * (0.3 + 0.7 * (1 - (1 - p) ** 3));
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(1, v.squash);
+    for (const [w, col, a] of [[9, c.dark, 0.5], [3, c.glow, 0.9], [1.2, c.core, 1]]) {
+      ctx.globalCompositeOperation = col === c.dark ? 'source-over' : 'lighter';
+      ctx.strokeStyle = `rgba(${col},${a * k})`;
+      ctx.lineWidth = w;
+      ctx.beginPath();
+      for (let i = 0; i <= 40; i++) {
+        const a2 = (i / 40) * TAU;
+        const j = 1 + Math.sin(a2 * 7 + e.seed) * 0.05 + Math.sin(a2 * 13 + e.seed * 2) * 0.03;
+        const px = Math.cos(a2) * r * j;
+        const py = Math.sin(a2) * r * j;
+        if (i) ctx.lineTo(px, py); else ctx.moveTo(px, py);
+      }
+      ctx.stroke();
+    }
+    ctx.restore();
+  },
+  // 바닥에 남는 독 웅덩이 — 방울이 끓다가 터진다
+  puddle(v, ctx, e, k) {
+    drawPoisonField(v, ctx, { x: e.wx, y: e.wy, r: e.r, seeds: e.seeds }, k, e.v);
+  },
+  // 독무 — 부풀며 퍼지는 연기 덩이
+  cloud(v, ctx, e, k) {
+    const c = VENOM[e.v || 0];
+    const x = v.sx({ x: e.wx });
+    const y = v.sy({ y: e.wy }) + (e.oy ?? -30);
+    const p = 1 - k;
+    const grow = 1 - (1 - Math.min(1, p * 2.5)) ** 2;
+    const fade = Math.min(1, k * 2.2);
+    const img = puff(c.glow);
+    const dark = puff(c.dark);
+    const n = Math.max(4, Math.round((e.n || 14) * (v.fxLevel >= 2 ? 1 : v.fxLevel >= 1 ? 0.6 : 0.35)));
+    for (let i = 0; i < n; i++) {
+      const s2 = e.seeds[i % e.seeds.length];
+      const a = s2[0] * TAU + p * (s2[2] - 0.5);
+      const d = e.r * (0.15 + 0.85 * s2[1]) * grow;
+      const px = x + Math.cos(a) * d;
+      const py = y + Math.sin(a) * d * 0.55 - p * 26 * s2[2];
+      const sz = e.r * (0.45 + 0.4 * s2[2]) * (0.6 + grow * 0.6);
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.globalAlpha = fade * 0.55;
+      ctx.drawImage(dark, px - sz / 2, py - sz / 2, sz, sz);
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.globalAlpha = fade * 0.5;
+      ctx.drawImage(img, px - sz * 0.4, py - sz * 0.45, sz * 0.8, sz * 0.8);
+    }
+    ctx.globalAlpha = 1;
+  },
+  // 해골 — 떠올라 흐려진다
+  skull(v, ctx, e, k) {
+    const c = VENOM[e.v || 0];
+    const p = (1 - k) - (e.delay || 0) / e.max;
+    if (p < 0) return;
+    const x = v.sx({ x: e.wx });
+    const y = v.sy({ y: e.wy }) + (e.oy ?? -110) - p * 34;
+    const pop = Math.min(1, p * 7);
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = Math.min(1, k * 2.5) * pop;
+    const g = ctx.createRadialGradient(x, y, 0, x, y, e.size * 2.4);
+    g.addColorStop(0, `rgba(${c.glow},0.55)`);
+    g.addColorStop(1, `rgba(${c.glow},0)`);
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(x, y, e.size * 2.4, 0, TAU); ctx.fill();
+    skullAt(ctx, x, y, e.size * (0.7 + pop * 0.3), `rgb(${c.core})`, `rgb(${c.dark})`);
+    ctx.globalAlpha = 1;
+  },
+  // 독사 — 꺾인 길을 따라 기어가는 뱀 (연쇄)
+  serpent(v, ctx, e, k) {
+    const c = VENOM[e.v || 0];
+    const pts = e.pts.map((q) => [v.sx(q) + (q.ox || 0), v.sy(q) + (q.oy ?? -40)]);
+    if (pts.length < 2) return;
+    const segL = [];
+    let L = 0;
+    for (let i = 1; i < pts.length; i++) { const l = Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]); segL.push(l); L += l; }
+    const p = 1 - k;
+    const head = Math.min(1, p / (e.go || 0.7)) * L;
+    const body = e.body || 120;
+    const fade = p > (e.go || 0.7) ? Math.max(0, k / (1 - (e.go || 0.7))) : 1;
+    const pointAt = (d) => {
+      let acc = 0;
+      for (let i = 0; i < segL.length; i++) {
+        if (d <= acc + segL[i] || i === segL.length - 1) {
+          const q = Math.max(0, Math.min(1, (d - acc) / (segL[i] || 1)));
+          const [ax, ay] = pts[i]; const [bx, by] = pts[i + 1];
+          return [ax + (bx - ax) * q, ay + (by - ay) * q, Math.atan2(by - ay, bx - ax)];
+        }
+        acc += segL[i];
+      }
+      return pts[pts.length - 1];
+    };
+    const N = 22;
+    const w = e.w || 7;
+    const pass = (lw, col, alpha) => {
+      ctx.strokeStyle = `rgba(${col},${alpha * fade})`;
+      ctx.lineCap = 'round';
+      for (let i = 0; i < N; i++) {
+        const d0 = head - (i / N) * body;
+        const d1 = head - ((i + 1) / N) * body;
+        if (d1 < 0) break;
+        const [x0, y0, a0] = pointAt(d0);
+        const [x1, y1, a1] = pointAt(d1);
+        const wig = (d) => Math.sin(d * 0.09 - p * 30) * 7;
+        ctx.lineWidth = lw * (1 - i / N * 0.8);
+        ctx.beginPath();
+        ctx.moveTo(x0 - Math.sin(a0) * wig(d0), y0 + Math.cos(a0) * wig(d0));
+        ctx.lineTo(x1 - Math.sin(a1) * wig(d1), y1 + Math.cos(a1) * wig(d1));
+        ctx.stroke();
+      }
+    };
+    ctx.globalCompositeOperation = 'source-over';
+    pass(w + 4, c.dark, 0.9);
+    ctx.globalCompositeOperation = 'lighter';
+    pass(w, c.glow, 0.85);
+    pass(w * 0.35, c.core, 0.9);
+    // 머리와 눈
+    const [hx, hy, ha] = pointAt(head);
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.fillStyle = `rgba(${c.dark},${fade})`;
+    ctx.beginPath(); ctx.ellipse(hx, hy, w * 1.3, w * 0.9, ha, 0, TAU); ctx.fill();
+    ctx.fillStyle = `rgba(${c.core},${fade})`;
+    ctx.beginPath(); ctx.ellipse(hx, hy, w * 1.05, w * 0.7, ha, 0, TAU); ctx.fill();
+    ctx.fillStyle = `rgba(239,68,68,${fade})`;
+    ctx.beginPath(); ctx.arc(hx + Math.cos(ha - 0.6) * w * 0.6, hy + Math.sin(ha - 0.6) * w * 0.6, 1.6, 0, TAU); ctx.fill();
+    ctx.beginPath(); ctx.arc(hx + Math.cos(ha + 0.6) * w * 0.6, hy + Math.sin(ha + 0.6) * w * 0.6, 1.6, 0, TAU); ctx.fill();
+  },
+  // 독침 — 손에서 대상까지 곧게 날아간다
+  dart(v, ctx, e, k) {
+    const c = VENOM[e.v || 0];
+    const p = Math.min(1, (1 - k) / (e.fly ?? 1));
+    if (p >= 1) return;
+    const x0 = v.sx({ x: e.wx0 }) + (e.ox0 || 0);
+    const y0 = v.sy({ y: e.wy0 }) + (e.oy0 || 0);
+    const x1 = v.sx({ x: e.wx1 }) + (e.ox1 || 0);
+    const y1 = v.sy({ y: e.wy1 }) + (e.oy1 || 0);
+    const x = x0 + (x1 - x0) * p;
+    const y = y0 + (y1 - y0) * p;
+    const a = Math.atan2(y1 - y0, x1 - x0);
+    ctx.translate(x, y);
+    ctx.rotate(a);
+    ctx.strokeStyle = `rgba(${c.glow},0.5)`;
+    ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.moveTo(-36, 0); ctx.lineTo(0, 0); ctx.stroke();
+    ctx.strokeStyle = `rgba(${c.core},1)`;
+    ctx.lineWidth = 1.6;
+    ctx.beginPath(); ctx.moveTo(-18, 0); ctx.lineTo(6, 0); ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,0.95)';
+    ctx.beginPath(); ctx.moveTo(9, 0); ctx.lineTo(2, -2); ctx.lineTo(2, 2); ctx.fill();
+  },
+  // 하늘에서 떨어지는 독비
+  rainfall(v, ctx, e, k) {
+    const c = VENOM[e.v || 0];
+    const x = v.sx({ x: e.wx });
+    const y = v.sy({ y: e.wy });
+    const p = 1 - k;
+    const n = v.fxLevel >= 2 ? 40 : v.fxLevel >= 1 ? 22 : 10;
+    ctx.strokeStyle = `rgba(${c.core},${0.8 * Math.min(1, k * 3)})`;
+    ctx.lineWidth = 1.6;
+    for (let i = 0; i < n; i++) {
+      const a = ((i * 0.618) % 1) * TAU;
+      const d = ((i * 0.377) % 1) * e.r;
+      const gx = x + Math.cos(a) * d;
+      const gy = y + Math.sin(a) * d * v.squash;
+      const fall = ((p * 2.4 + i * 0.13) % 1);
+      const dy = -220 + fall * 220;
+      ctx.beginPath(); ctx.moveTo(gx + 4, gy + dy - 18); ctx.lineTo(gx, gy + dy); ctx.stroke();
+      if (fall > 0.9) { ctx.beginPath(); ctx.ellipse(gx, gy, 5, 2, 0, 0, TAU); ctx.stroke(); }
+    }
+  },
+  // 관통하는 독전 — 머리가 앞으로 뻗고 꼬리에 독무가 감긴다
+  vbolt(v, ctx, e, k) {
+    const c = VENOM[e.v || 0];
+    const p = 1 - k;
+    const x = v.sx({ x: e.wx }) + (e.ox || 0);
+    const y = v.sy({ y: e.wy }) + (e.oy || -56);
+    const L = e.len * Math.min(1, p / (e.go || 0.35));
+    ctx.translate(x, y);
+    ctx.rotate(e.a);
+    const fade = Math.min(1, k * 2);
+    const g = ctx.createLinearGradient(0, 0, L, 0);
+    g.addColorStop(0, `rgba(${c.glow},0)`);
+    g.addColorStop(1, `rgba(${c.glow},${0.55 * fade})`);
+    ctx.fillStyle = g;
+    ctx.fillRect(0, -10, L, 20);
+    // 감기는 독무 줄 둘
+    for (const ph of [0, Math.PI]) {
+      ctx.strokeStyle = `rgba(${ph ? c.core : c.glow},${0.8 * fade})`;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      for (let d = 0; d <= L; d += 8) {
+        const yy = Math.sin(d * 0.06 + ph + p * 18) * 8;
+        if (d) ctx.lineTo(d, yy); else ctx.moveTo(d, yy);
+      }
+      ctx.stroke();
+    }
+    ctx.fillStyle = `rgba(255,255,255,${fade})`;
+    ctx.fillRect(Math.max(0, L - 60), -1.5, 60, 3);
+    // 촉
+    ctx.fillStyle = `rgba(${c.core},${fade})`;
+    ctx.beginPath(); ctx.moveTo(L + 18, 0); ctx.lineTo(L - 4, -8); ctx.lineTo(L, 0); ctx.lineTo(L - 4, 8); ctx.fill();
+  },
+  // 독전이 지나간 바닥 — 타들어 간 자국
+  scar(v, ctx, e, k) {
+    const c = VENOM[e.v || 0];
+    const x = v.sx({ x: e.wx });
+    const y = v.sy({ y: e.wy });
+    ctx.translate(x, y);
+    ctx.rotate(e.a);
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.fillStyle = `rgba(${c.dark},${0.5 * k})`;
+    ctx.fillRect(0, -7, e.len, 14);
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.fillStyle = `rgba(${c.glow},${0.6 * k})`;
+    for (let d = 10; d < e.len; d += 26) {
+      const w = 6 + ((d * 7) % 9);
+      ctx.fillRect(d, -1.5, w, 3);
+    }
+  },
+  // 몸에서 피어오르는 독기 (강화가 걸려 있는 동안)
+  miasma(v, ctx, e, k) {
+    const c = VENOM[e.v || 0];
+    const x = v.heroX;
+    const y = v.groundY;
+    const t = performance.now() / 1000;
+    const fade = Math.min(1, k * 6) * Math.min(1, (1 - k) * e.max * 4);
+    const n = v.fxLevel >= 1 ? 6 : 3;
+    for (let i = 0; i < n; i++) {
+      const ph = (t * 0.9 + i / n) % 1;
+      const sx = x + Math.sin(i * 2.1 + t * 2) * 16;
+      ctx.strokeStyle = `rgba(${i % 2 ? c.core : c.glow},${0.55 * fade * Math.sin(ph * Math.PI)})`;
+      ctx.lineWidth = 2.2;
+      ctx.beginPath();
+      for (let j = 0; j <= 8; j++) {
+        const q = j / 8;
+        const yy = y - 8 - (ph * 60 + q * 40);
+        const xx = sx + Math.sin(q * 6 + t * 5 + i) * (5 + q * 6);
+        if (j) ctx.lineTo(xx, yy); else ctx.moveTo(xx, yy);
+      }
+      ctx.stroke();
+    }
+    const g = ctx.createRadialGradient(x, y - 50, 4, x, y - 50, 56);
+    g.addColorStop(0, `rgba(${c.glow},${0.22 * fade})`);
+    g.addColorStop(1, `rgba(${c.glow},0)`);
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(x, y - 50, 56, 0, TAU); ctx.fill();
+  },
+};
+
 // ---------- 무공별 연출표 ----------
 // 각 함수는 시전되는 순간 한 번 불리고, 시각표를 d.at(초, 할 일)로 깐다.
 // 시간은 실제 초다 (히트스톱으로 화면이 느려져도 시각표는 그대로 간다).
+Object.assign(FX, POISON_FX);
+
+// 독마 연출에서 자주 쓰는 것
+const HAND = { throw: [[0, '투척준비', 'out'], [0.14, '투척', 'snap']] };
+
 export const CHOREO = {
   // ── 일화검존 1차 · 일점혈로 ─────────────────────────────
   // 몸을 낮춰 칼을 허리에 붙이고 → 사라져 → 적의 등 뒤에 일섬 자세로 선다.
@@ -563,5 +993,222 @@ export const CHOREO = {
     });
     d.at(H + 0.7, () => d.unfocus());
     d.at(H + 1.2, () => { d.end(); d.mark(''); });
+  },
+
+  // ═════════ 독마 ═════════
+  // 여덟 무공 전부. 차수(d.tier)가 오를수록 독이 짙어지고(VENOM), 한 겹씩 더 붙는다:
+  //   1차 — 웅덩이가 남는다 · 2차 — 독비/둘째 고리 · 3차 — 해골이 떠오른다
+
+  // 기본기 · 독장 — 손바닥으로 독 덩이를 밀어 던지면, 겨눈 자리에서 터져 고리가 번진다
+  'poison:slash'(d) {
+    const v = d.v;
+    const R = d.radius || 150;
+    d.mark('기수식');
+    d.pose([[0, '투척준비', 'out'], [0.12, '장타', 'snap'], [0.5, '장타'], [0.75, '마무리', 'inout']], 0.3);
+    d.at(0.12, () => { d.mark('시전'); d.lob('pglob', 0.2, d.center, { size: 9 + d.tier * 2, h: 40 }); });
+    d.at(0.32, () => {
+      d.mark('적중');
+      d.burst(d.center, R, { puddle: d.tier >= 1 ? 0.8 + d.tier * 0.3 : 0, drops: 12 + d.tier * 4 });
+      if (d.tier >= 2) d.at(d.t + 0.12, () => d.fx('corrode', 0.5, { wx: d.center.x, wy: d.center.y, r: R * 1.25, v: d.tier, seed: 7 }));
+      if (d.tier >= 3) d.skulls(d.hits, 2);
+      d.release();
+      v.shake = Math.max(v.shake, 0.12 + d.tier * 0.04);
+    });
+    d.at(0.6, () => { d.mark('여운'); });
+    d.at(0.9, () => { d.end(); d.mark(''); });
+  },
+
+  // 강화 · 독기 — 몸 안의 독을 끌어올린다. 걸려 있는 동안 독기가 피어오른다.
+  'poison:rage'(d) {
+    const v = d.v;
+    d.mark('기수식');
+    d.pose([[0.08, '기모으기', 'out'], [0.5, '기모으기'], [0.62, '마무리', 'snap']], 0.3);
+    const n = d.lvl >= 2 ? 22 : d.lvl >= 1 ? 14 : 6;
+    d.fx('motes', 0.5, { n, face: d.face, r: 90, dx: 0, dy: -50, col: d.venom.core, seeds: seeds(n) });
+    d.at(0.5, () => {
+      d.mark('시전');
+      d.fx('cloud', 0.7, { wx: d.to.x, wy: d.to.y, r: 70 + d.tier * 12, n: 10, v: d.tier, seeds: seeds(10), oy: -40 });
+      d.fx('miasma', Math.max(1, d.dur || 8), { v: d.tier });
+      d.hanja(d.name, 1);
+      if (d.tier >= 2) d.fx('corrode', 0.6, { wx: d.to.x, wy: d.to.y, r: 110, v: d.tier, seed: 3 });
+      if (d.tier >= 3) d.fx('skull', 1, { wx: d.to.x, wy: d.to.y, oy: -150, size: 16, v: d.tier });
+    });
+    d.at(0.8, () => { d.mark('여운'); });
+    d.at(1.1, () => { d.end(); d.mark(''); });
+  },
+
+  // 광역 · 독무 — 독 덩이 여럿을 흩뿌려 던지면, 떨어진 자리마다 터지고 독무가 피어난다
+  'poison:thunder'(d) {
+    const v = d.v;
+    const R = d.radius || 210;
+    const n = 3 + d.tier * 2;
+    d.mark('기수식');
+    d.pose([[0, '투척준비', 'out'], [0.16, '흩뿌리기', 'snap'], [0.6, '흩뿌리기'], [0.9, '마무리', 'inout']], 0.3);
+    d.at(0.16, () => {
+      d.mark('시전');
+      for (let i = 0; i < n; i++) {
+        const a = (i / n) * TAU + Math.random() * 0.5;
+        const r = R * (0.25 + Math.random() * 0.5);
+        const spot = { x: d.center.x + Math.cos(a) * r, y: d.center.y + Math.sin(a) * r / v.squash * 0.6 };
+        const fly = 0.22 + i * 0.035;
+        d.lob('pglob', fly, spot, { size: 6 + d.tier, h: 90 + Math.random() * 40 });
+        d.at(0.16 + fly, () => d.burst(spot, 60, { puddle: 0, ring: false, drops: 5 }));
+      }
+      if (d.tier >= 1) d.fx('rainfall', 0.9, { wx: d.center.x, wy: d.center.y, r: R, v: d.tier });
+    });
+    d.at(0.52, () => {
+      d.mark('적중');
+      d.fx('cloud', 1.1 + d.tier * 0.2, { wx: d.center.x, wy: d.center.y, r: R * 0.8, n: 14 + d.tier * 3, v: d.tier, seeds: seeds(18) });
+      d.fx('corrode', 0.6, { wx: d.center.x, wy: d.center.y, r: R, v: d.tier, seed: Math.random() * 9 });
+      if (d.tier >= 2) d.fx('puddle', 1.4, { wx: d.center.x, wy: d.center.y, r: R * 0.6, v: d.tier, seeds: seeds(14) });
+      if (d.tier >= 3) d.skulls(d.hits, 3);
+      d.release();
+      d.hanja(d.name, 1);
+      v.shake = Math.max(v.shake, 0.25);
+    });
+    d.at(0.9, () => d.mark('여운'));
+    d.at(1.4, () => { d.end(); d.mark(''); });
+  },
+
+  // 두목 · 독침 — 손끝에서 독침이 연달아 날아가 한 점에 박힌다 (차수마다 1·3·5·7개)
+  'poison:frost'(d) {
+    const v = d.v;
+    const n = 1 + d.tier * 2;
+    const tgt = d.hits[0]?.at || d.target;
+    d.mark('기수식');
+    d.pose([[0, '지법겨눔', 'out'], [0.12, '투척', 'snap'], [0.12 + n * 0.06, '투척'], [0.6 + n * 0.06, '마무리', 'inout']], 0.3);
+    for (let i = 0; i < n; i++) {
+      d.at(0.12 + i * 0.06, () => {
+        if (i === 0) d.mark('시전');
+        d.fx('dart', 0.16, { wx0: d.to.x, wy0: d.to.y, ox0: 22 * d.face, oy0: -66 + (i % 3 - 1) * 6,
+          wx1: tgt.x, wy1: tgt.y, oy1: -62 + ((i * 7) % 5 - 2) * 4, v: d.tier });
+      });
+    }
+    const H = 0.12 + (n - 1) * 0.06 + 0.16;
+    d.at(H, () => {
+      d.mark('적중');
+      d.burst(tgt, 60, { puddle: 0, ring: d.tier >= 1, drops: 8 + d.tier * 3 });
+      d.release();
+      v.hitstop = Math.max(v.hitstop, 0.08);
+      if (d.tier >= 3) {
+        d.fx('skull', 1.2, { wx: tgt.x, wy: tgt.y, oy: -130, size: 24, v: d.tier });
+        d.fx('cloud', 0.9, { wx: tgt.x, wy: tgt.y, r: 80, n: 10, v: d.tier, seeds: seeds(10), oy: -50 });
+        v.flash = Math.max(v.flash, 0.2);
+      }
+      d.hanja(d.name, 1);
+    });
+    d.at(H + 0.3, () => d.mark('여운'));
+    d.at(H + 0.7, () => { d.end(); d.mark(''); });
+  },
+
+  // 이동 · 사행보 — 독무로 흩어져 뱀처럼 기어가 겨눈 적 곁에서 다시 뭉친다
+  'poison:blink'(d) {
+    const v = d.v;
+    const T = 0.34;
+    d.mark('기수식');
+    v.camHold = 0.08;
+    d.pose([[0, '순보', 'step'], [T - 0.01, '순보'], [T, '땅짚기', 'step'], [T + 0.35, '땅짚기'], [T + 0.6, '마무리', 'inout']], 0.3);
+    d.fx('cloud', 0.6, { wx: d.from.x, wy: d.from.y, r: 60, n: 9, v: d.tier, seeds: seeds(9), oy: -45 });
+    d.at(0.06, () => {
+      d.mark('시전');
+      d.releasePath = () => {};   // 곧은 흰 길 대신 뱀이 지나간다
+      d.path = null;
+      d.fx('serpent', 0.5, { pts: [{ ...d.from, oy: -20 }, { ...d.to, oy: -20 }], go: 0.55, w: 6 + d.tier, body: 110, v: d.tier });
+      d.focusBetween(d.to, d.target, 18);
+    });
+    d.at(T, () => {
+      d.mark('적중');
+      d.fx('cloud', 0.6, { wx: d.to.x, wy: d.to.y, r: 70, n: 10, v: d.tier, seeds: seeds(10), oy: -45 });
+      d.burst(d.target, 90, { puddle: d.tier >= 2 ? 1.2 : 0, drops: 10 });
+      if (d.tier >= 3) d.skulls(d.hits, 1);
+      d.release();
+      d.hanja(d.name, 1);
+    });
+    d.at(T + 0.5, () => { d.mark('여운'); d.unfocus(); });
+    d.at(T + 0.9, () => { d.end(); d.mark(''); });
+  },
+
+  // 연쇄 · 독사 — 독사가 적에서 적으로 기어가며 문다. 머리가 닿는 순간 숫자가 뜬다.
+  'poison:chain'(d) {
+    const pts = (d.path?.path || []).map((q) => ({ x: q.x, y: q.y }));
+    d.path = null;   // 번개 길은 안 그린다
+    const start = { x: d.to.x, y: d.to.y, ox: 20 * d.face, oy: -64 };
+    const all = [start, ...pts.map((q) => ({ ...q, oy: -40 }))];
+    const segT = 0.09;
+    const go = Math.max(0.2, pts.length * segT);
+    const life = go + 0.35;
+    d.mark('기수식');
+    d.pose([[0, '투척준비', 'out'], [0.1, '흩뿌리기', 'snap'], [0.1 + go, '흩뿌리기'], [0.4 + go, '마무리', 'inout']], 0.3);
+    d.at(0.1, () => {
+      d.mark('시전');
+      d.fx('serpent', life, { pts: all, go: go / life, w: 6 + d.tier, body: 90 + d.tier * 20, v: d.tier });
+      if (d.tier >= 2) d.fx('serpent', life, { pts: all.map((q, i) => (i ? { ...q, oy: -52 } : q)), go: go / life, w: 4, body: 60, v: Math.max(0, d.tier - 1) });
+    });
+    // 머리가 i번째 적에 닿는 때 — 길이가 비슷하다고 보고 고르게 나눈다
+    pts.forEach((q, i) => {
+      d.at(0.1 + (go * (i + 1)) / pts.length, () => {
+        if (i === 0) d.mark('적중');
+        let best = null;
+        let bd = Infinity;
+        for (const h of d.hits) { const dd = Math.hypot(h.at.x - q.x, h.at.y - q.y); if (dd < bd) { bd = dd; best = h; } }
+        if (best) d.releaseHit(best);
+        d.burst(q, 45, { puddle: 0, ring: false, drops: 4 });
+        if (d.tier >= 3 && i === pts.length - 1) d.fx('skull', 0.9, { wx: q.x, wy: q.y, oy: -110, size: 14, v: d.tier });
+      });
+    });
+    d.at(0.12 + go, () => { d.release(); d.hanja(d.name, 1); });
+    d.at(0.4 + go, () => d.mark('여운'));
+    d.at(0.8 + go, () => { d.end(); d.mark(''); });
+  },
+
+  // 장판 · 독무진 — 큰 독 덩이를 던져 깨뜨리면 독 웅덩이가 남는다 (웅덩이 자체는 drawFields가 그린다)
+  'poison:plum'(d) {
+    const v = d.v;
+    d.mark('기수식');
+    d.pose([[0, '투척준비', 'out'], [0.18, '투척', 'snap'], [0.55, '투척'], [0.85, '마무리', 'inout']], 0.3);
+    d.at(0.18, () => { d.mark('시전'); d.lob('pglob', 0.3, d.center, { size: 13 + d.tier * 2, h: 120, oy1: -10 }); });
+    d.at(0.48, () => {
+      d.mark('적중');
+      d.burst(d.center, (d.radius || 190) * 0.9, { puddle: 0, drops: 18 + d.tier * 4 });
+      d.fx('cloud', 0.8, { wx: d.center.x, wy: d.center.y, r: (d.radius || 190) * 0.7, n: 12, v: d.tier, seeds: seeds(12) });
+      if (d.tier >= 3) d.fx('skull', 1, { wx: d.center.x, wy: d.center.y, oy: -120, size: 20, v: d.tier });
+      d.release();
+      d.hanja(d.name, 1);
+      v.shake = Math.max(v.shake, 0.2);
+    });
+    d.at(0.9, () => d.mark('여운'));
+    d.at(1.3, () => { d.end(); d.mark(''); });
+  },
+
+  // 관통 · 독시 — 독을 감은 화살이 일직선으로 꿰뚫고, 지나간 바닥이 타들어 간다
+  'poison:pierce'(d) {
+    const v = d.v;
+    const L = 560;
+    const go = 0.22;
+    d.mark('기수식');
+    v.faceOverride = d.aim;
+    d.pose([[0, '투척준비', 'out'], [0.16, '투척', 'snap'], [0.6, '투척'], [0.9, '마무리', 'inout']], 0.3);
+    d.at(0.16, () => {
+      d.mark('시전');
+      d.fx('vbolt', go / 0.4, { wx: d.to.x, wy: d.to.y, oy: -56, a: d.ang, len: L, go: 0.4, v: d.tier });
+      d.fx('scar', 1.2 + d.tier * 0.4, { wx: d.to.x, wy: d.to.y, a: d.ang, len: L, v: d.tier });
+      if (d.tier >= 2) d.fx('cloud', 0.9, { wx: d.to.x + Math.cos(d.ang) * L * 0.5, wy: d.to.y + Math.sin(d.ang) * L * 0.5 / v.squash, r: 120, n: 10, v: d.tier, seeds: seeds(10) });
+    });
+    // 화살 머리가 지나가는 차례대로 맞는다
+    const victims = d.hits.slice();
+    const ux = Math.cos(d.ang);
+    const uy = Math.sin(d.ang);
+    const along = (h) => Math.max(0, (h.at.x - d.to.x) * ux + (h.at.y - d.to.y) * v.squash * uy);
+    for (const h of d.hits.slice()) {
+      d.at(0.16 + go * Math.min(1, along(h) / L), () => {
+        if (d.beat !== '적중') d.mark('적중');
+        d.releaseHit(h);
+        d.burst(h.at, 40, { puddle: 0, ring: false, drops: 4 });
+      });
+    }
+    if (d.tier >= 3) d.at(0.2 + go, () => d.skulls(victims, 3));
+    d.at(0.2 + go, () => { d.release(); d.hanja(d.name, 1); });
+    d.at(0.7, () => { d.mark('여운'); v.faceOverride = 0; });
+    d.at(1.1, () => { d.end(); d.mark(''); });
   },
 };
