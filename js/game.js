@@ -51,6 +51,7 @@ import {
   EARN_WINDOW_SEC, EARN_EMA, EARN_KEYS, OFFLINE_KEYS,
   stageBooks, stageStones, stageFood,
   regressGain, regressMult, REGRESS_WORTH_MULT, REGRESS_STUCK_SEC, stageStep,
+  upCap, upStagesOpen, upNextStageAt,
   JOBS, jobOf, OLD_JOBS, heroRangeOf, TIER_AT, TIER_MAX, tierName, tiersByStage, CLASS_CHANGE_GEMS,
   JOB_TESTS, jobTestOf, jobTestStage,
   PASSIVES, passivesOf, passiveId, PASSIVE_MAX, passiveCost,
@@ -1739,7 +1740,7 @@ export class Game {
   // 열여섯 축을 한 칸씩 올렸다 되돌리므로 stats()를 서른두 번 부른다.
   // 화면이 초당 다섯 번 갱신하는 자리라 **결과를 적어 두고 다시 쓴다**.
   upgradeGains() {
-    const sig = Object.values(this.s.upgrades).join(',') + ':' + this.s.gold.toString();
+    const sig = Object.values(this.s.upgrades).join(',') + ':' + this.s.gold.toString() + ':' + this.upStage();
     if (this._gainSig === sig) return this._gains;
     // **power()로 재면 안 된다.** power는 dps x 10 + hp라, dps가 1e40쯤 되면
     // 체력이 통째로 묻혀서 열여섯 축이 전부 '외공'이라고 답한다.
@@ -1756,6 +1757,7 @@ export class Game {
     const base = score();
     const out = [];
     for (const k of Object.keys(UPGRADES)) {
+      if (this.upgradeMaxed(k)) continue;   // 단계가 다 찬 축은 권하지 않는다
       const before = this.s.upgrades[k];
       const cost = this.upgradeCost(k);
       this.s.upgrades[k] = before + 1;
@@ -3061,8 +3063,11 @@ export class Game {
 
   // ---------- 골드 강화 ----------
   upgradeCost(key) { return UPGRADES[key].cost(this.s.upgrades[key]); }
-  // 수련에 상한은 없다. 차수가 올라갈 뿐이다 — 이 함수는 화면이 쓰던 자리라 남긴다.
-  upgradeMaxed() { return false; }
+  // 수련 단계 — 이번 생에 넘은 관문만큼만 올릴 수 있다 (data.js 수련 단계)
+  upStage() { return upStagesOpen(this.s.maxStage); }
+  upCapOf(key) { return upCap(key, this.s.maxStage); }
+  upNextStageAt() { return upNextStageAt(this.s.maxStage); }
+  upgradeMaxed(key) { return (this.s.upgrades[key] || 0) >= this.upCapOf(key); }
 
   buyUpgrade(key, times = 1) {
     let bought = 0;
@@ -3508,6 +3513,8 @@ export class Game {
       let best = null;
       let cheap = null;   // Big은 `c < Infinity`가 false다
       for (const k of Object.keys(UPGRADES)) {
+        // 단계가 다 찬 축은 건너뛴다 — 가장 싼 게 막혀 있다고 다른 축까지 멈추면 안 된다
+        if (this.upgradeMaxed(k)) continue;
         const c = this.upgradeCost(k);
         if (!cheap || c.lt(cheap)) { cheap = c; best = k; }
       }

@@ -735,3 +735,9 @@ body { background: radial-gradient(ellipse at top, #1d1712, #0b0907 70%); }
 .class-card b { font-size: 17px; }
 .class-card small { color: var(--muted); font-size: 11px; }
 .class-card .desc { font-size: 11px; line-height: 1.4; }
+
+/* ---------- 수련 단계 ---------- */
+.up-stage b { font-size: 15px; }
+.up-stage .desc { margin-top: 4px; }
+.row.maxed { opacity: 0.6; }
+.row.maxed .buy { font-size: 11px; }

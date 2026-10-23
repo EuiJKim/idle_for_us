@@ -93,6 +93,7 @@ for (let t = 0, step = 0; t < hours * 3600; t += dt, step++) {
   g.checkDaily(now);
   loop(3000, () => {
     const keys = Object.keys(UPGRADES).filter((k) => !g.upgradeMaxed(k));
+    if (!keys.length) return false;   // 수련 단계가 다 찼다 — 관문을 밀어야 열린다
     const k = keys.reduce((a, b) => (big(g.upgradeCost(b)).gte(g.upgradeCost(a)) ? a : b));
     return !!g.buyUpgrade(k);
   });
@@ -150,6 +151,12 @@ for (let t = 0, step = 0; t < hours * 3600; t += dt, step++) {
   if (g.regressWorth()) { g.regress(); lastBest = 0; lastProgressT = t; nextTrial = 0; }
   if (g.s.farming) { farmT += 1; if (farmT > 90) { farmT = 0; g.challengeBoss(); } }
   const h = t / 3600;
+  // SIM_UPLOG=1 이면 5분마다(숫자를 주면 그 초마다) 관문과 수련 축별 차수를 찍는다 (수련 단계 문턱을 정할 때 쓴다)
+  const UPLOG = Number(process.env.SIM_UPLOG || 0) * (process.env.SIM_UPLOG === "1" ? 300 : 1);
+  if (UPLOG && Math.floor(t / UPLOG) !== Math.floor((t - dt) / UPLOG)) {
+    const tiers = Object.keys(UPGRADES).map((k) => `${k}:${D2.upTierOf(k, g.s.upgrades[k])}`).join(' ');
+    console.log(`  [up] ${(t / 60).toFixed(0)}분 관문 ${g.s.maxStage} 회귀 ${g.s.regress.count}  ${tiers}`);
+  }
   if (marks.length && h >= marks[0]) {
     const p = g.power();
     const _st = g.stats({ buffs: false });

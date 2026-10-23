@@ -2818,5 +2818,31 @@ console.log('=== 39. 방치와 오프 ===');
   }
 }
 
+// ---------- 수련 단계 ----------
+// 은자가 넘쳐서 수련을 그냥 다 찍어 버렸다. 이번 생에 넘은 관문만큼만 올린다.
+console.log('\n=== 수련 단계 ===');
+{
+  const g = new Game(migrate({ nickname: 't', job: 'sword', stage: 30, maxStage: 30, bestStage: 30, gold: 1e300 }));
+  ok(g.upStage() === 1, '처음엔 1단계', `${g.upStage()}단계`);
+  ok(g.upCapOf('atk') === D.upTierLv('atk') && g.upCapOf('crit') === D.upTierLv('crit'),
+    '한 단계 = 축마다 한 차수', `외공 ${g.upCapOf('atk')} · 혈도 ${g.upCapOf('crit')}`);
+  const bought = g.buyUpgrade('atk', 9999);
+  ok(bought === g.upCapOf('atk') && g.upgradeMaxed('atk'), '단계 끝에서 멈춘다', `${bought}레벨`);
+  ok(g.buyUpgrade('atk', 1) === 0, '다 찬 축은 더 안 사진다');
+  // 가장 싼 축이 막혀도 나머지는 계속 산다 — 막힌 축에서 멈추면 자동 수련이 통째로 선다
+  g.s.upgrades.gold = g.upCapOf('gold');
+  const n = g.autoTrain(400);
+  ok(n > 0 && Object.keys(D.UPGRADES).every((k) => g.s.upgrades[k] <= g.upCapOf(k)),
+    '자동 수련이 막힌 축을 건너뛰고 열린 만큼만 산다', `${n}번`);
+  ok(!g.upgradeGains().some((x) => g.upgradeMaxed(x.key)), '다 찬 축은 이득 순위에 안 뜬다');
+  // 관문을 넘으면 다음 단계
+  g.s.maxStage = D.UP_STAGE_EVERY + 1;
+  ok(g.upStage() === 2 && g.buyUpgrade('atk', 1) === 1, `제 ${D.UP_STAGE_EVERY}관문을 넘으면 2단계`, `${g.upStage()}단계`);
+  ok(g.upNextStageAt() === D.UP_STAGE_EVERY * 2, '다음 문턱을 알려 준다', `${g.upNextStageAt()}관문`);
+  // 옛 세이브가 단계보다 높이 올려 둔 건 깎지 않는다 (사기만 막는다)
+  const old = new Game(migrate({ nickname: 't', job: 'sword', stage: 10, maxStage: 10, bestStage: 900, upgrades: { atk: 500 } }));
+  ok(old.s.upgrades.atk === 500 && old.upgradeMaxed('atk'), '옛 세이브의 높은 수련은 그대로 두고 더 사지만 못한다');
+}
+
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);

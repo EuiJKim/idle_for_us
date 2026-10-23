@@ -1,10 +1,10 @@
 // 앱 껍데기를 캐시해 오프라인에서도 열리게 한다. 온라인이면 항상 새 파일을 먼저 받는다.
-const CACHE = 'ifu-v89';
+const CACHE = 'ifu-v90';
 const SHELL = [
   './', 'index.html', 'css/style.css', 'manifest.webmanifest',
   'js/main.js', 'js/big.js', 'js/game.js', 'js/data.js', 'js/battle.js', 'js/net.js', 'js/fmt.js', 'js/firebase-config.js',
   'js/ui/index.js', 'js/ui/common.js', 'js/ui/growth.js', 'js/ui/equip.js', 'js/ui/skill.js',
-  'js/ui/companion.js', 'js/ui/dungeon.js', 'js/ui/social.js', 'js/ui/missions.js',
+  'js/ui/companion.js', 'js/ui/dungeon.js', 'js/ui/social.js', 'js/ui/missions.js', 'js/ui/train.js',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png',
   'js/art.js', 'js/fx.js', 'js/icons.js', 'js/ads.js', 'js/pose.js', 'js/skillfx.js',
   'art/ui/frame.png',

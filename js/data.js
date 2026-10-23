@@ -10,7 +10,7 @@ import { mx } from './fmt.js';
 // NaN이 된다 — 재 보니 적 체력이 관문 8467에서 그 선을 넘었다.
 // 반대로 상한이 있는 값(경지 배수·초월 단계처럼)은 보통 숫자 그대로 둔다.
 
-export const BUILD = 'ifu-v89';
+export const BUILD = 'ifu-v90';
 
 export const SAVE_VERSION = 4;
 export const OFFLINE_CAP_SEC = 12 * 3600;
@@ -480,6 +480,20 @@ export const UPGRADES = {
     fmt: 'pct',
   },
 };
+
+// ---------- 수련 단계 (2026-10-23) ----------
+// 은자가 넘쳐서 수련을 그냥 다 찍어 버렸다 — 6분에 관문 180, 20분에 830이었다.
+// 이제 **이번 생(회귀 뒤)에 넘은 관문**만큼만 수련할 수 있다. 50관문마다 한 단계가
+// 열리고, 한 단계는 축마다 한 차수(외공 60 · 쾌검 100 · 나머지 50레벨)다.
+// 다 채우면 관문을 더 밀어야 다음 단계(극외공 · 현외공 …)가 열린다.
+// 재 보니 외공은 관문 45개에 한 차수씩 오르고 있었다 — 50이면 조금 붙잡힌다.
+export const UP_STAGE_EVERY = 50;
+// 열린 단계 수 (1부터). maxStage는 회귀하면 1로 돌아간다.
+export const upStagesOpen = (maxStage) => 1 + Math.floor(Math.max(0, (maxStage || 1) - 1) / UP_STAGE_EVERY);
+// 이 축을 지금 몇 레벨까지 올릴 수 있나
+export const upCap = (key, maxStage) => upStagesOpen(maxStage) * upTierLv(key);
+// 다음 단계가 열리는 관문 (이 관문을 넘으면 열린다)
+export const upNextStageAt = (maxStage) => upStagesOpen(maxStage) * UP_STAGE_EVERY;
 
 // 지금 몇 차수인가. 레벨은 **리셋되지 않는다** — 차수는 레벨에서 읽는다.
 export const upTierOf = (key, l) => Math.floor((l || 0) / (UPGRADES[key].tier || 50));

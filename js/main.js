@@ -61,7 +61,7 @@ function save() {
 const tabs = {};
 let activeTab = null;
 // 창이 전체를 덮으므로 제목이 필요하다 (전에는 버튼이 보여서 안 적어도 됐다)
-const TAB_TITLE = { companion: '영수', dungeon: '비경', social: '무림', growth: '수련', equip: '병기', skill: '무공' };
+const TAB_TITLE = { companion: '영수', dungeon: '비경', social: '무림', train: '수련', growth: '성장', equip: '병기', skill: '무공' };
 function closePanel() {
   activeTab = null;
   $('panel').classList.remove('open');
@@ -332,6 +332,7 @@ function refreshUI(full = false) {
 
 // ---------- 이벤트 처리 ----------
 let pendingRaid = null;
+let lastUpStage = 0;   // 수련 단계 알림용 — 처음 그릴 때 채운다
 function handleEvents() {
   for (const ev of game.events) {
     view.handle(ev, game);
@@ -342,12 +343,16 @@ function handleEvents() {
         const sk0 = SKILLS.find((x) => x.unlock === ev.stage + 1);
         const sk = sk0 && game.skillDef(sk0.id);
         if (sk) toast(`${sk.icon} 새 무공 「${sk.name}」(${sk0.role}) 해금!`);
+        // 수련 단계가 새로 열렸다. 건너뛰기로 한 번에 여러 관문을 넘을 수 있어서
+        // '50의 배수인가'로 보면 놓친다 — 열린 단계 수를 들고 있다가 견준다.
+        if (game.upStage() > lastUpStage) toast(`🔓 수련 ${game.upStage()}단계가 열렸어요 — 수련을 더 올릴 수 있어요`);
+        lastUpStage = game.upStage();
         if (game.s.job && [150, 280, 420].includes(ev.stage + 1)) toast(`📜 ${game.jobTier() + 1}차 전직 시험이 열렸어요 — 성장 › 전직`);
         if ([10, 20, 30, 40].includes(ev.stage)) toast('🏯 새 수련터이 열렸어요!');
         break;
       }
       case 'levelUp': updateDots(); break;
-      case 'regress': toast(`회귀 · 전생의 기억 +${ev.gain}`); break;
+      case 'regress': toast(`회귀 · 전생의 기억 +${ev.gain}`); lastUpStage = game.upStage(); break;
       case 'missionDone': toast(`📜 의뢰 완료: ${MISSIONS.find((x) => x.id === ev.id).name}`); updateDots(); break;
       case 'heroDied': if (ev.boss) toast('두목을 못 잡았어요. 수련하고 다시 도전!'); break;
       // 아래 넷은 게임이 쏘기만 하고 아무도 안 받고 있었다.
@@ -1144,6 +1149,7 @@ if (document.fonts?.load) {
 netChanged('status');
 if (perf.mode !== 'auto') applyQuality();   // 저장해 둔 화질을 되살린다
 refreshUI(true);
+lastUpStage = game.upStage();
 requestAnimationFrame((t) => { last = t; frame(t); });
 if (!game.s.nickname) askNickname(true);
 else if (game.needsClass()) askClass(() => checkReturn());
