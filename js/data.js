@@ -51,7 +51,7 @@ export const critExpect = (C, D) => {
 // NaN이 된다 — 재 보니 적 체력이 관문 8467에서 그 선을 넘었다.
 // 반대로 상한이 있는 값(경지 배수·초월 단계처럼)은 보통 숫자 그대로 둔다.
 
-export const BUILD = 'ifu-v94';
+export const BUILD = 'ifu-v95';
 
 export const SAVE_VERSION = 4;
 export const OFFLINE_CAP_SEC = 12 * 3600;
@@ -2257,14 +2257,14 @@ export const stageJump = (s) => (s <= 1 ? 1 : Math.exp(cumEase(s) - cumEase(s - 
 
 // cumEase는 자연로그 누적이라 그 자체는 안 터진다. 터지는 건 exp()다.
 // 적 체력 = 옛 곡선을 1/8로 눌러 담은 것 + 관문마다 조금씩 더 (진행 속도를 늦추는 몫).
-// MON_EXTRA는 시뮬로 맞췄다(30분 관문 ~220 · 1시간 ~600, 옛 판의 1/3쯤). 늘리면 느려진다.
+// MON_EXTRA는 시뮬로 맞췄다(30분 관문 ~280 · 2시간 ~870 · 8시간 ~1,600). 늘리면 느려진다.
 // 수련이 단계로 묶여 관문당 오르는 몫이 정해져 있다 — 적이 그보다 확실히 빨리 커야
 // 벽이 생기고 회귀가 돈다. 0.0075 아래로 내리면 벽이 없어져 끝없이 달린다(시뮬 실측).
 export const MON_EXTRA = 0.0085;
 // 무릎 뒤로는 덤을 줄인다. 앞쪽 벽은 경지·전직처럼 끝이 있는 성장이 넘겨 주는데, 그게 다 떨어진
 // 뒤에는 눌러 담은 성장(회귀·병기·영수)만 남아서 2시간 뒤로 관문이 거의 멎었다(4시간 871 → 8시간 1,000).
 export const MON_EXTRA_KNEE = 800;
-export const MON_EXTRA_LATE = 0.0085;
+export const MON_EXTRA_LATE = 0.0045;
 export const monExtra = (n) => (n <= 0 ? 0
   : MON_EXTRA * Math.min(n, MON_EXTRA_KNEE) + MON_EXTRA_LATE * Math.max(0, n - MON_EXTRA_KNEE));
 export const monsterHp = (s) => Big.pow10(POWER_K * cumEase(s) / Math.LN10 + monExtra(s - 1)).mul(20);
@@ -2312,7 +2312,7 @@ function atkCum(s) {
 // 전부 한 방에 쓰러지고 체력 수련이 통째로 죽었다. 한 대가 체력의 1/10쯤 되는 관문 280
 // 언저리까지만 같이 오르고, 그 뒤로는 체력이 자라는 만큼만 오른다.
 export const ATK_EXTRA_KNEE = 230;
-export const ATK_EXTRA_LATE = 0.0085;   // 시뮬로 맞추는 중 — 지금은 체력의 덤과 같다
+export const ATK_EXTRA_LATE = 0.004;
 export const atkExtra = (n) => (n <= 0 ? 0
   : MON_EXTRA * Math.min(n, ATK_EXTRA_KNEE) + ATK_EXTRA_LATE * Math.max(0, n - ATK_EXTRA_KNEE));
 export const monsterAtk = (s) => (s <= ATK_FROM

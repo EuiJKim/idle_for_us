@@ -3191,5 +3191,16 @@ console.log('\n=== 겨루기 상대에게 무공이 들어가는가 ===');
   ok(Math.abs(ticks - (1 + Math.floor(plum.fieldSec / plum.tickSec))) < 0.01, '장판(매화검진) 어림이 깔린 동안 벤 대수를 센다', `${ticks.toFixed(1)}대`);
 }
 
+// ---------- 적 공격이 내 체력보다 빨리 크지 않는가 ----------
+console.log('\n=== 적 공격의 덤 ===');
+{
+  // 적 공격에 체력과 같은 덤(0.0085)을 붙였더니 한 시간 뒤로는 졸개 한 대가 내 체력의
+  // 수십 배였다(그때 50관문에 10^0.58~0.68). 관문 280 언저리 뒤로는 내 체력이 자라는 만큼만
+  // 오른다 — 시뮬 8시간 내내 한 대가 체력의 10~40%에 머문다.
+  const per50 = (st) => D.monsterAtk(st + 50).log10() - D.monsterAtk(st).log10();
+  for (const st of [400, 800, 1500]) ok(per50(st) < 0.45, `관문 ${st}~${st + 50} 적 공격이 50관문에 10^0.45 아래로 오른다`, `10^${per50(st).toFixed(3)}`);
+  ok(D.monsterHp(2000).log10() < 25, '관문 2000 적 체력이 10^25 아래', `10^${D.monsterHp(2000).log10().toFixed(1)}`);
+}
+
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);
