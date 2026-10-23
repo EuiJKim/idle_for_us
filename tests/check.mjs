@@ -2269,5 +2269,110 @@ console.log('=== 37. 병기 뽑기 ===');
   }
 }
 
+// ---------- 38. 방치 수입은 재서 쓴다 ----------
+//
+// "열두 시간 비웠는데 은자 0"이 나왔다. 재 보니 0보다 나빴다 — **마이너스**였다.
+//
+// 원인은 어림이었다. 옛 셈은 '적 체력 ÷ 내 한 대'로 잡는 시간을 어림했는데,
+// 거기에는 광역기도 무공도 영수도 안 들어 있다. 실제의 **20억분의 1**이었다.
+// 식을 고치는 대신 pace 때와 같은 수법을 쓴다 — 켜 놓고 노는 동안 실제로
+// 들어온 걸 재 둔다. 새 기능이 붙어도 저절로 맞는다.
+console.log('');
+console.log('=== 38. 방치 수입 ===');
+{
+  // **strong()은 제 관문을 못 깬다.** 지어낸 세이브는 진짜 세이브보다 10^5배쯤
+  // 약해서, 관문 300에 세워 두면 한 마리도 못 잡고 수입이 0이 된다. 그러면
+  // '수입이 0이다'가 코드 탓인지 세이브 탓인지 가릴 수 없다.
+  // 적 체력에 맞는 수련 레벨을 거꾸로 풀어 쥐여 준다.
+  const fit = (stage) => {
+    const g = strong(stage);
+    const need = Math.ceil((D.monsterHp(stage).log10() - 1) / Math.log10(D.UP_VALUE_RATE));
+    g.s.upgrades.atk = need;
+    g.s.upgrades.hp = need;
+    return g;
+  };
+  const play = (g, secs) => {
+    g.spawn();
+    for (let i = 0; i < 30 * secs; i++) { g.tick(1 / 30); g.events.length = 0; }
+  };
+
+  // 아직 재 본 적이 없으면 식으로 간다 — 막 시작한 사람도 0이면 안 된다
+  {
+    const g = fit(300);
+    ok(!g.s.earn.gold.isPos(), '새 판에는 잰 값이 없다');
+    ok(pos(g.idleRates().gold), '잰 적이 없어도 수입이 0은 아니다', fmt(g.idleRates().gold));
+  }
+
+  // 놀고 나면 잰 값이 들어차고, 그 값이 쓰인다
+  {
+    const g = fit(300);
+    play(g, 40);
+    ok(pos(g.s.earn.gold), '놀고 나면 번 속도가 적힌다', `초당 ${fmt(g.s.earn.gold)}`);
+    ok(big(g.idleRates().gold).eq(g.s.earn.gold), '방치 수입이 그 값을 쓴다');
+  }
+
+  // **잰 값이 실제와 맞는가.** 이게 이 절의 전부다.
+  {
+    const g = fit(300);
+    play(g, 60);
+    const before = g.s.gold;
+    for (let i = 0; i < 30 * 30; i++) { g.tick(1 / 30); g.events.length = 0; }
+    const real = g.s.gold.sub(before).div(30);
+    const shown = g.idleRates().gold;
+    const r = shown.div(real.max(1)).toNumber();
+    ok(r > 0.2 && r < 5, '방치 수입이 실제로 버는 속도와 맞는다',
+      `실제 ${fmt(real)} / 셈 ${fmt(shown)} = ${r.toFixed(2)}배`);
+  }
+
+  // **비우고 오면 세져 있다.**
+  // 은자 자체는 줄 수 있다 — 자동 수련이 번 것을 바로 붓기 때문이다.
+  // 그건 손해가 아니라 투자다. 봐야 할 건 힘이 늘었는가다.
+  {
+    const g = fit(300);
+    play(g, 60);
+    const p0 = g.power().power;
+    g.s.lastSeen = Date.now() - 2 * 3600 * 1000;
+    const rw = g.offlineReward(Date.now(), true);
+    ok(pos(rw.gold), '보여 주는 보상이 0이 아니다', fmt(rw.gold));
+    g.claimOffline(rw);
+    ok(gt(g.power().power, p0), '두 시간 비우고 오면 세져 있다',
+      `${fmt(p0)} → ${fmt(g.power().power)}`);
+  }
+
+  // **비워 두는 쪽이 더 벌면 안 된다** — 그러면 켤 이유가 없다
+  {
+    const a = fit(300);
+    play(a, 60);
+    const rate = a.idleRates().gold;
+    const b = fit(300);
+    play(b, 60);
+    const g0 = b.s.gold;
+    for (let i = 0; i < 30 * 60; i++) { b.tick(1 / 30); b.events.length = 0; }
+    const real = b.s.gold.sub(g0).div(60);
+    ok(!rate.gt(real.mul(5).max(1)), '비워 두는 쪽이 노는 쪽보다 많이 벌지 않는다',
+      `방치 ${fmt(rate)} vs 놀기 ${fmt(real)}`);
+  }
+
+  // 방치로 받은 걸 다시 '번 것'으로 세면 안 된다 — 가만 있어도 수입이 불어난다
+  {
+    const g = fit(300);
+    play(g, 40);
+    const rate0 = g.s.earn.gold;
+    g.s.lastSeen = Date.now() - 6 * 3600 * 1000;
+    g.claimOffline(g.offlineReward(Date.now(), true));
+    ok(big(g.s.earn.gold).eq(rate0), '방치 보상은 번 속도에 안 섞인다',
+      `${fmt(rate0)} → ${fmt(g.s.earn.gold)}`);
+  }
+
+  // 따라잡기가 내놓는 합계가 글자가 아니다 (0에 += 하면 글자가 붙는다)
+  {
+    const g = fit(300);
+    play(g, 40);
+    const c = g.offlineClimb(3600, false);
+    const broken = ['gold', 'exp', 'books', 'stones', 'food', 'merit'].filter((k) => !fin(c[k]));
+    ok(broken.length === 0, '따라잡기 합계가 전부 수다', broken.join(',') || `${fmt(c.gold)} 은자`);
+  }
+}
+
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);

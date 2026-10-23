@@ -9,7 +9,7 @@ import { Big, big } from './big.js';
 // NaN이 된다 — 재 보니 적 체력이 관문 8467에서 그 선을 넘었다.
 // 반대로 상한이 있는 값(경지 배수·초월 단계처럼)은 보통 숫자 그대로 둔다.
 
-export const BUILD = 'ifu-v83';
+export const BUILD = 'ifu-v84';
 
 export const SAVE_VERSION = 4;
 export const OFFLINE_CAP_SEC = 12 * 3600;
@@ -28,6 +28,10 @@ export const OFFLINE_CAP_SEC = 12 * 3600;
 // 처음엔 평타로 어림했는데 무공·영수를 빼먹어서 274배가 느렸다
 // (어림 7690초 vs 실제 28초). 그래서 관문을 깰 때마다 실제 걸린 시간을
 // 적어 두고(s.pace), 따라잡을 때 그 값을 쓴다.
+// 번 속도를 재는 창. 짧으면 들쭉날쭉하고 길면 관문을 옮겨도 옛 값이 남는다.
+export const EARN_WINDOW_SEC = 10;
+export const EARN_EMA = 0.25;
+
 export const PACE_EMA = 0.25;           // 새로 잰 값을 이만큼 섞는다
 export const PACE_MAX_SEC = 3600;       // 한 관문에 한 시간을 넘게 잡지는 않는다
 // 서 있는 동안에도 적은 세진다. 따라잡을수록 한 관문이 이만큼씩 길어진다.
