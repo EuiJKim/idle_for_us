@@ -30,7 +30,7 @@ let nextTrial = 0;
 let nextJobTest = 0;
 let lastBest = 0;
 let lastProgressT = 0;
-const marks = [0.25, 0.5, 1, 2, 3, 4, 8, 12, 24, 48, 72, 168].filter((h) => h <= hours);
+const marks = [0.25, 0.5, 1, 2, 3, 4, 6, 8, 12, 24, 48, 72, 168].filter((h) => h <= hours);
 // 매 초 돌릴 필요가 없고 비용도 큰 소비. 1분에 한 번만 한다.
 function spendSlow(now, step) {
   // 옵션 칸: 신품 미만이 섞여 있으면 다시 굴린다. 좋은 칸은 잠가 둔다.

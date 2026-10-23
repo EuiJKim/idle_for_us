@@ -2261,7 +2261,13 @@ export const stageJump = (s) => (s <= 1 ? 1 : Math.exp(cumEase(s) - cumEase(s - 
 // 수련이 단계로 묶여 관문당 오르는 몫이 정해져 있다 — 적이 그보다 확실히 빨리 커야
 // 벽이 생기고 회귀가 돈다. 0.0075 아래로 내리면 벽이 없어져 끝없이 달린다(시뮬 실측).
 export const MON_EXTRA = 0.0085;
-export const monsterHp = (s) => Big.pow10(POWER_K * cumEase(s) / Math.LN10 + MON_EXTRA * Math.max(0, s - 1)).mul(20);
+// 무릎 뒤로는 덤을 줄인다. 앞쪽 벽은 경지·전직처럼 끝이 있는 성장이 넘겨 주는데, 그게 다 떨어진
+// 뒤에는 눌러 담은 성장(회귀·병기·영수)만 남아서 2시간 뒤로 관문이 거의 멎었다(4시간 871 → 8시간 1,000).
+export const MON_EXTRA_KNEE = 800;
+export const MON_EXTRA_LATE = 0.0085;
+export const monExtra = (n) => (n <= 0 ? 0
+  : MON_EXTRA * Math.min(n, MON_EXTRA_KNEE) + MON_EXTRA_LATE * Math.max(0, n - MON_EXTRA_KNEE));
+export const monsterHp = (s) => Big.pow10(POWER_K * cumEase(s) / Math.LN10 + monExtra(s - 1)).mul(20);
 // 적 공격력.
 //
 // **내 체력과 같은 속도로 올린다.** 그래야 비율이 평평해진다.
@@ -2301,9 +2307,17 @@ function atkCum(s) {
   for (let k = _atkCum.length; k <= n; k++) _atkCum[k] = _atkCum[k - 1] + Math.log(atkRate(ATK_FROM + k));
   return _atkCum[n];
 }
+// 적 공격의 덤은 체력의 덤과 따로 간다. 같은 0.0085로 두었더니 내 체력이 관문당 그만큼 못 따라와서
+// 졸개 한 대가 내 체력의 3%(15분) → 4.8배(1시간) → 41배(3시간)가 됐다 — 한 시간 뒤로는
+// 전부 한 방에 쓰러지고 체력 수련이 통째로 죽었다. 한 대가 체력의 1/10쯤 되는 관문 280
+// 언저리까지만 같이 오르고, 그 뒤로는 체력이 자라는 만큼만 오른다.
+export const ATK_EXTRA_KNEE = 230;
+export const ATK_EXTRA_LATE = 0.0085;   // 시뮬로 맞추는 중 — 지금은 체력의 덤과 같다
+export const atkExtra = (n) => (n <= 0 ? 0
+  : MON_EXTRA * Math.min(n, ATK_EXTRA_KNEE) + ATK_EXTRA_LATE * Math.max(0, n - ATK_EXTRA_KNEE));
 export const monsterAtk = (s) => (s <= ATK_FROM
   ? big(ATK_BASE)
-  : Big.pow10(POWER_K * atkCum(s) / Math.LN10 + MON_EXTRA * (s - ATK_FROM)).mul(ATK_BASE));
+  : Big.pow10(POWER_K * atkCum(s) / Math.LN10 + atkExtra(s - ATK_FROM)).mul(ATK_BASE));
 
 // 보상은 톱니로 만들지 않는다. 벽에서 보상까지 튀면 벽 앞에서 버티는 게 이득이 된다.
 // 벌이가 관문당 몇 배씩 느는가. 적 체력보다 느려야 한 관문에 머무는 시간이
