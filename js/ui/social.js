@@ -5,6 +5,7 @@ import {
   SHADOW_TIERS, SHADOW_TRY_CAP, nextShadowTier, shadowStage, shadowTierName,
   ACC_SLOTS,
 } from '../data.js';
+import { big } from '../big.js';
 import { fmt, pct, ago } from '../fmt.js';
 import { dayKey } from '../game.js';
 import { h, toast, openModal, closeModal, subTabs, rewardText, loopBtn } from './common.js';
@@ -58,8 +59,9 @@ function playerList(app, { sortKey, valueLabel, empty, onPick, action }) {
 
 function rankView(app) {
   const pl = playerList(app, {
-    sortKey: (p) => p.power || 0,
-    valueLabel: (p) => fmt(p.power),
+    // 순위는 자릿수로 매긴다 — 옛 글에는 powerLog가 없으니 power로 떨어진다.
+    sortKey: (p) => (Number.isFinite(p.powerLog) ? p.powerLog : Math.log10(Math.max(1, p.power || 1))),
+    valueLabel: (p) => fmt(big(p.powerBig ?? p.power ?? 0)),
     empty: { hint: '이름을 누르면 캐릭터를 구경할 수 있어요.', none: '아직 아무도 없어요.' },
     onPick: (p) => showProfile(app, p),
   });
@@ -98,11 +100,11 @@ export function showProfile(app, p) {
     s.append(h('h2', {}, `${p.nickname}`, p.uid === app.net.uid ? h('small', { class: 'muted' }, ' (나)') : null));
     s.append(h('p', { class: 'muted' }, `${rank.name} · Lv.${p.level || 1}${p.guildName ? ` · 🏰 ${p.guildName}` : ''} · 접속 ${lastSeen(p) || '-'}`));
     s.append(h('div', { class: 'stat-grid' },
-      h('div', {}, '전투력', h('b', { style: 'color:#fde68a' }, fmt(p.power))),
+      h('div', {}, '전투력', h('b', { style: 'color:#fde68a' }, fmt(big(p.powerBig ?? p.power ?? 0)))),
       h('div', {}, '현재 / 역대 관문', h('b', {}, `${p.maxStage} / ${p.bestStage || p.maxStage}`)),
       h('div', {}, '회귀', h('b', {}, `${p.regress || 0}회`)),
-      h('div', {}, '공격력', h('b', {}, fmt(p.atk))),
-      h('div', {}, '체력', h('b', {}, fmt(p.hp))),
+      h('div', {}, '공격력', h('b', {}, fmt(big(p.atk ?? 0)))),
+      h('div', {}, '체력', h('b', {}, fmt(big(p.hp ?? 0)))),
       h('div', {}, '치명타', h('b', {}, `${pct(p.crit || 0)} / ${pct(p.critDmg || 1.5)}`)),
       h('div', {}, '비무 점수', h('b', {}, `${p.pvp?.score ?? 1000}점`))));
     const eq = h('div', { class: 'stat-grid' });
@@ -263,7 +265,7 @@ function guildView(app) {
 
   function renderRaid() {
     const r = net.raid;
-    const myDmg = r?.damage?.[net.uid] || 0;
+    const myDmg = String(r?.damage?.[net.uid] ?? 0);
     const tickets = game.s.daily.raidTickets;
     const sig = JSON.stringify([r?.total, r?.maxHp, r?.claimed?.[net.uid], tickets, game.mode, myDmg]);
     if (sig === raidEls.sig) return;
@@ -277,10 +279,13 @@ function guildView(app) {
       body.append(h('p', { class: 'muted' }, '아직 아무도 오늘의 두목를 깨우지 않았어요. 첫 공격으로 소환돼요. 문파원 모두의 피해를 합쳐서 잡는 두목예요.'), attackBtn);
       return;
     }
-    const ratio = r.total / r.maxHp;
+    // 토벌 체력은 글자로 온다 — 나눗셈 전에 Big으로 푼다.
+    const rTotal = big(r.total ?? 0);
+    const rMax = big(r.maxHp ?? 0).max(1);
+    const ratio = rTotal.div(rMax).toNumber();
     body.append(h('div', { class: 'bar red' }, h('div', { style: `width:${Math.min(100, ratio * 100)}%` }),
-      h('span', {}, `${fmt(Math.max(0, r.maxHp - r.total))} / ${fmt(r.maxHp)}`)));
-    const killed = r.total >= r.maxHp;
+      h('span', {}, `${fmt(rMax.sub(rTotal).clampPos())} / ${fmt(rMax)}`)));
+    const killed = rTotal.gte(rMax);
     if (killed) {
       const reward = raidReward(game.s.maxStage);
       if (net.canClaimRaid()) {
@@ -299,12 +304,14 @@ function guildView(app) {
     } else {
       body.append(attackBtn);
     }
-    const contrib = Object.entries(r.damage || {}).sort((a, b) => b[1] - a[1]);
+    const contrib = Object.entries(r.damage || {})
+      .map(([uid, d]) => [uid, big(d ?? 0)])
+      .sort((a, b) => b[1].cmp(a[1]));
     if (contrib.length) {
       const grid = h('div', { class: 'contrib' });
       contrib.forEach(([uid, dmg], i) => grid.append(
         h('span', {}, `${i + 1}. ${r.names?.[uid] || '?'}${uid === net.uid ? ' (나)' : ''}`),
-        h('b', {}, `${fmt(dmg)} (${pct(dmg / r.maxHp)})`)));
+        h('b', {}, `${fmt(dmg)} (${pct(dmg.div(rMax).toNumber())})`)));
       body.append(h('div', { class: 'section-title', style: 'margin-top:10px' }, '기여도'), grid);
     }
   }

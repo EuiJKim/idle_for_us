@@ -7,7 +7,7 @@ import { DUNGEONS, DUNGEON_KEYS, DUNGEON_TIME, DUNGEON_MOBS, dungeonReward,
   riftStage, huntStage, riftReward, huntReward } from '../data.js';
 import { fmt, pct } from '../fmt.js';
 import { iconSkin } from '../icons.js';
-import { h, rewardText, toast, subTabs, loopBtn } from './common.js';
+import { h, rewardText, toast, subTabs, loopBtn, short} from './common.js';
 
 function dungeonView(app) {
   const { game } = app;
@@ -113,12 +113,12 @@ function mineView(app) {
       ? '더 팔 수 없어요'
       : `한 칸 내리면 캐는 양이 1.42배가 돼요 · 지금 깊이 ${mn.depth} / ${MINE_DEPTH_MAX}`;
     depthBtn.textContent = mn.depth >= MINE_DEPTH_MAX ? '끝까지 팠어요' : `은자 ${fmt(dc)}`;
-    depthBtn.disabled = !open || mn.depth >= MINE_DEPTH_MAX || game.s.gold < dc;
+    depthBtn.disabled = !open || mn.depth >= MINE_DEPTH_MAX || short(game.s.gold, dc);
     handInfo.innerHTML = mn.hands >= MINE_HAND_MAX
       ? '더 들일 수 없어요'
       : `한 명마다 캐는 양이 55%씩 늘어요 · 지금 ${mn.hands} / ${MINE_HAND_MAX}명`;
     handBtn.textContent = mn.hands >= MINE_HAND_MAX ? '다 들였어요' : `은자 ${fmt(hc)}`;
-    handBtn.disabled = !open || mn.depth <= 0 || mn.hands >= MINE_HAND_MAX || game.s.gold < hc;
+    handBtn.disabled = !open || mn.depth <= 0 || mn.hands >= MINE_HAND_MAX || short(game.s.gold, hc);
   }
   return { root, update, res: ['gold', 'stones'] };
 }

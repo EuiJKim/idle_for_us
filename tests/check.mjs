@@ -3,6 +3,13 @@ import fs from 'node:fs';
 // node tests/check.mjs
 import { Game, newSave, migrate, slimSave } from '../js/game.js';
 import { fmt, alphaUnit } from '../js/fmt.js';
+import { big, Big } from '../js/big.js';
+// Big에는 valueOf가 없다 — `a > b`가 글자 비교가 되므로 여기를 거친다.
+const gt = (a, b) => big(a).gt(b);
+const gte = (a, b) => big(a).gte(b);
+const pos = (v) => big(v).isPos();
+const pctOf = (a, b) => `${Math.round(big(a).div(b).toNumber() * 100)}%`;
+const fin = (v) => { const x = big(v); return Number.isFinite(x.m) && Number.isFinite(x.e); };
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 import * as D from '../js/data.js';
@@ -94,7 +101,7 @@ console.log('\n=== 2. 옛 세이브가 깨지지 않는가 ===');
   ok(Number.isFinite(s.seek), '탐색패가 생긴다');
   ok(!!s.shadow, '그림자가 생긴다');
   const st = g.stats();
-  ok(Number.isFinite(st.atk) && st.atk > 0, '전투력이 숫자다', `공격력 ${st.atk.toExponential(2)}`);
+  ok(fin(st.atk) && pos(st.atk), '전투력이 숫자다', `공격력 ${st.atk.toExponential(2)}`);
   for (let i = 0; i < 600; i++) g.tick(1 / 60);
   ok(g.s.stage >= 40, '옛 세이브로도 돌아간다', `관문 ${g.s.stage}`);
 }
@@ -105,10 +112,11 @@ console.log('\n=== 3. 값이 깨지지 않는가 (NaN / Infinity) ===');
   g.checkDaily(Date.UTC(2026, 9, 19));
   for (let i = 0; i < 60 * 300; i++) { g.tick(1 / 60); g.events.length = 0; }
   const st = g.stats();
-  const bad = Object.entries(st).filter(([, v]) => typeof v === 'number' && !Number.isFinite(v));
+  const bad = Object.entries(st).filter(([k, v]) => k !== 'petHits'
+    && ((typeof v === 'number' && !Number.isFinite(v)) || (v && v.e !== undefined && !fin(v))));
   ok(bad.length === 0, '스탯에 NaN/Infinity 없음', bad.map(([k]) => k).join(',') || '전부 정상');
   const nums = ['gold', 'gems', 'stones', 'books', 'food', 'relicShards'];
-  const badRes = nums.filter((k) => !Number.isFinite(g.s[k]));
+  const badRes = nums.filter((k) => !fin(g.s[k]));
   ok(badRes.length === 0, '재화에 NaN 없음', badRes.join(',') || '전부 정상');
   ok(g.mons.every((m) => Number.isFinite(m.x) && Number.isFinite(m.y)), '적 좌표가 전부 숫자');
   ok(Number.isFinite(g.heroX) && Number.isFinite(g.heroY), '무인 좌표가 숫자');
@@ -190,7 +198,7 @@ console.log('\n=== 6. 한 바퀴 돌려 모든 시스템에 닿는가 (6시간) 
     g.checkDaily(now);
     for (;;) {
       const keys = Object.keys(D.UPGRADES).filter((k) => !g.upgradeMaxed(k));
-      const k = keys.reduce((a, b) => (g.upgradeCost(a) <= g.upgradeCost(b) ? a : b));
+      const k = keys.reduce((a, b) => (gte(g.upgradeCost(b), g.upgradeCost(a)) ? a : b));
       if (!g.buyUpgrade(k)) break;
     }
     for (const sk of D.SKILLS) while (g.upgradeSkill(sk.id));
@@ -200,7 +208,7 @@ console.log('\n=== 6. 한 바퀴 돌려 모든 시스템에 닿는가 (6시간) 
     for (const ty of Object.keys(D.EQUIP_TYPES)) g.enhanceEquip(ty, 5);
     if (step % 600 === 0) {
       g.collectMine(now);
-      while (g.s.gold > g.mineDepthCost() * 4 && g.digDeeper(now));
+      while (gt(g.s.gold, big(g.mineDepthCost()).mul(4)) && g.digDeeper(now));
       // 겨루기류는 한 번에 하나만 들어갈 수 있다. 돌아가며 기회를 준다.
       for (const e of D.EGO_PARTS) {
         if (!g.egoOpen(e.id)) continue;
@@ -424,8 +432,9 @@ console.log('=== 9. 상한과 여유 ===');
     ok(D.UPGRADES[k].max === undefined, `${k}에 상한이 없다`);
     // 현실적인 윗자리에서 본다. 10000레벨을 넣으면 1.13^10000이 Infinity라
     // 'Infinity > Infinity'가 false가 되어 멀쩡한 곡선이 틀린 것처럼 잡혔다.
-    ok(D.UPGRADES[k].cost(2000) > D.UPGRADES[k].cost(1999) && Number.isFinite(D.UPGRADES[k].cost(2000)),
-      `${k} 비용은 끝없이 오른다`);
+    // 이제 Big이라 10000레벨도 안 터진다 — 옛날에 2000으로 낮춰 뒀던 걸 되돌린다
+    ok(gt(D.UPGRADES[k].cost(10000), D.UPGRADES[k].cost(9999)) && fin(D.UPGRADES[k].cost(10000)),
+      `${k} 비용은 끝없이 오른다`, D.UPGRADES[k].cost(10000).toExponential(1));
   }
   const gm = strong(300);
   ok(gm.upgradeMaxed('crit') === false, '다 찍었다는 상태가 없다');
@@ -439,9 +448,10 @@ console.log('=== 9. 상한과 여유 ===');
   // 레벨을 아무리 올려도 값이 계속 는다
   for (const k of Object.keys(D.UPGRADES)) {
     const def = D.UPGRADES[k];
+    // upAdds는 이제 Big을 돌려준다 — `a + b`로 더하면 글자가 붙는다.
     const val = (l) => (def.kind === 'mul' ? def.value(l)
-      : Object.values(D.upAdds(k, l)).reduce((a, b) => a + b, 0));
-    ok(val(1000) > val(500) && val(500) > val(200), `${k}는 올릴수록 계속 는다`);
+      : Object.values(D.upAdds(k, l)).reduce((a, b) => big(a).add(b), big(0)));
+    ok(gt(val(1000), val(500)) && gt(val(500), val(200)), `${k}는 올릴수록 계속 는다`);
   }
   // 차수 이름이 겹치지 않는다
   const names = Array.from({ length: 20 }, (_, i) => D.upTierName('혈도', i));
@@ -724,7 +734,7 @@ console.log('\n=== 15. 겨루기 중 사망 ===');
     const gg = mk();
     start(gg);
     if (gg.mode === 'stage') { ok(true, `${name}는 조건이 안 돼 건너뜀`); continue; }
-    gg.heroHp = 1;
+    gg.heroHp = big(1);
     gg.heroDied();
     ok(gg.mode === 'stage', `${name}에서 쓰러지면 바로 들판으로 돌아온다`, `모드 ${gg.mode}`);
     ok(!gg.contest, `${name} 겨루기가 정리된다`);
@@ -736,7 +746,7 @@ console.log('\n=== 15. 겨루기 중 사망 ===');
   g2.s.kills = D.KILLS_PER_STAGE;
   g2.spawnStage();
   const wasBoss = !!(g2.mon && g2.mon.isBoss);
-  g2.heroHp = 1;
+  g2.heroHp = big(1);
   g2.heroDied();
   ok(g2.mode === 'stage', '들판에서 죽어도 들판이다');
   ok(!wasBoss || g2.s.farming === true, '관문지기에게 지면 farming이 켜진다 (기존 동작)',
@@ -750,17 +760,17 @@ console.log('\n=== 16. 망가진 값 ===');
   // 세이브를 지우기 전까지 복구가 안 된다. 실제로 regress.points가 문자열이면
   // 공격력·체력·은자·경험치가 전부 NaN이 됐다.
   const g = new Game(newSave());
-  g.s.gold = 1e18;
+  g.s.gold = big(1e18);
   g.addGold(undefined); g.addGold(NaN); g.addGold('abc'); g.addGold(Infinity);
-  ok(Number.isFinite(g.s.gold) && g.s.gold === 1e18, '쓰레기를 더해도 은자가 안 깨진다',
+  ok(fin(g.s.gold) && big(g.s.gold).eq(1e18), '쓰레기를 더해도 은자가 안 깨진다',
     g.s.gold.toExponential(2));
   g.addExp(undefined); g.addExp(NaN);
-  ok(Number.isFinite(g.s.exp), '경험치도 안 깨진다');
+  ok(fin(g.s.exp), '경험치도 안 깨진다');
   g.grant({ gems: undefined, stones: NaN, books: 100 });
-  ok(Number.isFinite(g.s.gems) && Number.isFinite(g.s.stones) && g.s.books >= 100,
+  ok(Number.isFinite(g.s.gems) && fin(g.s.stones) && gte(g.s.books, 100),
     'grant가 쓰레기를 걸러낸다');
   g.claimOffline(Date.now());
-  ok(Number.isFinite(g.s.gold), '방치 보상에 엉뚱한 값을 넘겨도 안 깨진다');
+  ok(fin(g.s.gold), '방치 보상에 엉뚱한 값을 넘겨도 안 깨진다');
 
   // 망가진 세이브들
   const bads = ['{}', '{"gold":"abc"}', '{"upgrades":null}', '{"skillSlots":"x"}',
@@ -773,7 +783,7 @@ console.log('\n=== 16. 망가진 값 ===');
       const gg = new Game(migrate(JSON.parse(b)));
       const st = gg.stats({ buffs: false });
       gg.tick(1 / 60);
-      if (!Number.isFinite(st.dps) || !Number.isFinite(st.hp)) broke = `${b} → 능력치 NaN`;
+      if (!fin(st.dps) || !fin(st.hp)) broke = `${b} → 능력치 NaN`;
     } catch (e) { broke = `${b} → ${e.message}`; }
     if (broke) break;
   }
@@ -834,20 +844,20 @@ console.log('\n=== 17. 방치와 날짜 ===');
     const r = g.offlineReward(T0 + days * DAY);
     if (r) g.claimOffline(r);
     g.checkDaily(T0 + days * DAY);
-    ok(Number.isFinite(g.s.gold) && g.s.gold > 0, `${days}일 만에 켜도 은자가 멀쩡하다`,
+    ok(fin(g.s.gold) && pos(g.s.gold), `${days}일 만에 켜도 은자가 멀쩡하다`,
       g.s.gold.toExponential(2));
     const keys = Object.values(g.s.daily.keys);
     ok(keys.every((k) => Number.isFinite(k) && k >= 0 && k <= D.DUNGEON_KEY_CAP),
       `${days}일: 수련터 열쇠가 범위 안`, keys.join(','));
     ok(g.s.seek >= 0 && g.s.seek <= D.SEEK_CAP, `${days}일: 탐색패가 범위 안`, `${g.s.seek}`);
-    ok(Number.isFinite(g.stats({ buffs: false }).dps), `${days}일: 능력치가 유한하다`);
+    ok(fin(g.stats({ buffs: false }).dps), `${days}일: 능력치가 유한하다`);
   }
 
   // 방치 보상에 상한이 있다 (오래 비워도 무한정 쌓이지 않는다)
   const g2 = mk();
   const short = g2.offlineReward(T0 + D.OFFLINE_CAP_SEC * 1000);
   const long = g2.offlineReward(T0 + 365 * DAY);
-  ok(short && long && Math.abs(short.gold - long.gold) < 1e-6,
+  ok(short && long && big(short.gold).eq(long.gold),
     '방치 보상이 상한에서 멈춘다', `${D.OFFLINE_CAP_SEC / 3600}시간치`);
 
   // 시계가 거꾸로 가도 (기기 시각을 바꾸는 경우)
@@ -855,7 +865,7 @@ console.log('\n=== 17. 방치와 날짜 ===');
   const back = g3.offlineReward(T0 - 5 * DAY);
   if (back) g3.claimOffline(back);
   g3.checkDaily(T0 - 5 * DAY);
-  ok(Number.isFinite(g3.s.gold) && g3.s.gold > 0, '시계가 거꾸로 가도 은자가 안 깨진다');
+  ok(fin(g3.s.gold) && pos(g3.s.gold), '시계가 거꾸로 가도 은자가 안 깨진다');
   ok(Object.values(g3.s.daily.keys).every((k) => Number.isFinite(k) && k >= 0),
     '시계가 거꾸로 가도 열쇠가 안 깨진다');
 
@@ -920,7 +930,7 @@ console.log('\n=== 18. 문파 ===');
   ok(g.jobSwitchCost(D.JOBS[1].id) > 0, '바꾸는 데 공적이 든다',
     `${g.jobSwitchCost(D.JOBS[1].id)}`);
   ok(g.setJob(D.JOBS[1].id) === false, '공적이 없으면 못 바꾼다');
-  g.s.merit = 1e9;
+  g.s.merit = big(1e9);
   ok(g.setJob(D.JOBS[1].id), '공적이 있으면 바꾼다');
   ok(g.s.jobSeen.length === 2, '거쳐 본 계열이 쌓인다 (나중에 각인에 쓴다)',
     g.s.jobSeen.join(','));
@@ -1029,7 +1039,7 @@ console.log('\n=== 19. 계열 전용 무공 ===');
   ok(!g.s.skillSlots.includes('jsword'), '전용 무공이 일반 칸을 차지하지 않는다');
 
   // 바꾸면 무공도 바뀐다 (이제 공적이 드니 먼저 쥐여 준다)
-  g.s.merit = 1e9;
+  g.s.merit = big(1e9);
   g.setJob('poison');
   ok(g.jobSkillId() === 'jpoison', '문파를 바꾸면 전용 무공도 바뀐다', g.jobSkillId());
   ok(!g.skillUnlocked(D.SKILLS.find((x) => x.id === 'jsword')),
@@ -1078,7 +1088,7 @@ console.log('\n=== 20. 맛보기 ===');
 
   // 올린 레벨은 남는다
   g.setTaste('monk');
-  g.s.books = 1e9;
+  g.s.books = big(1e9);
   const before = g.s.skills.jmonk;
   g.upgradeSkill('jmonk');
   ok(g.s.skills.jmonk === before + 1, '맛보는 무공을 올릴 수 있다');
@@ -1133,13 +1143,14 @@ console.log('\n=== 21. 전용 무공의 축 ===');
     g.setJob('ring');
     const st = g.stats();
     g.spawn();
-    g.mon.hp = Infinity; g.mon.maxHp = Infinity; g.mon.isBoss = false;
+    // 안 죽는 허수아비. Infinity를 꽂으면 Big 셈이 안 되므로 아주 큰 수를 쓴다.
+    g.mon.hp = Big.pow10(500); g.mon.maxHp = Big.pow10(500); g.mon.isBoss = false;
     g.cd.jring = 0;
     g.events.length = 0;
     g.useSkill('jring');
-    const dealt = g.events.filter((e) => e.type === 'dmg').reduce((a2, e) => a2 + e.amount, 0);
+    const dealt = g.events.filter((e) => e.type === 'dmg').reduce((a2, e) => a2.add(e.amount), big(0));
     const sk = D.SKILLS.find((x) => x.id === 'jring');
-    const want = st.atk * g.skillMult(sk) * st.critDmg;
+    const want = st.atk.mul(g.skillMult(sk) * st.critDmg);
     ok(Math.abs(dealt / want - 1) < 1e-6, '단지멸이 반드시 치명으로 들어간다',
       `들어간 ${dealt.toExponential(2)} / 기대 ${want.toExponential(2)}`);
   }
@@ -1149,13 +1160,13 @@ console.log('\n=== 21. 전용 무공의 축 ===');
     const g = strong(300);
     g.s.rank = 9; g.s.bestStage = 9999;
     g.setJob('monk');
-    g.heroHp = g.stats().hp * 0.2;
+    g.heroHp = g.stats().hp.mul(0.2);
     const before = g.heroHp;
     g.cd.jmonk = 0;
     g.spawn();
     g.useSkill('jmonk');
-    ok(g.heroHp > before, '금강부동이 체력을 돌려준다',
-      `${Math.round(before / g.stats().hp * 100)}% → ${Math.round(g.heroHp / g.stats().hp * 100)}%`);
+    ok(gt(g.heroHp, before), '금강부동이 체력을 돌려준다',
+      `${pctOf(before, g.stats().hp)} → ${pctOf(g.heroHp, g.stats().hp)}`);
   }
 }
 
@@ -1429,9 +1440,9 @@ console.log('\n=== 26. 계열 패시브 / 장착 칸 ===');
 
   // 지금 들어간 계열 것만 켜진다
   const g = strong(600);
-  g.s.books = 1e12;
+  g.s.books = big(1e12);
   g.s.bestStage = 9999;
-  g.s.merit = 1e9;                  // 문파를 바꾸는 데 공적이 든다
+  g.s.merit = big(1e9);                  // 문파를 바꾸는 데 공적이 든다
   for (const j of D.JOBS) g.s.jobTests[j.id] = true;
   ok(g.setJob('monk'), '마불에 들어간다');
   ok(g.passiveUp('monk-nei', 10) === 10, '내 계열 패시브는 올라간다');
@@ -1446,7 +1457,7 @@ console.log('\n=== 26. 계열 패시브 / 장착 칸 ===');
 
   // 쿨타임은 바닥이 있어야 한다 — 0이 되면 평타·영수가 의미를 잃는다
   const g2 = strong(600);
-  g2.s.books = 1e12; g2.s.bestStage = 9999;
+  g2.s.books = big(1e12); g2.s.bestStage = 9999;
   for (const j of D.JOBS) g2.s.jobTests[j.id] = true;
   g2.setJob('blade');
   g2.passiveUp('blade-mu', D.PASSIVE_MAX);
@@ -1456,7 +1467,7 @@ console.log('\n=== 26. 계열 패시브 / 장착 칸 ===');
 
   // 받는 피해 감소도 바닥이 있어야 한다
   const g3 = strong(600);
-  g3.s.books = 1e12; g3.s.bestStage = 9999;
+  g3.s.books = big(1e12); g3.s.bestStage = 9999;
   for (const j of D.JOBS) g3.s.jobTests[j.id] = true;
   g3.setJob('fist');
   g3.passiveUp('fist-nei', D.PASSIVE_MAX);
@@ -1465,7 +1476,7 @@ console.log('\n=== 26. 계열 패시브 / 장착 칸 ===');
 
   // 세이브에 남는다
   const g4 = strong(600);
-  g4.s.books = 1e12; g4.s.bestStage = 9999;
+  g4.s.books = big(1e12); g4.s.bestStage = 9999;
   for (const j of D.JOBS) g4.s.jobTests[j.id] = true;
   g4.setJob('ring');
   g4.passiveUp('ring-wai', 7);
@@ -1522,16 +1533,16 @@ console.log('=== 27. 문파 특성 ===');
   }
   // 마불 〈불력〉 — 무공을 쓰면 체력이 찬다
   {
-    const r = cast('monk', 'thunder', (g) => { g.heroHp = g.stats().hp * 0.5; });
-    ok(r.g.heroHp > r.before.hp, '마불은 무공을 쓰면 체력이 찬다',
+    const r = cast('monk', 'thunder', (g) => { g.heroHp = g.stats().hp.mul(0.5); });
+    ok(gt(r.g.heroHp, r.before.hp), '마불은 무공을 쓰면 체력이 찬다',
       `${r.before.hp.toExponential(2)} → ${r.g.heroHp.toExponential(2)}`);
-    const n = cast(null, 'thunder', (g) => { g.heroHp = g.stats().hp * 0.5; });
+    const n = cast(null, 'thunder', (g) => { g.heroHp = g.stats().hp.mul(0.5); });
     ok(Math.abs(n.g.heroHp - n.before.hp) < 1e-9, '문파가 없으면 안 찬다');
   }
   // 취마 〈주기〉 — 무공을 쓰면 은자가 떨어진다
   {
     const r = cast('drunk', 'thunder');
-    ok(r.g.s.gold > r.before.gold, '취마는 무공을 쓰면 은자가 들어온다',
+    ok(gt(r.g.s.gold, r.before.gold), '취마는 무공을 쓰면 은자가 들어온다',
       `+${(r.g.s.gold - r.before.gold).toExponential(2)}`);
     // 보이는 쪽도 있어야 한다 — 사건을 보내 놓고 받는 쪽이 없으면 없는 것과 같다
     ok(r.g.events.some((e) => e.type === 'gold' && e.fromSkill), '은자가 떨어진 사건을 보낸다');
@@ -1561,14 +1572,14 @@ console.log('=== 27. 문파 특성 ===');
       g.rng = () => 0.99;                 // 치명이 안 터지게 고정한다
       g.spawn();
       g.mon.isBoss = true;
-      g.mon.hp = Infinity;
+      g.mon.hp = Big.pow10(500);
       g.cd = {};
       g.events.length = 0;
       g.useSkill('thunder');
-      return g.events.filter((e) => e.type === 'dmg').reduce((a, e) => a + (e.amount || 0), 0);
+      return g.events.filter((e) => e.type === 'dmg').reduce((a, e) => a.add(e.amount || 0), big(0));
     };
     const a = hit(null), b = hit('sword');
-    ok(b > a * 1.2, '일화검존은 모든 무공이 두목에게 더 아프다',
+    ok(gt(b, big(a).mul(1.2)), '일화검존은 모든 무공이 두목에게 더 아프다',
       `${a.toExponential(2)} → ${b.toExponential(2)}`);
   }
   // 극악소마 〈지력〉 — 치명이 뜰 수 있다
@@ -1578,15 +1589,15 @@ console.log('=== 27. 문파 특성 ===');
       g.s.job = job;
       g.rng = () => roll;
       g.spawn();
-      g.mon.hp = Infinity;
+      g.mon.hp = Big.pow10(500);
       g.cd = {};
       g.events.length = 0;
       g.useSkill('thunder');
-      return g.events.filter((e) => e.type === 'dmg').reduce((a, e) => a + (e.amount || 0), 0);
+      return g.events.filter((e) => e.type === 'dmg').reduce((a, e) => a.add(e.amount || 0), big(0));
     };
-    ok(hit('ring', 0.01) > hit(null, 0.01) * 1.2, '극악소마는 무공도 치명이 터진다',
+    ok(gt(hit('ring', 0.01), big(hit(null, 0.01)).mul(1.2)), '극악소마는 무공도 치명이 터진다',
       `${hit(null, 0.01).toExponential(2)} → ${hit('ring', 0.01).toExponential(2)}`);
-    ok(Math.abs(hit('ring', 0.99) - hit(null, 0.99)) < 1e-6, '안 터질 때는 그대로');
+    ok(big(hit('ring', 0.99)).eq(hit(null, 0.99)), '안 터질 때는 그대로');
   }
   // 맛보기로는 특성이 안 붙는다 — 그러면 전직할 이유가 없다
   {
@@ -1650,13 +1661,13 @@ console.log('=== 29. 무공 연계 ===');
     const g = strong(200);
     g.rng = () => 0.99;
     g.spawn();
-    g.mon.hp = Infinity;
+    g.mon.hp = Big.pow10(500);
     g.cd = {};
     g.useSkill(first);
     g.events.length = 0;
     g.cd = {};
     g.useSkill(second);
-    const dmg = g.events.filter((e) => e.type === 'dmg').reduce((a, e) => a + (e.amount || 0), 0);
+    const dmg = g.events.filter((e) => e.type === 'dmg').reduce((a, e) => a.add(e.amount || 0), big(0));
     const combo = g.events.some((e) => e.type === 'combo');
     return { dmg, combo, g };
   };
@@ -1674,11 +1685,11 @@ console.log('=== 29. 무공 연계 ===');
     const g = strong(200);
     g.rng = () => 0.99;
     g.spawn();
-    g.mon.hp = Infinity;
+    g.mon.hp = Big.pow10(500);
     g.cd = {};
     g.events.length = 0;
     g.useSkill('frost');
-    return g.events.filter((e) => e.type === 'dmg').reduce((a, e) => a + (e.amount || 0), 0);
+    return g.events.filter((e) => e.type === 'dmg').reduce((a, e) => a.add(e.amount || 0), big(0));
   })();
   ok(linked.dmg > alone * 1.5, '연계로 들어가면 훨씬 아프다',
     `${alone.toExponential(2)} → ${linked.dmg.toExponential(2)}`);
@@ -1713,7 +1724,7 @@ console.log('=== 29. 무공 연계 ===');
       g2.tick(1 / 60);
       combos += g2.events.filter((e) => e.type === 'combo').length;
       g2.events.length = 0;
-      if (g2.mon) g2.mon.hp = Infinity;        // 안 죽게 두고 30초를 본다
+      if (g2.mon) g2.mon.hp = Big.pow10(500);        // 안 죽게 두고 30초를 본다
     }
     ok(combos > 0, '자동으로 두고 봐도 연계가 터진다', `30초에 ${combos}번`);
   }
@@ -1726,7 +1737,7 @@ console.log('=== 30. 특성 단련 · 문파 교체 ===');
   const g = strong(500);
   g.s.rank = 9; g.s.bestStage = 9999;
   for (const j of D.JOBS) g.s.jobTests[j.id] = true;
-  g.s.merit = 1e6;
+  g.s.merit = big(1e6);
   g.setJob('blade');
 
   const t0 = g.jobTrait();
@@ -1736,14 +1747,15 @@ console.log('=== 30. 특성 단련 · 문파 교체 ===');
   ok(t1.lv === 1, '한 단 올랐다');
   ok(t1.ccSec > t0.ccSec, '올리면 특성이 세진다', `${t0.ccSec} → ${t1.ccSec.toFixed(2)}`);
   // 끝이 없다
-  ok(D.traitCost(500) > D.traitCost(499) && Number.isFinite(D.traitCost(500)), '단련에 끝이 없다');
+  ok(gt(D.traitCost(500), D.traitCost(499)) && fin(D.traitCost(500)), '단련에 끝이 없다',
+    D.traitCost(500).toExponential(1));
   ok(D.traitScale(100) > D.traitScale(50), '올릴수록 계속 세진다');
   // 치명 확률만은 1을 넘으면 버려지므로 막는다
   {
     const gr = strong(500);
     gr.s.rank = 9; gr.s.bestStage = 9999;
     for (const j of D.JOBS) gr.s.jobTests[j.id] = true;
-    gr.s.merit = 1e12;
+    gr.s.merit = big(1e12);
     gr.setJob('ring');
     gr.s.traitLv.ring = 500;
     ok(gr.jobTrait().critChance <= 1, '치명 확률 특성이 1을 안 넘는다',
@@ -1768,14 +1780,15 @@ console.log('=== 30. 특성 단련 · 문파 교체 ===');
     const m0 = gm.s.merit;
     gm.spawn();
     gm.mon.isBoss = true;
-    gm.mon.hp = 1;
+    gm.mon.hp = big(1);
     gm.dealDamage(1e30);
     ok(gm.s.merit > m0, '관문지기를 넘으면 공적이 들어온다', `+${gm.s.merit - m0}`);
   }
   // 세이브에 남는가
   const back = migrate(JSON.parse(JSON.stringify(g.toJSON())));
   ok(back.traitLv?.blade === bladeLv, '특성 단련이 세이브에 남는다', `${back.traitLv?.blade}`);
-  ok(typeof back.merit === 'number', '공적이 세이브에 남는다');
+  // 공적은 이제 Big이다 — 세이브에는 "1.2e500" 글자로 들어갔다 나온다
+  ok(fin(back.merit) && pos(back.merit), '공적이 세이브에 남는다', fmt(back.merit));
   ok(migrate({}).traitLv && Object.keys(migrate({}).traitLv).length === 0,
     '옛 세이브는 빈 채로 들어온다');
 }
@@ -1796,8 +1809,8 @@ console.log('=== 31. 회귀 ===');
   ok(m2 / m1 > 1.5 && Math.abs((m2 / m1) - (m3 / m2)) < 1e-6,
     '기억의 힘이 곱하기로 는다 (100개마다 같은 배수)',
     `x${m1.toExponential(1)} → x${m2.toExponential(1)} → x${m3.toExponential(1)}`);
-  ok(D.regressMult(0) === 1, '기억이 없으면 배수도 1');
-  ok(Number.isFinite(D.regressMult(1200)), '한참 쌓아도 숫자가 안 터진다',
+  ok(big(D.regressMult(0)).eq(1), '기억이 없으면 배수도 1');
+  ok(fin(D.regressMult(1200)) && fin(D.regressMult(100000)), '한참 쌓아도 숫자가 안 터진다',
     `x${D.regressMult(1200).toExponential(1)}`);
 
   // 관문을 더 갈수록 돌려받는 것도 더 커져야 한다
@@ -1841,7 +1854,7 @@ console.log('=== 31. 회귀 ===');
     ok(gg.s.bestStage >= 600, '최고 기록은 남는다', `${gg.s.bestStage}`);
     ok(gg.regressMult() > 100, '기억의 힘이 크게 붙는다', `x${gg.regressMult().toExponential(1)}`);
     // 수련이 지워졌으니 그 자리의 공격력은 떨어지는 게 맞다. 보는 건 배수다.
-    ok(gg.stats({ buffs: false }).atk < before, '수련은 지워진다');
+    ok(gt(before, gg.stats({ buffs: false }).atk), '수련은 지워진다');
   }
 }
 

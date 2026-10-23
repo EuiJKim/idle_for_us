@@ -1,4 +1,5 @@
 // 게임 규칙과 상태. DOM을 모르는 순수 로직이라 Node에서도 돌아간다.
+import { Big, big } from './big.js';
 import {
   SAVE_VERSION, OFFLINE_CAP_SEC, KILLS_PER_STAGE, BOSS_TIME, SPAWN_DELAY, RAID_TIME, RAID_TICKETS,
   WAVE_MIN_SEC, waveMinSec,
@@ -78,12 +79,12 @@ export function newSave(now = Date.now()) {
   return {
     v: SAVE_VERSION,
     nickname: '',
-    gold: 0,
+    gold: big(0),
     gems: START_GEMS,
-    stones: 0,
-    books: 0,
-    food: 0,
-    relicShards: 0,
+    stones: big(0),
+    books: big(0),
+    food: big(0),
+    relicShards: big(0),
     stage: 1,
     maxStage: 1,
     bestStage: 1, // 회귀해도 남는 역대 최고 관문
@@ -94,7 +95,7 @@ export function newSave(now = Date.now()) {
     wave: 0,        // 이번 관문의 몇 번째 물결인가
     farming: false,
     level: 1,
-    exp: 0,
+    exp: big(0),
     sp: 0,
     spAlloc: Object.fromEntries(Object.keys(SP_STATS).map((k) => [k, 0])),
     rank: 0,
@@ -119,7 +120,7 @@ export function newSave(now = Date.now()) {
     acc: Object.fromEntries(ACC_SLOTS.map((a) => [a.id, null])),      // { grade, star, pierce }
     accBag: Object.fromEntries(ACC_SLOTS.map((a) => [a.id, GRADES.map(() => 0)])),
     accPick: 0,    // 손에 든 선택 상자. 열 때 자리를 고른다.
-    merit: 0,      // 문파 공적. 특성 단련과 문파 교체에만 쓴다.
+    merit: big(0),  // 문파 공적. 특성 단련과 문파 교체에만 쓴다.
     pace: 0,       // 한 관문에 실제로 걸린 시간(초). 따라잡기가 쓴다.
     autoTrain: true,   // 방치하는 동안 번 은자를 수련에 붓는다
     autoGacha: false,  // 원보가 쌓이는 대로 알아서 병기를 뽑고 합성한다
@@ -160,7 +161,7 @@ export function newSave(now = Date.now()) {
     pvp: { score: 1000, wins: 0, losses: 0 },
     daily: freshDaily(''),
     guildId: null,
-    stats: { kills: 0, bossKills: 0, gold: 0, gachas: 0 },
+    stats: { kills: 0, bossKills: 0, gold: big(0), gachas: 0 },
     lastSeen: now,
     created: now,
   };
@@ -177,6 +178,9 @@ export function slimSave(save, now = Date.now()) {
   for (const [k, v] of Object.entries(save)) {
     if (KEEP.includes(k)) { out[k] = v; continue; }
     if (k in base && same(v, base[k])) continue;
+    // **Big은 쪼개면 안 된다.** 아래 '둘 다 꾸러미' 길로 새면 {m, e}로
+    // 흩어져서 되읽을 때 전부 0이 된다 — 재화가 통째로 날아간다.
+    if (v instanceof Big) { out[k] = v; continue; }
     const bothPlain = v && typeof v === 'object' && !Array.isArray(v)
       && base[k] && typeof base[k] === 'object' && !Array.isArray(base[k]);
     if (bothPlain) {
@@ -188,6 +192,20 @@ export function slimSave(save, now = Date.now()) {
     out[k] = v;
   }
   return out;
+}
+
+// **쓰레기는 여기서 끊는다.**
+// Number.isFinite(Big)은 늘 false라 옛 검사가 통째로 무력해졌고, 반대로
+// big(Infinity)는 '아주 큰 수'로 받아 주므로 그냥 넘기면 은자가 1e308이 된다.
+// 숫자/Big/글자를 다 받되, 성한 값이 아니면 null을 준다.
+export function safeBig(v) {
+  if (v === null || v === undefined) return null;
+  if (v instanceof Big) {
+    return (Number.isFinite(v.m) && Number.isFinite(v.e) && Math.abs(v.e) < 1e300) ? v : null;
+  }
+  if (typeof v === 'string') return safeBig(Big.parse(v));
+  if (typeof v !== 'number' || !Number.isFinite(v)) return null;
+  return big(v);
 }
 
 export function migrate(raw, now = Date.now()) {
@@ -312,8 +330,20 @@ export function migrate(raw, now = Date.now()) {
     const n = typeof v === 'number' ? v : Number(v);
     return Number.isFinite(n) ? Math.max(min, n) : def;
   };
-  for (const k of ['gold', 'gems', 'stones', 'books', 'food', 'relicShards', 'exp', 'sp', 'seek', 'accPick', 'merit', 'jobSwitches', 'pace']) {
+  // 원보·점수처럼 끝까지 작은 값은 보통 숫자 그대로 둔다.
+  for (const k of ['gems', 'sp', 'seek', 'accPick', 'jobSwitches', 'pace']) {
     s[k] = num(s[k], 0, 0);
+  }
+  // 나머지 재화는 Big이다. 옛 세이브에는 보통 숫자가, 새 세이브에는
+  // "1.2e500" 같은 글자가 들어 있다 — Big.parse가 둘 다 받는다.
+  for (const k of ['gold', 'stones', 'books', 'food', 'relicShards', 'exp', 'merit']) {
+    const v = Big.parse(s[k]);
+    s[k] = v.isPos() ? v : big(0);
+  }
+  s.stats = s.stats || {};
+  {
+    const g = Big.parse(s.stats.gold);
+    s.stats.gold = g.isPos() ? g : big(0);
   }
   s.level = Math.max(1, Math.floor(num(s.level, 1, 1)));
   s.rank = Math.min(RANKS.length - 1, Math.max(0, Math.floor(num(s.rank, 0, 0))));
@@ -502,10 +532,10 @@ export class Game {
     // **두목에게는 bossMul이 곱해진다**(투지결·패시브·문파로 x233까지 간다).
     // 이걸 빼먹어서 열한 초짜리 시험이 0.6초에 끝났다.
     const boss = wave ? 1 : st.bossMul;
-    const dps = (c.goal === 'noskill' ? st.dps : this.realDps()) * boss;
+    const dps = (c.goal === 'noskill' ? st.dps : this.realDps()).mul(boss);
     const hp = def.hpSec
-      ? Math.max(1, dps * def.hpSec * (wave ? 1 / Math.max(1, def.need || 1) : 1))
-      : monsterHp(c.eq) * (wave ? def.hpMult : BOSS_HP_MULT * def.hpMult);
+      ? dps.mul(def.hpSec * (wave ? 1 / Math.max(1, def.need || 1) : 1)).max(1)
+      : monsterHp(c.eq).mul(wave ? def.hpMult : BOSS_HP_MULT * def.hpMult);
     this.mon = {
       hp, maxHp: hp, isBoss: !wave, def: { name: def.boss },
       // 부동은 벨 수 없다. 글에 그렇게 적혀 있는데 실제로는 벨 수 있었다.
@@ -515,8 +545,8 @@ export class Game {
       // 맞는다'는 약속인데, 호신강기·패시브가 guard로 깎아서 62%로 적어 둔 것이
       // 12%로 들어갔다 — 그래서 '맞아 가며 이겨라'(취생)에 아무도 못 붙었다.
       atk: def.atkHpFrac
-        ? (st.hp * def.atkHpFrac) / Math.max(0.05, st.guard)
-        : monsterAtk(c.eq) * (wave ? 1 : BOSS_ATK_MULT) * (def.atkMult || 1),
+        ? st.hp.mul(def.atkHpFrac / Math.max(0.05, st.guard))
+        : monsterAtk(c.eq).mul((wave ? 1 : BOSS_ATK_MULT) * (def.atkMult || 1)),
       atkTimer: def.atkFirst ?? 1.2, alive: true, stun: 0, ...this.duelSpot(),
     };
     this.spawnTimer = 0;
@@ -598,11 +628,11 @@ export class Game {
   // ---------- 공적 / 특성 ----------
   traitLvOf(job = this.s.job) { return this.s.traitLv?.[job] || 0; }
   traitCostOf(job = this.s.job) { return traitCost(this.traitLvOf(job)); }
-  canTraitUp(job = this.s.job) { return !!job && this.s.merit >= this.traitCostOf(job); }
+  canTraitUp(job = this.s.job) { return !!job && this.s.merit.gte(this.traitCostOf(job)); }
 
   traitUp(job = this.s.job) {
     if (!this.canTraitUp(job)) return false;
-    this.s.merit -= this.traitCostOf(job);
+    this.s.merit = this.s.merit.sub(this.traitCostOf(job));
     this.s.traitLv[job] = this.traitLvOf(job) + 1;
     this.emit('traitUp', { job, lv: this.s.traitLv[job] });
     return true;
@@ -635,7 +665,7 @@ export class Game {
 
   canSetJob(id) {
     if (!id || !this.jobUnlocked(id)) return false;
-    return this.s.merit >= this.jobSwitchCost(id);
+    return this.s.merit.gte(this.jobSwitchCost(id));
   }
 
   setJob(id) {
@@ -643,14 +673,14 @@ export class Game {
     if (!this.jobUnlocked(id)) return false;
     const cost = this.jobSwitchCost(id);
     if (cost > 0) {
-      if (this.s.merit < cost) return false;
-      this.s.merit -= cost;
+      if (!this.s.merit.gte(cost)) return false;
+      this.s.merit = this.s.merit.sub(cost);
       this.s.jobSwitches = (this.s.jobSwitches || 0) + 1;
     }
     this.s.job = id;
     this.s.taste = null;   // 고른 뒤에는 맛보기가 없다
     if (!this.s.jobSeen.includes(id)) this.s.jobSeen.push(id);
-    this.heroHp = Math.min(this.heroHp, this.stats().hp);
+    this.heroHp = this.heroHp.min(this.stats().hp);
     return true;
   }
 
@@ -765,11 +795,11 @@ export class Game {
     if (!this.towerOpen() || this.towerDone() || this.mode !== 'stage') return false;
     const f = this.towerNext();
     const eq = towerStage(f);
-    const hp = monsterHp(eq) * BOSS_HP_MULT * 2;
+    const hp = monsterHp(eq).mul(BOSS_HP_MULT * 2);
     this.beginContest('tower', TOWER_TIME, { floor: f, eq });
     this.mon = {
       hp, maxHp: hp, isBoss: true, def: { name: `혈마의 탑 ${f}층 수문장` },
-      atk: monsterAtk(eq) * BOSS_ATK_MULT, atkTimer: 1.1, alive: true, stun: 0, ...this.duelSpot(),
+      atk: monsterAtk(eq).mul(BOSS_ATK_MULT), atkTimer: 1.1, alive: true, stun: 0, ...this.duelSpot(),
     };
     return true;
   }
@@ -784,12 +814,12 @@ export class Game {
     if (!open || !this.canSeek()) return false;
     this.s.seek--;
     const eq = kind === 'rift' ? riftStage(this.s.bestStage) : huntStage(this.s.bestStage);
-    const hp = monsterHp(eq) * BOSS_HP_MULT * (kind === 'rift' ? 1.1 : 0.9);
+    const hp = monsterHp(eq).mul(BOSS_HP_MULT * (kind === 'rift' ? 1.1 : 0.9));
     this.beginContest(kind, kind === 'rift' ? RIFT_TIME : HUNT_TIME, { eq });
     this.mon = {
       hp, maxHp: hp, isBoss: true,
       def: { name: kind === 'rift' ? '균열의 마기' : '보물을 지키는 자' },
-      atk: monsterAtk(eq) * BOSS_ATK_MULT * 0.8, atkTimer: 1.3, alive: true, stun: 0, ...this.duelSpot(),
+      atk: monsterAtk(eq).mul(BOSS_ATK_MULT * 0.8), atkTimer: 1.3, alive: true, stun: 0, ...this.duelSpot(),
     };
     return true;
   }
@@ -812,7 +842,7 @@ export class Game {
     const mn = this.s.mine;
     mn.held = 0;
     mn.at = now;
-    if (got > 0) { this.s.stones += got; }
+    if (got > 0) { this.s.stones = this.s.stones.add(got); }
     return got;
   }
 
@@ -830,9 +860,9 @@ export class Game {
     const mn = this.s.mine;
     if (!this.mineOpen() || mn.depth >= MINE_DEPTH_MAX) return false;
     const cost = this.mineDepthCost();
-    if (this.s.gold < cost) return false;
+    if (!this.s.gold.gte(cost)) return false;
     this.mineSettle(now);
-    this.s.gold -= cost;
+    this.s.gold = this.s.gold.sub(cost);
     mn.depth++;
     return true;
   }
@@ -841,9 +871,9 @@ export class Game {
     const mn = this.s.mine;
     if (!this.mineOpen() || mn.depth <= 0 || mn.hands >= MINE_HAND_MAX) return false;
     const cost = this.mineHandCost();
-    if (this.s.gold < cost) return false;
+    if (!this.s.gold.gte(cost)) return false;
     this.mineSettle(now);
-    this.s.gold -= cost;
+    this.s.gold = this.s.gold.sub(cost);
     mn.hands++;
     return true;
   }
@@ -896,13 +926,13 @@ export class Game {
     this.s.shadow.tries--;
     const wins = this.s.shadow.wins || 0;
     const eq = shadowStage(this.s.bestStage, wins);
-    const hp = monsterHp(eq) * BOSS_HP_MULT * 1.6;
+    const hp = monsterHp(eq).mul(BOSS_HP_MULT * 1.6);
     this.beginContest('shadow', SHADOW_TIME, { eq });
     this.mon = {
       hp, maxHp: hp, isBoss: true, isHero: true, rank: this.s.rank,
       name: `그림자 ${this.s.nickname || '무인'}`,
       weaponGrade: this.bestGrade('weapon'),
-      atk: monsterAtk(eq) * BOSS_ATK_MULT * 0.9, atkTimer: 1.1,
+      atk: monsterAtk(eq).mul(BOSS_ATK_MULT * 0.9), atkTimer: 1.1,
       crit: 0.15, critDmg: 1.8, alive: true, stun: 0, ...this.duelSpot(),
     };
     return true;
@@ -958,11 +988,11 @@ export class Game {
     if (!this.egoReady(id) || this.mode !== 'stage') return false;
     const e = this.egoOf(id);
     const eq = egoTrialStage(this.s.bestStage, e.step);
-    const hp = monsterHp(eq) * BOSS_HP_MULT * 2.2;
+    const hp = monsterHp(eq).mul(BOSS_HP_MULT * 2.2);
     this.beginContest('ego', EGO_TRIAL_TIME, { egoId: id, eq });
     this.mon = {
       hp, maxHp: hp, isBoss: true, def: { name: `${EGO_PARTS.find((x) => x.id === id).name}의 그림자` },
-      atk: monsterAtk(eq) * BOSS_ATK_MULT, atkTimer: 1.2, alive: true, stun: 0, ...this.duelSpot(),
+      atk: monsterAtk(eq).mul(BOSS_ATK_MULT), atkTimer: 1.2, alive: true, stun: 0, ...this.duelSpot(),
     };
     return true;
   }
@@ -986,8 +1016,8 @@ export class Game {
   skillPierce(id) {
     if (!this.canSkillPierce(id)) return false;
     const cost = this.skillPierceCost(id);
-    if (this.s.books < cost) return false;
-    this.s.books -= cost;
+    if (!this.s.books.gte(cost)) return false;
+    this.s.books = this.s.books.sub(cost);
     this.s.skillPierce[id] = this.skillPierceOf(id) + 1;
     return true;
   }
@@ -1296,8 +1326,8 @@ export class Game {
     const cur = this.s.acc?.[id];
     if (!cur || cur.pierce >= ACC_PIERCE_MAX) return false;
     const cost = this.accPierceCost(id);
-    if (this.s.stones < cost) return false;
-    this.s.stones -= cost;
+    if (!this.s.stones.gte(cost)) return false;
+    this.s.stones = this.s.stones.sub(cost);
     cur.pierce++;
     return true;
   }
@@ -1371,8 +1401,8 @@ export class Game {
     const n = this.optionSlots(type);
     if (!n) return null;
     const cost = this.optionRerollCost(type);
-    if (this.s.stones < cost) return null;
-    this.s.stones -= cost;
+    if (!this.s.stones.gte(cost)) return null;
+    this.s.stones = this.s.stones.sub(cost);
     const arr = this.s.options[type];
     const lock = this.s.optionLock[type];
     const out = [];
@@ -1571,8 +1601,8 @@ export class Game {
     for (let i = 0; i < times; i++) {
       if (this.passiveLv(id) >= PASSIVE_MAX) break;
       const cost = this.passiveCostOf(id);
-      if (this.s.books < cost) break;
-      this.s.books -= cost;
+      if (!this.s.books.gte(cost)) break;
+      this.s.books = this.s.books.sub(cost);
       this.s.passives[id] = this.passiveLv(id) + 1;
       n++;
     }
@@ -1631,31 +1661,41 @@ export class Game {
     // 수련 아홉 축이 쌓아 준 가산 통계를 한 번에 받는다. 차수가 올라가면
     // 같은 축이 다른 통계를 주므로(혈도 2차는 치명 피해) 축별로 못 읽는다.
     const ua = upTotals(u);
-    const atk = UPGRADES.atk.value(u.atk) * this.equipMult('weapon') * (1 + m.atk) * rank * guild * rage * past * boost * jb.atk * ad * pvm('atk');
-    const hp = UPGRADES.hp.value(u.hp) * this.equipMult('armor') * (1 + m.hp + (ua.hpAdd || 0)) * rank * past * jb.hp * adHp * pvm('hp');
+    // **보통 배수는 먼저 한데 모아 곱한다.** Big 셈을 열 번 하는 것보다 싸고,
+    // 무엇보다 중간에 `*`를 하나라도 남기면 소리 없이 NaN이 된다.
+    const atkMul = this.equipMult('weapon') * (1 + m.atk) * rank * guild * rage * boost * jb.atk * ad * pvm('atk');
+    const atk = UPGRADES.atk.value(u.atk).mul(atkMul).mul(past);
+    // 체력 덤(ua.hpAdd)은 Big이다 — 보통 배수와 따로 모은다.
+    const hpMul = this.equipMult('armor') * rank * jb.hp * adHp * pvm('hp');
+    const hpAdd = big(1 + m.hp).add(ua.hpAdd || 0);
+    const hp = UPGRADES.hp.value(u.hp).mul(hpMul).mul(hpAdd).mul(past);
     const crit = Math.min(CRIT_CAP, (ua.crit || 0) + m.crit + jb.add.crit);
-    const critDmg = ((ua.critDmg || 0) + m.critDmg + jb.add.critDmg + (pv.critDmgAdd || 0)) * jb.critDmg;
+    const critDmg = big(ua.critDmg || 0).add(m.critDmg + jb.add.critDmg + (pv.critDmgAdd || 0)).mul(jb.critDmg);
     const speed = Math.min(SPEED_CAP, ua.speed || 1) * (1 + m.speed) * gale * jb.speed * pvm('speed');
     // 연격 — 쾌검 2차부터 붙는다. 평타 한 대가 그만큼 더 아프다.
-    const hitMul = 1 + (ua.hitMul || 0);
-    const goldMul = (ua.gold || 1) * this.equipMult('ring') * (1 + m.gold) * midas * past * jb.gold * boonGold * pvm('gold');
-    const expMul = (1 + m.exp + (ua.exp || 0)) * past * jb.exp * boonExp * pvm('exp');
-    const bossMul = (1 + m.boss + (ua.boss || 0)) * jb.boss * pvm('boss');
+    const hitMul = big(1).add(ua.hitMul || 0);
+    // 기억의 힘(past)이 Big이라 이 둘도 Big이 된다 — 쓰는 쪽에서 .mul()을 쓴다.
+    const goldMul = past.mul(big(ua.gold === undefined ? 1 : ua.gold))
+      .mul(this.equipMult('ring') * (1 + m.gold) * midas * jb.gold * boonGold * pvm('gold'));
+    const expMul = past.mul(big(1 + m.exp).add(ua.exp || 0)).mul(jb.exp * boonExp * pvm('exp'));
+    const bossMul = big(1 + m.boss).add(ua.boss || 0).mul(jb.boss * pvm('boss'));
     // 데려간 영수 전부가 각자 때린다. 하나만 세던 자리다.
     const team = this.petTeam();
-    const hits = team.map((p) => ({ pet: p, hit: atk * petDamageMult(p, this.s.pets[p.id] || 1) }));
-    const petHit = hits.reduce((a, x) => a + x.hit, 0);
+    const hits = team.map((p) => ({ pet: p, hit: atk.mul(petDamageMult(p, this.s.pets[p.id] || 1)) }));
+    const petHit = hits.reduce((a, x) => a.add(x.hit), Big.of(0));
     // 식철수는 때리는 대신 받는 피해를 줄인다
     const guard = team.reduce((a, p) => (p.act === 'shield' ? a * (1 - p.actVal) : a), 1)
       * Math.max(0.2, 1 - (pv.guard || 0) - (ua.guard || 0));   // 아무리 쌓아도 80%까지만
-    const dps = atk * speed * hitMul * (1 + crit * (critDmg - 1)) + petHit / PET_ATTACK_INTERVAL;
+    // 치명 피해·연격이 Big이라 괄호 안을 Big으로 푼다.
+    const critPart = critDmg.sub(1).mul(crit).add(1);
+    const dps = atk.mul(hitMul).mul(critPart).mul(speed).add(petHit.div(PET_ATTACK_INTERVAL));
     return {
       atk, hp, crit, critDmg, speed, hitMul, goldMul, expMul, bossMul, petHit, petHits: hits, guard, dps,
       bossTime: BOSS_TIME + m.bossTime,
-      offlineMul: (1 + m.offline + (ua.offline || 0)) * jb.offline,
-      bleedMult: jb.bleed * pvm('bleed') * (1 + (ua.bleed || 0)),
-      ccDurMult: jb.ccDur * pvm('ccDur') * (1 + (ua.ccDur || 0)),
-      skillDmgMult: pvm('skillDmg') * (1 + (ua.skillDmg || 0)),
+      offlineMul: big(1 + m.offline).add(ua.offline || 0).mul(jb.offline),
+      bleedMult: big(1).add(ua.bleed || 0).mul(jb.bleed * pvm('bleed')),
+      ccDurMult: big(1).add(ua.ccDur || 0).mul(jb.ccDur * pvm('ccDur')),
+      skillDmgMult: big(1).add(ua.skillDmg || 0).mul(pvm('skillDmg')),
       // 쿨 감소는 패시브와 수련을 **같이** 더한다. 바닥(본래의 30%)은 skillCdOf가 지킨다.
       skillCdCut: (pv.skillCd || 0) + (ua.skillCd || 0),
     };
@@ -1664,7 +1704,8 @@ export class Game {
   // 버프를 뺀 기본 능력치로 계산한 전투력 (랭킹·결투용)
   power() {
     const st = this.stats({ buffs: false });
-    return { ...st, power: Math.round(st.dps * 10 + st.hp) };
+    // Big은 Math.round가 안 먹는다. 전투력은 견주기에만 쓰므로 그대로 둔다.
+    return { ...st, power: st.dps.mul(10).add(st.hp) };
   }
 
   // 장착한 무공이 쉬지 않고 돌 때의 초당 피해.
@@ -1672,18 +1713,18 @@ export class Game {
   // dps로 맞췄더니 열한 초짜리 시험이 0.6초에 끝났다(무공이 18배였다).
   skillDps() {
     const st = this.stats({ buffs: false });
-    let d = 0;
+    let d = Big.of(0);
     for (const id of this.activeSlots()) {
       if (!id) continue;
       const sk = SKILLS.find((x) => x.id === id);
       if (!sk || sk.kind !== 'dmg') continue;
-      d += st.atk * this.skillMult(sk) * st.skillDmgMult / Math.max(0.5, this.skillCdOf(sk));
+      d = d.add(st.atk.mul(st.skillDmgMult).mul(this.skillMult(sk) / Math.max(0.5, this.skillCdOf(sk))));
     }
     return d;
   }
 
   // 평타 + 영수 + 무공. 시험은 이 값으로 맞춘다.
-  realDps() { return this.stats({ buffs: false }).dps + this.skillDps(); }
+  realDps() { return this.stats({ buffs: false }).dps.add(this.skillDps()); }
 
   // ---------- 어디에 부을까 ----------
   //
@@ -1694,15 +1735,19 @@ export class Game {
   // 열여섯 축을 한 칸씩 올렸다 되돌리므로 stats()를 서른두 번 부른다.
   // 화면이 초당 다섯 번 갱신하는 자리라 **결과를 적어 두고 다시 쓴다**.
   upgradeGains() {
-    const sig = Object.values(this.s.upgrades).join(',') + ':' + Math.round(this.s.gold);
+    const sig = Object.values(this.s.upgrades).join(',') + ':' + this.s.gold.toString();
     if (this._gainSig === sig) return this._gains;
     // **power()로 재면 안 된다.** power는 dps x 10 + hp라, dps가 1e40쯤 되면
     // 체력이 통째로 묻혀서 열여섯 축이 전부 '외공'이라고 답한다.
     // 때리는 힘과 버티는 힘을 같이 보려면 **곱**으로 봐야 한다.
     // 숫자가 커서 바로 곱하면 넘치므로 로그로 더한다 — 로그 차이가 곧 비율이다.
+    // Big은 Math.log가 안 먹는다 — 자릿수(log10)를 그대로 쓴다.
+    // 밑이 e든 10이든 **차이의 비율은 같으므로** 고르는 결과가 안 바뀐다.
     const score = () => {
       const st = this.stats({ buffs: false });
-      return Math.log(Math.max(1e-300, st.dps)) + Math.log(Math.max(1e-300, st.hp));
+      const a = st.dps.log10();
+      const b = st.hp.log10();
+      return (Number.isFinite(a) ? a : -300) + (Number.isFinite(b) ? b : -300);
     };
     const base = score();
     const out = [];
@@ -1712,9 +1757,16 @@ export class Game {
       this.s.upgrades[k] = before + 1;
       const gain = score() - base;    // 로그 차 = 몇 % 오르나
       this.s.upgrades[k] = before;
-      out.push({ key: k, gain, cost, per: cost > 0 ? gain / cost : 0 });
+      // 값어치는 '오른 비율 ÷ 값'이다. 값이 Big이라 로그로 나눠야 한다 —
+      // cost.toNumber()를 쓰면 1e308 위에서 전부 Infinity가 되어
+      // 열여섯 축의 값어치가 똑같이 0이 되고, 늘 첫 축만 찍는다.
+      const cl = cost.log10();
+      out.push({ key: k, gain, cost, per: Number.isFinite(cl) ? gain / Math.pow(10, Math.min(300, cl)) : 0, costLog: cl });
     }
-    out.sort((a, b) => b.per - a.per);
+    // 1e308을 넘는 값끼리는 per이 전부 0이 된다. 그때는 **로그 차**로 견준다:
+    // log(gain) - log(cost)가 곧 값어치의 순서다.
+    const key = (x) => (x.gain > 0 ? Math.log10(x.gain) - x.costLog : -Infinity);
+    out.sort((a, b) => key(b) - key(a));
     this._gainSig = sig;
     this._gains = out;
     return out;
@@ -1938,10 +1990,10 @@ export class Game {
     if (isBoss) {
       // 두목은 혼자, 무인 앞쪽에서 기다린다
       const def = zoneOf(s).boss;
-      const hp = monsterHp(s) * BOSS_HP_MULT;
+      const hp = monsterHp(s).mul(BOSS_HP_MULT);
       this.mons = [{
         hp, maxHp: hp, isBoss: true, def,
-        atk: monsterAtk(s) * stageBossAtkMult(s),
+        atk: monsterAtk(s).mul(stageBossAtkMult(s)),
         atkTimer: 1.2, alive: true, stun: 0,
         x: this.heroX + 150, y: this.heroY - 230, face: 1,
       }];
@@ -2040,8 +2092,8 @@ export class Game {
       if (m.weak > 0) m.weak = Math.max(0, m.weak - dt);
       if (m.bleed > 0) {
         m.bleed = Math.max(0, m.bleed - dt);
-        m.hp -= (m.bleedPer || 0) * dt;
-        if (m.hp <= 0) { if (isMain) this.killMonster(); else this.killAdd(m); }
+        m.hp = m.hp.sub(big(m.bleedPer || 0).mul(dt));
+        if (!m.hp.isPos()) { if (isMain) this.killMonster(); else this.killAdd(m); }
       }
     };
     for (const m of this.mons.slice()) one(m, m === this.mon);
@@ -2053,9 +2105,9 @@ export class Game {
     // 파쇄가 걸린 적은 더 아프게 맞는다
     const amt = amount * (m?.weak > 0 ? CC_WEAK_MULT : 1);
     if (m === this.mon) { this.dealDamage(amt, kind, false); return; }
-    m.hp -= amt;
+    m.hp = m.hp.sub(amt);
     this.emit('dmg', { amount: amt, kind, crit: false, add: true, at: m });
-    if (m.hp <= 0) this.killAdd(m);
+    if (!m.hp.isPos()) this.killAdd(m);
   }
 
   // 가까운 적부터 옮겨타며 때린다 (연환벽력)
@@ -2178,22 +2230,22 @@ export class Game {
     this.dealDamage(amount, kind, crit);
     for (const a of others) {
       if (!a.alive) continue;
-      a.hp -= amount;
+      a.hp = big(a.hp).sub(amount);
       this.emit('dmg', { amount, kind, crit, add: true, at: a });
       this.applyHitCC(a, amount);
-      if (a.hp <= 0) this.killAdd(a);
+      if (!big(a.hp).isPos()) this.killAdd(a);
     }
   }
 
   // 졸개 처치: 보상과 관문 진행만 처리한다
   killAdd(a) {
     a.alive = false;
-    a.hp = 0;
+    a.hp = big(0);
     const s = this.s.stage;
     const st = this.stats();
-    const gold = monsterGold(s) * st.goldMul;
+    const gold = monsterGold(s).mul(st.goldMul);
     this.addGold(gold);
-    this.addExp(expPerKill(s) * st.expMul);
+    this.addExp(expPerKill(s).mul(st.expMul));
     this.s.stats.kills++;
     this.progress('kill');
     this.noteLore('mob', codexGradeOf(s));
@@ -2207,7 +2259,7 @@ export class Game {
     // 일격(극악소마 시험)은 '한 번에 얼마나'가 전부다. 누적 피해로는 못 잰다.
     if (this.mode === 'jobtest' && this.contest?.goal === 'burst' && this.mon?.maxHp) {
       const c = this.contest;
-      c.bigHit = Math.max(c.bigHit, amount / this.mon.maxHp);
+      c.bigHit = Math.max(c.bigHit, big(amount).div(this.mon.maxHp).toNumber());
       if (c.bigHit >= c.need) return this.endContest('clear');
     }
     const m = this.mon;
@@ -2215,7 +2267,7 @@ export class Game {
     if (m.isBoss) amount *= this.stats().bossMul;
     if (this.mode === 'raid') {
       this.contest.damage += amount;
-      m.hp = Math.max(0, m.hp - amount);
+      m.hp = m.hp.sub(amount).clampPos();
       this.emit('dmg', { amount, kind, crit });
       return;
     }
@@ -2225,15 +2277,15 @@ export class Game {
       this.emit('dmg', { amount, kind, crit });
       return;
     }
-    m.hp -= amount;
+    m.hp = m.hp.sub(amount);
     this.emit('dmg', { amount, kind, crit });
-    if (m.hp <= 0) this.killMonster();
+    if (!m.hp.isPos()) this.killMonster();
   }
 
   killMonster() {
     const m = this.mon;
     m.alive = false;
-    m.hp = 0;
+    m.hp = big(0);
     if (this.mode === 'dungeon') {
       this.contest.kills++;
       this.emit('kill', { gold: 0, isBoss: m.isBoss });
@@ -2262,9 +2314,9 @@ export class Game {
 
     const s = this.s.stage;
     const st = this.stats();
-    const gold = monsterGold(s) * (m.isBoss ? BOSS_GOLD_MULT : 1) * st.goldMul;
+    const gold = monsterGold(s).mul(m.isBoss ? BOSS_GOLD_MULT : 1).mul(st.goldMul);
     this.addGold(gold);
-    this.addExp(expPerKill(s) * (m.isBoss ? 10 : 1) * st.expMul);
+    this.addExp(expPerKill(s).mul(m.isBoss ? 10 : 1).mul(st.expMul));
     this.s.stats.kills++;
     this.progress('kill');
     this.emit('kill', { gold, isBoss: m.isBoss });
@@ -2273,8 +2325,8 @@ export class Game {
     if (m.isBoss) {
       this.s.stats.bossKills++;
       this.progress('boss');
-      this.s.books += 1;
-      this.s.stones += 2;
+      this.s.books = this.s.books.add(1);
+      this.s.stones = this.s.stones.add(2);
       // 장신구 상자는 벽(관문지기)에서만 나온다. 근거: Blade Idle도 장신구 상자는
       // 특정 스테이지(11-25, 13-50 …)에서부터 떨어지고, 그 자리가 전부 벽이다.
       if (isWallStage(s)) {
@@ -2286,17 +2338,17 @@ export class Game {
       // 관문지기는 **넘을 때마다** 비급과 한철을 준다. 물결 보상과 합쳐
       // 한 관문에서 두 관문치쯤이 들어온다. 옛 관문을 다시 깨도 그 관문의
       // 양이라 지수로 작아지므로 되돌아가 버는 짓은 이득이 안 된다.
-      this.s.books += bossBooks(s);
-      this.s.stones += bossStones(s);
-      this.s.food += bossFood(s);
-      this.s.merit += bossMerit(s);
+      this.s.books = this.s.books.add(bossBooks(s));
+      this.s.stones = this.s.stones.add(bossStones(s));
+      this.s.food = this.s.food.add(bossFood(s));
+      this.s.merit = this.s.merit.add(bossMerit(s));
       if (s >= this.s.maxStage) { // 이번 생에서 처음 넘는 관문
         // 이 관문을 깨는 데 실제로 몇 초가 걸렸나. 따라잡기가 이 값을 쓴다.
         this.notePace((this.clock || 0) - (this.s.climbAt || 0));
         this.s.climbAt = this.clock || 0;
         const gems = bossGems(s);
         this.s.gems += gems;
-        this.s.relicShards += bossRelicShards(s);
+        this.s.relicShards = this.s.relicShards.add(bossRelicShards(s));
         this.emit('gems', { amount: gems });
       }
       // **이미 넘어 본 곳은 건너뛴다.** 전생의 기억이 많을수록 성큼성큼 간다.
@@ -2396,11 +2448,11 @@ export class Game {
 
     if (this.contest) {
       if (this.mode === 'jobtest' && (this.contest.goal === 'lowhp' || this.contest.goal === 'keephp')) {
-        this.contest.lowest = Math.min(this.contest.lowest, this.heroHp / Math.max(1, st.hp));
+        this.contest.lowest = Math.min(this.contest.lowest, this.heroHp.div(st.hp.max(1)).toNumber());
       }
       this.contest.time -= dt;
       if (this.contest.time <= 0) return this.endContest('timeout');
-      if (this.mode === 'raid' && this.mon.hp <= 0) return this.endContest('done');
+      if (this.mode === 'raid' && !big(this.mon.hp).isPos()) return this.endContest('done');
     }
 
     // 남긴 기운이 식는다. 식으면 이어 온 횟수도 끊긴다.
@@ -2420,7 +2472,7 @@ export class Game {
       const target = this.retarget();
       if (!target) {
         this.walking = false;
-        this.heroHp = Math.min(st.hp, this.heroHp + st.hp * 0.25 * dt);
+        this.heroHp = this.heroHp.add(st.hp.mul(0.25 * dt)).min(st.hp);
         return undefined;
       }
       const dx = target.x - this.heroX;
@@ -2436,14 +2488,14 @@ export class Game {
         this.heroX += (dx / dist) * step;
         this.heroY += (dy / dist) * step;
         this.walking = true;
-        this.heroHp = Math.min(st.hp, this.heroHp + st.hp * 0.08 * dt);
+        this.heroHp = this.heroHp.add(st.hp.mul(0.08 * dt)).min(st.hp);
         this.atkTimer = Math.min(this.atkTimer, 0.25);
         return undefined; // 걷는 동안에는 베지 않는다
       }
       this.walking = false;
     } else if (!this.mon?.alive) {
       this.spawnTimer -= dt;
-      this.heroHp = Math.min(st.hp, this.heroHp + st.hp * 0.25 * dt);
+      this.heroHp = this.heroHp.add(st.hp.mul(0.25 * dt)).min(st.hp);
       if (this.spawnTimer <= 0) this.spawn();
       return undefined;
     }
@@ -2467,7 +2519,7 @@ export class Game {
         ? slots.filter((id) => qiOf(id)?.feeds === this.qiNow && !(this.cd[id] > 0))
         : [];
       for (const id of [...eats, ...slots]) {
-        if (id === 'heal' && this.heroHp > st.hp * 0.6) continue;
+        if (id === 'heal' && this.heroHp.gt(st.hp.mul(0.6))) continue;
         if (this.buffs[id] > 0) continue;
         this.useSkill(id);
         if (!this.mon?.alive) return undefined;
@@ -2480,7 +2532,8 @@ export class Game {
       this.atkTimer += 1 / st.speed;
       const crit = this.rng() < st.crit;
       this.emit('attack');
-      this.dealDamage(st.atk * st.hitMul * (crit ? st.critDmg : 1), 'hit', crit);
+      const hitDmg = crit ? st.atk.mul(st.hitMul).mul(st.critDmg) : st.atk.mul(st.hitMul);
+      this.dealDamage(hitDmg, 'hit', crit);
     }
 
     // 영수 — **저마다 다른 짓을 한다.** 전에는 여덟이 전부 같은 한 대였다.
@@ -2493,26 +2546,26 @@ export class Game {
           if (!this.mon?.alive && pet.act !== 'heal') break;
           switch (pet.act) {
             case 'heal':   // 백학 — 때리는 대신 숨을 돌려 준다
-              this.heroHp = Math.min(st.hp, this.heroHp + st.hp * pet.actVal);
+              this.heroHp = this.heroHp.add(st.hp.mul(pet.actVal)).min(st.hp);
               break;
             case 'gold':   // 영묘 — 때리면서 은자를 떨군다
               this.dealDamage(hit, 'pet');
-              this.addGold(monsterGold(this.s.stage) * st.goldMul * pet.actVal);
+              this.addGold(monsterGold(this.s.stage).mul(st.goldMul).mul(pet.actVal));
               break;
             case 'aoe':    // 구미호 — 주변 전부
               this.dealAoe(hit, 'pet', false, pet.actVal);
               break;
             case 'triple': // 영원 — 세 대씩
-              for (let k = 0; k < pet.actVal && this.mon?.alive; k++) this.dealDamage(hit / pet.actVal, 'pet');
+              for (let k = 0; k < pet.actVal && this.mon?.alive; k++) this.dealDamage(hit.div(pet.actVal), 'pet');
               break;
             case 'boss':   // 기린 — 관문지기에게 크게
-              this.dealDamage(hit * (this.mon.isBoss ? pet.actVal : 1), 'pet');
+              this.dealDamage(hit.mul(this.mon.isBoss ? pet.actVal : 1), 'pet');
               break;
             case 'crit':   // 백호 — 반드시 치명
-              this.dealDamage(hit * st.critDmg, 'pet', true);
+              this.dealDamage(hit.mul(st.critDmg), 'pet', true);
               break;
             case 'storm':  // 청룡 — 주변 전부를 치명으로
-              this.dealAoe(hit * st.critDmg, 'pet', true, pet.actVal);
+              this.dealAoe(hit.mul(st.critDmg), 'pet', true, pet.actVal);
               break;
             case 'shield': // 식철수 — 때리지 않는다. 받는 피해를 줄인다(stats의 guard).
               break;
@@ -2527,12 +2580,12 @@ export class Game {
     if (this.mode !== 'raid' && this.mon?.alive && this.mon.stun <= 0) {
       const m = this.mon;
       m.atkTimer -= dt;
-      while (m.atkTimer <= 0 && this.heroHp > 0) {
+      while (m.atkTimer <= 0 && this.heroHp.isPos()) {
         m.atkTimer += m.atkInterval || 1.5;
-        let dmg = m.atk;
+        let dmg = big(m.atk);
         let crit = false;
-        if (m.crit && this.rng() < m.crit) { dmg *= m.critDmg; crit = true; }
-        this.heroHp -= dmg * st.guard;
+        if (m.crit && this.rng() < m.crit) { dmg = dmg.mul(m.critDmg); crit = true; }
+        this.heroHp = this.heroHp.sub(dmg.mul(st.guard));
         this.noteHeroHit();
         this.emit('heroHit', { amount: dmg, crit });
       }
@@ -2540,12 +2593,12 @@ export class Game {
         m.petTimer -= dt;
         if (m.petTimer <= 0) {
           m.petTimer += PET_ATTACK_INTERVAL;
-          this.heroHp -= m.petHit * st.guard;
+          this.heroHp = this.heroHp.sub(big(m.petHit).mul(st.guard));
           this.noteHeroHit();
           this.emit('heroHit', { amount: m.petHit, pet: true });
         }
       }
-      if (this.heroHp <= 0) return this.heroDied();
+      if (!this.heroHp.isPos()) return this.heroDied();
     }
 
     // 가까이 붙은 다른 적들도 함께 때린다
@@ -2559,26 +2612,27 @@ export class Game {
       for (const a of near) {
         if (!a.alive || a.stun > 0) { if (a.stun > 0) a.stun = Math.max(0, a.stun - dt); continue; }
         a.atkTimer -= dt;
-        while (a.atkTimer <= 0 && this.heroHp > 0) {
+        while (a.atkTimer <= 0 && this.heroHp.isPos()) {
           a.atkTimer += 1.6;
-          this.heroHp -= a.atk * 0.6 * st.guard;
+          this.heroHp = this.heroHp.sub(big(a.atk).mul(0.6 * st.guard));
           this.noteHeroHit();
-          this.emit('heroHit', { amount: a.atk * 0.6 });
+          this.emit('heroHit', { amount: big(a.atk).mul(0.6) });
         }
       }
-      if (this.heroHp <= 0) return this.heroDied();
+      if (!this.heroHp.isPos()) return this.heroDied();
     }
-    if (this.mode !== 'pvp') this.heroHp = Math.min(st.hp, this.heroHp + st.hp * 0.02 * dt);
+    if (this.mode !== 'pvp') this.heroHp = this.heroHp.add(st.hp.mul(0.02 * dt)).min(st.hp);
     return undefined;
   }
 
   // ---------- 레벨 / 스탯 포인트 ----------
-  addExp(x) {
-    if (!Number.isFinite(x)) return;
-    this.s.exp += x;
+  addExp(xRaw) {
+    const x = safeBig(xRaw);
+    if (!x) return;
+    this.s.exp = this.s.exp.add(x);
     let ups = 0;
-    while (this.s.exp >= expToNext(this.s.level)) {
-      this.s.exp -= expToNext(this.s.level);
+    while (this.s.exp.gte(expToNext(this.s.level))) {
+      this.s.exp = this.s.exp.sub(expToNext(this.s.level));
       this.s.level++;
       this.s.sp += SP_PER_LEVEL;
       ups++;
@@ -2713,7 +2767,9 @@ export class Game {
       }
     } else if (c.mode === 'pvp') {
       let win = result === 'win';
-      if (result === 'timeout') win = this.heroHp / this.stats().hp >= this.mon.hp / this.mon.maxHp;
+      if (result === 'timeout') {
+        win = this.heroHp.div(this.stats().hp).gte(this.mon.hp.div(this.mon.maxHp));
+      }
       out.win = win;
       out.opponent = c.opponent;
       out.delta = win ? PVP_WIN : PVP_LOSE;
@@ -2791,11 +2847,11 @@ export class Game {
   spawnDungeon() {
     const c = this.contest;
     const isBoss = c.kills >= DUNGEON_MOBS;
-    const hp = monsterHp(c.eq) * (isBoss ? BOSS_HP_MULT * 1.5 : 1.2);
+    const hp = monsterHp(c.eq).mul(isBoss ? BOSS_HP_MULT * 1.5 : 1.2);
     this.fillQueue(() => c.def.mob);
     this.mon = {
       hp, maxHp: hp, isBoss, def: isBoss ? c.def.boss : this.queue.shift(),
-      atk: monsterAtk(c.eq) * (isBoss ? BOSS_ATK_MULT : 1), atkTimer: 1.2, alive: true, stun: 0,
+      atk: monsterAtk(c.eq).mul(isBoss ? BOSS_ATK_MULT : 1), atkTimer: 1.2, alive: true, stun: 0,
       ...this.duelSpot(),
     };
     if (c.kills + 1 + this.queue.length > DUNGEON_MOBS) this.queue.length = Math.max(0, DUNGEON_MOBS - c.kills - 1);
@@ -2817,13 +2873,15 @@ export class Game {
     if (this.mode !== 'stage' || this.s.daily.pvpTickets <= 0) return false;
     this.s.daily.pvpTickets--;
     this.beginContest('pvp', PVP_TIME, { opponent: { uid: opp.uid, nickname: opp.nickname } });
-    const hp = Math.max(1, opp.hp || 1);
+    // 상대 정보는 **문파 서버에서 온다.** 옛 사람은 보통 숫자로, 새 사람은
+    // "1.2e500" 글자로 올려 둔다 — 들어오는 자리에서 한 번만 Big으로 바꾼다.
+    const hp = (safeBig(opp.hp) || big(1)).max(1);
     this.mon = {
       hp, maxHp: hp, isBoss: false, isHero: true, name: opp.nickname, rank: opp.rank || 0, petEmoji: opp.petEmoji || null,
       weaponGrade: opp.weaponGrade ?? -1,
-      atk: opp.atk || 1, crit: Math.min(CRIT_CAP, opp.crit || 0), critDmg: opp.critDmg || 1.5,
+      atk: (safeBig(opp.atk) || big(1)).max(1), crit: Math.min(CRIT_CAP, opp.crit || 0), critDmg: opp.critDmg || 1.5,
       atkInterval: 1 / Math.max(0.2, opp.speed || 1), atkTimer: 0.6,
-      petHit: opp.petHit || 0, petTimer: PET_ATTACK_INTERVAL, alive: true, stun: 0,
+      petHit: safeBig(opp.petHit) || big(0), petTimer: PET_ATTACK_INTERVAL, alive: true, stun: 0,
       ...this.duelSpot(),
     };
     return true;
@@ -2900,17 +2958,25 @@ export class Game {
       if (combo) {
         this.emit('combo', { id, qi: qi.feeds, streak: this.comboStreak, mult: cMult });
       }
-      let dmg = st.atk * this.skillMult(sk) * cMult;
+      // 배수는 보통 숫자라 한데 모아 두었다가 한 번만 곱한다.
+      let mult = this.skillMult(sk) * cMult;
       // 단지멸은 반드시 치명으로 들어간다 (극악소마의 축이 치명 피해다)
-      if (sk.sure) dmg *= st.critDmg;
+      // 치명 피해는 Big이다 — 보통 배수(mult)와 섞지 않고 따로 든다.
+      let critX = null;
+      if (sk.sure) critX = st.critDmg;
       // 극악소마 〈지력〉 — 반드시 치명이 아니어도 치명이 뜰 수 있다
-      else if (tr?.critChance && this.rng() < tr.critChance) dmg *= st.critDmg;
+      else if (tr?.critChance && this.rng() < tr.critChance) critX = st.critDmg;
       // 일화검존 〈검의〉 — 모든 무공이 관문지기에게 더 아프다
-      if (tr?.bossBonus && this.mon.isBoss) dmg *= 1 + tr.bossBonus;
-      // 금강부동은 체력이 곧 주먹이다. 마불만 체력 x2.5라 마불에게만 크게 들어온다.
-      if (sk.hpScale) dmg += st.hp * sk.hpScale(lv);
+      if (tr?.bossBonus && this.mon.isBoss) mult *= 1 + tr.bossBonus;
       // 한 명만 노리는 무공은 두목에게 더 아프게 들어간다
-      if (sk.bossMult && this.mon.isBoss) dmg *= sk.bossMult;
+      if (sk.bossMult && this.mon.isBoss) mult *= sk.bossMult;
+      // 옛 판은 여기서 skillDmgMult를 **안** 곱했다(곱하는 건 어림치를 내는
+      // skillDps뿐이다). 옮기면서 끼워 넣으면 그건 몰래 한 밸런스 변경이다 —
+      // 이번 공사는 수를 안 터지게 하는 것이고, 세기는 그대로 둔다.
+      let dmg = st.atk.mul(mult);
+      if (critX) dmg = dmg.mul(critX);
+      // 금강부동은 체력이 곧 주먹이다. 마불만 체력 x2.5라 마불에게만 크게 들어온다.
+      if (sk.hpScale) dmg = dmg.add(st.hp.mul(sk.hpScale(lv)));
       // 이번 무공이 거는 상태이상. 맞은 적마다 applyCC가 집어간다.
       const ccLong = combo ? COMBO_CC : 1;
       this.ccNow = sk.cc ? { cc: sk.cc, sec: (sk.ccSec || 3) * ccLong } : null;
@@ -2931,13 +2997,13 @@ export class Game {
       this.ccNow = null;
       this.ccJob = null;
       // 금강부동은 베면서 숨을 돌린다
-      if (sk.selfHeal) this.heroHp = Math.min(st.hp, this.heroHp + st.hp * sk.selfHeal);
+      if (sk.selfHeal) this.heroHp = this.heroHp.add(st.hp.mul(sk.selfHeal)).min(st.hp);
       // 마불 〈불력〉 — 무공을 쓸 때마다 조금씩 돌아온다
-      if (tr?.heal) this.heroHp = Math.min(st.hp, this.heroHp + st.hp * tr.heal);
+      if (tr?.heal) this.heroHp = this.heroHp.add(st.hp.mul(tr.heal)).min(st.hp);
       // 취마 〈주기〉 — 무공을 쓰면 은자가 떨어진다
       if (tr?.goldOnSkill) {
-        const got = monsterGold(this.s.stage) * tr.goldOnSkill * st.goldMul;
-        this.s.gold += got;
+        const got = monsterGold(this.s.stage).mul(tr.goldOnSkill).mul(st.goldMul);
+        this.s.gold = this.s.gold.add(got);
         this.emit('gold', { amount: got, fromSkill: true });
       }
       // 권마 〈강기〉 — 한 대 지르면 다른 무공의 숨이 돌아온다
@@ -2952,7 +3018,7 @@ export class Game {
       this.buffs[id] = sk.dur * (1 + SKILL_PIERCE_MULT * this.skillPierceOf(id) * 0.5);
       this.emit('skill', { id });
     } else if (sk.kind === 'heal') {
-      this.heroHp = Math.min(st.hp, this.heroHp + st.hp * Math.min(1, this.skillMult(sk)));
+      this.heroHp = this.heroHp.add(st.hp.mul(Math.min(1, this.skillMult(sk)))).min(st.hp);
       this.emit('skill', { id });
     }
     this.cd[id] = this.skillCdOf(sk);
@@ -2965,8 +3031,8 @@ export class Game {
     const sk = SKILLS.find((x) => x.id === id);
     if (!sk || !this.skillUnlocked(sk)) return false;
     const cost = this.skillUpgradeCost(id);
-    if (this.s.books < cost) return false;
-    this.s.books -= cost;
+    if (!this.s.books.gte(cost)) return false;
+    this.s.books = this.s.books.sub(cost);
     this.s.skills[id]++;
     return true;
   }
@@ -2981,8 +3047,8 @@ export class Game {
     for (let i = 0; i < times; i++) {
       if (this.upgradeMaxed(key)) break;
       const cost = this.upgradeCost(key);
-      if (this.s.gold < cost) break;
-      this.s.gold -= cost;
+      if (!this.s.gold.gte(cost)) break;
+      this.s.gold = this.s.gold.sub(cost);
       this.s.upgrades[key]++;
       bought++;
     }
@@ -2998,16 +3064,24 @@ export class Game {
   // 은자가 1.0e+18에서 NaN이 되는 걸 확인했다.
   // 막는 비용은 한 줄이고, 안 막으면 되돌릴 수 없다.
   addGold(g) {
-    if (!Number.isFinite(g)) return;
-    this.s.gold += g;
-    this.s.stats.gold += g;
+    const v = safeBig(g);
+    if (!v) return;
+    this.s.gold = this.s.gold.add(v);
+    this.s.stats.gold = this.s.stats.gold.add(v);
   }
 
   // 보상 묶음 지급: {gold, gems, books, stones, food, relicShards}
   grant(r = {}) {
     if (r.gold) this.addGold(r.gold);
-    for (const k of ['gems', 'books', 'stones', 'food', 'relicShards', 'accPick']) {
+    // **원보·장신구 뽑기권은 보통 숫자, 나머지는 Big이다.**
+    // 전에는 둘을 한 고리에서 `+=`로 더했는데, Big에 `+=`를 하면 에러가
+    // 안 나고 글자가 되어 버린다("[object Object]5"). 그 뒤로 .add가
+    // 없다는 소리를 듣고서야 알았다 — 갈라 둔다.
+    for (const k of ['gems', 'accPick']) {
       if (Number.isFinite(r[k]) && r[k]) this.s[k] += r[k];
+    }
+    for (const k of ['books', 'stones', 'food', 'relicShards']) {
+      if (r[k]) this.s[k] = this.s[k].add(r[k]);
     }
     return r;
   }
@@ -3120,8 +3194,8 @@ export class Game {
     let n = 0;
     for (let i = 0; i < times; i++) {
       const cost = this.enhanceCost(type);
-      if (this.s.stones < cost) break;
-      this.s.stones -= cost;
+      if (!this.s.stones.gte(cost)) break;
+      this.s.stones = this.s.stones.sub(cost);
       this.s.enhance[type]++;
       n++;
     }
@@ -3145,7 +3219,7 @@ export class Game {
       }
       if (this.s.pets[pet.id]) {
         const food = PET_DUPLICATE_FOOD(pet.grade);
-        this.s.food += food;
+        this.s.food = this.s.food.add(food);
         out.push({ id: pet.id, dup: true, food });
       } else {
         this.s.pets[pet.id] = 1;
@@ -3188,8 +3262,8 @@ export class Game {
     let n = 0;
     for (let i = 0; i < times; i++) {
       const cost = this.petLevelCost(id);
-      if (this.s.food < cost) break;
-      this.s.food -= cost;
+      if (!this.s.food.gte(cost)) break;
+      this.s.food = this.s.food.sub(cost);
       this.s.pets[id]++;
       n++;
     }
@@ -3207,13 +3281,13 @@ export class Game {
     const lv = this.bondLv(id);
     if (lv < ENGRAVE_MIN_LV) return false;
     if ((this.s.engrave?.[id] || 0) >= lv) return false;
-    return this.s.food >= engraveCost(lv);
+    return this.s.food.gte(engraveCost(lv));
   }
 
   engravePet(id) {
     if (!this.canEngrave(id)) return false;
     const lv = this.bondLv(id);
-    this.s.food -= engraveCost(lv);
+    this.s.food = this.s.food.sub(engraveCost(lv));
     if (!this.s.engrave) this.s.engrave = {};
     this.s.engrave[id] = lv;
     return true;
@@ -3224,8 +3298,8 @@ export class Game {
     const out = [];
     for (let i = 0; i < times; i++) {
       const open = RELICS.filter((r) => (this.s.relics[r.id] || 0) < r.max);
-      if (!open.length || this.s.relicShards < RELIC_DIG_COST) break;
-      this.s.relicShards -= RELIC_DIG_COST;
+      if (!open.length || !this.s.relicShards.gte(RELIC_DIG_COST)) break;
+      this.s.relicShards = this.s.relicShards.sub(RELIC_DIG_COST);
       const r = open[Math.floor(this.rng() * open.length)];
       this.s.relics[r.id] = (this.s.relics[r.id] || 0) + 1;
       out.push(r.id);
@@ -3286,12 +3360,12 @@ export class Game {
   idleRates() {
     const s = Math.max(1, this.s.stage);
     const st = this.stats({ buffs: false });
-    const perHit = st.atk * st.hitMul * (1 + st.crit * (st.critDmg - 1));
-    const hits = Math.max(1, Math.ceil(monsterHp(s) / perHit));
+    const perHit = st.atk.mul(st.hitMul).mul(st.critDmg.sub(1).mul(st.crit).add(1));
+    const hits = Math.max(1, Math.ceil(monsterHp(s).div(perHit).toNumber()));
     const killTime = hits / st.speed + SPAWN_DELAY;
     return {
-      gold: (monsterGold(s) * st.goldMul) / killTime,
-      exp: (expPerKill(s) * st.expMul) / killTime,
+      gold: monsterGold(s).mul(st.goldMul).div(killTime),
+      exp: expPerKill(s).mul(st.expMul).div(killTime),
       offlineMul: st.offlineMul,
     };
   }
@@ -3341,12 +3415,12 @@ export class Game {
     let n = 0;
     for (let i = 0; i < times; i++) {
       let best = null;
-      let cheap = Infinity;
+      let cheap = null;   // Big은 `c < Infinity`가 false다
       for (const k of Object.keys(UPGRADES)) {
         const c = this.upgradeCost(k);
-        if (c < cheap) { cheap = c; best = k; }
+        if (!cheap || c.lt(cheap)) { cheap = c; best = k; }
       }
-      if (!best || this.s.gold < cheap) break;
+      if (!best || !this.s.gold.gte(cheap)) break;
       if (!this.buyUpgrade(best, 1)) break;
       n++;
     }
@@ -3358,13 +3432,13 @@ export class Game {
     let n = 0;
     for (let i = 0; i < times; i++) {
       let best = null;
-      let cheap = Infinity;
+      let cheap = null;   // Big은 `c < Infinity`가 false다
       for (const sk of SKILLS) {
         if (!this.skillUnlocked(sk)) continue;
         const c = this.skillUpgradeCost(sk.id);
-        if (c < cheap) { cheap = c; best = sk.id; }
+        if (!cheap || c.lt(cheap)) { cheap = c; best = sk.id; }
       }
-      if (!best || this.s.books < cheap) break;
+      if (!best || !this.s.books.gte(cheap)) break;
       if (!this.upgradeSkill(best)) break;
       n++;
     }
@@ -3376,13 +3450,13 @@ export class Game {
     let n = 0;
     for (let i = 0; i < times; i++) {
       let best = null;
-      let cheap = Infinity;
+      let cheap = null;   // Big은 `c < Infinity`가 false다
       for (const p of PETS) {
         if (!(this.s.pets[p.id] > 0)) continue;
         const c = this.petLevelCost(p.id);
-        if (c < cheap) { cheap = c; best = p.id; }
+        if (!cheap || c.lt(cheap)) { cheap = c; best = p.id; }
       }
-      if (!best || this.s.food < cheap) break;
+      if (!best || !this.s.food.gte(cheap)) break;
       if (!this.levelPet(best, 1)) break;
       n++;
     }
@@ -3394,12 +3468,12 @@ export class Game {
     let n = 0;
     for (let i = 0; i < times; i++) {
       let best = null;
-      let cheap = Infinity;
+      let cheap = null;   // Big은 `c < Infinity`가 false다
       for (const type of Object.keys(EQUIP_TYPES)) {
         const c = this.enhanceCost(type);
-        if (c < cheap) { cheap = c; best = type; }
+        if (!cheap || c.lt(cheap)) { cheap = c; best = type; }
       }
-      if (!best || this.s.stones < cheap) break;
+      if (!best || !this.s.stones.gte(cheap)) break;
       if (!this.enhanceEquip(best, 1)) break;
       n++;
     }
@@ -3449,8 +3523,8 @@ export class Game {
       if (!Number.isFinite(pace) || pace > left) break;
       left -= pace;
       pace *= OFFLINE_PACE_DRIFT;   // 서 있는 동안에도 적은 세진다
-      const g = stageGold(stage) * st.goldMul;
-      const e = expPerKill(stage) * KILLS_PER_STAGE * st.expMul;
+      const g = stageGold(stage).mul(st.goldMul);
+      const e = expPerKill(stage).mul(KILLS_PER_STAGE).mul(st.expMul);
       gold += g;
       exp += e;
       // 물결과 관문지기가 떨어뜨리는 것도 같이 센다 — 은자만 세면
@@ -3464,12 +3538,12 @@ export class Game {
       n++;
       // 번 것을 바로 쏟아붓는다. 그래야 다음 관문을 민다.
       if (train) {
-        this.s.gold += g;
+        this.s.gold = this.s.gold.add(g);
         this.addExp(e);
-        this.s.books += bk;
-        this.s.stones += sn;
-        this.s.food += fd;
-        this.s.merit += mr;
+        this.s.books = this.s.books.add(bk);
+        this.s.stones = this.s.stones.add(sn);
+        this.s.food = this.s.food.add(fd);
+        this.s.merit = this.s.merit.add(mr);
         trained += this.autoGrow();
       }
     }
@@ -3508,8 +3582,8 @@ export class Game {
     const rest = Math.max(0, climb.left ?? sec);
     return {
       sec,
-      gold: (climb.gold + r.gold * rest) * r.offlineMul,
-      exp: (climb.exp + r.exp * rest) * r.offlineMul,
+      gold: big(climb.gold).add(big(r.gold).mul(rest)).mul(r.offlineMul),
+      exp: big(climb.exp).add(big(r.exp).mul(rest)).mul(r.offlineMul),
       stages: climb.stages,
       from: this.s.stage,
       to: climb.to,
@@ -3524,10 +3598,12 @@ export class Game {
     const rest = Math.max(0, climb ? (climb.left ?? 0) : reward.sec);
     const r = this.idleRates();
     // 민 관문에서 번 것은 offlineClimb이 이미 넣었다. 남은 시간치만 더한다.
-    this.addGold(r.gold * rest * r.offlineMul + (climb ? climb.gold * (mult - 1) : 0)
-      + (climb ? 0 : reward.gold));
-    this.addExp(r.exp * rest * r.offlineMul + (climb ? climb.exp * (mult - 1) : 0)
-      + (climb ? 0 : reward.exp));
+    this.addGold(big(r.gold).mul(rest).mul(r.offlineMul)
+      .add(climb ? big(climb.gold).mul(mult - 1) : 0)
+      .add(climb ? 0 : reward.gold));
+    this.addExp(big(r.exp).mul(rest).mul(r.offlineMul)
+      .add(climb ? big(climb.exp).mul(mult - 1) : 0)
+      .add(climb ? 0 : reward.exp));
     if (climb && climb.stages > 0 && climb.to > this.s.stage) {
       this.s.stage = climb.to;
       this.s.maxStage = Math.max(this.s.maxStage, this.s.stage);
@@ -3612,10 +3688,13 @@ export class Game {
 
   // ---------- 레이드 ----------
   startRaid(remainingHp, maxHp) {
-    if (this.mode !== 'stage' || this.s.daily.raidTickets <= 0 || remainingHp <= 0) return false;
+    // 토벌 체력은 **문파 서버에서 온다** — 거기서는 아직 보통 숫자다.
+    // 들어오는 자리에서 한 번만 Big으로 바꾼다.
+    const left = big(remainingHp);
+    if (this.mode !== 'stage' || this.s.daily.raidTickets <= 0 || !left.isPos()) return false;
     this.s.daily.raidTickets--;
     this.beginContest('raid', RAID_TIME);
-    this.mon = { hp: remainingHp, maxHp, isBoss: true, isRaid: true, def: RAID_BOSS, alive: true, atk: 0, atkTimer: 99, stun: 0, ...this.duelSpot() };
+    this.mon = { hp: left, maxHp: big(maxHp), isBoss: true, isRaid: true, def: RAID_BOSS, alive: true, atk: 0, atkTimer: 99, stun: 0, ...this.duelSpot() };
     return true;
   }
 
@@ -3667,10 +3746,10 @@ export class Game {
     this.s.climbAt = this.clock || 0;
     s.kills = 0;
     s.farming = false;
-    s.gold = 0;
+    s.gold = big(0);
     for (const k of Object.keys(s.upgrades)) s.upgrades[k] = 0;
     s.level = 1;
-    s.exp = 0;
+    s.exp = big(0);
     s.sp = 0;
     for (const k of Object.keys(s.spAlloc)) s.spAlloc[k] = 0;
     this.buffs = { rage: 0, gale: 0, midas: 0 };

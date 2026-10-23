@@ -4,10 +4,11 @@ import { UPGRADES, UP_GROUPS, UP_STAT_LABEL, upAdds, upNext, upTierInfo, upStatA
   CRIT_CAP, REGRESS_WORTH_MULT, JOBS, JOB_RANK, JOB_UNLOCK, RANK_SUBS, rankSubLevel,
   TASTE_RANK, jobSkillOf, jobSkillsOf, JOB_SKILL_OPEN, jobTraitOf, traitCost,
   jobTestOf, jobTestStage } from '../data.js';
-import { fmt } from '../fmt.js';
+import { fmt, pct } from '../fmt.js';
+import { big } from '../big.js';
 import { drawFighter } from '../battle.js';
 import { h, toast, openModal, closeModal, fmtValue, subTabs, multSelector, popUp,
-  holdRepeat, softRefresh } from './common.js';
+  holdRepeat, softRefresh, short} from './common.js';
 import { iconSkin } from '../icons.js';
 
 function upgradeView(app) {
@@ -57,20 +58,22 @@ function upgradeView(app) {
   function planned(key) {
     const def = UPGRADES[key];
     let l = game.s.upgrades[key];
-    let total = 0;
+    let total = big(0);
     let n = 0;
     const want = sel.get() === 'MAX' ? Infinity : sel.get();
     while (n < want) {
       const c = def.cost(l);
-      if (sel.get() === 'MAX' && n > 0 && total + c > game.s.gold) break;
-      total += c; l++; n++;
-      if (sel.get() === 'MAX' && total > game.s.gold) break;
+      if (sel.get() === 'MAX' && n > 0 && total.add(c).gt(game.s.gold)) break;
+      total = total.add(c); l++; n++;
+      if (sel.get() === 'MAX' && total.gt(game.s.gold)) break;
       if (n > 5000) break;              // MAX가 영원히 돌지 않게
     }
     return { total, n, to: l };
   }
 
-  const pp = (v) => `${(Math.abs(v * 100) < 10 ? (v * 100).toFixed(1) : Math.round(v * 100))}%`;
+  // 가산 통계는 Big이다. `v * 100`을 하면 NaN이 되거나 지수가 날것으로 샌다 —
+  // 화면에 "+1.0815362334304659e+24%"가 찍힌 적이 있다. fmt의 pct에 맡긴다.
+  const pp = (v) => pct(v);
   // 이 축이 지금까지 준 것(기본값은 뺀다 — 수련이 준 몫만 보여 준다)
   function gaveText(key, l) {
     const def = UPGRADES[key];
@@ -78,8 +81,8 @@ function upgradeView(app) {
     const base = def.base || {};
     const parts = [];
     for (const [stat, v] of Object.entries(now)) {
-      const got = v - (base[stat] || 0);
-      if (got <= 1e-9) continue;
+      const got = big(v).sub(base[stat] || 0);
+      if (!got.gt(1e-9)) continue;
       parts.push(`${UP_STAT_LABEL[stat]} <b>+${pp(got)}</b>`);
     }
     return parts.join(' · ') || '아직 없음';
@@ -138,7 +141,7 @@ function upgradeView(app) {
         r.lv.title = `한 칸에 전투력 +${(g2.gain * 100).toFixed(2)}%`;
       }
       r.btn.textContent = `${fmt(p.total)}${p.n > 1 ? ` (+${p.n})` : ''}`;
-      r.btn.disabled = game.s.gold < game.upgradeCost(key);
+      r.btn.disabled = short(game.s.gold, game.upgradeCost(key));
     }
   }
   return { root, update, res: ['gold'] };
@@ -193,7 +196,7 @@ function levelView(app) {
     const s = game.s;
     lvl.textContent = `Lv.${s.level}`;
     const need = expToNext(s.level);
-    bar.firstChild.style.width = `${Math.min(100, (s.exp / need) * 100)}%`;
+    bar.firstChild.style.width = `${Math.min(100, big(s.exp).div(need).toNumber() * 100)}%`;
     bar.lastChild.textContent = `${fmt(s.exp)} / ${fmt(need)}`;
     spText.textContent = s.sp;
     for (const [key, r] of Object.entries(rows)) {
@@ -460,7 +463,7 @@ function jobView(app) {
         : picked ? '그만두기' : unlocked ? (cost ? `공적 ${fmt(cost)}` : '입문')
           : stageOpen ? '시험 보기' : (!open ? '경지 부족' : `${need}관문`);
       // 값이 모자라면 못 누른다. 누르고 나서 안 된다고 알려 주면 늦다.
-      c.btn.disabled = (!stageOpen && !picked) || (unlocked && !picked && cost > game.s.merit);
+      c.btn.disabled = (!stageOpen && !picked) || (unlocked && !picked && short(game.s.merit, cost));
     }
   }
   return { root, update, res: ['merit'] };

@@ -322,5 +322,53 @@ console.log('=== 10. 자리마다 소품이 있는가 ===');
   const noProp = D2.ZONES.filter((z) => !z.prop).map((z) => z.name);
   ok(noProp.length === 0, '소품 이름이 빠진 자리가 없다', noProp.join(', ') || '없음');
 }
+
+console.log('');
+console.log('=== 11. 큰 수를 보통 셈으로 다루는 곳 ===');
+{
+  // Big에는 valueOf를 일부러 안 뒀다. 그래서
+  //   s.gold < cost   -> 늘 false (단추가 영영 안 잠긴다)
+  //   s.gold + 10     -> 글자가 붙는다
+  //   st.atk * 2      -> NaN (적이 안 죽는다)
+  // 셋 다 **에러가 안 난다.** 눈으로는 못 찾으니 여기서 잡는다.
+  //
+  // 이 공사에서 실제로 난 사고들이다: 여섯 시간에 140관문 가던 게 80관문이
+  // 됐고(가장 싼 수련을 `c < Infinity`로 고르고 있었다), 화면에 지수가
+  // 날것으로 샜고, 저장했다 읽으면 재화가 전부 0이 됐다.
+  //
+  // 정규식은 안 쓴다 — 한 번 탈출이 꼬여서 **일부러 심은 사고를 놓쳤다.**
+  // 글자 그대로 찾는 편이 거짓 통과를 안 만든다.
+  const FIELDS = ['s.gold', 's.books', 's.stones', 's.food', 's.relicShards', 's.merit', 's.exp',
+    'st.atk', 'st.hp', 'st.dps', 'st.goldMul', 'st.expMul', 'st.critDmg', 'st.hitMul'];
+  const OPS = [' < ', ' > ', ' <= ', ' >= ', ' + ', ' * ', ' - ', ' / '];
+  const bad = [];
+  for (const f of JS_FILES) {
+    if (f.endsWith('big.js')) continue;
+    read(f).split('\n').forEach((ln, i) => {
+      const code = ln.replace(/\/\/.*$/, '');
+      for (const fld of FIELDS) {
+        let at = code.indexOf(fld);
+        while (at >= 0) {
+          const rest = code.slice(at + fld.length);
+          // 'st.hp' 가 'st.hpAdd' 의 일부면 넘어간다
+          if (!/^[A-Za-z0-9_$]/.test(rest)) {
+            for (const op of OPS) {
+              if (rest.startsWith(op) && !rest.startsWith(op.trimEnd() + '= ')) {
+                bad.push(`${f}:${i + 1}${op}| ${code.trim().slice(0, 52)}`);
+              }
+            }
+          }
+          at = code.indexOf(fld, at + 1);
+        }
+      }
+    });
+  }
+  ok(bad.length === 0, '큰 수에 <, +, *, / 를 직접 쓰는 곳이 없다',
+    bad.length ? bad.slice(0, 4).join(' || ') : `${JS_FILES.length}개 파일 깨끗`);
+
+  // big.js를 서비스워커가 안다 — 빠지면 오프라인에서 앱이 통째로 안 뜬다
+  ok(/js\/big\.js/.test(read('sw.js')), '서비스워커가 big.js를 받아 둔다');
+}
+
 console.log(`\n${fail === 0 ? '짝이 전부 맞는다' : `짝이 안 맞는 것 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);

@@ -11,6 +11,7 @@ function outfitLook(id) {
   return i < 6 ? { outfitBody: i } : { outfitWeapon: i - 6 };
 }
 import { fxReady, putFx, loadFx, zoneTile } from './fx.js';
+import { big } from './big.js';
 import { fmt } from './fmt.js';
 
 export const BRUSH = '"Yuji Syuku", "Nanum Brush Script", "Gowun Batang", serif';
@@ -870,7 +871,7 @@ export class BattleView {
       const py = y + 10 - Math.abs(Math.sin(this.t * (moving ? 12 : 4))) * 6;
       emoji(this.ctx, pet.emoji, px, py, 34, false);
     }
-    hpBar(this.ctx, x - 32, y - 128, 64, 6, Math.max(0, game.heroHp / st.hp), '#16a34a');
+    hpBar(this.ctx, x - 32, y - 128, 64, 6, ratio(game.heroHp, st.hp), '#16a34a');
     nameTag(this.ctx, `${RANKS[game.s.rank].name} ${game.s.nickname || ''}`, x, y - 136);
   }
 
@@ -947,7 +948,7 @@ export class BattleView {
     if (near) {
       // 가로로 긴 주황 막대가 수십 개면 화면이 막대로 덮인다. 가늘게, 짧게.
       ctx.globalAlpha = depth;
-      hpBar(ctx, x - 17, y - 90, 34, 3, Math.max(0, a.hp / a.maxHp), '#b45309');
+      hpBar(ctx, x - 17, y - 90, 34, 3, ratio(a.hp, a.maxHp), '#b45309');
       ccDots(ctx, a, x, y - 96);
     }
     ctx.globalAlpha = 1;
@@ -1033,7 +1034,7 @@ export class BattleView {
     if (m.stun > 0 && m.alive) iceBlock(ctx, x, y, 34 * scale, 115 * scale);
     if (m.alive && !m.isRaid) {
       const bw = boss || m.trial || m.isHero ? 110 : 66;
-      hpBar(ctx, x - bw / 2, top - 6, bw, 6, m.hp / m.maxHp, boss || m.trial ? '#b91c1c' : '#ea580c');
+      hpBar(ctx, x - bw / 2, top - 6, bw, 6, ratio(m.hp, m.maxHp), boss || m.trial ? '#b91c1c' : '#ea580c');
       const name = m.isHero ? `${RANKS[m.rank || 0].name} ${m.name}` : m.trial ? '심마' : def.name || '';
       nameTag(ctx, name, x, top - 12, boss || m.trial);
       ccDots(ctx, m, x, top - 13);
@@ -1811,6 +1812,10 @@ function roundRect(ctx, x, y, w, h, r) {
   ctx.arcTo(x, y, x + w, y, r);
   ctx.closePath();
 }
+
+// 체력은 Big이다. `a / b`는 NaN이 되고, 막대 너비가 NaN이면 **아무것도 안 그려진다**
+// — 체력 막대가 통째로 사라진 것처럼 보인다.
+const ratio = (a, b) => Math.max(0, Math.min(1, big(a).div(b).toNumber() || 0));
 
 function hpBar(ctx, x, y, w, h, ratio, color) {
   ctx.fillStyle = 'rgba(0,0,0,0.6)';

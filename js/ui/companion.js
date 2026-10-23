@@ -5,7 +5,7 @@ import { PETS, GRADES, PET_EGG_COST, OWN_STAT_NAMES, PET_ATTACK_INTERVAL, petDam
   OUTFIT_GACHA_LVS, PET_SLOTS_AT } from '../data.js';
 import { fmt, pct } from '../fmt.js';
 import { h, toast, openModal, closeModal, subTabs, gachaLevelBar, popUp,
-  holdRepeat, softRefresh } from './common.js';
+  holdRepeat, softRefresh, short} from './common.js';
 import { iconSkin } from '../icons.js';
 
 function petView(app) {
@@ -114,7 +114,7 @@ function petView(app) {
         + `<br>${PET_ATTACK_INTERVAL}초마다 공격력의 <b>${pct(petDamageMult(pet, Math.max(1, l)))}</b>`
         + `<br>보유 효과: ${OWN_STAT_NAMES[stat]} <b>+${pct(per * Math.max(1, l))}</b>`;
       r.lvBtn.textContent = `먹이 ${fmt(game.petLevelCost(pet.id))}`;
-      r.lvBtn.disabled = !owned || game.s.food < game.petLevelCost(pet.id);
+      r.lvBtn.disabled = !owned || short(game.s.food, game.petLevelCost(pet.id));
       const on = game.petOn(pet.id);
       r.eqBtn.textContent = on ? '내려놓기' : '데려가기';
       r.eqBtn.classList.toggle('good', on);
@@ -142,7 +142,7 @@ function petView(app) {
           r.engBtn.disabled = true;
         } else {
           r.engBtn.textContent = `각인 먹이 ${fmt(cost)}`;
-          r.engBtn.disabled = game.s.food < cost;
+          r.engBtn.disabled = short(game.s.food, cost);
         }
       }
     }
@@ -185,8 +185,8 @@ function relicView(app) {
 
   function update() {
     lvBar.update();
-    b1.disabled = game.s.relicShards < RELIC_DIG_COST;
-    b10.disabled = game.s.relicShards < RELIC_DIG_COST * 10;
+    b1.disabled = short(game.s.relicShards, RELIC_DIG_COST);
+    b10.disabled = short(game.s.relicShards, RELIC_DIG_COST * 10);
     for (const r of RELICS) {
       const l = game.s.relics[r.id] || 0;
       const el = rows[r.id];

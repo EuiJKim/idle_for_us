@@ -1,3 +1,4 @@
+import { big } from '../big.js';
 // 공통 DOM 도우미, 모달, 토스트, 하위 탭
 import { GRADES, GACHA_LV_MAX, GACHA_GRADE_OPEN, gachaLvNeed, gachaMaxGrade } from '../data.js';
 import { fmt, pct } from '../fmt.js';
@@ -76,7 +77,10 @@ export function closeModal() {
 }
 export const modalOpen = () => !document.getElementById('modal').classList.contains('hidden');
 
-export const fmtValue = (def, v) => (def.fmt === 'pct' ? pct(v) : def.fmt === 'x' ? `${v.toFixed(2)}배` : fmt(v));
+// v는 보통 숫자일 수도 Big일 수도 있다. 백분율·배수는 작은 값이라
+// 숫자로 써도 되지만, Big이 올 수 있으니 toFixed를 쓰는 쪽만 조심한다.
+export const fmtValue = (def, v) => (def.fmt === 'pct' ? pct(v)
+  : def.fmt === 'x' ? `${big(v).toFixed(2)}배` : fmt(v));
 export const gradeChip = (g) => h('span', { style: `color:${GRADES[g].color};font-weight:800` }, GRADES[g].name);
 
 // 보상 묶음을 한 줄로: {gold, gems, books, stones, food, relicShards}
@@ -250,3 +254,8 @@ export function gachaLevelBar(app, kind) {
   }
   return { root, update };
 }
+
+// Big은 `a < b`가 안 먹는다(valueOf를 일부러 안 뒀다). 모자라는지 보는
+// 자리는 전부 여기를 지난다 — 안 그러면 단추가 영영 안 잠긴다.
+export const short = (have, cost) => !big(have).gte(cost);
+export const atLeast = (have, cost) => big(have).gte(cost);

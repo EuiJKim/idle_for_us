@@ -19,7 +19,11 @@ export function alphaUnit(i) {
 export const bigUnit = (idx) => (idx < UNITS.length ? UNITS[idx] : alphaUnit(idx - UNITS.length));
 
 // 큰 수를 읽기 좋게: 12,345 → 1.23만, 1.5e9 → 15.0억, 1e56 → 1.00b
+//
+// 보통 숫자도 Big도 받는다. Big은 10^308 위로도 가므로 **자릿수부터 본다** —
+// toNumber()를 먼저 부르면 거기서 Infinity가 되어 버린다.
 export function fmt(n) {
+  if (n && typeof n === 'object' && typeof n.e === 'number') return fmtBig(n);
   if (!Number.isFinite(n)) return '∞';
   if (n < 0) return '-' + fmt(-n);
   if (n < 100 && n % 1 >= 0.05) return (Math.floor(n * 10) / 10).toString();
@@ -30,7 +34,29 @@ export function fmt(n) {
   return s + bigUnit(idx);
 }
 
-export const pct = (x) => `${(x * 100).toFixed(x < 0.1 ? 1 : 0)}%`;
+// 가수·지수로 쪼개 든 수. 작으면 보통 길로 넘기고, 크면 자릿수로 센다.
+function fmtBig(b) {
+  if (b.m === 0) return '0';
+  if (b.m < 0) return '-' + fmtBig({ m: -b.m, e: b.e });
+  if (b.e < 300) return fmt(b.m * Math.pow(10, b.e));
+  const L = b.e + Math.log10(b.m);           // 전체 자릿수
+  const idx = Math.floor(L / 4);
+  const v = Math.pow(10, L - idx * 4);
+  const s = v < 10 ? v.toFixed(2) : v < 100 ? v.toFixed(1) : Math.floor(v).toString();
+  return s + bigUnit(idx);
+}
+
+// 백분율. **큰 수가 들어오면 지수가 날것으로 샌다** — 화면에
+// "+1.0815362334304659e+24%"가 찍힌 적이 있다. 100을 넘으면 fmt에 맡긴다.
+export function pct(x) {
+  if (x && typeof x === 'object' && typeof x.e === 'number') {
+    return x.e >= 2 ? `${fmt(x.mul(100))}%` : pct(x.toNumber());
+  }
+  if (!Number.isFinite(x)) return '∞%';
+  const v = x * 100;
+  if (Math.abs(v) >= 1e5) return `${fmt(v)}%`;
+  return `${v.toFixed(Math.abs(x) < 0.1 ? 1 : 0)}%`;
+}
 
 export function duration(sec) {
   sec = Math.floor(sec);

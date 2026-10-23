@@ -1,6 +1,8 @@
 // Firebase 연동: 익명 로그인, 프로필·서열, 문파·채팅, 문파 토벌.
 // SDK를 동적으로 불러오므로 실패해도 혼자 하기는 그대로 동작한다.
 import { firebaseConfig, FIREBASE_SDK_VERSION, ADMIN_UID } from './firebase-config.js';
+import { big } from './big.js';
+import { safeBig } from './game.js';
 import { dayKey } from './game.js';
 import {
   EQUIP_TYPES, PETS, GUILD_MAX, GUILD_CHECKIN_EXP, GUILD_DONATE_GEMS, GUILD_DONATE_EXP, RAID_HP_SECONDS, raidReward,
@@ -9,6 +11,18 @@ import {
 const CDN = `https://www.gstatic.com/firebasejs/${FIREBASE_SDK_VERSION}`;
 const PROFILE_INTERVAL = 60 * 1000;
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+
+// power는 순위 열쇠라 보통 숫자여야 한다. 1e300에서 자른다 — 그 위는
+// 어차피 Firestore 색인이 못 가린다. 진짜 값은 powerBig 글자로 같이 올린다.
+const capNum = (v) => {
+  const L = big(v).log10();
+  if (!Number.isFinite(L)) return 0;
+  return L > 300 ? 1e300 : big(v).toNumber();
+};
+const logOf = (v) => {
+  const L = big(v).log10();
+  return Number.isFinite(L) ? L : 0;
+};
 
 export class Net {
   constructor(game, { onChange } = {}) {
@@ -209,8 +223,11 @@ export class Net {
     const pet = PETS.find((x) => x.id === g.s.pet);
     return {
       nickname: g.s.nickname || '이름없음',
-      power: p.power, dps: p.dps, atk: p.atk, hp: p.hp,
-      crit: p.crit, critDmg: p.critDmg, speed: p.speed, petHit: p.petHit,
+      // Firestore에는 class를 못 넣는다. 그리고 power는 orderBy의 열쇠라
+      // 보통 숫자여야 한다 — 1e300에서 자른다(순위용). 진짜 값은 글자로 따로.
+      power: capNum(p.power), powerLog: logOf(p.power), powerBig: String(p.power),
+      dps: String(p.dps), atk: String(p.atk), hp: String(p.hp),
+      crit: p.crit, critDmg: String(p.critDmg), speed: p.speed, petHit: String(p.petHit),
       maxStage: g.s.maxStage, bestStage: g.s.bestStage, stage: g.s.stage, level: g.s.level, rank: g.s.rank,
       regress: g.s.regress.count,
       pet: pet?.id || null, petLv: pet ? g.s.pets[pet.id] : 0, petEmoji: pet?.emoji || null,
@@ -507,8 +524,13 @@ export class Net {
     // 문파원들의 DPS 합으로 오늘 두목 체력을 정한다
     const profiles = await Promise.all(this.guild.memberIds.map((id) => this.player(id).catch(() => null)));
     const mine = this.game.power().dps;
-    const sum = profiles.reduce((acc, p) => acc + (p?.uid === this.uid ? mine : (p?.dps || 0)), 0) || mine;
-    const maxHp = Math.max(1000, sum * RAID_HP_SECONDS);
+    const sum = profiles.reduce(
+      (acc, pr) => acc.add(pr?.uid === this.uid ? mine : (safeBig(pr?.dps) || big(0))),
+      big(0),
+    );
+    // 두목 체력도 글자로 올린다. 보통 숫자로 두면 문파가 세질수록 터진다.
+    const hpBig = (sum.isPos() ? sum : mine).mul(RAID_HP_SECONDS).max(1000);
+    const maxHp = String(hpBig);
     await this.fs.runTransaction(this.db, async (tx) => {
       if ((await tx.get(ref)).exists()) return;
       tx.set(ref, {
@@ -521,17 +543,23 @@ export class Net {
   }
 
   async commitRaidDamage(amount, raidId) {
-    if (!this.guild || !(amount > 0)) return null;
+    // 넣은 피해도 Big이다. 서버에는 글자로 넣고, 읽을 때 다시 Big으로 푼다.
+    // 보통 숫자로 더하면 문파가 세졌을 때 total이 Infinity가 되고,
+    // 그러면 `total >= maxHp`가 늘 참이라 두목이 영원히 죽은 채로 남는다.
+    const amt = safeBig(amount);
+    if (!this.guild || !amt || !amt.isPos()) return null;
     const ref = this.ref('guilds', this.guild.id, 'raids', raidId);
     const killed = await this.fs.runTransaction(this.db, async (tx) => {
       const snap = await tx.get(ref);
       if (!snap.exists()) return false;
       const r = snap.data();
-      if (r.total >= r.maxHp) return false;
-      const total = Math.min(r.maxHp, r.total + amount);
+      const maxHp = safeBig(r.maxHp) || big(0);
+      const was = safeBig(r.total) || big(0);
+      if (was.gte(maxHp)) return false;
+      const total = String(was.add(amt).min(maxHp));
       const update = {
         total,
-        [`damage.${this.uid}`]: (r.damage?.[this.uid] || 0) + amount,
+        [`damage.${this.uid}`]: String((safeBig(r.damage?.[this.uid]) || big(0)).add(amt)),
         [`names.${this.uid}`]: this.game.s.nickname,
       };
       const nowKilled = total >= r.maxHp;

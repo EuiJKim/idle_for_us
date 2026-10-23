@@ -9,7 +9,7 @@ import { SKILLS, SKILL_PIERCE_MAX, SKILL_PIERCE_AT, SKILL_PIERCE_MULT,
   skillTierInfo, JOB_SLOTS, JOB_SKILL_OPEN, JOB_SKILLS, GEN_SKILLS, qiOf, QI,
   PASSIVE_KINDS, PASSIVES, passivesOf, passiveId, PASSIVE_MAX, PASSIVE_STAT_NAME } from '../data.js';
 import { fmt, pct } from '../fmt.js';
-import { h, openModal, closeModal, toast, popUp, subTabs, holdRepeat, softRefresh } from './common.js';
+import { h, openModal, closeModal, toast, popUp, subTabs, holdRepeat, softRefresh, short} from './common.js';
 import { iconSkin } from '../icons.js';
 
 // ---------- 무공(액티브) ----------
@@ -272,13 +272,13 @@ function activeView(app) {
         + (pi ? ` · <b style="color:var(--accent-2)">${pi}초월</b>` : '')
         + `<br>다음: <b>${sk.desc(sk.mult(l + 1) * boost, l + 1)}</b>`;
       r.btn.textContent = `비급 ${game.skillUpgradeCost(sk.id)}`;
-      r.btn.disabled = !unlocked || game.s.books < game.skillUpgradeCost(sk.id);
+      r.btn.disabled = !unlocked || short(game.s.books, game.skillUpgradeCost(sk.id));
       const canP = game.canSkillPierce(sk.id);
       const pcost = game.skillPierceCost(sk.id);
       r.pierce.textContent = pi >= SKILL_PIERCE_MAX ? '초월 최대'
         : l < SKILL_PIERCE_AT ? `초월 Lv.${SKILL_PIERCE_AT}`
           : `초월 비급 ${fmt(pcost)}`;
-      r.pierce.disabled = !canP || game.s.books < pcost;
+      r.pierce.disabled = !canP || short(game.s.books, pcost);
       if (sk.job) {
         r.eq.textContent = unlocked ? '문파 칸' : '잠김';
         r.eq.disabled = true;
@@ -344,7 +344,7 @@ function passiveView(app) {
         + (l < PASSIVE_MAX ? ` <span class="muted">→ +${pct(r.def.per * (l + 1))}</span>` : ' <span class="muted">(최고)</span>');
       r.bar.firstChild.style.width = `${(l / PASSIVE_MAX) * 100}%`;
       r.btn.textContent = l >= PASSIVE_MAX ? '최고' : `비급 ${fmt(game.passiveCostOf(id))}`;
-      r.btn.disabled = l >= PASSIVE_MAX || game.s.books < game.passiveCostOf(id);
+      r.btn.disabled = l >= PASSIVE_MAX || short(game.s.books, game.passiveCostOf(id));
     }
     // 계열 카드 자체도, 그 안이 다 비면 숨긴다 (문파에 안 든 동안)
     for (const k of PASSIVE_KINDS) {

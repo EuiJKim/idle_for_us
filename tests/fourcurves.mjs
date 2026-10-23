@@ -10,6 +10,7 @@ import fs from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { Game, migrate } from '../js/game.js';
 import * as D from '../js/data.js';
+import { big } from '../js/big.js';
 
 const H = Number(process.argv[2] || 3);
 const DIR = process.env.TMPDIR || '.';
@@ -29,17 +30,20 @@ function fight(sv) {
   g.spawn();
   for (let i = 0; i < 60 * 20; i++) g.tick(1 / 60);
   const hp0 = g.stats().hp;
-  let taken = 0, hits = 0, kills = 0;
+  // 받은 피해도 체력도 Big이다 — `+`와 `/`로 다루면 NaN이 되어
+  // 정작 봐야 할 '초당 몇 %를 맞는가'가 안 보인다.
+  let taken = big(0);
+  let hits = 0, kills = 0;
   for (let i = 0; i < 60 * 30; i++) {
     g.tick(1 / 60);
     for (const e of g.events) {
-      if (e.type === 'heroHit') { taken += e.amount; hits++; }
+      if (e.type === 'heroHit') { taken = taken.add(e.amount); hits++; }
       if (e.type === 'kill') kills++;
     }
     g.events.length = 0;
     g.heroHp = hp0;                 // 안 죽게 되돌린다 — 받은 양은 이미 셌다
   }
-  return { hp: hp0, pct: (taken / 30) / hp0 * 100, hits: hits / 30, kills: kills / 30 };
+  return { hp: hp0, pct: taken.div(30).div(hp0).toNumber() * 100, hits: hits / 30, kills: kills / 30 };
 }
 
 const a = sim(H / 2, `${DIR}/_fc_a.json`);

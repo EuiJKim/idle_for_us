@@ -13,7 +13,7 @@ import { GRADES, EQUIP_TYPES, MERGE_COUNT, GACHA_COST, GACHA10_COST, GACHA100_CO
 import { fmt, pct } from '../fmt.js';
 import { iconSkin } from '../icons.js';
 import { h, toast, openModal, closeModal, gradeChip, gachaLevelBar, loopBtn, popUp, subTabs,
-  holdRepeat, softRefresh } from './common.js';
+  holdRepeat, softRefresh, short} from './common.js';
 
 // 한 덩어리로 짓고 뿌리만 셋으로 나눈다. 갱신은 하나가 전부를 맡는다 —
 // 장신구를 바쳐 심검이 오르는 식으로 서로 물려 있어서, 보이는 것만 갱신하면
@@ -309,7 +309,7 @@ function buildEquip(app) {
       c.gradeBtn.disabled = !game.canAccGrade(a.id);
       const pc = cur ? game.accPierceCost(a.id) : Infinity;
       c.pierceBtn.textContent = cur && cur.pierce >= ACC_PIERCE_MAX ? '초월 최대' : `초월 한철 ${fmt(pc)}`;
-      c.pierceBtn.disabled = !cur || cur.pierce >= ACC_PIERCE_MAX || game.s.stones < pc;
+      c.pierceBtn.disabled = !cur || cur.pierce >= ACC_PIERCE_MAX || short(game.s.stones, pc);
     }
     const low = game.accSetGrade();
     accSetInfo.innerHTML = low >= ACC_SET_GRADE
@@ -418,10 +418,10 @@ function buildEquip(app) {
             : `${slots}/${OPTION_SLOTS}칸`;
       const rc = game.optionRerollCost(type);
       c.rerollBtn.textContent = `다시 굴리기 한철 ${fmt(rc)}`;
-      c.rerollBtn.disabled = slots === 0 || game.s.stones < rc;
+      c.rerollBtn.disabled = slots === 0 || short(game.s.stones, rc);
 
       c.enhBtn.textContent = `한철 ${fmt(game.enhanceCost(type))}`;
-      c.enhBtn.disabled = game.s.stones < game.enhanceCost(type);
+      c.enhBtn.disabled = short(game.s.stones, game.enhanceCost(type));
       c.enh10.disabled = c.enhBtn.disabled;
 
       const top = GRADES.length - 1;

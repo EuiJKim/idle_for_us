@@ -5,6 +5,7 @@ import { UPGRADES, SKILLS, DUNGEONS, PETS, EQUIP_TYPES, ACC_SLOTS, OUTFITS,
   EGO_PARTS, EGO_FEED_MIN_GRADE, GACHA_KINDS, MISSIONS, GRADES, JOBS } from '../js/data.js';
 
 import * as D2 from '../js/data.js';
+import { big } from '../js/big.js';
 const hours = Number(process.argv[2] || 24);
 // SIM_SAVE=경로 를 주면 끝났을 때 세이브를 떨군다 (계열 측정에 쓴다)
 const SAVE_TO = process.env.SIM_SAVE || '';
@@ -53,12 +54,12 @@ function spendSlow(now, step) {
   for (const a2 of ACC_SLOTS) {
     loop(500, () => g.accStarUp(a2.id));
     if (g.canAccGrade(a2.id)) { g.accGradeUp(a2.id); loop(500, () => g.accStarUp(a2.id)); }
-    loop(500, () => g.s.stones > g.accPierceCost(a2.id) * 3 && g.accPierce(a2.id));
+    loop(500, () => big(g.s.stones).gt(big(g.accPierceCost(a2.id)).mul(3)) && g.accPierce(a2.id));
   }
   // 광맥: 거두고, 은자가 남으면 깊이와 광부를 늘린다
   g.collectMine(now);
-  loop(500, () => g.s.gold > g.mineDepthCost() * 4 && g.digDeeper(now));
-  loop(500, () => g.s.gold > g.mineHandCost() * 4 && g.hireMiner(now));
+  loop(500, () => big(g.s.gold).gt(big(g.mineDepthCost()).mul(4)) && g.digDeeper(now));
+  loop(500, () => big(g.s.gold).gt(big(g.mineHandCost()).mul(4)) && g.hireMiner(now));
   // 심검은 먹이기만 먼저 해둔다
   for (const e of EGO_PARTS) {
     if (!g.egoOpen(e.id)) continue;
@@ -80,7 +81,7 @@ function spendSlow(now, step) {
     for (let i = 0; i < 4 && g.mode === 'stage'; i++) tryList[(turn + i) % 4]();
   }
   // 비급이 남으면 무공을 초월한다
-  for (const sk of SKILLS) loop(200, () => g.s.books > g.skillPierceCost(sk.id) * 2 && g.skillPierce(sk.id));
+  for (const sk of SKILLS) loop(200, () => big(g.s.books).gt(big(g.skillPierceCost(sk.id)).mul(2)) && g.skillPierce(sk.id));
 }
 
 for (let t = 0, step = 0; t < hours * 3600; t += dt, step++) {
@@ -91,7 +92,7 @@ for (let t = 0, step = 0; t < hours * 3600; t += dt, step++) {
   g.checkDaily(now);
   loop(3000, () => {
     const keys = Object.keys(UPGRADES).filter((k) => !g.upgradeMaxed(k));
-    const k = keys.reduce((a, b) => (g.upgradeCost(a) <= g.upgradeCost(b) ? a : b));
+    const k = keys.reduce((a, b) => (big(g.upgradeCost(b)).gte(g.upgradeCost(a)) ? a : b));
     return !!g.buyUpgrade(k);
   });
   for (const sk of SKILLS) loop(500, () => g.upgradeSkill(sk.id));
@@ -157,7 +158,10 @@ for (let t = 0, step = 0; t < hours * 3600; t += dt, step++) {
     const _up = Object.keys(UPGRADES).map((k) => g.s.upgrades[k]).reduce((a, b) => a + b, 0);
     console.log(`      무공합 ${String(_sk).padStart(4)}  제련합 ${String(_enh).padStart(4)}  수련합 ${String(_up).padStart(4)}  영수합 ${String(_pet).padStart(4)}`
       + `  비급 ${g.s.books.toExponential(1)}  한철 ${g.s.stones.toExponential(1)}  먹이 ${g.s.food.toExponential(1)}  조각 ${g.s.relicShards.toExponential(1)}`);
-    console.log(`      체력/졸개체력 ${(_st.hp / _mh).toExponential(2)}  한대/체력 ${(_ma / _st.hp).toExponential(2)}  공격/졸개체력 ${(_st.atk / _mh).toExponential(2)}`);
+    // 네 곡선이 같은 속도로 가는지 보는 줄. Big끼리 `/`를 쓰면 NaN이 되어
+    // 정작 봐야 할 때 아무것도 안 보인다 — 실제로 8시간째에 전부 NaN이었다.
+    const rt = (x, y) => big(x).div(y).toExponential(2);
+    console.log(`      체력/졸개체력 ${rt(_st.hp, _mh)}  한대/체력 ${rt(_ma, _st.hp)}  공격/졸개체력 ${rt(_st.atk, _mh)}`);
     console.log(`${String(marks.shift()).padStart(5)}h  stage ${String(g.s.maxStage).padStart(4)} best ${String(g.s.bestStage).padStart(4)} 회귀 ${g.s.regress.count}회/${g.s.regress.points}pt  Lv ${String(g.s.level).padStart(4)}  rank ${g.s.rank}  power ${p.power.toExponential(2)}  dung ${JSON.stringify(g.s.dungeons)}  enh ${g.s.enhance.weapon}  relics ${Object.values(g.s.relics).reduce((a, b) => a + b, 0)}  pets ${Object.keys(g.s.pets).length}`);
   }
 }

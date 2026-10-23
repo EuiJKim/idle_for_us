@@ -14,6 +14,7 @@ import {
   TABS, h, toast, openModal, closeModal, modalOpen, showProfile, openMissions, rewardText,
   RES_DEFS,
 } from './ui/index.js';
+import { big } from './big.js';
 import { fmt, duration } from './fmt.js';
 
 const SAVE_KEY = 'idleForUs.save.v1';
@@ -268,7 +269,8 @@ function refreshUI(full = false) {
   $('hero-lv').textContent = `Lv.${s.level}`;
   drawPortrait();
   $('power-label').textContent = `전투력 ${fmt(game.power().power)}`;
-  $('exp-bar').firstChild.style.width = `${Math.min(100, (s.exp / expToNext(s.level)) * 100)}%`;
+  // 경험치는 Big이다. `a / b`는 NaN이 되고 너비가 "NaN%"가 되어 막대가 안 보인다.
+  $('exp-bar').firstChild.style.width = `${Math.min(100, big(s.exp).div(expToNext(s.level)).toNumber() * 100)}%`;
 
   const prog = $('progress');
   const m = game.mon;
@@ -479,8 +481,11 @@ async function startRaid(btn) {
   if (btn) btn.disabled = true;
   try {
     const r = await net.ensureRaid();
-    if (r.total >= r.maxHp) return toast('오늘의 두목은 이미 처치됐어요');
-    if (!game.startRaid(r.maxHp - r.total, r.maxHp)) return toast('오늘 도전 횟수를 다 썼어요');
+    // 두목 체력·넣은 피해는 서버에서 글자("1.2e500")로 온다 — Big으로 푼다.
+    const maxHp = big(r.maxHp ?? 0);
+    const total = big(r.total ?? 0);
+    if (total.gte(maxHp)) return toast('오늘의 두목은 이미 처치됐어요');
+    if (!game.startRaid(maxHp.sub(total), maxHp)) return toast('오늘 도전 횟수를 다 썼어요');
     pendingRaid = r.id;
     toast('30초 동안 최대한 때려요!');
     save();

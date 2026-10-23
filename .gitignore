@@ -9,3 +9,4 @@ $USERPROFILE/
 .openai/
 *.key
 key.txt
+_fc_*.json
