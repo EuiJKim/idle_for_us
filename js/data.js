@@ -9,7 +9,7 @@ import { Big, big } from './big.js';
 // NaN이 된다 — 재 보니 적 체력이 관문 8467에서 그 선을 넘었다.
 // 반대로 상한이 있는 값(경지 배수·초월 단계처럼)은 보통 숫자 그대로 둔다.
 
-export const BUILD = 'ifu-v84';
+export const BUILD = 'ifu-v85';
 
 export const SAVE_VERSION = 4;
 export const OFFLINE_CAP_SEC = 12 * 3600;
@@ -30,6 +30,17 @@ export const OFFLINE_CAP_SEC = 12 * 3600;
 // 적어 두고(s.pace), 따라잡을 때 그 값을 쓴다.
 // 번 속도를 재는 창. 짧으면 들쭉날쭉하고 길면 관문을 옮겨도 옛 값이 남는다.
 export const EARN_WINDOW_SEC = 10;
+// 재는 것. 원보는 뺀다 — 관문당 10/100씩 고정이라 시간에 비례하지 않는다.
+export const EARN_KEYS = ['gold', 'exp', 'books', 'stones', 'food', 'merit'];
+// 앱을 **껐던** 동안 주는 것.
+//
+// 한때 은자·경험치만 줬다. 그랬더니 받은 게 은자뿐이라 수련 한 축에만
+// 몰아 넣게 되고, 재 보니 **앱을 끈 쪽이 2만 배 더 세졌다.** 켜 둘 이유가
+// 없어진다. 기준이 갈리면 반드시 한쪽이 이득이 된다.
+//
+// 그래서 받는 것은 양쪽이 같다. 켜 둔 것과 끈 것의 차이는 **관문을 미느냐
+// 마느냐 하나**로 남긴다. 나중에 값을 맞출 때 여기를 줄이면 된다.
+export const OFFLINE_KEYS = EARN_KEYS;
 export const EARN_EMA = 0.25;
 
 export const PACE_EMA = 0.25;           // 새로 잰 값을 이만큼 섞는다

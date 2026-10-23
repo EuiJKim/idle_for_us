@@ -48,7 +48,7 @@ import {
   PVP_TICKETS, PVP_TIME, PVP_WIN, PVP_LOSE, PVP_REWARD,
   zoneOf, monsterHp, monsterAtk, monsterGold, BOSS_HP_MULT, BOSS_ATK_MULT, stageBossAtkMult, BOSS_GOLD_MULT, RAID_BOSS,
   OFFLINE_STAGE_MAX, OFFLINE_PACE_DRIFT, PACE_EMA, PACE_MAX_SEC, stageGold,
-  EARN_WINDOW_SEC, EARN_EMA,
+  EARN_WINDOW_SEC, EARN_EMA, EARN_KEYS, OFFLINE_KEYS,
   stageBooks, stageStones, stageFood,
   regressGain, regressMult, REGRESS_WORTH_MULT, REGRESS_STUCK_SEC, stageStep,
   JOBS, JOB_RANK, JOB_UNLOCK, jobOf, JOB_SKILLS, jobSkillOf, BOON_SKILLS, TASTE_RANK,
@@ -125,8 +125,8 @@ export function newSave(now = Date.now()) {
     pace: 0,       // 한 관문에 실제로 걸린 시간(초). 따라잡기가 쓴다.
     autoTrain: true,   // 방치하는 동안 번 은자를 수련에 붓는다
     autoGacha: false,  // 원보가 쌓이는 대로 알아서 병기를 뽑고 합성한다
-    // 켜 놓고 노는 동안 실제로 번 속도(초당). 방치 수입이 이걸 쓴다.
-    earn: { gold: big(0), exp: big(0) },
+    // 켜 놓고 노는 동안 실제로 번 속도(초당). 방치도 오프도 이 표를 쓴다.
+    earn: Object.fromEntries(EARN_KEYS.map((k) => [k, big(0)])),
     bossRush: true,    // 관문지기를 잡으면 다음 관문도 바로 관문지기부터
     keepAwake: true,   // 켜 두면 화면이 안 꺼진다
     traitLv: {},   // 문파마다 따로 쌓인다 — 갈아타면 그 공적은 두고 간다
@@ -344,7 +344,7 @@ export function migrate(raw, now = Date.now()) {
     s[k] = v.isPos() ? v : big(0);
   }
   s.earn = s.earn || {};
-  for (const k of ['gold', 'exp']) {
+  for (const k of EARN_KEYS) {
     const v = Big.parse(s.earn[k]);
     s.earn[k] = v.isPos() ? v : big(0);
   }
@@ -459,6 +459,10 @@ export class Game {
     this.qiNow = null; this.qiLeft = 0; this.comboStreak = 0;
     this.cd = Object.fromEntries(SKILLS.map((s) => [s.id, 1.5]));
     this.rng = Math.random;
+    // 창(10초) 동안 들어온 것을 모아 두는 자리. addRes가 여기에 쌓고,
+    // noteEarn이 창마다 접어서 s.earn에 섞는다.
+    this.earnAcc = Object.fromEntries(EARN_KEYS.map((k) => [k, big(0)]));
+    this.earnT = 0;
     this.queue = [];
     this.adds = [];   // (호환) 지금은 mons를 쓴다
     this.mons = [];   // 들판에 흩어진 적들
@@ -850,7 +854,7 @@ export class Game {
     const mn = this.s.mine;
     mn.held = 0;
     mn.at = now;
-    if (got > 0) { this.s.stones = this.s.stones.add(got); }
+    if (got > 0) this.addRes('stones', got);
     return got;
   }
 
@@ -2333,8 +2337,8 @@ export class Game {
     if (m.isBoss) {
       this.s.stats.bossKills++;
       this.progress('boss');
-      this.s.books = this.s.books.add(1);
-      this.s.stones = this.s.stones.add(2);
+      this.addRes('books', 1);
+      this.addRes('stones', 2);
       // 장신구 상자는 벽(관문지기)에서만 나온다. 근거: Blade Idle도 장신구 상자는
       // 특정 스테이지(11-25, 13-50 …)에서부터 떨어지고, 그 자리가 전부 벽이다.
       if (isWallStage(s)) {
@@ -2346,17 +2350,17 @@ export class Game {
       // 관문지기는 **넘을 때마다** 비급과 한철을 준다. 물결 보상과 합쳐
       // 한 관문에서 두 관문치쯤이 들어온다. 옛 관문을 다시 깨도 그 관문의
       // 양이라 지수로 작아지므로 되돌아가 버는 짓은 이득이 안 된다.
-      this.s.books = this.s.books.add(bossBooks(s));
-      this.s.stones = this.s.stones.add(bossStones(s));
-      this.s.food = this.s.food.add(bossFood(s));
-      this.s.merit = this.s.merit.add(bossMerit(s));
+      this.addRes('books', bossBooks(s));
+      this.addRes('stones', bossStones(s));
+      this.addRes('food', bossFood(s));
+      this.addRes('merit', bossMerit(s));
       if (s >= this.s.maxStage) { // 이번 생에서 처음 넘는 관문
         // 이 관문을 깨는 데 실제로 몇 초가 걸렸나. 따라잡기가 이 값을 쓴다.
         this.notePace((this.clock || 0) - (this.s.climbAt || 0));
         this.s.climbAt = this.clock || 0;
         const gems = bossGems(s);
         this.s.gems += gems;
-        this.s.relicShards = this.s.relicShards.add(bossRelicShards(s));
+        this.addRes('relicShards', bossRelicShards(s));
         this.emit('gems', { amount: gems });
       }
       // **이미 넘어 본 곳은 건너뛴다.** 전생의 기억이 많을수록 성큼성큼 간다.
@@ -2638,8 +2642,7 @@ export class Game {
   addExp(xRaw) {
     const x = safeBig(xRaw);
     if (!x) return;
-    if (!this.granting) this.earnExp = (this.earnExp || big(0)).add(x);
-    this.s.exp = this.s.exp.add(x);
+    this.addRes('exp', x);
     let ups = 0;
     while (this.s.exp.gte(expToNext(this.s.level))) {
       this.s.exp = this.s.exp.sub(expToNext(this.s.level));
@@ -3073,14 +3076,23 @@ export class Game {
   // 하나만 새어 나와도 그렇게 된다 — 실제로 claimOffline에 엉뚱한 값을 넘겨
   // 은자가 1.0e+18에서 NaN이 되는 걸 확인했다.
   // 막는 비용은 한 줄이고, 안 막으면 되돌릴 수 없다.
+  // **재화가 들어오는 문은 하나다.** 들어온 것을 바로 세 둬야
+  // '초당 얼마나 버는가'를 알 수 있고, 그걸 알아야 방치와 오프가
+  // 같은 기준을 쓸 수 있다. 여기를 안 거치면 그 재화는 안 세어진다.
+  addRes(key, v) {
+    const b = safeBig(v);
+    if (!b || !b.isPos()) return;
+    this.s[key] = this.s[key].add(b);
+    if (!this.granting) this.earnAcc[key] = (this.earnAcc[key] || big(0)).add(b);
+  }
+
   addGold(g) {
     const v = safeBig(g);
     if (!v) return;
-    this.s.gold = this.s.gold.add(v);
     this.s.stats.gold = this.s.stats.gold.add(v);
     // **방치 보상으로 받은 건 안 센다.** 그걸 세면 다음 방치가 더 커지고,
     // 그게 또 다음을 키운다 — 가만 있어도 수입이 불어난다.
-    if (!this.granting) this.earnGold = (this.earnGold || big(0)).add(v);
+    this.addRes('gold', v);
   }
 
   // 보상 묶음 지급: {gold, gems, books, stones, food, relicShards}
@@ -3094,7 +3106,7 @@ export class Game {
       if (Number.isFinite(r[k]) && r[k]) this.s[k] += r[k];
     }
     for (const k of ['books', 'stones', 'food', 'relicShards']) {
-      if (r[k]) this.s[k] = this.s[k].add(r[k]);
+      if (r[k]) this.addRes(k, r[k]);
     }
     return r;
   }
@@ -3232,7 +3244,7 @@ export class Game {
       }
       if (this.s.pets[pet.id]) {
         const food = PET_DUPLICATE_FOOD(pet.grade);
-        this.s.food = this.s.food.add(food);
+        this.addRes('food', food);
         out.push({ id: pet.id, dup: true, food });
       } else {
         this.s.pets[pet.id] = 1;
@@ -3379,12 +3391,25 @@ export class Game {
     this.earnT = (this.earnT || 0) + dt;
     if (this.earnT < EARN_WINDOW_SEC) return;
     const e = this.s.earn;
-    for (const [k, acc] of [['gold', 'earnGold'], ['exp', 'earnExp']]) {
-      const per = (this[acc] || big(0)).div(this.earnT);
+    for (const k of EARN_KEYS) {
+      const per = (this.earnAcc[k] || big(0)).div(this.earnT);
       e[k] = e[k].isPos() ? e[k].mul(1 - EARN_EMA).add(per.mul(EARN_EMA)) : per;
-      this[acc] = big(0);
+      this.earnAcc[k] = big(0);
     }
     this.earnT = 0;
+  }
+
+  // 초당 수입 표. 잰 적이 있으면 잰 값, 없으면 식.
+  // **방치도 오프도 여기만 본다.** 기준이 갈라지면 한쪽이 반드시 이득이 된다 —
+  // 재 보니 앱을 끄는 쪽이 400배 이득이었다.
+  earnTable() {
+    const f = this.formulaRate();
+    const out = {};
+    for (const k of EARN_KEYS) {
+      const m = this.s.earn[k];
+      out[k] = m.isPos() ? m : (f[k] || big(0));
+    }
+    return out;
   }
 
   // 잰 값이 식보다 몇 배인가. 식에는 광역기·무공·영수가 안 들어 있어서
@@ -3406,6 +3431,10 @@ export class Game {
     return {
       gold: stageGold(s).mul(st.goldMul).div(sec),
       exp: expPerKill(s).mul(KILLS_PER_STAGE).mul(st.expMul).div(sec),
+      books: stageBooks(s).add(bossBooks(s)).div(sec),
+      stones: stageStones(s).add(bossStones(s)).div(sec),
+      food: stageFood(s).add(bossFood(s)).div(sec),
+      merit: big(bossMerit(s)).div(sec),
     };
   }
 
@@ -3420,15 +3449,7 @@ export class Game {
   // 한 관문에 걸리는 초로 나눈다. 그 초는 어림이 아니라 재서 적어 둔 값이다.
   // 세지면 pace가 줄고, pace가 줄면 수입이 는다 — 고리는 그대로다.
   idleRates() {
-    const st = this.stats({ buffs: false });
-    const f = this.formulaRate();
-    const e = this.s.earn;
-    // 재 본 적이 있으면 잰 값을 쓴다. 없으면(막 시작한 사람) 식으로 간다.
-    return {
-      gold: e.gold.isPos() ? e.gold : f.gold,
-      exp: e.exp.isPos() ? e.exp : f.exp,
-      offlineMul: st.offlineMul,
-    };
+    return { ...this.earnTable(), offlineMul: this.stats({ buffs: false }).offlineMul };
   }
 
   idleGoldRate() { return this.idleRates().gold; }
@@ -3588,6 +3609,9 @@ export class Game {
     // 식은 광역기·무공·영수를 모른다. 잰 값이 몇 배인지 한 번만 내서 같이 쓴다 —
     // 안 그러면 서 있는 쪽이 미는 쪽보다 더 버는 거꾸로가 된다.
     const k = this.earnScale();
+    // 방치 배수도 **여기서 한 번만** 곱한다. 전에는 보여 줄 때만 곱하고
+    // 넣을 때는 안 곱해서, 보여 준 값이 실제의 만 배였다.
+    const mul = this.stats({ buffs: false }).offlineMul;
     let n = 0;
     let trained = 0;
     const train = this.s.autoTrain !== false;
@@ -3602,29 +3626,37 @@ export class Game {
       if (!Number.isFinite(pace) || pace > left) break;
       left -= pace;
       pace *= OFFLINE_PACE_DRIFT;   // 서 있는 동안에도 적은 세진다
-      const g = stageGold(stage).mul(st.goldMul).mul(k);
-      const e = expPerKill(stage).mul(KILLS_PER_STAGE).mul(st.expMul).mul(k);
+      const g = stageGold(stage).mul(st.goldMul).mul(k).mul(mul);
+      const e = expPerKill(stage).mul(KILLS_PER_STAGE).mul(st.expMul).mul(k).mul(mul);
       gold = gold.add(g);
       exp = exp.add(e);
       // 물결과 관문지기가 떨어뜨리는 것도 같이 센다 — 은자만 세면
       // 돌아왔을 때 무공·영수·제련이 그대로다
-      const bk = stageBooks(stage) + bossBooks(stage);
-      const sn = stageStones(stage) + bossStones(stage);
-      const fd = stageFood(stage) + bossFood(stage);
-      const mr = bossMerit(stage);
+      const bk = stageBooks(stage).add(bossBooks(stage)).mul(mul);
+      const sn = stageStones(stage).add(bossStones(stage)).mul(mul);
+      const fd = stageFood(stage).add(bossFood(stage)).mul(mul);
+      const mr = big(bossMerit(stage)).mul(mul);
       books = books.add(bk); stones = stones.add(sn); food = food.add(fd); merit = merit.add(mr);
       stage++;
       n++;
-      // 번 것을 바로 쏟아붓는다. 그래야 다음 관문을 민다.
-      if (train) {
-        this.s.gold = this.s.gold.add(g);
-        this.addExp(e);
-        this.s.books = this.s.books.add(bk);
-        this.s.stones = this.s.stones.add(sn);
-        this.s.food = this.s.food.add(fd);
-        this.s.merit = this.s.merit.add(mr);
-        trained += this.autoGrow();
-      }
+      // **번 것은 늘 넣는다.** 전에는 이 전부가 `if (train)` 안에 있어서,
+      // 수련을 꺼 두면 관문만 밀리고 한 푼도 안 들어왔다 — 화면에는 주는 척하고.
+      this.addGold(g);
+      this.addExp(e);
+      this.addRes('books', bk);
+      this.addRes('stones', sn);
+      this.addRes('food', fd);
+      this.addRes('merit', mr);
+      // 붓는 것만 설정을 본다. 바로 부어야 다음 관문을 민다.
+      if (train) trained += this.autoGrow();
+    }
+    // **마지막에 한 번 더 붓는다.**
+    // autoTrain은 한 번에 400칸까지만 산다. 그런데 은자는 지수로 들어오므로
+    // 마지막 몇 관문에 거의 다 몰린다 — 그래서 아흔 관문을 밀고도 은자의
+    // 대부분이 그대로 남았다. 재 보니 켜 둔 쪽이 열한 배를 더 받고도
+    // 수련은 절반밖에 못 올렸다(+1575 대 +3388).
+    if (train) {
+      for (let i = 0; i < 50 && this.autoGrow(); i++) { /* 더 못 쓸 때까지 */ }
     }
     const out = { stages: n, gold, exp, books, stones, food, merit, to: stage, left, trained };
     if (!apply) {
@@ -3653,21 +3685,30 @@ export class Game {
   offlineReward(now = Date.now(), allowClimb = true) {
     const sec = Math.min(OFFLINE_CAP_SEC, Math.max(0, (now - (this.s.lastSeen || now)) / 1000));
     if (sec < 60) return null;
-    const r = this.idleRates();
+    const rate = this.earnTable();
+    const mul = this.stats({ buffs: false }).offlineMul;
     const climb = allowClimb
       ? this.offlineClimb(sec, false)
-      : { stages: 0, gold: 0, exp: 0, to: this.s.stage, left: sec };
-    // 민 만큼은 그 관문들에서 벌고, 남은 시간은 선 자리에서 번다
+      : { stages: 0, to: this.s.stage, left: sec };
+    // 민 만큼은 그 관문들에서 벌고, 남은 시간은 선 자리에서 번다.
     const rest = Math.max(0, climb.left ?? sec);
-    return {
+    // **여섯 가지를 같은 표에서 뽑는다.** 전에는 은자·경험치만 여기서 세고
+    // 나머지는 따라잡기가 몰래 넣어 줬다 — 앱을 껐으면 하나도 안 들어왔다.
+    const keys = allowClimb ? EARN_KEYS : OFFLINE_KEYS;
+    const out = {
       sec,
-      gold: big(climb.gold).add(big(r.gold).mul(rest)).mul(r.offlineMul),
-      exp: big(climb.exp).add(big(r.exp).mul(rest)).mul(r.offlineMul),
       stages: climb.stages,
       from: this.s.stage,
       to: climb.to,
       farming: !!this.s.farming,
     };
+    // 따라잡기 몫에는 배수가 이미 들어 있다. 선 자리 몫에만 곱한다.
+    for (const k of EARN_KEYS) {
+      out[k] = keys.includes(k)
+        ? big(climb[k] || 0).add(rate[k].mul(rest).mul(mul))
+        : big(0);
+    }
+    return out;
   }
 
   claimOffline(reward, mult = 1) {
@@ -3685,14 +3726,29 @@ export class Game {
     // 미리 본 것과 같은 길을 다시 걸어 실제로 적용한다
     const climb = reward.stages > 0 ? this.offlineClimb(reward.sec, true) : null;
     const rest = Math.max(0, climb ? (climb.left ?? 0) : reward.sec);
-    const r = this.idleRates();
+    const rate = this.earnTable();
+    const mul = this.stats({ buffs: false }).offlineMul;
+    const keys = climb ? EARN_KEYS : OFFLINE_KEYS;
     // 민 관문에서 번 것은 offlineClimb이 이미 넣었다. 남은 시간치만 더한다.
-    this.addGold(big(r.gold).mul(rest).mul(r.offlineMul)
-      .add(climb ? big(climb.gold).mul(mult - 1) : 0)
-      .add(climb ? 0 : reward.gold));
-    this.addExp(big(r.exp).mul(rest).mul(r.offlineMul)
-      .add(climb ? big(climb.exp).mul(mult - 1) : 0)
-      .add(climb ? 0 : reward.exp));
+    // (광고로 두 배 받는 경우는 민 몫의 모자란 배수만 얹는다)
+    for (const k of keys) {
+      const add = rate[k].mul(rest).mul(mul)
+        .add(climb ? big(climb[k] || 0).mul(mult - 1) : big(0))
+        .add(climb ? big(0) : big(reward[k] || 0));
+      if (k === 'gold') this.addGold(add);
+      else if (k === 'exp') this.addExp(add);
+      else this.addRes(k, add);
+    }
+    // **자동 수련은 양쪽 다 돈다.** 전에는 따라잡기 안에서만 부었다 —
+    // 켜 둔 쪽은 번 것을 전부 수련에 쏟고, 끈 쪽은 날것 그대로 쌓았다.
+    // 그래서 순수익으로 보면 **앱을 끄는 쪽이 400배 이득**이었다.
+    // 켜 둘 이유가 없어지는 셈이라 한쪽만 붓게 두면 안 된다.
+    // **붓는 것도 양쪽이 같다.** 켜 둔 쪽은 따라잡기가 관문마다 붓고,
+    // 끈 쪽은 여기서 붓는다. 한쪽만 부으면 그쪽이 가난해 보이고,
+    // 한쪽만 은자에 몰면 그쪽이 2만 배 세진다 — 둘 다 겪었다.
+    if (!climb && this.s.autoTrain !== false) {
+      for (let i = 0; i < 50 && this.autoGrow(); i++) { /* 더 못 쓸 때까지 */ }
+    }
     if (climb && climb.stages > 0 && climb.to > this.s.stage) {
       this.s.stage = climb.to;
       this.s.maxStage = Math.max(this.s.maxStage, this.s.stage);

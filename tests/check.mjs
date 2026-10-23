@@ -2374,5 +2374,94 @@ console.log('=== 38. 방치 수입 ===');
   }
 }
 
+// ---------- 39. 방치와 오프가 같은 기준인가 ----------
+//
+// 기준이 셋으로 갈라져 있었다:
+//   방치는 관문 식으로, 오프는 잰 값으로 셌다
+//   비급·한철·먹이·공적은 방치만 주고 오프는 하나도 안 줬다
+//   자동 수련은 방치만 썼다
+// 그래서 재 보니 **앱을 끄는 쪽이 2만 배 더 세졌다.** 켜 둘 이유가 없어진다.
+//
+// 그 밑에 더 나쁜 게 둘 있었다:
+//   수련을 꺼 두면 따라잡기가 **한 푼도 안 줬다** — 화면에는 9628f를 보여 주고.
+//   방치 배수를 보여 줄 때만 곱하고 넣을 때는 안 곱했다 — 보여 준 값이 만 배.
+// 둘 다 '보여 준 숫자 ≠ 받은 숫자'다. 그게 이 절이 지키는 것이다.
+console.log('');
+console.log('=== 39. 방치와 오프 ===');
+{
+  const fit = (stage) => {
+    const g = strong(stage);
+    const need = Math.ceil((D.monsterHp(stage).log10() - 1) / Math.log10(D.UP_VALUE_RATE));
+    g.s.upgrades.atk = need;
+    g.s.upgrades.hp = need;
+    g.spawn();
+    for (let i = 0; i < 30 * 60; i++) { g.tick(1 / 30); g.events.length = 0; }   // 재게 한다
+    return g;
+  };
+  const away = (g, hours, climb) => {
+    g.s.lastSeen = Date.now() - hours * 3600 * 1000;
+    const shown = g.offlineReward(Date.now(), climb);
+    const before = {};
+    for (const k of D.EARN_KEYS) before[k] = g.s[k];
+    const p0 = g.power().power;
+    g.claimOffline(shown);
+    const got = {};
+    for (const k of D.EARN_KEYS) got[k] = g.s[k].sub(before[k]);
+    return { shown, got, p0, p1: g.power().power, g };
+  };
+
+  // **보여 준 만큼 실제로 준다.** 수련을 꺼 두면 한 푼도 안 들어오던 자리다.
+  for (const train of [true, false]) {
+    const g = fit(300);
+    g.s.autoTrain = train;
+    const r = away(g, 2, true);
+    // 수련을 켜 두면 받자마자 쓰므로 남은 양으로는 못 잰다. 꺼 둔 쪽만 견준다.
+    if (!train) {
+      const ratio = r.got.gold.div(r.shown.gold.max(1)).toNumber();
+      ok(ratio > 0.95 && ratio < 1.05, '수련을 꺼 둬도 보여 준 만큼 들어온다',
+        `보여 줌 ${fmt(r.shown.gold)} / 받음 ${fmt(r.got.gold)} = ${ratio.toFixed(3)}`);
+      const noRes = D.EARN_KEYS.filter((k) => !pos(r.got[k]));
+      ok(noRes.length === 0, '수련을 꺼 둬도 여섯 가지가 다 들어온다',
+        noRes.join(',') || '전부');
+    } else {
+      ok(gt(r.p1, r.p0), '수련을 켜 두면 세져서 돌아온다', `${fmt(r.p0)} → ${fmt(r.p1)}`);
+    }
+  }
+
+  // **앱을 껐어도 받는 것은 같다.** 다른 건 관문을 미느냐 하나뿐이다.
+  {
+    const g = fit(300);
+    g.s.autoTrain = false;
+    const r = away(g, 2, false);
+    const noRes = D.EARN_KEYS.filter((k) => !pos(r.got[k]));
+    ok(noRes.length === 0, '앱을 껐어도 여섯 가지가 다 들어온다', noRes.join(',') || '전부');
+    ok(r.shown.stages === 0, '앱을 껐으면 관문은 안 민다');
+    ok(big(D.OFFLINE_KEYS.length).eq(D.EARN_KEYS.length),
+      '받는 것은 양쪽이 같다 (차이는 관문뿐)');
+  }
+
+  // **켜 두는 쪽이 손해면 안 된다.** 재 보니 끄는 쪽이 2만 배 세졌었다.
+  {
+    const a = away(fit(300), 2, true);
+    const b = away(fit(300), 2, false);
+    const gA = a.p1.div(a.p0);
+    const gB = b.p1.div(b.p0);
+    ok(gA.gte(gB), '켜 둔 쪽이 끈 쪽보다 세진다',
+      `켜 둠 x${gA.toExponential(1)} vs 끔 x${gB.toExponential(1)}`);
+    ok(a.shown.stages > 0 && b.shown.stages === 0, '관문은 켜 둔 쪽만 민다',
+      `${a.shown.stages} vs ${b.shown.stages}`);
+  }
+
+  // 방치 배수는 한 군데서 한 번만 곱한다 (보여 줄 때만 곱하면 만 배가 뜬다)
+  {
+    const g = fit(300);
+    g.s.autoTrain = false;
+    const r = away(g, 2, true);
+    const ratio = r.got.gold.div(r.shown.gold.max(1)).toNumber();
+    ok(ratio > 0.95 && ratio < 1.05, '방치 배수가 두 번 곱해지지 않는다',
+      `${ratio.toFixed(3)}배`);
+  }
+}
+
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);
