@@ -6,7 +6,7 @@
 // 이제 쓰는 자원(비급)은 창 머리에 붙고, 무공 목록은 상태별로 묶인다.
 import { SKILLS, SKILL_PIERCE_MAX, SKILL_PIERCE_AT, SKILL_PIERCE_MULT,
   skillTotalBonus, nextSkillTotalStep, PRESET_SLOTS, nextSkillSlotAt, jobOf,
-  skillTierInfo, JOB_SLOTS, JOB_SKILL_OPEN, JOB_SKILLS, GEN_SKILLS, qiOf, QI,
+  skillTierInfo, qiOf, QI,
   PASSIVE_KINDS, PASSIVES, passivesOf, passiveId, PASSIVE_MAX, PASSIVE_STAT_NAME } from '../data.js';
 import { fmt, pct } from '../fmt.js';
 import { h, openModal, closeModal, toast, popUp, subTabs, holdRepeat, softRefresh, short} from './common.js';
@@ -122,6 +122,8 @@ function activeView(app) {
       else toast(`${SKILL_PIERCE_AT}레벨부터 초월할 수 있고 비급이 필요해요`);
     } });
     const nm = h('span');
+    // 역할 — 여덟 무공이 각자 맡은 자리 (기본기·광역·이동·두목 …)
+    const role = h('small', { class: 'role-tag' }, sk.role || '');
     // 연계 — 이 무공이 남기는 기운과 먹는 기운. 칸을 짜는 기준이다.
     const q = qiOf(sk.id);
     const qiRow = q ? h('span', { class: 'qi-row' },
@@ -132,28 +134,27 @@ function activeView(app) {
         title: `${QI[q.leaves].name} 기운을 남겨요` }, QI[q.leaves].name)) : null;
     const tierHint = h('div', { class: 'tier-hint' });
     const bar = h('div', { class: 'bar', style: 'height:4px;margin:5px 0 0' }, h('div'));
-    rows[sk.id] = { lv, desc, btn, eq, pierce, nm, tierHint, bar, row: null };
+    // 아이콘은 캐릭터·차수에 따라 바뀐다 (각성한 무공은 옛 전용 무공 그림) — update에서 깐다
     const ico = h('div', { class: 'ico' }, sk.icon);
-    if (sk.job) iconSkin(ico, 'jskill', JOB_SKILLS.indexOf(sk));
-    else iconSkin(ico, 'skill', GEN_SKILLS.indexOf(sk));
+    rows[sk.id] = { lv, desc, btn, eq, pierce, nm, tierHint, bar, ico, art: '', row: null };
     rows[sk.id].row = h('div', { class: 'row' },
       ico,
-      h('div', { class: 'info' }, h('div', { class: 'name' }, nm, lv, qiRow), desc, bar, tierHint),
+      h('div', { class: 'info' }, h('div', { class: 'name' }, nm, role, lv, qiRow), desc, bar, tierHint),
       h('div', { style: 'display:flex;flex-direction:column;gap:6px;align-items:stretch' }, btn, pierce, eq));
   });
 
   function toggleEquip(sk) {
-    if (sk.job) { toast('계열 무공은 문파 칸에만 들어가요'); return; }
     const slots = game.s.skillSlots;
     const at = slots.indexOf(sk.id);
     if (at >= 0) { game.setSkillSlot(at, null); app.refresh(); return; }
     const free = slots.indexOf(null);
     if (free >= 0) { game.setSkillSlot(free, sk.id); app.refresh(); return; }
     openModal((s) => {
-      s.append(h('h2', {}, `${sk.icon} ${sk.name} 장착`), h('p', { class: 'muted' }, '바꿀 칸을 고르세요.'));
+      const me = game.skillDef(sk.id);
+      s.append(h('h2', {}, `${me.icon} ${me.name} 장착`), h('p', { class: 'muted' }, '바꿀 칸을 고르세요.'));
       const grid = h('div', { class: 'slots' });
-      slots.forEach((id, i) => {
-        const cur = SKILLS.find((x) => x.id === id);
+      slots.slice(0, game.skillSlotCount()).forEach((id, i) => {
+        const cur = id ? game.skillDef(id) : null;
         grid.append(h('button', { class: 'slot', onclick: () => { game.setSkillSlot(i, sk.id); closeModal(); app.refresh(); } },
           h('span', {}, cur?.icon || '＋'), h('small', {}, cur?.name || '빈 칸')));
       });
@@ -161,10 +162,10 @@ function activeView(app) {
     });
   }
 
-  // 어느 묶음에 들어갈지. 문파 무공은 열려 있으면 문파 칸에 늘 들어가 있다.
+  // 어느 묶음에 들어갈지
   const groupOf = (sk) => {
     if (!game.skillUnlocked(sk)) return 'lock';
-    if (sk.job || game.s.skillSlots.includes(sk.id)) return 'on';
+    if (game.s.skillSlots.includes(sk.id)) return 'on';
     return 'free';
   };
 
@@ -175,9 +176,7 @@ function activeView(app) {
     autoBtn.classList.toggle('good', game.s.autoSkill);
     const nSlot = game.skillSlotCount();
     const nextAt = nextSkillSlotAt(game.s.bestStage);
-    const jNext = game.nextJobSkillAt();
-    slotInfo.textContent = (nextAt ? `${nSlot}칸 · ${nextAt}관문에 한 칸 더` : `${nSlot}칸 (최대)`)
-      + (jNext ? ` · 문파 ${jNext}관문` : '');
+    slotInfo.textContent = nextAt ? `${nSlot}칸 · ${nextAt}관문에 한 칸 더` : `${nSlot}칸 (최대)`;
     // 특성 카드
     const job = jobOf(game.s.job);
     const tr = game.jobTrait();
@@ -188,8 +187,7 @@ function activeView(app) {
         + ` <small>${job?.name || ''}의 기운</small>`;
       traitText.innerHTML = `${tr.text}`
         + (tr.lv ? ` <b style="color:rgb(${tr.col})">${tr.lv}단</b> (지금 세기 ×${tr.scale.toFixed(2)})` : '');
-      traitSub.innerHTML = '<span style="flex:1">공적으로 단련해요. '
-        + '문파마다 따로 쌓이니 갈아타면 두고 가요.</span>';
+      traitSub.innerHTML = '<span style="flex:1">공적으로 단련해요. 관문지기를 넘으면 쌓여요.</span>';
       traitSub.style.flex = '1';
       traitBtn.textContent = `공적 ${fmt(game.traitCostOf())}`;
       traitBtn.disabled = !game.canTraitUp();
@@ -198,7 +196,7 @@ function activeView(app) {
       const p2 = game.s.presets[r.i];
       const on = game.presetReady(r.i);
       r.label.textContent = p2.name;
-      const names = on ? p2.slots.map((id) => SKILLS.find((x) => x.id === id)?.name || '빈칸').join('·') : '비어 있음';
+      const names = on ? p2.slots.map((id) => (id ? game.skillDef(id)?.name : null) || '빈칸').join('·') : '비어 있음';
       r.load.textContent = '꺼내기';
       r.load.disabled = !on;
       r.load.title = names;
@@ -211,29 +209,16 @@ function activeView(app) {
       + (tb.crit ? ` · 치명 확률 <b>+${(tb.crit * 100).toFixed(0)}%p</b>` : '')
       + (tb.critDmg ? ` · 치명 피해 <b>+${Math.round(tb.critDmg * 100)}%p</b>` : '')
       + (nx ? `<br><span class="tier-hint">합계 ${nx.at}에서 공격력 +${Math.round(nx.atk * 100)}% — ${nx.at - tot} 남음</span>` : '');
-    const jsk = game.jobSkill();
     const sig = game.s.skillSlots.join(',') + ':' + game.skillSlotCount()
-      + ':' + game.jobSkillIds().join('|') + ':' + game.jobSlotCount()
-      + ':' + game.jobSkillIds().map((x) => game.s.skills[x]).join('|') + ':' + (game.s.job ? 1 : 0);
+      + ':' + game.s.job + ':' + game.jobTier()
+      + ':' + game.s.skillSlots.map((x) => (x ? game.s.skills[x] : 0)).join('|');
     if (sig !== slotSig) {
       slotSig = sig;
       const cells = Array.from({ length: game.skillSlotCount() }, (_, i) => {
-        const sk = SKILLS.find((x) => x.id === game.s.skillSlots[i]);
+        const id = game.s.skillSlots[i];
+        const sk = id ? game.skillDef(id) : null;
         return h('div', { class: 'slot' }, h('span', {}, sk?.icon || '＋'), h('small', {}, sk ? `${sk.name} Lv.${game.s.skills[sk.id]}` : '빈 칸'));
       });
-      // 문파 칸 — 일반 칸을 먹지 않고 뒤에 더 붙는다. 셋이고, 관문으로 열린다.
-      if (jsk || game.tasteOpen() || game.jobOpen()) {
-        const col = jobOf(game.s.job || game.s.taste)?.color || 'var(--muted)';
-        const mine = game.jobSkills();
-        const open = game.jobSlotCount();
-        for (let i = 0; i < JOB_SLOTS; i++) {
-          const s2 = mine[i];
-          const shut = i >= open;
-          cells.push(h('div', { class: `slot${shut ? ' closed' : ''}`, style: `outline:1px solid ${shut ? 'var(--muted)' : col}` },
-            h('span', {}, s2?.icon || (shut ? '잠김' : '문파')),
-            h('small', {}, s2 ? `${s2.name} Lv.${game.s.skills[s2.id]}` : shut ? `${JOB_SKILL_OPEN[i]}관문` : '문파 칸')));
-        }
-      }
       slotsEl.replaceChildren(...cells);
     }
     // 묶음이 바뀌었을 때만 줄을 옮긴다. 매 갱신마다 옮기면 누르는 중에 튄다.
@@ -246,9 +231,20 @@ function activeView(app) {
         g.wrap.style.display = mine.length ? '' : 'none';
       }
     }
-    for (const sk of SKILLS) {
-      const r = rows[sk.id];
+    for (const base of SKILLS) {
+      const r = rows[base.id];
+      // 이 캐릭터·이 차수의 모습 (이름·설명·쿨·아이콘)
+      const sk = game.skillDef(base.id);
       const l = game.s.skills[sk.id];
+      const artKey = (sk.art || []).join('-');
+      if (artKey !== r.art) {
+        r.art = artKey;
+        r.ico.textContent = sk.icon;
+        r.ico.style.backgroundImage = '';
+        r.ico.classList.remove('has-art');
+        if (sk.art) iconSkin(r.ico, sk.art[0], sk.art[1]);
+      }
+      r.row.style.borderLeft = sk.formTier ? `3px solid ${jobOf(game.s.job)?.color || 'var(--accent-2)'}` : '';
       const unlocked = game.skillUnlocked(sk);
       const equipped = game.s.skillSlots.includes(sk.id);
       r.row.style.opacity = unlocked ? '' : '0.5';
@@ -258,7 +254,7 @@ function activeView(app) {
       r.nm.style.color = ti.tier ? 'var(--accent-2)' : '';
       r.lv.textContent = unlocked
         ? (ti.tier ? `Lv.${l} · ${ti.tier + 1}차 ${ti.inTier}/${ti.step}` : `Lv.${l} · ${ti.inTier}/${ti.step}`)
-        : sk.job ? `${jobOf(sk.job)?.name || ''} 전용` : `관문 ${sk.unlock} 해금`;
+        : `관문 ${sk.unlock} 해금`;
       r.bar.firstChild.style.width = `${(ti.inTier / ti.step) * 100}%`;
       r.bar.style.display = unlocked ? '' : 'none';
       r.tierHint.innerHTML = unlocked
@@ -271,7 +267,7 @@ function activeView(app) {
         + (cdNow < sk.cd - 0.05 ? ` <small style="color:var(--muted)">(본디 ${sk.cd}초)</small>` : '')
         + (pi ? ` · <b style="color:var(--accent-2)">${pi}초월</b>` : '')
         + `<br>다음: <b>${sk.desc(sk.mult(l + 1) * boost, l + 1)}</b>`;
-      r.btn.textContent = `비급 ${game.skillUpgradeCost(sk.id)}`;
+      r.btn.textContent = `비급 ${fmt(game.skillUpgradeCost(sk.id))}`;
       r.btn.disabled = !unlocked || short(game.s.books, game.skillUpgradeCost(sk.id));
       const canP = game.canSkillPierce(sk.id);
       const pcost = game.skillPierceCost(sk.id);
@@ -279,15 +275,9 @@ function activeView(app) {
         : l < SKILL_PIERCE_AT ? `초월 Lv.${SKILL_PIERCE_AT}`
           : `초월 비급 ${fmt(pcost)}`;
       r.pierce.disabled = !canP || short(game.s.books, pcost);
-      if (sk.job) {
-        r.eq.textContent = unlocked ? '문파 칸' : '잠김';
-        r.eq.disabled = true;
-        r.eq.classList.toggle('good', unlocked);
-      } else {
-        r.eq.textContent = equipped ? '해제' : '장착';
-        r.eq.disabled = !unlocked;
-        r.eq.classList.toggle('good', equipped);
-      }
+      r.eq.textContent = equipped ? '해제' : '장착';
+      r.eq.disabled = !unlocked;
+      r.eq.classList.toggle('good', equipped);
     }
   }
   return { root, update, res: ['books', 'merit'] };
@@ -329,9 +319,9 @@ function passiveView(app) {
   function update() {
     const job = jobOf(game.s.job);
     pvHead.innerHTML = job
-      ? `<b style="color:${job.color}">${job.name}</b>의 패시브예요. 칸을 안 먹고 늘 켜져 있어요.`
-        + `<br>문파를 바꾸면 그쪽 패시브로 갈아타요 — 올려 둔 건 안 없어져요.`
-      : '문파에 들면 그 계열의 패시브가 열려요. 칸을 안 먹고 늘 켜져 있어요.';
+      ? `<b style="color:${job.color}">${job.name}</b>의 패시브 여섯이에요. 칸을 안 먹고 늘 켜져 있어요.`
+        + `<br>캐릭터를 바꾸면 그쪽 패시브로 갈아타요 — 올려 둔 건 안 없어져요.`
+      : '캐릭터를 고르면 그 캐릭터의 패시브가 열려요.';
     const mine = game.s.job ? passivesOf(game.s.job) : [];
     for (const [id, r] of Object.entries(pvRows)) {
       const on = mine.includes(r.def);

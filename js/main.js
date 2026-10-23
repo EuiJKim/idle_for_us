@@ -1,7 +1,7 @@
 import { Game, newSave, migrate, slimSave } from './game.js';
 import {
   BUILD, JOBS, jobTestOf, EGO_PARTS, AD_OFFLINE_MULT,
-  SKILLS, JOB_SKILLS, GEN_SKILLS, KILLS_PER_STAGE, DUNGEON_MOBS, RANKS, MISSIONS, PETS, zoneOf, expToNext,
+  SKILLS, KILLS_PER_STAGE, DUNGEON_MOBS, RANKS, MISSIONS, PETS, zoneOf, expToNext,
   CODEX_KINDS, GRADES,
   isWallStage, nextUnlock, unlocksAt,
 } from './data.js';
@@ -154,16 +154,18 @@ let skillEls = [];
 let slotSig = '';
 const autoBtn = $('btn-auto');
 autoBtn.addEventListener('click', () => { game.s.autoSkill = !game.s.autoSkill; refreshUI(true); });
+// 칸·캐릭터·차수가 바뀌면 다시 그린다 (전직하면 이름·그림이 바뀐다)
+const barSig = () => `${game.activeSlots().join(',')}|${game.s.job}|${game.jobTier()}`;
 function buildSkillbar() {
   // 전투 바도 열린 칸만 그린다
-  slotSig = game.activeSlots().join(',');
+  slotSig = barSig();
   skillEls = game.activeSlots().map((id) => {
-    const sk = SKILLS.find((x) => x.id === id);
+    const sk = id ? game.skillDef(id) : null;
     const cd = h('div', { class: 'cd' });
     const lock = h('div', { class: 'lock' });
     const btn = h('button', { class: 'skill-btn', 'aria-label': sk?.name || '빈 칸', onclick: () => (sk ? game.useSkill(sk.id) : showTab('skill')) }, sk?.icon || '＋', cd, lock);
     // 들판 바에도 그림을 깐다. 창 안에만 그림이면 두 곳이 서로 다른 게임 같다.
-    if (sk) iconSkin(btn, sk.job ? 'jskill' : 'skill', (sk.job ? JOB_SKILLS : GEN_SKILLS).indexOf(sk));
+    if (sk?.art) iconSkin(btn, sk.art[0], sk.art[1]);
     return { sk, btn, cd, lock };
   });
   $('skillbar').replaceChildren(...skillEls.map((e) => e.btn));
@@ -311,7 +313,7 @@ function refreshUI(full = false) {
     $('contest-sub').textContent = `내 피해 ${fmt(c.damage)}`;
   }
 
-  if (game.activeSlots().join(',') !== slotSig) buildSkillbar();
+  if (barSig() !== slotSig) buildSkillbar();
   for (const { sk, btn, cd, lock } of skillEls) {
     if (!sk) { btn.classList.add('locked'); continue; }
     const unlocked = game.skillUnlocked(sk);
@@ -337,8 +339,10 @@ function handleEvents() {
       case 'gems': toast(`원보 +${ev.amount}`); break;
       case 'stageClear': {
         if (ev.stage % 10 === 0) { toast(`🎉 ${zoneOf(ev.stage + 1).name}에 도착했어요!`); net.pushProfile(true); }
-        const sk = SKILLS.find((x) => x.unlock === ev.stage + 1);
-        if (sk) toast(`${sk.icon} 새 무공 「${sk.name}」 해금!`);
+        const sk0 = SKILLS.find((x) => x.unlock === ev.stage + 1);
+        const sk = sk0 && game.skillDef(sk0.id);
+        if (sk) toast(`${sk.icon} 새 무공 「${sk.name}」(${sk0.role}) 해금!`);
+        if (game.s.job && [150, 280, 420].includes(ev.stage + 1)) toast(`📜 ${game.jobTier() + 1}차 전직 시험이 열렸어요 — 성장 › 전직`);
         if ([10, 20, 30, 40].includes(ev.stage)) toast('🏯 새 수련터이 열렸어요!');
         break;
       }
@@ -424,10 +428,15 @@ function showResult(r) {
       // 시험 결과를 아무 데서도 안 받고 있었다 — 치르고 나면 아무 일도 안 일어났다.
       const j = JOBS.find((x) => x.id === r.job);
       const d = jobTestOf(r.job);
-      title = win ? `입문 시험 〈${d?.name || ''}〉 통과` : `입문 시험 〈${d?.name || ''}〉 실패`;
+      title = win ? `${r.tier}차 전직 — ${j?.tiers?.[r.tier] || ''}` : `${r.tier}차 전직 시험 〈${d?.name || ''}〉 실패`;
       body = win
-        ? `${j?.name || ''}에 들어갈 수 있어요. 문파 창에서 입문하세요.`
+        ? '무공 여덟이 각성했어요. 무공 창에서 새 이름을 확인해 보세요.'
         : `${r.miss || '조건을 못 채웠어요'} — 잃는 건 없어요. 몇 번이든 다시 볼 수 있어요.`;
+      if (win) {
+        view.showBanner(`${r.tier}차 전직 · ${j?.tiers?.[r.tier] || ''}`, j?.color || '#fde68a', 2.6, '각성');
+        view.effects.push({ kind: 'pillar', life: 1.6, max: 1.6 });
+        buildSkillbar();
+      }
     } else if (r.mode === 'pvp') {
       title = win ? '승리!' : '패배…';
       body = `vs ${r.opponent.nickname} · 비무 점수 ${r.delta > 0 ? '+' : ''}${r.delta} (${game.s.pvp.score}점)`;
@@ -611,7 +620,56 @@ function askNickname(first = false) {
       ...(first ? [h('p', { class: 'muted' }, '강호에서 불릴 이름(별호)을 정해 주세요. 나중에 설정에서 바꿀 수 있어요.')] : []),
       input, ok);
     setTimeout(() => input.focus(), 50);
-  }, { dismissable: !first, onClose: first ? () => checkReturn() : null });
+  }, { dismissable: !first, onClose: first ? () => (game.needsClass() ? askClass(() => checkReturn()) : checkReturn()) : null });
+}
+
+// ---------- 캐릭터 고르기 ----------
+// 처음 시작할 때(그리고 없어진 계열을 하던 옛 세이브가 처음 들어올 때) 넷 중 하나를 고른다.
+// 닫을 수 없다 — 캐릭터가 없으면 무공 이름도 그림도 정해지지 않는다.
+function askClass(after) {
+  const legacy = !!game.s.legacyJob || game.s.bestStage > 1;
+  openModal((s) => {
+    const grid = h('div', { class: 'class-grid' });
+    const anims = [];
+    for (const j of JOBS) {
+      const cv = h('canvas', { width: 140, height: 150 });
+      anims.push({ cv, j });
+      grid.append(h('button', { class: 'class-card', style: `border-color:${j.color}`, onclick: () => {
+        if (!game.setJob(j.id)) return;
+        save();
+        closeModal();
+        buildSkillbar();
+        refreshUI(true);
+        toast(`${game.tierName()}(으)로 강호에 나섰어요`);
+        net.pushProfile(true);
+      } },
+      cv,
+      h('b', { style: `color:${j.color}` }, j.name),
+      h('small', {}, `${j.weapon} · ${j.tag}`),
+      h('span', { class: 'desc' }, j.desc)));
+    }
+    s.append(
+      h('h2', {}, '캐릭터를 고르세요'),
+      h('p', { class: 'muted' }, legacy
+        ? '캐릭터가 넷으로 바뀌었어요. 하나를 골라 주세요 — 이번 한 번은 공짜예요. 레벨·관문·장비·무공 레벨은 그대로고, 넘은 관문만큼 전직도 해 둔 채로 시작해요.'
+        : '고른 캐릭터의 무공 여덟으로 시작해요. 관문을 넘고 전직 시험에 붙을 때마다 무공이 각성해요. 나중에 원보를 내면 바꿀 수 있어요.'),
+      grid);
+    // 고르는 동안 넷이 숨을 쉬게 한다 (각자 제 무기를 든다)
+    const look = RANKS[game.s.rank].look;
+    const tick = () => {
+      if (!grid.isConnected) return;
+      const t = performance.now() / 1000;
+      for (const { cv, j } of anims) {
+        const c = cv.getContext('2d');
+        c.setTransform(1, 0, 0, 1, 0, 0);
+        c.clearRect(0, 0, cv.width, cv.height);
+        c.setTransform(1.15, 0, 0, 1.15, 0, 0);
+        drawFighter(c, 58, 120, { ...look, aura: j.color }, { t, weapon: j.look, blade: '#e5e7eb' });
+      }
+      requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  }, { dismissable: false, onClose: () => after?.() });
 }
 
 // ---------- 운영자 화면 ----------
@@ -1088,6 +1146,7 @@ if (perf.mode !== 'auto') applyQuality();   // 저장해 둔 화질을 되살린
 refreshUI(true);
 requestAnimationFrame((t) => { last = t; frame(t); });
 if (!game.s.nickname) askNickname(true);
+else if (game.needsClass()) askClass(() => checkReturn());
 else checkReturn();
 net.init();
 

@@ -1,9 +1,9 @@
 // 성장 탭: 은자 수련 / 레벨(스탯 포인트) / 경지
 import { UPGRADES, UP_GROUPS, UP_STAT_LABEL, upAdds, upNext, upTierInfo, upStatAt, josaRo,
   SP_STATS, SP_RESET_GEMS, RANKS, RANK_MULT, expToNext, REGRESS_MIN_STAGE,
-  CRIT_CAP, REGRESS_WORTH_MULT, JOBS, JOB_RANK, JOB_UNLOCK, RANK_SUBS, rankSubLevel,
-  TASTE_RANK, jobSkillOf, jobSkillsOf, JOB_SKILL_OPEN, jobTraitOf, traitCost,
-  jobTestOf, jobTestStage } from '../data.js';
+  CRIT_CAP, REGRESS_WORTH_MULT, JOBS, RANK_SUBS, rankSubLevel,
+  jobTraitOf, jobTestOf, jobTestStage, TIER_AT, TIER_MAX, TIER_SKILL_MULT, SKILLS, skillFor,
+  CLASS_CHANGE_GEMS } from '../data.js';
 import { fmt, pct } from '../fmt.js';
 import { big } from '../big.js';
 import { drawFighter } from '../battle.js';
@@ -232,7 +232,7 @@ function rankView(app) {
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, 160, 160);
     ctx.setTransform(1.1, 0, 0, 1.1, 0, 0);
-    drawFighter(ctx, 70, 136, RANKS[game.s.rank].look, { t: performance.now() / 1000, blade: '#e5e7eb', weapon: 'sword' });
+    drawFighter(ctx, 70, 136, RANKS[game.s.rank].look, { t: performance.now() / 1000, blade: '#e5e7eb', weapon: game.job()?.look || 'sword' });
   }
 
   function update() {
@@ -348,125 +348,130 @@ function regressView(app) {
   return { root, update };
 }
 
-// 문파 — 화경에 닿으면 여덟 계열 중 하나를 고른다. 언제든 바꿀 수 있다.
+// 캐릭터 — 처음에 고른 넷 중 하나. 여기서는 전직(1차·2차·3차)을 올리고,
+// 원보를 내면 다른 캐릭터로 바꾼다.
+export const JOB_WORD = {
+  atk: '공격력', hp: '체력', speed: '공격 속도', gold: '은자 획득',
+  boss: '두목 피해', offline: '방치 보상', bleed: '출혈 피해',
+  ccDur: '상태이상 지속', critDmg: '치명 피해', exp: '경험치',
+};
+export const jobBonusText = (j) => Object.entries({ ...(j.mult || {}), ...(j.add || {}) })
+  .map(([k, v]) => `${JOB_WORD[k] || k} <b>×${v}</b>`).join(' · ');
+
+// 전직 시험 창. 성장 탭과 들판 안내가 같이 쓴다.
+export function openJobTest(app) {
+  const { game } = app;
+  const j = game.job();
+  const d = j && jobTestOf(j.id);
+  if (!d) return;
+  const next = game.jobTier() + 1;
+  openModal((s) => s.append(
+    h('h2', {}, `${next}차 전직 — ${d.name}(${d.hanja})`),
+    h('p', {}, h('b', { style: `color:${j.color}` }, d.ask)),
+    h('p', { class: 'muted' }, d.why),
+    h('p', { class: 'muted' },
+      `제 ${jobTestStage(game.s.bestStage)} 관문의 힘으로 겨룹니다 · 제한 ${d.time}초`,
+      h('br'), '떨어져도 잃는 건 없어요. 몇 번이든 다시 볼 수 있어요.'),
+    h('div', { class: 'btn-row' },
+      h('button', { class: 'btn primary', onclick: () => {
+        if (game.startJobTest()) { closeModal(); app.closePanel?.(); }
+        else toast('들판에서만 시험을 볼 수 있어요');
+      } }, '시험 보기'),
+      h('button', { class: 'btn', onclick: closeModal }, '나중에'))));
+}
+
 function jobView(app) {
   const { game } = app;
-  const head = h('p', { class: 'muted', style: 'margin:2px 2px 10px;line-height:1.7' });
-  const root = h('div', {}, head);
-  const cards = {};
+  const card = h('div', { class: 'card' });
+  const title = h('div', { style: 'font-weight:900;font-size:17px' });
+  const tag = h('div', { class: 'desc', style: 'margin-top:2px' });
+  const eff = h('div', { class: 'desc', style: 'margin-top:6px' });
+  const trait = h('div', { class: 'desc', style: 'margin-top:2px' });
+  const ladder = h('div', { class: 'tier-ladder' });
+  const testBtn = h('button', { class: 'btn primary', style: 'width:100%;margin-top:10px', onclick: () => openJobTest(app) });
+  card.append(title, tag, eff, trait, ladder, testBtn);
 
-  // 보너스를 사람 말로 적는다
-  const WORD = {
-    atk: '공격력', hp: '체력', speed: '공격 속도', gold: '은자 획득',
-    boss: '두목 피해', offline: '방치 보상', bleed: '출혈 피해',
-    ccDur: '상태이상 지속', critDmg: '치명 피해',
-  };
-  const bonusText = (j) => Object.entries({ ...(j.mult || {}), ...(j.add || {}) })
-    .map(([k, v]) => `${WORD[k] || k} <b>×${v}</b>`).join(' · ');
+  // 다음 전직에서 무공 여덟이 어떻게 바뀌는지 — 각성은 미리 보여야 기대가 생긴다
+  const awakeCard = h('div', { class: 'card' });
+  const awakeHead = h('h3');
+  const awakeBody = h('div', { class: 'awake-list' });
+  awakeCard.append(awakeHead, awakeBody);
 
+  // 다른 캐릭터로 바꾸기
+  const swapCard = h('div', { class: 'card' },
+    h('h3', {}, '캐릭터 바꾸기', h('small', {}, `원보 ${fmt(CLASS_CHANGE_GEMS)}`)),
+    h('p', { class: 'muted', style: 'margin:4px 0 8px' }, '전직 차수·무공 레벨·장비는 그대로 들고 가요. 특성 단련과 패시브는 캐릭터마다 따로 쌓여요.'));
+  const swapBtns = {};
   for (const j of JOBS) {
-    const title = h('div', { style: `font-weight:900;font-size:15px;color:${j.color}` });
-    const tag = h('div', { class: 'desc', style: 'margin-top:1px' }, j.tag);
-    const eff = h('div', { class: 'desc', style: 'margin-top:4px' });
-    const note = h('div', { class: 'desc', style: 'margin-top:2px' }, j.desc);
-    const art = h('div', { class: 'desc', style: 'margin-top:4px' });
-    const trait = h('div', { class: 'desc', style: 'margin-top:2px' });
-    // 전직 시험 — 문이 열렸는데 아직 안 붙었으면 여기 뭘 해야 하는지 적힌다
-    const test = h('div', { class: 'desc', style: 'margin-top:4px' });
-    const btn = h('button', { class: 'buy', onclick: () => {
-      // 화경 전에는 맛보기 — 공짜로 몇 번이든 바꾼다
-      if (game.tasteOpen()) {
-        const off = game.s.taste === j.id;
-        game.setTaste(off ? null : j.id);
-        app.refresh();
-        toast(off ? '맛보기를 내려놨어요' : `${jobSkillOf(j.id)?.name}을 써 봐요`);
-        return;
-      }
-      if (game.s.job === j.id) { game.setJob(null); app.refresh(); return; }
-      // 문은 열렸는데 시험을 안 봤으면 시험부터
-      if (game.canJobTest(j.id)) {
-        const d = jobTestOf(j.id);
-        openModal((s) => s.append(
-          h('h2', {}, `${d.name}(${d.hanja}) — ${j.name} 입문 시험`),
-          h('p', {}, h('b', { style: `color:${j.color}` }, d.ask)),
-          h('p', { class: 'muted' }, d.why),
-          h('p', { class: 'muted' },
-            `제 ${jobTestStage(game.s.bestStage)} 관문의 힘으로 겨룹니다 · 제한 ${d.time}초`,
-            h('br'), '떨어져도 잃는 건 없어요. 몇 번이든 다시 볼 수 있어요.'),
-          h('div', { class: 'btn-row' },
-            h('button', { class: 'btn primary', onclick: () => {
-              if (game.startJobTest(j.id)) { closeModal(); app.closePanel?.(); }
-              else toast('들판에서만 시험을 볼 수 있어요');
-            } }, '시험 보기'),
-            h('button', { class: 'btn', onclick: closeModal }, '나중에'))));
-        return;
-      }
-      if (game.setJob(j.id)) { app.refresh(); toast(`${j.name}이 되었어요`); }
-      else toast('아직 안 열린 문파예요');
-    } });
-    const row = h('div', { class: 'card' },
-      h('div', { style: 'display:flex;align-items:flex-start;gap:8px' },
-        h('div', { style: 'flex:1;min-width:0' }, title, tag, eff, art, trait, test, note), btn));
-    root.append(row);
-    cards[j.id] = { title, eff, art, trait, test, btn, row, def: j };
+    const b = h('button', { class: 'btn', style: `border-color:${j.color}`, onclick: () => {
+      if (game.s.job === j.id) return;
+      openModal((s) => s.append(
+        h('h2', {}, `${j.name}(으)로 바꿀까요?`),
+        h('p', {}, `원보 ${fmt(CLASS_CHANGE_GEMS)}이 들어요. 지금 원보 ${fmt(game.s.gems)}.`),
+        h('p', { class: 'muted' }, j.desc),
+        h('div', { class: 'btn-row' },
+          h('button', { class: 'btn primary', onclick: () => {
+            if (game.setJob(j.id)) { closeModal(); app.refresh(); toast(`${game.tierName()}이(가) 되었어요`); }
+            else toast('원보가 모자라요');
+          } }, '바꾸기'),
+          h('button', { class: 'btn', onclick: closeModal }, '그만두기'))));
+    } }, j.name);
+    swapBtns[j.id] = b;
   }
+  swapCard.append(h('div', { class: 'btn-row' }, ...Object.values(swapBtns)));
+  const root = h('div', {}, card, awakeCard, swapCard);
 
+  let sig = '';
   function update() {
-    const open = game.jobOpen();
-    const taste = game.tasteOpen();
-    const at = game.nextJobAt();
-    head.innerHTML = open
-      ? `여덟 중 하나를 골라요. <b>처음 드는 건 공짜</b>지만, 바꿀 때마다 공적이 들어요.`
-        + `<br><b>특성 단련은 문파마다 따로 쌓여요</b> — 갈아타면 들인 공적은 두고 가요.`
-        + `<br>문 열림 ${game.jobStageOpenCount()}/${JOBS.length} · 시험 통과 ${game.jobTestsPassed()}`
-        + (at ? ` · 다음은 <b>${at}관문</b>` : ' · 전부 열림')
-      : taste
-        ? `<b>맛보기</b> — 계열 무공을 하나씩 써 볼 수 있어요. 공짜로 몇 번이든 바꿔요.`
-          + `<br>올린 무공 레벨은 그대로 남아요. <b>${RANKS[JOB_RANK].name}</b>에서 하나를 정합니다.`
-        : `<b>${RANKS[TASTE_RANK].name}</b>에 오르면 계열 무공을 맛볼 수 있어요.`
-          + ` <b>${RANKS[JOB_RANK].name}</b>에서 문파를 정해요. (지금 ${game.rankLabel()})`;
-    for (const j of JOBS) {
-      const c = cards[j.id];
-      const tasting = taste && game.s.taste === j.id;
-      const picked = game.s.job === j.id || tasting;
-      const stageOpen = taste ? true : game.jobStageOpen(j.id);
-      const passed = game.jobTestPassed(j.id);
-      const unlocked = taste ? true : (stageOpen && passed);
-      const need = JOB_UNLOCK[JOBS.indexOf(j)] || 0;
-      c.title.innerHTML = `${j.name} <small style="color:var(--muted)">${j.weapon}</small>`
-        + (picked ? ` <b style="color:var(--accent-2)">· ${tasting ? '써 보는 중' : '지금 이것'}</b>` : '');
-      const mine = jobSkillsOf(j.id);
-      const openN = taste ? 1 : game.jobSlotCount();
-      c.art.innerHTML = mine.length
-        ? '전용 무공 ' + mine.map((s2, i2) => (i2 < openN
-          ? `<b style="color:${j.color}">${s2.name}</b>`
-          : `<span class="muted">${s2.name}(${JOB_SKILL_OPEN[i2]}관문)</span>`)).join(' · ')
-        : '';
-      // 특성 — 전직하면 쓰는 모든 무공에 실린다. 레벨은 문파마다 따로 쌓인다.
-      const tr = jobTraitOf(j.id);
-      const tlv = game.traitLvOf(j.id);
-      c.trait.innerHTML = tr
-        ? `특성 <b style="color:rgb(${tr.col})">〈${tr.name}〉</b> ${tr.text}`
-          + (tlv ? ` <b>${tlv}단</b>` : '')
-        : '';
-      c.eff.innerHTML = taste ? '<span class="muted">문파에 들면 능력치 보너스가 붙어요</span>' : bonusText(j);
-      // 시험 줄 — 뭘 해야 하는지 카드에 적어 둔다. 눌러 보고서야 알면 늦다.
-      const d = jobTestOf(j.id);
-      c.test.innerHTML = taste || !d ? ''
-        : passed ? `<span style="color:var(--accent-2)">입문 시험 〈${d.name}〉 통과</span>`
-          : stageOpen ? `입문 시험 <b>〈${d.name}〉</b> — ${d.ask}`
-            : `<span class="muted">입문 시험 〈${d.name}〉</span>`;
-      c.row.style.opacity = stageOpen ? '' : '0.5';
-      c.row.style.outline = picked ? `1px solid ${j.color}` : '';
-      const cost = taste ? 0 : game.jobSwitchCost(j.id);
-      c.btn.textContent = tasting ? '내려놓기' : taste ? '맛보기'
-        : picked ? '그만두기' : unlocked ? (cost ? `공적 ${fmt(cost)}` : '입문')
-          : stageOpen ? '시험 보기' : (!open ? '경지 부족' : `${need}관문`);
-      // 값이 모자라면 못 누른다. 누르고 나서 안 된다고 알려 주면 늦다.
-      c.btn.disabled = (!stageOpen && !picked) || (unlocked && !picked && short(game.s.merit, cost));
+    const j = game.job();
+    if (!j) { title.textContent = '캐릭터를 아직 안 골랐어요'; return; }
+    const t = game.jobTier();
+    const at = game.nextTierAt();
+    card.style.borderColor = j.color;
+    title.innerHTML = `<span style="color:${j.color}">${game.tierName()}</span>`
+      + ` <small style="color:var(--muted)">${j.name} · ${j.weapon}${t ? ` · ${t}차 전직` : ' · 기초'}</small>`;
+    tag.textContent = `${j.tag} — ${j.desc}`;
+    eff.innerHTML = t >= 1 ? `능력치 ${jobBonusText(j)}`
+      : `<span class="muted">1차 전직하면 능력치 ${jobBonusText(j)}</span>`;
+    const tr = jobTraitOf(j.id);
+    trait.innerHTML = tr
+      ? `특성 <b style="color:rgb(${tr.col})">〈${tr.name}〉</b> ${tr.text}${t >= 1 ? '' : ' <span class="muted">(1차 전직부터)</span>'}`
+      : '';
+    // 전직 사다리 — 기초 → 1차 → 2차 → 3차
+    const s2 = `${j.id}:${t}:${game.s.bestStage >= (at || 0)}`;
+    if (s2 !== sig) {
+      sig = s2;
+      ladder.replaceChildren(...j.tiers.map((nm, i) => h('div', {
+        class: `tier-step${i <= t ? ' done' : ''}${i === t + 1 ? ' next' : ''}`,
+        style: i <= t ? `border-color:${j.color};color:${j.color}` : '',
+      }, h('b', {}, nm), h('small', {}, i === 0 ? '기초' : `${i}차 · ${TIER_AT[i]}관문`))));
+      // 각성 미리보기
+      const nt = Math.min(TIER_MAX, t + 1);
+      awakeHead.innerHTML = t >= TIER_MAX ? '무공 여덟 — 끝까지 각성했어요'
+        : `${nt}차 전직하면 <small>무공 피해 ×${TIER_SKILL_MULT[t]} → ×${TIER_SKILL_MULT[nt]}</small>`;
+      awakeBody.replaceChildren(...SKILLS.map((base) => {
+        const now = skillFor(base.id, j.id, t);
+        const nx = skillFor(base.id, j.id, nt);
+        const big2 = nx.formTier === nt && nt > t;   // 이 차수에 판정까지 바뀌는 대표 초식
+        return h('div', { class: 'awake-row' },
+          h('small', { class: 'role-tag' }, base.role),
+          h('span', {}, now.name),
+          t < TIER_MAX ? h('span', { class: 'muted' }, ' → ') : '',
+          t < TIER_MAX ? h('b', { style: big2 ? `color:${j.color}` : '' }, nx.name + (big2 ? ' ✦' : '')) : '');
+      }));
+    }
+    testBtn.style.display = at == null ? 'none' : '';
+    const open = game.tierOpen();
+    const d = jobTestOf(j.id);
+    testBtn.textContent = open ? `${t + 1}차 전직 시험 〈${d?.name || ''}〉 보기` : `${at}관문을 넘으면 ${t + 1}차 전직 시험이 열려요`;
+    testBtn.disabled = !open;
+    for (const jj of JOBS) {
+      const b = swapBtns[jj.id];
+      b.disabled = game.s.job === jj.id || game.s.gems < CLASS_CHANGE_GEMS;
+      b.textContent = game.s.job === jj.id ? `${jj.name} (지금)` : jj.name;
     }
   }
-  return { root, update, res: ['merit'] };
+  return { root, update, res: ['gems', 'merit'] };
 }
 
 export function growthTab(app) {
@@ -474,7 +479,7 @@ export function growthTab(app) {
     { key: 'upgrade', label: '수련', make: () => upgradeView(app) },
     { key: 'level', label: '레벨', make: () => levelView(app) },
     { key: 'rank', label: '경지', make: () => rankView(app) },
-    { key: 'job', label: '문파', make: () => jobView(app) },
+    { key: 'job', label: '전직', make: () => jobView(app) },
     { key: 'regress', label: '회귀', make: () => regressView(app) },
   ]);
 }

@@ -715,3 +715,23 @@ body { background: radial-gradient(ellipse at top, #1d1712, #0b0907 70%); }
   vertical-align: middle;
 }
 .row.best-row { outline: 1px solid var(--accent-2); }
+
+/* ---------- 캐릭터 · 전직 (2026-10-23) ---------- */
+.role-tag { display: inline-block; margin: 0 4px; padding: 0 6px; border-radius: 999px; font-size: 10px; font-weight: 700;
+  color: var(--muted); border: 1px solid var(--line); vertical-align: middle; }
+.tier-ladder { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; margin-top: 10px; }
+.tier-step { border: 1px solid var(--line); border-radius: 10px; padding: 6px 4px; text-align: center; opacity: 0.55; }
+.tier-step b { display: block; font-size: 13px; }
+.tier-step small { font-size: 10px; color: var(--muted); }
+.tier-step.done { opacity: 1; }
+.tier-step.next { opacity: 1; border-style: dashed; }
+.awake-list { display: grid; gap: 4px; }
+.awake-row { font-size: 13px; }
+.awake-row .role-tag { margin-left: 0; min-width: 40px; text-align: center; }
+.class-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.class-card { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 6px 10px; border-radius: 14px;
+  background: var(--card); border: 2px solid var(--line); color: inherit; font: inherit; cursor: pointer; text-align: center; }
+.class-card canvas { width: 120px; height: 128px; }
+.class-card b { font-size: 17px; }
+.class-card small { color: var(--muted); font-size: 11px; }
+.class-card .desc { font-size: 11px; line-height: 1.4; }

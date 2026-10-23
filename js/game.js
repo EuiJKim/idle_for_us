@@ -39,9 +39,9 @@ import {
   riftStage, huntStage, riftReward, huntReward,
   RELICS, RELIC_DIG_COST,
   SKILLS, SKILL_SLOTS, skillSlotCount, skillBookCost,
-  skillCd, skillTierMult, jobSkillsOf, jobSlotCount, nextJobSkillAt, JOB_SLOTS,
+  skillCd, skillTierMult, skillFor,
   jobTraitOf, qiOf, COMBO_SEC, COMBO_CC, comboMult,
-  bossMerit, traitCost, traitScale, jobSwitchCost,
+  bossMerit, traitCost, traitScale,
   DUNGEONS, DUNGEON_KEYS, DUNGEON_TIME, DUNGEON_MOBS, dungeonStage, dungeonReward,
   DUNGEON_KEY_CAP, RAID_TICKET_CAP, PVP_TICKET_CAP,
   MISSIONS, MISSION_ALL_REWARD, stageMilestone, STAGE_MILESTONE_EVERY,
@@ -51,7 +51,7 @@ import {
   EARN_WINDOW_SEC, EARN_EMA, EARN_KEYS, OFFLINE_KEYS,
   stageBooks, stageStones, stageFood,
   regressGain, regressMult, REGRESS_WORTH_MULT, REGRESS_STUCK_SEC, stageStep,
-  JOBS, JOB_RANK, JOB_UNLOCK, jobOf, JOB_SKILLS, jobSkillOf, BOON_SKILLS, TASTE_RANK,
+  JOBS, jobOf, OLD_JOBS, TIER_AT, TIER_MAX, tierName, tiersByStage, CLASS_CHANGE_GEMS,
   JOB_TESTS, jobTestOf, jobTestStage,
   PASSIVES, passivesOf, passiveId, PASSIVE_MAX, passiveCost,
   NOADS_ATK, NOADS_HP, AD_BOOST_EXTRA,
@@ -146,11 +146,11 @@ export function newSave(now = Date.now()) {
     // 출진 준비: 무공 넷 + 영수를 한 벌로 저장해 두고 바꿔 끼운다
     presets: Array.from({ length: PRESET_SLOTS }, (_, i) => ({ name: PRESET_NAMES[i] || `준비 ${i + 1}`, slots: null, pet: null, auto: true })),
     skillSlots: ['slash', null, null, null],
-    job: null,          // 고른 계열 (화경부터)
-    jobSeen: [],        // 거쳐 본 계열 — 나중에 각인에 쓴다
-    jobTests: {},       // 붙은 전직 시험 { sword: true, ... }
+    job: null,          // 고른 캐릭터 (처음 시작할 때 고른다)
+    jobTier: 0,         // 전직 차수 0 기초 · 1 · 2 · 3
+    legacyJob: null,    // 없어진 계열을 하던 세이브 — 새로 고를 때 쌓은 것을 옮겨 준다
+    legacyPassives: null,
     noAds: false,       // 광고 제거 — 서버(entitlements)가 참말이고 여기는 사본이다
-    taste: null,        // 맛보기로 걸어 둔 계열 (화경 전까지)
     loop: null,         // 연속 도전 {kind, id}
     autoSkill: true,
     pets: {},
@@ -211,12 +211,37 @@ export function safeBig(v) {
   return big(v);
 }
 
+// 보너스(boon)를 걸 수 있는 자리. stats()가 매 프레임 도는 곳이라 미리 추려 둔다.
+const BOON_IDS = ['plum'];
+
 export function migrate(raw, now = Date.now()) {
   const base = newSave(now);
   if (!raw || typeof raw !== 'object') return base;
   const s = { ...base, ...raw };
   for (const key of ['upgrades', 'skills', 'stats', 'spAlloc', 'enhance', 'equipPierce', 'dungeons', 'pvp', 'regress', 'traitLv', 'earn']) {
     s[key] = { ...base[key], ...(raw[key] || {}) };
+  }
+  // ---- 무공이 여덟으로 줄었다 (2026-10-23) ----
+  // 없어진 무공(공용 여섯 + 계열 전용 스물넷)의 레벨·초월은 같은 자리 무공으로
+  // 옮긴다 — 둘 중 높은 쪽을 따른다. 비급을 부어 둔 게 사라지면 안 된다.
+  {
+    const MERGE = {
+      meteor: 'thunder', dash: 'blink', tornado: 'plum', gale: 'rage', heal: 'rage', midas: 'rage',
+      jsword: 'blink', jblade: 'blink', jfist: 'slash', jring: 'frost', jdrunk: 'plum', jfan: 'plum', jmonk: 'slash', jpoison: 'plum',
+      jsword2: 'pierce', jblade2: 'plum', jfist2: 'chain', jring2: 'frost', jdrunk2: 'thunder', jfan2: 'plum', jmonk2: 'pierce', jpoison2: 'thunder',
+      jsword3: 'frost', jblade3: 'thunder', jfist3: 'thunder', jring3: 'frost', jdrunk3: 'thunder', jfan3: 'thunder', jmonk3: 'thunder', jpoison3: 'plum',
+    };
+    const keep = new Set(SKILLS.map((x) => x.id));
+    const pierce = { ...(raw.skillPierce || {}) };
+    for (const [from, to] of Object.entries(MERGE)) {
+      const lv = Number(raw.skills?.[from]) || 0;
+      if (lv > (Number(s.skills[to]) || 0)) s.skills[to] = lv;
+      const pi = Number(pierce[from]) || 0;
+      if (pi > (Number(pierce[to]) || 0)) pierce[to] = pi;
+    }
+    for (const k of Object.keys(s.skills)) if (!keep.has(k)) delete s.skills[k];
+    for (const k of Object.keys(pierce)) if (!keep.has(k)) delete pierce[k];
+    raw = { ...raw, skillPierce: pierce };
   }
   // 옛 세이브에는 regress.paidTo가 없다. 이미 회귀해 본 사람이라면 지금
   // 기록까지는 받은 것으로 본다 — 0으로 두면 한 번 공짜 회귀가 생긴다.
@@ -299,8 +324,21 @@ export function migrate(raw, now = Date.now()) {
     s.accBag[a.id] = GRADES.map((_, i) => Math.max(0, (Array.isArray(bag) ? bag[i] : 0) | 0));
   }
   s.accPick = Math.max(0, raw.accPick | 0);
-  // 직업: 없는 계열 id가 들어오면 버린다
+  // 캐릭터: 넷 중 하나가 아니면 비워 둔다 — 다음 접속 때 고르는 창이 뜬다.
+  // 없어진 계열을 하던 사람은 그 계열에 쌓은 특성·패시브를 새 캐릭터로 옮겨 준다.
   s.job = JOBS.some((j) => j.id === raw.job) ? raw.job : null;
+  s.legacyJob = OLD_JOBS.includes(raw.job) ? raw.job : (OLD_JOBS.includes(raw.legacyJob) ? raw.legacyJob : null);
+  s.legacyPassives = raw.legacyPassives && typeof raw.legacyPassives === 'object' ? { ...raw.legacyPassives } : null;
+  if (OLD_JOBS.includes(raw.job)) {
+    s.legacyPassives = {};
+    for (const k of ['nei', 'wai', 'mu']) s.legacyPassives[k] = Math.floor(Number(raw.passives?.[`${raw.job}-${k}`]) || 0);
+  }
+  // 차수. 옛 판에서 이미 문파에 든 사람은 넘은 관문만큼 전직한 것으로 본다.
+  const best0 = Math.max(Number(raw.bestStage) || 1, Number(raw.maxStage) || 1);
+  s.jobTier = Number.isFinite(raw.jobTier)
+    ? Math.max(0, Math.min(TIER_MAX, raw.jobTier | 0))
+    : (s.job ? tiersByStage(best0) : 0);
+  delete s.jobSeen; delete s.jobTests; delete s.taste;
   // 전직 시험이 생기기 전 세이브는 시험을 본 적이 없다. 이미 들어간 문파를
   // 시험 때문에 잃으면 안 된다 — 거쳐 본 계열은 전부 붙은 것으로 본다.
   s.noAds = !!raw.noAds;
@@ -310,15 +348,6 @@ export function migrate(raw, now = Date.now()) {
     const v = Math.floor(raw.passives?.[passiveId(pv)] || 0);
     if (v > 0) s.passives[passiveId(pv)] = Math.min(PASSIVE_MAX, v);
   }
-  s.jobTests = {};
-  for (const j of JOBS) if (raw.jobTests?.[j.id]) s.jobTests[j.id] = true;
-  for (const id of [raw.job, ...(Array.isArray(raw.jobSeen) ? raw.jobSeen : [])]) {
-    if (JOBS.some((j) => j.id === id)) s.jobTests[id] = true;
-  }
-  s.jobSeen = Array.isArray(raw.jobSeen)
-    ? [...new Set(raw.jobSeen.filter((x) => JOBS.some((j) => j.id === x)))] : [];
-  if (s.job && !s.jobSeen.includes(s.job)) s.jobSeen.push(s.job);
-  s.taste = JOBS.some((j) => j.id === raw.taste) ? raw.taste : null;
   // 연속 도전. 모르는 종류가 들어오면 그냥 끈다.
   const LOOPS = ['dungeon', 'tower', 'rift', 'hunt', 'shadow', 'ego'];
   s.loop = raw.loop && LOOPS.includes(raw.loop.kind)
@@ -427,16 +456,16 @@ export function migrate(raw, now = Date.now()) {
   const openSlots = skillSlotCount(s.bestStage);
   if (!Array.isArray(raw.skillSlots)) {
     // v1 → v2: 해금된 무공을 순서대로 장착 (열린 칸만큼만)
-    s.skillSlots = SKILLS.filter((sk) => !sk.job && (raw.maxStage || 1) >= sk.unlock)
+    s.skillSlots = SKILLS.filter((sk) => (raw.maxStage || 1) >= sk.unlock)
       .slice(0, openSlots).map((sk) => sk.id);
   }
   while (s.skillSlots.length < SKILL_SLOTS) s.skillSlots.push(null);
   s.skillSlots.length = SKILL_SLOTS;
   for (let i = openSlots; i < SKILL_SLOTS; i++) s.skillSlots[i] = null;
-  // 계열 무공은 문파 칸에만 산다. 일반 칸에 섞여 있으면 빼낸다.
-  for (let i = 0; i < s.skillSlots.length; i++) {
-    if (JOB_SKILLS.some((sk) => sk.id === s.skillSlots[i])) s.skillSlots[i] = null;
-  }
+  // 없어진 무공이 칸·준비에 남아 있으면 빼낸다
+  const known = (id) => SKILLS.some((sk) => sk.id === id);
+  for (let i = 0; i < s.skillSlots.length; i++) if (!known(s.skillSlots[i])) s.skillSlots[i] = null;
+  for (const p2 of s.presets) if (p2.slots) p2.slots = p2.slots.map((id) => (known(id) ? id : null));
   s.pets = { ...(raw.pets || {}) };
   s.attend = { ...base.attend, ...(raw.attend || {}) };
   s.bond = { ...(raw.bond || {}) };
@@ -494,35 +523,24 @@ export class Game {
   // 지금 열려 있는 무공 칸 수
   skillSlotCount() { return skillSlotCount(this.s.bestStage); }
 
-  // ---------- 직업 ----------
-  // 화경에 닿으면 고를 수 있다. 언제든 바꿀 수 있고, 바꿔도 잃는 것은 없다.
-  jobOpen() { return this.s.rank >= JOB_RANK; }
+  // ---------- 캐릭터 / 전직 ----------
+  // 캐릭터는 처음 시작할 때 고른다. 1차·2차·3차 전직은 관문(TIER_AT)을 넘고
+  // 그 캐릭터의 시험에 붙으면 오른다. 오를 때마다 무공 여덟이 각성한다.
+  jobTier() { return this.s.job ? Math.max(0, Math.min(TIER_MAX, this.s.jobTier || 0)) : 0; }
+  tierName(t = this.jobTier()) { return tierName(this.s.job, t); }
+  needsClass() { return !this.s.job; }
+  // 다음 전직이 열리는 관문 (끝까지 했으면 null)
+  nextTierAt() { const t = this.jobTier(); return this.s.job && t < TIER_MAX ? TIER_AT[t + 1] : null; }
+  tierOpen() { const at = this.nextTierAt(); return at != null && this.s.bestStage >= at; }
+  canJobTest() { return this.tierOpen() && this.mode === 'stage'; }
 
-  // 계열의 문이 열렸는가 (첫 계열은 화경 즉시, 나머지는 관문으로).
-  // 문이 열린 것과 들어갈 수 있는 것은 다르다 — 사이에 시험이 있다.
-  jobStageOpen(id) {
-    const i = JOBS.findIndex((j) => j.id === id);
-    if (i < 0) return false;
-    return this.jobOpen() && this.s.bestStage >= (JOB_UNLOCK[i] || 0);
-  }
-
-  // 들어갈 수 있는가 — 문이 열렸고 시험에 붙었을 때
-  jobUnlocked(id) { return this.jobStageOpen(id) && this.jobTestPassed(id); }
-
-  // ---------- 전직 시험 ----------
-  jobTestPassed(id) { return !!this.s.jobTests?.[id]; }
-  jobTestsPassed() { return JOBS.filter((j) => this.jobTestPassed(j.id)).length; }
-  canJobTest(id) {
-    return this.jobStageOpen(id) && !this.jobTestPassed(id) && this.mode === 'stage';
-  }
-
-  startJobTest(id) {
-    if (!this.canJobTest(id)) return false;
-    const def = jobTestOf(id);
+  startJobTest() {
+    if (!this.canJobTest()) return false;
+    const def = jobTestOf(this.s.job);
     if (!def) return false;
     const eq = jobTestStage(this.s.bestStage);
     this.beginContest('jobtest', def.time, {
-      job: id, eq, goal: def.goal, need: def.need || 0,
+      job: this.s.job, tier: this.jobTier() + 1, eq, goal: def.goal, need: def.need || 0,
       // 판정에 쓰는 것들. 하나도 새 축이 아니다 — 전부 여기서만 센다.
       kills: 0, hit: 0, bigHit: 0, lowest: 1, casts: 0,
     });
@@ -592,50 +610,8 @@ export class Game {
     this.contest.hit++;
   }
 
-  jobUnlockedCount() { return JOBS.filter((j) => this.jobUnlocked(j.id)).length; }
-  jobStageOpenCount() { return JOBS.filter((j) => this.jobStageOpen(j.id)).length; }
-
-  // 맛보기 — 일류부터 화경 전까지. 여덟 계열 무공을 공짜로 바꿔 가며 써 본다.
-  // 회귀로 경지가 화경 아래로 내려가도 고른 문파는 그대로 둔다(잃는 게 없어야 한다).
-  // 그때 맛보기까지 같이 열리면 화면이 엉킨다 — 문파가 있으면 맛보기는 없다.
-  tasteOpen() { return !this.s.job && this.s.rank >= TASTE_RANK && !this.jobOpen(); }
-
-  setTaste(id) {
-    if (!this.tasteOpen()) return false;
-    if (id !== null && !JOBS.some((j) => j.id === id)) return false;
-    this.s.taste = id;
-    return true;
-  }
-
-  // 지금 문파 칸에 들어가는 무공. 문파를 골랐으면 그 계열, 아니면 맛보기.
-  // 문파 칸은 셋이다. 관문을 넘으면 2차·3차가 열린다.
-  jobSlotCount() { return jobSlotCount(this.s.bestStage); }
-  nextJobSkillAt() { return nextJobSkillAt(this.s.bestStage); }
-
-  // 지금 쓸 수 있는 계열 무공 전부 (열린 칸만큼)
-  jobSkills() {
-    const id = this.s.job || (this.tasteOpen() ? this.s.taste : null);
-    if (!id) return [];
-    // **맛보기는 1차만 준다.** 맛만 보는 자리에 셋을 다 주면 전직할 이유가 없다.
-    const n = this.s.job ? this.jobSlotCount() : 1;
-    return jobSkillsOf(id).slice(0, n);
-  }
-
-  jobSkill() { return this.jobSkills()[0] || null; }
-  jobSkillId() { return this.jobSkill()?.id || null; }
-  jobSkillIds() { return this.jobSkills().map((s) => s.id); }
-
-
-
-  // 다음 계열이 열리는 관문 (없으면 null)
-  nextJobAt() {
-    if (!this.jobOpen()) return null;
-    for (let i = 0; i < JOBS.length; i++) {
-      const need = JOB_UNLOCK[i] || 0;
-      if (this.s.bestStage < need) return need;
-    }
-    return null;
-  }
+  // 이 캐릭터·이 차수에서 무공이 실제로 어떻게 생겼나 (이름·판정·연출)
+  skillDef(id) { return skillFor(id, this.s.job, this.jobTier()); }
 
   // ---------- 공적 / 특성 ----------
   traitLvOf(job = this.s.job) { return this.s.traitLv?.[job] || 0; }
@@ -652,7 +628,8 @@ export class Game {
 
   // 지금 문파의 특성. 레벨만큼 세진 값으로 돌려준다.
   jobTrait() {
-    if (!this.s.job) return null;
+    // 특성은 1차 전직부터 실린다
+    if (!this.s.job || this.jobTier() < 1) return null;
     const base = jobTraitOf(this.s.job);
     if (!base) return null;
     const k = traitScale(this.traitLvOf(this.s.job));
@@ -667,31 +644,37 @@ export class Game {
     return out;
   }
 
-  // ---------- 문파 교체 ----------
-  // 처음 드는 건 공짜다. 바꿀 때마다 값이 오르고, 거쳐 본 곳은 절반이다.
-  jobSwitchCost(id) {
-    if (!this.s.job) return 0;
-    if (this.s.job === id) return 0;
-    return jobSwitchCost(this.s.jobSwitches || 0, this.s.jobSeen.includes(id));
-  }
-
-  canSetJob(id) {
-    if (!id || !this.jobUnlocked(id)) return false;
-    return this.s.merit.gte(this.jobSwitchCost(id));
-  }
+  // ---------- 캐릭터 고르기 / 바꾸기 ----------
+  // 처음 고르는 건 공짜다. 바꿀 때는 원보가 들고, 차수·무공 레벨은 그대로 간다.
+  classChangeCost() { return this.s.job ? CLASS_CHANGE_GEMS : 0; }
 
   setJob(id) {
-    if (id === null) { this.s.job = null; return true; }
-    if (!this.jobUnlocked(id)) return false;
-    const cost = this.jobSwitchCost(id);
-    if (cost > 0) {
-      if (!this.s.merit.gte(cost)) return false;
-      this.s.merit = this.s.merit.sub(cost);
-      this.s.jobSwitches = (this.s.jobSwitches || 0) + 1;
+    if (!JOBS.some((j) => j.id === id) || this.s.job === id) return false;
+    const first = !this.s.job;
+    if (!first) {
+      if (this.s.gems < CLASS_CHANGE_GEMS) return false;
+      this.s.gems -= CLASS_CHANGE_GEMS;
+    } else {
+      // 옛 판에서 이미 관문을 올라 온 사람은 그만큼 전직한 것으로 친다 —
+      // 새로 고른다고 시험을 세 번 다시 보게 하면 벌이다.
+      this.s.jobTier = Math.max(this.s.jobTier || 0, tiersByStage(this.s.bestStage));
+      // 없어진 계열에 쌓아 둔 것을 옮긴다 (특성 단계 · 내공·외공·무공 패시브)
+      const old = this.s.legacyJob;
+      if (old) {
+        this.s.traitLv[id] = Math.max(this.s.traitLv[id] || 0, this.s.traitLv[old] || 0);
+        for (const [k, lv] of Object.entries(this.s.legacyPassives || {})) {
+          const pid = `${id}-${k}`;
+          if (lv > 0 && PASSIVES.some((pv) => passiveId(pv) === pid)) {
+            this.s.passives[pid] = Math.min(PASSIVE_MAX, Math.max(this.s.passives[pid] || 0, lv | 0));
+          }
+        }
+        this.s.legacyJob = null;
+        this.s.legacyPassives = null;
+      }
+      // 없어진 무공이 빠지며 빈 칸이 생겼을 수 있다 — 열린 무공으로 채운다
+      this.autoSlotSkills();
     }
     this.s.job = id;
-    this.s.taste = null;   // 고른 뒤에는 맛보기가 없다
-    if (!this.s.jobSeen.includes(id)) this.s.jobSeen.push(id);
     this.heroHp = this.heroHp.min(this.stats().hp);
     return true;
   }
@@ -782,8 +765,8 @@ export class Game {
         return { tab: 'equip', sub: null, text: `${e.name}에 남는 장신구를 바칠 수 있어요` };
       }
     }
-    if (this.jobOpen() && !this.s.job) {
-      return { tab: 'growth', sub: 'job', text: '문파를 고를 수 있어요 — 언제든 바꿀 수 있어요' };
+    if (this.tierOpen()) {
+      return { tab: 'growth', sub: 'job', text: `${this.jobTier() + 1}차 전직 시험을 볼 수 있어요 — 붙으면 무공 여덟이 각성해요` };
     }
     if (this.canTrial()) return { tab: 'growth', sub: 'rank', text: '경지 돌파에 도전할 수 있어요' };
     // 막혀 있는데 회귀로 받을 게 많으면 그게 답이다.
@@ -1636,7 +1619,8 @@ export class Game {
     const j = jobOf(this.s.job);
     const out = { atk: 1, hp: 1, speed: 1, gold: 1, boss: 1, offline: 1, bleed: 1, ccDur: 1, critDmg: 1, exp: 1 };
     const add = { crit: 0, critDmg: 0 };
-    if (!j) return { ...out, add };
+    // 계열 배수는 1차 전직부터 붙는다 (처음부터 붙이면 앞쪽 균형이 통째로 바뀐다)
+    if (!j || this.jobTier() < 1) return { ...out, add };
     for (const [k, v] of Object.entries(j.mult || {})) if (k in out) out[k] = v;
     for (const [k, v] of Object.entries(j.add || {})) if (k in add) add[k] = v;
     return { ...out, add };
@@ -1647,14 +1631,22 @@ export class Game {
     const m = this.mods();
     const jb = this.jobMult();
     const b = buffs ? this.buffs : {};
-    const rage = b.rage > 0 ? SKILLS[1].mult(this.s.skills.rage) : 1;
-    const gale = b.gale > 0 ? SKILLS[4].mult(this.s.skills.gale) : 1;
-    const midas = b.midas > 0 ? SKILLS[5].mult(this.s.skills.midas) : 1;
-    // 계열 무공이 거는 보너스 (취마의 은자, 독마의 경험치)
+    // 강화 무공 하나가 캐릭터마다 다른 걸 올린다 — 대개 공격력, 권마는 공격 속도.
+    // (옛 혈마해방·질풍보가 한 자리로 합쳐졌다. 천금수는 패시브 '심법'으로 갔다)
+    let rage = 1, gale = 1;
+    const midas = 1;
+    if (b.rage > 0) {
+      const rd = this.skillDef('rage');
+      const v = rd.mult(this.s.skills.rage || 1);
+      if (rd.buff === 'speed') gale = v; else rage = v;
+    }
+    // 무공이 거는 보너스 (독마 장판의 경험치)
     let boonGold = 1, boonExp = 1;
-    for (const sk of BOON_SKILLS) {
-      if (!((b[sk.id] || 0) > 0)) continue;
-      const v = sk.boon.mult(this.s.skills[sk.id] || 1);
+    for (const id of BOON_IDS) {
+      if (!((b[id] || 0) > 0)) continue;
+      const sk = this.skillDef(id);
+      if (!sk.boon) continue;
+      const v = sk.boon.mult(this.s.skills[id] || 1);
       if (sk.boon.stat === 'gold') boonGold *= v; else if (sk.boon.stat === 'exp') boonExp *= v;
     }
     const guild = 1 + guildAtkBonus(this.guildExp);
@@ -1728,7 +1720,7 @@ export class Game {
     let d = Big.of(0);
     for (const id of this.activeSlots()) {
       if (!id) continue;
-      const sk = SKILLS.find((x) => x.id === id);
+      const sk = this.skillDef(id);
       if (!sk || sk.kind !== 'dmg') continue;
       d = d.add(st.atk.mul(st.skillDmgMult).mul(this.skillMult(sk) / Math.max(0.5, this.skillCdOf(sk))));
     }
@@ -2773,8 +2765,9 @@ export class Game {
       // 부동은 시간이 다 되면 붙는다 — 버티는 게 시험이라 이길 일이 없다.
       out.win = c.goal === 'endure' ? result === 'timeout' : result === 'clear';
       out.job = c.job;
+      out.tier = c.tier;
       out.miss = out.win ? null : this.jobTestMiss(c);
-      if (out.win) this.s.jobTests[c.job] = true;
+      if (out.win && c.job === this.s.job) this.s.jobTier = Math.max(this.jobTier(), c.tier || 1);
     } else if (c.mode === 'trial') {
       out.win = result === 'clear';
       if (out.win) {
@@ -2905,16 +2898,11 @@ export class Game {
   }
 
   // ---------- 스킬 ----------
-  // 계열 무공은 관문이 아니라 **문파(또는 맛보기)**가 연다
-  skillUnlocked(sk) {
-    if (sk.job) return this.jobSkillIds().includes(sk.id);
-    return this.s.bestStage >= sk.unlock;
-  }
+  skillUnlocked(sk) { return this.s.bestStage >= sk.unlock; }
 
   autoSlotSkills() {
     const open = this.skillSlotCount();
     for (const sk of SKILLS) {
-      if (sk.job) continue;   // 계열 무공은 문파 칸 전용
       if (!this.skillUnlocked(sk) || this.s.skillSlots.includes(sk.id)) continue;
       // 빈 칸을 찾되 **열린 칸 안에서만** 찾는다
       let free = -1;
@@ -2925,17 +2913,11 @@ export class Game {
   }
 
   // 지금 실제로 쓰는 무공 (열린 칸 안의 것만)
-  // 일반 칸 + 문파 칸. 문파 칸은 일반 칸을 먹지 않고 하나 더 붙는다.
-  activeSlots() {
-    const out = this.s.skillSlots.slice(0, this.skillSlotCount());
-    for (const id of this.jobSkillIds()) out.push(id);
-    return out;
-  }
+  activeSlots() { return this.s.skillSlots.slice(0, this.skillSlotCount()); }
 
   setSkillSlot(slot, id) {
     if (slot < 0 || slot >= this.skillSlotCount()) return false;
     const sk = SKILLS.find((x) => x.id === id);
-    if (sk?.job) return false;   // 계열 무공은 일반 칸에 못 넣는다
     if (id && (!sk || !this.skillUnlocked(sk))) return false;
     const cur = this.s.skillSlots.indexOf(id);
     if (id && cur >= 0) this.s.skillSlots[cur] = this.s.skillSlots[slot];
@@ -2944,7 +2926,8 @@ export class Game {
   }
 
   useSkill(id) {
-    const sk = SKILLS.find((x) => x.id === id);
+    // 이 캐릭터·이 차수의 모습으로 나간다 (각성하면 판정까지 바뀌는 무공이 있다)
+    const sk = this.skillDef(id);
     if (!sk || !this.skillUnlocked(sk) || this.cd[id] > 0 || !this.mon?.alive || this.mode === 'pvp') return false;
     // 육합(권마 시험)은 맨몸이 시험이다. 자동 무공이 켜진 채로 들어와서
     // 모르는 사이에 떨어지는 일이 없도록 **막는다** — 세고 나서 떨구지 않는다.
@@ -2960,9 +2943,10 @@ export class Game {
       // 문파 특성. 전직하면 **쓰는 모든 무공에** 그 문파의 기운이 실린다.
       // 들판에 보이는 빛깔까지 바뀌므로 사건에 같이 실어 보낸다.
       const tr = this.jobTrait();
-      this.emit('skillArea', { id, radius: sk.radius || 0, target: sk.target || 'single', job: this.s.job || null });
+      this.emit('skillArea', { id, radius: sk.radius || 0, target: sk.target || 'single', job: this.jobTier() >= 1 ? this.s.job : null });
       if (sk.stun) this.mon.stun = sk.stun;
-      this.emit('skill', { id, target: sk.target || 'single', job: this.s.job || null });
+      this.emit('skill', { id, target: sk.target || 'single', job: this.jobTier() >= 1 ? this.s.job : null,
+        name: sk.name, fx: sk.fx || null, look: sk.look || id, cls: this.s.job || null });
       // ---- 연계 ----
       // 앞선 무공이 남긴 기운을 이 무공이 먹으면 터진다.
       const qi = qiOf(id);
@@ -3033,7 +3017,7 @@ export class Game {
       if (sk.boon) this.buffs[id] = sk.boon.dur;
     } else if (sk.kind === 'buff') {
       this.buffs[id] = sk.dur * (1 + SKILL_PIERCE_MULT * this.skillPierceOf(id) * 0.5);
-      this.emit('skill', { id });
+      this.emit('skill', { id, name: sk.name, look: sk.look || id, cls: this.s.job || null });
     } else if (sk.kind === 'heal') {
       this.heroHp = this.heroHp.add(st.hp.mul(Math.min(1, this.skillMult(sk)))).min(st.hp);
       this.emit('skill', { id });

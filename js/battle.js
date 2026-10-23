@@ -1,5 +1,5 @@
 // 전투 화면 캔버스 렌더러 (수묵화 무협풍). 게임 이벤트를 받아 연출만 담당한다.
-import { zoneOf, RANKS, GRADES, PETS, SKILLS, FIELD_SQUASH, JOB_TRAITS, QI } from './data.js';
+import { zoneOf, RANKS, GRADES, PETS, FIELD_SQUASH, JOB_TRAITS, QI, jobOf } from './data.js';
 import { artReady, putArt, loadArt, FIT, ART_SHOULDER, ART_BAND, headKey, bodyKey, weaponKey } from './art.js';
 import { OUTFITS } from './data.js';
 
@@ -376,9 +376,10 @@ export class BattleView {
         break;
       case 'skill':
         // 연출표가 있는 무공은 결과를 모았다가 draw에서 감독에게 넘긴다
-        if (CHOREO[ev.id] && !ev._released) {
-          this.pending = { id: ev.id, job: ev.job, hits: [], kills: [], path: null };
-        } else this.skillEffect(ev.id, ev.job);
+        // 각성한 무공은 ev.fx(예: 'sword:blink')로 연출표를 고른다
+        if (ev.fx && CHOREO[ev.fx] && !ev._released) {
+          this.pending = { id: ev.id, fx: ev.fx, name: ev.name, job: ev.job || ev.cls, hits: [], kills: [], path: null };
+        } else this.skillEffect(ev.look || ev.id, ev.job, ev.name);
         break;
       case 'combo': {
         // 연계가 터졌다. 먹은 기운의 빛깔로 글자를 띄운다 —
@@ -434,7 +435,7 @@ export class BattleView {
     if (this.director) this.director.flush();
     const d = new Director(this, p, game);
     this.director = d;
-    CHOREO[p.id](d);
+    CHOREO[p.fx](d);
   }
 
   // 무인 하나를 아무 자리에나 그린다 (잔상). tint가 있으면 그 빛깔로 물들인다.
@@ -464,7 +465,8 @@ export class BattleView {
     const look = { ...RANKS[game.s.rank].look, ...outfitLook(game.s.outfit) };
     const wg = game.bestGrade('weapon');
     const opts = {
-      t: this.t, lunge: this.heroLunge, flash: this.heroFlash, run: moving, weapon: 'sword',
+      // 무기는 캐릭터를 따른다 (검사 검 · 권마 권갑 · 환마 부채 · 독마 비수)
+      t: this.t, lunge: this.heroLunge, flash: this.heroFlash, run: moving, weapon: jobOf(game.s.job)?.look || 'sword',
       blade: wg >= 0 ? GRADES[wg].color : '#e5e7eb', glow: wg >= 3, rage: game.buffs.rage > 0,
       // 왼쪽으로 갈 때는 몸을 돌린다
       flip: this.fieldMode && (this.faceOverride || game.heroFacing) < 0,
@@ -572,8 +574,8 @@ export class BattleView {
     ctx.restore();
   }
 
-  skillEffect(id, job = null) {
-    const sk = SKILLS.find((x) => x.id === id);
+  // id는 그림 열쇠(옛 무공 id — 각성한 무공은 옛 전용 무공의 그림을 그대로 쓴다)
+  skillEffect(id, job = null, name = null) {
     const add = (kind, life, extra = {}) => this.effects.push({ kind, life, max: life, ...extra });
     // ---- 문파 기운 ----
     // 전직을 하면 **쓰는 모든 무공**에 그 문파 빛깔의 기운이 한 겹 더 실린다.
@@ -582,11 +584,11 @@ export class BattleView {
     if (tr) {
       add(tr.fx === 'slash' ? 'burst' : tr.fx === 'pierce' ? 'beam' : tr.fx === 'field' ? 'area'
         : tr.fx === 'swirl' ? 'swirl' : tr.fx === 'aura' ? 'aura' : 'burst',
-        0.5, { col: tr.col, job, r: sk?.radius || 180, a: 0, big: true });
+        0.5, { col: tr.col, job, r: 180, a: 0, big: true });
       this.ink(this.heroX, this.groundY - 60, 6, `rgb(${tr.col})`, 150);
     }
     // sk.hz는 한자를 뺄 때 사라진 필드다. 무공 이름을 쓴다.
-    if (sk) this.hanja = { text: sk.name, life: 1, max: 1, color: tr ? `rgb(${tr.col})` : id === 'rage' ? '#fca5a5' : id === 'frost' ? '#bae6fd' : '#fef3c7' };
+    if (name) this.hanja = { text: name, life: 1, max: 1, color: tr ? `rgb(${tr.col})` : id === 'rage' ? '#fca5a5' : id === 'frost' ? '#bae6fd' : '#fef3c7' };
     if (id === 'slash') for (let i = 0; i < 3; i++) this.projectiles.push({ kind: 'wave', x: this.heroX + 20, y: this.groundY - 50 - i * 18, life: 0.35 + i * 0.07, max: 0.35 + i * 0.07 });
     if (id === 'slash') this.shake = 0.18;
     if (id === 'thunder') { add('thunder', 0.45); this.shake = 0.4; this.flash = 0.5; }

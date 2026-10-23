@@ -9,7 +9,7 @@ import { Big, big } from './big.js';
 // NaN이 된다 — 재 보니 적 체력이 관문 8467에서 그 선을 넘었다.
 // 반대로 상한이 있는 값(경지 배수·초월 단계처럼)은 보통 숫자 그대로 둔다.
 
-export const BUILD = 'ifu-v86';
+export const BUILD = 'ifu-v87';
 
 export const SAVE_VERSION = 4;
 export const OFFLINE_CAP_SEC = 12 * 3600;
@@ -680,72 +680,56 @@ export const stageStep = (points) =>
 // 막혀 있다고 보는 시간 (초). 이만큼 최고 관문이 안 올라가면 회귀가 답이다.
 export const REGRESS_STUCK_SEC = 90;
 
-// ---------- 직업 (8계열) ----------
-// 근거: 없다. Blade Idle APK에는 직업 테이블이 하나도 없다 — 이건 우리 설계다.
-// (docs/직업_설계초안.md)
+// ---------- 캐릭터 (4계열) ----------
+// 처음 시작할 때 하나를 고른다. 전에는 여덟 계열이 화경(경지 6단계)에서야
+// 열렸고, 그 전까지는 모두가 똑같은 무인이었다 — 고른 뒤에도 바뀌는 건
+// 전용 무공 셋뿐이라 "내가 바뀌었다"는 느낌이 약했다. 여덟은 서로 겹치기도 했다.
 //
-// 기존 경지 10단계에 얹는다. 구상의 다섯 단계가 거의 그대로 맞고,
-// 최종 경지 이름이 이미 '천인합일'이다.
-//   삼류·이류        무사 수련 (공용)
-//   일류·절정·초절정  성향 탐색
-//   화경             >>> 문파 선택 <<<
-//   현경·생사경·자연경 한길 파기
-//   천인합일          합일 (각인)
-export const JOB_RANK = 5;          // 화경부터 고를 수 있다
-// 첫 계열은 화경에 닿으면 바로, 나머지는 관문으로 하나씩 열린다.
-export const JOB_UNLOCK = [0, 240, 280, 320, 360, 400, 440, 480];
+// 이제 넷이고, 처음부터 그 캐릭터의 기초 무공 여덟을 쓴다.
+// 관문을 넘고 전직 시험에 붙을 때마다(1차·2차·3차) 여덟이 한꺼번에 각성한다 —
+// 이름·연출이 바뀌고, 차수마다 대표 초식 하나가 완전히 다른 무공이 된다.
 //
-// 보너스는 **따로 곱한다.** 지금 m.atk가 27쯤이라 거기에 +0.3을 더하면 1%밖에
-// 안 된다 — 장신구 특기에서 그 실수를 한 번 했다(0.04로 잡아 체감이 x1.04였다).
-// 곱으로 두면 적힌 숫자가 곧 체감이다.
+// mult(능력치 배수)와 특성은 **1차 전직부터** 붙는다. 처음부터 붙이면
+// 첫 관문부터 x1.3~x1.8이 얹혀 앞쪽 균형이 통째로 바뀐다.
 //
-// 여덟이 **서로 다른 축**을 민다. 같은 축이면 답이 하나로 정해져서
-// 고르는 의미가 사라진다.
-//
-// 출혈도 '주'축으로는 못 쓴다. 이 게임은 적이 즉사해서 출혈이 돌 시간이 없다 —
-// 재 보니 출혈 1초 피해가 6.9e+10인데 졸개 체력이 9.9e+27이었다(관문 393).
-// 독마는 출혈을 색으로 남기되, 실제로 미는 축은 '경험치'다.
-// 경지가 DPS의 94%를 차지하고 경지 돌파에는 레벨이 필요하니, 경험치는
-// 아무도 안 쓰던 축인데 실은 가장 깊게 작동한다.
-//
-// 치명 '확률'은 쓰지 않는다. 상한(CRIT_CAP)에 쉽게 닿아서 보너스가 죽는다 —
-// 오늘 치명을 주는 아홉 시스템이 통째로 죽어 있던 걸 고쳤는데, 여기서
-// 같은 실수를 반복할 이유가 없다. 치명은 '피해' 쪽만 쓴다.
+// 치명 '확률'은 쓰지 않는다. 상한(CRIT_CAP)에 쉽게 닿아서 보너스가 죽는다.
 export const JOBS = [
-  { id: 'sword', name: '일화검존', weapon: '검', color: '#e5e7eb',
+  { id: 'sword', name: '검사', weapon: '검', look: 'sword', color: '#e5e7eb',
     tag: '한 점을 꿰뚫는다',
     desc: '관문지기에게 강하다. 벽이 진행의 병목이라 가장 무난하다.',
+    tiers: ['검사', '검객', '검호', '일화검존'],
     mult: { boss: 1.7, atk: 1.3 } },
-  { id: 'blade', name: '혈천도마', weapon: '도', color: '#ef4444',
-    tag: '베어 넘긴다',
-    desc: '순수한 힘. 들판을 빨리 치운다.',
-    mult: { atk: 1.5 } },
-  { id: 'fist', name: '권마', weapon: '권갑', color: '#f59e0b',
+  { id: 'fist', name: '권마', weapon: '권갑', look: 'fist', color: '#f59e0b',
     tag: '맞붙는다',
     desc: '때리는 속도가 빠르다. 평타와 무공이 같이 빨라진다.',
+    tiers: ['권사', '철권', '패권', '권마'],
     mult: { speed: 1.45, atk: 1.3 } },
-  { id: 'ring', name: '극악소마', weapon: '지환', color: '#a855f7',
-    tag: '한 번에 끝낸다',
-    desc: '치명 피해가 크다. 터질 때 크게 터진다.',
-    mult: { critDmg: 1.8 } },
-  { id: 'drunk', name: '취마', weapon: '호로', color: '#84cc16',
-    tag: '비틀거리며 산다',
-    desc: '은자를 많이 번다. 수련에 다시 꽂아 돌아온다.',
-    mult: { gold: 2.2, hp: 1.5 } },
-  { id: 'fan', name: '환마', weapon: '부채', color: '#38bdf8',
+  { id: 'fan', name: '환마', weapon: '부채', look: 'fan', color: '#38bdf8',
     tag: '홀린다',
     desc: '상태이상이 오래간다. 둔화·파쇄가 길게 걸린다.',
+    tiers: ['환술사', '환객', '환영', '환마'],
     mult: { ccDur: 1.8, critDmg: 1.45 } },
-  { id: 'monk', name: '마불', weapon: '염주', color: '#fbbf24',
-    tag: '버틴다',
-    desc: '체력이 두텁고 방치 보상이 크다. 오래 비워 두는 사람에게.',
-    mult: { hp: 2.5, offline: 1.5 } },
-  { id: 'poison', name: '독마', weapon: '독낭', color: '#22c55e',
+  { id: 'poison', name: '독마', weapon: '독낭', look: 'dagger', color: '#22c55e',
     tag: '서서히 죽인다',
     desc: '깨달음이 빠르다. 경지에 먼저 닿는다.',
+    tiers: ['독술사', '독객', '독군', '독마'],
     mult: { bleed: 2.0, ccDur: 1.4, exp: 1.8 } },
 ];
 export const jobOf = (id) => JOBS.find((j) => j.id === id) || null;
+// 없어진 계열(혈천도마·극악소마·취마·마불). 옛 세이브에 남아 있으면 다시 고르게 한다.
+export const OLD_JOBS = ['blade', 'ring', 'drunk', 'monk'];
+
+// ---------- 전직 (1차·2차·3차) ----------
+// 관문을 넘으면 시험이 열리고, 붙으면 한 차수 오른다. 차수가 오르면
+// 무공 여덟이 전부 각성하고 무공 피해가 TIER_SKILL_MULT만큼 커진다.
+export const TIER_AT = [0, 150, 280, 420];
+export const TIER_MAX = TIER_AT.length - 1;
+export const TIER_SKILL_MULT = [1, 1.4, 2, 2.8];
+export const tierName = (jobId, tier) => jobOf(jobId)?.tiers?.[tier] || '';
+// 관문만 보고 닿을 수 있는 차수 (옛 세이브가 처음 고를 때 이만큼 주고 시작한다)
+export const tiersByStage = (best) => TIER_AT.filter((v, i) => i > 0 && (best || 0) >= v).length;
+// 캐릭터를 바꾸는 값. 차수·무공 레벨은 그대로 들고 간다.
+export const CLASS_CHANGE_GEMS = 3000;
 
 // ---------- 계열 패시브 ----------
 //
@@ -765,44 +749,45 @@ export const PASSIVE_KINDS = [
   { id: 'nei', name: '내공', desc: '버틴다' },
   { id: 'wai', name: '외공', desc: '때린다' },
   { id: 'mu', name: '무공', desc: '무공을 키운다' },
+  { id: 'qing', name: '경공', desc: '빨라진다' },
+  { id: 'yan', name: '안력', desc: '급소를 본다' },
+  { id: 'xin', name: '심법', desc: '번다' },
 ];
 // 비급으로 올린다. 무공과 같은 자원이라 '무공에 쓸까 패시브에 쓸까'가 생긴다.
 export const PASSIVE_MAX = 50;
 export const passiveCost = (lv) => Big.pow(1.11, lv).mul(80);
 // per는 1레벨당 붙는 값. 50레벨이면 per x 50이다.
+// 경공·안력·심법은 2026-10-23에 더했다 — 무공이 여덟으로 줄면서 운기조식(회복)·
+// 천금수(은자)가 빠졌고, 그 자리를 패시브가 받는다.
 export const PASSIVES = [
-  // 일화검존 — 한 점을 꿰뚫는다
+  // 검사 — 한 점을 꿰뚫는다
   { job: 'sword', kind: 'nei', name: '단전', stat: 'hp', per: 0.02 },
   { job: 'sword', kind: 'wai', name: '검심', stat: 'boss', per: 0.03 },
   { job: 'sword', kind: 'mu', name: '일점귀일', stat: 'skillDmg', per: 0.025 },
-  // 혈천도마 — 베어 넘긴다
-  { job: 'blade', kind: 'nei', name: '혈기', stat: 'hp', per: 0.022 },
-  { job: 'blade', kind: 'wai', name: '쾌도', stat: 'atk', per: 0.03 },
-  { job: 'blade', kind: 'mu', name: '연격', stat: 'skillCd', per: 0.004 },
+  { job: 'sword', kind: 'qing', name: '유운보', stat: 'speed', per: 0.012 },
+  { job: 'sword', kind: 'yan', name: '혜안', stat: 'critDmgAdd', per: 0.04 },
+  { job: 'sword', kind: 'xin', name: '청심', stat: 'gold', per: 0.03 },
   // 권마 — 맞붙는다
   { job: 'fist', kind: 'nei', name: '철피', stat: 'guard', per: 0.004 },
   { job: 'fist', kind: 'wai', name: '연환권', stat: 'speed', per: 0.02 },
   { job: 'fist', kind: 'mu', name: '육합', stat: 'skillDmg', per: 0.02 },
-  // 극악소마 — 한 번에 끝낸다
-  { job: 'ring', kind: 'nei', name: '혈맥', stat: 'hp', per: 0.015 },
-  { job: 'ring', kind: 'wai', name: '지환', stat: 'critDmgAdd', per: 0.06 },
-  { job: 'ring', kind: 'mu', name: '일격필살', stat: 'skillDmg', per: 0.03 },
-  // 취마 — 비틀거리며 산다
-  { job: 'drunk', kind: 'nei', name: '취권', stat: 'guard', per: 0.005 },
-  { job: 'drunk', kind: 'wai', name: '주정', stat: 'gold', per: 0.05 },
-  { job: 'drunk', kind: 'mu', name: '취보', stat: 'skillCd', per: 0.003 },
+  { job: 'fist', kind: 'qing', name: '섬전보', stat: 'skillCd', per: 0.003 },
+  { job: 'fist', kind: 'yan', name: '견식', stat: 'boss', per: 0.02 },
+  { job: 'fist', kind: 'xin', name: '호흡', stat: 'hp', per: 0.02 },
   // 환마 — 홀린다
   { job: 'fan', kind: 'nei', name: '허보', stat: 'guard', per: 0.0045 },
   { job: 'fan', kind: 'wai', name: '환영보', stat: 'critDmgAdd', per: 0.05 },
   { job: 'fan', kind: 'mu', name: '미혹', stat: 'ccDur', per: 0.02 },
-  // 마불 — 버틴다
-  { job: 'monk', kind: 'nei', name: '금강', stat: 'hp', per: 0.05 },
-  { job: 'monk', kind: 'wai', name: '항마', stat: 'atk', per: 0.015 },
-  { job: 'monk', kind: 'mu', name: '부동명왕', stat: 'skillDmg', per: 0.02 },
+  { job: 'fan', kind: 'qing', name: '능공허도', stat: 'speed', per: 0.012 },
+  { job: 'fan', kind: 'yan', name: '간파', stat: 'boss', per: 0.025 },
+  { job: 'fan', kind: 'xin', name: '현묘', stat: 'gold', per: 0.04 },
   // 독마 — 서서히 죽인다
   { job: 'poison', kind: 'nei', name: '만독불침', stat: 'guard', per: 0.0045 },
   { job: 'poison', kind: 'wai', name: '산공', stat: 'bleed', per: 0.04 },
   { job: 'poison', kind: 'mu', name: '적공', stat: 'exp', per: 0.04 },
+  { job: 'poison', kind: 'qing', name: '사행보', stat: 'skillCd', per: 0.003 },
+  { job: 'poison', kind: 'yan', name: '독안', stat: 'critDmgAdd', per: 0.04 },
+  { job: 'poison', kind: 'xin', name: '독경', stat: 'gold', per: 0.03 },
 ];
 export const passivesOf = (job) => PASSIVES.filter((p) => p.job === job);
 export const passiveId = (p) => `${p.job}-${p.kind}`;
@@ -829,18 +814,10 @@ export const JOB_TESTS = [
     goal: 'quick', time: 20, hpSec: 48,
     ask: '관문지기를 20초 안에 벤다',
     why: '한 점을 꿰뚫는 자리다. 오래 걸리면 그 자리가 아니다.' },
-  { job: 'blade', name: '혈로', hanja: '血路', boss: '떼로 덤비는 자들',
-    goal: 'kills', time: 35, need: 40, hpSec: 42,
-    ask: '35초 안에 졸개 40을 벤다',
-    why: '베어 넘기는 자리다. 하나씩 세고 있을 틈이 없다.' },
   { job: 'fist', name: '육합', hanja: '六合', boss: '맨손으로 맞는 자',
     goal: 'noskill', time: 30, hpSec: 16,
     ask: '무공 없이 평타만으로 벤다',
     why: '맞붙는 자리다. 무공은 이 시험 동안 나가지 않는다.' },
-  { job: 'ring', name: '일격', hanja: '一擊', boss: '단단한 바위',
-    goal: 'burst', time: 30, need: 0.25, hpSec: 78,
-    ask: '한 번의 타격으로 적 체력의 25%를 깎는다',
-    why: '한 번에 끝내는 자리다. 벨 필요도 없다 — 한 방이면 된다.' },
   // hpSec = **지금 이 사람의 초당 피해 x 이 초**가 적 체력이다.
   // 절대 체력(monsterHp x 배수)으로 두면 사람이 세질수록 시험이 쉬워진다 —
   // 재 보니 여덟이 전부 0.4초에 끝나서, 적이 때려 보지도 못하고 죽는 바람에
@@ -849,24 +826,10 @@ export const JOB_TESTS = [
   // 아래 셋은 적의 공격을 **내 최대 체력의 몇 %**로 못박는다.
   // monsterAtk로 두면 세기가 사람마다 제멋대로다 — 재 보니 관문 200에서는
   // 한 대에 죽고 관문 390에서는 한 대도 안 아팠다. 같은 시험이 아니게 된다.
-  { job: 'drunk', name: '취생', hanja: '醉生', boss: '술을 뺏는 자',
-    // 적이 **먼저** 때려야 한다. 재 보니 세 세이브 모두 첫 공격(1.2초) 전에
-    // 베어 버려서 체력이 안 깎였고, 그래서 아무도 못 붙었다.
-    // 한 대를 **크게** 맞게 한다. 여러 대로 깎게 두면 싸움이 그만큼 길어야 하는데
-    // 지금은 큰 무공 한 방에 끝나서 두 번째 대가 안 들어온다. 재 보니 세 번
-    // 고쳐도 계속 떨어졌다 — 한 대에 62%를 맞으면 그 한 대로 38%가 된다.
-    goal: 'lowhp', time: 40, need: 0.4, hpSec: 60, atkHpFrac: 0.62, atkFirst: 0.4,
-    ask: '체력이 40% 아래로 떨어진 뒤에 벤다',
-    why: '비틀거리며 사는 자리다. 멀쩡히 이기면 취한 게 아니다 — 맞아 가며 이겨라.' },
   { job: 'fan', name: '환영', hanja: '幻影', boss: '헛손질하는 자',
     goal: 'keephp', time: 30, need: 0.8, hpSec: 49, atkHpFrac: 0.07,
     ask: '체력 80% 위를 지킨 채로 벤다',
     why: '홀리는 자리다. 오래 끌면 손이 닿는다 — 닿기 전에 끝내라.' },
-  { job: 'monk', name: '부동', hanja: '不動', boss: '무너뜨리려는 자',
-    // 37대를 맞는다. 0.022면 81%라 그냥 통과라 긴장이 없었다.
-    goal: 'endure', time: 45, immortal: true, atkHpFrac: 0.025,
-    ask: '45초를 버틴다 (벨 수 없다)',
-    why: '버티는 자리다. 이길 필요가 없다 — 서 있기만 하면 된다.' },
   { job: 'poison', name: '적공', hanja: '積功', boss: '쉬이 죽지 않는 것',
     goal: 'grind', time: 90, hpSec: 1050,
     ask: '90초 안에 아주 단단한 것을 눕힌다',
@@ -878,7 +841,6 @@ export const JOB_TEST_BACK = 20;
 export const jobTestStage = (best) => Math.max(1, (best || 1) - JOB_TEST_BACK);
 export const jobTestOf = (id) => JOB_TESTS.find((t) => t.job === id) || null;
 
-export const jobUnlockStage = (i) => JOB_UNLOCK[i] ?? 0;
 
 // ---------- 병기 ----------
 export const GRADES = [
@@ -1390,177 +1352,170 @@ export const CC_WEAK_MULT = 1.35;     // 파쇄 중에는 받는 피해가 이�
 //   tornado 장판이 스스로 굴러다닌다      ← Tornado
 //   pierce  직선상의 적 전부             ← SwordProjectile
 export const SKILLS = [
-  { id: 'slash', name: '선풍검', icon: '선풍', unlock: 1, cd: 5, kind: 'dmg', motion: 'aoe', target: 'all', radius: 150,
-    cc: 'bleed', ccSec: 4,
+  // 무공은 여덟 자리(역할)다. 캐릭터마다 이름·연출이 다르고(CLASS_SKILLS),
+  // 여기 적힌 건 그 뼈대 — 판정 모양과 기본 배율이다. id는 옛 세이브의
+  // 무공 레벨이 그대로 이어지도록 옛 공용 무공 id를 쓴다.
+  // art: 아이콘 그림 [종류, 번호] (icons.js KINDS 차례)
+  { id: 'slash', role: '기본기', name: '선풍검', icon: '선풍', unlock: 1, cd: 5, kind: 'dmg', motion: 'aoe', target: 'all', radius: 150,
+    cc: 'bleed', ccSec: 4, art: ['skill', 0],
     mult: (l) => 4 + l * 0.6, desc: (m) => `발밑 반경 150 안의 적 전체에게 공격력의 ${m.toFixed(1)}배` },
-  { id: 'rage', name: '혈마해방', icon: '혈마', unlock: 10, cd: 18, dur: 8, kind: 'buff',
+  { id: 'rage', role: '강화', name: '혈마해방', icon: '혈마', unlock: 10, cd: 18, dur: 8, kind: 'buff', buff: 'atk', art: ['skill', 1],
     mult: (l) => 1.5 + l * 0.06, desc: (m) => `8초간 공격력 ${m.toFixed(2)}배` },
-  { id: 'heal', name: '운기조식', icon: '조식', unlock: 30, cd: 14, kind: 'heal',
-    mult: (l) => Math.min(1, 0.3 + l * 0.02), desc: (m) => `체력 ${Math.round(m * 100)}% 회복` },
-  { id: 'thunder', name: '뇌정검', icon: '뇌정', unlock: 50, cd: 11, kind: 'dmg', motion: 'aoe', target: 'all', radius: 210,
-    cc: 'slow', ccSec: 5,
-    mult: (l) => 12 + l * 1.8, desc: (m) => `발밑 반경 210 안의 적 전체에게 공격력의 ${m.toFixed(1)}배 낙뢰` },
-  { id: 'gale', name: '질풍보', icon: '질풍', unlock: 70, cd: 22, dur: 10, kind: 'buff',
-    mult: (l) => 1.5 + l * 0.03, desc: (m) => `10초간 공격 속도 ${m.toFixed(2)}배 (한계 돌파)` },
-  { id: 'midas', name: '천금수', icon: '천금', unlock: 90, cd: 30, dur: 15, kind: 'buff',
-    mult: (l) => 2 + l * 0.1, desc: (m) => `15초간 은자 ${m.toFixed(1)}배` },
-  { id: 'frost', name: '빙백신장', icon: '빙백', unlock: 100, cd: 14, kind: 'dmg', motion: 'single', stun: 3, cc: 'freeze', ccSec: 3, target: 'single', bossMult: 1.8, radius: 70,
+  { id: 'thunder', role: '광역', name: '뇌정검', icon: '뇌정', unlock: 30, cd: 11, kind: 'dmg', motion: 'aoe', target: 'all', radius: 210,
+    cc: 'slow', ccSec: 5, art: ['skill', 3],
+    mult: (l) => 12 + l * 1.8, desc: (m) => `발밑 반경 210 안의 적 전체에게 공격력의 ${m.toFixed(1)}배` },
+  { id: 'frost', role: '두목', name: '빙백신장', icon: '빙백', unlock: 50, cd: 14, kind: 'dmg', motion: 'single', stun: 3, cc: 'freeze', ccSec: 3, target: 'single', bossMult: 1.8, radius: 70,
+    art: ['skill', 6],
     mult: (l) => 8 + l * 1.2, desc: (m) => `한 명에게 공격력의 ${m.toFixed(1)}배 + 3초 빙결 · 두목에겐 1.8배` },
-  { id: 'meteor', name: '만검귀종', icon: '만검', unlock: 110, cd: 26, kind: 'dmg', motion: 'aoe', target: 'all', radius: 300,
-    cc: 'weak', ccSec: 8,
-    mult: (l) => 40 + l * 6, desc: (m) => `발밑 반경 300 안의 적 전체에게 검 비 · 공격력의 ${m.toFixed(0)}배` },
-
-  // --- 여기부터 동작이 다른 무공 ---
-  { id: 'chain', name: '연환벽력', icon: '연환', unlock: 120, cd: 13, kind: 'dmg', motion: 'chain',
-    chainRange: 190, chainFalloff: 0.88, chain: (l) => 5 + Math.floor(l / 3), cc: 'slow', ccSec: 4,
-    mult: (l) => 18 + l * 2.4,
-    desc: (m, l) => `가까운 적부터 ${5 + Math.floor(l / 3)}명에게 옮겨타며 공격력의 ${m.toFixed(0)}배 · 옮길수록 12%씩 약해져요` },
-  { id: 'dash', name: '발도돌격', icon: '발도', unlock: 130, cd: 16, kind: 'dmg', motion: 'dash',
-    dashDist: 300, dashWidth: 110, cc: 'bleed', ccSec: 6,
-    mult: (l) => 30 + l * 4,
-    desc: (m) => `앞으로 300만큼 파고들며 지나간 길의 적 전부에게 공격력의 ${m.toFixed(0)}배` },
-  { id: 'blink', name: '축지참', icon: '축지', unlock: 140, cd: 18, kind: 'dmg', motion: 'blink', bossMult: 2.2,
+  { id: 'blink', role: '이동', name: '축지참', icon: '축지', unlock: 70, cd: 18, kind: 'dmg', motion: 'blink', bossMult: 2.2, art: ['skill', 10],
     mult: (l) => 55 + l * 8,
     desc: (m) => `가장 먼 적(두목 우선)에게 순간이동해 공격력의 ${m.toFixed(0)}배 · 두목에겐 2.2배` },
-  { id: 'plum', name: '매화검진', icon: '매화', unlock: 150, cd: 24, kind: 'dmg', motion: 'field',
-    radius: 190, fieldSec: 6, tickSec: 0.5, cc: 'weak', ccSec: 4,
+  { id: 'chain', role: '연쇄', name: '연환벽력', icon: '연환', unlock: 90, cd: 13, kind: 'dmg', motion: 'chain',
+    chainRange: 190, chainFalloff: 0.88, chain: (l) => 5 + Math.floor(l / 3), cc: 'slow', ccSec: 4, art: ['skill', 8],
+    mult: (l) => 18 + l * 2.4,
+    desc: (m, l) => `가까운 적부터 ${5 + Math.floor(l / 3)}명에게 옮겨타며 공격력의 ${m.toFixed(0)}배 · 옮길수록 12%씩 약해져요` },
+  { id: 'plum', role: '장판', name: '매화검진', icon: '매화', unlock: 110, cd: 24, kind: 'dmg', motion: 'field',
+    radius: 190, fieldSec: 6, tickSec: 0.5, cc: 'weak', ccSec: 4, art: ['skill', 11],
     mult: (l) => 9 + l * 1.2,
-    desc: (m) => `그 자리에 6초간 검진을 남겨 0.5초마다 반경 190의 적에게 공격력의 ${m.toFixed(1)}배` },
-  { id: 'tornado', name: '선풍장', icon: '회선', unlock: 160, cd: 28, kind: 'dmg', motion: 'tornado',
-    radius: 150, fieldSec: 8, tickSec: 0.4, moveSpeed: 90, cc: 'slow', ccSec: 3,
-    mult: (l) => 7 + l * 1,
-    desc: (m) => `회오리가 8초간 들판을 돌아다니며 0.4초마다 공격력의 ${m.toFixed(1)}배` },
-  { id: 'pierce', name: '일자검기', icon: '일자', unlock: 170, cd: 20, kind: 'dmg', motion: 'pierce',
-    pierceLen: 520, pierceWidth: 90, cc: 'bleed', ccSec: 5,
+    desc: (m) => `그 자리에 6초간 진을 남겨 0.5초마다 반경 190의 적에게 공격력의 ${m.toFixed(1)}배` },
+  { id: 'pierce', role: '관통', name: '일자검기', icon: '일자', unlock: 130, cd: 20, kind: 'dmg', motion: 'pierce',
+    pierceLen: 520, pierceWidth: 90, cc: 'bleed', ccSec: 5, art: ['skill', 13],
     mult: (l) => 35 + l * 5,
     desc: (m) => `바라보는 방향 520 거리의 일직선상 적 전부에게 공격력의 ${m.toFixed(0)}배` },
-
-  // --- 계열 전용 무공 ---
-  // 여덟 계열마다 하나씩. 일반 칸을 먹지 않고 **문파 칸**에 따로 들어간다.
-  // unlock은 안 쓴다 — 문파(또는 맛보기)가 곧 해금이다.
-  // 각자 1차에서 잰 자기 축을 그대로 민다. 축이 겹치면 고르는 의미가 사라진다.
-  { id: 'jsword', name: '일점혈로', icon: '일점', job: 'sword', jobTier: 0, unlock: 0, cd: 15,
-    kind: 'dmg', motion: 'blink', behind: true, bossMult: 2.6,
-    mult: (l) => 50 + l * 7,
-    desc: (m) => `가장 먼 적(두목 우선)에게 파고들어 공격력의 ${m.toFixed(0)}배 · 두목에겐 2.6배` },
-  { id: 'jblade', name: '혈풍참', icon: '혈풍', job: 'blade', jobTier: 0, unlock: 0, cd: 9,
-    kind: 'dmg', motion: 'dash', dashDist: 380, dashWidth: 220, cc: 'bleed', ccSec: 6,
-    bossMult: 0.5,
-    mult: (l) => 80 + l * 11,
-    desc: (m) => `앞으로 380만큼 베어 나가며 지나간 길 폭 220의 적 전부에게 공격력의 ${m.toFixed(0)}배`
-      + ` · 혼자 선 두목에게는 절반만` },
-  { id: 'jfist', name: '붕권', icon: '붕권', job: 'fist', jobTier: 0, unlock: 0, cd: 4,
-    kind: 'dmg', motion: 'aoe', target: 'all', radius: 170,
-    mult: (l) => 24 + l * 3.4,
-    desc: (m) => `5초마다 반경 170을 내지른다 · 공격력의 ${m.toFixed(1)}배` },
-  { id: 'jring', name: '단지멸', icon: '단지', job: 'ring', jobTier: 0, unlock: 0, cd: 10,
-    kind: 'dmg', motion: 'single', target: 'single', sure: true,
-    mult: (l) => 13 + l * 1.7,
-    desc: (m) => `한 명에게 공격력의 ${m.toFixed(1)}배 · **반드시 치명**으로 들어간다` },
-  { id: 'jdrunk', name: '취보난무', icon: '취보', job: 'drunk', jobTier: 0, unlock: 0, cd: 24,
-    kind: 'dmg', motion: 'tornado', radius: 160, fieldSec: 8, tickSec: 0.4, moveSpeed: 110,
-    cc: 'slow', ccSec: 3,
-    boon: { stat: 'gold', dur: 10, mult: (l) => 2 + l * 0.08 },
-    mult: (l) => 8 + l * 1.1,
-    desc: (m, l) => `비틀대며 8초간 들판을 돌아 0.4초마다 공격력의 ${m.toFixed(1)}배 · 그동안 은자 ${(2 + l * 0.08).toFixed(1)}배` },
-  { id: 'jfan', name: '환영진', icon: '환영', job: 'fan', jobTier: 0, unlock: 0, cd: 20,
-    kind: 'dmg', motion: 'field', radius: 210, fieldSec: 7, tickSec: 0.6, cc: 'weak', ccSec: 12,
-    bossMult: 0.6,
-    mult: (l) => 5 + l * 0.7,
-    desc: (m) => `반경 210에 7초짜리 환영을 깔아 0.6초마다 공격력의 ${m.toFixed(1)}배`
-      + ` · 걸린 적은 12초간 파쇄(맞는 피해 1.35배)` },
-  { id: 'jmonk', name: '금강부동', icon: '금강', job: 'monk', jobTier: 0, unlock: 0, cd: 12,
-    kind: 'dmg', motion: 'aoe', target: 'all', radius: 220, selfHeal: 0.35,
-    hpScale: (l) => 45 + l * 3.2,
-    mult: (l) => 18 + l * 2.4,
-    desc: (m, l) => `반경 220을 쓸고 체력을 35% 회복한다 · 공격력의 ${m.toFixed(1)}배`
-      + ` + 내 체력의 ${(45 + l * 3.2).toFixed(0)}배` },
-  { id: 'jpoison', name: '만독강림', icon: '만독', job: 'poison', jobTier: 0, unlock: 0, cd: 26,
-    kind: 'dmg', motion: 'field', radius: 210, fieldSec: 8, tickSec: 0.5, cc: 'weak', ccSec: 6,
-    boon: { stat: 'exp', dur: 12, mult: (l) => 2 + l * 0.09 },
-    mult: (l) => 6 + l * 0.9,
-    desc: (m, l) => `반경 210에 8초간 독무를 깔아 0.5초마다 공격력의 ${m.toFixed(1)}배 · 그동안 경험치 ${(2 + l * 0.09).toFixed(1)}배` },
-
-  // --- 계열 2차 무공 (관문 260) ---
-  // 1차와 **같은 축**을 민다. 축이 바뀌면 고른 계열이 흐려진다.
-  { id: 'jsword2', name: '만류귀종', icon: '만류', job: 'sword', jobTier: 1, unlock: 0, cd: 17,
-    kind: 'dmg', motion: 'pierce', pierceLen: 620, pierceWidth: 120, bossMult: 2.0, cc: 'bleed', ccSec: 5,
-    mult: (l) => 44 + l * 6,
-    desc: (m) => `바라보는 방향 620 거리를 꿰뚫어 공격력의 ${m.toFixed(0)}배 · 두목에겐 2배` },
-  { id: 'jblade2', name: '광풍도', icon: '광풍', job: 'blade', jobTier: 1, unlock: 0, cd: 20,
-    kind: 'dmg', motion: 'tornado', radius: 200, fieldSec: 9, tickSec: 0.35, moveSpeed: 130,
-    cc: 'bleed', ccSec: 5,
-    mult: (l) => 10 + l * 1.4,
-    desc: (m) => `도풍이 9초간 들판을 휘젓는다 · 0.35초마다 반경 200에 공격력의 ${m.toFixed(1)}배` },
-  { id: 'jfist2', name: '난격', icon: '난격', job: 'fist', jobTier: 1, unlock: 0, cd: 7,
-    kind: 'dmg', motion: 'chain', chainRange: 170, chainFalloff: 0.94,
-    chain: (l) => 8 + Math.floor(l / 2),
-    mult: (l) => 16 + l * 2.2,
-    desc: (m, l) => `가까운 적부터 ${8 + Math.floor(l / 2)}명을 연달아 내지른다 · 공격력의 ${m.toFixed(0)}배 · 6%씩만 약해져요` },
-  { id: 'jring2', name: '파혼지', icon: '파혼', job: 'ring', jobTier: 1, unlock: 0, cd: 13,
-    kind: 'dmg', motion: 'single', target: 'single', sure: true, bossMult: 3.0,
-    mult: (l) => 22 + l * 3,
-    desc: (m) => `한 명에게 공격력의 ${m.toFixed(1)}배 · 반드시 치명 · 두목에겐 3배` },
-  { id: 'jdrunk2', name: '주향만리', icon: '주향', job: 'drunk', jobTier: 1, unlock: 0, cd: 22,
-    kind: 'dmg', motion: 'field', radius: 230, fieldSec: 9, tickSec: 0.5, cc: 'slow', ccSec: 4,
-    boon: { stat: 'gold', dur: 12, mult: (l) => 2.4 + l * 0.1 },
-    mult: (l) => 7 + l * 1,
-    desc: (m, l) => `술기운이 9초간 퍼진다 · 0.5초마다 공격력의 ${m.toFixed(1)}배 · 그동안 은자 ${(2.4 + l * 0.1).toFixed(1)}배` },
-  { id: 'jfan2', name: '미혼선풍', icon: '미혼', job: 'fan', jobTier: 1, unlock: 0, cd: 18,
-    kind: 'dmg', motion: 'tornado', radius: 190, fieldSec: 8, tickSec: 0.5, moveSpeed: 100,
-    cc: 'slow', ccSec: 10,
-    mult: (l) => 8 + l * 1.1,
-    desc: (m) => `홀리는 바람이 8초간 돈다 · 0.5초마다 공격력의 ${m.toFixed(1)}배 · 10초 둔화` },
-  { id: 'jmonk2', name: '항마장', icon: '항마', job: 'monk', jobTier: 1, unlock: 0, cd: 11,
-    kind: 'dmg', motion: 'single', target: 'single', bossMult: 2.2,
-    hpScale: (l) => 30 + l * 2.4,
-    mult: (l) => 14 + l * 2,
-    desc: (m, l) => `한 명을 눌러 찍는다 · 공격력의 ${m.toFixed(1)}배 + 내 체력의 ${(30 + l * 2.4).toFixed(0)}배` },
-  { id: 'jpoison2', name: '산공독', icon: '산공', job: 'poison', jobTier: 1, unlock: 0, cd: 15,
-    kind: 'dmg', motion: 'aoe', target: 'all', radius: 240, cc: 'bleed', ccSec: 14,
-    mult: (l) => 20 + l * 2.8,
-    desc: (m) => `반경 240에 독을 뿌려 공격력의 ${m.toFixed(0)}배 · 14초간 중독` },
-
-  // --- 계열 3차 무공 (관문 420) ---
-  { id: 'jsword3', name: '천하제일검', icon: '천하', job: 'sword', jobTier: 2, unlock: 0, cd: 21,
-    kind: 'dmg', motion: 'blink', behind: true, target: 'single', sure: true, bossMult: 4.0,
-    mult: (l) => 90 + l * 13,
-    desc: (m) => `가장 먼 적(두목 우선)을 베어 공격력의 ${m.toFixed(0)}배 · 반드시 치명 · 두목에겐 4배` },
-  { id: 'jblade3', name: '혈해무정', icon: '혈해', job: 'blade', jobTier: 2, unlock: 0, cd: 16,
-    kind: 'dmg', motion: 'aoe', target: 'all', radius: 340, cc: 'bleed', ccSec: 8,
-    mult: (l) => 70 + l * 10,
-    desc: (m) => `반경 340을 피바다로 만든다 · 공격력의 ${m.toFixed(0)}배 · 8초 출혈` },
-  { id: 'jfist3', name: '천수나한', icon: '천수', job: 'fist', jobTier: 2, unlock: 0, cd: 5,
-    kind: 'dmg', motion: 'aoe', target: 'all', radius: 190,
-    mult: (l) => 36 + l * 5,
-    desc: (m) => `쉴 틈 없이 반경 190을 두들긴다 · 공격력의 ${m.toFixed(0)}배` },
-  { id: 'jring3', name: '멸절지', icon: '멸절', job: 'ring', jobTier: 2, unlock: 0, cd: 17,
-    kind: 'dmg', motion: 'chain', chainRange: 200, chainFalloff: 1, sure: true,
-    chain: (l) => 6 + Math.floor(l / 4),
-    mult: (l) => 34 + l * 4.6,
-    desc: (m, l) => `${6 + Math.floor(l / 4)}명에게 옮겨타며 공격력의 ${m.toFixed(0)}배 · 반드시 치명 · 약해지지 않아요` },
-  { id: 'jdrunk3', name: '만취천하', icon: '만취', job: 'drunk', jobTier: 2, unlock: 0, cd: 27,
-    kind: 'dmg', motion: 'aoe', target: 'all', radius: 320, cc: 'slow', ccSec: 6,
-    boon: { stat: 'gold', dur: 16, mult: (l) => 3 + l * 0.14 },
-    mult: (l) => 48 + l * 6.6,
-    desc: (m, l) => `반경 320을 술독에 빠뜨린다 · 공격력의 ${m.toFixed(0)}배 · 16초간 은자 ${(3 + l * 0.14).toFixed(1)}배` },
-  { id: 'jfan3', name: '천환만상', icon: '천환', job: 'fan', jobTier: 2, unlock: 0, cd: 19,
-    kind: 'dmg', motion: 'aoe', target: 'all', radius: 300, cc: 'weak', ccSec: 16, stun: 2,
-    mult: (l) => 40 + l * 5.4,
-    desc: (m) => `반경 300에 환영을 흩뿌린다 · 공격력의 ${m.toFixed(0)}배 · 16초 파쇄 · 2초 묶임` },
-  { id: 'jmonk3', name: '대적멸', icon: '대적', job: 'monk', jobTier: 2, unlock: 0, cd: 18,
-    kind: 'dmg', motion: 'aoe', target: 'all', radius: 300, selfHeal: 0.5,
-    hpScale: (l) => 80 + l * 5.5,
-    mult: (l) => 30 + l * 4,
-    desc: (m, l) => `반경 300을 쓸고 체력을 절반 되찾는다 · 공격력의 ${m.toFixed(0)}배`
-      + ` + 내 체력의 ${(80 + l * 5.5).toFixed(0)}배` },
-  { id: 'jpoison3', name: '천독무', icon: '천독', job: 'poison', jobTier: 2, unlock: 0, cd: 25,
-    kind: 'dmg', motion: 'tornado', radius: 220, fieldSec: 10, tickSec: 0.4, moveSpeed: 95,
-    cc: 'bleed', ccSec: 12,
-    boon: { stat: 'exp', dur: 15, mult: (l) => 2.6 + l * 0.12 },
-    mult: (l) => 11 + l * 1.5,
-    desc: (m, l) => `독무가 10초간 들판을 돈다 · 0.4초마다 공격력의 ${m.toFixed(1)}배 · 그동안 경험치 ${(2.6 + l * 0.12).toFixed(1)}배` },
 ];
+export const skillOf = (id) => SKILLS.find((s) => s.id === id) || null;
+
+// ---------- 캐릭터별 무공 ----------
+// names: [기초, 1차, 2차, 3차] — 전직할 때마다 여덟 이름이 전부 바뀐다.
+// forms: { 차수: 바뀌는 것 } — 그 차수부터 판정까지 다른 무공이 된다(대표 초식).
+//   옛 계열 전용 무공 열둘이 여기로 왔다. 숫자는 옮기기만 했다(밸런스는 나중에).
+//   fx:   연출표(skillfx.js CHOREO) 열쇠. 없으면 옛 skillEffect가 look으로 그린다.
+//   look: 옛 skillEffect가 쓰던 무공 id (그림을 그대로 쓰려고)
+export const CLASS_SKILLS = {
+  sword: {
+    slash: { names: ['삼재검', '유운검', '낙화검', '일검파천'] },
+    rage: { names: ['검기', '검심통명', '심검합일', '검의통천'] },
+    thunder: { names: ['뇌전검', '뇌정검강', '천뢰검우', '만검귀종'],
+      forms: { 3: { motion: 'aoe', target: 'all', radius: 300, cd: 26, cc: 'weak', ccSec: 8, look: 'meteor', art: ['skill', 7],
+        mult: (l) => 40 + l * 6, desc: (m) => `발밑 반경 300 안의 적 전체에게 검 비 · 공격력의 ${m.toFixed(0)}배` } } },
+    frost: { names: ['일격', '혈영참', '단혼검', '천하제일검'],
+      forms: { 3: { cd: 21, motion: 'blink', behind: true, target: 'single', sure: true, bossMult: 4.0, stun: 0, cc: null,
+        fx: 'sword:frost', look: 'jsword3', art: ['jskill', 16],
+        mult: (l) => 90 + l * 13,
+        desc: (m) => `가장 먼 적(두목 우선)을 베어 공격력의 ${m.toFixed(0)}배 · 반드시 치명 · 두목에겐 4배` } } },
+    blink: { names: ['축지보', '일점혈로', '혈로무흔', '섬광일점'],
+      forms: { 1: { cd: 15, behind: true, bossMult: 2.6, fx: 'sword:blink', look: 'jsword', art: ['jskill', 0],
+        mult: (l) => 50 + l * 7,
+        desc: (m) => `가장 먼 적(두목 우선)의 등 뒤로 꿰뚫고 지나가 공격력의 ${m.toFixed(0)}배 · 두목에겐 2.6배` } } },
+    chain: { names: ['연환검', '유성검', '만류검', '성하검류'] },
+    plum: { names: ['매화검진', '매화난무', '이십사수매화검', '매화검해'] },
+    pierce: { names: ['일자검기', '검강', '만류귀종', '일검관천'],
+      forms: { 2: { cd: 17, pierceLen: 620, pierceWidth: 120, bossMult: 2.0, cc: 'bleed', ccSec: 5,
+        fx: 'sword:pierce', look: 'jsword2', art: ['jskill', 8],
+        mult: (l) => 44 + l * 6,
+        desc: (m) => `바라보는 방향 620 거리를 꿰뚫어 공격력의 ${m.toFixed(0)}배 · 두목에겐 2배` } } },
+  },
+  fist: {
+    slash: { names: ['정권', '붕권', '백보신권', '패왕권'],
+      forms: { 1: { cd: 4, radius: 170, cc: null, look: 'jfist', art: ['jskill', 2],
+        mult: (l) => 24 + l * 3.4,
+        desc: (m) => `4초마다 반경 170을 내지른다 · 공격력의 ${m.toFixed(1)}배` } } },
+    // 권마의 강화는 공격력이 아니라 손이 빨라진다 (옛 질풍보)
+    rage: { names: ['기합', '금강체', '투귀', '권마강림'],
+      base: { buff: 'speed', dur: 10, cd: 22, art: ['skill', 4], look: 'gale',
+        mult: (l) => 1.5 + l * 0.03, desc: (m) => `10초간 공격 속도 ${m.toFixed(2)}배 (한계 돌파)` } },
+    thunder: { names: ['진각', '진산권', '붕천권', '천수나한'],
+      forms: { 3: { cd: 5, radius: 190, look: 'jfist3', art: ['jskill', 18],
+        mult: (l) => 36 + l * 5,
+        desc: (m) => `쉴 틈 없이 반경 190을 두들긴다 · 공격력의 ${m.toFixed(0)}배` } } },
+    frost: { names: ['철산고', '파갑권', '쇄골권', '멸천권'] },
+    blink: { names: ['돌진', '섬전보', '비호권', '신행백변'] },
+    chain: { names: ['연타', '쌍룡권', '난격', '천라권우'],
+      forms: { 2: { cd: 7, chainRange: 170, chainFalloff: 0.94, chain: (l) => 8 + Math.floor(l / 2), look: 'jfist2', art: ['jskill', 10],
+        mult: (l) => 16 + l * 2.2,
+        desc: (m, l) => `가까운 적부터 ${8 + Math.floor(l / 2)}명을 연달아 내지른다 · 공격력의 ${m.toFixed(0)}배 · 6%씩만 약해져요` } } },
+    plum: { names: ['권풍', '선풍각', '패왕각', '권강진'] },
+    pierce: { names: ['장풍', '벽공장', '백보신장', '천붕장'] },
+  },
+  fan: {
+    slash: { names: ['선풍', '환영선', '미혹선', '천환선'] },
+    rage: { names: ['허보', '허실보', '분신술', '천변만화'] },
+    thunder: { names: ['홍선', '환영란', '몽환진', '천환만상'],
+      forms: { 3: { cd: 19, radius: 300, cc: 'weak', ccSec: 16, stun: 2, look: 'jfan3', art: ['jskill', 21],
+        mult: (l) => 40 + l * 5.4,
+        desc: (m) => `반경 300에 환영을 흩뿌린다 · 공격력의 ${m.toFixed(0)}배 · 16초 파쇄 · 2초 묶임` } } },
+    frost: { names: ['미혼향', '혼백선', '섭혼술', '탈혼대법'] },
+    blink: { names: ['환영보', '이형환위', '환영분신', '천리환형'] },
+    chain: { names: ['미혹', '연환미혹', '혼란선', '만혼유희'] },
+    // 환마의 장판은 차수마다 바뀐다 — 깔리는 환영에서 떠도는 바람으로
+    plum: { names: ['환술진', '환영진', '미혼선풍', '환몽천지'],
+      forms: {
+        1: { cd: 20, radius: 210, fieldSec: 7, tickSec: 0.6, cc: 'weak', ccSec: 12, bossMult: 0.6, look: 'jfan', art: ['jskill', 5],
+          mult: (l) => 5 + l * 0.7,
+          desc: (m) => `반경 210에 7초짜리 환영을 깔아 0.6초마다 공격력의 ${m.toFixed(1)}배` },
+        2: { cd: 18, motion: 'tornado', radius: 190, fieldSec: 8, tickSec: 0.5, moveSpeed: 100, cc: 'slow', ccSec: 10, bossMult: null,
+          look: 'jfan2', art: ['jskill', 13],
+          mult: (l) => 8 + l * 1.1,
+          desc: (m) => `홀리는 바람이 8초간 돈다 · 0.5초마다 공격력의 ${m.toFixed(1)}배 · 10초 둔화` },
+      } },
+    pierce: { names: ['선풍인', '파공선', '단혼선', '천선일섬'] },
+  },
+  poison: {
+    slash: { names: ['독장', '부식장', '화골장', '만독장'] },
+    rage: { names: ['독기', '독공', '독체', '만독불괴'] },
+    thunder: { names: ['독무', '독우', '산공독', '천독만발'],
+      forms: { 2: { cd: 15, radius: 240, cc: 'bleed', ccSec: 14, look: 'jpoison2', art: ['jskill', 15],
+        mult: (l) => 20 + l * 2.8,
+        desc: (m) => `반경 240에 독을 뿌려 공격력의 ${m.toFixed(0)}배 · 14초간 중독` } } },
+    frost: { names: ['독침', '칠보독침', '단장독', '절명독'] },
+    blink: { names: ['사행보', '독영보', '귀영독보', '독룡잠행'] },
+    chain: { names: ['독사', '연환독사', '백사독류', '만사독림'] },
+    plum: { names: ['독무진', '만독강림', '독림', '천독무'],
+      forms: {
+        1: { cd: 26, radius: 210, fieldSec: 8, tickSec: 0.5, cc: 'weak', ccSec: 6, look: 'jpoison', art: ['jskill', 7],
+          boon: { stat: 'exp', dur: 12, mult: (l) => 2 + l * 0.09 },
+          mult: (l) => 6 + l * 0.9,
+          desc: (m, l) => `반경 210에 8초간 독무를 깔아 0.5초마다 공격력의 ${m.toFixed(1)}배 · 그동안 경험치 ${(2 + l * 0.09).toFixed(1)}배` },
+        3: { cd: 25, motion: 'tornado', radius: 220, fieldSec: 10, tickSec: 0.4, moveSpeed: 95, cc: 'bleed', ccSec: 12,
+          look: 'jpoison3', art: ['jskill', 23],
+          boon: { stat: 'exp', dur: 15, mult: (l) => 2.6 + l * 0.12 },
+          mult: (l) => 11 + l * 1.5,
+          desc: (m, l) => `독무가 10초간 들판을 돈다 · 0.4초마다 공격력의 ${m.toFixed(1)}배 · 그동안 경험치 ${(2.6 + l * 0.12).toFixed(1)}배` },
+      } },
+    pierce: { names: ['독시', '독전', '부골독전', '천독관'] },
+  },
+};
+
+// 이 캐릭터·이 차수에서 무공 하나가 실제로 어떻게 생겼나.
+// 화면·판정이 전부 이걸 본다. (id, 계열, 차수)마다 한 번만 만든다.
+const skillCache = new Map();
+export function skillFor(id, job = null, tier = 0) {
+  const key = `${id}|${job || ''}|${tier}`;
+  const hit = skillCache.get(key);
+  if (hit) return hit;
+  const base = skillOf(id);
+  if (!base) return null;
+  const cs = job ? CLASS_SKILLS[job]?.[id] : null;
+  const def = { ...base, ...(cs?.base || {}), tier, jobId: job || null, formTier: 0 };
+  for (let t = 1; t <= tier; t++) {
+    const f = cs?.forms?.[t];
+    if (f) Object.assign(def, f, { formTier: t });
+  }
+  // 앞 차수 형태의 연출 열쇠가 다음 형태에 남지 않게 (형태가 fx를 안 적었으면 지운다)
+  if (def.formTier && !cs.forms[def.formTier].fx) def.fx = null;
+  if (cs?.names?.[tier]) {
+    def.name = cs.names[tier];
+    def.icon = def.name.slice(0, 2);
+  }
+  // 차수가 오르면 무공 피해가 커진다. 강화(buff)는 배수 자체가 효과라 건드리지 않는다.
+  if (def.kind === 'dmg' && TIER_SKILL_MULT[tier] !== 1) {
+    const m0 = def.mult;
+    const k = TIER_SKILL_MULT[tier];
+    def.mult = (l) => m0(l) * k;
+  }
+  skillCache.set(key, def);
+  return def;
+}
 
 // ---------- 무공 연계 ----------
 //
@@ -1596,63 +1551,15 @@ export const comboMult = (streak) =>
 export const SKILL_QI = {
   slash: { leaves: 'blade', feeds: 'wind' },
   rage: { leaves: 'inner', feeds: 'blade' },
-  heal: { leaves: 'inner', feeds: 'venom' },
   thunder: { leaves: 'bolt', feeds: 'inner' },
-  gale: { leaves: 'wind', feeds: 'inner' },
-  midas: { leaves: 'inner', feeds: 'wind' },
   frost: { leaves: 'frost', feeds: 'bolt' },
-  meteor: { leaves: 'blade', feeds: 'inner' },
-  chain: { leaves: 'bolt', feeds: 'frost' },
-  dash: { leaves: 'blade', feeds: 'wind' },
   blink: { leaves: 'wind', feeds: 'blade' },
-  plum: { leaves: 'blade', feeds: 'frost' },
-  tornado: { leaves: 'wind', feeds: 'blade' },
-  pierce: { leaves: 'blade', feeds: 'bolt' },
-  // 계열 1차
-  jsword: { leaves: 'blade', feeds: 'inner' },
-  jblade: { leaves: 'blade', feeds: 'wind' },
-  jfist: { leaves: 'inner', feeds: 'blade' },
-  jring: { leaves: 'venom', feeds: 'blade' },
-  jdrunk: { leaves: 'wind', feeds: 'inner' },
-  jfan: { leaves: 'frost', feeds: 'wind' },
-  jmonk: { leaves: 'inner', feeds: 'frost' },
-  jpoison: { leaves: 'venom', feeds: 'wind' },
-  // 계열 2차
-  jsword2: { leaves: 'blade', feeds: 'frost' },
-  jblade2: { leaves: 'wind', feeds: 'blade' },
-  jfist2: { leaves: 'inner', feeds: 'venom' },
-  jring2: { leaves: 'venom', feeds: 'bolt' },
-  jdrunk2: { leaves: 'wind', feeds: 'venom' },
-  jfan2: { leaves: 'frost', feeds: 'inner' },
-  jmonk2: { leaves: 'inner', feeds: 'blade' },
-  jpoison2: { leaves: 'venom', feeds: 'frost' },
-  // 계열 3차
-  jsword3: { leaves: 'blade', feeds: 'bolt' },
-  jblade3: { leaves: 'blade', feeds: 'venom' },
-  jfist3: { leaves: 'inner', feeds: 'wind' },
-  jring3: { leaves: 'bolt', feeds: 'venom' },
-  jdrunk3: { leaves: 'wind', feeds: 'frost' },
-  jfan3: { leaves: 'frost', feeds: 'blade' },
-  jmonk3: { leaves: 'inner', feeds: 'bolt' },
-  jpoison3: { leaves: 'venom', feeds: 'inner' },
+  chain: { leaves: 'bolt', feeds: 'frost' },
+  // 독 기운은 무공이 여덟으로 줄면서 남기는 쪽·먹는 쪽이 다 빠졌다 — 장판·관통이 받는다
+  plum: { leaves: 'venom', feeds: 'frost' },
+  pierce: { leaves: 'blade', feeds: 'venom' },
 };
 export const qiOf = (id) => SKILL_QI[id] || null;
-
-// 계열 무공만 따로. 문파 칸에 들어가고 일반 칸에는 절대 안 들어간다.
-export const JOB_SKILLS = SKILLS.filter((s) => s.job);
-// 계열이 아닌(누구나 쓰는) 무공. 아이콘 차례가 여기에 매여 있다.
-export const GEN_SKILLS = SKILLS.filter((s) => !s.job);
-// 한 계열의 무공 셋을 차례대로. jobTier 0 · 1 · 2다.
-export const jobSkillsOf = (jobId) => SKILLS.filter((s) => s.job === jobId)
-  .sort((a, b) => (a.jobTier || 0) - (b.jobTier || 0));
-export const jobSkillOf = (jobId) => jobSkillsOf(jobId)[0] || null;
-// 2차·3차 계열 무공이 열리는 관문. 1차는 전직과 동시에 열린다.
-export const JOB_SKILL_OPEN = [0, 260, 420];
-export const JOB_SLOTS = JOB_SKILL_OPEN.length;
-export const jobSlotCount = (bestStage) =>
-  JOB_SKILL_OPEN.filter((v) => (bestStage || 0) >= v).length;
-export const nextJobSkillAt = (bestStage) =>
-  JOB_SKILL_OPEN.find((v) => (bestStage || 0) < v) ?? null;
 
 // ---------- 무공 차수 ----------
 //
@@ -1695,35 +1602,15 @@ export const JOB_TRAITS = {
     text: '모든 무공이 관문지기에게 더 아프게 들어가요',
     bossBonus: 0.45,
   },
-  blade: {
-    name: '혈기', hanja: '血氣', col: '239,68,68', fx: 'slash',
-    text: '모든 무공이 출혈을 걸어요',
-    cc: 'bleed', ccSec: 5,
-  },
   fist: {
     name: '강기', hanja: '罡氣', col: '245,158,11', fx: 'burst',
     text: '무공을 쓸 때마다 다른 무공의 쿨이 조금 줄어요',
     cdCut: 0.7,
   },
-  ring: {
-    name: '지력', hanja: '指力', col: '168,85,247', fx: 'burst',
-    text: '모든 무공이 치명으로 들어갈 수 있어요',
-    critChance: 0.35,
-  },
-  drunk: {
-    name: '주기', hanja: '酒氣', col: '132,204,22', fx: 'swirl',
-    text: '무공으로 잡으면 은자가 더 떨어져요',
-    goldOnSkill: 0.6,
-  },
   fan: {
     name: '환기', hanja: '幻氣', col: '56,189,248', fx: 'field',
     text: '모든 무공이 파쇄를 걸어요 (맞는 피해가 커져요)',
     cc: 'weak', ccSec: 6,
-  },
-  monk: {
-    name: '불력', hanja: '佛力', col: '251,191,36', fx: 'aura',
-    text: '무공을 쓸 때마다 체력이 조금 차요',
-    heal: 0.04,
   },
   poison: {
     name: '독기', hanja: '毒氣', col: '34,197,94', fx: 'field',
@@ -1750,12 +1637,6 @@ export const traitCost = (lv) => Big.pow(1.13, lv || 0).mul(30);
 // 특성이 레벨당 얼마나 세지나 — 1레벨마다 처음 값의 이만큼이 더 붙는다.
 export const TRAIT_PER_LV = 0.22;
 export const traitScale = (lv) => 1 + TRAIT_PER_LV * (lv || 0);
-// 문파를 바꾸는 값. 거쳐 본 적 있는 문파로 돌아갈 때는 절반이다.
-export const JOB_SWITCH_BASE = 400;
-export const jobSwitchCost = (switches, seen) =>
-  Math.ceil(JOB_SWITCH_BASE * Math.pow(1.8, switches || 0) * (seen ? 0.5 : 1));
-// 보너스(은자·경험치)를 거는 계열 무공만 추려 둔다. stats()가 매 프레임 도는 곳이다.
-export const BOON_SKILLS = SKILLS.filter((s) => s.boon);
 // ---------- 무공 초월 / 총 레벨 ----------
 // 근거: SkillTranscendenceTable, SkillTotalLevelTable, ActiveSkillTranscendence.
 // 레벨 위에 한 겹(초월)이 더 있고, '모든 무공 레벨의 합'이 따로 보너스를 준다.
@@ -1822,9 +1703,6 @@ export const skillCd = (base, lv = 1, pierce = 0) => base * Math.max(
   1 - SKILL_CD_PER_LV * Math.max(0, lv - 1) - SKILL_CD_PER_PIERCE * pierce,
 );
 
-// 맛보기 — 일류에 오르면 화경 전까지 여덟 계열 무공을 하나씩 써 볼 수 있다.
-// 공짜로 몇 번이든 바꾼다. 올린 레벨은 남아서, 그 계열로 입문하면 이어진다.
-export const TASTE_RANK = 2;
 
 // ---------- 적 무인 외형 ----------
 // head: band(머리띠) topknot(상투) hat(삿갓) hood(두건) mask(복면) bald(민머리) jiangshi(강시 관)

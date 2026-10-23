@@ -52,11 +52,12 @@
     <label>속도 <select id="speed"><option value="1" selected>1배</option><option value="0.5">0.5배</option><option value="0.25">0.25배</option><option value="0.1">0.1배</option></select></label>
     <label>지역 <select id="zone"></select></label>
     <label>경지 <select id="rank"></select></label>
+    <label>전직 <select id="tier"><option value="0">기초</option><option value="1">1차</option><option value="2">2차</option><option value="3" selected>3차</option></select></label>
     <button id="pause">⏸ 멈춤</button>
     <button id="step">⏭ 한 칸</button>
     <label>연출 <select id="fxlv"><option value="2" selected>높음</option><option value="1">보통</option><option value="0">낮음</option></select></label>
     <label><input type="checkbox" id="nohit" checked> 평타 끄기</label>
-    <label><input type="checkbox" id="nojob"> 문파 기운 끄기</label>
+
   </div>
 
   <div id="groups"></div>
@@ -75,7 +76,7 @@
 // 멈춤(⏸) 상태에서 '한 칸'은 1/30초씩 넘긴다 — 박자 하나하나를 멈춰 놓고 본다.
 import { Game, newSave } from './js/game.js';
 import { BattleView } from './js/battle.js';
-import { SKILLS, JOBS, ZONES, RANKS, jobOf, qiOf, QI } from './js/data.js';
+import { SKILLS, JOBS, ZONES, RANKS, jobOf, qiOf, QI, skillFor } from './js/data.js';
 
 const $ = (id) => document.getElementById(id);
 const q = new URLSearchParams(location.search);
@@ -83,18 +84,19 @@ const STAGE_BASE = 16 * 10 * 3;   // 지역 한 바퀴(16곳 x 10관문)를 세 
 
 let game = null;
 let view = null;
-let cur = q.get('skill') || 'slash';
+let cur = q.get('skill') || 'blink';
+let cls = q.get('job') || 'sword';
 let looping = q.get('loop') === '1';
 let timer = 0;
 let paused = q.get('paused') === '1';
 
-const groupOf = (sk) => sk.job || 'common';
-const GROUPS = [{ id: 'common', name: '공용', color: '#f1e8d6' }, ...JOBS.map((j) => ({ id: j.id, name: j.name, color: j.color }))];
+const GROUPS = JOBS.map((j) => ({ id: j.id, name: j.name, color: j.color }));
+const tier = () => Number($('tier').value);
+const def = (id) => skillFor(id, cls, tier());
 
 // ---------- 무대 만들기 ----------
 function build() {
   const zi = Number($('zone').value || 0);
-  const sk = SKILLS.find((x) => x.id === cur);
   const s = newSave();
   s.nickname = '미리보기';
   s.stage = STAGE_BASE + zi * 10 + 5;
@@ -103,8 +105,8 @@ function build() {
   s.rank = Number($('rank').value);
   s.level = 500;
   s.autoSkill = false;
-  // 계열 무공이면 그 문파로 전직해 둔다. 공용 무공은 '문파 기운 끄기'에 따라 정한다.
-  s.job = sk?.job || ($('nojob').checked ? null : (s.job || null));
+  s.job = cls;
+  s.jobTier = tier();
   game = new Game(s);
   game.events.length = 0;
   if (!view) view = new BattleView($('cv'));
@@ -126,14 +128,12 @@ function keepAlive() {
 }
 
 function cast() {
-  const sk = SKILLS.find((x) => x.id === cur);
+  const sk = def(cur);
   if (!sk || !game) return false;
-  if (!sk.job) {
-    if (game.s.skillSlots[0] !== sk.id) {
-      const at = game.s.skillSlots.indexOf(sk.id);
-      if (at > 0) game.s.skillSlots[at] = null;
-      game.s.skillSlots[0] = sk.id;
-    }
+  if (game.s.skillSlots[0] !== sk.id) {
+    const at = game.s.skillSlots.indexOf(sk.id);
+    if (at > 0) game.s.skillSlots[at] = null;
+    game.s.skillSlots[0] = sk.id;
   }
   game.cd[sk.id] = 0;
   const ok = game.useSkill(sk.id);
@@ -143,37 +143,33 @@ function cast() {
 
 // ---------- 화면 ----------
 function renderGroups() {
-  const g = groupOf(SKILLS.find((x) => x.id === cur) || SKILLS[0]);
+  const g = cls;
   $('groups').replaceChildren(...GROUPS.map((gr) => {
     const b = document.createElement('button');
     b.textContent = gr.name;
     b.style.borderColor = gr.color;
     if (gr.id === g) b.classList.add('on');
-    b.onclick = () => {
-      const first = SKILLS.find((x) => groupOf(x) === gr.id);
-      if (first) pick(first.id);
-    };
+    b.onclick = () => { cls = gr.id; build(); pick(cur); };
     return b;
   }));
 }
 
 function renderSkills() {
-  const g = groupOf(SKILLS.find((x) => x.id === cur) || SKILLS[0]);
-  const list = SKILLS.filter((x) => groupOf(x) === g);
-  $('skills').replaceChildren(...list.map((sk) => {
+  $('skills').replaceChildren(...SKILLS.map((base) => {
+    const sk = def(base.id);
     const b = document.createElement('button');
     if (sk.id === cur) b.classList.add('on');
-    const tier = sk.job ? `<span class="tier">${(sk.jobTier || 0) + 1}차</span> ` : '';
-    b.innerHTML = `${tier}${sk.name}<small>${sk.motion || sk.kind} · ${sk.id}</small>`;
+    const star = sk.fx ? '<span class="tier">연출</span> ' : sk.formTier ? '<span class="tier">각성</span> ' : '';
+    b.innerHTML = `${star}${sk.name}<small>${base.role} · ${sk.motion || sk.kind} · ${sk.id}</small>`;
     b.onclick = () => pick(sk.id);
     return b;
   }));
 }
 
 function renderInfo() {
-  const sk = SKILLS.find((x) => x.id === cur);
+  const sk = def(cur);
   if (!sk) return;
-  const job = jobOf(sk.job);
+  const job = jobOf(cls);
   const qi = qiOf(sk.id);
   const lv = 1;
   const desc = sk.desc ? sk.desc(sk.mult(lv), lv) : '';
@@ -185,23 +181,22 @@ function renderInfo() {
     sk.bossMult && ['두목 배수', sk.bossMult], sk.sure && ['확정 치명', '예'],
     qi && ['기운', `${QI[qi.leaves]?.name} 남김 · ${QI[qi.feeds]?.name} 먹음`],
   ].filter(Boolean);
-  $('info').innerHTML = `<h3>${sk.name}${job ? ` <small style="color:${job.color}">· ${job.name} ${(sk.jobTier || 0) + 1}차</small>` : ''}</h3>`
+  facts.unshift(['역할', sk.role], ['연출표', sk.fx || '-'], ['그림', sk.look || sk.id]);
+  $('info').innerHTML = `<h3>${sk.name}${job ? ` <small style="color:${job.color}">· ${job.tiers[tier()]} (${job.name} ${tier() ? `${tier()}차` : '기초'})</small>` : ''}</h3>`
     + `<div>${desc}</div><div style="margin-top:6px;color:var(--muted)">`
     + facts.map(([k, v]) => `${k} <code>${v}</code>`).join(' · ') + '</div>';
-  $('hud-l').textContent = `${sk.name}${job ? ` · ${job.name}` : ''}`;
+  $('hud-l').textContent = `${sk.name} · ${job?.tiers[tier()] || ''}`;
 }
 
 function pick(id) {
-  const prev = SKILLS.find((x) => x.id === cur);
   cur = id;
-  const sk = SKILLS.find((x) => x.id === id);
-  // 문파가 바뀌면 무대를 새로 깐다 (전직 상태가 달라지므로)
-  if (!prev || prev.job !== sk.job) build();
   renderGroups();
   renderSkills();
   renderInfo();
   const u = new URL(location.href);
   u.searchParams.set('skill', id);
+  u.searchParams.set('job', cls);
+  u.searchParams.set('tier', String(tier()));
   history.replaceState(null, '', u);
   setTimeout(cast, 120);
 }
@@ -243,6 +238,7 @@ $('zone').replaceChildren(...ZONES.map((z, i) => { const o = document.createElem
 $('zone').value = q.get('zone') || '0';
 $('rank').replaceChildren(...RANKS.map((r, i) => { const o = document.createElement('option'); o.value = i; o.textContent = r.name; return o; }));
 $('rank').value = q.get('rank') || String(RANKS.length - 1);
+if (q.get('tier')) $('tier').value = q.get('tier');
 $('rank').onchange = () => { build(); };
 if (q.get('speed')) $('speed').value = q.get('speed');
 $('cast').onclick = cast;
@@ -250,7 +246,7 @@ $('loop').onclick = () => { looping = !looping; $('loop').textContent = looping 
 $('loop').textContent = looping ? '반복 켬' : '반복 끔';
 $('loop').classList.toggle('on', looping);
 $('zone').onchange = () => { build(); };
-$('nojob').onchange = () => { build(); };
+$('tier').onchange = () => { build(); pick(cur); };
 $('fxlv').onchange = () => { view.fxPref = Number($('fxlv').value); };
 const setPaused = (on) => { paused = on; $('pause').textContent = on ? '▶ 재생' : '⏸ 멈춤'; $('pause').classList.toggle('on', on); };
 $('pause').onclick = () => setPaused(!paused);

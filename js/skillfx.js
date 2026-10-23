@@ -28,6 +28,7 @@ export class Director {
     this.v = view;
     this.id = pend.id;
     this.job = pend.job;
+    this.name = pend.name || '';
     this.t = 0;
     this.q = [];
     this.hits = pend.hits;
@@ -434,7 +435,7 @@ export const CHOREO = {
   // ── 일화검존 1차 · 일점혈로 ─────────────────────────────
   // 몸을 낮춰 칼을 허리에 붙이고 → 사라져 → 적의 등 뒤에 일섬 자세로 선다.
   // 이마에 붉은 점이 찍히고, 한 박자 뒤 가는 흰 선이 대상을 가로지른다.
-  jsword(d) {
+  'sword:blink'(d) {
     const v = d.v;
     const T = 0.3;   // 나타나는 시각
     const H = 0.55;  // 터지는 시각
@@ -470,7 +471,7 @@ export const CHOREO = {
       d.release();
       v.shake = Math.max(v.shake, 0.32);
       v.ink(v.sx(d.target), v.sy(d.target) - 76, 6, '#7f1d1d', 140);
-      d.hanja('일점혈로', 1.3);
+      d.hanja(d.name, 1.3);
       v.desatTo = 0;
     });
     d.at(H + 0.25, () => d.mark('여운'));
@@ -485,7 +486,7 @@ export const CHOREO = {
   // ── 일화검존 2차 · 만류귀종 ─────────────────────────────
   // 칼을 당겨 빛을 칼끝에 모으고 → 한 번 찌르면 흰 빛기둥이 앞을 꿰뚫는다.
   // 꿰인 적마다 차례로 칼금이 그어지고, 하늘에 가는 금빛 줄이 남는다.
-  jsword2(d) {
+  'sword:pierce'(d) {
     const v = d.v;
     const S = 0.42;   // 찌르는 시각
     const sk = { len: 620, w: 120 };
@@ -502,7 +503,7 @@ export const CHOREO = {
       d.fx('lance', 0.55, { wx: d.to.x, wy: d.to.y, oy: -50, a: d.ang, len: sk.len, w: sk.w, col: d.col, wind: d.lvl >= 1 ? 9 : 0 });
       v.shake = Math.max(v.shake, 0.28);
       v.flash = Math.max(v.flash, 0.16);
-      d.hanja('만류귀종', 1);
+      d.hanja(d.name, 1);
     });
     d.at(S + 0.07, () => d.mark('적중'));
     d.releaseSeq(S + 0.07, 0.4, 0.05);
@@ -518,7 +519,7 @@ export const CHOREO = {
   // 칼을 하늘로 들면 세상이 먹빛으로 바래고(무인만 색이 남는다) →
   // 화면을 비스듬히 가르는 한 줄 → 멈췄다가 화면이 그 줄을 따라 갈라졌다 붙는다.
   // 붉은 낙관 「天下第一」.
-  jsword3(d) {
+  'sword:frost'(d) {
     const v = d.v;
     const C = 0.62;   // 긋는 시각
     const H = 0.95;   // 갈라지는 시각
