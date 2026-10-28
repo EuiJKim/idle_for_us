@@ -96,7 +96,7 @@ console.log('\n=== 레벨·스탯 ===');
   ok(g.s.level === 3 && g.s.statPts === 6, '레벨이 오르면 스탯 점수 3', `Lv.${g.s.level} 점수 ${g.s.statPts}`);
   const a0 = g.stats().atk;
   g.addStat('str', 2);
-  ok(g.stats().atk === a0 + 4 && g.s.statPts === 4, '힘 1 = 공격력 +2');
+  ok(Math.abs(g.stats().atk - (a0 + 1.6)) < 1e-9 && g.s.statPts === 4, '힘 1 = 공격력 +0.8 (강함은 대부분 장비에서)');
   g.s.autoStat = true;
   g.autoStats();
   ok(g.s.statPts === 0, '자동 분배가 남은 점수를 다 쓴다');
@@ -138,7 +138,17 @@ console.log('\n=== 재료와 조합 (바람식) ===');
   let n = 0;
   for (let i = 0; i < 10000; i++) if (h.dropMats({ lv: 5, isBoss: false })) n++;
   ok(Math.abs(n / 10000 - W.MAT_RATE) < 0.02, '몹 재료 확률이 설계대로', `${(n / 100).toFixed(1)}%`);
-  ok(h.s.mats[1] === n && !h.s.bag.length && !h.s.equip.weapon, '재료만 쌓이고 장비는 떨어지지 않는다', `${W.MATS[1]} ${h.s.mats[1]}`);
+  ok(h.s.mats[1] === n && !h.s.bag.length && h.s.equip.weapon?.starter, '졸개는 재료만 떨군다(장비는 안 떨군다)', `${W.MATS[1]} ${h.s.mats[1]}`);
+  // 두목은 가끔 그 지역 하급 장비를 통째로 — 십이지왕은 더 자주
+  const d = fresh();
+  let drops = 0, kdrops = 0;
+  for (let i = 0; i < 2000; i++) {
+    d.s.map = W.mapId(1, 4); d.dropMats({ lv: 9, isBoss: true, x: 0, y: 0 });
+    drops += d.events.filter((e) => e.type === 'drop').length; d.events.length = 0;
+    d.s.map = W.mapId(16, 4); d.dropMats({ lv: 105, isBoss: true, x: 0, y: 0 });
+    kdrops += d.events.filter((e) => e.type === 'drop' && W.stepMap(e.item.step) === 16).length; d.events.length = 0;
+  }
+  ok(Math.abs(drops / 2000 - W.BOSS_ITEM_RATE) < 0.03 && Math.abs(kdrops / 2000 - W.KING_ITEM_RATE) < 0.04, '두목은 가끔 장비를 떨군다(십이지왕은 더 자주)', `${(drops / 20).toFixed(1)}% · 왕 ${(kdrops / 20).toFixed(1)}%`);
   h.dropMats({ lv: 6, isBoss: true });
   ok(h.s.mats[W.bossKey(1)] === 1 && h.s.mats[1] === n + W.BOSS_MATS, '두목은 재료 한 움큼과 증표를 떨군다', W.matName(W.bossKey(1)));
   // 조합 사다리: 청죽검 → 상급 청죽검 → 사철검
@@ -205,10 +215,8 @@ console.log('\n=== 지역·구역·두목 구역 ===');
   ok(k.canEnter(W.mapId(16, 1)) && W.mapOf(W.mapId(16, 1)).name.includes('권왕'), '레벨 99부터 제12왕 권왕', W.mapOf(W.mapId(16, 1)).name);
   ok(W.ZONES_W[27].name.includes('검왕') && W.zoneLv(27)[1] === 150, '마지막은 제1왕 검왕(가장 강하다)', W.ZONES_W[27].boss.name);
   ok(new Set(W.KINGS.map((x) => x.mat)).size === 12 && W.KINGS.every((x) => !W.MATS.slice(1, 16).includes(x.mat)), '왕마다 재료가 다르다');
-  const kb = W.kingBonus(W.NORMAL_ZONES * 2 + 1);   // 권왕 상급
-  ok(kb && kb.speed > 0, '십이지왕 장비에는 왕의 힘이 붙는다(권왕: 공격 속도)', JSON.stringify(kb));
   const it = k.makeCrafted('weapon', W.NORMAL_ZONES * 2);
-  ok(k.itemStats(it).speed > 0 && W.itemName(it, 'sword').startsWith('유혼') && it.grade === 5, '권왕 하급 무기 — 유혼검(지왕 빛깔)', W.itemName(it, 'sword'));
+  ok(Object.keys(k.itemStats(it)).join() === 'atk' && W.itemName(it, 'sword').startsWith('유혼') && it.grade === 5, '권왕 하급 무기 — 유혼검(지왕 빛깔, 왕의 덤 힘은 없다)', W.itemName(it, 'sword'));
   const kk = fresh();
   kk.s.gold = 1e12; kk.s.equip.weapon = null;
   for (let z = 1; z <= W.TIER_COUNT; z++) { kk.s.mats[z] = 1e5; kk.s.mats[W.bossKey(z)] = 100; }
@@ -218,6 +226,30 @@ console.log('\n=== 지역·구역·두목 구역 ===');
   // 옛 세이브: 사냥터 3 → 지역 3의 1구역
   const old = migrateWorld({ map: 3, huntMap: 3, bestMap: 5, mats: { 3: 10 } });
   ok(old.map === W.mapId(3, 1) && old.huntMap === W.mapId(3, 1) && old.mats[3] === 10, '옛 세이브의 사냥터 번호를 새 구역으로 옮긴다', `${old.map}`);
+}
+
+console.log('\n=== 장비가 강함의 대부분 ===');
+{
+  const g = fresh();
+  ok(g.s.equip.weapon?.starter && W.itemName(g.s.equip.weapon, 'sword') === '수련용 검', '수련용 무기를 들고 시작한다');
+  g.s.level = 60; g.s.stats.str = 120; g.s.stats.vit = 60; g._stats = null;
+  g.s.gold = 1e12;
+  for (let z = 1; z <= 10; z++) { g.s.mats[z] = 1e5; g.s.mats[W.bossKey(z)] = 100; }
+  for (const sl of W.SLOTS) { g.s.equip[sl.id] = null; for (let st = 0; st < 20; st++) g.craft(sl.id, st); }
+  const st = g.stats();
+  const eq = Object.values(g.s.equip);
+  const gatk = eq.reduce((a, it) => a + (g.itemStats(it).atk || 0), 0) * (1 + eq.reduce((a, it) => a + (g.itemStats(it).atkPct || 0), 0));
+  const ghp = eq.reduce((a, it) => a + (g.itemStats(it).hp || 0), 0);
+  ok(gatk / st.atk > 0.75 && ghp / st.hp > 0.75, 'Lv60 지역 10 상급 장비면 공격력·체력의 3/4 넘게가 장비', `공격 ${(gatk / st.atk * 100).toFixed(0)}% · 체력 ${(ghp / st.hp * 100).toFixed(0)}%`);
+  // 강화에는 그 지역 재료가 든다
+  const w = g.s.equip.weapon;
+  const m0 = g.s.mats[W.stepMap(w.step)];
+  const a0 = g.stats().atk;
+  let n = 0;
+  while (w.plus === 0 && n++ < 20) g.enhance(w.uid);
+  ok(w.plus === 1 && g.s.mats[W.stepMap(w.step)] < m0 && g.stats().atk > a0 * 1.06, '강화는 재료를 넣어 장비를 키운다(+1에 기본 수치 +12%)', `${W.matName(W.stepMap(w.step))} ${m0} → ${g.s.mats[W.stepMap(w.step)]}`);
+  g.s.mats[W.stepMap(w.step)] = 0;
+  ok(!g.canEnhance(w), '재료가 없으면 강화할 수 없다');
 }
 
 console.log('\n=== 문파 버프 ===');

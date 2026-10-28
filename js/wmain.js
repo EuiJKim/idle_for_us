@@ -238,7 +238,7 @@ function handleEvents() {
       case 'potion': sfx('potion'); break;
       case 'heroHit': sfx('hurt'); break;
       case 'heroDied': sfx('down'); break;
-      case 'bossAppear': sfx('boss'); break;
+      case 'bossAppear': sfx(ev.king ? 'king' : 'boss'); break;
       default:
     }
     switch (ev.type) {
@@ -266,7 +266,13 @@ function handleEvents() {
         view.showBanner(itemTitle(game, ev.item), W.GRADES[ev.item.grade].color, 1.4, '조합');
         break;
       case 'bossAppear':
-        view.showBanner(`두목 · ${ev.name}`, '#fca5a5', 1.6);
+        // 십이지왕은 전용 등장 연출, 다른 두목은 먹띠 한 줄
+        if (ev.king) view.startKingIntro(ev.king, ev.at);
+        else view.showBanner(`두목 · ${ev.name}`, '#fca5a5', 1.6);
+        break;
+      case 'drop':
+        toast(`두목이 장비를 떨궜어요! ${itemTitle(game, ev.item)}`);
+        sfx('loot');
         break;
       case 'heroDied':
         toast(`쓰러졌어요… 경험치 ${fmt(ev.loss)}을 잃고 마을로 돌아가요`);

@@ -13,9 +13,9 @@ export const LEVEL_MAX = 150;
 export const expToNext = (L) => Math.round(20 * L ** 2.3 * (1 + (L / 30) ** 2.2));
 export const STAT_PER_LEVEL = 3;
 export const STATS = [
-  { id: 'str', name: '힘', desc: '공격력 +2' },
+  { id: 'str', name: '힘', desc: '공격력 +0.8' },
   { id: 'dex', name: '민첩', desc: '치명 +0.4%p · 공격 속도 +1%' },
-  { id: 'vit', name: '체력', desc: '최대 체력 +12 · 방어 +0.2' },
+  { id: 'vit', name: '체력', desc: '최대 체력 +5 · 방어 +0.2' },
   { id: 'int', name: '내공', desc: '스킬 피해 +2% · 체력 회복 +0.1/초' },
 ];
 // 레벨이 오르면 겉모습도 한 단계씩 (옛 경지 그림 스물을 레벨에 나눠 쓴다)
@@ -75,46 +75,47 @@ export const RESPAWN_SEC = 5;
 //
 // 지역 1~15: 옛 지역 그림을 쓰는 보통 사냥터, 레벨 1~98.
 // 지역 16~27: **십이지왕**(레벨 99부터). 제12왕 권왕이 가장 약하고 제1왕 검왕이 가장 강하다.
-//   왕마다 떨구는 재료·증표가 다르고, 그 재료로 만든 장비에는 왕마다 다른 힘이 붙는다.
+//   왕마다 떨구는 재료·증표가 다르다. 왕은 등장 연출이 따로 있고, 그 지역 장비를 더 자주 떨군다.
 export const BOSS_RESPAWN = 45;
+export const KING_INTRO_SEC = 3.2;   // 십이지왕 등장 연출 길이
 export const BOSS_ROOM_MOBS = 8;
 export const NORMAL_ZONES = 15;
 // 십이지왕 — 약한 순(제12왕 → 제1왕). art: 그림을 빌려 올 옛 지역. desc는 줄거리 한두 줄.
 export const KINGS = [
-  { no: 12, title: '권왕', real: '강후', art: 9, mat: '유혼석', prefix: '유혼', bonus: { speed: 0.05 }, bonusName: '공격 속도',
+  { no: 12, title: '권왕', real: '강후', art: 9, mat: '유혼석', prefix: '유혼', hanja: '拳王', skill: '유혼절명권',
     desc: '십이지왕의 마지막 왕. 타고난 살기로 수많은 이를 죽인 주먹 — 유혼절명권.',
     look: { robe: '#1c1917', trim: '#dc2626', head: 'band', band: '#7f1d1d', weapon: 'fist', aura: '#ef4444', scale: 1.5 } },
-  { no: 11, title: '철왕', real: '기사후', art: 13, mat: '기관 부품', prefix: '기관', bonus: { def: 20 }, bonusName: '방어',
+  { no: 11, title: '철왕', real: '기사후', art: 13, mat: '기관 부품', prefix: '기관', hanja: '鐵王', skill: '기관술',
     desc: '천재 기관 장인. 철가면 아래에서 죽은 왕들의 인형을 빚는다.',
     look: { robe: '#374151', trim: '#9ca3af', head: 'mask', weapon: 'axe', scale: 1.45 } },
-  { no: 10, title: '음왕', real: '신류', art: 5, mat: '귀혼현', prefix: '귀혼', bonus: { skill: 0.08 }, bonusName: '스킬 피해',
+  { no: 10, title: '음왕', real: '신류', art: 5, mat: '귀혼현', prefix: '귀혼', hanja: '音王', skill: '귀혼음',
     desc: '앞을 못 보는 음공의 천재. 귀혼음으로 죽은 혼을 불러낸다.',
     look: { robe: '#312e81', trim: '#a5b4fc', head: 'hat', weapon: 'fan', scale: 1.45 } },
-  { no: 9, title: '혈왕', real: '', art: 4, mat: '혈정', prefix: '혈해', bonus: { regenPct: 0.004 }, bonusName: '체력 회복',
+  { no: 9, title: '혈왕', real: '', art: 4, mat: '혈정', prefix: '혈해', hanja: '血王', skill: '혈해마공',
     desc: '북해에서 음모를 꾸미는 잔혹한 왕. 핏물에 잠긴 채 나타난다.',
     look: { robe: '#7f1d1d', trim: '#fecaca', head: 'topknot', weapon: 'claw', aura: '#dc2626', scale: 1.5 } },
-  { no: 8, title: '목왕', real: '백천경', art: 1, mat: '천혼목', prefix: '천혼', bonus: { hpPct: 0.06 }, bonusName: '최대 체력',
+  { no: 8, title: '목왕', real: '백천경', art: 1, mat: '천혼목', prefix: '천혼', hanja: '木王', skill: '목형천혼술',
     desc: '목형천혼술의 주인. 무림맹주 가문의 옛 일과 얽혀 있다.',
     look: { robe: '#14532d', trim: '#86efac', head: 'topknot', weapon: 'sword', beard: true, scale: 1.45 } },
-  { no: 7, title: '화왕', real: '차이란', art: 10, mat: '야우 꽃잎', prefix: '야우', bonus: { crit: 0.03 }, bonusName: '치명',
+  { no: 7, title: '화왕', real: '차이란', art: 10, mat: '야우 꽃잎', prefix: '야우', hanja: '華王', skill: '천녀야우장',
     desc: '살수 조직 가인교의 주인. 천하제일미 대회에 모습을 드러낸다 — 천녀야우장.',
     look: { robe: '#be185d', trim: '#fbcfe8', head: 'topknot', weapon: 'fan', scale: 1.4 } },
-  { no: 6, title: '암왕', real: '흑사린', art: 7, mat: '암야석', prefix: '암야', bonus: { critDmg: 0.15 }, bonusName: '치명 피해',
+  { no: 6, title: '암왕', real: '흑사린', art: 7, mat: '암야석', prefix: '암야', hanja: '暗王', skill: '암천야신공',
     desc: '낮에는 가장 약하고 밤에는 가장 강한 왕 — 암천야신공.',
     look: { robe: '#0a0a0a', trim: '#6b21a8', head: 'hood', weapon: 'dagger', aura: '#7c3aed', scale: 1.45 } },
-  { no: 5, title: '환왕', real: '', art: 6, mat: '환영 비단', prefix: '환영', bonus: { exp: 0.05 }, bonusName: '경험치',
+  { no: 5, title: '환왕', real: '', art: 6, mat: '환영 비단', prefix: '환영', hanja: '幻王', skill: '환영술',
     desc: '혈교의 후예인 쌍둥이 중 사내. 교주의 곁에 조언자로 숨어든 화공.',
     look: { robe: '#4c1d95', trim: '#c4b5fd', head: 'mask', weapon: 'fan', scale: 1.45 } },
-  { no: 4, title: '살왕', real: '', art: 8, mat: '명부 영패', prefix: '명부', bonus: { crit: 0.04 }, bonusName: '치명',
+  { no: 4, title: '살왕', real: '', art: 8, mat: '명부 영패', prefix: '명부', hanja: '殺王', skill: '명부살법',
     desc: '최고의 살수 단체 명부의 일인자.',
     look: { robe: '#18181b', trim: '#991b1b', head: 'mask', weapon: 'dagger', scale: 1.45 } },
-  { no: 3, title: '투왕', real: '천야', art: 2, mat: '투신 철편', prefix: '투신', bonus: { atkPct: 0.05 }, bonusName: '공격력',
+  { no: 3, title: '투왕', real: '천야', art: 2, mat: '투신 철편', prefix: '투신', hanja: '鬪王', skill: '권갑 투신',
     desc: '이기는 것만이 값이라 여기는 왕. 권갑 투신과 호신갑을 두른다.',
     look: { robe: '#78350f', trim: '#fbbf24', head: 'bald', weapon: 'fist', scale: 1.55 } },
-  { no: 2, title: '도왕', real: '냉무상', art: 11, mat: '일월 도편', prefix: '일월', bonus: { critDmg: 0.2 }, bonusName: '치명 피해',
+  { no: 2, title: '도왕', real: '냉무상', art: 11, mat: '일월 도편', prefix: '일월', hanja: '刀王', skill: '일월암혈도법',
     desc: '도법의 최고수. 검왕에 버금간다 — 일월암혈도법.',
     look: { robe: '#1e293b', trim: '#f8fafc', head: 'band', band: '#111', weapon: 'saber', scale: 1.5 } },
-  { no: 1, title: '검왕', real: '악군학', art: 15, mat: '무형 검편', prefix: '무형', bonus: { atkPct: 0.08 }, bonusName: '공격력',
+  { no: 1, title: '검왕', real: '악군학', art: 15, mat: '무형 검편', prefix: '무형', hanja: '劍王', skill: '무형신검',
     desc: '십이지왕 시대의 천하제일인. 가장 강한 왕 — 무형신검.',
     look: { robe: '#f8fafc', trim: '#fbbf24', head: 'topknot', hair: '#e5e7eb', weapon: 'sword', beard: true, aura: '#fde68a', scale: 1.6 } },
 ];
@@ -206,11 +207,14 @@ export const GRADES = [
 ];
 export const BAG_SIZE = 30;
 // 아이템 기본 수치 (등급·강화 전)
+// v108: 강해지는 몫의 대부분이 장비에서 오게 — 레벨·스탯 몫을 줄이고(공격력 레벨당 0.5·힘 0.8,
+// 체력 레벨당 5·체력 5) 장비 기본치를 GEAR배로. 공격력·체력의 80% 남짓이 장비다(시뮬).
+export const GEAR = 1.25;
 export const itemBase = (slot, ilv) => {
   switch (slot) {
-    case 'weapon': return { atk: 5 + 3.2 * ilv };
-    case 'armor': return { hp: 22 + 13 * ilv };
-    case 'hat': return { hp: 10 + 6 * ilv, def: 1 + ilv * 0.35 };
+    case 'weapon': return { atk: (5 + 3.2 * ilv) * GEAR };
+    case 'armor': return { hp: (22 + 13 * ilv) * GEAR };
+    case 'hat': return { hp: (10 + 6 * ilv) * GEAR, def: 1 + ilv * 0.35 };
     case 'acc': return { crit: 0.01 + ilv * 0.0006, atkPct: 0.02 + ilv * 0.0012 };
     default: return {};
   }
@@ -250,13 +254,6 @@ export const craftIlv = (step) => {
 export const stepMult = (step) => 1.12 ** (step / 2);
 // 빛깔(등급 색)은 지역 셋마다 한 칸씩 — 일반 · 고급 · 희귀 · 영웅 · 전설, 십이지왕 장비는 '지왕'
 export const stepGrade = (step) => (stepMap(step) > NORMAL_ZONES ? 5 : Math.min(4, Math.floor((stepMap(step) - 1) / 3)));
-// 십이지왕 장비에 붙는 왕의 힘 (상급은 ×1.5)
-export const kingBonus = (step) => {
-  const k = kingOf(stepMap(step));
-  if (!k) return null;
-  const m = stepUpper(step) ? 1.5 : 1;
-  return Object.fromEntries(Object.entries(k.bonus).map(([key, v]) => [key, v * m]));
-};
 // 조합법: 무엇을 내면 이것이 되나
 export function recipeOf(slot, step) {
   const k = stepMap(step);
@@ -270,7 +267,11 @@ export function recipeOf(slot, step) {
 // 장비 이름 — 사냥터 머리말 + 칸 이름 (상급은 앞에 '상급')
 const STEP_PREFIX = [null, '청죽', '사철', '빙정', '혈석', '귀화', '운모', '마철', '수정', '금강', '야명', '매화', '독룡', '현빙', '해왕', '천외', ...KINGS.map((k) => k.prefix)];
 export const ENHANCE_MAX = 10;
-export const ENHANCE_STEP = 0.1;                 // 한 단계에 기본 수치 +10%
+export const ENHANCE_STEP = 0.12;                // 한 단계에 기본 수치 +12% (+10이면 2.2배)
+// 강화에는 은자와 함께 그 장비 지역의 재료가 든다 — 재료를 넣을수록 장비가 세진다
+export const enhanceMatsN = (plus) => 4 + plus * 3;
+export const BOSS_ITEM_RATE = 0.12;              // 두목이 그 지역 하급 장비를 떨굴 확률
+export const KING_ITEM_RATE = 0.3;               // 십이지왕은 더 자주
 export const enhanceRate = (lv) => Math.max(0.4, 1 - lv * 0.07);   // +0→1 100%, +9→10 40%
 // 은자가 쌓이기만 하지 않게 — 사냥터를 옮겨 새 장비를 낄 때마다 다시 강화하는 데 쓰인다(시뮬로 맞춤)
 export const enhanceCost = (ilv, lv) => Math.round((50 + ilv * 15) * (lv + 1) ** 1.6);
@@ -282,6 +283,7 @@ const SLOT_NOUN = {
 };
 export const itemName = (item, job) => {
   const n = item.slot === 'weapon' ? (SLOT_NOUN.weapon[job] || '검') : SLOT_NOUN[item.slot];
+  if (item.starter) return `수련용 ${n}`;
   if (item.step != null) return `${stepUpper(item.step) ? '상급 ' : ''}${STEP_PREFIX[stepMap(item.step)]}${n}`;
   return `${GRADES[item.grade].name} ${n}`;
 };

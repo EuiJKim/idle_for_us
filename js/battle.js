@@ -918,6 +918,7 @@ export class BattleView {
       this.drawFloats(dt, z);
       this.drawHanja(dt);
       this.drawBanner(dt);
+      this.drawKingIntro(dt, z);
     } finally { this.w = vw; this.h = vh; }
     ctx.restore();
     ctx.restore();
@@ -2014,6 +2015,122 @@ export class BattleView {
     ctx.strokeText(hj.text, w / 2, hy);
     ctx.fillStyle = hj.color;
     ctx.fillText(hj.text, w / 2, hy);
+    ctx.restore();
+  }
+
+  // ---------- 십이지왕 등장 ----------
+  // 화면이 어두워지고 위아래에 먹띠가 내려온다. 왕이 선 자리에 핏빛 기둥이 서고,
+  // 한가운데 왕의 이름(한자)이 붓으로 크게 박힌다 — '第一王'의 낙관과 본명·독문무공이 뒤따른다.
+  // 게임 쪽에서는 이 동안 왕이 움직이지도 맞지도 않는다(introT).
+  startKingIntro(king, at) {
+    this.kingIntro = { k: king, at: at ? { x: at.x, y: at.y } : null, t: 0, dur: 3.2, hit: false };
+    this.shake = Math.max(this.shake, 0.5);
+  }
+  drawKingIntro(dt, z = 1) {
+    const ki = this.kingIntro;
+    if (!ki) return;
+    ki.t += dt;
+    if (ki.t >= ki.dur) { this.kingIntro = null; return; }
+    const { ctx, w, h } = this;
+    const t = ki.t;
+    const A = Math.min(1, t / 0.35, (ki.dur - t) / 0.5);
+    if (!ki.hit && t > 0.38) { ki.hit = true; this.flash = Math.max(this.flash, 0.35); this.shake = Math.max(this.shake, 0.8); }
+    ctx.save();
+    // 어둠
+    ctx.fillStyle = `rgba(6,3,3,${0.66 * A})`;
+    ctx.fillRect(0, 0, w, h);
+    // 왕이 선 자리 — 핏빛 기둥과 소용돌이
+    if (ki.at && this.game) {
+      const bx = this.sx(ki.at) * z;
+      const by = this.sy(ki.at) * z;
+      const pk = Math.max(0, Math.min(1, (t - 0.15) / 0.3)) * A;
+      const col = ctx.createLinearGradient(bx - 30, 0, bx + 30, 0);
+      col.addColorStop(0, 'rgba(127,29,29,0)');
+      col.addColorStop(0.5, `rgba(248,113,113,${0.55 * pk})`);
+      col.addColorStop(1, 'rgba(127,29,29,0)');
+      ctx.fillStyle = col;
+      ctx.fillRect(bx - 30, 0, 60, by);
+      const r = 70 + Math.sin(t * 9) * 6;
+      const g2 = ctx.createRadialGradient(bx, by - 30, 4, bx, by - 30, r);
+      g2.addColorStop(0, `rgba(254,202,202,${0.7 * pk})`);
+      g2.addColorStop(0.45, `rgba(220,38,38,${0.45 * pk})`);
+      g2.addColorStop(1, 'rgba(69,10,10,0)');
+      ctx.fillStyle = g2;
+      ctx.beginPath(); ctx.arc(bx, by - 30, r, 0, Math.PI * 2); ctx.fill();
+    }
+    // 위아래 먹띠
+    const bar = h * 0.11 * Math.min(1, t / 0.3) * Math.min(1, (ki.dur - t) / 0.4);
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, w, bar);
+    ctx.fillRect(0, h - bar, w, bar);
+    // 붓 한 획 — 이름 뒤를 가로지른다
+    const cy = h * 0.4;
+    const sk = Math.max(0, Math.min(1, (t - 0.25) / 0.22));
+    if (sk > 0) {
+      ctx.fillStyle = `rgba(127,29,29,${0.75 * A})`;
+      ctx.beginPath();
+      ctx.moveTo(w * 0.04, cy - 10);
+      ctx.quadraticCurveTo(w * 0.5, cy - 30, w * (0.04 + 0.92 * sk), cy - 6);
+      ctx.lineTo(w * (0.04 + 0.92 * sk) - 8, cy + 26);
+      ctx.quadraticCurveTo(w * 0.5, cy + 40, w * 0.04 + 6, cy + 18);
+      ctx.fill();
+    }
+    // 왕의 이름 (한자) — 크게 찍혔다가 제 크기로
+    const k = ki.k;
+    const nk = Math.max(0, Math.min(1, (t - 0.35) / 0.25));
+    if (nk > 0) {
+      const size = Math.min(132, w * 0.34) * (1.45 - 0.45 * nk);
+      ctx.globalAlpha = A * nk;
+      ctx.font = `${size}px ${BRUSH}`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.lineWidth = 10;
+      ctx.strokeStyle = 'rgba(0,0,0,0.9)';
+      ctx.strokeText(k.hanja, w / 2, cy + 8);
+      ctx.shadowColor = 'rgba(239,68,68,0.9)';
+      ctx.shadowBlur = 24;
+      ctx.fillStyle = '#fef2f2';
+      ctx.fillText(k.hanja, w / 2, cy + 8);
+      ctx.shadowBlur = 0;
+      // 낙관 '第N王'
+      const HN = ['', '一', '二', '三', '四', '五', '六', '七', '八', '九', '十', '十一', '十二'];
+      const seal = `第${HN[k.no]}王`;
+      ctx.save();
+      ctx.translate(w / 2 + Math.min(132, w * 0.34) * 0.95, cy - 38);
+      ctx.rotate(0.06);
+      const sh = 16 * [...seal].length + 10;
+      ctx.fillStyle = '#b91c1c';
+      roundRect(ctx, -15, -10, 30, sh, 4);
+      ctx.fill();
+      ctx.fillStyle = '#fef2f2';
+      ctx.font = `17px ${BRUSH}`;
+      [...seal].forEach((ch, i) => ctx.fillText(ch, 0, 4 + i * 16));
+      ctx.restore();
+    }
+    // 본명과 독문무공
+    const tk = Math.max(0, Math.min(1, (t - 0.75) / 0.3));
+    if (tk > 0) {
+      ctx.globalAlpha = A * tk;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.font = `800 21px system-ui, sans-serif`;
+      ctx.lineWidth = 5;
+      ctx.strokeStyle = 'rgba(0,0,0,0.85)';
+      const line = `십이지왕 제${k.no}왕 ${k.title}${k.real ? ` · ${k.real}` : ''}`;
+      ctx.strokeText(line, w / 2, cy + 86);
+      ctx.fillStyle = '#fecaca';
+      ctx.fillText(line, w / 2, cy + 86);
+    }
+    const sk2 = Math.max(0, Math.min(1, (t - 1.05) / 0.3));
+    if (sk2 > 0 && k.skill) {
+      ctx.globalAlpha = A * sk2;
+      ctx.font = `700 15px system-ui, sans-serif`;
+      ctx.lineWidth = 4;
+      const line2 = `독문무공 〈${k.skill}〉`;
+      ctx.strokeText(line2, w / 2, cy + 116);
+      ctx.fillStyle = '#e7e5e4';
+      ctx.fillText(line2, w / 2, cy + 116);
+    }
     ctx.restore();
   }
 

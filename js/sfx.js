@@ -96,8 +96,16 @@ const BANK = {
   down() { const t = ctx.currentTime; tone(t, { f0: 200, f1: 45, peak: 0.5, d: 0.7, type: 'sawtooth' }); },
   // 두목 등장: 북 두 번
   boss() { const t = ctx.currentTime; tone(t, { f0: 90, f1: 40, peak: 0.8, d: 0.4 }); tone(t + 0.28, { f0: 90, f1: 40, peak: 0.8, d: 0.5 }); },
+  // 십이지왕 등장: 북 세 번이 빨라지다가 낮게 울리는 징
+  king() {
+    const t = ctx.currentTime;
+    [0, 0.32, 0.52].forEach((d, i) => tone(t + d, { f0: 80 - i * 6, f1: 34, peak: 0.85, d: 0.45 }));
+    noise(t + 0.38, { freq: 400, q: 0.6, peak: 0.4, a: 0.05, d: 0.9, type: 'lowpass' });
+    tone(t + 0.4, { f0: 62, f1: 48, peak: 0.6, a: 0.02, d: 1.8, type: 'triangle' });
+    tone(t + 0.4, { f0: 124, f1: 96, peak: 0.18, a: 0.05, d: 1.6, type: 'sine' });
+  },
 };
-const MIN_GAP = { swish: 70, hit: 45, kill: 60, skill: 120, hurt: 120, potion: 200, loot: 300, level: 300, down: 500, boss: 800 };
+const MIN_GAP = { swish: 70, hit: 45, kill: 60, skill: 120, hurt: 120, potion: 200, loot: 300, level: 300, down: 500, boss: 800, king: 2500 };
 
 export function sfx(name, arg) {
   if (!on || !BANK[name]) return;

@@ -111,18 +111,19 @@ function bagTab(app) {
         const cur = game.s.equip[it.slot];
         const cost = game.enhanceCost(it);
         const max = (it.plus || 0) >= W.ENHANCE_MAX;
+        const em = game.enhanceMats(it);
         s.replaceChildren(
           h('h2', { style: `color:${g.color}` }, itemTitle(game, it)),
           h('p', {}, `${W.SLOTS.find((x) => x.id === it.slot).name} · 아이템 레벨 ${it.ilv} · ${g.name}`),
           h('p', {}, h('b', {}, itemLines(game, it))),
           !worn && cur ? h('p', { class: 'muted' }, `지금 낀 것: ${itemTitle(game, cur)} — ${itemLines(game, cur)}`) : null,
           it.step != null ? h('p', { class: 'muted' }, `${W.zoneOfW(W.stepMap(it.step))?.name || ''} ${W.stepUpper(it.step) ? '상급' : '하급'} — 대장장이에서 위 장비의 조합 재료가 돼요 (강화는 절반을 이어받아요)`) : null,
-          h('p', { class: 'muted' }, max ? '강화를 다 했어요' : `강화 +${(it.plus || 0) + 1} — 성공률 ${pct(W.enhanceRate(it.plus || 0), 0)} · 은자 ${fmt(cost)} (실패해도 깨지지 않아요)`),
+          h('p', { class: 'muted' }, max ? '강화를 다 했어요' : `강화 +${(it.plus || 0) + 1} (기본 수치 +${pct(W.ENHANCE_STEP, 0)}) — 성공률 ${pct(W.enhanceRate(it.plus || 0), 0)} · 은자 ${fmt(cost)}${em ? ` · ${W.matName(em.key)} ${em.n}개 (가진 것 ${fmt(game.s.mats[em.key] || 0)})` : ''} — 실패해도 깨지지 않아요`),
           h('div', { class: 'btn-row' },
             !worn ? h('button', { class: 'btn primary', onclick: () => { game.equipFromBag(it.uid); closeModal(); done(); } }, '끼기') : null,
-            h('button', { class: 'btn good', disabled: max || game.s.gold < cost ? true : null, onclick: () => {
+            h('button', { class: 'btn good', disabled: game.canEnhance(it) ? null : true, onclick: () => {
               const ok = game.enhance(it.uid);
-              if (ok === null) return toast('은자가 모자라요');
+              if (ok === null) return toast('은자나 재료가 모자라요');
               toast(ok ? `강화 성공! +${it.plus}` : '강화 실패… (깨지지는 않아요)');
               app.save(); paint(); app.refresh();
             } }, '강화'),
@@ -249,7 +250,7 @@ function mapTab(app) {
         h('div', { class: 'zone-head' },
           h('b', {}, zn.name), fit ? h('i', { class: 'best-tag' }, '알맞음') : null,
           h('small', {}, `Lv.${zn.lv[0]}~${zn.lv[1]} · 두목 ${zn.boss.name}`)),
-        zn.king ? h('p', { class: 'muted king-desc' }, `${zn.king.desc} — 장비에 ${zn.king.bonusName}`) : null,
+        zn.king ? h('p', { class: 'muted king-desc' }, `${zn.king.hanja} · ${zn.king.desc}`) : null,
         h('div', { class: 'area-row' }, ...btns)));
     }
   }

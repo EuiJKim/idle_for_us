@@ -138,9 +138,6 @@ export class WorldGame {
     const m = q * (1 + (it.plus || 0) * W.ENHANCE_STEP);
     const out = {};
     for (const [k, v] of Object.entries(b)) out[k] = v * m;
-    // 십이지왕 장비 — 왕의 힘이 하나 더 붙는다(강화와 상관없이)
-    const kb = it.step != null ? W.kingBonus(it.step) : null;
-    if (kb) for (const [k, v] of Object.entries(kb)) out[k] = (out[k] || 0) + v;
     return out;
   }
   stats() {
@@ -158,8 +155,9 @@ export class WorldGame {
     const vit = this.totalStat('vit');
     const int = this.totalStat('int');
     // 문파 버프 — 문파 레벨마다 공격력 +2% (서버가 guildExp를 넣어 준다)
-    const atk = (8 + L * 2 + str * 2 + gear.atk) * (1 + gear.atkPct + (s.guildId ? W.guildAtk(this.guildExp) : 0));
-    const hp = (80 + L * 14 + vit * 12 + gear.hp) * (1 + gear.hpPct);
+    // 레벨·스탯 몫은 작게, 장비 몫은 크게 (v108) — 강해지는 건 대부분 장비 덕
+    const atk = (5 + L * 0.5 + str * 0.8 + gear.atk) * (1 + gear.atkPct + (s.guildId ? W.guildAtk(this.guildExp) : 0));
+    const hp = (60 + L * 5 + vit * 5 + gear.hp) * (1 + gear.hpPct);
     const st = {
       atk, hp,
       def: vit * 0.2 + gear.def,
@@ -312,8 +310,11 @@ export class WorldGame {
       def: { name: kind.name, look: kind.look },
     };
     mob.name = kind.name;
+    // 십이지왕: 등장 연출 동안은 움직이지도, 맞지도 않는다
+    const king = boss ? m.king : null;
+    if (king) { mob.introT = W.KING_INTRO_SEC; this.freezeT = W.KING_INTRO_SEC; }
     this.mons.push(mob);
-    if (boss) this.emit('bossAppear', { name: kind.name, lv });
+    if (boss) this.emit('bossAppear', { name: kind.name, lv, king: king ? { no: king.no, title: king.title, real: king.real, hanja: king.hanja, skill: king.skill } : null, at: mob });
     return mob;
   }
 
@@ -338,6 +339,8 @@ export class WorldGame {
       this.bossT -= dt;
       if (this.bossT <= 0) { this.bossT = W.BOSS_RESPAWN; this.spawnMob(true); }
     }
+    // 십이지왕 등장 연출 동안은 들판 전체가 멈춘다(무인도 몹도)
+    if (this.freezeT > 0) { this.freezeT -= dt; this.walking = false; for (const m of this.mons) if (m.introT > 0) m.introT -= dt; return; }
     this.tickMobs(dt, st);
     if (this.heroHp <= 0) return;
     this.tickPotion(st);
@@ -363,6 +366,7 @@ export class WorldGame {
         this.hurt(m, m.poisonPer * d, 'poison', false, true);
         if (!m.alive) continue;
       }
+      if (m.introT > 0) { m.introT -= dt; continue; }
       if (m.stun > 0) { m.stun -= dt; continue; }
       if (m.slow > 0) m.slow -= dt;
       const spd = W.MOB_SPEED * (m.slow > 0 ? 0.45 : 1) * (m.isBoss ? 0.8 : 1);
@@ -473,7 +477,7 @@ export class WorldGame {
     let bd = Infinity;
     const h = { c: this.hc, r: this.hr };
     for (const m of this.mons) {
-      if (!m.alive || m.npc) continue;
+      if (!m.alive || m.npc || m.introT > 0) continue;
       let d = this.tileDist(h, this.mobTile(m));
       if (m.aggro) d *= 0.5;                          // 나를 치러 오는 놈 먼저
       if (!this.s.autoHunt && d > st.range * 1.2 && !m.aggro) continue;
@@ -511,7 +515,7 @@ export class WorldGame {
   }
 
   hurt(m, dmg, kind, crit, quiet = false) {
-    if (!m.alive) return;
+    if (!m.alive || m.introT > 0) return;
     m.hp -= dmg;
     m.aggro = true;
     if (!quiet) this.emit('dmg', { amount: dmg, kind, crit: crit ? 1 : 0, at: m, add: m !== this.mon });
@@ -664,6 +668,8 @@ export class WorldGame {
   setJob(id) {
     if (!W.CLASSES[id] || this.s.job) return false;
     this.s.job = id;
+    // 맨손으로 시작하면 첫 몹도 버겁다 — 수련용 무기 하나
+    if (!this.s.equip.weapon) this.s.equip.weapon = { ...this.makeItem('weapon', 1, 0), starter: true };
     this._stats = null;
     this.heroHp = this.stats().hp;
     return true;
@@ -699,6 +705,12 @@ export class WorldGame {
     if (m.isBoss) {
       this.addMats(id, W.BOSS_MATS);
       this.addMats(W.bossKey(id), 1);
+      // 가끔 그 지역 하급 장비를 통째로 떨군다 (십이지왕은 더 자주)
+      if (this.rng() < (W.kingOf(id) ? W.KING_ITEM_RATE : W.BOSS_ITEM_RATE)) {
+        const it = this.makeCrafted(W.SLOTS[Math.floor(this.rng() * W.SLOTS.length)].id, (id - 1) * 2);
+        this.emit('drop', { item: it, at: { x: m.x, y: m.y } });
+        this.gainItem(it);
+      }
       return { id, n: W.BOSS_MATS, name: W.MATS[id], color: W.MAT_COLORS[id], boss: W.matName(W.bossKey(id)) };
     }
     if (this.rng() >= W.MAT_RATE) return null;
@@ -803,12 +815,23 @@ export class WorldGame {
     return Object.values(this.s.equip).find((x) => x?.uid === uid) || this.s.bag.find((x) => x.uid === uid) || null;
   }
   enhanceCost(it) { return W.enhanceCost(it.ilv, it.plus || 0); }
+  // 강화 재료: 조합 장비는 그 지역 재료 (옛 장비·수련용은 은자만)
+  enhanceMats(it) {
+    if (it.step == null) return null;
+    return { key: W.stepMap(it.step), n: W.enhanceMatsN(it.plus || 0) };
+  }
+  canEnhance(it) {
+    if (!it || (it.plus || 0) >= W.ENHANCE_MAX || this.s.gold < this.enhanceCost(it)) return false;
+    const m = this.enhanceMats(it);
+    return !m || (this.s.mats[m.key] || 0) >= m.n;
+  }
   enhance(uid) {
     const it = this.findItem(uid);
-    if (!it || (it.plus || 0) >= W.ENHANCE_MAX) return null;
+    if (!this.canEnhance(it)) return null;
     const cost = this.enhanceCost(it);
-    if (this.s.gold < cost) return null;
+    const mats = this.enhanceMats(it);
     this.s.gold -= cost;
+    if (mats) this.s.mats[mats.key] -= mats.n;
     const ok = this.rng() < W.enhanceRate(it.plus || 0);
     if (ok) it.plus = (it.plus || 0) + 1;
     this._stats = null;
