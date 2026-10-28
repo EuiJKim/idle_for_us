@@ -365,9 +365,15 @@ console.log('\n=== 십이지왕 신화 · 가락지·귀걸이 · 애완동물 �
   ok(t.heroHp > 1, '혈왕 신화: 준 피해만큼 체력을 빨아들인다', `체력 1 → ${t.heroHp.toFixed(0)}`);
   // 가락지·귀걸이: 두목만, 강화가 어렵다, 애완동물 +N
   const a = fresh();
-  let acc2 = 0;
-  for (let i = 0; i < 3000; i++) { a.s.map = W.mapId(3, 4); a.dropMats({ isBoss: true, x: 0, y: 0 }); acc2 += a.events.filter((e) => e.type === 'drop' && W.isDropOnly(e.item.slot)).length; a.events.length = 0; }
-  ok(Math.abs(acc2 / 3000 - W.ACC2_DROP) < 0.02 && a.craft('finger', 4) === null, '가락지·귀걸이는 두목만 떨군다(만들 수 없다)', `${(acc2 / 30).toFixed(1)}%`);
+  const accRate = (z) => { let n = 0; for (let i = 0; i < 4000; i++) { a.s.map = W.mapId(z, 4); a.dropMats({ isBoss: true, x: 0, y: 0 }); n += a.events.filter((e) => e.type === 'drop' && W.isDropOnly(e.item.slot)).length; a.events.length = 0; } return n / 4000; };
+  const r1 = accRate(1), r15 = accRate(15);
+  ok(r1 < r15 && Math.abs(r1 - W.acc2DropRate(1)) < 0.015 && a.craft('finger', 4) === null, '가락지·귀걸이는 두목만 떨군다 — 높은 두목일수록 자주(만들 수 없다)', `죽림 ${(r1 * 100).toFixed(1)}% · 천외천 ${(r15 * 100).toFixed(1)}%`);
+  // 두목마다 이름·덤 능력이 다르고, 높은 두목 것이 더 좋다
+  const lo = a.makeCrafted('finger', 0, 0, 1), hi = a.makeCrafted('finger', 28, 0, 1);
+  const sl = a.itemStats(lo), sh = a.itemStats(hi);
+  ok(W.itemName(lo) === '청죽환' && W.itemName(hi) === '천외 지환' && sh.atkPct > sl.atkPct * 2, '가락지: 죽림 청죽환 … 천외천 천외 지환 — 높은 두목 것이 훨씬 좋다', `${JSON.stringify(Object.fromEntries(Object.entries(sh).map(([k, v]) => [k, +v.toFixed(3)])))}`);
+  const names = new Set(); for (let z = 1; z <= W.ZONE_COUNT; z++) names.add(W.itemName(a.makeCrafted('ear', (z - 1) * 2, 0, 0)));
+  ok(names.size === W.ZONE_COUNT, `귀걸이도 두목마다 이름이 다르다(${names.size}가지)`);
   const ring = a.makeCrafted('finger', 4, 0, 1);
   const wpn = a.makeCrafted('weapon', 4, 0, 1);
   ok(a.enhanceRateOf(ring) === W.enhanceRate(0) * W.ACC2_RATE && a.enhanceCost(ring) === a.enhanceCost(wpn) * W.ACC2_COST && a.enhanceMax(ring) === 10, '가락지·귀걸이 강화는 어렵다(성공률 절반·은자 ×3·돌파 없음)');
@@ -399,6 +405,15 @@ console.log('\n=== 십이지왕 신화 · 가락지·귀걸이 · 애완동물 �
   ok(m.stats().moveSpeed > sp0 * 1.8 && m.stats().atk > fresh().stats().atk, '탈것: 이동 속도(적토마 +85%)와 공격력·체력 %', `이동 ×${m.stats().moveSpeed.toFixed(2)}`);
   m.gainMount('donkey');
   ok(m.mountNow().name === '적토마', '더 느린 탈것을 얻으면 갈아타지 않는다');
+  // 순위: 아래 것보다 위 것이 세다 · 초반 두목은 아주 낮게·아래 순위만
+  const top = W.PETS.find((x) => x.tier === 10), low = W.PETS.find((x) => x.tier === 1);
+  ok(W.petAtkRatio({ kind: top.id, rar: 0, lv: 1 }) > W.petAtkRatio({ kind: low.id, rar: 0, lv: 1 }) * 2, `애완동물 순위: ${W.PETS.slice().sort((x, y) => y.tier - x.tier).map((x) => x.name).join(' > ')}`);
+  const rr = seeded();
+  const tiersOf = (z) => { const set = new Set(); for (let i = 0; i < 3000; i++) set.add(W.petOf(W.rollPetKind(z, rr)).tier); return Math.max(...set); };
+  ok(W.petDropRate(1) < 0.001 && tiersOf(1) <= 1 && tiersOf(15) === 7 && tiersOf(27) === 10 && W.petDropRate(27) > W.petDropRate(15) * 3,
+    '애완동물 드랍: 죽림 0.08%(선학만) … 천외천 0.9%(손오공까지) … 검왕 3.8%(황룡까지)', `${(W.petDropRate(1) * 100).toFixed(2)}% · ${(W.petDropRate(15) * 100).toFixed(2)}% · ${(W.petDropRate(27) * 100).toFixed(2)}%`);
+  const mtTop = (z, boss) => { let t = 0; for (let i = 0; i < 3000; i++) t = Math.max(t, W.mountOf(W.rollMount(rr, z, boss)).tier); return t; };
+  ok(W.MOUNTS.length === 12 && mtTop(1, true) === 2 && mtTop(27, true) === 12, `탈것 열둘 — 죽림 두목은 노새까지 … 검왕은 청룡마까지`, W.MOUNTS.map((x) => x.name).join(' < '));
   let md = 0;
   const mm = fresh();
   for (let i = 0; i < 200000; i++) if (mm.rng() < W.MOUNT_DROP_MOB) md++;

@@ -163,6 +163,10 @@ export class WorldGame {
     const m = q * W.enhanceMult(it.plus || 0);
     const out = {};
     for (const [k, v] of Object.entries(b)) out[k] = v * m;
+    // 가락지·귀걸이: 그 두목의 덤 능력 (등급만큼 커진다, 강화와는 따로)
+    if (W.isDropOnly(it.slot) && it.step != null) {
+      for (const [k, v] of Object.entries(W.acc2Trait(W.stepMap(it.step), it.slot))) out[k] = (out[k] || 0) + v * W.RARITY[it.rar || 0].mult;
+    }
     return out;
   }
   stats() {
@@ -177,7 +181,11 @@ export class WorldGame {
     }
     // 애완동물 버프 · 탈것(공격력·체력 %) · 십이지왕 신화
     gear.mat = 0;
-    for (const p of this.activePets()) { const d = W.petOf(p.kind); gear[d.buff] = (gear[d.buff] || 0) + W.petBuff(p); }
+    for (const p of this.activePets()) {
+      const d = W.petOf(p.kind);
+      gear[d.buff] = (gear[d.buff] || 0) + W.petBuff(p);
+      for (const [k, v] of Object.entries(d.also || {})) gear[k] = (gear[k] || 0) + v * W.petScale(p);   // 황룡: 둘 다
+    }
     const mt = this.mountNow();
     if (mt) { gear.atkPct += mt.stat; gear.hpPct += mt.stat; }
     const ps = this.passives();
@@ -614,8 +622,8 @@ export class WorldGame {
     this.note(1, exp, gold, 0);
     this.petExp(exp * 0.5);
     // 탈것 — 아주 드물게 (두목은 조금 더)
-    const mr = m.isBoss ? (W.kingOf(this.map.zone) ? W.MOUNT_DROP_KING : W.MOUNT_DROP_BOSS) : W.MOUNT_DROP_MOB;
-    if (this.rng() < mr) this.gainMount(W.rollMount(this.rng, m.isBoss), m);
+    const mr = m.isBoss ? W.mountBossRate(this.map.zone) : W.MOUNT_DROP_MOB;
+    if (this.rng() < mr) this.gainMount(W.rollMount(this.rng, this.map.zone, m.isBoss), m);
     if (this.passives().has('frenzy')) this.frenzyT = 4;
     if (m === this.mon) this.mon = null;
     if (!m.isBoss) this.respawns.push({ t: W.RESPAWN_SEC });
@@ -815,14 +823,15 @@ export class WorldGame {
         this.gainItem(it);
       }
       // 가락지·귀걸이 — 두목만 떨군다
-      if (this.rng() < (W.kingOf(id) ? W.ACC2_DROP_KING : W.ACC2_DROP)) {
+      if (this.rng() < W.acc2DropRate(id)) {
         const rar = W.rollRarity(W.kingOf(id) ? W.KING_RAR_W : W.BOSS_RAR_W, this.rng);
         const it = this.makeCrafted(this.rng() < 0.5 ? 'finger' : 'ear', (id - 1) * 2, 0, rar);
         this.emit('drop', { item: it, at: { x: m.x, y: m.y } });
         this.gainItem(it);
       }
       // 애완동물 — 두목만, 낮은 확률
-      if (this.rng() < (W.kingOf(id) ? W.PET_DROP_KING : W.PET_DROP)) this.gainPet(W.rollRarity(W.kingOf(id) ? W.KING_RAR_W : W.BOSS_RAR_W, this.rng), m);
+      // 초반 두목은 아주 낮게·아래 순위만, 높은 두목일수록 자주·위 순위까지
+      if (this.rng() < W.petDropRate(id)) this.gainPet(W.rollRarity(W.kingOf(id) ? W.KING_RAR_W : W.BOSS_RAR_W, this.rng), m, W.rollPetKind(id, this.rng));
       return { id, n: W.BOSS_MATS, name: W.MATS[id], color: W.MAT_COLORS[id], boss: W.matName(W.bossKey(id)) };
     }
     if (this.rng() >= W.MAT_RATE * (this.stats().matMult || 1)) return null;
@@ -993,8 +1002,8 @@ export class WorldGame {
     return n;
   }
   activePets() { return (this.s.pets || []).slice(0, this.petSlots()); }
-  gainPet(rar, at) {
-    const pet = { uid: uidSeq++, kind: W.PETS[Math.floor(this.rng() * W.PETS.length)].id, rar, lv: 1, exp: 0 };
+  gainPet(rar, at, kind) {
+    const pet = { uid: uidSeq++, kind: kind || W.PETS[Math.floor(this.rng() * W.PETS.length)].id, rar, lv: 1, exp: 0 };
     // 키우는 칸이 비었으면 바로 데려가고, 아니면 우리에서 기다린다(바꾸려면 키우던 것을 놓아줘야 한다)
     if (this.s.pets.length < this.petSlots()) this.s.pets.push(pet);
     else if (this.s.petBox.length < W.PET_BOX) this.s.petBox.push(pet);

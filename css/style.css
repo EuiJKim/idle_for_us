@@ -974,3 +974,14 @@ button.mat-chip:disabled { opacity: 0.5; }
 /* 창 버튼 여섯 — 한 줄에 들어가게 조금 좁게 */
 #tabs button { padding: 0 7px; }
 #tabs button span { font-size: 10.5px; }
+/* 동료 — 순위표 (v112) */
+.rank-card summary { cursor: pointer; list-style: none; display: flex; align-items: baseline; gap: 6px; }
+.rank-card summary::-webkit-details-marker { display: none; }
+.rank-card summary b { font: 800 16px var(--serif); }
+.rank-card summary small { color: var(--muted); font-size: 11px; }
+.rank-line { display: grid; grid-template-columns: 22px 26px auto 1fr; grid-template-rows: auto auto; column-gap: 6px; align-items: center; padding: 6px 0; border-top: 1px solid var(--line); font-size: 12px; }
+.rank-line .rk { grid-row: span 2; font: 800 14px var(--serif); color: #fde68a; text-align: center; }
+.rank-line .em { grid-row: span 2; font-size: 22px; }
+.rank-line b { font-size: 14px; }
+.rank-line span:not(.rk):not(.em) { color: var(--muted); }
+.rank-line small { grid-column: 3 / 5; color: #a8a29e; font-size: 11px; }

@@ -223,8 +223,9 @@ export const itemBase = (slot, ilv) => {
     case 'hat': return { hp: (10 + 6 * ilv) * GEAR, def: 1 + ilv * 0.35 };
     case 'acc': return { crit: 0.01 + ilv * 0.0006, atkPct: 0.02 + ilv * 0.0012 };
     // 가락지: 공격력% · 치명 피해 / 귀걸이: 최대 체력% · 스킬 피해 (두목만 떨군다, 강화가 어렵다)
-    case 'finger': return { atkPct: 0.03 + ilv * 0.0015, critDmg: 0.05 + ilv * 0.002 };
-    case 'ear': return { hpPct: 0.03 + ilv * 0.0015, skill: 0.03 + ilv * 0.0012 };
+    // (% 수치도 사다리 배수를 따라 커지니 바탕은 작게)
+    case 'finger': return { atkPct: 0.015 + ilv * 0.0006, critDmg: 0.03 + ilv * 0.001 };
+    case 'ear': return { hpPct: 0.015 + ilv * 0.0006, skill: 0.015 + ilv * 0.0006 };
     default: return {};
   }
 };
@@ -289,8 +290,8 @@ export const KING_ITEM_RATE = 0.3;               // 십이지왕은 더 자주
 // 가락지·귀걸이: 강화가 어렵다 — 성공률 절반, 은자 ×3, 돌파 없음
 export const ACC2_RATE = 0.5;
 export const ACC2_COST = 3;
-export const ACC2_DROP = 0.08;     // 두목이 가락지·귀걸이를 떨굴 확률
-export const ACC2_DROP_KING = 0.15;
+// 두목이 가락지·귀걸이를 떨굴 확률 — 높은 두목일수록 자주 (죽림 3% … 천외천 10% · 왕 12~17%)
+export const acc2DropRate = (z) => (z > NORMAL_ZONES ? 0.12 + (z - NORMAL_ZONES - 1) * 0.0045 : 0.03 + (z - 1) * 0.005);
 export const enhanceRate = (lv) => (lv < ENHANCE_NORMAL ? Math.max(0.4, 1 - lv * 0.07) : Math.max(0.12, 0.3 - (lv - ENHANCE_NORMAL) * 0.045));   // +9→10 40% · 돌파 30%→12%
 // 은자가 쌓이기만 하지 않게 — 사냥터를 옮겨 새 장비를 낄 때마다 다시 강화하는 데 쓰인다(시뮬로 맞춤)
 export const enhanceCost = (ilv, lv) => Math.round((50 + ilv * 15) * (lv + 1) ** 1.6);
@@ -398,9 +399,27 @@ const SLOT_NOUN = {
   weapon: { sword: '검', fist: '권갑', fan: '부채', poison: '독낭', ring: '지환' },
   armor: '도포', hat: '두건', acc: '옥패',
 };
+// v112: 두목마다 가락지·귀걸이가 다르다 — 이름과 덤 능력(그 두목의 결). 높은 두목일수록 덤도 크다.
+const ACC2_NAMES = [null,
+  ['청죽환', '죽엽 귀걸이'], ['사막옥 가락지', '모래별 귀걸이'], ['빙정 반지', '서리꽃 귀걸이'], ['혈석 지환', '핏방울 귀걸이'],
+  ['귀화 반지', '도깨비불 귀걸이'], ['운모환', '구름 귀걸이'], ['마철 지환', '마령 귀걸이'], ['수정 가락지', '물비늘 귀걸이'],
+  ['금강 지환', '보리 귀걸이'], ['야명주 반지', '등불 귀걸이'], ['매화환', '매화 귀걸이'], ['독룡 지환', '독초 귀걸이'],
+  ['현빙 반지', '현빙 귀걸이'], ['해왕 가락지', '진주 귀걸이'], ['천외 지환', '별빛 귀걸이'],
+  ['유혼 권환', '절명 귀걸이'], ['기관 반지', '톱니 귀걸이'], ['귀혼 반지', '음율 귀걸이'], ['혈해 지환', '혈왕 귀걸이'],
+  ['천혼 목환', '목령 귀걸이'], ['야우 반지', '천녀 귀걸이'], ['암야 지환', '흑린 귀걸이'], ['환영 반지', '쌍영 귀걸이'],
+  ['명부 지환', '명부 귀걸이'], ['투신 권환', '투신 귀걸이'], ['일월 지환', '암혈 귀걸이'], ['무형 검환', '검왕 귀걸이'],
+];
+// 덤 능력: 지역마다 하나 (가락지 · 귀걸이 다르게) — 값은 지역이 높을수록 크다
+const ACC2_TRAITS = ['crit', 'speed', 'hpPct', 'regenPct', 'def', 'exp', 'mat', 'skill', 'critDmg', 'atkPct'];
+const TRAIT_BASE = { crit: 0.012, speed: 0.015, hpPct: 0.02, regenPct: 0.0008, def: 4, exp: 0.02, mat: 0.03, skill: 0.025, critDmg: 0.04, atkPct: 0.02 };
+export const TRAIT_TEXT = { crit: '치명', speed: '공격 속도', hpPct: '최대 체력', regenPct: '초당 체력 회복', def: '방어', exp: '경험치', mat: '재료 드랍', skill: '스킬 피해', critDmg: '치명 피해', atkPct: '공격력' };
+export function acc2Trait(z, slot) {
+  const k = ACC2_TRAITS[(z * 3 + (slot === 'ear' ? 5 : 0)) % ACC2_TRAITS.length];
+  return { [k]: TRAIT_BASE[k] * (1 + z * 0.22) };
+}
 const ACC2_NOUN = { finger: '가락지', ear: '귀걸이' };
 export const itemName = (item, job) => {
-  if (ACC2_NOUN[item.slot]) return `${STEP_PREFIX[stepMap(item.step)] || ''}${ACC2_NOUN[item.slot]}`;
+  if (ACC2_NOUN[item.slot]) return ACC2_NAMES[stepMap(item.step)]?.[item.slot === 'ear' ? 1 : 0] || ACC2_NOUN[item.slot];
   const n = item.slot === 'weapon' ? (SLOT_NOUN.weapon[job] || '검') : SLOT_NOUN[item.slot];
   if (item.starter) return `수련용 ${n}`;
   if (item.step != null) return `${stepUpper(item.step) ? '상급 ' : ''}${STEP_PREFIX[stepMap(item.step)]}${n}`;
@@ -443,49 +462,75 @@ export const GUILD_DONATE_PER_DAY = 3;
 export const guildDonateCost = (level) => Math.round(300 + level * 40);
 
 
-// ---------- 애완동물 (v111) ----------
-// 두목만 낮은 확률로 떨군다. 장착하면 무인 곁에서 무인 공격력에 비례해 사냥하고, 무인에게 버프를 건다.
+// ---------- 애완동물 (v111 · v112 순위) ----------
+// 두목만 떨군다. 장착하면 무인 곁에서 무인 공격력에 비례해 사냥하고, 무인에게 버프를 건다.
 // 무인과 함께 경험치를 받아 자란다(레벨 30까지). 한 번에 한 마리 — 가락지·귀걸이의 '애완동물 +N'만큼 더.
 // 바꾸려면 키우던 것을 놓아줘야 한다(버리기). 떨군 것은 우리(최대 10)에 들어가 기다린다.
+//
+// v112: **순위**(tier 1 아래 … 10 위). 위일수록 한 대가 세고 버프가 크다. 초반 두목은 아주 낮은 확률로
+// 아래 것만, 높은 두목일수록 자주·위 것까지 떨군다(지역 → 나올 수 있는 가장 높은 순위).
 export const PETS = [
-  { id: 'tiger', name: '백호', emoji: '🐯', buff: 'atkPct', base: 0.06, text: '공격력' },
-  { id: 'dragon', name: '청룡', emoji: '🐉', buff: 'skill', base: 0.08, text: '스킬 피해' },
-  { id: 'turtle', name: '현무', emoji: '🐢', buff: 'hpPct', base: 0.08, text: '최대 체력' },
-  { id: 'phoenix', name: '주작', emoji: '🦅', buff: 'crit', base: 0.03, text: '치명' },
-  { id: 'qilin', name: '기린', emoji: '🦄', buff: 'exp', base: 0.06, text: '경험치' },
-  { id: 'fox', name: '구미호', emoji: '🦊', buff: 'mat', base: 0.08, text: '재료 드랍' },
-  { id: 'monkey', name: '손오공', emoji: '🐒', buff: 'speed', base: 0.05, text: '공격 속도' },
-  { id: 'crane', name: '선학', emoji: '🦢', buff: 'regenPct', base: 0.003, text: '초당 체력 회복' },
+  { id: 'crane', tier: 1, name: '선학', emoji: '🦢', buff: 'regenPct', base: 0.003, text: '초당 체력 회복' },
+  { id: 'fox', tier: 2, name: '구미호', emoji: '🦊', buff: 'mat', base: 0.1, text: '재료 드랍' },
+  { id: 'qilin', tier: 3, name: '기린', emoji: '🦄', buff: 'exp', base: 0.08, text: '경험치' },
+  { id: 'turtle', tier: 4, name: '현무', emoji: '🐢', buff: 'hpPct', base: 0.1, text: '최대 체력' },
+  { id: 'haetae', tier: 5, name: '해태', emoji: '🦁', buff: 'def', base: 25, text: '방어' },
+  { id: 'phoenix', tier: 6, name: '주작', emoji: '🦅', buff: 'crit', base: 0.04, text: '치명' },
+  { id: 'monkey', tier: 7, name: '손오공', emoji: '🐒', buff: 'speed', base: 0.08, text: '공격 속도' },
+  { id: 'dragon', tier: 8, name: '청룡', emoji: '🐉', buff: 'skill', base: 0.14, text: '스킬 피해' },
+  { id: 'tiger', tier: 9, name: '백호', emoji: '🐯', buff: 'atkPct', base: 0.12, text: '공격력' },
+  { id: 'yellow', tier: 10, name: '황룡', emoji: '🐲', buff: 'atkPct', base: 0.18, also: { hpPct: 0.18 }, text: '공격력·최대 체력' },
 ];
 export const petOf = (id) => PETS.find((p) => p.id === id) || PETS[0];
-export const PET_DROP = 0.01;         // 두목 (두목 구역 한 시간에 하나 남짓)
-export const PET_DROP_KING = 0.03;    // 십이지왕
+// 지역 → 두목 애완동물 확률과 나올 수 있는 가장 높은 순위
+export const petDropRate = (z) => (z > NORMAL_ZONES ? 0.02 + (z - NORMAL_ZONES) * 0.0015 : 0.0008 + (z - 1) * 0.0006);   // 죽림 0.08% … 천외천 0.92% · 왕 2.15~3.8%
+export const petMaxTier = (z) => (z > NORMAL_ZONES ? Math.min(10, 8 + Math.floor((z - NORMAL_ZONES - 1) / 4)) : Math.min(7, 1 + Math.floor((z - 1) / 2.33)));   // 죽림 1 … 천외천 7 · 권왕 8 … 검왕 10
+// 나올 수 있는 순위 가운데 아래 것이 더 잘 (한 칸 위마다 ×0.55)
+export function rollPetKind(z, rng) {
+  const top = petMaxTier(z);
+  const pool = PETS.filter((p) => p.tier <= top);
+  const w = pool.map((p) => 0.55 ** (top - p.tier) * (p.tier === top ? 0.5 : 1));
+  let r = rng() * w.reduce((a, b) => a + b, 0);
+  for (let i = 0; i < pool.length; i++) { r -= w[i]; if (r <= 0) return pool[i].id; }
+  return pool[0].id;
+}
 export const PET_LV_MAX = 30;
 export const PET_BOX = 10;
 // 무인 경험치의 절반을 받는다. 무인 레벨 10+4×(애완 레벨)의 60% — 무인과 함께 오래 자란다
 export const petExpToNext = (lv) => Math.round(expToNext(10 + lv * 4) * 0.6);
-// 등급(레어~신화)과 레벨로 버프·공격이 커진다
-export const petBuff = (pet) => petOf(pet.kind).base * RARITY[pet.rar].mult * (1 + (pet.lv - 1) * 0.05);
-export const petAtkRatio = (pet) => (0.18 + (pet.lv - 1) * 0.012) * RARITY[pet.rar].mult;   // 무인 공격력 대비 한 대
+// 순위·등급(레어~신화)·레벨로 버프·공격이 커진다
+export const petScale = (pet) => RARITY[pet.rar].mult * (1 + (pet.lv - 1) * 0.05);
+export const petBuff = (pet) => petOf(pet.kind).base * petScale(pet);
+export const petAtkRatio = (pet) => (0.1 + petOf(pet.kind).tier * 0.025 + (pet.lv - 1) * 0.012) * RARITY[pet.rar].mult;   // 무인 공격력 대비 한 대
 export const PET_ATK_SEC = 1.6;
 
-// ---------- 탈것 (v111) ----------
-// 이동 속도 +%와 공격력·체력 +%. 졸개는 아주 드물게, 두목은 조금 더. 좋은 탈것일수록 훨씬 빠르다.
+// ---------- 탈것 (v111 · v112 열둘) ----------
+// 이동 속도 +%와 공격력·체력 +%. 아주 드물게 — 졸개는 2만 마리에 하나 꼴, 두목은 지역이 높을수록 자주.
+// 지역이 높을수록 좋은 탈것까지 나온다(나올 수 있는 가장 높은 순위). 좋은 탈것일수록 훨씬 빠르다.
 export const MOUNTS = [
-  { id: 'donkey', name: '나귀', emoji: '🫏', speed: 0.2, stat: 0.02, w: 55 },
-  { id: 'horse', name: '조랑말', emoji: '🐴', speed: 0.35, stat: 0.04, w: 28 },
-  { id: 'warhorse', name: '흑풍마', emoji: '🐎', speed: 0.55, stat: 0.07, w: 12 },
-  { id: 'redhare', name: '적토마', emoji: '🐎', tint: '#b91c1c', speed: 0.85, stat: 0.11, w: 4 },
-  { id: 'cloud', name: '천리운', emoji: '🦄', speed: 1.3, stat: 0.16, w: 1 },
+  { id: 'donkey', tier: 1, name: '나귀', emoji: '🫏', speed: 0.15, stat: 0.01 },
+  { id: 'mule', tier: 2, name: '노새', emoji: '🫏', tint: '#92400e', speed: 0.22, stat: 0.02 },
+  { id: 'horse', tier: 3, name: '조랑말', emoji: '🐴', speed: 0.3, stat: 0.03 },
+  { id: 'camel', tier: 4, name: '사막 낙타', emoji: '🐫', speed: 0.38, stat: 0.04 },
+  { id: 'deer', tier: 5, name: '설원 순록', emoji: '🦌', speed: 0.46, stat: 0.05 },
+  { id: 'warhorse', tier: 6, name: '흑풍마', emoji: '🐎', speed: 0.55, stat: 0.07 },
+  { id: 'white', tier: 7, name: '백운마', emoji: '🐎', tint: '#f8fafc', speed: 0.65, stat: 0.08 },
+  { id: 'tigerm', tier: 8, name: '맹호', emoji: '🐅', speed: 0.75, stat: 0.1 },
+  { id: 'redhare', tier: 9, name: '적토마', emoji: '🐎', tint: '#b91c1c', speed: 0.9, stat: 0.12 },
+  { id: 'ochu', tier: 10, name: '오추마', emoji: '🐎', tint: '#111827', speed: 1.05, stat: 0.14 },
+  { id: 'cloud', tier: 11, name: '천리운', emoji: '🦄', speed: 1.3, stat: 0.17 },
+  { id: 'azure', tier: 12, name: '청룡마', emoji: '🐉', speed: 1.7, stat: 0.22 },
 ];
 export const mountOf = (id) => MOUNTS.find((m) => m.id === id) || null;
 export const MOUNT_DROP_MOB = 0.00005; // 졸개 (2만 마리에 하나 꼴 — 하루 꼬박 사냥해 한두 번)
-export const MOUNT_DROP_BOSS = 0.004;  // 두목
-export const MOUNT_DROP_KING = 0.01;   // 십이지왕
-export const rollMount = (rng, boss) => {
-  // 두목은 좋은 탈것이 더 잘 나온다
-  const w = MOUNTS.map((m, i) => m.w * (boss ? 1 + i * 0.8 : 1));
+export const mountBossRate = (z) => (z > NORMAL_ZONES ? 0.008 + (z - NORMAL_ZONES) * 0.0008 : 0.0005 + (z - 1) * 0.0003);  // 죽림 0.05% … 천외천 0.47% · 왕 0.9~1.8%
+export const mountMaxTier = (z) => (z > NORMAL_ZONES ? Math.min(12, 10 + Math.floor((z - NORMAL_ZONES - 1) / 5)) : Math.min(10, 2 + Math.floor((z - 1) / 2)));
+export const rollMount = (rng, z, boss) => {
+  // 졸개는 한 칸 아래까지, 두목은 그 지역 끝까지 — 아래 것이 더 잘 (한 칸 위마다 ×0.6)
+  const top = Math.max(1, mountMaxTier(z) - (boss ? 0 : 1));
+  const pool = MOUNTS.filter((m) => m.tier <= top);
+  const w = pool.map((m) => 0.6 ** (top - m.tier));
   let r = rng() * w.reduce((a, b) => a + b, 0);
-  for (let i = 0; i < w.length; i++) { r -= w[i]; if (r <= 0) return MOUNTS[i].id; }
-  return MOUNTS[0].id;
+  for (let i = 0; i < pool.length; i++) { r -= w[i]; if (r <= 0) return pool[i].id; }
+  return pool[0].id;
 };
