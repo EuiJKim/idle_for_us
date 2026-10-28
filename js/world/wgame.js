@@ -31,14 +31,15 @@ export function newWorldSave(now = Date.now()) {
     bagSize: W.BAG_SIZE,
     mats: {},                // 재료 — 사냥터 번호: 개수
     map: 0,                  // 지금 있는 곳 (0 마을)
-    huntMap: 1,              // 돌아갈 사냥터
+    huntMap: W.mapId(1, 1),  // 돌아갈 구역 (지역×10 + 구역)
+    mapV: 2,
     autoHunt: true,
     autoSkill: true,
     lastSeen: now,
     titles: [],
     kills: 0,
     deaths: 0,
-    bestMap: 1,
+    bestMap: W.mapId(1, 1),
     created: now,
   };
 }
@@ -60,8 +61,17 @@ export function migrateWorld(raw, now = Date.now()) {
   s.level = clamp(Math.floor(Number(s.level) || 1), 1, W.LEVEL_MAX);
   for (const k of ['exp', 'gold', 'potions', 'statPts', 'jobTier', 'kills', 'deaths', 'books']) s[k] = Math.max(0, Number(s[k]) || 0);
   s.jobTier = Math.min(3, Math.floor(s.jobTier));
-  if (!W.MAPS[s.map]) s.map = 0;
-  if (!W.MAPS[s.huntMap] || W.MAPS[s.huntMap].town) s.huntMap = 1;
+  // v107: 사냥터 1~15 → 지역마다 구역 셋 + 두목 구역 (번호 = 지역×10 + 구역)
+  if ((raw.mapV || 0) < 2) {
+    s.map = W.oldMapToNew(raw.map);
+    s.huntMap = W.oldMapToNew(raw.huntMap);
+    s.bestMap = W.oldMapToNew(raw.bestMap);
+    if (s.rates) s.rates = { ...s.rates, map: W.oldMapToNew(s.rates.map) };
+    s.mapV = 2;
+  }
+  if (!W.hasMap(s.map)) s.map = 0;
+  if (!W.hasMap(s.huntMap) || W.mapOf(s.huntMap).town) s.huntMap = W.mapId(1, 1);
+  if (!W.hasMap(s.bestMap)) s.bestMap = s.huntMap;
   if (s.job && !W.CLASSES[s.job]) s.job = null;
   for (const it of [...s.bag, ...Object.values(s.equip)]) if (it && it.uid >= uidSeq) uidSeq = it.uid + 1;
   return s;
@@ -84,7 +94,7 @@ export class WorldGame {
     this.atkTimer = 0.4;
     this.potionT = 0;
     this.returnT = 0;
-    this.bossT = W.BOSS_EVERY * 0.5;
+    this.bossT = 0;
     this.respawns = [];
     this.manual = null;            // 손으로 찍은 갈 곳
     this.manualHold = 0;
@@ -128,6 +138,9 @@ export class WorldGame {
     const m = q * (1 + (it.plus || 0) * W.ENHANCE_STEP);
     const out = {};
     for (const [k, v] of Object.entries(b)) out[k] = v * m;
+    // 십이지왕 장비 — 왕의 힘이 하나 더 붙는다(강화와 상관없이)
+    const kb = it.step != null ? W.kingBonus(it.step) : null;
+    if (kb) for (const [k, v] of Object.entries(kb)) out[k] = (out[k] || 0) + v;
     return out;
   }
   stats() {
@@ -135,7 +148,7 @@ export class WorldGame {
     const s = this.s;
     const L = s.level;
     const cls = W.CLASSES[s.job] || {};
-    const gear = { atk: 0, hp: 0, def: 0, crit: 0, atkPct: 0 };
+    const gear = { atk: 0, hp: 0, def: 0, crit: 0, atkPct: 0, speed: 0, hpPct: 0, regenPct: 0, skill: 0, critDmg: 0, exp: 0 };
     for (const it of Object.values(s.equip)) {
       const st = this.itemStats(it);
       for (const k of Object.keys(st)) gear[k] = (gear[k] || 0) + st[k];
@@ -146,17 +159,18 @@ export class WorldGame {
     const int = this.totalStat('int');
     // 문파 버프 — 문파 레벨마다 공격력 +2% (서버가 guildExp를 넣어 준다)
     const atk = (8 + L * 2 + str * 2 + gear.atk) * (1 + gear.atkPct + (s.guildId ? W.guildAtk(this.guildExp) : 0));
-    const hp = 80 + L * 14 + vit * 12 + gear.hp;
+    const hp = (80 + L * 14 + vit * 12 + gear.hp) * (1 + gear.hpPct);
     const st = {
       atk, hp,
       def: vit * 0.2 + gear.def,
       crit: Math.min(0.75, 0.05 + dex * 0.004 + gear.crit + (cls.crit || 0)),
-      critDmg: W.CRIT_DMG,
-      atkSec: W.BASE_ATK_SEC / ((1 + dex * 0.01) * (cls.speed || 1)),
-      speed: (1 + dex * 0.01) * (cls.speed || 1),
-      skillMult: 1 + int * 0.02,
+      critDmg: W.CRIT_DMG + gear.critDmg,
+      atkSec: W.BASE_ATK_SEC / ((1 + dex * 0.01 + gear.speed) * (cls.speed || 1)),
+      speed: (1 + dex * 0.01 + gear.speed) * (cls.speed || 1),
+      skillMult: 1 + int * 0.02 + gear.skill,
       // 자연 회복: 최대 체력의 0.6%/초 + 내공·레벨 몫 (물약만 바라보지 않게)
-      regen: 1 + int * 0.12 + L * 0.08 + hp * 0.006,
+      regen: 1 + int * 0.12 + L * 0.08 + hp * (0.006 + gear.regenPct),
+      expMult: 1 + gear.exp,
       boss: cls.boss || 1,
       range: W.classOf(s.job)?.range || W.MELEE_RANGE,
     };
@@ -176,8 +190,8 @@ export class WorldGame {
 
   // ---------- 지도 ----------
   canEnter(id) {
-    const m = W.MAPS[id];
-    if (!m) return false;
+    if (!W.hasMap(id)) return false;
+    const m = W.mapOf(id);
     return m.town || this.s.level >= m.lv[0];
   }
   enterMap(id, quiet = false) {
@@ -185,8 +199,8 @@ export class WorldGame {
     const m = W.mapOf(id);
     this.s.map = id;
     if (!m.town) { this.s.huntMap = id; this.s.bestMap = Math.max(this.s.bestMap || 1, id); }
-    // 그리는 쪽이 지역 그림을 고르는 값
-    this.s.stage = m.zone * 10 + 1;
+    // 그리는 쪽이 지역 그림을 고르는 값 (십이지왕은 옛 지역 그림을 빌린다)
+    this.s.stage = m.art * 10 + 1;
     this.s.rank = W.lookTierOf(this.s.level);
     // 사냥터는 아래쪽 가운데에서 들어선다. 마을은 한가운데(둘레에 사부·상인·대장장이·주모)
     this.placeHero(Math.floor(W.COLS / 2), m.town ? Math.floor(W.ROWS * 0.55) : W.ROWS - 3);
@@ -195,8 +209,8 @@ export class WorldGame {
     this.respawns = [];
     this.manual = null;
     this.returnT = 0;
-    this.bossT = W.BOSS_EVERY * 0.5;
-    if (!m.town) for (let i = 0; i < W.MOBS_ALIVE; i++) this.spawnMob(false);
+    this.bossT = 1.5;                // 두목 구역: 들어서고 잠깐 뒤 두목이 나선다
+    if (!m.town) for (let i = 0; i < (m.bossRoom ? W.BOSS_ROOM_MOBS : W.MOBS_ALIVE); i++) this.spawnMob(false);
     else this.placeNpcs();
     if (!quiet) this.emit('mapEnter', { id, name: m.name, town: m.town });
     return true;
@@ -274,7 +288,8 @@ export class WorldGame {
     const m = this.map;
     if (m.town) return null;
     const [lo, hi] = m.lv;
-    const lv = boss ? hi + 2 : lo + Math.floor(this.rng() * (hi - lo + 1));
+    // 두목 구역의 졸개는 정예(그 지역 위끝 레벨)
+    const lv = boss ? hi + 2 : m.bossRoom ? hi : lo + Math.floor(this.rng() * (hi - lo + 1));
     const kind = boss ? m.boss : m.mobs[Math.floor(this.rng() * m.mobs.length)];
     // 빈 칸에 난다. 무인 바로 둘레(네 칸 안)는 피한다 — 코앞에서 툭 생기면 어색하다
     let c = -1, r = -1;
@@ -318,10 +333,10 @@ export class WorldGame {
     const due = this.respawns.filter((r) => r.t <= 0).length;
     this.respawns = this.respawns.filter((r) => r.t > 0);
     for (let i = 0; i < due; i++) this.spawnMob(false);
-    this.bossT -= dt;
-    if (this.bossT <= 0) {
-      this.bossT = W.BOSS_EVERY;
-      if (!this.mons.some((m) => m.isBoss)) this.spawnMob(true);
+    // 두목 구역: 두목이 없으면 BOSS_RESPAWN초 뒤에 다시 난다
+    if (this.map.bossRoom && !this.mons.some((m) => m.isBoss && m.alive)) {
+      this.bossT -= dt;
+      if (this.bossT <= 0) { this.bossT = W.BOSS_RESPAWN; this.spawnMob(true); }
     }
     this.tickMobs(dt, st);
     if (this.heroHp <= 0) return;
@@ -507,7 +522,7 @@ export class WorldGame {
     m.alive = false;
     m.hp = 0;
     const st = this.stats();
-    const exp = W.mobExp(m.lv) * (m.isBoss ? W.BOSS.exp : 1) * this.levelGapMult(m.lv);
+    const exp = W.mobExp(m.lv) * (m.isBoss ? W.BOSS.exp : 1) * this.levelGapMult(m.lv) * (st.expMult || 1);
     const gold = Math.round(W.mobGold(m.lv) * (m.isBoss ? W.BOSS.gold : 1));
     this.s.gold += gold;
     this.s.kills++;
@@ -679,7 +694,7 @@ export class WorldGame {
   // ---------- 재료와 조합 ----------
   // 몹은 그 사냥터 재료를, 두목은 재료 한 움큼과 증표를 떨군다. 장비는 떨구지 않는다.
   dropMats(m) {
-    const id = this.s.map;
+    const id = this.map.zone;            // 재료는 지역 번호 (구역 셋·두목 구역이 같다)
     if (!W.MATS[id]) return null;
     if (m.isBoss) {
       this.addMats(id, W.BOSS_MATS);
@@ -856,9 +871,11 @@ export class WorldGame {
     const t = Math.min(sec, potionSec);
     const kills = Math.floor(r.kills * t);
     // 재료: 처치 수만큼 굴린 기댓값 (장비는 마을 대장장이에게서)
-    const mats = W.MATS[r.map] ? Math.floor(kills * W.MAT_RATE) : 0;
-    const marks = W.MATS[r.map] ? Math.floor(t / W.BOSS_EVERY) : 0;     // 두목은 4분마다 — 잡았다 치고 증표
-    return { sec, t, kills, exp: Math.floor(r.exp * t), gold: Math.floor(r.gold * t + marks * W.mobGold(W.mapOf(r.map).lv[1]) * W.BOSS.gold),
+    const m = W.mapOf(r.map);
+    const mats = W.MATS[m.zone] ? Math.floor(kills * W.MAT_RATE) : 0;
+    // 두목 구역에 있었다면 두목을 잡은 셈으로 증표 (다시 나기 + 잡는 데 한 70초)
+    const marks = m.bossRoom ? Math.floor(t / (W.BOSS_RESPAWN + 25)) : 0;
+    return { sec, t, kills, exp: Math.floor(r.exp * t), gold: Math.floor(r.gold * t + marks * W.mobGold(m.lv[1]) * W.BOSS.gold),
       potions: Math.ceil(r.potions * t), mats, marks, stoppedByPotion: potionSec < sec, map: r.map };
   }
   claimOffline(rw) {
@@ -867,7 +884,8 @@ export class WorldGame {
     this.s.potions = Math.max(0, this.s.potions - rw.potions);
     this.addExp(rw.exp);
     this.s.kills += rw.kills;
-    if (rw.mats) this.addMats(rw.map, rw.mats + (rw.marks || 0) * W.BOSS_MATS);
-    if (rw.marks) this.addMats(W.bossKey(rw.map), rw.marks);
+    const z = W.mapOf(rw.map).zone;
+    if (rw.mats) this.addMats(z, rw.mats + (rw.marks || 0) * W.BOSS_MATS);
+    if (rw.marks) this.addMats(W.bossKey(z), rw.marks);
   }
 }

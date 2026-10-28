@@ -66,19 +66,106 @@ export const MAP_H = ROWS * TILE;
 export const tileCenter = (c) => (c + 0.5) * TILE;
 export const MOBS_ALIVE = 18;
 export const RESPAWN_SEC = 5;
-export const BOSS_EVERY = 240;
-// 첫 사냥터는 좁게(1~6) — 레벨 1이 레벨 10 몹을 만나면 열 몇 대를 때려야 해서 첫 사냥이 지루했다
-export const mapLevel = (k) => (k === 1 ? [1, 6] : [8 * k - 7, 8 * k + 2]);
-export const MAPS = ZONES.map((z, i) => ({
-  id: i,
-  name: i === 0 ? '객잔 마을' : z.name,
-  town: i === 0,
-  zone: i,
-  lv: i === 0 ? [0, 0] : mapLevel(i),
-  mobs: z.mobs,
-  boss: z.boss,
-}));
-export const mapOf = (id) => MAPS[id] || MAPS[0];
+
+// ---------- 지역과 구역 ----------
+// 사냥터(지역)마다 구역 셋(1·2·3 — 뒤로 갈수록 몹 레벨이 높다)과 맨 끝 **두목 구역**이 있다.
+// 두목 구역에는 정예 몇과 그 지역 두목이 늘 있고, 잡히면 BOSS_RESPAWN초 뒤에 다시 난다.
+// 두목 증표(상급 조합 재료)는 두목 구역에서만 나온다. 들판 구역에는 두목이 없다.
+// (전에는 사냥터마다 4분에 한 번 두목이 들판 가운데 났다)
+//
+// 지역 1~15: 옛 지역 그림을 쓰는 보통 사냥터, 레벨 1~98.
+// 지역 16~27: **십이지왕**(레벨 99부터). 제12왕 권왕이 가장 약하고 제1왕 검왕이 가장 강하다.
+//   왕마다 떨구는 재료·증표가 다르고, 그 재료로 만든 장비에는 왕마다 다른 힘이 붙는다.
+export const BOSS_RESPAWN = 45;
+export const BOSS_ROOM_MOBS = 8;
+export const NORMAL_ZONES = 15;
+// 십이지왕 — 약한 순(제12왕 → 제1왕). art: 그림을 빌려 올 옛 지역. desc는 줄거리 한두 줄.
+export const KINGS = [
+  { no: 12, title: '권왕', real: '강후', art: 9, mat: '유혼석', prefix: '유혼', bonus: { speed: 0.05 }, bonusName: '공격 속도',
+    desc: '십이지왕의 마지막 왕. 타고난 살기로 수많은 이를 죽인 주먹 — 유혼절명권.',
+    look: { robe: '#1c1917', trim: '#dc2626', head: 'band', band: '#7f1d1d', weapon: 'fist', aura: '#ef4444', scale: 1.5 } },
+  { no: 11, title: '철왕', real: '기사후', art: 13, mat: '기관 부품', prefix: '기관', bonus: { def: 20 }, bonusName: '방어',
+    desc: '천재 기관 장인. 철가면 아래에서 죽은 왕들의 인형을 빚는다.',
+    look: { robe: '#374151', trim: '#9ca3af', head: 'mask', weapon: 'axe', scale: 1.45 } },
+  { no: 10, title: '음왕', real: '신류', art: 5, mat: '귀혼현', prefix: '귀혼', bonus: { skill: 0.08 }, bonusName: '스킬 피해',
+    desc: '앞을 못 보는 음공의 천재. 귀혼음으로 죽은 혼을 불러낸다.',
+    look: { robe: '#312e81', trim: '#a5b4fc', head: 'hat', weapon: 'fan', scale: 1.45 } },
+  { no: 9, title: '혈왕', real: '', art: 4, mat: '혈정', prefix: '혈해', bonus: { regenPct: 0.004 }, bonusName: '체력 회복',
+    desc: '북해에서 음모를 꾸미는 잔혹한 왕. 핏물에 잠긴 채 나타난다.',
+    look: { robe: '#7f1d1d', trim: '#fecaca', head: 'topknot', weapon: 'claw', aura: '#dc2626', scale: 1.5 } },
+  { no: 8, title: '목왕', real: '백천경', art: 1, mat: '천혼목', prefix: '천혼', bonus: { hpPct: 0.06 }, bonusName: '최대 체력',
+    desc: '목형천혼술의 주인. 무림맹주 가문의 옛 일과 얽혀 있다.',
+    look: { robe: '#14532d', trim: '#86efac', head: 'topknot', weapon: 'sword', beard: true, scale: 1.45 } },
+  { no: 7, title: '화왕', real: '차이란', art: 10, mat: '야우 꽃잎', prefix: '야우', bonus: { crit: 0.03 }, bonusName: '치명',
+    desc: '살수 조직 가인교의 주인. 천하제일미 대회에 모습을 드러낸다 — 천녀야우장.',
+    look: { robe: '#be185d', trim: '#fbcfe8', head: 'topknot', weapon: 'fan', scale: 1.4 } },
+  { no: 6, title: '암왕', real: '흑사린', art: 7, mat: '암야석', prefix: '암야', bonus: { critDmg: 0.15 }, bonusName: '치명 피해',
+    desc: '낮에는 가장 약하고 밤에는 가장 강한 왕 — 암천야신공.',
+    look: { robe: '#0a0a0a', trim: '#6b21a8', head: 'hood', weapon: 'dagger', aura: '#7c3aed', scale: 1.45 } },
+  { no: 5, title: '환왕', real: '', art: 6, mat: '환영 비단', prefix: '환영', bonus: { exp: 0.05 }, bonusName: '경험치',
+    desc: '혈교의 후예인 쌍둥이 중 사내. 교주의 곁에 조언자로 숨어든 화공.',
+    look: { robe: '#4c1d95', trim: '#c4b5fd', head: 'mask', weapon: 'fan', scale: 1.45 } },
+  { no: 4, title: '살왕', real: '', art: 8, mat: '명부 영패', prefix: '명부', bonus: { crit: 0.04 }, bonusName: '치명',
+    desc: '최고의 살수 단체 명부의 일인자.',
+    look: { robe: '#18181b', trim: '#991b1b', head: 'mask', weapon: 'dagger', scale: 1.45 } },
+  { no: 3, title: '투왕', real: '천야', art: 2, mat: '투신 철편', prefix: '투신', bonus: { atkPct: 0.05 }, bonusName: '공격력',
+    desc: '이기는 것만이 값이라 여기는 왕. 권갑 투신과 호신갑을 두른다.',
+    look: { robe: '#78350f', trim: '#fbbf24', head: 'bald', weapon: 'fist', scale: 1.55 } },
+  { no: 2, title: '도왕', real: '냉무상', art: 11, mat: '일월 도편', prefix: '일월', bonus: { critDmg: 0.2 }, bonusName: '치명 피해',
+    desc: '도법의 최고수. 검왕에 버금간다 — 일월암혈도법.',
+    look: { robe: '#1e293b', trim: '#f8fafc', head: 'band', band: '#111', weapon: 'saber', scale: 1.5 } },
+  { no: 1, title: '검왕', real: '악군학', art: 15, mat: '무형 검편', prefix: '무형', bonus: { atkPct: 0.08 }, bonusName: '공격력',
+    desc: '십이지왕 시대의 천하제일인. 가장 강한 왕 — 무형신검.',
+    look: { robe: '#f8fafc', trim: '#fbbf24', head: 'topknot', hair: '#e5e7eb', weapon: 'sword', beard: true, aura: '#fde68a', scale: 1.6 } },
+];
+export const ZONE_COUNT = NORMAL_ZONES + KINGS.length;
+export const kingOf = (z) => (z > NORMAL_ZONES ? KINGS[z - NORMAL_ZONES - 1] : null);
+// 지역 레벨: 보통 1~98 (지역마다 일곱 레벨), 십이지왕 99~150 (왕마다 다섯 레벨 남짓)
+export function zoneLv(z) {
+  if (z <= NORMAL_ZONES) { const lo = 1 + Math.round((z - 1) * 6.5); return [lo, lo + 6]; }
+  const lo = 99 + Math.round((z - NORMAL_ZONES - 1) * 4.25);
+  return [lo, lo + 4];
+}
+export const ZONES_W = [null];
+for (let z = 1; z <= ZONE_COUNT; z++) {
+  const k = kingOf(z);
+  const art = k ? k.art : z;
+  ZONES_W.push({
+    id: z, art, king: k,
+    name: k ? `제${k.no}왕 ${k.title}` : ZONES[z].name,
+    lv: zoneLv(z),
+    mobs: ZONES[art].mobs,
+    boss: k ? { name: `${k.title}${k.real ? ` ${k.real}` : ''}`, look: k.look } : ZONES[z].boss,
+  });
+}
+export const zoneOfW = (z) => ZONES_W[z] || null;
+// 구역 번호: 지역 z의 a구역 = z×10 + a (a=1·2·3 들판, 4 두목). 0은 마을.
+export const mapId = (z, a) => z * 10 + a;
+export const BOSS_AREA = 4;
+function areaLv(zl, a) {
+  const [lo, hi] = zl;
+  if (a === BOSS_AREA) return [lo + Math.round((hi - lo) * 2 / 3), hi];
+  return [lo + Math.round((hi - lo) * (a - 1) / 3), lo + Math.round((hi - lo) * a / 3)];
+}
+export const MAPS = [{ id: 0, name: '객잔 마을', town: true, zone: 0, area: 0, art: 0, lv: [0, 0], mobs: ZONES[0].mobs, boss: ZONES[0].boss }];
+for (let z = 1; z <= ZONE_COUNT; z++) {
+  const zn = ZONES_W[z];
+  for (let a = 1; a <= BOSS_AREA; a++) {
+    MAPS.push({
+      id: mapId(z, a), zone: z, area: a, art: zn.art, king: zn.king,
+      name: a === BOSS_AREA ? `${zn.name} · 두목` : `${zn.name} ${a}`,
+      zoneName: zn.name,
+      bossRoom: a === BOSS_AREA,
+      lv: areaLv(zn.lv, a),
+      mobs: zn.mobs, boss: zn.boss,
+    });
+  }
+}
+const MAP_BY_ID = Object.fromEntries(MAPS.map((m) => [m.id, m]));
+export const mapOf = (id) => MAP_BY_ID[id] || MAPS[0];
+export const hasMap = (id) => !!MAP_BY_ID[id];
+// 옛 세이브(사냥터 번호 1~15)를 새 구역 번호로
+export const oldMapToNew = (k) => (k >= 1 && k <= NORMAL_ZONES ? mapId(k, 1) : 0);
 
 // 마을 사람 (무인 자리 기준으로 선다)
 export const NPCS = [
@@ -115,6 +202,7 @@ export const GRADES = [
   { id: 2, name: '희귀', color: '#60a5fa', mult: 1.8, w: 6.5 },
   { id: 3, name: '영웅', color: '#c084fc', mult: 2.4, w: 1.3 },
   { id: 4, name: '전설', color: '#fb923c', mult: 3.2, w: 0.2 },
+  { id: 5, name: '지왕', color: '#f43f5e', mult: 4.2, w: 0 },     // 십이지왕 장비 빛깔
 ];
 export const BAG_SIZE = 30;
 // 아이템 기본 수치 (등급·강화 전)
@@ -132,23 +220,25 @@ export const itemBase = (slot, ilv) => {
 // 두목이 증표를 떨구고, 마을 대장장이가 **아래 장비 + 재료 + 은자**로 위 장비를 만든다.
 // 장비 사다리: 사냥터마다 둘 — 하급(그 사냥터 재료) · 상급(하급 + 재료 + 두목 증표).
 // 다음 사냥터 하급은 앞 사냥터 장비(하급이든 상급이든)를 재료로 먹는다. 1번 하급은 재료만.
+// 재료는 지역 번호로 든다(지역의 구역 셋·두목 구역이 같은 재료를 떨군다). 십이지왕은 왕마다 다르다.
 export const MATS = [null, '청죽 마디', '사막 철편', '설원 빙정', '혈석', '귀화석', '운모 조각', '마철',
-  '수정 비늘', '금강석', '야명주', '매화철', '독초 정수', '현빙옥', '산호', '천외운철'];
+  '수정 비늘', '금강석', '야명주', '매화철', '독초 정수', '현빙옥', '산호', '천외운철', ...KINGS.map((k) => k.mat)];
 export const MAT_COLORS = [null, '#86efac', '#fcd34d', '#bae6fd', '#f87171', '#a5b4fc', '#e0f2fe', '#c084fc',
-  '#67e8f9', '#fde68a', '#fef9c3', '#fda4af', '#bef264', '#e2e8f0', '#fb7185', '#f0abfc'];
+  '#67e8f9', '#fde68a', '#fef9c3', '#fda4af', '#bef264', '#e2e8f0', '#fb7185', '#f0abfc',
+  '#fca5a5', '#cbd5e1', '#a5b4fc', '#ef4444', '#4ade80', '#f9a8d4', '#a78bfa', '#c4b5fd', '#fda4af', '#fbbf24', '#e2e8f0', '#fef3c7'];
 // 두목 증표는 재료 주머니에 'b사냥터' 열쇠로 든다
 export const bossKey = (k) => `b${k}`;
-export const matName = (key) => (String(key)[0] === 'b' ? `${MAPS[+String(key).slice(1)]?.boss?.name || '두목'}의 증표` : MATS[key]);
-export const matColor = (key) => (String(key)[0] === 'b' ? '#fde68a' : MAT_COLORS[key]);
-export const MAT_RATE = 0.4;          // 몹 하나가 재료 하나를 떨굴 확률
+export const matName = (key) => (String(key)[0] === 'b' ? `${ZONES_W[+String(key).slice(1)]?.boss?.name || '두목'}의 증표` : MATS[key]);
+export const matColor = (key) => (String(key)[0] === 'b' ? (kingOf(+String(key).slice(1)) ? '#f43f5e' : '#fde68a') : MAT_COLORS[key]);
+export const MAT_RATE = 0.5;          // 몹 하나가 재료 하나를 떨굴 확률
 export const BOSS_MATS = 12;          // 두목은 재료 한 움큼 + 증표 하나
-export const TIER_COUNT = 15;         // 사냥터 수 = 장비 사다리 칸 수(×하급·상급)
-const CRAFT_MATS = { weapon: 80, armor: 60, hat: 48, acc: 60 };
+export const TIER_COUNT = ZONE_COUNT; // 지역 수 = 장비 사다리 칸 수(×하급·상급)
+const CRAFT_MATS = { weapon: 40, armor: 30, hat: 24, acc: 30 };   // 지역이 일곱 레벨이라 한 지역에 오래 안 머문다
 const CRAFT_BOSS = { weapon: 4, armor: 3, hat: 3, acc: 3 };
-// step: 0..29 — 사냥터 k = floor(step/2)+1, 홀수면 상급
+// step: 0..53 — 지역 k = floor(step/2)+1, 홀수면 상급
 export const stepMap = (step) => Math.floor(step / 2) + 1;
 export const stepUpper = (step) => step % 2 === 1;
-export const craftLevel = (k) => MAPS[k]?.lv[1] || 1;
+export const craftLevel = (k) => ZONES_W[k]?.lv[1] || 1;
 // 조합 장비 수치 = 아이템 레벨 기본치 × 사다리 배수. 아이템 레벨만으로는 뒤로 갈수록 한 사냥터에
 // 7%밖에 안 올라서(기본치가 레벨에 곧게 오른다) 사다리 한 칸마다 ×1.12^½을 더 얹는다.
 // 상급은 아이템 레벨이 이 사냥터와 다음 사냥터의 가운데 — 그래서 '하급 < 상급 < 다음 하급'이 늘 선다.
@@ -158,8 +248,15 @@ export const craftIlv = (step) => {
   return k < TIER_COUNT ? Math.round((craftLevel(k) + craftLevel(k + 1)) / 2) : craftLevel(k) + 4;
 };
 export const stepMult = (step) => 1.12 ** (step / 2);
-// 빛깔(등급 색)은 사냥터 셋마다 한 칸씩 — 일반 · 고급 · 희귀 · 영웅 · 전설
-export const stepGrade = (step) => Math.min(4, Math.floor((stepMap(step) - 1) / 3));
+// 빛깔(등급 색)은 지역 셋마다 한 칸씩 — 일반 · 고급 · 희귀 · 영웅 · 전설, 십이지왕 장비는 '지왕'
+export const stepGrade = (step) => (stepMap(step) > NORMAL_ZONES ? 5 : Math.min(4, Math.floor((stepMap(step) - 1) / 3)));
+// 십이지왕 장비에 붙는 왕의 힘 (상급은 ×1.5)
+export const kingBonus = (step) => {
+  const k = kingOf(stepMap(step));
+  if (!k) return null;
+  const m = stepUpper(step) ? 1.5 : 1;
+  return Object.fromEntries(Object.entries(k.bonus).map(([key, v]) => [key, v * m]));
+};
 // 조합법: 무엇을 내면 이것이 되나
 export function recipeOf(slot, step) {
   const k = stepMap(step);
@@ -171,7 +268,7 @@ export function recipeOf(slot, step) {
   return { slot, step, mats, from, gold: Math.round((30 + craftLevel(k) * 10) * (up ? 2 : 1)) };
 }
 // 장비 이름 — 사냥터 머리말 + 칸 이름 (상급은 앞에 '상급')
-const STEP_PREFIX = [null, '청죽', '사철', '빙정', '혈석', '귀화', '운모', '마철', '수정', '금강', '야명', '매화', '독룡', '현빙', '해왕', '천외'];
+const STEP_PREFIX = [null, '청죽', '사철', '빙정', '혈석', '귀화', '운모', '마철', '수정', '금강', '야명', '매화', '독룡', '현빙', '해왕', '천외', ...KINGS.map((k) => k.prefix)];
 export const ENHANCE_MAX = 10;
 export const ENHANCE_STEP = 0.1;                 // 한 단계에 기본 수치 +10%
 export const enhanceRate = (lv) => Math.max(0.4, 1 - lv * 0.07);   // +0→1 100%, +9→10 40%

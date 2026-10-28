@@ -26,8 +26,8 @@ console.log('=== 시작 ===');
   ok(g.s.level === 1 && g.s.map === 0 && g.map.town, '마을에서 레벨 1로 시작한다');
   ok(g.mons.every((m) => m.npc) && g.mons.length === W.NPCS.length, '마을에는 싸우지 않는 사람만 있다', g.mons.map((m) => m.def.name).join(' '));
   ok(g.stats().atk > 0 && g.stats().hp > 0 && g.heroHp === g.stats().hp, '공격력·체력이 있고 체력이 가득');
-  ok(!g.canEnter(2) && g.canEnter(1), '레벨이 모자란 사냥터는 못 들어간다');
-  ok(g.enterMap(1) && g.mons.length === W.MOBS_ALIVE, '사냥터에 들어가면 몹이 깔린다', `${g.mons.length}마리`);
+  ok(!g.canEnter(W.mapId(1, 3)) && g.canEnter(W.mapId(1, 1)) && !g.canEnter(W.mapId(16, 1)), '레벨이 모자란 구역은 못 들어간다');
+  ok(g.enterMap(11) && g.mons.length === W.MOBS_ALIVE, '사냥터에 들어가면 몹이 깔린다', `${g.mons.length}마리`);
   ok(g.mons.every((m) => m.lv >= 1 && m.lv <= 6 && Number.isFinite(m.hp) && m.def?.look), '몹 레벨이 사냥터 범위 안이고 생김새가 있다');
   ok(g.s.stage === 11, '그리는 쪽이 고를 지역 그림(죽림 = 옛 지역 1)', `stage ${g.s.stage}`);
 }
@@ -35,7 +35,7 @@ console.log('=== 시작 ===');
 console.log('\n=== 싸움 ===');
 {
   const g = fresh();
-  g.enterMap(1);
+  g.enterMap(11);
   const k0 = g.s.kills;
   for (let i = 0; i < 20 * 60; i++) { g.tick(0.05); g.events.length = 0; }
   ok(g.s.kills > k0 + 5, '1분 자동 사냥으로 몹을 잡는다', `${g.s.kills - k0}마리`);
@@ -44,7 +44,7 @@ console.log('\n=== 싸움 ===');
   ok(finite(g), '숫자가 전부 유한하다');
   // 사건: 평타·피해·처치가 그리는 쪽 모양으로 나간다
   const h = fresh();
-  h.enterMap(1);
+  h.enterMap(11);
   const seen = new Set();
   for (let i = 0; i < 20 * 30; i++) { h.tick(0.05); for (const e of h.events) seen.add(e.type); h.events.length = 0; }
   ok(['attack', 'dmg', 'kill'].every((t) => seen.has(t)), '평타·피해·처치 사건이 나간다', [...seen].join(' '));
@@ -53,7 +53,7 @@ console.log('\n=== 싸움 ===');
 console.log('\n=== 칸 이동 (바람식) ===');
 {
   const g = fresh();
-  g.enterMap(1);
+  g.enterMap(11);
   let offGrid = 0, clash = 0, maxStep = 0, samples = 0;
   let px = g.heroX, py = g.heroY;
   for (let t = 0; t < 300; t += 0.05) {
@@ -72,7 +72,7 @@ console.log('\n=== 칸 이동 (바람식) ===');
     maxStep = Math.max(maxStep, Math.hypot(g.heroX - px, g.heroY - py));
     px = g.heroX; py = g.heroY;
     samples++;
-    if (g.map.town) { g.enterMap(1); px = g.heroX; py = g.heroY; }
+    if (g.map.town) { g.enterMap(11); px = g.heroX; py = g.heroY; }
   }
   ok(offGrid === 0, '멈춰 있으면 늘 칸 가운데에 선다', `${offGrid}/${samples}`);
   ok(clash === 0, '한 칸에는 하나만 선다', `${clash}`);
@@ -80,7 +80,7 @@ console.log('\n=== 칸 이동 (바람식) ===');
   ok(g.s.kills > 20, '칸 길로도 사냥이 잘 된다', `5분 ${g.s.kills}마리`);
   // 손으로 찍은 칸으로 간다
   const h = fresh();
-  h.enterMap(1);
+  h.enterMap(11);
   for (const m of h.mons) m.alive = false;
   h.moveTo(W.tileCenter(1), W.tileCenter(2));
   for (let t = 0; t < 20; t += 0.05) h.tick(0.05);
@@ -134,7 +134,7 @@ console.log('\n=== 재료와 조합 (바람식) ===');
 {
   // 몹은 장비가 아니라 그 사냥터 재료를 떨군다. 두목은 한 움큼 + 증표.
   const h = fresh();
-  h.enterMap(1);
+  h.enterMap(11);
   let n = 0;
   for (let i = 0; i < 10000; i++) if (h.dropMats({ lv: 5, isBoss: false })) n++;
   ok(Math.abs(n / 10000 - W.MAT_RATE) < 0.02, '몹 재료 확률이 설계대로', `${(n / 100).toFixed(1)}%`);
@@ -182,6 +182,44 @@ console.log('\n=== 재료와 조합 (바람식) ===');
   ok(Number.isFinite(g.itemStats(legacy).atk), '옛 드랍 장비도 수치가 나온다');
 }
 
+console.log('\n=== 지역·구역·두목 구역 ===');
+{
+  ok(W.ZONES_W.length - 1 === 27 && W.MAPS.length === 1 + 27 * 4, '지역 27(보통 15 + 십이지왕 12) × 구역 넷(1·2·3·두목)', `${W.MAPS.length - 1}구역`);
+  const g = fresh();
+  g.enterMap(W.mapId(1, 1));
+  for (let i = 0; i < 20 * 300; i++) { g.tick(0.05); g.events.length = 0; if (g.map.town) g.enterMap(W.mapId(1, 1)); }
+  ok(!g.mons.some((m) => m.isBoss) && !g.s.mats[W.bossKey(1)], '들판 구역에는 두목이 없고 증표도 안 나온다');
+  const b = fresh();
+  b.s.level = 30; b.s.gold = 1e9;
+  b.s.stats.str = 200; b._stats = null; b.heroHp = b.stats().hp;
+  ok(b.enterMap(W.mapId(1, W.BOSS_AREA)) && b.mons.length === W.BOSS_ROOM_MOBS, '두목 구역에는 정예 몇이 있다');
+  for (let i = 0; i < 40; i++) b.tick(0.05);
+  ok(b.mons.some((m) => m.isBoss && m.alive), '들어서면 곧 두목이 나선다', b.mons.find((m) => m.isBoss)?.name);
+  for (let i = 0; i < 20 * 400; i++) { b.tick(0.05); b.events.length = 0; }
+  ok((b.s.mats[W.bossKey(1)] || 0) >= 3, '두목을 잡으면 증표 — 다시 나서 또 잡는다', `6분 40초에 증표 ${b.s.mats[W.bossKey(1)] || 0}`);
+  // 십이지왕
+  const k = fresh();
+  k.s.level = 98;
+  ok(!k.canEnter(W.mapId(16, 1)), '레벨 98에는 십이지왕에 못 들어간다');
+  k.s.level = 99;
+  ok(k.canEnter(W.mapId(16, 1)) && W.mapOf(W.mapId(16, 1)).name.includes('권왕'), '레벨 99부터 제12왕 권왕', W.mapOf(W.mapId(16, 1)).name);
+  ok(W.ZONES_W[27].name.includes('검왕') && W.zoneLv(27)[1] === 150, '마지막은 제1왕 검왕(가장 강하다)', W.ZONES_W[27].boss.name);
+  ok(new Set(W.KINGS.map((x) => x.mat)).size === 12 && W.KINGS.every((x) => !W.MATS.slice(1, 16).includes(x.mat)), '왕마다 재료가 다르다');
+  const kb = W.kingBonus(W.NORMAL_ZONES * 2 + 1);   // 권왕 상급
+  ok(kb && kb.speed > 0, '십이지왕 장비에는 왕의 힘이 붙는다(권왕: 공격 속도)', JSON.stringify(kb));
+  const it = k.makeCrafted('weapon', W.NORMAL_ZONES * 2);
+  ok(k.itemStats(it).speed > 0 && W.itemName(it, 'sword').startsWith('유혼') && it.grade === 5, '권왕 하급 무기 — 유혼검(지왕 빛깔)', W.itemName(it, 'sword'));
+  const kk = fresh();
+  kk.s.gold = 1e12; kk.s.equip.weapon = null;
+  for (let z = 1; z <= W.TIER_COUNT; z++) { kk.s.mats[z] = 1e5; kk.s.mats[W.bossKey(z)] = 100; }
+  let okLadder = true;
+  for (let st = 0; st < W.TIER_COUNT * 2; st++) if (!kk.craft('weapon', st)) okLadder = false;
+  ok(okLadder && W.itemName(kk.s.equip.weapon, 'sword') === '상급 무형검', '조합 사다리 끝은 상급 무형검(검왕)', W.itemName(kk.s.equip.weapon, 'sword'));
+  // 옛 세이브: 사냥터 3 → 지역 3의 1구역
+  const old = migrateWorld({ map: 3, huntMap: 3, bestMap: 5, mats: { 3: 10 } });
+  ok(old.map === W.mapId(3, 1) && old.huntMap === W.mapId(3, 1) && old.mats[3] === 10, '옛 세이브의 사냥터 번호를 새 구역으로 옮긴다', `${old.map}`);
+}
+
 console.log('\n=== 문파 버프 ===');
 {
   const g = fresh();
@@ -200,10 +238,10 @@ console.log('\n=== 전직·스킬 ===');
   g.s.level = 15; g.s.gold = 1000;
   ok(g.canAdvance() && g.advance() && g.s.jobTier === 1 && g.skills().length === 1, '레벨 15에 마을에서 1차 전직 → 스킬 하나');
   g.s.level = 40; g.s.gold = 1e6;
-  g.enterMap(1);
+  g.enterMap(11);
   ok(g.canAdvance() && g.advance(), '전직은 사냥터에서도 된다');
   ok(g.s.jobTier === 2 && g.skills().length === 2, '2차 전직 → 스킬 둘');
-  g.enterMap(1);
+  g.enterMap(11);
   const sk = g.skills().find((x) => x.hpCost);
   g.heroHp = g.stats().hp;
   const hp0 = g.heroHp;
@@ -228,7 +266,7 @@ console.log('\n=== 전직·스킬 ===');
 console.log('\n=== 물약·죽음·귀환 ===');
 {
   const g = fresh();
-  g.enterMap(1);
+  g.enterMap(11);
   g.s.potions = 3;
   g.heroHp = g.stats().hp * 0.2;
   g.tickPotion(g.stats());
@@ -237,11 +275,11 @@ console.log('\n=== 물약·죽음·귀환 ===');
   g.heroDied({ isBoss: false });
   ok(g.map.town && g.s.exp === 95 && g.s.deaths === 1, '쓰러지면 경험치 5%를 잃고 마을로', `exp ${g.s.exp}`);
   for (let i = 0; i < 20 * 10; i++) { g.tick(0.05); g.events.length = 0; }
-  ok(!g.map.town && g.s.map === 1, '쓰러져 마을에 오면 쉬었다가 사냥터로 돌아간다');
+  ok(!g.map.town && g.s.map === 11, '쓰러져 마을에 오면 쉬었다가 사냥터로 돌아간다');
   g.goTown();
   for (let i = 0; i < 20 * 10; i++) { g.tick(0.05); g.events.length = 0; }
   ok(g.map.town, '스스로 마을에 가면 머문다(사냥터로 끌려가지 않는다)');
-  g.enterMap(1);
+  g.enterMap(11);
   g.s.gold = 1000;
   const p0 = g.s.potions;
   ok(g.buyPotions(10) && g.s.potions === p0 + 10, '상점에서 물약을 산다');
@@ -254,7 +292,7 @@ console.log('\n=== 물약·죽음·귀환 ===');
 console.log('\n=== 방치 ===');
 {
   const g = fresh();
-  g.enterMap(1);
+  g.enterMap(11);
   g.s.potions = 50;
   for (let i = 0; i < 20 * 120; i++) { g.tick(0.05); g.events.length = 0; }
   const saved = JSON.parse(JSON.stringify(g.toJSON()));
@@ -311,8 +349,12 @@ console.log('\n=== 다섯 캐릭터 · 2시간 ===');
       if (g.s.potions < 15) g.buyPotions(Math.min(40 - g.s.potions, Math.floor(g.s.gold / g.potionPrice())));
       // 30초마다 대장장이 — 만들 수 있는 가장 높은 것
       if (t % 30 < 0.1) for (const sl of W.SLOTS) for (const st of g.nextSteps(sl.id).reverse()) if (g.craft(sl.id, st)) break;
-      let best = 1;
-      for (const m of W.MAPS) if (!m.town && g.canEnter(m.id) && g.s.level >= m.lv[0] + 3) best = Math.max(best, m.id);
+      // 사냥터: 들어갈 수 있는 가장 높은 들판 구역. 상급 조합에 증표가 모자라면 두목 구역에 들른다.
+      let best = 11;
+      for (const m of W.MAPS) if (!m.town && !m.bossRoom && g.canEnter(m.id) && g.s.level >= m.lv[0] + 1) best = m.id;
+      const z = W.mapOf(best).zone;
+      const bossRoom = W.mapId(z, W.BOSS_AREA);
+      if (g.canEnter(bossRoom) && (g.s.mats[W.bossKey(z)] || 0) < 13 && (g.s.mats[z] || 0) > 100) best = bossRoom;
       if ((best !== g.s.huntMap && !g.map.town) || (g.map.town && !g.townReturn)) g.enterMap(best);
       if (t % 600 < 0.1 && !finite(g)) nan = true;
     }

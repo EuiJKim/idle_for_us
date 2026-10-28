@@ -160,11 +160,13 @@ function refreshUI(full = false) {
   $('gold').textContent = fmt(s.gold);
   $('potions').textContent = String(s.potions);
   const m = game.map;
-  $('stage-label').textContent = m.name;
+  // 사냥터 줄은 짧게 — '천산 설원 · 두목'은 체력 막대에 닿았다
+  $('stage-label').textContent = m.town ? m.name : `${m.king ? m.king.title : m.zoneName} ${m.bossRoom ? '두목' : m.area}`;
   const bossLeft = Math.max(0, Math.ceil(game.bossT));
   const boss = game.mons.find((x) => x.isBoss && x.alive);
   $('zone-label').textContent = m.town ? (s.autoHunt ? `쉬는 중 → ${W.mapOf(s.huntMap).name}` : '쉬는 중')
-    : `몹 Lv.${m.lv[0]}~${m.lv[1]} · ${boss ? `두목 ${boss.name} 출현!` : `두목까지 ${Math.floor(bossLeft / 60)}:${String(bossLeft % 60).padStart(2, '0')}`}`;
+    : m.bossRoom ? (boss ? `두목 ${boss.name} Lv.${boss.lv}` : `두목 다시 나기까지 ${Math.floor(bossLeft / 60)}:${String(bossLeft % 60).padStart(2, '0')}`)
+      : `몹 Lv.${m.lv[0]}~${m.lv[1]} · 두목은 두목 구역에`;
   const hpR = Math.max(0, Math.min(1, game.heroHp / st.hp));
   $('progress-fill').style.width = `${hpR * 100}%`;
   $('progress').classList.toggle('low', hpR < 0.35);
@@ -245,8 +247,9 @@ function handleEvents() {
         if (!game.s.autoStat) view.float(`스탯 +${W.STAT_PER_LEVEL}`, view.heroX + 26, view.groundY - 175, '#fde68a', 16, 1.3);
         const parts = [];
         if (W.TIERS.some((t) => t && t.level === ev.level)) parts.push('전직할 수 있어요(무공 바의 전직 단추)');
-        const opened = W.MAPS.find((m) => !m.town && m.lv[0] === ev.level);
-        if (opened) parts.push(`새 사냥터 ${opened.name}`);
+        // 새 지역(1구역)이 열릴 때만 알린다 — 구역마다 알리면 두 레벨마다 뜬다
+        const opened = W.MAPS.find((m) => m.area === 1 && m.lv[0] === ev.level);
+        if (opened) parts.push(opened.king ? `십이지왕 ${opened.zoneName}의 영역이 열렸어요` : `새 사냥터 ${opened.zoneName}`);
         if (parts.length || ev.level % 5 === 0 || ev.level <= 5) toast([`레벨 ${ev.level}!`, ...parts].join(' · '));
         drawPortrait();
         break;
@@ -263,7 +266,6 @@ function handleEvents() {
         view.showBanner(itemTitle(game, ev.item), W.GRADES[ev.item.grade].color, 1.4, '조합');
         break;
       case 'bossAppear':
-        toast(`두목 ${ev.name}(Lv.${ev.lv})이 나타났어요!`);
         view.showBanner(`두목 · ${ev.name}`, '#fca5a5', 1.6);
         break;
       case 'heroDied':

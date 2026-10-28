@@ -17,6 +17,12 @@ export function itemLines(game, it) {
   if (st.def) out.push(`방어 +${st.def.toFixed(1)}`);
   if (st.crit) out.push(`치명 +${pct(st.crit)}`);
   if (st.atkPct) out.push(`공격력 +${pct(st.atkPct)}`);
+  if (st.speed) out.push(`공격 속도 +${pct(st.speed)}`);
+  if (st.hpPct) out.push(`최대 체력 +${pct(st.hpPct)}`);
+  if (st.regenPct) out.push(`초당 체력 +${pct(st.regenPct, 1)}`);
+  if (st.skill) out.push(`스킬 피해 +${pct(st.skill)}`);
+  if (st.critDmg) out.push(`치명 피해 +${pct(st.critDmg)}`);
+  if (st.exp) out.push(`경험치 +${pct(st.exp)}`);
   return out.join(' · ');
 }
 export function itemTitle(game, it) {
@@ -110,7 +116,7 @@ function bagTab(app) {
           h('p', {}, `${W.SLOTS.find((x) => x.id === it.slot).name} · 아이템 레벨 ${it.ilv} · ${g.name}`),
           h('p', {}, h('b', {}, itemLines(game, it))),
           !worn && cur ? h('p', { class: 'muted' }, `지금 낀 것: ${itemTitle(game, cur)} — ${itemLines(game, cur)}`) : null,
-          it.step != null ? h('p', { class: 'muted' }, `${W.mapOf(W.stepMap(it.step)).name} ${W.stepUpper(it.step) ? '상급' : '하급'} — 대장장이에서 위 장비의 조합 재료가 돼요 (강화는 절반을 이어받아요)`) : null,
+          it.step != null ? h('p', { class: 'muted' }, `${W.zoneOfW(W.stepMap(it.step))?.name || ''} ${W.stepUpper(it.step) ? '상급' : '하급'} — 대장장이에서 위 장비의 조합 재료가 돼요 (강화는 절반을 이어받아요)`) : null,
           h('p', { class: 'muted' }, max ? '강화를 다 했어요' : `강화 +${(it.plus || 0) + 1} — 성공률 ${pct(W.enhanceRate(it.plus || 0), 0)} · 은자 ${fmt(cost)} (실패해도 깨지지 않아요)`),
           h('div', { class: 'btn-row' },
             !worn ? h('button', { class: 'btn primary', onclick: () => { game.equipFromBag(it.uid); closeModal(); done(); } }, '끼기') : null,
@@ -206,30 +212,45 @@ function bagTab(app) {
 }
 
 // ---------- 지도 ----------
+// 지역마다 한 장: 구역 1·2·3과 두목 구역 단추. 레벨 99부터 십이지왕.
 function mapTab(app) {
   const { game } = app;
   const root = h('div');
   let sig = '';
+  const go = (id) => { if (!game.enterMap(id)) return; app.save(); app.closePanel(); app.refresh(); };
   function upd() {
     const s = game.s;
     const nsig = `${s.level}|${s.map}|${s.huntMap}`;
     if (nsig === sig) return;
     sig = nsig;
-    root.replaceChildren(h('p', { class: 'muted' }, '사냥터를 고르면 그리로 가요. 자동 사냥 중에 쓰러지면 마을에서 쉬었다가 이 사냥터로 돌아와요.'));
-    for (const m of W.MAPS) {
-      const open = game.canEnter(m.id);
-      const here = s.map === m.id;
-      const lvTxt = m.town ? '쉬는 곳 — 체력이 빨리 차요' : `몹 Lv.${m.lv[0]}~${m.lv[1]} · 두목 ${m.boss.name}`;
-      const fit = !m.town && s.level >= m.lv[0] && s.level <= m.lv[1] + 4;
-      root.append(h('div', { class: `row map-row${here ? ' me' : ''}${open ? '' : ' locked'}` },
-        h('div', { class: 'ico' }, m.town ? '촌' : String(m.id)),
-        h('div', { class: 'info' },
-          h('div', { class: 'name' }, m.name, fit ? h('i', { class: 'best-tag' }, '알맞음') : null),
-          h('div', { class: 'desc' }, open ? lvTxt : `레벨 ${m.lv[0]}부터`)),
-        h('button', { class: 'buy', disabled: !open || here ? true : null, onclick: () => {
-          if (!game.enterMap(m.id)) return;
-          app.save(); app.closePanel(); app.refresh();
-        } }, here ? '여기' : '가기')));
+    const here = W.mapOf(s.map);
+    root.replaceChildren(h('p', { class: 'muted' }, '지역마다 구역 1·2·3(뒤로 갈수록 세다)과 두목 구역이 있어요. 두목 증표는 두목 구역에서만 나와요.'),
+      h('div', { class: `row map-row${here.town ? ' me' : ''}` }, h('div', { class: 'ico' }, '촌'),
+        h('div', { class: 'info' }, h('div', { class: 'name' }, '객잔 마을'), h('div', { class: 'desc' }, '쉬는 곳 — 체력이 빨리 차요')),
+        h('button', { class: 'buy', disabled: here.town ? true : null, onclick: () => { game.goTown(); app.save(); app.closePanel(); app.refresh(); } }, here.town ? '여기' : '가기')));
+    let kingHead = false;
+    for (const zn of W.ZONES_W.slice(1)) {
+      const areas = W.MAPS.filter((m) => m.zone === zn.id);
+      const open = game.canEnter(areas[0].id);
+      if (zn.king && !kingHead) {
+        kingHead = true;
+        root.append(h('h3', { class: 'king-head' }, '십이지왕', h('small', {}, '레벨 99부터 · 제12왕에서 제1왕 검왕까지')));
+      }
+      // 아직 먼 지역은 다음 하나만 보여 준다(목록이 길어지지 않게)
+      if (!open && s.level < zn.lv[0] - 12 && !(zn.king && s.level >= 90)) continue;
+      const fit = areas.some((m) => !m.bossRoom && s.level >= m.lv[0] && s.level <= m.lv[1] + 2);
+      const btns = areas.map((m) => h('button', {
+        class: `area-btn${m.bossRoom ? ' boss' : ''}${s.map === m.id ? ' here' : ''}`,
+        disabled: !game.canEnter(m.id) ? true : null,
+        title: `${m.name} · Lv.${m.lv[0]}~${m.lv[1]}`,
+        onclick: () => go(m.id),
+      }, m.bossRoom ? '두목' : String(m.area), h('small', {}, `Lv${m.lv[0]}`)));
+      root.append(h('div', { class: `card zone-card${zn.king ? ' king' : ''}${here.zone === zn.id ? ' me' : ''}${open ? '' : ' locked'}` },
+        h('div', { class: 'zone-head' },
+          h('b', {}, zn.name), fit ? h('i', { class: 'best-tag' }, '알맞음') : null,
+          h('small', {}, `Lv.${zn.lv[0]}~${zn.lv[1]} · 두목 ${zn.boss.name}`)),
+        zn.king ? h('p', { class: 'muted king-desc' }, `${zn.king.desc} — 장비에 ${zn.king.bonusName}`) : null,
+        h('div', { class: 'area-row' }, ...btns)));
     }
   }
   return { root, update: upd };

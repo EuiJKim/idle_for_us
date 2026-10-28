@@ -62,9 +62,11 @@ async function tab(page, name) {
 
   console.log('# 사냥터');
   await tab(p, 'map');
-  await p.locator('#panel .map-row:has-text("죽림") button:has-text("가기")').click();
+  assert(await p.locator('#panel .zone-card:has-text("죽림") .area-btn').count() === 4, '지역 카드에 구역 1·2·3·두목');
+  assert(await p.locator('#panel .zone-card:has-text("죽림") .area-btn:has-text("2")').isDisabled(), '레벨이 모자란 구역은 잠겨 있다');
+  await p.locator('#panel .zone-card:has-text("죽림") .area-btn:has-text("1")').click();
   await sleep(300);
-  assert(await G(p, () => window.__game.s.map) === 1, '지도에서 죽림으로');
+  assert(await G(p, () => window.__game.s.map) === 11, '지도에서 죽림 1구역으로');
   await p.waitForFunction(() => window.__game.s.kills > 0, null, { timeout: 20000 });
   const s1 = await G(p, () => ({ kills: window.__game.s.kills, gold: window.__game.s.gold, mons: window.__game.mons.length }));
   assert(s1.kills > 0 && s1.gold > 0, `자동 사냥: 처치 ${s1.kills}, 은자 ${s1.gold}`);
@@ -135,7 +137,7 @@ async function tab(page, name) {
   await shot(p, '05-town.png');
 
   console.log('# 스킬');
-  await G(p, () => window.__game.enterMap(1));
+  await G(p, () => window.__game.enterMap(11));
   await p.click('#panel-close').catch(() => {});
   await sleep(1500);
   await G(p, () => { const g = window.__game; const m = g.mons.find((x) => x.alive && !x.npc); m.x = g.heroX + 40; m.y = g.heroY; m.hp = m.maxHp = 1e6; g.mon = m; g.cd.s0 = 0; g.s.autoSkill = false; });
@@ -149,7 +151,7 @@ async function tab(page, name) {
   await G(p, () => { const g = window.__game; g.s.autoSkill = true; g.heroDied({ isBoss: false }); });
   assert(await G(p, () => window.__game.map.town), '쓰러지면 마을로');
   await sleep(4500);
-  assert(await G(p, () => window.__game.s.map) === 1, '쉬었다가 사냥터로 돌아간다');
+  assert(await G(p, () => window.__game.s.map) === 11, '쉬었다가 사냥터로 돌아간다');
 
   console.log('# 방치 보상·저장');
   await sleep(4000);
@@ -214,8 +216,9 @@ async function tab(page, name) {
   await p.waitForFunction(() => (window.__app.net.guild?.exp || 0) >= 30, null, { timeout: 10000 });
   assert(true, '출석·기부로 문파 경험치가 오른다');
   await p.click('#panel .mat-chip:has-text("청죽")');
-  await p.waitForFunction(() => (window.__app.net.guild?.bank?.['1'] || 0) === 50, null, { timeout: 10000 });
-  assert(await G(p, () => window.__game.s.mats[1] === 50), '재료 반을 문파 창고에 넣는다');
+  // 사냥 중이라 청죽 마디가 계속 들어온다 — 정확히 50이 아니라 반쯤
+  await p.waitForFunction(() => (window.__app.net.guild?.bank?.['1'] || 0) >= 50, null, { timeout: 10000 });
+  assert(await G(p, () => window.__game.s.mats[1] < 100), '재료 반을 문파 창고에 넣는다');
   await tab(q, 'social');
   await q.click('#panel .subtabs button:has-text("문파")');
   await q.fill('#panel input[placeholder^="친구에게"]', code);
@@ -223,7 +226,7 @@ async function tab(page, name) {
   await q.waitForSelector('#panel .card:has-text("문파 창고") button.mat-chip:has-text("청죽")', { timeout: 15000 });
   const m0 = await G(q, () => window.__game.s.mats[1] || 0);
   await q.click('#panel .card:has-text("문파 창고") button.mat-chip:has-text("청죽")');
-  await q.waitForFunction((m) => (window.__game.s.mats[1] || 0) === m + 50, m0, { timeout: 10000 });
+  await q.waitForFunction((m) => (window.__game.s.mats[1] || 0) >= m + 50, m0, { timeout: 10000 });
   assert(true, '다른 문파원이 창고에서 재료를 꺼낸다');
   await q.fill('#panel input[placeholder="메시지 보내기"]', '같이 해요');
   await q.click('#panel button:has-text("전송")');
