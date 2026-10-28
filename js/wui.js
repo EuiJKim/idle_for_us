@@ -217,6 +217,13 @@ function townTab(app) {
       h('div', { class: 'btn-row' }, ...[10, 50, 200].map((n) => h('button', { class: 'buy', disabled: !inTown || s.gold < price * n ? true : null, onclick: () => {
         if (game.buyPotions(n)) { toast(`물약 ${n}개를 샀어요`); app.save(); app.refresh(); }
       } }, `${n}개 · ${fmt(price * n)}`))),
+      h('div', { class: 'row', style: 'margin-top:8px' },
+        h('div', { class: 'ico' }, '비급'),
+        h('div', { class: 'info' }, h('div', { class: 'name' }, '무공 비급', h('small', {}, `${s.books || 0}권 읽음`)),
+          h('div', { class: 'desc' }, '읽으면 스탯 점수 +1. 한 권 읽을 때마다 값이 오른다.')),
+        h('button', { class: 'buy', disabled: !inTown || s.gold < game.statBookCost() ? true : null, onclick: () => {
+          if (game.buyStatBook()) { toast('스탯 점수 +1'); app.save(); app.refresh(); }
+        } }, `은자 ${fmt(game.statBookCost())}`)),
       inTown ? null : h('p', { class: 'muted' }, '마을에 있을 때만 살 수 있어요.'));
   }
   return { root, update: upd };

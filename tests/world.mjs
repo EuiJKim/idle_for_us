@@ -152,6 +152,10 @@ console.log('\n=== 물약·죽음·귀환 ===');
   g.s.gold = 1000;
   const p0 = g.s.potions;
   ok(g.buyPotions(10) && g.s.potions === p0 + 10, '상점에서 물약을 산다');
+  g.s.gold = 1e7; g.s.autoStat = false;
+  const c1 = g.statBookCost();
+  const pts = g.s.statPts;
+  ok(g.buyStatBook() && g.s.statPts === pts + 1 && g.statBookCost() > c1, '비급을 사면 스탯 점수 +1, 다음 권은 더 비싸다', `${c1} → ${g.statBookCost()}`);
 }
 
 console.log('\n=== 방치 ===');

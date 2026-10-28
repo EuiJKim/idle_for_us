@@ -8,7 +8,9 @@ export const SAVE_KEY = 'ifu-world-v1';
 export const LEVEL_MAX = 150;
 
 // ---------- 레벨 ----------
-export const expToNext = (L) => Math.round(18 * L ** 2.25);
+// 뒤로 갈수록 가파르다: 첫 시간 Lv15~20(1차 전직) · 하루 Lv50 남짓 · 일주일 Lv85 안팎 · 150은 몇 달.
+// 처음엔 18·L^2.25로 두었더니 열한 시간에 Lv100을 넘었다(시뮬).
+export const expToNext = (L) => Math.round(20 * L ** 2.3 * (1 + (L / 30) ** 2.2));
 export const STAT_PER_LEVEL = 3;
 export const STATS = [
   { id: 'str', name: '힘', desc: '공격력 +2' },
@@ -120,7 +122,8 @@ export const itemBase = (slot, ilv) => {
 export const ENHANCE_MAX = 10;
 export const ENHANCE_STEP = 0.1;                 // 한 단계에 기본 수치 +10%
 export const enhanceRate = (lv) => Math.max(0.4, 1 - lv * 0.07);   // +0→1 100%, +9→10 40%
-export const enhanceCost = (ilv, lv) => Math.round((20 + ilv * 6) * (lv + 1) ** 1.6);
+// 은자가 쌓이기만 하지 않게 — 사냥터를 옮겨 새 장비를 낄 때마다 다시 강화하는 데 쓰인다(시뮬로 맞춤)
+export const enhanceCost = (ilv, lv) => Math.round((50 + ilv * 15) * (lv + 1) ** 1.6);
 export const sellPrice = (item) => Math.round((3 + item.ilv * 1.5) * GRADES[item.grade].mult ** 2 * (1 + (item.plus || 0) * 0.2));
 // 이름: 지역마다 무기 결이 다르면 좋겠지만 단순하게 — 등급·칸 이름
 const SLOT_NOUN = {
@@ -138,6 +141,9 @@ export const potionPrice = (level) => 5 + level;
 export const POTION_AT = 0.45;        // 체력이 이 아래면 자동으로 먹는다
 export const POTION_GAP = 0.8;
 export const REST_HEAL = 0.25;        // 마을에서는 초당 최대 체력의 25%
+
+// 비급 — 은자로 스탯 점수 +1. 살 때마다 18%씩 비싸진다. 강화를 다 한 뒤로 은자가 쌓이기만 했다(시뮬).
+export const statBookCost = (n) => Math.round(5000 * 1.18 ** n);
 
 // ---------- 무인 수치 ----------
 export const CRIT_DMG = 1.8;

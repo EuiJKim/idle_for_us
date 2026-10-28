@@ -52,7 +52,7 @@ export function migrateWorld(raw, now = Date.now()) {
   s.equip = { ...base.equip, ...(raw.equip || {}) };
   s.bag = Array.isArray(raw.bag) ? raw.bag.filter((i) => i && W.SLOTS.some((x) => x.id === i.slot)) : [];
   s.level = clamp(Math.floor(Number(s.level) || 1), 1, W.LEVEL_MAX);
-  for (const k of ['exp', 'gold', 'potions', 'statPts', 'jobTier', 'kills', 'deaths']) s[k] = Math.max(0, Number(s[k]) || 0);
+  for (const k of ['exp', 'gold', 'potions', 'statPts', 'jobTier', 'kills', 'deaths', 'books']) s[k] = Math.max(0, Number(s[k]) || 0);
   s.jobTier = Math.min(3, Math.floor(s.jobTier));
   if (!W.MAPS[s.map]) s.map = 0;
   if (!W.MAPS[s.huntMap] || W.MAPS[s.huntMap].town) s.huntMap = 1;
@@ -665,6 +665,16 @@ export class WorldGame {
     if (n <= 0 || this.s.gold < cost) return false;
     this.s.gold -= cost;
     this.s.potions += n;
+    return true;
+  }
+  statBookCost() { return W.statBookCost(this.s.books || 0); }
+  buyStatBook() {
+    const c = this.statBookCost();
+    if (this.s.gold < c) return false;
+    this.s.gold -= c;
+    this.s.books = (this.s.books || 0) + 1;
+    this.s.statPts++;
+    if (this.s.autoStat) this.autoStats();
     return true;
   }
   bagUpgradeCost() { return 1000 * 2 ** Math.round((this.s.bagSize - W.BAG_SIZE) / 10); }
