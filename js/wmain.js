@@ -55,6 +55,18 @@ const FX_NAME = { high: '높음', mid: '보통', low: '낮음' };
 function loadFxPref() { try { return localStorage.getItem('ifu.fx') || 'high'; } catch { return 'high'; } }
 view.fxPref = Math.max(0, FX_PREF.indexOf(loadFxPref()));
 
+// 화면 거리 — 전체(지도 한 장) · 보통(가로 꽉) · 가까이. 눌러서 돌리고, 마우스 휠로도 당기고 민다.
+const CAM_NAME = ['전체', '보통', '가까이'];
+function loadCam() { try { const v = Number(localStorage.getItem('ifu.cam')); return Number.isInteger(v) && v >= 0 && v <= 2 && localStorage.getItem('ifu.cam') != null ? v : 1; } catch { return 1; } }
+function setCam(v) {
+  view.camLevel = Math.max(0, Math.min(2, v));
+  $('btn-zoom').textContent = CAM_NAME[view.camLevel];
+  try { localStorage.setItem('ifu.cam', String(view.camLevel)); } catch { /* 사생활 모드 */ }
+}
+setCam(loadCam());
+$('btn-zoom').addEventListener('click', () => setCam((view.camLevel + 1) % 3));
+$('cv').addEventListener('wheel', (e) => { e.preventDefault(); setCam(view.camLevel + (e.deltaY < 0 ? 1 : -1)); }, { passive: false });
+
 const app = { game, net: null, refresh: () => refreshUI(true), save: () => save(), closePanel: () => closePanel(), showTab: (t) => showTab(t) };
 const net = new WNet(game, { onChange: (w) => netChanged(w) });
 app.net = net;
@@ -588,3 +600,16 @@ window.__game = game;
 window.__view = view;
 window.__save = save;
 window.__app = app;
+
+// 두 손가락으로 벌리면 가까이, 오므리면 멀리
+{
+  let d0 = 0;
+  const dist = (t) => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
+  $('cv').addEventListener('touchstart', (e) => { if (e.touches.length === 2) d0 = dist(e.touches); }, { passive: true });
+  $('cv').addEventListener('touchmove', (e) => {
+    if (e.touches.length !== 2 || !d0) return;
+    const r = dist(e.touches) / d0;
+    if (r > 1.3 || r < 0.77) { setCam(view.camLevel + (r > 1 ? 1 : -1)); d0 = dist(e.touches); }
+  }, { passive: true });
+  $('cv').addEventListener('touchend', (e) => { if (e.touches.length < 2) d0 = 0; }, { passive: true });
+}

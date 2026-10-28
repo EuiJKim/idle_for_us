@@ -132,6 +132,51 @@ export function loadArt(onDone) {
   }
 }
 
+// 그림의 실루엣을 한 빛깔로 칠한 판 — 옷 등급 테두리(v115)에 쓴다. 그림·빛깔마다 한 번만 만든다.
+const sil = {};
+function silhouette(key, color) {
+  const im = img[key];
+  if (!im || typeof document === 'undefined') return null;
+  const ck = `${key}|${color}`;
+  if (!sil[ck]) {
+    const c = document.createElement('canvas');
+    c.width = im.width; c.height = im.height;
+    const x = c.getContext('2d');
+    x.drawImage(im, 0, 0);
+    x.globalCompositeOperation = 'source-in';
+    x.fillStyle = color;
+    x.fillRect(0, 0, c.width, c.height);
+    sil[ck] = c;
+  }
+  return sil[ck];
+}
+// 테두리: 실루엣을 여덟 쪽으로 w만큼 밀어 깔면 그림 둘레에 빛깔 테가 남는다(그림은 그 위에 그린다)
+export function putArtEdge(ctx, key, fit, color, w, alpha = 1) {
+  const c = silhouette(key, color);
+  if (!c) return false;
+  const h = (c.height * fit.w) / c.width;
+  const x0 = fit.x - fit.w / 2, y0 = fit.y - h;
+  ctx.save();
+  ctx.globalAlpha *= alpha;
+  for (let i = 0; i < 8; i++) {
+    const a = (i * Math.PI) / 4;
+    ctx.drawImage(c, x0 + Math.cos(a) * w, y0 + Math.sin(a) * w, fit.w, h);
+  }
+  ctx.restore();
+  return true;
+}
+// 물들이기: 그림 위에 같은 실루엣을 옅게 한 번 더 — 도포 전체가 등급 빛깔을 머금는다
+export function putArtTint(ctx, key, fit, color, alpha) {
+  const c = silhouette(key, color);
+  if (!c) return false;
+  const h = (c.height * fit.w) / c.width;
+  ctx.save();
+  ctx.globalAlpha *= alpha;
+  ctx.drawImage(c, fit.x - fit.w / 2, fit.y - h, fit.w, h);
+  ctx.restore();
+  return true;
+}
+
 // 그림 한 장을 '가운데 아래' 기준으로 놓는다
 export function putArt(ctx, key, fit) {
   const im = img[key];

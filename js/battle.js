@@ -1,6 +1,6 @@
 // 전투 화면 캔버스 렌더러 (수묵화 무협풍). 게임 이벤트를 받아 연출만 담당한다.
 import { zoneOf, RANKS, GRADES, FIELD_SQUASH, JOB_TRAITS, QI, jobOf, critTierName } from './data.js';
-import { artReady, putArt, loadArt, FIT, ART_SHOULDER, ART_BAND, headKey, bodyKey, weaponKey } from './art.js';
+import { artReady, putArt, putArtEdge, putArtTint, loadArt, FIT, ART_SHOULDER, ART_BAND, headKey, bodyKey, weaponKey } from './art.js';
 import { drawCreature, saddleY } from './creatures.js';
 import { OUTFITS } from './data.js';
 
@@ -336,7 +336,27 @@ export class BattleView {
   get overview() { return this.fieldMode && !!this.game?.mapW; }
   fitZoom(game) {
     const fieldH = this.H - (this.padTop || 0) - (this.padBottom ?? 130);
-    return Math.min(1, (this.W - 12) / game.mapW, (fieldH - 6) / (game.mapH * this.squash + 135));
+    const all = Math.min(1, (this.W - 12) / game.mapW, (fieldH - 6) / (game.mapH * this.squash + 135));
+    // 카메라 단계 (v115): 0 전체(지도 한 장) · 1 보통(가로 일곱 칸 남짓) · 2 가까이(가로 다섯 칸) — 1·2는 무인을 따라간다
+    const lv = this.camLevel ?? 1;
+    if (lv <= 0) return all;
+    const T = game.tile || 64;
+    return Math.max(all, Math.min(1.3, this.W / (T * (lv === 1 ? 7.2 : 5.2))));
+  }
+  // 지도가 화면보다 크면(보통·가까이) 카메라가 무인을 따라가되 지도 밖은 비추지 않는다
+  followCam(game) {
+    const z = this.zoom || 1;
+    const sq = this.squash;
+    const clamp = (v, lo, hi) => (lo > hi ? (lo + hi) / 2 : Math.max(lo, Math.min(hi, v)));
+    const halfW = this.w / 2 - 6;
+    const tx = clamp(game.heroX, halfW, game.mapW - halfW);
+    let ty;
+    if (this.sheetOpen) ty = clamp(game.heroY, 0, game.mapH);
+    else {
+      const half = ((this.H - (this.padTop || 0) - (this.padBottom ?? 130)) / z) / 2;
+      ty = clamp(game.heroY, (half - 65) / sq, game.mapH - (half - 65) / sq);
+    }
+    return { tx, ty };
   }
 
   // ---------- 탑다운 좌표계 ----------
@@ -649,6 +669,14 @@ export class BattleView {
     // 가장 높은 등급은 몸의 기운, 무기 강화·돌파·신화는 칼빛. 십이지왕 신화는 왕마다 다른 기운.
     const gear = this.gearLook(game);
     if (gear.armorRar >= 1) { look.trim = gear.armorCol; if (gear.armorRar >= 2) look.sash = gear.armorCol; }
+    // 그림 도포에는 깃 색이 안 드러나서 둘레에 테를 두른다 — 레어 얇게 … 신화 굵고 빛나며 숨 쉰다
+    if (gear.armorRar >= 0) {
+      look.edge = gear.armorCol;
+      look.edgeW = [1, 1.4, 1.8, 2.2][gear.armorRar];
+      look.edgeTint = [0, 0.08, 0.14, 0.2][gear.armorRar];
+      look.edgeGlow = gear.armorRar >= 2 && this.fxLevel > 0;
+      look.edgePulse = gear.armorRar >= 3;
+    }
     if (gear.hatRar >= 1) look.band = gear.hatCol;
     if (gear.hatRar >= 3) look.crown = true;
     if (gear.best >= 2 && !look.aura) look.aura = gear.bestCol;
@@ -699,10 +727,16 @@ export class BattleView {
   updateCamera(game, dt) {
     if (this.overview) {
       // 가로는 늘 지도 가운데. 세로는 지도 가운데 — 창이 열려 위쪽만 남으면 무인을 따라간다.
-      this.camX = game.mapW / 2;
-      const ty = this.sheetOpen ? Math.max(game.mapH * 0.18, Math.min(game.mapH * 0.82, game.heroY)) : game.mapH / 2;
-      if (this.camY == null) this.camY = ty;
-      this.camY += (ty - this.camY) * Math.min(1, dt * 6);
+      let tx = game.mapW / 2;
+      let ty = this.sheetOpen ? Math.max(game.mapH * 0.18, Math.min(game.mapH * 0.82, game.heroY)) : game.mapH / 2;
+      if ((this.camLevel ?? 1) > 0) ({ tx, ty } = this.followCam(game));
+      // 맵을 옮기면(무인이 멀리 뛰면) 카메라도 바로 붙는다
+      const jump = this._ovx == null ? 0 : Math.hypot(game.heroX - this._ovx, game.heroY - this._ovy);
+      this._ovx = game.heroX; this._ovy = game.heroY;
+      if (this.camY == null || this.camX == null || jump > 300) { this.camX = tx; this.camY = ty; }
+      const k = Math.min(1, dt * 6);
+      this.camX += (tx - this.camX) * k;
+      this.camY += (ty - this.camY) * k;
       this.camFocus = null; this.camHold = 0; this.camPan = false;
       return;
     }
@@ -2572,8 +2606,16 @@ export function drawFighter(ctx, x, y, look = {}, o = {}) {
   ctx.beginPath(); ctx.moveTo(2, -46); ctx.lineTo(5, -12); ctx.stroke();
 
   // 상체 — 그림 조각이 있으면 도포·상체·허리띠를 한 장으로 갈음한다
-  if (artReady() && !jiang && !look.ghost && putArt(ctx, bodyKey(look), FIT.body)) {
+  const artBody = artReady() && !jiang && !look.ghost;
+  // 옷 등급 테두리 (v115) — 도포 둘레에 등급 빛깔 테, 전설부터 도포가 그 빛을 머금는다
+  if (artBody && look.edge) {
+    const pulse = look.edgePulse ? 0.7 + Math.sin(t * 3) * 0.3 : 1;
+    if (look.edgeGlow) { ctx.save(); ctx.shadowColor = look.edge; ctx.shadowBlur = 10 * pulse; putArtEdge(ctx, bodyKey(look), FIT.body, look.edge, look.edgeW || 1.2, pulse); ctx.restore(); }
+    else putArtEdge(ctx, bodyKey(look), FIT.body, look.edge, look.edgeW || 1.2, pulse);
+  }
+  if (artBody && putArt(ctx, bodyKey(look), FIT.body)) {
     // 그림 한 장이 도포·상체·허리띠를 한꺼번에 갈음한다
+    if (look.edge && look.edgeTint) putArtTint(ctx, bodyKey(look), FIT.body, look.edge, look.edgeTint * (look.edgePulse ? 0.8 + Math.sin(t * 3) * 0.2 : 1));
   } else {
   ctx.fillStyle = robeNow;
   roundRect(ctx, -12, -74, 24, 30, 7);
