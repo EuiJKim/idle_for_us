@@ -304,9 +304,13 @@ function handleEvents() {
         break;
       }
       case 'passive': {
-        const T = { combo: ['유혼!', '#fca5a5'], dodge: ['흘림', '#c4b5fd'], revive: ['천혼!', '#86efac'] };
+        const T = { combo: ['유혼!', '#fca5a5'], dodge: ['흘림', '#c4b5fd'], revive: ['천혼!', '#86efac'], harmony: ['삼공조화!', '#d8b4fe'] };
         const t = T[ev.id];
-        if (t) view.float(t[0], view.heroX + 28, view.groundY - 170, t[1], 16, 0.9);
+        if (t) view.float(t[0], view.heroX + 28, view.groundY - 170, t[1], ev.id === 'harmony' ? 20 : 16, 0.9);
+        // 일화: 꽃잎 검기 · 공포: 머뭇거린 적 위에 표 (v118)
+        if (ev.id === 'flower' && ev.at && view.fxLevel > 0) view.effects.push({ kind: 'shock', life: 0.35, max: 0.35, wx: ev.at.x, wy: ev.at.y, r: 70, col: '249,168,212', rings: 2, w: 3 });
+        if (ev.id === 'fear' && ev.at) view.float('움찔', view.sx(ev.at), view.sy(ev.at) - 96, '#d8b4fe', 13, 0.6);
+        if (ev.id === 'harmony') view.effects.push({ kind: 'pillar', life: 1, max: 1 });
         break;
       }
       case 'promote':
@@ -419,6 +423,7 @@ function askClass() {
       } }, cv, h('div', { class: 'cc-txt' },
         h('b', { style: `color:${j.color}` }, j.name),
         h('small', {}, `${j.weapon}${j.range ? ' · 멀리서' : ''}`),
+        W.LORE[j.id] ? h('span', { class: 'lore-line' }, `${W.LORE[j.id].house} · ${W.LORE[j.id].title}의 길`) : null,
         h('span', { class: 'desc' }, W.CLASSES[j.id].trait))));
     }
     s.append(h('h2', {}, '캐릭터를 고르세요'),
@@ -438,6 +443,13 @@ function askClass() {
     };
     requestAnimationFrame(tick);
   }, { dismissable: false, onClose: () => checkReturn() });
+}
+
+// v118: 무공·특성 개편 — 찍었던 능력치를 돌려받았으면 한 번 알린다
+if (game.s.respecNote) {
+  const n = game.s.respecNote;
+  delete game.s.respecNote;
+  setTimeout(() => toast(`무공과 직업 특성이 바뀌어 찍었던 능력치 ${n}점을 돌려드렸어요 — 캐릭터 창에서 다시 찍어요`), 1500);
 }
 
 // ---------- 방치 보상 ----------

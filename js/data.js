@@ -51,7 +51,7 @@ export const critExpect = (C, D) => {
 // NaN이 된다 — 재 보니 적 체력이 관문 8467에서 그 선을 넘었다.
 // 반대로 상한이 있는 값(경지 배수·초월 단계처럼)은 보통 숫자 그대로 둔다.
 
-export const BUILD = 'ifu-v117';
+export const BUILD = 'ifu-v118';
 
 export const SAVE_VERSION = 4;
 export const OFFLINE_CAP_SEC = 12 * 3600;
@@ -777,29 +777,29 @@ export const JOBS = [
   { id: 'sword', name: '검사', weapon: '검', look: 'sword', color: '#e5e7eb',
     tag: '한 점을 꿰뚫는다',
     desc: '관문지기에게 강하다. 벽이 진행의 병목이라 가장 무난하다.',
-    tiers: ['검사', '검객', '검호', '일화검존'],
+    tiers: ['검사', '마검', '북천검가 검호', '일화검존'],
     mult: { boss: 1.7, atk: 1.3 } },
   { id: 'fist', name: '권마', weapon: '권갑', look: 'fist', color: '#f59e0b',
     tag: '맞붙는다',
     desc: '때리는 속도가 빠르다. 평타와 무공이 같이 빨라진다.',
-    tiers: ['권사', '철권', '패권', '권마'],
+    tiers: ['권사', '철권', '동권문 패권', '불패권마'],
     mult: { speed: 1.45, atk: 1.3 } },
   { id: 'fan', name: '환마', weapon: '부채', look: 'fan', color: '#38bdf8', range: 230,
     tag: '홀린다',
     desc: '멀리서 부채 바람을 날린다. 상태이상이 오래간다 — 둔화·파쇄가 길게 걸린다.',
-    tiers: ['환술사', '환객', '환영', '환마'],
+    tiers: ['환술사', '혈루객', '풍천교 섭혼사', '섭혼마존'],
     mult: { ccDur: 1.8, critDmg: 1.45 } },
   { id: 'poison', name: '독마', weapon: '독낭', look: 'dagger', color: '#22c55e', range: 240,
     tag: '서서히 죽인다',
     desc: '멀리서 독을 던진다. 깨달음이 빠르다 — 경지에 먼저 닿는다.',
-    tiers: ['독술사', '독객', '독군', '독마'],
+    tiers: ['독술사', '독아', '천독림 독군', '독왕'],
     mult: { bleed: 2.0, ccDur: 1.4, exp: 1.8 } },
   // 지풍으로 멀리서 쏘지만, 적이 붙으면 손가락으로 직접 혈을 짚어 더 아프다.
   // 사거리를 환마·독마보다 짧게 둬서 적이 금방 붙고, 붙은 뒤가 진짜다.
   { id: 'ring', name: '극악소마', weapon: '지환', look: 'claw', color: '#a855f7', range: 180, closeMult: 1.35,
     tag: '한 번에 끝낸다',
     desc: '지풍으로 멀리서 쏘고, 붙으면 혈을 짚어 더 세다. 치명 피해가 크다.',
-    tiers: ['지객', '지강', '소마', '극악소마'],
+    tiers: ['지객', '무면객', '악인곡 소마', '극악소마'],
     mult: { critDmg: 1.8, atk: 1.1 } },
 ];
 export const jobOf = (id) => JOBS.find((j) => j.id === id) || null;

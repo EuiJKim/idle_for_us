@@ -17,20 +17,44 @@ export const STATS = [
   { id: 'str', name: '힘', desc: '공격력 +3 · 공격력 +0.3%' },
   { id: 'dex', name: '민첩', desc: '치명 +0.4%p · 공격 속도 +1%' },
   { id: 'vit', name: '체력', desc: '최대 체력 +20 · 최대 체력 +0.3% · 방어 +0.2' },
-  { id: 'int', name: '내공', desc: '스킬 피해 +3% · 체력 회복 +0.12/초' },
+  { id: 'int', name: '내공', desc: '스킬 피해 +0.7% · 체력 회복 +0.12/초' },
 ];
 // 레벨이 오르면 겉모습도 한 단계씩 (옛 경지 그림 스물을 레벨에 나눠 쓴다)
 export const lookTierOf = (level) => Math.min(RANKS.length - 1, Math.floor((level - 1) / 8));
 
 // ---------- 캐릭터 ----------
-// 결(class trait)은 단순하게 하나씩. 옛 JOBS의 이름·무기·사거리를 그대로 쓴다.
+// 결(평타 특성) — v118에 다섯 마존의 설정에 맞춰 새로 짰다. 하나씩 세기가 비슷하게(시뮬 meter로 맞춤).
+//  검사(일화검존): 평타 네 번째마다 꽃잎 검기가 둘레를 벤다 + 두목 피해
+//  권마(불패권마): 받는 피해가 줄고 손이 빠르다 — 쓰러지지 않는다
+//  환마(섭혼마존): 맞은 적이 느려지고 더 아프게 맞는다 + 준 피해로 체력을 빨아들인다
+//  독마(독왕): 맞은 적이 중독 — 중독된 채 쓰러지면 독이 둘레로 번진다
+//  극악소마: 붙은 적이 공포에 질려 공격을 머뭇거린다 + 붙으면 더 아프다 + 치명 피해
 export const CLASSES = {
-  sword: { base: { str: 6, dex: 4, vit: 5, int: 3 }, trait: '두목에게 주는 피해 +30%', boss: 1.3 },
-  fist: { base: { str: 6, dex: 6, vit: 4, int: 2 }, trait: '공격 속도 +25%', speed: 1.25 },
-  fan: { base: { str: 4, dex: 4, vit: 4, int: 6 }, trait: '멀리서 친다 · 맞은 적이 느려진다', slow: true },
-  poison: { base: { str: 4, dex: 4, vit: 4, int: 6 }, trait: '멀리서 친다 · 맞은 적이 중독된다(3초에 걸쳐 60%)', poison: 0.6 },
-  ring: { base: { str: 5, dex: 6, vit: 4, int: 3 }, trait: '치명 +8%p · 붙으면 더 아프다', crit: 0.08 },
+  sword: { base: { str: 6, dex: 4, vit: 5, int: 3 }, trait: '일화(一花) — 팔마존 중 가장 빠르다: 이동 속도 +15% · 평타 네 번째마다 꽃잎 검기가 둘레를 벤다(200%) · 두목에게 주는 피해 +10%',
+    move: 0.15, boss: 1.1, flower: { every: 4, mult: 2.0, r: 150 } },
+  fist: { base: { str: 6, dex: 6, vit: 4, int: 2 }, trait: '불패(不敗) — 받는 피해 -20% · 공격 속도 +25%', speed: 1.25, dmgRed: 0.2 },
+  fan: { base: { str: 4, dex: 4, vit: 4, int: 6 }, trait: '섭혼(攝魂) — 멀리서 친다 · 맞은 적이 느려지고 받는 피해 +15% · 준 피해의 2%를 빨아들인다',
+    slow: true, vuln: 0.15, drain: 0.02 },
+  poison: { base: { str: 4, dex: 4, vit: 4, int: 6 }, trait: '독아(毒牙) — 멀리서 친다 · 맞은 적이 중독(피해의 20%가 독으로 쌓인다) · 중독된 적이 쓰러지면 독이 둘레로 번진다',
+    poison: 0.2, poisonSec: 4, spread: true },
+  ring: { base: { str: 5, dex: 6, vit: 4, int: 3 }, trait: '공포(恐怖) — 붙은 적이 25% 확률로 공격을 머뭇거린다 · 붙으면 피해 +20% · 치명 피해 +20%',
+    fear: 0.25, critDmg: 0.2 },
 };
+
+// 다섯 마존 (v118) — 3차 전직의 끝에 닿는 이름. 캐릭터를 고를 때와 캐릭터 창에 보인다.
+export const LORE = {
+  sword: { title: '일화검존', real: '소연랑', house: '북천검가', men: '마검',
+    text: '북천검가의 마존. 팔마존 가운데 가장 빠르게 움직인다. 불혹이 넘었으나 스물로 보이는 미인으로 늘 존댓말을 쓴다. 가식을 버리고 검에만 매달린 뒤로 꽃 한 송이 같은 검이 더 날카로워졌다.' },
+  fist: { title: '불패권마', real: '단우강', house: '동권문', men: '철권',
+    text: '동권문의 마존. 마존 가운데 가장 무서운 얼굴. 천마와 함께 강호를 누볐고 천마가 가장 믿는 마존이다. 권법을 쓰는 이라면 모를 수 없는 절세 권갑 \'투신\'을 낀다. 한 번도 진 적이 없다.' },
+  ring: { title: '극악소마', real: '', house: '악인곡', men: '무면객',
+    text: '악인곡의 마존. 가면을 쓴다. 거슬리면 앞뒤 없이 죽이지만 제 사람과 사업장은 하나하나 꼼꼼히 챙기는 \'부지런한 악당\'. 마주하는 것만으로 사람의 가장 원초적인 공포를 깨운다. 혈앙지·마극광폭장·소향비술 세 무공이 어우러지면 무적에 가깝다.' },
+  poison: { title: '독왕', real: '', house: '천독림', men: '독아',
+    text: '천독림의 마존. 새파랗게 어린 미소년으로 보인다. 홀로 독을 빚고 연구한다. 그의 하독이 부를 대량 학살을 온 무림이 두려워한다 — 존재 자체가 전쟁 억제기. 교가 위급하면 마지막으로 교를 지킬 마존이다.' },
+  fan: { title: '섭혼마존', real: '능파소', house: '풍천교', men: '혈루',
+    text: '혈교의 후신 풍천교의 교주. 섭혼술 계열 무공을 쓰는 이 가운데 가장 강하고, 그 자신에게는 섭혼술이 통하지 않는다. 독문무공은 천외혈마공(天外血魔功). 욕심이 많아 보물을 모으지만 그 욕심을 내려놓고 진짜 벗을 얻었다.' },
+};
+
 export const classOf = (id) => JOBS.find((j) => j.id === id) || null;
 
 // ---------- 전직과 스킬 ----------
@@ -40,18 +64,57 @@ export const TIERS = [
   { level: 40, cost: 5000 },
   { level: 75, cost: 120000 },
 ];
-// 스킬 셋. 이름은 옛 무공 이름을 빌린다(1차 일격기 = 옛 두목기 1차 형태 이름 …).
-// role은 연출표(skillfx) 열쇠 — '캐릭터:role'. hpCost는 최대 체력 대비.
-export const SKILL_DEFS = [
-  { slot: 0, tier: 1, kind: 'single', role: 'frost', nameFrom: ['frost', 1], mult: 3.2, cd: 4, hpCost: 0, autoAbove: 0 },
-  { slot: 1, tier: 2, kind: 'aoe', role: 'slash', nameFrom: ['slash', 2], mult: 2.4, cd: 6, hpCost: 0.10, autoAbove: 0.6, radius: 210 },
-  { slot: 2, tier: 3, kind: 'aoe', role: 'thunder', nameFrom: ['thunder', 3], mult: 5.5, cd: 14, hpCost: 0.22, autoAbove: 0.75, radius: 300 },
-];
-export const skillsOf = (job) => SKILL_DEFS.map((d) => {
-  const [r, t] = d.nameFrom;
-  const name = CLASS_SKILLS[job]?.[r]?.names?.[t] || d.role;
-  return { ...d, id: `s${d.slot}`, name, icon: name.slice(0, 2), fx: `${job}:${d.role}` };
-});
+// 스킬 셋 (v118 — 다섯 마존의 무공). 차수마다 자리(slot)는 같다: 1차 한 적 · 2차 둘레 · 3차 비기.
+// role은 연출표(skillfx) 열쇠 — '캐릭터:role'. hpCost는 최대 체력 대비. mult는 한 번 맞을 때의 배수.
+// kind: single(한 적) · aoe(둘레) · daggers(가까운 적들에게 비수 n자루) · field(장판 — tick마다)
+// 덧: hits(몇 번) · bossMult · sure(반드시 치명) · stun(초) · vuln{sec,v}(받는 피해 +v) · dot{sec,mult}(독·출혈 — 맞은 피해의 mult배를 sec초에)
+//     buff{sec, speed, dmgRed, cleave}(무인에게) · lifesteal(준 피해의 몫) · far(거리 제한 없음)
+const SK = (slot, tier, role, name, kind, o) => ({ slot, tier, role, name, kind, autoAbove: [0, 0.6, 0.75][slot], ...o });
+export const JOB_SKILLS = {
+  sword: [
+    SK(0, 1, 'frost', '일화참', 'single', { mult: 3.5, cd: 4.5, hpCost: 0, bossMult: 1.25, far: true,
+      desc: '가장 빠른 걸음으로 한 적을 벤다 · 두목에겐 1.25배' }),
+    SK(1, 2, 'slash', '낙화유수', 'aoe', { mult: 1.6, hits: 2, cd: 5, hpCost: 0.08, radius: 240,
+      desc: '꽃잎 지듯 둘레를 두 번 벤다' }),
+    SK(2, 3, 'thunder', '만화귀일', 'aoe', { mult: 5.0, cd: 15, hpCost: 0.18, radius: 300, buff: { sec: 8, speed: 0.4 },
+      desc: '만 송이 검화가 하나로 — 넓게 벤 뒤 8초간 공격 속도 +40%(마검 각성)' }),
+  ],
+  fist: [
+    SK(0, 1, 'frost', '붕산철권', 'single', { mult: 5.0, cd: 4.5, hpCost: 0, stun: 2,
+      desc: '산을 무너뜨리는 한 주먹 · 2초 기절' }),
+    SK(1, 2, 'slash', '투신난무', 'aoe', { mult: 1.5, hits: 4, cd: 5, hpCost: 0.08, radius: 230,
+      desc: '권갑 투신으로 둘레를 네 번 두들긴다' }),
+    SK(2, 3, 'thunder', '불패금신', 'aoe', { mult: 5.0, cd: 18, hpCost: 0, radius: 260, buff: { sec: 10, dmgRed: 0.5, cleave: 0.6 },
+      desc: '금빛 몸 — 충격파를 낸 뒤 10초간 받는 피해 -50% · 평타가 둘레를 친다(60%) · 체력을 쓰지 않는다' }),
+  ],
+  ring: [
+    SK(0, 1, 'frost', '혈앙지', 'single', { mult: 3.0, cd: 4, hpCost: 0, sure: true, dot: { sec: 5, mult: 0.6 },
+      desc: '피의 재앙을 짚는 손가락 · 반드시 치명 · 5초 출혈' }),
+    SK(1, 2, 'slash', '마극광폭장', 'aoe', { mult: 2.9, cd: 6, hpCost: 0.12, radius: 250, stun: 1.2,
+      desc: '광폭한 장력이 둘레를 휩쓴다 · 맞은 적이 공포에 1.2초 굳는다' }),
+    SK(2, 3, 'thunder', '소향비술', 'daggers', { mult: 0.85, n: 12, targets: 8, cd: 14, hpCost: 0.20, radius: 340, crit: 0.2,
+      desc: '비수 열두 자루가 가까운 적 여덟에게 날아든다(치명 +20%p) · 세 무공을 6초 안에 이으면 삼공조화(8초간 피해 +25%)' }),
+  ],
+  poison: [
+    SK(0, 1, 'frost', '칠보단혼침', 'single', { mult: 2.6, cd: 5, hpCost: 0, dot: { sec: 6, mult: 1.4 },
+      desc: '일곱 걸음 안에 혼이 끊기는 독침 · 6초 맹독' }),
+    SK(1, 2, 'slash', '화골산', 'field', { mult: 0.8, cd: 8, hpCost: 0.10, radius: 200, field: { sec: 6, tick: 0.5, mult: 0.26 },
+      desc: '뼈를 녹이는 독무를 깐다 — 6초 동안 0.5초마다' }),
+    SK(2, 3, 'thunder', '만독천라', 'aoe', { mult: 3.0, cd: 16, hpCost: 0.20, radius: 340, dot: { sec: 8, mult: 1.0 },
+      desc: '만 가지 독이 하늘 그물처럼 — 넓게 맞히고 8초 맹독' }),
+  ],
+  fan: [
+    SK(0, 1, 'frost', '섭혼술', 'single', { mult: 4.2, cd: 5, hpCost: 0, stun: 2.5, vuln: { sec: 6, v: 0.3 },
+      desc: '혼을 거두는 눈빛 · 2.5초 멎고 6초간 받는 피해 +30%' }),
+    SK(1, 2, 'slash', '혈루미혼', 'aoe', { mult: 2.3, cd: 8, hpCost: 0.10, radius: 200, stun: 2,
+      desc: '핏빛 눈물이 혼을 홀린다 · 둘레가 2초 멎는다' }),
+    SK(2, 3, 'thunder', '천외혈마공', 'aoe', { mult: 5.6, cd: 15, hpCost: 0.15, radius: 300, lifesteal: 0.05, vuln: { sec: 6, v: 0.2 },
+      desc: '하늘 밖의 혈마공 · 준 피해의 5%를 빨아들이고 6초간 받는 피해 +20%' }),
+  ],
+};
+export const SKILL_DEFS = JOB_SKILLS.sword;   // 옛 이름 (자리·차수만 보는 곳)
+export const HARMONY = { sec: 6, buffSec: 8, dmgUp: 0.25 };   // 극악소마 삼공조화
+export const skillsOf = (job) => (JOB_SKILLS[job] || []).map((d) => ({ ...d, id: `s${d.slot}`, icon: d.name.slice(0, 2), fx: `${job}:${d.role}` }));
 
 // ---------- 지도 ----------
 // 0번은 마을(객잔 마을). 1~15는 사냥터 — 옛 지역 그림과 몹 생김새를 쓴다.

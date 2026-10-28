@@ -25,7 +25,7 @@ export function newWorldSave(now = Date.now()) {
     skillLv: { s0: 1, s1: 1, s2: 1 },   // 스킬 레벨 (v110)
     skillPts: 0,
     skillV: 1,
-    statV: 2,
+    statV: 3,
     gold: 0,
     potions: 5,
     autoPotion: true,
@@ -78,6 +78,13 @@ export function migrateWorld(raw, now = Date.now()) {
   s.level = clamp(Math.floor(Number(s.level) || 1), 1, W.LEVEL_MAX);
   for (const k of ['exp', 'gold', 'potions', 'statPts', 'jobTier', 'kills', 'deaths', 'books']) s[k] = Math.max(0, Number(s[k]) || 0);
   s.jobTier = Math.min(3, Math.floor(s.jobTier));
+  // v118: 내공 효율(스킬 피해 3%→0.7%)과 직업 특성을 바꿨다 — 찍은 능력치를 한 번 다 돌려준다
+  if ((raw.statV || 0) < 3) {
+    const st = s.stats || {};
+    const back = ['str', 'dex', 'vit', 'int'].reduce((a, k) => a + Math.max(0, Math.floor(Number(st[k]) || 0)), 0);
+    if (back > 0) { s.statPts += back; s.stats = { str: 0, dex: 0, vit: 0, int: 0 }; s.respecNote = back; }
+    s.statV = 3;
+  }
   // v107: 사냥터 1~15 → 지역마다 구역 셋 + 두목 구역 (번호 = 지역×10 + 구역)
   if ((raw.mapV || 0) < 2) {
     s.map = W.oldMapToNew(raw.map);
@@ -105,7 +112,9 @@ export class WorldGame {
     this.events = [];
     this.clock = 0;
     this.mode = 'stage';           // 그리는 쪽은 'stage'일 때 들판을 그린다
-    this.buffs = {};
+    this.buffs = {};               // 무인 버프 남은 초 (rage·gale은 그리는 쪽도 본다)
+    this.buffv = {};               // 버프 세기
+    this.skillAt = {};             // 차수별 마지막으로 쓴 때 (삼공조화)
     this.adds = [];
     this.queue = [];
     this.fields = [];
@@ -205,15 +214,15 @@ export class WorldGame {
       atk, hp,
       def: vit * 0.2 + gear.def,
       crit: Math.min(0.75, 0.05 + dex * 0.004 + gear.crit + (cls.crit || 0)),
-      critDmg: W.CRIT_DMG + gear.critDmg,
+      critDmg: W.CRIT_DMG + gear.critDmg + (cls.critDmg || 0),
       atkSec: W.BASE_ATK_SEC / ((1 + dex * 0.01 + gear.speed) * (cls.speed || 1)),
       speed: (1 + dex * 0.01 + gear.speed) * (cls.speed || 1),
-      skillMult: 1 + int * 0.03 + gear.skill,
+      skillMult: 1 + int * 0.007 + gear.skill,
       // 자연 회복: 최대 체력의 0.6%/초 + 내공·레벨 몫 (물약만 바라보지 않게)
       regen: 1 + int * 0.12 + L * 0.08 + hp * (0.006 + gear.regenPct),
       expMult: 1 + gear.exp,
       matMult: 1 + gear.mat,
-      moveSpeed: 1 + (mt ? mt.speed : 0),
+      moveSpeed: 1 + (mt ? mt.speed : 0) + (cls.move || 0),
       boss: cls.boss || 1,
       range: W.classOf(s.job)?.range || W.MELEE_RANGE,
     };
@@ -414,6 +423,7 @@ export class WorldGame {
     this.potionT = Math.max(0, this.potionT - dt);
     if (this.frenzyT > 0) this.frenzyT -= dt;
     if (this.reviveCd > 0) this.reviveCd -= dt;
+    for (const k in this.buffs) if (this.buffs[k] > 0) { this.buffs[k] -= dt; if (this.buffs[k] <= 0) { delete this.buffs[k]; delete this.buffv[k]; } }
     // 회복
     const regen = this.map.town ? st.hp * W.REST_HEAL : st.regen;
     if (this.heroHp > 0) this.heroHp = Math.min(st.hp, this.heroHp + regen * dt);
@@ -433,9 +443,24 @@ export class WorldGame {
     if (this.freezeT > 0) { this.freezeT -= dt; this.walking = false; for (const m of this.mons) if (m.introT > 0) m.introT -= dt; return; }
     this.tickMobs(dt, st);
     if (this.heroHp <= 0) return;
+    this.tickFields(dt, st);
     this.tickPotion(st);
     this.tickHero(dt, st);
     this.tickPets(dt, st);
+  }
+
+  // 장판(독마 화골산) — tick마다 둘레를 친다
+  tickFields(dt, st) {
+    if (!this.fields.length) return;
+    for (const f of this.fields) {
+      f.life -= dt;
+      f.t -= dt;
+      while (f.t <= 0 && f.life > -1e-9) {
+        f.t += f.tick;
+        for (const m of this.mons.slice()) if (m.alive && !m.npc && Math.hypot(m.x - f.x, (m.y - f.y) * 0.75) <= f.r) this.strike(m, st, f.mult, f.id, 0, true);
+      }
+    }
+    this.fields = this.fields.filter((f) => f.life > 0);
   }
 
   tickTown(dt) {
@@ -451,12 +476,14 @@ export class WorldGame {
   tickMobs(dt, st) {
     for (const m of this.mons) {
       if (!m.alive) continue;
-      if (m.poison > 0) {
-        const d = Math.min(m.poison, dt);
-        m.poison -= d;
-        this.hurt(m, m.poisonPer * d, 'poison', false, true);
+      // 독·출혈은 쌓이는 웅덩이(dot) — 남은 양의 1/tau씩 매초 들어간다(넣은 만큼이 결국 다 들어간다)
+      if (m.dot > 0) {
+        const d = m.dot < 1 ? m.dot : (m.dot * dt) / (m.dotTau || 3);
+        m.dot -= d;
+        m.poison = m.dot >= 1 ? (m.dotTau || 3) : 0;
+        this.hurt(m, d, 'poison', false, true);
         if (!m.alive) continue;
-      }
+      } else m.poison = 0;
       if (m.introT > 0) { m.introT -= dt; continue; }
       if (m.stun > 0) { m.stun -= dt; continue; }
       if (m.slow > 0) m.slow -= dt;
@@ -487,7 +514,10 @@ export class WorldGame {
             m.atkTimer = W.MOB_ATK_SEC * (m.slow > 0 ? 1.5 : 1);
             const ps = this.passives();
             if (ps.has('dodge') && this.rng() < 0.25) { this.emit('passive', { id: 'dodge' }); continue; }   // 환왕
-            const dmg = Math.max(1, m.atk * (0.9 + this.rng() * 0.2) - st.def);
+            const cls = W.CLASSES[this.s.job] || {};
+            if (cls.fear && this.rng() < cls.fear) { this.emit('passive', { id: 'fear', at: m }); continue; }   // 극악소마: 공포
+            const red = (1 - (cls.dmgRed || 0)) * (1 - (this.buffv.guard || 0));
+            const dmg = Math.max(1, m.atk * (0.9 + this.rng() * 0.2) * red - st.def);
             this.heroHp -= dmg;
             this.emit('heroHit', { amount: dmg });
             if (ps.has('reflect')) this.hurt(m, dmg * 0.4, 'reflect', false);                                 // 철왕
@@ -563,7 +593,7 @@ export class WorldGame {
     this.walking = false;
     this.atkTimer -= dt;
     if (this.atkTimer <= 0) {
-      this.atkTimer = st.atkSec / (this.frenzyT > 0 ? 1.5 : 1);
+      this.atkTimer = st.atkSec / (this.frenzyT > 0 ? 1.5 : 1) / (1 + (this.buffv.haste || 0));
       this.basicAttack(m, st, dist);
     }
   }
@@ -614,22 +644,34 @@ export class WorldGame {
     const close = dist <= W.MELEE_RANGE * 1.3;
     this.emit('attack', { close });
     let mult = 1;
-    if (this.s.job === 'ring' && close) mult *= 1.25;
+    if (this.s.job === 'ring' && close) mult *= 1.2;
     const ps = this.passives();
     // 권왕: 세 번째마다 ×3
     if (ps.has('combo') && (this.comboN = (this.comboN || 0) + 1) % 3 === 0) { mult *= 3; this.emit('passive', { id: 'combo', at: m }); }
     const tx = m.x, ty = m.y;
     this.strike(m, st, mult, 'hit');
+    const cls = W.CLASSES[this.s.job] || {};
+    // 검사 일화: 네 번째마다 꽃잎 검기가 과녁 둘레를 벤다
+    if (cls.flower && (this.flowerN = (this.flowerN || 0) + 1) % cls.flower.every === 0) {
+      this.emit('passive', { id: 'flower', at: { x: tx, y: ty } });
+      for (const o of this.mons.slice()) if (o.alive && !o.npc && Math.hypot(o.x - tx, (o.y - ty) * 0.75) <= cls.flower.r) this.strike(o, st, mult * cls.flower.mult, 'flower');
+    }
+    // 권마 불패금신: 평타가 둘레를 친다
+    if (this.buffv.cleave) {
+      for (const o of this.mons.slice()) if (o.alive && o !== m && !o.npc && Math.hypot(o.x - this.heroX, (o.y - this.heroY) * 0.75) <= 150) this.strike(o, st, mult * this.buffv.cleave, 'cleave');
+    }
     // 검왕: 평타가 둘레 모든 적을 벤다
     if (ps.has('formless')) {
       for (const o of this.mons.slice()) if (o.alive && o !== m && !o.npc && Math.hypot(o.x - tx, (o.y - ty) * 0.75) <= 120) this.strike(o, st, mult * 0.7, 'cleave');
     }
   }
 
-  strike(m, st, mult, kind, extraCrit = 0) {
+  strike(m, st, mult, kind, extraCrit = 0, quiet = false) {
     const crit = this.rng() < st.crit + extraCrit;
     let dmg = st.atk * mult * (crit ? st.critDmg : 1) * (0.92 + this.rng() * 0.16);
     if (m.isBoss) dmg *= st.boss;
+    if (m.vulnT > this.clock) dmg *= 1 + m.vulnV;              // 섭혼: 받는 피해 +
+    if (this.buffv.might) dmg *= 1 + this.buffv.might;          // 삼공조화
     const ps = this.passives();
     if (ps.size) {
       if (ps.has('bossbane') && m.isBoss) dmg *= 1.5;                       // 투왕
@@ -637,7 +679,7 @@ export class WorldGame {
     }
     dmg = Math.max(1, dmg - m.armor);
     const mx = m.x, my = m.y;
-    this.hurt(m, dmg, kind, crit);
+    this.hurt(m, dmg, kind, crit, quiet);
     if (ps.size) {
       if (ps.has('drain')) this.heroHp = Math.min(st.hp, this.heroHp + dmg * 0.04);     // 혈왕
       if (ps.has('stun') && /^s\d$/.test(kind) && m.alive) m.stun = Math.max(m.stun || 0, m.isBoss ? 0.75 : 1.5);   // 음왕
@@ -647,8 +689,16 @@ export class WorldGame {
     }
     const cls = W.CLASSES[this.s.job] || {};
     if (m.alive && cls.slow) m.slow = 2.5;
-    if (m.alive && cls.poison) { m.poison = 3; m.poisonPer = Math.max(m.poisonPer || 0, (dmg * cls.poison) / 3); }
+    if (m.alive && cls.vuln && !(m.vulnT > this.clock && m.vulnV > cls.vuln)) { m.vulnT = this.clock + 3; m.vulnV = cls.vuln; }
+    if (cls.drain) this.heroHp = Math.min(st.hp, this.heroHp + dmg * cls.drain);
+    if (m.alive && cls.poison && kind !== 'poison') this.addDot(m, dmg * cls.poison, cls.poisonSec || 3);
     return dmg;
+  }
+  // 독·출혈: total만큼을 웅덩이에 붓는다 — 쌓인다(빠르기는 마지막에 부은 sec쯤)
+  addDot(m, total, sec) {
+    m.dot = (m.dot || 0) + total;
+    m.dotTau = sec / 2;
+    m.poison = sec;
   }
 
   hurt(m, dmg, kind, crit, quiet = false) {
@@ -669,6 +719,12 @@ export class WorldGame {
     this.s.kills++;
     const mat = this.dropMats(m);
     if (m.elite) this.dropMats(m);
+    // 독마: 중독된 채 쓰러지면 독이 둘레로 번진다
+    if (W.CLASSES[this.s.job]?.spread && m.dot > 0) {
+      const left = m.dot;
+      m.dot = 0;
+      for (const o of this.mons) if (o.alive && !o.npc && o !== m && Math.hypot(o.x - m.x, (o.y - m.y) * 0.75) <= 140) this.addDot(o, left * 0.6, 4);
+    }
     this.emit('kill', { gold, isBoss: m.isBoss, add: true, at: m, mat });
     this.addExp(exp);
     this.note(1, exp, gold, 0);
@@ -716,51 +772,84 @@ export class WorldGame {
     const st = this.stats();
     const tgt = this.mon?.alive ? this.mon : this.pickTarget({ ...st, range: 9999 });
     if (sk.kind === 'single' && !tgt) return false;
-    if (sk.kind === 'single' && Math.hypot(tgt.x - this.heroX, tgt.y - this.heroY) > Math.max(st.range, 160) * 1.6) return false;
+    if (sk.kind === 'single' && !sk.far && Math.hypot(tgt.x - this.heroX, tgt.y - this.heroY) > Math.max(st.range, 160) * 1.6) return false;
+    if (sk.kind === 'single' && sk.far && Math.hypot(tgt.x - this.heroX, tgt.y - this.heroY) > 420) return false;
     const md = this.skillMods(id);
     const cost = this.hpCostOf(sk);
     this.heroHp -= cost;
     this.cd[id] = this.skillCd(sk);
-    const center = sk.kind === 'aoe' && this.ranged() && tgt ? { x: tgt.x, y: tgt.y } : { x: this.heroX, y: this.heroY };
+    const aimed = (sk.kind === 'aoe' || sk.kind === 'field') && this.ranged() && tgt;
+    const center = aimed ? { x: tgt.x, y: tgt.y } : { x: this.heroX, y: this.heroY };
     const r = this.skillRadius(sk);
     this.emit('skill', { id, name: sk.name, fx: sk.fx, look: sk.role, job: this.s.job, cls: this.s.job, tier: sk.tier,
-      at: center, radius: r, motion: sk.kind, dur: 0 });
+      at: center, radius: r, motion: sk.kind === 'single' ? 'single' : 'aoe', dur: 0 });
     if (cost) this.emit('hpCost', { amount: cost });
     // 스킬 레벨·장비 옵션: 피해 · 범위 · 치명 · (1차) 주변 적 · (신화) 한 번 더 · 숨 되돌리기
     const mult = sk.mult * st.skillMult * (1 + md.dmg);
+    const crit = md.crit + (sk.sure ? 1 : 0) + (sk.crit || 0);
     const kills0 = this.s.kills;
+    let dealt = 0;
+    // 한 대 — 무공의 덧(기절·취약·독·두목 배수)을 함께 건다
+    const hit = (m, k = 1) => {
+      if (!m.alive) return;
+      const d = this.strike(m, st, mult * k * (m.isBoss && sk.bossMult ? sk.bossMult : 1), id, crit);
+      dealt += d;
+      if (!m.alive) return;
+      if (sk.stun) m.stun = Math.max(m.stun || 0, m.isBoss ? sk.stun * 0.4 : sk.stun);
+      if (sk.vuln && !(m.vulnT > this.clock && m.vulnV > sk.vuln.v)) { m.vulnT = this.clock + sk.vuln.sec; m.vulnV = sk.vuln.v; }
+      if (sk.dot) this.addDot(m, d * sk.dot.mult, sk.dot.sec);
+    };
+    const inR = (c, rr) => this.mons.filter((m) => m.alive && !m.npc && Math.hypot(m.x - c.x, (m.y - c.y) * 0.75) <= rr);
     const hitOnce = () => {
-      if (sk.kind === 'single') {
-        if (!tgt.alive) return;
-        this.mon = tgt;
-        const tx = tgt.x, ty = tgt.y;
-        this.strike(tgt, st, mult, id, md.crit);
-        if (md.splash > 0) {
-          for (const m of this.mons.slice()) {
-            if (m.alive && m !== tgt && Math.hypot(m.x - tx, (m.y - ty) * 0.75) <= 140) this.strike(m, st, mult * md.splash, id, md.crit);
+      for (let n = 0; n < (sk.hits || 1); n++) {
+        if (sk.kind === 'single') {
+          if (!tgt.alive) return;
+          this.mon = tgt;
+          const tx = tgt.x, ty = tgt.y;
+          hit(tgt);
+          if (md.splash > 0) for (const m of inR({ x: tx, y: ty }, 140)) if (m !== tgt) hit(m, md.splash);
+        } else if (sk.kind === 'daggers') {
+          // 가까운 적부터 targets명에게 비수 n자루를 돌려 가며
+          const near = inR(center, r).sort((a, b) => Math.hypot(a.x - center.x, a.y - center.y) - Math.hypot(b.x - center.x, b.y - center.y)).slice(0, sk.targets);
+          for (let i = 0; i < sk.n && near.length; i++) {
+            const m = near[i % near.length];
+            if (m.alive) hit(m);
           }
-        }
-      } else {
-        for (const m of this.mons.slice()) {
-          if (!m.alive) continue;
-          if (Math.hypot(m.x - center.x, (m.y - center.y) * 0.75) <= r) this.strike(m, st, mult, id, md.crit);
+        } else {
+          for (const m of inR(center, r)) hit(m);
         }
       }
     };
     hitOnce();
+    if (sk.kind === 'field') this.fields.push({ id, x: center.x, y: center.y, r, life: sk.field.sec, max: sk.field.sec, tick: sk.field.tick, t: sk.field.tick, mult: sk.field.mult * st.skillMult * (1 + md.dmg) });
     if (md.echo && this.rng() < 0.3) { hitOnce(); this.emit('echo', { id, at: center }); }
     if (md.reset && this.s.kills > kills0) this.cd[id] = 0;
+    if (sk.lifesteal) this.heroHp = Math.min(st.hp, this.heroHp + dealt * sk.lifesteal);
+    if (sk.buff) {
+      const b = sk.buff;
+      if (b.speed) { this.buffs.gale = b.sec; this.buffv.haste = b.speed; }
+      if (b.dmgRed) { this.buffs.guard = b.sec; this.buffv.guard = b.dmgRed; }
+      if (b.cleave) { this.buffs.cleave = b.sec; this.buffv.cleave = b.cleave; }
+      this.buffs.rage = b.sec;
+    }
+    // 극악소마 삼공조화: 세 무공이 HARMONY.sec 안에 이어지면
+    this.skillAt[sk.slot] = this.clock;
+    if (this.s.job === 'ring' && [0, 1, 2].every((k) => this.skillAt[k] != null && this.clock - this.skillAt[k] <= W.HARMONY.sec)) {
+      this.buffs.might = W.HARMONY.buffSec; this.buffv.might = W.HARMONY.dmgUp; this.buffs.rage = W.HARMONY.buffSec;
+      this.skillAt = {};
+      this.emit('passive', { id: 'harmony' });
+    }
     return true;
   }
   autoSkills(st) {
     for (const sk of this.skills()) {
       if (this.cd[sk.id] > 0) continue;
-      if (sk.autoAbove && this.heroHp < st.hp * sk.autoAbove) continue;
+      if (sk.autoAbove && this.heroHp < st.hp * sk.autoAbove && !sk.buff?.dmgRed) continue;
       if (sk.kind === 'single') {
         if (!this.mon?.alive) continue;
         // 한 대에 죽을 놈에게는 아끼고, 두목·센 놈에게 쓴다
         if (!this.mon.isBoss && this.mon.hp < st.atk * 1.5) continue;
-        if (Math.hypot(this.mon.x - this.heroX, this.mon.y - this.heroY) > Math.max(st.range, 160)) continue;
+        if (Math.hypot(this.mon.x - this.heroX, this.mon.y - this.heroY) > (sk.far ? 400 : Math.max(st.range, 160))) continue;
       } else {
         const c = this.ranged() && this.mon?.alive ? this.mon : { x: this.heroX, y: this.heroY };
         const rr = this.skillRadius(sk);

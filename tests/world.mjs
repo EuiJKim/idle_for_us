@@ -89,7 +89,7 @@ console.log('\n=== 칸 이동 (바람식) ===');
   }
   ok(offGrid === 0, '멈춰 있으면 늘 칸 가운데에 선다', `${offGrid}/${samples}`);
   ok(clash === 0, '한 칸에는 하나만 선다', `${clash}`);
-  ok(maxStep <= W.HERO_SPEED * 0.05 + 0.01, '칸 사이를 미끄러지듯 옮겨 간다(순간이동 없음)', `${maxStep.toFixed(1)}`);
+  ok(maxStep <= W.HERO_SPEED * g.stats().moveSpeed * 0.05 + 0.01, '칸 사이를 미끄러지듯 옮겨 간다(순간이동 없음)', `${maxStep.toFixed(1)}`);
   ok(g.s.kills > 20, '칸 길로도 사냥이 잘 된다', `5분 ${g.s.kills}마리`);
   // 손으로 찍은 칸으로 간다
   const h = fresh();
@@ -438,7 +438,7 @@ console.log('\n=== 십이지왕 신화 · 가락지·귀걸이 · 애완동물 �
   const m = fresh();
   const sp0 = m.stats().moveSpeed;
   m.gainMount('redhare');
-  ok(m.stats().moveSpeed > sp0 * 1.8 && m.stats().atk > fresh().stats().atk, '탈것: 이동 속도(적토마 +85%)와 공격력·체력 %', `이동 ×${m.stats().moveSpeed.toFixed(2)}`);
+  ok(m.stats().moveSpeed - sp0 >= 0.8 && m.stats().atk > fresh().stats().atk, '탈것: 이동 속도(적토마 +85%)와 공격력·체력 %', `이동 ×${m.stats().moveSpeed.toFixed(2)}`);
   m.gainMount('donkey');
   ok(m.mountNow().name === '적토마', '더 느린 탈것을 얻으면 갈아타지 않는다');
   // 순위: 아래 것보다 위 것이 세다 · 초반 두목은 아주 낮게·아래 순위만
@@ -465,6 +465,38 @@ console.log('\n=== 문파 버프 ===');
   g.s.guildId = 'ABCDEF';
   ok(g.stats().atk / a0 > 1.08 && g.stats().atk / a0 < 1.1 + 1e-9, '문파 Lv.6이면 공격력 +10%(곱하는 몫에 더한다)', `${a0.toFixed(1)} → ${g.stats().atk.toFixed(1)}`);
   ok(W.guildLevel(1e9) === W.GUILD_LV_MAX, `문파 레벨은 ${W.GUILD_LV_MAX}까지`);
+}
+
+console.log('\n=== 다섯 마존의 무공 (v118) ===');
+{
+  const ready = (job) => {
+    const g = fresh(job);
+    g.s.level = 80; g.s.gold = 1e9;
+    while (g.canAdvance()) g.advance();
+    g.enterMap(11);
+    g._stats = null; g.heroHp = g.stats().hp;
+    for (const m of g.mons) { m.hp = m.maxHp = 1e12; m.atk = 0; }
+    g.mon = g.mons[0];
+    // 몹을 무인 곁으로 모은다 (둘레 무공이 다 맞게)
+    g.mons.forEach((m, i) => { m.x = g.heroX + 40 + (i % 3) * 20; m.y = g.heroY + 20 * Math.floor(i / 3) - 40; });
+    return g;
+  };
+  ok(['sword', 'fist', 'fan', 'poison', 'ring'].every((j) => new Set(W.skillsOf(j).map((k) => k.name)).size === 3 && W.LORE[j]?.title), '직업마다 무공 셋이 다르고 마존 설정이 있다');
+  const p = ready('poison');
+  ok(p.useSkill('s1') && p.fields.length === 1, '독마 화골산: 독무 장판이 깔린다');
+  const hp0 = p.mons.reduce((a, m) => a + m.hp, 0);
+  for (let i = 0; i < 30; i++) p.tick(0.1);
+  ok(p.mons.reduce((a, m) => a + m.hp, 0) < hp0, '장판이 tick마다 친다');
+  const f = ready('fist');
+  ok(f.useSkill('s2') && f.buffv.guard === 0.5 && f.buffv.cleave > 0, '권마 불패금신: 받는 피해 -50% · 평타가 둘레를 친다');
+  const r = ready('ring');
+  for (const k of ['s0', 's1', 's2']) { r.cd[k] = 0; r.useSkill(k); r.tick(0.1); }
+  ok(r.buffv.might === W.HARMONY.dmgUp, '극악소마: 세 무공을 이으면 삼공조화');
+  const fn = ready('fan');
+  fn.useSkill('s0');
+  ok(fn.mon.stun > 0 && fn.mon.vulnT > fn.clock, '환마 섭혼술: 멎고 더 아프게 맞는다');
+  const sw = ready('sword');
+  ok(sw.stats().moveSpeed > fresh('fist').stats().moveSpeed && sw.useSkill('s2') && sw.buffv.haste > 0, '검사: 더 빠르고 만화귀일 뒤 공격 속도가 오른다');
 }
 
 console.log('\n=== 전직·스킬 ===');

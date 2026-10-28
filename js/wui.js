@@ -117,7 +117,10 @@ function charTab(app) {
         } }, max ? '최대' : `+1 · ${W.skillLvCost(lv)}점`)));
     }
   }
-  root.append(head, stats, skillCard, h('div', { class: 'card' }, h('h3', {}, '능력치'), derived));
+  // 마존 설정 — 머리 칸은 자주 다시 그려서(경험치 막대) 펼친 게 닫히므로 따로 둔다
+  const loreBox = h('div');
+  let loreJob = null;
+  root.append(head, loreBox, stats, skillCard, h('div', { class: 'card' }, h('h3', {}, '능력치'), derived));
   function upd() {
     const s = game.s;
     const st = game.stats();
@@ -125,8 +128,15 @@ function charTab(app) {
     head.replaceChildren(
       h('h3', {}, `${s.nickname || '무명'} `, h('small', {}, `${game.tierName()} · Lv.${s.level}`)),
       h('p', { class: 'muted' }, cls ? `${cls.name} — ${W.CLASSES[s.job].trait}` : ''),
+
       h('div', { class: 'bar' }, h('div', { style: `width:${Math.min(100, (s.exp / game.expNeed()) * 100)}%` }),
         h('span', {}, `경험치 ${fmt(s.exp)} / ${fmt(game.expNeed())}`)));
+    if (loreJob !== s.job) {
+      loreJob = s.job;
+      const L = W.LORE[s.job];
+      loreBox.replaceChildren(...(L ? [h('details', { class: 'lore card' }, h('summary', {}, `${L.house}의 마존 · ${L.title}${L.real ? ` (본명 ${L.real})` : ''} — ${L.house} 사람들은 '${L.men}'라 부른다`),
+        h('p', {}, L.text))] : []));
+    }
     skills();
     ptsEl.textContent = s.statPts;
     autoBtn.textContent = s.autoStat ? '자동 분배 켬' : '자동 분배 끔';
@@ -398,10 +408,11 @@ function townTab(app) {
 }
 
 export function skillText(game, sk) {
-  const where = sk.kind === 'single' ? '한 적에게' : game.ranged() ? '겨눈 자리 둘레 모두에게' : '둘레 모두에게';
   const cd = game.skillCd ? game.skillCd(sk) : sk.cd;
   const cost = sk.hpCost * (1 - (game.skillMods ? game.skillMods(sk.id).cost : 0));
-  return `${where} 공격력 ×${sk.mult} · 숨 ${cd.toFixed(cd < 10 ? 1 : 0).replace(/\.0$/, '')}초${sk.hpCost ? ` · 체력 ${pct(cost, 0)} 소모` : ''}`;
+  const num = sk.kind === 'field' ? `처음 ×${sk.mult} · ${sk.field.tick}초마다 ×${sk.field.mult}`
+    : sk.kind === 'daggers' ? `한 자루 ×${sk.mult}` : `공격력 ×${sk.mult}${sk.hits > 1 ? ` · ${sk.hits}번` : ''}`;
+  return `${sk.desc} — ${num} · 숨 ${cd.toFixed(cd < 10 ? 1 : 0).replace(/\.0$/, '')}초${sk.hpCost ? ` · 체력 ${pct(cost, 0)} 소모` : ''}`;
 }
 
 // ---------- 무림 ----------
