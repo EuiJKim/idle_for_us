@@ -207,6 +207,22 @@ console.log('\n=== 지역·구역·두목 구역 ===');
   ok(b.mons.some((m) => m.isBoss && m.alive), '들어서면 곧 두목이 나선다', b.mons.find((m) => m.isBoss)?.name);
   for (let i = 0; i < 20 * 400; i++) { b.tick(0.05); b.events.length = 0; }
   ok((b.s.mats[W.bossKey(1)] || 0) >= 3, '두목을 잡으면 증표 — 다시 나서 또 잡는다', `6분 40초에 증표 ${b.s.mats[W.bossKey(1)] || 0}`);
+  // 등장 연출: 구역에 들어와 처음 나설 때만 길게(들판이 멈춘다), 다시 날 때는 짧게
+  const c = fresh();
+  c.s.level = 30; c.s.stats.str = 200; c.s.stats.vit = 800; c._stats = null; c.heroHp = c.stats().hp;
+  c.enterMap(W.mapId(2, W.BOSS_AREA));
+  const appears = [];
+  let frozeOk = true;
+  for (let i = 0; i < 20 * 300; i++) {
+    const hp0 = c.heroHp, kills0 = c.s.kills;
+    const frozen = c.freezeT > 0.06;
+    c.tick(0.05);
+    if (frozen && (c.s.kills !== kills0 || c.heroHp < hp0)) frozeOk = false;
+    for (const e of c.events) if (e.type === 'bossAppear') appears.push(e.full);
+    c.events.length = 0;
+  }
+  ok(appears[0] === true && appears.length >= 2 && appears.slice(1).every((f) => f === false), '두목 등장: 처음은 긴 연출, 다시 날 때는 짧게', appears.map((f) => (f ? '긴' : '짧은')).join(' '));
+  ok(frozeOk, '긴 연출 동안은 들판이 멈춘다(맞지도 잡지도 않는다)');
   // 십이지왕
   const k = fresh();
   k.s.level = 98;

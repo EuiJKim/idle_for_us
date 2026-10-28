@@ -208,6 +208,8 @@ export class WorldGame {
     this.manual = null;
     this.returnT = 0;
     this.bossT = 1.5;                // 두목 구역: 들어서고 잠깐 뒤 두목이 나선다
+    this.bossSeen = false;
+    this.freezeT = 0;
     if (!m.town) for (let i = 0; i < (m.bossRoom ? W.BOSS_ROOM_MOBS : W.MOBS_ALIVE); i++) this.spawnMob(false);
     else this.placeNpcs();
     if (!quiet) this.emit('mapEnter', { id, name: m.name, town: m.town });
@@ -310,11 +312,17 @@ export class WorldGame {
       def: { name: kind.name, look: kind.look },
     };
     mob.name = kind.name;
-    // 십이지왕: 등장 연출 동안은 움직이지도, 맞지도 않는다
+    // 두목 등장 연출: 구역에 들어와 처음 나설 때는 길게(들판이 멈추고 두목은 맞지도 않는다),
+    // 같은 구역에서 다시 날 때는 짧게(멈추지 않는다) — 45초마다 길게 멈추면 사냥이 끊긴다.
     const king = boss ? m.king : null;
-    if (king) { mob.introT = W.KING_INTRO_SEC; this.freezeT = W.KING_INTRO_SEC; }
+    const full = boss && !this.bossSeen;
+    if (boss) this.bossSeen = true;
+    if (full) { mob.introT = king ? W.KING_INTRO_SEC : W.BOSS_INTRO_SEC; this.freezeT = mob.introT; }
     this.mons.push(mob);
-    if (boss) this.emit('bossAppear', { name: kind.name, lv, king: king ? { no: king.no, title: king.title, real: king.real, hanja: king.hanja, skill: king.skill } : null, at: mob });
+    if (boss) {
+      this.emit('bossAppear', { name: kind.name, lv, full, zoneName: m.zoneName,
+        king: king ? { no: king.no, title: king.title, real: king.real, hanja: king.hanja, skill: king.skill } : null, at: mob });
+    }
     return mob;
   }
 
@@ -339,7 +347,7 @@ export class WorldGame {
       this.bossT -= dt;
       if (this.bossT <= 0) { this.bossT = W.BOSS_RESPAWN; this.spawnMob(true); }
     }
-    // 십이지왕 등장 연출 동안은 들판 전체가 멈춘다(무인도 몹도)
+    // 두목 등장 연출 동안은 들판 전체가 멈춘다(무인도 몹도)
     if (this.freezeT > 0) { this.freezeT -= dt; this.walking = false; for (const m of this.mons) if (m.introT > 0) m.introT -= dt; return; }
     this.tickMobs(dt, st);
     if (this.heroHp <= 0) return;

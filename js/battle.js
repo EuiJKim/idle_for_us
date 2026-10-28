@@ -2018,13 +2018,34 @@ export class BattleView {
     ctx.restore();
   }
 
-  // ---------- 십이지왕 등장 ----------
-  // 화면이 어두워지고 위아래에 먹띠가 내려온다. 왕이 선 자리에 핏빛 기둥이 서고,
-  // 한가운데 왕의 이름(한자)이 붓으로 크게 박힌다 — '第一王'의 낙관과 본명·독문무공이 뒤따른다.
-  // 게임 쪽에서는 이 동안 왕이 움직이지도 맞지도 않는다(introT).
-  startKingIntro(king, at) {
-    this.kingIntro = { k: king, at: at ? { x: at.x, y: at.y } : null, t: 0, dur: 3.2, hit: false };
-    this.shake = Math.max(this.shake, 0.5);
+  // ---------- 두목 등장 ----------
+  // 화면이 어두워지고 위아래에 먹띠가 내려온다. 두목이 선 자리에 빛기둥이 서고,
+  // 한가운데 이름이 붓으로 크게 박힌다 — 낙관과 한두 줄이 뒤따른다.
+  // 게임 쪽에서는 이 동안 들판이 멈추고 두목은 맞지도 않는다(introT · freezeT).
+  // full이 아니면(같은 구역에서 다시 난 두목) 먹띠·글줄 없이 이름만 짧게 찍는다.
+  // 십이지왕: 한자 이름(劍王) · '第一王' 낙관 · 본명과 독문무공 · 핏빛
+  startKingIntro(king, at, full = true) {
+    const HN = ['', '一', '二', '三', '四', '五', '六', '七', '八', '九', '十', '十一', '十二'];
+    this.startIntro({
+      stamp: king.hanja, seal: `第${HN[king.no]}王`,
+      line1: `십이지왕 제${king.no}왕 ${king.title}${king.real ? ` · ${king.real}` : ''}`,
+      line2: king.skill ? `독문무공 〈${king.skill}〉` : '',
+      glow: '239,68,68', pillar: '248,113,113', core: '254,202,202', ink: '127,29,29', text: '#fef2f2', sub: '#fecaca',
+      dur: full ? 3.2 : 1.4, full,
+    }, at);
+  }
+  // 보통 두목: 한글 이름 · '頭目' 낙관 · 지역과 레벨 · 쇳빛
+  startBossIntro(info, at, full = true) {
+    this.startIntro({
+      stamp: info.name, seal: '頭目',
+      line1: `${info.zoneName}의 두목 · Lv.${info.lv}`, line2: '',
+      glow: '251,146,60', pillar: '253,186,116', core: '254,243,199', ink: '67,20,7', text: '#fff7ed', sub: '#fed7aa',
+      dur: full ? 2.2 : 1.2, full,
+    }, at);
+  }
+  startIntro(spec, at) {
+    this.kingIntro = { k: spec, at: at ? { x: at.x, y: at.y } : null, t: 0, dur: spec.dur, hit: false };
+    this.shake = Math.max(this.shake, spec.full ? 0.5 : 0.25);
   }
   drawKingIntro(dt, z = 1) {
     const ki = this.kingIntro;
@@ -2033,41 +2054,45 @@ export class BattleView {
     if (ki.t >= ki.dur) { this.kingIntro = null; return; }
     const { ctx, w, h } = this;
     const t = ki.t;
-    const A = Math.min(1, t / 0.35, (ki.dur - t) / 0.5);
-    if (!ki.hit && t > 0.38) { ki.hit = true; this.flash = Math.max(this.flash, 0.35); this.shake = Math.max(this.shake, 0.8); }
+    const k = ki.k;
+    const full = k.full;
+    // 짧은 판은 박자를 당긴다
+    const sp = full ? 1 : 1.6;
+    const A = Math.min(1, t / (0.35 / sp), (ki.dur - t) / (full ? 0.5 : 0.35));
+    if (!ki.hit && t > 0.38 / sp) { ki.hit = true; this.flash = Math.max(this.flash, full ? 0.35 : 0.15); this.shake = Math.max(this.shake, full ? 0.8 : 0.35); }
     ctx.save();
     // 어둠
-    ctx.fillStyle = `rgba(6,3,3,${0.66 * A})`;
+    ctx.fillStyle = `rgba(6,3,3,${(full ? 0.66 : 0.32) * A})`;
     ctx.fillRect(0, 0, w, h);
     // 왕이 선 자리 — 핏빛 기둥과 소용돌이
     if (ki.at && this.game) {
       const bx = this.sx(ki.at) * z;
       const by = this.sy(ki.at) * z;
-      const pk = Math.max(0, Math.min(1, (t - 0.15) / 0.3)) * A;
+      const pk = Math.max(0, Math.min(1, (t - 0.15 / sp) / 0.3)) * A;
       const col = ctx.createLinearGradient(bx - 30, 0, bx + 30, 0);
-      col.addColorStop(0, 'rgba(127,29,29,0)');
-      col.addColorStop(0.5, `rgba(248,113,113,${0.55 * pk})`);
-      col.addColorStop(1, 'rgba(127,29,29,0)');
+      col.addColorStop(0, `rgba(${k.ink},0)`);
+      col.addColorStop(0.5, `rgba(${k.pillar},${0.55 * pk})`);
+      col.addColorStop(1, `rgba(${k.ink},0)`);
       ctx.fillStyle = col;
       ctx.fillRect(bx - 30, 0, 60, by);
       const r = 70 + Math.sin(t * 9) * 6;
       const g2 = ctx.createRadialGradient(bx, by - 30, 4, bx, by - 30, r);
-      g2.addColorStop(0, `rgba(254,202,202,${0.7 * pk})`);
-      g2.addColorStop(0.45, `rgba(220,38,38,${0.45 * pk})`);
-      g2.addColorStop(1, 'rgba(69,10,10,0)');
+      g2.addColorStop(0, `rgba(${k.core},${0.7 * pk})`);
+      g2.addColorStop(0.45, `rgba(${k.glow},${0.45 * pk})`);
+      g2.addColorStop(1, `rgba(${k.ink},0)`);
       ctx.fillStyle = g2;
       ctx.beginPath(); ctx.arc(bx, by - 30, r, 0, Math.PI * 2); ctx.fill();
     }
     // 위아래 먹띠
-    const bar = h * 0.11 * Math.min(1, t / 0.3) * Math.min(1, (ki.dur - t) / 0.4);
+    const bar = full ? h * 0.11 * Math.min(1, t / 0.3) * Math.min(1, (ki.dur - t) / 0.4) : 0;
     ctx.fillStyle = '#000';
     ctx.fillRect(0, 0, w, bar);
     ctx.fillRect(0, h - bar, w, bar);
     // 붓 한 획 — 이름 뒤를 가로지른다
     const cy = h * 0.4;
-    const sk = Math.max(0, Math.min(1, (t - 0.25) / 0.22));
+    const sk = Math.max(0, Math.min(1, (t - 0.25 / sp) / 0.22));
     if (sk > 0) {
-      ctx.fillStyle = `rgba(127,29,29,${0.75 * A})`;
+      ctx.fillStyle = `rgba(${k.ink},${0.75 * A})`;
       ctx.beginPath();
       ctx.moveTo(w * 0.04, cy - 10);
       ctx.quadraticCurveTo(w * 0.5, cy - 30, w * (0.04 + 0.92 * sk), cy - 6);
@@ -2075,28 +2100,28 @@ export class BattleView {
       ctx.quadraticCurveTo(w * 0.5, cy + 40, w * 0.04 + 6, cy + 18);
       ctx.fill();
     }
-    // 왕의 이름 (한자) — 크게 찍혔다가 제 크기로
-    const k = ki.k;
-    const nk = Math.max(0, Math.min(1, (t - 0.35) / 0.25));
+    // 이름 — 크게 찍혔다가 제 크기로 (글자 수에 맞춰 화면 폭 안에)
+    const nk = Math.max(0, Math.min(1, (t - 0.35 / sp) / 0.25));
+    const n = [...k.stamp].length;
+    const base = Math.min(132, (w * 0.78) / Math.max(2, n)) * (full ? 1 : 0.7);
     if (nk > 0) {
-      const size = Math.min(132, w * 0.34) * (1.45 - 0.45 * nk);
+      const size = base * (1.45 - 0.45 * nk);
       ctx.globalAlpha = A * nk;
       ctx.font = `${size}px ${BRUSH}`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.lineWidth = 10;
       ctx.strokeStyle = 'rgba(0,0,0,0.9)';
-      ctx.strokeText(k.hanja, w / 2, cy + 8);
-      ctx.shadowColor = 'rgba(239,68,68,0.9)';
+      ctx.strokeText(k.stamp, w / 2, cy + 8);
+      ctx.shadowColor = `rgba(${k.glow},0.9)`;
       ctx.shadowBlur = 24;
-      ctx.fillStyle = '#fef2f2';
-      ctx.fillText(k.hanja, w / 2, cy + 8);
+      ctx.fillStyle = k.text;
+      ctx.fillText(k.stamp, w / 2, cy + 8);
       ctx.shadowBlur = 0;
-      // 낙관 '第N王'
-      const HN = ['', '一', '二', '三', '四', '五', '六', '七', '八', '九', '十', '十一', '十二'];
-      const seal = `第${HN[k.no]}王`;
+      // 낙관 — 이름 오른쪽 위
+      const seal = k.seal;
       ctx.save();
-      ctx.translate(w / 2 + Math.min(132, w * 0.34) * 0.95, cy - 38);
+      ctx.translate(Math.min(w - 22, w / 2 + base * n * 0.5 + 16), cy - 38);
       ctx.rotate(0.06);
       const sh = 16 * [...seal].length + 10;
       ctx.fillStyle = '#b91c1c';
@@ -2108,7 +2133,7 @@ export class BattleView {
       ctx.restore();
     }
     // 본명과 독문무공
-    const tk = Math.max(0, Math.min(1, (t - 0.75) / 0.3));
+    const tk = full ? Math.max(0, Math.min(1, (t - 0.75) / 0.3)) : 0;
     if (tk > 0) {
       ctx.globalAlpha = A * tk;
       ctx.textAlign = 'center';
@@ -2116,17 +2141,17 @@ export class BattleView {
       ctx.font = `800 21px system-ui, sans-serif`;
       ctx.lineWidth = 5;
       ctx.strokeStyle = 'rgba(0,0,0,0.85)';
-      const line = `십이지왕 제${k.no}왕 ${k.title}${k.real ? ` · ${k.real}` : ''}`;
+      const line = k.line1;
       ctx.strokeText(line, w / 2, cy + 86);
-      ctx.fillStyle = '#fecaca';
+      ctx.fillStyle = k.sub;
       ctx.fillText(line, w / 2, cy + 86);
     }
-    const sk2 = Math.max(0, Math.min(1, (t - 1.05) / 0.3));
-    if (sk2 > 0 && k.skill) {
+    const sk2 = full ? Math.max(0, Math.min(1, (t - 1.05) / 0.3)) : 0;
+    if (sk2 > 0 && k.line2) {
       ctx.globalAlpha = A * sk2;
       ctx.font = `700 15px system-ui, sans-serif`;
       ctx.lineWidth = 4;
-      const line2 = `독문무공 〈${k.skill}〉`;
+      const line2 = k.line2;
       ctx.strokeText(line2, w / 2, cy + 116);
       ctx.fillStyle = '#e7e5e4';
       ctx.fillText(line2, w / 2, cy + 116);

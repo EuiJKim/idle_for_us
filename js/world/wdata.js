@@ -78,6 +78,7 @@ export const RESPAWN_SEC = 5;
 //   왕마다 떨구는 재료·증표가 다르다. 왕은 등장 연출이 따로 있고, 그 지역 장비를 더 자주 떨군다.
 export const BOSS_RESPAWN = 45;
 export const KING_INTRO_SEC = 3.2;   // 십이지왕 등장 연출 길이
+export const BOSS_INTRO_SEC = 2.2;   // 보통 두목 등장 연출 길이
 export const BOSS_ROOM_MOBS = 8;
 export const NORMAL_ZONES = 15;
 // 십이지왕 — 약한 순(제12왕 → 제1왕). art: 그림을 빌려 올 옛 지역. desc는 줄거리 한두 줄.
