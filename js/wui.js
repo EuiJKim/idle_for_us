@@ -3,6 +3,7 @@
 import * as W from './world/wdata.js';
 import { h, toast, openModal, closeModal, subTabs, popUp, holdRepeat } from './ui/common.js';
 import { fmt } from './fmt.js';
+import { dayKey } from './net.js';
 
 const pct = (v, d = 1) => `${(v * 100).toFixed(d).replace(/\.0$/, '')}%`;
 const gradeOf = (it) => W.GRADES[it.grade];
@@ -150,7 +151,7 @@ function bagTab(app) {
         for (const [k, n] of Object.entries(r.mats)) parts.push(need(W.matName(k), s.mats[k] || 0, n, W.matColor(k)));
         parts.push(need('은자', s.gold, r.gold));
         smithCard.append(h('div', { class: `row craft-row${ok ? ' ready' : ''}` },
-          h('div', { class: 'ico' }, sl.name),
+          h('div', { class: 'ico', style: sl.name.length > 2 ? 'font-size:13px' : '' }, sl.name),
           h('div', { class: 'info' },
             h('div', { class: 'name', style: `color:${W.GRADES[sample.grade].color}` }, itemTitle(game, sample), h('small', {}, `Lv.${sample.ilv} · ${itemLines(game, sample)}`)),
             h('div', { class: 'desc needs' }, ...parts)),
@@ -218,7 +219,7 @@ function mapTab(app) {
     for (const m of W.MAPS) {
       const open = game.canEnter(m.id);
       const here = s.map === m.id;
-      const lvTxt = m.town ? '상점 · 전직 · 쉬기' : `몹 Lv.${m.lv[0]}~${m.lv[1]} · 두목 ${m.boss.name}`;
+      const lvTxt = m.town ? '쉬는 곳 — 체력이 빨리 차요' : `몹 Lv.${m.lv[0]}~${m.lv[1]} · 두목 ${m.boss.name}`;
       const fit = !m.town && s.level >= m.lv[0] && s.level <= m.lv[1] + 4;
       root.append(h('div', { class: `row map-row${here ? ' me' : ''}${open ? '' : ' locked'}` },
         h('div', { class: 'ico' }, m.town ? '촌' : String(m.id)),
@@ -255,7 +256,7 @@ function townTab(app) {
       ? h('div', { class: 'btn-row' }, h('span', { class: 'muted', style: 'flex:2;align-self:center' }, '마을에서 쉬는 중 — 체력이 빠르게 차요.'),
         h('button', { class: 'btn primary', disabled: game.canEnter(s.huntMap) ? null : true, onclick: () => { game.enterMap(s.huntMap); app.save(); app.closePanel(); app.refresh(); } }, `${W.mapOf(s.huntMap).name}(으)로`))
       : h('div', { class: 'btn-row' }, h('span', { class: 'muted', style: 'flex:2;align-self:center' }, '전직·상점·조합은 사냥터에서도 돼요. 마을에서는 체력이 빨리 차요.'),
-        h('button', { class: 'btn', onclick: () => { game.goTown(); app.save(); app.refresh(); } }, '마을로 쉬러 가기')));
+        h('button', { class: 'btn', style: 'white-space:nowrap', onclick: () => { game.goTown(); app.save(); app.refresh(); } }, '쉬러 가기')));
     status.append(h('div', { class: 'row', style: 'margin-top:8px' },
       h('div', { class: 'ico' }, '대장'),
       h('div', { class: 'info' }, h('div', { class: 'name' }, '대장장이'),
@@ -300,7 +301,8 @@ export function skillText(game, sk) {
 }
 
 // ---------- 무림 ----------
-function socialTab(app) {
+// 서열(레벨 순) · 문파(만들기·가입 · 출석·기부 · 문파원 · 창고 · 채팅)
+function rankView(app) {
   const { net } = app;
   const root = h('div');
   const list = h('div');
@@ -319,7 +321,7 @@ function socialTab(app) {
         h('div', { class: 'rank-no' }, i < 3 ? ['🥇', '🥈', '🥉'][i] : i + 1),
         h('div', { class: 'info' },
           h('div', { class: 'name' }, p.nickname || '이름없음', h('small', {}, `${p.tierName || ''}`)),
-          h('div', { class: 'desc' }, `Lv.${p.level || 1} · ${p.mapName || ''}`)),
+          h('div', { class: 'desc' }, `Lv.${p.level || 1} · ${p.mapName || ''}${p.guildName ? ` · ${p.guildName}` : ''}`)),
         h('div', { style: 'font-weight:900;color:#fde68a' }, fmt(p.power || 0)))));
     } catch (err) {
       status.textContent = '불러오지 못했어요. 잠시 뒤에 다시 열어 주세요.';
@@ -329,6 +331,207 @@ function socialTab(app) {
   return { root, update() {}, shown() { if (Date.now() - loaded > 30000) load(); } };
 }
 
+const ago = (ms) => {
+  if (!ms) return '';
+  const m = Math.floor((Date.now() - ms) / 60000);
+  return m < 2 ? '지금' : m < 60 ? `${m}분 전` : m < 1440 ? `${Math.floor(m / 60)}시간 전` : `${Math.floor(m / 1440)}일 전`;
+};
+
+function guildView(app) {
+  const { game, net } = app;
+  const root = h('div');
+  let view = null;
+  let els = null;
+  let chatSig = '';
+  const busy = (btn, fn) => async () => {
+    btn.disabled = true;
+    try { await fn(); } catch (err) { toast(err.message || '실패했어요'); } finally { btn.disabled = false; }
+  };
+
+  function render() {
+    root.replaceChildren();
+    els = null;
+    chatSig = '';
+    if (!net?.online) {
+      view = 'offline';
+      root.append(h('div', { class: 'card' }, h('h3', {}, '문파'),
+        h('p', { class: 'muted' }, net?.blocked ? '서버가 요청을 거부하고 있어요(인터넷 문제가 아니에요). Firestore 규칙을 확인해 주세요.'
+          : net?.status === 'connecting' ? '서버에 연결하는 중이에요…' : '인터넷에 연결되면 문파·채팅을 할 수 있어요.'),
+        net?.status === 'offline' ? h('button', { class: 'btn primary', onclick: () => { net.status = 'connecting'; render(); net.init(); } }, '다시 연결') : null));
+      return;
+    }
+    if (!game.s.guildId || !net.guild) {
+      view = game.s.guildId ? 'loading' : 'none';
+      if (view === 'loading') { root.append(h('p', { class: 'muted' }, '문파 정보를 불러오는 중…')); return; }
+      const nameIn = h('input', { class: 'field', maxlength: 16, placeholder: '문파 이름 (예: 우리끼리)' });
+      const codeIn = h('input', { class: 'field', maxlength: 6, placeholder: '친구에게 받은 6자리 코드', style: 'text-transform:uppercase' });
+      const createBtn = h('button', { class: 'btn primary' }, '만들기');
+      createBtn.onclick = busy(createBtn, async () => {
+        const name = nameIn.value.trim();
+        if (name.length < 2) throw new Error('문파 이름은 2글자 이상이에요');
+        await net.createGuild(name);
+        toast('문파를 만들었어요! 코드를 친구에게 보내 주세요');
+      });
+      const joinBtn = h('button', { class: 'btn good' }, '가입');
+      joinBtn.onclick = busy(joinBtn, async () => {
+        if (codeIn.value.trim().length !== 6) throw new Error('코드는 6자리예요');
+        await net.joinGuild(codeIn.value);
+        toast('문파에 들어갔어요!');
+      });
+      root.append(
+        h('div', { class: 'card' }, h('h3', {}, '문파', h('small', {}, `최대 ${W.GUILD_MAX}명`)),
+          h('p', { class: 'muted' }, `문파 레벨마다 전원 공격력 +${pct(W.guildAtk(W.GUILD_LV_EXP))}. 출석·기부로 오르고, 창고로 조합 재료를 나눠 써요.`),
+          h('div', { class: 'chat-input' }, nameIn, createBtn)),
+        h('div', { class: 'card' }, h('h3', {}, '코드로 가입'), h('div', { class: 'chat-input' }, codeIn, joinBtn)));
+      return;
+    }
+    view = 'guild';
+    // 머리: 이름·레벨·버프·코드
+    const title = h('span'); const lvl = h('small');
+    const bar = h('div', { class: 'bar' }, h('div'), h('span'));
+    const buff = h('p', { class: 'muted', style: 'margin:4px 0' });
+    const code = h('b', { style: 'letter-spacing:2px;color:#fde68a' });
+    const share = h('button', { class: 'btn', style: 'padding:6px 10px' }, '복사');
+    share.onclick = async () => {
+      const text = `우리끼리 무림 문파 "${net.guild.name}" 가입 코드: ${net.guild.code}\n${location.origin}${location.pathname}`;
+      try { if (navigator.share) await navigator.share({ text }); else { await navigator.clipboard.writeText(text); toast('코드를 복사했어요'); } } catch { /* 취소 */ }
+    };
+    const leave = h('button', { class: 'btn danger', style: 'padding:6px 10px' }, '탈퇴');
+    leave.onclick = () => openModal((m) => {
+      m.append(h('h2', {}, '문파를 떠날까요?'), h('p', { class: 'muted' }, '문파 버프가 사라지고, 다시 코드로 들어올 수 있어요.'),
+        h('div', { class: 'btn-row' }, h('button', { class: 'btn', onclick: closeModal }, '취소'),
+          h('button', { class: 'btn danger', onclick: async () => { closeModal(); await net.leaveGuild().catch((e) => toast(e.message)); } }, '탈퇴')));
+    });
+    const checkBtn = h('button', { class: 'btn good' });
+    checkBtn.onclick = busy(checkBtn, async () => { if (await net.checkin()) toast(`출석! 문파 경험치 +${W.GUILD_CHECKIN_EXP}`); });
+    const donateBtn = h('button', { class: 'btn primary' });
+    donateBtn.onclick = busy(donateBtn, async () => { if (await net.donate()) { toast(`기부! 문파 경험치 +${W.GUILD_DONATE_EXP}`); app.save(); app.refresh(); } });
+    // 문파원
+    const members = h('div');
+    // 창고
+    const bankBox = h('div');
+    const myBox = h('div');
+    // 채팅
+    const chatBox = h('div', { class: 'chat' });
+    const input = h('input', { class: 'field', maxlength: 200, placeholder: '메시지 보내기' });
+    const send = h('button', { class: 'btn primary' }, '전송');
+    const doSend = async () => {
+      const text = input.value;
+      if (!text.trim()) return;
+      input.value = '';
+      try { await net.sendChat(text); } catch (err) { toast(err.message); input.value = text; }
+    };
+    send.onclick = doSend;
+    input.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.isComposing) doSend(); });
+    els = { title, lvl, bar, buff, code, checkBtn, donateBtn, members, bankBox, myBox, chatBox };
+    root.append(
+      h('div', { class: 'card' }, h('h3', {}, title, lvl), bar, buff,
+        h('div', { class: 'members', style: 'margin:8px 0;align-items:center' }, '코드 ', code, share, leave),
+        h('div', { class: 'btn-row' }, checkBtn, donateBtn)),
+      h('div', { class: 'card' }, h('h3', {}, '문파원'), members),
+      h('div', { class: 'card' }, h('h3', {}, '문파 창고', h('small', {}, '재료를 넣고 꺼내 써요')), bankBox,
+        h('p', { class: 'muted', style: 'margin:10px 0 4px' }, '내 재료 넣기'), myBox),
+      h('div', { class: 'card' }, h('h3', {}, '문파 채팅'), chatBox, h('div', { class: 'chat-input' }, input, send)));
+    loadMembers();
+    update();
+  }
+
+  let membersAt = 0;
+  async function loadMembers() {
+    membersAt = Date.now();
+    const rows = await net.members().catch(() => []);
+    if (!els) return;
+    const today = dayKey();
+    const gd = net.guild;
+    rows.sort((a, b) => (b.level || 0) - (a.level || 0));
+    els.members.replaceChildren(...rows.map((p) => h('div', { class: `row rank-row${p.uid === net.uid ? ' me' : ''}` },
+      h('div', { class: 'info' },
+        h('div', { class: 'name' }, `${p.uid === gd?.owner ? '👑 ' : ''}${p.nickname || '이름없음'}`, h('small', {}, p.tierName || '')),
+        h('div', { class: 'desc' }, `Lv.${p.level || 1} · ${p.mapName || ''} · ${ago(p.updatedAt?.toMillis?.())}`)),
+      h('div', { class: `chip${gd?.checkins?.[p.uid] === today ? ' on' : ''}` }, gd?.checkins?.[p.uid] === today ? '오늘 출석' : '미출석'))));
+  }
+
+  let bankSig = '';
+  function renderBank() {
+    const bank = net.bank();
+    const mats = game.s.mats;
+    const sig = JSON.stringify(bank) + JSON.stringify(mats);
+    if (sig === bankSig) return;
+    bankSig = sig;
+    const order = (a, b) => parseInt(a.replace('b', ''), 10) - parseInt(b.replace('b', ''), 10) || (a[0] === 'b') - (b[0] === 'b');
+    const chip = (k, n, label, fn) => {
+      const b = h('button', { class: 'mat-chip', style: `--mc:${W.matColor(k)}` }, h('b', {}, W.matName(k)), h('small', {}, `${fmt(n)} · ${label}`));
+      b.onclick = busy(b, fn);
+      return b;
+    };
+    const inBank = Object.keys(bank).filter((k) => bank[k] > 0).sort(order);
+    els.bankBox.replaceChildren(inBank.length ? h('div', { class: 'mat-row' }, ...inBank.map((k) => chip(k, bank[k], '눌러서 꺼내기', async () => {
+      const n = await net.takeMats(k, bank[k]);
+      if (n) { toast(`${W.matName(k)} ${n}개를 꺼냈어요`); app.save(); }
+    }))) : h('p', { class: 'muted' }, '비어 있어요. 남는 재료를 넣어 두면 문파원이 조합에 써요.'));
+    const mine = Object.keys(mats).filter((k) => mats[k] > 0).sort(order);
+    els.myBox.replaceChildren(mine.length ? h('div', { class: 'mat-row' }, ...mine.map((k) => chip(k, mats[k], '눌러서 반 넣기', async () => {
+      const n = await net.putMats(k, Math.max(1, Math.floor(mats[k] / 2)));
+      if (n) { toast(`${W.matName(k)} ${n}개를 넣었어요`); app.save(); }
+    }))) : h('p', { class: 'muted' }, '가진 재료가 없어요.'));
+  }
+
+  function renderChat() {
+    const sig = net.messages.map((m) => m.id).join(',');
+    if (sig === chatSig) return;
+    chatSig = sig;
+    const box = els.chatBox;
+    const nearBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 60;
+    box.replaceChildren(...(net.messages.length ? net.messages.map((m) => {
+      const t = m.createdAt?.toDate ? m.createdAt.toDate() : null;
+      const time = t ? `${t.getHours()}:${String(t.getMinutes()).padStart(2, '0')}` : '';
+      if (m.type === 'system') return h('div', { class: 'msg system' }, m.text, h('time', {}, time));
+      return h('div', { class: `msg${m.uid === net.uid ? ' mine' : ''}` }, h('span', { class: 'who' }, m.name), m.text, h('time', {}, time));
+    }) : [h('div', { class: 'muted' }, '첫 메시지를 남겨 보세요 👋')]));
+    if (nearBottom) box.scrollTop = box.scrollHeight;
+  }
+
+  function update() {
+    if (view !== 'guild' || !net.guild || !els) return;
+    const gd = net.guild;
+    const lv = W.guildLevel(gd.exp);
+    const into = (gd.exp || 0) % W.GUILD_LV_EXP;
+    const top = lv >= W.GUILD_LV_MAX;
+    els.title.textContent = gd.name;
+    els.lvl.textContent = `Lv.${lv}${top ? ' (최대)' : ''}`;
+    els.bar.firstChild.style.width = `${top ? 100 : (into / W.GUILD_LV_EXP) * 100}%`;
+    els.bar.lastChild.textContent = top ? 'MAX' : `문파 경험치 ${into} / ${W.GUILD_LV_EXP}`;
+    els.buff.textContent = `문파 버프: 전원 공격력 +${pct(W.guildAtk(gd.exp))} · 인원 ${gd.memberIds.length}/${W.GUILD_MAX}`;
+    els.code.textContent = gd.code;
+    const checked = net.checkedInToday();
+    els.checkBtn.textContent = checked ? '오늘 출석함' : `출석 +${W.GUILD_CHECKIN_EXP}`;
+    els.checkBtn.disabled = checked ? true : null;
+    const left = net.donatesLeft();
+    els.donateBtn.textContent = left ? `기부 은자 ${fmt(net.donateCost())} (${left}/${W.GUILD_DONATE_PER_DAY})` : '오늘 기부 끝';
+    els.donateBtn.disabled = !left || game.s.gold < net.donateCost() ? true : null;
+    renderBank();
+    renderChat();
+    if (Date.now() - membersAt > 60000) loadMembers();
+  }
+
+  return {
+    root,
+    update,
+    shown() { render(); },
+    netChanged(what) {
+      const want = !net?.online ? 'offline' : !game.s.guildId ? 'none' : net.guild ? 'guild' : 'loading';
+      if (want !== view || what === 'status') render();
+      else update();
+    },
+  };
+}
+
+function socialTab(app) {
+  return subTabs([
+    { key: 'guild', label: '문파', make: () => guildView(app) },
+    { key: 'rank', label: '서열', make: () => rankView(app) },
+  ]);
+}
+
 export const WTABS = { char: charTab, bag: bagTab, map: mapTab, town: townTab, social: socialTab };
 export const WTAB_TITLE = { char: '캐릭터', bag: '가방', map: '지도', town: '마을', social: '무림' };
-void subTabs;

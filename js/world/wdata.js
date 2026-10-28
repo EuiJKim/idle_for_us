@@ -210,3 +210,16 @@ export const RETURN_SEC = 3;
 // ---------- 방치 ----------
 export const OFFLINE_CAP_SEC = 10 * 3600;
 export const RATE_WINDOW_SEC = 300;
+
+// ---------- 문파 ----------
+// 코드로 만들고 들어간다(최대 10명). 문파 레벨은 출석·기부로 오르고, 레벨마다 전원 공격력 +2%.
+// 문파 창고에 재료를 넣어 두면 문파원이 꺼내 쓴다(조합 재료 나눔 — 같이 하는 맛).
+export const GUILD_MAX = 10;
+export const GUILD_LV_EXP = 200;
+export const GUILD_LV_MAX = 20;
+export const guildLevel = (exp) => Math.min(GUILD_LV_MAX, 1 + Math.floor((exp || 0) / GUILD_LV_EXP));
+export const guildAtk = (exp) => (guildLevel(exp) - 1) * 0.02;
+export const GUILD_CHECKIN_EXP = 20;
+export const GUILD_DONATE_EXP = 10;
+export const GUILD_DONATE_PER_DAY = 3;
+export const guildDonateCost = (level) => Math.round(300 + level * 40);

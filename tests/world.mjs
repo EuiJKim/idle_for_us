@@ -182,6 +182,17 @@ console.log('\n=== 재료와 조합 (바람식) ===');
   ok(Number.isFinite(g.itemStats(legacy).atk), '옛 드랍 장비도 수치가 나온다');
 }
 
+console.log('\n=== 문파 버프 ===');
+{
+  const g = fresh();
+  const a0 = g.stats().atk;
+  g.guildExp = W.GUILD_LV_EXP * 5;            // 문파 Lv.6
+  ok(g.stats().atk === a0, '문파에 없으면 버프가 없다');
+  g.s.guildId = 'ABCDEF';
+  ok(Math.abs(g.stats().atk / a0 - 1.1) < 1e-9, '문파 Lv.6이면 공격력 +10%', `${a0.toFixed(1)} → ${g.stats().atk.toFixed(1)}`);
+  ok(W.guildLevel(1e9) === W.GUILD_LV_MAX, `문파 레벨은 ${W.GUILD_LV_MAX}까지`);
+}
+
 console.log('\n=== 전직·스킬 ===');
 {
   const g = fresh();

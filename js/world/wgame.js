@@ -92,6 +92,7 @@ export class WorldGame {
     this.heroFacing = 1;
     this.heroAngle = 0;
     this.rng = rand;
+    this.guildExp = 0;             // 문파 경험치 (서버가 넣는다)
     // 최근 벌이 (방치 보상을 재는 데 쓴다): [시각, 처치, 경험치, 은자, 물약]
     this.ledger = [];
     this._stats = null;
@@ -143,7 +144,8 @@ export class WorldGame {
     const dex = this.totalStat('dex');
     const vit = this.totalStat('vit');
     const int = this.totalStat('int');
-    const atk = (8 + L * 2 + str * 2 + gear.atk) * (1 + gear.atkPct);
+    // 문파 버프 — 문파 레벨마다 공격력 +2% (서버가 guildExp를 넣어 준다)
+    const atk = (8 + L * 2 + str * 2 + gear.atk) * (1 + gear.atkPct + (s.guildId ? W.guildAtk(this.guildExp) : 0));
     const hp = 80 + L * 14 + vit * 12 + gear.hp;
     const st = {
       atk, hp,
@@ -168,7 +170,7 @@ export class WorldGame {
     const s = this.s;
     const e = s.equip;
     const g = (it) => (it ? `${it.uid}.${it.plus || 0}` : '-');
-    return `${s.level}|${s.job}|${s.stats.str},${s.stats.dex},${s.stats.vit},${s.stats.int}|${g(e.weapon)},${g(e.armor)},${g(e.hat)},${g(e.acc)}`;
+    return `${s.level}|${s.guildId ? W.guildLevel(this.guildExp) : 0}|${s.job}|${s.stats.str},${s.stats.dex},${s.stats.vit},${s.stats.int}|${g(e.weapon)},${g(e.armor)},${g(e.hat)},${g(e.acc)}`;
   }
   power() { return this.stats().power; }
 

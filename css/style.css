@@ -932,3 +932,10 @@ body.modal-open #toast { top: auto; bottom: calc(24px + var(--safe-bottom)); }
 /* 남은 레벨업 점수 — 들판 위 가운데(전투력·접속 알약 사이) */
 #advice { top: 8px; font-size: 13px; padding: 6px 14px; animation: pts-glow 1.6s ease-in-out infinite; }
 @keyframes pts-glow { 50% { box-shadow: 0 0 12px rgba(253, 230, 138, 0.55); } }
+button.mat-chip { color: inherit; font: inherit; cursor: pointer; text-align: left; }
+button.mat-chip:disabled { opacity: 0.5; }
+/* 무공 바 — 배운 것만. 칸이 적으면 가운데로 모으고 너무 넓어지지 않게 */
+#skillbar { justify-content: center; }
+#skillbar .skill-btn { max-width: 96px; }
+.adv-btn { border-color: #fde68a; animation: pts-glow 1.4s ease-in-out infinite; }
+.adv-btn b { display: block; margin-top: 6px; font: 800 16px/1 var(--serif); color: #fde68a; }

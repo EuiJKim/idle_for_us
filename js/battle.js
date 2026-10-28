@@ -478,8 +478,9 @@ export class BattleView {
           for (let i = 0; i < (ev.isBoss ? 10 : 3); i++) this.ingot(kx, ky - 40);
         }
         // 떨군 재료 (바람식 조합) — 은자 아래 한 줄
-        if (ev.mat) this.float(`+${ev.mat.name}${ev.mat.n > 1 ? ` ×${ev.mat.n}` : ''}`, kx, ky - 146, ev.mat.color || '#a7f3d0', 12);
-        if (ev.mat?.boss) this.float(`+${ev.mat.boss}`, kx, ky - 128, '#fde68a', 14);
+        // 글자는 진짜 크기라 줄 간격도 진짜 크기(UIK)로 벌린다 — 안 그러면 은자 줄과 겹친다
+        if (ev.mat) this.float(`+${ev.mat.name}${ev.mat.n > 1 ? ` ×${ev.mat.n}` : ''}`, kx, ky - 165 + 17 * UIK, ev.mat.color || '#a7f3d0', 12);
+        if (ev.mat?.boss) this.float(`+${ev.mat.boss}`, kx, ky - 165 + 34 * UIK, '#fde68a', 14);
         break;
       }
       case 'heroHit':
@@ -1592,7 +1593,8 @@ export class BattleView {
       const bw = boss || m.trial || m.isHero ? 110 : 66;
       hpBar(ctx, x - bw / 2, top - 6, bw, 6, ratio(m.hp, m.maxHp), boss || m.trial ? '#b91c1c' : '#ea580c');
       const name = m.isHero ? `${RANKS[m.rank || 0].name} ${m.name}` : m.trial ? '심마' : def.name || '';
-      nameTag(ctx, name, x, top - 12, boss || m.trial);
+      // 물린 카메라에서는 졸개 이름을 안 단다 — 옆 칸 무인의 이름표와 겹친다. 두목만.
+      if (!this.overview || boss || m.trial) nameTag(ctx, name, x, top - 12, boss || m.trial);
       ccDots(ctx, m, x, top - 13);
     }
   }

@@ -119,7 +119,7 @@ async function tab(page, name) {
   await tab(p, 'town');
   // 전직·물약은 사냥터에서도
   assert(await G(p, () => !window.__game.map.town && window.__game.canAdvance()), '사냥터에서도 전직할 수 있다');
-  await p.click('#panel button:has-text("마을로 쉬러 가기")');
+  await p.click('#panel button:has-text("쉬러 가기")');
   await sleep(300);
   assert(await G(p, () => window.__game.map.town), '마을로');
   await sleep(4500);
@@ -194,10 +194,42 @@ async function tab(page, name) {
   await G(q, () => window.__app?.net?.pushProfile?.(true));
   await sleep(1500);
   await tab(q, 'social');
+  await q.click('#panel .subtabs button:has-text("서열")');
   await q.waitForSelector('.rank-row:has-text("철수")', { timeout: 15000 });
   const rows = await q.$$eval('.rank-row', (rs) => rs.map((r) => r.textContent));
   assert(rows.length >= 2 && rows[0].includes('철수'), `서열: 레벨 높은 철수가 맨 위 (${rows.length}명)`);
   await shot(q, '08-rank.png');
+
+  console.log('# 온라인: 문파');
+  await G(p, () => { const g = window.__game; g.s.mats = { 1: 100 }; g.s.gold = Math.max(g.s.gold, 1e5); });
+  await tab(p, 'social');
+  await p.fill('#panel input[placeholder^="문파 이름"]', '우리끼리');
+  await p.click('#panel button:has-text("만들기")');
+  await p.waitForSelector('#panel button:has-text("출석")', { timeout: 15000 });
+  const code = await G(p, () => window.__app.net.guild.code);
+  assert(/^[A-Z0-9]{6}$/.test(code), `문파를 만들었다 (코드 ${code})`);
+  await p.click('#panel button:has-text("출석")');
+  await p.waitForFunction(() => (window.__app.net.guild?.exp || 0) >= 20, null, { timeout: 10000 });
+  await p.click('#panel button:has-text("기부")');
+  await p.waitForFunction(() => (window.__app.net.guild?.exp || 0) >= 30, null, { timeout: 10000 });
+  assert(true, '출석·기부로 문파 경험치가 오른다');
+  await p.click('#panel .mat-chip:has-text("청죽")');
+  await p.waitForFunction(() => (window.__app.net.guild?.bank?.['1'] || 0) === 50, null, { timeout: 10000 });
+  assert(await G(p, () => window.__game.s.mats[1] === 50), '재료 반을 문파 창고에 넣는다');
+  await tab(q, 'social');
+  await q.click('#panel .subtabs button:has-text("문파")');
+  await q.fill('#panel input[placeholder^="친구에게"]', code);
+  await q.click('#panel button:has-text("가입")');
+  await q.waitForSelector('#panel .card:has-text("문파 창고") button.mat-chip:has-text("청죽")', { timeout: 15000 });
+  const m0 = await G(q, () => window.__game.s.mats[1] || 0);
+  await q.click('#panel .card:has-text("문파 창고") button.mat-chip:has-text("청죽")');
+  await q.waitForFunction((m) => (window.__game.s.mats[1] || 0) === m + 50, m0, { timeout: 10000 });
+  assert(true, '다른 문파원이 창고에서 재료를 꺼낸다');
+  await q.fill('#panel input[placeholder="메시지 보내기"]', '같이 해요');
+  await q.click('#panel button:has-text("전송")');
+  await p.waitForSelector('#panel .msg:has-text("같이 해요")', { timeout: 10000 });
+  assert(true, '문파 채팅이 오간다');
+  await shot(p, '09-guild.png');
 
   const errs = [...a.errors, ...b.errors];
   console.log('errors:', errs);

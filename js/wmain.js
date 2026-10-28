@@ -117,8 +117,16 @@ function panelRes() {
 let skillEls = [];
 let potionEl = null;
 let autoEl = null;
+// 배운 스킬만 단다. 전에는 못 배운 1·2·3차 칸이 회색 빈칸으로 늘 떠 있어서 뭔지 몰랐다.
+// 전직할 수 있게 되면 그 자리에 'N차 전직' 단추가 반짝인다(누르면 마을 창의 사부).
+let advEl = null;
 function buildSkillbar() {
-  const all = game.s.job ? W.skillsOf(game.s.job) : [];
+  const all = game.s.job ? W.skillsOf(game.s.job).filter((sk) => sk.tier <= game.s.jobTier) : [];
+  advEl = null;
+  if (game.canAdvance()) {
+    advEl = h('button', { class: 'skill-btn adv-btn', onclick: () => showTab('town') },
+      h('b', {}, `${game.s.jobTier + 1}차`), h('div', { class: 'lock' }, '전직하기'));
+  }
   skillEls = all.map((sk) => {
     const cd = h('div', { class: 'cd' });
     const num = h('div', { class: 'cdn' });
@@ -137,7 +145,7 @@ function buildSkillbar() {
     toast(game.s.autoHunt ? '자동 사냥을 켰어요' : '자동 사냥을 껐어요 — 들판을 눌러 움직여요');
     save();
   } }, h('b', {}, '자동'), h('div', { class: 'lock' }));
-  $('skillbar').replaceChildren(...skillEls.map((e) => e.btn), potionEl, autoEl);
+  $('skillbar').replaceChildren(...skillEls.map((e) => e.btn), ...(advEl ? [advEl] : []), potionEl, autoEl);
 }
 
 // ---------- 화면 갱신 ----------
@@ -163,7 +171,7 @@ function refreshUI(full = false) {
   $('progress-text').textContent = `체력 ${fmt(Math.max(0, game.heroHp))} / ${fmt(st.hp)}`;
   $('power-label').textContent = `전투력 ${fmt(st.power)}`;
   // 무공 바
-  const sig = `${s.job}|${s.jobTier}`;
+  const sig = `${s.job}|${s.jobTier}|${game.canAdvance()}`;
   if (sig !== lastSig) { lastSig = sig; buildSkillbar(); }
   for (const e of skillEls) {
     const open = e.sk.tier <= s.jobTier;
@@ -232,13 +240,17 @@ function handleEvents() {
       default:
     }
     switch (ev.type) {
-      case 'levelUp':
-        if (ev.level % 5 === 0 || ev.level <= 5) toast(`레벨 ${ev.level}!`);
+      case 'levelUp': {
+        // 알림은 한 줄로 모은다 — 레벨 15에 세 개가 한꺼번에 쌓여 들판을 가렸다
         if (!game.s.autoStat) view.float(`스탯 +${W.STAT_PER_LEVEL}`, view.heroX + 26, view.groundY - 175, '#fde68a', 16, 1.3);
-        if (W.TIERS.some((t) => t && t.level === ev.level)) toast(`레벨 ${ev.level} — 마을 창의 사부에게서 바로 전직할 수 있어요`);
-        if (W.MAPS.some((m) => !m.town && m.lv[0] === ev.level)) toast(`새 사냥터가 열렸어요 — ${W.MAPS.find((m) => !m.town && m.lv[0] === ev.level).name}`);
+        const parts = [];
+        if (W.TIERS.some((t) => t && t.level === ev.level)) parts.push('전직할 수 있어요(무공 바의 전직 단추)');
+        const opened = W.MAPS.find((m) => !m.town && m.lv[0] === ev.level);
+        if (opened) parts.push(`새 사냥터 ${opened.name}`);
+        if (parts.length || ev.level % 5 === 0 || ev.level <= 5) toast([`레벨 ${ev.level}!`, ...parts].join(' · '));
         drawPortrait();
         break;
+      }
       case 'kill':
         if (ev.mat?.boss) toast(`두목을 잡았어요 — ${ev.mat.boss} · ${ev.mat.name} ${ev.mat.n}개`);
         break;
@@ -246,6 +258,7 @@ function handleEvents() {
         drawPortrait();
         break;
       case 'craft':
+        if (ev.item.step % 2 === 1) net.announce(`⚒ ${game.s.nickname}님이 〈${itemTitle(game, ev.item)}〉을(를) 조합했어요`);
         toast(`조합 성공! ${itemTitle(game, ev.item)}`);
         view.showBanner(itemTitle(game, ev.item), W.GRADES[ev.item.grade].color, 1.4, '조합');
         break;
@@ -258,6 +271,7 @@ function handleEvents() {
         break;
       case 'advance': {
         view.showBanner(`${ev.tier}차 전직 · ${game.tierName()}`, '#fde68a', 2.4, '전직');
+        net.announce(`🎉 ${game.s.nickname}님이 ${ev.tier}차 전직 — ${game.tierName()}`);
         view.effects.push({ kind: 'pillar', life: 1.6, max: 1.6 });
         const sk = W.skillsOf(game.s.job).find((k) => k.tier === ev.tier);
         toast(`새 스킬 〈${sk.name}〉 — ${skillText(game, sk)}`);
@@ -354,7 +368,7 @@ function askClass() {
         h('span', { class: 'desc' }, W.CLASSES[j.id].trait))));
     }
     s.append(h('h2', {}, '캐릭터를 고르세요'),
-      h('p', { class: 'muted' }, '레벨 15·40·75에 마을 사부에게 전직하면 스킬을 하나씩 배워요.'), grid);
+      h('p', { class: 'muted' }, '레벨 15·40·75에 전직하면 스킬을 하나씩 배워요.'), grid);
     const look = RANKS[0].look;
     const tick = () => {
       if (!grid.isConnected) return;
@@ -439,6 +453,9 @@ function netChanged(what) {
     b.className = `net ${net.status}`;
     b.textContent = { online: '온라인', offline: '오프라인', connecting: '연결 중' }[net.status] || net.status;
   }
+  // 문파가 바뀌면 버프(공격력)가 바뀐다 · 열려 있는 창(문파·채팅)에 알린다
+  if (what === 'guild') { refreshUI(true); }
+  for (const t of Object.values(tabs)) t.netChanged?.(what);
 }
 
 // ---------- 루프 ----------
