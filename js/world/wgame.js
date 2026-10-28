@@ -109,6 +109,10 @@ export class WorldGame {
   aoeCenter() { return this.ranged() && this.mon?.alive ? { x: this.mon.x, y: this.mon.y } : { x: this.heroX, y: this.heroY }; }
   // 그리는 쪽은 s.stage로 지역 그림을 고른다 — 사냥터 k = 옛 지역 k의 첫 관문
   get map() { return W.mapOf(this.s.map); }
+  // 칸 지도 크기 — 그리는 쪽이 이걸 보고 사냥터 한 장이 화면에 들어오게 카메라를 물린다
+  get mapW() { return W.MAP_W; }
+  get mapH() { return W.MAP_H; }
+  get tile() { return W.TILE; }
 
   // ---------- 수치 ----------
   totalStat(k) { return (W.CLASSES[this.s.job]?.base[k] || 0) + (this.s.stats[k] || 0); }
@@ -179,8 +183,8 @@ export class WorldGame {
     // 그리는 쪽이 지역 그림을 고르는 값
     this.s.stage = m.zone * 10 + 1;
     this.s.rank = W.lookTierOf(this.s.level);
-    this.heroX = W.MAP_W / 2;
-    this.heroY = W.MAP_H - 260;
+    // 사냥터는 아래쪽 가운데에서 들어선다. 마을은 한가운데(둘레에 사부·상인·대장장이·주모)
+    this.placeHero(Math.floor(W.COLS / 2), m.town ? Math.floor(W.ROWS * 0.55) : W.ROWS - 3);
     this.mons = [];
     this.mon = null;
     this.respawns = [];
@@ -193,12 +197,65 @@ export class WorldGame {
     return true;
   }
   goTown() { return this.enterMap(0); }
-  // 마을 사람 — 싸우지 않는다. 그리기만 한다(누르면 마을 창).
+  // 마을 사람 — 싸우지 않는다. 그리기만 한다(누르면 마을 창). 무인 둘레 칸에 선다.
   placeNpcs() {
     for (const n of W.NPCS) {
-      this.mons.push({ id: uidSeq++, npc: true, x: this.heroX + n.dx, y: this.heroY + n.dy, hp: 1, maxHp: 1, alive: true,
+      const c = clamp(this.hc + Math.round(n.dx / W.TILE), 0, W.COLS - 1);
+      const r = clamp(this.hr + Math.round(n.dy / W.TILE), 0, W.ROWS - 1);
+      this.mons.push({ id: uidSeq++, npc: true, c, r, x: W.tileCenter(c), y: W.tileCenter(r), hp: 1, maxHp: 1, alive: true,
         isBoss: false, stun: 0, tab: n.tab || 'town', def: { name: n.name, look: n.look } });
     }
+  }
+
+  // ---------- 칸 ----------
+  // 누구든 (c, r) 칸에 서 있거나, 그 칸으로 옮겨 가는 중이다(mc, mr). 한 칸에는 하나만.
+  placeHero(c, r) {
+    this.hc = c; this.hr = r; this.hmove = null;
+    this.heroX = W.tileCenter(c); this.heroY = W.tileCenter(r);
+  }
+  // 무인이 차지한 칸 (옮겨 가는 중이면 가는 칸)
+  heroTile() { return this.hmove || { c: this.hc, r: this.hr }; }
+  mobTile(m) { return m.move || { c: m.c, r: m.r }; }
+  inMap(c, r) { return c >= 0 && r >= 0 && c < W.COLS && r < W.ROWS; }
+  occupied(c, r, self = null) {
+    if (self !== 'hero') {
+      if (this.hc === c && this.hr === r) return true;
+      if (this.hmove && this.hmove.c === c && this.hmove.r === r) return true;
+    }
+    for (const m of this.mons) {
+      if (!m.alive || m === self) continue;
+      if ((m.c === c && m.r === r) || (m.move && m.move.c === c && m.move.r === r)) return true;
+    }
+    return false;
+  }
+  // 칸 사이 거리(칸 가운데끼리, 들판 단위)
+  tileDist(a, b) { return Math.hypot(a.c - b.c, a.r - b.r) * W.TILE; }
+  // (c, r)에서 목표 쪽으로 한 칸 — 앞뒤좌우만. 멀어지는 칸은 안 고르고, 막혔으면 옆으로 비킨다.
+  nextStep(c, r, tc, tr, self) {
+    const dc = tc - c, dr = tr - r;
+    const opts = [];
+    if (dc) opts.push({ c: c + Math.sign(dc), r, w: Math.abs(dc) });
+    if (dr) opts.push({ c, r: r + Math.sign(dr), w: Math.abs(dr) });
+    opts.sort((a, b) => b.w - a.w);
+    for (const o of opts) if (this.inMap(o.c, o.r) && !this.occupied(o.c, o.r, self)) return o;
+    // 앞이 막혔다 — 같은 거리로 옆으로 비켜 돌아간다
+    if (opts.length === 1) {
+      const side = dc ? [{ c, r: r + 1 }, { c, r: r - 1 }] : [{ c: c + 1, r }, { c: c - 1, r }];
+      if (this.rng() < 0.5) side.reverse();
+      for (const o of side) if (this.inMap(o.c, o.r) && !this.occupied(o.c, o.r, self)) return o;
+    }
+    return null;
+  }
+  // 옮겨 가는 칸 쪽으로 미끄러진다. 닿으면 true.
+  slide(obj, xKey, yKey, to, speed, dt) {
+    const tx = W.tileCenter(to.c), ty = W.tileCenter(to.r);
+    const dx = tx - obj[xKey], dy = ty - obj[yKey];
+    const d = Math.hypot(dx, dy);
+    const go = speed * dt;
+    if (d <= go) { obj[xKey] = tx; obj[yKey] = ty; return true; }
+    obj[xKey] += (dx / d) * go;
+    obj[yKey] += (dy / d) * go;
+    return false;
   }
 
   // ---------- 몹 ----------
@@ -208,17 +265,21 @@ export class WorldGame {
     const [lo, hi] = m.lv;
     const lv = boss ? hi + 2 : lo + Math.floor(this.rng() * (hi - lo + 1));
     const kind = boss ? m.boss : m.mobs[Math.floor(this.rng() * m.mobs.length)];
-    // 무인 둘레(화면 안)에는 안 난다 — 눈앞에서 툭 생기면 어색하다
-    let x, y;
-    for (let t = 0; t < 12; t++) {
-      x = 120 + this.rng() * (W.MAP_W - 240);
-      y = 120 + this.rng() * (W.MAP_H - 240);
-      if (Math.hypot(x - this.heroX, y - this.heroY) > 380) break;
+    // 빈 칸에 난다. 무인 바로 둘레(네 칸 안)는 피한다 — 코앞에서 툭 생기면 어색하다
+    let c = -1, r = -1;
+    const h = this.heroTile();
+    for (let t = 0; t < 40; t++) {
+      const cc = boss ? Math.floor(W.COLS / 2) + Math.floor((this.rng() - 0.5) * 4) : Math.floor(this.rng() * W.COLS);
+      const rr = boss ? Math.floor(W.ROWS * 0.3) + Math.floor((this.rng() - 0.5) * 4) : Math.floor(this.rng() * W.ROWS);
+      if (!this.inMap(cc, rr) || this.occupied(cc, rr)) continue;
+      c = cc; r = rr;
+      if (Math.abs(cc - h.c) + Math.abs(rr - h.r) > 4) break;
     }
-    if (boss) { x = W.MAP_W / 2 + (this.rng() - 0.5) * 300; y = W.MAP_H * 0.35; }
+    if (c < 0) return null;
+    const x = W.tileCenter(c), y = W.tileCenter(r);
     const hp = W.mobHp(lv) * (boss ? W.BOSS.hp : 1);
     const mob = {
-      id: uidSeq++, lv, x, y, hx: x, hy: y, hp, maxHp: hp, alive: true, isBoss: !!boss,
+      id: uidSeq++, lv, c, r, hc: c, hr: r, move: null, x, y, hp, maxHp: hp, alive: true, isBoss: !!boss, born: this.clock,
       atk: W.mobAtk(lv) * (boss ? W.BOSS.atk : 1), armor: W.mobDef(lv),
       atkTimer: 1 + this.rng(), stun: 0, slow: 0, poison: 0, poisonPer: 0,
       aggro: false, wanderT: this.rng() * 3,
@@ -278,14 +339,20 @@ export class WorldGame {
       }
       if (m.stun > 0) { m.stun -= dt; continue; }
       if (m.slow > 0) m.slow -= dt;
-      const dist = Math.hypot(m.x - this.heroX, m.y - this.heroY);
-      if (dist < W.MOB_AGGRO || m.aggro) m.aggro = dist < W.MOB_AGGRO * 2;
       const spd = W.MOB_SPEED * (m.slow > 0 ? 0.45 : 1) * (m.isBoss ? 0.8 : 1);
+      // 칸 사이를 옮겨 가는 중이면 마저 간다
+      if (m.move) {
+        if (this.slide(m, 'x', 'y', m.move, spd * (m.aggro ? 1 : 0.6), dt)) { m.c = m.move.c; m.r = m.move.r; m.move = null; }
+        continue;
+      }
+      const ht = this.heroTile();
+      const dist = this.tileDist(m, ht);
+      if (dist < W.MOB_AGGRO || m.aggro) m.aggro = dist < W.MOB_AGGRO * 2;
       if (m.aggro) {
-        const reach = m.isBoss ? 90 : 56;
+        const reach = m.isBoss ? W.MOB_REACH * 1.5 : W.MOB_REACH;
         if (dist > reach) {
-          m.x += ((this.heroX - m.x) / dist) * spd * dt;
-          m.y += ((this.heroY - m.y) / dist) * spd * dt;
+          const st2 = this.nextStep(m.c, m.r, ht.c, ht.r, m);
+          if (st2) m.move = st2;
         } else {
           m.atkTimer -= dt;
           if (m.atkTimer <= 0) {
@@ -297,12 +364,14 @@ export class WorldGame {
           }
         }
       } else {
-        // 제자리 둘레를 어슬렁거린다
+        // 난 자리 둘레(두 칸 안)를 한 칸씩 어슬렁거린다
         m.wanderT -= dt;
-        if (m.wanderT <= 0) { m.wanderT = 2 + this.rng() * 3; m.tx = m.hx + (this.rng() - 0.5) * 160; m.ty = m.hy + (this.rng() - 0.5) * 160; }
-        if (m.tx != null) {
-          const d2 = Math.hypot(m.tx - m.x, m.ty - m.y);
-          if (d2 > 4) { m.x += ((m.tx - m.x) / d2) * spd * 0.35 * dt; m.y += ((m.ty - m.y) / d2) * spd * 0.35 * dt; }
+        if (m.wanderT <= 0) {
+          m.wanderT = 1.5 + this.rng() * 3;
+          const dirs = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+          const [dc, dr] = dirs[Math.floor(this.rng() * 4)];
+          const c = m.c + dc, r = m.r + dr;
+          if (this.inMap(c, r) && Math.abs(c - m.hc) + Math.abs(r - m.hr) <= 2 && !this.occupied(c, r, m)) m.move = { c, r };
         }
       }
     }
@@ -324,24 +393,34 @@ export class WorldGame {
   }
 
   tickHero(dt, st) {
-    // 손으로 찍은 곳이 있으면 거기로 먼저 간다
+    // 칸 사이를 옮겨 가는 중이면 마저 간다 — 칸 가운데에 서야 다음 일을 정한다
+    if (this.hmove) {
+      this.walking = true;
+      if (this.slide(this, 'heroX', 'heroY', this.hmove, W.HERO_SPEED, dt)) { this.hc = this.hmove.c; this.hr = this.hmove.r; this.hmove = null; }
+      else return;
+    }
+    // 손으로 찍은 칸이 있으면 거기로 먼저 간다
     if (this.manual) {
-      const d = Math.hypot(this.manual.x - this.heroX, this.manual.y - this.heroY);
-      if (d < 8) { this.manual = null; this.manualHold = 1.2; } else { this.step(this.manual.x, this.manual.y, dt); return; }
+      if (this.hc === this.manual.c && this.hr === this.manual.r) { this.manual = null; this.manualHold = 1.2; } else {
+        if (!this.stepHero(this.manual.c, this.manual.r)) { this.manual = null; this.manualHold = 0.6; }
+        return;
+      }
     }
     if (this.manualHold > 0) { this.manualHold -= dt; this.walking = false; return; }
     // 과녁: 나를 치고 있는 몹 → 가장 가까운 몹. 자동 사냥이 꺼져 있으면 붙어 있는 것만 친다.
     if (!this.mon?.alive) this.mon = this.pickTarget(st);
     const m = this.mon;
     if (!m) { this.walking = false; return; }
-    const dist = Math.hypot(m.x - this.heroX, m.y - this.heroY);
+    const mt = this.mobTile(m);
+    const dist = this.tileDist({ c: this.hc, r: this.hr }, mt);
     this.heroAngle = Math.atan2((m.y - this.heroY) * 0.6, m.x - this.heroX);
     if (Math.abs(m.x - this.heroX) > 6) this.heroFacing = m.x >= this.heroX ? 1 : -1;
     if (this.s.autoSkill) this.autoSkills(st);
     if (!this.mon?.alive) return;
     if (dist > st.range) {
       if (!this.s.autoHunt && !m.aggro) { this.walking = false; return; }
-      this.step(m.x, m.y, dt, st.range * 0.9);
+      // 길이 막혔으면(사방이 몹) 다른 과녁을 찾는다
+      if (!this.stepHero(mt.c, mt.r)) { this.walking = false; this.mon = null; }
       return;
     }
     this.walking = false;
@@ -352,23 +431,24 @@ export class WorldGame {
     }
   }
 
-  step(tx, ty, dt, stopAt = 0) {
-    const d = Math.hypot(tx - this.heroX, ty - this.heroY);
-    if (d <= stopAt + 0.5) { this.walking = false; return; }
-    const go = Math.min(d - stopAt, W.HERO_SPEED * dt);
-    this.heroX = clamp(this.heroX + ((tx - this.heroX) / d) * go, 40, W.MAP_W - 40);
-    this.heroY = clamp(this.heroY + ((ty - this.heroY) / d) * go, 40, W.MAP_H - 40);
-    if (Math.abs(tx - this.heroX) > 4) this.heroFacing = tx >= this.heroX ? 1 : -1;
-    this.heroAngle = Math.atan2((ty - this.heroY) * 0.6, tx - this.heroX);
+  // 목표 칸 쪽으로 한 칸 떠난다. 못 가면 false.
+  stepHero(tc, tr) {
+    const o = this.nextStep(this.hc, this.hr, tc, tr, 'hero');
+    if (!o) return false;
+    this.hmove = { c: o.c, r: o.r };
+    if (o.c !== this.hc) this.heroFacing = o.c > this.hc ? 1 : -1;
+    this.heroAngle = Math.atan2((o.r - this.hr) * 0.6, o.c - this.hc);
     this.walking = true;
+    return true;
   }
 
   pickTarget(st) {
     let best = null;
     let bd = Infinity;
+    const h = { c: this.hc, r: this.hr };
     for (const m of this.mons) {
       if (!m.alive || m.npc) continue;
-      let d = Math.hypot(m.x - this.heroX, m.y - this.heroY);
+      let d = this.tileDist(h, this.mobTile(m));
       if (m.aggro) d *= 0.5;                          // 나를 치러 오는 놈 먼저
       if (!this.s.autoHunt && d > st.range * 1.2 && !m.aggro) continue;
       if (d < bd) { bd = d; best = m; }
@@ -376,10 +456,10 @@ export class WorldGame {
     return best;
   }
 
-  // 손으로 들판을 찍으면 그리로 간다 (들판 좌표)
+  // 손으로 들판을 찍으면 그 칸으로 간다 (들판 좌표)
   moveTo(x, y) {
     if (this.map.town) return;
-    this.manual = { x: clamp(x, 40, W.MAP_W - 40), y: clamp(y, 40, W.MAP_H - 40) };
+    this.manual = { c: clamp(Math.floor(x / W.TILE), 0, W.COLS - 1), r: clamp(Math.floor(y / W.TILE), 0, W.ROWS - 1) };
     this.mon = null;
   }
 

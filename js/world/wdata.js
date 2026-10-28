@@ -54,10 +54,17 @@ export const skillsOf = (job) => SKILL_DEFS.map((d) => {
 
 // ---------- 지도 ----------
 // 0번은 마을(객잔 마을). 1~15는 사냥터 — 옛 지역 그림과 몹 생김새를 쓴다.
-// 한 화면(들판 약 390×1100)에 너댓 마리가 보이게. 넓으면 걷기만 하다 끝난다.
-export const MAP_W = 1300;
-export const MAP_H = 1700;
-export const MOBS_ALIVE = 24;
+// 바람의나라처럼 **칸** 위를 움직인다 — 사냥터 하나가 9×19칸, 화면 한 장에 통째로 들어온다
+// (그리는 쪽이 이 크기에 맞춰 카메라를 물린다). 무인·몹은 한 칸씩 미끄러지듯 옮겨 가고,
+// 한 칸에는 하나만 선다. 근접은 앞뒤좌우 바로 옆 칸에서 친다.
+// (처음엔 1300×1700 자유 이동이었다 — 화면에 사냥터 한 귀퉁이만 보였다)
+export const TILE = 64;
+export const COLS = 9;
+export const ROWS = 19;
+export const MAP_W = COLS * TILE;
+export const MAP_H = ROWS * TILE;
+export const tileCenter = (c) => (c + 0.5) * TILE;
+export const MOBS_ALIVE = 18;
 export const RESPAWN_SEC = 5;
 export const BOSS_EVERY = 240;
 // 첫 사냥터는 좁게(1~6) — 레벨 1이 레벨 10 몹을 만나면 열 몇 대를 때려야 해서 첫 사냥이 지루했다
@@ -91,8 +98,9 @@ export const mobExp = (lv) => Math.round(6 + 1.3 * lv ** 1.5);
 export const mobGold = (lv) => Math.round(2 + lv * 1.4);
 export const BOSS = { hp: 14, atk: 2.5, exp: 25, gold: 30 };
 export const MOB_ATK_SEC = 1.6;
-export const MOB_AGGRO = 200;      // 이만큼 붙으면 쫓아온다
-export const MOB_SPEED = 70;
+export const MOB_AGGRO = 200;      // 이만큼(세 칸 남짓) 붙으면 쫓아온다
+export const MOB_SPEED = 70;       // 쫓을 때 한 칸에 0.9초
+export const MOB_REACH = 70;       // 몹은 바로 옆 칸(앞뒤좌우)에서 친다 — 두목은 대각선까지
 
 // ---------- 장비 ----------
 export const SLOTS = [
@@ -194,7 +202,7 @@ export const statBookCost = (n) => Math.round(5000 * 1.18 ** n);
 // ---------- 무인 수치 ----------
 export const CRIT_DMG = 1.8;
 export const BASE_ATK_SEC = 0.85;     // 평타 간격(초)
-export const HERO_SPEED = 170;
+export const HERO_SPEED = 200;      // 한 칸에 0.32초 (칸 길은 비스듬히 못 가서 자유 이동보다 조금 빠르게)
 export const MELEE_RANGE = 70;
 export const DEATH_EXP_LOSS = 0.05;
 export const RETURN_SEC = 3;

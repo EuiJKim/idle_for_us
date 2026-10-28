@@ -308,11 +308,34 @@ export class BattleView {
     // 이 게임 그림체는 선이 굵어서 1로 내려도 거의 티가 안 난다.
     const dpr = this.light ? 1 : Math.min(2, window.devicePixelRatio || 1);
     this.dpr = dpr;
-    this.w = Math.max(1, r.width);
-    this.h = Math.max(1, r.height);
-    this.cv.width = Math.round(this.w * dpr);
-    this.cv.height = Math.round(this.h * dpr);
-    this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    this.W = Math.max(1, r.width);
+    this.H = Math.max(1, r.height);
+    this.cv.width = Math.round(this.W * dpr);
+    this.cv.height = Math.round(this.H * dpr);
+    this.applyZoom();
+  }
+
+  // ---------- 물린 카메라 (바람식: 사냥터 한 장이 화면에 통째로) ----------
+  // 그림은 전부 '들판 단위'로 그리고, 캔버스를 zoom만큼 줄여 찍는다. 그래서 w·h는 들판 단위로
+  // 본 화면 크기(진짜 크기 W·H ÷ zoom)다. 글자(떠오르는 숫자·띠·이름표)만 진짜 크기로 쓴다.
+  applyZoom() {
+    const z = this.zoom || 1;
+    this.w = this.W / z;
+    this.h = this.H / z;
+    this.ctx.setTransform(this.dpr * z, 0, 0, this.dpr * z, 0, 0);
+  }
+  setZoom(z) {
+    if (Math.abs(z - (this.zoom || 1)) < 0.002) return;
+    this.zoom = z;
+    this._decor = null;
+    this._vig = null;
+    this.applyZoom();
+  }
+  // 게임이 칸 지도(mapW·mapH)를 주면 그 지도가 들판 자리(위 padTop · 아래 padBottom을 뺀 곳)에 꼭 맞게
+  get overview() { return this.fieldMode && !!this.game?.mapW; }
+  fitZoom(game) {
+    const fieldH = this.H - (this.padTop || 0) - (this.padBottom ?? 130);
+    return Math.min(1, (this.W - 12) / game.mapW, (fieldH - 6) / (game.mapH * this.squash + 135));
   }
 
   // ---------- 탑다운 좌표계 ----------
@@ -617,6 +640,15 @@ export class BattleView {
 
   // 카메라 — 평소엔 무인에 붙고, 순간이동하면 잠깐 머물렀다 쫓아간다
   updateCamera(game, dt) {
+    if (this.overview) {
+      // 가로는 늘 지도 가운데. 세로는 지도 가운데 — 창이 열려 위쪽만 남으면 무인을 따라간다.
+      this.camX = game.mapW / 2;
+      const ty = this.sheetOpen ? Math.max(game.mapH * 0.18, Math.min(game.mapH * 0.82, game.heroY)) : game.mapH / 2;
+      if (this.camY == null) this.camY = ty;
+      this.camY += (ty - this.camY) * Math.min(1, dt * 6);
+      this.camFocus = null; this.camHold = 0; this.camPan = false;
+      return;
+    }
     const field = this.fieldMode;
     const jump = this._hx == null ? 0 : Math.hypot(game.heroX - this._hx, game.heroY - this._hy);
     this._hx = game.heroX;
@@ -808,6 +840,8 @@ export class BattleView {
       if (this.director.done) { this.director = null; this.beat = ''; }
     }
     this.heroAnim.tick(rawDt);
+    this.setZoom(this.overview ? this.fitZoom(game) : 1);
+    UIK = 1 / (this.zoom || 1);
     this.updateCamera(game, rawDt);
     if (this.desat !== this.desatTo) {
       const step = rawDt * this.desatRate;
@@ -827,7 +861,10 @@ export class BattleView {
     this.heroLunge = decay(this.heroLunge, 6);
     // 시트가 열리면 무인을 위로(0.32), 닫히면 가운데(0.47)로 — 0.25초쯤에 걸쳐 옮긴다
     {
-      const want = this.sheetOpen ? 0.32 : 0.47;
+      // 물린 카메라: 지도(머리 몫 위로 120, 발 몫 아래로 10)의 가운데가 들판 자리 가운데에 오게
+      const fit = this.overview && !this.sheetOpen
+        ? (((this.padTop || 0) + this.H - (this.padBottom ?? 130)) / 2 / this.zoom + 55) / this.h : null;
+      const want = fit ?? (this.sheetOpen ? 0.32 : 0.47);
       const a0 = this.anchor ?? 0.47;
       this.anchor = Math.abs(want - a0) < 0.002 ? want : a0 + (want - a0) * Math.min(1, dt * 9);
     }
@@ -866,13 +903,22 @@ export class BattleView {
     this.drawSparks(dt);
     this.drawParticles(dt);
     this.drawWeather(scene, dt);
-    this.drawFloats(dt);
-    this.drawHanja(dt);
-    this.drawBanner(dt);
     if (this.flash > 0) {
       ctx.fillStyle = `rgba(255,251,235,${this.flash * 0.5})`;
       ctx.fillRect(-20, -20, this.w + 40, this.h + 40);
     }
+    // 글자는 진짜 크기로 — 줄여 찍으면 숫자·띠가 깨알만 해진다
+    const z = this.zoom || 1;
+    ctx.save();
+    ctx.scale(1 / z, 1 / z);
+    const vw = this.w, vh = this.h;
+    this.w = this.W; this.h = this.H;
+    try {
+      this.drawFloats(dt, z);
+      this.drawHanja(dt);
+      this.drawBanner(dt);
+    } finally { this.w = vw; this.h = vh; }
+    ctx.restore();
     ctx.restore();
     if (this.slice) this.drawSlice(rawDt);
   }
@@ -927,7 +973,8 @@ export class BattleView {
     // 관문 한가운데 문양 — 이 자리에서 싸움이 시작된다
     const cx = this.heroX - camX;
     const cy = this.groundY - camY * this.squash;
-    if (cx > -260 && cx < w + 260 && cy > -200 && cy < h + 200) {
+    if (this.overview) this.drawGrid(z);
+    else if (cx > -260 && cx < w + 260 && cy > -200 && cy < h + 200) {
       ctx.save();
       ctx.translate(cx, cy);
       ctx.scale(1, this.squash);
@@ -949,6 +996,37 @@ export class BattleView {
     // 가장자리 어둠은 가벼운 모드에서도 남긴다. 구워 둔 한 장을 붙이는
     // 것뿐이라 아껴 봐야 얼마 안 되는데, 빼면 분위기가 확 달라진다.
     this.putVignette(z);
+  }
+
+  // 칸 지도 — 옅은 칸 줄과 지도 밖 어둠. 사냥터 끝이 어디인지, 한 칸이 얼마인지 보인다.
+  drawGrid(z) {
+    const { ctx } = this;
+    const g = this.game;
+    const T = g.tile || 64;
+    const x0 = this.sx({ x: 0 }), x1 = this.sx({ x: g.mapW });
+    const y0 = this.sy({ y: 0 }), y1 = this.sy({ y: g.mapH });
+    ctx.save();
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = 'rgba(20,14,8,0.16)';
+    ctx.beginPath();
+    for (let x = x0 + T; x < x1 - 1; x += T) { ctx.moveTo(x, y0); ctx.lineTo(x, y1); }
+    for (let y = y0 + T * this.squash; y < y1 - 1; y += T * this.squash) { ctx.moveTo(x0, y); ctx.lineTo(x1, y); }
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,248,230,0.07)';
+    ctx.translate(1, 1);
+    ctx.stroke();
+    ctx.restore();
+    // 지도 밖은 먹빛으로 덮는다
+    ctx.save();
+    ctx.fillStyle = 'rgba(8,6,4,0.62)';
+    ctx.beginPath();
+    ctx.rect(-40, -40, this.w + 80, this.h + 80);
+    ctx.rect(x0, y0, x1 - x0, y1 - y0);
+    ctx.fill('evenodd');
+    ctx.strokeStyle = hexA(z.sun || '#d6c7a1', 0.35);
+    ctx.lineWidth = 2;
+    ctx.strokeRect(x0, y0, x1 - x0, y1 - y0);
+    ctx.restore();
   }
 
   // 얼룩·소품 한 장. 카메라가 가장자리(M)를 넘어갈 때만 다시 굽는다.
@@ -977,7 +1055,7 @@ export class BattleView {
 
   bakeDecor(z, ox, oy, M) {
     const { w, h } = this;
-    const q = this.dpr || 1;
+    const q = (this.dpr || 1) * (this.zoom || 1);
     const cv = this._decor?.cv && this._decor.w === w && this._decor.h === h
       ? this._decor.cv : document.createElement('canvas');
     cv.width = Math.ceil((w + M * 2) * q);
@@ -1379,7 +1457,8 @@ export class BattleView {
     const time = this.t + 0.7 + (Math.abs(a.x) % 7) * 0.2;
     // 깊이 — 무인에게서 멀수록 흐리다
     const dist = Math.hypot(x - this.heroX, (y - this.groundY) / this.squash);
-    const depth = depthOf(dist);
+    // 물린 카메라에서는 지도 전체가 한눈에 보여야 하니 흐리게 하지 않는다
+    const depth = this.overview ? 1 : depthOf(dist);
     // 멀수록 아주 살짝 작게. 과하면 평면이 깨지니 10%까지만 줄인다.
     const persp = 0.9 + 0.1 * depth;
     ctx.globalAlpha = depth;
@@ -1420,7 +1499,7 @@ export class BattleView {
     if (a.npc) { ctx.globalAlpha = 1; nameTag(ctx, def.name || '', x, y - 104, true); }
     // 체력바는 가까이 붙은 적만. 수십 마리가 전부 달면 주황 막대가 화면을 덮는다.
     // 그리고 **맞은 적만** — 멀쩡한 졸개 머리 위 꽉 찬 막대는 아무것도 알려 주지 않는다
-    const near = Math.hypot(x - this.heroX, y - this.groundY) <= HP_BAR_RANGE && big(a.hp).lt(a.maxHp);
+    const near = (this.overview || Math.hypot(x - this.heroX, y - this.groundY) <= HP_BAR_RANGE) && big(a.hp).lt(a.maxHp);
     if (near) {
       // 가로로 긴 주황 막대가 수십 개면 화면이 막대로 덮인다. 가늘게, 짧게.
       ctx.globalAlpha = depth;
@@ -1870,7 +1949,8 @@ export class BattleView {
     ctx.globalAlpha = 1;
   }
 
-  drawFloats(dt) {
+  // 떠오르는 글자. 자리는 들판 단위로 받아서 z를 곱해 진짜 화면에 쓴다.
+  drawFloats(dt, z = 1) {
     const { ctx } = this;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'alphabetic';
@@ -1887,9 +1967,9 @@ export class BattleView {
       ctx.font = f.brush ? `${f.size * pop * 1.2}px ${BRUSH}` : `900 ${f.size * pop}px system-ui, sans-serif`;
       ctx.lineWidth = 4;
       ctx.strokeStyle = 'rgba(0,0,0,0.8)';
-      ctx.strokeText(f.text, f.x, f.y);
+      ctx.strokeText(f.text, f.x * z, f.y * z);
       ctx.fillStyle = f.color;
-      ctx.fillText(f.text, f.x, f.y);
+      ctx.fillText(f.text, f.x * z, f.y * z);
     }
     this.floats = this.floats.filter((f) => f.life > 0);
     ctx.globalAlpha = 1;
@@ -2410,11 +2490,13 @@ function emoji(ctx, ch, x, y, size, flip) {
   ctx.restore();
 }
 
+// 카메라를 물리면(zoom<1) 이름표·막대가 같이 작아진다 — 그만큼 키워 진짜 크기를 지킨다
+let UIK = 1;
 function nameTag(ctx, text, x, y, big = false) {
   ctx.save();
-  ctx.font = big ? `19px ${BRUSH}` : `800 11px system-ui, sans-serif`;
+  ctx.font = big ? `${19 * UIK}px ${BRUSH}` : `800 ${11 * UIK}px system-ui, sans-serif`;
   ctx.textAlign = 'center';
-  ctx.lineWidth = 3;
+  ctx.lineWidth = 3 * UIK;
   ctx.strokeStyle = 'rgba(0,0,0,0.8)';
   ctx.strokeText(text, x, y);
   ctx.fillStyle = big ? '#fde68a' : '#fff';
@@ -2454,6 +2536,7 @@ function roundRect(ctx, x, y, w, h, r) {
 const ratio = (a, b) => Math.max(0, Math.min(1, big(a).div(b).toNumber() || 0));
 
 function hpBar(ctx, x, y, w, h, ratio, color) {
+  h *= Math.min(UIK, 1.6);
   ctx.fillStyle = 'rgba(0,0,0,0.6)';
   ctx.fillRect(x - 1, y - 1, w + 2, h + 2);
   ctx.fillStyle = color;

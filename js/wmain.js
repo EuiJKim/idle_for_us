@@ -41,6 +41,15 @@ if (!saved) {
 }
 
 const view = new BattleView($('cv'));
+// 들판 가운데 지도가 놓일 자리 — 위는 전투력 알약, 아래는 창 버튼 줄과 무공 바를 뺀다
+function measurePads() {
+  const cv = $('cv').getBoundingClientRect();
+  const t = document.querySelector('#tabs .tabcol')?.getBoundingClientRect();
+  view.padTop = 30;
+  view.padBottom = t && t.height ? Math.max(60, cv.bottom - t.top + 6) : 130;
+}
+measurePads();
+window.addEventListener('resize', measurePads);
 const FX_PREF = ['low', 'mid', 'high'];
 const FX_NAME = { high: '높음', mid: '보통', low: '낮음' };
 function loadFxPref() { try { return localStorage.getItem('ifu.fx') || 'high'; } catch { return 'high'; } }
@@ -277,8 +286,9 @@ $('cv').addEventListener('pointerdown', (e) => {
   const r = $('cv').getBoundingClientRect();
   const px = e.clientX - r.left;
   const py = e.clientY - r.top;
-  const wx = game.heroX + (px - view.heroX);
-  const wy = game.heroY + (py - view.groundY) / view.squash;
+  const z = view.zoom || 1;    // 카메라를 물렸으면 화면 1px가 들판 1/z
+  const wx = game.heroX + (px / z - view.heroX);
+  const wy = game.heroY + (py / z - view.groundY) / view.squash;
   if (game.map.town) {
     // 대장장이를 누르면 가방(조합), 다른 사람이면 마을 창
     let near = null;

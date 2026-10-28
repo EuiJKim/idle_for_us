@@ -918,3 +918,14 @@ body.modal-open #toast { top: auto; bottom: calc(24px + var(--safe-bottom)); }
 .stat-head .btn { padding: 6px 10px; font-size: 12px; }
 .map-row.locked { opacity: 0.45; }
 .map-row .ico { font-family: var(--brush); }
+
+/* ---------- 바람식 칸 지도 (v104) ----------
+   사냥터 한 장이 화면에 통째로 들어온다. 창 버튼이 좌우에 세로로 서 있으면 지도 가장자리 칸을
+   가려서, 무공 바 바로 위 한 줄로 내린다. */
+.tabcol { bottom: calc(60px + var(--safe-bottom, 0px)); flex-direction: row; gap: 5px; }
+.tabcol.left { left: 8px; }
+.tabcol.right { right: 8px; }
+#tabs button { width: auto; height: 34px; padding: 0 9px; flex-direction: row; gap: 4px; border-radius: 10px; }
+#tabs button i { font-size: 16px; line-height: 1; }
+#tabs button span { font-size: 11px; }
+#toast { bottom: calc(104px + var(--safe-bottom)); }
