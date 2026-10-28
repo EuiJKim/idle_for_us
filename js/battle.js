@@ -436,7 +436,9 @@ export class BattleView {
           this.corpses.push({ x: a.x, y: a.y, def: a.def || {}, t0: this.t, face: a.x >= (game.heroX || 0), seed: Math.random() });
           if (this.corpses.length > 28) this.corpses.splice(0, this.corpses.length - 28);
         }
-        this.ink(kx, ky - 50, ev.isBoss ? 34 : 16, ev.isBoss ? '#450a0a' : '#111');
+        // 졸개는 넘어지는 그림이 따로 있으니 먹물은 조금만 — 광역기로 열다섯을 베면 240방울이 튀어
+        // 화면이 검은 점으로 덮였다
+        this.ink(kx, ky - 50, ev.isBoss ? 34 : ev.add ? 4 : 12, ev.isBoss ? '#450a0a' : '#111');
         this.sparks.push({ x: kx, y: ky - 40, life: 0.3, max: 0.3,
           r: ev.isBoss ? 90 : 30, color: ev.isBoss ? '#fde68a' : '#e7e5e4' });
         for (let i = 0; i < (ev.isBoss ? 14 : 4); i++) {

@@ -825,14 +825,13 @@ body { background: radial-gradient(ellipse at top, #1d1712, #0b0907 70%); }
 #tabs button span { font-size: 8.5px; }
 
 /* ---------- 알림 줄 ---------- */
-/* 토스트는 무공 바 위에 쌓였는데, 무인 바로 아래라 적 이름·피해 숫자와 겹쳤다.
-   관문 줄 바로 아래 한 줄에 띄운다. */
-#toast { bottom: auto; top: calc(130px + var(--safe-top)); }
+/* 알림은 무공 바 바로 위 가운데 — 좌우 창 버튼 사이 폭으로만. 위쪽에 두었더니
+   전투력 알약·두목 띠와 겹쳤다. */
+#toast { bottom: calc(62px + var(--safe-bottom)); top: auto; }
 .toast {
   background: rgba(24, 19, 13, 0.94); border-color: rgba(212, 166, 74, 0.4);
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45); max-width: 92vw; white-space: normal; text-align: center;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45); max-width: min(92vw, calc(100vw - 124px)); white-space: normal; text-align: center;
 }
-#app.has-update ~ #toast { top: calc(176px + var(--safe-top)); }
 /* 전투력·접속 알약(위 8px) 바로 아래로 */
 #gate-hint { top: 38px; }
 #advice { top: 60px; }

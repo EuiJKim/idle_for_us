@@ -47,6 +47,13 @@ export const POSES = {
   내려베기: P({ lean: 0.44, crouch: 0.45, dx: 10, hand: [0.85, 27], blade: 0.95, wscale: W }),
   // 칼을 거꾸로 잡아 허리로 거둔다
   납도: P({ lean: 0.03, crouch: 0.08, hand: [2.0, 16], blade: PI - 0.5, wscale: W }),
+  // ---- 권갑 (권마) — 초식 ----
+  // 마보: 말 탄 듯 깊게 앉아 두 주먹을 허리에 붙인다
+  마보: P({ crouch: 0.62, dx: -2, hand: [1.7, 16], blade: 1.2, wscale: W }),
+  // 진각: 한 발을 굴러 땅을 찍는다 — 몸이 뜨지 않고 아래로 박힌다
+  진각: P({ lean: 0.12, crouch: 0.78, dx: 4, hand: [0.9, 24], blade: 0.4, wscale: W }),
+  // 쌍장: 두 손바닥을 앞으로 민다 (그림 팔은 하나라 손을 가슴 높이로 길게 뻗는다)
+  쌍장: P({ lean: 0.3, crouch: 0.34, dx: 10, hand: [-0.18, 34], blade: -1.57, stretch: 0.05, wscale: W }),
   // ---- 권갑 (권마) — 평타 연타 ----
   // 정권: 어깨에서 곧게 뻗는다
   정권: P({ lean: 0.38, crouch: 0.3, dx: 12, hand: [-0.05, 33], blade: -0.05, stretch: 0.08, wscale: W }),

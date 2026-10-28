@@ -13,6 +13,7 @@
 // 설계: docs/전직무공_연출설계.md
 import { JOB_TRAITS } from './data.js';
 import { POSES } from './pose.js';
+import { CLASS_FX, CLASS_CHOREO } from './skillfx_class.js';
 
 // 연출 세기 — 설정의 '연출 간소화'. 2 높음 · 1 보통 · 0 낮음.
 // 높음만 화면 전체를 다시 칠하는 것(흑백·화면 가르기)을 쓴다.
@@ -1212,3 +1213,8 @@ export const CHOREO = {
     d.at(1.1, () => { d.end(); d.mark(''); });
   },
 };
+
+// 검사(빠져 있던 다섯) · 권마 · 환마 · 극악소마 — skillfx_class.js
+// 이미 있는 것(검사 축지·일자·빙결 형태)은 덮지 않는다.
+Object.assign(FX, CLASS_FX);
+for (const [k, fn] of Object.entries(CLASS_CHOREO)) if (!CHOREO[k]) CHOREO[k] = fn;

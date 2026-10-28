@@ -3202,5 +3202,45 @@ console.log('\n=== 적 공격의 덤 ===');
   ok(D.monsterHp(2000).log10() < 25, '관문 2000 적 체력이 10^25 아래', `10^${D.monsterHp(2000).log10().toFixed(1)}`);
 }
 
+// ---------- 초식 연출표 — 다섯 캐릭터 × 여덟 무공 × 네 차수가 다 돌아가는가 ----------
+console.log('\n=== 초식 연출표 ===');
+{
+  const { CHOREO, Director, FX } = await import('../js/skillfx.js');
+  const missing = [];
+  const broke = [];
+  let ran = 0;
+  for (const job of D.JOBS.map((j) => j.id)) {
+    for (const sk of D.SKILLS) {
+      for (let tier = 0; tier <= D.TIER_MAX; tier++) {
+        const def = D.skillFor(sk.id, job, tier);
+        if (!def.fx || !CHOREO[def.fx]) { missing.push(`${job}:${sk.id}:${tier}`); continue; }
+        // 화면 없이 돌릴 수 있는 가짜 화면 — 연출이 부르는 것만 흉내 낸다
+        const effects = [];
+        const view = {
+          effects, particles: [], squash: D.FIELD_SQUASH, heroX: 200, groundY: 400, w: 390, h: 700,
+          fxLevel: 2, shake: 0, flash: 0, hitstop: 0, camHold: 0, desatTo: 0,
+          heroAnim: { play() {} }, handle() {}, ink() {}, float() {}, showBanner() {}, game: null,
+          sx: (m) => 200 + (m.x || 0), sy: (m) => 400 + (m.y || 0) * D.FIELD_SQUASH,
+        };
+        const hits = [0, 1, 2].map((i) => ({ type: 'dmg', at: { x: 60 + i * 30, y: 10 * i }, amount: 1 }));
+        const pend = { id: sk.id, job, name: def.name, tier, hits, kills: [], at: { x: 80, y: 0 }, radius: 180, dur: 6,
+          path: { type: 'skillPath', path: [{ x: 0, y: 0 }, { x: 60, y: 0 }, { x: 90, y: 30 }], target: { x: 90, y: 30 } } };
+        try {
+          const d = new Director(view, pend, { heroX: 0, heroY: 0, heroAngle: 0, heroFacing: 1, mon: { x: 80, y: 0 } });
+          CHOREO[def.fx](d);
+          for (let i = 0; i < 200 && !d.done; i++) d.tick(0.02);
+          // 쓴 그림이 전부 있는가 (battle.js가 그리는 옛 것은 빼고)
+          const OLD = ['area', 'aura', 'beam', 'blink', 'burst', 'cut', 'frost', 'gale', 'pillar', 'qi', 'regress', 'swing', 'swirl', 'swords', 'thunder', 'splash', 'corrode', 'puddle'];
+          for (const e of effects) if (!FX[e.kind] && !OLD.includes(e.kind)) throw new Error(`그림 없음: ${e.kind}`);
+          if (!d.done || hits.length) throw new Error('결과를 다 안 풀었다');
+          ran++;
+        } catch (err) { broke.push(`${def.fx}(${tier}차) ${err.message}`); }
+      }
+    }
+  }
+  ok(missing.length === 0, '다섯 캐릭터의 여덟 무공 모두 차수마다 연출표가 있다', missing.slice(0, 6).join(' · '));
+  ok(broke.length === 0, `연출 ${ran}개가 끝까지 돌고 붙든 숫자를 다 푼다`, broke.slice(0, 4).join(' / '));
+}
+
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);

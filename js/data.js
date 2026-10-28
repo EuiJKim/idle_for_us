@@ -51,7 +51,7 @@ export const critExpect = (C, D) => {
 // NaN이 된다 — 재 보니 적 체력이 관문 8467에서 그 선을 넘었다.
 // 반대로 상한이 있는 값(경지 배수·초월 단계처럼)은 보통 숫자 그대로 둔다.
 
-export const BUILD = 'ifu-v97';
+export const BUILD = 'ifu-v98';
 
 export const SAVE_VERSION = 4;
 export const OFFLINE_CAP_SEC = 12 * 3600;
@@ -1616,7 +1616,9 @@ export const CLASS_SKILLS = {
 };
 
 // 무공 여덟 전부에 연출표가 있는 계열 (skillfx.js CHOREO['계열:역할'])
-export const FX_ALL = ['poison'];
+// 계열 전체 연출(역할마다 연출표가 있다). 전에는 독마뿐이라 나머지 넷은 각성한 형태 몇만 연출이 붙고
+// 기초 무공은 그림 한 장이 떴다 — skillfx_class.js에 넷 몫을 마저 짰다.
+export const FX_ALL = ['poison', 'sword', 'fist', 'fan', 'ring'];
 
 // 이 캐릭터·이 차수에서 무공 하나가 실제로 어떻게 생겼나.
 // 화면·판정이 전부 이걸 본다. (id, 계열, 차수)마다 한 번만 만든다.
