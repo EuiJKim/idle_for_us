@@ -12,16 +12,16 @@
 // 밸런스는 1도 안 바뀐다 (skillfx.js 머리말과 같다).
 const TAU = Math.PI * 2;
 const clamp01 = (v) => Math.max(0, Math.min(1, v));
-const rnd = (n) => Array.from({ length: n }, () => [Math.random(), Math.random(), Math.random()]);
+export const rnd = (n) => Array.from({ length: n }, () => [Math.random(), Math.random(), Math.random()]);
 
 // 캐릭터 빛깔 — [기본, 밝은 심, 어두운 그늘]
-const COL = {
+export const COL = {
   sword: ['229,231,235', '255,255,255', '71,85,105'],
   fist: ['245,158,11', '253,230,138', '120,53,15'],
   fan: ['56,189,248', '224,242,254', '12,74,110'],
   ring: ['168,85,247', '233,213,255', '59,7,100'],
 };
-const PLUM = '251,207,232';
+export const PLUM = '251,207,232';
 
 // ---------- 그림 ----------
 export const CLASS_FX = {
@@ -296,7 +296,7 @@ export const CLASS_FX = {
 
 // ---------- 연출을 짜는 도구 ----------
 // 맞은 자리 한 곳의 '쾅' — 충격 고리 + 빛 + (원하면) 갈라짐 + 불티
-function impact(d, at, r, c, { rings = 1, crack = false, sparks = 10, flare = true, col = null } = {}) {
+export function impact(d, at, r, c, { rings = 1, crack = false, sparks = 10, flare = true, col = null } = {}) {
   const v = d.v;
   const cc = col || c[0];
   d.fx('shock', 0.42 + rings * 0.06, { wx: at.x, wy: at.y, r, col: cc, rings, w: 7 });
@@ -314,7 +314,7 @@ function impact(d, at, r, c, { rings = 1, crack = false, sparks = 10, flare = tr
 }
 
 // 흔한 꼴: 자세 → (시전) → (적중: 결과를 풀고 이름을 쓴다) → 여운 → 끝
-function beats(d, pose, { cast = 0.14, hit = 0.3, end = 0.9, onCast, onHit, shake = 0.14, name = true } = {}) {
+export function beats(d, pose, { cast = 0.14, hit = 0.3, end = 0.9, onCast, onHit, shake = 0.14, name = true } = {}) {
   d.mark('기수식');
   d.pose(pose, 0.3);
   d.at(cast, () => { d.mark('시전'); onCast?.(); });
@@ -330,7 +330,7 @@ function beats(d, pose, { cast = 0.14, hit = 0.3, end = 0.9, onCast, onHit, shak
 }
 
 // 순간이동 꼴 (축지·사행보와 같은 뼈대): 사라지고 → 지나간 길에 잔상 → 대상 곁에 나타난다
-function blinkBeats(d, c, arrivePose, onArrive) {
+export function blinkBeats(d, c, arrivePose, onArrive) {
   const v = d.v;
   const T = 0.3;
   d.mark('기수식');
@@ -411,7 +411,7 @@ function pierceBeats(d, c, pose, { len = 560, w = 40, wind = 4, extra } = {}) {
 }
 
 // 기를 모으는 강화(버프) 꼴
-function buffBeats(d, c, pose, onCast) {
+export function buffBeats(d, c, pose, onCast) {
   const n = d.lvl >= 2 ? 20 : d.lvl >= 1 ? 12 : 6;
   d.mark('기수식');
   d.pose(pose, 0.3);

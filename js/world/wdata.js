@@ -30,15 +30,17 @@ export const lookTierOf = (level) => Math.min(RANKS.length - 1, Math.floor((leve
 //  독마(독왕): 맞은 적이 중독 — 중독된 채 쓰러지면 독이 둘레로 번진다
 //  극악소마: 붙은 적이 공포에 질려 공격을 머뭇거린다 + 붙으면 더 아프다 + 치명 피해
 export const CLASSES = {
-  sword: { base: { str: 6, dex: 4, vit: 5, int: 3 }, trait: '일화(一花) — 팔마존 중 가장 빠르다: 이동 속도 +15% · 평타 네 번째마다 꽃잎 검기가 둘레를 벤다(200%) · 두목에게 주는 피해 +10%',
-    move: 0.15, boss: 1.1, flower: { every: 4, mult: 2.0, r: 150 } },
-  fist: { base: { str: 6, dex: 6, vit: 4, int: 2 }, trait: '불패(不敗) — 받는 피해 -20% · 공격 속도 +25%', speed: 1.25, dmgRed: 0.2 },
+  sword: { base: { str: 6, dex: 4, vit: 5, int: 3 }, trait: '일화(一花) — 팔마존 중 가장 빠르다: 이동 속도 +15% · 평타 네 번째마다 꽃잎 검기가 둘레를 벤다(220%) · 두목에게 주는 피해 +10%',
+    move: 0.15, boss: 1.1, flower: { every: 4, mult: 2.2, r: 150 } },
+  // 권마는 평타가 곧 무공 — 평타 피해가 레벨마다 1%씩 붙는다. 무공은 약한 편이라 초반엔 뒤지고 후반에 앞선다.
+  fist: { base: { str: 6, dex: 6, vit: 4, int: 2 }, trait: '불패(不敗) — 평타가 곧 무공: 평타가 레벨과 함께 자란다(레벨 1에 85% → 레벨 100에 150%) · 공격 속도 +25% · 받는 피해 -20%',
+    speed: 1.25, dmgRed: 0.2, basicBase: 0.85, basicPerLv: 0.0065 },
   fan: { base: { str: 4, dex: 4, vit: 4, int: 6 }, trait: '섭혼(攝魂) — 멀리서 친다 · 맞은 적이 느려지고 받는 피해 +15% · 준 피해의 2%를 빨아들인다',
     slow: true, vuln: 0.15, drain: 0.02 },
   poison: { base: { str: 4, dex: 4, vit: 4, int: 6 }, trait: '독아(毒牙) — 멀리서 친다 · 맞은 적이 중독(피해의 20%가 독으로 쌓인다) · 중독된 적이 쓰러지면 독이 둘레로 번진다',
     poison: 0.2, poisonSec: 4, spread: true },
-  ring: { base: { str: 5, dex: 6, vit: 4, int: 3 }, trait: '공포(恐怖) — 붙은 적이 25% 확률로 공격을 머뭇거린다 · 붙으면 피해 +20% · 치명 피해 +20%',
-    fear: 0.25, critDmg: 0.2 },
+  ring: { base: { str: 5, dex: 6, vit: 4, int: 3 }, trait: '공포(恐怖) — 붙은 적이 25% 확률로 공격을 머뭇거린다 · 붙으면 피해 +20% · 치명 피해 +15%',
+    fear: 0.25, critDmg: 0.15 },
 };
 
 // 다섯 마존 (v118) — 3차 전직의 끝에 닿는 이름. 캐릭터를 고를 때와 캐릭터 창에 보인다.
@@ -80,15 +82,15 @@ export const JOB_SKILLS = {
       desc: '만 송이 검화가 하나로 — 넓게 벤 뒤 8초간 공격 속도 +40%(마검 각성)' }),
   ],
   fist: [
-    SK(0, 1, 'frost', '붕산철권', 'single', { mult: 5.0, cd: 4.5, hpCost: 0, stun: 2,
+    SK(0, 1, 'frost', '붕산철권', 'single', { mult: 3.8, cd: 4.5, hpCost: 0, stun: 2,
       desc: '산을 무너뜨리는 한 주먹 · 2초 기절' }),
-    SK(1, 2, 'slash', '투신난무', 'aoe', { mult: 1.5, hits: 4, cd: 5, hpCost: 0.08, radius: 230,
+    SK(1, 2, 'slash', '투신난무', 'aoe', { mult: 1.2, hits: 4, cd: 5, hpCost: 0.08, radius: 230,
       desc: '권갑 투신으로 둘레를 네 번 두들긴다' }),
-    SK(2, 3, 'thunder', '불패금신', 'aoe', { mult: 5.0, cd: 18, hpCost: 0, radius: 260, buff: { sec: 10, dmgRed: 0.5, cleave: 0.6 },
+    SK(2, 3, 'thunder', '불패금신', 'aoe', { mult: 4.2, cd: 18, hpCost: 0, radius: 260, buff: { sec: 10, dmgRed: 0.5, cleave: 0.6 },
       desc: '금빛 몸 — 충격파를 낸 뒤 10초간 받는 피해 -50% · 평타가 둘레를 친다(60%) · 체력을 쓰지 않는다' }),
   ],
   ring: [
-    SK(0, 1, 'frost', '혈앙지', 'single', { mult: 3.0, cd: 4, hpCost: 0, sure: true, dot: { sec: 5, mult: 0.6 },
+    SK(0, 1, 'frost', '혈앙지', 'single', { mult: 3.3, cd: 4, hpCost: 0, sure: true, dot: { sec: 5, mult: 0.6 },
       desc: '피의 재앙을 짚는 손가락 · 반드시 치명 · 5초 출혈' }),
     SK(1, 2, 'slash', '마극광폭장', 'aoe', { mult: 2.9, cd: 6, hpCost: 0.12, radius: 250, stun: 1.2,
       desc: '광폭한 장력이 둘레를 휩쓴다 · 맞은 적이 공포에 1.2초 굳는다' }),
@@ -96,7 +98,7 @@ export const JOB_SKILLS = {
       desc: '비수 열두 자루가 가까운 적 여덟에게 날아든다(치명 +20%p) · 세 무공을 6초 안에 이으면 삼공조화(8초간 피해 +25%)' }),
   ],
   poison: [
-    SK(0, 1, 'frost', '칠보단혼침', 'single', { mult: 2.6, cd: 5, hpCost: 0, dot: { sec: 6, mult: 1.4 },
+    SK(0, 1, 'frost', '칠보단혼침', 'single', { mult: 2.6, cd: 5, hpCost: 0, dot: { sec: 6, mult: 1.8 },
       desc: '일곱 걸음 안에 혼이 끊기는 독침 · 6초 맹독' }),
     SK(1, 2, 'slash', '화골산', 'field', { mult: 0.8, cd: 8, hpCost: 0.10, radius: 200, field: { sec: 6, tick: 0.5, mult: 0.26 },
       desc: '뼈를 녹이는 독무를 깐다 — 6초 동안 0.5초마다' }),
@@ -104,7 +106,7 @@ export const JOB_SKILLS = {
       desc: '만 가지 독이 하늘 그물처럼 — 넓게 맞히고 8초 맹독' }),
   ],
   fan: [
-    SK(0, 1, 'frost', '섭혼술', 'single', { mult: 4.2, cd: 5, hpCost: 0, stun: 2.5, vuln: { sec: 6, v: 0.3 },
+    SK(0, 1, 'frost', '섭혼술', 'single', { mult: 4.8, cd: 5, hpCost: 0, stun: 2.5, vuln: { sec: 6, v: 0.3 },
       desc: '혼을 거두는 눈빛 · 2.5초 멎고 6초간 받는 피해 +30%' }),
     SK(1, 2, 'slash', '혈루미혼', 'aoe', { mult: 2.3, cd: 8, hpCost: 0.10, radius: 200, stun: 2,
       desc: '핏빛 눈물이 혼을 홀린다 · 둘레가 2초 멎는다' }),
@@ -113,8 +115,35 @@ export const JOB_SKILLS = {
   ],
 };
 export const SKILL_DEFS = JOB_SKILLS.sword;   // 옛 이름 (자리·차수만 보는 곳)
+// ---------- 심법 (패시브, v119) ----------
+// 스킬 점수로 올린다. 공용 여섯은 누구나(점수 1씩), 독문 심법은 직업마다 하나(무공처럼 n→n+1에 n점).
+// 레벨이 닿아야 배운다(from). 바람의나라의 보호·무장(버프)·체력 증강 같은 몫을 늘 켜진 심법으로 단순하게.
+export const PASSIVES = [
+  { id: 'p_move', name: '초상비', hanja: '草上飛', from: 15, max: 10, cost: 'flat', eff: { move: 0.03 }, text: (l) => `이동 속도 +${3 * l}%` },
+  { id: 'p_guard', name: '호신강기', hanja: '護身罡氣', from: 20, max: 10, cost: 'flat', eff: { dmgRed: 0.02 }, text: (l) => `받는 피해 -${2 * l}%` },
+  { id: 'p_regen', name: '운기조식', hanja: '運氣調息', from: 25, max: 10, cost: 'flat', eff: { regen: 0.1 }, text: (l) => `체력 회복 +${10 * l}%` },
+  { id: 'p_hp', name: '금강불괴', hanja: '金剛不壞', from: 35, max: 10, cost: 'flat', eff: { hpPct: 0.03 }, text: (l) => `최대 체력 +${3 * l}%` },
+  { id: 'p_eye', name: '심안', hanja: '心眼', from: 50, max: 10, cost: 'flat', eff: { critDmg: 0.04 }, text: (l) => `치명 피해 +${4 * l}%` },
+  { id: 'p_atk', name: '혼원일기공', hanja: '混元一氣功', from: 70, max: 10, cost: 'flat', eff: { atkPct: 0.015 }, text: (l) => `공격력 +${(1.5 * l).toFixed(1).replace(/\.0$/, '')}%` },
+];
+// 독문 심법 — 그 마존의 길. 5레벨에 덧이 하나 붙는다.
+export const OWN_PASSIVE = {
+  sword: { id: 'p_own', name: '일화심법', hanja: '一花心法', from: 30, max: 10, cost: 'grow', eff: { flowerUp: 0.1 },
+    text: (l) => `꽃잎 검기 피해 +${10 * l}%${l >= 5 ? ' · 세 번째 평타마다 핀다' : ' (5레벨: 세 번째 평타마다)'}` },
+  fist: { id: 'p_own', name: '투신심법', hanja: '鬪神心法', from: 30, max: 10, cost: 'grow', eff: { basicUp: 0.03 },
+    text: (l) => `평타 피해 +${3 * l}%${l >= 5 ? ' · 다섯 번째 평타마다 투신일격(×3, 둘레 50%)' : ' (5레벨: 다섯 번째 평타마다 투신일격)'}` },
+  fan: { id: 'p_own', name: '섭혼대법', hanja: '攝魂大法', from: 30, max: 10, cost: 'grow', eff: { vulnUp: 0.015, drainUp: 0.002 },
+    text: (l) => `섭혼 취약 +${(1.5 * l).toFixed(1).replace(/\.0$/, '')}%p · 흡혈 +${(0.2 * l).toFixed(1)}%p${l >= 5 ? ' · 섭혼 걸린 적을 치면 10% 확률로 1초 멎는다' : ' (5레벨: 가끔 멎게 한다)'}` },
+  poison: { id: 'p_own', name: '만독불침', hanja: '萬毒不侵', from: 30, max: 10, cost: 'grow', eff: { poisonUp: 0.02, dmgRed: 0.01 },
+    text: (l) => `독 쌓임 +${2 * l}%p · 받는 피해 -${l}%${l >= 5 ? ' · 독에 쓰러진 적의 독이 두 배로 번진다' : ' (5레벨: 독이 두 배로 번진다)'}` },
+  ring: { id: 'p_own', name: '무면귀', hanja: '無面鬼', from: 30, max: 10, cost: 'grow', eff: { fearUp: 0.015, critDmg: 0.04 },
+    text: (l) => `공포 확률 +${(1.5 * l).toFixed(1).replace(/\.0$/, '')}%p · 치명 피해 +${4 * l}%${l >= 5 ? ' · 머뭇거린 적에게 가면의 일격(×1.5)' : ' (5레벨: 머뭇거린 적에게 반격)'}` },
+};
+export const passivesOf = (job) => [...PASSIVES, ...(OWN_PASSIVE[job] ? [OWN_PASSIVE[job]] : [])];
+export const passiveCost = (p, lv) => (p.cost === 'flat' ? 1 : Math.max(1, lv));
+
 export const HARMONY = { sec: 6, buffSec: 8, dmgUp: 0.25 };   // 극악소마 삼공조화
-export const skillsOf = (job) => (JOB_SKILLS[job] || []).map((d) => ({ ...d, id: `s${d.slot}`, icon: d.name.slice(0, 2), fx: `${job}:${d.role}` }));
+export const skillsOf = (job) => (JOB_SKILLS[job] || []).map((d) => ({ ...d, id: `s${d.slot}`, icon: d.name.slice(0, 2), fx: `${job}:m${d.slot}` }));   // 연출: skillfx_majon.js
 
 // ---------- 지도 ----------
 // 0번은 마을(객잔 마을). 1~15는 사냥터 — 옛 지역 그림과 몹 생김새를 쓴다.

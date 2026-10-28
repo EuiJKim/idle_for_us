@@ -53,7 +53,10 @@ console.log('\n=== 싸움 ===');
   for (let i = 0; i < 20 * 60; i++) { g.tick(0.05); g.events.length = 0; }
   ok(g.s.kills > k0 + 5, '1분 자동 사냥으로 몹을 잡는다', `${g.s.kills - k0}마리`);
   ok(g.s.gold > 0 && (g.s.exp > 0 || g.s.level > 1), '은자와 경험치가 들어온다', `은자 ${g.s.gold} · Lv.${g.s.level}`);
-  ok(g.mons.filter((m) => m.alive).length >= W.MOBS_ALIVE - 6, '잡힌 자리는 다시 채워진다', `${g.mons.length}마리`);
+  // 사냥을 멈추고 다시 날 시간을 주면 자리가 다 찬다
+  g.s.autoHunt = false; g.mon = null;
+  for (let i = 0; i < 20 * (W.RESPAWN_SEC + 1); i++) { g.tick(0.05); g.events.length = 0; }
+  ok(g.mons.filter((m) => m.alive).length >= W.MOBS_ALIVE - 2, '잡힌 자리는 다시 채워진다', `${g.mons.filter((m) => m.alive).length}마리`);
   ok(finite(g), '숫자가 전부 유한하다');
   // 사건: 평타·피해·처치가 그리는 쪽 모양으로 나간다
   const h = fresh();
@@ -497,6 +500,28 @@ console.log('\n=== 다섯 마존의 무공 (v118) ===');
   ok(fn.mon.stun > 0 && fn.mon.vulnT > fn.clock, '환마 섭혼술: 멎고 더 아프게 맞는다');
   const sw = ready('sword');
   ok(sw.stats().moveSpeed > fresh('fist').stats().moveSpeed && sw.useSkill('s2') && sw.buffv.haste > 0, '검사: 더 빠르고 만화귀일 뒤 공격 속도가 오른다');
+}
+
+console.log('\n=== 심법 · 권마 평타 성장 (v119) ===');
+{
+  const g = fresh('fist');
+  g.s.level = 20; g.s.skillPts = 50;
+  ok(g.passiveList().length === W.PASSIVES.length + 1 && g.passiveList().some((p) => p.id === 'p_own' && p.name === '투신심법'), '공용 심법 여섯 + 독문 심법 하나');
+  ok(!g.canPassUp('p_hp') && g.canPassUp('p_guard'), '레벨이 닿아야 배운다 (금강불괴 35 · 호신강기 20)');
+  const hp0 = g.stats().hp;
+  g.s.level = 40;
+  const hp1 = g.stats().hp;
+  for (let i = 0; i < 5; i++) g.passUp('p_hp');
+  ok(g.passLevel('p_hp') === 5 && g.s.skillPts === 45 && g.stats().hp > hp1 * 1.14, '금강불괴 5레벨: 점수 5 · 최대 체력 +15%', `${hp0}→${hp1}→${g.stats().hp.toFixed(0)}`);
+  for (let i = 0; i < 5; i++) g.passUp('p_own');
+  ok(g.passLevel('p_own') === 5 && g.s.skillPts === 45 - (1 + 1 + 2 + 3 + 4) && g.pmods().own5, '독문 심법은 n점씩 · 5레벨에 덧');
+  // 권마 평타가 레벨과 함께 자란다
+  const hitAt = (L) => {
+    const f = fresh('fist'); f.s.level = L; f.enterMap(11);
+    const m = f.mons.find((x) => x.alive); m.hp = m.maxHp = 1e15; m.armor = 0; f.rng = () => 0.5;
+    const h0 = m.hp; f.basicAttack(m, f.stats(), 1); return (h0 - m.hp) / f.stats().atk;
+  };
+  ok(hitAt(100) > hitAt(10) * 1.5, '권마: 평타 한 대(공격력 대비)가 레벨 100이면 레벨 10의 1.5배가 넘는다', `${hitAt(10).toFixed(2)} → ${hitAt(100).toFixed(2)}`);
 }
 
 console.log('\n=== 전직·스킬 ===');

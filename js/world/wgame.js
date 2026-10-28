@@ -24,6 +24,7 @@ export function newWorldSave(now = Date.now()) {
     autoStat: false,          // 레벨업 점수는 직접 찍는다(켜면 알아서 나눈다)
     skillLv: { s0: 1, s1: 1, s2: 1 },   // 스킬 레벨 (v110)
     skillPts: 0,
+    passLv: {},               // 심법(패시브) 레벨 (v119)
     skillV: 1,
     statV: 3,
     gold: 0,
@@ -78,6 +79,8 @@ export function migrateWorld(raw, now = Date.now()) {
   s.level = clamp(Math.floor(Number(s.level) || 1), 1, W.LEVEL_MAX);
   for (const k of ['exp', 'gold', 'potions', 'statPts', 'jobTier', 'kills', 'deaths', 'books']) s[k] = Math.max(0, Number(s[k]) || 0);
   s.jobTier = Math.min(3, Math.floor(s.jobTier));
+  s.passLv = {};
+  for (const [k, v] of Object.entries(raw.passLv || {})) if (/^p_[a-z]+$/.test(k) && v > 0) s.passLv[k] = Math.min(10, Math.floor(Number(v) || 0));
   // v118: 내공 효율(스킬 피해 3%→0.7%)과 직업 특성을 바꿨다 — 찍은 능력치를 한 번 다 돌려준다
   if ((raw.statV || 0) < 3) {
     const st = s.stats || {};
@@ -197,6 +200,11 @@ export class WorldGame {
     }
     const mt = this.mountNow();
     if (mt) { gear.atkPct += mt.stat; gear.hpPct += mt.stat; }
+    // 심법
+    const pm = this.pmods();
+    gear.atkPct += pm.atkPct || 0;
+    gear.hpPct += pm.hpPct || 0;
+    gear.critDmg += pm.critDmg || 0;
     const ps = this.passives();
     if (ps.has('crimson')) gear.critDmg += 0.8;
     if (ps.has('formless')) gear.skill += 0.3;
@@ -219,10 +227,10 @@ export class WorldGame {
       speed: (1 + dex * 0.01 + gear.speed) * (cls.speed || 1),
       skillMult: 1 + int * 0.007 + gear.skill,
       // 자연 회복: 최대 체력의 0.6%/초 + 내공·레벨 몫 (물약만 바라보지 않게)
-      regen: 1 + int * 0.12 + L * 0.08 + hp * (0.006 + gear.regenPct),
+      regen: (1 + int * 0.12 + L * 0.08 + hp * (0.006 + gear.regenPct)) * (1 + (pm.regen || 0)),
       expMult: 1 + gear.exp,
       matMult: 1 + gear.mat,
-      moveSpeed: 1 + (mt ? mt.speed : 0) + (cls.move || 0),
+      moveSpeed: 1 + (mt ? mt.speed : 0) + (cls.move || 0) + (pm.move || 0),
       boss: cls.boss || 1,
       range: W.classOf(s.job)?.range || W.MELEE_RANGE,
     };
@@ -237,7 +245,7 @@ export class WorldGame {
     const e = s.equip;
     const g = (it) => (it ? `${it.uid}.${it.plus || 0}.${it.rar || 0}` : '-');
     const pets = this.activePets().map((p) => `${p.uid}.${p.lv}`).join(',');
-    return `${s.level}|${s.guildId ? W.guildLevel(this.guildExp) : 0}|${s.job}|${s.stats.str},${s.stats.dex},${s.stats.vit},${s.stats.int}|${W.SLOTS.map((x) => g(e[x.id])).join(',')}|${pets}|${s.mount || '-'}`;
+    return `${s.level}|${JSON.stringify(s.passLv || {})}|${s.guildId ? W.guildLevel(this.guildExp) : 0}|${s.job}|${s.stats.str},${s.stats.dex},${s.stats.vit},${s.stats.int}|${W.SLOTS.map((x) => g(e[x.id])).join(',')}|${pets}|${s.mount || '-'}`;
   }
   power() { return this.stats().power; }
 
@@ -515,8 +523,13 @@ export class WorldGame {
             const ps = this.passives();
             if (ps.has('dodge') && this.rng() < 0.25) { this.emit('passive', { id: 'dodge' }); continue; }   // 환왕
             const cls = W.CLASSES[this.s.job] || {};
-            if (cls.fear && this.rng() < cls.fear) { this.emit('passive', { id: 'fear', at: m }); continue; }   // 극악소마: 공포
-            const red = (1 - (cls.dmgRed || 0)) * (1 - (this.buffv.guard || 0));
+            const pm = this.pmods();
+            if (cls.fear && this.rng() < cls.fear + (pm.fearUp || 0)) {                                     // 극악소마: 공포
+              this.emit('passive', { id: 'fear', at: m });
+              if (pm.own5 && this.s.job === 'ring') this.strike(m, st, 1.5, 'mask');                        // 무면귀 5: 가면의 일격
+              continue;
+            }
+            const red = (1 - (cls.dmgRed || 0)) * (1 - (this.buffv.guard || 0)) * (1 - Math.min(0.6, pm.dmgRed || 0));
             const dmg = Math.max(1, m.atk * (0.9 + this.rng() * 0.2) * red - st.def);
             this.heroHp -= dmg;
             this.emit('heroHit', { amount: dmg });
@@ -645,6 +658,10 @@ export class WorldGame {
     this.emit('attack', { close });
     let mult = 1;
     if (this.s.job === 'ring' && close) mult *= 1.2;
+    const cls0 = W.CLASSES[this.s.job] || {};
+    const pm = this.pmods();
+    // 권마: 평타가 곧 무공 — 레벨만큼 + 투신심법
+    if (cls0.basicPerLv) mult *= (cls0.basicBase ?? 1) + cls0.basicPerLv * this.s.level + (pm.basicUp || 0);
     const ps = this.passives();
     // 권왕: 세 번째마다 ×3
     if (ps.has('combo') && (this.comboN = (this.comboN || 0) + 1) % 3 === 0) { mult *= 3; this.emit('passive', { id: 'combo', at: m }); }
@@ -652,9 +669,15 @@ export class WorldGame {
     this.strike(m, st, mult, 'hit');
     const cls = W.CLASSES[this.s.job] || {};
     // 검사 일화: 네 번째마다 꽃잎 검기가 과녁 둘레를 벤다
-    if (cls.flower && (this.flowerN = (this.flowerN || 0) + 1) % cls.flower.every === 0) {
+    if (cls.flower && (this.flowerN = (this.flowerN || 0) + 1) % (pm.own5 ? 3 : cls.flower.every) === 0) {
       this.emit('passive', { id: 'flower', at: { x: tx, y: ty } });
-      for (const o of this.mons.slice()) if (o.alive && !o.npc && Math.hypot(o.x - tx, (o.y - ty) * 0.75) <= cls.flower.r) this.strike(o, st, mult * cls.flower.mult, 'flower');
+      for (const o of this.mons.slice()) if (o.alive && !o.npc && Math.hypot(o.x - tx, (o.y - ty) * 0.75) <= cls.flower.r) this.strike(o, st, mult * cls.flower.mult * (1 + (pm.flowerUp || 0)), 'flower');
+    }
+    // 투신심법 5: 다섯 번째 평타마다 투신일격
+    if (this.s.job === 'fist' && pm.own5 && (this.fistN = (this.fistN || 0) + 1) % 5 === 0) {
+      this.emit('passive', { id: 'tusin', at: { x: tx, y: ty } });
+      if (m.alive) this.strike(m, st, mult * 2, 'tusin');
+      for (const o of this.mons.slice()) if (o.alive && o !== m && !o.npc && Math.hypot(o.x - tx, (o.y - ty) * 0.75) <= 160) this.strike(o, st, mult * 0.5, 'tusin');
     }
     // 권마 불패금신: 평타가 둘레를 친다
     if (this.buffv.cleave) {
@@ -689,9 +712,14 @@ export class WorldGame {
     }
     const cls = W.CLASSES[this.s.job] || {};
     if (m.alive && cls.slow) m.slow = 2.5;
-    if (m.alive && cls.vuln && !(m.vulnT > this.clock && m.vulnV > cls.vuln)) { m.vulnT = this.clock + 3; m.vulnV = cls.vuln; }
-    if (cls.drain) this.heroHp = Math.min(st.hp, this.heroHp + dmg * cls.drain);
-    if (m.alive && cls.poison && kind !== 'poison') this.addDot(m, dmg * cls.poison, cls.poisonSec || 3);
+    const pm = this.pmods();
+    if (m.alive && cls.vuln) {
+      const vv = cls.vuln + (pm.vulnUp || 0);
+      if (pm.own5 && m.vulnT > this.clock && this.rng() < 0.1) m.stun = Math.max(m.stun || 0, m.isBoss ? 0.4 : 1);   // 섭혼대법 5
+      if (!(m.vulnT > this.clock && m.vulnV > vv)) { m.vulnT = this.clock + 3; m.vulnV = vv; }
+    }
+    if (cls.drain) this.heroHp = Math.min(st.hp, this.heroHp + dmg * (cls.drain + (pm.drainUp || 0)));
+    if (m.alive && cls.poison && kind !== 'poison') this.addDot(m, dmg * (cls.poison + (pm.poisonUp || 0)), cls.poisonSec || 3);
     return dmg;
   }
   // 독·출혈: total만큼을 웅덩이에 붓는다 — 쌓인다(빠르기는 마지막에 부은 sec쯤)
@@ -723,7 +751,8 @@ export class WorldGame {
     if (W.CLASSES[this.s.job]?.spread && m.dot > 0) {
       const left = m.dot;
       m.dot = 0;
-      for (const o of this.mons) if (o.alive && !o.npc && o !== m && Math.hypot(o.x - m.x, (o.y - m.y) * 0.75) <= 140) this.addDot(o, left * 0.6, 4);
+      const k = this.pmods().own5 ? 1.2 : 0.6;   // 만독불침 5: 두 배로
+      for (const o of this.mons) if (o.alive && !o.npc && o !== m && Math.hypot(o.x - m.x, (o.y - m.y) * 0.75) <= 140) this.addDot(o, left * k, 4);
     }
     this.emit('kill', { gold, isBoss: m.isBoss, add: true, at: m, mat });
     this.addExp(exp);
@@ -1270,6 +1299,38 @@ export class WorldGame {
     this._mods = null;
     return true;
   }
+  // ---------- 심법 (패시브) ----------
+  passiveList() { return this.s.job ? W.passivesOf(this.s.job) : []; }
+  passLevel(id) { return this.s.passLv?.[id] || 0; }
+  canPassUp(id) {
+    const p = this.passiveList().find((x) => x.id === id);
+    const lv = this.passLevel(id);
+    return !!p && this.s.level >= p.from && lv < p.max && this.s.skillPts >= W.passiveCost(p, lv);
+  }
+  passUp(id) {
+    if (!this.canPassUp(id)) return false;
+    const p = this.passiveList().find((x) => x.id === id);
+    this.s.skillPts -= W.passiveCost(p, this.passLevel(id));
+    this.s.passLv[id] = this.passLevel(id) + 1;
+    this._pm = null;
+    this._stats = null;
+    return true;
+  }
+  // 심법이 주는 것을 한데 모은다 (own5: 독문 심법 5레벨 덧)
+  pmods() {
+    const key = `${this.s.job}|${JSON.stringify(this.s.passLv || {})}`;
+    if (this._pm?.key === key) return this._pm.v;
+    const v = {};
+    for (const p of this.passiveList()) {
+      const lv = this.passLevel(p.id);
+      if (!lv) continue;
+      for (const [k, x] of Object.entries(p.eff)) v[k] = (v[k] || 0) + x * lv;
+      if (p.id === 'p_own' && lv >= 5) v.own5 = true;
+    }
+    this._pm = { key, v };
+    return v;
+  }
+
   // 스킬 하나에 걸린 것: 스킬 레벨 + 끼고 있는 장비의 옵션
   skillMods(id) {
     const key = `${this.statSig()}|${JSON.stringify(this.s.skillLv)}`;

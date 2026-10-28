@@ -1900,7 +1900,7 @@ export class BattleView {
       }
     }
     if (fx) this.drawMobFx(ctx, a, x, y, sc, true);
-    if (a.stun > 0) iceBlock(ctx, x, y, 26, 88);
+    if (a.stun > 0) dizzy(ctx, x, y - 96 * sc, this.t);
     // 들판 정예는 드물어서 표를 단다
     if (a.elite) { ctx.globalAlpha = 1; gradeTag(ctx, '정예', x, y - 100 * sc, '#fb923c'); }
     // 마을 사람은 이름을 단다
@@ -2014,7 +2014,7 @@ export class BattleView {
     const top = y - 118 * scale;
     if (m.elite && m.alive) gradeTag(ctx, '정예', x, top - 26, '#fb923c');
     if (m.petEmoji) emoji(ctx, m.petEmoji, x + 58, y + 2 - Math.abs(Math.sin(this.t * 4 + 2)) * 6, 34, true);
-    if (m.stun > 0 && m.alive) iceBlock(ctx, x, y, 34 * scale, 115 * scale);
+    if (m.stun > 0 && m.alive) dizzy(ctx, x, y - 112 * scale, this.t);
     if (m.alive && !m.isRaid) {
       const bw = boss || m.trial || m.isHero ? 110 : 66;
       hpBar(ctx, x - bw / 2, top - 6, bw, 6, ratio(m.hp, m.maxHp), boss || m.trial ? '#b91c1c' : '#ea580c');
@@ -3104,6 +3104,21 @@ function nameTag(ctx, text, x, y, big = false) {
   ctx.strokeText(text, x, y);
   ctx.fillStyle = big ? '#fde68a' : '#fff';
   ctx.fillText(text, x, y);
+  ctx.restore();
+}
+
+// 기절·멎음 — 머리 위를 도는 별 셋 (v119: 얼음 덩어리는 옛 빙결 것이라 무공의 기절과 안 맞았다)
+function dizzy(ctx, x, y, t) {
+  ctx.save();
+  for (let i = 0; i < 3; i++) {
+    const a = t * 5 + (i * Math.PI * 2) / 3;
+    const sx = x + Math.cos(a) * 16, sy = y + Math.sin(a) * 5;
+    const r = 4.5 + Math.sin(a) * 1.2;
+    ctx.fillStyle = Math.sin(a) > 0 ? '#fde047' : 'rgba(253,224,71,0.6)';
+    ctx.beginPath();
+    for (let k = 0; k < 10; k++) { const rr = k % 2 ? r * 0.45 : r; const aa = (k * Math.PI) / 5 - Math.PI / 2; ctx.lineTo(sx + Math.cos(aa) * rr, sy + Math.sin(aa) * rr); }
+    ctx.closePath(); ctx.fill();
+  }
   ctx.restore();
 }
 

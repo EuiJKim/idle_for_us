@@ -120,7 +120,31 @@ function charTab(app) {
   // 마존 설정 — 머리 칸은 자주 다시 그려서(경험치 막대) 펼친 게 닫히므로 따로 둔다
   const loreBox = h('div');
   let loreJob = null;
-  root.append(head, loreBox, stats, skillCard, h('div', { class: 'card' }, h('h3', {}, '능력치'), derived));
+  // 심법 — 늘 켜진 패시브. 공용 여섯(점수 1씩)과 독문 심법 하나(무공처럼 n점)
+  const passCard = h('div', { class: 'card' });
+  let psSig = '';
+  function passives() {
+    const s = game.s;
+    const nsig = `${s.skillPts}|${JSON.stringify(s.passLv)}|${s.level}|${s.job}`;
+    if (nsig === psSig) return;
+    psSig = nsig;
+    passCard.replaceChildren(h('h3', {}, '심법', h('small', {}, `늘 켜진 패시브 · 스킬 점수 ${s.skillPts}`)));
+    for (const p of game.passiveList()) {
+      const lv = game.passLevel(p.id);
+      const max = lv >= p.max;
+      const locked = s.level < p.from;
+      const own = p.id === 'p_own';
+      passCard.append(h('div', { class: `row${locked ? ' locked' : ''}${own ? ' own' : ''}` },
+        h('div', { class: 'ico' }, p.name.slice(0, 2)),
+        h('div', { class: 'info' },
+          h('div', { class: 'name' }, p.name, h('small', {}, `${p.hanja}${own ? ' · 독문' : ''} · ${locked ? `레벨 ${p.from}부터` : `Lv.${lv}${max ? ' (최대)' : ''}`}`)),
+          h('div', { class: 'desc' }, lv ? p.text(lv) : `1레벨: ${p.text(1)}`)),
+        h('button', { class: 'buy', disabled: game.canPassUp(p.id) ? null : true, onclick: () => {
+          if (game.passUp(p.id)) { popUp(passCard, `${p.name} Lv.${game.passLevel(p.id)}`); app.save(); psSig = ''; skSig = ''; upd(); }
+        } }, max ? '최대' : locked ? '잠김' : `+1 · ${W.passiveCost(p, lv)}점`)));
+    }
+  }
+  root.append(head, loreBox, stats, skillCard, passCard, h('div', { class: 'card' }, h('h3', {}, '능력치'), derived));
   function upd() {
     const s = game.s;
     const st = game.stats();
@@ -138,6 +162,7 @@ function charTab(app) {
         h('p', {}, L.text))] : []));
     }
     skills();
+    passives();
     ptsEl.textContent = s.statPts;
     autoBtn.textContent = s.autoStat ? '자동 분배 켬' : '자동 분배 끔';
     autoBtn.classList.toggle('good', s.autoStat);

@@ -308,7 +308,17 @@ function handleEvents() {
         const t = T[ev.id];
         if (t) view.float(t[0], view.heroX + 28, view.groundY - 170, t[1], ev.id === 'harmony' ? 20 : 16, 0.9);
         // 일화: 꽃잎 검기 · 공포: 머뭇거린 적 위에 표 (v118)
-        if (ev.id === 'flower' && ev.at && view.fxLevel > 0) view.effects.push({ kind: 'shock', life: 0.35, max: 0.35, wx: ev.at.x, wy: ev.at.y, r: 70, col: '249,168,212', rings: 2, w: 3 });
+        if (ev.id === 'flower' && ev.at && view.fxLevel > 0) {
+          view.effects.push({ kind: 'shock', life: 0.35, max: 0.35, wx: ev.at.x, wy: ev.at.y, r: 70, col: '249,168,212', rings: 2, w: 3 });
+          view.effects.push({ kind: 'bloom', life: 0.5, max: 0.5, wx: ev.at.x, wy: ev.at.y, r: 26, oy: -55, col: '251,207,232' });
+        }
+        // 투신일격 — 권마 다섯 번째 평타
+        if (ev.id === 'tusin' && ev.at && view.fxLevel > 0) {
+          view.effects.push({ kind: 'shock', life: 0.45, max: 0.45, wx: ev.at.x, wy: ev.at.y, r: 120, col: '253,224,71', rings: 2, w: 6 });
+          view.effects.push({ kind: 'flare', life: 0.25, max: 0.25, wx: ev.at.x, wy: ev.at.y, r: 60, col: '245,158,11' });
+          view.shake = Math.max(view.shake, 0.18);
+          view.float('투신!', view.sx(ev.at), view.sy(ev.at) - 120, '#fde68a', 16, 0.7);
+        }
         if (ev.id === 'fear' && ev.at) view.float('움찔', view.sx(ev.at), view.sy(ev.at) - 96, '#d8b4fe', 13, 0.6);
         if (ev.id === 'harmony') view.effects.push({ kind: 'pillar', life: 1, max: 1 });
         break;
