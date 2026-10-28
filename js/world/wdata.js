@@ -77,6 +77,7 @@ export const mapOf = (id) => MAPS[id] || MAPS[0];
 export const NPCS = [
   { name: '사부', dx: -150, dy: -120, look: { robe: '#e7e5e4', trim: '#78716c', head: 'topknot', hair: '#e5e7eb', beard: true, weapon: 'sword' } },
   { name: '상인', dx: 150, dy: -90, look: { robe: '#92400e', head: 'hat', weapon: 'fan' } },
+  { name: '대장장이', dx: -110, dy: 110, tab: 'bag', look: { robe: '#44403c', trim: '#f59e0b', head: 'band', band: '#7c2d12', beard: true, weapon: 'axe' } },
   { name: '주모', dx: 40, dy: -260, look: { robe: '#be185d', trim: '#fbcfe8', head: 'topknot', weapon: 'fan' } },
 ];
 
@@ -107,7 +108,6 @@ export const GRADES = [
   { id: 3, name: '영웅', color: '#c084fc', mult: 2.4, w: 1.3 },
   { id: 4, name: '전설', color: '#fb923c', mult: 3.2, w: 0.2 },
 ];
-export const DROP_RATE = 0.07;
 export const BAG_SIZE = 30;
 // 아이템 기본 수치 (등급·강화 전)
 export const itemBase = (slot, ilv) => {
@@ -119,12 +119,57 @@ export const itemBase = (slot, ilv) => {
     default: return {};
   }
 };
+// ---------- 재료와 조합 ----------
+// 장비는 뽑기(드랍)로 얻지 않는다. 바람의나라 조합처럼 — 몹이 사냥터마다 정해진 재료를,
+// 두목이 증표를 떨구고, 마을 대장장이가 **아래 장비 + 재료 + 은자**로 위 장비를 만든다.
+// 장비 사다리: 사냥터마다 둘 — 하급(그 사냥터 재료) · 상급(하급 + 재료 + 두목 증표).
+// 다음 사냥터 하급은 앞 사냥터 장비(하급이든 상급이든)를 재료로 먹는다. 1번 하급은 재료만.
+export const MATS = [null, '청죽 마디', '사막 철편', '설원 빙정', '혈석', '귀화석', '운모 조각', '마철',
+  '수정 비늘', '금강석', '야명주', '매화철', '독초 정수', '현빙옥', '산호', '천외운철'];
+export const MAT_COLORS = [null, '#86efac', '#fcd34d', '#bae6fd', '#f87171', '#a5b4fc', '#e0f2fe', '#c084fc',
+  '#67e8f9', '#fde68a', '#fef9c3', '#fda4af', '#bef264', '#e2e8f0', '#fb7185', '#f0abfc'];
+// 두목 증표는 재료 주머니에 'b사냥터' 열쇠로 든다
+export const bossKey = (k) => `b${k}`;
+export const matName = (key) => (String(key)[0] === 'b' ? `${MAPS[+String(key).slice(1)]?.boss?.name || '두목'}의 증표` : MATS[key]);
+export const matColor = (key) => (String(key)[0] === 'b' ? '#fde68a' : MAT_COLORS[key]);
+export const MAT_RATE = 0.4;          // 몹 하나가 재료 하나를 떨굴 확률
+export const BOSS_MATS = 12;          // 두목은 재료 한 움큼 + 증표 하나
+export const TIER_COUNT = 15;         // 사냥터 수 = 장비 사다리 칸 수(×하급·상급)
+const CRAFT_MATS = { weapon: 80, armor: 60, hat: 48, acc: 60 };
+const CRAFT_BOSS = { weapon: 4, armor: 3, hat: 3, acc: 3 };
+// step: 0..29 — 사냥터 k = floor(step/2)+1, 홀수면 상급
+export const stepMap = (step) => Math.floor(step / 2) + 1;
+export const stepUpper = (step) => step % 2 === 1;
+export const craftLevel = (k) => MAPS[k]?.lv[1] || 1;
+// 조합 장비 수치 = 아이템 레벨 기본치 × 사다리 배수. 아이템 레벨만으로는 뒤로 갈수록 한 사냥터에
+// 7%밖에 안 올라서(기본치가 레벨에 곧게 오른다) 사다리 한 칸마다 ×1.12^½을 더 얹는다.
+// 상급은 아이템 레벨이 이 사냥터와 다음 사냥터의 가운데 — 그래서 '하급 < 상급 < 다음 하급'이 늘 선다.
+export const craftIlv = (step) => {
+  const k = stepMap(step);
+  if (!stepUpper(step)) return craftLevel(k);
+  return k < TIER_COUNT ? Math.round((craftLevel(k) + craftLevel(k + 1)) / 2) : craftLevel(k) + 4;
+};
+export const stepMult = (step) => 1.12 ** (step / 2);
+// 빛깔(등급 색)은 사냥터 셋마다 한 칸씩 — 일반 · 고급 · 희귀 · 영웅 · 전설
+export const stepGrade = (step) => Math.min(4, Math.floor((stepMap(step) - 1) / 3));
+// 조합법: 무엇을 내면 이것이 되나
+export function recipeOf(slot, step) {
+  const k = stepMap(step);
+  const up = stepUpper(step);
+  const mats = { [k]: Math.round(CRAFT_MATS[slot] * (up ? 1.5 : 1)) };
+  if (up) mats[bossKey(k)] = CRAFT_BOSS[slot];
+  // 받는 장비: 상급은 같은 사냥터 하급, 하급은 앞 사냥터 하급이나 상급 (1번 하급은 없음)
+  const from = up ? [step - 1] : k > 1 ? [step - 1, step - 2] : [];
+  return { slot, step, mats, from, gold: Math.round((30 + craftLevel(k) * 10) * (up ? 2 : 1)) };
+}
+// 장비 이름 — 사냥터 머리말 + 칸 이름 (상급은 앞에 '상급')
+const STEP_PREFIX = [null, '청죽', '사철', '빙정', '혈석', '귀화', '운모', '마철', '수정', '금강', '야명', '매화', '독룡', '현빙', '해왕', '천외'];
 export const ENHANCE_MAX = 10;
 export const ENHANCE_STEP = 0.1;                 // 한 단계에 기본 수치 +10%
 export const enhanceRate = (lv) => Math.max(0.4, 1 - lv * 0.07);   // +0→1 100%, +9→10 40%
 // 은자가 쌓이기만 하지 않게 — 사냥터를 옮겨 새 장비를 낄 때마다 다시 강화하는 데 쓰인다(시뮬로 맞춤)
 export const enhanceCost = (ilv, lv) => Math.round((50 + ilv * 15) * (lv + 1) ** 1.6);
-export const sellPrice = (item) => Math.round((3 + item.ilv * 1.5) * GRADES[item.grade].mult ** 2 * (1 + (item.plus || 0) * 0.2));
+export const sellPrice = (item) => Math.round((3 + item.ilv * 1.5) * (item.step != null ? (stepUpper(item.step) ? 2 : 1) : GRADES[item.grade].mult ** 2) * (1 + (item.plus || 0) * 0.2));
 // 이름: 지역마다 무기 결이 다르면 좋겠지만 단순하게 — 등급·칸 이름
 const SLOT_NOUN = {
   weapon: { sword: '검', fist: '권갑', fan: '부채', poison: '독낭', ring: '지환' },
@@ -132,6 +177,7 @@ const SLOT_NOUN = {
 };
 export const itemName = (item, job) => {
   const n = item.slot === 'weapon' ? (SLOT_NOUN.weapon[job] || '검') : SLOT_NOUN[item.slot];
+  if (item.step != null) return `${stepUpper(item.step) ? '상급 ' : ''}${STEP_PREFIX[stepMap(item.step)]}${n}`;
   return `${GRADES[item.grade].name} ${n}`;
 };
 

@@ -28,7 +28,7 @@ export function newWorldSave(now = Date.now()) {
     equip: { weapon: null, armor: null, hat: null, acc: null },
     bag: [],
     bagSize: W.BAG_SIZE,
-    autoSell: 1,             // 이 등급 이하는 주우면 바로 판다 (-1 끔, 0 일반, 1 고급까지)
+    mats: {},                // 재료 — 사냥터 번호: 개수
     map: 0,                  // 지금 있는 곳 (0 마을)
     huntMap: 1,              // 돌아갈 사냥터
     autoHunt: true,
@@ -50,6 +50,9 @@ export function migrateWorld(raw, now = Date.now()) {
   s.stats = { ...base.stats, ...(raw.stats || {}) };
   for (const k of Object.keys(s.stats)) s.stats[k] = Math.max(0, Math.floor(Number(s.stats[k]) || 0));
   s.equip = { ...base.equip, ...(raw.equip || {}) };
+  s.mats = {};
+  for (const [k, v] of Object.entries(raw.mats || {})) if ((W.MATS[k] || (k[0] === 'b' && W.MATS[k.slice(1)])) && v > 0) s.mats[k] = Math.floor(Number(v) || 0);
+  delete s.autoSell;
   s.bag = Array.isArray(raw.bag) ? raw.bag.filter((i) => i && W.SLOTS.some((x) => x.id === i.slot)) : [];
   s.level = clamp(Math.floor(Number(s.level) || 1), 1, W.LEVEL_MAX);
   for (const k of ['exp', 'gold', 'potions', 'statPts', 'jobTier', 'kills', 'deaths', 'books']) s[k] = Math.max(0, Number(s[k]) || 0);
@@ -112,7 +115,9 @@ export class WorldGame {
   itemStats(it) {
     if (!it) return {};
     const b = W.itemBase(it.slot, it.ilv);
-    const m = W.GRADES[it.grade].mult * (1 + (it.plus || 0) * W.ENHANCE_STEP);
+    // 조합 장비는 사다리 칸으로, 옛 판의 떨군 장비는 등급으로
+    const q = it.step != null ? W.stepMult(it.step) : W.GRADES[it.grade].mult;
+    const m = q * (1 + (it.plus || 0) * W.ENHANCE_STEP);
     const out = {};
     for (const [k, v] of Object.entries(b)) out[k] = v * m;
     return out;
@@ -192,7 +197,7 @@ export class WorldGame {
   placeNpcs() {
     for (const n of W.NPCS) {
       this.mons.push({ id: uidSeq++, npc: true, x: this.heroX + n.dx, y: this.heroY + n.dy, hp: 1, maxHp: 1, alive: true,
-        isBoss: false, stun: 0, def: { name: n.name, look: n.look } });
+        isBoss: false, stun: 0, tab: n.tab || 'town', def: { name: n.name, look: n.look } });
     }
   }
 
@@ -415,10 +420,10 @@ export class WorldGame {
     const gold = Math.round(W.mobGold(m.lv) * (m.isBoss ? W.BOSS.gold : 1));
     this.s.gold += gold;
     this.s.kills++;
-    this.emit('kill', { gold, isBoss: m.isBoss, add: true, at: m });
+    const mat = this.dropMats(m);
+    this.emit('kill', { gold, isBoss: m.isBoss, add: true, at: m, mat });
     this.addExp(exp);
     this.note(1, exp, gold, 0);
-    this.rollDrop(m);
     if (m === this.mon) this.mon = null;
     if (!m.isBoss) this.respawns.push({ t: W.RESPAWN_SEC });
     void st;
@@ -580,22 +585,70 @@ export class WorldGame {
     const st = this.itemStats(it);
     return (st.atk || 0) * 3 + (st.hp || 0) * 0.25 + (st.def || 0) * 2 + (st.crit || 0) * 900 + (st.atkPct || 0) * 600;
   }
-  rollGrade(minGrade = 0) {
-    const pool = W.GRADES.filter((g) => g.id >= minGrade);
-    const sum = pool.reduce((a, g) => a + g.w, 0);
-    let r = this.rng() * sum;
-    for (const g of pool) { r -= g.w; if (r <= 0) return g.id; }
-    return pool[pool.length - 1].id;
+  // ---------- 재료와 조합 ----------
+  // 몹은 그 사냥터 재료를, 두목은 재료 한 움큼과 증표를 떨군다. 장비는 떨구지 않는다.
+  dropMats(m) {
+    const id = this.s.map;
+    if (!W.MATS[id]) return null;
+    if (m.isBoss) {
+      this.addMats(id, W.BOSS_MATS);
+      this.addMats(W.bossKey(id), 1);
+      return { id, n: W.BOSS_MATS, name: W.MATS[id], color: W.MAT_COLORS[id], boss: W.matName(W.bossKey(id)) };
+    }
+    if (this.rng() >= W.MAT_RATE) return null;
+    this.addMats(id, 1);
+    return { id, n: 1, name: W.MATS[id], color: W.MAT_COLORS[id] };
   }
-  rollDrop(m) {
-    if (!m.isBoss && this.rng() >= W.DROP_RATE) return null;
-    const slot = W.SLOTS[Math.floor(this.rng() * W.SLOTS.length)].id;
-    const it = this.makeItem(slot, m.lv, this.rollGrade(m.isBoss ? 2 : 0));
-    this.emit('drop', { item: it, at: { x: m.x, y: m.y } });
-    this.gainItem(it);
+  addMats(key, n) { this.s.mats[key] = (this.s.mats[key] || 0) + n; }
+  makeCrafted(slot, step, plus = 0) {
+    return { uid: uidSeq++, slot, step, ilv: W.craftIlv(step), grade: W.stepGrade(step), plus };
+  }
+  // 그 칸에서 가진 것(낀 것 + 가방) 가운데 조합에 넣을 것 — 높은 칸, 같으면 낀 것
+  recipeSource(r) {
+    if (!r.from.length) return null;
+    const worn = this.s.equip[r.slot];
+    let best = null;
+    for (const it of [worn, ...this.s.bag]) {
+      if (!it || it.slot !== r.slot || it.step == null || !r.from.includes(it.step)) continue;
+      if (!best || it.step > best.step) best = it;
+    }
+    return best;
+  }
+  // 조합할 수 있나 — 모자란 것을 함께 돌려준다(화면에 '청죽 마디 12/40'처럼)
+  craftCheck(slot, step) {
+    const r = W.recipeOf(slot, step);
+    const src = this.recipeSource(r);
+    const lack = [];
+    if (r.from.length && !src) lack.push('item');
+    for (const [k, n] of Object.entries(r.mats)) if ((this.s.mats[k] || 0) < n) lack.push(k);
+    if (this.s.gold < r.gold) lack.push('gold');
+    return { r, src, ok: !lack.length, lack };
+  }
+  craft(slot, step) {
+    if (step < 0 || step >= W.TIER_COUNT * 2) return null;
+    const { r, src, ok } = this.craftCheck(slot, step);
+    if (!ok) return null;
+    for (const [k, n] of Object.entries(r.mats)) this.s.mats[k] -= n;
+    this.s.gold -= r.gold;
+    // 받은 장비는 사라지고, 강화는 절반을 이어받는다
+    const it = this.makeCrafted(slot, step, src ? Math.floor((src.plus || 0) / 2) : 0);
+    const wore = src && this.s.equip[slot] === src;
+    if (src) {
+      if (wore) this.s.equip[slot] = null;
+      else this.s.bag = this.s.bag.filter((x) => x !== src);
+    }
+    this.emit('craft', { item: it });
+    if (wore) { this.s.equip[slot] = it; this._stats = null; this.emit('equip', { item: it }); } else this.gainItem(it);
     return it;
   }
-  // 주운 것: 끼고 있는 것보다 좋으면 끼고, 자동 판매 등급이면 팔고, 아니면 가방에.
+  // 다음에 만들 수 있는 것: 가진 가장 높은 칸에서 한 걸음(상급) · 두 걸음(다음 사냥터 하급)
+  nextSteps(slot) {
+    let top = -1;
+    for (const it of [this.s.equip[slot], ...this.s.bag]) if (it && it.slot === slot && it.step != null) top = Math.max(top, it.step);
+    const out = top < 0 ? [0] : top % 2 === 0 ? [top + 1, top + 2] : [top + 1];
+    return out.filter((x) => x < W.TIER_COUNT * 2);
+  }
+  // 새 장비: 끼고 있는 것보다 좋으면 끼고, 아니면 가방에.
   gainItem(it) {
     const cur = this.s.equip[it.slot];
     if (this.itemScore(it) > this.itemScore(cur)) {
@@ -608,7 +661,6 @@ export class WorldGame {
     return this.stash(it);
   }
   stash(it) {
-    if (it.grade <= this.s.autoSell && !it.plus) { this.sell(it, true); return 'sold'; }
     this.s.bag.push(it);
     // 가방이 넘치면 가장 나쁜 것부터 판다
     while (this.s.bag.length > this.s.bagSize) {
@@ -712,20 +764,11 @@ export class WorldGame {
     const potionSec = r.potions > 0 ? this.s.potions / r.potions : Infinity;
     const t = Math.min(sec, potionSec);
     const kills = Math.floor(r.kills * t);
-    const m = W.mapOf(r.map);
-    const lv = (m.lv[0] + m.lv[1]) / 2;
-    // 장비: 처치 수만큼 굴리되 영웅 이상만 남기고 나머지는 판 값으로
-    const drops = [0, 0, 0, 0, 0];
-    const n = Math.round(kills * W.DROP_RATE);
-    for (let i = 0; i < Math.min(n, 4000); i++) drops[this.rollGrade(0)]++;
-    const keep = [];
-    let soldGold = 0;
-    for (let g = 0; g < 5; g++) {
-      if (g >= 3) for (let i = 0; i < drops[g]; i++) keep.push(this.makeItem(W.SLOTS[Math.floor(this.rng() * 4)].id, Math.round(lv), g));
-      else soldGold += drops[g] * W.sellPrice({ ilv: lv, grade: g, plus: 0 });
-    }
-    return { sec, t, kills, exp: Math.floor(r.exp * t), gold: Math.floor(r.gold * t) + soldGold, potions: Math.ceil(r.potions * t),
-      drops, keep, stoppedByPotion: potionSec < sec, map: r.map };
+    // 재료: 처치 수만큼 굴린 기댓값 (장비는 마을 대장장이에게서)
+    const mats = W.MATS[r.map] ? Math.floor(kills * W.MAT_RATE) : 0;
+    const marks = W.MATS[r.map] ? Math.floor(t / W.BOSS_EVERY) : 0;     // 두목은 4분마다 — 잡았다 치고 증표
+    return { sec, t, kills, exp: Math.floor(r.exp * t), gold: Math.floor(r.gold * t + marks * W.mobGold(W.mapOf(r.map).lv[1]) * W.BOSS.gold),
+      potions: Math.ceil(r.potions * t), mats, marks, stoppedByPotion: potionSec < sec, map: r.map };
   }
   claimOffline(rw) {
     if (!rw) return;
@@ -733,6 +776,7 @@ export class WorldGame {
     this.s.potions = Math.max(0, this.s.potions - rw.potions);
     this.addExp(rw.exp);
     this.s.kills += rw.kills;
-    for (const it of rw.keep) this.gainItem(it);
+    if (rw.mats) this.addMats(rw.map, rw.mats + (rw.marks || 0) * W.BOSS_MATS);
+    if (rw.marks) this.addMats(W.bossKey(rw.map), rw.marks);
   }
 }

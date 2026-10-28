@@ -46,7 +46,7 @@ const FX_NAME = { high: '높음', mid: '보통', low: '낮음' };
 function loadFxPref() { try { return localStorage.getItem('ifu.fx') || 'high'; } catch { return 'high'; } }
 view.fxPref = Math.max(0, FX_PREF.indexOf(loadFxPref()));
 
-const app = { game, net: null, refresh: () => refreshUI(true), save: () => save(), closePanel: () => closePanel() };
+const app = { game, net: null, refresh: () => refreshUI(true), save: () => save(), closePanel: () => closePanel(), showTab: (t) => showTab(t) };
 const net = new WNet(game, { onChange: (w) => netChanged(w) });
 app.net = net;
 
@@ -210,7 +210,7 @@ function handleEvents() {
       case 'skill': sfx('skill'); break;
       case 'kill': sfx('kill'); break;
       case 'levelUp': sfx('level'); break;
-      case 'drop': if (ev.item.grade >= 2) sfx('loot'); break;
+      case 'craft': sfx('loot'); break;
       case 'potion': sfx('potion'); break;
       case 'heroHit': sfx('hurt'); break;
       case 'heroDied': sfx('down'); break;
@@ -224,11 +224,15 @@ function handleEvents() {
         if (W.MAPS.some((m) => !m.town && m.lv[0] === ev.level)) toast(`새 사냥터가 열렸어요 — ${W.MAPS.find((m) => !m.town && m.lv[0] === ev.level).name}`);
         drawPortrait();
         break;
-      case 'drop':
-        if (ev.item.grade >= 2) toast(`${W.GRADES[ev.item.grade].name} 장비! ${itemTitle(game, ev.item)}`);
+      case 'kill':
+        if (ev.mat?.boss) toast(`두목을 잡았어요 — ${ev.mat.boss} · ${ev.mat.name} ${ev.mat.n}개`);
         break;
       case 'equip':
-        if (ev.item.grade >= 1) toast(`더 좋은 장비를 꼈어요 — ${itemTitle(game, ev.item)}`);
+        drawPortrait();
+        break;
+      case 'craft':
+        toast(`조합 성공! ${itemTitle(game, ev.item)}`);
+        view.showBanner(itemTitle(game, ev.item), W.GRADES[ev.item.grade].color, 1.4, '조합');
         break;
       case 'bossAppear':
         toast(`두목 ${ev.name}(Lv.${ev.lv})이 나타났어요!`);
@@ -270,12 +274,18 @@ $('stagebar').addEventListener('click', () => showTab('map'));
 // ---------- 들판을 눌러 움직이기 ----------
 $('cv').addEventListener('pointerdown', (e) => {
   if (modalOpen()) return;
-  if (game.map.town) { showTab('town'); return; }
   const r = $('cv').getBoundingClientRect();
   const px = e.clientX - r.left;
   const py = e.clientY - r.top;
   const wx = game.heroX + (px - view.heroX);
   const wy = game.heroY + (py - view.groundY) / view.squash;
+  if (game.map.town) {
+    // 대장장이를 누르면 가방(조합), 다른 사람이면 마을 창
+    let near = null;
+    for (const m of game.mons) if (m.npc && (!near || Math.hypot(m.x - wx, m.y - 40 - wy) < Math.hypot(near.x - wx, near.y - 40 - wy))) near = m;
+    showTab(near && Math.hypot(near.x - wx, near.y - 40 - wy) < 70 ? near.tab : 'town');
+    return;
+  }
   game.moveTo(wx, wy);
   view.effects.push({ kind: 'shock', life: 0.35, max: 0.35, wx, wy, r: 22, col: '253,224,71', rings: 1, w: 3 });
 });
@@ -349,7 +359,6 @@ function checkReturn(now = Date.now()) {
   game.s.lastSeen = now;
   if (!rw || modalOpen()) return;
   openModal((s) => {
-    const g = rw.drops;
     s.append(h('h2', {}, '🌙 다녀오셨어요!'),
       h('p', { class: 'muted' }, `${duration(rw.t)} 동안 ${W.mapOf(rw.map).name}에서 사냥했어요.`
         + (rw.stoppedByPotion ? ` 물약이 떨어져서 거기서 멈췄어요 (${duration(rw.sec)} 중).` : '')),
@@ -358,8 +367,8 @@ function checkReturn(now = Date.now()) {
         h('div', {}, '경험치', h('b', {}, fmt(rw.exp))),
         h('div', {}, '은자', h('b', {}, fmt(rw.gold))),
         h('div', {}, '먹은 물약', h('b', {}, `${rw.potions}개`))),
-      h('p', { class: 'muted' }, `주운 장비: ${W.GRADES.map((x, i) => (g[i] ? `${x.name} ${g[i]}` : null)).filter(Boolean).join(' · ') || '없음'}`
-        + (rw.keep.length ? ` — 영웅 이상 ${rw.keep.length}개는 가방에` : ' (판 값은 은자에 넣었어요)')),
+      h('p', { class: 'muted' }, !rw.mats ? '' : `모은 재료: ${W.MATS[rw.map]} ${fmt(rw.mats + (rw.marks || 0) * W.BOSS_MATS)}개`
+        + (rw.marks ? ` · ${W.matName(W.bossKey(rw.map))} ${rw.marks}개` : '') + ' — 가방의 대장장이에서 장비를 조합해요'),
       h('button', { class: 'btn primary', style: 'width:100%', onclick: closeModal }, '받기'));
   }, { dismissable: false, onClose: () => { game.claimOffline(rw); save(); refreshUI(true); } });
 }

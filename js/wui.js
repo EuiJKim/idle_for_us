@@ -87,14 +87,16 @@ function charTab(app) {
 }
 
 // ---------- 가방 ----------
+// 맨 위 대장장이(조합: 아래 장비 + 재료 + 은자 → 위 장비), 끼고 있는 것, 가방.
 function bagTab(app) {
   const { game } = app;
   const root = h('div');
+  const smithCard = h('div', { class: 'card' });
   const equipCard = h('div', { class: 'card' });
   const bagCard = h('div', { class: 'card' });
-  const sellRow = h('div', { class: 'btn-row' });
-  root.append(equipCard, bagCard);
+  root.append(smithCard, equipCard, bagCard);
   let sig = '';
+  const done = () => { app.save(); sig = ''; app.refresh(); };
   function openItem(it, worn) {
     openModal((s) => {
       const paint = () => {
@@ -107,45 +109,97 @@ function bagTab(app) {
           h('p', {}, `${W.SLOTS.find((x) => x.id === it.slot).name} · 아이템 레벨 ${it.ilv} · ${g.name}`),
           h('p', {}, h('b', {}, itemLines(game, it))),
           !worn && cur ? h('p', { class: 'muted' }, `지금 낀 것: ${itemTitle(game, cur)} — ${itemLines(game, cur)}`) : null,
+          it.step != null ? h('p', { class: 'muted' }, `${W.mapOf(W.stepMap(it.step)).name} ${W.stepUpper(it.step) ? '상급' : '하급'} — 대장장이에서 위 장비의 조합 재료가 돼요 (강화는 절반을 이어받아요)`) : null,
           h('p', { class: 'muted' }, max ? '강화를 다 했어요' : `강화 +${(it.plus || 0) + 1} — 성공률 ${pct(W.enhanceRate(it.plus || 0), 0)} · 은자 ${fmt(cost)} (실패해도 깨지지 않아요)`),
           h('div', { class: 'btn-row' },
-            !worn ? h('button', { class: 'btn primary', onclick: () => { game.equipFromBag(it.uid); app.save(); closeModal(); app.refresh(); } }, '끼기') : null,
+            !worn ? h('button', { class: 'btn primary', onclick: () => { game.equipFromBag(it.uid); closeModal(); done(); } }, '끼기') : null,
             h('button', { class: 'btn good', disabled: max || game.s.gold < cost ? true : null, onclick: () => {
               const ok = game.enhance(it.uid);
               if (ok === null) return toast('은자가 모자라요');
               toast(ok ? `강화 성공! +${it.plus}` : '강화 실패… (깨지지는 않아요)');
               app.save(); paint(); app.refresh();
             } }, '강화'),
-            !worn ? h('button', { class: 'btn', onclick: () => { const p = game.sell(it); toast(`은자 +${fmt(p)}`); app.save(); closeModal(); app.refresh(); } }, `팔기 ${fmt(W.sellPrice(it))}`) : null,
+            !worn ? h('button', { class: 'btn', onclick: () => { const p = game.sell(it); toast(`은자 +${fmt(p)}`); closeModal(); done(); } }, `팔기 ${fmt(W.sellPrice(it))}`) : null,
             h('button', { class: 'btn', onclick: closeModal }, '닫기')));
       };
       paint();
     });
   }
+  // 대장장이 — 칸마다 다음에 만들 수 있는 것과 그 조합법. 모자란 것은 붉게.
+  function need(label, have, want, color) {
+    const ok = have >= want;
+    return h('span', { class: `need${ok ? ' ok' : ''}`, style: color ? `--mc:${color}` : '' }, label, ' ', h('b', {}, `${fmt(Math.min(have, want))}/${fmt(want)}`));
+  }
+  function smith() {
+    const s = game.s;
+    const keys = Object.keys(s.mats).filter((k) => s.mats[k] > 0)
+      .sort((a, b) => (parseInt(a.replace('b', ''), 10) - parseInt(b.replace('b', ''), 10)) || (a[0] === 'b') - (b[0] === 'b'));
+    smithCard.replaceChildren(h('h3', {}, '대장장이', h('small', {}, '아래 장비 + 재료 + 은자 → 위 장비')),
+      keys.length ? h('div', { class: 'mat-row' }, ...keys.map((k) => h('span', { class: 'mat-chip', style: `--mc:${W.matColor(k)}` },
+        h('b', {}, W.matName(k)), h('small', {}, fmt(s.mats[k])))))
+        : h('p', { class: 'muted' }, '몹은 그 사냥터 재료를, 두목은 재료 한 움큼과 증표를 떨궈요. 모아서 장비를 조합해요.'));
+    for (const sl of W.SLOTS) {
+      for (const step of game.nextSteps(sl.id)) {
+        const { r, src, ok } = game.craftCheck(sl.id, step);
+        const sample = game.makeCrafted(sl.id, step);
+        const parts = [];
+        if (r.from.length) {
+          const want = { slot: sl.id, step: r.from[0], grade: W.stepGrade(r.from[0]) };
+          parts.push(h('span', { class: `need${src ? ' ok' : ''}` }, src ? itemTitle(game, src) : `${W.itemName(want, s.job)}${r.from.length > 1 ? ' (또는 상급)' : ''}`, ' ', h('b', {}, src ? '✓' : '없음')));
+        }
+        for (const [k, n] of Object.entries(r.mats)) parts.push(need(W.matName(k), s.mats[k] || 0, n, W.matColor(k)));
+        parts.push(need('은자', s.gold, r.gold));
+        smithCard.append(h('div', { class: `row craft-row${ok ? ' ready' : ''}` },
+          h('div', { class: 'ico' }, sl.name),
+          h('div', { class: 'info' },
+            h('div', { class: 'name', style: `color:${W.GRADES[sample.grade].color}` }, itemTitle(game, sample), h('small', {}, `Lv.${sample.ilv} · ${itemLines(game, sample)}`)),
+            h('div', { class: 'desc needs' }, ...parts)),
+          h('button', { class: 'buy', disabled: ok ? null : true, onclick: () => {
+            const it = game.craft(sl.id, step);
+            if (it) done();
+          } }, '조합')));
+      }
+    }
+  }
   function upd() {
     const s = game.s;
-    const nsig = `${game.statSig()}|${s.bag.map((i) => i.uid + '.' + i.plus).join(',')}|${s.autoSell}|${s.bagSize}`;
+    const nsig = `${game.statSig()}|${s.bag.map((i) => i.uid + '.' + i.plus).join(',')}|${s.bagSize}|${JSON.stringify(s.mats)}|${Math.floor(Math.log10(s.gold + 1) * 20)}`;
     if (nsig === sig) return;
     sig = nsig;
+    smith();
     equipCard.replaceChildren(h('h3', {}, '끼고 있는 것', h('small', {}, '눌러서 강화')));
     for (const sl of W.SLOTS) {
       const it = s.equip[sl.id];
       equipCard.append(h('div', { class: 'equip-slot' }, h('span', { class: 'slot-name' }, sl.name),
         it ? itemChip(game, it, { onclick: () => openItem(it, true) }) : h('div', { class: 'item-chip empty' }, '비어 있음')));
     }
-    const sorted = s.bag.slice().sort((a, b) => b.grade - a.grade || b.ilv - a.ilv);
-    const grid = h('div', { class: 'bag-grid' }, ...sorted.map((it) => itemChip(game, it, { onclick: () => openItem(it, false) })));
-    const sellSel = h('div', { class: 'seg' }, ...[[-1, '끔'], [0, '일반'], [1, '고급까지'], [2, '희귀까지']].map(([g, label]) =>
-      h('button', { class: s.autoSell === g ? 'on' : '', onclick: () => { s.autoSell = g; app.save(); sig = ''; upd(); } }, label)));
-    sellRow.replaceChildren(
-      h('button', { class: 'btn', onclick: () => { const p = game.sellBagBelow(1); toast(p ? `일반·고급을 팔아 은자 +${fmt(p)}` : '팔 것이 없어요'); app.save(); app.refresh(); } }, '일반·고급 다 팔기'),
-      h('button', { class: 'btn', disabled: game.s.gold < game.bagUpgradeCost() || s.bagSize >= 80 ? true : null, onclick: () => { if (game.buyBagSpace()) { toast('가방이 10칸 넓어졌어요'); app.save(); app.refresh(); } } },
-        s.bagSize >= 80 ? '가방 끝까지 넓힘' : `가방 +10칸 · 은자 ${fmt(game.bagUpgradeCost())}`));
+    // 같은 것(칸·레벨·등급·강화)은 한 칸에 ×n으로 묶는다 — 셋이 모이면 합성할 수 있다는 게 보이게
+    const groups = new Map();
+    for (const it of s.bag) {
+      const k = `${it.slot}|${it.ilv}|${it.grade}|${it.plus || 0}`;
+      if (!groups.has(k)) groups.set(k, []);
+      groups.get(k).push(it);
+    }
+    const sorted = [...groups.values()].sort((a, b) => b[0].grade - a[0].grade || b[0].ilv - a[0].ilv);
+    const grid = h('div', { class: 'bag-grid' }, ...sorted.map((g) => {
+      const chip = itemChip(game, g[0], { onclick: () => openItem(g[0], false) });
+      if (g.length > 1) chip.append(h('i', { class: 'cnt' }, `×${g.length}`));
+      return chip;
+    }));
+    // 낀 것보다 약한 것 (조합은 가진 가장 높은 장비로 하니 쓸 일이 없다)
+    const old = s.bag.filter((x) => s.equip[x.slot] && game.itemScore(x) < game.itemScore(s.equip[x.slot]) && !x.plus);
     bagCard.replaceChildren(
       h('h3', {}, '가방', h('small', {}, `${s.bag.length} / ${s.bagSize} · 넘치면 가장 나쁜 것부터 팔아요`)),
-      h('div', { class: 'stat-head' }, h('span', { class: 'muted' }, '주우면 바로 팔기'), sellSel),
-      grid.childElementCount ? grid : h('p', { class: 'muted' }, '가방이 비었어요. 더 좋은 장비는 주우면 바로 껴요.'),
-      sellRow);
+      grid.childElementCount ? grid : h('p', { class: 'muted' }, '가방이 비었어요. 대장장이가 만든 장비는 낀 것보다 좋으면 바로 껴요.'),
+      h('div', { class: 'btn-row' },
+        h('button', { class: 'btn', disabled: old.length ? null : true, onclick: () => {
+          let p = 0;
+          for (const it of old) p += game.sell(it);
+          toast(`약한 장비 ${old.length}개를 팔아 은자 +${fmt(p)}`);
+          done();
+        } }, `약한 것 팔기${old.length ? ` ${old.length}` : ''}`),
+        h('button', { class: 'btn', disabled: game.s.gold < game.bagUpgradeCost() || s.bagSize >= 80 ? true : null, onclick: () => { if (game.buyBagSpace()) { toast('가방이 10칸 넓어졌어요'); done(); } } },
+          s.bagSize >= 80 ? '가방 끝까지' : `+10칸 · ${fmt(game.bagUpgradeCost())}`)));
   }
   return { root, update: upd };
 }
@@ -195,6 +249,11 @@ function townTab(app) {
       ? h('p', {}, '마을에서 쉬는 중 — 체력이 빠르게 차요.', s.autoHunt ? ` 다 차면 ${W.mapOf(s.huntMap).name}(으)로 돌아가요.` : '')
       : h('div', { class: 'btn-row' }, h('span', { class: 'muted', style: 'flex:2;align-self:center' }, '상점과 사부는 마을에 있어요.'),
         h('button', { class: 'btn primary', onclick: () => { game.goTown(); app.refresh(); } }, '마을로 가기')));
+    status.append(h('div', { class: 'row', style: 'margin-top:8px' },
+      h('div', { class: 'ico' }, '대장'),
+      h('div', { class: 'info' }, h('div', { class: 'name' }, '대장장이'),
+        h('div', { class: 'desc' }, '아래 장비 + 사냥터 재료 + 두목 증표로 위 장비를 조합해요. 어디서나 맡길 수 있어요.')),
+      h('button', { class: 'buy', onclick: () => app.showTab?.('bag') }, '조합')));
     // 사부 — 전직
     const t = game.nextTier();
     const sk = t && W.skillsOf(s.job).find((k) => k.tier === s.jobTier + 1);

@@ -80,8 +80,7 @@ console.log('\n=== 장비 ===');
   const atk1 = g.stats().atk;
   ok(g.gainItem(strong) === 'equip' && g.s.equip.weapon === strong, '더 좋은 것을 주우면 바꿔 낀다');
   ok(g.stats().atk > atk1, '공격력이 오른다', `${Math.round(atk1)} → ${Math.round(g.stats().atk)}`);
-  ok(!g.s.bag.some((x) => x.uid === weak.uid), '밀려난 일반 장비는 자동 판매된다(기본: 고급까지)');
-  g.s.autoSell = -1;
+  ok(g.s.bag.some((x) => x.uid === weak.uid), '밀려난 장비는 가방에 든다');
   for (let i = 0; i < g.s.bagSize + 5; i++) g.gainItem(g.makeItem('armor', 1, 0));
   ok(g.s.bag.length === g.s.bagSize, '가방이 넘치면 나쁜 것부터 판다', `${g.s.bag.length}/${g.s.bagSize}`);
   g.s.gold = 1e9;
@@ -91,15 +90,58 @@ console.log('\n=== 장비 ===');
   ok(strong.plus === p0 + 1, '강화하면 +1', `+${strong.plus}`);
   for (let i = 0; i < 200; i++) g.enhance(strong.uid);
   ok(strong.plus === W.ENHANCE_MAX, `강화는 +${W.ENHANCE_MAX}까지`, `+${strong.plus}`);
-  // 드랍률 — 몹 1만 마리에 7% 안팎, 두목은 늘 희귀 이상
+}
+
+console.log('\n=== 재료와 조합 (바람식) ===');
+{
+  // 몹은 장비가 아니라 그 사냥터 재료를 떨군다. 두목은 한 움큼 + 증표.
   const h = fresh();
   h.enterMap(1);
   let n = 0;
-  for (let i = 0; i < 10000; i++) if (h.rollDrop({ lv: 5, isBoss: false, x: 0, y: 0 })) n++;
-  ok(Math.abs(n / 10000 - W.DROP_RATE) < 0.012, '몹 드랍률이 설계대로', `${(n / 100).toFixed(1)}%`);
-  let bossOk = true;
-  for (let i = 0; i < 200; i++) if (h.rollDrop({ lv: 10, isBoss: true, x: 0, y: 0 }).grade < 2) bossOk = false;
-  ok(bossOk, '두목은 늘 희귀 이상을 떨군다');
+  for (let i = 0; i < 10000; i++) if (h.dropMats({ lv: 5, isBoss: false })) n++;
+  ok(Math.abs(n / 10000 - W.MAT_RATE) < 0.02, '몹 재료 확률이 설계대로', `${(n / 100).toFixed(1)}%`);
+  ok(h.s.mats[1] === n && !h.s.bag.length && !h.s.equip.weapon, '재료만 쌓이고 장비는 떨어지지 않는다', `${W.MATS[1]} ${h.s.mats[1]}`);
+  h.dropMats({ lv: 6, isBoss: true });
+  ok(h.s.mats[W.bossKey(1)] === 1 && h.s.mats[1] === n + W.BOSS_MATS, '두목은 재료 한 움큼과 증표를 떨군다', W.matName(W.bossKey(1)));
+  // 조합 사다리: 청죽검 → 상급 청죽검 → 사철검
+  const g = fresh();
+  g.s.gold = 1e7;
+  ok(g.craft('weapon', 0) === null, '재료가 모자라면 조합할 수 없다');
+  g.s.mats = { 1: 1000, b1: 20, 2: 1000, b2: 20 };
+  ok(JSON.stringify(g.nextSteps('weapon')) === '[0]', '처음엔 사냥터 1 하급만 만들 수 있다');
+  ok(g.craft('weapon', 2) === null, '아래 장비 없이 위 장비는 못 만든다');
+  const w0 = g.craft('weapon', 0);
+  ok(w0 && g.s.equip.weapon === w0 && W.itemName(w0, 'sword') === '청죽검', '하급은 재료와 은자로 — 바로 낀다', W.itemName(w0, 'sword'));
+  const r1 = W.recipeOf('weapon', 1);
+  ok(r1.mats[W.bossKey(1)] > 0 && r1.from[0] === 0, '상급은 하급 + 재료 + 두목 증표');
+  w0.plus = 6;
+  const atk0 = g.stats().atk;
+  const m1 = g.s.mats[1];
+  const w1 = g.craft('weapon', 1);
+  ok(w1 && g.s.equip.weapon === w1 && !g.findItem(w0.uid), '조합하면 아래 장비는 사라지고 위 장비를 낀다', W.itemName(w1, 'sword'));
+  ok(w1.plus === 3, '강화는 절반을 이어받는다', `+${w1.plus}`);
+  ok(g.s.mats[1] === m1 - r1.mats[1], '재료를 쓴다');
+  ok(g.stats().atk > atk0, '공격력이 오른다', `${Math.round(atk0)} → ${Math.round(g.stats().atk)}`);
+  const w2 = g.craft('weapon', 2);
+  ok(w2 && W.stepMap(w2.step) === 2 && w2.ilv === W.craftIlv(2), '다음 사냥터 하급은 앞 사냥터 장비를 받는다', W.itemName(w2, 'sword'));
+  // 사다리 끝까지 — 칸마다 강해지기만
+  const z = fresh();
+  z.s.gold = 1e12;
+  for (let k = 1; k <= W.TIER_COUNT; k++) { z.s.mats[k] = 1e5; z.s.mats[W.bossKey(k)] = 100; }
+  let mono = true;
+  let prev = 0;
+  for (let st = 0; st < W.TIER_COUNT * 2; st++) {
+    const it = z.craft('armor', st);
+    if (!it) { mono = false; break; }
+    const sc = z.itemScore(it);
+    if (sc <= prev) mono = false;
+    prev = sc;
+  }
+  ok(mono && z.s.equip.armor.step === W.TIER_COUNT * 2 - 1, `조합 사다리 ${W.TIER_COUNT * 2}칸이 이어지고 갈수록 강하다`, W.itemName(z.s.equip.armor, 'sword'));
+  ok(z.nextSteps('armor').length === 0, '끝에 닿으면 더 만들 것이 없다');
+  // 옛 판(드랍) 장비도 그대로 읽힌다
+  const legacy = { slot: 'weapon', ilv: 10, grade: 2, plus: 1, uid: 99999 };
+  ok(Number.isFinite(g.itemStats(legacy).atk), '옛 드랍 장비도 수치가 나온다');
 }
 
 console.log('\n=== 전직·스킬 ===');
@@ -217,6 +259,8 @@ console.log('\n=== 다섯 캐릭터 · 2시간 ===');
         const want = Math.max(0, 40 - g.s.potions);
         if (want) g.buyPotions(Math.min(want, Math.floor(g.s.gold / g.potionPrice())));
       }
+      // 30초마다 대장장이 — 만들 수 있는 가장 높은 것
+      if (t % 30 < 0.1) for (const sl of W.SLOTS) for (const st of g.nextSteps(sl.id).reverse()) if (g.craft(sl.id, st)) break;
       let best = 1;
       for (const m of W.MAPS) if (!m.town && g.canEnter(m.id) && g.s.level >= m.lv[0] + 3) best = Math.max(best, m.id);
       if (best !== g.s.huntMap && !g.map.town) { g.s.huntMap = best; g.goTown(); }

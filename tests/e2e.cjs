@@ -56,7 +56,7 @@ async function tab(page, name) {
   console.log('# 시작');
   await sleep(600);
   const s0 = await G(p, () => ({ job: window.__game.s.job, map: window.__game.s.map, npc: window.__game.mons.filter((m) => m.npc).length, pot: window.__game.s.potions }));
-  assert(s0.job === 'sword' && s0.map === 0 && s0.npc === 3, '검사로 마을에서 시작 · 마을 사람 셋');
+  assert(s0.job === 'sword' && s0.map === 0 && s0.npc === 4, '검사로 마을에서 시작 · 마을 사람 넷');
   assert(s0.pot >= 20, `시작 물약 ${s0.pot}개`);
   await shot(p, '01-town.png');
 
@@ -86,9 +86,20 @@ async function tab(page, name) {
   assert(await G(p, () => window.__game.s.stats.str) === str0 + 1, '힘 +1');
   await shot(p, '03-char.png');
 
-  console.log('# 가방·강화');
-  await G(p, () => { const g = window.__game; g.s.gold = 1e6; g.s.autoSell = -1; g.gainItem(g.makeItem('weapon', 9, 3)); g.gainItem(g.makeItem('armor', 2, 0)); });
+  console.log('# 대장장이 조합');
+  await G(p, () => { const g = window.__game; g.s.gold = 1e6; g.s.mats = { 1: 500, b1: 10 }; g.s.equip.weapon = null; });
   await tab(p, 'bag');
+  await p.waitForSelector('#panel .craft-row.ready');
+  await p.locator('#panel .craft-row:has-text("무기") button:has-text("조합")').first().click();
+  await sleep(200);
+  assert(await G(p, () => window.__game.s.equip.weapon?.step === 0), '하급 무기를 조합해 낀다');
+  await p.locator('#panel .craft-row:has-text("상급") button:has-text("조합")').first().click();
+  await sleep(200);
+  assert(await G(p, () => window.__game.s.equip.weapon?.step === 1), '하급 + 재료 + 증표 → 상급');
+  await shot(p, '04a-smith.png');
+
+  console.log('# 가방·강화');
+  await G(p, () => { const g = window.__game; g.gainItem(g.makeCrafted('armor', 0)); });
   await p.locator('#panel .equip-slot:has-text("무기") .item-chip').click();
   await p.waitForSelector('#modal h2');
   const plus0 = await G(p, () => window.__game.s.equip.weapon.plus);
@@ -107,6 +118,7 @@ async function tab(page, name) {
   await sleep(300);
   assert(await G(p, () => window.__game.map.town), '마을로');
   await tab(p, 'town');
+  await sleep(400);   // 시트가 다시 열리는 중이면 누름이 빗나간다
   const pot0 = await G(p, () => window.__game.s.potions);
   await p.locator('#panel .buy:has-text("50개")').click();
   assert(await G(p, () => window.__game.s.potions) === pot0 + 50, '물약 50개');

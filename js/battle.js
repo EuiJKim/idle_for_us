@@ -454,6 +454,9 @@ export class BattleView {
           this.float('+' + fmt(ev.gold) + ' 은자', kx, ky - 165, '#e5e7eb', 13);
           for (let i = 0; i < (ev.isBoss ? 10 : 3); i++) this.ingot(kx, ky - 40);
         }
+        // 떨군 재료 (바람식 조합) — 은자 아래 한 줄
+        if (ev.mat) this.float(`+${ev.mat.name}${ev.mat.n > 1 ? ` ×${ev.mat.n}` : ''}`, kx, ky - 146, ev.mat.color || '#a7f3d0', 12);
+        if (ev.mat?.boss) this.float(`+${ev.mat.boss}`, kx, ky - 128, '#fde68a', 14);
         break;
       }
       case 'heroHit':
@@ -602,7 +605,7 @@ export class BattleView {
     const wg = game.bestGrade('weapon');
     const opts = {
       // 무기는 캐릭터를 따른다 (검사 검 · 권마 권갑 · 환마 부채 · 독마 비수)
-      t: this.t, lunge: this.heroLunge, flash: this.heroFlash, run: moving, weapon: jobOf(game.s.job)?.look || 'sword',
+      t: this.t, lunge: this.heroLunge, flash: this.heroFlash, run: moving, weapon: jobOf(game.s.job)?.look || 'sword', hold: true,
       blade: wg >= 0 ? GRADES[wg].color : '#e5e7eb', glow: wg >= 3, rage: game.buffs.rage > 0,
       // 강화 기운은 캐릭터 빛깔 (검사는 원래대로 붉게)
       rageCol: game.s.job && game.s.job !== 'sword' ? jobOf(game.s.job)?.color : null,
@@ -2201,6 +2204,41 @@ export function drawFighter(ctx, x, y, look = {}, o = {}) {
   if (jiang) ang = -1.5;
   else if (weapon === 'spear') ang = -1.45 + lunge * 0.15;
   else ang = -0.2 - (lunge > 0 ? 1 - lunge : 0) * 0.9 + lunge * 1.1 - 0.4;
+  // 무인의 '들고 선 자세'. 휘두르는 각(위 ang)대로 두면 쉴 때 손이 가슴
+  // 앞(몸 안쪽)에 와서 13px짜리 무기가 도포에 묻혔다 — 검사·독마·극악소마가
+  // 서 있을 때 뭘 들었는지 안 보였다. 쉴 때는 손을 앞으로 내리고 무기를
+  // 키워 몸 밖으로 내민다. 평타가 나가면(lunge) 원래 휘두름으로 섞여 간다.
+  if (o.hold && !jiang && weapon !== 'spear') {
+    const th = ang + Math.PI / 2;
+    const w = Math.min(1, lunge * 2.5);
+    const H = HOLD[weapon] || HOLD.sword;
+    const sway = Math.sin(t * 2.2) * 0.04 + (o.run ? Math.sin(t * 14) * 0.08 : 0);
+    const hx = H.hand[0] * (1 - w) + (-Math.sin(th) * 22 + 1) * w;
+    const hy = H.hand[1] * (1 - w) + (Math.cos(th) * 22) * w;
+    const blade = (H.blade + sway) * (1 - w) + th * w;
+    const sc = H.scale * (1 - w) + w;
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = '#1a1410';
+    ctx.lineWidth = 9;
+    ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(hx * 0.86, hy * 0.86); ctx.stroke();
+    ctx.strokeStyle = shade(robeNow, -0.08);
+    ctx.lineWidth = 6.5;
+    ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(hx * 0.86, hy * 0.86); ctx.stroke();
+    ctx.translate(hx, hy);
+    ctx.rotate(blade);
+    ctx.scale(sc, sc);
+    if (H.off) ctx.translate(0, H.off * (1 - w));
+    if (o.glow) { ctx.shadowColor = o.blade || '#fde68a'; ctx.shadowBlur = 10; }
+    const wk3 = artReady() ? weaponKey(weapon, look) : null;
+    if (!(wk3 && putArt(ctx, wk3, FIT.weapon))) drawWeapon(ctx, weapon, o, t, lunge);
+    ctx.shadowBlur = 0;
+    if (H.off) ctx.translate(0, -H.off * (1 - w));
+    if (!H.bare || w > 0.5) { ctx.fillStyle = skin; circle(ctx, 0, 0, 3.6 / sc); }
+    ctx.restore();
+    drawOrbit(true);
+    ctx.restore();
+    return;
+  }
   ctx.rotate(ang + Math.PI / 2);
   if (!artReady()) {
     ctx.fillStyle = shade(robeNow, -0.05);
@@ -2274,6 +2312,15 @@ function drawHead(ctx, look, t) {
       break;
   }
 }
+
+// 들고 선 자세 — 어깨 기준 손 자리, 무기 각(0이면 날이 위, +면 앞으로 눕는다), 크기
+const HOLD = {
+  sword: { hand: [7, 19], blade: 0.95, scale: 1.6 },   // 검사: 칼끝을 앞으로 겨눈다
+  fist: { hand: [11, 14], blade: 0.3, scale: 1.5, off: 8, bare: true }, // 권마: 권갑 낀 주먹을 앞에 쥔다(주먹이 손 자리)
+  fan: { hand: [9, 14], blade: 0.55, scale: 1.25 },    // 환마: 부채를 펴 든다
+  dagger: { hand: [8, 20], blade: 1.7, scale: 1.35 },  // 독마: 비수를 앞으로 낮게
+  claw: { hand: [10, 14], blade: 0.6, scale: 1.5 },    // 극악소마: 지환 낀 손을 세운다
+};
 
 function drawWeapon(ctx, weapon, o, t, lunge) {
   const blade = o.blade || '#e5e7eb';

@@ -898,6 +898,22 @@ body.modal-open #toast { top: auto; bottom: calc(24px + var(--safe-bottom)); }
 .equip-slot { display: grid; grid-template-columns: 46px 1fr; gap: 8px; align-items: center; margin-bottom: 6px; }
 .slot-name { font: 700 13px var(--serif); color: var(--muted); text-align: center; }
 .bag-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin: 8px 0; }
+.item-chip { position: relative; }
+.item-chip .cnt { position: absolute; top: 5px; right: 7px; font: 800 12px/1 var(--serif); font-style: normal; color: #fef3c7; }
+/* 대장장이 — 재료와 조합법 */
+.mat-row { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 10px; }
+.mat-chip {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 1px; padding: 6px 10px; border-radius: 9px;
+  background: rgba(255, 245, 220, 0.04); border: 1px solid color-mix(in srgb, var(--mc) 40%, transparent);
+}
+.mat-chip b { color: var(--mc); font-size: 13px; }
+.mat-chip small { color: var(--muted); font-size: 11px; }
+.craft-row .name small { display: block; margin: 2px 0 0; font-weight: 600; }
+.craft-row.ready { border-color: #fde68a; }
+.needs { display: flex; flex-wrap: wrap; gap: 4px 8px; margin-top: 3px; }
+.need { color: #f87171; font-size: 11px; }
+.need b { font-weight: 800; }
+.need.ok { color: var(--mc, #a8a29e); }
 .stat-head { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin: 4px 0 8px; flex-wrap: wrap; }
 .stat-head .btn { padding: 6px 10px; font-size: 12px; }
 .map-row.locked { opacity: 0.45; }
