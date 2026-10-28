@@ -1,0 +1,152 @@
+// 바람식 개편 — 데이터. 설계: docs/바람식_개편.md
+//
+// 옛 판(관문·수련·무공 여덟 …)과 따로 선다. 그림(지역·몹 생김새·캐릭터 무기)만 옛 data.js에서 빌린다.
+// **숫자는 보통 숫자다.** 레벨 150에서도 몹 체력이 몇십만이라 Big이 필요 없다.
+import { ZONES, JOBS, CLASS_SKILLS, RANKS } from '../data.js';
+
+export const SAVE_KEY = 'ifu-world-v1';
+export const LEVEL_MAX = 150;
+
+// ---------- 레벨 ----------
+export const expToNext = (L) => Math.round(18 * L ** 2.25);
+export const STAT_PER_LEVEL = 3;
+export const STATS = [
+  { id: 'str', name: '힘', desc: '공격력 +2' },
+  { id: 'dex', name: '민첩', desc: '치명 +0.4%p · 공격 속도 +1%' },
+  { id: 'vit', name: '체력', desc: '최대 체력 +12 · 방어 +0.2' },
+  { id: 'int', name: '내공', desc: '스킬 피해 +2% · 체력 회복 +0.1/초' },
+];
+// 레벨이 오르면 겉모습도 한 단계씩 (옛 경지 그림 스물을 레벨에 나눠 쓴다)
+export const lookTierOf = (level) => Math.min(RANKS.length - 1, Math.floor((level - 1) / 8));
+
+// ---------- 캐릭터 ----------
+// 결(class trait)은 단순하게 하나씩. 옛 JOBS의 이름·무기·사거리를 그대로 쓴다.
+export const CLASSES = {
+  sword: { base: { str: 6, dex: 4, vit: 5, int: 3 }, trait: '두목에게 주는 피해 +30%', boss: 1.3 },
+  fist: { base: { str: 6, dex: 6, vit: 4, int: 2 }, trait: '공격 속도 +25%', speed: 1.25 },
+  fan: { base: { str: 4, dex: 4, vit: 4, int: 6 }, trait: '멀리서 친다 · 맞은 적이 느려진다', slow: true },
+  poison: { base: { str: 4, dex: 4, vit: 4, int: 6 }, trait: '멀리서 친다 · 맞은 적이 중독된다(3초에 걸쳐 60%)', poison: 0.6 },
+  ring: { base: { str: 5, dex: 6, vit: 4, int: 3 }, trait: '치명 +8%p · 붙으면 더 아프다', crit: 0.08 },
+};
+export const classOf = (id) => JOBS.find((j) => j.id === id) || null;
+
+// ---------- 전직과 스킬 ----------
+export const TIERS = [
+  null,
+  { level: 15, cost: 200 },
+  { level: 40, cost: 5000 },
+  { level: 75, cost: 120000 },
+];
+// 스킬 셋. 이름은 옛 무공 이름을 빌린다(1차 일격기 = 옛 두목기 1차 형태 이름 …).
+// role은 연출표(skillfx) 열쇠 — '캐릭터:role'. hpCost는 최대 체력 대비.
+export const SKILL_DEFS = [
+  { slot: 0, tier: 1, kind: 'single', role: 'frost', nameFrom: ['frost', 1], mult: 3.2, cd: 4, hpCost: 0, autoAbove: 0 },
+  { slot: 1, tier: 2, kind: 'aoe', role: 'slash', nameFrom: ['slash', 2], mult: 2.4, cd: 6, hpCost: 0.10, autoAbove: 0.6, radius: 210 },
+  { slot: 2, tier: 3, kind: 'aoe', role: 'thunder', nameFrom: ['thunder', 3], mult: 5.5, cd: 14, hpCost: 0.22, autoAbove: 0.75, radius: 300 },
+];
+export const skillsOf = (job) => SKILL_DEFS.map((d) => {
+  const [r, t] = d.nameFrom;
+  const name = CLASS_SKILLS[job]?.[r]?.names?.[t] || d.role;
+  return { ...d, id: `s${d.slot}`, name, icon: name.slice(0, 2), fx: `${job}:${d.role}` };
+});
+
+// ---------- 지도 ----------
+// 0번은 마을(객잔 마을). 1~15는 사냥터 — 옛 지역 그림과 몹 생김새를 쓴다.
+// 한 화면(들판 약 390×1100)에 너댓 마리가 보이게. 넓으면 걷기만 하다 끝난다.
+export const MAP_W = 1300;
+export const MAP_H = 1700;
+export const MOBS_ALIVE = 24;
+export const RESPAWN_SEC = 5;
+export const BOSS_EVERY = 240;
+// 첫 사냥터는 좁게(1~6) — 레벨 1이 레벨 10 몹을 만나면 열 몇 대를 때려야 해서 첫 사냥이 지루했다
+export const mapLevel = (k) => (k === 1 ? [1, 6] : [8 * k - 7, 8 * k + 2]);
+export const MAPS = ZONES.map((z, i) => ({
+  id: i,
+  name: i === 0 ? '객잔 마을' : z.name,
+  town: i === 0,
+  zone: i,
+  lv: i === 0 ? [0, 0] : mapLevel(i),
+  mobs: z.mobs,
+  boss: z.boss,
+}));
+export const mapOf = (id) => MAPS[id] || MAPS[0];
+
+// 마을 사람 (무인 자리 기준으로 선다)
+export const NPCS = [
+  { name: '사부', dx: -150, dy: -120, look: { robe: '#e7e5e4', trim: '#78716c', head: 'topknot', hair: '#e5e7eb', beard: true, weapon: 'sword' } },
+  { name: '상인', dx: 150, dy: -90, look: { robe: '#92400e', head: 'hat', weapon: 'fan' } },
+  { name: '주모', dx: 40, dy: -260, look: { robe: '#be185d', trim: '#fbcfe8', head: 'topknot', weapon: 'fan' } },
+];
+
+// ---------- 몹 ----------
+export const mobHp = (lv) => Math.round(26 + 7 * lv ** 1.55);
+// 알맞은 사냥터에서 물약이 시간당 60개 안팎이 되게(시뮬). 처음엔 1.7·lv^1.25였는데 시간당 200~400개를 먹어
+// 방치 보상이 물약 때문에 1~2분 만에 멈췄다.
+export const mobAtk = (lv) => Math.round(3 + 1.05 * lv ** 1.2);
+export const mobDef = (lv) => Math.round(lv * 0.6);
+export const mobExp = (lv) => Math.round(6 + 1.3 * lv ** 1.5);
+export const mobGold = (lv) => Math.round(2 + lv * 1.4);
+export const BOSS = { hp: 14, atk: 2.5, exp: 25, gold: 30 };
+export const MOB_ATK_SEC = 1.6;
+export const MOB_AGGRO = 200;      // 이만큼 붙으면 쫓아온다
+export const MOB_SPEED = 70;
+
+// ---------- 장비 ----------
+export const SLOTS = [
+  { id: 'weapon', name: '무기' },
+  { id: 'armor', name: '옷' },
+  { id: 'hat', name: '모자' },
+  { id: 'acc', name: '장신구' },
+];
+export const GRADES = [
+  { id: 0, name: '일반', color: '#d6d3d1', mult: 1, w: 70 },
+  { id: 1, name: '고급', color: '#4ade80', mult: 1.35, w: 22 },
+  { id: 2, name: '희귀', color: '#60a5fa', mult: 1.8, w: 6.5 },
+  { id: 3, name: '영웅', color: '#c084fc', mult: 2.4, w: 1.3 },
+  { id: 4, name: '전설', color: '#fb923c', mult: 3.2, w: 0.2 },
+];
+export const DROP_RATE = 0.07;
+export const BAG_SIZE = 30;
+// 아이템 기본 수치 (등급·강화 전)
+export const itemBase = (slot, ilv) => {
+  switch (slot) {
+    case 'weapon': return { atk: 5 + 3.2 * ilv };
+    case 'armor': return { hp: 22 + 13 * ilv };
+    case 'hat': return { hp: 10 + 6 * ilv, def: 1 + ilv * 0.35 };
+    case 'acc': return { crit: 0.01 + ilv * 0.0006, atkPct: 0.02 + ilv * 0.0012 };
+    default: return {};
+  }
+};
+export const ENHANCE_MAX = 10;
+export const ENHANCE_STEP = 0.1;                 // 한 단계에 기본 수치 +10%
+export const enhanceRate = (lv) => Math.max(0.4, 1 - lv * 0.07);   // +0→1 100%, +9→10 40%
+export const enhanceCost = (ilv, lv) => Math.round((20 + ilv * 6) * (lv + 1) ** 1.6);
+export const sellPrice = (item) => Math.round((3 + item.ilv * 1.5) * GRADES[item.grade].mult ** 2 * (1 + (item.plus || 0) * 0.2));
+// 이름: 지역마다 무기 결이 다르면 좋겠지만 단순하게 — 등급·칸 이름
+const SLOT_NOUN = {
+  weapon: { sword: '검', fist: '권갑', fan: '부채', poison: '독낭', ring: '지환' },
+  armor: '도포', hat: '두건', acc: '옥패',
+};
+export const itemName = (item, job) => {
+  const n = item.slot === 'weapon' ? (SLOT_NOUN.weapon[job] || '검') : SLOT_NOUN[item.slot];
+  return `${GRADES[item.grade].name} ${n}`;
+};
+
+// ---------- 물약 ----------
+export const POTION_HEAL = 0.35;
+export const potionPrice = (level) => 5 + level;
+export const POTION_AT = 0.45;        // 체력이 이 아래면 자동으로 먹는다
+export const POTION_GAP = 0.8;
+export const REST_HEAL = 0.25;        // 마을에서는 초당 최대 체력의 25%
+
+// ---------- 무인 수치 ----------
+export const CRIT_DMG = 1.8;
+export const BASE_ATK_SEC = 0.85;     // 평타 간격(초)
+export const HERO_SPEED = 170;
+export const MELEE_RANGE = 70;
+export const DEATH_EXP_LOSS = 0.05;
+export const RETURN_SEC = 3;
+
+// ---------- 방치 ----------
+export const OFFLINE_CAP_SEC = 10 * 3600;
+export const RATE_WINDOW_SEC = 300;

@@ -2,8 +2,22 @@
 // SDK를 동적으로 불러오므로 실패해도 혼자 하기는 그대로 동작한다.
 import { firebaseConfig, FIREBASE_SDK_VERSION, ADMIN_UID } from './firebase-config.js';
 import { big } from './big.js';
-import { safeBig } from './game.js';
-import { dayKey } from './game.js';
+import { Big } from './big.js';
+
+// 옛 game.js에서 빌려 쓰던 둘 — 바람식 개편으로 옛 엔진을 뺄 때 여기로 옮겼다.
+export const dayKey = (t = Date.now()) => {
+  const d = new Date(t + 9 * 3600 * 1000); // 한국 시간 기준 하루
+  return d.toISOString().slice(0, 10);
+};
+export function safeBig(v) {
+  if (v === null || v === undefined) return null;
+  if (v instanceof Big) {
+    return (Number.isFinite(v.m) && Number.isFinite(v.e) && Math.abs(v.e) < 1e300) ? v : null;
+  }
+  if (typeof v === 'string') return safeBig(Big.parse(v));
+  if (typeof v !== 'number' || !Number.isFinite(v)) return null;
+  return big(v);
+}
 import {
   EQUIP_TYPES, GUILD_MAX, GUILD_CHECKIN_EXP, GUILD_DONATE_GEMS, GUILD_DONATE_EXP, RAID_HP_SECONDS, raidReward,
 } from './data.js';

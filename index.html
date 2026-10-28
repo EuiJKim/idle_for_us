@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-  <title>우리끼리 회귀무림</title>
+  <title>우리끼리 무림</title>
   <meta name="description" content="친구끼리 하는 무협 회귀 방치형 RPG">
   <meta name="theme-color" content="#14110e">
   <link rel="manifest" href="manifest.webmanifest">
@@ -28,26 +28,26 @@
         <canvas id="portrait" width="104" height="104" aria-hidden="true"></canvas>
         <div class="hero-txt">
           <div class="hero-line"><b id="hero-name">무명</b></div>
-          <div class="hero-sub"><span id="hero-rank">삼류</span><span id="hero-lv">Lv.1</span></div>
+          <div class="hero-sub"><span id="hero-rank">-</span><span id="hero-lv">Lv.1</span></div>
           <div id="exp-bar"><div></div></div>
         </div>
       </div>
       <div class="res-col">
         <div class="res"><span class="cur silver">은</span><b id="gold">0</b></div>
-        <div class="res"><span class="cur gem">원</span><b id="gems">0</b></div>
+        <div class="res"><span class="cur potion">약</span><b id="potions">0</b></div>
       </div>
       <button id="btn-settings" class="icon-btn" aria-label="설정">⚙</button>
     </header>
 
-    <!-- 관문 진행도. 들판 위에 띄우지 않고 상단에 고정한다 -->
+    <!-- 사냥터 줄: 이름(누르면 지도) · 레벨대 · 두목까지 · 체력 -->
     <div id="stagebar">
       <div class="stage-box">
-        <div id="stage-label">제 1 관문</div>
-        <div id="zone-label">고요한 들판</div>
+        <div id="stage-label">객잔 마을</div>
+        <div id="zone-label">쉬는 중</div>
       </div>
-      <div id="progress">
+      <div id="progress" class="hp">
         <div id="progress-fill"></div>
-        <span id="progress-text">0 / 10</span>
+        <span id="progress-text">0 / 0</span>
       </div>
     </div>
 
@@ -68,17 +68,13 @@
       <!-- 창 버튼은 들판 위에 떠 있다. 누르면 아래에서 창이 올라온다. -->
       <nav id="tabs">
         <div class="tabcol left">
-          <button data-tab="companion"><i>영</i><span>영수</span></button>
-          <button data-tab="dungeon"><i>비</i><span>비경</span></button>
+          <button data-tab="map"><i>지</i><span>지도</span></button>
+          <button data-tab="town"><i>촌</i><span>마을</span></button>
           <button data-tab="social"><i>무</i><span>무림</span></button>
-          <button id="btn-missions" type="button"><i>령</i><span>의뢰</span></button>
         </div>
         <div class="tabcol right">
-          <button data-tab="train"><i>수</i><span>수련</span></button>
-          <button data-tab="growth"><i>성</i><span>성장</span></button>
-          <button data-tab="equip"><i>병</i><span>병기</span></button>
-          <button data-tab="skill"><i>공</i><span>무공</span></button>
-          <button id="btn-auto" type="button"><i>자</i><span>자동</span></button>
+          <button data-tab="char"><i>인</i><span>캐릭터</span></button>
+          <button data-tab="bag"><i>낭</i><span>가방</span></button>
         </div>
       </nav>
 
@@ -101,6 +97,6 @@
   <div id="modal" class="hidden"><div class="sheet"></div></div>
   <div id="toast"></div>
 
-  <script type="module" src="js/main.js"></script>
+  <script type="module" src="js/wmain.js"></script>
 </body>
 </html>

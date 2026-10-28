@@ -1,0 +1,270 @@
+// 바람식 개편 점검 — 새 엔진(js/world)이 약속대로 도는가.
+// node tests/world.mjs
+import { WorldGame, newWorldSave, migrateWorld } from '../js/world/wgame.js';
+import * as W from '../js/world/wdata.js';
+import * as D from '../js/data.js';
+import { fmt } from '../js/fmt.js';
+
+let fail = 0;
+const ok = (cond, label, extra = '') => {
+  if (!cond) fail++;
+  console.log(`${cond ? '  OK  ' : '  !!  '} ${label}${extra ? '  — ' + extra : ''}`);
+};
+const seeded = (s = 12345) => () => ((s = (s * 1103515245 + 12345) % 2147483648) / 2147483648);
+const fresh = (job = 'sword') => {
+  const g = new WorldGame(newWorldSave(0), 0);
+  g.rng = seeded();
+  g.setJob(job);
+  g.events.length = 0;
+  return g;
+};
+const finite = (g) => [g.s.gold, g.s.exp, g.heroHp, g.stats().atk, g.stats().hp, ...g.mons.map((m) => m.hp)].every(Number.isFinite);
+
+console.log('=== 시작 ===');
+{
+  const g = fresh();
+  ok(g.s.level === 1 && g.s.map === 0 && g.map.town, '마을에서 레벨 1로 시작한다');
+  ok(g.mons.every((m) => m.npc) && g.mons.length === W.NPCS.length, '마을에는 싸우지 않는 사람만 있다', g.mons.map((m) => m.def.name).join(' '));
+  ok(g.stats().atk > 0 && g.stats().hp > 0 && g.heroHp === g.stats().hp, '공격력·체력이 있고 체력이 가득');
+  ok(!g.canEnter(2) && g.canEnter(1), '레벨이 모자란 사냥터는 못 들어간다');
+  ok(g.enterMap(1) && g.mons.length === W.MOBS_ALIVE, '사냥터에 들어가면 몹이 깔린다', `${g.mons.length}마리`);
+  ok(g.mons.every((m) => m.lv >= 1 && m.lv <= 6 && Number.isFinite(m.hp) && m.def?.look), '몹 레벨이 사냥터 범위 안이고 생김새가 있다');
+  ok(g.s.stage === 11, '그리는 쪽이 고를 지역 그림(죽림 = 옛 지역 1)', `stage ${g.s.stage}`);
+}
+
+console.log('\n=== 싸움 ===');
+{
+  const g = fresh();
+  g.enterMap(1);
+  const k0 = g.s.kills;
+  for (let i = 0; i < 20 * 60; i++) { g.tick(0.05); g.events.length = 0; }
+  ok(g.s.kills > k0 + 5, '1분 자동 사냥으로 몹을 잡는다', `${g.s.kills - k0}마리`);
+  ok(g.s.gold > 0 && (g.s.exp > 0 || g.s.level > 1), '은자와 경험치가 들어온다', `은자 ${g.s.gold} · Lv.${g.s.level}`);
+  ok(g.mons.filter((m) => m.alive).length >= W.MOBS_ALIVE - 6, '잡힌 자리는 다시 채워진다', `${g.mons.length}마리`);
+  ok(finite(g), '숫자가 전부 유한하다');
+  // 사건: 평타·피해·처치가 그리는 쪽 모양으로 나간다
+  const h = fresh();
+  h.enterMap(1);
+  const seen = new Set();
+  for (let i = 0; i < 20 * 30; i++) { h.tick(0.05); for (const e of h.events) seen.add(e.type); h.events.length = 0; }
+  ok(['attack', 'dmg', 'kill'].every((t) => seen.has(t)), '평타·피해·처치 사건이 나간다', [...seen].join(' '));
+}
+
+console.log('\n=== 레벨·스탯 ===');
+{
+  const g = fresh();
+  g.s.autoStat = false;
+  g.addExp(W.expToNext(1) + W.expToNext(2));
+  ok(g.s.level === 3 && g.s.statPts === 6, '레벨이 오르면 스탯 점수 3', `Lv.${g.s.level} 점수 ${g.s.statPts}`);
+  const a0 = g.stats().atk;
+  g.addStat('str', 2);
+  ok(g.stats().atk === a0 + 4 && g.s.statPts === 4, '힘 1 = 공격력 +2');
+  g.s.autoStat = true;
+  g.autoStats();
+  ok(g.s.statPts === 0, '자동 분배가 남은 점수를 다 쓴다');
+  g.s.gold = 1e6;
+  const spent = Object.values(g.s.stats).reduce((a, b) => a + b, 0);
+  ok(g.resetStats() && g.s.statPts === spent, '스탯 되돌리기는 은자를 내고 점수를 돌려준다');
+  const L = W.LEVEL_MAX;
+  const h = fresh();
+  h.addExp(1e15);
+  ok(h.s.level === L && Number.isFinite(h.s.exp), `만렙(${L})에서 멈춘다`, `Lv.${h.s.level}`);
+}
+
+console.log('\n=== 장비 ===');
+{
+  const g = fresh();
+  const weak = g.makeItem('weapon', 5, 0);
+  const strong = g.makeItem('weapon', 10, 2);
+  ok(g.gainItem(weak) === 'equip', '빈 칸에는 바로 낀다');
+  const atk1 = g.stats().atk;
+  ok(g.gainItem(strong) === 'equip' && g.s.equip.weapon === strong, '더 좋은 것을 주우면 바꿔 낀다');
+  ok(g.stats().atk > atk1, '공격력이 오른다', `${Math.round(atk1)} → ${Math.round(g.stats().atk)}`);
+  ok(!g.s.bag.some((x) => x.uid === weak.uid), '밀려난 일반 장비는 자동 판매된다(기본: 고급까지)');
+  g.s.autoSell = -1;
+  for (let i = 0; i < g.s.bagSize + 5; i++) g.gainItem(g.makeItem('armor', 1, 0));
+  ok(g.s.bag.length === g.s.bagSize, '가방이 넘치면 나쁜 것부터 판다', `${g.s.bag.length}/${g.s.bagSize}`);
+  g.s.gold = 1e9;
+  const p0 = strong.plus;
+  let tries = 0;
+  while (strong.plus === p0 && tries++ < 20) g.enhance(strong.uid);
+  ok(strong.plus === p0 + 1, '강화하면 +1', `+${strong.plus}`);
+  for (let i = 0; i < 200; i++) g.enhance(strong.uid);
+  ok(strong.plus === W.ENHANCE_MAX, `강화는 +${W.ENHANCE_MAX}까지`, `+${strong.plus}`);
+  // 드랍률 — 몹 1만 마리에 7% 안팎, 두목은 늘 희귀 이상
+  const h = fresh();
+  h.enterMap(1);
+  let n = 0;
+  for (let i = 0; i < 10000; i++) if (h.rollDrop({ lv: 5, isBoss: false, x: 0, y: 0 })) n++;
+  ok(Math.abs(n / 10000 - W.DROP_RATE) < 0.012, '몹 드랍률이 설계대로', `${(n / 100).toFixed(1)}%`);
+  let bossOk = true;
+  for (let i = 0; i < 200; i++) if (h.rollDrop({ lv: 10, isBoss: true, x: 0, y: 0 }).grade < 2) bossOk = false;
+  ok(bossOk, '두목은 늘 희귀 이상을 떨군다');
+}
+
+console.log('\n=== 전직·스킬 ===');
+{
+  const g = fresh();
+  ok(g.skills().length === 0, '전직 전에는 스킬이 없다');
+  g.s.level = 15; g.s.gold = 1000;
+  ok(g.canAdvance() && g.advance() && g.s.jobTier === 1 && g.skills().length === 1, '레벨 15에 마을에서 1차 전직 → 스킬 하나');
+  g.s.level = 40; g.s.gold = 1e6;
+  g.enterMap(1);
+  ok(!g.canAdvance(), '전직은 마을에서만');
+  g.goTown(); g.advance();
+  ok(g.s.jobTier === 2 && g.skills().length === 2, '2차 전직 → 스킬 둘');
+  g.enterMap(1);
+  const sk = g.skills().find((x) => x.hpCost);
+  g.heroHp = g.stats().hp;
+  const hp0 = g.heroHp;
+  const cost = g.hpCostOf(sk);
+  // 둘레에 몹을 모은다
+  for (const m of g.mons.slice(0, 6)) { m.x = g.heroX + 30; m.y = g.heroY + 10; }
+  const killedBefore = g.s.kills;
+  ok(g.useSkill(sk.id), `전체기 〈${sk.name}〉를 쓴다`);
+  ok(Math.abs(hp0 - g.heroHp - cost) < 1, '쓴 만큼 체력이 깎인다', `-${Math.round(hp0 - g.heroHp)} (대가 ${cost})`);
+  ok(g.events.filter((e) => e.type === 'dmg' && e.kind === sk.id).length >= 6 || g.s.kills > killedBefore, '둘레 몹이 다 맞는다');
+  g.cd[sk.id] = 0;
+  g.heroHp = g.hpCostOf(sk);
+  ok(!g.useSkill(sk.id), '체력이 대가보다 적으면 못 쓴다(대가로 죽지 않는다)');
+  // 자동 스킬은 체력이 넉넉할 때만
+  g.heroHp = g.stats().hp * 0.4;
+  g.cd[sk.id] = 0;
+  g.events.length = 0;
+  g.autoSkills(g.stats());
+  ok(!g.events.some((e) => e.type === 'skill' && e.id === sk.id), '자동 사냥은 체력이 낮으면 체력 스킬을 아낀다');
+}
+
+console.log('\n=== 물약·죽음·귀환 ===');
+{
+  const g = fresh();
+  g.enterMap(1);
+  g.s.potions = 3;
+  g.heroHp = g.stats().hp * 0.2;
+  g.tickPotion(g.stats());
+  ok(g.s.potions === 2 && g.heroHp > g.stats().hp * 0.5, '체력이 낮으면 물약을 먹는다');
+  g.s.exp = 100;
+  g.heroDied({ isBoss: false });
+  ok(g.map.town && g.s.exp === 95 && g.s.deaths === 1, '쓰러지면 경험치 5%를 잃고 마을로', `exp ${g.s.exp}`);
+  for (let i = 0; i < 20 * 10; i++) { g.tick(0.05); g.events.length = 0; }
+  ok(!g.map.town && g.s.map === 1, '자동 사냥이면 쉬었다가 사냥터로 돌아간다');
+  g.goTown();
+  g.s.gold = 1000;
+  const p0 = g.s.potions;
+  ok(g.buyPotions(10) && g.s.potions === p0 + 10, '상점에서 물약을 산다');
+}
+
+console.log('\n=== 방치 ===');
+{
+  const g = fresh();
+  g.enterMap(1);
+  g.s.potions = 50;
+  for (let i = 0; i < 20 * 120; i++) { g.tick(0.05); g.events.length = 0; }
+  const saved = JSON.parse(JSON.stringify(g.toJSON()));
+  ok(saved.rates && saved.rates.kills > 0, '저장할 때 최근 벌이를 적어 둔다', `분당 ${(saved.rates.kills * 60).toFixed(1)}마리`);
+  saved.lastSeen = 0;
+  const h = new WorldGame(saved, 0);
+  h.rng = seeded();
+  const rw = h.offlineReward(3600 * 1000);
+  ok(rw && rw.kills > 0 && rw.exp > 0 && rw.gold > 0, '한 시간 뒤 방치 보상', rw && `처치 ${rw.kills} · 경험치 ${rw.exp} · 은자 ${rw.gold}`);
+  const lv0 = h.s.level;
+  h.claimOffline(rw);
+  ok(h.s.level >= lv0 && h.s.gold >= rw.gold, '받으면 레벨·은자에 들어간다');
+  // 물약이 떨어지면 거기서 멈춘다
+  const s2 = { ...saved, potions: 0, rates: { ...saved.rates, potions: 0.01 } };
+  const k = new WorldGame(s2, 0);
+  const r2 = k.offlineReward(3600 * 1000);
+  ok(!r2 || r2.kills === 0 || r2.stoppedByPotion, '물약이 없으면 방치 사냥이 멈춘다');
+  ok(new WorldGame(saved, 0).offlineReward(30 * 1000) === null, '1분이 안 되면 보상이 없다');
+}
+
+console.log('\n=== 세이브 ===');
+{
+  const junk = [null, 5, 'x', { level: 'abc', gold: -5, stats: { str: 'x' }, map: 99, bag: [null, { slot: 'nope' }], job: 'blade' }];
+  let bad = 0;
+  for (const j of junk) {
+    try {
+      const s = migrateWorld(j);
+      const g = new WorldGame(s, 0);
+      g.tick(0.1);
+      if (!finite(g) || s.level !== 1 && j?.level === 'abc') bad++;
+    } catch { bad++; }
+  }
+  ok(bad === 0, '망가진 세이브도 읽는다', `${junk.length}가지`);
+  const g = fresh();
+  g.s.level = 30; g.s.gold = 1234;
+  const back = new WorldGame(JSON.parse(JSON.stringify(g.toJSON())), 0);
+  ok(back.s.level === 30 && back.s.gold === 1234 && back.s.job === 'sword', '저장했다 읽으면 그대로');
+}
+
+console.log('\n=== 다섯 캐릭터 · 2시간 ===');
+{
+  // 간단한 사람: 마을이면 전직·물약, 사냥터는 레벨 맞는 가장 높은 곳
+  const rows = [];
+  for (const job of Object.keys(W.CLASSES)) {
+    const g = fresh(job);
+    g.s.gold = 300; g.buyPotions(30);
+    let nan = false;
+    for (let t = 0; t < 2 * 3600; t += 0.1) {
+      g.tick(0.1);
+      g.events.length = 0;
+      if (g.map.town) {
+        while (g.canAdvance()) g.advance();
+        const want = Math.max(0, 40 - g.s.potions);
+        if (want) g.buyPotions(Math.min(want, Math.floor(g.s.gold / g.potionPrice())));
+      }
+      let best = 1;
+      for (const m of W.MAPS) if (!m.town && g.canEnter(m.id) && g.s.level >= m.lv[0] + 3) best = Math.max(best, m.id);
+      if (best !== g.s.huntMap && !g.map.town) { g.s.huntMap = best; g.goTown(); }
+      if (t % 600 < 0.1 && !finite(g)) nan = true;
+    }
+    rows.push({ job, lv: g.s.level, map: g.s.huntMap, tier: g.s.jobTier, deaths: g.s.deaths, nan });
+  }
+  ok(rows.every((r) => !r.nan), '두 시간 내내 숫자가 유한하다');
+  ok(rows.every((r) => r.lv >= 20), '두 시간이면 모두 레벨 20을 넘는다', rows.map((r) => `${r.job} Lv.${r.lv}/사냥터${r.map}/${r.tier}차/쓰러짐${r.deaths}`).join(' · '));
+  const lvs = rows.map((r) => r.lv);
+  ok(Math.max(...lvs) - Math.min(...lvs) <= 10, '캐릭터끼리 레벨 차가 10 안쪽', lvs.join(' '));
+}
+
+console.log('\n=== 초식 연출표 ===');
+{
+  const { CHOREO, Director, FX } = await import('../js/skillfx.js');
+  const missing = [];
+  const broke = [];
+  let ran = 0;
+  for (const job of Object.keys(W.CLASSES)) {
+    for (const sk of W.skillsOf(job)) {
+      if (!CHOREO[sk.fx]) { missing.push(sk.fx); continue; }
+      const effects = [];
+      const view = {
+        effects, particles: [], squash: D.FIELD_SQUASH, heroX: 200, groundY: 400, w: 390, h: 700,
+        fxLevel: 2, shake: 0, flash: 0, hitstop: 0, camHold: 0, desatTo: 0,
+        heroAnim: { play() {} }, handle() {}, ink() {}, float() {}, showBanner() {}, game: null,
+        sx: (m) => 200 + (m.x || 0), sy: (m) => 400 + (m.y || 0) * D.FIELD_SQUASH,
+      };
+      const hits = [0, 1, 2].map((i) => ({ type: 'dmg', at: { x: 60 + i * 30, y: 10 * i }, amount: 1 }));
+      const pend = { id: sk.id, job, name: sk.name, tier: sk.tier, hits, kills: [], at: { x: 80, y: 0 }, radius: sk.radius || 0, dur: 0, path: null };
+      try {
+        const d = new Director(view, pend, { heroX: 0, heroY: 0, heroAngle: 0, heroFacing: 1, mon: { x: 80, y: 0 } });
+        CHOREO[sk.fx](d);
+        for (let i = 0; i < 200 && !d.done; i++) d.tick(0.02);
+        const OLD = ['area', 'aura', 'beam', 'blink', 'burst', 'cut', 'frost', 'gale', 'pillar', 'qi', 'regress', 'swing', 'swirl', 'swords', 'thunder', 'splash', 'corrode', 'puddle'];
+        for (const e of effects) if (!FX[e.kind] && !OLD.includes(e.kind)) throw new Error(`그림 없음: ${e.kind}`);
+        if (!d.done || hits.length) throw new Error('결과를 다 안 풀었다');
+        ran++;
+      } catch (err) { broke.push(`${sk.fx} ${err.message}`); }
+    }
+  }
+  ok(missing.length === 0, '다섯 캐릭터 스킬 셋 모두 연출표가 있다', missing.join(' '));
+  ok(broke.length === 0, `연출 ${ran}개가 끝까지 돌고 숫자를 다 푼다`, broke.slice(0, 3).join(' / '));
+}
+
+console.log('\n=== 숫자 표기 ===');
+{
+  const table = [[999, '999'], [1000, '1,000'], [120000, '120,000'], [99999999, '99,999,999'], [1e9, '1.00d']];
+  const wrong = table.filter(([n, w]) => fmt(n) !== w).map(([n, w]) => `${n}→${fmt(n)}(${w})`);
+  ok(wrong.length === 0, '1억 아래는 쉼표, 그 위는 알파벳', wrong.join(', ') || table.map(([n]) => fmt(n)).join(' '));
+}
+
+console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
+process.exit(fail === 0 ? 0 : 1);

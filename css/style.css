@@ -866,3 +866,39 @@ body.modal-open #toast { top: auto; bottom: calc(24px + var(--safe-bottom)); }
   0% { box-shadow: 0 0 0 0 rgba(253, 224, 71, 0.9), inset 0 0 18px rgba(253, 224, 71, 0.8); transform: scale(1.08); }
   100% { box-shadow: 0 0 0 10px rgba(253, 224, 71, 0), inset 0 0 10px rgba(212, 166, 74, 0.35); transform: none; }
 }
+
+/* ============================================================
+   바람식 개편 (2026-10-28) — 체력 막대·물약·가방·지도
+   ============================================================ */
+.cur.potion { background: #991b1b; color: #fecaca; }
+/* 관문 진행 막대 자리를 체력 막대로 쓴다 */
+#progress.hp #progress-fill { background: linear-gradient(90deg, #15803d, #4ade80); }
+#progress.hp.low #progress-fill { background: linear-gradient(90deg, #991b1b, #f87171); }
+#stage-label { cursor: pointer; }
+/* 무공 바: 스킬 셋 + 물약 + 자동 */
+.skill-btn .lock { font-family: system-ui, sans-serif; font-size: 9px; }
+.potion-btn .pot-ico {
+  display: block; width: 18px; height: 22px; margin: 6px auto 0; border-radius: 6px 6px 9px 9px;
+  background: radial-gradient(circle at 40% 60%, #fca5a5, #b91c1c 70%); box-shadow: 0 0 0 2px #451a1a inset;
+}
+.auto-toggle b { font: 800 14px/1 var(--serif); color: var(--muted); display: block; margin-top: 8px; }
+.auto-toggle.on { border-color: var(--good); }
+.auto-toggle.on b { color: #86efac; }
+/* 장비 */
+.item-chip {
+  display: flex; flex-direction: column; gap: 2px; padding: 7px 9px; border-radius: 9px; cursor: pointer;
+  background: rgba(255, 245, 220, 0.04); border: 1px solid color-mix(in srgb, var(--gc, #78716c) 55%, transparent);
+  box-shadow: inset 3px 0 0 var(--gc, #78716c);
+}
+.item-chip b { color: var(--gc, #e7e5e4); font-size: 13px; }
+.item-chip small { color: var(--muted); font-size: 11px; line-height: 1.35; }
+.item-chip.empty { color: var(--muted); font-size: 12px; cursor: default; box-shadow: none; border-style: dashed; }
+.item-chip.g4 { animation: legend-glow 2.4s ease-in-out infinite; }
+@keyframes legend-glow { 50% { box-shadow: inset 3px 0 0 var(--gc), 0 0 10px rgba(251, 146, 60, 0.45); } }
+.equip-slot { display: grid; grid-template-columns: 46px 1fr; gap: 8px; align-items: center; margin-bottom: 6px; }
+.slot-name { font: 700 13px var(--serif); color: var(--muted); text-align: center; }
+.bag-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin: 8px 0; }
+.stat-head { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin: 4px 0 8px; flex-wrap: wrap; }
+.stat-head .btn { padding: 6px 10px; font-size: 12px; }
+.map-row.locked { opacity: 0.45; }
+.map-row .ico { font-family: var(--brush); }

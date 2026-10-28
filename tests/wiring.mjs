@@ -214,41 +214,13 @@ console.log('=== 6. 문파 특성 ↔ 그리는 쪽 ===');
   const bad = [...new Set(used)].filter((f) => !MAP[f] || !kinds.has(MAP[f]));
   ok(bad.length === 0, '특성 fx가 전부 그려지는 kind로 이어진다',
     bad.length ? `안 그려짐: ${bad.join(', ')}` : [...new Set(used)].join(', '));
-  // 보내는 쪽과 받는 쪽
-  ok(read('js/game.js').includes("this.emit('skill', { id, target:"), 'game.js가 무공 사건을 보낸다');
+  // 보내는 쪽과 받는 쪽 (바람식 개편: 새 엔진이 무공 사건을 보내고, 들판 바는 캐릭터·차수에 맞춰 다시 그린다)
+  const wg = read('js/world/wgame.js');
+  ok(wg.includes("this.emit('skill', { id, name: sk.name, fx: sk.fx"), '새 엔진이 무공 사건을 연출표 열쇠와 함께 보낸다');
   ok(/skillEffect\(ev\.look \|\| ev\.id, ev\.job/.test(bat), 'battle.js가 그 사건에서 문파를 집어간다');
   ok(bat.includes('JOB_TRAITS'), 'battle.js가 특성 표를 읽는다');
-  // 무공 은자 덤(goldOnSkill)은 사건으로 나간다 — 받는 쪽이 없으면 안 보인다.
-  // 그 특성을 쓰던 취마는 없어졌지만 길은 game.js에 남아 있으니 짝은 계속 본다.
-  ok(read('js/game.js').includes("this.emit('gold', { amount: got, fromSkill: true })"), '무공 은자 덤이 은자 사건을 보낸다');
-  ok(/case 'gold':/.test(bat), 'battle.js가 은자 사건을 받는다');
-  // 무공은 캐릭터·차수마다 이름과 그림이 바뀐다. 화면이 기본 표(SKILLS)만 읽으면
-  // 전직해도 화면만 옛 이름으로 남는다 — game.skillDef를 거쳐야 한다.
-  const ui = read('js/ui/skill.js');
-  ok(ui.includes('game.skillDef('), '무공 화면이 지금 캐릭터·차수의 모습을 읽는다');
-  ok(/game\.jobTier\(\)/.test(ui), '무공 화면이 차수가 바뀌면 다시 그린다');
-  ok(/skillDef\(/.test(read('js/main.js')), '들판 무공 단추도 지금 모습을 읽는다');
-}
-
-console.log('\n=== 7. 화면이 올린 자원 ↔ RES_DEFS ===');
-{
-  // 화면이 res: ['books'] 하고 올려도 RES_DEFS에 그 이름이 없으면
-  // 창 머리에서 **조용히 사라진다**. 오타 하나면 끝이라 기계가 본다.
-  const defs = new Set([...read('js/ui/common.js')
-    .matchAll(/^\s{2}([a-z]+):\s*\{\s*cur:/gm)].map((m) => m[1]));
-  const used = new Set();
-  for (const f of JS_FILES) {
-    for (const m of read(f).matchAll(/\bres:\s*\[([^\]]*)\]/g)) {
-      for (const n of m[1].matchAll(/'([a-z]+)'/g)) used.add(n[1]);
-    }
-  }
-  const miss = [...used].filter((k) => !defs.has(k)).sort();
-  ok(defs.size > 0, 'RES_DEFS를 읽었다', `${defs.size}종`);
-  ok(miss.length === 0, '화면이 올린 자원이 전부 정의돼 있다',
-    miss.length ? `없음: ${miss.join(', ')}` : `${used.size}종 사용`);
-  // 창 머리를 채우는 쪽도 있어야 한다
-  ok(read('js/main.js').includes('RES_DEFS[id].get('), 'main.js가 자원칸을 채운다');
-  ok(read('js/ui/common.js').includes("res: () => made[cur]?.res"), '하위 탭이 자원을 위로 올린다');
+  const wm = read('js/wmain.js');
+  ok(wm.includes('W.skillsOf(game.s.job)') && wm.includes('s.jobTier'), '들판 무공 단추가 지금 캐릭터·차수를 읽는다');
 }
 
 console.log('');
@@ -257,7 +229,7 @@ console.log('=== 8. 새 판이 기기에 들어가는 길 ===');
   // 배포는 멀쩡한데 기기에만 안 들어간 일이 실제로 났다. 길이 끊기면
   // 쓰는 사람은 영영 옛 화면을 본다 — 눈으로는 절대 못 잡는 종류다.
   const sw = read('sw.js');
-  const mn = read('js/main.js');
+  const mn = read('js/wmain.js');
 
   // 1) 설치가 통째로 실패하면 안 된다. addAll은 한 장만 빠져도 전부 실패다.
   ok(!/c\.addAll\(SHELL\)/.test(sw), '설치가 addAll(통째로)이 아니다');
@@ -374,6 +346,8 @@ console.log('=== 11. 큰 수를 보통 셈으로 다루는 곳 ===');
   const bad = [];
   for (const f of JS_FILES) {
     if (f.endsWith('big.js')) continue;
+    // 바람식 개편의 새 엔진·화면은 보통 숫자만 쓴다(Big이 없다) — 여기 연산은 맞는 셈이다
+    if (f.startsWith('js/world/') || /js\/w(main|ui|net)\.js$/.test(f)) continue;
     read(f).split('\n').forEach((ln, i) => {
       const code = ln.replace(/\/\/.*$/, '');
       for (const fld of FIELDS) {

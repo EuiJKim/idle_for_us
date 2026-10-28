@@ -42,6 +42,9 @@ export function fmt(n) {
   if (n < 0) return '-' + fmt(-n);
   if (n < 100 && n % 1 >= 0.05) return (Math.floor(n * 10) / 10).toString();
   if (n < 1000) return Math.floor(n).toString();
+  // 바람식 개편: 숫자가 작아져서(두목 체력·레벨 경험치가 몇백만) 1억 아래는 쉼표로 다 적는다 —
+  // 50.0a·1.20b보다 50,000·120,000이 읽힌다
+  if (n < 1e8) return Math.floor(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
   return unitText(Math.log10(n));
 }
 

@@ -1293,7 +1293,7 @@ export class BattleView {
       emoji(this.ctx, pet.emoji, px, py, i ? 28 : 34, false);
     });
     hpBar(this.ctx, x - 32, y - 128, 64, 6, ratio(game.heroHp, st.hp), '#16a34a');
-    nameTag(this.ctx, `${RANKS[game.s.rank].name} ${game.s.nickname || ''}`, x, y - 136);
+    nameTag(this.ctx, game.heroLabel ? game.heroLabel() : `${RANKS[game.s.rank].name} ${game.s.nickname || ''}`, x, y - 136);
     this.ctx.restore();
   }
 
@@ -1413,6 +1413,8 @@ export class BattleView {
       }
     }
     if (a.stun > 0) iceBlock(ctx, x, y, 26, 88);
+    // 마을 사람은 이름을 단다
+    if (a.npc) { ctx.globalAlpha = 1; nameTag(ctx, def.name || '', x, y - 104, true); }
     // 체력바는 가까이 붙은 적만. 수십 마리가 전부 달면 주황 막대가 화면을 덮는다.
     // 그리고 **맞은 적만** — 멀쩡한 졸개 머리 위 꽉 찬 막대는 아무것도 알려 주지 않는다
     const near = Math.hypot(x - this.heroX, y - this.groundY) <= HP_BAR_RANGE && big(a.hp).lt(a.maxHp);
