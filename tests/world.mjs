@@ -85,6 +85,29 @@ console.log('\n=== 칸 이동 (바람식) ===');
   h.moveTo(W.tileCenter(1), W.tileCenter(2));
   for (let t = 0; t < 20; t += 0.05) h.tick(0.05);
   ok(h.hc === 1 && h.hr === 2 && !h.hmove, '누른 칸으로 걸어가 선다', `${h.hc},${h.hr}`);
+  // 길막: 몹이 벽처럼 서 있어도 돌아가서 친다 (예전엔 앞이 막히면 그 자리에 멈췄다)
+  const wall = (g2, cells) => cells.map(([c, r]) => { const m = g2.spawnMob(false); m.c = c; m.r = r; m.x = W.tileCenter(c); m.y = W.tileCenter(r); m.hc = c; m.hr = r; m.stun = 999; m.aggro = false; m.hp = m.maxHp = 1e9; m.npc = true; return m; });
+  const b = fresh();
+  b.enterMap(W.mapId(1, 1));
+  for (const m of b.mons) m.alive = false; b.mons = [];
+  b.placeHero(4, 15);
+  wall(b, [[2, 13], [3, 13], [4, 13], [5, 13], [6, 13], [3, 14], [5, 14]]);
+  const [tgt] = wall(b, [[4, 10]]); tgt.hp = tgt.maxHp = 30; tgt.armor = 0; tgt.npc = false;
+  b.respawns = [{ t: 1e9 }];
+  for (let i = 0; i < 20 * 25 && tgt.alive; i++) { b.tick(0.05); b.events.length = 0; }
+  ok(!tgt.alive, '몹이 벽처럼 막아도 돌아가서 잡는다', `무인 ${b.hc},${b.hr}`);
+  // 과녁이 사방으로 막혀 닿을 수 없으면 다른 몹을 잡으러 간다
+  const c2 = fresh();
+  c2.enterMap(W.mapId(1, 1));
+  for (const m of c2.mons) m.alive = false; c2.mons = [];
+  c2.placeHero(4, 16);
+  wall(c2, [[4, 3], [3, 4], [5, 4], [4, 5], [3, 2], [5, 2]]);
+  const [boxed] = wall(c2, [[4, 4]]); boxed.npc = false;
+  const [far] = wall(c2, [[0, 18]]); far.hp = far.maxHp = 30; far.armor = 0; far.npc = false;
+  c2.mon = boxed;
+  c2.respawns = [{ t: 1e9 }];
+  for (let i = 0; i < 20 * 25 && far.alive; i++) { c2.tick(0.05); c2.events.length = 0; }
+  ok(!far.alive && boxed.alive, '닿을 수 없는 과녁은 두고 다른 몹을 잡는다', `무인 ${c2.hc},${c2.hr}`);
 }
 
 console.log('\n=== 레벨·스탯 ===');

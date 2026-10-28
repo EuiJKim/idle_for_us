@@ -276,18 +276,18 @@ function handleEvents() {
         break;
       case 'petDrop': {
         const d = W.petOf(ev.pet.kind);
-        toast(`${W.RARITY[ev.pet.rar].name} 애완동물 ${d.emoji} ${d.name}! ${ev.joined ? '데려갔어요' : '우리에서 기다려요(동료 창)'}`);
-        view.showBanner(`${d.emoji} ${d.name}`, W.RARITY[ev.pet.rar].color, 1.6, '동료');
+        toast(`${W.RARITY[ev.pet.rar].name} 애완동물 ${d.name}(순위 ${d.tier})! ${ev.joined ? '데려갔어요' : '우리에서 기다려요(동료 창)'}`);
+        view.showBanner(d.name, W.RARITY[ev.pet.rar].color, 1.6, '동료');
         sfx('loot');
         break;
       }
       case 'petLevel':
-        view.float(`${W.petOf(ev.pet.kind).emoji} Lv.${ev.pet.lv}`, view.heroX - 50, view.groundY - 120, '#86efac', 14, 1.1);
+        view.float(`${W.petOf(ev.pet.kind).name} Lv.${ev.pet.lv}`, view.heroX - 50, view.groundY - 120, '#86efac', 14, 1.1);
         break;
       case 'mountDrop': {
         const d = W.mountOf(ev.mount.kind);
-        toast(`탈것 ${d.emoji} ${d.name}! 이동 속도 +${Math.round(d.speed * 100)}%`);
-        view.showBanner(`${d.emoji} ${d.name}`, '#fde68a', 1.8, '탈것');
+        toast(`탈것 ${d.name}(순위 ${d.tier})! 이동 속도 +${Math.round(d.speed * 100)}%`);
+        view.showBanner(d.name, '#fde68a', 1.8, '탈것');
         sfx('loot');
         break;
       }

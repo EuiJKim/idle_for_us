@@ -4,6 +4,23 @@ import * as W from './world/wdata.js';
 import { h, toast, openModal, closeModal, subTabs, popUp, holdRepeat } from './ui/common.js';
 import { fmt } from './fmt.js';
 import { dayKey } from './net.js';
+import { drawCreature, CREATURES } from './creatures.js';
+
+// 애완동물·탈것 그림 아이콘 (창 목록용) — 들판과 같은 그림을 작게
+export function creatureIcon(kind, size = 44) {
+  const cv = document.createElement('canvas');
+  const q = Math.min(2, window.devicePixelRatio || 1);
+  cv.width = cv.height = size * q;
+  cv.style.width = cv.style.height = `${size}px`;
+  cv.className = 'creature-ico';
+  const ctx = cv.getContext('2d');
+  ctx.scale(q, q);
+  const c = CREATURES[kind] || {};
+  const big = (c.len || 30) > 50;
+  const sc = (size / 44) * (c.type === 'dragon' ? (big ? 0.3 : 0.6) : big ? 0.4 : 0.9);
+  drawCreature(ctx, kind, size * (big ? 0.42 : 0.5), size * (c.type === 'dragon' ? 0.8 : 0.95), { t: 0.6, scale: sc });
+  return cv;
+}
 
 const pct = (v, d = 1) => `${(v * 100).toFixed(d).replace(/\.0$/, '')}%`;
 // 조합 장비는 등급(레어·유니크·전설·신화) 빛깔, 옛 드랍 장비는 옛 등급 빛깔
@@ -624,13 +641,13 @@ function compTab(app) {
     ...W.PETS.slice().sort((a, b) => b.tier - a.tier).map((d) => {
       const z = firstZone(W.petMaxTier, d.tier);
       const v = d.buff === 'crit' ? `+${(d.base * 100).toFixed(0)}%p` : d.buff === 'def' ? `+${d.base}` : d.buff === 'regenPct' ? `+${(d.base * 100).toFixed(1)}%` : `+${(d.base * 100).toFixed(0)}%`;
-      return h('div', { class: 'rank-line' }, h('span', { class: 'rk' }, `${d.tier}`), h('span', { class: 'em' }, d.emoji),
+      return h('div', { class: 'rank-line' }, h('span', { class: 'rk' }, `${d.tier}`), h('span', { class: 'em' }, creatureIcon(d.id, 34)),
         h('b', {}, d.name), h('span', {}, `${d.text} ${v} · 한 대 ${Math.round((0.1 + d.tier * 0.025) * 100)}%`), h('small', {}, `${z?.name || ''} 두목부터`));
     }));
   const mountRank = h('details', { class: 'card rank-card' }, h('summary', {}, h('b', {}, '탈것 순위'), h('small', {}, ' 위일수록 빠르다 — 눌러서 보기')),
     ...W.MOUNTS.slice().sort((a, b) => b.tier - a.tier).map((d) => {
       const z = firstZone(W.mountMaxTier, d.tier);
-      return h('div', { class: 'rank-line' }, h('span', { class: 'rk' }, `${d.tier}`), h('span', { class: 'em' }, d.emoji),
+      return h('div', { class: 'rank-line' }, h('span', { class: 'rk' }, `${d.tier}`), h('span', { class: 'em' }, creatureIcon(d.id, 34)),
         h('b', {}, d.name), h('span', {}, `이동 +${Math.round(d.speed * 100)}% · 공격·체력 +${Math.round(d.stat * 100)}%`), h('small', {}, `${z?.name || ''} 두목부터`));
     }));
   root.append(petCard, boxCard, rankCard, mountCard, mountRank);
@@ -663,7 +680,7 @@ function compTab(app) {
       const active = i < slots;
       const need = W.petExpToNext(p.lv);
       petCard.append(h('div', { class: `row pet-row${active ? '' : ' locked'}` },
-        h('div', { class: 'ico pet-ico' }, d.emoji),
+        h('div', { class: 'ico pet-ico' }, creatureIcon(p.kind)),
         h('div', { class: 'info' },
           h('div', { class: 'name' }, d.name, ' ', rarTag(p.rar), h('small', {}, `순위 ${d.tier} · Lv.${p.lv}${p.lv >= W.PET_LV_MAX ? ' (최대)' : ''}${active ? '' : ' · 칸이 모자라 쉬는 중'}`)),
           h('div', { class: 'desc' }, petInfo(p)),
@@ -675,7 +692,7 @@ function compTab(app) {
     for (const p of s.petBox) {
       const d = W.petOf(p.kind);
       boxCard.append(h('div', { class: 'row pet-row' },
-        h('div', { class: 'ico pet-ico' }, d.emoji),
+        h('div', { class: 'ico pet-ico' }, creatureIcon(p.kind)),
         h('div', { class: 'info' }, h('div', { class: 'name' }, d.name, ' ', rarTag(p.rar), h('small', {}, `순위 ${d.tier} · Lv.${p.lv}`)), h('div', { class: 'desc' }, petInfo(p))),
         h('div', { class: 'btn-col' },
           h('button', { class: 'buy', disabled: s.pets.length < slots ? null : true, onclick: () => { if (game.adoptPet(p.uid)) { toast(`${d.name}을(를) 데려갔어요`); done(); } } }, '데려가기'),
@@ -689,7 +706,7 @@ function compTab(app) {
       const d = W.mountOf(m.kind);
       const on = s.mount === m.uid;
       mountCard.append(h('div', { class: `row${on ? ' me' : ''}` },
-        h('div', { class: 'ico pet-ico', style: d.tint ? `filter:drop-shadow(0 0 4px ${d.tint})` : '' }, d.emoji),
+        h('div', { class: 'ico pet-ico' }, creatureIcon(m.kind)),
         h('div', { class: 'info' }, h('div', { class: 'name' }, d.name, h('small', {}, `순위 ${d.tier}`)), h('div', { class: 'desc' }, `이동 속도 +${Math.round(d.speed * 100)}% · 공격력·체력 +${Math.round(d.stat * 100)}%`)),
         h('button', { class: on ? 'btn' : 'buy', onclick: () => { game.ride(on ? null : m.uid); done(); } }, on ? '내리기' : '타기')));
     }

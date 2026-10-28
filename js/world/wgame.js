@@ -141,7 +141,7 @@ export class WorldGame {
   heroLabel() { return `Lv.${this.s.level} ${this.s.nickname || ''}`; }
   ranged() { return !!W.classOf(this.s.job)?.range; }
   // 그리는 쪽: 무인 뒤를 따르는 애완동물 · 탄 탈것
-  petTeam() { return this.activePets().map((p) => ({ emoji: W.petOf(p.kind).emoji, rar: p.rar })); }
+  petTeam() { return this.activePets().map((p) => ({ kind: p.kind, emoji: W.petOf(p.kind).emoji, rar: p.rar })); }
   mountNow() { const m = this.s.mounts.find((x) => x.uid === this.s.mount); return m ? W.mountOf(m.kind) : null; }
   bestGrade(slot) { const it = this.s.equip[slot]; return it ? it.grade : -1; }
   aoeCenter() { return this.ranged() && this.mon?.alive ? { x: this.mon.x, y: this.mon.y } : { x: this.heroX, y: this.heroY }; }
@@ -317,6 +317,37 @@ export class WorldGame {
     }
     return null;
   }
+  // 길 찾기(넓이 우선): (c, r)에서 goal(c, r)이 참인 빈 칸까지 가장 짧은 길의 첫 걸음.
+  // 이미 goal이면 'here', 길이 없으면 null. 지도가 9×19칸이라 매번 다 훑어도 싸다.
+  // (전에는 목표 쪽으로 한 칸씩만 봤다 — 몹이 벽처럼 서 있으면 앞에서 멈춰 버렸다)
+  findStep(c, r, goal, self) {
+    if (goal(c, r)) return 'here';
+    const C = W.COLS, R = W.ROWS;
+    const prev = new Int16Array(C * R).fill(-1);
+    const start = r * C + c;
+    prev[start] = start;
+    const q = [start];
+    const dirs = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+    for (let qi = 0; qi < q.length; qi++) {
+      const cur = q[qi];
+      const cc = cur % C, cr = (cur - cc) / C;
+      for (const [dc, dr] of dirs) {
+        const nc = cc + dc, nr = cr + dr;
+        if (nc < 0 || nr < 0 || nc >= C || nr >= R) continue;
+        const ni = nr * C + nc;
+        if (prev[ni] !== -1 || this.occupied(nc, nr, self)) continue;
+        prev[ni] = cur;
+        if (goal(nc, nr)) {
+          // 첫 걸음까지 거슬러 올라간다
+          let k = ni;
+          while (prev[k] !== start) k = prev[k];
+          return { c: k % C, r: (k - (k % C)) / C };
+        }
+        q.push(ni);
+      }
+    }
+    return null;
+  }
   // 옮겨 가는 칸 쪽으로 미끄러진다. 닿으면 true.
   slide(obj, xKey, yKey, to, speed, dt) {
     const tx = W.tileCenter(to.c), ty = W.tileCenter(to.r);
@@ -438,7 +469,14 @@ export class WorldGame {
       if (m.aggro) {
         const reach = m.isBoss ? W.MOB_REACH * 1.5 : W.MOB_REACH;
         if (dist > reach) {
-          const st2 = this.nextStep(m.c, m.r, ht.c, ht.r, m);
+          // 곧장 다가가고, 막혔으면 돌아서 (가끔만 길을 찾는다 — 몹이 많아서)
+          let st2 = this.nextStep(m.c, m.r, ht.c, ht.r, m);
+          if (!st2 && !(m.pathT > 0)) {
+            m.pathT = 0.6;
+            const f = this.findStep(m.c, m.r, (c, r) => this.tileDist({ c, r }, ht) <= reach, m);
+            if (f && f !== 'here') st2 = f;
+          }
+          if (m.pathT > 0) m.pathT -= dt;
           if (st2) m.move = st2;
         } else {
           m.atkTimer -= dt;
@@ -514,8 +552,9 @@ export class WorldGame {
     if (!this.mon?.alive) return;
     if (dist > st.range) {
       if (!this.s.autoHunt && !m.aggro) { this.walking = false; return; }
-      // 길이 막혔으면(사방이 몹) 다른 과녁을 찾는다
-      if (!this.stepHero(mt.c, mt.r)) { this.walking = false; this.mon = null; }
+      // 칠 수 있는 빈 칸(사거리 안)까지 길을 찾는다. 길이 없으면 이 과녁은 잠깐 두고 다른 몹을 잡는다.
+      const f = this.findStep(this.hc, this.hr, (c, r) => this.tileDist({ c, r }, this.mobTile(m)) <= st.range, 'hero');
+      if (!f || f === 'here' || !this.stepTo(f)) { this.walking = false; this.giveUp(m); }
       return;
     }
     this.walking = false;
@@ -526,10 +565,19 @@ export class WorldGame {
     }
   }
 
-  // 목표 칸 쪽으로 한 칸 떠난다. 못 가면 false.
+  // 닿을 수 없는 과녁 — 4초 동안 고르지 않는다
+  giveUp(m) {
+    if (m) m.unreachUntil = this.clock + 4;
+    this.mon = null;
+  }
+  // 목표 칸까지 길을 찾아 한 칸 떠난다. 못 가면 false. (손으로 찍은 칸이 막혀 있으면 그 옆까지)
   stepHero(tc, tr) {
-    const o = this.nextStep(this.hc, this.hr, tc, tr, 'hero');
-    if (!o) return false;
+    const f = this.findStep(this.hc, this.hr, (c, r) => (c === tc && r === tr) || (this.occupied(tc, tr, 'hero') && Math.abs(c - tc) + Math.abs(r - tr) === 1), 'hero');
+    if (!f || f === 'here') return false;
+    return this.stepTo(f);
+  }
+  stepTo(o) {
+    if (!this.inMap(o.c, o.r) || this.occupied(o.c, o.r, 'hero')) return false;
     this.hmove = { c: o.c, r: o.r };
     if (o.c !== this.hc) this.heroFacing = o.c > this.hc ? 1 : -1;
     this.heroAngle = Math.atan2((o.r - this.hr) * 0.6, o.c - this.hc);
@@ -542,7 +590,7 @@ export class WorldGame {
     let bd = Infinity;
     const h = { c: this.hc, r: this.hr };
     for (const m of this.mons) {
-      if (!m.alive || m.npc || m.introT > 0) continue;
+      if (!m.alive || m.npc || m.introT > 0 || m.unreachUntil > this.clock) continue;
       let d = this.tileDist(h, this.mobTile(m));
       if (m.aggro) d *= 0.5;                          // 나를 치러 오는 놈 먼저
       if (!this.s.autoHunt && d > st.range * 1.2 && !m.aggro) continue;

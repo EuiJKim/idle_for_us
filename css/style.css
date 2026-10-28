@@ -985,3 +985,6 @@ button.mat-chip:disabled { opacity: 0.5; }
 .rank-line b { font-size: 14px; }
 .rank-line span:not(.rk):not(.em) { color: var(--muted); }
 .rank-line small { grid-column: 3 / 5; color: #a8a29e; font-size: 11px; }
+.row .ico.pet-ico { padding: 0; overflow: hidden; width: 50px; height: 46px; border-radius: 10px; }
+.creature-ico { display: block; }
+.rank-line .em { display: flex; align-items: center; }

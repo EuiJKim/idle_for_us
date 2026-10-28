@@ -1,6 +1,7 @@
 // 전투 화면 캔버스 렌더러 (수묵화 무협풍). 게임 이벤트를 받아 연출만 담당한다.
 import { zoneOf, RANKS, GRADES, FIELD_SQUASH, JOB_TRAITS, QI, jobOf, critTierName } from './data.js';
 import { artReady, putArt, loadArt, FIT, ART_SHOULDER, ART_BAND, headKey, bodyKey, weaponKey } from './art.js';
+import { drawCreature, saddleY } from './creatures.js';
 import { OUTFITS } from './data.js';
 
 // 의복 열둘 중 앞 여섯은 도포(몸), 뒤 여섯은 검 장식(무기)이다.
@@ -484,9 +485,11 @@ export class BattleView {
         break;
       }
       case 'petHit': {
-        // 애완동물의 한 대 — 맞은 자리에 짧은 빛
+        // 애완동물의 한 대 — 과녁 쪽으로 튀어 나가고(drawHeroUnit), 맞은 자리에 짧은 빛
         if (!ev.at) break;
         const px = this.sx(ev.at), py = this.sy(ev.at);
+        this.petAtk = this.petAtk || [];
+        this.petAtk[ev.i] = { t: 0.32, x: px, y: py };
         this.sparks.push({ x: px, y: py - 40, life: 0.22, max: 0.22, r: 24, color: '#fde68a' });
         break;
       }
@@ -1368,13 +1371,15 @@ export class BattleView {
     const br = 38 + Math.sin(this.t * 3) * 4;
     this.ctx.beginPath(); this.ctx.ellipse(x, y + 2, br, br * 0.4, 0, 0, Math.PI * 2); this.ctx.stroke();
     this.ctx.restore();
-    // 탈것 — 무인 발밑에 그리고 무인을 그만큼 올려 앉힌다 (이모지 말은 왼쪽을 본다)
+    // 탈것 — 두 겹으로: 먼 다리·꼬리 → 무인(안장 높이에 앉힌다) → 몸통·가까운 다리·머리.
+    // 몸통이 무인의 다리를 덮어서 올라탄 것처럼 보인다.
     const mt = game.mountNow?.();
     let fy = y;
-    if (mt && !downRot) {
-      const bob = moving ? Math.abs(Math.sin(this.t * 14)) * 3 : 0;
-      emoji(this.ctx, mt.emoji, x, y + 8 - bob, 56, !opts.flip);
-      fy = y - 20 - bob;
+    const ride = mt && !downRot;
+    const rideOpt = { t: this.t, moving, flip: !!opts.flip };
+    if (ride) {
+      drawCreature(this.ctx, mt.id, x, y, { ...rideOpt, layer: 'back' });
+      fy = y + saddleY(mt.id, this.t, moving);
     }
     if (downRot) {
       this.ctx.save();
@@ -1382,13 +1387,23 @@ export class BattleView {
       this.ctx.globalAlpha *= 1 - Math.abs(downRot) / 1.3 * 0.35;
       drawFighter(this.ctx, x, y, look, opts);
       this.ctx.restore();
-    } else drawFighter(this.ctx, x, fy, look, { ...opts, run: mt ? false : opts.run });
+    } else drawFighter(this.ctx, x, fy, look, { ...opts, run: ride ? false : opts.run });
+    if (ride) drawCreature(this.ctx, mt.id, x, y, { ...rideOpt, layer: 'front' });
     // 데려간 영수들이 뒤를 따른다 (예전엔 s.pet 한 마리만 그렸는데, 영수가 여럿이 된 뒤로
     // 그 값이 늘 비어 있어서 아무것도 안 그려졌다)
+    // 애완동물 — 무인 뒤를 따라 걷고, 칠 때는 과녁 쪽으로 튀어 나갔다 돌아온다
+    const back = opts.flip ? 1 : -1;
     game.petTeam().forEach((pet, i) => {
-      const px = x - 52 - i * 30;
-      const py = y + 10 - (i % 2) * 14 - Math.abs(Math.sin(this.t * (moving ? 12 : 4) + i)) * 6;
-      emoji(this.ctx, pet.emoji, px, py, i ? 36 : 42, false);
+      let px = x + back * (50 + i * 34);
+      let py = y + 12 - (i % 2) * 16;
+      const atk = this.petAtk?.[i];
+      if (atk && atk.t > 0) {
+        atk.t -= this._lastDt || 0;
+        const k = Math.sin(Math.PI * Math.max(0, Math.min(1, 1 - atk.t / 0.32)));
+        px += (atk.x - px) * 0.55 * k;
+        py += (atk.y - py) * 0.55 * k - k * 10;
+      }
+      drawCreature(this.ctx, pet.kind, px, py, { t: this.t + i * 0.7, moving: moving || (atk && atk.t > 0), flip: !!opts.flip, scale: 1.05 });
     });
     hpBar(this.ctx, x - 32, fy - 128, 64, 6, ratio(game.heroHp, st.hp), '#16a34a');
     nameTag(this.ctx, game.heroLabel ? game.heroLabel() : `${RANKS[game.s.rank].name} ${game.s.nickname || ''}`, x, fy - 136);
