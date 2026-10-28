@@ -163,7 +163,7 @@ function bagTab(app) {
   }
   function upd() {
     const s = game.s;
-    const nsig = `${game.statSig()}|${s.bag.map((i) => i.uid + '.' + i.plus).join(',')}|${s.bagSize}|${JSON.stringify(s.mats)}|${Math.floor(Math.log10(s.gold + 1) * 20)}`;
+    const nsig = `${game.statSig()}|${s.bag.map((i) => i.uid + '.' + i.plus).join(',')}|${s.bagSize}|${JSON.stringify(s.mats)}|${W.SLOTS.map((x) => game.nextSteps(x.id).map((st) => game.craftCheck(x.id, st).ok))}|${s.gold >= game.bagUpgradeCost()}`;
     if (nsig === sig) return;
     sig = nsig;
     smith();
@@ -242,9 +242,14 @@ function townTab(app) {
   const shop = h('div', { class: 'card' });
   const master = h('div', { class: 'card' });
   root.append(status, master, shop);
+  let sig = '';
   function upd() {
     const s = game.s;
     const inTown = game.map.town;
+    // 바뀐 것이 있을 때만 다시 그린다 — 0.2초마다 단추를 갈아 끼우면 누르는 사이에 단추가 바뀌어 눌림이 사라진다
+    const nsig = `${inTown}|${s.autoHunt}|${s.huntMap}|${s.jobTier}|${s.level}|${s.potions}|${s.books || 0}|${[10, 50, 200].map((n) => s.gold >= game.potionPrice() * n)}|${s.gold >= game.statBookCost()}|${game.canAdvance()}`;
+    if (nsig === sig) return;
+    sig = nsig;
     status.replaceChildren(inTown
       ? h('p', {}, '마을에서 쉬는 중 — 체력이 빠르게 차요.', s.autoHunt ? ` 다 차면 ${W.mapOf(s.huntMap).name}(으)로 돌아가요.` : '')
       : h('div', { class: 'btn-row' }, h('span', { class: 'muted', style: 'flex:2;align-self:center' }, '상점과 사부는 마을에 있어요.'),
