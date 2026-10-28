@@ -47,6 +47,13 @@ export const POSES = {
   내려베기: P({ lean: 0.44, crouch: 0.45, dx: 10, hand: [0.85, 27], blade: 0.95, wscale: W }),
   // 칼을 거꾸로 잡아 허리로 거둔다
   납도: P({ lean: 0.03, crouch: 0.08, hand: [2.0, 16], blade: PI - 0.5, wscale: W }),
+  // ---- 권갑 (권마) — 평타 연타 ----
+  // 정권: 어깨에서 곧게 뻗는다
+  정권: P({ lean: 0.38, crouch: 0.3, dx: 12, hand: [-0.05, 33], blade: -0.05, stretch: 0.08, wscale: W }),
+  // 훅: 옆에서 둥글게 감아 친다 — 손이 몸 앞을 가로지른다
+  훅: P({ lean: 0.26, crouch: 0.22, dx: 8, hand: [-0.55, 27], blade: 0.6, wscale: W }),
+  // 올려치기: 낮게 웅크렸다가 위로 솟구친다
+  올려치기: P({ lean: 0.14, crouch: 0.05, lift: 4, dx: 6, hand: [-1.25, 30], blade: -1.4, stretch: 0.04, wscale: W }),
   // ---- 독낭 (독마) ----
   투척준비: P({ lean: -0.18, crouch: 0.2, dx: -4, hand: [-2.3, 24], blade: -2.2, wscale: W }),
   투척: P({ lean: 0.3, crouch: 0.18, dx: 8, hand: [-0.25, 30], blade: -0.35, stretch: 0.05, wscale: W }),

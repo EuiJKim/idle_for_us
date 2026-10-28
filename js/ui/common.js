@@ -66,11 +66,13 @@ export function openModal(build, { dismissable = true, onClose } = {}) {
   sheet.replaceChildren();
   build(sheet);
   modal.classList.remove('hidden');
+  document.body.classList.add('modal-open');
   modal.onclick = dismissable ? (e) => { if (e.target === modal) closeModal(); } : null;
   modalOnClose = onClose || null;
 }
 export function closeModal() {
   document.getElementById('modal').classList.add('hidden');
+  document.body.classList.remove('modal-open');
   const cb = modalOnClose;
   modalOnClose = null;
   if (cb) cb();

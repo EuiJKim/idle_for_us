@@ -741,3 +741,115 @@ body { background: radial-gradient(ellipse at top, #1d1712, #0b0907 70%); }
 .up-stage .desc { margin-top: 4px; }
 .row.maxed { opacity: 0.6; }
 .row.maxed .buy { font-size: 11px; }
+
+/* ============================================================
+   v1.0 — UI 대정리 (2026-10-28)
+   - 창틀: 그림 9조각(border-image)을 버리고 CSS로 그린다. 그림의 대나무·구름이
+     테두리 조각(26px)을 넘어 안쪽 60px까지 뻗어 있어서, round로 되풀이되며
+     카드 안쪽에 잎 조각이 줄줄이 찍혀 글자 위에 겹쳤다.
+   - 창은 아래에서 올라오는 시트로. 화면 전체를 덮으니 수련하는 동안 싸움이
+     안 보였다. 위쪽에 들판을 남기고, 무인을 그 남은 자리에 세운다(battle.js).
+     머리의 손잡이를 누르면 전체로 펼친다.
+   - 무공 바 여덟 칸이 한 줄에 다 들어간다(전에는 여섯만 보이고 둘은 밖으로).
+   ============================================================ */
+
+/* 창틀 — 옻칠 바탕에 금선 두 겹, 네 귀에 짧은 꺾쇠 */
+.card, #modal .sheet {
+  border: 1px solid rgba(212, 166, 74, 0.34);
+  border-image: none;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #251f18 0%, #1c1813 100%);
+  background-clip: border-box;
+  box-shadow: inset 0 0 0 3px #15110d, inset 0 0 0 4px rgba(212, 166, 74, 0.13), 0 3px 10px rgba(0, 0, 0, 0.35);
+  position: relative;
+}
+.card { padding: 12px 12px 11px; }
+#modal .sheet { padding: 18px 16px; }
+.card::before, #modal .sheet::before {
+  content: ''; position: absolute; inset: 6px; pointer-events: none; border-radius: 7px;
+  --c: rgba(232, 200, 122, 0.75);
+  background:
+    linear-gradient(var(--c), var(--c)) left top / 12px 1.5px no-repeat,
+    linear-gradient(var(--c), var(--c)) left top / 1.5px 12px no-repeat,
+    linear-gradient(var(--c), var(--c)) right top / 12px 1.5px no-repeat,
+    linear-gradient(var(--c), var(--c)) right top / 1.5px 12px no-repeat,
+    linear-gradient(var(--c), var(--c)) left bottom / 12px 1.5px no-repeat,
+    linear-gradient(var(--c), var(--c)) left bottom / 1.5px 12px no-repeat,
+    linear-gradient(var(--c), var(--c)) right bottom / 12px 1.5px no-repeat,
+    linear-gradient(var(--c), var(--c)) right bottom / 1.5px 12px no-repeat;
+}
+/* 카드 안의 줄(.row)은 한 단 밝은 바탕으로 — 카드와 줄이 같은 색이면 경계가 안 보인다 */
+.card .row { background: rgba(255, 245, 220, 0.04); }
+.row { border: 1px solid rgba(255, 245, 220, 0.05); }
+.fold { border: 1px solid rgba(212, 166, 74, 0.22); background: linear-gradient(180deg, #221c16, #1b1712); }
+
+/* 숫자는 고정폭으로 — 올라갈 때마다 글자 폭이 바뀌어 줄이 출렁였다 */
+.res b, .buy, .row .desc, .stat-grid b, #progress-text, #power-label { font-variant-numeric: tabular-nums; }
+
+/* ---------- 창: 아래에서 올라오는 시트 ---------- */
+#panel {
+  top: auto; bottom: 0; height: 58%; max-height: none;
+  border-radius: 18px 18px 0 0;
+  border-top: 1px solid rgba(212, 166, 74, 0.35);
+  box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.55);
+  transition: transform 0.24s cubic-bezier(.2,.8,.2,1), height 0.24s ease;
+}
+#panel.full { height: 100%; border-radius: 0; }
+#panel-head {
+  position: relative; padding: 16px 12px 9px; border-radius: 18px 18px 0 0;
+  background: linear-gradient(180deg, #1d1812, #120f0b);
+}
+#panel.full #panel-head { padding-top: calc(16px + var(--safe-top)); border-radius: 0; }
+#panel-grip {
+  position: absolute; left: 50%; top: 4px; transform: translateX(-50%);
+  width: 64px; height: 14px; padding: 0; background: none; border: 0;
+}
+#panel-grip::before {
+  content: ''; display: block; width: 40px; height: 4px; margin: 5px auto 0; border-radius: 3px;
+  background: rgba(212, 166, 74, 0.45);
+}
+#panel-title { font-size: 24px; }
+#panel-dim { background: rgba(0, 0, 0, 0.18); }
+#panel.full ~ #panel-dim, #panel-dim.full { background: rgba(0, 0, 0, 0.35); }
+
+/* ---------- 무공 바 — 여덟 칸이 한 줄에 ---------- */
+#skillbar { gap: 5px; padding: 0 8px; }
+.skill-btn { min-width: 0; height: 46px; border-radius: 10px; font-size: 22px; }
+.skill-btn.has-art { background-size: 80% auto; background-position: center 45%; }
+.skill-btn .lock { font-size: 8px; }
+
+/* ---------- 창 버튼 — 작게, 들판을 덜 가리게 ---------- */
+.tabcol { bottom: calc(64px + var(--safe-bottom, 0px)); gap: 5px; }
+#tabs button { width: 46px; height: 46px; border-radius: 11px; background: rgba(18, 15, 11, 0.68); }
+#tabs button i { font-size: 19px; }
+#tabs button span { font-size: 8.5px; }
+
+/* ---------- 알림 줄 ---------- */
+/* 토스트는 무공 바 위에 쌓였는데, 무인 바로 아래라 적 이름·피해 숫자와 겹쳤다.
+   관문 줄 바로 아래 한 줄에 띄운다. */
+#toast { bottom: auto; top: calc(130px + var(--safe-top)); }
+.toast {
+  background: rgba(24, 19, 13, 0.94); border-color: rgba(212, 166, 74, 0.4);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45); max-width: 92vw; white-space: normal; text-align: center;
+}
+#app.has-update ~ #toast { top: calc(176px + var(--safe-top)); }
+#advice { top: 44px; }
+#gate-hint { top: 22px; }
+
+/* ---------- 캐릭터 고르기 ---------- */
+.class-grid { gap: 7px; }
+.class-card { padding: 6px 6px 9px; border-width: 1.5px; background: linear-gradient(180deg, #241e17, #1a1611); }
+.class-card canvas { width: 96px; height: 104px; }
+.class-card b { font-size: 16px; font-family: var(--serif); }
+.class-card .desc { font-size: 10.5px; line-height: 1.35; color: #cdbf9f; }
+.class-card:active { transform: scale(0.98); }
+/* 다섯째는 한 줄을 통째로 쓴다 — 홀로 반쪽에 남으면 잘려 보였다 */
+.class-grid .class-card:last-child:nth-child(odd) {
+  grid-column: 1 / -1; flex-direction: row; text-align: left; gap: 10px; padding: 6px 12px 6px 6px;
+}
+.class-grid .class-card:last-child:nth-child(odd) canvas { flex: none; }
+.class-grid .class-card:last-child:nth-child(odd) .cc-txt { display: flex; flex-direction: column; gap: 2px; }
+.class-card .cc-txt { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.class-grid .class-card:last-child:nth-child(odd) .cc-txt { align-items: flex-start; }
+/* 창이 떠 있는 동안 알림은 아래쪽 — 위에 두면 창 제목을 덮는다 */
+body.modal-open #toast { top: auto; bottom: calc(24px + var(--safe-bottom)); }

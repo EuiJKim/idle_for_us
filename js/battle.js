@@ -40,6 +40,13 @@ const SHOT = {
   poison: { kind: 'glob', life: 0.24, pose: ['투척준비', '투척'] },
   ring: { kind: 'finger', life: 0.09, pose: ['지법겨눔', '손가락튕김'] },
 };
+// 붙어서 치는 평타의 연타. 한 대마다 다음 자세로 넘어간다 — 같은 동작만 되풀이하면
+// 서서 움찔하는 걸로만 보였다. [닿는 자세, 휘두르는 궤적의 기울기(라디안), 휘두르는 방향(+1 위→아래)]
+const MELEE_COMBO = {
+  sword: [['일섬', -0.1, 1], ['내려베기', 0.7, 1], ['찌르기', 0, 0]],
+  fist: [['정권', 0, 0], ['훅', -0.4, -1], ['올려치기', -1.1, -1]],
+  ring: [['지법겨눔', 0, 0]],
+};
 // 치명 단계별 숫자 빛깔 (0 보통 · 1 치명 · 2 슈퍼 · 3 하이퍼 · 4+)
 const CRIT_COL = ['#ffffff', '#ef4444', '#fb923c', '#c084fc', '#facc15'];
 // 맞은 자국 빛깔 (없으면 흰 칼자국)
@@ -236,6 +243,7 @@ export class BattleView {
     this.t = 0;
     this.scroll = 0;
     this.heroLunge = 0;
+    this.corpses = [];   // 쓰러지는 중인 졸개
     this.monLunge = 0;
     this.monShake = 0;
     this.monFlash = 0;
@@ -314,7 +322,9 @@ export class BattleView {
   // 아래쪽은 스킬 슬롯·창 버튼이 덮으므로 무인을 중앙보다 조금 위에 둔다
   // 카메라가 무인을 쫓아가는 중이면 무인은 가운데에서 그만큼 비켜 서 있다.
   // sx·sy가 이 둘을 바탕으로 하므로 적·빛도 같이 맞춰진다.
-  get groundY() { const g = this.game; return this.h * 0.47 + (g && this.camY != null ? (g.heroY - this.camY) * this.squash : 0); }
+  // 창(시트)이 열려 있으면 무인을 위쪽 남은 들판에 세운다 — 시트가 화면 아래 58%를 덮는다.
+  // anchor는 tick에서 부드럽게 옮긴다(툭 튀면 멀미 난다).
+  get groundY() { const g = this.game; return this.h * (this.anchor ?? 0.47) + (g && this.camY != null ? (g.heroY - this.camY) * this.squash : 0); }
   get heroX() { const g = this.game; return this.w * 0.5 + (g && this.camX != null ? g.heroX - this.camX : 0); }
   get fxLevel() { return this.light ? Math.min(1, this.fxPref) : this.fxPref; }
   // 월드 Y는 화면에서 살짝 눌러 그린다 — 평면이 너무 넓어 보이지 않게
@@ -357,7 +367,8 @@ export class BattleView {
           if (!this.director) this.heroAnim.play([[0.04, '지법겨눔', 'snap']], 0.15);
         } else {
           this.heroLunge = 1;
-          if (Math.random() < 0.5) this.projectiles.push({ kind: 'qi', x: this.heroX + 30, y: this.groundY - 60, life: 0.22, max: 0.22 });
+          this.meleeSwing(game, cls);
+          if (Math.random() < 0.35) this.projectiles.push({ kind: 'qi', x: this.heroX + 30, y: this.groundY - 60, life: 0.22, max: 0.22 });
         }
         break;
       }
@@ -379,15 +390,17 @@ export class BattleView {
         const color = ev.kind === 'pet' ? '#f9a8d4' : skill ? '#fde68a' : CRIT_COL[Math.min(ct, CRIT_COL.length - 1)];
         const size = ev.kind === 'pet' ? 14 : skill ? 28 : ct ? 24 + Math.min(4, ct) * 3 : 17;
         if (ev.add) {
+          // 맞은 졸개는 움찔한다(drawAdd가 이 시각을 보고 밀리고 찌그러진다)
+          if (ev.at) ev.at._hitAt = this.t;
           // 광역기는 한 방에 수십을 때린다. 숫자를 전부 띄우면 화면이 숫자로 덮인다.
           this.aoeHits++;
           this.aoeAmount = ev.amount;
           if (this.aoeHits <= AOE_FLOAT_MAX) {
-            this.float(fmt(ev.amount), atX + (Math.random() - 0.5) * 60, atY - 120, color, size * 0.7, 0.8);
+            this.float(fmt(ev.amount), atX + (Math.random() - 0.5) * 60, atY - 142, color, size * 0.7, 0.8);
           }
         } else {
           const label = ct >= 2 ? `${critTierName(ct).replace(' 치명', '')}! ` : skill && ct === 1 ? '치명! ' : '';
-          this.float(label + fmt(ev.amount) + (ct === 1 && !skill ? '!' : ''), atX + (Math.random() - 0.5) * 60, atY - 120, color, size, 1, ct > 0 || skill);
+          this.float(label + fmt(ev.amount) + (ct === 1 && !skill ? '!' : ''), atX + (Math.random() - 0.5) * 60, atY - 142, color, size, 1, ct > 0 || skill);
         }
         // 맞은 자국은 캐릭터를 따른다 — 독마가 맞힌 자리에 칼자국이 나면 이상하다
         const cls = game.s.job;
@@ -416,6 +429,13 @@ export class BattleView {
         const kx = ev.at ? this.sx(ev.at) : this.monX;
         const ky = ev.at ? this.sy(ev.at) : this.monY;
         if (!ev.add) this.monDeath = 1;
+        // 쓰러진 졸개는 그 자리에서 넘어지며 옅어진다. 전에는 그냥 사라져서
+        // 광역기로 수십을 베어도 '벤' 느낌이 없었다. 너무 많으면 앞의 것부터 지운다.
+        if (ev.add && ev.at && this.fxLevel > 0) {
+          const a = ev.at;
+          this.corpses.push({ x: a.x, y: a.y, def: a.def || {}, t0: this.t, face: a.x >= (game.heroX || 0), seed: Math.random() });
+          if (this.corpses.length > 28) this.corpses.splice(0, this.corpses.length - 28);
+        }
         this.ink(kx, ky - 50, ev.isBoss ? 34 : 16, ev.isBoss ? '#450a0a' : '#111');
         this.sparks.push({ x: kx, y: ky - 40, life: 0.3, max: 0.3,
           r: ev.isBoss ? 90 : 30, color: ev.isBoss ? '#fde68a' : '#e7e5e4' });
@@ -437,7 +457,7 @@ export class BattleView {
       case 'heroHit':
         this.heroFlash = 1;
         this.monLunge = 1;
-        this.float('-' + fmt(ev.amount) + (ev.crit ? '!' : ''), this.heroX, this.groundY - 125, '#fca5a5', ev.crit ? 18 : 14);
+        this.float('-' + fmt(ev.amount) + (ev.crit ? '!' : ''), this.heroX + 26, this.groundY - 158, '#fca5a5', ev.crit ? 18 : 14);
         break;
       case 'heroDied':
         this.float(ev.boss ? '두목에게 패배…' : '쓰러졌다!', this.w / 2, this.h * 0.42, '#fca5a5', 24, 1.6, true);
@@ -725,8 +745,26 @@ export class BattleView {
 
   showBanner(text, color, life = 1.4, seal = null) { this.banner = { text, color, life, max: life, seal }; }
 
+  // 평타 한 대 — 다음 연타 자세로 휘두르고, 무기 끝이 지나간 자리에 궤적을 남긴다.
+  // 공격이 빨라지면 동작도 짧아진다(초당 6대면 한 동작이 0.13초). 초식 연출 중이면 몸은 안 건드린다.
+  meleeSwing(game, cls) {
+    const combo = MELEE_COMBO[cls] || MELEE_COMBO.sword;
+    this.comboIx = ((this.comboIx || 0) + 1) % combo.length;
+    const [pose, tilt, dir] = combo[this.comboIx];
+    const spd = Math.max(1, game.stats?.({ buffs: true })?.speed || 1);
+    const span = Math.max(0.12, Math.min(0.32, 0.8 / spd));
+    if (!this.director && this.fxLevel > 0) {
+      this.heroAnim.play([[span * 0.22, pose, 'snap']], span * 0.78);
+    }
+    if (this.fxLevel <= 0) return;
+    const face = (this.faceOverride || game.heroFacing) < 0 ? -1 : 1;
+    this.effects.push({ kind: 'swing', life: 0.16, max: 0.16, face, tilt, dir, cls,
+      ang: game.heroAngle || 0, col: CUT_COL[cls] || (cls === 'fist' ? '253,186,116' : '255,255,255') });
+  }
+
   float(text, x, y, color, size = 18, life = 1, brush = false) {
-    this.floats.push({ text, x, y, color, size, life, max: life, brush });
+    // 튀어 올랐다가 멈추며 옅어진다(처음이 빠르고 점점 느리게). 옆으로 살짝 흩어진다.
+    this.floats.push({ text, x, y, color, size, life, max: life, brush, vy: -150, vx: (Math.random() - 0.5) * 40 });
     if (this.floats.length > 40) this.floats.shift();
   }
 
@@ -778,6 +816,12 @@ export class BattleView {
     const decay = (v, k) => Math.max(0, v - dt * k);
     this.monKnock = decay(this.monKnock, 55);
     this.heroLunge = decay(this.heroLunge, 6);
+    // 시트가 열리면 무인을 위로(0.32), 닫히면 가운데(0.47)로 — 0.25초쯤에 걸쳐 옮긴다
+    {
+      const want = this.sheetOpen ? 0.32 : 0.47;
+      const a0 = this.anchor ?? 0.47;
+      this.anchor = Math.abs(want - a0) < 0.002 ? want : a0 + (want - a0) * Math.min(1, dt * 9);
+    }
     this.monLunge = decay(this.monLunge, 5);
     this.monShake = decay(this.monShake, 7);
     this.monFlash = decay(this.monFlash, 12);
@@ -785,6 +829,17 @@ export class BattleView {
     this.shake = decay(this.shake, 1);
     this.flash = decay(this.flash, 2);
     const moving = this.fieldMode ? !!game.walking : (!game.mon?.alive && game.mode === 'stage');
+    // 달릴 때 발밑에서 흙먼지가 인다 — 뒤로 흩어지며 옅어진다
+    if (moving && this.fieldMode && this.fxLevel > 0 && !this.director) {
+      this.dustT = (this.dustT || 0) - dt;
+      if (this.dustT <= 0) {
+        this.dustT = 0.11;
+        const face = (this.faceOverride || game.heroFacing) < 0 ? -1 : 1;
+        this.particles.push({ x: this.heroX - face * (6 + Math.random() * 10), y: this.groundY - 2,
+          vx: -face * (50 + Math.random() * 40), vy: -18 - Math.random() * 20, life: 0.45, size: 4 + Math.random() * 3,
+          color: 'rgb(214,196,160)', dust: true });
+      }
+    }
     // 들판에서는 카메라가 움직인 만큼 배경이 흐른다
     if (this.fieldMode) this.scroll = this.camX;
     else this.scroll += dt * (moving ? 220 : 12);
@@ -933,7 +988,10 @@ export class BattleView {
     const heroX = this.heroX + M;
     const groundY = this.groundY + M;
     const blot = (cell, alpha, rx, ry, color) => {
-      ctx.fillStyle = hexA(color, alpha);
+      const soft = ctx.createRadialGradient(0, 0, 0, 0, 0, 1);
+      soft.addColorStop(0, hexA(color, alpha * 0.8));
+      soft.addColorStop(0.55, hexA(color, alpha * 0.45));
+      soft.addColorStop(1, hexA(color, 0));
       const ox = camX, oy = camY;
       // 보이는 칸만 돈다. 전에는 ox를 중심으로 ±w를 돌았는데, 실제로 보이는
       // 구간은 (ox - heroX) 쪽이라 **중심이 어긋난 채 두 배를 돌고** 있었다.
@@ -948,9 +1006,14 @@ export class BattleView {
           const px = heroX + (i * cell + (n * 897 % cell)) - ox;
           const py = groundY + (j * cell + (n * 613 % cell)) - oy;
           if (px < -rx * 2 || px > w + rx * 2 || py < -ry * 2 || py > h + ry * 2) continue;
-          ctx.beginPath();
-          ctx.ellipse(px, py, rx * (0.6 + n), ry * (0.6 + n), n * 3, 0, Math.PI * 2);
-          ctx.fill();
+          // 가장자리를 번지게 — 단색 타원은 바닥 그림 위에서 흰 구멍처럼 보였다
+          ctx.save();
+          ctx.translate(px, py);
+          ctx.rotate(n * 3);
+          ctx.scale(rx * (0.6 + n), ry * (0.6 + n));
+          ctx.fillStyle = soft;
+          ctx.beginPath(); ctx.arc(0, 0, 1, 0, Math.PI * 2); ctx.fill();
+          ctx.restore();
         }
       }
     };
@@ -1227,6 +1290,11 @@ export class BattleView {
     if (main && (main.alive || this.monDeath > 0)) {
       list.push({ y: main.y ?? game.heroY, go: () => this.drawMonster(game, dt) });
     }
+    // 쓰러지는 졸개 — 0.5초에 걸쳐 넘어지며 옅어진다
+    if (this.corpses.length) {
+      this.corpses = this.corpses.filter((c) => this.t - c.t0 < CORPSE_SEC);
+      for (const c of this.corpses) list.push({ y: c.y - 1, go: () => this.drawCorpse(c) });
+    }
     list.sort((a, b) => a.y - b.y);
     // 가벼운 모드에서는 **가까운 것만** 그린다. 멀리 있는 건 어차피 흐리게
     // 깔려 있어서 빠져도 티가 잘 안 난다.
@@ -1241,6 +1309,36 @@ export class BattleView {
     // 흑백은 무인 바로 앞에서 건다 — 무인만 색이 남는다.
     this.applyDesat();
     this.drawHeroUnit(game, moving);
+  }
+
+  // 쓰러지는 졸개. 서 있던 그림 한 장을 발끝을 축으로 눕히며 옅게 한다.
+  drawCorpse(c) {
+    const { ctx } = this;
+    const x = this.sx(c);
+    const y = this.sy(c);
+    if (x < -90 || x > this.w + 90 || y < -110 || y > this.h + 90) return;
+    const k = Math.min(1, (this.t - c.t0) / CORPSE_SEC);
+    const fall = 1 - (1 - Math.min(1, k * 2.2)) ** 3;      // 앞 45%에 넘어지고 나머지는 옅어진다
+    const away = x >= this.heroX ? 1 : -1;
+    const def = c.def || {};
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, 1 - Math.max(0, k - 0.35) / 0.65) * 0.9;
+    ctx.translate(x + away * fall * 14, y);
+    const sc = (def.look?.scale || 1) * 0.94 * this.crowdScale;
+    ctx.scale(sc, sc);
+    if (def.emoji) {
+      ctx.rotate(away * fall * 1.3);
+      emoji(ctx, def.emoji, 0, 0, 44, c.face);
+    } else {
+      const spr = fighterSprite(def.look || {}, c.seed * 7, def.look?.weapon, this.dpr || 1);
+      if (spr) {
+        if (c.face) ctx.scale(-1, 1);
+        // 무인 반대쪽으로 넘어간다. 좌우를 뒤집은 그림에서는 도는 방향도 뒤집힌다.
+        ctx.rotate(away * fall * 1.35 * (c.face ? -1 : 1));
+        ctx.drawImage(spr, -SPR.ox, -SPR.oy, SPR.w, SPR.h);
+      }
+    }
+    ctx.restore();
   }
 
   // ---------- 적 ----------
@@ -1265,16 +1363,27 @@ export class BattleView {
     // 가까울수록 진하고 또렷하다.
     ctx.fillStyle = `rgba(0,0,0,${0.34 * depth})`;
     ctx.beginPath(); ctx.ellipse(x, y + 2, 20 * sc, 8 * sc, 0, 0, Math.PI * 2); ctx.fill();
-    if (def.emoji) emoji(ctx, def.emoji, x, y, 44, face);
+    // 맞은 직후 0.2초 — 무인 반대쪽으로 밀리고, 위아래로 찌그러졌다 돌아온다
+    const hk = a._hitAt != null ? Math.max(0, 1 - (this.t - a._hitAt) / 0.2) : 0;
+    const away = x >= this.heroX ? 1 : -1;
+    const kx = hk * hk * 9 * away;
+    if (def.emoji) emoji(ctx, def.emoji, x + kx, y, 44, face);
     else {
       const spr = fighterSprite(def.look || {}, time, def.look?.weapon, this.dpr || 1);
       if (spr) {
         ctx.save();
-        ctx.translate(x, y);
+        ctx.translate(x + kx, y);
         const s2 = sc * persp;
         if (s2 !== 1) ctx.scale(s2, s2);
         if (face) ctx.scale(-1, 1);
+        if (hk > 0) { ctx.rotate(-0.12 * hk * (face ? -away : away)); ctx.scale(1 + 0.06 * hk, 1 - 0.08 * hk); }
         ctx.drawImage(spr, -SPR.ox, -SPR.oy, SPR.w, SPR.h);
+        // 맞은 순간 몸이 하얗게 번쩍인다
+        if (hk > 0.5) {
+          ctx.globalCompositeOperation = 'lighter';
+          ctx.globalAlpha = depth * (hk - 0.5) * 0.9;
+          ctx.drawImage(spr, -SPR.ox, -SPR.oy, SPR.w, SPR.h);
+        }
         ctx.restore();
       } else {
         drawFighter(ctx, x, y, def.look || {}, {
@@ -1284,7 +1393,8 @@ export class BattleView {
     }
     if (a.stun > 0) iceBlock(ctx, x, y, 26, 88);
     // 체력바는 가까이 붙은 적만. 수십 마리가 전부 달면 주황 막대가 화면을 덮는다.
-    const near = Math.hypot(x - this.heroX, y - this.groundY) <= HP_BAR_RANGE;
+    // 그리고 **맞은 적만** — 멀쩡한 졸개 머리 위 꽉 찬 막대는 아무것도 알려 주지 않는다
+    const near = Math.hypot(x - this.heroX, y - this.groundY) <= HP_BAR_RANGE && big(a.hp).lt(a.maxHp);
     if (near) {
       // 가로로 긴 주황 막대가 수십 개면 화면이 막대로 덮인다. 가늘게, 짧게.
       ctx.globalAlpha = depth;
@@ -1523,6 +1633,39 @@ export class BattleView {
           ctx.beginPath(); ctx.arc(0, 0, w * 0.22, 0, Math.PI * 2); ctx.fill();
         }
         ctx.restore();
+      } else if (e.kind === 'swing') {
+        // 평타 궤적 — 무인 앞에 반달 모양으로 한 번 그어지고 사라진다.
+        // 찌르기·정권(dir 0)은 반달 대신 앞으로 뻗는 한 줄기.
+        const p = 1 - k;                       // 0 → 1
+        ctx.save();
+        ctx.translate(this.heroX + Math.cos(e.ang) * 18, this.groundY - 62 + Math.sin(e.ang) * 18 * this.squash);
+        if (e.face < 0) ctx.scale(-1, 1);
+        ctx.rotate(e.tilt);
+        ctx.globalCompositeOperation = 'lighter';
+        if (!e.dir) {
+          const len = 30 + p * 46;
+          const g2 = ctx.createLinearGradient(0, 0, len, 0);
+          g2.addColorStop(0, `rgba(${e.col},0)`);
+          g2.addColorStop(1, `rgba(${e.col},${0.85 * k})`);
+          ctx.fillStyle = g2;
+          ctx.beginPath(); ctx.moveTo(4, -3); ctx.lineTo(len, 0); ctx.lineTo(4, 3); ctx.closePath(); ctx.fill();
+        } else {
+          // 반달: 앞 위(-1.2)에서 앞 아래(+1.0)로 쓸어 내린다. 지나간 만큼만 그린다.
+          const a0 = e.dir > 0 ? -1.25 : 1.0;
+          const a1 = e.dir > 0 ? 1.0 : -1.25;
+          const head = a0 + (a1 - a0) * Math.min(1, p * 1.6);
+          const tail = a0 + (a1 - a0) * Math.max(0, p * 1.6 - 0.75);
+          const R = 44;
+          ctx.lineCap = 'round';
+          for (let i = 0; i < 3; i++) {
+            ctx.strokeStyle = `rgba(${e.col},${(0.55 - i * 0.17) * k})`;
+            ctx.lineWidth = 7 - i * 2;
+            ctx.beginPath();
+            ctx.arc(0, 0, R - i * 5, Math.min(head, tail), Math.max(head, tail));
+            ctx.stroke();
+          }
+        }
+        ctx.restore();
       } else if (e.kind === 'cut') {
         // 베기 자국: 먹선
         ctx.save();
@@ -1681,11 +1824,12 @@ export class BattleView {
     const { ctx } = this;
     for (const p of this.particles) {
       p.life -= dt;
-      p.vy += 520 * dt;
+      // 흙먼지는 떨어지지 않고 퍼지며 느려진다
+      if (p.dust) { p.vx *= 1 - dt * 3; p.vy *= 1 - dt * 3; p.size += dt * 16; } else p.vy += 520 * dt;
       p.x += p.vx * dt;
       p.y += p.vy * dt;
       if (p.ingot && p.y > this.groundY) { p.y = this.groundY; p.vy *= -0.35; p.vx *= 0.6; }
-      ctx.globalAlpha = Math.max(0, Math.min(1, p.life / 0.4));
+      ctx.globalAlpha = Math.max(0, Math.min(1, p.life / 0.4)) * (p.dust ? 0.45 : 1);
       if (p.ingot) {
         ctx.fillStyle = '#d1d5db';
         ctx.beginPath(); ctx.moveTo(p.x - 7, p.y - 4); ctx.quadraticCurveTo(p.x, p.y + 6, p.x + 7, p.y - 4); ctx.lineTo(p.x + 4, p.y - 1); ctx.lineTo(p.x - 4, p.y - 1); ctx.fill();
@@ -1706,10 +1850,14 @@ export class BattleView {
     ctx.textBaseline = 'alphabetic';
     for (const f of this.floats) {
       f.life -= dt;
-      f.y -= 40 * dt;
+      f.y += (f.vy ?? -40) * dt;
+      f.x += (f.vx || 0) * dt;
+      if (f.vy != null) { f.vy *= Math.max(0, 1 - dt * 5.5); f.vx *= Math.max(0, 1 - dt * 5); }
       const k = Math.max(0, f.life / f.max);
-      ctx.globalAlpha = Math.min(1, k * 1.6);
-      const pop = 1 + Math.max(0, (k - 0.85) * 3);
+      ctx.globalAlpha = Math.min(1, k * 2.2);
+      // 처음 0.12초에 크게 튀었다가 제 크기로 — 뒤로 갈수록 살짝 작아진다
+      const age = f.max - f.life;
+      const pop = age < 0.12 ? 1.45 - age / 0.12 * 0.45 : 1 - Math.max(0, 0.4 - k) * 0.25;
       ctx.font = f.brush ? `${f.size * pop * 1.2}px ${BRUSH}` : `900 ${f.size * pop}px system-ui, sans-serif`;
       ctx.lineWidth = 4;
       ctx.strokeStyle = 'rgba(0,0,0,0.8)';
@@ -1804,6 +1952,8 @@ export class BattleView {
 
 // ---------- 무인 그리기 ----------
 // 발끝 가운데가 (x, y), 오른쪽을 본다. look: 무복 색·머리·무기, o: 애니메이션 옵션
+const CORPSE_SEC = 0.55;
+
 export function drawFighter(ctx, x, y, look = {}, o = {}) {
   const t = o.t || 0;
   const robe = look.robe || '#6b5640';
@@ -1841,6 +1991,9 @@ export function drawFighter(ctx, x, y, look = {}, o = {}) {
     ctx.transform(1, 0, -Math.tan(P.lean * 0.42), 1, 0, 0);
   }
   ctx.translate(0, bob + hop);
+  // 달릴 때는 몸이 앞으로 쏠린다(발은 땅에 두고 위쪽만 민다). 서 있을 때는 숨 쉬듯 아주 조금 부푼다.
+  if (o.run && !P) ctx.transform(1, 0, -0.14, 1, 0, 0);
+  else if (!P && !jiang) ctx.scale(1, 1 + Math.sin(t * 2.2) * 0.012);
 
   // 기운
   if (look.aura || o.rage) {

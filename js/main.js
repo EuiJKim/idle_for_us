@@ -62,8 +62,24 @@ const tabs = {};
 let activeTab = null;
 // 창이 전체를 덮으므로 제목이 필요하다 (전에는 버튼이 보여서 안 적어도 됐다)
 const TAB_TITLE = { companion: '영수', dungeon: '비경', social: '무림', train: '수련', growth: '성장', equip: '병기', skill: '무공' };
+// 창은 아래에서 올라오는 시트다. 손잡이를 누르면 화면 전체로 펼친다(고른 쪽을 기억한다).
+// 시트가 열려 있으면 무인을 위쪽 남은 들판에 세운다(battle.js sheetOpen).
+let sheetFull = false;
+try { sheetFull = localStorage.getItem('ifu-sheet-full') === '1'; } catch { /* 사생활 모드 */ }
+function paintSheet() {
+  const open = !!activeTab;
+  $('panel').classList.toggle('full', sheetFull);
+  $('panel-dim').classList.toggle('full', sheetFull);
+  view.sheetOpen = open && !sheetFull;
+}
+$('panel-grip').addEventListener('click', () => {
+  sheetFull = !sheetFull;
+  try { localStorage.setItem('ifu-sheet-full', sheetFull ? '1' : '0'); } catch { /* 저장 못 해도 이번엔 된다 */ }
+  paintSheet();
+});
 function closePanel() {
   activeTab = null;
+  paintSheet();
   $('panel').classList.remove('open');
   $('panel-dim').classList.remove('open');
   document.querySelectorAll('#tabs button[data-tab]').forEach((b) => b.classList.remove('active'));
@@ -77,6 +93,7 @@ function showTab(name) {
   $('panel-title').textContent = TAB_TITLE[name] || '';
   $('panel').classList.add('open');
   $('panel-dim').classList.add('open');
+  paintSheet();
   panelRes();                       // 창이 열리는 그 순간에 자원칸도 맞춘다
   document.querySelectorAll('#tabs button[data-tab]').forEach((b) => b.classList.toggle('active', b.dataset.tab === name));
   tabs[name].shown?.();
@@ -655,9 +672,10 @@ function askClass(after) {
         net.pushProfile(true);
       } },
       cv,
-      h('b', { style: `color:${j.color}` }, j.name),
-      h('small', {}, `${j.weapon} · ${j.tag}`),
-      h('span', { class: 'desc' }, j.desc)));
+      h('div', { class: 'cc-txt' },
+        h('b', { style: `color:${j.color}` }, j.name),
+        h('small', {}, `${j.weapon} · ${j.tag}`),
+        h('span', { class: 'desc' }, j.desc))));
     }
     s.append(
       h('h2', {}, '캐릭터를 고르세요'),
