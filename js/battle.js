@@ -1818,6 +1818,11 @@ export class BattleView {
     if (def.emoji) {
       ctx.rotate(away * fall * 1.3);
       emoji(ctx, def.emoji, 0, 0, 44, c.face);
+    } else if (def.beast) {
+      // 들짐승은 옆으로 쓰러진다 — 뒤집혀 다리가 하늘로
+      ctx.rotate(away * fall * 0.5);
+      ctx.scale(1, 1 - fall * 0.35);
+      drawCreature(ctx, def.beast, 0, 0, { t: c.seed * 7, flip: c.face, scale: (def.bscale || 1.7) / ((def.look?.scale || 1) * 0.94) });
     } else {
       const spr = fighterSprite(def.look || {}, c.seed * 7, def.look?.weapon, this.dpr || 1);
       if (spr) {
@@ -1860,7 +1865,15 @@ export class BattleView {
     const away = x >= this.heroX ? 1 : -1;
     const kx = hk * hk * 9 * away;
     if (def.emoji) emoji(ctx, def.emoji, x + kx, y, 44, face);
-    else {
+    else if (def.beast) {
+      // 들짐승 (v117) — 맞으면 찌그러졌다 돌아온다
+      ctx.save();
+      ctx.translate(x + kx, y);
+      if (hk > 0) ctx.scale(1 + 0.08 * hk, 1 - 0.1 * hk);
+      if (fx) { ctx.shadowColor = this.mobCol(a); ctx.shadowBlur = a.grade >= 2 ? 18 : 10; }
+      drawCreature(ctx, def.beast, 0, 0, { t: time, moving: !!a.move, flip: face, scale: (def.bscale || 1.7) * this.crowdScale * persp * (a.grade === 1 ? 1.1 : 1) });
+      ctx.restore();
+    } else {
       const spr = fighterSprite(def.look || {}, time, def.look?.weapon, this.dpr || 1);
       if (spr) {
         ctx.save();
@@ -1980,6 +1993,15 @@ export class BattleView {
         blade: m.isHero && m.weaponGrade >= 0 ? GRADES[m.weaponGrade].color : m.trial ? '#ef4444' : undefined,
         glow: m.trial || (m.isHero && m.weaponGrade >= 3),
       });
+    } else if (def.beast) {
+      const bs = (def.bscale || 1.7) * (m.grade === 1 ? 1.1 : 1);
+      ctx.translate(x, y + (m.alive ? 0 : (1 - alpha) * 10));
+      if (fx) { ctx.shadowColor = this.mobCol(m); ctx.shadowBlur = m.grade >= 2 ? 18 : 10; }
+      drawCreature(ctx, def.beast, 0, 0, { t: this.t + 1, moving: !!m.move || this.monLunge > 0.2, flip: (m.x ?? 0) >= game.heroX, scale: bs });
+      if (this.monFlash > 0.4) {
+        ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = alpha * (this.monFlash - 0.4);
+        drawCreature(ctx, def.beast, 0, 0, { t: this.t + 1, flip: (m.x ?? 0) >= game.heroX, scale: bs });
+      }
     } else if (def.emoji) {
       const size = (m.isBoss ? 100 : 62);
       ctx.fillStyle = 'rgba(0,0,0,0.25)';

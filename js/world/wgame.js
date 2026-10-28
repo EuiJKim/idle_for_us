@@ -390,7 +390,7 @@ export class WorldGame {
       kp: king ? W.KING_MYTHIC[king.no]?.id : null,
       atkTimer: 1 + this.rng(), stun: 0, slow: 0, poison: 0, poisonPer: 0,
       aggro: false, wanderT: this.rng() * 3,
-      def: { name: kind.name, look: kind.look },
+      def: { name: kind.name, look: kind.look, beast: kind.beast, bscale: kind.bscale },
     };
     mob.name = kind.name;
     // 두목 등장 연출: 구역에 들어와 처음 나설 때는 길게(들판이 멈추고 두목은 맞지도 않는다),

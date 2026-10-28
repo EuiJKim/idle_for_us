@@ -28,7 +28,20 @@ console.log('=== 시작 ===');
   ok(g.stats().atk > 0 && g.stats().hp > 0 && g.heroHp === g.stats().hp, '공격력·체력이 있고 체력이 가득');
   ok(!g.canEnter(W.mapId(1, 3)) && g.canEnter(W.mapId(1, 1)) && !g.canEnter(W.mapId(16, 1)), '레벨이 모자란 구역은 못 들어간다');
   ok(g.enterMap(11) && g.mons.length === W.MOBS_ALIVE, '사냥터에 들어가면 몹이 깔린다', `${g.mons.length}마리`);
-  ok(g.mons.every((m) => m.lv >= 1 && m.lv <= 6 && Number.isFinite(m.hp) && m.def?.look), '몹 레벨이 사냥터 범위 안이고 생김새가 있다');
+  ok(g.mons.every((m) => m.lv >= 1 && m.lv <= 6 && Number.isFinite(m.hp) && (m.def?.look || m.def?.beast)), '몹 레벨이 사냥터 범위 안이고 생김새가 있다');
+  {
+    // v117: 지역마다 몹 아홉(왕은 여섯) · 구역 셋이 서로 다른 셋을 갖고 · 들짐승은 그림이 있다
+    const { CREATURES } = await import('../js/creatures.js');
+    let bad = [];
+    for (let z = 1; z <= W.ZONE_COUNT; z++) {
+      const all = W.mapOf(W.mapId(z, 4)).mobs;
+      const want = W.kingOf(z) ? 6 : 9;
+      if (all.length !== want || new Set(all.map((m) => m.name)).size !== want) bad.push(`${z}:${all.length}`);
+      for (let a = 1; a <= 3; a++) if (W.mapOf(W.mapId(z, a)).mobs.length !== 3) bad.push(`${z}-${a}`);
+      for (const m of all) if (m.beast && !CREATURES[m.beast]) bad.push(m.beast);
+    }
+    ok(!bad.length, '지역마다 몹 아홉(왕 여섯) · 구역마다 셋 · 들짐승 그림이 다 있다', bad.join(' '));
+  }
   ok(g.s.stage === 11, '그리는 쪽이 고를 지역 그림(죽림 = 옛 지역 1)', `stage ${g.s.stage}`);
 }
 

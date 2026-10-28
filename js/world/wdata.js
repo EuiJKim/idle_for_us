@@ -3,6 +3,7 @@
 // 옛 판(관문·수련·무공 여덟 …)과 따로 선다. 그림(지역·몹 생김새·캐릭터 무기)만 옛 data.js에서 빌린다.
 // **숫자는 보통 숫자다.** 레벨 150에서도 몹 체력이 몇십만이라 Big이 필요 없다.
 import { ZONES, JOBS, CLASS_SKILLS, RANKS } from '../data.js';
+import { areaMobs } from './wmobs.js';
 
 export const SAVE_KEY = 'ifu-world-v1';
 export const LEVEL_MAX = 150;
@@ -136,7 +137,7 @@ for (let z = 1; z <= ZONE_COUNT; z++) {
     id: z, art, king: k,
     name: k ? `제${k.no}왕 ${k.title}` : ZONES[z].name,
     lv: zoneLv(z),
-    mobs: ZONES[art].mobs,
+    mobs: areaMobs(z, 4, art),
     boss: k ? { name: `${k.title}${k.real ? ` ${k.real}` : ''}`, look: k.look } : ZONES[z].boss,
   });
 }
@@ -159,7 +160,7 @@ for (let z = 1; z <= ZONE_COUNT; z++) {
       zoneName: zn.name,
       bossRoom: a === BOSS_AREA,
       lv: areaLv(zn.lv, a),
-      mobs: zn.mobs, boss: zn.boss,
+      mobs: areaMobs(z, a, zn.art), boss: zn.boss,
     });
   }
 }
