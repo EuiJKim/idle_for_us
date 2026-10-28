@@ -197,7 +197,12 @@ export const SLOTS = [
   { id: 'armor', name: '옷' },
   { id: 'hat', name: '모자' },
   { id: 'acc', name: '장신구' },
+  { id: 'finger', name: '가락지', dropOnly: true },
+  { id: 'ear', name: '귀걸이', dropOnly: true },
 ];
+// 대장장이가 만드는 칸 (가락지·귀걸이는 두목만 떨군다 — 조합 사다리가 없다)
+export const CRAFT_SLOTS = SLOTS.filter((x) => !x.dropOnly);
+export const isDropOnly = (slot) => slot === 'finger' || slot === 'ear';
 export const GRADES = [
   { id: 0, name: '일반', color: '#d6d3d1', mult: 1, w: 70 },
   { id: 1, name: '고급', color: '#4ade80', mult: 1.35, w: 22 },
@@ -217,6 +222,9 @@ export const itemBase = (slot, ilv) => {
     case 'armor': return { hp: (22 + 13 * ilv) * GEAR };
     case 'hat': return { hp: (10 + 6 * ilv) * GEAR, def: 1 + ilv * 0.35 };
     case 'acc': return { crit: 0.01 + ilv * 0.0006, atkPct: 0.02 + ilv * 0.0012 };
+    // 가락지: 공격력% · 치명 피해 / 귀걸이: 최대 체력% · 스킬 피해 (두목만 떨군다, 강화가 어렵다)
+    case 'finger': return { atkPct: 0.03 + ilv * 0.0015, critDmg: 0.05 + ilv * 0.002 };
+    case 'ear': return { hpPct: 0.03 + ilv * 0.0015, skill: 0.03 + ilv * 0.0012 };
     default: return {};
   }
 };
@@ -278,6 +286,11 @@ export const breakMarks = (plus) => (plus >= ENHANCE_NORMAL ? plus - ENHANCE_NOR
 export const enhanceMatsN = (plus) => 4 + plus * 3;
 export const BOSS_ITEM_RATE = 0.12;              // 두목이 그 지역 하급 장비를 떨굴 확률
 export const KING_ITEM_RATE = 0.3;               // 십이지왕은 더 자주
+// 가락지·귀걸이: 강화가 어렵다 — 성공률 절반, 은자 ×3, 돌파 없음
+export const ACC2_RATE = 0.5;
+export const ACC2_COST = 3;
+export const ACC2_DROP = 0.08;     // 두목이 가락지·귀걸이를 떨굴 확률
+export const ACC2_DROP_KING = 0.15;
 export const enhanceRate = (lv) => (lv < ENHANCE_NORMAL ? Math.max(0.4, 1 - lv * 0.07) : Math.max(0.12, 0.3 - (lv - ENHANCE_NORMAL) * 0.045));   // +9→10 40% · 돌파 30%→12%
 // 은자가 쌓이기만 하지 않게 — 사냥터를 옮겨 새 장비를 낄 때마다 다시 강화하는 데 쓰인다(시뮬로 맞춤)
 export const enhanceCost = (ilv, lv) => Math.round((50 + ilv * 15) * (lv + 1) ** 1.6);
@@ -322,7 +335,25 @@ export const MYTHIC = {
   free: { name: '체력을 쓰지 않는다', slots: [1, 2] },
   reset: { name: '적을 쓰러뜨리면 숨이 바로 돈다', slots: [0, 1, 2] },
 };
+// 십이지왕의 신화 — 왕마다 고유 효과 (그 왕 지역 장비가 신화가 되면 보통 특수 효과 대신 이것)
+export const KING_MYTHIC = {
+  12: { id: 'combo', name: '유혼절명권 — 평타 세 번째마다 피해 ×3' },
+  11: { id: 'reflect', name: '기관 갑주 — 받은 피해의 40%를 되돌린다' },
+  10: { id: 'stun', name: '귀혼음 — 스킬에 맞은 적이 1.5초 멎는다' },
+  9: { id: 'drain', name: '혈해 — 준 피해의 4%만큼 체력을 빨아들인다' },
+  8: { id: 'revive', name: '목형천혼술 — 체력 30% 아래로 떨어지면 절반을 되찾는다(60초에 한 번)' },
+  7: { id: 'petal', name: '천녀야우장 — 치명타가 둘레 적에게 꽃잎으로 60% 번진다' },
+  6: { id: 'execute', name: '암천야신공 — 체력 40% 아래 적에게 피해 +60%' },
+  5: { id: 'dodge', name: '환영 — 25% 확률로 공격을 흘린다' },
+  4: { id: 'frenzy', name: '명부살법 — 적을 쓰러뜨리면 4초간 공격 속도 +50%' },
+  3: { id: 'bossbane', name: '투신 — 두목에게 주는 피해 +50%' },
+  2: { id: 'crimson', name: '일월암혈도법 — 치명 피해 +80%' },
+  1: { id: 'formless', name: '무형신검 — 평타가 둘레 모든 적을 벤다(70%) · 스킬 피해 +30%' },
+};
 export const SKILL_ORDINAL = ['1차', '2차', '3차'];
+// 가락지·귀걸이에만 붙을 수 있는 '애완동물 +N' (함께 키울 수 있는 수가 는다)
+export const PET_SLOT_OPT = [0, 1, 2, 3];      // 등급별 (레어는 없음)
+export const PET_SLOT_CHANCE = 0.35;
 export function rollSkillOpts(rar, rng) {
   const out = [];
   const pick = (arr) => arr[Math.floor(rng() * arr.length)];
@@ -340,6 +371,8 @@ export function rollSkillOpts(rar, rng) {
   return out;
 }
 export function optText(o) {
+  if (o.kp) return `【${KINGS.find((k) => k.no === o.kp)?.title}】 ${KING_MYTHIC[o.kp].name}`;
+  if (o.pet) return `애완동물 +${o.pet} (함께 키우는 수)`;
   const sk = SKILL_ORDINAL[o.s];
   if (o.sp) return `${sk} 스킬: ${MYTHIC[o.sp].name}`;
   const d = SKILL_OPTS[o.k];
@@ -365,7 +398,9 @@ const SLOT_NOUN = {
   weapon: { sword: '검', fist: '권갑', fan: '부채', poison: '독낭', ring: '지환' },
   armor: '도포', hat: '두건', acc: '옥패',
 };
+const ACC2_NOUN = { finger: '가락지', ear: '귀걸이' };
 export const itemName = (item, job) => {
+  if (ACC2_NOUN[item.slot]) return `${STEP_PREFIX[stepMap(item.step)] || ''}${ACC2_NOUN[item.slot]}`;
   const n = item.slot === 'weapon' ? (SLOT_NOUN.weapon[job] || '검') : SLOT_NOUN[item.slot];
   if (item.starter) return `수련용 ${n}`;
   if (item.step != null) return `${stepUpper(item.step) ? '상급 ' : ''}${STEP_PREFIX[stepMap(item.step)]}${n}`;
@@ -406,3 +441,51 @@ export const GUILD_CHECKIN_EXP = 20;
 export const GUILD_DONATE_EXP = 10;
 export const GUILD_DONATE_PER_DAY = 3;
 export const guildDonateCost = (level) => Math.round(300 + level * 40);
+
+
+// ---------- 애완동물 (v111) ----------
+// 두목만 낮은 확률로 떨군다. 장착하면 무인 곁에서 무인 공격력에 비례해 사냥하고, 무인에게 버프를 건다.
+// 무인과 함께 경험치를 받아 자란다(레벨 30까지). 한 번에 한 마리 — 가락지·귀걸이의 '애완동물 +N'만큼 더.
+// 바꾸려면 키우던 것을 놓아줘야 한다(버리기). 떨군 것은 우리(최대 10)에 들어가 기다린다.
+export const PETS = [
+  { id: 'tiger', name: '백호', emoji: '🐯', buff: 'atkPct', base: 0.06, text: '공격력' },
+  { id: 'dragon', name: '청룡', emoji: '🐉', buff: 'skill', base: 0.08, text: '스킬 피해' },
+  { id: 'turtle', name: '현무', emoji: '🐢', buff: 'hpPct', base: 0.08, text: '최대 체력' },
+  { id: 'phoenix', name: '주작', emoji: '🦅', buff: 'crit', base: 0.03, text: '치명' },
+  { id: 'qilin', name: '기린', emoji: '🦄', buff: 'exp', base: 0.06, text: '경험치' },
+  { id: 'fox', name: '구미호', emoji: '🦊', buff: 'mat', base: 0.08, text: '재료 드랍' },
+  { id: 'monkey', name: '손오공', emoji: '🐒', buff: 'speed', base: 0.05, text: '공격 속도' },
+  { id: 'crane', name: '선학', emoji: '🦢', buff: 'regenPct', base: 0.003, text: '초당 체력 회복' },
+];
+export const petOf = (id) => PETS.find((p) => p.id === id) || PETS[0];
+export const PET_DROP = 0.01;         // 두목 (두목 구역 한 시간에 하나 남짓)
+export const PET_DROP_KING = 0.03;    // 십이지왕
+export const PET_LV_MAX = 30;
+export const PET_BOX = 10;
+// 무인 경험치의 절반을 받는다. 무인 레벨 10+4×(애완 레벨)의 60% — 무인과 함께 오래 자란다
+export const petExpToNext = (lv) => Math.round(expToNext(10 + lv * 4) * 0.6);
+// 등급(레어~신화)과 레벨로 버프·공격이 커진다
+export const petBuff = (pet) => petOf(pet.kind).base * RARITY[pet.rar].mult * (1 + (pet.lv - 1) * 0.05);
+export const petAtkRatio = (pet) => (0.18 + (pet.lv - 1) * 0.012) * RARITY[pet.rar].mult;   // 무인 공격력 대비 한 대
+export const PET_ATK_SEC = 1.6;
+
+// ---------- 탈것 (v111) ----------
+// 이동 속도 +%와 공격력·체력 +%. 졸개는 아주 드물게, 두목은 조금 더. 좋은 탈것일수록 훨씬 빠르다.
+export const MOUNTS = [
+  { id: 'donkey', name: '나귀', emoji: '🫏', speed: 0.2, stat: 0.02, w: 55 },
+  { id: 'horse', name: '조랑말', emoji: '🐴', speed: 0.35, stat: 0.04, w: 28 },
+  { id: 'warhorse', name: '흑풍마', emoji: '🐎', speed: 0.55, stat: 0.07, w: 12 },
+  { id: 'redhare', name: '적토마', emoji: '🐎', tint: '#b91c1c', speed: 0.85, stat: 0.11, w: 4 },
+  { id: 'cloud', name: '천리운', emoji: '🦄', speed: 1.3, stat: 0.16, w: 1 },
+];
+export const mountOf = (id) => MOUNTS.find((m) => m.id === id) || null;
+export const MOUNT_DROP_MOB = 0.00005; // 졸개 (2만 마리에 하나 꼴 — 하루 꼬박 사냥해 한두 번)
+export const MOUNT_DROP_BOSS = 0.004;  // 두목
+export const MOUNT_DROP_KING = 0.01;   // 십이지왕
+export const rollMount = (rng, boss) => {
+  // 두목은 좋은 탈것이 더 잘 나온다
+  const w = MOUNTS.map((m, i) => m.w * (boss ? 1 + i * 0.8 : 1));
+  let r = rng() * w.reduce((a, b) => a + b, 0);
+  for (let i = 0; i < w.length; i++) { r -= w[i]; if (r <= 0) return MOUNTS[i].id; }
+  return MOUNTS[0].id;
+};

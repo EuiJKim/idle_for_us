@@ -35,7 +35,7 @@ function itemChip(game, it, extra = {}, withOpts = false) {
   return h('div', { class: `item-chip g${it.grade}${it.rar === 3 ? ' mythic' : ''}`, style: `--gc:${g.color}`, ...extra },
     h('b', {}, itemTitle(game, it)),
     h('small', {}, `${it.rar != null ? `${g.name} · ` : ''}Lv.${it.ilv} · ${itemLines(game, it)}`),
-    withOpts && it.opts?.length ? h('small', { class: 'opt-lines' }, ...optLines(it).map((t, i) => h('span', { class: it.opts[i].sp ? 'sp' : '' }, t))) : null);
+    withOpts && it.opts?.length ? h('small', { class: 'opt-lines' }, ...optLines(it).map((t, i) => h('span', { class: it.opts[i].sp || it.opts[i].kp ? 'sp' : it.opts[i].pet ? 'pet' : '' }, t))) : null);
 }
 
 // ---------- 캐릭터 ----------
@@ -158,10 +158,11 @@ function bagTab(app) {
           h('h2', { style: `color:${g.color}` }, itemTitle(game, it)),
           h('p', {}, `${W.SLOTS.find((x) => x.id === it.slot).name} · 아이템 레벨 ${it.ilv} · `, h('b', { style: `color:${g.color}` }, g.name)),
           h('p', {}, h('b', {}, itemLines(game, it))),
-          it.opts?.length ? h('div', { class: 'opt-box' }, ...optLines(it).map((t, i) => h('div', { class: it.opts[i].sp ? 'sp' : '' }, t))) : null,
+          it.opts?.length ? h('div', { class: 'opt-box' }, ...optLines(it).map((t, i) => h('div', { class: it.opts[i].sp || it.opts[i].kp ? 'sp' : it.opts[i].pet ? 'pet' : '' }, t))) : null,
           !worn && cur ? h('p', { class: 'muted' }, `지금 낀 것: ${itemTitle(game, cur)} — ${itemLines(game, cur)}`) : null,
-          it.step != null ? h('p', { class: 'muted' }, `${W.zoneOfW(W.stepMap(it.step))?.name || ''} ${W.stepUpper(it.step) ? '상급' : '하급'} — 대장장이에서 위 장비의 조합 재료가 돼요 (강화는 절반을 이어받아요)`) : null,
-          h('p', { class: 'muted' }, max ? '강화를 다 했어요' : `${breaking ? '돌파' : '강화'} +${(it.plus || 0) + 1} (기본 수치 +${pct(breaking ? W.BREAK_STEP : W.ENHANCE_STEP, 0)}) — 성공률 ${pct(W.enhanceRate(it.plus || 0), 0)} · 은자 ${fmt(cost)}${em ? ` · ${W.matName(em.key)} ${em.n}개 (가진 것 ${fmt(game.s.mats[em.key] || 0)})` : ''}${bm ? ` · ${W.matName(W.bossKey(em.key))} ${bm}개 (가진 것 ${fmt(game.s.mats[W.bossKey(em.key)] || 0)})` : ''} — 실패해도 깨지지 않아요`),
+          W.isDropOnly(it.slot) ? h('p', { class: 'muted' }, `${W.zoneOfW(W.stepMap(it.step))?.name || ''} 두목에게서만 나와요 — 강화가 어려워요(성공률 절반·은자 ×3·돌파 없음)`)
+            : it.step != null ? h('p', { class: 'muted' }, `${W.zoneOfW(W.stepMap(it.step))?.name || ''} ${W.stepUpper(it.step) ? '상급' : '하급'} — 대장장이에서 위 장비의 조합 재료가 돼요 (강화는 절반을 이어받아요)`) : null,
+          h('p', { class: 'muted' }, max ? '강화를 다 했어요' : `${breaking ? '돌파' : '강화'} +${(it.plus || 0) + 1} (기본 수치 +${pct(breaking ? W.BREAK_STEP : W.ENHANCE_STEP, 0)}) — 성공률 ${pct(game.enhanceRateOf(it), 0)} · 은자 ${fmt(cost)}${em ? ` · ${W.matName(em.key)} ${em.n}개 (가진 것 ${fmt(game.s.mats[em.key] || 0)})` : ''}${bm ? ` · ${W.matName(W.bossKey(em.key))} ${bm}개 (가진 것 ${fmt(game.s.mats[W.bossKey(em.key)] || 0)})` : ''} — 실패해도 깨지지 않아요`),
           pc ? h('p', { class: 'muted' }, `승급 → `, h('b', { style: `color:${W.RARITY[it.rar + 1].color}` }, W.RARITY[it.rar + 1].name),
             ` (기본 수치 ×${(W.RARITY[it.rar + 1].mult / W.RARITY[it.rar].mult).toFixed(2)}, 스킬 옵션 새로) — ${W.matName(pc.key)} ${pc.mats} · ${W.matName(W.bossKey(pc.key))} ${pc.marks} · 은자 ${fmt(pc.gold)}`) : null,
           h('div', { class: 'btn-row' },
@@ -199,7 +200,7 @@ function bagTab(app) {
       keys.length ? h('div', { class: 'mat-row' }, ...keys.map((k) => h('span', { class: 'mat-chip', style: `--mc:${W.matColor(k)}` },
         h('b', {}, W.matName(k)), h('small', {}, fmt(s.mats[k])))))
         : h('p', { class: 'muted' }, '몹은 그 사냥터 재료를, 두목은 재료 한 움큼과 증표를 떨궈요. 모아서 장비를 조합해요.'));
-    for (const sl of W.SLOTS) {
+    for (const sl of W.CRAFT_SLOTS) {
       for (const step of game.nextSteps(sl.id)) {
         const { r, src, ok } = game.craftCheck(sl.id, step);
         const sample = game.makeCrafted(sl.id, step);
@@ -224,7 +225,7 @@ function bagTab(app) {
   }
   function upd() {
     const s = game.s;
-    const nsig = `${game.statSig()}|${s.bag.map((i) => i.uid + '.' + i.plus).join(',')}|${s.bagSize}|${JSON.stringify(s.mats)}|${W.SLOTS.map((x) => game.nextSteps(x.id).map((st) => game.craftCheck(x.id, st).ok))}|${s.gold >= game.bagUpgradeCost()}`;
+    const nsig = `${game.statSig()}|${s.bag.map((i) => i.uid + '.' + i.plus).join(',')}|${s.bagSize}|${JSON.stringify(s.mats)}|${W.CRAFT_SLOTS.map((x) => game.nextSteps(x.id).map((st) => game.craftCheck(x.id, st).ok))}|${s.gold >= game.bagUpgradeCost()}`;
     if (nsig === sig) return;
     sig = nsig;
     smith();
@@ -610,5 +611,76 @@ function socialTab(app) {
   ]);
 }
 
-export const WTABS = { char: charTab, bag: bagTab, map: mapTab, town: townTab, social: socialTab };
-export const WTAB_TITLE = { char: '캐릭터', bag: '가방', map: '지도', town: '마을', social: '무림' };
+// ---------- 동료: 애완동물 · 탈것 (v111) ----------
+function compTab(app) {
+  const { game } = app;
+  const root = h('div');
+  const petCard = h('div', { class: 'card' });
+  const boxCard = h('div', { class: 'card' });
+  const mountCard = h('div', { class: 'card' });
+  root.append(petCard, boxCard, mountCard);
+  let sig = '';
+  const rarTag = (r) => h('b', { style: `color:${W.RARITY[r].color}` }, W.RARITY[r].name);
+  const petInfo = (p) => {
+    const d = W.petOf(p.kind);
+    const v = W.petBuff(p);
+    const vt = d.buff === 'crit' ? `+${(v * 100).toFixed(1)}%p` : d.buff === 'regenPct' ? `+${(v * 100).toFixed(2)}%` : `+${(v * 100).toFixed(1)}%`;
+    return `${d.text} ${vt} · 한 대에 무인 공격력의 ${Math.round(W.petAtkRatio(p) * 100)}%`;
+  };
+  const confirmRelease = (p, then) => openModal((m) => {
+    m.append(h('h2', {}, `${W.petOf(p.kind).name}을(를) 놓아줄까요?`),
+      h('p', { class: 'muted' }, `Lv.${p.lv}까지 키운 것이 사라져요. 되돌릴 수 없어요.`),
+      h('div', { class: 'btn-row' }, h('button', { class: 'btn', onclick: closeModal }, '그만두기'),
+        h('button', { class: 'btn danger', onclick: () => { game.releasePet(p.uid); closeModal(); then(); } }, '놓아주기')));
+  });
+  function upd() {
+    const s = game.s;
+    const nsig = `${s.pets.map((p) => `${p.uid}.${p.lv}.${Math.floor(p.exp / 50)}`)}|${s.petBox.map((p) => p.uid)}|${s.mounts.map((m) => m.uid)}|${s.mount}|${game.petSlots()}`;
+    if (nsig === sig) return;
+    sig = nsig;
+    const done = () => { app.save(); sig = ''; app.refresh(); };
+    const slots = game.petSlots();
+    petCard.replaceChildren(h('h3', {}, '애완동물', h('small', {}, `키우는 칸 ${s.pets.length}/${slots}`)),
+      slots === 1 ? h('p', { class: 'muted', style: 'font-size:12px;margin:0 0 6px' }, "가락지·귀걸이에 '애완동물 +N'이 붙으면 함께 키우는 칸이 늘어요.") : null);
+    if (!s.pets.length) petCard.append(h('p', { class: 'muted' }, '두목이 아주 가끔 애완동물을 떨궈요(십이지왕은 조금 더). 데려가면 곁에서 무인 공격력에 비례해 싸우고 버프를 걸어 줘요. 무인과 함께 자라요.'));
+    s.pets.forEach((p, i) => {
+      const d = W.petOf(p.kind);
+      const active = i < slots;
+      const need = W.petExpToNext(p.lv);
+      petCard.append(h('div', { class: `row pet-row${active ? '' : ' locked'}` },
+        h('div', { class: 'ico pet-ico' }, d.emoji),
+        h('div', { class: 'info' },
+          h('div', { class: 'name' }, d.name, ' ', rarTag(p.rar), h('small', {}, `Lv.${p.lv}${p.lv >= W.PET_LV_MAX ? ' (최대)' : ''}${active ? '' : ' · 칸이 모자라 쉬는 중'}`)),
+          h('div', { class: 'desc' }, petInfo(p)),
+          p.lv < W.PET_LV_MAX ? h('div', { class: 'bar thin' }, h('div', { style: `width:${Math.min(100, (p.exp / need) * 100)}%` })) : null),
+        h('button', { class: 'btn danger', style: 'padding:6px 10px', onclick: () => confirmRelease(p, done) }, '놓아주기')));
+    });
+    boxCard.replaceChildren(h('h3', {}, '우리', h('small', {}, `${s.petBox.length}/${W.PET_BOX} · 키우던 것을 놓아줘야 데려갈 수 있어요`)));
+    if (!s.petBox.length) boxCard.append(h('p', { class: 'muted' }, '비어 있어요.'));
+    for (const p of s.petBox) {
+      const d = W.petOf(p.kind);
+      boxCard.append(h('div', { class: 'row pet-row' },
+        h('div', { class: 'ico pet-ico' }, d.emoji),
+        h('div', { class: 'info' }, h('div', { class: 'name' }, d.name, ' ', rarTag(p.rar), h('small', {}, `Lv.${p.lv}`)), h('div', { class: 'desc' }, petInfo(p))),
+        h('div', { class: 'btn-col' },
+          h('button', { class: 'buy', disabled: s.pets.length < slots ? null : true, onclick: () => { if (game.adoptPet(p.uid)) { toast(`${d.name}을(를) 데려갔어요`); done(); } } }, '데려가기'),
+          h('button', { class: 'btn', style: 'padding:4px 8px;font-size:12px', onclick: () => { game.releasePet(p.uid); done(); } }, '놓아주기'))));
+    }
+    const cur = game.mountNow();
+    mountCard.replaceChildren(h('h3', {}, '탈것', h('small', {}, cur ? `${cur.name}을(를) 타는 중` : '걸어 다니는 중')));
+    if (!s.mounts.length) mountCard.append(h('p', { class: 'muted' }, '몹이 아주 드물게 탈것을 떨궈요(두목은 조금 더, 좋은 것도 더 잘). 타면 빨리 움직이고 공격력·체력이 올라요.'));
+    const sorted = s.mounts.slice().sort((a, b) => W.mountOf(b.kind).speed - W.mountOf(a.kind).speed);
+    for (const m of sorted) {
+      const d = W.mountOf(m.kind);
+      const on = s.mount === m.uid;
+      mountCard.append(h('div', { class: `row${on ? ' me' : ''}` },
+        h('div', { class: 'ico pet-ico', style: d.tint ? `filter:drop-shadow(0 0 4px ${d.tint})` : '' }, d.emoji),
+        h('div', { class: 'info' }, h('div', { class: 'name' }, d.name), h('div', { class: 'desc' }, `이동 속도 +${Math.round(d.speed * 100)}% · 공격력·체력 +${Math.round(d.stat * 100)}%`)),
+        h('button', { class: on ? 'btn' : 'buy', onclick: () => { game.ride(on ? null : m.uid); done(); } }, on ? '내리기' : '타기')));
+    }
+  }
+  return { root, update: upd };
+}
+
+export const WTABS = { char: charTab, bag: bagTab, map: mapTab, town: townTab, social: socialTab, comp: compTab };
+export const WTAB_TITLE = { char: '캐릭터', bag: '가방', map: '지도', town: '마을', social: '무림', comp: '동료' };

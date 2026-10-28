@@ -483,6 +483,13 @@ export class BattleView {
         if (ev.mat?.boss) this.float(`+${ev.mat.boss}`, kx, ky - 165 + 34 * UIK, '#fde68a', 14);
         break;
       }
+      case 'petHit': {
+        // 애완동물의 한 대 — 맞은 자리에 짧은 빛
+        if (!ev.at) break;
+        const px = this.sx(ev.at), py = this.sy(ev.at);
+        this.sparks.push({ x: px, y: py - 40, life: 0.22, max: 0.22, r: 24, color: '#fde68a' });
+        break;
+      }
       case 'heroHit':
         this.heroFlash = 1;
         this.monLunge = 1;
@@ -1361,22 +1368,30 @@ export class BattleView {
     const br = 38 + Math.sin(this.t * 3) * 4;
     this.ctx.beginPath(); this.ctx.ellipse(x, y + 2, br, br * 0.4, 0, 0, Math.PI * 2); this.ctx.stroke();
     this.ctx.restore();
+    // 탈것 — 무인 발밑에 그리고 무인을 그만큼 올려 앉힌다 (이모지 말은 왼쪽을 본다)
+    const mt = game.mountNow?.();
+    let fy = y;
+    if (mt && !downRot) {
+      const bob = moving ? Math.abs(Math.sin(this.t * 14)) * 3 : 0;
+      emoji(this.ctx, mt.emoji, x, y + 8 - bob, 56, !opts.flip);
+      fy = y - 20 - bob;
+    }
     if (downRot) {
       this.ctx.save();
       this.ctx.translate(x, y); this.ctx.rotate(downRot); this.ctx.translate(-x, -y);
       this.ctx.globalAlpha *= 1 - Math.abs(downRot) / 1.3 * 0.35;
       drawFighter(this.ctx, x, y, look, opts);
       this.ctx.restore();
-    } else drawFighter(this.ctx, x, y, look, opts);
+    } else drawFighter(this.ctx, x, fy, look, { ...opts, run: mt ? false : opts.run });
     // 데려간 영수들이 뒤를 따른다 (예전엔 s.pet 한 마리만 그렸는데, 영수가 여럿이 된 뒤로
     // 그 값이 늘 비어 있어서 아무것도 안 그려졌다)
     game.petTeam().forEach((pet, i) => {
       const px = x - 52 - i * 30;
       const py = y + 10 - (i % 2) * 14 - Math.abs(Math.sin(this.t * (moving ? 12 : 4) + i)) * 6;
-      emoji(this.ctx, pet.emoji, px, py, i ? 28 : 34, false);
+      emoji(this.ctx, pet.emoji, px, py, i ? 36 : 42, false);
     });
-    hpBar(this.ctx, x - 32, y - 128, 64, 6, ratio(game.heroHp, st.hp), '#16a34a');
-    nameTag(this.ctx, game.heroLabel ? game.heroLabel() : `${RANKS[game.s.rank].name} ${game.s.nickname || ''}`, x, y - 136);
+    hpBar(this.ctx, x - 32, fy - 128, 64, 6, ratio(game.heroHp, st.hp), '#16a34a');
+    nameTag(this.ctx, game.heroLabel ? game.heroLabel() : `${RANKS[game.s.rank].name} ${game.s.nickname || ''}`, x, fy - 136);
     this.ctx.restore();
   }
 

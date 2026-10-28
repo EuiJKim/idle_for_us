@@ -144,9 +144,9 @@ console.log('\n=== 재료와 조합 (바람식) ===');
   let drops = 0, kdrops = 0;
   for (let i = 0; i < 2000; i++) {
     d.s.map = W.mapId(1, 4); d.dropMats({ lv: 9, isBoss: true, x: 0, y: 0 });
-    drops += d.events.filter((e) => e.type === 'drop').length; d.events.length = 0;
+    drops += d.events.filter((e) => e.type === 'drop' && !W.isDropOnly(e.item.slot)).length; d.events.length = 0;
     d.s.map = W.mapId(16, 4); d.dropMats({ lv: 105, isBoss: true, x: 0, y: 0 });
-    kdrops += d.events.filter((e) => e.type === 'drop' && W.stepMap(e.item.step) === 16).length; d.events.length = 0;
+    kdrops += d.events.filter((e) => e.type === 'drop' && !W.isDropOnly(e.item.slot) && W.stepMap(e.item.step) === 16).length; d.events.length = 0;
   }
   ok(Math.abs(drops / 2000 - W.BOSS_ITEM_RATE) < 0.03 && Math.abs(kdrops / 2000 - W.KING_ITEM_RATE) < 0.04, '두목은 가끔 장비를 떨군다(십이지왕은 더 자주)', `${(drops / 20).toFixed(1)}% · 왕 ${(kdrops / 20).toFixed(1)}%`);
   h.dropMats({ lv: 6, isBoss: true });
@@ -251,13 +251,13 @@ console.log('\n=== 장비가 강함의 대부분 ===');
   g.s.level = 60; g.s.stats.str = 120; g.s.stats.vit = 60; g._stats = null;
   g.s.gold = 1e12;
   for (let z = 1; z <= 10; z++) { g.s.mats[z] = 1e5; g.s.mats[W.bossKey(z)] = 100; }
-  for (const sl of W.SLOTS) { g.s.equip[sl.id] = null; for (let st = 0; st < 20; st++) g.craft(sl.id, st); }
+  for (const sl of W.CRAFT_SLOTS) { g.s.equip[sl.id] = null; for (let st = 0; st < 20; st++) g.craft(sl.id, st); }
   // 장비 몫 = 장비를 다 벗었을 때 줄어드는 만큼. 흔한 차림(유니크 +6)으로 잰다.
-  for (const it of Object.values(g.s.equip)) { it.rar = 1; it.plus = 6; }
+  for (const it of Object.values(g.s.equip).filter(Boolean)) { it.rar = 1; it.plus = 6; }
   g._stats = null;
   const st = g.stats();
   const keep = g.s.equip;
-  g.s.equip = { weapon: null, armor: null, hat: null, acc: null }; g._stats = null;
+  g.s.equip = { weapon: null, armor: null, hat: null, acc: null, finger: null, ear: null }; g._stats = null;
   const naked = g.stats();
   g.s.equip = keep; g._stats = null;
   const sa = 1 - naked.atk / st.atk, sh = 1 - naked.hp / st.hp;
@@ -337,6 +337,72 @@ console.log('\n=== 등급 · 스킬 옵션 · 승급 · 돌파 · 스킬 레벨 
   B.s.mats.b6 = 1000;
   let tries = 0; while (bw.plus < W.ENHANCE_MAX && tries++ < 400) B.enhance(bw.uid);
   ok(bw.plus === W.ENHANCE_MAX && W.enhanceMult(15) > 3.1, `돌파로 +${W.ENHANCE_MAX}까지 — 기본 수치 ×${W.enhanceMult(15).toFixed(1)}`, `${tries}번 · 증표 ${1000 - B.s.mats.b6}개`);
+}
+
+console.log('\n=== 십이지왕 신화 · 가락지·귀걸이 · 애완동물 · 탈것 (v111) ===');
+{
+  // 십이지왕 지역 장비가 신화면 그 왕의 고유 효과
+  const g = fresh();
+  const kw = g.makeCrafted('weapon', (W.ZONE_COUNT - 1) * 2, 0, 3);        // 검왕 지역
+  ok(kw.opts.some((o) => o.kp === 1) && !kw.opts.some((o) => o.sp), '검왕 지역 신화에는 검왕 고유 효과(무형신검)', kw.opts.map(W.optText).join(' / '));
+  const kinds = new Set(W.KINGS.map((k) => W.KING_MYTHIC[k.no].id));
+  ok(kinds.size === 12, '십이지왕 열둘 모두 고유 신화 효과가 다르다', [...kinds].join(' '));
+  // 고유 효과가 실제로 듣는다: 투왕(두목 +50%) · 혈왕(흡혈) · 환왕(회피)
+  const t = fresh();
+  t.s.level = 140; t._stats = null;
+  t.enterMap(W.mapId(25, 1));
+  const boss = t.spawnMob(true); boss.introT = 0; t.freezeT = 0;
+  boss.hp = boss.maxHp = 1e12; boss.armor = 0;
+  t.rng = () => 0.5;
+  t.s.equip.weapon = { ...t.makeCrafted('weapon', 48, 0, 3), opts: [] }; t._stats = null; t._pass = null;
+  const st0 = t.stats();
+  const hp0 = boss.hp; t.strike(boss, st0, 1, 'hit'); const plain = hp0 - boss.hp;
+  t.s.equip.weapon = { ...t.makeCrafted('weapon', 48, 0, 3), opts: [{ kp: 3 }] }; t._stats = null; t._pass = null;
+  const hp1 = boss.hp; t.strike(boss, t.stats(), 1, 'hit'); const bane = hp1 - boss.hp;
+  ok(bane / plain > 1.45 && bane / plain < 1.55, '투왕 신화: 두목에게 피해 +50%', `${plain.toFixed(0)} → ${bane.toFixed(0)}`);
+  t.s.equip.armor = { ...t.makeCrafted('armor', 34, 0, 3), opts: [{ kp: 9 }] }; t._stats = null; t._pass = null;
+  t.heroHp = 1; t.strike(boss, t.stats(), 1, 'hit');
+  ok(t.heroHp > 1, '혈왕 신화: 준 피해만큼 체력을 빨아들인다', `체력 1 → ${t.heroHp.toFixed(0)}`);
+  // 가락지·귀걸이: 두목만, 강화가 어렵다, 애완동물 +N
+  const a = fresh();
+  let acc2 = 0;
+  for (let i = 0; i < 3000; i++) { a.s.map = W.mapId(3, 4); a.dropMats({ isBoss: true, x: 0, y: 0 }); acc2 += a.events.filter((e) => e.type === 'drop' && W.isDropOnly(e.item.slot)).length; a.events.length = 0; }
+  ok(Math.abs(acc2 / 3000 - W.ACC2_DROP) < 0.02 && a.craft('finger', 4) === null, '가락지·귀걸이는 두목만 떨군다(만들 수 없다)', `${(acc2 / 30).toFixed(1)}%`);
+  const ring = a.makeCrafted('finger', 4, 0, 1);
+  const wpn = a.makeCrafted('weapon', 4, 0, 1);
+  ok(a.enhanceRateOf(ring) === W.enhanceRate(0) * W.ACC2_RATE && a.enhanceCost(ring) === a.enhanceCost(wpn) * W.ACC2_COST && a.enhanceMax(ring) === 10, '가락지·귀걸이 강화는 어렵다(성공률 절반·은자 ×3·돌파 없음)');
+  // 애완동물
+  const p = fresh();
+  p.s.level = 30;
+  const pet = p.gainPet(1);
+  ok(p.s.pets.length === 1 && p.activePets()[0] === pet, '처음 얻은 애완동물은 바로 데려간다');
+  const a0 = p.stats();
+  const pet2 = p.gainPet(3);
+  ok(p.s.pets.length === 1 && p.s.petBox[0] === pet2 && !p.adoptPet(pet2.uid), '한 마리를 키우는 동안 새 것은 우리에서 기다린다(동시에 둘은 못 키운다)');
+  ok(p.releasePet(pet.uid) && p.adoptPet(pet2.uid) && p.activePets()[0] === pet2, '키우던 것을 놓아줘야 새 것을 키운다');
+  p.s.equip.finger = { ...p.makeCrafted('finger', 4, 0, 3), opts: [{ pet: 2 }] }; p._stats = null;
+  const pet3 = p.gainPet(0), pet4 = p.gainPet(0);
+  ok(p.petSlots() === 3 && p.activePets().length === 3 && p.s.pets.includes(pet4), '가락지의 애완동물 +2 → 세 마리를 함께 키운다');
+  const lv0 = pet3.lv;
+  p.petExp(1e9);
+  ok(pet3.lv > lv0 && pet3.lv <= W.PET_LV_MAX, '애완동물은 무인과 함께 경험치를 받아 자란다', `Lv.${lv0} → ${pet3.lv}`);
+  // 싸운다: 무인 공격력에 비례
+  p.enterMap(W.mapId(4, 1));
+  const tgt = p.mons[0]; tgt.hp = tgt.maxHp = 1e9; p.mon = tgt;
+  for (let i = 0; i < 20; i++) p.tickPets(0.1, p.stats());
+  ok(tgt.hp < 1e9, '애완동물이 무인 곁의 적을 친다');
+  void a0;
+  // 탈것
+  const m = fresh();
+  const sp0 = m.stats().moveSpeed;
+  m.gainMount('redhare');
+  ok(m.stats().moveSpeed > sp0 * 1.8 && m.stats().atk > fresh().stats().atk, '탈것: 이동 속도(적토마 +85%)와 공격력·체력 %', `이동 ×${m.stats().moveSpeed.toFixed(2)}`);
+  m.gainMount('donkey');
+  ok(m.mountNow().name === '적토마', '더 느린 탈것을 얻으면 갈아타지 않는다');
+  let md = 0;
+  const mm = fresh();
+  for (let i = 0; i < 200000; i++) if (mm.rng() < W.MOUNT_DROP_MOB) md++;
+  ok(md < 40, '졸개 탈것 드랍은 아주 드물다', `20만 마리에 ${md}`);
 }
 
 console.log('\n=== 문파 버프 ===');
@@ -467,7 +533,7 @@ console.log('\n=== 다섯 캐릭터 · 2시간 ===');
       while (g.canAdvance()) g.advance();
       if (g.s.potions < 15) g.buyPotions(Math.min(40 - g.s.potions, Math.floor(g.s.gold / g.potionPrice())));
       // 30초마다 대장장이 — 만들 수 있는 가장 높은 것
-      if (t % 30 < 0.1) for (const sl of W.SLOTS) for (const st of g.nextSteps(sl.id).reverse()) if (g.craft(sl.id, st)) break;
+      if (t % 30 < 0.1) for (const sl of W.CRAFT_SLOTS) for (const st of g.nextSteps(sl.id).reverse()) if (g.craft(sl.id, st)) break;
       // 사냥터: 들어갈 수 있는 가장 높은 들판 구역. 상급 조합에 증표가 모자라면 두목 구역에 들른다.
       let best = 11;
       for (const m of W.MAPS) if (!m.town && !m.bossRoom && g.canEnter(m.id) && g.s.level >= m.lv[0] + 1) best = m.id;

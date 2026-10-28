@@ -207,6 +207,7 @@ function refreshUI(full = false) {
   if (showPts) adv.textContent = [statPts ? `스탯 ${s.statPts}` : '', skillUp ? `스킬 ${s.skillPts}` : ''].filter(Boolean).join(' · ') + ' · 찍기';
   const t = game.nextTier();
   dot('town', !!t && s.level >= t.level && s.gold >= t.cost);
+  dot('comp', s.petBox.length > 0 && s.pets.length < game.petSlots());
   if (activeTab) { tabs[activeTab].update(); panelRes(); }
   if (full) drawPortrait();
 }
@@ -273,6 +274,29 @@ function handleEvents() {
         if (ev.king) view.startKingIntro(ev.king, ev.at, ev.full);
         else view.startBossIntro(ev, ev.at, ev.full);
         break;
+      case 'petDrop': {
+        const d = W.petOf(ev.pet.kind);
+        toast(`${W.RARITY[ev.pet.rar].name} 애완동물 ${d.emoji} ${d.name}! ${ev.joined ? '데려갔어요' : '우리에서 기다려요(동료 창)'}`);
+        view.showBanner(`${d.emoji} ${d.name}`, W.RARITY[ev.pet.rar].color, 1.6, '동료');
+        sfx('loot');
+        break;
+      }
+      case 'petLevel':
+        view.float(`${W.petOf(ev.pet.kind).emoji} Lv.${ev.pet.lv}`, view.heroX - 50, view.groundY - 120, '#86efac', 14, 1.1);
+        break;
+      case 'mountDrop': {
+        const d = W.mountOf(ev.mount.kind);
+        toast(`탈것 ${d.emoji} ${d.name}! 이동 속도 +${Math.round(d.speed * 100)}%`);
+        view.showBanner(`${d.emoji} ${d.name}`, '#fde68a', 1.8, '탈것');
+        sfx('loot');
+        break;
+      }
+      case 'passive': {
+        const T = { combo: ['유혼!', '#fca5a5'], dodge: ['흘림', '#c4b5fd'], revive: ['천혼!', '#86efac'] };
+        const t = T[ev.id];
+        if (t) view.float(t[0], view.heroX + 28, view.groundY - 170, t[1], 16, 0.9);
+        break;
+      }
       case 'promote':
         sfx('loot');
         drawPortrait();
