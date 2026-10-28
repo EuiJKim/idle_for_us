@@ -460,6 +460,9 @@ export class BattleView {
         this.float('-' + fmt(ev.amount) + (ev.crit ? '!' : ''), this.heroX + 26, this.groundY - 158, '#fca5a5', ev.crit ? 18 : 14);
         break;
       case 'heroDied':
+        // 무인이 넘어졌다가 일어난다 (drawHeroUnit)
+        this.heroDownT = HERO_DOWN_SEC;
+        this.shake = Math.max(this.shake, 0.3);
         this.float(ev.boss ? '두목에게 패배…' : '쓰러졌다!', this.w / 2, this.h * 0.42, '#fca5a5', 24, 1.6, true);
         break;
       case 'stageClear':
@@ -814,6 +817,7 @@ export class BattleView {
     this.t += dt;
     const { ctx } = this;
     const decay = (v, k) => Math.max(0, v - dt * k);
+    this._lastDt = dt;
     this.monKnock = decay(this.monKnock, 55);
     this.heroLunge = decay(this.heroLunge, 6);
     // 시트가 열리면 무인을 위로(0.32), 닫히면 가운데(0.47)로 — 0.25초쯤에 걸쳐 옮긴다
@@ -1235,6 +1239,15 @@ export class BattleView {
     if (alpha <= 0.01) return;
     this.ctx.save();
     this.ctx.globalAlpha = alpha;
+    // 쓰러졌다 일어나기 — 앞 35%에 뒤로 넘어가고, 잠깐 누웠다가, 뒤 30%에 일어난다.
+    // 몸만 눕힌다(발밑 고리·이름표·체력 막대는 그대로).
+    let downRot = 0;
+    if (this.heroDownT > 0) {
+      this.heroDownT = Math.max(0, this.heroDownT - (this._lastDt || 0));
+      const k = 1 - this.heroDownT / HERO_DOWN_SEC;
+      const down = k < 0.35 ? 1 - (1 - k / 0.35) ** 2 : k < 0.7 ? 1 : 1 - ((k - 0.7) / 0.3) ** 2;
+      downRot = (opts.flip ? 1 : -1) * down * 1.3;
+    }
     if (gale) { // 잔상
       for (let i = 3; i >= 1; i--) {
         this.ctx.save();
@@ -1263,7 +1276,13 @@ export class BattleView {
     const br = 38 + Math.sin(this.t * 3) * 4;
     this.ctx.beginPath(); this.ctx.ellipse(x, y + 2, br, br * 0.4, 0, 0, Math.PI * 2); this.ctx.stroke();
     this.ctx.restore();
-    drawFighter(this.ctx, x, y, look, opts);
+    if (downRot) {
+      this.ctx.save();
+      this.ctx.translate(x, y); this.ctx.rotate(downRot); this.ctx.translate(-x, -y);
+      this.ctx.globalAlpha *= 1 - Math.abs(downRot) / 1.3 * 0.35;
+      drawFighter(this.ctx, x, y, look, opts);
+      this.ctx.restore();
+    } else drawFighter(this.ctx, x, y, look, opts);
     // 데려간 영수들이 뒤를 따른다 (예전엔 s.pet 한 마리만 그렸는데, 영수가 여럿이 된 뒤로
     // 그 값이 늘 비어 있어서 아무것도 안 그려졌다)
     game.petTeam().forEach((pet, i) => {
@@ -1953,6 +1972,7 @@ export class BattleView {
 // ---------- 무인 그리기 ----------
 // 발끝 가운데가 (x, y), 오른쪽을 본다. look: 무복 색·머리·무기, o: 애니메이션 옵션
 const CORPSE_SEC = 0.55;
+const HERO_DOWN_SEC = 0.9;
 
 export function drawFighter(ctx, x, y, look = {}, o = {}) {
   const t = o.t || 0;

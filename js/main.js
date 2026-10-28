@@ -180,10 +180,11 @@ function buildSkillbar() {
     const sk = id ? game.skillDef(id) : null;
     const cd = h('div', { class: 'cd' });
     const lock = h('div', { class: 'lock' });
-    const btn = h('button', { class: 'skill-btn', 'aria-label': sk?.name || '빈 칸', onclick: () => (sk ? game.useSkill(sk.id) : showTab('skill')) }, sk?.icon || '＋', cd, lock);
+    const num = h('div', { class: 'cdn' });   // 남은 숨(초)
+    const btn = h('button', { class: 'skill-btn', 'aria-label': sk?.name || '빈 칸', onclick: () => (sk ? game.useSkill(sk.id) : showTab('skill')) }, sk?.icon || '＋', cd, num, lock);
     // 들판 바에도 그림을 깐다. 창 안에만 그림이면 두 곳이 서로 다른 게임 같다.
     if (sk?.art) iconSkin(btn, sk.art[0], sk.art[1]);
-    return { sk, btn, cd, lock };
+    return { sk, btn, cd, lock, num, was: 0 };
   });
   $('skillbar').replaceChildren(...skillEls.map((e) => e.btn));
 }
@@ -336,14 +337,23 @@ function refreshUI(full = false) {
   }
 
   if (barSig() !== slotSig) buildSkillbar();
-  for (const { sk, btn, cd, lock } of skillEls) {
+  for (const e of skillEls) {
+    const { sk, btn, cd, lock, num } = e;
     if (!sk) { btn.classList.add('locked'); continue; }
     const unlocked = game.skillUnlocked(sk);
     btn.classList.toggle('locked', !unlocked || game.mode === 'pvp');
     lock.textContent = unlocked ? `Lv.${s.skills[sk.id]}` : `${sk.unlock}관`;
     const left = game.cd[sk.id];
-    cd.style.height = unlocked ? `${(left / sk.cd) * 100}%` : '0';
-    btn.classList.toggle('ready', unlocked && left <= 0);
+    // 덮개는 실제 숨(패시브·수련으로 줄어든 값)에 맞춘다. sk.cd로 나누면 숨이 줄수록 덮개가
+    // 반쯤 남은 채로 툭 사라졌다.
+    const full = Math.max(0.1, game.skillCdOf(sk));
+    cd.style.height = unlocked ? `${Math.min(1, left / full) * 100}%` : '0';
+    num.textContent = unlocked && left > 0.95 ? String(Math.ceil(left)) : '';
+    const ready = unlocked && left <= 0;
+    btn.classList.toggle('ready', ready);
+    // 숨이 다 돌아온 순간 한 번 반짝인다
+    if (ready && e.was > 0) { btn.classList.remove('refresh'); void btn.offsetWidth; btn.classList.add('refresh'); }
+    e.was = left;
   }
   autoBtn.classList.toggle('on', s.autoSkill);
   autoBtn.querySelector('span').textContent = s.autoSkill ? '자동 켬' : '자동 끔';
