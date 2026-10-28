@@ -10,7 +10,12 @@ import { WNet } from './wnet.js';
 import { h, toast, openModal, closeModal, modalOpen } from './ui/common.js';
 import { WTABS, WTAB_TITLE, itemTitle, skillText } from './wui.js';
 import { fmt, duration } from './fmt.js';
+import { sfx, unlockAudio, setSound, soundOn } from './sfx.js';
 loadIcons();
+
+// 소리 — 이 기기에만 남긴다. 휴대폰은 화면을 한 번 눌러야 소리가 난다.
+try { setSound(localStorage.getItem('ifu.sound') !== '0'); } catch { /* 사생활 모드 */ }
+window.addEventListener('pointerdown', () => unlockAudio(), { capture: true });
 
 const OLD_SAVE_KEY = 'idleForUs.save.v1';
 const $ = (id) => document.getElementById(id);
@@ -198,6 +203,20 @@ function drawPortrait() {
 function handleEvents() {
   for (const ev of game.events) {
     view.handle(ev, game);
+    // 소리 (타격감) — 광역기 수십 대는 sfx가 간격을 둬서 몇 번만 난다
+    switch (ev.type) {
+      case 'attack': sfx('swish'); break;
+      case 'dmg': sfx('hit', ev.crit > 0); break;
+      case 'skill': sfx('skill'); break;
+      case 'kill': sfx('kill'); break;
+      case 'levelUp': sfx('level'); break;
+      case 'drop': if (ev.item.grade >= 2) sfx('loot'); break;
+      case 'potion': sfx('potion'); break;
+      case 'heroHit': sfx('hurt'); break;
+      case 'heroDied': sfx('down'); break;
+      case 'bossAppear': sfx('boss'); break;
+      default:
+    }
     switch (ev.type) {
       case 'levelUp':
         if (ev.level % 5 === 0 || ev.level <= 5) toast(`레벨 ${ev.level}!`);
@@ -365,6 +384,10 @@ $('btn-settings').addEventListener('click', () => openModal((s) => {
     fxBtn.textContent = FX_NAME[v];
   };
   s.append(h('h2', {}, '설정'),
+    toggleRow('소리', soundOn(), '때리는 소리·레벨업·좋은 장비 — 이 기기에만 남아요', (v) => {
+      setSound(v);
+      try { localStorage.setItem('ifu.sound', v ? '1' : '0'); } catch { /* 이번만 */ }
+    }),
     toggleRow('자동 물약', game.s.autoPotion, `체력이 ${Math.round(W.POTION_AT * 100)}% 아래면 알아서 먹어요`, (v) => { game.s.autoPotion = v; save(); }),
     toggleRow('자동 스킬', game.s.autoSkill, '체력을 쓰는 스킬은 체력이 넉넉할 때만 써요', (v) => { game.s.autoSkill = v; save(); }),
     h('div', { class: 'row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, '연출'), h('div', { class: 'desc' }, '폰이 버거우면 낮춰요')), fxBtn),
