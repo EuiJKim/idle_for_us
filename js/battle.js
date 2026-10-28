@@ -2,6 +2,7 @@
 import { zoneOf, RANKS, GRADES, FIELD_SQUASH, JOB_TRAITS, QI, jobOf, critTierName } from './data.js';
 import { artReady, putArt, putArtEdge, putArtTint, loadArt, FIT, ART_SHOULDER, ART_BAND, headKey, bodyKey, weaponKey } from './art.js';
 import { drawCreature, saddleY } from './creatures.js';
+import { ZONES_W, stepMap } from './world/wdata.js';
 import { OUTFITS } from './data.js';
 
 // 의복 열둘 중 앞 여섯은 도포(몸), 뒤 여섯은 검 장식(무기)이다.
@@ -480,6 +481,14 @@ export class BattleView {
         const kx = ev.at ? this.sx(ev.at) : this.monX;
         const ky = ev.at ? this.sy(ev.at) : this.monY;
         if (!ev.add) this.monDeath = 1;
+        // 정예·두목·왕을 쓰러뜨리면 그 빛깔로 터진다 (v116)
+        if (ev.at?.grade > 0 && this.fxLevel > 0) {
+          const g = ev.at.grade;
+          const c = this.mobCol({ ...ev.at, hp: ev.at.maxHp }).replace('#', '');
+          const rgb = [0, 2, 4].map((i) => parseInt(c.slice(i, i + 2), 16)).join(',');
+          this.effects.push({ kind: 'shock', life: 0.5 + g * 0.15, max: 0.5 + g * 0.15, wx: ev.at.x, wy: ev.at.y, r: g === 1 ? 60 : 130 + g * 30, col: rgb, rings: g, w: 3 + g });
+          if (g >= 2) { this.shake = Math.max(this.shake, 0.25 + g * 0.1); this.flash = Math.max(this.flash, 0.25 * g); }
+        }
         // 쓰러진 졸개는 그 자리에서 넘어지며 옅어진다. 전에는 그냥 사라져서
         // 광역기로 수십을 베어도 '벤' 느낌이 없었다. 너무 많으면 앞의 것부터 지운다.
         if (ev.add && ev.at && this.fxLevel > 0) {
@@ -681,6 +690,21 @@ export class BattleView {
     if (gear.hatRar >= 3) look.crown = true;
     if (gear.best >= 2 && !look.aura) look.aura = gear.bestCol;
     if (gear.kps.has('formless')) { look.swords = (look.swords || 0) + 3; look.aura = look.aura || '#fde68a'; }
+    // 두목 장비의 겉모습 (v116) — 옷은 그 두목의 도포 빛깔, 모자는 그 두목의 쓰개, 무기는 그 두목의 기운 빛
+    const B = gear.boss;
+    if (B.armor) {
+      look.robe = B.armor.look.robe; look.robeTint = B.armor.look.robe;
+      if (B.armor.look.trim) look.trim = B.armor.look.trim;
+      delete look.outfitBody;
+    }
+    if (B.hat) {
+      const hl = B.hat.look;
+      if (['hat', 'hood', 'band', 'mask'].includes(hl.head)) look.head = hl.head;
+      look.band = hl.band || hl.trim || look.band;
+    }
+    if (B.weapon?.look.aura) look.aura = B.weapon.look.aura;
+    else if (B.armor?.look.aura) look.aura = B.armor.look.aura;
+
     const opts = {
       // 무기는 캐릭터를 따른다 (검사 검 · 권마 권갑 · 환마 부채 · 독마 비수)
       t: this.t, lunge: this.heroLunge, flash: this.heroFlash, run: moving, weapon: jobOf(game.s.job)?.look || 'sword', hold: true,
@@ -694,6 +718,11 @@ export class BattleView {
       bladeCol: gear.weaponCol,
     };
     if (gear.weaponRar >= 2) opts.glow = true;
+    if (B.weapon) {
+      opts.glow = true; opts.glowCol = B.weapon.col;
+      if (!opts.bladeFx && this.fxLevel > 0) opts.bladeFx = 'shimmer';
+      if (opts.bladeFx !== 'rainbow') opts.bladeCol = B.weapon.col;
+    }
     return { look, opts };
   }
 
@@ -710,15 +739,29 @@ export class BattleView {
       best = Math.max(best, rarOf(it));
       power += (rarOf(it) + 1) + (it.plus || 0) / 5;
     }
+    // 두목 장비 — 두목 증표로 만든 상급이나 두목이 떨군 것. 끼면 그 두목의 겉모습이 든다.
+    const bossOf = (it) => {
+      if (!it || it.step == null || !(it.step % 2 === 1 || it.boss)) return null;
+      const z = stepMap(it.step);
+      const b = ZONES_W[z]?.boss;
+      return b?.look ? { z, look: b.look, col: b.look.aura || b.look.trim || '#fde68a' } : null;
+    };
+    const bz = {};
+    for (const k of ['weapon', 'armor', 'hat', 'acc', 'finger', 'ear']) bz[k] = bossOf(e[k]);
+    const set = bz.weapon && bz.armor && bz.hat && bz.weapon.z === bz.armor.z && bz.armor.z === bz.hat.z ? bz.weapon : null;
     const v = {
+      boss: bz, set,
       weaponRar: rarOf(e.weapon), weaponPlus: e.weapon?.plus || 0, weaponCol: RC[rarOf(e.weapon)] || '#e5e7eb',
       armorRar: rarOf(e.armor), armorCol: RC[rarOf(e.armor)],
       hatRar: rarOf(e.hat), hatCol: RC[rarOf(e.hat)],
       best, bestCol: RC[best],
       // 발밑 고리 단계 0~5 — 장비 여섯 칸의 등급·강화를 합친 세기
-      tier: Math.min(5, Math.floor(power / 5)),
+      tier: Math.max(set ? 3 : 0, Math.min(5, Math.floor(power / 5))),
       kps: game.passives ? game.passives() : new Set(),
     };
+    if (set) { v.bestCol = set.col; v.setLook = set.col; }
+    // 장신구·가락지·귀걸이는 그 두목 빛깔의 구슬이 몸을 돈다
+    v.gems = ['acc', 'finger', 'ear'].map((k) => bz[k]?.col).filter(Boolean);    // 한 두목의 무기·옷·모자를 다 끼면 발밑 고리도 그 두목 빛깔
     this._gearLook = { sig, v };
     return v;
   }
@@ -1571,7 +1614,24 @@ export class BattleView {
         for (let i = 0; i <= 6; i++) { const a = t * 0.8 + (i * Math.PI) / 3; const px = x + Math.cos(a) * 52, py = y - 55 + Math.sin(a) * 52 * 0.95; if (i) ctx.lineTo(px, py); else ctx.moveTo(px, py); }
         ctx.fill(); ctx.stroke();
       }
+      if (gear.setLook) {                           // 한 두목의 세 벌: 그 두목 빛깔의 붓 고리가 발밑에서 돈다
+        ctx.save(); ctx.translate(x, y + 2); ctx.scale(1, 0.36); ctx.rotate(t * 0.5);
+        ctx.strokeStyle = hexA(gear.setLook, 0.75); ctx.lineWidth = 5; ctx.lineCap = 'round';
+        for (let i = 0; i < 3; i++) { ctx.beginPath(); ctx.arc(0, 0, 66, (i * Math.PI * 2) / 3, (i * Math.PI * 2) / 3 + 1.4); ctx.stroke(); }
+        ctx.restore();
+      }
     } else {
+      if (gear.gems?.length) {                      // 두목 장신구 구슬 — 몸을 돈다
+        ctx.globalCompositeOperation = 'lighter';
+        gear.gems.forEach((c, i) => {
+          const an = t * 1.6 + (i * Math.PI * 2) / gear.gems.length;
+          const gx = x + Math.cos(an) * 30, gy = y - 66 + Math.sin(an) * 9;
+          const g = ctx.createRadialGradient(gx, gy, 0, gx, gy, 9);
+          g.addColorStop(0, hexA('#ffffff', 0.95)); g.addColorStop(0.35, hexA(c, 0.9)); g.addColorStop(1, hexA(c, 0));
+          ctx.fillStyle = g; circle(ctx, gx, gy, 9);
+        });
+        ctx.globalCompositeOperation = 'source-over';
+      }
       if (kps.has('petal')) {                       // 화왕: 떨어지는 꽃잎
         for (let i = 0; i < 16; i++) {
           const ph = (t * 0.35 + i / 16) % 1;
@@ -1613,6 +1673,94 @@ export class BattleView {
         ctx.strokeStyle = hexA('#ef4444', 0.6); ctx.lineWidth = 2;
         for (let i = 0; i < 5; i++) { const yy = y - 20 - i * 18; const xx = x - 40 - ((t * 300 + i * 30) % 50); ctx.beginPath(); ctx.moveTo(xx, yy); ctx.lineTo(xx + 26, yy); ctx.stroke(); }
       }
+    }
+    ctx.restore();
+  }
+
+  // ---------- 몹 등급 기운 (v116) ----------
+  // 정예: 주황 테·발밑 점선 고리·불티 · 두목: 두목 빛깔의 이중 술법진·검은 웅덩이·불티 기둥 ·
+  // 왕: 두목에 더해 그 왕의 신화 기운(무인이 왕 장비를 낄 때와 같은 것)과 먹빛 연기.
+  // 두목·왕은 체력 35% 아래면 격노 — 빛이 붉게 바뀌고 고동친다.
+  mobCol(a) {
+    if (a.grade >= 2 && a.hp < a.maxHp * 0.35) return '#ef4444';
+    if (a.grade === 1) return '#f97316';
+    const l = a.def?.look || {};
+    return l.aura || l.trim || '#ef4444';
+  }
+  drawMobFx(ctx, a, x, y, sc, front) {
+    const t = this.t + (a.id || 0) * 0.37;
+    const col = this.mobCol(a);
+    const rage = a.grade >= 2 && a.hp < a.maxHp * 0.35;
+    ctx.save();
+    if (!front) {
+      if (a.grade === 1) {
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.strokeStyle = hexA(col, 0.45);
+        ctx.lineWidth = 2;
+        ctx.setLineDash([8, 6]); ctx.lineDashOffset = -t * 30;
+        ctx.beginPath(); ctx.ellipse(x, y + 2, 28 * sc, 10 * sc, 0, 0, Math.PI * 2); ctx.stroke();
+        ctx.setLineDash([]);
+      } else {
+        // 검은 웅덩이
+        const pool = ctx.createRadialGradient(x, y + 2, 4, x, y + 2, 70 * sc);
+        pool.addColorStop(0, 'rgba(10,6,4,0.55)'); pool.addColorStop(1, 'rgba(10,6,4,0)');
+        ctx.fillStyle = pool;
+        ctx.beginPath(); ctx.ellipse(x, y + 2, 70 * sc, 26 * sc, 0, 0, Math.PI * 2); ctx.fill();
+        const pulse = rage ? 0.6 + Math.sin(t * 10) * 0.4 : 0.8 + Math.sin(t * 2.5) * 0.2;
+        // 이중 술법진 — 바깥은 이쪽, 안쪽은 저쪽으로 돈다
+        for (let k = 0; k < 2; k++) {
+          const R = (k ? 40 : 58) * sc;
+          ctx.save();
+          ctx.translate(x, y + 2);
+          ctx.scale(1, 0.36);
+          ctx.rotate(t * (k ? -0.9 : 0.6) * (rage ? 2.2 : 1));
+          const n = k ? 6 : 8;
+          ctx.beginPath();
+          ctx.moveTo(R, 0); ctx.arc(0, 0, R, 0, Math.PI * 2);
+          for (let i = 0; i < n; i++) {
+            const an = (i * Math.PI * 2) / n;
+            ctx.moveTo(Math.cos(an) * R, Math.sin(an) * R); ctx.lineTo(Math.cos(an) * (R + (k ? -10 : 13)), Math.sin(an) * (R + (k ? -10 : 13)));
+          }
+          if (a.grade === 3 && !k) {
+            // 왕: 술법진 안에 별 — 꼭짓점을 이어 그린다
+            for (let i = 0; i <= 5; i++) { const an = (i * 4 * Math.PI) / 5 - Math.PI / 2; const px = Math.cos(an) * R * 0.92, py = Math.sin(an) * R * 0.92; if (i) ctx.lineTo(px, py); else ctx.moveTo(px, py); }
+          }
+          // 밝은 바닥에서도 보이게 먹선을 먼저 깔고 그 위에 빛깔
+          ctx.strokeStyle = 'rgba(12,8,6,0.45)'; ctx.lineWidth = (k ? 2 : 3) + 3; ctx.stroke();
+          ctx.strokeStyle = hexA(col, 0.95 * pulse); ctx.lineWidth = k ? 2 : 3; ctx.stroke();
+          ctx.restore();
+        }
+        ctx.globalCompositeOperation = 'lighter';
+        {
+        }
+        // 몸을 감싸는 기운
+        const g = ctx.createRadialGradient(x, y - 60 * sc, 8, x, y - 60 * sc, 80 * sc);
+        g.addColorStop(0, hexA(col, 0.28 * pulse)); g.addColorStop(1, hexA(col, 0));
+        ctx.fillStyle = g;
+        circle(ctx, x, y - 60 * sc, 80 * sc);
+        if (a.grade === 3) {
+          // 먹빛 연기
+          ctx.globalCompositeOperation = 'source-over';
+          for (let i = 0; i < 7; i++) {
+            const ph = (t * 0.4 + i / 7) % 1;
+            ctx.fillStyle = `rgba(12,8,6,${0.3 * (1 - ph)})`;
+            circle(ctx, x + Math.sin(i * 2.3 + t) * 40 * sc, y - ph * 120 * sc, (12 + ph * 18) * sc);
+          }
+          if (a.kp) this.drawGearAura(ctx, x, y, { tier: 0, kps: new Set([a.kp]) }, false);
+        }
+      }
+    } else {
+      // 오르는 불티 — 정예는 몇 개, 두목·왕은 기둥처럼
+      ctx.globalCompositeOperation = 'lighter';
+      const n = a.grade === 1 ? 4 : rage ? 16 : 10;
+      const H = (a.grade === 1 ? 70 : 130) * sc;
+      for (let i = 0; i < n; i++) {
+        const ph = (t * (rage ? 1.4 : 0.8) + i / n) % 1;
+        const px = x + Math.sin(i * 2.7 + t * 1.3) * (a.grade === 1 ? 18 : 34) * sc;
+        ctx.fillStyle = hexA(i % 3 ? col : '#fde68a', 0.8 * (1 - ph));
+        circle(ctx, px, y - 10 - ph * H, (a.grade === 1 ? 2 : 3) * (1 - ph * 0.6));
+      }
+      if (a.grade === 3 && a.kp) { ctx.globalCompositeOperation = 'source-over'; this.drawGearAura(ctx, x, y, { tier: 0, kps: new Set([a.kp]) }, true); }
     }
     ctx.restore();
   }
@@ -1692,8 +1840,9 @@ export class BattleView {
     const def = a.def || {};
     const face = a.x >= game.heroX; // 무인 쪽을 본다
     ctx.save();
-    const sc = (def.look?.scale || 1) * 0.94 * this.crowdScale;
+    const sc = (def.look?.scale || 1) * 0.94 * this.crowdScale * (a.grade === 1 ? 1.1 : 1);
     const time = this.t + 0.7 + (Math.abs(a.x) % 7) * 0.2;
+    const fx = a.grade > 0 && this.fxLevel > 0 && !a.npc;
     // 깊이 — 무인에게서 멀수록 흐리다
     const dist = Math.hypot(x - this.heroX, (y - this.groundY) / this.squash);
     // 물린 카메라에서는 지도 전체가 한눈에 보여야 하니 흐리게 하지 않는다
@@ -1705,6 +1854,7 @@ export class BattleView {
     // 가까울수록 진하고 또렷하다.
     ctx.fillStyle = `rgba(0,0,0,${0.34 * depth})`;
     ctx.beginPath(); ctx.ellipse(x, y + 2, 20 * sc, 8 * sc, 0, 0, Math.PI * 2); ctx.fill();
+    if (fx) this.drawMobFx(ctx, a, x, y, sc, false);
     // 맞은 직후 0.2초 — 무인 반대쪽으로 밀리고, 위아래로 찌그러졌다 돌아온다
     const hk = a._hitAt != null ? Math.max(0, 1 - (this.t - a._hitAt) / 0.2) : 0;
     const away = x >= this.heroX ? 1 : -1;
@@ -1719,7 +1869,10 @@ export class BattleView {
         if (s2 !== 1) ctx.scale(s2, s2);
         if (face) ctx.scale(-1, 1);
         if (hk > 0) { ctx.rotate(-0.12 * hk * (face ? -away : away)); ctx.scale(1 + 0.06 * hk, 1 - 0.08 * hk); }
+        // 정예·두목·왕은 몸 둘레가 등급 빛깔로 번진다
+        if (fx) { ctx.shadowColor = this.mobCol(a); ctx.shadowBlur = a.grade >= 2 ? 18 : 10; }
         ctx.drawImage(spr, -SPR.ox, -SPR.oy, SPR.w, SPR.h);
+        ctx.shadowBlur = 0;
         // 맞은 순간 몸이 하얗게 번쩍인다
         if (hk > 0.5) {
           ctx.globalCompositeOperation = 'lighter';
@@ -1733,7 +1886,10 @@ export class BattleView {
         });
       }
     }
+    if (fx) this.drawMobFx(ctx, a, x, y, sc, true);
     if (a.stun > 0) iceBlock(ctx, x, y, 26, 88);
+    // 들판 정예는 드물어서 표를 단다
+    if (a.elite) { ctx.globalAlpha = 1; gradeTag(ctx, '정예', x, y - 100 * sc, '#fb923c'); }
     // 마을 사람은 이름을 단다
     if (a.npc) { ctx.globalAlpha = 1; nameTag(ctx, def.name || '', x, y - 104, true); }
     // 체력바는 가까이 붙은 적만. 수십 마리가 전부 달면 주황 막대가 화면을 덮는다.
@@ -1801,16 +1957,24 @@ export class BattleView {
       scale = 1.3;
     }
     const boss = m.isBoss && !m.isRaid && !m.trial;
+    if (m.grade === 1) scale *= 1.1;
+    const fx = m.grade > 0 && this.fxLevel > 0 && m.alive;
 
     ctx.save();
     ctx.globalAlpha = alpha;
     ctx.fillStyle = 'rgba(0,0,0,0.32)';
     const shw = (m.isBoss ? 34 : 22) * (scale || 1);
     ctx.beginPath(); ctx.ellipse(x, y + 2, shw, shw * 0.4, 0, 0, Math.PI * 2); ctx.fill();
+    if (fx) this.drawMobFx(ctx, m, x, y, scale, false);
     if (look) {
       ctx.translate(x, y + (m.alive ? 0 : (1 - alpha) * 10));
       ctx.scale(-scale, scale);
       if (look.ghost) ctx.globalAlpha = alpha * (0.55 + Math.sin(this.t * 3) * 0.1);
+      // 등급 빛 번짐 — 같은 모습의 구운 그림을 빛깔 그림자와 함께 먼저 깐다
+      if (fx) {
+        const spr = fighterSprite(look, this.t + 1, weapon, this.dpr || 1);
+        if (spr) { ctx.save(); ctx.shadowColor = this.mobCol(m); ctx.shadowBlur = m.grade >= 2 ? 18 : 10; ctx.drawImage(spr, -SPR.ox, -SPR.oy, SPR.w, SPR.h); ctx.restore(); }
+      }
       drawFighter(ctx, 0, 0, look, {
         t: this.t + 1, flash: this.monFlash, lunge: this.monLunge, weapon,
         blade: m.isHero && m.weaponGrade >= 0 ? GRADES[m.weaponGrade].color : m.trial ? '#ef4444' : undefined,
@@ -1824,7 +1988,9 @@ export class BattleView {
     }
     ctx.restore();
 
+    if (fx) this.drawMobFx(ctx, m, x, y, scale, true);
     const top = y - 118 * scale;
+    if (m.elite && m.alive) gradeTag(ctx, '정예', x, top - 26, '#fb923c');
     if (m.petEmoji) emoji(ctx, m.petEmoji, x + 58, y + 2 - Math.abs(Math.sin(this.t * 4 + 2)) * 6, 34, true);
     if (m.stun > 0 && m.alive) iceBlock(ctx, x, y, 34 * scale, 115 * scale);
     if (m.alive && !m.isRaid) {
@@ -2607,15 +2773,18 @@ export function drawFighter(ctx, x, y, look = {}, o = {}) {
 
   // 상체 — 그림 조각이 있으면 도포·상체·허리띠를 한 장으로 갈음한다
   const artBody = artReady() && !jiang && !look.ghost;
+  // 두목 옷: 흰 도포 그림에 그 빛깔을 곱해 입힌다(그림 도포 여섯 빛깔에 없는 색도 그대로 나온다)
+  const bKey = look.robeTint ? 'body-white' : bodyKey(look);
   // 옷 등급 테두리 (v115) — 도포 둘레에 등급 빛깔 테, 전설부터 도포가 그 빛을 머금는다
   if (artBody && look.edge) {
     const pulse = look.edgePulse ? 0.7 + Math.sin(t * 3) * 0.3 : 1;
-    if (look.edgeGlow) { ctx.save(); ctx.shadowColor = look.edge; ctx.shadowBlur = 10 * pulse; putArtEdge(ctx, bodyKey(look), FIT.body, look.edge, look.edgeW || 1.2, pulse); ctx.restore(); }
-    else putArtEdge(ctx, bodyKey(look), FIT.body, look.edge, look.edgeW || 1.2, pulse);
+    if (look.edgeGlow) { ctx.save(); ctx.shadowColor = look.edge; ctx.shadowBlur = 10 * pulse; putArtEdge(ctx, bKey, FIT.body, look.edge, look.edgeW || 1.2, pulse); ctx.restore(); }
+    else putArtEdge(ctx, bKey, FIT.body, look.edge, look.edgeW || 1.2, pulse);
   }
-  if (artBody && putArt(ctx, bodyKey(look), FIT.body)) {
+  if (artBody && putArt(ctx, bKey, FIT.body)) {
     // 그림 한 장이 도포·상체·허리띠를 한꺼번에 갈음한다
-    if (look.edge && look.edgeTint) putArtTint(ctx, bodyKey(look), FIT.body, look.edge, look.edgeTint * (look.edgePulse ? 0.8 + Math.sin(t * 3) * 0.2 : 1));
+    if (look.robeTint) putArtTint(ctx, bKey, FIT.body, look.robeTint, 1, 'multiply');
+    if (look.edge && look.edgeTint) putArtTint(ctx, bKey, FIT.body, look.edge, look.edgeTint * (look.edgePulse ? 0.8 + Math.sin(t * 3) * 0.2 : 1));
   } else {
   ctx.fillStyle = robeNow;
   roundRect(ctx, -12, -74, 24, 30, 7);
@@ -2718,7 +2887,7 @@ export function drawFighter(ctx, x, y, look = {}, o = {}) {
     ctx.rotate(blade);
     ctx.scale(sc, sc);
     if (H.off) ctx.translate(0, H.off * (1 - w));
-    if (o.glow) { ctx.shadowColor = o.blade || '#fde68a'; ctx.shadowBlur = 10; }
+    if (o.glow) { ctx.shadowColor = o.glowCol || o.blade || '#fde68a'; ctx.shadowBlur = o.glowCol ? 14 : 10; }
     const wk3 = artReady() ? weaponKey(weapon, look) : null;
     const art3 = !!(wk3 && putArt(ctx, wk3, FIT.weapon));
     if (!art3) drawWeapon(ctx, weapon, o, t, lunge);
@@ -3011,6 +3180,19 @@ function drawCrown(ctx, t) {
   ctx.fillStyle = '#a16207'; ctx.fillRect(-9, 0, 18, 2.5);
   ctx.fillStyle = '#f43f5e'; circle(ctx, 0, -3, 1.8);
   ctx.fillStyle = `rgba(255,255,255,${0.5 + Math.sin(t * 4) * 0.4})`; circle(ctx, 0, -10, 1.3);
+  ctx.restore();
+}
+
+// 등급 표 — 이름표 위 작은 알약
+function gradeTag(ctx, text, x, y, col) {
+  ctx.save();
+  ctx.font = `800 ${10 * UIK}px sans-serif`;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  const w = ctx.measureText(text).width + 10 * UIK, h = 14 * UIK;
+  ctx.fillStyle = 'rgba(20,10,4,0.75)';
+  roundRect(ctx, x - w / 2, y - h / 2, w, h, h / 2); ctx.fill();
+  ctx.strokeStyle = col; ctx.lineWidth = 1.2 * UIK; ctx.stroke();
+  ctx.fillStyle = col; ctx.fillText(text, x, y + 0.5);
   ctx.restore();
 }
 

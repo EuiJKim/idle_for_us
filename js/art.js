@@ -166,12 +166,14 @@ export function putArtEdge(ctx, key, fit, color, w, alpha = 1) {
   return true;
 }
 // 물들이기: 그림 위에 같은 실루엣을 옅게 한 번 더 — 도포 전체가 등급 빛깔을 머금는다
-export function putArtTint(ctx, key, fit, color, alpha) {
+// mode 'multiply'면 빛깔을 곱한다 — 흰 도포가 그 빛깔 도포가 되고 주름·그늘은 그대로 남는다
+export function putArtTint(ctx, key, fit, color, alpha, mode) {
   const c = silhouette(key, color);
   if (!c) return false;
   const h = (c.height * fit.w) / c.width;
   ctx.save();
   ctx.globalAlpha *= alpha;
+  if (mode) ctx.globalCompositeOperation = mode;
   ctx.drawImage(c, fit.x - fit.w / 2, fit.y - h, fit.w, h);
   ctx.restore();
   return true;

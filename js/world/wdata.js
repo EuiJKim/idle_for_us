@@ -186,6 +186,12 @@ export const mobDef = (lv) => Math.round(lv * 0.6);
 export const mobExp = (lv) => Math.round(6 + 1.3 * lv ** 1.5);
 export const mobGold = (lv) => Math.round(2 + lv * 1.4);
 export const BOSS = { hp: 14, atk: 2.5, exp: 25, gold: 30 };
+// 몹 등급 (v116): 0 졸개 · 1 정예 · 2 두목 · 3 십이지왕 — 등급마다 겉모습·기운이 다르다.
+// 들판 정예는 드물게(4%) 섞여 나고 세다(체력 ×3 · 공격 ×1.4) — 대신 경험치·은자 ×2.5, 재료를 두 번 굴린다.
+// 두목 구역의 졸개도 정예로 그리지만 세기는 그대로(이미 그 지역 위끝 레벨이다).
+export const MOB_GRADES = ['졸개', '정예', '두목', '왕'];
+export const ELITE_RATE = 0.04;
+export const ELITE = { hp: 3, atk: 1.4, exp: 2.5, gold: 2.5 };
 export const MOB_ATK_SEC = 1.6;
 export const MOB_AGGRO = 200;      // 이만큼(세 칸 남짓) 붙으면 쫓아온다
 export const MOB_SPEED = 70;       // 쫓을 때 한 칸에 0.9초

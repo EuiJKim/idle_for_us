@@ -380,10 +380,14 @@ export class WorldGame {
     }
     if (c < 0) return null;
     const x = W.tileCenter(c), y = W.tileCenter(r);
-    const hp = W.mobHp(lv) * (boss ? W.BOSS.hp : 1);
+    const king = boss ? m.king : null;
+    const elite = !boss && !m.bossRoom && this.rng() < W.ELITE_RATE;
+    const hp = W.mobHp(lv) * (boss ? W.BOSS.hp : elite ? W.ELITE.hp : 1);
     const mob = {
       id: uidSeq++, lv, c, r, hc: c, hr: r, move: null, x, y, hp, maxHp: hp, alive: true, isBoss: !!boss, born: this.clock,
-      atk: W.mobAtk(lv) * (boss ? W.BOSS.atk : 1), armor: W.mobDef(lv),
+      atk: W.mobAtk(lv) * (boss ? W.BOSS.atk : elite ? W.ELITE.atk : 1), armor: W.mobDef(lv),
+      grade: king ? 3 : boss ? 2 : elite || m.bossRoom ? 1 : 0, elite,
+      kp: king ? W.KING_MYTHIC[king.no]?.id : null,
       atkTimer: 1 + this.rng(), stun: 0, slow: 0, poison: 0, poisonPer: 0,
       aggro: false, wanderT: this.rng() * 3,
       def: { name: kind.name, look: kind.look },
@@ -391,7 +395,6 @@ export class WorldGame {
     mob.name = kind.name;
     // 두목 등장 연출: 구역에 들어와 처음 나설 때는 길게(들판이 멈추고 두목은 맞지도 않는다),
     // 같은 구역에서 다시 날 때는 짧게(멈추지 않는다) — 45초마다 길게 멈추면 사냥이 끊긴다.
-    const king = boss ? m.king : null;
     const full = boss && !this.bossSeen;
     if (boss) this.bossSeen = true;
     if (full) { mob.introT = king ? W.KING_INTRO_SEC : W.BOSS_INTRO_SEC; this.freezeT = mob.introT; }
@@ -660,11 +663,12 @@ export class WorldGame {
     m.alive = false;
     m.hp = 0;
     const st = this.stats();
-    const exp = W.mobExp(m.lv) * (m.isBoss ? W.BOSS.exp : 1) * this.levelGapMult(m.lv) * (st.expMult || 1);
-    const gold = Math.round(W.mobGold(m.lv) * (m.isBoss ? W.BOSS.gold : 1));
+    const exp = W.mobExp(m.lv) * (m.isBoss ? W.BOSS.exp : m.elite ? W.ELITE.exp : 1) * this.levelGapMult(m.lv) * (st.expMult || 1);
+    const gold = Math.round(W.mobGold(m.lv) * (m.isBoss ? W.BOSS.gold : m.elite ? W.ELITE.gold : 1));
     this.s.gold += gold;
     this.s.kills++;
     const mat = this.dropMats(m);
+    if (m.elite) this.dropMats(m);
     this.emit('kill', { gold, isBoss: m.isBoss, add: true, at: m, mat });
     this.addExp(exp);
     this.note(1, exp, gold, 0);
@@ -867,6 +871,7 @@ export class WorldGame {
       if (this.rng() < (W.kingOf(id) ? W.KING_ITEM_RATE : W.BOSS_ITEM_RATE)) {
         const rar = W.rollRarity(W.kingOf(id) ? W.KING_RAR_W : W.BOSS_RAR_W, this.rng);
         const it = this.makeCrafted(W.CRAFT_SLOTS[Math.floor(this.rng() * W.CRAFT_SLOTS.length)].id, (id - 1) * 2, 0, rar);
+        it.boss = true;   // 두목이 떨군 것 — 끼면 그 두목의 겉모습이 든다
         this.emit('drop', { item: it, at: { x: m.x, y: m.y } });
         this.gainItem(it);
       }
@@ -874,6 +879,7 @@ export class WorldGame {
       if (this.rng() < W.acc2DropRate(id)) {
         const rar = W.rollRarity(W.kingOf(id) ? W.KING_RAR_W : W.BOSS_RAR_W, this.rng);
         const it = this.makeCrafted(this.rng() < 0.5 ? 'finger' : 'ear', (id - 1) * 2, 0, rar);
+        it.boss = true;
         this.emit('drop', { item: it, at: { x: m.x, y: m.y } });
         this.gainItem(it);
       }
