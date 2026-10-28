@@ -929,3 +929,6 @@ body.modal-open #toast { top: auto; bottom: calc(24px + var(--safe-bottom)); }
 #tabs button i { font-size: 16px; line-height: 1; }
 #tabs button span { font-size: 11px; }
 #toast { bottom: calc(104px + var(--safe-bottom)); }
+/* 남은 레벨업 점수 — 들판 위 가운데(전투력·접속 알약 사이) */
+#advice { top: 8px; font-size: 13px; padding: 6px 14px; animation: pts-glow 1.6s ease-in-out infinite; }
+@keyframes pts-glow { 50% { box-shadow: 0 0 12px rgba(253, 230, 138, 0.55); } }

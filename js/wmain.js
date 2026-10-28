@@ -187,6 +187,11 @@ function refreshUI(full = false) {
   }
   // 창 버튼의 빨간 점: 스탯 점수가 남았을 때 · 전직할 수 있을 때
   dot('char', s.statPts > 0 && !s.autoStat);
+  // 남은 레벨업 점수 — 들판 위 가운데 알약. 누르면 캐릭터 창(사냥하면서 찍는다)
+  const adv = $('advice');
+  const showPts = s.statPts > 0 && !s.autoStat && activeTab !== 'char';
+  adv.classList.toggle('hidden', !showPts);
+  if (showPts) adv.textContent = `스탯 점수 ${s.statPts} · 찍기`;
   const t = game.nextTier();
   dot('town', !!t && s.level >= t.level && s.gold >= t.cost);
   if (activeTab) { tabs[activeTab].update(); panelRes(); }
@@ -229,7 +234,8 @@ function handleEvents() {
     switch (ev.type) {
       case 'levelUp':
         if (ev.level % 5 === 0 || ev.level <= 5) toast(`레벨 ${ev.level}!`);
-        if (W.TIERS.some((t) => t && t.level === ev.level)) toast(`레벨 ${ev.level} — 마을 사부에게 가면 전직할 수 있어요`);
+        if (!game.s.autoStat) view.float(`스탯 +${W.STAT_PER_LEVEL}`, view.heroX + 26, view.groundY - 175, '#fde68a', 16, 1.3);
+        if (W.TIERS.some((t) => t && t.level === ev.level)) toast(`레벨 ${ev.level} — 마을 창의 사부에게서 바로 전직할 수 있어요`);
         if (W.MAPS.some((m) => !m.town && m.lv[0] === ev.level)) toast(`새 사냥터가 열렸어요 — ${W.MAPS.find((m) => !m.town && m.lv[0] === ev.level).name}`);
         drawPortrait();
         break;
@@ -276,6 +282,9 @@ function handleEvents() {
   }
   game.events.length = 0;
 }
+
+// 남은 스탯 점수 알약을 누르면 캐릭터 창
+$('advice').addEventListener('click', () => showTab('char'));
 
 // 사냥터 이름을 누르면 지도
 $('stagebar').addEventListener('click', () => showTab('map'));

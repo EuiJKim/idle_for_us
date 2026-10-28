@@ -21,7 +21,8 @@ export function newWorldSave(now = Date.now()) {
     exp: 0,
     statPts: 0,
     stats: { str: 0, dex: 0, vit: 0, int: 0 },   // 찍은 것 (캐릭터 기본치는 따로)
-    autoStat: true,
+    autoStat: false,          // 레벨업 점수는 직접 찍는다(켜면 알아서 나눈다)
+    statV: 2,
     gold: 0,
     potions: 5,
     autoPotion: true,
@@ -53,6 +54,8 @@ export function migrateWorld(raw, now = Date.now()) {
   s.mats = {};
   for (const [k, v] of Object.entries(raw.mats || {})) if ((W.MATS[k] || (k[0] === 'b' && W.MATS[k.slice(1)])) && v > 0) s.mats[k] = Math.floor(Number(v) || 0);
   delete s.autoSell;
+  // v105: 레벨업 점수를 직접 찍게 바꿨다 — 옛 세이브의 '자동 분배 켬'은 한 번 끈다
+  if ((raw.statV || 0) < 2) { s.autoStat = false; s.statV = 2; }
   s.bag = Array.isArray(raw.bag) ? raw.bag.filter((i) => i && W.SLOTS.some((x) => x.id === i.slot)) : [];
   s.level = clamp(Math.floor(Number(s.level) || 1), 1, W.LEVEL_MAX);
   for (const k of ['exp', 'gold', 'potions', 'statPts', 'jobTier', 'kills', 'deaths', 'books']) s[k] = Math.max(0, Number(s[k]) || 0);
@@ -196,7 +199,13 @@ export class WorldGame {
     if (!quiet) this.emit('mapEnter', { id, name: m.name, town: m.town });
     return true;
   }
-  goTown() { return this.enterMap(0); }
+  // 마을로. 쓰러져서 온 것(auto)이면 쉬었다가 사냥터로 돌아가고, 스스로 온 것이면 머문다.
+  // (전에는 스스로 와도 3초 뒤 사냥터로 끌려갔다)
+  goTown(auto = false) {
+    const ok = this.enterMap(0);
+    if (ok) this.townReturn = auto;
+    return ok;
+  }
   // 마을 사람 — 싸우지 않는다. 그리기만 한다(누르면 마을 창). 무인 둘레 칸에 선다.
   placeNpcs() {
     for (const n of W.NPCS) {
@@ -321,8 +330,8 @@ export class WorldGame {
   tickTown(dt) {
     this.walking = false;
     this.mon = null;
-    // 자동 사냥이면 잠깐 쉬었다가 돌아간다 (체력이 다 찰 때까지는 기다린다)
-    if (this.s.autoHunt && this.s.huntMap && this.canEnter(this.s.huntMap)) {
+    // 쓰러져서 왔고 자동 사냥이면 잠깐 쉬었다가 돌아간다 (체력이 다 찰 때까지는 기다린다)
+    if (this.townReturn && this.s.autoHunt && this.s.huntMap && this.canEnter(this.s.huntMap)) {
       this.returnT += dt;
       if (this.returnT >= W.RETURN_SEC && this.heroHp >= this.stats().hp * 0.98) this.enterMap(this.s.huntMap);
     }
@@ -522,7 +531,7 @@ export class WorldGame {
     this.s.exp -= loss;
     this.emit('heroDied', { boss: !!by?.isBoss, loss });
     this.heroHp = 1;
-    this.goTown();
+    this.goTown(true);
   }
 
   // ---------- 스킬 ----------
@@ -645,7 +654,7 @@ export class WorldGame {
   nextTier() { return this.s.jobTier < 3 ? W.TIERS[this.s.jobTier + 1] : null; }
   canAdvance() {
     const t = this.nextTier();
-    return !!t && this.s.level >= t.level && this.s.gold >= t.cost && this.map.town;
+    return !!t && this.s.level >= t.level && this.s.gold >= t.cost;   // 사냥터에서도 (마을까지 안 가도 된다)
   }
   advance() {
     if (!this.canAdvance()) return false;

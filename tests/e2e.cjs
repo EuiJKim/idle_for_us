@@ -80,7 +80,10 @@ async function tab(page, name) {
 
   console.log('# 스탯');
   await G(p, () => { const g = window.__game; g.s.autoStat = false; g.s.statPts = 6; });
-  await tab(p, 'char');
+  await p.waitForSelector('#advice:not(.hidden)');
+  assert((await p.textContent('#advice')).includes('스탯 점수 6'), '남은 레벨업 점수가 들판 위에 보인다');
+  await p.click('#advice');
+  await p.waitForSelector('#panel .row:has-text("힘")');
   const str0 = await G(p, () => window.__game.s.stats.str);
   await p.locator('#panel .row:has-text("힘") button.buy').click();
   assert(await G(p, () => window.__game.s.stats.str) === str0 + 1, '힘 +1');
@@ -114,9 +117,13 @@ async function tab(page, name) {
   console.log('# 마을·전직');
   await G(p, () => { const g = window.__game; g.s.level = 15; });
   await tab(p, 'town');
-  await p.click('#panel button:has-text("마을로 가기")');
+  // 전직·물약은 사냥터에서도
+  assert(await G(p, () => !window.__game.map.town && window.__game.canAdvance()), '사냥터에서도 전직할 수 있다');
+  await p.click('#panel button:has-text("마을로 쉬러 가기")');
   await sleep(300);
   assert(await G(p, () => window.__game.map.town), '마을로');
+  await sleep(4500);
+  assert(await G(p, () => window.__game.map.town), '스스로 간 마을에서는 머문다');
   await tab(p, 'town');
   await sleep(400);   // 시트가 다시 열리는 중이면 누름이 빗나간다
   const pot0 = await G(p, () => window.__game.s.potions);

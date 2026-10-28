@@ -90,7 +90,8 @@ console.log('\n=== 칸 이동 (바람식) ===');
 console.log('\n=== 레벨·스탯 ===');
 {
   const g = fresh();
-  g.s.autoStat = false;
+  ok(g.s.autoStat === false, '레벨업 점수는 기본으로 직접 찍는다');
+  ok(migrateWorld({ autoStat: true }).autoStat === false && migrateWorld({ autoStat: true, statV: 2 }).autoStat === true, '옛 세이브의 자동 분배는 한 번만 끈다');
   g.addExp(W.expToNext(1) + W.expToNext(2));
   ok(g.s.level === 3 && g.s.statPts === 6, '레벨이 오르면 스탯 점수 3', `Lv.${g.s.level} 점수 ${g.s.statPts}`);
   const a0 = g.stats().atk;
@@ -189,8 +190,7 @@ console.log('\n=== 전직·스킬 ===');
   ok(g.canAdvance() && g.advance() && g.s.jobTier === 1 && g.skills().length === 1, '레벨 15에 마을에서 1차 전직 → 스킬 하나');
   g.s.level = 40; g.s.gold = 1e6;
   g.enterMap(1);
-  ok(!g.canAdvance(), '전직은 마을에서만');
-  g.goTown(); g.advance();
+  ok(g.canAdvance() && g.advance(), '전직은 사냥터에서도 된다');
   ok(g.s.jobTier === 2 && g.skills().length === 2, '2차 전직 → 스킬 둘');
   g.enterMap(1);
   const sk = g.skills().find((x) => x.hpCost);
@@ -226,8 +226,11 @@ console.log('\n=== 물약·죽음·귀환 ===');
   g.heroDied({ isBoss: false });
   ok(g.map.town && g.s.exp === 95 && g.s.deaths === 1, '쓰러지면 경험치 5%를 잃고 마을로', `exp ${g.s.exp}`);
   for (let i = 0; i < 20 * 10; i++) { g.tick(0.05); g.events.length = 0; }
-  ok(!g.map.town && g.s.map === 1, '자동 사냥이면 쉬었다가 사냥터로 돌아간다');
+  ok(!g.map.town && g.s.map === 1, '쓰러져 마을에 오면 쉬었다가 사냥터로 돌아간다');
   g.goTown();
+  for (let i = 0; i < 20 * 10; i++) { g.tick(0.05); g.events.length = 0; }
+  ok(g.map.town, '스스로 마을에 가면 머문다(사냥터로 끌려가지 않는다)');
+  g.enterMap(1);
   g.s.gold = 1000;
   const p0 = g.s.potions;
   ok(g.buyPotions(10) && g.s.potions === p0 + 10, '상점에서 물약을 산다');
@@ -287,20 +290,19 @@ console.log('\n=== 다섯 캐릭터 · 2시간 ===');
   for (const job of Object.keys(W.CLASSES)) {
     const g = fresh(job);
     g.s.gold = 300; g.buyPotions(30);
+    g.s.autoStat = true;   // 점수를 바로바로 찍는 사람
     let nan = false;
     for (let t = 0; t < 2 * 3600; t += 0.1) {
       g.tick(0.1);
       g.events.length = 0;
-      if (g.map.town) {
-        while (g.canAdvance()) g.advance();
-        const want = Math.max(0, 40 - g.s.potions);
-        if (want) g.buyPotions(Math.min(want, Math.floor(g.s.gold / g.potionPrice())));
-      }
+      // 전직·물약은 사냥터에서 (마을에 안 간다)
+      while (g.canAdvance()) g.advance();
+      if (g.s.potions < 15) g.buyPotions(Math.min(40 - g.s.potions, Math.floor(g.s.gold / g.potionPrice())));
       // 30초마다 대장장이 — 만들 수 있는 가장 높은 것
       if (t % 30 < 0.1) for (const sl of W.SLOTS) for (const st of g.nextSteps(sl.id).reverse()) if (g.craft(sl.id, st)) break;
       let best = 1;
       for (const m of W.MAPS) if (!m.town && g.canEnter(m.id) && g.s.level >= m.lv[0] + 3) best = Math.max(best, m.id);
-      if (best !== g.s.huntMap && !g.map.town) { g.s.huntMap = best; g.goTown(); }
+      if ((best !== g.s.huntMap && !g.map.town) || (g.map.town && !g.townReturn)) g.enterMap(best);
       if (t % 600 < 0.1 && !finite(g)) nan = true;
     }
     rows.push({ job, lv: g.s.level, map: g.s.huntMap, tier: g.s.jobTier, deaths: g.s.deaths, nan });

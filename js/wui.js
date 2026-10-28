@@ -250,14 +250,16 @@ function townTab(app) {
     const nsig = `${inTown}|${s.autoHunt}|${s.huntMap}|${s.jobTier}|${s.level}|${s.potions}|${s.books || 0}|${[10, 50, 200].map((n) => s.gold >= game.potionPrice() * n)}|${s.gold >= game.statBookCost()}|${game.canAdvance()}`;
     if (nsig === sig) return;
     sig = nsig;
+    // 전직·상점·조합은 어디서나 된다. 마을은 쉬는 곳(체력이 빨리 찬다).
     status.replaceChildren(inTown
-      ? h('p', {}, '마을에서 쉬는 중 — 체력이 빠르게 차요.', s.autoHunt ? ` 다 차면 ${W.mapOf(s.huntMap).name}(으)로 돌아가요.` : '')
-      : h('div', { class: 'btn-row' }, h('span', { class: 'muted', style: 'flex:2;align-self:center' }, '상점과 사부는 마을에 있어요.'),
-        h('button', { class: 'btn primary', onclick: () => { game.goTown(); app.refresh(); } }, '마을로 가기')));
+      ? h('div', { class: 'btn-row' }, h('span', { class: 'muted', style: 'flex:2;align-self:center' }, '마을에서 쉬는 중 — 체력이 빠르게 차요.'),
+        h('button', { class: 'btn primary', disabled: game.canEnter(s.huntMap) ? null : true, onclick: () => { game.enterMap(s.huntMap); app.save(); app.closePanel(); app.refresh(); } }, `${W.mapOf(s.huntMap).name}(으)로`))
+      : h('div', { class: 'btn-row' }, h('span', { class: 'muted', style: 'flex:2;align-self:center' }, '전직·상점·조합은 사냥터에서도 돼요. 마을에서는 체력이 빨리 차요.'),
+        h('button', { class: 'btn', onclick: () => { game.goTown(); app.save(); app.refresh(); } }, '마을로 쉬러 가기')));
     status.append(h('div', { class: 'row', style: 'margin-top:8px' },
       h('div', { class: 'ico' }, '대장'),
       h('div', { class: 'info' }, h('div', { class: 'name' }, '대장장이'),
-        h('div', { class: 'desc' }, '아래 장비 + 사냥터 재료 + 두목 증표로 위 장비를 조합해요. 어디서나 맡길 수 있어요.')),
+        h('div', { class: 'desc' }, '아래 장비 + 사냥터 재료 + 두목 증표로 위 장비를 조합해요. 사냥터에서도 돼요.')),
       h('button', { class: 'buy', onclick: () => app.showTab?.('bag') }, '조합')));
     // 사부 — 전직
     const t = game.nextTier();
@@ -272,23 +274,22 @@ function townTab(app) {
         h('button', { class: 'btn primary', style: 'width:100%', disabled: game.canAdvance() ? null : true, onclick: () => {
           if (!game.advance()) return;
           app.save(); app.refresh();
-        } }, !inTown ? '마을에서 할 수 있어요' : s.level < t.level ? `레벨 ${t.level}이 되면` : s.gold < t.cost ? '은자가 모자라요' : '전직하기'));
+        } }, s.level < t.level ? `레벨 ${t.level}이 되면` : s.gold < t.cost ? '은자가 모자라요' : '전직하기'));
     }
     // 상점 — 물약
     const price = game.potionPrice();
     shop.replaceChildren(h('h3', {}, '상점', h('small', {}, `물약 ${s.potions}개`)),
       h('p', { class: 'muted' }, `빨간 물약 — 최대 체력의 ${pct(W.POTION_HEAL, 0)} 회복 · 체력이 ${pct(W.POTION_AT, 0)} 아래면 알아서 먹어요. 방치 중에도 먹으니, 떨어지면 방치 사냥이 멈춰요.`),
-      h('div', { class: 'btn-row' }, ...[10, 50, 200].map((n) => h('button', { class: 'buy', disabled: !inTown || s.gold < price * n ? true : null, onclick: () => {
+      h('div', { class: 'btn-row' }, ...[10, 50, 200].map((n) => h('button', { class: 'buy', disabled: s.gold < price * n ? true : null, onclick: () => {
         if (game.buyPotions(n)) { toast(`물약 ${n}개를 샀어요`); app.save(); app.refresh(); }
       } }, `${n}개 · ${fmt(price * n)}`))),
       h('div', { class: 'row', style: 'margin-top:8px' },
         h('div', { class: 'ico' }, '비급'),
         h('div', { class: 'info' }, h('div', { class: 'name' }, '무공 비급', h('small', {}, `${s.books || 0}권 읽음`)),
           h('div', { class: 'desc' }, '읽으면 스탯 점수 +1. 한 권 읽을 때마다 값이 오른다.')),
-        h('button', { class: 'buy', disabled: !inTown || s.gold < game.statBookCost() ? true : null, onclick: () => {
+        h('button', { class: 'buy', disabled: s.gold < game.statBookCost() ? true : null, onclick: () => {
           if (game.buyStatBook()) { toast('스탯 점수 +1'); app.save(); app.refresh(); }
-        } }, `은자 ${fmt(game.statBookCost())}`)),
-      inTown ? null : h('p', { class: 'muted' }, '마을에 있을 때만 살 수 있어요.'));
+        } }, `은자 ${fmt(game.statBookCost())}`)));
   }
   return { root, update: upd };
 }
