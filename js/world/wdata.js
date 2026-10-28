@@ -10,13 +10,13 @@ export const LEVEL_MAX = 150;
 // ---------- 레벨 ----------
 // 뒤로 갈수록 가파르다: 첫 시간 Lv15~20(1차 전직) · 하루 Lv50 남짓 · 일주일 Lv85 안팎 · 150은 몇 달.
 // 처음엔 18·L^2.25로 두었더니 열한 시간에 Lv100을 넘었다(시뮬).
-export const expToNext = (L) => Math.round(20 * L ** 2.3 * (1 + (L / 30) ** 2.2));
+export const expToNext = (L) => Math.round(27 * L ** 2.3 * (1 + (L / 30) ** 2.2));   // v110: 스킬 레벨·옵션으로 사냥이 빨라져 ×1.35
 export const STAT_PER_LEVEL = 3;
 export const STATS = [
-  { id: 'str', name: '힘', desc: '공격력 +0.8' },
+  { id: 'str', name: '힘', desc: '공격력 +3 · 공격력 +0.3%' },
   { id: 'dex', name: '민첩', desc: '치명 +0.4%p · 공격 속도 +1%' },
-  { id: 'vit', name: '체력', desc: '최대 체력 +5 · 방어 +0.2' },
-  { id: 'int', name: '내공', desc: '스킬 피해 +2% · 체력 회복 +0.1/초' },
+  { id: 'vit', name: '체력', desc: '최대 체력 +20 · 최대 체력 +0.3% · 방어 +0.2' },
+  { id: 'int', name: '내공', desc: '스킬 피해 +3% · 체력 회복 +0.12/초' },
 ];
 // 레벨이 오르면 겉모습도 한 단계씩 (옛 경지 그림 스물을 레벨에 나눠 쓴다)
 export const lookTierOf = (level) => Math.min(RANKS.length - 1, Math.floor((level - 1) / 8));
@@ -208,9 +208,9 @@ export const GRADES = [
 ];
 export const BAG_SIZE = 30;
 // 아이템 기본 수치 (등급·강화 전)
-// v108: 강해지는 몫의 대부분이 장비에서 오게 — 레벨·스탯 몫을 줄이고(공격력 레벨당 0.5·힘 0.8,
-// 체력 레벨당 5·체력 5) 장비 기본치를 GEAR배로. 공격력·체력의 80% 남짓이 장비다(시뮬).
-export const GEAR = 1.25;
+// v110: 장비가 강함의 2/3 남짓, 레벨·스탯이 1/3 남짓 — 공격력 레벨당 3·힘 3, 체력 레벨당 25·체력 20,
+// 장비 기본치 ×GEAR. 대신 장비는 등급(레어~신화 ×1~2)·강화·돌파(×3.2)로 크게 자란다.
+export const GEAR = 0.5;
 export const itemBase = (slot, ilv) => {
   switch (slot) {
     case 'weapon': return { atk: (5 + 3.2 * ilv) * GEAR };
@@ -267,16 +267,99 @@ export function recipeOf(slot, step) {
 }
 // 장비 이름 — 사냥터 머리말 + 칸 이름 (상급은 앞에 '상급')
 const STEP_PREFIX = [null, '청죽', '사철', '빙정', '혈석', '귀화', '운모', '마철', '수정', '금강', '야명', '매화', '독룡', '현빙', '해왕', '천외', ...KINGS.map((k) => k.prefix)];
-export const ENHANCE_MAX = 10;
-export const ENHANCE_STEP = 0.12;                // 한 단계에 기본 수치 +12% (+10이면 2.2배)
+// 강화 +1~+10, 그 위로 **돌파** +11~+15(조합 장비만). 돌파는 두목 증표가 더 들고, 한 단계가 더 크다.
+export const ENHANCE_MAX = 15;
+export const ENHANCE_NORMAL = 10;
+export const ENHANCE_STEP = 0.12;                // +1~+10: 한 단계에 기본 수치 +12%
+export const BREAK_STEP = 0.2;                   // 돌파 +11~+15: 한 단계에 +20% (+15면 3.2배)
+export const enhanceMult = (plus) => 1 + Math.min(plus, ENHANCE_NORMAL) * ENHANCE_STEP + Math.max(0, plus - ENHANCE_NORMAL) * BREAK_STEP;
+export const breakMarks = (plus) => (plus >= ENHANCE_NORMAL ? plus - ENHANCE_NORMAL + 1 : 0);   // +10→11 증표 1 … +14→15 증표 5
 // 강화에는 은자와 함께 그 장비 지역의 재료가 든다 — 재료를 넣을수록 장비가 세진다
 export const enhanceMatsN = (plus) => 4 + plus * 3;
 export const BOSS_ITEM_RATE = 0.12;              // 두목이 그 지역 하급 장비를 떨굴 확률
 export const KING_ITEM_RATE = 0.3;               // 십이지왕은 더 자주
-export const enhanceRate = (lv) => Math.max(0.4, 1 - lv * 0.07);   // +0→1 100%, +9→10 40%
+export const enhanceRate = (lv) => (lv < ENHANCE_NORMAL ? Math.max(0.4, 1 - lv * 0.07) : Math.max(0.12, 0.3 - (lv - ENHANCE_NORMAL) * 0.045));   // +9→10 40% · 돌파 30%→12%
 // 은자가 쌓이기만 하지 않게 — 사냥터를 옮겨 새 장비를 낄 때마다 다시 강화하는 데 쓰인다(시뮬로 맞춤)
 export const enhanceCost = (ilv, lv) => Math.round((50 + ilv * 15) * (lv + 1) ** 1.6);
-export const sellPrice = (item) => Math.round((3 + item.ilv * 1.5) * (item.step != null ? (stepUpper(item.step) ? 2 : 1) : GRADES[item.grade].mult ** 2) * (1 + (item.plus || 0) * 0.2));
+export const sellPrice = (item) => Math.round((3 + item.ilv * 1.5) * (item.step != null ? (stepUpper(item.step) ? 2 : 1) * (1 + (item.rar || 0)) ** 2 : GRADES[item.grade].mult ** 2) * (1 + (item.plus || 0) * 0.2));
+// ---------- 장비 등급과 스킬 옵션 (v110) ----------
+// 같은 장비라도 등급이 넷 — 레어 · 유니크 · 전설 · 신화. 등급이 높을수록 기본 수치가 크고,
+// 스킬을 키우는 옵션이 붙는다(1차 스킬 범위 · 2차 스킬 피해 …). 신화에는 사기적인 특수 효과가 하나 더.
+// 얻는 길: 조합(대부분 레어) · 두목 드랍(더 잘 뜬다) · 대장장이 **승급**(재료·증표·은자로 한 등급 위, 확정).
+export const RARITY = [
+  { id: 0, name: '레어', color: '#60a5fa', mult: 1, opts: 1 },
+  { id: 1, name: '유니크', color: '#c084fc', mult: 1.25, opts: 1 },
+  { id: 2, name: '전설', color: '#fb923c', mult: 1.55, opts: 2 },
+  { id: 3, name: '신화', color: '#f43f5e', mult: 2.0, opts: 2, special: true },
+];
+export const RARITY_GRADE = [2, 3, 4, 5];       // 칼빛·테두리 색 (옛 GRADES 자리)
+export const CRAFT_RAR_W = [82, 15, 3, 0];       // 조합으로 만들 때
+export const BOSS_RAR_W = [45, 38, 14, 3];       // 두목 드랍
+export const KING_RAR_W = [20, 40, 30, 10];      // 십이지왕 드랍
+export const rollRarity = (w, rng) => {
+  let r = rng() * w.reduce((a, b) => a + b, 0);
+  for (let i = 0; i < w.length; i++) { r -= w[i]; if (r <= 0) return i; }
+  return 0;
+};
+// 승급 비용: 그 장비 지역 재료 · 증표 · 은자
+export const promoteCost = (it) => {
+  const r = (it.rar || 0) + 1;
+  const k = stepMap(it.step);
+  return { key: k, mats: 30 * r, marks: 2 * r, gold: Math.round((30 + craftLevel(k) * 10) * 3 * r) };
+};
+// 스킬 옵션: s는 스킬 칸(0 1차 · 1 2차 · 2 3차). 값은 등급별.
+export const SKILL_OPTS = {
+  dmg: { name: '피해', fmt: 'pct', vals: [0.12, 0.22, 0.35, 0.6], slots: [0, 1, 2] },
+  range: { name: '범위', fmt: 'pct', vals: [0.1, 0.18, 0.28, 0.45], slots: [1, 2] },
+  splash: { name: '범위(주변 적도 맞는다)', fmt: 'pct', vals: [0.25, 0.4, 0.6, 1.0], slots: [0] },
+  cd: { name: '숨', fmt: 'neg', vals: [0.08, 0.12, 0.18, 0.3], slots: [0, 1, 2] },
+  cost: { name: '체력 소모', fmt: 'neg', vals: [0.15, 0.25, 0.4, 0.6], slots: [1, 2] },
+  crit: { name: '치명', fmt: 'pp', vals: [0.06, 0.1, 0.16, 0.25], slots: [0, 1, 2] },
+};
+// 신화 특수 효과 — 하나만
+export const MYTHIC = {
+  echo: { name: '30% 확률로 한 번 더 터진다', slots: [0, 1, 2] },
+  free: { name: '체력을 쓰지 않는다', slots: [1, 2] },
+  reset: { name: '적을 쓰러뜨리면 숨이 바로 돈다', slots: [0, 1, 2] },
+};
+export const SKILL_ORDINAL = ['1차', '2차', '3차'];
+export function rollSkillOpts(rar, rng) {
+  const out = [];
+  const pick = (arr) => arr[Math.floor(rng() * arr.length)];
+  for (let i = 0; i < RARITY[rar].opts; i++) {
+    const s = Math.floor(rng() * 3);
+    const keys = Object.keys(SKILL_OPTS).filter((k) => SKILL_OPTS[k].slots.includes(s) && !out.some((o) => o.s === s && o.k === k));
+    const k = pick(keys);
+    out.push({ s, k, v: SKILL_OPTS[k].vals[rar] });
+  }
+  if (RARITY[rar].special) {
+    const s = Math.floor(rng() * 3);
+    const sp = pick(Object.keys(MYTHIC).filter((k) => MYTHIC[k].slots.includes(s)));
+    out.push({ s, sp });
+  }
+  return out;
+}
+export function optText(o) {
+  const sk = SKILL_ORDINAL[o.s];
+  if (o.sp) return `${sk} 스킬: ${MYTHIC[o.sp].name}`;
+  const d = SKILL_OPTS[o.k];
+  const v = d.fmt === 'pp' ? `+${Math.round(o.v * 100)}%p` : d.fmt === 'neg' ? `-${Math.round(o.v * 100)}%` : `+${Math.round(o.v * 100)}%`;
+  return `${sk} 스킬 ${d.name} ${v}`;
+}
+
+// ---------- 스킬 레벨 (v110) ----------
+// 1차 전직(레벨 15)부터 레벨이 오를 때마다 스킬 점수 1. 스킬 레벨 n → n+1에 점수 n.
+// 한 레벨에 피해 +7% · 숨 -2%. 5레벨에 범위 +15%(1차는 주변 적 20%), 10레벨에 범위 +30%(1차 40%) · 치명 +10%p.
+export const SKILL_LV_MAX = 10;
+export const SKILL_PT_FROM = 15;
+export const skillLvCost = (lv) => lv;
+export function skillLvMods(slot, lv) {
+  const m = { dmg: (lv - 1) * 0.07, cd: (lv - 1) * 0.02, range: 0, splash: 0, crit: 0 };
+  if (lv >= 5) { if (slot === 0) m.splash += 0.2; else m.range += 0.15; }
+  if (lv >= 10) { if (slot === 0) m.splash += 0.2; else m.range += 0.15; m.crit += 0.1; }
+  return m;
+}
+
 // 이름: 지역마다 무기 결이 다르면 좋겠지만 단순하게 — 등급·칸 이름
 const SLOT_NOUN = {
   weapon: { sword: '검', fist: '권갑', fan: '부채', poison: '독낭', ring: '지환' },

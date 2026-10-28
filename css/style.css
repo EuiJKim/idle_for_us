@@ -960,3 +960,9 @@ button.mat-chip:disabled { opacity: 0.5; }
 .zone-card.king { border-color: rgba(244, 63, 94, 0.35); background: linear-gradient(180deg, rgba(76, 5, 25, 0.35), transparent); }
 .king-desc { font-size: 12px; margin: 4px 0 0; }
 .item-chip.g5 { animation: legend-glow 2.4s ease-in-out infinite; }
+/* 장비 등급 · 스킬 옵션 (v110) */
+.opt-lines { display: flex; flex-direction: column; gap: 1px; color: #fde68a !important; }
+.opt-lines .sp, .opt-box .sp { color: #f9a8d4; font-weight: 800; }
+.opt-box { margin: 6px 0; padding: 8px 10px; border-radius: 9px; background: rgba(253, 230, 138, 0.07); border: 1px solid rgba(253, 230, 138, 0.25); color: #fde68a; font-size: 13px; line-height: 1.5; }
+.item-chip.mythic { animation: mythic-glow 1.8s ease-in-out infinite; }
+@keyframes mythic-glow { 50% { box-shadow: inset 3px 0 0 var(--gc), 0 0 14px rgba(244, 63, 94, 0.55); } }

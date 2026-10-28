@@ -22,6 +22,9 @@ export function newWorldSave(now = Date.now()) {
     statPts: 0,
     stats: { str: 0, dex: 0, vit: 0, int: 0 },   // 찍은 것 (캐릭터 기본치는 따로)
     autoStat: false,          // 레벨업 점수는 직접 찍는다(켜면 알아서 나눈다)
+    skillLv: { s0: 1, s1: 1, s2: 1 },   // 스킬 레벨 (v110)
+    skillPts: 0,
+    skillV: 1,
     statV: 2,
     gold: 0,
     potions: 5,
@@ -50,6 +53,11 @@ export function migrateWorld(raw, now = Date.now()) {
   if (!raw || typeof raw !== 'object') return base;
   const s = { ...base, ...raw };
   s.stats = { ...base.stats, ...(raw.stats || {}) };
+  s.skillLv = { ...base.skillLv, ...(raw.skillLv || {}) };
+  for (const k of Object.keys(s.skillLv)) s.skillLv[k] = clamp(Math.floor(Number(s.skillLv[k]) || 1), 1, W.SKILL_LV_MAX);
+  // v110: 스킬 점수 — 옛 세이브는 레벨 15부터 오른 만큼 한 번에
+  if ((raw.skillV || 0) < 1) { s.skillPts = Math.max(0, (Number(raw.level) || 1) - W.SKILL_PT_FROM + 1); s.skillV = 1; }
+  s.skillPts = Math.max(0, Math.floor(Number(s.skillPts) || 0));
   for (const k of Object.keys(s.stats)) s.stats[k] = Math.max(0, Math.floor(Number(s.stats[k]) || 0));
   s.equip = { ...base.equip, ...(raw.equip || {}) };
   s.mats = {};
@@ -73,7 +81,12 @@ export function migrateWorld(raw, now = Date.now()) {
   if (!W.hasMap(s.huntMap) || W.mapOf(s.huntMap).town) s.huntMap = W.mapId(1, 1);
   if (!W.hasMap(s.bestMap)) s.bestMap = s.huntMap;
   if (s.job && !W.CLASSES[s.job]) s.job = null;
-  for (const it of [...s.bag, ...Object.values(s.equip)]) if (it && it.uid >= uidSeq) uidSeq = it.uid + 1;
+  for (const it of [...s.bag, ...Object.values(s.equip)]) {
+    if (!it) continue;
+    if (it.uid >= uidSeq) uidSeq = it.uid + 1;
+    // v110: 등급이 없던 조합 장비는 레어로 (옵션 하나)
+    if (it.step != null && it.rar == null) { it.rar = 0; it.opts = W.rollSkillOpts(0, rand); it.grade = W.RARITY_GRADE[0]; }
+  }
   return s;
 }
 
@@ -134,8 +147,9 @@ export class WorldGame {
     if (!it) return {};
     const b = W.itemBase(it.slot, it.ilv);
     // 조합 장비는 사다리 칸으로, 옛 판의 떨군 장비는 등급으로
-    const q = it.step != null ? W.stepMult(it.step) : W.GRADES[it.grade].mult;
-    const m = q * (1 + (it.plus || 0) * W.ENHANCE_STEP);
+    // 조합 장비: 사다리 칸 × 등급(레어·유니크·전설·신화), 옛 드랍 장비: 옛 등급
+    const q = it.step != null ? W.stepMult(it.step) * W.RARITY[it.rar || 0].mult : W.GRADES[it.grade].mult;
+    const m = q * W.enhanceMult(it.plus || 0);
     const out = {};
     for (const [k, v] of Object.entries(b)) out[k] = v * m;
     return out;
@@ -156,8 +170,10 @@ export class WorldGame {
     const int = this.totalStat('int');
     // 문파 버프 — 문파 레벨마다 공격력 +2% (서버가 guildExp를 넣어 준다)
     // 레벨·스탯 몫은 작게, 장비 몫은 크게 (v108) — 강해지는 건 대부분 장비 덕
-    const atk = (5 + L * 0.5 + str * 0.8 + gear.atk) * (1 + gear.atkPct + (s.guildId ? W.guildAtk(this.guildExp) : 0));
-    const hp = (60 + L * 5 + vit * 5 + gear.hp) * (1 + gear.hpPct);
+    // v110: 레벨·스탯 몫을 키웠다(장비보다는 작게).
+    // 장비가 2/3 남짓, 레벨·스탯이 1/3 남짓(시뮬로 맞춤). 힘·체력은 1점에 0.3%씩도 올린다.
+    const atk = (5 + L * 3 + str * 3 + gear.atk) * (1 + gear.atkPct + str * 0.003 + (s.guildId ? W.guildAtk(this.guildExp) : 0));
+    const hp = (60 + L * 25 + vit * 20 + gear.hp) * (1 + gear.hpPct + vit * 0.003);
     const st = {
       atk, hp,
       def: vit * 0.2 + gear.def,
@@ -165,7 +181,7 @@ export class WorldGame {
       critDmg: W.CRIT_DMG + gear.critDmg,
       atkSec: W.BASE_ATK_SEC / ((1 + dex * 0.01 + gear.speed) * (cls.speed || 1)),
       speed: (1 + dex * 0.01 + gear.speed) * (cls.speed || 1),
-      skillMult: 1 + int * 0.02 + gear.skill,
+      skillMult: 1 + int * 0.03 + gear.skill,
       // 자연 회복: 최대 체력의 0.6%/초 + 내공·레벨 몫 (물약만 바라보지 않게)
       regen: 1 + int * 0.12 + L * 0.08 + hp * (0.006 + gear.regenPct),
       expMult: 1 + gear.exp,
@@ -181,7 +197,7 @@ export class WorldGame {
   statSig() {
     const s = this.s;
     const e = s.equip;
-    const g = (it) => (it ? `${it.uid}.${it.plus || 0}` : '-');
+    const g = (it) => (it ? `${it.uid}.${it.plus || 0}.${it.rar || 0}` : '-');
     return `${s.level}|${s.guildId ? W.guildLevel(this.guildExp) : 0}|${s.job}|${s.stats.str},${s.stats.dex},${s.stats.vit},${s.stats.int}|${g(e.weapon)},${g(e.armor)},${g(e.hat)},${g(e.acc)}`;
   }
   power() { return this.stats().power; }
@@ -510,8 +526,8 @@ export class WorldGame {
     this.strike(m, st, mult, 'hit');
   }
 
-  strike(m, st, mult, kind) {
-    const crit = this.rng() < st.crit;
+  strike(m, st, mult, kind, extraCrit = 0) {
+    const crit = this.rng() < st.crit + extraCrit;
     let dmg = st.atk * mult * (crit ? st.critDmg : 1) * (0.92 + this.rng() * 0.16);
     if (m.isBoss) dmg *= st.boss;
     dmg = Math.max(1, dmg - m.armor);
@@ -566,7 +582,9 @@ export class WorldGame {
   // ---------- 스킬 ----------
   skills() { return this.s.job ? W.skillsOf(this.s.job).filter((k) => k.tier <= this.s.jobTier) : []; }
   skillDef(id) { return this.s.job ? W.skillsOf(this.s.job).find((k) => k.id === id) : null; }
-  hpCostOf(sk) { return Math.round(this.stats().hp * (sk.hpCost || 0)); }
+  hpCostOf(sk) { return Math.round(this.stats().hp * (sk.hpCost || 0) * (1 - this.skillMods(sk.id).cost)); }
+  skillRadius(sk) { return (sk.radius || 0) * (1 + this.skillMods(sk.id).range); }
+  skillCd(sk) { return sk.cd * (1 - this.skillMods(sk.id).cd); }
   canUseSkill(id) {
     const sk = this.skillDef(id);
     if (!sk || sk.tier > this.s.jobTier || this.cd[id] > 0 || this.map.town) return false;
@@ -580,24 +598,39 @@ export class WorldGame {
     const tgt = this.mon?.alive ? this.mon : this.pickTarget({ ...st, range: 9999 });
     if (sk.kind === 'single' && !tgt) return false;
     if (sk.kind === 'single' && Math.hypot(tgt.x - this.heroX, tgt.y - this.heroY) > Math.max(st.range, 160) * 1.6) return false;
+    const md = this.skillMods(id);
     const cost = this.hpCostOf(sk);
     this.heroHp -= cost;
-    this.cd[id] = sk.cd;
+    this.cd[id] = this.skillCd(sk);
     const center = sk.kind === 'aoe' && this.ranged() && tgt ? { x: tgt.x, y: tgt.y } : { x: this.heroX, y: this.heroY };
+    const r = this.skillRadius(sk);
     this.emit('skill', { id, name: sk.name, fx: sk.fx, look: sk.role, job: this.s.job, cls: this.s.job, tier: sk.tier,
-      at: center, radius: sk.radius || 0, motion: sk.kind, dur: 0 });
+      at: center, radius: r, motion: sk.kind, dur: 0 });
     if (cost) this.emit('hpCost', { amount: cost });
-    const mult = sk.mult * st.skillMult;
-    if (sk.kind === 'single') {
-      this.mon = tgt;
-      this.strike(tgt, st, mult, id);
-    } else {
-      const r = sk.radius;
-      for (const m of this.mons.slice()) {
-        if (!m.alive) continue;
-        if (Math.hypot(m.x - center.x, (m.y - center.y) * 0.75) <= r) this.strike(m, st, mult, id);
+    // 스킬 레벨·장비 옵션: 피해 · 범위 · 치명 · (1차) 주변 적 · (신화) 한 번 더 · 숨 되돌리기
+    const mult = sk.mult * st.skillMult * (1 + md.dmg);
+    const kills0 = this.s.kills;
+    const hitOnce = () => {
+      if (sk.kind === 'single') {
+        if (!tgt.alive) return;
+        this.mon = tgt;
+        const tx = tgt.x, ty = tgt.y;
+        this.strike(tgt, st, mult, id, md.crit);
+        if (md.splash > 0) {
+          for (const m of this.mons.slice()) {
+            if (m.alive && m !== tgt && Math.hypot(m.x - tx, (m.y - ty) * 0.75) <= 140) this.strike(m, st, mult * md.splash, id, md.crit);
+          }
+        }
+      } else {
+        for (const m of this.mons.slice()) {
+          if (!m.alive) continue;
+          if (Math.hypot(m.x - center.x, (m.y - center.y) * 0.75) <= r) this.strike(m, st, mult, id, md.crit);
+        }
       }
-    }
+    };
+    hitOnce();
+    if (md.echo && this.rng() < 0.3) { hitOnce(); this.emit('echo', { id, at: center }); }
+    if (md.reset && this.s.kills > kills0) this.cd[id] = 0;
     return true;
   }
   autoSkills(st) {
@@ -611,8 +644,9 @@ export class WorldGame {
         if (Math.hypot(this.mon.x - this.heroX, this.mon.y - this.heroY) > Math.max(st.range, 160)) continue;
       } else {
         const c = this.ranged() && this.mon?.alive ? this.mon : { x: this.heroX, y: this.heroY };
-        const n = this.mons.filter((m) => m.alive && Math.hypot(m.x - c.x, (m.y - c.y) * 0.75) <= sk.radius).length;
-        const boss = this.mons.some((m) => m.alive && m.isBoss && Math.hypot(m.x - c.x, m.y - c.y) <= sk.radius);
+        const rr = this.skillRadius(sk);
+        const n = this.mons.filter((m) => m.alive && Math.hypot(m.x - c.x, (m.y - c.y) * 0.75) <= rr).length;
+        const boss = this.mons.some((m) => m.alive && m.isBoss && Math.hypot(m.x - c.x, m.y - c.y) <= rr);
         if (n < 3 && !boss) continue;
       }
       if (this.useSkill(sk.id)) return;
@@ -629,6 +663,7 @@ export class WorldGame {
       s.exp -= W.expToNext(s.level);
       s.level++;
       s.statPts += W.STAT_PER_LEVEL;
+      if (s.level >= W.SKILL_PT_FROM) s.skillPts = (s.skillPts || 0) + 1;
       this.emit('levelUp', { level: s.level });
       const look = W.lookTierOf(s.level);
       if (look !== s.rank) s.rank = look;
@@ -715,7 +750,8 @@ export class WorldGame {
       this.addMats(W.bossKey(id), 1);
       // 가끔 그 지역 하급 장비를 통째로 떨군다 (십이지왕은 더 자주)
       if (this.rng() < (W.kingOf(id) ? W.KING_ITEM_RATE : W.BOSS_ITEM_RATE)) {
-        const it = this.makeCrafted(W.SLOTS[Math.floor(this.rng() * W.SLOTS.length)].id, (id - 1) * 2);
+        const rar = W.rollRarity(W.kingOf(id) ? W.KING_RAR_W : W.BOSS_RAR_W, this.rng);
+        const it = this.makeCrafted(W.SLOTS[Math.floor(this.rng() * W.SLOTS.length)].id, (id - 1) * 2, 0, rar);
         this.emit('drop', { item: it, at: { x: m.x, y: m.y } });
         this.gainItem(it);
       }
@@ -726,8 +762,8 @@ export class WorldGame {
     return { id, n: 1, name: W.MATS[id], color: W.MAT_COLORS[id] };
   }
   addMats(key, n) { this.s.mats[key] = (this.s.mats[key] || 0) + n; }
-  makeCrafted(slot, step, plus = 0) {
-    return { uid: uidSeq++, slot, step, ilv: W.craftIlv(step), grade: W.stepGrade(step), plus };
+  makeCrafted(slot, step, plus = 0, rar = 0) {
+    return { uid: uidSeq++, slot, step, ilv: W.craftIlv(step), rar, grade: W.RARITY_GRADE[rar], opts: W.rollSkillOpts(rar, this.rng), plus };
   }
   // 그 칸에서 가진 것(낀 것 + 가방) 가운데 조합에 넣을 것 — 높은 칸, 같으면 낀 것
   recipeSource(r) {
@@ -757,7 +793,12 @@ export class WorldGame {
     for (const [k, n] of Object.entries(r.mats)) this.s.mats[k] -= n;
     this.s.gold -= r.gold;
     // 받은 장비는 사라지고, 강화는 절반을 이어받는다
-    const it = this.makeCrafted(slot, step, src ? Math.floor((src.plus || 0) / 2) : 0);
+    // 등급: 조합은 대부분 레어지만 **받은 장비의 등급과 옵션은 이어받는다**(올려 놓은 등급이 사다리를
+    // 오를 때마다 날아가면 승급할 맛이 없다). 더 높게 뜨면 그 등급으로 옵션을 새로.
+    const roll = W.rollRarity(W.CRAFT_RAR_W, this.rng);
+    const keep = src?.rar != null && src.rar >= roll;
+    const it = this.makeCrafted(slot, step, src ? Math.floor(Math.min(src.plus || 0, W.ENHANCE_NORMAL) / 2) : 0, keep ? src.rar : roll);
+    if (keep && src.opts) it.opts = src.opts.map((o) => ({ ...o }));
     const wore = src && this.s.equip[slot] === src;
     if (src) {
       if (wore) this.s.equip[slot] = null;
@@ -828,10 +869,15 @@ export class WorldGame {
     if (it.step == null) return null;
     return { key: W.stepMap(it.step), n: W.enhanceMatsN(it.plus || 0) };
   }
+  // 조합 장비는 +10 위로 돌파(+15까지) — 두목 증표가 더 든다. 옛 장비는 +10까지.
+  enhanceMax(it) { return it?.step != null ? W.ENHANCE_MAX : W.ENHANCE_NORMAL; }
+  breakMarksOf(it) { return it?.step != null ? W.breakMarks(it.plus || 0) : 0; }
   canEnhance(it) {
-    if (!it || (it.plus || 0) >= W.ENHANCE_MAX || this.s.gold < this.enhanceCost(it)) return false;
+    if (!it || (it.plus || 0) >= this.enhanceMax(it) || this.s.gold < this.enhanceCost(it)) return false;
     const m = this.enhanceMats(it);
-    return !m || (this.s.mats[m.key] || 0) >= m.n;
+    if (m && (this.s.mats[m.key] || 0) < m.n) return false;
+    const bm = this.breakMarksOf(it);
+    return !bm || (this.s.mats[W.bossKey(m.key)] || 0) >= bm;
   }
   enhance(uid) {
     const it = this.findItem(uid);
@@ -840,11 +886,71 @@ export class WorldGame {
     const mats = this.enhanceMats(it);
     this.s.gold -= cost;
     if (mats) this.s.mats[mats.key] -= mats.n;
+    const bm = this.breakMarksOf(it);
+    if (bm) this.s.mats[W.bossKey(mats.key)] -= bm;
     const ok = this.rng() < W.enhanceRate(it.plus || 0);
     if (ok) it.plus = (it.plus || 0) + 1;
     this._stats = null;
     this.emit('enhance', { item: it, ok });
     return ok;
+  }
+
+  // ---------- 승급 (v110) ----------
+  // 대장장이: 같은 장비를 한 등급 위로(레어→유니크→전설→신화). 확정. 스킬 옵션은 새 등급으로 다시 붙는다.
+  canPromote(it) {
+    if (!it || it.step == null || (it.rar || 0) >= W.RARITY.length - 1) return false;
+    const c = W.promoteCost(it);
+    return (this.s.mats[c.key] || 0) >= c.mats && (this.s.mats[W.bossKey(c.key)] || 0) >= c.marks && this.s.gold >= c.gold;
+  }
+  promote(uid) {
+    const it = this.findItem(uid);
+    if (!this.canPromote(it)) return null;
+    const c = W.promoteCost(it);
+    this.s.mats[c.key] -= c.mats;
+    this.s.mats[W.bossKey(c.key)] -= c.marks;
+    this.s.gold -= c.gold;
+    it.rar = (it.rar || 0) + 1;
+    it.grade = W.RARITY_GRADE[it.rar];
+    it.opts = W.rollSkillOpts(it.rar, this.rng);
+    this._stats = null;
+    this._mods = null;
+    this.emit('promote', { item: it });
+    return it;
+  }
+
+  // ---------- 스킬 레벨 · 스킬 옵션 (v110) ----------
+  skillLevel(id) { return this.s.skillLv?.[id] || 1; }
+  canSkillUp(id) {
+    const sk = this.skillDef(id);
+    const lv = this.skillLevel(id);
+    return !!sk && sk.tier <= this.s.jobTier && lv < W.SKILL_LV_MAX && this.s.skillPts >= W.skillLvCost(lv);
+  }
+  skillUp(id) {
+    if (!this.canSkillUp(id)) return false;
+    this.s.skillPts -= W.skillLvCost(this.skillLevel(id));
+    this.s.skillLv[id] = this.skillLevel(id) + 1;
+    this._mods = null;
+    return true;
+  }
+  // 스킬 하나에 걸린 것: 스킬 레벨 + 끼고 있는 장비의 옵션
+  skillMods(id) {
+    const key = `${this.statSig()}|${JSON.stringify(this.s.skillLv)}`;
+    if (!this._mods || this._mods.key !== key) this._mods = { key };
+    if (this._mods[id]) return this._mods[id];
+    const slot = +id.slice(1);
+    const m = { dmg: 0, range: 0, splash: 0, cd: 0, cost: 0, crit: 0, echo: false, free: false, reset: false, ...W.skillLvMods(slot, this.skillLevel(id)) };
+    for (const it of Object.values(this.s.equip)) {
+      for (const o of it?.opts || []) {
+        if (o.s !== slot) continue;
+        if (o.sp) m[o.sp] = true;
+        else m[o.k] = (m[o.k] || 0) + o.v;
+      }
+    }
+    m.cd = Math.min(0.7, m.cd);
+    m.cost = Math.min(1, m.cost);
+    if (m.free) m.cost = 1;
+    this._mods[id] = m;
+    return m;
   }
 
   // ---------- 상점 ----------

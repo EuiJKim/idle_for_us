@@ -196,12 +196,15 @@ function refreshUI(full = false) {
     autoEl.querySelector('.lock').textContent = s.autoHunt ? '켬' : '끔';
   }
   // 창 버튼의 빨간 점: 스탯 점수가 남았을 때 · 전직할 수 있을 때
-  dot('char', s.statPts > 0 && !s.autoStat);
+  // 스킬 점수로 올릴 수 있는 스킬이 있나
+  const skillUp = game.skills().some((k) => game.canSkillUp(k.id));
+  dot('char', (s.statPts > 0 && !s.autoStat) || skillUp);
   // 남은 레벨업 점수 — 들판 위 가운데 알약. 누르면 캐릭터 창(사냥하면서 찍는다)
   const adv = $('advice');
-  const showPts = s.statPts > 0 && !s.autoStat && activeTab !== 'char';
+  const statPts = s.statPts > 0 && !s.autoStat;
+  const showPts = (statPts || skillUp) && activeTab !== 'char';
   adv.classList.toggle('hidden', !showPts);
-  if (showPts) adv.textContent = `스탯 점수 ${s.statPts} · 찍기`;
+  if (showPts) adv.textContent = [statPts ? `스탯 ${s.statPts}` : '', skillUp ? `스킬 ${s.skillPts}` : ''].filter(Boolean).join(' · ') + ' · 찍기';
   const t = game.nextTier();
   dot('town', !!t && s.level >= t.level && s.gold >= t.cost);
   if (activeTab) { tabs[activeTab].update(); panelRes(); }
@@ -270,8 +273,15 @@ function handleEvents() {
         if (ev.king) view.startKingIntro(ev.king, ev.at, ev.full);
         else view.startBossIntro(ev, ev.at, ev.full);
         break;
+      case 'promote':
+        sfx('loot');
+        drawPortrait();
+        break;
+      case 'echo':
+        view.float('한 번 더!', view.heroX, view.groundY - 190, '#f9a8d4', 18, 1);
+        break;
       case 'drop':
-        toast(`두목이 장비를 떨궜어요! ${itemTitle(game, ev.item)}`);
+        toast(`두목이 장비를 떨궜어요! ${W.RARITY[ev.item.rar || 0].name} ${itemTitle(game, ev.item)}`);
         sfx('loot');
         break;
       case 'heroDied':

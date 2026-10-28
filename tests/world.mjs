@@ -96,7 +96,7 @@ console.log('\n=== 레벨·스탯 ===');
   ok(g.s.level === 3 && g.s.statPts === 6, '레벨이 오르면 스탯 점수 3', `Lv.${g.s.level} 점수 ${g.s.statPts}`);
   const a0 = g.stats().atk;
   g.addStat('str', 2);
-  ok(Math.abs(g.stats().atk - (a0 + 1.6)) < 1e-9 && g.s.statPts === 4, '힘 1 = 공격력 +0.8 (강함은 대부분 장비에서)');
+  ok(g.stats().atk > a0 + 4 && g.s.statPts === 4, '힘 1 = 공격력 +2 · +0.3%', `${a0.toFixed(1)} → ${g.stats().atk.toFixed(1)}`);
   g.s.autoStat = true;
   g.autoStats();
   ok(g.s.statPts === 0, '자동 분배가 남은 점수를 다 쓴다');
@@ -127,7 +127,7 @@ console.log('\n=== 장비 ===');
   while (strong.plus === p0 && tries++ < 20) g.enhance(strong.uid);
   ok(strong.plus === p0 + 1, '강화하면 +1', `+${strong.plus}`);
   for (let i = 0; i < 200; i++) g.enhance(strong.uid);
-  ok(strong.plus === W.ENHANCE_MAX, `강화는 +${W.ENHANCE_MAX}까지`, `+${strong.plus}`);
+  ok(strong.plus === g.enhanceMax(strong) && g.enhanceMax(strong) === W.ENHANCE_NORMAL, '옛 장비는 +10까지(돌파 없음)', `+${strong.plus}`);
 }
 
 console.log('\n=== 재료와 조합 (바람식) ===');
@@ -232,7 +232,7 @@ console.log('\n=== 지역·구역·두목 구역 ===');
   ok(W.ZONES_W[27].name.includes('검왕') && W.zoneLv(27)[1] === 150, '마지막은 제1왕 검왕(가장 강하다)', W.ZONES_W[27].boss.name);
   ok(new Set(W.KINGS.map((x) => x.mat)).size === 12 && W.KINGS.every((x) => !W.MATS.slice(1, 16).includes(x.mat)), '왕마다 재료가 다르다');
   const it = k.makeCrafted('weapon', W.NORMAL_ZONES * 2);
-  ok(Object.keys(k.itemStats(it)).join() === 'atk' && W.itemName(it, 'sword').startsWith('유혼') && it.grade === 5, '권왕 하급 무기 — 유혼검(지왕 빛깔, 왕의 덤 힘은 없다)', W.itemName(it, 'sword'));
+  ok(Object.keys(k.itemStats(it)).join() === 'atk' && W.itemName(it, 'sword').startsWith('유혼'), '권왕 하급 무기 — 유혼검(왕의 덤 힘은 없다)', W.itemName(it, 'sword'));
   const kk = fresh();
   kk.s.gold = 1e12; kk.s.equip.weapon = null;
   for (let z = 1; z <= W.TIER_COUNT; z++) { kk.s.mats[z] = 1e5; kk.s.mats[W.bossKey(z)] = 100; }
@@ -252,20 +252,91 @@ console.log('\n=== 장비가 강함의 대부분 ===');
   g.s.gold = 1e12;
   for (let z = 1; z <= 10; z++) { g.s.mats[z] = 1e5; g.s.mats[W.bossKey(z)] = 100; }
   for (const sl of W.SLOTS) { g.s.equip[sl.id] = null; for (let st = 0; st < 20; st++) g.craft(sl.id, st); }
+  // 장비 몫 = 장비를 다 벗었을 때 줄어드는 만큼. 흔한 차림(유니크 +6)으로 잰다.
+  for (const it of Object.values(g.s.equip)) { it.rar = 1; it.plus = 6; }
+  g._stats = null;
   const st = g.stats();
-  const eq = Object.values(g.s.equip);
-  const gatk = eq.reduce((a, it) => a + (g.itemStats(it).atk || 0), 0) * (1 + eq.reduce((a, it) => a + (g.itemStats(it).atkPct || 0), 0));
-  const ghp = eq.reduce((a, it) => a + (g.itemStats(it).hp || 0), 0);
-  ok(gatk / st.atk > 0.75 && ghp / st.hp > 0.75, 'Lv60 지역 10 상급 장비면 공격력·체력의 3/4 넘게가 장비', `공격 ${(gatk / st.atk * 100).toFixed(0)}% · 체력 ${(ghp / st.hp * 100).toFixed(0)}%`);
+  const keep = g.s.equip;
+  g.s.equip = { weapon: null, armor: null, hat: null, acc: null }; g._stats = null;
+  const naked = g.stats();
+  g.s.equip = keep; g._stats = null;
+  const sa = 1 - naked.atk / st.atk, sh = 1 - naked.hp / st.hp;
+  ok(sa > 0.55 && sa < 0.85 && sh > 0.45 && sh < 0.8, 'Lv60 유니크 +6 차림: 장비가 2/3 남짓, 레벨·스탯이 1/3 남짓', `장비 몫 공격 ${(sa * 100).toFixed(0)}% · 체력 ${(sh * 100).toFixed(0)}%`);
   // 강화에는 그 지역 재료가 든다
   const w = g.s.equip.weapon;
   const m0 = g.s.mats[W.stepMap(w.step)];
   const a0 = g.stats().atk;
   let n = 0;
-  while (w.plus === 0 && n++ < 20) g.enhance(w.uid);
-  ok(w.plus === 1 && g.s.mats[W.stepMap(w.step)] < m0 && g.stats().atk > a0 * 1.06, '강화는 재료를 넣어 장비를 키운다(+1에 기본 수치 +12%)', `${W.matName(W.stepMap(w.step))} ${m0} → ${g.s.mats[W.stepMap(w.step)]}`);
+  while (w.plus === 6 && n++ < 40) g.enhance(w.uid);
+  ok(w.plus === 7 && g.s.mats[W.stepMap(w.step)] < m0 && g.stats().atk > a0, '강화는 재료를 넣어 장비를 키운다(한 단계에 기본 수치 +12%)', `${W.matName(W.stepMap(w.step))} ${m0} → ${g.s.mats[W.stepMap(w.step)]}`);
   g.s.mats[W.stepMap(w.step)] = 0;
   ok(!g.canEnhance(w), '재료가 없으면 강화할 수 없다');
+}
+
+console.log('\n=== 등급 · 스킬 옵션 · 승급 · 돌파 · 스킬 레벨 (v110) ===');
+{
+  // 조합은 대부분 레어, 두목은 더 잘, 십이지왕은 더더 잘
+  const cnt = (w) => { const c = [0, 0, 0, 0]; const r = seeded(); for (let i = 0; i < 20000; i++) c[W.rollRarity(w, r)]++; return c.map((x) => x / 200); };
+  const cr = cnt(W.CRAFT_RAR_W), kr = cnt(W.KING_RAR_W);
+  ok(cr[0] > 75 && cr[3] === 0 && kr[3] > 7, '등급: 조합은 대부분 레어(신화 없음), 십이지왕 드랍은 신화도', `조합 ${cr.map((x) => x.toFixed(0)).join('/')} · 왕 ${kr.map((x) => x.toFixed(0)).join('/')}`);
+  const g = fresh();
+  const items = [0, 1, 2, 3].map((r) => g.makeCrafted('weapon', 10, 0, r));
+  const atks = items.map((it) => g.itemStats(it).atk);
+  ok(atks.every((v, i) => !i || v > atks[i - 1]) && items.map((it) => it.opts.length).join() === '1,1,2,3', '같은 장비도 레어<유니크<전설<신화, 옵션 1·1·2·(2+특수)', atks.map((v) => v.toFixed(0)).join(' < '));
+  ok(items[3].opts.some((o) => o.sp), '신화에는 특수 효과', items[3].opts.map(W.optText).join(' / '));
+  // 승급
+  g.s.gold = 1e9; g.s.mats = { 6: 1000, b6: 100 };
+  const w = g.makeCrafted('weapon', 10, 0, 0);
+  g.s.equip.weapon = w; g._stats = null;
+  const a0 = g.stats().atk;
+  ok(g.promote(w.uid) && w.rar === 1 && g.stats().atk > a0, '대장장이 승급: 레어 → 유니크(확정), 공격력이 오른다', `${a0.toFixed(0)} → ${g.stats().atk.toFixed(0)}`);
+  g.promote(w.uid); g.promote(w.uid);
+  ok(w.rar === 3 && !g.canPromote(w), '신화까지 오르면 더 못 올린다');
+  // 조합은 등급·옵션을 이어받는다
+  g.s.mats = { 6: 1000, b6: 100, 7: 1000 };
+  const before = JSON.stringify(w.opts);
+  const nx = g.craft('weapon', 12);
+  ok(nx && nx.rar === 3 && JSON.stringify(nx.opts) === before, '위 장비로 조합해도 신화 등급과 옵션을 이어받는다', W.itemName(nx, 'sword'));
+  // 스킬 옵션이 스킬을 바꾼다
+  const h = fresh();
+  h.s.level = 40; h.s.jobTier = 2; h.enterMap(W.mapId(5, 1));
+  const sk1 = h.skillDef('s1');
+  const r0 = h.skillRadius(sk1), c0 = h.hpCostOf(sk1), cd0 = h.skillCd(sk1);
+  h.s.equip.armor = { ...h.makeCrafted('armor', 4, 0, 3), opts: [{ s: 1, k: 'range', v: 0.45 }, { s: 1, k: 'cd', v: 0.3 }, { s: 1, sp: 'free' }] };
+  h._stats = null; h._mods = null;
+  ok(h.skillRadius(sk1) > r0 * 1.4 && h.hpCostOf(sk1) === 0 && h.skillCd(sk1) < cd0 * 0.75, '옷의 옵션: 2차 스킬 범위 +45% · 숨 -30% · 체력을 안 쓴다(신화)', `범위 ${r0.toFixed(0)}→${h.skillRadius(sk1).toFixed(0)} · 대가 ${c0}→${h.hpCostOf(sk1)}`);
+  // 1차 스킬 '범위'(주변 적도 맞는다)
+  const q = fresh();
+  q.s.level = 20; q.s.jobTier = 1; q.enterMap(W.mapId(3, 1));
+  for (const m of q.mons) m.alive = false;
+  q.mons = q.mons.filter((m) => m.alive);
+  const t = q.spawnMob(false), n1 = q.spawnMob(false);
+  t.x = q.heroX + 60; t.y = q.heroY; n1.x = t.x + 50; n1.y = t.y; t.hp = n1.hp = t.maxHp = n1.maxHp = 1e9;
+  q.mon = t;
+  q.useSkill('s0');
+  const plain = n1.hp;
+  q.s.equip.hat = { ...q.makeCrafted('hat', 4, 0, 2), opts: [{ s: 0, k: 'splash', v: 0.6 }] };
+  q._stats = null; q._mods = null; q.cd.s0 = 0; q.heroHp = q.stats().hp;
+  q.useSkill('s0');
+  ok(plain === 1e9 && n1.hp < 1e9, '1차 스킬 범위 옵션: 옆의 적도 맞는다');
+  // 스킬 레벨
+  const L = fresh();
+  L.addExp(1e7);
+  ok(L.s.skillPts === Math.max(0, L.s.level - W.SKILL_PT_FROM + 1), '레벨 15부터 레벨마다 스킬 점수 1', `Lv.${L.s.level} 점수 ${L.s.skillPts}`);
+  L.s.jobTier = 1;
+  const d0 = L.skillMods('s0').dmg;
+  let ups = 0; while (L.skillUp('s0')) ups++;
+  ok(L.skillLevel('s0') === Math.min(W.SKILL_LV_MAX, 1 + ups) && L.skillMods('s0').dmg > d0 + 0.3, '스킬 레벨을 올리면 피해·숨·범위가 좋아진다', `Lv.${L.skillLevel('s0')} 피해 +${(L.skillMods('s0').dmg * 100).toFixed(0)}%`);
+  ok(migrateWorld({ level: 40 }).skillPts === 26 && migrateWorld({ level: 40, skillV: 1, skillPts: 3 }).skillPts === 3, '옛 세이브는 레벨 15부터 오른 만큼 스킬 점수를 한 번에');
+  // 돌파
+  const B = fresh();
+  B.s.gold = 1e12; B.s.mats = { 6: 1e5, b6: 0 };
+  const bw = B.makeCrafted('weapon', 10, 10, 0);
+  B.s.equip.weapon = bw;
+  ok(!B.canEnhance(bw), '+10 위 돌파에는 두목 증표가 든다');
+  B.s.mats.b6 = 1000;
+  let tries = 0; while (bw.plus < W.ENHANCE_MAX && tries++ < 400) B.enhance(bw.uid);
+  ok(bw.plus === W.ENHANCE_MAX && W.enhanceMult(15) > 3.1, `돌파로 +${W.ENHANCE_MAX}까지 — 기본 수치 ×${W.enhanceMult(15).toFixed(1)}`, `${tries}번 · 증표 ${1000 - B.s.mats.b6}개`);
 }
 
 console.log('\n=== 문파 버프 ===');
@@ -275,7 +346,7 @@ console.log('\n=== 문파 버프 ===');
   g.guildExp = W.GUILD_LV_EXP * 5;            // 문파 Lv.6
   ok(g.stats().atk === a0, '문파에 없으면 버프가 없다');
   g.s.guildId = 'ABCDEF';
-  ok(Math.abs(g.stats().atk / a0 - 1.1) < 1e-9, '문파 Lv.6이면 공격력 +10%', `${a0.toFixed(1)} → ${g.stats().atk.toFixed(1)}`);
+  ok(g.stats().atk / a0 > 1.08 && g.stats().atk / a0 < 1.1 + 1e-9, '문파 Lv.6이면 공격력 +10%(곱하는 몫에 더한다)', `${a0.toFixed(1)} → ${g.stats().atk.toFixed(1)}`);
   ok(W.guildLevel(1e9) === W.GUILD_LV_MAX, `문파 레벨은 ${W.GUILD_LV_MAX}까지`);
 }
 

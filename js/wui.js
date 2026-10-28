@@ -6,7 +6,9 @@ import { fmt } from './fmt.js';
 import { dayKey } from './net.js';
 
 const pct = (v, d = 1) => `${(v * 100).toFixed(d).replace(/\.0$/, '')}%`;
-const gradeOf = (it) => W.GRADES[it.grade];
+// 조합 장비는 등급(레어·유니크·전설·신화) 빛깔, 옛 드랍 장비는 옛 등급 빛깔
+const gradeOf = (it) => (it.rar != null ? W.RARITY[it.rar] : W.GRADES[it.grade]);
+export const optLines = (it) => (it.opts || []).map(W.optText);
 
 // 아이템 한 줄 요약 — '공격력 +123' 같은 것
 export function itemLines(game, it) {
@@ -28,11 +30,12 @@ export function itemLines(game, it) {
 export function itemTitle(game, it) {
   return `${W.itemName(it, game.s.job)}${it.plus ? ` +${it.plus}` : ''}`;
 }
-function itemChip(game, it, extra = {}) {
+function itemChip(game, it, extra = {}, withOpts = false) {
   const g = gradeOf(it);
-  return h('div', { class: `item-chip g${it.grade}`, style: `--gc:${g.color}`, ...extra },
+  return h('div', { class: `item-chip g${it.grade}${it.rar === 3 ? ' mythic' : ''}`, style: `--gc:${g.color}`, ...extra },
     h('b', {}, itemTitle(game, it)),
-    h('small', {}, `Lv.${it.ilv} · ${itemLines(game, it)}`));
+    h('small', {}, `${it.rar != null ? `${g.name} · ` : ''}Lv.${it.ilv} · ${itemLines(game, it)}`),
+    withOpts && it.opts?.length ? h('small', { class: 'opt-lines' }, ...optLines(it).map((t, i) => h('span', { class: it.opts[i].sp ? 'sp' : '' }, t))) : null);
 }
 
 // ---------- 캐릭터 ----------
@@ -62,7 +65,42 @@ function charTab(app) {
     stats.append(row);
   }
   const derived = h('div', { class: 'stat-grid' });
-  root.append(head, stats, h('div', { class: 'card' }, h('h3', {}, '능력치'), derived));
+  // 스킬 레벨 — 레벨 15부터 레벨마다 점수 1, n→n+1에 점수 n
+  const skillCard = h('div', { class: 'card' });
+  let skSig = '';
+  function skills() {
+    const s = game.s;
+    const nsig = `${s.skillPts}|${JSON.stringify(s.skillLv)}|${s.jobTier}|${game.statSig()}`;
+    if (nsig === skSig) return;
+    skSig = nsig;
+    skillCard.replaceChildren(h('h3', {}, '스킬', h('small', {}, `스킬 점수 ${s.skillPts} · 레벨 ${W.SKILL_PT_FROM}부터 레벨마다 1점`)));
+    const list = game.skills();
+    if (!list.length) { skillCard.append(h('p', { class: 'muted' }, `1차 전직(레벨 ${W.TIERS[1].level})을 하면 스킬을 배워요.`)); return; }
+    for (const sk of list) {
+      const lv = game.skillLevel(sk.id);
+      const md = game.skillMods(sk.id);
+      const bits = [];
+      if (md.dmg) bits.push(`피해 +${pct(md.dmg, 0)}`);
+      if (md.range) bits.push(`범위 +${pct(md.range, 0)}`);
+      if (md.splash) bits.push(`주변 적 ${pct(Math.min(md.splash, 9), 0)}`);
+      if (md.cd) bits.push(`숨 -${pct(md.cd, 0)}`);
+      if (md.cost && sk.hpCost) bits.push(md.free ? '체력 소모 없음' : `체력 소모 -${pct(md.cost, 0)}`);
+      if (md.crit) bits.push(`치명 +${pct(md.crit, 0)}p`);
+      if (md.echo) bits.push('30% 한 번 더');
+      if (md.reset) bits.push('처치하면 숨 초기화');
+      const max = lv >= W.SKILL_LV_MAX;
+      skillCard.append(h('div', { class: 'row' },
+        h('div', { class: 'ico' }, sk.icon),
+        h('div', { class: 'info' },
+          h('div', { class: 'name' }, sk.name, h('small', {}, `${W.SKILL_ORDINAL[sk.slot]} · Lv.${lv}${max ? ' (최대)' : ''}`)),
+          h('div', { class: 'desc' }, skillText(game, sk)),
+          bits.length ? h('div', { class: 'desc', style: 'color:#fde68a' }, `레벨·장비: ${bits.join(' · ')}`) : null),
+        h('button', { class: 'buy', disabled: game.canSkillUp(sk.id) ? null : true, onclick: () => {
+          if (game.skillUp(sk.id)) { popUp(skillCard, `Lv.${game.skillLevel(sk.id)}`); app.save(); skSig = ''; upd(); }
+        } }, max ? '최대' : `+1 · ${W.skillLvCost(lv)}점`)));
+    }
+  }
+  root.append(head, stats, skillCard, h('div', { class: 'card' }, h('h3', {}, '능력치'), derived));
   function upd() {
     const s = game.s;
     const st = game.stats();
@@ -72,6 +110,7 @@ function charTab(app) {
       h('p', { class: 'muted' }, cls ? `${cls.name} — ${W.CLASSES[s.job].trait}` : ''),
       h('div', { class: 'bar' }, h('div', { style: `width:${Math.min(100, (s.exp / game.expNeed()) * 100)}%` }),
         h('span', {}, `경험치 ${fmt(s.exp)} / ${fmt(game.expNeed())}`)));
+    skills();
     ptsEl.textContent = s.statPts;
     autoBtn.textContent = s.autoStat ? '자동 분배 켬' : '자동 분배 끔';
     autoBtn.classList.toggle('good', s.autoStat);
@@ -110,15 +149,21 @@ function bagTab(app) {
         const g = gradeOf(it);
         const cur = game.s.equip[it.slot];
         const cost = game.enhanceCost(it);
-        const max = (it.plus || 0) >= W.ENHANCE_MAX;
+        const max = (it.plus || 0) >= game.enhanceMax(it);
         const em = game.enhanceMats(it);
-        s.replaceChildren(
+        const bm = game.breakMarksOf(it);
+        const breaking = (it.plus || 0) >= W.ENHANCE_NORMAL;
+        const pc = it.step != null && (it.rar || 0) < W.RARITY.length - 1 ? W.promoteCost(it) : null;
+        s.replaceChildren(...[
           h('h2', { style: `color:${g.color}` }, itemTitle(game, it)),
-          h('p', {}, `${W.SLOTS.find((x) => x.id === it.slot).name} · 아이템 레벨 ${it.ilv} · ${g.name}`),
+          h('p', {}, `${W.SLOTS.find((x) => x.id === it.slot).name} · 아이템 레벨 ${it.ilv} · `, h('b', { style: `color:${g.color}` }, g.name)),
           h('p', {}, h('b', {}, itemLines(game, it))),
+          it.opts?.length ? h('div', { class: 'opt-box' }, ...optLines(it).map((t, i) => h('div', { class: it.opts[i].sp ? 'sp' : '' }, t))) : null,
           !worn && cur ? h('p', { class: 'muted' }, `지금 낀 것: ${itemTitle(game, cur)} — ${itemLines(game, cur)}`) : null,
           it.step != null ? h('p', { class: 'muted' }, `${W.zoneOfW(W.stepMap(it.step))?.name || ''} ${W.stepUpper(it.step) ? '상급' : '하급'} — 대장장이에서 위 장비의 조합 재료가 돼요 (강화는 절반을 이어받아요)`) : null,
-          h('p', { class: 'muted' }, max ? '강화를 다 했어요' : `강화 +${(it.plus || 0) + 1} (기본 수치 +${pct(W.ENHANCE_STEP, 0)}) — 성공률 ${pct(W.enhanceRate(it.plus || 0), 0)} · 은자 ${fmt(cost)}${em ? ` · ${W.matName(em.key)} ${em.n}개 (가진 것 ${fmt(game.s.mats[em.key] || 0)})` : ''} — 실패해도 깨지지 않아요`),
+          h('p', { class: 'muted' }, max ? '강화를 다 했어요' : `${breaking ? '돌파' : '강화'} +${(it.plus || 0) + 1} (기본 수치 +${pct(breaking ? W.BREAK_STEP : W.ENHANCE_STEP, 0)}) — 성공률 ${pct(W.enhanceRate(it.plus || 0), 0)} · 은자 ${fmt(cost)}${em ? ` · ${W.matName(em.key)} ${em.n}개 (가진 것 ${fmt(game.s.mats[em.key] || 0)})` : ''}${bm ? ` · ${W.matName(W.bossKey(em.key))} ${bm}개 (가진 것 ${fmt(game.s.mats[W.bossKey(em.key)] || 0)})` : ''} — 실패해도 깨지지 않아요`),
+          pc ? h('p', { class: 'muted' }, `승급 → `, h('b', { style: `color:${W.RARITY[it.rar + 1].color}` }, W.RARITY[it.rar + 1].name),
+            ` (기본 수치 ×${(W.RARITY[it.rar + 1].mult / W.RARITY[it.rar].mult).toFixed(2)}, 스킬 옵션 새로) — ${W.matName(pc.key)} ${pc.mats} · ${W.matName(W.bossKey(pc.key))} ${pc.marks} · 은자 ${fmt(pc.gold)}`) : null,
           h('div', { class: 'btn-row' },
             !worn ? h('button', { class: 'btn primary', onclick: () => { game.equipFromBag(it.uid); closeModal(); done(); } }, '끼기') : null,
             h('button', { class: 'btn good', disabled: game.canEnhance(it) ? null : true, onclick: () => {
@@ -126,9 +171,15 @@ function bagTab(app) {
               if (ok === null) return toast('은자나 재료가 모자라요');
               toast(ok ? `강화 성공! +${it.plus}` : '강화 실패… (깨지지는 않아요)');
               app.save(); paint(); app.refresh();
-            } }, '강화'),
+            } }, breaking ? '돌파' : '강화'),
+            pc ? h('button', { class: 'btn primary', disabled: game.canPromote(it) ? null : true, onclick: () => {
+              if (!game.promote(it.uid)) return toast('재료·증표·은자가 모자라요');
+              toast(`승급! ${W.RARITY[it.rar].name} — ${optLines(it).join(' / ')}`);
+              app.save(); paint(); app.refresh();
+            } }, '승급') : null,
             !worn ? h('button', { class: 'btn', onclick: () => { const p = game.sell(it); toast(`은자 +${fmt(p)}`); closeModal(); done(); } }, `팔기 ${fmt(W.sellPrice(it))}`) : null,
-            h('button', { class: 'btn', onclick: closeModal }, '닫기')));
+            h('button', { class: 'btn', onclick: closeModal }, '닫기')),
+        ].filter(Boolean));   // replaceChildren은 null을 글자 'null'로 넣는다
       };
       paint();
     });
@@ -143,6 +194,8 @@ function bagTab(app) {
     const keys = Object.keys(s.mats).filter((k) => s.mats[k] > 0)
       .sort((a, b) => (parseInt(a.replace('b', ''), 10) - parseInt(b.replace('b', ''), 10)) || (a[0] === 'b') - (b[0] === 'b'));
     smithCard.replaceChildren(h('h3', {}, '대장장이', h('small', {}, '아래 장비 + 재료 + 은자 → 위 장비')),
+      h('p', { class: 'muted', style: 'font-size:12px;margin:2px 0 6px' },
+        `만들면 레어 ${W.CRAFT_RAR_W[0]}% · 유니크 ${W.CRAFT_RAR_W[1]}% · 전설 ${W.CRAFT_RAR_W[2]}% — 넣는 장비의 등급·옵션은 이어받아요. 신화는 두목 드랍이나 승급(장비를 눌러서)으로.`),
       keys.length ? h('div', { class: 'mat-row' }, ...keys.map((k) => h('span', { class: 'mat-chip', style: `--mc:${W.matColor(k)}` },
         h('b', {}, W.matName(k)), h('small', {}, fmt(s.mats[k])))))
         : h('p', { class: 'muted' }, '몹은 그 사냥터 재료를, 두목은 재료 한 움큼과 증표를 떨궈요. 모아서 장비를 조합해요.'));
@@ -160,7 +213,7 @@ function bagTab(app) {
         smithCard.append(h('div', { class: `row craft-row${ok ? ' ready' : ''}` },
           h('div', { class: 'ico', style: sl.name.length > 2 ? 'font-size:13px' : '' }, sl.name),
           h('div', { class: 'info' },
-            h('div', { class: 'name', style: `color:${W.GRADES[sample.grade].color}` }, itemTitle(game, sample), h('small', {}, `Lv.${sample.ilv} · ${itemLines(game, sample)}`)),
+            h('div', { class: 'name' }, itemTitle(game, sample), h('small', {}, `Lv.${sample.ilv} · ${itemLines(game, sample)} (레어 기준)`)),
             h('div', { class: 'desc needs' }, ...parts)),
           h('button', { class: 'buy', disabled: ok ? null : true, onclick: () => {
             const it = game.craft(sl.id, step);
@@ -179,7 +232,7 @@ function bagTab(app) {
     for (const sl of W.SLOTS) {
       const it = s.equip[sl.id];
       equipCard.append(h('div', { class: 'equip-slot' }, h('span', { class: 'slot-name' }, sl.name),
-        it ? itemChip(game, it, { onclick: () => openItem(it, true) }) : h('div', { class: 'item-chip empty' }, '비어 있음')));
+        it ? itemChip(game, it, { onclick: () => openItem(it, true) }, true) : h('div', { class: 'item-chip empty' }, '비어 있음')));
     }
     // 같은 것(칸·레벨·등급·강화)은 한 칸에 ×n으로 묶는다 — 셋이 모이면 합성할 수 있다는 게 보이게
     const groups = new Map();
@@ -319,7 +372,9 @@ function townTab(app) {
 
 export function skillText(game, sk) {
   const where = sk.kind === 'single' ? '한 적에게' : game.ranged() ? '겨눈 자리 둘레 모두에게' : '둘레 모두에게';
-  return `${where} 공격력 ×${sk.mult} · 숨 ${sk.cd}초${sk.hpCost ? ` · 체력 ${pct(sk.hpCost, 0)} 소모` : ''}`;
+  const cd = game.skillCd ? game.skillCd(sk) : sk.cd;
+  const cost = sk.hpCost * (1 - (game.skillMods ? game.skillMods(sk.id).cost : 0));
+  return `${where} 공격력 ×${sk.mult} · 숨 ${cd.toFixed(cd < 10 ? 1 : 0).replace(/\.0$/, '')}초${sk.hpCost ? ` · 체력 ${pct(cost, 0)} 소모` : ''}`;
 }
 
 // ---------- 무림 ----------
