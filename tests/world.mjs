@@ -621,13 +621,13 @@ console.log('\n=== 장비 개편 (v130) ===');
   ok(!g.itemUnique(g.makeCrafted('acc', 4, 0, 0)), '장신구는 고유 옵션 대신 스킬 옵션이 하나 더');
   // 세트
   ok(G.SETS.length === 10 && ['sword', 'fist', 'fan', 'poison', 'ring'].every((j) => G.setsOfJob(j).length === 2) && new Set(G.SETS.map((x) => x.king)).size === 10, '직업마다 세트 둘 — 세트마다 다른 왕');
-  ok(['sword', 'fist', 'fan', 'poison', 'ring'].every((j) => { const k = G.setsOfJob(j).map((x) => x.king).sort((x, y) => x - y); return k[0] <= 20 && k[1] >= 21 && k[1] <= 25; }),
-    '직업마다 초반 왕 하나 + 중반 왕 하나 — 도왕·검왕(가장 센 둘)은 세트가 없다');
-  ok(migrateWorld({ job: 'sword', equip: { weapon: { uid: 9, slot: 'weapon', king: 27, set: 'formless', ilv: 100, rar: 0, opts: [], plus: 3 } } }).equip.weapon.king === 17, '옛 검왕 세트 조각은 철왕 재료로 강화');
+  ok(Object.values(G.SLOT_KING).sort().join() === '16,17,18,19,20' && Object.keys(G.STONES).sort().join() === '21,22,23,24,25,26,27',
+    '전반 다섯 왕은 세트 부위(무기·옷·모자·장갑·신발), 후반 일곱 왕은 강화석 (v132)');
+  ok(migrateWorld({ job: 'sword', equip: { armor: { uid: 9, slot: 'armor', king: 27, set: 'formless', ilv: 100, rar: 0, opts: [], plus: 3 } } }).equip.armor.king === 17, '옛 세트 조각은 그 부위 왕(옷 → 철왕) 것이 된다');
   const sw = fresh('sword'); while (sw.s.level < 99) sw.addExp(W.expToNext(sw.s.level)); sw.s.gold = 1e12;
   const plum = G.setOf('plum');
   ok(!sw.craftSet('plum', 'weapon'), '왕의 재료·증표가 없으면 못 만든다');
-  sw.s.mats[plum.king] = 1e5; sw.s.mats[W.bossKey(plum.king)] = 1e3;
+  for (const z of Object.values(G.SLOT_KING)) { sw.s.mats[z] = 1e5; sw.s.mats[W.bossKey(z)] = 1e3; }
   ok(!sw.craftSet('ironfist', 'weapon') && sw.setCheck('ironfist', 'weapon').lack.includes('job'), '다른 직업 세트는 못 만든다');
   for (const sl of G.SET_SLOTS) sw.craftSet('plum', sl);
   for (const sl of G.SET_SLOTS) { const it = sw.s.bag.find((x) => x.set === 'plum' && x.slot === sl); if (it) sw.equipFromBag(it.uid); }
@@ -644,7 +644,15 @@ console.log('\n=== 장비 개편 (v130) ===');
   ok(other.setCounts().plum === 1 && !Object.keys(other.setBonus()).length, '다른 직업이 끼면 세트 효과가 없다');
   // 강화는 그 왕의 재료로, 돌파까지
   const sw2 = sw.s.equip.weapon;
-  ok(sw.enhanceMats(sw2).key === plum.king && sw.enhanceMax(sw2) === W.ENHANCE_MAX && sw.canPromote(sw2) === (sw2.rar < 3), '세트는 강화·돌파·승급으로 자란다 (그 왕의 재료)');
+  ok(sw.enhanceMats(sw2).key === 'st26' && sw.enhanceMats(sw.s.equip.armor).key === 'st24' && sw.enhanceMax(sw2) === W.ENHANCE_MAX, '세트 무기는 도왕의 강화석, 옷은 살왕의 강화석으로만');
+  ok(W.matName('st26').includes('도왕') && W.matName('st24').includes('명부'), '강화석 이름 — ○왕의 ○○석', `${W.matName('st26')} / ${W.matName('st24')}`);
+  const p0 = sw2.plus || 0; sw.s.mats.st26 = 500; sw.rng = () => 0;
+  ok(sw.enhance(sw2.uid) && sw2.plus === p0 + 1 && sw.s.mats.st26 === 500 - G.stoneN(p0), '강화석으로 강화');
+  ok(!sw.canPromote(sw2) || sw2.rar >= 3, '승급은 검왕의 검혼석이 있어야');
+  sw.s.mats.st27 = 100; const rr0 = sw2.rar;
+  ok(rr0 >= 3 || (sw.promote(sw2.uid) && sw2.rar === rr0 + 1 && sw.s.mats.st27 === 100 - G.promoteStones(rr0)), '검혼석으로 승급');
+  sw.s.mats[21] = 100;
+  ok(sw.makeStone(21, 5) === 2 && sw.s.mats.st21 === 2 && sw.s.mats[21] === 20, '후반 왕 재료 40개 → 강화석 하나');
   // 공용 장신구
   const ac = fresh('ring'); while (ac.s.level < 99) ac.addExp(W.expToNext(ac.s.level)); ac.s.gold = 1e12; ac.s.mats[17] = 1e4; ac.s.mats.b17 = 100;
   const acc = ac.craftKacc(17, 'acc');
@@ -661,14 +669,18 @@ console.log('\n=== 장비 개편 (v130) ===');
   ok(t.events.some((e) => e.type === 'tfHit' && e.tf === 'fire') && t.mons[0].dot > 0, '화염 — 맞은 적이 불탄다(연출 알림)');
   ok(W.optText({ tf: 'thunder', s: 4 }).includes('4차') && W.optText({ tf: 'thunder', s: 4 }).includes('뇌전'), '변화 옵션 글');
   // 십이지왕은 내 직업 세트 조각이나 공용 장신구를 떨군다
-  const dk = fresh('fist'); let sets = 0, accs = 0, wrong = 0;
+  const dk = fresh('fist'); let sets = 0, accs = 0, wrong = 0, kinds = new Set();
   for (let i = 0; i < 1500; i++) {
     dk.s.map = W.mapId(16, 4); dk.dropMats({ lv: 105, isBoss: true, x: 0, y: 0 });
-    dk.s.map = W.mapId(17, 4); dk.dropMats({ lv: 108, isBoss: true, x: 0, y: 0 });
-    for (const e of dk.events) if (e.type === 'drop') { if (e.item.set === 'ironfist') sets++; else if (G.KACC_SLOTS.includes(e.item.slot) && e.item.king === 17) accs++; else wrong++; }
+    dk.s.map = W.mapId(24, 4); dk.dropMats({ lv: 130, isBoss: true, x: 0, y: 0 });
+    for (const e of dk.events) if (e.type === 'drop') {
+      if (e.item.slot === 'weapon' && G.setOf(e.item.set)?.job === 'fist') { sets++; kinds.add(e.item.set); }
+      else if (G.KACC_SLOTS.includes(e.item.slot) && e.item.king === 24) accs++; else wrong++;
+    }
     dk.events.length = 0;
   }
-  ok(sets > 50 && accs > 50 && !wrong, '권왕은 철권투혼 조각, 철왕(세트 없음)은 공용 장신구', `세트 ${sets} · 장신구 ${accs}`);
+  ok(sets > 50 && kinds.size === 2 && accs > 50 && !wrong && dk.s.mats.st24 === 1500 * G.STONE_PER_BOSS,
+    '권왕은 내 두 세트의 무기 조각, 살왕은 옷 강화석(늘) + 가끔 공용 장신구', `세트 ${sets} · 장신구 ${accs} · 명부 혼석 ${dk.s.mats.st24}`);
   // 옛 세이브: 십이지왕 사다리 장비
   const old = migrateWorld({ level: 120, job: 'sword', mats: {}, equip: { weapon: { uid: 5, slot: 'weapon', step: 53, ilv: 154, rar: 2, opts: [], plus: 7 }, ear: { uid: 6, slot: 'ear', step: 40, ilv: 120, rar: 1, opts: [], plus: 2 } }, bag: [] });
   ok(old.equip.weapon.step === W.TIER_COUNT * 2 - 1 && old.equip.weapon.plus === 7 && old.equip.weapon.rar === 2 && old.mats[27] > 0 && old.mats.b27 > 0, '옛 왕 사다리 무기 → 사다리 끝으로 + 왕의 재료·증표를 돌려준다', JSON.stringify(old.mats));

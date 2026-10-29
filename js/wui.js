@@ -233,12 +233,12 @@ function bagTab(app) {
           it.set ? setBox(game, G.setOf(it.set)) : null,
           bossGearNote(it),
           !worn && cur ? h('p', { class: 'muted' }, `지금 낀 것: ${itemTitle(game, cur)} — ${itemLines(game, cur)}`) : null,
-          it.king != null ? h('p', { class: 'muted' }, `레벨 100 왕의 장비 (${W.zoneOfW(it.king)?.name || ''}) — 더 높은 단계는 없고 강화·돌파·승급으로 자라요. 강화에는 그 왕의 재료·증표가 들어요.${W.isDropOnly(it.slot) ? ' 가락지·귀걸이는 강화가 어려워요.' : ''}`)
+          it.king != null ? h('p', { class: 'muted' }, `레벨 100 왕의 장비 (${W.zoneOfW(it.king)?.name || ''}) — 더 높은 단계는 없고 강화·돌파·승급으로 자라요. 강화는 ${W.matName(G.stoneFor(it))}(후반 왕의 그 부위 강화석), 승급은 검왕의 검혼석.${W.isDropOnly(it.slot) ? ' 가락지·귀걸이는 강화가 어려워요.' : ''}`)
           : W.isDropOnly(it.slot) ? h('p', { class: 'muted' }, `${W.zoneOfW(W.stepMap(it.step))?.name || ''} 두목에게서만 나와요 — 강화가 어려워요(성공률 절반·은자 ×3·돌파 없음)`)
             : it.step != null ? h('p', { class: 'muted' }, `${W.zoneOfW(W.stepMap(it.step))?.name || ''} ${W.stepUpper(it.step) ? '상급' : '하급'} — 대장장이에서 위 장비의 조합 재료가 돼요 (강화는 절반을 이어받아요)`) : null,
           h('p', { class: 'muted' }, max ? '강화를 다 했어요' : `${breaking ? '돌파' : '강화'} +${(it.plus || 0) + 1} (기본 수치 +${pct(breaking ? W.BREAK_STEP : W.ENHANCE_STEP, 0)}) — 성공률 ${pct(game.enhanceRateOf(it), 0)} · 은자 ${fmt(cost)}${em ? ` · ${W.matName(em.key)} ${em.n}개 (가진 것 ${fmt(game.s.mats[em.key] || 0)})` : ''}${bm ? ` · ${W.matName(W.bossKey(em.key))} ${bm}개 (가진 것 ${fmt(game.s.mats[W.bossKey(em.key)] || 0)})` : ''} — 실패해도 깨지지 않아요`),
           pc ? h('p', { class: 'muted' }, `승급 → `, h('b', { style: `color:${W.RARITY[it.rar + 1].color}` }, W.RARITY[it.rar + 1].name),
-            ` (기본 수치 ×${(W.RARITY[it.rar + 1].mult / W.RARITY[it.rar].mult).toFixed(2)}, 스킬 옵션 새로) — ${W.matName(pc.key)} ${pc.mats} · ${W.matName(W.bossKey(pc.key))} ${pc.marks} · 은자 ${fmt(pc.gold)}`) : null,
+            ` (기본 수치 ×${(W.RARITY[it.rar + 1].mult / W.RARITY[it.rar].mult).toFixed(2)}, 스킬 옵션 새로) — ${W.matName(pc.key)} ${pc.mats} (가진 것 ${fmt(game.s.mats[pc.key] || 0)})${pc.marks ? ` · ${W.matName(W.bossKey(pc.key))} ${pc.marks}` : ''} · 은자 ${fmt(pc.gold)}`) : null,
           h('div', { class: 'btn-row' },
             !worn ? h('button', { class: 'btn primary', onclick: () => { game.equipFromBag(it.uid); closeModal(); done(); } }, '끼기') : null,
             h('button', { class: 'btn good', disabled: game.canEnhance(it) ? null : true, onclick: () => {
@@ -394,12 +394,12 @@ function bagTab(app) {
     const cards = sets.map((st) => {
       const rows = G.SET_SLOTS.map((sl) => {
         const c = game.setCheck(st.id, sl);
-        const sample = game.makeKing(sl, st.king, 0, st.id);
+        const sample = game.makeKing(sl, G.SLOT_KING[sl], 0, st.id);
         const d = vsWorn(sample);
         const worn = s.equip[sl]?.set === st.id;
         return h('div', { class: `row craft-row${c.ok ? ' ready' : ''}` },
           h('div', { class: 'info' },
-            h('div', { class: 'name' }, itemTitle(game, sample), ' ', worn ? h('span', { class: 'delta same' }, '끼는 중') : deltaTag(d), h('small', {}, `Lv.${G.KING_ILV} · ${SLOT_SHORT[sl]}`)),
+            h('div', { class: 'name' }, itemTitle(game, sample), ' ', worn ? h('span', { class: 'delta same' }, '끼는 중') : deltaTag(d), h('small', {}, `Lv.${G.KING_ILV} · ${SLOT_SHORT[sl]} · ${W.kingOf(G.SLOT_KING[sl]).title}`)),
             h('div', { class: 'desc' }, `${itemLines(game, sample)} (레어 기준)`),
             h('div', { class: 'desc needs' }, ...kingNeeds(c.r))),
           h('button', { class: 'buy', disabled: c.ok ? null : true, onclick: () => {
@@ -409,12 +409,25 @@ function bagTab(app) {
       });
       return h('div', {}, setBox(game, st), h('div', { class: 'card' }, ...rows));
     });
+    // 강화석 — 후반 일곱 왕
+    const stoneRows = Object.entries(G.STONES).map(([z, stn]) => {
+      const key = G.stoneKey(z);
+      const can = Math.floor((s.mats[z] || 0) / G.STONE_FROM_MATS);
+      return h('div', { class: 'row stone-row' },
+        h('div', { class: 'info' },
+          h('div', { class: 'name' }, W.matName(key), h('small', {}, ` ${fmt(s.mats[key] || 0)}개`)),
+          h('div', { class: 'desc' }, `${stn.what} · ${W.zoneOfW(+z).name} 두목이 ${G.STONE_PER_BOSS}개씩 · ${W.matName(z)} ${G.STONE_FROM_MATS}개로 하나 (가진 재료 ${fmt(s.mats[z] || 0)})`)),
+        h('button', { class: 'buy', disabled: can ? null : true, onclick: () => { const n = game.makeStone(+z, can); if (n) { toast(`${W.matName(key)} +${n}`); done(); } } }, can ? `만들기 ${can}` : '만들기'));
+    });
     smithRoot.replaceChildren(modes,
       h('div', { class: 'card' }, h('h3', {}, '세트 장비', h('small', {}, `레벨 ${G.KING_LV}부터 · 레벨 100 · 무기·옷·모자·장갑·신발`)),
-        h('p', { class: 'muted', style: 'font-size:12px;margin:2px 0 0' },
-          s.level < G.KING_LV ? `레벨 ${G.KING_LV}이 되면 만들 수 있어요. 세트마다 정해진 십이지왕의 재료·증표를 모아야 해요.`
-            : '세트마다 정해진 십이지왕의 재료·증표로 만들어요. 그 왕은 내 직업 세트 조각도 떨궈요. 더 높은 단계는 없고 강화·돌파·승급으로 키워요.')),
-      ...cards);
+        h('p', { class: 'muted', style: 'font-size:12px;margin:2px 0 4px' },
+          s.level < G.KING_LV ? `레벨 ${G.KING_LV}이 되면 만들 수 있어요.` : '세트 부위는 전반 다섯 왕이 하나씩 맡아요 — 그 왕의 재료·증표로 만들고, 그 왕은 내 직업 세트의 그 부위를 떨궈요.'),
+        h('div', { class: 'slot-kings' }, ...G.SET_SLOTS.map((sl) => h('span', {}, h('b', {}, SLOT_SHORT[sl]), ` ${W.kingOf(G.SLOT_KING[sl]).title}`)))),
+      ...cards,
+      h('div', { class: 'card' }, h('h3', {}, '강화석', h('small', {}, '후반 일곱 왕 — 부위마다 그 강화석으로만')),
+        h('p', { class: 'muted', style: 'font-size:12px;margin:2px 0 6px' }, '세트 장비는 그 부위의 강화석으로만 강화(+15 돌파까지)하고, 승급은 검왕의 검혼석으로 해요.'),
+        ...stoneRows));
   }
   // ----- 왕의 장신구 (레벨 99부터, 공용) -----
   function kaccSmith(modes) {
@@ -450,14 +463,18 @@ function bagTab(app) {
     const nsig = JSON.stringify(s.mats);
     if (nsig === sigs.mats) return;
     sigs.mats = nsig;
-    const zones = new Set(Object.keys(s.mats).filter((k) => s.mats[k] > 0).map((k) => parseInt(k.replace('b', ''), 10)));
+    const zones = new Set(Object.keys(s.mats).filter((k) => s.mats[k] > 0 && !G.isStoneKey(k)).map((k) => parseInt(k.replace('b', ''), 10)));
+    const stones = Object.keys(G.STONES).filter((z) => s.mats[G.stoneKey(z)] > 0);
     const rows = [...zones].sort((a, b) => b - a).map((z) => h('div', { class: 'row mat-zone' },
       h('div', { class: 'info' },
         h('div', { class: 'name' }, W.zoneOfW(z)?.name || `지역 ${z}`),
         h('div', { class: 'mat-row' },
           h('span', { class: 'mat-chip', style: `--mc:${W.matColor(z)}` }, h('b', {}, W.matName(z)), h('small', {}, fmt(s.mats[z] || 0))),
-          h('span', { class: 'mat-chip', style: `--mc:${W.matColor(W.bossKey(z))}` }, h('b', {}, W.matName(W.bossKey(z))), h('small', {}, fmt(s.mats[W.bossKey(z)] || 0)))),
-        h('div', { class: 'desc' }, `재료: 그 지역 몹 · 증표: 그 지역 두목 구역의 두목`))));
+          h('span', { class: 'mat-chip', style: `--mc:${W.matColor(W.bossKey(z))}` }, h('b', {}, W.matName(W.bossKey(z))), h('small', {}, fmt(s.mats[W.bossKey(z)] || 0))),
+          G.STONES[z] && s.mats[G.stoneKey(z)] > 0 ? h('span', { class: 'mat-chip', style: `--mc:${W.matColor(G.stoneKey(z))}` }, h('b', {}, G.STONES[z].name), h('small', {}, fmt(s.mats[G.stoneKey(z)]))) : null),
+        h('div', { class: 'desc' }, `재료: 그 지역 몹 · 증표: 그 지역 두목 구역의 두목${G.STONES[z] ? ` · ${G.STONES[z].what}: 두목` : ''}`))));
+    for (const z of stones) if (!zones.has(+z)) rows.push(h('div', { class: 'row mat-zone' }, h('div', { class: 'info' }, h('div', { class: 'name' }, W.zoneOfW(+z)?.name || ''),
+      h('div', { class: 'mat-row' }, h('span', { class: 'mat-chip', style: `--mc:${W.matColor(G.stoneKey(z))}` }, h('b', {}, G.STONES[z].name), h('small', {}, fmt(s.mats[G.stoneKey(z)])))))));
     matRoot.replaceChildren(h('div', { class: 'card' }, h('h3', {}, '재료', h('small', {}, '문파 창고로 나눌 수 있어요')),
       ...(rows.length ? rows : [h('p', { class: 'muted' }, '몹은 그 사냥터 재료를, 두목은 재료 한 움큼과 증표를 떨궈요.')])));
   }

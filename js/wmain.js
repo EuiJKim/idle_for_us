@@ -391,6 +391,9 @@ function handleEvents() {
         break;
       }
       // 스킬 변화 옵션 (v130) — 화염·빙결·뇌전·거대화·응축이 연출에도 보인다
+      case 'stone':
+        if (ev.at) view.float(`+${ev.n} ${W.matName(ev.key)}`, view.sx(ev.at), view.sy(ev.at) - 150, '#f0abfc', 14, 1.2);
+        break;
       case 'tfHit': {
         if (view.fxLevel <= 0 || !ev.at) break;
         const a = ev.at;

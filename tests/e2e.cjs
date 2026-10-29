@@ -75,7 +75,18 @@ async function tab(page, name) {
 
   console.log('# 들판을 눌러 움직이기');
   const before = await G(p, () => ({ x: window.__game.heroX, y: window.__game.heroY }));
-  await p.mouse.click(60, 420);
+  // 막히지 않은 빈 칸(무인에게서 세 칸 이상)을 골라 그 자리를 누른다 — v127 지형 때문에 정해진 점은 바위일 수 있다
+  const spot = await G(p, () => {
+    const g = window.__game, v = window.__view, z = v.zoom || 1, rc = document.getElementById('cv').getBoundingClientRect();
+    for (let d = 3; d < 8; d++) for (const [dc, dr] of [[-d, 0], [0, -d], [d, 0], [0, d], [-d, -d], [d, -d]]) {
+      const c = g.hc + dc, r = g.hr + dr;
+      if (!g.inMap(c, r) || g.occupied(c, r, 'hero')) continue;
+      const x = rc.left + v.sx({ x: (c + 0.5) * g.tile }) * z, y = rc.top + v.sy({ y: (r + 0.5) * g.tile }) * z;
+      if (x > 20 && x < rc.right - 20 && y > rc.top + 80 && y < rc.bottom - 200) return { x, y };
+    }
+    return { x: 60, y: 420 };
+  });
+  await p.mouse.click(spot.x, spot.y);
   // 지형(v127) 때문에 돌아가는 길이 길 수 있다 — 3초까지 기다린다
   await p.waitForFunction((b) => Math.hypot(window.__game.heroX - b.x, window.__game.heroY - b.y) > 30, before, { timeout: 3000 }).catch(() => {});
   const after = await G(p, () => ({ x: window.__game.heroX, y: window.__game.heroY }));

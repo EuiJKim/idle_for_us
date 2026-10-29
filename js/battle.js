@@ -4,6 +4,7 @@ import { zoneOf, RANKS, GRADES, FIELD_SQUASH, JOB_TRAITS, QI, jobOf, critTierNam
 import { artReady, putArt, putArtEdge, putArtTint, loadArt, FIT, ART_SHOULDER, ART_BAND, headKey, bodyKey, weaponKey } from './art.js';
 import { drawCreature, saddleY } from './creatures.js';
 import { ZONES_W, stepMap } from './world/wdata.js';
+import { setOf } from './world/wgear.js';
 import { OUTFITS } from './data.js';
 
 // 의복 열둘 중 앞 여섯은 도포(몸), 뒤 여섯은 검 장식(무기)이다.
@@ -767,7 +768,7 @@ export class BattleView {
     // 두목 장비 — 두목 증표로 만든 상급이나 두목이 떨군 것. 끼면 그 두목의 겉모습이 든다.
     const bossOf = (it) => {
       if (!it || (it.king == null && (it.step == null || !(it.step % 2 === 1 || it.boss)))) return null;
-      const z = it.king ?? stepMap(it.step);      // 왕의 장비(v130)는 그 왕의 겉모습
+      const z = (it.set && setOf(it.set)?.king) || (it.king ?? stepMap(it.step));      // 세트는 그 세트 결의 왕, 왕의 장비는 그 왕의 겉모습
       const b = ZONES_W[z]?.boss;
       return b?.look ? { z, look: b.look, col: b.look.aura || b.look.trim || '#fde68a' } : null;
     };

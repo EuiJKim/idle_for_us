@@ -57,8 +57,10 @@ export function uniqueOf(slot, zone, upper, rarMult = 1) {
 }
 
 // ---------- 직업 세트 (레벨 100) ----------
-// king: 그 세트 재료·증표를 떨구는 십이지왕 지역 번호(16 권왕 … 27 검왕).
-// 직업마다 초반 왕(16 권왕 ~ 20 목왕) 하나 + 중반 왕(21 화왕 ~ 25 투왕) 하나. 가장 센 도왕·검왕은 세트 없이 공용 장신구만(가장 좋은 신화 효과).
+// v132: 십이지왕 열둘을 둘로 —
+//   전반 다섯(권왕·철왕·음왕·혈왕·목왕)이 **세트 부위**를 하나씩 맡는다(SLOT_KING). 그 왕은 내 직업 세트의 그 부위를 떨구고, 그 왕의 재료·증표로 만든다.
+//   후반 일곱(화왕·암왕·환왕·살왕·투왕·도왕·검왕)은 **부위별 강화석**을 떨군다(STONES) — 그 부위만 강화한다. 검왕은 승급석.
+// king: 세트의 결(이름·겉모습)을 준 왕 — 재료와는 상관없다.
 // 2·3조각: 능력치, 5조각: 직업 무공을 바꾸는 효과. 키는 GEAR_KEYS(능력치)이거나 아래 SET_FX(무공) 이름.
 export const SET_SLOTS = ['weapon', 'armor', 'hat', 'glove', 'shoe'];
 export const SET_FX = {
@@ -112,7 +114,34 @@ export const SETS = [
 ];
 export const setOf = (id) => SETS.find((x) => x.id === id) || null;
 export const setsOfJob = (job) => SETS.filter((x) => x.job === job);
-export const setOfKing = (z, job) => SETS.find((x) => x.king === z && (!job || x.job === job)) || null;
+// 세트 부위를 맡은 전반 다섯 왕
+export const SLOT_KING = { weapon: 16, armor: 17, hat: 18, glove: 19, shoe: 20 };
+export const KING_SLOT = Object.fromEntries(Object.entries(SLOT_KING).map(([k, v]) => [v, k]));
+// 후반 일곱 왕의 강화석 — 재료 열쇠 'st{지역}'. slot: 강화하는 부위('acc'는 장신구·가락지·귀걸이), 'promote'는 승급석
+export const STONES = {
+  21: { slot: 'shoe', name: '야우 화정석', what: '세트 신발 강화석' },
+  22: { slot: 'glove', name: '암야 흑요석', what: '세트 장갑 강화석' },
+  23: { slot: 'hat', name: '환영 몽석', what: '세트 모자 강화석' },
+  24: { slot: 'armor', name: '명부 혼석', what: '세트 옷 강화석' },
+  25: { slot: 'acc', name: '투신 철혼석', what: '왕의 장신구·가락지·귀걸이 강화석' },
+  26: { slot: 'weapon', name: '일월 도혼석', what: '세트 무기 강화석' },
+  27: { slot: 'promote', name: '무형 검혼석', what: '세트·왕의 장신구 승급석' },
+};
+export const stoneKey = (z) => `st${z}`;
+export const isStoneKey = (k) => /^st2[1-7]$/.test(String(k));
+// 이 장비를 강화하는 강화석 열쇠 (왕의 장비만)
+export function stoneFor(it) {
+  if (!it || it.king == null) return null;
+  const sl = KACC_SLOTS.includes(it.slot) ? 'acc' : it.slot;
+  const z = Object.keys(STONES).find((k) => STONES[k].slot === sl);
+  return z ? stoneKey(z) : null;
+}
+// 강화 한 번에 드는 강화석 — +1에 3개 … 돌파(+11~)는 더
+export const stoneN = (plus) => 3 + plus + (plus >= 10 ? (plus - 9) * 3 : 0);
+// 승급: 검혼석 등급마다 5 · 은자
+export const promoteStones = (rar) => 5 * (rar + 1);
+export const STONE_PER_BOSS = 3;        // 후반 왕 한 번에 그 강화석
+export const STONE_FROM_MATS = 40;      // 그 왕 재료 40 → 강화석 하나 (들판 재료도 쓸모 있게)
 export const SET_PIECE = { armor: '포', hat: '관', glove: '수투', shoe: '운혜' };
 // 세트 효과 한 줄
 export function setBonusText(b) {
@@ -126,8 +155,8 @@ export const KING_LV = 99;             // 이 레벨부터 만든다
 const SET_MATS = { weapon: 120, armor: 90, hat: 70, glove: 70, shoe: 70 };
 const SET_MARKS = { weapon: 6, armor: 5, hat: 4, glove: 4, shoe: 4 };
 export function setRecipe(setId, slot) {
-  const st = setOf(setId);
-  return { mats: { [st.king]: SET_MATS[slot], [`b${st.king}`]: SET_MARKS[slot] }, gold: 6000 + (SET_MATS[slot] * 50) };
+  const z = SLOT_KING[slot];
+  return { mats: { [z]: SET_MATS[slot], [`b${z}`]: SET_MARKS[slot] }, gold: 6000 + (SET_MATS[slot] * 50) };
 }
 // 공용 장신구 — 아무 왕의 재료로 (그 왕의 신화 효과가 붙을 수 있다)
 export const KACC_SLOTS = ['acc', 'finger', 'ear'];

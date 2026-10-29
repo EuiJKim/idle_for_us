@@ -82,7 +82,7 @@ export function migrateWorld(raw, now = Date.now()) {
   s.mounts = Array.isArray(raw.mounts) ? raw.mounts.filter((m) => m && W.mountOf(m.kind)) : [];
   if (!s.mounts.some((m) => m.uid === s.mount)) s.mount = null;
   s.mats = {};
-  for (const [k, v] of Object.entries(raw.mats || {})) if ((W.MATS[k] || (k[0] === 'b' && W.MATS[k.slice(1)])) && v > 0) s.mats[k] = Math.floor(Number(v) || 0);
+  for (const [k, v] of Object.entries(raw.mats || {})) if ((W.MATS[k] || (k[0] === 'b' && W.MATS[k.slice(1)]) || G.isStoneKey(k)) && v > 0) s.mats[k] = Math.floor(Number(v) || 0);
   delete s.autoSell;
   // v105: 레벨업 점수를 직접 찍게 바꿨다 — 옛 세이브의 '자동 분배 켬'은 한 번 끈다
   if ((raw.statV || 0) < 2) { s.autoStat = false; s.statV = 2; }
@@ -134,8 +134,8 @@ export function migrateWorld(raw, now = Date.now()) {
     if (it.uid >= uidSeq) uidSeq = it.uid + 1;
     // v110: 등급이 없던 조합 장비는 레어로 (옵션 하나)
     if (it.step != null && it.rar == null) { it.rar = 0; it.opts = W.rollSkillOpts(0, rand); it.grade = W.RARITY_GRADE[0]; }
-    // v131: 검사 세트 '천기검갑'은 검왕 → 철왕 재료로 바뀌었다 (강화 재료도 따라간다)
-    if (it.set === 'formless' && it.king === 27) it.king = 17;
+    // v132: 세트 조각은 그 부위를 맡은 전반 왕의 것 (강화는 후반 왕의 강화석으로)
+    if (it.set && G.SLOT_KING[it.slot]) it.king = G.SLOT_KING[it.slot];
   }
   // v130: 사다리가 레벨 99(보통 지역 15곳)에서 끝난다. 십이지왕 사다리 장비는 —
   //   장신구·가락지·귀걸이: 그 왕의 레벨 100 공용 장신구로 바꾼다(등급·옵션·강화 그대로).
@@ -1321,12 +1321,15 @@ export class WorldGame {
     if (m.isBoss) {
       this.addMats(id, W.BOSS_MATS);
       this.addMats(W.bossKey(id), 1);
-      // 십이지왕 (v130): 그 왕이 내 직업 세트의 왕이면 세트 조각, 아니면 공용 장신구
+      // 십이지왕 (v132): 전반 다섯은 맡은 부위의 내 직업 세트 조각(두 세트 가운데 하나), 후반 일곱은 강화석(늘) + 가끔 공용 장신구
       if (W.kingOf(id)) {
+        const stone = G.STONES[id];
+        if (stone) { this.addMats(G.stoneKey(id), G.STONE_PER_BOSS); this.emit('stone', { key: G.stoneKey(id), n: G.STONE_PER_BOSS, at: { x: m.x, y: m.y } }); }
         if (this.rng() < W.KING_ITEM_RATE) {
           const rar = W.rollRarity(W.KING_RAR_W, this.rng);
-          const st = G.setOfKing(id, this.s.job);
-          const it = st ? this.makeKing(G.SET_SLOTS[Math.floor(this.rng() * G.SET_SLOTS.length)], id, rar, st.id)
+          const slot = G.KING_SLOT[id];
+          const sets = G.setsOfJob(this.s.job);
+          const it = slot && sets.length ? this.makeKing(slot, id, rar, sets[Math.floor(this.rng() * sets.length)].id)
             : this.makeKing(G.KACC_SLOTS[Math.floor(this.rng() * G.KACC_SLOTS.length)], id, rar);
           it.boss = true;
           this.emit('drop', { item: it, at: { x: m.x, y: m.y } });
@@ -1385,10 +1388,19 @@ export class WorldGame {
     if (!ok) return null;
     for (const [k, n] of Object.entries(r.mats)) this.s.mats[k] -= n;
     this.s.gold -= r.gold;
-    const it = this.makeKing(slot, G.setOf(setId).king, W.rollRarity(W.CRAFT_RAR_W, this.rng), setId);
+    const it = this.makeKing(slot, G.SLOT_KING[slot], W.rollRarity(W.CRAFT_RAR_W, this.rng), setId);
     this.emit('craft', { item: it });
     this.gainItem(it, true);
     return it;
+  }
+  // 강화석 만들기 — 후반 왕의 재료 40개로 그 왕의 강화석 하나 (v132)
+  canMakeStone(z, n = 1) { return !!G.STONES[z] && (this.s.mats[z] || 0) >= G.STONE_FROM_MATS * n; }
+  makeStone(z, n = 1) {
+    n = Math.min(n, Math.floor((this.s.mats[z] || 0) / G.STONE_FROM_MATS));
+    if (!G.STONES[z] || n <= 0) return 0;
+    this.s.mats[z] -= G.STONE_FROM_MATS * n;
+    this.addMats(G.stoneKey(z), n);
+    return n;
   }
   // 공용 장신구 — 아무 왕의 재료로
   kaccCheck(z, slot) {
@@ -1552,13 +1564,13 @@ export class WorldGame {
   enhanceCost(it) { return W.enhanceCost(it.ilv, it.plus || 0) * (W.isDropOnly(it.slot) ? W.ACC2_COST : 1); }
   // 강화 재료: 조합 장비는 그 지역 재료 (옛 장비·수련용은 은자만)
   enhanceMats(it) {
-    if (it.king != null) return { key: it.king, n: W.enhanceMatsN(it.plus || 0) };     // 왕의 장비: 그 왕의 재료
+    if (it.king != null) return { key: G.stoneFor(it), n: G.stoneN(it.plus || 0) };     // 왕의 장비: 후반 왕의 부위별 강화석 (v132)
     if (it.step == null) return null;
     return { key: W.stepMap(it.step), n: W.enhanceMatsN(it.plus || 0) };
   }
   // 조합·왕의 장비는 +10 위로 돌파(+15까지) — 두목 증표가 더 든다. 옛 장비·가락지·귀걸이는 +10까지.
   enhanceMax(it) { return (it?.step != null || it?.king != null) && !W.isDropOnly(it.slot) ? W.ENHANCE_MAX : W.ENHANCE_NORMAL; }
-  breakMarksOf(it) { return (it?.step != null || it?.king != null) && !W.isDropOnly(it.slot) ? W.breakMarks(it.plus || 0) : 0; }
+  breakMarksOf(it) { return it?.step != null && !W.isDropOnly(it.slot) ? W.breakMarks(it.plus || 0) : 0; }   // 왕의 장비는 강화석 수에 들어 있다
   enhanceRateOf(it) { return W.enhanceRate(it.plus || 0) * (W.isDropOnly(it.slot) ? W.ACC2_RATE : 1); }
   canEnhance(it) {
     if (!it || (it.plus || 0) >= this.enhanceMax(it) || this.s.gold < this.enhanceCost(it)) return false;
@@ -1692,14 +1704,14 @@ export class WorldGame {
   canPromote(it) {
     if (!it || (it.step == null && it.king == null) || (it.rar || 0) >= W.RARITY.length - 1) return false;
     const c = W.promoteCost(it);
-    return (this.s.mats[c.key] || 0) >= c.mats && (this.s.mats[W.bossKey(c.key)] || 0) >= c.marks && this.s.gold >= c.gold;
+    return (this.s.mats[c.key] || 0) >= c.mats && (!c.marks || (this.s.mats[W.bossKey(c.key)] || 0) >= c.marks) && this.s.gold >= c.gold;
   }
   promote(uid) {
     const it = this.findItem(uid);
     if (!this.canPromote(it)) return null;
     const c = W.promoteCost(it);
     this.s.mats[c.key] -= c.mats;
-    this.s.mats[W.bossKey(c.key)] -= c.marks;
+    if (c.marks) this.s.mats[W.bossKey(c.key)] -= c.marks;
     this.s.gold -= c.gold;
     it.rar = (it.rar || 0) + 1;
     it.grade = W.RARITY_GRADE[it.rar];
@@ -2228,5 +2240,6 @@ export class WorldGame {
     this.addMastery(W.mapOf(rw.map).zone, rw.kills);
     if (rw.mats) this.addMats(z, rw.mats + (rw.marks || 0) * W.BOSS_MATS);
     if (rw.marks) this.addMats(W.bossKey(z), rw.marks);
+    if (rw.marks && G.STONES[z]) this.addMats(G.stoneKey(z), rw.marks * G.STONE_PER_BOSS);   // 후반 왕 두목 구역이었다면 강화석도
   }
 }

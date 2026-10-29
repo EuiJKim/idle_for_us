@@ -1194,3 +1194,8 @@ details.lore p { margin: 4px 0 0; line-height: 1.5; }
 .set-bonus.on { color: #fff; }
 .set-bonus.on b { color: var(--sc); }
 .smith-seg { margin-bottom: 8px; }
+/* v132 세트 부위 왕 · 강화석 */
+.slot-kings { display: flex; gap: 4px; flex-wrap: wrap; }
+.slot-kings span { flex: 1; min-width: 60px; text-align: center; font-size: 11px; padding: 4px 0; border-radius: 6px; background: rgba(255, 255, 255, 0.05); color: var(--muted); }
+.slot-kings b { color: #fde68a; }
+.stone-row .name small { color: #f0abfc; }

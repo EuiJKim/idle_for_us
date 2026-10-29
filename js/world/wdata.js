@@ -4,7 +4,7 @@
 // **숫자는 보통 숫자다.** 레벨 150에서도 몹 체력이 몇십만이라 Big이 필요 없다.
 import { ZONES, JOBS, CLASS_SKILLS, RANKS } from '../data.js';
 import { areaMobs } from './wmobs.js';
-import { TRANSFORMS, setOf, SET_PIECE } from './wgear.js';
+import { TRANSFORMS, setOf, SET_PIECE, STONES, isStoneKey, promoteStones } from './wgear.js';
 
 export const SAVE_KEY = 'ifu-world-v1';
 export const LEVEL_MAX = 150;
@@ -385,8 +385,10 @@ export const MAT_COLORS = [null, '#86efac', '#fcd34d', '#bae6fd', '#f87171', '#a
   '#fca5a5', '#cbd5e1', '#a5b4fc', '#ef4444', '#4ade80', '#f9a8d4', '#a78bfa', '#c4b5fd', '#fda4af', '#fbbf24', '#e2e8f0', '#fef3c7'];
 // 두목 증표는 재료 주머니에 'b사냥터' 열쇠로 든다
 export const bossKey = (k) => `b${k}`;
-export const matName = (key) => (String(key)[0] === 'b' ? `${ZONES_W[+String(key).slice(1)]?.boss?.name || '두목'}의 증표` : MATS[key]);
-export const matColor = (key) => (String(key)[0] === 'b' ? (kingOf(+String(key).slice(1)) ? '#f43f5e' : '#fde68a') : MAT_COLORS[key]);
+// v132 강화석 'st21'~'st27' — '살왕의 명부 혼석'
+const stoneName = (key) => { const z = +String(key).slice(2); return `${kingOf(z)?.title || ''}의 ${STONES[z]?.name || '강화석'}`; };
+export const matName = (key) => (isStoneKey(key) ? stoneName(key) : String(key)[0] === 'b' ? `${ZONES_W[+String(key).slice(1)]?.boss?.name || '두목'}의 증표` : MATS[key]);
+export const matColor = (key) => (isStoneKey(key) ? '#f0abfc' : String(key)[0] === 'b' ? (kingOf(+String(key).slice(1)) ? '#f43f5e' : '#fde68a') : MAT_COLORS[key]);
 export const MAT_RATE = 0.5;          // 몹 하나가 재료 하나를 떨굴 확률
 export const BOSS_MATS = 12;          // 두목은 재료 한 움큼 + 증표 하나
 // v130: 사다리는 보통 지역 15곳에서 끝난다(장비 레벨 99까지). 십이지왕부터는 세트·왕의 장신구(wgear.js).
@@ -463,6 +465,8 @@ export const rollRarity = (w, rng) => {
 // 승급 비용: 그 장비 지역 재료 · 증표 · 은자
 export const promoteCost = (it) => {
   const r = (it.rar || 0) + 1;
+  // v132 왕의 장비: 검왕의 무형 검혼석 (증표 없음)
+  if (it.king != null) return { key: 'st27', mats: promoteStones(it.rar || 0), marks: 0, gold: Math.round((30 + 100 * 10) * 3 * r) };
   const k = it.king ?? stepMap(it.step);
   return { key: k, mats: 30 * r, marks: 2 * r, gold: Math.round((30 + craftLevel(k) * 10) * 3 * r) };
 };
