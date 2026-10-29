@@ -19,6 +19,96 @@ const MASK = ['168,85,247', '254,226,226', '59,7,100'];
 
 // ---------- 그림 ----------
 export const MAJON_FX = {
+  // ---- 4차 필살 공통 (v124) ----
+  // 먹띠 — 화면 위아래로 검은 띠가 들어왔다 나간다(영화처럼). 화면 좌표.
+  letterbox(v, ctx, e, k) {
+    ctx.globalCompositeOperation = 'source-over';
+    const p = 1 - k;
+    const open = Math.min(1, p * 6, k * 5);
+    const hh = v.h * 0.11 * open;
+    ctx.fillStyle = 'rgba(6,4,3,0.92)';
+    ctx.fillRect(-20, -20, v.w + 40, hh + 20);
+    ctx.fillRect(-20, v.h - hh, v.w + 40, hh + 20);
+    ctx.fillStyle = `rgba(${e.col},${0.9 * open})`;
+    ctx.fillRect(-20, hh, v.w + 40, 2);
+    ctx.fillRect(-20, v.h - hh - 2, v.w + 40, 2);
+  },
+  // 빛살 — 무인에게서 화면 끝까지 뻗는 빛줄기가 천천히 돌고, 화면이 그 빛깔로 물든다
+  rays(v, ctx, e, k) {
+    const x = v.heroX, y = v.groundY - 60;
+    const p = 1 - k;
+    const a = Math.min(1, p * 4, k * 2.5);
+    const R = Math.hypot(v.w, v.h);
+    const g = ctx.createRadialGradient(x, y, 0, x, y, R * 0.7);
+    g.addColorStop(0, `rgba(${e.col},${0.35 * a})`); g.addColorStop(1, `rgba(${e.col},0)`);
+    ctx.fillStyle = g; ctx.fillRect(-20, -20, v.w + 40, v.h + 40);
+    const n = e.n || 14;
+    ctx.translate(x, y);
+    ctx.rotate(p * (e.spin || 0.6));
+    for (let i = 0; i < n; i++) {
+      ctx.rotate((Math.PI * 2) / n);
+      const w = 0.05 + ((i * 37) % 5) * 0.012;
+      ctx.fillStyle = `rgba(${i % 3 ? e.col : '255,255,255'},${0.18 * a})`;
+      ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(R * Math.cos(-w), R * Math.sin(-w)); ctx.lineTo(R * Math.cos(w), R * Math.sin(w)); ctx.closePath(); ctx.fill();
+    }
+  },
+  // 큰 인장 — 발밑에 두 겹 원과 도는 글자(이름 글자를 둘레에 새긴다)
+  bigseal(v, ctx, e, k) {
+    const x = v.sx({ x: e.wx }), y = v.sy({ y: e.wy });
+    const p = 1 - k;
+    const a = Math.min(1, p * 5, k * 3);
+    const R = (e.r || 200) * (0.6 + 0.4 * Math.min(1, p * 3));
+    ctx.translate(x, y);
+    ctx.scale(1, v.squash);
+    ctx.rotate(p * 1.2);
+    ctx.strokeStyle = `rgba(${e.col},${0.9 * a})`;
+    ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.arc(0, 0, R, 0, Math.PI * 2); ctx.stroke();
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(0, 0, R * 0.82, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath(); ctx.arc(0, 0, R * 0.42, 0, Math.PI * 2); ctx.stroke();
+    // 팔괘처럼 나뉜 살
+    for (let i = 0; i < 8; i++) { const an = (i * Math.PI) / 4; ctx.beginPath(); ctx.moveTo(Math.cos(an) * R * 0.42, Math.sin(an) * R * 0.42); ctx.lineTo(Math.cos(an) * R * 0.82, Math.sin(an) * R * 0.82); ctx.stroke(); }
+    const txt = e.text || '';
+    ctx.fillStyle = `rgba(${e.col},${a})`;
+    ctx.font = `900 ${Math.round(R * 0.13)}px serif`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    for (let i = 0; i < 12; i++) {
+      const an = (i * Math.PI * 2) / 12;
+      ctx.save(); ctx.rotate(an); ctx.translate(0, -R * 0.91); ctx.fillText(txt[i % Math.max(1, txt.length)] || '', 0, 0); ctx.restore();
+    }
+  },
+  // 한복판 큰 글자 — 무공 이름이 붓으로 쾅 찍힌다
+  bigname(v, ctx, e, k) {
+    ctx.globalCompositeOperation = 'source-over';
+    const p = 1 - k;
+    const pop = p < 0.12 ? 1.6 - (p / 0.12) * 0.6 : 1;
+    const a = Math.min(1, k * 3);
+    const x = v.w / 2, y = v.h * 0.3;
+    ctx.translate(x, y);
+    ctx.scale(pop, pop);
+    ctx.font = `900 ${Math.round(Math.min(v.w / (e.text.length + 0.6), 90))}px "Yuji Syuku", "Nanum Brush Script", serif`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.lineWidth = 10; ctx.strokeStyle = `rgba(10,6,4,${0.85 * a})`; ctx.strokeText(e.text, 0, 0);
+    ctx.fillStyle = `rgba(${e.col},${a})`; ctx.fillText(e.text, 0, 0);
+    ctx.fillStyle = `rgba(255,255,255,${0.6 * a})`; ctx.fillText(e.text, -2, -2);
+    // 낙관
+    ctx.fillStyle = `rgba(185,28,28,${a})`;
+    ctx.fillRect(e.text.length * 26, 10, 26, 26);
+    ctx.fillStyle = `rgba(255,240,230,${a})`; ctx.font = '900 16px serif'; ctx.fillText('極', e.text.length * 26 + 13, 24);
+  },
+  // 꽃잎 폭풍 — 화면을 가로지르는 꽃잎 떼 (일화천섬)
+  petalstorm(v, ctx, e, k) {
+    const p = 1 - k;
+    for (let i = 0; i < 60; i++) {
+      const sd = (i * 97.13) % 1;
+      const yy = ((i * 53) % 100) / 100 * v.h;
+      const xx = ((sd + p * (1.2 + (i % 5) * 0.15)) % 1.2 - 0.1) * v.w;
+      ctx.save(); ctx.translate(xx, yy + Math.sin(p * 9 + i) * 14); ctx.rotate(p * 8 + i);
+      ctx.fillStyle = `rgba(${i % 4 ? '251,207,232' : '255,255,255'},${0.85 * Math.min(1, k * 3)})`;
+      ctx.beginPath(); ctx.ellipse(0, 0, 7, 3.6, 0, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+    }
+  },
   // 꽃 한 송이가 피어난다 — 다섯 잎이 돌며 벌어지고 가운데가 번쩍인다 (세워서 그린다)
   bloom(v, ctx, e, k) {
     const x = v.sx({ x: e.wx });
@@ -185,92 +275,152 @@ export const MAJON_FX = {
 // d.to = 무인 자리 · d.target = 첫 과녁 · d.center = 광역이 떨어지는 자리 · d.hits = 붙든 숫자들
 const hitsOr = (d, n = 8) => (d.hits.length ? d.hits.slice(0, n).map((h) => h.at) : [d.target]);
 
+// 4차 필살 공통 (v124): 먹띠 · 빛살 · 발밑 큰 인장 · 화면 한복판 큰 이름 · 화면이 잠깐 어두워진다(무인과 빛만 산다)
+function ultimate(d, col, text, dur) {
+  const v = d.v;
+  if (d.lvl <= 0) { d.hanja(d.name, 1); return; }
+  d.fx('letterbox', dur, { col });
+  d.fx('rays', dur * 0.9, { col, n: d.lvl >= 2 ? 18 : 10, spin: 0.8 });
+  d.fx('bigseal', dur, { wx: d.to.x, wy: d.to.y, r: 230, col, text });
+  d.at(0.18, () => d.fx('bigname', Math.min(1.4, dur * 0.8), { text, col }));
+  v.desatTo = 0.55;
+  v.camHold = Math.max(v.camHold || 0, 0.25);
+  d.at(dur * 0.85, () => { v.desatTo = 0; });
+}
+
 export const MAJON_CHOREO = {
-  // ===== 4차 (v123) =====
-  // 일화검존 일화천섬 — 사라졌다가 적 사이를 번개처럼 오가며 벤다. 지나간 자리마다 꽃 한 송이.
+  // ===== 4차 필살 (v124: 더 화려하게) =====
+  // 일화검존 일화천섬 — 먹띠가 내려앉고 꽃잎 폭풍이 화면을 쓸면, 사라진 무인이 적 사이를 번개처럼 오가며 벤다.
+  //   벤 자리를 잇는 빛줄이 남고, 마지막에 큰 꽃이 터진다.
   'sword:m4'(d) {
     const v = d.v;
     const c = COL.sword;
     const list = d.hits.slice();
     const gap = 0.06;
+    const end = 0.45 + list.length * gap;
+    ultimate(d, PLUM, '一花千閃', end + 0.6);
     d.mark('기수식');
-    d.pose([[0, '발도준비', 'out'], [0.1, '순보', 'step'], [0.12 + list.length * gap, '순보'], [0.2 + list.length * gap, '일섬', 'snap'], [0.6 + list.length * gap, '납도', 'inout']], 0.3);
-    d.at(0.08, () => { d.mark('시전'); d.fx('speedlines', 0.4 + list.length * gap, { col: c[1], seed: Math.random() * 6 }); });
-    list.forEach((h, i) => d.at(0.12 + i * gap, () => {
-      d.ghost(h.at.x - 26 * (i % 2 ? 1 : -1), h.at.y + 6, '일섬', 0.3, { a0: 0.7, tint: PLUM, flip: i % 2 === 0 });
-      d.fx('cutline', 0.3, { wx: h.at.x, wy: h.at.y, a: 0.4 + i * 0.9 });
-      d.fx('bloom', 0.6, { wx: h.at.x, wy: h.at.y, r: 26, col: PLUM, oy: -55 });
+    d.pose([[0, '발도준비', 'out'], [0.3, '발도준비'], [0.35, '순보', 'step'], [0.37 + list.length * gap, '순보'], [end, '일섬', 'snap'], [end + 0.45, '납도', 'inout']], 0.3);
+    d.at(0.1, () => d.fx('petalstorm', end + 0.6, {}));
+    d.at(0.33, () => { d.mark('시전'); d.fx('speedlines', 0.3 + list.length * gap, { col: c[1], seed: Math.random() * 6 }); });
+    let prev = d.to;
+    list.forEach((h, i) => d.at(0.37 + i * gap, () => {
+      d.fx('skyline', 0.5, { wx: prev.x, wy: prev.y, a: Math.atan2((h.at.y - prev.y) * v.squash, h.at.x - prev.x), len: Math.hypot(h.at.x - prev.x, (h.at.y - prev.y) * v.squash), oy: -50 });
+      prev = h.at;
+      d.ghost(h.at.x - 26 * (i % 2 ? 1 : -1), h.at.y + 6, '일섬', 0.35, { a0: 0.8, tint: PLUM, flip: i % 2 === 0 });
+      d.fx('cutline', 0.35, { wx: h.at.x, wy: h.at.y, a: 0.4 + i * 0.9 });
+      d.fx('bloom', 0.7, { wx: h.at.x, wy: h.at.y, r: 34, col: PLUM, oy: -55 });
       d.releaseHit(h);
-      v.shake = Math.max(v.shake, 0.08);
+      v.shake = Math.max(v.shake, 0.1);
     }));
-    const end = 0.2 + list.length * gap;
-    d.at(end, () => { d.mark('적중'); d.release(); d.hanja(d.name, 1); impact(d, d.to, 160, c, { flare: true, sparks: 10, col: PLUM }); });
-    d.at(end + 0.4, () => d.mark('여운'));
-    d.at(end + 0.7, () => { d.end(); d.mark(''); });
-  },
-  // 불패권마 투신강림 — 권갑 투신이 깨어난다: 금빛 몸, 하늘에서 내려오는 투신의 주먹 그림자
-  'fist:m4'(d) {
-    const c = [GOLD, '255,251,235', '120,53,15'];
-    buffBeats(d, c, [[0.05, '마보', 'out'], [0.45, '마보'], [0.55, '정권', 'snap'], [0.85, '마무리', 'inout']], () => {
-      d.fx('goldbody', 3.0, {});
-      d.fx('fistimg', 0.4, { wx0: d.to.x, wy0: d.to.y - 260, oy0: -60, wx1: d.to.x, wy1: d.to.y, oy1: -40, size: 110, col: GOLD, hot: '255,251,235', go: 0.3, drop: true });
-      d.fx('shock', 0.8, { wx: d.to.x, wy: d.to.y, r: 240, col: GOLD, rings: 3, w: 7 });
-      d.fx('crack', 1.2, { wx: d.to.x, wy: d.to.y, r: 200, col: c[1], seed: Math.random() * 99, n: 10 });
-      d.v.shake = Math.max(d.v.shake, 0.4);
+    d.at(end, () => {
+      d.mark('적중'); d.release();
+      d.fx('bloom', 1.1, { wx: d.to.x, wy: d.to.y, r: 130, n: 8, col: '244,114,182', oy: -80, spin: 2 });
+      impact(d, d.to, 260, c, { rings: 3, flare: true, sparks: 18, col: PLUM });
+      v.flash = Math.max(v.flash, 0.5); v.shake = Math.max(v.shake, 0.45);
     });
+    d.at(end + 0.5, () => d.mark('여운'));
+    d.at(end + 0.85, () => { d.end(); d.mark(''); });
   },
-  // 독왕 만독지옥 — 하늘이 초록으로 물들고, 사냥터 전체에 독비가 쏟아지며 해골이 떠오른다
+  // 불패권마 투신강림 — 금빛 빛살 속에 권갑 투신이 깨어난다: 하늘에서 거대한 주먹 여섯이 꽂히고 땅이 갈라진다
+  'fist:m4'(d) {
+    const v = d.v;
+    const c = [GOLD, '255,251,235', '120,53,15'];
+    ultimate(d, GOLD, '鬪神降臨', 1.9);
+    d.mark('기수식');
+    d.pose([[0, '마보', 'out'], [0.45, '마보'], [0.55, '진각', 'snap'], [0.9, '정권', 'snap'], [1.3, '마무리', 'inout']], 0.3);
+    d.fx('motes', 0.6, { n: 24, face: d.face, r: 120, dx: 0, dy: -52, col: GOLD, seeds: rnd(24) });
+    d.at(0.5, () => {
+      d.mark('시전');
+      d.fx('goldbody', 3.4, {});
+      d.fx('skybeam', 1.0, { wx: d.to.x, wy: d.to.y, oy: -40, col: GOLD });
+      v.flash = Math.max(v.flash, 0.45);
+    });
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * Math.PI * 2 + 0.3;
+      const at = { x: d.to.x + Math.cos(a) * 150, y: d.to.y + Math.sin(a) * 80 };
+      d.at(0.6 + i * 0.08, () => {
+        d.fx('fistimg', 0.32, { wx0: at.x, wy0: at.y - 300, oy0: -60, wx1: at.x, wy1: at.y, oy1: -30, size: 86, col: GOLD, hot: c[1], go: 0.22, drop: true });
+        d.at(0.82 + i * 0.08, () => { d.fx('shock', 0.5, { wx: at.x, wy: at.y, r: 90, col: GOLD, rings: 2, w: 6 }); d.fx('crack', 1.0, { wx: at.x, wy: at.y, r: 80, col: c[1], seed: Math.random() * 99, n: 6 }); v.shake = Math.max(v.shake, 0.22); });
+      });
+    }
+    d.at(1.2, () => {
+      d.mark('적중'); d.release();
+      d.fx('fistimg', 0.4, { wx0: d.to.x, wy0: d.to.y - 320, oy0: -60, wx1: d.to.x, wy1: d.to.y, oy1: -40, size: 150, col: GOLD, hot: c[1], go: 0.25, drop: true });
+      d.at(1.45, () => { impact(d, d.to, 300, c, { rings: 3, crack: true, sparks: 22 }); v.flash = Math.max(v.flash, 0.6); v.shake = Math.max(v.shake, 0.55); });
+    });
+    d.at(1.6, () => d.mark('여운'));
+    d.at(1.95, () => { d.end(); d.mark(''); });
+  },
+  // 독왕 만독지옥 — 하늘이 독빛으로 물들고 독비가 사냥터를 덮는다. 독사가 적들을 꿰고, 해골이 줄지어 떠오른다.
   'poison:m4'(d) {
-    beats(d, [[0, '흩뿌리기', 'out'], [0.4, '흩뿌리기'], [0.5, '땅짚기', 'snap'], [1.3, '마무리', 'inout']], {
-      cast: 0.1, hit: 0.9, end: 1.7, shake: 0.35,
+    const v = d.v;
+    ultimate(d, GREEN[0], '萬毒地獄', 2.0);
+    beats(d, [[0, '흩뿌리기', 'out'], [0.5, '흩뿌리기'], [0.6, '땅짚기', 'snap'], [1.5, '마무리', 'inout']], {
+      cast: 0.15, hit: 1.05, end: 2.0, shake: 0.4, name: false,
       onCast: () => {
-        d.fx('miasma', 1.8, { now: 0, v: 3 });
-        const spots = hitsOr(d, 14);
-        for (const [i, at] of spots.entries()) d.at(0.15 + i * 0.04, () => d.fx('rainfall', 1.0, { wx: at.x, wy: at.y, r: 120, v: 3 }));
-        d.fx('sigil', 1.6, { wx: d.to.x, wy: d.to.y, r: 380, col: GREEN[0], n: 32, spin: 1 });
+        d.fx('miasma', 2.0, { now: 0, v: 3 });
+        d.fx('sigil', 1.9, { wx: d.to.x, wy: d.to.y, r: 420, col: GREEN[0], n: 36, spin: 1 });
+        const spots = hitsOr(d, 18);
+        for (const [i, at] of spots.entries()) d.at(0.2 + i * 0.035, () => d.fx('rainfall', 1.1, { wx: at.x, wy: at.y, r: 140, v: 3 }));
+        const pts = hitsOr(d, 8).map((at) => ({ x: at.x, y: at.y }));
+        if (pts.length > 1) d.at(0.5, () => d.fx('serpent', 1.1, { pts: [{ x: d.to.x, y: d.to.y }, ...pts], go: 0.85, v: 3, body: 12 }));
+        d.at(0.45, () => d.lob('pglob', 0.4, d.target, { fly: 0.38, size: 16, h: 160 }));
       },
       onHit: () => {
-        for (const at of hitsOr(d, 10)) d.burst(at, 70, { puddle: 0.8, drops: 6 });
-        d.skulls(d.hits, 6);
+        for (const at of hitsOr(d, 14)) d.burst(at, 90, { puddle: 1.2, drops: 8 });
+        d.skulls(d.hits, 8);
+        d.fx('skull', 1.2, { wx: d.to.x, wy: d.to.y, oy: -200, size: 40, v: 3 });
+        v.flash = Math.max(v.flash, 0.4);
       },
     });
   },
-  // 극악소마 삼공합일 — 가면이 크게 웃고, 핏빛 지풍·장력·비수가 한꺼번에
+  // 극악소마 삼공합일 — 핏빛 빛살 속 거대한 웃는 가면. 지풍이 꿰고, 장력이 휩쓸고, 비수 스물넷이 쏟아진다.
   'ring:m4'(d) {
+    const v = d.v;
     const c = [BLOOD, '254,226,226', '69,10,10'];
-    beats(d, [[0, '지법겨눔', 'out'], [0.25, '손가락튕김', 'snap'], [0.45, '쌍장', 'snap'], [0.65, '흩뿌리기', 'snap'], [1.1, '마무리', 'inout']], {
-      cast: 0.05, hit: 0.7, end: 1.4, shake: 0.35,
+    ultimate(d, BLOOD, '三功合一', 1.8);
+    beats(d, [[0, '지법겨눔', 'out'], [0.3, '손가락튕김', 'snap'], [0.55, '쌍장', 'snap'], [0.8, '흩뿌리기', 'snap'], [1.3, '마무리', 'inout']], {
+      cast: 0.05, hit: 0.95, end: 1.8, shake: 0.45, name: false,
       onCast: () => {
-        d.fx('mask', 1.4, { oy: -180, size: 44 });
-        d.at(0.25, () => d.fx('lance', 0.3, { wx: d.to.x, wy: d.to.y, a: Math.atan2((d.target.y - d.to.y) * d.v.squash, d.target.x - d.to.x), len: Math.hypot(d.target.x - d.to.x, (d.target.y - d.to.y) * d.v.squash) + 40, w: 5, col: BLOOD, oy: -62 }));
-        d.at(0.45, () => d.fx('shock', 0.6, { wx: d.to.x, wy: d.to.y, r: 260, col: MASK[0], rings: 3, w: 7 }));
-        const tg = hitsOr(d, 8);
-        for (let i = 0; i < 12; i++) {
+        d.fx('mask', 1.7, { oy: -200, size: 60 });
+        d.fx('tears', 1.6, { wx: d.to.x, wy: d.to.y, r: 260, seeds: rnd(30) });
+        d.at(0.3, () => {
+          for (const at of hitsOr(d, 5)) d.fx('lance', 0.35, { wx: d.to.x, wy: d.to.y, a: Math.atan2((at.y - d.to.y) * v.squash, at.x - d.to.x), len: Math.hypot(at.x - d.to.x, (at.y - d.to.y) * v.squash) + 30, w: 5, col: BLOOD, oy: -62 });
+          v.flash = Math.max(v.flash, 0.3);
+        });
+        d.at(0.55, () => { d.fx('shock', 0.7, { wx: d.to.x, wy: d.to.y, r: 320, col: MASK[0], rings: 3, w: 8 }); d.fx('crack', 1.2, { wx: d.to.x, wy: d.to.y, r: 240, col: c[1], seed: Math.random() * 99, n: 10 }); v.shake = Math.max(v.shake, 0.35); });
+        const tg = hitsOr(d, 10);
+        for (let i = 0; i < 24; i++) {
           const at = tg[i % tg.length];
-          d.at(0.6 + i * 0.03, () => d.fx('dagger', 0.3, { wx0: d.to.x, wy0: d.to.y, ox0: 14 * d.face, oy0: -66, wx1: at.x, wy1: at.y, h: 30 + (i % 4) * 20, go: 0.22, spin: i % 2 ? 1 : -1, col: i % 3 ? MASK[0] : BLOOD }));
+          d.at(0.75 + i * 0.022, () => d.fx('dagger', 0.3, { wx0: d.to.x, wy0: d.to.y, ox0: 14 * d.face, oy0: -66, wx1: at.x + ((i * 13) % 30) - 15, wy1: at.y, h: 30 + (i % 5) * 22, go: 0.22, spin: i % 2 ? 1 : -1, col: i % 3 ? MASK[0] : BLOOD }));
         }
+        for (const at of tg.slice(0, 6)) d.at(1.0, () => d.fx('mask', 0.7, { wx: at.x, wy: at.y, oy: -110, size: 14 }));
       },
-      onHit: () => impact(d, d.target, 200, c, { rings: 3, crack: true, sparks: 16 }),
+      onHit: () => { impact(d, d.target, 240, c, { rings: 3, crack: true, sparks: 20 }); v.flash = Math.max(v.flash, 0.5); },
     });
   },
-  // ===== 4차 (v121) =====
-  // 섭혼마존 환영분신술 — 술법진에서 보랏빛 분신 셋이 솟아 둘레를 한 번씩 휩쓴다
+  // 섭혼마존 환영분신술 — 보랏빛 빛살, 거꾸로 도는 시공의 인장, 분신 둘이 솟아 사방을 휩쓴다
   'fan:m4'(d) {
+    const v = d.v;
     const c = [SOUL, '254,226,226', '59,7,100'];
     const R = d.radius || 280;
-    beats(d, [[0, '기모으기', 'out'], [0.35, '기모으기'], [0.45, '펼치기', 'snap'], [0.95, '마무리', 'inout']], {
-      cast: 0.1, hit: 0.55, end: 1.25, shake: 0.25,
+    ultimate(d, SOUL, '幻影分身', 1.6);
+    beats(d, [[0, '기모으기', 'out'], [0.45, '기모으기'], [0.55, '펼치기', 'snap'], [1.1, '마무리', 'inout']], {
+      cast: 0.1, hit: 0.75, end: 1.6, shake: 0.3, name: false,
       onCast: () => {
-        d.fx('sigil', 1.2, { wx: d.to.x, wy: d.to.y, r: R, col: SOUL, n: 18, spin: 2 });
-        const off = [[-1, -0.4], [1, -0.4], [0, -0.9]];
-        off.forEach(([ox, oy], i) => d.at(0.15 + i * 0.12, () => {
-          d.ghost(d.to.x + ox * 60, d.to.y + oy * 60, '펼치기', 0.7, { a0: 0.7, tint: SOUL });
-          d.fx('flare', 0.3, { wx: d.to.x + ox * 60, wy: d.to.y + oy * 60, r: 50, col: SOUL });
+        d.fx('sigil', 1.5, { wx: d.to.x, wy: d.to.y, r: R * 1.2, col: SOUL, n: 22, spin: -2 });
+        const off = [[-1, -0.4], [1, -0.4], [-0.6, 0.6], [0.6, 0.6]];
+        off.forEach(([ox, oy], i) => d.at(0.2 + i * 0.1, () => {
+          d.ghost(d.to.x + ox * 70, d.to.y + oy * 60, i % 2 ? '휘두르기' : '펼치기', 0.9, { a0: 0.75, tint: i % 2 ? BLOOD : SOUL });
+          d.fx('flare', 0.35, { wx: d.to.x + ox * 70, wy: d.to.y + oy * 60, r: 60, col: SOUL });
+          d.fx('qiorb', 0.5, { pts: [{ x: d.to.x, y: d.to.y, oy: -55 }, { x: d.to.x + ox * 70, y: d.to.y + oy * 60, oy: -50 }], go: 0.9, col: SOUL, size: 7, hop: 16 });
         }));
       },
       onHit: () => {
-        impact(d, d.to, R, c, { rings: 3, sparks: 14 });
-        for (const at of hitsOr(d, 8)) d.fx('eye', 0.6, { wx: at.x, wy: at.y, r: 12, oy: -105 });
+        impact(d, d.to, R * 1.1, c, { rings: 3, sparks: 18 });
+        for (const at of hitsOr(d, 10)) d.fx('eye', 0.8, { wx: at.x, wy: at.y, r: 14, oy: -105 });
+        v.flash = Math.max(v.flash, 0.4);
       },
     });
   },
