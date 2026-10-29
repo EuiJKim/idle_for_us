@@ -115,6 +115,8 @@ export function bodyKey(look) {
 }
 export function weaponKey(w, look) {
   if (look?.outfitWeapon != null && OUTFIT_WEAPON[look.outfitWeapon]) return OUTFIT_WEAPON[look.outfitWeapon];
+  // 권갑 그림(wp-fist)은 주먹 위로 붉은 칼날이 솟아 있어 칼을 든 것처럼 보였다 — 권갑은 벡터로 그린다(v121)
+  if (w === 'fist') return null;
   return WEAPONS.includes(w) ? `wp-${w}` : null;
 }
 

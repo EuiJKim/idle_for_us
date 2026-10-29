@@ -2743,8 +2743,33 @@ export function drawFighter(ctx, x, y, look = {}, o = {}) {
       if (isFront !== front) continue;
       ctx.save();
       ctx.translate(Math.cos(a) * 38, -60 + Math.sin(a) * 10);
-      ctx.rotate(Math.PI / 2 + Math.sin(t * 2 + i) * 0.1);
-      drawJian(ctx, 0, 0, look.aura || '#e0f2fe', true, 0.7);
+      // 도는 장식은 직업의 무기 — 권마는 금빛 주먹, 환마 부채, 독마 독침, 극악소마 지환, 검사 칼 (v121: 다 칼이라 권마가 칼을 든 것처럼 보였다)
+      const ow = o.orbit || weapon;
+      const col = look.aura || '#e0f2fe';
+      if (ow === 'fist') {
+        const g = ctx.createRadialGradient(0, 0, 0, 0, 0, 11);
+        g.addColorStop(0, 'rgba(255,251,235,0.95)'); g.addColorStop(0.5, hexA(col, 0.75)); g.addColorStop(1, hexA(col, 0));
+        ctx.fillStyle = g; circle(ctx, 0, 0, 11);
+        ctx.fillStyle = '#fbbf24'; ctx.strokeStyle = '#78350f'; ctx.lineWidth = 1.2;
+        roundRect(ctx, -5, -4.5, 10, 9, 3); ctx.fill(); ctx.stroke();
+        ctx.beginPath(); for (let k = -1; k <= 1; k++) { ctx.moveTo(-5, k * 2.6); ctx.lineTo(-1.5, k * 2.6); } ctx.stroke();
+      } else if (ow === 'fan') {
+        ctx.rotate(Math.sin(t * 2 + i) * 0.3);
+        ctx.fillStyle = hexA(col, 0.85); ctx.strokeStyle = '#1e1b4b'; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(0, 6); ctx.arc(0, 6, 13, -Math.PI * 0.85, -Math.PI * 0.15); ctx.closePath(); ctx.fill(); ctx.stroke();
+        for (let k = 0; k < 5; k++) { const aa = -Math.PI * 0.85 + (k + 0.5) * (Math.PI * 0.7 / 5); ctx.beginPath(); ctx.moveTo(0, 6); ctx.lineTo(Math.cos(aa) * 13, 6 + Math.sin(aa) * 13); ctx.stroke(); }
+      } else if (ow === 'dagger') {
+        ctx.rotate(Math.PI / 2 + t * 3 + i);
+        ctx.fillStyle = '#bef264'; ctx.beginPath(); ctx.moveTo(0, -12); ctx.lineTo(2, 4); ctx.lineTo(-2, 4); ctx.closePath(); ctx.fill();
+        ctx.fillStyle = hexA('#22c55e', 0.7); circle(ctx, 0, 6, 3);
+      } else if (ow === 'claw') {
+        ctx.strokeStyle = hexA(col, 0.95); ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.arc(0, 0, 6.5, 0, Math.PI * 2); ctx.stroke();
+        ctx.fillStyle = '#f0abfc'; circle(ctx, 0, -6.5, 2.4);
+      } else {
+        ctx.rotate(Math.PI / 2 + Math.sin(t * 2 + i) * 0.1);
+        drawJian(ctx, 0, 0, col, true, 0.7);
+      }
       ctx.restore();
     }
   };
@@ -3064,10 +3089,23 @@ function drawWeapon(ctx, weapon, o, t, lunge) {
       ctx.fillStyle = '#3f2a1a'; ctx.fillRect(-2, -2, 4, 8);
       ctx.fillStyle = blade; ctx.beginPath(); ctx.moveTo(-3, -2); ctx.lineTo(0, -20); ctx.lineTo(3, -2); ctx.fill();
       break;
-    case 'fist':
-      ctx.fillStyle = 'rgba(0,0,0,0.15)'; circle(ctx, 0, 0, 6);
-      if (lunge > 0.3) { ctx.strokeStyle = `rgba(255,255,255,${lunge * 0.6})`; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(0, -8, 10, -2.5, -0.6); ctx.stroke(); }
+    case 'fist': {
+      // 권갑 — 주먹을 감싼 쇠 장갑. 마디 위에 쇠 징 넷, 손목에 가죽 띠. 칼날은 없다(v121).
+      ctx.save();
+      ctx.scale(0.55, 0.55);
+      ctx.fillStyle = '#5b3a1e'; ctx.strokeStyle = '#1a1410'; ctx.lineWidth = 1.4;
+      roundRect(ctx, -5, 1, 10, 7, 2); ctx.fill(); ctx.stroke();                 // 손목 띠
+      ctx.fillStyle = '#8b5a2b';
+      roundRect(ctx, -6.5, -9, 13, 11, 4); ctx.fill(); ctx.stroke();             // 주먹
+      ctx.fillStyle = blade;
+      roundRect(ctx, -6.5, -10.5, 13, 4.5, 2); ctx.fill(); ctx.stroke();         // 쇠 덧판
+      ctx.fillStyle = '#fde68a';
+      for (let k = 0; k < 4; k++) circle(ctx, -4.8 + k * 3.2, -8.3, 1.1);       // 징
+      if (o.glow) { ctx.fillStyle = hexA(blade.startsWith('#') ? blade : '#fde68a', 0.35); circle(ctx, 0, -6, 9); }
+      ctx.restore();
+      if (lunge > 0.3) { ctx.strokeStyle = `rgba(255,255,255,${lunge * 0.6})`; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(0, -6, 9, -2.5, -0.6); ctx.stroke(); }
       break;
+    }
     case 'sword':
     default:
       ctx.save();
