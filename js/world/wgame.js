@@ -997,9 +997,11 @@ export class WorldGame {
     this.addExp(exp);
     this.note(1, exp, gold, 0);
     this.petExp(exp * 0.5);
-    // 탈것 — 아주 드물게 (두목은 조금 더)
-    const mr = m.isBoss ? W.mountBossRate(this.map.mz) : W.MOUNT_DROP_MOB;
-    if (this.rng() < mr) this.gainMount(W.rollMount(this.rng, this.map.mz, m.isBoss), m);
+    // 탈것 — **두목만** 떨군다. 졸개 드랍(0.005%)은 없앴다: 2만 마리에 하나라
+    // 사실상 없는 것인데 '어디서나 나온다'는 착각만 줬다.
+    if (m.isBoss && this.rng() < W.mountBossRate(this.map.mz)) {
+      this.gainMount(W.rollMount(this.rng, this.map.mz, true), m);
+    }
     if (!m.isBoss) this.respawns.push({ t: W.RESPAWN_SEC });
   }
 

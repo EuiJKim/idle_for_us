@@ -4,6 +4,9 @@ import { WorldGame, newWorldSave, migrateWorld } from '../js/world/wgame.js';
 import * as W from '../js/world/wdata.js';
 import * as D from '../js/data.js';
 import { fmt } from '../js/fmt.js';
+import fs from 'node:fs';
+// 코드를 글로도 본다 — 상수만 보고 넘기면 쓰는 쪽이 어긋나도 모른다
+const read = (f) => fs.readFileSync(new URL('../' + f, import.meta.url), 'utf-8');
 
 let fail = 0;
 const ok = (cond, label, extra = '') => {
@@ -514,10 +517,42 @@ console.log('\n=== 십이지왕 신화 · 가락지·귀걸이 · 애완동물 �
   const mtTop = (z, boss) => { let t = 0; for (let i = 0; i < 3000; i++) t = Math.max(t, W.mountOf(W.rollMount(rr, z, boss)).tier); return t; };
   ok(W.MOUNTS.filter((x) => !x.zodiac).length === 12 && W.MOUNTS.filter((x) => x.zodiac).length === 12 && mtTop(1, true) === 2 && mtTop(27, true) === 12,
     `탈것 열둘(+십이지 신수 열둘은 떨구지 않는다) — 죽림 두목은 노새까지 … 검왕은 청룡마까지`, W.MOUNTS.filter((x) => !x.zodiac).map((x) => x.name).join(' < '));
-  let md = 0;
-  const mm = fresh();
-  for (let i = 0; i < 200000; i++) if (mm.rng() < W.MOUNT_DROP_MOB) md++;
-  ok(md < 40, '졸개 탈것 드랍은 아주 드물다', `20만 마리에 ${md}`);
+  // v144: 탈것은 **두목만** 떨군다. 졸개 드랍(0.005%)은 없앴다 —
+  // 2만 마리에 하나라 사실상 없는 것인데 '어디서나 나온다'는 착각만 줬다.
+  ok(W.MOUNT_DROP_MOB === 0, '졸개는 탈것을 안 떨군다');
+  {
+    const src = read('js/world/wgame.js');
+    ok(/m\.isBoss && this\.rng\(\) < W\.mountBossRate/.test(src), '떨구는 쪽도 두목만 본다');
+  }
+  // 낮은 사냥터일수록 가파르게 낮다 — 곧은 금이면 어디를 쳐도 비슷하다
+  {
+    const r = (z) => W.mountBossRate(z);
+    const rise = [];
+    for (let z = 1; z < W.NORMAL_ZONES; z++) rise.push(r(z + 1) - r(z));
+    const steeper = rise.every((v, i) => !i || v >= rise[i - 1] - 1e-9);
+    ok(r(1) < r(8) && r(8) < r(15) && steeper, '뒤로 갈수록 더 가파르게 오른다',
+      `죽림 ${(r(1) * 100).toFixed(3)}% · 장강 ${(r(8) * 100).toFixed(2)}% · 천외천 ${(r(15) * 100).toFixed(2)}%`);
+    ok(r(1) < 0.0005 && r(W.ZONE_COUNT) > 0.05,
+      '죽림은 0.05%보다 낮고 검왕은 5%보다 높다',
+      `${(r(1) * 100).toFixed(3)}% → ${(r(W.ZONE_COUNT) * 100).toFixed(1)}%`);
+  }
+  // 실제로 두목에게서만 나오는가 — 상수만 보고 넘기면 쓰는 쪽이 어긋나도 모른다
+  {
+    const g2 = fresh();
+    g2.s.level = 150;
+    g2.enterMap(W.mapId(W.ZONE_COUNT, 4));
+    let mob = 0;
+    let boss = 0;
+    for (let i = 0; i < 4000; i++) {
+      const n0 = g2.s.mounts.length;
+      g2.killMob({ isBoss: false, x: 0, y: 0, alive: true, lv: 150, hp: 0, maxHp: 1 });
+      if (g2.s.mounts.length > n0) mob++;
+      const n1 = g2.s.mounts.length;
+      g2.killMob({ isBoss: true, x: 0, y: 0, alive: true, lv: 150, hp: 0, maxHp: 1 });
+      if (g2.s.mounts.length > n1) boss++;
+    }
+    ok(mob === 0 && boss > 100, '정말로 두목에게서만 나온다', `졸개 ${mob} · 두목 ${boss} (4000번)`);
+  }
 }
 
 console.log('\n=== 문파 버프 ===');

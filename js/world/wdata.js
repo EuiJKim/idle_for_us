@@ -715,8 +715,19 @@ export const MOUNTS = [
     .map(([id, nm, emoji], i) => ({ id, tier: 13, zodiac: i + 1, name: `십이지 ${nm}`, emoji, speed: +(0.45 + (i + 1) * 0.11).toFixed(2), stat: +(0.04 + (i + 1) * 0.017).toFixed(3) })),
 ];
 export const mountOf = (id) => MOUNTS.find((m) => m.id === id) || null;
-export const MOUNT_DROP_MOB = 0.00005; // 졸개 (2만 마리에 하나 꼴 — 하루 꼬박 사냥해 한두 번)
-export const mountBossRate = (z) => (z > NORMAL_ZONES ? 0.008 + (z - NORMAL_ZONES) * 0.0008 : 0.0005 + (z - 1) * 0.0003);  // 죽림 0.05% … 천외천 0.47% · 왕 0.9~1.8%
+// **졸개는 더 이상 안 떨군다.** 0.005%였다 — 2만 마리에 하나, 하루 꼬박
+// 사냥해 한두 번이다. 사실상 없는 것인데 '어디서나 나온다'는 착각만 줬다.
+// 탈것은 두목에게로 몬다.
+export const MOUNT_DROP_MOB = 0;
+// 모든 두목이 떨군다. 전에는 곧은 금(0.05% → 0.47%)이라 어디를 쳐도 비슷했다.
+// 제곱으로 휘어 **낮은 사냥터는 더 귀하고, 뒤로 갈수록 확실히 는다.**
+//   죽림 0.02% · 장강 0.28% · 천외천 1.2% · 권왕 2% … 검왕 6.4%
+export const MOUNT_BOSS_MIN = 0.0002;
+export const MOUNT_BOSS_MAX = 0.012;
+export const MOUNT_BOSS_BEND = 2.2;
+export const mountBossRate = (z) => (z > NORMAL_ZONES
+  ? 0.02 + (z - NORMAL_ZONES - 1) * 0.004
+  : MOUNT_BOSS_MIN + (MOUNT_BOSS_MAX - MOUNT_BOSS_MIN) * ((z - 1) / (NORMAL_ZONES - 1)) ** MOUNT_BOSS_BEND);
 export const mountMaxTier = (z) => (z > NORMAL_ZONES ? Math.min(12, 10 + Math.floor((z - NORMAL_ZONES - 1) / 5)) : Math.min(10, 2 + Math.floor((z - 1) / 2)));
 export const rollMount = (rng, z, boss) => {
   // 졸개는 한 칸 아래까지, 두목은 그 지역 끝까지 — 아래 것이 더 잘 (한 칸 위마다 ×0.6)
