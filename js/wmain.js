@@ -474,12 +474,16 @@ function handleEvents() {
         sfx('loot');
         break;
       case 'heroDied':
-        if (!ev.inst) toast(`쓰러졌어요… 경험치 ${fmt(ev.loss)}을 잃고 마을로 돌아가요`);
+        if (!ev.inst) toast(`쓰러졌어요… 경험치 ${fmt(ev.loss)}을 잃고 마을로 돌아가요${ev.retreat ? ` — 너무 센 곳이라 다음엔 ${ev.retreat}(으)로 나가요` : ''}`);
         break;
       // 길잡이 한 단계 — 띠로 알린다(받았다는 글은 누른 자리에서 띄운다)
       case 'quest':
         view.showBanner(`길잡이 ✓ ${ev.title}`, '#bbf7d0', 1.8, '길잡이');
         sfx('loot');
+        break;
+      // 길잡이 선물 (v146) — 해 봐야 하는 것을 그 단계가 뜰 때 준다
+      case 'questGift':
+        toast(`🎁 길잡이 선물: ${ev.what} — ${ev.title}`);
         break;
       case 'advance': {
         view.showBanner(`${ev.tier}차 전직 · ${game.tierName()}`, '#fde68a', 2.4, '전직');
@@ -540,7 +544,7 @@ $('quest').addEventListener('click', () => {
   if (!cur.done) {
     // 던전은 지도 창 안의 칸이다
     if (cur.q.tab === 'dgn') showTab('map', 'dgn');
-    else showTab(cur.q.tab);
+    else if (cur.q.tab) showTab(cur.q.tab);
     toast(cur.q.why);
     return;
   }

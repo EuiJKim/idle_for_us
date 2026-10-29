@@ -63,6 +63,9 @@ export function newWorldSave(now = Date.now()) {
     mast: {},                                // 지역 숙련도 (v127) — 지역 번호: 잡은 수
     raid: { day: '', n: 0, dps: 0 },         // 문파 토벌 (v128): 오늘 친 횟수 · 마지막 초당 피해
     quest: 0,                                // 길잡이 (v139): 받은 단계 수 — 지금 할 일은 QUESTS[quest]
+    questV: Q.QUEST_V,                       // 길잡이 판 (v146에 다시 짰다)
+    questGift: -1,                           // 선물을 준 단계 (한 단계에 한 번)
+    did: {},                                 // 해 본 것 (길잡이가 본다): move·craft·boss·sweep·zodiac …
     created: now,
   };
 }
@@ -126,6 +129,8 @@ export function migrateWorld(raw, now = Date.now()) {
   s.tower = { floor: clamp(Math.floor(Number(tw.floor) || 0), 0, D.TOWER_MAX), auto: tw.auto !== false };
   s.dgn.auto = !!s.dgn.auto;
   s.quest = clamp(Math.floor(Number(s.quest) || 0), 0, Q.QUEST_COUNT);
+  s.did = raw.did && typeof raw.did === 'object' ? { ...raw.did } : {};
+  s.questGift = Number.isInteger(raw.questGift) ? raw.questGift : -1;
   const rd = raw.raid && typeof raw.raid === 'object' ? raw.raid : {};
   s.raid = { day: typeof rd.day === 'string' ? rd.day : '', n: clamp(Math.floor(Number(rd.n) || 0), 0, D.RAID_PER_DAY), dps: Math.max(0, Number(rd.dps) || 0) };
   s.mast = {};
@@ -379,10 +384,21 @@ export class WorldGame {
   power() { return this.stats().power; }
 
   // ---------- 지도 ----------
+  // v146: 레벨과 상관없이 어디든 들어간다 — 센 곳에서 빨리 크고 싶은 사람을 막지 않는다.
+  // 대신 화면에 '위험'을 띄우고(danger), 방치 중 거기서 쓰러지면 알맞은 사냥터로 물러난다(heroDied).
   canEnter(id) {
-    if (!W.hasMap(id)) return false;
+    return W.hasMap(id);
+  }
+  // 몹 레벨이 내 레벨보다 이만큼 위면 위험 (0 이하면 안전)
+  danger(id) {
     const m = W.mapOf(id);
-    return m.town || this.s.level >= m.lv[0];
+    return m.town ? 0 : m.lv[0] - this.s.level;
+  }
+  // 내 레벨에 알맞은 가장 높은 일반 구역 (물러날 곳)
+  safeMap() {
+    let best = W.mapId(1, 1);
+    for (const m of W.MAPS) if (!m.town && !m.bossRoom && !m.king && m.lv[0] <= this.s.level && m.lv[0] >= W.mapOf(best).lv[0]) best = m.id;
+    return best;
   }
   enterMap(id, quiet = false) {
     if (!this.canEnter(id)) return false;
@@ -759,6 +775,7 @@ export class WorldGame {
       const tries = Math.abs(dx) >= Math.abs(dy) ? [[sx, 0], [0, sy]] : [[0, sy], [sx, 0]];
       let moved = false;
       for (const [a, b] of tries) { if ((a || b) && this.stepTo({ c: this.hc + a, r: this.hr + b })) { moved = true; break; } }
+      if (moved && !this.s.did?.move) this.mark('move');
       if (!moved) this.walking = false;
       this.manualHold = 0.8;
       return;
@@ -1024,7 +1041,13 @@ export class WorldGame {
     this.s.deaths++;
     const loss = Math.floor(this.s.exp * W.DEATH_EXP_LOSS);
     this.s.exp -= loss;
-    this.emit('heroDied', { boss: !!by?.isBoss, loss });
+    // 레벨보다 한참 센 곳에서 쓰러지면 돌아갈 곳을 알맞은 사냥터로 바꾼다 — 방치하다 같은 자리에서 계속 쓰러지지 않게
+    let retreat = null;
+    if (this.danger(this.map.id) > W.DANGER_LV && this.s.autoHunt) {
+      this.s.huntMap = this.safeMap();
+      retreat = W.mapOf(this.s.huntMap).name;
+    }
+    this.emit('heroDied', { boss: !!by?.isBoss, loss, retreat });
     this.heroHp = 1;
     this.goTown(true);
   }
@@ -1973,15 +1996,14 @@ export class WorldGame {
   dailyLeft(kind, now = Date.now()) { return Math.max(0, D.DAILY_ENTRIES - (this.dgnToday(now).used[kind] || 0)); }
   dailyBest(kind) { return this.s.dgn.best[kind] || 0; }
   // 고를 수 있는 가장 높은 단계: 깬 단계 + 1 (레벨이 닿는 데까지)
+  // 깬 단계 다음까지 — 레벨은 안 본다(v146). 단계는 하나씩 깨며 오른다.
   dailyMaxStage(kind) {
-    let st = Math.min(D.DAILY_STAGES, this.dailyBest(kind) + 1);
-    while (st > 1 && this.s.level < D.dailyNeed(st)) st--;
-    return st;
+    return Math.min(D.DAILY_STAGES, this.dailyBest(kind) + 1);
   }
   canDaily(kind, stage, now = Date.now()) {
     const d = D.dailyOf(kind);
     return !!d && !!this.s.job && !this.inst && D.dailyOpen(d, now) && this.dailyLeft(kind, now) > 0
-      && stage >= 1 && stage <= this.dailyMaxStage(kind) && this.s.level >= D.dailyNeed(stage);
+      && stage >= 1 && stage <= this.dailyMaxStage(kind);
   }
   startDaily(kind, stage, now = Date.now()) {
     if (!this.canDaily(kind, stage, now)) return false;
@@ -1995,14 +2017,55 @@ export class WorldGame {
   // **띄우는 건 늘 하나다.** 열 몇 가지가 한꺼번에 열려 있어서, 목록을 더
   // 보여 주면 더 헷갈린다. 끝내면 다음 하나가 나온다.
   questNow() {
+    // v146: 길잡이를 다시 짰다 — 옛 세이브는 이미 해 둔 단계를 보상 없이 건너 지금 할 일부터
+    if ((this.s.questV || 1) < Q.QUEST_V) {
+      this.s.questV = Q.QUEST_V;
+      this.s.quest = 0;
+      this.s.questGift = -1;
+      // 이미 넘은 레벨·전직 단계 앞의 것은 다 지나간 것으로 본다(움직여 보기처럼 옛 판에 없던 '해 봤나'는 안 남아 있다)
+      let last = -1;
+      Q.QUESTS.forEach((q, i) => { if (q.mile) { const g0 = q.goal(this); if ((g0.now || 0) >= (g0.need || 1)) last = i; } });
+      this.s.quest = last + 1;
+      while (this.s.quest < Q.QUEST_COUNT) {
+        const g0 = Q.questAt(this.s.quest).goal(this);
+        if ((g0.now || 0) < (g0.need || 1)) break;
+        this.s.quest++;
+      }
+    }
     const q = Q.questAt(this.s.quest);
     if (!q) return null;
+    // 해 봐야 하는 것은 그 단계가 뜰 때 준다 (첫 무기 재료 · 가장 아래 애완동물·탈것)
+    if (q.gift && this.s.questGift !== this.s.quest && this.s.job) {
+      this.s.questGift = this.s.quest;
+      const what = q.gift(this);
+      if (what) this.emit('questGift', { title: q.title, what });
+    }
     const g = q.goal(this);
     const need = g.need || 1;
     const now = Math.min(need, Math.max(0, g.now || 0));
     return { q, now, need, done: now >= need, reward: Q.questReward(q, this.s.level) };
   }
   canClaimQuest() { return !!this.questNow()?.done; }
+  // 서버가 있어야 하는 단계(문파·토벌·함께 사냥)는 건너뛸 수 있다 — 보상은 없다
+  skipQuest() {
+    const cur = this.questNow();
+    if (!cur || !cur.q.skip || cur.done) return false;
+    this.s.quest++;
+    return true;
+  }
+  // 해 본 것 하나 (길잡이용)
+  mark(k) { const d = this.s.did || (this.s.did = {}); d[k] = (d[k] || 0) + 1; }
+  // 길잡이 선물 — 우리에 넣어 둔다(데려가기는 손으로)
+  giftPet(kind) {
+    if (this.s.petBox.length >= W.PET_BOX) return null;
+    this.s.petBox.push({ uid: uidSeq++, kind, rar: 0, lv: 1, exp: 0 });
+    return `애완동물 ${W.petOf(kind).name}(${W.RARITY[0].name})`;
+  }
+  // 길잡이 선물 — 탈것은 가지기만(타기는 손으로)
+  giftMount(kind) {
+    this.s.mounts.push({ uid: uidSeq++, kind });
+    return `탈것 ${W.mountOf(kind).name}`;
+  }
   // 받으면 다음 하나로 넘어간다. 보상은 **받을 때의 레벨로** 센다 —
   // 고정값으로 두면 뒤로 갈수록 먼지가 된다.
   claimQuest() {
@@ -2363,4 +2426,35 @@ export class WorldGame {
     if (rw.marks) this.addMats(W.bossKey(z), rw.marks);
     if (rw.marks && G.STONES[z]) this.addMats(G.stoneKey(z), rw.marks * G.STONE_PER_BOSS);   // 후반 왕 두목 구역이었다면 강화석도
   }
+}
+
+// 길잡이가 보는 '해 봤나' (v146) — 이룬 때만 센다(돌려준 값이 참일 때). always는 부르기만 하면.
+for (const [fn, key, always] of [
+  ['craft', 'craft'], ['craftSet', 'set'], ['craftKacc', 'kacc'], ['makeStone', 'stone'], ['promote', 'promote'], ['enhance', 'enhance'],
+  ['sweepDaily', 'sweep'], ['drawZodiac', 'zodiac'], ['buyStatBook', 'book'], ['buyBagSpace', 'bag'], ['startRaid', 'raid'],
+  ['killTreasure', 'treasure', true], ['moveTo', 'move', true],
+]) {
+  const orig = WorldGame.prototype[fn];
+  WorldGame.prototype[fn] = function (...a) {
+    const r = orig.apply(this, a);
+    if (always || r) this.mark(key);
+    return r;
+  };
+}
+{
+  const kill = WorldGame.prototype.killMob;
+  WorldGame.prototype.killMob = function (m) {
+    const r = kill.call(this, m);
+    if (m.isBoss && !this.inst) this.mark(this.map.king ? 'king' : 'boss');
+    return r;
+  };
+  const enter = WorldGame.prototype.enterMap;
+  WorldGame.prototype.enterMap = function (id) {
+    const r = enter.call(this, id);
+    if (r && !this.map.town) {
+      if (this.map.king) this.mark('kingRoom');
+      if (W.ZONES_W[this.map.zone]?.pair) this.mark('alt');
+    }
+    return r;
+  };
 }

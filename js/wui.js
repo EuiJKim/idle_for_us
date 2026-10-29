@@ -162,7 +162,14 @@ function charTab(app) {
             app.save(); qSig = ''; upd(); app.refresh();
             toast(`길잡이 — ${q.title} ✓ ${rewardText(got)}`);
           } }, '받기')
-          : null));
+          // 서버가 있어야 하는 단계는 건너뛸 수 있다 (보상 없이)
+          : isNow && q.skip
+            ? h('button', { class: 'buy ghost', onclick: () => {
+              if (!game.skipQuest()) return;
+              app.save(); qSig = ''; upd(); app.refresh();
+              toast(`길잡이 — '${q.title}'은(는) 건너뛰었어요. 나중에 언제든 할 수 있어요`);
+            } }, '건너뛰기')
+            : null));
     }
     questCard.append(...rows);
     if (done + 4 < Q.QUEST_COUNT) {
@@ -773,17 +780,19 @@ function mapTab(app) {
       const open = game.canEnter(areas[0].id);
       if (zn.king && !kingHead) {
         kingHead = true;
-        fieldBox.append(h('h3', { class: 'king-head' }, '십이지왕', h('small', {}, '레벨 99부터 · 제12왕에서 제1왕 검왕까지')));
+        fieldBox.append(h('h3', { class: 'king-head' }, '십이지왕', h('small', {}, '권장 레벨 99 · 제12왕에서 제1왕 검왕까지')));
       }
-      // 아직 먼 지역은 다음 하나만 보여 준다(목록이 길어지지 않게)
-      if (!open && s.level < zn.lv[0] - 12 && !(zn.king && s.level >= 90)) continue;
+      // v146: 레벨과 상관없이 어디든 갈 수 있다 — 지역은 다 보여 주고, 센 곳에는 '위험'을 붙인다
       const fit = areas.some((m) => !m.bossRoom && s.level >= m.lv[0] && s.level <= m.lv[1] + 2);
-      const btns = areas.map((m) => h('button', {
-        class: `area-btn${m.bossRoom ? ' boss' : ''}${s.map === m.id ? ' here' : ''}`,
-        disabled: !game.canEnter(m.id) ? true : null,
-        title: `${m.name} · Lv.${m.lv[0]}~${m.lv[1]}`,
-        onclick: () => go(m.id),
-      }, m.bossRoom ? '두목' : String(m.area), h('small', {}, `Lv${m.lv[0]}`)));
+      const btns = areas.map((m) => {
+        const risky = game.danger(m.id) > W.DANGER_LV;
+        return h('button', {
+          class: `area-btn${m.bossRoom ? ' boss' : ''}${s.map === m.id ? ' here' : ''}${risky ? ' danger' : ''}`,
+          disabled: !game.canEnter(m.id) ? true : null,
+          title: `${m.name} · Lv.${m.lv[0]}~${m.lv[1]}${risky ? ' · 위험 — 내 레벨보다 훨씬 세요' : ''}`,
+          onclick: () => go(m.id),
+        }, m.bossRoom ? '두목' : String(m.area), h('small', {}, `${risky ? '⚠' : ''}Lv${m.lv[0]}`));
+      });
       const env = L.ENVS[zn.art];
       const mk = s.mast?.[zn.id] || 0;
       const ml = L.masteryLv(mk);
@@ -845,7 +854,7 @@ function mapTab(app) {
         h('p', { class: 'muted dgn-desc' }, d.desc),
         h('div', { class: 'dgn-stage' },
           h('button', { class: 'stp', disabled: stg <= 1 ? true : null, onclick: () => step(-1) }, '−'),
-          h('div', { class: 'stg' }, h('b', {}, `${stg}단계`), h('small', {}, ` 몹 Lv.${D.dailyLv(stg)}`)),
+          h('div', { class: 'stg' }, h('b', {}, `${stg}단계`), h('small', {}, ` 몹 Lv.${D.dailyLv(stg)}${D.dailyLv(stg) - s.level > W.DANGER_LV ? ' ⚠위험' : ''}`)),
           h('button', { class: 'stp', disabled: stg >= max ? true : null, onclick: () => step(1) }, '+'),
           h('div', { class: 'rw' }, ...rewardNodes(app, rw, '보상 '))),
         // 천공광맥은 단계마다 나오는 재료가 통째로 바뀐다 — 어느 지역인지 적는다

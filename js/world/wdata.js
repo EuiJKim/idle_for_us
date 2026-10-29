@@ -193,6 +193,8 @@ export const RESPAWN_SEC = 5;
 // 지역 16~27: **십이지왕**(레벨 99부터). 제12왕 권왕이 가장 약하고 제1왕 검왕이 가장 강하다.
 //   왕마다 떨구는 재료·증표가 다르다. 왕은 등장 연출이 따로 있고, 그 지역 장비를 더 자주 떨군다.
 export const BOSS_RESPAWN = 45;
+// 몹 레벨이 내 레벨보다 이만큼 넘게 위면 '위험' (v146 — 레벨 제한 대신)
+export const DANGER_LV = 5;
 export const KING_INTRO_SEC = 3.2;   // 십이지왕 등장 연출 길이
 export const BOSS_INTRO_SEC = 2.2;   // 보통 두목 등장 연출 길이
 export const BOSS_ROOM_MOBS = 8;

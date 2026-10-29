@@ -63,7 +63,9 @@ async function tab(page, name) {
   console.log('# 사냥터');
   await tab(p, 'map');
   assert(await p.locator('#panel .zone-card:has-text("죽림") .area-btn').count() === 4, '지역 카드에 구역 1·2·3·두목');
-  assert(await p.locator('#panel .zone-card:has-text("죽림") .area-btn:has-text("2")').isDisabled(), '레벨이 모자란 구역은 잠겨 있다');
+  // v146: 레벨과 상관없이 들어간다 — 센 곳은 잠그지 않고 '위험'을 붙인다
+  const far = p.locator('#panel .zone-card.king .area-btn.danger').first();
+  assert(await far.count() === 1 && !(await far.isDisabled()), '레벨이 모자란 곳도 열려 있고 위험 표시가 붙는다');
   await p.locator('#panel .zone-card:has-text("죽림") .area-btn:has-text("1")').click();
   await sleep(300);
   assert(await G(p, () => window.__game.s.map) === 11, '지도에서 죽림 1구역으로');

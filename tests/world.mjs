@@ -2,6 +2,7 @@
 // node tests/world.mjs
 import { WorldGame, newWorldSave, migrateWorld } from '../js/world/wgame.js';
 import * as W from '../js/world/wdata.js';
+import * as Q from '../js/world/wquest.js';
 import * as D from '../js/data.js';
 import { fmt } from '../js/fmt.js';
 import fs from 'node:fs';
@@ -29,7 +30,7 @@ console.log('=== 시작 ===');
   ok(g.s.level === 1 && g.s.map === 0 && g.map.town, '마을에서 레벨 1로 시작한다');
   ok(g.mons.every((m) => m.npc) && g.mons.length === W.NPCS.length, '마을에는 싸우지 않는 사람만 있다', g.mons.map((m) => m.def.name).join(' '));
   ok(g.stats().atk > 0 && g.stats().hp > 0 && g.heroHp === g.stats().hp, '공격력·체력이 있고 체력이 가득');
-  ok(!g.canEnter(W.mapId(1, 3)) && g.canEnter(W.mapId(1, 1)) && !g.canEnter(W.mapId(16, 1)), '레벨이 모자란 구역은 못 들어간다');
+  ok(g.canEnter(W.mapId(1, 3)) && g.canEnter(W.mapId(16, 1)) && g.danger(W.mapId(16, 1)) > W.DANGER_LV && g.danger(W.mapId(1, 1)) <= 0, '레벨과 상관없이 어디든 들어가고, 센 곳은 위험으로 안다 (v146)');
   ok(g.enterMap(11) && g.mons.length === W.MOBS_ALIVE, '사냥터에 들어가면 몹이 깔린다', `${g.mons.length}마리`);
   ok(g.mons.every((m) => m.lv >= 1 && m.lv <= 6 && Number.isFinite(m.hp) && (m.def?.look || m.def?.beast)), '몹 레벨이 사냥터 범위 안이고 생김새가 있다');
   {
@@ -321,10 +322,14 @@ console.log('\n=== 지역·구역·두목 구역 ===');
   ok(frozeOk, '긴 연출 동안은 들판이 멈춘다(맞지도 잡지도 않는다)');
   // 십이지왕
   const k = fresh();
-  k.s.level = 98;
-  ok(!k.canEnter(W.mapId(16, 1)), '레벨 98에는 십이지왕에 못 들어간다');
   k.s.level = 99;
-  ok(k.canEnter(W.mapId(16, 1)) && W.mapOf(W.mapId(16, 1)).name.includes('권왕'), '레벨 99부터 제12왕 권왕', W.mapOf(W.mapId(16, 1)).name);
+  ok(k.canEnter(W.mapId(16, 1)) && W.mapOf(W.mapId(16, 1)).name.includes('권왕'), '권장 레벨 99 제12왕 권왕', W.mapOf(W.mapId(16, 1)).name);
+  // v146: 한참 센 곳에서 쓰러지면 돌아갈 곳이 알맞은 사냥터로 바뀐다
+  const r = fresh();
+  while (r.s.level < 20) r.addExp(W.expToNext(r.s.level));
+  r.enterMap(W.mapId(16, 1));
+  r.heroDied(null);
+  ok(r.danger(r.s.huntMap) <= 0 && !W.mapOf(r.s.huntMap).bossRoom, '레벨보다 한참 센 곳에서 쓰러지면 알맞은 사냥터로 물러난다', W.mapOf(r.s.huntMap).name);
   ok(W.ZONES_W[27].name.includes('검왕') && W.zoneLv(27)[1] === 150, '마지막은 제1왕 검왕(가장 강하다)', W.ZONES_W[27].boss.name);
   ok(new Set(W.KINGS.map((x) => x.mat)).size === 12 && W.KINGS.every((x) => !W.MATS.slice(1, 16).includes(x.mat)), '왕마다 재료가 다르다');
   ok(W.STEP_COUNT === 20 && W.craftIlv(W.STEP_COUNT - 1) === W.ILV_CAP && W.ILV_CAP === 100,
@@ -1118,6 +1123,59 @@ console.log('\n=== 초식 연출표 ===');
   }
   ok(missing.length === 0, '다섯 캐릭터 스킬 셋 모두 연출표가 있다', missing.join(' '));
   ok(broke.length === 0, `연출 ${ran}개가 끝까지 돌고 숫자를 다 푼다`, broke.slice(0, 3).join(' / '));
+}
+
+console.log('\n=== 길잡이 (v146) ===');
+{
+  const ids = Q.QUESTS.map((q) => q.id);
+  ok(new Set(ids).size === ids.length && Q.QUEST_COUNT >= 50, `단계가 쉰 남짓이고 이름이 겹치지 않는다`, `${Q.QUEST_COUNT}단계`);
+  const TABS = new Set(['char', 'bag', 'map', 'town', 'social', 'comp', 'dgn', null]);
+  ok(Q.QUESTS.every((q) => q.title && q.why && TABS.has(q.tab) && typeof q.goal === 'function'), '모든 단계에 제목·설명·열 화면·조건이 있다');
+  const g0 = fresh();
+  ok(Q.QUESTS.every((q) => { const r = q.goal(g0); return Number.isFinite(r.now) && r.need > 0; }), '새 캐릭터에서 모든 조건이 숫자를 돌려준다');
+  // 운에 막히는 단계가 없다: 애완동물·탈것은 그 단계가 뜰 때 준다
+  const at = (id) => ids.indexOf(id);
+  const g = fresh();
+  g.s.quest = at('pet');
+  g.questNow();
+  ok(g.s.petBox.length === 1 && g.s.petBox[0].rar === 0 && !g.questNow().done, '애완동물 단계가 뜨면 가장 아래 등급 하나를 우리에 넣어 준다(데려가기는 직접)');
+  g.adoptPet(g.s.petBox[0].uid);
+  ok(g.questNow().done, '우리에서 데려가면 끝난다');
+  g.claimQuest();
+  g.questNow();
+  ok(g.s.mounts.length === 1 && g.s.mount == null && !g.questNow().done, '탈것 단계가 뜨면 나귀를 주고(안 탄 채) 타라고 한다');
+  g.ride(g.s.mounts[0].uid);
+  ok(g.questNow().done, '타면 끝난다');
+  // 선물은 한 번뿐 — 다시 봐도 또 주지 않는다
+  const g2 = fresh(); g2.s.quest = at('pet'); g2.questNow(); g2.questNow();
+  ok(g2.s.petBox.length === 1, '선물은 그 단계에 한 번만');
+  // 첫 무기 재료
+  const g3 = fresh(); g3.s.quest = at('craft'); g3.questNow();
+  ok(g3.craftCheck('weapon', 0, false, 0).ok, '무기 만들기 단계가 뜨면 첫 무기 재료를 챙겨 준다');
+  ok(!!g3.craft('weapon', 0, false, 0) && g3.questNow().done, '만들면 끝난다');
+  // 해 본 것 표
+  const g4 = fresh(); g4.s.quest = at('move');
+  g4.enterMap(W.mapId(1, 1)); g4.moveTo(200, 200);
+  ok(g4.questNow().done, '화면을 눌러 움직이면 끝난다');
+  // 건너뛰기는 서버가 있어야 하는 단계만
+  const g5 = fresh(); g5.s.quest = at('lv10');
+  ok(!g5.skipQuest() && g5.s.quest === at('lv10'), '보통 단계는 건너뛸 수 없다');
+  g5.s.quest = at('guild');
+  ok(g5.skipQuest() && g5.s.quest === at('guild') + 1, '문파 단계는 건너뛸 수 있다(보상 없이)');
+  ok(['guild', 'checkin', 'donate', 'raid', 'coop'].every((k) => Q.QUESTS[at(k)].skip) && Q.QUESTS.filter((q) => q.skip).length === 5, '건너뛸 수 있는 건 문파·출석·기부·토벌·함께 사냥 다섯');
+  // 보상: 그 레벨 사냥 몇 분어치 — 레벨 1이든 100이든 같은 결
+  const mins = Q.QUESTS.map((q) => q.min || 0);
+  ok(Math.max(...mins) <= 25 && Math.min(...mins.filter(Boolean)) >= 1, '은자 보상은 사냥 1~25분어치', `${Math.min(...mins.filter(Boolean))}~${Math.max(...mins)}분`);
+  ok(Q.QUESTS.every((q) => (q.xp || 0) <= 0.3), '경험치 보상은 그 레벨의 3할 이하');
+  // 레벨 단계는 오름차순 — 앞 단계가 뒤 단계보다 높은 레벨을 요구하지 않는다
+  const lvs = Q.QUESTS.filter((q) => /^lv\d+$/.test(q.id)).map((q) => +q.id.slice(2));
+  ok(lvs.every((v, i) => !i || v > lvs[i - 1]), '레벨 단계가 차례대로 오른다', lvs.join('→'));
+  // 옛 세이브: 이미 한 것은 보상 없이 건너 지금 할 일부터
+  const old = newWorldSave(0); old.questV = 1; old.quest = 7; old.job = 'sword'; old.level = 45; old.jobTier = 2; old.potions = 50; old.autoRefill = true;
+  const g6 = new WorldGame(migrateWorld(old, 0), 0);
+  const gold6 = g6.s.gold;
+  const c6 = g6.questNow();
+  ok(g6.s.questV === Q.QUEST_V && c6 && !c6.done && g6.s.gold === gold6, '옛 길잡이 세이브는 이미 찬 단계를 보상 없이 넘고 다음 할 일에 선다', c6?.q.id);
 }
 
 console.log('\n=== 숫자 표기 ===');

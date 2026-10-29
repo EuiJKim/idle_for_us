@@ -69,6 +69,7 @@ export class WNet extends Net {
     }
     if (s.donateDay !== dayKey()) { s.donateDay = dayKey(); s.donateN = 0; }
     s.donateN = (s.donateN || 0) + 1;
+    this.game.mark('donate');
     return true;
   }
 
@@ -169,6 +170,13 @@ export class WNet extends Net {
     if (!ok) return null;
     const g = this.game;
     return g.grant(D.raidKillReward(g.s.level, W.mapOf(g.s.huntMap).mz || 1));
+  }
+
+  // 문파 출석 — 길잡이가 본다 (v146)
+  async checkin() {
+    const ok = await super.checkin();
+    if (ok) this.game.mark('checkin');
+    return ok;
   }
 
   // 문파를 나가면 함께 사냥 표(RTDB gm/{문파})에서도 지운다 (v138)

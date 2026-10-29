@@ -244,7 +244,7 @@ export class Coop {
     this.pend = 0;
     mob.coopSeq = null;
     const ev = { mine, share: mine / (b.max || 1), killer: b.kn || '문파원', me: b.killer === this.net.uid, name: mob.name, n: this.others.length + 1 };
-    if (mine > 0) g.killMob(mob);
+    if (mine > 0) { g.killMob(mob); if (this.others.length) g.mark('coop'); }
     else { mob.alive = false; mob.hp = 0; if (g.mon === mob) g.mon = null; }
     g.bossT = W.BOSS_RESPAWN;
     this.onEvent(mine > 0 ? 'kill' : 'missed', ev);
