@@ -1,5 +1,5 @@
 // 앱 껍데기를 캐시해 오프라인에서도 열리게 한다. 온라인이면 항상 새 파일을 먼저 받는다.
-const CACHE = 'ifu-v134';
+const CACHE = 'ifu-v135';
 const SHELL = [
   './', 'index.html', 'css/style.css', 'manifest.webmanifest',
   'js/big.js', 'js/data.js', 'js/battle.js', 'js/net.js', 'js/fmt.js', 'js/firebase-config.js',
@@ -82,6 +82,12 @@ const SHELL = [
   'art/zone/zone-13.jpg',
   'art/zone/zone-14.jpg',
   'art/zone/zone-15.jpg',
+  'art/zone/zone-16.jpg',
+  'art/zone/zone-17.jpg',
+  'art/zone/zone-18.jpg',
+  'art/zone/zone-19.jpg',
+  'art/zone/zone-20.jpg',
+  'art/zone/zone-21.jpg',
 
   // 무공 빛. 흑백 마스크를 코드에서 물들여 쓴다.
   'art/fx/fx-aura.png', 'art/fx/fx-beam.png', 'art/fx/fx-blink.png',
@@ -99,6 +105,23 @@ const SHELL = [
   'art/hero/wp-s0.png', 'art/hero/wp-s1.png', 'art/hero/wp-s2.png', 'art/hero/wp-s3.png',
   'art/hero/wp-s4.png', 'art/hero/wp-s5.png', 'art/hero/wp-saber.png', 'art/hero/wp-spear.png',
   'art/hero/wp-sword.png',
+  // 사냥터 지형 그림 (v135)
+  'art/ob/tree.png',
+  'art/ob/peach.png',
+  'art/ob/pine.png',
+  'art/ob/bamboo.png',
+  'art/ob/rock.png',
+  'art/ob/ice.png',
+  'art/ob/tomb.png',
+  'art/ob/pillar.png',
+  'art/ob/brazier.png',
+  'art/ob/stall.png',
+  'art/ob/cliff.png',
+  'art/ob/crystal.png',
+  'art/ob/cactus.png',
+  'art/ob/coral.png',
+  'art/ob/water.jpg',
+  'art/ob/lava.jpg',
   // 직업 무공 그림 (v134)
   'art/jfx/blood-eye.png',
   'art/jfx/blood-moon.png',

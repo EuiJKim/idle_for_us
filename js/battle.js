@@ -1879,7 +1879,7 @@ export class BattleView {
       if (!o.low) continue;
       const x = this.sx({ x: (o.c + 0.5) * T }), y = this.sy({ y: (o.r + 0.5) * T });
       if (x < -80 || x > this.w + 80 || y < -60 || y > this.h + 60) continue;
-      drawLowObstacle(this.ctx, o.kind, x, y, this.t, o.seed, this.squash);
+      drawLowObstacle(this.ctx, o.kind, x, y, this.t, o.seed, this.squash, this.sx({ x: 0 }), this.sy({ y: 0 }));
     }
   }
 

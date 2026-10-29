@@ -21,10 +21,47 @@ function line(ctx, pts, color, w) {
 }
 const shadow = (ctx, x, y, rx) => { ctx.fillStyle = 'rgba(0,0,0,0.22)'; ctx.beginPath(); ctx.ellipse(x, y + 2, rx, rx * 0.32, 0, 0, Math.PI * 2); ctx.fill(); };
 
+// v135: 그린 그림(art/ob/, sunburst) — 오면 그것으로, 아직이면 아래 벡터로 그린다
+const OB_PNG = ['tree', 'peach', 'pine', 'bamboo', 'rock', 'ice', 'tomb', 'pillar', 'brazier', 'stall', 'cliff', 'crystal', 'cactus', 'coral'];
+const OB_JPG = ['water', 'lava'];
+export const OB_FILES = [...OB_PNG.map((n) => `art/ob/${n}.png`), ...OB_JPG.map((n) => `art/ob/${n}.jpg`)];
+const obImg = {};
+let obTried = false;
+function obLoad() {
+  if (obTried || typeof Image === 'undefined') return;
+  obTried = true;
+  for (const f of OB_FILES) { const n = f.slice(7, -4); const im = new Image(); im.onload = () => { obImg[n] = im; }; im.src = f; }
+}
+// 그림 높이(화면 px) — 옛 벡터 그림과 같은 키
+const OB_H = { tree: 84, peach: 84, pine: 108, bamboo: 116, rock: 46, ice: 60, tomb: 50, pillar: 110, brazier: 50, stall: 74, cliff: 88, crystal: 58, cactus: 68, coral: 52 };
+const OB_SWAY = { tree: 1, peach: 1, pine: 0.6, bamboo: 1.6, coral: 0.8 };
+const lowPat = new WeakMap();
+
 // 바닥에 까는 것 (물·용암) — 이웃 칸과 이어 보이게 조금 넘쳐 칠한다
-export function drawLowObstacle(ctx, kind, x, y, t, seed, sq) {
+export function drawLowObstacle(ctx, kind, x, y, t, seed, sq, ox = 0, oy = 0) {
   const w = 68, h = 64 * sq + 4;
   const lava = kind === 'lava';
+  obLoad();
+  const tex = obImg[lava ? 'lava' : 'water'];
+  if (tex) {
+    // 들판(0,0)에 붙은 무늬라 이웃 칸과 이어진다. 물은 천천히 흐른다.
+    let pats = lowPat.get(ctx);
+    if (!pats) { pats = {}; lowPat.set(ctx, pats); }
+    const pat = pats[kind] || (pats[kind] = ctx.createPattern(tex, 'repeat'));
+    if (pat?.setTransform) {
+      pat.setTransform(new DOMMatrix([0.5, 0, 0, 0.5 * sq, ox + t * (lava ? 2 : 9), oy]));
+      ctx.fillStyle = pat;
+      ctx.fillRect(x - w / 2, y - h / 2, w, h);
+      // 물은 깊이감 있게 조금 어둡게, 용암은 숨 쉬듯 달아오른다
+      ctx.globalCompositeOperation = lava ? 'lighter' : 'source-over';
+      ctx.globalAlpha = lava ? 0.1 + 0.08 * Math.sin(t * 2 + seed * 9) : 0.38;
+      ctx.fillStyle = lava ? '#f97316' : '#0c3a52';
+      ctx.fillRect(x - w / 2, y - h / 2, w, h);
+      ctx.globalAlpha = 1;
+      ctx.globalCompositeOperation = 'source-over';
+      return;
+    }
+  }
   const g = ctx.createLinearGradient(0, y - h / 2, 0, y + h / 2);
   g.addColorStop(0, lava ? '#7c2d12' : '#1e3a5f');
   g.addColorStop(1, lava ? '#ea580c' : '#3b82a6');
@@ -43,6 +80,39 @@ export function drawLowObstacle(ctx, kind, x, y, t, seed, sq) {
 
 export function drawObstacle(ctx, kind, x, y, t, seed) {
   const sway = Math.sin(t * 1.3 + seed * 6) * 1.5;
+  obLoad();
+  const im = obImg[kind];
+  if (im) {
+    const H = OB_H[kind] * (0.92 + seed * 0.16);
+    const W = (im.width * H) / im.height;
+    const lift = kind === 'crystal' ? 18 + Math.sin(t * 2 + seed * 6) * 4 : 0;
+    shadow(ctx, x, y, Math.min(34, W * 0.42));
+    ctx.save();
+    ctx.translate(x, y - lift);
+    // 바람에 윗부분만 흔들린다 (밑동은 제자리)
+    const k = OB_SWAY[kind];
+    if (k) ctx.transform(1, 0, (sway * k) / 60, 1, 0, 0);
+    if (seed > 0.5 && kind !== 'pillar' && kind !== 'stall' && kind !== 'tomb') ctx.scale(-1, 1);
+    ctx.drawImage(im, -W / 2, -H, W, H);
+    ctx.restore();
+    if (kind === 'crystal') {
+      ctx.globalCompositeOperation = 'lighter';
+      blob(ctx, x, y - lift - H * 0.5, W * 0.6, H * 0.45, 'rgba(129,140,248,0.14)', 0);
+      ctx.globalCompositeOperation = 'source-over';
+    }
+    if (kind === 'brazier') {
+      const f = Math.sin(t * 12 + seed * 9);
+      ctx.globalCompositeOperation = 'lighter';
+      blob(ctx, x, y - H * 0.78 - f * 2, 9, 13 + f * 2, 'rgba(249,115,22,0.8)', 0);
+      blob(ctx, x, y - H * 0.72, 5, 8, 'rgba(253,224,71,0.85)', 0);
+      ctx.globalCompositeOperation = 'source-over';
+    }
+    if (kind === 'peach') for (let i = 0; i < 3; i++) {
+      const ph = (t * 0.35 + seed + i / 3) % 1;
+      blob(ctx, x - 20 + i * 18 + Math.sin(ph * 6) * 6, y - 50 + ph * 52, 2.4, 1.6, '#fce7f3', 0);
+    }
+    return;
+  }
   switch (kind) {
     case 'tree':
     case 'peach': {
