@@ -643,6 +643,24 @@ export function rewardText(r) {
   return out.join(' · ') || '없음';
 }
 
+// 보상을 누를 수 있는 조각으로. 재료 이름을 누르면 '어디서 나오나' 창이 뜬다.
+// 글만 쓰는 자리(토스트)는 rewardText 그대로.
+export function rewardNodes(app, r, lead = '') {
+  const out = [];
+  if (lead) out.push(lead);
+  if (r?.exp) out.push(`경험치 ${fmt(r.exp)}`);
+  if (r?.gold) out.push(`${out.length > (lead ? 1 : 0) ? ' · ' : ''}은자 ${fmt(r.gold)}`);
+  for (const [k, n] of Object.entries(r?.mats || {})) {
+    if (out.length > (lead ? 1 : 0)) out.push(' · ');
+    out.push(h('button', {
+      class: 'need tap', style: `--mc:${W.matColor(k)}`,
+      onclick: (e) => { e.stopPropagation(); openMatWhere(app, k); },
+    }, W.matName(k), ' ', h('b', {}, fmt(n))));
+  }
+  if (!out.length || (lead && out.length === 1)) out.push('없음');
+  return out;
+}
+
 // v126: 지도 창 = 사냥터 · 던전 (요일 던전 · 무한의 탑)
 function mapTab(app) {
   const { game } = app;
@@ -763,7 +781,12 @@ function mapTab(app) {
           h('button', { class: 'stp', disabled: stg <= 1 ? true : null, onclick: () => step(-1) }, '−'),
           h('div', { class: 'stg' }, h('b', {}, `${stg}단계`), h('small', {}, ` 몹 Lv.${D.dailyLv(stg)}`)),
           h('button', { class: 'stp', disabled: stg >= max ? true : null, onclick: () => step(1) }, '+'),
-          h('div', { class: 'rw' }, `보상 ${rewardText(rw)}`)),
+          h('div', { class: 'rw' }, ...rewardNodes(app, rw, '보상 '))),
+        // 천공광맥은 단계마다 나오는 재료가 통째로 바뀐다 — 어느 지역인지 적는다
+        d.id === 'mat'
+          ? h('p', { class: 'muted dgn-where' },
+            `${W.zoneOfW(D.zoneForLv(D.dailyLv(stg)))?.name || ''}의 재료·증표예요 — 이름을 누르면 그 사냥터로 갈 수 있어요`)
+          : null,
         h('div', { class: 'btn-row' },
           h('button', { class: 'btn primary', disabled: game.canDaily(d.id, stg, now) ? null : true, onclick: () => start(() => game.startDaily(d.id, stg, now)) },
             `도전 (${D.DAILY_SEC}초 · ${D.DAILY_KILLS}마리)`),
@@ -791,7 +814,7 @@ function mapTab(app) {
       D.zodiacOf(nf) ? h('p', { class: 'dgn-zodiac' }, `${nf}층 ${D.zodiacOf(nf).god} — ${D.zodiacOf(nf).move}`) : null,
       h('div', { class: 'dgn-stage' },
         h('div', { class: 'stg' }, h('b', {}, `${nf}층`), h('small', {}, ` ${nb.name.replace(/^\d+층 수문장 /, '')} · Lv.${D.towerLv(nf)}${D.towerPow(nf) > 1 ? '+' : ''}`)),
-        h('div', { class: 'rw' }, `처음 오르면 ${rewardText(D.towerReward(nf))}`)),
+        h('div', { class: 'rw' }, ...rewardNodes(app, D.towerReward(nf), '처음 오르면 '))),
       h('label', { class: 'chk' }, auto, ' 이기면 이어서 다음 층으로'),
       h('div', { class: 'btn-row' },
         h('button', { class: 'btn primary', disabled: game.canTower() ? null : true, onclick: () => start(() => game.startTower()) }, tw.floor >= D.TOWER_MAX ? '꼭대기까지 올랐어요' : `${nf}층 도전`)));

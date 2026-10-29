@@ -1258,3 +1258,7 @@ details.lore p { margin: 4px 0 0; line-height: 1.5; }
 }
 .mat-chip.tap::after, .need.tap::after { content: ' ?'; opacity: 0.6; font-weight: 800; }
 .mat-chip.tap:active, .need.tap:active { filter: brightness(1.35); }
+
+/* 던전 보상이 어느 지역 재료인지 */
+.dgn-where { font-size: 11px; margin: 2px 0 0; }
+.dgn-card .rw .need.tap { margin: 0 2px; }
