@@ -255,6 +255,20 @@ for (let z = 1; z <= ZONE_COUNT; z++) {
     boss: k ? { name: `${k.title}${k.real ? ` ${k.real}` : ''}`, look: k.look } : ZONES[z].boss,
   });
 }
+// v127 새 지역 여섯 — 같은 레벨대 지역(pair)과 재료·증표·장비 사다리를 나눠 쓴다(지역 번호 31~36, 그림 16~21).
+// 모습·몹·땅(지형)·기운이 달라 같은 레벨에 고를 데가 둘이 된다.
+export const ALT_ZONES = [
+  { id: 31, art: 16, pair: 3 }, { id: 32, art: 17, pair: 5 }, { id: 33, art: 18, pair: 7 },
+  { id: 34, art: 19, pair: 9 }, { id: 35, art: 20, pair: 11 }, { id: 36, art: 21, pair: 13 },
+];
+for (const a of ALT_ZONES) {
+  ZONES_W[a.id] = { id: a.id, art: a.art, king: null, pair: a.pair, name: ZONES[a.art].name, lv: zoneLv(a.pair),
+    mobs: areaMobs(a.id, 4, a.art), boss: ZONES[a.art].boss };
+}
+// 재료를 셈하는 지역 번호 (새 지역은 짝 지역)
+export const matZone = (z) => ZONES_W[z]?.pair || z;
+// 지도에 늘어놓는 차례 — 레벨 순 (새 지역은 짝 지역 바로 뒤)
+export const ZONE_ORDER = ZONES_W.filter(Boolean).slice().sort((a, b) => a.lv[0] - b.lv[0] || (a.pair ? 1 : 0) - (b.pair ? 1 : 0) || a.id - b.id);
 export const zoneOfW = (z) => ZONES_W[z] || null;
 // 구역 번호: 지역 z의 a구역 = z×10 + a (a=1·2·3 들판, 4 두목). 0은 마을.
 export const mapId = (z, a) => z * 10 + a;
@@ -265,11 +279,11 @@ function areaLv(zl, a) {
   return [lo + Math.round((hi - lo) * (a - 1) / 3), lo + Math.round((hi - lo) * a / 3)];
 }
 export const MAPS = [{ id: 0, name: '객잔 마을', town: true, zone: 0, area: 0, art: 0, lv: [0, 0], mobs: ZONES[0].mobs, boss: ZONES[0].boss }];
-for (let z = 1; z <= ZONE_COUNT; z++) {
-  const zn = ZONES_W[z];
+for (const zn of ZONE_ORDER) {
+  const z = zn.id;
   for (let a = 1; a <= BOSS_AREA; a++) {
     MAPS.push({
-      id: mapId(z, a), zone: z, area: a, art: zn.art, king: zn.king,
+      id: mapId(z, a), zone: z, mz: zn.pair || z, area: a, art: zn.art, king: zn.king,
       name: a === BOSS_AREA ? `${zn.name} · 두목` : `${zn.name} ${a}`,
       zoneName: zn.name,
       bossRoom: a === BOSS_AREA,
@@ -497,6 +511,7 @@ export function rollSkillOpts(rar, rng) {
 export function optText(o) {
   if (o.kp) return `【${KINGS.find((k) => k.no === o.kp)?.title}】 ${KING_MYTHIC[o.kp].name}`;
   if (o.pet) return `애완동물 +${o.pet} (함께 키우는 수)`;
+  if (o.res) return `${{ cold: '한기', heat: '열기', poison: '독기', dark: '마기' }[o.res]} 저항 +${Math.round(o.v * 100)}% (그 기운의 사냥터)`;
   const sk = SKILL_ORDINAL[o.s];
   if (o.sp) return `${sk} 스킬: ${MYTHIC[o.sp].name}`;
   const d = SKILL_OPTS[o.k];

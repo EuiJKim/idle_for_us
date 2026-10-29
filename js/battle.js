@@ -1,4 +1,5 @@
 // 전투 화면 캔버스 렌더러 (수묵화 무협풍). 게임 이벤트를 받아 연출만 담당한다.
+import { drawObstacle, drawLowObstacle } from './obstacles.js';
 import { zoneOf, RANKS, GRADES, FIELD_SQUASH, JOB_TRAITS, QI, jobOf, critTierName } from './data.js';
 import { artReady, putArt, putArtEdge, putArtTint, loadArt, FIT, ART_SHOULDER, ART_BAND, headKey, bodyKey, weaponKey } from './art.js';
 import { drawCreature, saddleY } from './creatures.js';
@@ -1058,6 +1059,7 @@ export class BattleView {
     if (this.shake > 0) ctx.translate((Math.random() - 0.5) * 12 * this.shake, (Math.random() - 0.5) * 12 * this.shake);
     const scene = this.scene(game);
     this.drawBackground(scene);
+    this.drawLowObstacles(game);  // 물·용암 (v127)
     this.drawQueue(game);
     this.drawFields(game);        // 바닥 장판은 사람보다 아래에
     this.drawTells(game);         // 탑 수문장의 바닥 경고 (v126)
@@ -1845,11 +1847,37 @@ export class BattleView {
       list.length = LIGHT_MOBS;
       list.sort((a, b) => a.y - b.y);
     }
+    // 나무·바위·기둥 (v127) — 사람과 앞뒤를 맞춰 그린다 (가벼운 모드에서도 빼지 않는다: 길을 막는 것이라)
+    if (this.fieldMode && game.obstacles?.length) {
+      const T = game.tile || 64;
+      for (const o of game.obstacles) {
+        if (o.low) continue;
+        const wy = (o.r + 0.5) * T;
+        list.push({ y: wy + 1, go: () => this.drawObstacleAt(o, (o.c + 0.5) * T, wy) });
+      }
+      list.sort((a, b) => a.y - b.y);
+    }
     for (const e of list) e.go();
     // 무인은 깊이와 상관없이 맨 위에 그린다. 적이 수십이면 파묻혀서 누가 나인지 모른다.
     // 흑백은 무인 바로 앞에서 건다 — 무인만 색이 남는다.
     this.applyDesat();
     this.drawHeroUnit(game, moving);
+  }
+
+  drawObstacleAt(o, wx, wy) {
+    const x = this.sx({ x: wx }), y = this.sy({ y: wy });
+    if (x < -80 || x > this.w + 80 || y < -40 || y > this.h + 140) return;
+    drawObstacle(this.ctx, o.kind, x, y, this.t, o.seed);
+  }
+  drawLowObstacles(game) {
+    if (!this.fieldMode || !game?.obstacles?.length) return;
+    const T = game.tile || 64;
+    for (const o of game.obstacles) {
+      if (!o.low) continue;
+      const x = this.sx({ x: (o.c + 0.5) * T }), y = this.sy({ y: (o.r + 0.5) * T });
+      if (x < -80 || x > this.w + 80 || y < -60 || y > this.h + 60) continue;
+      drawLowObstacle(this.ctx, o.kind, x, y, this.t, o.seed, this.squash);
+    }
   }
 
   // 쓰러지는 졸개. 서 있던 그림 한 장을 발끝을 축으로 눕히며 옅게 한다.

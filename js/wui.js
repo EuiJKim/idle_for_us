@@ -2,6 +2,7 @@
 // 창 하나는 { root, update } 를 돌려준다. update는 0.2초마다 불린다(열려 있을 때만).
 import * as W from './world/wdata.js';
 import * as D from './world/wdgn.js';
+import * as L from './world/wland.js';
 import { h, toast, openModal, closeModal, subTabs, popUp, holdRepeat } from './ui/common.js';
 import { fmt } from './fmt.js';
 import { dayKey } from './net.js';
@@ -431,16 +432,16 @@ function mapTab(app) {
   }
   function updField() {
     const s = game.s;
-    const nsig = `${s.level}|${s.map}|${s.huntMap}`;
+    const nsig = `${s.level}|${s.map}|${s.huntMap}|${Object.values(s.mast || {}).map((k) => L.masteryLv(k)).join(',')}`;
     if (nsig === sig) return;
     sig = nsig;
     const here = W.mapOf(s.map);
-    fieldBox.replaceChildren(h('p', { class: 'muted' }, '지역마다 구역 1·2·3(뒤로 갈수록 세다)과 두목 구역이 있어요. 두목 증표는 두목 구역에서만 나와요.'),
+    fieldBox.replaceChildren(h('p', { class: 'muted' }, '지역마다 구역 1·2·3(뒤로 갈수록 세다)과 두목 구역이 있어요. 두목 증표는 두목 구역에서만 나와요. 지역마다 기운(좋거나 나쁜 환경)이 있고, 오래 사냥할수록 숙련도가 올라 나쁜 기운을 견뎌요.'),
       h('div', { class: `row map-row${here.town ? ' me' : ''}` }, h('div', { class: 'ico' }, '촌'),
         h('div', { class: 'info' }, h('div', { class: 'name' }, '객잔 마을'), h('div', { class: 'desc' }, '쉬는 곳 — 체력이 빨리 차요')),
         h('button', { class: 'buy', disabled: here.town ? true : null, onclick: () => { game.goTown(); app.save(); app.closePanel(); app.refresh(); } }, here.town ? '여기' : '가기')));
     let kingHead = false;
-    for (const zn of W.ZONES_W.slice(1)) {
+    for (const zn of W.ZONE_ORDER) {
       const areas = W.MAPS.filter((m) => m.zone === zn.id);
       const open = game.canEnter(areas[0].id);
       if (zn.king && !kingHead) {
@@ -456,10 +457,20 @@ function mapTab(app) {
         title: `${m.name} · Lv.${m.lv[0]}~${m.lv[1]}`,
         onclick: () => go(m.id),
       }, m.bossRoom ? '두목' : String(m.area), h('small', {}, `Lv${m.lv[0]}`)));
-      fieldBox.append(h('div', { class: `card zone-card${zn.king ? ' king' : ''}${here.zone === zn.id ? ' me' : ''}${open ? '' : ' locked'}` },
+      const env = L.ENVS[zn.art];
+      const mk = s.mast?.[zn.id] || 0;
+      const ml = L.masteryLv(mk);
+      const next = L.MASTERY_KILLS[ml + 1];
+      const mBar = h('div', { class: 'mast-bar' }, h('i', { style: `width:${next ? Math.round(((mk - L.MASTERY_KILLS[ml]) / (next - L.MASTERY_KILLS[ml])) * 100) : 100}%` }));
+      fieldBox.append(h('div', { class: `card zone-card${zn.king ? ' king' : ''}${zn.pair ? ' alt' : ''}${here.zone === zn.id ? ' me' : ''}${open ? '' : ' locked'}` },
         h('div', { class: 'zone-head' },
-          h('b', {}, zn.name), fit ? h('i', { class: 'best-tag' }, '알맞음') : null,
+          h('b', {}, zn.name), zn.pair ? h('i', { class: 'new-tag' }, '새 지역') : null, fit ? h('i', { class: 'best-tag' }, '알맞음') : null,
           h('small', {}, `Lv.${zn.lv[0]}~${zn.lv[1]} · 두목 ${zn.boss.name}`)),
+        env ? h('div', { class: `zone-env ${env.good ? 'good' : 'bad'}` }, h('b', {}, env.good ? `☀ ${env.name}` : `☁ ${env.name}`), ` ${env.desc}`,
+          !env.good ? h('small', {}, ` · ${L.RES_TYPES[env.type]} — 저항 ${Math.round(game.resistTo(env.type, zn.id) * 100)}%`) : null) : null,
+        zn.pair ? h('p', { class: 'muted king-desc' }, `재료·증표는 ${W.zoneOfW(zn.pair).name}와 같아요`) : null,
+        h('div', { class: 'zone-mast' }, h('span', {}, `숙련 ${ml}${ml >= L.MASTERY_MAX ? ' (최고)' : ''}`), mBar,
+          h('small', {}, ml ? `경험치 +${ml * L.MASTERY.exp * 100}% · 재료 +${ml * L.MASTERY.mat * 100}%` : next ? `${next - mk}마리 더` : '')),
         zn.king ? h('p', { class: 'muted king-desc' }, `${zn.king.hanja} · ${zn.king.desc}`) : null,
         h('div', { class: 'area-row' }, ...btns)));
     }

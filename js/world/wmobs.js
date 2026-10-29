@@ -84,6 +84,37 @@ const ADD = {
     P('천외 선인', { robe: '#eef2ff', trim: '#6366f1', head: 'topknot', hair: '#ffffff', beard: true, weapon: 'fan', aura: '#c7d2fe' }), B('천호', 'sape', 1.7),
     P('성좌 검객', { robe: '#312e81', trim: '#fde68a', head: 'topknot', weapon: 'sword', aura: '#a5b4fc' }), B('하늘 늑대', 'fwolf', 1.8),
   ],
+  // v127 새 지역 (지역 번호 31~36, 그림 16~21)
+  31: [ // 도화림
+    B('꽃사슴', 'ldeer', 1.5),
+    B('도화 여우', 'fox', 1.8), P('도화도 검녀', { robe: '#fbcfe8', trim: '#831843', head: 'topknot', weapon: 'sword', aura: '#f9a8d4' }),
+    B('분홍 학', 'crane', 1.6), P('도화 낭인', { robe: '#831843', head: 'hat', weapon: 'saber', beard: true }),
+  ],
+  32: [ // 황궁 금위영
+    B('궁궐 해태', 'haetae', 1.7),
+    P('금의위 도독', { robe: '#450a0a', trim: '#fbbf24', head: 'hat', weapon: 'saber', beard: true, scale: 1.1 }), B('어용 맹견', 'wolf', 1.6),
+    B('궁중 백학', 'wcrane', 1.5), P('비연 궁녀', { robe: '#fde68a', trim: '#b91c1c', head: 'topknot', weapon: 'fan' }),
+  ],
+  33: [ // 사천 당가
+    B('독거미', 'pspider', 1.7),
+    B('당가 독사', 'snake', 1.6), P('암기 장인', { robe: '#3f6212', trim: '#d9f99d', head: 'hat', weapon: 'dagger', beard: true }),
+    B('밤까마귀', 'crow', 1.9), P('독낭자', { robe: '#14532d', trim: '#f0abfc', head: 'topknot', weapon: 'claw', aura: '#86efac' }),
+  ],
+  34: [ // 북해 빙궁
+    B('빙원 늑대', 'swolf'),
+    B('빙궁 백곰', 'sbear', 1.5), P('빙궁 검녀', { robe: '#bae6fd', trim: '#075985', head: 'topknot', weapon: 'sword', aura: '#e0f2fe' }),
+    B('얼음 뱀', 'isnake', 1.6), P('북해 어부', { robe: '#334155', trim: '#e2e8f0', head: 'hat', weapon: 'spear', beard: true }),
+  ],
+  35: [ // 화염산
+    B('화염 이리', 'rwolf'),
+    B('불박쥐', 'vbat', 2.3), P('염마 수라', { robe: '#7c2d12', trim: '#fde047', head: 'bald', weapon: 'axe', scale: 1.2, eyes: '#fde047' }),
+    B('용암 전갈', 'scorpion', 1.7), P('화신 무녀', { robe: '#ea580c', trim: '#fef08a', head: 'topknot', weapon: 'fan', aura: '#fdba74' }),
+  ],
+  36: [ // 곤륜 선경
+    B('선학', 'wcrane', 1.6),
+    B('곤륜 기린', 'qilin', 1.6), P('곤륜 수호', { robe: '#166534', trim: '#fef08a', head: 'band', band: '#ca8a04', weapon: 'spear' }),
+    B('백록', 'sdeer', 1.6), P('곤륜 검성', { robe: '#ffffff', trim: '#16a34a', head: 'topknot', hair: '#e5e7eb', weapon: 'sword', aura: '#bbf7d0', beard: true }),
+  ],
 };
 
 // 십이지왕 — 지역 번호 16(권왕) … 27(검왕). 왕마다 여섯 [구역1 둘, 구역2 둘, 구역3 둘].

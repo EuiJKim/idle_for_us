@@ -435,6 +435,7 @@ Object.assign(CREATURES, {
   gull: { ...BIRD, fly: 24, col: '#f1f5f9', wing: '#cbd5e1', tail: '#94a3b8', tail2: '#e2e8f0', beakCol: '#f59e0b' },
   ape: { type: 'monkey', col: '#44403c', belly: '#78716c', face: '#a8a29e', staff: false, band: false, eye: '#dc2626' },
   sape: { type: 'monkey', col: '#e5e7eb', belly: '#f8fafc', face: '#fecaca', staff: false, band: false, eye: '#0ea5e9' },
+  gape: { type: 'monkey', col: '#facc15', belly: '#fef9c3', face: '#fde68a', staff: false, band: false, eye: '#b45309' },   // 보물 원숭이 (v127)
   spider: { ...BUG, col: '#27272a', mark: '#dc2626', eye: '#ef4444' },
   pspider: { ...BUG, col: '#4d7c0f', mark: '#fde047', eye: '#fde047' },
   ispider: { ...BUG, len: 34, col: '#64748b', mark: '#f97316', eye: '#f97316' },

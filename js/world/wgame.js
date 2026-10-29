@@ -7,6 +7,7 @@
 // 그래서 들판 그림·이펙트·초식 연출표를 손대지 않고 쓴다.
 import * as W from './wdata.js';
 import * as D from './wdgn.js';
+import * as L from './wland.js';
 
 const rand = Math.random;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -54,6 +55,7 @@ export function newWorldSave(now = Date.now()) {
     tower: { floor: 0, auto: true },         // 무한의 탑: 오른 층 · 이기면 이어 오르기
     zTickets: {},                            // 십이지 뽑기권 — 신 번호(1~12): 장수
     zPity: {},                               // 신마다 신수 없이 뽑은 횟수 (셋째에 꼭)
+    mast: {},                                // 지역 숙련도 (v127) — 지역 번호: 잡은 수
     created: now,
   };
 }
@@ -115,6 +117,8 @@ export function migrateWorld(raw, now = Date.now()) {
   }
   const tw = raw.tower && typeof raw.tower === 'object' ? raw.tower : {};
   s.tower = { floor: clamp(Math.floor(Number(tw.floor) || 0), 0, D.TOWER_MAX), auto: tw.auto !== false };
+  s.mast = {};
+  for (const [k, v] of Object.entries(raw.mast || {})) if (W.zoneOfW(+k) && v > 0) s.mast[k] = Math.floor(Number(v) || 0);
   s.zTickets = {}; s.zPity = {};
   for (let k = 1; k <= 12; k++) {
     const n = Math.floor(Number(raw.zTickets?.[k]) || 0); if (n > 0) s.zTickets[k] = n;
@@ -129,6 +133,7 @@ export function migrateWorld(raw, now = Date.now()) {
   return s;
 }
 
+const NO_ENV = Object.freeze({});
 export class WorldGame {
   constructor(save, now = Date.now()) {
     this.s = migrateWorld(save, now);
@@ -144,6 +149,8 @@ export class WorldGame {
     this.contest = null;
     this.inst = null;              // 던전 안이면 { kind, stage, map, t, kills, … } (v126)
     this.sceneKey = null;          // 그리는 쪽 배경 (던전마다)
+    this.blocked = null;           // 막힌 칸 (사냥터 지형, v127) — Uint8Array(칸) 또는 null
+    this.obstacles = [];           // 그리는 쪽: [{ c, r, kind, seed }]
     this.tells = [];               // 탑 수문장의 바닥 경고 — 잠깐 뒤 터진다 (v126)
     this.autoDodge = false;        // 시험·시뮬용: 경고를 알아서 피한다 (화면에는 없다 — 직접 피해야 한다)
     this.mons = [];
@@ -291,6 +298,9 @@ export class WorldGame {
     if (this.inst) this.inst = null;     // 던전에서 다른 데로 가면 그 판은 버린다
     this.sceneKey = null;
     this.tells = [];
+    const terr = L.terrainOf(id);
+    this.blocked = terr?.grid || null;
+    this.obstacles = terr?.list || [];
     const m = W.mapOf(id);
     this.s.map = id;
     if (!m.town) { this.s.huntMap = id; this.s.bestMap = Math.max(this.s.bestMap || 1, id); }
@@ -340,6 +350,7 @@ export class WorldGame {
   mobTile(m) { return m.move || { c: m.c, r: m.r }; }
   inMap(c, r) { return c >= 0 && r >= 0 && c < W.COLS && r < W.ROWS; }
   occupied(c, r, self = null) {
+    if (this.blocked?.[r * W.COLS + c]) return true;     // 나무·바위·물 (v127)
     if (self !== 'hero') {
       if (this.hc === c && this.hr === r) return true;
       if (this.hmove && this.hmove.c === c && this.hmove.r === r) return true;
@@ -470,8 +481,11 @@ export class WorldGame {
     if (this.reviveCd > 0) this.reviveCd -= dt;
     for (const k in this.buffs) if (this.buffs[k] > 0) { this.buffs[k] -= dt; if (this.buffs[k] <= 0) { delete this.buffs[k]; delete this.buffv[k]; if (k === 'shield') this.shield = 0; } }
     // 회복
-    const regen = this.map.town ? st.hp * W.REST_HEAL : st.regen;
+    const ev = this.envNow();
+    const regen = this.map.town ? st.hp * W.REST_HEAL : st.regen * Math.max(0, 1 + (ev.regen || 0));
     if (this.heroHp > 0) this.heroHp = Math.min(st.hp, this.heroHp + regen * dt);
+    // 독 기운: 조금씩 체력이 빠진다 (그것만으로 쓰러지지는 않는다 — 10% 아래로는 안 깎는다)
+    if (ev.drain && this.heroHp > st.hp * 0.1 && !this.map.town) this.heroHp = Math.max(st.hp * 0.1, this.heroHp - st.hp * ev.drain * dt);
     if (this.map.town) { this.tickTown(dt); return; }
     // 죽은 몹 치우고 다시 낸다
     this.mons = this.mons.filter((m) => m.alive);
@@ -532,6 +546,7 @@ export class WorldGame {
         if (!m.alive) continue;
       } else m.poison = 0;
       if (m.introT > 0) { m.introT -= dt; continue; }
+      if (m.treasure) { this.tickTreasure(m, dt); continue; }
       if (m.stun > 0) { m.stun -= dt; continue; }
       if (m.slow > 0) m.slow -= dt;
       const spd = W.MOB_SPEED * (m.slow > 0 ? 0.45 : 1) * (m.isBoss ? 0.8 : 1);
@@ -564,13 +579,15 @@ export class WorldGame {
             const cls = W.CLASSES[this.s.job] || {};
             const pm = this.pmods();
             if (this.buffv.dodge && this.rng() < this.buffv.dodge) { this.emit('passive', { id: 'dodge' }); continue; }   // 유운보
+            const env = this.envNow();
+            if (env.dodge && this.rng() < env.dodge) { this.emit('passive', { id: 'dodge' }); continue; }                // 운무
             if (cls.fear && this.rng() < cls.fear + (pm.fearUp || 0) + (this.buffv.fear || 0)) {                                     // 극악소마: 공포
               this.emit('passive', { id: 'fear', at: m });
               if (pm.own5 && this.s.job === 'ring') this.strike(m, st, 1.5, 'mask');                        // 무면귀 5: 가면의 일격
               continue;
             }
             const red = (1 - (cls.dmgRed || 0)) * (1 - (this.buffv.guard || 0)) * (1 - Math.min(0.6, pm.dmgRed || 0));
-            const dmg = Math.max(1, m.atk * (0.9 + this.rng() * 0.2) * red - st.def);
+            const dmg = Math.max(1, m.atk * (1 + (env.mobAtk || 0)) * (0.9 + this.rng() * 0.2) * red - st.def);
             let left = dmg;
             if (this.shield > 0 && this.buffs.shield > 0) { const a = Math.min(this.shield, left); this.shield -= a; left -= a; }   // 금종조
             this.heroHp -= left;
@@ -624,7 +641,7 @@ export class WorldGame {
     // 칸 사이를 옮겨 가는 중이면 마저 간다 — 칸 가운데에 서야 다음 일을 정한다
     if (this.hmove) {
       this.walking = true;
-      if (this.slide(this, 'heroX', 'heroY', this.hmove, W.HERO_SPEED * (st.moveSpeed || 1) * (1 + (this.buffv.move || 0)), dt)) { this.hc = this.hmove.c; this.hr = this.hmove.r; this.hmove = null; }
+      if (this.slide(this, 'heroX', 'heroY', this.hmove, W.HERO_SPEED * (st.moveSpeed || 1) * (1 + (this.buffv.move || 0)) * Math.max(0.3, 1 + (this.envNow().move || 0)), dt)) { this.hc = this.hmove.c; this.hr = this.hmove.r; this.hmove = null; }
       else return;
     }
     this.holdApproach = false;
@@ -652,6 +669,7 @@ export class WorldGame {
     // 과녁: 나를 치고 있는 몹 → 가장 가까운 몹. 자동 사냥이 꺼져 있으면 붙어 있는 것만 친다.
     if (!this.mon?.alive) this.mon = this.pickTarget(st);
     // 두목 구역: 졸개를 치던 중에도 두목이 나서면 바로 두목에게 (손으로 찍어 움직이는 중은 빼고)
+    else if (!this.mon.treasure && !this.manual && this.mons.some((o) => o.alive && o.treasure && !(o.unreachUntil > this.clock)) && this.huntOn()) this.mon = this.pickTarget(st);
     else if ((this.map.bossRoom || this.map.bossFirst) && !this.mon.isBoss && !this.manual) {
       const b = this.pickTarget(st);
       if (b?.isBoss) this.mon = b;
@@ -674,7 +692,7 @@ export class WorldGame {
     this.walking = false;
     this.atkTimer -= dt;
     if (this.atkTimer <= 0) {
-      this.atkTimer = st.atkSec / (this.frenzyT > 0 ? 1.5 : 1) / (1 + (this.buffv.haste || 0));
+      this.atkTimer = st.atkSec / (this.frenzyT > 0 ? 1.5 : 1) / (1 + (this.buffv.haste || 0)) / Math.max(0.3, 1 + (this.envNow().speed || 0));
       this.basicAttack(m, st, dist);
     }
   }
@@ -700,6 +718,9 @@ export class WorldGame {
   }
 
   pickTarget(st) {
+    // 보물 원숭이가 나오면 그것부터 (v127)
+    const tr = this.mons.find((m) => m.alive && m.treasure && !(m.unreachUntil > this.clock));
+    if (tr && this.huntOn()) return tr;
     // 두목 구역에서는 두목부터 (v125) — 등장 연출 중이거나 길이 막혀 포기한 동안만 졸개를 친다
     if (this.map.bossRoom || this.map.bossFirst) {
       const b = this.mons.find((m) => m.alive && m.isBoss && !(m.introT > 0) && !(m.unreachUntil > this.clock));
@@ -765,7 +786,7 @@ export class WorldGame {
   }
 
   strike(m, st, mult, kind, extraCrit = 0, quiet = false) {
-    const crit = this.rng() < st.crit + extraCrit;
+    const crit = this.rng() < st.crit + extraCrit + (this.envNow().crit || 0);
     let dmg = st.atk * mult * (crit ? st.critDmg : 1) * (0.92 + this.rng() * 0.16);
     if (m.isBoss) dmg *= st.boss;
     if (m.vulnT > this.clock) dmg *= 1 + m.vulnV;              // 섭혼: 받는 피해 +
@@ -833,18 +854,24 @@ export class WorldGame {
       return;
     }
     const st = this.stats();
-    const exp = W.mobExp(m.lv) * (m.isBoss ? W.BOSS.exp : m.elite ? W.ELITE.exp : 1) * this.levelGapMult(m.lv) * (st.expMult || 1);
-    const gold = Math.round(W.mobGold(m.lv) * (m.isBoss ? W.BOSS.gold : m.elite ? W.ELITE.gold : 1));
+    const env = this.envNow();
+    const mlv = this.masteryLevel(this.map.zone);
+    if (m.treasure) return this.killTreasure(m, st, env);
+    const exp = W.mobExp(m.lv) * (m.isBoss ? W.BOSS.exp : m.elite ? W.ELITE.exp : 1) * this.levelGapMult(m.lv) * (st.expMult || 1) * (1 + (env.exp || 0) + mlv * L.MASTERY.exp);
+    const gold = Math.round(W.mobGold(m.lv) * (m.isBoss ? W.BOSS.gold : m.elite ? W.ELITE.gold : 1) * (1 + (env.gold || 0)));
     this.s.gold += gold;
     const mat = this.dropMats(m);
     if (m.elite) this.dropMats(m);
+    this.addMastery(this.map.zone, 1);
+    // 보물 원숭이 — 들판에서 가끔 (하나만)
+    if (!this.map.bossRoom && this.rng() < L.TREASURE_RATE && !this.mons.some((o) => o.alive && o.treasure)) this.spawnTreasure();
     this.emit('kill', { gold, isBoss: m.isBoss, add: true, at: m, mat });
     this.addExp(exp);
     this.note(1, exp, gold, 0);
     this.petExp(exp * 0.5);
     // 탈것 — 아주 드물게 (두목은 조금 더)
-    const mr = m.isBoss ? W.mountBossRate(this.map.zone) : W.MOUNT_DROP_MOB;
-    if (this.rng() < mr) this.gainMount(W.rollMount(this.rng, this.map.zone, m.isBoss), m);
+    const mr = m.isBoss ? W.mountBossRate(this.map.mz) : W.MOUNT_DROP_MOB;
+    if (this.rng() < mr) this.gainMount(W.rollMount(this.rng, this.map.mz, m.isBoss), m);
     if (!m.isBoss) this.respawns.push({ t: W.RESPAWN_SEC });
   }
 
@@ -878,7 +905,7 @@ export class WorldGame {
   skillDef(id) { return this.s.job ? W.skillsOf(this.s.job).find((k) => k.id === id) : null; }
   hpCostOf(sk) { return Math.round(this.stats().hp * (sk.hpCost || 0) * (1 - this.skillMods(sk.id).cost)); }
   skillRadius(sk) { return (sk.radius || 0) * (1 + this.skillMods(sk.id).range); }
-  skillCd(sk) { return sk.cd * (1 - this.skillMods(sk.id).cd); }
+  skillCd(sk) { return sk.cd * (1 - this.skillMods(sk.id).cd) * Math.max(0.5, 1 + (this.envNow().cd || 0)); }
   canUseSkill(id) {
     const sk = this.skillDef(id);
     if (!this.knows(sk) || this.cd[id] > 0 || this.map.town) return false;
@@ -1182,7 +1209,7 @@ export class WorldGame {
   // ---------- 재료와 조합 ----------
   // 몹은 그 사냥터 재료를, 두목은 재료 한 움큼과 증표를 떨군다. 장비는 떨구지 않는다.
   dropMats(m) {
-    const id = this.map.zone;            // 재료는 지역 번호 (구역 셋·두목 구역이 같다)
+    const id = this.map.mz;              // 재료는 지역 번호 (구역 셋·두목 구역이 같다 · 새 지역은 짝 지역)
     if (!W.MATS[id]) return null;
     if (m.isBoss) {
       this.addMats(id, W.BOSS_MATS);
@@ -1208,7 +1235,7 @@ export class WorldGame {
       if (this.rng() < W.petDropRate(id)) this.gainPet(W.rollRarity(W.kingOf(id) ? W.KING_RAR_W : W.BOSS_RAR_W, this.rng), m, W.rollPetKind(id, this.rng));
       return { id, n: W.BOSS_MATS, name: W.MATS[id], color: W.MAT_COLORS[id], boss: W.matName(W.bossKey(id)) };
     }
-    if (this.rng() >= W.MAT_RATE * (this.stats().matMult || 1)) return null;
+    if (this.rng() >= W.MAT_RATE * (this.stats().matMult || 1) * (1 + this.masteryLevel(this.map.zone) * L.MASTERY.mat)) return null;
     this.addMats(id, 1);
     return { id, n: 1, name: W.MATS[id], color: W.MAT_COLORS[id] };
   }
@@ -1225,6 +1252,11 @@ export class WorldGame {
       if (i >= 0) opts[i] = { kp: king.no };
     }
     if (W.isDropOnly(slot) && W.PET_SLOT_OPT[rar] && this.rng() < W.PET_SLOT_CHANCE) opts.push({ pet: W.PET_SLOT_OPT[rar] });
+    // 갑옷·모자: 기운 저항 (v127)
+    if ((slot === 'armor' || slot === 'hat') && this.rng() < L.RES_OPT_CHANCE) {
+      const types = Object.keys(L.RES_TYPES);
+      opts.push({ res: types[Math.floor(this.rng() * types.length)], v: L.RES_OPT_VALS[rar] });
+    }
     return opts;
   }
   // 조합에 넣을 장비 — 같은 칸에서 만들 것보다 낮은 조합 장비 가운데 가장 좋은 것 (v120: 바로 아래 칸이 아니어도 된다)
@@ -1598,6 +1630,84 @@ export class WorldGame {
     return true;
   }
 
+  // ---------- 땅 (v127): 기운 · 숙련도 · 보물 원숭이 ----------
+  // 지금 사냥터의 기운 (저항을 셈한 것). 던전·마을은 없다.
+  envNow() {
+    const m = this.map;
+    const env = L.envOf(m);
+    if (!env) return NO_ENV;
+    const res = env.good ? 0 : this.resistTo(env.type, m.zone);
+    const key = `${m.id}|${res}`;
+    if (this._env?.key === key) return this._env.v;
+    const v = L.envEffect(env, res);
+    this._env = { key, v };
+    return v;
+  }
+  // 저항 = 그 지역 숙련도 × 8% + 갑옷·모자의 그 기운 저항 (90%까지)
+  resistTo(type, zone) {
+    let r = this.masteryLevel(zone) * L.MASTERY.res;
+    for (const it of Object.values(this.s.equip)) for (const o of it?.opts || []) if (o.res === type) r += o.v;
+    return Math.min(0.9, r);
+  }
+  masteryLevel(zone) { return L.masteryLv(this.s.mast?.[zone] || 0); }
+  addMastery(zone, n) {
+    if (!zone || !W.zoneOfW(zone) || !(n > 0)) return;
+    const before = this.masteryLevel(zone);
+    this.s.mast[zone] = (this.s.mast[zone] || 0) + n;
+    const after = this.masteryLevel(zone);
+    if (after > before) { this._env = null; this.emit('mastery', { zone, level: after, name: W.zoneOfW(zone).name }); }
+  }
+  spawnTreasure() {
+    const m = this.map;
+    const lv = m.lv[1];
+    const h = this.heroTile();
+    let c = -1, r = -1;
+    for (let t = 0; t < 60; t++) {
+      const cc = Math.floor(this.rng() * W.COLS), rr = Math.floor(this.rng() * W.ROWS);
+      if (this.occupied(cc, rr) || Math.abs(cc - h.c) + Math.abs(rr - h.r) < 5) continue;
+      c = cc; r = rr; break;
+    }
+    if (c < 0) return null;
+    const hp = W.mobHp(lv) * L.TREASURE_HP;
+    const mob = { id: uidSeq++, lv, c, r, hc: c, hr: r, move: null, x: W.tileCenter(c), y: W.tileCenter(r), hp, maxHp: hp, alive: true, isBoss: false,
+      born: this.clock, atk: 0, armor: W.mobDef(lv), grade: 1, treasure: true, life: L.TREASURE_LIFE, atkTimer: 9, stun: 0, slow: 0, poison: 0, aggro: true, wanderT: 0,
+      def: { ...L.TREASURE_DEF }, name: L.TREASURE_DEF.name };
+    this.mons.push(mob);
+    this.emit('treasure', { at: mob, name: mob.name });
+    return mob;
+  }
+  // 달아난다 — 무인에게서 먼 칸으로. 기절·둔화는 듣는다. 시간이 다 되면 사라진다.
+  tickTreasure(m, dt) {
+    if (!m.alive) return;
+    m.life -= dt;
+    if (m.life <= 0) { m.alive = false; if (this.mon === m) this.mon = null; this.emit('treasureGone', { at: { x: m.x, y: m.y } }); return; }
+    if (m.stun > 0) { m.stun -= dt; return; }
+    if (m.slow > 0) m.slow -= dt;
+    const spd = W.MOB_SPEED * 1.25 * (m.slow > 0 ? 0.45 : 1);
+    if (m.move) { if (this.slide(m, 'x', 'y', m.move, spd, dt)) { m.c = m.move.c; m.r = m.move.r; m.move = null; } return; }
+    const h = this.heroTile();
+    let best = null, bd = -1;
+    for (const [dc, dr] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const c = m.c + dc, r = m.r + dr;
+      if (!this.inMap(c, r) || this.occupied(c, r, m)) continue;
+      const d = Math.abs(c - h.c) + Math.abs(r - h.r) + this.rng() * 0.8;
+      if (d > bd) { bd = d; best = { c, r }; }
+    }
+    // 붙잡혔으면(가까우면) 움찔거리기만
+    if (best && Math.abs(m.c - h.c) + Math.abs(m.r - h.r) < 9) m.move = best;
+  }
+  killTreasure(m, st, env) {
+    const z = this.map.mz;
+    const gold = Math.round(W.mobGold(m.lv) * L.TREASURE_GOLD * (1 + (env.gold || 0)));
+    this.s.gold += gold;
+    const mats = {};
+    if (W.MATS[z]) { mats[z] = L.TREASURE_MATS; if (this.rng() < L.TREASURE_MARK) mats[W.bossKey(z)] = 1; }
+    for (const [k, n] of Object.entries(mats)) this.addMats(k, n);
+    this.note(0, 0, gold, 0);
+    this.emit('kill', { gold, isBoss: false, add: true, at: m, mat: null });
+    this.emit('treasureKill', { gold, mats, at: { x: m.x, y: m.y } });
+  }
+
   // ---------- 던전 (v126) ----------
   huntOn() { return this.s.autoHunt || !!this.inst; }
   // 오늘 쓴 횟수 — 날이 바뀌면(한국 시간) 비운다
@@ -1659,6 +1769,8 @@ export class WorldGame {
   startInst(o) {
     this.inst = { ...o, done: null };
     this.tells = [];
+    this.blocked = null;
+    this.obstacles = [];
     this.clones = [];
     this.fields = [];
     this.sceneKey = o.map.scene || null;
@@ -1880,7 +1992,7 @@ export class WorldGame {
     const kills = Math.floor(r.kills * t);
     // 재료: 처치 수만큼 굴린 기댓값 (장비는 마을 대장장이에게서)
     const m = W.mapOf(r.map);
-    const mats = W.MATS[m.zone] ? Math.floor(kills * W.MAT_RATE) : 0;
+    const mats = W.MATS[m.mz] ? Math.floor(kills * W.MAT_RATE) : 0;
     // 두목 구역에 있었다면 두목을 잡은 셈으로 증표 (다시 나기 + 잡는 데 한 70초)
     const marks = m.bossRoom ? Math.floor(t / (W.BOSS_RESPAWN + 25)) : 0;
     return { sec, t, kills, exp: Math.floor(r.exp * t), gold: Math.floor(r.gold * t + marks * W.mobGold(m.lv[1]) * W.BOSS.gold),
@@ -1893,7 +2005,8 @@ export class WorldGame {
     this.addExp(rw.exp);
     this.petExp(rw.exp * 0.5);
     this.s.kills += rw.kills;
-    const z = W.mapOf(rw.map).zone;
+    const z = W.mapOf(rw.map).mz;
+    this.addMastery(W.mapOf(rw.map).zone, rw.kills);
     if (rw.mats) this.addMats(z, rw.mats + (rw.marks || 0) * W.BOSS_MATS);
     if (rw.marks) this.addMats(W.bossKey(z), rw.marks);
   }

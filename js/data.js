@@ -51,7 +51,7 @@ export const critExpect = (C, D) => {
 // NaN이 된다 — 재 보니 적 체력이 관문 8467에서 그 선을 넘었다.
 // 반대로 상한이 있는 값(경지 배수·초월 단계처럼)은 보통 숫자 그대로 둔다.
 
-export const BUILD = 'ifu-v126';
+export const BUILD = 'ifu-v127';
 
 export const SAVE_VERSION = 4;
 export const OFFLINE_CAP_SEC = 12 * 3600;
@@ -2089,6 +2089,56 @@ export const ZONES = [
       F('천외 도인', { robe: '#a5b4fc', trim: '#fde68a', head: 'topknot', hair: '#f1f5f9', weapon: 'fan', beard: true }),
     ],
     boss: F('천외천존', { robe: '#ffffff', trim: '#fbbf24', head: 'topknot', hair: '#ffffff', weapon: 'sword', aura: '#fde68a', beard: true, scale: 1.6 }) },
+  // ---------- v127 새 지역 여섯 (같은 레벨대 지역과 재료·증표를 나눠 쓴다 — js/world/wdata.js ALT_ZONES) ----------
+  // tex: 바닥 그림을 빌려 올 지역 (그림이 따로 없다)
+  { name: '도화림', tex: 1, ink: ['#fdf2f8', '#f9c6dd', '#9d4b6e', '#5a3a44'], sun: '#db2777', prop: 'bamboo',
+    mobs: [
+      F('도화도 제자', { robe: '#f9a8d4', trim: '#9d174d', head: 'topknot', weapon: 'sword' }),
+      F('도화 무희', { robe: '#fbcfe8', trim: '#be185d', head: 'topknot', weapon: 'fan' }),
+      F('도화 문지기', { robe: '#9d174d', trim: '#fce7f3', head: 'hat', weapon: 'spear' }),
+      F('취선 시객', { robe: '#fdf2f8', trim: '#db2777', head: 'topknot', hair: '#e5e7eb', weapon: 'fan', beard: true }),
+    ],
+    boss: F('도화도주', { robe: '#fce7f3', trim: '#db2777', head: 'topknot', hair: '#111', weapon: 'sword', aura: '#f9a8d4', beard: true, scale: 1.45 }) },
+  { name: '황궁 금위영', tex: 9, ink: ['#fef3c7', '#f6d58a', '#8a4b1a', '#6b4423'], sun: '#b91c1c', prop: 'pavilion',
+    mobs: [
+      F('금위군', { robe: '#b91c1c', trim: '#fde68a', head: 'hat', weapon: 'spear' }),
+      F('동창 환관', { robe: '#1e3a8a', trim: '#fde68a', head: 'hat', weapon: 'dagger' }),
+      F('금의위', { robe: '#7c2d12', trim: '#fbbf24', head: 'band', band: '#111', weapon: 'saber' }),
+      F('궁중 무관', { robe: '#991b1b', trim: '#fef3c7', head: 'topknot', weapon: 'sword', beard: true }),
+    ],
+    boss: F('동창 제독', { robe: '#0f172a', trim: '#fbbf24', head: 'hat', weapon: 'claw', aura: '#fbbf24', eyes: '#fde68a', scale: 1.45 }) },
+  { name: '사천 당가', tex: 12, ink: ['#dfeadb', '#9cb894', '#3a5434', '#2a3826'], sun: '#15803d', prop: 'vine',
+    mobs: [
+      F('당가 암기수', { robe: '#14532d', trim: '#86efac', head: 'mask', weapon: 'dagger' }),
+      F('당문 독수', { robe: '#166534', trim: '#bbf7d0', head: 'hood', weapon: 'claw', eyes: '#86efac' }),
+      F('당문 시위', { robe: '#365314', head: 'band', band: '#14532d', weapon: 'spear' }),
+      F('당가 장로', { robe: '#052e16', trim: '#4ade80', head: 'topknot', hair: '#e5e7eb', weapon: 'fan', beard: true }),
+    ],
+    boss: F('당가주 당천', { robe: '#052e16', trim: '#22c55e', head: 'topknot', weapon: 'dagger', aura: '#22c55e', eyes: '#86efac', beard: true, scale: 1.5 }) },
+  { name: '북해 빙궁', tex: 3, ink: ['#f0f9ff', '#c7e6fb', '#3b6e91', '#dbe9f6'], sun: '#0369a1', prop: 'snowpine', snow: true,
+    mobs: [
+      F('빙궁 시녀', { robe: '#e0f2fe', trim: '#0369a1', head: 'topknot', weapon: 'sword' }),
+      F('빙궁 호법', { robe: '#0c4a6e', trim: '#bae6fd', head: 'band', band: '#e0f2fe', weapon: 'spear', beard: true }),
+      F('얼음 강시', { robe: '#cbd5e1', trim: '#38bdf8', head: 'jiangshi', skin: '#bae6fd', weapon: 'claw', jiangshi: true }),
+      F('설녀', { robe: '#f8fafc', trim: '#7dd3fc', head: 'topknot', hair: '#e0f2fe', weapon: 'fan', ghost: true }),
+    ],
+    boss: F('빙궁주 설화', { robe: '#f0f9ff', trim: '#0284c7', head: 'topknot', hair: '#f8fafc', weapon: 'sword', aura: '#bae6fd', eyes: '#38bdf8', scale: 1.5 }) },
+  { name: '화염산', tex: 4, ink: ['#ffe4c7', '#f6a35e', '#7c2d12', '#3d1a0e'], sun: '#ea580c', prop: 'rock',
+    mobs: [
+      F('화염 마졸', { robe: '#7c2d12', trim: '#fb923c', head: 'bald', weapon: 'axe', eyes: '#fdba74' }),
+      F('염마 무사', { robe: '#9a3412', trim: '#fed7aa', head: 'band', band: '#f97316', weapon: 'saber' }),
+      F('불도깨비', { robe: '#c2410c', head: 'hood', weapon: 'claw', ghost: true, eyes: '#fde047' }),
+      F('화산 주술사', { robe: '#431407', trim: '#f97316', head: 'hood', weapon: 'fan', beard: true }),
+    ],
+    boss: F('염제 화운', { robe: '#431407', trim: '#f97316', head: 'topknot', hair: '#fdba74', weapon: 'fist', aura: '#f97316', eyes: '#fde047', scale: 1.55 }) },
+  { name: '곤륜 선경', tex: 6, ink: ['#f0fdf4', '#c4ecd2', '#3f7a58', '#a9c7b6'], sun: '#ca8a04', prop: 'pavilion', clouds: true,
+    mobs: [
+      F('곤륜 검선', { robe: '#f0fdf4', trim: '#15803d', head: 'topknot', weapon: 'sword' }),
+      F('곤륜 선동', { robe: '#dcfce7', trim: '#ca8a04', head: 'topknot', weapon: 'fan' }),
+      F('곤륜 장로', { robe: '#14532d', trim: '#fef3c7', head: 'topknot', hair: '#f1f5f9', weapon: 'sword', beard: true }),
+      F('곤륜 천녀', { robe: '#fefce8', trim: '#a3e635', head: 'topknot', weapon: 'fan', aura: '#bbf7d0' }),
+    ],
+    boss: F('옥허진인', { robe: '#ffffff', trim: '#ca8a04', head: 'topknot', hair: '#ffffff', weapon: 'sword', aura: '#fef08a', beard: true, scale: 1.55 }) },
 ];
 export const RAID_BOSS = F('혈마', { robe: '#1a0505', trim: '#ef4444', head: 'topknot', hair: '#7f1d1d', weapon: 'saber', aura: '#dc2626', eyes: '#fca5a5', scale: 2.1 });
 
@@ -2136,7 +2186,7 @@ export const zoneOf = (stage) => {
     const tier = ZONE_TIERS[t];
     // idx는 바닥 그림(art/zone/zone-N.png)을 찾는 데 쓴다
     if (t === 0 && loop === 0) {
-      z = { ...base, idx: i };
+      z = { ...base, idx: base.tex ?? i };
     } else {
       // 적 옷·터럭에도 그 자리의 빛을 섞는다. 이름만 바뀌면 똑같아 보인다.
       const k = tier.tint ? 0.42 + Math.min(0.25, loop * 0.08) : 0;
@@ -2150,7 +2200,7 @@ export const zoneOf = (stage) => {
       });
       z = {
         ...base,
-        idx: i,
+        idx: base.tex ?? i,
         name: tier.prefix + base.name + (loop > 0 ? ` ${loop + 1}순` : ''),
         sun: tier.sun || base.sun,
         tier: t,

@@ -56,7 +56,7 @@ console.log('\n=== 싸움 ===');
   // 사냥을 멈추고 다시 날 시간을 주면 자리가 다 찬다
   g.s.autoHunt = false; g.mon = null;
   for (let i = 0; i < 20 * (W.RESPAWN_SEC + 1); i++) { g.tick(0.05); g.events.length = 0; }
-  ok(g.mons.filter((m) => m.alive).length >= W.MOBS_ALIVE - 2, '잡힌 자리는 다시 채워진다', `${g.mons.filter((m) => m.alive).length}마리`);
+  ok(g.mons.filter((m) => m.alive && !m.treasure).length + g.respawns.length >= W.MOBS_ALIVE - 1, '잡힌 자리는 다시 채워진다', `${g.mons.filter((m) => m.alive).length}마리 + 곧 날 것 ${g.respawns.length}`);
   ok(finite(g), '숫자가 전부 유한하다');
   // 사건: 평타·피해·처치가 그리는 쪽 모양으로 나간다
   const h = fresh();
@@ -92,7 +92,7 @@ console.log('\n=== 칸 이동 (바람식) ===');
   }
   ok(offGrid === 0, '멈춰 있으면 늘 칸 가운데에 선다', `${offGrid}/${samples}`);
   ok(clash === 0, '한 칸에는 하나만 선다', `${clash}`);
-  ok(maxStep <= W.HERO_SPEED * g.stats().moveSpeed * 0.05 + 0.01, '칸 사이를 미끄러지듯 옮겨 간다(순간이동 없음)', `${maxStep.toFixed(1)}`);
+  ok(maxStep <= W.HERO_SPEED * g.stats().moveSpeed * (1 + (g.envNow().move || 0)) * 0.05 + 0.01, '칸 사이를 미끄러지듯 옮겨 간다(순간이동 없음)', `${maxStep.toFixed(1)}`);
   ok(g.s.kills > 20, '칸 길로도 사냥이 잘 된다', `5분 ${g.s.kills}마리`);
   // 손으로 찍은 칸으로 간다
   const h = fresh();
@@ -247,7 +247,7 @@ console.log('\n=== 재료와 조합 (바람식) ===');
 
 console.log('\n=== 지역·구역·두목 구역 ===');
 {
-  ok(W.ZONES_W.length - 1 === 27 && W.MAPS.length === 1 + 27 * 4, '지역 27(보통 15 + 십이지왕 12) × 구역 넷(1·2·3·두목)', `${W.MAPS.length - 1}구역`);
+  ok(W.ZONES_W.filter(Boolean).length === 33 && W.MAPS.length === 1 + 33 * 4, '지역 33(보통 15 + 새 지역 6 + 십이지왕 12) × 구역 넷(1·2·3·두목)', `${W.MAPS.length - 1}구역`);
   const g = fresh();
   g.enterMap(W.mapId(1, 1));
   for (let i = 0; i < 20 * 300; i++) { g.tick(0.05); g.events.length = 0; if (g.map.town) g.enterMap(W.mapId(1, 1)); }
@@ -605,6 +605,73 @@ console.log('\n=== 4차 무공 넷 (v123) ===');
   ok(p.useSkill('s4') && p.mons.every((m) => m.dot > 0), '독마 만독지옥: 사냥터 전체에 독');
   const r = mk('ring');
   ok(r.useSkill('s4') && ['s0', 's1', 's2'].every((k) => r.events.some((e) => e.type === 'dmg' && e.kind === k)) && r.buffv.might > 0 && r.cd.s0 === 0, '극악소마 삼공합일: 세 무공을 한꺼번에(숨은 안 쓴다) + 삼공조화');
+}
+
+console.log('\n=== 사냥터 땅 (v127) ===');
+{
+  const L = await import('../js/world/wland.js');
+  // 지형: 모든 구역에서 빈 칸이 다 이어져 있고, 들어서는 자리가 비어 있다
+  let bad = [], withObs = 0;
+  for (const m of W.MAPS) {
+    const t = L.terrainOf(m.id);
+    if (!t) continue;
+    withObs++;
+    const free = []; for (let i = 0; i < t.grid.length; i++) if (!t.grid[i]) free.push(i);
+    const seen = new Set([ (W.ROWS - 3) * W.COLS + Math.floor(W.COLS / 2) ]);
+    const q = [...seen];
+    while (q.length) { const k = q.pop(); const c = k % W.COLS, r = (k - c) / W.COLS; for (const [dc, dr] of [[1,0],[-1,0],[0,1],[0,-1]]) { const nc = c + dc, nr = r + dr; if (nc < 0 || nr < 0 || nc >= W.COLS || nr >= W.ROWS) continue; const j = nr * W.COLS + nc; if (t.grid[j] || seen.has(j)) continue; seen.add(j); q.push(j); } }
+    if (seen.size !== free.length || t.grid[(W.ROWS - 3) * W.COLS + Math.floor(W.COLS / 2)]) bad.push(m.id);
+    if (t.list.length > 30) bad.push(`${m.id}:${t.list.length}`);
+  }
+  ok(withObs >= 120 && !bad.length, '사냥터마다 지형 — 빈 칸은 다 이어지고 들어서는 자리는 비어 있다', `${withObs}구역 ${bad.join(',')}`);
+  const g = fresh(); g.setJob('sword'); g.enterMap(11);
+  ok(g.obstacles.length > 0 && g.mons.every((m) => !g.blocked[m.r * W.COLS + m.c]), '몹은 막힌 칸에 나지 않는다');
+  const ob = g.obstacles[0];
+  ok(g.occupied(ob.c, ob.r, 'hero') && !g.stepTo({ c: ob.c, r: ob.r }), '막힌 칸으로는 못 간다');
+  for (let i = 0; i < 20 * 30; i++) { g.tick(0.05); g.events.length = 0; if (g.map.town) g.enterMap(11); if (g.blocked?.[g.hr * W.COLS + g.hc]) { bad.push('hero-in-rock'); break; } }
+  ok(!bad.length && g.s.kills > 3, '지형이 있어도 사냥은 굴러간다(바위 위에 서지 않는다)', `${g.s.kills}마리`);
+  // 기운
+  const snow = fresh(); snow.setJob('sword'); while (snow.s.level < 15) snow.addExp(W.expToNext(snow.s.level));
+  snow.enterMap(W.mapId(3, 1));
+  const e0 = snow.envNow();
+  ok(e0.move < 0 && e0.speed < 0, '천산 설원은 혹한 — 이동·공격 속도가 준다', JSON.stringify(e0));
+  snow.s.mast[3] = L.MASTERY_KILLS[5]; snow._env = null;
+  ok(snow.envNow().move > e0.move && Math.abs(snow.envNow().move - e0.move * (1 - 0.4)) < 1e-9, '숙련 5면 나쁜 기운 40% 덜', JSON.stringify(snow.envNow()));
+  snow.s.equip.armor = { ...snow.makeCrafted('armor', 4, 0, 3), opts: [{ res: 'cold', v: 0.6 }] }; snow._stats = null; snow._env = null;
+  ok(snow.resistTo('cold', 3) === 0.9 && Math.abs(snow.envNow().move - e0.move * 0.1) < 1e-9, '갑옷 한기 저항 옵션까지 — 90%에서 멈춘다');
+  ok(W.optText({ res: 'poison', v: 0.3 }).includes('독기 저항 +30%'), '저항 옵션 글');
+  const town = fresh(); ok(Object.keys(town.envNow()).length === 0, '마을·던전엔 기운이 없다');
+  // 숙련도
+  const mg = fresh(); mg.setJob('fan'); mg.enterMap(11);
+  let mevt = 0;
+  mg.addMastery(1, L.MASTERY_KILLS[1]); for (const e of mg.events) if (e.type === 'mastery') mevt++;
+  ok(mg.masteryLevel(1) === 1 && mevt === 1, '잡은 수가 차면 숙련 레벨이 오른다(알림)');
+  const mk0 = mg.s.mast[1];
+  mg.mons[0].hp = 1; mg.hurt(mg.mons[0], 999, 'hit', false);
+  ok(mg.s.mast[1] === mk0 + 1, '그 지역 몹을 잡으면 숙련도 +1');
+  // 보물 원숭이
+  const tg = fresh(); tg.setJob('fan'); tg.enterMap(11);
+  const tm = tg.spawnTreasure();
+  ok(tm && tm.treasure && tg.pickTarget(tg.stats()) === tm, '황금 원숭이가 나오면 그것부터 노린다');
+  const d0 = Math.abs(tm.c - tg.hc) + Math.abs(tm.r - tg.hr);
+  for (let i = 0; i < 30; i++) tg.tickTreasure(tm, 0.05);
+  ok(Math.abs(tm.mobTile?.c ?? (tm.move || tm).c - tg.hc) + Math.abs((tm.move || tm).r - tg.hr) >= d0 - 1, '달아난다(가까워지지 않는다)');
+  const gold0 = tg.s.gold;
+  tm.hp = 1; tg.hurt(tm, 999, 'hit', false);
+  ok(tg.s.gold - gold0 >= W.mobGold(tm.lv) * 100 && (tg.s.mats[1] || 0) >= L.TREASURE_MATS, '잡으면 은자·재료가 쏟아진다', `은자 +${tg.s.gold - gold0}`);
+  const tg2 = fresh(); tg2.enterMap(11); const t2 = tg2.spawnTreasure(); let gone = 0;
+  for (let i = 0; i < (L.TREASURE_LIFE + 1) * 20; i++) { tg2.tickTreasure(t2, 0.05); }
+  for (const e of tg2.events) if (e.type === 'treasureGone') gone++;
+  ok(!t2.alive && gone === 1, '25초 안에 못 잡으면 사라진다');
+  // 새 지역
+  ok(W.ALT_ZONES.length === 6 && W.ALT_ZONES.every((a) => W.zoneOfW(a.id).lv[0] === W.zoneOfW(a.pair).lv[0]), '새 지역 여섯 — 짝 지역과 같은 레벨');
+  const az = fresh(); az.setJob('sword'); while (az.s.level < 15) az.addExp(W.expToNext(az.s.level));
+  ok(az.enterMap(W.mapId(31, 1)) && az.map.zoneName === '도화림' && az.map.mz === 3, '도화림에 들어간다 (재료는 천산 설원 것)');
+  const bm = az.mons[0]; bm.hp = 1; let got = 0;
+  for (let i = 0; i < 200; i++) { const mm = az.spawnMob(false); if (!mm) continue; mm.hp = 1; az.hurt(mm, 99, 'hit', false); }
+  ok((az.s.mats[3] || 0) > 0 && !az.s.mats[31], '새 지역 몹은 짝 지역 재료를 떨군다', `설원 재료 ${az.s.mats[3]}`);
+  ok(az.s.mast[31] > 0 && !az.s.mast[3], '숙련도는 새 지역 따로');
+  ok(W.ZONE_ORDER.findIndex((z) => z.id === 31) === W.ZONE_ORDER.findIndex((z) => z.id === 3) + 1, '지도에서는 짝 지역 바로 뒤');
 }
 
 console.log('\n=== 던전 (v126) ===');

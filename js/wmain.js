@@ -399,6 +399,21 @@ function handleEvents() {
       case 'mapEnter':
         view.showBanner(ev.name, ev.inst ? '#fde68a' : '#fef3c7', 1.3);
         break;
+      case 'mastery':
+        toast(`${ev.name} 숙련 ${ev.level}! 경험치·재료가 늘고 이 땅의 기운을 더 잘 견뎌요`);
+        break;
+      case 'treasure':
+        view.showBanner('황금 원숭이 출현!', '#fde047', 1.6, '보물');
+        sfx('boss');
+        break;
+      case 'treasureGone':
+        toast('황금 원숭이가 달아났어요…');
+        break;
+      case 'treasureKill':
+        toast(`🐒 황금 원숭이를 잡았다! 은자 ${fmt(ev.gold)}${Object.keys(ev.mats).length ? ` · ${rewardText({ mats: ev.mats })}` : ''}`);
+        view.effects.push({ kind: 'shock', life: 0.6, max: 0.6, wx: ev.at.x, wy: ev.at.y, r: 140, col: '253,224,71', rings: 3, w: 5 });
+        sfx('loot');
+        break;
       case 'zodiacDraw':
         if (!ev.zodiac) toast(`${D.ZODIAC[ev.no - 1].animal} 뽑기 — 신수는 아니었어요${game.zodiacOwned(ev.no) ? '' : ` (${D.ZODIAC_TICKETS}번째에는 꼭 나와요)`}`);
         break;

@@ -1151,3 +1151,15 @@ details.lore p { margin: 4px 0 0; line-height: 1.5; }
 .zodiac-cell.ready small { color: #fde68a; font-weight: 800; }
 .zodiac-cell:disabled { cursor: default; }
 @keyframes pulse2 { 50% { box-shadow: 0 0 0 3px rgba(253, 230, 138, 0.6) inset; } }
+/* v127 사냥터: 기운 · 숙련도 · 새 지역 */
+.zone-env { font-size: 11px; margin: 4px 0 2px; }
+.zone-env.good b { color: #86efac; }
+.zone-env.bad b { color: #fca5a5; }
+.zone-env small { color: var(--muted); }
+.zone-mast { display: flex; align-items: center; gap: 6px; font-size: 11px; margin: 4px 0 6px; color: var(--muted); }
+.zone-mast span { font-weight: 800; color: #fde68a; flex: none; }
+.zone-mast small { flex: none; font-size: 10px; }
+.mast-bar { flex: 1; height: 5px; border-radius: 3px; background: rgba(255, 255, 255, 0.08); overflow: hidden; }
+.mast-bar i { display: block; height: 100%; background: linear-gradient(90deg, #ca8a04, #fde68a); }
+.zone-card.alt { border-color: rgba(244, 114, 182, 0.4); }
+.new-tag { font-style: normal; font-size: 10px; font-weight: 800; color: #fff; background: #db2777; border-radius: 6px; padding: 1px 5px; margin-left: 6px; }

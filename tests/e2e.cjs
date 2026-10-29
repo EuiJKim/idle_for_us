@@ -76,7 +76,8 @@ async function tab(page, name) {
   console.log('# 들판을 눌러 움직이기');
   const before = await G(p, () => ({ x: window.__game.heroX, y: window.__game.heroY }));
   await p.mouse.click(60, 420);
-  await sleep(1200);
+  // 지형(v127) 때문에 돌아가는 길이 길 수 있다 — 3초까지 기다린다
+  await p.waitForFunction((b) => Math.hypot(window.__game.heroX - b.x, window.__game.heroY - b.y) > 30, before, { timeout: 3000 }).catch(() => {});
   const after = await G(p, () => ({ x: window.__game.heroX, y: window.__game.heroY }));
   assert(Math.hypot(after.x - before.x, after.y - before.y) > 30, '누른 쪽으로 걸어간다');
 
