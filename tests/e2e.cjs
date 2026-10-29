@@ -287,8 +287,17 @@ async function tab(page, name) {
 
   console.log('# 온라인: 십이지왕 함께 사냥 (v138)');
   for (const pg of [p, q]) {
-    await G(pg, () => { const g = window.__game; while (g.s.level < 105) g.addExp(1e12); g.s.stats.vit = 1e6; g._stats = null; g.heroHp = g.stats().hp; g.s.autoSkill = false; g.enterMap(164); });
+    await G(pg, () => { const g = window.__game; while (g.s.level < 105) g.addExp(1e12); g.s.stats.vit = 1e6; g._stats = null; g.heroHp = g.stats().hp; g.s.autoSkill = false; });
   }
+  // q는 먼저 함께로 들어가 있고, p는 지도에서 왕 두목 구역을 눌러 고르는 창에서 '함께'를 고른다 (v145)
+  await G(q, () => { const g = window.__game; g.s.kingParty = true; g.enterMap(164); });
+  await tab(p, 'map');
+  await p.click('#panel .map-seg button[data-key="field"]');
+  await p.locator('#panel .zone-card.king:has-text("권왕") .area-btn.boss').click();
+  await p.waitForSelector('#modal .party-opt');
+  await p.waitForSelector('#modal p:has-text("문파원 1명")', { timeout: 15000 });
+  assert(true, '왕 두목 구역을 누르면 혼자/함께를 고르고, 지금 사냥 중인 문파원 수가 보인다');
+  await p.click('#modal .party-opt:has-text("함께")');
   await p.waitForFunction(() => window.__coop.on && window.__coop.others.length === 1, null, { timeout: 20000 })
     .catch(async (e) => { console.log('DEBUG', await G(p, () => ({ on: window.__coop.on, j: window.__coop.joining, f: window.__coop.failed, k: window.__coop.key, o: window.__coop.others.length }))); throw e; });
   await q.waitForFunction(() => window.__coop.on && window.__coop.others.length === 1, null, { timeout: 20000 });
@@ -310,9 +319,16 @@ async function tab(page, name) {
   await p.waitForFunction((k) => window.__game.s.kills > k, kp0, { timeout: 15000 });
   assert(await G(p, () => !window.__game.mons.some((x) => x.isBoss && x.alive)), '서버가 쓰러졌다 하면 함께 친 둘 다 처치 보상을 받는다');
   await shot(p, '11-coop.png');
-  await G(q, () => window.__game.enterMap(163));
+  // q가 방 안에서 '혼자'로 바꾸면 방을 나가고 혼자 왕을 잡으며 계속 사냥한다
+  await G(q, () => window.__app.closePanel());
+  await sleep(400);
+  await q.click('#btn-party');
+  await q.waitForFunction(() => !window.__coop.on && !window.__game.s.kingParty, null, { timeout: 10000 });
   await p.waitForFunction(() => window.__coop.others.length === 0, null, { timeout: 15000 });
-  assert(true, '구역을 떠나면 다른 사람 화면에서도 사라진다');
+  assert(true, '방 안에서 혼자로 바꾸면 방을 나가고 다른 사람 화면에서도 사라진다');
+  await q.waitForFunction(() => { const g = window.__game; const b = g.mons.find((x) => x.isBoss && x.alive); return g.map.id === 164 && b && b.coopSeq == null; }, null, { timeout: 70000 });
+  assert(true, '혼자로 바꿔도 그 왕 구역에서 혼자 왕이 나서 방치 사냥이 이어진다');
+  await G(q, () => window.__game.enterMap(163));
 
   const errs = [...a.errors, ...b.errors];
   console.log('errors:', errs);

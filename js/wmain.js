@@ -89,6 +89,14 @@ const coop = new Coop(game, net, {
   },
 });
 game.coop = coop;
+app.coop = coop;
+// 왕 구역 안에서 혼자 ↔ 함께 (v145)
+$('btn-party').addEventListener('click', () => {
+  if (!coop.can()) return toast('문파에 들어 있고 온라인일 때 함께 사냥할 수 있어요');
+  game.s.kingParty = !game.s.kingParty;
+  save();
+  toast(game.s.kingParty ? '🤝 문파원과 함께로 바꿨어요 — 혼자 잡던 왕은 거두고 문파원 방의 왕을 따라요' : '⚔ 혼자로 바꿨어요 — 지금 왕은 남은 체력 그대로 혼자 잡아요');
+});
 net.coopForget = (gid) => coop.forget(gid);
 window.__coop = coop;
 
@@ -204,6 +212,15 @@ function refreshUI(full = false) {
   $('zone-label').textContent = m.inst ? (game.inst.kind === 'tower' ? `수문장 Lv.${m.lv[0]} · ${D.towerSec(game.inst.stage)}초 안에` : game.inst.kind === 'raid' ? `문파원과 함께 — ${D.RAID_SEC}초 동안 친 만큼` : `몹 Lv.${m.lv[0]} · ${D.DAILY_KILLS}마리 잡으면 깬다`) : m.town ? (s.autoHunt ? `쉬는 중 → ${W.mapOf(s.huntMap).name}` : '쉬는 중')
     : m.bossRoom ? (boss ? `두목 ${boss.name} Lv.${boss.lv}` : `두목 다시 나기까지 ${Math.floor(bossLeft / 60)}:${String(bossLeft % 60).padStart(2, '0')}`) + (coop.on ? ` · 🤝${coop.count + 1}명` : '')
       : `몹 Lv.${m.lv[0]}~${m.lv[1]} · 두목은 두목 구역에`;
+  // 혼자/함께 단추 — 십이지왕 두목 구역에서만
+  const pb = $('btn-party');
+  const inKing = !m.inst && !m.town && m.bossRoom && m.king;
+  pb.classList.toggle('hidden', !inKing);
+  if (inKing) {
+    const txt = game.s.kingParty ? (coop.on ? `🤝 함께 ${coop.count + 1}명` : '🤝 함께 · 잇는 중') : '⚔ 혼자 · 함께로';
+    if (pb.textContent !== txt) pb.textContent = txt;
+    pb.classList.toggle('on', !!game.s.kingParty);
+  }
   const hpR = Math.max(0, Math.min(1, game.heroHp / st.hp));
   $('progress-fill').style.width = `${hpR * 100}%`;
   $('progress').classList.toggle('low', hpR < 0.35);

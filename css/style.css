@@ -1268,3 +1268,15 @@ details.lore p { margin: 4px 0 0; line-height: 1.5; }
 .chip.rar.on { background: color-mix(in srgb, var(--rc) 28%, transparent); border-color: var(--rc); color: var(--rc); }
 .chip.rar small { opacity: 0.75; }
 .craft-row .buy[style*="--rc"] { border-color: var(--rc); color: var(--rc); }
+
+/* 십이지왕 혼자/함께 (v145) — 왕 구역에서만 화면 거리 단추 아래에 뜬다 */
+#btn-party { position: absolute; right: 8px; top: 62px; z-index: 3; padding: 4px 10px; border-radius: 999px;
+  border: 1px solid rgba(165,180,252,0.45); background: rgba(10,8,6,0.62); color: #c7d2fe; font-size: 11px; font-weight: 700; }
+#btn-party.on { border-color: #a5b4fc; background: rgba(49,46,129,0.7); color: #eef2ff; }
+#btn-party.hidden { display: none; }
+.party-pick { display: grid; gap: 8px; margin: 10px 0; }
+.party-opt { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; text-align: left; padding: 12px 14px; border-radius: 12px;
+  background: rgba(255,245,220,0.05); border: 1px solid var(--line); color: var(--text); font: inherit; cursor: pointer; }
+.party-opt b { font-size: 16px; }
+.party-opt span { font-size: 12px; color: var(--muted); }
+.party-opt.on { border-color: #a5b4fc; box-shadow: 0 0 0 1px rgba(165,180,252,0.4) inset; }

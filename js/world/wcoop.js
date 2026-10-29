@@ -13,6 +13,8 @@
 // 문파원인지는 서버 규칙(database.rules.json)이 gm/{문파}/{uid} 표로 본다. 표는 들어올 때 내가 적는다
 // (Firestore 문파 문서는 RTDB 규칙이 못 읽는다). 문파 코드를 모르면 그 방을 못 찾는다.
 // 서버가 없거나 막히면 혼자 사냥 그대로다(join 실패 → 이 구역은 혼자).
+// 혼자/함께는 들어갈 때 고른다(s.kingParty, v145) — 고른 대로 쓰러졌다 돌아와도·방치 중에도 이어진다.
+// 둘 다 자동 사냥이 그대로 돈다: 사냥은 늘 내 기기에서 돌고, 함께일 때는 왕 체력만 서버와 맞춘다.
 import * as W from './wdata.js';
 
 const POS_SEC = 0.4;        // 자리 올리는 간격
@@ -54,11 +56,31 @@ export class Coop {
 
   wantKey() {
     const g = this.game, n = this.net;
-    if (!n.ready?.() || !n.guild || !n.uid || g.inst || g.map.town || !g.map.bossRoom || !g.map.king) return null;
+    if (!g.s.kingParty || !this.can() || g.inst || g.map.town || !g.map.bossRoom || !g.map.king) return null;
     return `${n.guild.id}/${g.map.id}`;
   }
 
   serverNow() { return Date.now() + this.offset; }
+
+  // 함께 들어갈 수 있나 — 문파에 들어 있고 서버에 닿아 있을 때
+  can() { const n = this.net; return !!(n.ready?.() && n.guild && n.uid); }
+
+  // 들어가기 전에 그 왕 구역에 문파원이 몇 있나 (모르면 null)
+  async peek(mapId) {
+    if (!this.can()) return null;
+    const rt = await this.net.rtdb();
+    if (!rt) return null;
+    const { m, db } = rt;
+    const gid = this.net.guild.id, uid = this.net.uid;
+    try {
+      await m.set(m.ref(db, `gm/${gid}/${uid}`), true);
+      const snap = await m.get(m.ref(db, `coop/${gid}/${mapId}/p`));
+      const now = this.serverNow();
+      return Object.entries(snap.val() || {}).filter(([k, p]) => k !== uid && p && !(typeof p.t === 'number' && now - p.t > STALE_MS)).length;
+    } catch {
+      return null;
+    }
+  }
 
   // ---------- 들어가기·나가기 ----------
   async join(key) {

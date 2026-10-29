@@ -617,6 +617,37 @@ export function matWhere(game, key) {
   };
 }
 
+// 십이지왕 두목 구역에 들어갈 때 — 혼자 / 문파원과 함께를 고른다 (v145).
+// 문파가 없거나 서버에 못 닿으면 묻지 않고 혼자 들어간다. then(ok)는 들어간 뒤 부른다.
+export function enterKingRoom(app, id, then) {
+  const { game } = app;
+  const m = W.mapOf(id);
+  const coop = app.coop;
+  const enter = (party) => {
+    game.s.kingParty = party;
+    const ok = game.enterMap(id);
+    if (ok) toast(party ? `🤝 ${m.king.title} — 문파원과 함께 들어왔어요. 자동 사냥은 그대로 돌아요` : `${m.king.title} — 혼자 들어왔어요`);
+    then?.(ok);
+  };
+  if (!m.bossRoom || !m.king || !coop?.can()) { if (m.bossRoom && m.king) game.s.kingParty = false; const ok = game.enterMap(id); then?.(ok); return; }
+  if (!game.canEnter(id)) { toast('지금은 갈 수 없어요'); return; }
+  const who = h('p', { class: 'muted' }, '같은 구역의 문파원을 찾는 중…');
+  openModal((sheet) => {
+    sheet.append(
+      h('h2', {}, `${m.king.title} 두목 구역`),
+      h('p', {}, '어떻게 들어갈까요? 둘 다 자동 사냥(방치)으로 계속 돌아요.'),
+      h('div', { class: 'party-pick' },
+        h('button', { class: `party-opt${game.s.kingParty ? '' : ' on'}`, onclick: () => { closeModal(); enter(false); } },
+          h('b', {}, '⚔ 혼자'), h('span', {}, '왕을 혼자 잡아요. 체력도 보상도 나만의 것.')),
+        h('button', { class: `party-opt${game.s.kingParty ? ' on' : ''}`, onclick: () => { closeModal(); enter(true); } },
+          h('b', {}, '🤝 문파원과 함께'), h('span', {}, '같은 구역의 문파원과 왕 체력을 나눠요. 한 대라도 치면 처치 보상을 다 받아요.'))),
+      who,
+      h('p', { class: 'muted', style: 'font-size:11px' }, '들어가서도 위의 단추로 바꿀 수 있어요. 앱을 끈 동안의 방치 보상은 혼자 사냥으로 셈해요.'),
+      h('div', { class: 'btn-row' }, h('button', { class: 'btn', onclick: closeModal }, '닫기')));
+  });
+  coop.peek(id).then((n) => { who.textContent = n == null ? '' : n > 0 ? `🤝 지금 이 왕 구역에 문파원 ${n}명이 사냥 중이에요` : '지금 이 왕 구역에 있는 문파원은 없어요 — 함께로 들어가 두면 나중에 온 문파원과 같이 잡아요'; });
+}
+
 // 누르면 뜨는 창 — 어디서 나오는지 알려 주고, 갈지 묻고, 간다
 export function openMatWhere(app, key) {
   const { game } = app;
@@ -633,13 +664,17 @@ export function openMatWhere(app, key) {
       h('div', { class: 'btn-row' },
         h('button', { class: 'btn', onclick: closeModal }, '안 갈래요'),
         h('button', { class: 'btn primary', disabled: w.can ? null : true, onclick: () => {
+          const arrived = () => {
+            // 돌아갈 곳도 여기로 — 안 그러면 쓰러진 뒤 옛 사냥터로 되돌아간다
+            game.s.huntMap = w.id;
+            app.save();
+            app.closePanel();
+            app.refresh();
+          };
+          if (w.map?.king && w.map.bossRoom && app.coop?.can()) { closeModal(); enterKingRoom(app, w.id, (ok) => ok && arrived()); return; }
           if (!game.enterMap(w.id)) return toast('지금은 갈 수 없어요');
-          // 돌아갈 곳도 여기로 — 안 그러면 쓰러진 뒤 옛 사냥터로 되돌아간다
-          game.s.huntMap = w.id;
           closeModal();
-          app.save();
-          app.closePanel();
-          app.refresh();
+          arrived();
           toast(`${w.map.name}으로 왔어요 — ${w.from}`);
         } }, w.boss ? '두목 구역으로 가기' : '그 사냥터로 가기')),
     ].filter(Boolean));
@@ -712,7 +747,11 @@ function mapTab(app) {
   root.append(segBtns, fieldBox, dgnBox);
   let sig = '';
   let dsig = '';
-  const go = (id) => { if (!game.enterMap(id)) return; app.save(); app.closePanel(); app.refresh(); };
+  const go = (id) => {
+    const m = W.mapOf(id);
+    if (m.bossRoom && m.king) return enterKingRoom(app, id, (ok) => { if (ok) { app.save(); app.closePanel(); app.refresh(); } });
+    if (!game.enterMap(id)) return; app.save(); app.closePanel(); app.refresh();
+  };
   function upd() {
     dgnDot.style.display = dailyWaiting(game) ? '' : 'none';
     if (seg === 'dgn') return updDgn();

@@ -49,6 +49,7 @@ export function newWorldSave(now = Date.now()) {
     mapV: 2,
     autoHunt: true,
     autoSkill: true,
+    kingParty: false,        // 십이지왕 두목 구역: false 혼자 · true 문파원과 함께 (v145, 들어갈 때 고른다)
     lastSeen: now,
     titles: [],
     kills: 0,
