@@ -296,7 +296,13 @@ console.log('=== 9. append(null)이 "null" 글자로 찍히는 자리 ===');
         else if (ch === ']') br--;
         top += (par === 1 && br === 0) ? ch : ' ';
       }
-      if (/(^|[,(\s])null\s*(,|$)/.test(top.trim())) {
+      // 맨 바깥에 null이 나오는 모든 꼴:
+      //   append(a, null, b)        — 그냥 null
+      //   append(a, cond ? null : b) — **삼항이 null을 내놓는 꼴**
+      //   append(a, cond ? b : null)
+      // 셋째·둘째를 못 잡아서, 이 검사가 통과하는데도 화면에 null이 찍혔다.
+      const flat = top.trim();
+      if (/(^|[,(\s])null\s*(,|$)/.test(flat) || /\?\s*null\s*:/.test(flat) || /:\s*null\s*(,|$)/.test(flat)) {
         bad.push(`${f}:${src.slice(0, m.index).split('\n').length}`);
       }
     }
@@ -373,6 +379,7 @@ console.log('=== 11. 큰 수를 보통 셈으로 다루는 곳 ===');
   // big.js를 서비스워커가 안다 — 빠지면 오프라인에서 앱이 통째로 안 뜬다
   ok(/js\/big\.js/.test(read('sw.js')), '서비스워커가 big.js를 받아 둔다');
 }
+
 
 console.log(`\n${fail === 0 ? '짝이 전부 맞는다' : `짝이 안 맞는 것 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);

@@ -1250,3 +1250,11 @@ details.lore p { margin: 4px 0 0; line-height: 1.5; }
 .quest-row.ready { background: rgba(70, 52, 10, 0.6); }
 .quest-row.ready .ico { color: var(--gold); }
 .quest-rw { color: var(--gold); opacity: 0.85; }
+
+/* 누를 수 있는 재료 — 눌러도 되는지 보여야 누른다 */
+.mat-chip.tap, .need.tap {
+  cursor: pointer; font: inherit; color: inherit;
+  border-style: dashed;
+}
+.mat-chip.tap::after, .need.tap::after { content: ' ?'; opacity: 0.6; font-weight: 800; }
+.mat-chip.tap:active, .need.tap:active { filter: brightness(1.35); }

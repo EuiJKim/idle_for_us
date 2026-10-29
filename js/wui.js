@@ -385,9 +385,14 @@ function bagTab(app) {
 
   // ===== 대장장이 =====
   const smithRoot = h('div');
-  function need(label, have, want, color) {
+  // key를 주면 누를 수 있다 — 모자란 걸 보고 바로 '어디서 나오지?'가 풀린다.
+  // 모자란 걸 보고도 어디로 가야 할지 몰라 지도를 뒤지다 포기하던 자리다.
+  function need(label, have, want, color, key) {
     const ok = have >= want;
-    return h('span', { class: `need${ok ? ' ok' : ''}`, style: color ? `--mc:${color}` : '' }, label, ' ', h('b', {}, `${fmt(Math.min(have, want))}/${fmt(want)}`));
+    const cls = `need${ok ? ' ok' : ''}${key ? ' tap' : ''}`;
+    const body = [label, ' ', h('b', {}, `${fmt(Math.min(have, want))}/${fmt(want)}`)];
+    if (!key) return h('span', { class: cls, style: color ? `--mc:${color}` : '' }, ...body);
+    return h('button', { class: cls, style: color ? `--mc:${color}` : '', onclick: () => openMatWhere(app, key) }, ...body);
   }
   function smithView() {
     const s = game.s;
@@ -416,7 +421,7 @@ function bagTab(app) {
       const sample = game.makeCrafted(slot, step);
       const d = vsWorn(sample);
       const parts = [];
-      for (const [k, n] of Object.entries(r.mats)) parts.push(need(W.matName(k), s.mats[k] || 0, n, W.matColor(k)));
+      for (const [k, n] of Object.entries(r.mats)) parts.push(need(W.matName(k), s.mats[k] || 0, n, W.matColor(k), k));
       parts.push(need('은자', s.gold, r.gold));
       rows.push(h('div', { class: `row craft-row${ok ? ' ready' : ''}${d <= 0.005 ? ' weaker' : ''}` },
         h('div', { class: 'info' },
@@ -445,7 +450,7 @@ function bagTab(app) {
   // ----- 세트 (레벨 99부터) -----
   function kingNeeds(r) {
     const parts = [];
-    for (const [k, n] of Object.entries(r.mats)) parts.push(need(W.matName(k), s0().mats[k] || 0, n, W.matColor(k)));
+    for (const [k, n] of Object.entries(r.mats)) parts.push(need(W.matName(k), s0().mats[k] || 0, n, W.matColor(k), k));
     parts.push(need('은자', s0().gold, r.gold));
     return parts;
   }
@@ -531,12 +536,12 @@ function bagTab(app) {
       h('div', { class: 'info' },
         h('div', { class: 'name' }, W.zoneOfW(z)?.name || `지역 ${z}`),
         h('div', { class: 'mat-row' },
-          h('span', { class: 'mat-chip', style: `--mc:${W.matColor(z)}` }, h('b', {}, W.matName(z)), h('small', {}, fmt(s.mats[z] || 0))),
-          h('span', { class: 'mat-chip', style: `--mc:${W.matColor(W.bossKey(z))}` }, h('b', {}, W.matName(W.bossKey(z))), h('small', {}, fmt(s.mats[W.bossKey(z)] || 0))),
-          G.STONES[z] && s.mats[G.stoneKey(z)] > 0 ? h('span', { class: 'mat-chip', style: `--mc:${W.matColor(G.stoneKey(z))}` }, h('b', {}, G.STONES[z].name), h('small', {}, fmt(s.mats[G.stoneKey(z)]))) : null),
-        h('div', { class: 'desc' }, `재료: 그 지역 몹 · 증표: 그 지역 두목 구역의 두목${G.STONES[z] ? ` · ${G.STONES[z].what}: 두목` : ''}`))));
+          matChip(app, z, W.matName(z), s.mats[z] || 0),
+          matChip(app, W.bossKey(z), W.matName(W.bossKey(z)), s.mats[W.bossKey(z)] || 0),
+          G.STONES[z] && s.mats[G.stoneKey(z)] > 0 ? matChip(app, G.stoneKey(z), G.STONES[z].name, s.mats[G.stoneKey(z)]) : null),
+        h('div', { class: 'desc' }, '눌러 보면 어디서 나오는지 알려 주고 거기로 데려다 줘요'))));
     for (const z of stones) if (!zones.has(+z)) rows.push(h('div', { class: 'row mat-zone' }, h('div', { class: 'info' }, h('div', { class: 'name' }, W.zoneOfW(+z)?.name || ''),
-      h('div', { class: 'mat-row' }, h('span', { class: 'mat-chip', style: `--mc:${W.matColor(G.stoneKey(z))}` }, h('b', {}, G.STONES[z].name), h('small', {}, fmt(s.mats[G.stoneKey(z)])))))));
+      h('div', { class: 'mat-row' }, matChip(app, G.stoneKey(z), G.STONES[z].name, s.mats[G.stoneKey(z)])))));
     matRoot.replaceChildren(h('div', { class: 'card' }, h('h3', {}, '재료', h('small', {}, '문파 창고로 나눌 수 있어요')),
       ...(rows.length ? rows : [h('p', { class: 'muted' }, '몹은 그 사냥터 재료를, 두목은 재료 한 움큼과 증표를 떨궈요.')])));
   }
@@ -546,6 +551,72 @@ function bagTab(app) {
     { key: 'smith', label: '대장장이', make: () => ({ root: smithRoot, update: smithView }) },
     { key: 'mats', label: '재료', make: () => ({ root: matRoot, update: matView }) },
   ]);
+}
+
+// 누를 수 있는 재료 알약
+export const matChip = (app, key, label, n) => h('button', {
+  class: 'mat-chip tap', style: `--mc:${W.matColor(key)}`,
+  onclick: () => openMatWhere(app, key),
+}, h('b', {}, label), h('small', {}, fmt(n)));
+
+// ---------- 재료가 어디서 나오나 (v141) ----------
+// 재료 열쇠에서 지역과 '어디를 쳐야 하나'를 읽는다.
+//   z → 그 지역 몹 (구역 1·2·3)
+//   b{z} → 그 지역 두목 구역의 두목
+//   s{z} → 그 지역 두목 (강화석)
+export function matWhere(game, key) {
+  const k = String(key);
+  const stone = G.isStoneKey(k);
+  const boss = stone || k.startsWith('b');
+  const z = parseInt(k.replace(/^[bs]/, ''), 10);
+  const zone = W.zoneOfW(z);
+  if (!zone) return null;
+  // 두목 것은 두목 구역으로, 몹 것은 갈 수 있는 가장 센 구역으로 (거기가 제일 잘 나온다)
+  let area = W.BOSS_AREA;
+  if (!boss) {
+    area = 1;
+    for (let a = 1; a < W.BOSS_AREA; a++) if (game.canEnter(W.mapId(z, a))) area = a;
+  }
+  const id = W.mapId(z, area);
+  const map = W.hasMap(id) ? W.mapOf(id) : null;
+  return {
+    key: k, z, zone, boss, stone, id, map,
+    name: W.matName(k),
+    color: W.matColor(k),
+    have: game.s.mats[k] || 0,
+    can: game.canEnter(id),
+    need: map ? map.lv[0] : 0,
+    from: stone ? `${zone.name} 두목이 떨궈요` : boss ? `${zone.name} 두목 구역의 두목이 떨궈요` : `${zone.name} 몹이 떨궈요`,
+  };
+}
+
+// 누르면 뜨는 창 — 어디서 나오는지 알려 주고, 갈지 묻고, 간다
+export function openMatWhere(app, key) {
+  const { game } = app;
+  const w = matWhere(game, key);
+  if (!w) return;
+  openModal((sheet) => {
+    // **append는 null을 "null" 글자로 찍는다.** h()는 걸러 주지만 append는 아니다 —
+    // 화면에 null이 한 줄 뜨는 사고가 옛 판에서 세 번 났다. 걸러서 넘긴다.
+    sheet.append(...[
+      h('h2', {}, h('span', { style: `color:${w.color}` }, w.name)),
+      h('p', {}, w.from),
+      h('p', { class: 'muted' }, `지금 가진 것 ${fmt(w.have)}개 · ${w.map ? `${w.map.name} (몹 Lv.${w.map.lv[0]}~${w.map.lv[1]})` : ''}`),
+      w.can ? null : h('p', { class: 'dgn-warn' }, `레벨 ${w.need}부터 들어갈 수 있어요 — 지금 ${game.s.level}.`),
+      h('div', { class: 'btn-row' },
+        h('button', { class: 'btn', onclick: closeModal }, '안 갈래요'),
+        h('button', { class: 'btn primary', disabled: w.can ? null : true, onclick: () => {
+          if (!game.enterMap(w.id)) return toast('지금은 갈 수 없어요');
+          // 돌아갈 곳도 여기로 — 안 그러면 쓰러진 뒤 옛 사냥터로 되돌아간다
+          game.s.huntMap = w.id;
+          closeModal();
+          app.save();
+          app.closePanel();
+          app.refresh();
+          toast(`${w.map.name}으로 왔어요 — ${w.from}`);
+        } }, w.boss ? '두목 구역으로 가기' : '그 사냥터로 가기')),
+    ].filter(Boolean));
+  });
 }
 
 // 세트 한 장 — 이름 · 조각(낀 것 표시) · 2·3·5조각 효과(켜진 것 밝게)
