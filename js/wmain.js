@@ -5,7 +5,7 @@ import { WorldGame, newWorldSave } from './world/wgame.js';
 import * as W from './world/wdata.js';
 import { BUILD, RANKS, JOBS } from './data.js';
 import { BattleView, drawFighter } from './battle.js';
-import { loadIcons } from './icons.js';
+import { loadIcons, skinImg } from './icons.js';
 import { WNet } from './wnet.js';
 import { h, toast, openModal, closeModal, modalOpen } from './ui/common.js';
 import { WTABS, WTAB_TITLE, itemTitle, skillText, rewardText, dailyWaiting } from './wui.js';
@@ -13,6 +13,7 @@ import * as D from './world/wdgn.js';
 import { fmt, duration } from './fmt.js';
 import { sfx, unlockAudio, setSound, soundOn } from './sfx.js';
 loadIcons();
+for (const b of document.querySelectorAll('#tabs button[data-tab]')) skinImg(b.querySelector('i'), `tab-${b.dataset.tab}`);
 
 // 소리 — 이 기기에만 남긴다. 휴대폰은 화면을 한 번 눌러야 소리가 난다.
 try { setSound(localStorage.getItem('ifu.sound') !== '0'); } catch { /* 사생활 모드 */ }
@@ -147,20 +148,20 @@ function buildSkillbar() {
     const cd = h('div', { class: 'cd' });
     const num = h('div', { class: 'cdn' });
     const lock = h('div', { class: 'lock' });
-    const btn = h('button', { class: 'skill-btn', 'aria-label': sk.name, onclick: () => {
+    const btn = skinImg(h('button', { class: 'skill-btn', 'aria-label': sk.name, onclick: () => {
       if (sk.tier > game.s.jobTier) return showTab('town');
       if (!game.useSkill(sk.id)) toast(game.map.town ? '사냥터에서 쓸 수 있어요' : game.heroHp <= game.hpCostOf(sk) + 1 ? '체력이 모자라요' : '아직 숨이 안 돌아왔어요');
-    } }, sk.icon, cd, num, lock);
+    } }, h('span', { class: 'sk-name' }, sk.icon), cd, num, lock), `w-${game.s.job}-${sk.id}`);
     return { sk, btn, cd, num, lock, was: 0 };
   });
   potionEl = h('button', { class: 'skill-btn potion-btn', 'aria-label': '물약', onclick: () => {
     if (!game.drinkPotion()) toast(game.s.potions ? '체력이 가득해요' : '물약이 없어요 — 마을 상점에서 사요');
-  } }, h('span', { class: 'pot-ico' }), h('div', { class: 'lock' }));
+  } }, skinImg(h('span', { class: 'pot-ico' }), 'potion'), h('div', { class: 'lock' }));
   autoEl = h('button', { class: 'skill-btn auto-toggle', onclick: () => {
     game.s.autoHunt = !game.s.autoHunt;
     toast(game.s.autoHunt ? '자동 사냥을 켰어요' : '자동 사냥을 껐어요 — 들판을 눌러 움직여요');
     save();
-  } }, h('b', {}, '자동'), h('div', { class: 'lock' }));
+  } }, skinImg(h('b', {}, '자동'), 'auto'), h('div', { class: 'lock' }));
   $('skillbar').replaceChildren(...skillEls.map((e) => e.btn), ...(advEl ? [advEl] : []), potionEl, autoEl);
 }
 

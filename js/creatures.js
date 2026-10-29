@@ -3,6 +3,7 @@
 //
 // 탈것은 두 겹으로 그린다: back(먼 다리·꼬리) → 무인 → front(몸통·가까운 다리·머리·안장).
 // 몸통이 무인의 다리를 덮어서 '올라탄' 것처럼 보인다. 무인을 앉힐 높이는 saddleY.
+import { CR_BOX } from './crbox.js';
 const INK = '#1a1410';
 
 function blob(ctx, x, y, rx, ry, fill, rot = 0, line = 2) {
@@ -454,6 +455,46 @@ export function saddleY(kind, t = 0, moving = false) {
   return top + 20;
 }
 
+// ---- v136: 그린 그림(art/cr/, sunburst) ----
+// 벡터 모습을 크게 그려 그대로 다시 그리게 했다(tools/fxgen/crender.cjs → edit.py). CR_BOX는 벡터 모습의 내용 상자
+// (발밑 (0,0) · 오른쪽을 봄 · 크기 1) — 그림을 그 상자에 맞춰 놓으므로 크기·안장 높이가 옛 모습과 같다.
+// 다리를 따로 움직일 수 없어 걸을 땐 통째로 들썩이고 살짝 기울며, 서 있으면 숨을 쉰다. 그림이 없으면 옛 벡터 그대로.
+const crImg = {};
+const crTried = {};
+function crSprite(kind) {
+  const im = crImg[kind];
+  if (im) return im;
+  if (!crTried[kind] && CR_BOX[kind] && typeof Image !== 'undefined') {
+    crTried[kind] = true;
+    const x = new Image();
+    x.onload = () => { crImg[kind] = x; };
+    x.src = `art/cr/${kind}.png`;
+  }
+  return null;
+}
+export const crArt = (kind) => (CR_BOX[kind] ? `art/cr/${kind}.png` : null);
+function drawSprite(ctx, s, kind, im, t, moving, layer) {
+  const [x0, y0, x1, y1] = CR_BOX[kind];
+  const air = s.type === 'dragon' || s.fly;
+  const bob = air ? Math.sin(t * 2) * 3 : moving ? -Math.abs(Math.sin(t * (s.gait || 10))) * 2.4 : Math.sin(t * 2.2) * 0.8;
+  const breathe = moving || air ? 1 : 1 + Math.sin(t * 2.2) * 0.012;
+  const tilt = moving && !air ? Math.sin(t * (s.gait || 10)) * 0.035 : 0;
+  ctx.save();
+  if (tilt) ctx.rotate(tilt);
+  ctx.translate(0, bob);
+  if (breathe !== 1) { ctx.translate(0, y1); ctx.scale(1, breathe); ctx.translate(0, -y1); }
+  if (layer === 'front') {
+    // 탈것 앞 겹: 등 아래 몸통과 앞쪽(목·머리)만 다시 그려 무인의 다리를 덮는다
+    const sy = saddleY(kind, 0) - 18;
+    ctx.beginPath();
+    ctx.rect(x0 - 2, sy, x1 - x0 + 4, y1 - sy + 2);
+    ctx.rect(x1 - (x1 - x0) * 0.3, y0 - 2, (x1 - x0) * 0.3 + 2, sy - y0 + 2);
+    ctx.clip();
+  }
+  ctx.drawImage(im, x0, y0, x1 - x0, y1 - y0);
+  ctx.restore();
+}
+
 // 그린다. layer: 'all' | 'back' | 'front' (탈것을 무인 앞뒤로 나눠 그릴 때)
 export function drawCreature(ctx, kind, x, y, { t = 0, moving = false, flip = false, scale = 1, layer = 'all', alpha = 1 } = {}) {
   const s = CREATURES[kind];
@@ -466,6 +507,8 @@ export function drawCreature(ctx, kind, x, y, { t = 0, moving = false, flip = fa
   // 발밑 그림자 (뒤 겹에서만)
   if (layer !== 'front' && s.type !== 'dragon' && !s.fly) blob(ctx, 0, 0, (s.len || 24) * 0.5, 4, 'rgba(0,0,0,0.22)', 0, 0);
   if (layer !== 'front' && s.type === 'dragon') blob(ctx, 0, 0, s.len * 0.35, 4, 'rgba(0,0,0,0.18)', 0, 0);
+  const im = crSprite(kind);
+  if (im) { drawSprite(ctx, s, kind, im, t, moving, layer); ctx.restore(); return; }
   switch (s.type) {
     case 'quad': drawQuad(ctx, s, t, moving, layer); break;
     case 'dragon': drawDragon(ctx, s, t, moving, layer); break;

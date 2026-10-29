@@ -7,10 +7,21 @@ import * as G from './world/wgear.js';
 import { h, toast, openModal, closeModal, subTabs, popUp, holdRepeat } from './ui/common.js';
 import { fmt } from './fmt.js';
 import { dayKey } from './net.js';
-import { drawCreature, CREATURES } from './creatures.js';
+import { drawCreature, CREATURES, crArt } from './creatures.js';
+import { skinImg } from './icons.js';
 
 // 애완동물·탈것 그림 아이콘 (창 목록용) — 들판과 같은 그림을 작게
 export function creatureIcon(kind, size = 44) {
+  // v136: 그린 그림이 있으면 그것을 (없거나 못 받으면 벡터로)
+  const src = crArt(kind);
+  if (src) {
+    const im = h('img', { class: 'creature-ico', src, alt: '', style: `width:${size}px;height:${size}px;object-fit:contain` });
+    im.onerror = () => im.replaceWith(creatureCanvas(kind, size));
+    return im;
+  }
+  return creatureCanvas(kind, size);
+}
+function creatureCanvas(kind, size) {
   const cv = document.createElement('canvas');
   const q = Math.min(2, window.devicePixelRatio || 1);
   cv.width = cv.height = size * q;
@@ -279,12 +290,12 @@ function bagTab(app) {
     // 낀 여섯 칸 — 셋씩 두 줄
     const tiles = W.SLOTS.map((sl) => {
       const it = s.equip[sl.id];
-      if (!it) return h('div', { class: 'gear-tile empty' }, h('small', {}, sl.name), h('b', {}, '비어 있음'));
+      if (!it) return skinImg(h('div', { class: 'gear-tile empty' }, h('small', {}, sl.name), h('b', {}, '비어 있음')), `slot-${sl.id}`);
       const g = gradeOf(it);
-      return h('button', { class: `gear-tile${it.rar === 3 ? ' mythic' : ''}${it.set ? ' set' : ''}`, style: `--gc:${g.color}${it.set ? `;--sc:${G.setOf(it.set).col}` : ''}`, onclick: () => openItem(it, true) },
+      return skinImg(h('button', { class: `gear-tile${it.rar === 3 ? ' mythic' : ''}${it.set ? ' set' : ''}`, style: `--gc:${g.color}${it.set ? `;--sc:${G.setOf(it.set).col}` : ''}`, onclick: () => openItem(it, true) },
         h('small', {}, `${sl.name} · ${g.name}${it.set ? ' · 세트' : ''}`),
         h('b', {}, itemTitle(game, it)),
-        h('span', {}, itemLines(game, it).split(' · ').slice(0, 2).join(' · ')));
+        h('span', {}, itemLines(game, it).split(' · ').slice(0, 2).join(' · '))), `slot-${sl.id}`);
     });
     // 가방 — 칸 거르기
     const counts = {};
@@ -617,7 +628,7 @@ function mapTab(app) {
       const step = (k) => { stagePick[d.id] = Math.max(1, Math.min(max, stg + k)); dsig = ''; updDgn(); };
       return h('div', { class: `card dgn-card dgn-${d.id}${open ? '' : ' closed'}` },
         h('div', { class: 'dgn-top' },
-          h('div', { class: 'dgn-ico' }, d.ico),
+          skinImg(h('div', { class: 'dgn-ico' }, d.ico), `dg-${d.id}`),
           h('div', { class: 'dgn-name' }, h('b', {}, d.name), h('small', {}, ` ${d.hanja} · ${d.what}`),
             h('div', { class: 'muted' }, open ? `오늘 ${left}/${D.DAILY_ENTRIES}번 남음 · 깬 단계 ${best || '-'}` : `${D.dailyDaysText(d)}요일에 열려요`))),
         h('p', { class: 'muted dgn-desc' }, d.desc),
@@ -645,7 +656,7 @@ function mapTab(app) {
     auto.onchange = () => { tw.auto = auto.checked; app.save(); };
     const tower = h('div', { class: 'card dgn-card dgn-tower' },
       h('div', { class: 'dgn-top' },
-        h('div', { class: 'dgn-ico' }, '塔'),
+        skinImg(h('div', { class: 'dgn-ico' }, '塔'), 'dg-tower'),
         h('div', { class: 'dgn-name' }, h('b', {}, '무한의 탑'), h('small', {}, ` 無限塔 · 영구 능력치`),
           h('div', { class: 'muted' }, `오른 층 ${tw.floor} · 공격력·체력 +${(D.towerBonus(tw.floor) * 100).toFixed(1).replace(/\.0$/, '')}%`))),
       h('p', { class: 'muted dgn-desc' }, `${D.TOWER_MAX}층까지. 층마다 수문장 하나 — ${D.TOWER_SEC}초(십이지신 ${D.TOWER_ZODIAC_SEC}초) 안에 쓰러뜨리면 다음 층. 오른 층마다 공격력·체력 +${D.TOWER_BONUS * 100}% 영구. 횟수 제한 없음.`),
@@ -677,7 +688,7 @@ function mapTab(app) {
     {
       const key = D.weekKey(now);
       const boss = D.raidBossOf(key);
-      const top = h('div', { class: 'dgn-top' }, h('div', { class: 'dgn-ico' }, '討'),
+      const top = h('div', { class: 'dgn-top' }, skinImg(h('div', { class: 'dgn-ico' }, '討'), 'dg-raid'),
         h('div', { class: 'dgn-name' }, h('b', {}, '문파 토벌'), h('small', {}, ` 이번 주 · ${boss.title}`),
           h('div', { class: 'muted' }, `문파원이 한 주 동안 함께 쳐서 잡는 두목 — 하루 ${D.RAID_PER_DAY}번, 한 번에 ${D.RAID_SEC}초`)));
       const rows = [top];

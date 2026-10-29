@@ -67,3 +67,23 @@ export function iconSkin(el, kind, i) {
   (waiting[key] = waiting[key] || []).push(el);
   probe(key);
 }
+
+// v136: 이름으로 그림 한 장(art/icon/<key>.png)을 깐다 — 무공 단추·창 단추·장비 칸·던전.
+// 그림이 오면 has-art가 붙고 css가 글자를 줄이거나 감춘다. 안 오면 글자 그대로. el을 그대로 돌려준다.
+const skinHave = {};
+const skinWait = {};
+export function skinImg(el, key) {
+  if (!el) return el;
+  // css 변수 속 url()은 그 변수를 쓰는 css 파일(css/) 기준으로 풀린다 — 절대 주소로 넣는다
+  const put = () => { el.style.setProperty('--art', `url('${new URL(`art/icon/${key}.png`, document.baseURI).href}')`); el.classList.add('has-art'); };
+  if (skinHave[key]) { put(); return el; }
+  if (skinHave[key] === false) return el;
+  (skinWait[key] = skinWait[key] || []).push(put);
+  if (skinWait[key].length === 1) {
+    const im = new Image();
+    im.onload = () => { skinHave[key] = true; for (const f of skinWait[key]) f(); delete skinWait[key]; };
+    im.onerror = () => { skinHave[key] = false; delete skinWait[key]; };
+    im.src = `art/icon/${key}.png`;
+  }
+  return el;
+}

@@ -1199,3 +1199,25 @@ details.lore p { margin: 4px 0 0; line-height: 1.5; }
 .slot-kings span { flex: 1; min-width: 60px; text-align: center; font-size: 11px; padding: 4px 0; border-radius: 6px; background: rgba(255, 255, 255, 0.05); color: var(--muted); }
 .slot-kings b { color: #fde68a; }
 .stone-row .name small { color: #f0abfc; }
+
+/* v136: 그린 아이콘(art/icon/, icons.js skinImg) — 그림이 오면 has-art가 붙는다 */
+.skill-btn.has-art { background: var(--art) center / cover no-repeat, var(--card-2); }
+.skill-btn.has-art .sk-name { position: absolute; left: 0; right: 0; top: 2px; font: 800 10px/1 var(--serif); color: #fff;
+  text-shadow: 0 1px 2px #000, 0 0 3px #000; }
+#tabs button i.has-art { display: inline-block; flex: none; width: 18px; height: 18px; margin: 0; transform: scale(1.25); font-size: 0; color: transparent;
+  background: var(--art) center / contain no-repeat; }
+.potion-btn .pot-ico.has-art { width: 36px; height: 36px; margin: 3px auto 0; border-radius: 0; box-shadow: none;
+  background: var(--art) center / contain no-repeat; }
+.auto-toggle b.has-art { width: 32px; height: 32px; margin: 4px auto 0; font-size: 0; color: transparent;
+  background: var(--art) center / contain no-repeat; }
+.auto-toggle:not(.on) b.has-art { filter: grayscale(1) brightness(0.7); }
+.dgn-ico.has-art { color: transparent; background-image: var(--art), radial-gradient(circle at 35% 30%, #57534e, #1c1917);
+  background-size: 88%, cover; background-position: center; background-repeat: no-repeat; }
+.gear-tile.has-art { padding-right: 50px; background: var(--art) right 5px center / 40px 40px no-repeat, var(--card-2); }
+.gear-tile.empty.has-art { opacity: 0.75; }
+
+/* v136: 새 창틀 그림(art/ui/frame.png, 384) — 띄우는 창(#modal)에만. 모서리 장식이 통째로 들도록 100px를 잘라
+   38px 폭으로 그린다(띠는 20px쯤). 가운데는 비어 있어 아래 옻칠 바탕이 보이고, 잎이 안쪽에 되풀이되지 않는다. */
+#modal .sheet { border: 14px solid transparent; border-image: url('../art/ui/frame.png') 100 fill / 38px round;
+  background-clip: padding-box; box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5); }
+#modal .sheet::before { display: none; }
