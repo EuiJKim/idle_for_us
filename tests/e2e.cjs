@@ -38,10 +38,13 @@ async function newPlayer(browser, name, cls = '검사') {
   await page.click(`.class-card:has-text("${cls}")`);
   return { ctx, page, errors, name };
 }
+// 'map/king'처럼 창/칸 (v147 — 창마다 칸이 나뉘었다)
 async function tab(page, name) {
+  const [t, sub] = name.split('/');
   if (await page.isVisible('#panel-close')) { await page.click('#panel-close'); await sleep(250); }
-  await page.click(`#tabs button[data-tab="${name}"]`);
+  await page.click(`#tabs button[data-tab="${t}"]`);
   await sleep(300);
+  if (sub) { await page.click(`#panel .subtabs button[data-key="${sub}"]`); await sleep(250); }
 }
 
 (async () => {
@@ -61,10 +64,10 @@ async function tab(page, name) {
   await shot(p, '01-town.png');
 
   console.log('# 사냥터');
-  await tab(p, 'map');
+  await tab(p, 'map/field');
   assert(await p.locator('#panel .zone-card:has-text("죽림") .area-btn').count() === 4, '지역 카드에 구역 1·2·3·두목');
   // v146: 레벨과 상관없이 들어간다 — 센 곳은 잠그지 않고 '위험'을 붙인다
-  const far = p.locator('#panel .zone-card.king .area-btn.danger').first();
+  const far = p.locator('#panel .zone-card .area-btn.danger').first();
   assert(await far.count() === 1 && !(await far.isDisabled()), '레벨이 모자란 곳도 열려 있고 위험 표시가 붙는다');
   await p.locator('#panel .zone-card:has-text("죽림") .area-btn:has-text("1")').click();
   await sleep(300);
@@ -263,8 +266,7 @@ async function tab(page, name) {
   await shot(p, '09-guild.png');
 
   console.log('# 온라인: 문파 토벌 (v128)');
-  await tab(p, 'map');
-  await p.click('#panel .map-seg button[data-key="dgn"]');
+  await tab(p, 'dgn/raid');
   await p.click('#panel .dgn-raid button:has-text("이번 주 토벌 열기")');
   await p.waitForFunction(() => window.__app.net.raid?.kind === 'world' && window.__app.net.raid.maxHp > 0, null, { timeout: 15000 })
     .catch(async (e) => { console.log('DEBUG', await G(p, () => ({ toast: document.getElementById('toast').innerText, raid: window.__app.net.raid, day: window.__app.net.raidDay }))); throw e; });
@@ -293,8 +295,7 @@ async function tab(page, name) {
   }
   // q는 먼저 함께로 들어가 있고, p는 지도에서 왕 두목 구역을 눌러 고르는 창에서 '함께'를 고른다 (v145)
   await G(q, () => { const g = window.__game; g.s.kingParty = true; g.enterMap(164); });
-  await tab(p, 'map');
-  await p.click('#panel .map-seg button[data-key="field"]');
+  await tab(p, 'map/king');
   await p.locator('#panel .zone-card.king:has-text("권왕") .area-btn.boss').click();
   await p.waitForSelector('#modal .party-opt');
   await p.waitForSelector('#modal p:has-text("문파원 1명")', { timeout: 15000 });

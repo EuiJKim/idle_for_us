@@ -238,7 +238,11 @@ function charTab(app) {
         } }, max ? '최대' : locked ? '잠김' : `+1 · ${W.passiveCost(p, lv)}점`)));
     }
   }
-  root.append(head, questCard, loreBox, stats, skillCard, passCard, h('div', { class: 'card' }, h('h3', {}, '능력치'), derived));
+  // v147: 한 줄로 길게 이어지던 것을 칸 셋으로 — 정보(길잡이·이야기) | 능력치 | 무공(스킬·심법)
+  const infoBox = h('div', {}, head, questCard, loreBox);
+  const statBox = h('div', {}, stats, h('div', { class: 'card' }, h('h3', {}, '능력치'), derived));
+  const skillBox = h('div', {}, skillCard, passCard);
+  void root;
   function upd() {
     const s = game.s;
     const st = game.stats();
@@ -276,7 +280,20 @@ function charTab(app) {
       h('div', {}, '체력 회복', h('b', {}, `초당 ${st.regen.toFixed(1)}`)),
       h('div', {}, '전투력', h('b', { style: 'color:var(--gold)' }, fmt(st.power))));
   }
-  return { root, update: upd };
+  const t = subTabs([
+    { key: 'info', label: '정보', make: () => ({ root: infoBox, update: upd }) },
+    { key: 'stat', label: '능력치', make: () => ({ root: statBox, update: upd }) },
+    { key: 'skill', label: '무공', make: () => ({ root: skillBox, update: upd }) },
+  ], 'ifu.charsub');
+  const upd0 = t.update;
+  t.update = () => {
+    const s = game.s;
+    t.setDot('stat', s.statPts > 0 && !s.autoStat);
+    t.setDot('skill', game.skills().some((k) => game.canSkillUp(k.id)) || game.passiveList().some((p) => game.canPassUp(p.id)));
+    t.setDot('info', !!game.questNow()?.done);
+    upd0();
+  };
+  return t;
 }
 
 // ---------- 가방 ----------
@@ -733,55 +750,16 @@ export function rewardNodes(app, r, lead = '') {
 // v126: 지도 창 = 사냥터 · 던전 (요일 던전 · 무한의 탑)
 function mapTab(app) {
   const { game } = app;
-  const root = h('div');
-  const fieldBox = h('div');
-  const dgnBox = h('div');
-  let seg = 'field';
-  try { seg = localStorage.getItem('ifu.mapseg') || 'field'; } catch { /* 사생활 모드 */ }
-  const segBtns = h('div', { class: 'seg wide map-seg' });
-  const pick = (k) => {
-    seg = k;
-    try { localStorage.setItem('ifu.mapseg', k); } catch { /* 사생활 모드 */ }
-    fieldBox.style.display = k === 'field' ? '' : 'none';
-    dgnBox.style.display = k === 'dgn' ? '' : 'none';
-    for (const b of segBtns.children) b.classList.toggle('on', b.dataset.key === k);
-    sig = ''; dsig = '';
-    upd();
-  };
-  const dgnDot = h('i', { class: 'dot' });
-  segBtns.append(h('button', { 'data-key': 'field', onclick: () => pick('field') }, '사냥터'),
-    h('button', { 'data-key': 'dgn', onclick: () => pick('dgn') }, '던전', dgnDot));
-  root.append(segBtns, fieldBox, dgnBox);
-  let sig = '';
-  let dsig = '';
   const go = (id) => {
     const m = W.mapOf(id);
     if (m.bossRoom && m.king) return enterKingRoom(app, id, (ok) => { if (ok) { app.save(); app.closePanel(); app.refresh(); } });
     if (!game.enterMap(id)) return; app.save(); app.closePanel(); app.refresh();
   };
-  function upd() {
-    dgnDot.style.display = dailyWaiting(game) ? '' : 'none';
-    if (seg === 'dgn') return updDgn();
-    updField();
-  }
-  function updField() {
+  // 지역 카드 한 장 — 구역 1·2·3과 두목 구역 단추 · 기운 · 숙련
+  function zoneCard(box, zn, here) {
     const s = game.s;
-    const nsig = `${s.level}|${s.map}|${s.huntMap}|${Object.values(s.mast || {}).map((k) => L.masteryLv(k)).join(',')}`;
-    if (nsig === sig) return;
-    sig = nsig;
-    const here = W.mapOf(s.map);
-    fieldBox.replaceChildren(h('p', { class: 'muted' }, '지역마다 구역 1·2·3(뒤로 갈수록 세다)과 두목 구역이 있어요. 두목 증표는 두목 구역에서만 나와요. 지역마다 기운(좋거나 나쁜 환경)이 있고, 오래 사냥할수록 숙련도가 올라 나쁜 기운을 견뎌요.'),
-      h('div', { class: `row map-row${here.town ? ' me' : ''}` }, h('div', { class: 'ico' }, '촌'),
-        h('div', { class: 'info' }, h('div', { class: 'name' }, '객잔 마을'), h('div', { class: 'desc' }, '쉬는 곳 — 체력이 빨리 차요')),
-        h('button', { class: 'buy', disabled: here.town ? true : null, onclick: () => { game.goTown(); app.save(); app.closePanel(); app.refresh(); } }, here.town ? '여기' : '가기')));
-    let kingHead = false;
-    for (const zn of W.ZONE_ORDER) {
       const areas = W.MAPS.filter((m) => m.zone === zn.id);
       const open = game.canEnter(areas[0].id);
-      if (zn.king && !kingHead) {
-        kingHead = true;
-        fieldBox.append(h('h3', { class: 'king-head' }, '십이지왕', h('small', {}, '권장 레벨 99 · 제12왕에서 제1왕 검왕까지')));
-      }
       // v146: 레벨과 상관없이 어디든 갈 수 있다 — 지역은 다 보여 주고, 센 곳에는 '위험'을 붙인다
       const fit = areas.some((m) => !m.bossRoom && s.level >= m.lv[0] && s.level <= m.lv[1] + 2);
       const btns = areas.map((m) => {
@@ -798,7 +776,7 @@ function mapTab(app) {
       const ml = L.masteryLv(mk);
       const next = L.MASTERY_KILLS[ml + 1];
       const mBar = h('div', { class: 'mast-bar' }, h('i', { style: `width:${next ? Math.round(((mk - L.MASTERY_KILLS[ml]) / (next - L.MASTERY_KILLS[ml])) * 100) : 100}%` }));
-      fieldBox.append(h('div', { class: `card zone-card${zn.king ? ' king' : ''}${zn.pair ? ' alt' : ''}${here.zone === zn.id ? ' me' : ''}${open ? '' : ' locked'}` },
+      box.append(h('div', { class: `card zone-card${zn.king ? ' king' : ''}${zn.pair ? ' alt' : ''}${here.zone === zn.id ? ' me' : ''}${open ? '' : ' locked'}` },
         h('div', { class: 'zone-head' },
           h('b', {}, zn.name), zn.pair ? h('i', { class: 'new-tag' }, '새 지역') : null, fit ? h('i', { class: 'best-tag' }, '알맞음') : null,
           h('small', {}, `Lv.${zn.lv[0]}~${zn.lv[1]} · 두목 ${zn.boss.name}`)),
@@ -809,28 +787,85 @@ function mapTab(app) {
           h('small', {}, ml ? `경험치 +${ml * L.MASTERY.exp * 100}% · 재료 +${ml * L.MASTERY.mat * 100}%` : next ? `${next - mk}마리 더` : '')),
         zn.king ? h('p', { class: 'muted king-desc' }, `${zn.king.hanja} · ${zn.king.desc}`) : null,
         h('div', { class: 'area-row' }, ...btns)));
-    }
   }
+  // 사냥터 | 십이지왕 (v147) — 한 줄로 스물몇 지역이 이어져 있어 왕을 찾으려면 한참 내려야 했다
+  function zoneView(king) {
+    const box = h('div');
+    let sig = '';
+    return {
+      root: box,
+      update() {
+        const s = game.s;
+        const nsig = `${s.level}|${s.map}|${s.huntMap}|${Object.values(s.mast || {}).map((k) => L.masteryLv(k)).join(',')}`;
+        if (nsig === sig) return;
+        sig = nsig;
+        const here = W.mapOf(s.map);
+        if (king) {
+          box.replaceChildren(h('p', { class: 'muted' }, '권장 레벨 99 · 제12왕에서 제1왕 검왕까지. 두목 구역에 들어갈 때 혼자 또는 문파원과 함께를 골라요. 전반 다섯 왕은 직업 세트 조각, 후반 일곱 왕은 세트 강화석을 떨궈요.'));
+        } else {
+          box.replaceChildren(h('p', { class: 'muted' }, '지역마다 구역 1·2·3(뒤로 갈수록 세다)과 두목 구역이 있어요. 두목 증표는 두목 구역에서만 나와요. 레벨과 상관없이 어디든 갈 수 있지만, ⚠ 표시는 내 레벨보다 훨씬 센 곳이에요.'),
+            h('div', { class: `row map-row${here.town ? ' me' : ''}` }, h('div', { class: 'ico' }, '촌'),
+              h('div', { class: 'info' }, h('div', { class: 'name' }, '객잔 마을'), h('div', { class: 'desc' }, '쉬는 곳 — 체력이 빨리 차요')),
+              h('button', { class: 'buy', disabled: here.town ? true : null, onclick: () => { game.goTown(); app.save(); app.closePanel(); app.refresh(); } }, here.town ? '여기' : '가기')));
+        }
+        for (const zn of W.ZONE_ORDER) if (!!zn.king === king) zoneCard(box, zn, here);
+      },
+    };
+  }
+  return subTabs([
+    { key: 'field', label: '사냥터', make: () => zoneView(false) },
+    { key: 'king', label: '십이지왕', make: () => zoneView(true) },
+  ], 'ifu.mapsub');
+}
 
-  // ---------- 던전 ----------
+// ---------- 던전 창 (v147) ----------
+// 지도 창 한 칸에 일일 던전 셋 · 탑 · 십이지 · 토벌이 한 줄로 쌓여 있었다(중구난방).
+// 이제 따로 창 하나에 칸 넷: 일일 던전 | 무한의 탑 | 십이지 | 문파 토벌.
+function dgnTab(app) {
+  const { game } = app;
   const stagePick = {};
-  function updDgn() {
+  let bump = 0;
+  const start = (fn) => { if (!fn()) return; app.save(); app.closePanel(); app.refresh(); };
+  const sigOf = () => {
     const s = game.s;
     const now = Date.now();
     const net = app.net;
     const rd = net?.raid;
     const nsig = `${s.level}|${JSON.stringify(s.dgn)}|${s.tower.floor}|${s.tower.auto}|${D.kstDay(now)}|${JSON.stringify(stagePick)}|${!!game.inst}|${!!s.job}|${JSON.stringify(s.zTickets)}|${s.mounts.length}|${net?.status}|${s.guildId}|${rd?.kind}|${rd?.total}|${rd?.maxHp}|${JSON.stringify(rd?.claimed || {})}|${JSON.stringify(s.raid)}`;
-    if (nsig === dsig) return;
-    dsig = nsig;
-    const wd = D.kstWeekday(now);
+    return `${bump}|${nsig}`;
+  };
+  // 어느 칸이든 맨 위에 — 던전 안이거나 직업이 없으면 알린다
+  const notes = () => [
+    !game.s.job ? h('p', { class: 'muted' }, '캐릭터를 먼저 고르세요.') : null,
+    game.inst ? h('p', { class: 'muted' }, '지금 던전 안이에요 — 끝나면 다시 고를 수 있어요.') : null,
+  ];
+  const views = [];
+  function view(build) {
+    const box = h('div');
+    let sig = '';
+    const v = {
+      root: box,
+      update() {
+        const n = sigOf();
+        if (n === sig) return;
+        sig = n;
+        box.replaceChildren(...[...notes(), ...build()].filter(Boolean));
+      },
+    };
+    views.push(v);
+    return v;
+  }
+  const rerender = () => { bump++; t.update(); };
+  function buildDaily() {
+    const s = game.s;
+    const now = Date.now();
     const sweepN = D.DAILY.reduce((a, d) => a + (game.canSweep(d.id, now) ? game.dailyLeft(d.id, now) : 0), 0);
-    const start = (fn) => { if (!fn()) return; app.save(); app.closePanel(); app.refresh(); };
-    // 자동 도전 — 켜 두면 열린 던전을 갈 수 있는 가장 높은 단계로 알아서 돈다
+        // 자동 도전 — 켜 두면 열린 던전을 갈 수 있는 가장 높은 단계로 알아서 돈다
     const dAuto = h('input', { type: 'checkbox' });
     dAuto.checked = !!s.dgn.auto;
-    dAuto.onchange = () => { s.dgn.auto = dAuto.checked; app.save(); dsig = ''; updDgn(); };
+    dAuto.onchange = () => { s.dgn.auto = dAuto.checked; app.save(); rerender(); };
     const head = h('div', { class: 'card dgn-head' },
-      h('div', {}, h('b', {}, `오늘은 ${'일월화수목금토'[wd]}요일`), h('small', { class: 'muted' }, wd === 0 ? ' · 일요일은 셋 다 열려요' : ' · 요일마다 열리는 던전이 달라요'),
+      h('div', {}, h('b', {}, '일일 던전'), h('small', { class: 'muted' }, ` · 셋 다 매일 ${D.DAILY_ENTRIES}번씩 · 한국 시간 자정에 다시 차요`),
         h('label', { class: 'chk' }, dAuto, ' 자동 도전 — 열린 던전을 알아서 돌아요')),
       h('button', { class: 'btn primary', disabled: sweepN ? null : true, onclick: () => {
         const got = game.sweepAll(now);
@@ -845,7 +880,7 @@ function mapTab(app) {
       const max = game.dailyMaxStage(d.id);
       const stg = Math.max(1, Math.min(max, stagePick[d.id] ?? max));
       const rw = D.dailyReward(d.id, stg, game.levelGapMult(D.dailyLv(stg)));
-      const step = (k) => { stagePick[d.id] = Math.max(1, Math.min(max, stg + k)); dsig = ''; updDgn(); };
+      const step = (k) => { stagePick[d.id] = Math.max(1, Math.min(max, stg + k)); rerender(); };
       return h('div', { class: `card dgn-card dgn-${d.id}${open ? '' : ' closed'}` },
         h('div', { class: 'dgn-top' },
           skinImg(h('div', { class: 'dgn-ico' }, d.ico), `dg-${d.id}`),
@@ -872,6 +907,10 @@ function mapTab(app) {
             toast(`${d.name} ${best}단계 소탕 — ${rewardText(r)}`);
           } }, best ? `소탕 ${best}단계` : '소탕')));
     });
+    return [head, ...cards];
+  }
+  function buildTower() {
+    const s = game.s;
     // 무한의 탑
     const tw = s.tower;
     const nf = tw.floor + 1;
@@ -893,6 +932,11 @@ function mapTab(app) {
       h('label', { class: 'chk' }, auto, ' 이기면 이어서 다음 층으로'),
       h('div', { class: 'btn-row' },
         h('button', { class: 'btn primary', disabled: game.canTower() ? null : true, onclick: () => start(() => game.startTower()) }, tw.floor >= D.TOWER_MAX ? '꼭대기까지 올랐어요' : `${nf}층 도전`)));
+    return [tower];
+  }
+  function buildZodiac() {
+    const s = game.s;
+    const tw = s.tower;
     // 십이지 — 10층마다 신 하나. 뽑기권이 있으면 뽑기, 신수를 가졌으면 표시
     const zodiacCard = h('div', { class: 'card zodiac-card' },
       h('h3', {}, '십이지 탈것 뽑기', h('small', {}, ` 10층마다 그 신의 뽑기권 ${D.ZODIAC_TICKETS}장 · 신수 ${Math.round(D.ZODIAC_RATE * 100)}% (셋째에 꼭)`)),
@@ -905,9 +949,16 @@ function mapTab(app) {
           class: `zodiac-cell${own ? ' own' : ''}${n ? ' ready' : ''}${cleared ? '' : ' locked'}`,
           disabled: n ? null : true,
           title: `${z.god} · ${md.name} (이동 +${Math.round(md.speed * 100)}% · 공격·체력 +${Math.round(md.stat * 100)}%)`,
-          onclick: () => { const mt = game.drawZodiac(z.no); if (!mt) return; app.save(); dsig = ''; app.refresh(); },
+          onclick: () => { const mt = game.drawZodiac(z.no); if (!mt) return; app.save(); rerender(); app.refresh(); },
         }, creatureIcon(z.mount, 40), h('b', {}, `${z.ji} ${z.animal}`), h('small', {}, n ? `뽑기 ${n}` : own ? '신수 ✓' : `${z.no * 10}층`));
       })));
+    return [zodiacCard];
+  }
+  function buildRaid() {
+    const s = game.s;
+    const now = Date.now();
+    const net = app.net;
+    const rd = net?.raid;
     // 문파 토벌 (v128)
     const raidCard = h('div', { class: 'card dgn-card dgn-raid' });
     {
@@ -923,7 +974,7 @@ function mapTab(app) {
         rows.push(h('div', { class: 'btn-row' }, h('button', { class: 'btn primary', onclick: async (e) => {
           e.target.disabled = true;
           try { await net.ensureWeekRaid(); } catch (err) { toast(`토벌을 못 열었어요: ${err.message || err}`); }
-          dsig = ''; updDgn();
+          rerender();
         } }, '이번 주 토벌 열기')));
       } else {
         const left = Math.max(0, rd.maxHp - rd.total);
@@ -939,21 +990,28 @@ function mapTab(app) {
             net.canClaimWeek() ? h('button', { class: 'btn', onclick: async (e) => {
               e.target.disabled = true;
               try { const r = await net.claimWeek(); if (r) { toast(`토벌 보상 — ${rewardText(r)}`); app.save(); app.refresh(); } } catch (err) { toast(`받지 못했어요: ${err.message || err}`); }
-              dsig = ''; updDgn();
+              rerender();
             } }, '처치 보상 받기') : null));
       }
       raidCard.append(...rows);
     }
-    dgnBox.replaceChildren(...[
-      !s.job ? h('p', { class: 'muted' }, '캐릭터를 먼저 고르세요.') : null,
-      game.inst ? h('p', { class: 'muted' }, '지금 던전 안이에요 — 끝나면 다시 고를 수 있어요.') : null,
-      head, ...cards, h('h3', { class: 'king-head' }, '무한의 탑', h('small', {}, '오를수록 영구히 강해진다')), tower, zodiacCard,
-      h('h3', { class: 'king-head' }, '문파 토벌', h('small', {}, '한 주에 두목 하나, 함께')), raidCard].filter(Boolean));
+    return [raidCard];
   }
-  pick(seg);
-  return { root, update: upd, select: pick };
+  const t = subTabs([
+    { key: 'daily', label: '일일 던전', make: () => view(buildDaily) },
+    { key: 'tower', label: '무한의 탑', make: () => view(buildTower) },
+    { key: 'zodiac', label: '십이지', make: () => view(buildZodiac) },
+    { key: 'raid', label: '문파 토벌', make: () => view(buildRaid) },
+  ], 'ifu.dgnsub');
+  const upd0 = t.update;
+  t.update = () => {
+    t.setDot('daily', dailyWaiting(game));
+    t.setDot('zodiac', Object.values(game.s.zTickets || {}).some((n) => n > 0));
+    upd0();
+  };
+  return t;
 }
-// 오늘 열린 요일 던전에 남은 횟수가 있나 (지도 창 빨간 점)
+// 일일 던전에 오늘 남은 횟수가 있나 (던전 창 빨간 점)
 export function dailyWaiting(game, now = Date.now()) {
   if (!game.s.job || game.inst) return false;
   return D.DAILY.some((d) => D.dailyOpen(d, now) && game.dailyLeft(d.id, now) > 0);
@@ -1072,8 +1130,9 @@ export function skillText(game, sk) {
   const cd = game.skillCd ? game.skillCd(sk) : sk.cd;
   const cost = sk.hpCost * (1 - (game.skillMods ? game.skillMods(sk.id).cost : 0));
   const num = sk.kind === 'field' ? `처음 ×${sk.mult} · ${sk.field.tick}초마다 ×${sk.field.mult}`
-    : sk.kind === 'daggers' ? `한 자루 ×${sk.mult}` : `공격력 ×${sk.mult}${sk.hits > 1 ? ` · ${sk.hits}번` : ''}`;
-  return `${sk.desc} — ${num} · 숨 ${cd.toFixed(cd < 10 ? 1 : 0).replace(/\.0$/, '')}초${sk.hpCost ? ` · 체력 ${pct(cost, 0)} 소모` : ''}`;
+    : sk.kind === 'daggers' ? `한 자루 ×${sk.mult}` : sk.mult != null ? `공격력 ×${sk.mult}${sk.hits > 1 ? ` · ${sk.hits}번` : ''}` : '';
+  // 보조기·각성처럼 배수가 없는 무공은 숫자를 빼고 숨만 (전에는 '공격력 ×undefined'가 찍혔다)
+  return `${sk.desc} — ${num ? `${num} · ` : ''}숨 ${cd.toFixed(cd < 10 ? 1 : 0).replace(/\.0$/, '')}초${sk.hpCost ? ` · 체력 ${pct(cost, 0)} 소모` : ''}`;
 }
 
 // ---------- 무림 ----------
@@ -1362,7 +1421,10 @@ function compTab(app) {
       return h('div', { class: 'rank-line' }, h('span', { class: 'rk' }, `${d.tier}`), h('span', { class: 'em' }, creatureIcon(d.id, 34)),
         h('b', {}, d.name), h('span', {}, `이동 +${Math.round(d.speed * 100)}% · 공격·체력 +${Math.round(d.stat * 100)}%`), h('small', {}, d.zodiac ? `무한의 탑 ${d.zodiac * 10}층 십이지 뽑기` : `${z?.name || ''} 두목부터`));
     }));
-  root.append(petCard, boxCard, rankCard, mountCard, mountRank);
+  // v147: 애완동물 | 탈것 두 칸으로
+  const petBox = h('div', {}, petCard, boxCard, rankCard);
+  const mountBox = h('div', {}, mountCard, mountRank);
+  void root;
   let sig = '';
   const rarTag = (r) => h('b', { style: `color:${W.RARITY[r].color}` }, W.RARITY[r].name);
   const petInfo = (p) => {
@@ -1423,8 +1485,18 @@ function compTab(app) {
         h('button', { class: on ? 'btn' : 'buy', onclick: () => { game.ride(on ? null : m.uid); done(); } }, on ? '내리기' : '타기')));
     }
   }
-  return { root, update: upd };
+  const t = subTabs([
+    { key: 'pet', label: '애완동물', make: () => ({ root: petBox, update: upd }) },
+    { key: 'mount', label: '탈것', make: () => ({ root: mountBox, update: upd }) },
+  ], 'ifu.compsub');
+  const upd0 = t.update;
+  t.update = () => {
+    t.setDot('pet', game.s.petBox.length > 0 && game.s.pets.length < game.petSlots());
+    t.setDot('mount', game.s.mounts.length > 0 && game.s.mount == null);
+    upd0();
+  };
+  return t;
 }
 
-export const WTABS = { char: charTab, bag: bagTab, map: mapTab, town: townTab, social: socialTab, comp: compTab };
-export const WTAB_TITLE = { char: '캐릭터', bag: '가방', map: '지도', town: '마을', social: '무림', comp: '동료' };
+export const WTABS = { char: charTab, bag: bagTab, map: mapTab, dgn: dgnTab, town: townTab, social: socialTab, comp: compTab };
+export const WTAB_TITLE = { char: '캐릭터', bag: '가방', map: '지도', dgn: '던전', town: '마을', social: '무림', comp: '동료' };

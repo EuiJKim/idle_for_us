@@ -1283,3 +1283,9 @@ details.lore p { margin: 4px 0 0; line-height: 1.5; }
 .buy.ghost { background: transparent; border: 1px solid var(--line); color: var(--muted); }
 .area-btn.danger { border-color: rgba(248,113,113,0.55); }
 .area-btn.danger small { color: #fca5a5; }
+
+/* v147: 창 단추 일곱 — 그림 위 · 글자 아래로 좁게 (가로 한 줄에 다 들어간다) */
+#tabs button { flex-direction: column; justify-content: center; width: 50px; height: 46px; padding: 2px 0; gap: 1px; }
+#tabs button span { font-size: 10px; line-height: 1.1; letter-spacing: -0.6px; }
+#tabs button i.has-art { width: 22px; height: 22px; transform: none; }
+.tabcol { gap: 4px; }

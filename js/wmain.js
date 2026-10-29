@@ -272,7 +272,7 @@ function refreshUI(full = false) {
   const t = game.nextTier();
   dot('town', !!t && s.level >= t.level && s.gold >= t.cost);
   dot('comp', s.petBox.length > 0 && s.pets.length < game.petSlots());
-  dot('map', dailyWaiting(game));
+  dot('dgn', dailyWaiting(game) || Object.values(game.s.zTickets || {}).some((n) => n > 0));
   if (activeTab) { tabs[activeTab].update(); panelRes(); }
   if (full) drawPortrait();
 }
@@ -536,15 +536,14 @@ function handleEvents() {
 }
 
 // 남은 스탯 점수 알약을 누르면 캐릭터 창
-$('advice').addEventListener('click', () => showTab('char'));
+$('advice').addEventListener('click', () => showTab('char', game.s.statPts > 0 && !game.s.autoStat ? 'stat' : 'skill'));
 // 길잡이 — 끝냈으면 받고, 아니면 할 자리를 열어 준다
 $('quest').addEventListener('click', () => {
   const cur = game.questNow();
   if (!cur) return;
   if (!cur.done) {
     // 던전은 지도 창 안의 칸이다
-    if (cur.q.tab === 'dgn') showTab('map', 'dgn');
-    else if (cur.q.tab) showTab(cur.q.tab);
+    if (cur.q.tab) { const [t, sub] = cur.q.tab.split('/'); showTab(t, sub); }
     toast(cur.q.why);
     return;
   }

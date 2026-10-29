@@ -114,7 +114,8 @@ export const RES_DEFS = {
 
 // 탭 안의 하위 탭(세그먼트). views: [{key, label, make: () => view}]
 // 고른 화면이 res를 들고 있으면 그대로 올려 준다 — 창 머리가 그걸 띄운다.
-export function subTabs(views) {
+// memo: 고른 칸을 기억할 열쇠(localStorage) — 다시 열면 마지막에 보던 칸 (v147)
+export function subTabs(views, memo = null) {
   let cur = null;
   const made = {};
   const body = h('div');
@@ -126,6 +127,7 @@ export function subTabs(views) {
   });
   function select(key) {
     cur = key;
+    if (memo) try { localStorage.setItem(memo, key); } catch { /* 사생활 모드 */ }
     if (!made[key]) made[key] = views.find((v) => v.key === key).make();
     body.replaceChildren(made[key].root);
     buttons.forEach(([k, b]) => b.classList.toggle('on', k === key));
@@ -136,7 +138,9 @@ export function subTabs(views) {
     made[key].update();
   }
   const root = h('div', {}, h('div', { class: 'subtabs' }, seg), body);
-  select(views[0].key);
+  let first = views[0].key;
+  if (memo) try { const k = localStorage.getItem(memo); if (views.some((v) => v.key === k)) first = k; } catch { /* 사생활 모드 */ }
+  select(first);
   return {
     root,
     res: () => made[cur]?.res || null,

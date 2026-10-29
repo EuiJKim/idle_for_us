@@ -31,8 +31,9 @@ export const DAILY = [
     desc: '대장장이들이 탐내는 광맥. 그 단계 지역의 재료와 증표.' },
 ];
 export const dailyOf = (id) => DAILY.find((d) => d.id === id) || null;
-export const dailyOpen = (d, now = Date.now()) => kstWeekday(now) === 0 || d.days.includes(kstWeekday(now));
-export const dailyDaysText = (d) => `${d.days.map((x) => DAY_NAMES[x]).join('·')}·일`;
+// v147: 요일 제한을 없앴다 — 셋 다 매일 열린다(하루 DAILY_ENTRIES번씩). days는 옛 세이브·문서용으로만 남는다.
+export const dailyOpen = () => true;
+export const dailyDaysText = () => '매일';
 
 // 단계 s의 몹 레벨 (1단계 5 … 30단계 150) · 들어갈 수 있는 레벨
 export const dailyLv = (s) => Math.min(150, 5 * s);
