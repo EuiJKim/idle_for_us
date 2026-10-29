@@ -15,6 +15,7 @@ import { JOB_TRAITS } from './data.js';
 import { POSES } from './pose.js';
 import { CLASS_FX, CLASS_CHOREO } from './skillfx_class.js';
 import { MAJON_FX, MAJON_CHOREO } from './skillfx_majon.js';
+import { putJ, putFace } from './jobart.js';
 
 // 연출 세기 — 설정의 '연출 간소화'. 2 높음 · 1 보통 · 0 낮음.
 // 높음만 화면 전체를 다시 칠하는 것(흑백·화면 가르기)을 쓴다.
@@ -652,6 +653,8 @@ const POISON_FX = {
       ctx.drawImage(dark, px - sz / 2, py - sz / 2, sz, sz);
       ctx.globalCompositeOperation = 'lighter';
       ctx.globalAlpha = fade * 0.5;
+      // v134: 그린 독안개 그림이 있으면 그것으로 (첫 두 단계 초록 독만 — 보랏빛 독은 옛 그대로)
+      if ((e.v || 0) < 2) { ctx.globalAlpha = 1; if (putJ(ctx, 'poison-cloud', px, py, sz * 1.15, fade * 0.55, a)) continue; ctx.globalAlpha = fade * 0.5; }
       ctx.drawImage(img, px - sz * 0.4, py - sz * 0.45, sz * 0.8, sz * 0.8);
     }
     ctx.globalAlpha = 1;
@@ -671,7 +674,7 @@ const POISON_FX = {
     g.addColorStop(1, `rgba(${c.glow},0)`);
     ctx.fillStyle = g;
     ctx.beginPath(); ctx.arc(x, y, e.size * 2.4, 0, TAU); ctx.fill();
-    skullAt(ctx, x, y, e.size * (0.7 + pop * 0.3), `rgb(${c.core})`, `rgb(${c.dark})`);
+    if (!putJ(ctx, 'skull', x, y, e.size * 3.2 * (0.7 + pop * 0.3))) skullAt(ctx, x, y, e.size * (0.7 + pop * 0.3), `rgb(${c.core})`, `rgb(${c.dark})`);
     ctx.globalAlpha = 1;
   },
   // 독사 — 꺾인 길을 따라 기어가는 뱀 (연쇄)
@@ -725,6 +728,7 @@ const POISON_FX = {
     // 머리와 눈
     const [hx, hy, ha] = pointAt(head);
     ctx.globalCompositeOperation = 'source-over';
+    if (putFace(ctx, 'serpent-head', hx + Math.cos(ha) * w, hy + Math.sin(ha) * w, w * 6.5, fade, ha)) return;
     ctx.fillStyle = `rgba(${c.dark},${fade})`;
     ctx.beginPath(); ctx.ellipse(hx, hy, w * 1.3, w * 0.9, ha, 0, TAU); ctx.fill();
     ctx.fillStyle = `rgba(${c.core},${fade})`;
@@ -847,6 +851,7 @@ const POISON_FX = {
       }
       ctx.stroke();
     }
+    putJ(ctx, 'poison-cloud', x, y - 46, 100, 0.3 * fade, t * 0.3);
     const g = ctx.createRadialGradient(x, y - 50, 4, x, y - 50, 56);
     g.addColorStop(0, `rgba(${c.glow},${0.22 * fade})`);
     g.addColorStop(1, `rgba(${c.glow},0)`);

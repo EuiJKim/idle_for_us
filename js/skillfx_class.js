@@ -15,6 +15,7 @@ const clamp01 = (v) => Math.max(0, Math.min(1, v));
 export const rnd = (n) => Array.from({ length: n }, () => [Math.random(), Math.random(), Math.random()]);
 
 // 캐릭터 빛깔 — [기본, 밝은 심, 어두운 그늘]
+import { putJ, jobOfView } from './jobart.js';
 export const COL = {
   sword: ['229,231,235', '255,255,255', '71,85,105'],
   fist: ['245,158,11', '253,230,138', '120,53,15'],
@@ -76,6 +77,9 @@ export const CLASS_FX = {
     const fade = Math.min(1, k * 2.5);
     ctx.translate(x, y);
     ctx.scale(1, 0.5);
+    // v134: 그린 갈라진 땅 그림을 깔고 그 위에 빛 금을 긋는다
+    ctx.globalCompositeOperation = 'source-over';
+    putJ(ctx, 'crack', 0, 0, e.r * 2.3 * (0.4 + 0.6 * grow), 0.85 * fade, (e.seed || 1) * 2.3);
     const n = e.n || 7;
     for (let pass = 0; pass < 2; pass++) {
       ctx.globalCompositeOperation = pass ? 'lighter' : 'source-over';
@@ -122,6 +126,8 @@ export const CLASS_FX = {
     }
     ctx.translate(x, y);
     ctx.rotate(ang);
+    // v134: 금빛 주먹 그림 (아래를 보는 그림이라 -90도 돌린다)
+    if (putJ(ctx, 'fist-gold', -s * 0.4, 0, s * 2.8, a, -Math.PI / 2)) return;
     const g = ctx.createRadialGradient(0, 0, 0, 0, 0, s * 1.2);
     g.addColorStop(0, `rgba(${e.hot || '255,255,255'},${0.9 * a})`);
     g.addColorStop(0.5, `rgba(${e.col},${0.65 * a})`);
@@ -183,6 +189,7 @@ export const CLASS_FX = {
       ctx.save();
       ctx.translate(x, y);
       ctx.rotate(a * 2 + s[2] * 6);
+      if (e.col === PLUM && putJ(ctx, 'plum-petal', 0, 0, 13 + s[1] * 7, 0.95 * Math.min(1, k * 1.8))) { ctx.restore(); continue; }
       ctx.fillStyle = `rgba(${e.col},${0.85 * Math.min(1, k * 1.8)})`;
       ctx.beginPath(); ctx.ellipse(0, 0, 5 + s[1] * 3, 2.2, 0, 0, TAU); ctx.fill();
       ctx.restore();
@@ -222,6 +229,13 @@ export const CLASS_FX = {
     ctx.translate(x, y);
     ctx.scale(1, 0.42);
     ctx.rotate(p * (e.spin ?? 1.5));
+    // v134: 직업마다 그린 인장 — 있으면 별·눈금 대신 그것을 돌린다
+    const seal = `seal-${jobOfView(v)}`;
+    if (putJ(ctx, seal, 0, 0, R * 2.15, 0.8 * a)) {
+      ctx.strokeStyle = `rgba(${e.col},${0.6 * a})`; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(0, 0, R * 1.04, 0, TAU); ctx.stroke();
+      return;
+    }
     ctx.strokeStyle = `rgba(${e.col},${0.85 * a})`;
     ctx.lineWidth = 2.2;
     ctx.beginPath(); ctx.arc(0, 0, R, 0, TAU); ctx.stroke();
@@ -270,6 +284,8 @@ export const CLASS_FX = {
       ctx.beginPath(); ctx.arc(x, y, (e.size || 8) * (1 - j * 0.08), 0, TAU); ctx.fill();
     }
     const [x, y] = at(p);
+    // v134: 섭혼마존은 그린 혼불을 날린다
+    if (jobOfView(v) === 'fan' && putJ(ctx, 'soul-orb', x, y, (e.size || 8) * 5, fade, p * 8)) return;
     const g = ctx.createRadialGradient(x, y, 0, x, y, (e.size || 8) * 2.4);
     g.addColorStop(0, `rgba(255,255,255,${fade})`);
     g.addColorStop(0.4, `rgba(${e.col},${0.8 * fade})`);

@@ -1,11 +1,11 @@
 // 앱 껍데기를 캐시해 오프라인에서도 열리게 한다. 온라인이면 항상 새 파일을 먼저 받는다.
-const CACHE = 'ifu-v133';
+const CACHE = 'ifu-v134';
 const SHELL = [
   './', 'index.html', 'css/style.css', 'manifest.webmanifest',
   'js/big.js', 'js/data.js', 'js/battle.js', 'js/net.js', 'js/fmt.js', 'js/firebase-config.js',
   'js/ui/common.js',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png',
-  'js/art.js', 'js/fx.js', 'js/icons.js', 'js/ads.js', 'js/pose.js', 'js/skillfx.js', 'js/skillfx_class.js', 'js/skillfx_majon.js', 'js/world/wdata.js', 'js/world/wmobs.js', 'js/world/wgame.js', 'js/world/wdgn.js', 'js/world/wland.js', 'js/world/wgear.js', 'js/obstacles.js', 'js/creatures.js', 'js/wui.js', 'js/wnet.js', 'js/wmain.js', 'js/sfx.js',
+  'js/art.js', 'js/fx.js', 'js/icons.js', 'js/ads.js', 'js/pose.js', 'js/skillfx.js', 'js/skillfx_class.js', 'js/skillfx_majon.js', 'js/world/wdata.js', 'js/world/wmobs.js', 'js/world/wgame.js', 'js/world/wdgn.js', 'js/world/wland.js', 'js/world/wgear.js', 'js/obstacles.js', 'js/jobart.js', 'js/creatures.js', 'js/wui.js', 'js/wnet.js', 'js/wmain.js', 'js/sfx.js',
   'art/ui/frame.png',
   // 창 안 아이콘. 한 장씩 따로 보므로 빠져도 그 자리만 글자로 남는다.
   'art/icon/acc-0.png', 'art/icon/acc-1.png', 'art/icon/acc-2.png', 'art/icon/codex-0.png',
@@ -99,6 +99,31 @@ const SHELL = [
   'art/hero/wp-s0.png', 'art/hero/wp-s1.png', 'art/hero/wp-s2.png', 'art/hero/wp-s3.png',
   'art/hero/wp-s4.png', 'art/hero/wp-s5.png', 'art/hero/wp-saber.png', 'art/hero/wp-spear.png',
   'art/hero/wp-sword.png',
+  // 직업 무공 그림 (v134)
+  'art/jfx/blood-eye.png',
+  'art/jfx/blood-moon.png',
+  'art/jfx/crack.png',
+  'art/jfx/cut-fan.jpg',
+  'art/jfx/cut-fist.jpg',
+  'art/jfx/cut-poison.jpg',
+  'art/jfx/cut-ring.jpg',
+  'art/jfx/cut-sword.jpg',
+  'art/jfx/dagger.png',
+  'art/jfx/fist-gold.png',
+  'art/jfx/gold-aura.png',
+  'art/jfx/gold-bell.png',
+  'art/jfx/mask.png',
+  'art/jfx/plum-flower.png',
+  'art/jfx/plum-petal.png',
+  'art/jfx/poison-cloud.png',
+  'art/jfx/seal-fan.png',
+  'art/jfx/seal-fist.png',
+  'art/jfx/seal-poison.png',
+  'art/jfx/seal-ring.png',
+  'art/jfx/seal-sword.png',
+  'art/jfx/serpent-head.png',
+  'art/jfx/skull.png',
+  'art/jfx/soul-orb.png',
 ];
 
 // **addAll은 하나라도 실패하면 통째로 실패한다.**

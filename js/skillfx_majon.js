@@ -9,6 +9,7 @@
 // 피해·밸런스는 1도 안 바뀐다.
 import { impact, beats, blinkBeats, buffBeats, COL, PLUM, rnd } from './skillfx_class.js';
 import { POSES } from './pose.js';
+import { jart, putJ, jobOfView } from './jobart.js';
 
 const TAU = Math.PI * 2;
 const clamp01 = (v) => Math.max(0, Math.min(1, v));
@@ -40,6 +41,18 @@ export const MAJON_FX = {
     g.addColorStop(0, `rgba(${e.col},0.95)`); g.addColorStop(0.5, 'rgba(12,8,6,0.94)'); g.addColorStop(1, `rgba(${e.col},0.95)`);
     ctx.fillStyle = g;
     ctx.fillRect(-40, -H / 2, w + 80, H);
+    // v134: 직업마다 그린 컷인 배경을 띠에 깐다
+    const bg = jart(`cut-${jobOfView(v)}`);
+    if (bg) {
+      ctx.save(); ctx.beginPath(); ctx.rect(-40, -H / 2, w + 80, H); ctx.clip();
+      const bw = w + 80, bh = (bg.height * bw) / bg.width;
+      ctx.globalAlpha *= 0.85;
+      ctx.drawImage(bg, -40 - p * 60, -bh / 2 + H * 0.1, bw + 60, bh * (bw + 60) / bw);
+      const sh = ctx.createLinearGradient(0, 0, w, 0);
+      sh.addColorStop(0, 'rgba(8,5,3,0.15)'); sh.addColorStop(0.5, 'rgba(8,5,3,0.35)'); sh.addColorStop(1, 'rgba(8,5,3,0.65)');
+      ctx.globalAlpha = 1; ctx.fillStyle = sh; ctx.fillRect(-40, -H / 2, w + 80, H);
+      ctx.restore();
+    }
     ctx.fillStyle = 'rgba(255,255,255,0.9)';
     ctx.fillRect(-40, -H / 2 - 3, w + 80, 3); ctx.fillRect(-40, H / 2, w + 80, 3);
     // 속도선
@@ -141,6 +154,7 @@ export const MAJON_FX = {
       const sz = 1.5 + (i % 4);
       ctx.fillStyle = `rgba(${i % 3 ? e.col : '255,255,255'},${0.8 * Math.min(1, k * 2)})`;
       ctx.save(); ctx.translate(sx + Math.sin(p * 6 + i) * 18, sy); ctx.rotate(p * 4 + i);
+      if (e.shape === 'petal' && putJ(ctx, 'plum-petal', 0, 0, sz * 6, Math.min(1, k * 2))) { ctx.restore(); continue; }
       if (e.shape === 'petal') { ctx.beginPath(); ctx.ellipse(0, 0, sz * 2, sz, 0, 0, TAU); ctx.fill(); } else ctx.fillRect(-sz / 2, -sz / 2, sz, sz);
       ctx.restore();
     }
@@ -203,8 +217,10 @@ export const MAJON_FX = {
     g.addColorStop(0, `rgba(220,38,38,${0.55 * a})`); g.addColorStop(1, 'rgba(220,38,38,0)');
     ctx.fillStyle = g; ctx.beginPath(); ctx.arc(mx, my, R * 3, 0, TAU); ctx.fill();
     ctx.globalCompositeOperation = 'source-over';
+    if (!putJ(ctx, 'blood-moon', mx, my, R * 2.6, a)) {
     ctx.fillStyle = `rgba(153,27,27,${0.92 * a})`; ctx.beginPath(); ctx.arc(mx, my, R, 0, TAU); ctx.fill();
     ctx.fillStyle = `rgba(69,10,10,${0.6 * a})`; ctx.beginPath(); ctx.arc(mx + R * 0.3, my - R * 0.1, R * 0.28, 0, TAU); ctx.arc(mx - R * 0.35, my + R * 0.3, R * 0.18, 0, TAU); ctx.fill();
+    }
     ctx.globalCompositeOperation = 'lighter';
     for (const b of e.bolts || []) {
       const q = clamp01((p - b.t) / 0.12);
@@ -301,14 +317,18 @@ export const MAJON_FX = {
     ctx.translate(x, y);
     ctx.scale(1, v.squash);
     ctx.rotate(p * 1.2);
+    // v134: 직업 인장 그림을 크게 깐다 (글자 고리는 그 위에)
+    const sealed = putJ(ctx, `seal-${jobOfView(v)}`, 0, 0, R * 2.05, 0.9 * a);
     ctx.strokeStyle = `rgba(${e.col},${0.9 * a})`;
     ctx.lineWidth = 4;
     ctx.beginPath(); ctx.arc(0, 0, R, 0, Math.PI * 2); ctx.stroke();
     ctx.lineWidth = 2;
+    if (!sealed) {
     ctx.beginPath(); ctx.arc(0, 0, R * 0.82, 0, Math.PI * 2); ctx.stroke();
     ctx.beginPath(); ctx.arc(0, 0, R * 0.42, 0, Math.PI * 2); ctx.stroke();
+    }
     // 팔괘처럼 나뉜 살
-    for (let i = 0; i < 8; i++) { const an = (i * Math.PI) / 4; ctx.beginPath(); ctx.moveTo(Math.cos(an) * R * 0.42, Math.sin(an) * R * 0.42); ctx.lineTo(Math.cos(an) * R * 0.82, Math.sin(an) * R * 0.82); ctx.stroke(); }
+    if (!sealed) for (let i = 0; i < 8; i++) { const an = (i * Math.PI) / 4; ctx.beginPath(); ctx.moveTo(Math.cos(an) * R * 0.42, Math.sin(an) * R * 0.42); ctx.lineTo(Math.cos(an) * R * 0.82, Math.sin(an) * R * 0.82); ctx.stroke(); }
     const txt = e.text || '';
     ctx.fillStyle = `rgba(${e.col},${a})`;
     ctx.font = `900 ${Math.round(R * 0.13)}px serif`;
@@ -345,6 +365,7 @@ export const MAJON_FX = {
       const yy = ((i * 53) % 100) / 100 * v.h;
       const xx = ((sd + p * (1.2 + (i % 5) * 0.15)) % 1.2 - 0.1) * v.w;
       ctx.save(); ctx.translate(xx, yy + Math.sin(p * 9 + i) * 14); ctx.rotate(p * 8 + i);
+      if (i % 4 && putJ(ctx, 'plum-petal', 0, 0, 16 + (i % 3) * 5, 0.95 * Math.min(1, k * 3))) { ctx.restore(); continue; }
       ctx.fillStyle = `rgba(${i % 4 ? '251,207,232' : '255,255,255'},${0.85 * Math.min(1, k * 3)})`;
       ctx.beginPath(); ctx.ellipse(0, 0, 7, 3.6, 0, 0, Math.PI * 2); ctx.fill(); ctx.restore();
     }
@@ -359,6 +380,15 @@ export const MAJON_FX = {
     const n = e.n || 5;
     ctx.translate(x, y);
     ctx.rotate((e.spin || 1) * p * 1.6);
+    // v134: 그린 매화 한 송이 — 매화빛일 때만 (다른 빛 꽃은 옛 그대로)
+    if ((!e.col || e.col === PLUM) && jart('plum-flower')) {
+      const gl = ctx.createRadialGradient(0, 0, 0, 0, 0, R * 1.3);
+      gl.addColorStop(0, `rgba(255,255,255,${0.5 * k})`); gl.addColorStop(1, `rgba(${PLUM},0)`);
+      ctx.fillStyle = gl; ctx.beginPath(); ctx.arc(0, 0, R * 1.3, 0, TAU); ctx.fill();
+      ctx.globalCompositeOperation = 'source-over';
+      putJ(ctx, 'plum-flower', 0, 0, R * 2.3, Math.min(1, k * 1.6));
+      return;
+    }
     for (let i = 0; i < n; i++) {
       ctx.save();
       ctx.rotate((i * TAU) / n);
@@ -394,6 +424,8 @@ export const MAJON_FX = {
     ctx.stroke();
     ctx.translate(x, y);
     ctx.rotate(p >= 1 ? Math.atan2(y1 - y0, x1 - x0) : (e.spin ?? 1) * p * 18);
+    ctx.globalCompositeOperation = 'source-over';
+    if (putJ(ctx, 'dagger', 2, 0, 34, k)) return;
     ctx.fillStyle = `rgba(241,245,249,${k})`;
     ctx.beginPath(); ctx.moveTo(13, 0); ctx.lineTo(0, -2.6); ctx.lineTo(-6, 0); ctx.lineTo(0, 2.6); ctx.closePath(); ctx.fill();
     ctx.fillStyle = `rgba(${e.col || MASK[0]},${k})`;
@@ -432,9 +464,11 @@ export const MAJON_FX = {
     g.addColorStop(1, `rgba(${GOLD},0)`);
     ctx.fillStyle = g;
     ctx.beginPath(); ctx.ellipse(x, y - 55, 60, 90, 0, 0, TAU); ctx.fill();
+    if (!putJ(ctx, 'gold-aura', x, y - 62, 112 + p * 10, 0.75 * k * pulse)) {
     ctx.strokeStyle = `rgba(254,240,138,${0.8 * k})`;
     ctx.lineWidth = 2.5;
     ctx.beginPath(); ctx.ellipse(x, y - 55, 34 + p * 8, 62 + p * 8, 0, 0, TAU); ctx.stroke();
+    }
     for (let i = 0; i < 14; i++) {
       const ph = (p * 2.5 + i / 14) % 1;
       ctx.fillStyle = `rgba(254,240,138,${(1 - ph) * k})`;
@@ -453,6 +487,7 @@ export const MAJON_FX = {
     const g = ctx.createRadialGradient(0, 0, 0, 0, 0, R * 2);
     g.addColorStop(0, `rgba(${SOUL},${0.45 * open})`); g.addColorStop(1, `rgba(${SOUL},0)`);
     ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, R * 2, 0, TAU); ctx.fill();
+    if (putJ(ctx, 'blood-eye', 0, 0, R * 3.4, Math.min(1, open * 1.5), 0, Math.max(0.05, open))) return;
     ctx.fillStyle = `rgba(254,226,226,${0.9 * open})`;
     ctx.beginPath(); ctx.moveTo(-R, 0); ctx.quadraticCurveTo(0, -R * open, R, 0); ctx.quadraticCurveTo(0, R * open, -R, 0); ctx.fill();
     ctx.fillStyle = `rgba(${BLOOD},${open})`;
@@ -468,6 +503,12 @@ export const MAJON_FX = {
     const drop = Math.min(1, p * 3);
     const top = y - 150 + drop * 40;
     const a = Math.min(1, k * 2.5);
+    ctx.globalCompositeOperation = 'source-over';
+    if (putJ(ctx, 'gold-bell', x, top + 52, 118, 0.85 * a)) {
+      ctx.globalCompositeOperation = 'lighter';
+      putJ(ctx, 'gold-bell', x, top + 52, 124, 0.25 * a * (0.6 + 0.4 * Math.sin(p * 40)));
+      return;
+    }
     ctx.fillStyle = `rgba(${GOLD},${0.22 * a})`;
     ctx.strokeStyle = `rgba(254,240,138,${0.9 * a})`;
     ctx.lineWidth = 3;
@@ -494,6 +535,9 @@ export const MAJON_FX = {
     const s = (e.size || 30) * (0.8 + p * 0.4);
     ctx.translate(x, y);
     ctx.globalAlpha *= a;
+    const drew = putJ(ctx, 'mask', 0, 0, s * 2.2);
+    if (drew && !e.crack) return;
+    if (!drew) {
     ctx.fillStyle = 'rgba(241,245,249,0.95)';
     ctx.beginPath(); ctx.ellipse(0, 0, s * 0.8, s, 0, 0, TAU); ctx.fill();
     ctx.fillStyle = 'rgba(15,10,20,0.95)';
@@ -501,6 +545,7 @@ export const MAJON_FX = {
     ctx.strokeStyle = `rgba(${BLOOD},0.95)`;
     ctx.lineWidth = s * 0.08;
     ctx.beginPath(); ctx.arc(0, s * 0.18, s * 0.42, 0.2, Math.PI - 0.2); ctx.stroke();
+    }
     if (e.crack) {
       // 무면개방: 가면이 가운데로 갈라진다
       ctx.strokeStyle = 'rgba(15,10,20,0.95)';

@@ -15,6 +15,7 @@ function outfitLook(id) {
   return i < 6 ? { outfitBody: i } : { outfitWeapon: i - 6 };
 }
 import { fxReady, putFx, loadFx, zoneTile } from './fx.js';
+import { loadJobArt } from './jobart.js';
 import { PoseAnim } from './pose.js';
 import { CHOREO, Director, FX, VENOM, drawPoisonField } from './skillfx.js';
 import { big } from './big.js';
@@ -169,6 +170,7 @@ const sprCache = new Map();
 // 그림이 늦게 도착하면 벡터로 구워 둔 것을 버려야 한다
 loadArt(() => sprCache.clear());
 loadFx(() => {});
+loadJobArt();
 const lookIds = new WeakMap();
 let lookSeq = 0;
 function lookId(look) {
