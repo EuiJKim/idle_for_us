@@ -544,6 +544,17 @@ export class BattleView {
         this.monLunge = 1;
         this.float('-' + fmt(ev.amount) + (ev.crit ? '!' : ''), this.heroX + 26, this.groundY - 158, '#fca5a5', ev.crit ? 18 : 14);
         break;
+      case 'bossCast':
+        if (ev.at) this.float(ev.name, this.sx(ev.at), this.sy(ev.at) - 150, '#fca5a5', 16, 1, true);
+        break;
+      case 'tellBoom': {
+        const tl = ev.tell;
+        const c = tl.kind === 'line' ? { x: (tl.x0 + tl.x1) / 2, y: (tl.y0 + tl.y1) / 2 } : tl;
+        const r = tl.kind === 'line' ? Math.min(220, tl.w * 1.4) : tl.kind === 'donut' ? tl.r1 * 0.7 : tl.r;
+        this.effects.push({ kind: 'shock', life: 0.35, max: 0.35, wx: c.x, wy: c.y, r, col: '248,113,113', rings: 2, w: 5 });
+        if (ev.hit) this.shake = Math.max(this.shake || 0, 0.35);
+        break;
+      }
       case 'heroDied':
         // 무인이 넘어졌다가 일어난다 (drawHeroUnit)
         this.heroDownT = HERO_DOWN_SEC;
@@ -1049,6 +1060,7 @@ export class BattleView {
     this.drawBackground(scene);
     this.drawQueue(game);
     this.drawFields(game);        // 바닥 장판은 사람보다 아래에
+    this.drawTells(game);         // 탑 수문장의 바닥 경고 (v126)
     this.drawUnits(game, dt, moving);
     this.drawProjectiles(dt);
     this.drawEffects(dt, game);
@@ -1078,6 +1090,7 @@ export class BattleView {
   }
 
   scene(game) {
+    if (game.sceneKey && SPECIAL_INK[game.sceneKey]) return SPECIAL_INK[game.sceneKey];   // 던전 (v126)
     const key = game.mode === 'dungeon' ? game.contest.id : game.mode;
     return SPECIAL_INK[key] || zoneOf(game.s.stage);
   }
@@ -2130,6 +2143,50 @@ export class BattleView {
     }
     ctx.restore();
     ctx.globalCompositeOperation = 'source-over';
+  }
+
+  // 수문장 경고 — 붉은 바닥이 안쪽부터 차오르고, 다 차면 터진다. 빨리 벗어나야 한다.
+  drawTells(game) {
+    const ts = game?.tells;
+    if (!ts?.length) return;
+    const { ctx } = this;
+    const sq = this.squash;
+    const blink = 0.5 + 0.5 * Math.sin(this.t * 22);
+    ctx.save();
+    for (const tl of ts) {
+      if (tl.wait > 0) continue;
+      const k = 1 - Math.max(0, tl.t / tl.max);           // 0 → 1 차오른다
+      const urgent = tl.t < 0.35;
+      const edge = `rgba(248,113,113,${urgent ? 0.6 + blink * 0.4 : 0.85})`;
+      ctx.lineWidth = 2.5;
+      if (tl.kind === 'circle' || tl.kind === 'donut') {
+        const x = this.sx(tl), y = this.sy(tl);
+        const r1 = tl.kind === 'donut' ? tl.r1 : tl.r, r0 = tl.kind === 'donut' ? tl.r0 : 0;
+        ctx.fillStyle = 'rgba(220,38,38,0.16)';
+        ctx.beginPath(); ctx.ellipse(x, y, r1, r1 * sq, 0, 0, Math.PI * 2);
+        if (r0) ctx.ellipse(x, y, r0, r0 * sq, 0, 0, Math.PI * 2);
+        ctx.fill('evenodd');
+        // 차오르는 안쪽 (고리는 안에서 밖으로)
+        const rf = r0 + (r1 - r0) * k;
+        ctx.fillStyle = `rgba(239,68,68,${0.22 + k * 0.25})`;
+        ctx.beginPath(); ctx.ellipse(x, y, rf, rf * sq, 0, 0, Math.PI * 2);
+        if (r0) ctx.ellipse(x, y, r0, r0 * sq, 0, 0, Math.PI * 2);
+        ctx.fill('evenodd');
+        ctx.strokeStyle = edge;
+        ctx.beginPath(); ctx.ellipse(x, y, r1, r1 * sq, 0, 0, Math.PI * 2); ctx.stroke();
+        if (r0) { ctx.strokeStyle = 'rgba(134,239,172,0.8)'; ctx.beginPath(); ctx.ellipse(x, y, r0, r0 * sq, 0, 0, Math.PI * 2); ctx.stroke(); }
+      } else if (tl.kind === 'line') {
+        const a = { x: tl.x0, y: tl.y0 }, b = { x: tl.x1, y: tl.y1 };
+        const ax = this.sx(a), ay = this.sy(a), bx = this.sx(b), by = this.sy(b);
+        const dx = tl.x1 - tl.x0, dy = tl.y1 - tl.y0, L = Math.hypot(dx, dy) || 1;
+        const nx = (-dy / L) * tl.w / 2, ny = (dx / L) * tl.w / 2 * sq;
+        const quad = (f) => { ctx.beginPath(); ctx.moveTo(ax + nx, ay + ny); ctx.lineTo(ax + (bx - ax) * f + nx, ay + (by - ay) * f + ny); ctx.lineTo(ax + (bx - ax) * f - nx, ay + (by - ay) * f - ny); ctx.lineTo(ax - nx, ay - ny); ctx.closePath(); };
+        ctx.fillStyle = 'rgba(220,38,38,0.16)'; quad(1); ctx.fill();
+        ctx.fillStyle = `rgba(239,68,68,${0.22 + k * 0.25})`; quad(k); ctx.fill();
+        ctx.strokeStyle = edge; quad(1); ctx.stroke();
+      }
+    }
+    ctx.restore();
   }
 
   drawEffects(dt, game) {

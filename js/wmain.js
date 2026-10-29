@@ -8,7 +8,8 @@ import { BattleView, drawFighter } from './battle.js';
 import { loadIcons } from './icons.js';
 import { WNet } from './wnet.js';
 import { h, toast, openModal, closeModal, modalOpen } from './ui/common.js';
-import { WTABS, WTAB_TITLE, itemTitle, skillText } from './wui.js';
+import { WTABS, WTAB_TITLE, itemTitle, skillText, rewardText, dailyWaiting } from './wui.js';
+import * as D from './world/wdgn.js';
 import { fmt, duration } from './fmt.js';
 import { sfx, unlockAudio, setSound, soundOn } from './sfx.js';
 loadIcons();
@@ -175,11 +176,12 @@ function refreshUI(full = false) {
   $('gold').textContent = fmt(s.gold);
   $('potions').textContent = String(s.potions);
   const m = game.map;
+  instHud();
   // 사냥터 줄은 짧게 — '천산 설원 · 두목'은 체력 막대에 닿았다
-  $('stage-label').textContent = m.town ? m.name : `${m.king ? m.king.title : m.zoneName} ${m.bossRoom ? '두목' : m.area}`;
+  $('stage-label').textContent = m.town || m.inst ? m.name : `${m.king ? m.king.title : m.zoneName} ${m.bossRoom ? '두목' : m.area}`;
   const bossLeft = Math.max(0, Math.ceil(game.bossT));
   const boss = game.mons.find((x) => x.isBoss && x.alive);
-  $('zone-label').textContent = m.town ? (s.autoHunt ? `쉬는 중 → ${W.mapOf(s.huntMap).name}` : '쉬는 중')
+  $('zone-label').textContent = m.inst ? (game.inst.kind === 'tower' ? `수문장 Lv.${m.lv[0]} · ${D.TOWER_SEC}초 안에` : `몹 Lv.${m.lv[0]} · ${D.DAILY_KILLS}마리 잡으면 깬다`) : m.town ? (s.autoHunt ? `쉬는 중 → ${W.mapOf(s.huntMap).name}` : '쉬는 중')
     : m.bossRoom ? (boss ? `두목 ${boss.name} Lv.${boss.lv}` : `두목 다시 나기까지 ${Math.floor(bossLeft / 60)}:${String(bossLeft % 60).padStart(2, '0')}`)
       : `몹 Lv.${m.lv[0]}~${m.lv[1]} · 두목은 두목 구역에`;
   const hpR = Math.max(0, Math.min(1, game.heroHp / st.hp));
@@ -223,8 +225,49 @@ function refreshUI(full = false) {
   const t = game.nextTier();
   dot('town', !!t && s.level >= t.level && s.gold >= t.cost);
   dot('comp', s.petBox.length > 0 && s.pets.length < game.petSlots());
+  dot('map', dailyWaiting(game));
   if (activeTab) { tabs[activeTab].update(); panelRes(); }
   if (full) drawPortrait();
+}
+// 던전 안 — 위 가운데 알림판: 무엇 · 남은 시간 · 처치(탑은 수문장 체력) · 나가기
+const hud = $('contest-hud');
+const leaveBtn = h('button', { class: 'inst-leave', onclick: () => {
+  if (!game.inst) return;
+  openModal((el) => el.append(h('h3', {}, '던전에서 나갈까요?'),
+    h('p', { class: 'muted' }, game.inst.kind === 'daily' ? '깬 것으로 치지 않아요 — 잡은 만큼 보상의 절반만 받아요. 쓴 횟수는 돌아오지 않아요.' : '이번 층은 다시 도전할 수 있어요.'),
+    h('div', { class: 'btn-row' }, h('button', { class: 'btn', onclick: closeModal }, '계속하기'),
+      h('button', { class: 'btn primary', onclick: () => { closeModal(); game.leaveInst(); handleEvents(); save(); refreshUI(true); } }, '나가기'))));
+} }, '나가기');
+hud.append(leaveBtn);
+function instHud() {
+  const I = game.inst;
+  hud.classList.toggle('hidden', !I);
+  hud.classList.toggle('tower', I?.kind === 'tower');
+  if (!I) return;
+  const left = Math.max(0, Math.ceil(I.t));
+  $('contest-title').textContent = I.map.name;
+  if (I.kind === 'tower') {
+    const b = game.mons.find((x) => x.isBoss && x.alive);
+    $('contest-sub').textContent = I.wait > 0 ? '수문장이 나선다…' : `수문장 ${b ? Math.ceil((b.hp / b.maxHp) * 100) : 0}% · 남은 ${left}초`;
+  } else $('contest-sub').textContent = `처치 ${I.kills} / ${I.target} · 남은 ${left}초`;
+  hud.classList.toggle('hurry', left <= 10);
+}
+function showInstEnd(ev) {
+  const d = ev.kind === 'daily' ? D.dailyOf(ev.id) : null;
+  const name = d ? `${d.name} ${ev.stage}단계` : `무한의 탑 ${ev.stage}층`;
+  // 탑을 이어 오르는 중이면 알림만 (창이 계속 뜨면 방치가 끊긴다)
+  if (ev.kind === 'tower' && ev.ok) {
+    toast(`🏯 ${name} 돌파! 공격력·체력 +${(D.towerBonus(game.s.tower.floor) * 100).toFixed(1)}%${ev.reward?.mats ? ` · 보따리 ${rewardText(ev.reward)}` : ''}`);
+    if (ev.chain) return;
+  }
+  if (ev.left) return;
+  const why = ev.ok ? '' : ev.died ? '쓰러졌어요' : ev.timeout ? '시간이 다 됐어요' : '';
+  openModal((el) => el.append(...[
+    h('h3', {}, ev.ok ? `${name} 성공!` : `${name} — ${why}`),
+    ev.kind === 'daily' ? h('p', { class: 'muted' }, `처치 ${ev.kills} / ${ev.target}${ev.ok ? ' — 다음부터 이 단계는 소탕할 수 있어요' : ' — 잡은 만큼 보상의 절반'}`) : null,
+    ev.kind === 'tower' && !ev.ok ? h('p', { class: 'muted' }, `오른 층 ${game.s.tower.floor} — 장비·스킬을 키워서 다시 도전하세요`) : null,
+    ev.reward && rewardText(ev.reward) !== '없음' ? h('p', {}, `받은 것: ${rewardText(ev.reward)}`) : null,
+    h('div', { class: 'btn-row' }, h('button', { class: 'btn primary', onclick: closeModal }, '확인'))].filter(Boolean)));
 }
 function dot(tab, on) {
   const b = document.querySelector(`#tabs button[data-tab="${tab}"]`);
@@ -253,7 +296,7 @@ function handleEvents() {
       case 'skill': sfx('skill'); break;
       case 'kill': sfx('kill'); break;
       case 'levelUp': sfx('level'); break;
-      case 'craft': sfx('loot'); break;
+      case 'craft': case 'sweep': sfx('loot'); break;
       case 'potion': sfx('potion'); break;
       case 'heroHit': sfx('hurt'); break;
       case 'heal':
@@ -304,8 +347,8 @@ function handleEvents() {
         break;
       case 'mountDrop': {
         const d = W.mountOf(ev.mount.kind);
-        toast(`탈것 ${d.name}(순위 ${d.tier})! 이동 속도 +${Math.round(d.speed * 100)}%`);
-        view.showBanner(d.name, '#fde68a', 1.8, '탈것');
+        toast(d.zodiac ? `🎉 십이지 신수 ${d.name}! 이동 +${Math.round(d.speed * 100)}% · 공격·체력 +${Math.round(d.stat * 100)}%` : `탈것 ${d.name}(순위 ${d.tier})! 이동 속도 +${Math.round(d.speed * 100)}%`);
+        view.showBanner(d.name, d.zodiac ? '#f472b6' : '#fde68a', d.zodiac ? 2.6 : 1.8, d.zodiac ? '십이지 신수' : '탈것');
         sfx('loot');
         break;
       }
@@ -341,7 +384,7 @@ function handleEvents() {
         sfx('loot');
         break;
       case 'heroDied':
-        toast(`쓰러졌어요… 경험치 ${fmt(ev.loss)}을 잃고 마을로 돌아가요`);
+        if (!ev.inst) toast(`쓰러졌어요… 경험치 ${fmt(ev.loss)}을 잃고 마을로 돌아가요`);
         break;
       case 'advance': {
         view.showBanner(`${ev.tier}차 전직 · ${game.tierName()}`, '#fde68a', 2.4, '전직');
@@ -354,7 +397,14 @@ function handleEvents() {
         break;
       }
       case 'mapEnter':
-        view.showBanner(ev.name, '#fef3c7', 1.3);
+        view.showBanner(ev.name, ev.inst ? '#fde68a' : '#fef3c7', 1.3);
+        break;
+      case 'zodiacDraw':
+        if (!ev.zodiac) toast(`${D.ZODIAC[ev.no - 1].animal} 뽑기 — 신수는 아니었어요${game.zodiacOwned(ev.no) ? '' : ` (${D.ZODIAC_TICKETS}번째에는 꼭 나와요)`}`);
+        break;
+      case 'instEnd':
+        showInstEnd(ev);
+        save();
         break;
       case 'hpCost':
         // 체력을 대가로 낸 스킬 — 무인 머리 위에 붉게

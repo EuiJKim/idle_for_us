@@ -6,6 +6,7 @@
 // stats().hp, heroHp, events(attack·dmg·kill·heroHit·heroDied·skill·levelUp …).
 // 그래서 들판 그림·이펙트·초식 연출표를 손대지 않고 쓴다.
 import * as W from './wdata.js';
+import * as D from './wdgn.js';
 
 const rand = Math.random;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -49,6 +50,10 @@ export function newWorldSave(now = Date.now()) {
     kills: 0,
     deaths: 0,
     bestMap: W.mapId(1, 1),
+    dgn: { day: '', used: {}, best: {} },   // 요일 던전 (v126): 오늘 쓴 횟수 · 종류별 깬 단계
+    tower: { floor: 0, auto: true },         // 무한의 탑: 오른 층 · 이기면 이어 오르기
+    zTickets: {},                            // 십이지 뽑기권 — 신 번호(1~12): 장수
+    zPity: {},                               // 신마다 신수 없이 뽑은 횟수 (셋째에 꼭)
     created: now,
   };
 }
@@ -101,6 +106,20 @@ export function migrateWorld(raw, now = Date.now()) {
   if (!W.hasMap(s.huntMap) || W.mapOf(s.huntMap).town) s.huntMap = W.mapId(1, 1);
   if (!W.hasMap(s.bestMap)) s.bestMap = s.huntMap;
   if (s.job && !W.CLASSES[s.job]) s.job = null;
+  // v126 던전
+  const dg = raw.dgn && typeof raw.dgn === 'object' ? raw.dgn : {};
+  s.dgn = { day: typeof dg.day === 'string' ? dg.day : '', used: {}, best: {} };
+  for (const d of D.DAILY) {
+    s.dgn.used[d.id] = clamp(Math.floor(Number(dg.used?.[d.id]) || 0), 0, D.DAILY_ENTRIES);
+    s.dgn.best[d.id] = clamp(Math.floor(Number(dg.best?.[d.id]) || 0), 0, D.DAILY_STAGES);
+  }
+  const tw = raw.tower && typeof raw.tower === 'object' ? raw.tower : {};
+  s.tower = { floor: clamp(Math.floor(Number(tw.floor) || 0), 0, D.TOWER_MAX), auto: tw.auto !== false };
+  s.zTickets = {}; s.zPity = {};
+  for (let k = 1; k <= 12; k++) {
+    const n = Math.floor(Number(raw.zTickets?.[k]) || 0); if (n > 0) s.zTickets[k] = n;
+    const p = Math.floor(Number(raw.zPity?.[k]) || 0); if (p > 0) s.zPity[k] = p;
+  }
   for (const it of [...s.bag, ...Object.values(s.equip), ...s.pets, ...s.petBox, ...s.mounts]) {
     if (!it) continue;
     if (it.uid >= uidSeq) uidSeq = it.uid + 1;
@@ -123,6 +142,10 @@ export class WorldGame {
     this.queue = [];
     this.fields = [];
     this.contest = null;
+    this.inst = null;              // 던전 안이면 { kind, stage, map, t, kills, … } (v126)
+    this.sceneKey = null;          // 그리는 쪽 배경 (던전마다)
+    this.tells = [];               // 탑 수문장의 바닥 경고 — 잠깐 뒤 터진다 (v126)
+    this.autoDodge = false;        // 시험·시뮬용: 경고를 알아서 피한다 (화면에는 없다 — 직접 피해야 한다)
     this.mons = [];
     this.mon = null;
     this.cd = { s0: 0, s1: 0, s2: 0, s3: 0, s4: 0 };
@@ -162,7 +185,7 @@ export class WorldGame {
   bestGrade(slot) { const it = this.s.equip[slot]; return it ? it.grade : -1; }
   aoeCenter() { return this.ranged() && this.mon?.alive ? { x: this.mon.x, y: this.mon.y } : { x: this.heroX, y: this.heroY }; }
   // 그리는 쪽은 s.stage로 지역 그림을 고른다 — 사냥터 k = 옛 지역 k의 첫 관문
-  get map() { return W.mapOf(this.s.map); }
+  get map() { return this.inst ? this.inst.map : W.mapOf(this.s.map); }
   // 칸 지도 크기 — 그리는 쪽이 이걸 보고 사냥터 한 장이 화면에 들어오게 카메라를 물린다
   get mapW() { return W.MAP_W; }
   get mapH() { return W.MAP_H; }
@@ -204,6 +227,9 @@ export class WorldGame {
     }
     const mt = this.mountNow();
     if (mt) { gear.atkPct += mt.stat; gear.hpPct += mt.stat; }
+    // 무한의 탑: 오른 층마다 영구히
+    const tb = D.towerBonus(s.tower?.floor);
+    gear.atkPct += tb; gear.hpPct += tb;
     // 심법
     const pm = this.pmods();
     gear.atkPct += pm.atkPct || 0;
@@ -249,7 +275,7 @@ export class WorldGame {
     const e = s.equip;
     const g = (it) => (it ? `${it.uid}.${it.plus || 0}.${it.rar || 0}` : '-');
     const pets = this.activePets().map((p) => `${p.uid}.${p.lv}`).join(',');
-    return `${s.level}|${JSON.stringify(s.passLv || {})}|${s.guildId ? W.guildLevel(this.guildExp) : 0}|${s.job}|${s.stats.str},${s.stats.dex},${s.stats.vit},${s.stats.int}|${W.SLOTS.map((x) => g(e[x.id])).join(',')}|${pets}|${s.mount || '-'}`;
+    return `${s.level}|${JSON.stringify(s.passLv || {})}|${s.guildId ? W.guildLevel(this.guildExp) : 0}|${s.job}|${s.stats.str},${s.stats.dex},${s.stats.vit},${s.stats.int}|${W.SLOTS.map((x) => g(e[x.id])).join(',')}|${pets}|${s.mount || '-'}|${s.tower?.floor || 0}`;
   }
   power() { return this.stats().power; }
 
@@ -260,8 +286,11 @@ export class WorldGame {
     return m.town || this.s.level >= m.lv[0];
   }
   enterMap(id, quiet = false) {
-    this.clones = [];
     if (!this.canEnter(id)) return false;
+    this.clones = [];
+    if (this.inst) this.inst = null;     // 던전에서 다른 데로 가면 그 판은 버린다
+    this.sceneKey = null;
+    this.tells = [];
     const m = W.mapOf(id);
     this.s.map = id;
     if (!m.town) { this.s.huntMap = id; this.s.bestMap = Math.max(this.s.bestMap || 1, id); }
@@ -415,6 +444,8 @@ export class WorldGame {
       def: { name: kind.name, look: kind.look, beast: kind.beast, bscale: kind.bscale },
     };
     mob.name = kind.name;
+    // 요일 던전 몹은 같은 레벨 무인에 맞춰 단단하다 (v126)
+    if (this.inst?.kind === 'daily') { mob.maxHp = mob.hp = D.dailyMobHp(lv) * (elite ? W.ELITE.hp : 1); mob.atk = D.dailyMobAtk(lv) * (elite ? W.ELITE.atk : 1); }
     // 두목 등장 연출: 구역에 들어와 처음 나설 때는 길게(들판이 멈추고 두목은 맞지도 않는다),
     // 같은 구역에서 다시 날 때는 짧게(멈추지 않는다) — 45초마다 길게 멈추면 사냥이 끊긴다.
     const full = boss && !this.bossSeen;
@@ -431,6 +462,7 @@ export class WorldGame {
   // ---------- 한 틱 ----------
   tick(dt) {
     this.clock += dt;
+    if (this.inst?.done) this.finishInst();
     const st = this.stats();
     for (const k in this.cd) this.cd[k] = Math.max(0, this.cd[k] - dt);
     this.potionT = Math.max(0, this.potionT - dt);
@@ -454,6 +486,7 @@ export class WorldGame {
     }
     // 두목 등장 연출 동안은 들판 전체가 멈춘다(무인도 몹도)
     if (this.freezeT > 0) { this.freezeT -= dt; this.walking = false; for (const m of this.mons) if (m.introT > 0) m.introT -= dt; return; }
+    if (this.inst) { this.tickInst(dt); this.tickTells(dt, st); if (this.inst?.done) return; }
     this.tickMobs(dt, st);
     if (this.heroHp <= 0) return;
     this.tickFields(dt, st);
@@ -572,9 +605,11 @@ export class WorldGame {
       if (n > 0) this.buyPotions(n);
     }
     if (!this.s.autoPotion || this.potionT > 0 || this.s.potions <= 0) return;
+    if (D.TOWER_NO_POTION && this.inst?.kind === 'tower') return;
     if (this.heroHp < st.hp * W.POTION_AT) this.drinkPotion();
   }
   drinkPotion() {
+    if (D.TOWER_NO_POTION && this.inst?.kind === 'tower') return false;
     const st = this.stats();
     if (this.s.potions <= 0 || this.heroHp >= st.hp) return false;
     this.s.potions--;
@@ -592,6 +627,8 @@ export class WorldGame {
       if (this.slide(this, 'heroX', 'heroY', this.hmove, W.HERO_SPEED * (st.moveSpeed || 1) * (1 + (this.buffv.move || 0)), dt)) { this.hc = this.hmove.c; this.hr = this.hmove.r; this.hmove = null; }
       else return;
     }
+    this.holdApproach = false;
+    if (this.autoDodge && this.inst) { const d = this.dodgeStep(); if (d === 'moved') return; this.holdApproach = d === 'hold'; }
     // 조이스틱 — 누르고 있는 동안 그 방향으로 한 칸씩 (막히면 다른 축으로). 그동안은 치지 않는다.
     if (this.joy) {
       this.manual = null;
@@ -615,7 +652,7 @@ export class WorldGame {
     // 과녁: 나를 치고 있는 몹 → 가장 가까운 몹. 자동 사냥이 꺼져 있으면 붙어 있는 것만 친다.
     if (!this.mon?.alive) this.mon = this.pickTarget(st);
     // 두목 구역: 졸개를 치던 중에도 두목이 나서면 바로 두목에게 (손으로 찍어 움직이는 중은 빼고)
-    else if (this.map.bossRoom && !this.mon.isBoss && !this.manual) {
+    else if ((this.map.bossRoom || this.map.bossFirst) && !this.mon.isBoss && !this.manual) {
       const b = this.pickTarget(st);
       if (b?.isBoss) this.mon = b;
     }
@@ -628,7 +665,7 @@ export class WorldGame {
     if (this.s.autoSkill) this.autoSkills(st);
     if (!this.mon?.alive) return;
     if (dist > st.range) {
-      if (!this.s.autoHunt && !m.aggro) { this.walking = false; return; }
+      if ((!this.huntOn() && !m.aggro) || this.holdApproach) { this.walking = false; return; }
       // 칠 수 있는 빈 칸(사거리 안)까지 길을 찾는다. 길이 없으면 이 과녁은 잠깐 두고 다른 몹을 잡는다.
       const f = this.findStep(this.hc, this.hr, (c, r) => this.tileDist({ c, r }, this.mobTile(m)) <= st.range, 'hero');
       if (!f || f === 'here' || !this.stepTo(f)) { this.walking = false; this.giveUp(m); }
@@ -664,7 +701,7 @@ export class WorldGame {
 
   pickTarget(st) {
     // 두목 구역에서는 두목부터 (v125) — 등장 연출 중이거나 길이 막혀 포기한 동안만 졸개를 친다
-    if (this.map.bossRoom) {
+    if (this.map.bossRoom || this.map.bossFirst) {
       const b = this.mons.find((m) => m.alive && m.isBoss && !(m.introT > 0) && !(m.unreachUntil > this.clock));
       if (b) return b;
     }
@@ -675,7 +712,7 @@ export class WorldGame {
       if (!m.alive || m.npc || m.introT > 0 || m.unreachUntil > this.clock) continue;
       let d = this.tileDist(h, this.mobTile(m));
       if (m.aggro) d *= 0.5;                          // 나를 치러 오는 놈 먼저
-      if (!this.s.autoHunt && d > st.range * 1.2 && !m.aggro) continue;
+      if (!this.huntOn() && d > st.range * 1.2 && !m.aggro) continue;
       if (d < bd) { bd = d; best = m; }
     }
     return best;
@@ -779,13 +816,7 @@ export class WorldGame {
   killMob(m) {
     m.alive = false;
     m.hp = 0;
-    const st = this.stats();
-    const exp = W.mobExp(m.lv) * (m.isBoss ? W.BOSS.exp : m.elite ? W.ELITE.exp : 1) * this.levelGapMult(m.lv) * (st.expMult || 1);
-    const gold = Math.round(W.mobGold(m.lv) * (m.isBoss ? W.BOSS.gold : m.elite ? W.ELITE.gold : 1));
-    this.s.gold += gold;
     this.s.kills++;
-    const mat = this.dropMats(m);
-    if (m.elite) this.dropMats(m);
     // 독마: 중독된 채 쓰러지면 독이 둘레로 번진다
     if (W.CLASSES[this.s.job]?.spread && m.dot > 0) {
       const left = m.dot;
@@ -793,6 +824,20 @@ export class WorldGame {
       const k = this.pmods().own5 ? 1.2 : 0.6;   // 만독불침 5: 두 배로
       for (const o of this.mons) if (o.alive && !o.npc && o !== m && Math.hypot(o.x - m.x, (o.y - m.y) * 0.75) <= 140) this.addDot(o, left * k, 4);
     }
+    if (this.passives().has('frenzy')) this.frenzyT = 4;
+    if (m === this.mon) this.mon = null;
+    // 던전 안: 보상은 끝날 때 한꺼번에 (들판 벌이·드랍은 없다)
+    if (this.inst) {
+      this.emit('kill', { gold: 0, isBoss: m.isBoss, add: true, at: m, mat: null });
+      this.instKill(m);
+      return;
+    }
+    const st = this.stats();
+    const exp = W.mobExp(m.lv) * (m.isBoss ? W.BOSS.exp : m.elite ? W.ELITE.exp : 1) * this.levelGapMult(m.lv) * (st.expMult || 1);
+    const gold = Math.round(W.mobGold(m.lv) * (m.isBoss ? W.BOSS.gold : m.elite ? W.ELITE.gold : 1));
+    this.s.gold += gold;
+    const mat = this.dropMats(m);
+    if (m.elite) this.dropMats(m);
     this.emit('kill', { gold, isBoss: m.isBoss, add: true, at: m, mat });
     this.addExp(exp);
     this.note(1, exp, gold, 0);
@@ -800,10 +845,7 @@ export class WorldGame {
     // 탈것 — 아주 드물게 (두목은 조금 더)
     const mr = m.isBoss ? W.mountBossRate(this.map.zone) : W.MOUNT_DROP_MOB;
     if (this.rng() < mr) this.gainMount(W.rollMount(this.rng, this.map.zone, m.isBoss), m);
-    if (this.passives().has('frenzy')) this.frenzyT = 4;
-    if (m === this.mon) this.mon = null;
     if (!m.isBoss) this.respawns.push({ t: W.RESPAWN_SEC });
-    void st;
   }
 
   // 나보다 많이 약한 몹은 경험치가 깎인다 — 낮은 사냥터에 눌러앉는 것보다 올라가는 게 낫게
@@ -813,6 +855,13 @@ export class WorldGame {
   }
 
   heroDied(by) {
+    // 던전에서 쓰러지면 잃는 것 없이 그 판만 끝난다
+    if (this.inst) {
+      this.heroHp = this.stats().hp;
+      if (!this.inst.done) this.inst.done = { ok: false, died: true };
+      this.emit('heroDied', { boss: !!by?.isBoss, loss: 0, inst: true });
+      return;
+    }
     this.heroHp = 0;
     this.s.deaths++;
     const loss = Math.floor(this.s.exp * W.DEATH_EXP_LOSS);
@@ -1547,6 +1596,260 @@ export class WorldGame {
     this.s.gold -= c;
     this.s.bagSize += 10;
     return true;
+  }
+
+  // ---------- 던전 (v126) ----------
+  huntOn() { return this.s.autoHunt || !!this.inst; }
+  // 오늘 쓴 횟수 — 날이 바뀌면(한국 시간) 비운다
+  dgnToday(now = Date.now()) {
+    const d = this.s.dgn;
+    const day = D.kstDay(now);
+    if (d.day !== day) { d.day = day; d.used = {}; }
+    return d;
+  }
+  dailyLeft(kind, now = Date.now()) { return Math.max(0, D.DAILY_ENTRIES - (this.dgnToday(now).used[kind] || 0)); }
+  dailyBest(kind) { return this.s.dgn.best[kind] || 0; }
+  // 고를 수 있는 가장 높은 단계: 깬 단계 + 1 (레벨이 닿는 데까지)
+  dailyMaxStage(kind) {
+    let st = Math.min(D.DAILY_STAGES, this.dailyBest(kind) + 1);
+    while (st > 1 && this.s.level < D.dailyNeed(st)) st--;
+    return st;
+  }
+  canDaily(kind, stage, now = Date.now()) {
+    const d = D.dailyOf(kind);
+    return !!d && !!this.s.job && !this.inst && D.dailyOpen(d, now) && this.dailyLeft(kind, now) > 0
+      && stage >= 1 && stage <= this.dailyMaxStage(kind) && this.s.level >= D.dailyNeed(stage);
+  }
+  startDaily(kind, stage, now = Date.now()) {
+    if (!this.canDaily(kind, stage, now)) return false;
+    const used = this.dgnToday(now).used;
+    used[kind] = (used[kind] || 0) + 1;
+    this.startInst({ kind: 'daily', id: kind, stage, map: D.dailyMap(kind, stage), t: D.DAILY_SEC, max: D.DAILY_SEC, target: D.DAILY_KILLS, kills: 0 });
+    for (let i = 0; i < D.DAILY_ALIVE; i++) this.spawnMob(false);
+    return true;
+  }
+  // 소탕 — 깬 가장 높은 단계의 보상을 들어가지 않고 받는다 (한 번 쓴다)
+  canSweep(kind, now = Date.now()) {
+    const d = D.dailyOf(kind);
+    return !!d && D.dailyOpen(d, now) && this.dailyLeft(kind, now) > 0 && this.dailyBest(kind) > 0;
+  }
+  sweepDaily(kind, now = Date.now()) {
+    if (!this.canSweep(kind, now)) return null;
+    const used = this.dgnToday(now).used;
+    used[kind] = (used[kind] || 0) + 1;
+    const stage = this.dailyBest(kind);
+    const reward = this.grant(D.dailyReward(kind, stage, this.levelGapMult(D.dailyLv(stage))));
+    this.emit('sweep', { kind, stage, reward });
+    return reward;
+  }
+  sweepAll(now = Date.now()) {
+    const out = [];
+    for (const d of D.DAILY) while (this.canSweep(d.id, now)) out.push({ kind: d.id, stage: this.dailyBest(d.id), reward: this.sweepDaily(d.id, now) });
+    return out;
+  }
+  // 무한의 탑 — 다음 층에 오른다. chain: 이긴 뒤 이어 오르는 것(등장 연출을 짧게)
+  canTower() { return !this.inst && !!this.s.job && this.s.tower.floor < D.TOWER_MAX; }
+  startTower(chain = false) {
+    if (!this.canTower()) return false;
+    const f = this.s.tower.floor + 1;
+    this.startInst({ kind: 'tower', stage: f, map: D.towerMap(f), t: D.towerSec(f), max: D.towerSec(f), wait: chain ? 1.2 : 0.6, castT: 2.5 });
+    this.bossSeen = chain;
+    return true;
+  }
+  startInst(o) {
+    this.inst = { ...o, done: null };
+    this.tells = [];
+    this.clones = [];
+    this.fields = [];
+    this.sceneKey = o.map.scene || null;
+    this.s.stage = o.map.art * 10 + 1;
+    this.placeHero(Math.floor(W.COLS / 2), Math.floor(W.ROWS * 0.62));
+    this.mons = [];
+    this.mon = null;
+    this.respawns = [];
+    this.manual = null;
+    this.freezeT = 0;
+    this.bossT = 0;
+    this.heroHp = this.stats().hp;          // 던전은 가득 찬 체력으로 들어간다
+    this.emit('mapEnter', { id: -1, name: o.map.name, inst: o.kind });
+  }
+  tickInst(dt) {
+    const I = this.inst;
+    if (I.done) return;
+    // 탑: 잠깐 뒤 수문장이 나선다 (그동안은 시간이 안 간다)
+    if (I.wait > 0) {
+      I.wait -= dt;
+      if (I.wait <= 0) {
+        const b = this.spawnMob(true);
+        if (b) { b.lv = D.towerLv(I.stage); b.maxHp = b.hp = D.towerHp(I.stage); b.atk = D.towerAtk(I.stage); b.armor = W.mobDef(b.lv); if (D.isZodiacFloor(I.stage)) b.grade = 3; }
+      }
+      return;
+    }
+    // 수문장 초식 — 바닥 경고
+    if (I.kind === 'tower') {
+      const b = this.mons.find((m) => m.isBoss && m.alive && !(m.introT > 0));
+      if (b && !(b.stun > 0)) {
+        I.castT -= dt;
+        if (I.castT <= 0) { I.castT = D.castGap(I.stage); this.bossCast(b, I.stage); }
+      }
+    }
+    I.t -= dt;
+    if (I.t <= 0) I.done = { ok: false, timeout: true };
+  }
+  instKill(m) {
+    const I = this.inst;
+    if (I.done) return;
+    if (I.kind === 'daily') {
+      I.kills++;
+      this.respawns.push({ t: D.DAILY_RESPAWN });
+      if (I.kills >= I.target) I.done = { ok: true };
+    } else if (I.kind === 'tower' && m.isBoss) I.done = { ok: true };
+  }
+  // 수문장 초식: 그 층의 초식 가운데 하나를 골라 바닥에 경고를 깐다 (D.tellDelay초 뒤 터진다)
+  bossCast(b, f) {
+    const pats = D.towerPatterns(f);
+    const p = pats[Math.floor(this.rng() * pats.length)];
+    const T = D.tellDelay(f);
+    const dmg = D.tellDmg(f);
+    const hx = this.heroX, hy = this.heroY;
+    const ang = Math.atan2(hy - b.y, hx - b.x);
+    const add = (o) => this.tells.push({ t: T, max: T, dmg, wait: 0, ...o });
+    const line = (a, len, w, ox = b.x, oy = b.y, o = {}) => add({ kind: 'line', x0: ox, y0: oy, x1: ox + Math.cos(a) * len, y1: oy + Math.sin(a) * len, w, ...o });
+    const thru = (a, w) => line(a, 1700, w, b.x - Math.cos(a) * 850, b.y - Math.sin(a) * 850);
+    switch (p) {
+      case 'aim': add({ kind: 'circle', x: hx, y: hy, r: 100 }); break;
+      case 'nova': add({ kind: 'circle', x: b.x, y: b.y, r: 215 }); break;
+      case 'donut': add({ kind: 'donut', x: b.x, y: b.y, r0: 125, r1: 560 }); break;
+      case 'line': line(ang, 950, 100); break;
+      case 'charge': line(ang, 1100, 150); break;
+      case 'twin': line(ang, 1000, 100); line(ang, 1000, 100, b.x, b.y, { aimLine: true, wait: 0.7 }); break;
+      case 'cross': thru(0, 96); thru(Math.PI / 2, 96); break;
+      case 'xcross': for (let i = 0; i < 4; i++) thru(i * Math.PI / 4, 86); break;
+      case 'star': for (const d of [-0.6, 0, 0.6]) line(ang + d, 950, 90); break;
+      case 'chase': for (let i = 0; i < 3; i++) add({ kind: 'circle', r: 95, aim: true, wait: i * 0.55 }); break;
+      case 'rain':
+        for (let i = 0; i < 6; i++) {
+          const rr = i === 0 ? 0 : 110 + this.rng() * 220, a = this.rng() * Math.PI * 2;
+          add({ kind: 'circle', x: hx + Math.cos(a) * rr, y: hy + Math.sin(a) * rr, r: 80, wait: i * 0.12 });
+        }
+        break;
+      default:
+    }
+    this.emit('bossCast', { name: D.TELL_NAMES[p] || p, pat: p, at: b });
+  }
+  tickTells(dt, st) {
+    if (!this.tells.length) return;
+    const boss = this.mons.find((m) => m.isBoss && m.alive);
+    for (const tl of this.tells) {
+      if (tl.wait > 0) {
+        tl.wait -= dt;
+        // 늦게 깔리는 경고는 깔릴 때의 무인 자리를 노린다
+        if (tl.wait <= 0 && tl.aim) { tl.x = this.heroX; tl.y = this.heroY; }
+        if (tl.wait <= 0 && tl.aimLine && boss) {
+          const a = Math.atan2(this.heroY - boss.y, this.heroX - boss.x);
+          tl.x0 = boss.x; tl.y0 = boss.y; tl.x1 = boss.x + Math.cos(a) * 1000; tl.y1 = boss.y + Math.sin(a) * 1000;
+        }
+        continue;
+      }
+      tl.t -= dt;
+      if (tl.t > 0) continue;
+      tl.done = true;
+      const hit = D.tellCovers(tl, this.heroX, this.heroY);
+      this.emit('tellBoom', { tell: tl, hit });
+      if (!hit || this.heroHp <= 0) continue;
+      const red = (1 - (W.CLASSES[this.s.job]?.dmgRed || 0)) * (1 - (this.buffv.guard || 0));
+      const dmg = st.hp * tl.dmg * red;
+      let left = dmg;
+      if (this.shield > 0 && this.buffs.shield > 0) { const a = Math.min(this.shield, left); this.shield -= a; left -= a; }
+      this.heroHp -= left;
+      this.emit('heroHit', { amount: left, shielded: dmg - left, tell: true });
+      if (this.heroHp <= 0) { this.heroDied(boss); break; }
+    }
+    this.tells = this.tells.filter((t) => !t.done);
+  }
+  // 시험용 자동 피하기: 지금 칸이 경고 안이면 가장 가까운 안전한 칸으로
+  dodgeStep() {
+    const live = this.tells.filter((t) => !(t.wait > 0));
+    if (!live.length) return null;
+    const safe = (c, r) => !live.some((t) => D.tellCovers(t, W.tileCenter(c), W.tileCenter(r)));
+    if (safe(this.hc, this.hr)) return 'hold';      // 안전하면 경고가 걷힐 때까지 다가가지 않는다
+    const f = this.findStep(this.hc, this.hr, safe, 'hero');
+    return f && f !== 'here' && this.stepTo(f) ? 'moved' : null;
+  }
+  // ---------- 십이지 뽑기 (v126) ----------
+  zodiacOwned(no) { return this.s.mounts.some((m) => W.mountOf(m.kind)?.zodiac === no); }
+  drawZodiac(no) {
+    const n = this.s.zTickets[no] || 0;
+    if (n <= 0) return null;
+    this.s.zTickets[no] = n - 1;
+    if (!this.s.zTickets[no]) delete this.s.zTickets[no];
+    const z = D.ZODIAC[no - 1];
+    let kind;
+    const pity = (this.s.zPity[no] || 0) + 1;
+    if (!this.zodiacOwned(no) && (pity >= D.ZODIAC_TICKETS || this.rng() < D.ZODIAC_RATE)) {
+      kind = z.mount;
+      delete this.s.zPity[no];
+    } else {
+      if (!this.zodiacOwned(no)) this.s.zPity[no] = pity;
+      const top = D.zodiacTopTier(no);
+      const pool = W.MOUNTS.filter((m) => m.tier <= top && !m.zodiac);
+      const w = pool.map((m) => 0.55 ** (top - m.tier));
+      let r = this.rng() * w.reduce((a, b) => a + b, 0);
+      kind = pool[0].id;
+      for (let i = 0; i < pool.length; i++) { r -= w[i]; if (r <= 0) { kind = pool[i].id; break; } }
+    }
+    const mt = this.gainMount(kind, null);
+    this.emit('zodiacDraw', { no, kind, zodiac: kind === z.mount });
+    return mt;
+  }
+  // 그만두기 (깬 것으로 치지 않는다 — 요일 던전은 잡은 만큼 절반)
+  leaveInst() {
+    if (!this.inst) return null;
+    if (!this.inst.done) this.inst.done = { ok: false, left: true };
+    return this.finishInst();
+  }
+  finishInst() {
+    const I = this.inst;
+    const ok = !!I.done?.ok;
+    let reward = null;
+    if (I.kind === 'daily') {
+      const full = D.dailyReward(I.id, I.stage, this.levelGapMult(D.dailyLv(I.stage)));
+      const k = ok ? 1 : D.DAILY_FAIL * Math.min(1, I.kills / I.target);
+      reward = this.grant(full, k);
+      if (ok) this.s.dgn.best[I.id] = Math.max(this.dailyBest(I.id), I.stage);
+    } else if (I.kind === 'tower' && ok) {
+      this.s.tower.floor = Math.max(this.s.tower.floor, I.stage);
+      this._stats = null;
+      reward = this.grant(D.towerReward(I.stage));
+    }
+    const res = { kind: I.kind, id: I.id, stage: I.stage, ok, died: !!I.done?.died, timeout: !!I.done?.timeout, left: !!I.done?.left,
+      kills: I.kills || 0, target: I.target || 0, reward, chain: false };
+    this.inst = null;
+    // 탑: 이기고 '이어 오르기'면 다음 층으로
+    if (I.kind === 'tower' && ok && this.s.tower.auto && !I.done.left && this.canTower()) {
+      res.chain = true;
+      this.emit('instEnd', res);
+      this.startTower(true);
+      return res;
+    }
+    this.emit('instEnd', res);
+    this.enterMap(this.canEnter(this.s.huntMap) ? this.s.huntMap : 0, true);
+    return res;
+  }
+  // 보상 주기 { exp, gold, mats } × k — 실제로 준 것을 돌려준다
+  grant(r, k = 1) {
+    const out = {};
+    if (r.exp) { out.exp = Math.floor(r.exp * k); this.addExp(out.exp); this.petExp(out.exp * 0.5); }
+    if (r.gold) { out.gold = Math.floor(r.gold * k); this.s.gold += out.gold; }
+    if (r.tickets) {
+      out.tickets = {};
+      for (const [k, n] of Object.entries(r.tickets)) { out.tickets[k] = n; this.s.zTickets[k] = (this.s.zTickets[k] || 0) + n; }
+    }
+    if (r.mats) {
+      out.mats = {};
+      for (const [key, n] of Object.entries(r.mats)) { const v = Math.floor(n * k); if (v > 0) { out.mats[key] = v; this.addMats(key, v); } }
+    }
+    return out;
   }
 
   // ---------- 방치 ----------

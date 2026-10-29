@@ -466,7 +466,8 @@ console.log('\n=== 십이지왕 신화 · 가락지·귀걸이 · 애완동물 �
   ok(W.petDropRate(1) < 0.001 && tiersOf(1) <= 1 && tiersOf(15) === 7 && tiersOf(27) === 10 && W.petDropRate(27) > W.petDropRate(15) * 3,
     '애완동물 드랍: 죽림 0.08%(선학만) … 천외천 0.9%(손오공까지) … 검왕 3.8%(황룡까지)', `${(W.petDropRate(1) * 100).toFixed(2)}% · ${(W.petDropRate(15) * 100).toFixed(2)}% · ${(W.petDropRate(27) * 100).toFixed(2)}%`);
   const mtTop = (z, boss) => { let t = 0; for (let i = 0; i < 3000; i++) t = Math.max(t, W.mountOf(W.rollMount(rr, z, boss)).tier); return t; };
-  ok(W.MOUNTS.length === 12 && mtTop(1, true) === 2 && mtTop(27, true) === 12, `탈것 열둘 — 죽림 두목은 노새까지 … 검왕은 청룡마까지`, W.MOUNTS.map((x) => x.name).join(' < '));
+  ok(W.MOUNTS.filter((x) => !x.zodiac).length === 12 && W.MOUNTS.filter((x) => x.zodiac).length === 12 && mtTop(1, true) === 2 && mtTop(27, true) === 12,
+    `탈것 열둘(+십이지 신수 열둘은 떨구지 않는다) — 죽림 두목은 노새까지 … 검왕은 청룡마까지`, W.MOUNTS.filter((x) => !x.zodiac).map((x) => x.name).join(' < '));
   let md = 0;
   const mm = fresh();
   for (let i = 0; i < 200000; i++) if (mm.rng() < W.MOUNT_DROP_MOB) md++;
@@ -604,6 +605,75 @@ console.log('\n=== 4차 무공 넷 (v123) ===');
   ok(p.useSkill('s4') && p.mons.every((m) => m.dot > 0), '독마 만독지옥: 사냥터 전체에 독');
   const r = mk('ring');
   ok(r.useSkill('s4') && ['s0', 's1', 's2'].every((k) => r.events.some((e) => e.type === 'dmg' && e.kind === k)) && r.buffv.might > 0 && r.cd.s0 === 0, '극악소마 삼공합일: 세 무공을 한꺼번에(숨은 안 쓴다) + 삼공조화');
+}
+
+console.log('\n=== 던전 (v126) ===');
+{
+  const D = await import('../js/world/wdgn.js');
+  let sun = Date.UTC(2026, 10, 1, 3); while (D.kstWeekday(sun) !== 0) sun += 86400e3;
+  let mon = sun + 86400e3;
+  const g = fresh();
+  g.setJob('sword');
+  while (g.s.level < 30) g.addExp(W.expToNext(g.s.level));
+  g.enterMap(W.mapId(4, 1));
+  ok(D.dailyOpen(D.dailyOf('exp'), mon) && !D.dailyOpen(D.dailyOf('gold'), mon) && D.DAILY.every((d) => D.dailyOpen(d, sun)), '요일 던전: 월요일은 수련동 · 일요일은 셋 다');
+  ok(!g.canDaily('gold', 1, mon) && g.canDaily('exp', 1, mon) && !g.canDaily('exp', 2, mon), '처음엔 1단계만, 닫힌 요일은 못 들어간다');
+  const huntBefore = g.s.huntMap;
+  ok(g.startDaily('exp', 1, mon) && g.inst?.kind === 'daily' && g.map.inst && g.mons.length === D.DAILY_ALIVE, '들어가면 던전 구역(몹 열넷)');
+  for (const m of g.mons) m.atk = 0;
+  let res = null;
+  for (let i = 0; i < 2000 && !res; i++) { g.tick(0.05); for (const e of g.events) if (e.type === 'instEnd') res = e; g.events.length = 0; }
+  ok(res?.ok && g.dailyBest('exp') === 1 && !g.inst && g.s.map === huntBefore && res.reward.exp > 0, '40마리 잡으면 깨고 사냥터로 돌아온다 (보상 경험치)', JSON.stringify(res?.reward));
+  ok(g.dailyLeft('exp', mon) === 2 && g.canSweep('exp', mon), '하루 세 번 — 깬 단계는 소탕');
+  const lv0 = g.s.level, e0 = g.s.exp;
+  const sw = g.sweepAll(mon);
+  ok(sw.length === 2 && g.dailyLeft('exp', mon) === 0 && (g.s.level > lv0 || g.s.exp > e0), '모두 소탕: 남은 둘을 한꺼번에');
+  ok(g.dailyLeft('exp', mon + 86400e3 * 7) === 3, '다음 날이면 다시 셋');
+  // 시간 넘김 → 절반 보상, 깬 것으로 안 친다
+  const g2 = fresh(); g2.setJob('fan'); while (g2.s.level < 30) g2.addExp(W.expToNext(g2.s.level)); g2.enterMap(W.mapId(4, 1));
+  g2.startDaily('gold', 1, sun);
+  const gold0 = g2.s.gold;
+  g2.inst.t = 0.01;
+  let r2 = null; for (let i = 0; i < 10 && !r2; i++) { g2.tick(0.05); for (const e of g2.events) if (e.type === 'instEnd') r2 = e; g2.events.length = 0; }
+  ok(r2 && !r2.ok && r2.timeout && g2.dailyBest('gold') === 0 && g2.s.gold >= gold0, '시간이 다 되면 깬 것으로 안 치고 잡은 만큼 절반');
+  // 무한의 탑
+  const t = fresh(); t.setJob('fan'); while (t.s.level < 30) t.addExp(W.expToNext(t.s.level)); t.enterMap(W.mapId(4, 1));
+  const atk0 = t.stats().atk;
+  t.s.tower.floor = 9; t._stats = null;
+  ok(Math.abs(t.stats().atk / atk0 - (1 + D.towerBonus(9)) / 1) < 0.2, '탑 층마다 공격력이 오른다', `${(t.stats().atk / atk0).toFixed(3)}`);
+  ok(D.isZodiacFloor(10) && D.towerBoss(10).zodiac === 1 && D.towerBoss(120).zodiac === 12 && D.TOWER_MAX === 120, '120층 · 10층마다 십이지신 (10층 쥐 … 120층 돼지)');
+  t.autoDodge = true;
+  t.startTower();
+  let tr = null, casts = 0, tells = 0;
+  for (let i = 0; i < 2400 && !tr; i++) {
+    t.tick(0.05);
+    if (i === 200) for (const m of t.mons) if (m.isBoss) { m.hp = 1; m.atk = 0; }
+    for (const e of t.events) { if (e.type === 'instEnd') tr = e; if (e.type === 'bossCast') casts++; if (e.type === 'tellBoom') tells++; }
+    t.events.length = 0;
+  }
+  ok(casts > 0 && tells > 0, '수문장은 바닥 경고 초식을 쓴다', `초식 ${casts} · 터짐 ${tells}`);
+  ok(tr?.ok && tr.stage === 10 && t.s.zTickets[1] === D.ZODIAC_TICKETS, '10층 십이지신을 넘으면 그 신의 뽑기권 셋', JSON.stringify(tr?.reward));
+  // 피하지 않으면 경고에 맞는다
+  const hit = fresh(); hit.setJob('fan'); while (hit.s.level < 30) hit.addExp(W.expToNext(hit.s.level)); hit.enterMap(W.mapId(4, 1));
+  hit.s.tower.floor = 50; hit.startTower();
+  for (let i = 0; i < 20; i++) { hit.tick(0.05); hit.events.length = 0; }
+  const b = hit.mons.find((m) => m.isBoss);
+  b.atk = 0; b.introT = 0; hit.freezeT = 0; hit.inst.castT = 99;
+  hit.tells = [];
+  hit.tells.push({ kind: 'circle', x: hit.heroX, y: hit.heroY, r: 100, t: 0.1, max: 0.1, dmg: 0.5, wait: 0 });
+  let got = 0; for (let i = 0; i < 10; i++) { hit.tick(0.05); for (const e of hit.events) if (e.type === 'heroHit' && e.tell) got += e.amount; hit.events.length = 0; }
+  ok(got >= hit.stats().hp * 0.3, '경고 안에 서 있으면 최대 체력의 몇 할을 맞는다', `${Math.round(got)} / ${Math.round(hit.stats().hp)}`);
+  ok(D.tellCovers({ kind: 'donut', x: 0, y: 0, r0: 100, r1: 300 }, 50, 0) === false && D.tellCovers({ kind: 'line', x0: 0, y0: 0, x1: 500, y1: 0, w: 100 }, 250, 40), '경고 판정: 고리 안쪽은 안전 · 선은 폭 안');
+  hit.s.potions = 10; hit.heroHp = 1;
+  ok(!hit.drinkPotion(), '탑에서는 물약을 못 쓴다');
+  // 십이지 뽑기: 셋째에는 꼭
+  const z = fresh(); z.s.zTickets[5] = 3; z.rng = () => 0.99;
+  z.drawZodiac(5); z.drawZodiac(5);
+  ok(!z.zodiacOwned(5) && z.s.mounts.length === 2, '신수가 안 나오면 보통 탈것');
+  z.drawZodiac(5);
+  ok(z.zodiacOwned(5) && !z.s.zTickets[5] && W.mountOf(z.s.mounts.find((m) => m.uid === z.s.mount)?.kind)?.zodiac === 5, '셋째 뽑기에는 신수 — 바로 탄다');
+  const sv = migrateWorld(JSON.parse(JSON.stringify(z.toJSON())));
+  ok(sv.tower && sv.dgn && sv.zTickets && sv.zPity, '던전·탑·뽑기권이 저장된다');
 }
 
 console.log('\n=== 두목 우선 · 조이스틱 (v125) ===');

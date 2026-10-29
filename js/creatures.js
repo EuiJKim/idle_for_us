@@ -381,6 +381,22 @@ export const CREATURES = {
   azure: { type: 'dragon', len: 120, thick: 13, lift: 30, amp: 8, col: '#0ea5e9', belly: '#fde68a', fin: '#0369a1', horn: '#e0f2fe', whisker: '#e0f2fe', pearl: true, mount: true },
 };
 for (const k of ['donkey', 'mule', 'horse', 'camel', 'deer', 'warhorse', 'white', 'tigerm', 'redhare', 'ochu', 'cloud']) CREATURES[k].type = 'quad';
+// 십이지 신수 탈것 (v126) — 무한의 탑 십이지 뽑기. 탑의 10층 수문장(십이지신)도 이 모습으로 크게 나선다.
+const Q = (o) => ({ ...MOUNT_BASE, type: 'quad', ...o });
+Object.assign(CREATURES, {
+  z1: Q({ len: 70, bh: 26, leg: 22, col: '#eab308', belly: '#fef3c7', ear: 'round', tail: 'long', tailLen: 46, tailW: 3, mane: null, neck: [14, -0.6], neckW: 16, head: [26, 14], muzzle: '#fde68a', whisker: true, eye: '#7f1d1d', saddle: '#7f1d1d', gait: 13 }),
+  z2: Q({ len: 86, bh: 34, leg: 30, legW: 9, col: '#292524', belly: '#57534e', horn: 'two', hornCol: '#e7e5e4', ear: 'round', tail: 'tuft', mane: null, neck: [10, -0.5], neckW: 24, head: [26, 18], muzzle: '#a8a29e', eye: '#ef4444', saddle: '#b45309', hoof: '#111', gait: 7 }),
+  z3: { ...CREATURES.tigerm, col: '#f8fafc', belly: '#ffffff', stripes: '#1e293b', eye: '#38bdf8', saddle: '#0369a1' },
+  z4: Q({ len: 66, bh: 30, leg: 26, col: '#f8fafc', belly: '#ffffff', ear: 'long', earCol: '#fda4af', tail: 'tuft', mane: null, clouds: true, neck: [12, -0.9], neckW: 16, head: [22, 14], muzzle: '#fce7f3', eye: '#e11d48', saddle: '#7c3aed', gait: 13 }),
+  z5: { type: 'dragon', len: 130, thick: 14, lift: 32, amp: 8, col: '#facc15', belly: '#fff7ed', fin: '#b45309', horn: '#fef3c7', whisker: '#fff7ed', pearl: true, mount: true },
+  z6: { type: 'dragon', snake: true, len: 120, thick: 11, lift: 18, amp: 7, col: '#0d9488', belly: '#ccfbf1', bands: '#134e4a', mount: true },
+  z7: Q({ len: 82, bh: 30, leg: 40, col: '#fef9c3', belly: '#fffbeb', mane: '#fb923c', tail: 'flame', clouds: true, horn: 'one', hornCol: '#fde047', neck: [28, -1.05], head: [27, 14], saddle: '#b91c1c', hoof: '#fbbf24', gait: 12 }),
+  z8: Q({ len: 74, bh: 32, leg: 28, col: '#f5f5f4', belly: '#ffffff', fur: '#e7e5e4', horn: 'two', hornCol: '#a16207', ear: 'round', tail: 'tuft', clouds: true, neck: [12, -0.7], neckW: 18, head: [22, 14], muzzle: '#d6d3d1', saddle: '#0e7490', gait: 8 }),
+  z9: Q({ len: 76, bh: 32, leg: 30, legW: 9, col: '#b45309', belly: '#fcd34d', fur: '#f59e0b', ear: 'round', tail: 'long', tailLen: 40, mane: null, neck: [10, -0.6], neckW: 22, head: [22, 18], muzzle: '#fde68a', eye: '#facc15', saddle: '#b91c1c', gait: 9 }),
+  z10: { type: 'bird', len: 64, bh: 34, leg: 30, col: '#f97316', wing: '#facc15', tail: '#16a34a', tail2: '#dc2626', tailLen: 38, plumes: 5, neck: 22, neckW: 11, headR: 9, crown: '#dc2626', beak: 9, beakCol: '#fbbf24', legCol: '#a16207' },
+  z11: Q({ len: 76, bh: 28, leg: 32, col: '#e0e7ff', belly: '#ffffff', ear: 'pointy', tail: 'brush', tailLen: 30, mane: '#a5b4fc', neck: [16, -0.8], neckW: 16, head: [24, 14], muzzle: '#eef2ff', eye: '#4338ca', clouds: true, saddle: '#4338ca', gait: 12 }),
+  z12: Q({ len: 88, bh: 36, leg: 26, legW: 9, col: '#1c1917', belly: '#44403c', mane: '#7f1d1d', ear: 'pointy', tusk: true, tail: 'tuft', neck: [8, -0.4], neckW: 26, head: [26, 18], muzzle: '#57534e', eye: '#ef4444', saddle: '#7f1d1d', hoof: '#000', gait: 8 }),
+});
 
 // 들짐승 몹 (v117) — 몹 자리에서 크게(몹 정의의 bscale) 그린다
 const WOLF = { type: 'quad', len: 34, bh: 12, leg: 13, legW: 3.4, ear: 'pointy', tail: 'brush', tailLen: 15, neck: [7, -0.7], head: [13, 8], gait: 12 };

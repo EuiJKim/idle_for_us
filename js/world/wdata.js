@@ -643,6 +643,10 @@ export const MOUNTS = [
   { id: 'ochu', tier: 10, name: '오추마', emoji: '🐎', tint: '#111827', speed: 1.05, stat: 0.14 },
   { id: 'cloud', tier: 11, name: '천리운', emoji: '🦄', speed: 1.3, stat: 0.17 },
   { id: 'azure', tier: 12, name: '청룡마', emoji: '🐉', speed: 1.7, stat: 0.22 },
+  // 십이지 신수 (v126) — 무한의 탑 10층마다 십이지 뽑기로만 (떨구지 않는다). 뒤 신일수록 세다.
+  ...[['z1', '금서', '🐀'], ['z2', '철우', '🐂'], ['z3', '백호', '🐅'], ['z4', '옥토', '🐇'], ['z5', '황룡', '🐉'], ['z6', '청사', '🐍'],
+    ['z7', '천마', '🐎'], ['z8', '운양', '🐏'], ['z9', '금강원', '🐒'], ['z10', '금계', '🐓'], ['z11', '천구', '🐕'], ['z12', '흑저', '🐗']]
+    .map(([id, nm, emoji], i) => ({ id, tier: 13, zodiac: i + 1, name: `십이지 ${nm}`, emoji, speed: +(0.45 + (i + 1) * 0.11).toFixed(2), stat: +(0.04 + (i + 1) * 0.017).toFixed(3) })),
 ];
 export const mountOf = (id) => MOUNTS.find((m) => m.id === id) || null;
 export const MOUNT_DROP_MOB = 0.00005; // 졸개 (2만 마리에 하나 꼴 — 하루 꼬박 사냥해 한두 번)
