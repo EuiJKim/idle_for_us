@@ -71,7 +71,8 @@ export const TIERS = [
 // kind: single(한 적) · aoe(둘레) · daggers(가까운 적들에게 비수 n자루) · field(장판 — tick마다)
 // 덧: hits(몇 번) · bossMult · sure(반드시 치명) · stun(초) · vuln{sec,v}(받는 피해 +v) · dot{sec,mult}(독·출혈 — 맞은 피해의 mult배를 sec초에)
 //     buff{sec, speed, dmgRed, cleave}(무인에게) · lifesteal(준 피해의 몫) · far(거리 제한 없음)
-const SK = (slot, tier, role, name, kind, o) => ({ slot, tier, role, name, kind, autoAbove: [0, 0.6, 0.75][slot], ...o });
+// 4번째(slot 3)는 보조기(v120) — 차수와 상관없이 레벨 25에 배운다. auto: fight(싸울 때) · hurt(다쳤을 때) · poisoned(중독된 적이 많을 때)
+const SK = (slot, tier, role, name, kind, o) => ({ slot, tier, role, name, kind, autoAbove: [0, 0.6, 0.75, 0][slot], ...o });
 export const JOB_SKILLS = {
   sword: [
     SK(0, 1, 'frost', '일화참', 'single', { mult: 3.5, cd: 4.5, hpCost: 0, bossMult: 1.25, far: true,
@@ -80,6 +81,8 @@ export const JOB_SKILLS = {
       desc: '꽃잎 지듯 둘레를 두 번 벤다' }),
     SK(2, 3, 'thunder', '만화귀일', 'aoe', { mult: 5.0, cd: 15, hpCost: 0.18, radius: 300, buff: { sec: 8, speed: 0.4 },
       desc: '만 송이 검화가 하나로 — 넓게 벤 뒤 8초간 공격 속도 +40%(마검 각성)' }),
+    SK(3, 0, 'sup', '유운보', 'support', { cd: 24, hpCost: 0, from: 25, auto: 'fight', buff: { sec: 8, move: 0.6, speed: 0.25, dodge: 0.2 },
+      desc: '흐르는 구름 같은 걸음 — 8초간 이동 속도 +60% · 공격 속도 +25% · 공격을 20% 흘린다' }),
   ],
   fist: [
     SK(0, 1, 'frost', '붕산철권', 'single', { mult: 3.8, cd: 4.5, hpCost: 0, stun: 2,
@@ -88,6 +91,8 @@ export const JOB_SKILLS = {
       desc: '권갑 투신으로 둘레를 네 번 두들긴다' }),
     SK(2, 3, 'thunder', '불패금신', 'aoe', { mult: 4.2, cd: 18, hpCost: 0, radius: 260, buff: { sec: 10, dmgRed: 0.5, cleave: 0.6 },
       desc: '금빛 몸 — 충격파를 낸 뒤 10초간 받는 피해 -50% · 평타가 둘레를 친다(60%) · 체력을 쓰지 않는다' }),
+    SK(3, 0, 'sup', '금종조', 'support', { cd: 28, hpCost: 0, from: 25, auto: 'hurt', hurtAt: 0.7, shield: 0.3, buff: { sec: 12 },
+      desc: '금종을 뒤집어쓴 듯 — 최대 체력 30%만큼 막아 주는 보호막(12초)' }),
   ],
   ring: [
     SK(0, 1, 'frost', '혈앙지', 'single', { mult: 3.3, cd: 4, hpCost: 0, sure: true, dot: { sec: 5, mult: 0.6 },
@@ -96,6 +101,8 @@ export const JOB_SKILLS = {
       desc: '광폭한 장력이 둘레를 휩쓴다 · 맞은 적이 공포에 1.2초 굳는다' }),
     SK(2, 3, 'thunder', '소향비술', 'daggers', { mult: 0.85, n: 12, targets: 8, cd: 14, hpCost: 0.20, radius: 340, crit: 0.2,
       desc: '비수 열두 자루가 가까운 적 여덟에게 날아든다(치명 +20%p) · 세 무공을 6초 안에 이으면 삼공조화(8초간 피해 +25%)' }),
+    SK(3, 0, 'sup', '무면개방', 'support', { cd: 26, hpCost: 0, from: 25, auto: 'fight', buff: { sec: 10, fear: 0.35, critDmg: 0.3 },
+      desc: '가면을 벗는다 — 10초간 붙은 적의 공포 +35%p · 치명 피해 +30%' }),
   ],
   poison: [
     SK(0, 1, 'frost', '칠보단혼침', 'single', { mult: 2.6, cd: 5, hpCost: 0, dot: { sec: 6, mult: 1.8 },
@@ -104,6 +111,8 @@ export const JOB_SKILLS = {
       desc: '뼈를 녹이는 독무를 깐다 — 6초 동안 0.5초마다' }),
     SK(2, 3, 'thunder', '만독천라', 'aoe', { mult: 3.0, cd: 16, hpCost: 0.20, radius: 340, dot: { sec: 8, mult: 1.0 },
       desc: '만 가지 독이 하늘 그물처럼 — 넓게 맞히고 8초 맹독' }),
+    SK(3, 0, 'sup', '만독귀원', 'support', { cd: 22, hpCost: 0, from: 25, auto: 'poisoned', radius: 320, burst: 1, healMax: 0.12,
+      desc: '흩어진 독을 한데 거둔다 — 둘레 적에게 쌓인 독을 한꺼번에 터뜨리고 최대 체력의 12% 회복' }),
   ],
   fan: [
     SK(0, 1, 'frost', '섭혼술', 'single', { mult: 4.8, cd: 5, hpCost: 0, stun: 2.5, vuln: { sec: 6, v: 0.3 },
@@ -112,6 +121,8 @@ export const JOB_SKILLS = {
       desc: '핏빛 눈물이 혼을 홀린다 · 둘레가 2초 멎는다' }),
     SK(2, 3, 'thunder', '천외혈마공', 'aoe', { mult: 5.6, cd: 15, hpCost: 0.15, radius: 300, lifesteal: 0.05, vuln: { sec: 6, v: 0.2 },
       desc: '하늘 밖의 혈마공 · 준 피해의 5%를 빨아들이고 6초간 받는 피해 +20%' }),
+    SK(3, 0, 'sup', '시공이환술', 'support', { cd: 30, hpCost: 0, from: 25, auto: 'hurt', hurtAt: 0.5, heal: 0.4, buff: { sec: 4, dmgRed: 0.6 },
+      desc: '때와 자리를 바꿔 다친 몸을 되돌린다 — 잃은 체력의 40% 회복 · 4초간 받는 피해 -60%' }),
   ],
 };
 export const SKILL_DEFS = JOB_SKILLS.sword;   // 옛 이름 (자리·차수만 보는 곳)
@@ -301,6 +312,8 @@ export const SLOTS = [
 ];
 // 대장장이가 만드는 칸 (가락지·귀걸이는 두목만 떨군다 — 조합 사다리가 없다)
 export const CRAFT_SLOTS = SLOTS.filter((x) => !x.dropOnly);
+// v120: 아래 장비 없이도 조합한다 — 재료만 있으면 어느 칸이든. 아래 장비를 넣으면 재료가 덜 들고 강화·등급을 이어받는다.
+export const NO_BASE_MULT = 1.5;
 export const isDropOnly = (slot) => slot === 'finger' || slot === 'ear';
 export const GRADES = [
   { id: 0, name: '일반', color: '#d6d3d1', mult: 1, w: 70 },

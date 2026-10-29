@@ -1006,3 +1006,33 @@ details.lore p { margin: 4px 0 0; line-height: 1.5; }
 /* 심법 (v119) */
 .row.locked { opacity: 0.5; }
 .row.own .ico { background: linear-gradient(135deg, #7c2d12, #b45309); color: #fde68a; }
+
+/* 가방 개편 (v120) — 장비 · 대장장이 · 재료 */
+.gear-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.gear-tile { display: flex; flex-direction: column; gap: 2px; text-align: left; padding: 8px 8px 7px; border-radius: 10px;
+  background: var(--card-2); border: 1px solid var(--gc, var(--line)); color: var(--text); font: inherit; cursor: pointer; min-height: 70px;
+  box-shadow: 0 0 10px color-mix(in srgb, var(--gc, transparent) 25%, transparent) inset; }
+.gear-tile small { font-size: 10px; color: var(--gc, var(--muted)); font-weight: 700; }
+.gear-tile b { font-size: 12.5px; color: var(--gc, var(--text)); line-height: 1.25; word-break: keep-all; }
+.gear-tile span { font-size: 10.5px; color: var(--muted); line-height: 1.3; }
+.gear-tile.empty { border-style: dashed; border-color: var(--line); cursor: default; box-shadow: none; }
+.gear-tile.empty b { color: var(--muted); font-weight: 400; }
+.gear-tile.mythic { animation: mythic-glow 1.8s ease-in-out infinite; }
+.chip-row { display: flex; flex-wrap: wrap; gap: 5px; margin: 6px 0; }
+.chip-row .chip { border: 1px solid var(--line); color: var(--text); font: inherit; font-size: 12px; cursor: pointer; padding: 5px 10px; }
+.chip-row .chip.on { border-color: var(--accent-2); color: var(--gold); box-shadow: 0 0 0 1px var(--accent-2) inset; }
+.chip-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1px; }
+.chip-top small { font-size: 10px; color: var(--muted); }
+.delta { font-size: 11px; font-weight: 800; padding: 0 4px; border-radius: 4px; }
+.delta.up { color: #86efac; background: rgba(34,197,94,0.14); }
+.delta.down { color: #fca5a5; background: rgba(239,68,68,0.1); }
+.delta.same { color: var(--muted); }
+.btn.mini { padding: 3px 10px; font-size: 12px; margin-top: 4px; align-self: flex-start; }
+.item-chip { display: flex; flex-direction: column; }
+.craft-row { align-items: center; }
+.craft-row .info { min-width: 0; }
+.craft-row.weaker { opacity: 0.55; }
+.craft-row .desc.base { color: #d6c7a1; font-size: 11px; }
+.craft-row .name small { display: block; }
+.smith-cur { font-size: 12px; color: var(--muted); margin-top: 4px; }
+.mat-zone .mat-row { margin: 4px 0; }

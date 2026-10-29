@@ -133,7 +133,7 @@ let autoEl = null;
 // 전직할 수 있게 되면 그 자리에 'N차 전직' 단추가 반짝인다(누르면 마을 창의 사부).
 let advEl = null;
 function buildSkillbar() {
-  const all = game.s.job ? W.skillsOf(game.s.job).filter((sk) => sk.tier <= game.s.jobTier) : [];
+  const all = game.skills();
   advEl = null;
   if (game.canAdvance()) {
     advEl = h('button', { class: 'skill-btn adv-btn', onclick: () => showTab('town') },
@@ -185,10 +185,10 @@ function refreshUI(full = false) {
   $('progress-text').textContent = `체력 ${fmt(Math.max(0, game.heroHp))} / ${fmt(st.hp)}`;
   $('power-label').textContent = `전투력 ${fmt(st.power)}`;
   // 무공 바
-  const sig = `${s.job}|${s.jobTier}|${game.canAdvance()}`;
+  const sig = `${s.job}|${s.jobTier}|${game.canAdvance()}|${game.skills().length}`;
   if (sig !== lastSig) { lastSig = sig; buildSkillbar(); }
   for (const e of skillEls) {
-    const open = e.sk.tier <= s.jobTier;
+    const open = game.knows(e.sk);
     e.btn.classList.toggle('locked', !open);
     e.lock.textContent = open ? (e.sk.hpCost ? `체력 ${Math.round(e.sk.hpCost * 100)}%` : e.sk.name) : `${e.sk.tier}차 · Lv${W.TIERS[e.sk.tier].level}`;
     const left = game.cd[e.sk.id] || 0;
@@ -253,6 +253,9 @@ function handleEvents() {
       case 'craft': sfx('loot'); break;
       case 'potion': sfx('potion'); break;
       case 'heroHit': sfx('hurt'); break;
+      case 'heal':
+        if (ev.amount >= 1) view.float(`+${fmt(ev.amount)}`, view.heroX, view.groundY - 140, '#86efac', 18, 1);
+        break;
       case 'heroDied': sfx('down'); break;
       case 'bossAppear': sfx(ev.king && ev.full ? 'king' : 'boss'); break;
       default:

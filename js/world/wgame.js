@@ -22,7 +22,7 @@ export function newWorldSave(now = Date.now()) {
     statPts: 0,
     stats: { str: 0, dex: 0, vit: 0, int: 0 },   // 찍은 것 (캐릭터 기본치는 따로)
     autoStat: false,          // 레벨업 점수는 직접 찍는다(켜면 알아서 나눈다)
-    skillLv: { s0: 1, s1: 1, s2: 1 },   // 스킬 레벨 (v110)
+    skillLv: { s0: 1, s1: 1, s2: 1, s3: 1 },   // 스킬 레벨 (v110) · s3 보조기(v120)
     skillPts: 0,
     passLv: {},               // 심법(패시브) 레벨 (v119)
     skillV: 1,
@@ -124,7 +124,8 @@ export class WorldGame {
     this.contest = null;
     this.mons = [];
     this.mon = null;
-    this.cd = { s0: 0, s1: 0, s2: 0 };
+    this.cd = { s0: 0, s1: 0, s2: 0, s3: 0 };
+    this.shield = 0;              // 금종조 보호막 (남은 양)
     this.atkTimer = 0.4;
     this.potionT = 0;
     this.returnT = 0;
@@ -431,7 +432,7 @@ export class WorldGame {
     this.potionT = Math.max(0, this.potionT - dt);
     if (this.frenzyT > 0) this.frenzyT -= dt;
     if (this.reviveCd > 0) this.reviveCd -= dt;
-    for (const k in this.buffs) if (this.buffs[k] > 0) { this.buffs[k] -= dt; if (this.buffs[k] <= 0) { delete this.buffs[k]; delete this.buffv[k]; } }
+    for (const k in this.buffs) if (this.buffs[k] > 0) { this.buffs[k] -= dt; if (this.buffs[k] <= 0) { delete this.buffs[k]; delete this.buffv[k]; if (k === 'shield') this.shield = 0; } }
     // 회복
     const regen = this.map.town ? st.hp * W.REST_HEAL : st.regen;
     if (this.heroHp > 0) this.heroHp = Math.min(st.hp, this.heroHp + regen * dt);
@@ -524,15 +525,18 @@ export class WorldGame {
             if (ps.has('dodge') && this.rng() < 0.25) { this.emit('passive', { id: 'dodge' }); continue; }   // 환왕
             const cls = W.CLASSES[this.s.job] || {};
             const pm = this.pmods();
-            if (cls.fear && this.rng() < cls.fear + (pm.fearUp || 0)) {                                     // 극악소마: 공포
+            if (this.buffv.dodge && this.rng() < this.buffv.dodge) { this.emit('passive', { id: 'dodge' }); continue; }   // 유운보
+            if (cls.fear && this.rng() < cls.fear + (pm.fearUp || 0) + (this.buffv.fear || 0)) {                                     // 극악소마: 공포
               this.emit('passive', { id: 'fear', at: m });
               if (pm.own5 && this.s.job === 'ring') this.strike(m, st, 1.5, 'mask');                        // 무면귀 5: 가면의 일격
               continue;
             }
             const red = (1 - (cls.dmgRed || 0)) * (1 - (this.buffv.guard || 0)) * (1 - Math.min(0.6, pm.dmgRed || 0));
             const dmg = Math.max(1, m.atk * (0.9 + this.rng() * 0.2) * red - st.def);
-            this.heroHp -= dmg;
-            this.emit('heroHit', { amount: dmg });
+            let left = dmg;
+            if (this.shield > 0 && this.buffs.shield > 0) { const a = Math.min(this.shield, left); this.shield -= a; left -= a; }   // 금종조
+            this.heroHp -= left;
+            this.emit('heroHit', { amount: left, shielded: dmg - left });
             if (ps.has('reflect')) this.hurt(m, dmg * 0.4, 'reflect', false);                                 // 철왕
             if (ps.has('revive') && this.heroHp > 0 && this.heroHp < st.hp * 0.3 && !(this.reviveCd > 0)) {   // 목왕
               this.heroHp = Math.min(st.hp, this.heroHp + st.hp * 0.5);
@@ -575,7 +579,7 @@ export class WorldGame {
     // 칸 사이를 옮겨 가는 중이면 마저 간다 — 칸 가운데에 서야 다음 일을 정한다
     if (this.hmove) {
       this.walking = true;
-      if (this.slide(this, 'heroX', 'heroY', this.hmove, W.HERO_SPEED * (st.moveSpeed || 1), dt)) { this.hc = this.hmove.c; this.hr = this.hmove.r; this.hmove = null; }
+      if (this.slide(this, 'heroX', 'heroY', this.hmove, W.HERO_SPEED * (st.moveSpeed || 1) * (1 + (this.buffv.move || 0)), dt)) { this.hc = this.hmove.c; this.hr = this.hmove.r; this.hmove = null; }
       else return;
     }
     // 손으로 찍은 칸이 있으면 거기로 먼저 간다
@@ -695,6 +699,7 @@ export class WorldGame {
     if (m.isBoss) dmg *= st.boss;
     if (m.vulnT > this.clock) dmg *= 1 + m.vulnV;              // 섭혼: 받는 피해 +
     if (this.buffv.might) dmg *= 1 + this.buffv.might;          // 삼공조화
+    if (crit && this.buffv.critUp) dmg *= 1 + this.buffv.critUp / st.critDmg;   // 무면개방
     const ps = this.passives();
     if (ps.size) {
       if (ps.has('bossbane') && m.isBoss) dmg *= 1.5;                       // 투왕
@@ -784,14 +789,16 @@ export class WorldGame {
   }
 
   // ---------- 스킬 ----------
-  skills() { return this.s.job ? W.skillsOf(this.s.job).filter((k) => k.tier <= this.s.jobTier) : []; }
+  skills() { return this.s.job ? W.skillsOf(this.s.job).filter((k) => this.knows(k)) : []; }
+  // 배웠나 — 공격 무공은 전직 차수, 보조기는 레벨(v120)
+  knows(sk) { return !!sk && (sk.kind === 'support' ? this.s.level >= sk.from : sk.tier <= this.s.jobTier); }
   skillDef(id) { return this.s.job ? W.skillsOf(this.s.job).find((k) => k.id === id) : null; }
   hpCostOf(sk) { return Math.round(this.stats().hp * (sk.hpCost || 0) * (1 - this.skillMods(sk.id).cost)); }
   skillRadius(sk) { return (sk.radius || 0) * (1 + this.skillMods(sk.id).range); }
   skillCd(sk) { return sk.cd * (1 - this.skillMods(sk.id).cd); }
   canUseSkill(id) {
     const sk = this.skillDef(id);
-    if (!sk || sk.tier > this.s.jobTier || this.cd[id] > 0 || this.map.town) return false;
+    if (!this.knows(sk) || this.cd[id] > 0 || this.map.town) return false;
     if (this.heroHp <= this.hpCostOf(sk) + 1) return false;      // 대가로 죽지는 않는다
     return true;
   }
@@ -799,6 +806,7 @@ export class WorldGame {
     if (!this.canUseSkill(id)) return false;
     const sk = this.skillDef(id);
     const st = this.stats();
+    if (sk.kind === 'support') return this.useSupport(sk, st);
     const tgt = this.mon?.alive ? this.mon : this.pickTarget({ ...st, range: 9999 });
     if (sk.kind === 'single' && !tgt) return false;
     if (sk.kind === 'single' && !sk.far && Math.hypot(tgt.x - this.heroX, tgt.y - this.heroY) > Math.max(st.range, 160) * 1.6) return false;
@@ -870,9 +878,56 @@ export class WorldGame {
     }
     return true;
   }
+  // 보조기 (v120) — 스킬 레벨이 오를수록 세진다(피해 몫 7%/레벨을 세기로)
+  useSupport(sk, st) {
+    const id = sk.id;
+    const md = this.skillMods(id);
+    const pow = 1 + md.dmg;
+    this.cd[id] = this.skillCd(sk);
+    const at = { x: this.heroX, y: this.heroY };
+    this.emit('skill', { id, name: sk.name, fx: sk.fx, look: sk.role, job: this.s.job, cls: this.s.job, tier: 3, at, radius: sk.radius || 0, motion: 'buff', dur: sk.buff?.sec || 0 });
+    const b = sk.buff || {};
+    const set = (k, v) => { this.buffs[k] = b.sec; this.buffv[k] = v; };
+    if (b.move) set('move', b.move * pow);
+    if (b.speed) { set('haste', Math.max(this.buffv.haste || 0, b.speed * pow)); this.buffs.gale = b.sec; }
+    if (b.dodge) set('dodge', Math.min(0.6, b.dodge * pow));
+    if (b.dmgRed) set('guard', Math.min(0.8, Math.max(this.buffv.guard || 0, b.dmgRed * pow)));
+    if (b.fear) set('fear', b.fear * pow);
+    if (b.critDmg) set('critUp', b.critDmg * pow);
+    if (sk.shield) { this.shield = st.hp * sk.shield * pow; this.buffs.shield = b.sec; this.buffv.shield = 1; }
+    if (sk.heal) {
+      const add = (st.hp - this.heroHp) * Math.min(1, sk.heal * pow);
+      this.heroHp = Math.min(st.hp, this.heroHp + add);
+      this.emit('heal', { amount: add });
+    }
+    if (sk.burst) {
+      // 만독귀원: 둘레 적에게 쌓인 독을 한꺼번에 터뜨린다
+      for (const m of this.mons.slice()) {
+        if (!m.alive || m.npc || !(m.dot > 0) || Math.hypot(m.x - this.heroX, (m.y - this.heroY) * 0.75) > sk.radius) continue;
+        const d = m.dot * sk.burst * pow;
+        m.dot = 0;
+        this.hurt(m, d, id, false);
+      }
+    }
+    if (sk.healMax) {
+      const add = Math.min(st.hp - this.heroHp, st.hp * sk.healMax * pow);
+      this.heroHp += add;
+      this.emit('heal', { amount: add });
+    }
+    if (b.sec) this.buffs.rage = Math.max(this.buffs.rage || 0, Math.min(b.sec, 3));
+    return true;
+  }
+  // 보조기를 지금 쓸까
+  wantSupport(sk, st) {
+    if (sk.auto === 'hurt') return this.heroHp < st.hp * (sk.hurtAt || 0.5);
+    const near = this.mons.filter((m) => m.alive && !m.npc && Math.hypot(m.x - this.heroX, (m.y - this.heroY) * 0.75) <= 320);
+    if (sk.auto === 'poisoned') return near.filter((m) => m.dot > 0).length >= 3 || near.some((m) => m.isBoss && m.dot > m.maxHp * 0.02);
+    return near.length >= 4 || near.some((m) => m.isBoss);
+  }
   autoSkills(st) {
     for (const sk of this.skills()) {
       if (this.cd[sk.id] > 0) continue;
+      if (sk.kind === 'support') { if (this.wantSupport(sk, st)) this.useSkill(sk.id); continue; }
       if (sk.autoAbove && this.heroHp < st.hp * sk.autoAbove && !sk.buff?.dmgRed) continue;
       if (sk.kind === 'single') {
         if (!this.mon?.alive) continue;
@@ -1025,30 +1080,35 @@ export class WorldGame {
     if (W.isDropOnly(slot) && W.PET_SLOT_OPT[rar] && this.rng() < W.PET_SLOT_CHANCE) opts.push({ pet: W.PET_SLOT_OPT[rar] });
     return opts;
   }
-  // 그 칸에서 가진 것(낀 것 + 가방) 가운데 조합에 넣을 것 — 높은 칸, 같으면 낀 것
+  // 조합에 넣을 장비 — 같은 칸에서 만들 것보다 낮은 조합 장비 가운데 가장 좋은 것 (v120: 바로 아래 칸이 아니어도 된다)
   recipeSource(r) {
-    if (!r.from.length) return null;
-    const worn = this.s.equip[r.slot];
     let best = null;
-    for (const it of [worn, ...this.s.bag]) {
-      if (!it || it.slot !== r.slot || it.step == null || !r.from.includes(it.step)) continue;
-      if (!best || it.step > best.step) best = it;
+    for (const it of [this.s.equip[r.slot], ...this.s.bag]) {
+      if (!it || it.slot !== r.slot || it.step == null || it.step >= r.step) continue;
+      if (!best || it.step > best.step || (it.step === best.step && this.itemScore(it) > this.itemScore(best))) best = it;
     }
     return best;
   }
-  // 조합할 수 있나 — 모자란 것을 함께 돌려준다(화면에 '청죽 마디 12/40'처럼)
-  craftCheck(slot, step) {
+  // 조합법 — 넣을 장비가 없거나 안 넣으면 재료가 NO_BASE_MULT배
+  recipeFor(slot, step, useBase = true) {
     const r = W.recipeOf(slot, step);
-    const src = this.recipeSource(r);
+    const src = useBase ? this.recipeSource(r) : null;
+    if (src) return { r, src };
+    const mats = {};
+    for (const [k, n] of Object.entries(r.mats)) mats[k] = Math.ceil(n * (k[0] === 'b' ? 1 : W.NO_BASE_MULT));
+    return { r: { ...r, mats }, src: null };
+  }
+  // 조합할 수 있나 — 모자란 것을 함께 돌려준다(화면에 '청죽 마디 12/40'처럼)
+  craftCheck(slot, step, useBase = true) {
+    const { r, src } = this.recipeFor(slot, step, useBase);
     const lack = [];
-    if (r.from.length && !src) lack.push('item');
     for (const [k, n] of Object.entries(r.mats)) if ((this.s.mats[k] || 0) < n) lack.push(k);
     if (this.s.gold < r.gold) lack.push('gold');
     return { r, src, ok: !lack.length, lack };
   }
-  craft(slot, step) {
+  craft(slot, step, useBase = true) {
     if (step < 0 || step >= W.TIER_COUNT * 2 || W.isDropOnly(slot)) return null;
-    const { r, src, ok } = this.craftCheck(slot, step);
+    const { r, src, ok } = this.craftCheck(slot, step, useBase);
     if (!ok) return null;
     for (const [k, n] of Object.entries(r.mats)) this.s.mats[k] -= n;
     this.s.gold -= r.gold;
@@ -1067,6 +1127,17 @@ export class WorldGame {
     this.emit('craft', { item: it });
     if (wore) { this.s.equip[slot] = it; this._stats = null; this.emit('equip', { item: it }); } else this.gainItem(it);
     return it;
+  }
+  // 대장장이 목록에 올릴 칸들 — 들어갈 수 있는 지역 + 다음 지역 하나 (그 안에서 하급·상급 모두)
+  craftSteps() {
+    let top = 1;
+    for (let z = 1; z <= W.ZONE_COUNT; z++) if (this.canEnter(W.mapId(z, 1))) top = z;
+    // 재료를 가진 지역은 (문파 창고에서 받았어도) 보인다
+    for (const k of Object.keys(this.s.mats)) { const z = parseInt(k.replace('b', ''), 10); if (z > top && this.s.mats[k] > 0) top = z; }
+    top = Math.min(W.ZONE_COUNT, top + 1);
+    const out = [];
+    for (let st = 0; st < top * 2; st++) out.push(st);
+    return out;
   }
   // 다음에 만들 수 있는 것: 가진 가장 높은 칸에서 한 걸음(상급) · 두 걸음(다음 사냥터 하급)
   nextSteps(slot) {
@@ -1290,7 +1361,7 @@ export class WorldGame {
   canSkillUp(id) {
     const sk = this.skillDef(id);
     const lv = this.skillLevel(id);
-    return !!sk && sk.tier <= this.s.jobTier && lv < W.SKILL_LV_MAX && this.s.skillPts >= W.skillLvCost(lv);
+    return this.knows(sk) && lv < W.SKILL_LV_MAX && this.s.skillPts >= W.skillLvCost(lv);
   }
   skillUp(id) {
     if (!this.canSkillUp(id)) return false;

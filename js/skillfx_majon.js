@@ -131,6 +131,29 @@ export const MAJON_FX = {
     ctx.beginPath(); ctx.ellipse(0, 0, R * 0.12, R * 0.36 * open, 0, 0, TAU); ctx.fill();
   },
 
+  // 금종 — 무인 위에서 금빛 종이 내려와 덮는다 (금종조)
+  bell(v, ctx, e, k) {
+    const p = 1 - k;
+    const x = v.heroX, y = v.groundY;
+    const drop = Math.min(1, p * 3);
+    const top = y - 150 + drop * 40;
+    const a = Math.min(1, k * 2.5);
+    ctx.fillStyle = `rgba(${GOLD},${0.22 * a})`;
+    ctx.strokeStyle = `rgba(254,240,138,${0.9 * a})`;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(x - 14, top);
+    ctx.quadraticCurveTo(x - 30, top + 20, x - 34, top + 60);
+    ctx.quadraticCurveTo(x - 38, top + 100, x - 52, top + 112);
+    ctx.lineTo(x + 52, top + 112);
+    ctx.quadraticCurveTo(x + 38, top + 100, x + 34, top + 60);
+    ctx.quadraticCurveTo(x + 30, top + 20, x + 14, top);
+    ctx.closePath();
+    ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x - 44, top + 96); ctx.lineTo(x + 44, top + 96); ctx.stroke();
+    ctx.beginPath(); ctx.arc(x, top - 6, 7, 0, TAU); ctx.stroke();
+  },
+
   // 가면 — 웃는 흰 탈이 잠깐 떠올랐다 사라진다 (극악소마)
   mask(v, ctx, e, k) {
     ctx.globalCompositeOperation = 'source-over';   // 어두운 빛(눈구멍·핏자국)이 살아야 한다
@@ -148,6 +171,13 @@ export const MAJON_FX = {
     ctx.strokeStyle = `rgba(${BLOOD},0.95)`;
     ctx.lineWidth = s * 0.08;
     ctx.beginPath(); ctx.arc(0, s * 0.18, s * 0.42, 0.2, Math.PI - 0.2); ctx.stroke();
+    if (e.crack) {
+      // 무면개방: 가면이 가운데로 갈라진다
+      ctx.strokeStyle = 'rgba(15,10,20,0.95)';
+      ctx.lineWidth = 2;
+      const o = p * 10;
+      ctx.beginPath(); ctx.moveTo(0, -s); ctx.lineTo(-3 - o * 0.2, -s * 0.4); ctx.lineTo(3, 0); ctx.lineTo(-2, s * 0.5); ctx.lineTo(0, s); ctx.stroke();
+    }
   },
 };
 
@@ -156,6 +186,57 @@ export const MAJON_FX = {
 const hitsOr = (d, n = 8) => (d.hits.length ? d.hits.slice(0, n).map((h) => h.at) : [d.target]);
 
 export const MAJON_CHOREO = {
+  // ===== 보조기 (v120) =====
+  // 일화검존 유운보 — 구름 같은 걸음: 바람 줄과 꽃잎이 몸을 감싸 돈다
+  'sword:m3'(d) {
+    const c = [PLUM, '255,255,255', '71,85,105'];
+    buffBeats(d, c, [[0.05, '순보', 'out'], [0.4, '순보'], [0.5, '착지', 'snap'], [0.8, '마무리', 'inout']], () => {
+      d.fx('speedlines', 0.6, { col: c[1], seed: Math.random() * 6 });
+      d.fx('petals', 1.6, { wx: d.to.x, wy: d.to.y, r: 70, col: PLUM, seeds: rnd(16), spin: 5, hero: true });
+    });
+  },
+  // 불패권마 금종조 — 금종이 내려앉아 몸을 덮는다
+  'fist:m3'(d) {
+    const c = [GOLD, '255,251,235', '120,53,15'];
+    buffBeats(d, c, [[0.08, '마보', 'out'], [0.5, '마보'], [0.85, '마무리', 'inout']], () => {
+      d.fx('bell', 1.2, {});
+      d.fx('goldbody', 1.2, {});
+    });
+  },
+  // 섭혼마존 시공이환술 — 술법진이 거꾸로 돌고, 흩어진 잔상이 몸으로 되돌아온다
+  'fan:m3'(d) {
+    const c = [SOUL, '254,226,226', '59,7,100'];
+    buffBeats(d, c, [[0.05, '기모으기', 'out'], [0.45, '기모으기'], [0.6, '펼치기', 'snap'], [0.9, '마무리', 'inout']], () => {
+      d.fx('sigil', 1.0, { wx: d.to.x, wy: d.to.y, r: 110, col: SOUL, n: 16, spin: -3 });
+      for (let i = 0; i < 4; i++) {
+        const a = (i / 4) * TAU;
+        d.ghost(d.to.x + Math.cos(a) * 70, d.to.y + Math.sin(a) * 40, '기모으기', 0.5, { a0: 0.45, tint: SOUL });
+        d.fx('qiorb', 0.5, { pts: [{ x: d.to.x + Math.cos(a) * 70, y: d.to.y + Math.sin(a) * 40, oy: -50 }, { x: d.to.x, y: d.to.y, oy: -55 }], go: 0.9, col: SOUL, size: 6, hop: 10 });
+      }
+    });
+  },
+  // 독왕 만독귀원 — 적들 몸의 독이 한꺼번에 터지고 초록 기운이 무인에게 모인다
+  'poison:m3'(d) {
+    beats(d, [[0, '땅짚기', 'out'], [0.25, '땅짚기'], [0.35, '펼치기', 'snap'], [0.8, '마무리', 'inout']], {
+      cast: 0.1, hit: 0.35, end: 1.0, shake: 0.2,
+      onCast: () => d.fx('sigil', 0.9, { wx: d.to.x, wy: d.to.y, r: d.radius || 320, col: GREEN[0], n: 20, spin: 2 }),
+      onHit: () => {
+        const list = hitsOr(d, 8);
+        for (const at of list) { d.burst(at, 70, { puddle: 0.4, drops: 6 }); }
+        d.skulls(d.hits, 3);
+        for (const at of list.slice(0, 5)) d.fx('qiorb', 0.55, { pts: [{ x: at.x, y: at.y, oy: -40 }, { x: d.to.x, y: d.to.y, oy: -55 }], go: 0.9, col: GREEN[0], size: 6, hop: 18 });
+      },
+    });
+  },
+  // 극악소마 무면개방 — 가면을 벗는다: 가면이 갈라지고 핏빛 기운이 둘레로 번진다
+  'ring:m3'(d) {
+    const c = [BLOOD, '254,226,226', '69,10,10'];
+    buffBeats(d, c, [[0.05, '지법겨눔', 'out'], [0.45, '지법겨눔'], [0.55, '쌍장', 'snap'], [0.85, '마무리', 'inout']], () => {
+      d.fx('mask', 1.1, { oy: -170, size: 38, crack: true });
+      d.fx('shock', 0.8, { wx: d.to.x, wy: d.to.y, r: 260, col: BLOOD, rings: 3, w: 6 });
+    });
+  },
+
   // ===== 일화검존 =====
   // 일화참 — 가장 빠른 걸음으로 다가가 한 칼. 벤 자리에 꽃 한 송이가 핀다.
   'sword:m0'(d) {

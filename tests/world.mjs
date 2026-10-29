@@ -195,8 +195,14 @@ console.log('\n=== 재료와 조합 (바람식) ===');
   g.s.gold = 1e7;
   ok(g.craft('weapon', 0) === null, '재료가 모자라면 조합할 수 없다');
   g.s.mats = { 1: 1000, b1: 20, 2: 1000, b2: 20 };
-  ok(JSON.stringify(g.nextSteps('weapon')) === '[0]', '처음엔 사냥터 1 하급만 만들 수 있다');
-  ok(g.craft('weapon', 2) === null, '아래 장비 없이 위 장비는 못 만든다');
+  // v120: 아래 장비 없이도 재료만 있으면 — 대신 재료가 NO_BASE_MULT배
+  {
+    const f = fresh(); f.s.gold = 1e7; f.s.mats = { 2: 1000 };
+    const need = f.craftCheck('weapon', 2).r.mats[2];
+    const it = f.craft('weapon', 2);
+    ok(it && it.step === 2 && need === Math.ceil(W.recipeOf('weapon', 2).mats[2] * W.NO_BASE_MULT) && f.s.mats[2] === 1000 - need, '아래 장비 없이도 재료만 있으면 만든다(재료 1.5배)', `${need}개`);
+    ok(f.craftSteps().includes(2) && f.craftSteps().length >= 4, '대장장이 목록: 들어갈 수 있는 지역 + 다음 지역', `${f.craftSteps().length}칸`);
+  }
   const w0 = g.craft('weapon', 0);
   ok(w0 && g.s.equip.weapon === w0 && W.itemName(w0, 'sword') === '청죽검', '하급은 재료와 은자로 — 바로 낀다', W.itemName(w0, 'sword'));
   const r1 = W.recipeOf('weapon', 1);
@@ -209,8 +215,16 @@ console.log('\n=== 재료와 조합 (바람식) ===');
   ok(w1.plus === 3, '강화는 절반을 이어받는다', `+${w1.plus}`);
   ok(g.s.mats[1] === m1 - r1.mats[1], '재료를 쓴다');
   ok(g.stats().atk > atk0, '공격력이 오른다', `${Math.round(atk0)} → ${Math.round(g.stats().atk)}`);
+  const m2 = g.s.mats[2];
   const w2 = g.craft('weapon', 2);
-  ok(w2 && W.stepMap(w2.step) === 2 && w2.ilv === W.craftIlv(2), '다음 사냥터 하급은 앞 사냥터 장비를 받는다', W.itemName(w2, 'sword'));
+  ok(w2 && W.stepMap(w2.step) === 2 && w2.ilv === W.craftIlv(2) && m2 - g.s.mats[2] === W.recipeOf('weapon', 2).mats[2], '아래 장비를 넣으면 재료가 그대로(덜 든다)', W.itemName(w2, 'sword'));
+  // 아래 장비는 바로 아래 칸이 아니어도 된다 (청죽검으로 혈석검)
+  {
+    const f = fresh(); f.s.gold = 1e7; f.s.mats = { 1: 1000, 4: 1000 };
+    const a = f.craft('weapon', 0); a.plus = 8;
+    const b = f.craft('weapon', 6);
+    ok(b && b.plus === 4 && !f.findItem(a.uid), '몇 칸 아래 장비를 넣어도 강화 절반을 이어받는다', `+${b.plus}`);
+  }
   // 사다리 끝까지 — 칸마다 강해지기만
   const z = fresh();
   z.s.gold = 1e12;
@@ -484,7 +498,7 @@ console.log('\n=== 다섯 마존의 무공 (v118) ===');
     g.mons.forEach((m, i) => { m.x = g.heroX + 40 + (i % 3) * 20; m.y = g.heroY + 20 * Math.floor(i / 3) - 40; });
     return g;
   };
-  ok(['sword', 'fist', 'fan', 'poison', 'ring'].every((j) => new Set(W.skillsOf(j).map((k) => k.name)).size === 3 && W.LORE[j]?.title), '직업마다 무공 셋이 다르고 마존 설정이 있다');
+  ok(['sword', 'fist', 'fan', 'poison', 'ring'].every((j) => new Set(W.skillsOf(j).map((k) => k.name)).size === 4 && W.LORE[j]?.title), '직업마다 무공 셋 + 보조기 하나가 다르고 마존 설정이 있다');
   const p = ready('poison');
   ok(p.useSkill('s1') && p.fields.length === 1, '독마 화골산: 독무 장판이 깔린다');
   const hp0 = p.mons.reduce((a, m) => a + m.hp, 0);
@@ -524,6 +538,33 @@ console.log('\n=== 심법 · 권마 평타 성장 (v119) ===');
   ok(hitAt(100) > hitAt(10) * 1.5, '권마: 평타 한 대(공격력 대비)가 레벨 100이면 레벨 10의 1.5배가 넘는다', `${hitAt(10).toFixed(2)} → ${hitAt(100).toFixed(2)}`);
 }
 
+console.log('\n=== 보조기 (v120) ===');
+{
+  const mk = (job) => { const g = fresh(job); g.s.level = 30; g.enterMap(11); g._stats = null; g.heroHp = g.stats().hp; return g; };
+  const f0 = fresh('fist');
+  ok(!f0.skills().some((k) => k.kind === 'support'), '보조기는 레벨 25 전엔 없다');
+  ok(['sword', 'fist', 'fan', 'poison', 'ring'].every((j) => mk(j).skills().filter((k) => k.kind === 'support').length === 1), '레벨 25부터 직업마다 보조기 하나 (전직과 상관없이)');
+  const f = mk('fist');
+  f.useSkill('s3');
+  const sh = f.shield;
+  const hp0 = f.heroHp;
+  const m = f.mons.find((x) => x.alive); m.atk = sh * 0.5 + f.stats().def; m.x = f.heroX + 40; m.y = f.heroY; m.c = f.hc + 1; m.r = f.hr; m.aggro = true; m.atkTimer = 0;
+  for (let i = 0; i < 3; i++) f.tick(0.05);
+  ok(sh > 0 && f.heroHp >= hp0 - 1, '권마 금종조: 보호막이 맞은 피해를 막는다', `보호막 ${Math.round(sh)} → ${Math.round(f.shield)}`);
+  const fn = mk('fan'); fn.heroHp = fn.stats().hp * 0.2; const h1 = fn.heroHp;
+  fn.useSkill('s3');
+  ok(fn.heroHp > h1 + fn.stats().hp * 0.25 && fn.buffv.guard > 0.5, '환마 시공이환술: 잃은 체력을 되찾고 받는 피해가 준다');
+  const p = mk('poison');
+  for (const x of p.mons) { x.hp = x.maxHp = 1e9; x.x = p.heroX + 50; x.y = p.heroY; x.dot = 1e6; }
+  const before = p.mons.reduce((a, x) => a + x.hp, 0);
+  p.useSkill('s3');
+  ok(p.mons.every((x) => !(x.dot > 0)) && p.mons.reduce((a, x) => a + x.hp, 0) < before - 1e6, '독마 만독귀원: 쌓인 독을 한꺼번에 터뜨린다');
+  const sw = mk('sword'); sw.useSkill('s3');
+  ok(sw.buffv.move > 0 && sw.buffv.dodge > 0 && sw.buffv.haste > 0, '검사 유운보: 이동·공격 속도 · 흘리기');
+  const r = mk('ring'); r.useSkill('s3');
+  ok(r.buffv.fear > 0 && r.buffv.critUp > 0, '극악소마 무면개방: 공포 · 치명 피해');
+}
+
 console.log('\n=== 전직·스킬 ===');
 {
   const g = fresh();
@@ -533,7 +574,7 @@ console.log('\n=== 전직·스킬 ===');
   g.s.level = 40; g.s.gold = 1e6;
   g.enterMap(11);
   ok(g.canAdvance() && g.advance(), '전직은 사냥터에서도 된다');
-  ok(g.s.jobTier === 2 && g.skills().length === 2, '2차 전직 → 스킬 둘');
+  ok(g.s.jobTier === 2 && g.skills().filter((k) => k.kind !== 'support').length === 2, '2차 전직 → 공격 무공 둘 (+ 레벨 25부터 보조기)');
   g.enterMap(11);
   const sk = g.skills().find((x) => x.hpCost);
   g.heroHp = g.stats().hp;

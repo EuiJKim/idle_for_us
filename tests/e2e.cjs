@@ -94,18 +94,19 @@ async function tab(page, name) {
   console.log('# 대장장이 조합');
   await G(p, () => { const g = window.__game; g.s.gold = 1e6; g.s.mats = { 1: 500, b1: 10 }; g.s.equip.weapon = null; });
   await tab(p, 'bag');
+  await p.click('#panel .subtabs button[data-key="smith"]');
+  await p.click('#panel .chip-row button:has-text("무기")');
   await p.waitForSelector('#panel .craft-row.ready');
-  await p.locator('#panel .craft-row:has-text("무기") button:has-text("조합")').first().click();
+  // 재료만 있으면 상급도 바로 (아래 장비 없이 — 재료 1.5배)
+  await p.locator('#panel .craft-row.ready button:has-text("조합")').first().click();
   await sleep(200);
-  assert(await G(p, () => window.__game.s.equip.weapon?.step === 0), '하급 무기를 조합해 낀다');
-  await p.locator('#panel .craft-row:has-text("상급") button:has-text("조합")').first().click();
-  await sleep(200);
-  assert(await G(p, () => window.__game.s.equip.weapon?.step === 1), '하급 + 재료 + 증표 → 상급');
+  assert(await G(p, () => window.__game.s.equip.weapon?.step === 1), '아래 장비 없이 상급 무기를 바로 조합해 낀다');
   await shot(p, '04a-smith.png');
+  await p.click('#panel .subtabs button[data-key="gear"]');
 
   console.log('# 가방·강화');
   await G(p, () => { const g = window.__game; g.gainItem(g.makeCrafted('armor', 0)); });
-  await p.locator('#panel .equip-slot:has-text("무기") .item-chip').click();
+  await p.locator('#panel .gear-tile:has-text("무기")').click();
   await p.waitForSelector('#modal h2');
   const plus0 = await G(p, () => window.__game.s.equip.weapon.plus);
   for (let i = 0; i < 6 && await G(p, () => window.__game.s.equip.weapon.plus) === plus0; i++) {
