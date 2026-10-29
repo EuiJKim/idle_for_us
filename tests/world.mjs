@@ -185,7 +185,7 @@ console.log('\n=== 재료와 조합 (바람식) ===');
     d.s.map = W.mapId(1, 4); d.dropMats({ lv: 9, isBoss: true, x: 0, y: 0 });
     drops += d.events.filter((e) => e.type === 'drop' && !W.isDropOnly(e.item.slot)).length; d.events.length = 0;
     d.s.map = W.mapId(16, 4); d.dropMats({ lv: 105, isBoss: true, x: 0, y: 0 });
-    kdrops += d.events.filter((e) => e.type === 'drop' && !W.isDropOnly(e.item.slot) && W.stepMap(e.item.step) === 16).length; d.events.length = 0;
+    kdrops += d.events.filter((e) => e.type === 'drop' && e.item.king === 16).length; d.events.length = 0;
   }
   ok(Math.abs(drops / 2000 - W.BOSS_ITEM_RATE) < 0.03 && Math.abs(kdrops / 2000 - W.KING_ITEM_RATE) < 0.04, '두목은 가끔 장비를 떨군다(십이지왕은 더 자주)', `${(drops / 20).toFixed(1)}% · 왕 ${(kdrops / 20).toFixed(1)}%`);
   h.dropMats({ lv: 6, isBoss: true });
@@ -284,14 +284,13 @@ console.log('\n=== 지역·구역·두목 구역 ===');
   ok(k.canEnter(W.mapId(16, 1)) && W.mapOf(W.mapId(16, 1)).name.includes('권왕'), '레벨 99부터 제12왕 권왕', W.mapOf(W.mapId(16, 1)).name);
   ok(W.ZONES_W[27].name.includes('검왕') && W.zoneLv(27)[1] === 150, '마지막은 제1왕 검왕(가장 강하다)', W.ZONES_W[27].boss.name);
   ok(new Set(W.KINGS.map((x) => x.mat)).size === 12 && W.KINGS.every((x) => !W.MATS.slice(1, 16).includes(x.mat)), '왕마다 재료가 다르다');
-  const it = k.makeCrafted('weapon', W.NORMAL_ZONES * 2);
-  ok(Object.keys(k.itemStats(it)).join() === 'atk' && W.itemName(it, 'sword').startsWith('유혼'), '권왕 하급 무기 — 유혼검(왕의 덤 힘은 없다)', W.itemName(it, 'sword'));
+  ok(W.TIER_COUNT === W.NORMAL_ZONES && W.craftIlv(W.TIER_COUNT * 2 - 1) === 99, '조합 사다리는 레벨 99에서 끝난다 (v130)');
   const kk = fresh();
   kk.s.gold = 1e12; kk.s.equip.weapon = null;
   for (let z = 1; z <= W.TIER_COUNT; z++) { kk.s.mats[z] = 1e5; kk.s.mats[W.bossKey(z)] = 100; }
   let okLadder = true;
   for (let st = 0; st < W.TIER_COUNT * 2; st++) if (!kk.craft('weapon', st)) okLadder = false;
-  ok(okLadder && W.itemName(kk.s.equip.weapon, 'sword') === '상급 무형검', '조합 사다리 끝은 상급 무형검(검왕)', W.itemName(kk.s.equip.weapon, 'sword'));
+  ok(okLadder && W.itemName(kk.s.equip.weapon, 'sword') === '상급 천외검', '조합 사다리 끝은 상급 천외검(천외천)', W.itemName(kk.s.equip.weapon, 'sword'));
   // 옛 세이브: 사냥터 3 → 지역 3의 1구역
   const old = migrateWorld({ map: 3, huntMap: 3, bestMap: 5, mats: { 3: 10 } });
   ok(old.map === W.mapId(3, 1) && old.huntMap === W.mapId(3, 1) && old.mats[3] === 10, '옛 세이브의 사냥터 번호를 새 구역으로 옮긴다', `${old.map}`);
@@ -605,6 +604,73 @@ console.log('\n=== 4차 무공 넷 (v123) ===');
   ok(p.useSkill('s4') && p.mons.every((m) => m.dot > 0), '독마 만독지옥: 사냥터 전체에 독');
   const r = mk('ring');
   ok(r.useSkill('s4') && ['s0', 's1', 's2'].every((k) => r.events.some((e) => e.type === 'dmg' && e.kind === k)) && r.buffv.might > 0 && r.cd.s0 === 0, '극악소마 삼공합일: 세 무공을 한꺼번에(숨은 안 쓴다) + 삼공조화');
+}
+
+console.log('\n=== 장비 개편 (v130) ===');
+{
+  const G = await import('../js/world/wgear.js');
+  ok(W.SLOTS.some((x) => x.id === 'glove') && W.SLOTS.some((x) => x.id === 'shoe') && W.CRAFT_SLOTS.length === 6, '장갑·신발 칸이 생겼다 (조합 칸 여섯)');
+  // 고유 옵션
+  const g = fresh('sword');
+  const a = g.makeCrafted('weapon', 0, 0, 0), b = g.makeCrafted('weapon', 1, 0, 0), c = g.makeCrafted('glove', 20, 0, 0);
+  const ua = g.itemUnique(a), ub = g.itemUnique(b);
+  ok(ua && ub && ua.k === ub.k && ub.v > ua.v && g.itemUnique(c).k !== ua.k, '사다리 장비마다 고유 옵션 — 지역·칸으로 정해지고 상급이 더 크다', `${G.gearKeyText(ua.k, ua.v)} / ${G.gearKeyText(ub.k, ub.v)}`);
+  const sp0 = g.stats().speed;
+  g.s.equip.weapon = b; g._stats = null;
+  ok(g.stats().speed > sp0, '고유 옵션이 능력치에 들어간다 (죽림 무기 → 공격 속도)');
+  ok(!g.itemUnique(g.makeCrafted('acc', 4, 0, 0)), '장신구는 고유 옵션 대신 스킬 옵션이 하나 더');
+  // 세트
+  ok(G.SETS.length === 10 && ['sword', 'fist', 'fan', 'poison', 'ring'].every((j) => G.setsOfJob(j).length === 2) && new Set(G.SETS.map((x) => x.king)).size === 10, '직업마다 세트 둘 — 세트마다 다른 왕');
+  const sw = fresh('sword'); while (sw.s.level < 99) sw.addExp(W.expToNext(sw.s.level)); sw.s.gold = 1e12;
+  const plum = G.setOf('plum');
+  ok(!sw.craftSet('plum', 'weapon'), '왕의 재료·증표가 없으면 못 만든다');
+  sw.s.mats[plum.king] = 1e5; sw.s.mats[W.bossKey(plum.king)] = 1e3;
+  ok(!sw.craftSet('ironfist', 'weapon') && sw.setCheck('ironfist', 'weapon').lack.includes('job'), '다른 직업 세트는 못 만든다');
+  for (const sl of G.SET_SLOTS) sw.craftSet('plum', sl);
+  for (const sl of G.SET_SLOTS) { const it = sw.s.bag.find((x) => x.set === 'plum' && x.slot === sl); if (it) sw.equipFromBag(it.uid); }
+  ok(G.SET_SLOTS.every((sl) => sw.s.equip[sl]?.set === 'plum' && sw.s.equip[sl].ilv === 100), '매화검진 다섯 조각 — 레벨 100');
+  ok(sw.setCounts().plum === 5 && sw.setBonus().flowerEvery === 2 && sw.setBonus().speed === 0.15, '5세트 효과가 켜진다', JSON.stringify(sw.setBonus()));
+  // 꽃잎 검기가 두 번째 평타마다
+  sw.enterMap(W.mapId(16, 1)); let fl = 0;
+  for (const m of sw.mons) { m.hp = m.maxHp = 1e12; m.atk = 0; }
+  for (let i = 0; i < 20 * 20; i++) { sw.tick(0.05); for (const e of sw.events) if (e.type === 'passive' && e.id === 'flower') fl++; sw.events.length = 0; }
+  ok(fl >= 8, '매화검진 5: 꽃잎 검기가 자주 핀다', `20초에 ${fl}번`);
+  sw.s.equip.hat = null; sw._stats = null;
+  ok(sw.setCounts().plum === 4 && !sw.setBonus().flowerEvery && sw.setBonus().flowerUp, '한 조각을 빼면 5세트 효과만 꺼진다');
+  const other = fresh('fist'); other.s.equip.weapon = sw.s.equip.weapon;
+  ok(other.setCounts().plum === 1 && !Object.keys(other.setBonus()).length, '다른 직업이 끼면 세트 효과가 없다');
+  // 강화는 그 왕의 재료로, 돌파까지
+  const sw2 = sw.s.equip.weapon;
+  ok(sw.enhanceMats(sw2).key === plum.king && sw.enhanceMax(sw2) === W.ENHANCE_MAX && sw.canPromote(sw2) === (sw2.rar < 3), '세트는 강화·돌파·승급으로 자란다 (그 왕의 재료)');
+  // 공용 장신구
+  const ac = fresh('ring'); while (ac.s.level < 99) ac.addExp(W.expToNext(ac.s.level)); ac.s.gold = 1e12; ac.s.mats[17] = 1e4; ac.s.mats.b17 = 100;
+  const acc = ac.craftKacc(17, 'acc');
+  ok(acc && acc.king === 17 && acc.ilv === 100 && acc.opts.filter((o) => o.k || o.sp).length >= 2, '왕의 장신구 — 아무 왕의 재료로, 스킬 옵션 하나 더', W.itemName(acc, 'ring'));
+  let s34 = 0; for (let i = 0; i < 300; i++) for (const o of W.rollSkillOpts(1, Math.random, 1)) if (o.s >= 3) s34++;
+  ok(s34 > 50, '스킬 옵션은 보조기·4차에도 붙는다');
+  // 스킬 변화
+  const t = fresh('sword'); t.s.level = 40; t.s.jobTier = 2; t.enterMap(W.mapId(5, 1));
+  const sk = t.skillDef('s1'); const r0 = t.skillRadius(sk);
+  t.s.equip.acc = { ...t.makeCrafted('acc', 4, 0, 2), opts: [{ tf: 'giant', s: 1 }, { tf: 'fire', s: 0 }] }; t._stats = null; t._mods = null;
+  ok(Math.abs(t.skillRadius(sk) / r0 - 1.5) < 0.01 && t.skillMods('s0').tf?.fire, '스킬 변화: 거대화 범위 +50% · 화염');
+  for (const m of t.mons) { m.hp = m.maxHp = 1e9; m.x = t.heroX + 40; m.y = t.heroY; }
+  t.mon = t.mons[0]; t.cd.s0 = 0; t.useSkill('s0');
+  ok(t.events.some((e) => e.type === 'tfHit' && e.tf === 'fire') && t.mons[0].dot > 0, '화염 — 맞은 적이 불탄다(연출 알림)');
+  ok(W.optText({ tf: 'thunder', s: 4 }).includes('4차') && W.optText({ tf: 'thunder', s: 4 }).includes('뇌전'), '변화 옵션 글');
+  // 십이지왕은 내 직업 세트 조각이나 공용 장신구를 떨군다
+  const dk = fresh('fist'); let sets = 0, accs = 0, wrong = 0;
+  for (let i = 0; i < 1500; i++) {
+    dk.s.map = W.mapId(16, 4); dk.dropMats({ lv: 105, isBoss: true, x: 0, y: 0 });
+    dk.s.map = W.mapId(17, 4); dk.dropMats({ lv: 108, isBoss: true, x: 0, y: 0 });
+    for (const e of dk.events) if (e.type === 'drop') { if (e.item.set === 'ironfist') sets++; else if (G.KACC_SLOTS.includes(e.item.slot) && e.item.king === 17) accs++; else wrong++; }
+    dk.events.length = 0;
+  }
+  ok(sets > 50 && accs > 50 && !wrong, '권왕은 철권투혼 조각, 철왕(세트 없음)은 공용 장신구', `세트 ${sets} · 장신구 ${accs}`);
+  // 옛 세이브: 십이지왕 사다리 장비
+  const old = migrateWorld({ level: 120, job: 'sword', mats: {}, equip: { weapon: { uid: 5, slot: 'weapon', step: 53, ilv: 154, rar: 2, opts: [], plus: 7 }, ear: { uid: 6, slot: 'ear', step: 40, ilv: 120, rar: 1, opts: [], plus: 2 } }, bag: [] });
+  ok(old.equip.weapon.step === W.TIER_COUNT * 2 - 1 && old.equip.weapon.plus === 7 && old.equip.weapon.rar === 2 && old.mats[27] > 0 && old.mats.b27 > 0, '옛 왕 사다리 무기 → 사다리 끝으로 + 왕의 재료·증표를 돌려준다', JSON.stringify(old.mats));
+  ok(old.equip.ear.king === 21 && old.equip.ear.ilv === 100 && old.equip.ear.step == null && old.gearNote === 2, '옛 왕 귀걸이 → 레벨 100 공용 장신구로');
+  ok(migrateWorld(JSON.parse(JSON.stringify(old))).equip.weapon.step === W.TIER_COUNT * 2 - 1, '한 번만 바꾼다');
 }
 
 console.log('\n=== 문파 토벌 (v128) ===');

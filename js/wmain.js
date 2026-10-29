@@ -383,6 +383,33 @@ function handleEvents() {
         }
         if (ev.id === 'fear' && ev.at) view.float('움찔', view.sx(ev.at), view.sy(ev.at) - 96, '#d8b4fe', 13, 0.6);
         if (ev.id === 'harmony') view.effects.push({ kind: 'pillar', life: 1, max: 1 });
+        // 무형검결: 보이지 않는 검이 한 번 더 (v130)
+        if (ev.id === 'formless' && ev.at && view.fxLevel > 0) {
+          view.effects.push({ kind: 'cutline', life: 0.3, max: 0.3, wx: ev.at.x, wy: ev.at.y, a: Math.random() * 3 });
+          view.effects.push({ kind: 'flare', life: 0.22, max: 0.22, wx: ev.at.x, wy: ev.at.y, r: 50, col: '253,230,138' });
+        }
+        break;
+      }
+      // 스킬 변화 옵션 (v130) — 화염·빙결·뇌전·거대화·응축이 연출에도 보인다
+      case 'tfHit': {
+        if (view.fxLevel <= 0 || !ev.at) break;
+        const a = ev.at;
+        if (ev.tf === 'fire') {
+          view.effects.push({ kind: 'shock', life: 0.4, max: 0.4, wx: a.x, wy: a.y, r: 60, col: '251,146,60', rings: 2, w: 4 });
+          view.effects.push({ kind: 'flare', life: 0.3, max: 0.3, wx: a.x, wy: a.y, r: 46, col: '249,115,22' });
+          for (let i = 0; i < 6; i++) view.particles.push({ x: view.sx(a) + (Math.random() - 0.5) * 30, y: view.sy(a) - 30, vx: (Math.random() - 0.5) * 60, vy: -80 - Math.random() * 80, life: 0.6, size: 3 + Math.random() * 3, color: i % 2 ? 'rgb(251,146,60)' : 'rgb(253,224,71)' });
+        } else if (ev.tf === 'ice') {
+          view.effects.push({ kind: 'shock', life: 0.45, max: 0.45, wx: a.x, wy: a.y, r: 54, col: '186,230,253', rings: 3, w: 3 });
+          view.effects.push({ kind: 'flare', life: 0.35, max: 0.35, wx: a.x, wy: a.y, r: 40, col: '224,242,254' });
+          view.float('얼음', view.sx(a), view.sy(a) - 100, '#bae6fd', 13, 0.6);
+        } else if (ev.tf === 'thunder' && ev.to) {
+          view.effects.push({ kind: 'lance', life: 0.18, max: 0.18, wx: a.x, wy: a.y, a: Math.atan2((ev.to.y - a.y) * view.squash, ev.to.x - a.x), len: Math.hypot(ev.to.x - a.x, (ev.to.y - a.y) * view.squash), w: 4, col: '253,224,71', oy: -50 });
+          view.effects.push({ kind: 'flare', life: 0.2, max: 0.2, wx: ev.to.x, wy: ev.to.y, r: 40, col: '254,240,138' });
+        } else if (ev.tf === 'giant') {
+          view.effects.push({ kind: 'shock', life: 0.6, max: 0.6, wx: a.x, wy: a.y, r: 260, col: '216,180,254', rings: 3, w: 6 });
+        } else if (ev.tf === 'focus') {
+          view.effects.push({ kind: 'flare', life: 0.35, max: 0.35, wx: a.x, wy: a.y, r: 70, col: '248,113,113' });
+        }
         break;
       }
       case 'promote':
@@ -580,6 +607,13 @@ if (game.s.respecNote) {
   const n = game.s.respecNote;
   delete game.s.respecNote;
   setTimeout(() => toast(`무공과 직업 특성이 바뀌어 찍었던 능력치 ${n}점을 돌려드렸어요 — 캐릭터 창에서 다시 찍어요`), 1500);
+}
+
+// v130: 장비 개편 — 십이지왕 사다리 장비를 바꿨으면 한 번 알린다
+if (game.s.gearNote) {
+  const n = game.s.gearNote;
+  delete game.s.gearNote;
+  setTimeout(() => toast(`장비 제작이 바뀌었어요: 레벨 99까지는 사다리(고유 옵션), 99부터는 세트·왕의 장신구. 옛 십이지왕 장비 ${n}개를 바꾸고 재료를 돌려드렸어요 — 가방 → 대장장이`), 2500);
 }
 
 // ---------- 방치 보상 ----------

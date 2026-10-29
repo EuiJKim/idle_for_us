@@ -4,6 +4,7 @@
 // **숫자는 보통 숫자다.** 레벨 150에서도 몹 체력이 몇십만이라 Big이 필요 없다.
 import { ZONES, JOBS, CLASS_SKILLS, RANKS } from '../data.js';
 import { areaMobs } from './wmobs.js';
+import { TRANSFORMS, setOf, SET_PIECE } from './wgear.js';
 
 export const SAVE_KEY = 'ifu-world-v1';
 export const LEVEL_MAX = 150;
@@ -331,6 +332,8 @@ export const SLOTS = [
   { id: 'weapon', name: '무기' },
   { id: 'armor', name: '옷' },
   { id: 'hat', name: '모자' },
+  { id: 'glove', name: '장갑' },     // v130
+  { id: 'shoe', name: '신발' },      // v130
   { id: 'acc', name: '장신구' },
   { id: 'finger', name: '가락지', dropOnly: true },
   { id: 'ear', name: '귀걸이', dropOnly: true },
@@ -359,6 +362,9 @@ export const itemBase = (slot, ilv) => {
     case 'armor': return { hp: (22 + 13 * ilv) * GEAR };
     case 'hat': return { hp: (10 + 6 * ilv) * GEAR, def: 1 + ilv * 0.35 };
     case 'acc': return { crit: 0.01 + ilv * 0.0006, atkPct: 0.02 + ilv * 0.0012 };
+    // v130 장갑: 공격력 · 치명 피해 / 신발: 체력 · 방어 (무기·옷보다 작게)
+    case 'glove': return { atk: (2 + 1.2 * ilv) * GEAR, critDmg: 0.02 + ilv * 0.0005 };
+    case 'shoe': return { hp: (8 + 5 * ilv) * GEAR, def: 0.5 + ilv * 0.15 };
     // 가락지: 공격력% · 치명 피해 / 귀걸이: 최대 체력% · 스킬 피해 (두목만 떨군다, 강화가 어렵다)
     // (% 수치도 사다리 배수를 따라 커지니 바탕은 작게)
     case 'finger': return { atkPct: 0.015 + ilv * 0.0006, critDmg: 0.03 + ilv * 0.001 };
@@ -383,9 +389,11 @@ export const matName = (key) => (String(key)[0] === 'b' ? `${ZONES_W[+String(key
 export const matColor = (key) => (String(key)[0] === 'b' ? (kingOf(+String(key).slice(1)) ? '#f43f5e' : '#fde68a') : MAT_COLORS[key]);
 export const MAT_RATE = 0.5;          // 몹 하나가 재료 하나를 떨굴 확률
 export const BOSS_MATS = 12;          // 두목은 재료 한 움큼 + 증표 하나
-export const TIER_COUNT = ZONE_COUNT; // 지역 수 = 장비 사다리 칸 수(×하급·상급)
-const CRAFT_MATS = { weapon: 40, armor: 30, hat: 24, acc: 30 };   // 지역이 일곱 레벨이라 한 지역에 오래 안 머문다
-const CRAFT_BOSS = { weapon: 4, armor: 3, hat: 3, acc: 3 };
+// v130: 사다리는 보통 지역 15곳에서 끝난다(장비 레벨 99까지). 십이지왕부터는 세트·왕의 장신구(wgear.js).
+export const TIER_COUNT = NORMAL_ZONES; // 사다리 지역 수(×하급·상급)
+export const ILV_CAP = 99;
+const CRAFT_MATS = { weapon: 40, armor: 30, hat: 24, glove: 24, shoe: 24, acc: 30 };   // 지역이 일곱 레벨이라 한 지역에 오래 안 머문다
+const CRAFT_BOSS = { weapon: 4, armor: 3, hat: 3, glove: 3, shoe: 3, acc: 3 };
 // step: 0..53 — 지역 k = floor(step/2)+1, 홀수면 상급
 export const stepMap = (step) => Math.floor(step / 2) + 1;
 export const stepUpper = (step) => step % 2 === 1;
@@ -395,8 +403,8 @@ export const craftLevel = (k) => ZONES_W[k]?.lv[1] || 1;
 // 상급은 아이템 레벨이 이 사냥터와 다음 사냥터의 가운데 — 그래서 '하급 < 상급 < 다음 하급'이 늘 선다.
 export const craftIlv = (step) => {
   const k = stepMap(step);
-  if (!stepUpper(step)) return craftLevel(k);
-  return k < TIER_COUNT ? Math.round((craftLevel(k) + craftLevel(k + 1)) / 2) : craftLevel(k) + 4;
+  if (!stepUpper(step)) return Math.min(ILV_CAP, craftLevel(k));
+  return Math.min(ILV_CAP, k < TIER_COUNT ? Math.round((craftLevel(k) + craftLevel(k + 1)) / 2) : craftLevel(k) + 4);
 };
 export const stepMult = (step) => 1.12 ** (step / 2);
 // 빛깔(등급 색)은 지역 셋마다 한 칸씩 — 일반 · 고급 · 희귀 · 영웅 · 전설, 십이지왕 장비는 '지왕'
@@ -455,17 +463,18 @@ export const rollRarity = (w, rng) => {
 // 승급 비용: 그 장비 지역 재료 · 증표 · 은자
 export const promoteCost = (it) => {
   const r = (it.rar || 0) + 1;
-  const k = stepMap(it.step);
+  const k = it.king ?? stepMap(it.step);
   return { key: k, mats: 30 * r, marks: 2 * r, gold: Math.round((30 + craftLevel(k) * 10) * 3 * r) };
 };
 // 스킬 옵션: s는 스킬 칸(0 1차 · 1 2차 · 2 3차). 값은 등급별.
 export const SKILL_OPTS = {
-  dmg: { name: '피해', fmt: 'pct', vals: [0.12, 0.22, 0.35, 0.6], slots: [0, 1, 2] },
-  range: { name: '범위', fmt: 'pct', vals: [0.1, 0.18, 0.28, 0.45], slots: [1, 2] },
+  // v130: 보조기(3)·4차(4)에도 붙는다 — 보조기의 '피해'는 세기
+  dmg: { name: '피해', fmt: 'pct', vals: [0.12, 0.22, 0.35, 0.6], slots: [0, 1, 2, 3, 4] },
+  range: { name: '범위', fmt: 'pct', vals: [0.1, 0.18, 0.28, 0.45], slots: [1, 2, 4] },
   splash: { name: '범위(주변 적도 맞는다)', fmt: 'pct', vals: [0.25, 0.4, 0.6, 1.0], slots: [0] },
-  cd: { name: '숨', fmt: 'neg', vals: [0.08, 0.12, 0.18, 0.3], slots: [0, 1, 2] },
-  cost: { name: '체력 소모', fmt: 'neg', vals: [0.15, 0.25, 0.4, 0.6], slots: [1, 2] },
-  crit: { name: '치명', fmt: 'pp', vals: [0.06, 0.1, 0.16, 0.25], slots: [0, 1, 2] },
+  cd: { name: '숨', fmt: 'neg', vals: [0.08, 0.12, 0.18, 0.3], slots: [0, 1, 2, 3, 4] },
+  cost: { name: '체력 소모', fmt: 'neg', vals: [0.15, 0.25, 0.4, 0.6], slots: [1, 2, 4] },
+  crit: { name: '치명', fmt: 'pp', vals: [0.06, 0.1, 0.16, 0.25], slots: [0, 1, 2, 4] },
 };
 // 신화 특수 효과 — 하나만
 export const MYTHIC = {
@@ -492,12 +501,16 @@ export const SKILL_ORDINAL = ['1차', '2차', '3차', '보조기', '4차'];
 // 가락지·귀걸이에만 붙을 수 있는 '애완동물 +N' (함께 키울 수 있는 수가 는다)
 export const PET_SLOT_OPT = [0, 1, 2, 3];      // 등급별 (레어는 없음)
 export const PET_SLOT_CHANCE = 0.35;
-export function rollSkillOpts(rar, rng) {
+export function rollSkillOpts(rar, rng, extra = 0) {
   const out = [];
   const pick = (arr) => arr[Math.floor(rng() * arr.length)];
-  for (let i = 0; i < RARITY[rar].opts; i++) {
-    const s = Math.floor(rng() * 3);
-    const keys = Object.keys(SKILL_OPTS).filter((k) => SKILL_OPTS[k].slots.includes(s) && !out.some((o) => o.s === s && o.k === k));
+  for (let i = 0; i < RARITY[rar].opts + extra; i++) {
+    let s = 0, keys = [];
+    for (let t = 0; t < 20 && !keys.length; t++) {
+      s = Math.floor(rng() * 5);
+      keys = Object.keys(SKILL_OPTS).filter((k) => SKILL_OPTS[k].slots.includes(s) && !out.some((o) => o.s === s && o.k === k));
+    }
+    if (!keys.length) continue;
     const k = pick(keys);
     out.push({ s, k, v: SKILL_OPTS[k].vals[rar] });
   }
@@ -511,6 +524,7 @@ export function rollSkillOpts(rar, rng) {
 export function optText(o) {
   if (o.kp) return `【${KINGS.find((k) => k.no === o.kp)?.title}】 ${KING_MYTHIC[o.kp].name}`;
   if (o.pet) return `애완동물 +${o.pet} (함께 키우는 수)`;
+  if (o.tf) return `${SKILL_ORDINAL[o.s]} 스킬 ${TRANSFORMS[o.tf].name} — ${TRANSFORMS[o.tf].desc}`;
   if (o.res) return `${{ cold: '한기', heat: '열기', poison: '독기', dark: '마기' }[o.res]} 저항 +${Math.round(o.v * 100)}% (그 기운의 사냥터)`;
   const sk = SKILL_ORDINAL[o.s];
   if (o.sp) return `${sk} 스킬: ${MYTHIC[o.sp].name}`;
@@ -535,7 +549,7 @@ export function skillLvMods(slot, lv) {
 // 이름: 지역마다 무기 결이 다르면 좋겠지만 단순하게 — 등급·칸 이름
 const SLOT_NOUN = {
   weapon: { sword: '검', fist: '권갑', fan: '부채', poison: '독낭', ring: '지환' },
-  armor: '도포', hat: '두건', acc: '옥패',
+  armor: '도포', hat: '두건', acc: '옥패', glove: '수투', shoe: '운혜',
 };
 // v112: 두목마다 가락지·귀걸이가 다르다 — 이름과 덤 능력(그 두목의 결). 높은 두목일수록 덤도 크다.
 const ACC2_NAMES = [null,
@@ -557,6 +571,14 @@ export function acc2Trait(z, slot) {
 }
 const ACC2_NOUN = { finger: '가락지', ear: '귀걸이' };
 export const itemName = (item, job) => {
+  // v130 왕의 장비 (레벨 100) — 세트 조각 · 공용 장신구
+  if (item.king != null) {
+    const st = item.set ? setOf(item.set) : null;
+    const wn = SLOT_NOUN.weapon[st?.job || job] || '검';
+    if (st) return `${st.short}${item.slot === 'weapon' ? wn : SET_PIECE[item.slot]}`;
+    if (ACC2_NOUN[item.slot]) return ACC2_NAMES[item.king]?.[item.slot === 'ear' ? 1 : 0] || ACC2_NOUN[item.slot];
+    return `${STEP_PREFIX[item.king] || ''} 옥패`;
+  }
   if (ACC2_NOUN[item.slot]) return ACC2_NAMES[stepMap(item.step)]?.[item.slot === 'ear' ? 1 : 0] || ACC2_NOUN[item.slot];
   const n = item.slot === 'weapon' ? (SLOT_NOUN.weapon[job] || '검') : SLOT_NOUN[item.slot];
   if (item.starter) return `수련용 ${n}`;
