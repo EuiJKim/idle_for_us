@@ -680,6 +680,8 @@ export class WorldGame {
     if (ps.has('combo') && (this.comboN = (this.comboN || 0) + 1) % 3 === 0) { mult *= 3; this.emit('passive', { id: 'combo', at: m }); }
     const tx = m.x, ty = m.y;
     this.strike(m, st, mult, 'hit');
+    // 투신강림: 한 번에 세 대
+    for (let k = 0; k < (this.buffv.triple || 0) && m.alive; k++) this.strike(m, st, mult * 0.5, 'hit');   // 덧 두 대는 절반
     const cls = W.CLASSES[this.s.job] || {};
     // 검사 일화: 네 번째마다 꽃잎 검기가 과녁 둘레를 벤다
     if (cls.flower && (this.flowerN = (this.flowerN || 0) + 1) % (pm.own5 ? 3 : cls.flower.every) === 0) {
@@ -811,28 +813,31 @@ export class WorldGame {
     if (this.heroHp <= this.hpCostOf(sk) + 1) return false;      // 대가로 죽지는 않는다
     return true;
   }
-  useSkill(id) {
-    if (!this.canUseSkill(id)) return false;
+  // o.free: 삼공합일이 대신 펼칠 때 — 숨·체력을 따지지 않고, 연출·삼공조화 셈도 건너뛴다. o.boost: 배수
+  useSkill(id, o = {}) {
+    if (!o.free && !this.canUseSkill(id)) return false;
     const sk = this.skillDef(id);
     const st = this.stats();
     if (sk.kind === 'support') return this.useSupport(sk, st);
+    if (sk.kind === 'awaken') { const c = this.hpCostOf(sk); this.heroHp -= c; if (c) this.emit('hpCost', { amount: c }); return this.useSupport(sk, st); }
     if (sk.kind === 'clone') return this.useClone(sk, st);
+    if (sk.kind === 'triple') return this.useTriple(sk, st);
     const tgt = this.mon?.alive ? this.mon : this.pickTarget({ ...st, range: 9999 });
     if (sk.kind === 'single' && !tgt) return false;
     if (sk.kind === 'single' && !sk.far && Math.hypot(tgt.x - this.heroX, tgt.y - this.heroY) > Math.max(st.range, 160) * 1.6) return false;
     if (sk.kind === 'single' && sk.far && Math.hypot(tgt.x - this.heroX, tgt.y - this.heroY) > 420) return false;
     const md = this.skillMods(id);
-    const cost = this.hpCostOf(sk);
+    const cost = o.free ? 0 : this.hpCostOf(sk);
     this.heroHp -= cost;
-    this.cd[id] = this.skillCd(sk);
+    if (!o.free) this.cd[id] = this.skillCd(sk);
     const aimed = (sk.kind === 'aoe' || sk.kind === 'field') && this.ranged() && tgt;
     const center = aimed ? { x: tgt.x, y: tgt.y } : { x: this.heroX, y: this.heroY };
     const r = this.skillRadius(sk);
-    this.emit('skill', { id, name: sk.name, fx: sk.fx, look: sk.role, job: this.s.job, cls: this.s.job, tier: sk.tier,
+    if (!o.free) this.emit('skill', { id, name: sk.name, fx: sk.fx, look: sk.role, job: this.s.job, cls: this.s.job, tier: sk.tier,
       at: center, radius: r, motion: sk.kind === 'single' ? 'single' : 'aoe', dur: 0 });
     if (cost) this.emit('hpCost', { amount: cost });
     // 스킬 레벨·장비 옵션: 피해 · 범위 · 치명 · (1차) 주변 적 · (신화) 한 번 더 · 숨 되돌리기
-    const mult = sk.mult * st.skillMult * (1 + md.dmg);
+    const mult = sk.mult * st.skillMult * (1 + md.dmg) * (o.boost || 1);
     const crit = md.crit + (sk.sure ? 1 : 0) + (sk.crit || 0);
     const kills0 = this.s.kills;
     let dealt = 0;
@@ -879,6 +884,7 @@ export class WorldGame {
       if (b.cleave) { this.buffs.cleave = b.sec; this.buffv.cleave = b.cleave; }
       this.buffs.rage = b.sec;
     }
+    if (o.free) return true;
     // 극악소마 삼공조화: 세 무공이 HARMONY.sec 안에 이어지면
     this.skillAt[sk.slot] = this.clock;
     if (this.s.job === 'ring' && [0, 1, 2].every((k) => this.skillAt[k] != null && this.clock - this.skillAt[k] <= W.HARMONY.sec)) {
@@ -904,6 +910,7 @@ export class WorldGame {
     if (b.dmgRed) set('guard', Math.min(0.8, Math.max(this.buffv.guard || 0, b.dmgRed * pow)));
     if (b.fear) set('fear', b.fear * pow);
     if (b.critDmg) set('critUp', b.critDmg * pow);
+    if (b.triple) set('triple', b.triple);
     if (sk.shield) { this.shield = st.hp * sk.shield * pow; this.buffs.shield = b.sec; this.buffv.shield = 1; }
     if (sk.heal) {
       const add = (st.hp - this.heroHp) * Math.min(1, sk.heal * pow);
@@ -925,6 +932,21 @@ export class WorldGame {
       this.emit('heal', { amount: add });
     }
     if (b.sec) this.buffs.rage = Math.max(this.buffs.rage || 0, Math.min(b.sec, 3));
+    return true;
+  }
+  // 삼공합일 — 혈앙지·마극광폭장·소향비술을 한꺼번에(boost배) 펼치고 삼공조화를 바로 켠다
+  useTriple(sk, st) {
+    const id = sk.id;
+    const cost = this.hpCostOf(sk);
+    this.heroHp -= cost;
+    this.cd[id] = this.skillCd(sk);
+    const at = this.mon?.alive ? { x: this.mon.x, y: this.mon.y } : { x: this.heroX, y: this.heroY };
+    this.emit('skill', { id, name: sk.name, fx: sk.fx, look: sk.role, job: this.s.job, cls: this.s.job, tier: 4, at, radius: 340, motion: 'aoe', dur: 0 });
+    if (cost) this.emit('hpCost', { amount: cost });
+    for (const k of ['s0', 's1', 's2']) this.useSkill(k, { free: true, boost: sk.boost });
+    this.buffs.might = W.HARMONY.buffSec; this.buffv.might = W.HARMONY.dmgUp; this.buffs.rage = W.HARMONY.buffSec;
+    this.skillAt = {};
+    this.emit('passive', { id: 'harmony' });
     return true;
   }
   // 환영분신술 — 분신 n이 나와 둘레를 한 번씩 치고, sec초 동안 무인 곁에서 함께 싸운다
@@ -974,7 +996,8 @@ export class WorldGame {
   autoSkills(st) {
     for (const sk of this.skills()) {
       if (this.cd[sk.id] > 0) continue;
-      if (sk.kind === 'support') { if (this.wantSupport(sk, st)) this.useSkill(sk.id); continue; }
+      if (sk.kind === 'support' || sk.kind === 'awaken') { if (this.wantSupport(sk, st) && !(sk.autoAbove && this.heroHp < st.hp * sk.autoAbove)) this.useSkill(sk.id); continue; }
+      if (sk.kind === 'triple') { if (this.mon?.alive && (this.mon.isBoss || this.mons.filter((m) => m.alive && Math.hypot(m.x - this.heroX, m.y - this.heroY) <= 300).length >= 3)) this.useSkill(sk.id); continue; }
       if (sk.autoAbove && this.heroHp < st.hp * sk.autoAbove && !sk.buff?.dmgRed) continue;
       if (sk.kind === 'single') {
         if (!this.mon?.alive) continue;

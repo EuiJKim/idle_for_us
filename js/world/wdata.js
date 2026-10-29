@@ -65,7 +65,7 @@ export const TIERS = [
   { level: 15, cost: 200 },
   { level: 40, cost: 5000 },
   { level: 75, cost: 120000 },
-  { level: 100, cost: 3000000 },   // 4차 (v121) — 4차 무공이 있는 직업만 (지금은 환마)
+  { level: 100, cost: 3000000 },   // 4차 (v121 환마 · v123 모든 직업) — 4차 무공이 있는 직업만
 ];
 // 스킬 셋 (v118 — 다섯 마존의 무공). 차수마다 자리(slot)는 같다: 1차 한 적 · 2차 둘레 · 3차 비기.
 // role은 연출표(skillfx) 열쇠 — '캐릭터:role'. hpCost는 최대 체력 대비. mult는 한 번 맞을 때의 배수.
@@ -84,6 +84,8 @@ export const JOB_SKILLS = {
       desc: '만 송이 검화가 하나로 — 넓게 벤 뒤 8초간 공격 속도 +40%(마검 각성)' }),
     SK(3, 0, 'sup', '유운보', 'support', { cd: 24, hpCost: 0, from: 25, auto: 'fight', buff: { sec: 8, move: 0.6, speed: 0.25, dodge: 0.2 },
       desc: '흐르는 구름 같은 걸음 — 8초간 이동 속도 +60% · 공격 속도 +25% · 공격을 20% 흘린다' }),
+    SK(4, 4, 'chain4', '일화천섬', 'daggers', { mult: 1.5, n: 12, targets: 12, cd: 30, hpCost: 0.15, radius: 420, autoAbove: 0.5, blink: true,
+      desc: '번개처럼 적 사이를 오가며 최대 열둘을 차례로 벤다 — 적이 적으면 같은 적을 여러 번(두목 혼자면 열두 번), 지나간 자리마다 꽃이 핀다' }),
   ],
   fist: [
     SK(0, 1, 'frost', '붕산철권', 'single', { mult: 3.8, cd: 4.5, hpCost: 0, stun: 2,
@@ -94,6 +96,8 @@ export const JOB_SKILLS = {
       desc: '금빛 몸 — 충격파를 낸 뒤 10초간 받는 피해 -50% · 평타가 둘레를 친다(60%) · 체력을 쓰지 않는다' }),
     SK(3, 0, 'sup', '금종조', 'support', { cd: 28, hpCost: 0, from: 25, auto: 'hurt', hurtAt: 0.7, shield: 0.3, buff: { sec: 12 },
       desc: '금종을 뒤집어쓴 듯 — 최대 체력 30%만큼 막아 주는 보호막(12초)' }),
+    SK(4, 4, 'awaken', '투신강림', 'awaken', { cd: 40, hpCost: 0.1, from: 0, autoAbove: 0.5, auto: 'fight', buff: { sec: 15, speed: 0.3, triple: 2 },
+      desc: '권갑 투신이 깨어난다 — 15초간 평타 한 번에 세 대(덧 두 대는 절반) · 공격 속도 +30%' }),
   ],
   ring: [
     SK(0, 1, 'frost', '혈앙지', 'single', { mult: 3.3, cd: 4, hpCost: 0, sure: true, dot: { sec: 5, mult: 0.6 },
@@ -104,6 +108,8 @@ export const JOB_SKILLS = {
       desc: '비수 열두 자루가 가까운 적 여덟에게 날아든다(치명 +20%p) · 세 무공을 6초 안에 이으면 삼공조화(8초간 피해 +25%)' }),
     SK(3, 0, 'sup', '무면개방', 'support', { cd: 26, hpCost: 0, from: 25, auto: 'fight', buff: { sec: 10, fear: 0.35, critDmg: 0.3 },
       desc: '가면을 벗는다 — 10초간 붙은 적의 공포 +35%p · 치명 피해 +30%' }),
+    SK(4, 4, 'triple', '삼공합일', 'triple', { cd: 36, hpCost: 0.15, autoAbove: 0.5, boost: 1.3,
+      desc: '세 무공이 하나로 — 혈앙지·마극광폭장·소향비술을 한꺼번에(각 1.3배) 펼치고 삼공조화가 바로 켜진다' }),
   ],
   poison: [
     SK(0, 1, 'frost', '칠보단혼침', 'single', { mult: 2.6, cd: 5, hpCost: 0, dot: { sec: 6, mult: 1.8 },
@@ -114,6 +120,8 @@ export const JOB_SKILLS = {
       desc: '만 가지 독이 하늘 그물처럼 — 넓게 맞히고 8초 맹독' }),
     SK(3, 0, 'sup', '만독귀원', 'support', { cd: 22, hpCost: 0, from: 25, auto: 'poisoned', radius: 320, burst: 1, healMax: 0.12,
       desc: '흩어진 독을 한데 거둔다 — 둘레 적에게 쌓인 독을 한꺼번에 터뜨리고 최대 체력의 12% 회복' }),
+    SK(4, 4, 'hell', '만독지옥', 'aoe', { mult: 1.5, cd: 40, hpCost: 0.2, radius: 1400, autoAbove: 0.5, dot: { sec: 10, mult: 2.5 },
+      desc: '사냥터 전체에 독비가 내린다 — 보이는 모든 적을 치고 독을 크게 쌓는다(10초에 걸쳐 피해의 2.5배)' }),
   ],
   fan: [
     SK(0, 1, 'frost', '섭혼술', 'single', { mult: 4.8, cd: 5, hpCost: 0, stun: 2.5, vuln: { sec: 6, v: 0.3 },

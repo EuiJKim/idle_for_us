@@ -58,7 +58,7 @@ export class Director {
     const c = Math.cos(this.ang);
     this.aim = c < -0.05 ? -1 : c > 0.05 ? 1 : this.face;
     this.lvl = view.fxLevel;
-    this.tier = pend.tier || 0;
+    this.tier = Math.min(3, pend.tier || 0);   // 4차 무공도 빛깔·크기 표는 3차 것으로 (VENOM은 넷뿐)
     this.venom = VENOM[Math.min(VENOM.length - 1, this.tier)];
     // 광역·장판이 떨어지는 자리 (멀리서 쏘는 캐릭터는 겨눈 적 자리)
     this.center = pend.at || now;
@@ -551,7 +551,7 @@ export function drawPoisonField(v, ctx, f, k, tier) {
 const POISON_FX = {
   // 포물선으로 날아가는 큰 독 덩이
   pglob(v, ctx, e, k) {
-    const c = VENOM[e.v || 0];
+    const c = VENOM[Math.min(3, e.v || 0)];
     const p = Math.min(1, (1 - k) / (e.fly ?? 1));
     if (p >= 1) return;
     const x0 = v.sx({ x: e.wx0 }) + (e.ox0 || 0);
@@ -577,7 +577,7 @@ const POISON_FX = {
   },
   // 맞은 자리에서 사방으로 튀는 독 물보라 (선)
   splash(v, ctx, e, k) {
-    const c = VENOM[e.v || 0];
+    const c = VENOM[Math.min(3, e.v || 0)];
     const x = v.sx({ x: e.wx });
     const y = v.sy({ y: e.wy }) - 20;
     const p = 1 - k;
@@ -601,7 +601,7 @@ const POISON_FX = {
   },
   // 부식 고리 — 들쭉날쭉한 독 고리가 바닥을 따라 번진다
   corrode(v, ctx, e, k) {
-    const c = VENOM[e.v || 0];
+    const c = VENOM[Math.min(3, e.v || 0)];
     const x = v.sx({ x: e.wx });
     const y = v.sy({ y: e.wy });
     const p = 1 - k;
@@ -631,7 +631,7 @@ const POISON_FX = {
   },
   // 독무 — 부풀며 퍼지는 연기 덩이
   cloud(v, ctx, e, k) {
-    const c = VENOM[e.v || 0];
+    const c = VENOM[Math.min(3, e.v || 0)];
     const x = v.sx({ x: e.wx });
     const y = v.sy({ y: e.wy }) + (e.oy ?? -30);
     const p = 1 - k;
@@ -658,7 +658,7 @@ const POISON_FX = {
   },
   // 해골 — 떠올라 흐려진다
   skull(v, ctx, e, k) {
-    const c = VENOM[e.v || 0];
+    const c = VENOM[Math.min(3, e.v || 0)];
     const p = (1 - k) - (e.delay || 0) / e.max;
     if (p < 0) return;
     const x = v.sx({ x: e.wx });
@@ -676,7 +676,7 @@ const POISON_FX = {
   },
   // 독사 — 꺾인 길을 따라 기어가는 뱀 (연쇄)
   serpent(v, ctx, e, k) {
-    const c = VENOM[e.v || 0];
+    const c = VENOM[Math.min(3, e.v || 0)];
     const pts = e.pts.map((q) => [v.sx(q) + (q.ox || 0), v.sy(q) + (q.oy ?? -40)]);
     if (pts.length < 2) return;
     const segL = [];
@@ -735,7 +735,7 @@ const POISON_FX = {
   },
   // 독침 — 손에서 대상까지 곧게 날아간다
   dart(v, ctx, e, k) {
-    const c = VENOM[e.v || 0];
+    const c = VENOM[Math.min(3, e.v || 0)];
     const p = Math.min(1, (1 - k) / (e.fly ?? 1));
     if (p >= 1) return;
     const x0 = v.sx({ x: e.wx0 }) + (e.ox0 || 0);
@@ -758,7 +758,7 @@ const POISON_FX = {
   },
   // 하늘에서 떨어지는 독비
   rainfall(v, ctx, e, k) {
-    const c = VENOM[e.v || 0];
+    const c = VENOM[Math.min(3, e.v || 0)];
     const x = v.sx({ x: e.wx });
     const y = v.sy({ y: e.wy });
     const p = 1 - k;
@@ -778,7 +778,7 @@ const POISON_FX = {
   },
   // 관통하는 독전 — 머리가 앞으로 뻗고 꼬리에 독무가 감긴다
   vbolt(v, ctx, e, k) {
-    const c = VENOM[e.v || 0];
+    const c = VENOM[Math.min(3, e.v || 0)];
     const p = 1 - k;
     const x = v.sx({ x: e.wx }) + (e.ox || 0);
     const y = v.sy({ y: e.wy }) + (e.oy || -56);
@@ -810,7 +810,7 @@ const POISON_FX = {
   },
   // 독전이 지나간 바닥 — 타들어 간 자국
   scar(v, ctx, e, k) {
-    const c = VENOM[e.v || 0];
+    const c = VENOM[Math.min(3, e.v || 0)];
     const x = v.sx({ x: e.wx });
     const y = v.sy({ y: e.wy });
     ctx.translate(x, y);
@@ -827,7 +827,7 @@ const POISON_FX = {
   },
   // 몸에서 피어오르는 독기 (강화가 걸려 있는 동안)
   miasma(v, ctx, e, k) {
-    const c = VENOM[e.v || 0];
+    const c = VENOM[Math.min(3, e.v || 0)];
     const x = v.heroX;
     const y = v.groundY;
     const t = performance.now() / 1000;

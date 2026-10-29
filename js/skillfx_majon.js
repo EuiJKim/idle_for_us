@@ -186,6 +186,73 @@ export const MAJON_FX = {
 const hitsOr = (d, n = 8) => (d.hits.length ? d.hits.slice(0, n).map((h) => h.at) : [d.target]);
 
 export const MAJON_CHOREO = {
+  // ===== 4차 (v123) =====
+  // 일화검존 일화천섬 — 사라졌다가 적 사이를 번개처럼 오가며 벤다. 지나간 자리마다 꽃 한 송이.
+  'sword:m4'(d) {
+    const v = d.v;
+    const c = COL.sword;
+    const list = d.hits.slice();
+    const gap = 0.06;
+    d.mark('기수식');
+    d.pose([[0, '발도준비', 'out'], [0.1, '순보', 'step'], [0.12 + list.length * gap, '순보'], [0.2 + list.length * gap, '일섬', 'snap'], [0.6 + list.length * gap, '납도', 'inout']], 0.3);
+    d.at(0.08, () => { d.mark('시전'); d.fx('speedlines', 0.4 + list.length * gap, { col: c[1], seed: Math.random() * 6 }); });
+    list.forEach((h, i) => d.at(0.12 + i * gap, () => {
+      d.ghost(h.at.x - 26 * (i % 2 ? 1 : -1), h.at.y + 6, '일섬', 0.3, { a0: 0.7, tint: PLUM, flip: i % 2 === 0 });
+      d.fx('cutline', 0.3, { wx: h.at.x, wy: h.at.y, a: 0.4 + i * 0.9 });
+      d.fx('bloom', 0.6, { wx: h.at.x, wy: h.at.y, r: 26, col: PLUM, oy: -55 });
+      d.releaseHit(h);
+      v.shake = Math.max(v.shake, 0.08);
+    }));
+    const end = 0.2 + list.length * gap;
+    d.at(end, () => { d.mark('적중'); d.release(); d.hanja(d.name, 1); impact(d, d.to, 160, c, { flare: true, sparks: 10, col: PLUM }); });
+    d.at(end + 0.4, () => d.mark('여운'));
+    d.at(end + 0.7, () => { d.end(); d.mark(''); });
+  },
+  // 불패권마 투신강림 — 권갑 투신이 깨어난다: 금빛 몸, 하늘에서 내려오는 투신의 주먹 그림자
+  'fist:m4'(d) {
+    const c = [GOLD, '255,251,235', '120,53,15'];
+    buffBeats(d, c, [[0.05, '마보', 'out'], [0.45, '마보'], [0.55, '정권', 'snap'], [0.85, '마무리', 'inout']], () => {
+      d.fx('goldbody', 3.0, {});
+      d.fx('fistimg', 0.4, { wx0: d.to.x, wy0: d.to.y - 260, oy0: -60, wx1: d.to.x, wy1: d.to.y, oy1: -40, size: 110, col: GOLD, hot: '255,251,235', go: 0.3, drop: true });
+      d.fx('shock', 0.8, { wx: d.to.x, wy: d.to.y, r: 240, col: GOLD, rings: 3, w: 7 });
+      d.fx('crack', 1.2, { wx: d.to.x, wy: d.to.y, r: 200, col: c[1], seed: Math.random() * 99, n: 10 });
+      d.v.shake = Math.max(d.v.shake, 0.4);
+    });
+  },
+  // 독왕 만독지옥 — 하늘이 초록으로 물들고, 사냥터 전체에 독비가 쏟아지며 해골이 떠오른다
+  'poison:m4'(d) {
+    beats(d, [[0, '흩뿌리기', 'out'], [0.4, '흩뿌리기'], [0.5, '땅짚기', 'snap'], [1.3, '마무리', 'inout']], {
+      cast: 0.1, hit: 0.9, end: 1.7, shake: 0.35,
+      onCast: () => {
+        d.fx('miasma', 1.8, { now: 0, v: 3 });
+        const spots = hitsOr(d, 14);
+        for (const [i, at] of spots.entries()) d.at(0.15 + i * 0.04, () => d.fx('rainfall', 1.0, { wx: at.x, wy: at.y, r: 120, v: 3 }));
+        d.fx('sigil', 1.6, { wx: d.to.x, wy: d.to.y, r: 380, col: GREEN[0], n: 32, spin: 1 });
+      },
+      onHit: () => {
+        for (const at of hitsOr(d, 10)) d.burst(at, 70, { puddle: 0.8, drops: 6 });
+        d.skulls(d.hits, 6);
+      },
+    });
+  },
+  // 극악소마 삼공합일 — 가면이 크게 웃고, 핏빛 지풍·장력·비수가 한꺼번에
+  'ring:m4'(d) {
+    const c = [BLOOD, '254,226,226', '69,10,10'];
+    beats(d, [[0, '지법겨눔', 'out'], [0.25, '손가락튕김', 'snap'], [0.45, '쌍장', 'snap'], [0.65, '흩뿌리기', 'snap'], [1.1, '마무리', 'inout']], {
+      cast: 0.05, hit: 0.7, end: 1.4, shake: 0.35,
+      onCast: () => {
+        d.fx('mask', 1.4, { oy: -180, size: 44 });
+        d.at(0.25, () => d.fx('lance', 0.3, { wx: d.to.x, wy: d.to.y, a: Math.atan2((d.target.y - d.to.y) * d.v.squash, d.target.x - d.to.x), len: Math.hypot(d.target.x - d.to.x, (d.target.y - d.to.y) * d.v.squash) + 40, w: 5, col: BLOOD, oy: -62 }));
+        d.at(0.45, () => d.fx('shock', 0.6, { wx: d.to.x, wy: d.to.y, r: 260, col: MASK[0], rings: 3, w: 7 }));
+        const tg = hitsOr(d, 8);
+        for (let i = 0; i < 12; i++) {
+          const at = tg[i % tg.length];
+          d.at(0.6 + i * 0.03, () => d.fx('dagger', 0.3, { wx0: d.to.x, wy0: d.to.y, ox0: 14 * d.face, oy0: -66, wx1: at.x, wy1: at.y, h: 30 + (i % 4) * 20, go: 0.22, spin: i % 2 ? 1 : -1, col: i % 3 ? MASK[0] : BLOOD }));
+        }
+      },
+      onHit: () => impact(d, d.target, 200, c, { rings: 3, crack: true, sparks: 16 }),
+    });
+  },
   // ===== 4차 (v121) =====
   // 섭혼마존 환영분신술 — 술법진에서 보랏빛 분신 셋이 솟아 둘레를 한 번씩 휩쓴다
   'fan:m4'(d) {

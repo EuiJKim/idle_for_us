@@ -56,7 +56,7 @@ const CUT_COL = { ring: '216,180,254', fan: '186,230,253' };
 const SHOT_DRAW = {
   // 독 덩이 — 포물선으로 날아가며 방울을 흘린다
   glob(ctx, p, k, tx, ty) {
-    const v = VENOM[p.tier || 0];
+    const v = VENOM[Math.min(3, p.tier || 0)];
     const x = p.x + (tx - p.x) * k;
     const y = p.y + (ty - p.y) * k - Math.sin(k * Math.PI) * 46;
     for (let i = 1; i <= 3; i++) {
@@ -465,7 +465,7 @@ export class BattleView {
         // 치명타는 터지는 느낌이 있어야 한다
         if (crit) this.effects.push({ kind: 'burst', life: 0.3, max: 0.3, crit: true, col: CUT_COL[cls] });
         // 맞은 자리에 섬광 하나. 수십 마리가 동시에 맞으므로 아주 작고 짧게.
-        const sparkCol = cls === 'poison' ? `rgb(${VENOM[game.jobTier()].glow})` : cls === 'ring' ? '#d8b4fe' : color;
+        const sparkCol = cls === 'poison' ? `rgb(${VENOM[Math.min(3, game.jobTier())].glow})` : cls === 'ring' ? '#d8b4fe' : color;
         this.sparks.push({ x: atX, y: atY - 46, life: 0.17, max: 0.17, r: (crit ? 26 : skill ? 20 : 13) * (cls === 'poison' ? 0.7 : 1), color: sparkCol });
         // 때린 순간 화면을 아주 잠깐 늦추고 상대를 밀어낸다 — 타격감
         this.hitstop = Math.max(this.hitstop, crit || skill ? 0.075 : 0.032);

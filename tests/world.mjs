@@ -571,9 +571,7 @@ console.log('\n=== 환마 4차 · 환영분신술 (v121) ===');
   g.s.level = 100; g.s.gold = 1e9;
   while (g.canAdvance()) g.advance();
   ok(g.s.jobTier === 4 && g.tierName() === '섭혼마존' && g.skills().some((k) => k.name === '환영분신술'), '환마는 레벨 100에 4차 전직 → 섭혼마존 · 환영분신술', g.tierName());
-  const o = fresh('sword'); o.s.level = 100; o.s.gold = 1e9;
-  while (o.canAdvance()) o.advance();
-  ok(o.s.jobTier === 3 && !o.nextTier(), '4차 무공이 없는 직업은 3차까지');
+  ok(['sword', 'fist', 'poison', 'ring'].every((j) => { const o = fresh(j); o.s.level = 100; o.s.gold = 1e9; while (o.canAdvance()) o.advance(); return o.s.jobTier === 4 && o.tierName() === W.LORE[j].title && !o.nextTier(); }), '다섯 직업 모두 레벨 100에 4차 → 마존 이름 (v123)');
   g.enterMap(11); g._stats = null; g.heroHp = g.stats().hp;
   for (const m of g.mons) { m.hp = m.maxHp = 1e12; m.atk = 0; m.x = g.heroX + 40; m.y = g.heroY; }
   g.mon = g.mons[0];
@@ -583,6 +581,29 @@ console.log('\n=== 환마 4차 · 환영분신술 (v121) ===');
   ok(hits >= 6, '분신이 곁에서 함께 친다', `${hits}번`);
   for (let i = 0; i < 60; i++) g.tick(0.1);
   ok(g.clones.length === 0, '10초가 지나면 사라진다');
+}
+
+console.log('\n=== 4차 무공 넷 (v123) ===');
+{
+  const mk = (job) => {
+    const g = fresh(job); g.s.level = 120; g.s.gold = 1e12;
+    while (g.canAdvance()) g.advance();
+    g.enterMap(11); g._stats = null; g.heroHp = g.stats().hp;
+    g.mons.forEach((m, i) => { m.hp = m.maxHp = 1e15; m.atk = 0; m.x = g.heroX + 40 + (i % 4) * 20; m.y = g.heroY + 20 * Math.floor(i / 4) - 30; });
+    g.mon = g.mons[0]; g.events.length = 0;
+    return g;
+  };
+  const sw = mk('sword');
+  ok(sw.useSkill('s4') && sw.events.filter((e) => e.type === 'dmg' && e.kind === 's4').length === 12, '검사 일화천섬: 열두 번 벤다');
+  const f = mk('fist');
+  ok(f.useSkill('s4') && f.buffv.triple === 2 && f.buffv.haste > 0, '권마 투신강림: 평타 한 번에 세 대 · 공격 속도');
+  f.events.length = 0; f.basicAttack(f.mon, f.stats(), 1);
+  ok(f.events.filter((e) => e.type === 'dmg' && e.kind === 'hit').length >= 3, '투신강림 중 평타가 세 대', `${f.events.filter((e) => e.type === 'dmg' && e.kind === 'hit').length}대`);
+  const p = mk('poison');
+  p.mons[5].x = p.heroX + 900;   // 멀리 있는 적도
+  ok(p.useSkill('s4') && p.mons.every((m) => m.dot > 0), '독마 만독지옥: 사냥터 전체에 독');
+  const r = mk('ring');
+  ok(r.useSkill('s4') && ['s0', 's1', 's2'].every((k) => r.events.some((e) => e.type === 'dmg' && e.kind === k)) && r.buffv.might > 0 && r.cd.s0 === 0, '극악소마 삼공합일: 세 무공을 한꺼번에(숨은 안 쓴다) + 삼공조화');
 }
 
 console.log('\n=== 전직·스킬 ===');
