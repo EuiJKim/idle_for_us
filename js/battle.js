@@ -171,6 +171,19 @@ const sprCache = new Map();
 loadArt(() => sprCache.clear());
 loadFx(() => {});
 loadJobArt();
+// 바닥 소품 그림 (v136, art/prop/) — 지역의 prop마다 한 장. 오면 바닥 장을 다시 굽는다(decalGen).
+const PROP_KINDS = ['bamboo', 'dock', 'temple', 'lantern', 'cliff', 'vine', 'tomb', 'shore', 'void', 'grave', 'banner', 'pavilion', 'village', 'rock', 'snowpine', 'dune'];
+export const PROP_FILES = PROP_KINDS.map((k) => `art/prop/${k}.png`);
+const decal = {};
+let decalGen = 0;
+function decalImg(kind) {
+  if (decal[kind] !== undefined || !PROP_KINDS.includes(kind)) return decal[kind] || null;
+  decal[kind] = null;
+  const im = new Image();
+  im.onload = () => { decal[kind] = im; decalGen++; };
+  im.src = `art/prop/${kind}.png`;
+  return null;
+}
 const lookIds = new WeakMap();
 let lookSeq = 0;
 function lookId(look) {
@@ -1206,7 +1219,7 @@ export class BattleView {
     const { ctx, w, h } = this;
     const M = 220;
     const d = this._decor;
-    const stale = !d || d.w !== w || d.h !== h || d.z !== z
+    const stale = !d || d.w !== w || d.h !== h || d.z !== z || d.gen !== decalGen
       || Math.abs(ox - d.ox) > M || Math.abs(oy - d.oy) > M;
     if (stale) this.bakeDecor(z, ox, oy, M);
     const k = this._decor;
@@ -1236,7 +1249,7 @@ export class BattleView {
     x.setTransform(q, 0, 0, q, 0, 0);
     x.clearRect(0, 0, w + M * 2, h + M * 2);
     this.decorInto(x, z, ox, oy, M);
-    this._decor = { cv, q, w, h, z, ox, oy, M };
+    this._decor = { cv, q, w, h, z, ox, oy, M, gen: decalGen };
   }
 
   // 구워 넣는 실제 그림. (ox, oy)를 기준으로 (M, M)만큼 밀어서 그린다.
@@ -1315,6 +1328,7 @@ export class BattleView {
     const i0 = Math.floor((b - cell) / cell), i1 = Math.ceil((b + w) / cell);
     const j0 = Math.floor((c2 - cell) / cell), j1 = Math.ceil((c2 + h) / cell);
     const ink = z.night ? 'rgba(6,6,9,0.8)' : 'rgba(22,20,16,0.72)';
+    const pic = decalImg(z.prop);
     for (let i = i0; i <= i1; i++) {
       for (let j = j0; j <= j1; j++) {
         const n = rnd2(i * 3 + 11, j * 7 + 5);
@@ -1325,6 +1339,16 @@ export class BattleView {
         ctx.save();
         ctx.translate(px, py);
         const sc = 0.7 + n;
+        if (pic) {
+          // 그린 소품 — 반은 좌우를 뒤집고 크기를 달리해 덜 되풀이돼 보이게
+          const W = 38 * sc, H = (pic.height * W) / pic.width;
+          ctx.globalAlpha = z.night ? 0.8 : 0.92;
+          if (n * 1000 % 2 < 1) ctx.scale(-1, 1);
+          ctx.drawImage(pic, -W / 2, -H * 0.6, W, H);
+          ctx.globalAlpha = 1;
+          ctx.restore();
+          continue;
+        }
         // 그림자 먼저 (위에서 보면 소품 아래로 깔린다)
         ctx.fillStyle = 'rgba(0,0,0,0.26)';
         ctx.beginPath(); ctx.ellipse(0, 2, 16 * sc, 9 * sc, 0, 0, Math.PI * 2); ctx.fill();
