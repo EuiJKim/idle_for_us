@@ -4,6 +4,7 @@ import * as W from './world/wdata.js';
 import * as D from './world/wdgn.js';
 import * as L from './world/wland.js';
 import * as G from './world/wgear.js';
+import * as Q from './world/wquest.js';
 import { h, toast, openModal, closeModal, subTabs, popUp, holdRepeat } from './ui/common.js';
 import { fmt } from './fmt.js';
 import { dayKey } from './net.js';
@@ -100,6 +101,55 @@ function charTab(app) {
     stats.append(row);
   }
   const derived = h('div', { class: 'stat-grid' });
+  // ---------- 길잡이 (v139) ----------
+  // 들판 띠는 하나만 띄운다. 여기서는 어디까지 왔는지 전부 본다.
+  const questCard = h('div', { class: 'card quest-card' });
+  let qSig = '';
+  function quests() {
+    const cur = game.questNow();
+    const nsig = `${game.s.quest}|${cur ? `${cur.now}/${cur.need}|${cur.done}` : 'end'}|${game.s.level}`;
+    if (nsig === qSig) return;
+    qSig = nsig;
+    const done = game.s.quest;
+    questCard.replaceChildren(h('h3', {}, '길잡이',
+      h('small', {}, ` ${done}/${Q.QUEST_COUNT}`)));
+    if (!cur) {
+      questCard.append(h('p', { class: 'muted' }, '길잡이를 다 마쳤어요. 이제는 가고 싶은 데로 가세요.'));
+      return;
+    }
+    // 끝낸 것은 한 줄로 접는다 — 열여섯 줄을 그대로 깔면 끝낸 줄로만 가득 찬다
+    if (done > 0) {
+      questCard.append(h('p', { class: 'muted quest-past' }, `✓ ${done}단계 마침`));
+    }
+    const rows = [];
+    for (let i = done; i < Q.QUEST_COUNT; i++) {
+      const q = Q.questAt(i);
+      const isNow = i === done;
+      // 앞으로 올 것은 셋까지만 — 더 보여 주면 '해야 할 일'이 쌓여 보인다
+      if (!isNow && i > done + 3) break;
+      const rw = Q.questReward(q, game.s.level);
+      const bits = [rw.gold ? `은자 ${fmt(rw.gold)}` : '', rw.exp ? `경험치 ${fmt(rw.exp)}` : ''].filter(Boolean);
+      rows.push(h('div', { class: `row quest-row${isNow ? ' now' : ''}${isNow && cur.done ? ' ready' : ''}` },
+        h('div', { class: 'ico' }, isNow ? (cur.done ? '✓' : '▸') : `${i + 1}`),
+        h('div', { class: 'info' },
+          h('div', { class: 'name' }, q.title,
+            isNow ? h('small', {}, ` ${fmt(cur.now)}/${fmt(cur.need)}`) : null),
+          h('div', { class: 'desc' }, q.why),
+          bits.length ? h('div', { class: 'desc quest-rw' }, `보상 ${bits.join(' · ')}`) : null),
+        isNow && cur.done
+          ? h('button', { class: 'buy', onclick: () => {
+            const got = game.claimQuest();
+            if (!got) return;
+            app.save(); qSig = ''; upd(); app.refresh();
+            toast(`길잡이 — ${q.title} ✓ ${rewardText(got)}`);
+          } }, '받기')
+          : null));
+    }
+    questCard.append(...rows);
+    if (done + 4 < Q.QUEST_COUNT) {
+      questCard.append(h('p', { class: 'muted quest-past' }, `… 그 뒤로 ${Q.QUEST_COUNT - done - 4}단계 더`));
+    }
+  }
   // 스킬 레벨 — 레벨 15부터 레벨마다 점수 1, n→n+1에 점수 n
   const skillCard = h('div', { class: 'card' });
   let skSig = '';
@@ -162,7 +212,7 @@ function charTab(app) {
         } }, max ? '최대' : locked ? '잠김' : `+1 · ${W.passiveCost(p, lv)}점`)));
     }
   }
-  root.append(head, loreBox, stats, skillCard, passCard, h('div', { class: 'card' }, h('h3', {}, '능력치'), derived));
+  root.append(head, questCard, loreBox, stats, skillCard, passCard, h('div', { class: 'card' }, h('h3', {}, '능력치'), derived));
   function upd() {
     const s = game.s;
     const st = game.stats();
@@ -181,6 +231,7 @@ function charTab(app) {
     }
     skills();
     passives();
+    quests();
     ptsEl.textContent = s.statPts;
     autoBtn.textContent = s.autoStat ? '자동 분배 켬' : '자동 분배 끔';
     autoBtn.classList.toggle('good', s.autoStat);

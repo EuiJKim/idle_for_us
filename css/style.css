@@ -1239,3 +1239,14 @@ details.lore p { margin: 4px 0 0; line-height: 1.5; }
 /* #advice가 떠 있으면 한 줄 더 내려간다 (겹치면 둘 다 안 읽힌다) */
 #advice:not(.hidden) ~ #quest { top: 104px; }
 #advice.hidden ~ #quest { top: 78px; }
+
+/* 길잡이 목록 — 캐릭터 창 */
+.quest-card .quest-past { margin: 2px 0 6px; font-size: 11px; }
+.quest-row { opacity: 0.55; }
+.quest-row .ico { font-size: 15px; color: var(--muted); font-weight: 800; }
+/* 지금 할 일만 또렷하게 — 나머지는 '앞으로 온다'는 것만 알면 된다 */
+.quest-row.now { opacity: 1; background: rgba(28, 44, 30, 0.5); border-radius: 10px; }
+.quest-row.now .ico { color: #86efac; font-size: 18px; }
+.quest-row.ready { background: rgba(70, 52, 10, 0.6); }
+.quest-row.ready .ico { color: var(--gold); }
+.quest-rw { color: var(--gold); opacity: 0.85; }
