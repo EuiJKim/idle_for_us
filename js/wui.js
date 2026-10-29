@@ -610,8 +610,13 @@ function mapTab(app) {
     const wd = D.kstWeekday(now);
     const sweepN = D.DAILY.reduce((a, d) => a + (game.canSweep(d.id, now) ? game.dailyLeft(d.id, now) : 0), 0);
     const start = (fn) => { if (!fn()) return; app.save(); app.closePanel(); app.refresh(); };
+    // 자동 도전 — 켜 두면 열린 던전을 갈 수 있는 가장 높은 단계로 알아서 돈다
+    const dAuto = h('input', { type: 'checkbox' });
+    dAuto.checked = !!s.dgn.auto;
+    dAuto.onchange = () => { s.dgn.auto = dAuto.checked; app.save(); dsig = ''; updDgn(); };
     const head = h('div', { class: 'card dgn-head' },
-      h('div', {}, h('b', {}, `오늘은 ${'일월화수목금토'[wd]}요일`), h('small', { class: 'muted' }, wd === 0 ? ' · 일요일은 셋 다 열려요' : ' · 요일마다 열리는 던전이 달라요')),
+      h('div', {}, h('b', {}, `오늘은 ${'일월화수목금토'[wd]}요일`), h('small', { class: 'muted' }, wd === 0 ? ' · 일요일은 셋 다 열려요' : ' · 요일마다 열리는 던전이 달라요'),
+        h('label', { class: 'chk' }, dAuto, ' 자동 도전 — 열린 던전을 알아서 돌아요')),
       h('button', { class: 'btn primary', disabled: sweepN ? null : true, onclick: () => {
         const got = game.sweepAll(now);
         if (!got.length) return;

@@ -14,8 +14,10 @@ const DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토'];
 
 export const DAILY_ENTRIES = 3;
 export const DAILY_SEC = 75;
-export const DAILY_KILLS = 40;           // 이만큼 잡으면 깬다
-export const DAILY_ALIVE = 14;
+// 마흔 마리는 너무 많았다 — 한 판이 '잡는 일'이 되어 버린다.
+// 시간은 그대로 두고 수만 줄인다. 덜 조이는 대신 끝까지 안 끌린다.
+export const DAILY_KILLS = 24;           // 이만큼 잡으면 깬다
+export const DAILY_ALIVE = 10;
 export const DAILY_RESPAWN = 0.7;
 export const DAILY_STAGES = 30;
 export const DAILY_FAIL = 0.5;           // 못 깨면 잡은 만큼의 절반

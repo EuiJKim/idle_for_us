@@ -11,6 +11,7 @@ import { Coop } from './world/wcoop.js';
 import { h, toast, openModal, closeModal, modalOpen } from './ui/common.js';
 import { WTABS, WTAB_TITLE, itemTitle, skillText, rewardText, dailyWaiting } from './wui.js';
 import * as D from './world/wdgn.js';
+import { QUEST_COUNT } from './world/wquest.js';
 import { fmt, duration } from './fmt.js';
 import { sfx, unlockAudio, setSound, soundOn } from './sfx.js';
 loadIcons();
@@ -241,6 +242,16 @@ function refreshUI(full = false) {
   const showPts = (statPts || skillUp) && activeTab !== 'char';
   adv.classList.toggle('hidden', !showPts);
   if (showPts) adv.textContent = [statPts ? `스탯 ${s.statPts}` : '', skillUp ? `스킬 ${s.skillPts}` : ''].filter(Boolean).join(' · ') + ' · 찍기';
+  // 길잡이 — 지금 할 일 하나. 다 끝내면 사라진다.
+  const qb = $('quest');
+  const cur = game.questNow();
+  qb.classList.toggle('hidden', !cur);
+  qb.classList.toggle('ready', !!cur?.done);
+  if (cur) {
+    qb.textContent = cur.done
+      ? `길잡이 ✓ ${cur.q.title} — 받기`
+      : `길잡이 ${game.s.quest + 1}/${QUEST_COUNT} · ${cur.q.title} (${fmt(cur.now)}/${fmt(cur.need)})`;
+  }
   const t = game.nextTier();
   dot('town', !!t && s.level >= t.level && s.gold >= t.cost);
   dot('comp', s.petBox.length > 0 && s.pets.length < game.petSlots());
@@ -448,6 +459,11 @@ function handleEvents() {
       case 'heroDied':
         if (!ev.inst) toast(`쓰러졌어요… 경험치 ${fmt(ev.loss)}을 잃고 마을로 돌아가요`);
         break;
+      // 길잡이 한 단계 — 띠로 알린다(받았다는 글은 누른 자리에서 띄운다)
+      case 'quest':
+        view.showBanner(`길잡이 ✓ ${ev.title}`, '#bbf7d0', 1.8, '길잡이');
+        sfx('loot');
+        break;
       case 'advance': {
         view.showBanner(`${ev.tier}차 전직 · ${game.tierName()}`, '#fde68a', 2.4, '전직');
         net.announce(`🎉 ${game.s.nickname}님이 ${ev.tier}차 전직 — ${game.tierName()}`);
@@ -500,6 +516,22 @@ function handleEvents() {
 
 // 남은 스탯 점수 알약을 누르면 캐릭터 창
 $('advice').addEventListener('click', () => showTab('char'));
+// 길잡이 — 끝냈으면 받고, 아니면 할 자리를 열어 준다
+$('quest').addEventListener('click', () => {
+  const cur = game.questNow();
+  if (!cur) return;
+  if (!cur.done) {
+    // 던전은 지도 창 안의 칸이다
+    if (cur.q.tab === 'dgn') showTab('map', 'dgn');
+    else showTab(cur.q.tab);
+    toast(cur.q.why);
+    return;
+  }
+  const got = game.claimQuest();
+  save();
+  refreshUI(true);
+  toast(`길잡이 — ${cur.q.title} ✓ ${rewardText(got)}`);
+});
 
 // 사냥터 이름을 누르면 지도
 $('stagebar').addEventListener('click', () => showTab('map'));

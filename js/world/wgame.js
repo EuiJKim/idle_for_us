@@ -7,6 +7,7 @@
 // 그래서 들판 그림·이펙트·초식 연출표를 손대지 않고 쓴다.
 import * as W from './wdata.js';
 import * as D from './wdgn.js';
+import * as Q from './wquest.js';
 import * as L from './wland.js';
 import * as G from './wgear.js';
 
@@ -53,12 +54,14 @@ export function newWorldSave(now = Date.now()) {
     kills: 0,
     deaths: 0,
     bestMap: W.mapId(1, 1),
-    dgn: { day: '', used: {}, best: {} },   // 요일 던전 (v126): 오늘 쓴 횟수 · 종류별 깬 단계
+    // 요일 던전 (v126): 오늘 쓴 횟수 · 종류별 깬 단계 · 자동 도전(v139)
+    dgn: { day: '', used: {}, best: {}, auto: false },
     tower: { floor: 0, auto: true },         // 무한의 탑: 오른 층 · 이기면 이어 오르기
     zTickets: {},                            // 십이지 뽑기권 — 신 번호(1~12): 장수
     zPity: {},                               // 신마다 신수 없이 뽑은 횟수 (셋째에 꼭)
     mast: {},                                // 지역 숙련도 (v127) — 지역 번호: 잡은 수
     raid: { day: '', n: 0, dps: 0 },         // 문파 토벌 (v128): 오늘 친 횟수 · 마지막 초당 피해
+    quest: 0,                                // 길잡이 (v139): 받은 단계 수 — 지금 할 일은 QUESTS[quest]
     created: now,
   };
 }
@@ -120,6 +123,8 @@ export function migrateWorld(raw, now = Date.now()) {
   }
   const tw = raw.tower && typeof raw.tower === 'object' ? raw.tower : {};
   s.tower = { floor: clamp(Math.floor(Number(tw.floor) || 0), 0, D.TOWER_MAX), auto: tw.auto !== false };
+  s.dgn.auto = !!s.dgn.auto;
+  s.quest = clamp(Math.floor(Number(s.quest) || 0), 0, Q.QUEST_COUNT);
   const rd = raw.raid && typeof raw.raid === 'object' ? raw.raid : {};
   s.raid = { day: typeof rd.day === 'string' ? rd.day : '', n: clamp(Math.floor(Number(rd.n) || 0), 0, D.RAID_PER_DAY), dps: Math.max(0, Number(rd.dps) || 0) };
   s.mast = {};
@@ -163,6 +168,10 @@ export function migrateWorld(raw, now = Date.now()) {
 }
 
 const NO_ENV = Object.freeze({});
+// 자동 도전이 '들어갈 데 있나'를 보는 주기. 매 틱 보면 비싸고,
+// 너무 뜸하면 날이 바뀌었는데 한참 안 들어간다.
+const AUTO_DGN_SEC = 3;
+
 export class WorldGame {
   constructor(save, now = Date.now()) {
     this.s = migrateWorld(save, now);
@@ -534,6 +543,12 @@ export class WorldGame {
   tick(dt) {
     this.clock += dt;
     if (this.inst?.done) this.finishInst();
+    // 자동 도전 — 들판에 있는 동안 열린 요일 던전이 있으면 알아서 들어간다.
+    // 매 틱 보면 비싸므로 몇 초에 한 번만 본다.
+    if (this.s.dgn.auto && !this.inst) {
+      this.autoDgnT = (this.autoDgnT || 0) - dt;
+      if (this.autoDgnT <= 0) { this.autoDgnT = AUTO_DGN_SEC; this.startAutoDaily(); }
+    }
     const st = this.stats();
     for (const k in this.cd) this.cd[k] = Math.max(0, this.cd[k] - dt);
     this.potionT = Math.max(0, this.potionT - dt);
@@ -1945,6 +1960,49 @@ export class WorldGame {
     for (let i = 0; i < D.DAILY_ALIVE; i++) this.spawnMob(false);
     return true;
   }
+  // ---------- 길잡이 (v139) ----------
+  // **띄우는 건 늘 하나다.** 열 몇 가지가 한꺼번에 열려 있어서, 목록을 더
+  // 보여 주면 더 헷갈린다. 끝내면 다음 하나가 나온다.
+  questNow() {
+    const q = Q.questAt(this.s.quest);
+    if (!q) return null;
+    const g = q.goal(this);
+    const need = g.need || 1;
+    const now = Math.min(need, Math.max(0, g.now || 0));
+    return { q, now, need, done: now >= need, reward: Q.questReward(q, this.s.level) };
+  }
+  canClaimQuest() { return !!this.questNow()?.done; }
+  // 받으면 다음 하나로 넘어간다. 보상은 **받을 때의 레벨로** 센다 —
+  // 고정값으로 두면 뒤로 갈수록 먼지가 된다.
+  claimQuest() {
+    const cur = this.questNow();
+    if (!cur || !cur.done) return null;
+    const reward = this.grant(cur.reward);
+    this.s.quest++;
+    this.emit('quest', { id: cur.q.id, title: cur.q.title, reward, left: Q.QUEST_COUNT - this.s.quest });
+    return reward;
+  }
+
+  // ---------- 자동 도전 (v139) ----------
+  // 켜 두면 열려 있는 요일 던전을 알아서 돈다. 한 판이 끝나면 남은 횟수만큼
+  // 이어서 — 탑의 '이어 오르기'와 같은 결이다.
+  //
+  // **갈 수 있는 가장 높은 단계로 간다.** 낮은 단계를 돌면 횟수만 쓰고
+  // 깬 단계가 안 오른다 — 자동이 사람보다 못하면 켤 이유가 없다.
+  autoDailyNext(now = Date.now()) {
+    if (!this.s.dgn.auto || this.inst || !this.s.job) return null;
+    for (const d of D.DAILY) {
+      const stage = this.dailyMaxStage(d.id);
+      if (this.canDaily(d.id, stage, now)) return { kind: d.id, stage };
+    }
+    return null;
+  }
+  startAutoDaily(now = Date.now()) {
+    const nx = this.autoDailyNext(now);
+    if (!nx) return false;
+    return this.startDaily(nx.kind, nx.stage, now);
+  }
+
   // 소탕 — 깬 가장 높은 단계의 보상을 들어가지 않고 받는다 (한 번 쓴다)
   canSweep(kind, now = Date.now()) {
     const d = D.dailyOf(kind);
@@ -2184,6 +2242,14 @@ export class WorldGame {
       res.chain = true;
       this.emit('instEnd', res);
       this.startTower(true);
+      return res;
+    }
+    // 요일 던전: 자동이면 남은 횟수만큼 이어서. **그만두기로 나온 건 안 잇는다** —
+    // 그만두려고 눌렀는데 바로 다시 들어가면 나올 길이 없다.
+    if (I.kind === 'daily' && !I.done?.left && this.autoDailyNext()) {
+      res.chain = true;
+      this.emit('instEnd', res);
+      this.startAutoDaily();
       return res;
     }
     this.emit('instEnd', res);

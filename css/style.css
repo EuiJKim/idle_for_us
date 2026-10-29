@@ -1221,3 +1221,21 @@ details.lore p { margin: 4px 0 0; line-height: 1.5; }
 #modal .sheet { border: 14px solid transparent; border-image: url('../art/ui/frame.png') 100 fill / 38px round;
   background-clip: padding-box; box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5); }
 #modal .sheet::before { display: none; }
+
+/* 길잡이 — 지금 할 일 하나. #advice(스탯·스킬 찍기) 바로 아래 줄. */
+#quest {
+  position: absolute; left: 50%; top: 104px; transform: translateX(-50%); z-index: 11;
+  max-width: 88%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  background: rgba(28, 44, 30, 0.8); border: 1px solid rgba(134, 196, 140, 0.45);
+  padding: 4px 12px; border-radius: 999px;
+  font-size: 11px; font-weight: 700; color: #bbf7d0;
+}
+#quest:active { background: rgba(40, 62, 44, 0.92); }
+/* 받을 수 있으면 눈에 띄게 — 안 그러면 다 해 놓고도 안 받는다 */
+#quest.ready {
+  background: rgba(70, 52, 10, 0.92); border-color: rgba(250, 204, 21, 0.75); color: #fde68a;
+  animation: pts-glow 1.6s ease-in-out infinite;
+}
+/* #advice가 떠 있으면 한 줄 더 내려간다 (겹치면 둘 다 안 읽힌다) */
+#advice:not(.hidden) ~ #quest { top: 104px; }
+#advice.hidden ~ #quest { top: 78px; }
