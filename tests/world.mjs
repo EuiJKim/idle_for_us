@@ -621,6 +621,9 @@ console.log('\n=== 장비 개편 (v130) ===');
   ok(!g.itemUnique(g.makeCrafted('acc', 4, 0, 0)), '장신구는 고유 옵션 대신 스킬 옵션이 하나 더');
   // 세트
   ok(G.SETS.length === 10 && ['sword', 'fist', 'fan', 'poison', 'ring'].every((j) => G.setsOfJob(j).length === 2) && new Set(G.SETS.map((x) => x.king)).size === 10, '직업마다 세트 둘 — 세트마다 다른 왕');
+  ok(['sword', 'fist', 'fan', 'poison', 'ring'].every((j) => { const k = G.setsOfJob(j).map((x) => x.king).sort((x, y) => x - y); return k[0] <= 20 && k[1] >= 21 && k[1] <= 25; }),
+    '직업마다 초반 왕 하나 + 중반 왕 하나 — 도왕·검왕(가장 센 둘)은 세트가 없다');
+  ok(migrateWorld({ job: 'sword', equip: { weapon: { uid: 9, slot: 'weapon', king: 27, set: 'formless', ilv: 100, rar: 0, opts: [], plus: 3 } } }).equip.weapon.king === 17, '옛 검왕 세트 조각은 철왕 재료로 강화');
   const sw = fresh('sword'); while (sw.s.level < 99) sw.addExp(W.expToNext(sw.s.level)); sw.s.gold = 1e12;
   const plum = G.setOf('plum');
   ok(!sw.craftSet('plum', 'weapon'), '왕의 재료·증표가 없으면 못 만든다');

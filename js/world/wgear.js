@@ -58,12 +58,13 @@ export function uniqueOf(slot, zone, upper, rarMult = 1) {
 
 // ---------- 직업 세트 (레벨 100) ----------
 // king: 그 세트 재료·증표를 떨구는 십이지왕 지역 번호(16 권왕 … 27 검왕).
+// 직업마다 초반 왕(16 권왕 ~ 20 목왕) 하나 + 중반 왕(21 화왕 ~ 25 투왕) 하나. 가장 센 도왕·검왕은 세트 없이 공용 장신구만(가장 좋은 신화 효과).
 // 2·3조각: 능력치, 5조각: 직업 무공을 바꾸는 효과. 키는 GEAR_KEYS(능력치)이거나 아래 SET_FX(무공) 이름.
 export const SET_SLOTS = ['weapon', 'armor', 'hat', 'glove', 'shoe'];
 export const SET_FX = {
   flowerUp: (v) => `꽃잎 검기 피해 +${Math.round(v * 100)}%`, flowerR: (v) => `꽃잎 검기 범위 +${Math.round(v * 100)}%`,
   flowerEvery: (v) => `꽃잎 검기가 평타 ${v}번째마다`, flowerBleed: (v) => `꽃잎에 맞은 적이 피해의 ${Math.round(v * 100)}%만큼 피 흘린다`,
-  formlessProc: (v) => `1~3차 무공이 맞을 때 ${Math.round(v * 100)}% 확률로 무형검(×150%)이 한 번 더`,
+  formlessProc: (v) => `1~3차 무공이 맞을 때 ${Math.round(v * 100)}% 확률로 숨은 기관검(×150%)이 한 번 더`,
   cd4: (v) => `4차 무공 숨 -${Math.round(v * 100)}%`,
   basicUp: (v) => `평타 피해 +${Math.round(v * 100)}%`, cleaveAlways: (v) => `평타가 늘 둘레 적을 함께 친다(${Math.round(v * 100)}%)`,
   tripleUp: (v) => `투신강림 동안 평타 한 번에 ${3 + v}대`,
@@ -80,8 +81,9 @@ export const SETS = [
   { id: 'plum', job: 'sword', king: 21, name: '매화검진', short: '매화', col: '#f9a8d4',
     lore: '화왕의 천녀야우장에서 꽃잎을 얻은 검진. 평타마다 꽃이 핀다.',
     bonus: { 2: { speed: 0.15 }, 3: { flowerUp: 0.8, flowerR: 0.3 }, 5: { flowerEvery: 2, flowerBleed: 0.5 } } },
-  { id: 'formless', job: 'sword', king: 27, name: '무형검결', short: '무형', col: '#fde68a',
-    lore: '검왕 악군학의 무형신검을 담은 검결. 보이지 않는 검이 한 번 더 벤다.',
+  // v131: 검왕(가장 센 왕)을 잡아야 하던 것을 철왕으로 — 직업마다 초반 왕 하나 + 중반 왕 하나 (id는 옛 세이브 때문에 그대로)
+  { id: 'formless', job: 'sword', king: 17, name: '천기검갑', short: '천기', col: '#cbd5e1',
+    lore: '철왕 기사후가 빚은 기관 검갑. 칼집 속에 숨은 기관검이 한 번 더 뻗는다.',
     bonus: { 2: { critDmg: 0.4 }, 3: { skill: 0.35 }, 5: { cd4: 0.4, formlessProc: 0.35 } } },
   { id: 'ironfist', job: 'fist', king: 16, name: '철권투혼', short: '철권', col: '#ef4444',
     lore: '권왕 강후의 유혼절명권을 새긴 권갑. 맞는 만큼 단단해지고 주먹이 둘레를 쓴다.',

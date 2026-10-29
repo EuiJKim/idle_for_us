@@ -134,6 +134,8 @@ export function migrateWorld(raw, now = Date.now()) {
     if (it.uid >= uidSeq) uidSeq = it.uid + 1;
     // v110: 등급이 없던 조합 장비는 레어로 (옵션 하나)
     if (it.step != null && it.rar == null) { it.rar = 0; it.opts = W.rollSkillOpts(0, rand); it.grade = W.RARITY_GRADE[0]; }
+    // v131: 검사 세트 '천기검갑'은 검왕 → 철왕 재료로 바뀌었다 (강화 재료도 따라간다)
+    if (it.set === 'formless' && it.king === 27) it.king = 17;
   }
   // v130: 사다리가 레벨 99(보통 지역 15곳)에서 끝난다. 십이지왕 사다리 장비는 —
   //   장신구·가락지·귀걸이: 그 왕의 레벨 100 공용 장신구로 바꾼다(등급·옵션·강화 그대로).
