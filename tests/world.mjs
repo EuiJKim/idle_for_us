@@ -607,6 +607,24 @@ console.log('\n=== 4차 무공 넷 (v123) ===');
   ok(r.useSkill('s4') && ['s0', 's1', 's2'].every((k) => r.events.some((e) => e.type === 'dmg' && e.kind === k)) && r.buffv.might > 0 && r.cd.s0 === 0, '극악소마 삼공합일: 세 무공을 한꺼번에(숨은 안 쓴다) + 삼공조화');
 }
 
+console.log('\n=== 문파 토벌 (v128) ===');
+{
+  const D = await import('../js/world/wdgn.js');
+  ok(D.weekKey(Date.UTC(2026, 9, 29, 3)) === 'wk-2026-10-26' && D.weekKey(Date.UTC(2026, 10, 1, 16)) === 'wk-2026-11-02', '주는 한국 시간 월요일부터');
+  const g = fresh(); g.setJob('sword'); while (g.s.level < 30) g.addExp(W.expToNext(g.s.level)); g.enterMap(W.mapId(4, 1));
+  ok(!g.canRaid(1000), '문파가 없으면 못 친다');
+  g.s.guildId = 'G1';
+  const key = D.weekKey();
+  ok(g.startRaid({ key, hpLeft: 1e9, maxHp: 2e9 }) && g.inst.kind === 'raid', '문파 토벌에 들어간다');
+  let res = null;
+  for (let i = 0; i < 2000 && !res; i++) { g.tick(0.05); for (const e of g.events) if (e.type === 'instEnd') res = e; g.events.length = 0; }
+  ok(res && res.kind === 'raid' && res.dealt > 0 && res.key === key && res.reward?.gold > 0, `${D.RAID_SEC}초 동안 친 피해와 참여 보상`, `피해 ${res?.dealt}`);
+  ok(g.s.raid.dps > 0 && g.raidDpsEst() === g.s.raid.dps, '초당 피해를 적어 둔다(다음 주 두목 체력 셈)');
+  g.startRaid({ key, hpLeft: 1e9, maxHp: 2e9 }); g.leaveInst();
+  ok(g.raidLeft() === 0 && !g.canRaid(1e9), `하루 ${D.RAID_PER_DAY}번`);
+  ok(D.raidMaxHp(1000) === 1000 * D.RAID_SEC * D.RAID_PER_DAY * 7 * D.RAID_HP_SHARE, '두목 체력 = 문파원 딜 × 40초 × 2번 × 이레 × 절반');
+}
+
 console.log('\n=== 사냥터 땅 (v127) ===');
 {
   const L = await import('../js/world/wland.js');

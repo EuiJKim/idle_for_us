@@ -249,6 +249,31 @@ async function tab(page, name) {
   assert(true, '문파 채팅이 오간다');
   await shot(p, '09-guild.png');
 
+  console.log('# 온라인: 문파 토벌 (v128)');
+  await tab(p, 'map');
+  await p.click('#panel .map-seg button[data-key="dgn"]');
+  await p.click('#panel .dgn-raid button:has-text("이번 주 토벌 열기")');
+  await p.waitForFunction(() => window.__app.net.raid?.kind === 'world' && window.__app.net.raid.maxHp > 0, null, { timeout: 15000 })
+    .catch(async (e) => { console.log('DEBUG', await G(p, () => ({ toast: document.getElementById('toast').innerText, raid: window.__app.net.raid, day: window.__app.net.raidDay }))); throw e; });
+  await p.waitForSelector('#panel .dgn-raid button:has-text("도전")', { timeout: 10000 });
+  await p.click('#panel .dgn-raid button:has-text("도전")');
+  await p.waitForFunction(() => window.__game.inst?.kind === 'raid' && window.__game.inst.boss, null, { timeout: 10000 });
+  await p.waitForFunction(() => window.__game.inst.boss.hp < window.__game.inst.hpLeft, null, { timeout: 15000 });
+  await G(p, () => { window.__game.inst.t = 0.05; });
+  await p.waitForFunction(() => (window.__app.net.raid?.total || 0) > 0, null, { timeout: 15000 });
+  assert(await G(p, () => !window.__game.inst && window.__game.s.raid.n === 1), '토벌 40초 — 친 만큼 문파 두목 체력이 깎인다');
+  await q.waitForFunction(() => (window.__app.net.raid?.total || 0) > 0, null, { timeout: 15000 });
+  await G(q, () => { const r = window.__app.net.raid; window.__game.startRaid({ key: r.id, hpLeft: r.maxHp - r.total, maxHp: r.maxHp }); });
+  await q.waitForFunction(() => window.__game.inst?.boss, null, { timeout: 10000 });
+  await G(q, () => { const g = window.__game; const b = g.inst.boss; b.introT = 0; g.freezeT = 0; g.hurt(b, b.hp + 1, 'hit', false); });
+  await q.waitForFunction(() => { const r = window.__app.net.raid; return r && r.total >= r.maxHp; }, null, { timeout: 15000 });
+  const gold0 = await G(q, () => window.__game.s.gold);
+  const got = await G(q, async () => !!(await window.__app.net.claimWeek()));
+  assert(got && (await G(q, () => window.__game.s.gold)) > gold0, '문파원이 마무리 — 친 사람은 처치 보상을 받는다');
+  await p.waitForFunction(() => window.__app.net.canClaimWeek(), null, { timeout: 10000 });
+  assert(true, '함께 친 다른 문파원도 받을 수 있다');
+  await shot(p, '10-raid.png');
+
   const errs = [...a.errors, ...b.errors];
   console.log('errors:', errs);
   assert(errs.length === 0, '콘솔 오류 없음');

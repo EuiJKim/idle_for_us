@@ -181,7 +181,7 @@ function refreshUI(full = false) {
   $('stage-label').textContent = m.town || m.inst ? m.name : `${m.king ? m.king.title : m.zoneName} ${m.bossRoom ? '두목' : m.area}`;
   const bossLeft = Math.max(0, Math.ceil(game.bossT));
   const boss = game.mons.find((x) => x.isBoss && x.alive);
-  $('zone-label').textContent = m.inst ? (game.inst.kind === 'tower' ? `수문장 Lv.${m.lv[0]} · ${D.TOWER_SEC}초 안에` : `몹 Lv.${m.lv[0]} · ${D.DAILY_KILLS}마리 잡으면 깬다`) : m.town ? (s.autoHunt ? `쉬는 중 → ${W.mapOf(s.huntMap).name}` : '쉬는 중')
+  $('zone-label').textContent = m.inst ? (game.inst.kind === 'tower' ? `수문장 Lv.${m.lv[0]} · ${D.towerSec(game.inst.stage)}초 안에` : game.inst.kind === 'raid' ? `문파원과 함께 — ${D.RAID_SEC}초 동안 친 만큼` : `몹 Lv.${m.lv[0]} · ${D.DAILY_KILLS}마리 잡으면 깬다`) : m.town ? (s.autoHunt ? `쉬는 중 → ${W.mapOf(s.huntMap).name}` : '쉬는 중')
     : m.bossRoom ? (boss ? `두목 ${boss.name} Lv.${boss.lv}` : `두목 다시 나기까지 ${Math.floor(bossLeft / 60)}:${String(bossLeft % 60).padStart(2, '0')}`)
       : `몹 Lv.${m.lv[0]}~${m.lv[1]} · 두목은 두목 구역에`;
   const hpR = Math.max(0, Math.min(1, game.heroHp / st.hp));
@@ -234,7 +234,7 @@ const hud = $('contest-hud');
 const leaveBtn = h('button', { class: 'inst-leave', onclick: () => {
   if (!game.inst) return;
   openModal((el) => el.append(h('h3', {}, '던전에서 나갈까요?'),
-    h('p', { class: 'muted' }, game.inst.kind === 'daily' ? '깬 것으로 치지 않아요 — 잡은 만큼 보상의 절반만 받아요. 쓴 횟수는 돌아오지 않아요.' : '이번 층은 다시 도전할 수 있어요.'),
+    h('p', { class: 'muted' }, game.inst.kind === 'daily' ? '깬 것으로 치지 않아요 — 잡은 만큼 보상의 절반만 받아요. 쓴 횟수는 돌아오지 않아요.' : game.inst.kind === 'raid' ? '지금까지 친 피해는 올라가요. 쓴 횟수는 돌아오지 않아요.' : '이번 층은 다시 도전할 수 있어요.'),
     h('div', { class: 'btn-row' }, h('button', { class: 'btn', onclick: closeModal }, '계속하기'),
       h('button', { class: 'btn primary', onclick: () => { closeModal(); game.leaveInst(); handleEvents(); save(); refreshUI(true); } }, '나가기'))));
 } }, '나가기');
@@ -243,16 +243,29 @@ function instHud() {
   const I = game.inst;
   hud.classList.toggle('hidden', !I);
   hud.classList.toggle('tower', I?.kind === 'tower');
+  hud.classList.toggle('raid', I?.kind === 'raid');
   if (!I) return;
   const left = Math.max(0, Math.ceil(I.t));
   $('contest-title').textContent = I.map.name;
   if (I.kind === 'tower') {
     const b = game.mons.find((x) => x.isBoss && x.alive);
     $('contest-sub').textContent = I.wait > 0 ? '수문장이 나선다…' : `수문장 ${b ? Math.ceil((b.hp / b.maxHp) * 100) : 0}% · 남은 ${left}초`;
+  } else if (I.kind === 'raid') {
+    const b = I.boss;
+    $('contest-sub').textContent = I.wait > 0 ? '두목이 나선다…' : `피해 ${fmt(b ? Math.max(0, I.hpLeft - Math.max(0, b.hp)) : 0)} · 남은 체력 ${b ? ((Math.max(0, b.hp) / b.maxHp) * 100).toFixed(1) : 100}% · ${left}초`;
   } else $('contest-sub').textContent = `처치 ${I.kills} / ${I.target} · 남은 ${left}초`;
   hud.classList.toggle('hurry', left <= 10);
 }
 function showInstEnd(ev) {
+  // 문파 토벌 — 친 만큼 서버에 올리고 알린다 (나가기로 끝내도 친 건 올린다)
+  if (ev.kind === 'raid') {
+    const send = ev.dealt > 0 ? net.commitWeekRaid(ev.key, ev.dealt) : Promise.resolve(false);
+    send.then((killed) => {
+      toast(`🐲 토벌 피해 ${fmt(ev.dealt)}${ev.reward ? ` · 참여 보상 ${rewardText(ev.reward)}` : ''}${killed ? ' — 마무리 일격! 두목 처치' : ''}`);
+      app.refresh();
+    }).catch((err) => toast(`토벌 기록 실패: ${err.message || err}`));
+    return;
+  }
   const d = ev.kind === 'daily' ? D.dailyOf(ev.id) : null;
   const name = d ? `${d.name} ${ev.stage}단계` : `무한의 탑 ${ev.stage}층`;
   // 탑을 이어 오르는 중이면 알림만 (창이 계속 뜨면 방치가 끊긴다)
@@ -725,6 +738,7 @@ if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.
 }
 checkBuild();
 setInterval(checkBuild, 10 * 60 * 1000);
+setInterval(() => net.refreshDay?.(), 60 * 1000);   // 주가 바뀌면 새 토벌 문서를 본다
 
 // ---------- 시작 ----------
 if (document.fonts?.load) document.fonts.load('20px "Yuji Syuku"', '두목전직레벨객잔마을죽림').catch(() => {});

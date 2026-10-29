@@ -56,6 +56,7 @@ export function newWorldSave(now = Date.now()) {
     zTickets: {},                            // 십이지 뽑기권 — 신 번호(1~12): 장수
     zPity: {},                               // 신마다 신수 없이 뽑은 횟수 (셋째에 꼭)
     mast: {},                                // 지역 숙련도 (v127) — 지역 번호: 잡은 수
+    raid: { day: '', n: 0, dps: 0 },         // 문파 토벌 (v128): 오늘 친 횟수 · 마지막 초당 피해
     created: now,
   };
 }
@@ -117,6 +118,8 @@ export function migrateWorld(raw, now = Date.now()) {
   }
   const tw = raw.tower && typeof raw.tower === 'object' ? raw.tower : {};
   s.tower = { floor: clamp(Math.floor(Number(tw.floor) || 0), 0, D.TOWER_MAX), auto: tw.auto !== false };
+  const rd = raw.raid && typeof raw.raid === 'object' ? raw.raid : {};
+  s.raid = { day: typeof rd.day === 'string' ? rd.day : '', n: clamp(Math.floor(Number(rd.n) || 0), 0, D.RAID_PER_DAY), dps: Math.max(0, Number(rd.dps) || 0) };
   s.mast = {};
   for (const [k, v] of Object.entries(raw.mast || {})) if (W.zoneOfW(+k) && v > 0) s.mast[k] = Math.floor(Number(v) || 0);
   s.zTickets = {}; s.zPity = {};
@@ -1793,16 +1796,19 @@ export class WorldGame {
       I.wait -= dt;
       if (I.wait <= 0) {
         const b = this.spawnMob(true);
-        if (b) { b.lv = D.towerLv(I.stage); b.maxHp = b.hp = D.towerHp(I.stage); b.atk = D.towerAtk(I.stage); b.armor = W.mobDef(b.lv); if (D.isZodiacFloor(I.stage)) b.grade = 3; }
+        I.boss = b;
+        if (b && I.kind === 'raid') { b.lv = this.s.level + 5; b.maxHp = I.sharedMax; b.hp = I.hpLeft; b.atk = W.mobAtk(b.lv) * W.BOSS.atk; b.armor = 0; b.grade = 3; }
+        else if (b) { b.lv = D.towerLv(I.stage); b.maxHp = b.hp = D.towerHp(I.stage); b.atk = D.towerAtk(I.stage); b.armor = W.mobDef(b.lv); if (D.isZodiacFloor(I.stage)) b.grade = 3; }
       }
       return;
     }
     // 수문장 초식 — 바닥 경고
-    if (I.kind === 'tower') {
+    if (I.kind === 'tower' || I.kind === 'raid') {
       const b = this.mons.find((m) => m.isBoss && m.alive && !(m.introT > 0));
       if (b && !(b.stun > 0)) {
         I.castT -= dt;
-        if (I.castT <= 0) { I.castT = D.castGap(I.stage); this.bossCast(b, I.stage); }
+        // 토벌 두목은 35층 수문장만큼의 초식을 약하게 (함께 오래 치는 판이라)
+        if (I.castT <= 0) { const f = I.kind === 'raid' ? 35 : I.stage; I.castT = D.castGap(f) * (I.kind === 'raid' ? 1.3 : 1); this.bossCast(b, f, I.kind === 'raid' ? 0.6 : 1); }
       }
     }
     I.t -= dt;
@@ -1815,14 +1821,14 @@ export class WorldGame {
       I.kills++;
       this.respawns.push({ t: D.DAILY_RESPAWN });
       if (I.kills >= I.target) I.done = { ok: true };
-    } else if (I.kind === 'tower' && m.isBoss) I.done = { ok: true };
+    } else if ((I.kind === 'tower' || I.kind === 'raid') && m.isBoss) I.done = { ok: true };
   }
   // 수문장 초식: 그 층의 초식 가운데 하나를 골라 바닥에 경고를 깐다 (D.tellDelay초 뒤 터진다)
-  bossCast(b, f) {
+  bossCast(b, f, dmgMul = 1) {
     const pats = D.towerPatterns(f);
     const p = pats[Math.floor(this.rng() * pats.length)];
     const T = D.tellDelay(f);
-    const dmg = D.tellDmg(f);
+    const dmg = D.tellDmg(f) * dmgMul;
     const hx = this.heroX, hy = this.heroY;
     const ang = Math.atan2(hy - b.y, hx - b.x);
     const add = (o) => this.tells.push({ t: T, max: T, dmg, wait: 0, ...o });
@@ -1914,6 +1920,30 @@ export class WorldGame {
     this.emit('zodiacDraw', { no, kind, zodiac: kind === z.mount });
     return mt;
   }
+  // ---------- 문파 토벌 (v128) ----------
+  raidLeft(now = Date.now()) {
+    const r = this.s.raid;
+    return r.day === D.kstDay(now) ? Math.max(0, D.RAID_PER_DAY - r.n) : D.RAID_PER_DAY;
+  }
+  canRaid(hpLeft, now = Date.now()) { return !this.inst && !!this.s.job && !!this.s.guildId && this.raidLeft(now) > 0 && hpLeft > 0; }
+  // o: { key 주 이름, hpLeft 남은 체력, maxHp } — 문파 문서에서
+  startRaid(o, now = Date.now()) {
+    if (!this.canRaid(o.hpLeft, now)) return false;
+    const r = this.s.raid;
+    if (r.day !== D.kstDay(now)) { r.day = D.kstDay(now); r.n = 0; }
+    r.n++;
+    const z = W.mapOf(this.s.huntMap).mz || 1;
+    const boss = D.raidBossOf(o.key);
+    this.startInst({ kind: 'raid', key: o.key, map: D.raidMap(boss, this.s.level, z), t: D.RAID_SEC, max: D.RAID_SEC, wait: 0.8, castT: 3.5,
+      hpLeft: o.hpLeft, sharedMax: o.maxHp, z });
+    return true;
+  }
+  // 서열·토벌 체력 셈에 올리는 초당 피해 (토벌을 쳐 봤으면 그 값, 아니면 어림)
+  raidDpsEst() {
+    if (this.s.raid?.dps > 0) return this.s.raid.dps;
+    const st = this.stats();
+    return (st.atk / st.atkSec) * (1 + st.crit * (st.critDmg - 1)) * 2;
+  }
   // 그만두기 (깬 것으로 치지 않는다 — 요일 던전은 잡은 만큼 절반)
   leaveInst() {
     if (!this.inst) return null;
@@ -1933,8 +1963,16 @@ export class WorldGame {
       this.s.tower.floor = Math.max(this.s.tower.floor, I.stage);
       this._stats = null;
       reward = this.grant(D.towerReward(I.stage));
+    } else if (I.kind === 'raid') {
+      // 친 만큼 — 서버에 올리는 건 그리는 쪽(wmain → WNet)이 한다
+      I.dealt = I.boss ? Math.max(0, Math.round(I.hpLeft - Math.max(0, I.boss.hp))) : 0;
+      const spent = Math.max(1, I.max - Math.max(0, I.t));
+      if (I.dealt > 0) {
+        this.s.raid.dps = Math.round(I.dealt / spent);
+        reward = this.grant(D.raidJoinReward(this.s.level, I.z));
+      }
     }
-    const res = { kind: I.kind, id: I.id, stage: I.stage, ok, died: !!I.done?.died, timeout: !!I.done?.timeout, left: !!I.done?.left,
+    const res = { kind: I.kind, id: I.id, stage: I.stage, ok, died: !!I.done?.died, timeout: !!I.done?.timeout, left: !!I.done?.left, key: I.key, dealt: I.dealt || 0,
       kills: I.kills || 0, target: I.target || 0, reward, chain: false };
     this.inst = null;
     // 탑: 이기고 '이어 오르기'면 다음 층으로

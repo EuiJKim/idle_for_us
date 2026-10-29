@@ -481,7 +481,9 @@ function mapTab(app) {
   function updDgn() {
     const s = game.s;
     const now = Date.now();
-    const nsig = `${s.level}|${JSON.stringify(s.dgn)}|${s.tower.floor}|${s.tower.auto}|${D.kstDay(now)}|${JSON.stringify(stagePick)}|${!!game.inst}|${!!s.job}|${JSON.stringify(s.zTickets)}|${s.mounts.length}`;
+    const net = app.net;
+    const rd = net?.raid;
+    const nsig = `${s.level}|${JSON.stringify(s.dgn)}|${s.tower.floor}|${s.tower.auto}|${D.kstDay(now)}|${JSON.stringify(stagePick)}|${!!game.inst}|${!!s.job}|${JSON.stringify(s.zTickets)}|${s.mounts.length}|${net?.status}|${s.guildId}|${rd?.kind}|${rd?.total}|${rd?.maxHp}|${JSON.stringify(rd?.claimed || {})}|${JSON.stringify(s.raid)}`;
     if (nsig === dsig) return;
     dsig = nsig;
     const wd = D.kstWeekday(now);
@@ -560,10 +562,47 @@ function mapTab(app) {
           onclick: () => { const mt = game.drawZodiac(z.no); if (!mt) return; app.save(); dsig = ''; app.refresh(); },
         }, creatureIcon(z.mount, 40), h('b', {}, `${z.ji} ${z.animal}`), h('small', {}, n ? `뽑기 ${n}` : own ? '신수 ✓' : `${z.no * 10}층`));
       })));
+    // 문파 토벌 (v128)
+    const raidCard = h('div', { class: 'card dgn-card dgn-raid' });
+    {
+      const key = D.weekKey(now);
+      const boss = D.raidBossOf(key);
+      const top = h('div', { class: 'dgn-top' }, h('div', { class: 'dgn-ico' }, '討'),
+        h('div', { class: 'dgn-name' }, h('b', {}, '문파 토벌'), h('small', {}, ` 이번 주 · ${boss.title}`),
+          h('div', { class: 'muted' }, `문파원이 한 주 동안 함께 쳐서 잡는 두목 — 하루 ${D.RAID_PER_DAY}번, 한 번에 ${D.RAID_SEC}초`)));
+      const rows = [top];
+      if (!net?.ready?.() || !s.guildId || !net.guild) {
+        rows.push(h('p', { class: 'muted dgn-desc' }, !net?.ready?.() ? '온라인일 때 칠 수 있어요.' : '무림 → 문파에 들어가면 문파원과 함께 칠 수 있어요.'));
+      } else if (!rd || rd.kind !== 'world') {
+        rows.push(h('div', { class: 'btn-row' }, h('button', { class: 'btn primary', onclick: async (e) => {
+          e.target.disabled = true;
+          try { await net.ensureWeekRaid(); } catch (err) { toast(`토벌을 못 열었어요: ${err.message || err}`); }
+          dsig = ''; updDgn();
+        } }, '이번 주 토벌 열기')));
+      } else {
+        const left = Math.max(0, rd.maxHp - rd.total);
+        const mine = rd.damage?.[net.uid] || 0;
+        const rank = Object.entries(rd.damage || {}).sort((a, b) => b[1] - a[1]);
+        rows.push(
+          h('div', { class: 'raid-hp' }, h('i', { style: `width:${(left / rd.maxHp) * 100}%` }), h('span', {}, left > 0 ? `${fmt(left)} / ${fmt(rd.maxHp)}` : '처치!')),
+          h('div', { class: 'raid-rank' }, ...rank.slice(0, 5).map(([uid, d], i) => h('div', { class: uid === net.uid ? 'me' : '' },
+            h('b', {}, `${i + 1}`), ` ${rd.names?.[uid] || '?'}`, h('small', {}, ` ${fmt(d)}`)))),
+          h('p', { class: 'muted dgn-desc' }, `내 피해 ${fmt(mine)} · 오늘 ${game.raidLeft(now)}/${D.RAID_PER_DAY}번 남음 · 칠 때마다 참여 보상, 잡히면 친 사람 모두 큰 보상`),
+          h('div', { class: 'btn-row' },
+            h('button', { class: 'btn primary', disabled: game.canRaid(left, now) ? null : true, onclick: () => start(() => game.startRaid({ key: rd.id, hpLeft: left, maxHp: rd.maxHp }, now)) }, `도전 (${D.RAID_SEC}초)`),
+            net.canClaimWeek() ? h('button', { class: 'btn', onclick: async (e) => {
+              e.target.disabled = true;
+              try { const r = await net.claimWeek(); if (r) { toast(`토벌 보상 — ${rewardText(r)}`); app.save(); app.refresh(); } } catch (err) { toast(`받지 못했어요: ${err.message || err}`); }
+              dsig = ''; updDgn();
+            } }, '처치 보상 받기') : null));
+      }
+      raidCard.append(...rows);
+    }
     dgnBox.replaceChildren(...[
       !s.job ? h('p', { class: 'muted' }, '캐릭터를 먼저 고르세요.') : null,
       game.inst ? h('p', { class: 'muted' }, '지금 던전 안이에요 — 끝나면 다시 고를 수 있어요.') : null,
-      head, ...cards, h('h3', { class: 'king-head' }, '무한의 탑', h('small', {}, '오를수록 영구히 강해진다')), tower, zodiacCard].filter(Boolean));
+      head, ...cards, h('h3', { class: 'king-head' }, '무한의 탑', h('small', {}, '오를수록 영구히 강해진다')), tower, zodiacCard,
+      h('h3', { class: 'king-head' }, '문파 토벌', h('small', {}, '한 주에 두목 하나, 함께')), raidCard].filter(Boolean));
   }
   pick(seg);
   return { root, update: upd, select: pick };

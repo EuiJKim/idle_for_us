@@ -5,7 +5,7 @@
 //   깬 단계는 '소탕'으로 바로 보상을 받는다(들어가지 않고 한 번 쓴다) — 방치형이라 매일 누르기만 해도 된다.
 //   못 깨도 잡은 만큼 절반은 준다.
 // 무한의 탑: 층마다 수문장 하나, 30초. 이기면 다음 층(자동으로 이어 오른다), 오른 층마다 공격력·체력이 영구히 오른다.
-import { ZONES_W, ZONE_COUNT, MAPS, mapId, BOSS, mobHp, mobAtk, mobGold, expToNext } from './wdata.js';
+import { ZONES_W, ZONE_COUNT, MAPS, mapId, BOSS, KINGS, mobHp, mobAtk, mobGold, expToNext } from './wdata.js';
 
 // 한국 시간 하루 — 'YYYY-MM-DD'와 요일(0 일요일)
 export const kstDay = (now = Date.now()) => new Date(now + 9 * 3600e3).toISOString().slice(0, 10);
@@ -165,4 +165,31 @@ export function tellCovers(tl, x, y) {
     return Math.hypot(x - (tl.x0 + dx * k), y - (tl.y0 + dy * k)) <= tl.w / 2;
   }
   return false;
+}
+
+// ---------- 문파 토벌 (v128) ----------
+// 한 주(한국 시간 월요일부터)에 두목 하나를 문파원이 함께 친다. 체력은 문파 문서(guilds/{id}/raids/wk-…)에 하나.
+// 한 사람 하루 두 번, 한 번에 40초. 친 만큼 서버의 체력이 깎인다. 칠 때마다 참여 보상, 잡히면 친 사람 모두 큰 보상.
+// 두목 체력 = 문파원 저마다의 40초 딜 × 하루 두 번 × 이레 × 절반 — 다들 절반쯤만 나와도 주 안에 잡힌다.
+export const RAID_SEC = 40;
+export const RAID_PER_DAY = 2;
+export const RAID_HP_SHARE = 0.5;
+export function weekKey(now = Date.now()) {
+  const d = new Date(now + 9 * 3600e3);
+  const back = (d.getUTCDay() + 6) % 7;          // 월요일까지 며칠 뒤로
+  return `wk-${new Date(d.getTime() - back * 86400e3).toISOString().slice(0, 10)}`;
+}
+// 주마다 십이지왕 하나가 돌아가며 (거대한 모습)
+export function raidBossOf(key) {
+  const n = Math.floor(Date.parse(key.slice(3)) / (7 * 86400e3));
+  const k = KINGS[((n % KINGS.length) + KINGS.length) % KINGS.length];
+  return { no: k.no, name: `토벌 · ${k.title}${k.real ? ` ${k.real}` : ''}`, title: k.title, look: { ...k.look, scale: 2.2 } };
+}
+export const raidMaxHp = (dpsSum) => Math.max(5000, Math.round(dpsSum * RAID_SEC * RAID_PER_DAY * 7 * RAID_HP_SHARE));
+// 보상 — lv: 무인 레벨, z: 재료 지역(사냥하던 곳)
+export const raidJoinReward = (lv, z) => ({ gold: Math.round(mobGold(lv) * 200), mats: { [z]: 40 } });
+export const raidKillReward = (lv, z) => ({ gold: Math.round(mobGold(lv) * 2000), mats: { [z]: 250, [`b${z}`]: 6 } });
+export function raidMap(boss, lv, z) {
+  return { id: -3, inst: true, name: boss.name, zoneName: '문파 토벌', zone: z, mz: z, area: 0, art: ZONES_W[z]?.art || 1,
+    lv: [lv, lv], mobs: [], boss: { name: boss.name, look: boss.look }, scene: 'raid', bossFirst: true };
 }
