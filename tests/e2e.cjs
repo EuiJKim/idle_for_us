@@ -109,10 +109,10 @@ async function tab(page, name) {
   await p.click('#panel .subtabs button[data-key="smith"]');
   await p.click('#panel .chip-row button:has-text("무기")');
   await p.waitForSelector('#panel .craft-row.ready');
-  // 재료만 있으면 상급도 바로 (아래 장비 없이 — 재료 1.5배)
-  await p.locator('#panel .craft-row.ready button:has-text("조합")').first().click();
+  // 재료만 있으면 바로 (아래 장비 없이 — 재료 1.5배). v143부터 단추는 고른 등급 이름이다
+  await p.locator('#panel .craft-row.ready button.buy').first().click();
   await sleep(200);
-  assert(await G(p, () => window.__game.s.equip.weapon?.step === 1), '아래 장비 없이 상급 무기를 바로 조합해 낀다');
+  assert(await G(p, () => window.__game.s.equip.weapon?.step != null), '아래 장비 없이 무기를 바로 조합해 낀다');
   await shot(p, '04a-smith.png');
   await p.click('#panel .subtabs button[data-key="gear"]');
 
