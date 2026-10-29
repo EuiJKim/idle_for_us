@@ -73,14 +73,14 @@ export const TIERS = [
 // 덧: hits(몇 번) · bossMult · sure(반드시 치명) · stun(초) · vuln{sec,v}(받는 피해 +v) · dot{sec,mult}(독·출혈 — 맞은 피해의 mult배를 sec초에)
 //     buff{sec, speed, dmgRed, cleave}(무인에게) · lifesteal(준 피해의 몫) · far(거리 제한 없음)
 // 4번째(slot 3)는 보조기(v120) — 차수와 상관없이 레벨 25에 배운다. auto: fight(싸울 때) · hurt(다쳤을 때) · poisoned(중독된 적이 많을 때)
-const SK = (slot, tier, role, name, kind, o) => ({ slot, tier, role, name, kind, autoAbove: [0, 0.6, 0.75, 0][slot], ...o });
+const SK = (slot, tier, role, name, kind, o) => ({ slot, tier, role, name, kind, autoAbove: [0, 0.6, 0.6, 0][slot], ...o });
 export const JOB_SKILLS = {
   sword: [
     SK(0, 1, 'frost', '일화참', 'single', { mult: 3.5, cd: 4.5, hpCost: 0, bossMult: 1.25, far: true,
       desc: '가장 빠른 걸음으로 한 적을 벤다 · 두목에겐 1.25배' }),
     SK(1, 2, 'slash', '낙화유수', 'aoe', { mult: 1.6, hits: 2, cd: 5, hpCost: 0.08, radius: 240,
       desc: '꽃잎 지듯 둘레를 두 번 벤다' }),
-    SK(2, 3, 'thunder', '만화귀일', 'aoe', { mult: 5.0, cd: 15, hpCost: 0.18, radius: 300, buff: { sec: 8, speed: 0.4 },
+    SK(2, 3, 'thunder', '만화귀일', 'aoe', { mult: 5.0, cd: 9, hpCost: 0.18, radius: 300, buff: { sec: 8, speed: 0.4 },
       desc: '만 송이 검화가 하나로 — 넓게 벤 뒤 8초간 공격 속도 +40%(마검 각성)' }),
     SK(3, 0, 'sup', '유운보', 'support', { cd: 24, hpCost: 0, from: 25, auto: 'fight', buff: { sec: 8, move: 0.6, speed: 0.25, dodge: 0.2 },
       desc: '흐르는 구름 같은 걸음 — 8초간 이동 속도 +60% · 공격 속도 +25% · 공격을 20% 흘린다' }),
@@ -92,7 +92,7 @@ export const JOB_SKILLS = {
       desc: '산을 무너뜨리는 한 주먹 · 2초 기절' }),
     SK(1, 2, 'slash', '투신난무', 'aoe', { mult: 1.2, hits: 4, cd: 5, hpCost: 0.08, radius: 230,
       desc: '권갑 투신으로 둘레를 네 번 두들긴다' }),
-    SK(2, 3, 'thunder', '불패금신', 'aoe', { mult: 4.2, cd: 18, hpCost: 0, radius: 260, buff: { sec: 10, dmgRed: 0.5, cleave: 0.6 },
+    SK(2, 3, 'thunder', '불패금신', 'aoe', { mult: 4.2, cd: 11, hpCost: 0, radius: 260, buff: { sec: 10, dmgRed: 0.5, cleave: 0.6 },
       desc: '금빛 몸 — 충격파를 낸 뒤 10초간 받는 피해 -50% · 평타가 둘레를 친다(60%) · 체력을 쓰지 않는다' }),
     SK(3, 0, 'sup', '금종조', 'support', { cd: 28, hpCost: 0, from: 25, auto: 'hurt', hurtAt: 0.7, shield: 0.3, buff: { sec: 12 },
       desc: '금종을 뒤집어쓴 듯 — 최대 체력 30%만큼 막아 주는 보호막(12초)' }),
@@ -104,7 +104,7 @@ export const JOB_SKILLS = {
       desc: '피의 재앙을 짚는 손가락 · 반드시 치명 · 5초 출혈' }),
     SK(1, 2, 'slash', '마극광폭장', 'aoe', { mult: 2.9, cd: 6, hpCost: 0.12, radius: 250, stun: 1.2,
       desc: '광폭한 장력이 둘레를 휩쓴다 · 맞은 적이 공포에 1.2초 굳는다' }),
-    SK(2, 3, 'thunder', '소향비술', 'daggers', { mult: 0.85, n: 12, targets: 8, cd: 14, hpCost: 0.20, radius: 340, crit: 0.2,
+    SK(2, 3, 'thunder', '소향비술', 'daggers', { mult: 0.85, n: 12, targets: 8, cd: 9, hpCost: 0.20, radius: 340, crit: 0.2,
       desc: '비수 열두 자루가 가까운 적 여덟에게 날아든다(치명 +20%p) · 세 무공을 6초 안에 이으면 삼공조화(8초간 피해 +25%)' }),
     SK(3, 0, 'sup', '무면개방', 'support', { cd: 26, hpCost: 0, from: 25, auto: 'fight', buff: { sec: 10, fear: 0.35, critDmg: 0.3 },
       desc: '가면을 벗는다 — 10초간 붙은 적의 공포 +35%p · 치명 피해 +30%' }),
@@ -116,7 +116,7 @@ export const JOB_SKILLS = {
       desc: '일곱 걸음 안에 혼이 끊기는 독침 · 6초 맹독' }),
     SK(1, 2, 'slash', '화골산', 'field', { mult: 0.8, cd: 8, hpCost: 0.10, radius: 200, field: { sec: 6, tick: 0.5, mult: 0.26 },
       desc: '뼈를 녹이는 독무를 깐다 — 6초 동안 0.5초마다' }),
-    SK(2, 3, 'thunder', '만독천라', 'aoe', { mult: 3.0, cd: 16, hpCost: 0.20, radius: 340, dot: { sec: 8, mult: 1.0 },
+    SK(2, 3, 'thunder', '만독천라', 'aoe', { mult: 3.0, cd: 10, hpCost: 0.20, radius: 340, dot: { sec: 8, mult: 1.0 },
       desc: '만 가지 독이 하늘 그물처럼 — 넓게 맞히고 8초 맹독' }),
     SK(3, 0, 'sup', '만독귀원', 'support', { cd: 22, hpCost: 0, from: 25, auto: 'poisoned', radius: 320, burst: 1, healMax: 0.12,
       desc: '흩어진 독을 한데 거둔다 — 둘레 적에게 쌓인 독을 한꺼번에 터뜨리고 최대 체력의 12% 회복' }),
@@ -128,7 +128,7 @@ export const JOB_SKILLS = {
       desc: '혼을 거두는 눈빛 · 2.5초 멎고 6초간 받는 피해 +30%' }),
     SK(1, 2, 'slash', '혈루미혼', 'aoe', { mult: 2.3, cd: 8, hpCost: 0.10, radius: 200, stun: 2,
       desc: '핏빛 눈물이 혼을 홀린다 · 둘레가 2초 멎는다' }),
-    SK(2, 3, 'thunder', '천외혈마공', 'aoe', { mult: 5.6, cd: 15, hpCost: 0.15, radius: 300, lifesteal: 0.05, vuln: { sec: 6, v: 0.2 },
+    SK(2, 3, 'thunder', '천외혈마공', 'aoe', { mult: 5.6, cd: 9, hpCost: 0.15, radius: 300, lifesteal: 0.05, vuln: { sec: 6, v: 0.2 },
       desc: '하늘 밖의 혈마공 · 준 피해의 5%를 빨아들이고 6초간 받는 피해 +20%' }),
     SK(3, 0, 'sup', '시공이환술', 'support', { cd: 30, hpCost: 0, from: 25, auto: 'hurt', hurtAt: 0.5, heal: 0.4, buff: { sec: 4, dmgRed: 0.6 },
       desc: '때와 자리를 바꿔 다친 몸을 되돌린다 — 잃은 체력의 40% 회복 · 4초간 받는 피해 -60%' }),

@@ -606,6 +606,25 @@ console.log('\n=== 4차 무공 넷 (v123) ===');
   ok(r.useSkill('s4') && ['s0', 's1', 's2'].every((k) => r.events.some((e) => e.type === 'dmg' && e.kind === k)) && r.buffv.might > 0 && r.cd.s0 === 0, '극악소마 삼공합일: 세 무공을 한꺼번에(숨은 안 쓴다) + 삼공조화');
 }
 
+console.log('\n=== 두목 우선 · 조이스틱 (v125) ===');
+{
+  const g = fresh();
+  g.s.level = 12; g.enterMap(W.mapId(1, 4));
+  for (let i = 0; i < 400 && !g.mons.some((m) => m.isBoss && m.alive && !(m.introT > 0)); i++) { g.tick(0.05); g.events.length = 0; }
+  g.freezeT = 0;
+  const boss = g.mons.find((m) => m.isBoss && m.alive);
+  g.mon = g.mons.find((m) => m.alive && !m.isBoss);
+  g.tick(0.05);
+  ok(boss && g.mon === boss, '두목 구역에서는 졸개를 치던 중에도 두목에게 간다');
+  const j = fresh(); j.enterMap(11);
+  for (const m of j.mons) m.atk = 0;
+  const c0 = j.hc;
+  j.joy = { dx: c0 > 4 ? -50 : 50, dy: 0 };
+  for (let i = 0; i < 40; i++) { j.tick(0.05); j.events.length = 0; }
+  ok(j.hc !== c0 && Math.abs(j.hc - c0) >= 2, '조이스틱을 누르고 있으면 그쪽으로 걷는다', `${c0}→${j.hc}`);
+  j.joy = null;
+}
+
 console.log('\n=== 전직·스킬 ===');
 {
   const g = fresh();

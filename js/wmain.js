@@ -378,14 +378,19 @@ $('advice').addEventListener('click', () => showTab('char'));
 $('stagebar').addEventListener('click', () => showTab('map'));
 
 // ---------- 들판을 눌러 움직이기 ----------
-$('cv').addEventListener('pointerdown', (e) => {
-  if (modalOpen()) return;
+// 톡 누르면 그 칸으로 · 누른 채 끌면 그 자리에 조이스틱이 나와 끄는 쪽으로 계속 걷는다(v125).
+// 손을 떼면 0.8초 뒤 자동 사냥으로 돌아간다. 마을에서는 사람을 누르면 그 창.
+const joyEl = h('div', { id: 'joy', class: 'hidden' }, h('div', { class: 'joy-knob' }));
+$('battle').append(joyEl);
+let press = null;   // { id, x, y, t, drag }
+function fieldPoint(e) {
   const r = $('cv').getBoundingClientRect();
-  const px = e.clientX - r.left;
-  const py = e.clientY - r.top;
   const z = view.zoom || 1;    // 카메라를 물렸으면 화면 1px가 들판 1/z
-  const wx = game.heroX + (px / z - view.heroX);
-  const wy = game.heroY + (py / z - view.groundY) / view.squash;
+  const px = e.clientX - r.left, py = e.clientY - r.top;
+  return { px, py, wx: game.heroX + (px / z - view.heroX), wy: game.heroY + (py / z - view.groundY) / view.squash };
+}
+function tapAt(e) {
+  const { wx, wy } = fieldPoint(e);
   if (game.map.town) {
     // 대장장이를 누르면 가방(조합), 다른 사람이면 마을 창
     let near = null;
@@ -395,7 +400,38 @@ $('cv').addEventListener('pointerdown', (e) => {
   }
   game.moveTo(wx, wy);
   view.effects.push({ kind: 'shock', life: 0.35, max: 0.35, wx, wy, r: 22, col: '253,224,71', rings: 1, w: 3 });
+}
+$('cv').addEventListener('pointerdown', (e) => {
+  if (modalOpen() || !e.isPrimary) return;
+  press = { id: e.pointerId, x: e.clientX, y: e.clientY, drag: false };
+  try { $('cv').setPointerCapture(e.pointerId); } catch { /* 무시 */ }
 });
+$('cv').addEventListener('pointermove', (e) => {
+  if (!press || e.pointerId !== press.id || game.map.town) return;
+  const dx = e.clientX - press.x, dy = e.clientY - press.y;
+  const d = Math.hypot(dx, dy);
+  if (!press.drag && d < 14) return;
+  if (!press.drag) {
+    press.drag = true;
+    const br = $('battle').getBoundingClientRect();
+    joyEl.style.left = `${press.x - br.left}px`;
+    joyEl.style.top = `${press.y - br.top}px`;
+    joyEl.classList.remove('hidden');
+  }
+  const R = 42;
+  const k = Math.min(1, R / Math.max(1, d));
+  joyEl.firstChild.style.transform = `translate(${dx * k}px, ${dy * k}px)`;
+  game.joy = d > 14 ? { dx, dy } : null;
+});
+function endPress(e) {
+  if (!press || e.pointerId !== press.id) return;
+  if (!press.drag && e.type === 'pointerup') tapAt(e);
+  game.joy = null;
+  joyEl.classList.add('hidden');
+  press = null;
+}
+$('cv').addEventListener('pointerup', endPress);
+$('cv').addEventListener('pointercancel', endPress);
 
 // ---------- 처음 시작 ----------
 function askNickname(first = false) {
@@ -546,7 +582,11 @@ let uiTimer = 0;
 let saveTimer = 0;
 let loopErr = 0;
 function frame(now) {
-  try { step(now); } catch (e) { if (loopErr++ < 5) console.error('[프레임]', e); }
+  try { step(now); } catch (e) {
+    if (loopErr++ < 5) console.error('[프레임]', e);
+    // 그리다 멈추면 캔버스 상태(변환·투명도·합성)가 어긋난 채로 남아 다음 프레임부터 화면이 깨진다 — 되돌린다
+    try { view.ctx.reset?.(); view.ctx.globalAlpha = 1; view.ctx.globalCompositeOperation = 'source-over'; view.ctx.shadowBlur = 0; view.applyZoom(); } catch { /* 무시 */ }
+  }
   requestAnimationFrame(frame);
 }
 function step(now) {
@@ -609,8 +649,14 @@ if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.
       w?.addEventListener('statechange', () => { if (w.state === 'installed' && navigator.serviceWorker.controller) showUpdate(null); });
     });
   }).catch((err) => console.warn('sw', err));
+  // 새 판이 자리를 잡으면 — 켜자마자(5초 안·창 없음)면 저장하고 바로 새로 고치고, 놀던 중이면 묻는다.
+  // (v125: 전엔 언제든 바로 새로 고쳐서, 하던 중에 화면이 툭 끊기고 방치 보상 창이 떠 있으면 보상이 날아갔다)
   let swReloaded = false;
-  navigator.serviceWorker.addEventListener('controllerchange', () => { if (swReloaded) return; swReloaded = true; location.reload(); });
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (swReloaded) return;
+    swReloaded = true;
+    if (performance.now() < 5000 && !modalOpen()) { save(); stopSaving = true; location.reload(); } else showUpdate(null);
+  });
 }
 checkBuild();
 setInterval(checkBuild, 10 * 60 * 1000);

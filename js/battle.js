@@ -398,7 +398,8 @@ export class BattleView {
       case 'attack': {
         // 멀리서 쏘는 캐릭터 — 무기마다 날아가는 게 다르다. 맞은 숫자는 닿을 때 뜬다.
         const cls = game.s.job;
-        const shot = !ev.close && game.ranged?.() ? SHOT[cls] : null;
+        // v125: 환마·독마는 붙어 있어도 제 무기로(부채 바람·독 던지기) — 전엔 붙으면 칼처럼 베었다
+        const shot = (cls === 'fan' || cls === 'poison' || (!ev.close && game.ranged?.())) ? SHOT[cls] : null;
         if (shot) {
           const face = (this.faceOverride || game.heroFacing) < 0 ? -1 : 1;
           this.projectiles.push({ kind: shot.kind, x: this.heroX + 22 * face, y: this.groundY - 64,
@@ -406,14 +407,20 @@ export class BattleView {
           this.shotDelay = shot.life;
           if (!this.director) this.heroAnim.play([[0.05, shot.pose[0], 'out'], [0.12, shot.pose[1], 'snap']], 0.18);
         } else if (ev.close && cls === 'ring') {
-          // 붙었을 때 — 혈을 짚는 짧은 보랏빛
+          // 붙었을 때 — 손가락으로 혈을 짚는다: 짧게 찌르는 보랏빛 지력 + 짚은 자리에 물결
           this.heroLunge = 1;
+          if (!this.director) this.heroAnim.play([[0.04, '지법겨눔', 'out'], [0.1, '손가락튕김', 'snap']], 0.16);
+          const t = game.mon;
+          if (t && this.fxLevel > 0) {
+            this.effects.push({ kind: 'lance', life: 0.14, max: 0.14, wx: game.heroX, wy: game.heroY, a: Math.atan2((t.y - game.heroY) * this.squash, t.x - game.heroX), len: Math.hypot(t.x - game.heroX, (t.y - game.heroY) * this.squash), w: 3, col: '216,180,254', oy: -62 });
+            this.effects.push({ kind: 'shock', life: 0.3, max: 0.3, wx: t.x, wy: t.y, r: 34, col: '192,132,252', rings: 2, w: 3 });
+          }
           this.sparks.push({ x: this.monX, y: this.monY - 64, life: 0.2, max: 0.2, r: 26, color: '#c084fc' });
-          if (!this.director) this.heroAnim.play([[0.04, '지법겨눔', 'snap']], 0.15);
         } else {
           this.heroLunge = 1;
           this.meleeSwing(game, cls);
-          if (Math.random() < 0.35) this.projectiles.push({ kind: 'qi', x: this.heroX + 30, y: this.groundY - 60, life: 0.22, max: 0.22 });
+          // 검기는 검사만 — 권마의 주먹에서 초승달 검기가 날아가면 이상하다
+          if (cls === 'sword' && Math.random() < 0.35) this.projectiles.push({ kind: 'qi', x: this.heroX + 30, y: this.groundY - 60, life: 0.22, max: 0.22 });
         }
         break;
       }
@@ -482,9 +489,10 @@ export class BattleView {
         const ky = ev.at ? this.sy(ev.at) : this.monY;
         if (!ev.add) this.monDeath = 1;
         // 정예·두목·왕을 쓰러뜨리면 그 빛깔로 터진다 (v116)
-        if (ev.at?.grade > 0 && this.fxLevel > 0) {
-          const g = ev.at.grade;
-          const c = this.mobCol({ ...ev.at, hp: ev.at.maxHp }).replace('#', '');
+        const kref = ev.ref || ev.at;   // 붙든 쓰러짐은 ref가 그 몹
+        if (kref?.grade > 0 && this.fxLevel > 0) {
+          const g = kref.grade;
+          const c = this.mobCol({ ...kref, hp: kref.maxHp }).replace('#', '');
           const rgb = [0, 2, 4].map((i) => parseInt(c.slice(i, i + 2), 16)).join(',');
           this.effects.push({ kind: 'shock', life: 0.5 + g * 0.15, max: 0.5 + g * 0.15, wx: ev.at.x, wy: ev.at.y, r: g === 1 ? 60 : 130 + g * 30, col: rgb, rings: g, w: 3 + g });
           if (g >= 2) { this.shake = Math.max(this.shake, 0.25 + g * 0.1); this.flash = Math.max(this.flash, 0.25 * g); }
@@ -493,7 +501,9 @@ export class BattleView {
         // 광역기로 수십을 베어도 '벤' 느낌이 없었다. 너무 많으면 앞의 것부터 지운다.
         if (ev.add && ev.at && this.fxLevel > 0) {
           const a = ev.at;
-          this.corpses.push({ x: a.x, y: a.y, def: a.def || {}, t0: this.t, face: a.x >= (game.heroX || 0), seed: Math.random() });
+          // 무공 연출이 붙든 쓰러짐은 at이 자리({x,y})만 남는다 — 생김새는 ref(그 몹)에서 (v125: 원숭이가 사람으로 쓰러졌다)
+          const def = ev.ref?.def || a.def || {};
+          this.corpses.push({ x: a.x, y: a.y, def, t0: this.t, face: a.x >= (game.heroX || 0), seed: Math.random(), grade: ev.ref?.grade ?? a.grade });
           if (this.corpses.length > 28) this.corpses.splice(0, this.corpses.length - 28);
         }
         // 졸개는 넘어지는 그림이 따로 있으니 먹물은 조금만 — 광역기로 열다섯을 베면 240방울이 튀어
@@ -935,6 +945,12 @@ export class BattleView {
     }
     if (this.fxLevel <= 0) return;
     const face = (this.faceOverride || game.heroFacing) < 0 ? -1 : 1;
+    // 권마 — 베는 궤적 대신 주먹이 닿는 자리에 터지는 충격 (정권·훅·올려치기마다 방향이 다르다)
+    if (cls === 'fist') {
+      const t = game.mon;
+      if (t) this.effects.push({ kind: 'punch', life: 0.2, max: 0.2, wx: t.x, wy: t.y, face, tilt, big: this.comboIx === 2 });
+      return;
+    }
     this.effects.push({ kind: 'swing', life: 0.16, max: 0.16, face, tilt, dir, cls,
       ang: game.heroAngle || 0, col: CUT_COL[cls] || (cls === 'fist' ? '253,186,116' : '255,255,255') });
   }
@@ -2188,6 +2204,24 @@ export class BattleView {
           ctx.fillStyle = `rgba(254,243,199,${k * 0.5})`;
           ctx.beginPath(); ctx.arc(0, 0, w * 0.22, 0, Math.PI * 2); ctx.fill();
         }
+        ctx.restore();
+      } else if (e.kind === 'punch') {
+        // 주먹 충격 — 닿은 자리에 별처럼 터지는 빛 + 주먹이 지나온 쪽으로 짧은 속도선
+        const p = 1 - k;
+        const x = this.sx({ x: e.wx }) - e.face * 14, y = this.sy({ y: e.wy }) - 58;
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.globalCompositeOperation = 'lighter';
+        const R = (e.big ? 30 : 20) * (0.5 + p);
+        ctx.fillStyle = `rgba(253,224,71,${0.9 * k})`;
+        ctx.beginPath();
+        for (let i = 0; i < 16; i++) { const a = (i * Math.PI) / 8 + e.tilt; const r = i % 2 ? R * 0.35 : R; ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r); }
+        ctx.closePath(); ctx.fill();
+        ctx.fillStyle = `rgba(255,255,255,${k})`;
+        ctx.beginPath(); ctx.arc(0, 0, R * 0.3, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = `rgba(253,186,116,${0.8 * k})`;
+        ctx.lineWidth = 2.5;
+        for (let i = -1; i <= 1; i++) { ctx.beginPath(); ctx.moveTo(-e.face * (R + 6), i * 7 + e.tilt * 8); ctx.lineTo(-e.face * (R + 26 + p * 10), i * 7 + e.tilt * 8); ctx.stroke(); }
         ctx.restore();
       } else if (e.kind === 'swing') {
         // 평타 궤적 — 무인 앞에 반달 모양으로 한 번 그어지고 사라진다.

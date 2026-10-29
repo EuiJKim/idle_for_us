@@ -135,6 +135,7 @@ export class WorldGame {
     this.respawns = [];
     this.manual = null;            // 손으로 찍은 갈 곳
     this.manualHold = 0;
+    this.joy = null;               // 떠다니는 조이스틱 방향 {dx, dy} (v125) — 누르고 있는 동안만
     this.walking = false;
     this.heroFacing = 1;
     this.heroAngle = 0;
@@ -591,6 +592,18 @@ export class WorldGame {
       if (this.slide(this, 'heroX', 'heroY', this.hmove, W.HERO_SPEED * (st.moveSpeed || 1) * (1 + (this.buffv.move || 0)), dt)) { this.hc = this.hmove.c; this.hr = this.hmove.r; this.hmove = null; }
       else return;
     }
+    // 조이스틱 — 누르고 있는 동안 그 방향으로 한 칸씩 (막히면 다른 축으로). 그동안은 치지 않는다.
+    if (this.joy) {
+      this.manual = null;
+      const { dx, dy } = this.joy;
+      const sx = Math.sign(dx), sy = Math.sign(dy);
+      const tries = Math.abs(dx) >= Math.abs(dy) ? [[sx, 0], [0, sy]] : [[0, sy], [sx, 0]];
+      let moved = false;
+      for (const [a, b] of tries) { if ((a || b) && this.stepTo({ c: this.hc + a, r: this.hr + b })) { moved = true; break; } }
+      if (!moved) this.walking = false;
+      this.manualHold = 0.8;
+      return;
+    }
     // 손으로 찍은 칸이 있으면 거기로 먼저 간다
     if (this.manual) {
       if (this.hc === this.manual.c && this.hr === this.manual.r) { this.manual = null; this.manualHold = 1.2; } else {
@@ -601,6 +614,11 @@ export class WorldGame {
     if (this.manualHold > 0) { this.manualHold -= dt; this.walking = false; return; }
     // 과녁: 나를 치고 있는 몹 → 가장 가까운 몹. 자동 사냥이 꺼져 있으면 붙어 있는 것만 친다.
     if (!this.mon?.alive) this.mon = this.pickTarget(st);
+    // 두목 구역: 졸개를 치던 중에도 두목이 나서면 바로 두목에게 (손으로 찍어 움직이는 중은 빼고)
+    else if (this.map.bossRoom && !this.mon.isBoss && !this.manual) {
+      const b = this.pickTarget(st);
+      if (b?.isBoss) this.mon = b;
+    }
     const m = this.mon;
     if (!m) { this.walking = false; return; }
     const mt = this.mobTile(m);
@@ -645,6 +663,11 @@ export class WorldGame {
   }
 
   pickTarget(st) {
+    // 두목 구역에서는 두목부터 (v125) — 등장 연출 중이거나 길이 막혀 포기한 동안만 졸개를 친다
+    if (this.map.bossRoom) {
+      const b = this.mons.find((m) => m.alive && m.isBoss && !(m.introT > 0) && !(m.unreachUntil > this.clock));
+      if (b) return b;
+    }
     let best = null;
     let bd = Infinity;
     const h = { c: this.hc, r: this.hr };
