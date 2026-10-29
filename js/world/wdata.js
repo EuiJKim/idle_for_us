@@ -392,34 +392,59 @@ export const matColor = (key) => (isStoneKey(key) ? '#f0abfc' : String(key)[0] =
 export const MAT_RATE = 0.5;          // 몹 하나가 재료 하나를 떨굴 확률
 export const BOSS_MATS = 12;          // 두목은 재료 한 움큼 + 증표 하나
 // v130: 사다리는 보통 지역 15곳에서 끝난다(장비 레벨 99까지). 십이지왕부터는 세트·왕의 장신구(wgear.js).
-export const TIER_COUNT = NORMAL_ZONES; // 사다리 지역 수(×하급·상급)
-export const ILV_CAP = 99;
-const CRAFT_MATS = { weapon: 40, armor: 30, hat: 24, glove: 24, shoe: 24, acc: 30 };   // 지역이 일곱 레벨이라 한 지역에 오래 안 머문다
-const CRAFT_BOSS = { weapon: 4, armor: 3, hat: 3, glove: 3, shoe: 3, acc: 3 };
-// step: 0..53 — 지역 k = floor(step/2)+1, 홀수면 상급
-export const stepMap = (step) => Math.floor(step / 2) + 1;
-export const stepUpper = (step) => step % 2 === 1;
+// ---------- 사다리 (v143) ----------
+// **레벨 5마다 한 칸, 100까지 스무 칸.** 전에는 지역마다 하급·상급 둘이라
+// 서른 칸이었고 레벨이 7·11·14·17·20·24…로 들쭉날쭉했다. 지금 뭘 만들 수
+// 있는지 셈이 안 되고, 한 칸 오르는 데 레벨 서넛이라 만들자마자 또 만들었다.
+export const STEP_LV = 5;
+export const STEP_COUNT = 20;                    // 레벨 5 … 100
+export const ILV_CAP = STEP_LV * STEP_COUNT;     // 100
+export const stepLevel = (step) => (step + 1) * STEP_LV;
+export const stepOfLevel = (lv) => Math.max(0, Math.min(STEP_COUNT - 1, Math.ceil(lv / STEP_LV) - 1));
+// 그 칸의 재료는 어느 지역에서 나오나 — 그 레벨이 사는 지역
+export function stepMap(step) {
+  const lv = stepLevel(step);
+  let best = 1;
+  for (let z = 1; z <= NORMAL_ZONES; z++) if (ZONES_W[z] && ZONES_W[z].lv[0] <= lv) best = z;
+  return best;
+}
+// 하급·상급은 없앴다. 옛 세이브와 옛 코드가 부르는 자리가 있어 거짓만 돌려준다.
+export const stepUpper = () => false;
+export const TIER_COUNT = STEP_COUNT;            // 옛 이름 (칸 수)
+// 한 칸이 레벨 다섯이라 전보다 오래 머문다 — 그만큼 한 번에 더 든다
+const CRAFT_MATS = { weapon: 70, armor: 54, hat: 42, glove: 42, shoe: 42, acc: 54 };
+const CRAFT_BOSS = { weapon: 5, armor: 4, hat: 3, glove: 3, shoe: 3, acc: 4 };
+// **등급은 뽑는 게 아니라 고른다.** 위로 갈수록 재료가 확 는다 —
+// 신화 하나가 레어 스물넷이다. 그래야 신화를 노리고 모을 이유가 생긴다.
+export const RAR_MATS = [1, 3, 8, 24];           // 재료 배수
+export const RAR_BOSS = [0, 1, 4, 12];           // 두목 증표 배수 (레어는 안 든다)
+export const RAR_GOLD = [1, 2.5, 7, 20];
 export const craftLevel = (k) => ZONES_W[k]?.lv[1] || 1;
 // 조합 장비 수치 = 아이템 레벨 기본치 × 사다리 배수. 아이템 레벨만으로는 뒤로 갈수록 한 사냥터에
 // 7%밖에 안 올라서(기본치가 레벨에 곧게 오른다) 사다리 한 칸마다 ×1.12^½을 더 얹는다.
 // 상급은 아이템 레벨이 이 사냥터와 다음 사냥터의 가운데 — 그래서 '하급 < 상급 < 다음 하급'이 늘 선다.
-export const craftIlv = (step) => {
-  const k = stepMap(step);
-  if (!stepUpper(step)) return Math.min(ILV_CAP, craftLevel(k));
-  return Math.min(ILV_CAP, k < TIER_COUNT ? Math.round((craftLevel(k) + craftLevel(k + 1)) / 2) : craftLevel(k) + 4);
-};
-export const stepMult = (step) => 1.12 ** (step / 2);
+export const craftIlv = (step) => stepLevel(step);
+// **장비가 어느 지역 것인가.** 전에는 step에서 읽었는데(지역 = floor(step/2)+1),
+// 사다리가 레벨 기준이 되면서 그 셈이 성립하지 않는다. 지역은 서른셋, 칸은
+// 스물이고 레벨 100 위 지역은 칸이 없다. 그래서 지역을 따로 싣고(it.z),
+// 없으면 옛 세이브로 보고 칸에서 읽는다.
+export const itemZone = (it) => (it?.z ?? it?.king ?? (it?.step != null ? stepMap(it.step) : 0));
+// 아이템 레벨만으로는 한 칸에 수치가 얼마 안 오른다(기본치가 레벨에 곧게 오른다).
+// 칸마다 배수를 한 번 더 얹어 '다음 칸이 확실히 세다'를 만든다.
+export const stepMult = (step) => 1.12 ** step;
 // 빛깔(등급 색)은 지역 셋마다 한 칸씩 — 일반 · 고급 · 희귀 · 영웅 · 전설, 십이지왕 장비는 '지왕'
-export const stepGrade = (step) => (stepMap(step) > NORMAL_ZONES ? 5 : Math.min(4, Math.floor((stepMap(step) - 1) / 3)));
+// 빛깔(테두리 색)은 네 칸마다 한 단계 — 스무 칸이 다섯 빛깔
+export const stepGrade = (step) => Math.min(4, Math.floor(step / 4));
 // 조합법: 무엇을 내면 이것이 되나
-export function recipeOf(slot, step) {
+// 조합법: 무엇을 내면 이것이 되나. rar를 주면 그 등급짜리 값이다.
+export function recipeOf(slot, step, rar = 0) {
   const k = stepMap(step);
-  const up = stepUpper(step);
-  const mats = { [k]: Math.round(CRAFT_MATS[slot] * (up ? 1.5 : 1)) };
-  if (up) mats[bossKey(k)] = CRAFT_BOSS[slot];
-  // 받는 장비: 상급은 같은 사냥터 하급, 하급은 앞 사냥터 하급이나 상급 (1번 하급은 없음)
-  const from = up ? [step - 1] : k > 1 ? [step - 1, step - 2] : [];
-  return { slot, step, mats, from, gold: Math.round((30 + craftLevel(k) * 10) * (up ? 2 : 1)) };
+  const r = Math.max(0, Math.min(RARITY.length - 1, rar | 0));
+  const mats = { [k]: Math.round(CRAFT_MATS[slot] * RAR_MATS[r]) };
+  if (RAR_BOSS[r]) mats[bossKey(k)] = CRAFT_BOSS[slot] * RAR_BOSS[r];
+  // 받는 장비: 바로 앞 칸 (첫 칸은 없다)
+  const from = step > 0 ? [step - 1] : [];
+  return { slot, step, rar: r, mats, from, gold: Math.round((30 + stepLevel(step) * 10) * RAR_GOLD[r]) };
 }
 // 장비 이름 — 사냥터 머리말 + 칸 이름 (상급은 앞에 '상급')
 const STEP_PREFIX = [null, '청죽', '사철', '빙정', '혈석', '귀화', '운모', '마철', '수정', '금강', '야명', '매화', '독룡', '현빙', '해왕', '천외', ...KINGS.map((k) => k.prefix)];
@@ -442,7 +467,7 @@ export const acc2DropRate = (z) => (z > NORMAL_ZONES ? 0.12 + (z - NORMAL_ZONES 
 export const enhanceRate = (lv) => (lv < ENHANCE_NORMAL ? Math.max(0.4, 1 - lv * 0.07) : Math.max(0.12, 0.3 - (lv - ENHANCE_NORMAL) * 0.045));   // +9→10 40% · 돌파 30%→12%
 // 은자가 쌓이기만 하지 않게 — 사냥터를 옮겨 새 장비를 낄 때마다 다시 강화하는 데 쓰인다(시뮬로 맞춤)
 export const enhanceCost = (ilv, lv) => Math.round((50 + ilv * 15) * (lv + 1) ** 1.6);
-export const sellPrice = (item) => Math.round((3 + item.ilv * 1.5) * (item.step != null ? (stepUpper(item.step) ? 2 : 1) * (1 + (item.rar || 0)) ** 2 : GRADES[item.grade].mult ** 2) * (1 + (item.plus || 0) * 0.2));
+export const sellPrice = (item) => Math.round((3 + item.ilv * 1.5) * (item.step != null ? (1 + (item.rar || 0)) ** 2 : GRADES[item.grade].mult ** 2) * (1 + (item.plus || 0) * 0.2));
 // ---------- 장비 등급과 스킬 옵션 (v110) ----------
 // 같은 장비라도 등급이 넷 — 레어 · 유니크 · 전설 · 신화. 등급이 높을수록 기본 수치가 크고,
 // 스킬을 키우는 옵션이 붙는다(1차 스킬 범위 · 2차 스킬 피해 …). 신화에는 사기적인 특수 효과가 하나 더.
@@ -467,7 +492,7 @@ export const promoteCost = (it) => {
   const r = (it.rar || 0) + 1;
   // v132 왕의 장비: 검왕의 무형 검혼석 (증표 없음)
   if (it.king != null) return { key: 'st27', mats: promoteStones(it.rar || 0), marks: 0, gold: Math.round((30 + 100 * 10) * 3 * r) };
-  const k = it.king ?? stepMap(it.step);
+  const k = itemZone(it);
   return { key: k, mats: 30 * r, marks: 2 * r, gold: Math.round((30 + craftLevel(k) * 10) * 3 * r) };
 };
 // 스킬 옵션: s는 스킬 칸(0 1차 · 1 2차 · 2 3차). 값은 등급별.
@@ -583,10 +608,10 @@ export const itemName = (item, job) => {
     if (ACC2_NOUN[item.slot]) return ACC2_NAMES[item.king]?.[item.slot === 'ear' ? 1 : 0] || ACC2_NOUN[item.slot];
     return `${STEP_PREFIX[item.king] || ''} 옥패`;
   }
-  if (ACC2_NOUN[item.slot]) return ACC2_NAMES[stepMap(item.step)]?.[item.slot === 'ear' ? 1 : 0] || ACC2_NOUN[item.slot];
+  if (ACC2_NOUN[item.slot]) return ACC2_NAMES[itemZone(item)]?.[item.slot === 'ear' ? 1 : 0] || ACC2_NOUN[item.slot];
   const n = item.slot === 'weapon' ? (SLOT_NOUN.weapon[job] || '검') : SLOT_NOUN[item.slot];
   if (item.starter) return `수련용 ${n}`;
-  if (item.step != null) return `${stepUpper(item.step) ? '상급 ' : ''}${STEP_PREFIX[stepMap(item.step)]}${n}`;
+  if (item.step != null) return `${STEP_PREFIX[itemZone(item)]}${n}`;
   return `${GRADES[item.grade].name} ${n}`;
 };
 

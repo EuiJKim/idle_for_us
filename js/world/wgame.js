@@ -36,7 +36,7 @@ export function newWorldSave(now = Date.now()) {
     autoPotion: true,
     autoRefill: false,        // 물약이 10개 아래면 알아서 50개까지 산다 (v121)
     equip: { weapon: null, armor: null, hat: null, glove: null, shoe: null, acc: null, finger: null, ear: null },
-    gearV: 2,                // v130 장비 개편 (사다리 99까지 · 왕의 장비)
+    gearV: 3,                // v143 사다리 스무 칸 (레벨 5마다 · 100까지)
     pets: [],                // 키우는 애완동물 (장착 칸만큼 함께 싸운다)
     petBox: [],              // 떨군 애완동물이 기다리는 우리
     mounts: [],              // 가진 탈것
@@ -147,22 +147,39 @@ export function migrateWorld(raw, now = Date.now()) {
   //   무기·옷·모자: 사다리 끝(천외천 상급)으로 내리고, 만들 때 든 왕의 재료·증표를 돌려준다(세트를 만들 수 있게).
   if ((raw.gearV || 0) < 2) {
     let note = 0;
+    // **그때의 셈을 그 자리에 박아 둔다.** 이 이주는 '옛 칸'을 읽는 일인데,
+    // 지금 상수(v143에서 바뀐 것)를 쓰면 엉뚱한 장비를 왕의 장신구로 바꾼다.
+    const OLD_TIERS = 15;                       // v130 당시 보통 지역 수
+    const oldMap = (st) => Math.floor(st / 2) + 1;
+    const oldUpper = (st) => st % 2 === 1;
     const fix = (it) => {
-      if (!it || it.step == null || it.step < W.TIER_COUNT * 2) return it;
-      const k = W.stepMap(it.step);
+      if (!it || it.step == null || it.step < OLD_TIERS * 2) return it;
+      const k = oldMap(it.step);
       note++;
       if (W.isDropOnly(it.slot) || it.slot === 'acc') return { ...it, step: undefined, king: k, ilv: G.KING_ILV };
-      const up = W.stepUpper(it.step);
+      const up = oldUpper(it.step);
       const m = { weapon: 40, armor: 30, hat: 24 }[it.slot] || 24;
       s.mats[k] = (s.mats[k] || 0) + Math.round(m * (up ? 1.5 : 1));
       if (up) s.mats[W.bossKey(k)] = (s.mats[W.bossKey(k)] || 0) + ({ weapon: 4 }[it.slot] || 3);
-      return { ...it, step: W.TIER_COUNT * 2 - 1, ilv: W.craftIlv(W.TIER_COUNT * 2 - 1) };
+      return { ...it, step: OLD_TIERS * 2 - 1, ilv: 99 };
     };
     for (const k of Object.keys(s.equip)) s.equip[k] = fix(s.equip[k]);
     s.bag = s.bag.map(fix);
     for (const it of [...s.bag, ...Object.values(s.equip)]) if (it && it.step === undefined) delete it.step;
     if (note) s.gearNote = note;
     s.gearV = 2;
+  }
+  // v143: 사다리가 서른 칸(하급·상급)에서 스무 칸(레벨 5마다)으로 바뀌었다.
+  // **아이템 레벨로 옮긴다** — 옛 칸이 뭘 뜻했든 ilv는 늘 적혀 있었다.
+  if ((raw.gearV || 0) < 3) {
+    const toNew = (it) => {
+      if (!it || it.step == null) return it;
+      const st = W.stepOfLevel(it.ilv || W.stepLevel(0));
+      return { ...it, step: st, ilv: W.stepLevel(st) };
+    };
+    for (const k of Object.keys(s.equip)) s.equip[k] = toNew(s.equip[k]);
+    s.bag = s.bag.map(toNew);
+    s.gearV = 3;
   }
   return s;
 }
@@ -249,14 +266,19 @@ export class WorldGame {
     for (const [k, v] of Object.entries(b)) out[k] = v * m;
     // 가락지·귀걸이: 그 두목의 덤 능력 (등급만큼 커진다, 강화와는 따로)
     if (W.isDropOnly(it.slot) && (it.step != null || it.king != null)) {
-      for (const [k, v] of Object.entries(W.acc2Trait(it.king ?? W.stepMap(it.step), it.slot))) out[k] = (out[k] || 0) + v * W.RARITY[it.rar || 0].mult;
+      for (const [k, v] of Object.entries(W.acc2Trait(W.itemZone(it), it.slot))) out[k] = (out[k] || 0) + v * W.RARITY[it.rar || 0].mult;
     }
     return out;
   }
   // 사다리 장비의 고유 옵션 { k, v } (v130)
   itemUnique(it) {
     if (!it || it.step == null || it.starter) return null;
-    return G.uniqueOf(it.slot, W.stepMap(it.step), W.stepUpper(it.step), W.RARITY[it.rar || 0].mult);
+    // 하급·상급이 없어졌다. 같은 지역 안에서 칸이 둘이면 뒤 칸을 조금 세게 둔다 —
+    // 그래야 '다음 칸이 확실히 낫다'가 선다.
+    // **앞 칸인지 뒤 칸인지를 거꾸로 봤다.** 다음 칸이 같은 지역이면 그건
+    // '앞 칸'이다. 뒤 칸은 **앞 칸과 지역이 같은** 쪽이다.
+    const upper = it.step > 0 && W.stepMap(it.step) === W.stepMap(it.step - 1);
+    return G.uniqueOf(it.slot, W.itemZone(it), upper, W.RARITY[it.rar || 0].mult);
   }
   // 끼고 있는 세트 — { 세트 id: 조각 수 } (자기 직업 세트만 효과가 난다)
   setCounts() {
@@ -1367,7 +1389,9 @@ export class WorldGame {
       // 가끔 그 지역 하급 장비를 통째로 떨군다
       if (this.rng() < W.BOSS_ITEM_RATE) {
         const rar = W.rollRarity(W.kingOf(id) ? W.KING_RAR_W : W.BOSS_RAR_W, this.rng);
-        const it = this.makeCrafted(W.CRAFT_SLOTS[Math.floor(this.rng() * W.CRAFT_SLOTS.length)].id, (id - 1) * 2, 0, rar);
+        // 그 지역 레벨에 맞는 칸으로 (전에는 (지역-1)*2로 칸을 셈했다 — 이제 칸은 레벨이다)
+        const st = W.stepOfLevel(W.zoneOfW(id)?.lv[1] || 5);
+        const it = this.makeCrafted(W.CRAFT_SLOTS[Math.floor(this.rng() * W.CRAFT_SLOTS.length)].id, st, 0, rar, id);
         it.boss = true;   // 두목이 떨군 것 — 끼면 그 두목의 겉모습이 든다
         this.emit('drop', { item: it, at: { x: m.x, y: m.y } });
         this.gainItem(it);
@@ -1375,7 +1399,8 @@ export class WorldGame {
       // 가락지·귀걸이 — 두목만 떨군다
       if (this.rng() < W.acc2DropRate(id)) {
         const rar = W.rollRarity(W.kingOf(id) ? W.KING_RAR_W : W.BOSS_RAR_W, this.rng);
-        const it = this.makeCrafted(this.rng() < 0.5 ? 'finger' : 'ear', (id - 1) * 2, 0, rar);
+        const st = W.stepOfLevel(W.zoneOfW(id)?.lv[1] || 5);
+        const it = this.makeCrafted(this.rng() < 0.5 ? 'finger' : 'ear', st, 0, rar, id);
         it.boss = true;
         this.emit('drop', { item: it, at: { x: m.x, y: m.y } });
         this.gainItem(it);
@@ -1390,8 +1415,12 @@ export class WorldGame {
     return { id, n: 1, name: W.MATS[id], color: W.MAT_COLORS[id] };
   }
   addMats(key, n) { this.s.mats[key] = (this.s.mats[key] || 0) + n; }
-  makeCrafted(slot, step, plus = 0, rar = 0) {
-    return { uid: uidSeq++, slot, step, ilv: W.craftIlv(step), rar, grade: W.RARITY_GRADE[rar], opts: this.rollOpts(slot, step, rar), plus };
+  // z를 주면 그 지역 것이다(두목이 떨군 가락지·귀걸이처럼). 안 주면 칸에서 읽는다.
+  makeCrafted(slot, step, plus = 0, rar = 0, z = null) {
+    // 신화의 왕 고유 효과는 **지역**이 정한다 — z를 줬으면 그걸 본다
+    const it = { uid: uidSeq++, slot, step, ilv: W.craftIlv(step), rar, grade: W.RARITY_GRADE[rar], opts: this.rollOpts(slot, step, rar, z), plus };
+    if (z != null) it.z = z;
+    return it;
   }
   // ---------- 왕의 장비 (레벨 100, v130) ----------
   makeKing(slot, king, rar = 0, set = null, plus = 0) {
@@ -1480,8 +1509,8 @@ export class WorldGame {
     return best;
   }
   // 조합법 — 넣을 장비가 없거나 안 넣으면 재료가 NO_BASE_MULT배
-  recipeFor(slot, step, useBase = true) {
-    const r = W.recipeOf(slot, step);
+  recipeFor(slot, step, useBase = true, rar = 0) {
+    const r = W.recipeOf(slot, step, rar);
     const src = useBase ? this.recipeSource(r) : null;
     if (src) return { r, src };
     const mats = {};
@@ -1489,25 +1518,27 @@ export class WorldGame {
     return { r: { ...r, mats }, src: null };
   }
   // 조합할 수 있나 — 모자란 것을 함께 돌려준다(화면에 '청죽 마디 12/40'처럼)
-  craftCheck(slot, step, useBase = true) {
-    const { r, src } = this.recipeFor(slot, step, useBase);
+  craftCheck(slot, step, useBase = true, rar = 0) {
+    const { r, src } = this.recipeFor(slot, step, useBase, rar);
     const lack = [];
     for (const [k, n] of Object.entries(r.mats)) if ((this.s.mats[k] || 0) < n) lack.push(k);
     if (this.s.gold < r.gold) lack.push('gold');
     return { r, src, ok: !lack.length, lack };
   }
-  craft(slot, step, useBase = true) {
-    if (step < 0 || step >= W.TIER_COUNT * 2 || W.isDropOnly(slot)) return null;
-    const { r, src, ok } = this.craftCheck(slot, step, useBase);
+  craft(slot, step, useBase = true, rar = 0) {
+    if (step < 0 || step >= W.STEP_COUNT || W.isDropOnly(slot)) return null;
+    const want = Math.max(0, Math.min(W.RARITY.length - 1, rar | 0));
+    const { r, src, ok } = this.craftCheck(slot, step, useBase, want);
     if (!ok) return null;
     for (const [k, n] of Object.entries(r.mats)) this.s.mats[k] -= n;
     this.s.gold -= r.gold;
-    // 받은 장비는 사라지고, 강화는 절반을 이어받는다
-    // 등급: 조합은 대부분 레어지만 **받은 장비의 등급과 옵션은 이어받는다**(올려 놓은 등급이 사다리를
-    // 오를 때마다 날아가면 승급할 맛이 없다). 더 높게 뜨면 그 등급으로 옵션을 새로.
-    const roll = W.rollRarity(W.CRAFT_RAR_W, this.rng);
-    const keep = src?.rar != null && src.rar >= roll;
-    const it = this.makeCrafted(slot, step, src ? Math.floor(Math.min(src.plus || 0, W.ENHANCE_NORMAL) / 2) : 0, keep ? src.rar : roll);
+    // 받은 장비는 사라지고, 강화는 절반을 이어받는다.
+    // **등급은 이제 고른 대로 나온다**(뽑기가 아니다). 다만 넣은 장비가 더
+    // 높은 등급이면 그걸 지킨다 — 올려 놓은 등급이 사다리를 오를 때마다
+    // 날아가면 아무도 위 등급을 안 만든다.
+    const keep = src?.rar != null && src.rar > want;
+    const got = keep ? src.rar : want;
+    const it = this.makeCrafted(slot, step, src ? Math.floor(Math.min(src.plus || 0, W.ENHANCE_NORMAL) / 2) : 0, got);
     if (keep && src.opts) it.opts = src.opts.map((o) => ({ ...o }));
     const wore = src && this.s.equip[slot] === src;
     if (src) {
@@ -1519,14 +1550,11 @@ export class WorldGame {
     return it;
   }
   // 대장장이 목록에 올릴 칸들 — 들어갈 수 있는 지역 + 다음 지역 하나 (그 안에서 하급·상급 모두)
+  // 대장장이에 올릴 칸들 — 내 레벨이 닿는 칸 + 한 칸 더(다음 목표가 보이게)
   craftSteps() {
-    let top = 1;
-    for (let z = 1; z <= W.ZONE_COUNT; z++) if (this.canEnter(W.mapId(z, 1))) top = z;
-    // 재료를 가진 지역은 (문파 창고에서 받았어도) 보인다
-    for (const k of Object.keys(this.s.mats)) { const z = parseInt(k.replace('b', ''), 10); if (z > top && this.s.mats[k] > 0) top = z; }
-    top = Math.min(W.ZONE_COUNT, top + 1);
+    const top = Math.min(W.STEP_COUNT - 1, W.stepOfLevel(this.s.level) + 1);
     const out = [];
-    for (let st = 0; st < top * 2; st++) out.push(st);
+    for (let st = 0; st <= top; st++) out.push(st);
     return out;
   }
   // 다음에 만들 수 있는 것: 가진 가장 높은 칸에서 한 걸음(상급) · 두 걸음(다음 사냥터 하급)
@@ -1535,7 +1563,7 @@ export class WorldGame {
     let top = -1;
     for (const it of [this.s.equip[slot], ...this.s.bag]) if (it && it.slot === slot && it.step != null) top = Math.max(top, it.step);
     const out = top < 0 ? [0] : top % 2 === 0 ? [top + 1, top + 2] : [top + 1];
-    return out.filter((x) => x < W.TIER_COUNT * 2);
+    return out.filter((x) => x < W.STEP_COUNT);
   }
   // 새 장비: 끼고 있는 것보다 좋으면 끼고, 아니면 가방에.
   gainItem(it) {
@@ -1592,7 +1620,7 @@ export class WorldGame {
   enhanceMats(it) {
     if (it.king != null) return { key: G.stoneFor(it), n: G.stoneN(it.plus || 0) };     // 왕의 장비: 후반 왕의 부위별 강화석 (v132)
     if (it.step == null) return null;
-    return { key: W.stepMap(it.step), n: W.enhanceMatsN(it.plus || 0) };
+    return { key: W.itemZone(it), n: W.enhanceMatsN(it.plus || 0) };
   }
   // 조합·왕의 장비는 +10 위로 돌파(+15까지) — 두목 증표가 더 든다. 옛 장비·가락지·귀걸이는 +10까지.
   enhanceMax(it) { return (it?.step != null || it?.king != null) && !W.isDropOnly(it.slot) ? W.ENHANCE_MAX : W.ENHANCE_NORMAL; }
@@ -1981,6 +2009,19 @@ export class WorldGame {
     this.s.quest++;
     this.emit('quest', { id: cur.q.id, title: cur.q.title, reward, left: Q.QUEST_COUNT - this.s.quest });
     return reward;
+  }
+
+  // 다 받기 — 조건이 이미 찬 단계를 한꺼번에. 레벨 80에서 시작한 사람이
+  // 열여섯 번을 눌러야 하는 건 길잡이가 아니라 일거리다.
+  claimAllQuests() {
+    const out = [];
+    // 한 번에 하나씩 — 받으면 다음 단계의 조건을 다시 봐야 한다
+    for (let i = 0; i < Q.QUEST_COUNT; i++) {
+      const cur = this.questNow();
+      if (!cur || !cur.done) break;
+      out.push({ id: cur.q.id, title: cur.q.title, reward: this.claimQuest() });
+    }
+    return out;
   }
 
   // ---------- 자동 도전 (v139) ----------

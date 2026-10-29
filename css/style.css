@@ -1262,3 +1262,9 @@ details.lore p { margin: 4px 0 0; line-height: 1.5; }
 /* 던전 보상이 어느 지역 재료인지 */
 .dgn-where { font-size: 11px; margin: 2px 0 0; }
 .dgn-card .rw .need.tap { margin: 0 2px; }
+
+/* 등급 고르기 — 고른 등급의 빛깔로 */
+.chip.rar { border-color: color-mix(in srgb, var(--rc) 55%, transparent); }
+.chip.rar.on { background: color-mix(in srgb, var(--rc) 28%, transparent); border-color: var(--rc); color: var(--rc); }
+.chip.rar small { opacity: 0.75; }
+.craft-row .buy[style*="--rc"] { border-color: var(--rc); color: var(--rc); }

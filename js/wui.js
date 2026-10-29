@@ -111,8 +111,27 @@ function charTab(app) {
     if (nsig === qSig) return;
     qSig = nsig;
     const done = game.s.quest;
+    // 조건이 이미 찬 단계가 둘 이상이면 한꺼번에 받는다
+    let ready = 0;
+    {
+      const probe = new Set();
+      let i = done;
+      while (i < Q.QUEST_COUNT && !probe.has(i)) {
+        probe.add(i);
+        const q = Q.questAt(i);
+        const gg = q.goal(game);
+        if ((gg.now || 0) < (gg.need || 1)) break;
+        ready++; i++;
+      }
+    }
     questCard.replaceChildren(h('h3', {}, '길잡이',
-      h('small', {}, ` ${done}/${Q.QUEST_COUNT}`)));
+      h('small', {}, ` ${done}/${Q.QUEST_COUNT}`),
+      ready > 1 ? h('button', { class: 'buy', style: 'float:right', onclick: () => {
+        const got = game.claimAllQuests();
+        if (!got.length) return;
+        app.save(); qSig = ''; upd(); app.refresh();
+        toast(`길잡이 ${got.length}단계를 한꺼번에 받았어요 — ${rewardText(got[got.length - 1].reward)} 외`);
+      } }, `다 받기 (${ready})`) : null));
     if (!cur) {
       questCard.append(h('p', { class: 'muted' }, '길잡이를 다 마쳤어요. 이제는 가고 싶은 데로 가세요.'));
       return;
@@ -261,7 +280,7 @@ function charTab(app) {
 const SLOT_SHORT = { weapon: '무기', armor: '옷', hat: '모자', glove: '장갑', shoe: '신발', acc: '장신구', finger: '가락지', ear: '귀걸이' };
 function bagTab(app) {
   const { game } = app;
-  let ui = { slot: 'all', smith: 'weapon', useBase: true, readyOnly: false, smode: 'ladder', kz: 0, kslot: 'acc' };
+  let ui = { slot: 'all', smith: 'weapon', useBase: true, readyOnly: false, smode: 'ladder', kz: 0, kslot: 'acc', rar: 0 };
   try { ui = { ...ui, ...JSON.parse(localStorage.getItem('ifu.bagui') || '{}') }; } catch { /* 사생활 모드 */ }
   const keepUi = () => { try { localStorage.setItem('ifu.bagui', JSON.stringify(ui)); } catch { /* 사생활 모드 */ } };
   const sigs = { gear: '', smith: '', mats: '' };
@@ -269,7 +288,7 @@ function bagTab(app) {
   // 두목 장비(두목 증표로 만든 상급 · 두목이 떨군 것)는 끼면 그 두목의 겉모습이 든다 (v116)
   function bossGearNote(it) {
     if (it.step == null || !(it.step % 2 === 1 || it.boss)) return null;
-    const b = W.zoneOfW(W.stepMap(it.step))?.boss;
+    const b = W.zoneOfW(W.itemZone(it))?.boss;
     if (!b) return null;
     const what = { weapon: '무기에 그 기운 빛', armor: '그 도포 빛깔', hat: '그 쓰개', acc: '몸을 도는 구슬', finger: '몸을 도는 구슬', ear: '몸을 도는 구슬' }[it.slot];
     return h('p', { class: 'boss-gear' }, `두목 장비 — 끼면 ${b.name}의 ${what}`, ['weapon', 'armor', 'hat'].includes(it.slot) ? ' (무기·옷·모자를 한 두목 것으로 맞추면 발밑에 그 빛깔 고리)' : '');
@@ -290,14 +309,14 @@ function bagTab(app) {
           h('p', {}, `${W.SLOTS.find((x) => x.id === it.slot).name} · 아이템 레벨 ${it.ilv} · `, h('b', { style: `color:${g.color}` }, g.name)),
           h('p', {}, h('b', {}, itemLines(game, it))),
           game.itemUnique(it) ? h('div', { class: 'uniq-box' }, h('b', {}, '고유 옵션 '), G.gearKeyText(game.itemUnique(it).k, game.itemUnique(it).v),
-            h('small', {}, ` — ${W.zoneOfW(W.stepMap(it.step))?.name || ''} ${SLOT_SHORT[it.slot]}에만 붙는 옵션`)) : null,
+            h('small', {}, ` — ${W.zoneOfW(W.itemZone(it))?.name || ''} ${SLOT_SHORT[it.slot]}에만 붙는 옵션`)) : null,
           it.opts?.length ? h('div', { class: 'opt-box' }, ...optLines(it).map((t, i) => h('div', { class: it.opts[i].sp || it.opts[i].kp ? 'sp' : it.opts[i].pet ? 'pet' : it.opts[i].tf ? 'tf' : '' }, t))) : null,
           it.set ? setBox(game, G.setOf(it.set)) : null,
           bossGearNote(it),
           !worn && cur ? h('p', { class: 'muted' }, `지금 낀 것: ${itemTitle(game, cur)} — ${itemLines(game, cur)}`) : null,
           it.king != null ? h('p', { class: 'muted' }, `레벨 100 왕의 장비 (${W.zoneOfW(it.king)?.name || ''}) — 더 높은 단계는 없고 강화·돌파·승급으로 자라요. 강화는 ${W.matName(G.stoneFor(it))}(후반 왕의 그 부위 강화석), 승급은 검왕의 검혼석.${W.isDropOnly(it.slot) ? ' 가락지·귀걸이는 강화가 어려워요.' : ''}`)
-          : W.isDropOnly(it.slot) ? h('p', { class: 'muted' }, `${W.zoneOfW(W.stepMap(it.step))?.name || ''} 두목에게서만 나와요 — 강화가 어려워요(성공률 절반·은자 ×3·돌파 없음)`)
-            : it.step != null ? h('p', { class: 'muted' }, `${W.zoneOfW(W.stepMap(it.step))?.name || ''} ${W.stepUpper(it.step) ? '상급' : '하급'} — 대장장이에서 위 장비의 조합 재료가 돼요 (강화는 절반을 이어받아요)`) : null,
+          : W.isDropOnly(it.slot) ? h('p', { class: 'muted' }, `${W.zoneOfW(W.itemZone(it))?.name || ''} 두목에게서만 나와요 — 강화가 어려워요(성공률 절반·은자 ×3·돌파 없음)`)
+            : it.step != null ? h('p', { class: 'muted' }, `Lv.${it.ilv} 사다리 (${W.zoneOfW(W.itemZone(it))?.name || ''} 재료) — 대장장이에서 위 장비의 조합 재료가 돼요 (강화는 절반을 이어받아요)`) : null,
           h('p', { class: 'muted' }, max ? '강화를 다 했어요' : `${breaking ? '돌파' : '강화'} +${(it.plus || 0) + 1} (기본 수치 +${pct(breaking ? W.BREAK_STEP : W.ENHANCE_STEP, 0)}) — 성공률 ${pct(game.enhanceRateOf(it), 0)} · 은자 ${fmt(cost)}${em ? ` · ${W.matName(em.key)} ${em.n}개 (가진 것 ${fmt(game.s.mats[em.key] || 0)})` : ''}${bm ? ` · ${W.matName(W.bossKey(em.key))} ${bm}개 (가진 것 ${fmt(game.s.mats[W.bossKey(em.key)] || 0)})` : ''} — 실패해도 깨지지 않아요`),
           pc ? h('p', { class: 'muted' }, `승급 → `, h('b', { style: `color:${W.RARITY[it.rar + 1].color}` }, W.RARITY[it.rar + 1].name),
             ` (기본 수치 ×${(W.RARITY[it.rar + 1].mult / W.RARITY[it.rar].mult).toFixed(2)}, 스킬 옵션 새로) — ${W.matName(pc.key)} ${pc.mats} (가진 것 ${fmt(game.s.mats[pc.key] || 0)})${pc.marks ? ` · ${W.matName(W.bossKey(pc.key))} ${pc.marks}` : ''} · 은자 ${fmt(pc.gold)}`) : null,
@@ -398,51 +417,59 @@ function bagTab(app) {
     const s = game.s;
     const steps = game.craftSteps();
     const slot = W.CRAFT_SLOTS.some((x) => x.id === ui.smith) ? ui.smith : 'weapon';
-    const nsig = `${game.statSig()}|${s.bag.map((i) => i.uid).join(',')}|${JSON.stringify(s.mats)}|${Math.floor(Math.log10(s.gold + 1) * 20)}|${slot}|${ui.useBase}|${ui.readyOnly}|${steps.length}|${ui.smode}|${ui.kz}|${ui.kslot}|${s.level}`;
+    const rar = Math.max(0, Math.min(W.RARITY.length - 1, ui.rar | 0));
+    const nsig = `${game.statSig()}|${s.bag.map((i) => i.uid).join(',')}|${JSON.stringify(s.mats)}|${Math.floor(Math.log10(s.gold + 1) * 20)}|${slot}|${ui.useBase}|${ui.readyOnly}|${steps.length}|${ui.smode}|${ui.kz}|${ui.kslot}|${s.level}|${rar}`;
     if (nsig === sigs.smith) return;
     sigs.smith = nsig;
     // v130: 사다리(레벨 99까지 · 고유 옵션) | 세트(99부터 · 직업 세트) | 왕의 장신구(99부터 · 공용)
-    const modes = h('div', { class: 'seg wide smith-seg' }, ...[['ladder', '사다리 ~99'], ['set', '세트 99~'], ['kacc', '장신구 99~']].map(([k, label]) =>
+    const modes = h('div', { class: 'seg wide smith-seg' }, ...[['ladder', `사다리 ~${W.ILV_CAP}`], ['set', '세트 99~'], ['kacc', '장신구 99~']].map(([k, label]) =>
       h('button', { class: ui.smode === k ? 'on' : '', onclick: () => { ui.smode = k; keepUi(); sigs.smith = ''; smithView(); } }, label)));
     if (ui.smode === 'set') return setSmith(modes);
     if (ui.smode === 'kacc') return kaccSmith(modes);
     const cur = s.equip[slot];
     const chips = h('div', { class: 'chip-row' }, ...W.CRAFT_SLOTS.map((x) =>
       h('button', { class: `chip${slot === x.id ? ' on' : ''}`, onclick: () => { ui.smith = x.id; keepUi(); sigs.smith = ''; smithView(); } }, x.name)));
+    // 등급 고르기 — 재료가 몇 배 드는지 같이 적는다
+    const rarRow = h('div', { class: 'chip-row rar-row' }, ...W.RARITY.map((R, i) =>
+      h('button', {
+        class: `chip rar${rar === i ? ' on' : ''}`, style: `--rc:${R.color}`,
+        onclick: () => { ui.rar = i; keepUi(); sigs.smith = ''; smithView(); },
+      }, R.name, h('small', {}, ` 재료 ×${W.RAR_MATS[i]}`))));
     const toggles = h('div', { class: 'chip-row' },
       h('button', { class: `chip${ui.useBase ? ' on' : ''}`, onclick: () => { ui.useBase = !ui.useBase; keepUi(); sigs.smith = ''; smithView(); } }, ui.useBase ? '✓ 아래 장비 넣기' : '아래 장비 안 넣기'),
       h('button', { class: `chip${ui.readyOnly ? ' on' : ''}`, onclick: () => { ui.readyOnly = !ui.readyOnly; keepUi(); sigs.smith = ''; smithView(); } }, ui.readyOnly ? '✓ 만들 수 있는 것만' : '전부 보기'));
     const rows = [];
     // 만들 수 있는 것부터(좋은 것 먼저), 그다음 아직 못 만드는 것
-    const order = steps.slice().reverse().map((st) => [st, game.craftCheck(slot, st, ui.useBase).ok]).sort((a, b) => b[1] - a[1]).map(([st]) => st);
+    const order = steps.slice().reverse().map((st) => [st, game.craftCheck(slot, st, ui.useBase, rar).ok]).sort((a, b) => b[1] - a[1]).map(([st]) => st);
     for (const step of order) {
-      const { r, src, ok } = game.craftCheck(slot, step, ui.useBase);
+      const { r, src, ok } = game.craftCheck(slot, step, ui.useBase, rar);
       if (ui.readyOnly && !ok) continue;
-      const sample = game.makeCrafted(slot, step);
+      const sample = game.makeCrafted(slot, step, 0, rar);
       const d = vsWorn(sample);
       const parts = [];
       for (const [k, n] of Object.entries(r.mats)) parts.push(need(W.matName(k), s.mats[k] || 0, n, W.matColor(k), k));
       parts.push(need('은자', s.gold, r.gold));
       rows.push(h('div', { class: `row craft-row${ok ? ' ready' : ''}${d <= 0.005 ? ' weaker' : ''}` },
         h('div', { class: 'info' },
-          h('div', { class: 'name' }, itemTitle(game, sample), ' ', deltaTag(d), h('small', {}, `Lv.${sample.ilv} · ${W.zoneOfW(W.stepMap(step))?.name || ''} ${W.stepUpper(step) ? '상급' : '하급'}`)),
-          h('div', { class: 'desc' }, `${itemLines(game, sample)} (레어 기준)`),
+          h('div', { class: 'name' }, itemTitle(game, sample), ' ', deltaTag(d),
+            h('small', {}, `Lv.${sample.ilv} · 재료는 ${W.zoneOfW(W.stepMap(step))?.name || ''}`)),
+          h('div', { class: 'desc' }, `${itemLines(game, sample)} (${W.RARITY[rar].name} 기준)`),
           game.itemUnique(sample) ? h('div', { class: 'desc uniq' }, `고유 ${G.gearKeyText(game.itemUnique(sample).k, game.itemUnique(sample).v)}`) : null,
           h('div', { class: 'desc needs' }, ...parts),
           h('div', { class: 'desc base' }, src ? `넣을 장비: ${itemTitle(game, src)} — 강화 ${Math.floor(Math.min(src.plus || 0, W.ENHANCE_NORMAL) / 2)}·${gradeOf(src).name} 이어받음`
             : ui.useBase ? `넣을 아래 장비가 없어 재료 ${W.NO_BASE_MULT}배` : `아래 장비 없이 — 재료 ${W.NO_BASE_MULT}배`)),
-        h('button', { class: 'buy', disabled: ok ? null : true, onclick: () => {
-          const it = game.craft(slot, step, ui.useBase);
+        h('button', { class: 'buy', disabled: ok ? null : true, style: `--rc:${W.RARITY[rar].color}`, onclick: () => {
+          const it = game.craft(slot, step, ui.useBase, rar);
           if (it) { toast(`${itemTitle(game, it)} — ${gradeOf(it).name}!`); done(); }
-        } }, '조합')));
+        } }, W.RARITY[rar].name)));
     }
     smithRoot.replaceChildren(modes,
       h('div', { class: 'card' },
-        h('h3', {}, '대장장이', h('small', {}, '레벨 99까지 · 재료만 있으면 어느 칸이든')),
+        h('h3', {}, '대장장이', h('small', {}, `레벨 ${W.STEP_LV}마다 한 칸 · ${W.ILV_CAP}까지 ${W.STEP_COUNT}칸`)),
         h('p', { class: 'muted', style: 'font-size:12px;margin:2px 0 6px' }, '사다리 장비마다 지역·칸에 따라 정해진 고유 옵션이 붙어요 — 여러 지역 것을 섞어 끼면 좋아요.'),
         h('p', { class: 'muted', style: 'font-size:12px;margin:2px 0 6px' },
-          `아래 장비를 넣으면 재료가 덜 들고 강화 절반·등급·옵션을 이어받아요. 안 넣으면 재료 ${W.NO_BASE_MULT}배. 만들면 레어 ${W.CRAFT_RAR_W[0]}% · 유니크 ${W.CRAFT_RAR_W[1]}% · 전설 ${W.CRAFT_RAR_W[2]}%.`),
-        chips, toggles,
+          `등급을 골라서 만들어요. 위로 갈수록 재료가 확 들어요 — 신화 하나가 레어 ${W.RAR_MATS[3]}개 값이고 두목 증표도 많이 들어요. 아래 장비를 넣으면 재료가 덜 들고 강화 절반·옵션을 이어받아요(안 넣으면 ${W.NO_BASE_MULT}배).`),
+        chips, rarRow, toggles,
         h('div', { class: 'smith-cur' }, cur ? ['지금 낀 것: ', h('b', { style: `color:${gradeOf(cur).color}` }, itemTitle(game, cur)), ` — ${itemLines(game, cur)}`] : '지금 낀 것이 없어요')),
       h('div', { class: 'card' }, ...(rows.length ? rows : [h('p', { class: 'muted' }, '지금 만들 수 있는 것이 없어요 — 재료를 더 모아요.')])));
   }
