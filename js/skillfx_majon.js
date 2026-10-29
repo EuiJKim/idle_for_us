@@ -8,6 +8,7 @@
 // 숫자는 skillfx.js 감독이 붙들었다 '적중' 박자에 푼다 — 여기서 정하는 건 언제·무엇을 그리느냐뿐.
 // 피해·밸런스는 1도 안 바뀐다.
 import { impact, beats, blinkBeats, buffBeats, COL, PLUM, rnd } from './skillfx_class.js';
+import { POSES } from './pose.js';
 
 const TAU = Math.PI * 2;
 const clamp01 = (v) => Math.max(0, Math.min(1, v));
@@ -19,6 +20,245 @@ const MASK = ['168,85,247', '254,226,226', '59,7,100'];
 
 // ---------- 그림 ----------
 export const MAJON_FX = {
+  // ---- 4차 필살 v129: 컷인 · 기 모으기 · 법상 · 화면 충격파 · 여운 · 직업 고유 ----
+  // 컷인 — 비스듬한 띠가 왼쪽에서 쓸고 들어와 무인의 큰 모습과 무공 이름을 보여 주고 오른쪽으로 빠진다 (화면 좌표)
+  cutin(v, ctx, e, k) {
+    ctx.globalCompositeOperation = 'source-over';
+    const p = 1 - k;
+    const T = e.max;
+    const t = p * T;
+    const inT = 0.16, outT = 0.18;
+    const slide = t < inT ? 1 - (1 - t / inT) ** 3 : t > T - outT ? 1 + ((t - (T - outT)) / outT) ** 2 : 1;
+    const w = v.w, H = Math.min(190, v.h * 0.24);
+    const cy = v.h * 0.4;
+    const off = (slide - 1) * w * 1.3;            // 1이면 제자리, 0이면 왼쪽 밖, 2면 오른쪽 밖
+    ctx.save();
+    ctx.translate(off, cy);
+    ctx.transform(1, -0.14, 0, 1, 0, 0);          // 비스듬히
+    // 띠
+    const g = ctx.createLinearGradient(0, -H / 2, 0, H / 2);
+    g.addColorStop(0, `rgba(${e.col},0.95)`); g.addColorStop(0.5, 'rgba(12,8,6,0.94)'); g.addColorStop(1, `rgba(${e.col},0.95)`);
+    ctx.fillStyle = g;
+    ctx.fillRect(-40, -H / 2, w + 80, H);
+    ctx.fillStyle = 'rgba(255,255,255,0.9)';
+    ctx.fillRect(-40, -H / 2 - 3, w + 80, 3); ctx.fillRect(-40, H / 2, w + 80, 3);
+    // 속도선
+    ctx.globalCompositeOperation = 'lighter';
+    for (let i = 0; i < 22; i++) {
+      const yy = -H / 2 + ((i * 37) % 100) / 100 * H;
+      const xx = ((((i * 61) % 100) / 100 + p * 3) % 1.2 - 0.1) * w;
+      ctx.fillStyle = `rgba(${i % 3 ? e.col : '255,255,255'},0.35)`;
+      ctx.fillRect(w - xx, yy, 40 + (i % 4) * 30, 2);
+    }
+    ctx.globalCompositeOperation = 'source-over';
+    // 무인의 큰 모습 (띠 안에만)
+    ctx.beginPath(); ctx.rect(-40, -H / 2, w + 80, H); ctx.clip();
+    const sc = (H / 150) * 2.5;
+    ctx.save();
+    ctx.translate(w * 0.24 + Math.sin(p * 3) * 6, H / 2 + 34 * sc);
+    ctx.scale(sc, sc);
+    const glow = ctx.createRadialGradient(0, -70, 0, 0, -70, 90);
+    glow.addColorStop(0, `rgba(${e.col},0.55)`); glow.addColorStop(1, `rgba(${e.col},0)`);
+    ctx.fillStyle = glow; ctx.beginPath(); ctx.arc(0, -70, 90, 0, TAU); ctx.fill();
+    v.drawHeroAt(ctx, 0, 0, e.pose ? POSES[e.pose] : null, false, null);
+    ctx.restore();
+    // 이름
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const fs = Math.round(Math.min(H * 0.42, (w * 0.55) / Math.max(2, e.text.length)));
+    ctx.font = `900 ${fs}px "Yuji Syuku", "Nanum Brush Script", serif`;
+    const tx = w * 0.66, ty = -H * 0.06;
+    ctx.lineWidth = 8; ctx.strokeStyle = 'rgba(8,5,3,0.9)'; ctx.strokeText(e.text, tx, ty);
+    ctx.fillStyle = `rgb(${e.col})`; ctx.fillText(e.text, tx, ty);
+    ctx.fillStyle = 'rgba(255,255,255,0.55)'; ctx.fillText(e.text, tx - 2, ty - 2);
+    if (e.sub) { ctx.font = `800 ${Math.round(fs * 0.3)}px system-ui, sans-serif`; ctx.fillStyle = 'rgba(255,248,235,0.95)'; ctx.fillText(e.sub, tx, ty + fs * 0.66); }
+    ctx.restore();
+  },
+  // 기 모으기 — 사방에서 빛 알갱이가 소용돌이치며 무인에게 빨려 든다, 발밑 고리가 조여든다
+  converge(v, ctx, e, k) {
+    const x = v.heroX, y = v.groundY - 50;
+    const p = 1 - k;
+    const n = e.n || 40;
+    for (let i = 0; i < n; i++) {
+      const ph = (p * 1.6 + (i * 0.618) % 1) % 1;
+      const r = (1 - ph) * (e.r || 260) + 8;
+      const a = i * 2.39996 + ph * 4;
+      const px = x + Math.cos(a) * r, py = y + Math.sin(a) * r * 0.7;
+      ctx.fillStyle = `rgba(${i % 4 ? e.col : '255,255,255'},${0.9 * ph * Math.min(1, k * 3)})`;
+      ctx.beginPath(); ctx.arc(px, py, 1.4 + ph * 3, 0, TAU); ctx.fill();
+      ctx.strokeStyle = `rgba(${e.col},${0.35 * ph})`;
+      ctx.lineWidth = 1.2;
+      ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(x + Math.cos(a - 0.25) * (r + 26), y + Math.sin(a - 0.25) * (r + 26) * 0.7); ctx.stroke();
+    }
+    const rr = 140 * (1 - p) + 30;
+    ctx.strokeStyle = `rgba(${e.col},${0.8 * Math.min(1, p * 3)})`;
+    ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.ellipse(x, v.groundY, rr, rr * v.squash, 0, 0, TAU); ctx.stroke();
+    const g = ctx.createRadialGradient(x, y, 0, x, y, 70 + p * 40);
+    g.addColorStop(0, `rgba(255,255,255,${0.5 * p})`); g.addColorStop(0.4, `rgba(${e.col},${0.4 * p})`); g.addColorStop(1, `rgba(${e.col},0)`);
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, 110, 0, TAU); ctx.fill();
+  },
+  // 법상 — 무인 뒤로 거대한 빛의 모습이 솟아올랐다 스러진다
+  avatar(v, ctx, e, k) {
+    const p = 1 - k;
+    const rise = 1 - (1 - Math.min(1, p * 2.5)) ** 3;
+    const a = Math.min(1, p * 3) * Math.min(1, k * 2.2);
+    const sc = (e.scale || 3.2) * (0.85 + rise * 0.15);
+    ctx.save();
+    ctx.globalAlpha *= 0.42 * a;
+    ctx.translate(v.heroX - 6 * (e.face || 1), v.groundY + 40 - rise * 30);
+    ctx.scale(sc, sc);
+    v.drawHeroAt(ctx, 0, 0, e.pose ? POSES[e.pose] : null, (e.face || 1) < 0, e.col);
+    ctx.restore();
+    // 테두리 빛
+    const g = ctx.createRadialGradient(v.heroX, v.groundY - 200 * rise, 10, v.heroX, v.groundY - 200 * rise, 260);
+    g.addColorStop(0, `rgba(${e.col},${0.28 * a})`); g.addColorStop(1, `rgba(${e.col},0)`);
+    ctx.fillStyle = g; ctx.fillRect(v.heroX - 280, v.groundY - 480, 560, 560);
+  },
+  // 화면 충격파 — 무인(또는 정한 자리)에서 화면 끝까지 퍼지는 고리 셋과 흰 번쩍임
+  screenwave(v, ctx, e, k) {
+    const x = e.wx != null ? v.sx({ x: e.wx }) : v.heroX;
+    const y = e.wy != null ? v.sy({ y: e.wy }) : v.groundY;
+    const p = 1 - k;
+    const R = Math.hypot(v.w, v.h);
+    for (let i = 0; i < 3; i++) {
+      const q = clamp01(p * 1.4 - i * 0.12);
+      if (q <= 0) continue;
+      const r = q * R;
+      ctx.strokeStyle = `rgba(${i === 1 ? '255,255,255' : e.col},${0.85 * (1 - q)})`;
+      ctx.lineWidth = 26 * (1 - q) + 3;
+      ctx.beginPath(); ctx.ellipse(x, y, r, r * 0.62, 0, 0, TAU); ctx.stroke();
+    }
+    const fl = Math.max(0, 1 - p * 4);
+    if (fl > 0) { ctx.fillStyle = `rgba(255,255,255,${0.28 * fl})`; ctx.fillRect(-20, -20, v.w + 40, v.h + 40); }
+  },
+  // 여운 — 화면 가득 빛 부스러기가 천천히 내려앉는다
+  afterglow(v, ctx, e, k) {
+    const p = 1 - k;
+    const n = e.n || 50;
+    for (let i = 0; i < n; i++) {
+      const sx = ((i * 0.618034) % 1) * v.w;
+      const sy = (((i * 0.3819) % 1) * 0.6 - 0.15 + p * (0.5 + (i % 5) * 0.12)) * v.h;
+      const sz = 1.5 + (i % 4);
+      ctx.fillStyle = `rgba(${i % 3 ? e.col : '255,255,255'},${0.8 * Math.min(1, k * 2)})`;
+      ctx.save(); ctx.translate(sx + Math.sin(p * 6 + i) * 18, sy); ctx.rotate(p * 4 + i);
+      if (e.shape === 'petal') { ctx.beginPath(); ctx.ellipse(0, 0, sz * 2, sz, 0, 0, TAU); ctx.fill(); } else ctx.fillRect(-sz / 2, -sz / 2, sz, sz);
+      ctx.restore();
+    }
+  },
+  // 일화천섬 고유 — 화면을 가르는 천 개의 칼빛, 마지막에 화면을 대각으로 베는 한 줄
+  slashstorm(v, ctx, e, k) {
+    const p = 1 - k;
+    const n = e.n || 28;
+    for (let i = 0; i < n; i++) {
+      const t0 = (i / n) * 0.7;
+      const q = clamp01((p - t0) / 0.18);
+      if (q <= 0 || q >= 1) continue;
+      const cx = ((i * 0.618034) % 1) * v.w, cy = (0.15 + ((i * 0.381966) % 1) * 0.7) * v.h;
+      const a = ((i * 2.4) % Math.PI) - Math.PI / 2;
+      const L = 120 + (i % 5) * 50;
+      const dx = Math.cos(a) * L, dy = Math.sin(a) * L;
+      const w = Math.sin(q * Math.PI) * 5 + 0.5;
+      ctx.strokeStyle = `rgba(${i % 3 ? '255,255,255' : e.col},${0.95 * (1 - q * 0.6)})`;
+      ctx.lineWidth = w;
+      ctx.beginPath(); ctx.moveTo(cx - dx * q, cy - dy * q); ctx.lineTo(cx + dx * q, cy + dy * q); ctx.stroke();
+      ctx.strokeStyle = `rgba(${e.col},${0.25 * (1 - q)})`; ctx.lineWidth = w * 5;
+      ctx.beginPath(); ctx.moveTo(cx - dx * q, cy - dy * q); ctx.lineTo(cx + dx * q, cy + dy * q); ctx.stroke();
+    }
+    // 마지막 한 줄 — 화면을 대각으로
+    const q = clamp01((p - 0.78) / 0.14);
+    if (q > 0) {
+      const a = Math.min(1, (1 - p) * 6);
+      ctx.strokeStyle = `rgba(255,255,255,${a})`; ctx.lineWidth = 6 + Math.sin(q * Math.PI) * 10;
+      ctx.beginPath(); ctx.moveTo(-40, v.h * 0.85); ctx.lineTo(-40 + (v.w + 80) * q, v.h * 0.85 - v.h * 0.7 * q); ctx.stroke();
+      ctx.strokeStyle = `rgba(${e.col},${0.4 * a})`; ctx.lineWidth = 40;
+      ctx.beginPath(); ctx.moveTo(-40, v.h * 0.85); ctx.lineTo(-40 + (v.w + 80) * q, v.h * 0.85 - v.h * 0.7 * q); ctx.stroke();
+    }
+  },
+  // 투신강림 고유 — 땅이 물결처럼 들썩이는 띠가 화면 아래로 퍼진다
+  quake(v, ctx, e, k) {
+    const p = 1 - k;
+    const x = v.heroX, y = v.groundY;
+    for (let i = 0; i < 6; i++) {
+      const q = clamp01(p * 1.5 - i * 0.1);
+      if (q <= 0 || q >= 1) continue;
+      const r = q * v.w * 1.2;
+      ctx.strokeStyle = `rgba(${i % 2 ? e.col : '120,53,15'},${0.7 * (1 - q)})`;
+      ctx.lineWidth = 10 * (1 - q) + 2;
+      ctx.beginPath();
+      for (let j = 0; j <= 40; j++) {
+        const an = (j / 40) * TAU;
+        const wob = 1 + Math.sin(an * 7 + i) * 0.05;
+        const px = x + Math.cos(an) * r * wob, py = y + Math.sin(an) * r * wob * v.squash;
+        if (j) ctx.lineTo(px, py); else ctx.moveTo(px, py);
+      }
+      ctx.stroke();
+    }
+  },
+  // 극악소마 고유 — 하늘에 뜨는 핏빛 달과 붉은 번개
+  bloodmoon(v, ctx, e, k) {
+    const p = 1 - k;
+    const a = Math.min(1, p * 4, k * 2.5);
+    const mx = v.w * 0.72, my = v.h * 0.16, R = Math.min(v.w, v.h) * 0.12;
+    const g = ctx.createRadialGradient(mx, my, R * 0.4, mx, my, R * 3);
+    g.addColorStop(0, `rgba(220,38,38,${0.55 * a})`); g.addColorStop(1, 'rgba(220,38,38,0)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(mx, my, R * 3, 0, TAU); ctx.fill();
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.fillStyle = `rgba(153,27,27,${0.92 * a})`; ctx.beginPath(); ctx.arc(mx, my, R, 0, TAU); ctx.fill();
+    ctx.fillStyle = `rgba(69,10,10,${0.6 * a})`; ctx.beginPath(); ctx.arc(mx + R * 0.3, my - R * 0.1, R * 0.28, 0, TAU); ctx.arc(mx - R * 0.35, my + R * 0.3, R * 0.18, 0, TAU); ctx.fill();
+    ctx.globalCompositeOperation = 'lighter';
+    for (const b of e.bolts || []) {
+      const q = clamp01((p - b.t) / 0.12);
+      if (q <= 0 || q >= 1) continue;
+      const x1 = v.sx({ x: b.wx }), y1 = v.sy({ y: b.wy }) - 40;
+      ctx.strokeStyle = `rgba(254,202,202,${1 - q})`; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.moveTo(mx, my);
+      for (let j = 1; j <= 7; j++) { const f = j / 7; ctx.lineTo(mx + (x1 - mx) * f + (j < 7 ? ((b.s * (j * 97)) % 1 - 0.5) * 40 : 0), my + (y1 - my) * f); }
+      ctx.stroke();
+      ctx.strokeStyle = `rgba(220,38,38,${0.5 * (1 - q)})`; ctx.lineWidth = 10; ctx.stroke();
+    }
+  },
+  // 환영분신술 고유 — 화면이 거울처럼 금 가고 보랏빛 나비 떼가 날아오른다
+  shatter(v, ctx, e, k) {
+    const p = 1 - k;
+    const x = v.heroX, y = v.groundY - 60;
+    const grow = Math.min(1, p * 3);
+    const a = Math.min(1, k * 2);
+    ctx.strokeStyle = `rgba(233,213,255,${0.85 * a})`;
+    ctx.lineWidth = 2;
+    for (let i = 0; i < 14; i++) {
+      const an = i * 0.4488 + 0.2;
+      const L = Math.hypot(v.w, v.h) * grow * (0.5 + ((i * 37) % 10) / 20);
+      ctx.beginPath(); ctx.moveTo(x, y);
+      let px = x, py = y;
+      for (let j = 1; j <= 5; j++) { px = x + Math.cos(an + (((i + j) * 13) % 7 - 3) * 0.03) * L * j / 5; py = y + Math.sin(an) * L * j / 5; ctx.lineTo(px, py); }
+      ctx.stroke();
+    }
+    for (let i = 0; i < 24; i++) {
+      const ph = (p * 0.9 + i / 24) % 1;
+      const bx = x + Math.sin(i * 1.7 + p * 3) * (60 + ph * 220), by = y - ph * 320 + Math.cos(i) * 30;
+      const flap = Math.abs(Math.sin(p * 30 + i));
+      ctx.fillStyle = `rgba(${i % 3 ? '192,132,252' : '254,226,226'},${0.85 * (1 - ph) * a})`;
+      ctx.beginPath(); ctx.ellipse(bx - 5 * flap, by, 6 * flap + 1, 4, -0.5, 0, TAU); ctx.ellipse(bx + 5 * flap, by, 6 * flap + 1, 4, 0.5, 0, TAU); ctx.fill();
+    }
+  },
+  // 만독지옥 고유 — 독기 물결이 화면 아래에서 차오르고, 큰 해골이 무인 뒤 하늘에 뜬다
+  toxicwave(v, ctx, e, k) {
+    const p = 1 - k;
+    const a = Math.min(1, p * 3, k * 2);
+    const top = v.h * (1 - 0.55 * Math.min(1, p * 1.5));
+    const g = ctx.createLinearGradient(0, top, 0, v.h);
+    g.addColorStop(0, 'rgba(134,239,172,0)'); g.addColorStop(0.3, `rgba(74,222,128,${0.28 * a})`); g.addColorStop(1, `rgba(20,83,45,${0.5 * a})`);
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.moveTo(-20, v.h + 20);
+    for (let j = 0; j <= 30; j++) { const xx = (j / 30) * (v.w + 40) - 20; ctx.lineTo(xx, top + Math.sin(j * 0.9 + p * 10) * 14); }
+    ctx.lineTo(v.w + 20, v.h + 20); ctx.closePath(); ctx.fill();
+    for (let i = 0; i < 18; i++) {
+      const ph = (p * 1.3 + i / 18) % 1;
+      ctx.strokeStyle = `rgba(187,247,208,${0.7 * (1 - ph) * a})`; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(((i * 0.618) % 1) * v.w, top + 30 + (1 - ph) * (v.h - top), 3 + ph * 7, 0, TAU); ctx.stroke();
+    }
+  },
+
   // ---- 4차 필살 공통 (v124) ----
   // 먹띠 — 화면 위아래로 검은 띠가 들어왔다 나간다(영화처럼). 화면 좌표.
   letterbox(v, ctx, e, k) {
@@ -40,7 +280,7 @@ export const MAJON_FX = {
     const a = Math.min(1, p * 4, k * 2.5);
     const R = Math.hypot(v.w, v.h);
     const g = ctx.createRadialGradient(x, y, 0, x, y, R * 0.7);
-    g.addColorStop(0, `rgba(${e.col},${0.35 * a})`); g.addColorStop(1, `rgba(${e.col},0)`);
+    g.addColorStop(0, `rgba(${e.col},${0.24 * a})`); g.addColorStop(1, `rgba(${e.col},0)`);
     ctx.fillStyle = g; ctx.fillRect(-20, -20, v.w + 40, v.h + 40);
     const n = e.n || 14;
     ctx.translate(x, y);
@@ -48,7 +288,7 @@ export const MAJON_FX = {
     for (let i = 0; i < n; i++) {
       ctx.rotate((Math.PI * 2) / n);
       const w = 0.05 + ((i * 37) % 5) * 0.012;
-      ctx.fillStyle = `rgba(${i % 3 ? e.col : '255,255,255'},${0.18 * a})`;
+      ctx.fillStyle = `rgba(${i % 3 ? e.col : '255,255,255'},${0.13 * a})`;
       ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(R * Math.cos(-w), R * Math.sin(-w)); ctx.lineTo(R * Math.cos(w), R * Math.sin(w)); ctx.closePath(); ctx.fill();
     }
   },
@@ -276,16 +516,30 @@ export const MAJON_FX = {
 const hitsOr = (d, n = 8) => (d.hits.length ? d.hits.slice(0, n).map((h) => h.at) : [d.target]);
 
 // 4차 필살 공통 (v124): 먹띠 · 빛살 · 발밑 큰 인장 · 화면 한복판 큰 이름 · 화면이 잠깐 어두워진다(무인과 빛만 산다)
-function ultimate(d, col, text, dur) {
+// v129: + 컷인(무인의 큰 모습과 이름 띠) · 기 모으기 · 무인 뒤 거대한 법상 · 마지막에 climax()
+function ultimate(d, col, text, dur, o = {}) {
   const v = d.v;
   if (d.lvl <= 0) { d.hanja(d.name, 1); return; }
-  d.fx('letterbox', dur, { col });
-  d.fx('rays', dur * 0.9, { col, n: d.lvl >= 2 ? 18 : 10, spin: 0.8 });
-  d.fx('bigseal', dur, { wx: d.to.x, wy: d.to.y, r: 230, col, text });
-  d.at(0.18, () => d.fx('bigname', Math.min(1.4, dur * 0.8), { text, col }));
-  v.desatTo = 0.55;
+  d.fx('letterbox', dur + 0.4, { col });
+  d.fx('converge', 0.55, { col, n: d.lvl >= 2 ? 48 : 24, r: 300 });
+  d.fx('rays', dur * 0.9, { col, n: d.lvl >= 2 ? 22 : 12, spin: 0.8 });
+  d.fx('bigseal', dur, { wx: d.to.x, wy: d.to.y, r: 250, col, text });
+  d.fx('avatar', dur + 0.2, { col, pose: o.avatarPose || '기모으기', face: d.face, scale: 3.4 });
+  d.at(0.05, () => d.fx('cutin', 0.95, { col, text, sub: o.sub || d.name, pose: o.cutPose || '기모으기' }));
+  d.at(1.0, () => d.fx('bigname', Math.min(1.2, dur * 0.6), { text, col }));
+  v.desatTo = 0.6;
   v.camHold = Math.max(v.camHold || 0, 0.25);
-  d.at(dur * 0.85, () => { v.desatTo = 0; });
+  d.at(dur * 0.9, () => { v.desatTo = 0; });
+}
+// 필살의 마지막 한 방 — 화면 끝까지 퍼지는 충격파 · 흰 번쩍임 · 멈칫 · 여운
+function climax(d, col, at, o = {}) {
+  const v = d.v;
+  if (d.lvl <= 0) return;
+  d.fx('screenwave', 0.9, { col, wx: at?.x, wy: at?.y });
+  d.fx('afterglow', 1.6, { col, n: d.lvl >= 2 ? 60 : 30, shape: o.shape });
+  v.hitstop = Math.max(v.hitstop || 0, 0.16);
+  v.flash = Math.max(v.flash, 0.4);
+  v.shake = Math.max(v.shake, 0.6);
 }
 
 export const MAJON_CHOREO = {
@@ -298,7 +552,8 @@ export const MAJON_CHOREO = {
     const list = d.hits.slice();
     const gap = 0.06;
     const end = 0.45 + list.length * gap;
-    ultimate(d, PLUM, '一花千閃', end + 0.6);
+    ultimate(d, PLUM, '一花千閃', end + 0.6, { cutPose: '발도준비', avatarPose: '일섬', sub: '일화검존 · 일화천섬' });
+    if (d.lvl >= 1) d.at(0.33, () => d.fx('slashstorm', end - 0.2, { col: PLUM, n: d.lvl >= 2 ? 34 : 18 }));
     d.mark('기수식');
     d.pose([[0, '발도준비', 'out'], [0.3, '발도준비'], [0.35, '순보', 'step'], [0.37 + list.length * gap, '순보'], [end, '일섬', 'snap'], [end + 0.45, '납도', 'inout']], 0.3);
     d.at(0.1, () => d.fx('petalstorm', end + 0.6, {}));
@@ -317,7 +572,7 @@ export const MAJON_CHOREO = {
       d.mark('적중'); d.release();
       d.fx('bloom', 1.1, { wx: d.to.x, wy: d.to.y, r: 130, n: 8, col: '244,114,182', oy: -80, spin: 2 });
       impact(d, d.to, 260, c, { rings: 3, flare: true, sparks: 18, col: PLUM });
-      v.flash = Math.max(v.flash, 0.5); v.shake = Math.max(v.shake, 0.45);
+      climax(d, PLUM, d.to, { shape: 'petal' });
     });
     d.at(end + 0.5, () => d.mark('여운'));
     d.at(end + 0.85, () => { d.end(); d.mark(''); });
@@ -326,7 +581,7 @@ export const MAJON_CHOREO = {
   'fist:m4'(d) {
     const v = d.v;
     const c = [GOLD, '255,251,235', '120,53,15'];
-    ultimate(d, GOLD, '鬪神降臨', 1.9);
+    ultimate(d, GOLD, '鬪神降臨', 1.9, { cutPose: '정권', avatarPose: '진각', sub: '불패권마 · 투신강림' });
     d.mark('기수식');
     d.pose([[0, '마보', 'out'], [0.45, '마보'], [0.55, '진각', 'snap'], [0.9, '정권', 'snap'], [1.3, '마무리', 'inout']], 0.3);
     d.fx('motes', 0.6, { n: 24, face: d.face, r: 120, dx: 0, dy: -52, col: GOLD, seeds: rnd(24) });
@@ -347,7 +602,18 @@ export const MAJON_CHOREO = {
     d.at(1.2, () => {
       d.mark('적중'); d.release();
       d.fx('fistimg', 0.4, { wx0: d.to.x, wy0: d.to.y - 320, oy0: -60, wx1: d.to.x, wy1: d.to.y, oy1: -40, size: 150, col: GOLD, hot: c[1], go: 0.25, drop: true });
-      d.at(1.45, () => { impact(d, d.to, 300, c, { rings: 3, crack: true, sparks: 22 }); v.flash = Math.max(v.flash, 0.6); v.shake = Math.max(v.shake, 0.55); });
+      d.at(1.45, () => {
+        impact(d, d.to, 300, c, { rings: 3, crack: true, sparks: 22 });
+        climax(d, GOLD, d.to);
+        if (d.lvl >= 1) {
+          d.fx('quake', 1.0, { col: GOLD });
+          // 튀어 오르는 돌 부스러기
+          for (let i = 0; i < (d.lvl >= 2 ? 26 : 12); i++) {
+            const a = Math.random() * TAU, sp = 120 + Math.random() * 260;
+            v.particles.push({ x: v.heroX, y: v.groundY - 10, vx: Math.cos(a) * sp, vy: -220 - Math.random() * 260, life: 0.9 + Math.random() * 0.4, size: 3 + Math.random() * 4, color: i % 3 ? 'rgb(120,53,15)' : 'rgb(253,224,71)', drop: true });
+          }
+        }
+      });
     });
     d.at(1.6, () => d.mark('여운'));
     d.at(1.95, () => { d.end(); d.mark(''); });
@@ -355,7 +621,8 @@ export const MAJON_CHOREO = {
   // 독왕 만독지옥 — 하늘이 독빛으로 물들고 독비가 사냥터를 덮는다. 독사가 적들을 꿰고, 해골이 줄지어 떠오른다.
   'poison:m4'(d) {
     const v = d.v;
-    ultimate(d, GREEN[0], '萬毒地獄', 2.0);
+    ultimate(d, GREEN[0], '萬毒地獄', 2.0, { cutPose: '흩뿌리기', avatarPose: '땅짚기', sub: '독왕 · 만독지옥' });
+    if (d.lvl >= 1) d.at(0.4, () => d.fx('toxicwave', 1.8, {}));
     beats(d, [[0, '흩뿌리기', 'out'], [0.5, '흩뿌리기'], [0.6, '땅짚기', 'snap'], [1.5, '마무리', 'inout']], {
       cast: 0.15, hit: 1.05, end: 2.0, shake: 0.4, name: false,
       onCast: () => {
@@ -370,8 +637,8 @@ export const MAJON_CHOREO = {
       onHit: () => {
         for (const at of hitsOr(d, 14)) d.burst(at, 90, { puddle: 1.2, drops: 8 });
         d.skulls(d.hits, 8);
-        d.fx('skull', 1.2, { wx: d.to.x, wy: d.to.y, oy: -200, size: 40, v: 3 });
-        v.flash = Math.max(v.flash, 0.4);
+        d.fx('skull', 1.4, { wx: d.to.x, wy: d.to.y, oy: -260, size: 90, v: 3 });
+        climax(d, GREEN[0], d.to);
       },
     });
   },
@@ -379,7 +646,8 @@ export const MAJON_CHOREO = {
   'ring:m4'(d) {
     const v = d.v;
     const c = [BLOOD, '254,226,226', '69,10,10'];
-    ultimate(d, BLOOD, '三功合一', 1.8);
+    ultimate(d, BLOOD, '三功合一', 1.8, { cutPose: '지법겨눔', avatarPose: '쌍장', sub: '극악소마 · 삼공합일' });
+    if (d.lvl >= 1) d.fx('bloodmoon', 2.0, { bolts: hitsOr(d, 8).map((at, i) => ({ wx: at.x, wy: at.y, t: 0.35 + i * 0.07, s: Math.random() })) });
     beats(d, [[0, '지법겨눔', 'out'], [0.3, '손가락튕김', 'snap'], [0.55, '쌍장', 'snap'], [0.8, '흩뿌리기', 'snap'], [1.3, '마무리', 'inout']], {
       cast: 0.05, hit: 0.95, end: 1.8, shake: 0.45, name: false,
       onCast: () => {
@@ -397,7 +665,7 @@ export const MAJON_CHOREO = {
         }
         for (const at of tg.slice(0, 6)) d.at(1.0, () => d.fx('mask', 0.7, { wx: at.x, wy: at.y, oy: -110, size: 14 }));
       },
-      onHit: () => { impact(d, d.target, 240, c, { rings: 3, crack: true, sparks: 20 }); v.flash = Math.max(v.flash, 0.5); },
+      onHit: () => { impact(d, d.target, 240, c, { rings: 3, crack: true, sparks: 20 }); climax(d, BLOOD, d.target); },
     });
   },
   // 섭혼마존 환영분신술 — 보랏빛 빛살, 거꾸로 도는 시공의 인장, 분신 둘이 솟아 사방을 휩쓴다
@@ -405,7 +673,8 @@ export const MAJON_CHOREO = {
     const v = d.v;
     const c = [SOUL, '254,226,226', '59,7,100'];
     const R = d.radius || 280;
-    ultimate(d, SOUL, '幻影分身', 1.6);
+    ultimate(d, SOUL, '幻影分身', 1.6, { cutPose: '펼치기', avatarPose: '휘두르기', sub: '섭혼마존 · 환영분신술' });
+    if (d.lvl >= 1) d.at(0.5, () => d.fx('shatter', 1.4, {}));
     beats(d, [[0, '기모으기', 'out'], [0.45, '기모으기'], [0.55, '펼치기', 'snap'], [1.1, '마무리', 'inout']], {
       cast: 0.1, hit: 0.75, end: 1.6, shake: 0.3, name: false,
       onCast: () => {
@@ -420,7 +689,7 @@ export const MAJON_CHOREO = {
       onHit: () => {
         impact(d, d.to, R * 1.1, c, { rings: 3, sparks: 18 });
         for (const at of hitsOr(d, 10)) d.fx('eye', 0.8, { wx: at.x, wy: at.y, r: 14, oy: -105 });
-        v.flash = Math.max(v.flash, 0.4);
+        climax(d, SOUL, d.to);
       },
     });
   },
