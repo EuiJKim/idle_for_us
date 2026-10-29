@@ -171,6 +171,13 @@ export class WNet extends Net {
     return g.grant(D.raidKillReward(g.s.level, W.mapOf(g.s.huntMap).mz || 1));
   }
 
+  // 문파를 나가면 함께 사냥 표(RTDB gm/{문파})에서도 지운다 (v138)
+  async leaveGuild() {
+    const gid = this.game.s.guildId;
+    await super.leaveGuild();
+    this.coopForget?.(gid);
+  }
+
   // 문파 채팅에 알림 한 줄 (전직·상급 조합 같은 자랑거리)
   announce(text) {
     if (this.guild && this.online) this.sendChat(text, 'system').catch(() => {});

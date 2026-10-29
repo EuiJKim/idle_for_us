@@ -1,6 +1,6 @@
 // 브라우저 종단 테스트 — 바람식 개편 (Playwright + 선택: Firebase 에뮬레이터)
 //   1) 정적 서버:   npx http-server -p 8123 -s -c-1 .
-//   2) (선택) 에뮬레이터: firebase emulators:start --only auth,firestore --project idle-69772
+//   2) (선택) 에뮬레이터: firebase emulators:start --only auth,firestore,database --project idle-69772
 //   3) 실행: PLAYWRIGHT=$(npm root -g)/playwright CHROMIUM=/opt/pw-browsers/chromium node tests/e2e.cjs
 //      온라인까지: FIREBASE_PKG=/path/to/node_modules/firebase 를 더한다
 const path = require('path');
@@ -284,6 +284,35 @@ async function tab(page, name) {
   await p.waitForFunction(() => window.__app.net.canClaimWeek(), null, { timeout: 10000 });
   assert(true, '함께 친 다른 문파원도 받을 수 있다');
   await shot(p, '10-raid.png');
+
+  console.log('# 온라인: 십이지왕 함께 사냥 (v138)');
+  for (const pg of [p, q]) {
+    await G(pg, () => { const g = window.__game; while (g.s.level < 105) g.addExp(1e12); g.s.stats.vit = 1e6; g._stats = null; g.heroHp = g.stats().hp; g.s.autoSkill = false; g.enterMap(164); });
+  }
+  await p.waitForFunction(() => window.__coop.on && window.__coop.others.length === 1, null, { timeout: 20000 })
+    .catch(async (e) => { console.log('DEBUG', await G(p, () => ({ on: window.__coop.on, j: window.__coop.joining, f: window.__coop.failed, k: window.__coop.key, o: window.__coop.others.length }))); throw e; });
+  await q.waitForFunction(() => window.__coop.on && window.__coop.others.length === 1, null, { timeout: 20000 });
+  assert(true, '같은 왕 구역의 문파원이 서로 보인다');
+  const bossUp = () => { const g = window.__game; const m = g.mons.find((x) => x.alive && x.coopSeq != null); if (m) { m.introT = 0; g.freezeT = 0; m.atk = 0; } return !!m; };
+  await p.waitForFunction(bossUp, null, { timeout: 20000 });
+  await q.waitForFunction(bossUp, null, { timeout: 20000 });
+  const seqP = await G(p, () => window.__game.mons.find((x) => x.coopSeq != null).coopSeq);
+  const seqQ = await G(q, () => window.__game.mons.find((x) => x.coopSeq != null).coopSeq);
+  assert(seqP === seqQ, `둘이 같은 왕을 본다 (seq ${seqP})`);
+  // p가 3할을 깎으면 q 화면의 왕도 깎인다
+  await G(p, () => { const g = window.__game; const m = g.mons.find((x) => x.coopSeq != null); g.hurt(m, m.maxHp * 0.3, 'hit', false); });
+  await q.waitForFunction(() => { const m = window.__game.mons.find((x) => x.alive && x.coopSeq != null); return m && m.hp <= m.maxHp * 0.71; }, null, { timeout: 15000 });
+  assert(true, '한 사람이 친 만큼 다른 사람 화면의 왕 체력도 깎인다');
+  const kp0 = await G(p, () => window.__game.s.kills);
+  const kq0 = await G(q, () => window.__game.s.kills);
+  await G(q, () => { const g = window.__game; const m = g.mons.find((x) => x.coopSeq != null); g.hurt(m, m.maxHp, 'hit', false); });
+  await q.waitForFunction((k) => window.__game.s.kills > k, kq0, { timeout: 15000 });
+  await p.waitForFunction((k) => window.__game.s.kills > k, kp0, { timeout: 15000 });
+  assert(await G(p, () => !window.__game.mons.some((x) => x.isBoss && x.alive)), '서버가 쓰러졌다 하면 함께 친 둘 다 처치 보상을 받는다');
+  await shot(p, '11-coop.png');
+  await G(q, () => window.__game.enterMap(163));
+  await p.waitForFunction(() => window.__coop.others.length === 0, null, { timeout: 15000 });
+  assert(true, '구역을 떠나면 다른 사람 화면에서도 사라진다');
 
   const errs = [...a.errors, ...b.errors];
   console.log('errors:', errs);

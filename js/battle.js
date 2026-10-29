@@ -450,13 +450,13 @@ export class BattleView {
         const atY = ev.at ? this.sy(ev.at) : this.monY;
         this.monShake = 1;
         this.monFlash = 1;
-        const skill = ev.kind !== 'hit' && ev.kind !== 'pet';
+        const skill = ev.kind !== 'hit' && ev.kind !== 'pet' && ev.kind !== 'ally';
         // 치명 단계 — 1 치명(빨강) · 2 슈퍼(주황) · 3 하이퍼(보라) · 4+ 금빛. 단계가 높을수록 크게.
         const ct = typeof ev.crit === 'number' ? ev.crit : ev.crit ? 1 : 0;
         // 무공은 치명 단계를 늘 타므로(채운 단계만큼은 반드시) 단계는 글자로만 알리고,
         // 터지는 연출은 평타 치명에만 둔다 — 광역기 수십 대가 다 흔들면 화면이 멀미 난다
         const crit = skill ? false : ev.crit;
-        const color = ev.kind === 'pet' ? '#f9a8d4' : skill ? '#fde68a' : CRIT_COL[Math.min(ct, CRIT_COL.length - 1)];
+        const color = ev.kind === 'pet' ? '#f9a8d4' : ev.kind === 'ally' ? '#a5b4fc' : skill ? '#fde68a' : CRIT_COL[Math.min(ct, CRIT_COL.length - 1)];
         // 평타 치명 — 무기 등급 빛깔의 충격 고리 (v114)
         if (crit && ev.at && this.fxLevel > 0 && game?.s) {
           const gl = this.gearLook(game);
@@ -464,7 +464,7 @@ export class BattleView {
           const rgb = [0, 2, 4].map((i) => parseInt(c.slice(i, i + 2), 16)).join(',');
           this.effects.push({ kind: 'shock', life: 0.32, max: 0.32, wx: ev.at.x, wy: ev.at.y, r: 34 + gl.tier * 6, col: rgb, rings: 2, w: 3 });
         }
-        const size = ev.kind === 'pet' ? 14 : skill ? 28 : ct ? 24 + Math.min(4, ct) * 3 : 17;
+        const size = ev.kind === 'pet' ? 14 : ev.kind === 'ally' ? 19 : skill ? 28 : ct ? 24 + Math.min(4, ct) * 3 : 17;
         if (ev.add) {
           // 맞은 졸개는 움찔한다(drawAdd가 이 시각을 보고 밀리고 찌그러진다)
           if (ev.at) ev.at._hitAt = this.t;
@@ -687,6 +687,38 @@ export class BattleView {
     const d = new Director(this, p, game);
     this.director = d;
     CHOREO[p.fx](d);
+  }
+
+  // 함께 사냥하는 문파원 (v138) — 받은 생김새(lk)로 그리고, 탈것·이름표·체력 막대를 단다
+  drawAlly(o) {
+    const { ctx } = this;
+    const x = this.sx(o), y = this.sy(o);
+    if (x < -80 || x > this.w + 80 || y < -40 || y > this.h + 160) return;
+    const L = o.lk || {};
+    const look = L.look || {};
+    const op = { t: this.t + (o.uid.charCodeAt(0) || 0), run: !!o.moving, hold: true, weapon: 'sword', blade: '#e5e7eb', ...(L.opts || {}),
+      flip: o.f < 0, lunge: o.lunge > 0 ? Math.sin(o.lunge * Math.PI) : 0, flash: 0 };
+    ctx.save();
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    ctx.beginPath(); ctx.ellipse(x, y + 2, 22, 8, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = 'rgba(165,180,252,0.75)';
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.ellipse(x, y + 2, 27, 11, 0, 0, Math.PI * 2); ctx.stroke();
+    let fy = y;
+    const ride = o.mt || null;
+    if (ride) { drawCreature(ctx, ride, x, y, { t: this.t, moving: !!o.moving, flip: o.f < 0, layer: 'back' }); fy = y + saddleY(ride, this.t, !!o.moving); }
+    drawFighter(ctx, x, fy, look, { ...op, run: ride ? false : op.run });
+    if (ride) drawCreature(ctx, ride, x, y, { t: this.t, moving: !!o.moving, flip: o.f < 0, layer: 'front' });
+    // 이름표 · 체력
+    const ty = fy - 104;
+    ctx.font = `800 12px system-ui, sans-serif`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const label = `🤝 ${o.n || '문파원'}${o.lv ? ` Lv.${o.lv}` : ''}`;
+    ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(10,8,6,0.85)'; ctx.strokeText(label, x, ty);
+    ctx.fillStyle = '#c7d2fe'; ctx.fillText(label, x, ty);
+    ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(x - 22, ty + 8, 44, 4);
+    ctx.fillStyle = '#4ade80'; ctx.fillRect(x - 22, ty + 8, 44 * Math.max(0, Math.min(1, o.hp ?? 1)), 4);
+    ctx.restore();
   }
 
   // 무인 하나를 아무 자리에나 그린다 (잔상). tint가 있으면 그 빛깔로 물들인다.
@@ -1860,6 +1892,8 @@ export class BattleView {
     if (main && (main.alive || this.monDeath > 0)) {
       list.push({ y: main.y ?? game.heroY, go: () => this.drawMonster(game, dt) });
     }
+    // 함께 사냥하는 문파원 (v138)
+    if (this.fieldMode && game.coop?.on) for (const o of game.coop.others) list.push({ y: o.y, go: () => this.drawAlly(o) });
     // 쓰러지는 졸개 — 0.5초에 걸쳐 넘어지며 옅어진다
     if (this.corpses.length) {
       this.corpses = this.corpses.filter((c) => this.t - c.t0 < CORPSE_SEC);

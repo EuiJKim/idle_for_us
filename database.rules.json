@@ -1,0 +1,49 @@
+{
+  "rules": {
+    "gm": {
+      "$gid": {
+        "$uid": {
+          ".read": "auth != null && auth.uid === $uid",
+          ".write": "auth != null && auth.uid === $uid",
+          ".validate": "newData.isBoolean()"
+        }
+      }
+    },
+    "coop": {
+      "$gid": {
+        ".read": "auth != null && root.child('gm').child($gid).child(auth.uid).exists()",
+        "$map": {
+          ".validate": "$map.matches(/^[0-9]{1,4}$/)",
+          "p": {
+            "$uid": {
+              ".write": "auth != null && auth.uid === $uid && root.child('gm').child($gid).child(auth.uid).exists()",
+              "x": { ".validate": "newData.isNumber()" },
+              "y": { ".validate": "newData.isNumber()" },
+              "n": { ".validate": "newData.isString() && newData.val().length <= 24" },
+              "lk": { ".validate": "newData.isString() && newData.val().length <= 4000" },
+              "j": { ".validate": "newData.isString() && newData.val().length <= 16" },
+              "mt": { ".validate": "newData.isString() && newData.val().length <= 16" },
+              "f": { ".validate": "newData.isNumber()" },
+              "a": { ".validate": "newData.isNumber()" },
+              "hp": { ".validate": "newData.isNumber()" },
+              "lv": { ".validate": "newData.isNumber()" },
+              "t": { ".validate": "newData.isNumber()" },
+              "$other": { ".validate": false }
+            }
+          },
+          "b": {
+            ".write": "auth != null && root.child('gm').child($gid).child(auth.uid).exists()",
+            ".validate": "newData.hasChildren(['seq', 'hp', 'max']) && (!data.exists() || newData.child('seq').val() >= data.child('seq').val())",
+            "seq": { ".validate": "newData.isNumber()" },
+            "hp": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= newData.parent().child('max').val()" },
+            "max": { ".validate": "newData.isNumber() && newData.val() > 0" },
+            "dead": { ".validate": "newData.isNumber()" },
+            "killer": { ".validate": "newData.isString() && newData.val() === auth.uid" },
+            "kn": { ".validate": "newData.isString() && newData.val().length <= 24" },
+            "$other": { ".validate": false }
+          }
+        }
+      }
+    }
+  }
+}

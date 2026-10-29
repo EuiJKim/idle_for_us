@@ -67,6 +67,7 @@ export class Net {
       ]);
       this.fs = fs;
       const app = appM.initializeApp(firebaseConfig);
+      this.app = app;
       this.auth = authM.getAuth(app);
       this.db = fs.getFirestore(app);
       const emu = new URLSearchParams(location.search).get('emu');
@@ -91,6 +92,23 @@ export class Net {
   }
 
   ref(...path) { return this.fs.doc(this.db, ...path); }
+
+  // Realtime Database (v138 함께 사냥) — 쓸 때 처음 한 번만 불러온다. 못 쓰면 null(혼자 사냥 그대로).
+  async rtdb() {
+    if (this._rt !== undefined) return this._rt;
+    if (!this.online || !this.app) return null;
+    try {
+      const m = await import(`${CDN}/firebase-database.js`);
+      const emu = new URLSearchParams(location.search).get('emu');
+      const db = m.getDatabase(this.app);
+      if (emu) m.connectDatabaseEmulator(db, emu === '1' ? '127.0.0.1' : emu, 9000);
+      this._rt = { m, db };
+    } catch (err) {
+      console.warn('[net] rtdb', err?.message || err);
+      this._rt = null;
+    }
+    return this._rt;
+  }
 
   // ---------- 광고 제거 ----------
   //

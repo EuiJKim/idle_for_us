@@ -7,6 +7,9 @@ export const firebaseConfig = {
   messagingSenderId: '284751719397',
   appId: '1:284751719397:web:b90ca0876b384d49ff1d0c',
   measurementId: 'G-E8T97G0SZB',
+  // 함께 사냥(v138)용 Realtime Database. 콘솔에서 미국(us-central1)에 만들면 이 주소다.
+  // 다른 지역에 만들었으면 콘솔 맨 위에 보이는 주소로 바꾼다.
+  databaseURL: 'https://idle-69772-default-rtdb.firebaseio.com',
 };
 
 export const FIREBASE_SDK_VERSION = '10.12.2';

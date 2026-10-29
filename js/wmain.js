@@ -7,6 +7,7 @@ import { BUILD, RANKS, JOBS } from './data.js';
 import { BattleView, drawFighter } from './battle.js';
 import { loadIcons, skinImg } from './icons.js';
 import { WNet } from './wnet.js';
+import { Coop } from './world/wcoop.js';
 import { h, toast, openModal, closeModal, modalOpen } from './ui/common.js';
 import { WTABS, WTAB_TITLE, itemTitle, skillText, rewardText, dailyWaiting } from './wui.js';
 import * as D from './world/wdgn.js';
@@ -72,6 +73,23 @@ $('cv').addEventListener('wheel', (e) => { e.preventDefault(); setCam(view.camLe
 const app = { game, net: null, refresh: () => refreshUI(true), save: () => save(), closePanel: () => closePanel(), showTab: (t, sub) => showTab(t, sub) };
 const net = new WNet(game, { onChange: (w) => netChanged(w) });
 app.net = net;
+// 십이지왕 함께 사냥 (v138) — 문파원끼리 같은 왕 구역에 서면 왕 체력을 나눈다
+const coop = new Coop(game, net, {
+  look: () => {
+    const { look, opts } = view.heroLook(game, false);
+    return { look, opts: { weapon: opts.weapon, blade: opts.blade, glow: opts.glow, bladeCol: opts.bladeCol, bladeFx: opts.bladeFx, hold: true } };
+  },
+  onEvent: (kind, e) => {
+    if (kind === 'join') toast('🤝 함께 사냥 — 이 왕은 같은 구역의 문파원과 체력을 나눠요. 조금이라도 치면 처치 보상을 받아요');
+    else if (kind === 'peerIn') toast(`🤝 ${e.name}님이 같은 왕 구역에 왔어요`);
+    else if (kind === 'peerOut') toast(`${e.name}님이 왕 구역을 떠났어요`);
+    else if (kind === 'kill') toast(`👑 ${e.name} 처치! ${e.n > 1 ? `${e.n}명이 함께 · 내 몫 ${Math.round(e.share * 100)}%` : '혼자서'}${e.me ? ' — 마무리 일격' : ` — ${e.killer}님 마무리`}`);
+    else if (kind === 'missed') toast(`${e.killer}님 일행이 ${e.name}을(를) 쓰러뜨렸어요 — 이번 왕은 안 쳐서 보상이 없어요`);
+  },
+});
+game.coop = coop;
+net.coopForget = (gid) => coop.forget(gid);
+window.__coop = coop;
 
 let stopSaving = false;
 function save() {
@@ -183,7 +201,7 @@ function refreshUI(full = false) {
   const bossLeft = Math.max(0, Math.ceil(game.bossT));
   const boss = game.mons.find((x) => x.isBoss && x.alive);
   $('zone-label').textContent = m.inst ? (game.inst.kind === 'tower' ? `수문장 Lv.${m.lv[0]} · ${D.towerSec(game.inst.stage)}초 안에` : game.inst.kind === 'raid' ? `문파원과 함께 — ${D.RAID_SEC}초 동안 친 만큼` : `몹 Lv.${m.lv[0]} · ${D.DAILY_KILLS}마리 잡으면 깬다`) : m.town ? (s.autoHunt ? `쉬는 중 → ${W.mapOf(s.huntMap).name}` : '쉬는 중')
-    : m.bossRoom ? (boss ? `두목 ${boss.name} Lv.${boss.lv}` : `두목 다시 나기까지 ${Math.floor(bossLeft / 60)}:${String(bossLeft % 60).padStart(2, '0')}`)
+    : m.bossRoom ? (boss ? `두목 ${boss.name} Lv.${boss.lv}` : `두목 다시 나기까지 ${Math.floor(bossLeft / 60)}:${String(bossLeft % 60).padStart(2, '0')}`) + (coop.on ? ` · 🤝${coop.count + 1}명` : '')
       : `몹 Lv.${m.lv[0]}~${m.lv[1]} · 두목은 두목 구역에`;
   const hpR = Math.max(0, Math.min(1, game.heroHp / st.hp));
   $('progress-fill').style.width = `${hpR * 100}%`;
@@ -305,9 +323,9 @@ function handleEvents() {
     view.handle(ev, game);
     // 소리 (타격감) — 광역기 수십 대는 sfx가 간격을 둬서 몇 번만 난다
     switch (ev.type) {
-      case 'attack': sfx('swish'); break;
+      case 'attack': sfx('swish'); coop.noteAttack(); break;
       case 'dmg': sfx('hit', ev.crit > 0); break;
-      case 'skill': sfx('skill'); break;
+      case 'skill': sfx('skill'); coop.noteAttack(); break;
       case 'kill': sfx('kill'); break;
       case 'levelUp': sfx('level'); break;
       case 'craft': case 'sweep': sfx('loot'); break;
@@ -712,6 +730,7 @@ function step(now) {
   dt = Math.min(dt, 0.25);
   const steps = Math.min(3, Math.ceil(dt / 0.05));
   if (game.s.job && !modalOpen()) for (let i = 0; i < steps; i++) game.tick(dt / steps);
+  coop.tick(dt);
   view.game = game;
   handleEvents();
   view.draw(game, dt);

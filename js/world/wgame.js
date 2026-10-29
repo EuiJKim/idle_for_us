@@ -556,7 +556,9 @@ export class WorldGame {
     // 두목 구역: 두목이 없으면 BOSS_RESPAWN초 뒤에 다시 난다
     if (this.map.bossRoom && !this.mons.some((m) => m.isBoss && m.alive)) {
       this.bossT -= dt;
-      if (this.bossT <= 0) { this.bossT = W.BOSS_RESPAWN; this.spawnMob(true); }
+      // 함께 사냥(v138): 십이지왕 구역에서 문파원과 같은 방이면 두목은 서버의 것을 따른다(wcoop.js)
+      if (this.coop?.hold) this.coop.bossTick();
+      else if (this.bossT <= 0) { this.bossT = W.BOSS_RESPAWN; this.spawnMob(true); }
     }
     // 두목 등장 연출 동안은 들판 전체가 멈춘다(무인도 몹도)
     if (this.freezeT > 0) { this.freezeT -= dt; this.walking = false; for (const m of this.mons) if (m.introT > 0) m.introT -= dt; return; }
@@ -904,6 +906,15 @@ export class WorldGame {
 
   hurt(m, dmg, kind, crit, quiet = false) {
     if (!m.alive || m.introT > 0) return;
+    // 함께 잡는 왕: 친 만큼 모아 서버에 올리고, 쓰러뜨리는 건 서버가 정한다(내 화면에서 먼저 죽지 않는다)
+    if (m.coopSeq != null && this.coop?.on) {
+      const d = Math.min(dmg, Math.max(0, m.hp - 1));
+      this.coop.dealt(m, Math.min(dmg, m.hp));
+      m.hp -= d;
+      m.aggro = true;
+      if (!quiet) this.emit('dmg', { amount: dmg, kind, crit: crit ? 1 : 0, at: m, add: m !== this.mon });
+      return;
+    }
     m.hp -= dmg;
     m.aggro = true;
     if (!quiet) this.emit('dmg', { amount: dmg, kind, crit: crit ? 1 : 0, at: m, add: m !== this.mon });
