@@ -186,6 +186,27 @@ export const MAJON_FX = {
 const hitsOr = (d, n = 8) => (d.hits.length ? d.hits.slice(0, n).map((h) => h.at) : [d.target]);
 
 export const MAJON_CHOREO = {
+  // ===== 4차 (v121) =====
+  // 섭혼마존 환영분신술 — 술법진에서 보랏빛 분신 셋이 솟아 둘레를 한 번씩 휩쓴다
+  'fan:m4'(d) {
+    const c = [SOUL, '254,226,226', '59,7,100'];
+    const R = d.radius || 280;
+    beats(d, [[0, '기모으기', 'out'], [0.35, '기모으기'], [0.45, '펼치기', 'snap'], [0.95, '마무리', 'inout']], {
+      cast: 0.1, hit: 0.55, end: 1.25, shake: 0.25,
+      onCast: () => {
+        d.fx('sigil', 1.2, { wx: d.to.x, wy: d.to.y, r: R, col: SOUL, n: 18, spin: 2 });
+        const off = [[-1, -0.4], [1, -0.4], [0, -0.9]];
+        off.forEach(([ox, oy], i) => d.at(0.15 + i * 0.12, () => {
+          d.ghost(d.to.x + ox * 60, d.to.y + oy * 60, '펼치기', 0.7, { a0: 0.7, tint: SOUL });
+          d.fx('flare', 0.3, { wx: d.to.x + ox * 60, wy: d.to.y + oy * 60, r: 50, col: SOUL });
+        }));
+      },
+      onHit: () => {
+        impact(d, d.to, R, c, { rings: 3, sparks: 14 });
+        for (const at of hitsOr(d, 8)) d.fx('eye', 0.6, { wx: at.x, wy: at.y, r: 12, oy: -105 });
+      },
+    });
+  },
   // ===== 보조기 (v120) =====
   // 일화검존 유운보 — 구름 같은 걸음: 바람 줄과 꽃잎이 몸을 감싸 돈다
   'sword:m3'(d) {

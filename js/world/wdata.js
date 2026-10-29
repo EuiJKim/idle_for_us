@@ -65,6 +65,7 @@ export const TIERS = [
   { level: 15, cost: 200 },
   { level: 40, cost: 5000 },
   { level: 75, cost: 120000 },
+  { level: 100, cost: 3000000 },   // 4차 (v121) — 4차 무공이 있는 직업만 (지금은 환마)
 ];
 // 스킬 셋 (v118 — 다섯 마존의 무공). 차수마다 자리(slot)는 같다: 1차 한 적 · 2차 둘레 · 3차 비기.
 // role은 연출표(skillfx) 열쇠 — '캐릭터:role'. hpCost는 최대 체력 대비. mult는 한 번 맞을 때의 배수.
@@ -123,6 +124,8 @@ export const JOB_SKILLS = {
       desc: '하늘 밖의 혈마공 · 준 피해의 5%를 빨아들이고 6초간 받는 피해 +20%' }),
     SK(3, 0, 'sup', '시공이환술', 'support', { cd: 30, hpCost: 0, from: 25, auto: 'hurt', hurtAt: 0.5, heal: 0.4, buff: { sec: 4, dmgRed: 0.6 },
       desc: '때와 자리를 바꿔 다친 몸을 되돌린다 — 잃은 체력의 40% 회복 · 4초간 받는 피해 -60%' }),
+    SK(4, 4, 'clone', '환영분신술', 'clone', { mult: 0.28, cd: 45, hpCost: 0.12, radius: 240, n: 2, sec: 10, burst: 0.6, autoAbove: 0.5,
+      desc: '시공이환술의 끝 — 분신 둘이 나와 둘레를 한 번씩 치고(×0.6) 10초 동안 곁에서 함께 싸운다(칠 때마다 공격력 ×0.28)' }),
   ],
 };
 export const SKILL_DEFS = JOB_SKILLS.sword;   // 옛 이름 (자리·차수만 보는 곳)
@@ -463,7 +466,7 @@ export const KING_MYTHIC = {
   2: { id: 'crimson', name: '일월암혈도법 — 치명 피해 +80%' },
   1: { id: 'formless', name: '무형신검 — 평타가 둘레 모든 적을 벤다(70%) · 스킬 피해 +30%' },
 };
-export const SKILL_ORDINAL = ['1차', '2차', '3차'];
+export const SKILL_ORDINAL = ['1차', '2차', '3차', '보조기', '4차'];
 // 가락지·귀걸이에만 붙을 수 있는 '애완동물 +N' (함께 키울 수 있는 수가 는다)
 export const PET_SLOT_OPT = [0, 1, 2, 3];      // 등급별 (레어는 없음)
 export const PET_SLOT_CHANCE = 0.35;

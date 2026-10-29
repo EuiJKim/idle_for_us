@@ -67,7 +67,7 @@ setCam(loadCam());
 $('btn-zoom').addEventListener('click', () => setCam((view.camLevel + 1) % 3));
 $('cv').addEventListener('wheel', (e) => { e.preventDefault(); setCam(view.camLevel + (e.deltaY < 0 ? 1 : -1)); }, { passive: false });
 
-const app = { game, net: null, refresh: () => refreshUI(true), save: () => save(), closePanel: () => closePanel(), showTab: (t) => showTab(t) };
+const app = { game, net: null, refresh: () => refreshUI(true), save: () => save(), closePanel: () => closePanel(), showTab: (t, sub) => showTab(t, sub) };
 const net = new WNet(game, { onChange: (w) => netChanged(w) });
 app.net = net;
 
@@ -100,7 +100,9 @@ function closePanel() {
   $('panel-dim').classList.remove('open');
   document.querySelectorAll('#tabs button[data-tab]').forEach((b) => b.classList.remove('active'));
 }
-function showTab(name) {
+function showTab(name, sub) {
+  // 하위 탭까지 고르면(마을 → 가방의 대장장이) 열려 있어도 닫지 않고 그 칸으로
+  if (activeTab === name && sub) { tabs[name].select?.(sub); return; }
   if (activeTab === name) return closePanel();
   if (!tabs[name]) tabs[name] = WTABS[name](app);
   activeTab = name;
@@ -111,6 +113,7 @@ function showTab(name) {
   $('panel-dim').classList.add('open');
   paintSheet();
   document.querySelectorAll('#tabs button[data-tab]').forEach((b) => b.classList.toggle('active', b.dataset.tab === name));
+  if (sub) tabs[name].select?.(sub);
   tabs[name].shown?.();
   tabs[name].update();
   panelRes();

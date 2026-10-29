@@ -129,9 +129,17 @@ async function tab(page, name) {
   assert(await G(p, () => window.__game.map.town), '스스로 간 마을에서는 머문다');
   await tab(p, 'town');
   await sleep(400);   // 시트가 다시 열리는 중이면 누름이 빗나간다
+  // 마을 사람 넷 — 전직할 수 있으면 사부가 먼저 열린다
+  assert(await p.isVisible('#panel .npc.on:has-text("사부")'), '전직할 수 있으면 사부가 먼저');
+  await p.click('#panel .npc:has-text("상인")');
+  await sleep(200);
   const pot0 = await G(p, () => window.__game.s.potions);
-  await p.locator('#panel .buy:has-text("50개")').click();
+  await p.locator('#panel .buy-grid .buy:has-text("50개")').click();
   assert(await G(p, () => window.__game.s.potions) === pot0 + 50, '물약 50개');
+  await p.click('#panel button:has-text("자동 보충")');
+  assert(await G(p, () => window.__game.s.autoRefill === true), '물약 자동 보충을 켠다');
+  await p.click('#panel .npc:has-text("사부")');
+  await sleep(200);
   await p.click('#panel button:has-text("전직하기")');
   const t1 = await G(p, () => ({ tier: window.__game.s.jobTier, name: window.__game.tierName() }));
   assert(t1.tier === 1, `1차 전직 → ${t1.name}`);
@@ -216,7 +224,8 @@ async function tab(page, name) {
   await p.click('#panel button:has-text("기부")');
   await p.waitForFunction(() => (window.__app.net.guild?.exp || 0) >= 30, null, { timeout: 10000 });
   assert(true, '출석·기부로 문파 경험치가 오른다');
-  await p.click('#panel .mat-chip:has-text("청죽")');
+  await p.click('#panel .guild-seg button[data-key="bank"]');
+  await p.click('#panel .bank-mine .bank-row:has-text("청죽") button:has-text("반 넣기")');
   // 사냥 중이라 청죽 마디가 계속 들어온다 — 정확히 50이 아니라 반쯤
   await p.waitForFunction(() => (window.__app.net.guild?.bank?.['1'] || 0) >= 50, null, { timeout: 10000 });
   assert(await G(p, () => window.__game.s.mats[1] < 100), '재료 반을 문파 창고에 넣는다');
@@ -224,11 +233,15 @@ async function tab(page, name) {
   await q.click('#panel .subtabs button:has-text("문파")');
   await q.fill('#panel input[placeholder^="친구에게"]', code);
   await q.click('#panel button:has-text("가입")');
-  await q.waitForSelector('#panel .card:has-text("문파 창고") button.mat-chip:has-text("청죽")', { timeout: 15000 });
+  await q.waitForSelector('#panel .guild-seg', { timeout: 15000 });
+  await q.click('#panel .guild-seg button[data-key="bank"]');
+  await q.waitForSelector('#panel .bank-in .bank-row:has-text("청죽")', { timeout: 15000 });
   const m0 = await G(q, () => window.__game.s.mats[1] || 0);
-  await q.click('#panel .card:has-text("문파 창고") button.mat-chip:has-text("청죽")');
+  await q.click('#panel .bank-in .bank-row:has-text("청죽") button:has-text("전부 꺼내기")');
   await q.waitForFunction((m) => (window.__game.s.mats[1] || 0) >= m + 50, m0, { timeout: 10000 });
   assert(true, '다른 문파원이 창고에서 재료를 꺼낸다');
+  await q.click('#panel .guild-seg button[data-key="chat"]');
+  await p.click('#panel .guild-seg button[data-key="chat"]');
   await q.fill('#panel input[placeholder="메시지 보내기"]', '같이 해요');
   await q.click('#panel button:has-text("전송")');
   await p.waitForSelector('#panel .msg:has-text("같이 해요")', { timeout: 10000 });

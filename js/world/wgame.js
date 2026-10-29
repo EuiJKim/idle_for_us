@@ -22,7 +22,7 @@ export function newWorldSave(now = Date.now()) {
     statPts: 0,
     stats: { str: 0, dex: 0, vit: 0, int: 0 },   // 찍은 것 (캐릭터 기본치는 따로)
     autoStat: false,          // 레벨업 점수는 직접 찍는다(켜면 알아서 나눈다)
-    skillLv: { s0: 1, s1: 1, s2: 1, s3: 1 },   // 스킬 레벨 (v110) · s3 보조기(v120)
+    skillLv: { s0: 1, s1: 1, s2: 1, s3: 1, s4: 1 },   // 스킬 레벨 (v110) · s3 보조기(v120)
     skillPts: 0,
     passLv: {},               // 심법(패시브) 레벨 (v119)
     skillV: 1,
@@ -30,6 +30,7 @@ export function newWorldSave(now = Date.now()) {
     gold: 0,
     potions: 5,
     autoPotion: true,
+    autoRefill: false,        // 물약이 10개 아래면 알아서 50개까지 산다 (v121)
     equip: { weapon: null, armor: null, hat: null, acc: null, finger: null, ear: null },
     pets: [],                // 키우는 애완동물 (장착 칸만큼 함께 싸운다)
     petBox: [],              // 떨군 애완동물이 기다리는 우리
@@ -78,7 +79,7 @@ export function migrateWorld(raw, now = Date.now()) {
   s.bag = Array.isArray(raw.bag) ? raw.bag.filter((i) => i && W.SLOTS.some((x) => x.id === i.slot)) : [];
   s.level = clamp(Math.floor(Number(s.level) || 1), 1, W.LEVEL_MAX);
   for (const k of ['exp', 'gold', 'potions', 'statPts', 'jobTier', 'kills', 'deaths', 'books']) s[k] = Math.max(0, Number(s[k]) || 0);
-  s.jobTier = Math.min(3, Math.floor(s.jobTier));
+  s.jobTier = Math.min(4, Math.floor(s.jobTier));
   s.passLv = {};
   for (const [k, v] of Object.entries(raw.passLv || {})) if (/^p_[a-z]+$/.test(k) && v > 0) s.passLv[k] = Math.min(10, Math.floor(Number(v) || 0));
   // v118: 내공 효율(스킬 피해 3%→0.7%)과 직업 특성을 바꿨다 — 찍은 능력치를 한 번 다 돌려준다
@@ -124,7 +125,8 @@ export class WorldGame {
     this.contest = null;
     this.mons = [];
     this.mon = null;
-    this.cd = { s0: 0, s1: 0, s2: 0, s3: 0 };
+    this.cd = { s0: 0, s1: 0, s2: 0, s3: 0, s4: 0 };
+    this.clones = [];             // 환영분신술 분신들 (v121)
     this.shield = 0;              // 금종조 보호막 (남은 양)
     this.atkTimer = 0.4;
     this.potionT = 0;
@@ -257,6 +259,7 @@ export class WorldGame {
     return m.town || this.s.level >= m.lv[0];
   }
   enterMap(id, quiet = false) {
+    this.clones = [];
     if (!this.canEnter(id)) return false;
     const m = W.mapOf(id);
     this.s.map = id;
@@ -453,6 +456,7 @@ export class WorldGame {
     this.tickMobs(dt, st);
     if (this.heroHp <= 0) return;
     this.tickFields(dt, st);
+    this.tickClones(dt, st);
     this.tickPotion(st);
     this.tickHero(dt, st);
     this.tickPets(dt, st);
@@ -561,6 +565,11 @@ export class WorldGame {
   }
 
   tickPotion(st) {
+    // 자동 보충 — 사냥터에서도 상인이 따라다니는 셈 (방치 사냥이 물약 때문에 멈추지 않게)
+    if (this.s.autoRefill && this.s.potions < 10) {
+      const n = Math.min(50 - this.s.potions, Math.floor(this.s.gold / this.potionPrice()));
+      if (n > 0) this.buyPotions(n);
+    }
     if (!this.s.autoPotion || this.potionT > 0 || this.s.potions <= 0) return;
     if (this.heroHp < st.hp * W.POTION_AT) this.drinkPotion();
   }
@@ -807,6 +816,7 @@ export class WorldGame {
     const sk = this.skillDef(id);
     const st = this.stats();
     if (sk.kind === 'support') return this.useSupport(sk, st);
+    if (sk.kind === 'clone') return this.useClone(sk, st);
     const tgt = this.mon?.alive ? this.mon : this.pickTarget({ ...st, range: 9999 });
     if (sk.kind === 'single' && !tgt) return false;
     if (sk.kind === 'single' && !sk.far && Math.hypot(tgt.x - this.heroX, tgt.y - this.heroY) > Math.max(st.range, 160) * 1.6) return false;
@@ -917,6 +927,43 @@ export class WorldGame {
     if (b.sec) this.buffs.rage = Math.max(this.buffs.rage || 0, Math.min(b.sec, 3));
     return true;
   }
+  // 환영분신술 — 분신 n이 나와 둘레를 한 번씩 치고, sec초 동안 무인 곁에서 함께 싸운다
+  useClone(sk, st) {
+    const id = sk.id;
+    const cost = this.hpCostOf(sk);
+    const md = this.skillMods(id);
+    this.heroHp -= cost;
+    this.cd[id] = this.skillCd(sk);
+    const at = { x: this.heroX, y: this.heroY };
+    this.emit('skill', { id, name: sk.name, fx: sk.fx, look: sk.role, job: this.s.job, cls: this.s.job, tier: 4, at, radius: sk.radius, motion: 'aoe', dur: sk.sec });
+    if (cost) this.emit('hpCost', { amount: cost });
+    const mult = st.skillMult * (1 + md.dmg);
+    this.clones = Array.from({ length: sk.n }, (_, i) => ({ i, life: sk.sec, max: sk.sec, atkT: 0.3 + i * 0.15, mult: sk.mult * mult, crit: md.crit }));
+    // 나오면서 한 번씩 — 분신마다 둘레를 친다
+    for (let k = 0; k < sk.n; k++) {
+      for (const m of this.mons.slice()) if (m.alive && !m.npc && Math.hypot(m.x - at.x, (m.y - at.y) * 0.75) <= sk.radius) this.strike(m, st, sk.burst * mult, id, md.crit);
+    }
+    return true;
+  }
+  tickClones(dt, st) {
+    if (!this.clones.length) return;
+    for (const c of this.clones) {
+      c.life -= dt;
+      c.atkT -= dt;
+      if (c.atkT > 0 || c.life <= 0) continue;
+      c.atkT = st.atkSec * 1.1;
+      // 분신은 무인의 과녁을, 없으면 가까운 적을 친다
+      let m = this.mon?.alive ? this.mon : null;
+      if (!m) {
+        let bd = 300;
+        for (const o of this.mons) { if (!o.alive || o.npc) continue; const d = Math.hypot(o.x - this.heroX, o.y - this.heroY); if (d < bd) { bd = d; m = o; } }
+      }
+      if (!m) continue;
+      this.emit('cloneHit', { i: c.i, at: { x: m.x, y: m.y } });
+      this.strike(m, st, c.mult, 'clone', c.crit);
+    }
+    this.clones = this.clones.filter((c) => c.life > 0);
+  }
   // 보조기를 지금 쓸까
   wantSupport(sk, st) {
     if (sk.auto === 'hurt') return this.heroHp < st.hp * (sk.hurtAt || 0.5);
@@ -1009,7 +1056,12 @@ export class WorldGame {
     this.heroHp = this.stats().hp;
     return true;
   }
-  nextTier() { return this.s.jobTier < 3 ? W.TIERS[this.s.jobTier + 1] : null; }
+  // 다음 전직 — 3차까지는 누구나, 4차는 4차 무공이 있는 직업만(v121: 환마 환영분신술)
+  nextTier() {
+    const n = this.s.jobTier + 1;
+    if (n <= 3) return W.TIERS[n];
+    return n === 4 && W.skillsOf(this.s.job).some((k) => k.tier === 4) ? W.TIERS[4] : null;
+  }
   canAdvance() {
     const t = this.nextTier();
     return !!t && this.s.level >= t.level && this.s.gold >= t.cost;   // 사냥터에서도 (마을까지 안 가도 된다)

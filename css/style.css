@@ -1036,3 +1036,65 @@ details.lore p { margin: 4px 0 0; line-height: 1.5; }
 .craft-row .name small { display: block; }
 .smith-cur { font-size: 12px; color: var(--muted); margin-top: 4px; }
 .mat-zone .mat-row { margin: 4px 0; }
+
+/* 마을 개편 (v121) — 사람 넷을 고르면 그 일만 */
+.town-status { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.town-status b { display: block; font-size: 14px; }
+.town-status small { color: var(--muted); font-size: 12px; }
+.npc-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 0 0 10px; }
+.npc { position: relative; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 9px 4px 8px; border-radius: 12px;
+  background: var(--card); border: 1px solid var(--line); color: var(--text); font: inherit; cursor: pointer; }
+.npc .npc-ico { width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; font: 800 20px/1 var(--serif);
+  background: radial-gradient(circle at 35% 30%, #5b4632, #2a2018); color: var(--gold); border: 1px solid #6b5640; }
+.npc b { font-size: 13px; }
+.npc small { font-size: 10px; color: var(--muted); }
+.npc.on { border-color: var(--accent-2); background: linear-gradient(180deg, #3a2d1f, var(--card)); box-shadow: 0 0 0 1px var(--accent-2) inset; }
+.npc.on .npc-ico { background: radial-gradient(circle at 35% 30%, #a3242a, #4a0f12); color: #fde68a; border-color: var(--accent-2); }
+.npc .dot { position: absolute; top: 6px; right: 10px; width: 8px; height: 8px; border-radius: 50%; background: #ef4444; box-shadow: 0 0 6px #ef4444; }
+.advance-box { border: 1px solid var(--line); border-radius: 10px; padding: 10px; background: var(--card-2); }
+.advance-box .adv-title { font-size: 14px; margin-bottom: 6px; }
+.advance-box .adv-title b { color: var(--gold); }
+.advance-box .checks { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; }
+.path-step { display: grid; grid-template-columns: 34px 1fr auto; align-items: center; gap: 8px; padding: 6px 0; border-top: 1px dashed var(--line); opacity: 0.6; }
+.path-step:first-of-type { border-top: 0; }
+.path-step.known { opacity: 1; }
+.path-step .ico { width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; font: 800 13px var(--serif); background: var(--card-2); border: 1px solid var(--line); }
+.path-step.known .ico { border-color: var(--accent-2); color: var(--gold); }
+.path-step b { display: block; font-size: 13px; }
+.path-step small { color: var(--muted); font-size: 11px; }
+.path-step .st { font-size: 11px; color: var(--muted); }
+.path-step.known .st { color: #86efac; font-weight: 700; }
+.shop-item { display: grid; grid-template-columns: 44px 1fr auto; align-items: center; gap: 10px; margin-bottom: 10px; }
+.shop-item b { font-size: 14px; }
+.shop-item b small { color: var(--muted); font-weight: 400; font-size: 12px; }
+.shop-item .desc { font-size: 12px; color: var(--muted); }
+.shop-item .have { text-align: right; }
+.shop-item .have small { display: block; font-size: 10px; color: var(--muted); }
+.shop-item .have b { font-size: 18px; color: #fca5a5; }
+.pot-ico.big { width: 40px; height: 40px; }
+.book-ico { width: 40px; height: 40px; border-radius: 8px; display: grid; place-items: center; font: 800 20px var(--serif); color: var(--gold); background: #3b2a1a; border: 1px solid #6b5640; }
+.buy-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.buy-grid .buy { display: flex; flex-direction: column; align-items: center; padding: 7px 2px; font-size: 13px; }
+.buy-grid .buy small { font-size: 10px; opacity: 0.8; font-weight: 400; }
+.refill-row { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
+.refill-row .muted { flex: 1; font-size: 11.5px; }
+
+/* 문파 개편 (v121) */
+.guild-intro .perks { margin: 6px 0 2px; padding-left: 0; list-style: none; display: grid; gap: 5px; }
+.guild-intro .perks li { font-size: 13px; color: var(--muted); }
+.guild-intro .perks b { color: var(--gold); margin-right: 6px; }
+.guild-head .gh-top { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
+.guild-seal { width: 52px; height: 52px; flex: none; border-radius: 10px; display: grid; place-items: center; font: 800 26px/1 var(--brush);
+  color: #fff7ed; background: radial-gradient(circle at 35% 30%, #c0392b, #6b0f14); border: 2px solid #fca5a5; box-shadow: 0 0 12px rgba(192,57,43,0.45); transform: rotate(-4deg); }
+.guild-head .gh-name h3 { margin: 0; }
+.guild-head .gh-name p { margin: 2px 0 0 !important; }
+.guild-head .gh-code { display: flex; align-items: center; gap: 8px; margin: 8px 0; font-size: 12px; }
+.guild-head .gh-code b { font-size: 16px; }
+.guild-seg { margin: 0 0 8px; }
+.bank-row { display: grid; grid-template-columns: 1fr auto auto auto; align-items: center; gap: 6px; padding: 6px 0; border-top: 1px dashed var(--line); }
+.bank-row:first-child { border-top: 0; }
+.bank-row b { color: var(--mc); font-size: 13px; }
+.bank-row .n { font: 800 13px var(--serif); color: var(--text); min-width: 40px; text-align: right; }
+.guild-foot { display: flex; justify-content: flex-end; margin: 6px 0 4px; }
+.pot-ico.big { display: block; width: 30px; height: 38px; margin: 0 auto; border-radius: 9px 9px 14px 14px;
+  background: radial-gradient(circle at 40% 60%, #fca5a5, #b91c1c 70%); box-shadow: 0 0 0 3px #451a1a inset, 0 0 10px rgba(239,68,68,0.4); }

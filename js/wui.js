@@ -432,61 +432,110 @@ function mapTab(app) {
 }
 
 // ---------- 마을 ----------
+// v121 개편: 마을 사람 넷(사부 · 상인 · 대장장이 · 주모)을 고르면 그 사람 일만 보인다.
+// 전직할 수 있으면 사부에 붉은 점. 물약은 버튼 넷(10·50·200·살 수 있는 만큼) + 자동 보충.
+const NPC_LIST = [
+  { id: 'master', name: '사부', ico: '師', desc: '전직 · 무공' },
+  { id: 'shop', name: '상인', ico: '商', desc: '물약 · 비급' },
+  { id: 'smith', name: '대장장이', ico: '冶', desc: '조합 · 강화' },
+  { id: 'inn', name: '주모', ico: '酒', desc: '쉬기' },
+];
 function townTab(app) {
   const { game } = app;
   const root = h('div');
-  const status = h('div', { class: 'card' });
-  const shop = h('div', { class: 'card' });
-  const master = h('div', { class: 'card' });
-  root.append(status, master, shop);
+  const head = h('div', { class: 'card town-head' });
+  const npcRow = h('div', { class: 'npc-row' });
+  const body = h('div');
+  root.append(head, npcRow, body);
+  let pick = null;
   let sig = '';
-  function upd() {
+  const choose = (id) => { pick = id; sig = ''; upd(); };
+  function npcButtons() {
+    const dot = { master: game.canAdvance() };
+    npcRow.replaceChildren(...NPC_LIST.map((n) => h('button', { class: `npc${pick === n.id ? ' on' : ''}`, onclick: () => (n.id === 'smith' ? app.showTab?.('bag', 'smith') : choose(n.id)) },
+      h('span', { class: 'npc-ico' }, n.ico), h('b', {}, n.name), h('small', {}, n.desc), dot[n.id] ? h('i', { class: 'dot' }) : null)));
+  }
+  function masterView() {
+    const s = game.s;
+    const t = game.nextTier();
+    const card = h('div', { class: 'card' }, h('h3', {}, '사부', h('small', {}, `지금 ${game.tierName() || '입문'}`)));
+    if (!t) card.append(h('p', {}, '더 배울 것이 없다. 이제 네 길을 가거라.'));
+    else {
+      const sk = W.skillsOf(s.job).find((k) => k.tier === s.jobTier + 1);
+      const lvOk = s.level >= t.level, goldOk = s.gold >= t.cost;
+      card.append(
+        h('div', { class: 'advance-box' },
+          h('div', { class: 'adv-title' }, `${s.jobTier + 1}차 전직 → `, h('b', {}, game.tierName(s.jobTier + 1))),
+          h('div', { class: 'checks' },
+            h('span', { class: `need${lvOk ? ' ok' : ''}` }, `레벨 ${t.level}`, ' ', h('b', {}, lvOk ? '✓' : `${s.level}/${t.level}`)),
+            h('span', { class: `need${goldOk ? ' ok' : ''}` }, '은자', ' ', h('b', {}, goldOk ? '✓' : `${fmt(s.gold)}/${fmt(t.cost)}`))),
+          h('p', { class: 'muted' }, '배우는 무공: ', h('b', {}, sk.name), ` — ${skillText(game, sk)}`),
+          h('button', { class: 'btn primary', style: 'width:100%', disabled: game.canAdvance() ? null : true, onclick: () => {
+            if (!game.advance()) return;
+            toast(`${game.tierName()}(으)로 전직했어요 — 〈${sk.name}〉`);
+            app.save(); app.refresh();
+          } }, !lvOk ? `레벨 ${t.level}이 되면` : !goldOk ? '은자가 모자라요' : '전직하기')));
+    }
+    // 무공의 길 — 무엇을 언제 배우는지 한눈에
+    const lvOf = (k) => (k.kind === 'support' ? k.from : W.TIERS[k.tier].level);
+    const all = W.skillsOf(s.job).sort((a, b) => lvOf(a) - lvOf(b));
+    const steps = all.map((k) => {
+      const when = k.kind === 'support' ? `레벨 ${k.from}` : `${k.tier}차 · 레벨 ${W.TIERS[k.tier].level}`;
+      const known = game.knows(k);
+      return h('div', { class: `path-step${known ? ' known' : ''}` }, h('span', { class: 'ico' }, k.icon), h('div', {}, h('b', {}, k.name), h('small', {}, `${when}${k.kind === 'support' ? ' · 보조기' : ''}`)), h('span', { class: 'st' }, known ? '배움' : '—'));
+    });
+    return [card, h('div', { class: 'card' }, h('h3', {}, '무공의 길', h('small', {}, W.LORE[s.job]?.title || '')), ...steps)];
+  }
+  function shopView() {
+    const s = game.s;
+    const price = game.potionPrice();
+    const maxN = Math.max(0, Math.floor(s.gold / price));
+    const buy = (n, max = false) => h('button', { class: 'buy', disabled: n <= 0 || s.gold < price * n ? true : null, onclick: () => {
+      if (game.buyPotions(n)) { toast(`물약 ${fmt(n)}개를 샀어요`); app.save(); app.refresh(); }
+    } }, max ? '최대' : `${n}개`, h('small', {}, max ? `${fmt(n)}개` : fmt(price * n)));
+    const refill = h('button', { class: `btn ${s.autoRefill ? 'good' : ''}`, onclick: () => { s.autoRefill = !s.autoRefill; app.save(); sig = ''; upd(); } }, s.autoRefill ? '자동 보충 켜짐' : '자동 보충 꺼짐');
+    return [
+      h('div', { class: 'card shop-card' },
+        h('div', { class: 'shop-item' },
+          h('span', { class: 'pot-ico big' }),
+          h('div', { class: 'info' }, h('b', {}, '빨간 물약', h('small', {}, ` 개당 ${fmt(price)}`)),
+            h('div', { class: 'desc' }, `최대 체력의 ${pct(W.POTION_HEAL, 0)} 회복 · 체력 ${pct(W.POTION_AT, 0)} 아래면 알아서 먹어요`)),
+          h('div', { class: 'have' }, h('small', {}, '가진 것'), h('b', {}, fmt(s.potions)))),
+        h('div', { class: 'buy-grid' }, buy(10), buy(50), buy(200), buy(Math.max(maxN, 1), true)),
+        h('div', { class: 'refill-row' }, h('span', { class: 'muted' }, '물약이 10개 아래면 50개까지 알아서 사요 (사냥터에서도)'), refill)),
+      h('div', { class: 'card shop-card' },
+        h('div', { class: 'shop-item' },
+          h('span', { class: 'book-ico' }, '書'),
+          h('div', { class: 'info' }, h('b', {}, '무공 비급', h('small', {}, ` ${s.books || 0}권 읽음`)),
+            h('div', { class: 'desc' }, '읽으면 스탯 점수 +1 · 한 권 읽을 때마다 값이 올라요'))),
+        h('button', { class: 'btn primary', style: 'width:100%', disabled: s.gold < game.statBookCost() ? true : null, onclick: () => {
+          if (game.buyStatBook()) { toast('스탯 점수 +1 — 캐릭터 창에서 찍어요'); app.save(); app.refresh(); }
+        } }, `비급 읽기 · 은자 ${fmt(game.statBookCost())}`)),
+    ];
+  }
+  function innView() {
     const s = game.s;
     const inTown = game.map.town;
-    // 바뀐 것이 있을 때만 다시 그린다 — 0.2초마다 단추를 갈아 끼우면 누르는 사이에 단추가 바뀌어 눌림이 사라진다
-    const nsig = `${inTown}|${s.autoHunt}|${s.huntMap}|${s.jobTier}|${s.level}|${s.potions}|${s.books || 0}|${[10, 50, 200].map((n) => s.gold >= game.potionPrice() * n)}|${s.gold >= game.statBookCost()}|${game.canAdvance()}`;
+    return [h('div', { class: 'card' }, h('h3', {}, '주모', h('small', {}, '객잔')),
+      h('p', {}, inTown ? '"푹 쉬다 가요. 여기선 체력이 금방 차요."' : '"다쳤으면 들어와 쉬어요. 마을에선 체력이 금방 차요."'),
+      h('p', { class: 'muted' }, `쓰러지면 마을로 실려 와 체력이 다 차면 ${W.mapOf(s.huntMap).name}(으)로 돌아가요(자동 사냥일 때). 앱을 꺼 두어도 고른 사냥터에서 사냥한 만큼이 쌓여요.`),
+      inTown ? h('button', { class: 'btn primary', style: 'width:100%', disabled: game.canEnter(s.huntMap) ? null : true, onclick: () => { game.enterMap(s.huntMap); app.save(); app.closePanel(); app.refresh(); } }, `${W.mapOf(s.huntMap).name}(으)로 나가기`)
+        : h('button', { class: 'btn primary', style: 'width:100%', onclick: () => { game.goTown(); app.save(); app.refresh(); } }, '쉬러 가기'))];
+  }
+  function upd() {
+    const s = game.s;
+    if (!pick) pick = game.canAdvance() ? 'master' : 'shop';
+    const inTown = game.map.town;
+    const nsig = `${pick}|${inTown}|${s.autoHunt}|${s.huntMap}|${s.jobTier}|${s.level}|${s.potions}|${s.books || 0}|${s.autoRefill}|${Math.floor(Math.log10(s.gold + 1) * 30)}|${game.canAdvance()}`;
     if (nsig === sig) return;
     sig = nsig;
-    // 전직·상점·조합은 어디서나 된다. 마을은 쉬는 곳(체력이 빨리 찬다).
-    status.replaceChildren(inTown
-      ? h('div', { class: 'btn-row' }, h('span', { class: 'muted', style: 'flex:2;align-self:center' }, '마을에서 쉬는 중 — 체력이 빠르게 차요.'),
-        h('button', { class: 'btn primary', disabled: game.canEnter(s.huntMap) ? null : true, onclick: () => { game.enterMap(s.huntMap); app.save(); app.closePanel(); app.refresh(); } }, `${W.mapOf(s.huntMap).name}(으)로`))
-      : h('div', { class: 'btn-row' }, h('span', { class: 'muted', style: 'flex:2;align-self:center' }, '전직·상점·조합은 사냥터에서도 돼요. 마을에서는 체력이 빨리 차요.'),
-        h('button', { class: 'btn', style: 'white-space:nowrap', onclick: () => { game.goTown(); app.save(); app.refresh(); } }, '쉬러 가기')));
-    status.append(h('div', { class: 'row', style: 'margin-top:8px' },
-      h('div', { class: 'ico' }, '대장'),
-      h('div', { class: 'info' }, h('div', { class: 'name' }, '대장장이'),
-        h('div', { class: 'desc' }, '아래 장비 + 사냥터 재료 + 두목 증표로 위 장비를 조합해요. 사냥터에서도 돼요.')),
-      h('button', { class: 'buy', onclick: () => app.showTab?.('bag') }, '조합')));
-    // 사부 — 전직
-    const t = game.nextTier();
-    const sk = t && W.skillsOf(s.job).find((k) => k.tier === s.jobTier + 1);
-    master.replaceChildren(h('h3', {}, '사부', h('small', {}, `지금 ${game.tierName()}`)));
-    if (!t) master.append(h('p', {}, '더 배울 것이 없다. 이제 네 길을 가거라.'));
-    else {
-      master.append(
-        h('p', {}, `${s.jobTier + 1}차 전직 — ${game.tierName(s.jobTier + 1)}`),
-        h('p', { class: 'muted' }, `배우는 스킬: `, h('b', {}, sk.name), ` — ${skillText(game, sk)}`),
-        h('p', { class: 'muted' }, `레벨 ${t.level} · 은자 ${fmt(t.cost)}`),
-        h('button', { class: 'btn primary', style: 'width:100%', disabled: game.canAdvance() ? null : true, onclick: () => {
-          if (!game.advance()) return;
-          app.save(); app.refresh();
-        } }, s.level < t.level ? `레벨 ${t.level}이 되면` : s.gold < t.cost ? '은자가 모자라요' : '전직하기'));
-    }
-    // 상점 — 물약
-    const price = game.potionPrice();
-    shop.replaceChildren(h('h3', {}, '상점', h('small', {}, `물약 ${s.potions}개`)),
-      h('p', { class: 'muted' }, `빨간 물약 — 최대 체력의 ${pct(W.POTION_HEAL, 0)} 회복 · 체력이 ${pct(W.POTION_AT, 0)} 아래면 알아서 먹어요. 방치 중에도 먹으니, 떨어지면 방치 사냥이 멈춰요.`),
-      h('div', { class: 'btn-row' }, ...[10, 50, 200].map((n) => h('button', { class: 'buy', disabled: s.gold < price * n ? true : null, onclick: () => {
-        if (game.buyPotions(n)) { toast(`물약 ${n}개를 샀어요`); app.save(); app.refresh(); }
-      } }, `${n}개 · ${fmt(price * n)}`))),
-      h('div', { class: 'row', style: 'margin-top:8px' },
-        h('div', { class: 'ico' }, '비급'),
-        h('div', { class: 'info' }, h('div', { class: 'name' }, '무공 비급', h('small', {}, `${s.books || 0}권 읽음`)),
-          h('div', { class: 'desc' }, '읽으면 스탯 점수 +1. 한 권 읽을 때마다 값이 오른다.')),
-        h('button', { class: 'buy', disabled: s.gold < game.statBookCost() ? true : null, onclick: () => {
-          if (game.buyStatBook()) { toast('스탯 점수 +1'); app.save(); app.refresh(); }
-        } }, `은자 ${fmt(game.statBookCost())}`)));
+    head.replaceChildren(h('div', { class: 'town-status' },
+      h('div', {}, h('b', {}, inTown ? '객잔 마을에서 쉬는 중' : `${W.mapOf(s.map).name}에서 사냥 중`),
+        h('small', {}, inTown ? '체력이 빠르게 차요' : '전직·상점·조합은 사냥터에서도 돼요')),
+      inTown ? h('button', { class: 'btn primary', disabled: game.canEnter(s.huntMap) ? null : true, onclick: () => { game.enterMap(s.huntMap); app.save(); app.closePanel(); app.refresh(); } }, '사냥터로')
+        : h('button', { class: 'btn', onclick: () => { game.goTown(); app.save(); app.refresh(); } }, '쉬러 가기')));
+    npcButtons();
+    body.replaceChildren(...(pick === 'master' ? masterView() : pick === 'inn' ? innView() : shopView()));
   }
   return { root, update: upd };
 }
@@ -578,10 +627,14 @@ function guildView(app) {
         toast('문파에 들어갔어요!');
       });
       root.append(
-        h('div', { class: 'card' }, h('h3', {}, '문파', h('small', {}, `최대 ${W.GUILD_MAX}명`)),
-          h('p', { class: 'muted' }, `문파 레벨마다 전원 공격력 +${pct(W.guildAtk(W.GUILD_LV_EXP))}. 출석·기부로 오르고, 창고로 조합 재료를 나눠 써요.`),
-          h('div', { class: 'chat-input' }, nameIn, createBtn)),
-        h('div', { class: 'card' }, h('h3', {}, '코드로 가입'), h('div', { class: 'chat-input' }, codeIn, joinBtn)));
+        h('div', { class: 'card guild-intro' }, h('h3', {}, '문파', h('small', {}, `최대 ${W.GUILD_MAX}명`)),
+          h('ul', { class: 'perks' },
+            h('li', {}, h('b', {}, '공격력'), ` 문파 레벨마다 전원 +${pct(W.guildAtk(W.GUILD_LV_EXP))}`),
+            h('li', {}, h('b', {}, '창고'), ' 남는 조합 재료를 넣고 꺼내 써요'),
+            h('li', {}, h('b', {}, '채팅'), ' 문파원끼리 이야기'),
+            h('li', {}, h('b', {}, '레벨'), ' 날마다 출석·은자 기부로 올라요'))),
+        h('div', { class: 'card' }, h('h3', {}, '새 문파 만들기'), h('div', { class: 'chat-input' }, nameIn, createBtn)),
+        h('div', { class: 'card' }, h('h3', {}, '코드로 가입', h('small', {}, '문파원에게 6자리 코드를 받아요')), h('div', { class: 'chat-input' }, codeIn, joinBtn)));
       return;
     }
     view = 'guild';
@@ -595,21 +648,21 @@ function guildView(app) {
       const text = `우리끼리 무림 문파 "${net.guild.name}" 가입 코드: ${net.guild.code}\n${location.origin}${location.pathname}`;
       try { if (navigator.share) await navigator.share({ text }); else { await navigator.clipboard.writeText(text); toast('코드를 복사했어요'); } } catch { /* 취소 */ }
     };
-    const leave = h('button', { class: 'btn danger', style: 'padding:6px 10px' }, '탈퇴');
+    const leave = h('button', { class: 'btn danger mini' }, '문파 탈퇴');
     leave.onclick = () => openModal((m) => {
       m.append(h('h2', {}, '문파를 떠날까요?'), h('p', { class: 'muted' }, '문파 버프가 사라지고, 다시 코드로 들어올 수 있어요.'),
         h('div', { class: 'btn-row' }, h('button', { class: 'btn', onclick: closeModal }, '취소'),
           h('button', { class: 'btn danger', onclick: async () => { closeModal(); await net.leaveGuild().catch((e) => toast(e.message)); } }, '탈퇴')));
     });
     const checkBtn = h('button', { class: 'btn good' });
-    checkBtn.onclick = busy(checkBtn, async () => { if (await net.checkin()) toast(`출석! 문파 경험치 +${W.GUILD_CHECKIN_EXP}`); });
+    checkBtn.onclick = busy(checkBtn, async () => { if (await net.checkin()) { toast(`출석! 문파 경험치 +${W.GUILD_CHECKIN_EXP}`); loadMembers(); } });
     const donateBtn = h('button', { class: 'btn primary' });
     donateBtn.onclick = busy(donateBtn, async () => { if (await net.donate()) { toast(`기부! 문파 경험치 +${W.GUILD_DONATE_EXP}`); app.save(); app.refresh(); } });
     // 문파원
     const members = h('div');
     // 창고
-    const bankBox = h('div');
-    const myBox = h('div');
+    const bankBox = h('div', { class: 'bank-in' });
+    const myBox = h('div', { class: 'bank-mine' });
     // 채팅
     const chatBox = h('div', { class: 'chat' });
     const input = h('input', { class: 'field', maxlength: 200, placeholder: '메시지 보내기' });
@@ -622,15 +675,36 @@ function guildView(app) {
     };
     send.onclick = doSend;
     input.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.isComposing) doSend(); });
-    els = { title, lvl, bar, buff, code, checkBtn, donateBtn, members, bankBox, myBox, chatBox };
+    const seal = h('div', { class: 'guild-seal' });
+    const count = h('small');
+    els = { title, lvl, bar, buff, code, checkBtn, donateBtn, members, bankBox, myBox, chatBox, seal, count };
+    // 아래는 칸 셋 — 문파원 · 창고 · 채팅 (고른 칸을 기억한다)
+    let seg = 'chat';
+    try { seg = localStorage.getItem('ifu.guildseg') || 'chat'; } catch { /* 사생활 모드 */ }
+    const secs = {
+      members: h('div', { class: 'card' }, h('h3', {}, '문파원', count), members),
+      bank: h('div', { class: 'card' }, h('h3', {}, '문파 창고', h('small', {}, '눌러서 꺼내기')), bankBox,
+        h('h3', { style: 'margin-top:12px' }, '내 재료', h('small', {}, '눌러서 넣기')), myBox),
+      chat: h('div', { class: 'card' }, h('h3', {}, '문파 채팅'), chatBox, h('div', { class: 'chat-input' }, input, send)),
+    };
+    const segBtns = h('div', { class: 'seg wide guild-seg' });
+    const pickSeg = (k) => {
+      seg = k;
+      try { localStorage.setItem('ifu.guildseg', k); } catch { /* 사생활 모드 */ }
+      for (const [key, el] of Object.entries(secs)) el.style.display = key === k ? '' : 'none';
+      for (const b of segBtns.children) b.classList.toggle('on', b.dataset.key === k);
+      if (k === 'chat') els.chatBox.scrollTop = els.chatBox.scrollHeight;
+    };
+    for (const [k, label] of [['members', '문파원'], ['bank', '창고'], ['chat', '채팅']]) segBtns.append(h('button', { 'data-key': k, onclick: () => pickSeg(k) }, label));
     root.append(
-      h('div', { class: 'card' }, h('h3', {}, title, lvl), bar, buff,
-        h('div', { class: 'members', style: 'margin:8px 0;align-items:center' }, '코드 ', code, share, leave),
+      h('div', { class: 'card guild-head' },
+        h('div', { class: 'gh-top' }, seal, h('div', { class: 'gh-name' }, h('h3', {}, title, lvl), buff)),
+        bar,
+        h('div', { class: 'gh-code' }, h('span', { class: 'muted' }, '가입 코드'), code, share),
         h('div', { class: 'btn-row' }, checkBtn, donateBtn)),
-      h('div', { class: 'card' }, h('h3', {}, '문파원'), members),
-      h('div', { class: 'card' }, h('h3', {}, '문파 창고', h('small', {}, '재료를 넣고 꺼내 써요')), bankBox,
-        h('p', { class: 'muted', style: 'margin:10px 0 4px' }, '내 재료 넣기'), myBox),
-      h('div', { class: 'card' }, h('h3', {}, '문파 채팅'), chatBox, h('div', { class: 'chat-input' }, input, send)));
+      segBtns, secs.members, secs.bank, secs.chat,
+      h('div', { class: 'guild-foot' }, leave));
+    pickSeg(seg);
     loadMembers();
     update();
   }
@@ -658,21 +732,25 @@ function guildView(app) {
     if (sig === bankSig) return;
     bankSig = sig;
     const order = (a, b) => parseInt(a.replace('b', ''), 10) - parseInt(b.replace('b', ''), 10) || (a[0] === 'b') - (b[0] === 'b');
-    const chip = (k, n, label, fn) => {
-      const b = h('button', { class: 'mat-chip', style: `--mc:${W.matColor(k)}` }, h('b', {}, W.matName(k)), h('small', {}, `${fmt(n)} · ${label}`));
-      b.onclick = busy(b, fn);
-      return b;
+    // 재료 한 줄 — 이름·개수와 단추 둘(반 · 전부)
+    const row = (k, n, verb, fn) => {
+      const half = h('button', { class: 'btn mini' }, `반 ${verb}`);
+      const all = h('button', { class: 'btn mini primary' }, `전부 ${verb}`);
+      half.onclick = busy(half, () => fn(Math.max(1, Math.floor(n / 2))));
+      all.onclick = busy(all, () => fn(n));
+      return h('div', { class: 'bank-row', style: `--mc:${W.matColor(k)}` },
+        h('b', {}, W.matName(k)), h('span', { class: 'n' }, fmt(n)), half, all);
     };
     const inBank = Object.keys(bank).filter((k) => bank[k] > 0).sort(order);
-    els.bankBox.replaceChildren(inBank.length ? h('div', { class: 'mat-row' }, ...inBank.map((k) => chip(k, bank[k], '눌러서 꺼내기', async () => {
-      const n = await net.takeMats(k, bank[k]);
-      if (n) { toast(`${W.matName(k)} ${n}개를 꺼냈어요`); app.save(); }
-    }))) : h('p', { class: 'muted' }, '비어 있어요. 남는 재료를 넣어 두면 문파원이 조합에 써요.'));
+    els.bankBox.replaceChildren(...(inBank.length ? inBank.map((k) => row(k, bank[k], '꺼내기', async (n) => {
+      const got = await net.takeMats(k, n);
+      if (got) { toast(`${W.matName(k)} ${got}개를 꺼냈어요`); app.save(); }
+    })) : [h('p', { class: 'muted' }, '비어 있어요. 남는 재료를 넣어 두면 문파원이 조합에 써요.')]));
     const mine = Object.keys(mats).filter((k) => mats[k] > 0).sort(order);
-    els.myBox.replaceChildren(mine.length ? h('div', { class: 'mat-row' }, ...mine.map((k) => chip(k, mats[k], '눌러서 반 넣기', async () => {
-      const n = await net.putMats(k, Math.max(1, Math.floor(mats[k] / 2)));
-      if (n) { toast(`${W.matName(k)} ${n}개를 넣었어요`); app.save(); }
-    }))) : h('p', { class: 'muted' }, '가진 재료가 없어요.'));
+    els.myBox.replaceChildren(...(mine.length ? mine.map((k) => row(k, mats[k], '넣기', async (n) => {
+      const put = await net.putMats(k, n);
+      if (put) { toast(`${W.matName(k)} ${put}개를 넣었어요`); app.save(); }
+    })) : [h('p', { class: 'muted' }, '가진 재료가 없어요.')]));
   }
 
   function renderChat() {
@@ -697,10 +775,12 @@ function guildView(app) {
     const into = (gd.exp || 0) % W.GUILD_LV_EXP;
     const top = lv >= W.GUILD_LV_MAX;
     els.title.textContent = gd.name;
+    els.seal.textContent = (gd.name || '?').slice(0, 1);
+    els.count.textContent = `${gd.memberIds.length}/${W.GUILD_MAX}명`;
     els.lvl.textContent = `Lv.${lv}${top ? ' (최대)' : ''}`;
     els.bar.firstChild.style.width = `${top ? 100 : (into / W.GUILD_LV_EXP) * 100}%`;
     els.bar.lastChild.textContent = top ? 'MAX' : `문파 경험치 ${into} / ${W.GUILD_LV_EXP}`;
-    els.buff.textContent = `문파 버프: 전원 공격력 +${pct(W.guildAtk(gd.exp))} · 인원 ${gd.memberIds.length}/${W.GUILD_MAX}`;
+    els.buff.textContent = `전원 공격력 +${pct(W.guildAtk(gd.exp))} · ${gd.memberIds.length}/${W.GUILD_MAX}명`;
     els.code.textContent = gd.code;
     const checked = net.checkedInToday();
     els.checkBtn.textContent = checked ? '오늘 출석함' : `출석 +${W.GUILD_CHECKIN_EXP}`;

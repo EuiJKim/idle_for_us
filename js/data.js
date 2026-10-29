@@ -51,7 +51,7 @@ export const critExpect = (C, D) => {
 // NaN이 된다 — 재 보니 적 체력이 관문 8467에서 그 선을 넘었다.
 // 반대로 상한이 있는 값(경지 배수·초월 단계처럼)은 보통 숫자 그대로 둔다.
 
-export const BUILD = 'ifu-v120';
+export const BUILD = 'ifu-v121';
 
 export const SAVE_VERSION = 4;
 export const OFFLINE_CAP_SEC = 12 * 3600;
@@ -787,7 +787,7 @@ export const JOBS = [
   { id: 'fan', name: '환마', weapon: '부채', look: 'fan', color: '#38bdf8', range: 230,
     tag: '홀린다',
     desc: '멀리서 부채 바람을 날린다. 상태이상이 오래간다 — 둔화·파쇄가 길게 걸린다.',
-    tiers: ['환술사', '혈루객', '풍천교 섭혼사', '섭혼마존'],
+    tiers: ['환술사', '혈루객', '풍천교 섭혼사', '풍천교주', '섭혼마존'],
     mult: { ccDur: 1.8, critDmg: 1.45 } },
   { id: 'poison', name: '독마', weapon: '독낭', look: 'dagger', color: '#22c55e', range: 240,
     tag: '서서히 죽인다',

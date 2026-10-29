@@ -498,7 +498,7 @@ console.log('\n=== 다섯 마존의 무공 (v118) ===');
     g.mons.forEach((m, i) => { m.x = g.heroX + 40 + (i % 3) * 20; m.y = g.heroY + 20 * Math.floor(i / 3) - 40; });
     return g;
   };
-  ok(['sword', 'fist', 'fan', 'poison', 'ring'].every((j) => new Set(W.skillsOf(j).map((k) => k.name)).size === 4 && W.LORE[j]?.title), '직업마다 무공 셋 + 보조기 하나가 다르고 마존 설정이 있다');
+  ok(['sword', 'fist', 'fan', 'poison', 'ring'].every((j) => new Set(W.skillsOf(j).map((k) => k.name)).size === W.skillsOf(j).length && W.skillsOf(j).length >= 4 && W.LORE[j]?.title), '직업마다 무공 셋 + 보조기 하나가 다르고 마존 설정이 있다');
   const p = ready('poison');
   ok(p.useSkill('s1') && p.fields.length === 1, '독마 화골산: 독무 장판이 깔린다');
   const hp0 = p.mons.reduce((a, m) => a + m.hp, 0);
@@ -563,6 +563,26 @@ console.log('\n=== 보조기 (v120) ===');
   ok(sw.buffv.move > 0 && sw.buffv.dodge > 0 && sw.buffv.haste > 0, '검사 유운보: 이동·공격 속도 · 흘리기');
   const r = mk('ring'); r.useSkill('s3');
   ok(r.buffv.fear > 0 && r.buffv.critUp > 0, '극악소마 무면개방: 공포 · 치명 피해');
+}
+
+console.log('\n=== 환마 4차 · 환영분신술 (v121) ===');
+{
+  const g = fresh('fan');
+  g.s.level = 100; g.s.gold = 1e9;
+  while (g.canAdvance()) g.advance();
+  ok(g.s.jobTier === 4 && g.tierName() === '섭혼마존' && g.skills().some((k) => k.name === '환영분신술'), '환마는 레벨 100에 4차 전직 → 섭혼마존 · 환영분신술', g.tierName());
+  const o = fresh('sword'); o.s.level = 100; o.s.gold = 1e9;
+  while (o.canAdvance()) o.advance();
+  ok(o.s.jobTier === 3 && !o.nextTier(), '4차 무공이 없는 직업은 3차까지');
+  g.enterMap(11); g._stats = null; g.heroHp = g.stats().hp;
+  for (const m of g.mons) { m.hp = m.maxHp = 1e12; m.atk = 0; m.x = g.heroX + 40; m.y = g.heroY; }
+  g.mon = g.mons[0];
+  ok(g.useSkill('s4') && g.clones.length === 2, '분신 둘이 나온다');
+  let hits = 0;
+  for (let i = 0; i < 60; i++) { g.tick(0.1); hits += g.events.filter((e) => e.type === 'cloneHit').length; g.events.length = 0; }
+  ok(hits >= 6, '분신이 곁에서 함께 친다', `${hits}번`);
+  for (let i = 0; i < 60; i++) g.tick(0.1);
+  ok(g.clones.length === 0, '10초가 지나면 사라진다');
 }
 
 console.log('\n=== 전직·스킬 ===');

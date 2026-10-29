@@ -140,6 +140,7 @@ export function subTabs(views) {
   return {
     root,
     res: () => made[cur]?.res || null,
+    select(key) { if (views.some((v) => v.key === key)) select(key); },
     update() { made[cur]?.update(); },
     shown() { made[cur]?.shown?.(); },
     netChanged(what) { Object.values(made).forEach((v) => v.netChanged?.(what)); },

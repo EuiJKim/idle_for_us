@@ -543,6 +543,9 @@ export class BattleView {
       case 'stageClear':
         this.showBanner(`${ev.stage} 관문 돌파`, '#fef3c7', 1.5, '돌파');
         break;
+      case 'cloneHit':
+        (this.cloneAtk || (this.cloneAtk = {}))[ev.i] = { t: 0.25, at: ev.at };
+        break;
       case 'levelUp':
         // 한꺼번에 여러 레벨이 올라도 빛기둥은 하나 — 겹치면 하얗게 탄다
         if (!this.effects.some((e) => e.kind === 'pillar' && e.life > 0.5)) this.effects.push({ kind: 'pillar', life: 1.2, max: 1.2 });
@@ -1465,6 +1468,26 @@ export class BattleView {
       const k = 1 - this.heroDownT / HERO_DOWN_SEC;
       const down = k < 0.35 ? 1 - (1 - k / 0.35) ** 2 : k < 0.7 ? 1 : 1 - ((k - 0.7) / 0.3) ** 2;
       downRot = (opts.flip ? 1 : -1) * down * 1.3;
+    }
+    // 환영분신술 (v121) — 보랏빛 분신이 무인 둘레에 서서 함께 친다(칠 때 과녁 쪽으로 튀어 나간다)
+    if (game.clones?.length) {
+      const OFF = [[-62, -24], [62, -24], [0, -56]];
+      for (const c of game.clones) {
+        const [ox, oy] = OFF[c.i % 3];
+        let cx = x + ox, cy = y + oy;
+        const a = this.cloneAtk?.[c.i];
+        if (a && a.t > 0) {
+          a.t -= this._lastDt || 0;
+          const k = Math.sin(Math.PI * Math.max(0, Math.min(1, 1 - a.t / 0.25)));
+          cx += (this.sx(a.at) - cx) * 0.55 * k;
+          cy += (this.sy(a.at) - cy) * 0.55 * k;
+        }
+        const fade = Math.max(0, Math.min(1, c.life / 0.6, (c.max - c.life) / 0.3));
+        this.ctx.save();
+        this.ctx.globalAlpha = alpha * 0.6 * fade * (0.85 + Math.sin(this.t * 6 + c.i) * 0.15);
+        this.drawHeroAt(this.ctx, cx, cy, null, !!opts.flip, '192,132,252');
+        this.ctx.restore();
+      }
     }
     if (gale) { // 잔상
       for (let i = 3; i >= 1; i--) {
