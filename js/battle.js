@@ -655,6 +655,26 @@ export class BattleView {
         if (ev.mat?.boss) this.float(`+${ev.mat.boss}`, kx, ky - 165 + 34 * UIK, '#fde68a', 14);
         break;
       }
+      // 전직 (v201) — 직업 빛깔의 기운이 크게 모였다가 고리 셋으로 터지고, '二轉'이 찍힌다 · 한순간 느려진다
+      case 'advance': {
+        if (this.fxLevel <= 0 || game?.heroX == null) break;
+        const col = CAST_COL[game.s?.job] || '253,224,71';
+        this.effects.push({ kind: 'motes', life: 0.6, max: 0.6, n: 26, seeds: seedsN(26), r: 180, dx: 0, dy: -62, face: 1, col });
+        this.later.push({ t: 0.5, ev: { type: '_fx', fx: [
+          { kind: 'shock', life: 0.9, max: 0.9, wx: game.heroX, wy: game.heroY, r: 220, col, rings: 3, w: 6 },
+          { kind: 'flare', life: 0.7, max: 0.7, wx: game.heroX, wy: game.heroY, r: 140, col },
+          { kind: 'petals', life: 1.4, max: 1.4, hero: true, r: 110, col, seeds: seedsN(22), spin: 5, oy: -60 },
+        ] } });
+        this.hitstop = Math.max(this.hitstop || 0, 0.3);
+        this.flash = Math.max(this.flash, 0.5);
+        this.shake = Math.max(this.shake, 0.3);
+        this.hanja = { text: `${['', '一', '二', '三', '四'][ev.tier] || ''}轉`, life: 1.8, max: 1.8, color: `rgb(${col})`, y: 0.36, scale: 0.85 };
+        break;
+      }
+      // 사냥터에 들어섰다 (v201) — 먹빛에서 밝아진다(0.45초). 툭 바뀌던 화면이 넘어가는 맛.
+      case 'mapEnter':
+        this.fadeIn = 0.45;
+        break;
       // 장비가 떨어졌다 (v196) — 떨어진 자리에 등급 빛깔의 빛이 솟고 고리가 퍼진다 · 등급 이름이 뜬다. 신화는 띠까지.
       case 'drop': {
         if (!ev.at || this.fxLevel <= 0) break;
@@ -1322,6 +1342,11 @@ export class BattleView {
     this.drawSparks(dt);
     this.drawParticles(dt);
     this.drawWeather(scene, dt);
+    if (this.fadeIn > 0) {
+      this.fadeIn = Math.max(0, this.fadeIn - rawDt);
+      ctx.fillStyle = `rgba(8,6,4,${(this.fadeIn / 0.45) ** 1.5 * 0.92})`;
+      ctx.fillRect(-20, -20, this.w + 40, this.h + 40);
+    }
     if (this.flash > 0) {
       ctx.fillStyle = `rgba(255,251,235,${this.flash * 0.5})`;
       ctx.fillRect(-20, -20, this.w + 40, this.h + 40);
