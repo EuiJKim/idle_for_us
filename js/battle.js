@@ -5,6 +5,7 @@ import { artReady, putArt, putArtEdge, putArtTint, loadArt, FIT, ART_SHOULDER, A
 import { drawCreature, saddleY, mountTilt, mountGait } from './creatures.js';
 import { ZONES_W, itemZone } from './world/wdata.js';
 import { setOf } from './world/wgear.js';
+import { tellCovers } from './world/wdgn.js';
 import { OUTFITS } from './data.js';
 
 // 의복 열둘 중 앞 여섯은 도포(몸), 뒤 여섯은 검 장식(무기)이다.
@@ -2683,8 +2684,18 @@ export class BattleView {
       if (!tl._fx && this.castFx) tl._fx = this.castFx;      // v160: 그 초식의 그림
       const k = 1 - Math.max(0, tl.t / tl.max);           // 0 → 1 차오른다
       const urgent = tl.t < 0.35;
-      const edge = `rgba(248,113,113,${urgent ? 0.6 + blink * 0.4 : 0.85})`;
-      ctx.lineWidth = 2.5;
+      // v214: 내가 그 안에 서 있으면 테두리가 희게 빠르게 깜빡인다 — '나한테 오는 것'과 '남 일'을 가른다
+      const inside = game.heroHp > 0 && tellCovers(tl, game.heroX, game.heroY);
+      const fastBlink = 0.5 + 0.5 * Math.sin(this.t * 34);
+      const edge = inside ? `rgba(254,226,226,${0.65 + fastBlink * 0.35})` : `rgba(248,113,113,${urgent ? 0.6 + blink * 0.4 : 0.85})`;
+      // 차오르는 앞머리 — 얼마나 남았는지는 채움보다 '움직이는 금'이 더 잘 읽힌다
+      const front = `rgba(255,237,213,${0.55 + k * 0.45})`;
+      // 터지기 직전에는 채움 전체가 한 번 더 붉게 번쩍
+      const fillA = 0.22 + k * 0.25 + (urgent ? 0.18 * blink : 0);
+      ctx.lineWidth = inside || urgent ? 3.5 : 2.5;
+      // 테두리는 흐르는 점선 — 터지기 직전엔 꽉 찬 선
+      ctx.setLineDash(urgent ? [] : [12, 7]);
+      ctx.lineDashOffset = -this.t * 40;
       if (tl.kind === 'circle' || tl.kind === 'donut') {
         const x = this.sx(tl), y = this.sy(tl);
         const r1 = tl.kind === 'donut' ? tl.r1 : tl.r, r0 = tl.kind === 'donut' ? tl.r0 : 0;
@@ -2694,12 +2705,16 @@ export class BattleView {
         ctx.fill('evenodd');
         // 차오르는 안쪽 (고리는 안에서 밖으로)
         const rf = r0 + (r1 - r0) * k;
-        ctx.fillStyle = `rgba(239,68,68,${0.22 + k * 0.25})`;
+        ctx.fillStyle = `rgba(239,68,68,${fillA})`;
         ctx.beginPath(); ctx.ellipse(x, y, rf, rf * sq, 0, 0, Math.PI * 2);
         if (r0) ctx.ellipse(x, y, r0, r0 * sq, 0, 0, Math.PI * 2);
         ctx.fill('evenodd');
         ctx.strokeStyle = edge;
         ctx.beginPath(); ctx.ellipse(x, y, r1, r1 * sq, 0, 0, Math.PI * 2); ctx.stroke();
+        if (rf > r0 + 2 && k < 0.98) {
+          ctx.save(); ctx.setLineDash([]); ctx.lineWidth = 2; ctx.strokeStyle = front;
+          ctx.beginPath(); ctx.ellipse(x, y, rf, rf * sq, 0, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
+        }
         if (r0) { ctx.strokeStyle = 'rgba(134,239,172,0.8)'; ctx.beginPath(); ctx.ellipse(x, y, r0, r0 * sq, 0, 0, Math.PI * 2); ctx.stroke(); }
       } else if (tl.kind === 'cone') {
         // 부채꼴 (v168) — 평면의 각을 화면 납작함대로 그린다
@@ -2710,8 +2725,14 @@ export class BattleView {
           ctx.closePath();
         };
         ctx.fillStyle = 'rgba(220,38,38,0.16)'; sector(tl.r); ctx.fill();
-        ctx.fillStyle = `rgba(239,68,68,${0.22 + k * 0.25})`; sector(tl.r * k); ctx.fill();
+        ctx.fillStyle = `rgba(239,68,68,${fillA})`; sector(tl.r * k); ctx.fill();
         ctx.strokeStyle = edge; sector(tl.r); ctx.stroke();
+        if (k > 0.04 && k < 0.98) {
+          const rr = tl.r * k;
+          ctx.save(); ctx.setLineDash([]); ctx.lineWidth = 2; ctx.strokeStyle = front; ctx.beginPath();
+          for (let i = 0; i <= 24; i++) { const a2 = tl.a - tl.half + (2 * tl.half * i) / 24; const px = x + Math.cos(a2) * rr, py = y + Math.sin(a2) * rr * sq; if (i) ctx.lineTo(px, py); else ctx.moveTo(px, py); }
+          ctx.stroke(); ctx.restore();
+        }
       } else if (tl.kind === 'line') {
         const a = { x: tl.x0, y: tl.y0 }, b = { x: tl.x1, y: tl.y1 };
         const ax = this.sx(a), ay = this.sy(a), bx = this.sx(b), by = this.sy(b);
@@ -2719,9 +2740,15 @@ export class BattleView {
         const nx = (-dy / L) * tl.w / 2, ny = (dx / L) * tl.w / 2 * sq;
         const quad = (f) => { ctx.beginPath(); ctx.moveTo(ax + nx, ay + ny); ctx.lineTo(ax + (bx - ax) * f + nx, ay + (by - ay) * f + ny); ctx.lineTo(ax + (bx - ax) * f - nx, ay + (by - ay) * f - ny); ctx.lineTo(ax - nx, ay - ny); ctx.closePath(); };
         ctx.fillStyle = 'rgba(220,38,38,0.16)'; quad(1); ctx.fill();
-        ctx.fillStyle = `rgba(239,68,68,${0.22 + k * 0.25})`; quad(k); ctx.fill();
+        ctx.fillStyle = `rgba(239,68,68,${fillA})`; quad(k); ctx.fill();
         ctx.strokeStyle = edge; quad(1); ctx.stroke();
+        if (k > 0.04 && k < 0.98) {
+          const fx0 = ax + (bx - ax) * k, fy0 = ay + (by - ay) * k;
+          ctx.save(); ctx.setLineDash([]); ctx.lineWidth = 2.5; ctx.strokeStyle = front;
+          ctx.beginPath(); ctx.moveTo(fx0 + nx, fy0 + ny); ctx.lineTo(fx0 - nx, fy0 - ny); ctx.stroke(); ctx.restore();
+        }
       }
+      ctx.setLineDash([]);
       if (tl._fx && this.fxLevel > 0) drawTellFx(this, ctx, tl, k);
       // 맞으면 쓰러질 초식(v168)은 '치명' — 고정 피해라 체력·방어가 높으면 안 뜬다
       if (tl.pred && game.heroHp > 0 && tl.pred >= game.heroHp) {
