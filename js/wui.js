@@ -817,15 +817,6 @@ export function setBox(game, st) {
 
 // ---------- 지도 ----------
 // 지역마다 한 장: 구역 1·2·3과 두목 구역 단추. 레벨 99부터 십이지왕.
-// 보상에 배수를 곱한 것 (일일 던전 셋 뒤의 판, v155)
-export function scaleReward(r, k) {
-  if (!r) return r;
-  const out = {};
-  if (r.exp) out.exp = Math.floor(r.exp * k);
-  if (r.gold) out.gold = Math.floor(r.gold * k);
-  if (r.mats) { out.mats = {}; for (const [key, n] of Object.entries(r.mats)) { const v = Math.floor(n * k); if (v > 0) out.mats[key] = v; } }
-  return out;
-}
 // 보상 한 줄 — '경험치 1.2만 · 은자 3,400 · 청죽 마디 300'
 export function rewardText(r) {
   if (!r) return '';
@@ -1017,7 +1008,7 @@ function dgnTab(app) {
     dAuto.checked = !!s.dgn.auto;
     dAuto.onchange = () => { s.dgn.auto = dAuto.checked; app.save(); rerender(); };
     const head = h('div', { class: 'card dgn-head' },
-      h('div', {}, h('b', {}, '일일 던전'), h('small', { class: 'muted' }, ` · 매일 ${D.DAILY_ENTRIES}번은 보상 전부, 그 뒤로는 끝없이 ${Math.round(D.DAILY_EXTRA * 100)}% · 한국 시간 자정에 다시 차요`),
+      h('div', {}, h('b', {}, '일일 던전'), h('small', { class: 'muted' }, ` · 매일 ${D.DAILY_ENTRIES}번 · 새 단계를 깨면 열쇠 🔑 하나로 또 들어가요 · 못 깨면 남은 횟수는 소탕`),
         h('label', { class: 'chk' }, dAuto, ' 자동 도전 — 열린 던전을 알아서 돌아요')),
       h('button', { class: 'btn primary', disabled: sweepN ? null : true, onclick: () => {
         const got = game.sweepAll(now);
@@ -1037,13 +1028,13 @@ function dgnTab(app) {
         h('div', { class: 'dgn-top' },
           skinImg(h('div', { class: 'dgn-ico' }, d.ico), `dg-${d.id}`),
           h('div', { class: 'dgn-name' }, h('b', {}, d.name), h('small', {}, ` ${d.hanja} · ${d.what}`),
-            h('div', { class: 'muted' }, open ? `${left ? `오늘 보상 전부 ${left}/${D.DAILY_ENTRIES}번` : `오늘 셋을 다 썼어요 — 계속하면 보상 ${Math.round(D.DAILY_EXTRA * 100)}%`} · 깬 단계 ${best || '-'}` : `${D.dailyDaysText(d)}요일에 열려요`))),
+            h('div', { class: 'muted' }, open ? `오늘 ${left}/${D.DAILY_ENTRIES}번 남음 · 깬 단계 ${best || '-'}${max > best ? ` — ${best + 1}단계를 깨면 열쇠 🔑` : ''}` : `${D.dailyDaysText(d)}요일에 열려요`))),
         h('p', { class: 'muted dgn-desc' }, d.desc),
         h('div', { class: 'dgn-stage' },
           h('button', { class: 'stp', disabled: stg <= 1 ? true : null, onclick: () => step(-1) }, '−'),
           h('div', { class: 'stg' }, h('b', {}, `${stg}단계`), h('small', {}, ` 몹 Lv.${D.dailyLv(stg)}${D.dailyLv(stg) - s.level > W.DANGER_LV ? ' ⚠위험' : ''}`)),
           h('button', { class: 'stp', disabled: stg >= max ? true : null, onclick: () => step(1) }, '+'),
-          h('div', { class: 'rw' }, ...rewardNodes(app, left ? rw : scaleReward(rw, D.DAILY_EXTRA), left ? '보상 ' : `보상(${Math.round(D.DAILY_EXTRA * 100)}%) `))),
+          h('div', { class: 'rw' }, ...rewardNodes(app, rw, '보상 '))),
         // 천공광맥은 단계마다 나오는 재료가 통째로 바뀐다 — 어느 지역인지 적는다
         d.id === 'mat'
           ? h('p', { class: 'muted dgn-where' },
@@ -1051,7 +1042,7 @@ function dgnTab(app) {
           : null,
         h('div', { class: 'btn-row' },
           h('button', { class: 'btn primary', disabled: game.canDaily(d.id, stg, now) ? null : true, onclick: () => start(() => game.startDaily(d.id, stg, now)) },
-            left ? `도전 (${D.DAILY_SEC}초 · ${D.DAILY_KILLS}마리)` : `계속 도전 (보상 ${Math.round(D.DAILY_EXTRA * 100)}%)`),
+            `도전 (${D.DAILY_SEC}초 · ${D.DAILY_KILLS}마리)${stg > best ? ' 🔑' : ''}`),
           h('button', { class: 'btn', disabled: game.canSweep(d.id, now) ? null : true, onclick: () => {
             const r = game.sweepDaily(d.id, now);
             if (!r) return;

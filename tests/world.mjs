@@ -907,10 +907,10 @@ console.log('\n=== 던전 (v126) ===');
   let res = null;
   for (let i = 0; i < 2000 && !res; i++) { g.tick(0.05); for (const e of g.events) if (e.type === 'instEnd') res = e; g.events.length = 0; }
   ok(res?.ok && g.dailyBest('exp') === 1 && !g.inst && g.s.map === huntBefore && res.reward.exp > 0, '40마리 잡으면 깨고 사냥터로 돌아온다 (보상 경험치)', JSON.stringify(res?.reward));
-  ok(g.dailyLeft('exp', mon) === 2 && g.canSweep('exp', mon), '하루 세 번 — 깬 단계는 소탕');
+  ok(g.dailyLeft('exp', mon) === 3 && res.gotKey && g.canSweep('exp', mon), '하루 세 번 — 새 단계를 깨면 열쇠(횟수 그대로) · 깬 단계는 소탕');
   const lv0 = g.s.level, e0 = g.s.exp;
   const sw = g.sweepAll(mon);
-  ok(sw.length === 2 && g.dailyLeft('exp', mon) === 0 && (g.s.level > lv0 || g.s.exp > e0), '모두 소탕: 남은 둘을 한꺼번에');
+  ok(sw.length === 3 && g.dailyLeft('exp', mon) === 0 && (g.s.level > lv0 || g.s.exp > e0), '모두 소탕: 남은 셋을 한꺼번에');
   ok(g.dailyLeft('exp', mon + 86400e3 * 7) === 3, '다음 날이면 다시 셋');
   // 시간 넘김 → 절반 보상, 깬 것으로 안 친다
   const g2 = fresh(); g2.setJob('fan'); while (g2.s.level < 30) g2.addExp(W.expToNext(g2.s.level)); g2.enterMap(W.mapId(4, 1));
@@ -1263,19 +1263,28 @@ console.log('\n=== 사냥터 몹 강함 (v149) ===');
   ok(Math.abs(c.kingMaxHp() - DG.fieldMobHp(W.mapOf(W.mapId(16, 4)).lv[1] + 2) * W.BOSS.hp) < 1, '함께 사냥 왕 체력 = 내 화면 왕 체력 공식');
 }
 
-console.log('\n=== 일일 던전 계속 도전 (v155) ===');
+console.log('\n=== 일일 던전 열쇠 (v156) ===');
 {
-  const DG = await import('../js/world/wdgn.js');
   const g = fresh();
   while (g.s.level < 30) g.addExp(W.expToNext(g.s.level));
   const now = Date.UTC(2026, 9, 26, 3);
-  const run = () => { g.startDaily('exp', 1, now); for (const m of g.mons) m.hp = 1; g.inst.kills = g.inst.target; g.inst.done = { ok: true }; g.tick(0.05); return g.events.filter((e) => e.type === 'instEnd').pop(); };
-  const r1 = run(); run(); run();
-  ok(g.dailyLeft('exp', now) === 0 && g.canDaily('exp', 1, now), '하루 셋을 다 써도 계속 도전할 수 있다');
-  const r4 = run();
-  ok(r4 && r4.reward.exp > 0 && Math.abs(r4.reward.exp / r1.reward.exp - DG.DAILY_EXTRA) < 0.05, `넷째 판부터는 보상 ${DG.DAILY_EXTRA * 100}%`, `${r1.reward.exp} → ${r4.reward.exp}`);
-  g.s.dgn.auto = true;
-  ok(!g.autoDailyNext(now) || g.dailyLeft(g.autoDailyNext(now).kind, now) > 0, '자동 도전은 보상을 다 받는 셋까지만');
+  const run = (st, win = true) => {
+    g.startDaily('exp', st, now); for (const m of g.mons) m.hp = 1;
+    if (win) g.inst.kills = g.inst.target;
+    g.inst.done = win ? { ok: true } : { timeout: true }; g.tick(0.05);
+    return g.events.filter((e) => e.type === 'instEnd').pop();
+  };
+  const r1 = run(1);
+  ok(r1.ok && r1.gotKey && g.dailyLeft('exp', now) === 3, '새 단계를 깨면 열쇠 — 횟수가 그대로 셋');
+  for (let st = 2; st <= 6; st++) run(st);
+  ok(g.dailyBest('exp') === 6 && g.dailyLeft('exp', now) === 3, '계속 깨는 한 끝없이 오른다 (6단계까지 횟수 그대로)');
+  const r2 = run(3);
+  ok(r2.ok && !r2.gotKey && g.dailyLeft('exp', now) === 2, '이미 깬 단계를 다시 깨면 열쇠 없음');
+  const r3 = run(7, false);
+  ok(!r3.ok && !r3.gotKey && g.dailyLeft('exp', now) === 1, '못 깨면 열쇠 없음 — 횟수 하나를 쓴다');
+  ok(g.canSweep('exp', now), '남은 횟수는 소탕');
+  g.sweepDaily('exp', now);
+  ok(g.dailyLeft('exp', now) === 0 && !g.canDaily('exp', 7, now) && !g.canSweep('exp', now), '횟수를 다 쓰면 도전·소탕 모두 끝 (내일 다시)');
 }
 
 console.log('\n=== 맹주·천마 세트 (v153) ===');

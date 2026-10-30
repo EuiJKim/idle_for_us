@@ -2073,16 +2073,14 @@ export class WorldGame {
   }
   canDaily(kind, stage, now = Date.now()) {
     const d = D.dailyOf(kind);
-    // v155: 횟수 제한 없음 — 하루 DAILY_ENTRIES번 뒤로는 보상이 DAILY_EXTRA배
-    return !!d && !!this.s.job && !this.inst && D.dailyOpen(d, now)
+    return !!d && !!this.s.job && !this.inst && D.dailyOpen(d, now) && this.dailyLeft(kind, now) > 0
       && stage >= 1 && stage <= this.dailyMaxStage(kind);
   }
   startDaily(kind, stage, now = Date.now()) {
     if (!this.canDaily(kind, stage, now)) return false;
     const used = this.dgnToday(now).used;
-    const extra = (used[kind] || 0) >= D.DAILY_ENTRIES;      // 오늘 셋을 다 쓴 뒤의 판
     used[kind] = (used[kind] || 0) + 1;
-    this.startInst({ kind: 'daily', id: kind, stage, map: D.dailyMap(kind, stage), t: D.DAILY_SEC, max: D.DAILY_SEC, target: D.DAILY_KILLS, kills: 0, extra });
+    this.startInst({ kind: 'daily', id: kind, stage, map: D.dailyMap(kind, stage), t: D.DAILY_SEC, max: D.DAILY_SEC, target: D.DAILY_KILLS, kills: 0 });
     for (let i = 0; i < D.DAILY_ALIVE; i++) this.spawnMob(false);
     return true;
   }
@@ -2173,8 +2171,7 @@ export class WorldGame {
     if (!this.s.dgn.auto || this.inst || !this.s.job) return null;
     for (const d of D.DAILY) {
       const stage = this.dailyMaxStage(d.id);
-      // 자동은 보상을 다 받는 하루 셋까지만 (v155 — 끝없이 돌면 방치하다 던전에 갇힌다)
-      if (this.dailyLeft(d.id, now) > 0 && this.canDaily(d.id, stage, now)) return { kind: d.id, stage };
+      if (this.canDaily(d.id, stage, now)) return { kind: d.id, stage };
     }
     return null;
   }
@@ -2424,8 +2421,14 @@ export class WorldGame {
     let reward = null;
     if (I.kind === 'daily') {
       const full = D.dailyReward(I.id, I.stage, this.levelGapMult(D.dailyLv(I.stage)));
-      const k = (ok ? 1 : D.DAILY_FAIL * Math.min(1, I.kills / I.target)) * (I.extra ? D.DAILY_EXTRA : 1);
+      const k = ok ? 1 : D.DAILY_FAIL * Math.min(1, I.kills / I.target);
       reward = this.grant(full, k);
+      // 새 단계를 깨면 열쇠 하나 — 들어간 횟수가 돌아온다 (v156)
+      if (ok && I.stage > this.dailyBest(I.id)) {
+        const used = this.dgnToday().used;
+        used[I.id] = Math.max(0, (used[I.id] || 0) - 1);
+        I.gotKey = true;
+      }
       if (ok) this.s.dgn.best[I.id] = Math.max(this.dailyBest(I.id), I.stage);
     } else if (I.kind === 'tower' && ok) {
       this.s.tower.floor = Math.max(this.s.tower.floor, I.stage);
@@ -2440,7 +2443,7 @@ export class WorldGame {
         reward = this.grant(D.raidJoinReward(this.s.level, I.z));
       }
     }
-    const res = { kind: I.kind, id: I.id, stage: I.stage, ok, died: !!I.done?.died, timeout: !!I.done?.timeout, left: !!I.done?.left, key: I.key, dealt: I.dealt || 0,
+    const res = { kind: I.kind, id: I.id, stage: I.stage, ok, gotKey: !!I.gotKey, died: !!I.done?.died, timeout: !!I.done?.timeout, left: !!I.done?.left, key: I.key, dealt: I.dealt || 0,
       kills: I.kills || 0, target: I.target || 0, reward, chain: false };
     this.inst = null;
     // 탑: 이기고 '이어 오르기'면 다음 층으로

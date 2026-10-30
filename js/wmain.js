@@ -325,6 +325,8 @@ function showInstEnd(ev) {
   openModal((el) => el.append(...[
     h('h3', {}, ev.ok ? `${name} 성공!` : `${name} — ${why}`),
     ev.kind === 'daily' ? h('p', { class: 'muted' }, `처치 ${ev.kills} / ${ev.target}${ev.ok ? ' — 다음부터 이 단계는 소탕할 수 있어요' : ' — 잡은 만큼 보상의 절반'}`) : null,
+    ev.kind === 'daily' && ev.gotKey ? h('p', { class: 'dgn-key' }, `🔑 열쇠를 얻었어요 — 오늘 횟수가 하나 돌아왔어요. ${Math.min(D.DAILY_STAGES, ev.stage + 1)}단계에 또 들어가 보세요`) : null,
+    ev.kind === 'daily' && !ev.ok ? h('p', { class: 'muted' }, `깨지 못하면 열쇠가 없어요 — 남은 ${game.dailyLeft(ev.id)}번은 소탕으로 받으세요`) : null,
     ev.kind === 'tower' && !ev.ok ? h('p', { class: 'muted' }, `오른 층 ${game.s.tower.floor} — 장비·스킬을 키워서 다시 도전하세요`) : null,
     ev.reward && rewardText(ev.reward) !== '없음' ? h('p', {}, `받은 것: ${rewardText(ev.reward)}`) : null,
     h('div', { class: 'btn-row' }, h('button', { class: 'btn primary', onclick: closeModal }, '확인'))].filter(Boolean)));

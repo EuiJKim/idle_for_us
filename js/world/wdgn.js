@@ -13,8 +13,8 @@ export const kstWeekday = (now = Date.now()) => new Date(now + 9 * 3600e3).getUT
 const DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토'];
 
 export const DAILY_ENTRIES = 3;
-// v155: 하루 셋은 보상을 다 받고, 그 뒤로는 끝없이 들어가되 보상의 2할(같은 시간 사냥보다 조금 낫다 — 손으로 하면 이득, 방치는 사냥터)
-export const DAILY_EXTRA = 0.2;
+// v156: 새 단계를 깨면(깬 단계를 넘으면) 열쇠 하나 — 들어간 횟수가 하나 돌아와 또 들어간다. 계속 깨는 한 끝없이 오른다.
+// 못 깨면 열쇠가 없다 — 남은 횟수는 소탕(깬 단계 보상)으로.
 export const DAILY_SEC = 75;
 // 마흔 마리는 너무 많았다 — 한 판이 '잡는 일'이 되어 버린다.
 // 시간은 그대로 두고 수만 줄인다. 덜 조이는 대신 끝까지 안 끌린다.
