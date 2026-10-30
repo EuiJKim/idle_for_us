@@ -11,7 +11,9 @@ export const RENDER_MODES = ['auto', 'gpu', 'cpu'];
 const read = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
 export const renderPref = () => (RENDER_MODES.includes(read('ifu.render')) ? read('ifu.render') : 'auto');
 export const renderAuto = () => read('ifu.renderAuto') || '';          // '' 아직 · 'cpu' 해 보는 중/고름 · 'gpu' 되돌림
-export const useCpu = renderPref() === 'cpu' || (renderPref() === 'auto' && renderAuto() === 'cpu');
+// v191: 삼성 인터넷은 처음부터 CPU — 잰 폰에서 GPU 8fps · CPU 60fps였다. 자동 판정이 'gpu'로 되돌렸으면 그걸 따른다.
+const samsung = typeof navigator !== 'undefined' && /SamsungBrowser/i.test(navigator.userAgent || '');
+export const useCpu = renderPref() === 'cpu' || (renderPref() === 'auto' && (renderAuto() === 'cpu' || (samsung && renderAuto() !== 'gpu')));
 if (useCpu && typeof HTMLCanvasElement !== 'undefined') {
   const og = HTMLCanvasElement.prototype.getContext;
   HTMLCanvasElement.prototype.getContext = function (type, opts) {
