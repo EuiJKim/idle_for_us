@@ -865,7 +865,10 @@ console.log('\n=== 던전 (v126) ===');
   for (const m of g.mons) m.atk = 0;
   let res = null;
   for (let i = 0; i < 2000 && !res; i++) { g.tick(0.05); for (const e of g.events) if (e.type === 'instEnd') res = e; g.events.length = 0; }
-  ok(res?.ok && g.dailyBest('exp') === 1 && !g.inst && g.s.map === huntBefore && res.reward.exp > 0, '40마리 잡으면 깨고 사냥터로 돌아온다 (보상 경험치)', JSON.stringify(res?.reward));
+  ok(res?.ok && g.dailyBest('exp') === 1 && res.chain && g.inst?.stage === 2 && res.reward.exp > 0, '40마리 잡으면 깨고 — 새 단계였으니 바로 2단계로 (v166)', JSON.stringify(res?.reward));
+  g.inst.done = { left: true }; g.tick(0.05); g.events.length = 0;
+  ok(!g.inst && g.s.map === huntBefore, '그만두면 사냥터로 돌아온다');
+  g.s.dgn.day = '';          // 이어 들어간 판(그만둔 것)은 셈에서 지운다 — 아래는 한 판만 깬 셈으로 본다
   ok(g.dailyLeft('exp', mon) === 3 && res.gotKey && g.canSweep('exp', mon), '하루 세 번 — 새 단계를 깨면 열쇠(횟수 그대로) · 깬 단계는 소탕');
   const lv0 = g.s.level, e0 = g.s.exp;
   const sw = g.sweepAll(mon);
@@ -1310,6 +1313,7 @@ console.log('\n=== 일일 던전 열쇠 (v156) ===');
   while (g.s.level < 30) g.addExp(W.expToNext(g.s.level));
   const now = Date.UTC(2026, 9, 26, 3);
   const run = (st, win = true) => {
+    if (g.inst) { g.inst.done = { left: true }; g.tick(0.05); }
     g.startDaily('exp', st, now); for (const m of g.mons) m.hp = 1;
     if (win) g.inst.kills = g.inst.target;
     g.inst.done = win ? { ok: true } : { timeout: true }; g.tick(0.05);
@@ -1317,6 +1321,8 @@ console.log('\n=== 일일 던전 열쇠 (v156) ===');
   };
   const r1 = run(1);
   ok(r1.ok && r1.gotKey && g.dailyLeft('exp', now) === 3, '새 단계를 깨면 열쇠 — 횟수가 그대로 셋');
+  ok(r1.chain && r1.next === 2 && g.inst?.kind === 'daily' && g.inst.stage === 2, '깨면 바로 윗단계로 들어간다 (v166, 누를 것 없이)');
+  g.inst.done = { left: true }; g.tick(0.05);
   for (let st = 2; st <= 6; st++) run(st);
   ok(g.dailyBest('exp') === 6 && g.dailyLeft('exp', now) === 3, '계속 깨는 한 끝없이 오른다 (6단계까지 횟수 그대로)');
   const r2 = run(3);

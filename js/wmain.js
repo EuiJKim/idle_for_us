@@ -340,6 +340,11 @@ function showInstEnd(ev) {
     if (ev.chain) return;
   }
   if (ev.left) return;
+  // v166: 이어서 다음 판으로 들어갔으면 창을 띄우지 않고 알림만 (방치가 끊기지 않게)
+  if (ev.kind === 'daily' && ev.chain && ev.ok) {
+    toast(`${name} 돌파!${ev.gotKey ? ' 🔑' : ''} ${ev.next ? `→ ${ev.next}단계 도전` : '→ 다음 던전'}${ev.reward ? ` · ${rewardText(ev.reward)}` : ''}`);
+    return;
+  }
   const why = ev.ok ? '' : ev.died ? '쓰러졌어요' : ev.timeout ? '시간이 다 됐어요' : '';
   openModal((el) => el.append(...[
     h('h3', {}, ev.ok ? `${name} 성공!` : `${name} — ${why}`),

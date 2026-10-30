@@ -2607,6 +2607,13 @@ export class WorldGame {
       this.startTower(true);
       return res;
     }
+    // v166: 새 단계를 깼으면(열쇠) 자동 도전을 안 켰어도 바로 윗단계로 — 못 깰 때까지 오른다
+    if (I.kind === 'daily' && ok && I.gotKey && !I.done?.left && this.canDaily(I.id, I.stage + 1)) {
+      res.chain = true; res.next = I.stage + 1;
+      this.emit('instEnd', res);
+      this.startDaily(I.id, I.stage + 1);
+      return res;
+    }
     // 요일 던전: 자동이면 남은 횟수만큼 이어서. **그만두기로 나온 건 안 잇는다** —
     // 그만두려고 눌렀는데 바로 다시 들어가면 나올 길이 없다.
     if (I.kind === 'daily' && !I.done?.left && this.autoDailyNext()) {
