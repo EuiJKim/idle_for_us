@@ -263,6 +263,8 @@ const SPECIAL_INK = {
 const CAST_COL = { sword: '229,231,235', fist: '245,158,11', fan: '56,189,248', ring: '168,85,247', poison: '132,204,22' };
 // v222: 애완동물 기운 — 발밑에 등급 빛(레어 파랑 · 유니크 보라 · 전설 주황 · 신화 붉음)과
 // 그 짐승의 기운 알갱이(주작 불티 · 청룡 번개 · 현무 물방울 · 선학 깃털 · 그 밖은 도는 빛). 상태 없이 시간으로.
+// v223: 탈것 자취 빛깔 — 6단 흑풍마부터(따로 없으면 흰 바람), 십이지 신수는 금빛
+const MOUNT_TRAIL = { redhare: '248,113,113', ochu: '167,139,250', cloud: '241,245,249', azure: '125,211,252', tigerm: '253,186,116' };
 function petAura(ctx, pet, x, y, t, front, sq = 0.5) {
   const rar = Math.max(0, Math.min(3, pet.rar || 0));
   const col = PET_COL[pet.kind] || '253,224,71';
@@ -1438,11 +1440,22 @@ export class BattleView {
     if (moving && this.fieldMode && this.fxLevel > 0 && !this.director) {
       this.dustT = (this.dustT || 0) - dt;
       if (this.dustT <= 0) {
-        this.dustT = 0.11;
+        // v223: 탈것을 타면 흙먼지가 더 잦고 크다 · 높은 탈것은 제 빛깔의 자취를 남긴다
+        const mt = game.mountNow?.();
+        const tier = mt?.tier || 0;
+        this.dustT = mt ? Math.max(0.05, 0.09 - tier * 0.003) : 0.11;
         const face = (this.faceOverride || game.heroFacing) < 0 ? -1 : 1;
-        this.particles.push({ x: this.heroX - face * (6 + Math.random() * 10), y: this.groundY - 2,
-          vx: -face * (50 + Math.random() * 40), vy: -18 - Math.random() * 20, life: 0.45, size: 4 + Math.random() * 3,
+        const big = mt ? 1.4 : 1;
+        this.particles.push({ x: this.heroX - face * (6 + Math.random() * 10) * big, y: this.groundY - 2,
+          vx: -face * (50 + Math.random() * 40) * big, vy: -18 - Math.random() * 20, life: 0.45 * big, size: (4 + Math.random() * 3) * big,
           color: 'rgb(214,196,160)', dust: true });
+        const tc = mt && (MOUNT_TRAIL[mt.id] || (mt.zodiac ? '253,224,71' : tier >= 6 ? '226,232,240' : null));
+        if (tc) {
+          // 뒤로 흘러가는 빛 알갱이 — 몸 높이 여기저기서
+          this.particles.push({ x: this.heroX - face * (20 + Math.random() * 16), y: this.groundY - 20 - Math.random() * 50,
+            vx: -face * (140 + tier * 8 + Math.random() * 60), vy: (Math.random() - 0.5) * 20, life: 0.3 + Math.random() * 0.15, size: 1.6 + Math.random() * 1.8,
+            color: `rgb(${tc})` });
+        }
       }
     }
     // 들판에서는 카메라가 움직인 만큼 배경이 흐른다
