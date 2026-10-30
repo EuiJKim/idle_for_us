@@ -45,15 +45,21 @@ const SKILL_TXT = { range: '범위', dmg: '피해', cd: '숨', echo: '한 번 �
 
 // 두목 이름·생김새로 테마를 고른다 — 앞에 있을수록 먼저
 const BY_NAME = [
-  [/독|당가|오독|만독/, 'poison'], [/빙|설|한빙|북해/, 'ice'], [/염|화운|화염|불/, 'fire'], [/혈/, 'blood'],
+  [/독|당가|오독|만독/, 'poison'], [/빙|설|한빙|북해/, 'ice'], [/염|화운|화염/, 'fire'], [/혈/, 'blood'],
   [/뇌|번개|벽력|광섬|섬/, 'thunder'], [/천마|마존|마교|마불|섭혼|극악|사도|흑/, 'dark'], [/귀|강시|고묘|명부|살왕|음왕/, 'ghost'],
-  [/교룡|동해|장강|수로|해/, 'water'], [/철왕|기관|철/, 'iron'], [/소림|달마|혜공|금강|마불|불/, 'holy'],
+  [/교룡|동해|장강|수로|십팔채/, 'water'], [/철왕|기관|철/, 'iron'], [/소림|달마|혜공|금강|마불|불/, 'holy'],
   [/매화|도화|화왕|일화|꽃|야우/, 'petal'], [/권|투|불패|대취|거력/, 'fist'], [/도|참마|패도/, 'saber'],
 ];
 const BY_WEAPON = { sword: 'sword', saber: 'saber', fist: 'fist', fan: 'petal', claw: 'ghost', dagger: 'poison', axe: 'iron', spear: 'water' };
+// 이름 글자로는 틀리는 두목 — 직접 정한다 ('금강불괴'의 '불'이 화염, '제독'의 '독'이 독으로 읽혔다)
+const THEME_BY_BOSS = {
+  '금강불괴 혜공대사': 'holy', '마불 저라반': 'holy', '불패권마 단우강': 'fist', '동창 제독': 'dark', '태극검선': 'sword',
+  '사도맹 이인자 야율한': 'ice', '음왕 신류': 'ghost', '목왕 백천경': 'holy', '거력귀창 거력귀창': 'saber',
+};
 export function themeOfZone(z) {
   const zn = ZONES_W[z];
   if (!zn) return 'sword';
+  if (THEME_BY_BOSS[zn.boss?.name]) return THEME_BY_BOSS[zn.boss.name];
   const name = `${zn.boss?.name || ''} ${zn.name || ''}`;
   for (const [re, t] of BY_NAME) if (re.test(name)) return t;
   return BY_WEAPON[zn.boss?.look?.weapon] || 'sword';
