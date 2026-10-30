@@ -9,6 +9,7 @@ import * as W from './wdata.js';
 import * as D from './wdgn.js';
 import * as Q from './wquest.js';
 import * as MS from './wmaster.js';
+import * as LN from './wline.js';
 import * as L from './wland.js';
 import * as G from './wgear.js';
 
@@ -92,7 +93,7 @@ export function migrateWorld(raw, now = Date.now()) {
   s.mounts = Array.isArray(raw.mounts) ? raw.mounts.filter((m) => m && W.mountOf(m.kind)) : [];
   if (!s.mounts.some((m) => m.uid === s.mount)) s.mount = null;
   s.mats = {};
-  for (const [k, v] of Object.entries(raw.mats || {})) if ((W.MATS[k] || (k[0] === 'b' && W.MATS[k.slice(1)]) || G.isStoneKey(k)) && v > 0) s.mats[k] = Math.floor(Number(v) || 0);
+  for (const [k, v] of Object.entries(raw.mats || {})) if ((W.MATS[k] || (k[0] === 'b' && W.MATS[k.slice(1)]) || G.isStoneKey(k) || LN.isFacMat(k)) && v > 0) s.mats[k] = Math.floor(Number(v) || 0);
   delete s.autoSell;
   // v105: 레벨업 점수를 직접 찍게 바꿨다 — 옛 세이브의 '자동 분배 켬'은 한 번 끈다
   if ((raw.statV || 0) < 2) { s.autoStat = false; s.statV = 2; }
@@ -271,9 +272,12 @@ export class WorldGame {
     // 조합 장비: 사다리 칸 × 등급(레어·유니크·전설·신화) · 왕의 장비(레벨 100): KING_MULT × 등급 · 옛 드랍 장비: 옛 등급
     const q = it.king != null ? G.KING_MULT * W.RARITY[it.rar || 0].mult
       : it.step != null ? W.stepMult(it.step) * W.RARITY[it.rar || 0].mult : W.GRADES[it.grade].mult;
-    const m = q * W.enhanceMult(it.plus || 0);
+    const ln = it.line ? LN.lineOf(it.line) : null;
+    const m = q * W.enhanceMult(it.plus || 0) * (ln ? ln.mult : 1);
     const out = {};
     for (const [k, v] of Object.entries(b)) out[k] = v * m;
+    // 계열(v151)의 덤 능력 — 칸·등급만큼 (강화와는 따로)
+    if (ln && it.step != null) for (const [k, v] of Object.entries(LN.lineBonus(it.line, it.step, W.RARITY[it.rar || 0].mult))) out[k] = (out[k] || 0) + v;
     // 가락지·귀걸이: 그 두목의 덤 능력 (등급만큼 커진다, 강화와는 따로)
     if (W.isDropOnly(it.slot) && (it.step != null || it.king != null)) {
       for (const [k, v] of Object.entries(W.acc2Trait(W.itemZone(it), it.slot))) out[k] = (out[k] || 0) + v * W.RARITY[it.rar || 0].mult;
@@ -1408,7 +1412,18 @@ export class WorldGame {
   }
   // ---------- 재료와 조합 ----------
   // 몹은 그 사냥터 재료를, 두목은 재료 한 움큼과 증표를 떨군다. 장비는 떨구지 않는다.
+  // 세력 재료 (v151) — 그 세력의 사냥터·고수 두목 방에서. 몹은 가끔, 정예는 둘, 두목은 한 움큼(고수는 세 배, 맹주·천마 열 배)
+  dropFacMats(m) {
+    const f = this.map.master ? MS.masterOf(this.map.master)?.fac : MS.factionOfZone(this.map.zone);
+    if (!f || this.inst) return;
+    const key = LN.FAC_MATS[f];
+    let n = 0;
+    if (m.isBoss) n = LN.FAC_BOSS_MATS * (this.map.master ? (this.map.lord ? 10 : 3) : 1);
+    else if (this.rng() < LN.FAC_MAT_RATE * (1 + this.masteryLevel(this.map.zone) * L.MASTERY.mat)) n = LN.facMatDrop(m.lv) * (m.elite || this.map.bossRoom ? 2 : 1);
+    if (n > 0) this.addMats(key, n);
+  }
   dropMats(m) {
+    this.dropFacMats(m);
     const id = this.map.mz;              // 재료는 지역 번호 (구역 셋·두목 구역이 같다 · 새 지역은 짝 지역)
     if (!W.MATS[id]) return null;
     if (m.isBoss) {
@@ -1554,26 +1569,26 @@ export class WorldGame {
     return best;
   }
   // 조합법 — 넣을 장비가 없거나 안 넣으면 재료가 NO_BASE_MULT배
-  recipeFor(slot, step, useBase = true, rar = 0) {
-    const r = W.recipeOf(slot, step, rar);
+  recipeFor(slot, step, useBase = true, rar = 0, line = 'base') {
+    const r = W.recipeOf(slot, step, rar, line);
     const src = useBase ? this.recipeSource(r) : null;
     if (src) return { r, src };
     const mats = {};
-    for (const [k, n] of Object.entries(r.mats)) mats[k] = Math.ceil(n * (k[0] === 'b' ? 1 : W.NO_BASE_MULT));
+    for (const [k, n] of Object.entries(r.mats)) mats[k] = Math.ceil(n * (k[0] === 'b' || LN.isFacMat(k) ? 1 : W.NO_BASE_MULT));
     return { r: { ...r, mats }, src: null };
   }
   // 조합할 수 있나 — 모자란 것을 함께 돌려준다(화면에 '청죽 마디 12/40'처럼)
-  craftCheck(slot, step, useBase = true, rar = 0) {
-    const { r, src } = this.recipeFor(slot, step, useBase, rar);
+  craftCheck(slot, step, useBase = true, rar = 0, line = 'base') {
+    const { r, src } = this.recipeFor(slot, step, useBase, rar, line);
     const lack = [];
     for (const [k, n] of Object.entries(r.mats)) if ((this.s.mats[k] || 0) < n) lack.push(k);
     if (this.s.gold < r.gold) lack.push('gold');
     return { r, src, ok: !lack.length, lack };
   }
-  craft(slot, step, useBase = true, rar = 0) {
+  craft(slot, step, useBase = true, rar = 0, line = 'base') {
     if (step < 0 || step >= W.STEP_COUNT || W.isDropOnly(slot)) return null;
     const want = Math.max(0, Math.min(W.RARITY.length - 1, rar | 0));
-    const { r, src, ok } = this.craftCheck(slot, step, useBase, want);
+    const { r, src, ok } = this.craftCheck(slot, step, useBase, want, line);
     if (!ok) return null;
     for (const [k, n] of Object.entries(r.mats)) this.s.mats[k] -= n;
     this.s.gold -= r.gold;
@@ -1584,6 +1599,7 @@ export class WorldGame {
     const keep = src?.rar != null && src.rar > want;
     const got = keep ? src.rar : want;
     const it = this.makeCrafted(slot, step, src ? Math.floor(Math.min(src.plus || 0, W.ENHANCE_NORMAL) / 2) : 0, got);
+    if (line && line !== 'base') it.line = line;
     if (keep && src.opts) it.opts = src.opts.map((o) => ({ ...o }));
     const wore = src && this.s.equip[slot] === src;
     if (src) {

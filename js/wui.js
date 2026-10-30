@@ -11,6 +11,7 @@ import { dayKey } from './net.js';
 import { drawCreature, CREATURES, crArt } from './creatures.js';
 import { skinImg } from './icons.js';
 import * as MS from './world/wmaster.js';
+import * as LN from './world/wline.js';
 import { drawFighter } from './battle.js';
 
 // 애완동물·탈것 그림 아이콘 (창 목록용) — 들판과 같은 그림을 작게
@@ -62,7 +63,8 @@ export function itemLines(game, it) {
   return out.join(' · ');
 }
 export function itemTitle(game, it) {
-  return `${W.itemName(it, game.s.job)}${it.plus ? ` +${it.plus}` : ''}`;
+  const ln = it.line ? LN.lineOf(it.line) : null;
+  return `${ln && ln.id !== 'base' ? `[${ln.name}] ` : ''}${W.itemName(it, game.s.job)}${it.plus ? ` +${it.plus}` : ''}`;
 }
 function itemChip(game, it, extra = {}, withOpts = false) {
   const g = gradeOf(it);
@@ -458,7 +460,8 @@ function bagTab(app) {
     const steps = game.craftSteps();
     const slot = W.CRAFT_SLOTS.some((x) => x.id === ui.smith) ? ui.smith : 'weapon';
     const rar = Math.max(0, Math.min(W.RARITY.length - 1, ui.rar | 0));
-    const nsig = `${game.statSig()}|${s.bag.map((i) => i.uid).join(',')}|${JSON.stringify(s.mats)}|${Math.floor(Math.log10(s.gold + 1) * 20)}|${slot}|${ui.useBase}|${ui.readyOnly}|${steps.length}|${ui.smode}|${ui.kz}|${ui.kslot}|${s.level}|${rar}`;
+    const line = LN.lineOf(ui.line).id;
+    const nsig = `${game.statSig()}|${s.bag.map((i) => i.uid).join(',')}|${JSON.stringify(s.mats)}|${Math.floor(Math.log10(s.gold + 1) * 20)}|${slot}|${ui.useBase}|${ui.readyOnly}|${steps.length}|${ui.smode}|${ui.kz}|${ui.kslot}|${s.level}|${rar}|${line}`;
     if (nsig === sigs.smith) return;
     sigs.smith = nsig;
     // v130: 사다리(레벨 99까지 · 고유 옵션) | 세트(99부터 · 직업 세트) | 왕의 장신구(99부터 · 공용)
@@ -475,16 +478,22 @@ function bagTab(app) {
         class: `chip rar${rar === i ? ' on' : ''}`, style: `--rc:${R.color}`,
         onclick: () => { ui.rar = i; keepUi(); sigs.smith = ''; smithView(); },
       }, R.name, h('small', {}, ` 재료 ×${W.RAR_MATS[i]}`))));
+    // 계열 고르기 (v151) — 세력 재료를 넣으면 성향이 붙는다. 칩 아래 점은 드는 세력 재료 빛깔.
+    const lineRow = h('div', { class: 'chip-row line-row' }, ...LN.LINES.map((Ln) =>
+      h('button', { class: `chip line${line === Ln.id ? ' on' : ''}`, onclick: () => { ui.line = Ln.id; keepUi(); sigs.smith = ''; smithView(); } },
+        Ln.name, h('small', {}, ` ${Ln.desc}`),
+        h('span', { class: 'line-dots' }, ...Ln.fac.map((f) => h('i', { style: `background:${LN.FAC_MAT_INFO[LN.FAC_MATS[f]].col}` }))))));
     const toggles = h('div', { class: 'chip-row' },
       h('button', { class: `chip${ui.useBase ? ' on' : ''}`, onclick: () => { ui.useBase = !ui.useBase; keepUi(); sigs.smith = ''; smithView(); } }, ui.useBase ? '✓ 아래 장비 넣기' : '아래 장비 안 넣기'),
       h('button', { class: `chip${ui.readyOnly ? ' on' : ''}`, onclick: () => { ui.readyOnly = !ui.readyOnly; keepUi(); sigs.smith = ''; smithView(); } }, ui.readyOnly ? '✓ 만들 수 있는 것만' : '전부 보기'));
     const rows = [];
     // 만들 수 있는 것부터(좋은 것 먼저), 그다음 아직 못 만드는 것
-    const order = steps.slice().reverse().map((st) => [st, game.craftCheck(slot, st, ui.useBase, rar).ok]).sort((a, b) => b[1] - a[1]).map(([st]) => st);
+    const order = steps.slice().reverse().map((st) => [st, game.craftCheck(slot, st, ui.useBase, rar, line).ok]).sort((a, b) => b[1] - a[1]).map(([st]) => st);
     for (const step of order) {
-      const { r, src, ok } = game.craftCheck(slot, step, ui.useBase, rar);
+      const { r, src, ok } = game.craftCheck(slot, step, ui.useBase, rar, line);
       if (ui.readyOnly && !ok) continue;
       const sample = game.makeCrafted(slot, step, 0, rar);
+      if (line !== 'base') sample.line = line;
       const d = vsWorn(sample);
       const parts = [];
       for (const [k, n] of Object.entries(r.mats)) parts.push(need(W.matName(k), s.mats[k] || 0, n, W.matColor(k), k));
@@ -499,17 +508,21 @@ function bagTab(app) {
           h('div', { class: 'desc base' }, src ? `넣을 장비: ${itemTitle(game, src)} — 강화 ${Math.floor(Math.min(src.plus || 0, W.ENHANCE_NORMAL) / 2)}·${gradeOf(src).name} 이어받음`
             : ui.useBase ? `넣을 아래 장비가 없어 재료 ${W.NO_BASE_MULT}배` : `아래 장비 없이 — 재료 ${W.NO_BASE_MULT}배`)),
         h('button', { class: 'buy', disabled: ok ? null : true, style: `--rc:${W.RARITY[rar].color}`, onclick: () => {
-          const it = game.craft(slot, step, ui.useBase, rar);
+          const it = game.craft(slot, step, ui.useBase, rar, line);
           if (it) { toast(`${itemTitle(game, it)} — ${gradeOf(it).name}!`); done(); }
         } }, W.RARITY[rar].name)));
     }
     smithRoot.replaceChildren(modes,
       h('div', { class: 'card' },
         h('h3', {}, '대장장이', h('small', {}, `레벨 ${W.STEP_LV}마다 한 칸 · ${W.ILV_CAP}까지 ${W.STEP_COUNT}칸`)),
-        h('p', { class: 'muted', style: 'font-size:12px;margin:2px 0 6px' }, '사다리 장비마다 지역·칸에 따라 정해진 고유 옵션이 붙어요 — 여러 지역 것을 섞어 끼면 좋아요.'),
-        h('p', { class: 'muted', style: 'font-size:12px;margin:2px 0 6px' },
-          `등급을 골라서 만들어요. 위로 갈수록 재료가 확 들어요 — 신화 하나가 레어 ${W.RAR_MATS[3]}개 값이고 두목 증표도 많이 들어요. 아래 장비를 넣으면 재료가 덜 들고 강화 절반·옵션을 이어받아요(안 넣으면 ${W.NO_BASE_MULT}배).`),
-        chips, rarRow, toggles,
+        // v151: 긴 설명은 접어 둔다 — 고르는 줄(칸 · 계열 · 등급)만 보이게
+        h('details', { class: 'smith-help' }, h('summary', {}, '대장장이 도움말'),
+          h('p', {}, '사다리 장비마다 지역·칸에 따라 정해진 고유 옵션이 붙어요 — 여러 지역 것을 섞어 끼면 좋아요.'),
+          h('p', {}, `계열: 세력 재료(협의패·흑도령·마혈정)를 넣으면 성향이 붙고 기본 수치가 커져요. 둘을 섞으면 반씩, 셋 다 넣은 삼파가 가장 세요. 세력 재료는 지도의 무림맹·사파·마교 사냥터와 고수의 두목 방에서 나와요.`),
+          h('p', {}, `등급을 골라서 만들어요. 위로 갈수록 재료가 확 들어요 — 신화 하나가 레어 ${W.RAR_MATS[3]}개 값이고 두목 증표도 많이 들어요. 아래 장비를 넣으면 재료가 덜 들고 강화 절반·옵션을 이어받아요(안 넣으면 ${W.NO_BASE_MULT}배).`)),
+        h('div', { class: 'smith-label' }, '부위'), chips,
+        h('div', { class: 'smith-label' }, '계열'), lineRow,
+        h('div', { class: 'smith-label' }, '등급'), rarRow, toggles,
         h('div', { class: 'smith-cur' }, cur ? ['지금 낀 것: ', h('b', { style: `color:${gradeOf(cur).color}` }, itemTitle(game, cur)), ` — ${itemLines(game, cur)}`] : '지금 낀 것이 없어요')),
       h('div', { class: 'card' }, ...(rows.length ? rows : [h('p', { class: 'muted' }, '지금 만들 수 있는 것이 없어요 — 재료를 더 모아요.')])));
   }
@@ -597,7 +610,9 @@ function bagTab(app) {
     const nsig = JSON.stringify(s.mats);
     if (nsig === sigs.mats) return;
     sigs.mats = nsig;
-    const zones = new Set(Object.keys(s.mats).filter((k) => s.mats[k] > 0 && !G.isStoneKey(k)).map((k) => parseInt(k.replace('b', ''), 10)));
+    const zones = new Set(Object.keys(s.mats).filter((k) => s.mats[k] > 0 && !G.isStoneKey(k) && !LN.isFacMat(k)).map((k) => parseInt(k.replace('b', ''), 10)));
+    const facRow = h('div', { class: 'row mat-zone' }, h('div', { class: 'info' }, h('div', { class: 'name' }, '세력 재료', h('small', {}, ' 계열 장비에 들어가요')),
+      h('div', { class: 'mat-row' }, ...Object.entries(LN.FAC_MAT_INFO).map(([k, v]) => matChip(app, k, v.name, s.mats[k] || 0)))));
     const stones = Object.keys(G.STONES).filter((z) => s.mats[G.stoneKey(z)] > 0);
     const rows = [...zones].sort((a, b) => b - a).map((z) => h('div', { class: 'row mat-zone' },
       h('div', { class: 'info' },
@@ -610,6 +625,7 @@ function bagTab(app) {
     for (const z of stones) if (!zones.has(+z)) rows.push(h('div', { class: 'row mat-zone' }, h('div', { class: 'info' }, h('div', { class: 'name' }, W.zoneOfW(+z)?.name || ''),
       h('div', { class: 'mat-row' }, matChip(app, G.stoneKey(z), G.STONES[z].name, s.mats[G.stoneKey(z)])))));
     matRoot.replaceChildren(h('div', { class: 'card' }, h('h3', {}, '재료', h('small', {}, '문파 창고로 나눌 수 있어요')),
+      facRow,
       ...(rows.length ? rows : [h('p', { class: 'muted' }, '몹은 그 사냥터 재료를, 두목은 재료 한 움큼과 증표를 떨궈요.')])));
   }
 
@@ -634,6 +650,19 @@ export const matChip = (app, key, label, n) => h('button', {
 //   s{z} → 그 지역 두목 (강화석)
 export function matWhere(game, key) {
   const k = String(key);
+  // 세력 재료 (v151) — 그 세력 사냥터 가운데 내 레벨에 알맞은 가장 센 구역으로
+  if (LN.isFacMat(k)) {
+    const info = LN.FAC_MAT_INFO[k];
+    let id = null;
+    for (const z of MS.FAC_ZONES[info.fac]) for (let a = 1; a < W.BOSS_AREA; a++) {
+      const mid = W.mapId(z, a);
+      if (W.hasMap(mid) && game.danger(mid) <= 0 && (!id || W.mapOf(mid).lv[0] > W.mapOf(id).lv[0])) id = mid;
+    }
+    id = id || W.mapId(MS.FAC_ZONES[info.fac][0], 1);
+    const map = W.mapOf(id);
+    return { key: k, z: map.zone, zone: W.zoneOfW(map.zone), boss: false, stone: false, id, map, name: info.name, color: info.col,
+      have: game.s.mats[k] || 0, can: true, need: map.lv[0], from: `${MS.factionOf(info.fac).name} 사냥터의 몹(가끔)·두목, 고수의 두목 방(한 움큼)에서 나와요` };
+  }
   const stone = G.isStoneKey(k);
   const boss = stone || k.startsWith('b');
   const z = parseInt(k.replace(/^[bs]/, ''), 10);

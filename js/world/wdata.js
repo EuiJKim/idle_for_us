@@ -5,6 +5,7 @@
 import { ZONES, JOBS, CLASS_SKILLS, RANKS } from '../data.js';
 import { areaMobs } from './wmobs.js';
 import { MASTERS } from './wmasters_data.js';
+import { FAC_MAT_INFO, isFacMat, lineMats } from './wline.js';
 import { TRANSFORMS, setOf, SET_PIECE, STONES, isStoneKey, promoteStones } from './wgear.js';
 
 export const SAVE_KEY = 'ifu-world-v1';
@@ -414,8 +415,8 @@ export const MAT_COLORS = [null, '#86efac', '#fcd34d', '#bae6fd', '#f87171', '#a
 export const bossKey = (k) => `b${k}`;
 // v132 강화석 'st21'~'st27' — '살왕의 명부 혼석'
 const stoneName = (key) => { const z = +String(key).slice(2); return `${kingOf(z)?.title || ''}의 ${STONES[z]?.name || '강화석'}`; };
-export const matName = (key) => (isStoneKey(key) ? stoneName(key) : String(key)[0] === 'b' ? `${ZONES_W[+String(key).slice(1)]?.boss?.name || '두목'}의 증표` : MATS[key]);
-export const matColor = (key) => (isStoneKey(key) ? '#f0abfc' : String(key)[0] === 'b' ? (kingOf(+String(key).slice(1)) ? '#f43f5e' : '#fde68a') : MAT_COLORS[key]);
+export const matName = (key) => (isFacMat(key) ? FAC_MAT_INFO[key].name : isStoneKey(key) ? stoneName(key) : String(key)[0] === 'b' ? `${ZONES_W[+String(key).slice(1)]?.boss?.name || '두목'}의 증표` : MATS[key]);
+export const matColor = (key) => (isFacMat(key) ? FAC_MAT_INFO[key].col : isStoneKey(key) ? '#f0abfc' : String(key)[0] === 'b' ? (kingOf(+String(key).slice(1)) ? '#f43f5e' : '#fde68a') : MAT_COLORS[key]);
 export const MAT_RATE = 0.5;          // 몹 하나가 재료 하나를 떨굴 확률
 export const BOSS_MATS = 12;          // 두목은 재료 한 움큼 + 증표 하나
 // v130: 사다리는 보통 지역 15곳에서 끝난다(장비 레벨 99까지). 십이지왕부터는 세트·왕의 장신구(wgear.js).
@@ -464,14 +465,16 @@ export const stepMult = (step) => 1.12 ** step;
 export const stepGrade = (step) => Math.min(4, Math.floor(step / 4));
 // 조합법: 무엇을 내면 이것이 되나
 // 조합법: 무엇을 내면 이것이 되나. rar를 주면 그 등급짜리 값이다.
-export function recipeOf(slot, step, rar = 0) {
+export function recipeOf(slot, step, rar = 0, line = 'base') {
   const k = stepMap(step);
   const r = Math.max(0, Math.min(RARITY.length - 1, rar | 0));
   const mats = { [k]: Math.round(CRAFT_MATS[slot] * RAR_MATS[r]) };
   if (RAR_BOSS[r]) mats[bossKey(k)] = CRAFT_BOSS[slot] * RAR_BOSS[r];
+  // 계열(v151): 세력 재료 — 등급이 높을수록 같은 배수로 더 든다
+  for (const [fk, n] of Object.entries(lineMats(line, slot, step))) mats[fk] = Math.round(n * RAR_MATS[r]);
   // 받는 장비: 바로 앞 칸 (첫 칸은 없다)
   const from = step > 0 ? [step - 1] : [];
-  return { slot, step, rar: r, mats, from, gold: Math.round((30 + stepLevel(step) * 10) * RAR_GOLD[r]) };
+  return { slot, step, rar: r, line, mats, from, gold: Math.round((30 + stepLevel(step) * 10) * RAR_GOLD[r]) };
 }
 // 장비 이름 — 사냥터 머리말 + 칸 이름 (상급은 앞에 '상급')
 const STEP_PREFIX = [null, '청죽', '사철', '빙정', '혈석', '귀화', '운모', '마철', '수정', '금강', '야명', '매화', '독룡', '현빙', '해왕', '천외', ...KINGS.map((k) => k.prefix)];

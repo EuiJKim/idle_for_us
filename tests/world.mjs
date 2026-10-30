@@ -1261,6 +1261,30 @@ console.log('\n=== 사냥터 몹 강함 (v149) ===');
   ok(Math.abs(c.kingMaxHp() - DG.fieldMobHp(W.mapOf(W.mapId(16, 4)).lv[1] + 2) * W.BOSS.hp) < 1, '함께 사냥 왕 체력 = 내 화면 왕 체력 공식');
 }
 
+console.log('\n=== 계열 장비 · 세력 재료 (v151) ===');
+{
+  const LN = await import('../js/world/wline.js');
+  ok(LN.LINES.length === 8 && LN.LINES.filter((l) => l.fac.length === 2).length === 3 && LN.lineOf('samp').fac.length === 3, '계열 여덟 — 기본 · 세력 하나 셋 · 둘 섞은 셋 · 삼파');
+  const r0 = W.recipeOf('weapon', 10, 0, 'base'), r1 = W.recipeOf('weapon', 10, 0, 'sama'), r3 = W.recipeOf('weapon', 10, 0, 'samp');
+  ok(!r0.mats.fs && r1.mats.fs > 0 && r1.mats.fg > 0 && !r1.mats.fm && r3.mats.fm > 0 && r3.mats.fs > 0 && r3.mats.fg > 0, '사마는 사파·마교 재료만, 삼파는 셋 다', JSON.stringify(r1.mats));
+  const g = fresh();
+  const base = g.makeCrafted('weapon', 10, 0, 0);
+  const mag = { ...g.makeCrafted('weapon', 10, 0, 0), line: 'magyo' };
+  const samp = { ...g.makeCrafted('weapon', 10, 0, 0), line: 'samp' };
+  ok(g.itemStats(mag).atk > g.itemStats(base).atk && g.itemStats(mag).atkPct > 0 && g.itemStats(samp).atk > g.itemStats(mag).atk, '계열 장비는 기본보다 세고 덤이 붙는다 · 삼파가 가장 세다');
+  g.s.gold = 1e9; g.s.mats = { [W.stepMap(3)]: 1e4, fs: 1e3, fg: 1e3 };
+  const it = g.craft('weapon', 3, false, 0, 'sama');
+  ok(it && it.line === 'sama' && g.s.mats.fs < 1e3 && g.s.mats.fg < 1e3, '대장장이에서 사마 계열 무기를 만든다 — 세력 재료가 든다');
+  ok(migrateWorld({ mats: { fm: 5, fs: 3, fg: 2 } }).mats.fg === 2, '세력 재료가 저장된다');
+  // 그 세력의 사냥터에서 세력 재료가 나온다
+  const d = fresh();
+  d.rng = () => 0.01;
+  d.enterMap(W.mapId(MS.FAC_ZONES.magyo[0], 1));
+  const mob = d.mons.find((m) => !m.npc && m.alive);
+  d.killMob(mob);
+  ok((d.s.mats.fg || 0) > 0 && !(d.s.mats.fm || 0), '마교 사냥터에서 마혈정이 나온다');
+}
+
 console.log('\n=== 숫자 표기 ===');
 {
   const table = [[999, '999'], [1000, '1,000'], [120000, '120,000'], [99999999, '99,999,999'], [1e9, '1.00d']];

@@ -1325,3 +1325,12 @@ details.lore p { margin: 4px 0 0; line-height: 1.5; }
 /* v150: 착용 칸은 두 줄 — 그림이 붙은 뒤로 넷이면 오른쪽이 잘렸다 */
 .gear-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .gear-tile { min-width: 0; overflow: hidden; }
+
+/* v151: 계열 고르기 · 대장장이 줄 이름 */
+.smith-label { font-size: 11px; color: var(--muted); margin: 8px 0 3px; font-weight: 700; }
+.line-row .chip.line { display: inline-flex; align-items: center; gap: 3px; }
+.line-row .chip.line small { color: var(--muted); font-size: 10px; }
+.line-dots { display: inline-flex; gap: 2px; margin-left: 2px; }
+.line-dots i { width: 6px; height: 6px; border-radius: 50%; display: inline-block; }
+.smith-help summary { font-size: 12px; color: var(--muted); cursor: pointer; }
+.smith-help p { font-size: 12px; color: var(--muted); margin: 4px 0; }
