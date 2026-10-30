@@ -1243,13 +1243,23 @@ export class BattleView {
     }
     if (this.fxLevel <= 0) return;
     const face = (this.faceOverride || game.heroFacing) < 0 ? -1 : 1;
+    // v209 마무리 한 방 — 연속 평타의 마지막은 더 깊이 내딛고, 아주 짧게 멎었다(히트스톱) 화면이 살짝 울리며 과녁에 고리가 터진다.
+    // 가볍게·가볍게·묵직하게 — 박자가 생긴다.
+    const fin = this.comboIx === combo.length - 1;
+    if (fin) {
+      this.heroLunge = 1.6;
+      this.hitstop = Math.max(this.hitstop || 0, 0.06);
+      this.shake = Math.max(this.shake, 0.08);
+      const t = game.mon;
+      if (t) this.effects.push({ kind: 'shock', life: 0.28, max: 0.28, wx: t.x, wy: t.y, r: 46, col: CUT_COL[cls] || '255,255,255', rings: 1, w: 3 });
+    }
     // 권마 — 베는 궤적 대신 주먹이 닿는 자리에 터지는 충격 (정권·훅·올려치기마다 방향이 다르다)
     if (cls === 'fist') {
       const t = game.mon;
       if (t) this.effects.push({ kind: 'punch', life: 0.2, max: 0.2, wx: t.x, wy: t.y, face, tilt, big: this.comboIx === 2 });
       return;
     }
-    this.effects.push({ kind: 'swing', life: 0.16, max: 0.16, face, tilt, dir, cls,
+    this.effects.push({ kind: 'swing', life: fin ? 0.22 : 0.16, max: fin ? 0.22 : 0.16, face, tilt, dir, cls, big: fin,
       ang: game.heroAngle || 0, col: CUT_COL[cls] || (cls === 'fist' ? '253,186,116' : '255,255,255') });
   }
 
@@ -2832,6 +2842,7 @@ export class BattleView {
         ctx.translate(this.heroX + Math.cos(e.ang) * 18, this.groundY - 62 + Math.sin(e.ang) * 18 * this.squash);
         if (e.face < 0) ctx.scale(-1, 1);
         ctx.rotate(e.tilt);
+        if (e.big) ctx.scale(1.4, 1.4);          // v209 마무리 한 방은 궤적도 크게
         ctx.globalCompositeOperation = 'lighter';
         if (!e.dir) {
           const len = 30 + p * 46;
