@@ -1270,6 +1270,8 @@ function huntEnd() {
     ...res.map(row),
     h('div', { class: 'row diag-row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, '기기')),
       h('b', {}, `${screen.width}×${screen.height} · dpr ${window.devicePixelRatio} · 캔버스 ${view.cv.width}×${view.cv.height}`)),
+    h('div', { class: 'row diag-row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, '설정')),
+      h('b', {}, `그리기 ${RM.useCpu ? 'CPU' : 'GPU'}(${RM.renderPref()}) · 화질 ${QUALITY_NAME[perf.q]}${perf.q === 'auto' ? ` ${AUTO_STEPS[perf.step]}배` : ''} · 초당 ${FPS_NAME[perf.fps]}`)),
     h('p', { class: 'diag-verdict' }, verdict),
     h('div', { class: 'btn-row' }, h('button', { class: 'btn', onclick: closeModal }, '닫기'))));
 }
