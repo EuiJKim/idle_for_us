@@ -348,6 +348,7 @@ function bagTab(app) {
     // 등급 각인에 넣을 증표 — 확률이 높은 것(센 두목)부터 (v158)
     let markPick = null;
     let spPick = 0;                          // v167: 새길 고유 효과 (셋 가운데)
+    let itemTab = (() => { try { return localStorage.getItem('ifu.itemTab') || 'enh'; } catch { return 'enh'; } })();   // v207
     openModal((s) => {
       const paint = () => {
         const g = gradeOf(it);
@@ -358,10 +359,11 @@ function bagTab(app) {
         const bm = game.breakMarksOf(it);
         const breaking = (it.plus || 0) >= W.ENHANCE_NORMAL;
         const pc = null;                     // v173: 승급 없음 — 증표 각인으로
-        s.replaceChildren(...[
-          h('h2', { style: `color:${g.color}` }, itemTitle(game, it)),
-          h('p', {}, `${W.SLOTS.find((x) => x.id === it.slot).name} · 아이템 레벨 ${it.ilv} · `, h('b', { style: `color:${g.color}` }, g.name)),
-          h('p', {}, h('b', {}, itemLines(game, it))),
+        // v207: 한 줄로 길게 늘어서던 것을 칸으로 나눈다 — 강화 · 각인 · 계열 · 정보. 위에는 늘 이름·등급·수치.
+        const tabsAll = [['enh', breaking ? '돌파' : '강화'], game.canImprintItem(it) ? ['imp', '각인'] : null, it.grow ? ['line', '계열'] : null, ['info', '정보']].filter(Boolean);
+        if (!tabsAll.some(([k]) => k === itemTab)) itemTab = 'enh';
+        const tabRow = h('div', { class: 'item-tabs' }, ...tabsAll.map(([k, name]) => h('button', { class: `item-tab${k === itemTab ? ' on' : ''}`, onclick: () => { itemTab = k; try { localStorage.setItem('ifu.itemTab', k); } catch { /* 이번만 */ } paint(); } }, name)));
+        const infoPane = [
           game.itemUnique(it) ? h('div', { class: 'uniq-box' }, h('b', {}, '고유 옵션 '), G.gearKeyText(game.itemUnique(it).k, game.itemUnique(it).v),
             h('small', {}, ` — ${W.zoneOfW(W.itemZone(it))?.name || ''} ${SLOT_SHORT[it.slot]}에만 붙는 옵션`)) : null,
           it.opts?.length ? h('div', { class: 'opt-box' }, ...optLines(it).map((t, i) => h('div', { class: it.opts[i].sp || it.opts[i].kp ? 'sp' : it.opts[i].pet ? 'pet' : it.opts[i].tf ? 'tf' : '' }, t))) : null,
@@ -372,26 +374,28 @@ function bagTab(app) {
           : W.isDropOnly(it.slot) ? h('p', { class: 'muted' }, `${W.zoneOfW(W.itemZone(it))?.name || ''} 두목에게서만 나와요 — 강화가 어려워요(성공률 절반·은자 ×3·돌파 없음). 등급은 두목 증표로 각인해요.`)
             : it.grow ? h('p', { class: 'muted' }, `성장 장비 — 레벨을 따라 저절로 자라요(지금 Lv.${it.ilv}, ${W.ILV_CAP}까지). 강화 재료는 그 레벨 지역(${W.zoneOfW(W.itemZone(it))?.name || ''}) 것.`)
             : it.step != null ? h('p', { class: 'muted' }, `Lv.${it.ilv} 옛 사다리 장비 (${W.zoneOfW(W.itemZone(it))?.name || ''})`) : null,
+        ];
+        const enhPane = [
           max ? h('p', { class: 'muted' }, '강화를 다 했어요') : h('div', { class: `enh-box${W.enhanceRisky(it.plus || 0) ? ' danger' : ''}` },
             h('div', { class: 'enh-head' }, h('b', {}, `${breaking ? '돌파' : '강화'} +${it.plus || 0} → +${(it.plus || 0) + 1}`), h('span', { class: 'enh-rate' }, `성공 ${pct(game.enhanceRateOf(it), 0)}${it.epity ? ` (천장 +${pct(it.epity, 0)}p)` : ''}`)),
             h('div', { class: 'enh-fail' }, W.enhanceFailText(it.plus || 0),
               W.enhanceFail(it.plus || 0) ? ` · 실패하면 다음 확률 +${pct(game.enhanceBaseRate(it) * W.ENH_PITY_K, 0)}p` : null,
               W.enhanceRisky(it.plus || 0) ? h('span', {}, ` · 보호부 ${game.s.prot || 0}장${game.s.prot ? (useProt ? ' — 쓰면 실패해도 그대로' : ' — 안 씀') : ' — 상인에서 사요'}`) : null),
             h('div', { class: 'enh-cost' }, `기본 수치 +${pct(breaking ? W.BREAK_STEP : W.ENHANCE_STEP, 0)} · 은자 ${fmt(cost)}${em ? ` · ${W.matName(em.key)} ${em.n}개 (가진 것 ${fmt(game.s.mats[em.key] || 0)})` : ''}${bm ? ` · ${W.matName(W.bossKey(em.key))} ${bm}개 (가진 것 ${fmt(game.s.mats[W.bossKey(em.key)] || 0)})` : ''}`),
-            W.enhanceRisky(it.plus || 0) && game.s.prot ? h('label', { class: 'chk' }, (() => { const c = h('input', { type: 'checkbox' }); c.checked = useProt; c.onchange = () => { useProt = c.checked; paint(); }; return c; })(), ' 보호부 쓰기') : null),
-          pc ? h('p', { class: 'muted' }, `승급 → `, h('b', { style: `color:${W.RARITY[it.rar + 1].color}` }, W.RARITY[it.rar + 1].name),
-            ` (기본 수치 ×${(W.RARITY[it.rar + 1].mult / W.RARITY[it.rar].mult).toFixed(2)}, 스킬 옵션 새로) — ${W.matName(pc.key)} ${pc.mats} (가진 것 ${fmt(game.s.mats[pc.key] || 0)})${pc.marks ? ` · ${W.matName(W.bossKey(pc.key))} ${pc.marks}` : ''}${Object.entries(pc.fac || {}).map(([k, n]) => ` · ${W.matName(k)} ${n} (가진 것 ${fmt(game.s.mats[k] || 0)})`).join('')} · 은자 ${fmt(pc.gold)}`) : null,
-          game.canImprintItem(it) ? impBox() : null,
-          game.canImprintItem(it) ? infuseBox() : null,
-          it.grow ? lineBox() : null,
+            W.enhanceRisky(it.plus || 0) && game.s.prot ? h('label', { class: 'chk' }, (() => { const c = h('input', { type: 'checkbox' }); c.checked = useProt; c.onchange = () => { useProt = c.checked; paint(); }; return c; })(), ' 보호부 쓰기') : null,
+            h('button', { class: 'btn good enh-go', disabled: game.canEnhance(it) ? null : true, onclick: () => askEnhance() }, breaking ? '돌파' : '강화')),
+        ];
+        const linePane = it.grow ? [(() => { const d = lineBox(); d.open = true; return d; })()] : [];
+        const impPane = game.canImprintItem(it) ? [infuseBox(), impBox()] : [];
+        const pane = { enh: enhPane, imp: impPane, line: linePane, info: infoPane }[itemTab] || enhPane;
+        s.replaceChildren(...[
+          h('h2', { style: `color:${g.color}` }, itemTitle(game, it)),
+          h('p', { class: 'item-sub' }, `${W.SLOTS.find((x) => x.id === it.slot).name} · Lv.${it.ilv} · `, h('b', { style: `color:${g.color}` }, g.name), ` · +${it.plus || 0}`),
+          h('p', { class: 'item-stat' }, h('b', {}, itemLines(game, it))),
+          tabRow,
+          h('div', { class: 'item-pane' }, ...pane.filter(Boolean)),
           h('div', { class: 'btn-row' },
             !worn ? h('button', { class: 'btn primary', onclick: () => { game.equipFromBag(it.uid); closeModal(); done(); } }, '끼기') : null,
-            h('button', { class: 'btn good', disabled: game.canEnhance(it) ? null : true, onclick: () => askEnhance() }, breaking ? '돌파' : '강화'),
-            pc ? h('button', { class: 'btn primary', disabled: game.canPromote(it) ? null : true, onclick: () => {
-              if (!game.promote(it.uid)) return toast('재료·증표·은자가 모자라요');
-              toast(`승급! ${W.RARITY[it.rar].name} — ${optLines(it).join(' / ')}`);
-              app.save(); paint(); app.refresh();
-            } }, '승급') : null,
             !worn && !it.grow ? h('button', { class: 'btn', onclick: () => { const b = W.sellBack(it); const p = game.sell(it); toast(b ? `되팔기 — 은자 +${fmt(p)} · ${Object.entries(b.mats).map(([k, n]) => `${W.matName(k)} ${fmt(n)}`).join(' · ')}` : `은자 +${fmt(p)}`); closeModal(); done(); } },
               W.sellBack(it) ? `되팔기 (제작비 ¼)` : `팔기 ${fmt(W.sellPrice(it))}`) : null,
             h('button', { class: 'btn', onclick: closeModal }, '닫기')),
