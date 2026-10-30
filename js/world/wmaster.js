@@ -14,8 +14,17 @@
 // 이야기는 원작(절대회귀)의 인물을 빌려 줄여 썼고, 원작에 자리만 있고 이야기가 없는 정파 고수 몇은 이 게임에서 지었다.
 import { mobGold, expToNext, LEVEL_MAX } from './wdata.js';
 import { zoneForLv, TOWER_MAX } from './wdgn.js';
-import { FACTIONS, FAC_ZONES, MASTERS, OTHER_LORE, KING_STORY, KING_SKILLS } from './wmasters_data.js';
-export { FACTIONS, FAC_ZONES, MASTERS, OTHER_LORE, KING_STORY, KING_SKILLS };
+import { FACTIONS, FAC_ZONES, MASTERS, OTHER_LORE, KING_STORY, KING_SKILLS, BOSS_PATTERNS } from './wmasters_data.js';
+export { FACTIONS, FAC_ZONES, MASTERS, OTHER_LORE, KING_STORY, KING_SKILLS, BOSS_PATTERNS };
+// v168 두목 초식 꼴 — 십이지왕(번호)과 레벨 100 넘는 고수(id). 없으면 null(옛 방식: 최대 체력의 몇 할)
+export function bossPatterns(map) {
+  if (map?.king) return BOSS_PATTERNS[map.king.no] || null;
+  if (map?.master) { const m = MASTERS.find((x) => x.id === map.master); return m && m.lv >= 100 ? BOSS_PATTERNS[m.id] || null : null; }
+  return null;
+}
+// 초식 한 대의 고정 피해 — 그 레벨 기준 무인(REF_HP)의 PAT_K배 × 배수. 오의는 PAT_ULT배, 맹주·천마는 PAT_LORD배.
+// 기준 무인은 보통 초식에 반쯤, 오의에 거의 다 깎인다 — 체력·방어를 올린 무인은 버티고, 아니면 쓰러진다.
+export const PAT_K = 0.5, PAT_ULT = 1.8, PAT_LORD = 1.2;
 
 export const factionOf = (id) => FACTIONS.find((f) => f.id === id) || null;
 export function factionOfZone(z) {

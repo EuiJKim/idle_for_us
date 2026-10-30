@@ -144,7 +144,7 @@ export const tellDelay = (f) => 1.6 - 0.55 * k120(f);              // 경고 →
 export const castGap = (f) => (5.0 - 2.2 * k120(f)) * (isZodiacFloor(f) ? 0.85 : 1);   // 초식 사이 (5초 → 2.8초)
 export const tellDmg = (f) => (0.5 + 0.3 * k120(f)) * (isZodiacFloor(f) ? 1.15 : 1);   // 맞으면 최대 체력의 몇 할 (두 대면 거의 쓰러진다)
 export const TOWER_NO_POTION = true;   // 탑에서는 물약을 못 쓴다 — 피하는 수밖에
-export const TELL_NAMES = { aim: '노림수', nova: '폭쇄', line: '일직선 참격', donut: '바깥 고리', cross: '십자참', chase: '추격', rain: '낙뢰우', star: '세 갈래', xcross: '팔방참', twin: '쌍선 돌격', charge: '돌진' };
+export const TELL_NAMES = { cone: '부채꼴', ring3: '파동', grid: '그물', aim: '노림수', nova: '폭쇄', line: '일직선 참격', donut: '바깥 고리', cross: '십자참', chase: '추격', rain: '낙뢰우', star: '세 갈래', xcross: '팔방참', twin: '쌍선 돌격', charge: '돌진' };
 
 // 수문장 — 보통 층은 지역 두목들을 돌려 쓰고, 10층마다 십이지신(그 짐승의 큰 모습)
 export function towerBoss(f) {
@@ -180,6 +180,14 @@ export const zodiacTopTier = (no) => Math.min(12, 2 + no);
 export function tellCovers(tl, x, y) {
   if (tl.kind === 'circle') return Math.hypot(x - tl.x, y - tl.y) <= tl.r;
   if (tl.kind === 'donut') { const d = Math.hypot(x - tl.x, y - tl.y); return d >= tl.r0 && d <= tl.r1; }
+  // 부채꼴 (v168): 중심에서 r 안, 방향 a에서 ±half
+  if (tl.kind === 'cone') {
+    const d = Math.hypot(x - tl.x, y - tl.y);
+    if (d > tl.r) return false;
+    let da = Math.atan2(y - tl.y, x - tl.x) - tl.a;
+    da = Math.atan2(Math.sin(da), Math.cos(da));
+    return d < 30 || Math.abs(da) <= tl.half;
+  }
   if (tl.kind === 'line') {
     const dx = tl.x1 - tl.x0, dy = tl.y1 - tl.y0;
     const L2 = dx * dx + dy * dy || 1;

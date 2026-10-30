@@ -577,11 +577,14 @@ export class BattleView {
         // 설정집의 독문무공(십이지왕·고수)은 크고 금빛으로 외친다
         if (ev.at) this.float(ev.skill ? `「${ev.name}」` : ev.name, this.sx(ev.at), this.sy(ev.at) - 150, ev.skill ? '#fde68a' : '#fca5a5', ev.skill ? 20 : 16, 1, true);
         // v160: 초식 그림을 고르고(경고·터짐에 쓴다) 발밑에 진을 깐다
-        this.castFx = fxFor(ev.name, ev.at?.def?.look, ev.pat);
+        this.castFx = fxFor(ev.name.replace(/^오의 · /, ''), ev.at?.def?.look, ev.pat);
         if (ev.at && this.fxLevel > 0) {
-          this.effects.push({ kind: 'bcast', wx: ev.at.x, wy: ev.at.y, r: ev.skill ? 120 : 90, fx: this.castFx, life: 1.1, max: 1.1 });
-          if (ev.skill) this.flash = Math.max(this.flash, 0.12);
+          this.effects.push({ kind: 'bcast', wx: ev.at.x, wy: ev.at.y, r: ev.ult ? 170 : ev.skill ? 120 : 90, fx: this.castFx, life: ev.ult ? 1.8 : 1.1, max: ev.ult ? 1.8 : 1.1 });
+          if (ev.skill) this.flash = Math.max(this.flash, ev.ult ? 0.3 : 0.12);
         }
+        // 오의는 화면 가운데에 크게 (v168)
+        if (ev.ult) this.showBanner(ev.name, '#fca5a5', 1.3, '奧義');
+        if (ev.lethal) this.float('치명 — 맞으면 쓰러져요! 피하세요', this.heroX, this.groundY - 200, '#fecaca', 15, 1.2, true);
         break;
       // 증표 고유 효과 (v163) — 이름을 띄우고, 둘레 폭발·쏟아짐은 그 무공 그림으로
       case 'imprint':
@@ -603,8 +606,8 @@ export class BattleView {
         break;
       case 'tellBoom': {
         const tl = ev.tell;
-        const c = tl.kind === 'line' ? { x: (tl.x0 + tl.x1) / 2, y: (tl.y0 + tl.y1) / 2 } : tl;
-        const r = tl.kind === 'line' ? Math.min(220, tl.w * 1.4) : tl.kind === 'donut' ? tl.r1 * 0.7 : tl.r;
+        const c = tl.kind === 'line' ? { x: (tl.x0 + tl.x1) / 2, y: (tl.y0 + tl.y1) / 2 } : tl.kind === 'cone' ? { x: tl.x + Math.cos(tl.a) * tl.r * 0.55, y: tl.y + Math.sin(tl.a) * tl.r * 0.55 } : tl;
+        const r = tl.kind === 'line' ? Math.min(220, tl.w * 1.4) : tl.kind === 'donut' ? tl.r1 * 0.7 : tl.kind === 'cone' ? tl.r * 0.45 : tl.r;
         const fx = tl._fx;
         this.effects.push({ kind: 'shock', life: 0.35, max: 0.35, wx: c.x, wy: c.y, r, col: fx?.col || '248,113,113', rings: 2, w: 5 });
         // v160: 초식 그림이 크게 터진다 (줄은 칼날로, 둥근 것은 폭발로)
@@ -2404,6 +2407,17 @@ export class BattleView {
         ctx.strokeStyle = edge;
         ctx.beginPath(); ctx.ellipse(x, y, r1, r1 * sq, 0, 0, Math.PI * 2); ctx.stroke();
         if (r0) { ctx.strokeStyle = 'rgba(134,239,172,0.8)'; ctx.beginPath(); ctx.ellipse(x, y, r0, r0 * sq, 0, 0, Math.PI * 2); ctx.stroke(); }
+      } else if (tl.kind === 'cone') {
+        // 부채꼴 (v168) — 평면의 각을 화면 납작함대로 그린다
+        const x = this.sx(tl), y = this.sy(tl);
+        const sector = (rr) => {
+          ctx.beginPath(); ctx.moveTo(x, y);
+          for (let i = 0; i <= 24; i++) { const a = tl.a - tl.half + (2 * tl.half * i) / 24; ctx.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr * sq); }
+          ctx.closePath();
+        };
+        ctx.fillStyle = 'rgba(220,38,38,0.16)'; sector(tl.r); ctx.fill();
+        ctx.fillStyle = `rgba(239,68,68,${0.22 + k * 0.25})`; sector(tl.r * k); ctx.fill();
+        ctx.strokeStyle = edge; sector(tl.r); ctx.stroke();
       } else if (tl.kind === 'line') {
         const a = { x: tl.x0, y: tl.y0 }, b = { x: tl.x1, y: tl.y1 };
         const ax = this.sx(a), ay = this.sy(a), bx = this.sx(b), by = this.sy(b);
@@ -2415,6 +2429,20 @@ export class BattleView {
         ctx.strokeStyle = edge; quad(1); ctx.stroke();
       }
       if (tl._fx && this.fxLevel > 0) drawTellFx(this, ctx, tl, k);
+      // 맞으면 쓰러질 초식(v168)은 '치명' — 고정 피해라 체력·방어가 높으면 안 뜬다
+      if (tl.pred && game.heroHp > 0 && tl.pred >= game.heroHp) {
+        const c = tl.kind === 'line' ? { x: (tl.x0 + tl.x1) / 2, y: (tl.y0 + tl.y1) / 2 } : tl.kind === 'cone' ? { x: tl.x + Math.cos(tl.a) * tl.r * 0.5, y: tl.y + Math.sin(tl.a) * tl.r * 0.5 } : tl;
+        ctx.save();
+        ctx.globalAlpha = 0.55 + blink * 0.45;
+        // 글꼴에 따라 해골 그림 글자가 빈 네모로 나온다 — 글자로
+        ctx.font = `900 ${tl.ult ? 26 : 20}px sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(69,10,10,0.9)';
+        ctx.strokeText('치명', this.sx(c), this.sy(c) + 8);
+        ctx.fillStyle = '#fee2e2';
+        ctx.fillText('치명', this.sx(c), this.sy(c) + 8);
+        ctx.restore();
+      }
     }
     ctx.restore();
   }

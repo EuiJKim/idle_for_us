@@ -1392,6 +1392,48 @@ console.log('\n=== 고유 효과가 쓸모 있는가 (v167 · 꼴 열여섯을 �
   }
 }
 
+console.log('\n=== 십이지왕·고수 초식 (v168): 고정 피해 · 테마 꼴 · 오의 ===');
+{
+  const DG = await import('../js/world/wdgn.js');
+  const mk = (lv, tank) => {
+    const g = fresh(); g.rng = seeded(5);
+    while (g.s.level < lv) g.addExp(W.expToNext(g.s.level));
+    g.s.jobTier = 3; g._stats = null;
+    if (tank) { for (const k of W.GROW_SLOTS) { g.s.equip[k].rar = 3; g.s.equip[k].plus = 12; } g.s.stats.vit = 600; g._stats = null; }
+    return g;
+  };
+  const kz = W.NORMAL_ZONES + 12;            // 검왕
+  const enterBoss = (g, z) => { g.enterMap(W.mapId(z, W.BOSS_AREA)); for (let i = 0; i < 200 && !g.mons.some((m) => m.isBoss && m.alive && !(m.introT > 0)); i++) g.tick(0.05); g.freezeT = 0; return g.mons.find((m) => m.isBoss && m.alive); };
+  const weak = mk(150, false), tank = mk(150, true);
+  const bw = enterBoss(weak, kz), bt = enterBoss(tank, kz);
+  ok(bw && MS.bossPatterns(weak.map)?.ult?.name === '무형검진', '검왕 두목 방 — 테마 초식 셋 + 오의 무형검진');
+  const ultAbs = DG.refHp(bw.lv) * MS.PAT_K * MS.PAT_ULT;
+  const hw = weak.patternHit(ultAbs, bw), ht = tank.patternHit(ultAbs, bt);
+  ok(hw >= weak.stats().hp && ht < tank.stats().hp, '오의 한 대 — 맨몸에 가까운 차림은 쓰러지고, 체력·방어를 올린 차림은 버틴다', `기본 ${Math.round(hw)} / 체력 ${Math.round(weak.stats().hp)} · 단단한 ${Math.round(ht)} / ${Math.round(tank.stats().hp)}`);
+  // 그 레벨에 흔한 차림(스탯을 찍고 +9 유니크): 보통 초식은 크게 깎이고(30~50%), 맹주·천마의 오의는 쓰러진다
+  const typ = mk(150, false); typ.s.autoStat = true; typ.autoStats(); for (const k of W.GROW_SLOTS) { typ.s.equip[k].rar = 1; typ.s.equip[k].plus = 9; } typ._stats = null;
+  const nAbs = DG.refHp(bw.lv) * MS.PAT_K;
+  const fr = typ.patternHit(nAbs, bw) / typ.stats().hp, lordUlt = typ.patternHit(nAbs * MS.PAT_ULT * MS.PAT_LORD, bw) / typ.stats().hp;
+  ok(fr > 0.3 && fr < 0.6 && lordUlt >= 1, '흔한 차림: 보통 초식 한 대는 버틴다 · 맹주·천마 오의는 쓰러진다', `보통 ${Math.round(fr * 100)}% · 맹주 오의 ${Math.round(lordUlt * 100)}%`);
+  // 세 번째마다 오의 · 경고에 고정 피해가 실린다
+  weak.events.length = 0;
+  let ults = 0, casts = 0, absOk = true;
+  for (let i = 0; i < 9; i++) { bw.castT = 0; weak.tickBossSkill(0.05); for (const e of weak.events) if (e.type === 'bossCast') { casts++; if (e.ult) ults++; } weak.events.length = 0; if (!weak.tells.every((t) => t.abs > 0)) absOk = false; weak.tells = []; }
+  ok(casts === 9 && ults === 3 && absOk, '아홉 번 펼치면 오의가 셋 · 경고마다 고정 피해', `${casts}번 · 오의 ${ults}`);
+  // 새 꼴: 부채꼴·파동·그물
+  weak.tells = [];
+  weak.bossCast(bw, 100, 0, ['cone'], '붕권', { abs: 1 });
+  const cone = weak.tells[0];
+  ok(cone.kind === 'cone' && DG.tellCovers(cone, cone.x + Math.cos(cone.a) * 300, cone.y + Math.sin(cone.a) * 300) && !DG.tellCovers(cone, cone.x - Math.cos(cone.a) * 300, cone.y - Math.sin(cone.a) * 300), '부채꼴: 앞은 맞고 뒤는 안 맞는다');
+  weak.tells = []; weak.bossCast(bw, 100, 0, ['ring3'], '귀혼음', { abs: 1 });
+  ok(weak.tells.length === 3 && weak.tells.every((t) => t.kind === 'donut') && weak.tells[2].wait > weak.tells[1].wait, '파동: 고리 셋이 차례로 퍼진다');
+  weak.tells = []; weak.bossCast(bw, 100, 0, ['grid'], '검기 그물', { abs: 1 });
+  ok(weak.tells.length === 6 && weak.tells.filter((t) => t.wait > 0).length === 3, '그물: 평행선 셋 + 엇갈리는 셋');
+  // 낮은 고수는 옛 방식(최대 체력의 몇 할)
+  const low = mk(60, false); low.enterMap(W.mapId(W.masterZoneOf('namgung'), W.BOSS_AREA));
+  ok(MS.bossPatterns(low.map) === null, '레벨 100 아래 고수는 옛 초식(최대 체력의 몇 할) 그대로');
+}
+
 console.log('\n=== 걸으면서 무공 · 범위 (v157) ===');
 {
   const g = fresh();

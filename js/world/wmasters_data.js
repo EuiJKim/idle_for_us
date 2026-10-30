@@ -216,3 +216,42 @@ export const KING_SKILLS = {
   도왕: [{ name: '일월쌍참', pat: 'cross' }, { name: '암혈도', pat: 'line' }],
   검왕: [{ name: '무형신검', pat: 'xcross' }, { name: '무형검기', pat: 'twin' }],
 };
+
+// 두목 초식 꼴 (v168) — 십이지왕과 레벨 100 넘는 고수. 셋(넷)은 번갈아, 오의(ult)는 세 번째마다 — 경고가 길고 아프다.
+// pat 꼴은 wgame.bossCast가 깐다: aim nova donut line charge twin cross xcross star chase rain + cone(부채꼴) ring3(퍼지는 파동) grid(검기 그물)
+// 피해는 무인 최대 체력의 몇 할이 아니라 두목 레벨의 고정값 — 체력·방어가 높으면 맞아도 산다.
+const P = (name, pat) => ({ name, pat });
+const U = (name, pats) => ({ name, pats, ult: true });
+export const BOSS_PATTERNS = {
+  // 십이지왕 (번호)
+  12: { list: [P('유혼절명권', 'nova'), P('유혼추명', 'chase'), P('붕권', 'cone')], ult: U('절명 연환', ['nova', 'ring3']) },
+  11: { list: [P('천기 기관포', 'rain'), P('철인 돌격', 'charge'), P('기관 십자포', 'cross')], ult: U('천기만발', ['rain', 'xcross']) },
+  10: { list: [P('귀혼음', 'ring3'), P('음살 일선', 'line'), P('귀곡', 'donut')], ult: U('귀혼곡', ['ring3', 'star']) },
+  9: { list: [P('혈해만장', 'nova'), P('혈우', 'rain'), P('혈조', 'cone')], ult: U('혈해천지', ['donut', 'rain']) },
+  8: { list: [P('목형천혼술', 'donut'), P('천목삼지', 'star'), P('천근', 'grid')], ult: U('천혼만목', ['grid', 'chase']) },
+  7: { list: [P('천녀야우장', 'rain'), P('가인일침', 'aim'), P('야우선', 'cone')], ult: U('천녀산화', ['rain', 'ring3']) },
+  6: { list: [P('암천야신공', 'chase'), P('흑야십자', 'cross'), P('그림자 일섬', 'line')], ult: U('암야', ['xcross', 'chase']) },
+  5: { list: [P('환영분신', 'star'), P('혈교 환술', 'chase'), P('환영 그물', 'grid')], ult: U('만환', ['star', 'grid']) },
+  4: { list: [P('명부살법', 'aim'), P('명부일섬', 'line'), P('사신 십자', 'cross')], ult: U('명부개문', ['chase', 'xcross']) },
+  3: { list: [P('투신돌격', 'charge'), P('권갑 투신', 'nova'), P('투신 장풍', 'cone')], ult: U('투신강림', ['charge', 'nova']) },
+  2: { list: [P('일월쌍참', 'cross'), P('암혈도', 'line'), P('월아', 'cone')], ult: U('일월암혈', ['xcross', 'twin']) },
+  1: { list: [P('무형검기', 'twin'), P('무형신검', 'xcross'), P('검기 그물', 'grid')], ult: U('무형검진', ['xcross', 'ring3']) },
+  // 고수 (id)
+  seophon: { list: [P('섭혼대법', 'donut'), P('귀술진', 'ring3'), P('섭혼안', 'aim')], ult: U('섭혼만상', ['donut', 'chase']) },
+  guryeong: { list: [P('참마도법', 'line'), P('삼재참', 'star'), P('참마 회선', 'cone')], ult: U('참마절', ['star', 'cross']) },
+  yayulhan: { list: [P('한빙마장', 'cone'), P('빙혼지', 'aim'), P('빙결진', 'donut')], ult: U('한빙지옥', ['ring3', 'rain']) },
+  mabul: { list: [P('황금불광', 'nova'), P('광승난무', 'chase'), P('금강장', 'cone')], ult: U('불광보조', ['nova', 'ring3']) },
+  dokwang: { list: [P('만독귀종', 'rain'), P('독아삼침', 'star'), P('독무', 'donut')], ult: U('만독천하', ['rain', 'donut']) },
+  jingwang: { list: [P('태을신검', 'xcross'), P('태을검기', 'twin'), P('검망', 'grid')], ult: U('태을귀원', ['xcross', 'grid']) },
+  bisain: { list: [P('혈로개천', 'charge'), P('사도십삼랑', 'star'), P('혈랑', 'chase')], ult: U('십삼랑 혈로', ['charge', 'star']) },
+  geugak: { list: [P('혈앙지', 'aim'), P('마극광폭장', 'nova'), P('소향비술', 'rain')], ult: U('삼공합일', ['nova', 'rain']) },
+  ilhwa: { list: [P('일화천섬', 'grid'), P('낙화유수', 'ring3'), P('꽃잎 일섬', 'line')], ult: U('천화난무', ['grid', 'rain']) },
+  imsanggon: { list: [P('대정무적도', 'line'), P('정협쌍도', 'twin'), P('협도 회선', 'cone')], ult: U('대정무적', ['twin', 'cross']) },
+  baekmanggi: { list: [P('검황무적', 'xcross'), P('검황쌍류', 'twin'), P('검황 그물', 'grid')], ult: U('검황일섬', ['xcross', 'line']) },
+  bulpae: { list: [P('붕산철권', 'cone'), P('투신강림', 'nova'), P('투신난무', 'chase')], ult: U('붕산', ['cone', 'nova']) },
+  hyeolcheon: { list: [P('멸천마도식', 'cross'), P('혈천마도', 'line'), P('도귀난참', 'star')], ult: U('멸천', ['xcross', 'star']) },
+  daechwi: { list: [P('혈루취권', 'chase'), P('취팔선보', 'star'), P('대취광란', 'nova')], ult: U('대취', ['chase', 'ring3']) },
+  jinpaecheon: { list: [P('패천신검', 'xcross'), P('패천일격', 'charge'), P('맹주의 검', 'line'), P('천하일검', 'grid')], ult: U('천하일검', ['grid', 'xcross']) },
+  baekjagang: { list: [P('사도천패', 'cone'), P('사도돌파', 'charge'), P('흑우', 'rain')], ult: U('맹주의 의심', ['rain', 'cross']) },
+  cheonma: { list: [P('천마멸세', 'xcross'), P('구화마공', 'nova'), P('천마쌍극', 'twin'), P('천마혈우', 'rain')], ult: U('천마군림', ['ring3', 'xcross', 'chase']) },
+};

@@ -2433,6 +2433,19 @@ export class WorldGame {
     if (b.castT > 0) return;
     const lord = this.map.lord;
     b.castT = (lord ? W.FIELD_CAST_LORD : W.FIELD_CAST) * (0.85 + this.rng() * 0.3);
+    // v168: 십이지왕·레벨 100 넘는 고수 — 테마 초식 셋(넷) + 세 번째마다 오의. 피해는 고정값(체력·방어가 버틴다)
+    const pb = MS.bossPatterns(this.map);
+    if (pb) {
+      b.castN = (b.castN || 0) + 1;
+      const ult = b.castN % 3 === 0;
+      const s1 = ult ? pb.ult : pb.list[Math.floor(this.rng() * pb.list.length)];
+      const abs = D.refHp(b.lv) * MS.PAT_K * (ult ? MS.PAT_ULT : 1) * (lord ? MS.PAT_LORD : 1);
+      const delay = ult ? 1.9 : 1.3;
+      const pats = s1.pats || [s1.pat];
+      pats.forEach((p, i) => this.bossCast(b, MS.floorOf(b.lv), 0, [p], s1.name, { abs, delay: delay + i * 0.25, quiet: i > 0, ult }));
+      if (ult) b.castT += 1.5;
+      return;
+    }
     const s1 = sk[Math.floor(this.rng() * sk.length)];
     this.bossCast(b, MS.floorOf(b.lv), lord ? W.FIELD_TELL_LORD : W.FIELD_TELL, [s1.pat], s1.name);
   }
@@ -2505,13 +2518,15 @@ export class WorldGame {
     } else if ((I.kind === 'tower' || I.kind === 'raid') && m.isBoss) I.done = { ok: true };
   }
   // 수문장 초식: 그 층의 초식 가운데 하나를 골라 바닥에 경고를 깐다 (D.tellDelay초 뒤 터진다)
-  bossCast(b, f, dmgMul = 1, pats = D.towerPatterns(f), skillName = null) {
+  bossCast(b, f, dmgMul = 1, pats = D.towerPatterns(f), skillName = null, opt = {}) {
     const p = pats[Math.floor(this.rng() * pats.length)];
-    const T = D.tellDelay(f);
+    const T = opt.delay ?? D.tellDelay(f);
     const dmg = D.tellDmg(f) * dmgMul;
     const hx = this.heroX, hy = this.heroY;
     const ang = Math.atan2(hy - b.y, hx - b.x);
-    const add = (o) => this.tells.push({ t: T, max: T, dmg, wait: 0, ...o });
+    // 고정 피해 초식(v168)은 맞으면 얼마나 깎이는지 미리 셈해 둔다 — 쓰러질 만하면 경고에 ☠
+    const pred = opt.abs ? this.patternHit(opt.abs, b) : 0;
+    const add = (o) => this.tells.push({ t: T, max: T, dmg, abs: opt.abs || 0, pred, ult: !!opt.ult, wait: 0, ...o });
     const line = (a, len, w, ox = b.x, oy = b.y, o = {}) => add({ kind: 'line', x0: ox, y0: oy, x1: ox + Math.cos(a) * len, y1: oy + Math.sin(a) * len, w, ...o });
     const thru = (a, w) => line(a, 1700, w, b.x - Math.cos(a) * 850, b.y - Math.sin(a) * 850);
     switch (p) {
@@ -2525,6 +2540,16 @@ export class WorldGame {
       case 'xcross': for (let i = 0; i < 4; i++) thru(i * Math.PI / 4, 86); break;
       case 'star': for (const d of [-0.6, 0, 0.6]) line(ang + d, 950, 90); break;
       case 'chase': for (let i = 0; i < 3; i++) add({ kind: 'circle', r: 95, aim: true, wait: i * 0.55 }); break;
+      case 'cone': add({ kind: 'cone', x: b.x, y: b.y, a: ang, r: 600, half: 0.55 }); break;
+      case 'ring3': for (let i = 0; i < 3; i++) add({ kind: 'donut', x: b.x, y: b.y, r0: i * 190, r1: i * 190 + 190, wait: i * 0.4 }); break;
+      case 'grid': {
+        // 검기 그물 — 무인을 지나는 평행선 셋, 조금 뒤 엇갈리는 셋
+        const px = -Math.sin(ang), py = Math.cos(ang);
+        for (const o of [-210, 0, 210]) { const cx = hx + px * o, cy = hy + py * o; line(ang, 1600, 80, cx - Math.cos(ang) * 800, cy - Math.sin(ang) * 800); }
+        const a2 = ang + Math.PI / 2, qx = -Math.sin(a2), qy = Math.cos(a2);
+        for (const o of [-210, 0, 210]) { const cx = hx + qx * o, cy = hy + qy * o; line(a2, 1600, 80, cx - Math.cos(a2) * 800, cy - Math.sin(a2) * 800, { wait: 0.55 }); }
+        break;
+      }
       case 'rain':
         for (let i = 0; i < 6; i++) {
           const rr = i === 0 ? 0 : 110 + this.rng() * 220, a = this.rng() * Math.PI * 2;
@@ -2533,7 +2558,7 @@ export class WorldGame {
         break;
       default:
     }
-    this.emit('bossCast', { name: skillName || D.TELL_NAMES[p] || p, pat: p, at: b, skill: !!skillName });
+    if (!opt.quiet) this.emit('bossCast', { name: opt.ult ? `오의 · ${skillName}` : skillName || D.TELL_NAMES[p] || p, pat: p, at: b, skill: !!skillName, ult: !!opt.ult, lethal: pred >= this.heroHp });
   }
   tickTells(dt, st) {
     if (!this.tells.length) return;
@@ -2552,11 +2577,12 @@ export class WorldGame {
       tl.t -= dt;
       if (tl.t > 0) continue;
       tl.done = true;
+      if (boss && !tl.released) { boss.atkAt = this.clock; tl.released = true; }      // 그 자리에서 초식을 펼친다(내딛는 몸짓, v168)
       const hit = D.tellCovers(tl, this.heroX, this.heroY);
       this.emit('tellBoom', { tell: tl, hit });
       if (!hit || this.heroHp <= 0 || this._invulnUntil > this.clock) continue;
       const red = (1 - (W.CLASSES[this.s.job]?.dmgRed || 0)) * (1 - (this.buffv.guard || 0));
-      const dmg = st.hp * tl.dmg * red;
+      const dmg = tl.abs ? this.patternHit(tl.abs, boss) : st.hp * tl.dmg * red;
       let left = dmg;
       if (this.shield > 0 && this.buffs.shield > 0) { const a = Math.min(this.shield, left); this.shield -= a; left -= a; }
       this.heroHp -= left;
@@ -2564,6 +2590,13 @@ export class WorldGame {
       if (this.heroHp <= 0) { this.heroDied(boss); break; }
     }
     this.tells = this.tells.filter((t) => !t.done);
+  }
+  // 고정 피해 초식 한 대가 무인에게 실제로 얼마 — 직업·버프·장비 피해 감소를 곱하고 방어를 뺀다(몹 평타와 같은 셈)
+  patternHit(abs, b) {
+    const st = this.stats();
+    const pm = this.pmods();
+    const red = (1 - (W.CLASSES[this.s.job]?.dmgRed || 0)) * (1 - (this.buffv.guard || 0)) * (1 - Math.min(0.6, pm.dmgRed || 0)) * (1 - (st.dmgRed || 0));
+    return Math.max(1, abs * red * (b ? this.gapIn(b) : 1) - st.def * 4);
   }
   // 시험용 자동 피하기: 지금 칸이 경고 안이면 가장 가까운 안전한 칸으로
   dodgeStep(react = 0) {

@@ -93,6 +93,16 @@ export function drawTellFx(view, ctx, tl, k) {
       g.addColorStop(0, `rgba(${fx.col},0)`); g.addColorStop(k, `rgba(${fx.col},0.8)`); g.addColorStop(Math.min(1, k + 0.05), `rgba(${fx.col},0)`);
       ctx.fillStyle = g; ctx.fillRect(0, -tl.w / 2, len, tl.w);
     }
+  } else if (tl.kind === 'cone') {
+    // 부채꼴 — 그 모양으로 오려서 그림을 차오르게
+    const x = view.sx(tl), y = view.sy(tl);
+    ctx.beginPath(); ctx.moveTo(x, y);
+    for (let i = 0; i <= 16; i++) { const a = tl.a - tl.half + (2 * tl.half * i) / 16; ctx.lineTo(x + Math.cos(a) * tl.r, y + Math.sin(a) * tl.r * sq); }
+    ctx.closePath(); ctx.clip();
+    ctx.globalAlpha = a;
+    const r = tl.r * (0.4 + 0.6 * k);
+    if (img) ctx.drawImage(img, x - r, y - r * sq, r * 2, r * 2 * sq);
+    else { ctx.fillStyle = `rgba(${fx.col},${0.5 * k})`; ctx.fillRect(x - tl.r, y - tl.r, tl.r * 2, tl.r * 2); }
   } else {
     const x = view.sx(tl), y = view.sy(tl);
     const r = tl.kind === 'donut' ? tl.r1 : tl.r;
