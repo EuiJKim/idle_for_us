@@ -327,6 +327,7 @@ function bagTab(app) {
     if (it.grow) game.mark('gearView');
     // 등급 각인에 넣을 증표 — 확률이 높은 것(센 두목)부터 (v158)
     let markPick = null;
+    let spPick = 0;                          // v167: 새길 고유 효과 (셋 가운데)
     openModal((s) => {
       const paint = () => {
         const g = gradeOf(it);
@@ -392,9 +393,18 @@ function bagTab(app) {
             return h('button', { class: `chip${k === markPick ? ' on' : ''}`, style: `--mc:${W.matColor(k)}`, onclick: () => { markPick = k; paint(); } },
               W.matName(k).replace(/의 증표$/, ''), h('small', {}, ` ${IM.THEMES[IM.themeOfZone(+k.slice(1))].name}${IM.specialOfZone(+k.slice(1)) ? '★' : ''} · ${fmt(game.s.mats[k])}개 · ${pct(i2.chance, 0)}`));
           })) : h('p', { class: 'muted' }, '두목 증표가 없어요 — 사냥터의 두목 구역·고수의 두목 방에서 두목을 잡으면 나와요.'),
-          f ? (() => { const pv = IM.imprintOf(markPick, to - 1); return pv ? h('div', { class: 'imp-row preview', style: `--ic:${IM.THEMES[pv.theme].col}` },
-            h('b', {}, `${['첫째', '둘째', '셋째'][to - 1]} 각인 · ${pv.boss} (${IM.THEMES[pv.theme].name})`), h('div', {}, IM.imprintText(pv)),
-            pv.special ? h('div', { class: 'imp-sp' }, IM.specialText(pv.special, pv.w)) : null) : null; })() : null,
+          f ? (() => {
+            const pv = IM.imprintOf({ k: markPick, s: 0, sk: 'range', g: 0, sp: spPick }, to - 1);
+            if (!pv) return null;
+            const lo = IM.skillValue('cd', 0, pv.lv), hi = IM.skillValue('dmg', 3, pv.lv);
+            return h('div', { class: 'imp-row preview', style: `--ic:${IM.THEMES[pv.theme].col}` },
+              h('b', {}, `${['첫째', '둘째', '셋째'][to - 1]} 각인 · ${pv.boss} (${IM.THEMES[pv.theme].name})`),
+              h('div', {}, Object.entries(pv.fx).map(([k, v]) => IM.FX_TEXT[k](v)).join(' · ')),
+              h('div', { class: 'muted' }, `스킬 변화: 1~3차 중 하나에 범위·피해·숨·한 번 더 가운데 하나 — 효과 등급 레어~신화가 랜덤 (이 두목이면 ${pct(lo, 1)}~${pct(hi, 1)})`),
+              pv.specials ? h('div', { class: 'sp-pick' }, h('small', {}, '고유 효과 — 하나를 골라 새겨요 (나중에 바꿀 수 있어요)'),
+                ...pv.specials.map((sp, i) => h('button', { class: `chip${i === spPick ? ' on' : ''}`, onclick: () => { spPick = i; paint(); } },
+                  h('b', {}, sp.name), h('small', {}, ` ${IM.SPECIAL_KIND[sp.kind](pv.w)}`)))) : null);
+          })() : null,
           f ? h('p', { class: 'muted' }, `증표 ${f.n}개 · 은자 ${fmt(f.gold)} · 성공 ${pct(f.chance, 0)} — 실패하면 다음 확률 +${pct(W.INFUSE_BASE[to] * W.INFUSE_PITY_K, 1)}p (천장)`) : null,
           f ? h('button', { class: 'btn primary', disabled: game.canInfuse(it, markPick) ? null : true, onclick: () => runInfuse() }, `각인 (${pct(f.chance, 0)})`) : null);
       };
@@ -407,9 +417,10 @@ function bagTab(app) {
             h('div', { class: 'enh-bar' }, bar)));
         bar.style.animationDuration = '1.6s';
         setTimeout(() => {
-          const ok = game.infuse(it.uid, markPick);
+          const ok = game.infuse(it.uid, markPick, spPick);
           app.save(); app.refresh();
-          const msg = ok ? `각인 성공! ${W.RARITY[it.rar].name} — ${optLines(it).join(' / ')}` : `각인 실패 — 다음 확률 +${pct(it.pity || 0, 0)}p`;
+          const nim = ok ? IM.imprintOf(it.imps[it.rar - 1], it.rar - 1) : null;
+          const msg = ok ? `각인 성공! ${W.RARITY[it.rar].name} — ${nim ? IM.skillModText(nim.skill) : optLines(it).join(' / ')}` : `각인 실패 — 다음 확률 +${pct(it.pity || 0, 0)}p`;
           s.replaceChildren(
             h('div', { class: `enh-anim result ${ok ? 'ok' : 'fail'}` },
               h('div', { class: 'enh-anvil' }, h('div', { class: 'enh-item', style: `--gc:${gradeOf(it).color}` }, itemTitle(game, it))),
@@ -427,9 +438,26 @@ function bagTab(app) {
           ...[0, 1, 2].map((i) => {
             const im = ims[i] ? IM.imprintOf(ims[i], i) : null;
             if (!im) return h('div', { class: 'imp-row empty' }, `${['첫째(유니크)', '둘째(전설)', '셋째(신화)'][i]} — ${i < (it.rar || 0) ? '각인 없이 올렸어요' : '비어 있어요'}`);
+            const c = game.reimpCost(it, i);
+            const can = game.canReimp(it, i);
+            const costTxt = c ? `${W.matName(c.key).replace(/의 증표$/, '')} 증표 ${c.n} · 은자 ${fmt(c.gold)}` : '';
             return h('div', { class: 'imp-row', style: `--ic:${IM.THEMES[im.theme].col}` },
-              h('b', {}, `${im.boss} · ${IM.THEMES[im.theme].name}`), h('div', {}, IM.imprintText(im)),
-              im.special ? h('div', { class: 'imp-sp' }, IM.specialText(im.special, im.w)) : null);
+              h('b', {}, `${im.boss} · ${IM.THEMES[im.theme].name}`),
+              h('div', {}, Object.entries(im.fx).map(([k, v]) => IM.FX_TEXT[k](v)).join(' · ')),
+              h('div', { class: 'imp-skill', style: `--gc:${IM.SK_GRADE[im.skill.g].col}` }, IM.skillModText(im.skill)),
+              im.special ? h('div', { class: 'imp-sp' }, IM.specialText(im.special, im.w)) : null,
+              h('div', { class: 'imp-act' },
+                h('button', { class: 'chip', disabled: can ? null : true, onclick: () => {
+                  const e = game.rerollImpSkill(it.uid, i);
+                  if (!e) return toast('증표·은자가 모자라요');
+                  toast(`스킬 변화 다시 — ${IM.skillModText(IM.imprintOf(e, i).skill)}`); app.save(); paint(); app.refresh();
+                } }, '🎲 스킬 변화 다시'),
+                im.specials ? h('span', { class: 'muted' }, ' 🔒 스킬 변화는 그대로 두고 고유만 바꾸기:') : null),
+              im.specials ? h('div', { class: 'sp-pick' }, ...im.specials.map((sp, j) => h('button', { class: `chip${sp.id === im.special.id ? ' on' : ''}`, disabled: sp.id === im.special.id || !can ? true : null, onclick: () => {
+                if (!game.changeImpSpecial(it.uid, i, j)) return toast('증표·은자가 모자라요');
+                toast(`고유 효과를 【${sp.name}】(으)로 바꿨어요`); app.save(); paint(); app.refresh();
+              } }, h('b', {}, sp.name), h('small', {}, ` ${IM.SPECIAL_KIND[sp.kind](im.w)}`)))) : null,
+              h('small', { class: 'muted' }, `다시 새기는 값: ${costTxt}`));
           }));
       };
       // ---- 계열 각인 (v158): 세력 재료로 성향을 붙인다 ----

@@ -713,6 +713,7 @@ export class WorldGame {
           if (m.atkTimer <= 0) {
             m.atkTimer = W.MOB_ATK_SEC * (m.slow > 0 ? 1.5 : 1);
             m.atkAt = this.clock;                 // 그리는 쪽: 휘두르는 몸짓 (v162)
+            if (this._invulnUntil > this.clock) continue;      // 증표 고유 · 불사 뒤 무적 (v167)
             const ps = this.passives();
             if (ps.has('dodge') && this.rng() < 0.25) { this.emit('passive', { id: 'dodge' }); continue; }   // 환왕
             const cls = W.CLASSES[this.s.job] || {};
@@ -737,8 +738,8 @@ export class WorldGame {
             this.emit('heroHit', { amount: left, shielded: dmg - left });
             if (ps.has('reflect')) this.hurt(m, dmg * 0.4, 'reflect', false);                                 // 철왕
             { const isp = this.impSpecials();                                                                  // 증표 고유 (v163)
-              if (isp.mirror && m.alive) this.hurt(m, dmg * Math.min(0.8, 0.15 * isp.mirror.p), 'reflect', false);
-              if (isp.frenzy && this.rng() < Math.min(0.5, 0.08 * isp.frenzy.p)) { this.buffs.gale = Math.max(this.buffs.gale || 0, 4); this.buffv.haste = Math.max(this.buffv.haste || 0, 0.3); this.impShow(isp.frenzy, null); } }
+              if (isp.mirror && m.alive) { this.hurt(m, st.atk * Math.min(5, 1.5 * isp.mirror.p) * (m.isBoss ? st.boss : 1), 'reflect', false); this.impShow(isp.mirror, m); }
+              if (isp.frenzy && this.rng() < Math.min(0.6, 0.12 * isp.frenzy.p)) { this.buffs.gale = Math.max(this.buffs.gale || 0, 4); this.buffv.haste = Math.max(this.buffv.haste || 0, 0.4); this._frenzyUntil = this.clock + 4; this.impShow(isp.frenzy, null); } }
             if (st.thorns && m.alive) this.hurt(m, dmg * st.thorns, 'reflect', false);                       // 되돌림 (v130)
             if (ps.has('revive') && this.heroHp > 0 && this.heroHp < st.hp * 0.3 && !(this.reviveCd > 0)) {   // 목왕
               this.heroHp = Math.min(st.hp, this.heroHp + st.hp * 0.5);
@@ -983,6 +984,9 @@ export class WorldGame {
     const isp = this.impSpecials();
     if (isp.execute && m.hp < m.maxHp * 0.3) dmg *= 1 + Math.min(1.5, 0.25 * isp.execute.p);
     if (isp.bane && m.isBoss) dmg *= 1 + Math.min(0.8, 0.12 * isp.bane.p);
+    if (isp.berserk && this.heroHp < st.hp * 0.5) dmg *= 1 + Math.min(1, 0.2 * isp.berserk.p);
+    if (isp.surge && this._surgeUntil > this.clock) dmg *= 1 + Math.min(0.6, 0.15 * isp.surge.p);
+    if (isp.frenzy && this._frenzyUntil > this.clock) dmg *= 1.15;
     dmg = Math.max(1, (dmg - m.armor) * this.gapOut(m));
     const mx = m.x, my = m.y;
     const wasAlive = m.alive;
@@ -1042,19 +1046,20 @@ export class WorldGame {
       if (o) { this.hurt(o, dmg * 0.5, 'imp', false, true); this.emit('tfHit', { tf: 'thunder', at: { x: m.x, y: m.y }, to: { x: o.x, y: o.y } }); }
     }
     // 고유
-    if (isp.echo && m.alive && this.rng() < Math.min(0.5, 0.06 * isp.echo.p)) { this.hurt(m, dmg * 1.5, 'imp', crit); this.impShow(isp.echo, m); }
+    if (isp.echo && m.alive && this.rng() < Math.min(0.6, 0.1 * isp.echo.p)) { this.hurt(m, dmg * 2, 'imp', crit); this.impShow(isp.echo, m); }
     if (isp.chain && crit) {
       let n = 0;
       for (const o of this.mons) {
         if (n >= 2) break;
         if (!o.alive || o.npc || o === m || Math.hypot(o.x - m.x, o.y - m.y) > 240) continue;
-        this.hurt(o, dmg * Math.min(2, 0.6 * isp.chain.p), 'imp', false, true);
+        this.hurt(o, dmg * Math.min(1, 0.25 * isp.chain.p), 'imp', false, true);
         this.emit('tfHit', { tf: 'thunder', at: { x: m.x, y: m.y }, to: { x: o.x, y: o.y } });
         n++;
       }
       if (n) this.impShow(isp.chain, m);
     }
-    if (isp.reap && wasAlive && !m.alive) this.heroHp = Math.min(st.hp, this.heroHp + st.hp * Math.min(0.1, 0.02 * isp.reap.p));
+    if (isp.reap && wasAlive && !m.alive) this.heroHp = Math.min(st.hp, this.heroHp + st.hp * Math.min(0.15, 0.03 * isp.reap.p));
+    if (isp.bleed && m.alive) this.addDot(m, dmg * Math.min(0.8, 0.12 * isp.bleed.p), 4);
   }
   nearOther(m, r) {
     let best = null, bd = r;
@@ -1064,9 +1069,19 @@ export class WorldGame {
   // 때를 두고 터지는 고유 효과 — 둘레 폭발 · 쏟아짐 · 보호막
   tickImprint(dt, st) {
     const isp = this.impSpecials();
-    if (!isp.nova && !isp.rain && !isp.guard) return;
+    if (!isp.nova && !isp.rain && !isp.guard && !isp.stunwave && !isp.vigor) return;
     if (this.map.town || !this.mons.some((m) => m.alive && !m.npc)) return;
-    const T = this._impTimers || (this._impTimers = { nova: 2, rain: 3, guard: 0 });
+    const T = this._impTimers || (this._impTimers = { nova: 2, rain: 3, guard: 0, stun: 3 });
+    if (T.stun == null) T.stun = 3;
+    if (isp.vigor && this.mon?.alive) this.heroHp = Math.min(st.hp, this.heroHp + st.hp * Math.min(0.05, 0.012 * isp.vigor.p) * dt);
+    if (isp.stunwave && (T.stun -= dt) <= 0) {
+      T.stun = Math.max(4, Math.round(8 - 1.5 * isp.stunwave.p));
+      const hit = this.mons.filter((m) => m.alive && !m.npc && Math.hypot(m.x - this.heroX, (m.y - this.heroY) * 0.75) <= 230);
+      if (hit.length) {
+        for (const m of hit) { m.stun = Math.max(m.stun || 0, m.isBoss ? 0.6 : 2); this.hurt(m, st.atk * 1.5 * isp.stunwave.p * (m.isBoss ? st.boss : 1), 'imp', false, true); }
+        this._impT = 0; this.impShow(isp.stunwave, null); this.emit('impNova', { r: 230, col: isp.stunwave.col });
+      } else T.stun = 0.5;
+    }
     if (isp.nova && (T.nova -= dt) <= 0) {
       T.nova = Math.max(4, 10 - Math.round(2 * isp.nova.p));
       const hit = this.mons.filter((m) => m.alive && !m.npc && Math.hypot(m.x - this.heroX, (m.y - this.heroY) * 0.75) <= 230);
@@ -1080,9 +1095,9 @@ export class WorldGame {
       else T.rain = 0.5;
     }
     if (isp.guard && (T.guard -= dt) <= 0) {
-      T.guard = 12;
-      this.shield = Math.max(this.shield || 0, st.hp * Math.min(0.3, 0.06 * isp.guard.p));
-      this.buffs.shield = Math.max(this.buffs.shield || 0, 12);
+      T.guard = 8;
+      this.shield = Math.max(this.shield || 0, st.hp * Math.min(0.4, 0.1 * isp.guard.p));
+      this.buffs.shield = Math.max(this.buffs.shield || 0, 8);
       this._impT = 0; this.impShow(isp.guard, null);
     }
   }
@@ -1172,6 +1187,15 @@ export class WorldGame {
   }
 
   heroDied(by) {
+    // 증표 고유 · 불사(v167): 60초에 한 번, 쓰러질 피해를 버틴다
+    const php = this.impSpecials().phoenix;
+    if (php && !(this._phoenixAt > this.clock - 40)) {
+      this._phoenixAt = this.clock;
+      this.heroHp = this.stats().hp * Math.min(0.8, 0.3 * php.p);
+      this._invulnUntil = this.clock + 2;
+      this._impT = 0; this.impShow(php, null);
+      return;
+    }
     // 던전에서 쓰러지면 잃는 것 없이 그 판만 끝난다
     if (this.inst) {
       this.heroHp = this.stats().hp;
@@ -1231,6 +1255,7 @@ export class WorldGame {
     const aimed = (sk.kind === 'aoe' || sk.kind === 'field') && this.ranged() && tgt;
     const center = aimed ? { x: tgt.x, y: tgt.y } : { x: this.heroX, y: this.heroY };
     const r = this.skillRadius(sk);
+    if (!o.free && this.impSpecials().surge) { this._surgeUntil = this.clock + 3; this.impShow(this.impSpecials().surge, null); }
     if (!o.free) this.emit('skill', { id, name: sk.name, fx: sk.fx, look: sk.role, job: this.s.job, cls: this.s.job, tier: sk.tier,
       at: center, radius: r, motion: sk.kind === 'single' ? 'single' : 'aoe', dur: 0 });
     if (cost) this.emit('hpCost', { amount: cost });
@@ -1653,7 +1678,7 @@ export class WorldGame {
     const f = this.infuseInfo(it, key);
     return !!f && f.have >= f.n && this.s.gold >= f.gold;
   }
-  infuse(uid, key) {
+  infuse(uid, key, spIdx = 0) {
     const it = this.findItem(uid);
     if (!this.canInfuse(it, key)) return null;
     const f = this.infuseInfo(it, key);
@@ -1669,12 +1694,48 @@ export class WorldGame {
       // 증표 각인 (v163): 오른 칸에 그 두목을 새긴다 (유니크=첫째 · 전설=둘째 · 신화=셋째)
       it.imps = (it.imps || []).slice(0, f.to - 1);
       while (it.imps.length < f.to - 1) it.imps.push(null);
-      it.imps[f.to - 1] = key;
+      // v167: 스킬 변화는 굴리고(몇 차 · 무엇 · 효과 등급), 고유 효과는 고른 것
+      it.imps[f.to - 1] = { k: key, ...IM.rollSkillChange(this.rng), sp: Math.max(0, Math.min(2, spIdx | 0)) };
       this._stats = null; this._mods = null; this._pass = null;
     } else it.pity = (it.pity || 0) + W.INFUSE_BASE[f.to] * W.INFUSE_PITY_K;
     this.lastInfuse = { ok, to: f.to, chance: f.chance };
     this.emit('infuse', { item: it, ok });
     return ok;
+  }
+  // 각인 다시 새기기 (v167) — 그 칸을 새긴 두목의 증표(그 칸 등급 값) + 은자.
+  //   스킬 변화만 다시 굴리기(고유는 그대로) · 고유 효과만 바꾸기(스킬 변화는 잠근 채)
+  reimpCost(it, slot) {
+    const e = IM.normEntry(it?.imps?.[slot]);
+    if (!it?.grow || !e) return null;
+    return { key: e.k, n: W.INFUSE_MARKS[slot + 1], gold: W.infuseGold(it.ilv, slot + 1) };
+  }
+  canReimp(it, slot) {
+    const c = this.reimpCost(it, slot);
+    return !!c && (this.s.mats[c.key] || 0) >= c.n && this.s.gold >= c.gold;
+  }
+  payReimp(it, slot) {
+    const c = this.reimpCost(it, slot);
+    this.s.mats[c.key] -= c.n;
+    this.s.gold -= c.gold;
+    it.imps[slot] = { ...IM.normEntry(it.imps[slot]) };
+    this._stats = null; this._mods = null; this._isp = null;
+  }
+  rerollImpSkill(uid, slot) {
+    const it = this.findItem(uid);
+    if (!this.canReimp(it, slot)) return null;
+    this.payReimp(it, slot);
+    Object.assign(it.imps[slot], IM.rollSkillChange(this.rng));
+    this.emit('infuse', { item: it, ok: true, reimp: true });
+    return it.imps[slot];
+  }
+  changeImpSpecial(uid, slot, idx) {
+    const it = this.findItem(uid);
+    const e = IM.normEntry(it?.imps?.[slot]);
+    if (!e || !IM.specialsOfZone(+e.k.slice(1)) || (e.sp | 0) === idx || idx < 0 || idx > 2 || !this.canReimp(it, slot)) return false;
+    this.payReimp(it, slot);
+    it.imps[slot].sp = idx;
+    this.emit('infuse', { item: it, ok: true, reimp: true });
+    return true;
   }
   // 계열 각인 — 세력 재료 × LINE_SET_K
   lineCost(it, line) {
@@ -2493,7 +2554,7 @@ export class WorldGame {
       tl.done = true;
       const hit = D.tellCovers(tl, this.heroX, this.heroY);
       this.emit('tellBoom', { tell: tl, hit });
-      if (!hit || this.heroHp <= 0) continue;
+      if (!hit || this.heroHp <= 0 || this._invulnUntil > this.clock) continue;
       const red = (1 - (W.CLASSES[this.s.job]?.dmgRed || 0)) * (1 - (this.buffv.guard || 0));
       const dmg = st.hp * tl.dmg * red;
       let left = dmg;

@@ -28,7 +28,7 @@ export const THEMES = {
   petal: { name: '화풍', col: '#f9a8d4', fx: [['cdr', 0.01], ['dodge', 0.008]] },
   ghost: { name: '귀기', col: '#5eead4', fx: [['dodge', 0.01], ['drain', 0.0015]] },
   water: { name: '수류', col: '#22d3ee', fx: [['move', 0.015], ['hpPct', 0.012]] },
-  iron: { name: '철갑', col: '#cbd5e1', fx: [['thorns', 0.04], ['dmgRed', 0.005]] },
+  iron: { name: '철갑', col: '#cbd5e1', fx: [['dmgRed', 0.01], ['hpPct', 0.012]] },
 };
 export const STEPK = [1, 1.3, 1.6];                          // 첫째(유니크) · 둘째(전설) · 셋째(신화) 칸
 export const lvScale = (lv) => 0.4 + lv / 100;               // 레벨 9 ×0.49 · 99 ×1.39 · 175 ×2.15
@@ -39,6 +39,20 @@ export const IMP_CAP = { venom: 0.6, burn: 0.6, chill: 0.3, shock: 0.3 };
 export const SKILL_KIND = { poison: 'range', fire: 'dmg', ice: 'range', blood: 'dmg', thunder: 'echo', dark: 'dmg', sword: 'echo', saber: 'dmg',
   fist: 'range', holy: 'cd', petal: 'cd', ghost: 'echo', water: 'cd', iron: 'range' };
 export const SKILL_BASE = { range: 0.08, dmg: 0.08, cd: 0.04, echo: 0.06 };
+// v167: 스킬 변화는 새길 때 굴린다 — 몇 차 스킬(1·2·3차) · 어떤 변화(넷) · 효과 등급(레어~신화)이 모두 랜덤.
+// 크기 = 기본 × 효과 등급 배수 × (0.4 + 두목 레벨/100). 낮은 두목도 높은 등급이 뜨면 바로 위 두목의 낮은 등급보다 크다
+// (독수마군 레전드 2차 범위 > 혈사도왕 레어 2차 범위 > 독수마군 레어 2차 범위).
+export const SK_KINDS = ['range', 'dmg', 'cd', 'echo'];
+export const SK_GRADE = [{ name: '레어', col: '#60a5fa', w: 55, mult: 1 }, { name: '유니크', col: '#c084fc', w: 28, mult: 1.35 },
+  { name: '레전드', col: '#fb923c', w: 13, mult: 1.8 }, { name: '신화', col: '#f43f5e', w: 4, mult: 2.5 }];
+export function rollSkillChange(rng) {
+  const s = Math.floor(rng() * 3);
+  const k = SK_KINDS[Math.floor(rng() * SK_KINDS.length)];
+  let r = rng() * SK_GRADE.reduce((a, g) => a + g.w, 0), g = 0;
+  for (; g < SK_GRADE.length - 1; g++) { r -= SK_GRADE[g].w; if (r <= 0) break; }
+  return { s, sk: k, g };
+}
+export const skillValue = (k, g, lv) => SKILL_BASE[k] * SK_GRADE[g].mult * lvScale(lv);
 export const SKILL_CAP = { range: 0.9, dmg: 2, cd: 0.6, echo: 0.8 };
 export const SKILL_NAME = ['1차', '2차', '3차'];
 const SKILL_TXT = { range: '범위', dmg: '피해', cd: '숨', echo: '한 번 더' };
@@ -71,56 +85,99 @@ export function themeOfZone(z) {
 // 위력 = SP[등급] (같은 효과를 여럿 끼면 가장 높은 것 + 하나마다 0.3)
 // 위력 p = 그 고유 효과가 새겨진 칸들의 STEPK 합 (한 칸 1 → 세 칸 3.9) — 끼고 있는 장비 모두 더한다
 export const SPECIAL_KIND = {
-  echo: (p) => `${Math.round(6 * p)}% 확률로 같은 적을 한 번 더 (×1.5)`,
-  execute: (p) => `체력 30% 아래 적에게 피해 +${Math.round(25 * p)}%`,
-  bane: (p) => `두목에게 주는 피해 +${Math.round(12 * p)}%`,
-  chain: (p) => `치명타가 둘레 적 둘에게 번진다 (×${(0.6 * p).toFixed(1)})`,
+  echo: (p) => `${Math.round(Math.min(60, 10 * p))}% 확률로 같은 적을 한 번 더 (×2)`,
+  execute: (p) => `체력 30% 아래 적에게 피해 +${Math.round(Math.min(150, 25 * p))}%`,
+  bane: (p) => `두목에게 주는 피해 +${Math.round(Math.min(80, 12 * p))}%`,
+  chain: (p) => `치명타가 둘레 적 둘에게 번진다 (×${Math.min(1, 0.25 * p).toFixed(2)})`,
   nova: (p) => `${Math.max(4, 10 - Math.round(2 * p))}초마다 둘레를 터뜨린다 (공격력 ×${(2 * p).toFixed(1)})`,
   rain: (p) => `${Math.max(5, 11 - Math.round(2 * p))}초마다 둘레 적 다섯에게 쏟아진다 (×${(1.2 * p).toFixed(1)})`,
-  guard: (p) => `12초마다 최대 체력 ${Math.round(6 * p)}% 보호막`,
-  reap: (p) => `적을 쓰러뜨리면 체력 ${(2 * p).toFixed(1)}% 회복`,
-  frenzy: (p) => `맞을 때 ${Math.round(8 * p)}% 확률로 4초간 공격 속도 +30%`,
-  mirror: (p) => `받은 피해의 ${Math.round(15 * p)}%를 되돌린다`,
+  guard: (p) => `8초마다 최대 체력 ${Math.round(Math.min(40, 10 * p))}% 보호막`,
+  reap: (p) => `적을 쓰러뜨리면 체력 ${Math.min(15, 3 * p).toFixed(1)}% 회복`,
+  frenzy: (p) => `맞을 때 ${Math.round(Math.min(60, 12 * p))}% 확률로 4초간 공격 속도 +40% · 피해 +15%`,
+  // 되돌림을 받은 피해로 셈하면 쓸모가 없다 — 몹 한 대가 제 체력의 1/200쯤이라. 무인 공격력으로 반격한다 (v167)
+  mirror: (p) => `맞을 때마다 그 적에게 반격 (공격력 ×${Math.min(5, 1.5 * p).toFixed(1)})`,
+  bleed: (p) => `적중 피해의 ${Math.round(Math.min(80, 12 * p))}%가 4초에 걸쳐 피로 흐른다`,
+  berserk: (p) => `체력이 절반 아래면 피해 +${Math.round(Math.min(100, 20 * p))}%`,
+  phoenix: (p) => `쓰러질 피해를 받으면 체력 ${Math.round(Math.min(80, 30 * p))}%로 일어나 2초간 무적 (40초에 한 번)`,
+  stunwave: (p) => `${Math.max(4, Math.round(8 - 1.5 * p))}초마다 둘레 적을 2초 멈추고 친다 (×${(1.5 * p).toFixed(1)})`,
+  vigor: (p) => `싸우는 동안 매초 최대 체력 ${Math.min(5, 1.2 * p).toFixed(1)}% 회복`,
+  surge: (p) => `스킬을 쓰면 3초간 피해 +${Math.round(Math.min(60, 15 * p))}%`,
 };
-// 십이지왕(번호) · 고수(id) → [kind, 이름]
+// 레벨 100 넘는 두목마다 고유 효과 셋 — 새길 때 하나를 고른다 · 나중에 바꿀 수 있다 [kind, 이름]
 const KING_SP = {
-  1: ['echo', '무형신검'], 2: ['execute', '일월암혈도'], 3: ['bane', '권갑 투신'], 4: ['chain', '명부살법'],
-  5: ['mirror', '환영술'], 6: ['rain', '암천야신공'], 7: ['nova', '천녀야우장'], 8: ['reap', '목형천혼술'],
-  9: ['frenzy', '혈해마공'], 10: ['nova', '귀혼음'], 11: ['guard', '기관 갑주'], 12: ['frenzy', '유혼절명권'],
+  12: [['frenzy', '유혼절명권'], ['chain', '유혼추명'], ['berserk', '살기 폭주']],
+  11: [['guard', '기관 갑주'], ['rain', '천기 기관포'], ['stunwave', '철인 돌격']],
+  10: [['nova', '귀혼음'], ['echo', '음살 일선'], ['reap', '혼백 흡음']],
+  9: [['bleed', '혈해만장'], ['rain', '혈우'], ['phoenix', '혈신 불사']],
+  8: [['vigor', '목형천혼술'], ['chain', '천목삼지'], ['phoenix', '천혼 재생']],
+  7: [['nova', '천녀야우장'], ['execute', '가인일침'], ['rain', '야우 꽃비']],
+  6: [['rain', '암천야신공'], ['execute', '흑야십자'], ['berserk', '야신 광폭']],
+  5: [['echo', '환영분신'], ['mirror', '혈교 환술'], ['frenzy', '환영 보법']],
+  4: [['chain', '명부살법'], ['execute', '명부일섬'], ['reap', '사신의 낫']],
+  3: [['bane', '권갑 투신'], ['stunwave', '투신돌격'], ['guard', '호신갑']],
+  2: [['execute', '일월암혈도'], ['echo', '일월쌍참'], ['bleed', '암혈']],
+  1: [['echo', '무형신검'], ['nova', '무형검기'], ['surge', '검의 극의']],
 };
 const MASTER_SP = {
-  guryeong: ['execute', '참마도법'], jingwang: ['echo', '태을신검'], imsanggon: ['guard', '대정무적'], jinpaecheon: ['rain', '패천신검'],
-  yayulhan: ['chain', '한빙마장'], bisain: ['reap', '혈로개천'], baekmanggi: ['echo', '검황무적'], baekjagang: ['bane', '사도천패'],
-  seophon: ['mirror', '섭혼대법'], mabul: ['guard', '황금불광'], dokwang: ['rain', '만독귀종'], geugak: ['execute', '혈앙지'],
-  ilhwa: ['nova', '일화천섬'], bulpae: ['bane', '붕산철권'], hyeolcheon: ['chain', '혈천마도'], daechwi: ['frenzy', '혈루취권'],
-  cheonma: ['nova', '천마군림'],
+  seophon: [['mirror', '섭혼대법'], ['stunwave', '귀술진'], ['reap', '혼백 흡수']],
+  guryeong: [['execute', '참마도법'], ['chain', '삼재참'], ['bane', '마를 끊는 칼']],
+  yayulhan: [['nova', '한빙마장'], ['stunwave', '빙혼지'], ['guard', '한빙호체']],
+  mabul: [['guard', '황금불광'], ['rain', '광승난무'], ['phoenix', '금강불괴']],
+  dokwang: [['rain', '만독귀종'], ['bleed', '독아삼침'], ['vigor', '독인지체']],
+  jingwang: [['echo', '태을신검'], ['nova', '태을검기'], ['chain', '검기 연환']],
+  bisain: [['reap', '혈로개천'], ['echo', '사도십삼랑'], ['berserk', '혈기 광폭']],
+  geugak: [['execute', '혈앙지'], ['nova', '마극광폭장'], ['surge', '소향비술']],
+  ilhwa: [['rain', '일화천섬'], ['chain', '낙화유수'], ['execute', '꽃의 일섬']],
+  imsanggon: [['guard', '대정무적도'], ['echo', '정협쌍도'], ['vigor', '협의지심']],
+  baekmanggi: [['echo', '검황무적'], ['chain', '검황쌍류'], ['surge', '팔십 년 검기']],
+  bulpae: [['bane', '붕산철권'], ['berserk', '투신강림'], ['stunwave', '투신난무']],
+  hyeolcheon: [['bleed', '혈천마도'], ['execute', '멸천마도식'], ['rain', '도귀난참']],
+  daechwi: [['frenzy', '혈루취권'], ['mirror', '취팔선보'], ['berserk', '대취광란']],
+  jinpaecheon: [['nova', '패천신검'], ['bane', '패천일격'], ['echo', '천하일검']],
+  baekjagang: [['bane', '사도천패'], ['rain', '흑우'], ['mirror', '맹주의 의심']],
+  cheonma: [['nova', '천마군림'], ['phoenix', '구화마공'], ['surge', '천마멸세']],
 };
-export function specialOfZone(z) {
+// 그 두목의 고유 효과 셋 (없으면 null)
+export function specialsOfZone(z) {
   const zn = ZONES_W[z];
   if (!zn || markLv(`b${z}`) < 100) return null;
-  let sp = null;
-  if (zn.king) sp = KING_SP[zn.king.no];
-  else if (zn.master) sp = MASTER_SP[zn.master];
-  return sp ? { id: `${zn.king ? `k${zn.king.no}` : zn.master}`, kind: sp[0], name: sp[1], boss: zn.boss?.name || '' } : null;
+  const list = zn.king ? KING_SP[zn.king.no] : zn.master ? MASTER_SP[zn.master] : null;
+  if (!list) return null;
+  const id = zn.king ? `k${zn.king.no}` : zn.master;
+  return list.map(([kind, name], i) => ({ id: `${id}.${i}`, kind, name, boss: zn.boss?.name || '' }));
 }
+export const specialOfZone = (z, i = 0) => specialsOfZone(z)?.[i] || null;
+export const ALL_SPECIALS = () => Object.keys(ZONES_W).flatMap((z) => specialsOfZone(+z) || []);
 
 // ---------- 각인 하나 ----------
-// key 증표 · step 몇째 칸(0~2) → { key, boss, theme, fx: {능력치: 값}, skill: { s, k, v }, special, w }
-export function imprintOf(key, step = 0) {
-  if (!isMarkKey(key)) return null;
-  const z = +String(key).slice(1);
+// 장비에 든 칸: { k: 증표, s: 몇 차 스킬, sk: 변화, g: 효과 등급, sp: 고른 고유(0~2) } — 옛 판(v163)은 증표 글자만 들어 있다
+export function normEntry(e) {
+  if (!e) return null;
+  if (typeof e === 'string') {
+    const z = +e.slice(1);
+    return { k: e, s: z % 3, sk: SKILL_KIND[themeOfZone(z)] || 'dmg', g: 0, sp: 0 };
+  }
+  return e.k ? e : null;
+}
+// step 몇째 칸(0~2) → { key, boss, theme, fx, skill: { s, k, g, v }, special, specials, w }
+export function imprintOf(entry, step = 0) {
+  const e = normEntry(entry);
+  if (!e || !isMarkKey(e.k)) return null;
+  const z = +String(e.k).slice(1);
   const zn = ZONES_W[z];
   if (!zn) return null;
   const t = themeOfZone(z);
   const w = STEPK[Math.max(0, Math.min(2, step))];
-  const k = w * lvScale(markLv(key));
+  const lv = markLv(e.k);
+  const k = w * lvScale(lv);
   const fx = {};
   for (const [kk, v] of THEMES[t].fx) fx[kk] = v * k;
-  const sk = SKILL_KIND[t];
-  return { key, boss: zn.boss?.name || '', theme: t, fx, skill: { s: z % 3, k: sk, v: SKILL_BASE[sk] * k }, special: specialOfZone(z), w };
+  const sps = specialsOfZone(z);
+  const g = Math.max(0, Math.min(SK_GRADE.length - 1, e.g | 0));
+  return { key: e.k, boss: zn.boss?.name || '', theme: t, fx, skill: { s: e.s | 0, k: e.sk, g, v: skillValue(e.sk, g, lv) },
+    special: sps ? sps[Math.max(0, Math.min(2, e.sp | 0))] : null, specials: sps, w, lv };
 }
-// 장비의 각인들 (새겨진 차례대로)
-export const imprintsOf = (it) => (Array.isArray(it?.imps) ? it.imps.map((k, i) => imprintOf(k, i)).filter(Boolean) : []);
+export const imprintsOf = (it) => (Array.isArray(it?.imps) ? it.imps.map((e, i) => imprintOf(e, i)).filter(Boolean) : []);
 
 // 글로 — '독 묻힘 7.4%' 꼴
 const PCT = (v, d = 1) => `${(v * 100).toFixed(d).replace(/\.0$/, '')}%`;
@@ -131,7 +188,7 @@ export const FX_TEXT = {
   crit: (v) => `치명 +${PCT(v)}p`, stunHit: (v) => `${PCT(v)} 확률로 기절`, dmgRed: (v) => `받는 피해 -${PCT(v)}`,
   cdr: (v) => `숨 -${PCT(v)}`, dodge: (v) => `회피 +${PCT(v)}`, move: (v) => `이동 속도 +${PCT(v)}`, thorns: (v) => `받은 피해 ${PCT(v)} 되돌림`,
 };
-export const skillModText = (m) => (m.k === 'echo' ? `${SKILL_NAME[m.s]} 스킬 ${PCT(m.v)} 확률로 한 번 더` : `${SKILL_NAME[m.s]} 스킬 ${SKILL_TXT[m.k]} ${m.k === 'cd' ? '-' : '+'}${PCT(m.v)}`);
+export const skillModText = (m) => `[${SK_GRADE[m.g || 0].name}] ` + (m.k === 'echo' ? `${SKILL_NAME[m.s]} 스킬 ${PCT(m.v)} 확률로 한 번 더` : `${SKILL_NAME[m.s]} 스킬 ${SKILL_TXT[m.k]} ${m.k === 'cd' ? '-' : '+'}${PCT(m.v)}`);
 export function imprintText(im) {
   if (!im) return '';
   return [...Object.entries(im.fx).map(([k, v]) => (FX_TEXT[k] ? FX_TEXT[k](v) : `${k} ${v}`)), skillModText(im.skill)].join(' · ');

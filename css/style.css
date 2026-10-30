@@ -1407,3 +1407,11 @@ details.lore p { margin: 4px 0 0; line-height: 1.5; }
 .imp-row.empty { color: #57534e; border-left-color: #44403c; }
 .imp-row.preview { margin: 6px 0; }
 .imp-sp { color: #fde68a; font-weight: 700; margin-top: 2px; }
+/* v167 각인 다시 새기기 · 고유 고르기 */
+.imp-skill { color: var(--gc, #93c5fd); font-weight: 700; }
+.imp-act { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 4px; }
+.sp-pick { display: flex; flex-direction: column; gap: 4px; margin-top: 4px; }
+.sp-pick > small { color: #a8a29e; }
+.sp-pick .chip { text-align: left; white-space: normal; }
+.sp-pick .chip.on { border-color: #fde68a; background: rgba(253, 224, 71, .15); }
+.sp-pick .chip small { color: #d6d3d1; }

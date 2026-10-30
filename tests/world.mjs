@@ -1245,15 +1245,17 @@ console.log('\n=== 증표 각인 세 칸 (v163) ===');
   g.s.mats[poison] = 1000; g.s.mats[king1] = 1000;
   g.rng = () => 0;
   g.infuse(w.uid, poison);
-  ok(w.rar === 1 && w.imps.length === 1 && w.imps[0] === poison, '유니크로 오르면 첫째 칸에 그 두목이 새겨진다');
+  ok(w.rar === 1 && w.imps.length === 1 && w.imps[0].k === poison, '유니크로 오르면 첫째 칸에 그 두목이 새겨진다');
   g._stats = null;
   ok(g.stats().venom > 0, '독수마군 각인: 적중 피해 일부가 독으로', `${(g.stats().venom * 100).toFixed(2)}%`);
   g.infuse(w.uid, poison); g.infuse(w.uid, king1);
-  ok(w.rar === 3 && w.imps.join() === [poison, poison, king1].join(), '신화면 세 칸 — 같은 두목을 겹칠 수 있다');
+  ok(w.rar === 3 && w.imps.map((e) => e.k).join() === [poison, poison, king1].join(), '신화면 세 칸 — 같은 두목을 겹칠 수 있다');
   g._stats = null; g._mods = null; g._isp = null;
-  const im3 = IM.imprintOf(king1, 2);
+  const im3 = IM.imprintOf(w.imps[2], 2);
   const md = g.skillMods(`s${im3.skill.s}`);
-  ok(md.echoP > 0, `검왕 각인: ${IM.skillModText(im3.skill)}`);
+  const base3 = fresh(); base3.s.level = g.s.level; base3.s.jobTier = 3; base3._stats = null;
+  const md0 = base3.skillMods(`s${im3.skill.s}`);
+  ok(im3.skill.k === 'echo' ? md.echoP > 0 : md[im3.skill.k] > md0[im3.skill.k], `검왕 각인 스킬 변화가 그 스킬에 든다: ${IM.skillModText(im3.skill)}`);
   ok(g.impSpecials().echo?.p > 0, '검왕 고유 효과(무형신검)가 켜진다', JSON.stringify(g.impSpecials().echo));
   // 같은 스킬 범위 각인이 겹치면 범위가 커진다
   const R = fresh(); while (R.s.level < 60) R.addExp(W.expToNext(R.s.level)); R.s.jobTier = 3; R._stats = null;
@@ -1281,6 +1283,113 @@ console.log('\n=== 증표 각인 세 칸 (v163) ===');
   N.events.length = 0;
   for (let i = 0; i < 300; i++) N.tick(0.05);
   ok(N.events.some((e) => e.type === 'impNova') && N.events.some((e) => e.type === 'imprint' && e.name === '천마군림'), '천마 각인: 천마군림이 때마다 둘레를 터뜨린다');
+}
+
+console.log('\n=== 각인 v167: 스킬 변화 랜덤 · 고유 셋 중 고르기 · 다시 새기기 ===');
+{
+  const IM = await import('../js/world/wimprint.js');
+  // 스킬 변화는 몇 차·무엇·등급이 모두 나온다
+  const r = seeded(7); const seen = { s: new Set(), k: new Set(), g: [0, 0, 0, 0] };
+  for (let i = 0; i < 4000; i++) { const c = IM.rollSkillChange(r); seen.s.add(c.s); seen.k.add(c.sk); seen.g[c.g]++; }
+  ok(seen.s.size === 3 && seen.k.size === 4 && seen.g.every((x) => x > 0) && seen.g[0] > seen.g[3] * 8, '스킬 변화: 1~3차 · 범위/피해/숨/한 번 더 · 레어~신화가 모두 랜덤으로 나온다', seen.g.join('/'));
+  // 사용자 예: 독수마군 레어 < 혈사도왕 레어 < 독수마군 레전드
+  const v = (z, g) => IM.skillValue('range', g, W.markLv(W.bossKey(z)));
+  ok(v(1, 0) < v(2, 0) && v(2, 0) < v(1, 2), '독수마군 레어 2차 범위 < 혈사도왕 레어 < 독수마군 레전드', `${(v(1, 0) * 100).toFixed(1)}% < ${(v(2, 0) * 100).toFixed(1)}% < ${(v(1, 2) * 100).toFixed(1)}%`);
+  const all = IM.ALL_SPECIALS();
+  ok(all.length === 87 && new Set(all.map((x) => x.kind)).size === 16, '레벨 100 넘는 두목 29 × 고유 효과 셋 = 87 · 꼴 열여섯');
+  // 고르기 · 다시 새기기
+  const g = fresh(); g.s.gold = 1e15;
+  while (g.s.level < 150) g.addExp(W.expToNext(g.s.level));
+  const w = g.s.equip.weapon;
+  const cm = W.bossKey(W.masterZoneOf('cheonma'));
+  g.s.mats[cm] = 1000; g.rng = () => 0;
+  g.infuse(w.uid, cm, 1);
+  let im = IM.imprintOf(w.imps[0], 0);
+  ok(im.special.name === '구화마공' && im.special.kind === 'phoenix', '새길 때 고른 고유 효과가 새겨진다 (천마 — 구화마공)');
+  const sk0 = JSON.stringify(im.skill);
+  ok(g.changeImpSpecial(w.uid, 0, 0) && IM.imprintOf(w.imps[0], 0).special.name === '천마군림' && JSON.stringify(IM.imprintOf(w.imps[0], 0).skill) === sk0, '고유만 바꾸면 스킬 변화는 그대로(잠금)');
+  const m0 = g.s.mats[cm];
+  g.rng = seeded(99);
+  let changed = false;
+  for (let i = 0; i < 6 && !changed; i++) { g.rerollImpSkill(w.uid, 0); changed = JSON.stringify(IM.imprintOf(w.imps[0], 0).skill) !== sk0; }
+  ok(changed && IM.imprintOf(w.imps[0], 0).special.name === '천마군림' && g.s.mats[cm] < m0, '스킬 변화만 다시 굴리면 고유는 그대로 · 증표가 든다');
+  // 옛 판(v163) 각인 글자도 읽힌다
+  ok(IM.imprintOf('b1', 0)?.theme === 'poison', '옛 판 각인(증표 글자만)도 읽힌다');
+}
+
+console.log('\n=== 고유 효과가 쓸모 있는가 (v167 · 꼴 열여섯을 시뮬로 잰다) ===');
+{
+  const IM = await import('../js/world/wimprint.js');
+  // 레벨 120 검사 · 신화 칸 하나(무게 1.6)에 그 고유 하나. 같은 장비·같은 각인에서 고유만 끈 판과 견준다(같은 난수).
+  //   dummy   허수아비 여섯이 둘레에 (때리지 않는다) — 60초 동안 준 피해
+  //   counter  허수아비가 때린다(무인은 쓰러지지 않게) — 맞을 때 터지는 반격·쾌속을 60초 동안 준 피해로
+  //   pressure 물약 없이 벅찬 사냥터(천외천 3)에서 120초 — 평균 체력·쓰러짐·준 피해
+  const pick = (kind) => IM.ALL_SPECIALS().find((x) => x.kind === kind);
+  const run = (kind, scene, off, seed = 4242) => {
+    const g = fresh();
+    g.rng = seeded(seed);
+    while (g.s.level < 120) g.addExp(W.expToNext(g.s.level));
+    g.s.jobTier = 3; g.s.autoSkill = true; g.s.potions = 0; g.s.autoPotion = false; g._stats = null;
+    const sp = pick(kind);
+    const [zid, i] = sp.id.split('.');
+    const z = zid[0] === 'k' ? W.NORMAL_ZONES + 13 - +zid.slice(1) : W.masterZoneOf(zid);
+    g.s.equip.weapon.rar = 3; g.s.equip.weapon.imps = [null, null, { k: W.bossKey(z), s: 0, sk: 'dmg', g: 0, sp: +i }];
+    g._stats = null; g._isp = null; g._mods = null;
+    if (off) g.impSpecials = () => ({});
+    g.autoDodge = true;
+    let dealt = 0, deaths = 0, hpSum = 0, n = 0;
+    const hurt0 = g.hurt.bind(g);
+    g.hurt = (m, d, ...a) => { if (m.alive && !m.npc && !(m.introT > 0)) dealt += Math.min(d, m.hp); return hurt0(m, d, ...a); };
+    if (scene === 'pressure') {
+      const map = W.mapId(15, 3);          // 천외천 3 — 물약 없이 두 분에 다섯쯤 쓰러지는 곳
+      g.enterMap(map);
+      for (let t = 0; t < 120; t += 0.05) {
+        g.tick(0.05);
+        if (g.map.town || g.heroHp <= 0) { deaths++; g.heroHp = g.stats().hp; g.enterMap(map); }
+        hpSum += g.heroHp / g.stats().hp; n++;
+        g.events.length = 0;
+      }
+      return { dealt, deaths, hp: hpSum / n };
+    }
+    // 허수아비
+    g.enterMap(W.mapId(15, 2));
+    for (let i2 = 0; i2 < 20; i2++) g.tick(0.05);
+    const dummies = g.mons.filter((m) => m.alive && !m.npc).slice(0, scene === 'bane' ? 1 : 6);
+    dummies.forEach((m, j) => {
+      const a = (j / dummies.length) * Math.PI * 2;
+      m.x = g.heroX + Math.cos(a) * 90; m.y = g.heroY + Math.sin(a) * 60; m.c = Math.round(m.x / W.TILE); m.r = Math.round(m.y / W.TILE);
+      m.atk = scene === 'counter' ? m.atk : 0; m.maxHp = 1e15; m.hp = scene === 'execute' ? 2e14 : 1e15; m.move = null;
+      if (scene === 'bane') m.isBoss = true;
+    });
+    g.mons = dummies; g.s.autoHunt = false;
+    for (let t = 0; t < 60; t += 0.05) {
+      g.respawns = [];
+      g.mons = g.mons.filter((m) => dummies.includes(m));
+      if (scene === 'execute') for (const m of dummies) m.hp = Math.min(m.hp, 2e14);
+      if (scene === 'berserk') g.heroHp = g.stats().hp * 0.4;
+      if (scene === 'counter') g.heroHp = g.stats().hp;              // 맞기만 하고 쓰러지지는 않게
+      for (const m of dummies) m.move = null;
+      g.tick(0.05);
+      g.events.length = 0;
+    }
+    return { dealt, deaths: 0, hp: 1 };
+  };
+  const SCENE = { echo: 'dummy', execute: 'execute', bane: 'bane', chain: 'dummy', nova: 'dummy', rain: 'dummy', bleed: 'dummy', surge: 'dummy', berserk: 'berserk',
+    guard: 'pressure', reap: 'pressure', frenzy: 'counter', mirror: 'counter', phoenix: 'pressure', stunwave: 'pressure', vigor: 'pressure' };
+  for (const k of Object.keys(IM.SPECIAL_KIND)) {
+    const sc = SCENE[k];
+    // 버티기는 판마다 크게 흔들린다 — 난수 셋으로 세 판씩 더해 본다
+    const seeds = sc === 'pressure' ? [4242, 77, 31337] : [4242];
+    const sum = (off) => seeds.map((sd) => run(k, sc, off, sd)).reduce((a, x) => ({ dealt: a.dealt + x.dealt, deaths: a.deaths + x.deaths, hp: a.hp + x.hp / seeds.length }), { dealt: 0, deaths: 0, hp: 0 });
+    const r = sum(false), b = sum(true);
+    const dmgUp = r.dealt / Math.max(1, b.dealt) - 1;
+    const hpUp = r.hp - b.hp;
+    const lessDeaths = b.deaths ? (b.deaths - r.deaths) / b.deaths : 0;
+    const good = dmgUp >= 0.05 || hpUp >= 0.05 || lessDeaths >= 0.2;
+    ok(good, `고유 ${k} (${pick(k).name} 등) — ${sc === 'pressure' ? '버티기' : '허수아비'}`,
+      sc === 'pressure' ? `평균 체력 ${(b.hp * 100).toFixed(0)}% → ${(r.hp * 100).toFixed(0)}% · 쓰러짐 ${b.deaths} → ${r.deaths} · 준 피해 ${dmgUp >= 0 ? '+' : ''}${(dmgUp * 100).toFixed(0)}%`
+        : `준 피해 +${(dmgUp * 100).toFixed(1)}%`);
+  }
 }
 
 console.log('\n=== 걸으면서 무공 · 범위 (v157) ===');
