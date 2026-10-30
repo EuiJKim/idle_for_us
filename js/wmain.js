@@ -384,8 +384,11 @@ function drawPortrait() {
   const c = cv.getContext('2d');
   c.setTransform(1, 0, 0, 1, 0, 0);
   c.clearRect(0, 0, cv.width, cv.height);
-  c.setTransform(1.1, 0, 0, 1.1, 0, 0);
-  drawFighter(c, 47, 112, { ...RANKS[W.lookTierOf(game.s.level)].look }, { t: 0, weapon: W.classOf(game.s.job)?.look || 'sword', blade: '#e5e7eb' });
+  // v203: 둥근 패 안에는 얼굴·어깨만 크게 — 전에는 몸 전체(도는 비검·후광까지)를 작게 넣어 잘린 그림처럼 보였다
+  const look = { ...RANKS[W.lookTierOf(game.s.level)].look, swords: 0, halo: false, aura: null, wings: false };
+  const k = cv.width / 104;
+  c.setTransform(1.9 * k, 0, 0, 1.9 * k, 0, 0);
+  drawFighter(c, 24, 98, look, { t: 0, weapon: "fist", blade: "#e5e7eb" });
 }
 
 // ---------- 사건 ----------
