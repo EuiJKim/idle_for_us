@@ -1420,3 +1420,7 @@ details.lore p { margin: 4px 0 0; line-height: 1.5; }
 #progress { position: relative; left: auto; top: auto; }
 #progress-trail { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: rgba(254, 243, 199, 0.7); transition: width 0.6s ease-out 0.35s; }
 #progress-fill { position: relative; }
+/* v174 재료 올리기 */
+.mat-zone .mat-up { white-space: nowrap; font-size: 12px; }
+.mat-zone .mat-up small { opacity: .7; }
+.mat-up-all { display: flex; flex-direction: column; gap: 6px; margin: 4px 0 8px; }

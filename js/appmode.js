@@ -17,6 +17,27 @@ export const isStandalone = () => !!(window.matchMedia?.('(display-mode: fullscr
   || window.matchMedia?.('(display-mode: standalone)').matches || navigator.standalone);
 export const isIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 export const canInstall = () => !!deferred;
+// 앱 안 브라우저(카카오톡·네이버·인스타·밴드…)는 웹앱을 설치할 수 없다 — 친구에게 카톡으로 보낸 링크가 대개 이렇게 열린다 (v174)
+export const inAppName = () => {
+  const ua = navigator.userAgent || '';
+  if (/KAKAOTALK/i.test(ua)) return '카카오톡';
+  if (/NAVER\(inapp|NAVER\//i.test(ua)) return '네이버 앱';
+  if (/Instagram/i.test(ua)) return '인스타그램';
+  if (/FBAN|FBAV/i.test(ua)) return '페이스북';
+  if (/BAND\//i.test(ua)) return '밴드';
+  if (/Line\//i.test(ua)) return '라인';
+  if (/DaumApps/i.test(ua)) return '다음 앱';
+  if (/everytimeApp/i.test(ua)) return '에브리타임';
+  return null;
+};
+// 바깥 브라우저로 다시 열기 — 카카오톡은 제 주소로, 안드로이드는 크롬으로. 아이폰 다른 앱은 직접(… → Safari로 열기)
+export function openExternal() {
+  const url = location.href;
+  const ua = navigator.userAgent || '';
+  if (/KAKAOTALK/i.test(ua)) { location.href = `kakaotalk://web/openExternal?url=${encodeURIComponent(url)}`; return true; }
+  if (/Android/i.test(ua)) { location.href = `intent://${location.host}${location.pathname}${location.search}#Intent;scheme=https;package=com.android.chrome;end`; return true; }
+  return false;
+}
 export async function install() {
   if (!deferred) return false;
   deferred.prompt();

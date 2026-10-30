@@ -1623,6 +1623,23 @@ export class WorldGame {
     return { id, n: 1, name: W.MATS[id], color: W.MAT_COLORS[id] };
   }
   addMats(key, n) { this.s.mats[key] = (this.s.mats[key] || 0) + n; }
+  // 재료 올리기 (v174): 지역 k 재료 MAT_CONVERT개 → 다음 지역 하나. n을 안 주면 되는 만큼 전부. 만든 개수를 돌려준다.
+  convertMats(k, n = Infinity) {
+    const to = W.matUpTarget(k);
+    if (!to) return 0;
+    const m = Math.min(n, Math.floor((this.s.mats[k] || 0) / W.MAT_CONVERT));
+    if (m <= 0) return 0;
+    this.s.mats[k] -= m * W.MAT_CONVERT;
+    this.addMats(to, m);
+    return m;
+  }
+  // 낮은 재료를 지금 강화에 드는 지역 재료까지 차례로 올린다 — { 지역: 얻은 개수 }
+  convertAllUp() {
+    const top = W.stepMap(W.stepOfLevel(Math.min(this.s.level, W.ILV_CAP)));
+    const got = {};
+    for (let k = 1; k < top; k++) { const m = this.convertMats(k); if (m) got[k + 1] = (got[k + 1] || 0) + m; }
+    return got;
+  }
   // z를 주면 그 지역 것이다(두목이 떨군 가락지·귀걸이처럼). 안 주면 칸에서 읽는다.
   makeCrafted(slot, step, plus = 0, rar = 0, z = null) {
     // 신화의 왕 고유 효과는 **지역**이 정한다 — z를 줬으면 그걸 본다

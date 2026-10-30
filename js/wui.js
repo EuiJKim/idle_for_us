@@ -739,10 +739,23 @@ function bagTab(app) {
           matChip(app, z, W.matName(z), s.mats[z] || 0),
           matChip(app, W.bossKey(z), W.matName(W.bossKey(z)), s.mats[W.bossKey(z)] || 0),
           G.STONES[z] && s.mats[G.stoneKey(z)] > 0 ? matChip(app, G.stoneKey(z), G.STONES[z].name, s.mats[G.stoneKey(z)]) : null),
-        h('div', { class: 'desc' }, '눌러 보면 어디서 나오는지 알려 주고 거기로 데려다 줘요'))));
+        h('div', { class: 'desc' }, '눌러 보면 어디서 나오는지 알려 주고 거기로 데려다 줘요')),
+      // 재료 올리기 (v174) — 둘을 다음 지역 하나로
+      W.matUpTarget(z) && (s.mats[z] || 0) >= W.MAT_CONVERT ? h('button', { class: 'buy mat-up', onclick: () => {
+        const m = game.convertMats(z);
+        if (m) { toast(`${W.matName(z)} ${fmt(m * W.MAT_CONVERT)} → ${W.matName(W.matUpTarget(z))} ${fmt(m)}`); done(); }
+      } }, `→ ${W.matName(W.matUpTarget(z))} ${fmt(Math.floor((s.mats[z] || 0) / W.MAT_CONVERT))}`, h('small', {}, ` ${W.MAT_CONVERT}:1`)) : null));
     for (const z of stones) if (!zones.has(+z)) rows.push(h('div', { class: 'row mat-zone' }, h('div', { class: 'info' }, h('div', { class: 'name' }, W.zoneOfW(+z)?.name || ''),
       h('div', { class: 'mat-row' }, matChip(app, G.stoneKey(z), G.STONES[z].name, s.mats[G.stoneKey(z)])))));
+    const topZ = W.stepMap(W.stepOfLevel(Math.min(s.level, W.ILV_CAP)));
+    const canUp = [...zones].some((z) => z < topZ && W.matUpTarget(z) && (s.mats[z] || 0) >= W.MAT_CONVERT);
     matRoot.replaceChildren(h('div', { class: 'card' }, h('h3', {}, '재료', h('small', {}, '문파 창고로 나눌 수 있어요')),
+      h('div', { class: 'mat-up-all' }, h('small', { class: 'muted' }, `지난 지역 재료는 둘을 다음 지역 하나로 올릴 수 있어요 — 강화에는 지금 레벨 지역(${W.matName(topZ)}) 재료가 들어요`),
+        canUp ? h('button', { class: 'btn primary', onclick: () => {
+          const got = game.convertAllUp();
+          const t = Object.entries(got).map(([k, n]) => `${W.matName(k)} +${fmt(n)}`).join(' · ');
+          if (t) { toast(`재료 올리기 — ${t}`); done(); }
+        } }, `낮은 재료 모두 ${W.matName(topZ)}까지 올리기`) : null),
       facRow,
       ...(rows.length ? rows : [h('p', { class: 'muted' }, '몹은 그 사냥터 재료를, 두목은 재료 한 움큼과 증표를 떨궈요.')])));
   }

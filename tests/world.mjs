@@ -1440,6 +1440,20 @@ console.log('\n=== 십이지왕·고수 초식 (v168): 고정 피해 · 테마 �
   ok(MS.bossPatterns(low.map) === null, '레벨 100 아래 고수는 옛 초식(최대 체력의 몇 할) 그대로');
 }
 
+console.log('\n=== 재료 올리기 (v174) ===');
+{
+  const g = fresh();
+  while (g.s.level < 30) g.addExp(W.expToNext(g.s.level));
+  g.s.mats = { 1: 101, 2: 10, 3: 0 };
+  ok(g.convertMats(1) === 50 && g.s.mats[1] === 1 && g.s.mats[2] === 60, '지역 재료 둘 → 다음 지역 하나 (남는 하나는 그대로)');
+  ok(g.convertMats(W.NORMAL_ZONES) === 0 && W.matUpTarget(W.NORMAL_ZONES + 1) === null, '천외천·십이지왕 재료는 올리지 않는다');
+  const top = W.stepMap(W.stepOfLevel(30));
+  g.s.mats = { 1: 400, 2: 0, 3: 0, 4: 0 };
+  const got = g.convertAllUp();
+  ok(got[top] > 0 && Object.keys(got).every((k) => +k <= top) && (g.s.mats[top + 1] || 0) === 0, '모두 올리기 — 지금 강화에 드는 지역까지만', JSON.stringify(got));
+  ok(g.s.mats[top] === Math.floor(400 / 2 ** (top - 1)), `${top - 1}지역 위로 올리면 ${2 ** (top - 1)}:1`, `${W.matName(1)} 400 → ${W.matName(top)} ${g.s.mats[top]}`);
+}
+
 console.log('\n=== 걸으면서 무공 · 범위 (v157) ===');
 {
   const g = fresh();

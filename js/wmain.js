@@ -771,6 +771,12 @@ if (!AM.isStandalone() && AM.canFullscreen()) fsBtn.classList.remove('hidden');
 fsBtn.addEventListener('click', () => AM.toggleFullscreen());
 // 설정 창의 '앱으로' 줄 — 설치할 수 있으면 설치, 아이폰은 홈 화면에 추가 안내, 이미 앱이면 안내만
 function appRow() {
+  const inApp = AM.inAppName();
+  if (inApp && !AM.isStandalone()) {
+    return h('div', { class: 'row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, '앱으로 쓰기'),
+      h('div', { class: 'desc' }, `${inApp} 안에서는 설치가 안 돼요. 크롬·사파리·삼성 인터넷으로 열면 설치할 수 있어요${AM.isIOS() ? ' — 오른쪽 아래 ··· → "Safari로 열기"' : ''}`)),
+      h('button', { class: 'btn primary', style: 'padding:6px 12px', onclick: () => { if (!AM.openExternal()) toast('··· 메뉴에서 "다른 브라우저로 열기"를 눌러 주세요'); } }, '브라우저로'));
+  }
   const desc = AM.isStandalone() ? '앱으로 열려 있어요 — 주소창 없이 전체 화면'
     : AM.canInstall() ? '홈 화면에 아이콘이 생기고, 누르면 주소창 없이 전체 화면으로 열려요'
       : AM.isIOS() ? '사파리 아래 공유 단추(□↑) → "홈 화면에 추가" → 홈 화면 아이콘으로 열면 전체 화면이에요'
@@ -781,7 +787,18 @@ function appRow() {
 }
 // 처음 몇 번은 들판 위에 설치 안내 한 줄 (브라우저로 열었을 때만)
 function maybeInstallHint() {
-  if (AM.isStandalone() || AM.hintClosed() || !game.s.job || navigator.webdriver) return;
+  if (AM.isStandalone() || !game.s.job || navigator.webdriver) return;
+  // 앱 안 브라우저면 닫았어도 늘 알린다 — 여기서는 설치가 안 되고 저장도 그 앱 안에만 남는다
+  const inApp = AM.inAppName();
+  if (inApp) {
+    const bar = h('div', { class: 'install-bar' },
+      h('span', {}, `${inApp} 안에서는 앱 설치가 안 돼요 — 브라우저로 열어 설치하세요`),
+      h('button', { class: 'btn primary', onclick: () => { if (!AM.openExternal()) toast(AM.isIOS() ? '오른쪽 아래 ··· → "Safari로 열기"' : '··· 메뉴 → "다른 브라우저로 열기"'); } }, '브라우저로'),
+      h('button', { class: 'btn', onclick: () => bar.remove() }, '닫기'));
+    $('app').append(bar);
+    return;
+  }
+  if (AM.hintClosed()) return;
   const bar = h('div', { class: 'install-bar' },
     h('span', {}, AM.isIOS() ? '공유(□↑) → "홈 화면에 추가"하면 앱처럼 전체 화면' : '앱으로 설치하면 주소창 없이 전체 화면'),
     AM.canInstall() ? h('button', { class: 'btn primary', onclick: async () => { await AM.install(); bar.remove(); AM.closeHint(); } }, '설치') : null,

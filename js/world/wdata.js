@@ -420,6 +420,10 @@ const stoneName = (key) => { const z = +String(key).slice(2); return `${kingOf(z
 export const matName = (key) => (isLordMat(key) ? LORD_MATS[key].name : isFacMat(key) ? FAC_MAT_INFO[key].name : isStoneKey(key) ? stoneName(key) : String(key)[0] === 'b' ? `${ZONES_W[+String(key).slice(1)]?.boss?.name || '두목'}의 증표` : MATS[key]);
 export const matColor = (key) => (isLordMat(key) ? LORD_MATS[key].col : isFacMat(key) ? FAC_MAT_INFO[key].col : isStoneKey(key) ? '#f0abfc' : String(key)[0] === 'b' ? (kingOf(+String(key).slice(1)) ? '#f43f5e' : '#fde68a') : MAT_COLORS[key]);
 export const MAT_RATE = 0.5;          // 몹 하나가 재료 하나를 떨굴 확률
+// v174 재료 올리기 — 보통 지역 재료 둘을 바로 다음 지역 재료 하나로. 지역마다 1분에 모이는 개수가 비슷해서
+// 아래로 내려가 모아 올리면 손해(악용 없음)이고, 지난 재료는 반값으로 쓰인다. 두 지역 아래면 4:1, 세 지역이면 8:1.
+export const MAT_CONVERT = 2;
+export const matUpTarget = (k) => (Number.isInteger(+k) && +k >= 1 && +k < NORMAL_ZONES ? +k + 1 : null);
 export const BOSS_MATS = 12;          // 두목은 재료 한 움큼 + 증표 하나
 // v130: 사다리는 보통 지역 15곳에서 끝난다(장비 레벨 99까지). 십이지왕부터는 세트·왕의 장신구(wgear.js).
 // ---------- 사다리 (v143) ----------
