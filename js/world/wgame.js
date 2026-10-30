@@ -622,7 +622,8 @@ export class WorldGame {
     if (this.map.town) { this.tickTown(dt); return; }
     // 죽은 몹 치우고 다시 낸다
     this.mons = this.mons.filter((m) => m.alive);
-    for (const r of this.respawns) r.t -= dt;
+    const thin = !this.inst && !this.map.bossRoom && this.mons.length < W.MOBS_ALIVE / 2 ? 2 : 1;
+    for (const r of this.respawns) r.t -= dt * thin;
     const due = this.respawns.filter((r) => r.t <= 0).length;
     this.respawns = this.respawns.filter((r) => r.t > 0);
     for (let i = 0; i < due; i++) this.spawnMob(false);
@@ -772,7 +773,7 @@ export class WorldGame {
     }
     if (!this.s.autoPotion || this.potionT > 0 || this.s.potions <= 0) return;
     if (D.TOWER_NO_POTION && this.inst?.kind === 'tower') return;
-    if (this.heroHp < st.hp * W.POTION_AT) this.drinkPotion();
+    if (this.heroHp < st.hp * this.potionAt()) this.drinkPotion();
   }
   drinkPotion() {
     if (D.TOWER_NO_POTION && this.inst?.kind === 'tower') return false;
@@ -2195,6 +2196,7 @@ export class WorldGame {
 
   // ---------- 상점 ----------
   potionPrice() { return W.potionPrice(this.s.level); }
+  potionAt() { return W.POTION_ATS.includes(this.s.potionAt) ? this.s.potionAt : W.POTION_AT; }
   buyPotions(n) {
     const cost = this.potionPrice() * n;
     if (n <= 0 || this.s.gold < cost) return false;

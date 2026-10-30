@@ -183,8 +183,10 @@ export const ROWS = 19;
 export const MAP_W = COLS * TILE;
 export const MAP_H = ROWS * TILE;
 export const tileCenter = (c) => (c + 0.5) * TILE;
-export const MOBS_ALIVE = 18;
-export const RESPAWN_SEC = 5;
+// v176: 18마리·5초 → 24마리·3초. 센 무인은 들판을 비우고 몹을 기다리는 시간이 길었다.
+// 들판에 반도 안 남으면 두 배 빨리 다시 난다.
+export const MOBS_ALIVE = 24;
+export const RESPAWN_SEC = 3;
 
 // ---------- 지역과 구역 ----------
 // 사냥터(지역)마다 구역 셋(1·2·3 — 뒤로 갈수록 몹 레벨이 높다)과 맨 끝 **두목 구역**이 있다.
@@ -703,6 +705,8 @@ export const POTION_HEAL = 0.35;
 // 두 지역 위는 절반~거의 다(위에서 방치하기가 부담스럽다).
 export const POTION_KILLS = 5.5;
 export const potionPrice = (level) => Math.round(mobGold(level) * Math.min(POTION_KILLS, 1 + level / 10));
+// v176: 자동 물약을 먹는 체력 — 설정에서 고른다 (s.potionAt)
+export const POTION_ATS = [0.3, 0.45, 0.6, 0.75];
 export const POTION_AT = 0.45;        // 체력이 이 아래면 자동으로 먹는다
 export const POTION_GAP = 0.8;
 export const REST_HEAL = 0.25;        // 마을에서는 초당 최대 체력의 25%

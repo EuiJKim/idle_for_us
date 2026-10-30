@@ -71,6 +71,24 @@ console.log('\n=== 싸움 ===');
   ok(['attack', 'dmg', 'kill'].every((t) => seen.has(t)), '평타·피해·처치 사건이 나간다', [...seen].join(' '));
 }
 
+console.log('\n=== 자동 물약 체력 (v176) ===');
+{
+  const g = fresh();
+  g.enterMap(11);
+  g.s.autoPotion = true; g.s.potions = 5;
+  const hp = g.stats().hp;
+  g.s.potionAt = 0.75; g.heroHp = hp * 0.7;
+  for (let i = 0; i < 3; i++) g.tick(0.05);
+  ok(g.s.potions < 5, '75%로 정하면 체력 70%에서 먹는다');
+  const g2 = fresh();
+  g2.enterMap(11);
+  g2.s.autoPotion = true; g2.s.potions = 5; g2.s.potionAt = 0.3; g2.heroHp = g2.stats().hp * 0.7;
+  g2.tick(0.05);
+  ok(g2.s.potions === 5, '30%로 정하면 70%에서는 안 먹는다');
+  g2.s.potionAt = 0.33;
+  ok(g2.potionAt() === W.POTION_AT, '없는 값이면 기본값');
+}
+
 console.log('\n=== 칸 이동 (바람식) ===');
 {
   const g = fresh();
@@ -90,14 +108,15 @@ console.log('\n=== 칸 이동 (바람식) ===');
     mark(g.heroTile().c, g.heroTile().r);
     for (const m of g.mons) if (m.alive) { const tt = g.mobTile(m); mark(tt.c, tt.r); }
     // 부드럽게: 한 틱에 칸 하나를 건너뛰지 않는다
-    maxStep = Math.max(maxStep, Math.hypot(g.heroX - px, g.heroY - py));
+    // (그때그때의 빠르기로 잰다 — 날씨·버프로 빠르기가 바뀐다)
+    maxStep = Math.max(maxStep, Math.hypot(g.heroX - px, g.heroY - py) - (W.HERO_SPEED * g.stats().moveSpeed * (1 + (g.envNow().move || 0)) * 0.05 + 0.01));
     px = g.heroX; py = g.heroY;
     samples++;
     if (g.map.town) { g.enterMap(11); px = g.heroX; py = g.heroY; }
   }
   ok(offGrid === 0, '멈춰 있으면 늘 칸 가운데에 선다', `${offGrid}/${samples}`);
   ok(clash === 0, '한 칸에는 하나만 선다', `${clash}`);
-  ok(maxStep <= W.HERO_SPEED * g.stats().moveSpeed * (1 + (g.envNow().move || 0)) * 0.05 + 0.01, '칸 사이를 미끄러지듯 옮겨 간다(순간이동 없음)', `${maxStep.toFixed(1)}`);
+  ok(maxStep <= 0, '칸 사이를 미끄러지듯 옮겨 간다(순간이동 없음)', `넘친 거리 ${maxStep.toFixed(1)}`);
   ok(g.s.kills > 20, '칸 길로도 사냥이 잘 된다', `5분 ${g.s.kills}마리`);
   // 손으로 찍은 칸으로 간다
   const h = fresh();
