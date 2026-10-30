@@ -2185,9 +2185,19 @@ export class BattleView {
     const fall = 1 - (1 - Math.min(1, k * 2.2)) ** 3;      // 앞 45%에 넘어지고 나머지는 옅어진다
     const away = x >= this.heroX ? 1 : -1;
     const def = c.def || {};
+    // v194: 맞은 힘에 살짝 떠서 뒤로 날아가(앞 30%) 땅에 떨어지고, 한 번 튀었다가(30~45%) 눕는다.
+    // 떨어지는 순간 흙먼지. 두목 그림은 무거워서 뜨지 않는다.
+    const big = !!(def.art && bossImg(def.art));
+    const air = big ? 0 : Math.sin(Math.PI * Math.min(1, k / 0.3)) * (k < 0.3 ? 16 : 0);
+    const bounce = big || k < 0.3 || k > 0.45 ? 0 : Math.sin(Math.PI * (k - 0.3) / 0.15) * 4;
+    const slide = (1 - (1 - Math.min(1, k / 0.45)) ** 2) * (big ? 14 : 26);
+    if (!c._landed && k >= 0.3) {
+      c._landed = true;
+      if (this.fxLevel > 0) for (let i = 0; i < 5; i++) this.particles.push({ x: x + away * slide + (Math.random() - 0.5) * 28, y: y - 2, vx: away * (20 + Math.random() * 50), vy: -15 - Math.random() * 25, life: 0.45, size: 4 + Math.random() * 3, color: 'rgb(214,196,160)', dust: true });
+    }
     ctx.save();
-    ctx.globalAlpha = Math.max(0, 1 - Math.max(0, k - 0.35) / 0.65) * 0.9;
-    ctx.translate(x + away * fall * 14, y);
+    ctx.globalAlpha = Math.max(0, 1 - Math.max(0, k - 0.45) / 0.55) * 0.9;
+    ctx.translate(x + away * slide, y - air - bounce);
     const sc = (def.look?.scale || 1) * 0.94 * this.crowdScale;
     ctx.scale(sc, sc);
     const bimg = def.art ? bossImg(def.art) : null;
@@ -3219,7 +3229,7 @@ export class BattleView {
 
 // ---------- 무인 그리기 ----------
 // 발끝 가운데가 (x, y), 오른쪽을 본다. look: 무복 색·머리·무기, o: 애니메이션 옵션
-const CORPSE_SEC = 0.55;
+const CORPSE_SEC = 0.7;   // v194: 떴다 떨어지고 튀는 몫만큼 조금 길게
 const HERO_DOWN_SEC = 0.9;
 
 export function drawFighter(ctx, x, y, look = {}, o = {}) {
