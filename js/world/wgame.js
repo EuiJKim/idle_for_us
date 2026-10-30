@@ -707,6 +707,7 @@ export class WorldGame {
           m.atkTimer -= dt;
           if (m.atkTimer <= 0) {
             m.atkTimer = W.MOB_ATK_SEC * (m.slow > 0 ? 1.5 : 1);
+            m.atkAt = this.clock;                 // 그리는 쪽: 휘두르는 몸짓 (v162)
             const ps = this.passives();
             if (ps.has('dodge') && this.rng() < 0.25) { this.emit('passive', { id: 'dodge' }); continue; }   // 환왕
             const cls = W.CLASSES[this.s.job] || {};

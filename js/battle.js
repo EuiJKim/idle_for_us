@@ -2059,7 +2059,19 @@ export class BattleView {
     // 맞은 직후 0.2초 — 무인 반대쪽으로 밀리고, 위아래로 찌그러졌다 돌아온다
     const hk = a._hitAt != null ? Math.max(0, 1 - (this.t - a._hitAt) / 0.2) : 0;
     const away = x >= this.heroX ? 1 : -1;
-    const kx = hk * hk * 9 * away;
+    // v162: 무인을 칠 때 앞으로 내딛었다 돌아온다(0.32초) · 갓 난 몹은 땅에서 솟아오르듯 0.45초에 걸쳐 나타난다
+    const ak = a.atkAt != null && game.clock != null ? Math.max(0, 1 - (game.clock - a.atkAt) / 0.32) : 0;
+    const swing = Math.sin(ak * Math.PI) * (ak > 0.5 ? 1 : 0.6);
+    const born = a.born != null && game.clock != null && !a.npc ? Math.min(1, Math.max(0, (game.clock - a.born) / 0.45)) : 1;
+    if (born < 1) {
+      ctx.globalAlpha *= born;
+      if (born < 0.35 && this.fxLevel > 0 && !a._puffed) {
+        a._puffed = true;
+        for (let i = 0; i < 6; i++) this.particles.push({ x: x + (Math.random() - 0.5) * 30, y: y - 2, vx: (Math.random() - 0.5) * 80, vy: -20 - Math.random() * 30, life: 0.5, size: 4 + Math.random() * 3, color: 'rgb(214,196,160)', dust: true });
+      }
+    }
+    const kx = hk * hk * 9 * away - swing * 14 * away;
+    const ky = (1 - born) * 10 + swing * 3;
     // v160: 두목은 제 그림으로 — 과녁이 아니어도
     if (a.isBoss && def.art && bossImg(def.art) && drawBossSprite(this, ctx, a, x + kx, y, depth, { lord: !!game.map?.lord, king: !!game.map?.king,
       casting: game.tells?.length > 0, col: fxFor('', def.look || {}).col, flash: hk, lunge: 0, heroX: game.heroX })) { /* 그렸다 */ } else
@@ -2067,7 +2079,7 @@ export class BattleView {
     else if (def.beast) {
       // 들짐승 (v117) — 맞으면 찌그러졌다 돌아온다
       ctx.save();
-      ctx.translate(x + kx, y);
+      ctx.translate(x + kx, y + ky);
       if (hk > 0) ctx.scale(1 + 0.08 * hk, 1 - 0.1 * hk);
       if (fx) { ctx.shadowColor = this.mobCol(a); ctx.shadowBlur = a.grade >= 2 ? 18 : 10; }
       drawCreature(ctx, def.beast, 0, 0, { t: time, moving: !!a.move, flip: face, scale: (def.bscale || 1.7) * this.crowdScale * persp * (a.grade === 1 ? 1.1 : 1) });
@@ -2077,11 +2089,13 @@ export class BattleView {
       const spr = fighterSprite(def.look || {}, time, def.look?.weapon, this.dpr || 1, walking);
       if (spr) {
         ctx.save();
-        ctx.translate(x + kx, y);
+        ctx.translate(x + kx, y + ky);
         const s2 = sc * persp;
         if (s2 !== 1) ctx.scale(s2, s2);
         ctx.scale(this.turnTo(a, face ? -1 : 1), 1);
         if (hk > 0) { ctx.rotate(-0.12 * hk * (face ? -away : away)); ctx.scale(1 + 0.06 * hk, 1 - 0.08 * hk); }
+        if (swing > 0) ctx.rotate(0.16 * swing);                 // 칠 때 몸을 앞으로 숙인다 (그림 기준 앞)
+        if (born < 1) ctx.scale(1, 0.7 + 0.3 * born);
         // 정예·두목·왕은 몸 둘레가 등급 빛깔로 번진다
         if (fx) { ctx.shadowColor = this.mobCol(a); ctx.shadowBlur = a.grade >= 2 ? 18 : 10; }
         ctx.drawImage(spr, -SPR.ox, -SPR.oy, SPR.w, SPR.h);
