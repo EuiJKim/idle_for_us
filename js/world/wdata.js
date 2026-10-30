@@ -4,6 +4,7 @@
 // **숫자는 보통 숫자다.** 레벨 150에서도 몹 체력이 몇십만이라 Big이 필요 없다.
 import { ZONES, JOBS, CLASS_SKILLS, RANKS } from '../data.js';
 import { areaMobs } from './wmobs.js';
+import { MASTERS } from './wmasters_data.js';
 import { TRANSFORMS, setOf, SET_PIECE, STONES, isStoneKey, promoteStones } from './wgear.js';
 
 export const SAVE_KEY = 'ifu-world-v1';
@@ -268,6 +269,26 @@ for (const a of ALT_ZONES) {
   ZONES_W[a.id] = { id: a.id, art: a.art, king: null, pair: a.pair, name: ZONES[a.art].name, lv: zoneLv(a.pair),
     mobs: areaMobs(a.id, 4, a.art), boss: ZONES[a.art].boss };
 }
+// v148 고수의 두목 방 — 고수 하나에 지역 하나(번호 41~), 구역은 두목 방 하나뿐.
+// 그 고수의 수하(정예)가 늘 있고 고수가 BOSS_RESPAWN초마다 다시 나선다 — 십이지왕 두목 구역처럼 눌러앉아 파밍한다.
+// 두목 레벨 = 고수 레벨(졸개는 둘 아래). 재료·증표·장비는 그 레벨의 보통 지역(짝, 99부터는 천외천) 것.
+// 맹주·천마는 체력·공격이 더 세다(LORD_HP·LORD_ATK).
+export const MASTER_ZONE0 = 41;
+export const LORD_HP = 2.5;
+export const LORD_ATK = 1.3;
+// 두목 방 초식 (십이지왕·고수): 사이(초) · 맞으면 최대 체력의 몇 할(탑 경고 피해 × 이것) · 방치 중 피하기 반응(경고 시간의 몇 할이 지나서야 움직이나)
+export const FIELD_CAST = 7;
+export const FIELD_CAST_LORD = 5;
+export const FIELD_TELL = 0.35;
+export const FIELD_TELL_LORD = 0.55;
+export const FIELD_REACT = 0.45;
+const pairForLv = (lv) => { let best = 1; for (let z = 1; z <= NORMAL_ZONES; z++) if (zoneLv(z)[0] <= lv) best = z; return best; };
+MASTERS.forEach((m, i) => {
+  const id = MASTER_ZONE0 + i;
+  ZONES_W[id] = { id, art: m.art, king: null, master: m.id, fac: m.fac, lord: !!m.lord, pair: pairForLv(m.lv - 2), name: `${m.title} ${m.name}`,
+    lv: [m.lv - 4, m.lv - 2], mobs: m.mobs, boss: { name: `${m.title} ${m.name}`, look: m.look } };
+});
+export const masterZoneOf = (mid) => MASTER_ZONE0 + MASTERS.findIndex((m) => m.id === mid);
 // 재료를 셈하는 지역 번호 (새 지역은 짝 지역)
 export const matZone = (z) => ZONES_W[z]?.pair || z;
 // 지도에 늘어놓는 차례 — 레벨 순 (새 지역은 짝 지역 바로 뒤)
@@ -284,9 +305,9 @@ function areaLv(zl, a) {
 export const MAPS = [{ id: 0, name: '객잔 마을', town: true, zone: 0, area: 0, art: 0, lv: [0, 0], mobs: ZONES[0].mobs, boss: ZONES[0].boss }];
 for (const zn of ZONE_ORDER) {
   const z = zn.id;
-  for (let a = 1; a <= BOSS_AREA; a++) {
+  for (let a = zn.master ? BOSS_AREA : 1; a <= BOSS_AREA; a++) {
     MAPS.push({
-      id: mapId(z, a), zone: z, mz: zn.pair || z, area: a, art: zn.art, king: zn.king,
+      id: mapId(z, a), zone: z, mz: zn.pair || z, area: a, art: zn.art, king: zn.king, master: zn.master || null, lord: !!zn.lord,
       name: a === BOSS_AREA ? `${zn.name} · 두목` : `${zn.name} ${a}`,
       zoneName: zn.name,
       bossRoom: a === BOSS_AREA,
@@ -303,10 +324,10 @@ export const oldMapToNew = (k) => (k >= 1 && k <= NORMAL_ZONES ? mapId(k, 1) : 0
 
 // 마을 사람 (무인 자리 기준으로 선다)
 export const NPCS = [
-  { name: '사부', dx: -150, dy: -120, look: { robe: '#e7e5e4', trim: '#78716c', head: 'topknot', hair: '#e5e7eb', beard: true, weapon: 'sword' } },
-  { name: '상인', dx: 150, dy: -90, look: { robe: '#92400e', head: 'hat', weapon: 'fan' } },
-  { name: '대장장이', dx: -110, dy: 110, tab: 'bag', look: { robe: '#44403c', trim: '#f59e0b', head: 'band', band: '#7c2d12', beard: true, weapon: 'axe' } },
-  { name: '주모', dx: 40, dy: -260, look: { robe: '#be185d', trim: '#fbcfe8', head: 'topknot', weapon: 'fan' } },
+  { name: '사부', dx: -150, dy: -120, tab: 'town/master', look: { robe: '#e7e5e4', trim: '#78716c', head: 'topknot', hair: '#e5e7eb', beard: true, weapon: 'sword' } },
+  { name: '상인', dx: 150, dy: -90, tab: 'town/shop', look: { robe: '#92400e', head: 'hat', weapon: 'fan' } },
+  { name: '대장장이', dx: -110, dy: 110, tab: 'bag/smith', look: { robe: '#44403c', trim: '#f59e0b', head: 'band', band: '#7c2d12', beard: true, weapon: 'axe' } },
+  { name: '주모', dx: 40, dy: -260, tab: 'town/inn', look: { robe: '#be185d', trim: '#fbcfe8', head: 'topknot', weapon: 'fan' } },
 ];
 
 // ---------- 몹 ----------

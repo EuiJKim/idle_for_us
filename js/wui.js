@@ -10,6 +10,8 @@ import { fmt } from './fmt.js';
 import { dayKey } from './net.js';
 import { drawCreature, CREATURES, crArt } from './creatures.js';
 import { skinImg } from './icons.js';
+import * as MS from './world/wmaster.js';
+import { drawFighter } from './battle.js';
 
 // 애완동물·탈것 그림 아이콘 (창 목록용) — 들판과 같은 그림을 작게
 export function creatureIcon(kind, size = 44) {
@@ -788,34 +790,79 @@ function mapTab(app) {
         zn.king ? h('p', { class: 'muted king-desc' }, `${zn.king.hanja} · ${zn.king.desc}`) : null,
         h('div', { class: 'area-row' }, ...btns)));
   }
-  // 사냥터 | 십이지왕 (v147) — 한 줄로 스물몇 지역이 이어져 있어 왕을 찾으려면 한참 내려야 했다
-  function zoneView(king) {
+  // 고수 한 명 — 두목 방 카드 (v148). 수하 졸개가 늘 있고 고수가 45초마다 다시 나선다. 이야기는 접어 둔다.
+  function masterCard(m, fac) {
+    const s = game.s;
+    const won = !!s.duel.won[m.id];
+    const room = W.mapId(W.masterZoneOf(m.id), W.BOSS_AREA);
+    const here = s.map === room;
+    const risky = game.danger(room) > W.DANGER_LV;
+    const rw = MS.masterReward(m);
+    const bonus = Math.round(MS.masterBonusOf(m) * 100);
+    return h('div', { class: `card master-card${m.lord ? ' lord' : ''}${won ? ' won' : ''}${here ? ' me' : ''}`, style: `--fc:${fac.col}` },
+      h('div', { class: 'master-top' },
+        masterPortrait(m.look),
+        h('div', { class: 'master-name' },
+          h('b', {}, `${m.title} `, h('span', {}, m.name)),
+          h('small', {}, `Lv.${m.lv}${risky ? ' ⚠위험' : ''} · 수하 ${m.mobs.map((x) => x.name).join('·')}`),
+          h('div', { class: 'muted' }, `초식: ${m.skills.map((k) => k.name).join(' · ')}`))),
+      h('details', { class: 'master-story' }, h('summary', {}, '이야기'), h('p', {}, m.story)),
+      h('div', { class: 'master-rw' }, won ? `✓ 쓰러뜨렸어요 · 공격력·체력 +${bonus}% 영구 — 눌러앉아 파밍하세요` : `처음 쓰러뜨리면 ${rewardText(rw)} · 공격력·체력 +${bonus}% 영구`),
+      h('div', { class: 'btn-row' },
+        h('button', { class: `btn ${here ? '' : 'primary'}`, disabled: here ? true : null, onclick: () => go(room) }, here ? '여기서 사냥 중' : '두목 방으로 가기')));
+  }
+  // 세력 칸 (v148) — 사냥터와 고수. 십이지왕 칸은 왕 구역만.
+  function zoneView(fac) {
     const box = h('div');
     let sig = '';
     return {
       root: box,
       update() {
         const s = game.s;
-        const nsig = `${s.level}|${s.map}|${s.huntMap}|${Object.values(s.mast || {}).map((k) => L.masteryLv(k)).join(',')}`;
+        const nsig = `${s.level}|${s.map}|${s.huntMap}|${Object.values(s.mast || {}).map((k) => L.masteryLv(k)).join(',')}|${JSON.stringify(s.duel.won)}|${!!game.inst}`;
         if (nsig === sig) return;
         sig = nsig;
         const here = W.mapOf(s.map);
-        if (king) {
+        if (fac === 'king') {
           box.replaceChildren(h('p', { class: 'muted' }, '권장 레벨 99 · 제12왕에서 제1왕 검왕까지. 두목 구역에 들어갈 때 혼자 또는 문파원과 함께를 골라요. 전반 다섯 왕은 직업 세트 조각, 후반 일곱 왕은 세트 강화석을 떨궈요.'));
-        } else {
-          box.replaceChildren(h('p', { class: 'muted' }, '지역마다 구역 1·2·3(뒤로 갈수록 세다)과 두목 구역이 있어요. 두목 증표는 두목 구역에서만 나와요. 레벨과 상관없이 어디든 갈 수 있지만, ⚠ 표시는 내 레벨보다 훨씬 센 곳이에요.'),
-            h('div', { class: `row map-row${here.town ? ' me' : ''}` }, h('div', { class: 'ico' }, '촌'),
-              h('div', { class: 'info' }, h('div', { class: 'name' }, '객잔 마을'), h('div', { class: 'desc' }, '쉬는 곳 — 체력이 빨리 차요')),
-              h('button', { class: 'buy', disabled: here.town ? true : null, onclick: () => { game.goTown(); app.save(); app.closePanel(); app.refresh(); } }, here.town ? '여기' : '가기')));
+          for (const zn of W.ZONE_ORDER) if (zn.king) zoneCard(box, zn, here);
+          return;
         }
-        for (const zn of W.ZONE_ORDER) if (!!zn.king === king) zoneCard(box, zn, here);
+        const F = MS.factionOf(fac);
+        const won = MS.mastersOf(fac).filter((m) => s.duel.won[m.id]).length;
+        box.replaceChildren(
+          h('div', { class: 'card fac-head', style: `--fc:${F.col}` }, h('b', {}, `${F.name} `, h('small', {}, F.hanja)), h('p', { class: 'muted' }, F.desc)),
+          h('div', { class: `row map-row${here.town ? ' me' : ''}` }, h('div', { class: 'ico' }, '촌'),
+            h('div', { class: 'info' }, h('div', { class: 'name' }, '객잔 마을'), h('div', { class: 'desc' }, '쉬는 곳 — 체력이 빨리 차요')),
+            h('button', { class: 'buy', disabled: here.town ? true : null, onclick: () => { game.goTown(); app.save(); app.closePanel(); app.refresh(); } }, here.town ? '여기' : '가기')),
+          h('h3', { class: 'king-head' }, '사냥터', h('small', {}, '레벨과 상관없이 어디든 — ⚠는 내 레벨보다 훨씬 센 곳')));
+        for (const z of MS.FAC_ZONES[fac]) { const zn = W.ZONE_ORDER.find((x) => x.id === z); if (zn) zoneCard(box, zn, here); }
+        box.append(h('h3', { class: 'king-head' }, fac === 'magyo' ? '팔마존 · 천마' : fac === 'murim' ? '정파 칠대고수 · 무림맹주' : '사도 칠대고수 · 사도맹주',
+          h('small', {}, `쓰러뜨림 ${won}/${MS.mastersOf(fac).length} — 고수마다 두목 방(수하 + 고수, 45초마다 다시)`)));
+        for (const m of MS.mastersOf(fac)) box.append(masterCard(m, F));
       },
     };
   }
   return subTabs([
-    { key: 'field', label: '사냥터', make: () => zoneView(false) },
-    { key: 'king', label: '십이지왕', make: () => zoneView(true) },
-  ], 'ifu.mapsub');
+    { key: 'murim', label: '무림맹', make: () => zoneView('murim') },
+    { key: 'sapa', label: '사파', make: () => zoneView('sapa') },
+    { key: 'magyo', label: '마교', make: () => zoneView('magyo') },
+    { key: 'king', label: '십이지왕', make: () => zoneView('king') },
+  ], 'ifu.mapsub2');
+}
+
+// 고수 얼굴 (작은 그림) — 무인 그림을 그대로 줄여 그린다
+function masterPortrait(look) {
+  const cv = document.createElement('canvas');
+  const q = Math.min(2, window.devicePixelRatio || 1);
+  cv.width = cv.height = 56 * q;
+  cv.className = 'master-face';
+  const x = cv.getContext('2d');
+  x.scale(q, q);
+  x.save(); x.translate(28, 55); x.scale(0.4, 0.4);
+  drawFighter(x, 0, 0, { ...look, scale: 1 }, { t: 0, weapon: look.weapon || 'sword', blade: '#e5e7eb', hold: true });
+  x.restore();
+  return cv;
 }
 
 // ---------- 던전 창 (v147) ----------
@@ -1120,10 +1167,28 @@ function townTab(app) {
         h('small', {}, inTown ? '체력이 빠르게 차요' : '전직·상점·조합은 사냥터에서도 돼요')),
       inTown ? h('button', { class: 'btn primary', disabled: game.canEnter(s.huntMap) ? null : true, onclick: () => { game.enterMap(s.huntMap); app.save(); app.closePanel(); app.refresh(); } }, '사냥터로')
         : h('button', { class: 'btn', onclick: () => { game.goTown(); app.save(); app.refresh(); } }, '쉬러 가기')));
-    npcButtons();
-    body.replaceChildren(...(pick === 'master' ? masterView() : pick === 'inn' ? innView() : shopView()));
+    void npcRow;
+    body.replaceChildren(...(pick === 'master' ? masterView() : pick === 'inn' ? innView() : pick === 'smith' ? smithInfo() : shopView()));
   }
-  return { root, update: upd };
+  // 대장장이는 가방 창의 대장장이 칸에 있다 — 여기서는 안내와 바로 가기 (v148)
+  function smithInfo() {
+    return [h('div', { class: 'card' }, h('h3', {}, '대장장이', h('small', {}, '조합 · 강화 · 승급')),
+      h('p', {}, '"재료만 가져오면 뭐든 두드려 주지. 등급은 골라서 — 위로 갈수록 재료가 확 들어."'),
+      h('p', { class: 'muted' }, '사다리(~100) · 세트(99~) · 왕의 장신구(99~)를 만들고, 낀 장비를 누르면 강화·승급해요.'),
+      h('button', { class: 'btn primary', style: 'width:100%', onclick: () => app.showTab?.('bag', 'smith') }, '대장장이로 가기 (가방 → 대장장이)'))];
+  }
+  // v148: 마을 사람 넷을 칸으로 — 사부 | 상인 | 대장장이 | 주모. 머리(쉬는 중·사냥 중)는 칸마다 위에.
+  const views = NPC_LIST.map((n) => ({
+    key: n.id, label: n.name,
+    make: () => ({ root: root, update: () => { if (pick !== n.id) { pick = n.id; sig = ''; } upd(); } }),
+  }));
+  root.replaceChildren(head, body);
+  const t = subTabs(views, 'ifu.townsub');
+  const upd0 = t.update;
+  t.update = () => { t.setDot('master', game.canAdvance()); upd0(); };
+  // 전직할 수 있으면 사부 칸부터 (칸을 짚어 연 게 아니면)
+  t.shown = (sub) => { if (!sub && game.canAdvance()) t.select('master'); };
+  return t;
 }
 
 export function skillText(game, sk) {
@@ -1396,7 +1461,40 @@ function socialTab(app) {
   return subTabs([
     { key: 'guild', label: '문파', make: () => guildView(app) },
     { key: 'rank', label: '서열', make: () => rankView(app) },
-  ]);
+    { key: 'lore', label: '인물록', make: () => loreView(app) },
+  ], 'ifu.socialsub');
+}
+
+// ---------- 인물록 (v148) ----------
+// 세력마다 고수들의 이야기 · 십이지왕 · 그 밖의 사람들. 쓰러뜨린 고수에는 ✓.
+function loreView(app) {
+  const { game } = app;
+  const root = h('div');
+  let sig = '';
+  const person = (name, title, story, o = {}) => h('details', { class: `card lore-person${o.won ? ' won' : ''}`, style: o.col ? `--fc:${o.col}` : '' },
+    h('summary', {}, h('b', {}, `${title} `, h('span', {}, name)), o.lv ? h('small', {}, ` Lv.${o.lv}${o.won ? ' · 격파 ✓' : ''}`) : null),
+    h('p', {}, story));
+  return {
+    root,
+    update() {
+      const nsig = JSON.stringify(game.s.duel.won);
+      if (nsig === sig) return;
+      sig = nsig;
+      const out = [h('p', { class: 'muted' }, '무림의 사람들. 지도 창의 무림맹·사파·마교 칸에서 이들의 두목 방에 갈 수 있어요.')];
+      for (const F of MS.FACTIONS) {
+        out.push(h('h3', { class: 'king-head', style: `color:${F.col}` }, F.name, h('small', {}, ` ${F.hanja}`)));
+        for (const m of MS.mastersOf(F.id)) out.push(person(m.name, m.title, m.story, { lv: m.lv, won: !!game.s.duel.won[m.id], col: F.col }));
+        for (const o of MS.OTHER_LORE.filter((x) => x.fac === F.id)) out.push(person(o.name, o.title, o.story, { col: F.col }));
+      }
+      out.push(h('h3', { class: 'king-head' }, '십이지왕', h('small', {}, ' 화무기가 세운 열두 왕')));
+      for (const o of MS.OTHER_LORE.filter((x) => !x.fac)) out.push(person(o.name, o.title, o.story));
+      for (const zn of W.ZONE_ORDER.filter((z) => z.king)) {
+        const k = zn.king;
+        out.push(person(k.real || '', `${zn.name}`, MS.KING_STORY[k.title] || `${k.hanja ? `${k.hanja} · ` : ''}${k.desc || ''}`, { lv: zn.lv[1] }));
+      }
+      root.replaceChildren(...out);
+    },
+  };
 }
 
 // ---------- 동료: 애완동물 · 탈것 (v111) ----------

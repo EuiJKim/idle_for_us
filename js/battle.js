@@ -562,7 +562,8 @@ export class BattleView {
         this.float('-' + fmt(ev.amount) + (ev.crit ? '!' : ''), this.heroX + 26, this.groundY - 158, '#fca5a5', ev.crit ? 18 : 14);
         break;
       case 'bossCast':
-        if (ev.at) this.float(ev.name, this.sx(ev.at), this.sy(ev.at) - 150, '#fca5a5', 16, 1, true);
+        // 설정집의 독문무공(십이지왕·고수)은 크고 금빛으로 외친다
+        if (ev.at) this.float(ev.skill ? `「${ev.name}」` : ev.name, this.sx(ev.at), this.sy(ev.at) - 150, ev.skill ? '#fde68a' : '#fca5a5', ev.skill ? 20 : 16, 1, true);
         break;
       case 'tellBoom': {
         const tl = ev.tell;

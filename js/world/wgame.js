@@ -8,6 +8,7 @@
 import * as W from './wdata.js';
 import * as D from './wdgn.js';
 import * as Q from './wquest.js';
+import * as MS from './wmaster.js';
 import * as L from './wland.js';
 import * as G from './wgear.js';
 
@@ -62,6 +63,7 @@ export function newWorldSave(now = Date.now()) {
     zPity: {},                               // 신마다 신수 없이 뽑은 횟수 (셋째에 꼭)
     mast: {},                                // 지역 숙련도 (v127) — 지역 번호: 잡은 수
     raid: { day: '', n: 0, dps: 0 },         // 문파 토벌 (v128): 오늘 친 횟수 · 마지막 초당 피해
+    duel: { won: {} },                       // 고수 (v148): 처음 쓰러뜨린 고수 — 영구 능력치
     quest: 0,                                // 길잡이 (v139): 받은 단계 수 — 지금 할 일은 QUESTS[quest]
     questV: Q.QUEST_V,                       // 길잡이 판 (v146에 다시 짰다)
     questGift: -1,                           // 선물을 준 단계 (한 단계에 한 번)
@@ -130,6 +132,7 @@ export function migrateWorld(raw, now = Date.now()) {
   s.dgn.auto = !!s.dgn.auto;
   s.quest = clamp(Math.floor(Number(s.quest) || 0), 0, Q.QUEST_COUNT);
   s.did = raw.did && typeof raw.did === 'object' ? { ...raw.did } : {};
+  s.duel = { won: { ...(raw.duel?.won || {}) } };
   s.questGift = Number.isInteger(raw.questGift) ? raw.questGift : -1;
   const rd = raw.raid && typeof raw.raid === 'object' ? raw.raid : {};
   s.raid = { day: typeof rd.day === 'string' ? rd.day : '', n: clamp(Math.floor(Number(rd.n) || 0), 0, D.RAID_PER_DAY), dps: Math.max(0, Number(rd.dps) || 0) };
@@ -332,6 +335,9 @@ export class WorldGame {
     // 무한의 탑: 오른 층마다 영구히
     const tb = D.towerBonus(s.tower?.floor);
     gear.atkPct += tb; gear.hpPct += tb;
+    // 고수 비무: 처음 이긴 고수마다 영구히 (v148)
+    const mb = this.masterBonus();
+    gear.atkPct += mb; gear.hpPct += mb;
     // 심법
     const pm = this.pmods();
     gear.atkPct += pm.atkPct || 0;
@@ -563,6 +569,8 @@ export class WorldGame {
       def: { name: kind.name, look: kind.look, beast: kind.beast, bscale: kind.bscale },
     };
     mob.name = kind.name;
+    // 맹주·천마 (v148): 두목 방의 우두머리는 더 단단하고 아프다
+    if (boss && m.lord) { mob.maxHp = mob.hp = mob.hp * W.LORD_HP; mob.atk *= W.LORD_ATK; }
     // 요일 던전 몹은 같은 레벨 무인에 맞춰 단단하다 (v126)
     if (this.inst?.kind === 'daily') { mob.maxHp = mob.hp = D.dailyMobHp(lv) * (elite ? W.ELITE.hp : 1); mob.atk = D.dailyMobAtk(lv) * (elite ? W.ELITE.atk : 1); }
     // 두목 등장 연출: 구역에 들어와 처음 나설 때는 길게(들판이 멈추고 두목은 맞지도 않는다),
@@ -614,6 +622,9 @@ export class WorldGame {
       if (this.coop?.hold) this.coop.bossTick();
       else if (this.bossT <= 0) { this.bossT = W.BOSS_RESPAWN; this.spawnMob(true); }
     }
+    // 십이지왕·고수의 초식 (v148) — 두목 방에서 설정집의 독문무공을 쓴다. 바닥 경고를 피한다.
+    if (!this.inst && this.map.bossRoom) this.tickBossSkill(dt);
+    if (!this.inst && this.tells.length) this.tickTells(dt, st);
     // 두목 등장 연출 동안은 들판 전체가 멈춘다(무인도 몹도)
     if (this.freezeT > 0) { this.freezeT -= dt; this.walking = false; for (const m of this.mons) if (m.introT > 0) m.introT -= dt; return; }
     if (this.inst) { this.tickInst(dt); this.tickTells(dt, st); if (this.inst?.done) return; }
@@ -767,6 +778,8 @@ export class WorldGame {
     }
     this.holdApproach = false;
     if (this.autoDodge && this.inst) { const d = this.dodgeStep(); if (d === 'moved') return; this.holdApproach = d === 'hold'; }
+    // 사냥터 두목 방(v148): 방치 중에도 바닥 경고를 피한다 — 단, 경고가 깔리고 조금 뒤에야(반응이 늦어 가끔 맞는다). 직접 끌면 다 피한다.
+    else if (!this.inst && this.tells.length && this.huntOn()) { const d = this.dodgeStep(W.FIELD_REACT); if (d === 'moved') return; this.holdApproach = d === 'hold'; }
     // 조이스틱 — 누르고 있는 동안 그 방향으로 한 칸씩 (막히면 다른 축으로). 그동안은 치지 않는다.
     if (this.joy) {
       this.manual = null;
@@ -2129,6 +2142,32 @@ export class WorldGame {
     for (const d of D.DAILY) while (this.canSweep(d.id, now)) out.push({ kind: d.id, stage: this.dailyBest(d.id), reward: this.sweepDaily(d.id, now) });
     return out;
   }
+  // ---------- 고수 (v148) ----------
+  // 처음 쓰러뜨린 고수마다 영구히 공격력·체력 (고수 +1% · 맹주·천마 +3%)
+  // 이 두목 방의 두목이 쓰는 초식 (보통 지역 두목은 없다)
+  bossSkills() {
+    const m = this.map;
+    if (m.master) return MS.masterOf(m.master)?.skills || null;
+    if (m.king) return MS.KING_SKILLS[m.king.title] || null;
+    return null;
+  }
+  tickBossSkill(dt) {
+    const sk = this.bossSkills();
+    if (!sk) return;
+    const b = this.mons.find((x) => x.isBoss && x.alive && !(x.introT > 0));
+    if (!b || b.stun > 0) return;
+    b.castT = (b.castT ?? 3) - dt;
+    if (b.castT > 0) return;
+    const lord = this.map.lord;
+    b.castT = (lord ? W.FIELD_CAST_LORD : W.FIELD_CAST) * (0.85 + this.rng() * 0.3);
+    const s1 = sk[Math.floor(this.rng() * sk.length)];
+    this.bossCast(b, MS.floorOf(b.lv), lord ? W.FIELD_TELL_LORD : W.FIELD_TELL, [s1.pat], s1.name);
+  }
+  masterBonus() {
+    let b = 0;
+    for (const id of Object.keys(this.s.duel?.won || {})) { const m = MS.masterOf(id); if (m) b += MS.masterBonusOf(m); }
+    return b;
+  }
   // 무한의 탑 — 다음 층에 오른다. chain: 이긴 뒤 이어 오르는 것(등장 연출을 짧게)
   canTower() { return !this.inst && !!this.s.job && this.s.tower.floor < D.TOWER_MAX; }
   startTower(chain = false) {
@@ -2193,8 +2232,7 @@ export class WorldGame {
     } else if ((I.kind === 'tower' || I.kind === 'raid') && m.isBoss) I.done = { ok: true };
   }
   // 수문장 초식: 그 층의 초식 가운데 하나를 골라 바닥에 경고를 깐다 (D.tellDelay초 뒤 터진다)
-  bossCast(b, f, dmgMul = 1) {
-    const pats = D.towerPatterns(f);
+  bossCast(b, f, dmgMul = 1, pats = D.towerPatterns(f), skillName = null) {
     const p = pats[Math.floor(this.rng() * pats.length)];
     const T = D.tellDelay(f);
     const dmg = D.tellDmg(f) * dmgMul;
@@ -2222,7 +2260,7 @@ export class WorldGame {
         break;
       default:
     }
-    this.emit('bossCast', { name: D.TELL_NAMES[p] || p, pat: p, at: b });
+    this.emit('bossCast', { name: skillName || D.TELL_NAMES[p] || p, pat: p, at: b, skill: !!skillName });
   }
   tickTells(dt, st) {
     if (!this.tells.length) return;
@@ -2255,8 +2293,8 @@ export class WorldGame {
     this.tells = this.tells.filter((t) => !t.done);
   }
   // 시험용 자동 피하기: 지금 칸이 경고 안이면 가장 가까운 안전한 칸으로
-  dodgeStep() {
-    const live = this.tells.filter((t) => !(t.wait > 0));
+  dodgeStep(react = 0) {
+    const live = this.tells.filter((t) => !(t.wait > 0) && t.t <= t.max * (1 - react));
     if (!live.length) return null;
     const safe = (c, r) => !live.some((t) => D.tellCovers(t, W.tileCenter(c), W.tileCenter(r)));
     if (safe(this.hc, this.hr)) return 'hold';      // 안전하면 경고가 걷힐 때까지 다가가지 않는다
@@ -2446,6 +2484,14 @@ for (const [fn, key, always] of [
   WorldGame.prototype.killMob = function (m) {
     const r = kill.call(this, m);
     if (m.isBoss && !this.inst) this.mark(this.map.king ? 'king' : 'boss');
+    // 고수를 처음 쓰러뜨리면 (v148): 큰 보상과 영구 공격력·체력
+    if (m.isBoss && !this.inst && this.map.master && !this.s.duel.won[this.map.master]) {
+      const mm = MS.masterOf(this.map.master);
+      this.s.duel.won[mm.id] = 1;
+      this._stats = null;
+      const reward = this.grant(MS.masterReward(mm));
+      this.emit('masterDown', { id: mm.id, title: mm.title, name: mm.name, bonus: MS.masterBonusOf(mm), reward });
+    }
     return r;
   };
   const enter = WorldGame.prototype.enterMap;

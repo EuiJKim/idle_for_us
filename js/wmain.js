@@ -143,7 +143,7 @@ function showTab(name, sub) {
   paintSheet();
   document.querySelectorAll('#tabs button[data-tab]').forEach((b) => b.classList.toggle('active', b.dataset.tab === name));
   if (sub) tabs[name].select?.(sub);
-  tabs[name].shown?.();
+  tabs[name].shown?.(sub);
   tabs[name].update();
   panelRes();
 }
@@ -168,7 +168,7 @@ function buildSkillbar() {
   const all = game.skills();
   advEl = null;
   if (game.canAdvance()) {
-    advEl = h('button', { class: 'skill-btn adv-btn', onclick: () => showTab('town') },
+    advEl = h('button', { class: 'skill-btn adv-btn', onclick: () => showTab('town', 'master') },
       h('b', {}, `${game.s.jobTier + 1}차`), h('div', { class: 'lock' }, '전직하기'));
   }
   skillEls = all.map((sk) => {
@@ -176,7 +176,7 @@ function buildSkillbar() {
     const num = h('div', { class: 'cdn' });
     const lock = h('div', { class: 'lock' });
     const btn = skinImg(h('button', { class: 'skill-btn', 'aria-label': sk.name, onclick: () => {
-      if (sk.tier > game.s.jobTier) return showTab('town');
+      if (sk.tier > game.s.jobTier) return showTab('town', 'master');
       if (!game.useSkill(sk.id)) toast(game.map.town ? '사냥터에서 쓸 수 있어요' : game.heroHp <= game.hpCostOf(sk) + 1 ? '체력이 모자라요' : '아직 숨이 안 돌아왔어요');
     } }, h('span', { class: 'sk-name' }, sk.icon), cd, num, lock), `w-${game.s.job}-${sk.id}`);
     return { sk, btn, cd, num, lock, was: 0 };
@@ -481,6 +481,11 @@ function handleEvents() {
         view.showBanner(`길잡이 ✓ ${ev.title}`, '#bbf7d0', 1.8, '길잡이');
         sfx('loot');
         break;
+      // 고수를 처음 쓰러뜨렸다 (v148)
+      case 'masterDown':
+        view.showBanner(`${ev.title} ${ev.name} 격파`, '#fde68a', 2.4, '고수');
+        toast(`⚔ ${ev.title} ${ev.name}을(를) 처음 쓰러뜨렸어요 — 공격력·체력 +${Math.round(ev.bonus * 100)}% 영구 · ${rewardText(ev.reward)}`);
+        break;
       // 길잡이 선물 (v146) — 해 봐야 하는 것을 그 단계가 뜰 때 준다
       case 'questGift':
         toast(`🎁 길잡이 선물: ${ev.what} — ${ev.title}`);
@@ -574,7 +579,8 @@ function tapAt(e) {
     // 대장장이를 누르면 가방(조합), 다른 사람이면 마을 창
     let near = null;
     for (const m of game.mons) if (m.npc && (!near || Math.hypot(m.x - wx, m.y - 40 - wy) < Math.hypot(near.x - wx, near.y - 40 - wy))) near = m;
-    showTab(near && Math.hypot(near.x - wx, near.y - 40 - wy) < 70 ? near.tab : 'town');
+    const [t, sub] = (near && Math.hypot(near.x - wx, near.y - 40 - wy) < 70 && near.tab ? near.tab : 'town').split('/');
+    showTab(t, sub);
     return;
   }
   game.moveTo(wx, wy);

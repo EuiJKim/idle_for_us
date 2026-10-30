@@ -64,7 +64,7 @@ async function tab(page, name) {
   await shot(p, '01-town.png');
 
   console.log('# 사냥터');
-  await tab(p, 'map/field');
+  await tab(p, 'map/murim');
   assert(await p.locator('#panel .zone-card:has-text("죽림") .area-btn').count() === 4, '지역 카드에 구역 1·2·3·두목');
   // v146: 레벨과 상관없이 들어간다 — 센 곳은 잠그지 않고 '위험'을 붙인다
   const far = p.locator('#panel .zone-card .area-btn.danger').first();
@@ -147,15 +147,15 @@ async function tab(page, name) {
   await tab(p, 'town');
   await sleep(400);   // 시트가 다시 열리는 중이면 누름이 빗나간다
   // 마을 사람 넷 — 전직할 수 있으면 사부가 먼저 열린다
-  assert(await p.isVisible('#panel .npc.on:has-text("사부")'), '전직할 수 있으면 사부가 먼저');
-  await p.click('#panel .npc:has-text("상인")');
+  assert(await p.isVisible('#panel .subtabs button.on[data-key="master"]'), '전직할 수 있으면 사부가 먼저');
+  await p.click('#panel .subtabs button[data-key="shop"]');
   await sleep(200);
   const pot0 = await G(p, () => window.__game.s.potions);
   await p.locator('#panel .buy-grid .buy:has-text("50개")').click();
   assert(await G(p, () => window.__game.s.potions) === pot0 + 50, '물약 50개');
   await p.click('#panel button:has-text("자동 보충")');
   assert(await G(p, () => window.__game.s.autoRefill === true), '물약 자동 보충을 켠다');
-  await p.click('#panel .npc:has-text("사부")');
+  await p.click('#panel .subtabs button[data-key="master"]');
   await sleep(200);
   await p.click('#panel button:has-text("전직하기")');
   const t1 = await G(p, () => ({ tier: window.__game.s.jobTier, name: window.__game.tierName() }));

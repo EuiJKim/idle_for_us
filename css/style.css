@@ -1289,3 +1289,25 @@ details.lore p { margin: 4px 0 0; line-height: 1.5; }
 #tabs button span { font-size: 10px; line-height: 1.1; letter-spacing: -0.6px; }
 #tabs button i.has-art { width: 22px; height: 22px; transform: none; }
 .tabcol { gap: 4px; }
+
+/* v148: 세력 · 고수 비무 · 인물록 */
+.fac-head { border-left: 3px solid var(--fc); }
+.fac-head b { font-size: 16px; color: var(--fc); }
+.master-card { border-left: 3px solid var(--fc); }
+.master-card.lord { box-shadow: 0 0 0 1px color-mix(in srgb, var(--fc) 60%, transparent) inset, 0 0 16px color-mix(in srgb, var(--fc) 25%, transparent); }
+.master-card.locked { opacity: 0.55; }
+.master-card.won .master-name b::after { content: ' ✓'; color: #86efac; }
+.master-top { display: flex; gap: 10px; align-items: center; }
+.master-face { width: 56px; height: 56px; flex: none; border-radius: 10px; background: radial-gradient(circle at 50% 35%, color-mix(in srgb, var(--fc) 35%, #1c1917), #0c0a09); }
+.master-name { flex: 1; min-width: 0; }
+.master-name b { font-size: 15px; }
+.master-name b span { color: var(--fc); }
+.master-name small { display: block; color: var(--muted); font-size: 11px; }
+.master-name .muted { font-size: 11px; margin-top: 2px; }
+.master-story summary, .lore-person summary { cursor: pointer; font-size: 12px; color: var(--muted); }
+.master-story p, .lore-person p { font-size: 12.5px; line-height: 1.55; margin: 6px 0 2px; }
+.master-rw { font-size: 11.5px; color: #fde68a; margin: 6px 0; }
+.lore-person { border-left: 3px solid var(--fc, var(--line)); padding: 10px 12px; }
+.lore-person summary b { font-size: 14px; color: var(--text); }
+.lore-person summary b span { color: var(--fc, var(--accent-2)); }
+.lore-person.won summary { color: #86efac; }

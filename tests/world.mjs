@@ -3,6 +3,7 @@
 import { WorldGame, newWorldSave, migrateWorld } from '../js/world/wgame.js';
 import * as W from '../js/world/wdata.js';
 import * as Q from '../js/world/wquest.js';
+import * as MS from '../js/world/wmaster.js';
 import * as D from '../js/data.js';
 import { fmt } from '../js/fmt.js';
 import fs from 'node:fs';
@@ -291,7 +292,7 @@ console.log('\n=== 재료와 조합 (바람식) ===');
 
 console.log('\n=== 지역·구역·두목 구역 ===');
 {
-  ok(W.ZONES_W.filter(Boolean).length === 33 && W.MAPS.length === 1 + 33 * 4, '지역 33(보통 15 + 새 지역 6 + 십이지왕 12) × 구역 넷(1·2·3·두목)', `${W.MAPS.length - 1}구역`);
+  ok(W.ZONES_W.filter(Boolean).length === 33 + MS.MASTERS.length && W.MAPS.length === 1 + 33 * 4 + MS.MASTERS.length, `지역 33(보통 15 + 새 지역 6 + 십이지왕 12) × 구역 넷 + 고수의 두목 방 ${MS.MASTERS.length}`, `${W.MAPS.length - 1}구역`);
   const g = fresh();
   g.enterMap(W.mapId(1, 1));
   for (let i = 0; i < 20 * 300; i++) { g.tick(0.05); g.events.length = 0; if (g.map.town) g.enterMap(W.mapId(1, 1)); }
@@ -1131,7 +1132,7 @@ console.log('\n=== 길잡이 (v146) ===');
   ok(new Set(ids).size === ids.length && Q.QUEST_COUNT >= 50, `단계가 쉰 남짓이고 이름이 겹치지 않는다`, `${Q.QUEST_COUNT}단계`);
   const TABS = new Set(['char', 'bag', 'map', 'town', 'social', 'comp', 'dgn', null]);
   ok(Q.QUESTS.every((q) => q.title && q.why && TABS.has(q.tab ? q.tab.split('/')[0] : null) && typeof q.goal === 'function'), '모든 단계에 제목·설명·열 화면·조건이 있다');
-  const SUBS = { char: ['info', 'stat', 'skill'], bag: ['gear', 'smith', 'mats'], map: ['field', 'king'], dgn: ['daily', 'tower', 'zodiac', 'raid'], comp: ['pet', 'mount'] };
+  const SUBS = { char: ['info', 'stat', 'skill'], bag: ['gear', 'smith', 'mats'], map: ['murim', 'sapa', 'magyo', 'king'], dgn: ['daily', 'tower', 'zodiac', 'raid'], comp: ['pet', 'mount'], town: ['master', 'shop', 'smith', 'inn'], social: ['guild', 'rank', 'lore'] };
   const badSub = Q.QUESTS.filter((q) => q.tab?.includes('/') && !SUBS[q.tab.split('/')[0]]?.includes(q.tab.split('/')[1])).map((q) => q.id);
   ok(badSub.length === 0, '길잡이가 여는 칸(창/칸)이 실제로 있다', badSub.join(' '));
   const g0 = fresh();
@@ -1179,6 +1180,45 @@ console.log('\n=== 길잡이 (v146) ===');
   const gold6 = g6.s.gold;
   const c6 = g6.questNow();
   ok(g6.s.questV === Q.QUEST_V && c6 && !c6.done && g6.s.gold === gold6, '옛 길잡이 세이브는 이미 찬 단계를 보상 없이 넘고 다음 할 일에 선다', c6?.q.id);
+}
+
+console.log('\n=== 세력과 고수 비무 (v148) ===');
+{
+  // 사냥터: 왕이 아닌 지역이 세 세력에 빠짐없이 한 번씩, 세력마다 낮은 곳부터 높은 곳까지
+  const normal = W.ZONE_ORDER.filter((z) => !z.king && !z.master).map((z) => z.id).sort((a, b) => a - b);
+  const assigned = Object.values(MS.FAC_ZONES).flat().sort((a, b) => a - b);
+  ok(JSON.stringify(normal) === JSON.stringify(assigned), '왕이 아닌 사냥터가 무림맹·사파·마교에 빠짐없이 한 번씩', `${assigned.length}곳`);
+  const spread = Object.entries(MS.FAC_ZONES).map(([f, zs]) => { const lv = zs.map((z) => W.ZONES_W[z].lv[0]); return [f, Math.min(...lv), Math.max(...lv)]; });
+  ok(spread.every(([, lo, hi]) => lo <= 15 && hi >= 79), '세력마다 낮은 곳(15 아래)부터 높은 곳(79 위)까지 섞여 있다', spread.map(([f, lo, hi]) => `${f} ${lo}~${hi}`).join(' · '));
+  // 강함: 마존은 십이지왕급, 맹주는 검왕보다, 천마는 두 맹주보다
+  const kingLv = W.ZONE_ORDER.filter((z) => z.king).map((z) => z.lv);
+  const swordKing = Math.max(...kingLv.map((l) => l[1]));
+  const mazon = MS.mastersOf('magyo').filter((m) => !m.lord);
+  ok(mazon.length === 8 && mazon.every((m) => m.lv >= 99 && m.lv <= swordKing), '팔마존 여덟 — 십이지왕급(99~150)', mazon.map((m) => m.lv).join(' '));
+  const lords = { murim: MS.masterOf('jinpaecheon'), sapa: MS.masterOf('baekjagang'), magyo: MS.masterOf('cheonma') };
+  ok(lords.murim.lv > swordKing && lords.sapa.lv > swordKing && lords.murim.lord && W.LORD_HP > 1, '무림맹주·사도맹주는 검왕보다 세다(레벨 위 · 체력 배수)', `${lords.murim.lv} · ${lords.sapa.lv} > ${swordKing}`);
+  ok(lords.magyo.lv > Math.max(lords.murim.lv, lords.sapa.lv), '천마는 두 맹주보다 세다', `${lords.magyo.lv}`);
+  ok(['murim', 'sapa'].every((f) => MS.mastersOf(f).filter((m) => !m.lord).length === 7), '정파·사파 칠대고수 일곱씩');
+  ok(MS.MASTERS.every((m) => m.story && m.story.length > 40 && m.move && m.look), '고수마다 이야기·독문무공·모습이 있다');
+  ok(['murim', 'sapa', 'magyo'].every((f) => MS.mastersOf(f).every((m, i, a) => !i || m.lv > a[i - 1].lv)), '세력 안에서 고수는 차례로 세진다');
+  // 고수의 두목 방: 졸개가 있고 고수가 다시 난다 · 처음 쓰러뜨리면 영구 +1% · 맹주는 더 단단하다
+  const g = fresh();
+  const room = W.mapId(W.masterZoneOf('namgung'), W.BOSS_AREA);
+  ok(W.mapOf(room).bossRoom && W.mapOf(room).master === 'namgung' && W.mapOf(room).mobs.length >= 2, '고수마다 두목 방(수하 졸개 + 고수)', W.mapOf(room).name);
+  g.enterMap(room);
+  for (let i = 0; i < 80; i++) g.tick(0.05);
+  const boss = g.mons.find((m) => m.isBoss && m.alive);
+  ok(boss && boss.lv === MS.masterOf('namgung').lv && g.mons.some((m) => !m.isBoss && m.alive), '들어가면 고수와 졸개가 있다', `${boss?.name} Lv.${boss?.lv}`);
+  boss.introT = 0; g.freezeT = 0; boss.castT = 0;
+  g.tick(0.05);
+  ok(g.tells.length > 0 && g.events.some((e) => e.type === 'bossCast' && MS.masterOf('namgung').skills.some((k) => k.name === e.name)), '고수가 설정의 독문무공으로 바닥 경고를 깐다', g.events.filter((e) => e.type === 'bossCast').map((e) => e.name).join(' '));
+  const atk0 = g.stats().atk;
+  g.hurt(boss, boss.hp + 1, 'hit', false);
+  g._stats = null;
+  ok(g.s.duel.won.namgung && g.stats().atk > atk0 && g.events.some((e) => e.type === 'masterDown'), '처음 쓰러뜨리면 영구 공격력·체력 +1%');
+  ok(Object.values(MS.KING_SKILLS).length === 12 && W.ZONE_ORDER.filter((z) => z.king).every((z) => MS.KING_SKILLS[z.king.title]?.length >= 2), '십이지왕 열둘 모두 설정의 초식이 있다');
+  const lordRoom = W.mapOf(W.mapId(W.masterZoneOf('jinpaecheon'), W.BOSS_AREA));
+  ok(lordRoom.lord && !W.mapOf(room).lord, '맹주·천마의 방은 우두머리가 더 단단하다');
 }
 
 console.log('\n=== 숫자 표기 ===');
