@@ -3046,12 +3046,27 @@ export class BattleView {
     const { ctx } = this;
     for (const p of this.particles) {
       p.life -= dt;
-      // 흙먼지는 떨어지지 않고 퍼지며 느려진다
-      if (p.dust) { p.vx *= 1 - dt * 3; p.vy *= 1 - dt * 3; p.size += dt * 16; } else p.vy += 520 * dt;
-      p.x += p.vx * dt;
-      p.y += p.vy * dt;
-      if (p.ingot && p.y > this.groundY) { p.y = this.groundY; p.vy *= -0.35; p.vx *= 0.6; }
-      ctx.globalAlpha = Math.max(0, Math.min(1, p.life / 0.4)) * (p.dust ? 0.45 : 1);
+      // v210: 은자 덩이는 튀고 한 번 튕긴 뒤(0.45초) 무인에게 빨려 든다 — 닿으면 반짝하고 사라진다
+      if (p.ingot && p.life < 0.55 && !p.home) { p.home = true; p.life = 0.8; }
+      if (p.home) {
+        const tx = this.heroX, ty = this.groundY - 56;
+        const dx = tx - p.x, dy = ty - p.y, d = Math.hypot(dx, dy) || 1;
+        p.hv = Math.min(1400, (p.hv || 120) + 2600 * dt);
+        p.vx += (dx / d * p.hv - p.vx) * Math.min(1, dt * 10);
+        p.vy += (dy / d * p.hv - p.vy) * Math.min(1, dt * 10);
+        p.x += p.vx * dt; p.y += p.vy * dt;
+        if (d < 16) {
+          p.life = 0;
+          if (this.fxLevel > 0 && (this._glintT || 0) <= this.t) { this._glintT = this.t + 0.06; this.sparks.push({ x: tx + (Math.random() - 0.5) * 10, y: ty, life: 0.18, max: 0.18, r: 16, color: '#f1f5f9' }); }
+        }
+      } else {
+        // 흙먼지는 떨어지지 않고 퍼지며 느려진다
+        if (p.dust) { p.vx *= 1 - dt * 3; p.vy *= 1 - dt * 3; p.size += dt * 16; } else p.vy += 520 * dt;
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+      }
+      if (p.ingot && !p.home && p.y > this.groundY) { p.y = this.groundY; p.vy *= -0.35; p.vx *= 0.6; }
+      ctx.globalAlpha = p.home ? 1 : Math.max(0, Math.min(1, p.life / 0.4)) * (p.dust ? 0.45 : 1);
       if (p.ingot) {
         ctx.fillStyle = '#d1d5db';
         ctx.beginPath(); ctx.moveTo(p.x - 7, p.y - 4); ctx.quadraticCurveTo(p.x, p.y + 6, p.x + 7, p.y - 4); ctx.lineTo(p.x + 4, p.y - 1); ctx.lineTo(p.x - 4, p.y - 1); ctx.fill();
