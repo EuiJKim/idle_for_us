@@ -14,6 +14,7 @@ import * as D from './world/wdgn.js';
 import { QUEST_COUNT } from './world/wquest.js';
 import { fmt, duration } from './fmt.js';
 import { sfx, unlockAudio, setSound, soundOn } from './sfx.js';
+import * as AM from './appmode.js';
 loadIcons();
 for (const b of document.querySelectorAll('#tabs button[data-tab]')) skinImg(b.querySelector('i'), `tab-${b.dataset.tab}`);
 
@@ -740,6 +741,49 @@ function checkReturn(now = Date.now()) {
   }, { dismissable: false, onClose: () => { game.claimOffline(rw); save(); refreshUI(true); } });
 }
 
+// ---------- 앱처럼 (v159): 설치 · 전체 화면 · 절전 ----------
+const saverName = (m) => (m ? `${m}분 뒤` : '끔');
+const saver = new AM.Saver($('app'), () => {
+  const s = game.s;
+  const r = game.rates();
+  const st = game.stats();
+  const d = new Date();
+  return [
+    [null, `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`, true],
+    ['', `Lv.${s.level} ${s.nickname || ''}`],
+    ['사냥터', game.inst ? '던전' : W.mapOf(s.huntMap)?.name || ''],
+    ['체력', `${Math.round((game.heroHp / st.hp) * 100)}%`],
+    ['경험치', `${((s.exp / game.expNeed()) * 100).toFixed(1)}%${r ? ` · 시간당 +${((r.exp * 3600 / game.expNeed()) * 100).toFixed(0)}%` : ''}`],
+    ['은자', `${fmt(s.gold)}${r ? ` · 시간당 +${fmt(r.gold * 3600)}` : ''}`],
+    ['처치', r ? `분당 ${(r.kills * 60).toFixed(0)}마리` : '-'],
+    ['물약', `${s.potions}개`],
+  ];
+});
+$('btn-saver').addEventListener('click', () => saver.enter());
+const fsBtn = $('btn-fs');
+if (!AM.isStandalone() && AM.canFullscreen()) fsBtn.classList.remove('hidden');
+fsBtn.addEventListener('click', () => AM.toggleFullscreen());
+// 설정 창의 '앱으로' 줄 — 설치할 수 있으면 설치, 아이폰은 홈 화면에 추가 안내, 이미 앱이면 안내만
+function appRow() {
+  const desc = AM.isStandalone() ? '앱으로 열려 있어요 — 주소창 없이 전체 화면'
+    : AM.canInstall() ? '홈 화면에 아이콘이 생기고, 누르면 주소창 없이 전체 화면으로 열려요'
+      : AM.isIOS() ? '사파리 아래 공유 단추(□↑) → "홈 화면에 추가" → 홈 화면 아이콘으로 열면 전체 화면이에요'
+        : '브라우저 메뉴(⋮) → "앱 설치" 또는 "홈 화면에 추가"';
+  const btn = AM.canInstall() ? h('button', { class: 'btn primary', style: 'padding:6px 12px', onclick: async () => { if (await AM.install()) toast('설치했어요 — 홈 화면 아이콘으로 열어 보세요'); } }, '설치')
+    : !AM.isStandalone() && AM.canFullscreen() ? h('button', { class: 'btn', style: 'padding:6px 12px', onclick: () => AM.toggleFullscreen() }, '전체 화면') : h('span');
+  return h('div', { class: 'row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, '앱으로 쓰기'), h('div', { class: 'desc' }, desc)), btn);
+}
+// 처음 몇 번은 들판 위에 설치 안내 한 줄 (브라우저로 열었을 때만)
+function maybeInstallHint() {
+  if (AM.isStandalone() || AM.hintClosed() || !game.s.job || navigator.webdriver) return;
+  const bar = h('div', { class: 'install-bar' },
+    h('span', {}, AM.isIOS() ? '공유(□↑) → "홈 화면에 추가"하면 앱처럼 전체 화면' : '앱으로 설치하면 주소창 없이 전체 화면'),
+    AM.canInstall() ? h('button', { class: 'btn primary', onclick: async () => { await AM.install(); bar.remove(); AM.closeHint(); } }, '설치') : null,
+    h('button', { class: 'btn', onclick: () => { bar.remove(); AM.closeHint(); } }, '닫기'));
+  $('app').append(bar);
+}
+setTimeout(maybeInstallHint, 8000);
+
 // ---------- 설정 ----------
 function toggleRow(label, on, desc, onChange) {
   const btn = h('button', { class: `btn ${on ? 'good' : ''}`, style: 'padding:6px 12px;min-width:62px' }, on ? '켜짐' : '꺼짐');
@@ -752,6 +796,12 @@ function toggleRow(label, on, desc, onChange) {
   return h('div', { class: 'row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, label), h('div', { class: 'desc' }, desc)), btn);
 }
 $('btn-settings').addEventListener('click', () => openModal((s) => {
+  const saverBtn = h('button', { class: 'btn', style: 'padding:6px 12px' }, saverName(AM.saverMins()));
+  saverBtn.onclick = () => {
+    const i = (AM.SAVER_MINS.indexOf(AM.saverMins()) + 1) % AM.SAVER_MINS.length;
+    AM.setSaverMins(AM.SAVER_MINS[i]);
+    saverBtn.textContent = saverName(AM.SAVER_MINS[i]);
+  };
   const fxBtn = h('button', { class: 'btn', style: 'padding:6px 12px' }, FX_NAME[FX_PREF[view.fxPref]]);
   fxBtn.onclick = () => {
     view.fxPref = (view.fxPref + 2) % 3;
@@ -771,6 +821,8 @@ $('btn-settings').addEventListener('click', () => openModal((s) => {
       try { localStorage.setItem('ifu.range', v ? '1' : '0'); } catch { /* 이번만 */ }
     }),
     h('div', { class: 'row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, '연출'), h('div', { class: 'desc' }, '폰이 버거우면 낮춰요')), fxBtn),
+    h('div', { class: 'row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, '절전 화면'), h('div', { class: 'desc' }, '손대지 않으면 검은 화면에 숫자만 — 화면은 켜 둔 채 사냥은 계속돼요. 들판의 🌙로 바로 들어가요')), saverBtn),
+    appRow(),
     h('div', { class: 'btn-row', style: 'margin-top:8px' },
       h('button', { class: 'btn', onclick: () => { closeModal(); askNickname(false); } }, '이름 바꾸기'),
       h('button', { class: 'btn', onclick: () => hardReload() }, '새로 받기')),
@@ -802,12 +854,14 @@ let uiTimer = 0;
 let saveTimer = 0;
 let loopErr = 0;
 function frame(now) {
-  try { step(now); } catch (e) {
+  try { step(now ?? performance.now()); } catch (e) {
     if (loopErr++ < 5) console.error('[프레임]', e);
     // 그리다 멈추면 캔버스 상태(변환·투명도·합성)가 어긋난 채로 남아 다음 프레임부터 화면이 깨진다 — 되돌린다
     try { view.ctx.reset?.(); view.ctx.globalAlpha = 1; view.ctx.globalCompositeOperation = 'source-over'; view.ctx.shadowBlur = 0; view.applyZoom(); } catch { /* 무시 */ }
   }
-  requestAnimationFrame(frame);
+  // 절전 중에는 1초에 다섯 번만 (그리지 않는다)
+  if (saver.on) setTimeout(() => frame(performance.now()), 200);
+  else requestAnimationFrame(frame);
 }
 function step(now) {
   let dt = (now - last) / 1000;
@@ -819,10 +873,11 @@ function step(now) {
   coop.tick(dt);
   view.game = game;
   handleEvents();
-  view.draw(game, dt);
+  saver.tick(dt, !!game.s.job && !modalOpen() && !game.map.town);
+  if (!saver.on) view.draw(game, dt);
   uiTimer += dt;
   saveTimer += dt;
-  if (uiTimer > 0.2) { uiTimer = 0; refreshUI(); }
+  if (uiTimer > 0.2 && !saver.on) { uiTimer = 0; refreshUI(); }
   if (saveTimer > 5) { saveTimer = 0; save(); net.pushProfile(); }
 }
 
