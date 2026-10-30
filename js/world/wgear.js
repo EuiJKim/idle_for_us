@@ -151,7 +151,9 @@ export function setBonusText(b) {
 
 // ---------- 레벨 100 (왕의 장비) ----------
 export const KING_ILV = 100;
-export const KING_MULT = 6.5;          // 사다리 끝(천외천 상급, ×5.2)보다 조금 세다 — 그다음은 강화·돌파·승급·세트 효과
+// v171: 6.5 → 10. 성장 장비가 레벨 100에 ×8.6(growMult)이 되면서 세트·왕의 장비가 같은 등급·강화에서 성장 장비보다 약했다.
+// 이제 직업 세트·왕의 장신구 ×10(성장 장비의 1.16배) · 맹주 세트 ×12.5(1.45배) · 천마신장 ×15(1.74배) — 세트 효과는 따로.
+export const KING_MULT = 10;
 export const KING_LV = 99;             // 이 레벨부터 만든다
 const SET_MATS = { weapon: 120, armor: 90, hat: 70, glove: 70, shoe: 70 };
 const SET_MARKS = { weapon: 6, armor: 5, hat: 4, glove: 4, shoe: 4 };
@@ -198,7 +200,7 @@ export const LORD_SETS = [
   { id: 'sadocheon', job: null, lord: 'ls', fac: ['sapa'], name: '사도천패', short: '사도', col: '#ef4444', mult: 1.25,
     lore: '사도맹주 백자강의 흑패로 짠 갑주. 의심 많은 자의 칼처럼 빈틈이 없고, 한 번 물면 놓지 않는다.',
     bonus: { 2: { crit: 0.1, critDmg: 0.3 }, 3: { speed: 0.15, atkPct: 0.15 }, 5: { bossDmg: 0.4, critDmg: 0.5, drain: 0.02 } } },
-  { id: 'cheonmaset', job: null, lord: 'lc', fac: ['murim', 'sapa', 'magyo'], name: '천마신장', short: '천마', col: '#dc2626', mult: 1.45,
+  { id: 'cheonmaset', job: null, lord: 'lc', fac: ['murim', 'sapa', 'magyo'], name: '천마신장', short: '천마', col: '#dc2626', mult: 1.5,
     lore: '천마 검우진의 피를 머금은 혈옥과 세 세력의 재료로 빚었다. 구화마공 십이성의 기운이 흐른다 — 무림에서 가장 센 세트.',
     bonus: { 2: { atkPct: 0.25, hpPct: 0.15 }, 3: { skill: 0.35, crit: 0.1 }, 5: { atkPct: 0.3, bossDmg: 0.5, drain: 0.03, dmgRed: 0.12, cdr: 0.15 } } },
 ];
