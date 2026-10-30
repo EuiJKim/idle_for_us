@@ -1671,5 +1671,28 @@ console.log('\n=== 숫자 표기 ===');
   ok(wrong.length === 0, '1억 아래는 쉼표, 그 위는 알파벳', wrong.join(', ') || table.map(([n]) => fmt(n)).join(' '));
 }
 
+
+console.log('\n=== 던전 루틴 (v230) ===');
+{
+  const g = fresh();
+  while (g.s.level < 30) g.addExp(W.expToNext(g.s.level));
+  g.s.dgn.routine = true;
+  const n1 = g.routineNext();
+  ok(n1 && n1.step === 'daily', '루틴은 요일 던전부터', JSON.stringify(n1));
+  // 요일 던전을 다 쓰면 탑
+  const today = g.dgnToday();
+  const DG = await import('../js/world/wdgn.js');
+  for (const d of DG.DAILY) today.used[d.id] = DG.DAILY_ENTRIES + 9;
+  const n2 = g.routineNext();
+  ok(n2 && n2.step === 'tower', '요일 던전을 다 돌면 무한의 탑', JSON.stringify(n2));
+  // 탑에서 막히면 전투력이 오를 때까지 안 간다
+  g.s.tower.failPow = g.stats().power * 2;
+  ok(g.routineNext() === null, '탑에서 막힌 뒤엔 더 세질 때까지 사냥');
+  // 저장 — 자동·루틴이 다시 들어와도 켜져 있다
+  g.s.dgn.auto = true;
+  const m = migrateWorld(JSON.parse(JSON.stringify(g.s)));
+  ok(m.dgn.auto === true && m.dgn.routine === true && m.tower.failPow > 0, '자동 도전·루틴·탑 막힘이 저장된다 (전엔 자동 도전이 늘 꺼졌다)');
+}
+
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);

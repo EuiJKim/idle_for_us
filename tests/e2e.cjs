@@ -114,9 +114,9 @@ async function tab(page, name) {
   assert(await G(p, () => ['weapon', 'armor', 'hat', 'glove', 'shoe', 'acc'].every((k) => window.__game.s.equip[k]?.grow)), '여섯 칸 성장 장비를 끼고 시작한다');
   await tab(p, 'bag');
   await p.click('#panel .subtabs button[data-key="smith"]');
-  await p.waitForSelector('#panel .grow-row');
-  assert(await p.locator('#panel .grow-row').count() === 6, '대장장이에 성장 장비 여섯 칸');
-  await p.locator('#panel .grow-row button.buy').first().click();
+  await p.waitForSelector('#panel .grow-card');
+  assert(await p.locator('#panel .grow-card').count() === 6, '대장장이에 성장 장비 여섯 칸');
+  await p.locator('#panel .grow-card').first().click();
   // v207: 장비 창은 칸으로 나뉜다 — 각인 칸
   await p.click('#modal .item-tab:has-text("각인")');
   await p.waitForSelector('#modal .inf-box');

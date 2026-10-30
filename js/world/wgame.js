@@ -59,7 +59,7 @@ export function newWorldSave(now = Date.now()) {
     deaths: 0,
     bestMap: W.mapId(1, 1),
     // 요일 던전 (v126): 오늘 쓴 횟수 · 종류별 깬 단계 · 자동 도전(v139)
-    dgn: { day: '', used: {}, best: {}, auto: false },
+    dgn: { day: '', used: {}, best: {}, auto: false, routine: false },   // routine(v230): 요일 던전 → 탑 → 사냥터
     tower: { floor: 0, auto: true },         // 무한의 탑: 오른 층 · 이기면 이어 오르기
     zTickets: {},                            // 십이지 뽑기권 — 신 번호(1~12): 장수
     zPity: {},                               // 신마다 신수 없이 뽑은 횟수 (셋째에 꼭)
@@ -140,7 +140,10 @@ export function migrateWorld(raw, now = Date.now()) {
   }
   const tw = raw.tower && typeof raw.tower === 'object' ? raw.tower : {};
   s.tower = { floor: clamp(Math.floor(Number(tw.floor) || 0), 0, D.TOWER_MAX), auto: tw.auto !== false };
-  s.dgn.auto = !!s.dgn.auto;
+  // v230: 전에는 s.dgn을 새로 짜며 auto를 빼먹어 다시 들어오면 늘 꺼져 있었다
+  s.dgn.auto = !!dg.auto;
+  s.dgn.routine = !!dg.routine;
+  s.tower.failPow = Math.max(0, Number(tw.failPow) || 0);
   s.quest = clamp(Math.floor(Number(s.quest) || 0), 0, Q.QUEST_COUNT);
   s.did = raw.did && typeof raw.did === 'object' ? { ...raw.did } : {};
   s.duel = { won: { ...(raw.duel?.won || {}) } };
@@ -611,9 +614,9 @@ export class WorldGame {
     if (this.inst?.done) this.finishInst();
     // 자동 도전 — 들판에 있는 동안 열린 요일 던전이 있으면 알아서 들어간다.
     // 매 틱 보면 비싸므로 몇 초에 한 번만 본다.
-    if (this.s.dgn.auto && !this.inst) {
+    if ((this.s.dgn.auto || this.s.dgn.routine) && !this.inst) {
       this.autoDgnT = (this.autoDgnT || 0) - dt;
-      if (this.autoDgnT <= 0) { this.autoDgnT = AUTO_DGN_SEC; this.startAutoDaily(); }
+      if (this.autoDgnT <= 0) { this.autoDgnT = AUTO_DGN_SEC; this.startRoutine(); }
     }
     const st = this.stats();
     for (const k in this.cd) this.cd[k] = Math.max(0, this.cd[k] - dt);
@@ -2524,12 +2527,29 @@ export class WorldGame {
   // **갈 수 있는 가장 높은 단계로 간다.** 낮은 단계를 돌면 횟수만 쓰고
   // 깬 단계가 안 오른다 — 자동이 사람보다 못하면 켤 이유가 없다.
   autoDailyNext(now = Date.now()) {
-    if (!this.s.dgn.auto || this.inst || !this.s.job) return null;
+    if (!(this.s.dgn.auto || this.s.dgn.routine) || this.inst || !this.s.job) return null;
     for (const d of D.DAILY) {
       const stage = this.dailyMaxStage(d.id);
       if (this.canDaily(d.id, stage, now)) return { kind: d.id, stage };
     }
     return null;
+  }
+  // ---------- 던전 루틴 (v230) ----------
+  // 켜 두면: 열린 요일 던전을 모두(가장 높은 단계로) → 무한의 탑을 못 오를 때까지 → 사냥터로.
+  // 탑에서 막히면 그때 전투력을 적어 두고, 전투력이 5% 넘게 오를 때까지는 다시 안 간다(같은 층에서 헛돌지 않게).
+  towerRetryOk() { return this.stats().power >= (this.s.tower.failPow || 0) * 1.05; }
+  routineNext(now = Date.now()) {
+    if (!this.s.dgn.routine || this.inst || !this.s.job) return null;
+    const d = this.autoDailyNext(now);
+    if (d) return { step: 'daily', ...d };
+    if (this.canTower() && this.towerRetryOk()) return { step: 'tower' };
+    return null;
+  }
+  startRoutine(now = Date.now()) {
+    const nx = this.routineNext(now);
+    if (nx?.step === 'tower') return this.startTower(false);
+    if (nx) return this.startDaily(nx.kind, nx.stage, now);
+    return this.startAutoDaily(now);
   }
   startAutoDaily(now = Date.now()) {
     const nx = this.autoDailyNext(now);
@@ -2820,6 +2840,8 @@ export class WorldGame {
         I.gotKey = true;
       }
       if (ok) this.s.dgn.best[I.id] = Math.max(this.dailyBest(I.id), I.stage);
+    } else if (I.kind === 'tower' && !ok) {
+      this.s.tower.failPow = this.stats().power;      // v230: 루틴이 같은 층에서 헛돌지 않게(그만둬도 — 다시 끌려 들어가지 않게)
     } else if (I.kind === 'tower' && ok) {
       this.s.tower.floor = Math.max(this.s.tower.floor, I.stage);
       this._stats = null;
@@ -2837,7 +2859,7 @@ export class WorldGame {
       kills: I.kills || 0, target: I.target || 0, reward, chain: false };
     this.inst = null;
     // 탑: 이기고 '이어 오르기'면 다음 층으로
-    if (I.kind === 'tower' && ok && this.s.tower.auto && !I.done.left && this.canTower()) {
+    if (I.kind === 'tower' && ok && (this.s.tower.auto || this.s.dgn.routine) && !I.done.left && this.canTower()) {
       res.chain = true;
       this.emit('instEnd', res);
       this.startTower(true);
@@ -2856,6 +2878,13 @@ export class WorldGame {
       res.chain = true;
       this.emit('instEnd', res);
       this.startAutoDaily();
+      return res;
+    }
+    // v230: 루틴 — 요일 던전을 다 돌았으면 탑으로 (끝나면 아래에서 사냥터로)
+    if (this.s.dgn.routine && I.kind === 'daily' && !I.done?.left && this.routineNext()?.step === 'tower') {
+      res.chain = true;
+      this.emit('instEnd', res);
+      this.startTower(true);
       return res;
     }
     this.emit('instEnd', res);

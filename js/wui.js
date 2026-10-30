@@ -78,6 +78,23 @@ export function itemTitle(game, it) {
   const ln = it.line ? LN.lineOf(it.line) : null;
   return `${ln && ln.id !== 'base' ? `[${ln.name}] ` : ''}${W.itemName(it, game.s.job)}${it.plus ? ` +${it.plus}` : ''}`;
 }
+// v230: 장비 아이콘 — 칸 그림(무기·옷·모자…)을 등급 빛깔 테두리 안에. 가방·대장장이에서 글 대신 그림으로 고른다
+function itemIcon(it, size = 44) {
+  const g = gradeOf(it);
+  return skinImg(h('span', { class: `it-ico${it.rar === 3 ? ' mythic' : ''}`, style: `--gc:${g.color};width:${size}px;height:${size}px` }), `slot-${it.slot}`);
+}
+// 가방 칸 — 그림 하나 + 강화 수치 · 낀 것보다 좋은지 화살표 · 이름 한 줄
+function itemTile(game, it, d, onclick) {
+  const g = gradeOf(it);
+  const up = d > 0.005, down = d < -0.005;
+  return h('button', { class: `inv-tile${it.rar === 3 ? ' mythic' : ''}${it.set ? ' set' : ''}${up ? ' up' : ''}`, style: `--gc:${g.color}`, onclick },
+    itemIcon(it, 46),
+    it.plus ? h('i', { class: 'inv-plus' }, `+${it.plus}`) : null,
+    up ? h('i', { class: 'inv-d up' }, '▲') : down ? h('i', { class: 'inv-d down' }, '▼') : null,
+    it.set ? h('i', { class: 'inv-set' }, '세트') : null,
+    h('b', {}, itemTitle(game, it)),
+    h('small', {}, `Lv.${it.ilv} · ${g.name}`));
+}
 function itemChip(game, it, extra = {}, withOpts = false) {
   const g = gradeOf(it);
   const u = game.itemUnique(it);
@@ -582,12 +599,9 @@ function bagTab(app) {
     const list = s.bag.filter((it) => ui.slot === 'all' || it.slot === ui.slot)
       .map((it) => ({ it, d: vsWorn(it) }))
       .sort((a, b) => (b.d > 0.005) - (a.d > 0.005) || b.d - a.d || game.itemScore(b.it) - game.itemScore(a.it));
-    const cards = list.map(({ it, d }) => {
-      const chip = itemChip(game, it, { onclick: () => openItem(it, false) });
-      chip.prepend(h('div', { class: 'chip-top' }, h('small', {}, SLOT_SHORT[it.slot]), deltaTag(d)));
-      if (d > 0.005) chip.append(h('button', { class: 'btn primary mini', onclick: (e) => { e.stopPropagation(); game.equipFromBag(it.uid); toast(`${itemTitle(game, it)}을(를) 꼈어요`); done(); } }, '끼기'));
-      return chip;
-    });
+    // v230: 글 줄 대신 그림 칸 넷씩 — 누르면 자세히(끼기·팔기·강화)
+    const cards = list.map(({ it, d }) => itemTile(game, it, d, () => openItem(it, false)));
+    const better = list.filter((x) => x.d > 0.005);
     const old = s.bag.filter((x) => s.equip[x.slot] && game.itemScore(x) < game.itemScore(s.equip[x.slot]) && !x.plus && !(x.rar >= 2));
     const setNow = Object.entries(game.setCounts()).map(([id, n]) => ({ st: G.setOf(id), n })).filter((x) => x.st);
     // v150: 착용 | 가방을 칸으로 나눴다 — 한 화면에 낀 것·세트·가방·버튼이 다 있어 복잡했다
@@ -600,7 +614,12 @@ function bagTab(app) {
       h('div', { class: 'card' },
         h('h3', {}, '가방', h('small', {}, `${s.bag.length} / ${s.bagSize} · 넘치면 가장 나쁜 것부터 팔아요`)),
         chips,
-        cards.length ? h('div', { class: 'bag-grid' }, ...cards) : h('p', { class: 'muted' }, ui.slot === 'all' ? '가방이 비었어요. 대장장이가 만든 장비는 낀 것보다 좋으면 바로 껴요.' : '이 칸 장비가 가방에 없어요.'),
+        better.length ? h('button', { class: 'btn primary', style: 'width:100%;margin:6px 0', onclick: () => {
+          let n = 0;
+          for (const { it } of better) { const cur = s.equip[it.slot]; if (!cur || game.itemScore(it) > game.itemScore(cur)) { game.equipFromBag(it.uid); n++; } }
+          toast(`더 좋은 장비 ${n}개를 꼈어요`); done();
+        } }, `▲ 더 좋은 것 모두 끼기 (${better.length})`) : null,
+        cards.length ? h('div', { class: 'inv-grid' }, ...cards) : h('p', { class: 'muted' }, ui.slot === 'all' ? '가방이 비었어요. 대장장이가 만든 장비는 낀 것보다 좋으면 바로 껴요.' : '이 칸 장비가 가방에 없어요.'),
         h('div', { class: 'btn-row' },
           h('button', { class: 'btn', disabled: old.length ? null : true, onclick: () => {
             let p = 0;
@@ -642,13 +661,21 @@ function bagTab(app) {
       const worn = s.equip[sl] === it;
       const g = gradeOf(it);
       const canInf = marks.some((k) => game.canInfuse(it, k));
-      return h('div', { class: `row craft-row grow-row${canInf || game.canEnhance(it) ? ' ready' : ''}` },
-        h('div', { class: 'info' },
-          h('div', { class: 'name', style: `color:${g.color}` }, itemTitle(game, it), h('small', {}, ` Lv.${it.ilv} · ${g.name}${it.line ? ` · ${LN.lineOf(it.line).name}` : ''}${worn ? '' : ' · 가방에 있음'}`)),
-          h('div', { class: 'desc' }, itemLines(game, it)),
-          h('div', { class: 'desc' }, [game.canEnhance(it) ? '강화 가능' : null, canInf ? '등급 각인 가능' : null, it.pity ? `쌓인 각인 확률 +${pct(it.pity, 0)}p` : null].filter(Boolean).join(' · ') || ' ')),
-        h('button', { class: 'buy', onclick: () => openItem(it, worn) }, '키우기'));
+      // v230: 글 줄 대신 그림 카드 둘씩 — 할 수 있는 것은 초록 딱지로
+      const canE = game.canEnhance(it);
+      return h('button', { class: `grow-card${canInf || canE ? ' ready' : ''}`, style: `--gc:${g.color}`, onclick: () => openItem(it, worn) },
+        h('div', { class: 'gc-top' }, itemIcon(it, 50),
+          h('div', { class: 'gc-txt' },
+            h('small', {}, `${SLOT_SHORT[it.slot]} · ${g.name}`),
+            h('b', {}, itemTitle(game, it)),
+            h('small', {}, `Lv.${it.ilv}${worn ? '' : ' · 가방'}`))),
+        h('div', { class: 'gc-stat' }, itemLines(game, it).split(' · ')[0]),
+        h('div', { class: 'gc-tags' },
+          canE ? h('span', { class: 'ok' }, '강화') : h('span', {}, '강화'),
+          canInf ? h('span', { class: 'ok' }, '각인') : h('span', {}, '각인'),
+          it.pity ? h('span', { class: 'pity' }, `천장 +${pct(it.pity, 0)}p`) : null));
     }).filter(Boolean);
+    const markRow = marks.length ? h('div', { class: 'mat-row' }, ...marks.sort((a, b) => W.markLv(b) - W.markLv(a)).map((k) => matChip(app, k, W.matName(k), s.mats[k]))) : null;
     smithRoot.replaceChildren(modes,
       h('div', { class: 'card' },
         h('h3', {}, '성장 장비', h('small', {}, `레벨을 따라 자란다 · ${W.ILV_CAP}까지`)),
@@ -657,8 +684,9 @@ function bagTab(app) {
           h('p', {}, '강화: 그 레벨 지역 재료 + 은자. +7까지는 실패해도 그대로, +8~10은 -1, +11부터 -2(보호부를 쓰면 그대로). 실패할수록 다음 확률이 올라요(천장). 장비는 사라지지 않아요.'),
           h('p', {}, `등급 각인: 어느 두목의 증표든 넣어 레어→유니크→전설→신화. 센 두목의 증표일수록 잘 붙고(×${W.INFUSE_F_MIN}~×${W.INFUSE_F_MAX}), 실패하면 다음 확률이 쌓여 언젠가는 반드시 붙어요. 오르면 등급 옵션이 새로 붙어요.`),
           h('p', {}, `${W.ILV_CAP}부터는 세트·왕의 장비를 만들어요.`)),
-        h('p', { class: 'muted' }, marks.length ? `가진 두목 증표 ${marks.length}가지 · 모두 ${fmt(marks.reduce((a, k) => a + s.mats[k], 0))}개` : '두목 증표가 없어요 — 두목 구역·고수의 두목 방에서 모아요.')),
-      h('div', { class: 'card' }, ...rows));
+        marks.length ? h('small', { class: 'muted' }, '가진 두목 증표 — 등급 각인에 넣어요 (센 두목 것일수록 잘 붙어요)') : h('p', { class: 'muted' }, '두목 증표가 없어요 — 두목 구역·고수의 두목 방에서 모아요.'),
+        markRow),
+      h('div', { class: 'grow-grid' }, ...rows));
   }
 
   // ----- 세트 (레벨 99부터) -----
@@ -788,10 +816,17 @@ function bagTab(app) {
 }
 
 // 누를 수 있는 재료 알약
+// v230: 재료 그림 — 빛깔 보석 안에 갈래 글자(재료 材 · 두목 증표 證 · 강화석 石 · 세력 재료 勢 · 맹주의 패 牌)
+export function matKind(key) {
+  const k = String(key);
+  return G.isLordMat(k) ? '牌' : LN.isFacMat(k) ? '勢' : G.isStoneKey(k) ? '石' : W.isMarkKey(k) ? '證' : '材';
+}
+export const matIcon = (key, size = 40) => h('span', { class: `mat-ico k-${matKind(key)}`, style: `--mc:${W.matColor(key)};width:${size}px;height:${size}px;font-size:${Math.round(size * 0.42)}px` }, matKind(key));
+// 누르면 어디서 나오는지 · 데려다 준다. 0개는 흐리게.
 export const matChip = (app, key, label, n) => h('button', {
-  class: 'mat-chip tap', style: `--mc:${W.matColor(key)}`,
+  class: `mat-chip tap${n ? '' : ' none'}`, style: `--mc:${W.matColor(key)}`,
   onclick: () => openMatWhere(app, key),
-}, h('b', {}, label), h('small', {}, fmt(n)));
+}, matIcon(key), h('b', {}, fmt(n)), h('small', {}, label));
 
 // ---------- 재료가 어디서 나오나 (v141) ----------
 // 재료 열쇠에서 지역과 '어디를 쳐야 하나'를 읽는다.
@@ -1142,9 +1177,27 @@ function dgnTab(app) {
     const dAuto = h('input', { type: 'checkbox' });
     dAuto.checked = !!s.dgn.auto;
     dAuto.onchange = () => { s.dgn.auto = dAuto.checked; app.save(); rerender(); };
+    // v230: 던전 루틴 — 요일 던전 모두 → 무한의 탑 → 사냥터. 켜 두면 방치 중에도 알아서 돈다.
+    const leftAll = D.DAILY.reduce((a, d) => a + (D.dailyOpen(d, now) ? game.dailyLeft(d.id, now) : 0), 0);
+    const twOk = game.canTower() && game.towerRetryOk();
+    const step = (ico, label, sub, on) => h('div', { class: `rt-step${on ? ' on' : ''}` }, h('i', {}, ico), h('b', {}, label), h('small', {}, sub));
+    const routine = h('div', { class: `card rt-card${s.dgn.routine ? ' on' : ''}` },
+      h('div', { class: 'rt-head' },
+        h('div', {}, h('b', {}, '🔁 던전 루틴'), h('small', { class: 'muted' }, ' 켜 두면 방치 중에도 알아서 돌아요')),
+        h('button', { class: `btn ${s.dgn.routine ? 'good' : 'primary'}`, onclick: () => {
+          s.dgn.routine = !s.dgn.routine; app.save(); rerender();
+          toast(s.dgn.routine ? '던전 루틴을 켰어요 — 요일 던전 → 탑 → 사냥터' : '던전 루틴을 껐어요');
+          if (s.dgn.routine && game.routineNext()) start(() => game.startRoutine());
+        } }, s.dgn.routine ? '켜짐' : '켜기')),
+      h('div', { class: 'rt-steps' },
+        step('日', '요일 던전', leftAll ? `${leftAll}번 남음` : '오늘 끝', leftAll > 0),
+        h('span', { class: 'rt-arrow' }, '›'),
+        step('塔', '무한의 탑', game.s.tower.floor >= D.TOWER_MAX ? '끝까지' : twOk ? `${game.s.tower.floor + 1}층 도전` : '더 세지면', twOk),
+        h('span', { class: 'rt-arrow' }, '›'),
+        step('獵', '사냥터', '돌아가 사냥', true)));
     const head = h('div', { class: 'card dgn-head' },
-      h('div', {}, h('b', {}, '일일 던전'), h('small', { class: 'muted' }, ` · 매일 ${D.DAILY_ENTRIES}번 · 새 단계를 깨면 열쇠 🔑 하나로 또 들어가요 · 못 깨면 남은 횟수는 소탕`),
-        h('label', { class: 'chk' }, dAuto, ' 자동 도전 — 열린 던전을 알아서 돌아요')),
+      h('div', {}, h('b', {}, '일일 던전'), h('small', { class: 'muted' }, ` · 하루 ${D.DAILY_ENTRIES}번 · 새 단계 🔑는 한 번 더`),
+        h('label', { class: 'chk' }, dAuto, ' 요일 던전만 자동')),
       h('button', { class: 'btn primary', disabled: sweepN ? null : true, onclick: () => {
         const got = game.sweepAll(now);
         if (!got.length) return;
@@ -1163,8 +1216,9 @@ function dgnTab(app) {
         h('div', { class: 'dgn-top' },
           skinImg(h('div', { class: 'dgn-ico' }, d.ico), `dg-${d.id}`),
           h('div', { class: 'dgn-name' }, h('b', {}, d.name), h('small', {}, ` ${d.hanja} · ${d.what}`),
-            h('div', { class: 'muted' }, open ? `오늘 ${left}/${D.DAILY_ENTRIES}번 남음 · 깬 단계 ${best || '-'}${max > best ? ` — ${best + 1}단계를 깨면 열쇠 🔑` : ''}` : `${D.dailyDaysText(d)}요일에 열려요`))),
-        h('p', { class: 'muted dgn-desc' }, d.desc),
+            open ? h('div', { class: 'dgn-pips' }, ...Array.from({ length: D.DAILY_ENTRIES }, (_, i) => h('i', { class: i < left ? 'on' : '' })),
+              h('small', {}, ` 깬 단계 ${best || '-'}${max > best ? ` · ${best + 1}단계 🔑` : ''}`))
+              : h('div', { class: 'muted' }, `${D.dailyDaysText(d)}요일에 열려요`))),
         h('div', { class: 'dgn-stage' },
           h('button', { class: 'stp', disabled: stg <= 1 ? true : null, onclick: () => step(-1) }, '−'),
           h('div', { class: 'stg' }, h('b', {}, `${stg}단계`), h('small', {}, ` 몹 Lv.${D.dailyLv(stg)}${D.dailyLv(stg) - s.level > W.DANGER_LV ? ' ⚠위험' : ''}`)),
@@ -1185,7 +1239,7 @@ function dgnTab(app) {
             toast(`${d.name} ${best}단계 소탕 — ${rewardText(r)}`);
           } }, best ? `소탕 ${best}단계` : '소탕')));
     });
-    return [head, ...cards];
+    return [routine, head, ...cards];
   }
   function buildTower() {
     const s = game.s;

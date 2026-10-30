@@ -1578,3 +1578,70 @@ body.hunt-nocv #cv { visibility: hidden !important; }
 .item-tabs { background: var(--card); border-radius: 999px; padding: 2px; border-bottom: 0; margin: 6px 0 10px; }
 .item-tab { padding: 7px 0; border-radius: 999px; border-bottom: 0; font-size: 13px; }
 .item-tab.on { background: var(--accent); color: #fff; }
+
+/* v230: 가방 그림 칸 */
+.it-ico { display: inline-block; flex: none; border-radius: 10px; border: 1.5px solid var(--gc, var(--line));
+  background: radial-gradient(circle at 50% 40%, color-mix(in srgb, var(--gc, #444) 30%, #1c1712), #120f0b 75%);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--gc, transparent) 35%, transparent) inset; }
+.it-ico.has-art { background-image: var(--art), radial-gradient(circle at 50% 40%, color-mix(in srgb, var(--gc, #444) 30%, #1c1712), #120f0b 75%);
+  background-size: 82% auto, cover; background-repeat: no-repeat; background-position: center; }
+.it-ico.mythic { animation: mythic-glow 1.8s ease-in-out infinite; }
+.inv-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin: 8px 0; }
+.inv-tile { position: relative; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 3px 5px; border-radius: 10px;
+  background: var(--card-2); border: 1px solid color-mix(in srgb, var(--gc, var(--line)) 55%, transparent); color: var(--text); font: inherit; cursor: pointer; min-width: 0; }
+.inv-tile.up { border-color: #4ade80; box-shadow: 0 0 0 1px rgba(74,222,128,0.35) inset; }
+.inv-tile b { font-size: 10.5px; color: var(--gc, var(--text)); width: 100%; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.inv-tile small { font-size: 9.5px; color: var(--muted); white-space: nowrap; }
+.inv-tile i { position: absolute; font-style: normal; font-weight: 900; font-size: 10px; line-height: 1; padding: 2px 4px; border-radius: 6px; }
+.inv-plus { top: 4px; left: 4px; background: rgba(0,0,0,0.65); color: #fde68a; }
+.inv-d { top: 4px; right: 4px; }
+.inv-d.up { background: #166534; color: #bbf7d0; }
+.inv-d.down { background: rgba(0,0,0,0.5); color: #a8a29e; }
+.inv-set { bottom: 34px; right: 4px; background: rgba(0,0,0,0.6); color: #fcd34d; font-size: 9px !important; }
+
+/* v230: 재료 그림 칸 */
+.mat-ico { display: inline-grid; place-items: center; flex: none; border-radius: 10px; font-family: var(--serif, serif); font-weight: 900;
+  color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,0.8);
+  background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--mc) 85%, #fff), var(--mc) 45%, color-mix(in srgb, var(--mc) 45%, #000) 100%);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--mc) 45%, transparent), inset 0 -3px 6px rgba(0,0,0,0.35); }
+.mat-ico.k-證 { border-radius: 50%; }
+.mat-ico.k-石 { clip-path: polygon(50% 0, 100% 35%, 82% 100%, 18% 100%, 0 35%); border-radius: 0; }
+.mat-ico.k-牌 { border-radius: 4px 4px 14px 14px; }
+.mat-ico.k-勢 { clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%); border-radius: 0; }
+.mat-row .mat-chip { width: 72px; align-items: center; text-align: center; padding: 7px 4px 6px; gap: 3px; }
+.mat-chip.tap::after { content: none; }
+.mat-chip > b { color: #fef3c7; font-size: 14px; line-height: 1; }
+.mat-chip > small { font-size: 10px; line-height: 1.15; color: var(--mc); width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mat-chip.none { opacity: 0.45; }
+
+/* v230: 대장장이 성장 장비 카드 */
+.grow-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 8px; }
+.grow-card { display: flex; flex-direction: column; gap: 6px; padding: 9px; border-radius: 12px; text-align: left; font: inherit; color: var(--text); cursor: pointer; min-width: 0;
+  background: var(--card); border: 1px solid color-mix(in srgb, var(--gc) 50%, transparent); }
+.grow-card.ready { border-color: #4ade80; box-shadow: 0 0 10px rgba(74,222,128,0.18); }
+.gc-top { display: flex; gap: 8px; align-items: center; min-width: 0; }
+.gc-txt { display: flex; flex-direction: column; min-width: 0; }
+.gc-txt b { color: var(--gc); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gc-txt small { font-size: 10px; color: var(--muted); white-space: nowrap; }
+.gc-stat { font-size: 11px; color: #e7e5e4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gc-tags { display: flex; gap: 4px; flex-wrap: wrap; }
+.gc-tags span { font-size: 10px; font-weight: 800; padding: 2px 7px; border-radius: 999px; background: rgba(255,255,255,0.06); color: #78716c; }
+.gc-tags span.ok { background: #14532d; color: #bbf7d0; }
+.gc-tags span.pity { background: #422006; color: #fcd34d; }
+
+/* v230: 던전 루틴 · 일일 던전 칸 */
+.rt-card { border: 1px solid rgba(212,166,74,0.45); }
+.rt-card.on { border-color: #4ade80; box-shadow: 0 0 12px rgba(74,222,128,0.18); }
+.rt-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.rt-head b { font-size: 15px; }
+.rt-steps { display: flex; align-items: stretch; gap: 4px; margin-top: 8px; }
+.rt-step { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 7px 2px; border-radius: 10px; background: rgba(255,255,255,0.04); opacity: 0.55; min-width: 0; }
+.rt-step.on { opacity: 1; background: rgba(212,166,74,0.12); }
+.rt-step i { font-style: normal; font-family: var(--serif, serif); font-weight: 900; font-size: 18px; color: #fde68a; }
+.rt-step b { font-size: 12px; }
+.rt-step small { font-size: 10px; color: var(--muted); white-space: nowrap; }
+.rt-arrow { align-self: center; color: #a8a29e; font-size: 18px; }
+.dgn-pips { display: flex; align-items: center; gap: 4px; margin-top: 3px; }
+.dgn-pips i { width: 10px; height: 10px; border-radius: 50%; background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.18); }
+.dgn-pips i.on { background: #fbbf24; border-color: #fde68a; box-shadow: 0 0 6px rgba(251,191,36,0.6); }
+.dgn-pips small { font-size: 11px; color: var(--muted); }
