@@ -578,6 +578,24 @@ export class BattleView {
           if (ev.skill) this.flash = Math.max(this.flash, 0.12);
         }
         break;
+      // 증표 고유 효과 (v163) — 이름을 띄우고, 둘레 폭발·쏟아짐은 그 무공 그림으로
+      case 'imprint':
+        this.float(`【${ev.name}】`, ev.at ? this.sx(ev.at) : this.heroX, (ev.at ? this.sy(ev.at) : this.groundY) - 175, ev.col || '#fde68a', 17, 0.9, true);
+        this._impFx = fxFor(ev.name, {}, '');
+        break;
+      case 'impNova':
+        if (this.fxLevel > 0) {
+          const fx = { ...(this._impFx || fxFor('', {}, '')), col: (ev.col || '#fde68a').replace('#', '').match(/../g).map((h2) => parseInt(h2, 16)).join(',') };
+          this.effects.push({ kind: 'bboom', wx: this.game?.heroX || 0, wy: this.game?.heroY || 0, fx, r: ev.r, spin: 1.2, life: 0.7, max: 0.7 });
+          this.shake = Math.max(this.shake, 0.2);
+        }
+        break;
+      case 'impRain':
+        if (this.fxLevel > 0 && ev.at) {
+          const fx = { ...(this._impFx || fxFor('', {}, '')), col: (ev.col || '#fde68a').replace('#', '').match(/../g).map((h2) => parseInt(h2, 16)).join(',') };
+          this.effects.push({ kind: 'bboom', wx: ev.at.x, wy: ev.at.y, fx, r: 70, spin: (Math.random() - 0.5) * 2, life: 0.5, max: 0.5 });
+        }
+        break;
       case 'tellBoom': {
         const tl = ev.tell;
         const c = tl.kind === 'line' ? { x: (tl.x0 + tl.x1) / 2, y: (tl.y0 + tl.y1) / 2 } : tl;

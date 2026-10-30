@@ -1229,6 +1229,57 @@ console.log('\n=== 사냥터 몹 강함 (v149) ===');
   ok(Math.abs(c.kingMaxHp() - DG.fieldMobHp(W.mapOf(W.mapId(16, 4)).lv[1] + 2) * W.BOSS.hp) < 1, '함께 사냥 왕 체력 = 내 화면 왕 체력 공식');
 }
 
+console.log('\n=== 증표 각인 세 칸 (v163) ===');
+{
+  const IM = await import('../js/world/wimprint.js');
+  const g = fresh(); g.s.gold = 1e15;
+  while (g.s.level < 120) g.addExp(W.expToNext(g.s.level));
+  g.s.jobTier = 3; g._stats = null;
+  const w = g.s.equip.weapon;
+  const poison = W.bossKey(1), king1 = W.bossKey(W.NORMAL_ZONES + 12);   // 독수마군 · 검왕
+  ok(IM.themeOfZone(1) === 'poison' && IM.specialOfZone(1) === null && IM.specialOfZone(W.NORMAL_ZONES + 12)?.name === '무형신검', '독수마군은 독 테마 · 검왕은 고유 효과 무형신검');
+  ok(IM.imprintOf(W.bossKey(10), 0).fx[Object.keys(IM.THEMES[IM.themeOfZone(10)].fx.reduce((o, [k]) => ({ ...o, [k]: 1 }), {}))[0]] > IM.imprintOf(W.bossKey(2), 0).fx[Object.keys(IM.THEMES[IM.themeOfZone(2)].fx.reduce((o, [k]) => ({ ...o, [k]: 1 }), {}))[0]] / 10, '각인 크기는 두목 레벨에 비례한다');
+  g.s.mats[poison] = 1000; g.s.mats[king1] = 1000;
+  g.rng = () => 0;
+  g.infuse(w.uid, poison);
+  ok(w.rar === 1 && w.imps.length === 1 && w.imps[0] === poison, '유니크로 오르면 첫째 칸에 그 두목이 새겨진다');
+  g._stats = null;
+  ok(g.stats().venom > 0, '독수마군 각인: 적중 피해 일부가 독으로', `${(g.stats().venom * 100).toFixed(2)}%`);
+  g.infuse(w.uid, poison); g.infuse(w.uid, king1);
+  ok(w.rar === 3 && w.imps.join() === [poison, poison, king1].join(), '신화면 세 칸 — 같은 두목을 겹칠 수 있다');
+  g._stats = null; g._mods = null; g._isp = null;
+  const im3 = IM.imprintOf(king1, 2);
+  const md = g.skillMods(`s${im3.skill.s}`);
+  ok(md.echoP > 0, `검왕 각인: ${IM.skillModText(im3.skill)}`);
+  ok(g.impSpecials().echo?.p > 0, '검왕 고유 효과(무형신검)가 켜진다', JSON.stringify(g.impSpecials().echo));
+  // 같은 스킬 범위 각인이 겹치면 범위가 커진다
+  const R = fresh(); while (R.s.level < 60) R.addExp(W.expToNext(R.s.level)); R.s.jobTier = 3; R._stats = null;
+  let rz = 1; while (IM.SKILL_KIND[IM.themeOfZone(rz)] !== 'range' || rz % 3 !== 1) rz++;
+  const sk1 = R.skillDef('s1');
+  const r0 = R.skillRadius(sk1);
+  R.s.equip.armor.rar = 2; R.s.equip.armor.imps = [W.bossKey(rz), W.bossKey(rz)];
+  R._stats = null; R._mods = null;
+  ok(R.skillRadius(sk1) > r0, '2차 스킬 범위 각인 두 겹 — 범위가 커진다(그림도 커진다)', `${r0.toFixed(0)} → ${R.skillRadius(sk1).toFixed(0)} (${W.zoneOfW(rz).boss.name})`);
+  // 한 번 더 각인: 스킬이 두 번 펼쳐지고 그림 사건도 두 번
+  const E = fresh(); while (E.s.level < 60) E.addExp(W.expToNext(E.s.level)); E.s.jobTier = 3; E._stats = null;
+  E.enterMap(W.mapId(5, 1)); for (let i = 0; i < 30; i++) E.tick(0.05);
+  let ez = 1; while (IM.SKILL_KIND[IM.themeOfZone(ez)] !== 'echo' || ez % 3 !== 1) ez++;
+  E.s.equip.hat.rar = 3; E.s.equip.hat.imps = [W.bossKey(ez), W.bossKey(ez), W.bossKey(ez)];
+  E._stats = null; E._mods = null; E.rng = () => 0; E.cd.s1 = 0; E.heroHp = E.stats().hp;
+  E.events.length = 0;
+  E.useSkill('s1');
+  ok(E.events.filter((e) => e.type === 'skill').length === 2 && E.events.some((e) => e.type === 'echo'), '한 번 더 각인 — 스킬 그림이 두 번 펼쳐진다');
+  // 고유 효과: 천마군림(둘레 폭발)이 때마다 터진다
+  const N = fresh(); while (N.s.level < 150) N.addExp(W.expToNext(N.s.level)); N._stats = null;
+  N.s.equip.weapon.rar = 1; N.s.equip.weapon.imps = [W.bossKey(W.masterZoneOf('cheonma'))];
+  N._stats = null; N._isp = null;
+  N.enterMap(W.mapId(5, 1));
+  for (const m of N.mons) { m.x = N.heroX + 40; m.y = N.heroY; m.hp = m.maxHp = 1e15; m.atk = 0; }
+  N.events.length = 0;
+  for (let i = 0; i < 300; i++) N.tick(0.05);
+  ok(N.events.some((e) => e.type === 'impNova') && N.events.some((e) => e.type === 'imprint' && e.name === '천마군림'), '천마 각인: 천마군림이 때마다 둘레를 터뜨린다');
+}
+
 console.log('\n=== 걸으면서 무공 · 범위 (v157) ===');
 {
   const g = fresh();

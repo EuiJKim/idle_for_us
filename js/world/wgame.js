@@ -12,6 +12,7 @@ import * as MS from './wmaster.js';
 import * as LN from './wline.js';
 import * as L from './wland.js';
 import * as G from './wgear.js';
+import * as IM from './wimprint.js';
 
 const rand = Math.random;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -279,6 +280,8 @@ export class WorldGame {
     for (const [k, v] of Object.entries(b)) out[k] = v * m;
     // 계열(v151)의 덤 능력 — 칸·등급만큼 (강화와는 따로)
     if (ln && it.step != null) for (const [k, v] of Object.entries(LN.lineBonus(it.line, it.step, W.RARITY[it.rar || 0].mult))) out[k] = (out[k] || 0) + v;
+    // 증표 각인 (v163) — 칸마다 그 두목의 성질
+    for (const im of IM.imprintsOf(it)) for (const [k, v] of Object.entries(im.fx)) out[k] = (out[k] || 0) + v;
     // 가락지·귀걸이: 그 두목의 덤 능력 (등급만큼 커진다, 강화와는 따로)
     if (W.isDropOnly(it.slot) && (it.step != null || it.king != null)) {
       for (const [k, v] of Object.entries(W.acc2Trait(W.itemZone(it), it.slot))) out[k] = (out[k] || 0) + v * W.RARITY[it.rar || 0].mult;
@@ -320,7 +323,7 @@ export class WorldGame {
     const L = s.level;
     const cls = W.CLASSES[s.job] || {};
     const gear = { atk: 0, hp: 0, def: 0, crit: 0, atkPct: 0, speed: 0, hpPct: 0, regenPct: 0, skill: 0, critDmg: 0, exp: 0,
-      dodge: 0, move: 0, bossDmg: 0, drain: 0, dmgRed: 0, cdr: 0, range: 0, thorns: 0, stunHit: 0, gold: 0 };
+      dodge: 0, move: 0, bossDmg: 0, drain: 0, dmgRed: 0, cdr: 0, range: 0, thorns: 0, stunHit: 0, gold: 0, venom: 0, burn: 0, chill: 0, shock: 0 };
     for (const it of Object.values(s.equip)) {
       const st = this.itemStats(it);
       for (const k of Object.keys(st)) gear[k] = (gear[k] || 0) + st[k];
@@ -378,6 +381,7 @@ export class WorldGame {
       boss: (cls.boss || 1) * (1 + gear.bossDmg),
       gold: gear.gold, dodge: Math.min(0.5, gear.dodge), drain: gear.drain, dmgRed: Math.min(0.5, gear.dmgRed),
       cdr: Math.min(0.4, gear.cdr), skillRange: gear.range, thorns: gear.thorns, stunHit: Math.min(0.3, gear.stunHit),
+      venom: Math.min(IM.IMP_CAP.venom, gear.venom), burn: Math.min(IM.IMP_CAP.burn, gear.burn), chill: Math.min(IM.IMP_CAP.chill, gear.chill), shock: Math.min(IM.IMP_CAP.shock, gear.shock),
       range: W.classOf(s.job)?.range || W.MELEE_RANGE,
     };
     // 전투력(서열·비교용): 초당 피해 × 버티는 힘의 기하평균 — 보이는 숫자라 작게 둔다
@@ -639,6 +643,7 @@ export class WorldGame {
     this.tickFields(dt, st);
     this.tickClones(dt, st);
     this.tickPotion(st);
+    this.tickImprint(dt, st);
     this.tickHero(dt, st);
     this.tickPets(dt, st);
   }
@@ -731,6 +736,9 @@ export class WorldGame {
             this.heroHp -= left;
             this.emit('heroHit', { amount: left, shielded: dmg - left });
             if (ps.has('reflect')) this.hurt(m, dmg * 0.4, 'reflect', false);                                 // 철왕
+            { const isp = this.impSpecials();                                                                  // 증표 고유 (v163)
+              if (isp.mirror && m.alive) this.hurt(m, dmg * Math.min(0.8, 0.15 * isp.mirror.p), 'reflect', false);
+              if (isp.frenzy && this.rng() < Math.min(0.5, 0.08 * isp.frenzy.p)) { this.buffs.gale = Math.max(this.buffs.gale || 0, 4); this.buffv.haste = Math.max(this.buffv.haste || 0, 0.3); this.impShow(isp.frenzy, null); } }
             if (st.thorns && m.alive) this.hurt(m, dmg * st.thorns, 'reflect', false);                       // 되돌림 (v130)
             if (ps.has('revive') && this.heroHp > 0 && this.heroHp < st.hp * 0.3 && !(this.reviveCd > 0)) {   // 목왕
               this.heroHp = Math.min(st.hp, this.heroHp + st.hp * 0.5);
@@ -972,9 +980,14 @@ export class WorldGame {
       if (ps.has('bossbane') && m.isBoss) dmg *= 1.5;                       // 투왕
       if (ps.has('execute') && m.hp < m.maxHp * 0.4) dmg *= 1.6;           // 암왕
     }
+    const isp = this.impSpecials();
+    if (isp.execute && m.hp < m.maxHp * 0.3) dmg *= 1 + Math.min(1.5, 0.25 * isp.execute.p);
+    if (isp.bane && m.isBoss) dmg *= 1 + Math.min(0.8, 0.12 * isp.bane.p);
     dmg = Math.max(1, (dmg - m.armor) * this.gapOut(m));
     const mx = m.x, my = m.y;
+    const wasAlive = m.alive;
     this.hurt(m, dmg, kind, crit, quiet);
+    this.impOnHit(m, st, dmg, kind, crit, wasAlive, isp);
     if (ps.size) {
       if (ps.has('drain')) this.heroHp = Math.min(st.hp, this.heroHp + dmg * 0.04);     // 혈왕
       if (ps.has('stun') && /^s\d$/.test(kind) && m.alive) m.stun = Math.max(m.stun || 0, m.isBoss ? 0.75 : 1.5);   // 음왕
@@ -996,6 +1009,84 @@ export class WorldGame {
     if (m.alive && cls.poison && kind !== 'poison') this.addDot(m, dmg * (cls.poison + (pm.poisonUp || 0)), cls.poisonSec || 3);
     return dmg;
   }
+  // ---------- 증표 각인 (v163) ----------
+  // 끼고 있는 장비의 고유 효과 — { kind: { p, id, name, kind, col } } (p = 새겨진 칸들의 무게 합)
+  impSpecials() {
+    const sig = this.statSig();
+    if (this._isp?.sig === sig) return this._isp.v;
+    const v = {};
+    for (const it of Object.values(this.s.equip)) for (const im of IM.imprintsOf(it)) {
+      const sp = im.special;
+      if (!sp) continue;
+      const cur = v[sp.kind];
+      if (!cur || cur.id === sp.id) v[sp.kind] = { ...sp, p: (cur?.p || 0) + im.w, col: IM.THEMES[im.theme].col };
+      else cur.p += im.w * 0.5;                    // 다른 두목의 같은 꼴은 반만 더한다
+    }
+    this._isp = { sig, v };
+    return v;
+  }
+  // 고유 효과 이름을 띄운다 (잦은 것은 0.5초에 한 번만)
+  impShow(sp, at) {
+    if ((this._impT || 0) > this.clock) return;
+    this._impT = this.clock + 0.5;
+    this.emit('imprint', { name: sp.name, kind: sp.kind, col: sp.col, at: at || { x: this.heroX, y: this.heroY } });
+  }
+  impOnHit(m, st, dmg, kind, crit, wasAlive, isp) {
+    if (kind === 'imp' || kind === 'poison' || kind === 'reflect') return;
+    // 테마: 독·화상은 웅덩이로, 빙결은 둔화, 뇌전은 옆 적으로
+    if (m.alive && st.venom) this.addDot(m, dmg * st.venom, 3);
+    if (m.alive && st.burn) this.addDot(m, dmg * st.burn, 2);
+    if (m.alive && st.chill && this.rng() < st.chill) m.slow = Math.max(m.slow || 0, 2);
+    if (st.shock && this.rng() < st.shock) {
+      const o = this.nearOther(m, 220);
+      if (o) { this.hurt(o, dmg * 0.5, 'imp', false, true); this.emit('tfHit', { tf: 'thunder', at: { x: m.x, y: m.y }, to: { x: o.x, y: o.y } }); }
+    }
+    // 고유
+    if (isp.echo && m.alive && this.rng() < Math.min(0.5, 0.06 * isp.echo.p)) { this.hurt(m, dmg * 1.5, 'imp', crit); this.impShow(isp.echo, m); }
+    if (isp.chain && crit) {
+      let n = 0;
+      for (const o of this.mons) {
+        if (n >= 2) break;
+        if (!o.alive || o.npc || o === m || Math.hypot(o.x - m.x, o.y - m.y) > 240) continue;
+        this.hurt(o, dmg * Math.min(2, 0.6 * isp.chain.p), 'imp', false, true);
+        this.emit('tfHit', { tf: 'thunder', at: { x: m.x, y: m.y }, to: { x: o.x, y: o.y } });
+        n++;
+      }
+      if (n) this.impShow(isp.chain, m);
+    }
+    if (isp.reap && wasAlive && !m.alive) this.heroHp = Math.min(st.hp, this.heroHp + st.hp * Math.min(0.1, 0.02 * isp.reap.p));
+  }
+  nearOther(m, r) {
+    let best = null, bd = r;
+    for (const o of this.mons) { if (!o.alive || o.npc || o === m) continue; const d = Math.hypot(o.x - m.x, o.y - m.y); if (d < bd) { bd = d; best = o; } }
+    return best;
+  }
+  // 때를 두고 터지는 고유 효과 — 둘레 폭발 · 쏟아짐 · 보호막
+  tickImprint(dt, st) {
+    const isp = this.impSpecials();
+    if (!isp.nova && !isp.rain && !isp.guard) return;
+    if (this.map.town || !this.mons.some((m) => m.alive && !m.npc)) return;
+    const T = this._impTimers || (this._impTimers = { nova: 2, rain: 3, guard: 0 });
+    if (isp.nova && (T.nova -= dt) <= 0) {
+      T.nova = Math.max(4, 10 - Math.round(2 * isp.nova.p));
+      const hit = this.mons.filter((m) => m.alive && !m.npc && Math.hypot(m.x - this.heroX, (m.y - this.heroY) * 0.75) <= 230);
+      if (hit.length) { for (const m of hit) this.hurt(m, st.atk * 2 * isp.nova.p * (m.isBoss ? st.boss : 1), 'imp', false, true); this._impT = 0; this.impShow(isp.nova, null); this.emit('impNova', { r: 230, col: isp.nova.col }); }
+      else T.nova = 0.5;
+    }
+    if (isp.rain && (T.rain -= dt) <= 0) {
+      T.rain = Math.max(5, 11 - Math.round(2 * isp.rain.p));
+      const near = this.mons.filter((m) => m.alive && !m.npc && Math.hypot(m.x - this.heroX, m.y - this.heroY) <= 420).slice(0, 5);
+      if (near.length) { for (const m of near) { this.hurt(m, st.atk * 1.2 * isp.rain.p * (m.isBoss ? st.boss : 1), 'imp', false, true); this.emit('impRain', { at: { x: m.x, y: m.y }, col: isp.rain.col }); } this._impT = 0; this.impShow(isp.rain, null); }
+      else T.rain = 0.5;
+    }
+    if (isp.guard && (T.guard -= dt) <= 0) {
+      T.guard = 12;
+      this.shield = Math.max(this.shield || 0, st.hp * Math.min(0.3, 0.06 * isp.guard.p));
+      this.buffs.shield = Math.max(this.buffs.shield || 0, 12);
+      this._impT = 0; this.impShow(isp.guard, null);
+    }
+  }
+
   // 독·출혈: total만큼을 웅덩이에 붓는다 — 쌓인다(빠르기는 마지막에 부은 sec쯤)
   addDot(m, total, sec) {
     const sb = this.setBonus();
@@ -1204,6 +1295,12 @@ export class WorldGame {
       this.fields.push({ id, x: center.x, y: center.y, r: r * (1 + fu), life: sk.field.sec + (fu ? 3 : 0), max: sk.field.sec + (fu ? 3 : 0), tick: sk.field.tick, t: sk.field.tick, mult: sk.field.mult * st.skillMult * (1 + md.dmg) });
     }
     if (md.echo && this.rng() < 0.3) { hitOnce(); this.emit('echo', { id, at: center }); }
+    // 증표 각인: 한 번 더 — 그림도 한 번 더 펼친다 (v163)
+    else if (md.echoP && !o.free && this.rng() < md.echoP) {
+      hitOnce();
+      this.emit('echo', { id, at: center });
+      this.emit('skill', { id, name: sk.name, fx: sk.fx, look: sk.role, job: this.s.job, cls: this.s.job, tier: sk.tier, at: center, radius: r, motion: sk.kind === 'single' ? 'single' : 'aoe', dur: 0, echo: true });
+    }
     if (md.reset && this.s.kills > kills0) this.cd[id] = 0;
     if (sk.lifesteal) this.heroHp = Math.min(st.hp, this.heroHp + dealt * sk.lifesteal);
     if (sk.buff) {
@@ -1569,6 +1666,10 @@ export class WorldGame {
       it.grade = W.RARITY_GRADE[it.rar];
       it.opts = this.rollOpts(it.slot, it.step, it.rar);
       it.pity = 0;
+      // 증표 각인 (v163): 오른 칸에 그 두목을 새긴다 (유니크=첫째 · 전설=둘째 · 신화=셋째)
+      it.imps = (it.imps || []).slice(0, f.to - 1);
+      while (it.imps.length < f.to - 1) it.imps.push(null);
+      it.imps[f.to - 1] = key;
       this._stats = null; this._mods = null; this._pass = null;
     } else it.pity = (it.pity || 0) + W.INFUSE_BASE[f.to] * W.INFUSE_PITY_K;
     this.lastInfuse = { ok, to: f.to, chance: f.chance };
@@ -1988,6 +2089,13 @@ export class WorldGame {
         } else if (o.k) m[o.k] = (m[o.k] || 0) + o.v;
       }
     }
+    // 증표 각인의 스킬 변화 (v163) — 겹치면 더한다
+    m.echoP = 0;
+    for (const it of Object.values(this.s.equip)) for (const im of IM.imprintsOf(it)) {
+      if (im.skill.s !== slot) continue;
+      if (im.skill.k === 'echo') m.echoP += im.skill.v; else m[im.skill.k] = (m[im.skill.k] || 0) + im.skill.v;
+    }
+    m.echoP = Math.min(IM.SKILL_CAP.echo, m.echoP);
     m.cd = Math.min(0.7, m.cd);
     m.cost = Math.min(1, m.cost);
     if (m.free) m.cost = 1;

@@ -1398,3 +1398,12 @@ details.lore p { margin: 4px 0 0; line-height: 1.5; }
   padding: 8px 10px; border-radius: 12px; background: rgba(20,17,14,0.94); border: 1px solid rgba(253,224,71,0.4); font-size: 13px; color: #fde68a; }
 .install-bar span { flex: 1; }
 .install-bar .btn { padding: 5px 10px; }
+
+/* v163 증표 각인 세 칸 */
+.imp-box { margin: 10px 0; padding: 8px 10px; border-radius: 12px; border: 1px solid rgba(253, 224, 71, .25); background: rgba(20, 17, 14, .4); }
+.imp-box small { color: #a8a29e; }
+.imp-row { margin-top: 6px; padding: 6px 8px; border-left: 3px solid var(--ic, #fde68a); border-radius: 6px; background: rgba(255, 255, 255, .03); font-size: 12px; color: #d6d3d1; }
+.imp-row b { color: var(--ic, #fde68a); }
+.imp-row.empty { color: #57534e; border-left-color: #44403c; }
+.imp-row.preview { margin: 6px 0; }
+.imp-sp { color: #fde68a; font-weight: 700; margin-top: 2px; }

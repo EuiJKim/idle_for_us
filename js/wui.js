@@ -12,6 +12,7 @@ import { drawCreature, CREATURES, crArt } from './creatures.js';
 import { skinImg } from './icons.js';
 import * as MS from './world/wmaster.js';
 import * as LN from './world/wline.js';
+import * as IM from './world/wimprint.js';
 import { drawFighter } from './battle.js';
 
 // 애완동물·탈것 그림 아이콘 (창 목록용) — 들판과 같은 그림을 작게
@@ -358,6 +359,7 @@ function bagTab(app) {
             W.enhanceFail(it.plus || 0) === 'break' && game.s.prot ? h('label', { class: 'chk' }, (() => { const c = h('input', { type: 'checkbox' }); c.checked = useProt; c.onchange = () => { useProt = c.checked; paint(); }; return c; })(), ' 보호부 쓰기') : null),
           pc ? h('p', { class: 'muted' }, `승급 → `, h('b', { style: `color:${W.RARITY[it.rar + 1].color}` }, W.RARITY[it.rar + 1].name),
             ` (기본 수치 ×${(W.RARITY[it.rar + 1].mult / W.RARITY[it.rar].mult).toFixed(2)}, 스킬 옵션 새로) — ${W.matName(pc.key)} ${pc.mats} (가진 것 ${fmt(game.s.mats[pc.key] || 0)})${pc.marks ? ` · ${W.matName(W.bossKey(pc.key))} ${pc.marks}` : ''}${Object.entries(pc.fac || {}).map(([k, n]) => ` · ${W.matName(k)} ${n} (가진 것 ${fmt(game.s.mats[k] || 0)})`).join('')} · 은자 ${fmt(pc.gold)}`) : null,
+          it.grow ? impBox() : null,
           it.grow ? infuseBox() : null,
           it.grow ? lineBox() : null,
           h('div', { class: 'btn-row' },
@@ -388,8 +390,11 @@ function bagTab(app) {
           keys.length ? h('div', { class: 'chip-row inf-marks' }, ...keys.slice(0, 8).map((k) => {
             const i2 = game.infuseInfo(it, k);
             return h('button', { class: `chip${k === markPick ? ' on' : ''}`, style: `--mc:${W.matColor(k)}`, onclick: () => { markPick = k; paint(); } },
-              W.matName(k).replace(/의 증표$/, ''), h('small', {}, ` ${fmt(game.s.mats[k])}개 · ${pct(i2.chance, 0)}`));
+              W.matName(k).replace(/의 증표$/, ''), h('small', {}, ` ${IM.THEMES[IM.themeOfZone(+k.slice(1))].name}${IM.specialOfZone(+k.slice(1)) ? '★' : ''} · ${fmt(game.s.mats[k])}개 · ${pct(i2.chance, 0)}`));
           })) : h('p', { class: 'muted' }, '두목 증표가 없어요 — 사냥터의 두목 구역·고수의 두목 방에서 두목을 잡으면 나와요.'),
+          f ? (() => { const pv = IM.imprintOf(markPick, to - 1); return pv ? h('div', { class: 'imp-row preview', style: `--ic:${IM.THEMES[pv.theme].col}` },
+            h('b', {}, `${['첫째', '둘째', '셋째'][to - 1]} 각인 · ${pv.boss} (${IM.THEMES[pv.theme].name})`), h('div', {}, IM.imprintText(pv)),
+            pv.special ? h('div', { class: 'imp-sp' }, IM.specialText(pv.special, pv.w)) : null) : null; })() : null,
           f ? h('p', { class: 'muted' }, `증표 ${f.n}개 · 은자 ${fmt(f.gold)} · 성공 ${pct(f.chance, 0)} — 실패하면 다음 확률 +${pct(W.INFUSE_BASE[to] * W.INFUSE_PITY_K, 1)}p (천장)`) : null,
           f ? h('button', { class: 'btn primary', disabled: game.canInfuse(it, markPick) ? null : true, onclick: () => runInfuse() }, `각인 (${pct(f.chance, 0)})`) : null);
       };
@@ -414,6 +419,18 @@ function bagTab(app) {
               h('button', { class: 'btn', onclick: () => paint() }, '돌아가기')));
           toast(msg);
         }, 1600);
+      };
+      // ---- 증표 각인 세 칸 (v163) ----
+      const impBox = () => {
+        const ims = (it.imps || []);
+        return h('div', { class: 'imp-box' }, h('b', {}, '증표 각인 '), h('small', {}, '등급이 오를 때마다 넣은 증표의 두목이 한 칸씩'),
+          ...[0, 1, 2].map((i) => {
+            const im = ims[i] ? IM.imprintOf(ims[i], i) : null;
+            if (!im) return h('div', { class: 'imp-row empty' }, `${['첫째(유니크)', '둘째(전설)', '셋째(신화)'][i]} — ${i < (it.rar || 0) ? '각인 없이 올렸어요' : '비어 있어요'}`);
+            return h('div', { class: 'imp-row', style: `--ic:${IM.THEMES[im.theme].col}` },
+              h('b', {}, `${im.boss} · ${IM.THEMES[im.theme].name}`), h('div', {}, IM.imprintText(im)),
+              im.special ? h('div', { class: 'imp-sp' }, IM.specialText(im.special, im.w)) : null);
+          }));
       };
       // ---- 계열 각인 (v158): 세력 재료로 성향을 붙인다 ----
       const lineBox = () => h('details', { class: 'inf-box line-box' },
