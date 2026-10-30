@@ -226,6 +226,9 @@ input { font: inherit; user-select: text; -webkit-user-select: text; }
 .card { background: var(--card); border-radius: 14px; padding: 12px; margin-bottom: 10px; }
 .card h3 { margin: 0 0 8px; font-size: 14px; display: flex; justify-content: space-between; align-items: center; }
 .card h3 small { color: var(--muted); font-weight: 600; font-size: 11px; }
+/* v211: 긴 설명에 밀려 제목이 '뽑/기'로 쪼개지지 않게 — 제목은 한 줄, 설명이 줄어든다 */
+.card h3 { gap: 8px; white-space: nowrap; }
+.card h3 > small { min-width: 0; text-align: right; white-space: normal; }
 .btn {
   padding: 10px 12px; border-radius: 10px; font-weight: 800; background: var(--card-2); border: 1px solid var(--line);
 }
@@ -1072,7 +1075,8 @@ details.lore p { margin: 4px 0 0; line-height: 1.5; }
 .shop-item .have b { font-size: 18px; color: #fca5a5; }
 .pot-ico.big { width: 40px; height: 40px; }
 .book-ico { width: 40px; height: 40px; border-radius: 8px; display: grid; place-items: center; font: 800 20px var(--serif); color: var(--gold); background: #3b2a1a; border: 1px solid #6b5640; }
-.buy-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.buy-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.buy-grid .buy { min-width: 0; }   /* v211: '최대' 칸이 창 밖으로 밀려나던 것 */
 .buy-grid .buy { display: flex; flex-direction: column; align-items: center; padding: 7px 2px; font-size: 13px; }
 .buy-grid .buy small { font-size: 10px; opacity: 0.8; font-weight: 400; }
 .refill-row { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
@@ -1236,8 +1240,10 @@ details.lore p { margin: 4px 0 0; line-height: 1.5; }
   animation: pts-glow 1.6s ease-in-out infinite;
 }
 /* #advice가 떠 있으면 한 줄 더 내려간다 (겹치면 둘 다 안 읽힌다) */
-#advice:not(.hidden) ~ #quest { top: 104px; }
-#advice.hidden ~ #quest { top: 78px; }
+/* v211: 무인 머리 위(들판 한가운데)를 가리던 것 — 위 알약 바로 밑으로 */
+#advice:not(.hidden) ~ #quest { top: 44px; }
+#advice.hidden ~ #quest { top: 10px; }
+#quest { max-width: calc(100% - 170px); }   /* 양옆 전투력·보통 단추와 겹치지 않게 */
 
 /* 길잡이 목록 — 캐릭터 창 */
 .quest-card .quest-past { margin: 2px 0 6px; font-size: 11px; }
@@ -1560,3 +1566,6 @@ body.hunt-nocv #cv { visibility: hidden !important; }
 .item-tab.on { color: #fde68a; border-bottom-color: #fde68a; }
 .item-pane { max-height: 52vh; overflow-y: auto; }
 .enh-go { width: 100%; margin-top: 8px; padding: 10px 0; font-size: 15px; }
+
+/* v211: 장비 창 칸(강화·각인·계열·정보)을 바꿀 때 창 높이가 출렁이지 않게 */
+.item-pane { min-height: min(400px, 52vh); }
