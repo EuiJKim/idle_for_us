@@ -1677,3 +1677,7 @@ body.hunt-nocv #cv { visibility: hidden !important; }
 .pc-node small { font-size: 10px; color: var(--muted); line-height: 1.25; display: block; }
 .pc-cost { font-size: 10.5px; color: #fca5a5; }
 .pc-tag { text-align: center; font-weight: 800; font-size: 12px; padding: 6px; border-radius: 8px; background: rgba(250,204,21,0.15); color: #fde68a; }
+
+/* v238: 히든 두목 */
+.master-card.hidden-boss { opacity: 0.85; border-style: dashed; }
+.hb-q { width: 56px; height: 56px; flex: none; display: grid; place-items: center; border-radius: 12px; background: #1e1b4b; color: #a78bfa; font: 900 30px/1 var(--serif, serif); }

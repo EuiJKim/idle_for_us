@@ -424,7 +424,11 @@ export class WorldGame {
   // v146: 레벨과 상관없이 어디든 들어간다 — 센 곳에서 빨리 크고 싶은 사람을 막지 않는다.
   // 대신 화면에 '위험'을 띄우고(danger), 방치 중 거기서 쓰러지면 알맞은 사냥터로 물러난다(heroDied).
   canEnter(id) {
-    return W.hasMap(id);
+    if (!W.hasMap(id)) return false;
+    // v238: 히든 두목(마귀)은 화무기를 쓰러뜨려야 길이 열린다
+    const mm = W.mapOf(id).master ? MS.masterOf(W.mapOf(id).master) : null;
+    if (mm?.hidden && !this.s.duel?.won?.hwamugi) return false;
+    return true;
   }
   // 몹 레벨이 내 레벨보다 이만큼 위면 위험 (0 이하면 안전)
   danger(id) {
@@ -1629,6 +1633,7 @@ export class WorldGame {
     const f = this.map.master ? MS.masterOf(this.map.master)?.fac : MS.factionOfZone(this.map.zone);
     if (!f || this.inst) return;
     const key = LN.FAC_MATS[f];
+    if (!key) return;                                  // 천외(v238)는 세력 재료가 없다
     let n = 0;
     if (m.isBoss) {
       n = LN.FAC_BOSS_MATS * (this.map.master ? (this.map.lord ? 10 : 3) : 1);
@@ -2638,15 +2643,17 @@ export class WorldGame {
     b.castT = (b.castT ?? 3) - dt;
     if (b.castT > 0) return;
     const lord = this.map.lord;
-    b.castT = (lord ? W.FIELD_CAST_LORD : W.FIELD_CAST) * (0.85 + this.rng() * 0.3);
+    // v238: 고수마다 박자 — 화무기·마귀는 더 잦고(castK) 경고가 짧고(tellK) 아프다(absK)
+    const mm = this.map.master ? MS.masterOf(this.map.master) : null;
+    b.castT = (lord ? W.FIELD_CAST_LORD : W.FIELD_CAST) * (0.85 + this.rng() * 0.3) * (mm?.castK || 1);
     // v168: 십이지왕·레벨 100 넘는 고수 — 테마 초식 셋(넷) + 세 번째마다 오의. 피해는 고정값(체력·방어가 버틴다)
     const pb = MS.bossPatterns(this.map);
     if (pb) {
       b.castN = (b.castN || 0) + 1;
-      const ult = b.castN % 3 === 0;
+      const ult = b.castN % (mm?.ultEvery || 3) === 0;
       const s1 = ult ? pb.ult : pb.list[Math.floor(this.rng() * pb.list.length)];
-      const abs = D.refHp(b.lv) * MS.PAT_K * (ult ? MS.PAT_ULT : 1) * (lord ? MS.PAT_LORD : 1);
-      const delay = ult ? 1.9 : 1.3;
+      const abs = D.refHp(b.lv) * MS.PAT_K * (ult ? MS.PAT_ULT : 1) * (lord ? MS.PAT_LORD : 1) * (mm?.absK || 1);
+      const delay = (ult ? 1.9 : 1.3) * (mm?.tellK || 1);
       const pats = s1.pats || [s1.pat];
       pats.forEach((p, i) => this.bossCast(b, MS.floorOf(b.lv), 0, [p], s1.name, { abs, delay: delay + i * 0.25, quiet: i > 0, ult }));
       if (ult) b.castT += 1.5;
@@ -2757,6 +2764,34 @@ export class WorldGame {
         for (const o of [-210, 0, 210]) { const cx = hx + qx * o, cy = hy + qy * o; line(a2, 1600, 80, cx - Math.cos(a2) * 800, cy - Math.sin(a2) * 800, { wait: 0.55 }); }
         break;
       }
+      // ---- v238 화무기 · 마귀 ----
+      // 천하일통: 몸을 지나는 칼날 여덟이 차례로 돌며 깔린다 — 도는 쪽을 따라 비켜 서야 한다
+      case 'spiral': { const dir = this.rng() < 0.5 ? 1 : -1; for (let i = 0; i < 8; i++) { const a = ang + dir * i * Math.PI / 8; line(a, 1700, 72, b.x - Math.cos(a) * 850, b.y - Math.sin(a) * 850, { wait: i * 0.16 }); } break; }
+      // 천라지망: 무인을 둘러싼 원 열 개 — 한 군데만 비었다. 조금 뒤 무인 자리에 하나 더(제자리에 서면 맞는다)
+      case 'cage': {
+        const gap = Math.floor(this.rng() * 10);
+        for (let i = 0; i < 10; i++) { if (i === gap) continue; const a = (i / 10) * Math.PI * 2; add({ kind: 'circle', x: hx + Math.cos(a) * 210, y: hy + Math.sin(a) * 210, r: 80 }); }
+        add({ kind: 'circle', r: 120, aim: true, wait: 0.35 });
+        break;
+      }
+      // 붕천 · 나락: 피할 자리 하나만 남기고 온 땅이 무너진다 — 무인에게서 떨어진 곳에 작은 안전 원
+      case 'collapse': { const a = this.rng() * Math.PI * 2, d = 230 + this.rng() * 120; add({ kind: 'donut', x: hx + Math.cos(a) * d, y: hy + Math.sin(a) * d, r0: 100, r1: 2600 }); break; }
+      // 일점: 무인이 가던 쪽을 앞질러 노린다(멈춰 서면 제자리) + 곧바로 한 줄
+      case 'lead': {
+        const vx = this.hmove ? W.tileCenter(this.hmove.c) - this.heroX : 0, vy = this.hmove ? W.tileCenter(this.hmove.r) - this.heroY : 0;
+        add({ kind: 'circle', x: hx + vx * 2.2, y: hy + vy * 2.2, r: 120 });
+        line(Math.atan2(hy + vy * 2.2 - b.y, hx + vx * 2.2 - b.x), 1200, 110, b.x, b.y, { wait: 0.25 });
+        break;
+      }
+      // 자책하기: 스스로를 탓하듯 무인 발밑이 여섯 번 연달아 터진다(쉬지 않고 움직여야) — 마귀도 제 피를 조금 깎는다
+      case 'blame': for (let i = 0; i < 6; i++) add({ kind: 'circle', r: 105, aim: true, wait: i * 0.3 }); if (b.hp > b.maxHp * 0.05) b.hp -= b.maxHp * 0.01; break;
+      // 도박하기: 네 쪽 가운데 셋이 터진다 — 살 쪽은 하나, 운에 건다(경고가 다 깔려서 보고 피할 수는 있다)
+      case 'quad': { const safe = Math.floor(this.rng() * 4); for (let i = 0; i < 4; i++) if (i !== safe) add({ kind: 'cone', x: b.x, y: b.y, a: i * Math.PI / 2 + Math.PI / 4, r: 1500, half: Math.PI / 4 }); break; }
+      // 마약하기: 환각 — 넓게 쏟아지는 낙뢰 열넷, 화면이 일렁인다
+      case 'haze':
+        for (let i = 0; i < 14; i++) { const rr = i === 0 ? 0 : 90 + this.rng() * 340, a = this.rng() * Math.PI * 2; add({ kind: 'circle', x: hx + Math.cos(a) * rr, y: hy + Math.sin(a) * rr, r: 85, wait: i * 0.09 }); }
+        this.emit('haze', { sec: 5 });
+        break;
       case 'rain':
         for (let i = 0; i < 6; i++) {
           const rr = i === 0 ? 0 : 110 + this.rng() * 220, a = this.rng() * Math.PI * 2;

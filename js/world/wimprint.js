@@ -136,6 +136,8 @@ const MASTER_SP = {
   jinpaecheon: [['nova', '패천신검'], ['bane', '패천일격'], ['echo', '천하일검']],
   baekjagang: [['bane', '사도천패'], ['rain', '흑우'], ['mirror', '맹주의 의심']],
   cheonma: [['nova', '천마군림'], ['phoenix', '구화마공'], ['surge', '천마멸세']],
+  hwamugi: [['nova', '무극'], ['surge', '천하일통'], ['echo', '일점']],      // v238
+  magwi: [['berserk', '자책'], ['frenzy', '도박'], ['mirror', '환각']],
 };
 // 그 두목의 고유 효과 셋 (없으면 null)
 export function specialsOfZone(z) {

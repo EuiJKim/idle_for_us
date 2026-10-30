@@ -4,13 +4,16 @@ export const FACTIONS = [
   { id: 'murim', name: '무림맹', hanja: '武林盟', col: '#60a5fa', desc: '정파의 맹. 구파일방과 오대세가가 무림맹주 진패천 아래 모였다. 사냥터는 명문 정파의 땅들.' },
   { id: 'sapa', name: '사파', hanja: '邪派', col: '#f87171', desc: '사도맹을 중심으로 한 흑도 무리. 사도맹주 백자강이 이끈다. 사냥터는 강과 장터, 무덤과 사막.' },
   { id: 'magyo', name: '마교', hanja: '天魔神敎', col: '#c084fc', desc: '천마신교. 천마 검우진과 팔마존이 다스린다. 사냥터는 설원과 독림, 화산과 하늘 밖.' },
+  // v238: 세력 밖 — 천하제일인과 그 너머 (세력 재료·사냥터 없음)
+  { id: 'apex', name: '천외', hanja: '天外', col: '#fde047', desc: '정·사·마 어디에도 속하지 않는 자들. 천마보다 강하다.' },
 ];
 
 // 사냥터 나누기 — 지역 번호(ZONES_W). 세력마다 레벨이 고르게 퍼지게 섞었다.
 export const FAC_ZONES = {
   murim: [1, 31, 32, 6, 9, 11, 36],          // 죽림 1 · 도화림 14 · 황궁 금위영 27 · 무당 운해 34 · 소림 사원 53 · 화산 절벽 66 · 곤륜 선경 79
   sapa: [2, 4, 33, 8, 10, 13, 14],           // 황사 서역 8 · 혈사곡 21 · 사천 당가 40 · 장강 수로 47 · 낙양 야시장 60 · 고묘 지하 79 · 동해 해안 86
-  magyo: [3, 5, 7, 34, 35, 12, 15],          // 천산 설원 14 · 귀곡 27 · 십만대산 마교 40 · 북해 빙궁 53 · 화염산 66 · 남만 독림 73 · 천외천 92
+  magyo: [3, 5, 7, 34, 35, 12, 15],
+  apex: [],          // 천산 설원 14 · 귀곡 27 · 십만대산 마교 40 · 북해 빙궁 53 · 화염산 66 · 남만 독림 73 · 천외천 92
 };
 
 // 고수 — fac 세력 · lv 레벨(두목 방 두목의 레벨) · skills 초식(설정집의 독문무공 · pat 바닥 경고 꼴) · mobs 졸개(그 고수의 수하)
@@ -175,6 +178,22 @@ export const MASTERS = [
     look: { robe: '#050505', trim: '#dc2626', head: 'topknot', hair: '#111', weapon: 'sword', aura: '#dc2626', eyes: '#ef4444', scale: 1.8 },
     move: '구화마공 십이성 — 천마멸세',
     story: '주인공 검무극의 아버지이자 천마신교의 교주. 역대 천마 가운데 무재가 가장 뛰어나다는 평을 듣는다. 특유의 비웃음과 압도적인 무력, 말보다 행동. 회귀 전에는 화무기의 침공에 쓰러졌다. 회귀한 아들과 사냥하고 낚시하며 가까워졌고, 그 뒤 깨달음을 얻어 구화마공 십이성을 이뤘다. 무림일통을 꿈꾸지만, 아들이 막으면 이해하려 한다.' }),
+  // ---------- 천외 (v238): 천마보다 강한 자 · 그 너머 ----------
+  M({ id: 'hwamugi', skills: [{ name: '천하일통', pat: 'spiral' }, { name: '천라지망', pat: 'cage' }, { name: '붕천', pat: 'collapse' }, { name: '일점', pat: 'lead' }],
+    mobs: [{ name: '십이지왕의 그림자', look: { robe: '#0c0a09', trim: '#fde047', head: 'mask', weapon: 'sword', scale: 1.15 } }, { name: '천하의 호위', look: { robe: '#1c1917', trim: '#facc15', head: 'topknot', weapon: 'spear', scale: 1.1 } }],
+    fac: 'apex', title: '천하제일인', name: '화무기', lv: 190, art: 15, lord: true, hit: 55, sec: 100, dmg: 1.6,
+    castK: 0.72, tellK: 0.82, absK: 1.25, ultEvery: 3,
+    look: { robe: '#fafaf9', trim: '#fde047', head: 'topknot', hair: '#e7e5e4', weapon: 'sword', aura: '#fde047', eyes: '#fde68a', scale: 1.9 },
+    move: '무극 — 정·사·마의 수장을 모두 꺾은 손',
+    story: '본작의 최종 흑막. 회귀 전 삶에서 정·사·마의 수장들을 모두 죽이고 절대자의 자리에 올랐다. 십이지왕을 세운 자. 천마보다 강하다 — 경고는 짧고, 초식은 겹쳐 오며, 피할 자리는 한 군데뿐이다.' }),
+  // 히든 — 화무기를 쓰러뜨린 자에게만 길이 열린다
+  M({ id: 'magwi', skills: [{ name: '자책하기', pat: 'blame' }, { name: '도박하기', pat: 'quad' }, { name: '마약하기', pat: 'haze' }],
+    mobs: [{ name: '빚쟁이', look: { robe: '#18181b', trim: '#a1a1aa', head: 'hat', weapon: 'axe', scale: 1.1 } }, { name: '마귀의 하수인', look: { robe: '#2e1065', trim: '#a855f7', head: 'mask', weapon: 'claw', scale: 1.15 } }],
+    fac: 'apex', title: '히든', name: '마귀', lv: 200, art: 15, lord: true, hidden: true, hit: 70, sec: 120, dmg: 1.9,
+    castK: 0.6, tellK: 0.72, absK: 1.5, ultEvery: 2,
+    look: { robe: '#09090b', trim: '#7c3aed', head: 'band', band: '#4c1d95', weapon: 'claw', aura: '#a855f7', eyes: '#f0abfc', scale: 2.0 },
+    move: '자책 · 도박 · 마약 — 스스로를 갉아먹으며 남까지 끌어내린다',
+    story: '화무기 너머에 숨은 마귀. 스스로를 탓하다(자책) 판돈을 걸고(도박) 끝내 환각에 빠져(마약) 모든 것을 무너뜨린다. 초식은 겹쳐서, 짧게, 끝없이 온다 — 극악.' }),
 ];
 
 // 인물록에 넣을 다른 이들 (비무는 없다) — 십이지왕의 우두머리
@@ -254,4 +273,8 @@ export const BOSS_PATTERNS = {
   jinpaecheon: { list: [P('패천신검', 'xcross'), P('패천일격', 'charge'), P('맹주의 검', 'line'), P('천하일검', 'grid')], ult: U('천하일검', ['grid', 'xcross']) },
   baekjagang: { list: [P('사도천패', 'cone'), P('사도돌파', 'charge'), P('흑우', 'rain')], ult: U('맹주의 의심', ['rain', 'cross']) },
   cheonma: { list: [P('천마멸세', 'xcross'), P('구화마공', 'nova'), P('천마쌍극', 'twin'), P('천마혈우', 'rain')], ult: U('천마군림', ['ring3', 'xcross', 'chase']) },
+  // v238 — 가장 까다로운 두목: 도는 칼날 · 우리 · 붕괴(피할 자리 한 군데) · 앞질러 노림
+  hwamugi: { list: [P('천하일통', 'spiral'), P('천라지망', 'cage'), P('붕천', 'collapse'), P('일점', 'lead')], ult: U('무극', ['collapse', 'spiral', 'cage']) },
+  // 히든 마귀 — 극악
+  magwi: { list: [P('자책하기', 'blame'), P('도박하기', 'quad'), P('마약하기', 'haze'), P('나락', 'collapse')], ult: U('마귀의 밤', ['haze', 'quad', 'blame', 'spiral']) },
 };

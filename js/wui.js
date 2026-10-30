@@ -1033,6 +1033,12 @@ function mapTab(app) {
   // 고수 한 명 — 두목 방 카드 (v148). 수하 졸개가 늘 있고 고수가 45초마다 다시 나선다. 이야기는 접어 둔다.
   function masterCard(m, fac) {
     const s = game.s;
+    // v238: 히든 두목 — 화무기를 쓰러뜨리기 전에는 이름도 초식도 가린다
+    if (m.hidden && !s.duel.won.hwamugi) {
+      return h('div', { class: 'card master-card hidden-boss', style: `--fc:${fac.col}` },
+        h('div', { class: 'master-top' }, h('div', { class: 'hb-q' }, '?'),
+          h('div', { class: 'master-name' }, h('b', {}, '??? '), h('small', {}, '히든'), h('div', { class: 'muted' }, '천하제일인을 쓰러뜨린 자에게만 길이 열린다'))));
+    }
     const won = !!s.duel.won[m.id];
     const room = W.mapId(W.masterZoneOf(m.id), W.BOSS_AREA);
     const here = s.map === room;
@@ -1095,14 +1101,14 @@ function mapTab(app) {
         const nsig = `${s.level}|${s.map}|${JSON.stringify(s.duel.won)}|${!!game.inst}`;
         if (nsig === sig) return;
         sig = nsig;
-        const all = ['murim', 'sapa', 'magyo'].flatMap((f) => MS.mastersOf(f));
+        const all = ['murim', 'sapa', 'magyo', 'apex'].flatMap((f) => MS.mastersOf(f)).filter((m) => !m.hidden || s.duel.won.hwamugi);
         const won = all.filter((m) => s.duel.won[m.id]).length;
         box.replaceChildren(h('p', { class: 'muted' }, `세력마다 이름난 고수가 산다 — 처음 쓰러뜨리면 큰 보상과 영구 공격력·체력, 두목 방에서는 세력 재료가 나온다. 쓰러뜨림 ${won}/${all.length}`));
-        for (const fac of ['murim', 'sapa', 'magyo']) {
+        for (const fac of ['murim', 'sapa', 'magyo', 'apex']) {
           const F = MS.factionOf(fac);
           const ms = MS.mastersOf(fac).slice().sort((a, b) => a.lv - b.lv);
           const w = ms.filter((m) => s.duel.won[m.id]).length;
-          box.append(h('h3', { class: 'king-head', style: `color:${F.col}` }, `${F.name} ${fac === 'magyo' ? '팔마존 · 천마' : fac === 'murim' ? '칠대고수 · 무림맹주' : '칠대고수 · 사도맹주'}`,
+          box.append(h('h3', { class: 'king-head', style: `color:${F.col}` }, `${F.name} ${fac === 'apex' ? '천하제일인 · 히든' : fac === 'magyo' ? '팔마존 · 천마' : fac === 'murim' ? '칠대고수 · 무림맹주' : '칠대고수 · 사도맹주'}`,
             h('small', {}, ` ${w}/${ms.length}`)));
           for (const m of ms) box.append(masterCard(m, F));
         }

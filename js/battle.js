@@ -907,6 +907,10 @@ export class BattleView {
           this.effects.push({ kind: 'bboom', wx: ev.at.x, wy: ev.at.y, fx, r: 70, spin: (Math.random() - 0.5) * 2, life: 0.5, max: 0.5 });
         }
         break;
+      // v238: 마귀의 마약하기 — 환각. 몇 초 동안 화면에 빛깔이 번지고 일렁인다
+      case 'haze':
+        this.hazeT = Math.max(this.hazeT || 0, ev.sec || 5);
+        break;
       // v237: 길 — 전광석화. 떠난 자리에서 닿은 자리까지 빛줄기가 남고, 닿은 자리에 흙먼지와 고리
       case 'dash':
         if (ev.from && ev.to && this.fxLevel > 0) {
@@ -1577,6 +1581,10 @@ export class BattleView {
 
     ctx.save();
     // 매 프레임 마구잡이로 튀던 것을 물결로 — 같은 세기라도 덜 어지럽고 '쿵' 하는 맛이 남는다
+    if (this.hazeT > 0) {   // 환각: 화면이 천천히 기울며 일렁인다
+      const hk = Math.min(1, this.hazeT / 0.8);
+      ctx.translate(this.w / 2, this.h / 2); ctx.rotate(Math.sin(this.t * 1.7) * 0.025 * hk); ctx.scale(1 + Math.sin(this.t * 2.3) * 0.015 * hk, 1); ctx.translate(-this.w / 2, -this.h / 2);
+    }
     if (this.shake > 0) {
       const a = 12 * this.shake * (1 - 0.5 * (this.shakeTire || 0)) * (this.shakePref ?? 1);
       ctx.translate(Math.sin(this.t * 61) * a * 0.6 + Math.sin(this.t * 37) * a * 0.4, Math.cos(this.t * 53) * a * 0.6 + Math.sin(this.t * 29) * a * 0.3);
@@ -1617,6 +1625,7 @@ export class BattleView {
       this.drawBanner(dt);
       this.drawKingIntro(dt, z);
       this.drawDownVignette();
+      this.drawHaze(dt);
     } finally { this.w = vw; this.h = vh; }
     ctx.restore();
     ctx.restore();
@@ -3528,6 +3537,20 @@ export class BattleView {
         ctx.beginPath(); ctx.arc(x, y, 2.2, 0, Math.PI * 2); ctx.fill();
       }
     }
+    ctx.restore();
+  }
+  // v238: 환각 — 자줏빛·초록빛 덩이가 화면을 떠돌며 번진다(빛깔이 뒤섞여 경고가 덜 또렷해진다)
+  drawHaze(dt) {
+    if (!(this.hazeT > 0)) return;
+    this.hazeT -= dt;
+    const { ctx, w, h } = this;
+    const k = Math.min(1, this.hazeT / 0.8, 1);
+    const t = this.t;
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    putGlow(ctx, '217,70,239', w * (0.5 + 0.35 * Math.sin(t * 0.9)), h * (0.45 + 0.25 * Math.cos(t * 0.7)), w * 0.6, 0.22 * k);
+    putGlow(ctx, '74,222,128', w * (0.5 + 0.35 * Math.cos(t * 1.1)), h * (0.5 + 0.25 * Math.sin(t * 0.8)), w * 0.55, 0.18 * k);
+    putGlow(ctx, '250,204,21', w * (0.5 + 0.3 * Math.sin(t * 1.4 + 2)), h * (0.4 + 0.2 * Math.sin(t * 1.2)), w * 0.4, 0.12 * k);
     ctx.restore();
   }
   // v216: 쓰러진 동안 화면 가장자리가 붉게 물들었다가, 일어서며 걷힌다

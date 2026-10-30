@@ -1296,7 +1296,7 @@ console.log('\n=== 세력과 고수 비무 (v148) ===');
   const normal = W.ZONE_ORDER.filter((z) => !z.king && !z.master).map((z) => z.id).sort((a, b) => a - b);
   const assigned = Object.values(MS.FAC_ZONES).flat().sort((a, b) => a - b);
   ok(JSON.stringify(normal) === JSON.stringify(assigned), '왕이 아닌 사냥터가 무림맹·사파·마교에 빠짐없이 한 번씩', `${assigned.length}곳`);
-  const spread = Object.entries(MS.FAC_ZONES).map(([f, zs]) => { const lv = zs.map((z) => W.ZONES_W[z].lv[0]); return [f, Math.min(...lv), Math.max(...lv)]; });
+  const spread = Object.entries(MS.FAC_ZONES).filter(([, zs]) => zs.length).map(([f, zs]) => { const lv = zs.map((z) => W.ZONES_W[z].lv[0]); return [f, Math.min(...lv), Math.max(...lv)]; });
   ok(spread.every(([, lo, hi]) => lo <= 15 && hi >= 79), '세력마다 낮은 곳(15 아래)부터 높은 곳(79 위)까지 섞여 있다', spread.map(([f, lo, hi]) => `${f} ${lo}~${hi}`).join(' · '));
   // 강함: 마존은 십이지왕급, 맹주는 검왕보다, 천마는 두 맹주보다
   const kingLv = W.ZONE_ORDER.filter((z) => z.king).map((z) => z.lv);
@@ -1415,7 +1415,7 @@ console.log('\n=== 각인 v167: 스킬 변화 랜덤 · 고유 셋 중 고르기
   const v = (z, g) => IM.skillValue('range', g, W.markLv(W.bossKey(z)));
   ok(v(1, 0) < v(2, 0) && v(2, 0) < v(1, 2), '독수마군 레어 2차 범위 < 혈사도왕 레어 < 독수마군 레전드', `${(v(1, 0) * 100).toFixed(1)}% < ${(v(2, 0) * 100).toFixed(1)}% < ${(v(1, 2) * 100).toFixed(1)}%`);
   const all = IM.ALL_SPECIALS();
-  ok(all.length === 87 && new Set(all.map((x) => x.kind)).size === 16, '레벨 100 넘는 두목 29 × 고유 효과 셋 = 87 · 꼴 열여섯');
+  ok(all.length === 93 && new Set(all.map((x) => x.kind)).size === 16, '레벨 100 넘는 두목 31(+화무기·마귀 v238) × 고유 효과 셋 = 93 · 꼴 열여섯');
   // 고르기 · 다시 새기기
   const g = fresh(); g.s.gold = 1e15;
   while (g.s.level < 150) g.addExp(W.expToNext(g.s.level));
@@ -1721,6 +1721,33 @@ console.log('\n=== 직업의 길 (v237) ===');
   while (h.s.level < 85) h.addExp(W.expToNext(h.s.level));
   h.s.jobTier = 2; h.choosePath('b'); h._stats = null;
   ok(h.stats().extra > 0 && h.stats().dash > 0, '쾌검의 길: 덧치기·전광석화가 붙는다');
+}
+
+console.log('\n=== 화무기 · 히든 마귀 (v238) ===');
+{
+  const hw = MS.masterOf('hwamugi'), cm = MS.masterOf('cheonma'), mg = MS.masterOf('magwi');
+  ok(hw && hw.lv > cm.lv && hw.dmg > cm.dmg && hw.castK < 1 && hw.tellK < 1, '화무기는 천마보다 세고 초식이 잦고 경고가 짧다');
+  ok(mg && mg.hidden && mg.lv > hw.lv && mg.absK > hw.absK && mg.tellK < hw.tellK, '마귀는 화무기보다 더 극악');
+  const g = fresh();
+  const room = W.mapId(W.masterZoneOf('magwi'), W.BOSS_AREA);
+  ok(!g.canEnter(room), '마귀 방은 화무기를 쓰러뜨리기 전엔 닫혀 있다');
+  g.s.duel.won.hwamugi = true;
+  ok(g.canEnter(room), '화무기를 쓰러뜨리면 마귀 방이 열린다');
+  // 새 초식은 늘 피할 자리가 있다 — 무인 둘레를 훑어 안 맞는 자리가 하나라도
+  const DG = await import('../js/world/wdgn.js');
+  const b = { x: 900, y: 600, hp: 1e9, maxHp: 1e9, lv: 190, isBoss: true, alive: true };
+  for (const pat of ['spiral', 'cage', 'collapse', 'lead', 'blame', 'quad', 'haze']) {
+    g.tells = []; g.heroX = 700; g.heroY = 700;
+    g.bossCast(b, 100, 1, [pat], pat, { abs: 1, delay: 1 });
+    // 늦게 깔리는 것(aim)은 지금 무인 자리로
+    for (const t of g.tells) if (t.aim && t.x == null) { t.x = g.heroX; t.y = g.heroY; }
+    let safe = 0;
+    for (let a = 0; a < 24; a++) for (const d of [0, 150, 300, 450]) {
+      const x = g.heroX + Math.cos(a / 24 * Math.PI * 2) * d, y = g.heroY + Math.sin(a / 24 * Math.PI * 2) * d;
+      if (!g.tells.some((t) => t.x0 != null || t.x != null ? DG.tellCovers(t, x, y) : false)) safe++;
+    }
+    ok(g.tells.length > 0 && safe > 0, `초식 ${pat}: 경고 ${g.tells.length}개 · 피할 자리 있음`, `안전 ${safe}/96`);
+  }
 }
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);

@@ -226,7 +226,7 @@ function drawKingAura(view, ctx, x, y, H, col, t, casting, alpha) {
 }
 // v219: 고수·맹주·천마의 세력 기운 — 정파는 금빛 검 셋이 돌고, 사파는 독안개와 비수, 마교는 핏빛 불길.
 // 맹주·천마(lord)는 더 크고, 머리 뒤에 해무리가 선다. 모두 상태 없이 시간으로 그린다.
-const FAC_COL = { murim: '253,224,71', sapa: '74,222,128', magyo: '239,68,68' };
+const FAC_COL = { murim: '253,224,71', sapa: '74,222,128', magyo: '239,68,68', apex: '250,250,249' };
 function blade(ctx, len, w) {
   ctx.beginPath(); ctx.moveTo(0, -len / 2); ctx.lineTo(w, len * 0.3); ctx.lineTo(0, len / 2); ctx.lineTo(-w, len * 0.3); ctx.closePath(); ctx.fill();
 }
@@ -247,10 +247,11 @@ function drawMasterAura(view, ctx, x, y, H, fac, lord, t, casting, alpha) {
     ctx.strokeStyle = `rgba(${col},${(0.45 + 0.2 * Math.sin(t * 3)) * alpha})`; ctx.lineWidth = 2;
     ctx.beginPath(); ctx.arc(x, hy, H * 0.25, 0, Math.PI * 2); ctx.stroke();
   }
-  if (fac === 'murim') {
-    // 금빛 검 셋이 몸을 돈다 — 뒤로 갈 땐 옅게
-    for (let i = 0; i < 3; i++) {
-      const a = t * 1.4 * sp + (i / 3) * Math.PI * 2;
+  if (fac === 'murim' || fac === 'apex') {
+    // 금빛 검 셋이 몸을 돈다 — 뒤로 갈 땐 옅게 · 천외(v238)는 흰 검 여섯
+    const nb = fac === 'apex' ? 6 : 3;
+    for (let i = 0; i < nb; i++) {
+      const a = t * 1.4 * sp + (i / nb) * Math.PI * 2;
       const bx = x + Math.cos(a) * H * 0.55 * S, by = y - H * 0.5 + Math.sin(a) * H * 0.55 * S * sq;
       ctx.globalAlpha = alpha * (0.45 + 0.4 * (Math.sin(a) * 0.5 + 0.5));
       ctx.save(); ctx.translate(bx, by); ctx.rotate(a + Math.PI / 2);
