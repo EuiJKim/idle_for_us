@@ -1782,28 +1782,7 @@ export class WorldGame {
     this.emit('infuse', { item: it, ok: true, reimp: true });
     return true;
   }
-  // 계열 각인 — 세력 재료 × LINE_SET_K
-  lineCost(it, line) {
-    const mats = {};
-    for (const [k, n] of Object.entries(LN.lineMats(line, it.slot, it.step))) mats[k] = n * W.LINE_SET_K;
-    return { mats, gold: Math.round((30 + it.ilv * 10) * 3) };
-  }
-  canSetLine(it, line) {
-    if (!it?.grow || (it.line || 'base') === line || !LN.LINES.some((l) => l.id === line)) return false;
-    const c = this.lineCost(it, line);
-    return this.s.gold >= c.gold && Object.entries(c.mats).every(([k, n]) => (this.s.mats[k] || 0) >= n);
-  }
-  setLine(uid, line) {
-    const it = this.findItem(uid);
-    if (!this.canSetLine(it, line)) return false;
-    const c = this.lineCost(it, line);
-    for (const [k, n] of Object.entries(c.mats)) this.s.mats[k] -= n;
-    this.s.gold -= c.gold;
-    if (line === 'base') delete it.line; else it.line = line;
-    this._stats = null;
-    this.emit('line', { item: it });
-    return true;
-  }
+  // v213: 계열 각인(setLine)을 없앴다 — 이미 붙인 계열(it.line)의 수치·덤은 그대로 남는다
 
   // ---------- 왕의 장비 (레벨 100, v130) ----------
   makeKing(slot, king, rar = 0, set = null, plus = 0) {
@@ -2418,11 +2397,22 @@ export class WorldGame {
     // v180: 판 2 → 3 — 단계를 끼워 넣었다. 하던 단계와 **새로 끼운 단계 중 가장 앞**부터 —
     // 이미 해 본 것은 '다 받기'로 한꺼번에 받는다(끼운 단계도 모두 겪어 보게)
     // v208: 판 2·3 → 지금 판 — 옛 판의 차례(QUEST_IDS_BY_V)로 하던 단계를 찾는다
+    // v213: 판 4 → 5는 '계열 각인' 하나를 뺐을 뿐 — 끼운 단계가 없으니 번호만 옮긴다(옮겨 오던 중인 것도 그대로)
+    if (this.s.questV === 4 && Q.QUEST_V === 5) {
+      const ids4 = Q.QUEST_IDS_BY_V[4];
+      const remap = (i) => { for (; i < ids4.length; i++) { const j = Q.QUESTS.findIndex((q) => q.id === ids4[i]); if (j >= 0) return j; } return Q.QUEST_COUNT; };
+      if (this.s.questGift >= 0) this.s.questGift = ids4[this.s.questGift] === 'line' ? -1 : remap(this.s.questGift);
+      this.s.quest = remap(this.s.quest || 0);
+      if (this.s.questTo != null) this.s.questTo = remap(this.s.questTo);
+      this.s.questV = 5;
+    }
     const oldIds = Q.QUEST_IDS_BY_V[this.s.questV];
     if (oldIds && this.s.questV < Q.QUEST_V) {
       // 판 3으로 옮겨 오다 아직 끼운 단계를 짚는 중이었다면, 그 '하던 단계'를 기준으로
-      const curId = this.s.questTo > this.s.quest ? oldIds[this.s.questTo] : oldIds[this.s.quest];
-      let at = curId ? Q.QUESTS.findIndex((q) => q.id === curId) : Q.QUEST_COUNT;
+      // v213: 하던 단계가 빠졌으면(계열 각인) 그 뒤로 남아 있는 첫 단계로
+      let i0 = this.s.questTo > this.s.quest ? this.s.questTo : this.s.quest;
+      let at = -1;
+      for (; i0 < oldIds.length && at < 0; i0++) at = Q.QUESTS.findIndex((q) => q.id === oldIds[i0]);
       if (at < 0) at = Q.QUEST_COUNT;
       const fresh = Q.QUESTS.findIndex((q) => !oldIds.includes(q.id));
       this.s.quest = fresh >= 0 ? Math.min(at, fresh) : at;
@@ -2939,7 +2929,7 @@ export class WorldGame {
 
 // 길잡이가 보는 '해 봤나' (v146) — 이룬 때만 센다(돌려준 값이 참일 때). always는 부르기만 하면.
 for (const [fn, key, always] of [
-  ['setLine', 'line'], ['craftSet', 'set'], ['craftKacc', 'kacc'], ['makeStone', 'stone'], ['promote', 'promote'], ['enhance', 'enhance'],
+  ['craftSet', 'set'], ['craftKacc', 'kacc'], ['makeStone', 'stone'], ['promote', 'promote'], ['enhance', 'enhance'],
   ['sweepDaily', 'sweep'], ['drawZodiac', 'zodiac'], ['buyStatBook', 'book'], ['buyBagSpace', 'bag'], ['startRaid', 'raid'],
   ['killTreasure', 'treasure', true], ['moveTo', 'move', true],
   ['convertMats', 'convert'], ['buyProt', 'prot'], ['rerollImpSkill', 'reimp'], ['changeImpSpecial', 'reimp'],

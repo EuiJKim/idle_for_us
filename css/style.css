@@ -1379,9 +1379,6 @@ details.lore p { margin: 4px 0 0; line-height: 1.5; }
 .inf-box .inf-marks .chip { border-color: var(--mc, #fde68a); }
 .inf-box .inf-marks .chip.on { background: rgba(253, 224, 71, .18); color: #fde68a; }
 .inf-box > .btn { width: 100%; margin-top: 4px; }
-.inf-box.line-box summary { cursor: pointer; list-style: none; }
-.inf-box.line-box summary small { color: #a8a29e; }
-.inf-box.line-box .line-row { margin-top: 6px; }
 .enh-anim.inf .enh-sparks { filter: hue-rotate(260deg) saturate(1.4); }
 .grow-row .name small { color: #a8a29e; font-weight: 400; }
 

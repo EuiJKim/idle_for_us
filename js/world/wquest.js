@@ -55,9 +55,9 @@ export const QUESTS = [
     why: '들판 위 사냥터 이름을 누르면 지도가 열린다. 몹 레벨이 내 레벨쯤인 곳이 가장 빠르다.',
     goal: lv(5) },
   // ---- 2. 장비 (레벨 5~10) ----
-  // v158: 장비는 만들지 않는다 — 여섯 칸이 레벨을 따라 자란다. 눌러서 강화·등급·계열.
+  // v158: 장비는 만들지 않는다 — 여섯 칸이 레벨을 따라 자란다. 눌러서 강화·등급 각인.
   { id: 'craft', title: '낀 무기를 눌러 살펴보자', tab: 'bag/gear', min: 2, xp: 0.2,
-    why: '가방 창 → 착용. 장비 여섯 칸은 레벨을 따라 저절로 자란다 — 만들 필요 없이 강화·등급·계열로 키운다.',
+    why: '가방 창 → 착용. 장비 여섯 칸은 레벨을 따라 저절로 자란다 — 만들 필요 없이 강화·등급 각인으로 키운다.',
     goal: flag('gearView') },
   { id: 'enh1', title: '무기를 +1 강화하자', tab: 'bag/gear', min: 2, xp: 0.2,
     why: '낀 장비를 누르면 강화. 실패해도 장비는 그대로다 — 은자·재료만 든다.',
@@ -200,9 +200,6 @@ export const QUESTS = [
       if (!k) return null;
       g.addMats(k, W.INFUSE_MARKS[1]); return '두목 증표';
     } },
-  { id: 'line', title: '장비에 계열 각인을 해 보자', tab: 'bag/gear', min: 10, xp: 0.2,
-    why: '장비를 눌러 → 계열. 무림맹·사파·마교 고수 구역의 세력 재료로 장비의 성질(공격·방어·속도…)을 바꾼다.',
-    goal: flag('line') },
   { id: 'enh7', title: '무기를 +7까지', tab: 'bag/gear', min: 8, xp: 0.15,
     why: '+7부터 칼빛이 반짝인다. +10을 넘기려면 두목 증표가 든다.',
     goal: (g) => ({ now: g.s.equip.weapon?.plus || 0, need: 7 }) },
@@ -243,7 +240,7 @@ export const QUESTS = [
     why: '3차는 비기다. 여기서부터 장비 사다리의 끝이 보인다.',
     goal: tier(3) },
   { id: 'lv80', mile: true, title: '레벨 80까지', tab: 'map', min: 14, xp: 0,
-    why: '고수 구역의 세력 재료로 계열 각인을 바꿔 보자.',
+    why: '고수 구역의 세력 재료를 모아 두면 레벨 100에 고수 세트를 만든다.',
     goal: lv(80) },
   { id: 'fuse', title: '탈것을 합성해 보자', tab: 'comp/mount', min: 10, xp: 0.15, skip: true,
     why: '동료 → 탈것. 같은 순위 셋 + 은자로 다음 순위 하나. 두목이 떨군 탈것이 쌓였을 때.',
@@ -318,7 +315,7 @@ export const QUESTS = [
 ];
 
 export const QUEST_COUNT = QUESTS.length;
-export const QUEST_V = 4;
+export const QUEST_V = 5;   // v213: 계열 각인 단계를 뺐다
 // v180: 판 2의 차례 — 판 3으로 옮길 때 '지금 하던 단계'를 찾는다(끼워 넣은 단계는 새로 해 보게)
 export const QUEST_V3_IDS = ['job', 'kill10', 'move', 'zoom', 'stat', 'lv5', 'craft', 'enh1', 'potion', 'refill', 'potionAt', 'area2', 'lv10', 'armor', 'boss', 'enh3', 'tier1', 'skill', 'range', 'pet', 'mount', 'passive', 'lv20', 'saver', 'app', 'daily', 'dauto', 'sweep', 'tower3', 'gear4', 'mast1', 'convert', 'book', 'lv30', 'guild', 'checkin', 'donate', 'bag', 'alt', 'tower10', 'zodiac', 'tier2', 'duel', 'lore', 'promote', 'reimp', 'line', 'enh7', 'prot', 'lv50', 'daily10', 'tower20', 'lv60', 'petLv', 'treasure', 'raid', 'mast5', 'tier3', 'duel5', 'imp3', 'tower30', 'gear6', 'lv90', 'king', 'kingKill', 'tier4', 'set1', 'kacc', 'coop', 'tower50', 'enh10', 'set5', 'lord'];
 // v208: 판마다 차례 — 옛 판에서 옮길 때 '하던 단계'를 찾고, 새로 끼운 단계를 짚는다
@@ -334,4 +331,6 @@ export function questReward(q, level) {
   return out;
 }
 
-export const QUEST_IDS_BY_V = { 2: QUEST_V2_IDS, 3: QUEST_V3_IDS };
+// v213: 판 4의 차례 — 계열 각인('line')을 빼기 전
+export const QUEST_V4_IDS = ['job', 'kill10', 'move', 'zoom', 'stat', 'lv5', 'craft', 'enh1', 'potion', 'refill', 'potionAt', 'area2', 'lv10', 'armor', 'boss', 'enh3', 'enh5', 'tier1', 'skill', 'range', 'pet', 'mount', 'petSkill', 'passive', 'skill5', 'lv20', 'saver', 'app', 'daily', 'dauto', 'sweep', 'tower3', 'gear4', 'mast1', 'convert', 'book', 'lv30', 'guild', 'checkin', 'donate', 'bag', 'alt', 'tower10', 'zodiac', 'tier2', 'duel', 'lore', 'promote', 'reimp', 'line', 'enh7', 'prot', 'lv50', 'daily10', 'tower20', 'lv60', 'skill10', 'lv70', 'petLv', 'treasure', 'raid', 'mast5', 'tier3', 'lv80', 'fuse', 'duel5', 'imp2', 'imp3', 'tower30', 'tower40', 'gear6', 'lv90', 'king', 'kingKill', 'mast10', 'tier4', 'skillMax', 'set1', 'kacc', 'coop', 'lv120', 'tower50', 'enh10', 'enh12', 'set5', 'lord', 'lv150'];
+export const QUEST_IDS_BY_V = { 2: QUEST_V2_IDS, 3: QUEST_V3_IDS, 4: QUEST_V4_IDS };

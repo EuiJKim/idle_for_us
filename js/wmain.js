@@ -515,7 +515,7 @@ function handleEvents() {
         sfx('loot');
         drawPortrait();
         break;
-      case 'infuse': case 'line':
+      case 'infuse':
         if (ev.ok !== false) { sfx('loot'); drawPortrait(); }
         if (ev.type === 'infuse' && ev.ok && ev.item.rar >= 2) net.announce(`✦ ${game.s.nickname}님의 〈${itemTitle(game, ev.item)}〉에 ${W.RARITY[ev.item.rar].name} 등급이 새겨졌어요`);
         break;

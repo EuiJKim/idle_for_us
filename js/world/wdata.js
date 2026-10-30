@@ -486,8 +486,6 @@ export const isMarkKey = (k) => /^b\d+$/.test(String(k));
 export const markLv = (k) => (ZONES_W[+String(k).slice(1)]?.lv[1] || 1) + 2;      // 그 두목의 레벨
 export const infuseFactor = (key, ilv) => Math.max(INFUSE_F_MIN, Math.min(INFUSE_F_MAX, markLv(key) / Math.max(10, ilv)));
 export const infuseGold = (ilv, r) => Math.round((30 + ilv * 10) * RAR_GOLD[r] * 2);
-// 계열 각인 — 그 계열의 세력 재료 × LINE_SET_K. 칸(레벨)이 오를수록 덤 능력이 커지고, 바꾸면 다시 든다.
-export const LINE_SET_K = 3;
 // 빛깔(등급 색)은 지역 셋마다 한 칸씩 — 일반 · 고급 · 희귀 · 영웅 · 전설, 십이지왕 장비는 '지왕'
 // 빛깔(테두리 색)은 네 칸마다 한 단계 — 스무 칸이 다섯 빛깔
 export const stepGrade = (step) => Math.min(4, Math.floor(step / 4));

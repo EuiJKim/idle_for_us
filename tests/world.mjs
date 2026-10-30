@@ -314,16 +314,20 @@ console.log('\n=== 재료 · 성장 장비 (v158) ===');
     const exp = [1, 2, 3].map((r) => { let e = 0, pity = 0, left = 1; for (let t = 1; t < 400 && left > 1e-6; t++) { const p = Math.min(1, W.INFUSE_BASE[r] + pity); e += left * p * t; left *= 1 - p; pity += W.INFUSE_BASE[r] * W.INFUSE_PITY_K; } return e * W.INFUSE_MARKS[r]; });
     ok(exp[2] > exp[1] && exp[1] > exp[0], '위 등급일수록 증표가 훨씬 많이 든다', `유니크 ${exp[0].toFixed(0)} · 전설 ${exp[1].toFixed(0)} · 신화 ${exp[2].toFixed(0)}개`);
   }
-  // 계열 각인 — 세력 재료로, 칸(레벨)을 따라 덤이 커진다
+  // v213: 계열 각인은 없앴다 — 이미 붙은 계열은 수치가 그대로
   {
-    const L = fresh(); L.s.gold = 1e15;
-    while (L.s.level < 40) L.addExp(W.expToNext(L.s.level));
-    const lw = L.s.equip.weapon;
-    ok(!L.canSetLine(lw, 'magyo'), '세력 재료가 없으면 계열을 못 붙인다');
-    L.s.mats.fg = 1e5;
-    const a0 = L.stats().atk;
-    ok(L.setLine(lw.uid, 'magyo') && lw.line === 'magyo' && L.stats().atk > a0 && L.s.mats.fg < 1e5, '마교 재료로 마교 계열 — 공격력이 오른다');
-    ok(L.s.did.line, '길잡이: 계열을 붙여 봤다');
+    const L = fresh();
+    ok(typeof L.setLine !== 'function', '계열 각인이 없다');
+    const it0 = L.makeCrafted('weapon', 10, 0, 0);
+    ok(L.itemStats({ ...it0, line: 'magyo' }).atk > L.itemStats(it0).atk, '옛 세이브의 계열 장비는 그대로 세다');
+    // 길잡이 판 4 → 5: 계열 단계를 하던 사람은 그다음(무기 +7)으로, 그 뒤 단계는 같은 단계로
+    const QQ = await import('../js/world/wquest.js');
+    const ids4 = QQ.QUEST_IDS_BY_V[4];
+    for (const [from, to] of [['line', 'enh7'], ['enh7', 'enh7'], ['reimp', 'reimp'], ['lord', 'lord']]) {
+      const M = fresh(); M.s.questV = 4; M.s.quest = ids4.indexOf(from); M.s.questTo = M.s.quest;
+      M.questNow();
+      ok(QQ.questAt(M.s.quest)?.id === to && M.s.questV === QQ.QUEST_V, `길잡이 판 4→5: ${from} → ${to}`, QQ.questAt(M.s.quest)?.id);
+    }
   }
   // 옛 판(드랍) 장비도 그대로 읽힌다
   const legacy = { slot: 'weapon', ilv: 10, grade: 2, plus: 1, uid: 99999 };
@@ -1646,15 +1650,10 @@ console.log('\n=== 계열 장비 · 세력 재료 (v151) ===');
   ok(LN.LINES.length === 8 && LN.LINES.filter((l) => l.fac.length === 2).length === 3 && LN.lineOf('samp').fac.length === 3, '계열 여덟 — 기본 · 세력 하나 셋 · 둘 섞은 셋 · 삼파');
   const g = fresh();
   while (g.s.level < 50) g.addExp(W.expToNext(g.s.level));
-  const gw = g.s.equip.weapon;
-  const r0 = g.lineCost(gw, 'base').mats, r1 = g.lineCost(gw, 'sama').mats, r3 = g.lineCost(gw, 'samp').mats;
-  ok(!r0.fs && r1.fs > 0 && r1.fg > 0 && !r1.fm && r3.fm > 0 && r3.fs > 0 && r3.fg > 0, '사마는 사파·마교 재료만, 삼파는 셋 다 (계열 각인)', JSON.stringify(r1));
   const base = g.makeCrafted('weapon', 10, 0, 0);
   const mag = { ...g.makeCrafted('weapon', 10, 0, 0), line: 'magyo' };
   const samp = { ...g.makeCrafted('weapon', 10, 0, 0), line: 'samp' };
   ok(g.itemStats(mag).atk > g.itemStats(base).atk && g.itemStats(mag).atkPct > 0 && g.itemStats(samp).atk > g.itemStats(mag).atk, '계열 장비는 기본보다 세고 덤이 붙는다 · 삼파가 가장 세다');
-  g.s.gold = 1e9; g.s.mats = { fs: 1e4, fg: 1e4 };
-  ok(g.setLine(gw.uid, 'sama') && gw.line === 'sama' && g.s.mats.fs < 1e4 && g.s.mats.fg < 1e4, '성장 무기에 사마 계열을 붙인다 — 세력 재료가 든다');
   ok(migrateWorld({ mats: { fm: 5, fs: 3, fg: 2 } }).mats.fg === 2, '세력 재료가 저장된다');
   // 그 세력의 사냥터에서 세력 재료가 나온다
   const d = fresh();

@@ -359,8 +359,8 @@ function bagTab(app) {
         const bm = game.breakMarksOf(it);
         const breaking = (it.plus || 0) >= W.ENHANCE_NORMAL;
         const pc = null;                     // v173: 승급 없음 — 증표 각인으로
-        // v207: 한 줄로 길게 늘어서던 것을 칸으로 나눈다 — 강화 · 각인 · 계열 · 정보. 위에는 늘 이름·등급·수치.
-        const tabsAll = [['enh', breaking ? '돌파' : '강화'], game.canImprintItem(it) ? ['imp', '각인'] : null, it.grow ? ['line', '계열'] : null, ['info', '정보']].filter(Boolean);
+        // v207: 한 줄로 길게 늘어서던 것을 칸으로 나눈다 — 강화 · 각인 · 정보. 위에는 늘 이름·등급·수치.
+        const tabsAll = [['enh', breaking ? '돌파' : '강화'], game.canImprintItem(it) ? ['imp', '각인'] : null, ['info', '정보']].filter(Boolean);   // v213: 계열 칸 없앰
         if (!tabsAll.some(([k]) => k === itemTab)) itemTab = 'enh';
         const tabRow = h('div', { class: 'item-tabs' }, ...tabsAll.map(([k, name]) => h('button', { class: `item-tab${k === itemTab ? ' on' : ''}`, onclick: () => { itemTab = k; try { localStorage.setItem('ifu.itemTab', k); } catch { /* 이번만 */ } paint(); } }, name)));
         const infoPane = [
@@ -385,9 +385,8 @@ function bagTab(app) {
             W.enhanceRisky(it.plus || 0) && game.s.prot ? h('label', { class: 'chk' }, (() => { const c = h('input', { type: 'checkbox' }); c.checked = useProt; c.onchange = () => { useProt = c.checked; paint(); }; return c; })(), ' 보호부 쓰기') : null,
             h('button', { class: 'btn good enh-go', disabled: game.canEnhance(it) ? null : true, onclick: () => askEnhance() }, breaking ? '돌파' : '강화')),
         ];
-        const linePane = it.grow ? [(() => { const d = lineBox(); d.open = true; return d; })()] : [];
         const impPane = game.canImprintItem(it) ? [infuseBox(), impBox()] : [];
-        const pane = { enh: enhPane, imp: impPane, line: linePane, info: infoPane }[itemTab] || enhPane;
+        const pane = { enh: enhPane, imp: impPane, info: infoPane }[itemTab] || enhPane;
         s.replaceChildren(...[
           h('h2', { style: `color:${g.color}` }, itemTitle(game, it)),
           h('p', { class: 'item-sub' }, `${W.SLOTS.find((x) => x.id === it.slot).name} · Lv.${it.ilv} · `, h('b', { style: `color:${g.color}` }, g.name), ` · +${it.plus || 0}`),
@@ -492,20 +491,6 @@ function bagTab(app) {
               h('small', { class: 'muted' }, `다시 새기는 값: ${costTxt}`));
           }));
       };
-      // ---- 계열 각인 (v158): 세력 재료로 성향을 붙인다 ----
-      const lineBox = () => h('details', { class: 'inf-box line-box' },
-        h('summary', {}, h('b', {}, '계열 각인 '), h('small', {}, `지금 ${LN.lineOf(it.line).name} — 세력 재료로 성향을 붙여요`)),
-        ...LN.LINES.filter((Ln) => Ln.id !== (it.line || 'base')).map((Ln) => {
-          const c = game.lineCost(it, Ln.id);
-          const parts = Object.entries(c.mats).map(([k, n]) => `${W.matName(k)} ${fmt(n)} (${fmt(game.s.mats[k] || 0)})`);
-          return h('div', { class: 'row line-row' },
-            h('div', { class: 'info' }, h('div', { class: 'name' }, Ln.name, h('small', {}, ` ${Ln.desc} · 기본 ×${Ln.mult}`)),
-              h('div', { class: 'desc' }, [...parts, `은자 ${fmt(c.gold)}`].join(' · '))),
-            h('button', { class: 'buy', disabled: game.canSetLine(it, Ln.id) ? null : true, onclick: () => {
-              if (!game.setLine(it.uid, Ln.id)) return toast('재료·은자가 모자라요');
-              toast(`${Ln.name} 계열을 새겼어요`); app.save(); paint(); app.refresh();
-            } }, '새기기'));
-        }));
       // ---- 강화 (v152 · v192): 떨어질 수 있으면 묻고(+11부터는 붉게), 2초 연출 뒤 결과 ----
       const askEnhance = () => {
         if (!game.canEnhance(it)) return toast('은자나 재료가 모자라요');
@@ -649,7 +634,7 @@ function bagTab(app) {
       h('button', { class: ui.smode === k ? 'on' : '', onclick: () => { ui.smode = k; keepUi(); sigs.smith = ''; smithView(); } }, label)));
     if (ui.smode === 'set') return setSmith(modes);
     if (ui.smode === 'kacc') return kaccSmith(modes);
-    // 칸마다 성장 장비 하나 — 누르면 강화·등급 각인·계열 각인
+    // 칸마다 성장 장비 하나 — 누르면 강화·등급 각인
     const marks = Object.keys(s.mats).filter((k) => W.isMarkKey(k) && s.mats[k] > 0);
     const rows = W.GROW_SLOTS.map((sl) => {
       const it = game.growOf(sl);
@@ -671,7 +656,6 @@ function bagTab(app) {
           h('p', {}, `무기·옷·모자·장갑·신발·장신구는 칸마다 하나 — 만들지 않아요. 아이템 레벨이 내 레벨을 따라 오르고(${W.ILV_CAP}까지), 칸마다 그 레벨 지역의 고유 옵션이 붙어요.`),
           h('p', {}, '강화: 그 레벨 지역 재료 + 은자. +7까지는 실패해도 그대로, +8~10은 -1, +11부터 -2(보호부를 쓰면 그대로). 실패할수록 다음 확률이 올라요(천장). 장비는 사라지지 않아요.'),
           h('p', {}, `등급 각인: 어느 두목의 증표든 넣어 레어→유니크→전설→신화. 센 두목의 증표일수록 잘 붙고(×${W.INFUSE_F_MIN}~×${W.INFUSE_F_MAX}), 실패하면 다음 확률이 쌓여 언젠가는 반드시 붙어요. 오르면 등급 옵션이 새로 붙어요.`),
-          h('p', {}, '계열 각인: 세력 재료(협의패·흑도령·마혈정)로 성향을 붙여요. 둘을 섞으면 반씩, 셋 다 넣은 삼파가 가장 세요.'),
           h('p', {}, `${W.ILV_CAP}부터는 세트·왕의 장비를 만들어요.`)),
         h('p', { class: 'muted' }, marks.length ? `가진 두목 증표 ${marks.length}가지 · 모두 ${fmt(marks.reduce((a, k) => a + s.mats[k], 0))}개` : '두목 증표가 없어요 — 두목 구역·고수의 두목 방에서 모아요.')),
       h('div', { class: 'card' }, ...rows));
@@ -763,7 +747,7 @@ function bagTab(app) {
     if (nsig === sigs.mats) return;
     sigs.mats = nsig;
     const zones = new Set(Object.keys(s.mats).filter((k) => s.mats[k] > 0 && !G.isStoneKey(k) && !LN.isFacMat(k)).map((k) => parseInt(k.replace('b', ''), 10)));
-    const facRow = h('div', { class: 'row mat-zone' }, h('div', { class: 'info' }, h('div', { class: 'name' }, '세력 재료', h('small', {}, ' 계열 장비에 들어가요')),
+    const facRow = h('div', { class: 'row mat-zone' }, h('div', { class: 'info' }, h('div', { class: 'name' }, '세력 재료', h('small', {}, ' 레벨 100 고수 세트에 들어가요')),
       h('div', { class: 'mat-row' }, ...Object.entries(LN.FAC_MAT_INFO).map(([k, v]) => matChip(app, k, v.name, s.mats[k] || 0)),
         ...Object.entries(G.LORD_MATS).map(([k, v]) => matChip(app, k, v.name, s.mats[k] || 0)))));
     const stones = Object.keys(G.STONES).filter((z) => s.mats[G.stoneKey(z)] > 0);
@@ -1428,7 +1412,7 @@ function townTab(app) {
   }
   // 대장장이는 가방 창의 대장장이 칸에 있다 — 여기서는 안내와 바로 가기 (v148)
   function smithInfo() {
-    return [h('div', { class: 'card' }, h('h3', {}, '대장장이', h('small', {}, '강화 · 등급 각인 · 계열 · 세트')),
+    return [h('div', { class: 'card' }, h('h3', {}, '대장장이', h('small', {}, '강화 · 등급 각인 · 세트')),
       h('p', {}, '"재료만 가져오면 뭐든 두드려 주지. 등급은 골라서 — 위로 갈수록 재료가 확 들어."'),
       h('p', { class: 'muted' }, '사다리(~100) · 세트(99~) · 왕의 장신구(99~)를 만들고, 낀 장비를 누르면 강화·승급해요.'),
       h('button', { class: 'btn primary', style: 'width:100%', onclick: () => app.showTab?.('bag', 'smith') }, '대장장이로 가기 (가방 → 대장장이)'))];
