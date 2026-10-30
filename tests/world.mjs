@@ -174,7 +174,7 @@ console.log('\n=== 장비 ===');
   ok(strong.plus === g.enhanceMax(strong) && g.enhanceMax(strong) === W.ENHANCE_NORMAL, '옛 장비는 +10까지(돌파 없음)', `+${strong.plus}`);
 }
 
-console.log('\n=== 재료와 조합 (바람식) ===');
+console.log('\n=== 재료 · 성장 장비 (v158) ===');
 {
   // 몹은 장비가 아니라 그 사냥터 재료를 떨군다. 두목은 한 움큼 + 증표.
   const h = fresh();
@@ -182,8 +182,8 @@ console.log('\n=== 재료와 조합 (바람식) ===');
   let n = 0;
   for (let i = 0; i < 10000; i++) if (h.dropMats({ lv: 5, isBoss: false })) n++;
   ok(Math.abs(n / 10000 - W.MAT_RATE) < 0.02, '몹 재료 확률이 설계대로', `${(n / 100).toFixed(1)}%`);
-  ok(h.s.mats[1] === n && !h.s.bag.length && h.s.equip.weapon?.starter, '졸개는 재료만 떨군다(장비는 안 떨군다)', `${W.MATS[1]} ${h.s.mats[1]}`);
-  // 두목은 가끔 그 지역 하급 장비를 통째로 — 십이지왕은 더 자주
+  ok(h.s.mats[1] === n && !h.s.bag.length, '졸개는 재료만 떨군다(장비는 안 떨군다)', `${W.MATS[1]} ${h.s.mats[1]}`);
+  // 두목은 사다리 장비를 떨구지 않는다 — 가끔 증표 한 움큼. 십이지왕은 왕의 장비를 떨군다.
   const d = fresh();
   let drops = 0, kdrops = 0;
   for (let i = 0; i < 2000; i++) {
@@ -192,109 +192,85 @@ console.log('\n=== 재료와 조합 (바람식) ===');
     d.s.map = W.mapId(16, 4); d.dropMats({ lv: 105, isBoss: true, x: 0, y: 0 });
     kdrops += d.events.filter((e) => e.type === 'drop' && e.item.king === 16).length; d.events.length = 0;
   }
-  ok(Math.abs(drops / 2000 - W.BOSS_ITEM_RATE) < 0.03 && Math.abs(kdrops / 2000 - W.KING_ITEM_RATE) < 0.04, '두목은 가끔 장비를 떨군다(십이지왕은 더 자주)', `${(drops / 20).toFixed(1)}% · 왕 ${(kdrops / 20).toFixed(1)}%`);
+  ok(drops === 0 && Math.abs(kdrops / 2000 - W.KING_ITEM_RATE) < 0.04 && d.s.mats[W.bossKey(1)] > 2000, '두목은 사다리 장비 대신 증표를 더 준다 · 십이지왕은 왕의 장비', `왕 ${(kdrops / 20).toFixed(1)}% · 증표 ${d.s.mats[W.bossKey(1)]}`);
   h.dropMats({ lv: 6, isBoss: true });
-  ok(h.s.mats[W.bossKey(1)] === 1 && h.s.mats[1] === n + W.BOSS_MATS, '두목은 재료 한 움큼과 증표를 떨군다', W.matName(W.bossKey(1)));
-  // 조합 사다리 (v143): 레벨 5마다 한 칸, 100까지 스무 칸. 등급은 고른다.
+  ok(h.s.mats[W.bossKey(1)] >= 1 && h.s.mats[1] === n + W.BOSS_MATS, '두목은 재료 한 움큼과 증표를 떨군다', W.matName(W.bossKey(1)));
+
+  // 직업을 고르면 여섯 칸 성장 장비를 받는다
   const g = fresh();
-  g.s.gold = 1e9;
-  g.s.level = 100;
-  ok(g.craft('weapon', 0) === null, '재료가 모자라면 조합할 수 없다');
-  for (let k = 1; k <= W.NORMAL_ZONES; k++) { g.s.mats[k] = 1e6; g.s.mats[W.bossKey(k)] = 1e4; }
-
-  ok(W.STEP_COUNT === 20 && W.stepLevel(0) === 5 && W.stepLevel(19) === 100,
-    '칸은 레벨 5마다 스무 칸 (5 … 100)', `${W.stepLevel(0)} … ${W.stepLevel(19)}`);
-  ok(W.stepOfLevel(35) === 6 && W.stepLevel(6) === 35, '레벨로 칸을 찾는다', 'Lv35 → 7번째 칸');
-
-  // 아래 장비 없이도 재료만 있으면 — 대신 재료가 NO_BASE_MULT배
+  ok(W.GROW_SLOTS.every((k) => g.s.equip[k]?.grow && g.s.equip[k].rar === 0 && g.s.equip[k].plus === 0), '직업을 고르면 여섯 칸 성장 장비(레어 +0)를 낀다');
+  ok(g.s.equip.weapon.ilv === 1, '아이템 레벨 = 내 레벨', `Lv.${g.s.equip.weapon.ilv}`);
+  const a1 = g.stats().atk;
+  while (g.s.level < 50) g.addExp(W.expToNext(g.s.level));
+  ok(g.s.equip.weapon.ilv === 50 && g.s.equip.weapon.step === W.stepOfLevel(50) && g.itemStats(g.s.equip.weapon).atk > 10 * g.itemStats({ ...g.s.equip.weapon, ilv: 1 }).atk, '레벨이 오르면 장비도 따라 자란다', `무기 공격력 → ${Math.round(g.itemStats(g.s.equip.weapon).atk)}`);
+  while (g.s.level < 130) g.addExp(W.expToNext(g.s.level));
+  ok(g.s.equip.weapon.ilv === W.ILV_CAP, '100에서 멈춘다 — 그 위는 세트·왕의 장비', `Lv.${g.s.equip.weapon.ilv}`);
+  ok(g.stats().atk > a1, '공격력이 오른다');
+  // 성장 장비는 팔리지 않고 가방이 넘쳐도 안 팔린다
+  const w = g.s.equip.weapon;
+  ok(g.sell(w) === 0 && g.findItem(w.uid) === w, '성장 장비는 팔 수 없다');
+  // 강화: 부서질 자리에서 실패해도 +0으로 (사라지지 않는다)
   {
-    const f = fresh(); f.s.gold = 1e9; f.s.level = 100;
-    const z0 = W.stepMap(2);
-    f.s.mats = { [z0]: 1e6 };
-    const need = f.craftCheck('weapon', 2).r.mats[z0];
-    const it = f.craft('weapon', 2);
-    ok(it && it.step === 2 && need === Math.ceil(W.recipeOf('weapon', 2).mats[z0] * W.NO_BASE_MULT),
-      '아래 장비 없이도 재료만 있으면 만든다', `${need}개`);
+    const E = fresh(); E.s.gold = 1e15; E.s.prot = 0;
+    for (let k = 1; k <= 60; k++) { E.s.mats[k] = 1e6; E.s.mats[W.bossKey(k)] = 1e6; }
+    const ew = E.s.equip.weapon; ew.plus = W.ENHANCE_NORMAL;
+    E.rng = () => 0.99;
+    E.enhance(ew.uid, false);
+    ok(E.lastEnhance.broke && E.lastEnhance.reset && E.s.equip.weapon === ew && ew.plus === 0, '성장 장비는 부서지지 않고 +0으로 돌아간다');
   }
-  // 목록은 **레벨**을 따른다 — 전에는 들어갈 수 있는 지역을 봤다
+  // 등급 각인: 어느 두목의 증표든 — 센 두목 것일수록 잘 붙는다 · 실패하면 천장이 쌓인다
   {
-    const f = fresh(); f.s.level = 50;
-    const st = f.craftSteps();
-    ok(st.length === W.stepOfLevel(50) + 2 && st[st.length - 1] === W.stepOfLevel(50) + 1,
-      '대장장이 목록은 내 레벨까지 + 한 칸 더', `레벨 50 → ${st.length}칸`);
+    const I = fresh(); I.s.gold = 1e15;
+    while (I.s.level < 30) I.addExp(W.expToNext(I.s.level));
+    const iw = I.s.equip.weapon;
+    const weakK = W.bossKey(1), strongK = W.bossKey(10);
+    I.s.mats[weakK] = 1e4; I.s.mats[strongK] = 1e4;
+    ok(I.infuseInfo(iw, strongK).chance > I.infuseInfo(iw, weakK).chance, '센 두목의 증표일수록 확률이 높다', `${(I.infuseInfo(iw, weakK).chance * 100).toFixed(0)}% < ${(I.infuseInfo(iw, strongK).chance * 100).toFixed(0)}%`);
+    I.rng = () => 0.999;
+    const c0 = I.infuseInfo(iw, weakK).chance;
+    ok(I.infuse(iw.uid, weakK) === false && iw.rar === 0 && I.infuseInfo(iw, weakK).chance > c0 && I.s.mats[weakK] === 1e4 - W.INFUSE_MARKS[1], '실패하면 증표만 들고 다음 확률이 오른다 (천장)');
+    let tries = 1;
+    while (iw.rar === 0 && tries < 200) { I.infuse(iw.uid, weakK); tries++; }
+    ok(iw.rar === 1 && !iw.pity, '확률이 끝까지 차면 반드시 오른다', `${tries}번째`);
+    I.rng = () => 0;
+    const o0 = JSON.stringify(iw.opts);
+    ok(I.infuse(iw.uid, strongK) && iw.rar === 2 && I.infuse(iw.uid, strongK) && iw.rar === 3 && JSON.stringify(iw.opts) !== o0, '오르면 등급 옵션이 새로 붙는다 (신화까지)');
+    ok(!I.infuseInfo(iw, strongK), '신화 위는 없다');
+    ok(I.s.did.infuse, '길잡이: 등급 각인을 해 봤다');
+    // 기대 증표 수 — 같은 레벨 두목 증표로 신화까지
+    const exp = [1, 2, 3].map((r) => { let e = 0, pity = 0, left = 1; for (let t = 1; t < 400 && left > 1e-6; t++) { const p = Math.min(1, W.INFUSE_BASE[r] + pity); e += left * p * t; left *= 1 - p; pity += W.INFUSE_BASE[r] * W.INFUSE_PITY_K; } return e * W.INFUSE_MARKS[r]; });
+    ok(exp[2] > exp[1] && exp[1] > exp[0], '위 등급일수록 증표가 훨씬 많이 든다', `유니크 ${exp[0].toFixed(0)} · 전설 ${exp[1].toFixed(0)} · 신화 ${exp[2].toFixed(0)}개`);
   }
-
-  const w0 = g.craft('weapon', 0);
-  ok(w0 && g.s.equip.weapon === w0 && w0.ilv === 5, '첫 칸은 재료와 은자로 — 바로 낀다', W.itemName(w0, 'sword'));
-
-  // **등급은 운이다** (v153 — v143에 '골라서 만들기'였다가 사용자 뜻대로 다시 뽑기로)
+  // 계열 각인 — 세력 재료로, 칸(레벨)을 따라 덤이 커진다
   {
-    const cnt = [0, 0, 0, 0];
-    g.s.gold = 1e15; for (let k = 1; k <= W.NORMAL_ZONES; k++) { g.s.mats[k] = 1e9; g.s.mats[W.bossKey(k)] = 1e7; }
-    for (let i = 0; i < 2000; i++) { const it = g.craft('armor', 3, false); if (it) { cnt[it.rar]++; g.sell(it); } }
-    ok(cnt[0] > 1350 && cnt[3] === 0, '조합 등급은 운 — 기본 계열은 대부분 레어, 신화는 안 나온다(v157)', cnt.join('/'));
-    // v157: 세력 재료를 많이 섞을수록 운이 좋다 — 같은 재료로 뽑는 신화 수가 셋 > 둘 > 하나
-    const LN2 = await import('../js/world/wline.js');
-    const perMat = (id) => { const w = LN2.lineRarW(id); const sum = w.reduce((a, b) => a + b, 0); const mats = Object.values(LN2.lineMats(id, 'weapon', 10)).reduce((a, b) => a + b, 0); return (w[3] / sum) / mats; };
-    ok(perMat('samp') > perMat('jeongma') && perMat('jeongma') > perMat('murim'), '세력 재료 하나당 신화 확률: 삼파 > 둘 섞은 계열 > 정파 하나', ['murim', 'jeongma', 'samp'].map((x) => perMat(x).toExponential(2)).join(' < '));
-    const it2 = { ...g.makeCrafted('weapon', 10, 0, 2), line: 'murim' };
-    const pc2 = W.promoteCost(it2);
-    ok(pc2.fac.fm > 0 && !W.promoteCost({ ...it2, line: 'base' }).fac.fm, '계열 장비 승급에는 그 세력 재료도 든다');
+    const L = fresh(); L.s.gold = 1e15;
+    while (L.s.level < 40) L.addExp(W.expToNext(L.s.level));
+    const lw = L.s.equip.weapon;
+    ok(!L.canSetLine(lw, 'magyo'), '세력 재료가 없으면 계열을 못 붙인다');
+    L.s.mats.fg = 1e5;
+    const a0 = L.stats().atk;
+    ok(L.setLine(lw.uid, 'magyo') && lw.line === 'magyo' && L.stats().atk > a0 && L.s.mats.fg < 1e5, '마교 재료로 마교 계열 — 공격력이 오른다');
+    ok(L.s.did.line, '길잡이: 계열을 붙여 봤다');
   }
-  // **위 등급일수록 재료가 확 든다** — 신화를 노릴 이유
-  {
-    const k = W.stepMap(9);
-    const n = (r) => W.recipeOf('weapon', 9, r).mats[k];
-    const b = (r) => W.recipeOf('weapon', 9, r).mats[W.bossKey(k)] || 0;
-    ok(n(1) > n(0) && n(2) > n(1) && n(3) > n(2), '등급이 오를수록 재료가 는다',
-      `${n(0)} → ${n(1)} → ${n(2)} → ${n(3)}`);
-    ok(n(3) >= n(0) * 20, '신화는 레어의 스무 배가 넘는다', `×${(n(3) / n(0)).toFixed(0)}`);
-    ok(b(0) === 0 && b(3) > b(1), '두목 증표는 유니크부터, 신화에 가장 많이', `${b(0)} / ${b(1)} / ${b(2)} / ${b(3)}`);
-  }
-
-  // 아래 장비를 넣으면 강화 절반을 이어받고, 그 장비는 사라진다
-  {
-    const f = fresh(); f.s.gold = 1e9; f.s.level = 100;
-    for (let k = 1; k <= W.NORMAL_ZONES; k++) { f.s.mats[k] = 1e6; f.s.mats[W.bossKey(k)] = 1e4; }
-    const a = f.craft('weapon', 5);
-    a.plus = 6;
-    const atk0 = f.stats().atk;
-    const b2 = f.craft('weapon', 6);
-    ok(b2 && f.s.equip.weapon === b2 && !f.findItem(a.uid), '조합하면 아래 장비는 사라지고 위 장비를 낀다');
-    ok(b2.plus === 6, '강화는 +10까지 그대로 이어받는다 (v153)', `+${b2.plus}`);
-    ok(f.stats().atk > atk0, '공격력이 오른다', `${Math.round(atk0)} → ${Math.round(f.stats().atk)}`);
-  }
-  // 넣은 장비가 더 높은 등급이면 그걸 지킨다 — 안 그러면 아무도 위 등급을 안 만든다
-  {
-    const f = fresh(); f.s.gold = 1e9; f.s.level = 100;
-    for (let k = 1; k <= W.NORMAL_ZONES; k++) { f.s.mats[k] = 1e6; f.s.mats[W.bossKey(k)] = 1e4; }
-    const a = f.craft('weapon', 5, false);
-    a.rar = 3;                                          // 신화를 만들어 두고
-    f.rng = () => 0.01;                                 // 다음 조합은 레어가 나와도
-    const b2 = f.craft('weapon', 6, true);
-    ok(a.rar === 3 && b2 && b2.rar === 3, '넣은 장비가 더 높은 등급이면 그 등급을 지킨다',
-      `${W.RARITY[a.rar].name} → ${W.RARITY[b2.rar].name}`);
-  }
-
-  // 사다리 끝까지 — 칸마다 강해지기만
-  const z = fresh();
-  z.s.gold = 1e12;
-  z.s.level = 100;
-  for (let k = 1; k <= W.NORMAL_ZONES; k++) { z.s.mats[k] = 1e7; z.s.mats[W.bossKey(k)] = 1e5; }
-  let mono = true;
-  let prev = 0;
-  for (let st = 0; st < W.STEP_COUNT; st++) {
-    const it = z.craft('armor', st);
-    if (!it) { mono = false; break; }
-    const sc = z.itemScore(it);
-    if (sc <= prev) mono = false;
-    prev = sc;
-  }
-  ok(mono && z.s.equip.armor.step === W.STEP_COUNT - 1, `조합 사다리 ${W.STEP_COUNT}칸이 이어지고 갈수록 강하다`, W.itemName(z.s.equip.armor, 'sword'));
-  ok(z.nextSteps('armor').length === 0, '끝에 닿으면 더 만들 것이 없다');
   // 옛 판(드랍) 장비도 그대로 읽힌다
   const legacy = { slot: 'weapon', ilv: 10, grade: 2, plus: 1, uid: 99999 };
   ok(Number.isFinite(g.itemStats(legacy).atk), '옛 드랍 장비도 수치가 나온다');
+}
+
+console.log('\n=== 옛 사다리 장비 → 성장 장비 (v158) ===');
+{
+  const sv = newWorldSave(0);
+  sv.job = 'sword'; sv.level = 42; sv.gearV = 3;
+  sv.equip.weapon = { uid: 501, slot: 'weapon', step: 6, ilv: 35, rar: 1, grade: 3, opts: [], plus: 5, line: 'sapa' };
+  sv.bag = [{ uid: 502, slot: 'weapon', step: 7, ilv: 40, rar: 2, grade: 4, opts: [], plus: 3 },
+    { uid: 503, slot: 'armor', step: 7, ilv: 40, rar: 0, grade: 2, opts: [], plus: 0 }];
+  sv.gold = 0;
+  const g = new WorldGame(sv, 0);
+  const w = g.growOf('weapon');
+  ok(w && w.uid === 502 && w.rar === 2 && w.plus === 3 && g.s.equip.weapon === w && w.ilv === 42, '그 칸에서 가장 좋은 사다리 장비(등급 먼저)가 성장 장비가 된다', `${w?.uid} ${W.RARITY[w?.rar]?.name} +${w?.plus}`);
+  ok(!g.findItem(501) && g.s.gold > 0, '나머지 사다리 장비는 팔린다');
+  ok(g.s.equip.armor?.uid === 503 && g.s.equip.armor.grow && W.GROW_SLOTS.every((k) => g.growOf(k)), '빈 칸은 새 성장 장비 · 가방의 옷은 끼워진다');
+  ok(g.s.gearV === 4, '한 번만 바꾼다');
 }
 
 console.log('\n=== 지역·구역·두목 구역 ===');
@@ -342,14 +318,6 @@ console.log('\n=== 지역·구역·두목 구역 ===');
   ok(new Set(W.KINGS.map((x) => x.mat)).size === 12 && W.KINGS.every((x) => !W.MATS.slice(1, 16).includes(x.mat)), '왕마다 재료가 다르다');
   ok(W.STEP_COUNT === 20 && W.craftIlv(W.STEP_COUNT - 1) === W.ILV_CAP && W.ILV_CAP === 100,
     '조합 사다리는 레벨 100에서 끝난다 (v143)', `${W.STEP_COUNT}칸 · Lv${W.ILV_CAP}`);
-  const kk = fresh();
-  kk.s.gold = 1e12; kk.s.equip.weapon = null;
-  kk.s.level = 100;
-  for (let z = 1; z <= W.NORMAL_ZONES; z++) { kk.s.mats[z] = 1e7; kk.s.mats[W.bossKey(z)] = 1e5; }
-  let okLadder = true;
-  for (let st = 0; st < W.STEP_COUNT; st++) if (!kk.craft('weapon', st)) okLadder = false;
-  ok(okLadder && kk.s.equip.weapon.ilv === W.ILV_CAP, '조합 사다리 끝은 레벨 100 장비',
-    `${W.itemName(kk.s.equip.weapon, 'sword')} Lv.${kk.s.equip.weapon.ilv}`);
   // 옛 세이브: 사냥터 3 → 지역 3의 1구역
   const old = migrateWorld({ map: 3, huntMap: 3, bestMap: 5, mats: { 3: 10 } });
   ok(old.map === W.mapId(3, 1) && old.huntMap === W.mapId(3, 1) && old.mats[3] === 10, '옛 세이브의 사냥터 번호를 새 구역으로 옮긴다', `${old.map}`);
@@ -358,11 +326,9 @@ console.log('\n=== 지역·구역·두목 구역 ===');
 console.log('\n=== 장비가 강함의 대부분 ===');
 {
   const g = fresh();
-  ok(g.s.equip.weapon?.starter && W.itemName(g.s.equip.weapon, 'sword') === '수련용 검', '수련용 무기를 들고 시작한다');
-  g.s.level = 60; g.s.stats.str = 120; g.s.stats.vit = 60; g._stats = null;
+  g.s.level = 60; g.s.stats.str = 120; g.s.stats.vit = 60; g.syncGrow(); g._stats = null;
   g.s.gold = 1e12;
   for (let z = 1; z <= 10; z++) { g.s.mats[z] = 1e5; g.s.mats[W.bossKey(z)] = 100; }
-  for (const sl of W.CRAFT_SLOTS) { g.s.equip[sl.id] = null; for (let st = 0; st < 20; st++) g.craft(sl.id, st); }
   // 장비 몫 = 장비를 다 벗었을 때 줄어드는 만큼. 흔한 차림(유니크 +6)으로 잰다.
   for (const it of Object.values(g.s.equip).filter(Boolean)) { it.rar = 1; it.plus = 6; }
   g._stats = null;
@@ -396,22 +362,7 @@ console.log('\n=== 등급 · 스킬 옵션 · 승급 · 돌파 · 스킬 레벨 
   const atks = items.map((it) => g.itemStats(it).atk);
   ok(atks.every((v, i) => !i || v > atks[i - 1]) && items.map((it) => it.opts.length).join() === '1,1,2,3', '같은 장비도 레어<유니크<전설<신화, 옵션 1·1·2·(2+특수)', atks.map((v) => v.toFixed(0)).join(' < '));
   ok(items[3].opts.some((o) => o.sp), '신화에는 특수 효과', items[3].opts.map(W.optText).join(' / '));
-  // 승급
-  // 칸이 바뀌었다(v143) — 그 칸의 지역을 셈해서 재료를 쥐여 준다
-  const pz = W.stepMap(10);
-  g.s.gold = 1e9; g.s.mats = { [pz]: 1e5, [W.bossKey(pz)]: 1e4 };
-  const w = g.makeCrafted('weapon', 10, 0, 0);
-  g.s.equip.weapon = w; g._stats = null;
-  const a0 = g.stats().atk;
-  ok(g.promote(w.uid) && w.rar === 1 && g.stats().atk > a0, '대장장이 승급: 레어 → 유니크(확정), 공격력이 오른다', `${a0.toFixed(0)} → ${g.stats().atk.toFixed(0)}`);
-  g.promote(w.uid); g.promote(w.uid);
-  ok(w.rar === 3 && !g.canPromote(w), '신화까지 오르면 더 못 올린다');
-  // 조합은 등급·옵션을 이어받는다
-  g.s.level = 100;
-  for (let z = 1; z <= W.NORMAL_ZONES; z++) { g.s.mats[z] = 1e6; g.s.mats[W.bossKey(z)] = 1e4; }
-  const before = JSON.stringify(w.opts);
-  const nx = g.craft('weapon', 12);
-  ok(nx && nx.rar === 3 && JSON.stringify(nx.opts) === before, '위 장비로 조합해도 신화 등급과 옵션을 이어받는다', W.itemName(nx, 'sword'));
+  ok(!g.canPromote(g.s.equip.weapon), '성장 장비는 승급이 아니라 등급 각인으로 (v158)');
   // 스킬 옵션이 스킬을 바꾼다
   const h = fresh();
   h.s.level = 40; h.s.jobTier = 2; h.enterMap(W.mapId(5, 1));
@@ -501,7 +452,7 @@ console.log('\n=== 십이지왕 신화 · 가락지·귀걸이 · 애완동물 �
   const a = fresh();
   const accRate = (z) => { let n = 0; for (let i = 0; i < 4000; i++) { a.s.map = W.mapId(z, 4); a.dropMats({ isBoss: true, x: 0, y: 0 }); n += a.events.filter((e) => e.type === 'drop' && W.isDropOnly(e.item.slot)).length; a.events.length = 0; } return n / 4000; };
   const r1 = accRate(1), r15 = accRate(15);
-  ok(r1 < r15 && Math.abs(r1 - W.acc2DropRate(1)) < 0.015 && a.craft('finger', 4) === null, '가락지·귀걸이는 두목만 떨군다 — 높은 두목일수록 자주(만들 수 없다)', `죽림 ${(r1 * 100).toFixed(1)}% · 천외천 ${(r15 * 100).toFixed(1)}%`);
+  ok(r1 < r15 && Math.abs(r1 - W.acc2DropRate(1)) < 0.015, '가락지·귀걸이는 두목만 떨군다 — 높은 두목일수록 자주(만들 수 없다)', `죽림 ${(r1 * 100).toFixed(1)}% · 천외천 ${(r15 * 100).toFixed(1)}%`);
   // 두목마다 이름·덤 능력이 다르고, 높은 두목 것이 더 좋다
   const lo = a.makeCrafted('finger', 0, 0, 1, 1), hi = a.makeCrafted('finger', W.STEP_COUNT - 1, 0, 1, 15);
   const sl = a.itemStats(lo), sh = a.itemStats(hi);
@@ -736,6 +687,7 @@ console.log('\n=== 장비 개편 (v130) ===');
   ok(lowStep >= 0 && ua && ub && ua.k === ub.k && ub.v > ua.v && g.itemUnique(c).k !== ua.k,
     '사다리 장비마다 고유 옵션 — 지역으로 정해지고 같은 지역 뒤 칸이 더 크다',
     `${G.gearKeyText(ua.k, ua.v)} / ${G.gearKeyText(ub.k, ub.v)}`);
+  g.s.equip.weapon = null; g._stats = null;
   const sp0 = g.stats().speed;
   const z1 = g.makeCrafted('weapon', 0, 0, 0);     // 죽림(1번 지역) 무기
   g.s.equip.weapon = z1; g._stats = null;
@@ -974,7 +926,8 @@ console.log('\n=== 두목 우선 · 조이스틱 (v125) ===');
   g.freezeT = 0;
   const boss = g.mons.find((m) => m.isBoss && m.alive);
   g.mon = g.mons.find((m) => m.alive && !m.isBoss);
-  g.tick(0.05);
+  // 칸 사이를 걷는 중이면 칸 가운데에 서서 바꾼다 — 몇 틱 안에
+  for (let i = 0; i < 20 && g.mon !== boss; i++) g.tick(0.05);
   ok(boss && g.mon === boss, '두목 구역에서는 졸개를 치던 중에도 두목에게 간다');
   const j = fresh(); j.enterMap(11);
   for (const m of j.mons) m.atk = 0;
@@ -1101,8 +1054,8 @@ console.log('\n=== 다섯 캐릭터 · 2시간 ===');
       // 전직·물약은 사냥터에서 (마을에 안 간다)
       while (g.canAdvance()) g.advance();
       if (g.s.potions < 15) g.buyPotions(Math.min(40 - g.s.potions, Math.floor(g.s.gold / g.potionPrice())));
-      // 30초마다 대장장이 — 만들 수 있는 가장 높은 것
-      if (t % 30 < 0.1) for (const sl of W.CRAFT_SLOTS) for (const st of g.nextSteps(sl.id).reverse()) if (g.craft(sl.id, st)) break;
+      // 장비는 레벨을 따라 자란다 (v158) — 30초마다 무기를 강화해 본다
+      if (t % 30 < 0.1) for (const sl of W.GROW_SLOTS) { const it = g.s.equip[sl]; if (it && (it.plus || 0) < 6 && g.canEnhance(it)) g.enhance(it.uid); }
       // 사냥터: 들어갈 수 있는 가장 높은 들판 구역. 상급 조합에 증표가 모자라면 두목 구역에 들른다.
       let best = 11;
       for (const m of W.MAPS) if (!m.town && !m.bossRoom && g.canEnter(m.id) && g.s.level >= m.lv[0] + 1) best = m.id;
@@ -1180,10 +1133,16 @@ console.log('\n=== 길잡이 (v146) ===');
   // 선물은 한 번뿐 — 다시 봐도 또 주지 않는다
   const g2 = fresh(); g2.s.quest = at('pet'); g2.questNow(); g2.questNow();
   ok(g2.s.petBox.length === 1, '선물은 그 단계에 한 번만');
-  // 첫 무기 재료
-  const g3 = fresh(); g3.s.quest = at('craft'); g3.questNow();
-  ok(g3.craftCheck('weapon', 0, false, 0).ok, '무기 만들기 단계가 뜨면 첫 무기 재료를 챙겨 준다');
-  ok(!!g3.craft('weapon', 0, false, 0) && g3.questNow().done, '만들면 끝난다');
+  // 장비 살펴보기 · 등급 각인 (v158)
+  const g3 = fresh(); g3.s.quest = at('craft');
+  ok(!g3.questNow().done, '무기를 눌러 보는 단계');
+  g3.mark('gearView');
+  ok(g3.questNow().done, '장비 창에서 눌러 보면 끝난다');
+  const gp = fresh(); gp.s.gold = 1e9; gp.s.quest = at('promote'); gp.questNow();
+  const mk = Object.keys(gp.s.mats).find(W.isMarkKey);
+  ok(mk && gp.canInfuse(gp.s.equip.weapon, mk), '등급 각인 단계가 뜨면 두목 증표를 챙겨 준다');
+  gp.infuse(gp.s.equip.weapon.uid, mk);
+  ok(gp.questNow().done, '각인을 해 보면(실패해도) 끝난다');
   // 해 본 것 표
   const g4 = fresh(); g4.s.quest = at('move');
   g4.enterMap(W.mapId(1, 1)); g4.moveTo(200, 200);
@@ -1333,7 +1292,7 @@ console.log('\n=== 맹주·천마 세트 (v153) ===');
     for (const sl of G2.SET_SLOTS) g.equipFromBag?.(g.craftSet('cheonmaset', sl)?.uid);
     for (const sl of G2.SET_SLOTS) { const it = g.s.bag.find((x) => x.slot === sl && x.set === 'cheonmaset'); if (it) g.equipFromBag(it.uid); }
     g._stats = null;
-    ok(g.setCounts().cheonmaset === 5 && g.stats().atk > a0 * 1.5, `${job}: 천마신장 다섯 조각을 만들어 끼면 5세트 효과`, `공격력 ${Math.round(a0)} → ${Math.round(g.stats().atk)}`);
+    ok(g.setCounts().cheonmaset === 5 && g.stats().atk > a0 * 1.15, `${job}: 천마신장 다섯 조각을 만들어 끼면 5세트 효과`, `공격력 ${Math.round(a0)} → ${Math.round(g.stats().atk)}`);
   }
   // 천마 두목이 천마혈옥을 떨군다
   const d = fresh();
@@ -1344,31 +1303,21 @@ console.log('\n=== 맹주·천마 세트 (v153) ===');
   ok((d.s.mats.lc || 0) >= 6 && W.matName('lc') === '천마혈옥', '천마를 쓰러뜨리면 천마혈옥 6개');
 }
 
-console.log('\n=== 되팔기 (v153) ===');
-{
-  const g = fresh();
-  g.s.gold = 1e9; g.s.mats = { [W.stepMap(4)]: 1e4, fs: 500, fg: 500 };
-  const it = g.craft('weapon', 4, false, 0, 'sama');
-  g.s.equip.weapon = null; g.s.bag.push(it);
-  const m0 = g.s.mats[W.stepMap(4)], f0 = g.s.mats.fs, g0 = g.s.gold;
-  g.sell(it);
-  ok(g.s.mats[W.stepMap(4)] - m0 === Math.floor(it.cost.mats[W.stepMap(4)] / 4) && g.s.mats.fs > f0 && g.s.gold > g0, '조합 장비를 팔면 만들 때 든 재료·은자의 1/4이 돌아온다');
-}
-
 console.log('\n=== 계열 장비 · 세력 재료 (v151) ===');
 {
   const LN = await import('../js/world/wline.js');
   ok(LN.LINES.length === 8 && LN.LINES.filter((l) => l.fac.length === 2).length === 3 && LN.lineOf('samp').fac.length === 3, '계열 여덟 — 기본 · 세력 하나 셋 · 둘 섞은 셋 · 삼파');
-  const r0 = W.recipeOf('weapon', 10, 0, 'base'), r1 = W.recipeOf('weapon', 10, 0, 'sama'), r3 = W.recipeOf('weapon', 10, 0, 'samp');
-  ok(!r0.mats.fs && r1.mats.fs > 0 && r1.mats.fg > 0 && !r1.mats.fm && r3.mats.fm > 0 && r3.mats.fs > 0 && r3.mats.fg > 0, '사마는 사파·마교 재료만, 삼파는 셋 다', JSON.stringify(r1.mats));
   const g = fresh();
+  while (g.s.level < 50) g.addExp(W.expToNext(g.s.level));
+  const gw = g.s.equip.weapon;
+  const r0 = g.lineCost(gw, 'base').mats, r1 = g.lineCost(gw, 'sama').mats, r3 = g.lineCost(gw, 'samp').mats;
+  ok(!r0.fs && r1.fs > 0 && r1.fg > 0 && !r1.fm && r3.fm > 0 && r3.fs > 0 && r3.fg > 0, '사마는 사파·마교 재료만, 삼파는 셋 다 (계열 각인)', JSON.stringify(r1));
   const base = g.makeCrafted('weapon', 10, 0, 0);
   const mag = { ...g.makeCrafted('weapon', 10, 0, 0), line: 'magyo' };
   const samp = { ...g.makeCrafted('weapon', 10, 0, 0), line: 'samp' };
   ok(g.itemStats(mag).atk > g.itemStats(base).atk && g.itemStats(mag).atkPct > 0 && g.itemStats(samp).atk > g.itemStats(mag).atk, '계열 장비는 기본보다 세고 덤이 붙는다 · 삼파가 가장 세다');
-  g.s.gold = 1e9; g.s.mats = { [W.stepMap(3)]: 1e4, fs: 1e3, fg: 1e3 };
-  const it = g.craft('weapon', 3, false, 0, 'sama');
-  ok(it && it.line === 'sama' && g.s.mats.fs < 1e3 && g.s.mats.fg < 1e3, '대장장이에서 사마 계열 무기를 만든다 — 세력 재료가 든다');
+  g.s.gold = 1e9; g.s.mats = { fs: 1e4, fg: 1e4 };
+  ok(g.setLine(gw.uid, 'sama') && gw.line === 'sama' && g.s.mats.fs < 1e4 && g.s.mats.fg < 1e4, '성장 무기에 사마 계열을 붙인다 — 세력 재료가 든다');
   ok(migrateWorld({ mats: { fm: 5, fs: 3, fg: 2 } }).mats.fg === 2, '세력 재료가 저장된다');
   // 그 세력의 사냥터에서 세력 재료가 나온다
   const d = fresh();

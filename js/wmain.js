@@ -486,6 +486,10 @@ function handleEvents() {
         sfx('loot');
         drawPortrait();
         break;
+      case 'infuse': case 'line':
+        if (ev.ok !== false) { sfx('loot'); drawPortrait(); }
+        if (ev.type === 'infuse' && ev.ok && ev.item.rar >= 2) net.announce(`✦ ${game.s.nickname}님의 〈${itemTitle(game, ev.item)}〉에 ${W.RARITY[ev.item.rar].name} 등급이 새겨졌어요`);
+        break;
       case 'echo':
         view.float('한 번 더!', view.heroX, view.groundY - 190, '#f9a8d4', 18, 1);
         break;
@@ -731,7 +735,7 @@ function checkReturn(now = Date.now()) {
         h('div', {}, '은자', h('b', {}, fmt(rw.gold))),
         h('div', {}, '먹은 물약', h('b', {}, `${rw.potions}개`))),
       h('p', { class: 'muted' }, !rw.mats ? '' : `모은 재료: ${W.MATS[rw.map]} ${fmt(rw.mats + (rw.marks || 0) * W.BOSS_MATS)}개`
-        + (rw.marks ? ` · ${W.matName(W.bossKey(rw.map))} ${rw.marks}개` : '') + ' — 가방의 대장장이에서 장비를 조합해요'),
+        + (rw.marks ? ` · ${W.matName(W.bossKey(rw.map))} ${rw.marks}개` : '') + ' — 장비 강화에 써요 (증표는 등급 각인)'),
       h('button', { class: 'btn primary', style: 'width:100%', onclick: closeModal }, '받기'));
   }, { dismissable: false, onClose: () => { game.claimOffline(rw); save(); refreshUI(true); } });
 }

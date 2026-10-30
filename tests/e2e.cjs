@@ -108,17 +108,23 @@ async function tab(page, name) {
   assert(await G(p, () => window.__game.s.stats.str) === str0 + 1, '힘 +1');
   await shot(p, '03-char.png');
 
-  console.log('# 대장장이 조합');
-  await G(p, () => { const g = window.__game; g.s.gold = 1e6; g.s.mats = { 1: 500, b1: 10 }; g.s.equip.weapon = null; });
+  console.log('# 성장 장비 · 등급 각인 (v158)');
+  await G(p, () => { const g = window.__game; g.s.gold = 1e6; g.s.mats = { 1: 500, b1: 30 }; g.rng = () => 0; });
+  assert(await G(p, () => ['weapon', 'armor', 'hat', 'glove', 'shoe', 'acc'].every((k) => window.__game.s.equip[k]?.grow)), '여섯 칸 성장 장비를 끼고 시작한다');
   await tab(p, 'bag');
   await p.click('#panel .subtabs button[data-key="smith"]');
-  await p.click('#panel .chip-row button:has-text("무기")');
-  await p.waitForSelector('#panel .craft-row.ready');
-  // 재료만 있으면 바로 (아래 장비 없이 — 재료 1.5배). v143부터 단추는 고른 등급 이름이다
-  await p.locator('#panel .craft-row.ready button.buy').first().click();
-  await sleep(200);
-  assert(await G(p, () => window.__game.s.equip.weapon?.step != null), '아래 장비 없이 무기를 바로 조합해 낀다');
+  await p.waitForSelector('#panel .grow-row');
+  assert(await p.locator('#panel .grow-row').count() === 6, '대장장이에 성장 장비 여섯 칸');
+  await p.locator('#panel .grow-row button.buy').first().click();
+  await p.waitForSelector('#modal .inf-box');
+  await p.click('#modal .inf-box > .btn');
+  await p.waitForSelector('#modal .enh-anim.inf');
+  await p.waitForSelector('#modal .enh-anim.result', { timeout: 5000 });
+  assert(await G(p, () => window.__game.s.equip.weapon.rar === 1), '두목 증표로 등급 각인 — 레어 → 유니크');
   await shot(p, '04a-smith.png');
+  await p.click('#modal button:has-text("돌아가기")');
+  await p.click('#modal button:has-text("닫기")');
+  await G(p, () => { window.__game.rng = Math.random; });
   await p.click('#panel .subtabs button[data-key="gear"]');
 
   console.log('# 가방·강화');

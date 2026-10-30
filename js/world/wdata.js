@@ -6,7 +6,6 @@ import { ZONES, JOBS, CLASS_SKILLS, RANKS } from '../data.js';
 import { areaMobs } from './wmobs.js';
 import { MASTERS } from './wmasters_data.js';
 import { FAC_MAT_INFO, isFacMat, lineMats } from './wline.js';
-import { lineRarW } from './wline.js';
 import { TRANSFORMS, setOf, SET_PIECE, STONES, isStoneKey, promoteStones, LORD_MATS, isLordMat } from './wgear.js';
 
 export const SAVE_KEY = 'ifu-world-v1';
@@ -462,6 +461,26 @@ export const itemZone = (it) => (it?.z ?? it?.king ?? (it?.step != null ? stepMa
 // 아이템 레벨만으로는 한 칸에 수치가 얼마 안 오른다(기본치가 레벨에 곧게 오른다).
 // 칸마다 배수를 한 번 더 얹어 '다음 칸이 확실히 세다'를 만든다.
 export const stepMult = (step) => 1.12 ** step;
+// ---------- 성장 장비 (v158) ----------
+// 대장장이 사다리(레벨 5마다 새로 만들기)를 없앴다. 무기·옷·모자·장갑·신발·장신구는 칸마다 하나씩이고
+// **레벨을 따라 저절로 자란다**(아이템 레벨 = 내 레벨, 100까지). 그 장비를 강화하고(던파식),
+// 두목 증표로 등급(레어→유니크→전설→신화)을 각인하고, 세력 재료로 계열을 붙인다. 100부터는 세트·왕의 장비.
+export const GROW_SLOTS = ['weapon', 'armor', 'hat', 'glove', 'shoe', 'acc'];
+export const growIlv = (lv) => Math.max(1, Math.min(ILV_CAP, lv));
+// 사다리 배수(칸마다 ×1.12)를 레벨에 매끈하게 — 레벨 5에 1, 100에 ×8.6
+export const growMult = (ilv) => 1.12 ** (ilv / STEP_LV - 1);
+// 등급 각인 — 어느 두목의 증표든 된다. 한 번에 INFUSE_MARKS[다음 등급]개를 넣고 INFUSE_BASE 확률로 오른다.
+// 센 두목(증표 레벨이 장비 레벨보다 높을수록)의 증표일수록 잘 붙는다(×0.5~×2). 실패하면 다음 확률이 기본의 절반씩 쌓여(천장) 언젠가는 붙는다.
+export const INFUSE_MARKS = [0, 3, 6, 12];
+export const INFUSE_BASE = [0, 0.35, 0.15, 0.05];
+export const INFUSE_PITY_K = 0.5;
+export const INFUSE_F_MIN = 0.5, INFUSE_F_MAX = 2;
+export const isMarkKey = (k) => /^b\d+$/.test(String(k));
+export const markLv = (k) => (ZONES_W[+String(k).slice(1)]?.lv[1] || 1) + 2;      // 그 두목의 레벨
+export const infuseFactor = (key, ilv) => Math.max(INFUSE_F_MIN, Math.min(INFUSE_F_MAX, markLv(key) / Math.max(10, ilv)));
+export const infuseGold = (ilv, r) => Math.round((30 + ilv * 10) * RAR_GOLD[r] * 2);
+// 계열 각인 — 그 계열의 세력 재료 × LINE_SET_K. 칸(레벨)이 오를수록 덤 능력이 커지고, 바꾸면 다시 든다.
+export const LINE_SET_K = 3;
 // 빛깔(등급 색)은 지역 셋마다 한 칸씩 — 일반 · 고급 · 희귀 · 영웅 · 전설, 십이지왕 장비는 '지왕'
 // 빛깔(테두리 색)은 네 칸마다 한 단계 — 스무 칸이 다섯 빛깔
 export const stepGrade = (step) => Math.min(4, Math.floor(step / 4));
@@ -530,7 +549,6 @@ export const RARITY = [
 ];
 export const RARITY_GRADE = [2, 3, 4, 5];       // 칼빛·테두리 색 (옛 GRADES 자리)
 export const CRAFT_RAR_W = [70, 22, 7, 1];
-export const craftRarW = (line) => lineRarW(line || 'base');   // v157: 사다리 장비는 계열마다 (wline LINE_RAR_W)       // 조합으로 만들 때 — v153: 등급은 다시 운이다(레어 70 · 유니크 22 · 전설 7 · 신화 1%). 확실히 올리려면 승급.
 export const BOSS_RAR_W = [45, 38, 14, 3];       // 두목 드랍
 export const KING_RAR_W = [25, 42, 28, 5];       // 십이지왕 드랍 (v153 신화 10%→5%)
 export const rollRarity = (w, rng) => {

@@ -25,12 +25,6 @@ export const LINES = [
   { id: 'samp', name: '삼파', fac: ['murim', 'sapa', 'magyo'], mult: 1.22, bonus: { hpPct: 0.014, atkPct: 0.014, crit: 0.007, speed: 0.01 }, desc: '셋 다 — 가장 세다' },
 ];
 export const lineOf = (id) => LINES.find((l) => l.id === id) || LINES[0];
-// 계열마다 만들 때 나오는 등급 확률 (v157) — 레어 · 유니크 · 전설 · 신화.
-// 세력 재료를 많이 섞을수록 운이 좋다. 전에는 모두 같은 확률(70/22/7/1)이라
-// 재료가 싼 계열(기본·정파 하나)을 여러 번 돌려 신화를 뽑는 게 정사마 셋을 모아 한 번 만드는 것보다 나았다.
-// 같은 시간 사냥한 재료로 뽑을 수 있는 신화 수: 세력 하나 1 → 둘 ≈1.4 → 셋 ≈2.4 (재료가 1 · 1.4 · 1.65배 들어서). 기본은 신화가 안 나온다(승급으로만).
-export const LINE_RAR_W = [[78, 19, 3, 0], [72, 21, 6, 1], [64, 25, 9, 2], [54, 28, 14, 4]];
-export const lineRarW = (id) => LINE_RAR_W[lineOf(id).fac.length];
 // 칸이 오를수록 덤 능력이 커진다 (첫 칸 0.5배 → 스무째 칸 1.5배)
 export const lineScale = (step) => 0.5 + Math.min(19, step) / 19;
 export function lineBonus(id, step, rarMult = 1) {

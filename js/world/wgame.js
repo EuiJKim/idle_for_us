@@ -240,6 +240,7 @@ export class WorldGame {
     // 최근 벌이 (방치 보상을 재는 데 쓴다): [시각, 처치, 경험치, 은자, 물약]
     this.ledger = [];
     this._stats = null;
+    this.growInit();
     this.enterMap(this.s.map, true);
     this.heroHp = this.stats().hp;
   }
@@ -271,7 +272,7 @@ export class WorldGame {
     const b = W.itemBase(it.slot, it.ilv);
     // 조합 장비: 사다리 칸 × 등급(레어·유니크·전설·신화) · 왕의 장비(레벨 100): KING_MULT × 등급 · 옛 드랍 장비: 옛 등급
     const q = it.king != null ? G.KING_MULT * W.RARITY[it.rar || 0].mult * (it.set ? G.setOf(it.set)?.mult || 1 : 1)
-      : it.step != null ? W.stepMult(it.step) * W.RARITY[it.rar || 0].mult : W.GRADES[it.grade].mult;
+      : it.step != null ? (it.grow ? W.growMult(it.ilv) : W.stepMult(it.step)) * W.RARITY[it.rar || 0].mult : W.GRADES[it.grade].mult;
     const ln = it.line ? LN.lineOf(it.line) : null;
     const m = q * W.enhanceMult(it.plus || 0) * (ln ? ln.mult : 1);
     const out = {};
@@ -1360,6 +1361,7 @@ export class WorldGame {
       if (look !== s.rank) s.rank = look;
     }
     if (s.autoStat) this.autoStats();
+    this.syncGrow();
     this.heroHp = Math.min(this.heroHp, this.stats().hp);
   }
   addStat(k, n = 1) {
@@ -1402,8 +1404,8 @@ export class WorldGame {
   setJob(id) {
     if (!W.CLASSES[id] || this.s.job) return false;
     this.s.job = id;
-    // 맨손으로 시작하면 첫 몹도 버겁다 — 수련용 무기 하나
-    if (!this.s.equip.weapon) this.s.equip.weapon = { ...this.makeItem('weapon', 1, 0), starter: true };
+    // v158: 여섯 칸 성장 장비를 받는다 (레벨을 따라 자란다)
+    this.growInit();
     this._stats = null;
     this.heroHp = this.stats().hp;
     return true;
@@ -1476,16 +1478,8 @@ export class WorldGame {
         if (this.rng() < W.petDropRate(id)) this.gainPet(W.rollRarity(W.KING_RAR_W, this.rng), m, W.rollPetKind(id, this.rng));
         return { id, n: W.BOSS_MATS, name: W.MATS[id], color: W.MAT_COLORS[id], boss: W.matName(W.bossKey(id)) };
       }
-      // 가끔 그 지역 하급 장비를 통째로 떨군다
-      if (this.rng() < W.BOSS_ITEM_RATE) {
-        const rar = W.rollRarity(W.kingOf(id) ? W.KING_RAR_W : W.BOSS_RAR_W, this.rng);
-        // 그 지역 레벨에 맞는 칸으로 (전에는 (지역-1)*2로 칸을 셈했다 — 이제 칸은 레벨이다)
-        const st = W.stepOfLevel(W.zoneOfW(id)?.lv[1] || 5);
-        const it = this.makeCrafted(W.CRAFT_SLOTS[Math.floor(this.rng() * W.CRAFT_SLOTS.length)].id, st, 0, rar, id);
-        it.boss = true;   // 두목이 떨군 것 — 끼면 그 두목의 겉모습이 든다
-        this.emit('drop', { item: it, at: { x: m.x, y: m.y } });
-        this.gainItem(it);
-      }
+      // v158: 사다리 장비는 이제 떨구지 않는다(장비는 레벨을 따라 자란다) — 대신 가끔 증표 한 움큼(등급 각인 재료)
+      if (this.rng() < W.BOSS_ITEM_RATE) this.addMats(W.bossKey(id), W.INFUSE_MARKS[1]);
       // 가락지·귀걸이 — 두목만 떨군다
       if (this.rng() < W.acc2DropRate(id)) {
         const rar = W.rollRarity(W.kingOf(id) ? W.KING_RAR_W : W.BOSS_RAR_W, this.rng);
@@ -1512,6 +1506,97 @@ export class WorldGame {
     if (z != null) it.z = z;
     return it;
   }
+  // ---------- 성장 장비 (v158) ----------
+  growItems() { return [...Object.values(this.s.equip), ...this.s.bag].filter((x) => x?.grow); }
+  growOf(slot) { return this.growItems().find((x) => x.slot === slot) || null; }
+  // 아이템 레벨 = 내 레벨(100까지). 칸(step)도 따라가서 강화 재료·고유 옵션·계열 덤이 그 레벨 지역 것이 된다.
+  syncGrow() {
+    const ilv = W.growIlv(this.s.level), step = W.stepOfLevel(ilv);
+    for (const it of this.growItems()) if (it.ilv !== ilv || it.step !== step) { it.ilv = ilv; it.step = step; this._stats = null; }
+  }
+  // 칸마다 성장 장비 하나. 옛 세이브: 그 칸 사다리 장비 중 가장 좋은 것(등급·강화)을 성장 장비로 삼고 나머지는 판다.
+  growInit() {
+    const s = this.s;
+    if (!s.job) return;
+    const ladder = (x) => x && x.step != null && x.king == null && !W.isDropOnly(x.slot) && !x.grow;
+    for (const sl of W.GROW_SLOTS) {
+      if (this.growOf(sl)) continue;
+      const pool = [s.equip[sl], ...s.bag.filter((x) => x.slot === sl)].filter(ladder);
+      pool.sort((a, b) => (b.rar || 0) - (a.rar || 0) || (b.plus || 0) - (a.plus || 0));
+      let it = pool[0];
+      if (it) { it.grow = true; delete it.cost; delete it.z; delete it.boss; } else {
+        it = { uid: uidSeq++, slot: sl, step: 0, ilv: 1, rar: 0, grade: W.RARITY_GRADE[0], opts: this.rollOpts(sl, 0, 0), plus: 0, grow: true };
+      }
+      for (const x of pool.slice(1)) {
+        if (s.equip[sl] === x) s.equip[sl] = null;
+        s.bag = s.bag.filter((y) => y !== x);
+        this.sell(x, true);
+      }
+      const cur = s.equip[sl];
+      if (cur === it) continue;
+      s.bag = s.bag.filter((y) => y !== it);
+      // 세트·왕의 장비를 끼고 있으면 그대로 두고 성장 장비는 가방에
+      if (cur && (cur.king != null || cur.set)) { s.bag.push(it); continue; }
+      if (cur && !cur.starter) s.bag.push(cur);
+      s.equip[sl] = it;
+    }
+    s.gearV = 4;
+    this.syncGrow();
+    this._stats = null;
+  }
+  // 등급 각인 — key: 넣을 두목 증표
+  infuseInfo(it, key) {
+    const r = (it?.rar || 0) + 1;
+    if (!it?.grow || r >= W.RARITY.length || !W.isMarkKey(key)) return null;
+    const chance = Math.min(1, W.INFUSE_BASE[r] * W.infuseFactor(key, it.ilv) + (it.pity || 0));
+    return { to: r, n: W.INFUSE_MARKS[r], gold: W.infuseGold(it.ilv, r), chance, have: this.s.mats[key] || 0 };
+  }
+  canInfuse(it, key) {
+    const f = this.infuseInfo(it, key);
+    return !!f && f.have >= f.n && this.s.gold >= f.gold;
+  }
+  infuse(uid, key) {
+    const it = this.findItem(uid);
+    if (!this.canInfuse(it, key)) return null;
+    const f = this.infuseInfo(it, key);
+    this.s.mats[key] -= f.n;
+    this.s.gold -= f.gold;
+    this.mark('infuse');
+    const ok = this.rng() < f.chance;
+    if (ok) {
+      it.rar = f.to;
+      it.grade = W.RARITY_GRADE[it.rar];
+      it.opts = this.rollOpts(it.slot, it.step, it.rar);
+      it.pity = 0;
+      this._stats = null; this._mods = null; this._pass = null;
+    } else it.pity = (it.pity || 0) + W.INFUSE_BASE[f.to] * W.INFUSE_PITY_K;
+    this.lastInfuse = { ok, to: f.to, chance: f.chance };
+    this.emit('infuse', { item: it, ok });
+    return ok;
+  }
+  // 계열 각인 — 세력 재료 × LINE_SET_K
+  lineCost(it, line) {
+    const mats = {};
+    for (const [k, n] of Object.entries(LN.lineMats(line, it.slot, it.step))) mats[k] = n * W.LINE_SET_K;
+    return { mats, gold: Math.round((30 + it.ilv * 10) * 3) };
+  }
+  canSetLine(it, line) {
+    if (!it?.grow || (it.line || 'base') === line || !LN.LINES.some((l) => l.id === line)) return false;
+    const c = this.lineCost(it, line);
+    return this.s.gold >= c.gold && Object.entries(c.mats).every(([k, n]) => (this.s.mats[k] || 0) >= n);
+  }
+  setLine(uid, line) {
+    const it = this.findItem(uid);
+    if (!this.canSetLine(it, line)) return false;
+    const c = this.lineCost(it, line);
+    for (const [k, n] of Object.entries(c.mats)) this.s.mats[k] -= n;
+    this.s.gold -= c.gold;
+    if (line === 'base') delete it.line; else it.line = line;
+    this._stats = null;
+    this.emit('line', { item: it });
+    return true;
+  }
+
   // ---------- 왕의 장비 (레벨 100, v130) ----------
   makeKing(slot, king, rar = 0, set = null, plus = 0) {
     return { uid: uidSeq++, slot, king, set: set || undefined, ilv: G.KING_ILV, rar, grade: W.RARITY_GRADE[rar], opts: this.rollOpts(slot, null, rar, king), plus };
@@ -1589,78 +1674,7 @@ export class WorldGame {
     }
     return opts;
   }
-  // 조합에 넣을 장비 — 같은 칸에서 만들 것보다 낮은 조합 장비 가운데 가장 좋은 것 (v120: 바로 아래 칸이 아니어도 된다)
-  recipeSource(r) {
-    let best = null;
-    for (const it of [this.s.equip[r.slot], ...this.s.bag]) {
-      if (!it || it.slot !== r.slot || it.step == null || it.step >= r.step) continue;
-      if (!best || it.step > best.step || (it.step === best.step && this.itemScore(it) > this.itemScore(best))) best = it;
-    }
-    return best;
-  }
-  // 조합법 — 넣을 장비가 없거나 안 넣으면 재료가 NO_BASE_MULT배
-  recipeFor(slot, step, useBase = true, rar = 0, line = 'base') {
-    const r = W.recipeOf(slot, step, rar, line);
-    const src = useBase ? this.recipeSource(r) : null;
-    if (src) return { r, src };
-    const mats = {};
-    for (const [k, n] of Object.entries(r.mats)) mats[k] = Math.ceil(n * (k[0] === 'b' || LN.isFacMat(k) ? 1 : W.NO_BASE_MULT));
-    return { r: { ...r, mats }, src: null };
-  }
-  // 조합할 수 있나 — 모자란 것을 함께 돌려준다(화면에 '청죽 마디 12/40'처럼)
-  craftCheck(slot, step, useBase = true, rar = 0, line = 'base') {
-    const { r, src } = this.recipeFor(slot, step, useBase, rar, line);
-    const lack = [];
-    for (const [k, n] of Object.entries(r.mats)) if ((this.s.mats[k] || 0) < n) lack.push(k);
-    if (this.s.gold < r.gold) lack.push('gold');
-    return { r, src, ok: !lack.length, lack };
-  }
-  // v153: 등급은 운 — 한 번 만들 때 CRAFT_RAR_W로 뽑는다(레어 값으로). 넣은 장비가 더 높은 등급이면 그걸 지킨다.
-  // rar은 옛 부르는 자리 때문에 남겨 두었고 쓰지 않는다.
-  craft(slot, step, useBase = true, rar = 0, line = 'base') {
-    if (step < 0 || step >= W.STEP_COUNT || W.isDropOnly(slot)) return null;
-    void rar;
-    const { r, src, ok } = this.craftCheck(slot, step, useBase, 0, line);
-    const want = W.rollRarity(W.craftRarW(line), this.rng);
-    if (!ok) return null;
-    for (const [k, n] of Object.entries(r.mats)) this.s.mats[k] -= n;
-    this.s.gold -= r.gold;
-    // 받은 장비는 사라지고, 강화는 절반을 이어받는다.
-    // **등급은 이제 고른 대로 나온다**(뽑기가 아니다). 다만 넣은 장비가 더
-    // 높은 등급이면 그걸 지킨다 — 올려 놓은 등급이 사다리를 오를 때마다
-    // 날아가면 아무도 위 등급을 안 만든다.
-    const keep = src?.rar != null && src.rar > want;
-    const got = keep ? src.rar : want;
-    // 강화는 +10까지 그대로 이어받는다(던파의 장비 계승처럼 · v153 — 강화가 세져서 절반만 받으면 다음 칸이 더 약했다)
-    const it = this.makeCrafted(slot, step, src ? Math.min(src.plus || 0, W.ENHANCE_NORMAL) : 0, got);
-    if (line && line !== 'base') it.line = line;
-    it.cost = { mats: { ...r.mats }, gold: r.gold };
-    if (keep && src.opts) it.opts = src.opts.map((o) => ({ ...o }));
-    const wore = src && this.s.equip[slot] === src;
-    if (src) {
-      if (wore) this.s.equip[slot] = null;
-      else this.s.bag = this.s.bag.filter((x) => x !== src);
-    }
-    this.emit('craft', { item: it });
-    if (wore) { this.s.equip[slot] = it; this._stats = null; this.emit('equip', { item: it }); } else this.gainItem(it);
-    return it;
-  }
-  // 대장장이 목록에 올릴 칸들 — 들어갈 수 있는 지역 + 다음 지역 하나 (그 안에서 하급·상급 모두)
-  // 대장장이에 올릴 칸들 — 내 레벨이 닿는 칸 + 한 칸 더(다음 목표가 보이게)
-  craftSteps() {
-    const top = Math.min(W.STEP_COUNT - 1, W.stepOfLevel(this.s.level) + 1);
-    const out = [];
-    for (let st = 0; st <= top; st++) out.push(st);
-    return out;
-  }
-  // 다음에 만들 수 있는 것: 가진 가장 높은 칸에서 한 걸음(상급) · 두 걸음(다음 사냥터 하급)
-  nextSteps(slot) {
-    if (W.isDropOnly(slot)) return [];
-    let top = -1;
-    for (const it of [this.s.equip[slot], ...this.s.bag]) if (it && it.slot === slot && it.step != null) top = Math.max(top, it.step);
-    const out = top < 0 ? [0] : top % 2 === 0 ? [top + 1, top + 2] : [top + 1];
-    return out.filter((x) => x < W.STEP_COUNT);
-  }
+  // v158: 사다리 조합(recipeFor·craft·craftSteps·nextSteps)은 없앴다 — 장비는 레벨을 따라 자란다(성장 장비)
   // 새 장비: 끼고 있는 것보다 좋으면 끼고, 아니면 가방에.
   gainItem(it) {
     const cur = this.s.equip[it.slot];
@@ -1679,13 +1693,15 @@ export class WorldGame {
     this.s.bag.push(it);
     // 가방이 넘치면 가장 나쁜 것부터 판다
     while (this.s.bag.length > this.s.bagSize) {
-      let worst = 0;
-      for (let i = 1; i < this.s.bag.length; i++) if (this.itemScore(this.s.bag[i]) < this.itemScore(this.s.bag[worst])) worst = i;
+      let worst = -1;
+      for (let i = 0; i < this.s.bag.length; i++) if (!this.s.bag[i].grow && (worst < 0 || this.itemScore(this.s.bag[i]) < this.itemScore(this.s.bag[worst]))) worst = i;
+      if (worst < 0) break;
       this.sell(this.s.bag.splice(worst, 1)[0], true);
     }
     return 'bag';
   }
   sell(it, auto = false) {
+    if (it?.grow) return 0;                 // 성장 장비는 칸마다 하나 — 팔지 않는다 (v158)
     // 조합 장비: 만들 때 든 것의 1/4 (재료도 돌아온다) · 그 밖: 은자
     const back = W.sellBack(it);
     const p = back ? back.gold : W.sellPrice(it);
@@ -1750,6 +1766,7 @@ export class WorldGame {
       const f = W.enhanceFail(lv);
       if (f === 'break') {
         if (useProt && (this.s.prot || 0) > 0) { this.s.prot--; r.prot = true; r.drop = -1; it.plus = Math.max(0, lv - 1); }
+        else if (it.grow) { r.broke = true; r.reset = true; it.plus = 0; }      // v158: 성장 장비는 부서지지 않고 +0으로
         else { r.broke = true; this.destroyItem(it); }
       } else if (f) { r.drop = f; it.plus = Math.max(0, lv + f); }
     }
@@ -1879,7 +1896,7 @@ export class WorldGame {
   // ---------- 승급 (v110) ----------
   // 대장장이: 같은 장비를 한 등급 위로(레어→유니크→전설→신화). 확정. 스킬 옵션은 새 등급으로 다시 붙는다.
   canPromote(it) {
-    if (!it || (it.step == null && it.king == null) || (it.rar || 0) >= W.RARITY.length - 1) return false;
+    if (!it || it.grow || (it.step == null && it.king == null) || (it.rar || 0) >= W.RARITY.length - 1) return false;
     const c = W.promoteCost(it);
     return (this.s.mats[c.key] || 0) >= c.mats && (!c.marks || (this.s.mats[W.bossKey(c.key)] || 0) >= c.marks) && this.s.gold >= c.gold
       && Object.entries(c.fac || {}).every(([k, n]) => (this.s.mats[k] || 0) >= n);
@@ -2560,7 +2577,7 @@ export class WorldGame {
 
 // 길잡이가 보는 '해 봤나' (v146) — 이룬 때만 센다(돌려준 값이 참일 때). always는 부르기만 하면.
 for (const [fn, key, always] of [
-  ['craft', 'craft'], ['craftSet', 'set'], ['craftKacc', 'kacc'], ['makeStone', 'stone'], ['promote', 'promote'], ['enhance', 'enhance'],
+  ['setLine', 'line'], ['craftSet', 'set'], ['craftKacc', 'kacc'], ['makeStone', 'stone'], ['promote', 'promote'], ['enhance', 'enhance'],
   ['sweepDaily', 'sweep'], ['drawZodiac', 'zodiac'], ['buyStatBook', 'book'], ['buyBagSpace', 'bag'], ['startRaid', 'raid'],
   ['killTreasure', 'treasure', true], ['moveTo', 'move', true],
 ]) {

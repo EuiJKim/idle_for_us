@@ -21,7 +21,6 @@ import * as D from './wdgn.js';
 import * as L from './wland.js';
 
 const did = (g, k) => g.s.did?.[k] || 0;
-const worn = (g) => Object.values(g.s.equip).filter(Boolean).length;
 const mastMax = (g) => Math.max(0, ...Object.values(g.s.mast || {}).map((k) => L.masteryLv(k)));
 const passSum = (g) => Object.values(g.s.passLv || {}).reduce((a, b) => a + b, 0);
 const skillSum = (g) => Object.values(g.s.skillLv).reduce((a, b) => a + b, 0);
@@ -52,15 +51,10 @@ export const QUESTS = [
     why: '들판 위 사냥터 이름을 누르면 지도가 열린다. 몹 레벨이 내 레벨쯤인 곳이 가장 빠르다.',
     goal: lv(5) },
   // ---- 2. 장비 (레벨 5~10) ----
-  { id: 'craft', title: '대장장이에서 무기를 만들자', tab: 'bag/smith', min: 2, xp: 0.2,
-    why: '가방 창 → 대장장이. 재료는 사냥터에서 모인다 — 이번 한 번은 재료를 챙겨 줬다.',
-    goal: flag('craft'),
-    gift: (g) => {
-      const { r } = g.recipeFor('weapon', 0, false, 0);
-      for (const [k, n] of Object.entries(r.mats)) g.addMats(k, Math.max(0, n - (g.s.mats[k] || 0)));
-      g.s.gold += Math.max(0, r.gold - g.s.gold);
-      return '첫 무기 재료';
-    } },
+  // v158: 장비는 만들지 않는다 — 여섯 칸이 레벨을 따라 자란다. 눌러서 강화·등급·계열.
+  { id: 'craft', title: '낀 무기를 눌러 살펴보자', tab: 'bag/gear', min: 2, xp: 0.2,
+    why: '가방 창 → 착용. 장비 여섯 칸은 레벨을 따라 저절로 자란다 — 만들 필요 없이 강화·등급·계열로 키운다.',
+    goal: flag('gearView') },
   { id: 'enh1', title: '무기를 +1 강화하자', tab: 'bag/gear', min: 2, xp: 0.2,
     why: '낀 장비를 누르면 강화. 실패해도 장비는 그대로다 — 은자·재료만 든다.',
     goal: (g) => ({ now: g.s.equip.weapon?.plus || 0, need: 1 }) },
@@ -76,9 +70,9 @@ export const QUESTS = [
   { id: 'lv10', mile: true, title: '레벨 10까지', tab: 'map', min: 3, xp: 0,
     why: '레벨이 오르면 갈 수 있는 사냥터가 늘어난다.',
     goal: lv(10) },
-  { id: 'armor', title: '옷도 만들어 입자', tab: 'bag/smith', min: 3, xp: 0.15,
+  { id: 'armor', title: '옷도 +1 강화하자', tab: 'bag/gear', min: 3, xp: 0.15,
     why: '무기만 좋으면 금방 쓰러진다. 옷·모자·장갑·신발이 체력을 받친다.',
-    goal: (g) => ({ now: g.s.equip.armor ? 1 : 0, need: 1 }) },
+    goal: (g) => ({ now: g.s.equip.armor?.plus ? 1 : 0, need: 1 }) },
   // ---- 3. 두목과 1차 전직 (레벨 10~15) ----
   { id: 'boss', title: '두목 구역에서 두목을 잡자', tab: 'map/murim', min: 4, xp: 0.2,
     why: '지역마다 두목 구역이 있다. 두목 증표는 거기서만 나오고, 장비·애완동물도 가끔 떨군다.',
@@ -120,9 +114,9 @@ export const QUESTS = [
   { id: 'tower3', title: '무한의 탑 3층까지', tab: 'dgn/tower', min: 5, xp: 0.2,
     why: '오른 층마다 공격력·체력이 영구히 오른다. 바닥의 붉은 경고는 화면을 끌어 직접 피한다.',
     goal: floor(3) },
-  { id: 'gear4', title: '장비 네 칸을 채우자', tab: 'bag/smith', min: 5, xp: 0.15,
-    why: '대장장이에서 모자·장갑·신발도. 칸마다 지역 고유 옵션이 붙는다 — 섞어 끼면 좋다.',
-    goal: (g) => ({ now: worn(g), need: 4 }) },
+  { id: 'gear4', title: '장비 네 칸을 +3까지', tab: 'bag/gear', min: 5, xp: 0.15,
+    why: '모자·장갑·신발도. +3까지는 실패해도 그대로다. 칸마다 그 레벨 지역의 고유 옵션이 붙는다.',
+    goal: (g) => ({ now: W.GROW_SLOTS.filter((k) => (g.s.equip[k]?.plus || 0) >= 3).length, need: 4 }) },
   { id: 'mast1', title: '한 지역 숙련도 1', tab: 'map', min: 5, xp: 0.15,
     why: '한 지역에서 오래 사냥하면 숙련이 올라 경험치·재료가 늘고 나쁜 기운을 견딘다.',
     goal: (g) => ({ now: mastMax(g), need: 1 }) },
@@ -156,9 +150,10 @@ export const QUESTS = [
     why: '2차 무공은 한 번에 크게 때린다. 두목 앞에서 체감이 다르다.',
     goal: tier(2) },
   // ---- 8. 키우기 (레벨 40~75) ----
-  { id: 'promote', title: '장비 하나를 승급하자', tab: 'bag/smith', min: 8, xp: 0.15,
-    why: '대장장이 → 승급. 레어→유니크→전설→신화. 등급이 오르면 스킬 옵션이 새로 붙는다.',
-    goal: flag('promote') },
+  { id: 'promote', title: '두목 증표로 장비 등급을 올려 보자', tab: 'bag/gear', min: 8, xp: 0.15,
+    why: '장비를 눌러 → 등급 각인. 어느 두목의 증표든 된다 — 센 두목 것일수록 잘 붙고, 실패해도 다음 확률이 올라 언젠가는 붙는다. 이번엔 증표를 챙겨 줬다.',
+    goal: flag('infuse'),
+    gift: (g) => { const k = W.bossKey(W.stepMap(W.stepOfLevel(g.s.level))); g.addMats(k, W.INFUSE_MARKS[1] * 2); return '두목 증표'; } },
   { id: 'enh7', title: '무기를 +7까지', tab: 'bag/gear', min: 8, xp: 0.15,
     why: '+7부터 칼빛이 반짝인다. +10을 넘기려면 두목 증표가 든다.',
     goal: (g) => ({ now: g.s.equip.weapon?.plus || 0, need: 7 }) },

@@ -315,7 +315,7 @@ function bagTab(app) {
   const done = () => { app.save(); sigs.gear = sigs.smith = sigs.mats = ''; app.refresh(); };
   // 두목 장비(두목 증표로 만든 상급 · 두목이 떨군 것)는 끼면 그 두목의 겉모습이 든다 (v116)
   function bossGearNote(it) {
-    if (it.step == null || !(it.step % 2 === 1 || it.boss)) return null;
+    if (it.grow || it.step == null || !(it.step % 2 === 1 || it.boss)) return null;
     const b = W.zoneOfW(W.itemZone(it))?.boss;
     if (!b) return null;
     const what = { weapon: '무기에 그 기운 빛', armor: '그 도포 빛깔', hat: '그 쓰개', acc: '몸을 도는 구슬', finger: '몸을 도는 구슬', ear: '몸을 도는 구슬' }[it.slot];
@@ -323,6 +323,9 @@ function bagTab(app) {
   }
   function openItem(it, worn) {
     let useProt = true;
+    if (it.grow) game.mark('gearView');
+    // 등급 각인에 넣을 증표 — 확률이 높은 것(센 두목)부터 (v158)
+    let markPick = null;
     openModal((s) => {
       const paint = () => {
         const g = gradeOf(it);
@@ -332,7 +335,7 @@ function bagTab(app) {
         const em = game.enhanceMats(it);
         const bm = game.breakMarksOf(it);
         const breaking = (it.plus || 0) >= W.ENHANCE_NORMAL;
-        const pc = (it.step != null || it.king != null) && (it.rar || 0) < W.RARITY.length - 1 ? W.promoteCost(it) : null;
+        const pc = !it.grow && (it.step != null || it.king != null) && (it.rar || 0) < W.RARITY.length - 1 ? W.promoteCost(it) : null;
         s.replaceChildren(...[
           h('h2', { style: `color:${g.color}` }, itemTitle(game, it)),
           h('p', {}, `${W.SLOTS.find((x) => x.id === it.slot).name} · 아이템 레벨 ${it.ilv} · `, h('b', { style: `color:${g.color}` }, g.name)),
@@ -345,15 +348,18 @@ function bagTab(app) {
           !worn && cur ? h('p', { class: 'muted' }, `지금 낀 것: ${itemTitle(game, cur)} — ${itemLines(game, cur)}`) : null,
           it.king != null ? h('p', { class: 'muted' }, `레벨 100 왕의 장비 (${W.zoneOfW(it.king)?.name || ''}) — 더 높은 단계는 없고 강화·돌파·승급으로 자라요. 강화는 ${W.matName(G.stoneFor(it))}(후반 왕의 그 부위 강화석), 승급은 검왕의 검혼석.${W.isDropOnly(it.slot) ? ' 가락지·귀걸이는 강화가 어려워요.' : ''}`)
           : W.isDropOnly(it.slot) ? h('p', { class: 'muted' }, `${W.zoneOfW(W.itemZone(it))?.name || ''} 두목에게서만 나와요 — 강화가 어려워요(성공률 절반·은자 ×3·돌파 없음)`)
-            : it.step != null ? h('p', { class: 'muted' }, `Lv.${it.ilv} 사다리 (${W.zoneOfW(W.itemZone(it))?.name || ''} 재료) — 대장장이에서 위 장비의 조합 재료가 돼요 (강화는 절반을 이어받아요)`) : null,
+            : it.grow ? h('p', { class: 'muted' }, `성장 장비 — 레벨을 따라 저절로 자라요(지금 Lv.${it.ilv}, ${W.ILV_CAP}까지). 강화 재료는 그 레벨 지역(${W.zoneOfW(W.itemZone(it))?.name || ''}) 것. 부서질 자리에서 실패해도 사라지지 않고 +0으로 돌아가요.`)
+            : it.step != null ? h('p', { class: 'muted' }, `Lv.${it.ilv} 옛 사다리 장비 (${W.zoneOfW(W.itemZone(it))?.name || ''})`) : null,
           max ? h('p', { class: 'muted' }, '강화를 다 했어요') : h('div', { class: `enh-box${W.enhanceFail(it.plus || 0) === 'break' ? ' danger' : ''}` },
             h('div', { class: 'enh-head' }, h('b', {}, `${breaking ? '돌파' : '강화'} +${it.plus || 0} → +${(it.plus || 0) + 1}`), h('span', { class: 'enh-rate' }, `성공 ${pct(game.enhanceRateOf(it), 0)}`)),
-            h('div', { class: 'enh-fail' }, W.enhanceFailText(it.plus || 0),
+            h('div', { class: 'enh-fail' }, it.grow && W.enhanceFail(it.plus || 0) === 'break' ? '실패하면 +0으로 돌아가요(사라지지 않아요)' : W.enhanceFailText(it.plus || 0),
               W.enhanceFail(it.plus || 0) === 'break' ? h('span', {}, ` · 보호부 ${game.s.prot || 0}장${game.s.prot ? (useProt ? ' — 쓰면 부서지는 대신 -1' : ' — 안 씀') : ' — 상인에서 사요'}`) : null),
             h('div', { class: 'enh-cost' }, `기본 수치 +${pct(breaking ? W.BREAK_STEP : W.ENHANCE_STEP, 0)} · 은자 ${fmt(cost)}${em ? ` · ${W.matName(em.key)} ${em.n}개 (가진 것 ${fmt(game.s.mats[em.key] || 0)})` : ''}${bm ? ` · ${W.matName(W.bossKey(em.key))} ${bm}개 (가진 것 ${fmt(game.s.mats[W.bossKey(em.key)] || 0)})` : ''}`),
             W.enhanceFail(it.plus || 0) === 'break' && game.s.prot ? h('label', { class: 'chk' }, (() => { const c = h('input', { type: 'checkbox' }); c.checked = useProt; c.onchange = () => { useProt = c.checked; paint(); }; return c; })(), ' 보호부 쓰기') : null),
           pc ? h('p', { class: 'muted' }, `승급 → `, h('b', { style: `color:${W.RARITY[it.rar + 1].color}` }, W.RARITY[it.rar + 1].name),
             ` (기본 수치 ×${(W.RARITY[it.rar + 1].mult / W.RARITY[it.rar].mult).toFixed(2)}, 스킬 옵션 새로) — ${W.matName(pc.key)} ${pc.mats} (가진 것 ${fmt(game.s.mats[pc.key] || 0)})${pc.marks ? ` · ${W.matName(W.bossKey(pc.key))} ${pc.marks}` : ''}${Object.entries(pc.fac || {}).map(([k, n]) => ` · ${W.matName(k)} ${n} (가진 것 ${fmt(game.s.mats[k] || 0)})`).join('')} · 은자 ${fmt(pc.gold)}`) : null,
+          it.grow ? infuseBox() : null,
+          it.grow ? lineBox() : null,
           h('div', { class: 'btn-row' },
             !worn ? h('button', { class: 'btn primary', onclick: () => { game.equipFromBag(it.uid); closeModal(); done(); } }, '끼기') : null,
             h('button', { class: 'btn good', disabled: game.canEnhance(it) ? null : true, onclick: () => askEnhance() }, breaking ? '돌파' : '강화'),
@@ -362,11 +368,67 @@ function bagTab(app) {
               toast(`승급! ${W.RARITY[it.rar].name} — ${optLines(it).join(' / ')}`);
               app.save(); paint(); app.refresh();
             } }, '승급') : null,
-            !worn ? h('button', { class: 'btn', onclick: () => { const b = W.sellBack(it); const p = game.sell(it); toast(b ? `되팔기 — 은자 +${fmt(p)} · ${Object.entries(b.mats).map(([k, n]) => `${W.matName(k)} ${fmt(n)}`).join(' · ')}` : `은자 +${fmt(p)}`); closeModal(); done(); } },
+            !worn && !it.grow ? h('button', { class: 'btn', onclick: () => { const b = W.sellBack(it); const p = game.sell(it); toast(b ? `되팔기 — 은자 +${fmt(p)} · ${Object.entries(b.mats).map(([k, n]) => `${W.matName(k)} ${fmt(n)}`).join(' · ')}` : `은자 +${fmt(p)}`); closeModal(); done(); } },
               W.sellBack(it) ? `되팔기 (제작비 ¼)` : `팔기 ${fmt(W.sellPrice(it))}`) : null,
             h('button', { class: 'btn', onclick: closeModal }, '닫기')),
         ].filter(Boolean));   // replaceChildren은 null을 글자 'null'로 넣는다
       };
+      // ---- 등급 각인 (v158): 어느 두목의 증표든 — 센 두목 것일수록 잘 붙고, 실패하면 다음 확률이 쌓인다 ----
+      const infuseBox = () => {
+        const to = (it.rar || 0) + 1;
+        if (to >= W.RARITY.length) return h('div', { class: 'inf-box' }, h('b', {}, '등급 각인'), h('p', { class: 'muted' }, '신화 — 가장 높은 등급이에요.'));
+        const keys = Object.keys(game.s.mats).filter((k) => W.isMarkKey(k) && game.s.mats[k] > 0)
+          .sort((a, b) => game.infuseInfo(it, b).chance - game.infuseInfo(it, a).chance);
+        if (!keys.includes(markPick)) markPick = keys.find((k) => game.canInfuse(it, k)) || keys[0] || null;
+        const f = markPick ? game.infuseInfo(it, markPick) : null;
+        const R = W.RARITY[to];
+        return h('div', { class: 'inf-box' },
+          h('div', { class: 'inf-head' }, h('b', {}, '등급 각인 → '), h('b', { style: `color:${R.color}` }, R.name),
+            h('small', {}, ` 기본 수치 ×${(R.mult / W.RARITY[to - 1].mult).toFixed(2)} · 등급 옵션 새로${it.pity ? ` · 쌓인 확률 +${pct(it.pity, 0)}p` : ''}`)),
+          keys.length ? h('div', { class: 'chip-row inf-marks' }, ...keys.slice(0, 8).map((k) => {
+            const i2 = game.infuseInfo(it, k);
+            return h('button', { class: `chip${k === markPick ? ' on' : ''}`, style: `--mc:${W.matColor(k)}`, onclick: () => { markPick = k; paint(); } },
+              W.matName(k).replace(/의 증표$/, ''), h('small', {}, ` ${fmt(game.s.mats[k])}개 · ${pct(i2.chance, 0)}`));
+          })) : h('p', { class: 'muted' }, '두목 증표가 없어요 — 사냥터의 두목 구역·고수의 두목 방에서 두목을 잡으면 나와요.'),
+          f ? h('p', { class: 'muted' }, `증표 ${f.n}개 · 은자 ${fmt(f.gold)} · 성공 ${pct(f.chance, 0)} — 실패하면 다음 확률 +${pct(W.INFUSE_BASE[to] * W.INFUSE_PITY_K, 1)}p (천장)`) : null,
+          f ? h('button', { class: 'btn primary', disabled: game.canInfuse(it, markPick) ? null : true, onclick: () => runInfuse() }, `각인 (${pct(f.chance, 0)})`) : null);
+      };
+      const runInfuse = () => {
+        const bar = h('i');
+        s.replaceChildren(
+          h('div', { class: 'enh-anim inf' },
+            h('div', { class: 'enh-anvil' }, h('div', { class: 'enh-item', style: `--gc:${W.RARITY[Math.min(3, (it.rar || 0) + 1)].color}` }, itemTitle(game, it)), h('div', { class: 'enh-sparks' })),
+            h('div', { class: 'enh-anim-text' }, `${W.matName(markPick)}를 새기는 중…`),
+            h('div', { class: 'enh-bar' }, bar)));
+        bar.style.animationDuration = '1.6s';
+        setTimeout(() => {
+          const ok = game.infuse(it.uid, markPick);
+          app.save(); app.refresh();
+          const msg = ok ? `각인 성공! ${W.RARITY[it.rar].name} — ${optLines(it).join(' / ')}` : `각인 실패 — 다음 확률 +${pct(it.pity || 0, 0)}p`;
+          s.replaceChildren(
+            h('div', { class: `enh-anim result ${ok ? 'ok' : 'fail'}` },
+              h('div', { class: 'enh-anvil' }, h('div', { class: 'enh-item', style: `--gc:${gradeOf(it).color}` }, itemTitle(game, it))),
+              h('div', { class: 'enh-anim-text' }, msg)),
+            h('div', { class: 'btn-row' },
+              game.infuseInfo(it, markPick) && game.canInfuse(it, markPick) ? h('button', { class: 'btn good', onclick: () => runInfuse() }, '한 번 더') : null,
+              h('button', { class: 'btn', onclick: () => paint() }, '돌아가기')));
+          toast(msg);
+        }, 1600);
+      };
+      // ---- 계열 각인 (v158): 세력 재료로 성향을 붙인다 ----
+      const lineBox = () => h('details', { class: 'inf-box line-box' },
+        h('summary', {}, h('b', {}, '계열 각인 '), h('small', {}, `지금 ${LN.lineOf(it.line).name} — 세력 재료로 성향을 붙여요`)),
+        ...LN.LINES.filter((Ln) => Ln.id !== (it.line || 'base')).map((Ln) => {
+          const c = game.lineCost(it, Ln.id);
+          const parts = Object.entries(c.mats).map(([k, n]) => `${W.matName(k)} ${fmt(n)} (${fmt(game.s.mats[k] || 0)})`);
+          return h('div', { class: 'row line-row' },
+            h('div', { class: 'info' }, h('div', { class: 'name' }, Ln.name, h('small', {}, ` ${Ln.desc} · 기본 ×${Ln.mult}`)),
+              h('div', { class: 'desc' }, [...parts, `은자 ${fmt(c.gold)}`].join(' · '))),
+            h('button', { class: 'buy', disabled: game.canSetLine(it, Ln.id) ? null : true, onclick: () => {
+              if (!game.setLine(it.uid, Ln.id)) return toast('재료·은자가 모자라요');
+              toast(`${Ln.name} 계열을 새겼어요`); app.save(); paint(); app.refresh();
+            } }, '새기기'));
+        }));
       // ---- 강화 (v152): 실패할 수 있으면 묻고, 부서질 수 있으면 붉게 경고하고, 2초 연출 뒤 결과 ----
       const askEnhance = () => {
         if (!game.canEnhance(it)) return toast('은자나 재료가 모자라요');
@@ -377,15 +439,15 @@ function bagTab(app) {
         const breakRisk = fail === 'break';
         const prot = (game.s.prot || 0) > 0 && useProt;
         s.replaceChildren(...[
-          h('h2', { class: breakRisk ? 'enh-warn-title' : '' }, breakRisk ? '⚠ 부서질 수 있어요' : '강화할까요?'),
+          h('h2', { class: breakRisk ? 'enh-warn-title' : '' }, breakRisk ? (it.grow ? '⚠ 실패하면 +0으로' : '⚠ 부서질 수 있어요') : '강화할까요?'),
           h('div', { class: `enh-ask${breakRisk ? ' danger' : ''}` },
             h('div', { class: 'enh-ask-item', style: `color:${gradeOf(it).color}` }, itemTitle(game, it), ` → +${lv + 1}`),
             h('div', { class: 'enh-ask-rate' }, '성공 ', h('b', {}, pct(rate, 0)), ' · 실패 ', h('b', {}, pct(1 - rate, 0))),
             h('p', {}, breakRisk
-              ? (prot ? `실패하면 강화 보호부 1장을 태워 -1 (+${Math.max(0, lv - 1)}). 남은 보호부 ${game.s.prot}장.` : `실패하면 이 장비가 사라져요. ${game.s.prot ? '보호부를 안 쓰기로 했어요.' : '강화 보호부가 없어요 — 상인에게서 살 수 있어요.'}`)
+              ? (prot ? `실패하면 강화 보호부 1장을 태워 -1 (+${Math.max(0, lv - 1)}). 남은 보호부 ${game.s.prot}장.` : `실패하면 ${it.grow ? '강화가 +0으로 돌아가요' : '이 장비가 사라져요'}. ${game.s.prot ? '보호부를 안 쓰기로 했어요.' : '강화 보호부가 없어요 — 상인에게서 살 수 있어요.'}`)
               : `실패하면 ${fail} (+${Math.max(0, lv + fail)}). 재료·은자는 돌려받지 못해요.`)),
           h('div', { class: 'btn-row' },
-            h('button', { class: `btn ${breakRisk && !prot ? 'danger' : 'good'}`, onclick: () => runEnhance(2) }, breakRisk && !prot ? '부서져도 강화' : '강화한다'),
+            h('button', { class: `btn ${breakRisk && !prot ? 'danger' : 'good'}`, onclick: () => runEnhance(2) }, breakRisk && !prot ? (it.grow ? '+0이 돼도 강화' : '부서져도 강화') : '강화한다'),
             h('button', { class: 'btn', onclick: () => paint() }, '그만두기')),
         ]);
       };
@@ -402,8 +464,9 @@ function bagTab(app) {
           const ok = game.enhance(it.uid, useProt);
           const r = game.lastEnhance || {};
           app.save(); app.refresh();
-          const kind = ok ? 'ok' : r.broke ? 'broke' : 'fail';
-          const msg = ok ? `강화 성공! +${it.plus}` : r.broke ? `${itemTitle(game, it)}이(가) 부서졌어요` : r.prot ? `실패 — 보호부가 지켜 줬어요 (+${it.plus})` : r.drop ? `실패… ${r.drop} (+${it.plus})` : '실패 (그대로)';
+          if (r.reset) r.broke = false;
+          const kind = ok ? 'ok' : r.broke || r.reset ? 'broke' : 'fail';
+          const msg = ok ? `강화 성공! +${it.plus}` : r.reset ? '실패… 강화가 +0으로 돌아갔어요' : r.broke ? `${itemTitle(game, it)}이(가) 부서졌어요` : r.prot ? `실패 — 보호부가 지켜 줬어요 (+${it.plus})` : r.drop ? `실패… ${r.drop} (+${it.plus})` : '실패 (그대로)';
           s.replaceChildren(
             h('div', { class: `enh-anim result ${kind}` },
               h('div', { class: 'enh-anvil' }, h('div', { class: 'enh-item', style: `--gc:${gradeOf(it).color}` }, r.broke ? '💥' : itemTitle(game, it))),
@@ -497,75 +560,41 @@ function bagTab(app) {
   }
   function smithView() {
     const s = game.s;
-    const steps = game.craftSteps();
-    const slot = W.CRAFT_SLOTS.some((x) => x.id === ui.smith) ? ui.smith : 'weapon';
-    const rar = 0;                         // v153: 등급은 운 — 비용은 레어 값, 결과는 CRAFT_RAR_W
-    const line = LN.lineOf(ui.line).id;
-    const nsig = `${game.statSig()}|${s.bag.map((i) => i.uid).join(',')}|${JSON.stringify(s.mats)}|${Math.floor(Math.log10(s.gold + 1) * 20)}|${slot}|${ui.useBase}|${ui.readyOnly}|${steps.length}|${ui.smode}|${ui.kz}|${ui.kslot}|${s.level}|${rar}|${line}`;
+    const nsig = `${game.statSig()}|${s.bag.map((i) => i.uid + '.' + (i.plus || 0) + '.' + (i.rar || 0)).join(',')}|${JSON.stringify(s.mats)}|${Math.floor(Math.log10(s.gold + 1) * 20)}|${ui.smode}|${ui.kz}|${ui.kslot}|${s.level}`;
     if (nsig === sigs.smith) return;
     sigs.smith = nsig;
-    // v130: 사다리(레벨 99까지 · 고유 옵션) | 세트(99부터 · 직업 세트) | 왕의 장신구(99부터 · 공용)
-    const modes = h('div', { class: 'seg wide smith-seg' }, ...[['ladder', `사다리 ~${W.ILV_CAP}`], ['set', '세트 99~'], ['kacc', '장신구 99~']].map(([k, label]) =>
+    // v158: 성장 장비(레벨 따라 · 100까지) | 세트(100~ · 직업 세트) | 왕의 장신구(100~ · 공용)
+    if (!['ladder', 'set', 'kacc'].includes(ui.smode)) ui.smode = 'ladder';
+    const modes = h('div', { class: 'seg wide smith-seg' }, ...[['ladder', `성장 장비 ~${W.ILV_CAP}`], ['set', '세트 100~'], ['kacc', '장신구 100~']].map(([k, label]) =>
       h('button', { class: ui.smode === k ? 'on' : '', onclick: () => { ui.smode = k; keepUi(); sigs.smith = ''; smithView(); } }, label)));
     if (ui.smode === 'set') return setSmith(modes);
     if (ui.smode === 'kacc') return kaccSmith(modes);
-    const cur = s.equip[slot];
-    const chips = h('div', { class: 'chip-row' }, ...W.CRAFT_SLOTS.map((x) =>
-      h('button', { class: `chip${slot === x.id ? ' on' : ''}`, onclick: () => { ui.smith = x.id; keepUi(); sigs.smith = ''; smithView(); } }, x.name)));
-    // 등급은 운 (v153) — 한 번 만들 때 나올 확률
-    // v157: 계열마다 다르다 — 세력 재료를 많이 섞을수록 운이 좋다
-    const rw = W.craftRarW(line);
-    const wsum = rw.reduce((a, b) => a + b, 0);
-    const rarRow = h('div', { class: 'chip-row rar-row' }, ...W.RARITY.map((R, i) =>
-      h('span', { class: `chip rar${rw[i] ? ' on' : ''}`, style: `--rc:${R.color}` }, R.name, h('small', {}, ` ${Math.round((rw[i] / wsum) * 100)}%`))));
-    // 계열 고르기 (v151) — 세력 재료를 넣으면 성향이 붙는다. 칩 아래 점은 드는 세력 재료 빛깔.
-    const lineRow = h('div', { class: 'chip-row line-row' }, ...LN.LINES.map((Ln) =>
-      h('button', { class: `chip line${line === Ln.id ? ' on' : ''}`, onclick: () => { ui.line = Ln.id; keepUi(); sigs.smith = ''; smithView(); } },
-        Ln.name, h('small', {}, ` ${Ln.desc}`),
-        h('span', { class: 'line-dots' }, ...Ln.fac.map((f) => h('i', { style: `background:${LN.FAC_MAT_INFO[LN.FAC_MATS[f]].col}` }))))));
-    const toggles = h('div', { class: 'chip-row' },
-      h('button', { class: `chip${ui.useBase ? ' on' : ''}`, onclick: () => { ui.useBase = !ui.useBase; keepUi(); sigs.smith = ''; smithView(); } }, ui.useBase ? '✓ 아래 장비 넣기' : '아래 장비 안 넣기'),
-      h('button', { class: `chip${ui.readyOnly ? ' on' : ''}`, onclick: () => { ui.readyOnly = !ui.readyOnly; keepUi(); sigs.smith = ''; smithView(); } }, ui.readyOnly ? '✓ 만들 수 있는 것만' : '전부 보기'));
-    const rows = [];
-    // 만들 수 있는 것부터(좋은 것 먼저), 그다음 아직 못 만드는 것
-    const order = steps.slice().reverse().map((st) => [st, game.craftCheck(slot, st, ui.useBase, rar, line).ok]).sort((a, b) => b[1] - a[1]).map(([st]) => st);
-    for (const step of order) {
-      const { r, src, ok } = game.craftCheck(slot, step, ui.useBase, rar, line);
-      if (ui.readyOnly && !ok) continue;
-      const sample = game.makeCrafted(slot, step, 0, rar);
-      if (line !== 'base') sample.line = line;
-      const d = vsWorn(sample);
-      const parts = [];
-      for (const [k, n] of Object.entries(r.mats)) parts.push(need(W.matName(k), s.mats[k] || 0, n, W.matColor(k), k));
-      parts.push(need('은자', s.gold, r.gold));
-      rows.push(h('div', { class: `row craft-row${ok ? ' ready' : ''}${d <= 0.005 ? ' weaker' : ''}` },
+    // 칸마다 성장 장비 하나 — 누르면 강화·등급 각인·계열 각인
+    const marks = Object.keys(s.mats).filter((k) => W.isMarkKey(k) && s.mats[k] > 0);
+    const rows = W.GROW_SLOTS.map((sl) => {
+      const it = game.growOf(sl);
+      if (!it) return null;
+      const worn = s.equip[sl] === it;
+      const g = gradeOf(it);
+      const canInf = marks.some((k) => game.canInfuse(it, k));
+      return h('div', { class: `row craft-row grow-row${canInf || game.canEnhance(it) ? ' ready' : ''}` },
         h('div', { class: 'info' },
-          h('div', { class: 'name' }, itemTitle(game, sample), ' ', deltaTag(d),
-            h('small', {}, `Lv.${sample.ilv} · 재료는 ${W.zoneOfW(W.stepMap(step))?.name || ''}`)),
-          h('div', { class: 'desc' }, `${itemLines(game, sample)} (레어 기준 · 등급이 높게 나오면 더 세요)`),
-          game.itemUnique(sample) ? h('div', { class: 'desc uniq' }, `고유 ${G.gearKeyText(game.itemUnique(sample).k, game.itemUnique(sample).v)}`) : null,
-          h('div', { class: 'desc needs' }, ...parts),
-          h('div', { class: 'desc base' }, src ? `넣을 장비: ${itemTitle(game, src)} — 강화 +${Math.min(src.plus || 0, W.ENHANCE_NORMAL)}·${gradeOf(src).name} 이상 이어받음`
-            : ui.useBase ? `넣을 아래 장비가 없어 재료 ${W.NO_BASE_MULT}배` : `아래 장비 없이 — 재료 ${W.NO_BASE_MULT}배`)),
-        h('button', { class: 'buy', disabled: ok ? null : true, style: `--rc:${W.RARITY[rar].color}`, onclick: () => {
-          const it = game.craft(slot, step, ui.useBase, rar, line);
-          if (it) { toast(`${itemTitle(game, it)} — ${gradeOf(it).name}${it.rar >= 3 ? '!!! 신화' : it.rar >= 2 ? '! 전설' : ''}`); done(); }
-        } }, '제작')));
-    }
+          h('div', { class: 'name', style: `color:${g.color}` }, itemTitle(game, it), h('small', {}, ` Lv.${it.ilv} · ${g.name}${it.line ? ` · ${LN.lineOf(it.line).name}` : ''}${worn ? '' : ' · 가방에 있음'}`)),
+          h('div', { class: 'desc' }, itemLines(game, it)),
+          h('div', { class: 'desc' }, [game.canEnhance(it) ? '강화 가능' : null, canInf ? '등급 각인 가능' : null, it.pity ? `쌓인 각인 확률 +${pct(it.pity, 0)}p` : null].filter(Boolean).join(' · ') || ' ')),
+        h('button', { class: 'buy', onclick: () => openItem(it, worn) }, '키우기'));
+    }).filter(Boolean);
     smithRoot.replaceChildren(modes,
       h('div', { class: 'card' },
-        h('h3', {}, '대장장이', h('small', {}, `레벨 ${W.STEP_LV}마다 한 칸 · ${W.ILV_CAP}까지 ${W.STEP_COUNT}칸`)),
-        // v151: 긴 설명은 접어 둔다 — 고르는 줄(칸 · 계열 · 등급)만 보이게
-        h('details', { class: 'smith-help' }, h('summary', {}, '대장장이 도움말'),
-          h('p', {}, '사다리 장비마다 지역·칸에 따라 정해진 고유 옵션이 붙어요 — 여러 지역 것을 섞어 끼면 좋아요.'),
-          h('p', {}, `계열: 세력 재료(협의패·흑도령·마혈정)를 넣으면 성향이 붙고 기본 수치가 커져요. 둘을 섞으면 반씩, 셋 다 넣은 삼파가 가장 세요. 세력 재료는 지도의 무림맹·사파·마교 사냥터와 고수의 두목 방에서 나와요.`),
-          h('p', {}, `등급은 만들 때 운으로 나와요. 넣은 장비가 더 높은 등급이면 그 등급을 지켜요. 확실히 올리려면 장비를 눌러 승급(비싸요). 아래 장비를 넣으면 재료가 덜 들고 강화(+10까지)·옵션을 그대로 이어받아요(안 넣으면 ${W.NO_BASE_MULT}배).`),
-          h('p', {}, '쓸모없는 조합 장비는 팔면 만들 때 든 재료·은자의 1/4이 돌아와요.')),
-        h('div', { class: 'smith-label' }, '부위'), chips,
-        h('div', { class: 'smith-label' }, '계열'), lineRow,
-        h('div', { class: 'smith-label' }, '나올 등급'), rarRow, toggles,
-        h('div', { class: 'smith-cur' }, cur ? ['지금 낀 것: ', h('b', { style: `color:${gradeOf(cur).color}` }, itemTitle(game, cur)), ` — ${itemLines(game, cur)}`] : '지금 낀 것이 없어요')),
-      h('div', { class: 'card' }, ...(rows.length ? rows : [h('p', { class: 'muted' }, '지금 만들 수 있는 것이 없어요 — 재료를 더 모아요.')])));
+        h('h3', {}, '성장 장비', h('small', {}, `레벨을 따라 자란다 · ${W.ILV_CAP}까지`)),
+        h('details', { class: 'smith-help' }, h('summary', {}, '도움말'),
+          h('p', {}, `무기·옷·모자·장갑·신발·장신구는 칸마다 하나 — 만들지 않아요. 아이템 레벨이 내 레벨을 따라 오르고(${W.ILV_CAP}까지), 칸마다 그 레벨 지역의 고유 옵션이 붙어요.`),
+          h('p', {}, '강화: 그 레벨 지역 재료 + 은자. +3부터 실패하면 내려가고, +10부터는 실패하면 +0으로 돌아가요(보호부를 쓰면 -1). 장비는 사라지지 않아요.'),
+          h('p', {}, `등급 각인: 어느 두목의 증표든 넣어 레어→유니크→전설→신화. 센 두목의 증표일수록 잘 붙고(×${W.INFUSE_F_MIN}~×${W.INFUSE_F_MAX}), 실패하면 다음 확률이 쌓여 언젠가는 반드시 붙어요. 오르면 등급 옵션이 새로 붙어요.`),
+          h('p', {}, '계열 각인: 세력 재료(협의패·흑도령·마혈정)로 성향을 붙여요. 둘을 섞으면 반씩, 셋 다 넣은 삼파가 가장 세요.'),
+          h('p', {}, `${W.ILV_CAP}부터는 세트·왕의 장비를 만들어요.`)),
+        h('p', { class: 'muted' }, marks.length ? `가진 두목 증표 ${marks.length}가지 · 모두 ${fmt(marks.reduce((a, k) => a + s.mats[k], 0))}개` : '두목 증표가 없어요 — 두목 구역·고수의 두목 방에서 모아요.')),
+      h('div', { class: 'card' }, ...rows));
   }
 
   // ----- 세트 (레벨 99부터) -----
@@ -1168,7 +1197,7 @@ export function dailyWaiting(game, now = Date.now()) {
 const NPC_LIST = [
   { id: 'master', name: '사부', ico: '師', desc: '전직 · 무공' },
   { id: 'shop', name: '상인', ico: '商', desc: '물약 · 비급' },
-  { id: 'smith', name: '대장장이', ico: '冶', desc: '조합 · 강화' },
+  { id: 'smith', name: '대장장이', ico: '冶', desc: '강화 · 각인' },
   { id: 'inn', name: '주모', ico: '酒', desc: '쉬기' },
 ];
 function townTab(app) {
@@ -1271,7 +1300,7 @@ function townTab(app) {
     sig = nsig;
     head.replaceChildren(h('div', { class: 'town-status' },
       h('div', {}, h('b', {}, inTown ? '객잔 마을에서 쉬는 중' : `${W.mapOf(s.map).name}에서 사냥 중`),
-        h('small', {}, inTown ? '체력이 빠르게 차요' : '전직·상점·조합은 사냥터에서도 돼요')),
+        h('small', {}, inTown ? '체력이 빠르게 차요' : '전직·상점·강화는 사냥터에서도 돼요')),
       inTown ? h('button', { class: 'btn primary', disabled: game.canEnter(s.huntMap) ? null : true, onclick: () => { game.enterMap(s.huntMap); app.save(); app.closePanel(); app.refresh(); } }, '사냥터로')
         : h('button', { class: 'btn', onclick: () => { game.goTown(); app.save(); app.refresh(); } }, '쉬러 가기')));
     void npcRow;
@@ -1279,7 +1308,7 @@ function townTab(app) {
   }
   // 대장장이는 가방 창의 대장장이 칸에 있다 — 여기서는 안내와 바로 가기 (v148)
   function smithInfo() {
-    return [h('div', { class: 'card' }, h('h3', {}, '대장장이', h('small', {}, '조합 · 강화 · 승급')),
+    return [h('div', { class: 'card' }, h('h3', {}, '대장장이', h('small', {}, '강화 · 등급 각인 · 계열 · 세트')),
       h('p', {}, '"재료만 가져오면 뭐든 두드려 주지. 등급은 골라서 — 위로 갈수록 재료가 확 들어."'),
       h('p', { class: 'muted' }, '사다리(~100) · 세트(99~) · 왕의 장신구(99~)를 만들고, 낀 장비를 누르면 강화·승급해요.'),
       h('button', { class: 'btn primary', style: 'width:100%', onclick: () => app.showTab?.('bag', 'smith') }, '대장장이로 가기 (가방 → 대장장이)'))];

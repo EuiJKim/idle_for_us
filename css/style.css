@@ -1366,3 +1366,16 @@ details.lore p { margin: 4px 0 0; line-height: 1.5; }
 @keyframes enh-spark { 0% { opacity: 0.2; transform: scale(0.9); } 50% { opacity: 1; transform: scale(1.15); } 100% { opacity: 0.3; transform: scale(1.3); } }
 @keyframes enh-fill { from { width: 0; } to { width: 100%; } }
 @keyframes enh-pop { 0% { transform: scale(0.6); } 60% { transform: scale(1.2); } 100% { transform: scale(1); } }
+
+/* v158 성장 장비: 등급 각인 · 계열 각인 */
+.inf-box { margin: 10px 0; padding: 10px 12px; border-radius: 12px; background: rgba(244, 63, 94, .06); border: 1px solid rgba(253, 224, 71, .22); }
+.inf-box .inf-head { margin-bottom: 6px; }
+.inf-box .inf-head small { color: #a8a29e; }
+.inf-box .inf-marks .chip { border-color: var(--mc, #fde68a); }
+.inf-box .inf-marks .chip.on { background: rgba(253, 224, 71, .18); color: #fde68a; }
+.inf-box > .btn { width: 100%; margin-top: 4px; }
+.inf-box.line-box summary { cursor: pointer; list-style: none; }
+.inf-box.line-box summary small { color: #a8a29e; }
+.inf-box.line-box .line-row { margin-top: 6px; }
+.enh-anim.inf .enh-sparks { filter: hue-rotate(260deg) saturate(1.4); }
+.grow-row .name small { color: #a8a29e; font-weight: 400; }
