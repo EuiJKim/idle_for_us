@@ -1420,6 +1420,8 @@ export class BattleView {
     if (!this.director && this.fxLevel > 0) {
       this.heroAnim.play([[span * 0.22, pose, 'snap']], span * 0.78);
     }
+    // v234: 맞은 숫자·움찔·번쩍은 칼(주먹)이 닿는 순간에 — 전엔 휘두르기 시작과 동시에 떠서 반 박자 빨랐다
+    if (!this.director) this.shotDelay = Math.max(this.shotDelay || 0, span * 0.22 + 0.02);
     if (this.fxLevel <= 0) return;
     const face = (this.faceOverride || game.heroFacing) < 0 ? -1 : 1;
     // v209 마무리 한 방 — 연속 평타의 마지막은 더 깊이 내딛고, 아주 짧게 멎었다(히트스톱) 화면이 살짝 울리며 과녁에 고리가 터진다.
