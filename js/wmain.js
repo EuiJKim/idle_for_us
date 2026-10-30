@@ -242,6 +242,7 @@ function refreshUI(full = false) {
   }
   const hpR = Math.max(0, Math.min(1, game.heroHp / st.hp));
   $('progress-fill').style.width = `${hpR * 100}%`;
+  $('progress-trail').style.width = `${hpR * 100}%`;          // 늦게 따라온다(css) — 깎인 만큼이 잠깐 밝게 남는다
   $('progress').classList.toggle('low', hpR < 0.35);
   $('progress-text').textContent = `체력 ${fmt(Math.max(0, game.heroHp))} / ${fmt(st.hp)}`;
   $('power-label').textContent = `전투력 ${fmt(st.power)}`;

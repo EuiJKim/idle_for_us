@@ -1706,7 +1706,8 @@ export class BattleView {
       drawCreature(this.ctx, pet.kind, px, py, { t: this.t + i * 0.7, moving: moving || (atk && atk.t > 0), flip: !!opts.flip, scale: 1.05 });
     });
     if (this.fxLevel > 0) this.drawGearAura(this.ctx, x, fy, this.gearLook(game), true);
-    hpBar(this.ctx, x - 32, fy - 128, 64, 6, ratio(game.heroHp, st.hp), '#16a34a');
+    const hr = ratio(game.heroHp, st.hp);
+    hpBar(this.ctx, x - 32, fy - 128, 64, 6, hr, '#16a34a', this.hpTrail(this, '_heroTrail', hr));
     nameTag(this.ctx, game.heroLabel ? game.heroLabel() : `${RANKS[game.s.rank].name} ${game.s.nickname || ''}`, x, fy - 136);
     this.ctx.restore();
   }
@@ -2048,6 +2049,19 @@ export class BattleView {
     ctx.restore();
   }
 
+  // 체력 막대 뒤 띠 — 깎이면 0.3초 머물렀다가 초당 70%씩 따라 내려온다. 차면 바로 붙는다.
+  hpTrail(obj, key, r) {
+    const now = this.t;
+    let st = obj[key];
+    if (!st) st = obj[key] = { v: r, at: now, hold: 0 };
+    const dt = Math.min(0.1, Math.max(0, now - st.at));
+    st.at = now;
+    if (r >= st.v) { st.v = r; st.hold = 0; return r; }
+    if (st.hold < 0.3) { st.hold += dt; return st.v; }
+    st.v = Math.max(r, st.v - dt * 0.7);
+    return st.v;
+  }
+
   // 돌아서기 (v160): 바라보는 쪽이 바뀌면 곧장 뒤집지 않고 0.12초에 걸쳐 돈다 — 1 ↔ -1을 지나며 몸이 납작해졌다 펴진다.
   // who: 몹 객체 또는 'hero'. 돌려주는 값을 가로 배율로 쓴다.
   turnTo(who, want) {
@@ -2154,7 +2168,8 @@ export class BattleView {
     if (near) {
       // 가로로 긴 주황 막대가 수십 개면 화면이 막대로 덮인다. 가늘게, 짧게.
       ctx.globalAlpha = depth;
-      hpBar(ctx, x - 17, y - 90, 34, 3, ratio(a.hp, a.maxHp), '#b45309');
+      const ar = ratio(a.hp, a.maxHp);
+      hpBar(ctx, x - 17, y - 90, 34, 3, ar, '#b45309', this.hpTrail(a, '_trail', ar));
       ccDots(ctx, a, x, y - 96);
     }
     ctx.globalAlpha = 1;
@@ -2265,7 +2280,8 @@ export class BattleView {
     if (m.stun > 0 && m.alive) dizzy(ctx, x, y - 112 * scale, this.t);
     if (m.alive && !m.isRaid) {
       const bw = boss || m.trial || m.isHero ? 110 : 66;
-      hpBar(ctx, x - bw / 2, top - 6, bw, 6, ratio(m.hp, m.maxHp), boss || m.trial ? '#b91c1c' : '#ea580c');
+      const mr = ratio(m.hp, m.maxHp);
+      hpBar(ctx, x - bw / 2, top - 6, bw, 6, mr, boss || m.trial ? '#b91c1c' : '#ea580c', this.hpTrail(m, '_trail', mr));
       const name = m.isHero ? `${RANKS[m.rank || 0].name} ${m.name}` : m.trial ? '심마' : def.name || '';
       // 물린 카메라에서는 졸개 이름을 안 단다 — 옆 칸 무인의 이름표와 겹친다. 두목만.
       if (!this.overview || boss || m.trial) nameTag(ctx, name, x, top - 12, boss || m.trial);
@@ -3565,10 +3581,15 @@ function roundRect(ctx, x, y, w, h, r) {
 // — 체력 막대가 통째로 사라진 것처럼 보인다.
 const ratio = (a, b) => Math.max(0, Math.min(1, big(a).div(b).toNumber() || 0));
 
-function hpBar(ctx, x, y, w, h, ratio, color) {
+// trail(v164 다듬기 4): 깎인 만큼이 밝은 띠로 잠깐 남았다가 따라 내려온다 — 한 방에 얼마나 깎였는지 눈에 들어온다
+function hpBar(ctx, x, y, w, h, ratio, color, trail = null) {
   h *= Math.min(UIK, 1.6);
   ctx.fillStyle = 'rgba(0,0,0,0.6)';
   ctx.fillRect(x - 1, y - 1, w + 2, h + 2);
+  if (trail != null && trail > ratio) {
+    ctx.fillStyle = 'rgba(254,243,199,0.85)';
+    ctx.fillRect(x, y, w * Math.max(0, Math.min(1, trail)), h);
+  }
   ctx.fillStyle = color;
   ctx.fillRect(x, y, w * Math.max(0, Math.min(1, ratio)), h);
 }

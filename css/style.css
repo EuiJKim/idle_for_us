@@ -1415,3 +1415,8 @@ details.lore p { margin: 4px 0 0; line-height: 1.5; }
 .sp-pick .chip { text-align: left; white-space: normal; }
 .sp-pick .chip.on { border-color: #fde68a; background: rgba(253, 224, 71, .15); }
 .sp-pick .chip small { color: #d6d3d1; }
+
+/* v169 체력 막대 뒤 띠 — 깎인 만큼이 0.35초 남았다가 따라 내려온다 */
+#progress { position: relative; left: auto; top: auto; }
+#progress-trail { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: rgba(254, 243, 199, 0.7); transition: width 0.6s ease-out 0.35s; }
+#progress-fill { position: relative; }
