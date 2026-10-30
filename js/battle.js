@@ -783,7 +783,9 @@ export class BattleView {
       case 'heroDied':
         // 무인이 넘어졌다가 일어난다 (drawHeroUnit)
         this.heroDownT = HERO_DOWN_SEC;
+        this.heroDownFx = null;
         this.shake = Math.max(this.shake, 0.3);
+        this.flash = Math.max(this.flash, 0.12);
         this.float(ev.boss ? '두목에게 패배…' : '쓰러졌다!', this.w / 2, this.h * 0.42, '#fca5a5', 24, 1.6, true);
         break;
       case 'stageClear':
@@ -1390,6 +1392,7 @@ export class BattleView {
       this.drawHanja(dt);
       this.drawBanner(dt);
       this.drawKingIntro(dt, z);
+      this.drawDownVignette();
     } finally { this.w = vw; this.h = vh; }
     ctx.restore();
     ctx.restore();
@@ -1840,8 +1843,31 @@ export class BattleView {
     if (this.heroDownT > 0) {
       this.heroDownT = Math.max(0, this.heroDownT - (this._lastDt || 0));
       const k = 1 - this.heroDownT / HERO_DOWN_SEC;
-      const down = k < 0.35 ? 1 - (1 - k / 0.35) ** 2 : k < 0.7 ? 1 : 1 - ((k - 0.7) / 0.3) ** 2;
+      // v216: 넘어질 때 바닥에 한 번 튕기고(0.35~0.45), 일어날 땐 무릎→허리 순으로(끝을 부드럽게)
+      const down = k < 0.3 ? 1 - (1 - k / 0.3) ** 2
+        : k < 0.42 ? 1 - Math.sin(Math.PI * (k - 0.3) / 0.12) * 0.12
+        : k < 0.68 ? 1 : 1 - (1 - (1 - (k - 0.68) / 0.32) ** 3);
       downRot = (opts.flip ? 1 : -1) * down * 1.3;
+      const D = this.heroDownFx || (this.heroDownFx = {});
+      if (this.fxLevel > 0) {
+        // 땅에 닿는 순간 흙먼지
+        if (k >= 0.3 && !D.land) {
+          D.land = true;
+          for (let i = 0; i < 9; i++) { const a = Math.PI + (i / 8) * Math.PI; this.particles.push({ x: x + Math.cos(a) * 26, y: y - 2, vx: Math.cos(a) * (60 + Math.random() * 70), vy: -20 - Math.random() * 40, life: 0.5 + Math.random() * 0.3, size: 4 + Math.random() * 4, color: 'rgb(196,170,130)', dust: true }); }
+          this.shake = Math.max(this.shake, 0.18);
+        }
+        // 일어서기 시작 — 발밑에서 금빛 기가 모여 오른다
+        if (k >= 0.6 && !D.rise) {
+          D.rise = true;
+          this.effects.push({ kind: 'motes', life: 0.7, max: 0.7, n: 18, seeds: seedsN(18), r: 120, dx: 0, dy: -70, face: 1, col: '253,224,71' });
+        }
+        // 다 섰다 — 금빛 고리 한 번
+        if (k >= 0.97 && !D.up && game?.heroX != null) {
+          D.up = true;
+          this.effects.push({ kind: 'shock', life: 0.45, max: 0.45, wx: game.heroX, wy: game.heroY, r: 110, col: '253,224,71', rings: 2, w: 3 });
+        }
+      }
+      if (this.heroDownT <= 0) this.heroDownFx = null;
     }
     // 환영분신술 (v121) — 보랏빛 분신이 무인 둘레에 서서 함께 친다(칠 때 과녁 쪽으로 튀어 나간다)
     if (game.clones?.length) {
@@ -3204,6 +3230,23 @@ export class BattleView {
       dur: full ? 2.2 : 1.2, full,
     }, at);
   }
+  // v216: 쓰러진 동안 화면 가장자리가 붉게 물들었다가, 일어서며 걷힌다
+  drawDownVignette() {
+    if (!(this.heroDownT > 0)) return;
+    const k = 1 - this.heroDownT / HERO_DOWN_SEC;
+    const a = (k < 0.15 ? k / 0.15 : k < 0.6 ? 1 : Math.max(0, 1 - (k - 0.6) / 0.4)) * 0.55;
+    if (a <= 0.01) return;
+    const { ctx, w, h } = this;
+    const v = this._downVg || (this._downVg = (() => {
+      const c = document.createElement('canvas'); c.width = 256; c.height = 256;
+      const g = c.getContext('2d');
+      const rg = g.createRadialGradient(128, 128, 60, 128, 128, 182);
+      rg.addColorStop(0, 'rgba(60,0,0,0)'); rg.addColorStop(1, 'rgba(90,6,6,1)');
+      g.fillStyle = rg; g.fillRect(0, 0, 256, 256);
+      return c;
+    })());
+    ctx.save(); ctx.globalAlpha = a; ctx.drawImage(v, 0, 0, w, h); ctx.restore();
+  }
   startIntro(spec, at) {
     this.kingIntro = { k: spec, at: at ? { x: at.x, y: at.y } : null, t: 0, dur: spec.dur, hit: false };
     this.shake = Math.max(this.shake, spec.full ? 0.5 : 0.25);
@@ -3385,7 +3428,7 @@ export class BattleView {
 // ---------- 무인 그리기 ----------
 // 발끝 가운데가 (x, y), 오른쪽을 본다. look: 무복 색·머리·무기, o: 애니메이션 옵션
 const CORPSE_SEC = 0.7;   // v194: 떴다 떨어지고 튀는 몫만큼 조금 길게
-const HERO_DOWN_SEC = 0.9;
+const HERO_DOWN_SEC = 1.5;   // v216: 0.9 → 1.5 — 넘어짐·누움·기 모아 일어섬이 각각 읽히게
 
 export function drawFighter(ctx, x, y, look = {}, o = {}) {
   const t = o.t || 0;
