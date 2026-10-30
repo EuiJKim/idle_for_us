@@ -1705,10 +1705,25 @@ export class BattleView {
     // 데려간 영수들이 뒤를 따른다 (예전엔 s.pet 한 마리만 그렸는데, 영수가 여럿이 된 뒤로
     // 그 값이 늘 비어 있어서 아무것도 안 그려졌다)
     // 애완동물 — 무인 뒤를 따라 걷고, 칠 때는 과녁 쪽으로 튀어 나갔다 돌아온다
+    // v178: 무인 곁에 붙박이로 그리지 않고, 제 자리(무인 뒤)를 **따라 걷는다** — 무인이 돌아서면
+    // 반대편으로 순간이동하던 것을 걸어서 돌아가게. 멀리 떨어지면 빨리 뛰고, 머문 때는 제자리에서 숨 쉰다.
     const back = opts.flip ? 1 : -1;
+    const pdt = Math.min(0.1, this._lastDt || 0);
+    this.petPos = this.petPos || [];
     game.petTeam().forEach((pet, i) => {
-      let px = x + back * (50 + i * 34);
-      let py = y + 12 - (i % 2) * 16;
+      const tx = game.heroX + back * (50 + i * 34), ty = game.heroY + (12 - (i % 2) * 16) / (this.squash || 1);
+      let pp = this.petPos[i];
+      if (!pp || pp.map !== game.s.map || Math.hypot(tx - pp.x, ty - pp.y) > 500) pp = this.petPos[i] = { x: tx, y: ty, vx: 0, flip: !!opts.flip, map: game.s.map };
+      const dx = tx - pp.x, dy = ty - pp.y, dist = Math.hypot(dx, dy);
+      // 가까우면 느긋하게, 멀면 서둘러 (뒤처지는 맛이 남게 i번째일수록 조금 늦다)
+      const sp = Math.min(dist, (90 + dist * (3.2 - i * 0.4)) * pdt);
+      const ox = pp.x;
+      if (dist > 0.5) { pp.x += dx / dist * sp; pp.y += dy / dist * sp; }
+      pp.vx = pdt > 0 ? (pp.x - ox) / pdt : 0;
+      if (Math.abs(pp.vx) > 25) pp.flip = pp.vx < 0; else if (dist < 4) pp.flip = !!opts.flip;
+      const pMoving = dist > 6;
+      let px = this.sx(pp), py = this.sy(pp);
+      if (!pMoving) py -= Math.abs(Math.sin(this.t * 1.6 + i)) * 1.5;
       const atk = this.petAtk?.[i];
       if (atk && atk.t > 0) {
         atk.t -= this._lastDt || 0;
@@ -1716,7 +1731,7 @@ export class BattleView {
         px += (atk.x - px) * 0.55 * k;
         py += (atk.y - py) * 0.55 * k - k * 10;
       }
-      drawCreature(this.ctx, pet.kind, px, py, { t: this.t + i * 0.7, moving: moving || (atk && atk.t > 0), flip: !!opts.flip, scale: 1.05 });
+      drawCreature(this.ctx, pet.kind, px, py, { t: this.t + i * 0.7, moving: pMoving || (atk && atk.t > 0), flip: atk && atk.t > 0 ? atk.x < px : pp.flip, scale: 1.05 });
     });
     if (this.fxLevel > 0) this.drawGearAura(this.ctx, x, fy, this.gearLook(game), true);
     const hr = ratio(game.heroHp, st.hp);
