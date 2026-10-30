@@ -263,6 +263,27 @@ const SPECIAL_INK = {
 const CAST_COL = { sword: '229,231,235', fist: '245,158,11', fan: '56,189,248', ring: '168,85,247', poison: '132,204,22' };
 // v222: 애완동물 기운 — 발밑에 등급 빛(레어 파랑 · 유니크 보라 · 전설 주황 · 신화 붉음)과
 // 그 짐승의 기운 알갱이(주작 불티 · 청룡 번개 · 현무 물방울 · 선학 깃털 · 그 밖은 도는 빛). 상태 없이 시간으로.
+// v224: 정예 기운 — 발밑에 주황 불꽃 고리가 숨 쉬고, 불티 넷이 엇갈려 오른다 (멀리서도 '저건 세다'가 보이게)
+function eliteAura(ctx, x, y, sc, t, sq = 0.5) {
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  const r = 30 * sc * (1 + Math.sin(t * 3) * 0.06);
+  ctx.save(); ctx.translate(x, y); ctx.scale(1, sq);
+  const g = ctx.createRadialGradient(0, 0, r * 0.4, 0, 0, r);
+  g.addColorStop(0, 'rgba(251,146,60,0)'); g.addColorStop(0.8, 'rgba(251,146,60,0.22)'); g.addColorStop(1, 'rgba(251,146,60,0)');
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = `rgba(253,186,116,${0.45 + 0.2 * Math.sin(t * 4)})`; ctx.lineWidth = 1.6;
+  ctx.setLineDash([6, 5]); ctx.lineDashOffset = -t * 20;
+  ctx.beginPath(); ctx.arc(0, 0, r * 0.85, 0, Math.PI * 2); ctx.stroke();
+  ctx.restore();
+  for (let i = 0; i < 4; i++) {
+    const ph = (t * 0.7 + i / 4) % 1;
+    ctx.globalAlpha = Math.sin(ph * Math.PI) * 0.8;
+    ctx.fillStyle = 'rgb(253,186,116)';
+    ctx.beginPath(); ctx.arc(x + Math.sin(i * 2.3 + t * 1.6) * 16 * sc, y - 8 - ph * 70 * sc, 1.6 + (i % 2), 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.restore();
+}
 // v223: 탈것 자취 빛깔 — 6단 흑풍마부터(따로 없으면 흰 바람), 십이지 신수는 금빛
 const MOUNT_TRAIL = { redhare: '248,113,113', ochu: '167,139,250', cloud: '241,245,249', azure: '125,211,252', tigerm: '253,186,116' };
 function petAura(ctx, pet, x, y, t, front, sq = 0.5) {
@@ -2570,6 +2591,7 @@ export class BattleView {
     if (fx) this.drawMobFx(ctx, a, x, y, sc, true);
     if (a.stun > 0) dizzy(ctx, x, y - 96 * sc, this.t);
     // 들판 정예는 드물어서 표를 단다
+    if (a.elite && a.alive !== false && this.fxLevel > 0) eliteAura(ctx, x, y, sc, this.t + (a.id || 0) * 0.37, this.squash);
     if (a.elite) { ctx.globalAlpha = 1; gradeTag(ctx, '정예', x, y - 100 * sc, '#fb923c'); }
     // 마을 사람은 이름을 단다
     if (a.npc) { ctx.globalAlpha = 1; nameTag(ctx, def.name || '', x, y - 104, true); }
@@ -2686,6 +2708,7 @@ export class BattleView {
 
     if (fx) this.drawMobFx(ctx, m, x, y, scale, true);
     const top = bossH ? y - bossH - 6 : y - 118 * scale;
+    if (m.elite && m.alive && this.fxLevel > 0) eliteAura(ctx, x, y, scale, this.t + (m.id || 0) * 0.37, this.squash);
     if (m.elite && m.alive) gradeTag(ctx, '정예', x, top - 26, '#fb923c');
     if (m.petEmoji) emoji(ctx, m.petEmoji, x + 58, y + 2 - Math.abs(Math.sin(this.t * 4 + 2)) * 6, 34, true);
     if (m.stun > 0 && m.alive) dizzy(ctx, x, y - 112 * scale, this.t);
