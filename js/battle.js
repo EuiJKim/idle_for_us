@@ -165,8 +165,8 @@ function sparkImage(color) {
 // 한 인물이 8위상을 쓰므로 40칸이다. 전에는 상한이 48이라 구역이 바뀌는 10관문마다
 // 80칸이 필요해져 통째로 비우고 48장을 다시 구웠다 — 그때마다 화면이 한 번 걸렸다.
 // 두 구역이 같이 들어가고도 남게 둔다.
-const LIGHT_MOBS = 26;
-const PIXEL_BUDGET = 1.2e6;   // v181: 한 프레임에 칠하는 캔버스 화소 상한 (390x844 화면이면 1.9배까지)   // 가벼운 모드에서 그리는 적의 최대 수
+const LIGHT_MOBS = 26;   // 가벼운 모드에서 그리는 적의 최대 수
+const PIXEL_BUDGET = 1.2e6;   // v181: 한 프레임에 칠하는 캔버스 화소 상한 (390x844 화면이면 1.9배까지)
 const SPR = { w: 80, h: 160, ox: 44, oy: 146, phases: 8, cycle: Math.PI / 2, max: 192 };
 const sprCache = new Map();
 // 그림이 늦게 도착하면 벡터로 구워 둔 것을 버려야 한다
@@ -1242,8 +1242,11 @@ export class BattleView {
     // 300만 화소다. 전에는 바닥색 한 겹 + 타일 3.5겹 = 4.5겹이었다.
     // 바닥색을 타일에 섞고(fx.js), 밀어야 할 만큼은 **패턴 자체를 밀어서**
     // 화면 밖을 안 칠한다 — 한 겹으로 끝난다.
+    // v182: 바닥 타일도 소품 장에 **같이 구워** 한 장으로 붙인다 — 화면을 덮는 칠이 세 겹에서 두 겹으로.
+    // (바닥을 캔버스 뒤 DOM 층으로 빼 보았으나, 칼빛·불꽃의 '더하기' 빛이 바닥과 섞이지 않아 흐려졌다)
     const pat = zoneTile(ctx, z.idx ?? 0, ground);
-    if (!pat) {
+    this.ensureDecor(z, camX, camY * this.squash, pat, ground);
+    if (this._decor) { /* 바닥은 구운 장에 있다 */ } else if (!pat) {
       ctx.fillStyle = ground;
       ctx.fillRect(-20, -20, w + 40, h + 40);
     } else {
@@ -1329,13 +1332,17 @@ export class BattleView {
   }
 
   // 얼룩·소품 한 장. 카메라가 가장자리(M)를 넘어갈 때만 다시 굽는다.
-  putDecor(z, ox, oy) {
-    const { ctx, w, h } = this;
+  ensureDecor(z, ox, oy, pat, ground) {
+    const { w, h } = this;
     const M = 220;
     const d = this._decor;
-    const stale = !d || d.w !== w || d.h !== h || d.z !== z || d.gen !== decalGen
+    const stale = !d || d.w !== w || d.h !== h || d.z !== z || d.gen !== decalGen || d.pat !== pat || d.zm !== (this.zoom || 1)
       || Math.abs(ox - d.ox) > M || Math.abs(oy - d.oy) > M;
-    if (stale) this.bakeDecor(z, ox, oy, M);
+    if (stale) this.bakeDecor(z, ox, oy, M, pat, ground);
+  }
+  putDecor(z, ox, oy) {
+    const { ctx, w, h } = this;
+    const M = this._decor.M;
     const k = this._decor;
     // 구워 둔 장은 (화면+440)x(화면+440)이다 — 통째로 그리면 폰에서 화면의
     // 3배가 넘는다. **보이는 조각만** 떠서 그린다.
@@ -1352,18 +1359,25 @@ export class BattleView {
     }
   }
 
-  bakeDecor(z, ox, oy, M) {
+  bakeDecor(z, ox, oy, M, pat, ground) {
     const { w, h } = this;
     const q = (this.dpr || 1) * (this.zoom || 1);
-    const cv = this._decor?.cv && this._decor.w === w && this._decor.h === h
-      ? this._decor.cv : document.createElement('canvas');
-    cv.width = Math.ceil((w + M * 2) * q);
-    cv.height = Math.ceil((h + M * 2) * q);
+    // 다시 구울 때 같은 캔버스를 쓰면 층에서 한 번 깜빡일 수 있다 — 크기가 같으면 그대로 덮어 그린다
+    const old = this._decor;
+    const cv = old?.cv || document.createElement('canvas');
+    const W2 = Math.ceil((w + M * 2) * q), H2 = Math.ceil((h + M * 2) * q);
+    if (cv.width !== W2 || cv.height !== H2) { cv.width = W2; cv.height = H2; }
     const x = cv.getContext('2d');
     x.setTransform(q, 0, 0, q, 0, 0);
-    x.clearRect(0, 0, w + M * 2, h + M * 2);
+    // 바닥(v182): 타일까지 같이 굽는다 — 월드에 붙은 무늬라 (ox - M, oy - M)부터 이어진다
+    if (pat) {
+      const tx = -((((ox - M) % 512) + 512) % 512), ty = -((((oy - M) % 512) + 512) % 512);
+      if (pat.setTransform) pat.setTransform(new DOMMatrix([1, 0, 0, 1, tx, ty]));
+      x.fillStyle = pat;
+    } else x.fillStyle = ground || '#000';
+    x.fillRect(0, 0, w + M * 2, h + M * 2);
     this.decorInto(x, z, ox, oy, M);
-    this._decor = { cv, q, w, h, z, ox, oy, M, gen: decalGen };
+    this._decor = { cv, q, w, h, z, ox, oy, M, gen: decalGen, pat, zm: this.zoom || 1 };
   }
 
   // 구워 넣는 실제 그림. (ox, oy)를 기준으로 (M, M)만큼 밀어서 그린다.
@@ -2334,6 +2348,8 @@ export class BattleView {
   // ---------- 효과 ----------
   drawProjectiles(dt) {
     const { ctx } = this;
+    const jcap = Math.round(80 * (this.budget ?? 1));
+    if (this.projectiles.length > jcap) this.projectiles.splice(0, this.projectiles.length - jcap);
     for (const p of this.projectiles) {
       p.life -= dt;
       const k = 1 - Math.max(0, p.life / p.max);
@@ -2507,6 +2523,9 @@ export class BattleView {
 
   drawEffects(dt, game) {
     const { ctx } = this;
+    // 동시에 그리는 연출 상한 (v182) — 광역기가 수십 번 겹치면 한 프레임에 수백 개가 쌓였다. 오래된 것부터 뺀다.
+    const ecap = Math.round(90 * (this.budget ?? 1));
+    if (this.effects.length > ecap) this.effects.splice(0, this.effects.length - ecap);
     for (const e of this.effects) {
       e.life -= dt;
       const k = Math.max(0, e.life / e.max);
@@ -2823,7 +2842,8 @@ export class BattleView {
       }
     }
     this.particles = this.particles.filter((p) => p.life > 0);
-    if (this.particles.length > 240) this.particles.splice(0, this.particles.length - 240);
+    const pcap = Math.round(240 * (this.budget ?? 1));
+    if (this.particles.length > pcap) this.particles.splice(0, this.particles.length - pcap);
     ctx.globalAlpha = 1;
   }
 
@@ -2842,12 +2862,12 @@ export class BattleView {
       // 처음 0.12초에 크게 튀었다가 제 크기로 — 뒤로 갈수록 살짝 작아진다
       const age = f.max - f.life;
       const pop = age < 0.12 ? 1.45 - age / 0.12 * 0.45 : 1 - Math.max(0, 0.4 - k) * 0.25;
-      ctx.font = f.brush ? `${f.size * pop * 1.2}px ${BRUSH}` : `900 ${f.size * pop}px system-ui, sans-serif`;
-      ctx.lineWidth = 4;
-      ctx.strokeStyle = 'rgba(0,0,0,0.8)';
-      ctx.strokeText(f.text, f.x * z, f.y * z);
-      ctx.fillStyle = f.color;
-      ctx.fillText(f.text, f.x * z, f.y * z);
+      // v182: 글자는 처음 한 번만 가장 큰 크기(튀어 오를 때 1.45배)로 구워 두고 줄여 찍는다 —
+      // 매 프레임 글꼴 크기가 바뀌어 숫자마다 글꼴 해석·글자 모양 잡기를 다시 했다
+      const spr = f._spr || (f._spr = textSprite(f.text, f.brush ? `${f.size * 1.45 * 1.2}px ${BRUSH}` : `900 ${f.size * 1.45}px system-ui, sans-serif`,
+        f.color, 4 * 1.45, ctx.getTransform().a));
+      const sc = pop / 1.45;
+      ctx.drawImage(spr.cv, f.x * z - spr.ax * sc, f.y * z - spr.ay * sc, spr.w * sc, spr.h * sc);
     }
     this.floats = this.floats.filter((f) => f.life > 0);
     ctx.globalAlpha = 1;
@@ -3153,31 +3173,40 @@ export function drawFighter(ctx, x, y, look = {}, o = {}) {
       ctx.save();
       ctx.translate(Math.cos(a) * 38, -60 + Math.sin(a) * 10);
       // 도는 장식은 직업의 무기 — 권마는 금빛 주먹, 환마 부채, 독마 독침, 극악소마 지환, 검사 칼 (v121: 다 칼이라 권마가 칼을 든 것처럼 보였다)
+      // v182: 장식 하나하나를 한 번만 그려 두고(빛 번짐 포함) 돌려 찍는다 — 매 프레임 칼마다 획 수십 개와 그림자 번짐이었다
       const ow = o.orbit || weapon;
       const col = look.aura || '#e0f2fe';
       if (ow === 'fist') {
-        const g = ctx.createRadialGradient(0, 0, 0, 0, 0, 11);
-        g.addColorStop(0, 'rgba(255,251,235,0.95)'); g.addColorStop(0.5, hexA(col, 0.75)); g.addColorStop(1, hexA(col, 0));
-        ctx.fillStyle = g; circle(ctx, 0, 0, 11);
-        ctx.fillStyle = '#fbbf24'; ctx.strokeStyle = '#78350f'; ctx.lineWidth = 1.2;
-        roundRect(ctx, -5, -4.5, 10, 9, 3); ctx.fill(); ctx.stroke();
-        ctx.beginPath(); for (let k = -1; k <= 1; k++) { ctx.moveTo(-5, k * 2.6); ctx.lineTo(-1.5, k * 2.6); } ctx.stroke();
+        cachedDraw(ctx, `orb|fist|${col}`, [-12, -12, 12, 12], (cx) => {
+          const g = cx.createRadialGradient(0, 0, 0, 0, 0, 11);
+          g.addColorStop(0, 'rgba(255,251,235,0.95)'); g.addColorStop(0.5, hexA(col, 0.75)); g.addColorStop(1, hexA(col, 0));
+          cx.fillStyle = g; circle(cx, 0, 0, 11);
+          cx.fillStyle = '#fbbf24'; cx.strokeStyle = '#78350f'; cx.lineWidth = 1.2;
+          roundRect(cx, -5, -4.5, 10, 9, 3); cx.fill(); cx.stroke();
+          cx.beginPath(); for (let k = -1; k <= 1; k++) { cx.moveTo(-5, k * 2.6); cx.lineTo(-1.5, k * 2.6); } cx.stroke();
+        });
       } else if (ow === 'fan') {
         ctx.rotate(Math.sin(t * 2 + i) * 0.3);
-        ctx.fillStyle = hexA(col, 0.85); ctx.strokeStyle = '#1e1b4b'; ctx.lineWidth = 1;
-        ctx.beginPath(); ctx.moveTo(0, 6); ctx.arc(0, 6, 13, -Math.PI * 0.85, -Math.PI * 0.15); ctx.closePath(); ctx.fill(); ctx.stroke();
-        for (let k = 0; k < 5; k++) { const aa = -Math.PI * 0.85 + (k + 0.5) * (Math.PI * 0.7 / 5); ctx.beginPath(); ctx.moveTo(0, 6); ctx.lineTo(Math.cos(aa) * 13, 6 + Math.sin(aa) * 13); ctx.stroke(); }
+        cachedDraw(ctx, `orb|fan|${col}`, [-15, -10, 15, 9], (cx) => {
+          cx.fillStyle = hexA(col, 0.85); cx.strokeStyle = '#1e1b4b'; cx.lineWidth = 1;
+          cx.beginPath(); cx.moveTo(0, 6); cx.arc(0, 6, 13, -Math.PI * 0.85, -Math.PI * 0.15); cx.closePath(); cx.fill(); cx.stroke();
+          for (let k = 0; k < 5; k++) { const aa = -Math.PI * 0.85 + (k + 0.5) * (Math.PI * 0.7 / 5); cx.beginPath(); cx.moveTo(0, 6); cx.lineTo(Math.cos(aa) * 13, 6 + Math.sin(aa) * 13); cx.stroke(); }
+        });
       } else if (ow === 'dagger') {
         ctx.rotate(Math.PI / 2 + t * 3 + i);
-        ctx.fillStyle = '#bef264'; ctx.beginPath(); ctx.moveTo(0, -12); ctx.lineTo(2, 4); ctx.lineTo(-2, 4); ctx.closePath(); ctx.fill();
-        ctx.fillStyle = hexA('#22c55e', 0.7); circle(ctx, 0, 6, 3);
+        cachedDraw(ctx, 'orb|dagger', [-5, -13, 5, 10], (cx) => {
+          cx.fillStyle = '#bef264'; cx.beginPath(); cx.moveTo(0, -12); cx.lineTo(2, 4); cx.lineTo(-2, 4); cx.closePath(); cx.fill();
+          cx.fillStyle = hexA('#22c55e', 0.7); circle(cx, 0, 6, 3);
+        });
       } else if (ow === 'claw') {
-        ctx.strokeStyle = hexA(col, 0.95); ctx.lineWidth = 3;
-        ctx.beginPath(); ctx.arc(0, 0, 6.5, 0, Math.PI * 2); ctx.stroke();
-        ctx.fillStyle = '#f0abfc'; circle(ctx, 0, -6.5, 2.4);
+        cachedDraw(ctx, `orb|claw|${col}`, [-11, -11, 11, 11], (cx) => {
+          cx.strokeStyle = hexA(col, 0.95); cx.lineWidth = 3;
+          cx.beginPath(); cx.arc(0, 0, 6.5, 0, Math.PI * 2); cx.stroke();
+          cx.fillStyle = '#f0abfc'; circle(cx, 0, -6.5, 2.4);
+        });
       } else {
         ctx.rotate(Math.PI / 2 + Math.sin(t * 2 + i) * 0.1);
-        drawJian(ctx, 0, 0, col, true, 0.7);
+        cachedDraw(ctx, `orb|jian|${col}`, [-16, -24, 16, 50], (cx) => drawJian(cx, 0, 0, col, true, 0.7));
       }
       ctx.restore();
     }
@@ -3526,6 +3555,49 @@ function drawWeapon(ctx, weapon, o, t, lunge) {
 }
 
 // 직검: 손잡이가 (x, y), 칼날이 +y 방향 (호출 측에서 회전)
+// 테두리 글자 한 장 (v182) — 떠오르는 숫자용. ax·ay는 글자 기준점(가운데·글자 바닥줄)이 그림 안에서 있는 자리.
+function textSprite(text, font, color, lw, q) {
+  q = Math.max(1, Math.min(4, q || 1));
+  const m = textSprite.mx || (textSprite.mx = document.createElement('canvas').getContext('2d'));
+  m.font = font;
+  const tm = m.measureText(text);
+  const asc = Math.ceil(tm.actualBoundingBoxAscent || parseFloat(font) * 0.8) + lw;
+  const desc = Math.ceil(tm.actualBoundingBoxDescent || parseFloat(font) * 0.2) + lw;
+  const w = Math.ceil(tm.width) + lw * 2 + 2, h = asc + desc;
+  const cv = document.createElement('canvas');
+  cv.width = Math.ceil(w * q); cv.height = Math.ceil(h * q);
+  const x = cv.getContext('2d');
+  x.setTransform(q, 0, 0, q, 0, 0);
+  x.font = font; x.textAlign = 'center'; x.textBaseline = 'alphabetic';
+  x.lineWidth = lw; x.strokeStyle = 'rgba(0,0,0,0.8)'; x.lineJoin = 'round';
+  x.strokeText(text, w / 2, asc);
+  x.fillStyle = color;
+  x.fillText(text, w / 2, asc);
+  return { cv, w, h, ax: w / 2, ay: asc };
+}
+
+// 한 번 그려 두고 찍는 작은 그림 (v182). box는 그 그림이 차지하는 자리(지금 좌표계 단위).
+// 지금 변환의 배율에 맞춰 굽고(반 단위로 맞춰 개수를 줄인다), 돌리고 줄이는 것은 drawImage가 한다.
+const drawCache = new Map();
+function cachedDraw(ctx, key, box, draw) {
+  const m = ctx.getTransform();
+  const q = Math.max(1, Math.min(6, Math.ceil(Math.hypot(m.a, m.b) * 2) / 2));
+  const k = `${key}|${q}`;
+  let c = drawCache.get(k);
+  const [x0, y0, x1, y1] = box;
+  if (!c) {
+    if (drawCache.size > 160) drawCache.clear();
+    c = document.createElement('canvas');
+    c.width = Math.ceil((x1 - x0) * q);
+    c.height = Math.ceil((y1 - y0) * q);
+    const cx = c.getContext('2d');
+    cx.setTransform(q, 0, 0, q, -x0 * q, -y0 * q);
+    draw(cx);
+    drawCache.set(k, c);
+  }
+  ctx.drawImage(c, x0, y0, x1 - x0, y1 - y0);
+}
+
 function drawJian(ctx, x, y, blade, glow, s = 1, t = 0, rage = false) {
   ctx.save();
   ctx.translate(x, y);

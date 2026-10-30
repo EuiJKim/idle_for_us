@@ -929,6 +929,7 @@ $('btn-settings').addEventListener('click', () => openModal((s) => {
         h('div', { class: 'row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, '화질'), h('div', { class: 'desc' }, '버벅이면 낮춰요 — 자동은 폰이 버거워하면 알아서 낮춰요')), qb),
         h('div', { class: 'row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, '초당 그림'), h('div', { class: 'desc' }, '30이면 배터리·열이 절반 — 자동은 버거울 때만 30')), fb));
     })(),
+    toggleRow('성능 보기', !!perfBox, '들판 왼쪽 위에 초당 그림 수·한 장 그리는 시간·해상도 — 버벅일 때 이 숫자를 알려 주세요', (v) => setPerfBox(v)),
     toggleRow('스킬 범위 보기', view.showRange, '펼칠 때마다 맞는 곳을 금빛 고리로 — 스킬 단추를 길게 누르면 언제든 볼 수 있어요', (v) => {
       view.showRange = v;
       try { localStorage.setItem('ifu.range', v ? '1' : '0'); } catch { /* 이번만 */ }
@@ -1069,6 +1070,8 @@ const perf = { q: loadPref('ifu.quality', QUALITY, 'auto'), fps: loadPref('ifu.f
   step: 0, cap30: false, autoCap30: false, raised: false, ema: 16.7, slow: 0, fast: 0, t: 0, lastDrop: -1e9, locked: false, odd: false };
 function applyQuality() {
   view.setDprCap(perf.q === 'auto' ? AUTO_STEPS[perf.step] : Q_CAP[perf.q]);
+  // 버거운 폰일수록 동시에 그리는 파편·연출 상한도 낮춘다 (v182)
+  view.budget = perf.q === 'low' || (perf.q === 'auto' && perf.step >= 3) ? 0.5 : perf.q === 'mid' || (perf.q === 'auto' && perf.step >= 2) ? 0.75 : 1;
   perf.cap30 = perf.fps === '30' || (perf.fps === 'auto' && perf.autoCap30);
 }
 applyQuality();
@@ -1096,6 +1099,25 @@ function perfTick(ms) {
   }
 }
 let lastRaf = 0;
+// 성능 보기 (v182) — 설정에서 켜면 들판 왼쪽 위에 초당 그림 수·한 장 그리는 데 든 시간·해상도·그리는 개수
+let perfBox = null;
+const perfAcc = { n: 0, frame: 0, draw: 0, t0: 0, last: 0 };
+function setPerfBox(on) {
+  try { localStorage.setItem('ifu.perf', on ? '1' : '0'); } catch { /* 이번만 */ }
+  if (on && !perfBox) { perfBox = h('div', { class: 'perf-box' }); $('battle').append(perfBox); }
+  if (!on && perfBox) { perfBox.remove(); perfBox = null; }
+}
+function perfNote(now, t1, t2) {
+  perfAcc.n++; perfAcc.draw += t2 - t1;
+  if (perfAcc.last) perfAcc.frame += now - perfAcc.last;
+  perfAcc.last = now;
+  if (now - perfAcc.t0 < 1000) return;
+  const fps = perfAcc.frame ? (perfAcc.n - 1) / (perfAcc.frame / 1000) : 0;
+  const c = view.cv;
+  perfBox.textContent = `${fps.toFixed(0)}fps · 그림 ${(perfAcc.draw / perfAcc.n).toFixed(1)}ms · ${c.width}×${c.height} (${view.dpr.toFixed(2)}배)${perf.cap30 ? ' · 30제한' : ''}\n몹 ${game.mons?.length || 0} · 연출 ${view.effects.length} · 파편 ${view.particles.length} · 숫자 ${view.floats.length}`;
+  perfAcc.n = 0; perfAcc.frame = 0; perfAcc.draw = 0; perfAcc.t0 = now; perfAcc.last = now;
+}
+try { if (localStorage.getItem('ifu.perf') === '1') setTimeout(() => setPerfBox(true), 0); } catch { /* 없음 */ }
 let loopErr = 0;
 function frame(now) {
   now = now ?? performance.now();
@@ -1124,7 +1146,9 @@ function step(now) {
   view.game = game;
   handleEvents();
   saver.tick(dt, !!game.s.job && !modalOpen() && !game.map.town);
+  const t1 = performance.now();
   if (!saver.on) view.draw(game, dt);
+  if (perfBox) perfNote(now, t1, performance.now());
   uiTimer += dt;
   saveTimer += dt;
   if (uiTimer > 0.2 && !saver.on) { uiTimer = 0; refreshUI(); }
