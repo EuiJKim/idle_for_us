@@ -2002,6 +2002,16 @@ export class BattleView {
     const st = game.stats();
     // 입은 의복이 있으면 그 모습으로. 도포 여섯은 몸, 검 장식 여섯은 무기.
     const { look, opts } = this.heroLook(game, moving);
+    // v232: 걸음(·말발굽) 박자를 실제로 움직인 거리에 맞춘다 — 늘 같은 박자로 뛰면 탈것·이속이 빠를 때 발이 미끄러졌다.
+    // 서 있을 때는 시간 그대로 흐르므로(숨쉬기) 섰다 뛸 때 박자가 튀지 않는다.
+    {
+      const ldt = Math.min(0.1, this._lastDt || 0);
+      const d = this._lpx == null ? 0 : Math.hypot(game.heroX - this._lpx, game.heroY - this._lpy);
+      this._lpx = game.heroX; this._lpy = game.heroY;
+      const rate = moving && ldt > 0 ? Math.max(0.75, Math.min(2.4, d / ldt / 200)) : 1;
+      this.heroPh = (this.heroPh ?? this.t) + ldt * rate;
+      opts.t = this.heroPh;
+    }
     const gale = game.buffs.gale > 0;
     // 초식 자세가 걸려 있으면 그 자세로. 그동안은 평타의 움찔(lunge)을 끈다.
     const pose = this.heroAnim.sample();
@@ -2110,7 +2120,7 @@ export class BattleView {
     const mt = game.mountNow?.();
     let fy = y;
     const ride = mt && !downRot;
-    const rideOpt = { t: this.t, moving, flip: !!opts.flip };
+    const rideOpt = { t: this.heroPh ?? this.t, moving, flip: !!opts.flip };
     // v183 탄 모습: 출발하면 앞으로 기울었다가 서면 뒤로 살짝 젖힌다(관성). 무인은 탈것이 기우는 만큼 같이 기울고,
     // 탈것보다 반 박자 늦게 들썩인다(엉덩이가 안장을 받아 튀는 맛).
     let rideLean = 0, riderTilt = 0, riderBob = 0;
@@ -2164,6 +2174,8 @@ export class BattleView {
       pp.vx = pdt > 0 ? (pp.x - ox) / pdt : 0;
       if (Math.abs(pp.vx) > 25) pp.flip = pp.vx < 0; else if (dist < 4) pp.flip = !!opts.flip;
       const pMoving = dist > 6;
+      // v232: 애완동물 걸음 박자도 제 빠르기에 맞춘다(따라잡으려 내달릴 때 다리가 같이 빨라진다)
+      pp.ph = (pp.ph ?? this.t + i * 0.7) + pdt * (pMoving && pdt > 0 ? Math.max(0.75, Math.min(2.6, sp / pdt / 160)) : 1);
       let px = this.sx(pp), py = this.sy(pp);
       if (!pMoving) py -= Math.abs(Math.sin(this.t * 1.6 + i)) * 1.5;
       const atk = this.petAtk?.[i];
@@ -2176,7 +2188,7 @@ export class BattleView {
       // 덮칠 때 몸을 늘였다 줄인다(펄쩍 → 착지) — v193
       const lunge = atk && atk.t > 0 ? Math.sin(Math.PI * Math.max(0, Math.min(1, 1 - atk.t / 0.32))) : 0;
       if (this.fxLevel > 0) petAura(this.ctx, pet, px, py, this.t + i * 1.7, false, this.squash);
-      drawCreature(this.ctx, pet.kind, px, py, { t: this.t + i * 0.7, moving: pMoving || lunge > 0, flip: atk && atk.t > 0 ? atk.x < px : pp.flip, scale: 1.05 * (1 + lunge * 0.14) });
+      drawCreature(this.ctx, pet.kind, px, py, { t: pp.ph, moving: pMoving || lunge > 0, flip: atk && atk.t > 0 ? atk.x < px : pp.flip, scale: 1.05 * (1 + lunge * 0.14) });
       if (this.fxLevel > 0) petAura(this.ctx, pet, px, py, this.t + i * 1.7, true, this.squash);
     });
     if (this.fxLevel > 0) this.drawGearAura(this.ctx, x, fy, this.gearLook(game), true);
