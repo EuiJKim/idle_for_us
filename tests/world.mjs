@@ -296,7 +296,7 @@ console.log('\n=== 지역·구역·두목 구역 ===');
   const g = fresh();
   g.enterMap(W.mapId(1, 1));
   for (let i = 0; i < 20 * 300; i++) { g.tick(0.05); g.events.length = 0; if (g.map.town) g.enterMap(W.mapId(1, 1)); }
-  ok(!g.mons.some((m) => m.isBoss) && !g.s.mats[W.bossKey(1)], '들판 구역에는 두목이 없고 증표도 안 나온다');
+  ok(!g.mons.some((m) => m.isBoss) && (!g.s.mats[W.bossKey(1)] || g.s.did?.treasure), '들판 구역에는 두목이 없고 증표도 안 나온다(보물 원숭이는 준다)');
   const b = fresh();
   b.s.level = 30; b.s.gold = 1e9;
   b.s.stats.str = 200; b._stats = null; b.heroHp = b.stats().hp;
