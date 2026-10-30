@@ -10,7 +10,7 @@ import { loadIcons, skinImg } from './icons.js';
 import { WNet } from './wnet.js';
 import { Coop } from './world/wcoop.js';
 import { h, toast, openModal, closeModal, modalOpen } from './ui/common.js';
-import { WTABS, WTAB_TITLE, itemTitle, skillText, rangeText, rewardText, dailyWaiting } from './wui.js';
+import { WTABS, WTAB_TITLE, itemTitle, skillText, rangeText, rewardText, dailyWaiting, skipFx, setSkipFx } from './wui.js';
 import * as D from './world/wdgn.js';
 import { QUEST_COUNT } from './world/wquest.js';
 import { fmt, duration } from './fmt.js';
@@ -911,6 +911,7 @@ $('btn-settings').addEventListener('click', () => openModal((s) => {
     }),
     net.isAdmin?.() ? h('div', { class: 'row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, '운영자 · 우편 보내기'), h('div', { class: 'desc' }, '무인을 골라 은자·물약·보호부·애완동물·탈것을 그 무인의 우편함에 넣어요')),
       h('button', { class: 'btn primary', style: 'padding:6px 12px', onclick: () => { closeModal(); openGiftAdmin(); } }, '보내기')) : '',
+    toggleRow('강화·각인 연출 건너뛰기', skipFx(), '켜면 두드리는 연출 없이 바로 결과 — 끄면 연출을 눌러서 건너뛸 수 있어요', (v) => setSkipFx(v)),
     toggleRow('자동 물약', game.s.autoPotion, `한 병에 최대 체력의 ${Math.round(W.POTION_HEAL * 100)}%를 채워요`, (v) => { game.s.autoPotion = v; save(); }),
     h('div', { class: 'row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, '자동 물약 체력'), h('div', { class: 'desc' }, '체력이 이만큼 아래로 내려가면 먹어요 — 높을수록 안전하지만 물약이 많이 들어요')),
       h('button', { class: 'btn', style: 'padding:6px 12px;min-width:62px', onclick: (e) => {

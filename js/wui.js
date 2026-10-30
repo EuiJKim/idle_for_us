@@ -41,6 +41,17 @@ function creatureCanvas(kind, size) {
   return cv;
 }
 
+// 강화·각인 연출 건너뛰기 (v200) — 설정에서 켜면 늘, 아니면 연출을 눌러서 그 한 번만
+export const skipFx = () => { try { return localStorage.getItem('ifu.skipFx') === '1'; } catch { return false; } };
+export const setSkipFx = (v) => { try { localStorage.setItem('ifu.skipFx', v ? '1' : '0'); } catch { /* 이번만 */ } };
+function afterAnim(sheet, sec, done) {
+  let fired = false;
+  const go = () => { if (fired) return; fired = true; clearTimeout(t); anim?.removeEventListener('click', go); done(); };
+  const anim = sheet.querySelector('.enh-anim');
+  if (!sec) { done(); return; }
+  anim?.addEventListener('click', go);
+  const t = setTimeout(go, sec * 1000);
+}
 const pct = (v, d = 1) => `${(v * 100).toFixed(d).replace(/\.0$/, '')}%`;
 // 조합 장비는 등급(레어·유니크·전설·신화) 빛깔, 옛 드랍 장비는 옛 등급 빛깔
 const gradeOf = (it) => (it.rar != null ? W.RARITY[it.rar] : W.GRADES[it.grade]);
@@ -419,9 +430,10 @@ function bagTab(app) {
           h('div', { class: 'enh-anim inf' },
             h('div', { class: 'enh-anvil' }, h('div', { class: 'enh-item', style: `--gc:${W.RARITY[Math.min(3, (it.rar || 0) + 1)].color}` }, itemTitle(game, it)), h('div', { class: 'enh-sparks' })),
             h('div', { class: 'enh-anim-text' }, `${W.matName(markPick)}를 새기는 중…`),
-            h('div', { class: 'enh-bar' }, bar)));
+            h('div', { class: 'enh-bar' }, bar),
+            h('small', { class: 'enh-skip' }, '눌러서 건너뛰기')));
         bar.style.animationDuration = '1.6s';
-        setTimeout(() => {
+        afterAnim(s, skipFx() ? 0 : 1.6, () => {
           const ok = game.infuse(it.uid, markPick, spPick);
           app.save(); app.refresh();
           const nim = ok ? IM.imprintOf(it.imps[it.rar - 1], it.rar - 1) : null;
@@ -434,7 +446,7 @@ function bagTab(app) {
               game.infuseInfo(it, markPick) && game.canInfuse(it, markPick) ? h('button', { class: 'btn good', onclick: () => runInfuse() }, '한 번 더') : null,
               h('button', { class: 'btn', onclick: () => paint() }, '돌아가기')));
           toast(msg);
-        }, 1600);
+        });
       };
       // ---- 증표 각인 세 칸 (v163) ----
       const impBox = () => {
@@ -453,6 +465,8 @@ function bagTab(app) {
               im.special ? h('div', { class: 'imp-sp' }, IM.specialText(im.special, im.w)) : null,
               h('div', { class: 'imp-act' },
                 h('button', { class: 'chip', disabled: can ? null : true, onclick: () => {
+                  // v200: 레전드·신화를 다시 돌리면 잃는다 — 한 번 묻는다
+                  if (im.skill.g >= 2 && !confirm(`지금 스킬 변화가 ${IM.SK_GRADE[im.skill.g].name}예요\n(${IM.skillModText(im.skill)})\n\n다시 돌리면 이 효과는 사라져요. 다시 돌리겠습니까?`)) return;
                   const e = game.rerollImpSkill(it.uid, i);
                   if (!e) return toast('증표·은자가 모자라요');
                   toast(`스킬 변화 다시 — ${IM.skillModText(IM.imprintOf(e, i).skill)}`); app.save(); paint(); app.refresh();
@@ -509,9 +523,11 @@ function bagTab(app) {
           h('div', { class: 'enh-anim' },
             h('div', { class: 'enh-anvil' }, h('div', { class: 'enh-item', style: `--gc:${gradeOf(it).color}` }, itemTitle(game, it)), h('div', { class: 'enh-sparks' })),
             h('div', { class: 'enh-anim-text' }, `+${lv} → +${lv + 1} 두드리는 중…`),
-            h('div', { class: 'enh-bar' }, bar)));
+            h('div', { class: 'enh-bar' }, bar),
+            h('small', { class: 'enh-skip' }, '눌러서 건너뛰기')));
         bar.style.animationDuration = `${sec}s`;
-        setTimeout(() => {
+        // v200: 눌러서 건너뛰기 · 설정에서 연출 건너뛰기를 켜면 바로 결과
+        afterAnim(s, skipFx() ? 0 : sec, () => {
           const ok = game.enhance(it.uid, useProt);
           const r = game.lastEnhance || {};
           app.save(); app.refresh();
@@ -527,7 +543,7 @@ function bagTab(app) {
               !r.broke && game.canEnhance(it) ? h('button', { class: 'btn good', onclick: () => askEnhance() }, '한 번 더') : null,
               h('button', { class: 'btn', onclick: () => (r.broke ? closeModal() : paint()) }, r.broke ? '닫기' : '돌아가기')));
           toast(msg);
-        }, sec * 1000);
+        });
       };
       paint();
     });
