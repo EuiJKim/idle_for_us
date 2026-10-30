@@ -126,7 +126,7 @@ export function migrateWorld(raw, now = Date.now()) {
   const dg = raw.dgn && typeof raw.dgn === 'object' ? raw.dgn : {};
   s.dgn = { day: typeof dg.day === 'string' ? dg.day : '', used: {}, best: {} };
   for (const d of D.DAILY) {
-    s.dgn.used[d.id] = clamp(Math.floor(Number(dg.used?.[d.id]) || 0), 0, D.DAILY_ENTRIES);
+    s.dgn.used[d.id] = Math.max(0, Math.floor(Number(dg.used?.[d.id]) || 0));
     s.dgn.best[d.id] = clamp(Math.floor(Number(dg.best?.[d.id]) || 0), 0, D.DAILY_STAGES);
   }
   const tw = raw.tower && typeof raw.tower === 'object' ? raw.tower : {};
@@ -2073,14 +2073,16 @@ export class WorldGame {
   }
   canDaily(kind, stage, now = Date.now()) {
     const d = D.dailyOf(kind);
-    return !!d && !!this.s.job && !this.inst && D.dailyOpen(d, now) && this.dailyLeft(kind, now) > 0
+    // v155: 횟수 제한 없음 — 하루 DAILY_ENTRIES번 뒤로는 보상이 DAILY_EXTRA배
+    return !!d && !!this.s.job && !this.inst && D.dailyOpen(d, now)
       && stage >= 1 && stage <= this.dailyMaxStage(kind);
   }
   startDaily(kind, stage, now = Date.now()) {
     if (!this.canDaily(kind, stage, now)) return false;
     const used = this.dgnToday(now).used;
+    const extra = (used[kind] || 0) >= D.DAILY_ENTRIES;      // 오늘 셋을 다 쓴 뒤의 판
     used[kind] = (used[kind] || 0) + 1;
-    this.startInst({ kind: 'daily', id: kind, stage, map: D.dailyMap(kind, stage), t: D.DAILY_SEC, max: D.DAILY_SEC, target: D.DAILY_KILLS, kills: 0 });
+    this.startInst({ kind: 'daily', id: kind, stage, map: D.dailyMap(kind, stage), t: D.DAILY_SEC, max: D.DAILY_SEC, target: D.DAILY_KILLS, kills: 0, extra });
     for (let i = 0; i < D.DAILY_ALIVE; i++) this.spawnMob(false);
     return true;
   }
@@ -2171,7 +2173,8 @@ export class WorldGame {
     if (!this.s.dgn.auto || this.inst || !this.s.job) return null;
     for (const d of D.DAILY) {
       const stage = this.dailyMaxStage(d.id);
-      if (this.canDaily(d.id, stage, now)) return { kind: d.id, stage };
+      // 자동은 보상을 다 받는 하루 셋까지만 (v155 — 끝없이 돌면 방치하다 던전에 갇힌다)
+      if (this.dailyLeft(d.id, now) > 0 && this.canDaily(d.id, stage, now)) return { kind: d.id, stage };
     }
     return null;
   }
@@ -2421,7 +2424,7 @@ export class WorldGame {
     let reward = null;
     if (I.kind === 'daily') {
       const full = D.dailyReward(I.id, I.stage, this.levelGapMult(D.dailyLv(I.stage)));
-      const k = ok ? 1 : D.DAILY_FAIL * Math.min(1, I.kills / I.target);
+      const k = (ok ? 1 : D.DAILY_FAIL * Math.min(1, I.kills / I.target)) * (I.extra ? D.DAILY_EXTRA : 1);
       reward = this.grant(full, k);
       if (ok) this.s.dgn.best[I.id] = Math.max(this.dailyBest(I.id), I.stage);
     } else if (I.kind === 'tower' && ok) {

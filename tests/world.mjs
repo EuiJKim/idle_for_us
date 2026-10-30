@@ -1263,6 +1263,21 @@ console.log('\n=== 사냥터 몹 강함 (v149) ===');
   ok(Math.abs(c.kingMaxHp() - DG.fieldMobHp(W.mapOf(W.mapId(16, 4)).lv[1] + 2) * W.BOSS.hp) < 1, '함께 사냥 왕 체력 = 내 화면 왕 체력 공식');
 }
 
+console.log('\n=== 일일 던전 계속 도전 (v155) ===');
+{
+  const DG = await import('../js/world/wdgn.js');
+  const g = fresh();
+  while (g.s.level < 30) g.addExp(W.expToNext(g.s.level));
+  const now = Date.UTC(2026, 9, 26, 3);
+  const run = () => { g.startDaily('exp', 1, now); for (const m of g.mons) m.hp = 1; g.inst.kills = g.inst.target; g.inst.done = { ok: true }; g.tick(0.05); return g.events.filter((e) => e.type === 'instEnd').pop(); };
+  const r1 = run(); run(); run();
+  ok(g.dailyLeft('exp', now) === 0 && g.canDaily('exp', 1, now), '하루 셋을 다 써도 계속 도전할 수 있다');
+  const r4 = run();
+  ok(r4 && r4.reward.exp > 0 && Math.abs(r4.reward.exp / r1.reward.exp - DG.DAILY_EXTRA) < 0.05, `넷째 판부터는 보상 ${DG.DAILY_EXTRA * 100}%`, `${r1.reward.exp} → ${r4.reward.exp}`);
+  g.s.dgn.auto = true;
+  ok(!g.autoDailyNext(now) || g.dailyLeft(g.autoDailyNext(now).kind, now) > 0, '자동 도전은 보상을 다 받는 셋까지만');
+}
+
 console.log('\n=== 맹주·천마 세트 (v153) ===');
 {
   const G2 = await import('../js/world/wgear.js');
