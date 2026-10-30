@@ -2334,6 +2334,20 @@ export class WorldGame {
   // **띄우는 건 늘 하나다.** 열 몇 가지가 한꺼번에 열려 있어서, 목록을 더
   // 보여 주면 더 헷갈린다. 끝내면 다음 하나가 나온다.
   questNow() {
+    // v180: 판 2 → 3 — 단계를 끼워 넣었다. 하던 단계와 **새로 끼운 단계 중 가장 앞**부터 —
+    // 이미 해 본 것은 '다 받기'로 한꺼번에 받는다(끼운 단계도 모두 겪어 보게)
+    if (this.s.questV === 2 && Q.QUEST_V === 3) {
+      const curId = Q.QUEST_V2_IDS[this.s.quest];
+      let at = curId ? Q.QUESTS.findIndex((q) => q.id === curId) : Q.QUEST_COUNT;
+      if (at < 0) at = Q.QUEST_COUNT;
+      const fresh = Q.QUESTS.findIndex((q) => !Q.QUEST_V2_IDS.includes(q.id));
+      this.s.quest = fresh >= 0 ? Math.min(at, fresh) : at;
+      this.s.questV = 3;
+      this.s.questGift = -1;
+      this.s.questTo = at;
+    }
+    // 하던 단계(questTo)까지는 옛 단계(이미 받은 것)를 다시 받지 않게 건너뛰고 끼운 것만 짚는다
+    while (this.s.questTo > this.s.quest && Q.QUEST_V2_IDS.includes(Q.questAt(this.s.quest)?.id)) this.s.quest++;
     // v146: 길잡이를 다시 짰다 — 옛 세이브는 이미 해 둔 단계를 보상 없이 건너 지금 할 일부터
     if ((this.s.questV || 1) < Q.QUEST_V) {
       this.s.questV = Q.QUEST_V;
@@ -2842,6 +2856,7 @@ for (const [fn, key, always] of [
   ['setLine', 'line'], ['craftSet', 'set'], ['craftKacc', 'kacc'], ['makeStone', 'stone'], ['promote', 'promote'], ['enhance', 'enhance'],
   ['sweepDaily', 'sweep'], ['drawZodiac', 'zodiac'], ['buyStatBook', 'book'], ['buyBagSpace', 'bag'], ['startRaid', 'raid'],
   ['killTreasure', 'treasure', true], ['moveTo', 'move', true],
+  ['convertMats', 'convert'], ['buyProt', 'prot'], ['rerollImpSkill', 'reimp'], ['changeImpSpecial', 'reimp'],
 ]) {
   const orig = WorldGame.prototype[fn];
   WorldGame.prototype[fn] = function (...a) {

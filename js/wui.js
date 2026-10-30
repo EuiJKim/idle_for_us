@@ -1672,6 +1672,7 @@ function socialTab(app) {
 // ---------- 인물록 (v148) ----------
 // 세력마다 고수들의 이야기 · 십이지왕 · 그 밖의 사람들. 쓰러뜨린 고수에는 ✓.
 function loreView(app) {
+  app.game?.mark?.('lore');
   const { game } = app;
   const root = h('div');
   let sig = '';

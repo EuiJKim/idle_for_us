@@ -70,7 +70,7 @@ function setCam(v) {
   try { localStorage.setItem('ifu.cam', String(view.camLevel)); } catch { /* 사생활 모드 */ }
 }
 setCam(loadCam());
-$('btn-zoom').addEventListener('click', () => setCam((view.camLevel + 1) % 3));
+$('btn-zoom').addEventListener('click', () => { setCam((view.camLevel + 1) % 3); game.mark('zoom'); });
 $('cv').addEventListener('wheel', (e) => { e.preventDefault(); setCam(view.camLevel + (e.deltaY < 0 ? 1 : -1)); }, { passive: false });
 
 const app = { game, net: null, refresh: () => refreshUI(true), save: () => save(), closePanel: () => closePanel(), showTab: (t, sub) => showTab(t, sub) };
@@ -193,6 +193,7 @@ function buildSkillbar() {
         held = true;
         if (!rc) { toast(`${sk.name} — 범위가 없는 무공(나에게 거는 기술)이에요`); return; }
         view.rangePreview = { id: sk.id, ...rc };
+        game.mark('range');
         toast(`${sk.name} — ${rangeText(game, sk)}`);
       }, 350);
     });
@@ -785,11 +786,12 @@ const saver = new AM.Saver($('app'), () => {
     warns,
   };
 });
-saver.onEnter = () => { const s = game.s; saverRun = { t0: Date.now(), gold: s.gold, kills: s.kills, deaths: s.deaths, level: s.level, exp: s.exp / game.expNeed(), loot: [] }; };
+saver.onEnter = () => { game.mark('saver'); const s = game.s; saverRun = { t0: Date.now(), gold: s.gold, kills: s.kills, deaths: s.deaths, level: s.level, exp: s.exp / game.expNeed(), loot: [] }; };
 $('btn-saver').addEventListener('click', () => saver.enter());
 const fsBtn = $('btn-fs');
 if (!AM.isStandalone() && AM.canFullscreen()) fsBtn.classList.remove('hidden');
-fsBtn.addEventListener('click', () => AM.toggleFullscreen());
+fsBtn.addEventListener('click', () => { AM.toggleFullscreen(); game.mark('app'); });
+if (AM.isStandalone()) setTimeout(() => { if (!game.s.did?.app) game.mark('app'); }, 3000);
 // 설정 창의 '앱으로' 줄 — 설치할 수 있으면 설치, 아이폰은 홈 화면에 추가 안내, 이미 앱이면 안내만
 function appRow() {
   const inApp = AM.inAppName();
@@ -899,6 +901,7 @@ $('btn-settings').addEventListener('click', () => openModal((s) => {
       h('button', { class: 'btn', style: 'padding:6px 12px;min-width:62px', onclick: (e) => {
         const i = (W.POTION_ATS.indexOf(game.potionAt()) + 1) % W.POTION_ATS.length;
         game.s.potionAt = W.POTION_ATS[i];
+        game.mark('potionAt');
         e.target.textContent = `${Math.round(game.s.potionAt * 100)}%`;
         save();
       } }, `${Math.round(game.potionAt() * 100)}%`)),

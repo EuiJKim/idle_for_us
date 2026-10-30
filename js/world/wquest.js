@@ -19,6 +19,7 @@
 import * as W from './wdata.js';
 import * as D from './wdgn.js';
 import * as L from './wland.js';
+import * as MS from './wmaster.js';
 
 const did = (g, k) => g.s.did?.[k] || 0;
 const mastMax = (g) => Math.max(0, ...Object.values(g.s.mast || {}).map((k) => L.masteryLv(k)));
@@ -44,6 +45,9 @@ export const QUESTS = [
   { id: 'move', title: '화면을 눌러 직접 움직여 보자', tab: null, min: 1, xp: 0.2,
     why: '빈 땅을 톡 누르면 그리로 걷고, 누른 채 끌면 조이스틱이 된다. 손을 떼면 다시 자동 사냥.',
     goal: flag('move') },
+  { id: 'zoom', title: '화면 거리를 바꿔 보자', tab: null, min: 1, xp: 0.1,
+    why: '들판 오른쪽 위 "보통" 단추 — 누를 때마다 가까이·보통·멀리. 멀리 보면 몹 무리와 두목 경고가 한눈에 들어온다.',
+    goal: flag('zoom') },
   { id: 'stat', title: '능력치를 3점 찍자', tab: 'char/stat', min: 1, xp: 0.2,
     why: '레벨이 오르면 점수가 쌓인다. 캐릭터 창에서 힘·민첩·체질·내공에 나눠 찍는다.',
     goal: (g) => ({ now: Object.values(g.s.stats).reduce((a, b) => a + b, 0), need: 3 }) },
@@ -64,6 +68,9 @@ export const QUESTS = [
   { id: 'refill', title: '물약 자동 보충을 켜자', tab: 'town/shop', min: 1, xp: 0.1,
     why: '켜 두면 10개 아래로 떨어질 때 마을에 안 가도 50개까지 산다. 방치의 기본.',
     goal: (g) => ({ now: g.s.autoRefill ? 1 : 0, need: 1 }) },
+  { id: 'potionAt', title: '자동 물약 체력을 정하자', tab: null, min: 1, xp: 0.1,
+    why: `오른쪽 위 ⚙ 설정 → 자동 물약 체력(30~75%). 물약 한 병은 최대 체력의 ${Math.round(W.POTION_HEAL * 100)}%를 채운다. 높이면 안전하지만 물약값이 꽤 든다.`,
+    goal: flag('potionAt') },
   { id: 'area2', title: '구역 2로 가 보자', tab: 'map/murim', min: 2, xp: 0.1,
     why: '지역마다 구역 1·2·3 — 뒤로 갈수록 세고 많이 준다.',
     goal: (g) => ({ now: g.s.bestMap >= W.mapId(1, 2) ? 1 : 0, need: 1 }) },
@@ -86,6 +93,9 @@ export const QUESTS = [
   { id: 'skill', title: '무공을 한 번 올리자', tab: 'char/skill', min: 4, xp: 0.15,
     why: `레벨 ${W.SKILL_PT_FROM}부터 무공 점수가 쌓인다. 무공 레벨이 곧 피해다.`,
     goal: (g) => ({ now: skillSum(g), need: 6 }) },
+  { id: 'range', title: '무공 단추를 길게 눌러 범위를 보자', tab: null, min: 2, xp: 0.1,
+    why: '아래 무공 단추를 꾹 누르고 있으면 맞는 자리가 금빛으로 보인다. 설정 → 스킬 범위 보기를 켜면 펼칠 때마다 보인다.',
+    goal: flag('range') },
   // ---- 4. 동료 (레벨 15~20) ----
   { id: 'pet', title: '애완동물을 데려가자', tab: 'comp/pet', min: 4, xp: 0.15,
     why: '동료 창 → 우리. 선학 한 마리를 넣어 뒀다 — "데려가기"를 누르면 곁에서 함께 싸운다. 더 좋은 것은 두목이 떨군다.',
@@ -101,6 +111,12 @@ export const QUESTS = [
   { id: 'lv20', mile: true, title: '레벨 20까지', tab: 'map', min: 5, xp: 0,
     why: '이제 사냥터 셋째 지역이 열린다.',
     goal: lv(20) },
+  { id: 'saver', title: '절전 화면을 켜 보자', tab: null, min: 3, xp: 0.1,
+    why: '들판 오른쪽 🌙. 검은 화면에 숫자만 남기고 사냥은 계속된다 — 오래 켜 둘 때 배터리를 아낀다. 두 번 누르면 돌아온다. 설정에서 저절로 들어갈 시간을 정한다.',
+    goal: flag('saver') },
+  { id: 'app', title: '앱으로 설치하거나 전체 화면으로', tab: null, min: 3, xp: 0.1, skip: true,
+    why: '⚙ 설정 → 앱으로 쓰기. 홈 화면에 깔면 주소창 없이 열린다. 들판의 ⛶ 단추는 지금 바로 전체 화면. (카카오톡 안에서는 안 된다 — 크롬·사파리로)',
+    goal: flag('app') },
   // ---- 5. 던전 (레벨 20~30) ----
   { id: 'daily', title: '일일 던전을 한 판 깨자', tab: 'dgn/daily', min: 5, xp: 0.2,
     why: `던전 창 → 일일 던전. ${D.DAILY_SEC}초에 ${D.DAILY_KILLS}마리. 수련동(경험치)·금광굴(은자)·천공광맥(재료) 셋 다 매일 ${D.DAILY_ENTRIES}번씩.`,
@@ -120,6 +136,12 @@ export const QUESTS = [
   { id: 'mast1', title: '한 지역 숙련도 1', tab: 'map', min: 5, xp: 0.15,
     why: '한 지역에서 오래 사냥하면 숙련이 올라 경험치·재료가 늘고 나쁜 기운을 견딘다.',
     goal: (g) => ({ now: mastMax(g), need: 1 }) },
+  { id: 'convert', title: '지난 사냥터 재료를 합치자', tab: 'bag/mats', min: 4, xp: 0.1,
+    why: `가방 → 재료. 지난 사냥터 재료 ${W.MAT_CONVERT}개가 다음 사냥터 재료 1개가 된다. "모두"를 누르면 한꺼번에 위로 올린다.`,
+    goal: flag('convert') },
+  { id: 'book', title: '스탯 비급을 한 권 사자', tab: 'town/shop', min: 4, xp: 0.1,
+    why: '마을 → 상인. 비급 한 권에 능력치 점수 1. 살수록 비싸진다 — 남는 은자를 넣는 곳.',
+    goal: flag('book') },
   { id: 'lv30', mile: true, title: '레벨 30까지', tab: 'map', min: 6, xp: 0,
     why: '보조 무공(레벨 25)과 둘째 심법이 열려 있다 — 잊지 말고 찍자.',
     goal: lv(30) },
@@ -149,14 +171,35 @@ export const QUESTS = [
   { id: 'tier2', mile: true, title: '레벨 40에 2차 전직', tab: 'town/master', min: 10, xp: 0.25,
     why: '2차 무공은 한 번에 크게 때린다. 두목 앞에서 체감이 다르다.',
     goal: tier(2) },
+  { id: 'duel', title: '고수 한 명을 쓰러뜨리자', tab: 'map/murim', min: 10, xp: 0.25,
+    why: '지도 → 무림맹·사파·마교. 세력마다 이름난 고수가 산다(레벨 45부터). 처음 쓰러뜨리면 공격력·체력이 영구히 오르고 큰 보상을 준다. 고수 구역에서는 세력 재료가 나온다.',
+    goal: (g) => ({ now: Object.keys(g.s.duel?.won || {}).length, need: 1 }) },
+  { id: 'lore', title: '인물록을 펼쳐 보자', tab: 'social/lore', min: 3, xp: 0.1,
+    why: '무림 창 → 인물록. 고수들의 내력과 쓰는 무공, 어디에 사는지가 적혀 있다.',
+    goal: flag('lore') },
   // ---- 8. 키우기 (레벨 40~75) ----
   { id: 'promote', title: '두목 증표로 장비 등급을 올려 보자', tab: 'bag/gear', min: 8, xp: 0.15,
     why: '장비를 눌러 → 등급 각인. 어느 두목의 증표든 된다 — 센 두목 것일수록 잘 붙고, 실패해도 다음 확률이 올라 언젠가는 붙는다. 이번엔 증표를 챙겨 줬다.',
     goal: flag('infuse'),
     gift: (g) => { const k = W.bossKey(W.stepMap(W.stepOfLevel(g.s.level))); g.addMats(k, W.INFUSE_MARKS[1] * 2); return '두목 증표'; } },
+  { id: 'reimp', title: '각인의 스킬 변화를 다시 굴려 보자', tab: 'bag/gear', min: 8, xp: 0.15,
+    why: '장비를 눌러 → 각인 칸 → 다시 굴리기. 스킬 변화(범위·두 번·숨·피해)가 새로 뽑힌다 — 센 두목의 증표일수록 높은 등급이 잘 나온다. 증표를 조금 챙겨 줬다.',
+    goal: flag('reimp'),
+    gift: (g) => {
+      const it = W.SLOTS.map((x) => g.s.equip[x.id]).find((x) => x?.imps?.length);
+      const e = it?.imps?.[0]; const k = typeof e === 'string' ? e : e?.k;
+      if (!k) return null;
+      g.addMats(k, W.INFUSE_MARKS[1]); return '두목 증표';
+    } },
+  { id: 'line', title: '장비에 계열 각인을 해 보자', tab: 'bag/gear', min: 10, xp: 0.2,
+    why: '장비를 눌러 → 계열. 무림맹·사파·마교 고수 구역의 세력 재료로 장비의 성질(공격·방어·속도…)을 바꾼다.',
+    goal: flag('line') },
   { id: 'enh7', title: '무기를 +7까지', tab: 'bag/gear', min: 8, xp: 0.15,
     why: '+7부터 칼빛이 반짝인다. +10을 넘기려면 두목 증표가 든다.',
     goal: (g) => ({ now: g.s.equip.weapon?.plus || 0, need: 7 }) },
+  { id: 'prot', title: '강화 보호부를 사 두자', tab: 'town/shop', min: 8, xp: 0.1,
+    why: '마을 → 상인. +10을 넘겨 강화하다 실패하면 장비가 +0으로 돌아간다 — 보호부가 있으면 한 단계만 내려간다.',
+    goal: flag('prot') },
   { id: 'lv50', mile: true, title: '레벨 50까지', tab: 'map', min: 10, xp: 0,
     why: '이제 하루에 몇 레벨씩이다 — 방치가 일을 한다.',
     goal: lv(50) },
@@ -169,6 +212,9 @@ export const QUESTS = [
   { id: 'lv60', mile: true, title: '레벨 60까지', tab: 'map', min: 12, xp: 0,
     why: '심안(레벨 50)·혼원일기공(70) 같은 심법도 차례로 열린다.',
     goal: lv(60) },
+  { id: 'petLv', title: '애완동물을 레벨 10까지', tab: 'comp/pet', min: 10, xp: 0.15,
+    why: '데려간 애완동물은 함께 사냥하며 자란다. 레벨이 오를수록 버프가 세진다.',
+    goal: (g) => ({ now: Math.max(0, ...g.s.pets.map((p) => p.lv)), need: 10 }) },
   { id: 'treasure', title: '보물 원숭이를 잡자', tab: 'map', min: 12, xp: 0.2,
     why: '사냥터에 가끔 금빛 원숭이가 나타난다. 25초 안에 잡으면 은자·재료가 쏟아진다.',
     goal: flag('treasure') },
@@ -181,6 +227,12 @@ export const QUESTS = [
   { id: 'tier3', mile: true, title: '레벨 75에 3차 전직', tab: 'town/master', min: 15, xp: 0.3,
     why: '3차는 비기다. 여기서부터 장비 사다리의 끝이 보인다.',
     goal: tier(3) },
+  { id: 'duel5', title: '고수 다섯을 쓰러뜨리자', tab: 'map/sapa', min: 15, xp: 0.25,
+    why: '고수 하나마다 영구 능력치가 쌓인다. 세력마다 무공과 경고 모양이 다르다.',
+    goal: (g) => ({ now: Object.keys(g.s.duel?.won || {}).length, need: 5 }) },
+  { id: 'imp3', title: '장비 하나에 각인 세 칸을 채우자', tab: 'bag/gear', min: 15, xp: 0.25,
+    why: '각인은 칸마다 그 두목의 테마 효과와 스킬 변화를 붙인다. 세 칸이 다 차면 신화 — 백 레벨 넘는 두목 증표는 고유 효과를 고를 수 있다.',
+    goal: (g) => ({ now: Math.max(0, ...W.SLOTS.map((x) => g.s.equip[x.id]?.imps?.length || 0)), need: 3 }) },
   // ---- 9. 십이지왕 (레벨 75~) ----
   { id: 'tower30', title: '무한의 탑 30층까지', tab: 'dgn/tower', min: 15, xp: 0.25,
     why: '십이지신 셋을 넘긴 셈이다.',
@@ -212,10 +264,21 @@ export const QUESTS = [
   { id: 'tower50', title: '무한의 탑 50층까지', tab: 'dgn/tower', min: 25, xp: 0.3,
     why: '여기까지 왔으면 길잡이는 필요 없다. 탑은 120층까지.',
     goal: floor(50) },
+  { id: 'enh10', title: '무기를 +10까지', tab: 'bag/gear', min: 25, xp: 0.25,
+    why: '+10부터는 두목 증표가 들고, 실패하면 +0까지 떨어질 수 있다. 보호부를 챙기자.',
+    goal: (g) => ({ now: g.s.equip.weapon?.plus || 0, need: 10 }) },
+  { id: 'set5', title: '세트 다섯 조각을 맞추자', tab: 'bag/smith', min: 25, xp: 0.3,
+    why: '5조각 효과가 세트의 핵심이다. 맹주들과 천마의 세트가 가장 세다.',
+    goal: (g) => ({ now: Object.values(g.s.equip).filter((it) => it?.set).length, need: 5 }) },
+  { id: 'lord', title: '맹주를 쓰러뜨리자', tab: 'map/murim', min: 25, xp: 0.3,
+    why: '무림맹주·사도맹주는 세력의 끝이다. 처음 쓰러뜨리면 영구 능력치가 고수의 세 배. 그 너머에는 천마가 있다.',
+    goal: (g) => ({ now: Object.keys(g.s.duel?.won || {}).filter((id) => MS.masterOf(id)?.lord).length, need: 1 }) },
 ];
 
 export const QUEST_COUNT = QUESTS.length;
-export const QUEST_V = 2;
+export const QUEST_V = 3;
+// v180: 판 2의 차례 — 판 3으로 옮길 때 '지금 하던 단계'를 찾는다(끼워 넣은 단계는 새로 해 보게)
+export const QUEST_V2_IDS = ['job', 'kill10', 'move', 'stat', 'lv5', 'craft', 'enh1', 'potion', 'refill', 'area2', 'lv10', 'armor', 'boss', 'enh3', 'tier1', 'skill', 'pet', 'mount', 'passive', 'lv20', 'daily', 'dauto', 'sweep', 'tower3', 'gear4', 'mast1', 'lv30', 'guild', 'checkin', 'donate', 'bag', 'alt', 'tower10', 'zodiac', 'tier2', 'promote', 'enh7', 'lv50', 'daily10', 'tower20', 'lv60', 'treasure', 'raid', 'mast5', 'tier3', 'tower30', 'gear6', 'lv90', 'king', 'kingKill', 'tier4', 'set1', 'kacc', 'coop', 'tower50'];
 export const questAt = (i) => QUESTS[i] || null;
 
 // 보상 — 그 레벨에서 사냥 min분어치 은자(1분 ≈ 몹 은자 100마리, 시뮬레이션) · 그 레벨 경험치 xp할
