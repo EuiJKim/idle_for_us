@@ -2084,6 +2084,7 @@ export class WorldGame {
         this.petSkT[i] = W.PET_SKILL_SEC * (1 - (p.rar || 0) * 0.1);
         const at = { x: t.x, y: t.y };
         this.emit('petSkill', { i, kind: p.kind, rar: p.rar || 0, at, r: W.PET_SKILL_R });
+        if (!this.s.did?.petSkill) this.mark('petSkill');
         for (const m of this.mons) {
           if (!m.alive || m.npc || m.introT > 0 || Math.hypot(m.x - at.x, (m.y - at.y) * 0.75) > W.PET_SKILL_R) continue;
           const c2 = this.rng() < st.crit;
@@ -2416,18 +2417,23 @@ export class WorldGame {
   questNow() {
     // v180: 판 2 → 3 — 단계를 끼워 넣었다. 하던 단계와 **새로 끼운 단계 중 가장 앞**부터 —
     // 이미 해 본 것은 '다 받기'로 한꺼번에 받는다(끼운 단계도 모두 겪어 보게)
-    if (this.s.questV === 2 && Q.QUEST_V === 3) {
-      const curId = Q.QUEST_V2_IDS[this.s.quest];
+    // v208: 판 2·3 → 지금 판 — 옛 판의 차례(QUEST_IDS_BY_V)로 하던 단계를 찾는다
+    const oldIds = Q.QUEST_IDS_BY_V[this.s.questV];
+    if (oldIds && this.s.questV < Q.QUEST_V) {
+      // 판 3으로 옮겨 오다 아직 끼운 단계를 짚는 중이었다면, 그 '하던 단계'를 기준으로
+      const curId = this.s.questTo > this.s.quest ? oldIds[this.s.questTo] : oldIds[this.s.quest];
       let at = curId ? Q.QUESTS.findIndex((q) => q.id === curId) : Q.QUEST_COUNT;
       if (at < 0) at = Q.QUEST_COUNT;
-      const fresh = Q.QUESTS.findIndex((q) => !Q.QUEST_V2_IDS.includes(q.id));
+      const fresh = Q.QUESTS.findIndex((q) => !oldIds.includes(q.id));
       this.s.quest = fresh >= 0 ? Math.min(at, fresh) : at;
-      this.s.questV = 3;
+      this.s.questOldV = this.s.questV;
+      this.s.questV = Q.QUEST_V;
       this.s.questGift = -1;
       this.s.questTo = at;
     }
     // 하던 단계(questTo)까지는 옛 단계(이미 받은 것)를 다시 받지 않게 건너뛰고 끼운 것만 짚는다
-    while (this.s.questTo > this.s.quest && Q.QUEST_V2_IDS.includes(Q.questAt(this.s.quest)?.id)) this.s.quest++;
+    const skipIds = Q.QUEST_IDS_BY_V[this.s.questOldV || 2] || [];
+    while (this.s.questTo > this.s.quest && skipIds.includes(Q.questAt(this.s.quest)?.id)) this.s.quest++;
     // v146: 길잡이를 다시 짰다 — 옛 세이브는 이미 해 둔 단계를 보상 없이 건너 지금 할 일부터
     if ((this.s.questV || 1) < Q.QUEST_V) {
       this.s.questV = Q.QUEST_V;

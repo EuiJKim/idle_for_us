@@ -1242,7 +1242,7 @@ console.log('\n=== 길잡이 (v146) ===');
   ok(!g5.skipQuest() && g5.s.quest === at('lv10'), '보통 단계는 건너뛸 수 없다');
   g5.s.quest = at('guild');
   ok(g5.skipQuest() && g5.s.quest === at('guild') + 1, '문파 단계는 건너뛸 수 있다(보상 없이)');
-  ok(['guild', 'checkin', 'donate', 'raid', 'coop', 'app'].every((k) => Q.QUESTS[at(k)].skip) && Q.QUESTS.filter((q) => q.skip).length === 6, '건너뛸 수 있는 건 문파·출석·기부·토벌·함께 사냥·앱 설치 여섯');
+  ok(['guild', 'checkin', 'donate', 'raid', 'coop', 'app', 'fuse'].every((k) => Q.QUESTS[at(k)].skip) && Q.QUESTS.filter((q) => q.skip).length === 7, '건너뛸 수 있는 건 문파·출석·기부·토벌·함께 사냥·앱 설치·탈것 합성 일곱');
   // 보상: 그 레벨 사냥 몇 분어치 — 레벨 1이든 100이든 같은 결
   const mins = Q.QUESTS.map((q) => q.min || 0);
   ok(Math.max(...mins) <= 25 && Math.min(...mins.filter(Boolean)) >= 1, '은자 보상은 사냥 1~25분어치', `${Math.min(...mins.filter(Boolean))}~${Math.max(...mins)}분`);
@@ -1260,12 +1260,20 @@ console.log('\n=== 길잡이 (v146) ===');
   const v2 = newWorldSave(0); v2.questV = 2; v2.quest = Q.QUEST_V2_IDS.indexOf('tier2'); v2.job = 'sword'; v2.level = 40;
   const g7 = new WorldGame(migrateWorld(v2, 0), 0);
   const c7 = g7.questNow();
-  ok(g7.s.questV === 3 && c7.q.id === 'zoom', '판 2 세이브는 새로 끼운 첫 단계부터', c7.q.id);
+  ok(g7.s.questV === Q.QUEST_V && c7.q.id === 'zoom', '판 2 세이브는 새로 끼운 첫 단계부터', c7.q.id);
   g7.mark('zoom'); g7.claimQuest();
   ok(g7.questNow().q.id === 'potionAt', '그다음도 새로 끼운 단계(옛 단계는 건너뛴다)', g7.questNow().q.id);
   const v2b = newWorldSave(0); v2b.questV = 2; v2b.quest = Q.QUEST_V2_IDS.length; v2b.job = 'sword';
   const g8 = new WorldGame(migrateWorld(v2b, 0), 0);
   ok(g8.questNow()?.q.id === 'zoom', '길잡이를 다 끝낸 사람도 새 단계를 겪는다');
+  // v208: 판 3 → 4 — 판 3에서 하던 단계(tier2) 앞의 새 단계(무기 +5)부터, 옛 단계는 다시 안 받는다
+  const v3 = newWorldSave(0); v3.questV = 3; v3.quest = Q.QUEST_V3_IDS.indexOf('tier2'); v3.job = 'sword'; v3.level = 40;
+  const g9 = new WorldGame(migrateWorld(v3, 0), 0);
+  ok(g9.questNow().q.id === 'enh5', '판 3 세이브는 판 4에 새로 끼운 첫 단계부터', g9.questNow().q.id);
+  g9.s.equip.weapon.plus = 5; g9.claimQuest();
+  ok(g9.questNow().q.id === 'petSkill', '그다음 새 단계로(옛 단계는 건너뛴다)', g9.questNow().q.id);
+  const v3b = newWorldSave(0); v3b.questV = 3; v3b.quest = Q.QUEST_V3_IDS.length; v3b.job = 'sword';
+  ok(new WorldGame(migrateWorld(v3b, 0), 0).questNow()?.q.id === 'enh5', '판 3을 다 끝낸 사람도 새 단계를 겪는다');
   // 새 단계: 해 보면 끝난다
   for (const [id, k] of [['convert', 'convert'], ['prot', 'prot'], ['saver', 'saver'], ['lore', 'lore'], ['range', 'range']]) {
     const gg = fresh(); gg.s.quest = at(id);
