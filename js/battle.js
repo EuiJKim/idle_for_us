@@ -256,6 +256,65 @@ const SPECIAL_INK = {
   relic: { ink: ['#4a4f5c', '#252832', '#121419', '#1b1e25'], sun: '#cbd5e1', moon: true, prop: 'grave', night: true },
 };
 
+// ---------- 애완동물 공격 연출 (v193) ----------
+// 한 대마다 짧게(0.3~0.5초) — 여럿이 함께 싸워도 화면을 덮지 않게 작게. 등급이 높을수록 조금 크다.
+// at: 맞은 자리(들판 좌표) · from: 애완동물 자리(들판 좌표, 없을 수 있다)
+const seedsN = (n) => Array.from({ length: n }, () => [Math.random(), Math.random(), Math.random()]);
+const PET_FX = {
+  // 선학: 깃털이 흩날리는 날갯짓
+  crane(v, at, from, r) {
+    v.effects.push({ kind: 'petals', life: 0.5, max: 0.5, wx: at.x, wy: at.y, r: 64 + r * 11, col: '248,250,252', seeds: seedsN(7), spin: 3 });
+    v.effects.push({ kind: 'shock', life: 0.28, max: 0.28, wx: at.x, wy: at.y, r: 36, col: '226,232,240', w: 2 });
+  },
+  // 구미호: 푸른 여우불이 날아가 터진다
+  fox(v, at, from, r) {
+    if (from) v.effects.push({ kind: 'qiorb', life: 0.34, max: 0.34, go: 0.7, pts: [{ x: from.x, y: from.y, oy: -30 }, { x: at.x, y: at.y }], col: '96,165,250', size: 8 + r * 1.5, hop: 26 });
+    v.later.push({ t: 0.22, ev: { type: '_fx', fx: [{ kind: 'flare', life: 0.3, max: 0.3, wx: at.x, wy: at.y, r: 48 + r * 8, col: '147,197,253' }] } });
+  },
+  // 기린: 금빛 발굽이 땅을 울린다
+  qilin(v, at, from, r) {
+    v.effects.push({ kind: 'shock', life: 0.4, max: 0.4, wx: at.x, wy: at.y, r: 62 + r * 11, col: '253,224,71', rings: 2, w: 3 });
+    v.effects.push({ kind: 'flare', life: 0.25, max: 0.25, wx: at.x, wy: at.y, r: 42, col: '254,240,138' });
+  },
+  // 현무: 물결이 퍼진다
+  turtle(v, at, from, r) {
+    v.effects.push({ kind: 'shock', life: 0.5, max: 0.5, wx: at.x, wy: at.y, r: 56 + r * 8, col: '56,189,248', rings: 3, w: 2 });
+  },
+  // 해태: 돌 같은 박치기 — 바닥이 갈라진다
+  haetae(v, at, from, r) {
+    v.effects.push({ kind: 'crack', life: 0.6, max: 0.6, wx: at.x, wy: at.y, r: 48 + r * 8, col: '214,180,120', seed: Math.random() * 99, n: 4 });
+    v.effects.push({ kind: 'shock', life: 0.3, max: 0.3, wx: at.x, wy: at.y, r: 42, col: '214,180,120', w: 3 });
+  },
+  // 주작: 불꽃이 터진다
+  phoenix(v, at, from, r) {
+    v.effects.push({ kind: 'flare', life: 0.35, max: 0.35, wx: at.x, wy: at.y, r: 62 + r * 11, col: '249,115,22' });
+    v.effects.push({ kind: 'petals', life: 0.45, max: 0.45, wx: at.x, wy: at.y, r: 56, col: '251,146,60', seeds: seedsN(6), spin: 5 });
+  },
+  // 손오공: 여의봉 한 바퀴
+  monkey(v, at, from, r) {
+    v.effects.push({ kind: 'cutline', life: 0.24, max: 0.24, wx: at.x, wy: at.y + 10, a: -0.3 + Math.random() * 0.6 });
+    v.effects.push({ kind: 'shock', life: 0.3, max: 0.3, wx: at.x, wy: at.y, r: 45 + r * 8, col: '250,204,21', w: 3 });
+  },
+  // 청룡: 푸른 번개가 내리꽂힌다
+  dragon(v, at, from, r) {
+    v.effects.push({ kind: 'cutline', life: 0.2, max: 0.2, wx: at.x, wy: at.y, a: Math.PI / 2 + (Math.random() - 0.5) * 0.4 });
+    v.effects.push({ kind: 'flare', life: 0.28, max: 0.28, wx: at.x, wy: at.y, r: 56 + r * 11, col: '125,211,252' });
+    v.effects.push({ kind: 'shock', life: 0.3, max: 0.3, wx: at.x, wy: at.y, r: 42, col: '186,230,253', w: 2 });
+  },
+  // 백호: 세 갈래 발톱 자국
+  tiger(v, at, from, r) {
+    const a = -0.9 + (Math.random() - 0.5) * 0.3;
+    for (let k = -1; k <= 1; k++) v.effects.push({ kind: 'cutline', life: 0.26, max: 0.26, wx: at.x + k * 9, wy: at.y + k * 6, a });
+    if (r >= 2) v.effects.push({ kind: 'shock', life: 0.28, max: 0.28, wx: at.x, wy: at.y, r: 48, col: '241,245,249', w: 2 });
+  },
+  // 황룡: 금빛 우레 — 가장 크다
+  yellow(v, at, from, r) {
+    v.effects.push({ kind: 'cutline', life: 0.22, max: 0.22, wx: at.x, wy: at.y, a: Math.PI / 2 });
+    v.effects.push({ kind: 'flare', life: 0.35, max: 0.35, wx: at.x, wy: at.y, r: 78 + r * 14, col: '250,204,21' });
+    v.effects.push({ kind: 'shock', life: 0.45, max: 0.45, wx: at.x, wy: at.y, r: 76 + r * 14, col: '253,224,71', rings: 2, w: 4 });
+  },
+};
+
 export class BattleView {
   constructor(canvas) {
     this.cv = canvas;
@@ -587,13 +646,20 @@ export class BattleView {
         if (ev.mat?.boss) this.float(`+${ev.mat.boss}`, kx, ky - 165 + 34 * UIK, '#fde68a', 14);
         break;
       }
+      // 늦게 터지는 연출 한 묶음 (v193 — 날아간 여우불이 닿을 때)
+      case '_fx':
+        for (const f of ev.fx || []) this.effects.push({ ...f });
+        break;
       case 'petHit': {
         // 애완동물의 한 대 — 과녁 쪽으로 튀어 나가고(drawHeroUnit), 맞은 자리에 짧은 빛
         if (!ev.at) break;
         const px = this.sx(ev.at), py = this.sy(ev.at);
         this.petAtk = this.petAtk || [];
         this.petAtk[ev.i] = { t: 0.32, x: px, y: py };
-        this.sparks.push({ x: px, y: py - 40, life: 0.22, max: 0.22, r: 24, color: '#fde68a' });
+        // v193 애완동물마다 제 결의 공격 연출 — 전에는 모두 같은 노란 반짝임 하나였다
+        const pet = game.petTeam?.()[ev.i];
+        if (this.fxLevel > 0 && pet && PET_FX[pet.kind]) PET_FX[pet.kind](this, ev.at, this.petPos?.[ev.i], pet.rar || 0);
+        else this.sparks.push({ x: px, y: py - 40, life: 0.22, max: 0.22, r: 24, color: '#fde68a' });
         break;
       }
       case 'heroHit': {
@@ -1805,7 +1871,9 @@ export class BattleView {
         px += (atk.x - px) * 0.55 * k;
         py += (atk.y - py) * 0.55 * k - k * 10;
       }
-      drawCreature(this.ctx, pet.kind, px, py, { t: this.t + i * 0.7, moving: pMoving || (atk && atk.t > 0), flip: atk && atk.t > 0 ? atk.x < px : pp.flip, scale: 1.05 });
+      // 덮칠 때 몸을 늘였다 줄인다(펄쩍 → 착지) — v193
+      const lunge = atk && atk.t > 0 ? Math.sin(Math.PI * Math.max(0, Math.min(1, 1 - atk.t / 0.32))) : 0;
+      drawCreature(this.ctx, pet.kind, px, py, { t: this.t + i * 0.7, moving: pMoving || lunge > 0, flip: atk && atk.t > 0 ? atk.x < px : pp.flip, scale: 1.05 * (1 + lunge * 0.14) });
     });
     if (this.fxLevel > 0) this.drawGearAura(this.ctx, x, fy, this.gearLook(game), true);
     const hr = ratio(game.heroHp, st.hp);
@@ -2215,7 +2283,8 @@ export class BattleView {
         for (let i = 0; i < 6; i++) this.particles.push({ x: x + (Math.random() - 0.5) * 30, y: y - 2, vx: (Math.random() - 0.5) * 80, vy: -20 - Math.random() * 30, life: 0.5, size: 4 + Math.random() * 3, color: 'rgb(214,196,160)', dust: true });
       }
     }
-    const kx = hk * hk * 9 * away - swing * 14 * away;
+    // v193: 맞으면 조금 더 크게 밀렸다가(14) 돌아온다 — 손맛
+    const kx = hk * hk * 14 * away - swing * 14 * away;
     const ky = (1 - born) * 10 + swing * 3;
     // v160: 두목은 제 그림으로 — 과녁이 아니어도
     if (a.isBoss && def.art && bossImg(def.art) && drawBossSprite(this, ctx, a, x + kx, y, depth, { lord: !!game.map?.lord, king: !!game.map?.king,
@@ -2228,6 +2297,13 @@ export class BattleView {
       if (hk > 0) ctx.scale(1 + 0.08 * hk, 1 - 0.1 * hk);
       if (fx) { ctx.shadowColor = this.mobCol(a); ctx.shadowBlur = a.grade >= 2 ? 18 : 10; }
       drawCreature(ctx, def.beast, 0, 0, { t: time, moving: !!a.move, flip: face, scale: (def.bscale || 1.7) * this.crowdScale * persp * (a.grade === 1 ? 1.1 : 1) });
+      // v193: 들짐승도 맞은 순간 하얗게 번쩍인다(사람 몹과 같게)
+      if (hk > 0.5 && this.fxLevel > 0) {
+        ctx.shadowBlur = 0;
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.globalAlpha = depth * (hk - 0.5) * 0.8;
+        drawCreature(ctx, def.beast, 0, 0, { t: time, moving: !!a.move, flip: face, scale: (def.bscale || 1.7) * this.crowdScale * persp * (a.grade === 1 ? 1.1 : 1) });
+      }
       ctx.restore();
     } else {
       const walking = !!a.move && !a.npc;
