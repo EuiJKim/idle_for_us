@@ -185,7 +185,7 @@ function buildSkillbar() {
     const btn = skinImg(h('button', { class: 'skill-btn', 'aria-label': sk.name, onclick: () => {
       if (held) { held = false; return; }
       if (sk.tier > game.s.jobTier) return showTab('town', 'master');
-      if (!game.useSkill(sk.id)) toast(game.map.town ? '사냥터에서 쓸 수 있어요' : game.heroHp <= game.hpCostOf(sk) + 1 ? '체력이 모자라요' : '아직 숨이 안 돌아왔어요');
+      if (!game.useSkill(sk.id)) toast({ town: '사냥터에서 쓸 수 있어요', hp: '체력이 모자라요', cd: '아직 숨이 안 돌아왔어요', far: '닿는 적이 없어요 — 가까이 가요', none: '칠 적이 없어요' }[game.skillFail] || '지금은 펼칠 수 없어요');
     } }, h('span', { class: 'sk-name' }, sk.icon), cd, num, lock), `w-${game.s.job}-${sk.id}`);
     btn.addEventListener('pointerdown', () => {
       held = false;

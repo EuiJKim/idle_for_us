@@ -1231,10 +1231,14 @@ export class WorldGame {
     const sb = this.setBonus();
     return sk.cd * (1 - this.skillMods(sk.id).cd) * Math.max(0.5, 1 + (this.envNow().cd || 0)) * (1 - (this.stats().cdr || 0)) * (sk.slot === 4 ? 1 - (sb.cd4 || 0) : 1);
   }
+  // 못 펼친 까닭 (v199) — 'town' | 'cd' | 'hp' | 'none'(과녁 없음) | 'far'(닿는 적 없음). 단추를 눌렀을 때 바르게 알린다
   canUseSkill(id) {
     const sk = this.skillDef(id);
-    if (!this.knows(sk) || this.cd[id] > 0 || this.map.town) return false;
-    if (this.heroHp <= this.hpCostOf(sk) + 1) return false;      // 대가로 죽지는 않는다
+    this.skillFail = null;
+    if (!this.knows(sk)) return false;
+    if (this.map.town) { this.skillFail = 'town'; return false; }
+    if (this.cd[id] > 0) { this.skillFail = 'cd'; return false; }
+    if (this.heroHp <= this.hpCostOf(sk) + 1) { this.skillFail = 'hp'; return false; }      // 대가로 죽지는 않는다
     return true;
   }
   // o.free: 삼공합일이 대신 펼칠 때 — 숨·체력을 따지지 않고, 연출·삼공조화 셈도 건너뛴다. o.boost: 배수
@@ -1246,10 +1250,22 @@ export class WorldGame {
     if (sk.kind === 'awaken') { const c = this.hpCostOf(sk); this.heroHp -= c; if (c) this.emit('hpCost', { amount: c }); return this.useSupport(sk, st); }
     if (sk.kind === 'clone') return this.useClone(sk, st);
     if (sk.kind === 'triple') return this.useTriple(sk, st);
-    const tgt = this.mon?.alive ? this.mon : this.pickTarget({ ...st, range: 9999 });
-    if (sk.kind === 'single' && !tgt) return false;
-    if (sk.kind === 'single' && !sk.far && Math.hypot(tgt.x - this.heroX, tgt.y - this.heroY) > Math.max(st.range, 160) * 1.6) return false;
-    if (sk.kind === 'single' && sk.far && Math.hypot(tgt.x - this.heroX, tgt.y - this.heroY) > 420) return false;
+    let tgt = this.mon?.alive ? this.mon : this.pickTarget({ ...st, range: 9999 });
+    if (sk.kind === 'single') {
+      // v199: 과녁이 사거리 밖이면 닿는 적 가운데 가장 가까운 것으로 바꿔 펼친다 — 전에는 숨이 다 찼는데도 그냥 안 나갔다
+      const reach = sk.far ? 420 : Math.max(st.range, 160) * 1.6;
+      if (!tgt || Math.hypot(tgt.x - this.heroX, tgt.y - this.heroY) > reach) {
+        let best = null, bd = reach;
+        for (const m of this.mons) {
+          if (!m.alive || m.npc || m.introT > 0) continue;
+          const d = Math.hypot(m.x - this.heroX, m.y - this.heroY);
+          if (d <= bd) { bd = d; best = m; }
+        }
+        if (!best) { this.skillFail = tgt ? 'far' : 'none'; return false; }
+        tgt = best;
+        this.mon = best;
+      }
+    }
     const md = this.skillMods(id);
     const cost = o.free ? 0 : this.hpCostOf(sk);
     this.heroHp -= cost;

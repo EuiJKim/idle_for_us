@@ -89,6 +89,27 @@ console.log('\n=== 자동 물약 체력 (v176) ===');
   ok(g2.potionAt() === W.POTION_AT, '없는 값이면 기본값');
 }
 
+console.log('\n=== 무공 과녁 (v199) ===');
+{
+  const g = fresh();
+  g.enterMap(11);
+  g.s.jobTier = 3; g._stats = null;
+  const sk = g.skills().find((x) => g.knows(x) && x.kind === 'single');
+  if (sk) {
+    for (const k of Object.keys(g.cd)) g.cd[k] = 0;
+    const far = g.mons.find((m) => m.alive);
+    far.x = g.heroX + 3000; far.y = g.heroY;
+    const near = g.mons.find((m) => m.alive && m !== far);
+    near.x = g.heroX + 60; near.y = g.heroY;
+    g.mon = far;
+    const nh0 = near.hp, fh0 = far.hp;
+    ok(g.useSkill(sk.id) && (!near.alive || near.hp < nh0) && far.hp === fh0, '과녁이 멀면 닿는 적 가운데 가장 가까운 것으로 바꿔 펼친다');
+    for (const k of Object.keys(g.cd)) g.cd[k] = 0;
+    for (const m of g.mons) { m.x = g.heroX + 3000; }
+    ok(!g.useSkill(sk.id) && g.skillFail === 'far', '닿는 적이 없으면 숨 탓이 아니라 거리 탓이라고 알린다');
+  } else ok(true, '(한 명 치는 무공이 없는 직업)');
+}
+
 console.log('\n=== 칸 이동 (바람식) ===');
 {
   const g = fresh();
