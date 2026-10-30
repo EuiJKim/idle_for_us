@@ -22,8 +22,20 @@ function load(path) {
   return null;
 }
 // 구워 둔 그림만 부른다 — 없는 파일을 부르면 콘솔에 404가 쌓인다. 그림을 더하면 여기와 sw.js에 함께 적는다.
-export const BOSS_ART = new Set([]);
-export const BFX_READY = new Set([]);
+export const BOSS_ART = new Set([
+  'king-1', 'king-10', 'king-11', 'king-12', 'king-2', 'king-3', 'king-4', 'king-5',
+  'king-6', 'king-7', 'king-8', 'king-9', 'm-baekjagang', 'm-baekmanggi', 'm-bisain', 'm-bulpae',
+  'm-cheongheo', 'm-cheonma', 'm-daechwi', 'm-dokwang', 'm-georyeok', 'm-geugak', 'm-goeak', 'm-guryeong',
+  'm-gwangseom', 'm-hyegong', 'm-hyeolcheon', 'm-ilhwa', 'm-imsanggon', 'm-jingwang', 'm-jinhagun', 'm-jinpaecheon',
+  'm-mabul', 'm-namgung', 'm-seophon', 'm-yayulhan', 'm-yeomcheon', 'zb-0', 'zb-1', 'zb-10',
+  'zb-11', 'zb-12', 'zb-13', 'zb-14', 'zb-15', 'zb-16', 'zb-17', 'zb-18',
+  'zb-19', 'zb-2', 'zb-20', 'zb-21', 'zb-3', 'zb-4', 'zb-5', 'zb-6',
+  'zb-7', 'zb-8', 'zb-9',
+]);
+export const BFX_READY = new Set([
+  'blood-burst', 'dark-orb', 'fire-pillar', 'fist-quake', 'ghost-hand', 'ice-burst', 'palm-wave', 'petal-storm',
+  'poison-cloud', 'slash-azure', 'slash-crimson', 'slash-gold', 'sound-ring', 'sword-rain', 'taiji', 'thunder',
+]);
 export const bossImg = (key) => (key && BOSS_ART.has(key) ? load(`art/boss/${key}.png`) : null);
 export const bfxImg = (name) => (name && BFX_READY.has(name) ? load(`art/bfx/${name}.jpg`) : null);
 
@@ -146,11 +158,13 @@ FX.bcast = (view, ctx, e, k) => {
 
 // 두목 그림 — 숨 쉬고, 걸을 때 들썩이고, 기운을 모을 때(경고가 깔렸을 때) 떠오르며 빛난다. 맞으면 하얗게.
 // 그렸으면 true (호출부는 종이 인형을 건너뛴다)
+// 키(그림 높이) — 졸개(약 75)의 두 배 남짓. 맹주·천마와 십이지왕은 조금 더 크다.
+export const bossHeight = (o = {}) => (o.lord ? 172 : o.king ? 162 : 150);
 export function drawBossSprite(view, ctx, m, x, y, alpha, o) {
   const img = bossImg(m.def?.art);
   if (!img) return false;
   const t = view.t + (m.id % 7);
-  const H = (o.lord ? 230 : o.king ? 215 : 190) * (o.scale || 1);
+  const H = bossHeight(o) * (o.scale || 1);
   const W = (img.width / img.height) * H;
   const casting = o.casting;
   const flip = (m.x ?? 0) > o.heroX;            // 그림은 오른쪽을 본다 — 무인이 왼쪽이면 뒤집는다

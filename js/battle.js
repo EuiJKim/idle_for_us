@@ -18,7 +18,7 @@ import { fxReady, putFx, loadFx, zoneTile } from './fx.js';
 import { loadJobArt } from './jobart.js';
 import { PoseAnim } from './pose.js';
 import { CHOREO, Director, FX, VENOM, drawPoisonField } from './skillfx.js';
-import { drawBossSprite, drawTellFx, fxFor, bossImg } from './bossfx.js';
+import { drawBossSprite, drawTellFx, fxFor, bossImg, bossHeight } from './bossfx.js';
 import { big } from './big.js';
 import { fmt } from './fmt.js';
 
@@ -1994,7 +1994,7 @@ export class BattleView {
     if (bimg) {
       // 두목 그림 (v160): 무릎 꿇듯 주저앉으며 뒤로 넘어간다
       ctx.scale(1 / sc, 1 / sc);
-      const H = 200, W = (bimg.width / bimg.height) * H;
+      const H = bossHeight(), W = (bimg.width / bimg.height) * H;
       if (c.face) ctx.scale(-1, 1);
       ctx.rotate(away * fall * 1.1 * (c.face ? -1 : 1));
       ctx.scale(1, 1 - fall * 0.25);
@@ -2180,7 +2180,7 @@ export class BattleView {
     ctx.beginPath(); ctx.ellipse(x, y + 2, shw, shw * 0.4, 0, 0, Math.PI * 2); ctx.fill();
     if (fx) this.drawMobFx(ctx, m, x, y, scale, false);
     // v160: 두목은 제 그림으로 (없으면 아래 종이 인형)
-    const bossH = boss && m.def?.art && bossImg(m.def.art) ? (game.map?.lord ? 230 : game.map?.king ? 215 : 190) : 0;
+    const bossH = boss && m.def?.art && bossImg(m.def.art) ? bossHeight({ lord: game.map?.lord, king: game.map?.king }) : 0;
     if (bossH && drawBossSprite(this, ctx, m, x, y, alpha, { lord: !!game.map?.lord, king: !!game.map?.king, casting: game.tells?.length > 0,
       col: fxFor('', look || {}).col, flash: m === game.mon ? this.monFlash : 0, lunge: m === game.mon ? this.monLunge : 0, heroX: game.heroX })) {
       // 그렸다
