@@ -6,6 +6,7 @@ import { drawCreature, saddleY, mountTilt, mountGait } from './creatures.js';
 import { ZONES_W, itemZone } from './world/wdata.js';
 import { setOf } from './world/wgear.js';
 import { tellCovers } from './world/wdgn.js';
+import { envOf } from './world/wland.js';
 import { OUTFITS } from './data.js';
 
 // 의복 열둘 중 앞 여섯은 도포(몸), 뒤 여섯은 검 장식(무기)이다.
@@ -1573,6 +1574,7 @@ export class BattleView {
     const vw = this.w, vh = this.h;
     this.w = this.W; this.h = this.H;
     try {
+      this.drawAmbient(this.game);
       this.drawFloats(dt, z);
       this.drawHanja(dt);
       this.drawBanner(dt);
@@ -3419,6 +3421,62 @@ export class BattleView {
       glow: '251,146,60', pillar: '253,186,116', core: '254,243,199', ink: '67,20,7', text: '#fff7ed', sub: '#fed7aa',
       dur: full ? 2.2 : 1.2, full,
     }, at);
+  }
+  // v229: 사냥터 기운이 화면에 보인다 — 혹한은 눈 · 열사는 오르는 열기 · 독은 떠도는 포자 · 음기·마기는 검보랏빛 연기 ·
+  // 좋은 기운(대숲 바람·운무·불광·야시장)은 떠도는 잎·안개·빛. 화면 좌표, 상태 없이 시간으로(무게 없음).
+  drawAmbient(game) {
+    if (this.fxLevel <= 0 || !game?.map) return;
+    const env = envOf(game.map);
+    if (!env) return;
+    const { ctx, w, h } = this;
+    const t = this.t;
+    const kind = env.type || (env.name.includes('바람') || env.name.includes('풍') ? 'wind' : env.name.includes('운무') ? 'mist' : 'glow');
+    const N = Math.round((kind === 'mist' ? 7 : 32) * (this.budget ?? 1));
+    ctx.save();
+    for (let i = 0; i < N; i++) {
+      const r1 = Math.sin(i * 12.9898) * 43758.5453 % 1, r2 = Math.sin(i * 78.233) * 12543.21 % 1;
+      const a = Math.abs(r1), b = Math.abs(r2);
+      if (kind === 'cold') {          // 눈 — 흔들리며 내린다
+        const y = ((t * (28 + b * 30) + a * h) % (h + 20)) - 10;
+        const x = (a * w + Math.sin(t * 1.3 + i) * 18 + w) % w;
+        // 흰 설원 위에서도 보이게 옅은 잿빛 테두리
+        ctx.globalAlpha = 0.7 + b * 0.3; ctx.fillStyle = '#f8fafc'; ctx.strokeStyle = 'rgba(100,116,139,0.55)'; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.arc(x, y, 2 + b * 2.5, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+      } else if (kind === 'heat') {   // 열기 — 주황 알갱이가 흔들리며 오른다
+        const y = h - ((t * (20 + b * 25) + a * h) % (h + 20));
+        const x = a * w + Math.sin(t * 2 + i) * 10;
+        ctx.globalAlpha = 0.75 * Math.sin((y / h) * Math.PI); ctx.fillStyle = '#fdba74';
+        ctx.shadowColor = '#f97316'; ctx.shadowBlur = 6;
+        ctx.beginPath(); ctx.arc(x, y, 2.2 + b * 2, 0, Math.PI * 2); ctx.fill(); ctx.shadowBlur = 0;
+      } else if (kind === 'poison') { // 포자 — 연둣빛이 느리게 떠돈다
+        const x = (a * w + t * (8 + b * 10)) % w, y = (b * h + Math.sin(t * 0.7 + i) * 30 + h) % h;
+        ctx.globalAlpha = 0.45 + 0.3 * Math.sin(t * 2 + i); ctx.fillStyle = '#a3e635';
+        ctx.beginPath(); ctx.arc(x, y, 2 + b * 2.5, 0, Math.PI * 2); ctx.fill();
+      } else if (kind === 'dark') {   // 검보랏빛 연기 — 크고 옅게 피어오른다
+        const y = h - ((t * (12 + b * 10) + a * h) % (h + 60)) + 30;
+        const x = a * w + Math.sin(t * 0.8 + i) * 24;
+        const rr = 18 + b * 26;
+        const g = ctx.createRadialGradient(x, y, 0, x, y, rr);
+        g.addColorStop(0, 'rgba(76,29,149,0.3)'); g.addColorStop(1, 'rgba(76,29,149,0)');
+        ctx.globalAlpha = 1; ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, rr, 0, Math.PI * 2); ctx.fill();
+      } else if (kind === 'wind') {   // 잎 — 옆으로 날려 간다
+        const x = (t * (60 + b * 50) + a * w) % (w + 20) - 10, y = (b * h + Math.sin(t * 2 + i) * 14 + h) % h;
+        ctx.globalAlpha = 0.75; ctx.fillStyle = '#86efac';
+        ctx.save(); ctx.translate(x, y); ctx.rotate(t * 3 + i); ctx.beginPath(); ctx.ellipse(0, 0, 5.5, 2.2, 0, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+      } else if (kind === 'mist') {   // 안개 — 큰 흰 덩이가 느리게 흐른다
+        const x = (t * (6 + b * 6) + a * w * 1.4) % (w + 240) - 120, y = b * h;
+        const rr = 110 + b * 80;
+        const g = ctx.createRadialGradient(x, y, 0, x, y, rr);
+        g.addColorStop(0, 'rgba(241,245,249,0.16)'); g.addColorStop(1, 'rgba(241,245,249,0)');
+        ctx.globalAlpha = 1; ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, rr, 0, Math.PI * 2); ctx.fill();
+      } else {                        // 빛 — 금빛 반딧불이 깜빡인다
+        const x = (a * w + Math.sin(t * 0.5 + i) * 20 + w) % w, y = (b * h + Math.cos(t * 0.4 + i) * 20 + h) % h;
+        ctx.globalAlpha = Math.max(0, Math.sin(t * 1.8 + i * 1.7)) * 0.85; ctx.fillStyle = '#fde68a';
+        ctx.shadowColor = '#facc15'; ctx.shadowBlur = 6;
+        ctx.beginPath(); ctx.arc(x, y, 2.2, 0, Math.PI * 2); ctx.fill(); ctx.shadowBlur = 0;
+      }
+    }
+    ctx.restore();
   }
   // v216: 쓰러진 동안 화면 가장자리가 붉게 물들었다가, 일어서며 걷힌다
   drawDownVignette() {
