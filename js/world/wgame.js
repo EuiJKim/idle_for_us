@@ -581,6 +581,7 @@ export class WorldGame {
     mob.name = kind.name;
     // 맹주·천마 (v148): 두목 방의 우두머리는 더 단단하고 아프다
     if (boss && m.lord) { mob.maxHp = mob.hp = mob.hp * W.LORD_HP; mob.atk *= W.LORD_ATK; }
+    if (boss && MS.patternHpMult(m) !== 1) mob.maxHp = mob.hp = mob.hp * MS.patternHpMult(m);     // 초식 두목 (v170)
     // 요일 던전 몹은 같은 레벨 무인에 맞춰 단단하다 (v126)
     if (this.inst?.kind === 'daily') { mob.maxHp = mob.hp = D.dailyMobHp(lv) * (elite ? W.ELITE.hp : 1); mob.atk = D.dailyMobAtk(lv) * (elite ? W.ELITE.atk : 1); }
     // 두목 등장 연출: 구역에 들어와 처음 나설 때는 길게(들판이 멈추고 두목은 맞지도 않는다),
@@ -2541,7 +2542,8 @@ export class WorldGame {
       case 'star': for (const d of [-0.6, 0, 0.6]) line(ang + d, 950, 90); break;
       case 'chase': for (let i = 0; i < 3; i++) add({ kind: 'circle', r: 95, aim: true, wait: i * 0.55 }); break;
       case 'cone': add({ kind: 'cone', x: b.x, y: b.y, a: ang, r: 600, half: 0.55 }); break;
-      case 'ring3': for (let i = 0; i < 3; i++) add({ kind: 'donut', x: b.x, y: b.y, r0: i * 190, r1: i * 190 + 190, wait: i * 0.4 }); break;
+      // 파동 (v170): 고리 셋이 한꺼번에 깔리고 안에서부터 차례로 터진다 — 고리 사이 틈(150~260 · 410~520)이 안전한 자리
+      case 'ring3': for (let i = 0; i < 3; i++) add({ kind: 'donut', x: b.x, y: b.y, r0: i * 260, r1: i * 260 + 150, t: T + i * 0.35, max: T + i * 0.35 }); break;
       case 'grid': {
         // 검기 그물 — 무인을 지나는 평행선 셋, 조금 뒤 엇갈리는 셋
         const px = -Math.sin(ang), py = Math.cos(ang);

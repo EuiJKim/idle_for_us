@@ -1229,7 +1229,7 @@ console.log('\n=== 사냥터 몹 강함 (v149) ===');
   // 함께 사냥 왕의 체력은 내 화면 왕과 같은 셈
   const CoopMod = await import('../js/world/wcoop.js');
   const c = new CoopMod.Coop({ map: W.mapOf(W.mapId(16, 4)) }, {});
-  ok(Math.abs(c.kingMaxHp() - DG.fieldMobHp(W.mapOf(W.mapId(16, 4)).lv[1] + 2) * W.BOSS.hp) < 1, '함께 사냥 왕 체력 = 내 화면 왕 체력 공식');
+  ok(Math.abs(c.kingMaxHp() - DG.fieldMobHp(W.mapOf(W.mapId(16, 4)).lv[1] + 2) * W.BOSS.hp * MS.PAT_HP) < 1, '함께 사냥 왕 체력 = 내 화면 왕 체력 공식 (초식 두목 ×4)');
 }
 
 console.log('\n=== 증표 각인 세 칸 (v163) ===');
@@ -1426,7 +1426,7 @@ console.log('\n=== 십이지왕·고수 초식 (v168): 고정 피해 · 테마 �
   const cone = weak.tells[0];
   ok(cone.kind === 'cone' && DG.tellCovers(cone, cone.x + Math.cos(cone.a) * 300, cone.y + Math.sin(cone.a) * 300) && !DG.tellCovers(cone, cone.x - Math.cos(cone.a) * 300, cone.y - Math.sin(cone.a) * 300), '부채꼴: 앞은 맞고 뒤는 안 맞는다');
   weak.tells = []; weak.bossCast(bw, 100, 0, ['ring3'], '귀혼음', { abs: 1 });
-  ok(weak.tells.length === 3 && weak.tells.every((t) => t.kind === 'donut') && weak.tells[2].wait > weak.tells[1].wait, '파동: 고리 셋이 차례로 퍼진다');
+  ok(weak.tells.length === 3 && weak.tells.every((t) => t.kind === 'donut') && weak.tells[2].t > weak.tells[1].t && !DG.tellCovers(weak.tells[0], weak.tells[0].x + 200, weak.tells[0].y) && !weak.tells.some((t) => DG.tellCovers(t, t.x + 200, t.y)), '파동: 고리 셋이 한꺼번에 깔리고 차례로 터진다 · 고리 사이 틈은 안전');
   weak.tells = []; weak.bossCast(bw, 100, 0, ['grid'], '검기 그물', { abs: 1 });
   ok(weak.tells.length === 6 && weak.tells.filter((t) => t.wait > 0).length === 3, '그물: 평행선 셋 + 엇갈리는 셋');
   // 낮은 고수는 옛 방식(최대 체력의 몇 할)

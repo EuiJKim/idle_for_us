@@ -17,6 +17,7 @@
 // 둘 다 자동 사냥이 그대로 돈다: 사냥은 늘 내 기기에서 돌고, 함께일 때는 왕 체력만 서버와 맞춘다.
 import * as W from './wdata.js';
 import * as D from './wdgn.js';
+import { patternHpMult } from './wmaster.js';
 
 const POS_SEC = 0.4;        // 자리 올리는 간격
 const BEAT_SEC = 5;         // 가만히 있어도 이만큼마다 '살아 있음'
@@ -305,7 +306,7 @@ export class Coop {
 
   kingMaxHp() {
     const lv = this.game.map.lv[1] + 2;
-    return D.fieldMobHp(lv) * W.BOSS.hp;     // spawnMob과 같은 셈 (v149 사냥터 몹 공식)
+    return D.fieldMobHp(lv) * W.BOSS.hp * patternHpMult(this.game.map);     // spawnMob과 같은 셈 (v149 사냥터 몹 공식 · v170 초식 두목 ×4)
   }
 
   async open() {

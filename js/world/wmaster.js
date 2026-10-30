@@ -25,6 +25,10 @@ export function bossPatterns(map) {
 // 초식 한 대의 고정 피해 — 그 레벨 기준 무인(REF_HP)의 PAT_K배 × 배수. 오의는 PAT_ULT배, 맹주·천마는 PAT_LORD배.
 // 기준 무인은 보통 초식에 반쯤, 오의에 거의 다 깎인다 — 체력·방어를 올린 무인은 버티고, 아니면 쓰러진다.
 export const PAT_K = 0.5, PAT_ULT = 1.8, PAT_LORD = 1.2;
+// v170: 초식 두목(십이지왕 · 레벨 100 넘는 고수)은 체력 ×PAT_HP — 흔한 차림이 13초쯤에 잡아 초식을 한두 번밖에 못 썼다.
+// 맹주·천마는 이미 LORD_HP로 단단해서 그대로.
+export const PAT_HP = 4;
+export const patternHpMult = (map) => (bossPatterns(map) && !map.lord ? PAT_HP : 1);
 
 export const factionOf = (id) => FACTIONS.find((f) => f.id === id) || null;
 export function factionOfZone(z) {
