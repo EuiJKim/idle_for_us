@@ -2427,7 +2427,7 @@ export class BattleView {
     const kx = hk * hk * 14 * away - swing * 14 * away;
     const ky = (1 - born) * 10 + swing * 3;
     // v160: 두목은 제 그림으로 — 과녁이 아니어도
-    if (a.isBoss && def.art && bossImg(def.art) && drawBossSprite(this, ctx, a, x + kx, y, depth, { lord: !!game.map?.lord, king: !!game.map?.king,
+    if (a.isBoss && def.art && bossImg(def.art) && drawBossSprite(this, ctx, a, x + kx, y, depth, { lord: !!game.map?.lord, king: !!game.map?.king, fac: game.map?.master ? ZONES_W[game.map.zone]?.fac : null,
       casting: game.tells?.length > 0, col: fxFor('', def.look || {}).col, flash: hk, lunge: 0, heroX: game.heroX })) { /* 그렸다 */ } else
     if (def.emoji) emoji(ctx, def.emoji, x + kx, y, 44, face);
     else if (def.beast) {

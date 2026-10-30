@@ -224,6 +224,79 @@ function drawKingAura(view, ctx, x, y, H, col, t, casting, alpha) {
   }
   ctx.restore();
 }
+// v219: 고수·맹주·천마의 세력 기운 — 정파는 금빛 검 셋이 돌고, 사파는 독안개와 비수, 마교는 핏빛 불길.
+// 맹주·천마(lord)는 더 크고, 머리 뒤에 해무리가 선다. 모두 상태 없이 시간으로 그린다.
+const FAC_COL = { murim: '253,224,71', sapa: '74,222,128', magyo: '239,68,68' };
+function blade(ctx, len, w) {
+  ctx.beginPath(); ctx.moveTo(0, -len / 2); ctx.lineTo(w, len * 0.3); ctx.lineTo(0, len / 2); ctx.lineTo(-w, len * 0.3); ctx.closePath(); ctx.fill();
+}
+function drawMasterAura(view, ctx, x, y, H, fac, lord, t, casting, alpha) {
+  if (view.fxLevel <= 0 || !FAC_COL[fac]) return;
+  const col = FAC_COL[fac];
+  const S = lord ? 1.25 : 1;
+  const sq = view.squash || 0.5;
+  const sp = casting ? 2.6 : 1;
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  if (lord) {
+    // 해무리 — 머리 뒤 둥근 빛과 바깥 고리
+    const hy = y - H * 0.86;
+    const g = ctx.createRadialGradient(x, hy, 4, x, hy, H * 0.34);
+    g.addColorStop(0, `rgba(${col},${0.35 * alpha})`); g.addColorStop(1, `rgba(${col},0)`);
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, hy, H * 0.34, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = `rgba(${col},${(0.45 + 0.2 * Math.sin(t * 3)) * alpha})`; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(x, hy, H * 0.25, 0, Math.PI * 2); ctx.stroke();
+  }
+  if (fac === 'murim') {
+    // 금빛 검 셋이 몸을 돈다 — 뒤로 갈 땐 옅게
+    for (let i = 0; i < 3; i++) {
+      const a = t * 1.4 * sp + (i / 3) * Math.PI * 2;
+      const bx = x + Math.cos(a) * H * 0.55 * S, by = y - H * 0.5 + Math.sin(a) * H * 0.55 * S * sq;
+      ctx.globalAlpha = alpha * (0.45 + 0.4 * (Math.sin(a) * 0.5 + 0.5));
+      ctx.save(); ctx.translate(bx, by); ctx.rotate(a + Math.PI / 2);
+      ctx.shadowColor = `rgb(${col})`; ctx.shadowBlur = 12;
+      ctx.fillStyle = `rgba(${col},0.95)`; blade(ctx, 62 * S, 7);
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = 'rgba(255,255,255,0.85)'; blade(ctx, 40 * S, 2.5);
+      ctx.restore();
+    }
+  } else if (fac === 'sapa') {
+    // 발밑 독안개 다섯 덩이가 감돌고, 비수 둘이 엇갈려 돈다 — 밝은 땅(사막)에서도 보이게 더하기가 아니라 덮어 칠한다
+    ctx.globalCompositeOperation = 'source-over';
+    for (let i = 0; i < 5; i++) {
+      const a = t * 0.7 * sp + i * 1.26;
+      const mx = x + Math.cos(a) * H * 0.38 * S, my = y - 6 + Math.sin(a) * H * 0.38 * S * sq;
+      const r = H * (0.2 + 0.04 * Math.sin(t * 2 + i));
+      const g = ctx.createRadialGradient(mx, my, 2, mx, my, r);
+      g.addColorStop(0, `rgba(21,128,61,${0.5 * alpha})`); g.addColorStop(0.6, `rgba(20,83,45,${0.3 * alpha})`); g.addColorStop(1, 'rgba(20,83,45,0)');
+      ctx.globalAlpha = 1; ctx.fillStyle = g; ctx.beginPath(); ctx.arc(mx, my, r, 0, Math.PI * 2); ctx.fill();
+    }
+    for (let i = 0; i < 2; i++) {
+      const a = -t * 2.2 * sp + i * Math.PI;
+      const bx = x + Math.cos(a) * H * 0.36 * S, by = y - H * 0.42 + Math.sin(a) * H * 0.2 * S;
+      ctx.globalAlpha = alpha * 0.85;
+      ctx.save(); ctx.translate(bx, by); ctx.rotate(a);
+      ctx.shadowColor = `rgb(${col})`; ctx.shadowBlur = 10; ctx.fillStyle = 'rgba(20,83,45,0.95)'; blade(ctx, 46 * S, 6); ctx.shadowBlur = 0; ctx.fillStyle = `rgba(${col},0.95)`; blade(ctx, 30 * S, 2.5); ctx.restore();
+    }
+  } else if (fac === 'magyo') {
+    // 핏빛 불길 — 발밑에서 혀처럼 날름 오른다
+    const n = lord ? 9 : 7;
+    for (let i = 0; i < n; i++) {
+      const fx = x + ((i / (n - 1)) - 0.5) * H * 0.7 * S;
+      const ph = (t * 1.2 * sp + i * 0.37) % 1;
+      const fh = H * (0.4 + 0.22 * Math.sin(i * 1.7 + t * 4)) * S * (1 - ph * 0.4);
+      ctx.globalAlpha = alpha * (0.85 - ph * 0.45);
+      const g = ctx.createLinearGradient(fx, y, fx, y - fh);
+      g.addColorStop(0, `rgba(${col},0.9)`); g.addColorStop(1, 'rgba(127,29,29,0)');
+      ctx.fillStyle = g;
+      const sway = Math.sin(t * 5 + i) * 6;
+      ctx.beginPath(); ctx.moveTo(fx - 14 * S, y - 2);
+      ctx.quadraticCurveTo(fx - 6 + sway, y - fh * 0.6, fx + sway * 1.6, y - fh);
+      ctx.quadraticCurveTo(fx + 6 + sway, y - fh * 0.6, fx + 14 * S, y - 2); ctx.fill();
+    }
+  }
+  ctx.restore();
+}
 export function drawBossSprite(view, ctx, m, x, y, alpha, o) {
   const img = bossImg(m.def?.art);
   if (!img) return false;
@@ -261,5 +334,7 @@ export function drawBossSprite(view, ctx, m, x, y, alpha, o) {
     ctx.filter = 'none';
   }
   ctx.restore();
+  // 세력 기운은 그림 위에 — 뒤에 깔면 큰 그림에 가려 안 보였다
+  if (o.fac && m.alive) drawMasterAura(view, ctx, x, y, H, o.fac, !!o.lord, t, casting, alpha);
   return true;
 }
