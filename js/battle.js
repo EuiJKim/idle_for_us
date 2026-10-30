@@ -318,6 +318,24 @@ export class BattleView {
     window.addEventListener('resize', () => this.resize());
   }
 
+  // CPU로 그리기 (v188) — 보이지 않는 캔버스(CPU)에 다 그리고, 끝에 화면 캔버스에 한 장 붙인다(rendermode.js)
+  setSoftware(on) {
+    if (!!this.soft === !!on) return false;
+    if (on) {
+      this.outCtx = this.outCtx || this.ctx;
+      this.soft = document.createElement('canvas');
+      this.ctx = this.soft.getContext('2d', { willReadFrequently: true });
+    } else {
+      this.ctx = this.outCtx || this.ctx;
+      this.soft = null;
+    }
+    this._decor = null;
+    this._vig = null;
+    sprCache.clear();
+    this.resize();
+    return true;
+  }
+  get drawCv() { return this.soft || this.cv; }
   // 해상도 상한을 바꾼다 (v181). 구워 둔 것은 해상도를 따르므로 버린다.
   setDprCap(c) {
     if (Math.abs((this.dprCap || 2) - c) < 0.01) return false;
@@ -352,6 +370,7 @@ export class BattleView {
     this.dpr = dpr;
     this.cv.width = Math.round(this.W * dpr);
     this.cv.height = Math.round(this.H * dpr);
+    if (this.soft) { this.soft.width = this.cv.width; this.soft.height = this.cv.height; }
     this.applyZoom();
   }
 
@@ -991,7 +1010,8 @@ export class BattleView {
     // 확 벌어졌다가 천천히 붙는다
     const open = p < 0.15 ? p / 0.15 : 1 - ((p - 0.15) / 0.85) ** 0.7;
     const off = sl.gap * open;
-    const { ctx, cv } = this;
+    const { ctx } = this;
+    const cv = this.drawCv;
     const snap = this._snap || (this._snap = document.createElement('canvas'));
     if (snap.width !== cv.width || snap.height !== cv.height) { snap.width = cv.width; snap.height = cv.height; }
     const sc = snap.getContext('2d');
@@ -1219,6 +1239,11 @@ export class BattleView {
     ctx.restore();
     ctx.restore();
     if (this.slice) this.drawSlice(rawDt);
+    if (this.soft) {
+      const o = this.outCtx;
+      o.setTransform(1, 0, 0, 1, 0, 0);
+      o.drawImage(this.soft, 0, 0);
+    }
   }
 
   scene(game) {

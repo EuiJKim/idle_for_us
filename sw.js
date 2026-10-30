@@ -1,11 +1,11 @@
 // 앱 껍데기를 캐시해 오프라인에서도 열리게 한다. 온라인이면 항상 새 파일을 먼저 받는다.
-const CACHE = 'ifu-v187';
+const CACHE = 'ifu-v188';
 const SHELL = [
   './', 'index.html', 'css/style.css', 'manifest.webmanifest',
   'js/big.js', 'js/data.js', 'js/battle.js', 'js/net.js', 'js/fmt.js', 'js/firebase-config.js',
   'js/ui/common.js',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png',
-  'js/art.js', 'js/fx.js', 'js/icons.js', 'js/ads.js', 'js/pose.js', 'js/skillfx.js', 'js/skillfx_class.js', 'js/skillfx_majon.js', 'js/world/wdata.js', 'js/world/wmobs.js', 'js/world/wgame.js', 'js/world/wdgn.js', 'js/world/wquest.js', 'js/world/wland.js', 'js/world/wgear.js', 'js/world/wcoop.js', 'js/world/wmaster.js', 'js/world/wmasters_data.js', 'js/world/wline.js', 'js/world/wimprint.js', 'js/obstacles.js', 'js/jobart.js', 'js/creatures.js', 'js/crbox.js', 'js/wui.js', 'js/wnet.js', 'js/wmain.js', 'js/sfx.js', 'js/appmode.js', 'js/bossfx.js',
+  'js/art.js', 'js/fx.js', 'js/icons.js', 'js/ads.js', 'js/pose.js', 'js/skillfx.js', 'js/skillfx_class.js', 'js/skillfx_majon.js', 'js/world/wdata.js', 'js/world/wmobs.js', 'js/world/wgame.js', 'js/world/wdgn.js', 'js/world/wquest.js', 'js/world/wland.js', 'js/world/wgear.js', 'js/world/wcoop.js', 'js/world/wmaster.js', 'js/world/wmasters_data.js', 'js/world/wline.js', 'js/world/wimprint.js', 'js/obstacles.js', 'js/jobart.js', 'js/creatures.js', 'js/crbox.js', 'js/wui.js', 'js/wnet.js', 'js/wmain.js', 'js/sfx.js', 'js/appmode.js', 'js/bossfx.js', 'js/rendermode.js',
   'art/ui/frame.png',
   // 창 안 아이콘. 한 장씩 따로 보므로 빠져도 그 자리만 글자로 남는다.
   'art/icon/acc-0.png', 'art/icon/acc-1.png', 'art/icon/acc-2.png', 'art/icon/codex-0.png',

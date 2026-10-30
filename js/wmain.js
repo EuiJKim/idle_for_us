@@ -1,6 +1,7 @@
 // 바람식 개편 — 시작점. 설계: docs/바람식_개편.md
 //
 // 옛 main.js(관문·수련·무공 여덟 …)를 대신한다. 들판 그림(BattleView)·초식 연출·창틀·서버는 그대로 쓴다.
+import * as RM from './rendermode.js';   // 맨 먼저 — 캔버스를 만들기 전에 그리기 방식을 정한다 (v188)
 import { WorldGame, newWorldSave } from './world/wgame.js';
 import * as W from './world/wdata.js';
 import { BUILD, RANKS, JOBS } from './data.js';
@@ -46,6 +47,7 @@ if (!saved) {
 }
 
 const view = new BattleView($('cv'));
+if (RM.useCpu) view.setSoftware(true);
 // 들판 가운데 지도가 놓일 자리 — 위는 전투력 알약, 아래는 창 버튼 줄과 무공 바를 뺀다
 function measurePads() {
   const cv = $('cv').getBoundingClientRect();
@@ -937,7 +939,16 @@ $('btn-settings').addEventListener('click', () => openModal((s) => {
         perf.autoCap30 = false; applyQuality(); paint();
       };
       paint();
+      const rb = h('button', { class: 'btn', style: 'padding:6px 12px;min-width:84px' },
+        RM.renderPref() === 'auto' ? `자동 ${RM.useCpu ? 'CPU' : 'GPU'}` : RM.renderPref().toUpperCase());
+      rb.onclick = () => {
+        const next = RM.RENDER_MODES[(RM.RENDER_MODES.indexOf(RM.renderPref()) + 1) % RM.RENDER_MODES.length];
+        try { localStorage.setItem('ifu.render', next); localStorage.removeItem('ifu.renderAuto'); } catch { /* 이번만 */ }
+        save();
+        location.reload();
+      };
       return h('div', {},
+        h('div', { class: 'row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, '그리기 방식'), h('div', { class: 'desc' }, '어떤 폰은 GPU가 이 게임 그림에 느려요 — CPU로 그리면 빨라질 수 있어요. 누르면 다시 읽어요')), rb),
         h('div', { class: 'row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, '화질'), h('div', { class: 'desc' }, '버벅이면 낮춰요 — 자동은 폰이 버거워하면 알아서 낮춰요')), qb),
         h('div', { class: 'row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, '초당 그림'), h('div', { class: 'desc' }, '30이면 배터리·열이 절반 — 자동은 버거울 때만 30')), fb));
     })(),
@@ -1105,6 +1116,28 @@ function perfTick(ms) {
   const slow = perf.ema > 22, fast = perf.ema < 17.8;
   perf.slow = slow ? perf.slow + 1 : 0;
   perf.fast = fast ? perf.fast + 1 : 0;
+  // 그리기 방식 자동 (v188): GPU로 해상도를 꽤 낮췄는데도 버거우면 CPU로 한 번 바꿔 본다(다시 읽기).
+  // CPU로 와서 20초 지나면 판정 — GPU 때보다 낫지 않으면 되돌린다. 한 번 정하면 다시 묻지 않는다.
+  perf.age = (perf.age || 0) + 1;
+  if (RM.renderPref() === 'auto' && !navigator.webdriver) {   // 자동 시험(프로그램이 모는 브라우저)에서는 다시 읽지 않는다
+    const st = RM.renderAuto();
+    if (!st && perf.slow >= 3 && perf.ema > 26 && (perf.q !== 'auto' || perf.step >= 2)) {
+      try { localStorage.setItem('ifu.renderGpuMs', String(perf.ema)); localStorage.setItem('ifu.renderAuto', 'cpu'); } catch { /* 못 하면 그만 */ }
+      save();
+      location.reload();
+      return;
+    }
+    if (st === 'cpu' && RM.useCpu && perf.age === 20) {
+      let gpu = 0; try { gpu = Number(localStorage.getItem('ifu.renderGpuMs')) || 0; localStorage.removeItem('ifu.renderGpuMs'); } catch { /* 없음 */ }
+      if (gpu && perf.ema > gpu * 0.85) {
+        try { localStorage.setItem('ifu.renderAuto', 'gpu'); } catch { /* 없음 */ }
+        save();
+        location.reload();
+        return;
+      }
+      if (gpu) toast(`그리기를 CPU로 바꿨어요 — ${(1000 / gpu).toFixed(0)} → ${(1000 / perf.ema).toFixed(0)}fps`);
+    }
+  }
   if (perf.slow >= 3) {
     perf.slow = 0;
     if (perf.q === 'auto' && perf.step < AUTO_STEPS.length - 1) {
@@ -1190,6 +1223,7 @@ function huntRes(st) {
   const r = view.cv.getBoundingClientRect();
   view.cv.width = Math.max(1, Math.round(r.width * st.res));
   view.cv.height = Math.max(1, Math.round(r.height * st.res));
+  if (view.soft) { view.soft.width = view.cv.width; view.soft.height = view.cv.height; }
   view.dpr = st.res; view._decor = null; view._vig = null; view.applyZoom();
   hunt.resChanged = true;
 }
@@ -1291,7 +1325,7 @@ function endDiag() {
     row('글자판 갱신', ms(d.ui / n)),
     row('JS 밖(GPU·브라우저)', ms(outside), outside > 10),
     row('화면 갱신 간격', `${ms(rafAvg)}${idle ? ` · 30제한으로 쉰 ${ms(idle)} 뺌` : ''}`),
-    row('캔버스', `${c.width}×${c.height} · ${view.dpr.toFixed(2)}배 · 화질 ${perf.q}${perf.cap30 ? ' · 30제한' : ''}`),
+    row('캔버스', `${c.width}×${c.height} · ${view.dpr.toFixed(2)}배 · 화질 ${perf.q}${perf.cap30 ? ' · 30제한' : ''} · ${RM.useCpu ? 'CPU' : 'GPU'}`),
     row('몹 · 연출 · 파편', `${game.mons?.length || 0} · ${view.effects.length} · ${view.particles.length}`),
     row('기기', `${screen.width}×${screen.height} · dpr ${window.devicePixelRatio} · 코어 ${navigator.hardwareConcurrency || '?'} · 메모리 ${navigator.deviceMemory || '?'}GB`),
     h('p', { class: 'muted', style: 'font-size:11px;word-break:break-all' }, navigator.userAgent),
