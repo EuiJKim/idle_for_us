@@ -572,7 +572,7 @@ export class WorldGame {
       kp: king ? W.KING_MYTHIC[king.no]?.id : null,
       atkTimer: 1 + this.rng(), stun: 0, slow: 0, poison: 0, poisonPer: 0,
       aggro: false, wanderT: this.rng() * 3,
-      def: { name: kind.name, look: kind.look, beast: kind.beast, bscale: kind.bscale },
+      def: { name: kind.name, look: kind.look, beast: kind.beast, bscale: kind.bscale, art: boss ? kind.art : undefined },
     };
     mob.name = kind.name;
     // 맹주·천마 (v148): 두목 방의 우두머리는 더 단단하고 아프다

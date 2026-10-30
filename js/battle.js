@@ -18,6 +18,7 @@ import { fxReady, putFx, loadFx, zoneTile } from './fx.js';
 import { loadJobArt } from './jobart.js';
 import { PoseAnim } from './pose.js';
 import { CHOREO, Director, FX, VENOM, drawPoisonField } from './skillfx.js';
+import { drawBossSprite, drawTellFx, fxFor, bossImg } from './bossfx.js';
 import { big } from './big.js';
 import { fmt } from './fmt.js';
 
@@ -194,10 +195,13 @@ function lookId(look) {
 // 기운·후광이 붙은 인물은 시간에 따라 계속 흔들려서 캐시가 안 맞는다.
 // 그런 인물은 몇 안 되므로 그냥 매번 그린다.
 const sprCacheable = (look) => !!look && !look.aura && !look.halo && !look.jiangshi;
-function fighterSprite(look, time, weapon, dpr) {
+// run: 걷는 몹은 다리를 놀리는 그림으로 (v160 — 전에는 선 자세 그대로 미끄러졌다). 달리기 한 바퀴는 2π/14초.
+const RUN_CYCLE = (Math.PI * 2) / 14;
+function fighterSprite(look, time, weapon, dpr, run = false) {
   if (!sprCacheable(look)) return null;
-  const ph = Math.floor((((time % SPR.cycle) + SPR.cycle) % SPR.cycle) / SPR.cycle * SPR.phases);
-  const key = `${lookId(look)}|${ph}|${weapon || ''}|${dpr}`;
+  const cyc = run ? RUN_CYCLE : SPR.cycle;
+  const ph = Math.floor((((time % cyc) + cyc) % cyc) / cyc * SPR.phases);
+  const key = `${lookId(look)}|${ph}|${weapon || ''}|${dpr}${run ? '|r' : ''}`;
   let c = sprCache.get(key);
   if (c) return c;
   // 통째로 비우면 아직 화면에 있는 것까지 날아가 그 프레임에 전부 다시 굽는다.
@@ -212,7 +216,7 @@ function fighterSprite(look, time, weapon, dpr) {
   const sc = c.getContext('2d');
   sc.setTransform(dpr, 0, 0, dpr, 0, 0);
   drawFighter(sc, SPR.ox, SPR.oy, look, {
-    t: (ph + 0.5) / SPR.phases * SPR.cycle, weapon, flash: 0,
+    t: (ph + 0.5) / SPR.phases * cyc, weapon, flash: 0, run,
   });
   sprCache.set(key, c);
   return c;
@@ -567,12 +571,29 @@ export class BattleView {
       case 'bossCast':
         // 설정집의 독문무공(십이지왕·고수)은 크고 금빛으로 외친다
         if (ev.at) this.float(ev.skill ? `「${ev.name}」` : ev.name, this.sx(ev.at), this.sy(ev.at) - 150, ev.skill ? '#fde68a' : '#fca5a5', ev.skill ? 20 : 16, 1, true);
+        // v160: 초식 그림을 고르고(경고·터짐에 쓴다) 발밑에 진을 깐다
+        this.castFx = fxFor(ev.name, ev.at?.def?.look, ev.pat);
+        if (ev.at && this.fxLevel > 0) {
+          this.effects.push({ kind: 'bcast', wx: ev.at.x, wy: ev.at.y, r: ev.skill ? 120 : 90, fx: this.castFx, life: 1.1, max: 1.1 });
+          if (ev.skill) this.flash = Math.max(this.flash, 0.12);
+        }
         break;
       case 'tellBoom': {
         const tl = ev.tell;
         const c = tl.kind === 'line' ? { x: (tl.x0 + tl.x1) / 2, y: (tl.y0 + tl.y1) / 2 } : tl;
         const r = tl.kind === 'line' ? Math.min(220, tl.w * 1.4) : tl.kind === 'donut' ? tl.r1 * 0.7 : tl.r;
-        this.effects.push({ kind: 'shock', life: 0.35, max: 0.35, wx: c.x, wy: c.y, r, col: '248,113,113', rings: 2, w: 5 });
+        const fx = tl._fx;
+        this.effects.push({ kind: 'shock', life: 0.35, max: 0.35, wx: c.x, wy: c.y, r, col: fx?.col || '248,113,113', rings: 2, w: 5 });
+        // v160: 초식 그림이 크게 터진다 (줄은 칼날로, 둥근 것은 폭발로)
+        if (fx && this.fxLevel > 0) {
+          if (tl.kind === 'line') this.effects.push({ kind: 'bboom', wx: c.x, wy: c.y, fx, len: Math.hypot(tl.x1 - tl.x0, (tl.y1 - tl.y0) * this.squash), ang: Math.atan2((tl.y1 - tl.y0) * this.squash, tl.x1 - tl.x0), w: tl.w, life: 0.45, max: 0.45 });
+          else this.effects.push({ kind: 'bboom', wx: c.x, wy: c.y, fx, r: tl.kind === 'donut' ? tl.r1 * 0.8 : tl.r, spin: (Math.random() - 0.5) * 1.2, life: 0.6, max: 0.6 });
+          const sx = this.sx(c), sy = this.sy(c);
+          for (let i = 0; i < 10; i++) {
+            const a = Math.random() * Math.PI * 2, v = 120 + Math.random() * 220;
+            this.particles.push({ x: sx, y: sy, vx: Math.cos(a) * v, vy: Math.sin(a) * v * this.squash - 60, life: 0.5 + Math.random() * 0.3, size: 3 + Math.random() * 3, color: `rgb(${fx.col})` });
+          }
+        }
         if (ev.hit) this.shake = Math.max(this.shake || 0, 0.35);
         break;
       }
@@ -791,6 +812,7 @@ export class BattleView {
       rageCol: game.s.job && game.s.job !== 'sword' ? jobOf(game.s.job)?.color : null,
       // 왼쪽으로 갈 때는 몸을 돌린다
       flip: this.fieldMode && (this.faceOverride || game.heroFacing) < 0,
+      turn: this.fieldMode ? this.turnTo('hero', (this.faceOverride || game.heroFacing) < 0 ? -1 : 1) : null,
       // 칼빛: +7 반짝임 · 돌파(+11) 불꽃 · 신화 무지개
       bladeFx: this.fxLevel > 0 ? (gear.weaponRar >= 3 ? 'rainbow' : gear.weaponPlus >= 11 ? 'flame' : gear.weaponPlus >= 7 ? 'shimmer' : null) : null,
       bladeCol: gear.weaponCol,
@@ -1636,7 +1658,7 @@ export class BattleView {
       this.ctx.globalAlpha *= 1 - Math.abs(downRot) / 1.3 * 0.35;
       drawFighter(this.ctx, x, y, look, opts);
       this.ctx.restore();
-    } else drawFighter(this.ctx, x, fy, look, { ...opts, run: ride ? false : opts.run });
+    } else drawFighter(this.ctx, x, fy, look, { ...opts, run: ride ? false : opts.run, turn: ride ? null : opts.turn });
     if (ride) drawCreature(this.ctx, mt.id, x, y, { ...rideOpt, layer: 'front' });
     // 데려간 영수들이 뒤를 따른다 (예전엔 s.pet 한 마리만 그렸는데, 영수가 여럿이 된 뒤로
     // 그 값이 늘 비어 있어서 아무것도 안 그려졌다)
@@ -1968,7 +1990,16 @@ export class BattleView {
     ctx.translate(x + away * fall * 14, y);
     const sc = (def.look?.scale || 1) * 0.94 * this.crowdScale;
     ctx.scale(sc, sc);
-    if (def.emoji) {
+    const bimg = def.art ? bossImg(def.art) : null;
+    if (bimg) {
+      // 두목 그림 (v160): 무릎 꿇듯 주저앉으며 뒤로 넘어간다
+      ctx.scale(1 / sc, 1 / sc);
+      const H = 200, W = (bimg.width / bimg.height) * H;
+      if (c.face) ctx.scale(-1, 1);
+      ctx.rotate(away * fall * 1.1 * (c.face ? -1 : 1));
+      ctx.scale(1, 1 - fall * 0.25);
+      ctx.drawImage(bimg, -W / 2, -H, W, H);
+    } else if (def.emoji) {
       ctx.rotate(away * fall * 1.3);
       emoji(ctx, def.emoji, 0, 0, 44, c.face);
     } else if (def.beast) {
@@ -1986,6 +2017,18 @@ export class BattleView {
       }
     }
     ctx.restore();
+  }
+
+  // 돌아서기 (v160): 바라보는 쪽이 바뀌면 곧장 뒤집지 않고 0.12초에 걸쳐 돈다 — 1 ↔ -1을 지나며 몸이 납작해졌다 펴진다.
+  // who: 몹 객체 또는 'hero'. 돌려주는 값을 가로 배율로 쓴다.
+  turnTo(who, want) {
+    const st = who === 'hero' ? (this._heroTurn || (this._heroTurn = { v: want, at: this.t })) : (who._turn || (who._turn = { v: want, at: this.t }));
+    const dt = Math.min(0.1, Math.max(0, this.t - st.at));
+    st.at = this.t;
+    const step = dt * 16;
+    st.v = Math.abs(want - st.v) <= step ? want : st.v + Math.sign(want - st.v) * step;
+    // 납작해질 때도 아예 0이 되면 사라져 보인다
+    return Math.sign(st.v || want) * Math.max(0.18, Math.abs(st.v));
   }
 
   // ---------- 적 ----------
@@ -2017,6 +2060,9 @@ export class BattleView {
     const hk = a._hitAt != null ? Math.max(0, 1 - (this.t - a._hitAt) / 0.2) : 0;
     const away = x >= this.heroX ? 1 : -1;
     const kx = hk * hk * 9 * away;
+    // v160: 두목은 제 그림으로 — 과녁이 아니어도
+    if (a.isBoss && def.art && bossImg(def.art) && drawBossSprite(this, ctx, a, x + kx, y, depth, { lord: !!game.map?.lord, king: !!game.map?.king,
+      casting: game.tells?.length > 0, col: fxFor('', def.look || {}).col, flash: hk, lunge: 0, heroX: game.heroX })) { /* 그렸다 */ } else
     if (def.emoji) emoji(ctx, def.emoji, x + kx, y, 44, face);
     else if (def.beast) {
       // 들짐승 (v117) — 맞으면 찌그러졌다 돌아온다
@@ -2027,13 +2073,14 @@ export class BattleView {
       drawCreature(ctx, def.beast, 0, 0, { t: time, moving: !!a.move, flip: face, scale: (def.bscale || 1.7) * this.crowdScale * persp * (a.grade === 1 ? 1.1 : 1) });
       ctx.restore();
     } else {
-      const spr = fighterSprite(def.look || {}, time, def.look?.weapon, this.dpr || 1);
+      const walking = !!a.move && !a.npc;
+      const spr = fighterSprite(def.look || {}, time, def.look?.weapon, this.dpr || 1, walking);
       if (spr) {
         ctx.save();
         ctx.translate(x + kx, y);
         const s2 = sc * persp;
         if (s2 !== 1) ctx.scale(s2, s2);
-        if (face) ctx.scale(-1, 1);
+        ctx.scale(this.turnTo(a, face ? -1 : 1), 1);
         if (hk > 0) { ctx.rotate(-0.12 * hk * (face ? -away : away)); ctx.scale(1 + 0.06 * hk, 1 - 0.08 * hk); }
         // 정예·두목·왕은 몸 둘레가 등급 빛깔로 번진다
         if (fx) { ctx.shadowColor = this.mobCol(a); ctx.shadowBlur = a.grade >= 2 ? 18 : 10; }
@@ -2132,7 +2179,12 @@ export class BattleView {
     const shw = (m.isBoss ? 34 : 22) * (scale || 1);
     ctx.beginPath(); ctx.ellipse(x, y + 2, shw, shw * 0.4, 0, 0, Math.PI * 2); ctx.fill();
     if (fx) this.drawMobFx(ctx, m, x, y, scale, false);
-    if (look) {
+    // v160: 두목은 제 그림으로 (없으면 아래 종이 인형)
+    const bossH = boss && m.def?.art && bossImg(m.def.art) ? (game.map?.lord ? 230 : game.map?.king ? 215 : 190) : 0;
+    if (bossH && drawBossSprite(this, ctx, m, x, y, alpha, { lord: !!game.map?.lord, king: !!game.map?.king, casting: game.tells?.length > 0,
+      col: fxFor('', look || {}).col, flash: m === game.mon ? this.monFlash : 0, lunge: m === game.mon ? this.monLunge : 0, heroX: game.heroX })) {
+      // 그렸다
+    } else if (look) {
       ctx.translate(x, y + (m.alive ? 0 : (1 - alpha) * 10));
       ctx.scale(-scale, scale);
       if (look.ghost) ctx.globalAlpha = alpha * (0.55 + Math.sin(this.t * 3) * 0.1);
@@ -2164,7 +2216,7 @@ export class BattleView {
     ctx.restore();
 
     if (fx) this.drawMobFx(ctx, m, x, y, scale, true);
-    const top = y - 118 * scale;
+    const top = bossH ? y - bossH - 6 : y - 118 * scale;
     if (m.elite && m.alive) gradeTag(ctx, '정예', x, top - 26, '#fb923c');
     if (m.petEmoji) emoji(ctx, m.petEmoji, x + 58, y + 2 - Math.abs(Math.sin(this.t * 4 + 2)) * 6, 34, true);
     if (m.stun > 0 && m.alive) dizzy(ctx, x, y - 112 * scale, this.t);
@@ -2291,6 +2343,7 @@ export class BattleView {
     ctx.save();
     for (const tl of ts) {
       if (tl.wait > 0) continue;
+      if (!tl._fx && this.castFx) tl._fx = this.castFx;      // v160: 그 초식의 그림
       const k = 1 - Math.max(0, tl.t / tl.max);           // 0 → 1 차오른다
       const urgent = tl.t < 0.35;
       const edge = `rgba(248,113,113,${urgent ? 0.6 + blink * 0.4 : 0.85})`;
@@ -2321,6 +2374,7 @@ export class BattleView {
         ctx.fillStyle = `rgba(239,68,68,${0.22 + k * 0.25})`; quad(k); ctx.fill();
         ctx.strokeStyle = edge; quad(1); ctx.stroke();
       }
+      if (tl._fx && this.fxLevel > 0) drawTellFx(this, ctx, tl, k);
     }
     ctx.restore();
   }
@@ -2919,7 +2973,9 @@ export function drawFighter(ctx, x, y, look = {}, o = {}) {
   // 그래서 '적이 많으면 작게 그린다(crowdScale)'도, '무인 쪽을 본다'도
   // 값만 계산되고 화면에는 한 번도 반영되지 않았다.
   if (o.scale && o.scale !== 1) ctx.scale(o.scale, o.scale);
-  if (o.flip) ctx.scale(-1, 1);
+  // turn(-1~1): 돌아서는 중 — 몸이 납작해졌다가 반대로 펴진다 (v160). 없으면 flip대로 곧장.
+  if (o.turn != null) ctx.scale(o.turn, 1);
+  else if (o.flip) ctx.scale(-1, 1);
   // 그림자
   ctx.fillStyle = 'rgba(0,0,0,0.28)';
   ctx.beginPath(); ctx.ellipse(0, 2, 24, 6, 0, 0, Math.PI * 2); ctx.fill();

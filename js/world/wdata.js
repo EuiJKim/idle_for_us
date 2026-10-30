@@ -262,7 +262,8 @@ for (let z = 1; z <= ZONE_COUNT; z++) {
     name: k ? `제${k.no}왕 ${k.title}` : ZONES[z].name,
     lv: zoneLv(z),
     mobs: areaMobs(z, 4, art),
-    boss: k ? { name: `${k.title}${k.real ? ` ${k.real}` : ''}`, look: k.look } : ZONES[z].boss,
+    // art: 두목 그림 (art/boss/<art>.png · v160)
+    boss: k ? { name: `${k.title}${k.real ? ` ${k.real}` : ''}`, look: k.look, art: `king-${k.no}` } : { ...ZONES[z].boss, art: `zb-${z}` },
   });
 }
 // v127 새 지역 여섯 — 같은 레벨대 지역(pair)과 재료·증표·장비 사다리를 나눠 쓴다(지역 번호 31~36, 그림 16~21).
@@ -273,7 +274,7 @@ export const ALT_ZONES = [
 ];
 for (const a of ALT_ZONES) {
   ZONES_W[a.id] = { id: a.id, art: a.art, king: null, pair: a.pair, name: ZONES[a.art].name, lv: zoneLv(a.pair),
-    mobs: areaMobs(a.id, 4, a.art), boss: ZONES[a.art].boss };
+    mobs: areaMobs(a.id, 4, a.art), boss: { ...ZONES[a.art].boss, art: `zb-${a.art}` } };
 }
 // v148 고수의 두목 방 — 고수 하나에 지역 하나(번호 41~), 구역은 두목 방 하나뿐.
 // 그 고수의 수하(정예)가 늘 있고 고수가 BOSS_RESPAWN초마다 다시 나선다 — 십이지왕 두목 구역처럼 눌러앉아 파밍한다.
@@ -292,7 +293,7 @@ const pairForLv = (lv) => { let best = 1; for (let z = 1; z <= NORMAL_ZONES; z++
 MASTERS.forEach((m, i) => {
   const id = MASTER_ZONE0 + i;
   ZONES_W[id] = { id, art: m.art, king: null, master: m.id, fac: m.fac, lord: !!m.lord, pair: pairForLv(m.lv - 2), name: `${m.title} ${m.name}`,
-    lv: [m.lv - 4, m.lv - 2], mobs: m.mobs, boss: { name: `${m.title} ${m.name}`, look: m.look } };
+    lv: [m.lv - 4, m.lv - 2], mobs: m.mobs, boss: { name: `${m.title} ${m.name}`, look: m.look, art: `m-${m.id}`, lord: !!m.lord } };
 });
 export const masterZoneOf = (mid) => MASTER_ZONE0 + MASTERS.findIndex((m) => m.id === mid);
 // 재료를 셈하는 지역 번호 (새 지역은 짝 지역)
