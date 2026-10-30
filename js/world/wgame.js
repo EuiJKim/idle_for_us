@@ -63,6 +63,7 @@ export function newWorldSave(now = Date.now()) {
     zPity: {},                               // 신마다 신수 없이 뽑은 횟수 (셋째에 꼭)
     mast: {},                                // 지역 숙련도 (v127) — 지역 번호: 잡은 수
     raid: { day: '', n: 0, dps: 0 },         // 문파 토벌 (v128): 오늘 친 횟수 · 마지막 초당 피해
+    prot: 0,                                 // 강화 보호부 (v150)
     duel: { won: {} },                       // 고수 (v148): 처음 쓰러뜨린 고수 — 영구 능력치
     quest: 0,                                // 길잡이 (v139): 받은 단계 수 — 지금 할 일은 QUESTS[quest]
     questV: Q.QUEST_V,                       // 길잡이 판 (v146에 다시 짰다)
@@ -97,7 +98,7 @@ export function migrateWorld(raw, now = Date.now()) {
   if ((raw.statV || 0) < 2) { s.autoStat = false; s.statV = 2; }
   s.bag = Array.isArray(raw.bag) ? raw.bag.filter((i) => i && W.SLOTS.some((x) => x.id === i.slot)) : [];
   s.level = clamp(Math.floor(Number(s.level) || 1), 1, W.LEVEL_MAX);
-  for (const k of ['exp', 'gold', 'potions', 'statPts', 'jobTier', 'kills', 'deaths', 'books']) s[k] = Math.max(0, Number(s[k]) || 0);
+  for (const k of ['exp', 'gold', 'potions', 'statPts', 'jobTier', 'kills', 'deaths', 'books', 'prot']) s[k] = Math.max(0, Number(s[k]) || 0);
   s.jobTier = Math.min(4, Math.floor(s.jobTier));
   s.passLv = {};
   for (const [k, v] of Object.entries(raw.passLv || {})) if (/^p_[a-z]+$/.test(k) && v > 0) s.passLv[k] = Math.min(10, Math.floor(Number(v) || 0));
@@ -1677,7 +1678,8 @@ export class WorldGame {
     const bm = this.breakMarksOf(it);
     return !bm || (this.s.mats[W.bossKey(m.key)] || 0) >= bm;
   }
-  enhance(uid) {
+  // 던파식 (v150): 실패하면 -1 · -3 · 부서짐. useProt면 부서질 때 보호부 하나로 대신 -1. 결과는 this.lastEnhance에도 남긴다.
+  enhance(uid, useProt = true) {
     const it = this.findItem(uid);
     if (!this.canEnhance(it)) return null;
     const cost = this.enhanceCost(it);
@@ -1686,11 +1688,34 @@ export class WorldGame {
     if (mats) this.s.mats[mats.key] -= mats.n;
     const bm = this.breakMarksOf(it);
     if (bm) this.s.mats[W.bossKey(mats.key)] -= bm;
+    const lv = it.plus || 0;
     const ok = this.rng() < this.enhanceRateOf(it);
-    if (ok) it.plus = (it.plus || 0) + 1;
+    const r = { ok, from: lv, drop: 0, broke: false, prot: false };
+    if (ok) it.plus = lv + 1;
+    else {
+      const f = W.enhanceFail(lv);
+      if (f === 'break') {
+        if (useProt && (this.s.prot || 0) > 0) { this.s.prot--; r.prot = true; r.drop = -1; it.plus = Math.max(0, lv - 1); }
+        else { r.broke = true; this.destroyItem(it); }
+      } else if (f) { r.drop = f; it.plus = Math.max(0, lv + f); }
+    }
     this._stats = null;
-    this.emit('enhance', { item: it, ok });
+    this.lastEnhance = r;
+    this.emit('enhance', { item: it, ...r });
     return ok;
+  }
+  // 강화에 실패해 부서진 장비를 없앤다 (낀 것이면 칸이 빈다)
+  destroyItem(it) {
+    for (const [k, v] of Object.entries(this.s.equip)) if (v === it) this.s.equip[k] = null;
+    this.s.bag = this.s.bag.filter((x) => x !== it);
+    this._stats = null;
+  }
+  buyProt(n = 1) {
+    const c = W.protPrice(this.s.level) * n;
+    if (n <= 0 || this.s.gold < c) return false;
+    this.s.gold -= c;
+    this.s.prot = (this.s.prot || 0) + n;
+    return true;
   }
 
   // ---------- 십이지왕 신화 고유 효과 (v111) ----------

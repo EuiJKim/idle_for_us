@@ -443,8 +443,26 @@ console.log('\n=== 등급 · 스킬 옵션 · 승급 · 돌파 · 스킬 레벨 
   B.s.equip.weapon = bw;
   ok(!B.canEnhance(bw), '+10 위 돌파에는 두목 증표가 든다');
   B.s.mats[W.bossKey(bz)] = 1000;
-  let tries = 0; while (bw.plus < W.ENHANCE_MAX && tries++ < 400) B.enhance(bw.uid);
-  ok(bw.plus === W.ENHANCE_MAX && W.enhanceMult(15) > 3.1, `돌파로 +${W.ENHANCE_MAX}까지 — 기본 수치 ×${W.enhanceMult(15).toFixed(1)}`, `${tries}번 · 증표 ${1000 - B.s.mats[W.bossKey(bz)]}개`);
+  B.s.prot = 1e5; B.s.mats = { [bz]: 1e9, [W.bossKey(bz)]: 1e8 };
+  let tries = 0; while (bw.plus < 12 && tries++ < 20000) B.enhance(bw.uid);
+  ok(bw.plus >= 12 && W.enhanceMult(15) > 3.1, `돌파 +12까지 보호부를 쓰며 (+15면 기본 수치 ×${W.enhanceMult(15).toFixed(1)})`, `${tries}번 · 보호부 ${1e5 - B.s.prot}장`);
+  // 던파식 강화 (v150)
+  ok(W.enhanceRate(0) === 1 && W.enhanceRate(2) === 1 && W.enhanceRate(3) === 0.95 && W.enhanceRate(9) === 0.41 && W.enhanceRate(14) === 0.08, '성공률: +1~3 100% · +4 95% · +10 41% · +15 8%');
+  ok(W.enhanceFail(1) === 0 && W.enhanceFail(4) === -1 && W.enhanceFail(8) === -3 && W.enhanceFail(10) === 'break', '실패: +4~7 -1 · +8~10 -3 · +11부터 부서짐');
+  const E = fresh();
+  E.s.gold = 1e15; E.s.mats = { [bz]: 1e7, [W.bossKey(bz)]: 1e6 };
+  E.rng = () => 0.999;                                        // 늘 실패
+  const e1 = E.makeCrafted('weapon', 10, 6, 0); E.s.equip.weapon = e1;
+  E.enhance(e1.uid);
+  ok(e1.plus === 5 && E.lastEnhance.drop === -1, '+6에서 실패하면 +5');
+  e1.plus = 9; E.enhance(e1.uid);
+  ok(e1.plus === 6 && E.lastEnhance.drop === -3, '+9에서 실패하면 +6');
+  e1.plus = 10; E.s.prot = 1; E.enhance(e1.uid);
+  ok(e1.plus === 9 && E.lastEnhance.prot && E.s.prot === 0 && E.s.equip.weapon === e1, '+10에서 실패해도 보호부가 있으면 부서지지 않고 -1');
+  e1.plus = 10; E.enhance(e1.uid);
+  ok(E.lastEnhance.broke && E.s.equip.weapon === null, '보호부가 없으면 부서져 사라진다');
+  E.s.gold = W.protPrice(E.s.level) * 3;
+  ok(E.buyProt(2) && E.s.prot === 2 && !E.buyProt(2), '상인에게서 보호부를 산다');
 }
 
 console.log('\n=== 십이지왕 신화 · 가락지·귀걸이 · 애완동물 · 탈것 (v111) ===');
@@ -1132,7 +1150,7 @@ console.log('\n=== 길잡이 (v146) ===');
   ok(new Set(ids).size === ids.length && Q.QUEST_COUNT >= 50, `단계가 쉰 남짓이고 이름이 겹치지 않는다`, `${Q.QUEST_COUNT}단계`);
   const TABS = new Set(['char', 'bag', 'map', 'town', 'social', 'comp', 'dgn', null]);
   ok(Q.QUESTS.every((q) => q.title && q.why && TABS.has(q.tab ? q.tab.split('/')[0] : null) && typeof q.goal === 'function'), '모든 단계에 제목·설명·열 화면·조건이 있다');
-  const SUBS = { char: ['info', 'stat', 'skill'], bag: ['gear', 'smith', 'mats'], map: ['murim', 'sapa', 'magyo', 'king'], dgn: ['daily', 'tower', 'zodiac', 'raid'], comp: ['pet', 'mount'], town: ['master', 'shop', 'smith', 'inn'], social: ['guild', 'rank', 'lore'] };
+  const SUBS = { char: ['info', 'stat', 'skill'], bag: ['gear', 'bag', 'smith', 'mats'], map: ['murim', 'sapa', 'magyo', 'king'], dgn: ['daily', 'tower', 'zodiac', 'raid'], comp: ['pet', 'mount'], town: ['master', 'shop', 'smith', 'inn'], social: ['guild', 'rank', 'lore'] };
   const badSub = Q.QUESTS.filter((q) => q.tab?.includes('/') && !SUBS[q.tab.split('/')[0]]?.includes(q.tab.split('/')[1])).map((q) => q.id);
   ok(badSub.length === 0, '길잡이가 여는 칸(창/칸)이 실제로 있다', badSub.join(' '));
   const g0 = fresh();

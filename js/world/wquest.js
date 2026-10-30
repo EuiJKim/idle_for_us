@@ -140,7 +140,7 @@ export const QUESTS = [
     why: '하루 세 번까지. 문파 레벨이 오르면 문파원 모두의 능력치가 오른다.',
     goal: flag('donate') },
   // ---- 7. 2차 전직까지 (레벨 30~40) ----
-  { id: 'bag', title: '가방을 한 번 늘리자', tab: 'bag/gear', min: 5, xp: 0.1,
+  { id: 'bag', title: '가방을 한 번 늘리자', tab: 'bag/bag', min: 5, xp: 0.1,
     why: '두목이 떨군 장비가 쌓인다. 가방 칸은 은자로 늘린다.',
     goal: (g) => ({ now: g.s.bagSize > W.BAG_SIZE ? 1 : 0, need: 1 }) },
   { id: 'alt', title: '새 지역에 가 보자', tab: 'map/murim', min: 6, xp: 0.15,

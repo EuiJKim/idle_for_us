@@ -491,7 +491,15 @@ export const ACC2_RATE = 0.5;
 export const ACC2_COST = 3;
 // 두목이 가락지·귀걸이를 떨굴 확률 — 높은 두목일수록 자주 (죽림 3% … 천외천 10% · 왕 12~17%)
 export const acc2DropRate = (z) => (z > NORMAL_ZONES ? 0.12 + (z - NORMAL_ZONES - 1) * 0.0045 : 0.03 + (z - 1) * 0.005);
-export const enhanceRate = (lv) => (lv < ENHANCE_NORMAL ? Math.max(0.4, 1 - lv * 0.07) : Math.max(0.12, 0.3 - (lv - ENHANCE_NORMAL) * 0.045));   // +9→10 40% · 돌파 30%→12%
+// v150 던전앤파이터식 강화 — 지금 강화 수치(lv)에서 한 단계 올릴 성공률. 전에는 +9→10이 40%, 실패해도 잃는 게 없어 너무 빨리 셌다.
+//   +1~3 100% · +4 95 · +5 90 · +6 80 · +7 75 · +8 62 · +9 53 · +10 41 · +11 32 · +12 24 · +13 18 · +14 12 · +15 8%
+export const ENH_RATE = [1, 1, 1, 0.95, 0.9, 0.8, 0.75, 0.62, 0.53, 0.41, 0.32, 0.24, 0.18, 0.12, 0.08];
+export const enhanceRate = (lv) => ENH_RATE[lv] ?? 0.05;
+// 실패하면: +4~7을 노리다 실패 -1 · +8~10은 -3 · +11부터는 장비가 부서진다(강화 보호부를 쓰면 대신 -1)
+export const enhanceFail = (lv) => (lv < 3 ? 0 : lv < 7 ? -1 : lv < ENHANCE_NORMAL ? -3 : 'break');
+export const enhanceFailText = (lv) => { const f = enhanceFail(lv); return f === 0 ? '실패해도 그대로' : f === 'break' ? '실패하면 장비가 부서져요' : `실패하면 ${f}`; };
+// 강화 보호부 — 상인이 판다. +11부터 실패할 때 하나를 써서 부서지는 대신 -1. 값은 그 레벨 사냥 20분어치 은자쯤.
+export const protPrice = (level) => Math.round(mobGold(level) * 2000);
 // 은자가 쌓이기만 하지 않게 — 사냥터를 옮겨 새 장비를 낄 때마다 다시 강화하는 데 쓰인다(시뮬로 맞춤)
 export const enhanceCost = (ilv, lv) => Math.round((50 + ilv * 15) * (lv + 1) ** 1.6);
 export const sellPrice = (item) => Math.round((3 + item.ilv * 1.5) * (item.step != null ? (1 + (item.rar || 0)) ** 2 : GRADES[item.grade].mult ** 2) * (1 + (item.plus || 0) * 0.2));

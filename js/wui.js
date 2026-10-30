@@ -320,6 +320,7 @@ function bagTab(app) {
     return h('p', { class: 'boss-gear' }, `두목 장비 — 끼면 ${b.name}의 ${what}`, ['weapon', 'armor', 'hat'].includes(it.slot) ? ' (무기·옷·모자를 한 두목 것으로 맞추면 발밑에 그 빛깔 고리)' : '');
   }
   function openItem(it, worn) {
+    let useProt = true;
     openModal((s) => {
       const paint = () => {
         const g = gradeOf(it);
@@ -343,16 +344,24 @@ function bagTab(app) {
           it.king != null ? h('p', { class: 'muted' }, `레벨 100 왕의 장비 (${W.zoneOfW(it.king)?.name || ''}) — 더 높은 단계는 없고 강화·돌파·승급으로 자라요. 강화는 ${W.matName(G.stoneFor(it))}(후반 왕의 그 부위 강화석), 승급은 검왕의 검혼석.${W.isDropOnly(it.slot) ? ' 가락지·귀걸이는 강화가 어려워요.' : ''}`)
           : W.isDropOnly(it.slot) ? h('p', { class: 'muted' }, `${W.zoneOfW(W.itemZone(it))?.name || ''} 두목에게서만 나와요 — 강화가 어려워요(성공률 절반·은자 ×3·돌파 없음)`)
             : it.step != null ? h('p', { class: 'muted' }, `Lv.${it.ilv} 사다리 (${W.zoneOfW(W.itemZone(it))?.name || ''} 재료) — 대장장이에서 위 장비의 조합 재료가 돼요 (강화는 절반을 이어받아요)`) : null,
-          h('p', { class: 'muted' }, max ? '강화를 다 했어요' : `${breaking ? '돌파' : '강화'} +${(it.plus || 0) + 1} (기본 수치 +${pct(breaking ? W.BREAK_STEP : W.ENHANCE_STEP, 0)}) — 성공률 ${pct(game.enhanceRateOf(it), 0)} · 은자 ${fmt(cost)}${em ? ` · ${W.matName(em.key)} ${em.n}개 (가진 것 ${fmt(game.s.mats[em.key] || 0)})` : ''}${bm ? ` · ${W.matName(W.bossKey(em.key))} ${bm}개 (가진 것 ${fmt(game.s.mats[W.bossKey(em.key)] || 0)})` : ''} — 실패해도 깨지지 않아요`),
+          max ? h('p', { class: 'muted' }, '강화를 다 했어요') : h('div', { class: `enh-box${W.enhanceFail(it.plus || 0) === 'break' ? ' danger' : ''}` },
+            h('div', { class: 'enh-head' }, h('b', {}, `${breaking ? '돌파' : '강화'} +${it.plus || 0} → +${(it.plus || 0) + 1}`), h('span', { class: 'enh-rate' }, `성공 ${pct(game.enhanceRateOf(it), 0)}`)),
+            h('div', { class: 'enh-fail' }, W.enhanceFailText(it.plus || 0),
+              W.enhanceFail(it.plus || 0) === 'break' ? h('span', {}, ` · 보호부 ${game.s.prot || 0}장${game.s.prot ? (useProt ? ' — 쓰면 부서지는 대신 -1' : ' — 안 씀') : ' — 상인에서 사요'}`) : null),
+            h('div', { class: 'enh-cost' }, `기본 수치 +${pct(breaking ? W.BREAK_STEP : W.ENHANCE_STEP, 0)} · 은자 ${fmt(cost)}${em ? ` · ${W.matName(em.key)} ${em.n}개 (가진 것 ${fmt(game.s.mats[em.key] || 0)})` : ''}${bm ? ` · ${W.matName(W.bossKey(em.key))} ${bm}개 (가진 것 ${fmt(game.s.mats[W.bossKey(em.key)] || 0)})` : ''}`),
+            W.enhanceFail(it.plus || 0) === 'break' && game.s.prot ? h('label', { class: 'chk' }, (() => { const c = h('input', { type: 'checkbox' }); c.checked = useProt; c.onchange = () => { useProt = c.checked; paint(); }; return c; })(), ' 보호부 쓰기') : null),
           pc ? h('p', { class: 'muted' }, `승급 → `, h('b', { style: `color:${W.RARITY[it.rar + 1].color}` }, W.RARITY[it.rar + 1].name),
             ` (기본 수치 ×${(W.RARITY[it.rar + 1].mult / W.RARITY[it.rar].mult).toFixed(2)}, 스킬 옵션 새로) — ${W.matName(pc.key)} ${pc.mats} (가진 것 ${fmt(game.s.mats[pc.key] || 0)})${pc.marks ? ` · ${W.matName(W.bossKey(pc.key))} ${pc.marks}` : ''} · 은자 ${fmt(pc.gold)}`) : null,
           h('div', { class: 'btn-row' },
             !worn ? h('button', { class: 'btn primary', onclick: () => { game.equipFromBag(it.uid); closeModal(); done(); } }, '끼기') : null,
             h('button', { class: 'btn good', disabled: game.canEnhance(it) ? null : true, onclick: () => {
-              const ok = game.enhance(it.uid);
+              const ok = game.enhance(it.uid, useProt);
               if (ok === null) return toast('은자나 재료가 모자라요');
-              toast(ok ? `강화 성공! +${it.plus}` : '강화 실패… (깨지지는 않아요)');
-              app.save(); paint(); app.refresh();
+              const r = game.lastEnhance;
+              toast(ok ? `강화 성공! +${it.plus}` : r.broke ? `강화 실패… ${itemTitle(game, it)}이(가) 부서졌어요` : r.prot ? `강화 실패 — 보호부가 지켜 줬어요 (+${it.plus})` : r.drop ? `강화 실패… ${r.drop} (+${it.plus})` : '강화 실패 (그대로)');
+              app.save(); app.refresh();
+              if (r.broke) return closeModal();
+              paint();
             } }, breaking ? '돌파' : '강화'),
             pc ? h('button', { class: 'btn primary', disabled: game.canPromote(it) ? null : true, onclick: () => {
               if (!game.promote(it.uid)) return toast('재료·증표·은자가 모자라요');
@@ -378,6 +387,7 @@ function bagTab(app) {
 
   // ===== 장비 =====
   const gearRoot = h('div');
+  const bagRoot = h('div');
   function gearView() {
     const s = game.s;
     const nsig = `${game.statSig()}|${s.bag.map((i) => i.uid + '.' + (i.plus || 0)).join(',')}|${s.bagSize}|${ui.slot}|${s.gold >= game.bagUpgradeCost()}`;
@@ -409,10 +419,14 @@ function bagTab(app) {
     });
     const old = s.bag.filter((x) => s.equip[x.slot] && game.itemScore(x) < game.itemScore(s.equip[x.slot]) && !x.plus && !(x.rar >= 2));
     const setNow = Object.entries(game.setCounts()).map(([id, n]) => ({ st: G.setOf(id), n })).filter((x) => x.st);
+    // v150: 착용 | 가방을 칸으로 나눴다 — 한 화면에 낀 것·세트·가방·버튼이 다 있어 복잡했다
     gearRoot.replaceChildren(...[
       h('div', { class: 'card' }, h('h3', {}, '끼고 있는 것', h('small', {}, `전투력 ${fmt(game.stats().power)} · 눌러서 강화·승급`)),
-        h('div', { class: 'gear-grid' }, ...tiles)),
+        h('div', { class: 'gear-grid' }, ...tiles),
+        h('p', { class: 'muted enh-note' }, `던파식 강화 — +4부터 실패하면 떨어지고 +11부터는 부서져요. 강화 보호부 `, h('b', {}, `${s.prot || 0}장`), ' (상인)')),
       ...setNow.map(({ st }) => setBox(game, st)),
+    ].filter(Boolean));
+    bagRoot.replaceChildren(...[
       h('div', { class: 'card' },
         h('h3', {}, '가방', h('small', {}, `${s.bag.length} / ${s.bagSize} · 넘치면 가장 나쁜 것부터 팔아요`)),
         chips,
@@ -600,7 +614,8 @@ function bagTab(app) {
   }
 
   return subTabs([
-    { key: 'gear', label: '장비', make: () => ({ root: gearRoot, update: gearView }) },
+    { key: 'gear', label: '착용', make: () => ({ root: gearRoot, update: gearView }) },
+    { key: 'bag', label: '가방', make: () => ({ root: bagRoot, update: gearView }) },
     { key: 'smith', label: '대장장이', make: () => ({ root: smithRoot, update: smithView }) },
     { key: 'mats', label: '재료', make: () => ({ root: matRoot, update: matView }) },
   ]);
@@ -1144,6 +1159,15 @@ function townTab(app) {
         h('button', { class: 'btn primary', style: 'width:100%', disabled: s.gold < game.statBookCost() ? true : null, onclick: () => {
           if (game.buyStatBook()) { toast('스탯 점수 +1 — 캐릭터 창에서 찍어요'); app.save(); app.refresh(); }
         } }, `비급 읽기 · 은자 ${fmt(game.statBookCost())}`)),
+      // 강화 보호부 (v150) — +11부터 실패해도 부서지는 대신 -1
+      h('div', { class: 'card shop-card' },
+        h('div', { class: 'shop-item' },
+          h('span', { class: 'book-ico' }, '符'),
+          h('div', { class: 'info' }, h('b', {}, '강화 보호부', h('small', {}, ` ${s.prot || 0}장 가짐`)),
+            h('div', { class: 'desc' }, '+11부터는 강화에 실패하면 장비가 부서져요. 보호부가 있으면 하나를 태우고 대신 -1만.'))),
+        h('div', { class: 'btn-row' },
+          h('button', { class: 'btn primary', disabled: s.gold < W.protPrice(s.level) ? true : null, onclick: () => { if (game.buyProt(1)) { toast('강화 보호부 1장'); app.save(); app.refresh(); } } }, `1장 · ${fmt(W.protPrice(s.level))}`),
+          h('button', { class: 'btn', disabled: s.gold < W.protPrice(s.level) * 10 ? true : null, onclick: () => { if (game.buyProt(10)) { toast('강화 보호부 10장'); app.save(); app.refresh(); } } }, `10장 · ${fmt(W.protPrice(s.level) * 10)}`))),
     ];
   }
   function innView() {
@@ -1159,7 +1183,7 @@ function townTab(app) {
     const s = game.s;
     if (!pick) pick = game.canAdvance() ? 'master' : 'shop';
     const inTown = game.map.town;
-    const nsig = `${pick}|${inTown}|${s.autoHunt}|${s.huntMap}|${s.jobTier}|${s.level}|${s.potions}|${s.books || 0}|${s.autoRefill}|${Math.floor(Math.log10(s.gold + 1) * 30)}|${game.canAdvance()}`;
+    const nsig = `${pick}|${inTown}|${s.autoHunt}|${s.huntMap}|${s.jobTier}|${s.level}|${s.potions}|${s.books || 0}|${s.autoRefill}|${Math.floor(Math.log10(s.gold + 1) * 30)}|${game.canAdvance()}|${s.prot || 0}`;
     if (nsig === sig) return;
     sig = nsig;
     head.replaceChildren(h('div', { class: 'town-status' },
