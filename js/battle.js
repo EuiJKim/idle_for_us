@@ -261,6 +261,7 @@ const SPECIAL_INK = {
 // 한 대마다 짧게(0.3~0.5초) — 여럿이 함께 싸워도 화면을 덮지 않게 작게. 등급이 높을수록 조금 크다.
 // at: 맞은 자리(들판 좌표) · from: 애완동물 자리(들판 좌표, 없을 수 있다)
 const CAST_COL = { sword: '229,231,235', fist: '245,158,11', fan: '56,189,248', ring: '168,85,247', poison: '132,204,22' };
+const JOB_SEAL = { sword: '劍', fist: '拳', fan: '扇', ring: '指', poison: '毒' };
 const DROP_COL = ['96,165,250', '192,132,252', '251,146,60', '244,63,94'];
 const PET_COL = { crane: '241,245,249', fox: '96,165,250', qilin: '253,224,71', turtle: '56,189,248', haetae: '214,180,120', phoenix: '249,115,22', monkey: '250,204,21', dragon: '125,211,252', tiger: '241,245,249', yellow: '250,204,21' };
 const PET_SKILL_NAME = { crane: '학익진', fox: '여우불', qilin: '기린각', turtle: '현무파', haetae: '해태충', phoenix: '주작염', monkey: '분신봉', dragon: '청룡뇌', tiger: '백호참', yellow: '황룡진' };
@@ -860,6 +861,12 @@ export class BattleView {
         break;
       case 'skill':
         if (this.showRange && ev.radius > 0 && ev.at) this.rangeRings.push({ x: ev.at.x, y: ev.at.y, r: ev.radius, life: 0.8, max: 0.8 });
+        // v220: 발밑 직업 인장 — 차수가 높을수록 크고 오래(4차는 한 바퀴 더 돈다)
+        if (this.fxLevel > 0 && !ev._sealed && game?.heroX != null && JOB_SEAL[game.s?.job]) {
+          ev._sealed = true;
+          const tr = ev.tier || 1;
+          this.effects.push({ kind: 'jobseal', wx: game.heroX, wy: game.heroY, ch: JOB_SEAL[game.s.job], col: CAST_COL[game.s.job], r: 80 + tr * 22, spin: tr >= 4 ? 2.6 : 1.2, life: 0.55 + tr * 0.1, max: 0.55 + tr * 0.1 });
+        }
         // 연출표가 있는 무공은 결과를 모았다가 draw에서 감독에게 넘긴다
         // 각성한 무공은 ev.fx(예: 'sword:blink')로 연출표를 고른다
         if (ev.fx && CHOREO[ev.fx] && !ev._released) {

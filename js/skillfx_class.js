@@ -25,8 +25,44 @@ export const COL = {
 export const PLUM = '251,207,232';
 
 // ---------- 그림 ----------
+const sealCache = new Map();
+function sealImg(ch, col) {
+  const key = ch + col;
+  let c = sealCache.get(key);
+  if (c) return c;
+  c = document.createElement('canvas'); c.width = c.height = 256;
+  const g = c.getContext('2d');
+  g.translate(128, 128);
+  g.strokeStyle = `rgba(${col},0.95)`;
+  g.lineWidth = 4; g.beginPath(); g.arc(0, 0, 120, 0, Math.PI * 2); g.stroke();
+  g.lineWidth = 2; g.beginPath(); g.arc(0, 0, 100, 0, Math.PI * 2); g.stroke();
+  // 고리 사이 여덟 마디
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2;
+    g.save(); g.rotate(a); g.fillStyle = `rgba(${col},0.9)`;
+    g.beginPath(); g.moveTo(0, -118); g.lineTo(6, -110); g.lineTo(0, -102); g.lineTo(-6, -110); g.closePath(); g.fill(); g.restore();
+  }
+  g.fillStyle = `rgba(${col},0.95)`;
+  g.font = '900 120px serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillText(ch, 0, 6);
+  sealCache.set(key, c);
+  return c;
+}
 export const CLASS_FX = {
   // 바닥에 퍼지는 충격 고리 (눌린 타원). rings 겹이 조금씩 늦게 퍼진다.
+  // v220: 무공을 펼칠 때 발밑에 직업 인장 — 가운데 큰 글자(劍·拳·扇·指·毒)와 두 겹 고리.
+  // 커지며 돌다가 사라진다. 직업마다 한 번 구워 두고 찍는다.
+  jobseal(v, ctx, e, k) {
+    const x = v.sx({ x: e.wx });
+    const y = v.sy({ y: e.wy });
+    const p = 1 - k;
+    const R = e.r * (0.55 + 0.45 * (1 - (1 - Math.min(1, p * 3)) ** 3));
+    ctx.translate(x, y);
+    ctx.scale(1, 0.45);
+    ctx.rotate(p * (e.spin || 1.2));
+    ctx.globalAlpha = Math.min(1, k * 2.2) * Math.min(1, p * 8) * 0.85;
+    ctx.drawImage(sealImg(e.ch, e.col), -R, -R, R * 2, R * 2);
+  },
   // v217: 기 모으기 — 사방에서 빛 알갱이가 한 점(두목 손끝)으로 빨려 든다. 모일수록 가운데가 밝아진다
   gather(v, ctx, e, k) {
     const x = v.sx({ x: e.wx });
