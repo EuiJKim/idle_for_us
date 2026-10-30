@@ -615,6 +615,13 @@ export class BattleView {
           this.effects.push({ kind: 'shock', life: 0.5 + g * 0.15, max: 0.5 + g * 0.15, wx: ev.at.x, wy: ev.at.y, r: g === 1 ? 60 : 130 + g * 30, col: rgb, rings: g, w: 3 + g });
           if (g >= 2) { this.shake = Math.max(this.shake, 0.25 + g * 0.1); this.flash = Math.max(this.flash, 0.25 * g); }
         }
+        // v197 두목 격파 — 한순간 느려지고(히트스톱) 금빛이 터지며 '擊破'가 찍힌다
+        if (ev.isBoss && ev.at && this.fxLevel > 0) {
+          this.hitstop = Math.max(this.hitstop || 0, 0.4);
+          this.effects.push({ kind: 'flare', life: 0.7, max: 0.7, wx: ev.at.x, wy: ev.at.y, r: 160, col: '253,224,71', oy: -70 });
+          this.effects.push({ kind: 'petals', life: 1.2, max: 1.2, wx: ev.at.x, wy: ev.at.y, r: 120, col: '253,230,138', seeds: seedsN(18), spin: 3, oy: -70 });
+          if (!this.hanja || this.hanja.life <= 0) this.hanja = { text: '擊破', life: 1.3, max: 1.3, color: '#fde68a', scale: 0.8, y: 0.26 };
+        }
         // 쓰러진 졸개는 그 자리에서 넘어지며 옅어진다. 전에는 그냥 사라져서
         // 광역기로 수십을 베어도 '벤' 느낌이 없었다. 너무 많으면 앞의 것부터 지운다.
         if (ev.add && ev.at && this.fxLevel > 0) {
