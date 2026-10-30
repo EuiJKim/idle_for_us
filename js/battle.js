@@ -261,59 +261,61 @@ const SPECIAL_INK = {
 // at: 맞은 자리(들판 좌표) · from: 애완동물 자리(들판 좌표, 없을 수 있다)
 const CAST_COL = { sword: '229,231,235', fist: '245,158,11', fan: '56,189,248', ring: '168,85,247', poison: '132,204,22' };
 const DROP_COL = ['96,165,250', '192,132,252', '251,146,60', '244,63,94'];
+const PET_COL = { crane: '241,245,249', fox: '96,165,250', qilin: '253,224,71', turtle: '56,189,248', haetae: '214,180,120', phoenix: '249,115,22', monkey: '250,204,21', dragon: '125,211,252', tiger: '241,245,249', yellow: '250,204,21' };
+const PET_SKILL_NAME = { crane: '학익진', fox: '여우불', qilin: '기린각', turtle: '현무파', haetae: '해태충', phoenix: '주작염', monkey: '분신봉', dragon: '청룡뇌', tiger: '백호참', yellow: '황룡진' };
 const seedsN = (n) => Array.from({ length: n }, () => [Math.random(), Math.random(), Math.random()]);
 const PET_FX = {
   // 선학: 깃털이 흩날리는 날갯짓
   crane(v, at, from, r) {
-    v.effects.push({ kind: 'petals', life: 0.5, max: 0.5, wx: at.x, wy: at.y, r: 64 + r * 11, col: '248,250,252', seeds: seedsN(7), spin: 3 });
-    v.effects.push({ kind: 'shock', life: 0.28, max: 0.28, wx: at.x, wy: at.y, r: 36, col: '226,232,240', w: 2 });
+    v.effects.push({ kind: 'petals', life: 0.5, max: 0.5, wx: at.x, wy: at.y, r: 83 + r * 11, col: '248,250,252', seeds: seedsN(7), spin: 3 });
+    v.effects.push({ kind: 'shock', life: 0.28, max: 0.28, wx: at.x, wy: at.y, r: 47, col: '226,232,240', w: 2 });
   },
   // 구미호: 푸른 여우불이 날아가 터진다
   fox(v, at, from, r) {
     if (from) v.effects.push({ kind: 'qiorb', life: 0.34, max: 0.34, go: 0.7, pts: [{ x: from.x, y: from.y, oy: -30 }, { x: at.x, y: at.y }], col: '96,165,250', size: 8 + r * 1.5, hop: 26 });
-    v.later.push({ t: 0.22, ev: { type: '_fx', fx: [{ kind: 'flare', life: 0.3, max: 0.3, wx: at.x, wy: at.y, r: 48 + r * 8, col: '147,197,253' }] } });
+    v.later.push({ t: 0.22, ev: { type: '_fx', fx: [{ kind: 'flare', life: 0.3, max: 0.3, wx: at.x, wy: at.y, r: 62 + r * 8, col: '147,197,253' }] } });
   },
   // 기린: 금빛 발굽이 땅을 울린다
   qilin(v, at, from, r) {
-    v.effects.push({ kind: 'shock', life: 0.4, max: 0.4, wx: at.x, wy: at.y, r: 62 + r * 11, col: '253,224,71', rings: 2, w: 3 });
-    v.effects.push({ kind: 'flare', life: 0.25, max: 0.25, wx: at.x, wy: at.y, r: 42, col: '254,240,138' });
+    v.effects.push({ kind: 'shock', life: 0.4, max: 0.4, wx: at.x, wy: at.y, r: 81 + r * 11, col: '253,224,71', rings: 2, w: 3 });
+    v.effects.push({ kind: 'flare', life: 0.25, max: 0.25, wx: at.x, wy: at.y, r: 55, col: '254,240,138' });
   },
   // 현무: 물결이 퍼진다
   turtle(v, at, from, r) {
-    v.effects.push({ kind: 'shock', life: 0.5, max: 0.5, wx: at.x, wy: at.y, r: 56 + r * 8, col: '56,189,248', rings: 3, w: 2 });
+    v.effects.push({ kind: 'shock', life: 0.5, max: 0.5, wx: at.x, wy: at.y, r: 73 + r * 8, col: '56,189,248', rings: 3, w: 2 });
   },
   // 해태: 돌 같은 박치기 — 바닥이 갈라진다
   haetae(v, at, from, r) {
-    v.effects.push({ kind: 'crack', life: 0.6, max: 0.6, wx: at.x, wy: at.y, r: 48 + r * 8, col: '214,180,120', seed: Math.random() * 99, n: 4 });
-    v.effects.push({ kind: 'shock', life: 0.3, max: 0.3, wx: at.x, wy: at.y, r: 42, col: '214,180,120', w: 3 });
+    v.effects.push({ kind: 'crack', life: 0.6, max: 0.6, wx: at.x, wy: at.y, r: 62 + r * 8, col: '214,180,120', seed: Math.random() * 99, n: 4 });
+    v.effects.push({ kind: 'shock', life: 0.3, max: 0.3, wx: at.x, wy: at.y, r: 55, col: '214,180,120', w: 3 });
   },
   // 주작: 불꽃이 터진다
   phoenix(v, at, from, r) {
-    v.effects.push({ kind: 'flare', life: 0.35, max: 0.35, wx: at.x, wy: at.y, r: 62 + r * 11, col: '249,115,22' });
-    v.effects.push({ kind: 'petals', life: 0.45, max: 0.45, wx: at.x, wy: at.y, r: 56, col: '251,146,60', seeds: seedsN(6), spin: 5 });
+    v.effects.push({ kind: 'flare', life: 0.35, max: 0.35, wx: at.x, wy: at.y, r: 81 + r * 11, col: '249,115,22' });
+    v.effects.push({ kind: 'petals', life: 0.45, max: 0.45, wx: at.x, wy: at.y, r: 73, col: '251,146,60', seeds: seedsN(6), spin: 5 });
   },
   // 손오공: 여의봉 한 바퀴
   monkey(v, at, from, r) {
     v.effects.push({ kind: 'cutline', life: 0.24, max: 0.24, wx: at.x, wy: at.y + 10, a: -0.3 + Math.random() * 0.6 });
-    v.effects.push({ kind: 'shock', life: 0.3, max: 0.3, wx: at.x, wy: at.y, r: 45 + r * 8, col: '250,204,21', w: 3 });
+    v.effects.push({ kind: 'shock', life: 0.3, max: 0.3, wx: at.x, wy: at.y, r: 58 + r * 8, col: '250,204,21', w: 3 });
   },
   // 청룡: 푸른 번개가 내리꽂힌다
   dragon(v, at, from, r) {
     v.effects.push({ kind: 'cutline', life: 0.2, max: 0.2, wx: at.x, wy: at.y, a: Math.PI / 2 + (Math.random() - 0.5) * 0.4 });
-    v.effects.push({ kind: 'flare', life: 0.28, max: 0.28, wx: at.x, wy: at.y, r: 56 + r * 11, col: '125,211,252' });
-    v.effects.push({ kind: 'shock', life: 0.3, max: 0.3, wx: at.x, wy: at.y, r: 42, col: '186,230,253', w: 2 });
+    v.effects.push({ kind: 'flare', life: 0.28, max: 0.28, wx: at.x, wy: at.y, r: 73 + r * 11, col: '125,211,252' });
+    v.effects.push({ kind: 'shock', life: 0.3, max: 0.3, wx: at.x, wy: at.y, r: 55, col: '186,230,253', w: 2 });
   },
   // 백호: 세 갈래 발톱 자국
   tiger(v, at, from, r) {
     const a = -0.9 + (Math.random() - 0.5) * 0.3;
     for (let k = -1; k <= 1; k++) v.effects.push({ kind: 'cutline', life: 0.26, max: 0.26, wx: at.x + k * 9, wy: at.y + k * 6, a });
-    if (r >= 2) v.effects.push({ kind: 'shock', life: 0.28, max: 0.28, wx: at.x, wy: at.y, r: 48, col: '241,245,249', w: 2 });
+    if (r >= 2) v.effects.push({ kind: 'shock', life: 0.28, max: 0.28, wx: at.x, wy: at.y, r: 62, col: '241,245,249', w: 2 });
   },
   // 황룡: 금빛 우레 — 가장 크다
   yellow(v, at, from, r) {
     v.effects.push({ kind: 'cutline', life: 0.22, max: 0.22, wx: at.x, wy: at.y, a: Math.PI / 2 });
-    v.effects.push({ kind: 'flare', life: 0.35, max: 0.35, wx: at.x, wy: at.y, r: 78 + r * 14, col: '250,204,21' });
-    v.effects.push({ kind: 'shock', life: 0.45, max: 0.45, wx: at.x, wy: at.y, r: 76 + r * 14, col: '253,224,71', rings: 2, w: 4 });
+    v.effects.push({ kind: 'flare', life: 0.35, max: 0.35, wx: at.x, wy: at.y, r: 101 + r * 14, col: '250,204,21' });
+    v.effects.push({ kind: 'shock', life: 0.45, max: 0.45, wx: at.x, wy: at.y, r: 99 + r * 14, col: '253,224,71', rings: 2, w: 4 });
   },
 };
 
@@ -685,6 +687,20 @@ export class BattleView {
         if (r >= 2) this.effects.push({ kind: 'petals', life: 0.9, max: 0.9, wx: ev.at.x, wy: ev.at.y, r: 60, col, seeds: seedsN(10 + r * 3), spin: 4 });
         this.float(['레어', '유니크', '전설', '신화'][r], this.sx(ev.at), this.sy(ev.at) - 110, `rgb(${col})`, 16 + r * 2, 1.4, true);
         if (r >= 3) this.showBanner('신화 장비!', `rgb(${col})`, 1.8, '획득');
+        break;
+      }
+      // 애완동물 기술 (v206) — 그 동물의 연출을 크게(등급 +5만큼) 터뜨리고, 기술 반지름의 고리와 이름
+      case 'petSkill': {
+        if (!ev.at) break;
+        const px = this.sx(ev.at), py = this.sy(ev.at);
+        this.petAtk = this.petAtk || [];
+        this.petAtk[ev.i] = { t: 0.32, x: px, y: py };
+        if (this.fxLevel <= 0) break;
+        if (PET_FX[ev.kind]) PET_FX[ev.kind](this, ev.at, this.petPos?.[ev.i], (ev.rar || 0) + 5);
+        const col = PET_COL[ev.kind] || '253,224,71';
+        this.effects.push({ kind: 'shock', life: 0.6, max: 0.6, wx: ev.at.x, wy: ev.at.y, r: ev.r || 170, col, rings: 2, w: 4 });
+        this.float(PET_SKILL_NAME[ev.kind] || '', px, py - 130, `rgb(${col})`, 17, 1.1, true);
+        this.shake = Math.max(this.shake, 0.1);
         break;
       }
       // 늦게 터지는 연출 한 묶음 (v193 — 날아간 여우불이 닿을 때)

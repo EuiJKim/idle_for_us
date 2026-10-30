@@ -2077,6 +2077,20 @@ export class WorldGame {
         }
       }
       if (!t) return;
+      // 애완동물 기술 (v206): 몇 초마다 과녁 둘레를 한꺼번에 — 등급이 높을수록 자주(레어 8초 → 신화 5.6초)
+      this.petSkT = this.petSkT || [];
+      this.petSkT[i] = (this.petSkT[i] ?? W.PET_SKILL_SEC * (0.5 + i * 0.3)) - W.PET_ATK_SEC;
+      if (this.petSkT[i] <= 0) {
+        this.petSkT[i] = W.PET_SKILL_SEC * (1 - (p.rar || 0) * 0.1);
+        const at = { x: t.x, y: t.y };
+        this.emit('petSkill', { i, kind: p.kind, rar: p.rar || 0, at, r: W.PET_SKILL_R });
+        for (const m of this.mons) {
+          if (!m.alive || m.npc || m.introT > 0 || Math.hypot(m.x - at.x, (m.y - at.y) * 0.75) > W.PET_SKILL_R) continue;
+          const c2 = this.rng() < st.crit;
+          this.hurt(m, Math.max(1, st.atk * W.petAtkRatio(p) * W.PET_SKILL_MULT * (c2 ? st.critDmg : 1) - m.armor * 0.5), 'pet', c2);
+        }
+        return;
+      }
       const crit = this.rng() < st.crit;
       const dmg = Math.max(1, st.atk * W.petAtkRatio(p) * (crit ? st.critDmg : 1) - t.armor * 0.5);
       this.emit('petHit', { i, at: { x: t.x, y: t.y } });

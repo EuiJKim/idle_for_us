@@ -774,6 +774,11 @@ export const PETS = [
   { id: 'yellow', tier: 10, name: '황룡', emoji: '🐲', buff: 'atkPct', base: 0.18, also: { hpPct: 0.18 }, text: '공격력·최대 체력' },
 ];
 export const petOf = (id) => PETS.find((p) => p.id === id) || PETS[0];
+// 애완동물 기술 (v206) — 몇 초마다 과녁 둘레를 한 번에 친다(평타의 PET_SKILL_MULT배 · 반지름 PET_SKILL_R). 등급이 높을수록 자주.
+export const PET_SKILL_SEC = 8;
+export const PET_SKILL_MULT = 4;
+export const PET_SKILL_R = 170;
+export const PET_SKILL_NAME = { crane: '학익진', fox: '여우불', qilin: '기린각', turtle: '현무파', haetae: '해태충', phoenix: '주작염', monkey: '분신봉', dragon: '청룡뇌', tiger: '백호참', yellow: '황룡진' };
 // 지역 → 두목 애완동물 확률과 나올 수 있는 가장 높은 순위
 export const petDropRate = (z) => (z > NORMAL_ZONES ? 0.02 + (z - NORMAL_ZONES) * 0.0015 : 0.0008 + (z - 1) * 0.0006);   // 죽림 0.08% … 천외천 0.92% · 왕 2.15~3.8%
 export const petMaxTier = (z) => (z > NORMAL_ZONES ? Math.min(10, 8 + Math.floor((z - NORMAL_ZONES - 1) / 4)) : Math.min(7, 1 + Math.floor((z - 1) / 2.33)));   // 죽림 1 … 천외천 7 · 권왕 8 … 검왕 10
