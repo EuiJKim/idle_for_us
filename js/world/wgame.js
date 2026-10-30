@@ -2378,6 +2378,26 @@ export class WorldGame {
     this.s.petBox.push({ uid: uidSeq++, kind, rar: 0, lv: 1, exp: 0 });
     return `애완동물 ${W.petOf(kind).name}(${W.RARITY[0].name})`;
   }
+  // 우편함 (v177) — 운영자가 보낸 애완동물('종류:등급')·탈것. 받을 자리가 없으면 false(우편은 남겨 둔다)
+  mailPetOk() { return this.s.pets.length < this.petSlots() || this.s.petBox.length < W.PET_BOX; }
+  takeMailPet(code) {
+    const [kind, r] = String(code).split(':');
+    const rar = Math.max(0, Math.min(W.RARITY.length - 1, Math.floor(Number(r) || 0)));
+    if (!W.PETS.some((p) => p.id === kind) || !this.mailPetOk()) return null;
+    const pet = { uid: uidSeq++, kind, rar, lv: 1, exp: 0 };
+    if (this.s.pets.length < this.petSlots()) this.s.pets.push(pet); else this.s.petBox.push(pet);
+    this._stats = null;
+    return pet;
+  }
+  takeMailMount(kind) {
+    if (!W.mountOf(kind)) return null;
+    const mt = { uid: uidSeq++, kind };
+    this.s.mounts.push(mt);
+    const cur = this.mountNow();
+    if (!cur || W.mountOf(kind).speed > cur.speed) this.s.mount = mt.uid;
+    this._stats = null;
+    return mt;
+  }
   // 길잡이 선물 — 탈것은 가지기만(타기는 손으로)
   giftMount(kind) {
     this.s.mounts.push({ uid: uidSeq++, kind });

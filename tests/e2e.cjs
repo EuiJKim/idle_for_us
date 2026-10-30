@@ -278,6 +278,17 @@ async function tab(page, name) {
     assert(await p.$eval('#btn-mail', (b) => b.classList.contains('hidden')), '빈 우편함이면 📮 단추가 숨는다');
     await G(p, () => window.__test_claimAll?.());
     assert(await G(p, () => window.__game.s.gold) < g1 + 1000000, '받은 우편은 다시 받지 않는다');
+    // 애완동물·탈것 (v177)
+    const r2 = await fetch(`http://127.0.0.1:8080/v1/projects/idle-69772/databases/(default)/documents/gifts/${uid}/box?documentId=g2`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer owner' },
+      body: JSON.stringify({ fields: { pet: { stringValue: 'tiger:3' }, mount: { stringValue: 'azure' }, at: { integerValue: String(Date.now()) } } }) });
+    assert(r2.ok, '애완동물·탈것 우편을 넣었다');
+    assert(await G(p, () => window.__test_checkGifts?.()) === 1, '우편함에 한 통 더');
+    await G(p, () => window.__test_claimAll?.());
+    const got = await G(p, () => ({ pet: [...window.__game.s.pets, ...window.__game.s.petBox].some((x) => x.kind === 'tiger' && x.rar === 3),
+      mount: window.__game.s.mounts.some((x) => x.kind === 'azure') }));
+    assert(got.pet, '받기 → 신화 백호가 들어온다');
+    assert(got.mount, '받기 → 청룡마가 들어온다');
   }
 
   console.log('# 온라인: 문파');

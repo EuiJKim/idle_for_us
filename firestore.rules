@@ -48,7 +48,9 @@ service cloud.firestore {
     match /gifts/{uid}/box/{gid} {
       allow read, delete: if signedIn() && (request.auth.uid == uid || isAdmin());
       allow create: if isAdmin()
-        && request.resource.data.keys().hasOnly(['gold', 'potions', 'prot', 'memo', 'at'])
+        && request.resource.data.keys().hasOnly(['gold', 'potions', 'prot', 'pet', 'mount', 'memo', 'at'])
+        && (!('pet' in request.resource.data) || (request.resource.data.pet is string && request.resource.data.pet.size() <= 20))
+        && (!('mount' in request.resource.data) || (request.resource.data.mount is string && request.resource.data.mount.size() <= 20))
         && (!('gold' in request.resource.data) || (request.resource.data.gold is int && request.resource.data.gold > 0 && request.resource.data.gold <= 1000000000000))
         && (!('potions' in request.resource.data) || (request.resource.data.potions is int && request.resource.data.potions > 0 && request.resource.data.potions <= 100000))
         && (!('prot' in request.resource.data) || (request.resource.data.prot is int && request.resource.data.prot > 0 && request.resource.data.prot <= 10000));

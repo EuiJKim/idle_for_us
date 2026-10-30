@@ -187,12 +187,14 @@ export class Net {
   // 운영자가 gifts/{uid}/box/{id}에 은자를 넣어 두면, 그 무인이 들어올 때 받는다(받으면 문서를 지운다 —
   // 지우기에 성공한 것만 준다. 그래야 두 번 받지 않는다). 규칙: 넣기는 운영자만, 읽기·지우기는 본인·운영자.
   // 우편함 (v175) — 무인마다 gifts/{uid}/box. 운영자가 넣고, 무인이 우편함에서 '받기'를 누르면 받는다.
-  // gift: { gold?, potions?, prot? } — 0이 아닌 것만 싣는다
+  // gift: { gold?, potions?, prot?, pet?: '종류:등급', mount?: '종류' } — 있는 것만 싣는다
   async sendGift(uid, gift, memo = '') {
     if (!this.isAdmin() || !uid) return false;
     const doc = { memo: String(memo).slice(0, 60), at: Date.now() };
     for (const k of ['gold', 'potions', 'prot']) if (Math.floor(gift?.[k] || 0) > 0) doc[k] = Math.floor(gift[k]);
-    if (!doc.gold && !doc.potions && !doc.prot) return false;
+    if (gift?.pet) doc.pet = String(gift.pet).slice(0, 20);
+    if (gift?.mount) doc.mount = String(gift.mount).slice(0, 20);
+    if (!doc.gold && !doc.potions && !doc.prot && !doc.pet && !doc.mount) return false;
     try {
       await this.fs.setDoc(this.ref('gifts', uid, 'box', `g${Date.now()}`), doc);
       return true;
