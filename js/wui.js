@@ -407,6 +407,10 @@ function bagTab(app) {
                   h('b', {}, sp.name), h('small', {}, ` ${IM.SPECIAL_KIND[sp.kind](pv.w)}`)))) : null);
           })() : null,
           f ? h('p', { class: 'muted' }, `증표 ${f.n}개 · 은자 ${fmt(f.gold)} · 성공 ${pct(f.chance, 0)} — 실패하면 다음 확률 +${pct(W.INFUSE_BASE[to] * W.INFUSE_PITY_K, 1)}p (천장)`) : null,
+          // v198: 못 할 때 왜 못 하는지 — 전에는 단추만 흐려져서 '각인이 안 된다'로만 보였다
+          f && !game.canInfuse(it, markPick) ? h('p', { class: 'inf-why' }, f.have < f.n
+            ? `${W.matName(markPick)}가 ${f.n - f.have}개 모자라요 — 같은 두목의 증표가 ${f.n}개 있어야 해요(지금 ${f.have}개). 두목 구역에서 그 두목을 더 잡거나 다른 증표를 골라요.`
+            : `은자가 ${fmt(f.gold - game.s.gold)} 모자라요.`) : null,
           f ? h('button', { class: 'btn primary', disabled: game.canInfuse(it, markPick) ? null : true, onclick: () => runInfuse() }, `각인 (${pct(f.chance, 0)})`) : null);
       };
       const runInfuse = () => {

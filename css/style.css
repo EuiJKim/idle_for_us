@@ -1508,3 +1508,4 @@ body.hunt-noanim *, body.hunt-noanim *::before, body.hunt-noanim *::after { anim
 body.hunt-nocv #cv { visibility: hidden !important; }
 /* v187 늘 도는 꾸밈을 줄인다 — 조언 띠의 빛은 멈춘 채로(받을 것이 있을 때만 길잡이가 맥박) */
 #advice::after { animation: none; opacity: 0.6; }
+.inf-why { margin: 6px 0; padding: 6px 8px; border-radius: 8px; background: rgba(239, 68, 68, 0.12); color: #fca5a5; font-size: 12.5px; }
