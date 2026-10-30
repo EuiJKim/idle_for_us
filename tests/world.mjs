@@ -424,7 +424,7 @@ console.log('\n=== 등급 · 스킬 옵션 · 승급 · 돌파 · 스킬 레벨 
   B.s.prot = 1e5; B.s.mats = { [bz]: 1e9, [W.bossKey(bz)]: 1e8 };
   let tries = 0; while (bw.plus < 12 && tries++ < 20000) B.enhance(bw.uid);
   ok(bw.plus >= 12 && W.enhanceMult(15) > 3.1, `돌파 +12까지 보호부를 쓰며 (+15면 기본 수치 ×${W.enhanceMult(15).toFixed(1)})`, `${tries}번 · 보호부 ${1e5 - B.s.prot}장`);
-  // 던파식 강화 (v150)
+  // 강화 (v150 · v192)
   ok(W.enhanceRate(0) === 1 && W.enhanceRate(2) === 1 && W.enhanceRate(3) === 0.95 && W.enhanceRate(9) === 0.41 && W.enhanceRate(14) === 0.08, '성공률: +1~3 100% · +4 95% · +10 41% · +15 8%');
   ok(W.enhanceFail(1) === 0 && W.enhanceFail(6) === 0 && W.enhanceFail(7) === -1 && W.enhanceFail(9) === -1 && W.enhanceFail(10) === -2, '실패: +7까지 그대로 · +8~10 -1 · +11부터 -2');
   const E = fresh();

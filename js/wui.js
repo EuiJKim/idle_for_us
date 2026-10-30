@@ -575,8 +575,7 @@ function bagTab(app) {
     // v150: 착용 | 가방을 칸으로 나눴다 — 한 화면에 낀 것·세트·가방·버튼이 다 있어 복잡했다
     gearRoot.replaceChildren(...[
       h('div', { class: 'card' }, h('h3', {}, '끼고 있는 것', h('small', {}, `전투력 ${fmt(game.stats().power)} · 눌러서 강화·승급`)),
-        h('div', { class: 'gear-grid' }, ...tiles),
-        h('p', { class: 'muted enh-note' }, `강화 — +7까지는 실패해도 그대로, +8~10은 -1, +11부터 -2. 실패할수록 다음 확률이 올라요. 강화 보호부 `, h('b', {}, `${s.prot || 0}장`), ' (상인)')),
+        h('div', { class: 'gear-grid' }, ...tiles)),
       ...setNow.map(({ st }) => setBox(game, st)),
     ].filter(Boolean));
     bagRoot.replaceChildren(...[

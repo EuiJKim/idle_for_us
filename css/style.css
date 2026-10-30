@@ -1311,7 +1311,7 @@ details.lore p { margin: 4px 0 0; line-height: 1.5; }
 .lore-person summary b span { color: var(--fc, var(--accent-2)); }
 .lore-person.won summary { color: #86efac; }
 
-/* v150: 던파식 강화 창 */
+/* v150: 강화 창 */
 .enh-box { border: 1px solid var(--line); border-radius: 10px; padding: 9px 11px; margin: 8px 0; background: rgba(255, 245, 220, 0.03); }
 .enh-box.danger { border-color: rgba(248, 113, 113, 0.55); background: rgba(127, 29, 29, 0.15); }
 .enh-head { display: flex; justify-content: space-between; align-items: center; font-size: 15px; }

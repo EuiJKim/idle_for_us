@@ -470,7 +470,7 @@ export const itemZone = (it) => (it?.z ?? it?.king ?? (it?.step != null ? stepMa
 export const stepMult = (step) => 1.12 ** step;
 // ---------- 성장 장비 (v158) ----------
 // 대장장이 사다리(레벨 5마다 새로 만들기)를 없앴다. 무기·옷·모자·장갑·신발·장신구는 칸마다 하나씩이고
-// **레벨을 따라 저절로 자란다**(아이템 레벨 = 내 레벨, 100까지). 그 장비를 강화하고(던파식),
+// **레벨을 따라 저절로 자란다**(아이템 레벨 = 내 레벨, 100까지). 그 장비를 강화하고,
 // 두목 증표로 등급(레어→유니크→전설→신화)을 각인하고, 세력 재료로 계열을 붙인다. 100부터는 세트·왕의 장비.
 export const GROW_SLOTS = ['weapon', 'armor', 'hat', 'glove', 'shoe', 'acc'];
 export const growIlv = (lv) => Math.max(1, Math.min(ILV_CAP, lv));
@@ -509,7 +509,7 @@ const STEP_PREFIX = [null, '청죽', '사철', '빙정', '혈석', '귀화', '�
 // 강화 +1~+10, 그 위로 **돌파** +11~+15(조합 장비만). 돌파는 두목 증표가 더 들고, 한 단계가 더 크다.
 export const ENHANCE_MAX = 15;
 export const ENHANCE_NORMAL = 10;
-export const ENHANCE_STEP = 0.15;                // +1~+10: 한 단계에 기본 수치 +15% (v153: 12%에서 — 던파식으로 어려워진 만큼 크게)
+export const ENHANCE_STEP = 0.15;                // +1~+10: 한 단계에 기본 수치 +15% (v153: 12%에서 — 강화가 어려워진 만큼 크게)
 export const BREAK_STEP = 0.3;                   // 돌파 +11~+15: 한 단계에 +30% (+10 2.5배 · +15 4배, v153)
 export const enhanceMult = (plus) => 1 + Math.min(plus, ENHANCE_NORMAL) * ENHANCE_STEP + Math.max(0, plus - ENHANCE_NORMAL) * BREAK_STEP;
 export const breakMarks = (plus) => (plus >= ENHANCE_NORMAL ? plus - ENHANCE_NORMAL + 1 : 0);   // +10→11 증표 1 … +14→15 증표 5
