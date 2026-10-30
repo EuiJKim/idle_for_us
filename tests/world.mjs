@@ -1221,6 +1221,28 @@ console.log('\n=== 세력과 고수 비무 (v148) ===');
   ok(lordRoom.lord && !W.mapOf(room).lord, '맹주·천마의 방은 우두머리가 더 단단하다');
 }
 
+console.log('\n=== 사냥터 몹 강함 (v149) ===');
+{
+  const DG = await import('../js/world/wdgn.js');
+  // 같은 레벨 기준 무인이 0.5초 칠 체력 — 무인 성장을 따른다
+  const rows = [20, 60, 100, 145].map((lv) => [lv, DG.fieldMobHp(lv) / DG.refDps(lv)]);
+  ok(rows.every(([, t]) => t >= 0.45 && t <= 0.8), '사냥터 몹 체력 = 같은 레벨 무인 0.5초어치 (레벨이 올라도 같다)', rows.map(([l, t]) => `${l}:${t.toFixed(2)}초`).join(' '));
+  ok(DG.fieldMobHp(100) > W.mobHp(100) * 10, '레벨 100 몹은 옛 공식보다 열 배 넘게 단단하다', `${DG.fieldMobHp(100)} vs ${W.mobHp(100)}`);
+  // 레벨 차이: 높은 몹에게는 내 피해가 줄고 받는 피해가 는다
+  const g = fresh();
+  while (g.s.level < 60) g.addExp(W.expToNext(g.s.level));
+  g.enterMap(W.mapId(16, 1));
+  const m = g.mons.find((x) => !x.npc && x.alive);
+  ok(m && g.gapOut(m) < 0.5 && g.gapIn(m) > 1.7, '레벨 60이 십이지왕(99~) 몹을 치면 내 피해 반 아래 · 받는 피해 1.7배 넘게', `${g.gapOut(m).toFixed(2)} · ${g.gapIn(m).toFixed(2)}`);
+  g.enterMap(W.mapId(9, 3));
+  const m2 = g.mons.find((x) => !x.npc && x.alive);
+  ok(m2 && g.gapOut(m2) === 1 && g.gapIn(m2) === 1, '내 레벨 아래 몹은 보정 없음');
+  // 함께 사냥 왕의 체력은 내 화면 왕과 같은 셈
+  const CoopMod = await import('../js/world/wcoop.js');
+  const c = new CoopMod.Coop({ map: W.mapOf(W.mapId(16, 4)) }, {});
+  ok(Math.abs(c.kingMaxHp() - DG.fieldMobHp(W.mapOf(W.mapId(16, 4)).lv[1] + 2) * W.BOSS.hp) < 1, '함께 사냥 왕 체력 = 내 화면 왕 체력 공식');
+}
+
 console.log('\n=== 숫자 표기 ===');
 {
   const table = [[999, '999'], [1000, '1,000'], [120000, '120,000'], [99999999, '99,999,999'], [1e9, '1.00d']];

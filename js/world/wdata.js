@@ -196,6 +196,10 @@ export const RESPAWN_SEC = 5;
 export const BOSS_RESPAWN = 45;
 // 몹 레벨이 내 레벨보다 이만큼 넘게 위면 '위험' (v146 — 레벨 제한 대신)
 export const DANGER_LV = 5;
+// 레벨 차이 (v149): 한 레벨 높을 때마다 내 피해 -1.5%(최소 25%) · 받는 피해 +2% — 40레벨 위면 ×0.4 · ×1.8
+export const GAP_OUT = 0.015;
+export const GAP_OUT_MIN = 0.25;
+export const GAP_IN = 0.02;
 export const KING_INTRO_SEC = 3.2;   // 십이지왕 등장 연출 길이
 export const BOSS_INTRO_SEC = 2.2;   // 보통 두목 등장 연출 길이
 export const BOSS_ROOM_MOBS = 8;

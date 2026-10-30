@@ -558,10 +558,10 @@ export class WorldGame {
     const x = W.tileCenter(c), y = W.tileCenter(r);
     const king = boss ? m.king : null;
     const elite = !boss && !m.bossRoom && this.rng() < W.ELITE_RATE;
-    const hp = W.mobHp(lv) * (boss ? W.BOSS.hp : elite ? W.ELITE.hp : 1);
+    const hp = D.fieldMobHp(lv) * (boss ? W.BOSS.hp : elite ? W.ELITE.hp : 1);
     const mob = {
       id: uidSeq++, lv, c, r, hc: c, hr: r, move: null, x, y, hp, maxHp: hp, alive: true, isBoss: !!boss, born: this.clock,
-      atk: W.mobAtk(lv) * (boss ? W.BOSS.atk : elite ? W.ELITE.atk : 1), armor: W.mobDef(lv),
+      atk: D.fieldMobAtk(lv) * (boss ? W.BOSS.atk : elite ? W.ELITE.atk : 1), armor: W.mobDef(lv),
       grade: king ? 3 : boss ? 2 : elite || m.bossRoom ? 1 : 0, elite,
       kp: king ? W.KING_MYTHIC[king.no]?.id : null,
       atkTimer: 1 + this.rng(), stun: 0, slow: 0, poison: 0, poisonPer: 0,
@@ -718,7 +718,7 @@ export class WorldGame {
               continue;
             }
             const red = (1 - (cls.dmgRed || 0)) * (1 - (this.buffv.guard || 0)) * (1 - Math.min(0.6, pm.dmgRed || 0)) * (1 - (st.dmgRed || 0));
-            const dmg = Math.max(1, m.atk * (1 + (env.mobAtk || 0)) * (0.9 + this.rng() * 0.2) * red - st.def);
+            const dmg = Math.max(1, m.atk * (1 + (env.mobAtk || 0)) * (0.9 + this.rng() * 0.2) * red * this.gapIn(m) - st.def);
             let left = dmg;
             if (this.shield > 0 && this.buffs.shield > 0) { const a = Math.min(this.shield, left); this.shield -= a; left -= a; }   // 금종조
             this.heroHp -= left;
@@ -939,7 +939,7 @@ export class WorldGame {
       if (ps.has('bossbane') && m.isBoss) dmg *= 1.5;                       // 투왕
       if (ps.has('execute') && m.hp < m.maxHp * 0.4) dmg *= 1.6;           // 암왕
     }
-    dmg = Math.max(1, dmg - m.armor);
+    dmg = Math.max(1, (dmg - m.armor) * this.gapOut(m));
     const mx = m.x, my = m.y;
     this.hurt(m, dmg, kind, crit, quiet);
     if (ps.size) {
@@ -1036,6 +1036,11 @@ export class WorldGame {
     if (!m.isBoss) this.respawns.push({ t: W.RESPAWN_SEC });
   }
 
+  // 레벨 차이 (v149) — 나보다 높은 몹에게는 내 피해가 줄고 그 몹의 공격은 더 아프다(사냥터만, 던전·탑은 따로 맞춰 둠).
+  // 레벨 제한을 없앤 뒤 레벨 60이 십이지왕(99~)을 잡고 다녔다 — 갈 수는 있되 힘들게.
+  gapOf(m) { return this.inst ? 0 : Math.max(0, (m.lv || 0) - this.s.level); }
+  gapOut(m) { const g = this.gapOf(m); return g ? Math.max(W.GAP_OUT_MIN, 1 - W.GAP_OUT * g) : 1; }
+  gapIn(m) { return 1 + W.GAP_IN * this.gapOf(m); }
   // 나보다 많이 약한 몹은 경험치가 깎인다 — 낮은 사냥터에 눌러앉는 것보다 올라가는 게 낫게
   levelGapMult(mlv) {
     const gap = this.s.level - mlv;

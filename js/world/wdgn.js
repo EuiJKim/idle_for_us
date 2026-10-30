@@ -74,6 +74,22 @@ export function refDps(lv) {
   const [l0, d0] = REF[i], [l1, d1] = REF[i + 1];
   return Math.exp(Math.log(d0) + (Math.log(d1) - Math.log(d0)) * ((lv - l0) / (l1 - l0)));
 }
+// 같은 레벨 기준 무인의 최대 체력 (refDps와 같은 장비로 잼, v149)
+const REF_HP = [[1, 362], [5, 529], [15, 1472], [25, 2568], [40, 4675], [55, 8022], [70, 13243], [85, 21306], [115, 31673], [130, 39313], [145, 46668]];
+export function refHp(lv) {
+  if (lv >= 145) return REF_HP[REF_HP.length - 1][1] * 1.03 ** (lv - 145);
+  let i = 0;
+  while (REF_HP[i + 1][0] < lv) i++;
+  const [l0, h0] = REF_HP[i], [l1, h1] = REF_HP[i + 1];
+  return Math.exp(Math.log(h0) + (Math.log(h1) - Math.log(h0)) * ((lv - l0) / (l1 - l0)));
+}
+// 사냥터 몹 (v149) — 옛 공식(mobHp·mobAtk)은 레벨에 곧게 올라 장비로 크는 무인을 못 따라갔다(레벨 100 몹이 0.03초에 녹았다).
+// 이제 무인 성장을 따른다: 체력 = 같은 레벨 무인이 FIELD_HP_SEC초 칠 만큼 · 한 대 = 같은 레벨 무인 체력의 FIELD_ATK_FRAC.
+// 같은 레벨에서는 비슷하게 잡히고, 한참 높은 곳(레벨 60이 십이지왕 99~)은 몹 하나에 몇 초, 몇 대면 쓰러진다.
+export const FIELD_HP_SEC = 0.5;
+export const FIELD_ATK_FRAC = 0.04;
+export const fieldMobHp = (lv) => Math.round(Math.max(mobHp(lv), refDps(lv) * FIELD_HP_SEC));
+export const fieldMobAtk = (lv) => Math.round(Math.max(mobAtk(lv), refHp(lv) * FIELD_ATK_FRAC));
 // 던전 몹 하나 = 같은 레벨 무인이 1.2초 칠 체력 (초반은 광역 무공이 적어 덜 단단하게 — 레벨 5에 0.5초)
 export const dailyHpSec = (lv) => 0.45 + 0.75 * Math.min(1, lv / 60);
 export const dailyMobHp = (lv) => Math.max(mobHp(lv) * 0.7, refDps(lv) * dailyHpSec(lv));
