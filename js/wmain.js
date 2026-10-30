@@ -702,7 +702,8 @@ function askClass() {
       h('p', { class: 'muted' }, '레벨 15·40·75에 전직하면 스킬을 하나씩 배워요.'), grid);
     const look = RANKS[0].look;
     const tick = () => {
-      if (!grid.isConnected) return;
+      // 고른 뒤에도 창이 숨기만 하고 남아 있어서 이 그림이 끝없이 돌았다 (v181)
+      if (!grid.isConnected || !modalOpen()) return;
       const t = performance.now() / 1000;
       for (const { cv, j } of anims) {
         const c = cv.getContext('2d');
@@ -906,6 +907,28 @@ $('btn-settings').addEventListener('click', () => openModal((s) => {
         save();
       } }, `${Math.round(game.potionAt() * 100)}%`)),
     toggleRow('자동 스킬', game.s.autoSkill, '체력을 쓰는 스킬은 체력이 넉넉할 때만 써요 · 걸으면서도 써요', (v) => { game.s.autoSkill = v; save(); }),
+    (() => {
+      const qb = h('button', { class: 'btn', style: 'padding:6px 12px;min-width:84px' });
+      const fb = h('button', { class: 'btn', style: 'padding:6px 12px;min-width:84px' });
+      const paint = () => {
+        qb.textContent = perf.q === 'auto' ? `자동 ${AUTO_STEPS[perf.step]}배` : QUALITY_NAME[perf.q];
+        fb.textContent = perf.fps === 'auto' ? `자동 ${perf.cap30 ? 30 : 60}` : FPS_NAME[perf.fps];
+      };
+      qb.onclick = () => {
+        perf.q = QUALITY[(QUALITY.indexOf(perf.q) + 1) % QUALITY.length];
+        try { localStorage.setItem('ifu.quality', perf.q); } catch { /* 이번만 */ }
+        perf.locked = false; applyQuality(); paint();
+      };
+      fb.onclick = () => {
+        perf.fps = FPS_PREF[(FPS_PREF.indexOf(perf.fps) + 1) % FPS_PREF.length];
+        try { localStorage.setItem('ifu.fps', perf.fps); } catch { /* 이번만 */ }
+        perf.autoCap30 = false; applyQuality(); paint();
+      };
+      paint();
+      return h('div', {},
+        h('div', { class: 'row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, '화질'), h('div', { class: 'desc' }, '버벅이면 낮춰요 — 자동은 폰이 버거워하면 알아서 낮춰요')), qb),
+        h('div', { class: 'row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, '초당 그림'), h('div', { class: 'desc' }, '30이면 배터리·열이 절반 — 자동은 버거울 때만 30')), fb));
+    })(),
     toggleRow('스킬 범위 보기', view.showRange, '펼칠 때마다 맞는 곳을 금빛 고리로 — 스킬 단추를 길게 누르면 언제든 볼 수 있어요', (v) => {
       view.showRange = v;
       try { localStorage.setItem('ifu.range', v ? '1' : '0'); } catch { /* 이번만 */ }
@@ -1032,8 +1055,55 @@ function openMailbox() {
   openModal(draw);
 }
 $('btn-mail').addEventListener('click', openMailbox);
+// ---------- 화질·프레임 자동 맞춤 (v181) ----------
+// 그림이 버거우면(프레임 간격이 길면) 해상도를 한 단계씩 내리고, 맨 아래에서도 버거우면 초당 30번으로.
+// 넉넉하면 한참 뒤 한 단계 올려 본다(올렸다 다시 버거우면 거기서 멈춘다).
+const QUALITY = ['auto', 'high', 'mid', 'low'];
+const QUALITY_NAME = { auto: '자동', high: '선명', mid: '보통', low: '가볍게' };
+const Q_CAP = { high: 2, mid: 1.5, low: 1 };
+const AUTO_STEPS = [2, 1.75, 1.5, 1.25, 1];
+const FPS_PREF = ['auto', '60', '30'];
+const FPS_NAME = { auto: '자동', 60: '60', 30: '30' };
+const loadPref = (k, list, d) => { try { const v = localStorage.getItem(k); return list.includes(v) ? v : d; } catch { return d; } };
+const perf = { q: loadPref('ifu.quality', QUALITY, 'auto'), fps: loadPref('ifu.fps', FPS_PREF, 'auto'),
+  step: 0, cap30: false, autoCap30: false, raised: false, ema: 16.7, slow: 0, fast: 0, t: 0, lastDrop: -1e9, locked: false, odd: false };
+function applyQuality() {
+  view.setDprCap(perf.q === 'auto' ? AUTO_STEPS[perf.step] : Q_CAP[perf.q]);
+  perf.cap30 = perf.fps === '30' || (perf.fps === 'auto' && perf.autoCap30);
+}
+applyQuality();
+window.__perf = perf;
+// 1초마다: 지난 1초의 평균 프레임 간격을 보고 고친다 (30으로 묶였을 때는 두 번에 한 번 그리므로 반으로 본다)
+function perfTick(ms) {
+  if (ms > 250) return;                      // 다른 앱에 다녀옴·멈춤 — 세지 않는다
+  perf.ema = perf.ema * 0.9 + ms * 0.1;
+  perf.t += ms;
+  if (perf.t < 1000) return;
+  perf.t = 0;
+  const now = performance.now();
+  const slow = perf.ema > 22, fast = perf.ema < 17.8;
+  perf.slow = slow ? perf.slow + 1 : 0;
+  perf.fast = fast ? perf.fast + 1 : 0;
+  if (perf.slow >= 3) {
+    perf.slow = 0;
+    if (perf.q === 'auto' && perf.step < AUTO_STEPS.length - 1) {
+      if (now - perf.lastDrop < 60000 && perf.raised) perf.locked = true;   // 올렸다가 다시 버거웠다 — 더는 안 올린다
+      perf.step++; perf.lastDrop = now; applyQuality();
+    } else if (perf.fps === 'auto' && !perf.autoCap30) { perf.autoCap30 = true; applyQuality(); }
+  } else if (perf.fast >= 20 && !perf.locked && !perf.cap30) {
+    perf.fast = 0;
+    if (perf.q === 'auto' && perf.step > 0 && now - perf.lastDrop > 30000) { perf.step--; perf.raised = true; applyQuality(); }
+  }
+}
+let lastRaf = 0;
 let loopErr = 0;
 function frame(now) {
+  now = now ?? performance.now();
+  if (!saver.on && lastRaf) perfTick(now - lastRaf);
+  lastRaf = saver.on ? 0 : now;
+  // 초당 30번 — 두 번에 한 번만 셈하고 그린다 (창을 띄워 둔 동안에도 30)
+  perf.odd = !perf.odd;
+  if (!saver.on && (perf.cap30 || modalOpen()) && perf.odd) { requestAnimationFrame(frame); return; }
   try { step(now ?? performance.now()); } catch (e) {
     if (loopErr++ < 5) console.error('[프레임]', e);
     // 그리다 멈추면 캔버스 상태(변환·투명도·합성)가 어긋난 채로 남아 다음 프레임부터 화면이 깨진다 — 되돌린다

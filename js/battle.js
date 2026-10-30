@@ -165,7 +165,8 @@ function sparkImage(color) {
 // 한 인물이 8위상을 쓰므로 40칸이다. 전에는 상한이 48이라 구역이 바뀌는 10관문마다
 // 80칸이 필요해져 통째로 비우고 48장을 다시 구웠다 — 그때마다 화면이 한 번 걸렸다.
 // 두 구역이 같이 들어가고도 남게 둔다.
-const LIGHT_MOBS = 26;   // 가벼운 모드에서 그리는 적의 최대 수
+const LIGHT_MOBS = 26;
+const PIXEL_BUDGET = 1.2e6;   // v181: 한 프레임에 칠하는 캔버스 화소 상한 (390x844 화면이면 1.9배까지)   // 가벼운 모드에서 그리는 적의 최대 수
 const SPR = { w: 80, h: 160, ox: 44, oy: 146, phases: 8, cycle: Math.PI / 2, max: 192 };
 const sprCache = new Map();
 // 그림이 늦게 도착하면 벡터로 구워 둔 것을 버려야 한다
@@ -317,6 +318,16 @@ export class BattleView {
     window.addEventListener('resize', () => this.resize());
   }
 
+  // 해상도 상한을 바꾼다 (v181). 구워 둔 것은 해상도를 따르므로 버린다.
+  setDprCap(c) {
+    if (Math.abs((this.dprCap || 2) - c) < 0.01) return false;
+    this.dprCap = c;
+    this._decor = null;
+    this._vig = null;
+    sprCache.clear();
+    this.resize();
+    return true;
+  }
   // 가벼운 모드를 켜고 끈다. 해상도가 바뀌므로 구워 둔 것을 전부 버린다.
   setLight(on) {
     if (this.light === !!on) return false;
@@ -332,10 +343,13 @@ export class BattleView {
     const r = this.cv.getBoundingClientRect();
     // **해상도가 채우는 화소를 제곱으로 바꾼다.** dpr 2에서 1로 내리면 1/4다.
     // 이 게임 그림체는 선이 굵어서 1로 내려도 거의 티가 안 난다.
-    const dpr = this.light ? 1 : Math.min(2, window.devicePixelRatio || 1);
-    this.dpr = dpr;
     this.W = Math.max(1, r.width);
     this.H = Math.max(1, r.height);
+    // v181: 해상도 상한(dprCap — 설정의 화질, 자동이면 프레임을 보고 고른다)과 화소 예산.
+    // 전체 화면·큰 폰에서 2배로 찍으면 한 프레임에 150만 화소를 넘게 칠한다 — 그게 버벅임의 뿌리였다.
+    const budget = Math.sqrt(PIXEL_BUDGET / (this.W * this.H));
+    const dpr = this.light ? 1 : Math.max(1, Math.min(this.dprCap || 2, window.devicePixelRatio || 1, budget));
+    this.dpr = dpr;
     this.cv.width = Math.round(this.W * dpr);
     this.cv.height = Math.round(this.H * dpr);
     this.applyZoom();
