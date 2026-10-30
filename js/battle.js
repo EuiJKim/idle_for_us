@@ -3220,7 +3220,28 @@ export class BattleView {
     // 짧은 판은 박자를 당긴다
     const sp = full ? 1 : 1.6;
     const A = Math.min(1, t / (0.35 / sp), (ki.dur - t) / (full ? 0.5 : 0.35));
-    if (!ki.hit && t > 0.38 / sp) { ki.hit = true; this.flash = Math.max(this.flash, full ? 0.35 : 0.15); this.shake = Math.max(this.shake, full ? 0.8 : 0.35); }
+    // v215: 땅울림 — 기둥이 서는 동안 땅이 잘게 떨고(우르르), 이름이 박히는 순간 발밑이 갈라지며 흙먼지가 터진다
+    if (!ki.hit && t > 0.12 / sp) this.shake = Math.max(this.shake, (full ? 0.22 : 0.12) * (0.6 + 0.4 * Math.sin(t * 60)));
+    if (!ki.hit && t > 0.38 / sp) {
+      ki.hit = true; this.flash = Math.max(this.flash, full ? 0.35 : 0.15); this.shake = Math.max(this.shake, full ? 0.8 : 0.35);
+      if (ki.at && this.fxLevel > 0) {
+        const { x: wx, y: wy } = ki.at;
+        const R = full ? 1 : 0.65;
+        // 금은 어둠이 걷힌 뒤에도 남아 있어야 보인다 — 연출 끝 + 0.8초
+        const cl = Math.max(1.1, ki.dur - t + 0.8);
+        this.effects.push({ kind: 'crack', life: cl, max: cl, wx, wy, r: 150 * R, col: k.pillar, seed: Math.random() * 99, n: full ? 7 : 5 });
+        this.effects.push({ kind: 'shock', life: 0.55, max: 0.55, wx, wy, r: 220 * R, col: k.glow, rings: 2, w: 4 });
+        this.effects.push({ kind: 'shock', life: 0.9, max: 0.9, wx, wy, r: 340 * R, col: '214,180,120', w: 2 });
+        const bx = this.sx(ki.at), by = this.sy(ki.at);
+        const n = Math.round((full ? 18 : 10) * (this.budget ?? 1));
+        for (let i = 0; i < n; i++) {
+          const a = (i / n) * Math.PI * 2 + Math.random() * 0.3;
+          const sp2 = 90 + Math.random() * 140;
+          this.particles.push({ x: bx + Math.cos(a) * 30, y: by + Math.sin(a) * 30 * this.squash, vx: Math.cos(a) * sp2, vy: Math.sin(a) * sp2 * this.squash - 40 - Math.random() * 50,
+            life: 0.6 + Math.random() * 0.4, size: 5 + Math.random() * 5, color: 'rgb(196,170,130)', dust: true });
+        }
+      }
+    }
     ctx.save();
     // 어둠
     ctx.fillStyle = `rgba(6,3,3,${(full ? 0.66 : 0.32) * A})`;
