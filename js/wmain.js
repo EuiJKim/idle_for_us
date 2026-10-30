@@ -230,6 +230,7 @@ function refreshUI(full = false) {
   setText($('hero-lv'), `Lv.${s.level}`);
   // v185: 너비 대신 transform으로 — 너비를 바꾸면 배치를 다시 하고 화면 전체를 다시 칠했다(막대가 움직이는 동안 매 프레임)
   setBar($('exp-bar').firstChild, s.exp / game.expNeed());
+  setText($('exp-pct'), `${Math.min(99.9, (s.exp / game.expNeed()) * 100).toFixed(1)}%`);
   setText($('gold'), fmt(s.gold));
   setText($('potions'), String(s.potions));
   const m = game.map;
