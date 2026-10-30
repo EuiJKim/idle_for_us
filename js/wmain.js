@@ -250,7 +250,12 @@ function refreshUI(full = false) {
   }
   const hpR = Math.max(0, Math.min(1, game.heroHp / st.hp));
   setBar($('progress-fill'), hpR);
-  setBar($('progress-trail'), hpR);          // 늦게 따라온다(css) — 깎인 만큼이 잠깐 밝게 남는다
+  // 깎일 때만 늦게 따라오는 밝은 꼬리 — 차오를 때(회복)는 바로 맞춰 쉬지 않고 움직이지 않게 (v187)
+  const tr = $('progress-trail');
+  const up = hpR >= (tr._r ?? 0);
+  tr.style.transition = up ? 'none' : '';
+  tr._r = hpR;
+  setBar(tr, hpR);          // 늦게 따라온다(css) — 깎인 만큼이 잠깐 밝게 남는다
   $('progress').classList.toggle('low', hpR < 0.35);
   setText($('progress-text'), `체력 ${fmt(Math.max(0, game.heroHp))} / ${fmt(st.hp)}`);
   setText($('power-label'), `전투력 ${fmt(st.power)}`);
@@ -938,6 +943,8 @@ $('btn-settings').addEventListener('click', () => openModal((s) => {
     })(),
     h('div', { class: 'row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, '성능 진단'), h('div', { class: 'desc' }, '10초 동안 어디가 무거운지 재서 표로 보여 줘요 — 버벅이는 곳에서 눌러 주세요')),
       h('button', { class: 'btn primary', style: 'padding:6px 12px', onclick: startDiag }, '재기')),
+    h('div', { class: 'row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, '원인 찾기'), h('div', { class: 'desc' }, `하나씩 끄고 켜 보며 무엇이 무거운지 찾아요 (${HUNT_STEPS.length * HUNT_SEC}초) — 버벅이는 곳에서 눌러 주세요`)),
+      h('button', { class: 'btn primary', style: 'padding:6px 12px', onclick: startHunt }, '찾기')),
     toggleRow('성능 보기', !!perfBox, '들판 왼쪽 위에 초당 그림 수·한 장 그리는 시간·해상도 — 버벅일 때 이 숫자를 알려 주세요', (v) => setPerfBox(v)),
     toggleRow('스킬 범위 보기', view.showRange, '펼칠 때마다 맞는 곳을 금빛 고리로 — 스킬 단추를 길게 누르면 언제든 볼 수 있어요', (v) => {
       view.showRange = v;
@@ -1086,6 +1093,7 @@ function applyQuality() {
 applyQuality();
 window.__perf = perf;
 window.__diag = () => startDiag();
+window.__hunt = () => startHunt();
 // 1초마다: 지난 1초의 평균 프레임 간격을 보고 고친다 (30으로 묶였을 때는 두 번에 한 번 그리므로 반으로 본다)
 function perfTick(ms) {
   if (ms > 250) return;                      // 다른 앱에 다녀옴·멈춤 — 세지 않는다
@@ -1131,12 +1139,13 @@ try { if (localStorage.getItem('ifu.perf') === '1') setTimeout(() => setPerfBox(
 let loopErr = 0;
 function frame(now) {
   now = now ?? performance.now();
-  if (!saver.on && lastRaf) perfTick(now - lastRaf);
+  if (!saver.on && !hunt && lastRaf) perfTick(now - lastRaf);
   if (diag && lastRaf) diag.raf.push(now - lastRaf);
   lastRaf = saver.on ? 0 : now;
   // 초당 30번 — 두 번에 한 번만 셈하고 그린다 (창을 띄워 둔 동안에도 30)
   perf.odd = !perf.odd;
-  if (!saver.on && (perf.cap30 || modalOpen()) && perf.odd) { requestAnimationFrame(frame); return; }
+  if (hunt) huntFrame(now);
+  if (!saver.on && !hunt && (perf.cap30 || modalOpen()) && perf.odd) { requestAnimationFrame(frame); return; }
   try { step(now ?? performance.now()); } catch (e) {
     if (loopErr++ < 5) console.error('[프레임]', e);
     // 그리다 멈추면 캔버스 상태(변환·투명도·합성)가 어긋난 채로 남아 다음 프레임부터 화면이 깨진다 — 되돌린다
@@ -1146,6 +1155,90 @@ function frame(now) {
   if (saver.on) setTimeout(() => frame(performance.now()), 200);
   else requestAnimationFrame(frame);
 }
+// ---------- 원인 찾기 (v187) ----------
+// 한 가지씩 끄고 4초씩 재서 어느 것을 껐을 때 가장 빨라지는지 본다. 그동안은 30제한 없이(있는 그대로) 잰다.
+// 결과표의 '빨라짐'이 큰 줄이 범인이다.
+const HUNT_STEPS = [
+  { id: 'base', name: '그대로' },
+  { id: 'noui', name: '글자판·단추 숨김', cls: 'hunt-noui' },
+  { id: 'noanim', name: '움직이는 꾸밈(애니) 끔', cls: 'hunt-noanim' },
+  { id: 'nodraw', name: '들판 그리기 멈춤', noDraw: true },
+  { id: 'nocv', name: '들판 캔버스 숨김', cls: 'hunt-nocv', noDraw: true },
+  { id: 'lowres', name: '들판 해상도 0.5배', res: 0.5 },
+  { id: 'all', name: '전부 끔(바탕만)', cls: 'hunt-noui hunt-noanim hunt-nocv', noDraw: true },
+  { id: 'base2', name: '그대로(다시)' },
+];
+const HUNT_SEC = 4;
+let hunt = null;
+function startHunt() {
+  if (hunt || diag) return;
+  closeModal();
+  hunt = { i: -1, t0: 0, res: [], cap: view.dprCap };
+  toast(`원인 찾기 ${HUNT_STEPS.length * HUNT_SEC}초 — 화면이 잠깐씩 바뀌어요. 손대지 말고 두세요`);
+  huntNext(performance.now());
+}
+function huntApply(st) {
+  document.body.classList.remove('hunt-noui', 'hunt-noanim', 'hunt-nocv');
+  if (st?.cls) document.body.classList.add(...st.cls.split(' '));
+  hunt.noDraw = !!st?.noDraw;
+  // 해상도를 바꿨던 시험 다음에는 제 해상도로 되돌린다
+  if (hunt.resChanged && !st?.res) { hunt.resChanged = false; view._decor = null; view._vig = null; view.resize(); }
+}
+// setDprCap은 1 아래로 내리지 않는다(화소 예산 식의 max 1) — 0.5배 시험만 직접 맞춘다
+function huntRes(st) {
+  if (!st?.res) return;
+  const r = view.cv.getBoundingClientRect();
+  view.cv.width = Math.max(1, Math.round(r.width * st.res));
+  view.cv.height = Math.max(1, Math.round(r.height * st.res));
+  view.dpr = st.res; view._decor = null; view._vig = null; view.applyZoom();
+  hunt.resChanged = true;
+}
+function huntNext(now) {
+  hunt.i++;
+  if (hunt.i >= HUNT_STEPS.length) { huntEnd(); return; }
+  hunt.t0 = now; hunt.last = 0; hunt.gaps = []; hunt.draws = 0;
+  const st = HUNT_STEPS[hunt.i];
+  huntApply(st);
+  huntRes(st);
+}
+function huntFrame(now) {
+  const h0 = hunt;
+  if (now - h0.t0 > 600) { if (h0.last) h0.gaps.push(now - h0.last); }   // 바꾼 뒤 0.6초는 안정될 때까지 뺀다
+  h0.last = now;
+  if (now - h0.t0 > HUNT_SEC * 1000) {
+    const g = h0.gaps.slice().sort((a, b) => a - b);
+    const avg = g.reduce((a, b) => a + b, 0) / Math.max(1, g.length);
+    h0.res.push({ ...HUNT_STEPS[h0.i], avg, p95: g[Math.floor(g.length * 0.95)] || 0, slow: g.filter((x) => x > 50).length, n: g.length });
+    huntNext(now);
+  }
+}
+function huntEnd() {
+  const res = hunt.res;
+  huntApply(null);
+  hunt = null;
+  const base = (res.find((r) => r.id === 'base').avg + res.find((r) => r.id === 'base2').avg) / 2;
+  const tests = res.filter((r) => !r.id.startsWith('base') && r.id !== 'all');
+  const best = tests.slice().sort((a, b) => a.avg - b.avg)[0];
+  const fps = (ms) => (1000 / Math.max(1, ms)).toFixed(0);
+  const row = (r) => {
+    const gain = base - r.avg;
+    const hot = !r.id.startsWith('base') && r.id !== 'all' && gain > base * 0.25;
+    return h('div', { class: `row diag-row${hot ? ' hot' : ''}` }, h('div', { class: 'info' }, h('div', { class: 'name' }, r.name)),
+      h('b', {}, `${fps(r.avg)}fps · ${r.avg.toFixed(1)}ms${r.id.startsWith('base') ? '' : ` · ${gain >= 0 ? '빨라짐' : '느려짐'} ${Math.abs(gain).toFixed(1)}ms`} · 끊김 ${r.slow}`));
+  };
+  const allR = res.find((r) => r.id === 'all');
+  const verdict = allR && allR.avg > 24
+    ? '전부 꺼도 느립니다 — 게임 밖(브라우저·다른 앱·절전 설정)이 화면을 잡고 있습니다'
+    : best && base - best.avg > base * 0.25 ? `범인 후보: ${best.name}` : '뚜렷한 범인 없음 — 고르게 무겁습니다';
+  openModal((s) => s.append(h('h2', {}, '원인 찾기 결과'),
+    h('p', { class: 'muted', style: 'margin:0 0 8px' }, '이 화면을 찍어서 보내 주세요 · 빨간 줄이 범인 후보'),
+    ...res.map(row),
+    h('div', { class: 'row diag-row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, '기기')),
+      h('b', {}, `${screen.width}×${screen.height} · dpr ${window.devicePixelRatio} · 캔버스 ${view.cv.width}×${view.cv.height}`)),
+    h('p', { class: 'diag-verdict' }, verdict),
+    h('div', { class: 'btn-row' }, h('button', { class: 'btn', onclick: closeModal }, '닫기'))));
+}
+
 // ---------- 성능 진단 (v184) ----------
 // 실제 폰에서 10초 동안 프레임마다 어디에 시간이 드는지 잰다 — 게임 계산 · 사건 · 그리기(부분별) · 화면 글자판 갱신,
 // 그리고 프레임 간격에서 그것들을 뺀 나머지(브라우저가 화면에 올리는 시간·GPU). 끝나면 표로 보여 준다(찍어서 보내면 된다).
@@ -1227,7 +1320,7 @@ function step(now) {
   saver.tick(dt, !!game.s.job && !modalOpen() && !game.map.town);
   const t1 = performance.now();
   if (dg) { dg.tick += tB - tA; dg.ev += t1 - tB; }
-  if (!saver.on) view.draw(game, dt);
+  if (!saver.on && !hunt?.noDraw) view.draw(game, dt);
   if (dg) dg.draw += performance.now() - t1;
   if (perfBox) perfNote(now, t1, performance.now());
   uiTimer += dt;
