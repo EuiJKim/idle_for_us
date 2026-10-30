@@ -1390,6 +1390,12 @@ details.lore p { margin: 4px 0 0; line-height: 1.5; }
   border: 1px solid rgba(253,224,71,0.6); background: rgba(10,8,6,0.72); color: #fde68a; font-size: 14px; line-height: 24px; animation: mailPulse 1.6s ease-in-out infinite; }
 #btn-mail b { margin-left: 3px; font-size: 12px; color: #fca5a5; }
 @keyframes mailPulse { 50% { box-shadow: 0 0 10px rgba(253,224,71,.55); } }
+.diag-row { padding: 4px 0; }
+.diag-row .info { flex: 0 0 auto; }
+.diag-row .name { font-size: 13px; white-space: nowrap; }
+.diag-row b { font-size: 13px; color: #e7e5e4; text-align: right; flex: 1; margin-left: 10px; }
+.diag-row.hot b { color: #fca5a5; }
+.diag-verdict { margin: 8px 0; padding: 8px; border-radius: 8px; background: rgba(253,224,71,.12); color: #fde68a; font-size: 13px; text-align: center; }
 .perf-box { position: absolute; left: 8px; top: 40px; z-index: 4; pointer-events: none; white-space: pre; font: 600 10px/1.4 ui-monospace, monospace;
   color: #bbf7d0; background: rgba(0,0,0,.55); padding: 3px 6px; border-radius: 6px; }
 .mail-head { display: flex; align-items: baseline; gap: 8px; }

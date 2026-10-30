@@ -929,6 +929,8 @@ $('btn-settings').addEventListener('click', () => openModal((s) => {
         h('div', { class: 'row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, '화질'), h('div', { class: 'desc' }, '버벅이면 낮춰요 — 자동은 폰이 버거워하면 알아서 낮춰요')), qb),
         h('div', { class: 'row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, '초당 그림'), h('div', { class: 'desc' }, '30이면 배터리·열이 절반 — 자동은 버거울 때만 30')), fb));
     })(),
+    h('div', { class: 'row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, '성능 진단'), h('div', { class: 'desc' }, '10초 동안 어디가 무거운지 재서 표로 보여 줘요 — 버벅이는 곳에서 눌러 주세요')),
+      h('button', { class: 'btn primary', style: 'padding:6px 12px', onclick: startDiag }, '재기')),
     toggleRow('성능 보기', !!perfBox, '들판 왼쪽 위에 초당 그림 수·한 장 그리는 시간·해상도 — 버벅일 때 이 숫자를 알려 주세요', (v) => setPerfBox(v)),
     toggleRow('스킬 범위 보기', view.showRange, '펼칠 때마다 맞는 곳을 금빛 고리로 — 스킬 단추를 길게 누르면 언제든 볼 수 있어요', (v) => {
       view.showRange = v;
@@ -1076,6 +1078,7 @@ function applyQuality() {
 }
 applyQuality();
 window.__perf = perf;
+window.__diag = () => startDiag();
 // 1초마다: 지난 1초의 평균 프레임 간격을 보고 고친다 (30으로 묶였을 때는 두 번에 한 번 그리므로 반으로 본다)
 function perfTick(ms) {
   if (ms > 250) return;                      // 다른 앱에 다녀옴·멈춤 — 세지 않는다
@@ -1135,7 +1138,69 @@ function frame(now) {
   if (saver.on) setTimeout(() => frame(performance.now()), 200);
   else requestAnimationFrame(frame);
 }
+// ---------- 성능 진단 (v184) ----------
+// 실제 폰에서 10초 동안 프레임마다 어디에 시간이 드는지 잰다 — 게임 계산 · 사건 · 그리기(부분별) · 화면 글자판 갱신,
+// 그리고 프레임 간격에서 그것들을 뺀 나머지(브라우저가 화면에 올리는 시간·GPU). 끝나면 표로 보여 준다(찍어서 보내면 된다).
+let diag = null;
+const DIAG_PARTS = ['drawBackground', 'drawLowObstacles', 'drawFields', 'drawTells', 'drawRanges', 'drawUnits', 'drawProjectiles',
+  'drawEffects', 'drawParticles', 'drawWeather', 'drawFloats', 'drawHanja', 'drawBanner', 'drawKingIntro'];
+const DIAG_NAME = { drawBackground: '바닥', drawLowObstacles: '물·용암', drawFields: '장판', drawTells: '경고', drawRanges: '범위',
+  drawUnits: '사람·몹', drawProjectiles: '투사체', drawEffects: '연출', drawParticles: '파편', drawWeather: '날씨',
+  drawFloats: '숫자', drawHanja: '한자', drawBanner: '띠', drawKingIntro: '등장' };
+function startDiag() {
+  if (diag) return;
+  closeModal();
+  const d = diag = { t0: performance.now(), last: 0, n: 0, gaps: [], tick: 0, ev: 0, draw: 0, ui: 0, parts: {}, orig: {}, slow: 0 };
+  for (const k of DIAG_PARTS) {
+    if (typeof view[k] !== 'function') continue;
+    const o = d.orig[k] = view[k];
+    view[k] = function (...a) { const t = performance.now(); const r = o.apply(this, a); d.parts[k] = (d.parts[k] || 0) + performance.now() - t; return r; };
+  }
+  toast('성능 진단 10초 — 평소처럼 두세요');
+}
+function endDiag() {
+  const d = diag;
+  diag = null;
+  for (const [k, o] of Object.entries(d.orig)) view[k] = o;
+  const n = Math.max(1, d.n);
+  const gaps = d.gaps.slice().sort((a, b) => a - b);
+  const q = (p) => gaps[Math.min(gaps.length - 1, Math.floor(gaps.length * p))] || 0;
+  const avgGap = gaps.reduce((a, b) => a + b, 0) / Math.max(1, gaps.length);
+  const js = (d.tick + d.ev + d.draw + d.ui) / n;
+  const c = view.cv;
+  const ms = (v) => `${v.toFixed(2)}ms`;
+  const row = (k, v, hot) => h('div', { class: `row diag-row${hot ? ' hot' : ''}` }, h('div', { class: 'info' }, h('div', { class: 'name' }, k)), h('b', {}, v));
+  const parts = Object.entries(d.parts).sort((a, b) => b[1] - a[1]).slice(0, 6);
+  const verdict = avgGap - js > js * 1.5
+    ? '게임 계산보다 **화면에 올리는 일(GPU·브라우저)**이 무겁습니다'
+    : '**게임 계산·그리기(JS)**가 무겁습니다';
+  openModal((s) => s.append(h('h2', {}, '성능 진단 결과'),
+    h('p', { class: 'muted', style: 'margin:0 0 8px' }, '이 화면을 찍어서 보내 주세요'),
+    row('초당 그림', `${(1000 / avgGap).toFixed(0)}fps (느린 5% ${(1000 / q(0.95)).toFixed(0)}fps)`),
+    row('간격', `보통 ${ms(q(0.5))} · 느린 5% ${ms(q(0.95))} · 최대 ${ms(gaps[gaps.length - 1] || 0)}`),
+    row('끊김(50ms 넘음)', `${d.slow}번 / ${d.n}프레임`, d.slow > 3),
+    row('게임 계산', ms(d.tick / n)),
+    row('사건 처리', ms(d.ev / n)),
+    row('그리기(JS)', ms(d.draw / n), d.draw / n > 8),
+    ...parts.map(([k, v]) => row(` └ ${DIAG_NAME[k] || k}`, ms(v / n))),
+    row('글자판 갱신', ms(d.ui / n)),
+    row('JS 밖(GPU·브라우저)', ms(Math.max(0, avgGap - js)), avgGap - js > 10),
+    row('캔버스', `${c.width}×${c.height} · ${view.dpr.toFixed(2)}배 · 화질 ${perf.q}${perf.cap30 ? ' · 30제한' : ''}`),
+    row('몹 · 연출 · 파편', `${game.mons?.length || 0} · ${view.effects.length} · ${view.particles.length}`),
+    row('기기', `${screen.width}×${screen.height} · dpr ${window.devicePixelRatio} · 코어 ${navigator.hardwareConcurrency || '?'} · 메모리 ${navigator.deviceMemory || '?'}GB`),
+    h('p', { class: 'muted', style: 'font-size:11px;word-break:break-all' }, navigator.userAgent),
+    h('p', { class: 'diag-verdict' }, verdict.replace(/\*\*/g, '')),
+    h('div', { class: 'btn-row' }, h('button', { class: 'btn', onclick: closeModal }, '닫기'))));
+}
 function step(now) {
+  if (diag) {
+    if (diag.last) { const g = now - diag.last; diag.gaps.push(g); if (g > 50) diag.slow++; }
+    diag.last = now;
+    diag.n++;
+    if (now - diag.t0 > 10000) { endDiag(); }
+  }
+  const dg = diag;
+  const tA = dg ? performance.now() : 0;
   let dt = (now - last) / 1000;
   last = now;
   if (dt > 3) dt = 0;
@@ -1144,14 +1209,22 @@ function step(now) {
   if (game.s.job && !modalOpen()) for (let i = 0; i < steps; i++) game.tick(dt / steps);
   coop.tick(dt);
   view.game = game;
+  const tB = dg ? performance.now() : 0;
   handleEvents();
   saver.tick(dt, !!game.s.job && !modalOpen() && !game.map.town);
   const t1 = performance.now();
+  if (dg) { dg.tick += tB - tA; dg.ev += t1 - tB; }
   if (!saver.on) view.draw(game, dt);
+  if (dg) dg.draw += performance.now() - t1;
   if (perfBox) perfNote(now, t1, performance.now());
   uiTimer += dt;
   saveTimer += dt;
-  if (uiTimer > 0.2 && !saver.on) { uiTimer = 0; refreshUI(); }
+  if (uiTimer > 0.2 && !saver.on) {
+    uiTimer = 0;
+    const tU = dg ? performance.now() : 0;
+    refreshUI();
+    if (dg) dg.ui += performance.now() - tU;
+  }
   if (saveTimer > 5) { saveTimer = 0; save(); net.pushProfile(); }
   // 운영자 선물 (v175) — 처음엔 8초 뒤, 그다음 1분마다 본다
   giftTimer += dt;
