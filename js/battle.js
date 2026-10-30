@@ -261,6 +261,24 @@ const SPECIAL_INK = {
 // 한 대마다 짧게(0.3~0.5초) — 여럿이 함께 싸워도 화면을 덮지 않게 작게. 등급이 높을수록 조금 크다.
 // at: 맞은 자리(들판 좌표) · from: 애완동물 자리(들판 좌표, 없을 수 있다)
 const CAST_COL = { sword: '229,231,235', fist: '245,158,11', fan: '56,189,248', ring: '168,85,247', poison: '132,204,22' };
+function skillAccent(v, cls, at, crit) {
+  const k = crit ? 1.3 : 1;
+  const E = (o) => v.effects.push(o);
+  if (cls === 'sword') {
+    const a = Math.random() * 0.6 - 0.3;
+    E({ kind: 'cutline', life: 0.22, max: 0.22, wx: at.x, wy: at.y, a: 0.8 + a });
+    E({ kind: 'cutline', life: 0.26, max: 0.26, wx: at.x, wy: at.y, a: -0.8 + a });
+  } else if (cls === 'fist') {
+    E({ kind: 'shock', life: 0.3, max: 0.3, wx: at.x, wy: at.y, r: 52 * k, col: '245,158,11', rings: 2, w: 4 });
+    if (crit) E({ kind: 'crack', life: 0.5, max: 0.5, wx: at.x, wy: at.y, r: 50, col: '251,191,36', seed: Math.random() * 99, n: 4 });
+  } else if (cls === 'fan') {
+    E({ kind: 'petals', life: 0.4, max: 0.4, wx: at.x, wy: at.y, r: 82 * k, col: '125,211,252', seeds: seedsN(9), spin: 7 });
+  } else if (cls === 'ring') {
+    E({ kind: 'shock', life: 0.36, max: 0.36, wx: at.x, wy: at.y, r: 40 * k, col: '192,132,252', rings: 3, w: 2 });
+  } else if (cls === 'poison') {
+    E({ kind: 'petals', life: 0.45, max: 0.45, wx: at.x, wy: at.y, r: 64 * k, col: '163,230,53', seeds: seedsN(7), spin: 2 });
+  }
+}
 const JOB_SEAL = { sword: '劍', fist: '拳', fan: '扇', ring: '指', poison: '毒' };
 const DROP_COL = ['96,165,250', '192,132,252', '251,146,60', '244,63,94'];
 const PET_COL = { crane: '241,245,249', fox: '96,165,250', qilin: '253,224,71', turtle: '56,189,248', haetae: '214,180,120', phoenix: '249,115,22', monkey: '250,204,21', dragon: '125,211,252', tiger: '241,245,249', yellow: '250,204,21' };
@@ -596,6 +614,12 @@ export class BattleView {
         // 맞은 자리에 섬광 하나. 수십 마리가 동시에 맞으므로 아주 작고 짧게.
         const sparkCol = cls === 'poison' ? `rgb(${VENOM[Math.min(3, game.jobTier())].glow})` : cls === 'ring' ? '#d8b4fe' : color;
         this.sparks.push({ x: atX, y: atY - 46, life: 0.17, max: 0.17, r: (crit ? 26 : skill ? 20 : 13) * (cls === 'poison' ? 0.7 : 1), color: sparkCol });
+        // v221: 무공이 맞은 자리 — 직업마다 다른 자국(검사 X자 베기 · 권마 충격 고리 · 환마 바람 소용돌이 · 귀마 혈 짚은 물결 · 독마 독 꽃).
+        // 광역기는 한 순간 수십을 때리므로 0.1초에 여섯 자리까지만
+        if (skill && ev.at && this.fxLevel > 0 && ev.kind !== 'pet' && ev.kind !== 'ally') {
+          if (this.t - (this._accT || -1) > 0.1) { this._accT = this.t; this._accN = 0; }
+          if (this._accN++ < 6) skillAccent(this, cls, ev.at, ct > 0);
+        }
         // 때린 순간 화면을 아주 잠깐 늦추고 상대를 밀어낸다 — 타격감
         this.hitstop = Math.max(this.hitstop, crit || skill ? 0.075 : 0.032);
         this.monKnock = Math.max(this.monKnock, crit || skill ? 16 : 7);
