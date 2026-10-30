@@ -170,6 +170,60 @@ FX.bcast = (view, ctx, e, k) => {
 // 그렸으면 true (호출부는 종이 인형을 건너뛴다)
 // 키(그림 높이) — 졸개(약 75)의 두 배 남짓. 맹주·천마와 십이지왕은 조금 더 크다.
 export const bossHeight = (o = {}) => (o.lord ? 172 : o.king ? 162 : 150);
+// v218: 십이지왕의 발밑 진 — 열두 지지(子丑寅…)가 둘러 새겨진 고리. 빛깔마다 한 번 구워 두고 돌려 찍는다
+const BRANCH = ['子', '丑', '寅', '卯', '辰', '巳', '午', '未', '申', '酉', '戌', '亥'];
+const ringCache = new Map();
+function kingRing(col) {
+  let c = ringCache.get(col);
+  if (c) return c;
+  c = document.createElement('canvas'); c.width = c.height = 320;
+  const g = c.getContext('2d');
+  g.translate(160, 160);
+  g.strokeStyle = `rgba(${col},0.9)`; g.lineWidth = 3;
+  g.beginPath(); g.arc(0, 0, 150, 0, Math.PI * 2); g.stroke();
+  g.lineWidth = 1.5;
+  g.beginPath(); g.arc(0, 0, 112, 0, Math.PI * 2); g.stroke();
+  g.beginPath(); g.arc(0, 0, 60, 0, Math.PI * 2); g.stroke();
+  // 안쪽 열두 살 · 바깥 눈금
+  for (let i = 0; i < 12; i++) {
+    const a = (i / 12) * Math.PI * 2;
+    g.beginPath(); g.moveTo(Math.cos(a) * 60, Math.sin(a) * 60); g.lineTo(Math.cos(a) * 112, Math.sin(a) * 112); g.stroke();
+    g.save(); g.rotate(a + Math.PI / 12); g.fillStyle = `rgba(${col},1)`;
+    g.font = '900 24px serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillText(BRANCH[i], 0, -131); g.restore();
+  }
+  for (let i = 0; i < 48; i++) {
+    const a = (i / 48) * Math.PI * 2;
+    g.beginPath(); g.moveTo(Math.cos(a) * 146, Math.sin(a) * 146); g.lineTo(Math.cos(a) * (i % 4 ? 141 : 136), Math.sin(a) * (i % 4 ? 141 : 136)); g.stroke();
+  }
+  ringCache.set(col, c);
+  return c;
+}
+function drawKingAura(view, ctx, x, y, H, col, t, casting, alpha) {
+  if (view.fxLevel <= 0) return;
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  // 발밑 진 — 천천히 돌고, 초식을 모을 때는 빨리 돌며 밝아진다
+  const R = H * 0.62 * (casting ? 1.08 : 1);
+  ctx.globalAlpha = alpha * (casting ? 0.8 + Math.sin(t * 10) * 0.15 : 0.5);
+  ctx.translate(x, y);
+  ctx.scale(1, view.squash || 0.5);
+  ctx.rotate(t * (casting ? 1.6 : 0.25));
+  ctx.drawImage(kingRing(col), -R, -R, R * 2, R * 2);
+  ctx.restore();
+  // 몸에서 피어오르는 불티 — 상태 없이 시간으로 (여덟 갈래가 엇갈려 오른다)
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  for (let i = 0; i < 8; i++) {
+    const ph = (t * 0.45 + i / 8) % 1;
+    const sx = x + Math.sin(i * 2.4 + t * 1.3) * H * 0.28;
+    const sy = y - H * 0.15 - ph * H * 0.95;
+    ctx.globalAlpha = alpha * Math.sin(ph * Math.PI) * 0.8;
+    ctx.fillStyle = `rgb(${col})`;
+    ctx.beginPath(); ctx.arc(sx, sy, 2.2 + (i % 3), 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.restore();
+}
 export function drawBossSprite(view, ctx, m, x, y, alpha, o) {
   const img = bossImg(m.def?.art);
   if (!img) return false;
@@ -177,6 +231,7 @@ export function drawBossSprite(view, ctx, m, x, y, alpha, o) {
   const H = bossHeight(o) * (o.scale || 1);
   const W = (img.width / img.height) * H;
   const casting = o.casting;
+  if (o.king && m.alive) drawKingAura(view, ctx, x, y, H, o.col, t, casting, alpha);
   const flip = (m.x ?? 0) > o.heroX;            // 그림은 오른쪽을 본다 — 무인이 왼쪽이면 뒤집는다
   const walk = m.move ? Math.abs(Math.sin(t * 9)) * 5 : 0;
   const lift = casting ? 6 + Math.sin(t * 6) * 2 : 0;
