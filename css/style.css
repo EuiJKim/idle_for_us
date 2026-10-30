@@ -1334,3 +1334,35 @@ details.lore p { margin: 4px 0 0; line-height: 1.5; }
 .line-dots i { width: 6px; height: 6px; border-radius: 50%; display: inline-block; }
 .smith-help summary { font-size: 12px; color: var(--muted); cursor: pointer; }
 .smith-help p { font-size: 12px; color: var(--muted); margin: 4px 0; }
+
+/* v152: 강화 확인 · 경고 · 2초 연출 */
+.enh-warn-title { color: #f87171; }
+.enh-ask { border: 1px solid var(--line); border-radius: 12px; padding: 12px; margin: 8px 0; background: rgba(255,245,220,0.03); }
+.enh-ask.danger { border-color: #ef4444; background: rgba(127,29,29,0.25); box-shadow: 0 0 18px rgba(239,68,68,0.25) inset; }
+.enh-ask-item { font-weight: 900; font-size: 16px; }
+.enh-ask-rate { margin: 6px 0; font-size: 14px; }
+.enh-ask-rate b { color: #fde68a; }
+.enh-ask p { font-size: 13px; margin: 4px 0 0; }
+.btn.danger { background: linear-gradient(180deg, #b91c1c, #7f1d1d); color: #fff; border-color: #ef4444; }
+.enh-anim { text-align: center; padding: 18px 6px 10px; }
+.enh-anvil { position: relative; height: 110px; display: grid; place-items: center; }
+.enh-item { font-weight: 900; font-size: 18px; color: var(--gc, #fde68a); padding: 10px 16px; border-radius: 12px;
+  border: 2px solid var(--gc, #fde68a); background: rgba(0,0,0,0.35); animation: enh-shake 0.18s infinite; }
+.enh-sparks { position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(circle at 30% 60%, #fde68a 0 2px, transparent 3px), radial-gradient(circle at 70% 40%, #fb923c 0 2px, transparent 3px),
+    radial-gradient(circle at 55% 75%, #fef3c7 0 2px, transparent 3px), radial-gradient(circle at 40% 30%, #f59e0b 0 2px, transparent 3px);
+  animation: enh-spark 0.35s infinite; }
+.enh-anim-text { margin-top: 8px; font-weight: 800; }
+.enh-bar { height: 8px; border-radius: 4px; background: rgba(255,255,255,0.1); overflow: hidden; margin: 10px 20px 0; }
+.enh-bar i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #f59e0b, #fde68a); animation: enh-fill linear forwards; }
+.enh-anim.result .enh-item { animation: none; }
+.enh-anim.result.ok .enh-item { animation: enh-pop 0.6s ease-out; box-shadow: 0 0 30px #fde68a; }
+.enh-anim.result.ok .enh-anim-text { color: #fde68a; font-size: 18px; }
+.enh-anim.result.fail .enh-item { filter: grayscale(0.8) brightness(0.8); }
+.enh-anim.result.fail .enh-anim-text { color: #cbd5e1; }
+.enh-anim.result.broke .enh-item { border: 0; background: none; font-size: 54px; animation: enh-pop 0.5s ease-out; }
+.enh-anim.result.broke .enh-anim-text { color: #f87171; font-size: 17px; }
+@keyframes enh-shake { 0%, 100% { transform: translate(0, 0) rotate(0); } 25% { transform: translate(-2px, 1px) rotate(-1.5deg); } 75% { transform: translate(2px, -1px) rotate(1.5deg); } }
+@keyframes enh-spark { 0% { opacity: 0.2; transform: scale(0.9); } 50% { opacity: 1; transform: scale(1.15); } 100% { opacity: 0.3; transform: scale(1.3); } }
+@keyframes enh-fill { from { width: 0; } to { width: 100%; } }
+@keyframes enh-pop { 0% { transform: scale(0.6); } 60% { transform: scale(1.2); } 100% { transform: scale(1); } }

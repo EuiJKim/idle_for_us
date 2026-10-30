@@ -356,15 +356,7 @@ function bagTab(app) {
             ` (기본 수치 ×${(W.RARITY[it.rar + 1].mult / W.RARITY[it.rar].mult).toFixed(2)}, 스킬 옵션 새로) — ${W.matName(pc.key)} ${pc.mats} (가진 것 ${fmt(game.s.mats[pc.key] || 0)})${pc.marks ? ` · ${W.matName(W.bossKey(pc.key))} ${pc.marks}` : ''} · 은자 ${fmt(pc.gold)}`) : null,
           h('div', { class: 'btn-row' },
             !worn ? h('button', { class: 'btn primary', onclick: () => { game.equipFromBag(it.uid); closeModal(); done(); } }, '끼기') : null,
-            h('button', { class: 'btn good', disabled: game.canEnhance(it) ? null : true, onclick: () => {
-              const ok = game.enhance(it.uid, useProt);
-              if (ok === null) return toast('은자나 재료가 모자라요');
-              const r = game.lastEnhance;
-              toast(ok ? `강화 성공! +${it.plus}` : r.broke ? `강화 실패… ${itemTitle(game, it)}이(가) 부서졌어요` : r.prot ? `강화 실패 — 보호부가 지켜 줬어요 (+${it.plus})` : r.drop ? `강화 실패… ${r.drop} (+${it.plus})` : '강화 실패 (그대로)');
-              app.save(); app.refresh();
-              if (r.broke) return closeModal();
-              paint();
-            } }, breaking ? '돌파' : '강화'),
+            h('button', { class: 'btn good', disabled: game.canEnhance(it) ? null : true, onclick: () => askEnhance() }, breaking ? '돌파' : '강화'),
             pc ? h('button', { class: 'btn primary', disabled: game.canPromote(it) ? null : true, onclick: () => {
               if (!game.promote(it.uid)) return toast('재료·증표·은자가 모자라요');
               toast(`승급! ${W.RARITY[it.rar].name} — ${optLines(it).join(' / ')}`);
@@ -373,6 +365,53 @@ function bagTab(app) {
             !worn ? h('button', { class: 'btn', onclick: () => { const p = game.sell(it); toast(`은자 +${fmt(p)}`); closeModal(); done(); } }, `팔기 ${fmt(W.sellPrice(it))}`) : null,
             h('button', { class: 'btn', onclick: closeModal }, '닫기')),
         ].filter(Boolean));   // replaceChildren은 null을 글자 'null'로 넣는다
+      };
+      // ---- 강화 (v152): 실패할 수 있으면 묻고, 부서질 수 있으면 붉게 경고하고, 2초 연출 뒤 결과 ----
+      const askEnhance = () => {
+        if (!game.canEnhance(it)) return toast('은자나 재료가 모자라요');
+        const lv = it.plus || 0;
+        const rate = game.enhanceRateOf(it);
+        const fail = W.enhanceFail(lv);
+        if (rate >= 1) return runEnhance(0.9);
+        const breakRisk = fail === 'break';
+        const prot = (game.s.prot || 0) > 0 && useProt;
+        s.replaceChildren(...[
+          h('h2', { class: breakRisk ? 'enh-warn-title' : '' }, breakRisk ? '⚠ 부서질 수 있어요' : '강화할까요?'),
+          h('div', { class: `enh-ask${breakRisk ? ' danger' : ''}` },
+            h('div', { class: 'enh-ask-item', style: `color:${gradeOf(it).color}` }, itemTitle(game, it), ` → +${lv + 1}`),
+            h('div', { class: 'enh-ask-rate' }, '성공 ', h('b', {}, pct(rate, 0)), ' · 실패 ', h('b', {}, pct(1 - rate, 0))),
+            h('p', {}, breakRisk
+              ? (prot ? `실패하면 강화 보호부 1장을 태워 -1 (+${Math.max(0, lv - 1)}). 남은 보호부 ${game.s.prot}장.` : `실패하면 이 장비가 사라져요. ${game.s.prot ? '보호부를 안 쓰기로 했어요.' : '강화 보호부가 없어요 — 상인에게서 살 수 있어요.'}`)
+              : `실패하면 ${fail} (+${Math.max(0, lv + fail)}). 재료·은자는 돌려받지 못해요.`)),
+          h('div', { class: 'btn-row' },
+            h('button', { class: `btn ${breakRisk && !prot ? 'danger' : 'good'}`, onclick: () => runEnhance(2) }, breakRisk && !prot ? '부서져도 강화' : '강화한다'),
+            h('button', { class: 'btn', onclick: () => paint() }, '그만두기')),
+        ]);
+      };
+      const runEnhance = (sec) => {
+        const lv = it.plus || 0;
+        const bar = h('i');
+        s.replaceChildren(
+          h('div', { class: 'enh-anim' },
+            h('div', { class: 'enh-anvil' }, h('div', { class: 'enh-item', style: `--gc:${gradeOf(it).color}` }, itemTitle(game, it)), h('div', { class: 'enh-sparks' })),
+            h('div', { class: 'enh-anim-text' }, `+${lv} → +${lv + 1} 두드리는 중…`),
+            h('div', { class: 'enh-bar' }, bar)));
+        bar.style.animationDuration = `${sec}s`;
+        setTimeout(() => {
+          const ok = game.enhance(it.uid, useProt);
+          const r = game.lastEnhance || {};
+          app.save(); app.refresh();
+          const kind = ok ? 'ok' : r.broke ? 'broke' : 'fail';
+          const msg = ok ? `강화 성공! +${it.plus}` : r.broke ? `${itemTitle(game, it)}이(가) 부서졌어요` : r.prot ? `실패 — 보호부가 지켜 줬어요 (+${it.plus})` : r.drop ? `실패… ${r.drop} (+${it.plus})` : '실패 (그대로)';
+          s.replaceChildren(
+            h('div', { class: `enh-anim result ${kind}` },
+              h('div', { class: 'enh-anvil' }, h('div', { class: 'enh-item', style: `--gc:${gradeOf(it).color}` }, r.broke ? '💥' : itemTitle(game, it))),
+              h('div', { class: 'enh-anim-text' }, msg)),
+            h('div', { class: 'btn-row' },
+              !r.broke && game.canEnhance(it) ? h('button', { class: 'btn good', onclick: () => askEnhance() }, '한 번 더') : null,
+              h('button', { class: 'btn', onclick: () => (r.broke ? closeModal() : paint()) }, r.broke ? '닫기' : '돌아가기')));
+          toast(msg);
+        }, sec * 1000);
       };
       paint();
     });

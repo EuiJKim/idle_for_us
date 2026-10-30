@@ -126,11 +126,26 @@ async function tab(page, name) {
   await p.locator('#panel .gear-tile:has-text("무기")').click();
   await p.waitForSelector('#modal h2');
   const plus0 = await G(p, () => window.__game.s.equip.weapon.plus);
-  for (let i = 0; i < 6 && await G(p, () => window.__game.s.equip.weapon.plus) === plus0; i++) {
-    await p.click('#modal button:has-text("강화")');
-    await sleep(120);
-  }
-  assert(await G(p, () => window.__game.s.equip.weapon.plus) > plus0, '무기 강화 +1');
+  // v152: 강화는 연출(+1~3은 1초쯤) 뒤에 결과가 나온다
+  await p.click('#modal .btn-row button:has-text("강화")');
+  await p.waitForSelector('#modal .enh-anim');
+  await p.waitForSelector('#modal .enh-anim.result', { timeout: 5000 });
+  assert(await G(p, () => window.__game.s.equip.weapon.plus) > plus0, '무기 강화 +1 (연출 뒤 결과)');
+  // 실패할 수 있는 강화는 먼저 묻는다
+  await G(p, () => { window.__game.s.equip.weapon.plus = 5; });
+  await p.click('#modal button:has-text("돌아가기")');
+  await p.click('#modal .btn-row button:has-text("강화")');
+  await p.waitForSelector('#modal .enh-ask');
+  assert(await p.isVisible('#modal .enh-ask-rate'), '실패할 수 있는 강화는 성공률을 보여 주고 묻는다');
+  await p.click('#modal button:has-text("그만두기")');
+  await G(p, () => { window.__game.s.equip.weapon.plus = 10; });
+  await p.click('#modal button:has-text("닫기")');
+  await p.locator('#panel .gear-tile:has-text("무기")').click();
+  await p.click('#modal .btn-row button:has-text("돌파")');
+  await p.waitForSelector('#modal .enh-ask.danger');
+  assert(true, '부서질 수 있는 강화는 붉게 경고한다');
+  await p.click('#modal button:has-text("그만두기")');
+  await G(p, () => { window.__game.s.equip.weapon.plus = 1; });
   await p.click('#modal button:has-text("닫기")');
   await shot(p, '04-bag.png');
 
