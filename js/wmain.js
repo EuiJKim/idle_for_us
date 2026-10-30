@@ -214,24 +214,31 @@ function buildSkillbar() {
 
 // ---------- 화면 갱신 ----------
 let lastSig = '';
+// 같은 글이면 건드리지 않는다 — 같은 글을 다시 넣어도 브라우저는 그 자리를 다시 칠한다 (v185)
+function setText(el, v) { if (el.textContent !== v) el.textContent = v; }
+function setBar(el, r) {
+  const v = `scaleX(${Math.max(0, Math.min(1, r || 0)).toFixed(4)})`;
+  if (el.style.transform !== v) el.style.transform = v;
+}
 function refreshUI(full = false) {
   const s = game.s;
   const st = game.stats();
-  $('hero-name').textContent = s.nickname || '무명';
-  $('hero-rank').textContent = game.tierName() || '-';
-  $('hero-lv').textContent = `Lv.${s.level}`;
-  $('exp-bar').firstChild.style.width = `${Math.min(100, (s.exp / game.expNeed()) * 100)}%`;
-  $('gold').textContent = fmt(s.gold);
-  $('potions').textContent = String(s.potions);
+  setText($('hero-name'), s.nickname || '무명');
+  setText($('hero-rank'), game.tierName() || '-');
+  setText($('hero-lv'), `Lv.${s.level}`);
+  // v185: 너비 대신 transform으로 — 너비를 바꾸면 배치를 다시 하고 화면 전체를 다시 칠했다(막대가 움직이는 동안 매 프레임)
+  setBar($('exp-bar').firstChild, s.exp / game.expNeed());
+  setText($('gold'), fmt(s.gold));
+  setText($('potions'), String(s.potions));
   const m = game.map;
   instHud();
   // 사냥터 줄은 짧게 — '천산 설원 · 두목'은 체력 막대에 닿았다
-  $('stage-label').textContent = m.town || m.inst ? m.name : `${m.king ? m.king.title : m.zoneName} ${m.bossRoom ? '두목' : m.area}`;
+  setText($('stage-label'), m.town || m.inst ? m.name : `${m.king ? m.king.title : m.zoneName} ${m.bossRoom ? '두목' : m.area}`);
   const bossLeft = Math.max(0, Math.ceil(game.bossT));
   const boss = game.mons.find((x) => x.isBoss && x.alive);
-  $('zone-label').textContent = m.inst ? (game.inst.kind === 'tower' ? `수문장 Lv.${m.lv[0]} · ${D.towerSec(game.inst.stage)}초 안에` : game.inst.kind === 'raid' ? `문파원과 함께 — ${D.RAID_SEC}초 동안 친 만큼` : `몹 Lv.${m.lv[0]} · ${D.DAILY_KILLS}마리 잡으면 깬다`) : m.town ? (s.autoHunt ? `쉬는 중 → ${W.mapOf(s.huntMap).name}` : '쉬는 중')
+  setText($('zone-label'), m.inst ? (game.inst.kind === 'tower' ? `수문장 Lv.${m.lv[0]} · ${D.towerSec(game.inst.stage)}초 안에` : game.inst.kind === 'raid' ? `문파원과 함께 — ${D.RAID_SEC}초 동안 친 만큼` : `몹 Lv.${m.lv[0]} · ${D.DAILY_KILLS}마리 잡으면 깬다`) : m.town ? (s.autoHunt ? `쉬는 중 → ${W.mapOf(s.huntMap).name}` : '쉬는 중')
     : m.bossRoom ? (boss ? `두목 ${boss.name} Lv.${boss.lv}` : `두목 다시 나기까지 ${Math.floor(bossLeft / 60)}:${String(bossLeft % 60).padStart(2, '0')}`) + (coop.on ? ` · 🤝${coop.count + 1}명` : '')
-      : `몹 Lv.${m.lv[0]}~${m.lv[1]} · 두목은 두목 구역에`;
+      : `몹 Lv.${m.lv[0]}~${m.lv[1]} · 두목은 두목 구역에`);
   // 혼자/함께 단추 — 십이지왕 두목 구역에서만
   const pb = $('btn-party');
   const inKing = !m.inst && !m.town && m.bossRoom && m.king;
@@ -242,11 +249,11 @@ function refreshUI(full = false) {
     pb.classList.toggle('on', !!game.s.kingParty);
   }
   const hpR = Math.max(0, Math.min(1, game.heroHp / st.hp));
-  $('progress-fill').style.width = `${hpR * 100}%`;
-  $('progress-trail').style.width = `${hpR * 100}%`;          // 늦게 따라온다(css) — 깎인 만큼이 잠깐 밝게 남는다
+  setBar($('progress-fill'), hpR);
+  setBar($('progress-trail'), hpR);          // 늦게 따라온다(css) — 깎인 만큼이 잠깐 밝게 남는다
   $('progress').classList.toggle('low', hpR < 0.35);
-  $('progress-text').textContent = `체력 ${fmt(Math.max(0, game.heroHp))} / ${fmt(st.hp)}`;
-  $('power-label').textContent = `전투력 ${fmt(st.power)}`;
+  setText($('progress-text'), `체력 ${fmt(Math.max(0, game.heroHp))} / ${fmt(st.hp)}`);
+  setText($('power-label'), `전투력 ${fmt(st.power)}`);
   // 무공 바
   const sig = `${s.job}|${s.jobTier}|${game.canAdvance()}|${game.skills().length}`;
   if (sig !== lastSig) { lastSig = sig; buildSkillbar(); }
