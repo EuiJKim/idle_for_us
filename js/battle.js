@@ -264,14 +264,36 @@ const SPECIAL_INK = {
 const CAST_COL = { sword: '229,231,235', fist: '245,158,11', fan: '56,189,248', ring: '168,85,247', poison: '132,204,22' };
 // v222: 애완동물 기운 — 발밑에 등급 빛(레어 파랑 · 유니크 보라 · 전설 주황 · 신화 붉음)과
 // 그 짐승의 기운 알갱이(주작 불티 · 청룡 번개 · 현무 물방울 · 선학 깃털 · 그 밖은 도는 빛). 상태 없이 시간으로.
+// v236: 둥근 빛 — 빛깔·모양마다 한 번 구워 두고 drawImage로 키워 찍는다.
+// 매 프레임 createRadialGradient(+shadowBlur)를 수십 번 만들던 것이 한 장 그리기를 두 배 가까이 늘렸다(p95 6 → 12ms).
+const glowCache = new Map();
+function glowSpr(col, ring = false) {
+  const key = col + (ring ? 'r' : '');
+  let c = glowCache.get(key);
+  if (c) return c;
+  c = document.createElement('canvas'); c.width = c.height = 64;
+  const g = c.getContext('2d');
+  const rg = g.createRadialGradient(32, 32, ring ? 12 : 0, 32, 32, 32);
+  if (ring) { rg.addColorStop(0, `rgba(${col},0)`); rg.addColorStop(0.8, `rgba(${col},1)`); rg.addColorStop(1, `rgba(${col},0)`); }
+  else { rg.addColorStop(0, `rgba(${col},1)`); rg.addColorStop(1, `rgba(${col},0)`); }
+  g.fillStyle = rg; g.fillRect(0, 0, 64, 64);
+  glowCache.set(key, c);
+  return c;
+}
+// 가운데 (x, y), 반지름 r, 진하기 a — 납작하게(sq) 찍을 수도 있다
+function putGlow(ctx, col, x, y, r, a, sq = 1, ring = false) {
+  if (a <= 0.003 || r <= 0) return;
+  const ga = ctx.globalAlpha;
+  ctx.globalAlpha = ga * Math.min(1, a);
+  ctx.drawImage(glowSpr(col, ring), x - r, y - r * sq, r * 2, r * 2 * sq);
+  ctx.globalAlpha = ga;
+}
 // v225: 보물 요괴 기운 — 금빛 둥근 빛과 반짝이는 별 다섯(돌면서 깜빡)
 function treasureAura(ctx, x, y, sc, t, sq = 0.5) {
   ctx.save();
   ctx.globalCompositeOperation = 'lighter';
   const r = 46 * sc;
-  const g = ctx.createRadialGradient(x, y - 30 * sc, 4, x, y - 30 * sc, r);
-  g.addColorStop(0, `rgba(253,224,71,${0.28 + 0.1 * Math.sin(t * 5)})`); g.addColorStop(1, 'rgba(253,224,71,0)');
-  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y - 30 * sc, r, 0, Math.PI * 2); ctx.fill();
+  putGlow(ctx, '253,224,71', x, y - 30 * sc, r, 0.28 + 0.1 * Math.sin(t * 5));
   for (let i = 0; i < 5; i++) {
     const a = t * 1.5 + (i / 5) * Math.PI * 2;
     const tw = Math.max(0, Math.sin(t * 6 + i * 1.9));
@@ -289,10 +311,8 @@ function eliteAura(ctx, x, y, sc, t, sq = 0.5) {
   ctx.save();
   ctx.globalCompositeOperation = 'lighter';
   const r = 30 * sc * (1 + Math.sin(t * 3) * 0.06);
+  putGlow(ctx, '251,146,60', x, y, r, 0.22, sq, true);
   ctx.save(); ctx.translate(x, y); ctx.scale(1, sq);
-  const g = ctx.createRadialGradient(0, 0, r * 0.4, 0, 0, r);
-  g.addColorStop(0, 'rgba(251,146,60,0)'); g.addColorStop(0.8, 'rgba(251,146,60,0.22)'); g.addColorStop(1, 'rgba(251,146,60,0)');
-  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fill();
   ctx.strokeStyle = `rgba(253,186,116,${0.45 + 0.2 * Math.sin(t * 4)})`; ctx.lineWidth = 1.6;
   ctx.setLineDash([6, 5]); ctx.lineDashOffset = -t * 20;
   ctx.beginPath(); ctx.arc(0, 0, r * 0.85, 0, Math.PI * 2); ctx.stroke();
@@ -315,11 +335,8 @@ function petAura(ctx, pet, x, y, t, front, sq = 0.5) {
   if (!front) {
     const rc = DROP_COL[rar];
     const r = 24 + rar * 4 + Math.sin(t * 2.4) * 2;
-    const g = ctx.createRadialGradient(x, y, 2, x, y, r);
-    g.addColorStop(0, `rgba(${rc},${0.18 + rar * 0.07})`); g.addColorStop(1, `rgba(${rc},0)`);
-    ctx.fillStyle = g;
+    putGlow(ctx, rc, x, y, r, 0.18 + rar * 0.07, sq);
     ctx.save(); ctx.translate(x, y); ctx.scale(1, sq); ctx.translate(-x, -y);
-    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
     if (rar >= 2) { ctx.strokeStyle = `rgba(${rc},${0.35 + 0.15 * Math.sin(t * 3)})`; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(x, y, r * 0.8, 0, Math.PI * 2); ctx.stroke(); }
     ctx.restore();
     ctx.restore();
@@ -3476,8 +3493,8 @@ export class BattleView {
         const y = h - ((t * (20 + b * 25) + a * h) % (h + 20));
         const x = a * w + Math.sin(t * 2 + i) * 10;
         ctx.globalAlpha = 0.75 * Math.sin((y / h) * Math.PI); ctx.fillStyle = '#fdba74';
-        ctx.shadowColor = '#f97316'; ctx.shadowBlur = 6;
-        ctx.beginPath(); ctx.arc(x, y, 2.2 + b * 2, 0, Math.PI * 2); ctx.fill(); ctx.shadowBlur = 0;
+        putGlow(ctx, '249,115,22', x, y, 7 + b * 3, 0.6);
+        ctx.beginPath(); ctx.arc(x, y, 2.2 + b * 2, 0, Math.PI * 2); ctx.fill();
       } else if (kind === 'poison') { // 포자 — 연둣빛이 느리게 떠돈다
         const x = (a * w + t * (8 + b * 10)) % w, y = (b * h + Math.sin(t * 0.7 + i) * 30 + h) % h;
         ctx.globalAlpha = 0.45 + 0.3 * Math.sin(t * 2 + i); ctx.fillStyle = '#a3e635';
@@ -3486,9 +3503,7 @@ export class BattleView {
         const y = h - ((t * (12 + b * 10) + a * h) % (h + 60)) + 30;
         const x = a * w + Math.sin(t * 0.8 + i) * 24;
         const rr = 18 + b * 26;
-        const g = ctx.createRadialGradient(x, y, 0, x, y, rr);
-        g.addColorStop(0, 'rgba(76,29,149,0.3)'); g.addColorStop(1, 'rgba(76,29,149,0)');
-        ctx.globalAlpha = 1; ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, rr, 0, Math.PI * 2); ctx.fill();
+        ctx.globalAlpha = 1; putGlow(ctx, '76,29,149', x, y, rr, 0.3);
       } else if (kind === 'wind') {   // 잎 — 옆으로 날려 간다
         const x = (t * (60 + b * 50) + a * w) % (w + 20) - 10, y = (b * h + Math.sin(t * 2 + i) * 14 + h) % h;
         ctx.globalAlpha = 0.75; ctx.fillStyle = '#86efac';
@@ -3496,14 +3511,12 @@ export class BattleView {
       } else if (kind === 'mist') {   // 안개 — 큰 흰 덩이가 느리게 흐른다
         const x = (t * (6 + b * 6) + a * w * 1.4) % (w + 240) - 120, y = b * h;
         const rr = 110 + b * 80;
-        const g = ctx.createRadialGradient(x, y, 0, x, y, rr);
-        g.addColorStop(0, 'rgba(241,245,249,0.16)'); g.addColorStop(1, 'rgba(241,245,249,0)');
-        ctx.globalAlpha = 1; ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, rr, 0, Math.PI * 2); ctx.fill();
+        ctx.globalAlpha = 1; putGlow(ctx, '241,245,249', x, y, rr, 0.16);
       } else {                        // 빛 — 금빛 반딧불이 깜빡인다
         const x = (a * w + Math.sin(t * 0.5 + i) * 20 + w) % w, y = (b * h + Math.cos(t * 0.4 + i) * 20 + h) % h;
         ctx.globalAlpha = Math.max(0, Math.sin(t * 1.8 + i * 1.7)) * 0.85; ctx.fillStyle = '#fde68a';
-        ctx.shadowColor = '#facc15'; ctx.shadowBlur = 6;
-        ctx.beginPath(); ctx.arc(x, y, 2.2, 0, Math.PI * 2); ctx.fill(); ctx.shadowBlur = 0;
+        putGlow(ctx, '250,204,21', x, y, 7, 0.7);
+        ctx.beginPath(); ctx.arc(x, y, 2.2, 0, Math.PI * 2); ctx.fill();
       }
     }
     ctx.restore();
