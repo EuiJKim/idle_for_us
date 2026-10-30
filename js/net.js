@@ -183,6 +183,41 @@ export class Net {
     } catch (err) { console.warn('[net] topPlayers', err); return []; }
   }
 
+  // ---------- 운영자 선물 (v175) ----------
+  // 운영자가 gifts/{uid}/box/{id}에 은자를 넣어 두면, 그 무인이 들어올 때 받는다(받으면 문서를 지운다 —
+  // 지우기에 성공한 것만 준다. 그래야 두 번 받지 않는다). 규칙: 넣기는 운영자만, 읽기·지우기는 본인·운영자.
+  // 우편함 (v175) — 무인마다 gifts/{uid}/box. 운영자가 넣고, 무인이 우편함에서 '받기'를 누르면 받는다.
+  // gift: { gold?, potions?, prot? } — 0이 아닌 것만 싣는다
+  async sendGift(uid, gift, memo = '') {
+    if (!this.isAdmin() || !uid) return false;
+    const doc = { memo: String(memo).slice(0, 60), at: Date.now() };
+    for (const k of ['gold', 'potions', 'prot']) if (Math.floor(gift?.[k] || 0) > 0) doc[k] = Math.floor(gift[k]);
+    if (!doc.gold && !doc.potions && !doc.prot) return false;
+    try {
+      await this.fs.setDoc(this.ref('gifts', uid, 'box', `g${Date.now()}`), doc);
+      return true;
+    } catch (err) { console.warn('[net] sendGift', err); return false; }
+  }
+  // 우편함 보기 — [{ id, gold, potions, prot, memo, at }]
+  async listGifts() {
+    if (!this.uid || !this.online) return [];
+    try {
+      const snap = await this.fs.getDocs(this.fs.collection(this.db, 'gifts', this.uid, 'box'));
+      return snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => (a.at || 0) - (b.at || 0));
+    } catch (err) { if (!this.denied(err)) console.warn('[net] listGifts', err); return []; }
+  }
+  // 받기 — 지우기에 성공한 것만 돌려준다(두 번 받지 않게)
+  async claimGift(id) {
+    if (!this.uid) return null;
+    const r = this.ref('gifts', this.uid, 'box', id);
+    try {
+      const snap = await this.fs.getDoc(r);
+      if (!snap.exists()) return null;
+      await this.fs.deleteDoc(r);
+      return snap.data();
+    } catch (err) { console.warn('[net] claimGift', err); return null; }
+  }
+
   // 계좌 정보를 폰에서 고친다
   async saveShop(data) {
     if (!this.isAdmin()) return false;

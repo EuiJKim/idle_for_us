@@ -44,6 +44,16 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // 운영자 선물 (v175) — 운영자가 넣고, 받는 사람이 받으면서 지운다
+    match /gifts/{uid}/box/{gid} {
+      allow read, delete: if signedIn() && (request.auth.uid == uid || isAdmin());
+      allow create: if isAdmin()
+        && request.resource.data.keys().hasOnly(['gold', 'potions', 'prot', 'memo', 'at'])
+        && (!('gold' in request.resource.data) || (request.resource.data.gold is int && request.resource.data.gold > 0 && request.resource.data.gold <= 1000000000000))
+        && (!('potions' in request.resource.data) || (request.resource.data.potions is int && request.resource.data.potions > 0 && request.resource.data.potions <= 100000))
+        && (!('prot' in request.resource.data) || (request.resource.data.prot is int && request.resource.data.prot > 0 && request.resource.data.prot <= 10000));
+    }
+
     // 상점에 띄울 계좌 정보. **저장소에 안 둔다** — 공개 저장소라서다.
     // 운영자가 콘솔에서 고치면 바로 반영된다(배포가 필요 없다).
     //   config/shop  ->  { bank: '○○은행 000-0000-0000 홍길동', price: '5,000원', note: '...' }

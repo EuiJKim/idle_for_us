@@ -807,6 +807,35 @@ function maybeInstallHint() {
 }
 setTimeout(maybeInstallHint, 8000);
 
+// ---------- 운영자 선물 창 (v175) ----------
+async function openGiftAdmin() {
+  let pick = null;
+  const list = h('div', { class: 'gift-list' }, h('p', { class: 'muted' }, '불러오는 중…'));
+  const amt = h('input', { type: 'number', value: '4000000', min: '0', step: '1000', class: 'gift-amt' });
+  const pots = h('input', { type: 'number', value: '0', min: '0', step: '10', class: 'gift-amt' });
+  const prot = h('input', { type: 'number', value: '0', min: '0', step: '1', class: 'gift-amt' });
+  const memo = h('input', { type: 'text', placeholder: '한마디 (없어도 돼요)', maxlength: '60', class: 'gift-memo' });
+  const field = (name, el) => h('div', { class: 'row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, name)), el);
+  openModal((s) => s.append(h('h2', {}, '우편 보내기'), list,
+    field('은자', amt), field('물약', pots), field('강화 보호부', prot), memo,
+    h('div', { class: 'btn-row' },
+      h('button', { class: 'btn primary', onclick: async () => {
+        const gift = { gold: Number(amt.value) || 0, potions: Number(pots.value) || 0, prot: Number(prot.value) || 0 };
+        if (!pick) return toast('받을 무인을 고르세요');
+        if (!(gift.gold > 0 || gift.potions > 0 || gift.prot > 0)) return toast('보낼 것을 적으세요');
+        const ok = await net.sendGift(pick.uid, gift, memo.value);
+        toast(ok ? `${pick.nickname || '무인'}의 우편함에 넣었어요 — ${giftText(gift)}` : '보내지 못했어요 (규칙 게시를 확인하세요)');
+        if (ok) closeModal();
+      } }, '보내기'),
+      h('button', { class: 'btn', onclick: closeModal }, '닫기'))));
+  const rows = await net.topPlayers(80);
+  list.replaceChildren(...(rows.length ? rows.map((p) => {
+    const b = h('button', { class: 'chip gift-who', onclick: () => { pick = p; for (const x of list.children) x.classList.toggle('on', x === b); } },
+      h('b', {}, p.nickname || '이름없음'), h('small', {}, ` Lv.${p.level || 1}${p.uid === net.uid ? ' · 나' : ''}`));
+    return b;
+  }) : [h('p', { class: 'muted' }, '무인 목록을 못 불러왔어요')]));
+}
+
 // ---------- 설정 ----------
 function toggleRow(label, on, desc, onChange) {
   const btn = h('button', { class: `btn ${on ? 'good' : ''}`, style: 'padding:6px 12px;min-width:62px' }, on ? '켜짐' : '꺼짐');
@@ -837,6 +866,8 @@ $('btn-settings').addEventListener('click', () => openModal((s) => {
       setSound(v);
       try { localStorage.setItem('ifu.sound', v ? '1' : '0'); } catch { /* 이번만 */ }
     }),
+    net.isAdmin?.() ? h('div', { class: 'row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, '운영자 · 우편 보내기'), h('div', { class: 'desc' }, '무인을 골라 은자·물약·보호부를 그 무인의 우편함에 넣어요')),
+      h('button', { class: 'btn primary', style: 'padding:6px 12px', onclick: () => { closeModal(); openGiftAdmin(); } }, '보내기')) : '',
     toggleRow('자동 물약', game.s.autoPotion, `체력이 ${Math.round(W.POTION_AT * 100)}% 아래면 알아서 먹어요`, (v) => { game.s.autoPotion = v; save(); }),
     toggleRow('자동 스킬', game.s.autoSkill, '체력을 쓰는 스킬은 체력이 넉넉할 때만 써요 · 걸으면서도 써요', (v) => { game.s.autoSkill = v; save(); }),
     toggleRow('스킬 범위 보기', view.showRange, '펼칠 때마다 맞는 곳을 금빛 고리로 — 스킬 단추를 길게 누르면 언제든 볼 수 있어요', (v) => {
@@ -875,6 +906,58 @@ function netChanged(what) {
 let last = performance.now();
 let uiTimer = 0;
 let saveTimer = 0;
+let giftTimer = 52;
+// 우편함 (v175) — 무인마다 하나. 운영자가 넣은 것은 '받기'를 누를 때까지 그대로 남는다
+let mail = [];
+function giftText(g) {
+  return [g.gold > 0 ? `은자 ${fmt(g.gold)}` : '', g.potions > 0 ? `물약 ${fmt(g.potions)}` : '', g.prot > 0 ? `보호부 ${fmt(g.prot)}` : '']
+    .filter(Boolean).join(' · ');
+}
+function showMailBtn() {
+  $('btn-mail').classList.toggle('hidden', !mail.length);
+  $('mail-n').textContent = mail.length > 1 ? String(mail.length) : '';
+}
+async function checkGifts() {
+  mail = await net.listGifts();
+  showMailBtn();
+  return mail.length;
+}
+async function claimMail(ids) {
+  const got = { gold: 0, potions: 0, prot: 0 };
+  for (const id of ids) {
+    const g = await net.claimGift(id);
+    if (!g) continue;
+    for (const k of Object.keys(got)) got[k] += Math.max(0, Math.floor(g[k] || 0));
+  }
+  mail = mail.filter((m) => !ids.includes(m.id));
+  showMailBtn();
+  if (!(got.gold || got.potions || got.prot)) { toast('받을 것이 없어요'); return; }
+  game.s.gold += got.gold;
+  game.s.potions += got.potions;
+  game.s.prot = (game.s.prot || 0) + got.prot;
+  save();
+  refreshUI(true);
+  sfx('loot');
+  toast(`📮 받았어요 — ${giftText(got)}`);
+}
+function openMailbox() {
+  const draw = (s) => {
+    s.replaceChildren(h('h2', {}, '📮 우편함'),
+      mail.length ? '' : h('p', { class: 'muted' }, '받을 우편이 없어요'),
+      ...mail.map((m) => h('div', { class: 'row mail-row' },
+        h('div', { class: 'info' }, h('div', { class: 'name' }, `운영자${m.memo ? ` — ${m.memo}` : ''}`), h('div', { class: 'desc' }, giftText(m))),
+        h('button', { class: 'btn primary', style: 'padding:6px 12px', onclick: async (e) => {
+          e.target.disabled = true; await claimMail([m.id]); draw(s);
+        } }, '받기'))),
+      h('div', { class: 'btn-row', style: 'margin-top:8px' },
+        mail.length > 1 ? h('button', { class: 'btn primary', onclick: async (e) => {
+          e.target.disabled = true; await claimMail(mail.map((m) => m.id)); draw(s);
+        } }, '모두 받기') : '',
+        h('button', { class: 'btn', onclick: closeModal }, '닫기')));
+  };
+  openModal(draw);
+}
+$('btn-mail').addEventListener('click', openMailbox);
 let loopErr = 0;
 function frame(now) {
   try { step(now ?? performance.now()); } catch (e) {
@@ -902,6 +985,9 @@ function step(now) {
   saveTimer += dt;
   if (uiTimer > 0.2 && !saver.on) { uiTimer = 0; refreshUI(); }
   if (saveTimer > 5) { saveTimer = 0; save(); net.pushProfile(); }
+  // 운영자 선물 (v175) — 처음엔 8초 뒤, 그다음 1분마다 본다
+  giftTimer += dt;
+  if (giftTimer > 60 && net.ready?.() && game.s.job) { giftTimer = 0; checkGifts(); }
 }
 
 document.addEventListener('visibilitychange', () => {
@@ -971,6 +1057,8 @@ else if (!game.s.job) askClass();
 else checkReturn();
 net.init();
 window.__game = game;
+window.__test_checkGifts = () => checkGifts();     // 시험: 1분을 기다리지 않고 우편함을 본다
+window.__test_claimAll = () => claimMail(mail.map((m) => m.id));
 window.__view = view;
 window.__save = save;
 window.__app = app;

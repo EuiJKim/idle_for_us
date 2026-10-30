@@ -249,6 +249,37 @@ async function tab(page, name) {
   assert(rows.length >= 2 && rows[0].includes('철수'), `서열: 레벨 높은 철수가 맨 위 (${rows.length}명)`);
   await shot(q, '08-rank.png');
 
+  console.log('# 온라인: 우편함 (v175)');
+  {
+    // 운영자만 넣을 수 있다 — 보통 무인이 넣으려 하면 규칙이 막는다
+    assert(await G(q, async () => !(await window.__app.net.sendGift(window.__app.net.uid, { gold: 100 }))), '보통 무인은 우편을 넣을 수 없다 (운영자만)');
+    // 운영자 자리에서 넣었다 치고(에뮬레이터 owner) 철수에게 400만 + 물약 30
+    const uid = await G(p, () => window.__app.net.uid);
+    const r = await fetch(`http://127.0.0.1:8080/v1/projects/idle-69772/databases/(default)/documents/gifts/${uid}/box?documentId=g1`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer owner' },
+      body: JSON.stringify({ fields: { gold: { integerValue: '4000000' }, potions: { integerValue: '30' }, memo: { stringValue: '시험 선물' }, at: { integerValue: String(Date.now()) } } }) });
+    assert(r.ok, '우편을 넣었다');
+    const g0 = await G(p, () => window.__game.s.gold);
+    assert(await G(p, () => window.__test_checkGifts?.()) === 1, '우편함에 한 통');
+    await sleep(300);
+    assert(!(await p.$eval('#btn-mail', (b) => b.classList.contains('hidden'))), '📮 단추가 보인다');
+    assert(await G(p, () => window.__game.s.gold) < g0 + 1000000, '받기를 누르기 전에는 들어오지 않는다');
+    const pot0 = await G(p, () => window.__game.s.potions);
+    await p.click('#btn-mail');
+    await p.waitForSelector('.mail-row');
+    await shot(p, '08b-mail.png');
+    await p.click('.mail-row .btn.primary');
+    let g1 = g0;
+    for (let i = 0; i < 20 && g1 < g0 + 4000000; i++) { await sleep(300); g1 = await G(p, () => window.__game.s.gold); }
+    assert(g1 >= g0 + 4000000, `받기 → 은자 +${g1 - g0}`);
+    assert(await G(p, () => window.__game.s.potions) >= pot0 + 30 - 5, '받기 → 물약도');
+    await G(p, () => document.querySelector('#modal .btn:not(.primary)')?.click());
+    assert(await G(p, () => window.__test_checkGifts?.()) === 0, '받은 우편은 우편함에서 사라진다');
+    assert(await p.$eval('#btn-mail', (b) => b.classList.contains('hidden')), '빈 우편함이면 📮 단추가 숨는다');
+    await G(p, () => window.__test_claimAll?.());
+    assert(await G(p, () => window.__game.s.gold) < g1 + 1000000, '받은 우편은 다시 받지 않는다');
+  }
+
   console.log('# 온라인: 문파');
   await G(p, () => { const g = window.__game; g.s.mats = { 1: 100 }; g.s.gold = Math.max(g.s.gold, 1e5); });
   await tab(p, 'social');

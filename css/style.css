@@ -1385,6 +1385,12 @@ details.lore p { margin: 4px 0 0; line-height: 1.5; }
   border: 1px solid rgba(253,224,71,0.35); background: rgba(10,8,6,0.62); color: #fde68a; font-size: 14px; line-height: 24px; }
 #btn-saver { top: 92px; }
 #btn-fs { top: 122px; }
+/* v175 우편함 — 운영자가 보낸 것이 있을 때만 보인다 */
+#btn-mail { position: absolute; right: 48px; top: 92px; z-index: 3; height: 26px; padding: 0 8px; border-radius: 999px;
+  border: 1px solid rgba(253,224,71,0.6); background: rgba(10,8,6,0.72); color: #fde68a; font-size: 14px; line-height: 24px; animation: mailPulse 1.6s ease-in-out infinite; }
+#btn-mail b { margin-left: 3px; font-size: 12px; color: #fca5a5; }
+@keyframes mailPulse { 50% { box-shadow: 0 0 10px rgba(253,224,71,.55); } }
+.mail-row .desc { color: #fde68a; }
 #saver { position: fixed; inset: 0; z-index: 9999; background: #000; display: flex; flex-direction: column; align-items: center; justify-content: center;
   color: #57534e; user-select: none; touch-action: none; }
 #saver.hidden { display: none; }
@@ -1424,3 +1430,8 @@ details.lore p { margin: 4px 0 0; line-height: 1.5; }
 .mat-zone .mat-up { white-space: nowrap; font-size: 12px; }
 .mat-zone .mat-up small { opacity: .7; }
 .mat-up-all { display: flex; flex-direction: column; gap: 6px; margin: 4px 0 8px; }
+/* v175 운영자 선물 */
+.gift-list { display: flex; flex-wrap: wrap; gap: 6px; max-height: 40vh; overflow: auto; margin: 6px 0 10px; }
+.gift-who.on { border-color: #fde68a; background: rgba(253, 224, 71, .18); }
+.gift-amt, .gift-memo { width: 100%; padding: 8px; border-radius: 8px; border: 1px solid var(--line); background: #0b0907; color: #f5f5f4; font-size: 15px; box-sizing: border-box; }
+.gift-memo { margin-top: 6px; }

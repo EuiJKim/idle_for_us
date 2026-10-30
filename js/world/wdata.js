@@ -698,7 +698,11 @@ export const itemName = (item, job) => {
 
 // ---------- 물약 ----------
 export const POTION_HEAL = 0.35;
-export const potionPrice = (level) => 5 + level;
+// v175: 몹 은자 5.5마리어치(레벨 45까지는 1배에서 차츰). 전에는 한 마리어치도 안 돼 벌이의 1~13%였다 —
+// 센 무인이 물약을 들이부으며 한참 위에서 방치하는 게 이득이었다. 이제 내 레벨 사냥터는 벌이의 10%쯤,
+// 두 지역 위는 절반~거의 다(위에서 방치하기가 부담스럽다).
+export const POTION_KILLS = 5.5;
+export const potionPrice = (level) => Math.round(mobGold(level) * Math.min(POTION_KILLS, 1 + level / 10));
 export const POTION_AT = 0.45;        // 체력이 이 아래면 자동으로 먹는다
 export const POTION_GAP = 0.8;
 export const REST_HEAL = 0.25;        // 마을에서는 초당 최대 체력의 25%
