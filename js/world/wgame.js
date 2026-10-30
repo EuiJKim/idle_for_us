@@ -745,7 +745,7 @@ export class WorldGame {
             let left = dmg;
             if (this.shield > 0 && this.buffs.shield > 0) { const a = Math.min(this.shield, left); this.shield -= a; left -= a; }   // 금종조
             this.heroHp -= left;
-            this.emit('heroHit', { amount: left, shielded: dmg - left });
+            this.emit('heroHit', { amount: left, shielded: dmg - left, boss: !!m.isBoss, from: { x: m.x, y: m.y } });   // v217: 두목이 친 것은 그림이 다르다
             if (ps.has('reflect')) this.hurt(m, dmg * 0.4, 'reflect', false);                                 // 철왕
             { const isp = this.impSpecials();                                                                  // 증표 고유 (v163)
               if (isp.mirror && m.alive) { this.hurt(m, st.atk * Math.min(5, 1.5 * isp.mirror.p) * (m.isBoss ? st.boss : 1), 'reflect', false); this.impShow(isp.mirror, m); }

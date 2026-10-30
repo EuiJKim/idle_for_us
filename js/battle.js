@@ -728,6 +728,15 @@ export class BattleView {
         this.heroRecoil = Math.min(1, 0.45 + (ev.amount / hp) * 3);
         if (ev.tell || ev.amount > hp * 0.15) this.shake = Math.max(this.shake, 0.18 + Math.min(0.3, ev.amount / hp));
         this.float('-' + fmt(ev.amount) + (ev.crit ? '!' : ''), this.heroX + 26, this.groundY - 158, '#fca5a5', ev.crit ? 18 : 14);
+        // v217: 두목의 평타는 무인 몸에 붉은 칼자국 + 충격 고리 + 불티 — 그냥 몹과 무게가 다르다
+        if (ev.boss && this.fxLevel > 0 && game?.heroX != null) {
+          const f = ev.from || { x: game.heroX + 1, y: game.heroY };
+          const a = Math.atan2((game.heroY - f.y) * this.squash, game.heroX - f.x) + Math.PI / 2 + (Math.random() - 0.5) * 0.6;
+          this.effects.push({ kind: 'cutline', life: 0.28, max: 0.28, wx: game.heroX, wy: game.heroY, a });
+          this.effects.push({ kind: 'shock', life: 0.32, max: 0.32, wx: game.heroX, wy: game.heroY, r: 70, col: '248,113,113', rings: 2, w: 4 });
+          for (let i = 0; i < 7; i++) { const b = Math.random() * Math.PI * 2, v = 90 + Math.random() * 140; this.particles.push({ x: this.heroX, y: this.groundY - 60, vx: Math.cos(b) * v, vy: Math.sin(b) * v - 40, life: 0.35 + Math.random() * 0.2, size: 2 + Math.random() * 2.5, color: 'rgb(254,202,202)' }); }
+          this.shake = Math.max(this.shake, 0.14);
+        }
         break;
       }
       case 'bossCast':
@@ -737,6 +746,9 @@ export class BattleView {
         this.castFx = fxFor(ev.name.replace(/^오의 · /, ''), ev.at?.def?.look, ev.pat);
         if (ev.at && this.fxLevel > 0) {
           this.effects.push({ kind: 'bcast', wx: ev.at.x, wy: ev.at.y, r: ev.ult ? 170 : ev.skill ? 120 : 90, fx: this.castFx, life: ev.ult ? 1.8 : 1.1, max: ev.ult ? 1.8 : 1.1 });
+          // v217: 펼치기 전 기를 모은다 — 초식 빛깔 알갱이가 두목에게 빨려 든다(오의는 더 넓고 길게)
+          const gn = Math.round((ev.ult ? 30 : ev.skill ? 22 : 14) * (this.budget ?? 1));
+          this.effects.push({ kind: 'gather', wx: ev.at.x, wy: ev.at.y, r: ev.ult ? 260 : ev.skill ? 190 : 140, col: this.castFx?.col || '248,113,113', seeds: seedsN(gn), life: ev.ult ? 1.5 : 0.9, max: ev.ult ? 1.5 : 0.9 });
           if (ev.skill) this.flash = Math.max(this.flash, ev.ult ? 0.3 : 0.12);
         }
         // 오의는 화면 가운데에 크게 (v168)
@@ -777,6 +789,9 @@ export class BattleView {
             this.particles.push({ x: sx, y: sy, vx: Math.cos(a) * v, vy: Math.sin(a) * v * this.squash - 60, life: 0.5 + Math.random() * 0.3, size: 3 + Math.random() * 3, color: `rgb(${fx.col})` });
           }
         }
+        // v217: 터진 자리에 그을린 금이 잠깐 남고, 오의는 화면이 하얗게 한 번 뜬다
+        if (this.fxLevel > 0 && tl.kind !== 'line') this.effects.push({ kind: 'crack', life: 0.9, max: 0.9, wx: c.x, wy: c.y, r: Math.min(260, r * 0.8), col: fx?.col || '248,113,113', seed: Math.random() * 99, n: tl.ult ? 8 : 5 });
+        if (tl.ult) { this.flash = Math.max(this.flash, 0.25); this.shake = Math.max(this.shake, 0.45); }
         if (ev.hit) this.shake = Math.max(this.shake || 0, 0.35);
         break;
       }

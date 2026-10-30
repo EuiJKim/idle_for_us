@@ -27,6 +27,32 @@ export const PLUM = '251,207,232';
 // ---------- 그림 ----------
 export const CLASS_FX = {
   // 바닥에 퍼지는 충격 고리 (눌린 타원). rings 겹이 조금씩 늦게 퍼진다.
+  // v217: 기 모으기 — 사방에서 빛 알갱이가 한 점(두목 손끝)으로 빨려 든다. 모일수록 가운데가 밝아진다
+  gather(v, ctx, e, k) {
+    const x = v.sx({ x: e.wx });
+    const y = v.sy({ y: e.wy }) + (e.oy || -70);
+    const p = 1 - k;
+    for (let i = 0; i < e.seeds.length; i++) {
+      const s = e.seeds[i];
+      const q = clamp01((p - s[2] * 0.4) / 0.6);
+      if (q <= 0 || q >= 1) continue;
+      const a = s[0] * TAU + q * 0.8;
+      const r = e.r * (1 - q) ** 1.4;
+      const px = x + Math.cos(a) * r, py = y + Math.sin(a) * r * 0.6;
+      const tl = 10 + 22 * (1 - q);
+      ctx.strokeStyle = `rgba(${e.col},${0.9 * Math.sin(q * Math.PI)})`;
+      ctx.lineWidth = 1.5 + s[1] * 2.2;
+      ctx.beginPath(); ctx.moveTo(px + Math.cos(a) * tl, py + Math.sin(a) * tl * 0.6); ctx.lineTo(px, py); ctx.stroke();
+    }
+    const glow = Math.min(1, p * 1.6) * Math.min(1, k * 4);
+    const gr = 18 + 26 * p;
+    const g = ctx.createRadialGradient(x, y, 0, x, y, gr);
+    g.addColorStop(0, `rgba(255,255,255,${0.9 * glow})`);
+    g.addColorStop(0.4, `rgba(${e.col},${0.6 * glow})`);
+    g.addColorStop(1, `rgba(${e.col},0)`);
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(x, y, gr, 0, TAU); ctx.fill();
+  },
   shock(v, ctx, e, k) {
     const x = v.sx({ x: e.wx });
     const y = v.sy({ y: e.wy });
