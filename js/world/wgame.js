@@ -381,7 +381,7 @@ export class WorldGame {
     // 레벨·스탯 몫은 작게, 장비 몫은 크게 (v108) — 강해지는 건 대부분 장비 덕
     // v110: 레벨·스탯 몫을 키웠다(장비보다는 작게).
     // 장비가 2/3 남짓, 레벨·스탯이 1/3 남짓(시뮬로 맞춤). 힘·체력은 1점에 0.3%씩도 올린다.
-    const atk = (5 + L * 3 + str * 3 + gear.atk) * (1 + gear.atkPct + str * 0.003 + (s.guildId ? W.guildAtk(this.guildExp) : 0));
+    const atk = (5 + L * 3 + str * 3 + gear.atk) * (1 + gear.atkPct + str * 0.003 + (s.guildId ? W.guildAtk(this.guildExp) : 0)) * (cls.atkK || 1);   // atkK: 직업 맞춤(v239)
     const hp = (60 + L * 25 + vit * 20 + gear.hp) * (1 + gear.hpPct + vit * 0.003);
     const st = {
       atk, hp,
