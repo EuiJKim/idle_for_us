@@ -85,6 +85,14 @@ export function migrateWorld(raw, now = Date.now()) {
   for (const k of Object.keys(s.skillLv)) s.skillLv[k] = clamp(Math.floor(Number(s.skillLv[k]) || 1), 1, W.SKILL_LV_MAX);
   // v110: 스킬 점수 — 옛 세이브는 레벨 15부터 오른 만큼 한 번에
   if ((raw.skillV || 0) < 1) { s.skillPts = Math.max(0, (Number(raw.level) || 1) - W.SKILL_PT_FROM + 1); s.skillV = 1; }
+  // v205: 무공 값이 싸졌다 — 옛 값으로 올린 만큼과 새 값의 차이를 점수로 돌려준다(레벨은 그대로)
+  if ((s.skillV || 0) < 2) {
+    let back = 0;
+    for (const lv of Object.values(s.skillLv || {})) back += W.skillSpent(Math.min(lv, 10), W.skillLvCostOld) - W.skillSpent(Math.min(lv, 10));
+    s.skillPts = (Number(s.skillPts) || 0) + Math.max(0, back);
+    s.skillRefund = Math.max(0, back);
+    s.skillV = 2;
+  }
   s.skillPts = Math.max(0, Math.floor(Number(s.skillPts) || 0));
   for (const k of Object.keys(s.stats)) s.stats[k] = Math.max(0, Math.floor(Number(s.stats[k]) || 0));
   s.equip = { ...base.equip, ...(raw.equip || {}) };
@@ -2156,6 +2164,26 @@ export class WorldGame {
     const sk = this.skillDef(id);
     const lv = this.skillLevel(id);
     return this.knows(sk) && lv < W.SKILL_LV_MAX && this.s.skillPts >= W.skillLvCost(lv);
+  }
+  // 무공 초기화 (v205) — 무공 레벨·심법을 모두 처음으로, 쓴 점수는 다 돌려받는다
+  skillResetCost() { return W.skillResetCost(this.s.level, this.s.skillResets || 0); }
+  skillSpentAll() {
+    let n = 0;
+    for (const lv of Object.values(this.s.skillLv || {})) n += W.skillSpent(lv);
+    for (const p of this.passiveList()) for (let l = 0; l < this.passLevel(p.id); l++) n += W.passiveCost(p, l);
+    return n;
+  }
+  canResetSkills() { return this.skillSpentAll() > 0 && this.s.gold >= this.skillResetCost(); }
+  resetSkills() {
+    if (!this.canResetSkills()) return 0;
+    const back = this.skillSpentAll();
+    this.s.gold -= this.skillResetCost();
+    this.s.skillLv = {};
+    this.s.passLv = {};
+    this.s.skillPts += back;
+    this.s.skillResets = (this.s.skillResets || 0) + 1;
+    this._mods = null; this._pm = null; this._stats = null;
+    return back;
   }
   skillUp(id) {
     if (!this.canSkillUp(id)) return false;

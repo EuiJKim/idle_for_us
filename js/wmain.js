@@ -752,6 +752,8 @@ if (game.s.gearNote) {
 
 // ---------- 방치 보상 ----------
 function checkReturn(now = Date.now()) {
+  // v205: 무공 값이 싸져서 돌려준 점수가 있으면 한 번 알린다
+  if (game.s.skillRefund > 0) { toast(`무공 값이 싸졌어요 — 더 쓴 점수 ${game.s.skillRefund}점을 돌려드렸어요 (만렙 ${W.SKILL_LV_MAX})`); game.s.skillRefund = 0; save(); }
   const rw = game.offlineReward(now);
   game.s.lastSeen = now;
   if (!rw || modalOpen()) return;

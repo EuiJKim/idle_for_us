@@ -654,13 +654,20 @@ export function optText(o) {
 // ---------- 스킬 레벨 (v110) ----------
 // 1차 전직(레벨 15)부터 레벨이 오를 때마다 스킬 점수 1. 스킬 레벨 n → n+1에 점수 n.
 // 한 레벨에 피해 +7% · 숨 -2%. 5레벨에 범위 +15%(1차는 주변 적 20%), 10레벨에 범위 +30%(1차 40%) · 치명 +10%p.
-export const SKILL_LV_MAX = 10;
+// v205: 만렙 10 → 15(極). 값은 1·1·2·2·3·3·4·4·5(10까지 25점) · 11~15는 6점씩(15까지 55점) — 전에는 n점씩(10까지 45점).
+// 레벨 150이면 점수 136 — 무공 둘셋을 만렙으로, 나머지와 심법은 골라서. 다시 고르려면 무공 초기화.
+export const SKILL_LV_MAX = 15;
 export const SKILL_PT_FROM = 15;
-export const skillLvCost = (lv) => lv;
+export const skillLvCost = (lv) => (lv < 10 ? Math.ceil(lv / 2) : 6);
+export const skillLvCostOld = (lv) => lv;                  // v205 전 값 — 옛 세이브에 차이를 돌려줄 때만
+export const skillSpent = (lv, cost = skillLvCost) => { let n = 0; for (let l = 1; l < lv; l++) n += cost(l); return n; };
+// 무공 초기화 — 처음 한 번은 공짜, 그다음은 그 레벨 사냥 10분쯤 은자
+export const skillResetCost = (level, n) => (n ? Math.round(mobGold(level) * 1000) : 0);
 export function skillLvMods(slot, lv) {
-  const m = { dmg: (lv - 1) * 0.07, cd: (lv - 1) * 0.02, range: 0, splash: 0, crit: 0 };
+  const m = { dmg: (lv - 1) * 0.07, cd: Math.min(0.3, (lv - 1) * 0.02), range: 0, splash: 0, crit: 0 };
   if (lv >= 5) { if (slot === 0) m.splash += 0.2; else m.range += 0.15; }
   if (lv >= 10) { if (slot === 0) m.splash += 0.2; else m.range += 0.15; m.crit += 0.1; }
+  if (lv >= 15) { if (slot === 0) m.splash += 0.2; else m.range += 0.15; m.crit += 0.1; }   // 極
   return m;
 }
 

@@ -200,7 +200,16 @@ function charTab(app) {
     const nsig = `${s.skillPts}|${JSON.stringify(s.skillLv)}|${s.jobTier}|${game.statSig()}`;
     if (nsig === skSig) return;
     skSig = nsig;
-    skillCard.replaceChildren(h('h3', {}, '스킬', h('small', {}, `스킬 점수 ${s.skillPts} · 레벨 ${W.SKILL_PT_FROM}부터 레벨마다 1점`)));
+    const rc = game.skillResetCost();
+    skillCard.replaceChildren(h('h3', {}, '스킬', h('small', {}, `스킬 점수 ${s.skillPts} · 레벨 ${W.SKILL_PT_FROM}부터 레벨마다 1점 · 만렙 ${W.SKILL_LV_MAX}`)),
+      // 무공 초기화 (v205)
+      game.skillSpentAll() > 0 ? h('div', { class: 'sk-reset' },
+        h('small', {}, `무공·심법을 처음으로 — 쓴 점수 ${game.skillSpentAll()}점을 다 돌려받아요 · ${rc ? `은자 ${fmt(rc)}` : '처음 한 번은 공짜'}`),
+        h('button', { class: 'btn', style: 'padding:4px 10px;font-size:12px', disabled: game.canResetSkills() ? null : true, onclick: () => {
+          if (!confirm(`무공 레벨과 심법을 모두 처음으로 되돌릴까요?\n쓴 점수 ${game.skillSpentAll()}점을 돌려받아요${rc ? ` · 은자 ${fmt(rc)}` : ''}.`)) return;
+          const n = game.resetSkills();
+          if (n) { toast(`무공 초기화 — 점수 ${n}점을 돌려받았어요`); app.save(); skSig = ''; psSig = ''; upd(); app.refresh(); }
+        } }, '무공 초기화')) : null);
     const list = game.skills();
     if (!list.length) { skillCard.append(h('p', { class: 'muted' }, `1차 전직(레벨 ${W.TIERS[1].level})을 하면 스킬을 배워요.`)); return; }
     for (const sk of list) {
@@ -219,7 +228,7 @@ function charTab(app) {
       skillCard.append(h('div', { class: 'row' },
         h('div', { class: 'ico' }, sk.icon),
         h('div', { class: 'info' },
-          h('div', { class: 'name' }, sk.name, h('small', {}, `${W.SKILL_ORDINAL[sk.slot]} · Lv.${lv}${max ? ' (최대)' : ''}`)),
+          h('div', { class: 'name' }, sk.name, h('small', {}, `${W.SKILL_ORDINAL[sk.slot]} · Lv.${lv}`), max ? h('span', { class: 'sk-max' }, '極 만렙') : null),
           h('div', { class: 'desc' }, skillText(game, sk)),
           bits.length ? h('div', { class: 'desc', style: 'color:#fde68a' }, `레벨·장비: ${bits.join(' · ')}`) : null),
         h('button', { class: 'buy', disabled: game.canSkillUp(sk.id) ? null : true, onclick: () => {

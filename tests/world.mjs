@@ -89,6 +89,25 @@ console.log('\n=== 자동 물약 체력 (v176) ===');
   ok(g2.potionAt() === W.POTION_AT, '없는 값이면 기본값');
 }
 
+console.log('\n=== 무공 만렙 · 초기화 (v205) ===');
+{
+  ok(W.SKILL_LV_MAX === 15 && W.skillSpent(10) === 25 && W.skillSpent(15) === 55, '만렙 15 · 10까지 25점 · 15까지 55점');
+  const g = fresh();
+  g.s.jobTier = 3; g.s.level = 150; g.s.skillPts = 200; g.s.gold = 1e12;
+  while (g.skillUp('s0'));
+  ok(g.skillLevel('s0') === 15 && g.skillMods('s0').crit >= 0.2, '15까지 올라가고 만렙에 치명 덧');
+  const spent = g.skillSpentAll(), pts = g.s.skillPts, gold = g.s.gold;
+  ok(g.skillResetCost() === 0 && g.resetSkills() === spent && g.s.skillPts === pts + spent && g.skillLevel('s0') === 1 && g.s.gold === gold, '처음 초기화는 공짜 — 쓴 점수를 다 돌려받는다');
+  g.skillUp('s0'); g.skillUp('s0');
+  const c2 = g.skillResetCost();
+  ok(c2 > 0 && g.resetSkills() > 0 && g.s.gold === gold - c2, '두 번째부터는 은자가 든다');
+  // 옛 세이브: 옛 값(n점)으로 올린 만큼과 새 값의 차이를 돌려준다
+  const old = newWorldSave(0); old.job = 'sword'; old.level = 100; old.skillV = 1; old.skillLv = { s0: 10, s1: 5 }; old.skillPts = 0;
+  const m = migrateWorld(old, 0);
+  const back = (W.skillSpent(10, W.skillLvCostOld) - W.skillSpent(10)) + (W.skillSpent(5, W.skillLvCostOld) - W.skillSpent(5));
+  ok(m.skillPts === back && m.skillLv.s0 === 10 && m.skillRefund === back, '옛 세이브는 레벨 그대로 차이만큼 점수를 돌려받는다', `${back}점`);
+}
+
 console.log('\n=== 탈것 합성 (v204) ===');
 {
   const g = fresh();
