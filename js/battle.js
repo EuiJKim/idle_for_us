@@ -261,6 +261,53 @@ const SPECIAL_INK = {
 // 한 대마다 짧게(0.3~0.5초) — 여럿이 함께 싸워도 화면을 덮지 않게 작게. 등급이 높을수록 조금 크다.
 // at: 맞은 자리(들판 좌표) · from: 애완동물 자리(들판 좌표, 없을 수 있다)
 const CAST_COL = { sword: '229,231,235', fist: '245,158,11', fan: '56,189,248', ring: '168,85,247', poison: '132,204,22' };
+// v222: 애완동물 기운 — 발밑에 등급 빛(레어 파랑 · 유니크 보라 · 전설 주황 · 신화 붉음)과
+// 그 짐승의 기운 알갱이(주작 불티 · 청룡 번개 · 현무 물방울 · 선학 깃털 · 그 밖은 도는 빛). 상태 없이 시간으로.
+function petAura(ctx, pet, x, y, t, front, sq = 0.5) {
+  const rar = Math.max(0, Math.min(3, pet.rar || 0));
+  const col = PET_COL[pet.kind] || '253,224,71';
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  if (!front) {
+    const rc = DROP_COL[rar];
+    const r = 24 + rar * 4 + Math.sin(t * 2.4) * 2;
+    const g = ctx.createRadialGradient(x, y, 2, x, y, r);
+    g.addColorStop(0, `rgba(${rc},${0.18 + rar * 0.07})`); g.addColorStop(1, `rgba(${rc},0)`);
+    ctx.fillStyle = g;
+    ctx.save(); ctx.translate(x, y); ctx.scale(1, sq); ctx.translate(-x, -y);
+    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+    if (rar >= 2) { ctx.strokeStyle = `rgba(${rc},${0.35 + 0.15 * Math.sin(t * 3)})`; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(x, y, r * 0.8, 0, Math.PI * 2); ctx.stroke(); }
+    ctx.restore();
+    ctx.restore();
+    return;
+  }
+  const n = 2 + rar;
+  for (let i = 0; i < n; i++) {
+    const ph = (t * 0.6 + i / n) % 1;
+    const a = Math.sin(ph * Math.PI);
+    if (pet.kind === 'phoenix') {               // 불티가 오른다
+      ctx.fillStyle = `rgba(${col},${0.85 * a})`;
+      ctx.beginPath(); ctx.arc(x + Math.sin(i * 2.1 + t * 2) * 14, y - 10 - ph * 46, 1.6 + (i % 2), 0, Math.PI * 2); ctx.fill();
+    } else if (pet.kind === 'dragon') {         // 작은 번개가 튄다
+      if (ph > 0.25) continue;
+      const bx = x + Math.cos(i * 2.4 + Math.floor(t * 3)) * 18, by = y - 26 + Math.sin(i * 1.7) * 10;
+      ctx.strokeStyle = `rgba(${col},0.9)`; ctx.lineWidth = 1.3;
+      ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(bx + 5, by + 6); ctx.lineTo(bx - 2, by + 9); ctx.lineTo(bx + 4, by + 16); ctx.stroke();
+    } else if (pet.kind === 'turtle') {         // 물방울이 천천히 떠오른다
+      ctx.strokeStyle = `rgba(${col},${0.7 * a})`; ctx.lineWidth = 1.2;
+      ctx.beginPath(); ctx.arc(x + Math.sin(i * 2.7 + t) * 12, y - 6 - ph * 34, 2 + (i % 3), 0, Math.PI * 2); ctx.stroke();
+    } else if (pet.kind === 'crane') {          // 깃털이 흩날려 내린다
+      ctx.fillStyle = `rgba(${col},${0.7 * a})`;
+      ctx.save(); ctx.translate(x + Math.sin(i * 1.9 + t * 1.5) * 20, y - 44 + ph * 40); ctx.rotate(Math.sin(t * 3 + i) * 0.8);
+      ctx.beginPath(); ctx.ellipse(0, 0, 1.6, 4.5, 0, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+    } else {                                    // 몸을 도는 빛
+      const ang = t * 1.8 + (i / n) * Math.PI * 2;
+      ctx.fillStyle = `rgba(${col},${0.55 + 0.35 * Math.sin(ang)})`;
+      ctx.beginPath(); ctx.arc(x + Math.cos(ang) * 20, y - 18 + Math.sin(ang) * 20 * sq, 1.8, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+  ctx.restore();
+}
 function skillAccent(v, cls, at, crit) {
   const k = crit ? 1.3 : 1;
   const E = (o) => v.effects.push(o);
@@ -2034,7 +2081,9 @@ export class BattleView {
       }
       // 덮칠 때 몸을 늘였다 줄인다(펄쩍 → 착지) — v193
       const lunge = atk && atk.t > 0 ? Math.sin(Math.PI * Math.max(0, Math.min(1, 1 - atk.t / 0.32))) : 0;
+      if (this.fxLevel > 0) petAura(this.ctx, pet, px, py, this.t + i * 1.7, false, this.squash);
       drawCreature(this.ctx, pet.kind, px, py, { t: this.t + i * 0.7, moving: pMoving || lunge > 0, flip: atk && atk.t > 0 ? atk.x < px : pp.flip, scale: 1.05 * (1 + lunge * 0.14) });
+      if (this.fxLevel > 0) petAura(this.ctx, pet, px, py, this.t + i * 1.7, true, this.squash);
     });
     if (this.fxLevel > 0) this.drawGearAura(this.ctx, x, fy, this.gearLook(game), true);
     const hr = ratio(game.heroHp, st.hp);
