@@ -2589,10 +2589,17 @@ export class BattleView {
     const y = this.sy(a);
     if (x < -90 || x > this.w + 90 || y < -110 || y > this.h + 90) return; // 화면 밖은 그리지 않는다
     const def = a.def || {};
-    const face = a.x >= game.heroX; // 무인 쪽을 본다
+    // v235: 서 있거나 칠 때는 무인 쪽을, **걸을 때는 가는 쪽을** 본다 — 전엔 늘 무인 쪽만 봐서 멀어질 때 뒷걸음(문워크)으로 걸었다
+    const mdx = a._px == null ? 0 : a.x - a._px;
+    a._px = a.x;
+    if (a.move && Math.abs(mdx) > 0.15) a._face = mdx < 0;
+    else if (!a.move) a._face = a.x >= game.heroX;
+    const face = a._face ?? (a.x >= game.heroX);
     ctx.save();
     const sc = (def.look?.scale || 1) * 0.94 * this.crowdScale * (a.grade === 1 ? 1.1 : 1);
-    const time = this.t + 0.7 + (Math.abs(a.x) % 7) * 0.2;
+    // 걸음 박자 — 느려지면(둔화) 다리도 느리게 (전엔 몸만 느리고 다리는 제 박자로 헛걸음)
+    a._ph = (a._ph ?? this.t + 0.7 + (Math.abs(a.x) % 7) * 0.2) + Math.min(0.1, this._lastDt || 0) * (a.slow > 0 ? 0.45 : 1);
+    const time = a._ph;
     const fx = a.grade > 0 && this.fxLevel > 0 && !a.npc;
     // 깊이 — 무인에게서 멀수록 흐리다
     const dist = Math.hypot(x - this.heroX, (y - this.groundY) / this.squash);
