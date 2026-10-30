@@ -1669,9 +1669,11 @@ export class WorldGame {
     this._stats = null;
   }
   // 등급 각인 — key: 넣을 두목 증표
+  // v173: 세트·왕의 장비·두목이 떨군 가락지·귀걸이도 증표 각인으로 등급을 올리고 세 칸을 새긴다 (검혼석 승급은 없앴다)
+  canImprintItem(it) { return !!it && (it.grow || it.king != null || (W.isDropOnly(it.slot) && it.step != null)); }
   infuseInfo(it, key) {
     const r = (it?.rar || 0) + 1;
-    if (!it?.grow || r >= W.RARITY.length || !W.isMarkKey(key)) return null;
+    if (!this.canImprintItem(it) || r >= W.RARITY.length || !W.isMarkKey(key)) return null;
     const chance = Math.min(1, W.INFUSE_BASE[r] * W.infuseFactor(key, it.ilv) + (it.pity || 0));
     return { to: r, n: W.INFUSE_MARKS[r], gold: W.infuseGold(it.ilv, r), chance, have: this.s.mats[key] || 0 };
   }
@@ -1690,7 +1692,7 @@ export class WorldGame {
     if (ok) {
       it.rar = f.to;
       it.grade = W.RARITY_GRADE[it.rar];
-      it.opts = this.rollOpts(it.slot, it.step, it.rar);
+      it.opts = this.rollOpts(it.slot, it.step ?? null, it.rar, it.king ?? it.z ?? null);
       it.pity = 0;
       // 증표 각인 (v163): 오른 칸에 그 두목을 새긴다 (유니크=첫째 · 전설=둘째 · 신화=셋째)
       it.imps = (it.imps || []).slice(0, f.to - 1);
@@ -1707,7 +1709,7 @@ export class WorldGame {
   //   스킬 변화만 다시 굴리기(고유는 그대로) · 고유 효과만 바꾸기(스킬 변화는 잠근 채)
   reimpCost(it, slot) {
     const e = IM.normEntry(it?.imps?.[slot]);
-    if (!it?.grow || !e) return null;
+    if (!this.canImprintItem(it) || !e) return null;
     return { key: e.k, n: W.INFUSE_MARKS[slot + 1], gold: W.infuseGold(it.ilv, slot + 1) };
   }
   canReimp(it, slot) {
@@ -1897,7 +1899,12 @@ export class WorldGame {
   enhanceCost(it) { return W.enhanceCost(it.ilv, it.plus || 0) * (W.isDropOnly(it.slot) ? W.ACC2_COST : 1); }
   // 강화 재료: 조합 장비는 그 지역 재료 (옛 장비·수련용은 은자만)
   enhanceMats(it) {
-    if (it.king != null) return { key: G.stoneFor(it), n: G.stoneN(it.plus || 0) };     // 왕의 장비: 후반 왕의 부위별 강화석 (v132)
+    if (it.king != null) {                                                                // 왕의 장비: 후반 왕의 부위별 강화석 (v132)
+      const key = G.stoneFor(it), n = G.stoneN(it.plus || 0);
+      // v173: 검왕의 검혼석은 만능 — 그 부위 강화석이 모자라면 대신 든다 (승급이 없어져 쓸 데가 없어진 돌)
+      if ((this.s.mats[key] || 0) < n && (this.s.mats.st27 || 0) >= n) return { key: 'st27', n };
+      return { key, n };
+    }
     if (it.step == null) return null;
     return { key: W.itemZone(it), n: W.enhanceMatsN(it.plus || 0) };
   }
@@ -2059,7 +2066,11 @@ export class WorldGame {
 
   // ---------- 승급 (v110) ----------
   // 대장장이: 같은 장비를 한 등급 위로(레어→유니크→전설→신화). 확정. 스킬 옵션은 새 등급으로 다시 붙는다.
+  // v173: 승급은 없앴다 — 모든 장비가 증표 각인으로 오른다 (옛 부르는 자리를 위해 거짓만)
   canPromote(it) {
+    return false;
+  }
+  canPromoteOld(it) {
     if (!it || it.grow || (it.step == null && it.king == null) || (it.rar || 0) >= W.RARITY.length - 1) return false;
     const c = W.promoteCost(it);
     return (this.s.mats[c.key] || 0) >= c.mats && (!c.marks || (this.s.mats[W.bossKey(c.key)] || 0) >= c.marks) && this.s.gold >= c.gold

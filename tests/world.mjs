@@ -723,9 +723,15 @@ console.log('\n=== 장비 개편 (v130) ===');
   ok(W.matName('st26').includes('도왕') && W.matName('st24').includes('명부'), '강화석 이름 — ○왕의 ○○석', `${W.matName('st26')} / ${W.matName('st24')}`);
   const p0 = sw2.plus || 0; sw.s.mats.st26 = 500; sw.rng = () => 0;
   ok(sw.enhance(sw2.uid) && sw2.plus === p0 + 1 && sw.s.mats.st26 === 500 - G.stoneN(p0), '강화석으로 강화');
-  ok(!sw.canPromote(sw2) || sw2.rar >= 3, '승급은 검왕의 검혼석이 있어야');
-  sw.s.mats.st27 = 100; const rr0 = sw2.rar;
-  ok(rr0 >= 3 || (sw.promote(sw2.uid) && sw2.rar === rr0 + 1 && sw.s.mats.st27 === 100 - G.promoteStones(rr0)), '검혼석으로 승급');
+  // v173: 승급 대신 증표 각인 — 세트도 세 칸이 새겨진다
+  ok(!sw.canPromote(sw2), '승급은 없다 (증표 각인으로)');
+  sw2.rar = 0; sw.s.gold = 1e15; sw.s.mats.b27 = 1000; sw.rng = () => 0;
+  ok(sw.infuse(sw2.uid, 'b27', 0) && sw2.rar === 1 && sw2.imps?.[0]?.k === 'b27' && sw2.set === 'plum', '세트 무기도 두목 증표로 등급 각인 — 세트는 그대로');
+  sw.infuse(sw2.uid, 'b27', 1); sw.infuse(sw2.uid, 'b27', 2);
+  ok(sw2.rar === 3 && sw2.imps.length === 3 && sw.impSpecials() && Object.keys(sw.impSpecials()).length > 0, '세트도 신화면 각인 세 칸 · 검왕 고유 효과가 켜진다');
+  // 검혼석은 만능 강화석 — 부위 강화석이 모자라면 대신
+  sw.s.mats.st26 = 0; sw.s.mats.st27 = 500;
+  ok(sw.enhanceMats(sw2).key === 'st27', '검왕의 검혼석은 부위 강화석이 모자라면 대신 든다');
   sw.s.mats[21] = 100;
   ok(sw.makeStone(21, 5) === 2 && sw.s.mats.st21 === 2 && sw.s.mats[21] === 20, '후반 왕 재료 40개 → 강화석 하나');
   // 공용 장신구

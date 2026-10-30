@@ -126,7 +126,7 @@ export const STONES = {
   24: { slot: 'armor', name: '명부 혼석', what: '세트 옷 강화석' },
   25: { slot: 'acc', name: '투신 철혼석', what: '왕의 장신구·가락지·귀걸이 강화석' },
   26: { slot: 'weapon', name: '일월 도혼석', what: '세트 무기 강화석' },
-  27: { slot: 'promote', name: '무형 검혼석', what: '세트·왕의 장신구 승급석' },
+  27: { slot: 'any', name: '무형 검혼석', what: '만능 강화석 — 세트·왕의 장비 어느 부위든 그 강화석이 모자라면 대신 (v173)' },
 };
 export const stoneKey = (z) => `st${z}`;
 export const isStoneKey = (k) => /^st2[1-7]$/.test(String(k));
