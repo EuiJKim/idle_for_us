@@ -266,9 +266,9 @@ async function tab(page, name) {
     assert(await G(p, () => window.__game.s.gold) < g0 + 1000000, '받기를 누르기 전에는 들어오지 않는다');
     const pot0 = await G(p, () => window.__game.s.potions);
     await p.click('#btn-mail');
-    await p.waitForSelector('.mail-row');
+    await p.waitForSelector('.mail-card');
     await shot(p, '08b-mail.png');
-    await p.click('.mail-row .btn.primary');
+    await p.click('.mail-card .mail-take');
     let g1 = g0;
     for (let i = 0; i < 20 && g1 < g0 + 4000000; i++) { await sleep(300); g1 = await G(p, () => window.__game.s.gold); }
     assert(g1 >= g0 + 4000000, `받기 → 은자 +${g1 - g0}`);

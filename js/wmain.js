@@ -407,7 +407,7 @@ function handleEvents() {
         break;
       }
       case 'kill':
-        if (ev.mat?.boss) toast(`두목을 잡았어요 — ${ev.mat.boss} · ${ev.mat.name} ${ev.mat.n}개`);
+        if (ev.mat?.boss) { toast(`두목을 잡았어요 — ${ev.mat.boss} · ${ev.mat.name} ${ev.mat.n}개`); saverLoot(`⚔ ${ev.mat.boss} — ${ev.mat.name} ${ev.mat.n}`); }
         break;
       case 'equip':
         drawPortrait();
@@ -424,6 +424,7 @@ function handleEvents() {
         break;
       case 'petDrop': {
         const d = W.petOf(ev.pet.kind);
+        saverLoot(`🐾 ${W.RARITY[ev.pet.rar].name} ${d.name}`);
         toast(`${W.RARITY[ev.pet.rar].name} 애완동물 ${d.name}(순위 ${d.tier})! ${ev.joined ? '데려갔어요' : '우리에서 기다려요(동료 창)'}`);
         view.showBanner(d.name, W.RARITY[ev.pet.rar].color, 1.6, '동료');
         sfx('loot');
@@ -434,6 +435,7 @@ function handleEvents() {
         break;
       case 'mountDrop': {
         const d = W.mountOf(ev.mount.kind);
+        saverLoot(`🐎 ${d.name}`);
         toast(d.zodiac ? `🎉 십이지 신수 ${d.name}! 이동 +${Math.round(d.speed * 100)}% · 공격·체력 +${Math.round(d.stat * 100)}%` : `탈것 ${d.name}(순위 ${d.tier})! 이동 속도 +${Math.round(d.speed * 100)}%`);
         view.showBanner(d.name, d.zodiac ? '#f472b6' : '#fde68a', d.zodiac ? 2.6 : 1.8, d.zodiac ? '십이지 신수' : '탈것');
         sfx('loot');
@@ -502,6 +504,7 @@ function handleEvents() {
         break;
       case 'drop':
         toast(`두목이 장비를 떨궜어요! ${W.RARITY[ev.item.rar || 0].name} ${itemTitle(game, ev.item)}`);
+        saverLoot(`🗡 ${W.RARITY[ev.item.rar || 0].name} ${itemTitle(game, ev.item)}`);
         sfx('loot');
         break;
       case 'heroDied':
@@ -749,22 +752,40 @@ function checkReturn(now = Date.now()) {
 
 // ---------- 앱처럼 (v159): 설치 · 전체 화면 · 절전 ----------
 const saverName = (m) => (m ? `${m}분 뒤` : '끔');
+// 절전 화면 (v179) — 시계 · 체력/경험치 막대 · 벌이 · '이번 절전 동안' 모은 것 · 좋은 것 · 경고
+let saverRun = null;
+const saverLoot = (t) => { if (saver.on && saverRun) { saverRun.loot.unshift(t); saverRun.loot.length = Math.min(saverRun.loot.length, 5); } };
 const saver = new AM.Saver($('app'), () => {
   const s = game.s;
   const r = game.rates();
   const st = game.stats();
   const d = new Date();
-  return [
-    [null, `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`, true],
-    ['', `Lv.${s.level} ${s.nickname || ''}`],
-    ['사냥터', game.inst ? '던전' : W.mapOf(s.huntMap)?.name || ''],
-    ['체력', `${Math.round((game.heroHp / st.hp) * 100)}%`],
-    ['경험치', `${((s.exp / game.expNeed()) * 100).toFixed(1)}%${r ? ` · 시간당 +${((r.exp * 3600 / game.expNeed()) * 100).toFixed(0)}%` : ''}`],
-    ['은자', `${fmt(s.gold)}${r ? ` · 시간당 +${fmt(r.gold * 3600)}` : ''}`],
-    ['처치', r ? `분당 ${(r.kills * 60).toFixed(0)}마리` : '-'],
-    ['물약', `${s.potions}개`],
-  ];
+  const p2 = (n) => String(n).padStart(2, '0');
+  const hpR = game.heroHp / st.hp, exR = s.exp / game.expNeed();
+  const run = saverRun || { t0: Date.now(), gold: s.gold, kills: s.kills, deaths: s.deaths, level: s.level, exp: exR, loot: [] };
+  const secs = Math.floor((Date.now() - run.t0) / 1000);
+  const dLv = s.level - run.level;
+  const warns = [];
+  if (s.potions < 10) warns.push(s.potions ? `물약이 ${s.potions}개 남았어요` : '물약이 다 떨어졌어요');
+  if (s.deaths > run.deaths) warns.push(`${s.deaths - run.deaths}번 쓰러졌어요 — 사냥터가 버거울 수 있어요`);
+  if (mail.length) warns.push(`📮 우편 ${mail.length}통이 와 있어요`);
+  return {
+    clock: `${p2(d.getHours())}:${p2(d.getMinutes())}`,
+    date: `${d.getMonth() + 1}월 ${d.getDate()}일 ${'일월화수목금토'[d.getDay()]}요일`,
+    who: `Lv.${s.level} ${s.nickname || ''}`,
+    where: game.inst ? '던전' : W.mapOf(s.huntMap)?.name || '',
+    bars: [['체력', hpR, `${Math.round(hpR * 100)}%`, hpR < 0.35 ? '#7f1d1d' : '#14532d'],
+      ['경험치', exR, `${(exR * 100).toFixed(1)}%`, '#4c1d95']],
+    rates: r ? [['시간당', `경험치 +${((v) => (v < 10 ? v.toFixed(1) : v.toFixed(0)))(r.exp * 3600 / game.expNeed() * 100)}% · 은자 +${fmt(r.gold * 3600)}`], ['처치', `분당 ${(r.kills * 60).toFixed(0)}마리`], ['물약', `${s.potions}개`]] : [['물약', `${s.potions}개`]],
+    session: [['시간', secs >= 3600 ? `${Math.floor(secs / 3600)}시간 ${Math.floor(secs / 60) % 60}분` : `${Math.floor(secs / 60)}분 ${secs % 60}초`],
+      ['은자', `+${fmt(Math.max(0, s.gold - run.gold))}`],
+      ['성장', dLv > 0 ? `레벨 +${dLv}` : `경험치 +${Math.max(0, (exR - run.exp) * 100).toFixed(1)}%`],
+      ['처치', `${fmt(Math.max(0, s.kills - run.kills))}마리`]],
+    loot: run.loot,
+    warns,
+  };
 });
+saver.onEnter = () => { const s = game.s; saverRun = { t0: Date.now(), gold: s.gold, kills: s.kills, deaths: s.deaths, level: s.level, exp: s.exp / game.expNeed(), loot: [] }; };
 $('btn-saver').addEventListener('click', () => saver.enter());
 const fsBtn = $('btn-fs');
 if (!AM.isStandalone() && AM.canFullscreen()) fsBtn.classList.remove('hidden');
@@ -965,19 +986,44 @@ async function claimMail(ids) {
   sfx('loot');
   toast(`📮 받았어요 — ${giftText(got)}`);
 }
+// 우편 한 통의 내용 — 받을 것마다 그림 딱지 하나 (v179)
+function mailChips(g) {
+  const chip = (icon, name, n, col) => h('div', { class: 'mail-chip', style: col ? `border-color:${col}` : '' }, h('span', { class: 'mail-ico' }, icon), h('b', {}, name), n ? h('small', {}, n) : '');
+  const out = [];
+  if (g.gold > 0) out.push(chip('💰', '은자', fmt(g.gold)));
+  if (g.potions > 0) out.push(chip('🧪', '물약', `${fmt(g.potions)}개`));
+  if (g.prot > 0) out.push(chip('📜', '보호부', `${fmt(g.prot)}장`));
+  for (const p of [].concat(g.pet || [])) {
+    const [k, r] = String(p).split(':'); const d = W.petOf(k); const rr = W.RARITY[Number(r) || 0] || W.RARITY[0];
+    out.push(chip(d.emoji, d.name, rr.name, rr.color));
+  }
+  for (const m of [].concat(g.mount || [])) { const d = W.mountOf(m); if (d) out.push(chip(d.emoji, d.name, `이동 +${Math.round(d.speed * 100)}%`)); }
+  return out;
+}
+const mailWhen = (at) => {
+  if (!at) return '';
+  const m = Math.floor((Date.now() - at) / 60000);
+  return m < 1 ? '방금' : m < 60 ? `${m}분 전` : m < 1440 ? `${Math.floor(m / 60)}시간 전` : `${Math.floor(m / 1440)}일 전`;
+};
 function openMailbox() {
   const draw = (s) => {
-    s.replaceChildren(h('h2', {}, '📮 우편함'),
-      mail.length ? '' : h('p', { class: 'muted' }, '받을 우편이 없어요'),
-      ...mail.map((m) => h('div', { class: 'row mail-row' },
-        h('div', { class: 'info' }, h('div', { class: 'name' }, `운영자${m.memo ? ` — ${m.memo}` : ''}`), h('div', { class: 'desc' }, giftText(m))),
-        h('button', { class: 'btn primary', style: 'padding:6px 12px', onclick: async (e) => {
-          e.target.disabled = true; await claimMail([m.id]); draw(s);
-        } }, '받기'))),
-      h('div', { class: 'btn-row', style: 'margin-top:8px' },
+    s.replaceChildren(
+      h('h2', { class: 'mail-head' }, '📮 우편함', h('small', {}, mail.length ? `${mail.length}통` : '')),
+      mail.length ? h('p', { class: 'muted', style: 'margin:0 0 8px' }, '받기를 눌러야 들어와요 · 받은 우편은 사라져요')
+        : h('div', { class: 'mail-empty' }, h('div', { class: 'mail-empty-ico' }, '📭'), h('p', {}, '받을 우편이 없어요'), h('small', {}, '운영자가 보낸 선물이 여기로 와요')),
+      h('div', { class: 'mail-list' }, ...mail.map((m) => h('div', { class: 'mail-card' },
+        h('div', { class: 'mail-from' }, h('b', {}, '🎁 운영자'), h('small', {}, mailWhen(m.at))),
+        m.memo ? h('div', { class: 'mail-memo' }, `“${m.memo}”`) : '',
+        h('div', { class: 'mail-chips' }, ...mailChips(m)),
+        h('button', { class: 'btn primary mail-take', onclick: async (e) => {
+          e.target.disabled = true; e.target.textContent = '받는 중…';
+          await claimMail([m.id]); draw(s);
+        } }, '받기')))),
+      h('div', { class: 'btn-row', style: 'margin-top:10px' },
         mail.length > 1 ? h('button', { class: 'btn primary', onclick: async (e) => {
-          e.target.disabled = true; await claimMail(mail.map((m) => m.id)); draw(s);
-        } }, '모두 받기') : '',
+          e.target.disabled = true; e.target.textContent = '받는 중…';
+          await claimMail(mail.map((m) => m.id)); draw(s);
+        } }, `모두 받기 (${mail.length})`) : '',
         h('button', { class: 'btn', onclick: closeModal }, '닫기')));
   };
   openModal(draw);

@@ -78,24 +78,32 @@ export function hintClosed() { try { return !!localStorage.getItem(KEY_HINT); } 
 export function closeHint() { try { localStorage.setItem(KEY_HINT, String(Date.now())); } catch { /* 이번만 */ } }
 
 // ---------- 절전 화면 ----------
-// lines(): [[이름, 값], …] — 1초마다 다시 읽는다
+// info(): 1초마다 다시 읽는다 (v179)
+//   { clock, date, who, where, bars: [[이름, 0~1, 글, 색]], rates: [[이름, 값]], session: [[이름, 값]], loot: [글], warns: [글] }
+// 주머니 속에서 저절로 깨지 않게 **두 번 눌러야** 돌아간다(한 번 누르면 안내가 밝아진다).
 export class Saver {
-  constructor(root, lines) {
+  constructor(root, info) {
     this.on = false;
     this.idle = 0;
-    this.lines = lines;
+    this.info = info;
+    this.armT = 0;
+    this.onEnter = null;
     this.el = document.createElement('div');
     this.el.id = 'saver';
     this.el.className = 'hidden';
     this.box = document.createElement('div');
     this.box.className = 'saver-box';
-    const tip = document.createElement('div');
-    tip.className = 'saver-tip';
-    tip.textContent = '절전 중 — 화면을 누르면 돌아가요';
-    this.el.append(this.box, tip);
+    this.tip = document.createElement('div');
+    this.tip.className = 'saver-tip';
+    this.el.append(this.box, this.tip);
     root.append(this.el);
-    // 누르면 깬다 (눌림이 아래 들판으로 새지 않게 여기서 멈춘다)
-    this.el.addEventListener('pointerdown', (e) => { e.stopPropagation(); e.preventDefault(); this.exit(); });
+    // 두 번 누르면 깬다 (눌림이 아래 들판으로 새지 않게 여기서 멈춘다)
+    this.el.addEventListener('pointerdown', (e) => {
+      e.stopPropagation(); e.preventDefault();
+      if (this.armT > 0) { this.exit(); return; }
+      this.armT = 2;
+      this.paintTip();
+    });
     for (const ev of ['pointerdown', 'keydown', 'wheel', 'touchstart']) window.addEventListener(ev, () => { this.idle = 0; }, { capture: true, passive: true });
     this.t = 0;
     this.moveT = 0;
@@ -103,9 +111,14 @@ export class Saver {
   enter() {
     if (this.on) return;
     this.on = true;
+    this.armT = 0;
+    this.onEnter?.();
     this.el.classList.remove('hidden');
+    this.box.style.transform = '';
     this.paint();
+    this.paintTip();
     keepAwake(true);
+    navigator.getBattery?.().then((b) => { this.battery = b; }).catch(() => {});
   }
   exit() {
     if (!this.on) return;
@@ -118,6 +131,7 @@ export class Saver {
   tick(dt, canAuto) {
     if (this.on) {
       this.t += dt; this.moveT += dt;
+      if (this.armT > 0) { this.armT -= dt; if (this.armT <= 0) this.paintTip(); }
       if (this.t >= 1) { this.t = 0; this.paint(); }
       if (this.moveT >= 60) { this.moveT = 0; this.drift(); }
       return false;
@@ -128,15 +142,31 @@ export class Saver {
     if (m && canAuto && !navigator.webdriver && this.idle >= m * 60) { this.enter(); return true; }
     return false;
   }
+  paintTip() {
+    this.tip.classList.toggle('armed', this.armT > 0);
+    this.tip.textContent = this.armT > 0 ? '한 번 더 누르면 돌아가요' : '절전 중 · 사냥은 계속돼요 — 두 번 누르면 돌아가요';
+  }
   paint() {
-    const rows = this.lines();
-    this.box.replaceChildren(...rows.map(([k, v, big]) => {
-      const r = document.createElement('div');
-      r.className = big ? 'saver-big' : 'saver-row';
-      if (k) { const a = document.createElement('span'); a.textContent = k; r.append(a); }
-      const b = document.createElement('b'); b.textContent = v; r.append(b);
-      return r;
-    }));
+    const d = this.info();
+    const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+    const kv = (rows, cls = 'saver-row') => rows.map(([k, v]) => { const r = el('div', cls); r.append(el('span', '', k), el('b', '', v)); return r; });
+    const out = [];
+    const top = el('div', 'saver-top');
+    top.append(el('div', 'saver-clock', d.clock));
+    const bat = this.battery ? ` · 🔋${Math.round(this.battery.level * 100)}%${this.battery.charging ? '⚡' : ''}` : '';
+    top.append(el('div', 'saver-date', `${d.date || ''}${bat}`));
+    out.push(top, el('div', 'saver-who', d.who), el('div', 'saver-where', d.where));
+    for (const [k, r, v, col] of d.bars || []) {
+      const b = el('div', 'saver-bar');
+      const lab = el('div', 'saver-bar-lab'); lab.append(el('span', '', k), el('b', '', v));
+      const tr = el('div', 'saver-bar-tr'); const fill = el('i'); fill.style.width = `${Math.max(0, Math.min(1, r)) * 100}%`; fill.style.background = col; tr.append(fill);
+      b.append(lab, tr); out.push(b);
+    }
+    if (d.rates?.length) out.push(...kv(d.rates));
+    if (d.session?.length) { out.push(el('div', 'saver-sec', '이번 절전 동안')); out.push(...kv(d.session, 'saver-row sess')); }
+    if (d.loot?.length) { const l = el('div', 'saver-loot'); for (const t of d.loot) l.append(el('div', '', t)); out.push(l); }
+    for (const w of d.warns || []) out.push(el('div', 'saver-warn', w));
+    this.box.replaceChildren(...out);
   }
   drift() {
     const x = Math.round((Math.random() - 0.5) * 60), y = Math.round((Math.random() - 0.5) * 160);

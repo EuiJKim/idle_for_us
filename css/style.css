@@ -1390,16 +1390,47 @@ details.lore p { margin: 4px 0 0; line-height: 1.5; }
   border: 1px solid rgba(253,224,71,0.6); background: rgba(10,8,6,0.72); color: #fde68a; font-size: 14px; line-height: 24px; animation: mailPulse 1.6s ease-in-out infinite; }
 #btn-mail b { margin-left: 3px; font-size: 12px; color: #fca5a5; }
 @keyframes mailPulse { 50% { box-shadow: 0 0 10px rgba(253,224,71,.55); } }
-.mail-row .desc { color: #fde68a; }
+.mail-head { display: flex; align-items: baseline; gap: 8px; }
+.mail-head small { font-size: 13px; color: #fca5a5; font-weight: 600; }
+.mail-list { display: flex; flex-direction: column; gap: 10px; max-height: 56vh; overflow: auto; }
+.mail-card { position: relative; padding: 12px; border-radius: 12px; border: 1px solid rgba(253,224,71,.35);
+  background: linear-gradient(160deg, rgba(120,53,15,.35), rgba(28,25,23,.6)); }
+.mail-from { display: flex; justify-content: space-between; align-items: baseline; }
+.mail-from b { color: #fde68a; font-size: 14px; }
+.mail-from small { color: #a8a29e; font-size: 12px; }
+.mail-memo { margin: 6px 0 2px; color: #e7e5e4; font-size: 13px; font-style: italic; }
+.mail-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 10px; }
+.mail-chip { display: flex; align-items: center; gap: 5px; padding: 5px 9px; border-radius: 999px; border: 1px solid #57534e; background: rgba(0,0,0,.35); font-size: 13px; }
+.mail-chip .mail-ico { font-size: 16px; }
+.mail-chip small { color: #fde68a; }
+.mail-take { width: 100%; }
+.mail-empty { text-align: center; padding: 22px 0 8px; color: #a8a29e; }
+.mail-empty-ico { font-size: 44px; opacity: .7; }
+.mail-empty p { margin: 6px 0 2px; color: #d6d3d1; }
 #saver { position: fixed; inset: 0; z-index: 9999; background: #000; display: flex; flex-direction: column; align-items: center; justify-content: center;
   color: #57534e; user-select: none; touch-action: none; }
 #saver.hidden { display: none; }
-#saver .saver-box { transition: transform 2s ease; text-align: center; min-width: 220px; }
-#saver .saver-big b { display: block; font-size: 56px; font-weight: 300; color: #78716c; letter-spacing: 2px; margin-bottom: 14px; }
-#saver .saver-row { display: flex; justify-content: space-between; gap: 18px; font-size: 14px; padding: 4px 0; border-bottom: 1px solid #1c1917; }
+/* v179 절전 화면 — 어두운 글씨(OLED에서 거의 꺼진 채), 막대와 '이번 절전 동안' 요약 */
+#saver .saver-box { transition: transform 2s ease; width: min(300px, 84vw); }
+#saver .saver-top { text-align: center; margin-bottom: 10px; }
+#saver .saver-clock { font-size: 64px; font-weight: 200; color: #78716c; letter-spacing: 3px; line-height: 1; }
+#saver .saver-date { font-size: 12px; color: #44403c; margin-top: 6px; }
+#saver .saver-who { text-align: center; font-size: 15px; color: #a8a29e; }
+#saver .saver-where { text-align: center; font-size: 12px; color: #57534e; margin-bottom: 12px; }
+#saver .saver-bar { margin: 6px 0; }
+#saver .saver-bar-lab { display: flex; justify-content: space-between; font-size: 12px; color: #57534e; margin-bottom: 3px; }
+#saver .saver-bar-lab b { color: #a8a29e; font-weight: 500; }
+#saver .saver-bar-tr { height: 4px; border-radius: 2px; background: #1c1917; overflow: hidden; }
+#saver .saver-bar-tr i { display: block; height: 100%; border-radius: 2px; transition: width 1s linear; }
+#saver .saver-row { display: flex; justify-content: space-between; gap: 18px; font-size: 13px; padding: 4px 0; border-bottom: 1px solid #1c1917; }
 #saver .saver-row span { color: #44403c; }
-#saver .saver-row b { color: #a8a29e; font-weight: 500; }
-#saver .saver-tip { position: absolute; bottom: calc(24px + env(safe-area-inset-bottom)); font-size: 12px; color: #292524; }
+#saver .saver-row b { color: #a8a29e; font-weight: 500; text-align: right; }
+#saver .saver-sec { margin: 14px 0 2px; font-size: 11px; letter-spacing: 2px; color: #57534e; }
+#saver .saver-row.sess b { color: #a3a091; }
+#saver .saver-loot { margin-top: 8px; font-size: 12px; color: #a16207; line-height: 1.6; }
+#saver .saver-warn { margin-top: 8px; font-size: 12px; color: #991b1b; text-align: center; }
+#saver .saver-tip { position: absolute; bottom: calc(24px + env(safe-area-inset-bottom)); font-size: 12px; color: #292524; transition: color .2s; }
+#saver .saver-tip.armed { color: #d6d3d1; font-size: 14px; }
 .install-bar { position: fixed; left: 10px; right: 10px; bottom: calc(150px + env(safe-area-inset-bottom)); z-index: 50; display: flex; align-items: center; gap: 8px;
   padding: 8px 10px; border-radius: 12px; background: rgba(20,17,14,0.94); border: 1px solid rgba(253,224,71,0.4); font-size: 13px; color: #fde68a; }
 .install-bar span { flex: 1; }
