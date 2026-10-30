@@ -495,6 +495,14 @@ function drawSprite(ctx, s, kind, im, t, moving, layer) {
   ctx.restore();
 }
 
+// 탈것이 걸으며 기우는 각(그림 탈것만 기운다) — 탄 무인도 같이 기울게 (v183)
+export function mountTilt(kind, t, moving) {
+  const s = CREATURES[kind];
+  if (!s || !moving || s.type === 'dragon' || s.fly || !crImg[kind]) return 0;
+  return Math.sin(t * (s.gait || 10)) * 0.035;
+}
+export const mountGait = (kind) => CREATURES[kind]?.gait || 10;
+
 // 그린다. layer: 'all' | 'back' | 'front' (탈것을 무인 앞뒤로 나눠 그릴 때)
 export function drawCreature(ctx, kind, x, y, { t = 0, moving = false, flip = false, scale = 1, layer = 'all', alpha = 1 } = {}) {
   const s = CREATURES[kind];

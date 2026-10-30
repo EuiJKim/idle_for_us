@@ -2,7 +2,7 @@
 import { drawObstacle, drawLowObstacle } from './obstacles.js';
 import { zoneOf, RANKS, GRADES, FIELD_SQUASH, JOB_TRAITS, QI, jobOf, critTierName } from './data.js';
 import { artReady, putArt, putArtEdge, putArtTint, loadArt, FIT, ART_SHOULDER, ART_BAND, headKey, bodyKey, weaponKey } from './art.js';
-import { drawCreature, saddleY } from './creatures.js';
+import { drawCreature, saddleY, mountTilt, mountGait } from './creatures.js';
 import { ZONES_W, itemZone } from './world/wdata.js';
 import { setOf } from './world/wgear.js';
 import { OUTFITS } from './data.js';
@@ -1718,18 +1718,39 @@ export class BattleView {
     let fy = y;
     const ride = mt && !downRot;
     const rideOpt = { t: this.t, moving, flip: !!opts.flip };
+    // v183 탄 모습: 출발하면 앞으로 기울었다가 서면 뒤로 살짝 젖힌다(관성). 무인은 탈것이 기우는 만큼 같이 기울고,
+    // 탈것보다 반 박자 늦게 들썩인다(엉덩이가 안장을 받아 튀는 맛).
+    let rideLean = 0, riderTilt = 0, riderBob = 0;
     if (ride) {
+      const dir = opts.flip ? -1 : 1;
+      const was = this._rideMoving;
+      if (was !== undefined && was !== moving) this._rideKick = moving ? 0.09 : -0.07;
+      this._rideMoving = moving;
+      const ldt = this._lastDt || 0;
+      this._rideKick = (this._rideKick || 0) * Math.max(0, 1 - ldt * 4.5);
+      const want = moving ? 0.03 : 0;
+      this._rideLean = (this._rideLean || 0) + (want - (this._rideLean || 0)) * Math.min(1, ldt * 6);
+      rideLean = (this._rideLean + this._rideKick) * dir;
+      riderTilt = mountTilt(mt.id, this.t, moving) * dir;
+      riderBob = moving ? -Math.abs(Math.sin(this.t * mountGait(mt.id) - 0.7)) * 1.6 + 0.8 : 0;
+      this.ctx.save();
+      if (rideLean) { this.ctx.translate(x, y); this.ctx.rotate(rideLean); this.ctx.translate(-x, -y); }
       drawCreature(this.ctx, mt.id, x, y, { ...rideOpt, layer: 'back' });
-      fy = y + saddleY(mt.id, this.t, moving);
-    }
+      fy = y + saddleY(mt.id, this.t, moving) + riderBob;
+    } else this._rideMoving = undefined;
     if (downRot) {
       this.ctx.save();
       this.ctx.translate(x, y); this.ctx.rotate(downRot); this.ctx.translate(-x, -y);
       this.ctx.globalAlpha *= 1 - Math.abs(downRot) / 1.3 * 0.35;
       drawFighter(this.ctx, x, y, look, opts);
       this.ctx.restore();
-    } else drawFighter(this.ctx, x, fy, look, { ...opts, run: ride ? false : opts.run, turn: ride ? null : opts.turn });
-    if (ride) drawCreature(this.ctx, mt.id, x, y, { ...rideOpt, layer: 'front' });
+    } else if (ride) {
+      this.ctx.save();
+      if (riderTilt) { this.ctx.translate(x, y); this.ctx.rotate(riderTilt); this.ctx.translate(-x, -y); }
+      drawFighter(this.ctx, x, fy, look, { ...opts, run: false, turn: null });
+      this.ctx.restore();
+    } else drawFighter(this.ctx, x, fy, look, opts);
+    if (ride) { drawCreature(this.ctx, mt.id, x, y, { ...rideOpt, layer: 'front' }); this.ctx.restore(); }
     // 데려간 영수들이 뒤를 따른다 (예전엔 s.pet 한 마리만 그렸는데, 영수가 여럿이 된 뒤로
     // 그 값이 늘 비어 있어서 아무것도 안 그려졌다)
     // 애완동물 — 무인 뒤를 따라 걷고, 칠 때는 과녁 쪽으로 튀어 나갔다 돌아온다
