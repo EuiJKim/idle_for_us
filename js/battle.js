@@ -563,11 +563,16 @@ export class BattleView {
         this.sparks.push({ x: px, y: py - 40, life: 0.22, max: 0.22, r: 24, color: '#fde68a' });
         break;
       }
-      case 'heroHit':
+      case 'heroHit': {
         this.heroFlash = 1;
         this.monLunge = 1;
+        // v164: 맞으면 맞은 쪽 반대로 움찔 밀린다 — 크게 맞을수록(최대 체력의 몇 할) 세게, 바닥 경고에 맞으면 화면도 울린다
+        const hp = game?.stats?.().hp || 1;
+        this.heroRecoil = Math.min(1, 0.45 + (ev.amount / hp) * 3);
+        if (ev.tell || ev.amount > hp * 0.15) this.shake = Math.max(this.shake, 0.18 + Math.min(0.3, ev.amount / hp));
         this.float('-' + fmt(ev.amount) + (ev.crit ? '!' : ''), this.heroX + 26, this.groundY - 158, '#fca5a5', ev.crit ? 18 : 14);
         break;
+      }
       case 'bossCast':
         // 설정집의 독문무공(십이지왕·고수)은 크고 금빛으로 외친다
         if (ev.at) this.float(ev.skill ? `「${ev.name}」` : ev.name, this.sx(ev.at), this.sy(ev.at) - 150, ev.skill ? '#fde68a' : '#fca5a5', ev.skill ? 20 : 16, 1, true);
@@ -1130,6 +1135,7 @@ export class BattleView {
     this.monShake = decay(this.monShake, 7);
     this.monFlash = decay(this.monFlash, 12);
     this.heroFlash = decay(this.heroFlash, 6);
+    this.heroRecoil = decay(this.heroRecoil || 0, 7);
     this.shake = decay(this.shake, 1);
     this.flash = decay(this.flash, 2);
     const moving = this.fieldMode ? !!game.walking : (!game.mon?.alive && game.mode === 'stage');
@@ -1588,8 +1594,10 @@ export class BattleView {
     const lunge = pose ? 0 : this.heroLunge;
     // 벨 때 타겟 쪽으로 몸을 내민다 (평면이라 방향이 있다)
     const ha = game.heroAngle || 0;
-    const x = this.heroX + Math.cos(ha) * lunge * 24;
-    const y = this.groundY + Math.sin(ha) * lunge * 24 * this.squash;
+    // 움찔(v164): 바라보는 적 반대쪽으로 — 처음이 빠르고 돌아올 때 느리게
+    const rc = (this.heroRecoil || 0) ** 2 * 10;
+    const x = this.heroX + Math.cos(ha) * (lunge * 24 - rc);
+    const y = this.groundY + Math.sin(ha) * (lunge * 24 - rc) * this.squash;
     // v157: 걸으면서 펼치면 다리는 계속 달리고 몸만 초식 자세를 반쯤 — 멈춰 서서 미끄러지는 꼴이 안 되게
     if (pose) {
       opts.pose = moving && pose.alpha >= 0.99
