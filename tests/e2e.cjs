@@ -100,7 +100,8 @@ async function tab(page, name) {
   console.log('# 스탯');
   await G(p, () => { const g = window.__game; g.s.autoStat = false; g.s.statPts = 6; });
   await p.waitForSelector('#advice:not(.hidden)');
-  assert((await p.textContent('#advice')).includes('스탯 6'), '남은 레벨업 점수가 들판 위에 보인다');
+  // 사냥 중에 레벨이 올라 점수가 더 붙을 수 있다 — 숫자는 6 이상이면 된다
+  assert(/스탯 (\d+)/.test(await p.textContent('#advice')) && +(await p.textContent('#advice')).match(/스탯 (\d+)/)[1] >= 6, '남은 레벨업 점수가 들판 위에 보인다');
   await p.click('#advice');
   await p.waitForSelector('#panel .row:has-text("힘")');
   const str0 = await G(p, () => window.__game.s.stats.str);
