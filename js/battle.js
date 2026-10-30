@@ -3587,22 +3587,35 @@ export class BattleView {
     ctx.lineTo(w * (0.08 + 0.84 * inK) - 6, y + 16);
     ctx.quadraticCurveTo(w * 0.5, y + 24, w * 0.08 + 8, y + 14);
     ctx.fill();
-    ctx.font = `30px ${BRUSH}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
+    // v227: 글이 길면 낙관과 겹쳤다('황금 원숭이 출현' + '보물') — 낙관 앞까지만 쓰도록 글자를 줄이고 왼쪽으로 민다
+    const sealW = b.seal ? 46 : 0;
+    const room = w * 0.84 - sealW / 2 - 10 - w * 0.1;
+    ctx.font = `30px ${BRUSH}`;
+    const tw = ctx.measureText(b.text).width;
+    const fs = tw > room ? Math.max(18, 30 * room / tw) : 30;
+    ctx.font = `${fs}px ${BRUSH}`;
+    // 가운데에 두면 낙관에 닿을 때만 왼쪽 빈자리 가운데로
+    const half = Math.min(tw, room) / 2;
+    const tx = b.seal && w / 2 + half > w * 0.84 - sealW / 2 - 6 ? w * 0.1 + room / 2 + 4 : w / 2;
     ctx.fillStyle = b.color;
-    ctx.fillText(b.text, w / 2, y + 1);
-    if (b.seal) { // 붉은 낙관
+    ctx.fillText(b.text, tx, y + 1);
+    if (b.seal) { // 붉은 낙관 — 두 글자 이상은 세로로 쌓는다
       const sx = w * 0.84;
+      const chs = [...b.seal];
+      const n = chs.length;
+      const fz = n > 1 ? 19 : 26;
+      const hh = n > 1 ? 10 + n * fz : 34;
       ctx.save();
       ctx.translate(sx, y - 2);
       ctx.rotate(-0.08);
       ctx.fillStyle = '#b91c1c';
-      roundRect(ctx, -17, -17, 34, 34, 4);
+      roundRect(ctx, -17, -hh / 2, 34, hh, 4);
       ctx.fill();
       ctx.fillStyle = '#fef2f2';
-      ctx.font = `26px ${BRUSH}`;
-      ctx.fillText(b.seal, 0, 2);
+      ctx.font = `${fz}px ${BRUSH}`;
+      chs.forEach((ch, i) => ctx.fillText(ch, 0, 2 + (i - (n - 1) / 2) * fz));
       ctx.restore();
     }
     ctx.restore();
