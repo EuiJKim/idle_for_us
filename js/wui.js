@@ -1866,15 +1866,25 @@ function compTab(app) {
     });
     boxCard.replaceChildren(h('h3', {}, '우리', h('small', {}, `${s.petBox.length}/${W.PET_BOX} · 키우던 것을 놓아줘야 데려갈 수 있어요`)));
     if (!s.petBox.length) boxCard.append(h('p', { class: 'muted' }, '비어 있어요.'));
-    for (const p of s.petBox) {
+    // v231: 우리는 그림 칸 셋씩 — 글 줄이 길고 단추가 끼어 비좁았다. 누르면 자세히(데려가기·놓아주기)
+    const openPen = (p) => openModal((m) => {
       const d = W.petOf(p.kind);
-      boxCard.append(h('div', { class: 'row pet-row' },
+      const full = s.pets.length >= slots;
+      m.append(h('div', { class: 'pen-head' }, h('div', { class: 'ico pet-ico big' }, creatureIcon(p.kind)),
+        h('div', {}, h('h2', {}, d.name, ' ', rarTag(p.rar)), h('small', { class: 'muted' }, `순위 ${d.tier} · Lv.${p.lv}`))),
+        h('p', { class: 'muted' }, petInfo(p)),
+        full ? h('p', { class: 'muted', style: 'font-size:12px' }, `키우는 칸이 꽉 찼어요(${s.pets.length}/${slots}) — 위에서 하나를 놓아주면 데려갈 수 있어요.`) : null,
+        h('div', { class: 'btn-row' },
+          h('button', { class: 'btn danger', onclick: () => { closeModal(); confirmRelease(p, done); } }, '놓아주기'),
+          h('button', { class: 'btn primary', disabled: full ? true : null, onclick: () => { if (game.adoptPet(p.uid)) { closeModal(); toast(`${d.name}을(를) 데려갔어요`); done(); } } }, '데려가기')),
+        h('button', { class: 'btn', style: 'width:100%;margin-top:6px', onclick: closeModal }, '닫기'));
+    });
+    if (s.petBox.length) boxCard.append(h('div', { class: 'pen-grid' }, ...[...s.petBox].sort((a, b) => (b.rar || 0) - (a.rar || 0) || W.petOf(b.kind).tier - W.petOf(a.kind).tier).map((p) => {
+      const d = W.petOf(p.kind);
+      return h('button', { class: 'pen-tile', style: `--rc:${W.RARITY[p.rar || 0].color}`, onclick: () => openPen(p) },
         h('div', { class: 'ico pet-ico' }, creatureIcon(p.kind)),
-        h('div', { class: 'info' }, h('div', { class: 'name' }, d.name, ' ', rarTag(p.rar), h('small', {}, `순위 ${d.tier} · Lv.${p.lv}`)), h('div', { class: 'desc' }, petInfo(p))),
-        h('div', { class: 'btn-col' },
-          h('button', { class: 'buy', disabled: s.pets.length < slots ? null : true, onclick: () => { if (game.adoptPet(p.uid)) { toast(`${d.name}을(를) 데려갔어요`); done(); } } }, '데려가기'),
-          h('button', { class: 'btn', style: 'padding:4px 8px;font-size:12px', onclick: () => { game.releasePet(p.uid); done(); } }, '놓아주기'))));
-    }
+        h('b', {}, d.name), h('small', {}, `${W.RARITY[p.rar || 0].name} · 순위 ${d.tier}`));
+    })));
     const cur = game.mountNow();
     mountCard.replaceChildren(h('h3', {}, '탈것', h('small', {}, cur ? `${cur.name}을(를) 타는 중` : '걸어 다니는 중')));
     if (!s.mounts.length) mountCard.append(h('p', { class: 'muted' }, '몹이 아주 드물게 탈것을 떨궈요 — 높은 두목일수록 자주·좋은 것까지. 타면 빨리 움직이고 공격력·체력이 올라요.'));

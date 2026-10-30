@@ -1645,3 +1645,13 @@ body.hunt-nocv #cv { visibility: hidden !important; }
 .dgn-pips i { width: 10px; height: 10px; border-radius: 50%; background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.18); }
 .dgn-pips i.on { background: #fbbf24; border-color: #fde68a; box-shadow: 0 0 6px rgba(251,191,36,0.6); }
 .dgn-pips small { font-size: 11px; color: var(--muted); }
+
+/* v231: 애완동물 우리 그림 칸 */
+.pen-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.pen-tile { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 4px 6px; border-radius: 10px; font: inherit; color: var(--text); cursor: pointer; min-width: 0;
+  background: radial-gradient(circle at 50% 35%, color-mix(in srgb, var(--rc) 22%, transparent), var(--card-2) 70%); border: 1px solid color-mix(in srgb, var(--rc) 55%, transparent); }
+.pen-tile .pet-ico { width: 56px; height: 56px; }
+.pen-tile b { font-size: 12px; }
+.pen-tile small { font-size: 10px; color: var(--rc); white-space: nowrap; }
+.pen-head { display: flex; gap: 10px; align-items: center; }
+.pen-head .pet-ico.big { width: 72px; height: 72px; }
