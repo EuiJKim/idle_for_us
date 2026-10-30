@@ -716,8 +716,9 @@ export class BattleView {
         this.monKnock = Math.max(this.monKnock, crit || skill ? 16 : 7);
         if (crit) {
           this.ink(atX - 10, atY - 60, 10, '#7f1d1d', 160);
-          this.shake = Math.max(this.shake, 0.32);
-          this.flash = Math.max(this.flash, 0.22);
+          // v233: 평타 치명은 자주 터진다 — 보통 치명은 살짝, 슈퍼·하이퍼(2단계+)만 크게 (전엔 매번 0.32 흔들림 + 하얀 번쩍)
+          this.shake = Math.max(this.shake, ct >= 2 ? 0.26 : 0.12);
+          this.flash = Math.max(this.flash, ct >= 2 ? 0.18 : 0.06);
         }
         break;
       }
@@ -1513,7 +1514,11 @@ export class BattleView {
     this.monFlash = decay(this.monFlash, 12);
     this.heroFlash = decay(this.heroFlash, 6);
     this.heroRecoil = decay(this.heroRecoil || 0, 7);
-    this.shake = decay(this.shake, 1);
+    // v233: 흔들림은 짧고 굵게 — 곱으로 빨리 줄고(반감 ~0.12초) 끝은 직선으로 끊는다.
+    // 전에는 1초에 1씩 직선으로만 줄어, 평범한 사냥 중에도 화면의 3분의 1이 흔들리고 있었다.
+    this.shake = Math.max(0, this.shake * Math.exp(-5.5 * dt) - dt * 0.6);
+    // 계속 흔들리면 무뎌진다(피로) — 1.5초 동안 흔들린 몫만큼 세기를 반까지 줄인다
+    this.shakeTire = (this.shakeTire || 0) + ((this.shake > 0.05 ? 1 : 0) - (this.shakeTire || 0)) * Math.min(1, dt / 1.5);
     this.flash = decay(this.flash, 2);
     const moving = this.fieldMode ? !!game.walking : (!game.mon?.alive && game.mode === 'stage');
     // 달릴 때 발밑에서 흙먼지가 인다 — 뒤로 흩어지며 옅어진다
@@ -1543,7 +1548,11 @@ export class BattleView {
     else this.scroll += dt * (moving ? 220 : 12);
 
     ctx.save();
-    if (this.shake > 0) ctx.translate((Math.random() - 0.5) * 12 * this.shake, (Math.random() - 0.5) * 12 * this.shake);
+    // 매 프레임 마구잡이로 튀던 것을 물결로 — 같은 세기라도 덜 어지럽고 '쿵' 하는 맛이 남는다
+    if (this.shake > 0) {
+      const a = 12 * this.shake * (1 - 0.5 * (this.shakeTire || 0)) * (this.shakePref ?? 1);
+      ctx.translate(Math.sin(this.t * 61) * a * 0.6 + Math.sin(this.t * 37) * a * 0.4, Math.cos(this.t * 53) * a * 0.6 + Math.sin(this.t * 29) * a * 0.3);
+    }
     const scene = this.scene(game);
     this.drawBackground(scene);
     this.drawLowObstacles(game);  // 물·용암 (v127)

@@ -62,6 +62,7 @@ const FX_NAME = { high: '높음', mid: '보통', low: '낮음' };
 function loadFxPref() { try { return localStorage.getItem('ifu.fx') || 'high'; } catch { return 'high'; } }
 view.fxPref = Math.max(0, FX_PREF.indexOf(loadFxPref()));
 try { view.showRange = localStorage.getItem('ifu.range') === '1'; } catch { /* 사생활 모드 */ }
+try { const sp = Number(localStorage.getItem('ifu.shake')); if ([0, 0.5, 1].includes(sp) && localStorage.getItem('ifu.shake') !== null) view.shakePref = sp; } catch { /* 사생활 모드 */ }
 
 // 화면 거리 — 전체(지도 한 장) · 보통(가로 꽉) · 가까이. 눌러서 돌리고, 마우스 휠로도 당기고 민다.
 const CAM_NAME = ['전체', '보통', '가까이'];
@@ -978,7 +979,19 @@ $('btn-settings').addEventListener('click', () => openModal((s) => {
     h('div', { class: 'row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, '원인 찾기'), h('div', { class: 'desc' }, `하나씩 끄고 켜 보며 무엇이 무거운지 찾아요 (${HUNT_STEPS.length * HUNT_SEC}초) — 버벅이는 곳에서 눌러 주세요`)),
       h('button', { class: 'btn primary', style: 'padding:6px 12px', onclick: startHunt }, '찾기')),
     toggleRow('성능 보기', !!perfBox, '들판 왼쪽 위에 초당 그림 수·한 장 그리는 시간·해상도 — 버벅일 때 이 숫자를 알려 주세요', (v) => setPerfBox(v)),
-    h('div', { class: 'row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, '연출'), h('div', { class: 'desc' }, '폰이 버거우면 낮춰요')), fxBtn)),
+    h('div', { class: 'row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, '연출'), h('div', { class: 'desc' }, '폰이 버거우면 낮춰요')), fxBtn),
+    // v233: 화면 흔들림 — 어지러우면 줄이거나 끈다
+    (() => {
+      const NAME = { 1: '보통', 0.5: '약하게', 0: '끔' };
+      const b = h('button', { class: 'btn', style: 'padding:6px 12px;min-width:62px' }, NAME[view.shakePref ?? 1] || '보통');
+      b.onclick = () => {
+        const order = [1, 0.5, 0];
+        view.shakePref = order[(order.indexOf(view.shakePref ?? 1) + 1) % order.length];
+        try { localStorage.setItem('ifu.shake', String(view.shakePref)); } catch { /* 이번만 */ }
+        b.textContent = NAME[view.shakePref];
+      };
+      return h('div', { class: 'row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, '화면 흔들림'), h('div', { class: 'desc' }, '때리고 맞을 때 화면이 울리는 세기 — 어지러우면 줄여요')), b);
+    })()),
     setSec('앱·계정', false,
     appRow(),
     h('div', { class: 'btn-row', style: 'margin-top:8px' },
