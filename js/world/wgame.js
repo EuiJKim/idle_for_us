@@ -1929,7 +1929,9 @@ export class WorldGame {
   // 조합·왕의 장비는 +10 위로 돌파(+15까지) — 두목 증표가 더 든다. 옛 장비·가락지·귀걸이는 +10까지.
   enhanceMax(it) { return (it?.step != null || it?.king != null) && !W.isDropOnly(it.slot) ? W.ENHANCE_MAX : W.ENHANCE_NORMAL; }
   breakMarksOf(it) { return it?.step != null && !W.isDropOnly(it.slot) ? W.breakMarks(it.plus || 0) : 0; }   // 왕의 장비는 강화석 수에 들어 있다
-  enhanceRateOf(it) { return W.enhanceRate(it.plus || 0) * (W.isDropOnly(it.slot) ? W.ACC2_RATE : 1); }
+  enhanceBaseRate(it) { return W.enhanceRate(it.plus || 0) * (W.isDropOnly(it.slot) ? W.ACC2_RATE : 1); }
+  // v192 천장: 실패가 쌓인 만큼 더한다
+  enhanceRateOf(it) { return Math.min(1, this.enhanceBaseRate(it) + (it.epity || 0)); }
   canEnhance(it) {
     if (!it || (it.plus || 0) >= this.enhanceMax(it) || this.s.gold < this.enhanceCost(it)) return false;
     const m = this.enhanceMats(it);
@@ -1937,7 +1939,7 @@ export class WorldGame {
     const bm = this.breakMarksOf(it);
     return !bm || (this.s.mats[W.bossKey(m.key)] || 0) >= bm;
   }
-  // 던파식 (v150): 실패하면 -1 · -3 · 부서짐. useProt면 부서질 때 보호부 하나로 대신 -1. 결과는 this.lastEnhance에도 남긴다.
+  // v192: 실패하면 +7까지 그대로 · +8~10 -1 · +11부터 -2(useProt면 보호부 하나로 그대로). 실패마다 천장(it.epity)이 쌓인다. 결과는 this.lastEnhance에도 남긴다.
   enhance(uid, useProt = true) {
     const it = this.findItem(uid);
     if (!this.canEnhance(it)) return null;
@@ -1950,14 +1952,13 @@ export class WorldGame {
     const lv = it.plus || 0;
     const ok = this.rng() < this.enhanceRateOf(it);
     const r = { ok, from: lv, drop: 0, broke: false, prot: false };
-    if (ok) it.plus = lv + 1;
+    if (ok) { it.plus = lv + 1; it.epity = 0; }
     else {
+      it.epity = Math.min(1, (it.epity || 0) + this.enhanceBaseRate(it) * W.ENH_PITY_K);
+      r.pity = it.epity;
       const f = W.enhanceFail(lv);
-      if (f === 'break') {
-        if (useProt && (this.s.prot || 0) > 0) { this.s.prot--; r.prot = true; r.drop = -1; it.plus = Math.max(0, lv - 1); }
-        else if (it.grow) { r.broke = true; r.reset = true; it.plus = 0; }      // v158: 성장 장비는 부서지지 않고 +0으로
-        else { r.broke = true; this.destroyItem(it); }
-      } else if (f) { r.drop = f; it.plus = Math.max(0, lv + f); }
+      if (f && W.enhanceRisky(lv) && useProt && (this.s.prot || 0) > 0) { this.s.prot--; r.prot = true; }
+      else if (f) { r.drop = f; it.plus = Math.max(0, lv + f); }
     }
     this._stats = null;
     this.lastEnhance = r;

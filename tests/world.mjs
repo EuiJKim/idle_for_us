@@ -228,14 +228,14 @@ console.log('\n=== 재료 · 성장 장비 (v158) ===');
   // 성장 장비는 팔리지 않고 가방이 넘쳐도 안 팔린다
   const w = g.s.equip.weapon;
   ok(g.sell(w) === 0 && g.findItem(w.uid) === w, '성장 장비는 팔 수 없다');
-  // 강화: 부서질 자리에서 실패해도 +0으로 (사라지지 않는다)
+  // 강화 (v192): +11에서 실패해도 -2 (사라지지도 +0이 되지도 않는다)
   {
     const E = fresh(); E.s.gold = 1e15; E.s.prot = 0;
     for (let k = 1; k <= 60; k++) { E.s.mats[k] = 1e6; E.s.mats[W.bossKey(k)] = 1e6; }
     const ew = E.s.equip.weapon; ew.plus = W.ENHANCE_NORMAL;
     E.rng = () => 0.99;
     E.enhance(ew.uid, false);
-    ok(E.lastEnhance.broke && E.lastEnhance.reset && E.s.equip.weapon === ew && ew.plus === 0, '성장 장비는 부서지지 않고 +0으로 돌아간다');
+    ok(!E.lastEnhance.broke && E.s.equip.weapon === ew && ew.plus === W.ENHANCE_NORMAL - 2, '성장 장비는 +11 자리에서 실패해도 -2');
   }
   // 등급 각인: 어느 두목의 증표든 — 센 두목 것일수록 잘 붙는다 · 실패하면 천장이 쌓인다
   {
@@ -426,19 +426,27 @@ console.log('\n=== 등급 · 스킬 옵션 · 승급 · 돌파 · 스킬 레벨 
   ok(bw.plus >= 12 && W.enhanceMult(15) > 3.1, `돌파 +12까지 보호부를 쓰며 (+15면 기본 수치 ×${W.enhanceMult(15).toFixed(1)})`, `${tries}번 · 보호부 ${1e5 - B.s.prot}장`);
   // 던파식 강화 (v150)
   ok(W.enhanceRate(0) === 1 && W.enhanceRate(2) === 1 && W.enhanceRate(3) === 0.95 && W.enhanceRate(9) === 0.41 && W.enhanceRate(14) === 0.08, '성공률: +1~3 100% · +4 95% · +10 41% · +15 8%');
-  ok(W.enhanceFail(1) === 0 && W.enhanceFail(4) === -1 && W.enhanceFail(8) === -3 && W.enhanceFail(10) === 'break', '실패: +4~7 -1 · +8~10 -3 · +11부터 부서짐');
+  ok(W.enhanceFail(1) === 0 && W.enhanceFail(6) === 0 && W.enhanceFail(7) === -1 && W.enhanceFail(9) === -1 && W.enhanceFail(10) === -2, '실패: +7까지 그대로 · +8~10 -1 · +11부터 -2');
   const E = fresh();
   E.s.gold = 1e15; E.s.mats = { [bz]: 1e7, [W.bossKey(bz)]: 1e6 };
   E.rng = () => 0.999;                                        // 늘 실패
   const e1 = E.makeCrafted('weapon', 10, 6, 0); E.s.equip.weapon = e1;
   E.enhance(e1.uid);
-  ok(e1.plus === 5 && E.lastEnhance.drop === -1, '+6에서 실패하면 +5');
+  ok(e1.plus === 6 && E.lastEnhance.drop === 0, '+6에서 실패해도 그대로');
   e1.plus = 9; E.enhance(e1.uid);
-  ok(e1.plus === 6 && E.lastEnhance.drop === -3, '+9에서 실패하면 +6');
+  ok(e1.plus === 8 && E.lastEnhance.drop === -1, '+9에서 실패하면 +8 (전에는 -3)');
   e1.plus = 10; E.s.prot = 1; E.enhance(e1.uid);
-  ok(e1.plus === 9 && E.lastEnhance.prot && E.s.prot === 0 && E.s.equip.weapon === e1, '+10에서 실패해도 보호부가 있으면 부서지지 않고 -1');
-  e1.plus = 10; E.enhance(e1.uid);
-  ok(E.lastEnhance.broke && E.s.equip.weapon === null, '보호부가 없으면 부서져 사라진다');
+  ok(e1.plus === 10 && E.lastEnhance.prot && E.s.prot === 0 && E.s.equip.weapon === e1, '+10 위에서 실패해도 보호부가 있으면 그대로');
+  e1.plus = 10; e1.epity = 0; E.enhance(e1.uid);
+  ok(!E.lastEnhance.broke && E.s.equip.weapon === e1 && e1.plus === 8, '보호부가 없으면 -2 (사라지지 않는다)');
+  // 천장: 실패가 쌓이면 다음 확률이 오르고, 성공하면 비운다
+  const pe = E.makeCrafted('weapon', 10, 12, 0); E.s.equip.weapon = pe;
+  const pr0 = E.enhanceRateOf(pe);
+  E.s.prot = 10; E.enhance(pe.uid); E.enhance(pe.uid);
+  ok(Math.abs(E.enhanceRateOf(pe) - (pr0 + 2 * E.enhanceBaseRate(pe) * W.ENH_PITY_K)) < 1e-9, '실패 두 번 → 다음 확률이 그 칸 확률의 절반씩 두 번 오른다', `${(pr0 * 100).toFixed(0)}% → ${(E.enhanceRateOf(pe) * 100).toFixed(0)}%`);
+  E.rng = () => 0; E.enhance(pe.uid);
+  ok(pe.plus === 13 && !pe.epity && E.enhanceRateOf(pe) === E.enhanceBaseRate(pe), '성공하면 천장을 비운다');
+  E.s.prot = 0;
   E.s.gold = W.protPrice(E.s.level) * 3;
   ok(E.buyProt(2) && E.s.prot === 2 && !E.buyProt(2), '상인에게서 보호부를 산다');
 }
