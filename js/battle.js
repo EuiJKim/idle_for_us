@@ -263,6 +263,26 @@ const SPECIAL_INK = {
 const CAST_COL = { sword: '229,231,235', fist: '245,158,11', fan: '56,189,248', ring: '168,85,247', poison: '132,204,22' };
 // v222: 애완동물 기운 — 발밑에 등급 빛(레어 파랑 · 유니크 보라 · 전설 주황 · 신화 붉음)과
 // 그 짐승의 기운 알갱이(주작 불티 · 청룡 번개 · 현무 물방울 · 선학 깃털 · 그 밖은 도는 빛). 상태 없이 시간으로.
+// v225: 보물 요괴 기운 — 금빛 둥근 빛과 반짝이는 별 다섯(돌면서 깜빡)
+function treasureAura(ctx, x, y, sc, t, sq = 0.5) {
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  const r = 46 * sc;
+  const g = ctx.createRadialGradient(x, y - 30 * sc, 4, x, y - 30 * sc, r);
+  g.addColorStop(0, `rgba(253,224,71,${0.28 + 0.1 * Math.sin(t * 5)})`); g.addColorStop(1, 'rgba(253,224,71,0)');
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y - 30 * sc, r, 0, Math.PI * 2); ctx.fill();
+  for (let i = 0; i < 5; i++) {
+    const a = t * 1.5 + (i / 5) * Math.PI * 2;
+    const tw = Math.max(0, Math.sin(t * 6 + i * 1.9));
+    if (tw < 0.2) continue;
+    const sx = x + Math.cos(a) * 30 * sc, sy = y - 34 * sc + Math.sin(a) * 30 * sc * sq;
+    const L = 5 * tw + 2;
+    ctx.fillStyle = `rgba(255,251,235,${tw})`;
+    ctx.beginPath(); ctx.moveTo(sx - L, sy); ctx.lineTo(sx, sy - 1.2); ctx.lineTo(sx + L, sy); ctx.lineTo(sx, sy + 1.2); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(sx, sy - L); ctx.lineTo(sx - 1.2, sy); ctx.lineTo(sx, sy + L); ctx.lineTo(sx + 1.2, sy); ctx.fill();
+  }
+  ctx.restore();
+}
 // v224: 정예 기운 — 발밑에 주황 불꽃 고리가 숨 쉬고, 불티 넷이 엇갈려 오른다 (멀리서도 '저건 세다'가 보이게)
 function eliteAura(ctx, x, y, sc, t, sq = 0.5) {
   ctx.save();
@@ -867,6 +887,25 @@ export class BattleView {
           const fx = { ...(this._impFx || fxFor('', {}, '')), col: (ev.col || '#fde68a').replace('#', '').match(/../g).map((h2) => parseInt(h2, 16)).join(',') };
           this.effects.push({ kind: 'bboom', wx: ev.at.x, wy: ev.at.y, fx, r: 70, spin: (Math.random() - 0.5) * 2, life: 0.5, max: 0.5 });
         }
+        break;
+      // v225: 보물 요괴 — 나타날 때 금빛 고리, 잡으면 은괴가 분수처럼 솟아 무인에게 빨려 든다
+      case 'treasure':
+        if (ev.at && this.fxLevel > 0) {
+          this.effects.push({ kind: 'shock', life: 0.7, max: 0.7, wx: ev.at.x, wy: ev.at.y, r: 120, col: '253,224,71', rings: 3, w: 3 });
+        }
+        break;
+      case 'treasureKill':
+        if (ev.at && this.fxLevel > 0) {
+          const tx = this.sx(ev.at), ty = this.sy(ev.at);
+          this.effects.push({ kind: 'shock', life: 0.6, max: 0.6, wx: ev.at.x, wy: ev.at.y, r: 160, col: '253,224,71', rings: 2, w: 5 });
+          this.effects.push({ kind: 'petals', life: 1.1, max: 1.1, wx: ev.at.x, wy: ev.at.y, r: 140, col: '253,230,138', seeds: seedsN(16), spin: 4, oy: -60 });
+          for (let i = 0; i < Math.round(14 * (this.budget ?? 1)); i++) this.ingot(tx + (Math.random() - 0.5) * 30, ty - 40);
+          this.flash = Math.max(this.flash, 0.18);
+          this.shake = Math.max(this.shake, 0.2);
+        }
+        break;
+      case 'treasureGone':
+        if (ev.at && this.fxLevel > 0) this.effects.push({ kind: 'petals', life: 0.6, max: 0.6, wx: ev.at.x, wy: ev.at.y, r: 70, col: '214,211,209', seeds: seedsN(8), spin: 2 });
         break;
       case 'tellBoom': {
         const tl = ev.tell;
@@ -2591,6 +2630,7 @@ export class BattleView {
     if (fx) this.drawMobFx(ctx, a, x, y, sc, true);
     if (a.stun > 0) dizzy(ctx, x, y - 96 * sc, this.t);
     // 들판 정예는 드물어서 표를 단다
+    if (a.treasure && a.alive !== false && this.fxLevel > 0) treasureAura(ctx, x, y, sc, this.t + (a.id || 0) * 0.37, this.squash);
     if (a.elite && a.alive !== false && this.fxLevel > 0) eliteAura(ctx, x, y, sc, this.t + (a.id || 0) * 0.37, this.squash);
     if (a.elite) { ctx.globalAlpha = 1; gradeTag(ctx, '정예', x, y - 100 * sc, '#fb923c'); }
     // 마을 사람은 이름을 단다
