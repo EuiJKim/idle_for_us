@@ -308,7 +308,7 @@ function refreshUI(full = false) {
       : `길잡이 ${game.s.quest + 1}/${QUEST_COUNT} · ${cur.q.title} (${fmt(cur.now)}/${fmt(cur.need)})`;
   }
   const t = game.nextTier();
-  dot('town', !!t && s.level >= t.level && s.gold >= t.cost);
+  dot('town', (!!t && s.level >= t.level && s.gold >= t.cost) || (game.canChoosePath() && !s.path));   // v237: 길을 아직 안 골랐으면
   dot('comp', s.petBox.length > 0 && s.pets.length < game.petSlots());
   dot('dgn', dailyWaiting(game) || Object.values(game.s.zTickets || {}).some((n) => n > 0));
   if (activeTab) { tabs[activeTab].update(); panelRes(); }

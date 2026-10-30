@@ -1694,5 +1694,33 @@ console.log('\n=== 던전 루틴 (v230) ===');
   ok(m.dgn.auto === true && m.dgn.routine === true && m.tower.failPow > 0, '자동 도전·루틴·탑 막힘이 저장된다 (전엔 자동 도전이 늘 꺼졌다)');
 }
 
+
+console.log('\n=== 직업의 길 (v237) ===');
+{
+  const PT = await import('../js/world/wpath.js');
+  for (const job of Object.keys(PT.PATHS)) ok(PT.PATHS[job].a.nodes.length === 5 && PT.PATHS[job].b.nodes.length === 5, `${job}: 두 길 · 경지 다섯씩`);
+  const g = fresh('fist');
+  while (g.s.level < 45) g.addExp(W.expToNext(g.s.level));
+  g.s.jobTier = 1;
+  ok(!g.choosePath('b'), '2차 전직 전에는 길을 못 고른다');
+  g.s.jobTier = 2; g._stats = null;
+  const sp0 = g.stats().speed, sk0 = g.stats().skillMult;
+  ok(g.choosePath('b') && g.s.path === 'b', '2차 전직 뒤 평타의 길을 고른다');
+  const st = g.stats();
+  ok(st.speed > sp0 && st.skillMult < sk0, '평타의 길: 공격 속도 오르고 무공은 약해진다', `${sp0.toFixed(2)}→${st.speed.toFixed(2)} · 무공 ${sk0.toFixed(2)}→${st.skillMult.toFixed(2)}`);
+  g.s.gold = 0;
+  ok(!g.choosePath('a'), '길을 바꾸려면 은자가 든다');
+  // 합일 — 140 · 4차: 둘 다, 약점 없음
+  while (g.s.level < 140) g.addExp(W.expToNext(g.s.level));
+  g.s.jobTier = 4; g._stats = null;
+  const m = PT.pathMods(g.s);
+  ok(PT.merged(g.s) && m.skill > 0 && m.extra > 0 && !(m.skill < 0), '합일: 두 길이 다 켜지고 약점이 사라진다', JSON.stringify(m));
+  ok(migrateWorld(JSON.parse(JSON.stringify(g.s))).path === 'b', '고른 길이 저장된다');
+  // 덧치기 — 평타의 길 경지 3(80)부터
+  const h = fresh('sword');
+  while (h.s.level < 85) h.addExp(W.expToNext(h.s.level));
+  h.s.jobTier = 2; h.choosePath('b'); h._stats = null;
+  ok(h.stats().extra > 0 && h.stats().dash > 0, '쾌검의 길: 덧치기·전광석화가 붙는다');
+}
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);

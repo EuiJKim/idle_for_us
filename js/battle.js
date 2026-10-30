@@ -907,6 +907,15 @@ export class BattleView {
           this.effects.push({ kind: 'bboom', wx: ev.at.x, wy: ev.at.y, fx, r: 70, spin: (Math.random() - 0.5) * 2, life: 0.5, max: 0.5 });
         }
         break;
+      // v237: 길 — 전광석화. 떠난 자리에서 닿은 자리까지 빛줄기가 남고, 닿은 자리에 흙먼지와 고리
+      case 'dash':
+        if (ev.from && ev.to && this.fxLevel > 0) {
+          const col = CAST_COL[game.s?.job] || '255,255,255';
+          this.effects.push({ kind: 'lance', life: 0.22, max: 0.22, wx: ev.from.x, wy: ev.from.y, a: Math.atan2((ev.to.y - ev.from.y) * this.squash, ev.to.x - ev.from.x), len: Math.hypot(ev.to.x - ev.from.x, (ev.to.y - ev.from.y) * this.squash), w: 6, col, oy: -50 });
+          this.effects.push({ kind: 'shock', life: 0.3, max: 0.3, wx: ev.to.x, wy: ev.to.y, r: 60, col, rings: 2, w: 3 });
+          this.heroLunge = Math.max(this.heroLunge, 1.2);
+        }
+        break;
       // v226: 던전·탑을 깨면 무인 발밑에서 금빛 기둥이 서고 고리 세 겹 · '破' 낙관과 함께 크게 알린다
       case 'instEnd':
         if (ev.ok && ev.kind !== 'raid' && this.fxLevel > 0 && game?.heroX != null) {

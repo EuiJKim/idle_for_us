@@ -13,6 +13,7 @@ import { skinImg } from './icons.js';
 import * as MS from './world/wmaster.js';
 import * as LN from './world/wline.js';
 import * as IM from './world/wimprint.js';
+import * as PT from './world/wpath.js';
 import { drawFighter } from './battle.js';
 
 // 애완동물·탈것 그림 아이콘 (창 목록용) — 들판과 같은 그림을 작게
@@ -1369,7 +1370,7 @@ function townTab(app) {
   let sig = '';
   const choose = (id) => { pick = id; sig = ''; upd(); };
   function npcButtons() {
-    const dot = { master: game.canAdvance() };
+    const dot = { master: game.canAdvance() || (game.canChoosePath() && !game.s.path) };
     npcRow.replaceChildren(...NPC_LIST.map((n) => h('button', { class: `npc${pick === n.id ? ' on' : ''}`, onclick: () => (n.id === 'smith' ? app.showTab?.('bag', 'smith') : choose(n.id)) },
       h('span', { class: 'npc-ico' }, n.ico), h('b', {}, n.name), h('small', {}, n.desc), dot[n.id] ? h('i', { class: 'dot' }) : null)));
   }
@@ -1402,7 +1403,39 @@ function townTab(app) {
       const known = game.knows(k);
       return h('div', { class: `path-step${known ? ' known' : ''}` }, h('span', { class: 'ico' }, k.icon), h('div', {}, h('b', {}, k.name), h('small', {}, `${when}${k.kind === 'support' ? ' · 보조기' : ''}`)), h('span', { class: 'st' }, known ? '배움' : '—'));
     });
-    return [card, h('div', { class: 'card' }, h('h3', {}, '무공의 길', h('small', {}, W.LORE[s.job]?.title || '')), ...steps)];
+    return [card, pathCard(), h('div', { class: 'card' }, h('h3', {}, '배우는 무공', h('small', {}, W.LORE[s.job]?.title || '')), ...steps)];
+  }
+  // v237: 직업의 두 갈래 길 — 2차 전직에 고른다. 경지 다섯이 레벨을 따라 열리고, 140·4차에 합일(둘 다)
+  function pathCard() {
+    const s = game.s;
+    const P = PT.PATHS[s.job];
+    if (!P) return null;
+    const can = game.canChoosePath();
+    const mg = PT.merged(s);
+    const open = PT.nodesOpen(s.level);
+    const col = (id) => {
+      const pp = P[id];
+      const mine = s.path === id;
+      const active = mine || mg;
+      const cost = PT.PATH_COST[id];
+      return h('div', { class: `path-col${mine ? ' mine' : ''}${active ? ' on' : ''} p-${id}` },
+        h('div', { class: 'pc-head' }, h('i', {}, pp.hanja), h('div', {}, h('b', {}, pp.name), h('small', {}, pp.style))),
+        h('div', { class: 'pc-nodes' }, ...pp.nodes.map((nd, i) => {
+          const lit = active && (mg || i < open);
+          return h('div', { class: `pc-node${lit ? ' lit' : ''}` }, h('span', { class: 'lv' }, mg && !mine ? '合' : `${PT.PATH_NODE_LV[i]}`), h('div', {}, h('b', {}, nd.name), h('small', {}, nd.text)));
+        })),
+        h('div', { class: 'pc-cost' }, mg ? '합일 — 약점 없음' : `약점: ${id === 'a' ? `평타 피해 ${Math.round(cost.basic * 100)}%` : `무공 피해 ${Math.round(cost.skill * 100)}%`}`),
+        mine || mg ? h('div', { class: 'pc-tag' }, mg ? '합일' : '걷는 길')
+          : h('button', { class: 'btn primary', disabled: !can || s.gold < game.pathSwitchCost() ? true : null, onclick: () => {
+            const c = game.pathSwitchCost();
+            if (s.path && !confirm(`${pp.name}(으)로 바꿀까요? 은자 ${fmt(c)}`)) return;
+            if (game.choosePath(id)) { toast(`${pp.name}을(를) 걷기로 했어요`); app.save(); sig = ''; upd(); app.refresh(); }
+          } }, !can ? '2차 전직부터' : s.path ? `바꾸기 · ${fmt(game.pathSwitchCost())}` : '이 길로'));
+    };
+    return h('div', { class: 'card path-card' },
+      h('h3', {}, '직업의 길', h('small', {}, mg ? '두 길을 다 걷는다' : `레벨 ${PT.PATH_NODE_LV.join('·')}에 경지가 열린다 · 레벨 ${PT.MERGE_LV}·4차에 합일`)),
+      !s.path && can ? h('p', { class: 'muted', style: 'font-size:12px;margin:0 0 6px' }, '둘 중 하나를 골라요 — 나중에 은자를 내고 바꿀 수 있고, 끝에는 둘 다 걷게 돼요.') : null,
+      h('div', { class: 'path-cols' }, col('a'), col('b')));
   }
   function shopView() {
     const s = game.s;

@@ -1655,3 +1655,25 @@ body.hunt-nocv #cv { visibility: hidden !important; }
 .pen-tile small { font-size: 10px; color: var(--rc); white-space: nowrap; }
 .pen-head { display: flex; gap: 10px; align-items: center; }
 .pen-head .pet-ico.big { width: 72px; height: 72px; }
+
+/* v237: 직업의 길 */
+.path-cols { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.path-col { display: flex; flex-direction: column; gap: 6px; padding: 9px; border-radius: 12px; background: var(--card-2); border: 1px solid var(--line); opacity: 0.8; min-width: 0; }
+.path-col.on { opacity: 1; }
+.path-col.mine.p-a, .path-col.on.p-a { border-color: #60a5fa; box-shadow: 0 0 10px rgba(96,165,250,0.2); }
+.path-col.mine.p-b, .path-col.on.p-b { border-color: #f87171; box-shadow: 0 0 10px rgba(248,113,113,0.2); }
+.pc-head { display: flex; gap: 8px; align-items: center; }
+.pc-head i { font-style: normal; font-family: var(--serif, serif); font-weight: 900; font-size: 20px; width: 40px; height: 40px; display: grid; place-items: center; border-radius: 10px; flex: none; }
+.p-a .pc-head i { background: #1e3a8a; color: #bfdbfe; }
+.p-b .pc-head i { background: #7f1d1d; color: #fecaca; }
+.pc-head b { font-size: 13px; display: block; }
+.pc-head small { font-size: 10px; color: var(--muted); }
+.pc-nodes { display: flex; flex-direction: column; gap: 4px; }
+.pc-node { display: flex; gap: 6px; align-items: flex-start; opacity: 0.45; }
+.pc-node.lit { opacity: 1; }
+.pc-node .lv { flex: none; width: 26px; text-align: center; font-size: 10px; font-weight: 800; padding: 2px 0; border-radius: 6px; background: rgba(255,255,255,0.07); color: var(--muted); }
+.pc-node.lit .lv { background: #a16207; color: #fef3c7; }
+.pc-node b { font-size: 11.5px; display: block; }
+.pc-node small { font-size: 10px; color: var(--muted); line-height: 1.25; display: block; }
+.pc-cost { font-size: 10.5px; color: #fca5a5; }
+.pc-tag { text-align: center; font-weight: 800; font-size: 12px; padding: 6px; border-radius: 8px; background: rgba(250,204,21,0.15); color: #fde68a; }

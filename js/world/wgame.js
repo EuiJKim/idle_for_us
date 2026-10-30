@@ -13,6 +13,7 @@ import * as LN from './wline.js';
 import * as L from './wland.js';
 import * as G from './wgear.js';
 import * as IM from './wimprint.js';
+import * as PT from './wpath.js';
 
 const rand = Math.random;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -61,6 +62,7 @@ export function newWorldSave(now = Date.now()) {
     // 요일 던전 (v126): 오늘 쓴 횟수 · 종류별 깬 단계 · 자동 도전(v139)
     dgn: { day: '', used: {}, best: {}, auto: false, routine: false },   // routine(v230): 요일 던전 → 탑 → 사냥터
     tower: { floor: 0, auto: true },         // 무한의 탑: 오른 층 · 이기면 이어 오르기
+    path: null,                              // 직업의 길 (v237) — 'a' 무공 · 'b' 평타, 2차 전직에 고른다
     zTickets: {},                            // 십이지 뽑기권 — 신 번호(1~12): 장수
     zPity: {},                               // 신마다 신수 없이 뽑은 횟수 (셋째에 꼭)
     mast: {},                                // 지역 숙련도 (v127) — 지역 번호: 잡은 수
@@ -141,6 +143,7 @@ export function migrateWorld(raw, now = Date.now()) {
   const tw = raw.tower && typeof raw.tower === 'object' ? raw.tower : {};
   s.tower = { floor: clamp(Math.floor(Number(tw.floor) || 0), 0, D.TOWER_MAX), auto: tw.auto !== false };
   // v230: 전에는 s.dgn을 새로 짜며 auto를 빼먹어 다시 들어오면 늘 꺼져 있었다
+  s.path = raw.path === 'a' || raw.path === 'b' ? raw.path : null;   // v237
   s.dgn.auto = !!dg.auto;
   s.dgn.routine = !!dg.routine;
   s.tower.failPow = Math.max(0, Number(tw.failPow) || 0);
@@ -363,6 +366,10 @@ export class WorldGame {
     gear.atkPct += pm.atkPct || 0;
     gear.hpPct += pm.hpPct || 0;
     gear.critDmg += pm.critDmg || 0;
+    // 직업의 길 (v237)
+    const pa = PT.pathMods(s);
+    for (const k of ['skill', 'cdr', 'speed', 'move', 'crit', 'critDmg', 'drain', 'dmgRed']) gear[k] += pa[k] || 0;
+    gear.range += pa.range || 0;
     const ps = this.passives();
     if (ps.has('crimson')) gear.critDmg += 0.8;
     if (ps.has('formless')) gear.skill += 0.3;
@@ -394,6 +401,9 @@ export class WorldGame {
       cdr: Math.min(0.4, gear.cdr), skillRange: gear.range, thorns: gear.thorns, stunHit: Math.min(0.3, gear.stunHit),
       venom: Math.min(IM.IMP_CAP.venom, gear.venom), burn: Math.min(IM.IMP_CAP.burn, gear.burn), chill: Math.min(IM.IMP_CAP.chill, gear.chill), shock: Math.min(IM.IMP_CAP.shock, gear.shock),
       range: W.classOf(s.job)?.range || W.MELEE_RANGE,
+      // 길(v237): 평타 피해 · 덧치기 · 둘레 · 달라붙기 · 독 · 무공 체력 소모
+      basic: pa.basic || 0, extra: Math.min(0.75, pa.extra || 0), pcleave: pa.cleave || 0, dash: pa.dash > 0 ? Math.max(2, pa.dash) : 0,
+      dotUp: pa.dot || 0, hpCostDown: Math.min(0.7, pa.hpCost || 0),
     };
     // 전투력(서열·비교용): 초당 피해 × 버티는 힘의 기하평균 — 보이는 숫자라 작게 둔다
     st.power = Math.round(Math.sqrt(st.atk / st.atkSec * (1 + st.crit * (st.critDmg - 1)) * st.hp));
@@ -406,7 +416,7 @@ export class WorldGame {
     const e = s.equip;
     const g = (it) => (it ? `${it.uid}.${it.plus || 0}.${it.rar || 0}` : '-');
     const pets = this.activePets().map((p) => `${p.uid}.${p.lv}`).join(',');
-    return `${s.level}|${JSON.stringify(s.passLv || {})}|${s.guildId ? W.guildLevel(this.guildExp) : 0}|${s.job}|${s.stats.str},${s.stats.dex},${s.stats.vit},${s.stats.int}|${W.SLOTS.map((x) => g(e[x.id])).join(',')}|${pets}|${s.mount || '-'}|${s.tower?.floor || 0}`;
+    return `${s.level}|${JSON.stringify(s.passLv || {})}|${s.guildId ? W.guildLevel(this.guildExp) : 0}|${s.job}|${s.stats.str},${s.stats.dex},${s.stats.vit},${s.stats.int}|${W.SLOTS.map((x) => g(e[x.id])).join(',')}|${pets}|${s.mount || '-'}|${s.tower?.floor || 0}|${s.path || '-'}|${s.jobTier || 0}`;
   }
   power() { return this.stats().power; }
 
@@ -476,6 +486,24 @@ export class WorldGame {
 
   // ---------- 칸 ----------
   // 누구든 (c, r) 칸에 서 있거나, 그 칸으로 옮겨 가는 중이다(mc, mr). 한 칸에는 하나만.
+  // 과녁 곁 빈 칸으로 번쩍 (v237) — 무인 쪽에 가까운 칸부터
+  dashTo(m) {
+    const mt = this.mobTile(m);
+    let best = null, bd = Infinity;
+    for (let dc = -1; dc <= 1; dc++) for (let dr = -1; dr <= 1; dr++) {
+      if (!dc && !dr) continue;
+      const c = mt.c + dc, r = mt.r + dr;
+      if (!this.inMap(c, r) || this.occupied(c, r, 'hero')) continue;
+      const d = Math.hypot(c - this.hc, r - this.hr);
+      if (d < bd) { bd = d; best = { c, r }; }
+    }
+    if (!best) return false;
+    const from = { x: this.heroX, y: this.heroY };
+    this.placeHero(best.c, best.r);
+    this.walking = false;
+    this.emit('dash', { from, to: { x: this.heroX, y: this.heroY } });
+    return true;
+  }
   placeHero(c, r) {
     this.hc = c; this.hr = r; this.hmove = null;
     this.heroX = W.tileCenter(c); this.heroY = W.tileCenter(r);
@@ -850,6 +878,8 @@ export class WorldGame {
     if (!this.mon?.alive) return;
     if (dist > st.range) {
       if ((!this.huntOn() && !m.aggro) || this.holdApproach) { this.walking = false; return; }
+      // 길(v237) 전광석화 — 멀리 있는 과녁 곁으로 번쩍 달라붙는다
+      if (st.dash && dist > st.range + W.TILE && dist < W.TILE * 9 && !(this.dashAt > this.clock) && this.dashTo(m)) { this.dashAt = this.clock + st.dash; return; }
       // 칠 수 있는 빈 칸(사거리 안)까지 길을 찾는다. 길이 없으면 이 과녁은 잠깐 두고 다른 몹을 잡는다.
       const f = this.findStep(this.hc, this.hr, (c, r) => this.tileDist({ c, r }, this.mobTile(m)) <= st.range, 'hero');
       if (!f || f === 'here' || !this.stepTo(f)) { this.walking = false; this.giveUp(m); }
@@ -950,7 +980,9 @@ export class WorldGame {
     // 권왕: 세 번째마다 ×3
     if (ps.has('combo') && (this.comboN = (this.comboN || 0) + 1) % 3 === 0) { mult *= 3; this.emit('passive', { id: 'combo', at: m }); }
     const tx = m.x, ty = m.y;
+    if (st.basic) mult *= Math.max(0.2, 1 + st.basic);      // 길(v237): 평타의 길 + · 무공의 길 -
     this.strike(m, st, mult, 'hit');
+    if (st.extra && m.alive && this.rng() < st.extra) { this.strike(m, st, mult * 0.85, 'hit'); this.emit('passive', { id: 'extra', at: m }); }   // 덧치기 (85%)
     // 투신강림: 한 번에 세 대
     const sb = this.setBonus();
     for (let k = 0; k < (this.buffv.triple ? this.buffv.triple + (sb.tripleUp || 0) : 0) && m.alive; k++) this.strike(m, st, mult * 0.5, 'hit');   // 덧 두 대는 절반
@@ -972,7 +1004,7 @@ export class WorldGame {
       for (const o of this.mons.slice()) if (o.alive && o !== m && !o.npc && Math.hypot(o.x - tx, (o.y - ty) * 0.75) <= 160) this.strike(o, st, mult * 0.5, 'tusin');
     }
     // 권마 불패금신: 평타가 둘레를 친다
-    const cleave = Math.max(this.buffv.cleave || 0, sb.cleaveAlways || 0);    // 철권투혼 5: 늘
+    const cleave = Math.max(this.buffv.cleave || 0, sb.cleaveAlways || 0, st.pcleave || 0);    // 철권투혼 5: 늘 · 길(v237)
     if (cleave) {
       for (const o of this.mons.slice()) if (o.alive && o !== m && !o.npc && Math.hypot(o.x - this.heroX, (o.y - this.heroY) * 0.75) <= 150) this.strike(o, st, mult * cleave, 'cleave');
     }
@@ -1118,7 +1150,7 @@ export class WorldGame {
   // 독·출혈: total만큼을 웅덩이에 붓는다 — 쌓인다(빠르기는 마지막에 부은 sec쯤)
   addDot(m, total, sec) {
     const sb = this.setBonus();
-    total *= (1 + (sb.dotUp || 0)) * (sb.bossDot && m.isBoss ? 2 : 1);     // 암천독야
+    total *= (1 + (sb.dotUp || 0) + (this.stats().dotUp || 0)) * (sb.bossDot && m.isBoss ? 2 : 1);     // 암천독야 · 길(v237)
     m.dot = (m.dot || 0) + total;
     m.dotTau = sec / 2;
     m.poison = sec;
@@ -1236,7 +1268,7 @@ export class WorldGame {
   // 배웠나 — 공격 무공은 전직 차수, 보조기는 레벨(v120)
   knows(sk) { return !!sk && (sk.kind === 'support' ? this.s.level >= sk.from : sk.tier <= this.s.jobTier); }
   skillDef(id) { return this.s.job ? W.skillsOf(this.s.job).find((k) => k.id === id) : null; }
-  hpCostOf(sk) { return Math.round(this.stats().hp * (sk.hpCost || 0) * (1 - this.skillMods(sk.id).cost)); }
+  hpCostOf(sk) { const st = this.stats(); return Math.round(st.hp * (sk.hpCost || 0) * (1 - this.skillMods(sk.id).cost) * (1 - (st.hpCostDown || 0))); }
   skillRadius(sk) { return (sk.radius || 0) * Math.max(0.3, 1 + this.skillMods(sk.id).range + (this.stats().skillRange || 0)); }
   skillCd(sk) {
     const sb = this.setBonus();
@@ -2533,6 +2565,19 @@ export class WorldGame {
       if (this.canDaily(d.id, stage, now)) return { kind: d.id, stage };
     }
     return null;
+  }
+  // ---------- 직업의 길 (v237) ----------
+  canChoosePath() { return !!this.s.job && (this.s.jobTier || 0) >= 2; }
+  pathSwitchCost() { return this.s.path ? PT.PATH_SWITCH_COST(this.s.level) : 0; }
+  choosePath(id) {
+    if (!this.canChoosePath() || !['a', 'b'].includes(id) || this.s.path === id) return false;
+    const cost = this.pathSwitchCost();
+    if (this.s.gold < cost) return false;
+    this.s.gold -= cost;
+    this.s.path = id;
+    this._stats = null;
+    this.emit('path', { id });
+    return true;
   }
   // ---------- 던전 루틴 (v230) ----------
   // 켜 두면: 열린 요일 던전을 모두(가장 높은 단계로) → 무한의 탑을 못 오를 때까지 → 사냥터로.
