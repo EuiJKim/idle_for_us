@@ -1261,7 +1261,8 @@ function huntEnd() {
       h('b', {}, `${fps(r.avg)}fps · ${r.avg.toFixed(1)}ms${r.id.startsWith('base') ? '' : ` · ${gain >= 0 ? '빨라짐' : '느려짐'} ${Math.abs(gain).toFixed(1)}ms`} · 끊김 ${r.slow}`));
   };
   const allR = res.find((r) => r.id === 'all');
-  const verdict = allR && allR.avg > 24
+  const verdict = base < 18.5 ? '버벅임 없음 — 60fps로 잘 돌아요'
+    : allR && allR.avg > 24
     ? '전부 꺼도 느립니다 — 게임 밖(브라우저·다른 앱·절전 설정)이 화면을 잡고 있습니다'
     : best && base - best.avg > base * 0.25 ? `범인 후보: ${best.name}` : '뚜렷한 범인 없음 — 고르게 무겁습니다';
   openModal((s) => s.append(h('h2', {}, '원인 찾기 결과'),
