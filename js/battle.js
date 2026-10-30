@@ -259,6 +259,8 @@ const SPECIAL_INK = {
 // ---------- 애완동물 공격 연출 (v193) ----------
 // 한 대마다 짧게(0.3~0.5초) — 여럿이 함께 싸워도 화면을 덮지 않게 작게. 등급이 높을수록 조금 크다.
 // at: 맞은 자리(들판 좌표) · from: 애완동물 자리(들판 좌표, 없을 수 있다)
+const CAST_COL = { sword: '229,231,235', fist: '245,158,11', fan: '56,189,248', ring: '168,85,247', poison: '132,204,22' };
+const DROP_COL = ['96,165,250', '192,132,252', '251,146,60', '244,63,94'];
 const seedsN = (n) => Array.from({ length: n }, () => [Math.random(), Math.random(), Math.random()]);
 const PET_FX = {
   // 선학: 깃털이 흩날리는 날갯짓
@@ -646,6 +648,18 @@ export class BattleView {
         if (ev.mat?.boss) this.float(`+${ev.mat.boss}`, kx, ky - 165 + 34 * UIK, '#fde68a', 14);
         break;
       }
+      // 장비가 떨어졌다 (v196) — 떨어진 자리에 등급 빛깔의 빛이 솟고 고리가 퍼진다 · 등급 이름이 뜬다. 신화는 띠까지.
+      case 'drop': {
+        if (!ev.at || this.fxLevel <= 0) break;
+        const r = Math.max(0, Math.min(3, ev.item?.rar || 0));
+        const col = DROP_COL[r];
+        this.effects.push({ kind: 'flare', life: 0.6 + r * 0.1, max: 0.6 + r * 0.1, wx: ev.at.x, wy: ev.at.y, r: 50 + r * 18, col, oy: -30 });
+        this.effects.push({ kind: 'shock', life: 0.6, max: 0.6, wx: ev.at.x, wy: ev.at.y, r: 60 + r * 20, col, rings: 1 + Math.min(2, r), w: 3 });
+        if (r >= 2) this.effects.push({ kind: 'petals', life: 0.9, max: 0.9, wx: ev.at.x, wy: ev.at.y, r: 60, col, seeds: seedsN(10 + r * 3), spin: 4 });
+        this.float(['레어', '유니크', '전설', '신화'][r], this.sx(ev.at), this.sy(ev.at) - 110, `rgb(${col})`, 16 + r * 2, 1.4, true);
+        if (r >= 3) this.showBanner('신화 장비!', `rgb(${col})`, 1.8, '획득');
+        break;
+      }
       // 늦게 터지는 연출 한 묶음 (v193 — 날아간 여우불이 닿을 때)
       case '_fx':
         for (const f of ev.fx || []) this.effects.push({ ...f });
@@ -736,7 +750,16 @@ export class BattleView {
         break;
       case 'levelUp':
         // 한꺼번에 여러 레벨이 올라도 빛기둥은 하나 — 겹치면 하얗게 탄다
-        if (!this.effects.some((e) => e.kind === 'pillar' && e.life > 0.5)) this.effects.push({ kind: 'pillar', life: 1.2, max: 1.2 });
+        if (!this.effects.some((e) => e.kind === 'pillar' && e.life > 0.5)) {
+          this.effects.push({ kind: 'pillar', life: 1.2, max: 1.2 });
+          // v196: 금빛 고리 두 겹이 발밑에서 퍼지고, 금빛 꽃잎이 몸을 휘감아 오른다 · 화면이 살짝 울린다
+          if (this.fxLevel > 0 && game?.heroX != null) {
+            this.effects.push({ kind: 'shock', life: 0.7, max: 0.7, wx: game.heroX, wy: game.heroY, r: 120, col: '253,224,71', rings: 2, w: 4 });
+            this.effects.push({ kind: 'petals', life: 1.1, max: 1.1, hero: true, r: 70, col: '253,230,138', seeds: seedsN(16), spin: 6, oy: -60 });
+            this.heroFlash = Math.max(this.heroFlash || 0, 0.8);
+            this.shake = Math.max(this.shake, 0.12);
+          }
+        }
         this.float(`레벨 ${ev.level}`, this.heroX, this.groundY - 155, '#fde68a', 24, 1.4, true);
         break;
       case 'rankUp':
@@ -837,6 +860,12 @@ export class BattleView {
     if (this.director) this.director.flush();
     const d = new Director(this, p, game);
     this.director = d;
+    // v196 기수식을 또렷하게 — 무공을 펼치기 직전 직업 빛깔의 기운이 몸으로 빨려 들고, 발밑에 고리가 조인다
+    if (this.fxLevel > 0 && game?.heroX != null) {
+      const col = CAST_COL[game.s?.job] || '255,255,255';
+      this.effects.push({ kind: 'motes', life: 0.34, max: 0.34, n: 14, seeds: seedsN(14), r: 100, dx: 0, dy: -62, face: 1, col });
+      this.effects.push({ kind: 'shock', life: 0.28, max: 0.28, wx: game.heroX, wy: game.heroY, r: 40, col, w: 2 });
+    }
     CHOREO[p.fx](d);
   }
 
