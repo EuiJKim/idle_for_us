@@ -1327,6 +1327,7 @@ export class BattleView {
         ? (((this.padTop || 0) + this.H - (this.padBottom ?? 130)) / 2 / this.zoom + 55) / this.h : null;
       const want = fit ?? (this.sheetOpen ? 0.32 : 0.47);
       const a0 = this.anchor ?? 0.47;
+      this.sheetK = (this.sheetK || 0) + ((this.sheetOpen ? 1 : 0) - (this.sheetK || 0)) * Math.min(1, dt * 8);
       this.anchor = Math.abs(want - a0) < 0.002 ? want : a0 + (want - a0) * Math.min(1, dt * 9);
     }
     this.monLunge = decay(this.monLunge, 5);
@@ -3101,7 +3102,8 @@ export class BattleView {
       // 매 프레임 글꼴 크기가 바뀌어 숫자마다 글꼴 해석·글자 모양 잡기를 다시 했다
       const spr = f._spr || (f._spr = textSprite(f.text, f.brush ? `${f.size * 1.45 * 1.2}px ${BRUSH}` : `900 ${f.size * 1.45}px system-ui, sans-serif`,
         f.color, 4 * 1.45, ctx.getTransform().a));
-      const sc = pop / 1.45;
+      // v212: 창이 열려 들판이 좁으면 숫자를 작게 — 남은 들판을 숫자가 다 덮었다
+      const sc = pop / 1.45 * (1 - 0.3 * (this.sheetK || 0));
       ctx.drawImage(spr.cv, f.x * z - spr.ax * sc, f.y * z - spr.ay * sc, spr.w * sc, spr.h * sc);
     }
     this.floats = this.floats.filter((f) => f.life > 0);
@@ -3128,11 +3130,13 @@ export class BattleView {
     // 칼이 닿는 자리와 맞은 숫자를 가린다. 족자처럼 위에서 아래로.
     if (hj.vertical) {
       const n = [...hj.text].length;
-      const vs = Math.min(40, (this.h * 0.5) / n);
+      // v212: 창이 열리면 들판은 위쪽 4할뿐 — 족자를 그 안에 들어가게 작게(위로 붙여) 쓴다
+      const sk = this.sheetK || 0;
+      const vs = Math.min(40 - 14 * sk, (this.h * (0.5 - 0.26 * sk)) / n);
       ctx.font = `${vs}px ${BRUSH}`;
       ctx.lineWidth = 6;
       const x0 = Math.max(26, w * 0.09);
-      const y0 = this.h * 0.2 - (1 - Math.min(1, (1 - k) * 6)) * 14;
+      const y0 = this.h * (0.2 - 0.05 * sk) - (1 - Math.min(1, (1 - k) * 6)) * 14;
       [...hj.text].forEach((ch, i) => {
         ctx.strokeText(ch, x0, y0 + i * vs * 1.02);
         ctx.fillStyle = hj.color;

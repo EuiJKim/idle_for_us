@@ -1568,4 +1568,16 @@ body.hunt-nocv #cv { visibility: hidden !important; }
 .enh-go { width: 100%; margin-top: 8px; padding: 10px 0; font-size: 15px; }
 
 /* v211: 장비 창 칸(강화·각인·계열·정보)을 바꿀 때 창 높이가 출렁이지 않게 */
-.item-pane { min-height: min(400px, 52vh); }
+.item-pane { min-height: min(340px, 44vh); }
+/* v212: 설정 묶음 */
+.set-sec { border: 1px solid rgba(212, 166, 74, 0.3); border-radius: 10px; margin: 6px 0; padding: 0 8px; }
+.set-sec > summary { list-style: none; cursor: pointer; padding: 9px 2px; font-weight: 800; font-size: 14px; color: #fde68a; display: flex; justify-content: space-between; }
+.set-sec > summary::-webkit-details-marker { display: none; }
+.set-sec > summary::after { content: '▾'; color: var(--muted); transition: transform 0.15s; }
+.set-sec:not([open]) > summary::after { transform: rotate(-90deg); }
+.set-sec[open] { padding-bottom: 6px; }
+.skill-btn .lock:empty { display: none; }
+/* v212: 장비 창 칸도 다른 창 칸(빨간 알약)과 같은 모양으로 */
+.item-tabs { background: var(--card); border-radius: 999px; padding: 2px; border-bottom: 0; margin: 6px 0 10px; }
+.item-tab { padding: 7px 0; border-radius: 999px; border-bottom: 0; font-size: 13px; }
+.item-tab.on { background: var(--accent); color: #fff; }

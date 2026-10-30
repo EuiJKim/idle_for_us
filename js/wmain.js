@@ -157,8 +157,8 @@ $('panel-close').addEventListener('click', closePanel);
 function panelRes() {
   const row = document.querySelector('#panel-head .res-row');
   row.replaceChildren(
-    h('div', { class: 'res' }, h('span', { class: 'cur silver' }, '은'), h('b', {}, fmt(game.s.gold))),
-    h('div', { class: 'res' }, h('span', { class: 'cur potion' }, '약'), h('b', {}, String(game.s.potions))));
+    // v212: 물약 수는 위 상단바·아래 물약 단추에 이미 있다 — 창 머리에선 은자만
+    h('div', { class: 'res' }, h('span', { class: 'cur silver' }, '은'), h('b', {}, fmt(game.s.gold))));
 }
 
 // ---------- 무공 바 ----------
@@ -268,7 +268,8 @@ function refreshUI(full = false) {
   for (const e of skillEls) {
     const open = game.knows(e.sk);
     e.btn.classList.toggle('locked', !open);
-    e.lock.textContent = open ? (e.sk.hpCost ? `체력 ${Math.round(e.sk.hpCost * 100)}%` : e.sk.name) : `${e.sk.tier}차 · Lv${W.TIERS[e.sk.tier].level}`;
+    e.lock.textContent = open ? (e.sk.hpCost ? `체력 ${Math.round(e.sk.hpCost * 100)}%` : '') :   // v212: 이름은 위에 이미 — 두 번 적지 않는다
+      `${e.sk.tier}차 · Lv${W.TIERS[e.sk.tier].level}`;
     const left = game.cd[e.sk.id] || 0;
     e.cd.style.height = open ? `${Math.min(1, left / e.sk.cd) * 100}%` : '0';
     e.num.textContent = open && left > 0.95 ? String(Math.ceil(left)) : '';
@@ -896,6 +897,12 @@ function toggleRow(label, on, desc, onChange) {
   });
   return h('div', { class: 'row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, label), h('div', { class: 'desc' }, desc)), btn);
 }
+// v212: 설정이 한 줄로 길어서 찾기 어려웠다 — 게임 · 화면·성능 · 계정으로 묶고, 자주 안 여는 것은 접어 둔다
+function setSec(title, open, ...rows) {
+  const d = h('details', { class: 'set-sec' }, h('summary', {}, title), ...rows.filter(Boolean));
+  d.open = open;
+  return d;
+}
 $('btn-settings').addEventListener('click', () => openModal((s) => {
   const saverBtn = h('button', { class: 'btn', style: 'padding:6px 12px' }, saverName(AM.saverMins()));
   saverBtn.onclick = () => {
@@ -911,6 +918,7 @@ $('btn-settings').addEventListener('click', () => openModal((s) => {
     fxBtn.textContent = FX_NAME[v];
   };
   s.append(h('h2', {}, '설정'),
+    setSec('게임', true,
     toggleRow('소리', soundOn(), '때리는 소리·레벨업·좋은 장비 — 이 기기에만 남아요', (v) => {
       setSound(v);
       try { localStorage.setItem('ifu.sound', v ? '1' : '0'); } catch { /* 이번만 */ }
@@ -928,6 +936,12 @@ $('btn-settings').addEventListener('click', () => openModal((s) => {
         save();
       } }, `${Math.round(game.potionAt() * 100)}%`)),
     toggleRow('자동 스킬', game.s.autoSkill, '체력을 쓰는 스킬은 체력이 넉넉할 때만 써요 · 걸으면서도 써요', (v) => { game.s.autoSkill = v; save(); }),
+    toggleRow('스킬 범위 보기', view.showRange, '펼칠 때마다 맞는 곳을 금빛 고리로 — 스킬 단추를 길게 누르면 언제든 볼 수 있어요', (v) => {
+      view.showRange = v;
+      try { localStorage.setItem('ifu.range', v ? '1' : '0'); } catch { /* 이번만 */ }
+    }),
+    h('div', { class: 'row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, '절전 화면'), h('div', { class: 'desc' }, '손대지 않으면 검은 화면에 숫자만 — 화면은 켜 둔 채 사냥은 계속돼요. 들판의 🌙로 바로 들어가요')), saverBtn)),
+    setSec('화면·성능', false,
     (() => {
       const qb = h('button', { class: 'btn', style: 'padding:6px 12px;min-width:84px' });
       const fb = h('button', { class: 'btn', style: 'padding:6px 12px;min-width:84px' });
@@ -964,12 +978,8 @@ $('btn-settings').addEventListener('click', () => openModal((s) => {
     h('div', { class: 'row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, '원인 찾기'), h('div', { class: 'desc' }, `하나씩 끄고 켜 보며 무엇이 무거운지 찾아요 (${HUNT_STEPS.length * HUNT_SEC}초) — 버벅이는 곳에서 눌러 주세요`)),
       h('button', { class: 'btn primary', style: 'padding:6px 12px', onclick: startHunt }, '찾기')),
     toggleRow('성능 보기', !!perfBox, '들판 왼쪽 위에 초당 그림 수·한 장 그리는 시간·해상도 — 버벅일 때 이 숫자를 알려 주세요', (v) => setPerfBox(v)),
-    toggleRow('스킬 범위 보기', view.showRange, '펼칠 때마다 맞는 곳을 금빛 고리로 — 스킬 단추를 길게 누르면 언제든 볼 수 있어요', (v) => {
-      view.showRange = v;
-      try { localStorage.setItem('ifu.range', v ? '1' : '0'); } catch { /* 이번만 */ }
-    }),
-    h('div', { class: 'row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, '연출'), h('div', { class: 'desc' }, '폰이 버거우면 낮춰요')), fxBtn),
-    h('div', { class: 'row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, '절전 화면'), h('div', { class: 'desc' }, '손대지 않으면 검은 화면에 숫자만 — 화면은 켜 둔 채 사냥은 계속돼요. 들판의 🌙로 바로 들어가요')), saverBtn),
+    h('div', { class: 'row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, '연출'), h('div', { class: 'desc' }, '폰이 버거우면 낮춰요')), fxBtn)),
+    setSec('앱·계정', false,
     appRow(),
     h('div', { class: 'btn-row', style: 'margin-top:8px' },
       h('button', { class: 'btn', onclick: () => { closeModal(); askNickname(false); } }, '이름 바꾸기'),
@@ -980,8 +990,8 @@ $('btn-settings').addEventListener('click', () => openModal((s) => {
         stopSaving = true;
         try { localStorage.removeItem(W.SAVE_KEY); } catch { /* 없음 */ }
         location.reload();
-      } }, '처음부터'),
-      h('button', { class: 'btn', onclick: closeModal }, '닫기')),
+      } }, '처음부터'))),
+    h('div', { class: 'btn-row', style: 'margin-top:8px' }, h('button', { class: 'btn', onclick: closeModal }, '닫기')),
     h('p', { class: 'muted', style: 'text-align:center;margin-top:10px' }, `판 ${BUILD}`));
 }));
 
