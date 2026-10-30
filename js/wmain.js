@@ -1132,6 +1132,7 @@ let loopErr = 0;
 function frame(now) {
   now = now ?? performance.now();
   if (!saver.on && lastRaf) perfTick(now - lastRaf);
+  if (diag && lastRaf) diag.raf.push(now - lastRaf);
   lastRaf = saver.on ? 0 : now;
   // 초당 30번 — 두 번에 한 번만 셈하고 그린다 (창을 띄워 둔 동안에도 30)
   perf.odd = !perf.odd;
@@ -1157,7 +1158,7 @@ const DIAG_NAME = { drawBackground: '바닥', drawLowObstacles: '물·용암', d
 function startDiag() {
   if (diag) return;
   closeModal();
-  const d = diag = { t0: performance.now(), last: 0, n: 0, gaps: [], tick: 0, ev: 0, draw: 0, ui: 0, parts: {}, orig: {}, slow: 0 };
+  const d = diag = { t0: performance.now(), last: 0, n: 0, gaps: [], raf: [], tick: 0, ev: 0, draw: 0, ui: 0, parts: {}, orig: {}, slow: 0 };
   for (const k of DIAG_PARTS) {
     if (typeof view[k] !== 'function') continue;
     const o = d.orig[k] = view[k];
@@ -1174,11 +1175,15 @@ function endDiag() {
   const q = (p) => gaps[Math.min(gaps.length - 1, Math.floor(gaps.length * p))] || 0;
   const avgGap = gaps.reduce((a, b) => a + b, 0) / Math.max(1, gaps.length);
   const js = (d.tick + d.ev + d.draw + d.ui) / n;
+  // 30제한이면 두 번에 한 번 일부러 쉰다 — 그 쉬는 한 칸(화면 한 번 갱신 간격)은 빼고 본다
+  const rafAvg = d.raf.length ? d.raf.reduce((a, b) => a + b, 0) / d.raf.length : 0;
+  const idle = avgGap > rafAvg * 1.5 ? avgGap - rafAvg * Math.max(1, Math.round(avgGap / Math.max(1, rafAvg)) - 1) : 0;
+  const outside = Math.max(0, avgGap - js - idle);
   const c = view.cv;
   const ms = (v) => `${v.toFixed(2)}ms`;
   const row = (k, v, hot) => h('div', { class: `row diag-row${hot ? ' hot' : ''}` }, h('div', { class: 'info' }, h('div', { class: 'name' }, k)), h('b', {}, v));
   const parts = Object.entries(d.parts).sort((a, b) => b[1] - a[1]).slice(0, 6);
-  const verdict = avgGap - js > js * 1.5
+  const verdict = outside > js * 1.5
     ? '게임 계산보다 **화면에 올리는 일(GPU·브라우저)**이 무겁습니다'
     : '**게임 계산·그리기(JS)**가 무겁습니다';
   openModal((s) => s.append(h('h2', {}, '성능 진단 결과'),
@@ -1191,7 +1196,8 @@ function endDiag() {
     row('그리기(JS)', ms(d.draw / n), d.draw / n > 8),
     ...parts.map(([k, v]) => row(` └ ${DIAG_NAME[k] || k}`, ms(v / n))),
     row('글자판 갱신', ms(d.ui / n)),
-    row('JS 밖(GPU·브라우저)', ms(Math.max(0, avgGap - js)), avgGap - js > 10),
+    row('JS 밖(GPU·브라우저)', ms(outside), outside > 10),
+    row('화면 갱신 간격', `${ms(rafAvg)}${idle ? ` · 30제한으로 쉰 ${ms(idle)} 뺌` : ''}`),
     row('캔버스', `${c.width}×${c.height} · ${view.dpr.toFixed(2)}배 · 화질 ${perf.q}${perf.cap30 ? ' · 30제한' : ''}`),
     row('몹 · 연출 · 파편', `${game.mons?.length || 0} · ${view.effects.length} · ${view.particles.length}`),
     row('기기', `${screen.width}×${screen.height} · dpr ${window.devicePixelRatio} · 코어 ${navigator.hardwareConcurrency || '?'} · 메모리 ${navigator.deviceMemory || '?'}GB`),

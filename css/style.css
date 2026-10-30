@@ -294,8 +294,7 @@ input { font: inherit; user-select: text; -webkit-user-select: text; }
 .tabcol.right { right: 8px; }
 #tabs button {
   position: relative; width: 50px; height: 50px; border-radius: 13px;
-  background: rgba(13, 19, 38, 0.74); border: 1px solid rgba(255, 255, 255, 0.14);
-  backdrop-filter: blur(3px);
+  background: rgba(13, 19, 38, 0.84); border: 1px solid rgba(255, 255, 255, 0.14);
   font-size: 9px; color: var(--muted); font-weight: 700; line-height: 1.1;
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
 }
@@ -376,10 +375,10 @@ body { background: radial-gradient(ellipse at top, #1d1712, #0b0907 70%); }
 #progress-fill { background: linear-gradient(90deg, #8b5e1a, #d4a64a); }
 #progress.boss #progress-fill { background: linear-gradient(90deg, #7f1d1d, #c0392b); }
 #btn-boss { background: linear-gradient(180deg, #a3242a, #6f1418); box-shadow: 0 3px 0 #3f0b0d; font-family: var(--brush); font-size: 20px; font-weight: 400; padding: 4px 16px; }
-.skill-btn { background: rgba(27,23,18,0.82); backdrop-filter: blur(3px); font-family: var(--brush); font-size: 28px; color: #f5e9cf; border-color: var(--line); }
+.skill-btn { background: rgba(27,23,18,0.9); font-family: var(--brush); font-size: 28px; color: #f5e9cf; border-color: var(--line); }
 .skill-btn.ready { border-color: var(--accent-2); box-shadow: 0 0 10px rgba(212,166,74,0.35) inset; }
 .skill-btn .lock { font-family: system-ui, sans-serif; }
-.auto-btn { background: rgba(27,23,18,0.82); backdrop-filter: blur(3px); }
+.auto-btn { background: rgba(27,23,18,0.9); }
 .row .ico { font-family: var(--serif), "Apple Color Emoji", "Segoe UI Emoji", sans-serif; font-size: 17px; font-weight: 800; color: #f5e9cf;
   width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; border-radius: 50%;
   background: radial-gradient(circle at 35% 30%, #3a3026, #1a1510); border: 1px solid var(--line); }
@@ -1499,3 +1498,5 @@ details.lore p { margin: 4px 0 0; line-height: 1.5; }
 #progress-fill { transition: transform 0.2s; }
 #progress.boss #progress-fill { transition: none; }
 #progress-trail { transition: transform 0.6s ease-out 0.35s; }
+/* v186 흐림(backdrop-filter)을 뺐다 — 아래 단추 일곱·무공 단추 다섯이 쉬지 않고 바뀌는 들판 위에 떠 있어서,
+   폰이 매 프레임 그 열두 자리를 3.75배 해상도로 다시 흐리게 했다. 바탕은 이미 반투명이라 조금 짙게만 했다. */
