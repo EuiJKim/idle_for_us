@@ -6,7 +6,7 @@ import { ZONES, JOBS, CLASS_SKILLS, RANKS } from '../data.js';
 import { areaMobs } from './wmobs.js';
 import { MASTERS } from './wmasters_data.js';
 import { FAC_MAT_INFO, isFacMat, lineMats } from './wline.js';
-import { TRANSFORMS, setOf, SET_PIECE, STONES, isStoneKey, promoteStones } from './wgear.js';
+import { TRANSFORMS, setOf, SET_PIECE, STONES, isStoneKey, promoteStones, LORD_MATS, isLordMat } from './wgear.js';
 
 export const SAVE_KEY = 'ifu-world-v1';
 export const LEVEL_MAX = 150;
@@ -415,8 +415,8 @@ export const MAT_COLORS = [null, '#86efac', '#fcd34d', '#bae6fd', '#f87171', '#a
 export const bossKey = (k) => `b${k}`;
 // v132 강화석 'st21'~'st27' — '살왕의 명부 혼석'
 const stoneName = (key) => { const z = +String(key).slice(2); return `${kingOf(z)?.title || ''}의 ${STONES[z]?.name || '강화석'}`; };
-export const matName = (key) => (isFacMat(key) ? FAC_MAT_INFO[key].name : isStoneKey(key) ? stoneName(key) : String(key)[0] === 'b' ? `${ZONES_W[+String(key).slice(1)]?.boss?.name || '두목'}의 증표` : MATS[key]);
-export const matColor = (key) => (isFacMat(key) ? FAC_MAT_INFO[key].col : isStoneKey(key) ? '#f0abfc' : String(key)[0] === 'b' ? (kingOf(+String(key).slice(1)) ? '#f43f5e' : '#fde68a') : MAT_COLORS[key]);
+export const matName = (key) => (isLordMat(key) ? LORD_MATS[key].name : isFacMat(key) ? FAC_MAT_INFO[key].name : isStoneKey(key) ? stoneName(key) : String(key)[0] === 'b' ? `${ZONES_W[+String(key).slice(1)]?.boss?.name || '두목'}의 증표` : MATS[key]);
+export const matColor = (key) => (isLordMat(key) ? LORD_MATS[key].col : isFacMat(key) ? FAC_MAT_INFO[key].col : isStoneKey(key) ? '#f0abfc' : String(key)[0] === 'b' ? (kingOf(+String(key).slice(1)) ? '#f43f5e' : '#fde68a') : MAT_COLORS[key]);
 export const MAT_RATE = 0.5;          // 몹 하나가 재료 하나를 떨굴 확률
 export const BOSS_MATS = 12;          // 두목은 재료 한 움큼 + 증표 하나
 // v130: 사다리는 보통 지역 15곳에서 끝난다(장비 레벨 99까지). 십이지왕부터는 세트·왕의 장신구(wgear.js).
@@ -444,8 +444,8 @@ const CRAFT_MATS = { weapon: 70, armor: 54, hat: 42, glove: 42, shoe: 42, acc: 5
 const CRAFT_BOSS = { weapon: 5, armor: 4, hat: 3, glove: 3, shoe: 3, acc: 4 };
 // **등급은 뽑는 게 아니라 고른다.** 위로 갈수록 재료가 확 는다 —
 // 신화 하나가 레어 스물넷이다. 그래야 신화를 노리고 모을 이유가 생긴다.
-export const RAR_MATS = [1, 3, 8, 24];           // 재료 배수
-export const RAR_BOSS = [0, 1, 4, 12];           // 두목 증표 배수 (레어는 안 든다)
+export const RAR_MATS = [1, 3, 8, 30];           // 재료 배수 (v153 신화 24→30)
+export const RAR_BOSS = [0, 1, 4, 16];           // 두목 증표 배수 (레어는 안 든다 · v153 신화 12→16)
 export const RAR_GOLD = [1, 2.5, 7, 20];
 export const craftLevel = (k) => ZONES_W[k]?.lv[1] || 1;
 // 조합 장비 수치 = 아이템 레벨 기본치 × 사다리 배수. 아이템 레벨만으로는 뒤로 갈수록 한 사냥터에
@@ -481,8 +481,8 @@ const STEP_PREFIX = [null, '청죽', '사철', '빙정', '혈석', '귀화', '�
 // 강화 +1~+10, 그 위로 **돌파** +11~+15(조합 장비만). 돌파는 두목 증표가 더 들고, 한 단계가 더 크다.
 export const ENHANCE_MAX = 15;
 export const ENHANCE_NORMAL = 10;
-export const ENHANCE_STEP = 0.12;                // +1~+10: 한 단계에 기본 수치 +12%
-export const BREAK_STEP = 0.2;                   // 돌파 +11~+15: 한 단계에 +20% (+15면 3.2배)
+export const ENHANCE_STEP = 0.15;                // +1~+10: 한 단계에 기본 수치 +15% (v153: 12%에서 — 던파식으로 어려워진 만큼 크게)
+export const BREAK_STEP = 0.3;                   // 돌파 +11~+15: 한 단계에 +30% (+10 2.5배 · +15 4배, v153)
 export const enhanceMult = (plus) => 1 + Math.min(plus, ENHANCE_NORMAL) * ENHANCE_STEP + Math.max(0, plus - ENHANCE_NORMAL) * BREAK_STEP;
 export const breakMarks = (plus) => (plus >= ENHANCE_NORMAL ? plus - ENHANCE_NORMAL + 1 : 0);   // +10→11 증표 1 … +14→15 증표 5
 // 강화에는 은자와 함께 그 장비 지역의 재료가 든다 — 재료를 넣을수록 장비가 세진다
@@ -505,6 +505,15 @@ export const enhanceFailText = (lv) => { const f = enhanceFail(lv); return f ===
 export const protPrice = (level) => Math.round(mobGold(level) * 2000);
 // 은자가 쌓이기만 하지 않게 — 사냥터를 옮겨 새 장비를 낄 때마다 다시 강화하는 데 쓰인다(시뮬로 맞춤)
 export const enhanceCost = (ilv, lv) => Math.round((50 + ilv * 15) * (lv + 1) ** 1.6);
+// v153: 조합 장비를 팔면 만들 때 든 재료·은자의 1/4을 돌려받는다(it.cost, 옛 장비는 그 칸 레어 조합값으로 셈)
+export const SELL_BACK = 0.25;
+export function sellBack(item) {
+  if (item.step == null) return null;
+  const c = item.cost || recipeOf(item.slot, item.step, 0, item.line || 'base');
+  const mats = {};
+  for (const [k, n] of Object.entries(c.mats || {})) { const v = Math.floor(n * SELL_BACK); if (v > 0) mats[k] = v; }
+  return { mats, gold: Math.floor((c.gold || 0) * SELL_BACK) };
+}
 export const sellPrice = (item) => Math.round((3 + item.ilv * 1.5) * (item.step != null ? (1 + (item.rar || 0)) ** 2 : GRADES[item.grade].mult ** 2) * (1 + (item.plus || 0) * 0.2));
 // ---------- 장비 등급과 스킬 옵션 (v110) ----------
 // 같은 장비라도 등급이 넷 — 레어 · 유니크 · 전설 · 신화. 등급이 높을수록 기본 수치가 크고,
@@ -512,14 +521,15 @@ export const sellPrice = (item) => Math.round((3 + item.ilv * 1.5) * (item.step 
 // 얻는 길: 조합(대부분 레어) · 두목 드랍(더 잘 뜬다) · 대장장이 **승급**(재료·증표·은자로 한 등급 위, 확정).
 export const RARITY = [
   { id: 0, name: '레어', color: '#60a5fa', mult: 1, opts: 1 },
-  { id: 1, name: '유니크', color: '#c084fc', mult: 1.25, opts: 1 },
-  { id: 2, name: '전설', color: '#fb923c', mult: 1.55, opts: 2 },
-  { id: 3, name: '신화', color: '#f43f5e', mult: 2.0, opts: 2, special: true },
+  // v153: 등급 배수를 줄였다(1.25·1.55·2.0 → 1.2·1.4·1.7) — 신화 +0이 레어 +15만큼 셌다. 강화와 비슷한 무게로.
+  { id: 1, name: '유니크', color: '#c084fc', mult: 1.2, opts: 1 },
+  { id: 2, name: '전설', color: '#fb923c', mult: 1.4, opts: 2 },
+  { id: 3, name: '신화', color: '#f43f5e', mult: 1.7, opts: 2, special: true },
 ];
 export const RARITY_GRADE = [2, 3, 4, 5];       // 칼빛·테두리 색 (옛 GRADES 자리)
-export const CRAFT_RAR_W = [82, 15, 3, 0];       // 조합으로 만들 때
+export const CRAFT_RAR_W = [70, 22, 7, 1];       // 조합으로 만들 때 — v153: 등급은 다시 운이다(레어 70 · 유니크 22 · 전설 7 · 신화 1%). 확실히 올리려면 승급.
 export const BOSS_RAR_W = [45, 38, 14, 3];       // 두목 드랍
-export const KING_RAR_W = [20, 40, 30, 10];      // 십이지왕 드랍
+export const KING_RAR_W = [25, 42, 28, 5];       // 십이지왕 드랍 (v153 신화 10%→5%)
 export const rollRarity = (w, rng) => {
   let r = rng() * w.reduce((a, b) => a + b, 0);
   for (let i = 0; i < w.length; i++) { r -= w[i]; if (r <= 0) return i; }
@@ -530,18 +540,22 @@ export const promoteCost = (it) => {
   const r = (it.rar || 0) + 1;
   // v132 왕의 장비: 검왕의 무형 검혼석 (증표 없음)
   if (it.king != null) return { key: 'st27', mats: promoteStones(it.rar || 0), marks: 0, gold: Math.round((30 + 100 * 10) * 3 * r) };
+  // v153: 승급은 그 등급으로 바로 만들 때와 같은 차이만큼 든다 — 전에는 전설→신화가 재료 90·증표 6이라 신화가 너무 쉬웠다
   const k = itemZone(it);
-  return { key: k, mats: 30 * r, marks: 2 * r, gold: Math.round((30 + craftLevel(k) * 10) * 3 * r) };
+  const sl = CRAFT_MATS[it.slot] ? it.slot : 'weapon';
+  return { key: k, mats: Math.round(CRAFT_MATS[sl] * (RAR_MATS[r] - RAR_MATS[r - 1])), marks: CRAFT_BOSS[sl] * (RAR_BOSS[r] - RAR_BOSS[r - 1]),
+    gold: Math.round((30 + craftLevel(k) * 10) * (RAR_GOLD[r] - RAR_GOLD[r - 1]) * 1.5) };
 };
 // 스킬 옵션: s는 스킬 칸(0 1차 · 1 2차 · 2 3차). 값은 등급별.
 export const SKILL_OPTS = {
   // v130: 보조기(3)·4차(4)에도 붙는다 — 보조기의 '피해'는 세기
-  dmg: { name: '피해', fmt: 'pct', vals: [0.12, 0.22, 0.35, 0.6], slots: [0, 1, 2, 3, 4] },
-  range: { name: '범위', fmt: 'pct', vals: [0.1, 0.18, 0.28, 0.45], slots: [1, 2, 4] },
-  splash: { name: '범위(주변 적도 맞는다)', fmt: 'pct', vals: [0.25, 0.4, 0.6, 1.0], slots: [0] },
-  cd: { name: '숨', fmt: 'neg', vals: [0.08, 0.12, 0.18, 0.3], slots: [0, 1, 2, 3, 4] },
+  // v153: 신화 쪽을 줄였다(피해 +60%→+35% · 숨 -30%→-20% · 치명 +25%p→+18%p …)
+  dmg: { name: '피해', fmt: 'pct', vals: [0.1, 0.16, 0.24, 0.35], slots: [0, 1, 2, 3, 4] },
+  range: { name: '범위', fmt: 'pct', vals: [0.1, 0.15, 0.22, 0.32], slots: [1, 2, 4] },
+  splash: { name: '범위(주변 적도 맞는다)', fmt: 'pct', vals: [0.25, 0.35, 0.5, 0.7], slots: [0] },
+  cd: { name: '숨', fmt: 'neg', vals: [0.06, 0.09, 0.13, 0.2], slots: [0, 1, 2, 3, 4] },
   cost: { name: '체력 소모', fmt: 'neg', vals: [0.15, 0.25, 0.4, 0.6], slots: [1, 2, 4] },
-  crit: { name: '치명', fmt: 'pp', vals: [0.06, 0.1, 0.16, 0.25], slots: [0, 1, 2, 4] },
+  crit: { name: '치명', fmt: 'pp', vals: [0.05, 0.08, 0.12, 0.18], slots: [0, 1, 2, 4] },
 };
 // 신화 특수 효과 — 하나만
 export const MYTHIC = {

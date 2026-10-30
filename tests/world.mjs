@@ -227,14 +227,12 @@ console.log('\n=== 재료와 조합 (바람식) ===');
   const w0 = g.craft('weapon', 0);
   ok(w0 && g.s.equip.weapon === w0 && w0.ilv === 5, '첫 칸은 재료와 은자로 — 바로 낀다', W.itemName(w0, 'sword'));
 
-  // **등급은 고른 대로 나온다** (전에는 82% 레어 뽑기였다)
+  // **등급은 운이다** (v153 — v143에 '골라서 만들기'였다가 사용자 뜻대로 다시 뽑기로)
   {
-    let bad = 0;
-    for (let r = 0; r < W.RARITY.length; r++) {
-      const it = g.craft('armor', 3, false, r);
-      if (!it || it.rar !== r) bad++;
-    }
-    ok(bad === 0, '고른 등급 그대로 나온다 (뽑기가 아니다)', `${W.RARITY.length}등급 전부`);
+    const cnt = [0, 0, 0, 0];
+    g.s.gold = 1e15; for (let k = 1; k <= W.NORMAL_ZONES; k++) { g.s.mats[k] = 1e9; g.s.mats[W.bossKey(k)] = 1e7; }
+    for (let i = 0; i < 2000; i++) { const it = g.craft('armor', 3, false); if (it) { cnt[it.rar]++; g.sell(it); } }
+    ok(cnt[0] > 1200 && cnt[3] > 0 && cnt[3] < 60, '조합 등급은 운 — 대부분 레어, 신화는 1%쯤', cnt.join('/'));
   }
   // **위 등급일수록 재료가 확 든다** — 신화를 노릴 이유
   {
@@ -256,15 +254,17 @@ console.log('\n=== 재료와 조합 (바람식) ===');
     const atk0 = f.stats().atk;
     const b2 = f.craft('weapon', 6);
     ok(b2 && f.s.equip.weapon === b2 && !f.findItem(a.uid), '조합하면 아래 장비는 사라지고 위 장비를 낀다');
-    ok(b2.plus === 3, '강화는 절반을 이어받는다', `+${b2.plus}`);
+    ok(b2.plus === 6, '강화는 +10까지 그대로 이어받는다 (v153)', `+${b2.plus}`);
     ok(f.stats().atk > atk0, '공격력이 오른다', `${Math.round(atk0)} → ${Math.round(f.stats().atk)}`);
   }
   // 넣은 장비가 더 높은 등급이면 그걸 지킨다 — 안 그러면 아무도 위 등급을 안 만든다
   {
     const f = fresh(); f.s.gold = 1e9; f.s.level = 100;
     for (let k = 1; k <= W.NORMAL_ZONES; k++) { f.s.mats[k] = 1e6; f.s.mats[W.bossKey(k)] = 1e4; }
-    const a = f.craft('weapon', 5, false, 3);          // 신화를 만들어 두고
-    const b2 = f.craft('weapon', 6, true, 0);          // 레어로 올린다
+    const a = f.craft('weapon', 5, false);
+    a.rar = 3;                                          // 신화를 만들어 두고
+    f.rng = () => 0.01;                                 // 다음 조합은 레어가 나와도
+    const b2 = f.craft('weapon', 6, true);
     ok(a.rar === 3 && b2 && b2.rar === 3, '넣은 장비가 더 높은 등급이면 그 등급을 지킨다',
       `${W.RARITY[a.rar].name} → ${W.RARITY[b2.rar].name}`);
   }
@@ -371,8 +371,9 @@ console.log('\n=== 장비가 강함의 대부분 ===');
   const m0 = g.s.mats[W.stepMap(w.step)];
   const a0 = g.stats().atk;
   let n = 0;
-  while (w.plus === 6 && n++ < 40) g.enhance(w.uid);
-  ok(w.plus === 7 && g.s.mats[W.stepMap(w.step)] < m0 && g.stats().atk > a0, '강화는 재료를 넣어 장비를 키운다(한 단계에 기본 수치 +12%)', `${W.matName(W.stepMap(w.step))} ${m0} → ${g.s.mats[W.stepMap(w.step)]}`);
+  g.s.gold = 1e15;
+  while (w.plus < 7 && n++ < 200) g.enhance(w.uid);
+  ok(w.plus === 7 && g.s.mats[W.stepMap(w.step)] < m0 && g.stats().atk > a0, `강화는 재료를 넣어 장비를 키운다(한 단계에 기본 수치 +${W.ENHANCE_STEP * 100}%)`, `${W.matName(W.stepMap(w.step))} ${m0} → ${g.s.mats[W.stepMap(w.step)]}`);
   g.s.mats[W.stepMap(w.step)] = 0;
   ok(!g.canEnhance(w), '재료가 없으면 강화할 수 없다');
 }
@@ -382,7 +383,7 @@ console.log('\n=== 등급 · 스킬 옵션 · 승급 · 돌파 · 스킬 레벨 
   // 조합은 대부분 레어, 두목은 더 잘, 십이지왕은 더더 잘
   const cnt = (w) => { const c = [0, 0, 0, 0]; const r = seeded(); for (let i = 0; i < 20000; i++) c[W.rollRarity(w, r)]++; return c.map((x) => x / 200); };
   const cr = cnt(W.CRAFT_RAR_W), kr = cnt(W.KING_RAR_W);
-  ok(cr[0] > 75 && cr[3] === 0 && kr[3] > 7, '등급: 조합은 대부분 레어(신화 없음), 십이지왕 드랍은 신화도', `조합 ${cr.map((x) => x.toFixed(0)).join('/')} · 왕 ${kr.map((x) => x.toFixed(0)).join('/')}`);
+  ok(cr[0] > 65 && cr[3] > 0 && cr[3] < 3 && kr[3] >= 4, '등급: 조합은 대부분 레어(신화 1%), 십이지왕 드랍은 신화 5%', `조합 ${cr.map((x) => x.toFixed(0)).join('/')} · 왕 ${kr.map((x) => x.toFixed(0)).join('/')}`);
   const g = fresh();
   const items = [0, 1, 2, 3].map((r) => g.makeCrafted('weapon', 10, 0, r));
   const atks = items.map((it) => g.itemStats(it).atk);
@@ -734,7 +735,8 @@ console.log('\n=== 장비 개편 (v130) ===');
   ok(g.stats().speed > sp0, '고유 옵션이 능력치에 들어간다 (죽림 무기 → 공격 속도)');
   ok(!g.itemUnique(g.makeCrafted('acc', 4, 0, 0)), '장신구는 고유 옵션 대신 스킬 옵션이 하나 더');
   // 세트
-  ok(G.SETS.length === 10 && ['sword', 'fist', 'fan', 'poison', 'ring'].every((j) => G.setsOfJob(j).length === 2) && new Set(G.SETS.map((x) => x.king)).size === 10, '직업마다 세트 둘 — 세트마다 다른 왕');
+  const jobSets = G.SETS.filter((x) => x.job);
+  ok(jobSets.length === 10 && ['sword', 'fist', 'fan', 'poison', 'ring'].every((j) => G.setsOfJob(j).length === 2) && new Set(jobSets.map((x) => x.king)).size === 10, '직업마다 세트 둘 — 세트마다 다른 왕');
   ok(Object.values(G.SLOT_KING).sort().join() === '16,17,18,19,20' && Object.keys(G.STONES).sort().join() === '21,22,23,24,25,26,27',
     '전반 다섯 왕은 세트 부위(무기·옷·모자·장갑·신발), 후반 일곱 왕은 강화석 (v132)');
   ok(migrateWorld({ job: 'sword', equip: { armor: { uid: 9, slot: 'armor', king: 27, set: 'formless', ilv: 100, rar: 0, opts: [], plus: 3 } } }).equip.armor.king === 17, '옛 세트 조각은 그 부위 왕(옷 → 철왕) 것이 된다');
@@ -1259,6 +1261,43 @@ console.log('\n=== 사냥터 몹 강함 (v149) ===');
   const CoopMod = await import('../js/world/wcoop.js');
   const c = new CoopMod.Coop({ map: W.mapOf(W.mapId(16, 4)) }, {});
   ok(Math.abs(c.kingMaxHp() - DG.fieldMobHp(W.mapOf(W.mapId(16, 4)).lv[1] + 2) * W.BOSS.hp) < 1, '함께 사냥 왕 체력 = 내 화면 왕 체력 공식');
+}
+
+console.log('\n=== 맹주·천마 세트 (v153) ===');
+{
+  const G2 = await import('../js/world/wgear.js');
+  ok(G2.LORD_SETS.length === 3 && G2.LORD_SETS.every((x) => !x.job), '맹주·천마 세트 셋 — 모든 직업');
+  const cm = G2.setOf('cheonmaset'), pc = G2.setOf('paecheon');
+  ok(cm.mult > pc.mult && G2.setRecipe('cheonmaset', 'weapon').mats.lc > 0 && ['fm', 'fs', 'fg'].every((k) => G2.setRecipe('cheonmaset', 'weapon').mats[k] > 0), '천마신장이 가장 세고 천마혈옥과 세 세력 재료가 든다');
+  ok(G2.setsOfJob('sword').every((x) => x.job === 'sword'), '왕이 떨구는 직업 세트에는 섞이지 않는다');
+  for (const job of ['sword', 'fan']) {
+    const g = fresh(job);
+    while (g.s.level < 100) g.addExp(W.expToNext(g.s.level));
+    g.s.gold = 1e12; g.s.mats = { lc: 999, fm: 1e5, fs: 1e5, fg: 1e5 };
+    const a0 = g.stats().atk;
+    for (const sl of G2.SET_SLOTS) g.equipFromBag?.(g.craftSet('cheonmaset', sl)?.uid);
+    for (const sl of G2.SET_SLOTS) { const it = g.s.bag.find((x) => x.slot === sl && x.set === 'cheonmaset'); if (it) g.equipFromBag(it.uid); }
+    g._stats = null;
+    ok(g.setCounts().cheonmaset === 5 && g.stats().atk > a0 * 1.5, `${job}: 천마신장 다섯 조각을 만들어 끼면 5세트 효과`, `공격력 ${Math.round(a0)} → ${Math.round(g.stats().atk)}`);
+  }
+  // 천마 두목이 천마혈옥을 떨군다
+  const d = fresh();
+  d.enterMap(W.mapId(W.masterZoneOf('cheonma'), W.BOSS_AREA));
+  for (let i = 0; i < 60; i++) d.tick(0.05);
+  const b = d.mons.find((m) => m.isBoss && m.alive);
+  b.introT = 0; d.freezeT = 0; d.hurt(b, b.hp + 1, 'hit', false);
+  ok((d.s.mats.lc || 0) >= 6 && W.matName('lc') === '천마혈옥', '천마를 쓰러뜨리면 천마혈옥 6개');
+}
+
+console.log('\n=== 되팔기 (v153) ===');
+{
+  const g = fresh();
+  g.s.gold = 1e9; g.s.mats = { [W.stepMap(4)]: 1e4, fs: 500, fg: 500 };
+  const it = g.craft('weapon', 4, false, 0, 'sama');
+  g.s.equip.weapon = null; g.s.bag.push(it);
+  const m0 = g.s.mats[W.stepMap(4)], f0 = g.s.mats.fs, g0 = g.s.gold;
+  g.sell(it);
+  ok(g.s.mats[W.stepMap(4)] - m0 === Math.floor(it.cost.mats[W.stepMap(4)] / 4) && g.s.mats.fs > f0 && g.s.gold > g0, '조합 장비를 팔면 만들 때 든 재료·은자의 1/4이 돌아온다');
 }
 
 console.log('\n=== 계열 장비 · 세력 재료 (v151) ===');

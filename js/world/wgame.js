@@ -93,7 +93,7 @@ export function migrateWorld(raw, now = Date.now()) {
   s.mounts = Array.isArray(raw.mounts) ? raw.mounts.filter((m) => m && W.mountOf(m.kind)) : [];
   if (!s.mounts.some((m) => m.uid === s.mount)) s.mount = null;
   s.mats = {};
-  for (const [k, v] of Object.entries(raw.mats || {})) if ((W.MATS[k] || (k[0] === 'b' && W.MATS[k.slice(1)]) || G.isStoneKey(k) || LN.isFacMat(k)) && v > 0) s.mats[k] = Math.floor(Number(v) || 0);
+  for (const [k, v] of Object.entries(raw.mats || {})) if ((W.MATS[k] || (k[0] === 'b' && W.MATS[k.slice(1)]) || G.isStoneKey(k) || LN.isFacMat(k) || G.isLordMat(k)) && v > 0) s.mats[k] = Math.floor(Number(v) || 0);
   delete s.autoSell;
   // v105: 레벨업 점수를 직접 찍게 바꿨다 — 옛 세이브의 '자동 분배 켬'은 한 번 끈다
   if ((raw.statV || 0) < 2) { s.autoStat = false; s.statV = 2; }
@@ -270,7 +270,7 @@ export class WorldGame {
     if (!it) return {};
     const b = W.itemBase(it.slot, it.ilv);
     // 조합 장비: 사다리 칸 × 등급(레어·유니크·전설·신화) · 왕의 장비(레벨 100): KING_MULT × 등급 · 옛 드랍 장비: 옛 등급
-    const q = it.king != null ? G.KING_MULT * W.RARITY[it.rar || 0].mult
+    const q = it.king != null ? G.KING_MULT * W.RARITY[it.rar || 0].mult * (it.set ? G.setOf(it.set)?.mult || 1 : 1)
       : it.step != null ? W.stepMult(it.step) * W.RARITY[it.rar || 0].mult : W.GRADES[it.grade].mult;
     const ln = it.line ? LN.lineOf(it.line) : null;
     const m = q * W.enhanceMult(it.plus || 0) * (ln ? ln.mult : 1);
@@ -307,7 +307,7 @@ export class WorldGame {
     const v = {};
     for (const [id, n] of Object.entries(this.setCounts())) {
       const st = G.setOf(id);
-      if (!st || st.job !== this.s.job) continue;
+      if (!st || (st.job && st.job !== this.s.job)) continue;     // 맹주·천마 세트(v153)는 모든 직업
       for (const [need, b] of Object.entries(st.bonus)) if (n >= +need) for (const [k, x] of Object.entries(b)) v[k] = (v[k] || 0) + x;
     }
     this._setb = { sig, v };
@@ -1418,7 +1418,11 @@ export class WorldGame {
     if (!f || this.inst) return;
     const key = LN.FAC_MATS[f];
     let n = 0;
-    if (m.isBoss) n = LN.FAC_BOSS_MATS * (this.map.master ? (this.map.lord ? 10 : 3) : 1);
+    if (m.isBoss) {
+      n = LN.FAC_BOSS_MATS * (this.map.master ? (this.map.lord ? 10 : 3) : 1);
+      // 맹주의 패 (v153): 맹주·천마는 6개, 그 세력의 다른 고수는 30%로 하나
+      if (this.map.master) { const lk = G.LORD_KEY[f]; if (this.map.lord) this.addMats(lk, 6); else if (this.rng() < 0.3) this.addMats(lk, 1); }
+    }
     else if (this.rng() < LN.FAC_MAT_RATE * (1 + this.masteryLevel(this.map.zone) * L.MASTERY.mat)) n = LN.facMatDrop(m.lv) * (m.elite || this.map.bossRoom ? 2 : 1);
     if (n > 0) this.addMats(key, n);
   }
@@ -1495,7 +1499,7 @@ export class WorldGame {
     for (const [k, n] of Object.entries(r.mats)) if ((this.s.mats[k] || 0) < n) lack.push(k);
     if (this.s.gold < r.gold) lack.push('gold');
     if (this.s.level < G.KING_LV) lack.push('level');
-    if (st.job !== this.s.job) lack.push('job');
+    if (st.job && st.job !== this.s.job) lack.push('job');
     return { r, ok: !lack.length, lack };
   }
   craftSet(setId, slot) {
@@ -1585,10 +1589,13 @@ export class WorldGame {
     if (this.s.gold < r.gold) lack.push('gold');
     return { r, src, ok: !lack.length, lack };
   }
+  // v153: 등급은 운 — 한 번 만들 때 CRAFT_RAR_W로 뽑는다(레어 값으로). 넣은 장비가 더 높은 등급이면 그걸 지킨다.
+  // rar은 옛 부르는 자리 때문에 남겨 두었고 쓰지 않는다.
   craft(slot, step, useBase = true, rar = 0, line = 'base') {
     if (step < 0 || step >= W.STEP_COUNT || W.isDropOnly(slot)) return null;
-    const want = Math.max(0, Math.min(W.RARITY.length - 1, rar | 0));
-    const { r, src, ok } = this.craftCheck(slot, step, useBase, want, line);
+    void rar;
+    const { r, src, ok } = this.craftCheck(slot, step, useBase, 0, line);
+    const want = W.rollRarity(W.CRAFT_RAR_W, this.rng);
     if (!ok) return null;
     for (const [k, n] of Object.entries(r.mats)) this.s.mats[k] -= n;
     this.s.gold -= r.gold;
@@ -1598,8 +1605,10 @@ export class WorldGame {
     // 날아가면 아무도 위 등급을 안 만든다.
     const keep = src?.rar != null && src.rar > want;
     const got = keep ? src.rar : want;
-    const it = this.makeCrafted(slot, step, src ? Math.floor(Math.min(src.plus || 0, W.ENHANCE_NORMAL) / 2) : 0, got);
+    // 강화는 +10까지 그대로 이어받는다(던파의 장비 계승처럼 · v153 — 강화가 세져서 절반만 받으면 다음 칸이 더 약했다)
+    const it = this.makeCrafted(slot, step, src ? Math.min(src.plus || 0, W.ENHANCE_NORMAL) : 0, got);
     if (line && line !== 'base') it.line = line;
+    it.cost = { mats: { ...r.mats }, gold: r.gold };
     if (keep && src.opts) it.opts = src.opts.map((o) => ({ ...o }));
     const wore = src && this.s.equip[slot] === src;
     if (src) {
@@ -1651,7 +1660,10 @@ export class WorldGame {
     return 'bag';
   }
   sell(it, auto = false) {
-    const p = W.sellPrice(it);
+    // 조합 장비: 만들 때 든 것의 1/4 (재료도 돌아온다) · 그 밖: 은자
+    const back = W.sellBack(it);
+    const p = back ? back.gold : W.sellPrice(it);
+    if (back) for (const [k, n] of Object.entries(back.mats)) this.addMats(k, n);
     this.s.gold += p;
     if (!auto) this.s.bag = this.s.bag.filter((x) => x.uid !== it.uid);
     this.note(0, 0, p, 0);

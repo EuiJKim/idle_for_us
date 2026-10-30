@@ -9,6 +9,7 @@
 //     다섯 조각(무기·옷·모자·장갑·신발), 2·3·5조각 효과(디아블로 세트처럼). 자기 직업 세트만 효과가 난다.
 //   · 장신구·가락지·귀걸이는 모든 직업 공용 — 아무 왕의 재료로나 만든다. 옵션은 다섯 스킬 어디에든 붙는다.
 // - 스킬 변화 옵션(화염·빙결·뇌전·거대화·응축)은 어느 장비에서나 나올 수 있다 — 범위와 연출이 바뀐다.
+import { FAC_MATS } from './wline.js';
 
 // ---------- 고유 옵션 (사다리 장비) ----------
 // 키: 그 수치를 무인 능력에 더한다 (wgame stats). 값은 하급 기준 — 상급 ×1.3, 지역이 높을수록 조금씩(지역마다 +5%), 등급 배수.
@@ -139,7 +140,7 @@ export function stoneFor(it) {
 // 강화 한 번에 드는 강화석 — +1에 3개 … 돌파(+11~)는 더
 export const stoneN = (plus) => 3 + plus + (plus >= 10 ? (plus - 9) * 3 : 0);
 // 승급: 검혼석 등급마다 5 · 은자
-export const promoteStones = (rar) => 5 * (rar + 1);
+export const promoteStones = (rar) => 10 * (rar + 1) ** 2;   // v153: 5·10·15 → 10·40·90 (신화 승급이 쉬웠다)
 export const STONE_PER_BOSS = 3;        // 후반 왕 한 번에 그 강화석
 export const STONE_FROM_MATS = 40;      // 그 왕 재료 40 → 강화석 하나 (들판 재료도 쓸모 있게)
 export const SET_PIECE = { armor: '포', hat: '관', glove: '수투', shoe: '운혜' };
@@ -155,6 +156,8 @@ export const KING_LV = 99;             // 이 레벨부터 만든다
 const SET_MATS = { weapon: 120, armor: 90, hat: 70, glove: 70, shoe: 70 };
 const SET_MARKS = { weapon: 6, armor: 5, hat: 4, glove: 4, shoe: 4 };
 export function setRecipe(setId, slot) {
+  const lst = LORD_SETS.find((x) => x.id === setId);
+  if (lst) return lordRecipe(lst, slot);
   const z = SLOT_KING[slot];
   return { mats: { [z]: SET_MATS[slot], [`b${z}`]: SET_MARKS[slot] }, gold: 6000 + (SET_MATS[slot] * 50) };
 }
@@ -175,3 +178,36 @@ export const TRANSFORMS = {
 };
 export const TF_CHANCE = [0.08, 0.15, 0.25, 0.4];       // 등급별 (레어 … 신화)
 export const TF_SLOTS = [0, 1, 2, 4];
+
+// ---------- 맹주·천마 세트 (v153) ----------
+// 모든 직업이 쓰는 세트 셋 — 고수의 두목 방에서 모은다. 천마 세트가 가장 세다.
+//   패천신갑(무림맹주 진패천의 맹주금패 + 협의패) · 사도천패(사도맹주 백자강의 사도흑패 + 흑도령) · 천마신장(천마 검우진의 천마혈옥 + 세 세력 재료 모두)
+// 맹주의 패는 맹주 두목이 6개씩, 그 세력의 다른 고수 두목도 30%로 하나 떨군다.
+// 수치는 왕의 장비 × mult(1.25 · 1.25 · 1.45), 세트 효과는 능력치(직업 무공을 바꾸는 직업 세트와 달리).
+export const LORD_MATS = {
+  lm: { name: '맹주금패', col: '#fde047', fac: 'murim', master: 'jinpaecheon' },
+  ls: { name: '사도흑패', col: '#ef4444', fac: 'sapa', master: 'baekjagang' },
+  lc: { name: '천마혈옥', col: '#dc2626', fac: 'magyo', master: 'cheonma' },
+};
+export const isLordMat = (k) => Object.prototype.hasOwnProperty.call(LORD_MATS, k);
+export const LORD_KEY = { murim: 'lm', sapa: 'ls', magyo: 'lc' };
+export const LORD_SETS = [
+  { id: 'paecheon', job: null, lord: 'lm', fac: ['murim'], name: '패천신갑', short: '패천', col: '#fde047', mult: 1.25,
+    lore: '무림맹주 진패천이 맹의 금패를 녹여 두른 갑주. 역대 가장 패도적인 맹주의 것답게 단단하고 무겁다.',
+    bonus: { 2: { hpPct: 0.2, dmgRed: 0.08 }, 3: { atkPct: 0.2, def: 30 }, 5: { bossDmg: 0.4, regenPct: 0.01, dmgRed: 0.1 } } },
+  { id: 'sadocheon', job: null, lord: 'ls', fac: ['sapa'], name: '사도천패', short: '사도', col: '#ef4444', mult: 1.25,
+    lore: '사도맹주 백자강의 흑패로 짠 갑주. 의심 많은 자의 칼처럼 빈틈이 없고, 한 번 물면 놓지 않는다.',
+    bonus: { 2: { crit: 0.1, critDmg: 0.3 }, 3: { speed: 0.15, atkPct: 0.15 }, 5: { bossDmg: 0.4, critDmg: 0.5, drain: 0.02 } } },
+  { id: 'cheonmaset', job: null, lord: 'lc', fac: ['murim', 'sapa', 'magyo'], name: '천마신장', short: '천마', col: '#dc2626', mult: 1.45,
+    lore: '천마 검우진의 피를 머금은 혈옥과 세 세력의 재료로 빚었다. 구화마공 십이성의 기운이 흐른다 — 무림에서 가장 센 세트.',
+    bonus: { 2: { atkPct: 0.25, hpPct: 0.15 }, 3: { skill: 0.35, crit: 0.1 }, 5: { atkPct: 0.3, bossDmg: 0.5, drain: 0.03, dmgRed: 0.12, cdr: 0.15 } } },
+];
+SETS.push(...LORD_SETS);
+const LORD_W = { weapon: 1.3, armor: 1.1, hat: 0.9, glove: 0.9, shoe: 0.9 };
+export function lordRecipe(st, slot) {
+  const w = LORD_W[slot] || 1;
+  const mats = { [st.lord]: Math.round(25 * w) };
+  const per = st.fac.length === 3 ? 260 : 420;
+  for (const f of st.fac) mats[FAC_MATS[f]] = Math.round(per * w);
+  return { mats, gold: Math.round((st.fac.length === 3 ? 90000 : 60000) * w) };
+}
