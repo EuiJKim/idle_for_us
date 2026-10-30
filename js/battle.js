@@ -911,6 +911,14 @@ export class BattleView {
     }
     const field = this.fieldMode;
     const jump = this._hx == null ? 0 : Math.hypot(game.heroX - this._hx, game.heroY - this._hy);
+    // v172: 걷는 쪽을 조금 앞서 본다 — 빠르기(px/초)의 0.22초어치, 70까지. 부드럽게 바뀐다.
+    if (this._hx != null && dt > 0 && jump < 40) {
+      const vx = (game.heroX - this._hx) / dt, vy = (game.heroY - this._hy) / dt;
+      const lk = 1 - Math.exp(-dt * 3);
+      const cap = (v) => Math.max(-70, Math.min(70, v * 0.22));
+      this._leadX = (this._leadX || 0) + (cap(vx) - (this._leadX || 0)) * lk;
+      this._leadY = (this._leadY || 0) + (cap(vy) * 0.6 - (this._leadY || 0)) * lk;
+    }
     this._hx = game.heroX;
     this._hy = game.heroY;
     if (!field || this.camX == null) {
@@ -923,16 +931,21 @@ export class BattleView {
     if (jump > 40) this.camPan = true;
     if (this.camHold > 0) { this.camHold -= dt; return; }
     const f = this.camFocus;
-    if (!this.camPan && !f) { this.camX = game.heroX; this.camY = game.heroY; return; }
-    const tx = f ? f.x : game.heroX;
-    const ty = f ? f.y : game.heroY;
+    // 늘 붙어 다니지 않고 살짝 늦게 따라온다(0.15초쯤) — 무인이 화면 안에서 조금씩 움직여 보여 걷는 맛이 난다
+    if (!this.camPan && !f) {
+      const k0 = 1 - Math.exp(-dt * 7);
+      this.camX += (game.heroX + (this._leadX || 0) - this.camX) * k0;
+      this.camY += (game.heroY + (this._leadY || 0) - this.camY) * k0;
+      return;
+    }
+    const tx = f ? f.x : game.heroX + (this._leadX || 0);
+    const ty = f ? f.y : game.heroY + (this._leadY || 0);
     const k = 1 - Math.exp(-dt * this.camRate);
     this.camX += (tx - this.camX) * k;
     this.camY += (ty - this.camY) * k;
-    if (!f && Math.hypot(game.heroX - this.camX, game.heroY - this.camY) < 2) {
+    if (!f && Math.hypot(game.heroX + (this._leadX || 0) - this.camX, game.heroY + (this._leadY || 0) - this.camY) < 2) {
       this.camPan = false;
       this.camRate = 10;
-      this.camX = game.heroX; this.camY = game.heroY;
     }
   }
 
