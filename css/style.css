@@ -1546,3 +1546,6 @@ body.hunt-nocv #cv { visibility: hidden !important; }
 .res-silver b, #gold { color: #e5e7eb; }
 .res-potion b { color: #fecaca; }
 #btn-settings { border-radius: 50%; background: linear-gradient(180deg, #2a1f14, #120d08); border: 1px solid rgba(212, 166, 74, 0.55); color: #fde68a; }
+.fac-masters-link { display: block; width: 100%; text-align: left; border-left: 3px solid var(--fc, #fde68a); margin-top: 10px; color: #f5e9cf; }
+.fuse-box { margin: 6px 0 10px; padding: 8px 10px; border-radius: 10px; border: 1px solid rgba(192, 132, 252, 0.45); background: rgba(76, 29, 149, 0.18); }
+.fuse-box small { color: #c4b5fd; }

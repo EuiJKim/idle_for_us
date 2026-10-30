@@ -2093,6 +2093,27 @@ export class WorldGame {
     this._stats = null;
     return true;
   }
+  // 탈것 합성 (v204): 같은 순위 셋(타는 것은 되도록 빼고) + 은자 → 다음 순위 하나. 더 빠르면 바로 탄다.
+  fuseCandidates(tier) { return this.s.mounts.filter((m) => W.mountOf(m.kind)?.tier === tier && !W.mountOf(m.kind)?.zodiac); }
+  canFuseMounts(tier) {
+    return tier < W.MOUNT_TOP && !!W.mountOfTier(tier + 1) && this.fuseCandidates(tier).length >= W.MOUNT_FUSE_N && this.s.gold >= W.mountFuseCost(tier);
+  }
+  fuseMounts(tier) {
+    if (!this.canFuseMounts(tier)) return null;
+    const pool = this.fuseCandidates(tier).sort((a, b) => (a.uid === this.s.mount) - (b.uid === this.s.mount));
+    const used = pool.slice(0, W.MOUNT_FUSE_N).map((m) => m.uid);
+    this.s.gold -= W.mountFuseCost(tier);
+    this.s.mounts = this.s.mounts.filter((m) => !used.includes(m.uid));
+    if (used.includes(this.s.mount)) this.s.mount = null;
+    const kind = W.mountOfTier(tier + 1).id;
+    const mt = { uid: uidSeq++, kind };
+    this.s.mounts.push(mt);
+    const cur = this.mountNow();
+    if (!cur || W.mountOf(kind).speed > cur.speed) this.s.mount = mt.uid;
+    this._stats = null;
+    this.mark('fuse');
+    return mt;
+  }
   releaseMount(uid) {
     this.s.mounts = this.s.mounts.filter((m) => m.uid !== uid);
     if (this.s.mount === uid) this.s.mount = null;

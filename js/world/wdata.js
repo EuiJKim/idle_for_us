@@ -535,7 +535,8 @@ export const enhanceRisky = (lv) => lv >= ENHANCE_NORMAL;      // 보호부를 �
 export const ENH_PITY_K = 0.5;
 export const enhanceFailText = (lv) => { const f = enhanceFail(lv); return f === 0 ? '실패해도 그대로' : `실패하면 ${f}`; };
 // 강화 보호부 — 상인이 판다. +11부터 실패할 때 하나를 써서 -2 대신 그대로 (v192: 전에는 부서지는 대신 -1). 값은 그 레벨 사냥 20분어치 은자쯤.
-export const protPrice = (level) => Math.round(mobGold(level) * 2000);
+// v204: 너무 싸서 늘 쌓아 두고 썼다 — 네 배(그 레벨 사냥 한 시간 남짓어치)
+export const protPrice = (level) => Math.round(mobGold(level) * 8000);
 // 은자가 쌓이기만 하지 않게 — 사냥터를 옮겨 새 장비를 낄 때마다 다시 강화하는 데 쓰인다(시뮬로 맞춤)
 export const enhanceCost = (ilv, lv) => Math.round((50 + ilv * 15) * (lv + 1) ** 1.6);
 // v153: 조합 장비를 팔면 만들 때 든 재료·은자의 1/4을 돌려받는다(it.cost, 옛 장비는 그 칸 레어 조합값으로 셈)
@@ -717,7 +718,8 @@ export const POTION_GAP = 0.8;
 export const REST_HEAL = 0.25;        // 마을에서는 초당 최대 체력의 25%
 
 // 비급 — 은자로 스탯 점수 +1. 살 때마다 18%씩 비싸진다. 강화를 다 한 뒤로 은자가 쌓이기만 했다(시뮬).
-export const statBookCost = (n) => Math.round(5000 * 1.18 ** n);
+// v204: 한 권마다 18%씩 올라 마흔 권째가 375만·여든 권째가 28억이었다 — 3000에서 9%씩(마흔 권째 9만 · 여든 권째 290만)
+export const statBookCost = (n) => Math.round(3000 * 1.09 ** n);
 
 // ---------- 무인 수치 ----------
 export const CRIT_DMG = 1.8;
@@ -812,6 +814,11 @@ export const MOUNTS = [
 export const MOUNT_SPEED_K = 0.5;
 for (const m of MOUNTS) m.speed = +(m.speed * MOUNT_SPEED_K).toFixed(3);
 export const mountOf = (id) => MOUNTS.find((m) => m.id === id) || null;
+// 탈것 합성 (v204) — 같은 순위 셋 + 은자 → 다음 순위 하나. 십이지 신수(순위 13)와 맨 위(청룡마 12)는 합성하지 않는다.
+export const MOUNT_FUSE_N = 3;
+export const MOUNT_TOP = 12;
+export const mountFuseCost = (tier) => Math.round(3000 * 2.4 ** tier);
+export const mountOfTier = (tier) => MOUNTS.find((m) => m.tier === tier && !m.zodiac) || null;
 // **졸개는 더 이상 안 떨군다.** 0.005%였다 — 2만 마리에 하나, 하루 꼬박
 // 사냥해 한두 번이다. 사실상 없는 것인데 '어디서나 나온다'는 착각만 줬다.
 // 탈것은 두목에게로 몬다.

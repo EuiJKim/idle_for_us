@@ -1044,9 +1044,35 @@ function mapTab(app) {
             h('button', { class: 'buy', disabled: here.town ? true : null, onclick: () => { game.goTown(); app.save(); app.closePanel(); app.refresh(); } }, here.town ? '여기' : '가기')),
           h('h3', { class: 'king-head' }, '사냥터', h('small', {}, '레벨과 상관없이 어디든 — ⚠는 내 레벨보다 훨씬 센 곳')));
         for (const z of MS.FAC_ZONES[fac]) { const zn = W.ZONE_ORDER.find((x) => x.id === z); if (zn) zoneCard(box, zn, here); }
-        box.append(h('h3', { class: 'king-head' }, fac === 'magyo' ? '팔마존 · 천마' : fac === 'murim' ? '정파 칠대고수 · 무림맹주' : '사도 칠대고수 · 사도맹주',
-          h('small', {}, `쓰러뜨림 ${won}/${MS.mastersOf(fac).length} — 고수마다 두목 방(수하 + 고수, 45초마다 다시)`)));
-        for (const m of MS.mastersOf(fac)) box.append(masterCard(m, F));
+        // v204: 고수(두목)는 '무림고수' 칸으로 따로 모았다
+        box.append(h('button', { class: 'card fac-masters-link', style: `--fc:${F.col}`, onclick: () => app.showTab('map', 'masters') },
+          h('b', {}, `${fac === 'magyo' ? '팔마존 · 천마' : fac === 'murim' ? '정파 칠대고수 · 무림맹주' : '사도 칠대고수 · 사도맹주'} → 무림고수 칸`),
+          h('small', {}, ` 쓰러뜨림 ${won}/${MS.mastersOf(fac).length}`)));
+      },
+    };
+  }
+  // 무림고수 (v204) — 세 세력의 고수·맹주·천마를 한 칸에. 세력별로 묶고 레벨 차례.
+  function mastersView() {
+    const box = h('div');
+    let sig = '';
+    return {
+      root: box,
+      update() {
+        const s = game.s;
+        const nsig = `${s.level}|${s.map}|${JSON.stringify(s.duel.won)}|${!!game.inst}`;
+        if (nsig === sig) return;
+        sig = nsig;
+        const all = ['murim', 'sapa', 'magyo'].flatMap((f) => MS.mastersOf(f));
+        const won = all.filter((m) => s.duel.won[m.id]).length;
+        box.replaceChildren(h('p', { class: 'muted' }, `세력마다 이름난 고수가 산다 — 처음 쓰러뜨리면 큰 보상과 영구 공격력·체력, 두목 방에서는 세력 재료가 나온다. 쓰러뜨림 ${won}/${all.length}`));
+        for (const fac of ['murim', 'sapa', 'magyo']) {
+          const F = MS.factionOf(fac);
+          const ms = MS.mastersOf(fac).slice().sort((a, b) => a.lv - b.lv);
+          const w = ms.filter((m) => s.duel.won[m.id]).length;
+          box.append(h('h3', { class: 'king-head', style: `color:${F.col}` }, `${F.name} ${fac === 'magyo' ? '팔마존 · 천마' : fac === 'murim' ? '칠대고수 · 무림맹주' : '칠대고수 · 사도맹주'}`,
+            h('small', {}, ` ${w}/${ms.length}`)));
+          for (const m of ms) box.append(masterCard(m, F));
+        }
       },
     };
   }
@@ -1055,6 +1081,7 @@ function mapTab(app) {
     { key: 'sapa', label: '사파', make: () => zoneView('sapa') },
     { key: 'magyo', label: '마교', make: () => zoneView('magyo') },
     { key: 'king', label: '십이지왕', make: () => zoneView('king') },
+    { key: 'masters', label: '무림고수', make: () => mastersView() },
   ], 'ifu.mapsub2');
 }
 
@@ -1800,6 +1827,26 @@ function compTab(app) {
     const cur = game.mountNow();
     mountCard.replaceChildren(h('h3', {}, '탈것', h('small', {}, cur ? `${cur.name}을(를) 타는 중` : '걸어 다니는 중')));
     if (!s.mounts.length) mountCard.append(h('p', { class: 'muted' }, '몹이 아주 드물게 탈것을 떨궈요 — 높은 두목일수록 자주·좋은 것까지. 타면 빨리 움직이고 공격력·체력이 올라요.'));
+    // 탈것 합성 (v204) — 같은 순위가 셋 이상 모인 순위만 보인다
+    const tiers = [...new Set(s.mounts.map((m) => W.mountOf(m.kind)).filter((d) => d && !d.zodiac && d.tier < W.MOUNT_TOP).map((d) => d.tier))]
+      .filter((t) => game.fuseCandidates(t).length >= W.MOUNT_FUSE_N).sort((a, b) => a - b);
+    if (tiers.length) {
+      const fuse = h('div', { class: 'fuse-box' }, h('b', {}, '🔮 탈것 합성 '), h('small', {}, `같은 순위 ${W.MOUNT_FUSE_N}마리 → 다음 순위 하나`));
+      for (const t of tiers) {
+        const a = W.mountOfTier(t), b = W.mountOfTier(t + 1);
+        const cost = W.mountFuseCost(t);
+        fuse.append(h('div', { class: 'row fuse-row' },
+          h('div', { class: 'ico pet-ico' }, creatureIcon(a.id)),
+          h('div', { class: 'info' }, h('div', { class: 'name' }, `${a.name} ×${W.MOUNT_FUSE_N} → ${b.name}`, h('small', {}, ` (가진 것 ${game.fuseCandidates(t).length})`)),
+            h('div', { class: 'desc' }, `이동 +${Math.round(b.speed * 100)}% · 공격력·체력 +${Math.round(b.stat * 100)}% · 은자 ${fmt(cost)}`)),
+          h('button', { class: 'buy', disabled: game.canFuseMounts(t) ? null : true, onclick: () => {
+            const m = game.fuseMounts(t);
+            if (!m) return toast('은자가 모자라요');
+            toast(`합성 성공! ${b.name}(순위 ${b.tier})`); app.save(); done();
+          } }, '합성')));
+      }
+      mountCard.append(fuse);
+    }
     const sorted = s.mounts.slice().sort((a, b) => W.mountOf(b.kind).speed - W.mountOf(a.kind).speed);
     for (const m of sorted) {
       const d = W.mountOf(m.kind);

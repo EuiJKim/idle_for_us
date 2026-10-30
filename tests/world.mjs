@@ -89,6 +89,20 @@ console.log('\n=== 자동 물약 체력 (v176) ===');
   ok(g2.potionAt() === W.POTION_AT, '없는 값이면 기본값');
 }
 
+console.log('\n=== 탈것 합성 (v204) ===');
+{
+  const g = fresh();
+  g.s.gold = 1e9;
+  for (let i = 0; i < 3; i++) g.takeMailMount('donkey');
+  ok(g.canFuseMounts(1) && !g.canFuseMounts(2), '나귀 셋이면 합성할 수 있다');
+  const m = g.fuseMounts(1);
+  ok(m && m.kind === 'mule' && g.fuseCandidates(1).length === 0 && g.s.mount === m.uid, '나귀 셋 → 노새 하나, 더 빠르면 바로 탄다');
+  g.takeMailMount('azure'); g.takeMailMount('azure'); g.takeMailMount('azure');
+  ok(!g.canFuseMounts(12), '맨 위(청룡마)는 합성하지 않는다');
+  g.s.gold = 0; g.takeMailMount('donkey'); g.takeMailMount('donkey'); g.takeMailMount('donkey');
+  ok(!g.fuseMounts(1), '은자가 모자라면 못 한다');
+}
+
 console.log('\n=== 무공 과녁 (v199) ===');
 {
   const g = fresh();
@@ -1169,7 +1183,7 @@ console.log('\n=== 길잡이 (v146) ===');
   ok(new Set(ids).size === ids.length && Q.QUEST_COUNT >= 50, `단계가 쉰 남짓이고 이름이 겹치지 않는다`, `${Q.QUEST_COUNT}단계`);
   const TABS = new Set(['char', 'bag', 'map', 'town', 'social', 'comp', 'dgn', null]);
   ok(Q.QUESTS.every((q) => q.title && q.why && TABS.has(q.tab ? q.tab.split('/')[0] : null) && typeof q.goal === 'function'), '모든 단계에 제목·설명·열 화면·조건이 있다');
-  const SUBS = { char: ['info', 'stat', 'skill'], bag: ['gear', 'bag', 'smith', 'mats'], map: ['murim', 'sapa', 'magyo', 'king'], dgn: ['daily', 'tower', 'zodiac', 'raid'], comp: ['pet', 'mount'], town: ['master', 'shop', 'smith', 'inn'], social: ['guild', 'rank', 'lore'] };
+  const SUBS = { char: ['info', 'stat', 'skill'], bag: ['gear', 'bag', 'smith', 'mats'], map: ['murim', 'sapa', 'magyo', 'king', 'masters'], dgn: ['daily', 'tower', 'zodiac', 'raid'], comp: ['pet', 'mount'], town: ['master', 'shop', 'smith', 'inn'], social: ['guild', 'rank', 'lore'] };
   const badSub = Q.QUESTS.filter((q) => q.tab?.includes('/') && !SUBS[q.tab.split('/')[0]]?.includes(q.tab.split('/')[1])).map((q) => q.id);
   ok(badSub.length === 0, '길잡이가 여는 칸(창/칸)이 실제로 있다', badSub.join(' '));
   const g0 = fresh();
