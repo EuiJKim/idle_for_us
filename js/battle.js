@@ -888,6 +888,19 @@ export class BattleView {
           this.effects.push({ kind: 'bboom', wx: ev.at.x, wy: ev.at.y, fx, r: 70, spin: (Math.random() - 0.5) * 2, life: 0.5, max: 0.5 });
         }
         break;
+      // v226: 던전·탑을 깨면 무인 발밑에서 금빛 기둥이 서고 고리 세 겹 · '破' 낙관과 함께 크게 알린다
+      case 'instEnd':
+        if (ev.ok && ev.kind !== 'raid' && this.fxLevel > 0 && game?.heroX != null) {
+          if (!this.effects.some((e) => e.kind === 'pillar' && e.life > 0.5)) this.effects.push({ kind: 'pillar', life: 1.2, max: 1.2 });
+          this.effects.push({ kind: 'shock', life: 0.8, max: 0.8, wx: game.heroX, wy: game.heroY, r: 200, col: '253,224,71', rings: 3, w: 4 });
+          this.effects.push({ kind: 'petals', life: 1.4, max: 1.4, wx: game.heroX, wy: game.heroY, r: 170, col: '253,230,138', seeds: seedsN(20), spin: 3, oy: -80 });
+          this.showBanner(ev.kind === 'tower' ? `${ev.stage}층 돌파` : '던전 돌파', '#fde68a', 1.3, '破');
+          this.flash = Math.max(this.flash, 0.2);
+        } else if (!ev.ok && !ev.left && ev.kind !== 'raid' && this.fxLevel > 0 && game?.heroX != null) {
+          // 못 깼다 — 잿빛 고리가 가라앉는다
+          this.effects.push({ kind: 'shock', life: 0.7, max: 0.7, wx: game.heroX, wy: game.heroY, r: 140, col: '120,113,108', rings: 2, w: 3 });
+        }
+        break;
       // v225: 보물 요괴 — 나타날 때 금빛 고리, 잡으면 은괴가 분수처럼 솟아 무인에게 빨려 든다
       case 'treasure':
         if (ev.at && this.fxLevel > 0) {
