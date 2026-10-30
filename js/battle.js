@@ -284,6 +284,9 @@ export class BattleView {
     this.light = false;
     // ---- 초식 연출 (skillfx.js) ----
     this.heroAnim = new PoseAnim();   // 무인 자세 이음
+    this.rangeRings = [];             // v157: 펼친 무공의 범위 고리 (설정 '스킬 범위 보기')
+    this.rangePreview = null;         // v157: 무공 단추를 길게 누르는 동안 보여 주는 범위 { center, r, reach }
+    this.showRange = false;
     this.later = [];       // 조금 뒤에 그릴 사건 (날아가는 평타의 맞은 숫자)
     this.shotDelay = 0;
     this.pending = null;   // 이번 프레임에 시전된 무공 — 결과를 모으는 중
@@ -626,6 +629,7 @@ export class BattleView {
         if (ev.radius) this.effects.push({ kind: 'area', life: 0.55, max: 0.55, r: ev.radius, id: ev.id, job: ev.job, at: ev.at || null });
         break;
       case 'skill':
+        if (this.showRange && ev.radius > 0 && ev.at) this.rangeRings.push({ x: ev.at.x, y: ev.at.y, r: ev.radius, life: 0.8, max: 0.8 });
         // 연출표가 있는 무공은 결과를 모았다가 draw에서 감독에게 넘긴다
         // 각성한 무공은 ev.fx(예: 'sword:blink')로 연출표를 고른다
         if (ev.fx && CHOREO[ev.fx] && !ev._released) {
@@ -1112,6 +1116,7 @@ export class BattleView {
     this.drawQueue(game);
     this.drawFields(game);        // 바닥 장판은 사람보다 아래에
     this.drawTells(game);         // 탑 수문장의 바닥 경고 (v126)
+    this.drawRanges(game, dt);    // 무공 범위 (v157)
     this.drawUnits(game, dt, moving);
     this.drawProjectiles(dt);
     this.drawEffects(dt, game);
@@ -1545,7 +1550,13 @@ export class BattleView {
     const ha = game.heroAngle || 0;
     const x = this.heroX + Math.cos(ha) * lunge * 24;
     const y = this.groundY + Math.sin(ha) * lunge * 24 * this.squash;
-    if (pose) { opts.pose = { ...pose, alpha: 1 }; opts.lunge = 0; opts.run = false; }
+    // v157: 걸으면서 펼치면 다리는 계속 달리고 몸만 초식 자세를 반쯤 — 멈춰 서서 미끄러지는 꼴이 안 되게
+    if (pose) {
+      opts.pose = moving && pose.alpha >= 0.99
+        ? { ...pose, lean: pose.lean * 0.55, crouch: pose.crouch * 0.35, lift: pose.lift * 0.4, dx: pose.dx * 0.3, stretch: pose.stretch * 0.5, alpha: 1 }
+        : { ...pose, alpha: 1 };
+      opts.lunge = 0; opts.run = !!moving;
+    }
     // 순보로 사라진 동안은 발밑 고리·이름표까지 같이 옅어진다
     const alpha = pose ? Math.max(0, Math.min(1, pose.alpha)) : 1;
     if (alpha <= 0.01) return;
@@ -2236,6 +2247,41 @@ export class BattleView {
   }
 
   // 수문장 경고 — 붉은 바닥이 안쪽부터 차오르고, 다 차면 터진다. 빨리 벗어나야 한다.
+  // 무공 범위 (v157) — 맞는 판정과 같은 타원(세로는 /0.75)으로 그린다. 금빛 점선 = 맞는 곳, 옅은 선 = 과녁까지 닿는 거리.
+  drawRanges(game, dt) {
+    const { ctx } = this;
+    const ry = this.squash / 0.75;
+    const ring = (x, y, r, a, dash, fill) => {
+      ctx.setLineDash(dash || []);
+      ctx.strokeStyle = `rgba(253,224,71,${a})`;
+      ctx.beginPath(); ctx.ellipse(x, y, r, r * ry, 0, 0, Math.PI * 2);
+      if (fill) { ctx.fillStyle = `rgba(253,224,71,${a * 0.14})`; ctx.fill(); }
+      ctx.stroke();
+    };
+    ctx.save();
+    ctx.lineWidth = 2;
+    const pv = this.rangePreview;
+    if (pv && game) {
+      const me = { x: game.heroX, y: game.heroY };
+      const tg = game.mon?.alive ? game.mon : null;
+      const c = pv.center === 'target' && tg ? tg : me;
+      if (pv.reach > 0 && pv.reach < 9999) ring(this.sx(me), this.sy(me), pv.reach, 0.45, [4, 6], false);
+      if (pv.r > 0) ring(this.sx(c), this.sy(c), pv.r, 0.95, [10, 6], true);
+      if (pv.center === 'target' && tg) {
+        ctx.setLineDash([3, 5]); ctx.strokeStyle = 'rgba(253,224,71,0.6)';
+        ctx.beginPath(); ctx.moveTo(this.sx(me), this.sy(me)); ctx.lineTo(this.sx(tg), this.sy(tg)); ctx.stroke();
+      }
+    }
+    for (const g of this.rangeRings) {
+      g.life -= dt;
+      const k = Math.max(0, g.life / g.max);
+      ring(this.sx(g), this.sy(g), g.r, 0.8 * k, [10, 6], true);
+    }
+    this.rangeRings = this.rangeRings.filter((g) => g.life > 0);
+    ctx.setLineDash([]);
+    ctx.restore();
+  }
+
   drawTells(game) {
     const ts = game?.tells;
     if (!ts?.length) return;

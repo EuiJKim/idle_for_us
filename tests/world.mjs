@@ -232,7 +232,14 @@ console.log('\n=== 재료와 조합 (바람식) ===');
     const cnt = [0, 0, 0, 0];
     g.s.gold = 1e15; for (let k = 1; k <= W.NORMAL_ZONES; k++) { g.s.mats[k] = 1e9; g.s.mats[W.bossKey(k)] = 1e7; }
     for (let i = 0; i < 2000; i++) { const it = g.craft('armor', 3, false); if (it) { cnt[it.rar]++; g.sell(it); } }
-    ok(cnt[0] > 1200 && cnt[3] > 0 && cnt[3] < 60, '조합 등급은 운 — 대부분 레어, 신화는 1%쯤', cnt.join('/'));
+    ok(cnt[0] > 1350 && cnt[3] === 0, '조합 등급은 운 — 기본 계열은 대부분 레어, 신화는 안 나온다(v157)', cnt.join('/'));
+    // v157: 세력 재료를 많이 섞을수록 운이 좋다 — 같은 재료로 뽑는 신화 수가 셋 > 둘 > 하나
+    const LN2 = await import('../js/world/wline.js');
+    const perMat = (id) => { const w = LN2.lineRarW(id); const sum = w.reduce((a, b) => a + b, 0); const mats = Object.values(LN2.lineMats(id, 'weapon', 10)).reduce((a, b) => a + b, 0); return (w[3] / sum) / mats; };
+    ok(perMat('samp') > perMat('jeongma') && perMat('jeongma') > perMat('murim'), '세력 재료 하나당 신화 확률: 삼파 > 둘 섞은 계열 > 정파 하나', ['murim', 'jeongma', 'samp'].map((x) => perMat(x).toExponential(2)).join(' < '));
+    const it2 = { ...g.makeCrafted('weapon', 10, 0, 2), line: 'murim' };
+    const pc2 = W.promoteCost(it2);
+    ok(pc2.fac.fm > 0 && !W.promoteCost({ ...it2, line: 'base' }).fac.fm, '계열 장비 승급에는 그 세력 재료도 든다');
   }
   // **위 등급일수록 재료가 확 든다** — 신화를 노릴 이유
   {
@@ -529,7 +536,7 @@ console.log('\n=== 십이지왕 신화 · 가락지·귀걸이 · 애완동물 �
   const m = fresh();
   const sp0 = m.stats().moveSpeed;
   m.gainMount('redhare');
-  ok(m.stats().moveSpeed - sp0 >= 0.8 && m.stats().atk > fresh().stats().atk, '탈것: 이동 속도(적토마 +85%)와 공격력·체력 %', `이동 ×${m.stats().moveSpeed.toFixed(2)}`);
+  ok(Math.abs(m.stats().moveSpeed - sp0 - 0.45) < 0.01 && m.stats().atk > fresh().stats().atk, '탈것: 이동 속도(적토마 +45% — v157 절반)와 공격력·체력 %', `이동 ×${m.stats().moveSpeed.toFixed(2)}`);
   m.gainMount('donkey');
   ok(m.mountNow().name === '적토마', '더 느린 탈것을 얻으면 갈아타지 않는다');
   // 순위: 아래 것보다 위 것이 세다 · 초반 두목은 아주 낮게·아래 순위만
@@ -1261,6 +1268,30 @@ console.log('\n=== 사냥터 몹 강함 (v149) ===');
   const CoopMod = await import('../js/world/wcoop.js');
   const c = new CoopMod.Coop({ map: W.mapOf(W.mapId(16, 4)) }, {});
   ok(Math.abs(c.kingMaxHp() - DG.fieldMobHp(W.mapOf(W.mapId(16, 4)).lv[1] + 2) * W.BOSS.hp) < 1, '함께 사냥 왕 체력 = 내 화면 왕 체력 공식');
+}
+
+console.log('\n=== 걸으면서 무공 · 범위 (v157) ===');
+{
+  const g = fresh();
+  while (g.s.level < 30) g.addExp(W.expToNext(g.s.level));
+  g.s.jobTier = 3; g._stats = null;
+  g.enterMap(W.mapId(4, 1));
+  for (let i = 0; i < 40; i++) g.tick(0.05);
+  g.s.autoSkill = true;
+  const m = g.mons.find((x) => x.alive && !x.npc);
+  for (const o of g.mons) if (o !== m) o.alive = false;
+  m.isBoss = true; m.hp = m.maxHp = 1e12; m.atk = 0;
+  m.x = g.heroX + 90; m.y = g.heroY;
+  g.mon = null;
+  g.cd = {};
+  g.joy = { dx: -1, dy: 0 };
+  g.events.length = 0;
+  let walkCast = 0;
+  for (let i = 0; i < 20; i++) { g.tick(0.05); if (g.hmove && g.events.some((e) => e.type === 'skill' && e.id !== 's3')) walkCast++; g.events.length = 0; }
+  ok(walkCast > 0, '조이스틱으로 걷는 중에도 자동 무공(치는 무공)이 나간다');
+  g.joy = null;
+  const sks = g.skills();
+  ok(sks.every((sk) => { const r = g.skillReach(sk); return r === null || (r.r >= 0 && r.reach >= 0); }) && sks.some((sk) => g.skillReach(sk)?.r > 0), '무공마다 범위(반경·사거리)를 낼 수 있다');
 }
 
 console.log('\n=== 일일 던전 열쇠 (v156) ===');

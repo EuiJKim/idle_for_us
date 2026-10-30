@@ -353,7 +353,7 @@ function bagTab(app) {
             h('div', { class: 'enh-cost' }, `기본 수치 +${pct(breaking ? W.BREAK_STEP : W.ENHANCE_STEP, 0)} · 은자 ${fmt(cost)}${em ? ` · ${W.matName(em.key)} ${em.n}개 (가진 것 ${fmt(game.s.mats[em.key] || 0)})` : ''}${bm ? ` · ${W.matName(W.bossKey(em.key))} ${bm}개 (가진 것 ${fmt(game.s.mats[W.bossKey(em.key)] || 0)})` : ''}`),
             W.enhanceFail(it.plus || 0) === 'break' && game.s.prot ? h('label', { class: 'chk' }, (() => { const c = h('input', { type: 'checkbox' }); c.checked = useProt; c.onchange = () => { useProt = c.checked; paint(); }; return c; })(), ' 보호부 쓰기') : null),
           pc ? h('p', { class: 'muted' }, `승급 → `, h('b', { style: `color:${W.RARITY[it.rar + 1].color}` }, W.RARITY[it.rar + 1].name),
-            ` (기본 수치 ×${(W.RARITY[it.rar + 1].mult / W.RARITY[it.rar].mult).toFixed(2)}, 스킬 옵션 새로) — ${W.matName(pc.key)} ${pc.mats} (가진 것 ${fmt(game.s.mats[pc.key] || 0)})${pc.marks ? ` · ${W.matName(W.bossKey(pc.key))} ${pc.marks}` : ''} · 은자 ${fmt(pc.gold)}`) : null,
+            ` (기본 수치 ×${(W.RARITY[it.rar + 1].mult / W.RARITY[it.rar].mult).toFixed(2)}, 스킬 옵션 새로) — ${W.matName(pc.key)} ${pc.mats} (가진 것 ${fmt(game.s.mats[pc.key] || 0)})${pc.marks ? ` · ${W.matName(W.bossKey(pc.key))} ${pc.marks}` : ''}${Object.entries(pc.fac || {}).map(([k, n]) => ` · ${W.matName(k)} ${n} (가진 것 ${fmt(game.s.mats[k] || 0)})`).join('')} · 은자 ${fmt(pc.gold)}`) : null,
           h('div', { class: 'btn-row' },
             !worn ? h('button', { class: 'btn primary', onclick: () => { game.equipFromBag(it.uid); closeModal(); done(); } }, '끼기') : null,
             h('button', { class: 'btn good', disabled: game.canEnhance(it) ? null : true, onclick: () => askEnhance() }, breaking ? '돌파' : '강화'),
@@ -513,9 +513,11 @@ function bagTab(app) {
     const chips = h('div', { class: 'chip-row' }, ...W.CRAFT_SLOTS.map((x) =>
       h('button', { class: `chip${slot === x.id ? ' on' : ''}`, onclick: () => { ui.smith = x.id; keepUi(); sigs.smith = ''; smithView(); } }, x.name)));
     // 등급은 운 (v153) — 한 번 만들 때 나올 확률
-    const wsum = W.CRAFT_RAR_W.reduce((a, b) => a + b, 0);
+    // v157: 계열마다 다르다 — 세력 재료를 많이 섞을수록 운이 좋다
+    const rw = W.craftRarW(line);
+    const wsum = rw.reduce((a, b) => a + b, 0);
     const rarRow = h('div', { class: 'chip-row rar-row' }, ...W.RARITY.map((R, i) =>
-      h('span', { class: 'chip rar on', style: `--rc:${R.color}` }, R.name, h('small', {}, ` ${Math.round((W.CRAFT_RAR_W[i] / wsum) * 100)}%`))));
+      h('span', { class: `chip rar${rw[i] ? ' on' : ''}`, style: `--rc:${R.color}` }, R.name, h('small', {}, ` ${Math.round((rw[i] / wsum) * 100)}%`))));
     // 계열 고르기 (v151) — 세력 재료를 넣으면 성향이 붙는다. 칩 아래 점은 드는 세력 재료 빛깔.
     const lineRow = h('div', { class: 'chip-row line-row' }, ...LN.LINES.map((Ln) =>
       h('button', { class: `chip line${line === Ln.id ? ' on' : ''}`, onclick: () => { ui.line = Ln.id; keepUi(); sigs.smith = ''; smithView(); } },
@@ -1302,7 +1304,17 @@ export function skillText(game, sk) {
   const num = sk.kind === 'field' ? `처음 ×${sk.mult} · ${sk.field.tick}초마다 ×${sk.field.mult}`
     : sk.kind === 'daggers' ? `한 자루 ×${sk.mult}` : sk.mult != null ? `공격력 ×${sk.mult}${sk.hits > 1 ? ` · ${sk.hits}번` : ''}` : '';
   // 보조기·각성처럼 배수가 없는 무공은 숫자를 빼고 숨만 (전에는 '공격력 ×undefined'가 찍혔다)
-  return `${sk.desc} — ${num ? `${num} · ` : ''}숨 ${cd.toFixed(cd < 10 ? 1 : 0).replace(/\.0$/, '')}초${sk.hpCost ? ` · 체력 ${pct(cost, 0)} 소모` : ''}`;
+  const rg = rangeText(game, sk);
+  return `${sk.desc} — ${num ? `${num} · ` : ''}숨 ${cd.toFixed(cd < 10 ? 1 : 0).replace(/\.0$/, '')}초${sk.hpCost ? ` · 체력 ${pct(cost, 0)} 소모` : ''}${rg ? ` · ${rg}` : ''}`;
+}
+// 무공 범위를 칸으로 (v157) — 땅 한 칸이 64. 스킬 단추를 길게 누르면 화면에 고리로도 보인다.
+export function rangeText(game, sk) {
+  const rc = game.skillReach?.(sk);
+  if (!rc) return '';
+  const t = (px) => `${(px / W.TILE).toFixed(1).replace(/\.0$/, '')}칸`;
+  if (sk.kind === 'single') return `과녁 하나 · 사거리 ${t(rc.reach)}${rc.r ? ` · 둘레 ${t(rc.r)}도 맞음` : ''}`;
+  if (sk.kind === 'triple') return `내 둘레 ${t(rc.r)}`;
+  return rc.center === 'target' ? `과녁 둘레 반경 ${t(rc.r)}` : `내 둘레 반경 ${t(rc.r)}`;
 }
 
 // ---------- 무림 ----------

@@ -9,7 +9,7 @@ import { loadIcons, skinImg } from './icons.js';
 import { WNet } from './wnet.js';
 import { Coop } from './world/wcoop.js';
 import { h, toast, openModal, closeModal, modalOpen } from './ui/common.js';
-import { WTABS, WTAB_TITLE, itemTitle, skillText, rewardText, dailyWaiting } from './wui.js';
+import { WTABS, WTAB_TITLE, itemTitle, skillText, rangeText, rewardText, dailyWaiting } from './wui.js';
 import * as D from './world/wdgn.js';
 import { QUEST_COUNT } from './world/wquest.js';
 import { fmt, duration } from './fmt.js';
@@ -58,6 +58,7 @@ const FX_PREF = ['low', 'mid', 'high'];
 const FX_NAME = { high: '높음', mid: '보통', low: '낮음' };
 function loadFxPref() { try { return localStorage.getItem('ifu.fx') || 'high'; } catch { return 'high'; } }
 view.fxPref = Math.max(0, FX_PREF.indexOf(loadFxPref()));
+try { view.showRange = localStorage.getItem('ifu.range') === '1'; } catch { /* 사생활 모드 */ }
 
 // 화면 거리 — 전체(지도 한 장) · 보통(가로 꽉) · 가까이. 눌러서 돌리고, 마우스 휠로도 당기고 민다.
 const CAM_NAME = ['전체', '보통', '가까이'];
@@ -175,10 +176,27 @@ function buildSkillbar() {
     const cd = h('div', { class: 'cd' });
     const num = h('div', { class: 'cdn' });
     const lock = h('div', { class: 'lock' });
+    // 길게 누르면(0.35초) 펼치지 않고 범위만 보여 준다 (v157) — 떼면 사라진다
+    let holdT = 0, held = false;
+    const endHold = () => { clearTimeout(holdT); holdT = 0; if (view.rangePreview?.id === sk.id) view.rangePreview = null; };
     const btn = skinImg(h('button', { class: 'skill-btn', 'aria-label': sk.name, onclick: () => {
+      if (held) { held = false; return; }
       if (sk.tier > game.s.jobTier) return showTab('town', 'master');
       if (!game.useSkill(sk.id)) toast(game.map.town ? '사냥터에서 쓸 수 있어요' : game.heroHp <= game.hpCostOf(sk) + 1 ? '체력이 모자라요' : '아직 숨이 안 돌아왔어요');
     } }, h('span', { class: 'sk-name' }, sk.icon), cd, num, lock), `w-${game.s.job}-${sk.id}`);
+    btn.addEventListener('pointerdown', () => {
+      held = false;
+      clearTimeout(holdT);
+      holdT = setTimeout(() => {
+        const rc = game.skillReach(sk);
+        held = true;
+        if (!rc) { toast(`${sk.name} — 범위가 없는 무공(나에게 거는 기술)이에요`); return; }
+        view.rangePreview = { id: sk.id, ...rc };
+        toast(`${sk.name} — ${rangeText(game, sk)}`);
+      }, 350);
+    });
+    for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) btn.addEventListener(ev, endHold);
+    btn.addEventListener('contextmenu', (e) => e.preventDefault());
     return { sk, btn, cd, num, lock, was: 0 };
   });
   potionEl = h('button', { class: 'skill-btn potion-btn', 'aria-label': '물약', onclick: () => {
@@ -743,7 +761,11 @@ $('btn-settings').addEventListener('click', () => openModal((s) => {
       try { localStorage.setItem('ifu.sound', v ? '1' : '0'); } catch { /* 이번만 */ }
     }),
     toggleRow('자동 물약', game.s.autoPotion, `체력이 ${Math.round(W.POTION_AT * 100)}% 아래면 알아서 먹어요`, (v) => { game.s.autoPotion = v; save(); }),
-    toggleRow('자동 스킬', game.s.autoSkill, '체력을 쓰는 스킬은 체력이 넉넉할 때만 써요', (v) => { game.s.autoSkill = v; save(); }),
+    toggleRow('자동 스킬', game.s.autoSkill, '체력을 쓰는 스킬은 체력이 넉넉할 때만 써요 · 걸으면서도 써요', (v) => { game.s.autoSkill = v; save(); }),
+    toggleRow('스킬 범위 보기', view.showRange, '펼칠 때마다 맞는 곳을 금빛 고리로 — 스킬 단추를 길게 누르면 언제든 볼 수 있어요', (v) => {
+      view.showRange = v;
+      try { localStorage.setItem('ifu.range', v ? '1' : '0'); } catch { /* 이번만 */ }
+    }),
     h('div', { class: 'row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, '연출'), h('div', { class: 'desc' }, '폰이 버거우면 낮춰요')), fxBtn),
     h('div', { class: 'btn-row', style: 'margin-top:8px' },
       h('button', { class: 'btn', onclick: () => { closeModal(); askNickname(false); } }, '이름 바꾸기'),

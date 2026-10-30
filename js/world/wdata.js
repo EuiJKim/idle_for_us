@@ -6,6 +6,7 @@ import { ZONES, JOBS, CLASS_SKILLS, RANKS } from '../data.js';
 import { areaMobs } from './wmobs.js';
 import { MASTERS } from './wmasters_data.js';
 import { FAC_MAT_INFO, isFacMat, lineMats } from './wline.js';
+import { lineRarW } from './wline.js';
 import { TRANSFORMS, setOf, SET_PIECE, STONES, isStoneKey, promoteStones, LORD_MATS, isLordMat } from './wgear.js';
 
 export const SAVE_KEY = 'ifu-world-v1';
@@ -177,6 +178,7 @@ export const skillsOf = (job) => (JOB_SKILLS[job] || []).map((d) => ({ ...d, id:
 // 한 칸에는 하나만 선다. 근접은 앞뒤좌우 바로 옆 칸에서 친다.
 // (처음엔 1300×1700 자유 이동이었다 — 화면에 사냥터 한 귀퉁이만 보였다)
 export const TILE = 64;
+export const MOVE_CAST_R = 420;   // v157: 걷는 중 자동 무공이 과녁을 잡는 거리
 export const COLS = 9;
 export const ROWS = 19;
 export const MAP_W = COLS * TILE;
@@ -527,7 +529,8 @@ export const RARITY = [
   { id: 3, name: '신화', color: '#f43f5e', mult: 1.7, opts: 2, special: true },
 ];
 export const RARITY_GRADE = [2, 3, 4, 5];       // 칼빛·테두리 색 (옛 GRADES 자리)
-export const CRAFT_RAR_W = [70, 22, 7, 1];       // 조합으로 만들 때 — v153: 등급은 다시 운이다(레어 70 · 유니크 22 · 전설 7 · 신화 1%). 확실히 올리려면 승급.
+export const CRAFT_RAR_W = [70, 22, 7, 1];
+export const craftRarW = (line) => lineRarW(line || 'base');   // v157: 사다리 장비는 계열마다 (wline LINE_RAR_W)       // 조합으로 만들 때 — v153: 등급은 다시 운이다(레어 70 · 유니크 22 · 전설 7 · 신화 1%). 확실히 올리려면 승급.
 export const BOSS_RAR_W = [45, 38, 14, 3];       // 두목 드랍
 export const KING_RAR_W = [25, 42, 28, 5];       // 십이지왕 드랍 (v153 신화 10%→5%)
 export const rollRarity = (w, rng) => {
@@ -543,8 +546,11 @@ export const promoteCost = (it) => {
   // v153: 승급은 그 등급으로 바로 만들 때와 같은 차이만큼 든다 — 전에는 전설→신화가 재료 90·증표 6이라 신화가 너무 쉬웠다
   const k = itemZone(it);
   const sl = CRAFT_MATS[it.slot] ? it.slot : 'weapon';
+  // v157: 계열 장비는 세력 재료도 같은 차이만큼 — 전에는 지역 재료만 들어서 기본 장비를 신화로 올리는 값이 삼파와 같았다
+  const fac = {};
+  if (it.line && it.line !== 'base' && it.step != null) for (const [fk, n] of Object.entries(lineMats(it.line, sl, it.step))) fac[fk] = Math.round(n * (RAR_MATS[r] - RAR_MATS[r - 1]));
   return { key: k, mats: Math.round(CRAFT_MATS[sl] * (RAR_MATS[r] - RAR_MATS[r - 1])), marks: CRAFT_BOSS[sl] * (RAR_BOSS[r] - RAR_BOSS[r - 1]),
-    gold: Math.round((30 + craftLevel(k) * 10) * (RAR_GOLD[r] - RAR_GOLD[r - 1]) * 1.5) };
+    gold: Math.round((30 + craftLevel(k) * 10) * (RAR_GOLD[r] - RAR_GOLD[r - 1]) * 1.5), fac };
 };
 // 스킬 옵션: s는 스킬 칸(0 1차 · 1 2차 · 2 3차). 값은 등급별.
 export const SKILL_OPTS = {
@@ -766,6 +772,9 @@ export const MOUNTS = [
     ['z7', '천마', '🐎'], ['z8', '운양', '🐏'], ['z9', '금강원', '🐒'], ['z10', '금계', '🐓'], ['z11', '천구', '🐕'], ['z12', '흑저', '🐗']]
     .map(([id, nm, emoji], i) => ({ id, tier: 13, zodiac: i + 1, name: `십이지 ${nm}`, emoji, speed: +(0.45 + (i + 1) * 0.11).toFixed(2), stat: +(0.04 + (i + 1) * 0.017).toFixed(3) })),
 ];
+// v157: 이동 속도 증가폭을 절반으로 — 60%만 돼도 너무 빨랐다 (청룡마 +170% → +85%)
+export const MOUNT_SPEED_K = 0.5;
+for (const m of MOUNTS) m.speed = +(m.speed * MOUNT_SPEED_K).toFixed(3);
 export const mountOf = (id) => MOUNTS.find((m) => m.id === id) || null;
 // **졸개는 더 이상 안 떨군다.** 0.005%였다 — 2만 마리에 하나, 하루 꼬박
 // 사냥해 한두 번이다. 사실상 없는 것인데 '어디서나 나온다'는 착각만 줬다.

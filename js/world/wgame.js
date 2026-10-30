@@ -779,7 +779,7 @@ export class WorldGame {
     if (this.hmove) {
       this.walking = true;
       if (this.slide(this, 'heroX', 'heroY', this.hmove, W.HERO_SPEED * (st.moveSpeed || 1) * (1 + (this.buffv.move || 0)) * Math.max(0.3, 1 + (this.envNow().move || 0)), dt)) { this.hc = this.hmove.c; this.hr = this.hmove.r; this.hmove = null; }
-      else return;
+      else { this.moveSkills(st); return; }
     }
     this.holdApproach = false;
     if (this.autoDodge && this.inst) { const d = this.dodgeStep(); if (d === 'moved') return; this.holdApproach = d === 'hold'; }
@@ -796,12 +796,14 @@ export class WorldGame {
       if (moved && !this.s.did?.move) this.mark('move');
       if (!moved) this.walking = false;
       this.manualHold = 0.8;
+      this.moveSkills(st);
       return;
     }
     // 손으로 찍은 칸이 있으면 거기로 먼저 간다
     if (this.manual) {
       if (this.hc === this.manual.c && this.hr === this.manual.r) { this.manual = null; this.manualHold = 1.2; } else {
         if (!this.stepHero(this.manual.c, this.manual.r)) { this.manual = null; this.manualHold = 0.6; }
+        this.moveSkills(st);
         return;
       }
     }
@@ -835,6 +837,30 @@ export class WorldGame {
       this.atkTimer = st.atkSec / (this.frenzyT > 0 ? 1.5 : 1) / (1 + (this.buffv.haste || 0)) / Math.max(0.3, 1 + (this.envNow().speed || 0));
       this.basicAttack(m, st, dist);
     }
+  }
+
+  // v157: 걸으면서도 무공을 펼친다 — 자동 무공이면 움직이는 동안에도 닿는 적에게 (평타는 서야 친다).
+  // 과녁이 없으면(조이스틱으로 끌고 다닐 때) 가장 가까운 적을 잡는다.
+  moveSkills(st) {
+    if (!this.s.autoSkill || this.map.town || !this.mons.length) return;
+    if (!this.mon?.alive || this.mon.npc) {
+      let best = null, bd = W.MOVE_CAST_R;
+      for (const m of this.mons) {
+        if (!m.alive || m.npc || m.introT > 0) continue;
+        const d = Math.hypot(m.x - this.heroX, m.y - this.heroY);
+        if (d < bd) { bd = d; best = m; }
+      }
+      if (!best) return;
+      this.mon = best;
+    }
+    this.autoSkills(st);
+  }
+  // 무공이 닿는 곳 (v157 · 범위 보기) — center: 'me' 내 둘레 | 'target' 과녁 둘레, r: 반지름(px), reach: 과녁까지 닿는 거리(px)
+  skillReach(sk) {
+    if (sk.kind === 'support' || sk.kind === 'awaken' || sk.kind === 'clone') return null;
+    if (sk.kind === 'triple') return { center: 'me', r: 300, reach: 0 };
+    if (sk.kind === 'single') return { center: 'target', r: this.skillMods(sk.id).splash > 0 ? 140 : 0, reach: sk.far ? 420 : Math.max(this.stats().range, 160) * 1.6 };
+    return { center: this.ranged() ? 'target' : 'me', r: this.skillRadius(sk), reach: this.ranged() ? 9999 : 0 };
   }
 
   // 닿을 수 없는 과녁 — 4초 동안 고르지 않는다
@@ -1595,7 +1621,7 @@ export class WorldGame {
     if (step < 0 || step >= W.STEP_COUNT || W.isDropOnly(slot)) return null;
     void rar;
     const { r, src, ok } = this.craftCheck(slot, step, useBase, 0, line);
-    const want = W.rollRarity(W.CRAFT_RAR_W, this.rng);
+    const want = W.rollRarity(W.craftRarW(line), this.rng);
     if (!ok) return null;
     for (const [k, n] of Object.entries(r.mats)) this.s.mats[k] -= n;
     this.s.gold -= r.gold;
@@ -1855,7 +1881,8 @@ export class WorldGame {
   canPromote(it) {
     if (!it || (it.step == null && it.king == null) || (it.rar || 0) >= W.RARITY.length - 1) return false;
     const c = W.promoteCost(it);
-    return (this.s.mats[c.key] || 0) >= c.mats && (!c.marks || (this.s.mats[W.bossKey(c.key)] || 0) >= c.marks) && this.s.gold >= c.gold;
+    return (this.s.mats[c.key] || 0) >= c.mats && (!c.marks || (this.s.mats[W.bossKey(c.key)] || 0) >= c.marks) && this.s.gold >= c.gold
+      && Object.entries(c.fac || {}).every(([k, n]) => (this.s.mats[k] || 0) >= n);
   }
   promote(uid) {
     const it = this.findItem(uid);
@@ -1863,6 +1890,7 @@ export class WorldGame {
     const c = W.promoteCost(it);
     this.s.mats[c.key] -= c.mats;
     if (c.marks) this.s.mats[W.bossKey(c.key)] -= c.marks;
+    for (const [k, n] of Object.entries(c.fac || {})) this.s.mats[k] -= n;
     this.s.gold -= c.gold;
     it.rar = (it.rar || 0) + 1;
     it.grade = W.RARITY_GRADE[it.rar];
