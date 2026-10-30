@@ -1012,6 +1012,12 @@ export class BattleView {
           ev._sealed = true;
           const tr = ev.tier || 1;
           this.effects.push({ kind: 'jobseal', wx: game.heroX, wy: game.heroY, ch: JOB_SEAL[game.s.job], col: CAST_COL[game.s.job], r: 80 + tr * 22, spin: tr >= 4 ? 2.6 : 1.2, life: 0.55 + tr * 0.1, max: 0.55 + tr * 0.1 });
+          // v228: 4차 무공은 빛살이 사방으로 뻗고 화면이 울린다
+          if (tr >= 4 && !ev.echo) {
+            this.effects.push({ kind: 'ultrays', wx: game.heroX, wy: game.heroY, col: CAST_COL[game.s.job], r: 260, life: 0.6, max: 0.6 });
+            this.flash = Math.max(this.flash, 0.22);
+            this.shake = Math.max(this.shake, 0.3);
+          }
         }
         // 연출표가 있는 무공은 결과를 모았다가 draw에서 감독에게 넘긴다
         // 각성한 무공은 ev.fx(예: 'sword:blink')로 연출표를 고른다

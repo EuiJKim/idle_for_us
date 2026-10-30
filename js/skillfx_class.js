@@ -50,6 +50,30 @@ function sealImg(ch, col) {
 }
 export const CLASS_FX = {
   // 바닥에 퍼지는 충격 고리 (눌린 타원). rings 겹이 조금씩 늦게 퍼진다.
+  // v228: 4차 무공 — 무인에게서 빛살 열여섯이 사방으로 뻗고(번갈아 길고 짧게), 가운데가 하얗게 터진다
+  ultrays(v, ctx, e, k) {
+    const x = v.sx({ x: e.wx });
+    const y = v.sy({ y: e.wy }) - 60;
+    const p = 1 - k;
+    const grow = 1 - (1 - Math.min(1, p * 4)) ** 3;
+    const fade = Math.min(1, k * 2);
+    ctx.translate(x, y);
+    ctx.rotate(p * 0.4);
+    for (let i = 0; i < 16; i++) {
+      const a = (i / 16) * Math.PI * 2;
+      const L = (i % 2 ? 0.6 : 1) * e.r * grow;
+      const wd = (i % 2 ? 5 : 9) * fade;
+      ctx.save(); ctx.rotate(a);
+      const g = ctx.createLinearGradient(0, 0, L, 0);
+      g.addColorStop(0, `rgba(255,255,255,${0.9 * fade})`); g.addColorStop(0.3, `rgba(${e.col},${0.7 * fade})`); g.addColorStop(1, `rgba(${e.col},0)`);
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.moveTo(0, -wd); ctx.lineTo(L, 0); ctx.lineTo(0, wd); ctx.closePath(); ctx.fill();
+      ctx.restore();
+    }
+    const c = ctx.createRadialGradient(0, 0, 0, 0, 0, 60 * grow + 10);
+    c.addColorStop(0, `rgba(255,255,255,${0.95 * fade})`); c.addColorStop(1, `rgba(${e.col},0)`);
+    ctx.fillStyle = c; ctx.beginPath(); ctx.arc(0, 0, 60 * grow + 10, 0, Math.PI * 2); ctx.fill();
+  },
   // v220: 무공을 펼칠 때 발밑에 직업 인장 — 가운데 큰 글자(劍·拳·扇·指·毒)와 두 겹 고리.
   // 커지며 돌다가 사라진다. 직업마다 한 번 구워 두고 찍는다.
   jobseal(v, ctx, e, k) {
