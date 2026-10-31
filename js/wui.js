@@ -77,7 +77,9 @@ export function itemLines(game, it) {
 }
 export function itemTitle(game, it) {
   const ln = it.line ? LN.lineOf(it.line) : null;
-  return `${ln && ln.id !== 'base' ? `[${ln.name}] ` : ''}${W.itemName(it, game.s.job)}${it.plus ? ` +${it.plus}` : ''}`;
+  const sp = game.sharedPlus ? game.sharedPlus(it) : 0;
+  const ep = Math.max(it.plus || 0, sp);
+  return `${ln && ln.id !== 'base' ? `[${ln.name}] ` : ''}${W.itemName(it, game.s.job)}${ep ? ` +${ep}${sp > (it.plus || 0) ? '(공유)' : ''}` : ''}`;
 }
 // v230: 장비 아이콘 — 칸 그림(무기·옷·모자…)을 등급 빛깔 테두리 안에. 가방·대장장이에서 글 대신 그림으로 고른다
 function itemIcon(it, size = 44) {

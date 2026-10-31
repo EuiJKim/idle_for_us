@@ -1257,7 +1257,7 @@ export class BattleView {
     const set = bz.weapon && bz.armor && bz.hat && bz.weapon.z === bz.armor.z && bz.armor.z === bz.hat.z ? bz.weapon : null;
     const v = {
       boss: bz, set,
-      weaponRar: rarOf(e.weapon), weaponPlus: e.weapon?.plus || 0, weaponCol: RC[rarOf(e.weapon)] || '#e5e7eb',
+      weaponRar: rarOf(e.weapon), weaponPlus: game.effPlus ? game.effPlus(e.weapon) : e.weapon?.plus || 0,   // v243: 공유 강화도 칼빛에 weaponCol: RC[rarOf(e.weapon)] || '#e5e7eb',
       armorRar: rarOf(e.armor), armorCol: RC[rarOf(e.armor)],
       hatRar: rarOf(e.hat), hatCol: RC[rarOf(e.hat)],
       best, bestCol: RC[best],

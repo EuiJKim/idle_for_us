@@ -282,6 +282,14 @@ export class WorldGame {
 
   // ---------- 수치 ----------
   totalStat(k) { return (W.CLASSES[this.s.job]?.base[k] || 0) + (this.s.stats[k] || 0); }
+  // v243: 강화 공유 — 세트·왕의 장비는 그 칸 성장 장비의 강화(+N)를 함께 쓴다(둘 중 높은 쪽).
+  // 성장 장비에 쏟은 강화가 레벨 100 세트로 갈아탈 때 버려지지 않게.
+  sharedPlus(it) {
+    if (!it || it.grow || it.king == null || !W.GROW_SLOTS.includes(it.slot)) return 0;
+    const g = this.growOf?.(it.slot);
+    return g ? g.plus || 0 : 0;
+  }
+  effPlus(it) { return Math.max(it?.plus || 0, this.sharedPlus(it)); }
   itemStats(it) {
     if (!it) return {};
     const b = W.itemBase(it.slot, it.ilv);
@@ -289,7 +297,7 @@ export class WorldGame {
     const q = it.king != null ? G.KING_MULT * W.RARITY[it.rar || 0].mult * (it.set ? G.setOf(it.set)?.mult || 1 : 1)
       : it.step != null ? (it.grow ? W.growMult(it.ilv) : W.stepMult(it.step)) * W.RARITY[it.rar || 0].mult : W.GRADES[it.grade].mult;
     const ln = it.line ? LN.lineOf(it.line) : null;
-    const m = q * W.enhanceMult(it.plus || 0) * (ln ? ln.mult : 1);
+    const m = q * W.enhanceMult(this.effPlus(it)) * (ln ? ln.mult : 1);
     const out = {};
     for (const [k, v] of Object.entries(b)) out[k] = v * m;
     // 계열(v151)의 덤 능력 — 칸·등급만큼 (강화와는 따로)
@@ -416,7 +424,7 @@ export class WorldGame {
     const e = s.equip;
     const g = (it) => (it ? `${it.uid}.${it.plus || 0}.${it.rar || 0}` : '-');
     const pets = this.activePets().map((p) => `${p.uid}.${p.lv}`).join(',');
-    return `${s.level}|${JSON.stringify(s.passLv || {})}|${s.guildId ? W.guildLevel(this.guildExp) : 0}|${s.job}|${s.stats.str},${s.stats.dex},${s.stats.vit},${s.stats.int}|${W.SLOTS.map((x) => g(e[x.id])).join(',')}|${pets}|${s.mount || '-'}|${s.tower?.floor || 0}|${s.path || '-'}|${s.jobTier || 0}`;
+    return `${s.level}|${JSON.stringify(s.passLv || {})}|${s.guildId ? W.guildLevel(this.guildExp) : 0}|${s.job}|${s.stats.str},${s.stats.dex},${s.stats.vit},${s.stats.int}|${W.SLOTS.map((x) => g(e[x.id])).join(',')}|${pets}|${s.mount || '-'}|${s.tower?.floor || 0}|${s.path || '-'}|${s.jobTier || 0}|${this.growItems().map((x) => x.plus || 0).join('.')}`;   // v243: 가방 속 성장 장비 강화도(공유)
   }
   power() { return this.stats().power; }
 

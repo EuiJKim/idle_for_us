@@ -1771,5 +1771,22 @@ console.log('\n=== 화무기 · 히든 마귀 (v238) ===');
     ok(g.tells.length > 0 && safe > 0, `초식 ${pat}: 경고 ${g.tells.length}개 · 피할 자리 있음`, `안전 ${safe}/96`);
   }
 }
+
+console.log('\n=== 강화 공유 (v243) ===');
+{
+  const G2 = await import('../js/world/wgear.js');
+  const g = fresh('sword');
+  while (g.s.level < 100) g.addExp(W.expToNext(g.s.level));
+  g.s.jobTier = 4; g._stats = null;
+  const grow = g.growOf('weapon'); grow.plus = 12;
+  const set = g.makeKing('weapon', G2.SLOT_KING.weapon, 0, G2.setsOfJob('sword')[0].id, 0);
+  const a0 = g.itemStats(set).atk;
+  ok(g.effPlus(set) === 12 && g.sharedPlus(set) === 12, '세트 무기는 성장 무기의 +12를 함께 쓴다');
+  grow.plus = 0; g._stats = null;
+  ok(g.itemStats(set).atk < a0, '성장 무기 강화가 낮으면 세트 무기 수치도 그만큼');
+  set.plus = 15; grow.plus = 12;
+  ok(g.effPlus(set) === 15, '세트 무기 제 강화가 더 높으면 그쪽');
+  ok(g.effPlus(grow) === 12, '성장 장비는 제 강화 그대로');
+}
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);
