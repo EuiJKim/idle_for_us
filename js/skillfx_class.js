@@ -251,7 +251,7 @@ export const CLASS_FX = {
         return [x0 + dx * t + nx * (off + b), y0 + dy * t + ny * (off + b)];
       };
       ctx.strokeStyle = `rgba(${e.col},${0.75 * k})`;
-      ctx.lineWidth = 2.2 - (i % 2) * 0.8;
+      ctx.lineWidth = (e.w || 2.2) - (i % 2) * 0.8;
       ctx.beginPath();
       for (let j = 0; j <= 10; j++) {
         const [px, py] = pt(tail + (head - tail) * (j / 10));

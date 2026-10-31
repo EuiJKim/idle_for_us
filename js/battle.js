@@ -60,6 +60,8 @@ const MELEE_COMBO = {
 // 치명 단계별 숫자 빛깔 (0 보통 · 1 치명 · 2 슈퍼 · 3 하이퍼 · 4+)
 const CRIT_COL = ['#ffffff', '#ef4444', '#fb923c', '#c084fc', '#facc15'];
 // 맞은 자국 빛깔 (없으면 흰 칼자국)
+// v245 상한에 걸려도 지우지 않는 필살 화면층
+const KEEP_FX = new Set(['letterbox', 'rays', 'bigseal', 'avatar', 'bigname', 'cutin', 'converge', 'ultrays', 'screenwave']);
 const CUT_COL = { ring: '216,180,254', fan: '186,230,253', fist: '253,186,116', poison: '163,230,53' };
 const SHOT_DRAW = {
   // 독 덩이 — 포물선으로 날아가며 방울을 흘린다
@@ -1098,7 +1100,8 @@ export class BattleView {
       case 'skill':
         if (this.showRange && ev.radius > 0 && ev.at) this.rangeRings.push({ x: ev.at.x, y: ev.at.y, r: ev.radius, life: 0.8, max: 0.8 });
         // v220: 발밑 직업 인장 — 차수가 높을수록 크고 오래(4차는 한 바퀴 더 돈다)
-        if (this.fxLevel > 0 && !ev._sealed && game?.heroX != null && JOB_SEAL[game.s?.job]) {
+        // v245: 4차 필살 연출(ultimate)이 큰 인장·빛살을 따로 그리면 이 둘은 겹치기만 해서 뺀다
+        if (this.fxLevel > 0 && !ev._sealed && game?.heroX != null && JOB_SEAL[game.s?.job] && !(ev.fx && /:m4$/.test(ev.fx) && CHOREO[ev.fx])) {
           ev._sealed = true;
           const tr = ev.tier || 1;
           this.effects.push({ kind: 'jobseal', wx: game.heroX, wy: game.heroY, ch: JOB_SEAL[game.s.job], col: CAST_COL[game.s.job], r: 80 + tr * 22, spin: tr >= 4 ? 2.6 : 1.2, life: 0.55 + tr * 0.1, max: 0.55 + tr * 0.1 });
@@ -1212,6 +1215,15 @@ export class BattleView {
   }
 
   // 무인 하나를 아무 자리에나 그린다 (잔상). tint가 있으면 그 빛깔로 물들인다.
+  // v245 화면 전체를 덮는 빛(번쩍·충격파·빛살 물들임)은 한 프레임에 합쳐 0.3까지만 — 여럿이 겹쳐 흰 화면이 되던 것.
+  //      그 너머로는 두목 경고·숫자·과녁이 안 보였다. 먼저 그린 것부터 몫을 가져간다.
+  lumTake(a) {
+    const ok = Math.max(0, Math.min(a, 0.3 - (this._lum || 0)));
+    this._lum = (this._lum || 0) + ok;
+    return ok;
+  }
+  putGlow(ctx, col, x, y, r, a, sq = 1, ring = false) { putGlow(ctx, col, x, y, r, a, sq, ring); }
+
   drawHeroAt(ctx, x, y, pose, flip, tint) {
     const g = this.game;
     if (!g) return;
@@ -1687,7 +1699,7 @@ export class BattleView {
       ctx.fillRect(-20, -20, this.w + 40, this.h + 40);
     }
     if (this.flash > 0) {
-      ctx.fillStyle = `rgba(255,251,235,${this.flash * 0.5})`;
+      ctx.fillStyle = `rgba(255,251,235,${this.lumTake(this.flash * 0.5)})`;
       ctx.fillRect(-20, -20, this.w + 40, this.h + 40);
     }
     // 글자는 진짜 크기로 — 줄여 찍으면 숫자·띠가 깨알만 해진다
@@ -3135,8 +3147,13 @@ export class BattleView {
   drawEffects(dt, game) {
     const { ctx } = this;
     // 동시에 그리는 연출 상한 (v182) — 광역기가 수십 번 겹치면 한 프레임에 수백 개가 쌓였다. 오래된 것부터 뺀다.
+    // v245: 오래된 것부터 빼되 4차 필살의 화면층(띠·빛살·큰 인장·화신·이름·컷인)은 남긴다 — 광역 적중이 많으면 필살 연출이 중간에 끊겼다
     const ecap = Math.round(90 * (this.budget ?? 1));
-    if (this.effects.length > ecap) this.effects.splice(0, this.effects.length - ecap);
+    if (this.effects.length > ecap) {
+      let over = this.effects.length - ecap;
+      this.effects = this.effects.filter((e) => over <= 0 || KEEP_FX.has(e.kind) || (over--, false));
+    }
+    this._lum = 0;      // v245 밝기 예산 — 이 프레임에 화면 전체를 덮은 빛의 합
     for (const e of this.effects) {
       e.life -= dt;
       let k = Math.max(0, e.life / e.max);

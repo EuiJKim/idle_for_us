@@ -594,11 +594,7 @@ const POISON_FX = {
       ctx.lineTo(x + Math.cos(a) * r1, y + Math.sin(a) * r1 * 0.55);
       ctx.stroke();
     }
-    const g = ctx.createRadialGradient(x, y, 0, x, y, e.r * 0.8);
-    g.addColorStop(0, `rgba(${c.core},${0.7 * k})`);
-    g.addColorStop(1, `rgba(${c.glow},0)`);
-    ctx.fillStyle = g;
-    ctx.beginPath(); ctx.ellipse(x, y, e.r * 0.8, e.r * 0.8 * 0.55, 0, 0, TAU); ctx.fill();
+    v.putGlow(ctx, c.core, x, y, e.r * 0.8, 0.7 * k, 0.55);   // v245: 매번 그라데이션을 만들던 것
   },
   // 부식 고리 — 들쭉날쭉한 독 고리가 바닥을 따라 번진다
   corrode(v, ctx, e, k) {
@@ -669,11 +665,7 @@ const POISON_FX = {
     const pop = Math.min(1, p * 7);
     ctx.globalCompositeOperation = 'source-over';
     ctx.globalAlpha = Math.min(1, k * 2.5) * pop;
-    const g = ctx.createRadialGradient(x, y, 0, x, y, e.size * 2.4);
-    g.addColorStop(0, `rgba(${c.glow},0.55)`);
-    g.addColorStop(1, `rgba(${c.glow},0)`);
-    ctx.fillStyle = g;
-    ctx.beginPath(); ctx.arc(x, y, e.size * 2.4, 0, TAU); ctx.fill();
+    v.putGlow(ctx, c.glow, x, y, e.size * 2.4, 0.55);
     if (!putJ(ctx, 'skull', x, y, e.size * 3.2 * (0.7 + pop * 0.3))) skullAt(ctx, x, y, e.size * (0.7 + pop * 0.3), `rgb(${c.core})`, `rgb(${c.dark})`);
     ctx.globalAlpha = 1;
   },
@@ -814,7 +806,7 @@ const POISON_FX = {
   },
   // 독전이 지나간 바닥 — 타들어 간 자국
   scar(v, ctx, e, k) {
-    const c = VENOM[Math.min(3, e.v || 0)];
+    const c = e.col ? { glow: e.col, dark: e.dark || '40,6,6' } : VENOM[Math.min(3, e.v || 0)];   // v245 핏빛 자국도
     const x = v.sx({ x: e.wx });
     const y = v.sy({ y: e.wy });
     ctx.translate(x, y);
@@ -832,8 +824,9 @@ const POISON_FX = {
   // 몸에서 피어오르는 독기 (강화가 걸려 있는 동안)
   miasma(v, ctx, e, k) {
     const c = VENOM[Math.min(3, e.v || 0)];
-    const x = v.heroX;
-    const y = v.groundY;
+    // v245: 자리를 주면 그 자리에서(독룡출동 장판) — 전엔 늘 무인 몸에서 피어올랐다
+    const x = e.wx != null ? v.sx({ x: e.wx }) : v.heroX;
+    const y = e.wy != null ? v.sy({ y: e.wy }) : v.groundY;
     const t = performance.now() / 1000;
     const fade = Math.min(1, k * 6) * Math.min(1, (1 - k) * e.max * 4);
     const n = v.fxLevel >= 1 ? 6 : 3;
