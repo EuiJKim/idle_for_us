@@ -43,22 +43,24 @@ function depthOf(dist) {
 // ---------- 멀리서 쏘는 평타 ----------
 // 환마는 부채 바람, 독마는 독 덩이, 극악소마는 지풍. 무공이 아니라 평타라
 // 아주 잦다 — 그림은 가볍게(선 몇 개) 둔다.
+// v244: 셋 다 작고 짧아 '날아간다'가 안 읽혔다 — 크게·조금 더 길게, 손끝에서 출발, 맞을 자리로(과녁이 죽어도)
 const SHOT = {
-  fan: { kind: 'gust', life: 0.2, pose: ['펼치기', '휘두르기'] },
-  poison: { kind: 'glob', life: 0.24, pose: ['투척준비', '투척'] },
-  ring: { kind: 'finger', life: 0.09, pose: ['지법겨눔', '손가락튕김'] },
+  fan: { kind: 'gust', life: 0.24, pose: ['펼치기', '휘두르기'] },
+  poison: { kind: 'needle3', life: 0.2, pose: ['투척준비', '투척'] },
+  ring: { kind: 'finger', life: 0.13, pose: ['지법겨눔', '손가락튕김'] },
 };
 // 붙어서 치는 평타의 연타. 한 대마다 다음 자세로 넘어간다 — 같은 동작만 되풀이하면
 // 서서 움찔하는 걸로만 보였다. [닿는 자세, 휘두르는 궤적의 기울기(라디안), 휘두르는 방향(+1 위→아래)]
+// v244: [닿는 자세, 기울기, 방향, 시작 자세] — 시작 자세 없이 바로 닿는 자세로 튀어 '휘둘렀다'가 아니라 '움찔'로 읽혔다
 const MELEE_COMBO = {
-  sword: [['일섬', -0.1, 1], ['내려베기', 0.7, 1], ['찌르기', 0, 0]],
-  fist: [['정권', 0, 0], ['훅', -0.4, -1], ['올려치기', -1.1, -1]],
+  sword: [['일섬', -0.1, 1, '발도준비'], ['내려베기', 0.7, 1, '검거양'], ['찌르기', 0, 0, '찌르기준비']],
+  fist: [['정권', 0, 0, '마보'], ['훅', -0.4, -1, '마보'], ['올려치기', -1.1, -1, '마보']],
   ring: [['지법겨눔', 0, 0]],
 };
 // 치명 단계별 숫자 빛깔 (0 보통 · 1 치명 · 2 슈퍼 · 3 하이퍼 · 4+)
 const CRIT_COL = ['#ffffff', '#ef4444', '#fb923c', '#c084fc', '#facc15'];
 // 맞은 자국 빛깔 (없으면 흰 칼자국)
-const CUT_COL = { ring: '216,180,254', fan: '186,230,253' };
+const CUT_COL = { ring: '216,180,254', fan: '186,230,253', fist: '253,186,116', poison: '163,230,53' };
 const SHOT_DRAW = {
   // 독 덩이 — 포물선으로 날아가며 방울을 흘린다
   glob(ctx, p, k, tx, ty) {
@@ -80,18 +82,48 @@ const SHOT_DRAW = {
     circle(ctx, x - 2, y - 2, 2.2);
   },
   // 부채 바람 — 돌면서 날아가는 초승달 둘
+  // v244: 초승달 셋(크게) + 뒤로 끌리는 바람 줄 — 먹빛 밑그림을 먼저 그려 밝은 바닥에서도 보인다
   gust(ctx, p, k, tx, ty) {
     const x = p.x + (tx - p.x) * k;
     const y = p.y + (ty - p.y) * k;
     const a = Math.atan2(ty - p.y, tx - p.x);
+    const al = 1 - k * 0.45;
     ctx.save();
     ctx.translate(x, y);
     ctx.rotate(a);
+    ctx.rotate(Math.sin(k * 9 + (p.seed || 0) * 6) * 0.25);
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = `rgba(8,24,40,${0.35 * al})`; ctx.lineWidth = 9;
+    ctx.beginPath(); ctx.arc(-14, 0, 26, -1.15, 1.15); ctx.stroke();
     ctx.globalCompositeOperation = 'lighter';
-    for (let i = 0; i < 2; i++) {
-      ctx.strokeStyle = `rgba(${i ? '125,211,252' : '224,242,254'},${0.85 - k * 0.4})`;
-      ctx.lineWidth = i ? 5 : 2.5;
-      ctx.beginPath(); ctx.arc(-10 - i * 9, 0, 16 + i * 4, -1.1, 1.1); ctx.stroke();
+    for (let i = 0; i < 3; i++) {
+      ctx.strokeStyle = `rgba(${i === 1 ? '125,211,252' : '224,242,254'},${(0.95 - i * 0.22) * al})`;
+      ctx.lineWidth = [3.5, 7, 3][i];
+      ctx.beginPath(); ctx.arc(-12 - i * 10, 0, 22 + i * 7, -1.15, 1.15); ctx.stroke();
+    }
+    ctx.strokeStyle = `rgba(186,230,253,${0.5 * al})`; ctx.lineWidth = 2;
+    for (const o of [-12, 0, 12]) { ctx.beginPath(); ctx.moveTo(-30, o); ctx.lineTo(-30 - 34 * Math.min(1, k * 3), o * 1.2); ctx.stroke(); }
+    ctx.restore();
+  },
+  // v244 독침 셋 — 손끝에서 부채꼴로 흩어져 과녁에 꽂힌다(전엔 몸통에서 나온 초록 점 하나)
+  needle3(ctx, p, k, tx, ty) {
+    const v = VENOM[Math.min(3, p.tier || 0)];
+    const a0 = Math.atan2(ty - p.y, tx - p.x);
+    ctx.save();
+    ctx.lineCap = 'round';
+    for (let i = -1; i <= 1; i++) {
+      const spread = i * 14 * Math.sin(k * Math.PI);
+      const nx = -Math.sin(a0) * spread, ny = Math.cos(a0) * spread;
+      const x = p.x + (tx - p.x) * k + nx, y = p.y + (ty - p.y) * k + ny;
+      const L = 22;
+      const bx = x - Math.cos(a0) * L, by = y - Math.sin(a0) * L;
+      ctx.strokeStyle = `rgba(${v.dark},0.9)`; ctx.lineWidth = 5;
+      ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(x, y); ctx.stroke();
+      ctx.strokeStyle = `rgb(${v.glow})`; ctx.lineWidth = 2.5;
+      ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(x, y); ctx.stroke();
+      ctx.fillStyle = `rgba(${v.core},0.95)`; circle(ctx, x, y, 2.2);
+      ctx.strokeStyle = `rgba(${v.glow},${0.35 * (1 - k)})`; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(bx - Math.cos(a0) * 26, by - Math.sin(a0) * 26); ctx.stroke();
     }
     ctx.restore();
   },
@@ -104,16 +136,23 @@ const SHOT_DRAW = {
     const hx = p.x + (tx - p.x) * head, hy = p.y + (ty - p.y) * head;
     const bx = p.x + (tx - p.x) * tail, by = p.y + (ty - p.y) * tail;
     ctx.lineCap = 'round';
-    ctx.strokeStyle = 'rgba(168,85,247,0.45)';
-    ctx.lineWidth = 7;
+    // v244: 굵게 — 먹빛 밑줄 · 보랏빛 몸 · 흰 심 · 손끝 섬광 · 닿으면 두 겹 고리
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.strokeStyle = 'rgba(30,8,50,0.4)'; ctx.lineWidth = 13;
     ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(hx, hy); ctx.stroke();
-    ctx.strokeStyle = 'rgba(243,232,255,0.95)';
-    ctx.lineWidth = 2;
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.strokeStyle = 'rgba(168,85,247,0.6)'; ctx.lineWidth = 10;
     ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(hx, hy); ctx.stroke();
+    ctx.strokeStyle = 'rgba(250,245,255,1)'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(hx, hy); ctx.stroke();
+    if (k < 0.35) { ctx.fillStyle = `rgba(243,232,255,${1 - k / 0.35})`; circle(ctx, p.x, p.y, 7 * (1 - k)); }
     if (head >= 1) {
-      ctx.strokeStyle = `rgba(216,180,254,${1 - k})`;
-      ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.ellipse(tx, ty, 8 + k * 14, (8 + k * 14) * 0.5, 0, 0, Math.PI * 2); ctx.stroke();
+      for (let i = 0; i < 2; i++) {
+        const rr = 10 + (k - 0.4) * 34 + i * 9;
+        ctx.strokeStyle = `rgba(${i ? '168,85,247' : '233,213,255'},${(1 - k) * 1.2})`;
+        ctx.lineWidth = 3 - i;
+        ctx.beginPath(); ctx.ellipse(tx, ty, rr, rr * 0.5, 0, 0, Math.PI * 2); ctx.stroke();
+      }
     }
     ctx.restore();
   },
@@ -648,27 +687,36 @@ export class BattleView {
         const cls = game.s.job;
         // v125: 환마·독마는 붙어 있어도 제 무기로(부채 바람·독 던지기) — 전엔 붙으면 칼처럼 베었다
         const shot = (cls === 'fan' || cls === 'poison' || (!ev.close && game.ranged?.())) ? SHOT[cls] : null;
+        const tgt = ev.to || game.mon;      // v244: 과녁 자리 (한 방에 죽어도)
         if (shot) {
           const face = (this.faceOverride || game.heroFacing) < 0 ? -1 : 1;
-          this.projectiles.push({ kind: shot.kind, x: this.heroX + 22 * face, y: this.groundY - 64,
+          // 손끝(어깨 앞)에서 출발 — 전엔 가슴 높이 고정점에서 나왔다. 공속이 빠르면 자세도 짧게.
+          const spd = Math.max(1, game.stats?.({ buffs: true })?.speed || 1);
+          const sp = Math.max(0.12, Math.min(0.26, 0.6 / spd));
+          this.projectiles.push({ kind: shot.kind, x: this.heroX + 34 * face, y: this.groundY - 76, tw: tgt ? { x: tgt.x, y: tgt.y } : null,
             life: shot.life, max: shot.life, tier: game.jobTier?.() || 0, seed: Math.random() });
           this.shotDelay = shot.life;
-          if (!this.director) this.heroAnim.play([[0.05, shot.pose[0], 'out'], [0.12, shot.pose[1], 'snap']], 0.18);
+          if (!this.director) this.heroAnim.play([[sp * 0.25, shot.pose[0], 'out'], [sp * 0.5, shot.pose[1], 'snap']], sp * 0.7);
+          this.heroLunge = Math.max(this.heroLunge, 0.5);
         } else if (ev.close && cls === 'ring') {
-          // 붙었을 때 — 손가락으로 혈을 짚는다: 짧게 찌르는 보랏빛 지력 + 짚은 자리에 물결
-          this.heroLunge = 1;
-          if (!this.director) this.heroAnim.play([[0.04, '지법겨눔', 'out'], [0.1, '손가락튕김', 'snap']], 0.16);
-          const t = game.mon;
-          if (t && this.fxLevel > 0) {
-            this.effects.push({ kind: 'lance', life: 0.14, max: 0.14, wx: game.heroX, wy: game.heroY, a: Math.atan2((t.y - game.heroY) * this.squash, t.x - game.heroX), len: Math.hypot(t.x - game.heroX, (t.y - game.heroY) * this.squash), w: 3, col: '216,180,254', oy: -62 });
-            this.effects.push({ kind: 'shock', life: 0.3, max: 0.3, wx: t.x, wy: t.y, r: 34, col: '192,132,252', rings: 2, w: 3 });
+          // 붙었을 때 — 손가락으로 혈을 짚는다: 굵은 지력 한 줄 + 짚은 자리에 혈맥 고리 셋 + 번쩍 + 아주 짧은 멈칫
+          this.heroLunge = 1.2;
+          if (!this.director) this.heroAnim.play([[0.04, '지법겨눔', 'out'], [0.1, '손가락튕김', 'snap']], 0.22);
+          if (tgt && this.fxLevel > 0) {
+            this.effects.push({ kind: 'lance', life: 0.2, max: 0.2, wx: game.heroX, wy: game.heroY, a: Math.atan2((tgt.y - game.heroY) * this.squash, tgt.x - game.heroX), len: Math.hypot(tgt.x - game.heroX, (tgt.y - game.heroY) * this.squash), w: 6, col: '216,180,254', oy: -62 });
+            this.effects.push({ kind: 'shock', life: 0.38, max: 0.38, wx: tgt.x, wy: tgt.y, r: 46, col: '192,132,252', rings: 3, w: 3 });
+            this.effects.push({ kind: 'flare', life: 0.16, max: 0.16, wx: tgt.x, wy: tgt.y, r: 30, col: '243,232,255', oy: -60 });
+            this.hitstop = Math.max(this.hitstop || 0, 0.03);
           }
-          this.sparks.push({ x: this.monX, y: this.monY - 64, life: 0.2, max: 0.2, r: 26, color: '#c084fc' });
+          if (tgt) this.sparks.push({ x: this.sx(tgt), y: this.sy(tgt) - 64, life: 0.2, max: 0.2, r: 26, color: '#c084fc' });
         } else {
           this.heroLunge = 1;
-          this.meleeSwing(game, cls);
-          // 검기는 검사만 — 권마의 주먹에서 초승달 검기가 날아가면 이상하다
-          if (cls === 'sword' && Math.random() < 0.35) this.projectiles.push({ kind: 'qi', x: this.heroX + 30, y: this.groundY - 60, life: 0.22, max: 0.22 });
+          this.meleeSwing(game, cls, tgt);
+          // 검기 — 검사만. 마무리(찌르기)는 늘 큰 검기, 나머지는 30%로 작은 검기
+          if (cls === 'sword') {
+            const fin = this.comboIx === MELEE_COMBO.sword.length - 1;
+            if (fin || Math.random() < 0.3) this.projectiles.push({ kind: fin ? 'wave' : 'qi', x: this.heroX + 30, y: this.groundY - 64, tw: tgt ? { x: tgt.x, y: tgt.y } : null, life: fin ? 0.2 : 0.22, max: fin ? 0.2 : 0.22 });
+          }
         }
         break;
       }
@@ -711,14 +759,24 @@ export class BattleView {
         }
         // 맞은 자국은 캐릭터를 따른다 — 독마가 맞힌 자리에 칼자국이 나면 이상하다
         const cls = game.s.job;
+        // v244: 자국은 맞은 자리(ev.at)에 — 전엔 늘 '지금 과녁' 자리에 그려서 광역기·덧치기·과녁이 바뀐 뒤엔 엉뚱한 데 났다.
+        // 직업마다: 검사 칼빛 베기 · 권마 주먹 충격(칼자국 없음) · 환마 바람 고리 · 극악소마 혈 짚은 점 · 독마 독 튐
+        const w = ev.at?.x != null ? ev.at : game.mon;
+        const wx = w?.x, wy = w?.y;
         if (cls === 'poison') {
-          const w = ev.at || game.mon;
-          if (w?.x != null) this.effects.push({ kind: 'splash', life: 0.26, max: 0.26, wx: w.x, wy: w.y, r: crit ? 70 : 44, v: game.jobTier() });
+          if (wx != null) this.effects.push({ kind: 'splash', life: 0.26, max: 0.26, wx, wy, r: crit ? 70 : 44, v: game.jobTier() });
+        } else if (cls === 'fist') {
+          if (wx != null) this.effects.push({ kind: 'shock', life: 0.22, max: 0.22, wx, wy, r: crit ? 52 : 34, col: CUT_COL.fist, rings: crit ? 2 : 1, w: 4 });
+        } else if (cls === 'fan' && !skill) {
+          if (wx != null) this.effects.push({ kind: 'shock', life: 0.26, max: 0.26, wx, wy, r: crit ? 56 : 38, col: '125,211,252', rings: 2, w: 2.5 });
+        } else if (cls === 'ring' && !skill) {
+          if (wx != null) this.effects.push({ kind: 'shock', life: 0.24, max: 0.24, wx, wy, r: crit ? 48 : 28, col: '192,132,252', rings: 2, w: 3 });
         } else {
-          this.effects.push({ kind: 'cut', life: 0.18, max: 0.18, a: Math.random() * 0.8 - 0.4, crit: crit, col: CUT_COL[cls] });
+          const col = cls === 'sword' ? this.bladeRgb(game) : CUT_COL[cls];
+          this.effects.push({ kind: 'cut', life: 0.18, max: 0.18, a: Math.random() * 0.8 - 0.4, crit: crit, col, wx, wy });
         }
         // 치명타는 터지는 느낌이 있어야 한다
-        if (crit) this.effects.push({ kind: 'burst', life: 0.3, max: 0.3, crit: true, col: CUT_COL[cls] });
+        if (crit) this.effects.push({ kind: 'burst', life: 0.3, max: 0.3, crit: true, col: CUT_COL[cls], wx, wy });
         // 맞은 자리에 섬광 하나. 수십 마리가 동시에 맞으므로 아주 작고 짧게.
         const sparkCol = cls === 'poison' ? `rgb(${VENOM[Math.min(3, game.jobTier())].glow})` : cls === 'ring' ? '#d8b4fe' : color;
         this.sparks.push({ x: atX, y: atY - 46, life: 0.17, max: 0.17, r: (crit ? 26 : skill ? 20 : 13) * (cls === 'poison' ? 0.7 : 1), color: sparkCol });
@@ -1441,37 +1499,57 @@ export class BattleView {
 
   // 평타 한 대 — 다음 연타 자세로 휘두르고, 무기 끝이 지나간 자리에 궤적을 남긴다.
   // 공격이 빨라지면 동작도 짧아진다(초당 6대면 한 동작이 0.13초). 초식 연출 중이면 몸은 안 건드린다.
-  meleeSwing(game, cls) {
+  // v244: 시작 자세(발도준비·검거양·찌르기준비·마보) → 닿는 자세 — 전엔 닿는 자세로 0.07초 튀고 끝나 '휘둘렀다'가 안 읽혔다.
+  //       닿는 자세에 조금 더 머문다. 궤적·자국은 쏠 때 정한 과녁 자리(tgt)에.
+  bladeRgb(game) {
+    const hx = this.gearLook(game).weaponCol || '#e5e7eb';
+    if (this._bladeRgb?.hx === hx) return this._bladeRgb.v;
+    const m = /^#?([0-9a-f]{6})$/i.exec(hx);
+    const n = m ? parseInt(m[1], 16) : 0xe5e7eb;
+    // 너무 어두운 빛(일반 회색)은 밝게 — 눈밭에서도 보여야 한다
+    const v = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((c) => Math.min(255, Math.round(c * 0.6 + 110))).join(',');
+    this._bladeRgb = { hx, v };
+    return v;
+  }
+
+  meleeSwing(game, cls, tgt = game.mon) {
     const combo = MELEE_COMBO[cls] || MELEE_COMBO.sword;
     this.comboIx = ((this.comboIx || 0) + 1) % combo.length;
-    const [pose, tilt, dir] = combo[this.comboIx];
+    const [pose, tilt, dir, wind] = combo[this.comboIx];
     const spd = Math.max(1, game.stats?.({ buffs: true })?.speed || 1);
-    const span = Math.max(0.12, Math.min(0.32, 0.8 / spd));
+    const span = Math.max(0.12, Math.min(0.34, 0.85 / spd));
     if (!this.director && this.fxLevel > 0) {
-      this.heroAnim.play([[span * 0.22, pose, 'snap']], span * 0.78);
+      const keys = wind && span > 0.15 ? [[span * 0.12, wind, 'out'], [span * 0.2, pose, 'snap']] : [[span * 0.2, pose, 'snap']];
+      this.heroAnim.play(keys, span * 0.8);
     }
     // v234: 맞은 숫자·움찔·번쩍은 칼(주먹)이 닿는 순간에 — 전엔 휘두르기 시작과 동시에 떠서 반 박자 빨랐다
-    if (!this.director) this.shotDelay = Math.max(this.shotDelay || 0, span * 0.22 + 0.02);
+    if (!this.director) this.shotDelay = Math.max(this.shotDelay || 0, span * 0.3 + 0.02);
     if (this.fxLevel <= 0) return;
     const face = (this.faceOverride || game.heroFacing) < 0 ? -1 : 1;
     // v209 마무리 한 방 — 연속 평타의 마지막은 더 깊이 내딛고, 아주 짧게 멎었다(히트스톱) 화면이 살짝 울리며 과녁에 고리가 터진다.
     // 가볍게·가볍게·묵직하게 — 박자가 생긴다.
     const fin = this.comboIx === combo.length - 1;
+    const t = tgt;
+    const col = cls === 'sword' ? this.bladeRgb(game) : CUT_COL[cls] || '255,255,255';
     if (fin) {
       this.heroLunge = 1.6;
       this.hitstop = Math.max(this.hitstop || 0, 0.06);
       this.shake = Math.max(this.shake, 0.08);
-      const t = game.mon;
-      if (t) this.effects.push({ kind: 'shock', life: 0.28, max: 0.28, wx: t.x, wy: t.y, r: 46, col: CUT_COL[cls] || '255,255,255', rings: 1, w: 3 });
+      if (t) this.effects.push({ kind: 'shock', life: 0.32, max: 0.32, wx: t.x, wy: t.y, r: 58, col, rings: 2, w: 3.5 });
     }
-    // 권마 — 베는 궤적 대신 주먹이 닿는 자리에 터지는 충격 (정권·훅·올려치기마다 방향이 다르다)
+    // 권마 — 베는 궤적 대신 주먹: 손에서 과녁으로 날아가 박히는 금빛 주먹 그림자 + 닿은 자리에 터지는 충격
+    // (정권·훅·올려치기마다 방향이 다르다, 마무리 올려치기는 크게)
     if (cls === 'fist') {
-      const t = game.mon;
-      if (t) this.effects.push({ kind: 'punch', life: 0.2, max: 0.2, wx: t.x, wy: t.y, face, tilt, big: this.comboIx === 2 });
+      if (t) {
+        const big = this.comboIx === 2;
+        this.effects.push({ kind: 'fistimg', life: big ? 0.26 : 0.2, max: big ? 0.26 : 0.2, wx0: game.heroX, wy0: game.heroY, ox0: 18 * face, oy0: -64,
+          wx1: t.x, wy1: t.y, oy1: big ? -66 : -56, go: 0.5, size: big ? 40 : 28, col: CUT_COL.fist, hot: '255,247,220' });
+        this.effects.push({ kind: 'punch', life: 0.24 + span * 0.3, max: 0.24 + span * 0.3, wx: t.x, wy: t.y, face, tilt, big, delay: span * 0.3 });
+      }
       return;
     }
-    this.effects.push({ kind: 'swing', life: fin ? 0.22 : 0.16, max: fin ? 0.22 : 0.16, face, tilt, dir, cls, big: fin,
-      ang: game.heroAngle || 0, col: CUT_COL[cls] || (cls === 'fist' ? '253,186,116' : '255,255,255') });
+    this.effects.push({ kind: 'swing', life: fin ? 0.24 : 0.18, max: fin ? 0.24 : 0.18, face, tilt, dir, cls, big: fin,
+      ang: game.heroAngle || 0, col });
   }
 
   float(text, x, y, color, size = 18, life = 1, brush = false) {
@@ -2857,8 +2935,9 @@ export class BattleView {
     for (const p of this.projectiles) {
       p.life -= dt;
       const k = 1 - Math.max(0, p.life / p.max);
-      const tx = this.monX - 10;
-      const ty = this.monY - 60;
+      // v244: 쏠 때 정한 과녁 자리로(과녁이 죽거나 바뀌어도 엉뚱한 데로 꺾이지 않게)
+      const tx = p.tw ? this.sx(p.tw) - 6 : this.monX - 10;
+      const ty = p.tw ? this.sy(p.tw) - 60 : this.monY - 60;
       const x = p.x + (tx - p.x) * k;
       if (SHOT_DRAW[p.kind]) {
         SHOT_DRAW[p.kind](ctx, p, k, tx, ty);
@@ -2872,11 +2951,13 @@ export class BattleView {
         const big = p.kind === 'wave';
         ctx.save();
         ctx.translate(x, y);
-        ctx.strokeStyle = big ? `rgba(224,242,254,${0.9 - k * 0.4})` : `rgba(255,255,255,${0.75 - k * 0.5})`;
-        ctx.lineWidth = big ? 6 : 3;
-        ctx.beginPath();
-        ctx.arc(-14, 0, big ? 30 : 18, -0.9, 0.9);
-        ctx.stroke();
+        ctx.rotate(Math.atan2(ty - p.y, tx - p.x));
+        ctx.lineCap = 'round';
+        ctx.strokeStyle = `rgba(20,14,10,${0.35 * (1 - k)})`; ctx.lineWidth = big ? 12 : 8;
+        ctx.beginPath(); ctx.arc(-14, 0, big ? 36 : 24, -0.95, 0.95); ctx.stroke();
+        ctx.strokeStyle = big ? `rgba(224,242,254,${0.95 - k * 0.4})` : `rgba(255,255,255,${0.9 - k * 0.5})`;
+        ctx.lineWidth = big ? 8 : 4.5;
+        ctx.beginPath(); ctx.arc(-14, 0, big ? 36 : 24, -0.95, 0.95); ctx.stroke();
         ctx.restore();
       }
     }
@@ -3058,7 +3139,7 @@ export class BattleView {
     if (this.effects.length > ecap) this.effects.splice(0, this.effects.length - ecap);
     for (const e of this.effects) {
       e.life -= dt;
-      const k = Math.max(0, e.life / e.max);
+      let k = Math.max(0, e.life / e.max);
       // 무공 빛은 더하기로 겹친다 — 겹칠수록 밝아져야 '빛'으로 읽힌다.
       // 화면을 덮는 먹물(회귀)만 보통 합성이다.
       ctx.globalCompositeOperation = e.kind === 'regress' ? 'source-over' : 'lighter';
@@ -3120,7 +3201,8 @@ export class BattleView {
         ctx.restore();
       } else if (e.kind === 'burst') {
         ctx.save();
-        ctx.translate(this.monX, this.monY - 56);
+        if (e.wx != null) ctx.translate(this.sx({ x: e.wx }), this.sy({ y: e.wy }) - 56);
+        else ctx.translate(this.monX, this.monY - 56);
         const w = (e.big ? 150 : 86) * (0.55 + (1 - k) * 0.7);
         if (!(fxReady() && putFx(ctx, 'fx-burst', e.col || (e.crit ? '254,202,202' : '254,243,199'), w, k))) {
           ctx.fillStyle = `rgba(254,243,199,${k * 0.5})`;
@@ -3129,12 +3211,19 @@ export class BattleView {
         ctx.restore();
       } else if (e.kind === 'punch') {
         // 주먹 충격 — 닿은 자리에 별처럼 터지는 빛 + 주먹이 지나온 쪽으로 짧은 속도선
+        // v244: 주먹 그림자가 날아가 닿을 때(delay)까지 기다렸다 터진다
+        if (e.delay && e.max - e.life < e.delay) continue;
+        k = Math.max(0, e.life / (e.max - (e.delay || 0)));
         const p = 1 - k;
         const x = this.sx({ x: e.wx }) - e.face * 14, y = this.sy({ y: e.wy }) - 58;
         ctx.save();
         ctx.translate(x, y);
         ctx.globalCompositeOperation = 'lighter';
-        const R = (e.big ? 30 : 20) * (0.5 + p);
+        const R = (e.big ? 44 : 30) * (0.5 + p);   // v244: 더 크게(20/30 → 30/44)
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.strokeStyle = `rgba(60,24,4,${0.45 * k})`; ctx.lineWidth = 4;
+        ctx.beginPath(); ctx.arc(0, 0, R * 0.7, 0, Math.PI * 2); ctx.stroke();
+        ctx.globalCompositeOperation = 'lighter';
         ctx.fillStyle = `rgba(253,224,71,${0.9 * k})`;
         ctx.beginPath();
         for (let i = 0; i < 16; i++) { const a = (i * Math.PI) / 8 + e.tilt; const r = i % 2 ? R * 0.35 : R; ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r); }
@@ -3148,41 +3237,63 @@ export class BattleView {
       } else if (e.kind === 'swing') {
         // 평타 궤적 — 무인 앞에 반달 모양으로 한 번 그어지고 사라진다.
         // 찌르기·정권(dir 0)은 반달 대신 앞으로 뻗는 한 줄기.
+        // v244: 크게(R 44→62) · 먹빛 밑그림(눈밭에서도 보이게) · 칼빛 색 · 과녁 쪽으로 기운다(위·아래 과녁도) · 그라데이션 없이
         const p = 1 - k;                       // 0 → 1
         ctx.save();
         ctx.translate(this.heroX + Math.cos(e.ang) * 18, this.groundY - 62 + Math.sin(e.ang) * 18 * this.squash);
-        if (e.face < 0) ctx.scale(-1, 1);
+        {
+          let ca = Math.cos(e.ang), sa = Math.sin(e.ang) * this.squash * 0.7;
+          if (Math.abs(ca) < 0.2) ca = e.face < 0 ? -0.2 : 0.2;
+          if ((ca < 0) !== (e.face < 0)) ca = -ca;
+          const a = Math.atan2(sa, ca);
+          ctx.rotate(a);
+          if (ca < 0) ctx.scale(1, -1);
+        }
         ctx.rotate(e.tilt);
-        if (e.big) ctx.scale(1.4, 1.4);          // v209 마무리 한 방은 궤적도 크게
-        ctx.globalCompositeOperation = 'lighter';
+        if (e.big) ctx.scale(1.35, 1.35);          // v209 마무리 한 방은 궤적도 크게
         if (!e.dir) {
-          const len = 30 + p * 46;
-          const g2 = ctx.createLinearGradient(0, 0, len, 0);
-          g2.addColorStop(0, `rgba(${e.col},0)`);
-          g2.addColorStop(1, `rgba(${e.col},${0.85 * k})`);
-          ctx.fillStyle = g2;
-          ctx.beginPath(); ctx.moveTo(4, -3); ctx.lineTo(len, 0); ctx.lineTo(4, 3); ctx.closePath(); ctx.fill();
+          // 찌르기: 앞으로 뻗는 긴 가시 — 뒤는 가늘고 앞은 굵다(조각 셋으로 옅어지게)
+          const len = 40 + p * 66;
+          ctx.globalCompositeOperation = 'source-over';
+          ctx.fillStyle = `rgba(20,14,10,${0.35 * k})`;
+          ctx.beginPath(); ctx.moveTo(6, -6); ctx.lineTo(len + 6, 0); ctx.lineTo(6, 6); ctx.closePath(); ctx.fill();
+          ctx.globalCompositeOperation = 'lighter';
+          for (let i = 0; i < 3; i++) {
+            const x0 = len * (i / 3);
+            ctx.fillStyle = `rgba(${e.col},${(0.3 + i * 0.3) * k})`;
+            ctx.beginPath(); ctx.moveTo(x0 + 4, -2 - i * 1.2); ctx.lineTo(len * ((i + 1) / 3) + (i === 2 ? 4 : 0), i === 2 ? 0 : -1.5 - i); ctx.lineTo(len * ((i + 1) / 3) + (i === 2 ? 4 : 0), i === 2 ? 0 : 1.5 + i); ctx.lineTo(x0 + 4, 2 + i * 1.2); ctx.closePath(); ctx.fill();
+          }
+          ctx.fillStyle = `rgba(255,255,255,${0.9 * k})`;
+          ctx.beginPath(); ctx.moveTo(len * 0.4, -1); ctx.lineTo(len + 4, 0); ctx.lineTo(len * 0.4, 1); ctx.closePath(); ctx.fill();
         } else {
           // 반달: 앞 위(-1.2)에서 앞 아래(+1.0)로 쓸어 내린다. 지나간 만큼만 그린다.
           const a0 = e.dir > 0 ? -1.25 : 1.0;
           const a1 = e.dir > 0 ? 1.0 : -1.25;
           const head = a0 + (a1 - a0) * Math.min(1, p * 1.6);
           const tail = a0 + (a1 - a0) * Math.max(0, p * 1.6 - 0.75);
-          const R = 44;
+          const R = 62;
+          const lo = Math.min(head, tail), hi = Math.max(head, tail);
           ctx.lineCap = 'round';
+          ctx.globalCompositeOperation = 'source-over';
+          ctx.strokeStyle = `rgba(20,14,10,${0.3 * k})`; ctx.lineWidth = 14;
+          ctx.beginPath(); ctx.arc(0, 0, R - 5, lo, hi); ctx.stroke();
+          ctx.globalCompositeOperation = 'lighter';
           for (let i = 0; i < 3; i++) {
-            ctx.strokeStyle = `rgba(${e.col},${(0.55 - i * 0.17) * k})`;
-            ctx.lineWidth = 7 - i * 2;
+            ctx.strokeStyle = `rgba(${e.col},${(0.8 - i * 0.22) * k})`;
+            ctx.lineWidth = 11 - i * 3;
             ctx.beginPath();
-            ctx.arc(0, 0, R - i * 5, Math.min(head, tail), Math.max(head, tail));
+            ctx.arc(0, 0, R - i * 6, lo, hi);
             ctx.stroke();
           }
+          ctx.strokeStyle = `rgba(255,255,255,${0.85 * k})`; ctx.lineWidth = 2.5;
+          ctx.beginPath(); ctx.arc(0, 0, R + 1, lo + (hi - lo) * 0.35, hi); ctx.stroke();
         }
         ctx.restore();
       } else if (e.kind === 'cut') {
         // 베기 자국: 먹선
         ctx.save();
-        ctx.translate(this.monX - 6, this.monY - 62);
+        if (e.wx != null) ctx.translate(this.sx({ x: e.wx }) - 6, this.sy({ y: e.wy }) - 62);
+        else ctx.translate(this.monX - 6, this.monY - 62);
         ctx.rotate(e.a);
         if (fxReady() && putFx(ctx, 'fx-slash', e.crit ? '248,113,113' : e.col || '255,255,255',
           (e.crit ? 78 : 56) * (0.7 + k * 0.4), Math.min(1, k * 1.6))) { ctx.restore(); continue; }
@@ -3864,7 +3975,7 @@ export function drawFighter(ctx, x, y, look = {}, o = {}) {
           cx.fillStyle = '#bef264'; cx.beginPath(); cx.moveTo(0, -12); cx.lineTo(2, 4); cx.lineTo(-2, 4); cx.closePath(); cx.fill();
           cx.fillStyle = hexA('#22c55e', 0.7); circle(cx, 0, 6, 3);
         });
-      } else if (ow === 'claw') {
+      } else if (ow === 'claw' || ow === 'jihwan') {
         cachedDraw(ctx, `orb|claw|${col}`, [-11, -11, 11, 11], (cx) => {
           cx.strokeStyle = hexA(col, 0.95); cx.lineWidth = 3;
           cx.beginPath(); cx.arc(0, 0, 6.5, 0, Math.PI * 2); cx.stroke();
@@ -4049,7 +4160,7 @@ export function drawFighter(ctx, x, y, look = {}, o = {}) {
     const hx = H.hand[0] * (1 - w) + (-Math.sin(th) * 22 + 1) * w;
     const hy = H.hand[1] * (1 - w) + (Math.cos(th) * 22) * w;
     const blade = (H.blade + sway) * (1 - w) + th * w;
-    const sc = H.scale * (1 - w) + w;
+    const sc = H.scale < 1.2 ? H.scale : H.scale * (1 - w) + Math.max(1, H.scale * 0.9) * w;   // v244: 휘두르는 순간 칼이 줄어 보이던 것
     ctx.lineCap = 'round';
     ctx.strokeStyle = '#1a1410';
     ctx.lineWidth = 9;
@@ -4153,8 +4264,9 @@ const HOLD = {
   sword: { hand: [7, 19], blade: 0.95, scale: 1.6 },   // 검사: 칼끝을 앞으로 겨눈다
   fist: { hand: [11, 14], blade: 0.3, scale: 1.5, off: 8, bare: true }, // 권마: 권갑 낀 주먹을 앞에 쥔다(주먹이 손 자리)
   fan: { hand: [9, 14], blade: 0.55, scale: 1.25 },    // 환마: 부채를 펴 든다
-  dagger: { hand: [8, 20], blade: 1.7, scale: 1.35 },  // 독마: 비수를 앞으로 낮게
-  claw: { hand: [10, 14], blade: 0.6, scale: 1.5 },    // 극악소마: 지환 낀 손을 세운다
+  dagger: { hand: [8, 20], blade: 1.7, scale: 0.85 },  // 독마: 비수를 앞으로 낮게(v244: 칼만 하던 비수를 줄였다)
+  claw: { hand: [10, 14], blade: 0.6, scale: 1.5 },    // (몹) 쌍구
+  jihwan: { hand: [11, 13], blade: 0.25, scale: 1.6, bare: true }, // v244 극악소마: 지환 낀 손 — 검지·중지를 세운 검결지
 };
 
 function drawWeapon(ctx, weapon, o, t, lunge) {
@@ -4185,6 +4297,23 @@ function drawWeapon(ctx, weapon, o, t, lunge) {
       for (let i = 0; i < 6; i++) { const a = -Math.PI * 0.85 + i * (Math.PI * 0.7 / 5); ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(Math.cos(a) * 22, Math.sin(a) * 22); ctx.stroke(); }
       ctx.fillStyle = '#111'; ctx.font = `9px ${BRUSH}`; ctx.textAlign = 'center'; ctx.fillText('바람', 0, -10);
       break;
+    case 'jihwan': {
+      // v244 지환 낀 손 — 손등 · 접은 약지·소지 · 세운 검지·중지(검결지) · 손가락에 보랏빛 고리 둘 · 손끝 빛
+      // (예전엔 몹과 같은 '쌍구' 그림이라 칼을 든 것처럼 보였다)
+      const sk = '#e8c39e';
+      ctx.fillStyle = sk; ctx.strokeStyle = '#1a1410'; ctx.lineWidth = 1.2;
+      roundRect(ctx, -4.5, -3, 9, 9, 3); ctx.fill(); ctx.stroke();                 // 손등
+      ctx.beginPath(); ctx.arc(2.5, -2.5, 2.2, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); // 접은 손가락
+      roundRect(ctx, -3.6, -15, 3.2, 13, 1.6); ctx.fill(); ctx.stroke();           // 검지
+      roundRect(ctx, -0.3, -16, 3.2, 14, 1.6); ctx.fill(); ctx.stroke();           // 중지
+      ctx.fillStyle = '#7e22ce';
+      ctx.fillRect(-3.9, -8, 3.8, 2.2); ctx.fillRect(-0.6, -9, 3.8, 2.2);          // 지환
+      ctx.fillStyle = '#f0abfc'; circle(ctx, -2, -7, 0.9); circle(ctx, 1.3, -8, 0.9);
+      const gl = 0.45 + 0.35 * Math.sin(t * 5) + lunge * 0.5;
+      ctx.fillStyle = hexA('#c084fc', Math.min(0.9, gl)); circle(ctx, -0.4, -17, 3 + lunge * 3);
+      ctx.fillStyle = `rgba(255,255,255,${Math.min(1, gl)})`; circle(ctx, -0.4, -17, 1.2);
+      break;
+    }
     case 'claw':
       ctx.strokeStyle = blade === '#e5e7eb' ? '#d1d5db' : blade; ctx.lineWidth = 2;
       for (let i = -1; i <= 1; i++) { ctx.beginPath(); ctx.moveTo(i * 3, 0); ctx.lineTo(i * 5, -12); ctx.stroke(); }
@@ -4196,7 +4325,7 @@ function drawWeapon(ctx, weapon, o, t, lunge) {
     case 'fist': {
       // 권갑 — 주먹을 감싼 쇠 장갑. 마디 위에 쇠 징 넷, 손목에 가죽 띠. 칼날은 없다(v121).
       ctx.save();
-      ctx.scale(0.55, 0.55);
+      ctx.scale(0.85, 0.85);   // v244: 0.55는 주먹이 손톱만 했다
       ctx.fillStyle = '#5b3a1e'; ctx.strokeStyle = '#1a1410'; ctx.lineWidth = 1.4;
       roundRect(ctx, -5, 1, 10, 7, 2); ctx.fill(); ctx.stroke();                 // 손목 띠
       ctx.fillStyle = '#8b5a2b';

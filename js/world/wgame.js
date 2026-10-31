@@ -986,7 +986,7 @@ export class WorldGame {
   // ---------- 싸움 ----------
   basicAttack(m, st, dist) {
     const close = dist <= W.MELEE_RANGE * 1.3;
-    this.emit('attack', { close });
+    this.emit('attack', { close, to: { x: m.x, y: m.y } });   // v244: 과녁 자리 — 한 방에 죽어 mon이 지워져도 연출이 과녁을 안다
     let mult = 1;
     if (this.s.job === 'ring' && close) mult *= 1.2;
     const cls0 = W.CLASSES[this.s.job] || {};

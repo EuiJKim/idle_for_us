@@ -51,7 +51,7 @@ export const critExpect = (C, D) => {
 // NaN이 된다 — 재 보니 적 체력이 관문 8467에서 그 선을 넘었다.
 // 반대로 상한이 있는 값(경지 배수·초월 단계처럼)은 보통 숫자 그대로 둔다.
 
-export const BUILD = 'ifu-v243';
+export const BUILD = 'ifu-v244';
 
 export const SAVE_VERSION = 4;
 export const OFFLINE_CAP_SEC = 12 * 3600;
@@ -796,7 +796,7 @@ export const JOBS = [
     mult: { bleed: 2.0, ccDur: 1.4, exp: 1.8 } },
   // 지풍으로 멀리서 쏘지만, 적이 붙으면 손가락으로 직접 혈을 짚어 더 아프다.
   // 사거리를 환마·독마보다 짧게 둬서 적이 금방 붙고, 붙은 뒤가 진짜다.
-  { id: 'ring', name: '극악소마', weapon: '지환', look: 'claw', color: '#a855f7', range: 180, closeMult: 1.35,
+  { id: 'ring', name: '극악소마', weapon: '지환', look: 'jihwan', color: '#a855f7', range: 180, closeMult: 1.35,
     tag: '한 번에 끝낸다',
     desc: '지풍으로 멀리서 쏘고, 붙으면 혈을 짚어 더 세다. 치명 피해가 크다.',
     tiers: ['지객', '무면객', '악인곡 소마', '악인곡주', '극악소마'],
