@@ -745,6 +745,8 @@ function askNickname(first = false) {
       save();
       closeModal();
       net.pushProfile(true);
+      // v259: 문파 문원 명단의 이름도 바꾼다(전엔 옛 이름이 남았다)
+      if (net.guild?.id && net.online) net.fs.updateDoc(net.ref('guilds', net.guild.id), { [`members.${net.uid}`]: name }).catch(() => {});
       refreshUI(true);
       return undefined;
     };

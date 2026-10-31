@@ -522,7 +522,7 @@ export function drawPoisonField(v, ctx, f, k, tier) {
   if (!f.seeds) f.seeds = seeds(10 + (tier || 0) * 3);
   const x = v.sx(f);
   const y = v.sy(f);
-  const t = performance.now() / 1000;
+  const t = v.t ?? performance.now() / 1000;   // v259 그리는 쪽 시간으로
   const fade = Math.min(1, (1 - k) * 8) * Math.min(1, k * 4);   // 들어올 때·사라질 때
   // 바닥 웅덩이
   ctx.globalCompositeOperation = 'source-over';
@@ -845,7 +845,7 @@ const POISON_FX = {
     // v245: 자리를 주면 그 자리에서(독룡출동 장판) — 전엔 늘 무인 몸에서 피어올랐다
     const x = e.wx != null ? v.sx({ x: e.wx }) : v.heroX;
     const y = e.wy != null ? v.sy({ y: e.wy }) : v.groundY;
-    const t = performance.now() / 1000;
+    const t = v.t ?? performance.now() / 1000;
     const fade = Math.min(1, k * 6) * Math.min(1, (1 - k) * e.max * 4);
     const n = v.fxLevel >= 1 ? 6 : 3;
     for (let i = 0; i < n; i++) {

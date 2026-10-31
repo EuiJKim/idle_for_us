@@ -2859,7 +2859,9 @@ export class WorldGame {
     const ang = Math.atan2(hy - b.y, hx - b.x);
     // 고정 피해 초식(v168)은 맞으면 얼마나 깎이는지 미리 셈해 둔다 — 쓰러질 만하면 경고에 ☠
     const pred = opt.abs ? this.patternHit(opt.abs, b) : 0;
-    const add = (o) => this.tells.push({ t: T, max: T, dmg, abs: opt.abs || 0, pred, ult: !!opt.ult, wait: 0, ...o });
+    // v259: 경고마다 어느 펼침(cast)의 것인지 — 그리는 쪽이 그 초식의 그림을 붙인다(다른 두목·조용한 경고에 옛 그림이 붙지 않게)
+    const cast = this._castSeq = (this._castSeq || 0) + 1;
+    const add = (o) => this.tells.push({ t: T, max: T, dmg, abs: opt.abs || 0, pred, ult: !!opt.ult, wait: 0, cast, ...o });
     const line = (a, len, w, ox = b.x, oy = b.y, o = {}) => add({ kind: 'line', x0: ox, y0: oy, x1: ox + Math.cos(a) * len, y1: oy + Math.sin(a) * len, w, ...o });
     const thru = (a, w) => line(a, 1700, w, b.x - Math.cos(a) * 850, b.y - Math.sin(a) * 850);
     switch (p) {
@@ -2920,7 +2922,7 @@ export class WorldGame {
         break;
       default:
     }
-    if (!opt.quiet) this.emit('bossCast', { name: opt.ult ? `오의 · ${skillName}` : skillName || D.TELL_NAMES[p] || p, pat: p, at: b, skill: !!skillName, ult: !!opt.ult, lethal: pred >= this.heroHp });
+    if (!opt.quiet) this.emit('bossCast', { name: opt.ult ? `오의 · ${skillName}` : skillName || D.TELL_NAMES[p] || p, pat: p, at: b, skill: !!skillName, ult: !!opt.ult, lethal: pred >= this.heroHp, cast });
   }
   tickTells(dt, st) {
     if (!this.tells.length) return;

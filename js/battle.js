@@ -978,6 +978,7 @@ export class BattleView {
         if (ev.at) this.float(ev.skill ? `「${ev.name}」` : ev.name, this.sx(ev.at), this.sy(ev.at) - bossHeight({ lord: game?.map?.lord, king: game?.map?.king }) - 46, ev.skill ? '#fde68a' : '#fca5a5', ev.skill ? 20 : 16, 1, true);
         // v160: 초식 그림을 고르고(경고·터짐에 쓴다) 발밑에 진을 깐다
         this.castFx = fxFor(ev.name.replace(/^오의 · /, ''), ev.at?.def?.look, ev.pat);
+        if (ev.cast != null) { (this.castFxBy = this.castFxBy || {})[ev.cast] = this.castFx; for (const k in this.castFxBy) if (+k < ev.cast - 20) delete this.castFxBy[k]; }
         if (ev.at && this.fxLevel > 0) {
           this.effects.push({ kind: 'bcast', wx: ev.at.x, wy: ev.at.y, r: ev.ult ? 170 : ev.skill ? 120 : 90, fx: this.castFx, life: ev.ult ? 1.8 : 1.1, max: ev.ult ? 1.8 : 1.1 });
           // v217: 펼치기 전 기를 모은다 — 초식 빛깔 알갱이가 두목에게 빨려 든다(오의는 더 넓고 길게)
@@ -3118,7 +3119,7 @@ export class BattleView {
       ctx.translate(this.sx(f), this.sy(f));
       ctx.scale(1, this.squash);
       // 천천히 돈다 — 멈춰 있으면 바닥 무늬로 보인다
-      ctx.rotate((performance.now() / 1000) * (f.vx || f.vy ? 1.1 : 0.45));
+      ctx.rotate(this.t * (f.vx || f.vy ? 1.1 : 0.45));   // v259 히트스톱·멈춤에 맞춰 돌게(전엔 실시간)
       if (!(fxReady() && putFx(ctx, 'fx-field', col, f.r * 2.1, 0.35 + k * 0.5))) {
         ctx.strokeStyle = `rgba(${col},${0.5 * k + 0.2})`;
         ctx.lineWidth = 2;
@@ -3175,7 +3176,8 @@ export class BattleView {
     ctx.save();
     for (const tl of ts) {
       if (tl.wait > 0) continue;
-      if (!tl._fx && this.castFx) tl._fx = this.castFx;      // v160: 그 초식의 그림
+      // v160: 그 초식의 그림 — v259: 그 경고를 깐 펼침의 것만(조용한 경고·다른 두목에 이전 그림이 붙던 것)
+      if (!tl._fx) tl._fx = tl.cast != null ? this.castFxBy?.[tl.cast] || null : this.castFx;
       const k = 1 - Math.max(0, tl.t / tl.max);           // 0 → 1 차오른다
       const urgent = tl.t < 0.35;
       // v214: 내가 그 안에 서 있으면 테두리가 희게 빠르게 깜빡인다 — '나한테 오는 것'과 '남 일'을 가른다
