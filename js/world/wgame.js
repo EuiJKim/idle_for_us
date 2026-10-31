@@ -293,9 +293,10 @@ export class WorldGame {
   // v253: 세트·왕의 장비가 공유 강화를 '제 강화'로 이어받는다. 전엔 성장 무기가 +5면 세트 무기를 +1~+5로
   //   강화해도 수치가 그대로였다(공유 +5가 이미 더 높아서) — 재료만 날아가 '강화가 안 먹는다'로 보였다.
   //   이제 세트 장비는 공유 수치에서부터 이어서 강화된다(비용·확률도 그 단계 것).
-  adoptShared() {
+  // v258: 낀 것(과 지금 강화하는 것)만 — 가방 속 것까지 올리면 판매가가 공유 강화만큼 부풀고 '강화 안 된 것만 팔기'에서도 빠졌다
+  adoptShared(extra = null) {
     let n = 0;
-    for (const it of [...Object.values(this.s.equip), ...this.s.bag]) {
+    for (const it of [...Object.values(this.s.equip), ...(extra ? [extra] : [])]) {
       const sp = this.sharedPlus(it);
       if (it && sp > (it.plus || 0)) { it.plus = sp; n++; }   // v254: 천장(epity)은 그대로 둔다
     }
@@ -1289,7 +1290,13 @@ export class WorldGame {
     this.s.exp -= loss;
     // 레벨보다 한참 센 곳에서 쓰러지면 돌아갈 곳을 알맞은 사냥터로 바꾼다 — 방치하다 같은 자리에서 계속 쓰러지지 않게
     let retreat = null;
-    if (this.danger(this.map.id) > W.DANGER_LV && this.s.autoHunt) {
+    // v258: 위험 레벨이 아니어도 5분 안에 같은 사냥터에서 세 번 쓰러지면 물러난다(경험치 5%·물약이 되풀이로 새던 것)
+    const nowC = this.clock;
+    this._deaths = (this._deaths || []).filter((d) => nowC - d.t < 300 && d.map === this.map.id);
+    this._deaths.push({ t: nowC, map: this.map.id });
+    const streak = this._deaths.length >= 3 && this.safeMap() !== this.map.id && W.mapOf(this.safeMap()).lv[0] < this.map.lv[0];
+    if ((this.danger(this.map.id) > W.DANGER_LV || streak) && this.s.autoHunt) {
+      this._deaths = [];
       this.s.huntMap = this.safeMap();
       retreat = W.mapOf(this.s.huntMap).name;
     }
@@ -1811,7 +1818,13 @@ export class WorldGame {
     if (ok) {
       it.rar = f.to;
       it.grade = W.RARITY_GRADE[it.rar];
+      // v258: 옵션은 새로 굴리되, 있던 '애완동물 +칸'·'스킬 변화'는 잃지 않는다(전엔 각인에 성공하면 펫 칸이 사라져 키우던 펫이 조용히 쉬었다)
+      const oldOpts = it.opts || [];
       it.opts = this.rollOpts(it.slot, it.step ?? null, it.rar, it.king ?? it.z ?? null);
+      const oldPet = oldOpts.find((o) => o.pet), newPet = it.opts.find((o) => o.pet);
+      if (oldPet && (!newPet || newPet.pet < oldPet.pet)) { if (newPet) newPet.pet = oldPet.pet; else it.opts.push({ pet: oldPet.pet }); }
+      const oldTf = oldOpts.find((o) => o.tf);
+      if (oldTf && !it.opts.some((o) => o.tf)) it.opts.push({ ...oldTf });
       it.pity = 0;
       // 증표 각인 (v163): 오른 칸에 그 두목을 새긴다 (유니크=첫째 · 전설=둘째 · 신화=셋째)
       it.imps = (it.imps || []).slice(0, f.to - 1);
@@ -1992,7 +2005,9 @@ export class WorldGame {
     if (it?.grow) return 0;                 // 성장 장비는 칸마다 하나 — 팔지 않는다 (v158)
     // 조합 장비: 만들 때 든 것의 1/4 (재료도 돌아온다) · 그 밖: 은자
     const back = W.sellBack(it);
-    const p = back ? back.gold : W.sellPrice(it);
+    // v258: 공유로 이어받은 강화는 값에 넣지 않는다(성장 장비 몫)
+    const own = Math.max(0, (it.plus || 0) - this.sharedPlus(it));
+    const p = back ? back.gold : W.sellPrice({ ...it, plus: own });
     if (back) for (const [k, n] of Object.entries(back.mats)) this.addMats(k, n);
     this.s.gold += p;
     if (!auto) this.s.bag = this.s.bag.filter((x) => x.uid !== it.uid);
@@ -2001,7 +2016,7 @@ export class WorldGame {
   }
   sellBagBelow(grade) {
     let sum = 0;
-    for (const it of this.s.bag.slice()) if (it.grade <= grade && !it.plus) sum += this.sell(it);
+    for (const it of this.s.bag.slice()) if (it.grade <= grade && !((it.plus || 0) > this.sharedPlus(it))) sum += this.sell(it);
     return sum;
   }
   equipFromBag(uid) {
@@ -2045,8 +2060,8 @@ export class WorldGame {
   }
   // v192: 실패하면 +7까지 그대로 · +8~10 -1 · +11부터 -2(useProt면 보호부 하나로 그대로). 실패마다 천장(it.epity)이 쌓인다. 결과는 this.lastEnhance에도 남긴다.
   enhance(uid, useProt = true) {
-    this.adoptShared();
     const it = this.findItem(uid);
+    this.adoptShared(it);
     if (!this.canEnhance(it)) return null;
     const cost = this.enhanceCost(it);
     const mats = this.enhanceMats(it);
@@ -2109,7 +2124,15 @@ export class WorldGame {
     // 키우는 칸이 비었으면 바로 데려가고, 아니면 우리에서 기다린다(바꾸려면 키우던 것을 놓아줘야 한다)
     if (this.s.pets.length < this.petSlots()) this.s.pets.push(pet);
     else if (this.s.petBox.length < W.PET_BOX) this.s.petBox.push(pet);
-    else return null;
+    else {
+      // v258: 우리가 가득 — 전엔 조용히 사라졌다. 우리에서 가장 못한 것보다 나으면 바꾸고, 아니면 놓쳤다고 알린다
+      const score = (p) => (p.rar || 0) * 100 + W.petOf(p.kind).tier;
+      let wi = 0;
+      this.s.petBox.forEach((p, i) => { if (score(p) < score(this.s.petBox[wi])) wi = i; });
+      if (score(pet) <= score(this.s.petBox[wi])) { this.emit('petLost', { pet }); return null; }
+      const out = this.s.petBox.splice(wi, 1, pet)[0];
+      this.emit('petLost', { pet: out, swapped: true });
+    }
     this._stats = null;
     this.emit('petDrop', { pet, at: at ? { x: at.x, y: at.y } : null, joined: this.s.pets.includes(pet) });
     return pet;
@@ -2646,6 +2669,13 @@ export class WorldGame {
     const cost = this.pathSwitchCost();
     if (this.s.gold < cost) return false;
     this.s.gold -= cost;
+    // v258: 떠나는 길의 길 무공(합일 전엔 못 쓰게 된다)에 쓴 점수를 돌려준다
+    const old = this.s.path ? `p${this.s.path}` : null;
+    if (old && !PT.merged({ ...this.s, path: id }) && this.s.skillLv?.[old] > 1) {
+      this.s.skillPts += W.skillSpent(this.s.skillLv[old]);
+      delete this.s.skillLv[old];
+      this._mods = null;
+    }
     this.s.path = id;
     this._stats = null;
     this.emit('path', { id });
@@ -2780,6 +2810,8 @@ export class WorldGame {
     this.manual = null;
     this.freezeT = 0;
     this.bossT = 0;
+    // v258: 들어갈 때의 체력을 적어 둔다(이어 도는 판은 처음 것을 그대로) — 나오면 돌려놓는다
+    if (this._hpBeforeInst == null) this._hpBeforeInst = this.heroHp;
     this.heroHp = this.stats().hp;          // 던전은 가득 찬 체력으로 들어간다
     this.emit('mapEnter', { id: -1, name: o.map.name, inst: o.kind });
   }
@@ -3059,6 +3091,8 @@ export class WorldGame {
     }
     this.emit('instEnd', res);
     this.enterMap(this.canEnter(this.s.huntMap) ? this.s.huntMap : 0, true);
+    // v258: 던전 출입이 공짜 회복이 되지 않게 — 나오면 들어갈 때의 체력으로(던전 안에서 쓴 물약·회복은 던전 몫)
+    if (this._hpBeforeInst != null) { this.heroHp = Math.max(1, Math.min(this.stats().hp, this._hpBeforeInst)); this._hpBeforeInst = null; }
     return res;
   }
   // 보상 주기 { exp, gold, mats } × k — 실제로 준 것을 돌려준다

@@ -126,13 +126,8 @@ export const CLASS_FX = {
       ctx.strokeStyle = `rgba(${e.col},${0.85 * (1 - q)})`;
       ctx.lineWidth = (e.w || 8) * (1 - q) + 1;
       ctx.beginPath(); ctx.arc(0, 0, r, 0, TAU); ctx.stroke();
-      if (i === 0) {
-        const g = ctx.createRadialGradient(0, 0, r * 0.6, 0, 0, r);
-        g.addColorStop(0, `rgba(${e.col},0)`);
-        g.addColorStop(1, `rgba(${e.col},${0.22 * (1 - q)})`);
-        ctx.fillStyle = g;
-        ctx.beginPath(); ctx.arc(0, 0, r, 0, TAU); ctx.fill();
-      }
+      // v258 고리 안쪽 빛 — 구워 둔 고리 빛(전엔 매 프레임 그라데이션, 가장 자주 쓰는 연출이다)
+      if (i === 0 && v.putGlow) v.putGlow(ctx, e.col, 0, 0, r, 0.22 * (1 - q), 1, true);
     }
   },
 
@@ -142,12 +137,8 @@ export const CLASS_FX = {
     const y = v.sy({ y: e.wy }) + (e.oy ?? -46);
     const p = 1 - k;
     const r = (e.r || 60) * (0.4 + 0.6 * Math.min(1, p * 3));
-    const g = ctx.createRadialGradient(x, y, 0, x, y, r);
-    g.addColorStop(0, `rgba(255,255,255,${0.95 * k})`);
-    g.addColorStop(0.35, `rgba(${e.col},${0.6 * k})`);
-    g.addColorStop(1, `rgba(${e.col},0)`);
-    ctx.fillStyle = g;
-    ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); ctx.fill();
+    // v258 구운 빛 두 장(빛깔 + 흰 심) — 전엔 매 프레임 그라데이션
+    if (v.putGlow) { v.putGlow(ctx, e.col, x, y, r, 0.6 * k); v.putGlow(ctx, '255,255,255', x, y, r * 0.4, 0.95 * k); }
     // 열십자 빛살
     ctx.fillStyle = `rgba(255,255,255,${0.8 * k})`;
     const L = r * 1.6;

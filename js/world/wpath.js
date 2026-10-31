@@ -12,7 +12,9 @@ export const PATH_NODE_LV = [40, 60, 80, 100, 120];
 export const MERGE_LV = 140;
 // 길마다 약점 — 합일하면 사라진다
 export const PATH_COST = { a: { basic: -0.2 }, b: { skill: -0.1 } };
-export const PATH_SWITCH_COST = (lv) => Math.round(2000 * lv * lv);
+// v258: 2000·lv²(lv40 320만 = 사냥 15시간)이 너무 무거워 60·lv²로(lv40 9.6만 · lv100 60만 · lv140 118만).
+//   바꾸면 떠나는 길 무공에 쓴 점수는 돌려준다(wgame.choosePath).
+export const PATH_SWITCH_COST = (lv) => Math.round(60 * lv * lv);
 
 const P = (name, hanja, style, nodes) => ({ name, hanja, style, nodes });
 const N = (name, eff, text) => ({ name, eff, text });

@@ -61,7 +61,9 @@ const MELEE_COMBO = {
 const CRIT_COL = ['#ffffff', '#ef4444', '#fb923c', '#c084fc', '#facc15'];
 // 맞은 자국 빛깔 (없으면 흰 칼자국)
 // v245 상한에 걸려도 지우지 않는 필살 화면층
-const KEEP_FX = new Set(['letterbox', 'rays', 'bigseal', 'avatar', 'bigname', 'cutin', 'converge', 'ultrays', 'screenwave']);
+// v258: 4차 전용 화면층도(꽃잎 폭풍·검기 폭풍·여운·땅울림·독 물결·핏빛 달·깨짐·금빛 몸·금종)
+const KEEP_FX = new Set(['letterbox', 'rays', 'bigseal', 'avatar', 'bigname', 'cutin', 'converge', 'ultrays', 'screenwave',
+  'petalstorm', 'slashstorm', 'afterglow', 'quake', 'toxicwave', 'bloodmoon', 'shatter', 'goldbody', 'bell']);
 // v251 맞은 숫자가 뜨는 높이(몹 발밑에서) — 142는 몸통·얼굴 위에 떠서 몹을 가렸다
 const FLOAT_UP = 172;
 const CUT_COL = { ring: '216,180,254', fan: '186,230,253', fist: '253,186,116', poison: '163,230,53' };
@@ -986,7 +988,7 @@ export class BattleView {
         // 오의는 화면 가운데에 크게 (v168)
         if (ev.ult) this.showBanner(ev.name, '#fca5a5', 1.3, '奧義');
         // v252: 무인 머리 위에 떠서 두목·무인 이름표와 겹쳤다 — 화면 위 가운데 고정 자리로(떠오르지 않게)
-        if (ev.lethal) { this.float('⚠ 치명 — 맞으면 쓰러져요! 피하세요', this.w / 2, this.h * 0.2, '#fecaca', 16, 1.3, true); this.floats[this.floats.length - 1].vy = 0; }
+        if (ev.lethal) { this.float('⚠ 치명 — 맞으면 쓰러져요! 피하세요', this.w / 2, this.h * 0.2, '#fecaca', 16, 1.3, true); this.floats[this.floats.length - 1].vy = 0; this.floats[this.floats.length - 1].keep = true; }
         break;
       // 증표 고유 효과 (v163) — 이름을 띄우고, 둘레 폭발·쏟아짐은 그 무공 그림으로
       case 'imprint':
@@ -1080,6 +1082,7 @@ export class BattleView {
         } else if ((tl.ult || tl.lethal) && game?.heroX != null) {
           // v252 큰 기술을 피했다 — 피한 걸 알려 준다
           this.float('피했다!', this.heroX, this.groundY - 190, '#86efac', 16, 0.9, true);
+          this.floats[this.floats.length - 1].keep = true;
         }
         break;
       }
@@ -3459,7 +3462,7 @@ export class BattleView {
         const fy = this.groundY + (this.monY - this.groundY) * q;
         ctx.fillStyle = `rgba(186,230,253,${0.55 * k})`;
         ctx.beginPath(); ctx.ellipse(x, fy - 60, 22 + p * 10, 34, 0, 0, Math.PI * 2); ctx.fill();
-        ctx.fillStyle = `rgba(224,242,254,${0.3 * k})`;
+        ctx.fillStyle = `rgba(224,242,254,${this.lumTake(0.3 * k)})`;   // v258 밝기 예산 안에서
         ctx.fillRect(0, 0, this.w, this.h);
       } else if (e.kind === 'swords') {
         // 만검귀종: 하늘에서 검이 쏟아진다
@@ -3650,7 +3653,8 @@ export class BattleView {
       f.x += (f.vx || 0) * dt;
       if (f.vy != null) { f.vy *= Math.max(0, 1 - dt * 5.5); f.vx *= Math.max(0, 1 - dt * 5); }
       const k = Math.max(0, f.life / f.max);
-      ctx.globalAlpha = Math.min(1, k * 2.2) * (band && f.y * z > this.h * 0.18 && f.y * z < this.h * 0.58 ? 0.3 : 1);
+      // v258: 경고성 글자(치명 경고·피했다!)는 컷인 중에도 흐리지 않는다
+      ctx.globalAlpha = Math.min(1, k * 2.2) * (band && !f.keep && f.y * z > this.h * 0.18 && f.y * z < this.h * 0.58 ? 0.3 : 1);
       // 처음 0.12초에 크게 튀었다가 제 크기로 — 뒤로 갈수록 살짝 작아진다
       const age = f.max - f.life;
       const pop = age < 0.12 ? 1.45 - age / 0.12 * 0.45 : 1 - Math.max(0, 0.4 - k) * 0.25;

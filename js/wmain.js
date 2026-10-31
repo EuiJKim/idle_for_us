@@ -287,7 +287,7 @@ function refreshUI(full = false) {
   setBar($('exp-bar').firstChild, s.exp / game.expNeed());
   setText($('exp-pct'), `${Math.min(99.9, (s.exp / game.expNeed()) * 100).toFixed(1)}%`);
   setText($('gold'), fmt(s.gold));
-  setText($('potions'), String(s.potions));
+  setText($('potions'), fmt(s.potions));   // v258 은자처럼 쉼표
   const m = game.map;
   instHud();
   // 사냥터 줄은 짧게 — '천산 설원 · 두목'은 체력 막대에 닿았다
@@ -498,6 +498,11 @@ function handleEvents() {
         if (ev.king) view.startKingIntro(ev.king, ev.at, ev.full);
         else view.startBossIntro(ev, ev.at, ev.full);
         break;
+      case 'petLost': {
+        const d = W.petOf(ev.pet.kind);
+        toast(ev.swapped ? `우리가 가득 차 가장 약한 ${W.RARITY[ev.pet.rar].name} ${d.name}을(를) 놓아줬어요` : `우리가 가득 차 ${W.RARITY[ev.pet.rar].name} ${d.name}을(를) 놓쳤어요 — 동료 창에서 우리를 비워 주세요`);
+        break;
+      }
       case 'petDrop': {
         const d = W.petOf(ev.pet.kind);
         saverLoot(`🐾 ${W.RARITY[ev.pet.rar].name} ${d.name}`);

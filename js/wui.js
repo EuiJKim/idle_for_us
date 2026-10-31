@@ -375,6 +375,7 @@ function bagTab(app) {
   }
   function openItem(it, worn) {
     let useProt = true;
+    game.adoptShared?.(it);   // v258: 공유 강화를 이어받은 단계로 강화 값·확률을 보여 준다(판매가에는 공유 몫을 안 넣는다)
     if (it.grow) game.mark('gearView');
     // 등급 각인에 넣을 증표 — 확률이 높은 것(센 두목)부터 (v158)
     let markPick = null;
@@ -663,8 +664,10 @@ function bagTab(app) {
         chips,
         better.length ? h('button', { class: 'btn primary', style: 'width:100%;margin:6px 0', onclick: () => {
           let n = 0;
-          for (const { it } of better) { const cur = s.equip[it.slot]; if (!cur || game.itemScore(it) > game.itemScore(cur)) { game.equipFromBag(it.uid); n++; } }
-          toast(`더 좋은 장비 ${n}개를 꼈어요`); done();
+          // v258: 세트 조각을 세트 아닌 것으로 바꾸면 세트 효과가 깨진다 — 그런 것은 건너뛰고 알린다
+          let kept = 0;
+          for (const { it } of better) { const cur = s.equip[it.slot]; if (cur?.set && it.set !== cur.set) { kept++; continue; } if (!cur || game.itemScore(it) > game.itemScore(cur)) { game.equipFromBag(it.uid); n++; } }
+          toast(`더 좋은 장비 ${n}개를 꼈어요${kept ? ` · 세트가 깨지는 ${kept}개는 남겼어요(눌러서 직접 낄 수 있어요)` : ''}`); done();
         } }, `▲ 더 좋은 것 모두 끼기 (${better.length})`) : null,
         cards.length ? h('div', { class: 'inv-grid' }, ...cards) : h('p', { class: 'muted' }, ui.slot === 'all' ? '가방이 비었어요. 대장장이가 만든 장비는 낀 것보다 좋으면 바로 껴요.' : '이 칸 장비가 가방에 없어요.'),
         h('div', { class: 'btn-row' },
@@ -1282,6 +1285,8 @@ function dgnTab(app) {
           ? h('p', { class: 'muted dgn-where' },
             `${W.zoneOfW(D.zoneForLv(D.dailyLv(stg)))?.name || ''}의 재료·증표예요 — 이름을 누르면 그 사냥터로 갈 수 있어요`)
           : null,
+        // v258: 도전을 못 할 때 왜 못 하는지 한 줄
+        !game.canDaily(d.id, stg, now) && game.s.job ? h('p', { class: 'inf-why' }, game.inst ? '던전 안에서는 다른 던전에 못 들어가요' : !D.dailyOpen(d, now) ? '오늘은 열리지 않는 던전이에요' : game.dailyLeft(d.id, now) <= 0 ? '오늘 들어갈 횟수를 다 썼어요 — 새 단계를 깨면 열쇠로 한 번 돌아와요' : '아직 열리지 않은 단계예요') : null,
         h('div', { class: 'btn-row' },
           h('button', { class: 'btn primary', disabled: game.canDaily(d.id, stg, now) ? null : true, onclick: () => start(() => game.startDaily(d.id, stg, now)) },
             `도전 (${D.DAILY_SEC}초 · ${D.DAILY_KILLS}마리)${stg > best ? ' 🔑' : ''}`),
