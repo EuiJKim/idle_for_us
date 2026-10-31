@@ -720,6 +720,19 @@ export class BattleView {
             if (fin || Math.random() < 0.3) this.projectiles.push({ kind: fin ? 'wave' : 'qi', x: this.heroX + 30, y: this.groundY - 64, tw: tgt ? { x: tgt.x, y: tgt.y } : null, life: fin ? 0.2 : 0.22, max: fin ? 0.2 : 0.22 });
           }
         }
+        // v246 각성 덧치기(두 대·세 대) — 숫자만 셋 뜨고 그림은 한 번이던 것: 직업 빛으로 물든 잔상 한 번씩 더
+        const tri = game.buffs?.triple > 0 ? Math.min(2, game.buffv?.triple || 1) : 0;
+        if (tri && tgt && this.fxLevel > 0) {
+          const face = (this.faceOverride || game.heroFacing) < 0 ? -1 : 1;
+          const col = CAST_COL[cls];
+          for (let i = 1; i <= tri; i++) {
+            const wait = i * 0.07;
+            if (shot) this.projectiles.push({ kind: SHOT[cls].kind, wait, x: this.heroX + 34 * face, y: this.groundY - 76 - i * 10, tw: { x: tgt.x, y: tgt.y }, life: SHOT[cls].life, max: SHOT[cls].life, tier: game.jobTier?.() || 0, seed: Math.random() });
+            else if (cls === 'fist') this.effects.push({ kind: 'fistimg', wait, life: 0.2, max: 0.2, wx0: game.heroX, wy0: game.heroY, ox0: 18 * face, oy0: -60 - i * 12, wx1: tgt.x, wy1: tgt.y, oy1: -50 - i * 12, go: 0.5, size: 24, col, hot: '255,255,255' });
+            else if (cls === 'ring') this.effects.push({ kind: 'lance', wait, life: 0.16, max: 0.16, wx: game.heroX, wy: game.heroY, a: Math.atan2((tgt.y - game.heroY) * this.squash, tgt.x - game.heroX) + (i - 1.5) * 0.12, len: Math.hypot(tgt.x - game.heroX, (tgt.y - game.heroY) * this.squash), w: 4, col, oy: -62 });
+            else this.effects.push({ kind: 'swing', wait, life: 0.16, max: 0.16, face, tilt: i === 1 ? 0.6 : -0.6, dir: i === 1 ? -1 : 1, cls, big: false, ang: game.heroAngle || 0, col });
+          }
+        }
         break;
       }
       case 'petAttack':
@@ -1215,6 +1228,62 @@ export class BattleView {
   }
 
   // 무인 하나를 아무 자리에나 그린다 (잔상). tint가 있으면 그 빛깔로 물들인다.
+  // v246 버프가 걸려 있는 동안 몸에 남는 표시 — 전엔 시전 1~3초 연출이 끝나면 10~15초 버프가 걸렸는지 안 보였다.
+  //   각성(덧치기 triple) 직업 빛 불꽃 · 금신(guard) 금빛 몸 · 금종조(shield) 금빛 종 · 무면개방(fear) 보랏빛 안개 · 삼공조화(might) 핏빛 고리
+  //   front=false는 몸 뒤(빛·발밑), true는 몸 앞(오르는 불티·종 테두리)
+  buffAura(game, x, y, front) {
+    const b = game.buffs || {};
+    const cls = game.s.job;
+    const ctx = this.ctx, t = this.t, sq = this.squash;
+    const col = CAST_COL[cls] || '253,224,71';
+    const fade = (k) => Math.min(1, (b[k] || 0) / 0.6);
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    if (b.triple > 0) {
+      const a = fade('triple');
+      if (!front) {
+        putGlow(ctx, col, x, y - 52, 74, (0.26 + 0.08 * Math.sin(t * 9)) * a, 1.25);
+        ctx.strokeStyle = `rgba(${col},${0.7 * a})`; ctx.lineWidth = 3;
+        for (let i = 0; i < 6; i++) { const a0 = t * 3 + (i / 6) * Math.PI * 2; ctx.beginPath(); ctx.ellipse(x, y, 46, 46 * sq, 0, a0, a0 + 0.55); ctx.stroke(); }
+      } else {
+        for (let i = 0; i < 7; i++) {
+          const ph = (t * 1.6 + i / 7) % 1;
+          ctx.fillStyle = `rgba(${i % 2 ? '255,255,255' : col},${(1 - ph) * 0.85 * a})`;
+          circle(ctx, x + Math.sin(i * 2.3 + t * 3) * 26, y - 10 - ph * 110, 2.6 * (1 - ph) + 0.8);
+        }
+      }
+    }
+    if (b.guard > 0 && cls === 'fist') {
+      const a = fade('guard');
+      if (!front) putGlow(ctx, '253,224,71', x, y - 55, 84, (0.34 + 0.1 * Math.sin(t * 6)) * a, 1.3);
+      else { ctx.strokeStyle = `rgba(254,240,138,${0.55 * a})`; ctx.lineWidth = 2; ctx.beginPath(); ctx.ellipse(x, y - 55, 36, 64, 0, 0, Math.PI * 2); ctx.stroke(); }
+    } else if (b.guard > 0 && !front) putGlow(ctx, col, x, y - 55, 70, 0.22 * fade('guard'), 1.3);
+    if (b.shield > 0 && (game.shield || 0) > 0 && front) {
+      // 금종조 — 몸을 덮은 반투명 종(위는 둥글고 아래로 벌어진다), 테두리가 느리게 반짝
+      const a = fade('shield') * (0.75 + 0.25 * Math.sin(t * 4));
+      ctx.strokeStyle = `rgba(253,224,71,${0.6 * a})`; ctx.lineWidth = 3;
+      ctx.fillStyle = `rgba(253,224,71,${0.08 * a})`;
+      ctx.beginPath();
+      ctx.moveTo(x - 44, y + 2);
+      ctx.quadraticCurveTo(x - 40, y - 60, x - 30, y - 104);
+      ctx.quadraticCurveTo(x, y - 128, x + 30, y - 104);
+      ctx.quadraticCurveTo(x + 40, y - 60, x + 44, y + 2);
+      ctx.closePath(); ctx.fill(); ctx.stroke();
+      ctx.lineWidth = 1.5; ctx.beginPath(); ctx.ellipse(x, y + 2, 44, 44 * sq * 0.6, 0, 0, Math.PI * 2); ctx.stroke();
+    }
+    if (b.fear > 0 && !front) {
+      const a = fade('fear');
+      putGlow(ctx, '126,34,206', x, y - 6, 70, 0.4 * a, 0.45);
+      for (let i = 0; i < 5; i++) { const ph = (t * 0.7 + i / 5) % 1; putGlow(ctx, '168,85,247', x + Math.sin(i * 2.7 + t) * 30, y - 20 - ph * 70, 16, 0.3 * (1 - ph) * a); }
+    }
+    if (b.might > 0 && !front) {
+      const a = fade('might');
+      ctx.strokeStyle = `rgba(220,38,38,${0.65 * a})`; ctx.lineWidth = 3;
+      for (let i = 0; i < 3; i++) { const a0 = -t * 2 + (i / 3) * Math.PI * 2; ctx.beginPath(); ctx.ellipse(x, y, 58, 58 * sq, 0, a0, a0 + 1.4); ctx.stroke(); }
+    }
+    ctx.restore();
+  }
+
   // v245 화면 전체를 덮는 빛(번쩍·충격파·빛살 물들임)은 한 프레임에 합쳐 0.3까지만 — 여럿이 겹쳐 흰 화면이 되던 것.
   //      그 너머로는 두목 경고·숫자·과녁이 안 보였다. 먼저 그린 것부터 몫을 가져간다.
   lumTake(a) {
@@ -2222,6 +2291,7 @@ export class BattleView {
         this.ctx.restore();
       }
     }
+    if (this.fxLevel > 0) this.buffAura(game, x, y, false);
     if (gale) { // 잔상
       for (let i = 3; i >= 1; i--) {
         this.ctx.save();
@@ -2290,6 +2360,7 @@ export class BattleView {
       this.ctx.restore();
     } else drawFighter(this.ctx, x, fy, look, opts);
     if (ride) { drawCreature(this.ctx, mt.id, x, y, { ...rideOpt, layer: 'front' }); this.ctx.restore(); }
+    if (this.fxLevel > 0) this.buffAura(game, x, y, true);
     // 데려간 영수들이 뒤를 따른다 (예전엔 s.pet 한 마리만 그렸는데, 영수가 여럿이 된 뒤로
     // 그 값이 늘 비어 있어서 아무것도 안 그려졌다)
     // 애완동물 — 무인 뒤를 따라 걷고, 칠 때는 과녁 쪽으로 튀어 나갔다 돌아온다
@@ -2945,6 +3016,7 @@ export class BattleView {
     const jcap = Math.round(80 * (this.budget ?? 1));
     if (this.projectiles.length > jcap) this.projectiles.splice(0, this.projectiles.length - jcap);
     for (const p of this.projectiles) {
+      if (p.wait > 0) { p.wait -= dt; continue; }
       p.life -= dt;
       const k = 1 - Math.max(0, p.life / p.max);
       // v244: 쏠 때 정한 과녁 자리로(과녁이 죽거나 바뀌어도 엉뚱한 데로 꺾이지 않게)
@@ -3155,6 +3227,7 @@ export class BattleView {
     }
     this._lum = 0;      // v245 밝기 예산 — 이 프레임에 화면 전체를 덮은 빛의 합
     for (const e of this.effects) {
+      if (e.wait > 0) { e.wait -= dt; continue; }   // v246 늦게 시작하는 연출(덧치기 잔상)
       e.life -= dt;
       let k = Math.max(0, e.life / e.max);
       // 무공 빛은 더하기로 겹친다 — 겹칠수록 밝아져야 '빛'으로 읽힌다.

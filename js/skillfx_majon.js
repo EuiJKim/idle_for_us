@@ -475,13 +475,13 @@ export const MAJON_FX = {
   eye(v, ctx, e, k) {
     ctx.globalCompositeOperation = 'source-over';   // 어두운 빛(눈구멍·핏자국)이 살아야 한다
     const x = v.sx({ x: e.wx }), y = v.sy({ y: e.wy }) + (e.oy ?? -120);
-    const p = 1 - k;
-    const open = Math.sin(Math.min(1, p * 1.3) * Math.PI);
+    // v246: 0.15초에 번쩍 뜨고 멎음이 끝날 때까지 떠 있다가 0.25초에 감긴다(전엔 사는 동안 천천히 떴다 감겨 멎음 표식 구실을 못 했다)
+    const el = e.max * (1 - k), rem = e.max * k;
+    const o0 = Math.max(0, Math.min(1, el / 0.15, rem / 0.25));
+    const open = o0 * (2 - o0) * (0.92 + 0.08 * Math.sin(el * 7));
     const R = e.r || 26;
     ctx.translate(x, y);
-    const g = ctx.createRadialGradient(0, 0, 0, 0, 0, R * 2);
-    g.addColorStop(0, `rgba(${SOUL},${0.45 * open})`); g.addColorStop(1, `rgba(${SOUL},0)`);
-    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, R * 2, 0, TAU); ctx.fill();
+    v.putGlow(ctx, SOUL, 0, 0, R * 2, 0.45 * open);
     if (putJ(ctx, 'blood-eye', 0, 0, R * 3.4, Math.min(1, open * 1.5), 0, Math.max(0.05, open))) return;
     ctx.fillStyle = `rgba(254,226,226,${0.9 * open})`;
     ctx.beginPath(); ctx.moveTo(-R, 0); ctx.quadraticCurveTo(0, -R * open, R, 0); ctx.quadraticCurveTo(0, R * open, -R, 0); ctx.fill();
@@ -799,8 +799,12 @@ export const MAJON_CHOREO = {
   'sword:m0'(d) {
     const c = COL.sword;
     blinkBeats(d, c, '일섬', () => {
-      d.fx('arc', 0.3, { face: d.face, r: 80, a0: -2.2, a1: 1.6, col: c[1] });
-      d.fx('cutline', 0.4, { wx: d.target.x, wy: d.target.y, a: 0.5 });
+      // v246: 한 칼이 읽히게 — 지나온 길에 빛줄 · 반달 크게 · X자로 두 줄 · 아주 짧게 멎음
+      if (d.from) d.fx('lance', 0.3, { wx: d.from.x, wy: d.from.y, a: Math.atan2((d.target.y - d.from.y) * d.v.squash, d.target.x - d.from.x), len: Math.hypot(d.target.x - d.from.x, (d.target.y - d.from.y) * d.v.squash), w: 6, col: PLUM, oy: -62 });
+      d.fx('arc', 0.34, { face: d.face, r: 118, a0: -2.2, a1: 1.6, col: c[1] });
+      d.fx('cutline', 0.45, { wx: d.target.x, wy: d.target.y, a: 0.5 });
+      d.fx('cutline', 0.45, { wx: d.target.x, wy: d.target.y, a: 2.1 });
+      d.v.hitstop = Math.max(d.v.hitstop || 0, 0.06);
       d.fx('bloom', 0.9, { wx: d.target.x, wy: d.target.y, r: 46, col: PLUM, oy: -60 });
       impact(d, d.target, 90, c, { flare: true, sparks: 8, col: PLUM });
     });
@@ -809,8 +813,8 @@ export const MAJON_CHOREO = {
   'sword:m1'(d) {
     const c = COL.sword;
     const R = d.radius || 240;
-    beats(d, [[0, '발도준비', 'out'], [0.12, '일섬', 'snap'], [0.3, '납도', 'snap'], [0.42, '일섬', 'snap'], [0.8, '납도', 'inout']], {
-      cast: 0.1, hit: 0.44, end: 1.0,
+    beats(d, [[0, '발도준비', 'out'], [0.12, '일섬', 'snap'], [0.3, '검거양', 'out'], [0.42, '내려베기', 'snap'], [0.8, '납도', 'inout']], {
+      cast: 0.1, hit: 0.44, end: 1.0, shake: 0.2,
       onCast: () => {
         d.fx('arc', 0.3, { face: d.face, r: 86, a0: -2.4, a1: 2.2, col: c[1] });
         d.at(0.4, () => d.fx('arc', 0.3, { face: -d.face, r: 92, a0: -2.2, a1: 2.0, col: PLUM }));
@@ -818,7 +822,7 @@ export const MAJON_CHOREO = {
       },
       onHit: () => {
         for (const [i, at] of hitsOr(d, 10).entries()) d.fx('cutline', 0.3, { wx: at.x, wy: at.y, a: 0.3 + i * 0.41 });
-        impact(d, d.to, R, c, { flare: false, sparks: 6, col: PLUM });
+        impact(d, d.to, R, c, { flare: true, rings: 2, sparks: 10, col: PLUM });
       },
     });
   },
@@ -854,8 +858,9 @@ export const MAJON_CHOREO = {
     const c = COL.fist;
     beats(d, [[0, '마보', 'out'], [0.16, '정권', 'snap'], [0.5, '정권'], [0.7, '마무리', 'inout']], {
       cast: 0.12, hit: 0.26, end: 0.85, shake: 0.32,
-      onCast: () => d.fx('fistimg', 0.3, { wx0: d.to.x, wy0: d.to.y, ox0: 20 * d.face, oy0: -64, wx1: d.target.x, wy1: d.target.y, oy1: -50, size: 70, col: c[0], hot: c[1], go: 0.14 }),
-      onHit: () => impact(d, d.target, 120, c, { rings: 2, crack: true, sparks: 14 }),
+      // v246: '산만 한 주먹'이 0.14초에 닿고 사라져 안 보였다 — 크게·오래 날아가 박히고, 박힐 때 멎는다
+      onCast: () => d.fx('fistimg', 0.42, { wx0: d.to.x, wy0: d.to.y, ox0: 20 * d.face, oy0: -64, wx1: d.target.x, wy1: d.target.y, oy1: -50, size: 110, col: c[0], hot: c[1], go: 0.3 }),
+      onHit: () => { d.v.hitstop = Math.max(d.v.hitstop || 0, 0.08); impact(d, d.target, 160, c, { rings: 3, crack: true, sparks: 18, flare: true }); },
     });
   },
   // 투신난무 — 권갑 투신으로 네 방향을 네 번 두들긴다
@@ -873,9 +878,10 @@ export const MAJON_CHOREO = {
           const a = (i / 4) * TAU + 0.4;
           const to = { x: d.to.x + Math.cos(a) * R * 0.55, y: d.to.y + Math.sin(a) * R * 0.32 };
           d.at(0.08 + i * 0.12, () => {
-            d.fx('fistimg', 0.22, { wx0: d.to.x, wy0: d.to.y, oy0: -60, wx1: to.x, wy1: to.y, oy1: -40, size: 48, col: c[0], go: 0.1 });
-            d.fx('shock', 0.35, { wx: to.x, wy: to.y, r: 60, col: c[1], w: 5 });
+            d.fx('fistimg', 0.3, { wx0: d.to.x, wy0: d.to.y, oy0: -60, wx1: to.x, wy1: to.y, oy1: -40, size: 66, col: c[0], hot: c[1], go: 0.3 });
+            d.fx('shock', 0.4, { wx: to.x, wy: to.y, r: 72, col: c[0], rings: 2, w: 6 });
             d.v.shake = Math.max(d.v.shake, 0.12);
+            d.v.hitstop = Math.max(d.v.hitstop || 0, 0.03);   // v246 네 번의 박자
           });
         }
       },
@@ -1024,10 +1030,11 @@ export const MAJON_CHOREO = {
     beats(d, [[0, '펼치기', 'out'], [0.2, '휘두르기', 'snap'], [0.6, '휘두르기'], [0.8, '마무리', 'inout']], {
       cast: 0.1, hit: 0.42, end: 1.0,
       onCast: () => {
-        d.fx('eye', 1.0, { wx: d.target.x, wy: d.target.y, r: 26 });
-        d.fx('lance', 0.4, { wx: d.to.x, wy: d.to.y, a: Math.atan2((d.target.y - d.to.y) * d.v.squash, d.target.x - d.to.x), len: Math.hypot(d.target.x - d.to.x, (d.target.y - d.to.y) * d.v.squash), w: 4, col: SOUL, oy: -60 });
+        // v246: 눈이 멎음(2.5초) 동안 떠 있다 · 실 굵게
+        d.fx('eye', 2.5, { wx: d.target.x, wy: d.target.y, r: 40 });
+        d.fx('lance', 0.45, { wx: d.to.x, wy: d.to.y, a: Math.atan2((d.target.y - d.to.y) * d.v.squash, d.target.x - d.to.x), len: Math.hypot(d.target.x - d.to.x, (d.target.y - d.to.y) * d.v.squash), w: 8, col: SOUL, oy: -60 });
       },
-      onHit: () => { impact(d, d.target, 80, c, { flare: true, sparks: 6 }); d.fx('sigil', 0.8, { wx: d.target.x, wy: d.target.y, r: 70, col: SOUL, n: 12, spin: 2 }); },
+      onHit: () => { d.v.hitstop = Math.max(d.v.hitstop || 0, 0.06); impact(d, d.target, 110, c, { flare: true, rings: 2, sparks: 10 }); d.fx('sigil', 0.9, { wx: d.target.x, wy: d.target.y, r: 100, col: SOUL, n: 12, spin: 2 }); },
     });
   },
   // 혈루미혼 — 핏빛 눈물이 둘레에 쏟아지고 혼이 홀린다
@@ -1037,12 +1044,12 @@ export const MAJON_CHOREO = {
     beats(d, [[0, '펼치기', 'out'], [0.15, '휘두르기', 'snap'], [0.7, '마무리', 'inout']], {
       cast: 0.08, hit: 0.5, end: 1.1,
       onCast: () => {
-        d.fx('tears', 1.1, { wx: d.center.x, wy: d.center.y, r: R * 0.9, seeds: rnd(d.lvl >= 2 ? 30 : 16) });
+        d.fx('tears', 1.1, { wx: d.center.x, wy: d.center.y, r: R * 0.9, seeds: rnd(d.lvl >= 2 ? 40 : 28) });
         d.fx('sigil', 1.1, { wx: d.center.x, wy: d.center.y, r: R, col: BLOOD, n: 16, spin: 1 });
       },
       onHit: () => {
-        for (const at of hitsOr(d, 6)) d.fx('eye', 0.7, { wx: at.x, wy: at.y, r: 14, oy: -105 });
-        impact(d, d.center, R, c, { flare: false, sparks: 6 });
+        for (const at of hitsOr(d, 6)) d.fx('eye', 2.0, { wx: at.x, wy: at.y, r: 22, oy: -105 });
+        impact(d, d.center, R, c, { flare: true, rings: 2, sparks: 10 });
       },
     });
   },
@@ -1076,9 +1083,15 @@ export const MAJON_CHOREO = {
     beats(d, [[0, '투척준비', 'out'], [0.14, '투척', 'snap'], [0.6, '마무리', 'inout']], {
       cast: 0.12, hit: 0.34, end: 0.9,
       onCast: () => {
-        for (let i = 0; i < 7; i++) d.at(0.12 + i * 0.025, () => d.lob('dart', 0.22, { x: d.target.x + (i - 3) * 6, y: d.target.y }, { fly: 0.2, oy1: -40 - (i % 3) * 8 }));
+        // v246: 일곱 침이 0.04초에 날아가 한 장면에도 안 잡혔다 — 0.25초 동안 부채꼴로 날아가 꽂힌다
+        for (let i = 0; i < 7; i++) d.at(0.12 + i * 0.03, () => d.lob('dart', 0.32, { x: d.target.x + (i - 3) * 9, y: d.target.y }, { fly: 0.8, oy1: -40 - (i % 3) * 10 }));
       },
-      onHit: () => { d.burst(d.target, 80, { puddle: 0.6, drops: 10 }); d.fx('skull', 0.9, { wx: d.target.x, wy: d.target.y, oy: -115, size: 15, v: d.tier }); },
+      onHit: () => {
+        d.v.hitstop = Math.max(d.v.hitstop || 0, 0.05);
+        d.burst(d.target, 100, { puddle: 0.7, drops: 14 });
+        d.fx('shock', 0.4, { wx: d.target.x, wy: d.target.y, r: 80, col: GREEN[0], rings: 2, w: 4 });
+        d.fx('skull', 1.0, { wx: d.target.x, wy: d.target.y, oy: -115, size: 22, v: d.tier });
+      },
     });
   },
   // 화골산 — 독 주머니를 던지면 터져서 뼈를 녹이는 독무가 깔린다 (장판은 battle.js가 따로 그린다)
