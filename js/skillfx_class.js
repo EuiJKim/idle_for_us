@@ -212,6 +212,8 @@ export const CLASS_FX = {
     }
     ctx.translate(x, y);
     ctx.rotate(ang);
+    // v248 solid: 보통 합성 — 큰 주먹 여럿을 더하기로 겹치면 밝은 바닥에서 흰 덩어리가 됐다
+    if (e.solid) ctx.globalCompositeOperation = 'source-over';
     // v134: 금빛 주먹 그림 (아래를 보는 그림이라 -90도 돌린다)
     if (putJ(ctx, 'fist-gold', -s * 0.4, 0, s * 2.8, a, -Math.PI / 2)) return;
     const g = ctx.createRadialGradient(0, 0, 0, 0, 0, s * 1.2);
