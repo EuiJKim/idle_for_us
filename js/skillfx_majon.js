@@ -772,6 +772,8 @@ export const MAJON_CHOREO = {
     buffBeats(d, c, [[0.08, '마보', 'out'], [0.5, '마보'], [0.85, '마무리', 'inout']], () => {
       d.fx('bell', 1.2, {});
       d.fx('goldbody', 1.2, {});
+      // v250 종이 내려앉는 순간 '땡' — 금빛 고리 셋이 퍼지고 땅이 울린다
+      d.at(d.t + 0.4, () => { d.fx('shock', 0.6, { wx: d.to.x, wy: d.to.y, r: 150, col: GOLD, rings: 3, w: 5 }); d.v.shake = Math.max(d.v.shake, 0.22); d.v.hitstop = Math.max(d.v.hitstop || 0, 0.04); });
     });
   },
   // 섭혼마존 시공이환술 — 술법진이 거꾸로 돌고, 흩어진 잔상이 몸으로 되돌아온다
@@ -913,6 +915,7 @@ export const MAJON_CHOREO = {
     const c = [GOLD, '255,251,235', '120,53,15'];
     buffBeats(d, c, [[0.08, '마보', 'out'], [0.45, '마보'], [0.55, '진각', 'snap'], [0.85, '마무리', 'inout']], () => {
       d.fx('goldbody', 2.2, {});
+      d.fx('quake', 0.8, { col: GOLD });   // v250 진각 — 발 구르기에 땅이 갈라져 퍼진다
       impact(d, d.to, d.radius || 260, c, { rings: 3, crack: true, sparks: 16 });
       d.v.shake = Math.max(d.v.shake, 0.35);
     });

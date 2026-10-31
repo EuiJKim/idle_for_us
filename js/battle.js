@@ -423,9 +423,12 @@ function skillAccent(v, cls, at, crit) {
   } else if (cls === 'fan') {
     E({ kind: 'petals', life: 0.4, max: 0.4, wx: at.x, wy: at.y, r: 82 * k, col: '125,211,252', seeds: seedsN(9), spin: 7 });
   } else if (cls === 'ring') {
+    // v250 혈 짚은 점(붉은 점과 번지는 고리) — 권마와 같은 고리뿐이라 빛깔만 달랐다
     E({ kind: 'shock', life: 0.36, max: 0.36, wx: at.x, wy: at.y, r: 40 * k, col: '192,132,252', rings: 3, w: 2 });
+    E({ kind: 'mark', life: 0.5, max: 0.5, wx: at.x, wy: at.y });
   } else if (cls === 'poison') {
-    E({ kind: 'petals', life: 0.45, max: 0.45, wx: at.x, wy: at.y, r: 64 * k, col: '163,230,53', seeds: seedsN(7), spin: 2 });
+    // v250 독은 꽃잎이 아니라 부식 — 환마와 같은 꽃잎이라 빛깔만 달랐다
+    E({ kind: 'corrode', life: 0.5, max: 0.5, wx: at.x, wy: at.y, r: 56 * k, v: v.game?.jobTier?.() || 0 });
   }
 }
 const JOB_SEAL = { sword: '劍', fist: '拳', fan: '扇', ring: '指', poison: '毒' };
@@ -1117,7 +1120,9 @@ export class BattleView {
         if (this.fxLevel > 0 && !ev._sealed && game?.heroX != null && JOB_SEAL[game.s?.job] && !(ev.fx && /:m4$/.test(ev.fx) && CHOREO[ev.fx])) {
           ev._sealed = true;
           const tr = ev.tier || 1;
-          this.effects.push({ kind: 'jobseal', wx: game.heroX, wy: game.heroY, ch: JOB_SEAL[game.s.job], col: CAST_COL[game.s.job], r: 80 + tr * 22, spin: tr >= 4 ? 2.6 : 1.2, life: 0.55 + tr * 0.1, max: 0.55 + tr * 0.1 });
+          // v250: 멀리서 펼치는 직업(환마·독마·극악소마)의 광역은 터지는 자리에 인장을 — 발밑 인장과 폭발 자리가 떨어져 있었다
+          const far = ['fan', 'poison', 'ring'].includes(game.s.job) && ev.radius > 0 && ev.at && ev.motion !== 'buff';
+          this.effects.push({ kind: 'jobseal', wx: far ? ev.at.x : game.heroX, wy: far ? ev.at.y : game.heroY, ch: JOB_SEAL[game.s.job], col: CAST_COL[game.s.job], r: 80 + tr * 22, spin: tr >= 4 ? 2.6 : 1.2, life: 0.55 + tr * 0.1, max: 0.55 + tr * 0.1 });
           // v228: 4차 무공은 빛살이 사방으로 뻗고 화면이 울린다
           if (tr >= 4 && !ev.echo) {
             this.effects.push({ kind: 'ultrays', wx: game.heroX, wy: game.heroY, col: CAST_COL[game.s.job], r: 260, life: 0.6, max: 0.6 });
