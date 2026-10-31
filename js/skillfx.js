@@ -759,17 +759,24 @@ const POISON_FX = {
     const y = v.sy({ y: e.wy });
     const p = 1 - k;
     const n = v.fxLevel >= 2 ? 40 : v.fxLevel >= 1 ? 22 : 10;
-    ctx.strokeStyle = `rgba(${c.core},${0.8 * Math.min(1, k * 3)})`;
-    ctx.lineWidth = 1.6;
-    for (let i = 0; i < n; i++) {
-      const a = ((i * 0.618) % 1) * TAU;
-      const d = ((i * 0.377) % 1) * e.r;
-      const gx = x + Math.cos(a) * d;
-      const gy = y + Math.sin(a) * d * v.squash;
-      const fall = ((p * 2.4 + i * 0.13) % 1);
-      const dy = -220 + fall * 220;
-      ctx.beginPath(); ctx.moveTo(gx + 4, gy + dy - 18); ctx.lineTo(gx, gy + dy); ctx.stroke();
-      if (fall > 0.9) { ctx.beginPath(); ctx.ellipse(gx, gy, 5, 2, 0, 0, TAU); ctx.stroke(); }
+    // v247: 1.6px 연두 줄이 눈 위에서 투명했다 — 먹빛 밑줄 위에 굵은 독 줄, 바닥 물보라도 크게
+    const al = 0.85 * Math.min(1, k * 3);
+    for (const pass of [0, 1]) {
+      ctx.globalCompositeOperation = pass ? 'lighter' : 'source-over';
+      ctx.strokeStyle = pass ? `rgba(${c.core},${al})` : `rgba(${c.dark},${0.45 * al})`;
+      ctx.lineWidth = pass ? 2.6 : 5;
+      ctx.beginPath();
+      for (let i = 0; i < n; i++) {
+        const a = ((i * 0.618) % 1) * TAU;
+        const d = ((i * 0.377) % 1) * e.r;
+        const gx = x + Math.cos(a) * d;
+        const gy = y + Math.sin(a) * d * v.squash;
+        const fall = ((p * 2.4 + i * 0.13) % 1);
+        const dy = -220 + fall * 220;
+        ctx.moveTo(gx + 5, gy + dy - 24); ctx.lineTo(gx, gy + dy);
+        if (fall > 0.88) { ctx.moveTo(gx + 9, gy); ctx.ellipse(gx, gy, 9, 3.5, 0, 0, TAU); }
+      }
+      ctx.stroke();
     }
   },
   // 관통하는 독전 — 머리가 앞으로 뻗고 꼬리에 독무가 감긴다

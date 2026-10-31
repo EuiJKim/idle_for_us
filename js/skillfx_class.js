@@ -314,10 +314,17 @@ export const CLASS_FX = {
     const R = (e.r || 120) * (0.7 + 0.3 * Math.min(1, p * 3));
     ctx.translate(x, y);
     ctx.scale(1, 0.42);
+    // v247 먹빛 테 — 밝은 바닥(눈)에서 더하기 빛 인장이 흰색으로 날아가던 것
+    if (e.dark) {
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.strokeStyle = `rgba(${e.dark},${0.4 * a})`; ctx.lineWidth = 14;
+      ctx.beginPath(); ctx.arc(0, 0, R * 1.02, 0, TAU); ctx.stroke();
+      ctx.globalCompositeOperation = 'lighter';
+    }
     ctx.rotate(p * (e.spin ?? 1.5));
     // v134: 직업마다 그린 인장 — 있으면 별·눈금 대신 그것을 돌린다
     const seal = `seal-${jobOfView(v)}`;
-    if (putJ(ctx, seal, 0, 0, R * 2.15, 0.8 * a)) {
+    if (putJ(ctx, seal, 0, 0, R * 2.15, (e.dark ? 0.4 : 0.8) * a)) {   // v247 먹빛 테가 있으면 그림 빛은 반만(밝은 바닥에서 흰 원판이 되던 것)
       ctx.strokeStyle = `rgba(${e.col},${0.6 * a})`; ctx.lineWidth = 2;
       ctx.beginPath(); ctx.arc(0, 0, R * 1.04, 0, TAU); ctx.stroke();
       return;

@@ -776,12 +776,14 @@ export const MAJON_CHOREO = {
   'poison:m3'(d) {
     beats(d, [[0, '땅짚기', 'out'], [0.25, '땅짚기'], [0.35, '펼치기', 'snap'], [0.8, '마무리', 'inout']], {
       cast: 0.1, hit: 0.35, end: 1.0, shake: 0.2,
-      onCast: () => d.fx('sigil', 0.9, { wx: d.to.x, wy: d.to.y, r: d.radius || 320, col: GREEN[0], n: 20, spin: 2 }),
+      onCast: () => d.fx('sigil', 0.9, { wx: d.to.x, wy: d.to.y, r: d.radius || 320, col: '34,197,94', n: 20, spin: 2, dark: '20,83,45' }),
+      // v247: '독을 거둬 몸으로' — 큰 독 혼불 여덟이 무인에게 빨려 들고, 닿으면 초록 빛으로 몸이 찬다(회복기로 읽히게)
       onHit: () => {
         const list = hitsOr(d, 8);
         for (const at of list) { d.burst(at, 70, { puddle: 0.4, drops: 6 }); }
         d.skulls(d.hits, 3);
-        for (const at of list.slice(0, 5)) d.fx('qiorb', 0.55, { pts: [{ x: at.x, y: at.y, oy: -40 }, { x: d.to.x, y: d.to.y, oy: -55 }], go: 0.9, col: GREEN[0], size: 6, hop: 18 });
+        for (const at of list) d.fx('qiorb', 0.6, { pts: [{ x: at.x, y: at.y, oy: -40 }, { x: d.to.x, y: d.to.y, oy: -55 }], go: 0.85, col: '34,197,94', size: 13, hop: 30 });
+        d.at(d.t + 0.5, () => { d.fx('flare', 0.5, { wx: d.to.x, wy: d.to.y, r: 90, col: GREEN[0], oy: -60 }); d.fx('shock', 0.5, { wx: d.to.x, wy: d.to.y, r: 110, col: '34,197,94', rings: 2, w: 4 }); });
       },
     });
   },
@@ -834,7 +836,8 @@ export const MAJON_CHOREO = {
     beats(d, [[0, '검거양', 'out'], [0.45, '검거양'], [0.55, '내려베기', 'snap'], [1.0, '내려베기'], [1.2, '납도', 'inout']], {
       cast: 0.05, hit: 0.62, end: 1.45, shake: 0.3,
       onCast: () => {
-        d.fx('sigil', 1.3, { wx: d.center.x, wy: d.center.y, r: R, col: PLUM, n: 24, spin: -1 });
+        // v247: 빛이 겹쳐 흰 덩어리 — 인장에 먹빛 테, 검기는 꽃빛으로 굵게, 가운데 번쩍은 작게
+        d.fx('sigil', 1.3, { wx: d.center.x, wy: d.center.y, r: R, col: PLUM, n: 24, spin: -1, dark: '80,7,36' });
         d.fx('petals', 1.3, { wx: d.center.x, wy: d.center.y, r: R, col: PLUM, seeds: rnd(36), spin: -4 });
         d.at(0.4, () => d.fx('bloom', 1.0, { wx: d.center.x, wy: d.center.y, r: 95, n: 8, col: '244,114,182', oy: -90, spin: 2 }));
         const n = d.lvl >= 2 ? 14 : 8;
@@ -843,12 +846,12 @@ export const MAJON_CHOREO = {
           const r = R * Math.sqrt(Math.random()) * 0.9;
           const spot = { x: d.center.x + Math.cos(a) * r, y: d.center.y + Math.sin(a) * r / v.squash * 0.6 };
           d.at(0.55 + i * 0.025, () => {
-            d.fx('needle', 0.3, { wx: spot.x, wy: spot.y, a: Math.PI / 2, len: 130, w: 5, h: 80, col: c[1] });
+            d.fx('needle', 0.3, { wx: spot.x, wy: spot.y, a: Math.PI / 2, len: 140, w: 8, h: 80, col: '244,114,182' });
             d.fx('shock', 0.3, { wx: spot.x, wy: spot.y, r: 30, col: PLUM, w: 3 });
           });
         }
       },
-      onHit: () => { impact(d, d.center, R, c, { rings: 3, sparks: 14, col: PLUM }); d.fx('flare', 0.4, { wx: d.center.x, wy: d.center.y, r: 120, col: PLUM, oy: -90 }); },
+      onHit: () => { impact(d, d.center, R, c, { rings: 2, sparks: 14, col: PLUM }); d.fx('flare', 0.4, { wx: d.center.x, wy: d.center.y, r: 80, col: PLUM, oy: -90 }); },
     });
   },
 
@@ -947,7 +950,8 @@ export const MAJON_CHOREO = {
     const c = COL.fist;
     buffBeats(d, c, [[0.06, '마보', 'out'], [0.25, '정권', 'snap'], [0.35, '훅', 'snap'], [0.45, '올려치기', 'snap'], [0.7, '마무리', 'inout']], () => {
       d.fx('speedlines', 1.2, { col: c[0] });
-      for (let i = 0; i < 3; i++) d.at(0.25 + i * 0.1, () => d.fx('fistimg', 0.2, { wx0: d.to.x, wy0: d.to.y, oy0: -60, wx1: d.to.x + 40 * d.face, wy1: d.to.y, oy1: -50 - i * 10, size: 40, col: c[0], go: 0.08 }));
+      // v247: d.at은 절대 시각 — 이 콜백(0.48초) 안에서 0.25를 주면 셋이 한꺼번에 나갔다. 지금부터 0.1초 간격으로, 크게
+      for (let i = 0; i < 3; i++) d.at(d.t + 0.02 + i * 0.1, () => d.fx('fistimg', 0.28, { wx0: d.to.x, wy0: d.to.y, oy0: -60, wx1: d.to.x + 70 * d.face, wy1: d.to.y, oy1: -50 - i * 12, size: 56, col: c[0], hot: c[1], go: 0.3 }));
       impact(d, d.to, 110, c, { rings: 2, sparks: 10 });
     });
     d.at(0.45, () => d.release());
@@ -983,8 +987,9 @@ export const MAJON_CHOREO = {
         for (let i = 0; i < 6; i++) {
           const h = list[i % list.length];
           const t0 = 0.1 + i * 0.07;
-          d.at(t0, () => d.fx('lance', 0.22, { wx: d.to.x, wy: d.to.y, a: Math.atan2((h.at.y - d.to.y) * v.squash, h.at.x - d.to.x), len: Math.hypot(h.at.x - d.to.x, (h.at.y - d.to.y) * v.squash), w: 4, col: c[1], oy: -62 }));
-          d.at(t0 + 0.18, () => { d.fx('flare', 0.2, { wx: h.at.x, wy: h.at.y, r: 40, col: c[1] }); if (h.kind) d.releaseHit(h); v.shake = Math.max(v.shake, 0.06); });
+          // v247: 거의 흰 가는 줄이라 눈밭에서 사라졌다 — 보랏빛 굵은 검기 + 맞으면 고리
+          d.at(t0, () => d.fx('lance', 0.26, { wx: d.to.x, wy: d.to.y, a: Math.atan2((h.at.y - d.to.y) * v.squash, h.at.x - d.to.x), len: Math.hypot(h.at.x - d.to.x, (h.at.y - d.to.y) * v.squash), w: 7, col: c[0], oy: -62 }));
+          d.at(t0 + 0.18, () => { d.fx('flare', 0.22, { wx: h.at.x, wy: h.at.y, r: 52, col: c[1] }); d.fx('shock', 0.3, { wx: h.at.x, wy: h.at.y, r: 44, col: c[0], rings: 2, w: 3 }); if (h.kind) d.releaseHit(h); v.shake = Math.max(v.shake, 0.06); });
         }
       },
     });
@@ -1017,7 +1022,8 @@ export const MAJON_CHOREO = {
     const c = GREEN;
     buffBeats(d, c, [[0.06, '투척준비', 'out'], [0.3, '투척', 'snap'], [0.6, '마무리', 'inout']], () => {
       d.fx('speedlines', 1.0, { col: c[0] });
-      for (let i = 0; i < 8; i++) d.fx('needle', 0.5, { wx: d.to.x, wy: d.to.y, a: (i / 8) * TAU, len: 50, col: c[0], oy: -60 });
+      // v247: 침이 몸에 겹쳐 흰 별처럼 깜빡이던 것 — 열여섯 독침이 사방으로 날아간다
+      for (let i = 0; i < 16; i++) { const a = (i / 16) * TAU; d.lob('dart', 0.4, { x: d.to.x + Math.cos(a) * 260, y: d.to.y + Math.sin(a) * 160 }, { fly: 0.8, oy1: -50 }); }
       impact(d, d.to, 110, c, { rings: 2, sparks: 10 });
     });
     d.at(0.4, () => d.release());
@@ -1112,7 +1118,7 @@ export const MAJON_CHOREO = {
     beats(d, [[0, '흩뿌리기', 'out'], [0.3, '흩뿌리기'], [0.4, '땅짚기', 'snap'], [1.1, '마무리', 'inout']], {
       cast: 0.1, hit: 0.75, end: 1.5, shake: 0.28,
       onCast: () => {
-        d.fx('sigil', 1.4, { wx: d.center.x, wy: d.center.y, r: R, col: GREEN[0], n: 28, spin: 1 });
+        d.fx('sigil', 1.4, { wx: d.center.x, wy: d.center.y, r: R, col: '34,197,94', n: 28, spin: 1, dark: '20,83,45' });   // v247 눈 위에서 흰 '빙결진'으로 보이던 것
         d.fx('rainfall', 1.2, { wx: d.center.x, wy: d.center.y, r: R, v: d.tier });
         const pts = hitsOr(d, 6).map((at) => ({ x: at.x, y: at.y }));
         if (pts.length > 1) d.fx('serpent', 1.0, { pts: [{ x: d.to.x, y: d.to.y }, ...pts], go: 0.8, v: d.tier, w: 9, body: 140 });
@@ -1170,7 +1176,8 @@ export const MAJON_CHOREO = {
           const t0 = 0.08 + i * 0.045;
           d.at(t0, () => d.fx('dagger', 0.32, { wx0: d.to.x, wy0: d.to.y, ox0: 14 * d.face, oy0: -66, wx1: h.at.x, wy1: h.at.y, h: 30 + (i % 4) * 22, go: 0.24, spin: i % 2 ? 1 : -1, col: i % 3 ? MASK[0] : BLOOD }));
           d.at(t0 + 0.24, () => {
-            d.fx('flare', 0.18, { wx: h.at.x, wy: h.at.y, r: 34, col: MASK[1] });
+            d.fx('flare', 0.22, { wx: h.at.x, wy: h.at.y, r: 48, col: MASK[1] });
+            d.fx('shock', 0.26, { wx: h.at.x, wy: h.at.y, r: 34, col: MASK[0], w: 3 });
             if (h.kind) d.releaseHit(h);
             v.shake = Math.max(v.shake, 0.06);
           });
