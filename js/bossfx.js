@@ -139,9 +139,8 @@ FX.bboom = (view, ctx, e, k) => {
   ctx.rotate(e.spin * p);
   ctx.globalAlpha = Math.min(1, k * 1.5);
   if (img) ctx.drawImage(img, -s / 2, -s / 2, s, s);
-  const g = ctx.createRadialGradient(0, 0, 0, 0, 0, s * 0.45);
-  g.addColorStop(0, `rgba(255,255,255,${0.55 * k})`); g.addColorStop(0.35, `rgba(${e.fx.col},${0.45 * k})`); g.addColorStop(1, `rgba(${e.fx.col},0)`);
-  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, s * 0.45, 0, Math.PI * 2); ctx.fill();
+  // v252: 매 프레임 그라데이션을 만들던 것 — 구운 빛 두 장(빛깔 + 흰 심)
+  if (view.putGlow) { ctx.globalAlpha = 1; view.putGlow(ctx, e.fx.col, 0, 0, s * 0.45, 0.45 * k); view.putGlow(ctx, '255,255,255', 0, 0, s * 0.18, 0.55 * k); }
 };
 // 펼칠 때 발밑의 진 — { kind: 'bcast', wx, wy, r, fx, life, max }
 FX.bcast = (view, ctx, e, k) => {

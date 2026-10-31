@@ -965,7 +965,8 @@ export class BattleView {
       }
       case 'bossCast':
         // 설정집의 독문무공(십이지왕·고수)은 크고 금빛으로 외친다
-        if (ev.at) this.float(ev.skill ? `「${ev.name}」` : ev.name, this.sx(ev.at), this.sy(ev.at) - 150, ev.skill ? '#fde68a' : '#fca5a5', ev.skill ? 20 : 16, 1, true);
+        // v251: 초식 이름이 두목 이름표(머리 위)와 같은 높이라 겹쳐 둘 다 안 읽혔다 — 이름표 위로
+        if (ev.at) this.float(ev.skill ? `「${ev.name}」` : ev.name, this.sx(ev.at), this.sy(ev.at) - bossHeight({ lord: game?.map?.lord, king: game?.map?.king }) - 46, ev.skill ? '#fde68a' : '#fca5a5', ev.skill ? 20 : 16, 1, true);
         // v160: 초식 그림을 고르고(경고·터짐에 쓴다) 발밑에 진을 깐다
         this.castFx = fxFor(ev.name.replace(/^오의 · /, ''), ev.at?.def?.look, ev.pat);
         if (ev.at && this.fxLevel > 0) {
@@ -977,7 +978,8 @@ export class BattleView {
         }
         // 오의는 화면 가운데에 크게 (v168)
         if (ev.ult) this.showBanner(ev.name, '#fca5a5', 1.3, '奧義');
-        if (ev.lethal) this.float('치명 — 맞으면 쓰러져요! 피하세요', this.heroX, this.groundY - 200, '#fecaca', 15, 1.2, true);
+        // v252: 무인 머리 위에 떠서 두목·무인 이름표와 겹쳤다 — 화면 위 가운데 고정 자리로(떠오르지 않게)
+        if (ev.lethal) { this.float('⚠ 치명 — 맞으면 쓰러져요! 피하세요', this.w / 2, this.h * 0.2, '#fecaca', 16, 1.3, true); this.floats[this.floats.length - 1].vy = 0; }
         break;
       // 증표 고유 효과 (v163) — 이름을 띄우고, 둘레 폭발·쏟아짐은 그 무공 그림으로
       case 'imprint':
@@ -1060,8 +1062,18 @@ export class BattleView {
         }
         // v217: 터진 자리에 그을린 금이 잠깐 남고, 오의는 화면이 하얗게 한 번 뜬다
         if (this.fxLevel > 0 && tl.kind !== 'line') this.effects.push({ kind: 'crack', life: 0.9, max: 0.9, wx: c.x, wy: c.y, r: Math.min(260, r * 0.8), col: fx?.col || '248,113,113', seed: Math.random() * 99, n: tl.ult ? 8 : 5 });
+        // v252: 줄 공격은 지나간 자리에 그을린 자국이 잠깐 남는다(둥근 것의 금처럼)
+        if (this.fxLevel > 0 && tl.kind === 'line') this.effects.push({ kind: 'scar', life: 0.9, max: 0.9, wx: tl.x0, wy: tl.y0, a: Math.atan2((tl.y1 - tl.y0) * this.squash, tl.x1 - tl.x0), len: Math.hypot(tl.x1 - tl.x0, (tl.y1 - tl.y0) * this.squash), col: fx?.col || '248,113,113', dark: '30,10,10' });
         if (tl.ult) { this.flash = Math.max(this.flash, 0.25); this.shake = Math.max(this.shake, 0.45); }
-        if (ev.hit) this.shake = Math.max(this.shake || 0, 0.35);
+        if (ev.hit) {
+          this.shake = Math.max(this.shake || 0, 0.35);
+          // v252 맞았다 — 무인이 붉게 번쩍이고 아주 짧게 멎는다(맞았는지 숫자만 보고 알던 것)
+          this.heroFlash = Math.max(this.heroFlash || 0, 1);
+          this.hitstop = Math.max(this.hitstop || 0, tl.ult ? 0.1 : 0.05);
+        } else if ((tl.ult || tl.lethal) && game?.heroX != null) {
+          // v252 큰 기술을 피했다 — 피한 걸 알려 준다
+          this.float('피했다!', this.heroX, this.groundY - 190, '#86efac', 16, 0.9, true);
+        }
         break;
       }
       case 'heroDied':
