@@ -26,11 +26,21 @@ window.addEventListener('pointerdown', () => unlockAudio(), { capture: true });
 const OLD_SAVE_KEY = 'idleForUs.save.v1';
 const $ = (id) => document.getElementById(id);
 
+// v257 세이브 안전망 — 본 세이브가 깨졌으면(JSON 실패) 백업 둘에서 되살리고, 되살릴 게 없으면 깨진 원본을 따로 보관한다.
+// 전엔 깨지면 새 캐릭터로 시작해 5초 뒤 깨진 원본까지 덮어써 영영 잃었다.
+const BAK_KEYS = [`${W.SAVE_KEY}.bak1`, `${W.SAVE_KEY}.bak2`];
+let saveNote = null;
 function loadSave() {
-  try {
-    const raw = localStorage.getItem(W.SAVE_KEY);
-    return raw ? JSON.parse(raw) : null;
-  } catch { return null; }
+  let raw = null;
+  try { raw = localStorage.getItem(W.SAVE_KEY); } catch { return null; }
+  if (!raw) return null;
+  try { return JSON.parse(raw); } catch { /* 깨졌다 — 아래에서 백업을 본다 */ }
+  for (const k of BAK_KEYS) {
+    try { const b = localStorage.getItem(k); if (b) { const o = JSON.parse(b); saveNote = '세이브가 망가져 있어 백업에서 되살렸어요(조금 전 상태)'; return o; } } catch { /* 다음 백업 */ }
+  }
+  try { localStorage.setItem(`${W.SAVE_KEY}.broken`, raw); } catch { /* 자리가 없다 */ }
+  saveNote = '세이브가 망가져 새로 시작했어요 — 망가진 세이브는 따로 보관해 두었어요';
+  return null;
 }
 const saved = loadSave();
 const game = new WorldGame(saved || newWorldSave());
@@ -106,12 +116,53 @@ net.coopForget = (gid) => coop.forget(gid);
 window.__coop = coop;
 
 let stopSaving = false;
+let lastBak = 0;
+let saveFailNoted = false;
 function save() {
   if (stopSaving) return;
+  if (!tabOwner()) return;   // v257 다른 창이 이어 하고 있으면 이 창은 저장하지 않는다
   game.s.lastSeen = Date.now();
   game.s.clockMax = Math.max(game.s.clockMax || 0, game.s.lastSeen);   // v254 시계 되돌리기 막기
-  try { localStorage.setItem(W.SAVE_KEY, JSON.stringify(game.toJSON())); } catch (err) { console.warn('save failed', err); }
+  try {
+    const json = JSON.stringify(game.toJSON());
+    localStorage.setItem(W.SAVE_KEY, json);
+    // v257 10분마다 백업을 한 칸씩 민다(bak1 → bak2)
+    if (Date.now() - lastBak > 10 * 60 * 1000) {
+      lastBak = Date.now();
+      try { const b1 = localStorage.getItem(BAK_KEYS[0]); if (b1) localStorage.setItem(BAK_KEYS[1], b1); localStorage.setItem(BAK_KEYS[0], json); } catch { /* 백업 자리가 없으면 본 세이브만 */ }
+    }
+    saveFailNoted = false;
+  } catch (err) {
+    console.warn('save failed', err);
+    // v257 저장이 안 되면 한 번 알린다(전엔 조용히 저장이 멈췄다)
+    if (!saveFailNoted) { saveFailNoted = true; toast('⚠ 저장하지 못했어요 — 기기 저장 공간을 확인해 주세요'); }
+  }
 }
+// v257 여러 창 — 같은 세이브를 두 창이 5초마다 덮어써 진행이 되돌아갔다. 마지막으로 연 창이 주인이 되고,
+// 주인이 아닌 창은 저장을 멈추고 알린다(다시 불러오면 그 창이 주인).
+const TAB_ID = Math.random().toString(36).slice(2);
+const TAB_KEY = 'ifu.tabOwner';
+let tabLost = false;
+function claimTab() { try { localStorage.setItem(TAB_KEY, JSON.stringify({ id: TAB_ID, t: Date.now() })); } catch { /* 사생활 모드 */ } }
+function tabOwner() {
+  if (tabLost) return false;
+  let o = null;
+  try { o = JSON.parse(localStorage.getItem(TAB_KEY) || 'null'); } catch { /* 망가진 값 */ }
+  if (o && o.id !== TAB_ID) { tabLost = true; showTabLost(); return false; }
+  claimTab();
+  return true;
+}
+function showTabLost() {
+  stopSaving = true;
+  openModal((s) => {
+    s.append(h('h2', {}, '다른 창에서 이어 하고 있어요'),
+      h('p', { class: 'muted' }, '같은 캐릭터를 두 창에서 하면 서로 덮어써 진행이 사라질 수 있어 이 창은 멈췄어요.'),
+      h('button', { class: 'btn primary', style: 'width:100%', onclick: () => location.reload() }, '이 창에서 이어 하기'));
+  }, { dismissable: false });
+}
+claimTab();
+window.addEventListener('storage', (e) => { if (e.key === TAB_KEY && e.newValue && !tabLost) { try { if (JSON.parse(e.newValue).id !== TAB_ID) { tabLost = true; showTabLost(); } } catch { /* */ } } });
+if (saveNote) setTimeout(() => toast(saveNote), 1800);
 
 // ---------- 창(시트) ----------
 const tabs = {};
