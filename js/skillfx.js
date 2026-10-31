@@ -99,6 +99,7 @@ export class Director {
     if (v.camFocus) { v.camFocus = null; v.camPan = true; }
     v.faceOverride = 0;
     v.desatTo = 0;
+    v.desatRate = 4;     // v255: 천하제일검이 1.6으로 바꾸고 안 돌려 그 뒤 모든 흑백 전환이 느려졌다
     v.slice = null;
   }
 

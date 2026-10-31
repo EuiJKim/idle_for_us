@@ -464,6 +464,8 @@ export class WorldGame {
   enterMap(id, quiet = false) {
     if (!this.canEnter(id)) return false;
     this.clones = [];
+    this.fields = [];                    // v255: 장판(화골산·독룡출동)을 두고 가면 다음 사냥터 같은 자리에서 계속 터졌다
+    this.dmgLog = []; this.dmgAcc = 0;   // v255: 던전·다른 사냥터의 피해 기록이 두목 체력 셈에 섞이지 않게
     if (this.inst) this.inst = null;     // 던전에서 다른 데로 가면 그 판은 버린다
     this.sceneKey = null;
     this.tells = [];
@@ -1199,7 +1201,9 @@ export class WorldGame {
     }
     m.hp -= dmg;
     m.aggro = true;
-    this.dmgAcc = (this.dmgAcc || 0) + Math.min(dmg, Math.max(0, m.hp + dmg));   // v241: 실제 준 피해(넘친 몫은 빼고) — 두목 최소 싸움 길이 잣대
+    // v241: 실제 준 피해(넘친 몫은 빼고) — 두목 최소 싸움 길이 잣대
+    // v255: 과녁(this.mon)에 준 것만 — 광역 합을 세면 독마·검사는 한 몸에 주는 피해의 5~7배로 잡혀 두목이 몇 분짜리가 됐다
+    if (m === this.mon) this.dmgAcc = (this.dmgAcc || 0) + Math.min(dmg, Math.max(0, m.hp + dmg));
     if (!quiet) this.emit('dmg', { amount: dmg, kind, crit: crit ? 1 : 0, at: m, add: m !== this.mon });
     if (m.hp <= 0) this.killMob(m);
   }
@@ -2906,7 +2910,9 @@ export class WorldGame {
       const hit = D.tellCovers(tl, this.heroX, this.heroY);
       this.emit('tellBoom', { tell: tl, hit });
       if (!hit || this.heroHp <= 0 || this._invulnUntil > this.clock) continue;
-      const red = (1 - (W.CLASSES[this.s.job]?.dmgRed || 0)) * (1 - (this.buffv.guard || 0));
+      // v255: % 경고 피해에도 호신강기·장비 '받는 피해 감소'를 — 전엔 직업·금신만 곱해 고정 피해(patternHit)와 달랐다
+      const pmr = this.pmods();
+      const red = (1 - (W.CLASSES[this.s.job]?.dmgRed || 0)) * (1 - (this.buffv.guard || 0)) * (1 - Math.min(0.6, pmr.dmgRed || 0)) * (1 - (st.dmgRed || 0));
       const dmg = tl.abs ? this.patternHit(tl.abs, boss) : st.hp * tl.dmg * red;
       let left = dmg;
       if (this.shield > 0 && this.buffs.shield > 0) { const a = Math.min(this.shield, left); this.shield -= a; left -= a; }
@@ -3153,8 +3159,9 @@ for (const [fn, key, always] of [
     return r;
   };
   const enter = WorldGame.prototype.enterMap;
-  WorldGame.prototype.enterMap = function (id) {
-    const r = enter.call(this, id);
+  // v255: quiet을 넘긴다 — 전엔 빠져서 불러오자마자·던전이 끝날 때마다 지도 진입 배너가 떴다
+  WorldGame.prototype.enterMap = function (id, quiet = false) {
+    const r = enter.call(this, id, quiet);
     if (r && !this.map.town) {
       if (this.map.king) this.mark('kingRoom');
       if (W.ZONES_W[this.map.zone]?.pair) this.mark('alt');

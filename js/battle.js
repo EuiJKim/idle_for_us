@@ -680,6 +680,9 @@ export class BattleView {
   // 월드 Y는 화면에서 살짝 눌러 그린다 — 평면이 너무 넓어 보이지 않게
   get squash() { return FIELD_SQUASH; }
   sx(m) { const g = this.game; return this.heroX + (m.x - (g?.heroX || 0)); }
+  // v255 글자 칸(w·h를 진짜 픽셀로 바꾼 동안)에서도 들판 좌표를 바르게 — 줌을 되돌린 w·h로 센다
+  wsx(m) { const w0 = this.w, h0 = this.h; if (this._vw) { this.w = this._vw; this.h = this._vh; } try { return this.sx(m); } finally { this.w = w0; this.h = h0; } }
+  wsy(m) { const w0 = this.w, h0 = this.h; if (this._vw) { this.w = this._vw; this.h = this._vh; } try { return this.sy(m); } finally { this.w = w0; this.h = h0; } }
   sy(m) { const g = this.game; return this.groundY + (m.y - (g?.heroY || 0)) * this.squash; }
   get monX() { const g = this.game; return g?.mon ? this.sx(g.mon) : this.w * 0.5; }
   get monY() { const g = this.game; return g?.mon ? this.sy(g.mon) : this.groundY; }
@@ -696,7 +699,7 @@ export class BattleView {
     if (this.pending && !ev._released && this.hold(ev, game)) return;
     // 날아가는 평타는 닿을 때 숫자가 뜬다
     if (this.shotDelay && ev.type === 'dmg' && ev.kind === 'hit' && !ev._released) {
-      this.later.push({ t: this.shotDelay, ev: { ...ev, at: ev.at ? { x: ev.at.x, y: ev.at.y } : null } });
+      this.later.push({ t: this.shotDelay, ev: { ...ev, ref: ev.ref || ev.at, at: ev.at ? { x: ev.at.x, y: ev.at.y } : null } });
       return;
     }
     switch (ev.type) {
@@ -778,7 +781,9 @@ export class BattleView {
         const size = ev.kind === 'pet' ? 12 : ev.kind === 'ally' ? 14 : skill ? 21 : ct ? 18 + Math.min(4, ct) * 2 : 14;
         if (ev.add) {
           // 맞은 졸개는 움찔한다(drawAdd가 이 시각을 보고 밀리고 찌그러진다)
-          if (ev.at) ev.at._hitAt = this.t;
+          // v255: 붙들었다 푼 사건의 at은 복사본이다 — 진짜 몹(ref)에 적어야 움찔한다
+          const hm = ev.ref || ev.at;
+          if (hm) hm._hitAt = this.t;
           // 광역기는 한 방에 수십을 때린다. 숫자를 전부 띄우면 화면이 숫자로 덮인다.
           // v254: 0.6초마다 새로 센다 — 전엔 0으로 돌리는 곳이 없어 광역 여섯 번째 적중부터 숫자가 영영 안 떴다
           if (this.t - (this.aoeT ?? -9) > 0.6) { this.aoeHits = 0; this.aoeT = this.t; }
@@ -1161,6 +1166,8 @@ export class BattleView {
         // 연출표가 있는 무공은 결과를 모았다가 draw에서 감독에게 넘긴다
         // 각성한 무공은 ev.fx(예: 'sword:blink')로 연출표를 고른다
         if (ev.fx && CHOREO[ev.fx] && !ev._released) {
+          // v255: 같은 틱에 무공이 둘 오면 앞 무공이 붙든 결과가 덮여 피해 숫자가 영영 안 떴다 — 앞의 것을 먼저 펼친다
+          if (this.pending) this.startCast(game);
           this.pending = { id: ev.id, fx: ev.fx, name: ev.name, job: ev.job || ev.cls, cls: ev.cls, tier: ev.tier || 0,
             at: ev.at || null, radius: ev.radius || 0, dur: ev.dur || 0, motion: ev.motion, hits: [], kills: [], path: null };
         } else this.skillEffect(ev.look || ev.id, ev.job, ev.name);
@@ -1330,7 +1337,8 @@ export class BattleView {
     const g = this.game;
     if (!g) return;
     const { look, opts } = this.heroLook(g, false);
-    const o = { ...opts, pose: pose ? { ...pose, alpha: 1 } : null, flip: !!flip, lunge: 0, flash: 0, run: false };
+    // v255 turn을 지운다 — 남아 있으면 drawFighter가 flip을 무시하고 무인의 지금 방향만 봤다(잔상·분신·컷인)
+    const o = { ...opts, pose: pose ? { ...pose, alpha: 1 } : null, flip: !!flip, turn: null, lunge: 0, flash: 0, run: false };
     if (!tint) { drawFighter(ctx, x, y, look, o); return; }
     const W = 180;
     const H = 200;
@@ -1810,6 +1818,7 @@ export class BattleView {
     ctx.save();
     ctx.scale(1 / z, 1 / z);
     const vw = this.w, vh = this.h;
+    this._vw = vw; this._vh = vh;   // v255 글자 칸 안에서 들판 자리를 셀 때 쓴다(wsx/wsy)
     this.w = this.W; this.h = this.H;
     try {
       this.drawAmbient(this.game);
@@ -3835,7 +3844,7 @@ export class BattleView {
         this.effects.push({ kind: 'crack', life: cl, max: cl, wx, wy, r: 150 * R, col: k.pillar, seed: Math.random() * 99, n: full ? 7 : 5 });
         this.effects.push({ kind: 'shock', life: 0.55, max: 0.55, wx, wy, r: 220 * R, col: k.glow, rings: 2, w: 4 });
         this.effects.push({ kind: 'shock', life: 0.9, max: 0.9, wx, wy, r: 340 * R, col: '214,180,120', w: 2 });
-        const bx = this.sx(ki.at), by = this.sy(ki.at);
+        const bx = this.wsx(ki.at), by = this.wsy(ki.at);   // v255 들판 좌표로(이 안에선 w·h가 진짜 픽셀이라 어긋났다)
         const n = Math.round((full ? 18 : 10) * (this.budget ?? 1));
         for (let i = 0; i < n; i++) {
           const a = (i / n) * Math.PI * 2 + Math.random() * 0.3;
@@ -3851,8 +3860,8 @@ export class BattleView {
     ctx.fillRect(0, 0, w, h);
     // 왕이 선 자리 — 핏빛 기둥과 소용돌이
     if (ki.at && this.game) {
-      const bx = this.sx(ki.at) * z;
-      const by = this.sy(ki.at) * z;
+      const bx = this.wsx(ki.at) * z;
+      const by = this.wsy(ki.at) * z;
       const pk = Math.max(0, Math.min(1, (t - 0.15 / sp) / 0.3)) * A;
       const col = ctx.createLinearGradient(bx - 30, 0, bx + 30, 0);
       col.addColorStop(0, `rgba(${k.ink},0)`);

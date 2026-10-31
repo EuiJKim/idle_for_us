@@ -358,9 +358,12 @@ export const MAJON_FX = {
     ctx.fillStyle = `rgba(${e.col},${a})`; ctx.fillText(e.text, 0, 0);
     ctx.fillStyle = `rgba(255,255,255,${0.6 * a})`; ctx.fillText(e.text, -2, -2);
     // 낙관
+    // v255: 글자 폭을 재서 마지막 글자 오른쪽 아래에 — 전엔 글자당 26px로 가정해 마지막 글자 위에 겹쳤다
+    const half = ctx.measureText(e.text).width / 2;
+    const sx = Math.min(half + 4, v.w / 2 - 30);
     ctx.fillStyle = `rgba(185,28,28,${a})`;
-    ctx.fillRect(e.text.length * 26, 10, 26, 26);
-    ctx.fillStyle = `rgba(255,240,230,${a})`; ctx.font = '900 16px serif'; ctx.fillText('極', e.text.length * 26 + 13, 24);
+    ctx.fillRect(sx, 14, 26, 26);
+    ctx.fillStyle = `rgba(255,240,230,${a})`; ctx.font = '900 16px serif'; ctx.fillText('極', sx + 13, 28);
   },
   // 꽃잎 폭풍 — 화면을 가로지르는 꽃잎 떼 (일화천섬)
   petalstorm(v, ctx, e, k) {
