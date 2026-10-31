@@ -1805,5 +1805,20 @@ console.log('\n=== 빈 각인 칸 새기기 (v251) ===');
   ok(g.fillImp(it.uid, 1, k, 1) && it.imps[1]?.k === k && it.rar === 2, '둘째 칸도 — 등급은 그대로');
   ok(!g.fillImpInfo(it, 0, k), '새긴 칸은 다시 새기기로만');
 }
+console.log('\n=== 세트 장비가 공유 강화를 이어받는다 (v253) ===');
+{
+  const G2 = await import('../js/world/wgear.js');
+  const g = fresh('sword');
+  while (g.s.level < 100) g.addExp(W.expToNext(g.s.level));
+  g.s.gold = 1e15; g.rng = () => 0;
+  const gw = g.growOf('weapon'); gw.plus = 5;
+  const set = g.makeKing('weapon', G2.SLOT_KING.weapon, 0, G2.setsOfJob('sword')[0].id, 0);
+  g.s.bag.push(set); g.equipFromBag(set.uid); g._stats = null;
+  const a0 = g.stats().atk;
+  ok(set.plus === 5, '세트 무기는 성장 무기의 +5를 제 강화로 이어받는다', `+${set.plus}`);
+  const m = g.enhanceMats(set); if (m) g.s.mats[m.key] = 1e9;
+  const bm = g.breakMarksOf(set); if (bm && m) g.s.mats[W.bossKey(m.key)] = 1e9;
+  ok(g.enhance(set.uid) && set.plus === 6 && g.stats().atk > a0, '세트 무기를 강화하면 바로 수치가 오른다(전엔 +5까지 그대로였다)');
+}
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);

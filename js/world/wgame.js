@@ -290,6 +290,17 @@ export class WorldGame {
     return g ? g.plus || 0 : 0;
   }
   effPlus(it) { return Math.max(it?.plus || 0, this.sharedPlus(it)); }
+  // v253: 세트·왕의 장비가 공유 강화를 '제 강화'로 이어받는다. 전엔 성장 무기가 +5면 세트 무기를 +1~+5로
+  //   강화해도 수치가 그대로였다(공유 +5가 이미 더 높아서) — 재료만 날아가 '강화가 안 먹는다'로 보였다.
+  //   이제 세트 장비는 공유 수치에서부터 이어서 강화된다(비용·확률도 그 단계 것).
+  adoptShared() {
+    let n = 0;
+    for (const it of [...Object.values(this.s.equip), ...this.s.bag]) {
+      const sp = this.sharedPlus(it);
+      if (it && sp > (it.plus || 0)) { it.plus = sp; it.epity = 0; n++; }
+    }
+    return n;
+  }
   itemStats(it) {
     if (!it) return {};
     const b = W.itemBase(it.slot, it.ilv);
@@ -341,6 +352,7 @@ export class WorldGame {
   }
   stats() {
     if (this._stats && this._stats.sig === this.statSig()) return this._stats;
+    this.adoptShared();
     const s = this.s;
     const L = s.level;
     const cls = W.CLASSES[s.job] || {};
@@ -2027,6 +2039,7 @@ export class WorldGame {
   }
   // v192: 실패하면 +7까지 그대로 · +8~10 -1 · +11부터 -2(useProt면 보호부 하나로 그대로). 실패마다 천장(it.epity)이 쌓인다. 결과는 this.lastEnhance에도 남긴다.
   enhance(uid, useProt = true) {
+    this.adoptShared();
     const it = this.findItem(uid);
     if (!this.canEnhance(it)) return null;
     const cost = this.enhanceCost(it);
