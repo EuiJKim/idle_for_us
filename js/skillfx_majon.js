@@ -737,7 +737,9 @@ export const MAJON_CHOREO = {
     beats(d, [[0, '기모으기', 'out'], [0.45, '기모으기'], [0.55, '펼치기', 'snap'], [1.1, '마무리', 'inout']], {
       cast: 0.1, hit: 0.75, end: 1.6, shake: 0.3, name: false,
       onCast: () => {
-        d.fx('sigil', 1.5, { wx: d.to.x, wy: d.to.y, r: R * 1.2, col: SOUL, n: 22, spin: -2 });
+        // v249: 발밑 원이 세 겹(인장·큰 인장·직업 인장) — 이 인장은 먹빛 테로, 대신 분신이 둘레를 휩쓰는 부채 회오리
+        d.fx('sigil', 1.5, { wx: d.to.x, wy: d.to.y, r: R * 1.2, col: SOUL, n: 22, spin: -2, dark: '59,7,100' });
+        d.at(0.55, () => d.fx('cyclone', 1.0, { wx: d.to.x, wy: d.to.y, r: R, h: 120, col: SOUL, w: 6, dark: '59,7,100' }));
         const off = [[-1, -0.4], [1, -0.4], [-0.6, 0.6], [0.6, 0.6]];
         off.forEach(([ox, oy], i) => d.at(0.2 + i * 0.1, () => {
           d.ghost(d.to.x + ox * 70, d.to.y + oy * 60, i % 2 ? '휘두르기' : '펼치기', 0.9, { a0: 0.75, tint: i % 2 ? BLOOD : SOUL });
@@ -747,7 +749,7 @@ export const MAJON_CHOREO = {
       },
       onHit: () => {
         impact(d, d.to, R * 1.1, c, { rings: 3, sparks: 18 });
-        for (const at of hitsOr(d, 10)) d.fx('eye', 0.8, { wx: at.x, wy: at.y, r: 14, oy: -105 });
+        for (const at of hitsOr(d, 10)) d.fx('eye', 1.6, { wx: at.x, wy: at.y, r: 22, oy: -105 });
         climax(d, SOUL, d.to);
       },
     });
@@ -756,9 +758,12 @@ export const MAJON_CHOREO = {
   // 일화검존 유운보 — 구름 같은 걸음: 바람 줄과 꽃잎이 몸을 감싸 돈다
   'sword:m3'(d) {
     const c = [PLUM, '255,255,255', '71,85,105'];
+    // v249: 전광석화(금빛 번개)와 같은 뼈대라 색만 달랐다 — 유운보는 '구름 같은 걸음': 꽃빛 잔상이 둘레를 흘러 돌고 꽃잎이 크게 감긴다
     buffBeats(d, c, [[0.05, '순보', 'out'], [0.4, '순보'], [0.5, '착지', 'snap'], [0.8, '마무리', 'inout']], () => {
       d.fx('speedlines', 0.6, { col: c[1], seed: Math.random() * 6 });
-      d.fx('petals', 1.6, { wx: d.to.x, wy: d.to.y, r: 70, col: PLUM, seeds: rnd(16), spin: 5, hero: true });
+      d.fx('petals', 1.8, { wx: d.to.x, wy: d.to.y, r: 130, col: PLUM, seeds: rnd(28), spin: 5, hero: true });
+      shadows(d, PLUM, 4, ['순보', '착지', '순보', '착지'], d.to, 90);
+      d.fx('cyclone', 1.0, { wx: d.to.x, wy: d.to.y, r: 110, h: 90, col: PLUM, w: 3, dark: '80,7,36' });
     });
   },
   // 불패권마 금종조 — 금종이 내려앉아 몸을 덮는다
@@ -773,12 +778,15 @@ export const MAJON_CHOREO = {
   'fan:m3'(d) {
     const c = [SOUL, '254,226,226', '59,7,100'];
     buffBeats(d, c, [[0.05, '기모으기', 'out'], [0.45, '기모으기'], [0.6, '펼치기', 'snap'], [0.9, '마무리', 'inout']], () => {
-      d.fx('sigil', 1.0, { wx: d.to.x, wy: d.to.y, r: 110, col: SOUL, n: 16, spin: -3 });
-      for (let i = 0; i < 4; i++) {
-        const a = (i / 4) * TAU;
-        d.ghost(d.to.x + Math.cos(a) * 70, d.to.y + Math.sin(a) * 40, '기모으기', 0.5, { a0: 0.45, tint: SOUL });
-        d.fx('qiorb', 0.5, { pts: [{ x: d.to.x + Math.cos(a) * 70, y: d.to.y + Math.sin(a) * 40, oy: -50 }, { x: d.to.x, y: d.to.y, oy: -55 }], go: 0.9, col: SOUL, size: 6, hop: 10 });
+      // v249: 잔상이 0.45 진하기·반지름 70이라 거의 안 보였다 — 멀리(150) 또렷이 서서 혼불로 되돌아오고, 돌아오면 몸이 밝아진다
+      d.fx('sigil', 1.1, { wx: d.to.x, wy: d.to.y, r: 200, col: SOUL, n: 16, spin: -3, dark: '59,7,100' });
+      for (let i = 0; i < 5; i++) {
+        const a = (i / 5) * TAU;
+        const gx = d.to.x + Math.cos(a) * 150, gy = d.to.y + Math.sin(a) * 85;
+        d.ghost(gx, gy, '기모으기', 0.6, { a0: 0.7, fade: 0.6, tint: SOUL, flip: Math.cos(a) > 0 });
+        d.fx('qiorb', 0.6, { pts: [{ x: gx, y: gy, oy: -50 }, { x: d.to.x, y: d.to.y, oy: -55 }], go: 0.85, col: SOUL, size: 12, hop: 22 });
       }
+      d.at(d.t + 0.5, () => { d.fx('flare', 0.5, { wx: d.to.x, wy: d.to.y, r: 90, col: SOUL, oy: -60 }); d.fx('shock', 0.45, { wx: d.to.x, wy: d.to.y, r: 100, col: SOUL, rings: 2, w: 4 }); });
     });
   },
   // 독왕 만독귀원 — 적들 몸의 독이 한꺼번에 터지고 초록 기운이 무인에게 모인다
@@ -979,7 +987,7 @@ export const MAJON_CHOREO = {
   'fan:pb'(d) {
     const c = COL.fan;
     buffBeats(d, c, [[0.06, '펼치기', 'out'], [0.3, '휘두르기', 'snap'], [0.6, '마무리', 'inout']], () => {
-      d.fx('cyclone', 1.4, { wx: d.to.x, wy: d.to.y, r: 150, col: c[1] });
+      d.fx('cyclone', 1.4, { wx: d.to.x, wy: d.to.y, r: 190, h: 170, col: c[0], w: 6 });   // v249 굵고 크게
       d.fx('speedlines', 1.0, { col: c[0] });
       impact(d, d.to, 120, c, { rings: 2, sparks: 10 });
     });

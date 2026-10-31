@@ -3599,13 +3599,15 @@ export class BattleView {
     const { ctx } = this;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'alphabetic';
+    // v249: 필살 컷인 띠·큰 이름이 떠 있는 동안 그 높이의 숫자는 옅게 — 글자 위에 글자가 찍혀 둘 다 안 읽혔다
+    const band = this.effects.some((e) => (e.kind === 'cutin' || e.kind === 'bigname') && e.life > 0);
     for (const f of this.floats) {
       f.life -= dt;
       f.y += (f.vy ?? -40) * dt;
       f.x += (f.vx || 0) * dt;
       if (f.vy != null) { f.vy *= Math.max(0, 1 - dt * 5.5); f.vx *= Math.max(0, 1 - dt * 5); }
       const k = Math.max(0, f.life / f.max);
-      ctx.globalAlpha = Math.min(1, k * 2.2);
+      ctx.globalAlpha = Math.min(1, k * 2.2) * (band && f.y * z > this.h * 0.18 && f.y * z < this.h * 0.58 ? 0.3 : 1);
       // 처음 0.12초에 크게 튀었다가 제 크기로 — 뒤로 갈수록 살짝 작아진다
       const age = f.max - f.life;
       const pop = age < 0.12 ? 1.45 - age / 0.12 * 0.45 : 1 - Math.max(0, 0.4 - k) * 0.25;

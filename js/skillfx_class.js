@@ -291,14 +291,19 @@ export const CLASS_FX = {
     const p = 1 - k;
     const H = e.h || 150;
     const a = Math.min(1, p * 5) * Math.min(1, k * 3);
-    for (let j = 0; j < 3; j++) {
-      ctx.strokeStyle = `rgba(${j ? e.col : '255,255,255'},${(0.6 - j * 0.15) * a})`;
-      ctx.lineWidth = 2.5 - j * 0.6;
+    // v249: 큰 반지름에서 2.5px 선은 흐릿한 동심원 몇 줄로만 읽혔다 — 굵기(w)를 받고, 먹빛 밑줄을 먼저 깐다
+    const W = e.w || 3.5;
+    ctx.lineCap = 'round';
+    for (let j = -1; j < 3; j++) {
+      const jj = Math.max(0, j);
+      ctx.globalCompositeOperation = j < 0 ? 'source-over' : 'lighter';
+      ctx.strokeStyle = j < 0 ? `rgba(${e.dark || '8,24,40'},${0.3 * a})` : `rgba(${j ? e.col : '255,255,255'},${(0.7 - j * 0.15) * a})`;
+      ctx.lineWidth = j < 0 ? W * 2.4 : W - jj * W * 0.25;
       ctx.beginPath();
       for (let i = 0; i <= 40; i++) {
         const t = i / 40;
         const r = (e.r || 60) * (0.25 + 0.75 * t);
-        const ang = t * 9 + p * 14 + j * 2.1;
+        const ang = t * 9 + p * 14 + jj * 2.1;
         const px = x + Math.cos(ang) * r;
         const py = y - t * H + Math.sin(ang) * r * 0.32;
         if (i) ctx.lineTo(px, py); else ctx.moveTo(px, py);
