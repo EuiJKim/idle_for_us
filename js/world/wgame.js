@@ -2645,7 +2645,7 @@ export class WorldGame {
     // 지난 30초 실제 초당 피해(싸운 적이 있을 때) — 없으면 평타로 어림(무공 몫 ×2.5)
     const log = (this.dmgLog || []).filter((x) => x > 0);
     if (log.length >= 8) return log.reduce((a, b) => a + b, 0) / log.length;
-    const st = this.stats(); return (st.atk / st.atkSec) * (1 + st.crit * (st.critDmg - 1)) * 2.5;
+    const st = this.stats(); return (st.atk / st.atkSec) * (1 + st.crit * (st.critDmg - 1)) * (2.5 + (this.s.jobTier || 0) * 0.8) * st.skillMult;   // v242: 차수·무공 배수만큼 무공 몫
   }
   overPower(baseHp, m) {
     const sec = m.lord ? W.BOSS_MIN_SEC.lord : m.king || m.master ? W.BOSS_MIN_SEC.king : W.BOSS_MIN_SEC.zone;

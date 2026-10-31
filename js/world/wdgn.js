@@ -90,8 +90,12 @@ export function refHp(lv) {
 // 같은 레벨에서는 비슷하게 잡히고, 한참 높은 곳(레벨 60이 십이지왕 99~)은 몹 하나에 몇 초, 몇 대면 쓰러진다.
 export const FIELD_HP_SEC = 0.5;
 export const FIELD_ATK_FRAC = 0.04;
-export const fieldMobHp = (lv) => Math.round(Math.max(mobHp(lv), refDps(lv) * FIELD_HP_SEC));
-export const fieldMobAtk = (lv) => Math.round(Math.max(mobAtk(lv), refHp(lv) * FIELD_ATK_FRAC));
+// v242: 장비 기대치 곡선 — 높은 사냥터일수록 무인이 강화·등급 장비를 갖췄다고 보고 몹이 단단·아프다.
+// +10 전설 차림 시뮬로 맞췄다: 레벨 30까지 그대로, 92에 체력 ×2.5·공격 ×1.6, 145에 ×4.3·×2.1
+export const gearHp = (lv) => 1 + 7 * (Math.max(0, lv - 30) / 120) ** 1.3;
+export const gearAtk = (lv) => 1 + 1.8 * (Math.max(0, lv - 30) / 120);
+export const fieldMobHp = (lv) => Math.round(Math.max(mobHp(lv), refDps(lv) * FIELD_HP_SEC) * gearHp(lv));
+export const fieldMobAtk = (lv) => Math.round(Math.max(mobAtk(lv), refHp(lv) * FIELD_ATK_FRAC) * gearAtk(lv));
 // 던전 몹 하나 = 같은 레벨 무인이 1.2초 칠 체력 (초반은 광역 무공이 적어 덜 단단하게 — 레벨 5에 0.5초)
 export const dailyHpSec = (lv) => 0.45 + 0.75 * Math.min(1, lv / 60);
 export const dailyMobHp = (lv) => Math.max(mobHp(lv) * 0.7, refDps(lv) * dailyHpSec(lv));

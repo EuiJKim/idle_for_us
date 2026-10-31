@@ -1333,8 +1333,10 @@ console.log('\n=== 사냥터 몹 강함 (v149) ===');
 {
   const DG = await import('../js/world/wdgn.js');
   // 같은 레벨 기준 무인이 0.5초 칠 체력 — 무인 성장을 따른다
-  const rows = [20, 60, 100, 145].map((lv) => [lv, DG.fieldMobHp(lv) / DG.refDps(lv)]);
-  ok(rows.every(([, t]) => t >= 0.45 && t <= 0.8), '사냥터 몹 체력 = 같은 레벨 무인 0.5초어치 (레벨이 올라도 같다)', rows.map(([l, t]) => `${l}:${t.toFixed(2)}초`).join(' '));
+  // v242: 레벨 30까지는 0.5초어치, 그 위는 장비 기대치 곡선(gearHp)만큼 단단하다 — 높은 사냥터일수록 강화·등급 장비를 갖췄다고 본다
+  const rows = [20, 60, 100, 145].map((lv) => [lv, DG.fieldMobHp(lv) / DG.refDps(lv) / DG.gearHp(lv)]);
+  ok(rows.every(([, t]) => t >= 0.45 && t <= 0.8), '사냥터 몹 체력 = 같은 레벨 무인 0.5초어치 × 장비 기대치(v242)', rows.map(([l, t]) => `${l}:${t.toFixed(2)}초`).join(' '));
+  ok(DG.gearHp(30) === 1 && DG.gearHp(92) >= 3.5 && DG.gearHp(145) >= 7 && DG.gearAtk(145) >= 2.5, '장비 기대치: 30까지 ×1 · 92에 체력 ×3.5+ · 145에 ×7+', `${DG.gearHp(92).toFixed(1)} ${DG.gearHp(145).toFixed(1)} ${DG.gearAtk(145).toFixed(1)}`);
   ok(DG.fieldMobHp(100) > W.mobHp(100) * 10, '레벨 100 몹은 옛 공식보다 열 배 넘게 단단하다', `${DG.fieldMobHp(100)} vs ${W.mobHp(100)}`);
   // 레벨 차이: 높은 몹에게는 내 피해가 줄고 받는 피해가 는다
   const g = fresh();
@@ -1442,7 +1444,7 @@ console.log('\n=== 고유 효과가 쓸모 있는가 (v167 · 꼴 열여섯을 �
   // 레벨 120 검사 · 신화 칸 하나(무게 1.6)에 그 고유 하나. 같은 장비·같은 각인에서 고유만 끈 판과 견준다(같은 난수).
   //   dummy   허수아비 여섯이 둘레에 (때리지 않는다) — 60초 동안 준 피해
   //   counter  허수아비가 때린다(무인은 쓰러지지 않게) — 맞을 때 터지는 반격·쾌속을 60초 동안 준 피해로
-  //   pressure 물약 없이 벅찬 사냥터(천외천 3)에서 120초 — 평균 체력·쓰러짐·준 피해
+  //   pressure 물약 없이 벅찬 사냥터(남만 독림 2)에서 120초 — 평균 체력·쓰러짐·준 피해
   const pick = (kind) => IM.ALL_SPECIALS().find((x) => x.kind === kind);
   const run = (kind, scene, off, seed = 4242) => {
     const g = fresh();
@@ -1460,7 +1462,7 @@ console.log('\n=== 고유 효과가 쓸모 있는가 (v167 · 꼴 열여섯을 �
     const hurt0 = g.hurt.bind(g);
     g.hurt = (m, d, ...a) => { if (m.alive && !m.npc && !(m.introT > 0)) dealt += Math.min(d, m.hp); return hurt0(m, d, ...a); };
     if (scene === 'pressure') {
-      const map = W.mapId(15, 3);          // 천외천 3 — 물약 없이 두 분에 다섯쯤 쓰러지는 곳
+      const map = W.mapId(12, 2);          // 남만 독림 2 — 물약 없이 두 분에 다섯쯤 쓰러지는 곳 (v242 장비 기대치 곡선 뒤로는 천외천은 쉰 번 넘게 쓰러진다)
       g.enterMap(map);
       for (let t = 0; t < 120; t += 0.05) {
         g.tick(0.05);
