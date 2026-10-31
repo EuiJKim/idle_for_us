@@ -297,7 +297,7 @@ export class WorldGame {
     let n = 0;
     for (const it of [...Object.values(this.s.equip), ...this.s.bag]) {
       const sp = this.sharedPlus(it);
-      if (it && sp > (it.plus || 0)) { it.plus = sp; it.epity = 0; n++; }
+      if (it && sp > (it.plus || 0)) { it.plus = sp; n++; }   // v254: 천장(epity)은 그대로 둔다
     }
     return n;
   }
@@ -712,7 +712,8 @@ export class WorldGame {
     if (this.heroHp <= 0) return;
     this.tickFields(dt, st);
     this.tickClones(dt, st);
-    this.tickPotion(st);
+    // v254: 쓰러져 마을로 막 돌아온 틱엔(체력 1) 물약을 먹지 않는다 — 마을은 곧 다 채워 주는데 쓰러질 때마다 물약이 하나씩 줄었다
+    this.tickPotion(st, this.map.town);
     this.tickImprint(dt, st);
     this.tickHero(dt, st);
     this.tickPets(dt, st);
@@ -809,7 +810,7 @@ export class WorldGame {
             if (ps.has('reflect')) this.hurt(m, dmg * 0.4, 'reflect', false);                                 // 철왕
             { const isp = this.impSpecials();                                                                  // 증표 고유 (v163)
               if (isp.mirror && m.alive) { this.hurt(m, st.atk * Math.min(5, 1.5 * isp.mirror.p) * (m.isBoss ? st.boss : 1), 'reflect', false); this.impShow(isp.mirror, m); }
-              if (isp.frenzy && this.rng() < Math.min(0.6, 0.12 * isp.frenzy.p)) { this.buffs.gale = Math.max(this.buffs.gale || 0, 4); this.buffv.haste = Math.max(this.buffv.haste || 0, 0.4); this._frenzyUntil = this.clock + 4; this.impShow(isp.frenzy, null); } }
+              if (isp.frenzy && this.rng() < Math.min(0.6, 0.12 * isp.frenzy.p)) { this.buffs.gale = Math.max(this.buffs.gale || 0, 4); this.buffs.haste = Math.max(this.buffs.haste || 0, 4); this.buffv.haste = Math.max(this.buffv.haste || 0, 0.4);   /* v254: 값(haste)의 타이머도 — 전엔 gale만 걸어 +40%가 영원히 남았다 */ this._frenzyUntil = this.clock + 4; this.impShow(isp.frenzy, null); } }
             if (st.thorns && m.alive) this.hurt(m, dmg * st.thorns, 'reflect', false);                       // 되돌림 (v130)
             if (ps.has('revive') && this.heroHp > 0 && this.heroHp < st.hp * 0.3 && !(this.reviveCd > 0)) {   // 목왕
               this.heroHp = Math.min(st.hp, this.heroHp + st.hp * 0.5);
@@ -833,13 +834,13 @@ export class WorldGame {
     }
   }
 
-  tickPotion(st) {
+  tickPotion(st, noDrink = false) {
     // 자동 보충 — 사냥터에서도 상인이 따라다니는 셈 (방치 사냥이 물약 때문에 멈추지 않게)
     if (this.s.autoRefill && this.s.potions < 10) {
       const n = Math.min(50 - this.s.potions, Math.floor(this.s.gold / this.potionPrice()));
       if (n > 0) this.buyPotions(n);
     }
-    if (!this.s.autoPotion || this.potionT > 0 || this.s.potions <= 0) return;
+    if (noDrink || !this.s.autoPotion || this.potionT > 0 || this.s.potions <= 0) return;
     if (D.TOWER_NO_POTION && this.inst?.kind === 'tower') return;
     if (this.heroHp < st.hp * this.potionAt()) this.drinkPotion();
   }
@@ -1426,7 +1427,8 @@ export class WorldGame {
     if (sk.lifesteal) this.heroHp = Math.min(st.hp, this.heroHp + dealt * sk.lifesteal);
     if (sk.buff) {
       const b = sk.buff;
-      if (b.speed) { this.buffs.gale = b.sec; this.buffv.haste = b.speed; }
+      // v254: 공속 값(haste)에 제 타이머를 — 전엔 gale(그림용)만 걸어 만료돼도 +40%가 영원히 남았다
+      if (b.speed) { this.buffs.gale = b.sec; this.buffs.haste = Math.max(this.buffs.haste || 0, b.sec); this.buffv.haste = Math.max(this.buffv.haste || 0, b.speed); }
       if (b.dmgRed) { this.buffs.guard = b.sec; this.buffv.guard = b.dmgRed; }
       if (b.cleave) { this.buffs.cleave = b.sec; this.buffv.cleave = b.cleave; }
       this.buffs.rage = b.sec;
@@ -2056,8 +2058,11 @@ export class WorldGame {
       it.epity = Math.min(1, (it.epity || 0) + this.enhanceBaseRate(it) * W.ENH_PITY_K);
       r.pity = it.epity;
       const f = W.enhanceFail(lv);
-      if (f && W.enhanceRisky(lv) && useProt && (this.s.prot || 0) > 0) { this.s.prot--; r.prot = true; }
-      else if (f) { r.drop = f; it.plus = Math.max(0, lv + f); }
+      // v254: 세트·왕의 장비는 공유 강화 아래로는 안 떨어진다(어차피 다시 이어받는다) — 그만큼만 떨어지고,
+      //   실제로 떨어질 게 없으면 보호부도 안 쓴다(전엔 되돌려질 하락을 막느라 보호부가 탔다)
+      const to = f ? Math.max(this.sharedPlus(it), Math.max(0, lv + f)) : lv;
+      if (to < lv && W.enhanceRisky(lv) && useProt && (this.s.prot || 0) > 0) { this.s.prot--; r.prot = true; }
+      else if (to < lv) { r.drop = to - lv; it.plus = to; }
     }
     this._stats = null;
     this.lastEnhance = r;
@@ -2566,10 +2571,11 @@ export class WorldGame {
   }
   // 우편함 (v177) — 운영자가 보낸 애완동물('종류:등급')·탈것. 받을 자리가 없으면 false(우편은 남겨 둔다)
   mailPetOk() { return this.s.pets.length < this.petSlots() || this.s.petBox.length < W.PET_BOX; }
-  takeMailPet(code) {
+  // force: 이미 우편을 지운 뒤라 잃지 않게 — 우리가 차 있어도 우리에 넣는다(v254)
+  takeMailPet(code, force = false) {
     const [kind, r] = String(code).split(':');
     const rar = Math.max(0, Math.min(W.RARITY.length - 1, Math.floor(Number(r) || 0)));
-    if (!W.PETS.some((p) => p.id === kind) || !this.mailPetOk()) return null;
+    if (!W.PETS.some((p) => p.id === kind) || (!force && !this.mailPetOk())) return null;
     const pet = { uid: uidSeq++, kind, rar, lv: 1, exp: 0 };
     if (this.s.pets.length < this.petSlots()) this.s.pets.push(pet); else this.s.petBox.push(pet);
     this._stats = null;
@@ -3083,7 +3089,9 @@ export class WorldGame {
   toJSON() { return { ...this.s, rates: this.rates() || this.s.rates || null }; }
 
   offlineReward(now = Date.now()) {
-    const sec = Math.min(W.OFFLINE_CAP_SEC, Math.max(0, (now - (this.s.lastSeen ?? now)) / 1000));
+    // v254: 시계를 앞으로 돌려 받고 되돌린 뒤 또 앞으로 돌리면 몇 번이고 받았다 — 지금까지 본 가장 늦은 시각(clockMax)부터만 센다
+    const from = Math.max(this.s.lastSeen ?? now, this.s.clockMax || 0);
+    const sec = Math.min(W.OFFLINE_CAP_SEC, Math.max(0, (now - from) / 1000));
     const r = this.s.rates;
     if (sec < 60 || !r || !(r.kills > 0)) return null;
     // 물약이 바닥나면 거기서 멈춘다
@@ -3093,9 +3101,10 @@ export class WorldGame {
     // 재료: 처치 수만큼 굴린 기댓값 (장비는 마을 대장장이에게서)
     const m = W.mapOf(r.map);
     const mats = W.MATS[m.mz] ? Math.floor(kills * W.MAT_RATE) : 0;
-    // 두목 구역에 있었다면 두목을 잡은 셈으로 증표 (다시 나기 + 잡는 데 한 70초)
-    const marks = m.bossRoom ? Math.floor(t / (W.BOSS_RESPAWN + 25)) : 0;
-    return { sec, t, kills, exp: Math.floor(r.exp * t), gold: Math.floor(r.gold * t + marks * W.mobGold(m.lv[1]) * W.BOSS.gold),
+    // 두목 구역에 있었다면 두목을 잡은 셈으로 증표 — v254: 온라인 최소 전투 시간(45초)에 맞춰 다시 나기 + 45초
+    // 은자는 실측(rates)에 두목 은자가 이미 들어 있어 따로 더하지 않는다(전엔 두 번 셌다)
+    const marks = m.bossRoom ? Math.floor(t / (W.BOSS_RESPAWN + W.BOSS_MIN_SEC.zone)) : 0;
+    return { sec, t, kills, exp: Math.floor(r.exp * t), gold: Math.floor(r.gold * t),
       potions: Math.ceil(r.potions * t), mats, marks, stoppedByPotion: potionSec < sec, map: r.map };
   }
   claimOffline(rw) {
@@ -3107,7 +3116,8 @@ export class WorldGame {
     this.s.kills += rw.kills;
     const z = W.mapOf(rw.map).mz;
     this.addMastery(W.mapOf(rw.map).zone, rw.kills);
-    if (rw.mats) this.addMats(z, rw.mats + (rw.marks || 0) * W.BOSS_MATS);
+    // v254: 재료가 0이어도(짧은 방치) 두목 재료는 들어온다
+    if (rw.mats || rw.marks) this.addMats(z, (rw.mats || 0) + (rw.marks || 0) * W.BOSS_MATS);
     if (rw.marks) this.addMats(W.bossKey(z), rw.marks);
     if (rw.marks && G.STONES[z]) this.addMats(G.stoneKey(z), rw.marks * G.STONE_PER_BOSS);   // 후반 왕 두목 구역이었다면 강화석도
   }

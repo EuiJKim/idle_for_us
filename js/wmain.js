@@ -109,6 +109,7 @@ let stopSaving = false;
 function save() {
   if (stopSaving) return;
   game.s.lastSeen = Date.now();
+  game.s.clockMax = Math.max(game.s.clockMax || 0, game.s.lastSeen);   // v254 시계 되돌리기 막기
   try { localStorage.setItem(W.SAVE_KEY, JSON.stringify(game.toJSON())); } catch (err) { console.warn('save failed', err); }
 }
 
@@ -225,6 +226,8 @@ function setBar(el, r) {
 }
 function refreshUI(full = false) {
   const s = game.s;
+  // v254: 창이 닫히면 미뤄 둔 방치 보상을 띄운다
+  if (s.pendingOffline && !modalOpen() && s.job) showPendingOffline();
   const st = game.stats();
   setText($('hero-name'), s.nickname || '무명');
   setText($('hero-rank'), game.tierName() || '-');
@@ -404,6 +407,7 @@ function handleEvents() {
       case 'skill': sfx('skill'); coop.noteAttack(); break;
       case 'kill': sfx('kill'); break;
       case 'levelUp': sfx('level'); break;
+      case 'path': sfx('level'); break;   // v254 길을 고르면(받는 쪽이 없었다)
       case 'craft': case 'sweep': sfx('loot'); break;
       case 'potion': sfx('potion'); break;
       case 'heroHit': sfx('hurt'); break;
@@ -756,8 +760,20 @@ if (game.s.gearNote) {
 function checkReturn(now = Date.now()) {
   // v205: 무공 값이 싸져서 돌려준 점수가 있으면 한 번 알린다
   if (game.s.skillRefund > 0) { toast(`무공 값이 싸졌어요 — 더 쓴 점수 ${game.s.skillRefund}점을 돌려드렸어요 (만렙 ${W.SKILL_LV_MAX})`); game.s.skillRefund = 0; save(); }
-  const rw = game.offlineReward(now);
+  // v254: 받을 보상은 먼저 세이브에 적어 둔다(pendingOffline). 전엔 창이 열려 있으면 lastSeen만 갱신하고 버려서,
+  //   설정 창을 연 채 돌아오거나 '받기' 전에 앱이 꺼지면 방치 보상이 영영 사라졌다.
+  const fresh = game.offlineReward(now);
   game.s.lastSeen = now;
+  game.s.clockMax = Math.max(game.s.clockMax || 0, now);
+  if (fresh) {
+    if (game.s.pendingOffline) { game.claimOffline(game.s.pendingOffline); toast('지난번 방치 보상을 받았어요'); }
+    game.s.pendingOffline = fresh;
+    save();
+  }
+  showPendingOffline();
+}
+function showPendingOffline() {
+  const rw = game.s.pendingOffline;
   if (!rw || modalOpen()) return;
   openModal((s) => {
     s.append(h('h2', {}, '🌙 다녀오셨어요!'),
@@ -771,7 +787,7 @@ function checkReturn(now = Date.now()) {
       h('p', { class: 'muted' }, !rw.mats ? '' : `모은 재료: ${W.MATS[rw.map]} ${fmt(rw.mats + (rw.marks || 0) * W.BOSS_MATS)}개`
         + (rw.marks ? ` · ${W.matName(W.bossKey(rw.map))} ${rw.marks}개` : '') + ' — 장비 강화에 써요 (증표는 등급 각인)'),
       h('button', { class: 'btn primary', style: 'width:100%', onclick: closeModal }, '받기'));
-  }, { dismissable: false, onClose: () => { game.claimOffline(rw); save(); refreshUI(true); } });
+  }, { dismissable: false, onClose: () => { if (game.s.pendingOffline === rw) { game.claimOffline(rw); delete game.s.pendingOffline; } save(); refreshUI(true); } });
 }
 
 // ---------- 앱처럼 (v159): 설치 · 전체 화면 · 절전 ----------
@@ -1045,7 +1061,14 @@ async function checkGifts() {
   showMailBtn();
   return mail.length;
 }
+let claimingMail = false;
 async function claimMail(ids) {
+  // v254: 받는 중엔 다시 안 받는다('받기'와 '모두 받기'를 겹쳐 누르면 같은 선물을 두 번 받았다)
+  if (claimingMail) return;
+  claimingMail = true;
+  try { await claimMailNow(ids); } finally { claimingMail = false; }
+}
+async function claimMailNow(ids) {
   const got = { gold: 0, potions: 0, prot: 0, pet: [], mount: [] };
   const left = [];
   for (const id of ids) {
@@ -1055,8 +1078,9 @@ async function claimMail(ids) {
     const g = await net.claimGift(id);
     if (!g) continue;
     for (const k of ['gold', 'potions', 'prot']) got[k] += Math.max(0, Math.floor(g[k] || 0));
-    if (g.pet && game.takeMailPet(g.pet)) got.pet.push(g.pet);
-    if (g.mount && game.takeMailMount(g.mount)) got.mount.push(g.mount);
+    // v254: 우편은 이미 지웠으니 잃지 않게 — 우리가 차도 우리에 넣는다(force). 여러 마리·여러 탈것도
+    for (const code of [].concat(g.pet || [])) if (game.takeMailPet(code, true)) got.pet.push(code);
+    for (const kind of [].concat(g.mount || [])) if (game.takeMailMount(kind)) got.mount.push(kind);
   }
   mail = mail.filter((m) => !ids.includes(m.id) || left.includes(m.id));
   showMailBtn();
@@ -1421,6 +1445,15 @@ function showUpdate(ver) {
   $('app').classList.add('has-update');
 }
 async function hardReload() {
+  // v254: 오프라인에서 누르면 캐시를 다 지운 뒤 새로 받을 수 없어 빈 화면이 됐다 — 먼저 새 파일이 받아지는지 본다
+  try {
+    const r = await fetch(`index.html?probe=${Date.now()}`, { cache: 'no-store' });
+    if (!r.ok) throw new Error(String(r.status));
+  } catch {
+    toast('인터넷이 연결되면 다시 눌러 주세요 — 지금 지우면 앱이 안 열려요');
+    return;
+  }
+  save();
   try {
     const regs = await navigator.serviceWorker?.getRegistrations?.() || [];
     await Promise.all(regs.map((r) => r.unregister()));

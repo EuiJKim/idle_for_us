@@ -780,6 +780,8 @@ export class BattleView {
           // 맞은 졸개는 움찔한다(drawAdd가 이 시각을 보고 밀리고 찌그러진다)
           if (ev.at) ev.at._hitAt = this.t;
           // 광역기는 한 방에 수십을 때린다. 숫자를 전부 띄우면 화면이 숫자로 덮인다.
+          // v254: 0.6초마다 새로 센다 — 전엔 0으로 돌리는 곳이 없어 광역 여섯 번째 적중부터 숫자가 영영 안 떴다
+          if (this.t - (this.aoeT ?? -9) > 0.6) { this.aoeHits = 0; this.aoeT = this.t; }
           this.aoeHits++;
           this.aoeAmount = ev.amount;
           if (this.aoeHits <= AOE_FLOAT_MAX) {
@@ -1427,7 +1429,8 @@ export class BattleView {
     const set = bz.weapon && bz.armor && bz.hat && bz.weapon.z === bz.armor.z && bz.armor.z === bz.hat.z ? bz.weapon : null;
     const v = {
       boss: bz, set,
-      weaponRar: rarOf(e.weapon), weaponPlus: game.effPlus ? game.effPlus(e.weapon) : e.weapon?.plus || 0,   // v243: 공유 강화도 칼빛에 weaponCol: RC[rarOf(e.weapon)] || '#e5e7eb',
+      weaponRar: rarOf(e.weapon), weaponPlus: game.effPlus ? game.effPlus(e.weapon) : e.weapon?.plus || 0,   // v243: 공유 강화도 칼빛에
+      weaponCol: RC[rarOf(e.weapon)] || '#e5e7eb',   // v254: 위 주석 끝에 붙어 주석이 돼 있었다 — 칼빛이 등급과 무관하게 늘 회색
       armorRar: rarOf(e.armor), armorCol: RC[rarOf(e.armor)],
       hatRar: rarOf(e.hat), hatCol: RC[rarOf(e.hat)],
       best, bestCol: RC[best],

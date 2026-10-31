@@ -60,7 +60,11 @@ export function toast(text) {
 }
 
 let modalOnClose = null;
+// v254 창이 몇 번째로 열린 것인지 — 연출 타이머가 '내가 띄운 그 창'이 아직 열려 있는지 확인한다
+let modalSeq = 0;
+export const modalGen = () => modalSeq;
 export function openModal(build, { dismissable = true, onClose } = {}) {
+  modalSeq++;
   const modal = document.getElementById('modal');
   const sheet = modal.querySelector('.sheet');
   sheet.replaceChildren();
@@ -71,6 +75,7 @@ export function openModal(build, { dismissable = true, onClose } = {}) {
   modalOnClose = onClose || null;
 }
 export function closeModal() {
+  modalSeq++;
   document.getElementById('modal').classList.add('hidden');
   document.body.classList.remove('modal-open');
   const cb = modalOnClose;

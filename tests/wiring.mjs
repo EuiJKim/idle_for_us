@@ -381,5 +381,14 @@ console.log('=== 11. 큰 수를 보통 셈으로 다루는 곳 ===');
 }
 
 
+// v254: 서비스워커가 미리 받아 두는 목록에 모든 js가 있어야 오프라인으로 열린다(v237 wpath.js가 빠져 빈 화면이었다)
+{
+  const sw = read('sw.js');
+  const miss = JS_FILES.filter((f) => !sw.includes(`'${f}'`));
+  ok(miss.length === 0, '서비스워커 SHELL에 모든 js가 있다', miss.join(', '));
+  const cache = /const CACHE = '([^']+)'/.exec(sw)?.[1];
+  const build = /export const BUILD = '([^']+)'/.exec(read('js/data.js'))?.[1];
+  ok(cache && cache === build, '서비스워커 CACHE = data.js BUILD', `${cache} / ${build}`);
+}
 console.log(`\n${fail === 0 ? '짝이 전부 맞는다' : `짝이 안 맞는 것 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);

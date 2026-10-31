@@ -209,14 +209,17 @@ export class Net {
     } catch (err) { if (!this.denied(err)) console.warn('[net] listGifts', err); return []; }
   }
   // 받기 — 지우기에 성공한 것만 돌려준다(두 번 받지 않게)
+  // v254: 읽기와 지우기를 한 거래로 — 전엔 '받기'와 '모두 받기'(또는 두 탭)가 동시에 읽고 둘 다 지워 같은 선물을 두 번 받았다
   async claimGift(id) {
     if (!this.uid) return null;
     const r = this.ref('gifts', this.uid, 'box', id);
     try {
-      const snap = await this.fs.getDoc(r);
-      if (!snap.exists()) return null;
-      await this.fs.deleteDoc(r);
-      return snap.data();
+      return await this.fs.runTransaction(this.db, async (tx) => {
+        const snap = await tx.get(r);
+        if (!snap.exists()) return null;
+        tx.delete(r);
+        return snap.data();
+      });
     } catch (err) { console.warn('[net] claimGift', err); return null; }
   }
 

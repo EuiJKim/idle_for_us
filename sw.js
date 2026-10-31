@@ -1,10 +1,11 @@
 // 앱 껍데기를 캐시해 오프라인에서도 열리게 한다. 온라인이면 항상 새 파일을 먼저 받는다.
-const CACHE = 'ifu-v253';
+const CACHE = 'ifu-v254';
 const SHELL = [
   './', 'index.html', 'css/style.css', 'manifest.webmanifest',
   'js/big.js', 'js/data.js', 'js/battle.js', 'js/net.js', 'js/fmt.js', 'js/firebase-config.js',
   'js/ui/common.js',
-  'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png',
+  'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png', 'icons/icon-maskable-512.png',
+  'js/world/wpath.js',   // v254: v237부터 빠져 있어 오프라인으로 열면 빈 화면이었다
   'js/art.js', 'js/fx.js', 'js/icons.js', 'js/ads.js', 'js/pose.js', 'js/skillfx.js', 'js/skillfx_class.js', 'js/skillfx_majon.js', 'js/world/wdata.js', 'js/world/wmobs.js', 'js/world/wgame.js', 'js/world/wdgn.js', 'js/world/wquest.js', 'js/world/wland.js', 'js/world/wgear.js', 'js/world/wcoop.js', 'js/world/wmaster.js', 'js/world/wmasters_data.js', 'js/world/wline.js', 'js/world/wimprint.js', 'js/obstacles.js', 'js/jobart.js', 'js/creatures.js', 'js/crbox.js', 'js/wui.js', 'js/wnet.js', 'js/wmain.js', 'js/sfx.js', 'js/appmode.js', 'js/bossfx.js', 'js/rendermode.js',
   'art/ui/frame.png',
   // 창 안 아이콘. 한 장씩 따로 보므로 빠져도 그 자리만 글자로 남는다.
@@ -398,9 +399,10 @@ self.addEventListener('fetch', (e) => {
   e.respondWith(
     fetch(req)
       .then((res) => {
-        if (res.ok) {
+        // v254: 주소 뒤 ?ts=·?v= 를 떼고 한 칸에만 — 전엔 10분마다 sw.js?ts=… 가 새 칸으로 쌓여 캐시가 끝없이 커졌다
+        if (res.ok && !url.pathname.endsWith('/sw.js')) {
           const copy = res.clone();
-          caches.open(CACHE).then((c) => c.put(e.request, copy));
+          caches.open(CACHE).then((c) => c.put(new Request(url.origin + url.pathname), copy));
         }
         return res;
       })

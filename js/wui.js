@@ -5,7 +5,7 @@ import * as D from './world/wdgn.js';
 import * as L from './world/wland.js';
 import * as G from './world/wgear.js';
 import * as Q from './world/wquest.js';
-import { h, toast, openModal, closeModal, subTabs, popUp, holdRepeat } from './ui/common.js';
+import { h, toast, openModal, closeModal, subTabs, popUp, holdRepeat, modalGen } from './ui/common.js';
 import { fmt } from './fmt.js';
 import { dayKey } from './net.js';
 import { drawCreature, CREATURES, crArt } from './creatures.js';
@@ -47,7 +47,9 @@ export const skipFx = () => { try { return localStorage.getItem('ifu.skipFx') ==
 export const setSkipFx = (v) => { try { localStorage.setItem('ifu.skipFx', v ? '1' : '0'); } catch { /* 이번만 */ } };
 function afterAnim(sheet, sec, done) {
   let fired = false;
-  const go = () => { if (fired) return; fired = true; clearTimeout(t); anim?.removeEventListener('click', go); done(); };
+  // v254: 연출 중 창을 닫으면(배경 탭) 취소 — 전엔 닫힌 뒤에 강화가 돌아 재료가 들고, 그새 연 다른 창이 결과 화면으로 덮였다
+  const gen = modalGen();
+  const go = () => { if (fired) return; fired = true; clearTimeout(t); anim?.removeEventListener('click', go); if (modalGen() !== gen) return; done(); };
   const anim = sheet.querySelector('.enh-anim');
   if (!sec) { done(); return; }
   anim?.addEventListener('click', go);
@@ -537,7 +539,8 @@ function bagTab(app) {
         if (!game.canEnhance(it)) return toast('은자나 재료가 모자라요');
         const lv = it.plus || 0;
         const rate = game.enhanceRateOf(it);
-        const fail = W.enhanceFail(lv);
+        // v254: 세트·왕의 장비는 공유 강화 아래로는 안 떨어진다 — 묻는 글도 실제 하락만큼
+        const fail = W.enhanceFail(lv) ? Math.max(game.sharedPlus(it), Math.max(0, lv + W.enhanceFail(lv))) - lv : 0;
         if (rate >= 1) return runEnhance(0.9);
         const breakRisk = W.enhanceRisky(lv);
         const prot = (game.s.prot || 0) > 0 && useProt;
@@ -1937,7 +1940,8 @@ function compTab(app) {
       m.append(h('div', { class: 'pen-head' }, h('div', { class: 'ico pet-ico big' }, creatureIcon(p.kind)),
         h('div', {}, h('h2', {}, d.name, ' ', rarTag(p.rar)), h('small', { class: 'muted' }, `순위 ${d.tier} · Lv.${p.lv}`))),
         h('p', { class: 'muted' }, petInfo(p)),
-        full ? h('p', { class: 'muted', style: 'font-size:12px' }, `키우는 칸이 꽉 찼어요(${s.pets.length}/${slots}) — 위에서 하나를 놓아주면 데려갈 수 있어요.`) : null,
+        // v254: 칸이 남으면 null을 넘겨 창에 'null' 글자가 찍혔다(DOM append는 null을 글자로 넣는다)
+        ...(full ? [h('p', { class: 'muted', style: 'font-size:12px' }, `키우는 칸이 꽉 찼어요(${s.pets.length}/${slots}) — 위에서 하나를 놓아주면 데려갈 수 있어요.`)] : []),
         h('div', { class: 'btn-row' },
           h('button', { class: 'btn danger', onclick: () => { closeModal(); confirmRelease(p, done); } }, '놓아주기'),
           h('button', { class: 'btn primary', disabled: full ? true : null, onclick: () => { if (game.adoptPet(p.uid)) { closeModal(); toast(`${d.name}을(를) 데려갔어요`); done(); } } }, '데려가기')),

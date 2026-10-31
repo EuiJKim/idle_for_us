@@ -11,6 +11,12 @@ import { Net, dayKey } from './net.js';
 import * as W from './world/wdata.js';
 import * as D from './world/wdgn.js';
 
+// v254 서버 답을 기다리되 끝없이는 아니게 — 끊겨 있으면 바로, 8초 넘게 답이 없으면 실패로 본다
+const ack = (p, ms = 8000) => {
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) return Promise.reject(new Error('인터넷이 끊겨 있어요 — 연결되면 다시 해 주세요'));
+  return Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error('연결이 불안정해요 — 잠시 뒤 다시 해 주세요')), ms))]);
+};
+
 export class WNet extends Net {
   profileData() {
     const g = this.game;
@@ -56,17 +62,14 @@ export class WNet extends Net {
     return s.donateDay === dayKey() ? Math.max(0, W.GUILD_DONATE_PER_DAY - (s.donateN || 0)) : W.GUILD_DONATE_PER_DAY;
   }
   donateCost() { return W.guildDonateCost(this.game.s.level); }
+  // v254: 서버가 받았다고 답한 뒤에 은자를 뺀다(8초 넘게 답이 없으면 실패) — 전엔 먼저 빼고 기다려서,
+  //   오프라인이면 쓰기가 메모리에만 남은 채 은자가 빠진 세이브가 저장되고 앱을 끄면 은자만 사라졌다(단추도 영영 잠김)
   async donate() {
     const s = this.game.s;
     const cost = this.donateCost();
     if (!this.guild || this.donatesLeft() <= 0 || s.gold < cost) return false;
-    s.gold -= cost;
-    try {
-      await this.fs.updateDoc(this.ref('guilds', this.guild.id), { exp: this.fs.increment(W.GUILD_DONATE_EXP) });
-    } catch (err) {
-      s.gold += cost;
-      throw err;
-    }
+    await ack(this.fs.updateDoc(this.ref('guilds', this.guild.id), { exp: this.fs.increment(W.GUILD_DONATE_EXP) }));
+    s.gold = Math.max(0, s.gold - cost);
     if (s.donateDay !== dayKey()) { s.donateDay = dayKey(); s.donateN = 0; }
     s.donateN = (s.donateN || 0) + 1;
     this.game.mark('donate');
@@ -79,13 +82,9 @@ export class WNet extends Net {
     const s = this.game.s;
     n = Math.min(n, s.mats[key] || 0);
     if (!this.guild || !this.online || n <= 0) return 0;
-    s.mats[key] -= n;
-    try {
-      await this.fs.updateDoc(this.ref('guilds', this.guild.id), { [`bank.${key}`]: this.fs.increment(n) });
-    } catch (err) {
-      s.mats[key] += n;   // 실패하면 되돌린다
-      throw err;
-    }
+    // v254: 서버가 받은 뒤에 뺀다(기부와 같은 까닭)
+    await ack(this.fs.updateDoc(this.ref('guilds', this.guild.id), { [`bank.${key}`]: this.fs.increment(n) }));
+    s.mats[key] = Math.max(0, (s.mats[key] || 0) - n);
     return n;
   }
   // 꺼낸다 — 둘이 동시에 눌러도 있는 만큼만 나뉘게 거래로

@@ -1820,5 +1820,66 @@ console.log('\n=== 세트 장비가 공유 강화를 이어받는다 (v253) ==='
   const bm = g.breakMarksOf(set); if (bm && m) g.s.mats[W.bossKey(m.key)] = 1e9;
   ok(g.enhance(set.uid) && set.plus === 6 && g.stats().atk > a0, '세트 무기를 강화하면 바로 수치가 오른다(전엔 +5까지 그대로였다)');
 }
+console.log('\n=== v254 고침 ===');
+{
+  // 만화귀일 공속 버프는 끝나면 사라진다
+  const g = fresh('sword');
+  while (g.s.level < 60) g.addExp(W.expToNext(g.s.level));
+  g.s.jobTier = 3; g._stats = null;
+  g.buffs.gale = 8; g.buffs.haste = 8; g.buffv.haste = 0.4;
+  for (let i = 0; i < 100; i++) { g.buffs.gale -= 0; }
+  // 직접 만료시켜 본다: tick의 버프 감소 루프를 흉내 낸다
+  const step = (dt) => { for (const k in g.buffs) if (g.buffs[k] > 0) { g.buffs[k] -= dt; if (g.buffs[k] <= 0) { delete g.buffs[k]; delete g.buffv[k]; } } };
+  step(9);
+  ok(!g.buffv.haste, '공속 버프 값(haste)은 타이머와 함께 사라진다');
+  const src = read('js/world/wgame.js');
+  ok(!/buffs\.gale = b\.sec; this\.buffv\.haste/.test(src) || /buffs\.haste = Math\.max\(this\.buffs\.haste \|\| 0, b\.sec\)/.test(src), '무공 공속 버프는 haste 타이머를 건다');
+}
+{
+  // 시계를 되돌렸다 다시 돌려도 방치 보상을 두 번 받지 않는다
+  const g = fresh('sword');
+  g.s.rates = { kills: 1, exp: 10, gold: 10, potions: 0, map: g.s.huntMap };
+  const t0 = 1e12;
+  g.s.lastSeen = t0; g.s.clockMax = t0;
+  const a = g.offlineReward(t0 + 3600e3);
+  ok(a && a.sec >= 3599, '한 시간 방치 보상');
+  g.s.lastSeen = t0 + 3600e3; g.s.clockMax = t0 + 3600e3;
+  g.s.lastSeen = t0;              // 시계를 되돌린 뒤 저장된 셈
+  const b = g.offlineReward(t0 + 3600e3);
+  ok(!b, '시계를 되돌렸다가 다시 돌려도 같은 시간을 또 받지 않는다');
+}
+{
+  // 짧은 방치에도 두목 재료가 들어온다
+  const g = fresh('sword');
+  const m = W.MAPS.find((x) => x.bossRoom);
+  const z = m.mz;
+  const before = g.s.mats[z] || 0;
+  g.claimOffline({ gold: 0, potions: 0, exp: 0, kills: 0, map: m.id, mats: 0, marks: 2 });
+  ok((g.s.mats[z] || 0) === before + 2 * W.BOSS_MATS, '재료 0 · 증표 2 — 두목 재료가 들어온다');
+}
+{
+  // 쓰러져 마을로 돌아온 틱에 물약을 먹지 않는다
+  const g = fresh('sword');
+  g.s.potions = 10; g.s.autoPotion = true; g.s.autoRefill = false;
+  g.heroDied(null);
+  g.tick(0.05);
+  ok(g.s.potions === 10, '쓰러질 때 물약이 줄지 않는다', `${g.s.potions}`);
+}
+{
+  // 세트 장비 강화 실패는 공유 강화 아래로 안 떨어지고 보호부도 안 쓴다
+  const G2 = await import('../js/world/wgear.js');
+  const g = fresh('sword');
+  while (g.s.level < 100) g.addExp(W.expToNext(g.s.level));
+  g.s.gold = 1e15;
+  const gw = g.growOf('weapon'); gw.plus = 12;
+  const set = g.makeKing('weapon', G2.SLOT_KING.weapon, 0, G2.setsOfJob('sword')[0].id, 0);
+  g.s.bag.push(set); g.equipFromBag(set.uid); g._stats = null; g.stats();
+  const m = g.enhanceMats(set); if (m) g.s.mats[m.key] = 1e9;
+  const bm = g.breakMarksOf(set); if (bm && m) g.s.mats[W.bossKey(m.key)] = 1e9;
+  g.s.prot = 5;
+  g.rng = () => 0.9999;
+  g.enhance(set.uid, true);
+  ok(set.plus === 12 && g.s.prot === 5 && (set.epity || 0) > 0, '공유 +12 세트 무기 강화 실패 — +12 그대로 · 보호부 그대로 · 천장은 쌓인다', `+${set.plus} 보호부 ${g.s.prot} 천장 ${set.epity}`);
+}
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);

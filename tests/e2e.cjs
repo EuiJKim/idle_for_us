@@ -206,7 +206,7 @@ async function tab(page, name) {
 
   console.log('# 방치 보상·저장');
   await sleep(4000);
-  await G(p, () => { window.__save(); const g = window.__game; g.s.rates = g.rates(); g.s.lastSeen = Date.now() - 3600 * 1000; });
+  await G(p, () => { window.__save(); const g = window.__game; g.s.rates = g.rates(); g.s.lastSeen = Date.now() - 3600 * 1000; g.s.clockMax = g.s.lastSeen; });   // v254: 가장 늦게 본 시각도 한 시간 전으로
   await p.evaluate(() => {
     Object.defineProperty(document, 'hidden', { configurable: true, get: () => false });
     document.dispatchEvent(new Event('visibilitychange'));
