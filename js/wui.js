@@ -1405,7 +1405,7 @@ function townTab(app) {
     const lvOf = (k) => (k.kind === 'support' ? k.from : W.TIERS[k.tier].level);
     const all = W.skillsOf(s.job).sort((a, b) => lvOf(a) - lvOf(b));
     const steps = all.map((k) => {
-      const when = k.kind === 'support' ? `레벨 ${k.from}` : `${k.tier}차 · 레벨 ${W.TIERS[k.tier].level}`;
+      const when = k.path ? `직업의 길 — ${PT.PATHS[s.job]?.[k.path]?.name || ''}` : k.kind === 'support' ? `레벨 ${k.from}` : `${k.tier}차 · 레벨 ${W.TIERS[k.tier].level}`;
       const known = game.knows(k);
       return h('div', { class: `path-step${known ? ' known' : ''}` }, h('span', { class: 'ico' }, k.icon), h('div', {}, h('b', {}, k.name), h('small', {}, `${when}${k.kind === 'support' ? ' · 보조기' : ''}`)), h('span', { class: 'st' }, known ? '배움' : '—'));
     });
@@ -1426,6 +1426,8 @@ function townTab(app) {
       const cost = PT.PATH_COST[id];
       return h('div', { class: `path-col${mine ? ' mine' : ''}${active ? ' on' : ''} p-${id}` },
         h('div', { class: 'pc-head' }, h('i', {}, pp.hanja), h('div', {}, h('b', {}, pp.name), h('small', {}, pp.style))),
+        // v240: 길 무공 — 이 길을 걸으면 생기는 고유 무공
+        (() => { const ps = W.PATH_SKILLS[s.job]?.[id]; return ps ? h('div', { class: 'pc-skill' }, h('b', {}, `〈${ps.name}〉`), h('small', {}, ps.desc.replace(/ — .*$/, ''))) : null; })(),
         h('div', { class: 'pc-nodes' }, ...pp.nodes.map((nd, i) => {
           const lit = active && (mg || i < open);
           return h('div', { class: `pc-node${lit ? ' lit' : ''}` }, h('span', { class: 'lv' }, mg && !mine ? '合' : `${PT.PATH_NODE_LV[i]}`), h('div', {}, h('b', {}, nd.name), h('small', {}, nd.text)));

@@ -888,6 +888,122 @@ export const MAJON_CHOREO = {
     d.at(0.5, () => d.release());
   },
 
+  // ===== 길 무공 (v240) — 길마다 하나 =====
+  // 검기종횡 — 검기를 가로세로로 뿌려 두 번 벤다
+  'sword:pa'(d) {
+    const c = COL.sword;
+    const R = d.radius || 320;
+    beats(d, [[0, '검거양', 'out'], [0.14, '내려베기', 'snap'], [0.34, '일섬', 'snap'], [0.8, '납도', 'inout']], {
+      cast: 0.1, hit: 0.46, end: 1.0, shake: 0.22,
+      onCast: () => {
+        d.fx('arc', 0.34, { face: d.face, r: R * 0.5, a0: -2.5, a1: 2.3, col: c[1] });
+        d.at(0.28, () => d.fx('arc', 0.34, { face: -d.face, r: R * 0.5, a0: -0.9, a1: 3.9, col: c[1] }));
+        d.fx('slashstorm', 0.9, { wx: d.to.x, wy: d.to.y, r: R, col: c[1], n: 10 });
+      },
+      onHit: () => { for (const [i, at] of hitsOr(d, 8).entries()) d.fx('cutline', 0.3, { wx: at.x, wy: at.y, a: i % 2 ? 0.1 : 1.65 }); impact(d, d.to, R, c, { rings: 2, sparks: 10 }); },
+    });
+  },
+  // 전광석화 — 몸이 번개처럼 빨라진다
+  'sword:pb'(d) {
+    const c = ['253,224,71', '255,255,255', '113,63,18'];
+    buffBeats(d, c, [[0.06, '발도준비', 'out'], [0.3, '일섬', 'snap'], [0.6, '납도', 'inout']], () => {
+      d.fx('speedlines', 1.2, { col: c[0] });
+      d.fx('ghost', 1.0, { col: c[0], n: 4 });
+      impact(d, d.to, 120, c, { rings: 2, sparks: 10, flare: true });
+    });
+    d.at(0.4, () => d.release());
+  },
+  // 벽공장풍 — 허공을 가르는 장풍이 둘레를 밀어낸다
+  'fist:pa'(d) {
+    const c = COL.fist;
+    const R = d.radius || 300;
+    beats(d, [[0, '마보', 'out'], [0.18, '쌍장', 'snap'], [0.5, '쌍장'], [0.75, '마무리', 'inout']], {
+      cast: 0.12, hit: 0.4, end: 0.95, shake: 0.3,
+      onCast: () => { d.fx('wind', 0.5, { wx: d.to.x, wy: d.to.y, r: R, col: c[1], face: d.face }); d.fx('screenwave', 0.6, { col: c[0] }); },
+      onHit: () => impact(d, d.to, R, c, { rings: 3, crack: true, sparks: 16 }),
+    });
+  },
+  // 전광연타 — 주먹이 보이지 않을 만큼 빨라진다
+  'fist:pb'(d) {
+    const c = COL.fist;
+    buffBeats(d, c, [[0.06, '마보', 'out'], [0.25, '정권', 'snap'], [0.35, '훅', 'snap'], [0.45, '올려치기', 'snap'], [0.7, '마무리', 'inout']], () => {
+      d.fx('speedlines', 1.2, { col: c[0] });
+      for (let i = 0; i < 3; i++) d.at(0.25 + i * 0.1, () => d.fx('fistimg', 0.2, { wx0: d.to.x, wy0: d.to.y, oy0: -60, wx1: d.to.x + 40 * d.face, wy1: d.to.y, oy1: -50 - i * 10, size: 40, col: c[0], go: 0.08 }));
+      impact(d, d.to, 110, c, { rings: 2, sparks: 10 });
+    });
+    d.at(0.45, () => d.release());
+  },
+  // 미혼환무 — 환영이 춤추며 둘레를 두 번 휩쓴다
+  'fan:pa'(d) {
+    const c = COL.fan;
+    const R = d.radius || 330;
+    beats(d, [[0, '펼치기', 'out'], [0.16, '휘두르기', 'snap'], [0.38, '휘두르기', 'snap'], [0.85, '마무리', 'inout']], {
+      cast: 0.1, hit: 0.5, end: 1.05, shake: 0.2,
+      onCast: () => { d.fx('cyclone', 1.0, { wx: d.center.x, wy: d.center.y, r: R, col: c[0] }); d.fx('ghost', 0.9, { col: SOUL, n: 5 }); },
+      onHit: () => { impact(d, d.center, R, c, { rings: 2, sparks: 12, col: SOUL }); for (const at of hitsOr(d, 6)) d.fx('eye', 0.6, { wx: at.x, wy: at.y, r: 16 }); },
+    });
+  },
+  // 선풍난무 — 부채가 회오리친다
+  'fan:pb'(d) {
+    const c = COL.fan;
+    buffBeats(d, c, [[0.06, '펼치기', 'out'], [0.3, '휘두르기', 'snap'], [0.6, '마무리', 'inout']], () => {
+      d.fx('cyclone', 1.4, { wx: d.to.x, wy: d.to.y, r: 150, col: c[1] });
+      d.fx('speedlines', 1.0, { col: c[0] });
+      impact(d, d.to, 120, c, { rings: 2, sparks: 10 });
+    });
+    d.at(0.4, () => d.release());
+  },
+  // 육맥신검 — 여섯 손가락에서 검기 여섯이 날아간다
+  'ring:pa'(d) {
+    const v = d.v;
+    const c = COL.ring;
+    beats(d, [[0, '지법겨눔', 'out'], [0.1, '손가락튕김', 'snap'], [0.5, '손가락튕김'], [0.8, '마무리', 'inout']], {
+      cast: 0.06, hit: 0.7, end: 1.0,
+      onCast: () => {
+        const list = d.hits.length ? d.hits.slice() : [{ at: d.target }];
+        for (let i = 0; i < 6; i++) {
+          const h = list[i % list.length];
+          const t0 = 0.1 + i * 0.07;
+          d.at(t0, () => d.fx('lance', 0.22, { wx: d.to.x, wy: d.to.y, a: Math.atan2((h.at.y - d.to.y) * v.squash, h.at.x - d.to.x), len: Math.hypot(h.at.x - d.to.x, (h.at.y - d.to.y) * v.squash), w: 4, col: c[1], oy: -62 }));
+          d.at(t0 + 0.18, () => { d.fx('flare', 0.2, { wx: h.at.x, wy: h.at.y, r: 40, col: c[1] }); if (h.kind) d.releaseHit(h); v.shake = Math.max(v.shake, 0.06); });
+        }
+      },
+    });
+  },
+  // 귀영난무 — 그림자가 셋으로 갈라진다
+  'ring:pb'(d) {
+    const c = COL.ring;
+    buffBeats(d, c, [[0.06, '지법겨눔', 'out'], [0.3, '손가락튕김', 'snap'], [0.6, '마무리', 'inout']], () => {
+      d.fx('mask', 1.0, { oy: -170, size: 30 });
+      d.fx('ghost', 1.2, { col: c[0], n: 5 });
+      d.fx('speedlines', 1.0, { col: c[0] });
+      impact(d, d.to, 110, c, { rings: 2, sparks: 8 });
+    });
+    d.at(0.4, () => d.release());
+  },
+  // 독룡출동 — 독룡이 땅을 기어 독무를 넓게 깐다
+  'poison:pa'(d) {
+    const R = d.radius || 260;
+    beats(d, [[0, '땅짚기', 'out'], [0.2, '흩뿌리기', 'snap'], [0.6, '흩뿌리기'], [0.95, '마무리', 'inout']], {
+      cast: 0.1, hit: 0.5, end: 1.2, shake: 0.2,
+      onCast: () => {
+        const pts = hitsOr(d, 5).map((at) => ({ x: at.x, y: at.y }));
+        d.fx('serpent', 1.0, { pts: [{ x: d.to.x, y: d.to.y }, ...pts, { x: d.center.x, y: d.center.y }], go: 0.7, v: d.tier, body: 10 });
+      },
+      onHit: () => { d.burst(d.center, R, { puddle: 1.4, drops: 20 }); d.fx('miasma', 1.4, { wx: d.center.x, wy: d.center.y, r: R, v: d.tier }); },
+    });
+  },
+  // 만천화우 — 독침이 비처럼 쏟아질 준비
+  'poison:pb'(d) {
+    const c = GREEN;
+    buffBeats(d, c, [[0.06, '투척준비', 'out'], [0.3, '투척', 'snap'], [0.6, '마무리', 'inout']], () => {
+      d.fx('speedlines', 1.0, { col: c[0] });
+      for (let i = 0; i < 8; i++) d.fx('needle', 0.5, { wx: d.to.x, wy: d.to.y, a: (i / 8) * TAU, len: 50, col: c[0], oy: -60 });
+      impact(d, d.to, 110, c, { rings: 2, sparks: 10 });
+    });
+    d.at(0.4, () => d.release());
+  },
+
   // ===== 섭혼마존 =====
   // 섭혼술 — 대상 머리 위에 핏빛 눈이 뜨이고, 보랏빛 실이 혼을 끌어당긴다
   'fan:m0'(d) {

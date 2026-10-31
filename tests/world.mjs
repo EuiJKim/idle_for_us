@@ -1721,6 +1721,26 @@ console.log('\n=== 직업의 길 (v237) ===');
   while (h.s.level < 85) h.addExp(W.expToNext(h.s.level));
   h.s.jobTier = 2; h.choosePath('b'); h._stats = null;
   ok(h.stats().extra > 0 && h.stats().dash > 0, '쾌검의 길: 덧치기·전광석화가 붙는다');
+  // v240: 길 무공 — 길을 걸으면 고유 무공이 생기고, 합일이면 둘 다
+  ok(!fresh('fist').skills().some((k) => k.path), '길을 안 골랐으면 길 무공이 없다');
+  const f2 = fresh('fist');
+  while (f2.s.level < 45) f2.addExp(W.expToNext(f2.s.level));
+  f2.s.jobTier = 2; f2.choosePath('a');
+  const pa = f2.skills().find((k) => k.path === 'a');
+  ok(pa && pa.name === '벽공장풍' && !f2.skills().some((k) => k.path === 'b'), '장풍의 길: 벽공장풍이 생기고 연타 무공은 없다');
+  f2.enterMap(W.mapId(1, 1)); f2.s.autoHunt = true;
+  for (let t = 0; t < 3; t += 0.05) f2.tick(0.05);
+  const m0 = f2.mons.find((m) => m.alive && !m.npc); f2.heroX = m0.x - 50; f2.heroY = m0.y; f2.mon = m0; f2.cd.pa = 0;
+  ok(f2.useSkill('pa') && f2.cd.pa > 0, '벽공장풍을 펼친다');
+  f2.choosePath('b'); f2.s.gold = 1e12; f2.choosePath('b');
+  const pb = f2.skills().find((k) => k.path === 'b');
+  ok(pb && pb.name === '전광연타' && pb.kind === 'awaken', '연타의 길로 바꾸면 전광연타(자세)가 생긴다');
+  f2.cd.pb = 0;
+  ok(f2.useSkill('pb') && f2.buffs.triple > 0 && f2.buffv.haste > 0, '전광연타: 평타 세 대 · 공격 속도 자세가 켜진다');
+  while (f2.s.level < 140) f2.addExp(W.expToNext(f2.s.level));
+  f2.s.jobTier = 4; f2._stats = null;
+  ok(f2.skills().filter((k) => k.path).length === 2, '합일: 길 무공 둘 다');
+
 }
 
 console.log('\n=== 화무기 · 히든 마귀 (v238) ===');

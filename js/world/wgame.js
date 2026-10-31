@@ -1270,7 +1270,12 @@ export class WorldGame {
   // ---------- 스킬 ----------
   skills() { return this.s.job ? W.skillsOf(this.s.job).filter((k) => this.knows(k)) : []; }
   // 배웠나 — 공격 무공은 전직 차수, 보조기는 레벨(v120)
-  knows(sk) { return !!sk && (sk.kind === 'support' ? this.s.level >= sk.from : sk.tier <= this.s.jobTier); }
+  // 길 무공(v240)은 그 길을 걷거나 합일했을 때만
+  knows(sk) {
+    if (!sk) return false;
+    if (sk.path) return (this.s.path === sk.path || PT.merged(this.s)) && sk.tier <= (this.s.jobTier || 0);
+    return sk.kind === 'support' ? this.s.level >= sk.from : sk.tier <= this.s.jobTier;
+  }
   skillDef(id) { return this.s.job ? W.skillsOf(this.s.job).find((k) => k.id === id) : null; }
   hpCostOf(sk) { const st = this.stats(); return Math.round(st.hp * (sk.hpCost || 0) * (1 - this.skillMods(sk.id).cost) * (1 - (st.hpCostDown || 0))); }
   skillRadius(sk) { return (sk.radius || 0) * Math.max(0.3, 1 + this.skillMods(sk.id).range + (this.stats().skillRange || 0)); }

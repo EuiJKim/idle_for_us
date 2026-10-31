@@ -168,7 +168,45 @@ export const passivesOf = (job) => [...PASSIVES, ...(OWN_PASSIVE[job] ? [OWN_PAS
 export const passiveCost = (p, lv) => (p.cost === 'flat' ? 1 : Math.max(1, lv));
 
 export const HARMONY = { sec: 6, buffSec: 8, dmgUp: 0.25 };   // 극악소마 삼공조화
-export const skillsOf = (job) => (JOB_SKILLS[job] || []).map((d) => ({ ...d, id: `s${d.slot}`, icon: d.name.slice(0, 2), fx: `${job}:m${d.slot}` }));   // 연출: skillfx_majon.js
+// v240: 길 무공 — 길마다 고유 무공 하나(자리 5). 무공의 길은 넓게 쓰는 큰 초식, 평타의 길은 평타를 바꾸는 자세(10초).
+// 합일(레벨 140·4차)이면 둘 다 쓴다. 연출은 역할(role)의 기본 연출을 쓴다.
+const PK = (path, role, name, kind, o) => ({ slot: 5, tier: 2, path, role, name, kind, ...o });
+export const PATH_SKILLS = {
+  sword: {
+    a: PK('a', 'thunder', '검기종횡', 'aoe', { mult: 2.4, hits: 2, cd: 7, hpCost: 0.1, radius: 320, autoAbove: 0.5,
+      desc: '검기를 가로세로로 뿌려 둘레를 두 번 벤다 — 검기의 길' }),
+    b: PK('b', 'awaken', '전광석화', 'awaken', { cd: 20, hpCost: 0.05, auto: 'fight', autoAbove: 0.4, buff: { sec: 10, speed: 0.5, triple: 1, move: 0.3 },
+      desc: '번개처럼 — 10초간 공격 속도 +50% · 평타 한 번에 두 대(덧 한 대는 절반) · 이동 +30% — 쾌검의 길' }),
+  },
+  fist: {
+    a: PK('a', 'thunder', '벽공장풍', 'aoe', { mult: 2.8, cd: 7, hpCost: 0.1, radius: 300, stun: 0.8, autoAbove: 0.5,
+      desc: '허공을 가르는 장풍 — 둘레를 충격파로 치고 0.8초 기절 — 장풍의 길' }),
+    b: PK('b', 'awaken', '전광연타', 'awaken', { cd: 22, hpCost: 0.05, auto: 'fight', autoAbove: 0.4, buff: { sec: 10, speed: 0.45, triple: 2, cleave: 0.3 },
+      desc: '붙어서 두들긴다 — 10초간 공격 속도 +45% · 평타 한 번에 세 대 · 평타가 둘레를 친다(30%) — 연타의 길' }),
+  },
+  fan: {
+    a: PK('a', 'thunder', '미혼환무', 'aoe', { mult: 2.2, hits: 2, cd: 7, hpCost: 0.1, radius: 330, vuln: { sec: 5, v: 0.2 }, autoAbove: 0.5,
+      desc: '환영이 춤추며 둘레를 두 번 — 맞은 적은 5초간 받는 피해 +20% — 섭혼의 길' }),
+    b: PK('b', 'awaken', '선풍난무', 'awaken', { cd: 22, hpCost: 0.05, auto: 'fight', autoAbove: 0.4, buff: { sec: 10, speed: 0.4, triple: 1, cleave: 0.5 },
+      desc: '부채가 회오리친다 — 10초간 공격 속도 +40% · 평타 두 대 · 평타가 둘레를 친다(50%) — 선풍의 길' }),
+  },
+  ring: {
+    a: PK('a', 'thunder', '육맥신검', 'daggers', { mult: 1.1, n: 6, targets: 6, cd: 7, hpCost: 0.1, radius: 360, crit: 0.3, autoAbove: 0.5,
+      desc: '여섯 손가락에서 검기 여섯이 날아간다(치명 +30%p) — 지력의 길' }),
+    b: PK('b', 'awaken', '귀영난무', 'awaken', { cd: 22, hpCost: 0.05, auto: 'fight', autoAbove: 0.4, buff: { sec: 10, speed: 0.45, triple: 2, critDmg: 0.3 },
+      desc: '그림자처럼 — 10초간 공격 속도 +45% · 평타 세 대 · 치명 피해 +30% — 귀영의 길' }),
+  },
+  poison: {
+    a: PK('a', 'thunder', '독룡출동', 'field', { mult: 1.0, cd: 9, hpCost: 0.1, radius: 260, field: { sec: 6, tick: 0.5, mult: 0.3 }, dot: { sec: 5, mult: 0.8 }, autoAbove: 0.5,
+      desc: '독룡이 땅을 기어 독무를 넓게 깐다 — 6초 동안 0.5초마다 · 맞은 적은 5초 맹독 — 독무의 길' }),
+    b: PK('b', 'awaken', '만천화우', 'awaken', { cd: 22, hpCost: 0.05, auto: 'fight', autoAbove: 0.4, buff: { sec: 10, speed: 0.45, triple: 2 },
+      desc: '독침이 비처럼 — 10초간 공격 속도 +45% · 평타 한 번에 세 침 — 독침의 길' }),
+  },
+};
+export const skillsOf = (job) => [
+  ...(JOB_SKILLS[job] || []).map((d) => ({ ...d, id: `s${d.slot}`, icon: d.name.slice(0, 2), fx: `${job}:m${d.slot}` })),   // 연출: skillfx_majon.js
+  ...Object.values(PATH_SKILLS[job] || {}).map((d) => ({ ...d, id: `p${d.path}`, icon: d.name.slice(0, 2), fx: `${job}:p${d.path}` })),
+];
 
 // ---------- 지도 ----------
 // 0번은 마을(객잔 마을). 1~15는 사냥터 — 옛 지역 그림과 몹 생김새를 쓴다.
@@ -613,7 +651,7 @@ export const KING_MYTHIC = {
   2: { id: 'crimson', name: '일월암혈도법 — 치명 피해 +80%' },
   1: { id: 'formless', name: '무형신검 — 평타가 둘레 모든 적을 벤다(70%) · 스킬 피해 +30%' },
 };
-export const SKILL_ORDINAL = ['1차', '2차', '3차', '보조기', '4차'];
+export const SKILL_ORDINAL = ['1차', '2차', '3차', '보조기', '4차', '길'];
 // 가락지·귀걸이에만 붙을 수 있는 '애완동물 +N' (함께 키울 수 있는 수가 는다)
 export const PET_SLOT_OPT = [0, 1, 2, 3];      // 등급별 (레어는 없음)
 export const PET_SLOT_CHANCE = 0.35;
