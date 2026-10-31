@@ -625,6 +625,8 @@ export class WorldGame {
     // 맹주·천마 (v148): 두목 방의 우두머리는 더 단단하고 아프다
     if (boss && m.lord) { mob.maxHp = mob.hp = mob.hp * W.LORD_HP; mob.atk *= W.LORD_ATK; }
     if (boss && MS.patternHpMult(m) !== 1) mob.maxHp = mob.hp = mob.hp * MS.patternHpMult(m);     // 초식 두목 (v170)
+    // v241: 오버파워 — 무인이 그 레벨 기준보다 세면 두목이 그만큼 단단해진다(^0.6 · 최대 3배). 함께 사냥 왕·던전은 그대로
+    if (boss && !this.inst && !(m.king && this.s.kingParty)) { const k = this.overPower(mob.hp, m); if (k > 1) mob.maxHp = mob.hp = mob.hp * k; mob.op = k; }
     // 요일 던전 몹은 같은 레벨 무인에 맞춰 단단하다 (v126)
     if (this.inst?.kind === 'daily') { mob.maxHp = mob.hp = D.dailyMobHp(lv) * (elite ? W.ELITE.hp : 1); mob.atk = D.dailyMobAtk(lv) * (elite ? W.ELITE.atk : 1); }
     // 두목 등장 연출: 구역에 들어와 처음 나설 때는 길게(들판이 멈추고 두목은 맞지도 않는다),
@@ -643,6 +645,9 @@ export class WorldGame {
   // ---------- 한 틱 ----------
   tick(dt) {
     this.clock += dt;
+    // v241: 지난 30초 실제 초당 피해 — 1초마다 한 칸
+    this.dmgT = (this.dmgT || 0) + dt;
+    if (this.dmgT >= 1) { this.dmgT -= 1; (this.dmgLog = this.dmgLog || []).push(this.dmgAcc || 0); this.dmgAcc = 0; if (this.dmgLog.length > 30) this.dmgLog.shift(); }
     if (this.inst?.done) this.finishInst();
     // 자동 도전 — 들판에 있는 동안 열린 요일 던전이 있으면 알아서 들어간다.
     // 매 틱 보면 비싸므로 몇 초에 한 번만 본다.
@@ -1173,6 +1178,7 @@ export class WorldGame {
     }
     m.hp -= dmg;
     m.aggro = true;
+    this.dmgAcc = (this.dmgAcc || 0) + Math.min(dmg, Math.max(0, m.hp + dmg));   // v241: 실제 준 피해(넘친 몫은 빼고) — 두목 최소 싸움 길이 잣대
     if (!quiet) this.emit('dmg', { amount: dmg, kind, crit: crit ? 1 : 0, at: m, add: m !== this.mon });
     if (m.hp <= 0) this.killMob(m);
   }
@@ -2634,6 +2640,18 @@ export class WorldGame {
   // ---------- 고수 (v148) ----------
   // 처음 쓰러뜨린 고수마다 영구히 공격력·체력 (고수 +1% · 맹주·천마 +3%)
   // 이 두목 방의 두목이 쓰는 초식 (보통 지역 두목은 없다)
+  // v241: 두목 최소 싸움 길이 — 무인의 초당 피해로 셈해 기본 체력이 그보다 모자라면 올린다(최대 3배)
+  heroDpsEst() {
+    // 지난 30초 실제 초당 피해(싸운 적이 있을 때) — 없으면 평타로 어림(무공 몫 ×2.5)
+    const log = (this.dmgLog || []).filter((x) => x > 0);
+    if (log.length >= 8) return log.reduce((a, b) => a + b, 0) / log.length;
+    const st = this.stats(); return (st.atk / st.atkSec) * (1 + st.crit * (st.critDmg - 1)) * 2.5;
+  }
+  overPower(baseHp, m) {
+    const sec = m.lord ? W.BOSS_MIN_SEC.lord : m.king || m.master ? W.BOSS_MIN_SEC.king : W.BOSS_MIN_SEC.zone;
+    const need = this.heroDpsEst() * sec * Math.max(W.GAP_OUT_MIN, 1 - W.GAP_OUT * Math.max(0, m.lv[1] + 2 - this.s.level));
+    return Math.max(1, Math.min(W.OVERPOWER_MAX, need / baseHp));
+  }
   bossSkills() {
     const m = this.map;
     if (m.master) return MS.masterOf(m.master)?.skills || null;
@@ -2642,9 +2660,18 @@ export class WorldGame {
   }
   tickBossSkill(dt) {
     const sk = this.bossSkills();
-    if (!sk) return;
     const b = this.mons.find((x) => x.isBoss && x.alive && !(x.introT > 0));
     if (!b || b.stun > 0) return;
+    // v241: 지역 두목(레벨 30부터)도 단순한 바닥 경고를 쓴다 — 서서 맞기만 하면 안 된다
+    if (!sk) {
+      if (this.inst || !this.map.bossRoom || b.lv < W.ZONE_BOSS_FROM) return;
+      b.castT = (b.castT ?? 4) - dt;
+      if (b.castT > 0) return;
+      b.castT = W.FIELD_CAST * 1.25 * (0.85 + this.rng() * 0.3);
+      const p = W.ZONE_BOSS_PATS[Math.floor(this.rng() * W.ZONE_BOSS_PATS.length)];
+      this.bossCast(b, MS.floorOf(b.lv), W.FIELD_TELL * 0.9, [p], null);
+      return;
+    }
     b.castT = (b.castT ?? 3) - dt;
     if (b.castT > 0) return;
     const lord = this.map.lord;

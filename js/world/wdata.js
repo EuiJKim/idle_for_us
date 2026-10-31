@@ -216,15 +216,17 @@ export const skillsOf = (job) => [
 // (처음엔 1300×1700 자유 이동이었다 — 화면에 사냥터 한 귀퉁이만 보였다)
 export const TILE = 64;
 export const MOVE_CAST_R = 420;   // v157: 걷는 중 자동 무공이 과녁을 잡는 거리
-export const COLS = 9;
-export const ROWS = 19;
+// v241: 9×19 → 11×25 — 들판이 좁아 센 무인은 금세 비웠다. 카메라가 따라가니(보통·가까이) 넓어도 글자는 그대로다
+export const COLS = 11;
+export const ROWS = 25;
 export const MAP_W = COLS * TILE;
 export const MAP_H = ROWS * TILE;
 export const tileCenter = (c) => (c + 0.5) * TILE;
 // v176: 18마리·5초 → 24마리·3초. 센 무인은 들판을 비우고 몹을 기다리는 시간이 길었다.
 // 들판에 반도 안 남으면 두 배 빨리 다시 난다.
-export const MOBS_ALIVE = 24;
-export const RESPAWN_SEC = 3;
+// v241: 들판이 1.6배 넓어져 36마리·2.5초 (칸당 밀도는 비슷하게)
+export const MOBS_ALIVE = 36;
+export const RESPAWN_SEC = 2.5;
 
 // ---------- 지역과 구역 ----------
 // 사냥터(지역)마다 구역 셋(1·2·3 — 뒤로 갈수록 몹 레벨이 높다)과 맨 끝 **두목 구역**이 있다.
@@ -244,7 +246,7 @@ export const GAP_OUT_MIN = 0.25;
 export const GAP_IN = 0.02;
 export const KING_INTRO_SEC = 3.2;   // 십이지왕 등장 연출 길이
 export const BOSS_INTRO_SEC = 2.2;   // 보통 두목 등장 연출 길이
-export const BOSS_ROOM_MOBS = 8;
+export const BOSS_ROOM_MOBS = 12;   // v241: 8 → 12
 export const NORMAL_ZONES = 15;
 // 십이지왕 — 약한 순(제12왕 → 제1왕). art: 그림을 빌려 올 옛 지역. desc는 줄거리 한두 줄.
 export const KINGS = [
@@ -385,7 +387,13 @@ export const mobAtk = (lv) => Math.round(3 + 1.05 * lv ** 1.2);
 export const mobDef = (lv) => Math.round(lv * 0.6);
 export const mobExp = (lv) => Math.round(6 + 1.3 * lv ** 1.5);
 export const mobGold = (lv) => Math.round(2 + lv * 1.4);
-export const BOSS = { hp: 14, atk: 2.5, exp: 25, gold: 30 };
+export const BOSS = { hp: 15, atk: 2.8, exp: 25, gold: 30 };   // v241: 14·2.5 → 15·2.8
+// v241: 지역 두목도 레벨 30부터 바닥 경고 초식을 쓴다(단순한 넷) — 전엔 왕·고수만 썼다
+export const ZONE_BOSS_PATS = ['aim', 'line', 'cone', 'nova'];
+export const ZONE_BOSS_FROM = 30;
+// v241: 두목은 최소 이만큼은 버틴다 — 무인의 초당 피해(무공 몫 ×1.5)로 셈한 체력이 기본보다 크면 그만큼(최대 3배). 함께 사냥(문파원과 왕)·던전은 그대로
+export const BOSS_MIN_SEC = { zone: 35, king: 75, lord: 110 };
+export const OVERPOWER_MAX = 3;
 // 몹 등급 (v116): 0 졸개 · 1 정예 · 2 두목 · 3 십이지왕 — 등급마다 겉모습·기운이 다르다.
 // 들판 정예는 드물게(4%) 섞여 나고 세다(체력 ×3 · 공격 ×1.4) — 대신 경험치·은자 ×2.5, 재료를 두 번 굴린다.
 // 두목 구역의 졸개도 정예로 그리지만 세기는 그대로(이미 그 지역 위끝 레벨이다).

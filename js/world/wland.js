@@ -167,28 +167,28 @@ export function terrainOf(id) {
       }
     } else if (th.style === 'river') {
       // 가로 물줄기 하나(두목 구역은 위쪽 짧게) — 다리 둘
-      const r0 = boss ? 10 : 6 + Math.floor(rng() * 5);
+      const r0 = boss ? Math.floor(ROWS * 0.5) : Math.floor(ROWS * 0.3) + Math.floor(rng() * Math.floor(ROWS * 0.25));
       const gaps = new Set([Math.floor(rng() * 3), 3 + Math.floor(rng() * 3), 6 + Math.floor(rng() * 3)].slice(0, boss ? 3 : 2 + Math.floor(rng() * 2)));
       for (let c = 0; c < COLS; c++) if (!gaps.has(c)) { put(c, r0, th.kinds[0]); if (!boss && area >= 2) put(c, r0 + 1, th.kinds[0]); }
       for (let i = 0; i < Math.round(th.n * scale); i++) put(Math.floor(rng() * COLS), 1 + Math.floor(rng() * (ROWS - 5)), pick(th.deco));
     } else if (th.style === 'pillars') {
-      const rowsP = boss ? [3, 9] : [3, 7, 11].concat(area >= 2 ? [5, 9] : []);
+      const rowsP = (boss ? [3, 9, 15] : [3, 7, 11, 15, 19].concat(area >= 2 ? [5, 9, 13, 17] : [])).filter((r) => r < ROWS - 5);
       for (const r of rowsP) {
         const k = pick(th.kinds);
-        const cc = area === 3 || boss ? [1, 7] : rng() < 0.5 ? [1, 7] : [2, 6];
+        const cc = area === 3 || boss ? [1, COLS - 2] : rng() < 0.5 ? [1, COLS - 2] : [2, COLS - 3];
         for (const c of cc) put(c, r, k);
       }
     } else if (th.style === 'grid') {
       for (let r = 2; r < ROWS - 4; r += 3) for (let c = (r % 2) ? 1 : 2; c < COLS; c += 3) if (rng() < (boss ? 0.35 : 0.7)) put(c, r, pick(th.kinds));
     } else if (th.style === 'rows') {
-      for (const r of boss ? [3, 10] : [3, 7, 11]) {
+      for (const r of (boss ? [3, 10, 16] : [3, 7, 11, 15, 19]).filter((r) => r < ROWS - 5)) {
         const len = 2 + Math.floor(rng() * 2);
         const c0 = rng() < 0.5 ? 0 : COLS - len;
         for (let c = c0; c < c0 + len; c++) put(c, r, th.kinds[0]);
       }
     } else if (th.style === 'walls') {
       // 벼랑이 좌우에서 번갈아 튀어나온다 — 지그재그 길
-      const rowsW = boss ? [4] : [4, 8, 12].slice(0, th.n);
+      const rowsW = (boss ? [4, 12] : [4, 8, 12, 16, 20].slice(0, th.n + 2)).filter((r) => r < ROWS - 5);
       rowsW.forEach((r, i) => {
         const len = 3 + Math.floor(rng() * 2);
         const left = (i + area) % 2 === 0;
