@@ -56,6 +56,15 @@ function afterAnim(sheet, sec, done) {
   const t = setTimeout(go, sec * 1000);
 }
 const pct = (v, d = 1) => `${(v * 100).toFixed(d).replace(/\.0$/, '')}%`;
+// v256 은자 값에 기대는 단추(만들기·합성·초기화·비급·보호부)를 위해 — 은자가 바뀌면 3초에 한 번까지 그 창을 다시 그린다.
+// 전엔 은자를 뭉텅이(로그 눈금)로만 보거나 아예 안 봐서, 은자가 모여도 단추가 잠긴 채였다.
+const goldTicks = {};
+const goldSig = (game, key) => {
+  const e = goldTicks[key] || (goldTicks[key] = { v: -1, t: 0 });
+  const now = Date.now();
+  if (game.s.gold !== e.v && now - e.t > 3000) { e.v = game.s.gold; e.t = now; }
+  return e.v;
+};
 // 조합 장비는 등급(레어·유니크·전설·신화) 빛깔, 옛 드랍 장비는 옛 등급 빛깔
 const gradeOf = (it) => (it.rar != null ? W.RARITY[it.rar] : W.GRADES[it.grade]);
 export const optLines = (it) => (it.opts || []).map(W.optText);
@@ -219,7 +228,7 @@ function charTab(app) {
   let skSig = '';
   function skills() {
     const s = game.s;
-    const nsig = `${s.skillPts}|${JSON.stringify(s.skillLv)}|${s.jobTier}|${game.statSig()}`;
+    const nsig = `${s.skillPts}|${JSON.stringify(s.skillLv)}|${s.jobTier}|${game.statSig()}|${goldSig(game, 'skills')}`;
     if (nsig === skSig) return;
     skSig = nsig;
     const rc = game.skillResetCost();
@@ -371,6 +380,7 @@ function bagTab(app) {
     let markPick = null;
     let spPick = 0;                          // v167: 새길 고유 효과 (셋 가운데)
     let fillPick = null;                     // v251: 빈 칸에 새길 증표
+    let fillSp = 0;                          // v256: 빈 칸에 새길 고유 효과
     let itemTab = (() => { try { return localStorage.getItem('ifu.itemTab') || 'enh'; } catch { return 'enh'; } })();   // v207
     openModal((s) => {
       const paint = () => {
@@ -437,7 +447,8 @@ function bagTab(app) {
         return h('div', { class: 'inf-box' },
           h('div', { class: 'inf-head' }, h('b', {}, '등급 각인 → '), h('b', { style: `color:${R.color}` }, R.name),
             h('small', {}, ` 기본 수치 ×${(R.mult / W.RARITY[to - 1].mult).toFixed(2)} · 등급 옵션 새로${it.pity ? ` · 쌓인 확률 +${pct(it.pity, 0)}p` : ''}`)),
-          keys.length ? h('div', { class: 'chip-row inf-marks' }, ...keys.slice(0, 8).map((k) => {
+          // v256: 고른 증표는 여덟 칸 밖이어도 늘 보이게
+          keys.length ? h('div', { class: 'chip-row inf-marks' }, ...[...keys.slice(0, 8), ...(keys.indexOf(markPick) >= 8 ? [markPick] : [])].map((k) => {
             const i2 = game.infuseInfo(it, k);
             return h('button', { class: `chip${k === markPick ? ' on' : ''}`, style: `--mc:${W.matColor(k)}`, onclick: () => { markPick = k; paint(); } },
               W.matName(k).replace(/의 증표$/, ''), h('small', {}, ` ${IM.THEMES[IM.themeOfZone(+k.slice(1))].name}${IM.specialOfZone(+k.slice(1)) ? '★' : ''} · ${fmt(game.s.mats[k])}개 · ${pct(i2.chance, 0)}`));
@@ -499,11 +510,18 @@ function bagTab(app) {
               const f = fillPick ? game.fillImpInfo(it, i, fillPick) : null;
               return h('div', { class: 'imp-row empty fill' },
                 h('b', {}, `${['첫째(유니크)', '둘째(전설)', '셋째(신화)'][i]} — 빈 칸`), h('small', {}, ' 이 등급으로 얻은 장비라 아직 안 새겨졌어요. 증표로 바로 새길 수 있어요(확률 없음).'),
-                keys.length ? h('div', { class: 'chip-row inf-marks' }, ...keys.slice(0, 8).map((k) => h('button', { class: `chip${k === fillPick ? ' on' : ''}`, style: `--mc:${W.matColor(k)}`, onclick: () => { fillPick = k; paint(); } },
+                keys.length ? h('div', { class: 'chip-row inf-marks' }, ...[...keys.slice(0, 8), ...(keys.indexOf(fillPick) >= 8 ? [fillPick] : [])].map((k) => h('button', { class: `chip${k === fillPick ? ' on' : ''}`, style: `--mc:${W.matColor(k)}`, onclick: () => { fillPick = k; paint(); } },
                   W.matName(k).replace(/의 증표$/, ''), h('small', {}, ` ${IM.THEMES[IM.themeOfZone(+k.slice(1))].name} · ${fmt(game.s.mats[k])}개`))))
                   : h('p', { class: 'muted' }, '두목 증표가 없어요 — 두목을 잡으면 나와요.'),
+                // v256: 고유 효과가 있는 두목 증표면 골라서 새긴다(전엔 첫째 것으로 고정)
+                (() => {
+                  const pv = fillPick ? IM.imprintOf({ k: fillPick, s: 0, sk: 'range', g: 0, sp: fillSp }, i) : null;
+                  return pv?.specials ? h('div', { class: 'sp-pick' }, h('small', {}, '고유 효과 — 하나를 골라 새겨요'),
+                    ...pv.specials.map((sp, j) => h('button', { class: `chip${j === fillSp ? ' on' : ''}`, onclick: () => { fillSp = j; paint(); } },
+                      h('b', {}, sp.name), h('small', {}, ` ${IM.SPECIAL_KIND[sp.kind](pv.w)}`)))) : null;
+                })(),
                 f ? h('button', { class: 'btn primary', disabled: game.canFillImp(it, i, fillPick) ? null : true, onclick: () => {
-                  const e = game.fillImp(it.uid, i, fillPick, 0);
+                  const e = game.fillImp(it.uid, i, fillPick, fillSp);
                   if (!e) return toast('증표·은자가 모자라요');
                   const nim = IM.imprintOf(e, i);
                   toast(`${['첫째', '둘째', '셋째'][i]} 각인 — ${nim?.boss || ''} · ${nim ? IM.skillModText(nim.skill) : ''}`); app.save(); paint(); app.refresh();
@@ -605,7 +623,8 @@ function bagTab(app) {
   const bagRoot = h('div');
   function gearView() {
     const s = game.s;
-    const nsig = `${game.statSig()}|${s.bag.map((i) => i.uid + '.' + (i.plus || 0)).join(',')}|${s.bagSize}|${ui.slot}|${s.gold >= game.bagUpgradeCost()}`;
+    // v256: 등급(rar)·각인 칸 수도 — 가방 속 장비를 각인으로 올려도 타일 색·등급이 그대로였다
+    const nsig = `${game.statSig()}|${s.bag.map((i) => `${i.uid}.${i.plus || 0}.${i.rar || 0}.${(i.imps || []).filter(Boolean).length}`).join(',')}|${s.bagSize}|${ui.slot}|${s.gold >= game.bagUpgradeCost()}`;
     if (nsig === sigs.gear) return;
     sigs.gear = nsig;
     // 낀 여섯 칸 — 셋씩 두 줄
@@ -629,7 +648,8 @@ function bagTab(app) {
     // v230: 글 줄 대신 그림 칸 넷씩 — 누르면 자세히(끼기·팔기·강화)
     const cards = list.map(({ it, d }) => itemTile(game, it, d, () => openItem(it, false)));
     const better = list.filter((x) => x.d > 0.005);
-    const old = s.bag.filter((x) => s.equip[x.slot] && game.itemScore(x) < game.itemScore(s.equip[x.slot]) && !x.plus && !(x.rar >= 2));
+    // v256: 성장 장비는 팔지 않으니(sell → 0) 세지 않는다 — '+0 은자' 토스트만 되풀이됐다
+    const old = s.bag.filter((x) => !x.grow && s.equip[x.slot] && game.itemScore(x) < game.itemScore(s.equip[x.slot]) && !x.plus && !(x.rar >= 2));
     const setNow = Object.entries(game.setCounts()).map(([id, n]) => ({ st: G.setOf(id), n })).filter((x) => x.st);
     // v150: 착용 | 가방을 칸으로 나눴다 — 한 화면에 낀 것·세트·가방·버튼이 다 있어 복잡했다
     gearRoot.replaceChildren(...[
@@ -649,9 +669,9 @@ function bagTab(app) {
         cards.length ? h('div', { class: 'inv-grid' }, ...cards) : h('p', { class: 'muted' }, ui.slot === 'all' ? '가방이 비었어요. 대장장이가 만든 장비는 낀 것보다 좋으면 바로 껴요.' : '이 칸 장비가 가방에 없어요.'),
         h('div', { class: 'btn-row' },
           h('button', { class: 'btn', disabled: old.length ? null : true, onclick: () => {
-            let p = 0;
-            for (const it of old) p += game.sell(it);
-            toast(`약한 장비 ${old.length}개를 팔아 은자 +${fmt(p)} (강화·전설 이상은 남겨요)`);
+            let p = 0, n = 0;
+            for (const it of old) { const g = game.sell(it); if (g > 0 || !s.bag.includes(it)) { p += g; n++; } }
+            toast(`약한 장비 ${n}개를 팔아 은자 +${fmt(p)} (강화·전설 이상은 남겨요)`);
             done();
           } }, `약한 것 팔기${old.length ? ` ${old.length}` : ''}`),
           h('button', { class: 'btn', disabled: game.s.gold < game.bagUpgradeCost() || s.bagSize >= 80 ? true : null, onclick: () => { if (game.buyBagSpace()) { toast('가방이 10칸 넓어졌어요'); done(); } } },
@@ -671,7 +691,7 @@ function bagTab(app) {
   }
   function smithView() {
     const s = game.s;
-    const nsig = `${game.statSig()}|${s.bag.map((i) => i.uid + '.' + (i.plus || 0) + '.' + (i.rar || 0)).join(',')}|${JSON.stringify(s.mats)}|${Math.floor(Math.log10(s.gold + 1) * 20)}|${ui.smode}|${ui.kz}|${ui.kslot}|${s.level}`;
+    const nsig = `${game.statSig()}|${s.bag.map((i) => i.uid + '.' + (i.plus || 0) + '.' + (i.rar || 0)).join(',')}|${JSON.stringify(s.mats)}|${goldSig(game, 'smith')}|${ui.smode}|${ui.kz}|${ui.kslot}|${s.level}`;
     if (nsig === sigs.smith) return;
     sigs.smith = nsig;
     // v158: 성장 장비(레벨 따라 · 100까지) | 세트(100~ · 직업 세트) | 왕의 장신구(100~ · 공용)
@@ -1520,7 +1540,7 @@ function townTab(app) {
     const s = game.s;
     if (!pick) pick = game.canAdvance() ? 'master' : 'shop';
     const inTown = game.map.town;
-    const nsig = `${pick}|${inTown}|${s.autoHunt}|${s.huntMap}|${s.jobTier}|${s.level}|${s.potions}|${s.books || 0}|${s.autoRefill}|${Math.floor(Math.log10(s.gold + 1) * 30)}|${game.canAdvance()}|${s.prot || 0}`;
+    const nsig = `${pick}|${inTown}|${s.autoHunt}|${s.huntMap}|${s.jobTier}|${s.level}|${s.potions}|${s.books || 0}|${s.autoRefill}|${goldSig(game, 'town')}|${game.canAdvance()}|${s.prot || 0}`;
     if (nsig === sig) return;
     sig = nsig;
     head.replaceChildren(h('div', { class: 'town-status' },
@@ -1546,9 +1566,11 @@ function townTab(app) {
   root.replaceChildren(head, body);
   const t = subTabs(views, 'ifu.townsub');
   const upd0 = t.update;
-  t.update = () => { t.setDot('master', game.canAdvance()); upd0(); };
+  // v256: 길을 아직 안 골랐으면 사부 칸에도 점(마을 탭엔 점이 있는데 안에서 이유를 못 찾았다)
+  const pathDue = () => game.canChoosePath() && !game.s.path;
+  t.update = () => { t.setDot('master', game.canAdvance() || pathDue()); upd0(); };
   // 전직할 수 있으면 사부 칸부터 (칸을 짚어 연 게 아니면)
-  t.shown = (sub) => { if (!sub && game.canAdvance()) t.select('master'); };
+  t.shown = (sub) => { if (!sub && (game.canAdvance() || pathDue())) t.select('master'); };
   return t;
 }
 
@@ -1614,6 +1636,7 @@ function guildView(app) {
   let view = null;
   let els = null;
   let chatSig = '';
+  let chatDraft = '';
   const busy = (btn, fn) => async () => {
     btn.disabled = true;
     try { await fn(); } catch (err) { toast(err.message || '실패했어요'); } finally { btn.disabled = false; }
@@ -1689,12 +1712,15 @@ function guildView(app) {
     // 채팅
     const chatBox = h('div', { class: 'chat' });
     const input = h('input', { class: 'field', maxlength: 200, placeholder: '메시지 보내기' });
+    // v256: 무림 탭을 열 때마다 창을 새로 그려 쓰던 글이 사라졌다 — 쓰던 글을 기억해 둔다
+    input.value = chatDraft;
+    input.addEventListener('input', () => { chatDraft = input.value; });
     const send = h('button', { class: 'btn primary' }, '전송');
     const doSend = async () => {
       const text = input.value;
       if (!text.trim()) return;
-      input.value = '';
-      try { await net.sendChat(text); } catch (err) { toast(err.message); input.value = text; }
+      input.value = ''; chatDraft = '';
+      try { await net.sendChat(text); } catch (err) { toast(err.message); input.value = text; chatDraft = text; }
     };
     send.onclick = doSend;
     input.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.isComposing) doSend(); });
@@ -1911,7 +1937,7 @@ function compTab(app) {
   });
   function upd() {
     const s = game.s;
-    const nsig = `${s.pets.map((p) => `${p.uid}.${p.lv}.${Math.floor(p.exp / 50)}`)}|${s.petBox.map((p) => p.uid)}|${s.mounts.map((m) => m.uid)}|${s.mount}|${game.petSlots()}`;
+    const nsig = `${s.pets.map((p) => `${p.uid}.${p.lv}.${Math.floor(p.exp / 50)}`)}|${s.petBox.map((p) => p.uid)}|${s.mounts.map((m) => m.uid)}|${s.mount}|${game.petSlots()}|${goldSig(game, 'comp')}`;
     if (nsig === sig) return;
     sig = nsig;
     const done = () => { app.save(); sig = ''; app.refresh(); };

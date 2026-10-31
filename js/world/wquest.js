@@ -195,8 +195,8 @@ export const QUESTS = [
     why: '장비를 눌러 → 각인 칸 → 다시 굴리기. 스킬 변화(범위·두 번·숨·피해)가 새로 뽑힌다 — 센 두목의 증표일수록 높은 등급이 잘 나온다. 증표를 조금 챙겨 줬다.',
     goal: flag('reimp'),
     gift: (g) => {
-      const it = W.SLOTS.map((x) => g.s.equip[x.id]).find((x) => x?.imps?.length);
-      const e = it?.imps?.[0]; const k = typeof e === 'string' ? e : e?.k;
+      const it = W.SLOTS.map((x) => g.s.equip[x.id]).find((x) => x?.imps?.some(Boolean));
+      const e = it?.imps?.find(Boolean); const k = typeof e === 'string' ? e : e?.k;
       if (!k) return null;
       g.addMats(k, W.INFUSE_MARKS[1]); return '두목 증표';
     } },
@@ -250,10 +250,11 @@ export const QUESTS = [
     goal: (g) => ({ now: Object.keys(g.s.duel?.won || {}).length, need: 5 }) },
   { id: 'imp2', title: '장비 하나에 각인 두 칸', tab: 'bag/gear', min: 14, xp: 0.2,
     why: '등급 각인을 두 번(전설). 같은 두목 증표 6개 — 센 두목 것일수록 잘 붙는다.',
-    goal: (g) => ({ now: Math.max(0, ...W.SLOTS.map((x) => g.s.equip[x.id]?.imps?.length || 0)), need: 2 }) },
+    // v256: 빈 칸(null)은 세지 않는다 — 전설로 떨어진 장비를 한 번 각인하면 길이가 3이라 바로 끝났다
+    goal: (g) => ({ now: Math.max(0, ...W.SLOTS.map((x) => (g.s.equip[x.id]?.imps || []).filter(Boolean).length)), need: 2 }) },
   { id: 'imp3', title: '장비 하나에 각인 세 칸을 채우자', tab: 'bag/gear', min: 15, xp: 0.25,
     why: '각인은 칸마다 그 두목의 테마 효과와 스킬 변화를 붙인다. 세 칸이 다 차면 신화 — 백 레벨 넘는 두목 증표는 고유 효과를 고를 수 있다.',
-    goal: (g) => ({ now: Math.max(0, ...W.SLOTS.map((x) => g.s.equip[x.id]?.imps?.length || 0)), need: 3 }) },
+    goal: (g) => ({ now: Math.max(0, ...W.SLOTS.map((x) => (g.s.equip[x.id]?.imps || []).filter(Boolean).length)), need: 3 }) },
   // ---- 9. 십이지왕 (레벨 75~) ----
   { id: 'tower30', title: '무한의 탑 30층까지', tab: 'dgn/tower', min: 15, xp: 0.25,
     why: '십이지신 셋을 넘긴 셈이다.',

@@ -131,6 +131,8 @@ export function subTabs(views, memo = null) {
     return [v.key, b];
   });
   function select(key) {
+    // v256: 다른 칸으로 바꾸면 맨 위부터 — 전엔 앞 칸의 스크롤이 남아 새 칸이 중간부터 보였다
+    if (cur && cur !== key) { const pb = document.getElementById('panel-body'); if (pb) pb.scrollTop = 0; }
     cur = key;
     if (memo) try { localStorage.setItem(memo, key); } catch { /* 사생활 모드 */ }
     if (!made[key]) made[key] = views.find((v) => v.key === key).make();
@@ -218,6 +220,11 @@ export function holdRepeat(btn, fn) {
     btn.classList.add('holding');
     timer = setTimeout(step, HOLD_FIRST_MS);
   });
+  // v256: 되풀이가 한 번이라도 돌았으면 손을 뗄 때 오는 click은 먹는다 — 전엔 한 번 더 올라갔다
+  let swallow = false;
+  btn.addEventListener('pointerup', () => { if (held > 0) swallow = true; }, true);
+  btn.addEventListener('click', (e) => { if (swallow) { swallow = false; e.stopImmediatePropagation(); e.preventDefault(); } }, true);
+  btn.addEventListener('pointerdown', () => { swallow = false; }, true);
   for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) btn.addEventListener(ev, stop);
   document.addEventListener('visibilitychange', () => { if (document.hidden) stop(); });
   return stop;

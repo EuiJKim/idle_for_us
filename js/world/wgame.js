@@ -2331,7 +2331,8 @@ export class WorldGame {
     const key = `${this.statSig()}|${JSON.stringify(this.s.skillLv)}`;
     if (!this._mods || this._mods.key !== key) this._mods = { key };
     if (this._mods[id]) return this._mods[id];
-    const slot = +id.slice(1);
+    // v256: 길 무공(pa·pb)은 칸 5 — 전엔 +'a'가 NaN이라 장비 스킬 옵션·각인 스킬 변화가 길 무공에 붙지 못했다
+    const slot = /^p[ab]$/.test(id) ? 5 : +id.slice(1);
     const m = { dmg: 0, range: 0, splash: 0, cd: 0, cost: 0, crit: 0, echo: false, free: false, reset: false, ...W.skillLvMods(slot, this.skillLevel(id)) };
     for (const it of Object.values(this.s.equip)) {
       for (const o of it?.opts || []) {

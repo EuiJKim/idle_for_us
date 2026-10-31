@@ -38,7 +38,9 @@ function unitText(L0) {
 // toNumber()를 먼저 부르면 거기서 Infinity가 되어 버린다.
 export function fmt(n) {
   if (n && typeof n === 'object' && typeof n.e === 'number') return fmtBig(n);
-  if (!Number.isFinite(n)) return '∞';
+  // v256: 값이 없거나(NaN·undefined·null) 숫자가 아니면 '-' — 전엔 '∞'로 찍혀 누락이 무한대처럼 보였다
+  if (n == null || Number.isNaN(n) || typeof n !== 'number') return n === 0 ? '0' : '-';
+  if (!Number.isFinite(n)) return n > 0 ? '∞' : '-∞';
   if (n < 0) return '-' + fmt(-n);
   if (n < 100 && n % 1 >= 0.05) return (Math.floor(n * 10) / 10).toString();
   if (n < 1000) return Math.floor(n).toString();
