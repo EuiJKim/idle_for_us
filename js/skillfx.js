@@ -331,9 +331,18 @@ export const FX = {
     const x = v.sx({ x: e.wx });
     const y = v.sy({ y: e.wy }) - 50;
     const p = 1 - k;
-    const len = 78 * Math.min(1, p * 6);
+    const len = (e.len || 78) * Math.min(1, p * 6);
     ctx.translate(x, y);
     ctx.rotate(e.a || 0);
+    // v251 빛깔(col) — 애완동물 발톱·여의봉처럼 흰 선만으로는 누구 것인지 몰랐다
+    if (e.col) {
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.fillStyle = `rgba(20,14,10,${0.35 * k})`;
+      ctx.beginPath(); ctx.moveTo(-len / 2 - 3, 0); ctx.lineTo(0, -5 * k - 1.5); ctx.lineTo(len / 2 + 3, 0); ctx.lineTo(0, 5 * k + 1.5); ctx.fill();
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.fillStyle = `rgba(${e.col},${Math.min(1, k * 1.4)})`;
+      ctx.beginPath(); ctx.moveTo(-len / 2, 0); ctx.lineTo(0, -4 * k - 1); ctx.lineTo(len / 2, 0); ctx.lineTo(0, 4 * k + 1); ctx.fill();
+    }
     ctx.fillStyle = `rgba(255,255,255,${Math.min(1, k * 1.4)})`;
     ctx.beginPath();
     ctx.moveTo(-len / 2, 0); ctx.lineTo(0, -2.6 * k - 0.6); ctx.lineTo(len / 2, 0); ctx.lineTo(0, 2.6 * k + 0.6);

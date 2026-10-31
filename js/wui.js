@@ -368,6 +368,7 @@ function bagTab(app) {
     // 등급 각인에 넣을 증표 — 확률이 높은 것(센 두목)부터 (v158)
     let markPick = null;
     let spPick = 0;                          // v167: 새길 고유 효과 (셋 가운데)
+    let fillPick = null;                     // v251: 빈 칸에 새길 증표
     let itemTab = (() => { try { return localStorage.getItem('ifu.itemTab') || 'enh'; } catch { return 'enh'; } })();   // v207
     openModal((s) => {
       const paint = () => {
@@ -405,7 +406,9 @@ function bagTab(app) {
             W.enhanceRisky(it.plus || 0) && game.s.prot ? h('label', { class: 'chk' }, (() => { const c = h('input', { type: 'checkbox' }); c.checked = useProt; c.onchange = () => { useProt = c.checked; paint(); }; return c; })(), ' 보호부 쓰기') : null,
             h('button', { class: 'btn good enh-go', disabled: game.canEnhance(it) ? null : true, onclick: () => askEnhance() }, breaking ? '돌파' : '강화')),
         ];
-        const impPane = game.canImprintItem(it) ? [infuseBox(), impBox()] : [];
+        // v251: 이미 그 등급인데 빈 각인 칸이 있으면 각인 칸을 위로 — 아래에 묻혀 '안 박힌다'로만 보였다
+        const holes = game.canImprintItem(it) && [0, 1, 2].some((i) => i < (it.rar || 0) && !IM.normEntry(it.imps?.[i]));
+        const impPane = game.canImprintItem(it) ? (holes ? [impBox(), infuseBox()] : [infuseBox(), impBox()]) : [];
         const pane = { enh: enhPane, imp: impPane, info: infoPane }[itemTab] || enhPane;
         s.replaceChildren(...[
           h('h2', { style: `color:${g.color}` }, itemTitle(game, it)),
@@ -486,7 +489,25 @@ function bagTab(app) {
         return h('div', { class: 'imp-box' }, h('b', {}, '증표 각인 '), h('small', {}, '등급이 오를 때마다 넣은 증표의 두목이 한 칸씩'),
           ...[0, 1, 2].map((i) => {
             const im = ims[i] ? IM.imprintOf(ims[i], i) : null;
-            if (!im) return h('div', { class: 'imp-row empty' }, `${['첫째(유니크)', '둘째(전설)', '셋째(신화)'][i]} — ${i < (it.rar || 0) ? '각인 없이 올렸어요' : '비어 있어요'}`);
+            if (!im && i >= (it.rar || 0)) return h('div', { class: 'imp-row empty' }, `${['첫째(유니크)', '둘째(전설)', '셋째(신화)'][i]} — 비어 있어요 (등급이 오르면 새겨져요)`);
+            // v251: 이미 그 등급인데 빈 칸 — 증표로 바로 새긴다(확률 없음)
+            if (!im) {
+              const keys = Object.keys(game.s.mats).filter((k) => W.isMarkKey(k) && game.s.mats[k] > 0).sort((a, b) => game.s.mats[b] - game.s.mats[a]);
+              if (!keys.includes(fillPick)) fillPick = keys.find((k) => game.canFillImp(it, i, k)) || keys[0] || null;
+              const f = fillPick ? game.fillImpInfo(it, i, fillPick) : null;
+              return h('div', { class: 'imp-row empty fill' },
+                h('b', {}, `${['첫째(유니크)', '둘째(전설)', '셋째(신화)'][i]} — 빈 칸`), h('small', {}, ' 이 등급으로 얻은 장비라 아직 안 새겨졌어요. 증표로 바로 새길 수 있어요(확률 없음).'),
+                keys.length ? h('div', { class: 'chip-row inf-marks' }, ...keys.slice(0, 8).map((k) => h('button', { class: `chip${k === fillPick ? ' on' : ''}`, style: `--mc:${W.matColor(k)}`, onclick: () => { fillPick = k; paint(); } },
+                  W.matName(k).replace(/의 증표$/, ''), h('small', {}, ` ${IM.THEMES[IM.themeOfZone(+k.slice(1))].name} · ${fmt(game.s.mats[k])}개`))))
+                  : h('p', { class: 'muted' }, '두목 증표가 없어요 — 두목을 잡으면 나와요.'),
+                f ? h('button', { class: 'btn primary', disabled: game.canFillImp(it, i, fillPick) ? null : true, onclick: () => {
+                  const e = game.fillImp(it.uid, i, fillPick, 0);
+                  if (!e) return toast('증표·은자가 모자라요');
+                  const nim = IM.imprintOf(e, i);
+                  toast(`${['첫째', '둘째', '셋째'][i]} 각인 — ${nim?.boss || ''} · ${nim ? IM.skillModText(nim.skill) : ''}`); app.save(); paint(); app.refresh();
+                } }, `새기기 (증표 ${f.n} · 은자 ${fmt(f.gold)})`) : null,
+                f && f.have < f.n ? h('p', { class: 'inf-why' }, `${W.matName(fillPick)}가 ${f.n - f.have}개 모자라요.`) : f && game.s.gold < f.gold ? h('p', { class: 'inf-why' }, `은자가 ${fmt(f.gold - game.s.gold)} 모자라요.`) : null);
+            }
             const c = game.reimpCost(it, i);
             const can = game.canReimp(it, i);
             const costTxt = c ? `${W.matName(c.key).replace(/의 증표$/, '')} 증표 ${c.n} · 은자 ${fmt(c.gold)}` : '';

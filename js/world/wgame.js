@@ -1806,6 +1806,30 @@ export class WorldGame {
     this.emit('infuse', { item: it, ok });
     return ok;
   }
+  // v251 빈 칸 새기기 — 이미 그 등급으로 얻은 장비(두목 드랍·제작·왕의 장비)는 '오를 때' 새기는 칸이 비어 있었고
+  //   채울 길이 없었다(무기 첫째·둘째 각인이 안 박힌다). 그 칸 등급 값의 증표 + 은자로, 확률 없이 새긴다.
+  fillImpInfo(it, slot, key) {
+    if (!this.canImprintItem(it) || slot < 0 || slot >= (it.rar || 0) || IM.normEntry(it.imps?.[slot]) || !W.isMarkKey(key)) return null;
+    return { n: W.INFUSE_MARKS[slot + 1], gold: W.infuseGold(it.ilv, slot + 1), have: this.s.mats[key] || 0 };
+  }
+  canFillImp(it, slot, key) {
+    const f = this.fillImpInfo(it, slot, key);
+    return !!f && f.have >= f.n && this.s.gold >= f.gold;
+  }
+  fillImp(uid, slot, key, spIdx = 0) {
+    const it = this.findItem(uid);
+    if (!this.canFillImp(it, slot, key)) return null;
+    const f = this.fillImpInfo(it, slot, key);
+    this.s.mats[key] -= f.n;
+    this.s.gold -= f.gold;
+    it.imps = (it.imps || []).slice();
+    while (it.imps.length <= slot) it.imps.push(null);
+    it.imps[slot] = { k: key, ...IM.rollSkillChange(this.rng), sp: Math.max(0, Math.min(2, spIdx | 0)) };
+    this._stats = null; this._mods = null; this._pass = null; this._isp = null;
+    this.mark('infuse');
+    this.emit('infuse', { item: it, ok: true, fill: true });
+    return it.imps[slot];
+  }
   // 각인 다시 새기기 (v167) — 그 칸을 새긴 두목의 증표(그 칸 등급 값) + 은자.
   //   스킬 변화만 다시 굴리기(고유는 그대로) · 고유 효과만 바꾸기(스킬 변화는 잠근 채)
   reimpCost(it, slot) {

@@ -1788,5 +1788,22 @@ console.log('\n=== 강화 공유 (v243) ===');
   ok(g.effPlus(set) === 15, '세트 무기 제 강화가 더 높으면 그쪽');
   ok(g.effPlus(grow) === 12, '성장 장비는 제 강화 그대로');
 }
+console.log('\n=== 빈 각인 칸 새기기 (v251) ===');
+{
+  const G2 = await import('../js/world/wgear.js');
+  const g = fresh('sword');
+  while (g.s.level < 100) g.addExp(W.expToNext(g.s.level));
+  g.s.gold = 1e15;
+  const it = g.makeKing('weapon', G2.SLOT_KING.weapon, 0, G2.setsOfJob('sword')[0].id, 0);
+  it.rar = 2; it.imps = [];              // 전설로 얻은 장비 — 첫째·둘째 칸이 비어 있다
+  if (!g.findItem(it.uid)) g.s.bag.push(it);
+  const k = W.bossKey(10);
+  g.s.mats[k] = 100;
+  ok(g.canImprintItem(it) && g.fillImpInfo(it, 0, k) && g.fillImpInfo(it, 1, k) && !g.fillImpInfo(it, 2, k), '이미 전설이면 첫째·둘째 빈 칸을 새길 수 있다(셋째는 신화가 되어야)');
+  const e0 = g.fillImp(it.uid, 0, k, 0);
+  ok(e0 && it.imps[0]?.k === k && g.s.mats[k] === 100 - W.INFUSE_MARKS[1], '빈 첫째 칸 — 증표를 내고 확률 없이 새긴다');
+  ok(g.fillImp(it.uid, 1, k, 1) && it.imps[1]?.k === k && it.rar === 2, '둘째 칸도 — 등급은 그대로');
+  ok(!g.fillImpInfo(it, 0, k), '새긴 칸은 다시 새기기로만');
+}
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);
