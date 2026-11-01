@@ -22,7 +22,8 @@ export const DAILY_KILLS = 24;           // 이만큼 잡으면 깬다
 export const DAILY_ALIVE = 10;
 export const DAILY_RESPAWN = 0.7;
 export const DAILY_STAGES = 30;
-export const DAILY_FAIL = 0.5;           // 못 깨면 잡은 만큼의 절반
+export const DAILY_FAIL = 0.5;
+export const DAILY_KEYS = 3;           // v260: 새 단계 열쇠(들어간 횟수 돌려받기)는 하루 종류마다 이만큼           // 못 깨면 잡은 만큼의 절반
 
 export const DAILY = [
   { id: 'exp', name: '수련동', hanja: '修鍊洞', ico: '修', days: [1, 4], scene: 'relic', what: '경험치',
@@ -47,9 +48,12 @@ export function zoneForLv(lv) {
   return best;
 }
 // 보상 — kind별. gap: 무인 레벨에 비해 너무 낮은 단계면 경험치가 깎인다(들판과 같은 식)
-export function dailyReward(kind, s, gapMult = 1) {
-  const lv = dailyLv(s);
-  const z = zoneForLv(lv);
+// v260: 경험치·은자는 '단계 레벨'과 '내 레벨 + DAILY_LV_OVER' 중 낮은 쪽으로 센다 — 장비가 앞선 Lv84가
+// 30단계(몹 150)를 깨고 하루 만에 84→100이 되던 것을 막는다. 재료는 그 단계 지역 것 그대로(장비에 쓴다).
+export const DAILY_LV_OVER = 5;
+export function dailyReward(kind, s, gapMult = 1, myLv = 999) {
+  const z = zoneForLv(dailyLv(s));
+  const lv = Math.max(1, Math.min(dailyLv(s), myLv + DAILY_LV_OVER));
   // 한 판 ≈ 들판 10분~한 시간어치 (경험치 그 레벨 0.2 · 은자 몹 1000마리 · 재료 300 · 증표 8)
   if (kind === 'exp') return { exp: Math.round(expToNext(lv) * 0.2 * gapMult) };
   if (kind === 'gold') return { gold: Math.round(mobGold(lv) * 1000) };

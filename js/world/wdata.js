@@ -784,6 +784,15 @@ export const RETURN_SEC = 3;
 // ---------- 방치 ----------
 export const OFFLINE_CAP_SEC = 10 * 3600;
 export const RATE_WINDOW_SEC = 300;
+export const FOLLOW_GAP = 3;   // v260: 알맞은 사냥터 따라가기 — 구역 최고 레벨보다 이만큼 넘게 높으면 옮긴다
+// v260: 방치 효율 — 오래 비울수록 덜 번다(앞 두 시간은 그대로). [이 시각(초)까지, 그 구간 효율]
+// 만렙을 실사용 2주에 맞추며 '열 시간 방치 = 레벨 +20'이던 것을 누른다.
+export const OFFLINE_TIERS = [[2 * 3600, 1], [6 * 3600, 0.7], [10 * 3600, 0.4]];
+export function offlineEffSec(t) {
+  let out = 0, from = 0;
+  for (const [to, k] of OFFLINE_TIERS) { if (t <= from) break; out += (Math.min(t, to) - from) * k; from = to; }
+  return out;
+}
 
 // ---------- 문파 ----------
 // 코드로 만들고 들어간다(최대 10명). 문파 레벨은 출석·기부로 오르고, 레벨마다 전원 공격력 +2%.

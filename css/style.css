@@ -1684,3 +1684,17 @@ body.hunt-nocv #cv { visibility: hidden !important; }
 .pc-skill { padding: 6px 8px; border-radius: 8px; background: rgba(250,204,21,0.08); border: 1px dashed rgba(250,204,21,0.35); }
 .pc-skill b { font-size: 12px; color: #fde68a; display: block; }
 .pc-skill small { font-size: 10px; color: var(--muted); line-height: 1.25; }
+
+/* v260: 은자 덩이가 닿으면 은자 칸이 펄스한다 */
+.res-silver.pulse .cur { animation: gold-pulse 0.32s ease-out; }
+.res-silver.pulse b { animation: gold-num 0.32s ease-out; }
+@keyframes gold-pulse { 40% { transform: translateY(-50%) scale(1.2); filter: saturate(0) brightness(1.7) drop-shadow(0 0 6px rgba(255, 255, 255, 0.7)); } }
+@keyframes gold-num { 40% { color: #fff; text-shadow: 0 0 6px rgba(255, 255, 255, 0.6); } }
+
+/* v260: 누를 때 반응 — 단추·무공 칸·아래 탭이 살짝 눌린다(80ms) */
+.btn, .buy, .skill-btn, #tabs button, .area-btn, .tile, .class-card { transition: transform 0.08s ease-out, filter 0.08s ease-out; }
+.btn:active:not(:disabled), .buy:active:not(:disabled), #tabs button:active, .area-btn:active:not(:disabled), .class-card:active { transform: scale(0.96); filter: brightness(1.18); }
+.skill-btn:active:not(:disabled) { transform: scale(0.93); filter: brightness(1.25); box-shadow: 0 0 0 2px rgba(253, 230, 138, 0.75) inset; }
+@media (prefers-reduced-motion: reduce) { .btn, .buy, .skill-btn, #tabs button, .area-btn, .tile, .class-card { transition: none; } }
+.auto-map { cursor: pointer; align-items: center; }
+.auto-map input { width: 20px; height: 20px; margin: 0 10px 0 2px; accent-color: #d4a64a; }

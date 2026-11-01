@@ -154,7 +154,7 @@ function charTab(app) {
   let qSig = '';
   function quests() {
     const cur = game.questNow();
-    const nsig = `${game.s.quest}|${cur ? `${cur.now}/${cur.need}|${cur.done}` : 'end'}|${game.s.level}`;
+    const nsig = `${game.s.quest}|${cur ? `${cur.now}/${cur.need}|${cur.done}|${cur.stuck}` : 'end'}|${game.s.level}`;
     if (nsig === qSig) return;
     qSig = nsig;
     const done = game.s.quest;
@@ -209,13 +209,15 @@ function charTab(app) {
             app.save(); qSig = ''; upd(); app.refresh();
             toast(`길잡이 — ${q.title} ✓ ${rewardText(got)}`);
           } }, '받기')
-          // 서버가 있어야 하는 단계는 건너뛸 수 있다 (보상 없이)
-          : isNow && q.skip
+          // 서버가 있어야 하는 단계는 건너뛸 수 있다 (보상 없이) · v260: 두 시간 넘게 막힌 단계도(보상 절반)
+          : isNow && (q.skip || cur.stuck)
             ? h('button', { class: 'buy ghost', onclick: () => {
-              if (!game.skipQuest()) return;
+              const r = game.skipQuest();
+              if (!r) return;
               app.save(); qSig = ''; upd(); app.refresh();
-              toast(`길잡이 — '${q.title}'은(는) 건너뛰었어요. 나중에 언제든 할 수 있어요`);
-            } }, '건너뛰기')
+              toast(r === true ? `길잡이 — '${q.title}'은(는) 건너뛰었어요. 나중에 언제든 할 수 있어요`
+                : `길잡이 — '${q.title}' 건너뛰기 · 절반 보상 ${rewardText(r)}`);
+            } }, cur.stuck ? '건너뛰기 (보상 절반)' : '건너뛰기')
             : null));
     }
     questCard.append(...rows);
@@ -1114,7 +1116,7 @@ function mapTab(app) {
       root: box,
       update() {
         const s = game.s;
-        const nsig = `${s.level}|${s.map}|${s.huntMap}|${Object.values(s.mast || {}).map((k) => L.masteryLv(k)).join(',')}|${JSON.stringify(s.duel.won)}|${!!game.inst}`;
+        const nsig = `${s.level}|${s.map}|${s.huntMap}|${Object.values(s.mast || {}).map((k) => L.masteryLv(k)).join(',')}|${JSON.stringify(s.duel.won)}|${!!game.inst}|${s.autoMap}`;
         if (nsig === sig) return;
         sig = nsig;
         const here = W.mapOf(s.map);
@@ -1130,7 +1132,12 @@ function mapTab(app) {
           h('div', { class: `row map-row${here.town ? ' me' : ''}` }, h('div', { class: 'ico' }, '촌'),
             h('div', { class: 'info' }, h('div', { class: 'name' }, '객잔 마을'), h('div', { class: 'desc' }, '쉬는 곳 — 체력이 빨리 차요')),
             h('button', { class: 'buy', disabled: here.town ? true : null, onclick: () => { game.goTown(); app.save(); app.closePanel(); app.refresh(); } }, here.town ? '여기' : '가기')),
-          h('h3', { class: 'king-head' }, '사냥터', h('small', {}, '레벨과 상관없이 어디든 — ⚠는 내 레벨보다 훨씬 센 곳')));
+          h('h3', { class: 'king-head' }, '사냥터', h('small', {}, '레벨과 상관없이 어디든 — ⚠는 내 레벨보다 훨씬 센 곳')),
+          // v260: 적정 사냥터 따라가기 — 레벨이 오르면 알맞은 다음 구역으로 저절로 옮긴다
+          h('label', { class: 'row auto-map' },
+            h('input', { type: 'checkbox', checked: s.autoMap ? true : null, onchange: (e) => { game.s.autoMap = e.target.checked; if (game.s.autoMap) game.followMap(true); app.save(); sig = ''; this.update(); } }),
+            h('div', { class: 'info' }, h('div', { class: 'name' }, '알맞은 사냥터 따라가기'),
+              h('div', { class: 'desc' }, '레벨이 사냥터보다 3 넘게 높아지면 알맞은 구역으로 저절로 옮겨요. 두목·고수·왕 구역에 있을 땐 그대로 둬요.'))));
         for (const z of MS.FAC_ZONES[fac]) { const zn = W.ZONE_ORDER.find((x) => x.id === z); if (zn) zoneCard(box, zn, here); }
         // v204: 고수(두목)는 '무림고수' 칸으로 따로 모았다
         box.append(h('button', { class: 'card fac-masters-link', style: `--fc:${F.col}`, onclick: () => app.showTab('map', 'masters') },
@@ -1266,7 +1273,7 @@ function dgnTab(app) {
       const best = game.dailyBest(d.id);
       const max = game.dailyMaxStage(d.id);
       const stg = Math.max(1, Math.min(max, stagePick[d.id] ?? max));
-      const rw = D.dailyReward(d.id, stg, game.levelGapMult(D.dailyLv(stg)));
+      const rw = D.dailyReward(d.id, stg, game.levelGapMult(D.dailyLv(stg)), game.s.level);
       const step = (k) => { stagePick[d.id] = Math.max(1, Math.min(max, stg + k)); rerender(); };
       return h('div', { class: `card dgn-card dgn-${d.id}${open ? '' : ' closed'}` },
         h('div', { class: 'dgn-top' },
@@ -1286,7 +1293,7 @@ function dgnTab(app) {
             `${W.zoneOfW(D.zoneForLv(D.dailyLv(stg)))?.name || ''}의 재료·증표예요 — 이름을 누르면 그 사냥터로 갈 수 있어요`)
           : null,
         // v258: 도전을 못 할 때 왜 못 하는지 한 줄
-        !game.canDaily(d.id, stg, now) && game.s.job ? h('p', { class: 'inf-why' }, game.inst ? '던전 안에서는 다른 던전에 못 들어가요' : !D.dailyOpen(d, now) ? '오늘은 열리지 않는 던전이에요' : game.dailyLeft(d.id, now) <= 0 ? '오늘 들어갈 횟수를 다 썼어요 — 새 단계를 깨면 열쇠로 한 번 돌아와요' : '아직 열리지 않은 단계예요') : null,
+        !game.canDaily(d.id, stg, now) && game.s.job ? h('p', { class: 'inf-why' }, game.inst ? '던전 안에서는 다른 던전에 못 들어가요' : !D.dailyOpen(d, now) ? '오늘은 열리지 않는 던전이에요' : game.dailyLeft(d.id, now) <= 0 ? '오늘 들어갈 횟수를 다 썼어요 — 새 단계를 깨면 열쇠로 한 번 돌아와요(하루 ' + D.DAILY_KEYS + '번)' : '아직 열리지 않은 단계예요') : null,
         h('div', { class: 'btn-row' },
           h('button', { class: 'btn primary', disabled: game.canDaily(d.id, stg, now) ? null : true, onclick: () => start(() => game.startDaily(d.id, stg, now)) },
             `도전 (${D.DAILY_SEC}초 · ${D.DAILY_KILLS}마리)${stg > best ? ' 🔑' : ''}`),

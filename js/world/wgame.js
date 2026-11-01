@@ -50,6 +50,7 @@ export function newWorldSave(now = Date.now()) {
     mats: {},                // 재료 — 사냥터 번호: 개수
     map: 0,                  // 지금 있는 곳 (0 마을)
     huntMap: W.mapId(1, 1),  // 돌아갈 구역 (지역×10 + 구역)
+    autoMap: true,           // v260: 알맞은 사냥터 따라가기 (새 세이브는 켬 · 옛 세이브는 끔)
     mapV: 2,
     autoHunt: true,
     autoSkill: true,
@@ -82,6 +83,7 @@ export function migrateWorld(raw, now = Date.now()) {
   const base = newWorldSave(now);
   if (!raw || typeof raw !== 'object') return base;
   const s = { ...base, ...raw };
+  s.autoMap = typeof raw.autoMap === 'boolean' ? raw.autoMap : false;
   s.stats = { ...base.stats, ...(raw.stats || {}) };
   s.skillLv = { ...base.skillLv, ...(raw.skillLv || {}) };
   for (const k of Object.keys(s.skillLv)) s.skillLv[k] = clamp(Math.floor(Number(s.skillLv[k]) || 1), 1, W.SKILL_LV_MAX);
@@ -135,9 +137,11 @@ export function migrateWorld(raw, now = Date.now()) {
   if (s.job && !W.CLASSES[s.job]) s.job = null;
   // v126 던전
   const dg = raw.dgn && typeof raw.dgn === 'object' ? raw.dgn : {};
-  s.dgn = { day: typeof dg.day === 'string' ? dg.day : '', used: {}, best: {} };
+  s.dgn = { day: typeof dg.day === 'string' ? dg.day : '', used: {}, best: {}, fail: {}, keys: {} };
   for (const d of D.DAILY) {
     s.dgn.used[d.id] = Math.max(0, Math.floor(Number(dg.used?.[d.id]) || 0));
+    if (dg.fail?.[d.id]) s.dgn.fail[d.id] = Math.max(0, Math.floor(Number(dg.fail[d.id]) || 0));
+    if (dg.keys?.[d.id]) s.dgn.keys[d.id] = Math.max(0, Math.floor(Number(dg.keys[d.id]) || 0));
     s.dgn.best[d.id] = clamp(Math.floor(Number(dg.best?.[d.id]) || 0), 0, D.DAILY_STAGES);
   }
   const tw = raw.tower && typeof raw.tower === 'object' ? raw.tower : {};
@@ -262,6 +266,8 @@ export class WorldGame {
 
   // ---------- 그리는 쪽과의 약속 ----------
   emit(type, data = {}) {
+    // v260: 자동 시전으로 펼친 무공은 auto — 그리는 쪽이 필살 컷인을 짧은 판으로 바꾼다
+    if (type === 'skill' && this._autoCast) data.auto = true;
     this.events.push({ type, ...data });
     if (this.events.length > 300) this.events.splice(0, this.events.length - 300);
   }
@@ -455,6 +461,24 @@ export class WorldGame {
   danger(id) {
     const m = W.mapOf(id);
     return m.town ? 0 : m.lv[0] - this.s.level;
+  }
+  // v260: 알맞은 사냥터 따라가기 — 일반 구역에서 사냥 중이고 레벨이 구역보다 FOLLOW_GAP 넘게 높으면 safeMap으로.
+  // 쓰러져 물러난 지 10분 안에는 다시 올리지 않는다(물러남과 따라가기가 서로 핑퐁하지 않게).
+  followMap(force = false) {
+    const s = this.s;
+    if (!s.autoMap || !s.autoHunt || this.inst || !s.job) return false;
+    const cur = W.mapOf(s.huntMap);
+    if (!cur || cur.town || cur.bossRoom || cur.king || cur.master) return false;
+    if (!force && this._retreatAt != null && this.clock - this._retreatAt < 600) return false;
+    if (s.level - cur.lv[1] <= W.FOLLOW_GAP) return false;
+    // 몹이 내 레벨을 넘지 않는 가장 높은 일반 구역 — safeMap(시작 레벨 기준)은 몹이 나보다 두셋 높은 곳까지 골랐다
+    let to = cur.id;
+    for (const m of W.MAPS) if (!m.town && !m.bossRoom && !m.king && !m.master && !m.inst && m.lv[1] <= s.level && m.lv[0] > W.mapOf(to).lv[0]) to = m.id;
+    if (to === s.huntMap || W.mapOf(to).lv[0] <= cur.lv[0]) return false;
+    s.huntMap = to;
+    if (this.map.id === cur.id) this.enterMap(to, true);
+    this.emit('followMap', { name: W.mapOf(to).name });
+    return true;
   }
   // 내 레벨에 알맞은 가장 높은 일반 구역 (물러날 곳)
   safeMap() {
@@ -674,6 +698,7 @@ export class WorldGame {
     if (this.inst?.done) this.finishInst();
     // 자동 도전 — 들판에 있는 동안 열린 요일 던전이 있으면 알아서 들어간다.
     // 매 틱 보면 비싸므로 몇 초에 한 번만 본다.
+    if (this._followDue && !this.inst) { this._followDue = false; this.followMap(); }
     if ((this.s.dgn.auto || this.s.dgn.routine) && !this.inst) {
       this.autoDgnT = (this.autoDgnT || 0) - dt;
       if (this.autoDgnT <= 0) { this.autoDgnT = AUTO_DGN_SEC; this.startRoutine(); }
@@ -1297,6 +1322,7 @@ export class WorldGame {
     const streak = this._deaths.length >= 3 && this.safeMap() !== this.map.id && W.mapOf(this.safeMap()).lv[0] < this.map.lv[0];
     if ((this.danger(this.map.id) > W.DANGER_LV || streak) && this.s.autoHunt) {
       this._deaths = [];
+      this._retreatAt = this.clock;
       this.s.huntMap = this.safeMap();
       retreat = W.mapOf(this.s.huntMap).name;
     }
@@ -1556,6 +1582,10 @@ export class WorldGame {
     return near.length >= 4 || near.some((m) => m.isBoss);
   }
   autoSkills(st) {
+    this._autoCast = true;
+    try { this.autoSkills0(st); } finally { this._autoCast = false; }
+  }
+  autoSkills0(st) {
     for (const sk of this.skills()) {
       if (this.cd[sk.id] > 0) continue;
       if (sk.kind === 'support' || sk.kind === 'awaken') { if (this.wantSupport(sk, st) && !(sk.autoAbove && this.heroHp < st.hp * sk.autoAbove)) this.useSkill(sk.id); continue; }
@@ -1591,6 +1621,7 @@ export class WorldGame {
       this.emit('levelUp', { level: s.level });
       const look = W.lookTierOf(s.level);
       if (look !== s.rank) s.rank = look;
+      this._followDue = true;
     }
     if (s.autoStat) this.autoStats();
     this.syncGrow();
@@ -2496,7 +2527,9 @@ export class WorldGame {
   dgnToday(now = Date.now()) {
     const d = this.s.dgn;
     const day = D.kstDay(now);
-    if (d.day !== day) { d.day = day; d.used = {}; }
+    if (d.day !== day) { d.day = day; d.used = {}; d.fail = {}; d.keys = {}; }
+    if (!d.fail) d.fail = {};
+    if (!d.keys) d.keys = {};
     return d;
   }
   dailyLeft(kind, now = Date.now()) { return Math.max(0, D.DAILY_ENTRIES - (this.dgnToday(now).used[kind] || 0)); }
@@ -2515,7 +2548,7 @@ export class WorldGame {
     if (!this.canDaily(kind, stage, now)) return false;
     const used = this.dgnToday(now).used;
     used[kind] = (used[kind] || 0) + 1;
-    this.startInst({ kind: 'daily', id: kind, stage, map: D.dailyMap(kind, stage), t: D.DAILY_SEC, max: D.DAILY_SEC, target: D.DAILY_KILLS, kills: 0 });
+    this.startInst({ kind: 'daily', id: kind, stage, map: D.dailyMap(kind, stage), t: D.DAILY_SEC, max: D.DAILY_SEC, target: D.DAILY_KILLS, kills: 0, now });
     for (let i = 0; i < D.DAILY_ALIVE; i++) this.spawnMob(false);
     return true;
   }
@@ -2570,6 +2603,8 @@ export class WorldGame {
     }
     const q = Q.questAt(this.s.quest);
     if (!q) return null;
+    // v260: 이 단계를 언제부터 붙잡고 있었나 — 오래 막히면 절반 보상으로 건너뛴다
+    if (this.s.questAt !== this.s.quest) { this.s.questAt = this.s.quest; this.s.questSince = Date.now(); }
     // 해 봐야 하는 것은 그 단계가 뜰 때 준다 (첫 무기 재료 · 가장 아래 애완동물·탈것)
     if (q.gift && this.s.questGift !== this.s.quest && this.s.job) {
       this.s.questGift = this.s.quest;
@@ -2579,15 +2614,24 @@ export class WorldGame {
     const g = q.goal(this);
     const need = g.need || 1;
     const now = Math.min(need, Math.max(0, g.now || 0));
-    return { q, now, need, done: now >= need, reward: Q.questReward(q, this.s.level) };
+    const stuck = !q.skip && !q.mile && now < need && Date.now() - (this.s.questSince || Date.now()) >= Q.QUEST_STUCK_MS;
+    return { q, now, need, done: now >= need, stuck, reward: Q.questReward(q, this.s.level) };
   }
   canClaimQuest() { return !!this.questNow()?.done; }
   // 서버가 있어야 하는 단계(문파·토벌·함께 사냥)는 건너뛸 수 있다 — 보상은 없다
+  // v260: 그 밖의 단계도 두 시간 넘게 막혀 있으면 건너뛸 수 있다 — 보상 절반(레벨 단계는 빼고)
   skipQuest() {
     const cur = this.questNow();
-    if (!cur || !cur.q.skip || cur.done) return false;
+    if (!cur || cur.done || !(cur.q.skip || cur.stuck)) return false;
+    let reward = null;
+    if (cur.stuck) {
+      const half = {};
+      for (const [k, v] of Object.entries(cur.reward || {})) half[k] = Math.round(v / 2);
+      reward = this.grant(half);
+    }
     this.s.quest++;
-    return true;
+    if (reward) this.emit('quest', { id: cur.q.id, title: cur.q.title, reward, left: Q.QUEST_COUNT - this.s.quest, skipped: true });
+    return reward || true;
   }
   // 해 본 것 하나 (길잡이용)
   mark(k) { const d = this.s.did || (this.s.did = {}); d[k] = (d[k] || 0) + 1; }
@@ -2695,12 +2739,23 @@ export class WorldGame {
   startRoutine(now = Date.now()) {
     const nx = this.routineNext(now);
     if (nx?.step === 'tower') return this.startTower(false);
-    if (nx) return this.startDaily(nx.kind, nx.stage, now);
+    if (nx) return this.autoDailyGo(nx, now);
     return this.startAutoDaily(now);
   }
   startAutoDaily(now = Date.now()) {
     const nx = this.autoDailyNext(now);
     if (!nx) return false;
+    return this.autoDailyGo(nx, now);
+  }
+  // v260: 자동 도전 — 가장 높은 단계가 이미 깬 단계면(새로 오를 데가 없으면) 들어가지 않고 소탕한다.
+  // 길잡이 '소탕을 한 번'이 자동 도전에 횟수를 다 뺏겨 하루 넘게 막히던 것도 이것으로 풀린다.
+  autoDailyGo(nx, now = Date.now()) {
+    const today = this.dgnToday(now);
+    const lost = (today.fail[nx.kind] || 0) >= nx.stage;
+    const learnSweep = Q.questAt(this.s.quest)?.id === 'sweep';
+    if ((nx.stage <= this.dailyBest(nx.kind) || lost || learnSweep) && this.canSweep(nx.kind, now)) {
+      return !!this.sweepDaily(nx.kind, now);
+    }
     return this.startDaily(nx.kind, nx.stage, now);
   }
 
@@ -2714,7 +2769,7 @@ export class WorldGame {
     const used = this.dgnToday(now).used;
     used[kind] = (used[kind] || 0) + 1;
     const stage = this.dailyBest(kind);
-    const reward = this.grant(D.dailyReward(kind, stage, this.levelGapMult(D.dailyLv(stage))));
+    const reward = this.grant(D.dailyReward(kind, stage, this.levelGapMult(D.dailyLv(stage)), this.s.level));
     this.emit('sweep', { kind, stage, reward });
     return reward;
   }
@@ -3034,16 +3089,21 @@ export class WorldGame {
     const ok = !!I.done?.ok;
     let reward = null;
     if (I.kind === 'daily') {
-      const full = D.dailyReward(I.id, I.stage, this.levelGapMult(D.dailyLv(I.stage)));
+      const full = D.dailyReward(I.id, I.stage, this.levelGapMult(D.dailyLv(I.stage)), this.s.level);
       const k = ok ? 1 : D.DAILY_FAIL * Math.min(1, I.kills / I.target);
       reward = this.grant(full, k);
       // 새 단계를 깨면 열쇠 하나 — 들어간 횟수가 돌아온다 (v156)
-      if (ok && I.stage > this.dailyBest(I.id)) {
-        const used = this.dgnToday().used;
-        used[I.id] = Math.max(0, (used[I.id] || 0) - 1);
+      // v260: 열쇠는 하루 종류마다 DAILY_KEYS번까지 — 끝없이 오르면 하루 만에 30단계를 다 깼다
+      // v260: 들어간 날로 센다(끝나는 순간의 시계가 아니라) — 자정을 넘긴 판도 그날 몫
+      const today = this.dgnToday(I.now);
+      if (ok && I.stage > this.dailyBest(I.id) && (today.keys[I.id] || 0) < D.DAILY_KEYS) {
+        today.used[I.id] = Math.max(0, (today.used[I.id] || 0) - 1);
+        today.keys[I.id] = (today.keys[I.id] || 0) + 1;
         I.gotKey = true;
       }
       if (ok) this.s.dgn.best[I.id] = Math.max(this.dailyBest(I.id), I.stage);
+      // v260: 오늘 이 단계에서 졌다(그만두기 빼고) — 자동은 남은 횟수를 같은 단계에 또 쓰지 않고 소탕한다
+      else if (!I.done?.left) this.dgnToday(I.now).fail[I.id] = I.stage;
     } else if (I.kind === 'tower' && !ok) {
       this.s.tower.failPow = this.stats().power;      // v230: 루틴이 같은 층에서 헛돌지 않게(그만둬도 — 다시 끌려 들어가지 않게)
     } else if (I.kind === 'tower' && ok) {
@@ -3070,10 +3130,10 @@ export class WorldGame {
       return res;
     }
     // v166: 새 단계를 깼으면(열쇠) 자동 도전을 안 켰어도 바로 윗단계로 — 못 깰 때까지 오른다
-    if (I.kind === 'daily' && ok && I.gotKey && !I.done?.left && this.canDaily(I.id, I.stage + 1)) {
+    if (I.kind === 'daily' && ok && I.gotKey && !I.done?.left && this.canDaily(I.id, I.stage + 1, I.now)) {
       res.chain = true; res.next = I.stage + 1;
       this.emit('instEnd', res);
-      this.startDaily(I.id, I.stage + 1);
+      this.startDaily(I.id, I.stage + 1, I.now);
       return res;
     }
     // 요일 던전: 자동이면 남은 횟수만큼 이어서. **그만두기로 나온 건 안 잇는다** —
@@ -3126,7 +3186,13 @@ export class WorldGame {
     const span = Math.max(30, Math.min(W.RATE_WINDOW_SEC, this.clock - this.ledger[0][0]));
     const sum = [0, 0, 0, 0];
     for (const r of this.ledger) for (let i = 0; i < 4; i++) sum[i] += r[i + 1];
-    return { kills: sum[0] / span, exp: sum[1] / span, gold: sum[2] / span, potions: sum[3] / span, map: this.s.huntMap };
+    // v260: 두목을 실제로 잡은 빠르기 — 방치 증표는 이것으로(전엔 두목 구역이면 못 잡아도 90초에 하나)
+    const bl = this.bossLog || [];
+    while (bl.length && bl[0] < this.clock - W.RATE_WINDOW_SEC) bl.shift();
+    // 창이 짧으면(두목 한 판보다 짧게 봤으면) 최근 처치 하나로 다시 나기 주기를 짐작한다
+    const bspan = Math.max(span, W.BOSS_RESPAWN + W.BOSS_MIN_SEC.zone);
+    return { kills: sum[0] / span, exp: sum[1] / span, gold: sum[2] / span, potions: sum[3] / span, bosses: bl.length / bspan,
+      lv: this.s.level, map: this.s.huntMap };
   }
   // 저장할 때 같이 적어 둔다 (다음에 켰을 때 쓴다)
   toJSON() { return { ...this.s, rates: this.rates() || this.s.rates || null }; }
@@ -3140,15 +3206,36 @@ export class WorldGame {
     // 물약이 바닥나면 거기서 멈춘다
     const potionSec = r.potions > 0 ? this.s.potions / r.potions : Infinity;
     const t = Math.min(sec, potionSec);
-    const kills = Math.floor(r.kills * t);
+    // v260: 오래 비울수록 효율이 준다(OFFLINE_TIERS) — 벌이는 '효율 시간'으로 센다. 물약은 실제 시간만큼 먹는다.
+    const te = W.offlineEffSec(t);
+    const kills = Math.floor(r.kills * te);
     // 재료: 처치 수만큼 굴린 기댓값 (장비는 마을 대장장이에게서)
     const m = W.mapOf(r.map);
     const mats = W.MATS[m.mz] ? Math.floor(kills * W.MAT_RATE) : 0;
-    // 두목 구역에 있었다면 두목을 잡은 셈으로 증표 — v254: 온라인 최소 전투 시간(45초)에 맞춰 다시 나기 + 45초
+    // 두목 증표 — v260: 최근 실제로 잡은 빠르기(rates.bosses)로. 그 값이 없는 옛 세이브만 '다시 나기 + 45초에 하나'
     // 은자는 실측(rates)에 두목 은자가 이미 들어 있어 따로 더하지 않는다(전엔 두 번 셌다)
-    const marks = m.bossRoom ? Math.floor(t / (W.BOSS_RESPAWN + W.BOSS_MIN_SEC.zone)) : 0;
-    return { sec, t, kills, exp: Math.floor(r.exp * t), gold: Math.floor(r.gold * t),
+    const bossRate = r.bosses != null ? Math.min(r.bosses, 1 / (W.BOSS_RESPAWN + W.BOSS_MIN_SEC.zone)) : 1 / (W.BOSS_RESPAWN + W.BOSS_MIN_SEC.zone);
+    const marks = m.bossRoom ? Math.floor(te * bossRate) : 0;
+    // v260: 경험치 — 방치 중 레벨이 오르면 접속 때처럼 레벨 차 감쇠가 붙는다(전엔 처음 레벨의 벌이를 끝까지)
+    const exp = this.offlineExp(r, te, m);
+    return { sec, t, te, eff: t > 0 ? te / t : 1, kills, exp, gold: Math.floor(r.gold * te),
       potions: Math.ceil(r.potions * t), mats, marks, stoppedByPotion: potionSec < sec, map: r.map };
+  }
+  // 효율 시간 te 동안의 경험치 — 스무 토막으로 나눠 토막마다 그때 레벨의 레벨 차 감쇠를 곱한다
+  offlineExp(r, te, m) {
+    const mlv = m?.lv ? (m.lv[0] + m.lv[1]) / 2 : null;
+    if (!mlv || this.s.level >= W.LEVEL_MAX) return Math.floor(r.exp * te);
+    const g0 = this.levelGapMult(mlv) || 1;
+    let lv = this.s.level, cur = this.s.exp, out = 0;
+    const N = 20, dt = te / N;
+    for (let i = 0; i < N; i++) {
+      const gap = lv - mlv;
+      const g = gap <= 5 ? 1 : Math.max(0.1, 1 - (gap - 5) * 0.08);
+      const add = r.exp * dt * (g / g0);
+      out += add; cur += add;
+      while (lv < W.LEVEL_MAX && cur >= W.expToNext(lv)) { cur -= W.expToNext(lv); lv++; }
+    }
+    return Math.floor(out);
   }
   claimOffline(rw) {
     if (!rw) return;
@@ -3184,7 +3271,7 @@ for (const [fn, key, always] of [
   const kill = WorldGame.prototype.killMob;
   WorldGame.prototype.killMob = function (m) {
     const r = kill.call(this, m);
-    if (m.isBoss && !this.inst) this.mark(this.map.king ? 'king' : 'boss');
+    if (m.isBoss && !this.inst) { this.mark(this.map.king ? 'king' : 'boss'); (this.bossLog || (this.bossLog = [])).push(this.clock); }
     // 고수를 처음 쓰러뜨리면 (v148): 큰 보상과 영구 공격력·체력
     if (m.isBoss && !this.inst && this.map.master && !this.s.duel.won[this.map.master]) {
       const mm = MS.masterOf(this.map.master);

@@ -25,6 +25,8 @@ import { big } from './big.js';
 import { fmt } from './fmt.js';
 
 export const BRUSH = '"Yuji Syuku", "Nanum Brush Script", "Gowun Batang", serif';
+// v260 줍기 글자를 한 줄로 모으는 틈(초)
+const LOOT_GAP = 0.6;
 const HP_BAR_RANGE = 230;   // 이 거리 안의 적만 체력바를 보여준다
 
 // ---------- 깊이 ----------
@@ -652,17 +654,19 @@ export class BattleView {
     return Math.max(all, Math.min(1.3, this.W / (T * (lv === 1 ? 7.2 : 5.2))));
   }
   // 지도가 화면보다 크면(보통·가까이) 카메라가 무인을 따라가되 지도 밖은 비추지 않는다
-  followCam(game) {
+  // pt: 무인 대신 비출 자리(두목 등장 v260)
+  followCam(game, pt = null) {
     const z = this.zoom || 1;
     const sq = this.squash;
     const clamp = (v, lo, hi) => (lo > hi ? (lo + hi) / 2 : Math.max(lo, Math.min(hi, v)));
     const halfW = this.w / 2 - 6;
-    const tx = clamp(game.heroX, halfW, game.mapW - halfW);
+    const px = pt ? pt.x : game.heroX, py = pt ? pt.y : game.heroY;
+    const tx = clamp(px, halfW, game.mapW - halfW);
     let ty;
-    if (this.sheetOpen) ty = clamp(game.heroY, 0, game.mapH);
+    if (this.sheetOpen) ty = clamp(py, 0, game.mapH);
     else {
       const half = ((this.H - (this.padTop || 0) - (this.padBottom ?? 130)) / z) / 2;
-      ty = clamp(game.heroY, (half - 65) / sq, game.mapH - (half - 65) / sq);
+      ty = clamp(py, (half - 65) / sq, game.mapH - (half - 65) / sq);
     }
     return { tx, ty };
   }
@@ -881,14 +885,15 @@ export class BattleView {
             color: 'rgba(28,25,23,0.75)', drop: true,
           });
         }
+        // v260: 은자·재료 글자는 0.6초 동안 모아 무인 머리 위 한 줄씩으로 — 광역으로 열 마리를 베면
+        // 몹마다 '+은자'·'+재료'가 떠 열 줄 넘게 겹쳤다. 모일 때마다 다시 튄다(쌓이는 맛).
         if (ev.gold) {
-          this.float('+' + fmt(ev.gold) + ' 은자', kx, ky - 165, '#e5e7eb', 13);
+          this.lootAdd('gold', ev.gold);
           for (let i = 0; i < (ev.isBoss ? 10 : 3); i++) this.ingot(kx, ky - 40);
         }
-        // 떨군 재료 (바람식 조합) — 은자 아래 한 줄
-        // 글자는 진짜 크기라 줄 간격도 진짜 크기(UIK)로 벌린다 — 안 그러면 은자 줄과 겹친다
-        if (ev.mat) this.float(`+${ev.mat.name}${ev.mat.n > 1 ? ` ×${ev.mat.n}` : ''}`, kx, ky - 165 + 17 * UIK, ev.mat.color || '#a7f3d0', 12);
-        if (ev.mat?.boss) this.float(`+${ev.mat.boss}`, kx, ky - 165 + 34 * UIK, '#fde68a', 14);
+        if (ev.mat) this.lootAdd('mat', ev.mat.n || 1, ev.mat.name, ev.mat.color);
+        // 두목 증표는 드물고 중요하다 — 따로 한 줄(그 자리에서)
+        if (ev.mat?.boss) this.float(`+${ev.mat.boss}`, kx, ky - 165, '#fde68a', 14);
         break;
       }
       // 전직 (v201) — 직업 빛깔의 기운이 크게 모였다가 고리 셋으로 터지고, '二轉'이 찍힌다 · 한순간 느려진다
@@ -1173,7 +1178,7 @@ export class BattleView {
           // v255: 같은 틱에 무공이 둘 오면 앞 무공이 붙든 결과가 덮여 피해 숫자가 영영 안 떴다 — 앞의 것을 먼저 펼친다
           if (this.pending) this.startCast(game);
           this.pending = { id: ev.id, fx: ev.fx, name: ev.name, job: ev.job || ev.cls, cls: ev.cls, tier: ev.tier || 0,
-            at: ev.at || null, radius: ev.radius || 0, dur: ev.dur || 0, motion: ev.motion, hits: [], kills: [], path: null };
+            at: ev.at || null, radius: ev.radius || 0, dur: ev.dur || 0, motion: ev.motion, auto: !!ev.auto, hits: [], kills: [], path: null };
         } else this.skillEffect(ev.look || ev.id, ev.job, ev.name);
         break;
       case 'combo': {
@@ -1463,12 +1468,18 @@ export class BattleView {
       // 가로는 늘 지도 가운데. 세로는 지도 가운데 — 창이 열려 위쪽만 남으면 무인을 따라간다.
       let tx = game.mapW / 2;
       let ty = this.sheetOpen ? Math.max(game.mapH * 0.18, Math.min(game.mapH * 0.82, game.heroY)) : game.mapH / 2;
-      if ((this.camLevel ?? 1) > 0) ({ tx, ty } = this.followCam(game));
+      // v260: 두목 등장 동안은 두목 쪽을 비춘다(끝나면 다시 무인)
+      const intro = this.kingIntro?.cam ? this.kingIntro.focus : null;
+      if ((this.camLevel ?? 1) > 0) ({ tx, ty } = this.followCam(game, intro));
       // 맵을 옮기면(무인이 멀리 뛰면) 카메라도 바로 붙는다
       const jump = this._ovx == null ? 0 : Math.hypot(game.heroX - this._ovx, game.heroY - this._ovy);
       this._ovx = game.heroX; this._ovy = game.heroY;
-      if (this.camY == null || this.camX == null || jump > 300) { this.camX = tx; this.camY = ty; }
-      const k = Math.min(1, dt * 6);
+      if (this.camY == null || this.camX == null || jump > 300) {
+        const h0 = (this.camLevel ?? 1) > 0 && intro ? this.followCam(game) : { tx, ty };
+        this.camX = h0.tx; this.camY = h0.ty;
+      }
+      const k = Math.min(1, dt * (intro ? 3.2 : this._camBack > 0 ? 3 : 6));
+      if (this._camBack > 0) this._camBack -= dt;
       this.camX += (tx - this.camX) * k;
       this.camY += (ty - this.camY) * k;
       this.camFocus = null; this.camHold = 0; this.camPan = false;
@@ -1494,6 +1505,7 @@ export class BattleView {
     // 아주 멀리 뛰면 미끄러지는 게 아니라 바로 붙는다.
     if (jump > 900) { this.camX = game.heroX; this.camY = game.heroY; this.camPan = false; this.camFocus = null; return; }
     if (jump > 40) this.camPan = true;
+    if (this.kingIntro?.cam && this.kingIntro.focus) { this.camFocus = this.kingIntro.focus; this.camHold = 0; }
     if (this.camHold > 0) { this.camHold -= dt; return; }
     const f = this.camFocus;
     // 늘 붙어 다니지 않고 살짝 늦게 따라온다(0.15초쯤) — 무인이 화면 안에서 조금씩 움직여 보여 걷는 맛이 난다
@@ -1683,6 +1695,37 @@ export class BattleView {
     // 튀어 올랐다가 멈추며 옅어진다(처음이 빠르고 점점 느리게). 옆으로 살짝 흩어진다.
     this.floats.push({ text, x, y, color, size, life, max: life, brush, vy: -150, vx: (Math.random() - 0.5) * 40 });
     if (this.floats.length > 28) this.floats.shift();   // v251 40 → 28
+  }
+
+  // v260: 줍기 글자 모으기 — kind 'gold'(은자 합) · 'mat'(재료 이름별 합). LOOT_GAP초 안에 또 들어오면 같은 줄에 더한다.
+  lootAdd(kind, n, name = '', color = '#a7f3d0') {
+    const P = this.loot || (this.loot = {});
+    let p = P[kind];
+    if (!p || this.t - p.t > LOOT_GAP || !p.f || p.f.life <= 0) {
+      p = P[kind] = { t: this.t, sum: 0, names: new Map(), f: null };
+    }
+    p.t = this.t;
+    if (kind === 'gold') p.sum += n;
+    else { const e = p.names.get(name) || { n: 0, color }; e.n += n; p.names.set(name, e); }
+    let text, col;
+    if (kind === 'gold') { text = `+${fmt(p.sum)} 은자`; col = '#e5e7eb'; } else {
+      const list = [...p.names.entries()];
+      text = list.slice(0, 2).map(([nm, e]) => `+${nm}${e.n > 1 ? ` ×${fmt(e.n)}` : ''}`).join(' · ') + (list.length > 2 ? ` 외 ${list.length - 2}` : '');
+      col = list[0][1].color || color;
+    }
+    // 이름표(Lv·이름) 위로 — 150이면 이름표에 겹쳤다
+    const y0 = this.groundY - (kind === 'gold' ? 182 : 182 - 16 * UIK);
+    if (!p.f) {
+      p.f = { text, x: this.heroX, y: y0, color: col, size: kind === 'gold' ? 13 : 12, life: 1.1, max: 1.1, vy: -60, vx: 0, hero: true, dy: 0 };
+      this.floats.push(p.f);
+      if (this.floats.length > 28) this.floats.shift();
+    } else {
+      // 같은 줄을 고쳐 쓴다 — 글자를 다시 굽고, 살짝 다시 튄다(처음보다 작게)
+      p.f.text = text; p.f._spr = null; p.f.color = col;
+      p.f.life = p.f.max - 0.05;
+      // 계속 모이면 위로 끝없이 떠오르지 않게 — 처음 자리에서 서른 남짓까지만
+      if (p.f.y > y0 - 30) p.f.vy = Math.min(p.f.vy, -25); else { p.f.vy = 0; p.f.pulse = this.t; }
+    }
   }
 
   ink(x, y, n, color, speed = 200) {
@@ -3607,16 +3650,20 @@ export class BattleView {
     for (const p of this.particles) {
       p.life -= dt;
       // v210: 은자 덩이는 튀고 한 번 튕긴 뒤(0.45초) 무인에게 빨려 든다 — 닿으면 반짝하고 사라진다
-      if (p.ingot && p.life < 0.55 && !p.home) { p.home = true; p.life = 0.8; }
+      if (p.ingot && p.life < 0.55 && !p.home) { p.home = true; p.life = this.hudGold ? 1.4 : 0.8; }
       if (p.home) {
-        const tx = this.heroX, ty = this.groundY - 56;
+        // v260: 은자 덩이는 위쪽 은자 칸(hudGold, 캔버스 css px)으로 날아간다 — 닿으면 그 칸이 펄스한다
+        const zz = this.zoom || 1;
+        const hud = this.hudGold;
+        const tx = hud ? hud.x / zz : this.heroX, ty = hud ? hud.y / zz : this.groundY - 56;
         const dx = tx - p.x, dy = ty - p.y, d = Math.hypot(dx, dy) || 1;
         p.hv = Math.min(1400, (p.hv || 120) + 2600 * dt);
         p.vx += (dx / d * p.hv - p.vx) * Math.min(1, dt * 10);
         p.vy += (dy / d * p.hv - p.vy) * Math.min(1, dt * 10);
         p.x += p.vx * dt; p.y += p.vy * dt;
-        if (d < 16) {
+        if (d < 16 || (hud && p.y < ty + 8)) {
           p.life = 0;
+          if (hud) { this.onGoldHit?.(); continue; }
           if (this.fxLevel > 0 && (this._glintT || 0) <= this.t) { this._glintT = this.t + 0.06; this.sparks.push({ x: tx + (Math.random() - 0.5) * 10, y: ty, life: 0.18, max: 0.18, r: 16, color: '#f1f5f9' }); }
         }
       } else {
@@ -3648,15 +3695,17 @@ export class BattleView {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'alphabetic';
     // v249: 필살 컷인 띠·큰 이름이 떠 있는 동안 그 높이의 숫자는 옅게 — 글자 위에 글자가 찍혀 둘 다 안 읽혔다
+    // v260: 컷인 띠는 화면 위쪽(0.08~0.32) · 큰 이름은 0.3 둘레 — 둘 다 위쪽 띠만 옅게
     const band = this.effects.some((e) => (e.kind === 'cutin' || e.kind === 'bigname') && e.life > 0);
     for (const f of this.floats) {
       f.life -= dt;
       f.y += (f.vy ?? -40) * dt;
       f.x += (f.vx || 0) * dt;
+      if (f.hero) f.x = this.heroX;   // v260 모은 줍기 글자는 무인 머리 위를 따라간다
       if (f.vy != null) { f.vy *= Math.max(0, 1 - dt * 5.5); f.vx *= Math.max(0, 1 - dt * 5); }
       const k = Math.max(0, f.life / f.max);
       // v258: 경고성 글자(치명 경고·피했다!)는 컷인 중에도 흐리지 않는다
-      ctx.globalAlpha = Math.min(1, k * 2.2) * (band && !f.keep && f.y * z > this.h * 0.18 && f.y * z < this.h * 0.58 ? 0.3 : 1);
+      ctx.globalAlpha = Math.min(1, k * 2.2) * (band && !f.keep && f.y * z > this.h * 0.06 && f.y * z < this.h * 0.4 ? 0.3 : 1);
       // 처음 0.12초에 크게 튀었다가 제 크기로 — 뒤로 갈수록 살짝 작아진다
       const age = f.max - f.life;
       const pop = age < 0.12 ? 1.45 - age / 0.12 * 0.45 : 1 - Math.max(0, 0.4 - k) * 0.25;
@@ -3825,12 +3874,28 @@ export class BattleView {
   startIntro(spec, at) {
     this.kingIntro = { k: spec, at: at ? { x: at.x, y: at.y } : null, t: 0, dur: spec.dur, hit: false };
     this.shake = Math.max(this.shake, spec.full ? 0.5 : 0.25);
+    // v260: 등장 동안 카메라가 두목 쪽으로 — 전엔 먹띠·이름만 뜨고 두목은 화면 밖에 있다가 나중에 걸어 들어왔다.
+    // 두목 쪽으로 90%를 비추고, 끝나면 무인에게 천천히 돌아온다.
+    const g = this.game;
+    if (at && this.fieldMode && g?.heroX != null) {
+      this.camFocus = { x: g.heroX + (at.x - g.heroX) * 0.9, y: g.heroY + (at.y - g.heroY) * 0.9 };
+      this.camRate = spec.full ? 5 : 7;
+      this.camHold = 0;
+      this.kingIntro.cam = true;
+      this.kingIntro.focus = this.camFocus;   // 구역에 막 들어온 순간(카메라가 무인에게 바로 붙는 프레임)에도 다시 건다
+    }
   }
   drawKingIntro(dt, z = 1) {
     const ki = this.kingIntro;
     if (!ki) return;
     ki.t += dt;
-    if (ki.t >= ki.dur) { this.kingIntro = null; return; }
+    if (ki.t >= ki.dur) {
+      this.kingIntro = null;
+      if (ki.cam) { this.camFocus = null; this.camPan = true; this.camRate = 4; this._camBack = 1; }
+      return;
+    }
+    // 이름이 빠지기 시작하면 무인 쪽으로 미리 돌아오기 시작한다
+    if (ki.cam && ki.t >= ki.dur - 0.45) { ki.cam = false; this.camFocus = null; this.camPan = true; this.camRate = 4; this._camBack = 1; }
     const { ctx, w, h } = this;
     const t = ki.t;
     const k = ki.k;

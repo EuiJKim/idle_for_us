@@ -66,6 +66,7 @@ export class Director {
     this.center = pend.at || now;
     this.radius = pend.radius || 0;
     this.dur = pend.dur || 0;
+    this.auto = !!pend.auto;   // v260 자동 시전
     const tr = pend.job ? JOB_TRAITS[pend.job] : null;
     this.col = tr?.col || '253,230,138';
   }

@@ -325,6 +325,8 @@ export const questAt = (i) => QUESTS[i] || null;
 
 // 보상 — 그 레벨에서 사냥 min분어치 은자(1분 ≈ 몹 은자 100마리, 시뮬레이션) · 그 레벨 경험치 xp할
 export const GOLD_PER_MIN = 100;
+// v260: 이만큼 막혀 있으면 절반 보상으로 건너뛸 수 있다(레벨·서버 단계 빼고)
+export const QUEST_STUCK_MS = 2 * 3600 * 1000;
 export function questReward(q, level) {
   const out = {};
   if (q.min) out.gold = Math.round(W.mobGold(level) * GOLD_PER_MIN * q.min);

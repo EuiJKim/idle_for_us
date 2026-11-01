@@ -57,6 +57,10 @@ if (!saved) {
 }
 
 const view = new BattleView($('cv'));
+view.onGoldHit = () => goldPulse();
+addEventListener('resize', () => setTimeout(hudGoldAt, 50));
+setTimeout(hudGoldAt, 300);
+setInterval(hudGoldAt, 3000);
 if (RM.useCpu) view.setSoftware(true);
 // 들판 가운데 지도가 놓일 자리 — 위는 전투력 알약, 아래는 창 버튼 줄과 무공 바를 뺀다
 function measurePads() {
@@ -271,6 +275,32 @@ function buildSkillbar() {
 let lastSig = '';
 // 같은 글이면 건드리지 않는다 — 같은 글을 다시 넣어도 브라우저는 그 자리를 다시 칠한다 (v185)
 function setText(el, v) { if (el.textContent !== v) el.textContent = v; }
+// v260: HUD 은자는 늘 때 0.4초 남짓 세어 올라간다(줄 때는 바로) — 두목을 잡으면 240 → 1530으로 툭 바뀌었다
+let goldShown = null;
+function goldTween(v) {
+  if (goldShown == null || v < goldShown || v - goldShown < 2) { goldShown = v; return v; }
+  goldShown += Math.max(1, Math.ceil((v - goldShown) * 0.55));
+  if (goldShown > v) goldShown = v;
+  return goldShown;
+}
+// 은자 덩이가 닿는 자리 — 캔버스 기준 css px(위쪽 은자 칸). 창 크기가 바뀔 때·가끔 다시 잰다.
+function hudGoldAt() {
+  const el = document.querySelector('.res-silver .cur') || $('gold');
+  const cv = $('cv');
+  if (!el || !cv) return;
+  const a = el.getBoundingClientRect(), b = cv.getBoundingClientRect();
+  if (!a.width || !b.width) { view.hudGold = null; return; }
+  view.hudGold = { x: a.left + a.width / 2 - b.left, y: a.top + a.height / 2 - b.top };
+}
+let goldPulseT = 0;
+function goldPulse() {
+  const now = performance.now();
+  if (now - goldPulseT < 120) return;
+  goldPulseT = now;
+  const el = document.querySelector('.res-silver');
+  if (!el) return;
+  el.classList.remove('pulse'); void el.offsetWidth; el.classList.add('pulse');
+}
 function setBar(el, r) {
   const v = `scaleX(${Math.max(0, Math.min(1, r || 0)).toFixed(4)})`;
   if (el.style.transform !== v) el.style.transform = v;
@@ -286,7 +316,7 @@ function refreshUI(full = false) {
   // v185: 너비 대신 transform으로 — 너비를 바꾸면 배치를 다시 하고 화면 전체를 다시 칠했다(막대가 움직이는 동안 매 프레임)
   setBar($('exp-bar').firstChild, s.exp / game.expNeed());
   setText($('exp-pct'), `${Math.min(99.9, (s.exp / game.expNeed()) * 100).toFixed(1)}%`);
-  setText($('gold'), fmt(s.gold));
+  setText($('gold'), fmt(goldTween(s.gold)));
   setText($('potions'), fmt(s.potions));   // v258 은자처럼 쉼표
   const m = game.map;
   instHud();
@@ -591,6 +621,10 @@ function handleEvents() {
       case 'heroDied':
         if (!ev.inst) toast(`쓰러졌어요… 경험치 ${fmt(ev.loss)}을 잃고 마을로 돌아가요${ev.retreat ? ` — 너무 센 곳이라 다음엔 ${ev.retreat}(으)로 나가요` : ''}`);
         break;
+      // v260: 알맞은 사냥터 따라가기
+      case 'followMap':
+        toast(`레벨이 올라 ${ev.name}(으)로 옮겨요`);
+        break;
       // 길잡이 한 단계 — 띠로 알린다(받았다는 글은 누른 자리에서 띄운다)
       case 'quest':
         view.showBanner(`길잡이 ✓ ${ev.title}`, '#bbf7d0', 1.8, '길잡이');
@@ -836,7 +870,10 @@ function showPendingOffline() {
   openModal((s) => {
     s.append(h('h2', {}, '🌙 다녀오셨어요!'),
       h('p', { class: 'muted' }, `${duration(rw.t)} 동안 ${W.mapOf(rw.map).name}에서 사냥했어요.`
-        + (rw.stoppedByPotion ? ` 물약이 떨어져서 거기서 멈췄어요 (${duration(rw.sec)} 중).` : '')),
+        + (rw.stoppedByPotion ? ` 물약이 떨어져서 거기서 멈췄어요 (${duration(rw.sec)} 중).` : '')
+        // v260: 오래 비우면 효율이 준다 — 얼마나 줄었는지, 상한까지 몇 시간인지
+        + (rw.eff != null && rw.eff < 0.995 ? ` 오래 비워서 효율 ${Math.round(rw.eff * 100)}% (앞 2시간 100% · 6시간까지 70% · 10시간까지 40%).` : '')
+        + (rw.sec >= W.OFFLINE_CAP_SEC ? ' 방치는 10시간까지만 쳐요.' : '')),
       h('div', { class: 'stat-grid' },
         h('div', {}, '처치', h('b', {}, `${fmt(rw.kills)}마리`)),
         h('div', {}, '경험치', h('b', {}, fmt(rw.exp))),

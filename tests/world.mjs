@@ -20,6 +20,7 @@ const fresh = (job = 'sword') => {
   const g = new WorldGame(newWorldSave(0), 0);
   g.rng = seeded();
   g.setJob(job);
+  g.s.autoMap = false;   // v260: 알맞은 사냥터 따라가기는 따로 본다(다른 검사가 사냥터를 옮기지 않게)
   g.events.length = 0;
   return g;
 };
@@ -1593,31 +1594,107 @@ console.log('\n=== 걸으면서 무공 · 범위 (v157) ===');
   ok(sks.every((sk) => { const r = g.skillReach(sk); return r === null || (r.r >= 0 && r.reach >= 0); }) && sks.some((sk) => g.skillReach(sk)?.r > 0), '무공마다 범위(반경·사거리)를 낼 수 있다');
 }
 
-console.log('\n=== 일일 던전 열쇠 (v156) ===');
+console.log('\n=== 일일 던전 열쇠 (v156 · v260 하루 셋) ===');
 {
+  const DG = await import('../js/world/wdgn.js');
   const g = fresh();
   while (g.s.level < 30) g.addExp(W.expToNext(g.s.level));
-  const now = Date.UTC(2026, 9, 26, 3);
-  const run = (st, win = true) => {
-    if (g.inst) { g.inst.done = { left: true }; g.tick(0.05); }
-    g.startDaily('exp', st, now); for (const m of g.mons) m.hp = 1;
+  let now = Date.UTC(2026, 9, 26, 3);
+  const finish = (win = true) => {
+    for (const m of g.mons) m.hp = 1;
     if (win) g.inst.kills = g.inst.target;
     g.inst.done = win ? { ok: true } : { timeout: true }; g.tick(0.05);
     return g.events.filter((e) => e.type === 'instEnd').pop();
   };
+  const run = (st, win = true) => {
+    if (g.inst) { g.inst.done = { left: true }; g.tick(0.05); }
+    g.startDaily('exp', st, now);
+    return finish(win);
+  };
   const r1 = run(1);
-  ok(r1.ok && r1.gotKey && g.dailyLeft('exp', now) === 3, '새 단계를 깨면 열쇠 — 횟수가 그대로 셋');
+  ok(r1.ok && r1.gotKey && g.dailyLeft('exp', now) === 2, '새 단계를 깨면 열쇠 — 깬 판은 돌려받고 이어 든 판 하나만 쓴 셈');
   ok(r1.chain && r1.next === 2 && g.inst?.kind === 'daily' && g.inst.stage === 2, '깨면 바로 윗단계로 들어간다 (v166, 누를 것 없이)');
-  g.inst.done = { left: true }; g.tick(0.05);
-  for (let st = 2; st <= 6; st++) run(st);
-  ok(g.dailyBest('exp') === 6 && g.dailyLeft('exp', now) === 3, '계속 깨는 한 끝없이 오른다 (6단계까지 횟수 그대로)');
+  const keys = [r1.gotKey];
+  let last = r1;
+  while (g.inst) { last = finish(true); keys.push(last.gotKey); }
+  ok(keys.filter(Boolean).length === DG.DAILY_KEYS && g.dailyBest('exp') === DG.DAILY_KEYS + 1 && !last.chain && g.dailyLeft('exp', now) === 2,
+    `열쇠는 하루 ${DG.DAILY_KEYS}번까지 — 넷째 새 단계는 횟수를 쓰고 멈춘다 (v260)`, `깬 ${g.dailyBest('exp')} 남은 ${g.dailyLeft('exp', now)} 열쇠 ${keys}`);
   const r2 = run(3);
-  ok(r2.ok && !r2.gotKey && g.dailyLeft('exp', now) === 2, '이미 깬 단계를 다시 깨면 열쇠 없음');
-  const r3 = run(7, false);
-  ok(!r3.ok && !r3.gotKey && g.dailyLeft('exp', now) === 1, '못 깨면 열쇠 없음 — 횟수 하나를 쓴다');
+  ok(r2.ok && !r2.gotKey && g.dailyLeft('exp', now) === 1, '이미 깬 단계를 다시 깨면 열쇠 없음');
   ok(g.canSweep('exp', now), '남은 횟수는 소탕');
   g.sweepDaily('exp', now);
-  ok(g.dailyLeft('exp', now) === 0 && !g.canDaily('exp', 7, now) && !g.canSweep('exp', now), '횟수를 다 쓰면 도전·소탕 모두 끝 (내일 다시)');
+  ok(g.dailyLeft('exp', now) === 0 && !g.canDaily('exp', 5, now) && !g.canSweep('exp', now), '횟수를 다 쓰면 도전·소탕 모두 끝 (내일 다시)');
+  now += 86400e3;
+  ok(g.dailyLeft('exp', now) === 3, '다음 날 — 횟수·열쇠가 다시 찬다');
+  const r3 = run(5, false);
+  ok(!r3.ok && !r3.gotKey && g.dailyLeft('exp', now) === 2, '못 깨면 열쇠 없음 — 횟수 하나를 쓴다');
+  // v260: 진 단계는 자동이 다시 들어가지 않고 소탕한다
+  g.s.dgn.auto = true;
+  const lv0 = g.s.exp + g.s.level * 1e12;
+  ok(g.startAutoDaily(now) === true && !g.inst && g.dailyLeft('exp', now) === 1 && g.s.exp + g.s.level * 1e12 > lv0, '오늘 진 단계는 자동이 다시 안 들어가고 소탕한다 (v260)');
+  g.s.dgn.auto = false;
+}
+{
+  // v260: 일일 던전 보상은 '내 레벨 + 5'를 넘지 않는다
+  const DG = await import('../js/world/wdgn.js');
+  const hi = DG.dailyReward('exp', 30, 1, 84).exp, cap = Math.round(W.expToNext(89) * 0.2);
+  ok(hi === cap && hi < DG.dailyReward('exp', 30, 1, 999).exp, 'Lv84가 30단계를 깨도 경험치는 Lv89어치 (v260)', `${fmt(hi)} / ${fmt(cap)}`);
+}
+{
+  // v260: 길잡이 — 소탕 단계는 자동 도전이 대신 소탕해 줘도 깨지고, 두 시간 넘게 막히면 절반 보상으로 건너뛴다
+  const g = fresh();
+  const at = Q.QUESTS.findIndex((q) => q.id === 'sweep');
+  g.s.quest = at;
+  const realNow = Date.now;
+  try {
+    const t0 = realNow();
+    Date.now = () => t0;
+    const c0 = g.questNow();
+    ok(c0.q.id === 'sweep' && !c0.stuck, '막 뜬 단계는 건너뛸 수 없다');
+    ok(g.skipQuest() === false, '건너뛰기 거절');
+    Date.now = () => t0 + Q.QUEST_STUCK_MS + 1000;
+    const c1 = g.questNow();
+    const gold0 = g.s.gold;
+    const r = g.skipQuest();
+    ok(c1.stuck && r && g.s.quest === at + 1 && g.s.gold - gold0 === Math.round((c1.reward.gold || 0) / 2), '두 시간 넘게 막히면 절반 보상으로 건너뛴다', `${g.s.gold - gold0} / ${c1.reward.gold}`);
+    g.s.quest = Q.QUESTS.findIndex((q) => q.id === 'lv30');
+    g.questNow();
+    Date.now = () => t0 + 10 * Q.QUEST_STUCK_MS;
+    ok(!g.questNow().stuck, '레벨 단계는 건너뛸 수 없다');
+  } finally { Date.now = realNow; }
+}
+{
+  // v260: 방치 — 오래 비울수록 효율이 준다 · 레벨이 오르면 감쇠 · 실제 두목 처치만큼 증표
+  ok(W.offlineEffSec(3600) === 3600 && W.offlineEffSec(10 * 3600) === 2 * 3600 + 4 * 3600 * 0.7 + 4 * 3600 * 0.4, '방치 효율: 2시간 100% · 6시간까지 70% · 10시간까지 40%');
+  const g = fresh();
+  while (g.s.level < 40) g.addExp(W.expToNext(g.s.level));
+  const m = W.MAPS.find((x) => !x.town && !x.bossRoom && x.lv[0] <= 40 && x.lv[1] >= 38);
+  g.s.rates = { kills: 2, exp: W.expToNext(40) / 600, gold: 100, potions: 0, bosses: 0, map: m.id };
+  g.s.lastSeen = 0; g.s.clockMax = 0;
+  const rw = g.offlineReward(10 * 3600 * 1000);
+  ok(rw.exp < Math.floor(g.s.rates.exp * rw.te) && rw.eff < 0.7, '열 시간 방치 — 레벨이 오른 만큼 경험치가 깎이고 효율이 준다', `${fmt(rw.exp)} < ${fmt(g.s.rates.exp * rw.te)} · 효율 ${rw.eff.toFixed(2)}`);
+  const bm = W.MAPS.find((x) => x.bossRoom && !x.king && !x.master && x.lv[0] <= 40);
+  g.s.rates = { ...g.s.rates, map: bm.id, bosses: 0 };
+  ok(g.offlineReward(3600 * 1000).marks === 0, '두목을 못 잡던 캐릭터는 방치 증표 0');
+  g.s.rates = { ...g.s.rates, bosses: 1 / 60 };
+  const mk = g.offlineReward(3600 * 1000).marks;
+  ok(mk > 0 && mk <= Math.floor(3600 / (W.BOSS_RESPAWN + W.BOSS_MIN_SEC.zone)), '두목을 잡던 빠르기만큼(상한 있음)', `${mk}`);
+}
+{
+  // v260: 알맞은 사냥터 따라가기
+  const g = fresh();
+  g.s.autoMap = true; g.s.autoHunt = true;
+  g.enterMap(W.mapId(1, 1));
+  while (g.s.level < 30) g.addExp(W.expToNext(g.s.level));
+  g.tick(0.05);
+  const hm = W.mapOf(g.s.huntMap);
+  ok(hm.lv[0] > W.mapOf(W.mapId(1, 1)).lv[0] && hm.lv[1] <= 30 && g.s.map === hm.id && g.events.some((e) => e.type === 'followMap'), '레벨이 오르면 알맞은 구역으로 옮긴다(몹이 내 레벨을 안 넘는 곳)', `${hm.name} Lv${hm.lv}`);
+  const g2 = fresh();
+  g2.s.autoHunt = true;
+  while (g2.s.level < 30) g2.addExp(W.expToNext(g2.s.level));
+  g2.tick(0.05);
+  ok(g2.s.huntMap === W.mapId(1, 1), '끄면 그대로');
+  ok(migrateWorld({ level: 5 }, 0).autoMap === false && new WorldGame(null, 0).s.autoMap === true, '옛 세이브는 끔 · 새 세이브는 켬');
 }
 
 console.log('\n=== 맹주·천마 세트 (v153) ===');

@@ -30,8 +30,8 @@ export const MAJON_FX = {
     const t = p * T;
     const inT = 0.16, outT = 0.18;
     const slide = t < inT ? 1 - (1 - t / inT) ** 3 : t > T - outT ? 1 + ((t - (T - outT)) / outT) ** 2 : 1;
-    const w = v.w, H = Math.min(190, v.h * 0.24);
-    const cy = v.h * 0.4;
+    const w = v.w, H = Math.min(170, v.h * 0.22);
+    const cy = v.h * 0.2;   // v260 위쪽으로 — 가운데는 실제 타격이 일어나는 자리
     const off = (slide - 1) * w * 1.3;            // 1이면 제자리, 0이면 왼쪽 밖, 2면 오른쪽 밖
     ctx.save();
     ctx.translate(off, cy);
@@ -576,17 +576,27 @@ function shadows(d, col, n, poses, at = null, R = 60) {
     d.ghost(wx, wy, poses[i % poses.length], 0.55 + i * 0.12, { a0: 0.62 - i * 0.07, fade: 1, tint: col, flip: at ? Math.cos(a) > 0 : d.face < 0 });
   }
 }
+// v260:
+//   · 컷인 띠는 화면 위쪽으로 올리고(0.2h) 0.7초로 줄였다 — 가운데 40%를 1초 덮어 연참이 띠 뒤에서 일어났다
+//   · 큰 이름은 컷인이 빠진 뒤에(0.8초) — 빠지는 띠와 겹쳐 같은 한자가 두 번 찍혔다
+//   · 자동 시전은 처음 한 번(사냥터마다)만 풀 컷인 — 그다음부터는 띠·화신 없는 짧은 판(먹띠·빛살·인장·이름)
 function ultimate(d, col, text, dur, o = {}) {
   const v = d.v;
   if (d.lvl <= 0) { d.hanja(d.name, 1); return; }
-  d.fx('letterbox', dur + 0.4, { col });
+  const seen = v._ultSeen || (v._ultSeen = new Set());
+  const key = `${d.id}|${v.game?.map?.id ?? ''}`;
+  const full = !d.auto || !seen.has(key);
+  seen.add(key);
+  d.fx('letterbox', (full ? dur + 0.4 : dur * 0.7), { col });
   d.fx('converge', 0.55, { col, n: d.lvl >= 2 ? 48 : 24, r: 300 });
-  d.fx('rays', dur * 0.9, { col, n: d.lvl >= 2 ? 22 : 12, spin: 0.8 });
+  d.fx('rays', dur * (full ? 0.9 : 0.6), { col, n: d.lvl >= 2 ? (full ? 22 : 12) : 8, spin: 0.8 });
   d.fx('bigseal', dur, { wx: d.to.x, wy: d.to.y, r: 250, col, text });
-  d.fx('avatar', dur + 0.2, { col, pose: o.avatarPose || '기모으기', face: d.face, scale: 3.4 });
-  d.at(0.05, () => d.fx('cutin', 0.95, { col, text, sub: o.sub || d.name, pose: o.cutPose || '기모으기' }));
-  d.at(1.0, () => d.fx('bigname', Math.min(1.2, dur * 0.6), { text, col }));
-  v.desatTo = 0.6;
+  if (full) {
+    d.fx('avatar', dur + 0.2, { col, pose: o.avatarPose || '기모으기', face: d.face, scale: 3.4 });
+    d.at(0.05, () => d.fx('cutin', 0.7, { col, text, sub: o.sub || d.name, pose: o.cutPose || '기모으기' }));
+  }
+  d.at(full ? 0.8 : 0.15, () => d.fx('bigname', Math.min(1.2, dur * 0.6), { text, col }));
+  v.desatTo = full ? 0.6 : 0.35;
   v.camHold = Math.max(v.camHold || 0, 0.25);
   d.at(dur * 0.9, () => { v.desatTo = 0; });
 }
