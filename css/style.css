@@ -1698,3 +1698,35 @@ body.hunt-nocv #cv { visibility: hidden !important; }
 @media (prefers-reduced-motion: reduce) { .btn, .buy, .skill-btn, #tabs button, .area-btn, .tile, .class-card { transition: none; } }
 .auto-map { cursor: pointer; align-items: center; }
 .auto-map input { width: 20px; height: 20px; margin: 0 10px 0 2px; accent-color: #d4a64a; }
+/* v261: 레벨업 — 경험치 막대가 끝까지 찬 뒤 한 번 번쩍 */
+#exp-bar.flash { animation: exp-flash 0.45s ease-out; }
+@keyframes exp-flash { 0% { box-shadow: 0 0 0 0 rgba(240, 171, 252, 0); } 30% { box-shadow: 0 0 10px 2px rgba(240, 171, 252, 0.85); background: #f5d0fe; } 100% { box-shadow: 0 0 0 0 rgba(240, 171, 252, 0); } }
+/* v261: 창 닫기 · 칸 바꾸기 */
+#modal.closing { pointer-events: none; animation: modal-fade 0.15s ease-in forwards; }
+#modal.closing .sheet { animation: modal-out 0.15s ease-in forwards; }
+@keyframes modal-fade { to { background: rgba(2, 6, 23, 0); } }
+@keyframes modal-out { to { opacity: 0; transform: scale(0.94) translateY(6px); } }
+.tab-in { animation: tab-in 0.18s ease-out; }
+@keyframes tab-in { from { opacity: 0.25; transform: translateX(8px); } }
+@media (prefers-reduced-motion: reduce) { .tab-in, #modal.closing, #modal.closing .sheet { animation: none; } }
+.mat-use { color: #fde68a; font-size: 13px; }
+.auto-gear { display: grid; gap: 6px; margin-top: 10px; font-size: 13px; }
+.auto-gear label { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.auto-gear input { width: 18px; height: 18px; accent-color: #d4a64a; }
+.auto-gear small { color: var(--muted); }
+/* v262 오늘의 강호 */
+.today-row .ico { color: #fde68a; }
+.today-row.ready { box-shadow: inset 3px 0 0 #fde68a; }
+.today-row.got { opacity: 0.6; }
+.week-row { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+.week-bar { flex: 1; height: 8px; border-radius: 999px; background: #0b0907; border: 1px solid rgba(212, 166, 74, 0.45); overflow: hidden; }
+.week-bar i { display: block; height: 100%; background: linear-gradient(90deg, #b45309, #fde68a); }
+.blood-line.on { color: #fca5a5; font-weight: 700; }
+.duel-stars { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; margin: 4px 0; }
+.duel-stars span { color: #57534e; font-size: 16px; }
+.duel-stars span.on { color: #fde68a; text-shadow: 0 0 6px rgba(253, 230, 138, 0.6); }
+.duel-stars span small { font-size: 10px; margin-left: 2px; color: var(--muted); }
+.pet-extra { display: grid; gap: 6px; margin: 0 0 8px; font-size: 12px; }
+.pet-extra > div { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.pet-extra small { color: var(--muted); flex: 1; min-width: 140px; }
+.pet-btns { display: flex; flex-direction: column; gap: 4px; }

@@ -198,6 +198,8 @@ function showTab(name, sub) {
   activeTab = name;
   $('panel-body').replaceChildren(tabs[name].root);
   $('panel-body').scrollTop = 0;
+  // v261: 열린 창에서 다른 창으로 바꾸면 내용이 살짝 밀려 들어온다
+  { const pb = $('panel-body'); pb.classList.remove('tab-in'); void pb.offsetWidth; pb.classList.add('tab-in'); }
   $('panel-title').textContent = WTAB_TITLE[name] || '';
   $('panel').classList.add('open');
   $('panel-dim').classList.add('open');
@@ -275,6 +277,28 @@ function buildSkillbar() {
 let lastSig = '';
 // 같은 글이면 건드리지 않는다 — 같은 글을 다시 넣어도 브라우저는 그 자리를 다시 칠한다 (v185)
 function setText(el, v) { if (el.textContent !== v) el.textContent = v; }
+// v261: 레벨이 오르면 경험치 막대가 거꾸로 미끄러지지 않게 — 끝까지 채우고 번쩍인 뒤 0에서 새 값으로
+let expLv = null, expBusy = false;
+function expBar(level, r) {
+  const bar = $('exp-bar').firstChild;
+  if (expLv == null) expLv = level;
+  if (level > expLv && !expBusy) {
+    expLv = level;
+    expBusy = true;
+    setBar(bar, 1);
+    setTimeout(() => {
+      bar.style.transition = 'none';
+      setBar(bar, 0);
+      const lvEl = $('hero-lv');
+      if (lvEl) { lvEl.classList.remove('lvup'); void lvEl.offsetWidth; lvEl.classList.add('lvup'); }
+      $('exp-bar').classList.remove('flash'); void bar.offsetWidth; $('exp-bar').classList.add('flash');
+      requestAnimationFrame(() => { bar.style.transition = ''; expBusy = false; setBar(bar, game.s.exp / game.expNeed()); });
+    }, 300);
+    return;
+  }
+  if (level < expLv) expLv = level;
+  if (!expBusy) setBar(bar, r);
+}
 // v260: HUD 은자는 늘 때 0.4초 남짓 세어 올라간다(줄 때는 바로) — 두목을 잡으면 240 → 1530으로 툭 바뀌었다
 let goldShown = null;
 function goldTween(v) {
@@ -314,7 +338,7 @@ function refreshUI(full = false) {
   setText($('hero-rank'), game.tierName() || '-');
   setText($('hero-lv'), `Lv.${s.level}`);
   // v185: 너비 대신 transform으로 — 너비를 바꾸면 배치를 다시 하고 화면 전체를 다시 칠했다(막대가 움직이는 동안 매 프레임)
-  setBar($('exp-bar').firstChild, s.exp / game.expNeed());
+  expBar(s.level, s.exp / game.expNeed());
   setText($('exp-pct'), `${Math.min(99.9, (s.exp / game.expNeed()) * 100).toFixed(1)}%`);
   setText($('gold'), fmt(goldTween(s.gold)));
   setText($('potions'), fmt(s.potions));   // v258 은자처럼 쉼표
@@ -621,6 +645,17 @@ function handleEvents() {
       case 'heroDied':
         if (!ev.inst) toast(`쓰러졌어요… 경험치 ${fmt(ev.loss)}을 잃고 마을로 돌아가요${ev.retreat ? ` — 너무 센 곳이라 다음엔 ${ev.retreat}(으)로 나가요` : ''}`);
         break;
+      // v262: 비무 별
+      case 'duelStar':
+        toast(`★ ${ev.title} ${ev.name} — ${[ev.fast ? '빠르게 이김' : '', ev.clean ? '초식에 안 맞고 이김' : ''].filter(Boolean).join(' · ')} · 영구 덤이 늘었어요`);
+        sfx('loot');
+        break;
+      // v262: 오늘의 강호 과제를 받았다(누른 자리에서 알린다)
+      case 'todayDone': sfx('loot'); break;
+      // v262: 자동 강화·각인 — 몇 번 했는지 짧게(결과는 강화 연출 없이)
+      case 'autoGear':
+        if (ev.enh + ev.inf >= 1) toast(`자동${ev.enh ? ` 강화 ${ev.enh}번` : ''}${ev.inf ? ` · 등급 각인 ${ev.inf}번` : ''}`);
+        break;
       // v260: 알맞은 사냥터 따라가기
       case 'followMap':
         toast(`레벨이 올라 ${ev.name}(으)로 옮겨요`);
@@ -873,11 +908,12 @@ function showPendingOffline() {
         + (rw.stoppedByPotion ? ` 물약이 떨어져서 거기서 멈췄어요 (${duration(rw.sec)} 중).` : '')
         // v260: 오래 비우면 효율이 준다 — 얼마나 줄었는지, 상한까지 몇 시간인지
         + (rw.eff != null && rw.eff < 0.995 ? ` 오래 비워서 효율 ${Math.round(rw.eff * 100)}% (앞 2시간 100% · 6시간까지 70% · 10시간까지 40%).` : '')
-        + (rw.sec >= W.OFFLINE_CAP_SEC ? ' 방치는 10시간까지만 쳐요.' : '')),
+        + (rw.sec >= game.offlineCapSec() - 1 ? ` 방치는 ${Math.round(game.offlineCapSec() / 3600)}시간까지만 쳐요(마을 상인 → 무관 증축으로 늘려요).` : '')
+        + (rw.elix ? ` 영약 ${Math.round(rw.elix / 60)}분어치가 함께 들었어요.` : '')),
       h('div', { class: 'stat-grid' },
-        h('div', {}, '처치', h('b', {}, `${fmt(rw.kills)}마리`)),
-        h('div', {}, '경험치', h('b', {}, fmt(rw.exp))),
-        h('div', {}, '은자', h('b', {}, fmt(rw.gold))),
+        h('div', {}, '처치', h('b', { 'data-count': rw.kills, 'data-suffix': '마리' }, `${fmt(rw.kills)}마리`)),
+        h('div', {}, '경험치', h('b', { 'data-count': rw.exp }, fmt(rw.exp))),
+        h('div', {}, '은자', h('b', { 'data-count': rw.gold }, fmt(rw.gold))),
         h('div', {}, '먹은 물약', h('b', {}, `${rw.potions}개`))),
       h('p', { class: 'muted' }, !rw.mats ? '' : `모은 재료: ${W.MATS[rw.map]} ${fmt(rw.mats + (rw.marks || 0) * W.BOSS_MATS)}개`
         + (rw.marks ? ` · ${W.matName(W.bossKey(rw.map))} ${rw.marks}개` : '') + ' — 장비 강화에 써요 (증표는 등급 각인)'),

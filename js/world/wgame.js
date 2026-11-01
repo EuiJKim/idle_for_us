@@ -14,6 +14,7 @@ import * as L from './wland.js';
 import * as G from './wgear.js';
 import * as IM from './wimprint.js';
 import * as PT from './wpath.js';
+import * as TD from './wtoday.js';
 
 const rand = Math.random;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -84,6 +85,15 @@ export function migrateWorld(raw, now = Date.now()) {
   if (!raw || typeof raw !== 'object') return base;
   const s = { ...base, ...raw };
   s.autoMap = typeof raw.autoMap === 'boolean' ? raw.autoMap : false;
+  s.elixir = Math.max(0, Math.min(W.ELIXIR_MAX, Number(raw.elixir) || 0));
+  s.autoEnh = !!raw.autoEnh; s.autoInf = !!raw.autoInf;   // v262
+  s.loadout = raw.loadout === 1 ? 1 : 0;
+  s.loadouts = Array.isArray(raw.loadouts) ? [0, 1].map((i) => { const lo = raw.loadouts[i]; return lo && typeof lo === 'object' ? { stats: { ...(lo.stats || {}) }, skillLv: { ...(lo.skillLv || {}) }, passLv: { ...(lo.passLv || {}) } } : null; }) : [null, null];
+  s.petShard = Math.max(0, Math.floor(Number(raw.petShard) || 0)); s.petSoul = Math.max(0, Math.floor(Number(raw.petSoul) || 0)); s.petSoulExp = Math.max(0, Number(raw.petSoulExp) || 0);
+  if (raw.today && typeof raw.today === 'object' && typeof raw.today.day === 'string') s.today = { day: raw.today.day, cnt: { ...(raw.today.cnt || {}) }, claimed: { ...(raw.today.claimed || {}) } }; else s.today = null;
+  if (raw.week && typeof raw.week === 'object' && typeof raw.week.key === 'string') s.week = { key: raw.week.key, pts: Math.max(0, Math.floor(Number(raw.week.pts) || 0)), opened: !!raw.week.opened }; else s.week = null;
+  { const bk = raw.bossKills && typeof raw.bossKills === 'object' ? raw.bossKills : {}; s.bossKills = {}; for (const [k, v] of Object.entries(bk)) { const n = Math.floor(Number(v) || 0); if (n > 0) s.bossKills[k] = n; } }
+  { const hl = raw.hall && typeof raw.hall === 'object' ? raw.hall : {}; s.hall = {}; for (const k of Object.keys(W.HALL)) { const v = Math.floor(Number(hl[k]) || 0); if (v > 0) s.hall[k] = Math.min(W.HALL[k].max, v); } }
   s.stats = { ...base.stats, ...(raw.stats || {}) };
   s.skillLv = { ...base.skillLv, ...(raw.skillLv || {}) };
   for (const k of Object.keys(s.skillLv)) s.skillLv[k] = clamp(Math.floor(Number(s.skillLv[k]) || 1), 1, W.SKILL_LV_MAX);
@@ -137,11 +147,12 @@ export function migrateWorld(raw, now = Date.now()) {
   if (s.job && !W.CLASSES[s.job]) s.job = null;
   // v126 던전
   const dg = raw.dgn && typeof raw.dgn === 'object' ? raw.dgn : {};
-  s.dgn = { day: typeof dg.day === 'string' ? dg.day : '', used: {}, best: {}, fail: {}, keys: {} };
+  s.dgn = { day: typeof dg.day === 'string' ? dg.day : '', used: {}, best: {}, fail: {}, keys: {}, extra: {} };
   for (const d of D.DAILY) {
     s.dgn.used[d.id] = Math.max(0, Math.floor(Number(dg.used?.[d.id]) || 0));
     if (dg.fail?.[d.id]) s.dgn.fail[d.id] = Math.max(0, Math.floor(Number(dg.fail[d.id]) || 0));
     if (dg.keys?.[d.id]) s.dgn.keys[d.id] = Math.max(0, Math.floor(Number(dg.keys[d.id]) || 0));
+    if (dg.extra?.[d.id]) s.dgn.extra[d.id] = Math.max(0, Math.min(D.DAILY_ENTRIES, Math.floor(Number(dg.extra[d.id]) || 0)));
     s.dgn.best[d.id] = clamp(Math.floor(Number(dg.best?.[d.id]) || 0), 0, D.DAILY_STAGES);
   }
   const tw = raw.tower && typeof raw.tower === 'object' ? raw.tower : {};
@@ -153,7 +164,8 @@ export function migrateWorld(raw, now = Date.now()) {
   s.tower.failPow = Math.max(0, Number(tw.failPow) || 0);
   s.quest = clamp(Math.floor(Number(s.quest) || 0), 0, Q.QUEST_COUNT);
   s.did = raw.did && typeof raw.did === 'object' ? { ...raw.did } : {};
-  s.duel = { won: { ...(raw.duel?.won || {}) } };
+  s.duel = { won: { ...(raw.duel?.won || {}) }, stars: {} };
+  for (const [k, v] of Object.entries(raw.duel?.stars || {})) { const n = Math.floor(Number(v) || 0) & 3; if (n) s.duel.stars[k] = n; }   // v262
   s.questGift = Number.isInteger(raw.questGift) ? raw.questGift : -1;
   const rd = raw.raid && typeof raw.raid === 'object' ? raw.raid : {};
   s.raid = { day: typeof rd.day === 'string' ? rd.day : '', n: clamp(Math.floor(Number(rd.n) || 0), 0, D.RAID_PER_DAY), dps: Math.max(0, Number(rd.dps) || 0) };
@@ -422,10 +434,11 @@ export class WorldGame {
       regen: (1 + int * 0.12 + L * 0.08 + hp * (0.006 + gear.regenPct)) * (1 + (pm.regen || 0)),
       expMult: 1 + gear.exp,
       matMult: 1 + gear.mat,
-      moveSpeed: 1 + (mt ? mt.speed : 0) + (cls.move || 0) + (pm.move || 0) + gear.move,
-      boss: (cls.boss || 1) * (1 + gear.bossDmg),
-      gold: gear.gold, dodge: Math.min(0.5, gear.dodge), drain: gear.drain, dmgRed: Math.min(0.5, gear.dmgRed),
-      cdr: Math.min(0.4, gear.cdr), skillRange: gear.range, thorns: gear.thorns, stunHit: Math.min(0.3, gear.stunHit),
+      // v262: 스탯마다 다른 축 — 힘=두목 피해 · 민첩=걸음 · 체력=받는 피해 감소 · 내공=무공 숨(어디에 찍든 사냥만 같던 것)
+      moveSpeed: 1 + (mt ? mt.speed : 0) + (cls.move || 0) + (pm.move || 0) + gear.move + Math.min(W.STAT_ROLE.dexMoveMax, dex * W.STAT_ROLE.dexMove),
+      boss: (cls.boss || 1) * (1 + gear.bossDmg) * (1 + Math.min(W.STAT_ROLE.strBossMax, str * W.STAT_ROLE.strBoss)),
+      gold: gear.gold, dodge: Math.min(0.5, gear.dodge), drain: gear.drain, dmgRed: Math.min(0.5, gear.dmgRed + Math.min(W.STAT_ROLE.vitRedMax, vit * W.STAT_ROLE.vitRed)),
+      cdr: Math.min(0.4, gear.cdr + Math.min(W.STAT_ROLE.intCdrMax, int * W.STAT_ROLE.intCdr)), skillRange: gear.range, thorns: gear.thorns, stunHit: Math.min(0.3, gear.stunHit),
       venom: Math.min(IM.IMP_CAP.venom, gear.venom), burn: Math.min(IM.IMP_CAP.burn, gear.burn), chill: Math.min(IM.IMP_CAP.chill, gear.chill), shock: Math.min(IM.IMP_CAP.shock, gear.shock),
       range: W.classOf(s.job)?.range || W.MELEE_RANGE,
       // 길(v237): 평타 피해 · 덧치기 · 둘레 · 달라붙기 · 독 · 무공 체력 소모
@@ -657,7 +670,7 @@ export class WorldGame {
     if (c < 0) return null;
     const x = W.tileCenter(c), y = W.tileCenter(r);
     const king = boss ? m.king : null;
-    const elite = !boss && !m.bossRoom && this.rng() < W.ELITE_RATE;
+    const elite = !boss && !m.bossRoom && this.rng() < W.ELITE_RATE * (!this.inst && TD.bloodOn() ? TD.BLOOD_ELITE : 1);   // v262 혈겁
     const hp = D.fieldMobHp(lv) * (boss ? W.BOSS.hp : elite ? W.ELITE.hp : 1);
     const mob = {
       id: uidSeq++, lv, c, r, hc: c, hr: r, move: null, x, y, hp, maxHp: hp, alive: true, isBoss: !!boss, born: this.clock,
@@ -681,6 +694,7 @@ export class WorldGame {
     const full = boss && !this.bossSeen;
     if (boss) this.bossSeen = true;
     if (full) { mob.introT = king ? W.KING_INTRO_SEC : W.BOSS_INTRO_SEC; this.freezeT = mob.introT; }
+    if (boss) { mob.bornAt = this.clock + (mob.introT || 0); mob.tellHits = 0; }   // v262 비무 별(빠르게 · 안 맞고)
     this.mons.push(mob);
     if (boss) {
       this.emit('bossAppear', { name: kind.name, lv, full, zoneName: m.zoneName,
@@ -699,6 +713,7 @@ export class WorldGame {
     // 자동 도전 — 들판에 있는 동안 열린 요일 던전이 있으면 알아서 들어간다.
     // 매 틱 보면 비싸므로 몇 초에 한 번만 본다.
     if (this._followDue && !this.inst) { this._followDue = false; this.followMap(); }
+    if ((this.s.autoEnh || this.s.autoInf) && !this.inst && (this._autoGearT = (this._autoGearT ?? 5) - dt) <= 0) { this._autoGearT = 5; this.autoGear(); }
     if ((this.s.dgn.auto || this.s.dgn.routine) && !this.inst) {
       this.autoDgnT = (this.autoDgnT || 0) - dt;
       if (this.autoDgnT <= 0) { this.autoDgnT = AUTO_DGN_SEC; this.startRoutine(); }
@@ -742,6 +757,7 @@ export class WorldGame {
     this.tickClones(dt, st);
     // v254: 쓰러져 마을로 막 돌아온 틱엔(체력 1) 물약을 먹지 않는다 — 마을은 곧 다 채워 주는데 쓰러질 때마다 물약이 하나씩 줄었다
     this.tickPotion(st, this.map.town);
+    if (this.s.elixir > 0 && !this.map.town) this.s.elixir = Math.max(0, this.s.elixir - dt);   // v262 영약은 사냥 중에만 닳는다
     this.tickImprint(dt, st);
     this.tickHero(dt, st);
     this.tickPets(dt, st);
@@ -780,6 +796,13 @@ export class WorldGame {
         m.dot -= d;
         m.poison = m.dot >= 1 ? (m.dotTau || 3) : 0;
         this.hurt(m, d, 'poison', false, true);
+        // v261: 독 피해를 1초에 한 번 모아 보여 준다 — 과녁과 두목만(졸개 수십에 다 띄우면 숫자로 덮인다)
+        m.dotAcc = (m.dotAcc || 0) + d;
+        if ((m.dotShowT = (m.dotShowT ?? 1) - dt) <= 0) {
+          m.dotShowT = 1;
+          if ((m.isBoss || m === this.mon) && m.dotAcc >= 1) this.emit('dotTick', { amount: m.dotAcc, at: m });
+          m.dotAcc = 0;
+        }
         if (!m.alive) continue;
       } else m.poison = 0;
       if (m.introT > 0) { m.introT -= dt; continue; }
@@ -1231,7 +1254,7 @@ export class WorldGame {
     // v255: 과녁(this.mon)에 준 것만 — 광역 합을 세면 독마·검사는 한 몸에 주는 피해의 5~7배로 잡혀 두목이 몇 분짜리가 됐다
     if (m === this.mon) this.dmgAcc = (this.dmgAcc || 0) + Math.min(dmg, Math.max(0, m.hp + dmg));
     if (!quiet) this.emit('dmg', { amount: dmg, kind, crit: crit ? 1 : 0, at: m, add: m !== this.mon });
-    if (m.hp <= 0) this.killMob(m);
+    if (m.hp <= 0) { m.over = Math.max(0, -m.hp) / (m.maxHp || 1); this.killMob(m); }   // v261 넘친 피해(그리는 쪽이 날아가는 거리에 쓴다)
   }
 
   killMob(m) {
@@ -1261,8 +1284,22 @@ export class WorldGame {
     const env = this.envNow();
     const mlv = this.masteryLevel(this.map.zone);
     if (m.treasure) return this.killTreasure(m, st, env);
-    const exp = W.mobExp(m.lv) * (m.isBoss ? W.BOSS.exp : m.elite ? W.ELITE.exp : 1) * this.levelGapMult(m.lv) * (st.expMult || 1) * (1 + (env.exp || 0) + mlv * L.MASTERY.exp);
-    const gold = Math.round(W.mobGold(m.lv) * (m.isBoss ? W.BOSS.gold : m.elite ? W.ELITE.gold : 1) * (1 + (env.gold || 0) + (st.gold || 0)));
+    const ek = this.s.elixir > 0 ? 1 + W.ELIXIR_BONUS : 1;   // v262 영약
+    // v261 처치 포화 — 최근 30초 처치로 분당 처치를 잰다(사냥터만)
+    let sat = 1;
+    if (!this.inst) {
+      const kt = this._killT || (this._killT = []);
+      kt.push(this.clock);
+      while (kt.length && kt[0] < this.clock - 30) kt.shift();
+      sat = W.expSat(kt.length * 2);
+    }
+    const exp = W.mobExp(m.lv) * (m.isBoss ? W.BOSS.exp : m.elite ? W.ELITE.exp : 1) * this.levelGapMult(m.lv) * (st.expMult || 1) * (1 + (env.exp || 0) + mlv * L.MASTERY.exp) * ek * sat;
+    const blood = !this.inst && TD.bloodOn() ? 1 + TD.BLOOD_BONUS : 1;   // v262 혈겁
+    const gold = Math.round(W.mobGold(m.lv) * (m.isBoss ? W.BOSS.gold : m.elite ? W.ELITE.gold : 1) * (1 + (env.gold || 0) + (st.gold || 0)) * ek * blood);
+    if (!this.inst) {
+      this.tday('kill'); if (m.elite) this.tday('elite'); if (m.isBoss) this.tday('boss');
+      if (!m.isBoss && this.rng() < W.PET_SHARD_RATE * (m.elite ? 3 : 1)) this.s.petShard = (this.s.petShard || 0) + 1;   // v262 포획 조각
+    }
     this.s.gold += gold;
     const mat = this.dropMats(m);
     if (m.elite) this.dropMats(m);
@@ -1724,7 +1761,7 @@ export class WorldGame {
     if (!W.MATS[id]) return null;
     if (m.isBoss) {
       this.addMats(id, W.BOSS_MATS);
-      this.addMats(W.bossKey(id), 1);
+      this.addMats(W.bossKey(id), 1 + (this.rng() < this.braveBonus() ? 1 : 0));   // v262 패기: 센 곳 두목은 증표를 하나 더 줄 때가 있다
       // 십이지왕 (v132): 전반 다섯은 맡은 부위의 내 직업 세트 조각(두 세트 가운데 하나), 후반 일곱은 강화석(늘) + 가끔 공용 장신구
       if (W.kingOf(id)) {
         const stone = G.STONES[id];
@@ -1758,11 +1795,16 @@ export class WorldGame {
       if (this.rng() < W.petDropRate(id)) this.gainPet(W.rollRarity(W.kingOf(id) ? W.KING_RAR_W : W.BOSS_RAR_W, this.rng), m, W.rollPetKind(id, this.rng));
       return { id, n: W.BOSS_MATS, name: W.MATS[id], color: W.MAT_COLORS[id], boss: W.matName(W.bossKey(id)) };
     }
-    if (this.rng() >= W.MAT_RATE * (this.stats().matMult || 1) * (1 + this.masteryLevel(this.map.zone) * L.MASTERY.mat)) return null;
+    if (this.rng() >= W.MAT_RATE * (this.stats().matMult || 1) * (1 + this.masteryLevel(this.map.zone) * L.MASTERY.mat) * (1 + this.braveBonus()) * (!this.inst && TD.bloodOn() ? 1 + TD.BLOOD_BONUS : 1)) return null;
     this.addMats(id, 1);
     return { id, n: 1, name: W.MATS[id], color: W.MAT_COLORS[id] };
   }
   addMats(key, n) { this.s.mats[key] = (this.s.mats[key] || 0) + n; }
+  // v262 패기 — 내 레벨보다 센 사냥터는 레벨 차 1마다 재료·증표 +4%(최대 +40%). 높은 데로 갈 까닭.
+  braveBonus() {
+    if (this.inst || !this.map?.lv) return 0;
+    return Math.min(W.BRAVE_MAX, Math.max(0, (this.map.lv[0] + this.map.lv[1]) / 2 - this.s.level) * W.BRAVE_PER);
+  }
   // 재료 올리기 (v174): 지역 k 재료 MAT_CONVERT개 → 다음 지역 하나. n을 안 주면 되는 만큼 전부. 만든 개수를 돌려준다.
   convertMats(k, n = Infinity) {
     const to = W.matUpTarget(k);
@@ -2077,7 +2119,9 @@ export class WorldGame {
     return { key: W.itemZone(it), n: W.enhanceMatsN(it.plus || 0) };
   }
   // 조합·왕의 장비는 +10 위로 돌파(+15까지) — 두목 증표가 더 든다. 옛 장비·가락지·귀걸이는 +10까지.
-  enhanceMax(it) { return (it?.step != null || it?.king != null) && !W.isDropOnly(it.slot) ? W.ENHANCE_MAX : W.ENHANCE_NORMAL; }
+  enhanceMaxItem(it) { return (it?.step != null || it?.king != null) && !W.isDropOnly(it.slot) ? W.ENHANCE_MAX : W.ENHANCE_NORMAL; }
+  // v261: 장비가 갈 수 있는 끝과 레벨 상한 중 낮은 쪽
+  enhanceMax(it) { return Math.min(this.enhanceMaxItem(it), W.enhanceLvCap(this.s.level)); }
   breakMarksOf(it) { return it?.step != null && !W.isDropOnly(it.slot) ? W.breakMarks(it.plus || 0) : 0; }   // 왕의 장비는 강화석 수에 들어 있다
   enhanceBaseRate(it) { return W.enhanceRate(it.plus || 0) * (W.isDropOnly(it.slot) ? W.ACC2_RATE : 1); }
   // v192 천장: 실패가 쌓인 만큼 더한다
@@ -2087,19 +2131,32 @@ export class WorldGame {
     const m = this.enhanceMats(it);
     if (m && (this.s.mats[m.key] || 0) < m.n) return false;
     const bm = this.breakMarksOf(it);
-    return !bm || (this.s.mats[W.bossKey(m.key)] || 0) >= bm;
+    return !bm || !!this.breakMarkKey(it, bm);
+  }
+  // v262: 돌파에 드는 두목 증표 — 그 지역 증표가 모자라면 십이지왕 증표(가진 것이 가장 많은 것)로 대신한다.
+  //   99 뒤 성장 장비는 천외천 증표(b15)만 받는데, 왕 구역에서 사냥하면 b15가 안 나와 +12에서 막혔다.
+  breakMarkKey(it, bm = this.breakMarksOf(it)) {
+    const m = this.enhanceMats(it);
+    if (!m || !bm) return null;
+    const own = W.bossKey(m.key);
+    if ((this.s.mats[own] || 0) >= bm) return own;
+    if (it.step == null || (this.s.level || 0) < 99) return null;
+    let best = null, n = 0;
+    for (let z = W.NORMAL_ZONES + 1; z <= W.ZONE_COUNT; z++) { const k = W.bossKey(z); const v = this.s.mats[k] || 0; if (v >= bm && v > n) { best = k; n = v; } }
+    return best;
   }
   // v192: 실패하면 +7까지 그대로 · +8~10 -1 · +11부터 -2(useProt면 보호부 하나로 그대로). 실패마다 천장(it.epity)이 쌓인다. 결과는 this.lastEnhance에도 남긴다.
   enhance(uid, useProt = true) {
     const it = this.findItem(uid);
     this.adoptShared(it);
     if (!this.canEnhance(it)) return null;
+    this.tday('enhance');
     const cost = this.enhanceCost(it);
     const mats = this.enhanceMats(it);
     this.s.gold -= cost;
     if (mats) this.s.mats[mats.key] -= mats.n;
     const bm = this.breakMarksOf(it);
-    if (bm) this.s.mats[W.bossKey(mats.key)] -= bm;
+    if (bm) { const bk = this.breakMarkKey(it, bm); if (bk) this.s.mats[bk] -= bm; }
     const lv = it.plus || 0;
     const ok = this.rng() < this.enhanceRateOf(it);
     const r = { ok, from: lv, drop: 0, broke: false, prot: false };
@@ -2168,6 +2225,23 @@ export class WorldGame {
     this.emit('petDrop', { pet, at: at ? { x: at.x, y: at.y } : null, joined: this.s.pets.includes(pet) });
     return pet;
   }
+  // v262 포획 조각 · 혼
+  canShardPet() { return (this.s.petShard || 0) >= W.PET_SHARD_NEED && !this.map.town; }
+  shardPet() {
+    if (!this.canShardPet()) return null;
+    this.s.petShard -= W.PET_SHARD_NEED;
+    return this.gainPet(0, null, W.rollPetKind(this.map.mz || 1, this.rng));
+  }
+  petSoulCost(p) { return p && p.rar < W.RARITY.length - 1 ? W.PET_SOUL_COST[p.rar] : null; }
+  canSoulUp(uid) { const p = [...this.s.pets, ...this.s.petBox].find((x) => x.uid === uid); const c = this.petSoulCost(p); return c != null && (this.s.petSoul || 0) >= c; }
+  soulUp(uid) {
+    const p = [...this.s.pets, ...this.s.petBox].find((x) => x.uid === uid);
+    if (!this.canSoulUp(uid)) return null;
+    this.s.petSoul -= this.petSoulCost(p);
+    p.rar++;
+    this._stats = null;
+    return p;
+  }
   adoptPet(uid) {
     if (this.s.pets.length >= this.petSlots()) return false;
     const i = this.s.petBox.findIndex((p) => p.uid === uid);
@@ -2186,7 +2260,13 @@ export class WorldGame {
   }
   petExp(n) {
     for (const p of this.activePets()) {
-      if (p.lv >= W.PET_LV_MAX) continue;
+      if (p.lv >= W.PET_LV_MAX) {
+        // v262: 다 큰 애완동물이 받던 경험치는 버려졌다 — 혼으로 모은다
+        this.s.petSoulExp = (this.s.petSoulExp || 0) + n;
+        const per = W.petExpToNext(W.PET_LV_MAX);
+        if (this.s.petSoulExp >= per) { const k = Math.floor(this.s.petSoulExp / per); this.s.petSoul = (this.s.petSoul || 0) + k; this.s.petSoulExp -= k * per; }
+        continue;
+      }
       p.exp += n;
       while (p.lv < W.PET_LV_MAX && p.exp >= W.petExpToNext(p.lv)) {
         p.exp -= W.petExpToNext(p.lv);
@@ -2326,6 +2406,42 @@ export class WorldGame {
     for (const p of this.passiveList()) for (let l = 0; l < this.passLevel(p.id); l++) n += W.passiveCost(p, l);
     return n;
   }
+  // v262 차림 두 벌 — 능력치 분배·무공·심법 레벨을 두 벌 적어 두고 갈아 낀다(사냥용·두목용). 바꾸는 값은 없다.
+  //   벌을 바꿀 때 지금 것을 지금 벌에 적고, 다른 벌을 낀다. 그 벌이 쓴 점수보다 지금 가진 점수가 많으면 남는 것은 찍을 점수로.
+  loadoutSpent(lo) {
+    let st = 0; for (const v of Object.values(lo.stats || {})) st += v;
+    let sk = 0; for (const lv of Object.values(lo.skillLv || {})) sk += W.skillSpent(lv);
+    for (const p of this.passiveList()) for (let l = 0; l < (lo.passLv?.[p.id] || 0); l++) sk += W.passiveCost(p, l);
+    return { st, sk };
+  }
+  snapLoadout() { return { stats: { ...this.s.stats }, skillLv: { ...this.s.skillLv }, passLv: { ...(this.s.passLv || {}) } }; }
+  canSwitchLoadout(i) {
+    const lo = this.s.loadouts?.[i];
+    if (!lo || i === (this.s.loadout || 0)) return false;
+    const need = this.loadoutSpent(lo);
+    const have = { st: this.s.statPts + Object.values(this.s.stats).reduce((a, b) => a + b, 0), sk: (this.s.skillPts || 0) + this.skillSpentAll() };
+    return need.st <= have.st && need.sk <= have.sk;
+  }
+  switchLoadout(i) {
+    const los = this.s.loadouts || (this.s.loadouts = [null, null]);
+    const cur = this.s.loadout || 0;
+    if (i === cur || i < 0 || i > 1) return false;
+    if (!los[i]) { los[cur] = this.snapLoadout(); los[i] = this.snapLoadout(); this.s.loadout = i; return true; }   // 처음엔 지금 것을 그대로 복사
+    if (!this.canSwitchLoadout(i)) return false;
+    const haveSt = this.s.statPts + Object.values(this.s.stats).reduce((a, b) => a + b, 0);
+    const haveSk = (this.s.skillPts || 0) + this.skillSpentAll();
+    los[cur] = this.snapLoadout();
+    const lo = los[i];
+    const need = this.loadoutSpent(lo);
+    this.s.stats = { ...this.s.stats, ...lo.stats };
+    this.s.skillLv = { ...lo.skillLv };
+    this.s.passLv = { ...lo.passLv };
+    this.s.statPts = haveSt - need.st;
+    this.s.skillPts = haveSk - need.sk;
+    this.s.loadout = i;
+    this._stats = null; this._mods = null;
+    return true;
+  }
   canResetSkills() { return this.skillSpentAll() > 0 && this.s.gold >= this.skillResetCost(); }
   resetSkills() {
     if (!this.canResetSkills()) return 0;
@@ -2424,6 +2540,104 @@ export class WorldGame {
     this.s.potions += n;
     return true;
   }
+  // ---------- v262 오늘의 강호 · 주간 상자 ----------
+  todayState(now = Date.now()) {
+    const day = D.kstDay(now);
+    if (!this.s.today || this.s.today.day !== day) this.s.today = { day, cnt: {}, claimed: {} };
+    const wk = TD.weekKey(now);
+    if (!this.s.week || this.s.week.key !== wk) this.s.week = { key: wk, pts: 0, opened: false };
+    return this.s.today;
+  }
+  tday(counter, n = 1) { const t = this.todayState(); t.cnt[counter] = (t.cnt[counter] || 0) + n; }
+  todayTasks(now = Date.now()) {
+    const t = this.todayState(now);
+    return TD.tasksOf(t.day).map((x) => { const need = x.need(this.s.level); const cur = Math.min(need, t.cnt[x.counter] || 0); return { ...x, need, now: cur, done: cur >= need, claimed: !!t.claimed[x.id] }; });
+  }
+  claimToday(id, now = Date.now()) {
+    const x = this.todayTasks(now).find((k) => k.id === id);
+    if (!x || !x.done || x.claimed) return null;
+    this.s.today.claimed[id] = 1;
+    const gold = TD.taskGold(this.s.level);
+    this.s.gold += gold;
+    this.s.week.pts += TD.TASK_POINT;
+    this.emit('todayDone', { id, name: x.name, gold });
+    return { gold };
+  }
+  canOpenWeek(now = Date.now()) { this.todayState(now); return this.s.week.pts >= TD.WEEK_NEED && !this.s.week.opened; }
+  openWeek(now = Date.now()) {
+    if (!this.canOpenWeek(now)) return null;
+    this.s.week.opened = true;
+    const c = TD.weekChest(this.s.level);
+    this.s.gold += c.gold;
+    this.s.prot = (this.s.prot || 0) + c.prot;
+    this.s.elixir = Math.min(W.ELIXIR_MAX, (this.s.elixir || 0) + c.elixirSec);
+    return c;
+  }
+  // ---------- v262 자동 강화 · 자동 등급 각인 ----------
+  // 강화: 낀 성장 장비 여섯 칸을 가장 낮은 것부터 레벨 상한까지(은자는 물약 60개 값을 남긴다 · +11부터는 보호부를 쓴다)
+  // 등급 각인: 가진 증표 중 센 것부터, 등급 낮은 칸부터. 돌파에 쓸 그 지역 증표는 세 번어치를 남긴다.
+  autoGear() {
+    const reserve = this.potionPrice() * 60;
+    const out = { enh: 0, inf: 0 };
+    const worn = () => W.GROW_SLOTS.map((k) => this.s.equip[k]).filter(Boolean);
+    if (this.s.autoEnh) {
+      for (let n = 0; n < 30; n++) {
+        const it = worn().sort((a, b) => (a.plus || 0) - (b.plus || 0)).find((x) => this.canEnhance(x) && this.s.gold - this.enhanceCost(x) > reserve);
+        if (!it) break;
+        this.enhance(it.uid, true); out.enh++;
+      }
+    }
+    if (this.s.autoInf) {
+      const keep = {};
+      for (const it of worn()) { const m = this.enhanceMats(it); if (m) { const bk = W.bossKey(m.key); keep[bk] = (keep[bk] || 0) + W.breakMarks(W.ENHANCE_MAX - 1) * 3; } }
+      const marks = Object.keys(this.s.mats).filter((k) => W.isMarkKey(k) && this.s.mats[k] > 0).sort((a, b) => W.markLv(b) - W.markLv(a));
+      for (let n = 0; n < 6; n++) {
+        let done = false;
+        for (const it of worn().sort((a, b) => (a.rar || 0) - (b.rar || 0))) {
+          const k = marks.find((m) => { const f = this.infuseInfo(it, m); return f && this.canInfuse(it, m) && this.s.gold - f.gold > reserve && (this.s.mats[m] - f.n) >= (keep[m] || 0); });
+          if (k) { this.infuse(it.uid, k); out.inf++; done = true; break; }
+        }
+        if (!done) break;
+      }
+    }
+    if (out.enh || out.inf) this.emit('autoGear', out);
+    return out;
+  }
+  // ---------- v262 영약 · 무관 증축 · 세력 상점 ----------
+  elixirPrice() { return W.elixirPrice(this.s.level); }
+  buyElixir() {
+    const c = this.elixirPrice();
+    if (this.s.gold < c || (this.s.elixir || 0) + W.ELIXIR_SEC > W.ELIXIR_MAX) return false;
+    this.s.gold -= c;
+    this.s.elixir = (this.s.elixir || 0) + W.ELIXIR_SEC;
+    this.tday('elixir');
+    return true;
+  }
+  hallLv(kind) { return this.s.hall?.[kind] || 0; }
+  hallCost(kind) { const n = this.hallLv(kind); return n >= W.HALL[kind].max ? null : W.hallCost(kind, n, this.s.level); }
+  buyHall(kind) {
+    const c = this.hallCost(kind);
+    if (c == null || this.s.gold < c) return false;
+    this.s.gold -= c;
+    this.s.hall = { ...(this.s.hall || {}), [kind]: this.hallLv(kind) + 1 };
+    return true;
+  }
+  canFacBuy(id) { const o = W.FAC_SHOP.find((x) => x.id === id); return !!o && (this.s.mats[o.mat] || 0) >= o.n && (id !== 'petfood' || this.activePets().some((p) => p.lv < W.PET_LV_MAX)); }
+  buyFac(id) {
+    const o = W.FAC_SHOP.find((x) => x.id === id);
+    if (!o || !this.canFacBuy(id)) return null;
+    this.s.mats[o.mat] -= o.n;
+    if (id === 'prot') { this.s.prot = (this.s.prot || 0) + 1; return '강화 보호부 1장'; }
+    if (id === 'petfood') {
+      // 가장 낮은 애완동물 레벨의 다음 레벨 경험치 세 번어치
+      const lo = Math.min(...this.activePets().map((p) => p.lv));
+      this.petExp(W.petExpToNext(lo) * 3);
+      return '애완동물 영단 — 경험치를 크게 얻었어요';
+    }
+    const no = 1 + Math.floor(this.rng() * 12);
+    this.s.zTickets[no] = (this.s.zTickets[no] || 0) + 1;
+    return `십이지 뽑기권(${no}번째 신) 1장`;
+  }
   statBookCost() { return W.statBookCost(this.s.books || 0); }
   buyStatBook() {
     const c = this.statBookCost();
@@ -2510,6 +2724,7 @@ export class WorldGame {
     if (best && Math.abs(m.c - h.c) + Math.abs(m.r - h.r) < 9) m.move = best;
   }
   killTreasure(m, st, env) {
+    this.tday('treasure');
     const z = this.map.mz;
     const gold = Math.round(W.mobGold(m.lv) * L.TREASURE_GOLD * (1 + (env.gold || 0)));
     this.s.gold += gold;
@@ -2527,12 +2742,19 @@ export class WorldGame {
   dgnToday(now = Date.now()) {
     const d = this.s.dgn;
     const day = D.kstDay(now);
-    if (d.day !== day) { d.day = day; d.used = {}; d.fail = {}; d.keys = {}; }
+    if (d.day !== day) {
+      // v262: 어제 남긴 횟수는 하루만 넘어온다(최대 하루치) — 못 들어온 날의 횟수가 그냥 사라졌다
+      const yest = D.kstDay(now - 86400e3);
+      const carry = {};
+      if (d.day === yest) for (const x of D.DAILY) { const left = D.DAILY_ENTRIES + (d.extra?.[x.id] || 0) - (d.used[x.id] || 0); if (left > 0) carry[x.id] = Math.min(D.DAILY_ENTRIES, left); }
+      d.day = day; d.used = {}; d.fail = {}; d.keys = {}; d.extra = carry;
+    }
     if (!d.fail) d.fail = {};
     if (!d.keys) d.keys = {};
+    if (!d.extra) d.extra = {};
     return d;
   }
-  dailyLeft(kind, now = Date.now()) { return Math.max(0, D.DAILY_ENTRIES - (this.dgnToday(now).used[kind] || 0)); }
+  dailyLeft(kind, now = Date.now()) { const d = this.dgnToday(now); return Math.max(0, D.DAILY_ENTRIES + (d.extra[kind] || 0) - (d.used[kind] || 0)); }
   dailyBest(kind) { return this.s.dgn.best[kind] || 0; }
   // 고를 수 있는 가장 높은 단계: 깬 단계 + 1 (레벨이 닿는 데까지)
   // 깬 단계 다음까지 — 레벨은 안 본다(v146). 단계는 하나씩 깨며 오른다.
@@ -2546,6 +2768,7 @@ export class WorldGame {
   }
   startDaily(kind, stage, now = Date.now()) {
     if (!this.canDaily(kind, stage, now)) return false;
+    this.tday('daily');
     const used = this.dgnToday(now).used;
     used[kind] = (used[kind] || 0) + 1;
     this.startInst({ kind: 'daily', id: kind, stage, map: D.dailyMap(kind, stage), t: D.DAILY_SEC, max: D.DAILY_SEC, target: D.DAILY_KILLS, kills: 0, now });
@@ -2766,6 +2989,7 @@ export class WorldGame {
   }
   sweepDaily(kind, now = Date.now()) {
     if (!this.canSweep(kind, now)) return null;
+    this.tday('daily');
     const used = this.dgnToday(now).used;
     used[kind] = (used[kind] || 0) + 1;
     const stage = this.dailyBest(kind);
@@ -2789,7 +3013,9 @@ export class WorldGame {
     const st = this.stats(); return (st.atk / st.atkSec) * (1 + st.crit * (st.critDmg - 1)) * (2.5 + (this.s.jobTier || 0) * 0.8) * st.skillMult;   // v242: 차수·무공 배수만큼 무공 몫
   }
   overPower(baseHp, m) {
-    const sec = m.lord ? W.BOSS_MIN_SEC.lord : m.king || m.master ? W.BOSS_MIN_SEC.king : W.BOSS_MIN_SEC.zone;
+    // v262: 처음 잡는 두목만 최소 싸움 시간을 다 지킨다 — 한 번 잡은 두목은 그 몫(BOSS_REPEAT_K)만. 강해질수록 반복 사냥이 빨라진다.
+    const seen = (this.s.bossKills?.[m.id] || 0) > 0;
+    const sec = (m.lord ? W.BOSS_MIN_SEC.lord : m.king || m.master ? W.BOSS_MIN_SEC.king : W.BOSS_MIN_SEC.zone) * (seen ? W.BOSS_REPEAT_K : 1);
     const need = this.heroDpsEst() * sec * Math.max(W.GAP_OUT_MIN, 1 - W.GAP_OUT * Math.max(0, m.lv[1] + 2 - this.s.level));
     return Math.max(1, Math.min(W.OVERPOWER_MAX, need / baseHp));
   }
@@ -2837,8 +3063,15 @@ export class WorldGame {
   }
   masterBonus() {
     let b = 0;
-    for (const id of Object.keys(this.s.duel?.won || {})) { const m = MS.masterOf(id); if (m) b += MS.masterBonusOf(m); }
+    for (const id of Object.keys(this.s.duel?.won || {})) { const m = MS.masterOf(id); if (m) b += MS.masterBonusOf(m) * (1 + MS.STAR_BONUS * this.duelStars(id).extra); }
     return b;
+  }
+  // v262 비무 별 셋 — ★ 쓰러뜨림 · ★ 빨리(DUEL_STAR_SEC 안에) · ★ 초식에 한 번도 안 맞고. 별마다 영구 덤이 그 고수 몫의 25%씩 늘어난다.
+  duelStars(id) {
+    const f = this.s.duel?.stars?.[id] || 0;
+    const won = !!this.s.duel?.won?.[id];
+    const fast = !!(f & 1), clean = !!(f & 2);
+    return { won, fast, clean, n: (won ? 1 : 0) + (fast ? 1 : 0) + (clean ? 1 : 0), extra: (fast ? 1 : 0) + (clean ? 1 : 0) };
   }
   // 무한의 탑 — 다음 층에 오른다. chain: 이긴 뒤 이어 오르는 것(등장 연출을 짧게)
   canTower() { return !this.inst && !!this.s.job && this.s.tower.floor < D.TOWER_MAX; }
@@ -2998,6 +3231,7 @@ export class WorldGame {
       tl.done = true;
       if (boss && !tl.released) { boss.atkAt = this.clock; tl.released = true; }      // 그 자리에서 초식을 펼친다(내딛는 몸짓, v168)
       const hit = D.tellCovers(tl, this.heroX, this.heroY);
+      if (hit && boss) boss.tellHits = (boss.tellHits || 0) + 1;
       this.emit('tellBoom', { tell: tl, hit });
       if (!hit || this.heroHp <= 0 || this._invulnUntil > this.clock) continue;
       // v255: % 경고 피해에도 호신강기·장비 '받는 피해 감소'를 — 전엔 직업·금신만 곱해 고정 피해(patternHit)와 달랐다
@@ -3107,6 +3341,7 @@ export class WorldGame {
     } else if (I.kind === 'tower' && !ok) {
       this.s.tower.failPow = this.stats().power;      // v230: 루틴이 같은 층에서 헛돌지 않게(그만둬도 — 다시 끌려 들어가지 않게)
     } else if (I.kind === 'tower' && ok) {
+      this.tday('tower');
       this.s.tower.floor = Math.max(this.s.tower.floor, I.stage);
       this._stats = null;
       reward = this.grant(D.towerReward(I.stage));
@@ -3190,7 +3425,7 @@ export class WorldGame {
     const bl = this.bossLog || [];
     while (bl.length && bl[0] < this.clock - W.RATE_WINDOW_SEC) bl.shift();
     // 창이 짧으면(두목 한 판보다 짧게 봤으면) 최근 처치 하나로 다시 나기 주기를 짐작한다
-    const bspan = Math.max(span, W.BOSS_RESPAWN + W.BOSS_MIN_SEC.zone);
+    const bspan = Math.max(span, W.BOSS_RESPAWN + W.BOSS_MIN_SEC.zone * W.BOSS_REPEAT_K);
     return { kills: sum[0] / span, exp: sum[1] / span, gold: sum[2] / span, potions: sum[3] / span, bosses: bl.length / bspan,
       lv: this.s.level, map: this.s.huntMap };
   }
@@ -3200,25 +3435,30 @@ export class WorldGame {
   offlineReward(now = Date.now()) {
     // v254: 시계를 앞으로 돌려 받고 되돌린 뒤 또 앞으로 돌리면 몇 번이고 받았다 — 지금까지 본 가장 늦은 시각(clockMax)부터만 센다
     const from = Math.max(this.s.lastSeen ?? now, this.s.clockMax || 0);
-    const sec = Math.min(W.OFFLINE_CAP_SEC, Math.max(0, (now - from) / 1000));
+    const sec = Math.min(this.offlineCapSec(), Math.max(0, (now - from) / 1000));
     const r = this.s.rates;
     if (sec < 60 || !r || !(r.kills > 0)) return null;
     // 물약이 바닥나면 거기서 멈춘다
     const potionSec = r.potions > 0 ? this.s.potions / r.potions : Infinity;
     const t = Math.min(sec, potionSec);
     // v260: 오래 비울수록 효율이 준다(OFFLINE_TIERS) — 벌이는 '효율 시간'으로 센다. 물약은 실제 시간만큼 먹는다.
-    const te = W.offlineEffSec(t);
+    // v262 무관 증축 '방치 효율'(+5%씩) — 실제 시간을 넘지는 않는다
+    const te = Math.min(t, W.offlineEffSec(t) * (1 + 0.05 * (this.s.hall?.eff || 0)));
+    // v262 영약 — 남은 시간만큼 벌이 +25% (방치 중에도 닳는다)
+    const elix = Math.min(this.s.elixir || 0, t);
+    const ek = 1 + W.ELIXIR_BONUS * (t > 0 ? elix / t : 0);
     const kills = Math.floor(r.kills * te);
     // 재료: 처치 수만큼 굴린 기댓값 (장비는 마을 대장장이에게서)
     const m = W.mapOf(r.map);
     const mats = W.MATS[m.mz] ? Math.floor(kills * W.MAT_RATE) : 0;
     // 두목 증표 — v260: 최근 실제로 잡은 빠르기(rates.bosses)로. 그 값이 없는 옛 세이브만 '다시 나기 + 45초에 하나'
     // 은자는 실측(rates)에 두목 은자가 이미 들어 있어 따로 더하지 않는다(전엔 두 번 셌다)
-    const bossRate = r.bosses != null ? Math.min(r.bosses, 1 / (W.BOSS_RESPAWN + W.BOSS_MIN_SEC.zone)) : 1 / (W.BOSS_RESPAWN + W.BOSS_MIN_SEC.zone);
+    const bossCap = 1 / (W.BOSS_RESPAWN + W.BOSS_MIN_SEC.zone * W.BOSS_REPEAT_K);
+    const bossRate = r.bosses != null ? Math.min(r.bosses, bossCap) : 1 / (W.BOSS_RESPAWN + W.BOSS_MIN_SEC.zone);
     const marks = m.bossRoom ? Math.floor(te * bossRate) : 0;
     // v260: 경험치 — 방치 중 레벨이 오르면 접속 때처럼 레벨 차 감쇠가 붙는다(전엔 처음 레벨의 벌이를 끝까지)
-    const exp = this.offlineExp(r, te, m);
-    return { sec, t, te, eff: t > 0 ? te / t : 1, kills, exp, gold: Math.floor(r.gold * te),
+    const exp = Math.floor(this.offlineExp(r, te, m) * ek);
+    return { sec, t, te, eff: t > 0 ? te / t : 1, kills, exp, gold: Math.floor(r.gold * te * ek), elix,
       potions: Math.ceil(r.potions * t), mats, marks, stoppedByPotion: potionSec < sec, map: r.map };
   }
   // 효율 시간 te 동안의 경험치 — 스무 토막으로 나눠 토막마다 그때 레벨의 레벨 차 감쇠를 곱한다
@@ -3237,8 +3477,10 @@ export class WorldGame {
     }
     return Math.floor(out);
   }
+  offlineCapSec() { return W.OFFLINE_CAP_SEC + 3600 * (this.s.hall?.cap || 0); }
   claimOffline(rw) {
     if (!rw) return;
+    if (rw.elix) this.s.elixir = Math.max(0, (this.s.elixir || 0) - rw.elix);
     this.s.gold += rw.gold;
     this.s.potions = Math.max(0, this.s.potions - rw.potions);
     this.addExp(rw.exp);
@@ -3271,7 +3513,20 @@ for (const [fn, key, always] of [
   const kill = WorldGame.prototype.killMob;
   WorldGame.prototype.killMob = function (m) {
     const r = kill.call(this, m);
-    if (m.isBoss && !this.inst) { this.mark(this.map.king ? 'king' : 'boss'); (this.bossLog || (this.bossLog = [])).push(this.clock); }
+    if (m.isBoss && !this.inst) {
+      this.mark(this.map.king ? 'king' : 'boss'); (this.bossLog || (this.bossLog = [])).push(this.clock);
+      const bk = this.s.bossKills || (this.s.bossKills = {}); bk[this.map.id] = (bk[this.map.id] || 0) + 1;   // v262
+    }
+    // v262 비무 별 — 이번 판이 빨랐나 · 안 맞았나
+    if (m.isBoss && !this.inst && this.map.master) {
+      const mm = MS.masterOf(this.map.master);
+      const st = this.s.duel.stars || (this.s.duel.stars = {});
+      const before = st[mm.id] || 0;
+      let f = before;
+      if (this.clock - (m.bornAt ?? this.clock) <= MS.starSec(mm)) f |= 1;
+      if (!(m.tellHits > 0)) f |= 2;
+      if (f !== before) { st[mm.id] = f; this._stats = null; this.emit('duelStar', { id: mm.id, title: mm.title, name: mm.name, fast: !!(f & 1) && !(before & 1), clean: !!(f & 2) && !(before & 2) }); }
+    }
     // 고수를 처음 쓰러뜨리면 (v148): 큰 보상과 영구 공격력·체력
     if (m.isBoss && !this.inst && this.map.master && !this.s.duel.won[this.map.master]) {
       const mm = MS.masterOf(this.map.master);

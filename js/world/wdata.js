@@ -14,13 +14,26 @@ export const LEVEL_MAX = 150;
 // ---------- 레벨 ----------
 // 뒤로 갈수록 가파르다: 첫 시간 Lv15~20(1차 전직) · 하루 Lv50 남짓 · 일주일 Lv85 안팎 · 150은 몇 달.
 // 처음엔 18·L^2.25로 두었더니 열한 시간에 Lv100을 넘었다(시뮬).
-export const expToNext = (L) => Math.round(27 * L ** 2.3 * (1 + (L / 30) ** 2.2));   // v110: 스킬 레벨·옵션으로 사냥이 빨라져 ×1.35
+// v261: 만렙을 '하루 두 시간 접속 + 방치'로 실사용 2주에 맞춘다(전엔 이틀). 레벨 구간마다 배율 — 첫 시간의 손맛(~Lv12)은 그대로.
+// [레벨, 배율] 사이는 곧게 잇는다. 시뮬: tests/../audit 'simR' (1시간 접속 · 11시간 방치 × 하루 두 번)
+export const EXP_SLOW = [[1, 1], [12, 1], [25, 1.8], [40, 2.6], [60, 4.5], [75, 6], [100, 8.4], [150, 7.8]];
+export function expSlow(L) {
+  for (let i = 1; i < EXP_SLOW.length; i++) {
+    const [l1, k1] = EXP_SLOW[i];
+    if (L <= l1) { const [l0, k0] = EXP_SLOW[i - 1]; return k0 + (k1 - k0) * ((L - l0) / Math.max(1, l1 - l0)); }
+  }
+  return EXP_SLOW[EXP_SLOW.length - 1][1];
+}
+export const expBase = (L) => 27 * L ** 2.3 * (1 + (L / 30) ** 2.2);   // v261 배율 없는 곡선(애완동물은 이것으로 — 무인 곡선을 늦춰도 애완동물까지 늦지 않게)
+export const expToNext = (L) => Math.round(expBase(L) * expSlow(L));   // v110: 스킬 레벨·옵션으로 사냥이 빨라져 ×1.35 · v261 구간 배율
 export const STAT_PER_LEVEL = 3;
+// v262 스탯의 제 몫 — 점당 · 상한
+export const STAT_ROLE = { strBoss: 0.0015, strBossMax: 0.6, dexMove: 0.0008, dexMoveMax: 0.3, vitRed: 0.0003, vitRedMax: 0.15, intCdr: 0.0004, intCdrMax: 0.15 };
 export const STATS = [
-  { id: 'str', name: '힘', desc: '공격력 +3 · 공격력 +0.3%' },
-  { id: 'dex', name: '민첩', desc: '치명 +0.4%p · 공격 속도 +1%' },
-  { id: 'vit', name: '체력', desc: '최대 체력 +20 · 최대 체력 +0.3% · 방어 +0.2' },
-  { id: 'int', name: '내공', desc: '스킬 피해 +0.7% · 체력 회복 +0.12/초' },
+  { id: 'str', name: '힘', desc: '공격력 +3 · 공격력 +0.3% · 두목 피해 +0.15%' },
+  { id: 'dex', name: '민첩', desc: '치명 +0.4%p · 공격 속도 +1% · 걸음 +0.08%' },
+  { id: 'vit', name: '체력', desc: '최대 체력 +20 · 최대 체력 +0.3% · 방어 +0.2 · 받는 피해 -0.03%' },
+  { id: 'int', name: '내공', desc: '스킬 피해 +0.7% · 체력 회복 +0.12/초 · 무공 숨 -0.04%' },
 ];
 // 레벨이 오르면 겉모습도 한 단계씩 (옛 경지 그림 스물을 레벨에 나눠 쓴다)
 export const lookTierOf = (level) => Math.min(RANKS.length - 1, Math.floor((level - 1) / 8));
@@ -394,6 +407,8 @@ export const ZONE_BOSS_PATS = ['aim', 'line', 'cone', 'nova'];
 export const ZONE_BOSS_FROM = 30;
 // v241: 두목은 최소 이만큼은 버틴다 — 무인의 초당 피해(무공 몫 ×1.5)로 셈한 체력이 기본보다 크면 그만큼(최대 3배). 함께 사냥(문파원과 왕)·던전은 그대로
 export const BOSS_MIN_SEC = { zone: 45, king: 100, lord: 150 };
+export const BOSS_REPEAT_K = 0.4;   // v262 한 번 잡은 두목은 최소 싸움 시간의 이만큼만
+export const BRAVE_PER = 0.04, BRAVE_MAX = 0.4;   // v262 패기
 export const OVERPOWER_MAX = 4;   // v242: 3 → 4
 // 몹 등급 (v116): 0 졸개 · 1 정예 · 2 두목 · 3 십이지왕 — 등급마다 겉모습·기운이 다르다.
 // 들판 정예는 드물게(4%) 섞여 나고 세다(체력 ×3 · 공격 ×1.4) — 대신 경험치·은자 ×2.5, 재료를 두 번 굴린다.
@@ -554,6 +569,10 @@ const STEP_PREFIX = [null, '청죽', '사철', '빙정', '혈석', '귀화', '�
 // 강화 +1~+10, 그 위로 **돌파** +11~+15(조합 장비만). 돌파는 두목 증표가 더 들고, 한 단계가 더 크다.
 export const ENHANCE_MAX = 15;
 export const ENHANCE_NORMAL = 10;
+// v261: 강화 상한을 레벨에 묶는다 — 6칸 +10이 2.8시간(Lv32)에 끝나 중반에 이정표가 없었다. [이 레벨부터, 여기까지]
+export const ENHANCE_LV_CAP = [[1, 5], [12, 7], [30, 9], [45, 10], [65, 11], [80, 12], [95, 13], [110, 14], [125, 15]];
+export function enhanceLvCap(level) { let c = ENHANCE_LV_CAP[0][1]; for (const [lv, m] of ENHANCE_LV_CAP) if (level >= lv) c = m; return c; }
+export function enhanceCapNext(level) { return ENHANCE_LV_CAP.find(([lv]) => lv > level) || null; }
 export const ENHANCE_STEP = 0.15;                // +1~+10: 한 단계에 기본 수치 +15% (v153: 12%에서 — 강화가 어려워진 만큼 크게)
 export const BREAK_STEP = 0.3;                   // 돌파 +11~+15: 한 단계에 +30% (+10 2.5배 · +15 4배, v153)
 export const enhanceMult = (plus) => 1 + Math.min(plus, ENHANCE_NORMAL) * ENHANCE_STEP + Math.max(0, plus - ENHANCE_NORMAL) * BREAK_STEP;
@@ -784,10 +803,31 @@ export const RETURN_SEC = 3;
 // ---------- 방치 ----------
 export const OFFLINE_CAP_SEC = 10 * 3600;
 export const RATE_WINDOW_SEC = 300;
+// v261: 처치 포화 — 분당 처치가 이만큼을 넘으면 한 마리 경험치가 (기준/분당)^0.8로 준다.
+// 광역 직업(환마·독마)이 다시 나는 속도 상한(분당 2,100)에 닿아 다른 직업보다 세 배 빨리 올랐다(시뮬 7일 vs 16일). 은자는 그대로.
+export const EXP_SAT_KPM = 800;
+export const expSat = (kpm) => (kpm > EXP_SAT_KPM ? (EXP_SAT_KPM / kpm) ** 0.8 : 1);
 export const FOLLOW_GAP = 3;   // v260: 알맞은 사냥터 따라가기 — 구역 최고 레벨보다 이만큼 넘게 높으면 옮긴다
 // v260: 방치 효율 — 오래 비울수록 덜 번다(앞 두 시간은 그대로). [이 시각(초)까지, 그 구간 효율]
 // 만렙을 실사용 2주에 맞추며 '열 시간 방치 = 레벨 +20'이던 것을 누른다.
-export const OFFLINE_TIERS = [[2 * 3600, 1], [6 * 3600, 0.7], [10 * 3600, 0.4]];
+export const OFFLINE_TIERS = [[2 * 3600, 1], [6 * 3600, 0.7], [14 * 3600, 0.4]];   // v262 무관 증축으로 상한이 14시간까지 늘 수 있다
+// v262: 은자 쓸 곳 — 무관 증축(방치 상한 +1시간씩 · 방치 효율 +5%씩) · 영약(30분 경험치·은자 +25%)
+export const HALL = {
+  cap: { name: '방치 상한', max: 4, desc: (n) => `방치를 ${10 + n}시간까지 쳐요` },
+  eff: { name: '방치 효율', max: 5, desc: (n) => `방치 벌이 +${n * 5}%` },
+};
+// 지금 레벨에서 사냥 한 시간 은자(시뮬: 분당 몹 100마리) × 단계마다 커지는 배수
+export const hallCost = (kind, n, level) => Math.round(mobGold(level) * 100 * 60 * (kind === 'cap' ? 4 : 3) * (n + 1) ** 1.6);
+export const ELIXIR_SEC = 30 * 60;
+export const ELIXIR_MAX = 3 * 3600;
+export const ELIXIR_BONUS = 0.25;
+export const elixirPrice = (level) => Math.round(mobGold(level) * 100 * 20);   // 사냥 20분어치
+// v262 세력 상점 — 세력 재료를 바꾼다. 협의패 → 보호부 · 흑도령 → 애완동물 영단 · 마혈정 → 십이지 뽑기권(무작위 신)
+export const FAC_SHOP = [
+  { id: 'prot', mat: 'fm', n: 150, name: '강화 보호부 1장', desc: '+11부터 실패해도 그대로' },
+  { id: 'petfood', mat: 'fs', n: 100, name: '애완동물 영단', desc: '데려간 애완동물이 경험치를 크게 얻어요' },
+  { id: 'ticket', mat: 'fg', n: 800, name: '십이지 뽑기권 1장', desc: '열두 신 가운데 하나(무작위)' },
+];
 export function offlineEffSec(t) {
   let out = 0, from = 0;
   for (const [to, k] of OFFLINE_TIERS) { if (t <= from) break; out += (Math.min(t, to) - from) * k; from = to; }
@@ -846,9 +886,13 @@ export function rollPetKind(z, rng) {
   return pool[0].id;
 }
 export const PET_LV_MAX = 30;
+// v262 애완동물 — 포획 조각(졸개가 가끔 떨군다 → 모으면 그 지역 애완동물 하나) · 혼(Lv30 뒤 경험치 → 등급 올리기)
+export const PET_SHARD_RATE = 1 / 300;
+export const PET_SHARD_NEED = 100;
+export const PET_SOUL_COST = [6, 18, 45];   // 레어→영웅 · 영웅→전설 · 전설→신화
 export const PET_BOX = 10;
 // 무인 경험치의 절반을 받는다. 무인 레벨 10+4×(애완 레벨)의 60% — 무인과 함께 오래 자란다
-export const petExpToNext = (lv) => Math.round(expToNext(10 + lv * 4) * 0.6);
+export const petExpToNext = (lv) => Math.round(expBase(10 + lv * 4) * 0.6);
 // 순위·등급(레어~신화)·레벨로 버프·공격이 커진다
 export const petScale = (pet) => RARITY[pet.rar].mult * (1 + (pet.lv - 1) * 0.05);
 export const petBuff = (pet) => petOf(pet.kind).base * petScale(pet);

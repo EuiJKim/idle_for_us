@@ -134,13 +134,19 @@ FX.bboom = (view, ctx, e, k) => {
     else { ctx.fillStyle = `rgba(${e.fx.col},${0.7 * k})`; ctx.fillRect(-e.len / 2, -w / 4, e.len, w / 2); }
     return;
   }
-  const s = e.r * (1 + p * 0.7) * 2.4;
+  // v261: 터지는 그림이 들판 전체를 하얗게 덮었다 — 크기 2.4→2.0배 · 그림 0.8까지 · 흰 심을 밝기 예산 안에서
+  const s = e.r * (1 + p * 0.55) * 2.0;
   ctx.scale(1, view.squash / 0.75 * (0.85 + p * 0.15));
   ctx.rotate(e.spin * p);
-  ctx.globalAlpha = Math.min(1, k * 1.5);
+  ctx.globalAlpha = Math.min(0.8, k * 1.3);
   if (img) ctx.drawImage(img, -s / 2, -s / 2, s, s);
   // v252: 매 프레임 그라데이션을 만들던 것 — 구운 빛 두 장(빛깔 + 흰 심)
-  if (view.putGlow) { ctx.globalAlpha = 1; view.putGlow(ctx, e.fx.col, 0, 0, s * 0.45, 0.45 * k); view.putGlow(ctx, '255,255,255', 0, 0, s * 0.18, 0.55 * k); }
+  if (view.putGlow) {
+    ctx.globalAlpha = 1;
+    view.putGlow(ctx, e.fx.col, 0, 0, s * 0.42, 0.4 * k);
+    const wa = view.lumTake ? view.lumTake(0.35 * k) : 0.35 * k;
+    if (wa > 0) view.putGlow(ctx, '255,255,255', 0, 0, s * 0.16, wa);
+  }
 };
 // 펼칠 때 발밑의 진 — { kind: 'bcast', wx, wy, r, fx, life, max }
 FX.bcast = (view, ctx, e, k) => {
@@ -297,6 +303,23 @@ function drawMasterAura(view, ctx, x, y, H, fac, lord, t, casting, alpha) {
   }
   ctx.restore();
 }
+const BRIGHT = new WeakMap();
+function brightOf(img) {
+  let c = BRIGHT.get(img);
+  if (c) return c;
+  c = document.createElement('canvas');
+  const k = Math.min(1, 512 / Math.max(img.width, img.height));
+  c.width = Math.max(1, Math.round(img.width * k)); c.height = Math.max(1, Math.round(img.height * k));
+  const g = c.getContext('2d');
+  g.drawImage(img, 0, 0, c.width, c.height);
+  g.globalCompositeOperation = 'lighter';
+  g.drawImage(img, 0, 0, c.width, c.height);   // 두 번 더해 밝게(brightness 2 비슷하게)
+  g.globalCompositeOperation = 'source-atop';
+  g.fillStyle = 'rgba(255,245,230,0.35)';
+  g.fillRect(0, 0, c.width, c.height);
+  BRIGHT.set(img, c);
+  return c;
+}
 export function drawBossSprite(view, ctx, m, x, y, alpha, o) {
   const img = bossImg(m.def?.art);
   if (!img) return false;
@@ -313,12 +336,9 @@ export function drawBossSprite(view, ctx, m, x, y, alpha, o) {
   ctx.globalAlpha = alpha;
   // 기운 — 뒤에서 은은히, 기운을 모을 때는 세게
   const col = o.col;
-  const glow = ctx.createRadialGradient(x, y - H * 0.5, 4, x, y - H * 0.5, H * 0.62);
-  glow.addColorStop(0, `rgba(${col},${casting ? 0.5 + Math.sin(t * 10) * 0.12 : 0.18})`);
-  glow.addColorStop(1, `rgba(${col},0)`);
+  // v261: 매 프레임 그라데이션 → 구운 빛
   ctx.globalCompositeOperation = 'lighter';
-  ctx.fillStyle = glow;
-  ctx.fillRect(x - H * 0.65, y - H * 1.15, H * 1.3, H * 1.3);
+  view.putGlow(ctx, col, x, y - H * 0.5, H * 0.62, casting ? 0.5 + Math.sin(t * 10) * 0.12 : 0.18);
   ctx.globalCompositeOperation = 'source-over';
   ctx.translate(x + (o.lunge || 0) * (flip ? -18 : 18), y - walk - lift + (m.alive ? 0 : (1 - alpha) * 14));
   ctx.rotate((m.move ? Math.sin(t * 9) * 0.03 : Math.sin(t * 1.2) * 0.012) * (flip ? -1 : 1));
@@ -329,9 +349,8 @@ export function drawBossSprite(view, ctx, m, x, y, alpha, o) {
   if (flash > 0.02) {
     ctx.globalCompositeOperation = 'lighter';
     ctx.globalAlpha = alpha * Math.min(0.85, flash);
-    ctx.filter = 'brightness(2.2)';
-    ctx.drawImage(img, -W / 2, -H, W, H);
-    ctx.filter = 'none';
+    // v261: ctx.filter(brightness)는 비싸고 iOS 사파리에서 안 먹을 수 있다 — 밝은 실루엣을 한 번 구워 더한다
+    ctx.drawImage(brightOf(img), -W / 2, -H, W, H);
   }
   ctx.restore();
   // 세력 기운은 그림 위에 — 뒤에 깔면 큰 그림에 가려 안 보였다

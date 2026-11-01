@@ -63,12 +63,32 @@ let modalOnClose = null;
 // v254 창이 몇 번째로 열린 것인지 — 연출 타이머가 '내가 띄운 그 창'이 아직 열려 있는지 확인한다
 let modalSeq = 0;
 export const modalGen = () => modalSeq;
+// v261: data-count가 붙은 숫자는 창이 뜰 때 0에서 세어 올라간다(0.6초, 끝으로 갈수록 느리게)
+export function countUpIn(root) {
+  const els = [...root.querySelectorAll('[data-count]')];
+  if (!els.length) return;
+  const reduce = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (reduce) return;
+  const t0 = performance.now(), D = 600;
+  const items = els.map((el) => ({ el, v: Number(el.dataset.count) || 0, suf: el.dataset.suffix || '' }));
+  const step = (now) => {
+    const k = Math.min(1, (now - t0) / D), e = 1 - (1 - k) ** 3;
+    for (const it of items) it.el.textContent = fmt(Math.round(it.v * e)) + it.suf;
+    if (k < 1) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+}
+let modalCloseT = null;
 export function openModal(build, { dismissable = true, onClose } = {}) {
   modalSeq++;
   const modal = document.getElementById('modal');
+  // v261: 닫히는 중(사라지는 0.15초)에 새 창이 오면 그 사라짐을 멈춘다
+  if (modalCloseT) { clearTimeout(modalCloseT); modalCloseT = null; }
+  modal.classList.remove('closing');
   const sheet = modal.querySelector('.sheet');
   sheet.replaceChildren();
   build(sheet);
+  countUpIn(sheet);
   modal.classList.remove('hidden');
   document.body.classList.add('modal-open');
   modal.onclick = dismissable ? (e) => { if (e.target === modal) closeModal(); } : null;
@@ -76,13 +96,21 @@ export function openModal(build, { dismissable = true, onClose } = {}) {
 }
 export function closeModal() {
   modalSeq++;
-  document.getElementById('modal').classList.add('hidden');
+  // v261: 닫을 때 0.15초 옅어지며 작아진다 — 전엔 툭 사라졌다. 닫힌 셈(modalOpen)은 바로부터.
+  const modal = document.getElementById('modal');
+  const reduce = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (reduce || modal.classList.contains('hidden')) modal.classList.add('hidden');
+  else {
+    modal.classList.add('closing');
+    if (modalCloseT) clearTimeout(modalCloseT);
+    modalCloseT = setTimeout(() => { modalCloseT = null; if (modal.classList.contains('closing')) { modal.classList.remove('closing'); modal.classList.add('hidden'); } }, 150);
+  }
   document.body.classList.remove('modal-open');
   const cb = modalOnClose;
   modalOnClose = null;
   if (cb) cb();
 }
-export const modalOpen = () => !document.getElementById('modal').classList.contains('hidden');
+export const modalOpen = () => { const m = document.getElementById('modal'); return !m.classList.contains('hidden') && !m.classList.contains('closing'); };
 
 // v는 보통 숫자일 수도 Big일 수도 있다. 백분율·배수는 작은 값이라
 // 숫자로 써도 되지만, Big이 올 수 있으니 toFixed를 쓰는 쪽만 조심한다.
@@ -132,11 +160,13 @@ export function subTabs(views, memo = null) {
   });
   function select(key) {
     // v256: 다른 칸으로 바꾸면 맨 위부터 — 전엔 앞 칸의 스크롤이 남아 새 칸이 중간부터 보였다
-    if (cur && cur !== key) { const pb = document.getElementById('panel-body'); if (pb) pb.scrollTop = 0; }
+    const changed = !!cur && cur !== key;
+    if (changed) { const pb = document.getElementById('panel-body'); if (pb) pb.scrollTop = 0; }
     cur = key;
     if (memo) try { localStorage.setItem(memo, key); } catch { /* 사생활 모드 */ }
     if (!made[key]) made[key] = views.find((v) => v.key === key).make();
     body.replaceChildren(made[key].root);
+    if (changed) { body.classList.remove('tab-in'); void body.offsetWidth; body.classList.add('tab-in'); }   // v261 칸을 바꾸면 살짝 밀려 들어온다
     buttons.forEach(([k, b]) => b.classList.toggle('on', k === key));
     // 창 머리 자원칸이 바로 따라오게 알린다. UI 갱신은 0.2초마다라
     // 이 알림이 없으면 하위 탭을 눌러도 잠깐 옛 자원이 남아 있었다.

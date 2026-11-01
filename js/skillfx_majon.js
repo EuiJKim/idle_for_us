@@ -597,6 +597,7 @@ function ultimate(d, col, text, dur, o = {}) {
   }
   d.at(full ? 0.8 : 0.15, () => d.fx('bigname', Math.min(1.2, dur * 0.6), { text, col }));
   v.desatTo = full ? 0.6 : 0.35;
+  v.ultUntil = v.t + dur + 0.3;   // v261 이 동안 무인을 연출 층 위에 한 번 더
   v.camHold = Math.max(v.camHold || 0, 0.25);
   d.at(dur * 0.9, () => { v.desatTo = 0; });
 }

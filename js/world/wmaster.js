@@ -44,6 +44,9 @@ export const floorOf = (lv) => Math.max(1, Math.min(TOWER_MAX, Math.round((lv - 
 export const MASTER_BONUS = 0.01;
 export const LORD_BONUS = 0.03;
 export const masterBonusOf = (m) => (m.lord ? LORD_BONUS : MASTER_BONUS);
+// v262 비무 별 — 빠르게(이 초 안에) · 별 하나마다 그 고수 덤의 이만큼 더
+export const STAR_BONUS = 0.25;
+export const starSec = (m) => (m.lord ? 90 : 50);
 export function masterReward(m) {
   const z = zoneForLv(Math.min(m.lv, 150));
   const k = m.lord ? 3 : 1;

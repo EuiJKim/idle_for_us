@@ -240,6 +240,7 @@ console.log('\n=== 장비 ===');
   for (let i = 0; i < g.s.bagSize + 5; i++) g.gainItem(g.makeItem('armor', 1, 0));
   ok(g.s.bag.length === g.s.bagSize, '가방이 넘치면 나쁜 것부터 판다', `${g.s.bag.length}/${g.s.bagSize}`);
   g.s.gold = 1e9;
+  g.s.level = W.LEVEL_MAX;   // v261 강화 상한은 레벨에 묶였다 — 여기서는 장비의 끝을 본다
   const p0 = strong.plus;
   let tries = 0;
   while (strong.plus === p0 && tries++ < 20) g.enhance(strong.uid);
@@ -255,7 +256,9 @@ console.log('\n=== 재료 · 성장 장비 (v158) ===');
   h.enterMap(11);
   let n = 0;
   for (let i = 0; i < 10000; i++) if (h.dropMats({ lv: 5, isBoss: false })) n++;
-  ok(Math.abs(n / 10000 - W.MAT_RATE) < 0.02, '몹 재료 확률이 설계대로', `${(n / 100).toFixed(1)}%`);
+  const TDm = await import('../js/world/wtoday.js');
+  const matK = (1 + h.braveBonus()) * (TDm.bloodOn() ? 1 + TDm.BLOOD_BONUS : 1);   // v262 패기 · 혈겁
+  ok(Math.abs(n / 10000 - W.MAT_RATE * matK) < 0.02, '몹 재료 확률이 설계대로(패기·혈겁 포함)', `${(n / 100).toFixed(1)}% / ${(W.MAT_RATE * matK * 100).toFixed(1)}%`);
   ok(h.s.mats[1] === n && !h.s.bag.length, '졸개는 재료만 떨군다(장비는 안 떨군다)', `${W.MATS[1]} ${h.s.mats[1]}`);
   // 두목은 사다리 장비를 떨구지 않는다 — 가끔 증표 한 움큼. 십이지왕은 왕의 장비를 떨군다.
   const d = fresh();
@@ -285,7 +288,7 @@ console.log('\n=== 재료 · 성장 장비 (v158) ===');
   ok(g.sell(w) === 0 && g.findItem(w.uid) === w, '성장 장비는 팔 수 없다');
   // 강화 (v192): +11에서 실패해도 -2 (사라지지도 +0이 되지도 않는다)
   {
-    const E = fresh(); E.s.gold = 1e15; E.s.prot = 0;
+    const E = fresh(); E.s.gold = 1e15; E.s.prot = 0; E.s.level = W.LEVEL_MAX;
     for (let k = 1; k <= 60; k++) { E.s.mats[k] = 1e6; E.s.mats[W.bossKey(k)] = 1e6; }
     const ew = E.s.equip.weapon; ew.plus = W.ENHANCE_NORMAL;
     E.rng = () => 0.99;
@@ -473,7 +476,7 @@ console.log('\n=== 등급 · 스킬 옵션 · 승급 · 돌파 · 스킬 레벨 
   ok(L.skillLevel('s0') === Math.min(W.SKILL_LV_MAX, 1 + ups) && L.skillMods('s0').dmg > d0 + 0.3, '스킬 레벨을 올리면 피해·숨·범위가 좋아진다', `Lv.${L.skillLevel('s0')} 피해 +${(L.skillMods('s0').dmg * 100).toFixed(0)}%`);
   ok(migrateWorld({ level: 40 }).skillPts === 26 && migrateWorld({ level: 40, skillV: 1, skillPts: 3 }).skillPts === 3, '옛 세이브는 레벨 15부터 오른 만큼 스킬 점수를 한 번에');
   // 돌파
-  const B = fresh();
+  const B = fresh(); B.s.level = W.LEVEL_MAX;   // v261 강화 상한(레벨)
   const bz = W.stepMap(10);                       // 그 칸의 재료 지역
   B.s.gold = 1e12; B.s.mats = { [bz]: 1e6, [W.bossKey(bz)]: 0 };
   const bw = B.makeCrafted('weapon', 10, 10, 0);
@@ -486,7 +489,7 @@ console.log('\n=== 등급 · 스킬 옵션 · 승급 · 돌파 · 스킬 레벨 
   // 강화 (v150 · v192)
   ok(W.enhanceRate(0) === 1 && W.enhanceRate(2) === 1 && W.enhanceRate(3) === 0.95 && W.enhanceRate(9) === 0.41 && W.enhanceRate(14) === 0.08, '성공률: +1~3 100% · +4 95% · +10 41% · +15 8%');
   ok(W.enhanceFail(1) === 0 && W.enhanceFail(6) === 0 && W.enhanceFail(7) === -1 && W.enhanceFail(9) === -1 && W.enhanceFail(10) === -2, '실패: +7까지 그대로 · +8~10 -1 · +11부터 -2');
-  const E = fresh();
+  const E = fresh(); E.s.level = W.LEVEL_MAX;
   E.s.gold = 1e15; E.s.mats = { [bz]: 1e7, [W.bossKey(bz)]: 1e6 };
   E.rng = () => 0.999;                                        // 늘 실패
   const e1 = E.makeCrafted('weapon', 10, 6, 0); E.s.equip.weapon = e1;
@@ -547,7 +550,7 @@ console.log('\n=== 십이지왕 신화 · 가락지·귀걸이 · 애완동물 �
   ok(names.size === W.ZONE_COUNT, `귀걸이도 두목마다 이름이 다르다(${names.size}가지)`);
   const ring = a.makeCrafted('finger', 4, 0, 1, 3);
   const wpn = a.makeCrafted('weapon', 4, 0, 1);
-  ok(a.enhanceRateOf(ring) === W.enhanceRate(0) * W.ACC2_RATE && a.enhanceCost(ring) === a.enhanceCost(wpn) * W.ACC2_COST && a.enhanceMax(ring) === 10, '가락지·귀걸이 강화는 어렵다(성공률 절반·은자 ×3·돌파 없음)');
+  ok(a.enhanceRateOf(ring) === W.enhanceRate(0) * W.ACC2_RATE && a.enhanceCost(ring) === a.enhanceCost(wpn) * W.ACC2_COST && a.enhanceMaxItem(ring) === 10, '가락지·귀걸이 강화는 어렵다(성공률 절반·은자 ×3·돌파 없음)');
   // 애완동물
   const p = fresh();
   p.s.level = 30;
@@ -805,7 +808,7 @@ console.log('\n=== 장비 개편 (v130) ===');
   ok(other.setCounts().plum === 1 && !Object.keys(other.setBonus()).length, '다른 직업이 끼면 세트 효과가 없다');
   // 강화는 그 왕의 재료로, 돌파까지
   const sw2 = sw.s.equip.weapon;
-  ok(sw.enhanceMats(sw2).key === 'st26' && sw.enhanceMats(sw.s.equip.armor).key === 'st24' && sw.enhanceMax(sw2) === W.ENHANCE_MAX, '세트 무기는 도왕의 강화석, 옷은 살왕의 강화석으로만');
+  ok(sw.enhanceMats(sw2).key === 'st26' && sw.enhanceMats(sw.s.equip.armor).key === 'st24' && sw.enhanceMaxItem(sw2) === W.ENHANCE_MAX, '세트 무기는 도왕의 강화석, 옷은 살왕의 강화석으로만');
   ok(W.matName('st26').includes('도왕') && W.matName('st24').includes('명부'), '강화석 이름 — ○왕의 ○○석', `${W.matName('st26')} / ${W.matName('st24')}`);
   const p0 = sw2.plus || 0; sw.s.mats.st26 = 500; sw.rng = () => 0;
   ok(sw.enhance(sw2.uid) && sw2.plus === p0 + 1 && sw.s.mats.st26 === 500 - G.stoneN(p0), '강화석으로 강화');
@@ -1594,6 +1597,112 @@ console.log('\n=== 걸으면서 무공 · 범위 (v157) ===');
   ok(sks.every((sk) => { const r = g.skillReach(sk); return r === null || (r.r >= 0 && r.reach >= 0); }) && sks.some((sk) => g.skillReach(sk)?.r > 0), '무공마다 범위(반경·사거리)를 낼 수 있다');
 }
 
+console.log('\n=== v261 강화 상한 · 경험치 구간 ===');
+{
+  const g = fresh(); g.s.gold = 1e15;
+  for (let k = 1; k <= 60; k++) g.s.mats[k] = 1e6;
+  const w = g.s.equip.weapon;
+  for (let i = 0; i < 50; i++) g.enhance(w.uid);
+  ok(w.plus === W.enhanceLvCap(g.s.level) && w.plus === 5 && !g.canEnhance(w), 'Lv1은 +5까지 — 강화 상한은 레벨에 묶인다', `+${w.plus}`);
+  g.s.level = 45;
+  ok(g.enhanceMax(w) === 10 && W.enhanceCapNext(45)[0] === 65, 'Lv45 +10 · 다음은 Lv65', `${g.enhanceMax(w)}`);
+  ok(W.expSlow(5) === 1 && W.expSlow(40) === 2.6 && W.expToNext(10) === Math.round(27 * 10 ** 2.3 * (1 + (10 / 30) ** 2.2)), '첫 시간(~Lv12)의 경험치는 그대로 · 뒤로 갈수록 배율');
+}
+
+console.log('\n=== v262 경제 · 복귀 · 선택 ===');
+{
+  const TDm = await import('../js/world/wtoday.js');
+  const DG = await import('../js/world/wdgn.js');
+  const g = fresh(); g.s.gold = 1e15;
+  while (g.s.level < 60) g.addExp(W.expToNext(g.s.level));
+  // 영약
+  ok(g.buyElixir() && g.s.elixir === W.ELIXIR_SEC, '영약 — 30분');
+  for (let i = 0; i < 10; i++) g.buyElixir();
+  ok(g.s.elixir === W.ELIXIR_MAX, '영약은 3시간까지만 쌓인다');
+  // 무관 증축
+  const c0 = g.offlineCapSec();
+  ok(g.buyHall('cap') && g.offlineCapSec() === c0 + 3600 && g.hallCost('cap') > W.hallCost('cap', 0, g.s.level), '무관 증축 — 방치 상한 +1시간 · 다음 값은 더 비싸다');
+  g.s.rates = { kills: 1, exp: 100, gold: 100, potions: 0, bosses: 0, map: W.mapId(1, 1) };
+  g.s.lastSeen = 0; g.s.clockMax = 0; g.s.elixir = 0;
+  const r0 = g.offlineReward(20 * 3600e3);
+  ok(Math.abs(r0.t - (W.OFFLINE_CAP_SEC + 3600)) < 1, '방치 상한이 늘었다(11시간)', `${(r0.t / 3600).toFixed(1)}시간`);
+  for (let i = 0; i < 5; i++) g.buyHall('eff');
+  const r1 = g.offlineReward(20 * 3600e3);
+  ok(r1.te > r0.te * 1.2 && g.hallCost('eff') === null, '방치 효율 +25%까지(다 사면 끝)', `${(r0.te / 3600).toFixed(2)} → ${(r1.te / 3600).toFixed(2)}`);
+  g.s.elixir = 3600;
+  const r2 = g.offlineReward(20 * 3600e3);
+  ok(r2.gold > r1.gold && r2.elix === 3600, '영약은 방치 중에도 닳으며 벌이를 늘린다');
+  g.claimOffline(r2);
+  ok(g.s.elixir === 0, '받으면 영약 시간이 줄어든다');
+  // 세력 상점
+  g.s.mats.fm = 300; g.s.prot = 0;
+  ok(g.buyFac('prot') && g.s.prot === 1 && g.s.mats.fm === 150, '세력 상점 — 협의패 150 → 보호부');
+  g.s.mats.fg = 800;
+  const tk0 = Object.values(g.s.zTickets).reduce((a, b) => a + b, 0);
+  ok(g.buyFac('ticket') && Object.values(g.s.zTickets).reduce((a, b) => a + b, 0) === tk0 + 1, '마혈정 800 → 십이지 뽑기권');
+  // 일일 던전 남긴 횟수는 하루 넘어온다
+  const d0 = Date.UTC(2026, 9, 26, 3);
+  g.dgnToday(d0); g.s.dgn.used.exp = 1;
+  ok(g.dailyLeft('exp', d0 + 86400e3) === DG.DAILY_ENTRIES + 2, '어제 남긴 두 번이 오늘로', `${g.dailyLeft('exp', d0 + 86400e3)}`);
+  ok(g.dailyLeft('exp', d0 + 3 * 86400e3) === DG.DAILY_ENTRIES, '하루만 넘어온다');
+  // 오늘의 강호
+  const now = Date.UTC(2026, 9, 27, 3);
+  const realNow = Date.now; Date.now = () => now;
+  try {
+    const list = g.todayTasks(now);
+    ok(list.length === TDm.TASKS_PER_DAY && new Set(list.map((x) => x.id)).size === 3 && JSON.stringify(TDm.tasksOf('2026-10-27').map((x) => x.id)) === JSON.stringify(list.map((x) => x.id)), '하루 과제 셋 — 날짜로 정해진다');
+    const x = list[0];
+    g.tday(x.counter, x.need);
+    const gold0 = g.s.gold;
+    ok(g.claimToday(x.id, now) && g.s.gold > gold0 && g.s.week.pts === 1 && !g.claimToday(x.id, now), '다 하면 받기 · 두 번은 못 받는다');
+    g.s.week.pts = TDm.WEEK_NEED;
+    const p0 = g.s.prot;
+    ok(g.openWeek(now) && g.s.prot === p0 + 3 && !g.canOpenWeek(now), '주간 상자 — 한 주에 한 번');
+  } finally { Date.now = realNow; }
+  ok(TDm.bloodOn(Date.UTC(2026, 9, 27, 3, 30)) && !TDm.bloodOn(Date.UTC(2026, 9, 27, 6)), '혈겁 — 한국 시간 12~14시(UTC 3시)');
+  // 스탯의 제 몫
+  const b0 = g.stats().boss;
+  g.s.stats.str += 100; g._stats = null;
+  ok(g.stats().boss > b0 * 1.14, '힘 100 → 두목 피해 +15%', `${b0.toFixed(2)} → ${g.stats().boss.toFixed(2)}`);
+  // 차림 두 벌
+  const L = fresh();
+  while (L.s.level < 40) L.addExp(W.expToNext(L.s.level));
+  L.s.autoStat = false;
+  L.addStat('str', 10);
+  ok(L.switchLoadout(1) && L.s.loadout === 1 && L.s.stats.str === 10, '처음엔 지금 차림을 복사');
+  const pts = L.s.statPts;
+  L.s.stats.str -= 10; L.s.statPts += 10; L.addStat('vit', 10);
+  ok(L.switchLoadout(0) && L.s.stats.str === 10 && L.s.stats.vit === 0 && L.s.statPts === pts, '차림 1로 — 힘 10');
+  ok(L.switchLoadout(1) && L.s.stats.vit === 10 && L.s.stats.str === 0, '차림 2로 — 체력 10');
+  // 애완동물 조각 · 혼
+  const P = fresh();
+  P.enterMap(W.mapId(3, 1));
+  P.s.petShard = W.PET_SHARD_NEED;
+  const pet = P.shardPet();
+  ok(pet && P.s.petShard === 0, '포획 조각 100 → 애완동물 하나');
+  pet.lv = W.PET_LV_MAX; P.s.pets = [pet];
+  P.petExp(W.petExpToNext(W.PET_LV_MAX) * 7);
+  ok(P.s.petSoul === 7, '다 큰 애완동물의 경험치는 혼으로', `${P.s.petSoul}`);
+  ok(P.soulUp(pet.uid) && pet.rar === 1 && P.s.petSoul === 1, '혼 6 → 등급 하나 위');
+  // 비무 별
+  ok(MS.STAR_BONUS === 0.25 && P.duelStars('x').n === 0, '별 없음');
+  P.s.duel.won.x = 1; P.s.duel.stars = { x: 3 };
+  ok(P.duelStars('x').n === 3 && P.duelStars('x').extra === 2, '별 셋');
+  // 99 뒤 돌파 증표 — 왕 증표로 대신
+  const K = fresh(); K.s.level = 120;
+  const kw = K.s.equip.weapon; kw.plus = 12;
+  const km = K.enhanceMats(kw);
+  K.s.mats[W.bossKey(km.key)] = 0; K.s.mats[W.bossKey(W.NORMAL_ZONES + 3)] = 50;
+  ok(K.breakMarkKey(kw) === W.bossKey(W.NORMAL_ZONES + 3), '99 뒤 돌파 증표가 모자라면 왕 증표로', K.breakMarkKey(kw));
+  K.s.level = 60;
+  ok(K.breakMarkKey(kw) === null, '99 전에는 안 된다');
+  // 자동 강화
+  const A = fresh(); A.s.gold = 1e15; for (let k = 1; k <= 60; k++) A.s.mats[k] = 1e6;
+  A.s.autoEnh = true;
+  A.autoGear();
+  ok(W.GROW_SLOTS.every((k) => (A.s.equip[k]?.plus || 0) === W.enhanceLvCap(A.s.level)), '자동 강화 — 여섯 칸을 레벨 상한까지');
+}
+
 console.log('\n=== 일일 던전 열쇠 (v156 · v260 하루 셋) ===');
 {
   const DG = await import('../js/world/wdgn.js');
@@ -1678,7 +1787,7 @@ console.log('\n=== 일일 던전 열쇠 (v156 · v260 하루 셋) ===');
   ok(g.offlineReward(3600 * 1000).marks === 0, '두목을 못 잡던 캐릭터는 방치 증표 0');
   g.s.rates = { ...g.s.rates, bosses: 1 / 60 };
   const mk = g.offlineReward(3600 * 1000).marks;
-  ok(mk > 0 && mk <= Math.floor(3600 / (W.BOSS_RESPAWN + W.BOSS_MIN_SEC.zone)), '두목을 잡던 빠르기만큼(상한 있음)', `${mk}`);
+  ok(mk > 0 && mk <= Math.floor(3600 / (W.BOSS_RESPAWN + W.BOSS_MIN_SEC.zone * W.BOSS_REPEAT_K)) && mk <= 60, '두목을 잡던 빠르기만큼(상한 있음)', `${mk}`);
 }
 {
   // v260: 알맞은 사냥터 따라가기

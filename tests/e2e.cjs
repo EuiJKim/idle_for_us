@@ -142,7 +142,8 @@ async function tab(page, name) {
   await p.waitForSelector('#modal .enh-anim.result', { timeout: 5000 });
   assert(await G(p, () => window.__game.s.equip.weapon.plus) > plus0, '무기 강화 +1 (연출 뒤 결과)');
   // 떨어질 수 있는 강화(+8부터)는 먼저 묻는다 (v192: +7까지는 실패해도 그대로라 묻지 않는다)
-  await G(p, () => { window.__game.s.equip.weapon.plus = 8; });
+  // v261: 강화 상한이 레벨에 묶였다(+8은 Lv30 · +11은 Lv65부터)
+  await G(p, () => { const g = window.__game; g.s.level = Math.max(g.s.level, 70); g.s.equip.weapon.plus = 8; });
   await p.click('#modal button:has-text("돌아가기")');
   await p.click('#modal .enh-go');
   await p.waitForSelector('#modal .enh-ask');

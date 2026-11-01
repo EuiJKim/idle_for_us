@@ -27,6 +27,11 @@ import { fmt } from './fmt.js';
 export const BRUSH = '"Yuji Syuku", "Nanum Brush Script", "Gowun Batang", serif';
 // v260 줍기 글자를 한 줄로 모으는 틈(초)
 const LOOT_GAP = 0.6;
+// v261 구름 그림자 한 장(처음 그릴 때 굽는다)
+const SKY = { cloud: null };
+// v261 구운 물든 그림의 자세 번호(자세 객체 → 번호)
+const POSE_ID = new WeakMap();
+let POSE_N = 0;
 const HP_BAR_RANGE = 230;   // 이 거리 안의 적만 체력바를 보여준다
 
 // ---------- 깊이 ----------
@@ -354,6 +359,28 @@ function treasureAura(ctx, x, y, sc, t, sq = 0.5) {
   ctx.restore();
 }
 // v224: 정예 기운 — 발밑에 주황 불꽃 고리가 숨 쉬고, 불티 넷이 엇갈려 오른다 (멀리서도 '저건 세다'가 보이게)
+// '#rrggbb' → 'r,g,b' (구운 빛 열쇠)
+const RGB_MEMO = new Map();
+function hexRgb(hex) {
+  let v = RGB_MEMO.get(hex);
+  if (v) return v;
+  const c = String(hex).replace('#', '');
+  const f = c.length === 3 ? c.split('').map((x) => x + x).join('') : c.slice(0, 6);
+  v = [0, 2, 4].map((i) => parseInt(f.slice(i, i + 2), 16) || 0).join(',');
+  RGB_MEMO.set(hex, v);
+  return v;
+}
+function poisonMark(ctx, x, y, sc, t) {
+  putGlow(ctx, '132,204,22', x, y - 46 * sc, 44 * sc, 0.26 + 0.06 * Math.sin(t * 4));
+  for (let i = 0; i < 3; i++) {
+    const ph = (t * 0.9 + i / 3) % 1;
+    const bx = x + Math.sin(i * 2.1 + t * 1.3) * 16 * sc;
+    const by = y - 28 * sc - ph * 74 * sc;
+    const r = (2.2 + i * 0.8) * sc * (1 - ph * 0.4);
+    ctx.fillStyle = `rgba(190,242,100,${(0.75 * (1 - ph)).toFixed(3)})`;
+    ctx.beginPath(); ctx.arc(bx, by, r, 0, Math.PI * 2); ctx.fill();
+  }
+}
 function eliteAura(ctx, x, y, sc, t, sq = 0.5) {
   ctx.save();
   ctx.globalCompositeOperation = 'lighter';
@@ -763,6 +790,12 @@ export class BattleView {
       case 'petAttack':
         this.projectiles.push({ kind: 'orb', x: this.heroX - 50, y: this.groundY - 30, life: 0.3, max: 0.3 });
         break;
+      // v261: 독 — 1초 모은 피해를 작은 연둣빛 숫자로(흔들림·번쩍임 없이)
+      case 'dotTick': {
+        if (!ev.at) break;
+        this.float(fmt(ev.amount), this.sx(ev.at) + 14, this.sy(ev.at) - FLOAT_UP * 0.8, '#a3e635', 11, 0.8);
+        break;
+      }
       case 'dmg': {
         // 광역기는 맞은 적마다 제 머리 위에 숫자가 뜬다
         const atX = ev.at ? this.sx(ev.at) : this.monX;
@@ -868,7 +901,11 @@ export class BattleView {
           const a = ev.at;
           // 무공 연출이 붙든 쓰러짐은 at이 자리({x,y})만 남는다 — 생김새는 ref(그 몹)에서 (v125: 원숭이가 사람으로 쓰러졌다)
           const def = ev.ref?.def || a.def || {};
-          this.corpses.push({ x: a.x, y: a.y, def, t0: this.t, face: a.x >= (game.heroX || 0), seed: Math.random(), grade: ev.ref?.grade ?? a.grade });
+          // v261: 넘치게 맞을수록(오버킬) 더 멀리 · 더 높이 날아간다 — 전엔 처치가 다 같은 거리·회전이었다
+          const ref = ev.ref || a;
+          const over = Math.min(3, Number(ref.over) || 0);
+          const force = Math.min(2.6, 1 + over * 1.4 + (ev.isBoss ? 0 : Math.random() * 0.25));
+          this.corpses.push({ x: a.x, y: a.y, def, t0: this.t, face: a.x >= (game.heroX || 0), seed: Math.random(), grade: ev.ref?.grade ?? a.grade, force });
           if (this.corpses.length > 28) this.corpses.splice(0, this.corpses.length - 28);
         }
         // 졸개는 넘어지는 그림이 따로 있으니 먹물은 조금만 — 광역기로 열다섯을 베면 240방울이 튀어
@@ -1349,19 +1386,30 @@ export class BattleView {
     // v255 turn을 지운다 — 남아 있으면 drawFighter가 flip을 무시하고 무인의 지금 방향만 봤다(잔상·분신·컷인)
     const o = { ...opts, pose: pose ? { ...pose, alpha: 1 } : null, flip: !!flip, turn: null, lunge: 0, flash: 0, run: false };
     if (!tint) { drawFighter(ctx, x, y, look, o); return; }
+    // v261: 물든 그림(잔상·화신)은 (자세·방향·빛깔·해상도·차림)마다 한 번 구워 두고 다시 쓴다.
+    //   전엔 매 프레임 drawFighter 전체 + source-atop 물들임을 새로 그려 필살 중 가장 비쌌고(화신 84~96ms/2.2초),
+    //   180×200을 3.4배(dpr 2면 7배)로 늘려 화신이 뿌옜다 — 이제 그리는 배율만큼 크게 굽는다.
     const W = 180;
     const H = 200;
-    const c = this._ghostCv || (this._ghostCv = document.createElement('canvas'));
-    if (c.width !== W) { c.width = W; c.height = H; }
-    const gx = c.getContext('2d');
-    gx.setTransform(1, 0, 0, 1, 0, 0);
-    gx.globalCompositeOperation = 'source-over';
-    gx.clearRect(0, 0, W, H);
-    drawFighter(gx, W / 2, H - 30, look, o);
-    gx.globalCompositeOperation = 'source-atop';
-    gx.fillStyle = `rgba(${tint},0.75)`;
-    gx.fillRect(0, 0, W, H);
-    ctx.drawImage(c, x - W / 2, y - (H - 30));
+    const tr = ctx.getTransform();
+    const res = Math.max(1, Math.min(4, Math.round(Math.hypot(tr.a, tr.b) * 2) / 2));
+    const pid = pose ? (POSE_ID.get(pose) ?? (POSE_ID.set(pose, ++POSE_N), POSE_N)) : 0;
+    const key = `${pid}|${flip ? 1 : 0}|${tint}|${res}|${g.s.rank}|${this._gearLook?.sig ?? ''}`;
+    const cache = this._tintCache || (this._tintCache = new Map());
+    let c = cache.get(key);
+    if (!c) {
+      c = document.createElement('canvas');
+      c.width = Math.ceil(W * res); c.height = Math.ceil(H * res);
+      const gx = c.getContext('2d');
+      gx.setTransform(res, 0, 0, res, 0, 0);
+      drawFighter(gx, W / 2, H - 30, look, o);
+      gx.globalCompositeOperation = 'source-atop';
+      gx.fillStyle = `rgba(${tint},0.75)`;
+      gx.fillRect(0, 0, W, H);
+      if (cache.size >= 24) cache.delete(cache.keys().next().value);   // 오래된 것부터
+      cache.set(key, c);
+    }
+    ctx.drawImage(c, x - W / 2, y - (H - 30), W, H);
   }
 
   // 무인의 생김새와 그리기 옵션 — 본체와 잔상이 같이 쓴다
@@ -1839,6 +1887,7 @@ export class BattleView {
     }
     const scene = this.scene(game);
     this.drawBackground(scene);
+    this.drawSky(scene);          // v261 구름 그림자 · 시간대 빛
     this.drawLowObstacles(game);  // 물·용암 (v127)
     this.drawQueue(game);
     this.drawFields(game);        // 바닥 장판은 사람보다 아래에
@@ -1847,6 +1896,12 @@ export class BattleView {
     this.drawUnits(game, dt, moving);
     this.drawProjectiles(dt);
     this.drawEffects(dt, game);
+    if (this._heroTop && this.t < (this.ultUntil || 0) && this.fxLevel > 0) {
+      const ht = this._heroTop;
+      ctx.save(); ctx.globalAlpha = 0.85;
+      drawFighter(ctx, ht.x, ht.y, ht.look, ht.opts);
+      ctx.restore();
+    }
     this.drawPaths(dt);
     this.drawSparks(dt);
     this.drawParticles(dt);
@@ -1855,6 +1910,23 @@ export class BattleView {
       this.fadeIn = Math.max(0, this.fadeIn - rawDt);
       ctx.fillStyle = `rgba(8,6,4,${(this.fadeIn / 0.45) ** 1.5 * 0.92})`;
       ctx.fillRect(-20, -20, this.w + 40, this.h + 40);
+    }
+    if (this.rage) {
+      // v261 두목 단계 전환 — 화면 가장자리가 붉게 한 번 맥박친다(구운 테두리 어둠을 빛깔로)
+      const rg = this.rage;
+      rg.t += rawDt;
+      if (rg.t >= rg.max) this.rage = null;
+      else {
+        const a = Math.sin(Math.PI * rg.t / rg.max) * 0.55;
+        ctx.save();
+        ctx.lineWidth = 46;
+        ctx.strokeStyle = `rgba(${rg.col},${a.toFixed(3)})`;
+        ctx.strokeRect(0, 0, this.w, this.h);
+        ctx.lineWidth = 18;
+        ctx.strokeStyle = `rgba(${rg.col},${(a * 0.6).toFixed(3)})`;
+        ctx.strokeRect(30, 30, this.w - 60, this.h - 60);
+        ctx.restore();
+      }
     }
     if (this.flash > 0) {
       ctx.fillStyle = `rgba(255,251,235,${this.lumTake(this.flash * 0.5)})`;
@@ -2263,28 +2335,69 @@ export class BattleView {
     }
   }
 
+  // v261: 같은 들판을 오래 보는 방치형이 덜 단조롭게 —
+  //   · 구운 구름 그림자 한 장이 들판 위를 느리게 흐른다(카메라와 함께 흐른다) · 낮은 품질에서는 끈다
+  //   · 실제 시각에 맞춘 빛: 해 질 녘(17~19시) 주황 · 밤(19~5시) 푸른 어둠 · 새벽(5~7시) 옅은 분홍. 원래 밤인 곳(던전)은 건너뛴다.
+  drawSky(z) {
+    if (this.fxLevel <= 0 || !this.fieldMode) return;
+    const { ctx, w, h } = this;
+    if (!SKY.cloud) {
+      const c = document.createElement('canvas');
+      c.width = 512; c.height = 512;
+      const g = c.getContext('2d');
+      let sd = 7;
+      const rnd = () => ((sd = (sd * 16807) % 2147483647) / 2147483647);
+      for (let i = 0; i < 9; i++) {
+        const x = rnd() * 512, y = rnd() * 512, r = 60 + rnd() * 90;
+        for (const [dx, dy] of [[0, 0], [512, 0], [-512, 0], [0, 512], [0, -512]]) {
+          const gr = g.createRadialGradient(x + dx, y + dy, 0, x + dx, y + dy, r);
+          gr.addColorStop(0, 'rgba(0,0,0,0.55)'); gr.addColorStop(1, 'rgba(0,0,0,0)');
+          g.fillStyle = gr; g.beginPath(); g.ellipse(x + dx, y + dy, r * 1.4, r, 0, 0, Math.PI * 2); g.fill();
+        }
+      }
+      SKY.cloud = c;
+    }
+    if (!z.night && (this.budget ?? 1) >= 0.6) {
+      const S = 900;   // 한 장이 덮는 들판 크기
+      const ox = ((this.t * 9 + (this.camX || 0)) % S + S) % S, oy = ((this.t * 4 + (this.camY || 0) * this.squash) % S + S) % S;
+      ctx.save();
+      ctx.globalAlpha = 0.16;
+      for (let x = -ox; x < w; x += S) for (let y = -oy; y < h; y += S) ctx.drawImage(SKY.cloud, x, y, S, S);
+      ctx.restore();
+    }
+    if (z.night) return;
+    const hr = new Date().getHours() + new Date().getMinutes() / 60;
+    const tint = hr >= 19 || hr < 5 ? 'rgba(15,23,42,0.14)' : hr >= 17 ? `rgba(251,146,60,${(0.07 * Math.sin(Math.PI * (hr - 17) / 2)).toFixed(3)})`
+      : hr < 7 ? `rgba(244,114,182,${(0.05 * Math.sin(Math.PI * (hr - 5) / 2)).toFixed(3)})` : null;
+    if (tint) { ctx.fillStyle = tint; ctx.fillRect(-20, -20, w + 40, h + 40); }
+  }
+
   drawWeather(z, dt) {
     const { ctx, w, h } = this;
+    // v261: 카메라가 흐르면 알갱이도 흐른다(앞 겹 1배 · 뒤 겹 0.5배) — 전엔 화면에 붙어 있어 무인이 걸어도 눈·잎이 그대로였다
+    const cx0 = this.fieldMode && this.camX != null ? this.camX : 0, cy0 = this.fieldMode && this.camY != null ? this.camY * this.squash : 0;
+    const par = (i) => (i % 2 ? 1 : 0.5);
+    const wrap = (v, m) => ((v % m) + m) % m;
     if (z.snow) {
       ctx.fillStyle = 'rgba(255,255,255,0.85)';
       for (let i = 0; i < 40; i++) {
-        const x = ((i * 97 + this.t * (20 + (i % 5) * 6)) % (w + 40)) - 20;
-        const y = ((i * 53 + this.t * (30 + (i % 7) * 8)) % (h + 20)) - 10;
+        const x = wrap(i * 97 + this.t * (20 + (i % 5) * 6) - cx0 * par(i), w + 40) - 20;
+        const y = wrap(i * 53 + this.t * (30 + (i % 7) * 8) - cy0 * par(i), h + 20) - 10;
         circle(ctx, x, y, 1.2 + (i % 3) * 0.6);
       }
     }
     if (z.prop === 'bamboo') {
       ctx.fillStyle = 'rgba(40,70,40,0.6)';
       for (let i = 0; i < 8; i++) {
-        const x = ((i * 131 - this.t * (30 + i * 4)) % (w + 60) + w + 60) % (w + 60) - 30;
-        const y = ((i * 71 + this.t * (24 + i * 3)) % (h + 20)) - 10;
+        const x = wrap(i * 131 - this.t * (30 + i * 4) - cx0 * par(i), w + 60) - 30;
+        const y = wrap(i * 71 + this.t * (24 + i * 3) - cy0 * par(i), h + 20) - 10;
         leaf(ctx, x, y, this.t * 2 + i);
       }
     }
     if (z.prop === 'rock' || z.prop === 'banner') {
       for (let i = 0; i < 14; i++) {
-        const x = (i * 83 + Math.sin(this.t + i) * 20) % w;
-        const y = h - ((i * 47 + this.t * (20 + i * 3)) % h);
+        const x = wrap(i * 83 + Math.sin(this.t + i) * 20 - cx0 * par(i), w);
+        const y = h - wrap(i * 47 + this.t * (20 + i * 3) + cy0 * par(i), h);
         ctx.fillStyle = `rgba(248,113,113,${0.3 + (i % 3) * 0.15})`;
         circle(ctx, x, y, 1.5);
       }
@@ -2449,6 +2562,8 @@ export class BattleView {
       drawFighter(this.ctx, x, fy, look, { ...opts, run: false, turn: null });
       this.ctx.restore();
     } else drawFighter(this.ctx, x, fy, look, opts);
+    // v261: 필살 중에는 연출 층 위에 무인을 한 번 더 얹는다(아래 drawEffects 뒤) — 극악소마의 붉은 층에 무인이 묻혔다
+    this._heroTop = !downRot && !ride ? { x, y: fy, look, opts } : null;
     if (ride) { drawCreature(this.ctx, mt.id, x, y, { ...rideOpt, layer: 'front' }); this.ctx.restore(); }
     if (this.fxLevel > 0) this.buffAura(game, x, y, true);
     // 데려간 영수들이 뒤를 따른다 (예전엔 s.pet 한 마리만 그렸는데, 영수가 여럿이 된 뒤로
@@ -2662,10 +2777,8 @@ export class BattleView {
         ctx.setLineDash([]);
       } else {
         // 검은 웅덩이
-        const pool = ctx.createRadialGradient(x, y + 2, 4, x, y + 2, 70 * sc);
-        pool.addColorStop(0, 'rgba(10,6,4,0.55)'); pool.addColorStop(1, 'rgba(10,6,4,0)');
-        ctx.fillStyle = pool;
-        ctx.beginPath(); ctx.ellipse(x, y + 2, 70 * sc, 26 * sc, 0, 0, Math.PI * 2); ctx.fill();
+        // v261: 매 프레임 그라데이션 → 구운 빛(정예 이상 몹마다 둘씩 만들었다)
+        putGlow(ctx, '10,6,4', x, y + 2, 70 * sc, 0.55, 26 / 70);
         const pulse = rage ? 0.6 + Math.sin(t * 10) * 0.4 : 0.8 + Math.sin(t * 2.5) * 0.2;
         // 이중 술법진 — 바깥은 이쪽, 안쪽은 저쪽으로 돈다
         for (let k = 0; k < 2; k++) {
@@ -2694,10 +2807,7 @@ export class BattleView {
         {
         }
         // 몸을 감싸는 기운
-        const g = ctx.createRadialGradient(x, y - 60 * sc, 8, x, y - 60 * sc, 80 * sc);
-        g.addColorStop(0, hexA(col, 0.28 * pulse)); g.addColorStop(1, hexA(col, 0));
-        ctx.fillStyle = g;
-        circle(ctx, x, y - 60 * sc, 80 * sc);
+        putGlow(ctx, hexRgb(col), x, y - 60 * sc, 80 * sc, 0.28 * pulse);
         if (a.grade === 3) {
           // 먹빛 연기
           ctx.globalCompositeOperation = 'source-over';
@@ -2801,9 +2911,10 @@ export class BattleView {
     // v194: 맞은 힘에 살짝 떠서 뒤로 날아가(앞 30%) 땅에 떨어지고, 한 번 튀었다가(30~45%) 눕는다.
     // 떨어지는 순간 흙먼지. 두목 그림은 무거워서 뜨지 않는다.
     const big = !!(def.art && bossImg(def.art));
-    const air = big ? 0 : Math.sin(Math.PI * Math.min(1, k / 0.3)) * (k < 0.3 ? 16 : 0);
-    const bounce = big || k < 0.3 || k > 0.45 ? 0 : Math.sin(Math.PI * (k - 0.3) / 0.15) * 4;
-    const slide = (1 - (1 - Math.min(1, k / 0.45)) ** 2) * (big ? 14 : 26);
+    const F = big ? 1 : (c.force || 1);
+    const air = big ? 0 : Math.sin(Math.PI * Math.min(1, k / 0.3)) * (k < 0.3 ? 16 * F ** 0.8 : 0);
+    const bounce = big || k < 0.3 || k > 0.45 ? 0 : Math.sin(Math.PI * (k - 0.3) / 0.15) * 4 * F ** 0.5;
+    const slide = (1 - (1 - Math.min(1, k / 0.45)) ** 2) * (big ? 14 : 26 * F);
     if (!c._landed && k >= 0.3) {
       c._landed = true;
       if (this.fxLevel > 0) for (let i = 0; i < 5; i++) this.particles.push({ x: x + away * slide + (Math.random() - 0.5) * 28, y: y - 2, vx: away * (20 + Math.random() * 50), vy: -15 - Math.random() * 25, life: 0.45, size: 4 + Math.random() * 3, color: 'rgb(214,196,160)', dust: true });
@@ -2969,6 +3080,7 @@ export class BattleView {
     // 들판 정예는 드물어서 표를 단다
     if (a.treasure && a.alive !== false && this.fxLevel > 0) treasureAura(ctx, x, y, sc, this.t + (a.id || 0) * 0.37, this.squash);
     if (a.elite && a.alive !== false && this.fxLevel > 0) eliteAura(ctx, x, y, sc, this.t + (a.id || 0) * 0.37, this.squash);
+    if (a.poison > 0 && a.alive !== false && this.fxLevel > 0) poisonMark(ctx, x, y, sc, this.t + (a.id || 0) * 0.53);   // v261
     if (a.elite) { ctx.globalAlpha = 1; gradeTag(ctx, '정예', x, y - 100 * sc, '#fb923c'); }
     // 마을 사람은 이름을 단다
     if (a.npc) { ctx.globalAlpha = 1; nameTag(ctx, def.name || '', x, y - 104, true); }
@@ -3049,7 +3161,30 @@ export class BattleView {
     if (fx) this.drawMobFx(ctx, m, x, y, scale, false);
     // v160: 두목은 제 그림으로 (없으면 아래 종이 인형)
     const bossH = boss && m.def?.art && bossImg(m.def.art) ? bossHeight({ lord: game.map?.lord, king: game.map?.king }) : 0;
-    if (bossH && drawBossSprite(this, ctx, m, x, y, alpha, { lord: !!game.map?.lord, king: !!game.map?.king, casting: game.tells?.length > 0,
+    // v261: 두목이 무인 앞(아래 칸)에 서서 무인을 가리면 두목을 옅게 — 둘이 한 덩어리가 되어 둘 다 안 읽혔다
+    let occ = 1;
+    if (bossH && m.alive && (m.y ?? 0) > game.heroY) {
+      const hx = this.heroX, hy = this.groundY;
+      if (Math.abs(hx - x) < bossH * 0.38 && hy < y && hy > y - bossH) occ = 0.5;
+    }
+    this._bossOcc = (this._bossOcc ?? 1) + (occ - (this._bossOcc ?? 1)) * Math.min(1, dt * 8);
+    // v261: 두목 체력이 절반·사분의 일을 넘을 때 한 번 — 포효(충격파 둘)·'怒'·멈칫·붉은 테. 수치는 그대로(연출만).
+    if (boss && m.alive && this.fxLevel > 0 && m.maxHp > 0) {
+      const r = Number(m.hp) / Number(m.maxHp);
+      const ph = r <= 0.25 ? 2 : r <= 0.5 ? 1 : 0;
+      if (m._ph == null) m._ph = ph;
+      else if (ph > m._ph) {
+        m._ph = ph;
+        const col = ph === 2 ? '239,68,68' : '251,146,60';
+        this.effects.push({ kind: 'shock', life: 0.7, max: 0.7, wx: m.x, wy: m.y, r: 260, col, rings: 3, w: 6 });
+        this.effects.push({ kind: 'shock', life: 1.0, max: 1.0, wx: m.x, wy: m.y, r: 420, col: '255,255,255', w: 2 });
+        this.hitstop = Math.max(this.hitstop || 0, 0.3);
+        this.shake = Math.max(this.shake, 0.7);
+        this.rage = { t: 0, max: 1.1, col };
+        if (!this.hanja || this.hanja.life <= 0) this.hanja = { text: '怒', life: 1.1, max: 1.1, color: `rgb(${col})`, scale: 0.9, y: 0.3 };
+      }
+    }
+    if (bossH && drawBossSprite(this, ctx, m, x, y, alpha * this._bossOcc, { lord: !!game.map?.lord, king: !!game.map?.king, casting: game.tells?.length > 0,
       col: fxFor('', look || {}).col, flash: m === game.mon ? this.monFlash : 0, lunge: m === game.mon ? this.monLunge : 0, heroX: game.heroX })) {
       // 그렸다
     } else if (look) {
@@ -3084,6 +3219,8 @@ export class BattleView {
     ctx.restore();
 
     if (fx) this.drawMobFx(ctx, m, x, y, scale, true);
+    // v261: 독에 걸린 몹 — 연둣빛이 감돌고 거품이 오른다(독마의 독이 몹에 보이지 않았다)
+    if (m.poison > 0 && m.alive && this.fxLevel > 0) poisonMark(ctx, x, y, bossH ? Math.max(scale, bossH / 118) : scale, this.t + (m.id || 0) * 0.53);
     const top = bossH ? y - bossH - 6 : y - 118 * scale;
     if (m.elite && m.alive && this.fxLevel > 0) eliteAura(ctx, x, y, scale, this.t + (m.id || 0) * 0.37, this.squash);
     if (m.elite && m.alive) gradeTag(ctx, '정예', x, top - 26, '#fb923c');
@@ -3798,7 +3935,15 @@ export class BattleView {
     const t = this.t;
     const kind = env.type || (env.name.includes('바람') || env.name.includes('풍') ? 'wind' : env.name.includes('운무') ? 'mist' : 'glow');
     const N = Math.round((kind === 'mist' ? 7 : 32) * (this.budget ?? 1));
+    // v261: 카메라가 흐르면 기운 알갱이도 흐른다(0.6배 — 들판보다 조금 멀리 있는 듯). 화면을 넘는 것은 반대편에서 이어 그린다.
+    const z = this.zoom || 1;
+    const ox = this.fieldMode && this.camX != null ? this.camX * z * 0.6 : 0;
+    const oy = this.fieldMode && this.camY != null ? this.camY * this.squash * z * 0.6 : 0;
+    const tx = -(((ox % w) + w) % w), ty = -(((oy % h) + h) % h);
+    const tiles = [[tx, ty], [tx + w, ty], [tx, ty + h], [tx + w, ty + h]];
     ctx.save();
+    for (const [dx, dy] of tiles) {
+    ctx.setTransform(ctx.getTransform().translate(dx, dy));
     for (let i = 0; i < N; i++) {
       const r1 = Math.sin(i * 12.9898) * 43758.5453 % 1, r2 = Math.sin(i * 78.233) * 12543.21 % 1;
       const a = Math.abs(r1), b = Math.abs(r2);
@@ -3837,6 +3982,8 @@ export class BattleView {
         putGlow(ctx, '250,204,21', x, y, 7, 0.7);
         ctx.beginPath(); ctx.arc(x, y, 2.2, 0, Math.PI * 2); ctx.fill();
       }
+    }
+    ctx.setTransform(ctx.getTransform().translate(-dx, -dy));
     }
     ctx.restore();
   }
@@ -4027,6 +4174,8 @@ export class BattleView {
   drawBanner(dt) {
     const b = this.banner;
     if (!b) return;
+    // v261: 필살 중에는 띠를 미뤄 둔다(컷인·큰 이름과 겹쳤다) — 끝나면 처음부터 보여 준다
+    if (this.t < (this.ultUntil || 0) && b.life >= b.max - 0.01) return;
     b.life -= dt;
     if (b.life <= 0) { this.banner = null; return; }
     const { ctx, w } = this;
