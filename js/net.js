@@ -76,8 +76,12 @@ export class Net {
         authM.connectAuthEmulator(this.auth, `http://${host}:9099`, { disableWarnings: true });
         fs.connectFirestoreEmulator(this.db, host, 8080);
       }
-      const cred = await authM.signInAnonymously(this.auth);
-      this.uid = cred.user.uid;
+      this.authM = authM;
+      // v265: 전엔 늘 signInAnonymously였다 — Google을 이은 뒤엔 그게 새 익명 계정을 만들어 연결이 풀린다.
+      //   저장된 로그인부터 기다리고, 없을 때만 익명으로 들어간다.
+      if (this.auth.authStateReady) await this.auth.authStateReady();
+      const user = this.auth.currentUser || (await authM.signInAnonymously(this.auth)).user;
+      this.uid = user.uid;
       this.status = 'online';
       this.changed('status');
       await this.pushProfile(true);
@@ -92,6 +96,68 @@ export class Net {
   }
 
   ref(...path) { return this.fs.doc(this.db, ...path); }
+
+  // ---------- Google 계정 · 서버 저장 (v265) ----------
+  //
+  // 익명 계정에 Google을 '잇는다'(link) — uid가 그대로라 문파·운영자·서열이 그대로 남는다.
+  // 그 Google 계정이 이미 다른 uid(다른 기기)에 이어져 있으면 conflict로 알리고, 바꿀지는 화면이 묻는다.
+  isGoogle() { return !!this.auth?.currentUser?.providerData?.some((p) => p.providerId === 'google.com'); }
+  googleEmail() {
+    const u = this.auth?.currentUser;
+    return u?.providerData?.find((p) => p.providerId === 'google.com')?.email || u?.email || '';
+  }
+  // testCred: 에뮬레이터 시험용 id 토큰(JSON 글자) — 주면 팝업 없이 잇는다
+  async linkGoogle(testCred) {
+    const A = this.authM;
+    if (!this.online || !A || !this.auth?.currentUser) throw Object.assign(new Error('offline'), { code: 'net/offline' });
+    try {
+      if (testCred) await A.linkWithCredential(this.auth.currentUser, A.GoogleAuthProvider.credential(testCred));
+      else {
+        const prov = new A.GoogleAuthProvider();
+        prov.setCustomParameters({ prompt: 'select_account' });
+        await A.linkWithPopup(this.auth.currentUser, prov);
+      }
+      this.changed('account');
+      return { linked: true };
+    } catch (err) {
+      if (err?.code === 'auth/credential-already-in-use') {
+        // 오류에 인증 정보가 안 실려 오기도 한다(에뮬레이터·일부 브라우저) — 그땐 바꿀 때 Google 창을 한 번 더 연다
+        const cred = A.GoogleAuthProvider.credentialFromError(err) || (testCred ? A.GoogleAuthProvider.credential(testCred) : null);
+        return { conflict: true, cred, email: err.customData?.email || '' };
+      }
+      throw err;
+    }
+  }
+  // 이미 다른 진행에 이어진 Google 계정으로 바꾼다. 버리는 익명 계정은 서열에서 내린다(world 0 — 서열은 world 1만 센다).
+  async switchAccount(cred) {
+    try {
+      await this.fs.setDoc(this.ref('players', this.uid),
+        { nickname: String(this.game.s.nickname || '이름없음').slice(0, 12), world: 0 }, { merge: true });
+    } catch { /* 못 내려도 바꾸기는 한다 */ }
+    const A = this.authM;
+    let r;
+    if (cred) r = await A.signInWithCredential(this.auth, cred);
+    else {
+      const prov = new A.GoogleAuthProvider();
+      prov.setCustomParameters({ prompt: 'select_account' });
+      r = await A.signInWithPopup(this.auth, prov);
+    }
+    this.uid = r.user.uid;
+    this.changed('account');
+    return this.fetchSave();
+  }
+  async fetchSave() {
+    const snap = await this.fs.getDoc(this.ref('saves', this.uid));
+    return snap.exists() ? snap.data() : null;
+  }
+  async pushSave(json, dev, build) {
+    if (!this.online || this.blocked || !this.uid) return false;
+    const at = Date.now();
+    await this.fs.setDoc(this.ref('saves', this.uid), {
+      data: json, at, dev: String(dev || ''), lv: Math.floor(Number(this.game.s.level) || 0), build: String(build || ''),
+    });
+    return at;
+  }
 
   // Realtime Database (v138 함께 사냥) — 쓸 때 처음 한 번만 불러온다. 못 쓰면 null(혼자 사냥 그대로).
   async rtdb() {

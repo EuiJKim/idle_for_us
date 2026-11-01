@@ -31,6 +31,20 @@ service cloud.firestore {
         && (!('powerLog' in request.resource.data) || (request.resource.data.powerLog is number && request.resource.data.powerLog >= 0 && request.resource.data.powerLog <= 400));
     }
 
+    // 서버 세이브 (v265) — Google을 이은 계정만 올린다. 본인만 읽고 쓴다(지우기는 없다).
+    //   data: 세이브 JSON 글자 · at: 올린 때(ms) · dev: 올린 기기 · lv: 레벨 · build: 판
+    match /saves/{uid} {
+      allow read: if signedIn() && request.auth.uid == uid;
+      allow create, update: if signedIn() && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['data', 'at', 'dev', 'lv', 'build'])
+        && request.resource.data.data is string
+        && request.resource.data.data.size() <= 900000
+        && request.resource.data.at is int
+        && request.resource.data.dev is string && request.resource.data.dev.size() <= 32
+        && request.resource.data.lv is int
+        && request.resource.data.build is string && request.resource.data.build.size() <= 32;
+    }
+
     // 광고 제거 — **플레이어는 못 쓴다.** 자기 것만 읽을 수 있다.
     //
     // players/{uid}에 두면 안 된다. 거기는 본인이 자유롭게 쓰므로 누구나

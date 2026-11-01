@@ -34,6 +34,8 @@
 1. **Authentication → 로그인 방법 → 익명** 사용 설정
 2. **Firestore Database → 데이터베이스 만들기** (위치 `asia-northeast3` 서울, 프로덕션 모드)
 3. **Firestore Database → 규칙** 탭에 [`firestore.rules`](firestore.rules) 내용을 그대로 붙여넣고 **게시**
+4. (v265 Google 계정 · 서버 저장) **Authentication → 로그인 방법 → Google** 사용 설정(지원 이메일 고르기),
+   **Authentication → 설정 → 승인된 도메인**에 `euijkim.github.io` 추가
 
 규칙을 게시하지 않으면 랭킹·길드·레이드가 "권한 없음"으로 실패한다. 혼자 하기는 Firebase 없이도 된다.
 

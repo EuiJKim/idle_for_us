@@ -43,6 +43,7 @@ function loadSave() {
   return null;
 }
 const saved = loadSave();
+const bootSeen = Number(saved?.lastSeen) || 0;   // v265 이 기기에서 마지막으로 저장한 때(서버 진행과 견줄 때 보여 준다)
 const game = new WorldGame(saved || newWorldSave());
 // 옛 판에서 온 사람 — 칭호와 시작 은자 (한 번만)
 if (!saved) {
@@ -167,6 +168,159 @@ function showTabLost() {
 claimTab();
 window.addEventListener('storage', (e) => { if (e.key === TAB_KEY && e.newValue && !tabLost) { try { if (JSON.parse(e.newValue).id !== TAB_ID) { tabLost = true; showTabLost(); } } catch { /* */ } } });
 if (saveNote) setTimeout(() => toast(saveNote), 1800);
+
+// ---------- Google 계정 · 서버 저장 (v265) ----------
+// Google을 이은 계정만 서버(saves/{uid})에 세이브를 올린다 — 3분마다, 그리고 화면을 떠날 때.
+// 올리기 전에 한 번 서버 것과 맞춰 본다: 이 기기가 마지막으로 맞춘 뒤에 '다른 기기'가 올렸으면 어느 쪽으로 할지 묻는다.
+// (안 물으면 오래된 기기가 켜지자마자 다른 기기의 새 진행을 덮는다)
+const DEV_ID = (() => {
+  try {
+    let d = localStorage.getItem('ifu.dev');
+    if (!d) { d = Math.random().toString(36).slice(2, 10); localStorage.setItem('ifu.dev', d); }
+    return d;
+  } catch { return 'nodev'; }
+})();
+const CLOUD_EVERY = 3 * 60 * 1000;
+let cloudOk = false;        // 서버 것과 맞춰 봤다 — 그 뒤로만 올린다
+let cloudChecking = false;
+let cloudBusy = false;
+let cloudLast = 0;
+const cloudAtKey = () => `ifu.cloudAt.${net.uid}`;
+function cloudSyncedAt() { try { return Number(localStorage.getItem(cloudAtKey())) || 0; } catch { return 0; } }
+function setCloudSyncedAt(t) { try { localStorage.setItem(cloudAtKey(), String(t)); } catch { /* 사생활 모드 */ } }
+async function cloudPush(force) {
+  if (!cloudOk || stopSaving || tabLost || cloudBusy || !net.isGoogle?.() || !net.ready?.()) return false;
+  if (!force && Date.now() - cloudLast < CLOUD_EVERY) return false;
+  cloudBusy = true;
+  cloudLast = Date.now();
+  try {
+    const at = await net.pushSave(JSON.stringify(game.toJSON()), DEV_ID, BUILD);
+    if (at) setCloudSyncedAt(at);
+    return !!at;
+  } catch (err) {
+    console.warn('[cloud] push', err?.code || err);
+    return false;
+  } finally { cloudBusy = false; }
+}
+async function cloudCheck() {
+  if (cloudOk || cloudChecking || !net.isGoogle?.() || !net.ready?.()) return;
+  cloudChecking = true;
+  try {
+    const c = await net.fetchSave();
+    if (c?.data && c.dev !== DEV_ID && (Number(c.at) || 0) > cloudSyncedAt()) { askCloud(c); return; }
+    cloudOk = true;
+    cloudPush(true);
+  } catch (err) {
+    console.warn('[cloud] check', err?.code || err);
+  } finally { cloudChecking = false; }
+}
+const whenStr = (t) => (t ? new Date(t).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—');
+function cloudLv(c) { try { return Number(JSON.parse(c.data).level) || c.lv || 0; } catch { return c.lv || 0; } }
+// 서버 진행을 이 기기로 — 지금 진행은 .beforeCloud에 남기고 새로 연다
+function loadCloud(c) {
+  try { JSON.parse(c.data); } catch { toast('서버 세이브가 망가져 있어 불러오지 않았어요'); return false; }
+  try {
+    localStorage.setItem(`${W.SAVE_KEY}.beforeCloud`, JSON.stringify(game.toJSON()));
+    localStorage.setItem(W.SAVE_KEY, c.data);
+    setCloudSyncedAt(Number(c.at) || Date.now());
+  } catch { toast('⚠ 기기 저장 공간이 모자라 불러오지 못했어요'); return false; }
+  stopSaving = true;
+  location.reload();
+  return true;
+}
+function askCloud(c) {
+  // 다른 창(방치 보상·이름 짓기)이 떠 있으면 닫힌 뒤에 묻는다 — 덮으면 그 창이 날아간다
+  if (modalOpen()) { setTimeout(() => askCloud(c), 1000); return; }
+  const newer = (Number(c.at) || 0) > (game.s.lastSeen || bootSeen);
+  openModal((m) => {
+    m.append(h('h2', {}, '다른 기기의 진행이 있어요'),
+      h('p', { class: 'muted' }, `${net.googleEmail() || 'Google 계정'}에 다른 기기에서 올린 진행이 있어요. 어느 쪽으로 이어 할까요?`),
+      h('div', { class: 'row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, `서버 · Lv ${cloudLv(c)}`), h('div', { class: 'desc' }, `${whenStr(c.at)}에 저장${newer ? ' · 더 최근' : ''}`))),
+      h('div', { class: 'row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, `이 기기 · Lv ${game.s.level}`), h('div', { class: 'desc' }, `${whenStr(bootSeen)}에 저장${newer ? '' : ' · 더 최근'}`))),
+      h('div', { class: 'btn-row', style: 'margin-top:10px' },
+        h('button', { class: `btn${newer ? ' primary' : ''}`, onclick: () => { closeModal(); loadCloud(c); } }, '서버 진행 불러오기'),
+        h('button', { class: `btn${newer ? '' : ' primary'}`, onclick: () => {
+          if (!confirm('서버에 있는 다른 기기의 진행을 이 기기 진행으로 덮어써요. 그 진행은 사라져요. 계속할까요?')) return;
+          closeModal();
+          cloudOk = true;
+          cloudPush(true).then((ok) => toast(ok ? '이 기기 진행을 서버에 올렸어요' : '서버에 올리지 못했어요 — 잠시 뒤 다시 올려요'));
+        } }, '이 기기 진행으로 계속')));
+  }, { dismissable: false });
+}
+function googleErr(err) {
+  const c = err?.code || '';
+  if (c === 'auth/popup-closed-by-user' || c === 'auth/cancelled-popup-request' || c === 'auth/user-cancelled') return '연결을 그만뒀어요';
+  if (c === 'auth/popup-blocked') return '팝업이 막혔어요 — 이 사이트의 팝업을 허용하고 다시 눌러 주세요';
+  if (c === 'auth/operation-not-allowed') return 'Firebase에서 Google 로그인이 아직 꺼져 있어요(운영자 설정)';
+  if (c === 'auth/unauthorized-domain') return '이 주소가 Firebase 승인 도메인에 없어요(운영자 설정)';
+  if (c === 'auth/network-request-failed' || c === 'net/offline') return '인터넷 연결을 확인해 주세요';
+  if (c === 'auth/operation-not-supported-in-this-environment' || c === 'auth/web-storage-unsupported') return '이 화면에선 Google 창을 못 열어요 — 크롬·사파리 브라우저로 열어 연결해 주세요';
+  return `연결하지 못했어요 (${c || err?.message || '알 수 없음'})`;
+}
+let linking = false;
+async function linkGoogle(testCred) {
+  if (linking) return;
+  linking = true;
+  let r;
+  try { r = await net.linkGoogle(testCred); } catch (err) { console.warn('[google]', err); toast(googleErr(err)); return; } finally { linking = false; }
+  if (r.linked) {
+    closeModal();
+    cloudOk = true;
+    const ok = await cloudPush(true);
+    toast(ok ? `✔ Google 계정(${net.googleEmail()})에 이었어요 — 이제 진행이 서버에도 저장돼요` : '✔ Google 계정에 이었어요 — 서버 저장은 잠시 뒤 다시 해요');
+    return;
+  }
+  if (r.conflict) askSwitch(r);
+}
+function askSwitch(r) {
+  openModal((m) => {
+    m.append(h('h2', {}, '이미 다른 진행에 이어진 계정이에요'),
+      h('p', { class: 'muted' }, `${r.email || '이 Google 계정'}은(는) 다른 기기에서 하던 진행과 이어져 있어요. 그 진행으로 바꿀까요?`),
+      h('p', { class: 'muted' }, `이 기기의 지금 진행(Lv ${game.s.level})은 이 기기 안에 백업으로만 남고, 서열에서도 내려가요.`),
+      h('div', { class: 'btn-row', style: 'margin-top:10px' },
+        h('button', { class: 'btn primary', onclick: async (e) => {
+          e.target.disabled = true;
+          try {
+            save();
+            const c = await net.switchAccount(r.cred);
+            closeModal();
+            if (c?.data) { loadCloud(c); return; }
+            // 그 계정엔 서버 세이브가 없다 — 이 기기 진행을 그 계정으로 올리고 새로 연다(문파·서열을 새 계정으로 다시 잇는다)
+            cloudOk = true;
+            await cloudPush(true);
+            stopSaving = true;
+            location.reload();
+          } catch (err) { console.warn('[google] switch', err); e.target.disabled = false; toast(googleErr(err)); }
+        } }, '그 진행으로 바꾸기'),
+        h('button', { class: 'btn', onclick: closeModal }, '그만두기')));
+  });
+}
+function accountRows() {
+  const rows = [];
+  if (net.isGoogle?.()) {
+    const t = cloudSyncedAt();
+    rows.push(h('div', { class: 'row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, `Google 계정 · ${net.googleEmail()}`),
+      h('div', { class: 'desc' }, `진행이 서버에도 저장돼요(3분마다·화면을 떠날 때) · 마지막 ${whenStr(t)}`)),
+      h('button', { class: 'btn', style: 'padding:6px 12px', onclick: async (e) => {
+        e.target.disabled = true;
+        save();
+        const ok = await cloudPush(true);
+        e.target.disabled = false;
+        toast(ok ? '서버에 저장했어요' : cloudOk ? '서버에 저장하지 못했어요 — 인터넷을 확인해 주세요' : '서버 진행과 맞춰 보는 중이에요 — 잠시 뒤 다시 눌러 주세요');
+      } }, '지금 저장')));
+  } else {
+    rows.push(h('div', { class: 'row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, 'Google 계정 연결'),
+      h('div', { class: 'desc' }, net.online ? '이으면 진행이 서버에도 저장돼요 — 브라우저를 지우거나 기기를 바꿔도 같은 Google로 들어와 이어 해요' : '온라인일 때 이을 수 있어요')),
+      h('button', { class: 'btn primary', style: 'padding:6px 12px', disabled: net.online ? null : true, onclick: () => linkGoogle() }, '잇기')));
+  }
+  // v264: 내 계정 번호(uid) — Firebase 콘솔에서 내 것을 찾을 때
+  rows.push(h('div', { class: 'row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, '내 계정 번호'),
+    h('div', { class: 'desc', style: 'word-break:break-all;user-select:all' }, net.uid || '아직 연결 전이에요')),
+    net.uid ? h('button', { class: 'btn', style: 'padding:6px 12px', onclick: async () => {
+      try { await navigator.clipboard.writeText(net.uid); toast('계정 번호를 복사했어요'); } catch { toast('길게 눌러 직접 복사해 주세요'); }
+    } }, '복사') : ''));
+  return rows;
+}
 
 // ---------- 창(시트) ----------
 const tabs = {};
@@ -1167,12 +1321,7 @@ $('btn-settings').addEventListener('click', () => openModal((s) => {
     })()),
     setSec('앱·계정', false,
     appRow(),
-    // v264: 내 계정 번호(uid) — 익명 계정이라 Firebase 콘솔에서 내 것을 찾을 길이 없었다
-    h('div', { class: 'row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, '내 계정 번호'),
-      h('div', { class: 'desc', style: 'word-break:break-all;user-select:all' }, net.uid || '아직 연결 전이에요')),
-      net.uid ? h('button', { class: 'btn', style: 'padding:6px 12px', onclick: async () => {
-        try { await navigator.clipboard.writeText(net.uid); toast('계정 번호를 복사했어요'); } catch { toast('길게 눌러 직접 복사해 주세요'); }
-      } }, '복사') : ''),
+    ...accountRows(),
     h('div', { class: 'btn-row', style: 'margin-top:8px' },
       h('button', { class: 'btn', onclick: () => { closeModal(); askNickname(false); } }, '이름 바꾸기'),
       h('button', { class: 'btn', onclick: () => hardReload() }, '새로 받기')),
@@ -1192,6 +1341,7 @@ function netChanged(what) {
     const b = $('net-badge');
     b.className = `net ${net.status}`;
     b.textContent = { online: '온라인', offline: '오프라인', connecting: '연결 중' }[net.status] || net.status;
+    if (net.online) cloudCheck();
   }
   // 문파가 바뀌면 버프(공격력)가 바뀐다 · 열려 있는 창(문파·채팅)에 알린다
   if (what === 'guild') { refreshUI(true); }
@@ -1585,14 +1735,14 @@ function step(now) {
     refreshUI();
     if (dg) dg.ui += performance.now() - tU;
   }
-  if (saveTimer > 5) { saveTimer = 0; save(); net.pushProfile(); }
+  if (saveTimer > 5) { saveTimer = 0; save(); net.pushProfile(); cloudPush(); }
   // 운영자 선물 (v175) — 처음엔 8초 뒤, 그다음 1분마다 본다
   giftTimer += dt;
   if (giftTimer > 60 && net.ready?.() && game.s.job) { giftTimer = 0; checkGifts(); }
 }
 
 document.addEventListener('visibilitychange', () => {
-  if (document.hidden) { save(); net.pushProfile(true); } else { last = performance.now(); checkReturn(); }
+  if (document.hidden) { save(); net.pushProfile(true); cloudPush(true); } else { last = performance.now(); checkReturn(); }
 });
 window.addEventListener('pagehide', () => save());
 
@@ -1668,6 +1818,9 @@ else if (!game.s.job) askClass();
 else checkReturn();
 net.init();
 window.__game = game;
+window.__test_linkGoogle = (cred) => linkGoogle(cred);   // 시험: 에뮬레이터 id 토큰으로 팝업 없이 잇는다
+window.__test_cloud = () => ({ ok: cloudOk, at: cloudSyncedAt(), dev: DEV_ID, google: net.isGoogle(), uid: net.uid });
+window.__test_cloudPush = () => cloudPush(true);
 window.__test_checkGifts = () => checkGifts();     // 시험: 1분을 기다리지 않고 우편함을 본다
 window.__test_claimAll = () => claimMail(mail.map((m) => m.id));
 window.__view = view;
