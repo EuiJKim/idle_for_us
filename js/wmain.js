@@ -1167,6 +1167,12 @@ $('btn-settings').addEventListener('click', () => openModal((s) => {
     })()),
     setSec('앱·계정', false,
     appRow(),
+    // v264: 내 계정 번호(uid) — 익명 계정이라 Firebase 콘솔에서 내 것을 찾을 길이 없었다
+    h('div', { class: 'row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, '내 계정 번호'),
+      h('div', { class: 'desc', style: 'word-break:break-all;user-select:all' }, net.uid || '아직 연결 전이에요')),
+      net.uid ? h('button', { class: 'btn', style: 'padding:6px 12px', onclick: async () => {
+        try { await navigator.clipboard.writeText(net.uid); toast('계정 번호를 복사했어요'); } catch { toast('길게 눌러 직접 복사해 주세요'); }
+      } }, '복사') : ''),
     h('div', { class: 'btn-row', style: 'margin-top:8px' },
       h('button', { class: 'btn', onclick: () => { closeModal(); askNickname(false); } }, '이름 바꾸기'),
       h('button', { class: 'btn', onclick: () => hardReload() }, '새로 받기')),
