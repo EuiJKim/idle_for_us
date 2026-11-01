@@ -16,6 +16,8 @@ import { QUEST_COUNT } from './world/wquest.js';
 import { fmt, duration } from './fmt.js';
 import { sfx, unlockAudio, setSound, soundOn } from './sfx.js';
 import * as AM from './appmode.js';
+import { bootStart, bootProgress, bootHide, waitFor, showLogin, loginPref, setLoginPref, standalone, inAppBrowser } from './boot.js';
+import { artReady } from './art.js';
 loadIcons();
 for (const b of document.querySelectorAll('#tabs button[data-tab]')) skinImg(b.querySelector('i'), `tab-${b.dataset.tab}`);
 
@@ -23,6 +25,8 @@ for (const b of document.querySelectorAll('#tabs button[data-tab]')) skinImg(b.q
 try { setSound(localStorage.getItem('ifu.sound') !== '0'); } catch { /* 사생활 모드 */ }
 window.addEventListener('pointerdown', () => unlockAudio(), { capture: true });
 
+bootStart(BUILD);   // v266 로딩 화면을 넘겨받는다(모듈이 다 왔다)
+bootProgress(0.35, '강호 지도를 펼치는 중…');
 const OLD_SAVE_KEY = 'idleForUs.save.v1';
 const $ = (id) => document.getElementById(id);
 
@@ -182,6 +186,7 @@ const DEV_ID = (() => {
 })();
 const CLOUD_EVERY = 3 * 60 * 1000;
 let cloudOk = false;        // 서버 것과 맞춰 봤다 — 그 뒤로만 올린다
+let booting = true;          // v266 로딩·로그인 화면이 떠 있는 동안 — 창(방치 보상·서버 진행 고르기)은 그 뒤에 띄운다
 let cloudChecking = false;
 let cloudBusy = false;
 let cloudLast = 0;
@@ -230,7 +235,7 @@ function loadCloud(c) {
 }
 function askCloud(c) {
   // 다른 창(방치 보상·이름 짓기)이 떠 있으면 닫힌 뒤에 묻는다 — 덮으면 그 창이 날아간다
-  if (modalOpen()) { setTimeout(() => askCloud(c), 1000); return; }
+  if (modalOpen() || booting) { setTimeout(() => askCloud(c), 1000); return; }
   const newer = (Number(c.at) || 0) > (game.s.lastSeen || bootSeen);
   openModal((m) => {
     m.append(h('h2', {}, '다른 기기의 진행이 있어요'),
@@ -249,21 +254,36 @@ function askCloud(c) {
 }
 function googleErr(err) {
   const c = err?.code || '';
-  if (c === 'auth/popup-closed-by-user' || c === 'auth/cancelled-popup-request' || c === 'auth/user-cancelled') return '연결을 그만뒀어요';
+  if (c === 'auth/popup-closed-by-user' || c === 'auth/cancelled-popup-request' || c === 'auth/user-cancelled') return '로그인을 그만뒀어요';
   if (c === 'auth/popup-blocked') return '팝업이 막혔어요 — 이 사이트의 팝업을 허용하고 다시 눌러 주세요';
   if (c === 'auth/operation-not-allowed') return 'Firebase에서 Google 로그인이 아직 꺼져 있어요(운영자 설정)';
   if (c === 'auth/unauthorized-domain') return '이 주소가 Firebase 승인 도메인에 없어요(운영자 설정)';
-  if (c === 'auth/network-request-failed' || c === 'net/offline') return '인터넷 연결을 확인해 주세요';
-  if (c === 'auth/operation-not-supported-in-this-environment' || c === 'auth/web-storage-unsupported') return '이 화면에선 Google 창을 못 열어요 — 크롬·사파리 브라우저로 열어 연결해 주세요';
-  return `연결하지 못했어요 (${c || err?.message || '알 수 없음'})`;
+  if (c === 'net/offline') return '서버에 연결되지 않았어요 — 인터넷을 확인해 주세요';
+  if (c === 'auth/network-request-failed') return 'Google 로그인 창과 연결하지 못했어요';
+  if (c === 'auth/operation-not-supported-in-this-environment' || c === 'auth/web-storage-unsupported') return '이 화면에선 Google 창을 못 열어요';
+  if (c === 'auth/internal-error') return 'Google 로그인 중에 오류가 났어요';
+  return '로그인하지 못했어요';
 }
+// 왜 그런지·어떻게 하는지 — 로그인 화면에 함께 보인다
+function googleHelp(err) {
+  const c = err?.code || '';
+  if (c === 'auth/network-request-failed' || c === 'auth/operation-not-supported-in-this-environment' || c === 'auth/web-storage-unsupported' || c === 'auth/internal-error') {
+    if (inAppBrowser()) return '카카오톡 같은 앱 안 브라우저에선 Google 로그인이 안 돼요. 크롬·사파리로 열어 주세요.';
+    if (standalone()) return '홈 화면에 설치한 앱에선 Google 창이 안 열릴 때가 있어요. 크롬·사파리에서 게임 주소를 열어 한 번 로그인해 주세요(안드로이드 크롬은 로그인이 앱에도 이어져요).';
+    return '인터넷이 되는데도 그렇다면: 광고 차단·추적 방지(사파리 "크로스 사이트 추적 방지", 삼성 인터넷 "스마트 보호" 등)나 시크릿 창을 끄고 다시 해 보세요.';
+  }
+  if (c === 'auth/popup-blocked') return '주소창 옆 팝업 차단 표시를 눌러 허용하거나, 다시 한 번 눌러 보세요.';
+  return '';
+}
+const errText = (err) => { const c = err?.code || err?.message || ''; return c ? `${googleErr(err)} (${c})` : googleErr(err); };
 let linking = false;
 async function linkGoogle(testCred) {
   if (linking) return;
   linking = true;
   let r;
-  try { r = await net.linkGoogle(testCred); } catch (err) { console.warn('[google]', err); toast(googleErr(err)); return; } finally { linking = false; }
+  try { r = await net.linkGoogle(testCred); } catch (err) { console.warn('[google]', err); toast(errText(err)); return; } finally { linking = false; }
   if (r.linked) {
+    setLoginPref('google');
     closeModal();
     cloudOk = true;
     const ok = await cloudPush(true);
@@ -290,10 +310,91 @@ function askSwitch(r) {
             await cloudPush(true);
             stopSaving = true;
             location.reload();
-          } catch (err) { console.warn('[google] switch', err); e.target.disabled = false; toast(googleErr(err)); }
+          } catch (err) { console.warn('[google] switch', err); e.target.disabled = false; toast(errText(err)); }
         } }, '그 진행으로 바꾸기'),
         h('button', { class: 'btn', onclick: closeModal }, '그만두기')));
   });
+}
+// ---------- 로그인 화면 (v266) ----------
+// 로딩이 끝나면: 온라인 · Google 아님 · 손님을 고른 적 없음 → 로그인 화면. Google로 한 번 들어오면 Firebase가 기억해 다음부턴 안 뜬다.
+let loginUI = null;
+let loginDone = null;
+function needLogin() { return net.online && !net.isGoogle?.() && loginPref() !== 'guest'; }
+function finishLogin(msg) {
+  if (msg) setTimeout(() => toast(msg), 400);
+  const d = loginDone; loginDone = null; d?.();
+}
+// 이 기기 진행이 거의 없다(새로 시작) — 이미 다른 진행에 이어진 Google이면 묻지 않고 그 진행으로 간다
+const freshHere = () => !saved || !game.s.job;
+async function switchAndLoad(r) {
+  loginUI?.busy('서버의 진행을 불러오는 중…');
+  save();
+  const c = await net.switchAccount(r.cred);
+  setLoginPref('google');
+  if (c?.data) { loadCloud(c); return; }
+  // 그 계정엔 서버 세이브가 없다 — 이 기기 진행을 그 계정으로 올리고 새로 연다
+  cloudOk = true;
+  await cloudPush(true);
+  stopSaving = true;
+  location.reload();
+}
+async function loginGoogle(testCred) {
+  if (linking) return;
+  linking = true;
+  loginUI?.busy('Google 창에서 계정을 골라 주세요…');
+  let r;
+  try { r = await net.linkGoogle(testCred); } catch (err) {
+    console.warn('[login]', err);
+    const c = err?.code || '';
+    if (c === 'auth/popup-closed-by-user' || c === 'auth/cancelled-popup-request' || c === 'auth/user-cancelled') loginUI?.reset();
+    else loginUI?.error(googleErr(err), googleHelp(err), c || String(err?.message || ''));
+    return;
+  } finally { linking = false; }
+  if (r.linked) {
+    setLoginPref('google');
+    cloudOk = true;
+    cloudPush(true);
+    finishLogin(`✔ ${net.googleEmail() || 'Google'}로 들어왔어요 — 다음부턴 바로 시작해요`);
+    return;
+  }
+  if (!r.conflict) return;
+  if (freshHere()) {
+    try { await switchAndLoad(r); } catch (err) { console.warn('[login] switch', err); loginUI?.error(googleErr(err), googleHelp(err), err?.code || ''); }
+    return;
+  }
+  // 이 기기에도 진행이 있다 — 어느 쪽으로 할지 고른다
+  loginUI?.pick(
+    h('div', { class: 'login-pick' }, h('b', {}, r.email || '이 Google 계정'), '은(는) 다른 기기에서 하던 진행과 이어져 있어요.', h('br'),
+      `그 진행으로 바꾸면 이 기기의 지금 진행(Lv ${game.s.level})은 이 기기 안에 백업으로만 남아요.`),
+    h('button', { class: 'login-google', onclick: async (e) => {
+      e.currentTarget.disabled = true;
+      try { await switchAndLoad(r); } catch (err) { console.warn('[login] switch', err); loginUI?.reset(); loginUI?.error(googleErr(err), googleHelp(err), err?.code || ''); }
+    } }, 'Google 계정의 진행으로 바꾸기'),
+    h('button', { class: 'login-guest', onclick: () => { setLoginPref('guest'); finishLogin('이 기기 진행으로 이어 해요 — 손님으로 들어왔어요'); } }, '이 기기 진행으로 계속(손님)'));
+}
+function loginScreen() {
+  return new Promise((resolve) => {
+    loginDone = resolve;
+    loginUI = showLogin({
+      online: net.online,
+      onGoogle: () => loginGoogle(),
+      onGuest: () => { setLoginPref('guest'); finishLogin(net.online ? '손님으로 들어왔어요 — 설정 → 앱·계정에서 언제든 Google을 이을 수 있어요' : ''); },
+    });
+  });
+}
+async function logout() {
+  if (!confirm('이 기기에서 로그아웃할까요? 진행은 서버에 올려 두고, 다시 Google로 들어오면 이어 해요.')) return;
+  save();
+  const ok = await cloudPush(true);
+  if (!ok) { toast('서버에 저장하지 못해 로그아웃을 멈췄어요 — 인터넷을 확인해 주세요'); return; }
+  stopSaving = true;
+  try {
+    localStorage.setItem(`${W.SAVE_KEY}.loggedOut`, localStorage.getItem(W.SAVE_KEY) || '');
+    for (const k of [W.SAVE_KEY, ...BAK_KEYS]) localStorage.removeItem(k);
+    setLoginPref('');
+  } catch { /* 사생활 모드 */ }
+  try { await net.signOut(); } catch (err) { console.warn('[logout]', err); }
+  location.reload();
 }
 function accountRows() {
   const rows = [];
@@ -308,6 +409,9 @@ function accountRows() {
         e.target.disabled = false;
         toast(ok ? '서버에 저장했어요' : cloudOk ? '서버에 저장하지 못했어요 — 인터넷을 확인해 주세요' : '서버 진행과 맞춰 보는 중이에요 — 잠시 뒤 다시 눌러 주세요');
       } }, '지금 저장')));
+    rows.push(h('div', { class: 'row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, '로그아웃'),
+      h('div', { class: 'desc' }, '진행을 서버에 올리고 이 기기에서 나가요 — 다시 Google로 들어오면 이어 해요')),
+      h('button', { class: 'btn', style: 'padding:6px 12px', onclick: () => logout() }, '나가기')));
   } else {
     rows.push(h('div', { class: 'row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, 'Google 계정 연결'),
       h('div', { class: 'desc' }, net.online ? '이으면 진행이 서버에도 저장돼요 — 브라우저를 지우거나 기기를 바꿔도 같은 Google로 들어와 이어 해요' : '온라인일 때 이을 수 있어요')),
@@ -1081,7 +1185,7 @@ function checkReturn(now = Date.now()) {
 }
 function showPendingOffline() {
   const rw = game.s.pendingOffline;
-  if (!rw || modalOpen()) return;
+  if (!rw || modalOpen() || booting) return;
   openModal((s) => {
     s.append(h('h2', {}, '🌙 다녀오셨어요!'),
       h('p', { class: 'muted' }, `${duration(rw.t)} 동안 ${W.mapOf(rw.map).name}에서 사냥했어요.`
@@ -1813,12 +1917,32 @@ netChanged('status');
 refreshUI(true);
 paintTabLocks();   // v263
 requestAnimationFrame((t) => { last = t; frame(t); });
-if (!game.s.nickname) askNickname(true);
-else if (!game.s.job) askClass();
-else checkReturn();
+// v266 방치 보상은 지금 셈해 둔다(로딩·로그인이 길어도 5초 저장이 돌아온 때를 덮지 않게) — 창은 로딩이 끝난 뒤
+if (game.s.nickname && game.s.job) checkReturn();
 net.init();
+startBoot();
+async function startBoot() {
+  const t0 = performance.now();
+  try {
+    if (document.fonts?.ready) await Promise.race([document.fonts.ready, new Promise((r) => setTimeout(r, 2500))]);
+    bootProgress(0.55, '무인을 그리는 중…');
+    await waitFor(() => artReady(), 2500);
+    bootProgress(0.75, '강호와 잇는 중…');
+    await waitFor(() => net.status !== 'connecting', 7000);
+    bootProgress(1, net.online ? (net.isGoogle?.() ? `${net.googleEmail() || 'Google'} 계정으로 들어가는 중…` : '준비됐어요') : '오프라인으로 시작해요');
+    await new Promise((r) => setTimeout(r, Math.max(200, 650 - (performance.now() - t0))));
+    if (needLogin()) await loginScreen();
+  } catch (err) { console.warn('[boot]', err); }
+  booting = false;
+  loginUI = null;
+  bootHide();
+  if (!game.s.nickname) askNickname(true);
+  else if (!game.s.job) askClass();
+  else showPendingOffline();
+}
 window.__game = game;
-window.__test_linkGoogle = (cred) => linkGoogle(cred);   // 시험: 에뮬레이터 id 토큰으로 팝업 없이 잇는다
+window.__test_linkGoogle = (cred) => linkGoogle(cred);
+window.__test_loginGoogle = (cred) => loginGoogle(cred);   // 시험: 로그인 화면의 Google 단추(팝업 대신 토큰)   // 시험: 에뮬레이터 id 토큰으로 팝업 없이 잇는다
 window.__test_cloud = () => ({ ok: cloudOk, at: cloudSyncedAt(), dev: DEV_ID, google: net.isGoogle(), uid: net.uid });
 window.__test_cloudPush = () => cloudPush(true);
 window.__test_checkGifts = () => checkGifts();     // 시험: 1분을 기다리지 않고 우편함을 본다

@@ -103,6 +103,45 @@
     </main>
   </div>
 
+  <!-- v266 로딩 · 로그인 화면. 모듈이 다 오기 전부터 보여야 해서 여기(정적)에 둔다 — js/boot.js가 움직인다 -->
+  <div id="boot" aria-live="polite">
+    <div class="boot-moon" aria-hidden="true"></div>
+    <svg class="boot-ink" viewBox="0 0 400 200" preserveAspectRatio="none" aria-hidden="true">
+      <defs><linearGradient id="bootMist" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#14110e" stop-opacity="0"/><stop offset="0.85" stop-color="#0b0907" stop-opacity="1"/></linearGradient></defs>
+      <path class="boot-m3" d="M-20 120 Q20 90 45 104 Q75 60 110 92 Q140 70 165 96 Q205 40 245 88 Q280 66 305 92 Q340 58 372 90 Q400 80 420 96 L420 200 L-20 200Z" fill="#2a241d"/>
+      <path class="boot-m2" d="M-20 150 Q30 118 70 140 Q115 100 160 138 Q200 116 235 142 Q285 104 330 140 Q370 122 420 140 L420 200 L-20 200Z" fill="#1d1915"/>
+      <path class="boot-m1" d="M-20 178 Q50 154 110 172 Q170 150 230 174 Q300 152 360 172 Q395 162 420 168 L420 200 L-20 200Z" fill="#110f0c"/>
+      <rect x="-20" y="110" width="440" height="90" fill="url(#bootMist)"/>
+    </svg>
+    <div class="boot-box">
+      <div class="boot-seal">武</div>
+      <h1 class="boot-title">우리끼리 무림</h1>
+      <p class="boot-sub">회귀무림 · 방치 무협</p>
+      <div class="boot-stage" id="boot-load">
+        <div class="boot-bar"><i id="boot-fill"></i></div>
+        <p class="boot-msg" id="boot-msg">강호로 가는 길을 여는 중…</p>
+      </div>
+      <div class="boot-stage hidden" id="boot-login"></div>
+      <p class="boot-tip" id="boot-tip"></p>
+    </div>
+    <p class="boot-ver" id="boot-ver"></p>
+  </div>
+  <script>
+    // 모듈이 오기 전 — 막대를 조금씩 채우고, 오래 걸리면 다시 열기를 권한다(js/boot.js가 넘겨받는다)
+    (function () {
+      var f = document.getElementById('boot-fill'), t0 = Date.now();
+      window.__bootCreep = setInterval(function () {
+        var k = Math.min(1, (Date.now() - t0) / 6000);
+        if (f && !window.__bootTaken) f.style.width = (8 + 30 * k) + '%';
+        if (Date.now() - t0 > 20000 && !window.__bootTaken) {
+          clearInterval(window.__bootCreep);
+          var m = document.getElementById('boot-msg');
+          if (m) m.innerHTML = '불러오는 데 오래 걸려요 — <a href="" style="color:#e8c87a">다시 열기</a>';
+        }
+      }, 120);
+    })();
+  </script>
+
   <div id="modal" class="hidden"><div class="sheet"></div></div>
   <div id="toast"></div>
 

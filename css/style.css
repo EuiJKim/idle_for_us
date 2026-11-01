@@ -1749,3 +1749,80 @@ body.hunt-nocv #cv { visibility: hidden !important; }
 #tabs button.locked::after { content: attr(data-lv); position: absolute; left: 50%; bottom: 2px; transform: translateX(-50%); font-size: 9px; color: #fde68a; }
 #tabs button.just-open { animation: tab-open 1.2s ease-out 2; }
 @keyframes tab-open { 30% { box-shadow: 0 0 0 3px rgba(253, 230, 138, 0.8), 0 0 18px rgba(253, 230, 138, 0.6); transform: translateY(-3px); } }
+
+/* ---------- v266 로딩 · 로그인 ---------- */
+#boot {
+  position: fixed; inset: 0; z-index: 80; display: flex; align-items: center; justify-content: center;
+  background: radial-gradient(120% 80% at 50% 18%, #2b2219 0%, #14110e 58%, #0b0907 100%);
+  color: var(--text); overflow: hidden; transition: opacity 0.45s ease, visibility 0.45s;
+  padding: calc(20px + var(--safe-top)) 20px calc(20px + var(--safe-bottom));
+}
+#boot.out { opacity: 0; visibility: hidden; pointer-events: none; }
+#boot.gone { display: none; }
+.boot-ink { position: absolute; left: 0; right: 0; bottom: 0; width: 100%; height: 34%; pointer-events: none; }
+.boot-moon {
+  position: absolute; top: calc(7% + var(--safe-top)); right: 9%; width: 120px; height: 120px; border-radius: 50%; pointer-events: none;
+  background: radial-gradient(circle, rgba(246, 231, 196, 0.95) 0 26%, rgba(232, 200, 122, 0.32) 42%, rgba(232, 200, 122, 0) 70%);
+  animation: bootMoon 6s ease-in-out infinite alternate;
+}
+@keyframes bootMoon { from { opacity: 0.75; transform: scale(0.97); } to { opacity: 1; transform: scale(1.03); } }
+.boot-m3 { animation: bootDrift 14s ease-in-out infinite alternate; }
+.boot-m2 { animation: bootDrift 10s ease-in-out infinite alternate-reverse; }
+@keyframes bootDrift { from { transform: translateX(-5px); } to { transform: translateX(5px); } }
+.boot-box {
+  position: relative; width: 100%; max-width: 360px; text-align: center; margin-top: -10vh;
+  animation: bootIn 0.7s cubic-bezier(.2,.8,.2,1) both;
+}
+@keyframes bootIn { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+.boot-seal {
+  width: 54px; height: 54px; margin: 0 auto 10px; border-radius: 10px; display: flex; align-items: center; justify-content: center;
+  background: #a3242a; color: #f6e7c4; font-family: var(--brush); font-size: 34px; line-height: 1;
+  box-shadow: 0 0 0 3px rgba(163, 36, 42, 0.25), 0 6px 22px rgba(163, 36, 42, 0.45); transform: rotate(-6deg);
+}
+.boot-title {
+  margin: 0; font-family: var(--brush); font-weight: 400; font-size: 44px; letter-spacing: 2px; color: #f6e7c4;
+  text-shadow: 0 2px 0 #000, 0 0 24px rgba(232, 200, 122, 0.25);
+}
+.boot-sub { margin: 4px 0 26px; color: var(--muted); font-size: 13px; letter-spacing: 3px; }
+.boot-stage.hidden { display: none; }
+.boot-bar { height: 6px; border-radius: 99px; background: rgba(255, 255, 255, 0.08); overflow: hidden; border: 1px solid rgba(232, 200, 122, 0.18); }
+.boot-bar i {
+  display: block; height: 100%; width: 8%; border-radius: inherit; transition: width 0.35s ease;
+  background: linear-gradient(90deg, #8a6a2c, #e8c87a 70%, #fff3cf);
+  box-shadow: 0 0 10px rgba(232, 200, 122, 0.6);
+}
+.boot-msg { margin: 10px 0 0; font-size: 13px; color: var(--text); min-height: 18px; }
+.boot-tip { margin: 22px 0 0; font-size: 12px; color: var(--muted); line-height: 1.5; min-height: 36px; transition: opacity 0.3s; }
+.boot-ver { position: absolute; bottom: calc(10px + var(--safe-bottom)); left: 0; right: 0; text-align: center; font-size: 11px; color: rgba(168, 152, 127, 0.6); margin: 0; }
+/* 로그인 */
+#boot-login { animation: bootIn 0.45s ease both; display: flex; flex-direction: column; gap: 10px; }
+#boot-login.hidden { display: none; }
+.login-google {
+  display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; height: 48px; border-radius: 12px;
+  border: 0; background: #fff; color: #1f1f1f; font-size: 15px; font-weight: 700; cursor: pointer;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35); transition: transform 0.1s, filter 0.15s;
+}
+.login-google svg { width: 20px; height: 20px; flex: none; }
+.login-google:active { transform: scale(0.98); }
+.login-google:disabled { filter: grayscale(0.6) brightness(0.8); cursor: default; }
+.login-guest {
+  width: 100%; height: 42px; border-radius: 12px; border: 1px solid rgba(232, 200, 122, 0.35); background: rgba(0, 0, 0, 0.25);
+  color: var(--text); font-size: 14px; font-weight: 700; cursor: pointer;
+}
+.login-guest:active { transform: scale(0.98); }
+.login-guest:disabled { opacity: 0.5; }
+.login-note { margin: 4px 0 0; font-size: 12px; color: var(--muted); line-height: 1.55; }
+.login-err {
+  margin: 0; padding: 9px 11px; border-radius: 10px; background: rgba(163, 36, 42, 0.18); border: 1px solid rgba(192, 57, 43, 0.5);
+  font-size: 12.5px; line-height: 1.5; text-align: left; color: #f5d6cf;
+}
+.login-err small { display: block; margin-top: 4px; color: #d9b3aa; }
+.login-err code { font-size: 11px; color: #f0c4b9; }
+.login-busy { margin: 2px 0; font-size: 13px; color: var(--gold); }
+.login-busy::before { content: ''; display: inline-block; width: 12px; height: 12px; margin-right: 7px; vertical-align: -1px; border-radius: 50%; border: 2px solid rgba(232, 200, 122, 0.3); border-top-color: var(--gold); animation: bootSpin 0.8s linear infinite; }
+@keyframes bootSpin { to { transform: rotate(360deg); } }
+.login-hint { margin: 0; padding: 8px 10px; border-radius: 10px; background: rgba(232, 200, 122, 0.1); border: 1px solid rgba(232, 200, 122, 0.3); font-size: 12px; line-height: 1.5; color: var(--text); text-align: left; }
+.login-hint a, .login-err a { color: var(--gold); font-weight: 700; }
+.login-pick { text-align: left; padding: 10px 12px; border-radius: 12px; background: rgba(0, 0, 0, 0.3); border: 1px solid var(--line); font-size: 13px; line-height: 1.55; }
+.login-pick b { color: var(--gold); }
+@media (prefers-reduced-motion: reduce) { .boot-moon, .boot-m3, .boot-m2, .boot-box, #boot-login { animation: none; } }

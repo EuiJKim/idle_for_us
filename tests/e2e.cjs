@@ -32,6 +32,9 @@ async function newPlayer(browser, name, cls = '검사') {
     return route.fulfill({ status: 200, contentType: 'text/javascript', body: fs.readFileSync(file) });
   });
   await page.goto(BASE + (PKG ? '?emu=1' : ''), { waitUntil: 'domcontentloaded' });
+  // v266 로딩 → (온라인이면) 로그인 화면 — 손님으로 들어간다
+  await page.waitForSelector('#modal input, #login-guest', { timeout: 20000 });
+  if (await page.isVisible('#login-guest')) await page.click('#login-guest');
   await page.fill('#modal input', name);
   await page.click('#modal .btn.primary');
   await page.waitForSelector('.class-card');

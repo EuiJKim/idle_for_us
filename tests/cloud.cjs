@@ -23,6 +23,9 @@ async function ctxPage(browser) {
 async function newPlayer(browser, name) {
   const o = await ctxPage(browser);
   await o.page.goto(BASE + '?emu=1');
+  await o.page.waitForSelector('#login-guest', { timeout: 20000 });
+  assert(await o.page.isVisible('#login-google'), '로그인 화면(Google · 손님)');
+  await o.page.click('#login-guest');
   await o.page.fill('#modal input', name); await o.page.click('#modal .btn.primary');
   await o.page.waitForSelector('.class-card'); await o.page.click('.class-card:has-text("검사")');
   await o.page.waitForFunction(() => document.querySelector('#net-badge')?.textContent.includes('온라인'), null, { timeout: 20000 });
@@ -52,6 +55,7 @@ const C = (p) => p.evaluate(() => window.__test_cloud());
   // 새로 고침해도 Google 그대로(새 익명 안 만듦)
   await A.page.reload(); await A.page.waitForFunction(() => document.querySelector('#net-badge')?.textContent.includes('온라인'), null, { timeout: 20000 }); await sleep(1500);
   let a2 = await C(A.page); assert(a2.google && a2.uid === a0.uid, '새로 고침 후에도 Google 계정 그대로');
+  assert(!(await A.page.isVisible('#login-google')) && !(await A.page.isVisible('#boot-login')), 'Google로 들어온 뒤엔 로그인 화면이 다시 안 뜸');
   assert(!(await A.page.isVisible('#modal h2:has-text("다른 기기의 진행")')), '내가 올린 것만 있으면 묻지 않음');
 
   console.log('# B: 다른 기기 — 같은 Google로');
@@ -88,6 +92,30 @@ const C = (p) => p.evaluate(() => window.__test_cloud());
   await A.page.evaluate(() => [...document.querySelectorAll('#modal *')].find((x) => x.childElementCount < 3 && /앱·계정/.test(x.textContent))?.click());
   assert(await A.page.isVisible('#modal .row:has-text("tester@example.com")'), '설정에 Google 계정 이메일');
   await sleep(800); await A.page.evaluate(() => [...document.querySelectorAll('#modal .row')].find((r) => r.textContent.includes('Google'))?.scrollIntoView({ block: 'center' })); await sleep(300); await A.page.screenshot({ path: path.join(OUT, 'cloud-settings.png') });
+  console.log('# C: 새 기기 — 로그인 화면에서 바로 Google');
+  const Cc = await ctxPage(browser);
+  await Cc.page.goto(BASE + '?emu=1');
+  await Cc.page.waitForSelector('#login-google', { timeout: 20000 });
+  assert((await Cc.page.textContent('#boot-msg')).length >= 0 && await Cc.page.isVisible('#boot .boot-title'), '로딩 화면 제목');
+  await Promise.all([Cc.page.waitForNavigation({ timeout: 15000 }), Cc.page.evaluate((t) => window.__test_loginGoogle(t), TOKEN)]);
+  await Cc.page.waitForFunction(() => document.querySelector('#net-badge')?.textContent.includes('온라인'), null, { timeout: 20000 }); await sleep(1500);
+  assert(!(await Cc.page.isVisible('#login-google')), '불러온 뒤엔 로그인 화면 없음');
+  assert((await Cc.page.evaluate(() => window.__game.s.level)) === 41 && (await C(Cc.page)).uid === a0.uid, '새 기기가 묻지 않고 서버 진행(Lv41)을 불러옴');
+  // 로그아웃 → 다시 로그인 화면
+  await Cc.page.click('#btn-settings'); await Cc.page.waitForSelector('#modal h2:has-text("설정")');
+  await Cc.page.evaluate(() => [...document.querySelectorAll('#modal *')].find((x) => x.childElementCount < 3 && /앱·계정/.test(x.textContent))?.click());
+  await Promise.all([Cc.page.waitForNavigation({ timeout: 15000 }), Cc.page.click('#modal .row:has-text("로그아웃") button')]);
+  await Cc.page.waitForSelector('#login-google', { timeout: 20000 });
+  const cs = await Cc.page.evaluate(() => ({ g: window.__test_cloud().google, save: !!localStorage.getItem('ifu-world-v1') }));
+  assert(!cs.g, '로그아웃하면 익명으로 돌아가 로그인 화면이 뜸');
+  // 손님으로 고르면 다음엔 안 뜬다
+  await Cc.page.click('#login-guest');
+  await Cc.page.waitForSelector('#modal input'); await Cc.page.fill('#modal input', '병철'); await Cc.page.click('#modal .btn.primary');
+  await Cc.page.waitForSelector('.class-card'); await Cc.page.click('.class-card:has-text("검사")'); await sleep(800);
+  await Cc.page.reload(); await Cc.page.waitForFunction(() => document.querySelector('#boot')?.classList.contains('out'), null, { timeout: 20000 });
+  assert(!(await Cc.page.isVisible('#login-google')), '손님을 고른 뒤엔 다시 안 뜸');
+  await Cc.ctx.close();
+
   // 규칙: 남의 세이브는 못 읽고 못 쓴다
   const anon = await fetch('http://127.0.0.1:9099/identitytoolkit.googleapis.com/v1/accounts:signUp?key=fake', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{"returnSecureToken":true}' }).then((r) => r.json());
   const docUrl = `http://127.0.0.1:8080/v1/projects/idle-69772/databases/(default)/documents/saves/${a0.uid}`;

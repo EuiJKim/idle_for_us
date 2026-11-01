@@ -130,21 +130,27 @@ export class Net {
   }
   // 이미 다른 진행에 이어진 Google 계정으로 바꾼다. 버리는 익명 계정은 서열에서 내린다(world 0 — 서열은 world 1만 센다).
   async switchAccount(cred) {
-    try {
-      await this.fs.setDoc(this.ref('players', this.uid),
-        { nickname: String(this.game.s.nickname || '이름없음').slice(0, 12), world: 0 }, { merge: true });
-    } catch { /* 못 내려도 바꾸기는 한다 */ }
     const A = this.authM;
-    let r;
-    if (cred) r = await A.signInWithCredential(this.auth, cred);
-    else {
+    // 인증 정보가 없으면 Google 창을 다시 연다 — 누른 바로 그 순간에 열어야 팝업이 안 막혀서, 다른 일보다 먼저 연다
+    let popup = null;
+    if (!cred) {
       const prov = new A.GoogleAuthProvider();
       prov.setCustomParameters({ prompt: 'select_account' });
-      r = await A.signInWithPopup(this.auth, prov);
+      popup = A.signInWithPopup(this.auth, prov);
     }
+    const demote = this.fs.setDoc(this.ref('players', this.uid),
+      { nickname: String(this.game.s.nickname || '이름없음').slice(0, 12), world: 0 }, { merge: true }).catch(() => {});
+    let r;
+    if (cred) { await demote; r = await A.signInWithCredential(this.auth, cred); } else { r = await popup; await demote; }
     this.uid = r.user.uid;
     this.changed('account');
     return this.fetchSave();
+  }
+  // 이 기기에서 로그아웃 — 다음 실행 때 새 익명 계정으로 시작한다(로그인 화면이 뜬다)
+  async signOut() {
+    if (this.authM && this.auth) await this.authM.signOut(this.auth);
+    this.uid = null;
+    this.status = 'offline';
   }
   async fetchSave() {
     const snap = await this.fs.getDoc(this.ref('saves', this.uid));
