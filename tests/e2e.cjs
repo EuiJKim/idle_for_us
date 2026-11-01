@@ -42,7 +42,9 @@ async function newPlayer(browser, name, cls = '검사') {
 async function tab(page, name) {
   const [t, sub] = name.split('/');
   if (await page.isVisible('#panel-close')) { await page.click('#panel-close'); await sleep(250); }
-  await page.click(`#tabs button[data-tab="${t}"]`);
+  // v263: 창은 레벨에 따라 열린다 — 잠긴 창은 누르면 알림만 뜨므로, 시험에서는 앱 함수로 바로 연다
+  if (await page.$eval(`#tabs button[data-tab="${t}"]`, (b) => b.classList.contains('locked'))) await page.evaluate((x) => window.__app.showTab(x), t);
+  else await page.click(`#tabs button[data-tab="${t}"]`);
   await sleep(300);
   if (sub) { await page.click(`#panel .subtabs button[data-key="${sub}"]`); await sleep(250); }
 }

@@ -210,7 +210,21 @@ function showTab(name, sub) {
   tabs[name].update();
   panelRes();
 }
-document.querySelectorAll('#tabs button[data-tab]').forEach((b) => b.addEventListener('click', () => showTab(b.dataset.tab)));
+// v263: 창은 레벨에 따라 열린다 — Lv1부터 일곱 개가 다 열려 있어 첫 10분이 어지러웠다(옛 세이브는 이미 높아 그대로)
+const TAB_LV = { comp: 12, dgn: 18, social: 25 };
+const TAB_NAME = { comp: '동료', dgn: '던전', social: '무림' };
+const tabLocked = (k) => (game.s.level || 1) < (TAB_LV[k] || 0);
+function paintTabLocks() {
+  document.querySelectorAll('#tabs button[data-tab]').forEach((b) => {
+    const lk = tabLocked(b.dataset.tab);
+    b.classList.toggle('locked', lk);
+    if (lk) b.dataset.lv = `Lv${TAB_LV[b.dataset.tab]}`; else delete b.dataset.lv;
+  });
+}
+document.querySelectorAll('#tabs button[data-tab]').forEach((b) => b.addEventListener('click', () => {
+  if (tabLocked(b.dataset.tab)) { toast(`${TAB_NAME[b.dataset.tab]} 창은 레벨 ${TAB_LV[b.dataset.tab]}에 열려요`); return; }
+  showTab(b.dataset.tab);
+}));
 $('panel-dim').addEventListener('click', closePanel);
 $('panel-close').addEventListener('click', closePanel);
 function panelRes() {
@@ -460,10 +474,11 @@ function showInstEnd(ev) {
     return;
   }
   const d = ev.kind === 'daily' ? D.dailyOf(ev.id) : null;
-  const name = d ? `${d.name} ${ev.stage}단계` : `무한의 탑 ${ev.stage}층`;
+  const name = d ? `${d.name} ${ev.stage}단계` : ev.stage > D.TOWER_MAX ? `주간 회랑 ${ev.stage - D.TOWER_MAX}층` : `무한의 탑 ${ev.stage}층`;
   // 탑을 이어 오르는 중이면 알림만 (창이 계속 뜨면 방치가 끊긴다)
   if (ev.kind === 'tower' && ev.ok) {
-    toast(`🏯 ${name} 돌파! 공격력·체력 +${(D.towerBonus(game.s.tower.floor) * 100).toFixed(1)}%${ev.reward?.mats ? ` · 보따리 ${rewardText(ev.reward)}` : ''}`);
+    toast(ev.stage > D.TOWER_MAX ? `🏯 ${name} 돌파!${ev.reward?.gold ? ` 은자 ${fmt(ev.reward.gold)}` : ''}`
+      : `🏯 ${name} 돌파! 공격력·체력 +${(D.towerBonus(game.s.tower.floor) * 100).toFixed(1)}%${ev.reward?.mats ? ` · 보따리 ${rewardText(ev.reward)}` : ''}`);
     if (ev.chain) return;
   }
   if (ev.left) return;
@@ -533,6 +548,13 @@ function handleEvents() {
         const opened = W.MAPS.find((m) => m.area === 1 && m.lv[0] === ev.level);
         if (opened) parts.push(opened.king ? `십이지왕 ${opened.zoneName}의 영역이 열렸어요` : `새 사냥터 ${opened.zoneName}`);
         if (parts.length || ev.level % 5 === 0 || ev.level <= 5) toast([`레벨 ${ev.level}!`, ...parts].join(' · '));
+        // v263 창이 열리는 레벨 — 띠와 단추 반짝임
+        for (const [k, lv] of Object.entries(TAB_LV)) if (ev.level === lv) {
+          view.showBanner(`${TAB_NAME[k]} 창이 열렸어요`, '#fde68a', 1.8, '열림');
+          const b = document.querySelector(`#tabs button[data-tab="${k}"]`);
+          if (b) { b.classList.remove('just-open'); void b.offsetWidth; b.classList.add('just-open'); }
+        }
+        paintTabLocks();
         drawPortrait();
         break;
       }
@@ -645,6 +667,10 @@ function handleEvents() {
       case 'heroDied':
         if (!ev.inst) toast(`쓰러졌어요… 경험치 ${fmt(ev.loss)}을 잃고 마을로 돌아가요${ev.retreat ? ` — 너무 센 곳이라 다음엔 ${ev.retreat}(으)로 나가요` : ''}`);
         break;
+      // v263: 견문록 낙관
+      case 'dexStamp': toast(`견문록 — ${ev.name} 낙관${ev.zoneDone ? ' · 지역 완성! 경험치 +0.5%' : ''}`); break;
+      // v263: 깨달음 점수
+      case 'enlight': toast(`깨달음 +${ev.got} — 무공 창에서 올려요 (가진 것 ${ev.pts})`); break;
       // v262: 비무 별
       case 'duelStar':
         toast(`★ ${ev.title} ${ev.name} — ${[ev.fast ? '빠르게 이김' : '', ev.clean ? '초식에 안 맞고 이김' : ''].filter(Boolean).join(' · ')} · 영구 덤이 늘었어요`);
@@ -1629,6 +1655,7 @@ setInterval(() => net.refreshDay?.(), 60 * 1000);   // 주가 바뀌면 새 토�
 if (document.fonts?.load) document.fonts.load('20px "Yuji Syuku"', '두목전직레벨객잔마을죽림').catch(() => {});
 netChanged('status');
 refreshUI(true);
+paintTabLocks();   // v263
 requestAnimationFrame((t) => { last = t; frame(t); });
 if (!game.s.nickname) askNickname(true);
 else if (!game.s.job) askClass();

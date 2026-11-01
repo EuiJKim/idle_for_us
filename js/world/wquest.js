@@ -30,6 +30,8 @@ const lv = (n) => (g) => ({ now: g.s.level, need: n });
 const tier = (n) => (g) => ({ now: g.s.jobTier, need: n });
 const floor = (n) => (g) => ({ now: g.s.tower.floor, need: n });
 const flag = (k, n = 1) => (g) => ({ now: did(g, k), need: n });
+// v263: 조작을 알려 주는 단계는 읽고 바로 받는다(해 보면 좋고, 안 해도 막히지 않는다) — 첫 10분이 조작 숙제였다
+const tip = (k) => (g) => ({ now: 1, need: 1, tried: did(g, k) > 0 });
 
 // goal(g) → { now, need } · tab: 눌렀을 때 열 화면 'char/stat'처럼 창/칸 (wui WTABS 열쇠 · 칸은 그 창 subTabs 열쇠)
 // gift(g): 이 단계가 처음 뜰 때 한 번 — 받은 것을 글로 돌려준다(없으면 null)
@@ -44,10 +46,10 @@ export const QUESTS = [
     goal: (g) => ({ now: g.s.kills, need: 10 }) },
   { id: 'move', title: '화면을 눌러 직접 움직여 보자', tab: null, min: 1, xp: 0.2,
     why: '빈 땅을 톡 누르면 그리로 걷고, 누른 채 끌면 조이스틱이 된다. 손을 떼면 다시 자동 사냥.',
-    goal: flag('move') },
+    tip: true, goal: tip('move') },
   { id: 'zoom', title: '화면 거리를 바꿔 보자', tab: null, min: 1, xp: 0.1,
     why: '들판 오른쪽 위 "보통" 단추 — 누를 때마다 가까이·보통·멀리. 멀리 보면 몹 무리와 두목 경고가 한눈에 들어온다.',
-    goal: flag('zoom') },
+    tip: true, goal: tip('zoom') },
   { id: 'stat', title: '능력치를 3점 찍자', tab: 'char/stat', min: 1, xp: 0.2,
     why: '레벨이 오르면 점수가 쌓인다. 캐릭터 창에서 힘·민첩·체질·내공에 나눠 찍는다.',
     goal: (g) => ({ now: Object.values(g.s.stats).reduce((a, b) => a + b, 0), need: 3 }) },
@@ -70,7 +72,7 @@ export const QUESTS = [
     goal: (g) => ({ now: g.s.autoRefill ? 1 : 0, need: 1 }) },
   { id: 'potionAt', title: '자동 물약 체력을 정하자', tab: null, min: 1, xp: 0.1,
     why: `오른쪽 위 ⚙ 설정 → 자동 물약 체력(30~75%). 물약 한 병은 최대 체력의 ${Math.round(W.POTION_HEAL * 100)}%를 채운다. 높이면 안전하지만 물약값이 꽤 든다.`,
-    goal: flag('potionAt') },
+    tip: true, goal: tip('potionAt') },
   { id: 'area2', title: '구역 2로 가 보자', tab: 'map/murim', min: 2, xp: 0.1,
     why: '지역마다 구역 1·2·3 — 뒤로 갈수록 세고 많이 준다.',
     goal: (g) => ({ now: g.s.bestMap >= W.mapId(1, 2) ? 1 : 0, need: 1 }) },
@@ -98,7 +100,7 @@ export const QUESTS = [
     goal: (g) => ({ now: skillSum(g), need: 6 }) },
   { id: 'range', title: '무공 단추를 길게 눌러 범위를 보자', tab: null, min: 2, xp: 0.1,
     why: '아래 무공 단추를 꾹 누르고 있으면 맞는 자리가 금빛으로 보인다. 설정 → 스킬 범위 보기를 켜면 펼칠 때마다 보인다.',
-    goal: flag('range') },
+    tip: true, goal: tip('range') },
   // ---- 4. 동료 (레벨 15~20) ----
   { id: 'pet', title: '애완동물을 데려가자', tab: 'comp/pet', min: 4, xp: 0.15,
     why: '동료 창 → 우리. 선학 한 마리를 넣어 뒀다 — "데려가기"를 누르면 곁에서 함께 싸운다. 더 좋은 것은 두목이 떨군다.',
@@ -122,7 +124,7 @@ export const QUESTS = [
     goal: lv(20) },
   { id: 'saver', title: '절전 화면을 켜 보자', tab: null, min: 3, xp: 0.1,
     why: '들판 오른쪽 🌙. 검은 화면에 숫자만 남기고 사냥은 계속된다 — 오래 켜 둘 때 배터리를 아낀다. 두 번 누르면 돌아온다. 설정에서 저절로 들어갈 시간을 정한다.',
-    goal: flag('saver') },
+    tip: true, goal: tip('saver') },
   { id: 'app', title: '앱으로 설치하거나 전체 화면으로', tab: null, min: 3, xp: 0.1, skip: true,
     why: '⚙ 설정 → 앱으로 쓰기. 홈 화면에 깔면 주소창 없이 열린다. 들판의 ⛶ 단추는 지금 바로 전체 화면. (카카오톡 안에서는 안 된다 — 크롬·사파리로)',
     goal: flag('app') },

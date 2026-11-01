@@ -88,6 +88,9 @@ export function migrateWorld(raw, now = Date.now()) {
   s.elixir = Math.max(0, Math.min(W.ELIXIR_MAX, Number(raw.elixir) || 0));
   s.autoEnh = !!raw.autoEnh; s.autoInf = !!raw.autoInf;   // v262
   s.loadout = raw.loadout === 1 ? 1 : 0;
+  { const dx = raw.dex && typeof raw.dex === 'object' ? raw.dex : {}; s.dex = {}; for (const [k, v] of Object.entries(dx)) { const n = Math.min(9999, Math.floor(Number(v) || 0)); if (n > 0) s.dex[k] = n; } }
+  s.awaken = raw.awaken && typeof raw.awaken === 'object' && W.AWAKEN_KINDS.some((k) => k.id === raw.awaken.kind) && /^s[0-3]$/.test(raw.awaken.slot) ? { slot: raw.awaken.slot, kind: raw.awaken.kind } : null;
+  { const e = raw.enl && typeof raw.enl === 'object' ? raw.enl : {}; s.enl = { pts: Math.max(0, Math.floor(Number(e.pts) || 0)), exp: Math.max(0, Number(e.exp) || 0), nodes: {} }; for (const [k, v] of Object.entries(e.nodes || {})) { const n = Math.min(W.ENL_MAX, Math.floor(Number(v) || 0)); if (n > 0) s.enl.nodes[k] = n; } }
   s.loadouts = Array.isArray(raw.loadouts) ? [0, 1].map((i) => { const lo = raw.loadouts[i]; return lo && typeof lo === 'object' ? { stats: { ...(lo.stats || {}) }, skillLv: { ...(lo.skillLv || {}) }, passLv: { ...(lo.passLv || {}) } } : null; }) : [null, null];
   s.petShard = Math.max(0, Math.floor(Number(raw.petShard) || 0)); s.petSoul = Math.max(0, Math.floor(Number(raw.petSoul) || 0)); s.petSoulExp = Math.max(0, Number(raw.petSoulExp) || 0);
   if (raw.today && typeof raw.today === 'object' && typeof raw.today.day === 'string') s.today = { day: raw.today.day, cnt: { ...(raw.today.cnt || {}) }, claimed: { ...(raw.today.claimed || {}) } }; else s.today = null;
@@ -157,6 +160,7 @@ export function migrateWorld(raw, now = Date.now()) {
   }
   const tw = raw.tower && typeof raw.tower === 'object' ? raw.tower : {};
   s.tower = { floor: clamp(Math.floor(Number(tw.floor) || 0), 0, D.TOWER_MAX), auto: tw.auto !== false };
+  if (tw.cor && typeof tw.cor.key === 'string') s.tower.cor = { key: tw.cor.key, best: Math.max(0, Math.floor(Number(tw.cor.best) || 0)), all: Math.max(0, Math.floor(Number(tw.cor.all) || 0)) };   // v263
   // v230: 전에는 s.dgn을 새로 짜며 auto를 빼먹어 다시 들어오면 늘 꺼져 있었다
   s.path = raw.path === 'a' || raw.path === 'b' ? raw.path : null;   // v237
   s.dgn.auto = !!dg.auto;
@@ -432,7 +436,7 @@ export class WorldGame {
       skillMult: 1 + int * 0.007 + gear.skill,
       // 자연 회복: 최대 체력의 0.6%/초 + 내공·레벨 몫 (물약만 바라보지 않게)
       regen: (1 + int * 0.12 + L * 0.08 + hp * (0.006 + gear.regenPct)) * (1 + (pm.regen || 0)),
-      expMult: 1 + gear.exp,
+      expMult: 1 + gear.exp + this.dexBonus(),   // v263 견문록
       matMult: 1 + gear.mat,
       // v262: 스탯마다 다른 축 — 힘=두목 피해 · 민첩=걸음 · 체력=받는 피해 감소 · 내공=무공 숨(어디에 찍든 사냥만 같던 것)
       moveSpeed: 1 + (mt ? mt.speed : 0) + (cls.move || 0) + (pm.move || 0) + gear.move + Math.min(W.STAT_ROLE.dexMoveMax, dex * W.STAT_ROLE.dexMove),
@@ -1297,6 +1301,13 @@ export class WorldGame {
     const blood = !this.inst && TD.bloodOn() ? 1 + TD.BLOOD_BONUS : 1;   // v262 혈겁
     const gold = Math.round(W.mobGold(m.lv) * (m.isBoss ? W.BOSS.gold : m.elite ? W.ELITE.gold : 1) * (1 + (env.gold || 0) + (st.gold || 0)) * ek * blood);
     if (!this.inst) {
+      // v263 견문록 — 졸개 종마다 센다(낙관이 찍히는 순간 지역이 다 찼는지 본다)
+      if (!m.isBoss && m.name) {
+        const dx = this.s.dex || (this.s.dex = {});
+        const n = (dx[m.name] || 0) + 1;
+        if (n <= 9999) dx[m.name] = n;
+        if (n === W.DEX_NEED) { this._dexZ = null; this._stats = null; this.emit('dexStamp', { name: m.name, zoneDone: this.dexZoneDone(this.map.zone) }); }
+      }
       this.tday('kill'); if (m.elite) this.tday('elite'); if (m.isBoss) this.tday('boss');
       if (!m.isBoss && this.rng() < W.PET_SHARD_RATE * (m.elite ? 3 : 1)) this.s.petShard = (this.s.petShard || 0) + 1;   // v262 포획 조각
     }
@@ -1648,7 +1659,14 @@ export class WorldGame {
   expNeed() { return W.expToNext(this.s.level); }
   addExp(n) {
     const s = this.s;
-    if (s.level >= W.LEVEL_MAX) return;
+    if (s.level >= W.LEVEL_MAX) {
+      // v263 깨달음 — 만렙 뒤 경험치는 버리지 않고 깨달음 점수로
+      const e = s.enl || (s.enl = { pts: 0, exp: 0, nodes: {} });
+      e.exp += n;
+      const per = W.enlExp();
+      if (e.exp >= per) { const k = Math.floor(e.exp / per); e.pts += k; e.exp -= k * per; this.emit('enlight', { pts: e.pts, got: k }); }
+      return;
+    }
     s.exp += n;
     while (s.level < W.LEVEL_MAX && s.exp >= W.expToNext(s.level)) {
       s.exp -= W.expToNext(s.level);
@@ -2406,6 +2424,39 @@ export class WorldGame {
     for (const p of this.passiveList()) for (let l = 0; l < this.passLevel(p.id); l++) n += W.passiveCost(p, l);
     return n;
   }
+  // ---------- v263 강호 견문록 ----------
+  dexZoneDone(zoneId) {
+    const z = W.dexZones().find((x) => x.id === zoneId);
+    return !!z && z.names.every((n) => (this.s.dex?.[n] || 0) >= W.DEX_NEED);
+  }
+  dexBonus() {
+    if (this._dexZ == null) this._dexZ = W.dexZones().filter((z) => z.names.every((n) => (this.s.dex?.[n] || 0) >= W.DEX_NEED)).length;
+    return this._dexZ * W.DEX_ZONE_EXP;
+  }
+  // ---------- v263 각성 · 깨달음 ----------
+  awakenSlots() { return this.skills().filter((k) => /^s[0-3]$/.test(k.id)).map((k) => k.id); }
+  awakenCost() { return this.s.awaken ? W.awakenSwapCost(this.s.level) : 0; }
+  canAwaken(slot, kind) {
+    return this.s.level >= W.AWAKEN_LV && this.awakenSlots().includes(slot) && W.AWAKEN_KINDS.some((k) => k.id === kind)
+      && !(this.s.awaken?.slot === slot && this.s.awaken?.kind === kind) && this.s.gold >= this.awakenCost();
+  }
+  awaken(slot, kind) {
+    if (!this.canAwaken(slot, kind)) return false;
+    this.s.gold -= this.awakenCost();
+    this.s.awaken = { slot, kind };
+    this._mods = null;
+    return true;
+  }
+  enlLevel(id) { return this.s.enl?.nodes?.[id] || 0; }
+  canEnlUp(id) { const lv = this.enlLevel(id); return lv < W.ENL_MAX && (this.s.enl?.pts || 0) >= W.enlCost(lv) && this.skills().some((k) => k.id === id); }
+  enlUp(id) {
+    if (!this.canEnlUp(id)) return false;
+    const lv = this.enlLevel(id);
+    this.s.enl.pts -= W.enlCost(lv);
+    this.s.enl.nodes[id] = lv + 1;
+    this._mods = null;
+    return true;
+  }
   // v262 차림 두 벌 — 능력치 분배·무공·심법 레벨을 두 벌 적어 두고 갈아 낀다(사냥용·두목용). 바꾸는 값은 없다.
   //   벌을 바꿀 때 지금 것을 지금 벌에 적고, 다른 벌을 낀다. 그 벌이 쓴 점수보다 지금 가진 점수가 많으면 남는 것은 찍을 점수로.
   loadoutSpent(lo) {
@@ -2498,7 +2549,7 @@ export class WorldGame {
 
   // 스킬 하나에 걸린 것: 스킬 레벨 + 끼고 있는 장비의 옵션
   skillMods(id) {
-    const key = `${this.statSig()}|${JSON.stringify(this.s.skillLv)}`;
+    const key = `${this.statSig()}|${JSON.stringify(this.s.skillLv)}|${JSON.stringify(this.s.enl?.nodes || {})}|${this.s.awaken?.slot || ''}${this.s.awaken?.kind || ''}`;
     if (!this._mods || this._mods.key !== key) this._mods = { key };
     if (this._mods[id]) return this._mods[id];
     // v256: 길 무공(pa·pb)은 칸 5 — 전엔 +'a'가 NaN이라 장비 스킬 옵션·각인 스킬 변화가 길 무공에 붙지 못했다
@@ -2522,7 +2573,13 @@ export class WorldGame {
       if (im.skill.s !== slot) continue;
       if (im.skill.k === 'echo') m.echoP += im.skill.v; else m[im.skill.k] = (m[im.skill.k] || 0) + im.skill.v;
     }
-    m.echoP = Math.min(IM.SKILL_CAP.echo, m.echoP);
+    // v263 각성 — 고른 무공 하나에 변형 하나
+    const aw = this.s.awaken;
+    if (aw?.slot === id && this.s.level >= W.AWAKEN_LV) { const k = W.AWAKEN_KINDS.find((x) => x.id === aw.kind); if (k) for (const [kk, v] of Object.entries(k.mods)) m[kk] = (m[kk] || 0) + v; }
+    // v263 깨달음 — 무공 칸마다 단계
+    const en = this.s.enl?.nodes?.[id] || 0;
+    if (en) { m.dmg += en * W.ENL_STEP.dmg; m.cd += en * W.ENL_STEP.cd; }
+    m.echoP = Math.min(IM.SKILL_CAP.echo + (aw?.slot === id && aw.kind === 'twin' ? 0.3 : 0), m.echoP);
     m.cd = Math.min(0.7, m.cd);
     m.cost = Math.min(1, m.cost);
     if (m.free) m.cost = 1;
@@ -3075,6 +3132,21 @@ export class WorldGame {
   }
   // 무한의 탑 — 다음 층에 오른다. chain: 이긴 뒤 이어 오르는 것(등장 연출을 짧게)
   canTower() { return !this.inst && !!this.s.job && this.s.tower.floor < D.TOWER_MAX; }
+  // v263 주간 회랑 — 120층을 넘으면. 이번 주 기록에서 한 층 위로.
+  corridorState(now = Date.now()) {
+    const wk = D.corridorWeek(now);
+    const c = this.s.tower.cor;
+    if (!c || c.key !== wk) this.s.tower.cor = { key: wk, best: 0, all: Math.max(c?.all || 0, c?.best || 0) };
+    return this.s.tower.cor;
+  }
+  canCorridor() { return !this.inst && !!this.s.job && this.s.tower.floor >= D.TOWER_MAX; }
+  startCorridor(chain = false) {
+    if (!this.canCorridor()) return false;
+    const f = D.TOWER_MAX + this.corridorState().best + 1;
+    this.startInst({ kind: 'tower', corridor: true, stage: f, map: D.towerMap(f), t: D.towerSec(f), max: D.towerSec(f), wait: chain ? 1.2 : 0.6, castT: 2.5 });
+    this.bossSeen = chain;
+    return true;
+  }
   startTower(chain = false) {
     if (!this.canTower()) return false;
     const f = this.s.tower.floor + 1;
@@ -3340,6 +3412,10 @@ export class WorldGame {
       else if (!I.done?.left) this.dgnToday(I.now).fail[I.id] = I.stage;
     } else if (I.kind === 'tower' && !ok) {
       this.s.tower.failPow = this.stats().power;      // v230: 루틴이 같은 층에서 헛돌지 않게(그만둬도 — 다시 끌려 들어가지 않게)
+    } else if (I.kind === 'tower' && ok && I.corridor) {
+      this.tday('tower');
+      const c = this.corridorState();
+      if (I.stage - D.TOWER_MAX > c.best) { c.best = I.stage - D.TOWER_MAX; c.all = Math.max(c.all || 0, c.best); reward = this.grant({ gold: D.corridorGold(I.stage) }); }
     } else if (I.kind === 'tower' && ok) {
       this.tday('tower');
       this.s.tower.floor = Math.max(this.s.tower.floor, I.stage);
@@ -3358,7 +3434,13 @@ export class WorldGame {
       kills: I.kills || 0, target: I.target || 0, reward, chain: false };
     this.inst = null;
     // 탑: 이기고 '이어 오르기'면 다음 층으로
-    if (I.kind === 'tower' && ok && (this.s.tower.auto || this.s.dgn.routine) && !I.done.left && this.canTower()) {
+    if (I.kind === 'tower' && ok && I.corridor && this.s.tower.auto && !I.done.left && this.canCorridor()) {
+      res.chain = true;
+      this.emit('instEnd', res);
+      this.startCorridor(true);
+      return res;
+    }
+    if (I.kind === 'tower' && ok && !I.corridor && (this.s.tower.auto || this.s.dgn.routine) && !I.done.left && this.canTower()) {
       res.chain = true;
       this.emit('instEnd', res);
       this.startTower(true);

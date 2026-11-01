@@ -1283,7 +1283,7 @@ console.log('\n=== 길잡이 (v146) ===');
   const v3b = newWorldSave(0); v3b.questV = 3; v3b.quest = Q.QUEST_V3_IDS.length; v3b.job = 'sword';
   ok(new WorldGame(migrateWorld(v3b, 0), 0).questNow()?.q.id === 'enh5', '판 3을 다 끝낸 사람도 새 단계를 겪는다');
   // 새 단계: 해 보면 끝난다
-  for (const [id, k] of [['convert', 'convert'], ['prot', 'prot'], ['saver', 'saver'], ['lore', 'lore'], ['range', 'range']]) {
+  for (const [id, k] of [['convert', 'convert'], ['prot', 'prot'], ['lore', 'lore']]) {   // v263: 절전·범위는 '알아두기'(바로 받는다)
     const gg = fresh(); gg.s.quest = at(id);
     const a = gg.questNow().done; gg.mark(k);
     ok(!a && gg.questNow().done, `${Q.QUESTS[at(id)].title} — 해 보면 끝난다`);
@@ -1701,6 +1701,43 @@ console.log('\n=== v262 경제 · 복귀 · 선택 ===');
   A.s.autoEnh = true;
   A.autoGear();
   ok(W.GROW_SLOTS.every((k) => (A.s.equip[k]?.plus || 0) === W.enhanceLvCap(A.s.level)), '자동 강화 — 여섯 칸을 레벨 상한까지');
+}
+
+console.log('\n=== v263 각성 · 깨달음 · 견문록 · 회랑 · 길잡이 알아두기 ===');
+{
+  const DG = await import('../js/world/wdgn.js');
+  const g = fresh(); g.s.gold = 1e15;
+  while (g.s.level < 60) g.addExp(W.expToNext(g.s.level));
+  g.s.jobTier = 3; g._stats = null;
+  const sl = g.awakenSlots()[0];
+  const d0 = g.skillMods(sl).range;
+  ok(g.awaken(sl, 'wide') && Math.abs(g.skillMods(sl).range - d0 - 0.4) < 1e-9, '각성 광 — 범위 +40%');
+  const gold0 = g.s.gold;
+  ok(g.awaken(sl, 'heavy') && g.s.gold < gold0, '각성을 바꾸면 은자');
+  // 깨달음
+  while (g.s.level < W.LEVEL_MAX) g.addExp(W.expToNext(g.s.level));
+  g.addExp(W.enlExp() * 3);
+  ok(g.s.enl.pts === 3, '만렙 뒤 경험치 → 깨달음 점수', `${g.s.enl.pts}`);
+  const dm = g.skillMods('s0').dmg;
+  ok(g.enlUp('s0') && Math.abs(g.skillMods('s0').dmg - dm - W.ENL_STEP.dmg) < 1e-9 && g.s.enl.pts === 2, '깨달음 한 단계 — 피해 +3%');
+  // 견문록
+  const X = fresh();
+  const z = W.dexZones()[0];
+  const e0 = X.stats().expMult;
+  for (const n of z.names) X.s.dex[n] = W.DEX_NEED;
+  X._dexZ = null; X._stats = null;
+  ok(X.dexZoneDone(z.id) && X.stats().expMult - e0 >= W.DEX_ZONE_EXP - 1e-9, '견문록 — 한 지역을 다 찍으면 경험치 +0.5%(같은 졸개를 쓰는 짝 지역도 함께)', `+${((X.stats().expMult - e0) * 100).toFixed(1)}%`);
+  // 주간 회랑
+  const T = fresh();
+  T.s.tower.floor = DG.TOWER_MAX;
+  ok(!T.canTower() && T.canCorridor() && T.startCorridor() && T.inst.stage === DG.TOWER_MAX + 1 && T.inst.corridor, '120층 뒤 — 주간 회랑 1층');
+  ok(DG.towerHp(DG.TOWER_MAX + 10) > DG.towerHp(DG.TOWER_MAX) * 1.9 && DG.corridorPats('2026-11-02').length === 4 && JSON.stringify(DG.corridorPats('2026-11-02')) !== JSON.stringify(DG.corridorPats('2026-11-09')), '회랑은 층마다 단단해지고 주마다 초식이 바뀐다');
+  T.inst.done = { ok: true }; T.tick(0.05);
+  ok(T.s.tower.cor.best === 1, '이번 주 기록 1층');
+  // 길잡이 — 조작 알아두기는 읽고 바로 받는다
+  const Qg = fresh();
+  Qg.s.quest = Q.QUESTS.findIndex((q) => q.id === 'zoom');
+  ok(Qg.questNow().done, '알아두기 단계는 바로 받을 수 있다');
 }
 
 console.log('\n=== 일일 던전 열쇠 (v156 · v260 하루 셋) ===');

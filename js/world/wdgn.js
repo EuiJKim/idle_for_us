@@ -121,7 +121,7 @@ export const towerLv = (f) => Math.min(150, 2 + Math.round(f * 1.24));
 export const towerPow = () => 1;
 // 수문장 체력: 같은 레벨 무인이 16초 칠 만큼(피하느라 못 치는 시간을 셈해 넉넉히), 십이지신은 1.6배
 export const TOWER_HIT_SEC = 20;   // v154: 16→20 — 기준표를 다시 잰 뒤 피하는 무인이 목표 층보다 열 층쯤 더 올랐다
-export const towerHp = (f) => Math.round(Math.max(mobHp(towerLv(f)) * BOSS.hp, refDps(towerLv(f)) * TOWER_HIT_SEC) * (isZodiacFloor(f) ? 1.6 : 1));
+export const towerHp = (f) => Math.round(Math.max(mobHp(towerLv(f)) * BOSS.hp, refDps(towerLv(f)) * TOWER_HIT_SEC) * (isZodiacFloor(f) ? 1.6 : 1) * (f > TOWER_MAX ? CORRIDOR_HP_UP ** (f - TOWER_MAX) : 1));
 export const towerAtk = (f) => mobAtk(towerLv(f)) * BOSS.atk * 0.6;   // 붙어 치는 건 약하게 — 무서운 건 바닥 경고
 
 // 십이지신 — 자축인묘진사오미신유술해. mount: 그 신수 탈것(wdata MOUNTS의 z1~z12), pat: 고유 초식
@@ -142,7 +142,22 @@ export const ZODIAC = [
 export const zodiacOf = (f) => (isZodiacFloor(f) ? ZODIAC[f / 10 - 1] || null : null);
 // 보통 층의 초식 — 오를수록 하나씩 는다
 const PAT_UNLOCK = [[1, 'aim'], [11, 'nova'], [21, 'line'], [31, 'donut'], [41, 'cross'], [51, 'chase'], [61, 'rain'], [71, 'star'], [81, 'xcross'], [91, 'twin']];
+// v263 주간 회랑 — 120층 위. 한 주(월요일 0시, 한국 시간)마다 초식 조합이 바뀌고 층마다 수문장이 7%씩 단단해진다.
+//   이번 주 가장 높이 오른 층만 적는다(영구 덤 없음 · 층마다 처음 오를 때 은자).
+export const corridorWeek = (now = Date.now()) => kstDay(now - ((kstWeekday(now) + 6) % 7) * 86400e3);
+export function corridorPats(week = corridorWeek()) {
+  let h = 2166136261; for (const c of week) h = Math.imul(h ^ c.charCodeAt(0), 16777619);
+  let s = h >>> 0 || 1;
+  const rnd = () => ((s = (Math.imul(s, 1103515245) + 12345) >>> 0) / 4294967296);
+  const pool = PAT_UNLOCK.map(([, p]) => p);
+  const out = [];
+  while (out.length < 4) out.push(pool.splice(Math.floor(rnd() * pool.length), 1)[0]);
+  return out;
+}
+export const CORRIDOR_HP_UP = 1.07;
+export const corridorGold = (f) => Math.round(mobGold(150) * 60 * (1 + (f - TOWER_MAX) * 0.05));
 export function towerPatterns(f) {
+  if (f > TOWER_MAX) return corridorPats();
   const z = zodiacOf(f);
   if (z) return z.pat;
   return PAT_UNLOCK.filter(([at]) => f >= at).map(([, p]) => p).slice(-4);
@@ -177,7 +192,7 @@ export function towerReward(f) {
 }
 export function towerMap(f) {
   const z = zoneForLv(towerLv(f));
-  return { id: -2, inst: true, name: `무한의 탑 ${f}층`, zoneName: '무한의 탑', zone: z, mz: z, area: 0, art: ZONES_W[z].art,
+  return { id: -2, inst: true, name: f > TOWER_MAX ? `주간 회랑 ${f - TOWER_MAX}층` : `무한의 탑 ${f}층`, zoneName: '무한의 탑', zone: z, mz: z, area: 0, art: ZONES_W[z].art,
     lv: [towerLv(f), towerLv(f)], mobs: [], boss: towerBoss(f), scene: isZodiacFloor(f) ? 'raid' : 'trial', bossFirst: true };
 }
 // 십이지 뽑기 — 그 신수가 35%(이미 가졌으면 안 나온다), 셋째 뽑기까지 안 나오면 셋째에 꼭.

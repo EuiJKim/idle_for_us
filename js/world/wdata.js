@@ -885,6 +885,35 @@ export function rollPetKind(z, rng) {
   for (let i = 0; i < pool.length; i++) { r -= w[i]; if (r <= 0) return pool[i].id; }
   return pool[0].id;
 }
+// v263 강호 견문록 — 몹 종마다 DEX_NEED마리를 잡으면 낙관. 한 지역을 다 찍으면 경험치 +DEX_ZONE_EXP.
+export const DEX_NEED = 100;
+export const DEX_ZONE_EXP = 0.005;
+// 지역마다 그 지역 졸개 이름들(두목 구역·마을·던전 빼고)
+let DEX_Z = null;
+export function dexZones() {
+  if (DEX_Z) return DEX_Z;
+  const out = (DEX_Z = []);
+  for (const zn of ZONE_ORDER) {
+    const names = [];
+    for (const m of MAPS) if (m.zone === zn.id && !m.town && !m.inst) for (const k of m.mobs || []) if (k?.name && !names.includes(k.name)) names.push(k.name);
+    if (names.length) out.push({ id: zn.id, name: zn.name, lv: zn.lv, names });
+  }
+  return out;
+}
+// v263 무공 각성(Lv55) — 1~3차 무공 하나를 골라 변형 하나를 붙인다(바꾸려면 은자)
+export const AWAKEN_LV = 55;
+export const AWAKEN_KINDS = [
+  { id: 'twin', name: '쌍(雙)', desc: '한 번 더 — 펼칠 때 30%로 메아리가 한 번 더', mods: { echoP: 0.3 } },
+  { id: 'wide', name: '광(廣)', desc: '범위 +40%', mods: { range: 0.4 } },
+  { id: 'swift', name: '속(速)', desc: '숨 -25%', mods: { cd: 0.25 } },
+  { id: 'heavy', name: '중(重)', desc: '피해 +60% · 숨 +15%', mods: { dmg: 0.6, cd: -0.15 } },
+];
+export const awakenSwapCost = (level) => Math.round(mobGold(level) * 100 * 30);
+// v263 깨달음(만렙) — 만렙 뒤 경험치가 깨달음 점수가 된다. 무공 칸마다 깨달음 단계(피해 +3% · 숨 -1%), 단계가 오를수록 비싸진다.
+export const ENL_STEP = { dmg: 0.03, cd: 0.01 };
+export const ENL_MAX = 50;
+export const enlCost = (lv) => 1 + Math.floor(lv / 5);
+export const enlExp = () => Math.round(expToNext(149) * 0.25);
 export const PET_LV_MAX = 30;
 // v262 애완동물 — 포획 조각(졸개가 가끔 떨군다 → 모으면 그 지역 애완동물 하나) · 혼(Lv30 뒤 경험치 → 등급 올리기)
 export const PET_SHARD_RATE = 1 / 300;

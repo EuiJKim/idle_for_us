@@ -200,7 +200,7 @@ function charTab(app) {
         h('div', { class: 'ico' }, isNow ? (cur.done ? '✓' : '▸') : `${i + 1}`),
         h('div', { class: 'info' },
           h('div', { class: 'name' }, q.title,
-            isNow ? h('small', {}, ` ${fmt(cur.now)}/${fmt(cur.need)}`) : null),
+            isNow && !q.tip ? h('small', {}, ` ${fmt(cur.now)}/${fmt(cur.need)}`) : null, q.tip ? h('small', { class: 'muted' }, ' · 알아두기') : null),
           h('div', { class: 'desc' }, q.why),
           bits.length ? h('div', { class: 'desc quest-rw' }, `보상 ${bits.join(' · ')}`) : null),
         isNow && cur.done
@@ -231,7 +231,7 @@ function charTab(app) {
   let skSig = '';
   function skills() {
     const s = game.s;
-    const nsig = `${s.skillPts}|${JSON.stringify(s.skillLv)}|${s.jobTier}|${game.statSig()}|${goldSig(game, 'skills')}`;
+    const nsig = `${s.skillPts}|${JSON.stringify(s.skillLv)}|${s.jobTier}|${game.statSig()}|${goldSig(game, 'skills')}|${JSON.stringify(s.enl || {})}|${JSON.stringify(s.awaken || {})}`;
     if (nsig === skSig) return;
     skSig = nsig;
     const rc = game.skillResetCost();
@@ -267,8 +267,29 @@ function charTab(app) {
           bits.length ? h('div', { class: 'desc', style: 'color:#fde68a' }, `레벨·장비: ${bits.join(' · ')}`) : null),
         h('button', { class: 'buy', disabled: game.canSkillUp(sk.id) ? null : true, onclick: () => {
           if (game.skillUp(sk.id)) { popUp(skillCard, `Lv.${game.skillLevel(sk.id)}`); app.save(); skSig = ''; upd(); }
-        } }, max ? '최대' : `+1 · ${W.skillLvCost(lv)}점`)));
+        } }, max ? '최대' : `+1 · ${W.skillLvCost(lv)}점`)),
+        // v263 깨달음 — 만렙 뒤 경험치로 무공마다 단계를 올린다
+        ...(game.s.level >= W.LEVEL_MAX || game.enlLevel(sk.id) ? [h('div', { class: 'enl-row' },
+          h('small', {}, `깨달음 ${game.enlLevel(sk.id)}/${W.ENL_MAX} · 피해 +${pct(game.enlLevel(sk.id) * W.ENL_STEP.dmg, 0)} · 숨 -${pct(game.enlLevel(sk.id) * W.ENL_STEP.cd, 0)}`),
+          h('button', { class: 'buy', disabled: game.canEnlUp(sk.id) ? null : true, onclick: () => { if (game.enlUp(sk.id)) { app.save(); skSig = ''; upd(); } } }, `깨달음 +1 · ${W.enlCost(game.enlLevel(sk.id))}점`))] : []));
     }
+    // v263 각성 — 레벨 55부터 1~3차 무공 하나에 변형 하나
+    if (game.s.level >= W.AWAKEN_LV) {
+      const aw = game.s.awaken;
+      const slots = game.awakenSlots();
+      const card = h('div', { class: 'awaken-box' },
+        h('b', {}, '무공 각성'), h('small', { class: 'muted' }, aw ? ` 지금: ${list.find((k) => k.id === aw.slot)?.name || ''} — ${W.AWAKEN_KINDS.find((k) => k.id === aw.kind)?.name} · 바꾸기 은자 ${fmt(game.awakenCost())}` : ' 1~3차 무공 하나를 골라 변형 하나를 붙여요(처음은 공짜)'));
+      for (const sl of slots) {
+        const sk = list.find((k) => k.id === sl);
+        card.append(h('div', { class: 'aw-line' }, h('span', {}, sk?.name || sl), ...W.AWAKEN_KINDS.map((k) => h('button', {
+          class: `chip${aw?.slot === sl && aw?.kind === k.id ? ' on' : ''}`, title: k.desc, disabled: game.canAwaken(sl, k.id) ? null : true,
+          onclick: () => { if (game.awaken(sl, k.id)) { toast(`각성 — ${sk?.name} ${k.name}: ${k.desc}`); app.save(); skSig = ''; upd(); } },
+        }, k.name))));
+      }
+      card.append(h('small', { class: 'muted' }, W.AWAKEN_KINDS.map((k) => `${k.name} ${k.desc}`).join(' · ')));
+      skillCard.append(card);
+    }
+    if (game.s.level >= W.LEVEL_MAX) skillCard.append(h('p', { class: 'muted' }, `깨달음 점수 ${fmt(game.s.enl?.pts || 0)} · 다음까지 ${Math.min(99, Math.floor((game.s.enl?.exp || 0) / W.enlExp() * 100))}% — 만렙 뒤 경험치가 깨달음이 돼요`));
   }
   // 마존 설정 — 머리 칸은 자주 다시 그려서(경험치 막대) 펼친 게 닫히므로 따로 둔다
   const loreBox = h('div');
@@ -327,6 +348,31 @@ function charTab(app) {
         ? `🩸 혈겁 진행 중 — 사냥터 은자·재료 +${TD.BLOOD_BONUS * 100}% · 정예 두 배 (${Math.ceil(-bn / 60)}분 남음)`
         : `🩸 다음 혈겁까지 ${bn >= 3600 ? `${Math.floor(bn / 3600)}시간 ` : ''}${Math.floor(bn / 60) % 60}분 · 매일 12~14시 · 20~22시`),
       h('p', { class: 'muted', style: 'font-size:11px' }, `주간 상자: 은자 ${fmt(chest.gold)} · 보호부 ${chest.prot}장 · 영약 ${chest.elixirSec / 60}분 · 월요일 0시에 새로`));
+  }
+  // v263 강호 견문록 — 졸개 종마다 100마리 · 지역을 다 찍으면 경험치 +0.5%
+  const dexBox = h('div');
+  let dexSig = '';
+  function dexView() {
+    const dx = game.s.dex || {};
+    const zones = W.dexZones();
+    const nsig = zones.map((z) => z.names.map((n) => Math.min(W.DEX_NEED, dx[n] || 0)).join('.')).join('|');
+    if (nsig === dexSig) return;
+    dexSig = nsig;
+    const done = zones.filter((z) => z.names.every((n) => (dx[n] || 0) >= W.DEX_NEED)).length;
+    const stamps = zones.reduce((a, z) => a + z.names.filter((n) => (dx[n] || 0) >= W.DEX_NEED).length, 0);
+    const all = zones.reduce((a, z) => a + z.names.length, 0);
+    dexBox.replaceChildren(
+      h('div', { class: 'card' }, h('h3', {}, '강호 견문록', h('small', {}, ` 낙관 ${stamps}/${all} · 다 찍은 지역 ${done}/${zones.length} · 경험치 +${pct(game.dexBonus(), 1)}`)),
+        h('p', { class: 'muted' }, `졸개 종마다 ${W.DEX_NEED}마리를 잡으면 낙관이 찍혀요. 한 지역을 다 찍으면 경험치 +${pct(W.DEX_ZONE_EXP, 1)} (영구).`)),
+      ...zones.map((z) => {
+        const full = z.names.every((n) => (dx[n] || 0) >= W.DEX_NEED);
+        return h('div', { class: `card dex-zone${full ? ' full' : ''}` },
+          h('div', { class: 'dex-head' }, h('b', {}, z.name), h('small', {}, ` Lv.${z.lv[0]}~${z.lv[1]}${full ? ' · ✓ 완성' : ''}`)),
+          h('div', { class: 'dex-grid' }, ...z.names.map((n) => {
+            const c = dx[n] || 0;
+            return h('div', { class: `dex-chip${c >= W.DEX_NEED ? ' on' : ''}` }, h('span', {}, n), h('small', {}, c >= W.DEX_NEED ? '印' : `${c}/${W.DEX_NEED}`));
+          })));
+      }));
   }
   // v262 차림 두 벌
   const loadRow = h('div', { class: 'card loadout-row' });
@@ -388,6 +434,7 @@ function charTab(app) {
     { key: 'info', label: '정보', make: () => ({ root: infoBox, update: upd }) },
     { key: 'stat', label: '능력치', make: () => ({ root: statBox, update: upd }) },
     { key: 'skill', label: '무공', make: () => ({ root: skillBox, update: upd }) },
+    { key: 'dex', label: '견문록', make: () => ({ root: dexBox, update: dexView }) },
   ], 'ifu.charsub');
   const upd0 = t.update;
   t.update = () => {
@@ -1400,7 +1447,20 @@ function dgnTab(app) {
       h('label', { class: 'chk' }, auto, ' 이기면 이어서 다음 층으로'),
       h('div', { class: 'btn-row' },
         h('button', { class: 'btn primary', disabled: game.canTower() ? null : true, onclick: () => start(() => game.startTower()) }, tw.floor >= D.TOWER_MAX ? '꼭대기까지 올랐어요' : `${nf}층 도전`)));
-    return [tower];
+    // v263 주간 회랑 — 120층 위, 한 주마다 초식 조합이 바뀐다
+    const out = [tower];
+    if (tw.floor >= D.TOWER_MAX) {
+      const c = game.corridorState();
+      const cf = D.TOWER_MAX + c.best + 1;
+      out.push(h('div', { class: 'card dgn-card dgn-tower corridor' },
+        h('div', { class: 'dgn-top' }, h('div', { class: 'dgn-ico' }, '廊'),
+          h('div', { class: 'dgn-name' }, h('b', {}, '주간 회랑'), h('small', {}, ` 週間回廊 · 이번 주 ${c.best}층 · 지금껏 가장 높이 ${Math.max(c.all || 0, c.best)}층`),
+            h('div', { class: 'muted' }, `이번 주 초식: ${D.corridorPats().map((p) => D.TELL_NAMES[p] || p).join(' · ')}`))),
+        h('p', { class: 'muted dgn-desc' }, `120층 위. 월요일 0시(한국 시간)마다 처음부터 — 초식 조합이 바뀌고 층마다 수문장이 ${Math.round((D.CORRIDOR_HP_UP - 1) * 100)}%씩 단단해져요. 영구 덤은 없고, 이번 주 처음 오른 층마다 은자.`),
+        h('div', { class: 'dgn-stage' }, h('div', { class: 'stg' }, h('b', {}, `${cf - D.TOWER_MAX}층`), h('small', {}, ` 처음 오르면 은자 ${fmt(D.corridorGold(cf))}`))),
+        h('div', { class: 'btn-row' }, h('button', { class: 'btn primary', disabled: game.canCorridor() ? null : true, onclick: () => start(() => game.startCorridor()) }, `회랑 ${cf - D.TOWER_MAX}층 도전`))));
+    }
+    return out;
   }
   function buildZodiac() {
     const s = game.s;
