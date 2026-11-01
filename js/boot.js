@@ -101,7 +101,7 @@ export function showLogin(opts) {
     ? 'Google로 들어오면 진행이 서버에도 저장돼, 기기를 바꾸거나 브라우저를 지워도 이어 해요. 한 번 들어오면 다음부턴 바로 시작해요.'
     : '지금은 오프라인이라 Google로 들어올 수 없어요. 손님으로 시작하고, 나중에 설정 → 앱·계정에서 이을 수 있어요.');
   const base = [gBtn, guestBtn, note];
-  const hint = outsideHint();
+  const hint = opts.warn ? h('p', { class: 'login-hint' }, opts.warn) : outsideHint();
   box.replaceChildren(...(hint ? [hint] : []), msg, ...base);
   gBtn.onclick = () => opts.onGoogle();
   guestBtn.onclick = () => opts.onGuest();

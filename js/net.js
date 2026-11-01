@@ -109,7 +109,8 @@ export class Net {
   // testCred: 에뮬레이터 시험용 id 토큰(JSON 글자) — 주면 팝업 없이 잇는다
   async linkGoogle(testCred) {
     const A = this.authM;
-    if (!this.online || !A || !this.auth?.currentUser) throw Object.assign(new Error('offline'), { code: 'net/offline' });
+    // v267 Firestore가 막혀 '끊김'이어도 로그인은 된다(인증 서버만 쓴다) — 인증이 아예 없을 때만 막는다
+    if (!A || !this.auth?.currentUser) throw Object.assign(new Error('offline'), { code: 'net/offline' });
     try {
       if (testCred) await A.linkWithCredential(this.auth.currentUser, A.GoogleAuthProvider.credential(testCred));
       else {
@@ -153,15 +154,28 @@ export class Net {
     this.status = 'offline';
   }
   async fetchSave() {
-    const snap = await this.fs.getDoc(this.ref('saves', this.uid));
-    return snap.exists() ? snap.data() : null;
+    try {
+      const snap = await this.fs.getDoc(this.ref('saves', this.uid));
+      return snap.exists() ? snap.data() : null;
+    } catch (err) {
+      if (err?.code === 'permission-denied') this.savesDenied = true;
+      throw err;
+    }
   }
+  // 인증은 됐다(로그인 가능) — Firestore가 막혀 '끊김'인 것과 가른다
+  authed() { return !!(this.authM && this.auth?.currentUser); }
   async pushSave(json, dev, build) {
     if (!this.online || this.blocked || !this.uid) return false;
     const at = Date.now();
-    await this.fs.setDoc(this.ref('saves', this.uid), {
-      data: json, at, dev: String(dev || ''), lv: Math.floor(Number(this.game.s.level) || 0), build: String(build || ''),
-    });
+    try {
+      await this.fs.setDoc(this.ref('saves', this.uid), {
+        data: json, at, dev: String(dev || ''), lv: Math.floor(Number(this.game.s.level) || 0), build: String(build || ''),
+      });
+    } catch (err) {
+      if (err?.code === 'permission-denied') this.savesDenied = true;
+      throw err;
+    }
+    this.savesDenied = false;
     return at;
   }
 
@@ -198,7 +212,7 @@ export class Net {
         this.changed('noAds');
       }
     } catch (err) {
-      if (!this.denied(err)) console.warn('[net] entitlement', err);
+      if (!this.denied(err, '광고 제거 확인(entitlements)')) console.warn('[net] entitlement', err);
     }
   }
 
@@ -210,7 +224,7 @@ export class Net {
       const snap = await this.fs.getDoc(this.ref('config', 'shop'));
       if (snap.exists()) { this.shop = snap.data(); this.changed('shop'); }
     } catch (err) {
-      if (!this.denied(err)) console.warn('[net] shop', err);
+      if (!this.denied(err, '상점 정보(config/shop)')) console.warn('[net] shop', err);
     }
   }
 
@@ -278,7 +292,7 @@ export class Net {
     try {
       const snap = await this.fs.getDocs(this.fs.collection(this.db, 'gifts', this.uid, 'box'));
       return snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => (a.at || 0) - (b.at || 0));
-    } catch (err) { if (!this.denied(err)) console.warn('[net] listGifts', err); return []; }
+    } catch (err) { if (!this.denied(err, '우편함(gifts)')) console.warn('[net] listGifts', err); return []; }
   }
   // 받기 — 지우기에 성공한 것만 돌려준다(두 번 받지 않게)
   // v254: 읽기와 지우기를 한 거래로 — 전엔 '받기'와 '모두 받기'(또는 두 탭)가 동시에 읽고 둘 다 지워 같은 선물을 두 번 받았다
@@ -396,10 +410,12 @@ export class Net {
   // 경고로 도배됐다. 될 리 없는 요청을 반복하는 것이다.
   //
   // 한 번 막히면 끊긴 것으로 보고 멈춘다. 그래야 화면도 솔직해진다.
-  denied(err) {
+  denied(err, where = '') {
     const code = err?.code || '';
     const msg = String(err?.message || err);
     if (code !== 'permission-denied' && !msg.includes('insufficient permissions')) return false;
+    // v267 무엇이 막혔는지 남긴다 — 로그인 화면·설정에 그대로 보인다
+    if (!this.deniedAt) this.deniedAt = where || '알 수 없는 곳';
     if (this.status !== 'offline') {
       console.warn('[net] 서버 권한이 막혀 있어 끊습니다 (Firestore 규칙을 확인하세요)');
       this.status = 'offline';
@@ -417,7 +433,7 @@ export class Net {
     try {
       await this.fs.setDoc(this.ref('players', this.uid), this.profileData(), { merge: true });
     } catch (err) {
-      if (!this.denied(err)) console.warn('[net] profile', err);
+      if (!this.denied(err, '내 기록 쓰기(players)')) console.warn('[net] profile', err);
     }
   }
 

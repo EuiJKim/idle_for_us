@@ -116,6 +116,27 @@ const C = (p) => p.evaluate(() => window.__test_cloud());
   assert(!(await Cc.page.isVisible('#login-google')), '손님을 고른 뒤엔 다시 안 뜸');
   await Cc.ctx.close();
 
+  console.log('# D: 규칙이 내 기록 쓰기를 막아도 Google 로그인은 된다');
+  const RULES = fs.readFileSync(path.join(__dirname, '..', 'firestore.rules'), 'utf8');
+  const setRules = (content) => fetch('http://127.0.0.1:8080/emulator/v1/projects/idle-69772:securityRules', { method: 'PUT', body: JSON.stringify({ rules: { files: [{ name: 'firestore.rules', content }] } }) });
+  await setRules(RULES.replace(/allow write: if signedIn\(\) && request\.auth\.uid == uid\n/, 'allow write: if false && request.auth.uid == uid\n'));
+  try {
+    const D = await ctxPage(browser);
+    await D.page.goto(BASE + '?emu=1');
+    await D.page.waitForSelector('#login-guest', { timeout: 20000 }); await D.page.click('#login-guest');
+    await D.page.fill('#modal input', '정희'); await D.page.click('#modal .btn.primary');
+    await D.page.waitForSelector('.class-card'); await D.page.click('.class-card:has-text("검사")');
+    await D.page.waitForFunction(() => window.__app.net.blocked, null, { timeout: 15000 });
+    assert(await D.page.evaluate(() => window.__app.net.deniedAt) === '내 기록 쓰기(players)', '막힌 곳을 기록(내 기록 쓰기)');
+    await D.page.evaluate((t) => window.__test_linkGoogle(t), JSON.stringify({ sub: 'g-test-2', email: 'two@example.com', email_verified: true }));
+    await sleep(1200);
+    assert((await C(D.page)).google, '끊김(규칙 막힘)이어도 Google을 이음');
+    await D.page.click('#btn-settings'); await D.page.waitForSelector('#modal h2:has-text("설정")');
+    await D.page.evaluate(() => [...document.querySelectorAll('#modal *')].find((x) => x.childElementCount < 3 && /앱·계정/.test(x.textContent))?.click());
+    assert(await D.page.isVisible('#modal .login-hint:has-text("내 기록 쓰기")'), '설정에 막힌 곳 안내');
+    await D.ctx.close();
+  } finally { await setRules(RULES); }
+
   // 규칙: 남의 세이브는 못 읽고 못 쓴다
   const anon = await fetch('http://127.0.0.1:9099/identitytoolkit.googleapis.com/v1/accounts:signUp?key=fake', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{"returnSecureToken":true}' }).then((r) => r.json());
   const docUrl = `http://127.0.0.1:8080/v1/projects/idle-69772/databases/(default)/documents/saves/${a0.uid}`;

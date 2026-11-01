@@ -319,7 +319,10 @@ function askSwitch(r) {
 // 로딩이 끝나면: 온라인 · Google 아님 · 손님을 고른 적 없음 → 로그인 화면. Google로 한 번 들어오면 Firebase가 기억해 다음부턴 안 뜬다.
 let loginUI = null;
 let loginDone = null;
-function needLogin() { return net.online && !net.isGoogle?.() && loginPref() !== 'guest'; }
+// v267 Firestore가 막혀 '끊김'이어도 인증만 되면 로그인은 된다
+function needLogin() { return !!net.authed?.() && !net.isGoogle?.() && loginPref() !== 'guest'; }
+// 서버 규칙이 막은 곳 — 로그인 화면·설정에 알린다
+const deniedNote = () => (net.blocked ? `⚠ 서버 규칙이 '${net.deniedAt || '요청'}'을(를) 막아 온라인 기능이 꺼졌어요. Firebase 콘솔 → Firestore → 규칙에 저장소의 firestore.rules 전체를 다시 붙여 넣고 게시해 주세요. (Google 로그인은 그대로 할 수 있어요)` : '');
 function finishLogin(msg) {
   if (msg) setTimeout(() => toast(msg), 400);
   const d = loginDone; loginDone = null; d?.();
@@ -376,9 +379,10 @@ function loginScreen() {
   return new Promise((resolve) => {
     loginDone = resolve;
     loginUI = showLogin({
-      online: net.online,
+      online: !!net.authed?.(),
+      warn: deniedNote() || null,
       onGoogle: () => loginGoogle(),
-      onGuest: () => { setLoginPref('guest'); finishLogin(net.online ? '손님으로 들어왔어요 — 설정 → 앱·계정에서 언제든 Google을 이을 수 있어요' : ''); },
+      onGuest: () => { setLoginPref('guest'); finishLogin(net.authed?.() ? '손님으로 들어왔어요 — 설정 → 앱·계정에서 언제든 Google을 이을 수 있어요' : ''); },
     });
   });
 }
@@ -401,7 +405,7 @@ function accountRows() {
   if (net.isGoogle?.()) {
     const t = cloudSyncedAt();
     rows.push(h('div', { class: 'row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, `Google 계정 · ${net.googleEmail()}`),
-      h('div', { class: 'desc' }, `진행이 서버에도 저장돼요(3분마다·화면을 떠날 때) · 마지막 ${whenStr(t)}`)),
+      h('div', { class: 'desc' }, net.savesDenied ? '⚠ 서버 저장이 규칙에 막혀 있어요 — Firestore 규칙에 saves 칸이 있는지 확인해 주세요' : `진행이 서버에도 저장돼요(3분마다·화면을 떠날 때) · 마지막 ${whenStr(t)}`)),
       h('button', { class: 'btn', style: 'padding:6px 12px', onclick: async (e) => {
         e.target.disabled = true;
         save();
@@ -414,9 +418,10 @@ function accountRows() {
       h('button', { class: 'btn', style: 'padding:6px 12px', onclick: () => logout() }, '나가기')));
   } else {
     rows.push(h('div', { class: 'row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, 'Google 계정 연결'),
-      h('div', { class: 'desc' }, net.online ? '이으면 진행이 서버에도 저장돼요 — 브라우저를 지우거나 기기를 바꿔도 같은 Google로 들어와 이어 해요' : '온라인일 때 이을 수 있어요')),
-      h('button', { class: 'btn primary', style: 'padding:6px 12px', disabled: net.online ? null : true, onclick: () => linkGoogle() }, '잇기')));
+      h('div', { class: 'desc' }, net.authed?.() ? '이으면 진행이 서버에도 저장돼요 — 브라우저를 지우거나 기기를 바꿔도 같은 Google로 들어와 이어 해요' : '온라인일 때 이을 수 있어요')),
+      h('button', { class: 'btn primary', style: 'padding:6px 12px', disabled: net.authed?.() ? null : true, onclick: () => linkGoogle() }, '잇기')));
   }
+  if (net.blocked) rows.unshift(h('p', { class: 'login-hint', style: 'margin:6px 0' }, deniedNote()));
   // v264: 내 계정 번호(uid) — Firebase 콘솔에서 내 것을 찾을 때
   rows.push(h('div', { class: 'row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, '내 계정 번호'),
     h('div', { class: 'desc', style: 'word-break:break-all;user-select:all' }, net.uid || '아직 연결 전이에요')),
