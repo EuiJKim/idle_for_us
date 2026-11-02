@@ -2173,5 +2173,20 @@ console.log('\n=== v272·v273 강화 재료 — 현철 · 돌파 증표 ===');
   g.s.mats = { [W.ORE]: 1e9, [W.bossKey(W.itemZone(it))]: bm };
   ok(g.breakMarkKey(it, bm) === W.bossKey(W.itemZone(it)), '제 지역 증표가 있으면 그것부터');
 }
+console.log('\n=== v274 현철 단련 ===');
+{
+  const g = fresh('sword');
+  g.s.mats[W.ORE] = 1e9;
+  ok(!g.canTemper() && g.temper(1) === 0, `레벨 ${W.TEMPER_FROM} 전에는 단련할 수 없다`);
+  while (g.s.level < 60) g.addExp(W.expToNext(g.s.level));
+  const a0 = g.stats().atk, h0 = g.stats().hp, c0 = g.temperCost(), o0 = g.s.mats[W.ORE];
+  ok(g.temper(1) === 1 && g.s.temper === 1 && g.s.mats[W.ORE] === o0 - c0, '단련 한 번 — 현철을 내고 한 단계', `${c0}개`);
+  ok(g.stats().atk > a0 && g.stats().hp > h0, '공격력·체력이 오른다');
+  ok(g.temperCost() > c0 && W.temperCost(10, 60) > W.temperCost(0, 60) * 1.7 && W.temperCost(0, 150) > W.temperCost(0, 60), '단계·레벨이 오를수록 비싸진다');
+  g.s.mats[W.ORE] = W.temperCost(1, 60) + W.temperCost(2, 60) + 5;
+  ok(g.temper(99) === 2 && g.s.temper === 3 && g.s.mats[W.ORE] === 5, '되는 만큼 — 현철이 되는 데까지만');
+  const sv = migrateWorld(JSON.parse(JSON.stringify(g.toJSON())), 0);
+  ok(sv.temper === 3, '세이브에 남는다');
+}
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);

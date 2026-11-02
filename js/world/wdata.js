@@ -501,6 +501,13 @@ export const MAT_RATE = 0.5;          // 몹 하나가 재료 하나를 떨굴 �
 export const ORE = 'hc';
 export const ORE_NAME = '현철';
 export const ORE_COL = '#9ca3af';
+// v274 현철 단련(鍛鍊) — 강화가 레벨 상한에 막히면 현철이 썩어 남았다(시뮬 15일에 7천만 개). 끝없는 소비처:
+//   한 단계마다 영구 공격력·체력 +TEMPER_STEP, 값은 단계마다 ×TEMPER_GROW · 내 레벨 몫(레벨÷5)만큼.
+export const TEMPER_STEP = 0.003;   // 시뮬 15일 118~143단계 → +35~43%
+export const TEMPER_BASE = 150;
+export const TEMPER_GROW = 1.06;
+export const TEMPER_FROM = 20;   // 이 레벨부터
+export const temperCost = (n, level) => Math.round(TEMPER_BASE * Math.max(1, Math.round(level / 5)) * TEMPER_GROW ** n);
 export const isZoneMatKey = (k) => /^\d+$/.test(String(k)) && !!MATS[k];
 export function matWeight(z) {
   const zn = zoneOfW(+z);

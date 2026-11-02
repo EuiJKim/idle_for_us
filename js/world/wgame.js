@@ -86,6 +86,7 @@ export function migrateWorld(raw, now = Date.now()) {
   const s = { ...base, ...raw };
   s.autoMap = typeof raw.autoMap === 'boolean' ? raw.autoMap : false;
   s.elixir = Math.max(0, Math.min(W.ELIXIR_MAX, Number(raw.elixir) || 0));
+  s.temper = Math.max(0, Math.floor(Number(raw.temper) || 0));   // v274 현철 단련 단계
   s.autoEnh = !!raw.autoEnh; s.autoInf = !!raw.autoInf;   // v262
   s.loadout = raw.loadout === 1 ? 1 : 0;
   { const dx = raw.dex && typeof raw.dex === 'object' ? raw.dex : {}; s.dex = {}; for (const [k, v] of Object.entries(dx)) { const n = Math.min(9999, Math.floor(Number(v) || 0)); if (n > 0) s.dex[k] = n; } }
@@ -416,6 +417,9 @@ export class WorldGame {
     // 고수 비무: 처음 이긴 고수마다 영구히 (v148)
     const mb = this.masterBonus();
     gear.atkPct += mb; gear.hpPct += mb;
+    // 현철 단련 (v274)
+    const tp = (s.temper || 0) * W.TEMPER_STEP;
+    gear.atkPct += tp; gear.hpPct += tp;
     // 심법
     const pm = this.pmods();
     gear.atkPct += pm.atkPct || 0;
@@ -472,7 +476,7 @@ export class WorldGame {
     const e = s.equip;
     const g = (it) => (it ? `${it.uid}.${it.plus || 0}.${it.rar || 0}` : '-');
     const pets = this.activePets().map((p) => `${p.uid}.${p.lv}`).join(',');
-    return `${s.level}|${JSON.stringify(s.passLv || {})}|${s.guildId ? W.guildLevel(this.guildExp) : 0}|${s.job}|${s.stats.str},${s.stats.dex},${s.stats.vit},${s.stats.int}|${W.SLOTS.map((x) => g(e[x.id])).join(',')}|${pets}|${s.mount || '-'}|${s.tower?.floor || 0}|${s.path || '-'}|${s.jobTier || 0}|${this.growItems().map((x) => x.plus || 0).join('.')}`;   // v243: 가방 속 성장 장비 강화도(공유)
+    return `${s.level}|${JSON.stringify(s.passLv || {})}|${s.guildId ? W.guildLevel(this.guildExp) : 0}|${s.job}|${s.stats.str},${s.stats.dex},${s.stats.vit},${s.stats.int}|${W.SLOTS.map((x) => g(e[x.id])).join(',')}|${pets}|${s.mount || '-'}|${s.tower?.floor || 0}|${s.path || '-'}|${s.jobTier || 0}|${this.growItems().map((x) => x.plus || 0).join('.')}|t${s.temper || 0}`;   // v243 · v274 단련: 가방 속 성장 장비 강화도(공유)
   }
   power() { return this.stats().power; }
 
@@ -2990,6 +2994,16 @@ export class WorldGame {
     if (this.s.questBack == null) return;
     if (this.s.quest <= this.s.questBack) this.s.quest = this.s.questBack;
     delete this.s.questBack;
+  }
+  // ---------- 현철 단련 (v274) ----------
+  temperCost() { return W.temperCost(this.s.temper || 0, this.s.level); }
+  canTemper() { return this.s.level >= W.TEMPER_FROM && (this.s.mats[W.ORE] || 0) >= this.temperCost(); }
+  // n번까지(현철이 되는 만큼) — 올린 단계 수를 돌려준다
+  temper(n = 1) {
+    let k = 0;
+    while (k < n && this.canTemper()) { this.s.mats[W.ORE] -= this.temperCost(); this.s.temper = (this.s.temper || 0) + 1; k++; }
+    if (k) { this._stats = null; this.mark('temper'); this.emit('temper', { lv: this.s.temper, n: k }); }
+    return k;
   }
   // 해 본 것 하나 (길잡이용)
   mark(k) { const d = this.s.did || (this.s.did = {}); d[k] = (d[k] || 0) + 1; }

@@ -933,6 +933,7 @@ function handleEvents() {
       // v263: 견문록 낙관
       case 'dexStamp': toast(`견문록 — ${ev.name} 낙관${ev.zoneDone ? ' · 지역 완성! 경험치 +0.5%' : ''}`); break;
       // v263: 깨달음 점수
+      case 'temper': toast(`🔨 단련 ${ev.lv}단계${ev.n > 1 ? ` (+${ev.n})` : ''} — 공격력·체력 +${(ev.lv * W.TEMPER_STEP * 100).toFixed(1)}%`); break;
       case 'enlight': toast(`깨달음 +${ev.got} — 무공 창에서 올려요 (가진 것 ${ev.pts})`); break;
       // v262: 비무 별
       case 'duelStar':

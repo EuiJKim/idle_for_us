@@ -927,9 +927,21 @@ function bagTab(app) {
     const zones = new Set(Object.keys(s.mats).filter((k) => s.mats[k] > 0 && W.isMarkKey(k)).map((k) => parseInt(k.replace('b', ''), 10)));
     // v273 현철 — 지역 재료를 하나로. 가장 위에 한 줄
     const huntW = W.matWeight(W.mapOf(s.huntMap || 11).mz || 1);
-    const oreRow = h('div', { class: 'row mat-zone' }, h('div', { class: 'info' }, h('div', { class: 'name' }, W.ORE_NAME, h('small', {}, ' 강화 · 왕 강화석 · 세트·장신구 만들기')),
+    const oreRow = h('div', { class: 'row mat-zone' }, h('div', { class: 'info' }, h('div', { class: 'name' }, W.ORE_NAME, h('small', {}, ' 강화 · 단련 · 왕 강화석 · 세트·장신구 만들기')),
       h('div', { class: 'mat-row' }, matChip(app, W.ORE, W.ORE_NAME, s.mats[W.ORE] || 0)),
       h('div', { class: 'desc' }, `몹·두목이 떨궈요 — 높은 사냥터일수록 한 번에 많이 (지금 사냥터 한 번에 ${huntW}개 · 두목은 ${W.BOSS_MATS}배)`)));
+    // v274 현철 단련 — 끝없는 소비처(강화가 레벨 상한에 막혀도 현철이 쓸모 있게)
+    const tLv = s.temper || 0, tCost = game.temperCost(), tOpen = s.level >= W.TEMPER_FROM;
+    let tMax = 0; { let left = s.mats[W.ORE] || 0, n = tLv; while (tMax < 999) { const c = W.temperCost(n, s.level); if (left < c) break; left -= c; n++; tMax++; } }
+    const temperRow = h('div', { class: 'row mat-zone temper-row' },
+      h('div', { class: 'info' },
+        h('div', { class: 'name' }, `🔨 단련 ${tLv}단계`, h('small', {}, ` 공격력·체력 +${(tLv * W.TEMPER_STEP * 100).toFixed(1)}% (영구)`)),
+        h('div', { class: 'desc' }, tOpen
+          ? `한 단계 +${(W.TEMPER_STEP * 100).toFixed(1)}% · 다음 단계 ${W.ORE_NAME} ${fmt(tCost)}개 — 단계마다 조금씩 비싸져요. 강화가 막혀도 현철을 여기에 쓰세요`
+          : `레벨 ${W.TEMPER_FROM}부터 현철로 공격력·체력을 끝없이 올릴 수 있어요`)),
+      tOpen ? h('div', { class: 'temper-btns' },
+        h('button', { class: 'buy', disabled: tMax ? null : true, onclick: () => { if (game.temper(1)) done(); } }, '단련', h('small', {}, ` ${fmt(tCost)}`)),
+        h('button', { class: 'buy', disabled: tMax > 1 ? null : true, onclick: () => { if (game.temper(tMax)) done(); } }, tMax > 1 ? `${tMax}번` : '여러 번', h('small', {}, ' 되는 만큼'))) : null);
     const facRow = h('div', { class: 'row mat-zone' }, h('div', { class: 'info' }, h('div', { class: 'name' }, '세력 재료', h('small', {}, ' 레벨 100 고수 세트에 들어가요')),
       h('div', { class: 'mat-row' }, ...Object.entries(LN.FAC_MAT_INFO).map(([k, v]) => matChip(app, k, v.name, s.mats[k] || 0)),
         ...Object.entries(G.LORD_MATS).map(([k, v]) => matChip(app, k, v.name, s.mats[k] || 0)))));
@@ -946,6 +958,7 @@ function bagTab(app) {
       h('div', { class: 'mat-row' }, matChip(app, G.stoneKey(z), G.STONES[z].name, s.mats[G.stoneKey(z)])))));
     matRoot.replaceChildren(h('div', { class: 'card' }, h('h3', {}, '재료', h('small', {}, '문파 창고로 나눌 수 있어요')),
       oreRow,
+      temperRow,
       facRow,
       ...(rows.length ? rows : [h('p', { class: 'muted' }, '두목은 현철 한 움큼과 증표를 떨궈요 — 증표는 등급 각인·돌파에 써요.')])));
   }
@@ -1071,7 +1084,7 @@ export function matUse(game, key) {
   if (LN.isFacMat(k)) return '맹주 세트(Lv160)를 만들 때 · 세력 상점에서 다른 것으로 바꿀 수 있어요 (마을 → 상인)';
   if (G.isStoneKey(k)) return '왕의 장비(세트·왕의 장신구) 강화';
   if (k.startsWith('b')) return `장비 등급 각인 · +${W.ENHANCE_NORMAL} 넘는 돌파`;
-  if (k === W.ORE) return '장비 강화(장비 지역 레벨이 높을수록 많이) · 왕 강화석 만들기 · 왕의 세트·장신구 만들기';
+  if (k === W.ORE) return '장비 강화(장비 지역 레벨이 높을수록 많이) · 단련(영구 공격력·체력, 끝없이) · 왕 강화석 만들기 · 왕의 세트·장신구 만들기';
   const z = parseInt(k, 10);
   if (!Number.isFinite(z)) return '';
   const up = W.matUpTarget(z);

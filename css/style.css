@@ -1826,3 +1826,6 @@ body.hunt-nocv #cv { visibility: hidden !important; }
 .login-pick { text-align: left; padding: 10px 12px; border-radius: 12px; background: rgba(0, 0, 0, 0.3); border: 1px solid var(--line); font-size: 13px; line-height: 1.55; }
 .login-pick b { color: var(--gold); }
 @media (prefers-reduced-motion: reduce) { .boot-moon, .boot-m3, .boot-m2, .boot-box, #boot-login { animation: none; } }
+/* v274 현철 단련 */
+.temper-row .temper-btns { display: flex; flex-direction: column; gap: 6px; }
+.temper-row .temper-btns .buy { min-width: 88px; }
