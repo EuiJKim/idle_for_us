@@ -34,7 +34,7 @@ export function newWorldSave(now = Date.now()) {
     skillLv: { s0: 1, s1: 1, s2: 1, s3: 1, s4: 1 },   // 스킬 레벨 (v110) · s3 보조기(v120)
     skillPts: 0,
     passLv: {},               // 심법(패시브) 레벨 (v119)
-    skillV: 1,
+    skillV: 3,
     statV: 3,
     gold: 0,
     potions: 5,
@@ -101,7 +101,7 @@ export function migrateWorld(raw, now = Date.now()) {
   s.skillLv = { ...base.skillLv, ...(raw.skillLv || {}) };
   for (const k of Object.keys(s.skillLv)) s.skillLv[k] = clamp(Math.floor(Number(s.skillLv[k]) || 1), 1, W.SKILL_LV_MAX);
   // v110: 스킬 점수 — 옛 세이브는 레벨 15부터 오른 만큼 한 번에
-  if ((raw.skillV || 0) < 1) { s.skillPts = Math.max(0, (Number(raw.level) || 1) - W.SKILL_PT_FROM + 1); s.skillV = 1; }
+  if ((raw.skillV || 0) < 1) { s.skillPts = Math.max(0, (Number(raw.level) || 1) - W.SKILL_PT_FROM_OLD + 1); s.skillV = 1; }
   // v205: 무공 값이 싸졌다 — 옛 값으로 올린 만큼과 새 값의 차이를 점수로 돌려준다(레벨은 그대로)
   if ((s.skillV || 0) < 2) {
     let back = 0;
@@ -109,6 +109,13 @@ export function migrateWorld(raw, now = Date.now()) {
     s.skillPts = (Number(s.skillPts) || 0) + Math.max(0, back);
     s.skillRefund = Math.max(0, back);
     s.skillV = 2;
+  }
+  // v270: 스킬 점수가 레벨 15 → 5부터 — 이미 지나온 레벨 몫(최대 10점)을 한 번에 준다
+  if ((s.skillV || 0) < 3) {
+    const L = Number(s.level) || Number(raw.level) || 1;
+    const add = Math.max(0, L - W.SKILL_PT_FROM + 1) - Math.max(0, L - W.SKILL_PT_FROM_OLD + 1);
+    if (add > 0) { s.skillPts = (Number(s.skillPts) || 0) + add; s.skillGift = add; }
+    s.skillV = 3;
   }
   s.skillPts = Math.max(0, Math.floor(Number(s.skillPts) || 0));
   for (const k of Object.keys(s.stats)) s.stats[k] = Math.max(0, Math.floor(Number(s.stats[k]) || 0));
@@ -387,6 +394,8 @@ export class WorldGame {
       const u = this.itemUnique(it);                       // v130 고유 옵션
       if (u) gear[u.k] = (gear[u.k] || 0) + u.v;
     }
+    // v270 증표 각인 능력치는 종류마다 끝이 있다 — 넘친 몫만 뺀다
+    { const tot = IM.impFxTotals(s.equip); for (const [k, cap] of Object.entries(IM.IMP_STAT_CAP)) if ((tot[k] || 0) > cap) gear[k] -= tot[k] - cap; }
     // 세트 효과 중 능력치 (무공 쪽은 setBonus()를 그 자리에서 읽는다)
     for (const [k, v] of Object.entries(this.setBonus())) if (k in gear) gear[k] += v;
     // 애완동물 버프 · 탈것(공격력·체력 %) · 십이지왕 신화
@@ -1148,14 +1157,16 @@ export class WorldGame {
   impSpecials() {
     const sig = this.statSig();
     if (this._isp?.sig === sig) return this._isp.v;
-    const v = {};
+    // v270: 위력은 가장 무거운 칸 + 하나 더할 때마다 0.3 (끝 SPECIAL_P_MAX) — 전엔 칸 무게를 다 더해 끝이 없었다
+    const v = {}, ws = {};
     for (const it of Object.values(this.s.equip)) for (const im of IM.imprintsOf(it)) {
       const sp = im.special;
       if (!sp) continue;
+      (ws[sp.kind] || (ws[sp.kind] = [])).push(im.w);
       const cur = v[sp.kind];
-      if (!cur || cur.id === sp.id) v[sp.kind] = { ...sp, p: (cur?.p || 0) + im.w, col: IM.THEMES[im.theme].col };
-      else cur.p += im.w * 0.5;                    // 다른 두목의 같은 꼴은 반만 더한다
+      if (!cur || im.w > cur.w0) v[sp.kind] = { ...sp, w0: im.w, col: IM.THEMES[im.theme].col };
     }
+    for (const [k, o] of Object.entries(v)) o.p = IM.specialP(ws[k]);
     this._isp = { sig, v };
     return v;
   }
@@ -2569,10 +2580,11 @@ export class WorldGame {
     }
     // 증표 각인의 스킬 변화 (v163) — 겹치면 더한다
     m.echoP = 0;
-    for (const it of Object.values(this.s.equip)) for (const im of IM.imprintsOf(it)) {
-      if (im.skill.s !== slot) continue;
-      if (im.skill.k === 'echo') m.echoP += im.skill.v; else m[im.skill.k] = (m[im.skill.k] || 0) + im.skill.v;
-    }
+    { const ip = { range: 0, dmg: 0, cd: 0, echo: 0 };
+      for (const it of Object.values(this.s.equip)) for (const im of IM.imprintsOf(it)) if (im.skill.s === slot) ip[im.skill.k] = (ip[im.skill.k] || 0) + im.skill.v;
+      // v270 각인 몫마다 끝(SKILL_CAP) — 전엔 '한 번 더'만 잘려 피해·범위가 끝없이 쌓였다
+      for (const k of ['range', 'dmg', 'cd']) m[k] = (m[k] || 0) + Math.min(IM.SKILL_CAP[k], ip[k]);
+      m.echoP = Math.min(IM.SKILL_CAP.echo, ip.echo); }
     // v263 각성 — 고른 무공 하나에 변형 하나
     const aw = this.s.awaken;
     if (aw?.slot === id && this.s.level >= W.AWAKEN_LV) { const k = W.AWAKEN_KINDS.find((x) => x.id === aw.kind); if (k) for (const [kk, v] of Object.entries(k.mods)) m[kk] = (m[kk] || 0) + v; }

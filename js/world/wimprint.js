@@ -34,6 +34,15 @@ export const STEPK = [1, 1.3, 1.6];                          // 첫째(유니크
 export const lvScale = (lv) => 0.4 + lv / 100;               // 레벨 9 ×0.49 · 99 ×1.39 · 175 ×2.15
 // 더해도 넘지 않는 끝 (여섯 칸을 한 테마로 맞춰도 게임이 깨지지 않게)
 export const IMP_CAP = { venom: 0.6, burn: 0.6, chill: 0.3, shock: 0.3 };
+// v270 각인 능력치의 끝 — 장비 여섯 × 칸 셋(18칸)이 그대로 더해져 끝판에 치명 피해 +110%·치명 +35%까지 갔다.
+//   각인으로 얻는 몫만 여기서 자른다(장비·심법·길 몫은 그대로).
+export const IMP_STAT_CAP = { atkPct: 0.25, hpPct: 0.3, critDmg: 0.5, crit: 0.12, bossDmg: 0.3, dmgRed: 0.12, dodge: 0.1,
+  cdr: 0.12, speed: 0.15, drain: 0.015, move: 0.2, stunHit: 0.08 };
+export function impFxTotals(equip) {
+  const out = {};
+  for (const it of Object.values(equip || {})) for (const im of imprintsOf(it)) for (const [k, v] of Object.entries(im.fx)) out[k] = (out[k] || 0) + v;
+  return out;
+}
 // 스킬 변화 — 테마마다 어떤 변화인지, 두목(지역 번호)마다 몇 차 스킬인지. 같은 스킬에 겹치면 더해진다(그림도 커지고 두 번 펼친다).
 //   range 범위 +(그림이 커진다) · echo 한 번 더 펼칠 확률(그림도 두 번) · cd 숨 - · dmg 피해 +
 export const SKILL_KIND = { poison: 'range', fire: 'dmg', ice: 'range', blood: 'dmg', thunder: 'echo', dark: 'dmg', sword: 'echo', saber: 'dmg',
@@ -53,7 +62,8 @@ export function rollSkillChange(rng) {
   return { s, sk: k, g };
 }
 export const skillValue = (k, g, lv) => SKILL_BASE[k] * SK_GRADE[g].mult * lvScale(lv);
-export const SKILL_CAP = { range: 0.9, dmg: 2, cd: 0.6, echo: 0.8 };
+// v270: 상한을 실제로 건다(전엔 '한 번 더'에만 걸려 피해가 +770%까지 쌓였다) · 끝도 낮췄다
+export const SKILL_CAP = { range: 0.5, dmg: 0.8, cd: 0.25, echo: 0.4 };
 export const SKILL_NAME = ['1차', '2차', '3차'];
 const SKILL_TXT = { range: '범위', dmg: '피해', cd: '숨', echo: '한 번 더' };
 
@@ -82,8 +92,10 @@ export function themeOfZone(z) {
 // ---------- 고유 효과 (레벨 100 넘는 두목) ----------
 // kind는 엔진(wgame)이 아는 꼴 — echo 한 번 더 · execute 약한 적 · bane 두목 · chain 치명 번개 · nova 둘레 폭발(쿨)
 //   rain 쏟아짐(쿨) · guard 보호막(쿨) · reap 처치 회복 · frenzy 맞으면 쾌속 · mirror 되돌림
-// 위력 = SP[등급] (같은 효과를 여럿 끼면 가장 높은 것 + 하나마다 0.3)
-// 위력 p = 그 고유 효과가 새겨진 칸들의 STEPK 합 (한 칸 1 → 세 칸 3.9) — 끼고 있는 장비 모두 더한다
+// 위력 p = 그 고유 효과가 새겨진 칸 중 가장 무거운 칸의 STEPK + 칸 하나 더할 때마다 0.3, 끝은 SPECIAL_P_MAX
+// (v270: 전엔 칸 무게를 다 더해 열여덟 칸이면 p가 20 남짓 — 둘레 폭발이 공격력 ×40으로 4초마다 터졌다)
+export const SPECIAL_P_MAX = 2.5;
+export const specialP = (ws) => (ws.length ? Math.min(SPECIAL_P_MAX, Math.max(...ws) + 0.3 * (ws.length - 1)) : 0);
 export const SPECIAL_KIND = {
   echo: (p) => `${Math.round(Math.min(60, 10 * p))}% 확률로 같은 적을 한 번 더 (×2)`,
   execute: (p) => `체력 30% 아래 적에게 피해 +${Math.round(Math.min(150, 25 * p))}%`,

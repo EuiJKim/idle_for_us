@@ -1175,6 +1175,7 @@ if (game.s.gearNote) {
 // ---------- 방치 보상 ----------
 function checkReturn(now = Date.now()) {
   // v205: 무공 값이 싸져서 돌려준 점수가 있으면 한 번 알린다
+  if (game.s.skillGift > 0) { toast(`무공 점수가 이제 레벨 ${W.SKILL_PT_FROM}부터 쌓여요 — 지나온 레벨 몫 ${game.s.skillGift}점을 드렸어요`); game.s.skillGift = 0; save(); }
   if (game.s.skillRefund > 0) { toast(`무공 값이 싸졌어요 — 더 쓴 점수 ${game.s.skillRefund}점을 돌려드렸어요 (만렙 ${W.SKILL_LV_MAX})`); game.s.skillRefund = 0; save(); }
   // v254: 받을 보상은 먼저 세이브에 적어 둔다(pendingOffline). 전엔 창이 열려 있으면 lastSeen만 갱신하고 버려서,
   //   설정 창을 연 채 돌아오거나 '받기' 전에 앱이 꺼지면 방치 보상이 영영 사라졌다.

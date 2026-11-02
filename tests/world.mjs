@@ -106,7 +106,7 @@ console.log('\n=== 무공 만렙 · 초기화 (v205) ===');
   const old = newWorldSave(0); old.job = 'sword'; old.level = 100; old.skillV = 1; old.skillLv = { s0: 10, s1: 5 }; old.skillPts = 0;
   const m = migrateWorld(old, 0);
   const back = (W.skillSpent(10, W.skillLvCostOld) - W.skillSpent(10)) + (W.skillSpent(5, W.skillLvCostOld) - W.skillSpent(5));
-  ok(m.skillPts === back && m.skillLv.s0 === 10 && m.skillRefund === back, '옛 세이브는 레벨 그대로 차이만큼 점수를 돌려받는다', `${back}점`);
+  ok(m.skillPts === back + 10 && m.skillLv.s0 === 10 && m.skillRefund === back && m.skillGift === 10, '옛 세이브는 레벨 그대로 차이만큼 점수를 돌려받는다(+ v270 레벨 5~14 몫 10점)', `${back}+10점 → ${m.skillPts}`);
 }
 
 console.log('\n=== 탈것 합성 (v204) ===');
@@ -469,12 +469,12 @@ console.log('\n=== 등급 · 스킬 옵션 · 승급 · 돌파 · 스킬 레벨 
   // 스킬 레벨
   const L = fresh();
   L.addExp(1e7);
-  ok(L.s.skillPts === Math.max(0, L.s.level - W.SKILL_PT_FROM + 1), '레벨 15부터 레벨마다 스킬 점수 1', `Lv.${L.s.level} 점수 ${L.s.skillPts}`);
+  ok(L.s.skillPts === Math.max(0, L.s.level - W.SKILL_PT_FROM + 1), `레벨 ${W.SKILL_PT_FROM}부터 레벨마다 스킬 점수 1`, `Lv.${L.s.level} 점수 ${L.s.skillPts}`);
   L.s.jobTier = 1;
   const d0 = L.skillMods('s0').dmg;
   let ups = 0; while (L.skillUp('s0')) ups++;
   ok(L.skillLevel('s0') === Math.min(W.SKILL_LV_MAX, 1 + ups) && L.skillMods('s0').dmg > d0 + 0.3, '스킬 레벨을 올리면 피해·숨·범위가 좋아진다', `Lv.${L.skillLevel('s0')} 피해 +${(L.skillMods('s0').dmg * 100).toFixed(0)}%`);
-  ok(migrateWorld({ level: 40 }).skillPts === 26 && migrateWorld({ level: 40, skillV: 1, skillPts: 3 }).skillPts === 3, '옛 세이브는 레벨 15부터 오른 만큼 스킬 점수를 한 번에');
+  ok(migrateWorld({ level: 40 }).skillPts === 36 && migrateWorld({ level: 40, skillV: 1, skillPts: 3 }).skillPts === 13 && migrateWorld({ level: 9, skillV: 2, skillPts: 0 }).skillPts === 5 && migrateWorld({ level: 3, skillV: 2, skillPts: 0 }).skillPts === 0 && migrateWorld({ level: 40, skillV: 3, skillPts: 7 }).skillPts === 7, '옛 세이브 스킬 점수 — 레벨 15부터 몫 + v270 레벨 5~14 몫(최대 10)을 한 번만');
   // 돌파
   const B = fresh(); B.s.level = W.LEVEL_MAX;   // v261 강화 상한(레벨)
   const bz = W.stepMap(10);                       // 그 칸의 재료 지역
@@ -2103,6 +2103,28 @@ console.log('\n=== v254 고침 ===');
   g.rng = () => 0.9999;
   g.enhance(set.uid, true);
   ok(set.plus === 12 && g.s.prot === 5 && (set.epity || 0) > 0, '공유 +12 세트 무기 강화 실패 — +12 그대로 · 보호부 그대로 · 천장은 쌓인다', `+${set.plus} 보호부 ${g.s.prot} 천장 ${set.epity}`);
+}
+console.log('\n=== v270 각인 상한 · 스킬 점수 레벨 5부터 ===');
+{
+  const IM = await import('../js/world/wimprint.js');
+  const g = fresh('sword');
+  while (g.s.level < 150) g.addExp(W.expToNext(g.s.level));
+  ok(g.s.skillPts >= 150 - W.SKILL_PT_FROM + 1 - 1, `레벨 ${W.SKILL_PT_FROM}부터 레벨마다 스킬 점수`, `${g.s.skillPts}점`);
+  const base = { s0: g.skillMods('s0').dmg, r: g.skillMods('s0').range };
+  const s0 = g.stats(); const c0 = s0.critDmg, k0 = s0.crit;
+  // 가장 센 왕(검왕 b27) 증표 · 신화 등급 · 1차 스킬 피해만 — 여섯 장비 × 셋
+  for (const k of ['weapon', 'armor', 'hat', 'glove', 'shoe', 'acc']) {
+    const it = g.s.equip[k]; if (!it) continue;
+    it.imps = [0, 1, 2].map((i) => ({ k: 'b27', s: 0, sk: i === 1 ? 'range' : 'dmg', g: 3, sp: i === 2 ? 1 : 0 }));
+  }
+  g._stats = null; g._mods = {}; g._isp = null;
+  const m = g.skillMods('s0');
+  ok(m.dmg - base.s0 <= IM.SKILL_CAP.dmg + 1e-9 && m.range - base.r <= IM.SKILL_CAP.range + 1e-9, '스킬 변화 각인은 피해·범위 끝을 넘지 않는다', `피해 +${(m.dmg - base.s0).toFixed(2)} 범위 +${(m.range - base.r).toFixed(2)}`);
+  const isp = g.impSpecials();
+  ok(Object.values(isp).every((v) => v.p <= IM.SPECIAL_P_MAX + 1e-9) && isp.echo && isp.nova, '고유 효과 위력은 끝(2.5)을 넘지 않는다', JSON.stringify(Object.fromEntries(Object.entries(isp).map(([k, v]) => [k, +v.p.toFixed(2)]))));
+  const st = g.stats();
+  ok(st.critDmg - c0 <= IM.IMP_STAT_CAP.critDmg + 1e-9 && st.crit - k0 <= IM.IMP_STAT_CAP.crit + 1e-9, '각인 능력치(치명·치명 피해)는 끝을 넘지 않는다', `치명 +${(st.crit - k0).toFixed(3)} 치명 피해 +${(st.critDmg - c0).toFixed(2)}`);
+  ok(IM.specialP([1.6]) === 1.6 && Math.abs(IM.specialP([1.6, 1, 1.3]) - 2.2) < 1e-9 && IM.specialP(Array(18).fill(1.6)) === IM.SPECIAL_P_MAX, '고유 위력 = 가장 무거운 칸 + 하나마다 0.3');
 }
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);

@@ -716,12 +716,13 @@ export function optText(o) {
 }
 
 // ---------- 스킬 레벨 (v110) ----------
-// 레벨 15부터(1차 전직은 v269에 레벨 5로 당겼다) 레벨이 오를 때마다 스킬 점수 1. 스킬 레벨 n → n+1에 점수 n.
+// 레벨 5부터(v270 — 전엔 15) 레벨이 오를 때마다 스킬 점수 1. 스킬 레벨 n → n+1에 점수 n.
 // 한 레벨에 피해 +7% · 숨 -2%. 5레벨에 범위 +15%(1차는 주변 적 20%), 10레벨에 범위 +30%(1차 40%) · 치명 +10%p.
 // v205: 만렙 10 → 15(極). 값은 1·1·2·2·3·3·4·4·5(10까지 25점) · 11~15는 6점씩(15까지 55점) — 전에는 n점씩(10까지 45점).
-// 레벨 150이면 점수 136 — 무공 둘셋을 만렙으로, 나머지와 심법은 골라서. 다시 고르려면 무공 초기화.
+// 레벨 150이면 점수 146(v270) — 무공 둘셋을 만렙으로, 나머지와 심법은 골라서. 다시 고르려면 무공 초기화.
 export const SKILL_LV_MAX = 15;
-export const SKILL_PT_FROM = 15;
+export const SKILL_PT_FROM = 5;    // v270: 15 → 5 (1차 전직을 레벨 5로 당기면서 함께)
+export const SKILL_PT_FROM_OLD = 15;   // 옛 세이브 보정용
 export const skillLvCost = (lv) => (lv < 10 ? Math.ceil(lv / 2) : 6);
 export const skillLvCostOld = (lv) => lv;                  // v205 전 값 — 옛 세이브에 차이를 돌려줄 때만
 export const skillSpent = (lv, cost = skillLvCost) => { let n = 0; for (let l = 1; l < lv; l++) n += cost(l); return n; };
