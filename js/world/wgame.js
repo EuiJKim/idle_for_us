@@ -62,7 +62,7 @@ export function newWorldSave(now = Date.now()) {
     deaths: 0,
     bestMap: W.mapId(1, 1),
     // 요일 던전 (v126): 오늘 쓴 횟수 · 종류별 깬 단계 · 자동 도전(v139)
-    dgn: { day: '', used: {}, best: {}, auto: false, routine: false },   // routine(v230): 요일 던전 → 탑 → 사냥터
+    dgn: { day: '', used: {}, best: {}, auto: false, routine: false, climb: true },   // climb(v283): 자동은 새 단계만 오르고, 막히면 멈춘다(소탕 안 함)   // routine(v230): 요일 던전 → 탑 → 사냥터
     tower: { floor: 0, auto: true },         // 무한의 탑: 오른 층 · 이기면 이어 오르기
     path: null,                              // 직업의 길 (v237) — 'a' 무공 · 'b' 평타, 2차 전직에 고른다
     zTickets: {},                            // 십이지 뽑기권 — 신 번호(1~12): 장수
@@ -180,6 +180,7 @@ export function migrateWorld(raw, now = Date.now()) {
   s.path = raw.path === 'a' || raw.path === 'b' ? raw.path : null;   // v237
   s.dgn.auto = !!dg.auto;
   s.dgn.routine = !!dg.routine;
+  s.dgn.climb = dg.climb !== false;   // v283 등반 모드 — 처음엔 켜 둔다
   s.tower.failPow = Math.max(0, Number(tw.failPow) || 0);
   s.quest = clamp(Math.floor(Number(s.quest) || 0), 0, Q.QUEST_COUNT);
   s.did = raw.did && typeof raw.did === 'object' ? { ...raw.did } : {};
@@ -3098,6 +3099,8 @@ export class WorldGame {
     if (!(this.s.dgn.auto || this.s.dgn.routine) || this.inst || !this.s.job) return null;
     for (const d of D.DAILY) {
       const stage = this.dailyMaxStage(d.id);
+      // v283 등반 모드: 아직 못 깬 단계만 · 오늘 그 단계에서 졌으면(막혔으면) 그 던전은 멈춘다 — 남은 횟수는 그대로 둔다
+      if (this.s.dgn.climb && (stage <= this.dailyBest(d.id) || (this.dgnToday(now).fail[d.id] || 0) >= stage)) continue;
       if (this.canDaily(d.id, stage, now)) return { kind: d.id, stage };
     }
     return null;
@@ -3150,6 +3153,8 @@ export class WorldGame {
     const today = this.dgnToday(now);
     const lost = (today.fail[nx.kind] || 0) >= nx.stage;
     const learnSweep = Q.questAt(this.s.quest)?.id === 'sweep';
+    // v283 등반 모드는 소탕하지 않는다 — 막히면 그대로 멈추고 남은 횟수는 무인이 쓴다(다음 날로 넘어가기도 한다)
+    if (this.s.dgn.climb) return nx.stage > this.dailyBest(nx.kind) && !lost ? this.startDaily(nx.kind, nx.stage, now) : false;
     if ((nx.stage <= this.dailyBest(nx.kind) || lost || learnSweep) && this.canSweep(nx.kind, now)) {
       return !!this.sweepDaily(nx.kind, now);
     }

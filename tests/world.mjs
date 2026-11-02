@@ -1779,7 +1779,7 @@ console.log('\n=== 일일 던전 열쇠 (v156 · v260 하루 셋) ===');
   const r3 = run(5, false);
   ok(!r3.ok && !r3.gotKey && g.dailyLeft('exp', now) === 2, '못 깨면 열쇠 없음 — 횟수 하나를 쓴다');
   // v260: 진 단계는 자동이 다시 들어가지 않고 소탕한다
-  g.s.dgn.auto = true;
+  g.s.dgn.auto = true; g.s.dgn.climb = false;   // (v283 등반 모드를 끈 옛 동작)
   const lv0 = g.s.exp + g.s.level * 1e12;
   ok(g.startAutoDaily(now) === true && !g.inst && g.dailyLeft('exp', now) === 1 && g.s.exp + g.s.level * 1e12 > lv0, '오늘 진 단계는 자동이 다시 안 들어가고 소탕한다 (v260)');
   g.s.dgn.auto = false;
@@ -2235,6 +2235,36 @@ console.log('\n=== v279 환마 탐보 ===');
   const f = fresh('fan'), sw = fresh('sword');
   ok(f.stats().gold - sw.stats().gold >= 0.2 - 1e-9, '환마는 은자 +20%');
   ok(f.lootK() === 1.5 && sw.lootK() === 1 && W.CLASSES.fan.treasureK === 2, '두목 장신구·애완동물·포획 조각 1.5배 · 보물 원숭이 2배');
+}
+console.log('\n=== v283 등반 모드 ===');
+{
+  const DG = await import('../js/world/wdgn.js');
+  const g = fresh();
+  while (g.s.level < 30) g.addExp(W.expToNext(g.s.level));
+  ok(g.s.dgn.climb === true && migrateWorld({ ...newWorldSave() }).dgn.climb === true, '처음엔 켜져 있다 · 옛 저장도 켜진다');
+  ok(migrateWorld({ ...newWorldSave(), dgn: { climb: false } }).dgn.climb === false, '끈 것은 꺼진 채로 저장');
+  const now = Date.now();
+  const kind = DG.DAILY.find((d) => DG.dailyOpen(d, now)).id;
+  for (const d of DG.DAILY) if (d.id !== kind) g.dgnToday(now).used[d.id] = 99;   // 한 던전만 본다
+  g.s.dgn.auto = true;
+  g.s.dgn.best[kind] = 4;
+  // 오를 곳이 있으면 들어간다
+  ok(g.startAutoDaily(now) === true && g.inst?.stage === 5, '등반 — 못 깬 5단계로 들어간다');
+  g.inst.done = { ok: false, died: true };
+  const left0 = g.dailyLeft(kind, now);
+  const res = g.finishInst();
+  ok(!res.chain && !g.inst, '막히면(진 단계) 다시 들어가지도, 소탕하지도 않고 멈춘다');
+  ok(g.dailyLeft(kind, now) === left0 && left0 > 0, `남은 횟수 ${left0}번은 그대로 남는다`);
+  ok(g.autoDailyNext(now) === null && g.startAutoDaily(now) === false && g.dailyLeft(kind, now) === left0, '자동이 다시 돌아도 그대로');
+  // 다 깬 던전(맨 위)은 소탕하지 않는다
+  g.s.dgn.best[kind] = DG.DAILY_STAGES;
+  ok(g.autoDailyNext(now) === null && g.dailyLeft(kind, now) === left0, '더 오를 단계가 없으면 남은 횟수를 소탕하지 않는다');
+  // 끄면 옛 동작(막힌 곳은 소탕)
+  g.s.dgn.climb = false; g.s.dgn.best[kind] = 4;
+  ok(g.startAutoDaily(now) === true && !g.inst && g.dailyLeft(kind, now) === left0 - 1, '끄면 막힌 곳은 소탕한다(옛 동작)');
+  // 루틴도 같은 규칙 — 막힌 던전을 건너뛰고 탑으로
+  g.s.dgn.climb = true; g.s.dgn.auto = false; g.s.dgn.routine = true;
+  ok(g.routineNext(now)?.step !== 'daily', '루틴도 막힌 던전은 건너뛴다', JSON.stringify(g.routineNext(now)));
 }
 console.log('\n=== v280 꾸미기 ===');
 {

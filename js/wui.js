@@ -1440,9 +1440,22 @@ function dgnTab(app) {
     const dAuto = h('input', { type: 'checkbox' });
     dAuto.checked = !!s.dgn.auto;
     dAuto.onchange = () => { s.dgn.auto = dAuto.checked; app.save(); rerender(); };
+    // v283 등반 모드 — 자동은 새 단계만 오르고, 막히면 소탕하지 않고 멈춘다(남은 횟수는 그대로)
+    const dClimb = h('input', { type: 'checkbox' });
+    dClimb.checked = s.dgn.climb !== false;
+    dClimb.onchange = () => {
+      s.dgn.climb = dClimb.checked; app.save(); rerender();
+      toast(s.dgn.climb ? '등반 모드 — 자동은 새 단계만 오르고, 막히면 멈춰요(남은 횟수는 그대로)' : '등반 모드를 껐어요 — 자동이 막히면 남은 횟수를 소탕해요');
+    };
     // v230: 던전 루틴 — 요일 던전 모두 → 무한의 탑 → 사냥터. 켜 두면 방치 중에도 알아서 돈다.
     const leftAll = D.DAILY.reduce((a, d) => a + (D.dailyOpen(d, now) ? game.dailyLeft(d.id, now) : 0), 0);
     const twOk = game.canTower() && game.towerRetryOk();
+    // v283 등반 모드면 자동이 오를 곳(아직 못 깬 단계 · 오늘 안 진 곳)만 센다
+    const climbOn = s.dgn.climb !== false;
+    const climbN = D.DAILY.filter((d) => {
+      const mx = game.dailyMaxStage(d.id);
+      return game.canDaily(d.id, mx, now) && mx > game.dailyBest(d.id) && (game.dgnToday(now).fail[d.id] || 0) < mx;
+    }).length;
     const step = (ico, label, sub, on) => h('div', { class: `rt-step${on ? ' on' : ''}` }, h('i', {}, ico), h('b', {}, label), h('small', {}, sub));
     const routine = h('div', { class: `card rt-card${s.dgn.routine ? ' on' : ''}` },
       h('div', { class: 'rt-head' },
@@ -1453,14 +1466,15 @@ function dgnTab(app) {
           if (s.dgn.routine && game.routineNext()) start(() => game.startRoutine());
         } }, s.dgn.routine ? '켜짐' : '켜기')),
       h('div', { class: 'rt-steps' },
-        step('日', '요일 던전', leftAll ? `${leftAll}번 남음` : '오늘 끝', leftAll > 0),
+        step('日', '요일 던전', climbOn ? (climbN ? `${climbN}곳 오르기` : leftAll ? `막힘 · ${leftAll}번 남김` : '오늘 끝') : leftAll ? `${leftAll}번 남음` : '오늘 끝', climbOn ? climbN > 0 : leftAll > 0),
         h('span', { class: 'rt-arrow' }, '›'),
         step('塔', '무한의 탑', game.s.tower.floor >= D.TOWER_MAX ? '끝까지' : twOk ? `${game.s.tower.floor + 1}층 도전` : '더 세지면', twOk),
         h('span', { class: 'rt-arrow' }, '›'),
         step('獵', '사냥터', '돌아가 사냥', true)));
     const head = h('div', { class: 'card dgn-head' },
       h('div', {}, h('b', {}, '일일 던전'), h('small', { class: 'muted' }, ` · 하루 ${D.DAILY_ENTRIES}번(남긴 것은 다음 날로) · 새 단계 🔑는 한 번 더`),
-        h('label', { class: 'chk' }, dAuto, ' 요일 던전만 자동')),
+        h('label', { class: 'chk' }, dAuto, ' 요일 던전만 자동'),
+        h('label', { class: 'chk', title: '자동(루틴 포함)이 새 단계만 오르고, 막히면 소탕하지 않고 멈춰요' }, dClimb, ' 등반 모드(막히면 멈춤)')),
       h('button', { class: 'btn primary', disabled: sweepN ? null : true, onclick: () => {
         const got = game.sweepAll(now);
         if (!got.length) return;
