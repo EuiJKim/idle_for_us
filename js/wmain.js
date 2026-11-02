@@ -1561,7 +1561,7 @@ $('btn-settings').addEventListener('click', () => openModal((s) => {
       h('button', { class: 'btn primary', style: 'padding:6px 12px', onclick: async () => {
         const url = new URL('install.html', location.href).href;
         try {
-          if (navigator.share) await navigator.share({ title: '방치형키우기', text: '같이 하자! 친구끼리 하는 무협 방치형 RPG', url });
+          if (navigator.share) await navigator.share({ title: '방치형키우기', text: '같이 하자! 무협방치 RPG', url });
           else { await navigator.clipboard.writeText(url); toast('설치 안내 링크를 복사했어요'); }
         } catch { /* 취소 */ }
       } }, '보내기')),

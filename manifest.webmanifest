@@ -1,7 +1,7 @@
 {
   "name": "방치형키우기",
   "short_name": "방치형키우기",
-  "description": "친구끼리 하는 무협 회귀 방치형 RPG",
+  "description": "무협방치 RPG",
   "start_url": "./",
   "scope": "./",
   "id": "./",

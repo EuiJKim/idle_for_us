@@ -4,11 +4,11 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>방치형키우기 설치</title>
-  <meta name="description" content="친구끼리 하는 무협 회귀 방치형 RPG — 홈 화면에 설치하면 앱처럼 전체 화면으로 열려요.">
+  <meta name="description" content="무협방치 RPG — 홈 화면에 설치하면 앱처럼 전체 화면으로 열려요.">
   <!-- 카카오톡 등에 링크를 붙였을 때 보이는 미리보기 -->
   <meta property="og:type" content="website">
   <meta property="og:title" content="방치형키우기">
-  <meta property="og:description" content="친구끼리 하는 무협 방치형 RPG — 눌러서 설치하세요">
+  <meta property="og:description" content="무협방치 RPG — 눌러서 설치하세요">
   <meta property="og:image" content="https://euijkim.github.io/idle_for_us/icons/icon-512.png">
   <meta property="og:url" content="https://euijkim.github.io/idle_for_us/install.html">
   <meta name="theme-color" content="#14110e">
@@ -103,7 +103,7 @@
   <div class="hero">
     <img src="icons/icon-192.png" alt="">
     <h1>방치형키우기</h1>
-    <p>친구끼리 하는 무협 방치형 RPG</p>
+    <p>무협방치</p>
   </div>
 
   <!-- 이미 설치한 앱으로 열었을 때 -->
@@ -249,7 +249,7 @@
     // 친구에게
     if (!isIOS && !isAndroid) $('qr-text').innerHTML = '<b>휴대폰 카메라로 찍으세요.</b> 휴대폰에서 이 페이지가 열리고, 거기서 설치할 수 있어요.';
     $('btn-share').onclick = function () {
-      if (navigator.share) { navigator.share({ title: '방치형키우기', text: '같이 하자! 친구끼리 하는 무협 방치형 RPG', url: share }).catch(function () {}); return; }
+      if (navigator.share) { navigator.share({ title: '방치형키우기', text: '같이 하자! 무협방치 RPG', url: share }).catch(function () {}); return; }
       $('btn-copy').onclick();
     };
     $('btn-copy').onclick = function () {
