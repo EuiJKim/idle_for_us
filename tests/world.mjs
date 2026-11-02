@@ -2188,5 +2188,39 @@ console.log('\n=== v274 현철 단련 ===');
   const sv = migrateWorld(JSON.parse(JSON.stringify(g.toJSON())), 0);
   ok(sv.temper === 3, '세이브에 남는다');
 }
+console.log('\n=== v275 숙련도·견문록 전투 보상 · 무공 비급 조각 ===');
+{
+  const L2 = await import('../js/world/wland.js');
+  const g = fresh('sword');
+  while (g.s.level < 60) g.addExp(W.expToNext(g.s.level));
+  const a0 = g.stats().atk;
+  const z = W.mapOf(W.mapId(2, 1)).zone;
+  g.addMastery(z, L2.MASTERY_KILLS[3]);
+  const hb = g.huntBonus();
+  ok(hb.mast === 3 && Math.abs(hb.m - 3 * W.MAST_STAT) < 1e-9 && g.stats().atk > a0, '숙련도 단계마다 영구 공격력·체력', `+${(hb.m * 100).toFixed(2)}%`);
+  const a1 = g.stats().atk;
+  const zz = W.dexZones()[0];
+  for (const n of zz.names) g.s.dex = { ...(g.s.dex || {}), [n]: W.DEX_NEED };
+  g._huntB = null; g._dexZ = null; g._stats = null;
+  const hb2 = g.huntBonus();
+  ok(hb2.zones >= 1 && hb2.stamps >= zz.names.length && g.stats().atk > a1, '견문록 낙관·지역 완성마다 영구 공격력·체력', `낙관 ${hb2.stamps} · 지역 ${hb2.zones} → +${(hb2.d * 100).toFixed(2)}%`);
+  // 비급 조각
+  const p0 = g.s.skillPts;
+  g.gainFrag(W.FRAG_NEED - 1);
+  ok(g.s.frag === W.FRAG_NEED - 1 && g.s.skillPts === p0, '조각이 모자라면 점수는 그대로');
+  g.gainFrag(1 + W.fragNeed(1));
+  ok(g.s.skillPts === p0 + 2 && g.s.frag === 0 && g.s.fragPts === 2 && W.fragNeed(1) === W.FRAG_NEED + W.FRAG_NEED_UP, `조각 ${W.FRAG_NEED}개에 무공 점수 1 — 다음은 ${W.FRAG_NEED + W.FRAG_NEED_UP}개`);
+  // 몹 처치로 떨어지는 빈도
+  const h2 = fresh(); h2.enterMap(11); let got = 0; h2.rng = Math.random;
+  const f0 = h2.s.frag || 0;
+  for (let i = 0; i < 60000; i++) { if (h2.rng() < W.FRAG_RATE) got++; }
+  ok(got >= 1 && got <= 10, '몹 만오천에 하나 꼴', `${got}/60000`);
+  // 방치에도
+  const o = fresh('sword'); o.s.level = 80; o.s.lastSeen = Date.now() - 10 * 3600e3; o.s.rates = { map: 11, kills: 20, exp: 1, gold: 1, potions: 0 };
+  const rw = o.offlineReward(Date.now());
+  ok(rw && rw.frag >= Math.floor(rw.kills * W.FRAG_RATE) && rw.frag <= Math.floor(rw.kills * W.FRAG_RATE) + 1, '방치 보상에도 조각(처치 수 × 확률)', `처치 ${rw?.kills} → ${rw?.frag}개`);
+  const fr0 = o.s.frag || 0, sp0 = o.s.skillPts || 0; o.claimOffline(rw);
+  { let need = 0; for (let k = 0; k < (o.s.fragPts || 0); k++) need += W.fragNeed(k); ok((o.s.frag || 0) + need === fr0 + rw.frag, '방치 조각을 받는다'); }
+}
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);

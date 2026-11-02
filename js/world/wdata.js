@@ -503,6 +503,17 @@ export const ORE_NAME = '현철';
 export const ORE_COL = '#9ca3af';
 // v274 현철 단련(鍛鍊) — 강화가 레벨 상한에 막히면 현철이 썩어 남았다(시뮬 15일에 7천만 개). 끝없는 소비처:
 //   한 단계마다 영구 공격력·체력 +TEMPER_STEP, 값은 단계마다 ×TEMPER_GROW · 내 레벨 몫(레벨÷5)만큼.
+// v275 몹 사냥으로 강해지는 길 둘 더 — 숙련도·견문록이 경험치만 주던 것에 영구 공격력·체력을 더한다
+//   숙련도 단계(지역마다 최대 10, 60곳) 하나마다 · 견문록 낙관(몹 종 하나) 하나마다 · 견문록 지역을 다 채우면 하나마다
+export const MAST_STAT = 0.0005;
+export const DEX_STAMP_STAT = 0.0002;
+export const DEX_ZONE_STAT = 0.005;
+// v275 무공 비급 조각 — 몹이 드물게 떨군다(정예 ×5 · 두목 ×20 · 방치에도). FRAG_NEED개면 무공 점수 1
+export const FRAG_RATE = 1 / 15000;
+export const FRAG_NEED = 20;
+// 점수를 하나 받을 때마다 다음 비급에 조각이 이만큼 더 — 처치 수가 2.5배인 직업이 무공 점수를 2.5배 받지 않게(시뮬 권마 77점 → 26점쯤)
+export const FRAG_NEED_UP = 2;
+export const fragNeed = (got) => FRAG_NEED + FRAG_NEED_UP * Math.max(0, got | 0);
 export const TEMPER_STEP = 0.003;   // 시뮬 15일 118~143단계 → +35~43%
 export const TEMPER_BASE = 150;
 export const TEMPER_GROW = 1.06;

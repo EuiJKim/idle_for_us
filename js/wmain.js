@@ -931,7 +931,8 @@ function handleEvents() {
         if (!ev.inst) toast(`쓰러졌어요… 경험치 ${fmt(ev.loss)}을 잃고 마을로 돌아가요${ev.retreat ? ` — 너무 센 곳이라 다음엔 ${ev.retreat}(으)로 나가요` : ''}`);
         break;
       // v263: 견문록 낙관
-      case 'dexStamp': toast(`견문록 — ${ev.name} 낙관${ev.zoneDone ? ' · 지역 완성! 경험치 +0.5%' : ''}`); break;
+      case 'dexStamp': toast(`견문록 — ${ev.name} 낙관 · 공격력·체력 +${(W.DEX_STAMP_STAT * 100).toFixed(2)}%${ev.zoneDone ? ` · 지역 완성! 경험치 +0.5% · 공격력·체력 +${(W.DEX_ZONE_STAT * 100).toFixed(1)}%` : ''}`); break;
+      case 'frag': if (ev.pts) toast(`📜 무공 비급 완성 — 무공 점수 +${ev.pts}`); else if (ev.at) toast(`📜 무공 비급 조각 (${ev.have}/${W.fragNeed(game.s.fragPts)})`); if (ev.at) saverLoot(`📜 비급 조각 ${ev.have}/${W.fragNeed(game.s.fragPts)}`); break;
       // v263: 깨달음 점수
       case 'temper': toast(`🔨 단련 ${ev.lv}단계${ev.n > 1 ? ` (+${ev.n})` : ''} — 공격력·체력 +${(ev.lv * W.TEMPER_STEP * 100).toFixed(1)}%`); break;
       case 'enlight': toast(`깨달음 +${ev.got} — 무공 창에서 올려요 (가진 것 ${ev.pts})`); break;
@@ -978,7 +979,7 @@ function handleEvents() {
         view.showBanner(ev.name, ev.inst ? '#fde68a' : '#fef3c7', 1.3);
         break;
       case 'mastery':
-        toast(`${ev.name} 숙련 ${ev.level}! 경험치·재료가 늘고 이 땅의 기운을 더 잘 견뎌요`);
+        toast(`${ev.name} 숙련 ${ev.level}! 경험치·재료가 늘고 · 공격력·체력 +${(W.MAST_STAT * 100).toFixed(2)}%(영구)`);
         break;
       case 'treasure':
         view.showBanner('황금 원숭이 출현!', '#fde047', 1.6, '보물');
@@ -1205,7 +1206,8 @@ function showPendingOffline() {
         h('div', {}, '처치', h('b', { 'data-count': rw.kills, 'data-suffix': '마리' }, `${fmt(rw.kills)}마리`)),
         h('div', {}, '경험치', h('b', { 'data-count': rw.exp }, fmt(rw.exp))),
         h('div', {}, '은자', h('b', { 'data-count': rw.gold }, fmt(rw.gold))),
-        h('div', {}, '먹은 물약', h('b', {}, `${rw.potions}개`))),
+        h('div', {}, '먹은 물약', h('b', {}, `${rw.potions}개`)),
+        rw.frag > 0 ? h('div', {}, '비급 조각', h('b', {}, `${rw.frag}개`)) : null),
       h('p', { class: 'muted' }, !rw.mats ? '' : `모은 재료: ${W.ORE_NAME} ${fmt(W.oreOf(W.mapOf(rw.map).mz, rw.mats + (rw.marks || 0) * W.BOSS_MATS).n)}개`
         + (rw.marks ? ` · ${W.matName(W.bossKey(rw.map))} ${rw.marks}개` : '') + ' — 장비 강화에 써요 (증표는 등급 각인)'),
       h('button', { class: 'btn primary', style: 'width:100%', onclick: closeModal }, '받기'));

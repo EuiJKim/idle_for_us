@@ -87,6 +87,8 @@ export function migrateWorld(raw, now = Date.now()) {
   s.autoMap = typeof raw.autoMap === 'boolean' ? raw.autoMap : false;
   s.elixir = Math.max(0, Math.min(W.ELIXIR_MAX, Number(raw.elixir) || 0));
   s.temper = Math.max(0, Math.floor(Number(raw.temper) || 0));   // v274 현철 단련 단계
+  s.frag = Math.max(0, Math.floor(Number(raw.frag) || 0));        // v275 무공 비급 조각
+  s.fragPts = Math.max(0, Math.floor(Number(raw.fragPts) || 0));  // 조각으로 얻은 무공 점수(보이기용)
   s.autoEnh = !!raw.autoEnh; s.autoInf = !!raw.autoInf;   // v262
   s.loadout = raw.loadout === 1 ? 1 : 0;
   { const dx = raw.dex && typeof raw.dex === 'object' ? raw.dex : {}; s.dex = {}; for (const [k, v] of Object.entries(dx)) { const n = Math.min(9999, Math.floor(Number(v) || 0)); if (n > 0) s.dex[k] = n; } }
@@ -417,8 +419,8 @@ export class WorldGame {
     // 고수 비무: 처음 이긴 고수마다 영구히 (v148)
     const mb = this.masterBonus();
     gear.atkPct += mb; gear.hpPct += mb;
-    // 현철 단련 (v274)
-    const tp = (s.temper || 0) * W.TEMPER_STEP;
+    // 현철 단련 (v274) · 숙련도·견문록 (v275)
+    const tp = (s.temper || 0) * W.TEMPER_STEP + this.huntBonus().total;
     gear.atkPct += tp; gear.hpPct += tp;
     // 심법
     const pm = this.pmods();
@@ -1344,10 +1346,11 @@ export class WorldGame {
         const dx = this.s.dex || (this.s.dex = {});
         const n = (dx[m.name] || 0) + 1;
         if (n <= 9999) dx[m.name] = n;
-        if (n === W.DEX_NEED) { this._dexZ = null; this._stats = null; this.emit('dexStamp', { name: m.name, zoneDone: this.dexZoneDone(this.map.zone) }); }
+        if (n === W.DEX_NEED) { this._dexZ = null; this._huntB = null; this._stats = null; this.emit('dexStamp', { name: m.name, zoneDone: this.dexZoneDone(this.map.zone) }); }
       }
       this.tday('kill'); if (m.elite) this.tday('elite'); if (m.isBoss) this.tday('boss');
       if (!m.isBoss && this.rng() < W.PET_SHARD_RATE * (m.elite ? 3 : 1)) this.s.petShard = (this.s.petShard || 0) + 1;   // v262 포획 조각
+      if (this.rng() < W.FRAG_RATE * (m.isBoss ? 20 : m.elite ? 5 : 1)) this.gainFrag(1, { x: m.x, y: m.y });   // v275 무공 비급 조각
     }
     this.s.gold += gold;
     const mat = this.dropMats(m);
@@ -2484,6 +2487,24 @@ export class WorldGame {
     const z = W.dexZones().find((x) => x.id === zoneId);
     return !!z && z.names.every((n) => (this.s.dex?.[n] || 0) >= W.DEX_NEED);
   }
+  // v275 사냥으로 쌓은 영구 공격력·체력 — 숙련도 단계 합 · 견문록 낙관 수 · 다 채운 견문록 지역 수
+  huntBonus() {
+    if (this._huntB) return this._huntB;
+    const mast = Object.entries(this.s.mast || {}).reduce((a, [z, k]) => a + (W.zoneOfW(+z) ? L.masteryLv(k) : 0), 0);
+    const stamps = Object.values(this.s.dex || {}).filter((v) => v >= W.DEX_NEED).length;
+    const zones = W.dexZones().filter((z) => z.names.every((n) => (this.s.dex?.[n] || 0) >= W.DEX_NEED)).length;
+    const m = mast * W.MAST_STAT, d = stamps * W.DEX_STAMP_STAT + zones * W.DEX_ZONE_STAT;
+    this._huntB = { mast, stamps, zones, m, d, total: m + d };
+    return this._huntB;
+  }
+  // v275 무공 비급 조각 — n개 얻는다. FRAG_NEED개가 차면 무공 점수로
+  gainFrag(n = 1, at = null) {
+    if (!(n > 0)) return;
+    this.s.frag = (this.s.frag || 0) + n;
+    let pts = 0;
+    while (this.s.frag >= W.fragNeed(this.s.fragPts)) { this.s.frag -= W.fragNeed(this.s.fragPts); this.s.skillPts = (this.s.skillPts || 0) + 1; this.s.fragPts = (this.s.fragPts || 0) + 1; pts++; }
+    this.emit('frag', { n, have: this.s.frag, pts, at });
+  }
   dexBonus() {
     if (this._dexZ == null) this._dexZ = W.dexZones().filter((z) => z.names.every((n) => (this.s.dex?.[n] || 0) >= W.DEX_NEED)).length;
     return this._dexZ * W.DEX_ZONE_EXP;
@@ -2795,7 +2816,7 @@ export class WorldGame {
     const before = this.masteryLevel(zone);
     this.s.mast[zone] = (this.s.mast[zone] || 0) + n;
     const after = this.masteryLevel(zone);
-    if (after > before) { this._env = null; this.emit('mastery', { zone, level: after, name: W.zoneOfW(zone).name }); }
+    if (after > before) { this._env = null; this._huntB = null; this._stats = null; this.emit('mastery', { zone, level: after, name: W.zoneOfW(zone).name }); }
   }
   spawnTreasure() {
     const m = this.map;
@@ -3653,7 +3674,8 @@ export class WorldGame {
     const marks = m.bossRoom ? Math.floor(te * bossRate) : 0;
     // v260: 경험치 — 방치 중 레벨이 오르면 접속 때처럼 레벨 차 감쇠가 붙는다(전엔 처음 레벨의 벌이를 끝까지)
     const exp = Math.floor(this.offlineExp(r, te, m) * ek);
-    return { sec, t, te, eff: t > 0 ? te / t : 1, kills, exp, gold: Math.floor(r.gold * te * ek), elix,
+    const frag = Math.floor(kills * W.FRAG_RATE + this.rng());   // v275 비급 조각(기댓값 · 남는 몫은 굴린다)
+    return { sec, t, te, eff: t > 0 ? te / t : 1, kills, exp, gold: Math.floor(r.gold * te * ek), elix, frag,
       potions: Math.ceil(r.potions * t), mats, marks, stoppedByPotion: potionSec < sec, map: r.map };
   }
   // 효율 시간 te 동안의 경험치 — 스무 토막으로 나눠 토막마다 그때 레벨의 레벨 차 감쇠를 곱한다
@@ -3676,6 +3698,7 @@ export class WorldGame {
   claimOffline(rw) {
     if (!rw) return;
     if (rw.elix) this.s.elixir = Math.max(0, (this.s.elixir || 0) - rw.elix);
+    if (rw.frag > 0) this.gainFrag(rw.frag);
     this.s.gold += rw.gold;
     this.s.potions = Math.max(0, this.s.potions - rw.potions);
     this.addExp(rw.exp);
