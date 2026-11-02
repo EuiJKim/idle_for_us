@@ -140,8 +140,9 @@ export const JOB_SKILLS = {
       desc: '만 가지 독이 하늘 그물처럼 — 넓게 맞히고 8초 맹독' }),
     SK(3, 0, 'sup', '만독귀원', 'support', { cd: 22, hpCost: 0, from: 25, auto: 'poisoned', radius: 320, burst: 1, healMax: 0.12,
       desc: '흩어진 독을 한데 거둔다 — 둘레 적에게 쌓인 독을 한꺼번에 터뜨리고 최대 체력의 12% 회복' }),
-    SK(4, 4, 'hell', '만독지옥', 'aoe', { mult: 1.0, cd: 24, hpCost: 0.2, radius: 1400, autoAbove: 0.5, dot: { sec: 10, mult: 2.0 },
-      desc: '사냥터 전체에 독비가 내린다 — 보이는 모든 적을 치고 독을 크게 쌓는다(10초에 걸쳐 피해의 2배)' }),
+    // v288 두목에게 4배 — 4차 필살인데 두목 피해의 1%도 안 됐다(칠보단혼침 한 대보다 약했다). 사냥터는 원래도 한 번에 쓸어 그대로
+    SK(4, 4, 'hell', '만독지옥', 'aoe', { mult: 1.0, cd: 24, hpCost: 0.2, radius: 1400, autoAbove: 0.5, dot: { sec: 10, mult: 2.0 }, bossMult: 4,
+      desc: '사냥터 전체에 독비가 내린다 — 보이는 모든 적을 치고 독을 크게 쌓는다(10초에 걸쳐 피해의 2배) · 두목에겐 4배' }),
   ],
   fan: [
     SK(0, 1, 'frost', '섭혼술', 'single', { mult: 4.8, cd: 5, hpCost: 0, stun: 2.5, vuln: { sec: 6, v: 0.3 },

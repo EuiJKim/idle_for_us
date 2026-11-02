@@ -2266,6 +2266,16 @@ console.log('\n=== v283 등반 모드 ===');
   g.s.dgn.climb = true; g.s.dgn.auto = false; g.s.dgn.routine = true;
   ok(g.routineNext(now)?.step !== 'daily', '루틴도 막힌 던전은 건너뛴다', JSON.stringify(g.routineNext(now)));
 }
+console.log('\n=== v288 만독지옥 · 만독귀원 ===');
+{
+  const g = fresh('poison');
+  const hell = W.JOB_SKILLS.poison.find((k) => k.name === '만독지옥');
+  ok(hell.bossMult === 4, '만독지옥은 두목에게 4배');
+  const sup = W.JOB_SKILLS.poison.find((k) => k.name === '만독귀원');
+  const sk = { ...sup, id: 's3' };
+  g.skillMods = () => ({ dmg: 0, range: 0.5, cd: 0, splash: 0, crit: 0 });
+  ok(Math.abs(g.skillRadius(sk) - sup.radius * 1.5) < 1e-6, '만독귀원도 범위 보너스를 받는다(전엔 늘 320)');
+}
 console.log('\n=== v280 꾸미기 ===');
 {
   const m = migrateWorld({ ...newWorldSave(), custom: { head: 'hat', robe: '#8B1F22', band: 'red; x' } });

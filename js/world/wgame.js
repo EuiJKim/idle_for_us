@@ -1580,7 +1580,7 @@ export class WorldGame {
     const pow = 1 + md.dmg;
     this.cd[id] = this.skillCd(sk);
     const at = { x: this.heroX, y: this.heroY };
-    this.emit('skill', { id, name: sk.name, fx: sk.fx, look: sk.role, job: this.s.job, cls: this.s.job, tier: 3, at, radius: sk.radius || 0, motion: 'buff', dur: sk.buff?.sec || 0 });
+    this.emit('skill', { id, name: sk.name, fx: sk.fx, look: sk.role, job: this.s.job, cls: this.s.job, tier: 3, at, radius: sk.radius ? this.skillRadius(sk) : 0, motion: 'buff', dur: sk.buff?.sec || 0 });
     const b = sk.buff || {};
     const set = (k, v) => { this.buffs[k] = b.sec; this.buffv[k] = v; };
     if (b.move) set('move', b.move * pow);
@@ -1599,7 +1599,7 @@ export class WorldGame {
     if (sk.burst) {
       // 만독귀원: 둘레 적에게 쌓인 독을 한꺼번에 터뜨린다
       for (const m of this.mons.slice()) {
-        if (!m.alive || m.npc || !(m.dot > 0) || Math.hypot(m.x - this.heroX, (m.y - this.heroY) * 0.75) > sk.radius) continue;
+        if (!m.alive || m.npc || !(m.dot > 0) || Math.hypot(m.x - this.heroX, (m.y - this.heroY) * 0.75) > this.skillRadius(sk)) continue;   // v288 범위 보너스도 받는다(전엔 늘 320)
         const d = m.dot * sk.burst * pow;
         m.dot = 0;
         this.hurt(m, d, id, false);
@@ -1670,7 +1670,7 @@ export class WorldGame {
   // 보조기를 지금 쓸까
   wantSupport(sk, st) {
     if (sk.auto === 'hurt') return this.heroHp < st.hp * (sk.hurtAt || 0.5);
-    const near = this.mons.filter((m) => m.alive && !m.npc && Math.hypot(m.x - this.heroX, (m.y - this.heroY) * 0.75) <= 320);
+    const near = this.mons.filter((m) => m.alive && !m.npc && Math.hypot(m.x - this.heroX, (m.y - this.heroY) * 0.75) <= (sk.auto === 'poisoned' && sk.radius ? this.skillRadius(sk) : 320));
     if (sk.auto === 'poisoned') return near.filter((m) => m.dot > 0).length >= 3 || near.some((m) => m.isBoss && m.dot > m.maxHp * 0.02);
     return near.length >= 4 || near.some((m) => m.isBoss);
   }
