@@ -1671,7 +1671,11 @@ export class WorldGame {
   wantSupport(sk, st) {
     if (sk.auto === 'hurt') return this.heroHp < st.hp * (sk.hurtAt || 0.5);
     const near = this.mons.filter((m) => m.alive && !m.npc && Math.hypot(m.x - this.heroX, (m.y - this.heroY) * 0.75) <= (sk.auto === 'poisoned' && sk.radius ? this.skillRadius(sk) : 320));
-    if (sk.auto === 'poisoned') return near.filter((m) => m.dot > 0).length >= 3 || near.some((m) => m.isBoss && m.dot > m.maxHp * 0.02);
+    // v289 만독귀원: 중독 셋 → 둘 · 다쳤으면(체력 60% 아래) 하나만 있어도(회복 12%가 붙어 있다) — 전엔 셋을 기다리느라 숨이 다 차도 대부분 놀았다
+    if (sk.auto === 'poisoned') {
+      const pois = near.filter((m) => m.dot > 0);
+      return pois.length >= 2 || near.some((m) => m.isBoss && m.dot > m.maxHp * 0.02) || (pois.length >= 1 && this.heroHp < st.hp * 0.6);
+    }
     return near.length >= 4 || near.some((m) => m.isBoss);
   }
   autoSkills(st) {

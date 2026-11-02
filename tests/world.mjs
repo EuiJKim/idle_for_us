@@ -2276,6 +2276,20 @@ console.log('\n=== v288 만독지옥 · 만독귀원 ===');
   g.skillMods = () => ({ dmg: 0, range: 0.5, cd: 0, splash: 0, crit: 0 });
   ok(Math.abs(g.skillRadius(sk) - sup.radius * 1.5) < 1e-6, '만독귀원도 범위 보너스를 받는다(전엔 늘 320)');
 }
+console.log('\n=== v289 만독귀원 자동 ===');
+{
+  const g = fresh('poison');
+  const sk = { ...W.JOB_SKILLS.poison.find((k) => k.name === '만독귀원'), id: 's3' };
+  const st = g.stats();
+  const mob = (dx, dot) => ({ alive: true, x: g.heroX + dx, y: g.heroY, dot, maxHp: 100, hp: 100 });
+  g.mons = [mob(40, 5), mob(-40, 0), mob(60, 0)];
+  g.heroHp = st.hp;
+  ok(!g.wantSupport(sk, st), '중독 하나 · 체력 가득 → 아낀다');
+  g.heroHp = st.hp * 0.5;
+  ok(g.wantSupport(sk, st), '중독 하나라도 다쳤으면(60% 아래) 쓴다 — 회복 12%');
+  g.heroHp = st.hp; g.mons[1].dot = 3;
+  ok(g.wantSupport(sk, st), '중독 둘이면 쓴다(전엔 셋)');
+}
 console.log('\n=== v280 꾸미기 ===');
 {
   const m = migrateWorld({ ...newWorldSave(), custom: { head: 'hat', robe: '#8B1F22', band: 'red; x' } });
