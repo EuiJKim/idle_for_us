@@ -721,7 +721,7 @@ export class WorldGame {
     // 요일 던전 몹은 같은 레벨 무인에 맞춰 단단하다 (v126)
     if (this.inst?.kind === 'daily') { mob.maxHp = mob.hp = D.dailyMobHp(lv) * (elite ? W.ELITE.hp : 1); mob.atk = D.dailyMobAtk(lv) * (elite ? W.ELITE.atk : 1); }
     // 두목 등장 연출: 구역에 들어와 처음 나설 때는 길게(들판이 멈추고 두목은 맞지도 않는다),
-    // 같은 구역에서 다시 날 때는 짧게(멈추지 않는다) — 45초마다 길게 멈추면 사냥이 끊긴다.
+    // 같은 구역에서 다시 날 때는 짧게(멈추지 않는다) — 30초마다 길게 멈추면 사냥이 끊긴다.
     const full = boss && !this.bossSeen;
     if (boss) this.bossSeen = true;
     if (full) { mob.introT = king ? W.KING_INTRO_SEC : W.BOSS_INTRO_SEC; this.freezeT = mob.introT; }
