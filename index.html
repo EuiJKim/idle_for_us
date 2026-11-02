@@ -5,6 +5,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <title>우리끼리 무림</title>
   <meta name="description" content="친구끼리 하는 무협 회귀 방치형 RPG">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="우리끼리 회귀무림">
+  <meta property="og:description" content="친구끼리 하는 무협 방치형 RPG">
+  <meta property="og:image" content="https://euijkim.github.io/idle_for_us/icons/icon-512.png">
+  <script>
+    // v281 카카오톡 안 브라우저로 열리면 설치 안내로 보내 바깥 브라우저(크롬·사파리)로 넘긴다.
+    // 카카오톡 안에선 설치·Google 로그인이 안 되고, 저장도 카카오톡 안에만 남는다. ?stay=1 이면 그대로 둔다.
+    try { if (/KAKAOTALK/i.test(navigator.userAgent || '') && !/[?&]stay=1\b/.test(location.search)) location.replace('install.html?to=game'); } catch (e) { /* 그대로 */ }
+  </script>
   <meta name="theme-color" content="#14110e">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icons/icon-192.png">

@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>회귀무림 설치</title>
+  <meta name="description" content="친구끼리 하는 무협 회귀 방치형 RPG — 홈 화면에 설치하면 앱처럼 전체 화면으로 열려요.">
+  <!-- 카카오톡 등에 링크를 붙였을 때 보이는 미리보기 -->
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="우리끼리 회귀무림">
+  <meta property="og:description" content="친구끼리 하는 무협 방치형 RPG — 눌러서 설치하세요">
+  <meta property="og:image" content="https://euijkim.github.io/idle_for_us/icons/icon-512.png">
+  <meta property="og:url" content="https://euijkim.github.io/idle_for_us/install.html">
+  <meta name="theme-color" content="#14110e">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="회귀무림">
+  <script>
+    // v281 카카오톡 안 브라우저면 곧바로 바깥 브라우저(크롬·사파리)로 넘긴다 — 카카오톡 안에선 설치도, Google 로그인도 안 된다.
+    // ?to=game 이면 게임으로, 아니면 이 안내 페이지로 넘긴다. 한 번만 저절로 넘기고(되돌아오면 단추로).
+    (function () {
+      try {
+        var ua = navigator.userAgent || '';
+        if (!/KAKAOTALK/i.test(ua)) return;
+        var toGame = /[?&]to=game\b/.test(location.search);
+        var url = new URL(toGame ? './' : 'install.html', location.href).href;
+        window.__ext = 'kakaotalk://web/openExternal?url=' + encodeURIComponent(url);
+        var k = 'ifu.kakaoJump';
+        var done = false;
+        try { done = !!sessionStorage.getItem(k); sessionStorage.setItem(k, '1'); } catch (e) { /* 사생활 모드 */ }
+        if (!done && !window.__noJump) location.href = window.__ext;   // __noJump: 시험용(브라우저는 kakaotalk:// 에서 빈 화면이 된다)
+      } catch (e) { /* 못 넘기면 안내만 */ }
+    })();
+  </script>
+  <style>
+    :root {
+      --bg: #0f0d0b; --card: #1d1914; --card-2: #2a231b; --line: #3d3328;
+      --text: #f1e8d6; --muted: #a8987f; --gold: #e8c87a; --accent: #a3242a; --accent-2: #c23a33;
+    }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html, body { margin: 0; background: var(--bg); color: var(--text); }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", system-ui, sans-serif;
+      font-size: 15px; line-height: 1.55;
+      background: radial-gradient(ellipse at 50% -10%, #3a2a17 0%, var(--bg) 60%) fixed;
+      min-height: 100vh;
+      padding: calc(env(safe-area-inset-top, 0px) + 20px) 16px calc(env(safe-area-inset-bottom, 0px) + 28px);
+    }
+    main { max-width: 440px; margin: 0 auto; }
+    .hero { text-align: center; margin: 8px 0 22px; }
+    .hero img { width: 96px; height: 96px; border-radius: 22px; box-shadow: 0 8px 28px rgba(0,0,0,.55), 0 0 0 1px rgba(232,200,122,.35); }
+    h1 { font-family: "Gowun Batang", serif; font-size: 26px; margin: 14px 0 4px; color: var(--gold); letter-spacing: .02em; }
+    .hero p { margin: 0; color: var(--muted); font-size: 14px; }
+    .card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 18px 16px; margin: 0 0 14px; }
+    .card h2 { font-size: 17px; margin: 0 0 12px; display: flex; align-items: center; gap: 8px; }
+    .tag { font-size: 12px; font-weight: 700; color: var(--bg); background: var(--gold); border-radius: 999px; padding: 2px 9px; }
+    .warn { border-color: #7a3b22; background: linear-gradient(180deg, #2b1a12, var(--card)); }
+    .warn h2 { color: #f5b38a; }
+    ol.steps { list-style: none; counter-reset: s; margin: 0; padding: 0; }
+    ol.steps li { counter-increment: s; display: flex; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px dashed var(--line); }
+    ol.steps li:first-child { border-top: 0; padding-top: 2px; }
+    ol.steps li::before {
+      content: counter(s); flex: none; width: 26px; height: 26px; border-radius: 50%;
+      display: grid; place-items: center; font-weight: 800; font-size: 13px; color: var(--bg); background: var(--gold);
+    }
+    .ico { flex: none; width: 34px; height: 34px; border-radius: 9px; background: var(--card-2); border: 1px solid var(--line); display: grid; place-items: center; color: #6fa8ff; }
+    .ico svg { width: 20px; height: 20px; }
+    .ico.dark { color: var(--text); }
+    .txt { flex: 1; min-width: 0; }
+    .txt b { color: var(--gold); font-weight: 700; }
+    .txt small { display: block; color: var(--muted); font-size: 12.5px; }
+    .btn {
+      display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%;
+      min-height: 50px; border-radius: 13px; border: 1px solid var(--line); background: var(--card-2);
+      color: var(--text); font-size: 16px; font-weight: 700; text-decoration: none; cursor: pointer; font-family: inherit;
+    }
+    .btn + .btn { margin-top: 10px; }
+    .btn.primary { background: linear-gradient(180deg, var(--accent-2), var(--accent)); border-color: #d0574f; color: #fff; box-shadow: 0 6px 18px rgba(163,36,42,.35); }
+    .btn.gold { background: linear-gradient(180deg, #f2d593, #c9a457); border-color: #f5dfa8; color: #241a0c; }
+    .btn:active { transform: translateY(1px); }
+    .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .row2 .btn + .btn { margin-top: 0; }
+    .note { color: var(--muted); font-size: 13px; margin: 12px 0 0; }
+    .qr { display: flex; gap: 14px; align-items: center; }
+    .qr img { width: 132px; height: 132px; border-radius: 10px; flex: none; image-rendering: pixelated; }
+    .qr p { margin: 0; color: var(--muted); font-size: 13.5px; }
+    .qr p b { color: var(--text); }
+    .tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; background: var(--card-2); border-radius: 12px; padding: 4px; margin-bottom: 14px; }
+    .tabs button { border: 0; background: none; color: var(--muted); font: inherit; font-weight: 700; padding: 9px; border-radius: 9px; cursor: pointer; }
+    .tabs button[aria-selected="true"] { background: var(--card); color: var(--gold); box-shadow: 0 1px 0 rgba(255,255,255,.04); }
+    .perks { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; font-size: 14px; }
+    .perks li { display: flex; gap: 10px; align-items: flex-start; }
+    .perks li span { color: var(--gold); flex: none; }
+    [hidden] { display: none !important; }
+    .toast { position: fixed; left: 50%; bottom: calc(env(safe-area-inset-bottom, 0px) + 24px); transform: translateX(-50%); background: #000d; color: #fff; padding: 10px 16px; border-radius: 999px; font-size: 14px; opacity: 0; transition: opacity .2s; pointer-events: none; }
+    .toast.on { opacity: 1; }
+  </style>
+</head>
+<body>
+<main>
+  <div class="hero">
+    <img src="icons/icon-192.png" alt="">
+    <h1>우리끼리 회귀무림</h1>
+    <p>친구끼리 하는 무협 방치형 RPG</p>
+  </div>
+
+  <!-- 이미 설치한 앱으로 열었을 때 -->
+  <section class="card" id="s-done" hidden>
+    <h2>✅ 이미 앱으로 열려 있어요</h2>
+    <a class="btn primary" href="./">게임 열기</a>
+  </section>
+
+  <!-- 카카오톡·인스타 같은 앱 안 브라우저 -->
+  <section class="card warn" id="s-inapp" hidden>
+    <h2>⚠️ <span id="inapp-name">이 앱</span> 안에서는 설치가 안 돼요</h2>
+    <p id="inapp-auto" class="note" style="margin:0 0 12px" hidden>바깥 브라우저로 열었어요. 새로 열린 창에서 이어 하세요 — 이 창은 닫아도 돼요.</p>
+    <button class="btn primary" id="btn-out">크롬·사파리로 열기</button>
+    <ol class="steps" id="inapp-ios" style="margin-top:14px" hidden>
+      <li><span class="ico dark"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg></span><span class="txt">오른쪽 아래(또는 위) <b>···</b> 단추</span></li>
+      <li><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M15.5 8.5l-2 5-5 2 2-5z" fill="currentColor"/></svg></span><span class="txt"><b>Safari로 열기</b> (또는 '다른 브라우저로 열기')</span></li>
+    </ol>
+    <p class="note">앱 안 브라우저에서 하면 그 앱 안에만 저장되고, Google 로그인도 막혀요.</p>
+  </section>
+
+  <!-- 설치 방법 -->
+  <section class="card" id="s-howto">
+    <div class="tabs" role="tablist">
+      <button role="tab" id="tab-android" aria-selected="true">안드로이드</button>
+      <button role="tab" id="tab-ios" aria-selected="false">아이폰</button>
+    </div>
+
+    <div id="p-android">
+      <button class="btn gold" id="btn-install" hidden>📲 지금 설치하기</button>
+      <p class="note" id="install-note" style="margin:8px 0 14px" hidden>단추를 누르고 <b>설치</b>를 고르면 홈 화면에 아이콘이 생겨요.</p>
+      <h2 id="android-manual-h">크롬에서 직접 설치 <span class="tag">약 10초</span></h2>
+      <ol class="steps">
+        <li><span class="ico dark"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg></span><span class="txt">크롬 오른쪽 위 <b>⋮</b> 메뉴</span></li>
+        <li><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="2.5" width="12" height="19" rx="2.5"/><path d="M12 8v7M9 12l3 3 3-3"/></svg></span><span class="txt"><b>앱 설치</b> 또는 <b>홈 화면에 추가</b></span></li>
+        <li><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span><span class="txt"><b>설치</b>를 누르면 끝<small>홈 화면의 '회귀무림' 아이콘으로 열면 주소창 없이 전체 화면이에요.</small></span></li>
+      </ol>
+      <p class="note">삼성 인터넷: 아래 <b>≡</b> → <b>현재 페이지 추가</b> → <b>홈 화면</b></p>
+    </div>
+
+    <div id="p-ios" hidden>
+      <h2>사파리에서 설치 <span class="tag">약 10초</span></h2>
+      <ol class="steps">
+        <li><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M8 7l4-4 4 4"/><path d="M8 10H6.5A1.5 1.5 0 0 0 5 11.5v8A1.5 1.5 0 0 0 6.5 21h11a1.5 1.5 0 0 0 1.5-1.5v-8A1.5 1.5 0 0 0 17.5 10H16"/></svg></span><span class="txt">사파리 아래 가운데 <b>공유</b> 단추<small>아래 막대가 안 보이면 화면을 살짝 위로 올려 보세요.</small></span></li>
+        <li><span class="ico dark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3.5" y="3.5" width="17" height="17" rx="4"/><path d="M12 8v8M8 12h8"/></svg></span><span class="txt">아래로 내려 <b>홈 화면에 추가</b></span></li>
+        <li><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span><span class="txt">오른쪽 위 <b>추가</b>를 누르면 끝<small>홈 화면의 '회귀무림' 아이콘으로 열어야 전체 화면이에요.</small></span></li>
+      </ol>
+      <p class="note">꼭 <b>사파리</b>로 열어 주세요. 카카오톡·네이버 앱 안에선 '홈 화면에 추가'가 안 보여요.</p>
+    </div>
+  </section>
+
+  <a class="btn primary" href="./" id="btn-play">설치 없이 바로 하기</a>
+
+  <section class="card" style="margin-top:14px">
+    <h2>왜 설치하나요?</h2>
+    <ul class="perks">
+      <li><span>◆</span>주소창 없이 전체 화면 — 진짜 앱처럼</li>
+      <li><span>◆</span>꺼 두어도 무인은 사냥을 이어 가요 — 돌아오면 방치 보상</li>
+      <li><span>◆</span>Google로 들어오면 기기를 바꿔도 진행이 이어져요</li>
+    </ul>
+  </section>
+
+  <section class="card" id="s-share">
+    <h2>친구에게 보내기</h2>
+    <div class="qr">
+      <img src="icons/qr-install.png" alt="설치 페이지 QR 코드" width="132" height="132">
+      <p id="qr-text"><b>휴대폰 카메라로 찍으면</b> 이 페이지가 열려요. 친구 화면에 보여 주세요.</p>
+    </div>
+    <div class="row2" style="margin-top:14px">
+      <button class="btn" id="btn-share">공유하기</button>
+      <button class="btn" id="btn-copy">링크 복사</button>
+    </div>
+  </section>
+</main>
+<div class="toast" id="toast"></div>
+<script>
+  (function () {
+    var $ = function (id) { return document.getElementById(id); };
+    var ua = navigator.userAgent || '';
+    var PAGE = 'https://euijkim.github.io/idle_for_us/install.html';
+    var share = location.protocol === 'https:' ? new URL('install.html', location.href).href : PAGE;
+    var isIOS = /iphone|ipad|ipod/i.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    var isAndroid = /Android/i.test(ua);
+    var standalone = !!((window.matchMedia && (matchMedia('(display-mode: fullscreen)').matches || matchMedia('(display-mode: standalone)').matches)) || navigator.standalone);
+    var inApp = /KAKAOTALK/i.test(ua) ? '카카오톡' : /NAVER\(inapp|NAVER\//i.test(ua) ? '네이버 앱' : /Instagram/i.test(ua) ? '인스타그램'
+      : /FBAN|FBAV/i.test(ua) ? '페이스북' : /BAND\//i.test(ua) ? '밴드' : /Line\//i.test(ua) ? '라인' : /DaumApps/i.test(ua) ? '다음 앱'
+      : /everytimeApp/i.test(ua) ? '에브리타임' : null;
+    var toGame = /[?&]to=game\b/.test(location.search);
+    var toast = function (t) { var el = $('toast'); el.textContent = t; el.classList.add('on'); clearTimeout(el._t); el._t = setTimeout(function () { el.classList.remove('on'); }, 2200); };
+
+    function tab(which) {
+      $('tab-android').setAttribute('aria-selected', String(which === 'android'));
+      $('tab-ios').setAttribute('aria-selected', String(which === 'ios'));
+      $('p-android').hidden = which !== 'android';
+      $('p-ios').hidden = which !== 'ios';
+    }
+    $('tab-android').onclick = function () { tab('android'); };
+    $('tab-ios').onclick = function () { tab('ios'); };
+    tab(isIOS ? 'ios' : 'android');
+
+    if (standalone) { $('s-done').hidden = false; $('s-howto').hidden = true; $('btn-play').hidden = true; }
+
+    // 앱 안 브라우저 — 바깥으로
+    function openOut() {
+      var target = new URL(toGame ? './' : 'install.html', location.href).href;
+      if (/KAKAOTALK/i.test(ua)) { location.href = 'kakaotalk://web/openExternal?url=' + encodeURIComponent(target); return true; }
+      if (/Line\//i.test(ua)) { location.href = target + (target.indexOf('?') < 0 ? '?' : '&') + 'openExternalBrowser=1'; return true; }
+      if (isAndroid) { var u = new URL(target); location.href = 'intent://' + u.host + u.pathname + u.search + '#Intent;scheme=https;package=com.android.chrome;end'; return true; }
+      return false;
+    }
+    if (inApp && !standalone) {
+      $('s-inapp').hidden = false;
+      $('inapp-name').textContent = inApp;
+      if (window.__ext) $('inapp-auto').hidden = false;
+      if (isIOS && !/KAKAOTALK|Line\//i.test(ua)) $('inapp-ios').hidden = false;
+      $('btn-out').onclick = function () { if (!openOut()) toast('··· 단추 → "Safari로 열기"를 눌러 주세요'); };
+      $('btn-play').textContent = '그냥 ' + inApp + ' 안에서 하기';
+      $('btn-play').href = './?stay=1';
+      $('btn-play').className = 'btn';
+    } else if (toGame && !standalone) {
+      // 카카오톡에서 게임 주소로 왔다가 바깥 브라우저로 넘어온 경우 — 바로 게임으로
+      location.replace('./');
+      return;
+    }
+
+    // 안드로이드 크롬 — 설치 창을 단추로
+    var deferred = null;
+    window.addEventListener('beforeinstallprompt', function (e) {
+      e.preventDefault(); deferred = e;
+      if (inApp || standalone) return;
+      $('btn-install').hidden = false; $('install-note').hidden = false;
+      $('android-manual-h').firstChild.textContent = '단추가 안 되면 직접 설치 ';
+    });
+    $('btn-install').onclick = function () {
+      if (!deferred) return;
+      deferred.prompt();
+      deferred.userChoice.then(function (r) {
+        deferred = null; $('btn-install').hidden = true;
+        if (r && r.outcome === 'accepted') toast('설치했어요 — 홈 화면의 회귀무림 아이콘으로 여세요');
+      });
+    };
+    window.addEventListener('appinstalled', function () { $('btn-install').hidden = true; });
+
+    // 친구에게
+    if (!isIOS && !isAndroid) $('qr-text').innerHTML = '<b>휴대폰 카메라로 찍으세요.</b> 휴대폰에서 이 페이지가 열리고, 거기서 설치할 수 있어요.';
+    $('btn-share').onclick = function () {
+      if (navigator.share) { navigator.share({ title: '우리끼리 회귀무림', text: '같이 하자! 친구끼리 하는 무협 방치형 RPG', url: share }).catch(function () {}); return; }
+      $('btn-copy').onclick();
+    };
+    $('btn-copy').onclick = function () {
+      var done = function () { toast('링크를 복사했어요'); };
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(share).then(done, function () { prompt('이 링크를 복사하세요', share); });
+      else prompt('이 링크를 복사하세요', share);
+    };
+
+    // 설치 창(beforeinstallprompt)이 뜨려면 서비스 워커가 있어야 한다 — 게임과 같은 것을 쓴다(게임 파일도 미리 받아 둔다)
+    if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) navigator.serviceWorker.register('sw.js').catch(function () {});
+  })();
+</script>
+</body>
+</html>

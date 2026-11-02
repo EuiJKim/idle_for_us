@@ -1489,6 +1489,16 @@ $('btn-settings').addEventListener('click', () => openModal((s) => {
     })()),
     setSec('앱·계정', false,
     appRow(),
+    // v281 친구에게 — 설치 안내 페이지(QR·안드로이드/아이폰 방법·카카오톡이면 바깥 브라우저로)
+    h('div', { class: 'row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, '친구 부르기'),
+      h('div', { class: 'desc' }, '설치 안내 페이지를 보내요 — 카카오톡으로 열어도 크롬·사파리로 넘어가고, 폰마다 설치 방법이 나와요')),
+      h('button', { class: 'btn primary', style: 'padding:6px 12px', onclick: async () => {
+        const url = new URL('install.html', location.href).href;
+        try {
+          if (navigator.share) await navigator.share({ title: '우리끼리 회귀무림', text: '같이 하자! 친구끼리 하는 무협 방치형 RPG', url });
+          else { await navigator.clipboard.writeText(url); toast('설치 안내 링크를 복사했어요'); }
+        } catch { /* 취소 */ }
+      } }, '보내기')),
     ...accountRows(),
     h('div', { class: 'btn-row', style: 'margin-top:8px' },
       h('button', { class: 'btn', onclick: () => { closeModal(); askNickname(false); } }, '이름 바꾸기'),
