@@ -10,7 +10,7 @@ import { loadIcons, skinImg } from './icons.js';
 import { WNet } from './wnet.js';
 import { Coop } from './world/wcoop.js';
 import { h, toast, openModal, closeModal, modalOpen } from './ui/common.js';
-import { WTABS, WTAB_TITLE, itemTitle, skillText, rangeText, rewardText, dailyWaiting, skipFx, setSkipFx } from './wui.js';
+import { WTABS, WTAB_TITLE, itemTitle, skillText, rangeText, rewardText, dailyWaiting, skipFx, setSkipFx, openSkillPreview } from './wui.js';
 import * as D from './world/wdgn.js';
 import { QUEST_COUNT } from './world/wquest.js';
 import { fmt, duration } from './fmt.js';
@@ -1196,7 +1196,9 @@ function askClass() {
         h('span', { class: 'desc' }, W.CLASSES[j.id].trait))));
     }
     s.append(h('h2', {}, '캐릭터를 고르세요'),
-      h('p', { class: 'muted' }, `레벨 ${W.TIERS.slice(1, 4).map((t) => t.level).join('·')}에 전직하면 스킬을 하나씩 배워요.`), grid);
+      h('p', { class: 'muted' }, `레벨 ${W.TIERS.slice(1, 5).map((t) => t.level).join('·')}에 전직하면 스킬을 하나씩 배워요.`), grid,
+      // v291 직업마다 무엇을 언제 배우는지
+      h('button', { class: 'btn', id: 'class-skill-preview', style: 'width:100%;margin-top:10px', onclick: () => openSkillPreview(game, JOBS, null, () => askClass()) }, '📜 직업별 무공 미리 보기'));
     const look = RANKS[0].look;
     const tick = () => {
       // 고른 뒤에도 창이 숨기만 하고 남아 있어서 이 그림이 끝없이 돌았다 (v181)

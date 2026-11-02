@@ -16,6 +16,7 @@ import * as IM from './world/wimprint.js';
 import * as PT from './world/wpath.js';
 import * as TD from './world/wtoday.js';
 import { drawFighter } from './battle.js';
+import { JOBS as JOBS_LIST } from './data.js';
 
 // 애완동물·탈것 그림 아이콘 (창 목록용) — 들판과 같은 그림을 작게
 export function creatureIcon(kind, size = 44) {
@@ -394,7 +395,19 @@ function charTab(app) {
   }
   const infoBox = h('div', {}, head, todayCard, questCard, loreBox);
   const statBox = h('div', {}, loadRow, stats, h('div', { class: 'card' }, h('h3', {}, '능력치'), derived));
-  const skillBox = h('div', {}, skillCard, passCard);
+  // v291 앞으로 배울 무공 — 언제 무엇을 배우는지
+  const roadCard = h('div', { class: 'card' });
+  let rdSig = '';
+  function road() {
+    const s = game.s;
+    const nsig = `${s.job}|${s.level}|${s.jobTier}|${s.path}`;
+    if (nsig === rdSig) return;
+    rdSig = nsig;
+    roadCard.replaceChildren(h('h3', {}, '무공 미리 보기', h('small', {}, '배우는 차례 · 누르면 설명')),
+      s.job ? skillRoadmap(game, s.job) : h('p', { class: 'muted' }, '직업을 고르면 볼 수 있어요.'),
+      h('button', { class: 'btn', style: 'width:100%;margin-top:8px', onclick: () => openSkillPreview(game, JOBS_LIST) }, '다른 직업 무공도 보기'));
+  }
+  const skillBox = h('div', {}, skillCard, roadCard, passCard);
   void root;
   function upd() {
     const s = game.s;
@@ -413,6 +426,7 @@ function charTab(app) {
         h('p', {}, L.text))] : []));
     }
     skills();
+    road();
     passives();
     loadouts();
     today();
@@ -1686,15 +1700,9 @@ function townTab(app) {
             app.save(); app.refresh();
           } }, !lvOk ? `레벨 ${t.level}이 되면` : !goldOk ? '은자가 모자라요' : '전직하기')));
     }
-    // 무공의 길 — 무엇을 언제 배우는지 한눈에
-    const lvOf = (k) => (k.kind === 'support' ? k.from : W.TIERS[k.tier].level);
-    const all = W.skillsOf(s.job).sort((a, b) => lvOf(a) - lvOf(b));
-    const steps = all.map((k) => {
-      const when = k.path ? `직업의 길 — ${PT.PATHS[s.job]?.[k.path]?.name || ''}` : k.kind === 'support' ? `레벨 ${k.from}` : `${k.tier}차 · 레벨 ${W.TIERS[k.tier].level}`;
-      const known = game.knows(k);
-      return h('div', { class: `path-step${known ? ' known' : ''}` }, h('span', { class: 'ico' }, k.icon), h('div', {}, h('b', {}, k.name), h('small', {}, `${when}${k.kind === 'support' ? ' · 보조기' : ''}`)), h('span', { class: 'st' }, known ? '배움' : '—'));
-    });
-    return [card, pathCard(), h('div', { class: 'card' }, h('h3', {}, '배우는 무공', h('small', {}, W.LORE[s.job]?.title || '')), ...steps)];
+    // 무공의 길 — 무엇을 언제 배우는지 한눈에 (v291 누르면 설명 · 다음 무공 표시)
+    return [card, pathCard(), h('div', { class: 'card' }, h('h3', {}, '배우는 무공', h('small', {}, `${W.LORE[s.job]?.title || ''} · 누르면 설명`)), skillRoadmap(game, s.job),
+      h('button', { class: 'btn', style: 'width:100%;margin-top:8px', onclick: () => openSkillPreview(game, JOBS_LIST) }, '다른 직업 무공도 보기'))];
   }
   // v237: 직업의 두 갈래 길 — 2차 전직에 고른다. 경지 다섯이 레벨을 따라 열리고, 140·4차에 합일(둘 다)
   function pathCard() {
@@ -1846,6 +1854,55 @@ function townTab(app) {
   return t;
 }
 
+// v291 무공 미리 보기 — 한 직업의 무공을 배우는 차례대로. 언제(레벨·전직) 배우는지 · 지금 어디까지 왔는지 · 누르면 설명.
+//   무공 창 · 사부 · 직업 고르기에서 같이 쓴다. 다른 직업(또는 아직 직업이 없을 때)은 레벨만 보인다.
+const KIND_NAME = { single: '한 적', aoe: '둘레', daggers: '비수', field: '장판', support: '보조', awaken: '각성', clone: '분신', triple: '삼공' };
+export function skillRoadmap(game, job) {
+  const s = game.s;
+  const mine = !!s.job && job === s.job;
+  const lvOf = (k) => (k.path ? W.TIERS[2].level : k.kind === 'support' ? k.from : W.TIERS[k.tier].level);
+  const all = W.skillsOf(job).sort((a, b) => lvOf(a) - lvOf(b) || (a.path ? 1 : 0) - (b.path ? 1 : 0) || a.slot - b.slot);
+  const box = h('div', { class: 'sk-road' });
+  let marked = false;
+  for (const k of all) {
+    const L = lvOf(k);
+    const known = mine && game.knows(k);
+    const pathName = k.path ? PT.PATHS[job]?.[k.path]?.name || '' : '';
+    const when = k.path ? `레벨 ${L} · 2차 전직 뒤 '${pathName}'을 고르면` : k.kind === 'support' ? `레벨 ${L}이 되면` : `${k.tier}차 전직 · 레벨 ${L}`;
+    const otherPath = mine && k.path && s.path && s.path !== k.path && !known;
+    let st;
+    if (known) st = '✓ 배움';
+    else if (!mine) st = `Lv.${L}`;
+    else if (otherPath) st = '다른 길';
+    else if (s.level < L) st = `${L - s.level}레벨 뒤`;
+    else st = k.path ? '길을 고르면' : '전직하면';
+    const next = mine && !known && !otherPath && !marked;
+    if (next) marked = true;
+    const desc = h('div', { class: 'sk-road-desc' }, skillText({}, k));
+    desc.hidden = true;
+    const row = h('button', { class: `sk-road-row${known ? ' known' : ''}${next ? ' next' : ''}${otherPath ? ' dim' : ''}`, onclick: () => { desc.hidden = !desc.hidden; row.classList.toggle('open', !desc.hidden); } },
+      h('span', { class: 'ico' }, k.icon),
+      h('span', { class: 'sk-road-main' }, h('b', {}, k.name, next ? h('em', {}, ' 다음') : ''), h('small', {}, `${W.SKILL_ORDINAL[k.slot]} · ${KIND_NAME[k.kind] || ''} · ${when}`)),
+      h('span', { class: 'st' }, st));
+    box.append(row, desc);
+  }
+  return box;
+}
+// 직업마다 무공을 미리 보는 창 — 직업을 고르기 전에도 본다
+export function openSkillPreview(game, jobs, start, onClose) {
+  let cur = start || game.s.job || jobs[0].id;
+  openModal((s) => {
+    const tabs = h('div', { class: 'sk-prev-tabs' });
+    const body = h('div');
+    const draw = () => {
+      tabs.replaceChildren(...jobs.map((j) => h('button', { class: `chip${j.id === cur ? ' on' : ''}`, style: j.id === cur ? `border-color:${j.color};color:${j.color}` : '', onclick: () => { cur = j.id; draw(); } }, j.name)));
+      body.replaceChildren(h('p', { class: 'muted', style: 'margin:6px 0 8px;font-size:12.5px' }, W.CLASSES[cur]?.trait || ''), skillRoadmap(game, cur));
+    };
+    draw();
+    s.append(h('h2', {}, '무공 미리 보기'), h('p', { class: 'muted', style: 'margin-top:-6px;font-size:12.5px' }, '무공을 누르면 설명이 나와요.'), tabs, body,
+      h('div', { class: 'btn-row' }, h('button', { class: 'btn', onclick: closeModal }, onClose ? '돌아가기' : '닫기')));
+  }, { onClose });
+}
 export function skillText(game, sk) {
   const cd = game.skillCd ? game.skillCd(sk) : sk.cd;
   const cost = sk.hpCost * (1 - (game.skillMods ? game.skillMods(sk.id).cost : 0));
