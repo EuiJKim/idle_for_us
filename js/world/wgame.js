@@ -1337,7 +1337,7 @@ export class WorldGame {
       while (kt.length && kt[0] < this.clock - 30) kt.shift();
       sat = W.expSat(kt.length * 2);
     }
-    const exp = W.mobExp(m.lv) * (m.isBoss ? W.BOSS.exp : m.elite ? W.ELITE.exp : 1) * this.levelGapMult(m.lv) * (st.expMult || 1) * (1 + (env.exp || 0) + mlv * L.MASTERY.exp) * ek * sat;
+    const exp = W.mobExp(m.lv) * (m.isBoss ? W.BOSS.exp * (W.CLASSES[this.s.job]?.bossExp || 1) : m.elite ? W.ELITE.exp : 1) * this.levelGapMult(m.lv) * (st.expMult || 1) * (1 + (env.exp || 0) + mlv * L.MASTERY.exp) * ek * sat;
     const blood = !this.inst && TD.bloodOn() ? 1 + TD.BLOOD_BONUS : 1;   // v262 혈겁
     const gold = Math.round(W.mobGold(m.lv) * (m.isBoss ? W.BOSS.gold : m.elite ? W.ELITE.gold : 1) * (1 + (env.gold || 0) + (st.gold || 0)) * ek * blood);
     if (!this.inst) {
@@ -3186,9 +3186,11 @@ export class WorldGame {
   // v262: 처음 잡는 두목만 최소 싸움 시간을 다 지킨다 — 한 번 잡은 두목은 그 몫(BOSS_REPEAT_K)만. 강해질수록 반복 사냥이 빨라진다.
   bossMinSec(m) {
     const seen = (this.s.bossKills?.[m.id] || 0) > 0;
-    return (m.lord ? W.BOSS_MIN_SEC.lord : m.king || m.master ? W.BOSS_MIN_SEC.king : W.BOSS_MIN_SEC.zone) * (seen ? W.BOSS_REPEAT_K : 1);
+    return (m.lord ? W.BOSS_MIN_SEC.lord : m.king || m.master ? W.BOSS_MIN_SEC.king : W.BOSS_MIN_SEC.zone) * (seen ? W.BOSS_REPEAT_K : 1) * this.bossTimeK();
   }
   // 두목이 무인보다 높으면 그만큼 덜 버텨도 된다(이미 아프다)
+  // v277 두목 사냥꾼(권마·극악소마) — 두목 싸움 시간 배수
+  bossTimeK() { return W.CLASSES[this.s.job]?.bossTime || 1; }
   bossGapK(m) { return Math.max(W.GAP_OUT_MIN, 1 - W.GAP_OUT * Math.max(0, m.lv[1] + 2 - this.s.level)); }
   overPower(baseHp, m) {
     const need = this.heroDpsEst() * this.bossMinSec(m) * this.bossGapK(m);
@@ -3641,7 +3643,7 @@ export class WorldGame {
     const bl = this.bossLog || [];
     while (bl.length && bl[0] < this.clock - W.RATE_WINDOW_SEC) bl.shift();
     // 창이 짧으면(두목 한 판보다 짧게 봤으면) 최근 처치 하나로 다시 나기 주기를 짐작한다
-    const bspan = Math.max(span, W.BOSS_RESPAWN + W.BOSS_MIN_SEC.zone * W.BOSS_REPEAT_K);
+    const bspan = Math.max(span, W.BOSS_RESPAWN + W.BOSS_MIN_SEC.zone * W.BOSS_REPEAT_K * this.bossTimeK());
     return { kills: sum[0] / span, exp: sum[1] / span, gold: sum[2] / span, potions: sum[3] / span, bosses: bl.length / bspan,
       lv: this.s.level, map: this.s.huntMap };
   }
@@ -3669,7 +3671,7 @@ export class WorldGame {
     const mats = W.MATS[m.mz] ? Math.floor(kills * W.MAT_RATE) : 0;
     // 두목 증표 — v260: 최근 실제로 잡은 빠르기(rates.bosses)로. 그 값이 없는 옛 세이브만 '다시 나기 + 45초에 하나'
     // 은자는 실측(rates)에 두목 은자가 이미 들어 있어 따로 더하지 않는다(전엔 두 번 셌다)
-    const bossCap = 1 / (W.BOSS_RESPAWN + W.BOSS_MIN_SEC.zone * W.BOSS_REPEAT_K);
+    const bossCap = 1 / (W.BOSS_RESPAWN + W.BOSS_MIN_SEC.zone * W.BOSS_REPEAT_K * this.bossTimeK());
     const bossRate = r.bosses != null ? Math.min(r.bosses, bossCap) : 1 / (W.BOSS_RESPAWN + W.BOSS_MIN_SEC.zone);
     const marks = m.bossRoom ? Math.floor(te * bossRate) : 0;
     // v260: 경험치 — 방치 중 레벨이 오르면 접속 때처럼 레벨 차 감쇠가 붙는다(전엔 처음 레벨의 벌이를 끝까지)
