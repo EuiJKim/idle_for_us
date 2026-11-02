@@ -115,7 +115,7 @@ async function tab(page, name) {
   await shot(p, '03-char.png');
 
   console.log('# 성장 장비 · 등급 각인 (v158)');
-  await G(p, () => { const g = window.__game; g.s.gold = 1e6; g.s.mats = { 1: 500, b1: 30 }; g.rng = () => 0; });
+  await G(p, () => { const g = window.__game; g.s.gold = 1e6; g.s.mats = { hc: 5000, b1: 30 }; g.rng = () => 0; });
   assert(await G(p, () => ['weapon', 'armor', 'hat', 'glove', 'shoe', 'acc'].every((k) => window.__game.s.equip[k]?.grow)), '여섯 칸 성장 장비를 끼고 시작한다');
   await tab(p, 'bag');
   await p.click('#panel .subtabs button[data-key="smith"]');
@@ -307,7 +307,7 @@ async function tab(page, name) {
   }
 
   console.log('# 온라인: 문파');
-  await G(p, () => { const g = window.__game; g.s.mats = { 1: 100 }; g.s.gold = Math.max(g.s.gold, 1e5); });
+  await G(p, () => { const g = window.__game; g.s.mats = { hc: 100 }; g.s.gold = Math.max(g.s.gold, 1e5); });
   await tab(p, 'social');
   await p.fill('#panel input[placeholder^="문파 이름"]', '우리끼리');
   await p.click('#panel button:has-text("만들기")');
@@ -320,20 +320,20 @@ async function tab(page, name) {
   await p.waitForFunction(() => (window.__app.net.guild?.exp || 0) >= 30, null, { timeout: 10000 });
   assert(true, '출석·기부로 문파 경험치가 오른다');
   await p.click('#panel .guild-seg button[data-key="bank"]');
-  await p.click('#panel .bank-mine .bank-row:has-text("청죽") button:has-text("반 넣기")');
-  // 사냥 중이라 청죽 마디가 계속 들어온다 — 정확히 50이 아니라 반쯤
-  await p.waitForFunction(() => (window.__app.net.guild?.bank?.['1'] || 0) >= 50, null, { timeout: 10000 });
-  assert(await G(p, () => window.__game.s.mats[1] < 100), '재료 반을 문파 창고에 넣는다');
+  await p.click('#panel .bank-mine .bank-row:has-text("현철") button:has-text("반 넣기")');
+  // 사냥 중이라 현철이 계속 들어온다 — 정확히 50이 아니라 반쯤 (v273 지역 재료를 현철 하나로)
+  await p.waitForFunction(() => (window.__app.net.guild?.bank?.hc || 0) >= 50, null, { timeout: 10000 });
+  assert(await G(p, () => window.__game.s.mats.hc < 100 + 200), '재료 반을 문파 창고에 넣는다');
   await tab(q, 'social');
   await q.click('#panel .subtabs button:has-text("문파")');
   await q.fill('#panel input[placeholder^="친구에게"]', code);
   await q.click('#panel button:has-text("가입")');
   await q.waitForSelector('#panel .guild-seg', { timeout: 15000 });
   await q.click('#panel .guild-seg button[data-key="bank"]');
-  await q.waitForSelector('#panel .bank-in .bank-row:has-text("청죽")', { timeout: 15000 });
-  const m0 = await G(q, () => window.__game.s.mats[1] || 0);
-  await q.click('#panel .bank-in .bank-row:has-text("청죽") button:has-text("전부 꺼내기")');
-  await q.waitForFunction((m) => (window.__game.s.mats[1] || 0) >= m + 50, m0, { timeout: 10000 });
+  await q.waitForSelector('#panel .bank-in .bank-row:has-text("현철")', { timeout: 15000 });
+  const m0 = await G(q, () => window.__game.s.mats.hc || 0);
+  await q.click('#panel .bank-in .bank-row:has-text("현철") button:has-text("전부 꺼내기")');
+  await q.waitForFunction((m) => (window.__game.s.mats.hc || 0) >= m + 50, m0, { timeout: 10000 });
   assert(true, '다른 문파원이 창고에서 재료를 꺼낸다');
   await q.click('#panel .guild-seg button[data-key="chat"]');
   await p.click('#panel .guild-seg button[data-key="chat"]');

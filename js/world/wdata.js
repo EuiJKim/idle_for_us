@@ -492,9 +492,23 @@ export const MAT_COLORS = [null, '#86efac', '#fcd34d', '#bae6fd', '#f87171', '#a
 export const bossKey = (k) => `b${k}`;
 // v132 강화석 'st21'~'st27' — '살왕의 명부 혼석'
 const stoneName = (key) => { const z = +String(key).slice(2); return `${kingOf(z)?.title || ''}의 ${STONES[z]?.name || '강화석'}`; };
-export const matName = (key) => (isLordMat(key) ? LORD_MATS[key].name : isFacMat(key) ? FAC_MAT_INFO[key].name : isStoneKey(key) ? stoneName(key) : String(key)[0] === 'b' ? `${ZONES_W[+String(key).slice(1)]?.boss?.name || '두목'}의 증표` : MATS[key]);
-export const matColor = (key) => (isLordMat(key) ? LORD_MATS[key].col : isFacMat(key) ? FAC_MAT_INFO[key].col : isStoneKey(key) ? '#f0abfc' : String(key)[0] === 'b' ? (kingOf(+String(key).slice(1)) ? '#f43f5e' : '#fde68a') : MAT_COLORS[key]);
+export const matName = (key) => (key === ORE ? ORE_NAME : isLordMat(key) ? LORD_MATS[key].name : isFacMat(key) ? FAC_MAT_INFO[key].name : isStoneKey(key) ? stoneName(key) : String(key)[0] === 'b' ? `${ZONES_W[+String(key).slice(1)]?.boss?.name || '두목'}의 증표` : MATS[key]);
+export const matColor = (key) => (key === ORE ? ORE_COL : isLordMat(key) ? LORD_MATS[key].col : isFacMat(key) ? FAC_MAT_INFO[key].col : isStoneKey(key) ? '#f0abfc' : String(key)[0] === 'b' ? (kingOf(+String(key).slice(1)) ? '#f43f5e' : '#fde68a') : MAT_COLORS[key]);
 export const MAT_RATE = 0.5;          // 몹 하나가 재료 하나를 떨굴 확률
+// v273 현철(玄鐵) — 지역 재료를 하나로. 지역마다 재료가 달라 레벨이 오르면 모아 둔 재료가 2:1 변환으로 반 토막 났다.
+//   이제 몹·두목이 떨구는 지역 재료는 들어오는 순간 현철 × 가중치(그 지역 레벨 ÷ 5)가 된다. 강화·강화석·제작에 드는
+//   지역 재료도 같은 가중치로 현철을 쓴다 — 제 레벨 사냥터에서 모으는 속도는 그대로, 낮은 사냥터는 덜 준다(쓸어 담기 막기).
+export const ORE = 'hc';
+export const ORE_NAME = '현철';
+export const ORE_COL = '#9ca3af';
+export const isZoneMatKey = (k) => /^\d+$/.test(String(k)) && !!MATS[k];
+export function matWeight(z) {
+  const zn = zoneOfW(+z);
+  const lv = zn?.lv ? (zn.lv[0] + zn.lv[1]) / 2 : 5;
+  return Math.max(1, Math.round(lv / 5));
+}
+// 지역 재료 n개 → 현철 몇 (그 외 열쇠는 그대로)
+export const oreOf = (k, n) => (isZoneMatKey(k) ? { key: ORE, n: Math.round(n * matWeight(k)) } : { key: k, n });
 // v174 재료 올리기 — 보통 지역 재료 둘을 바로 다음 지역 재료 하나로. 지역마다 1분에 모이는 개수가 비슷해서
 // 아래로 내려가 모아 올리면 손해(악용 없음)이고, 지난 재료는 반값으로 쓰인다. 두 지역 아래면 4:1, 세 지역이면 8:1.
 export const MAT_CONVERT = 2;

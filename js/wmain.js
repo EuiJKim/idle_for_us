@@ -1205,7 +1205,7 @@ function showPendingOffline() {
         h('div', {}, '경험치', h('b', { 'data-count': rw.exp }, fmt(rw.exp))),
         h('div', {}, '은자', h('b', { 'data-count': rw.gold }, fmt(rw.gold))),
         h('div', {}, '먹은 물약', h('b', {}, `${rw.potions}개`))),
-      h('p', { class: 'muted' }, !rw.mats ? '' : `모은 재료: ${W.MATS[rw.map]} ${fmt(rw.mats + (rw.marks || 0) * W.BOSS_MATS)}개`
+      h('p', { class: 'muted' }, !rw.mats ? '' : `모은 재료: ${W.ORE_NAME} ${fmt(W.oreOf(W.mapOf(rw.map).mz, rw.mats + (rw.marks || 0) * W.BOSS_MATS).n)}개`
         + (rw.marks ? ` · ${W.matName(W.bossKey(rw.map))} ${rw.marks}개` : '') + ' — 장비 강화에 써요 (증표는 등급 각인)'),
       h('button', { class: 'btn primary', style: 'width:100%', onclick: closeModal }, '받기'));
   }, { dismissable: false, onClose: () => { if (game.s.pendingOffline === rw) { game.claimOffline(rw); delete game.s.pendingOffline; } save(); refreshUI(true); } });

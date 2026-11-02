@@ -126,7 +126,10 @@ export function migrateWorld(raw, now = Date.now()) {
   s.mounts = Array.isArray(raw.mounts) ? raw.mounts.filter((m) => m && W.mountOf(m.kind)) : [];
   if (!s.mounts.some((m) => m.uid === s.mount)) s.mount = null;
   s.mats = {};
-  for (const [k, v] of Object.entries(raw.mats || {})) if ((W.MATS[k] || (k[0] === 'b' && W.MATS[k.slice(1)]) || G.isStoneKey(k) || LN.isFacMat(k) || G.isLordMat(k)) && v > 0) s.mats[k] = Math.floor(Number(v) || 0);
+  // v273 옛 지역 재료는 그 지역 가중치대로 현철로 (한 번만 — 들어온 뒤로는 지역 재료 열쇠가 남지 않는다)
+  for (const [k, v] of Object.entries(raw.mats || {})) if (W.isZoneMatKey(k) && v > 0) { const o = W.oreOf(k, Math.floor(Number(v) || 0)); s.mats[W.ORE] = (s.mats[W.ORE] || 0) + o.n; }
+  if (raw.mats?.[W.ORE] > 0) s.mats[W.ORE] = (s.mats[W.ORE] || 0) + Math.floor(Number(raw.mats[W.ORE]) || 0);
+  for (const [k, v] of Object.entries(raw.mats || {})) if (!W.isZoneMatKey(k) && ( (k[0] === 'b' && W.MATS[k.slice(1)]) || G.isStoneKey(k) || LN.isFacMat(k) || G.isLordMat(k)) && v > 0) s.mats[k] = Math.floor(Number(v) || 0);
   delete s.autoSell;
   // v105: 레벨업 점수를 직접 찍게 바꿨다 — 옛 세이브의 '자동 분배 켬'은 한 번 끈다
   if ((raw.statV || 0) < 2) { s.autoStat = false; s.statV = 2; }
@@ -212,7 +215,7 @@ export function migrateWorld(raw, now = Date.now()) {
       if (W.isDropOnly(it.slot) || it.slot === 'acc') return { ...it, step: undefined, king: k, ilv: G.KING_ILV };
       const up = oldUpper(it.step);
       const m = { weapon: 40, armor: 30, hat: 24 }[it.slot] || 24;
-      s.mats[k] = (s.mats[k] || 0) + Math.round(m * (up ? 1.5 : 1));
+      { const o = W.oreOf(k, Math.round(m * (up ? 1.5 : 1))); s.mats[o.key] = (s.mats[o.key] || 0) + o.n; }   // v273 현철로
       if (up) s.mats[W.bossKey(k)] = (s.mats[W.bossKey(k)] || 0) + ({ weapon: 4 }[it.slot] || 3);
       return { ...it, step: OLD_TIERS * 2 - 1, ilv: 99 };
     };
@@ -1826,7 +1829,7 @@ export class WorldGame {
           this.gainItem(it);
         }
         if (this.rng() < W.petDropRate(id)) this.gainPet(W.rollRarity(W.KING_RAR_W, this.rng), m, W.rollPetKind(id, this.rng));
-        return { id, n: W.BOSS_MATS, name: W.MATS[id], color: W.MAT_COLORS[id], boss: W.matName(W.bossKey(id)) };
+        return { id: W.ORE, n: W.BOSS_MATS * W.matWeight(id), name: W.ORE_NAME, color: W.ORE_COL, boss: W.matName(W.bossKey(id)) };
       }
       // v158: 사다리 장비는 이제 떨구지 않는다(장비는 레벨을 따라 자란다) — 대신 가끔 증표 한 움큼(등급 각인 재료)
       if (this.rng() < W.BOSS_ITEM_RATE) this.addMats(W.bossKey(id), W.INFUSE_MARKS[1]);
@@ -1842,20 +1845,26 @@ export class WorldGame {
       // 애완동물 — 두목만, 낮은 확률
       // 초반 두목은 아주 낮게·아래 순위만, 높은 두목일수록 자주·위 순위까지
       if (this.rng() < W.petDropRate(id)) this.gainPet(W.rollRarity(W.kingOf(id) ? W.KING_RAR_W : W.BOSS_RAR_W, this.rng), m, W.rollPetKind(id, this.rng));
-      return { id, n: W.BOSS_MATS, name: W.MATS[id], color: W.MAT_COLORS[id], boss: W.matName(W.bossKey(id)) };
+      return { id: W.ORE, n: W.BOSS_MATS * W.matWeight(id), name: W.ORE_NAME, color: W.ORE_COL, boss: W.matName(W.bossKey(id)) };
     }
     if (this.rng() >= W.MAT_RATE * (this.stats().matMult || 1) * (1 + this.masteryLevel(this.map.zone) * L.MASTERY.mat) * (1 + this.braveBonus()) * (!this.inst && TD.bloodOn() ? 1 + TD.BLOOD_BONUS : 1)) return null;
     this.addMats(id, 1);
-    return { id, n: 1, name: W.MATS[id], color: W.MAT_COLORS[id] };
+    return { id: W.ORE, n: W.matWeight(id), name: W.ORE_NAME, color: W.ORE_COL };
   }
-  addMats(key, n) { this.s.mats[key] = (this.s.mats[key] || 0) + n; }
+  // v273 들어오는 지역 재료는 현철 × 그 지역 가중치로
+  addMats(key, n) { const o = W.oreOf(key, n); this.s.mats[o.key] = (this.s.mats[o.key] || 0) + o.n; }
+  // 지역 재료가 섞인 값표({열쇠: 개수}) — 현철로 바꿔 모자란 것 · 내기
+  matsLack(mats) { const need = {}; for (const [k, n] of Object.entries(mats || {})) { const o = W.oreOf(k, n); need[o.key] = (need[o.key] || 0) + o.n; } return Object.keys(need).filter((k) => (this.s.mats[k] || 0) < need[k]); }
+  matsPay(mats) { for (const [k, n] of Object.entries(mats || {})) { const o = W.oreOf(k, n); this.s.mats[o.key] = (this.s.mats[o.key] || 0) - o.n; } }
   // v262 패기 — 내 레벨보다 센 사냥터는 레벨 차 1마다 재료·증표 +4%(최대 +40%). 높은 데로 갈 까닭.
   braveBonus() {
     if (this.inst || !this.map?.lv) return 0;
     return Math.min(W.BRAVE_MAX, Math.max(0, (this.map.lv[0] + this.map.lv[1]) / 2 - this.s.level) * W.BRAVE_PER);
   }
   // 재료 올리기 (v174): 지역 k 재료 MAT_CONVERT개 → 다음 지역 하나. n을 안 주면 되는 만큼 전부. 만든 개수를 돌려준다.
+  // v273 현철 하나라 올릴 것이 없다(옛 부르는 자리를 위해 남긴다)
   convertMats(k, n = Infinity) {
+    if (!W.isZoneMatKey(k) || !this.s.mats[k]) return 0;
     const to = W.matUpTarget(k);
     if (!to) return 0;
     const m = Math.min(n, Math.floor((this.s.mats[k] || 0) / W.MAT_CONVERT));
@@ -2030,7 +2039,7 @@ export class WorldGame {
     if (!st || !G.SET_SLOTS.includes(slot)) return { ok: false, lack: ['set'] };
     const r = G.setRecipe(setId, slot);
     const lack = [];
-    for (const [k, n] of Object.entries(r.mats)) if ((this.s.mats[k] || 0) < n) lack.push(k);
+    lack.push(...this.matsLack(r.mats));
     if (this.s.gold < r.gold) lack.push('gold');
     if (this.s.level < G.KING_LV) lack.push('level');
     if (st.job && st.job !== this.s.job) lack.push('job');
@@ -2039,7 +2048,7 @@ export class WorldGame {
   craftSet(setId, slot) {
     const { r, ok } = this.setCheck(setId, slot);
     if (!ok) return null;
-    for (const [k, n] of Object.entries(r.mats)) this.s.mats[k] -= n;
+    this.matsPay(r.mats);
     this.s.gold -= r.gold;
     const it = this.makeKing(slot, G.SLOT_KING[slot], W.rollRarity(W.CRAFT_RAR_W, this.rng), setId);
     this.emit('craft', { item: it });
@@ -2047,11 +2056,13 @@ export class WorldGame {
     return it;
   }
   // 강화석 만들기 — 후반 왕의 재료 40개로 그 왕의 강화석 하나 (v132)
-  canMakeStone(z, n = 1) { return !!G.STONES[z] && (this.s.mats[z] || 0) >= G.STONE_FROM_MATS * n; }
+  // v273 그 왕 재료 40개어치 현철(그 왕 지역 가중치)
+  stoneOre(z) { return W.oreOf(z, G.STONE_FROM_MATS).n; }
+  canMakeStone(z, n = 1) { return !!G.STONES[z] && (this.s.mats[W.ORE] || 0) >= this.stoneOre(z) * n; }
   makeStone(z, n = 1) {
-    n = Math.min(n, Math.floor((this.s.mats[z] || 0) / G.STONE_FROM_MATS));
+    n = Math.min(n, Math.floor((this.s.mats[W.ORE] || 0) / this.stoneOre(z)));
     if (!G.STONES[z] || n <= 0) return 0;
-    this.s.mats[z] -= G.STONE_FROM_MATS * n;
+    this.s.mats[W.ORE] -= this.stoneOre(z) * n;
     this.addMats(G.stoneKey(z), n);
     return n;
   }
@@ -2060,7 +2071,7 @@ export class WorldGame {
     if (!W.kingOf(z) || !G.KACC_SLOTS.includes(slot)) return { ok: false, lack: ['king'] };
     const r = G.kaccRecipe(z, slot);
     const lack = [];
-    for (const [k, n] of Object.entries(r.mats)) if ((this.s.mats[k] || 0) < n) lack.push(k);
+    lack.push(...this.matsLack(r.mats));
     if (this.s.gold < r.gold) lack.push('gold');
     if (this.s.level < G.KING_LV) lack.push('level');
     return { r, ok: !lack.length, lack };
@@ -2068,7 +2079,7 @@ export class WorldGame {
   craftKacc(z, slot) {
     const { r, ok } = this.kaccCheck(z, slot);
     if (!ok) return null;
-    for (const [k, n] of Object.entries(r.mats)) this.s.mats[k] -= n;
+    this.matsPay(r.mats);
     this.s.gold -= r.gold;
     const it = this.makeKing(slot, z, W.rollRarity(W.CRAFT_RAR_W, this.rng));
     this.emit('craft', { item: it });
@@ -2165,7 +2176,7 @@ export class WorldGame {
       return { key, n };
     }
     if (it.step == null) return null;
-    return { key: W.itemZone(it), n: W.enhanceMatsN(it.plus || 0) };
+    return { key: W.ORE, n: W.enhanceMatsN(it.plus || 0) * W.matWeight(W.itemZone(it)) };   // v273 현철 — 장비 지역 가중치만큼
   }
   // 조합·왕의 장비는 +10 위로 돌파(+15까지) — 두목 증표가 더 든다. 옛 장비·가락지·귀걸이는 +10까지.
   enhanceMaxItem(it) { return (it?.step != null || it?.king != null) && !W.isDropOnly(it.slot) ? W.ENHANCE_MAX : W.ENHANCE_NORMAL; }
@@ -2177,21 +2188,9 @@ export class WorldGame {
   enhanceRateOf(it) { return Math.min(1, this.enhanceBaseRate(it) + (it.epity || 0)); }
   // v272 강화 재료는 지역을 가리지 않는다 — 레벨이 오르면 성장 장비가 다음 지역 재료를 받아서, 모아 둔 재료가 2:1 변환으로 반 토막 났다.
   //   일반 지역 재료(숫자 열쇠)는 모두 1:1로 같이 센다(낮은 지역부터 쓴다). 왕 강화석·증표·세력 재료는 그대로 따로.
-  isZoneMat(key) { return /^\d+$/.test(String(key)) && !!W.MATS[key]; }
-  enhanceMatHave(m) {
-    if (!m) return 0;
-    if (!this.isZoneMat(m.key)) return this.s.mats[m.key] || 0;
-    let n = 0;
-    for (const [k, v] of Object.entries(this.s.mats)) if (this.isZoneMat(k) && v > 0) n += v;
-    return n;
-  }
-  payEnhanceMats(m) {
-    if (!m) return;
-    if (!this.isZoneMat(m.key)) { this.s.mats[m.key] -= m.n; return; }
-    let left = m.n;
-    const keys = Object.keys(this.s.mats).filter((k) => this.isZoneMat(k) && this.s.mats[k] > 0).sort((a, b) => a - b);
-    for (const k of keys) { if (left <= 0) break; const a = Math.min(left, this.s.mats[k]); this.s.mats[k] -= a; left -= a; }
-  }
+  isZoneMat(key) { return W.isZoneMatKey(key); }
+  enhanceMatHave(m) { return m ? this.s.mats[m.key] || 0 : 0; }
+  payEnhanceMats(m) { if (m) this.s.mats[m.key] -= m.n; }
   canEnhance(it) {
     if (!it || (it.plus || 0) >= this.enhanceMax(it) || this.s.gold < this.enhanceCost(it)) return false;
     const m = this.enhanceMats(it);
@@ -2204,14 +2203,13 @@ export class WorldGame {
   breakMarkKey(it, bm = this.breakMarksOf(it)) {
     const m = this.enhanceMats(it);
     if (!m || !bm) return null;
-    const own = W.bossKey(m.key);
+    const iz = W.itemZone(it);
+    const own = W.bossKey(iz);
     if ((this.s.mats[own] || 0) >= bm) return own;
     if (it.step == null) return null;
-    // v272 앞 지역 두목 증표도 대신 쓴다(가진 것이 가장 많은 것) — 레벨이 올라 모아 둔 증표가 쓸모없어지지 않게
+    // v273: v272의 '앞 지역 증표로 돌파'는 뺐다 — 등급 각인에 쓸 증표를 돌파가 먹어 성장이 늦었다(시뮬 Lv150 12일 → 15일+).
+    //   지난 지역 증표는 등급 각인에 쓴다(버려지지 않는다).
     let best = null, n = 0;
-    const oz = Number(m.key);
-    for (let z = 1; z < oz; z++) { const k = W.bossKey(z); const v = this.s.mats[k] || 0; if (v >= bm && v > n) { best = k; n = v; } }
-    if (best) return best;
     if ((this.s.level || 0) < 99) return null;
     for (let z = W.NORMAL_ZONES + 1; z <= W.ZONE_COUNT; z++) { const k = W.bossKey(z); const v = this.s.mats[k] || 0; if (v >= bm && v > n) { best = k; n = v; } }
     return best;
@@ -2700,7 +2698,7 @@ export class WorldGame {
     }
     if (this.s.autoInf) {
       const keep = {};
-      for (const it of worn()) { const m = this.enhanceMats(it); if (m) { const bk = W.bossKey(m.key); keep[bk] = (keep[bk] || 0) + W.breakMarks(W.ENHANCE_MAX - 1) * 3; } }
+      for (const it of worn()) { const m = this.enhanceMats(it); if (m && it.step != null) { const bk = W.bossKey(W.itemZone(it)); keep[bk] = (keep[bk] || 0) + W.breakMarks(W.ENHANCE_MAX - 1) * 3; } }
       const marks = Object.keys(this.s.mats).filter((k) => W.isMarkKey(k) && this.s.mats[k] > 0).sort((a, b) => W.markLv(b) - W.markLv(a));
       for (let n = 0; n < 6; n++) {
         let done = false;

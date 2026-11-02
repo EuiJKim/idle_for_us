@@ -259,7 +259,7 @@ console.log('\n=== 재료 · 성장 장비 (v158) ===');
   const TDm = await import('../js/world/wtoday.js');
   const matK = (1 + h.braveBonus()) * (TDm.bloodOn() ? 1 + TDm.BLOOD_BONUS : 1);   // v262 패기 · 혈겁
   ok(Math.abs(n / 10000 - W.MAT_RATE * matK) < 0.02, '몹 재료 확률이 설계대로(패기·혈겁 포함)', `${(n / 100).toFixed(1)}% / ${(W.MAT_RATE * matK * 100).toFixed(1)}%`);
-  ok(h.s.mats[1] === n && !h.s.bag.length, '졸개는 재료만 떨군다(장비는 안 떨군다)', `${W.MATS[1]} ${h.s.mats[1]}`);
+  ok(h.s.mats[W.ORE] === n * W.matWeight(1) && !h.s.bag.length, '졸개는 재료(현철)만 떨군다(장비는 안 떨군다)', `${W.ORE_NAME} ${h.s.mats[W.ORE]}`);
   // 두목은 사다리 장비를 떨구지 않는다 — 가끔 증표 한 움큼. 십이지왕은 왕의 장비를 떨군다.
   const d = fresh();
   let drops = 0, kdrops = 0;
@@ -271,7 +271,7 @@ console.log('\n=== 재료 · 성장 장비 (v158) ===');
   }
   ok(drops === 0 && Math.abs(kdrops / 2000 - W.KING_ITEM_RATE) < 0.04 && d.s.mats[W.bossKey(1)] > 2000, '두목은 사다리 장비 대신 증표를 더 준다 · 십이지왕은 왕의 장비', `왕 ${(kdrops / 20).toFixed(1)}% · 증표 ${d.s.mats[W.bossKey(1)]}`);
   h.dropMats({ lv: 6, isBoss: true });
-  ok(h.s.mats[W.bossKey(1)] >= 1 && h.s.mats[1] === n + W.BOSS_MATS, '두목은 재료 한 움큼과 증표를 떨군다', W.matName(W.bossKey(1)));
+  ok(h.s.mats[W.bossKey(1)] >= 1 && h.s.mats[W.ORE] === (n + W.BOSS_MATS) * W.matWeight(1), '두목은 현철 한 움큼과 증표를 떨군다', W.matName(W.bossKey(1)));
 
   // 직업을 고르면 여섯 칸 성장 장비를 받는다
   const g = fresh();
@@ -289,7 +289,8 @@ console.log('\n=== 재료 · 성장 장비 (v158) ===');
   // 강화 (v192): +11에서 실패해도 -2 (사라지지도 +0이 되지도 않는다)
   {
     const E = fresh(); E.s.gold = 1e15; E.s.prot = 0; E.s.level = W.LEVEL_MAX;
-    for (let k = 1; k <= 60; k++) { E.s.mats[k] = 1e6; E.s.mats[W.bossKey(k)] = 1e6; }
+    for (let k = 1; k <= 60; k++) { E.s.mats[W.bossKey(k)] = 1e6; }
+    E.s.mats[W.ORE] = 1e9;
     const ew = E.s.equip.weapon; ew.plus = W.ENHANCE_NORMAL;
     E.rng = () => 0.99;
     E.enhance(ew.uid, false);
@@ -401,7 +402,7 @@ console.log('\n=== 지역·구역·두목 구역 ===');
     '조합 사다리는 레벨 100에서 끝난다 (v143)', `${W.STEP_COUNT}칸 · Lv${W.ILV_CAP}`);
   // 옛 세이브: 사냥터 3 → 지역 3의 1구역
   const old = migrateWorld({ map: 3, huntMap: 3, bestMap: 5, mats: { 3: 10 } });
-  ok(old.map === W.mapId(3, 1) && old.huntMap === W.mapId(3, 1) && old.mats[3] === 10, '옛 세이브의 사냥터 번호를 새 구역으로 옮긴다', `${old.map}`);
+  ok(old.map === W.mapId(3, 1) && old.huntMap === W.mapId(3, 1) && old.mats[W.ORE] === 10 * W.matWeight(3), '옛 세이브의 사냥터 번호를 새 구역으로 옮긴다(재료는 현철로)', `${old.map}`);
 }
 
 console.log('\n=== 장비가 강함의 대부분 ===');
@@ -409,7 +410,8 @@ console.log('\n=== 장비가 강함의 대부분 ===');
   const g = fresh();
   g.s.level = 60; g.s.stats.str = 120; g.s.stats.vit = 60; g.syncGrow(); g._stats = null;
   g.s.gold = 1e12;
-  for (let z = 1; z <= 10; z++) { g.s.mats[z] = 1e5; g.s.mats[W.bossKey(z)] = 100; }
+  for (let z = 1; z <= 10; z++) { g.s.mats[W.bossKey(z)] = 100; }
+  g.s.mats[W.ORE] = 1e7;
   // 장비 몫 = 장비를 다 벗었을 때 줄어드는 만큼. 흔한 차림(유니크 +6)으로 잰다.
   for (const it of Object.values(g.s.equip).filter(Boolean)) { it.rar = 1; it.plus = 6; }
   g._stats = null;
@@ -422,15 +424,14 @@ console.log('\n=== 장비가 강함의 대부분 ===');
   ok(sa > 0.55 && sa < 0.85 && sh > 0.45 && sh < 0.8, 'Lv60 유니크 +6 차림: 장비가 2/3 남짓, 레벨·스탯이 1/3 남짓', `장비 몫 공격 ${(sa * 100).toFixed(0)}% · 체력 ${(sh * 100).toFixed(0)}%`);
   // 강화에는 그 지역 재료가 든다
   const w = g.s.equip.weapon;
-  // v272 강화는 어느 지역 재료든 쓴다(낮은 지역부터) — 이 시험은 그 지역 재료만 남겨 본다
-  for (const k of Object.keys(g.s.mats)) if (g.isZoneMat(k) && +k !== W.stepMap(w.step)) delete g.s.mats[k];
-  const m0 = g.s.mats[W.stepMap(w.step)];
+  // v273 강화에는 현철이 든다(장비 지역 가중치만큼)
+  const m0 = g.s.mats[W.ORE];
   const a0 = g.stats().atk;
   let n = 0;
   g.s.gold = 1e15;
   while (w.plus < 7 && n++ < 200) g.enhance(w.uid);
-  ok(w.plus === 7 && g.s.mats[W.stepMap(w.step)] < m0 && g.stats().atk > a0, `강화는 재료를 넣어 장비를 키운다(한 단계에 기본 수치 +${W.ENHANCE_STEP * 100}%)`, `${W.matName(W.stepMap(w.step))} ${m0} → ${g.s.mats[W.stepMap(w.step)]}`);
-  for (const k of Object.keys(g.s.mats)) if (g.isZoneMat(k)) g.s.mats[k] = 0;
+  ok(w.plus === 7 && g.s.mats[W.ORE] < m0 && g.stats().atk > a0, `강화는 재료를 넣어 장비를 키운다(한 단계에 기본 수치 +${W.ENHANCE_STEP * 100}%)`, `${W.ORE_NAME} ${m0} → ${g.s.mats[W.ORE]}`);
+  g.s.mats[W.ORE] = 0;
   ok(!g.canEnhance(w), '재료가 없으면 강화할 수 없다');
 }
 
@@ -480,19 +481,19 @@ console.log('\n=== 등급 · 스킬 옵션 · 승급 · 돌파 · 스킬 레벨 
   // 돌파
   const B = fresh(); B.s.level = W.LEVEL_MAX;   // v261 강화 상한(레벨)
   const bz = W.stepMap(10);                       // 그 칸의 재료 지역
-  B.s.gold = 1e12; B.s.mats = { [bz]: 1e6, [W.bossKey(bz)]: 0 };
+  B.s.gold = 1e12; B.s.mats = { [W.ORE]: 1e8, [W.bossKey(bz)]: 0 };
   const bw = B.makeCrafted('weapon', 10, 10, 0);
   B.s.equip.weapon = bw;
   ok(!B.canEnhance(bw), '+10 위 돌파에는 두목 증표가 든다');
   B.s.mats[W.bossKey(bz)] = 1000;
-  B.s.prot = 1e5; B.s.mats = { [bz]: 1e9, [W.bossKey(bz)]: 1e8 };
+  B.s.prot = 1e5; B.s.mats = { [W.ORE]: 1e11, [W.bossKey(bz)]: 1e8 };
   let tries = 0; while (bw.plus < 12 && tries++ < 20000) B.enhance(bw.uid);
   ok(bw.plus >= 12 && W.enhanceMult(15) > 3.1, `돌파 +12까지 보호부를 쓰며 (+15면 기본 수치 ×${W.enhanceMult(15).toFixed(1)})`, `${tries}번 · 보호부 ${1e5 - B.s.prot}장`);
   // 강화 (v150 · v192)
   ok(W.enhanceRate(0) === 1 && W.enhanceRate(2) === 1 && W.enhanceRate(3) === 0.95 && W.enhanceRate(9) === 0.41 && W.enhanceRate(14) === 0.08, '성공률: +1~3 100% · +4 95% · +10 41% · +15 8%');
   ok(W.enhanceFail(1) === 0 && W.enhanceFail(6) === 0 && W.enhanceFail(7) === -1 && W.enhanceFail(9) === -1 && W.enhanceFail(10) === -2, '실패: +7까지 그대로 · +8~10 -1 · +11부터 -2');
   const E = fresh(); E.s.level = W.LEVEL_MAX;
-  E.s.gold = 1e15; E.s.mats = { [bz]: 1e7, [W.bossKey(bz)]: 1e6 };
+  E.s.gold = 1e15; E.s.mats = { [W.ORE]: 1e9, [W.bossKey(bz)]: 1e6 };
   E.rng = () => 0.999;                                        // 늘 실패
   const e1 = E.makeCrafted('weapon', 10, 6, 0); E.s.equip.weapon = e1;
   E.enhance(e1.uid);
@@ -793,7 +794,8 @@ console.log('\n=== 장비 개편 (v130) ===');
   const sw = fresh('sword'); while (sw.s.level < 99) sw.addExp(W.expToNext(sw.s.level)); sw.s.gold = 1e12;
   const plum = G.setOf('plum');
   ok(!sw.craftSet('plum', 'weapon'), '왕의 재료·증표가 없으면 못 만든다');
-  for (const z of Object.values(G.SLOT_KING)) { sw.s.mats[z] = 1e5; sw.s.mats[W.bossKey(z)] = 1e3; }
+  for (const z of Object.values(G.SLOT_KING)) { sw.s.mats[W.bossKey(z)] = 1e3; }
+  sw.s.mats[W.ORE] = 1e8;
   ok(!sw.craftSet('ironfist', 'weapon') && sw.setCheck('ironfist', 'weapon').lack.includes('job'), '다른 직업 세트는 못 만든다');
   for (const sl of G.SET_SLOTS) sw.craftSet('plum', sl);
   for (const sl of G.SET_SLOTS) { const it = sw.s.bag.find((x) => x.set === 'plum' && x.slot === sl); if (it) sw.equipFromBag(it.uid); }
@@ -823,10 +825,10 @@ console.log('\n=== 장비 개편 (v130) ===');
   // 검혼석은 만능 강화석 — 부위 강화석이 모자라면 대신
   sw.s.mats.st26 = 0; sw.s.mats.st27 = 500;
   ok(sw.enhanceMats(sw2).key === 'st27', '검왕의 검혼석은 부위 강화석이 모자라면 대신 든다');
-  sw.s.mats[21] = 100;
-  ok(sw.makeStone(21, 5) === 2 && sw.s.mats.st21 === 2 && sw.s.mats[21] === 20, '후반 왕 재료 40개 → 강화석 하나');
+  sw.s.mats[W.ORE] = sw.stoneOre(21) * 2 + 20;
+  ok(sw.stoneOre(21) === G.STONE_FROM_MATS * W.matWeight(21) && sw.makeStone(21, 5) === 2 && sw.s.mats.st21 === 2 && sw.s.mats[W.ORE] === 20, '후반 왕 재료 40개어치 현철 → 강화석 하나', `현철 ${sw.stoneOre(21)}개`);
   // 공용 장신구
-  const ac = fresh('ring'); while (ac.s.level < 99) ac.addExp(W.expToNext(ac.s.level)); ac.s.gold = 1e12; ac.s.mats[17] = 1e4; ac.s.mats.b17 = 100;
+  const ac = fresh('ring'); while (ac.s.level < 99) ac.addExp(W.expToNext(ac.s.level)); ac.s.gold = 1e12; ac.s.mats[W.ORE] = 1e6; ac.s.mats.b17 = 100;
   const acc = ac.craftKacc(17, 'acc');
   ok(acc && acc.king === 17 && acc.ilv === 100 && acc.opts.filter((o) => o.k || o.sp).length >= 2, '왕의 장신구 — 아무 왕의 재료로, 스킬 옵션 하나 더', W.itemName(acc, 'ring'));
   let s34 = 0; for (let i = 0; i < 300; i++) for (const o of W.rollSkillOpts(1, Math.random, 1)) if (o.s >= 3) s34++;
@@ -856,7 +858,7 @@ console.log('\n=== 장비 개편 (v130) ===');
   // 옛 세이브: 십이지왕 사다리 장비
   const old = migrateWorld({ level: 120, job: 'sword', mats: {}, equip: { weapon: { uid: 5, slot: 'weapon', step: 53, ilv: 154, rar: 2, opts: [], plus: 7 }, ear: { uid: 6, slot: 'ear', step: 40, ilv: 120, rar: 1, opts: [], plus: 2 } }, bag: [] });
   // v130이 '사다리 끝(레벨 99)'으로 내리고, 이어서 v143이 그 레벨의 칸으로 옮긴다
-  ok(old.equip.weapon.step === W.STEP_COUNT - 1 && old.equip.weapon.plus === 7 && old.equip.weapon.rar === 2 && old.mats[27] > 0 && old.mats.b27 > 0, '옛 왕 사다리 무기 → 사다리 끝으로 + 왕의 재료·증표를 돌려준다', JSON.stringify(old.mats));
+  ok(old.equip.weapon.step === W.STEP_COUNT - 1 && old.equip.weapon.plus === 7 && old.equip.weapon.rar === 2 && old.mats[W.ORE] > 0 && old.mats.b27 > 0, '옛 왕 사다리 무기 → 사다리 끝으로 + 왕의 재료(현철)·증표를 돌려준다', JSON.stringify(old.mats));
   ok(old.equip.ear.king === 21 && old.equip.ear.ilv === 100 && old.equip.ear.step == null && old.gearNote === 2, '옛 왕 귀걸이 → 레벨 100 공용 장신구로');
   ok(migrateWorld(JSON.parse(JSON.stringify(old))).equip.weapon.step === W.STEP_COUNT - 1, '한 번만 바꾼다');
 }
@@ -930,7 +932,7 @@ console.log('\n=== 사냥터 땅 (v127) ===');
   ok(Math.abs(tm.mobTile?.c ?? (tm.move || tm).c - tg.hc) + Math.abs((tm.move || tm).r - tg.hr) >= d0 - 1, '달아난다(가까워지지 않는다)');
   const gold0 = tg.s.gold;
   tm.hp = 1; tg.hurt(tm, 999, 'hit', false);
-  ok(tg.s.gold - gold0 >= W.mobGold(tm.lv) * 100 && (tg.s.mats[1] || 0) >= L.TREASURE_MATS, '잡으면 은자·재료가 쏟아진다', `은자 +${tg.s.gold - gold0}`);
+  ok(tg.s.gold - gold0 >= W.mobGold(tm.lv) * 100 && (tg.s.mats[W.ORE] || 0) >= L.TREASURE_MATS, '잡으면 은자·재료가 쏟아진다', `은자 +${tg.s.gold - gold0}`);
   const tg2 = fresh(); tg2.enterMap(11); const t2 = tg2.spawnTreasure(); let gone = 0;
   for (let i = 0; i < (L.TREASURE_LIFE + 1) * 20; i++) { tg2.tickTreasure(t2, 0.05); }
   for (const e of tg2.events) if (e.type === 'treasureGone') gone++;
@@ -941,7 +943,7 @@ console.log('\n=== 사냥터 땅 (v127) ===');
   ok(az.enterMap(W.mapId(31, 1)) && az.map.zoneName === '도화림' && az.map.mz === 3, '도화림에 들어간다 (재료는 천산 설원 것)');
   const bm = az.mons[0]; bm.hp = 1; let got = 0;
   for (let i = 0; i < 200; i++) { const mm = az.spawnMob(false); if (!mm) continue; mm.hp = 1; az.hurt(mm, 99, 'hit', false); }
-  ok((az.s.mats[3] || 0) > 0 && !az.s.mats[31], '새 지역 몹은 짝 지역 재료를 떨군다', `설원 재료 ${az.s.mats[3]}`);
+  ok((az.s.mats[W.ORE] || 0) > 0 && !az.s.mats[31] && !az.s.mats[3], '새 지역 몹은 짝 지역 몫(현철)을 떨군다', `현철 ${az.s.mats[W.ORE]}`);
   ok(az.s.mast[31] > 0 && !az.s.mast[3], '숙련도는 새 지역 따로');
   ok(W.ZONE_ORDER.findIndex((z) => z.id === 31) === W.ZONE_ORDER.findIndex((z) => z.id === 3) + 1, '지도에서는 짝 지역 바로 뒤');
 }
@@ -1161,7 +1163,7 @@ console.log('\n=== 다섯 캐릭터 · 2시간 ===');
       for (const m of W.MAPS) if (!m.town && !m.bossRoom && g.canEnter(m.id) && g.s.level >= m.lv[0] + 1) best = m.id;
       const z = W.mapOf(best).zone;
       const bossRoom = W.mapId(z, W.BOSS_AREA);
-      if (g.canEnter(bossRoom) && (g.s.mats[W.bossKey(z)] || 0) < 13 && (g.s.mats[z] || 0) > 100) best = bossRoom;
+      if (g.canEnter(bossRoom) && (g.s.mats[W.bossKey(z)] || 0) < 13 && (g.s.mats[W.ORE] || 0) > 100 * W.matWeight(z)) best = bossRoom;
       if ((best !== g.s.huntMap && !g.map.town) || (g.map.town && !g.townReturn)) g.enterMap(best);
       if (t % 600 < 0.1 && !finite(g)) nan = true;
     }
@@ -1562,18 +1564,16 @@ console.log('\n=== 십이지왕·고수 초식 (v168): 고정 피해 · 테마 �
   ok(MS.bossPatterns(low.map) === null, '레벨 100 아래 고수는 옛 초식(최대 체력의 몇 할) 그대로');
 }
 
-console.log('\n=== 재료 올리기 (v174) ===');
+console.log('\n=== 현철 (v273) — 지역 재료를 하나로 ===');
 {
-  const g = fresh();
-  while (g.s.level < 30) g.addExp(W.expToNext(g.s.level));
-  g.s.mats = { 1: 101, 2: 10, 3: 0 };
-  ok(g.convertMats(1) === 50 && g.s.mats[1] === 1 && g.s.mats[2] === 60, '지역 재료 둘 → 다음 지역 하나 (남는 하나는 그대로)');
-  ok(g.convertMats(W.NORMAL_ZONES) === 0 && W.matUpTarget(W.NORMAL_ZONES + 1) === null, '천외천·십이지왕 재료는 올리지 않는다');
-  const top = W.stepMap(W.stepOfLevel(30));
-  g.s.mats = { 1: 400, 2: 0, 3: 0, 4: 0 };
-  const got = g.convertAllUp();
-  ok(got[top] > 0 && Object.keys(got).every((k) => +k <= top) && (g.s.mats[top + 1] || 0) === 0, '모두 올리기 — 지금 강화에 드는 지역까지만', JSON.stringify(got));
-  ok(g.s.mats[top] === Math.floor(400 / 2 ** (top - 1)), `${top - 1}지역 위로 올리면 ${2 ** (top - 1)}:1`, `${W.matName(1)} 400 → ${W.matName(top)} ${g.s.mats[top]}`);
+  // 옛 세이브의 지역 재료는 가중치대로 현철로 (증표·강화석·세력 재료는 그대로)
+  const old = newWorldSave(0); old.job = 'sword'; old.mats = { 1: 100, 10: 50, b3: 7, st21: 2, fm: 9 };
+  const m = migrateWorld(old, 0);
+  ok(m.mats[W.ORE] === 100 * W.matWeight(1) + 50 * W.matWeight(10) && !m.mats[1] && !m.mats[10] && m.mats.b3 === 7 && m.mats.st21 === 2 && m.mats.fm === 9, '옛 지역 재료 → 현철(가중치) · 나머지는 그대로', JSON.stringify(m.mats));
+  ok(W.matWeight(1) === 1 && W.matWeight(15) > W.matWeight(10) && W.matWeight(27) >= 25, '가중치는 사냥터 레벨 ÷ 5', [1, 10, 15, 27].map((z) => W.matWeight(z)).join('·'));
+  const g = fresh(); g.addMats(10, 3); g.addMats('b10', 1);
+  ok(g.s.mats[W.ORE] === 3 * W.matWeight(10) && g.s.mats.b10 === 1 && !g.s.mats[10], '들어오는 지역 재료는 현철로 · 증표는 그대로');
+  ok(g.convertMats(1) === 0, '올리기(2:1)는 할 것이 없다');
 }
 
 console.log('\n=== 걸으면서 무공 · 범위 (v157) ===');
@@ -1603,7 +1603,8 @@ console.log('\n=== 걸으면서 무공 · 범위 (v157) ===');
 console.log('\n=== v261 강화 상한 · 경험치 구간 ===');
 {
   const g = fresh(); g.s.gold = 1e15;
-  for (let k = 1; k <= 60; k++) g.s.mats[k] = 1e6;
+  for (let k = 1; k <= 60; k++) g.s.mats[W.bossKey(k)] = g.s.mats[W.bossKey(k)] || 0;
+  g.s.mats[W.ORE] = 1e9;
   const w = g.s.equip.weapon;
   for (let i = 0; i < 50; i++) g.enhance(w.uid);
   ok(w.plus === W.enhanceLvCap(g.s.level) && w.plus === 5 && !g.canEnhance(w), 'Lv1은 +5까지 — 강화 상한은 레벨에 묶인다', `+${w.plus}`);
@@ -1700,7 +1701,7 @@ console.log('\n=== v262 경제 · 복귀 · 선택 ===');
   K.s.level = 60;
   ok(K.breakMarkKey(kw) === null, '99 전에는 안 된다');
   // 자동 강화
-  const A = fresh(); A.s.gold = 1e15; for (let k = 1; k <= 60; k++) A.s.mats[k] = 1e6;
+  const A = fresh(); A.s.gold = 1e15; A.s.mats[W.ORE] = 1e9;
   A.s.autoEnh = true;
   A.autoGear();
   ok(W.GROW_SLOTS.every((k) => (A.s.equip[k]?.plus || 0) === W.enhanceLvCap(A.s.level)), '자동 강화 — 여섯 칸을 레벨 상한까지');
@@ -2079,9 +2080,9 @@ console.log('\n=== v254 고침 ===');
   const g = fresh('sword');
   const m = W.MAPS.find((x) => x.bossRoom);
   const z = m.mz;
-  const before = g.s.mats[z] || 0;
+  const before = g.s.mats[W.ORE] || 0;
   g.claimOffline({ gold: 0, potions: 0, exp: 0, kills: 0, map: m.id, mats: 0, marks: 2 });
-  ok((g.s.mats[z] || 0) === before + 2 * W.BOSS_MATS, '재료 0 · 증표 2 — 두목 재료가 들어온다');
+  ok((g.s.mats[W.ORE] || 0) === before + 2 * W.BOSS_MATS * W.matWeight(z), '재료 0 · 증표 2 — 두목 재료(현철)가 들어온다');
 }
 {
   // 쓰러져 마을로 돌아온 틱에 물약을 먹지 않는다
@@ -2153,24 +2154,24 @@ console.log('\n=== v271 두목 맞춤 · 두목 싸움 중 회복·흡혈 ===');
   const D2 = await import('../js/world/wdgn.js');
   ok(D2.bossRefHp(150) === D2.bossRefHp(187) && D2.bossRefHp(100) > D2.refHp(100) * 3, '두목 기준 체력 — 레벨 100에 옛 기준의 세 배 넘게 · 150 위로는 그대로');
 }
-console.log('\n=== v272 강화 재료 — 지역을 가리지 않는다 ===');
+console.log('\n=== v272·v273 강화 재료 — 현철 · 돌파 증표 ===');
 {
   const g = fresh('sword');
   while (g.s.level < 60) g.addExp(W.expToNext(g.s.level));
   g.s.gold = 1e12;
   const it = g.s.equip.weapon; it.plus = 5;
   const m = g.enhanceMats(it);
-  const z = Number(m.key);
-  g.s.mats = { 1: 3, 2: 5, [z]: m.n - 8 + 2 };   // 지금 지역 것만으로는 모자라다
-  ok(g.isZoneMat(m.key) && g.enhanceMatHave(m) === m.n + 2 && g.canEnhance(it), '지난 지역 재료도 1:1로 센다', `필요 ${m.n} · 가진 것 ${g.enhanceMatHave(m)}`);
+  ok(m.key === W.ORE && m.n === W.enhanceMatsN(5) * W.matWeight(W.itemZone(it)), '강화에는 현철 × 장비 지역 가중치', `${m.n}개`);
+  g.s.mats = { [W.ORE]: m.n + 2 };
   g.rng = () => 0;
   g.enhance(it.uid, false);
-  ok(!g.s.mats[1] && !g.s.mats[2] && g.s.mats[z] === 2, '낮은 지역 재료부터 쓴다', JSON.stringify(g.s.mats));
-  // 돌파 증표: 지금 지역 증표가 없으면 앞 지역 증표로
+  ok(g.s.mats[W.ORE] === 2 && it.plus === 6, '강화하면 현철을 낸다');
   while (g.s.level < 70) g.addExp(W.expToNext(g.s.level));
   it.plus = 10; const m2 = g.enhanceMats(it); const bm = g.breakMarksOf(it);
-  g.s.mats = { [m2.key]: 999, [W.bossKey(1)]: bm + 1 };
-  ok(bm > 0 && g.breakMarkKey(it, bm) === W.bossKey(1) && g.canEnhance(it), '돌파는 앞 지역 두목 증표로도', `${W.matName(W.bossKey(1))} ${bm}개`);
+  g.s.mats = { [W.ORE]: 1e9, [W.bossKey(1)]: bm + 1 };
+  ok(bm > 0 && !g.breakMarkKey(it, bm) && !g.canEnhance(it), '돌파는 제 지역 두목 증표 — 앞 지역 증표는 등급 각인에 남긴다(v273)', `${W.matName(W.bossKey(1))} ${bm}개`);
+  g.s.mats = { [W.ORE]: 1e9, [W.bossKey(W.itemZone(it))]: bm };
+  ok(g.breakMarkKey(it, bm) === W.bossKey(W.itemZone(it)), '제 지역 증표가 있으면 그것부터');
 }
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);

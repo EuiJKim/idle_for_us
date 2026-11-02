@@ -511,7 +511,7 @@ function bagTab(app) {
             h('div', { class: 'enh-fail' }, W.enhanceFailText(it.plus || 0),
               W.enhanceFail(it.plus || 0) ? ` · 실패하면 다음 확률 +${pct(game.enhanceBaseRate(it) * W.ENH_PITY_K, 0)}p` : null,
               W.enhanceRisky(it.plus || 0) ? h('span', {}, ` · 보호부 ${game.s.prot || 0}장${game.s.prot ? (useProt ? ' — 쓰면 실패해도 그대로' : ' — 안 씀') : ' — 상인에서 사요'}`) : null),
-            h('div', { class: 'enh-cost' }, `기본 수치 +${pct(breaking ? W.BREAK_STEP : W.ENHANCE_STEP, 0)} · 은자 ${fmt(cost)}${em ? (game.isZoneMat(em.key) ? ` · 지역 재료 ${em.n}개 (가진 것 ${fmt(game.enhanceMatHave(em))} — 어느 지역 재료든 1:1, 낮은 지역부터)` : ` · ${W.matName(em.key)} ${em.n}개 (가진 것 ${fmt(game.s.mats[em.key] || 0)})`) : ''}${bm ? (() => { const bk = game.breakMarkKey(it, bm) || W.bossKey(em.key); return ` · ${W.matName(bk)} ${bm}개 (가진 것 ${fmt(game.s.mats[bk] || 0)})${bk !== W.bossKey(em.key) ? ' — 대신 씀' : (game.s.mats[bk] || 0) < bm ? ` — ${W.zoneOfW(Number(em.key))?.name || ''} 두목 구역에서 나와요 (앞 지역 두목 증표${game.s.level >= 99 ? '·십이지왕 증표' : ''}로도 돼요)` : ''}`; })() : ''}`),
+            h('div', { class: 'enh-cost' }, `기본 수치 +${pct(breaking ? W.BREAK_STEP : W.ENHANCE_STEP, 0)} · 은자 ${fmt(cost)}${em ? ` · ${W.matName(em.key)} ${fmt(em.n)}개 (가진 것 ${fmt(game.s.mats[em.key] || 0)})` : ''}${bm ? (() => { const own = W.bossKey(W.itemZone(it)); const bk = game.breakMarkKey(it, bm) || own; return ` · ${W.matName(bk)} ${bm}개 (가진 것 ${fmt(game.s.mats[bk] || 0)})${bk !== own ? ' — 대신 씀' : (game.s.mats[bk] || 0) < bm ? ` — ${W.zoneOfW(W.itemZone(it))?.name || ''} 두목 구역에서 나와요${game.s.level >= 99 ? ' (99부터는 십이지왕 증표로도 돼요)' : ''}` : ''}`; })() : ''}`),
             W.enhanceRisky(it.plus || 0) && game.s.prot ? h('label', { class: 'chk' }, (() => { const c = h('input', { type: 'checkbox' }); c.checked = useProt; c.onchange = () => { useProt = c.checked; paint(); }; return c; })(), ' 보호부 쓰기') : null,
             h('button', { class: 'btn good enh-go', disabled: game.canEnhance(it) ? null : true, onclick: () => askEnhance() }, breaking ? '돌파' : '강화')),
         ];
@@ -527,7 +527,7 @@ function bagTab(app) {
           h('div', { class: 'item-pane' }, ...pane.filter(Boolean)),
           h('div', { class: 'btn-row' },
             !worn ? h('button', { class: 'btn primary', onclick: () => { game.equipFromBag(it.uid); closeModal(); done(); } }, '끼기') : null,
-            !worn && !it.grow ? h('button', { class: 'btn', onclick: () => { const b = W.sellBack(it); const p = game.sell(it); toast(b ? `되팔기 — 은자 +${fmt(p)} · ${Object.entries(b.mats).map(([k, n]) => `${W.matName(k)} ${fmt(n)}`).join(' · ')}` : `은자 +${fmt(p)}`); closeModal(); done(); } },
+            !worn && !it.grow ? h('button', { class: 'btn', onclick: () => { const b = W.sellBack(it); const p = game.sell(it); toast(b ? `되팔기 — 은자 +${fmt(p)} · ${Object.entries(b.mats).map(([k, n]) => { const o = W.oreOf(k, n); return `${W.matName(o.key)} ${fmt(o.n)}`; }).join(' · ')}` : `은자 +${fmt(p)}`); closeModal(); done(); } },
               W.sellBack(it) ? `되팔기 (제작비 ¼)` : `팔기 ${fmt(W.sellPrice(it))}`) : null,
             h('button', { class: 'btn', onclick: closeModal }, '닫기')),
         ].filter(Boolean));   // replaceChildren은 null을 글자 'null'로 넣는다
@@ -842,7 +842,7 @@ function bagTab(app) {
   // ----- 세트 (레벨 99부터) -----
   function kingNeeds(r) {
     const parts = [];
-    for (const [k, n] of Object.entries(r.mats)) parts.push(need(W.matName(k), s0().mats[k] || 0, n, W.matColor(k), k));
+    for (const [k0, n0] of Object.entries(r.mats)) { const { key: k, n } = W.oreOf(k0, n0); parts.push(need(W.matName(k), s0().mats[k] || 0, n, W.matColor(k), k)); }   // v273 지역 재료는 현철로
     parts.push(need('은자', s0().gold, r.gold));
     return parts;
   }
@@ -873,11 +873,11 @@ function bagTab(app) {
     // 강화석 — 후반 일곱 왕
     const stoneRows = Object.entries(G.STONES).map(([z, stn]) => {
       const key = G.stoneKey(z);
-      const can = Math.floor((s.mats[z] || 0) / G.STONE_FROM_MATS);
+      const can = Math.floor((s.mats[W.ORE] || 0) / game.stoneOre(z));
       return h('div', { class: 'row stone-row' },
         h('div', { class: 'info' },
           h('div', { class: 'name' }, W.matName(key), h('small', {}, ` ${fmt(s.mats[key] || 0)}개`)),
-          h('div', { class: 'desc' }, `${stn.what} · ${W.zoneOfW(+z).name} 두목이 ${G.STONE_PER_BOSS}개씩 · ${W.matName(z)} ${G.STONE_FROM_MATS}개로 하나 (가진 재료 ${fmt(s.mats[z] || 0)})`)),
+          h('div', { class: 'desc' }, `${stn.what} · ${W.zoneOfW(+z).name} 두목이 ${G.STONE_PER_BOSS}개씩 · ${W.ORE_NAME} ${fmt(game.stoneOre(z))}개로 하나 (가진 ${W.ORE_NAME} ${fmt(s.mats[W.ORE] || 0)})`)),
         h('button', { class: 'buy', disabled: can ? null : true, onclick: () => { const n = game.makeStone(+z, can); if (n) { toast(`${W.matName(key)} +${n}`); done(); } } }, can ? `만들기 ${can}` : '만들기'));
     });
     smithRoot.replaceChildren(modes,
@@ -924,7 +924,12 @@ function bagTab(app) {
     const nsig = JSON.stringify(s.mats);
     if (nsig === sigs.mats) return;
     sigs.mats = nsig;
-    const zones = new Set(Object.keys(s.mats).filter((k) => s.mats[k] > 0 && !G.isStoneKey(k) && !LN.isFacMat(k)).map((k) => parseInt(k.replace('b', ''), 10)));
+    const zones = new Set(Object.keys(s.mats).filter((k) => s.mats[k] > 0 && W.isMarkKey(k)).map((k) => parseInt(k.replace('b', ''), 10)));
+    // v273 현철 — 지역 재료를 하나로. 가장 위에 한 줄
+    const huntW = W.matWeight(W.mapOf(s.huntMap || 11).mz || 1);
+    const oreRow = h('div', { class: 'row mat-zone' }, h('div', { class: 'info' }, h('div', { class: 'name' }, W.ORE_NAME, h('small', {}, ' 강화 · 왕 강화석 · 세트·장신구 만들기')),
+      h('div', { class: 'mat-row' }, matChip(app, W.ORE, W.ORE_NAME, s.mats[W.ORE] || 0)),
+      h('div', { class: 'desc' }, `몹·두목이 떨궈요 — 높은 사냥터일수록 한 번에 많이 (지금 사냥터 한 번에 ${huntW}개 · 두목은 ${W.BOSS_MATS}배)`)));
     const facRow = h('div', { class: 'row mat-zone' }, h('div', { class: 'info' }, h('div', { class: 'name' }, '세력 재료', h('small', {}, ' 레벨 100 고수 세트에 들어가요')),
       h('div', { class: 'mat-row' }, ...Object.entries(LN.FAC_MAT_INFO).map(([k, v]) => matChip(app, k, v.name, s.mats[k] || 0)),
         ...Object.entries(G.LORD_MATS).map(([k, v]) => matChip(app, k, v.name, s.mats[k] || 0)))));
@@ -933,24 +938,16 @@ function bagTab(app) {
       h('div', { class: 'info' },
         h('div', { class: 'name' }, W.zoneOfW(z)?.name || `지역 ${z}`),
         h('div', { class: 'mat-row' },
-          matChip(app, z, W.matName(z), s.mats[z] || 0),
           matChip(app, W.bossKey(z), W.matName(W.bossKey(z)), s.mats[W.bossKey(z)] || 0),
           G.STONES[z] && s.mats[G.stoneKey(z)] > 0 ? matChip(app, G.stoneKey(z), G.STONES[z].name, s.mats[G.stoneKey(z)]) : null),
         h('div', { class: 'desc' }, '눌러 보면 어디서 나오는지 알려 주고 거기로 데려다 줘요')),
-      // 재료 올리기 (v174) — 둘을 다음 지역 하나로
-      W.matUpTarget(z) && (s.mats[z] || 0) >= W.MAT_CONVERT ? h('button', { class: 'buy mat-up', onclick: () => {
-        const m = game.convertMats(z);
-        if (m) { toast(`${W.matName(z)} ${fmt(m * W.MAT_CONVERT)} → ${W.matName(W.matUpTarget(z))} ${fmt(m)}`); done(); }
-      } }, `→ ${W.matName(W.matUpTarget(z))} ${fmt(Math.floor((s.mats[z] || 0) / W.MAT_CONVERT))}`, h('small', {}, ` ${W.MAT_CONVERT}:1`)) : null));
+      null));
     for (const z of stones) if (!zones.has(+z)) rows.push(h('div', { class: 'row mat-zone' }, h('div', { class: 'info' }, h('div', { class: 'name' }, W.zoneOfW(+z)?.name || ''),
       h('div', { class: 'mat-row' }, matChip(app, G.stoneKey(z), G.STONES[z].name, s.mats[G.stoneKey(z)])))));
-    const topZ = W.stepMap(W.stepOfLevel(Math.min(s.level, W.ILV_CAP)));
-    const poolN = Object.entries(s.mats).filter(([k, v]) => game.isZoneMat(k) && v > 0).reduce((a, [, v]) => a + v, 0);
     matRoot.replaceChildren(h('div', { class: 'card' }, h('h3', {}, '재료', h('small', {}, '문파 창고로 나눌 수 있어요')),
-      // v272 강화는 어느 지역 재료든 1:1 — '모두 올리기(2:1)'는 손해라 뺐다. 올리기는 그 지역 재료가 꼭 필요할 때(왕 강화석·계열)만
-      h('div', { class: 'mat-up-all' }, h('small', { class: 'muted' }, `강화에는 어느 지역 재료든 1:1로 들어가요 — 강화에 쓸 수 있는 재료 ${fmt(poolN)}개 (지금 장비는 ${W.matName(topZ)} 지역). 올리기(${W.MAT_CONVERT}:1)는 그 지역 재료가 꼭 필요할 때만 쓰세요`)),
+      oreRow,
       facRow,
-      ...(rows.length ? rows : [h('p', { class: 'muted' }, '몹은 그 사냥터 재료를, 두목은 재료 한 움큼과 증표를 떨궈요.')])));
+      ...(rows.length ? rows : [h('p', { class: 'muted' }, '두목은 현철 한 움큼과 증표를 떨궈요 — 증표는 등급 각인·돌파에 써요.')])));
   }
 
   return subTabs([
@@ -965,7 +962,7 @@ function bagTab(app) {
 // v230: 재료 그림 — 빛깔 보석 안에 갈래 글자(재료 材 · 두목 증표 證 · 강화석 石 · 세력 재료 勢 · 맹주의 패 牌)
 export function matKind(key) {
   const k = String(key);
-  return G.isLordMat(k) ? '牌' : LN.isFacMat(k) ? '勢' : G.isStoneKey(k) ? '石' : W.isMarkKey(k) ? '證' : '材';
+  return k === W.ORE ? '鐵' : G.isLordMat(k) ? '牌' : LN.isFacMat(k) ? '勢' : G.isStoneKey(k) ? '石' : W.isMarkKey(k) ? '證' : '材';
 }
 export const matIcon = (key, size = 40) => h('span', { class: `mat-ico k-${matKind(key)}`, style: `--mc:${W.matColor(key)};width:${size}px;height:${size}px;font-size:${Math.round(size * 0.42)}px` }, matKind(key));
 // 누르면 어디서 나오는지 · 데려다 준다. 0개는 흐리게.
@@ -981,6 +978,15 @@ export const matChip = (app, key, label, n) => h('button', {
 //   s{z} → 그 지역 두목 (강화석)
 export function matWhere(game, key) {
   const k = String(key);
+  // v273 현철 — 갈 수 있는 가장 센 들판 구역(높을수록 한 번에 많이)
+  if (k === W.ORE) {
+    let id = null;
+    for (const m of W.MAPS) if (!m.town && !m.bossRoom && !m.master && game.canEnter(m.id) && game.danger(m.id) <= 0 && (!id || m.lv[0] > W.mapOf(id).lv[0])) id = m.id;
+    id = id || W.mapId(1, 1);
+    const map = W.mapOf(id);
+    return { key: k, z: map.zone, zone: W.zoneOfW(map.zone), boss: false, stone: false, id, map, name: W.ORE_NAME, color: W.ORE_COL,
+      have: game.s.mats[k] || 0, can: true, need: map.lv[0], from: `모든 사냥터의 몹·두목이 떨궈요 — 높은 사냥터일수록 한 번에 많이(사냥터 레벨 ÷ 5). 여기서는 한 번에 ${W.matWeight(map.mz)}개` };
+  }
   // 맹주의 패 (v153) — 그 맹주·천마의 두목 방으로
   if (G.isLordMat(k)) {
     const info = G.LORD_MATS[k];
@@ -1065,6 +1071,7 @@ export function matUse(game, key) {
   if (LN.isFacMat(k)) return '맹주 세트(Lv160)를 만들 때 · 세력 상점에서 다른 것으로 바꿀 수 있어요 (마을 → 상인)';
   if (G.isStoneKey(k)) return '왕의 장비(세트·왕의 장신구) 강화';
   if (k.startsWith('b')) return `장비 등급 각인 · +${W.ENHANCE_NORMAL} 넘는 돌파`;
+  if (k === W.ORE) return '장비 강화(장비 지역 레벨이 높을수록 많이) · 왕 강화석 만들기 · 왕의 세트·장신구 만들기';
   const z = parseInt(k, 10);
   if (!Number.isFinite(z)) return '';
   const up = W.matUpTarget(z);
@@ -1126,7 +1133,7 @@ export function rewardText(r) {
   const out = [];
   if (r.exp) out.push(`경험치 ${fmt(r.exp)}`);
   if (r.gold) out.push(`은자 ${fmt(r.gold)}`);
-  for (const [k, n] of Object.entries(r.mats || {})) out.push(`${W.matName(k)} ${fmt(n)}`);
+  for (const [k, n] of Object.entries(r.mats || {})) { const o = W.oreOf(k, n); out.push(`${W.matName(o.key)} ${fmt(o.n)}`); }   // v273 지역 재료는 현철로 보인다
   return out.join(' · ') || '없음';
 }
 
