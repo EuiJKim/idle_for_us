@@ -2040,9 +2040,7 @@ export class BattleView {
       ctx.restore();
     }
 
-    // 가장자리 어둠은 가벼운 모드에서도 남긴다. 구워 둔 한 장을 붙이는
-    // 것뿐이라 아껴 봐야 얼마 안 되는데, 빼면 분위기가 확 달라진다.
-    this.putVignette(z);
+    // 가장자리 어둠은 drawSky의 겉 장(구름 그림자 · 시간대 빛과 한 장)으로 옮겼다 (v284)
   }
 
   // 칸 지도 — 옅은 칸 줄과 지도 밖 어둠. 사냥터 끝이 어디인지, 한 칸이 얼마인지 보인다.
@@ -2166,30 +2164,6 @@ export class BattleView {
     blot(150, 0.22, 44, 28, far);
     blot(95, 0.3, 16, 10, edge);
     this.scatterInto(ctx, z, camX, camY, heroX, groundY, w, h);
-  }
-
-  // 가장자리 어둠. 매 프레임 radialGradient를 만들어 화면 전체를 칠하고 있었다 —
-  // 화소마다 그라디언트를 계산하는 가장 비싼 연산이다. 한 번 구워서 깐다.
-  putVignette(z) {
-    const { ctx, w, h } = this;
-    const night = !!z.night;
-    let v = this._vig;
-    if (!v || v.w !== w || v.h !== h || v.night !== night) {
-      // 부드러운 번짐이라 1/3로 구워도 눈에 차이가 없다
-      const s = 3;
-      const cv = document.createElement('canvas');
-      cv.width = Math.max(2, Math.ceil(w / s));
-      cv.height = Math.max(2, Math.ceil(h / s));
-      const x = cv.getContext('2d');
-      const g2 = x.createRadialGradient(cv.width / 2, cv.height / 2, Math.min(cv.width, cv.height) * 0.34,
-        cv.width / 2, cv.height / 2, Math.max(cv.width, cv.height) * 0.78);
-      g2.addColorStop(0, 'rgba(0,0,0,0)');
-      g2.addColorStop(1, night ? 'rgba(0,0,0,0.62)' : 'rgba(10,8,6,0.4)');
-      x.fillStyle = g2;
-      x.fillRect(0, 0, cv.width, cv.height);
-      v = this._vig = { cv, w, h, night };
-    }
-    ctx.drawImage(v.cv, -20, -20, w + 40, h + 40);
   }
 
   // 바닥 소품: 지역에 따라 대나무·바위·눈더미 등이 격자 위에 고정돼 있다
@@ -2347,8 +2321,21 @@ export class BattleView {
   //   · 구운 구름 그림자 한 장이 들판 위를 느리게 흐른다(카메라와 함께 흐른다) · 낮은 품질에서는 끈다
   //   · 실제 시각에 맞춘 빛: 해 질 녘(17~19시) 주황 · 밤(19~5시) 푸른 어둠 · 새벽(5~7시) 옅은 분홍. 원래 밤인 곳(던전)은 건너뛴다.
   drawSky(z) {
-    if (this.fxLevel <= 0 || !this.fieldMode) return;
+    // v284: 화면을 덮는 세 겹(구름 그림자 · 시간대 빛 · 가장자리 어둠)을 **작은 한 장**(1/3 크기)에 모아 한 번만 칠한다.
+    //   셋 다 부드러운 번짐이라 1/3로 그려도 눈에 차이가 없다. 폰에서는 화면을 몇 겹 칠하느냐가 전부다(한 겹이 300만 화소)
+    //   — 바닥 한 장 + 이 한 장으로 끝난다(전엔 바닥 + 어둠 + 구름 + 빛 = 네 겹).
     const { ctx, w, h } = this;
+    const night = !!z.night;
+    const clouds = this.fxLevel > 0 && this.fieldMode && !night && (this.budget ?? 1) >= 0.6;
+    // 시간대 빛은 몇 초에 한 번만 다시 본다(매 프레임 Date를 만들 까닭이 없다)
+    const nowMs = Date.now();
+    if (!this._tintAt || nowMs - this._tintAt > 5000) {
+      this._tintAt = nowMs;
+      const d = new Date(nowMs), hr = d.getHours() + d.getMinutes() / 60;
+      this._tintCol = hr >= 19 || hr < 5 ? 'rgba(15,23,42,0.14)' : hr >= 17 ? `rgba(251,146,60,${(0.07 * Math.sin(Math.PI * (hr - 17) / 2)).toFixed(3)})`
+        : hr < 7 ? `rgba(244,114,182,${(0.05 * Math.sin(Math.PI * (hr - 5) / 2)).toFixed(3)})` : null;
+    }
+    const tint = this.fxLevel > 0 && this.fieldMode && !night ? this._tintCol : null;
     if (!SKY.cloud) {
       const c = document.createElement('canvas');
       c.width = 512; c.height = 512;
@@ -2365,19 +2352,47 @@ export class BattleView {
       }
       SKY.cloud = c;
     }
-    if (!z.night && (this.budget ?? 1) >= 0.6) {
-      const S = 900;   // 한 장이 덮는 들판 크기
-      const ox = ((this.t * 9 + (this.camX || 0)) % S + S) % S, oy = ((this.t * 4 + (this.camY || 0) * this.squash) % S + S) % S;
-      ctx.save();
-      ctx.globalAlpha = 0.16;
-      for (let x = -ox; x < w; x += S) for (let y = -oy; y < h; y += S) ctx.drawImage(SKY.cloud, x, y, S, S);
-      ctx.restore();
+    const S3 = 3;                               // 겉 장 한 칸 = 화면 3화소
+    const W = w + 40, H = h + 40;               // 흔들림에도 가장자리가 비지 않게 사방 20씩 더
+    const SC = 900;                              // 구름 한 장이 덮는 들판 크기
+    const ox = clouds ? ((this.t * 9 + (this.camX || 0)) % SC + SC) % SC : 0;
+    const oy = clouds ? ((this.t * 4 + (this.camY || 0) * this.squash) % SC + SC) % SC : 0;
+    // 구름이 1화소라도 움직였을 때만 다시 그린다(작은 장이라 다시 그려도 화면 한 겹의 1/9도 안 된다).
+    //   구름이 없으면(밤·던전·낮은 품질) 바뀔 때까지 그대로 붙이기만 한다.
+    const key = `${W}x${H}|${night ? 1 : 0}|${tint || ''}|${clouds ? `${Math.round(ox)},${Math.round(oy)}` : '-'}`;
+    let o = this._vig;
+    if (!o || o.W !== W || o.H !== H || o.night !== night) {
+      const cv = document.createElement('canvas');
+      cv.width = Math.max(2, Math.ceil(W / S3));
+      cv.height = Math.max(2, Math.ceil(H / S3));
+      // 가장자리 어둠은 따로 한 번 구워 둔다
+      const vg = document.createElement('canvas');
+      vg.width = cv.width; vg.height = cv.height;
+      const x = vg.getContext('2d');
+      const g2 = x.createRadialGradient(vg.width / 2, vg.height / 2, Math.min(vg.width, vg.height) * 0.34,
+        vg.width / 2, vg.height / 2, Math.max(vg.width, vg.height) * 0.78);
+      g2.addColorStop(0, 'rgba(0,0,0,0)');
+      g2.addColorStop(1, night ? 'rgba(0,0,0,0.62)' : 'rgba(10,8,6,0.4)');
+      x.fillStyle = g2;
+      x.fillRect(0, 0, vg.width, vg.height);
+      o = this._vig = { cv, vg, W, H, night, key: '' };
     }
-    if (z.night) return;
-    const hr = new Date().getHours() + new Date().getMinutes() / 60;
-    const tint = hr >= 19 || hr < 5 ? 'rgba(15,23,42,0.14)' : hr >= 17 ? `rgba(251,146,60,${(0.07 * Math.sin(Math.PI * (hr - 17) / 2)).toFixed(3)})`
-      : hr < 7 ? `rgba(244,114,182,${(0.05 * Math.sin(Math.PI * (hr - 5) / 2)).toFixed(3)})` : null;
-    if (tint) { ctx.fillStyle = tint; ctx.fillRect(-20, -20, w + 40, h + 40); }
+    if (o.key !== key) {
+      o.key = key;
+      const c = o.cv.getContext('2d');
+      c.setTransform(1, 0, 0, 1, 0, 0);
+      c.globalAlpha = 1;
+      c.clearRect(0, 0, o.cv.width, o.cv.height);
+      if (clouds) {
+        c.globalAlpha = 0.16;
+        const k = SC / S3;
+        for (let px = -ox; px < w + 20; px += SC) for (let py = -oy; py < h + 20; py += SC) c.drawImage(SKY.cloud, (px + 20) / S3, (py + 20) / S3, k, k);
+        c.globalAlpha = 1;
+      }
+      if (tint) { c.fillStyle = tint; c.fillRect(0, 0, o.cv.width, o.cv.height); }
+      c.drawImage(o.vg, 0, 0);
+    }
+    ctx.drawImage(o.cv, -20, -20, W, H);
   }
 
   drawWeather(z, dt) {
