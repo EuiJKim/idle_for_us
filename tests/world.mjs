@@ -422,13 +422,15 @@ console.log('\n=== 장비가 강함의 대부분 ===');
   ok(sa > 0.55 && sa < 0.85 && sh > 0.45 && sh < 0.8, 'Lv60 유니크 +6 차림: 장비가 2/3 남짓, 레벨·스탯이 1/3 남짓', `장비 몫 공격 ${(sa * 100).toFixed(0)}% · 체력 ${(sh * 100).toFixed(0)}%`);
   // 강화에는 그 지역 재료가 든다
   const w = g.s.equip.weapon;
+  // v272 강화는 어느 지역 재료든 쓴다(낮은 지역부터) — 이 시험은 그 지역 재료만 남겨 본다
+  for (const k of Object.keys(g.s.mats)) if (g.isZoneMat(k) && +k !== W.stepMap(w.step)) delete g.s.mats[k];
   const m0 = g.s.mats[W.stepMap(w.step)];
   const a0 = g.stats().atk;
   let n = 0;
   g.s.gold = 1e15;
   while (w.plus < 7 && n++ < 200) g.enhance(w.uid);
   ok(w.plus === 7 && g.s.mats[W.stepMap(w.step)] < m0 && g.stats().atk > a0, `강화는 재료를 넣어 장비를 키운다(한 단계에 기본 수치 +${W.ENHANCE_STEP * 100}%)`, `${W.matName(W.stepMap(w.step))} ${m0} → ${g.s.mats[W.stepMap(w.step)]}`);
-  g.s.mats[W.stepMap(w.step)] = 0;
+  for (const k of Object.keys(g.s.mats)) if (g.isZoneMat(k)) g.s.mats[k] = 0;
   ok(!g.canEnhance(w), '재료가 없으면 강화할 수 없다');
 }
 
@@ -1283,7 +1285,7 @@ console.log('\n=== 길잡이 (v146) ===');
   const v3b = newWorldSave(0); v3b.questV = 3; v3b.quest = Q.QUEST_V3_IDS.length; v3b.job = 'sword';
   ok(new WorldGame(migrateWorld(v3b, 0), 0).questNow()?.q.id === 'enh5', '판 3을 다 끝낸 사람도 새 단계를 겪는다');
   // 새 단계: 해 보면 끝난다
-  for (const [id, k] of [['convert', 'convert'], ['prot', 'prot'], ['lore', 'lore']]) {   // v263: 절전·범위는 '알아두기'(바로 받는다)
+  for (const [id, k] of [['prot', 'prot'], ['lore', 'lore']]) {   // v263: 절전·범위는 '알아두기'(바로 받는다) · v272: 재료 합치기도 '알아두기'
     const gg = fresh(); gg.s.quest = at(id);
     const a = gg.questNow().done; gg.mark(k);
     ok(!a && gg.questNow().done, `${Q.QUESTS[at(id)].title} — 해 보면 끝난다`);
@@ -2150,6 +2152,25 @@ console.log('\n=== v271 두목 맞춤 · 두목 싸움 중 회복·흡혈 ===');
   ok(g._inBoss && g.heroHp - h1 <= st.hp * W.BOSS_DRAIN_CAP + 1e-6, '두목 싸움 중 흡혈은 몫만큼만', `${((g.heroHp - h1) / st.hp * 100).toFixed(2)}%`);
   const D2 = await import('../js/world/wdgn.js');
   ok(D2.bossRefHp(150) === D2.bossRefHp(187) && D2.bossRefHp(100) > D2.refHp(100) * 3, '두목 기준 체력 — 레벨 100에 옛 기준의 세 배 넘게 · 150 위로는 그대로');
+}
+console.log('\n=== v272 강화 재료 — 지역을 가리지 않는다 ===');
+{
+  const g = fresh('sword');
+  while (g.s.level < 60) g.addExp(W.expToNext(g.s.level));
+  g.s.gold = 1e12;
+  const it = g.s.equip.weapon; it.plus = 5;
+  const m = g.enhanceMats(it);
+  const z = Number(m.key);
+  g.s.mats = { 1: 3, 2: 5, [z]: m.n - 8 + 2 };   // 지금 지역 것만으로는 모자라다
+  ok(g.isZoneMat(m.key) && g.enhanceMatHave(m) === m.n + 2 && g.canEnhance(it), '지난 지역 재료도 1:1로 센다', `필요 ${m.n} · 가진 것 ${g.enhanceMatHave(m)}`);
+  g.rng = () => 0;
+  g.enhance(it.uid, false);
+  ok(!g.s.mats[1] && !g.s.mats[2] && g.s.mats[z] === 2, '낮은 지역 재료부터 쓴다', JSON.stringify(g.s.mats));
+  // 돌파 증표: 지금 지역 증표가 없으면 앞 지역 증표로
+  while (g.s.level < 70) g.addExp(W.expToNext(g.s.level));
+  it.plus = 10; const m2 = g.enhanceMats(it); const bm = g.breakMarksOf(it);
+  g.s.mats = { [m2.key]: 999, [W.bossKey(1)]: bm + 1 };
+  ok(bm > 0 && g.breakMarkKey(it, bm) === W.bossKey(1) && g.canEnhance(it), '돌파는 앞 지역 두목 증표로도', `${W.matName(W.bossKey(1))} ${bm}개`);
 }
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);

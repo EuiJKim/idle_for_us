@@ -148,9 +148,10 @@ export const QUESTS = [
   { id: 'mast1', title: '한 지역 숙련도 1', tab: 'map', min: 5, xp: 0.15,
     why: '한 지역에서 오래 사냥하면 숙련이 올라 경험치·재료가 늘고 나쁜 기운을 견딘다.',
     goal: (g) => ({ now: mastMax(g), need: 1 }) },
-  { id: 'convert', title: '지난 사냥터 재료를 합치자', tab: 'bag/mats', min: 4, xp: 0.1,
-    why: `가방 → 재료. 지난 사냥터 재료 ${W.MAT_CONVERT}개가 다음 사냥터 재료 1개가 된다. "모두"를 누르면 한꺼번에 위로 올린다.`,
-    goal: flag('convert') },
+  // v272: 강화는 어느 지역 재료든 1:1 — 합치기(2:1)를 권하지 않는다. 읽고 바로 받는 '알아두기'
+  { id: 'convert', title: '지난 사냥터 재료도 강화에 쓴다', tab: 'bag/mats', min: 4, xp: 0.1,
+    why: '레벨이 올라 장비가 다음 지역 재료를 받아도, 모아 둔 지난 지역 재료가 1:1로 그대로 들어간다(낮은 지역부터). 두목 증표도 앞 지역 것으로 돌파할 수 있다.',
+    tip: true, goal: tip('convert') },
   { id: 'book', title: '스탯 비급을 한 권 사자', tab: 'town/shop', min: 4, xp: 0.1,
     why: '마을 → 상인. 비급 한 권에 능력치 점수 1. 살수록 비싸진다 — 남는 은자를 넣는 곳.',
     goal: flag('book') },

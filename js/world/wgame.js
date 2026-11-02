@@ -696,7 +696,7 @@ export class WorldGame {
     };
     mob.name = kind.name;
     // v271 두목 한 대는 같은 레벨 무인 체력(bossRefHp)의 BOSS_HIT_FRAC 이상 — 레벨 100 뒤로 무인 체력이 4~5배 커졌는데 두목은 그대로였다
-    if (boss && !this.inst) mob.atk = Math.max(mob.atk, D.bossRefHp(lv) * W.BOSS_HIT_FRAC_K(m));
+    if (boss && !this.inst && lv >= W.BOSS_HARD_FROM) mob.atk = Math.max(mob.atk, D.bossRefHp(lv) * W.BOSS_HIT_FRAC_K(m));
     // 맹주·천마 (v148): 두목 방의 우두머리는 더 단단하고 아프다
     if (boss && m.lord) { mob.maxHp = mob.hp = mob.hp * W.LORD_HP; mob.atk *= W.LORD_ATK; }
     if (boss && MS.patternHpMult(m) !== 1) mob.maxHp = mob.hp = mob.hp * MS.patternHpMult(m);     // 초식 두목 (v170)
@@ -704,7 +704,7 @@ export class WorldGame {
     if (boss && !this.inst && !(m.king && this.s.kingParty)) {
       const base = mob.hp;
       const k = this.overPower(mob.hp, m); if (k > 1) mob.maxHp = mob.hp = mob.hp * k; mob.op = k;
-      mob.calib = { base, sec: this.bossMinSec(m) * this.bossGapK(m) };   // v271 첫 몇 초 실제 피해로 다시 맞춘다
+      if (lv >= W.BOSS_HARD_FROM) mob.calib = { base, sec: this.bossMinSec(m) * this.bossGapK(m) };   // v271 첫 몇 초 실제 피해로 다시 맞춘다(v272 레벨 30 두목부터)
     }
     // 요일 던전 몹은 같은 레벨 무인에 맞춰 단단하다 (v126)
     if (this.inst?.kind === 'daily') { mob.maxHp = mob.hp = D.dailyMobHp(lv) * (elite ? W.ELITE.hp : 1); mob.atk = D.dailyMobAtk(lv) * (elite ? W.ELITE.atk : 1); }
@@ -746,7 +746,7 @@ export class WorldGame {
     // 회복
     const ev = this.envNow();
     // v271 두목과 싸우는 동안은 자연 회복을 줄인다 — 회복%가 쌓이면 초당 최대 체력의 3% 가까이 돌아와 두목이 깎지를 못했다(물약·흡혈은 그대로)
-    const inBoss = !this.inst && this.map.bossRoom && this.mons.some((m) => m.isBoss && m.alive && !(m.introT > 0));
+    const inBoss = !this.inst && this.map.bossRoom && this.mons.some((m) => m.isBoss && m.alive && !(m.introT > 0) && m.lv >= W.BOSS_HARD_FROM);
     this._inBoss = inBoss;
     // 흡혈 몫 — 두목과 싸우는 동안은 초당 최대 체력의 BOSS_DRAIN_CAP까지만 (1초치까지 모아 둔다)
     this._drainLeft = inBoss ? Math.min(st.hp * W.BOSS_DRAIN_CAP, (this._drainLeft ?? 0) + st.hp * W.BOSS_DRAIN_CAP * dt) : Infinity;
@@ -2175,10 +2175,27 @@ export class WorldGame {
   enhanceBaseRate(it) { return W.enhanceRate(it.plus || 0) * (W.isDropOnly(it.slot) ? W.ACC2_RATE : 1); }
   // v192 천장: 실패가 쌓인 만큼 더한다
   enhanceRateOf(it) { return Math.min(1, this.enhanceBaseRate(it) + (it.epity || 0)); }
+  // v272 강화 재료는 지역을 가리지 않는다 — 레벨이 오르면 성장 장비가 다음 지역 재료를 받아서, 모아 둔 재료가 2:1 변환으로 반 토막 났다.
+  //   일반 지역 재료(숫자 열쇠)는 모두 1:1로 같이 센다(낮은 지역부터 쓴다). 왕 강화석·증표·세력 재료는 그대로 따로.
+  isZoneMat(key) { return /^\d+$/.test(String(key)) && !!W.MATS[key]; }
+  enhanceMatHave(m) {
+    if (!m) return 0;
+    if (!this.isZoneMat(m.key)) return this.s.mats[m.key] || 0;
+    let n = 0;
+    for (const [k, v] of Object.entries(this.s.mats)) if (this.isZoneMat(k) && v > 0) n += v;
+    return n;
+  }
+  payEnhanceMats(m) {
+    if (!m) return;
+    if (!this.isZoneMat(m.key)) { this.s.mats[m.key] -= m.n; return; }
+    let left = m.n;
+    const keys = Object.keys(this.s.mats).filter((k) => this.isZoneMat(k) && this.s.mats[k] > 0).sort((a, b) => a - b);
+    for (const k of keys) { if (left <= 0) break; const a = Math.min(left, this.s.mats[k]); this.s.mats[k] -= a; left -= a; }
+  }
   canEnhance(it) {
     if (!it || (it.plus || 0) >= this.enhanceMax(it) || this.s.gold < this.enhanceCost(it)) return false;
     const m = this.enhanceMats(it);
-    if (m && (this.s.mats[m.key] || 0) < m.n) return false;
+    if (m && this.enhanceMatHave(m) < m.n) return false;
     const bm = this.breakMarksOf(it);
     return !bm || !!this.breakMarkKey(it, bm);
   }
@@ -2189,8 +2206,13 @@ export class WorldGame {
     if (!m || !bm) return null;
     const own = W.bossKey(m.key);
     if ((this.s.mats[own] || 0) >= bm) return own;
-    if (it.step == null || (this.s.level || 0) < 99) return null;
+    if (it.step == null) return null;
+    // v272 앞 지역 두목 증표도 대신 쓴다(가진 것이 가장 많은 것) — 레벨이 올라 모아 둔 증표가 쓸모없어지지 않게
     let best = null, n = 0;
+    const oz = Number(m.key);
+    for (let z = 1; z < oz; z++) { const k = W.bossKey(z); const v = this.s.mats[k] || 0; if (v >= bm && v > n) { best = k; n = v; } }
+    if (best) return best;
+    if ((this.s.level || 0) < 99) return null;
     for (let z = W.NORMAL_ZONES + 1; z <= W.ZONE_COUNT; z++) { const k = W.bossKey(z); const v = this.s.mats[k] || 0; if (v >= bm && v > n) { best = k; n = v; } }
     return best;
   }
@@ -2203,7 +2225,7 @@ export class WorldGame {
     const cost = this.enhanceCost(it);
     const mats = this.enhanceMats(it);
     this.s.gold -= cost;
-    if (mats) this.s.mats[mats.key] -= mats.n;
+    if (mats) this.payEnhanceMats(mats);
     const bm = this.breakMarksOf(it);
     if (bm) { const bk = this.breakMarkKey(it, bm); if (bk) this.s.mats[bk] -= bm; }
     const lv = it.plus || 0;

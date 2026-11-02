@@ -511,7 +511,7 @@ function bagTab(app) {
             h('div', { class: 'enh-fail' }, W.enhanceFailText(it.plus || 0),
               W.enhanceFail(it.plus || 0) ? ` · 실패하면 다음 확률 +${pct(game.enhanceBaseRate(it) * W.ENH_PITY_K, 0)}p` : null,
               W.enhanceRisky(it.plus || 0) ? h('span', {}, ` · 보호부 ${game.s.prot || 0}장${game.s.prot ? (useProt ? ' — 쓰면 실패해도 그대로' : ' — 안 씀') : ' — 상인에서 사요'}`) : null),
-            h('div', { class: 'enh-cost' }, `기본 수치 +${pct(breaking ? W.BREAK_STEP : W.ENHANCE_STEP, 0)} · 은자 ${fmt(cost)}${em ? ` · ${W.matName(em.key)} ${em.n}개 (가진 것 ${fmt(game.s.mats[em.key] || 0)})` : ''}${bm ? (() => { const bk = game.breakMarkKey(it, bm) || W.bossKey(em.key); return ` · ${W.matName(bk)} ${bm}개 (가진 것 ${fmt(game.s.mats[bk] || 0)})${bk !== W.bossKey(em.key) ? ' — 대신 씀' : (game.s.mats[bk] || 0) < bm ? ` — ${W.zoneOfW(Number(em.key))?.name || ''} 두목 구역에서 나와요${game.s.level >= 99 ? ' (99부터는 십이지왕 증표로도 돼요)' : ''}` : ''}`; })() : ''}`),
+            h('div', { class: 'enh-cost' }, `기본 수치 +${pct(breaking ? W.BREAK_STEP : W.ENHANCE_STEP, 0)} · 은자 ${fmt(cost)}${em ? (game.isZoneMat(em.key) ? ` · 지역 재료 ${em.n}개 (가진 것 ${fmt(game.enhanceMatHave(em))} — 어느 지역 재료든 1:1, 낮은 지역부터)` : ` · ${W.matName(em.key)} ${em.n}개 (가진 것 ${fmt(game.s.mats[em.key] || 0)})`) : ''}${bm ? (() => { const bk = game.breakMarkKey(it, bm) || W.bossKey(em.key); return ` · ${W.matName(bk)} ${bm}개 (가진 것 ${fmt(game.s.mats[bk] || 0)})${bk !== W.bossKey(em.key) ? ' — 대신 씀' : (game.s.mats[bk] || 0) < bm ? ` — ${W.zoneOfW(Number(em.key))?.name || ''} 두목 구역에서 나와요 (앞 지역 두목 증표${game.s.level >= 99 ? '·십이지왕 증표' : ''}로도 돼요)` : ''}`; })() : ''}`),
             W.enhanceRisky(it.plus || 0) && game.s.prot ? h('label', { class: 'chk' }, (() => { const c = h('input', { type: 'checkbox' }); c.checked = useProt; c.onchange = () => { useProt = c.checked; paint(); }; return c; })(), ' 보호부 쓰기') : null,
             h('button', { class: 'btn good enh-go', disabled: game.canEnhance(it) ? null : true, onclick: () => askEnhance() }, breaking ? '돌파' : '강화')),
         ];
@@ -945,14 +945,10 @@ function bagTab(app) {
     for (const z of stones) if (!zones.has(+z)) rows.push(h('div', { class: 'row mat-zone' }, h('div', { class: 'info' }, h('div', { class: 'name' }, W.zoneOfW(+z)?.name || ''),
       h('div', { class: 'mat-row' }, matChip(app, G.stoneKey(z), G.STONES[z].name, s.mats[G.stoneKey(z)])))));
     const topZ = W.stepMap(W.stepOfLevel(Math.min(s.level, W.ILV_CAP)));
-    const canUp = [...zones].some((z) => z < topZ && W.matUpTarget(z) && (s.mats[z] || 0) >= W.MAT_CONVERT);
+    const poolN = Object.entries(s.mats).filter(([k, v]) => game.isZoneMat(k) && v > 0).reduce((a, [, v]) => a + v, 0);
     matRoot.replaceChildren(h('div', { class: 'card' }, h('h3', {}, '재료', h('small', {}, '문파 창고로 나눌 수 있어요')),
-      h('div', { class: 'mat-up-all' }, h('small', { class: 'muted' }, `지난 지역 재료는 둘을 다음 지역 하나로 올릴 수 있어요 — 강화에는 지금 레벨 지역(${W.matName(topZ)}) 재료가 들어요`),
-        canUp ? h('button', { class: 'btn primary', onclick: () => {
-          const got = game.convertAllUp();
-          const t = Object.entries(got).map(([k, n]) => `${W.matName(k)} +${fmt(n)}`).join(' · ');
-          if (t) { toast(`재료 올리기 — ${t}`); done(); }
-        } }, `낮은 재료 모두 ${W.matName(topZ)}까지 올리기`) : null),
+      // v272 강화는 어느 지역 재료든 1:1 — '모두 올리기(2:1)'는 손해라 뺐다. 올리기는 그 지역 재료가 꼭 필요할 때(왕 강화석·계열)만
+      h('div', { class: 'mat-up-all' }, h('small', { class: 'muted' }, `강화에는 어느 지역 재료든 1:1로 들어가요 — 강화에 쓸 수 있는 재료 ${fmt(poolN)}개 (지금 장비는 ${W.matName(topZ)} 지역). 올리기(${W.MAT_CONVERT}:1)는 그 지역 재료가 꼭 필요할 때만 쓰세요`)),
       facRow,
       ...(rows.length ? rows : [h('p', { class: 'muted' }, '몹은 그 사냥터 재료를, 두목은 재료 한 움큼과 증표를 떨궈요.')])));
   }
