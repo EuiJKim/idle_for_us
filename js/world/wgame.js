@@ -459,7 +459,7 @@ export class WorldGame {
       // v262: 스탯마다 다른 축 — 힘=두목 피해 · 민첩=걸음 · 체력=받는 피해 감소 · 내공=무공 숨(어디에 찍든 사냥만 같던 것)
       moveSpeed: 1 + (mt ? mt.speed : 0) + (cls.move || 0) + (pm.move || 0) + gear.move + Math.min(W.STAT_ROLE.dexMoveMax, dex * W.STAT_ROLE.dexMove),
       boss: (cls.boss || 1) * (1 + gear.bossDmg) * (1 + Math.min(W.STAT_ROLE.strBossMax, str * W.STAT_ROLE.strBoss)),
-      gold: gear.gold, dodge: Math.min(0.5, gear.dodge), drain: gear.drain, dmgRed: Math.min(0.5, gear.dmgRed + Math.min(W.STAT_ROLE.vitRedMax, vit * W.STAT_ROLE.vitRed)),
+      gold: gear.gold + (cls.goldUp || 0), dodge: Math.min(0.5, gear.dodge), drain: gear.drain, dmgRed: Math.min(0.5, gear.dmgRed + Math.min(W.STAT_ROLE.vitRedMax, vit * W.STAT_ROLE.vitRed)),
       cdr: Math.min(0.4, gear.cdr + Math.min(W.STAT_ROLE.intCdrMax, int * W.STAT_ROLE.intCdr)), skillRange: gear.range, thorns: gear.thorns, stunHit: Math.min(0.3, gear.stunHit),
       venom: Math.min(IM.IMP_CAP.venom, gear.venom), burn: Math.min(IM.IMP_CAP.burn, gear.burn), chill: Math.min(IM.IMP_CAP.chill, gear.chill), shock: Math.min(IM.IMP_CAP.shock, gear.shock),
       range: W.classOf(s.job)?.range || W.MELEE_RANGE,
@@ -1350,7 +1350,7 @@ export class WorldGame {
         if (n === W.DEX_NEED) { this._dexZ = null; this._huntB = null; this._stats = null; this.emit('dexStamp', { name: m.name, zoneDone: this.dexZoneDone(this.map.zone) }); }
       }
       this.tday('kill'); if (m.elite) this.tday('elite'); if (m.isBoss) this.tday('boss');
-      if (!m.isBoss && this.rng() < W.PET_SHARD_RATE * (m.elite ? 3 : 1)) this.s.petShard = (this.s.petShard || 0) + 1;   // v262 포획 조각
+      if (!m.isBoss && this.rng() < W.PET_SHARD_RATE * (m.elite ? 3 : 1) * this.lootK()) this.s.petShard = (this.s.petShard || 0) + 1;   // v262 포획 조각
       if (this.rng() < W.FRAG_RATE * (m.isBoss ? 20 : m.elite ? 5 : 1)) this.gainFrag(1, { x: m.x, y: m.y });   // v275 무공 비급 조각
     }
     this.s.gold += gold;
@@ -1358,7 +1358,7 @@ export class WorldGame {
     if (m.elite) this.dropMats(m);
     this.addMastery(this.map.zone, 1);
     // 보물 원숭이 — 들판에서 가끔 (하나만)
-    if (!this.map.bossRoom && this.rng() < L.TREASURE_RATE && !this.mons.some((o) => o.alive && o.treasure)) this.spawnTreasure();
+    if (!this.map.bossRoom && this.rng() < L.TREASURE_RATE * (W.CLASSES[this.s.job]?.treasureK || 1) && !this.mons.some((o) => o.alive && o.treasure)) this.spawnTreasure();
     this.emit('kill', { gold, isBoss: m.isBoss, add: true, at: m, mat });
     this.addExp(exp);
     this.note(1, exp, gold, 0);
@@ -1836,13 +1836,13 @@ export class WorldGame {
           this.emit('drop', { item: it, at: { x: m.x, y: m.y } });
           this.gainItem(it);
         }
-        if (this.rng() < W.petDropRate(id)) this.gainPet(W.rollRarity(W.KING_RAR_W, this.rng), m, W.rollPetKind(id, this.rng));
+        if (this.rng() < W.petDropRate(id) * this.lootK()) this.gainPet(W.rollRarity(W.KING_RAR_W, this.rng), m, W.rollPetKind(id, this.rng));
         return { id: W.ORE, n: W.BOSS_MATS * W.matWeight(id), name: W.ORE_NAME, color: W.ORE_COL, boss: W.matName(W.bossKey(id)) };
       }
       // v158: 사다리 장비는 이제 떨구지 않는다(장비는 레벨을 따라 자란다) — 대신 가끔 증표 한 움큼(등급 각인 재료)
       if (this.rng() < W.BOSS_ITEM_RATE) this.addMats(W.bossKey(id), W.INFUSE_MARKS[1]);
       // 가락지·귀걸이 — 두목만 떨군다
-      if (this.rng() < W.acc2DropRate(id)) {
+      if (this.rng() < W.acc2DropRate(id) * this.lootK()) {
         const rar = W.rollRarity(W.kingOf(id) ? W.KING_RAR_W : W.BOSS_RAR_W, this.rng);
         const st = W.stepOfLevel(W.zoneOfW(id)?.lv[1] || 5);
         const it = this.makeCrafted(this.rng() < 0.5 ? 'finger' : 'ear', st, 0, rar, id);
@@ -1852,7 +1852,7 @@ export class WorldGame {
       }
       // 애완동물 — 두목만, 낮은 확률
       // 초반 두목은 아주 낮게·아래 순위만, 높은 두목일수록 자주·위 순위까지
-      if (this.rng() < W.petDropRate(id)) this.gainPet(W.rollRarity(W.kingOf(id) ? W.KING_RAR_W : W.BOSS_RAR_W, this.rng), m, W.rollPetKind(id, this.rng));
+      if (this.rng() < W.petDropRate(id) * this.lootK()) this.gainPet(W.rollRarity(W.kingOf(id) ? W.KING_RAR_W : W.BOSS_RAR_W, this.rng), m, W.rollPetKind(id, this.rng));
       return { id: W.ORE, n: W.BOSS_MATS * W.matWeight(id), name: W.ORE_NAME, color: W.ORE_COL, boss: W.matName(W.bossKey(id)) };
     }
     if (this.rng() >= W.MAT_RATE * (this.stats().matMult || 1) * (1 + this.masteryLevel(this.map.zone) * L.MASTERY.mat) * (1 + this.braveBonus()) * (!this.inst && TD.bloodOn() ? 1 + TD.BLOOD_BONUS : 1)) return null;
@@ -2861,7 +2861,7 @@ export class WorldGame {
   killTreasure(m, st, env) {
     this.tday('treasure');
     const z = this.map.mz;
-    const gold = Math.round(W.mobGold(m.lv) * L.TREASURE_GOLD * (1 + (env.gold || 0)));
+    const gold = Math.round(W.mobGold(m.lv) * L.TREASURE_GOLD * (1 + (env.gold || 0) + (st.gold || 0)));
     this.s.gold += gold;
     const mats = {};
     if (W.MATS[z]) { mats[z] = L.TREASURE_MATS; if (this.rng() < L.TREASURE_MARK) mats[W.bossKey(z)] = 1; }
@@ -3191,6 +3191,8 @@ export class WorldGame {
   }
   // 두목이 무인보다 높으면 그만큼 덜 버텨도 된다(이미 아프다)
   // v277 두목 사냥꾼(권마·극악소마) — 두목 싸움 시간 배수
+  // v279 탐보(환마) — 두목 장신구·애완동물·포획 조각 배수
+  lootK() { return W.CLASSES[this.s.job]?.lootK || 1; }
   bossTimeK() { return W.CLASSES[this.s.job]?.bossTime || 1; }
   bossGapK(m) { return Math.max(W.GAP_OUT_MIN, 1 - W.GAP_OUT * Math.max(0, m.lv[1] + 2 - this.s.level)); }
   overPower(baseHp, m) {

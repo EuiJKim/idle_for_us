@@ -2230,5 +2230,11 @@ console.log('\n=== v278 두목은 지속 피해를 덜 받는다 ===');
   ok(early.dot === mob.dot, '초반(레벨 30 아래) 두목은 그대로');
   ok(Math.abs(boss.dot / mob.dot - W.BOSS_DOT_K) < 1e-9, `두목 독은 ×${W.BOSS_DOT_K} · 사냥터 몹은 그대로`, `${Math.round(mob.dot)} / ${Math.round(boss.dot)}`);
 }
+console.log('\n=== v279 환마 탐보 ===');
+{
+  const f = fresh('fan'), sw = fresh('sword');
+  ok(f.stats().gold - sw.stats().gold >= 0.2 - 1e-9, '환마는 은자 +20%');
+  ok(f.lootK() === 1.5 && sw.lootK() === 1 && W.CLASSES.fan.treasureK === 2, '두목 장신구·애완동물·포획 조각 1.5배 · 보물 원숭이 2배');
+}
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);
