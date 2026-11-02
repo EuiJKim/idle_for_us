@@ -269,6 +269,23 @@ export class Net {
     } catch (err) { console.warn('[net] topPlayers', err); return []; }
   }
 
+  // ---------- 운영자 · 무인 정리 (v282) ----------
+  // 서열 문서(players)만 지운다. 로그인 계정(Authentication) 자체는 웹 앱에서 지울 수 없다 — 콘솔에서.
+  // 지운 무인이 다시 들어오면 서열에 다시 올라온다(진행은 그 기기에 그대로 있다).
+  async allPlayers(n = 300) {
+    if (!this.isAdmin()) return [];
+    try {
+      const snap = await this.fs.getDocs(this.fs.query(this.fs.collection(this.db, 'players'), this.fs.limit(n)));
+      const rows = [];
+      snap.forEach((d) => rows.push({ uid: d.id, ...d.data() }));
+      return rows;
+    } catch (err) { console.warn('[net] allPlayers', err); return []; }
+  }
+  async deletePlayer(uid) {
+    if (!this.isAdmin() || !uid || uid === this.uid) return false;
+    try { await this.fs.deleteDoc(this.ref('players', uid)); return true; } catch (err) { console.warn('[net] deletePlayer', err); return false; }
+  }
+
   // ---------- 운영자 선물 (v175) ----------
   // 운영자가 gifts/{uid}/box/{id}에 은자를 넣어 두면, 그 무인이 들어올 때 받는다(받으면 문서를 지운다 —
   // 지우기에 성공한 것만 준다. 그래야 두 번 받지 않는다). 규칙: 넣기는 운영자만, 읽기·지우기는 본인·운영자.

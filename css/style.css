@@ -1914,3 +1914,14 @@ body.hunt-nocv #cv { visibility: hidden !important; }
 .cust-chip.col { padding: 4px; }
 .cust-chip.col i { width: 22px; height: 22px; border-radius: 50%; background: var(--cc); border: 1px solid rgba(255, 255, 255, 0.25); display: block; }
 .cust-chip.col.on { box-shadow: 0 0 0 2px var(--gold); }
+
+/* v282 운영자 · 무인 정리 */
+.pa-list { max-height: 52vh; overflow-y: auto; margin: 0 0 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); }
+.pa-sum { margin: 0; padding: 8px 12px; font-size: 12.5px; color: var(--muted); border-bottom: 1px solid var(--line); position: sticky; top: 0; background: var(--panel); }
+.pa-row { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-top: 1px solid rgba(255,255,255,.04); cursor: pointer; }
+.pa-row.pick { background: rgba(163,36,42,.10); }
+.pa-row input { width: 18px; height: 18px; accent-color: var(--accent); flex: none; }
+.pa-name { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.pa-name small { color: var(--muted); font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pa-name em { color: var(--gold); font-style: normal; font-size: 11px; }
+.pa-uid { flex: none; font-size: 11px; color: var(--muted); }

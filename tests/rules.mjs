@@ -3,6 +3,7 @@
 // 규칙은 숨길 수 없다(공개 저장소 · 브라우저에서 다 보인다). 그래서 알아도 못 뚫게 짜고, 여기서 그걸 확인한다.
 import { createRequire } from 'node:module';
 import path from 'node:path';
+import fs from 'node:fs';
 
 const PKG = process.env.FIREBASE_PKG;
 if (!PKG) { console.log('FIREBASE_PKG가 없어 건너뜀'); process.exit(0); }
@@ -45,6 +46,27 @@ const profile = (extra = {}) => ({ world: 1, nickname: '무인', level: 10, job:
   ok(await denied(F.setDoc(bad.ref('players', bad.uid), profile({ titles: Array(100).fill('왕') }))), '칭호 100개 거부');
   ok(await denied(F.setDoc(bad.ref('players', boss.uid), profile({ nickname: '바보' }), { merge: true })), '남의 프로필 고치기 거부');
   ok(await denied(F.deleteDoc(bad.ref('players', boss.uid))), '남의 프로필 지우기 거부');
+
+  console.log('# 운영자 · 무인 정리 (v282)');
+  {
+    // 에뮬레이터는 서명 없는 사용자 지정 토큰을 받는다 — 운영자 uid로 들어간다
+    const ADMIN = fs.readFileSync(new URL('../js/firebase-config.js', import.meta.url), 'utf8').match(/ADMIN_UID = '([^']+)'/)[1];
+    const b64 = (o) => Buffer.from(JSON.stringify(o)).toString('base64url');
+    const now = Math.floor(Date.now() / 1000);
+    const tok = `${b64({ alg: 'none', typ: 'JWT' })}.${b64({ aud: 'https://identitytoolkit.googleapis.com/google.identity.identitytoolkit.v1.IdentityToolkit', iat: now, exp: now + 3600, iss: 'x@x', sub: 'x@x', uid: ADMIN })}.`;
+    const app = initializeApp({ apiKey: 'fake', projectId: PROJECT, authDomain: 'x' }, 'admin');
+    const auth = A.getAuth(app);
+    A.connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true });
+    const adb = F.getFirestore(app);
+    F.connectFirestoreEmulator(adb, '127.0.0.1', 8080);
+    const { user: au } = await A.signInWithCustomToken(auth, tok);
+    ok(au.uid === ADMIN, '운영자로 들어감');
+    const victim = await user();
+    ok(await allowed(F.setDoc(victim.ref('players', victim.uid), profile(), { merge: true })), '(테스트 계정 서열 문서)');
+    ok(await denied(F.deleteDoc(friend.ref('players', victim.uid))), '운영자 아니면 남의 서열 지우기 거부');
+    ok(await allowed(F.deleteDoc(F.doc(adb, 'players', victim.uid))), '운영자는 서열 문서를 지운다');
+    ok(!(await F.getDoc(victim.ref('players', victim.uid))).exists(), '지워졌다');
+  }
 
   console.log('# 운영자 전용');
   ok(await denied(F.setDoc(bad.ref('entitlements', bad.uid), { noAds: true })), '광고 제거 스스로 켜기 거부');

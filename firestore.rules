@@ -28,6 +28,8 @@ service cloud.firestore {
         && request.resource.data.keys().hasOnly(profileKeys()) && profileOk();
       allow update: if signedIn() && request.auth.uid == uid
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(profileKeys()) && profileOk();
+      // v282 운영자는 서열 문서를 지울 수 있다(테스트·버려진 계정 정리)
+      allow delete: if isAdmin();
     }
     function profileKeys() {
       return ['world', 'nickname', 'level', 'job', 'jobTier', 'tierName', 'map', 'mapName', 'power', 'atk', 'hp',

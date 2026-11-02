@@ -1382,6 +1382,56 @@ async function openGiftAdmin() {
   }) : [h('p', { class: 'muted' }, '무인 목록을 못 불러왔어요')]));
 }
 
+// ---------- 운영자 · 무인 정리 (v282) ----------
+// 테스트로 만든 계정·버려진 계정이 서열에 남는다. 골라서 서열 문서를 지운다(로그인 계정은 콘솔에서).
+// 미리 골라 두는 것: 나 아님 · Lv10 이하 · 3일 넘게 안 들어옴 · 문파 없음
+function staleGuess(p, now = Date.now(), me = '') {
+  const at = p.updatedAt?.toMillis?.() ?? (typeof p.updatedAt === 'number' ? p.updatedAt : 0);
+  const days = at ? (now - at) / 86400000 : Infinity;
+  return { days, pick: p.uid !== me && (p.level || 0) <= 10 && days >= 3 && !p.guildId };
+}
+async function openPlayerAdmin() {
+  const list = h('div', { class: 'pa-list' }, h('p', { class: 'muted' }, '불러오는 중…'));
+  const go = h('button', { class: 'btn danger', disabled: true }, '지우기');
+  const picked = new Set();
+  const sync = () => { go.disabled = !picked.size; go.textContent = picked.size ? `고른 ${picked.size}명 서열에서 지우기` : '지울 무인을 고르세요'; };
+  openModal((s) => s.append(h('h2', {}, '무인 정리'),
+    h('p', { class: 'muted', style: 'margin:-4px 0 10px;font-size:12.5px' },
+      '서열에서만 지워요(다시 들어오면 다시 올라와요). ', h('b', {}, '미리 고른 것'), ': Lv10 이하 · 3일 넘게 안 들어옴 · 문파 없음'),
+    list,
+    h('div', { class: 'btn-row' }, go, h('button', { class: 'btn', onclick: closeModal }, '닫기'))));
+  async function load() {
+    picked.clear(); sync();
+    const now = Date.now();
+    const rows = (await net.allPlayers(400)).map((p) => ({ ...p, ...staleGuess(p, now, net.uid) }));
+    rows.sort((a, b) => (b.pick - a.pick) || (b.days - a.days));
+    if (!rows.length) { list.replaceChildren(h('p', { class: 'muted' }, '무인 목록을 못 불러왔어요 (규칙 게시를 확인하세요)')); return; }
+    list.replaceChildren(h('p', { class: 'pa-sum' }, `서열에 ${rows.length}명 · 미리 고른 ${rows.filter((r) => r.pick).length}명`), ...rows.map((p) => {
+      const me = p.uid === net.uid;
+      const cb = h('input', { type: 'checkbox', disabled: me ? true : null });
+      cb.checked = p.pick;
+      if (p.pick) picked.add(p.uid);
+      cb.onchange = () => { if (cb.checked) picked.add(p.uid); else picked.delete(p.uid); sync(); };
+      const ago = !Number.isFinite(p.days) ? '접속 기록 없음' : p.days < 1 ? '오늘' : `${Math.floor(p.days)}일 전`;
+      return h('label', { class: `pa-row${p.pick ? ' pick' : ''}` }, cb,
+        h('span', { class: 'pa-name' }, h('b', {}, p.nickname || '이름없음', me ? h('em', {}, ' · 나') : ''),
+          h('small', {}, `Lv.${p.level || 1}${p.tierName ? ` · ${p.tierName}` : ''}${p.guildName ? ` · 문파 ${p.guildName}` : ''} · ${ago}`)),
+        h('code', { class: 'pa-uid' }, p.uid.slice(0, 6)));
+    }));
+    sync();
+  }
+  go.onclick = async () => {
+    const ids = [...picked];
+    if (!ids.length || !confirm(`${ids.length}명을 서열에서 지울까요? 되돌릴 수 없어요.`)) return;
+    go.disabled = true; go.textContent = '지우는 중…';
+    let n = 0;
+    for (const id of ids) if (await net.deletePlayer(id)) n++;
+    toast(n === ids.length ? `${n}명을 서열에서 지웠어요` : `${n}/${ids.length}명 지웠어요 — 나머지는 규칙 게시를 확인하세요`);
+    load();
+  };
+  load();
+}
+
 // ---------- 설정 ----------
 function toggleRow(label, on, desc, onChange) {
   const btn = h('button', { class: `btn ${on ? 'good' : ''}`, style: 'padding:6px 12px;min-width:62px' }, on ? '켜짐' : '꺼짐');
@@ -1421,6 +1471,8 @@ $('btn-settings').addEventListener('click', () => openModal((s) => {
     }),
     net.isAdmin?.() ? h('div', { class: 'row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, '운영자 · 우편 보내기'), h('div', { class: 'desc' }, '무인을 골라 은자·물약·보호부·애완동물·탈것을 그 무인의 우편함에 넣어요')),
       h('button', { class: 'btn primary', style: 'padding:6px 12px', onclick: () => { closeModal(); openGiftAdmin(); } }, '보내기')) : '',
+    net.isAdmin?.() ? h('div', { class: 'row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, '운영자 · 무인 정리'), h('div', { class: 'desc' }, '테스트·버려진 계정을 골라 서열에서 지워요')),
+      h('button', { class: 'btn', style: 'padding:6px 12px', onclick: () => { closeModal(); openPlayerAdmin(); } }, '정리')) : '',
     toggleRow('강화·각인 연출 건너뛰기', skipFx(), '켜면 두드리는 연출 없이 바로 결과 — 끄면 연출을 눌러서 건너뛸 수 있어요', (v) => setSkipFx(v)),
     toggleRow('자동 물약', game.s.autoPotion, `한 병에 최대 체력의 ${Math.round(W.POTION_HEAL * 100)}%를 채워요`, (v) => { game.s.autoPotion = v; save(); }),
     h('div', { class: 'row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, '자동 물약 체력'), h('div', { class: 'desc' }, '체력이 이만큼 아래로 내려가면 먹어요 — 높을수록 안전하지만 물약이 많이 들어요')),
