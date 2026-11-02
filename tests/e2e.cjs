@@ -39,6 +39,9 @@ async function newPlayer(browser, name, cls = '검사') {
   await page.click('#modal .btn.primary');
   await page.waitForSelector('.class-card');
   await page.click(`.class-card:has-text("${cls}")`);
+  // v280: 캐릭터를 고르면 꾸미기 창이 뜬다 — 그대로 시작
+  await page.waitForSelector('#modal .cust-go', { timeout: 5000 });
+  await page.click('#modal .cust-go');
   return { ctx, page, errors, name };
 }
 // 'map/king'처럼 창/칸 (v147 — 창마다 칸이 나뉘었다)

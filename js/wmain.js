@@ -697,8 +697,11 @@ function refreshUI(full = false) {
   dot('comp', s.petBox.length > 0 && s.pets.length < game.petSlots());
   dot('dgn', dailyWaiting(game) || Object.values(game.s.zTickets || {}).some((n) => n > 0));
   if (activeTab) { tabs[activeTab].update(); panelRes(); }
-  if (full) drawPortrait();
+  // v280 얼굴은 모습이 바뀌거나(경지·장비·꾸미기) 그림이 다 오면 다시 그린다 — 전엔 켤 때 한 번(그림이 오기 전 도형으로) 그리고 끝이었다
+  const psig = `${s.rank}|${game.statSig()}|${JSON.stringify(s.custom || {})}|${s.outfit || ''}|${artReady()}`;
+  if (full || psig !== portraitSig) { portraitSig = psig; drawPortrait(); }
 }
+let portraitSig = '';
 // 던전 안 — 위 가운데 알림판: 무엇 · 남은 시간 · 처치(탑은 수문장 체력) · 나가기
 const hud = $('contest-hud');
 const leaveBtn = h('button', { class: 'inst-leave', onclick: () => {
@@ -772,11 +775,63 @@ function drawPortrait() {
   const c = cv.getContext('2d');
   c.setTransform(1, 0, 0, 1, 0, 0);
   c.clearRect(0, 0, cv.width, cv.height);
-  // v203: 둥근 패 안에는 얼굴·어깨만 크게 — 전에는 몸 전체(도는 비검·후광까지)를 작게 넣어 잘린 그림처럼 보였다
-  const look = { ...RANKS[W.lookTierOf(game.s.level)].look, swords: 0, halo: false, aura: null, wings: false };
+  // v203: 둥근 패 안에는 얼굴·어깨만 크게
+  // v280: 들판의 무인과 같은 모습(직업 무기·옷·장비 빛·꾸미기)으로 — 전엔 경지 기본 모습에 권갑을 모두에게 쥐여 줬다
+  if (!game.s.job) return;
+  const { look, opts } = view.heroLook(game, false);
+  const L = { ...look, swords: 0, halo: false, aura: null, wings: false, edgeGlow: false, edgePulse: false };
   const k = cv.width / 104;
   c.setTransform(1.9 * k, 0, 0, 1.9 * k, 0, 0);
-  drawFighter(c, 24, 98, look, { t: 0, weapon: "fist", blade: "#e5e7eb" });
+  drawFighter(c, 27, 100, L, { t: 0, weapon: opts.weapon, blade: opts.blade, hold: true, noWeapon: true, glow: false });
+}
+$('portrait').addEventListener('click', () => { if (game.s.job && !modalOpen()) openCustom(false); });   // v280 얼굴을 누르면 꾸미기
+// ---------- 꾸미기 (v280) — 처음 캐릭터를 고른 뒤 · 왼쪽 위 얼굴을 눌러 ----------
+function openCustom(first = false) {
+  const cu = { head: null, robe: null, band: null, ...(game.s.custom || {}) };
+  openModal((s) => {
+    const cv = h('canvas', { width: 220, height: 230, class: 'cust-preview' });
+    const rows = h('div', { class: 'cust-rows' });
+    const pick = (label, items, key) => h('div', { class: 'cust-row' }, h('b', {}, label),
+      h('div', { class: 'cust-chips' }, ...items.map(([v, name, col]) => h('button', {
+        class: `cust-chip${cu[key] === v ? ' on' : ''}${col ? ' col' : ''}`, style: col ? `--cc:${col}` : '',
+        onclick: () => { cu[key] = v; paintRows(); } }, col ? h('i') : null, name ? h('span', {}, name) : null))));
+    const paintRows = () => rows.replaceChildren(
+      pick('머리', [[null, '기본'], ...W.CUSTOM_HEADS.map(([k, n]) => [k, n])], 'head'),
+      pick('도포', [[null, '기본'], ...W.CUSTOM_ROBES.map((c) => [c, null, c])], 'robe'),
+      pick('띠', [[null, '기본'], ...W.CUSTOM_BANDS.map((c) => [c, null, c])], 'band'));
+    paintRows();
+    const finish = () => {
+      game.s.custom = { head: cu.head || null, robe: cu.robe || null, band: cu.band || null };
+      save(); portraitSig = ''; refreshUI(true);
+      closeModal();
+      toast(first ? '강호에 나섰어요 — 지도에서 사냥터를 골라요 (왼쪽 위 얼굴을 누르면 다시 꾸밀 수 있어요)' : '모습을 바꿨어요');
+    };
+    s.append(...[
+      h('h2', {}, first ? '모습을 꾸며요' : '꾸미기'),
+      h('p', { class: 'muted' }, first ? '나중에 왼쪽 위 얼굴을 눌러 언제든 바꿀 수 있어요.' : '\'기본\'은 경지·장비에 따라 바뀌어요. 고른 것은 장비 겉모습보다 먼저예요.'),
+      h('div', { class: 'cust-stage' }, cv),
+      rows,
+      h('div', { class: 'btn-row' },
+        h('button', { class: 'btn', onclick: () => { cu.head = cu.robe = cu.band = null; paintRows(); } }, '기본으로'),
+        !first ? h('button', { class: 'btn', onclick: closeModal }, '그만두기') : null,
+        h('button', { class: 'btn primary cust-go', onclick: finish }, first ? '이대로 시작' : '이대로')),
+    ].filter(Boolean));
+    // 미리보기 — 고른 것을 잠깐 입혀 그린다(세이브에는 '이대로'를 눌러야 들어간다)
+    const tick = () => {
+      if (!cv.isConnected || !modalOpen()) return;
+      const real = game.s.custom;
+      game.s.custom = cu;
+      const { look, opts } = view.heroLook(game, false);
+      game.s.custom = real;
+      const c = cv.getContext('2d');
+      c.setTransform(1, 0, 0, 1, 0, 0);
+      c.clearRect(0, 0, cv.width, cv.height);
+      c.setTransform(1.55, 0, 0, 1.55, 0, 0);
+      drawFighter(c, 71, 138, { ...look, swords: 0, halo: false, wings: false }, { ...opts, t: performance.now() / 1000, flip: false, turn: null, run: false });
+      requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  }, { dismissable: !first });
 }
 
 // ---------- 사건 ----------
@@ -1132,8 +1187,8 @@ function askClass() {
         if (!game.setJob(j.id)) return;
         game.s.potions += 20;
         save(); closeModal(); refreshUI(true);
-        toast(`${j.name}(으)로 강호에 나섰어요 — 지도에서 사냥터를 골라요`);
         net.pushProfile(true);
+        openCustom(true);   // v280 고른 뒤 꾸미기
       } }, cv, h('div', { class: 'cc-txt' },
         h('b', { style: `color:${j.color}` }, j.name),
         h('small', {}, `${j.weapon}${j.range ? ' · 멀리서' : ''}`),

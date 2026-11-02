@@ -1,7 +1,7 @@
 // 전투 화면 캔버스 렌더러 (수묵화 무협풍). 게임 이벤트를 받아 연출만 담당한다.
 import { drawObstacle, drawLowObstacle } from './obstacles.js';
 import { zoneOf, RANKS, GRADES, FIELD_SQUASH, JOB_TRAITS, QI, jobOf, critTierName } from './data.js';
-import { artReady, putArt, putArtEdge, putArtTint, loadArt, FIT, ART_SHOULDER, ART_BAND, headKey, bodyKey, weaponKey } from './art.js';
+import { artReady, putArt, putArtBand, putArtEdge, putArtTint, loadArt, FIT, ART_SHOULDER, ART_BAND, headKey, bodyKey, weaponKey } from './art.js';
 import { drawCreature, saddleY, mountTilt, mountGait } from './creatures.js';
 import { ZONES_W, itemZone } from './world/wdata.js';
 import { setOf } from './world/wgear.js';
@@ -1447,6 +1447,14 @@ export class BattleView {
     if (B.weapon?.look.aura) look.aura = B.weapon.look.aura;
     else if (B.armor?.look.aura) look.aura = B.armor.look.aura;
 
+    // v280 꾸미기 — 고른 것은 경지·장비 겉모습보다 먼저 (고르지 않은 칸은 그대로)
+    const cu = game.s.custom || {};
+    if (cu.head) look.head = cu.head;
+    if (cu.robe) { look.robe = cu.robe; look.robeTint = cu.robe; delete look.outfitBody; }
+    if (cu.band) { look.band = cu.band; if (!cu.head && !look.head) look.head = 'topknot'; }
+    // 머리띠 그림은 뒤통수 쪽이라 얼굴이 어둡게 가려진다 — 무인은 얼굴이 보이는 상투(띠 있음) 그림으로
+    if (look.head === 'band') look.head = 'topknot';
+    look.bandTint = true;
     const opts = {
       // 무기는 캐릭터를 따른다 (검사 검 · 권마 권갑 · 환마 부채 · 독마 비수)
       t: this.t, lunge: this.heroLunge, flash: this.heroFlash, run: moving, weapon: jobOf(game.s.job)?.look || 'sword', hold: true,
@@ -4443,7 +4451,9 @@ export function drawFighter(ctx, x, y, look = {}, o = {}) {
   }
 
   // 머리
-  if (artReady() && !jiang && look.head !== 'mask' && putArt(ctx, headKey(look), FIT.head)) {
+  const hk = artReady() && !jiang && look.head !== 'mask' ? headKey(look) : null;
+  // v280 띠가 그려진 머리(상투·머리띠)는 띠를 무인이 고른 색으로
+  if (hk && (look.bandTint && (hk === 'head-topknot' || hk === 'head-band') ? putArtBand(ctx, hk, FIT.head, look.band) : putArt(ctx, hk, FIT.head))) {
     // 머리카락까지 한 장
   } else {
   ctx.fillStyle = skin;
@@ -4492,8 +4502,8 @@ export function drawFighter(ctx, x, y, look = {}, o = {}) {
     ctx.translate(hx, hy);
     ctx.rotate(P.blade + Math.PI / 2);
     if (P.wscale && P.wscale !== 1) ctx.scale(P.wscale, P.wscale);
-    const wk2 = artReady() ? weaponKey(weapon, look) : null;
-    if (!(wk2 && putArt(ctx, wk2, FIT.weapon))) drawWeapon(ctx, weapon, o, t, 0);
+    const wk2 = artReady() && !o.noWeapon ? weaponKey(weapon, look) : null;
+    if (!o.noWeapon && !(wk2 && putArt(ctx, wk2, FIT.weapon))) drawWeapon(ctx, weapon, o, t, 0);
     ctx.restore();
     drawOrbit(true);
     ctx.restore();
@@ -4529,10 +4539,10 @@ export function drawFighter(ctx, x, y, look = {}, o = {}) {
     if (H.off) ctx.translate(0, H.off * (1 - w));
     if (o.glow) { ctx.shadowColor = o.glowCol || o.blade || '#fde68a'; ctx.shadowBlur = o.glowCol ? 14 : 10; }
     const wk3 = artReady() ? weaponKey(weapon, look) : null;
-    const art3 = !!(wk3 && putArt(ctx, wk3, FIT.weapon));
-    if (!art3) drawWeapon(ctx, weapon, o, t, lunge);
+    const art3 = !o.noWeapon && !!(wk3 && putArt(ctx, wk3, FIT.weapon));
+    if (!art3 && !o.noWeapon) drawWeapon(ctx, weapon, o, t, lunge);
     ctx.shadowBlur = 0;
-    if (o.bladeFx) drawBladeFx(ctx, o, t, art3 ? -1 : 1);
+    if (o.bladeFx && !o.noWeapon) drawBladeFx(ctx, o, t, art3 ? -1 : 1);
     if (H.off) ctx.translate(0, -H.off * (1 - w));
     if (!H.bare || w > 0.5) { ctx.fillStyle = skin; circle(ctx, 0, 0, 3.6 / sc); }
     ctx.restore();
@@ -4551,9 +4561,9 @@ export function drawFighter(ctx, x, y, look = {}, o = {}) {
   }
   ctx.translate(1, 22);
   const wk = artReady() ? weaponKey(weapon, look) : null;
-  const art = !!(wk && putArt(ctx, wk, FIT.weapon));
-  if (!art) drawWeapon(ctx, weapon, o, t, lunge);
-  if (o.bladeFx) drawBladeFx(ctx, o, t, art ? -1 : 1);
+  const art = !o.noWeapon && !!(wk && putArt(ctx, wk, FIT.weapon));
+  if (!art && !o.noWeapon) drawWeapon(ctx, weapon, o, t, lunge);
+  if (o.bladeFx && !o.noWeapon) drawBladeFx(ctx, o, t, art ? -1 : 1);
   ctx.restore();
 
   drawOrbit(true);

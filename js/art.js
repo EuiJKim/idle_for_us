@@ -182,6 +182,42 @@ export function putArtTint(ctx, key, fit, color, alpha, mode) {
 }
 
 // 그림 한 장을 '가운데 아래' 기준으로 놓는다
+// v280 머리띠 색 — 상투 그림의 붉은 띠만 골라 다른 색으로 칠한 사본(색마다 한 번 굽는다)
+const bandCache = new Map();
+function bandTinted(key, col) {
+  const id = `${key}|${col}`;
+  if (bandCache.has(id)) return bandCache.get(id);
+  const im = img[key];
+  const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(col || '');
+  if (!im || !m || typeof document === 'undefined') return null;
+  const tc = [1, 2, 3].map((i) => parseInt(m[i], 16));
+  let out = null;
+  try {
+    const cv = document.createElement('canvas');
+    cv.width = im.width; cv.height = im.height;
+    const c = cv.getContext('2d');
+    c.drawImage(im, 0, 0);
+    const d = c.getImageData(0, 0, cv.width, cv.height);
+    const p = d.data;
+    for (let i = 0; i < p.length; i += 4) {
+      const r = p[i], g = p[i + 1], b = p[i + 2];
+      if (p[i + 3] < 8 || r < 70 || r < g * 1.7 || r < b * 1.7) continue;
+      const k = Math.min(1.25, r / 190);   // 띠의 밝고 어두움은 그대로
+      p[i] = Math.min(255, tc[0] * k); p[i + 1] = Math.min(255, tc[1] * k); p[i + 2] = Math.min(255, tc[2] * k);
+    }
+    c.putImageData(d, 0, 0);
+    out = cv;
+  } catch { out = null; }
+  bandCache.set(id, out);
+  return out;
+}
+export function putArtBand(ctx, key, fit, col) {
+  const im = bandTinted(key, col);
+  if (!im) return putArt(ctx, key, fit);
+  const h = (im.height * fit.w) / im.width;
+  ctx.drawImage(im, fit.x - fit.w / 2, fit.y - h, fit.w, h);
+  return true;
+}
 export function putArt(ctx, key, fit) {
   const im = img[key];
   if (!im) return false;

@@ -2236,5 +2236,15 @@ console.log('\n=== v279 환마 탐보 ===');
   ok(f.stats().gold - sw.stats().gold >= 0.2 - 1e-9, '환마는 은자 +20%');
   ok(f.lootK() === 1.5 && sw.lootK() === 1 && W.CLASSES.fan.treasureK === 2, '두목 장신구·애완동물·포획 조각 1.5배 · 보물 원숭이 2배');
 }
+console.log('\n=== v280 꾸미기 ===');
+{
+  const m = migrateWorld({ ...newWorldSave(), custom: { head: 'hat', robe: '#8B1F22', band: 'red; x' } });
+  ok(m.custom.head === 'hat' && m.custom.robe === '#8B1F22' && m.custom.band === null, '고른 머리·색은 남고 이상한 값은 버린다', JSON.stringify(m.custom));
+  const n = migrateWorld({ ...newWorldSave(), custom: { head: '<img>', robe: 5 } });
+  ok(n.custom.head === null && n.custom.robe === null, '없는 머리 · 숫자 색 → 기본');
+  const o = migrateWorld({ ...newWorldSave() });
+  ok(o.custom && o.custom.head === null && o.custom.robe === null && o.custom.band === null, '옛 저장 → 모두 기본');
+  ok(!W.CUSTOM_HEADS.some(([k]) => k === 'band'), '머리띠 그림(뒤통수)은 고를 수 없다 — 상투 머리띠로');
+}
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);

@@ -27,7 +27,7 @@ async function newPlayer(browser, name) {
   assert(await o.page.isVisible('#login-google'), '로그인 화면(Google · 손님)');
   await o.page.click('#login-guest');
   await o.page.fill('#modal input', name); await o.page.click('#modal .btn.primary');
-  await o.page.waitForSelector('.class-card'); await o.page.click('.class-card:has-text("검사")');
+  await o.page.waitForSelector('.class-card'); await o.page.click('.class-card:has-text("검사")'); await o.page.waitForSelector('#modal .cust-go'); await o.page.click('#modal .cust-go');
   await o.page.waitForFunction(() => document.querySelector('#net-badge')?.textContent.includes('온라인'), null, { timeout: 20000 });
   await sleep(500);
   return o;
@@ -111,7 +111,7 @@ const C = (p) => p.evaluate(() => window.__test_cloud());
   // 손님으로 고르면 다음엔 안 뜬다
   await Cc.page.click('#login-guest');
   await Cc.page.waitForSelector('#modal input'); await Cc.page.fill('#modal input', '병철'); await Cc.page.click('#modal .btn.primary');
-  await Cc.page.waitForSelector('.class-card'); await Cc.page.click('.class-card:has-text("검사")'); await sleep(800);
+  await Cc.page.waitForSelector('.class-card'); await Cc.page.click('.class-card:has-text("검사")'); await Cc.page.waitForSelector('#modal .cust-go'); await Cc.page.click('#modal .cust-go'); await sleep(800);
   await Cc.page.reload(); await Cc.page.waitForFunction(() => document.querySelector('#boot')?.classList.contains('out'), null, { timeout: 20000 });
   assert(!(await Cc.page.isVisible('#login-google')), '손님을 고른 뒤엔 다시 안 뜸');
   await Cc.ctx.close();
@@ -127,7 +127,7 @@ const C = (p) => p.evaluate(() => window.__test_cloud());
     await D.page.goto(BASE + '?emu=1');
     await D.page.waitForSelector('#login-guest', { timeout: 20000 }); await D.page.click('#login-guest');
     await D.page.fill('#modal input', '정희'); await D.page.click('#modal .btn.primary');
-    await D.page.waitForSelector('.class-card'); await D.page.click('.class-card:has-text("검사")');
+    await D.page.waitForSelector('.class-card'); await D.page.click('.class-card:has-text("검사")'); await D.page.waitForSelector('#modal .cust-go'); await D.page.click('#modal .cust-go');
     await D.page.waitForFunction(() => window.__app.net.blocked, null, { timeout: 15000 });
     assert(await D.page.evaluate(() => window.__app.net.deniedAt) === '내 기록 쓰기(players)', '막힌 곳을 기록(내 기록 쓰기)');
     await D.page.evaluate((t) => window.__test_linkGoogle(t), JSON.stringify({ sub: 'g-test-2', email: 'two@example.com', email_verified: true }));

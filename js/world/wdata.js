@@ -519,6 +519,10 @@ export const FRAG_NEED = 20;
 export const FRAG_NEED_UP = 2;
 export const fragNeed = (got) => FRAG_NEED + FRAG_NEED_UP * Math.max(0, got | 0);
 export const BOSS_DOT_K = 0.5;
+// v280 꾸미기 — 처음 캐릭터를 고른 뒤 · 프로필(왼쪽 위 얼굴)을 눌러 바꾼다. null은 '기본'(경지·장비를 따른다)
+export const CUSTOM_HEADS = [['plain', '맨머리'], ['topknot', '상투 머리띠'], ['hat', '삿갓'], ['hood', '두건'], ['bald', '민머리']];
+export const CUSTOM_ROBES = ['#14120f', '#f1e8d6', '#8b1f22', '#32486b', '#1f5f4a', '#5b3a7a', '#6b5640', '#b08d57'];
+export const CUSTOM_BANDS = ['#7f1d1d', '#e8c87a', '#1e3a8a', '#f1f5f9', '#14120f', '#15803d'];
 export const TEMPER_STEP = 0.003;   // 시뮬 15일 118~143단계 → +35~43%
 export const TEMPER_BASE = 150;
 export const TEMPER_GROW = 1.06;

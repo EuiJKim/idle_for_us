@@ -1901,3 +1901,16 @@ body.hunt-nocv #cv { visibility: hidden !important; }
 .itm-subhead b { flex: 1; line-height: 1.3; }
 .itm-done { width: 100%; padding: 11px; }
 .fill-go { width: 100%; padding: 11px; }
+/* v280 꾸미기 */
+#portrait { cursor: pointer; }
+.hero-box { position: relative; }
+.cust-stage { display: flex; justify-content: center; margin: 4px 0 8px; }
+.cust-preview { width: 176px; height: 184px; border-radius: 16px; background: radial-gradient(circle at 50% 40%, rgba(232, 200, 122, 0.18), rgba(0, 0, 0, 0.25) 70%); border: 1px solid var(--line); }
+.cust-rows { display: flex; flex-direction: column; gap: 10px; margin-bottom: 10px; }
+.cust-row > b { display: block; font-size: 12px; color: var(--muted); margin-bottom: 5px; }
+.cust-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.cust-chip { padding: 6px 10px; border-radius: 99px; border: 1px solid var(--line); background: var(--card); color: var(--text); font-size: 12.5px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+.cust-chip.on { border-color: var(--gold); box-shadow: 0 0 0 1px var(--gold) inset; color: var(--gold); }
+.cust-chip.col { padding: 4px; }
+.cust-chip.col i { width: 22px; height: 22px; border-radius: 50%; background: var(--cc); border: 1px solid rgba(255, 255, 255, 0.25); display: block; }
+.cust-chip.col.on { box-shadow: 0 0 0 2px var(--gold); }
