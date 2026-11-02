@@ -36,7 +36,8 @@ export class WNet extends Net {
       weaponGrade: g.bestGrade('weapon'),
       titles: s.titles || [],
       raidDps: Math.round(g.raidDpsEst()),
-      guildId: s.guildId || null, guildName: this.guild?.name || null,
+      // v268 문파 코드는 올리지 않는다 — 코드가 곧 들어가는 열쇠인데 서열은 누구나 읽는다(예전 값은 지운다)
+      guildId: this.fs.deleteField(), guildName: this.guild?.name || null,
       updatedAt: this.fs.serverTimestamp(),
     };
   }

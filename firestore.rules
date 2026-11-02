@@ -22,13 +22,31 @@ service cloud.firestore {
     // 플레이어 프로필: 누구나 읽기(랭킹·구경), 본인만 쓰기
     match /players/{uid} {
       allow read: if signedIn();
-      // v257: 서열에 쓰는 값은 모양·범위를 본다(위조 막기 — 완전하진 않지만 터무니없는 값은 막는다)
-      allow write: if signedIn() && request.auth.uid == uid
-        && request.resource.data.nickname is string
-        && request.resource.data.nickname.size() <= 12
-        && (!('level' in request.resource.data) || (request.resource.data.level is int && request.resource.data.level >= 0 && request.resource.data.level <= 300))
-        && (!('jobTier' in request.resource.data) || (request.resource.data.jobTier is int && request.resource.data.jobTier >= 0 && request.resource.data.jobTier <= 4))
-        && (!('powerLog' in request.resource.data) || (request.resource.data.powerLog is number && request.resource.data.powerLog >= 0 && request.resource.data.powerLog <= 400));
+      // v268: 올릴 수 있는 칸을 못박는다(아무 칸이나 큰 값을 넣어 저장 공간·서열을 어지럽히지 못하게).
+      //   옛 판이 남긴 칸이 있는 문서도 있으니, 고칠 때는 '이번에 바뀐 칸'만 본다.
+      allow create: if signedIn() && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(profileKeys()) && profileOk();
+      allow update: if signedIn() && request.auth.uid == uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(profileKeys()) && profileOk();
+    }
+    function profileKeys() {
+      return ['world', 'nickname', 'level', 'job', 'jobTier', 'tierName', 'map', 'mapName', 'power', 'atk', 'hp',
+        'weaponGrade', 'titles', 'raidDps', 'guildId', 'guildName', 'updatedAt'];
+    }
+    function strOk(d, k, n) { return !(k in d) || d[k] == null || (d[k] is string && d[k].size() <= n); }
+    function numOk(d, k, lo, hi) { return !(k in d) || d[k] == null || (d[k] is number && d[k] >= lo && d[k] <= hi); }
+    function profileOk() {
+      let d = request.resource.data;
+      return d.nickname is string && d.nickname.size() <= 12
+        && numOk(d, 'world', 0, 1)
+        && (!('level' in d) || (d.level is int && d.level >= 0 && d.level <= 300))
+        && (!('jobTier' in d) || (d.jobTier is int && d.jobTier >= 0 && d.jobTier <= 4))
+        && strOk(d, 'job', 16) && strOk(d, 'tierName', 24) && strOk(d, 'mapName', 24) && strOk(d, 'guildName', 16)
+        && numOk(d, 'map', 0, 1000) && numOk(d, 'weaponGrade', -1, 50)
+        && numOk(d, 'power', 0, 1000000000000000000000000000000.0) && numOk(d, 'atk', 0, 1000000000000000000000000000000.0) && numOk(d, 'hp', 0, 1000000000000000000000000000000.0) && numOk(d, 'raidDps', 0, 1000000000000000000000000000000.0)
+        && (!('titles' in d) || (d.titles is list && d.titles.size() <= 40))
+        && (!('guildId' in d) || d.guildId == null || (d.guildId is string && d.guildId.size() <= 8))
+        && (!('updatedAt' in d) || d.updatedAt is timestamp);
     }
 
     // 서버 세이브 (v265) — Google을 이은 계정만 올린다. 본인만 읽고 쓴다(지우기는 없다).
@@ -89,40 +107,92 @@ service cloud.firestore {
       allow list: if false;
 
       allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['name', 'code', 'owner', 'memberIds', 'members', 'exp', 'checkins', 'createdAt', 'bank'])
+        && request.resource.data.get('exp', 0) == 0
         && request.resource.data.memberIds == [request.auth.uid]
         && request.resource.data.owner == request.auth.uid
         && request.resource.data.name is string
         && request.resource.data.name.size() <= 16;
 
-      // 길드원은 자유롭게 수정(출석·기부·탈퇴), 비회원은 자기 자신을 추가하는 것만 가능
-      allow update: if signedIn() && (
-        (request.auth.uid in resource.data.memberIds
-          // v257: 문파 경험치는 줄일 수 없다
-          && (!('exp' in resource.data) || !('exp' in request.resource.data) || request.resource.data.exp >= resource.data.exp))
-        || (
-          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['memberIds', 'members'])
-          && request.auth.uid in request.resource.data.memberIds
-          && request.resource.data.memberIds.size() == resource.data.memberIds.size() + 1
+      // v268 문파원이 바꿀 수 있는 것: 출석(자기 것) · 이름표(자기 것) · 경험치(한 번에 20까지, 줄이기 없음) · 재료 창고 · 나가기(자기만).
+      //   문주(owner)·이름·코드는 못 바꾼다. 전엔 문파원이면 아무 칸이나 고쳐 남을 내보내거나 문주를 빼앗을 수 있었다.
+      // 들어오기: 문파원이 아니면 자기 자신 한 명만 끝에 붙인다(최대 10명).
+      allow update: if signedIn() && (memberUpdate() || joinUpdate());
+
+      function changed() { return request.resource.data.diff(resource.data).affectedKeys(); }
+      function onlyMine(k) {
+        return !(k in changed())
+          || request.resource.data.get(k, {}).diff(resource.data.get(k, {})).affectedKeys().hasOnly([request.auth.uid]);
+      }
+      function memberUpdate() {
+        return request.auth.uid in resource.data.memberIds
+          && changed().hasOnly(['exp', 'checkins', 'members', 'memberIds', 'bank'])
+          && onlyMine('checkins') && onlyMine('members')
+          && (!('exp' in changed()) || (request.resource.data.exp is number
+                && request.resource.data.exp >= resource.data.get('exp', 0)
+                && request.resource.data.exp <= resource.data.get('exp', 0) + 20))
+          && (!('memberIds' in changed()) || request.resource.data.memberIds == resource.data.memberIds.removeAll([request.auth.uid]))
+          && (!('bank' in changed()) || request.resource.data.bank is map);
+      }
+      function joinUpdate() {
+        return !(request.auth.uid in resource.data.memberIds)
+          && changed().hasOnly(['memberIds', 'members'])
+          && request.resource.data.memberIds == resource.data.memberIds.concat([request.auth.uid])
           && request.resource.data.memberIds.size() <= 10
-        )
-      );
+          && onlyMine('members')
+          && request.resource.data.members[request.auth.uid] is string
+          && request.resource.data.members[request.auth.uid].size() <= 12;
+      }
 
       match /messages/{mid} {
         allow read: if isMember(gid);
         allow create: if isMember(gid)
+          && request.resource.data.keys().hasOnly(['uid', 'name', 'text', 'type', 'createdAt'])
           && request.resource.data.uid == request.auth.uid
           && request.resource.data.text is string
-          && request.resource.data.text.size() <= 200;
+          && request.resource.data.text.size() <= 200
+          && (!('name' in request.resource.data) || (request.resource.data.name is string && request.resource.data.name.size() <= 12))
+          && (!('type' in request.resource.data) || request.resource.data.type in ['chat', 'system']);
       }
 
+      // 토벌 — v268: 만들 땐 빈 상태로, 칠 땐 자기 피해만 늘리고 그만큼만 합계를 올린다. 보상 받음 표시는 쓰러진 뒤 자기 것만.
       match /raids/{day} {
-        allow read, write: if isMember(gid);
+        allow read: if isMember(gid);
+        allow create: if isMember(gid)
+          && request.resource.data.total == 0
+          && request.resource.data.damage == {} && request.resource.data.claimed == {}
+          && request.resource.data.maxHp is number && request.resource.data.maxHp > 0;
+        allow update: if isMember(gid) && raidHit() || isMember(gid) && raidClaim();
+
+        function rChanged() { return request.resource.data.diff(resource.data).affectedKeys(); }
+        function myDelta() {
+          return request.resource.data.damage.get(request.auth.uid, 0) - resource.data.get('damage', {}).get(request.auth.uid, 0);
+        }
+        function raidHit() {
+          return rChanged().hasOnly(['total', 'damage', 'names', 'killedAt'])
+            && request.resource.data.maxHp == resource.data.maxHp
+            && resource.data.get('total', 0) < resource.data.maxHp
+            && request.resource.data.damage.diff(resource.data.get('damage', {})).affectedKeys().hasOnly([request.auth.uid])
+            && request.resource.data.get('names', {}).diff(resource.data.get('names', {})).affectedKeys().hasOnly([request.auth.uid])
+            && myDelta() > 0
+            && request.resource.data.total > resource.data.get('total', 0)
+            && request.resource.data.total - resource.data.get('total', 0) <= myDelta()
+            && request.resource.data.total <= resource.data.maxHp;
+        }
+        function raidClaim() {
+          return rChanged().hasOnly(['claimed'])
+            && resource.data.get('total', 0) >= resource.data.maxHp
+            && resource.data.get('damage', {}).get(request.auth.uid, 0) > 0
+            && request.resource.data.claimed.diff(resource.data.get('claimed', {})).affectedKeys().hasOnly([request.auth.uid])
+            && request.resource.data.claimed[request.auth.uid] == true;
+        }
       }
 
       // 문파 창고: 길드원이면 넣고 꺼낼 수 있다. 넣은 사람은 본인으로 기록된다.
       match /stash/{sid} {
         allow read: if isMember(gid);
         allow create: if isMember(gid)
+          && request.resource.data.keys().hasOnly(['kind', 'type', 'slot', 'grade', 'uid', 'name', 'at'])
           && request.resource.data.uid == request.auth.uid
           && request.resource.data.kind in ['equip', 'acc']
           && request.resource.data.grade is int

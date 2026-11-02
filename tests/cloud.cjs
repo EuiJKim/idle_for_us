@@ -119,7 +119,9 @@ const C = (p) => p.evaluate(() => window.__test_cloud());
   console.log('# D: 규칙이 내 기록 쓰기를 막아도 Google 로그인은 된다');
   const RULES = fs.readFileSync(path.join(__dirname, '..', 'firestore.rules'), 'utf8');
   const setRules = (content) => fetch('http://127.0.0.1:8080/emulator/v1/projects/idle-69772:securityRules', { method: 'PUT', body: JSON.stringify({ rules: { files: [{ name: 'firestore.rules', content }] } }) });
-  await setRules(RULES.replace(/allow write: if signedIn\(\) && request\.auth\.uid == uid\n/, 'allow write: if false && request.auth.uid == uid\n'));
+  const BLOCKED = RULES.replace('function profileOk() {\n      let d = request.resource.data;\n      return ', 'function profileOk() {\n      let d = request.resource.data;\n      return false && ');
+  if (BLOCKED === RULES) throw new Error('시험용 규칙 바꾸기가 안 맞는다 — firestore.rules의 profileOk를 확인');
+  await setRules(BLOCKED);
   try {
     const D = await ctxPage(browser);
     await D.page.goto(BASE + '?emu=1');
