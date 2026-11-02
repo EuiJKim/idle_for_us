@@ -695,11 +695,17 @@ export class WorldGame {
       def: { name: kind.name, look: kind.look, beast: kind.beast, bscale: kind.bscale, art: boss ? kind.art : undefined },
     };
     mob.name = kind.name;
+    // v271 두목 한 대는 같은 레벨 무인 체력(bossRefHp)의 BOSS_HIT_FRAC 이상 — 레벨 100 뒤로 무인 체력이 4~5배 커졌는데 두목은 그대로였다
+    if (boss && !this.inst) mob.atk = Math.max(mob.atk, D.bossRefHp(lv) * W.BOSS_HIT_FRAC_K(m));
     // 맹주·천마 (v148): 두목 방의 우두머리는 더 단단하고 아프다
     if (boss && m.lord) { mob.maxHp = mob.hp = mob.hp * W.LORD_HP; mob.atk *= W.LORD_ATK; }
     if (boss && MS.patternHpMult(m) !== 1) mob.maxHp = mob.hp = mob.hp * MS.patternHpMult(m);     // 초식 두목 (v170)
     // v241: 오버파워 — 무인이 그 레벨 기준보다 세면 두목이 그만큼 단단해진다(^0.6 · 최대 3배). 함께 사냥 왕·던전은 그대로
-    if (boss && !this.inst && !(m.king && this.s.kingParty)) { const k = this.overPower(mob.hp, m); if (k > 1) mob.maxHp = mob.hp = mob.hp * k; mob.op = k; }
+    if (boss && !this.inst && !(m.king && this.s.kingParty)) {
+      const base = mob.hp;
+      const k = this.overPower(mob.hp, m); if (k > 1) mob.maxHp = mob.hp = mob.hp * k; mob.op = k;
+      mob.calib = { base, sec: this.bossMinSec(m) * this.bossGapK(m) };   // v271 첫 몇 초 실제 피해로 다시 맞춘다
+    }
     // 요일 던전 몹은 같은 레벨 무인에 맞춰 단단하다 (v126)
     if (this.inst?.kind === 'daily') { mob.maxHp = mob.hp = D.dailyMobHp(lv) * (elite ? W.ELITE.hp : 1); mob.atk = D.dailyMobAtk(lv) * (elite ? W.ELITE.atk : 1); }
     // 두목 등장 연출: 구역에 들어와 처음 나설 때는 길게(들판이 멈추고 두목은 맞지도 않는다),
@@ -739,7 +745,12 @@ export class WorldGame {
     for (const k in this.buffs) if (this.buffs[k] > 0) { this.buffs[k] -= dt; if (this.buffs[k] <= 0) { delete this.buffs[k]; delete this.buffv[k]; if (k === 'shield') this.shield = 0; } }
     // 회복
     const ev = this.envNow();
-    const regen = this.map.town ? st.hp * W.REST_HEAL : st.regen * Math.max(0, 1 + (ev.regen || 0));
+    // v271 두목과 싸우는 동안은 자연 회복을 줄인다 — 회복%가 쌓이면 초당 최대 체력의 3% 가까이 돌아와 두목이 깎지를 못했다(물약·흡혈은 그대로)
+    const inBoss = !this.inst && this.map.bossRoom && this.mons.some((m) => m.isBoss && m.alive && !(m.introT > 0));
+    this._inBoss = inBoss;
+    // 흡혈 몫 — 두목과 싸우는 동안은 초당 최대 체력의 BOSS_DRAIN_CAP까지만 (1초치까지 모아 둔다)
+    this._drainLeft = inBoss ? Math.min(st.hp * W.BOSS_DRAIN_CAP, (this._drainLeft ?? 0) + st.hp * W.BOSS_DRAIN_CAP * dt) : Infinity;
+    const regen = this.map.town ? st.hp * W.REST_HEAL : st.regen * Math.max(0, 1 + (ev.regen || 0)) * (inBoss ? W.BOSS_REGEN_K : 1);
     if (this.heroHp > 0) this.heroHp = Math.min(st.hp, this.heroHp + regen * dt);
     // 독 기운: 조금씩 체력이 빠진다 (그것만으로 쓰러지지는 않는다 — 10% 아래로는 안 깎는다)
     if (ev.drain && this.heroHp > st.hp * 0.1 && !this.map.town) this.heroHp = Math.max(st.hp * 0.1, this.heroHp - st.hp * ev.drain * dt);
@@ -1132,7 +1143,7 @@ export class WorldGame {
     this.hurt(m, dmg, kind, crit, quiet);
     this.impOnHit(m, st, dmg, kind, crit, wasAlive, isp);
     if (ps.size) {
-      if (ps.has('drain')) this.heroHp = Math.min(st.hp, this.heroHp + dmg * 0.04);     // 혈왕
+      if (ps.has('drain')) this.drainHeal(st, dmg * 0.04);     // 혈왕
       if (ps.has('stun') && /^s\d$/.test(kind) && m.alive) m.stun = Math.max(m.stun || 0, m.isBoss ? 0.75 : 1.5);   // 음왕
       if (ps.has('petal') && crit && kind !== 'petal') {                     // 화왕
         for (const o of this.mons.slice()) if (o.alive && o !== m && !o.npc && Math.hypot(o.x - mx, (o.y - my) * 0.75) <= 130) this.hurt(o, dmg * 0.6, 'petal', false);
@@ -1146,8 +1157,8 @@ export class WorldGame {
       if (pm.own5 && m.vulnT > this.clock && this.rng() < 0.1) m.stun = Math.max(m.stun || 0, m.isBoss ? 0.4 : 1);   // 섭혼대법 5
       if (!(m.vulnT > this.clock && m.vulnV > vv)) { m.vulnT = this.clock + 3; m.vulnV = vv; }
     }
-    if (cls.drain) this.heroHp = Math.min(st.hp, this.heroHp + dmg * (cls.drain + (pm.drainUp || 0)));
-    if (st.drain) this.heroHp = Math.min(st.hp, this.heroHp + dmg * st.drain);                     // v130 피해 흡수
+    if (cls.drain) this.drainHeal(st, dmg * (cls.drain + (pm.drainUp || 0)));
+    if (st.drain) this.drainHeal(st, dmg * st.drain);                     // v130 피해 흡수
     if (st.stunHit && m.alive && this.rng() < st.stunHit) m.stun = Math.max(m.stun || 0, m.isBoss ? 0.3 : 0.8);
     if (m.alive && cls.poison && kind !== 'poison') this.addDot(m, dmg * (cls.poison + (pm.poisonUp || 0)), cls.poisonSec || 3);
     return dmg;
@@ -1201,6 +1212,14 @@ export class WorldGame {
     }
     if (isp.reap && wasAlive && !m.alive) this.heroHp = Math.min(st.hp, this.heroHp + st.hp * Math.min(0.15, 0.03 * isp.reap.p));
     if (isp.bleed && m.alive) this.addDot(m, dmg * Math.min(0.8, 0.12 * isp.bleed.p), 4);
+  }
+  // v271 피해 흡수 — 무인 피해가 커질수록 끝없이 늘어 두목이 체력을 못 깎았다(Lv100 왕이 80초 싸움에 7%). 두목 싸움 중엔 몫만큼만
+  drainHeal(st, amt) {
+    if (!(amt > 0)) return;
+    const left = this._drainLeft ?? Infinity;
+    const a = Math.min(amt, left);
+    if (left !== Infinity) this._drainLeft = left - a;
+    this.heroHp = Math.min(st.hp, this.heroHp + a);
   }
   nearOther(m, r) {
     let best = null, bd = r;
@@ -1263,6 +1282,7 @@ export class WorldGame {
       if (!quiet) this.emit('dmg', { amount: dmg, kind, crit: crit ? 1 : 0, at: m, add: m !== this.mon });
       return;
     }
+    if (m.calib) this.bossCalib(m, dmg);
     m.hp -= dmg;
     m.aggro = true;
     // v241: 실제 준 피해(넘친 몫은 빼고) — 두목 최소 싸움 길이 잣대
@@ -3108,12 +3128,32 @@ export class WorldGame {
     if (log.length >= 8) return log.reduce((a, b) => a + b, 0) / log.length;
     const st = this.stats(); return (st.atk / st.atkSec) * (1 + st.crit * (st.critDmg - 1)) * (2.5 + (this.s.jobTier || 0) * 0.8) * st.skillMult;   // v242: 차수·무공 배수만큼 무공 몫
   }
-  overPower(baseHp, m) {
-    // v262: 처음 잡는 두목만 최소 싸움 시간을 다 지킨다 — 한 번 잡은 두목은 그 몫(BOSS_REPEAT_K)만. 강해질수록 반복 사냥이 빨라진다.
+  // v262: 처음 잡는 두목만 최소 싸움 시간을 다 지킨다 — 한 번 잡은 두목은 그 몫(BOSS_REPEAT_K)만. 강해질수록 반복 사냥이 빨라진다.
+  bossMinSec(m) {
     const seen = (this.s.bossKills?.[m.id] || 0) > 0;
-    const sec = (m.lord ? W.BOSS_MIN_SEC.lord : m.king || m.master ? W.BOSS_MIN_SEC.king : W.BOSS_MIN_SEC.zone) * (seen ? W.BOSS_REPEAT_K : 1);
-    const need = this.heroDpsEst() * sec * Math.max(W.GAP_OUT_MIN, 1 - W.GAP_OUT * Math.max(0, m.lv[1] + 2 - this.s.level));
+    return (m.lord ? W.BOSS_MIN_SEC.lord : m.king || m.master ? W.BOSS_MIN_SEC.king : W.BOSS_MIN_SEC.zone) * (seen ? W.BOSS_REPEAT_K : 1);
+  }
+  // 두목이 무인보다 높으면 그만큼 덜 버텨도 된다(이미 아프다)
+  bossGapK(m) { return Math.max(W.GAP_OUT_MIN, 1 - W.GAP_OUT * Math.max(0, m.lv[1] + 2 - this.s.level)); }
+  overPower(baseHp, m) {
+    const need = this.heroDpsEst() * this.bossMinSec(m) * this.bossGapK(m);
     return Math.max(1, Math.min(W.OVERPOWER_MAX, need / baseHp));
+  }
+  // v271 두목 맞춤 — 첫 피해부터 BOSS_CALIB_SEC초(그 전에 쓰러질 피해면 그때) 실제로 들어간 피해로 초당 피해를 재고,
+  //   최소 싸움 시간에 모자라면 체력을 그만큼 올린다(이미 깎은 만큼은 깎인 채로). 한 번만.
+  bossCalib(m, dmg) {
+    const c = m.calib;
+    if (c.t0 == null) c.t0 = this.clock;
+    const prev = c.dealt || 0;
+    c.dealt = prev + Math.min(dmg, Math.max(0, m.hp));
+    const el = this.clock - c.t0;
+    if (el < W.BOSS_CALIB_SEC && m.hp - dmg > 0) return;
+    m.calib = null;
+    const need = Math.min(c.base * W.BOSS_CALIB_MAX, (c.dealt / Math.max(1, el)) * c.sec);
+    if (need <= m.maxHp) return;
+    m.hp = Math.max(1, need - prev);
+    m.maxHp = need;
+    m.op = need / c.base;
   }
   bossSkills() {
     const m = this.map;
@@ -3147,7 +3187,7 @@ export class WorldGame {
       b.castN = (b.castN || 0) + 1;
       const ult = b.castN % (mm?.ultEvery || 3) === 0;
       const s1 = ult ? pb.ult : pb.list[Math.floor(this.rng() * pb.list.length)];
-      const abs = D.refHp(b.lv) * MS.PAT_K * (ult ? MS.PAT_ULT : 1) * (lord ? MS.PAT_LORD : 1) * (mm?.absK || 1);
+      const abs = D.bossRefHp(b.lv) * MS.PAT_K * (ult ? MS.PAT_ULT : 1) * (lord ? MS.PAT_LORD : 1) * (mm?.absK || 1);
       const delay = (ult ? 1.9 : 1.3) * (mm?.tellK || 1);
       const pats = s1.pats || [s1.pat];
       pats.forEach((p, i) => this.bossCast(b, MS.floorOf(b.lv), 0, [p], s1.name, { abs, delay: delay + i * 0.25, quiet: i > 0, ult }));

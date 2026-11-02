@@ -410,6 +410,15 @@ export const BOSS_MIN_SEC = { zone: 45, king: 100, lord: 150 };
 export const BOSS_REPEAT_K = 0.4;   // v262 한 번 잡은 두목은 최소 싸움 시간의 이만큼만
 export const BRAVE_PER = 0.04, BRAVE_MAX = 0.4;   // v262 패기
 export const OVERPOWER_MAX = 4;   // v242: 3 → 4
+// v271 두목 맞춤 — 싸움 첫 몇 초에 실제로 들어간 피해로 다시 잰다. 들어갈 때의 어림(평타 몫)이 무공·각인·애완동물을 못 따라가
+//   Lv100 왕·고수가 10초(최소 100초인데)에 쓰러졌다. 끝은 기본 체력의 이만큼까지.
+export const BOSS_CALIB_SEC = 6;
+export const BOSS_REGEN_K = 0.25;
+export const BOSS_DRAIN_CAP = 0.01;  // v271 두목과 싸우는 동안 흡혈 회복은 초당 최대 체력의 1%까지   // v271 두목과 싸우는 동안 자연 회복
+// v271 두목 한 대(무인 체력 몫) — 지역 두목 · 왕·고수(초식이 따로 있다)
+//   초식을 쓰는 두목(레벨 95 넘는 왕·고수)은 더 아프다 — 물약 한두 개로 끝나던 싸움
+export const BOSS_HIT_FRAC_K = (m) => ((m.king || m.master) && m.lv[0] >= 95 ? 0.12 : m.king || m.master ? 0.08 : 0.09);
+export const BOSS_CALIB_MAX = 40;
 // 몹 등급 (v116): 0 졸개 · 1 정예 · 2 두목 · 3 십이지왕 — 등급마다 겉모습·기운이 다르다.
 // 들판 정예는 드물게(4%) 섞여 나고 세다(체력 ×3 · 공격 ×1.4) — 대신 경험치·은자 ×2.5, 재료를 두 번 굴린다.
 // 두목 구역의 졸개도 정예로 그리지만 세기는 그대로(이미 그 지역 위끝 레벨이다).

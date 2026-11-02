@@ -161,6 +161,7 @@ async function tab(page, name) {
   });
   await p.click('#modal button:has-text("닫기")');
   await p.locator('#panel .gear-tile:has-text("무기")').click();
+  if (await p.$eval('#modal .enh-go', (b) => b.disabled)) console.log('DEBUG enh', JSON.stringify(await G(p, () => { const g = window.__game; const it = g.s.equip.weapon; const m = g.enhanceMats(it); return { plus: it.plus, max: g.enhanceMax(it), gold: g.s.gold, cost: g.enhanceCost(it), m, have: m && g.s.mats[m.key], bm: g.breakMarksOf(it), bk: g.breakMarkKey(it), lv: g.s.level, epity: it.epity, slot: it.slot, step: it.step, king: it.king, set: it.set }; })));
   await p.click('#modal .enh-go');
   await p.waitForSelector('#modal .enh-ask.danger');
   assert(true, '-2가 될 수 있는 강화(+11부터)는 붉게 경고한다');

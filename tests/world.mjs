@@ -1325,6 +1325,7 @@ console.log('\n=== 세력과 고수 비무 (v148) ===');
   g.tick(0.05);
   ok(g.tells.length > 0 && g.events.some((e) => e.type === 'bossCast' && MS.masterOf('namgung').skills.some((k) => k.name === e.name)), '고수가 설정의 독문무공으로 바닥 경고를 깐다', g.events.filter((e) => e.type === 'bossCast').map((e) => e.name).join(' '));
   const atk0 = g.stats().atk;
+  boss.calib = null;   // v271 한 방 시험 — 첫 몇 초 맞춤(체력을 올린다)을 끈다
   g.hurt(boss, boss.hp + 1, 'hit', false);
   g._stats = null;
   ok(g.s.duel.won.namgung && g.stats().atk > atk0 && g.events.some((e) => e.type === 'masterDown'), '처음 쓰러뜨리면 영구 공격력·체력 +1%');
@@ -1865,7 +1866,7 @@ console.log('\n=== 맹주·천마 세트 (v153) ===');
   d.enterMap(W.mapId(W.masterZoneOf('cheonma'), W.BOSS_AREA));
   for (let i = 0; i < 60; i++) d.tick(0.05);
   const b = d.mons.find((m) => m.isBoss && m.alive);
-  b.introT = 0; d.freezeT = 0; d.hurt(b, b.hp + 1, 'hit', false);
+  b.introT = 0; d.freezeT = 0; b.calib = null; d.hurt(b, b.hp + 1, 'hit', false);
   ok((d.s.mats.lc || 0) >= 6 && W.matName('lc') === '천마혈옥', '천마를 쓰러뜨리면 천마혈옥 6개');
 }
 
@@ -2125,6 +2126,30 @@ console.log('\n=== v270 각인 상한 · 스킬 점수 레벨 5부터 ===');
   const st = g.stats();
   ok(st.critDmg - c0 <= IM.IMP_STAT_CAP.critDmg + 1e-9 && st.crit - k0 <= IM.IMP_STAT_CAP.crit + 1e-9, '각인 능력치(치명·치명 피해)는 끝을 넘지 않는다', `치명 +${(st.crit - k0).toFixed(3)} 치명 피해 +${(st.critDmg - c0).toFixed(2)}`);
   ok(IM.specialP([1.6]) === 1.6 && Math.abs(IM.specialP([1.6, 1, 1.3]) - 2.2) < 1e-9 && IM.specialP(Array(18).fill(1.6)) === IM.SPECIAL_P_MAX, '고유 위력 = 가장 무거운 칸 + 하나마다 0.3');
+}
+console.log('\n=== v271 두목 맞춤 · 두목 싸움 중 회복·흡혈 ===');
+{
+  const g = fresh('sword');
+  while (g.s.level < 60) g.addExp(W.expToNext(g.s.level));
+  const room = W.mapId(W.masterZoneOf('namgung'), W.BOSS_AREA);
+  g.enterMap(room);
+  for (let i = 0; i < 80; i++) g.tick(0.05);
+  const b = g.mons.find((m) => m.isBoss && m.alive);
+  b.introT = 0; g.freezeT = 0;
+  const hp0 = b.maxHp;
+  ok(!!b.calib, '두목은 첫 몇 초 실제 피해로 다시 맞춘다(맞춤 준비)');
+  g.hurt(b, hp0 * 0.6, 'hit', false);   // 첫 1초에 체력 60% — 최소 싸움 시간보다 훨씬 빠르다
+  g.clock += W.BOSS_CALIB_SEC + 0.5; g.hurt(b, 1, "hit", false);
+  ok(b.alive && b.maxHp > hp0 * 2 && !b.calib, '너무 빨리 깎이면 체력을 올린다(한 번만)', `${Math.round(hp0)} → ${Math.round(b.maxHp)}`);
+  ok(b.maxHp <= b.calib?.base * W.BOSS_CALIB_MAX || b.op <= W.BOSS_CALIB_MAX + 1e-9, '올리는 끝은 기본 체력의 BOSS_CALIB_MAX배', `×${b.op?.toFixed(1)}`);
+  // 두목 싸움 중엔 자연 회복이 줄고 흡혈은 초당 최대 체력의 1%까지
+  const st = g.stats();
+  g.heroHp = st.hp * 0.5; g.tick(0.05);
+  const h1 = g.heroHp;
+  g.drainHeal(st, st.hp * 0.5);
+  ok(g._inBoss && g.heroHp - h1 <= st.hp * W.BOSS_DRAIN_CAP + 1e-6, '두목 싸움 중 흡혈은 몫만큼만', `${((g.heroHp - h1) / st.hp * 100).toFixed(2)}%`);
+  const D2 = await import('../js/world/wdgn.js');
+  ok(D2.bossRefHp(150) === D2.bossRefHp(187) && D2.bossRefHp(100) > D2.refHp(100) * 3, '두목 기준 체력 — 레벨 100에 옛 기준의 세 배 넘게 · 150 위로는 그대로');
 }
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);
