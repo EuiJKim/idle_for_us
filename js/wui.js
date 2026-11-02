@@ -613,7 +613,8 @@ function bagTab(app) {
           im ? h('b', {}, im.boss.split(' ').pop()) : h('b', {}, locked ? '🔒' : '＋ 새기기'),
           im ? h('span', { class: 'st-theme' }, IM.THEMES[im.theme].name) : null,
           im ? h('span', { class: 'st-skill', style: `--gc:${IM.SK_GRADE[im.skill.g].col}` }, `${IM.SKILL_NAME[im.skill.s]} ${SK_SHORT[im.skill.k]}`) : null,
-          im?.special ? h('i', { class: 'st-sp' }, '★') : null);
+          im?.special ? h('i', { class: 'st-sp' }, '★') : null,
+          im && game.favOf(it.imps[i]) ? h('i', { class: 'st-fav' }, '♥') : null);
         }));
       };
       // 새겨진 칸 자세히 — 효과 · 다시 굴리기 · 고유 바꾸기
@@ -627,28 +628,37 @@ function bagTab(app) {
             h('div', {}, Object.entries(im.fx).map(([k, v]) => IM.FX_TEXT[k](v)).join(' · ')),
             h('div', { class: 'imp-skill', style: `--gc:${IM.SK_GRADE[im.skill.g].col}` }, IM.skillModText(im.skill)),
             im.special ? h('div', { class: 'imp-sp' }, IM.specialText(im.special, im.w)) : null),
+          // v294 무엇이 좋아하는 것인지
+          ...(() => { const f = game.favOf(it.imps[i]); return f ? [h('div', { class: 'pref-link', style: 'cursor:default' }, `♥ 좋아하는 효과 — ${[f.skill ? '스킬 변화' : '', f.special ? '고유 효과' : '', f.fx.length ? '테마 능력치' : ''].filter(Boolean).join(' · ')}`)] : []; })(),
           c ? h('div', { class: 'cost-chips' }, costChip(c.key, '증표', c.n, game.s.mats[c.key] || 0, matIcon(c.key, 24)), costChip(null, '은자', c.gold, game.s.gold, goldIco())) : null,
           h('button', { class: 'btn', disabled: can ? null : true, onclick: () => {
-            if (im.skill.g >= 2 && !confirm(`지금 스킬 변화가 ${IM.SK_GRADE[im.skill.g].name}예요\n(${IM.skillModText(im.skill)})\n\n다시 돌리면 이 효과는 사라져요. 다시 돌리겠습니까?`)) return;
+            // v294 좋아하는 스킬 변화면 넘길지 묻는다(등급이 높을 때와 함께)
+            const fav = game.favOf(it.imps[i])?.skill;
+            if ((fav || im.skill.g >= 2) && !confirm(`${fav ? '♥ 좋아하는 스킬 변화예요' : `지금 스킬 변화가 ${IM.SK_GRADE[im.skill.g].name}예요`}\n(${IM.skillModText(im.skill)} · ${IM.SK_GRADE[im.skill.g].name})\n\n다시 돌리면 이 효과는 사라져요. 넘기고 다시 돌리겠습니까?`)) return;
             const e = game.rerollImpSkill(it.uid, i);
             if (!e) return toast('증표·은자가 모자라요');
-            toast(`스킬 변화 다시 — ${IM.skillModText(IM.imprintOf(e, i).skill)}`); app.save(); app.refresh(); slotView(i);
+            const txt = IM.skillModText(IM.imprintOf(e, i).skill);
+            toast(game.favOf(e)?.skill ? `♥ 좋아하는 스킬 변화가 나왔어요! — ${txt}` : `스킬 변화 다시 — ${txt}`); app.save(); app.refresh(); slotView(i);
           } }, '🎲 스킬 변화 다시 굴리기'),
           im.specials ? h('div', { class: 'sp-pick' }, h('small', {}, '고유 효과 바꾸기 (스킬 변화는 그대로)'),
             ...im.specials.map((sp, j) => h('button', { class: `chip${sp.id === im.special.id ? ' on' : ''}`, disabled: sp.id === im.special.id || !can ? true : null, onclick: () => {
+              const ps = game.s.autoInfCfg?.prefSp || [];
+              if (ps.includes(im.special.kind) && !ps.includes(sp.kind) && !confirm(`♥ 지금 고유 효과 【${im.special.name}】는 좋아하는 효과예요.\n좋아하지 않는 【${sp.name}】(으)로 바꿀까요?`)) return;
               if (!game.changeImpSpecial(it.uid, i, j)) return toast('증표·은자가 모자라요');
               toast(`고유 효과를 【${sp.name}】(으)로 바꿨어요`); app.save(); app.refresh(); slotView(i);
             } }, h('b', {}, sp.name), h('small', {}, ` ${IM.SPECIAL_KIND[sp.kind](im.w)}`)))) : null);
       };
       // 증표 고르기 목록 (등급 각인 · 빈 칸 새기기 함께)
       const markRows = (sel, onPick, info) => {
+        // v294 좋아하는 효과가 있으면 그 점수 차례로(같으면 확률 → 개수)
+        const pf = game.hasPrefs() ? Object.fromEntries(Object.keys(game.s.mats).map((k) => [k, W.isMarkKey(k) ? game.markPref(k).score : 0])) : null;
         const keys = Object.keys(game.s.mats).filter((k) => W.isMarkKey(k) && game.s.mats[k] > 0)
-          .sort((a, b) => (info ? info(b) - info(a) : 0) || game.s.mats[b] - game.s.mats[a]);
+          .sort((a, b) => (pf ? pf[b] - pf[a] : 0) || (info ? info(b) - info(a) : 0) || game.s.mats[b] - game.s.mats[a]);
         if (!keys.length) return h('p', { class: 'muted' }, '두목 증표가 없어요 — 두목 구역·고수의 두목 방에서 두목을 잡으면 나와요.');
-        return h('div', { class: 'mark-list' }, ...keys.map((k) => {
+        return h('div', { class: 'mark-list' }, h('button', { class: 'pref-link', onclick: () => openAutoInfCfg(app, () => openItem(it, worn)) }, game.hasPrefs() ? '♥ 좋아하는 효과 차례로 · 바꾸기' : '♥ 좋아하는 효과를 정하면 그 차례로 보여요'), ...keys.map((k) => {
           const z = +k.slice(1);
           return h('button', { class: `mark-row${k === sel ? ' on' : ''}`, style: `--mc:${W.matColor(k)}`, onclick: () => onPick(k) },
-            matIcon(k, 30), h('span', { class: 'mr-name' }, h('b', {}, short(k), game.s.autoInfCfg?.mode === 'pref' && game.markPref(k).score > 0 ? h('em', { class: 'pref-heart' }, ' ♥') : ''), h('small', {}, `${IM.THEMES[IM.themeOfZone(z)].name}${IM.specialOfZone(z) ? ' · ★고유' : ''}`)),
+            matIcon(k, 30), h('span', { class: 'mr-name' }, h('b', {}, short(k), pf && pf[k] > 0 ? h('em', { class: 'pref-heart' }, ' ♥') : ''), h('small', {}, `${IM.THEMES[IM.themeOfZone(z)].name}${IM.specialOfZone(z) ? ' · ★고유' : ''}`)),
             h('span', { class: 'mr-n' }, h('b', {}, fmt(game.s.mats[k])), info ? h('small', {}, pct(info(k), 0)) : null));
         }));
       };
@@ -1862,11 +1872,12 @@ function townTab(app) {
 }
 
 // v292 자동 등급 각인 고르기 — 어떤 증표(테마·고유 효과)를 어느 칸에. 안 고르면 전처럼 센 증표부터 모두.
-export function openAutoInfCfg(app) {
+export function openAutoInfCfg(app, onClose) {
   const { game } = app;
   const cfg = game.s.autoInfCfg || (game.s.autoInfCfg = { mode: 'all', only: false, marks: {}, slots: {}, prefFx: [], prefSp: [] });
   if (!cfg.mode) cfg.mode = cfg.only ? 'pick' : 'all';
-  cfg.prefFx = cfg.prefFx || []; cfg.prefSp = cfg.prefSp || [];
+  cfg.prefFx = cfg.prefFx || []; cfg.prefSp = cfg.prefSp || []; cfg.prefSk = cfg.prefSk || []; cfg.prefSkSlot = cfg.prefSkSlot || [];
+  const SK_NAME = { range: '범위', dmg: '피해', cd: '숨', echo: '한 번 더' };
   const setMode = (m) => { cfg.mode = m; cfg.only = m === 'pick'; };
   // 효과 이름 — '공격력 +1%' → '공격력'
   const FX_KEYS = [...new Set(Object.values(IM.THEMES).flatMap((t) => t.fx.map(([k]) => k)))];
@@ -1888,6 +1899,9 @@ export function openAutoInfCfg(app) {
     return [
       h('div', { class: 'ainf-sec' }, h('b', {}, '능력치'), h('small', { class: 'muted' }, ' 여러 개 · 누른 차례가 우선'), h('div', { class: 'ainf-slots' }, ...FX_KEYS.map((k) => chipP(cfg.prefFx, k, fxName(k))))),
       h('div', { class: 'ainf-sec' }, h('b', {}, '고유 효과'), h('small', { class: 'muted' }, ' 레벨 100 넘는 두목의 증표에만 · 맞는 것을 골라 새겨요'), h('div', { class: 'ainf-slots' }, ...Object.keys(SP_NAME).map((k) => chipP(cfg.prefSp, k, SP_NAME[k])))),
+      h('div', { class: 'ainf-sec' }, h('b', {}, '스킬 변화'), h('small', { class: 'muted' }, ' 새길 때 굴려요 — 좋아하는 것이 나오면 ♥ · 다시 굴리기 전에 물어요'),
+        h('div', { class: 'ainf-slots' }, ...IM.SK_KINDS.map((k) => chipP(cfg.prefSk, k, SK_NAME[k]))),
+        h('div', { class: 'ainf-slots' }, h('small', { class: 'muted', style: 'align-self:center' }, '어느 무공에(안 고르면 모두):'), ...[0, 1, 2].map((k) => chipP(cfg.prefSkSlot, k, IM.SKILL_NAME[k])))),
       h('div', { class: 'ainf-sec' }, h('b', {}, '지금 가진 증표 가운데 맞는 것'), h('small', { class: 'muted' }, ' 위에서부터 써요'),
         match.length ? h('div', { class: 'ainf-list' }, ...match.slice(0, 12).map((x) => {
           const z = +x.k.slice(1);
@@ -1921,14 +1935,15 @@ export function openAutoInfCfg(app) {
           h('button', { class: `chip${cfg.mode === 'all' ? ' on' : ''}`, onclick: () => { setMode('all'); done(); } }, '센 증표부터'),
           h('button', { class: `chip${cfg.mode === 'pref' ? ' on' : ''}`, onclick: () => { setMode('pref'); done(); } }, '♥ 좋아하는 효과로'),
           h('button', { class: `chip${cfg.mode === 'pick' ? ' on' : ''}`, onclick: () => { setMode('pick'); done(); } }, '증표 직접 고르기'))),
-      ...(cfg.mode === 'pref' ? prefView() : []),
+      h('div', { class: 'ainf-sec' }, h('b', {}, '♥ 좋아하는 효과'), h('small', { class: 'muted' }, cfg.mode === 'pref' ? ' 자동이 이것으로 골라 새겨요 · 손으로 각인할 때도 이 차례로 보이고, 좋아하는 것을 넘기려 하면 물어요' : ' 손으로 각인할 때 이 차례로 보이고, 좋아하는 것을 넘기려 하면 물어요(자동은 \'좋아하는 효과로\'일 때 써요)')),
+      ...prefView(),
       cfg.mode === 'pick' && !Object.keys(cfg.marks).length ? h('p', { class: 'muted', style: 'font-size:12px;color:#fca5a5' }, '아직 고른 증표가 없어요 — 아래에서 고르면 그것만 써요(안 고르면 자동이 쉬어요).') : null,
       cfg.mode !== 'pref' ? (keys.length ? h('div', { class: 'ainf-list' }, ...rows) : h('p', { class: 'muted' }, '가진 증표가 없어요 — 두목을 잡으면 나와요.')) : null,
       h('div', { class: 'ainf-sec' }, h('b', {}, '어느 칸에'), h('small', { class: 'muted' }, ' 끈 칸은 자동이 건드리지 않아요'),
         h('div', { class: 'ainf-slots' }, ...W.GROW_SLOTS.map((k) => h('button', { class: `chip${cfg.slots[k] === false ? '' : ' on'}`, onclick: () => { if (cfg.slots[k] === false) delete cfg.slots[k]; else cfg.slots[k] = false; done(); } }, SLOT_NAME[k] || k)))),
       h('div', { class: 'btn-row' }, h('button', { class: 'btn primary', onclick: closeModal }, '닫기'))].filter(Boolean));
   };
-  openModal((s) => { box = s; draw(); });
+  openModal((s) => { box = s; draw(); }, { onClose });
 }
 // v291 무공 미리 보기 — 한 직업의 무공을 배우는 차례대로. 언제(레벨·전직) 배우는지 · 지금 어디까지 왔는지 · 누르면 설명.
 //   무공 창 · 사부 · 직업 고르기에서 같이 쓴다. 다른 직업(또는 아직 직업이 없을 때)은 레벨만 보인다.

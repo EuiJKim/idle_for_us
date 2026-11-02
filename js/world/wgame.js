@@ -100,7 +100,10 @@ export function migrateWorld(raw, now = Date.now()) {
     const mode = ['all', 'pick', 'pref'].includes(c.mode) ? c.mode : c.only ? 'pick' : 'all';
     const prefFx = Array.isArray(c.prefFx) ? [...new Set(c.prefFx.filter((k) => FXK.has(k)))].slice(0, 8) : [];
     const prefSp = Array.isArray(c.prefSp) ? [...new Set(c.prefSp.filter((k) => k in IM.SPECIAL_KIND))].slice(0, 8) : [];
-    s.autoInfCfg = { mode, only: mode === 'pick', marks: mk, slots: sl, prefFx, prefSp }; }
+    // v294 좋아하는 스킬 변화(꼴 · 몇 차 무공) — 다시 굴릴 때 경고 · ♥
+    const prefSk = Array.isArray(c.prefSk) ? [...new Set(c.prefSk.filter((k) => IM.SK_KINDS.includes(k)))] : [];
+    const prefSkSlot = Array.isArray(c.prefSkSlot) ? [...new Set(c.prefSkSlot.filter((k) => [0, 1, 2].includes(k)))] : [];
+    s.autoInfCfg = { mode, only: mode === 'pick', marks: mk, slots: sl, prefFx, prefSp, prefSk, prefSkSlot }; }
   s.loadout = raw.loadout === 1 ? 1 : 0;
   { const dx = raw.dex && typeof raw.dex === 'object' ? raw.dex : {}; s.dex = {}; for (const [k, v] of Object.entries(dx)) { const n = Math.min(9999, Math.floor(Number(v) || 0)); if (n > 0) s.dex[k] = n; } }
   s.awaken = raw.awaken && typeof raw.awaken === 'object' && W.AWAKEN_KINDS.some((k) => k.id === raw.awaken.kind) && /^s[0-3]$/.test(raw.awaken.slot) ? { slot: raw.awaken.slot, kind: raw.awaken.kind } : null;
@@ -2875,6 +2878,19 @@ export class WorldGame {
     sps.forEach((x, j) => { const i = ps.indexOf(x.kind); const w = i < 0 ? 0 : (ps.length - i) * 1.5; if (w > best) { best = w; sp = j; } });
     return { score: score + best, sp, fx: pf.filter((f) => fx.includes(f)), spKind: best ? sps[sp].kind : null };
   }
+  // v294 새겨진 각인 하나가 좋아하는 것인가 — 무엇이 맞는지 돌려준다(스킬 변화 · 고유 효과 · 테마 능력치)
+  favOf(entry) {
+    const cfg = this.s.autoInfCfg || {};
+    const e = IM.normEntry(entry);
+    if (!e) return null;
+    const z = +String(e.k).slice(1);
+    const skill = (cfg.prefSk || []).includes(e.sk) && (!(cfg.prefSkSlot || []).length || cfg.prefSkSlot.includes(e.s));
+    const sp = IM.specialsOfZone(z)?.[e.sp | 0];
+    const special = !!sp && (cfg.prefSp || []).includes(sp.kind);
+    const fx = (IM.THEMES[IM.themeOfZone(z)]?.fx || []).map(([f]) => f).filter((f) => (cfg.prefFx || []).includes(f));
+    return skill || special || fx.length ? { skill, special, fx } : null;
+  }
+  hasPrefs() { const c = this.s.autoInfCfg || {}; return !!((c.prefFx || []).length || (c.prefSp || []).length || (c.prefSk || []).length); }
   // ---------- v262 영약 · 무관 증축 · 세력 상점 ----------
   elixirPrice() { return W.elixirPrice(this.s.level); }
   buyElixir() {

@@ -1981,3 +1981,6 @@ body.hunt-nocv #cv { visibility: hidden !important; }
 /* v293 좋아하는 효과 */
 .pref-chip i { font-style: normal; display: inline-grid; place-items: center; width: 16px; height: 16px; border-radius: 50%; background: var(--gold); color: #1a130b; font-size: 10.5px; font-weight: 900; margin-right: 4px; }
 .pref-heart { color: #f472b6; font-style: normal; }
+/* v294 */
+.pref-link { display: block; width: 100%; text-align: left; border: 0; background: rgba(244,114,182,0.08); color: #f9a8d4; font: inherit; font-size: 12px; padding: 7px 10px; border-radius: 8px; margin-bottom: 6px; cursor: pointer; }
+.slot-tile .st-fav { position: absolute; top: 4px; left: 6px; color: #f472b6; font-style: normal; font-size: 12px; }

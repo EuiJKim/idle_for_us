@@ -2391,6 +2391,16 @@ console.log('\n=== v293 자동 등급 각인 — 좋아하는 효과 ===');
   const m = migrateWorld(JSON.parse(JSON.stringify({ ...g.s, autoInfCfg: { only: true, marks: { b3: 1 } } })));
   ok(m.autoInfCfg.mode === 'pick' && m.autoInfCfg.marks.b3 === 1, '옛 저장(only)은 직접 고르기로');
 }
+console.log('\n=== v294 좋아하는 스킬 변화 · 넘길 때 경고 ===');
+{
+  const g = fresh('sword');
+  g.s.autoInfCfg = migrateWorld({ ...newWorldSave(), autoInfCfg: { mode: 'all', prefSk: ['echo', 'zzz'], prefSkSlot: [2, 7], prefSp: [], prefFx: [] } }).autoInfCfg;
+  ok(g.s.autoInfCfg.prefSk.join() === 'echo' && g.s.autoInfCfg.prefSkSlot.join() === '2', '좋아하는 스킬 변화(꼴·몇 차)가 저장되고 이상한 값은 버린다');
+  ok(!!g.favOf({ k: 'b3', s: 2, sk: 'echo', g: 0, sp: 0 })?.skill && !g.favOf({ k: 'b3', s: 1, sk: 'echo', g: 0, sp: 0 })?.skill, '3차 무공의 한 번 더만 좋아하는 것으로 본다');
+  g.s.autoInfCfg.prefSkSlot = [];
+  ok(!!g.favOf({ k: 'b3', s: 0, sk: 'echo', g: 0, sp: 0 })?.skill && !g.favOf({ k: 'b3', s: 0, sk: 'dmg', g: 0, sp: 0 })?.skill, '몇 차를 안 고르면 모든 무공');
+  ok(g.hasPrefs(), '좋아하는 것이 있다');
+}
 console.log('\n=== v280 꾸미기 ===');
 {
   const m = migrateWorld({ ...newWorldSave(), custom: { head: 'hat', robe: '#8B1F22', band: 'red; x' } });
