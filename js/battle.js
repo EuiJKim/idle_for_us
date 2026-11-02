@@ -222,6 +222,8 @@ function sparkImage(color) {
 const LIGHT_MOBS = 26;   // 가벼운 모드에서 그리는 적의 최대 수
 const PIXEL_BUDGET = 1.2e6;   // v181: 한 프레임에 칠하는 캔버스 화소 상한 (390x844 화면이면 1.9배까지)
 const SPR = { w: 80, h: 160, ox: 44, oy: 146, phases: 8, cycle: Math.PI / 2, max: 192 };
+// v287 지도 맨 윗줄에 선 무인·몹의 머리가 들어갈 몫(화면 단위) — 이만큼은 지도 위로 더 비춘다
+const MAP_HEAD = 80;
 const sprCache = new Map();
 // 그림이 늦게 도착하면 벡터로 구워 둔 것을 버려야 한다
 loadArt(() => sprCache.clear());
@@ -672,13 +674,14 @@ export class BattleView {
   // 게임이 칸 지도(mapW·mapH)를 주면 그 지도가 들판 자리(위 padTop · 아래 padBottom을 뺀 곳)에 꼭 맞게
   get overview() { return this.fieldMode && !!this.game?.mapW; }
   fitZoom(game) {
-    const fieldH = this.H - (this.padTop || 0) - (this.padBottom ?? 130);
-    const all = Math.min(1, (this.W - 12) / game.mapW, (fieldH - 6) / (game.mapH * this.squash + 135));
-    // 카메라 단계 (v115): 0 전체(지도 한 장) · 1 보통(가로 일곱 칸 남짓) · 2 가까이(가로 다섯 칸) — 1·2는 무인을 따라간다
+    // v287 지도가 화면을 **꽉 채우는** 가장 작은 배율 — 전체 화면·긴 폰에서 화면이 지도보다 커서 지도 밖 어둠이 보였다.
+    //   가로: 화면 폭 ≤ 지도 폭 · 세로: 캔버스 맨 위(머리 몫 MAP_HEAD 포함)부터 아래 단추 줄까지 ≤ 지도 높이
+    const cover = Math.max(this.W / game.mapW, (this.H - (this.padBottom ?? 130)) / (game.mapH * this.squash + MAP_HEAD));
+    // 카메라 단계 (v115): 0 전체(지도가 화면에 꽉) · 1 보통(가로 일곱 칸 남짓) · 2 가까이(가로 다섯 칸) — 모두 무인을 따라간다
     const lv = this.camLevel ?? 1;
-    if (lv <= 0) return all;
+    if (lv <= 0) return cover;
     const T = game.tile || 64;
-    return Math.max(all, Math.min(1.3, this.W / (T * (lv === 1 ? 7.2 : 5.2))));
+    return Math.max(cover, Math.min(1.3, this.W / (T * (lv === 1 ? 7.2 : 5.2))));
   }
   // 지도가 화면보다 크면(보통·가까이) 카메라가 무인을 따라가되 지도 밖은 비추지 않는다
   // pt: 무인 대신 비출 자리(두목 등장 v260)
@@ -686,14 +689,17 @@ export class BattleView {
     const z = this.zoom || 1;
     const sq = this.squash;
     const clamp = (v, lo, hi) => (lo > hi ? (lo + hi) / 2 : Math.max(lo, Math.min(hi, v)));
-    const halfW = this.w / 2 - 6;
+    const halfW = this.w / 2;
     const px = pt ? pt.x : game.heroX, py = pt ? pt.y : game.heroY;
     const tx = clamp(px, halfW, game.mapW - halfW);
     let ty;
     if (this.sheetOpen) ty = clamp(py, 0, game.mapH);
     else {
-      const half = ((this.H - (this.padTop || 0) - (this.padBottom ?? 130)) / z) / 2;
-      ty = clamp(py, (half - 65) / sq, game.mapH - (half - 65) / sq);
+      // v287 화면에 지도 밖이 안 보이게 — 화면 위 y = h·anchor + (Y − camY)·squash
+      //   위: 지도 꼭대기(머리 몫 MAP_HEAD 위)가 캔버스 맨 위보다 위에 · 아래: 지도 바닥이 단추 줄 위보다 아래에
+      const ah = this.h * (this.anchor ?? 0.47);
+      const bottom = (this.H - (this.padBottom ?? 130)) / z;
+      ty = clamp(py, (ah - MAP_HEAD) / sq, game.mapH - (bottom - ah) / sq);
     }
     return { tx, ty };
   }
@@ -1526,12 +1532,12 @@ export class BattleView {
       let ty = this.sheetOpen ? Math.max(game.mapH * 0.18, Math.min(game.mapH * 0.82, game.heroY)) : game.mapH / 2;
       // v260: 두목 등장 동안은 두목 쪽을 비춘다(끝나면 다시 무인)
       const intro = this.kingIntro?.cam ? this.kingIntro.focus : null;
-      if ((this.camLevel ?? 1) > 0) ({ tx, ty } = this.followCam(game, intro));
+      ({ tx, ty } = this.followCam(game, intro));   // v287 '전체'도 따라간다(지도가 화면에 꽉 차면 조금 넘친다)
       // 맵을 옮기면(무인이 멀리 뛰면) 카메라도 바로 붙는다
       const jump = this._ovx == null ? 0 : Math.hypot(game.heroX - this._ovx, game.heroY - this._ovy);
       this._ovx = game.heroX; this._ovy = game.heroY;
       if (this.camY == null || this.camX == null || jump > 300) {
-        const h0 = (this.camLevel ?? 1) > 0 && intro ? this.followCam(game) : { tx, ty };
+        const h0 = intro ? this.followCam(game) : { tx, ty };
         this.camX = h0.tx; this.camY = h0.ty;
       }
       const k = Math.min(1, dt * (intro ? 3.2 : this._camBack > 0 ? 3 : 6));
@@ -2066,7 +2072,7 @@ export class BattleView {
     ctx.fillStyle = 'rgba(8,6,4,0.62)';
     ctx.beginPath();
     ctx.rect(-40, -40, this.w + 80, this.h + 80);
-    ctx.rect(x0, y0, x1 - x0, y1 - y0);
+    ctx.rect(x0, y0 - MAP_HEAD, x1 - x0, y1 - y0 + MAP_HEAD);   // v287 맨 윗줄 무인·몹의 머리 몫은 어둡게 덮지 않는다
     ctx.fill('evenodd');
     ctx.strokeStyle = hexA(z.sun || '#d6c7a1', 0.35);
     ctx.lineWidth = 2;
