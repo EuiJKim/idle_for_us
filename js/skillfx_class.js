@@ -48,6 +48,9 @@ function sealImg(ch, col) {
   sealCache.set(key, c);
   return c;
 }
+// v285 바닥 발자국 — 무공이 실제로 맞는 땅의 모양. 맞히기는 hypot(dx, dy·0.75) ≤ r 이고 화면은 세로를 squash배로 그리므로
+//   화면 위 범위는 가로 r · 세로 r·squash/0.75(≈0.83)다. 전엔 바닥 연출을 0.42~0.5로 눌러 그려 **세로가 실제의 절반**이었다.
+export const foot = (v) => (v.squash || 0.62) / 0.75;
 export const CLASS_FX = {
   // 바닥에 퍼지는 충격 고리 (눌린 타원). rings 겹이 조금씩 늦게 퍼진다.
   // v228: 4차 무공 — 무인에게서 빛살 열여섯이 사방으로 뻗고(번갈아 길고 짧게), 가운데가 하얗게 터진다
@@ -118,17 +121,38 @@ export const CLASS_FX = {
     const y = v.sy({ y: e.wy });
     const p = 1 - k;
     ctx.translate(x, y);
-    ctx.scale(1, 0.42);
+    ctx.scale(1, foot(v));
     for (let i = 0; i < (e.rings || 1); i++) {
       const q = clamp01(p * 1.25 - i * 0.16);
       if (q <= 0 || q >= 1) continue;
       const r = e.r * (0.15 + 0.85 * (1 - (1 - q) ** 3));
-      ctx.strokeStyle = `rgba(${e.col},${0.85 * (1 - q)})`;
+      // v285 끝까지 퍼졌을 때도 보이게 — 전엔 (1-q)로 옅어져 끝(실제 범위)에선 거의 안 보였다
+      ctx.strokeStyle = `rgba(${e.col},${0.85 * (1 - q) ** 0.45})`;
       ctx.lineWidth = (e.w || 8) * (1 - q) + 1;
       ctx.beginPath(); ctx.arc(0, 0, r, 0, TAU); ctx.stroke();
       // v258 고리 안쪽 빛 — 구워 둔 고리 빛(전엔 매 프레임 그라데이션, 가장 자주 쓰는 연출이다)
       if (i === 0 && v.putGlow) v.putGlow(ctx, e.col, 0, 0, r, 0.22 * (1 - q), 1, true);
     }
+  },
+
+  // v285 맞는 자리 — 무공이 실제로 닿는 땅(범위 그대로)을 잠깐 물들인다. 빛 고리가 퍼지는 것만으로는
+  //   어디까지 맞았는지 안 읽혔다(밝은 연출은 무인 둘레에 작게 모이고, 범위 끝은 옅은 고리뿐).
+  zone(v, ctx, e, k) {
+    const x = v.sx({ x: e.wx });
+    const y = v.sy({ y: e.wy });
+    const p = 1 - k;
+    const g = 1 - (1 - Math.min(1, p * 5)) ** 3;   // 0.1초 만에 다 퍼진다
+    const r = e.r * (0.82 + 0.18 * g);
+    const a = Math.min(1, p * 8) * Math.min(1, k * 1.8);
+    ctx.translate(x, y);
+    ctx.scale(1, foot(v));
+    if (v.putGlow) v.putGlow(ctx, e.col, 0, 0, r, 0.3 * a, 1, true);
+    ctx.strokeStyle = `rgba(${e.col},${0.6 * a})`;
+    ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(0, 0, r, 0, TAU); ctx.stroke();
+    ctx.strokeStyle = `rgba(255,255,255,${0.35 * a})`;
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.arc(0, 0, r - 4, 0, TAU); ctx.stroke();
   },
 
   // 한 점에서 번쩍 터지는 빛
@@ -153,7 +177,7 @@ export const CLASS_FX = {
     const grow = clamp01((1 - k) * 6);
     const fade = Math.min(1, k * 2.5);
     ctx.translate(x, y);
-    ctx.scale(1, 0.5);
+    ctx.scale(1, foot(v));
     // v134: 그린 갈라진 땅 그림을 깔고 그 위에 빛 금을 긋는다
     ctx.globalCompositeOperation = 'source-over';
     putJ(ctx, 'crack', 0, 0, e.r * 2.3 * (0.4 + 0.6 * grow), 0.85 * fade, (e.seed || 1) * 2.3);
@@ -264,7 +288,7 @@ export const CLASS_FX = {
       const r = (e.r || 90) * (0.2 + 0.8 * Math.min(1, p * 1.5)) * (0.5 + s[1] * 0.5);
       const a = s[0] * TAU + p * (e.spin ?? 4) * (s[2] > 0.5 ? 1 : -1);
       const x = cx + Math.cos(a) * r;
-      const y = cy + Math.sin(a) * r * 0.5 - p * 30 * s[2];
+      const y = cy + Math.sin(a) * r * foot(v) - p * 30 * s[2];   // v285 범위 모양대로
       ctx.save();
       ctx.translate(x, y);
       ctx.rotate(a * 2 + s[2] * 6);
@@ -311,7 +335,7 @@ export const CLASS_FX = {
     const a = Math.min(1, p * 4) * Math.min(1, k * 2.5);
     const R = (e.r || 120) * (0.7 + 0.3 * Math.min(1, p * 3));
     ctx.translate(x, y);
-    ctx.scale(1, 0.42);
+    ctx.scale(1, foot(v));
     // v247 먹빛 테 — 밝은 바닥(눈)에서 더하기 빛 인장이 흰색으로 날아가던 것
     if (e.dark) {
       ctx.globalCompositeOperation = 'source-over';
@@ -406,6 +430,8 @@ export const CLASS_FX = {
 export function impact(d, at, r, c, { rings = 1, crack = false, sparks = 10, flare = true, col = null } = {}) {
   const v = d.v;
   const cc = col || c[0];
+  // v285 실제 범위로 터지는 것(광역의 큰 한 방)이면 맞는 땅을 한 번 물들인다
+  if (d.radius > 0 && !d._zoned && Math.abs(r - d.radius) < 1) { d._zoned = true; d.fx('zone', 0.6, { wx: at.x, wy: at.y, r, col: cc }); }
   d.fx('shock', 0.42 + rings * 0.06, { wx: at.x, wy: at.y, r, col: cc, rings, w: 7 });
   if (flare) d.fx('flare', 0.24, { wx: at.x, wy: at.y, r: Math.min(90, r * 0.5), col: cc });
   if (crack && d.lvl >= 1) d.fx('crack', 0.9, { wx: at.x, wy: at.y, r: r * 0.9, col: c[1], seed: Math.random() * 100, n: 6 + d.tier });
@@ -572,7 +598,7 @@ export const CLASS_CHOREO = {
         for (let i = 0; i < n; i++) {
           const a = Math.random() * TAU;
           const r = R * Math.sqrt(Math.random()) * 0.9;
-          const spot = { x: d.center.x + Math.cos(a) * r, y: d.center.y + Math.sin(a) * r / v.squash * 0.6 };
+          const spot = { x: d.center.x + Math.cos(a) * r, y: d.center.y + Math.sin(a) * r / 0.75 };
           d.at(0.28 + i * 0.03, () => {
             d.fx('needle', 0.3, { wx: spot.x, wy: spot.y, a: Math.PI / 2, len: 120, w: 5, h: 70, col: c[0] });
             d.fx('shock', 0.3, { wx: spot.x, wy: spot.y, r: 34, col: c[1], w: 4 });
@@ -633,7 +659,7 @@ export const CLASS_CHOREO = {
         for (let i = 0; i < n; i++) {
           const a = (i / n) * TAU + Math.random() * 0.6;
           const r = R * (0.2 + Math.random() * 0.6);
-          const spot = { x: d.center.x + Math.cos(a) * r, y: d.center.y + Math.sin(a) * r / v.squash * 0.6 };
+          const spot = { x: d.center.x + Math.cos(a) * r, y: d.center.y + Math.sin(a) * r / 0.75 };
           const t = 0.12 + i * 0.06;
           d.at(t, () => d.fx('fistimg', 0.42, { wx0: spot.x, wy0: spot.y, oy0: -260, wx1: spot.x, wy1: spot.y, oy1: -20, go: 0.6, size: 24 + d.tier * 4, col: c[0], hot: c[1], drop: false }));
           d.at(t + 0.25, () => impact(d, spot, 60, c, { crack: i % 2 === 0, sparks: 5, flare: true }));
@@ -823,7 +849,7 @@ export const CLASS_CHOREO = {
         for (let i = 0; i < n; i++) {
           const a = Math.random() * TAU;
           const r = R * Math.sqrt(Math.random()) * 0.9;
-          const spot = { x: d.center.x + Math.cos(a) * r, y: d.center.y + Math.sin(a) * r / v.squash * 0.6 };
+          const spot = { x: d.center.x + Math.cos(a) * r, y: d.center.y + Math.sin(a) * r / 0.75 };
           d.at(0.22 + i * 0.035, () => {
             d.fx('needle', 0.25, { wx: spot.x, wy: spot.y, a: Math.PI / 2, len: 140, w: 3, h: 70, col: c[0] });
             d.fx('shock', 0.3, { wx: spot.x, wy: spot.y, r: 30, col: c[0], w: 3, rings: 2 });

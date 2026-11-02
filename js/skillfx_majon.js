@@ -572,7 +572,7 @@ function shadows(d, col, n, poses, at = null, R = 60) {
   for (let i = 0; i < n; i++) {
     const a = at ? (i / n) * Math.PI * 2 : 0;
     const wx = at ? at.x + Math.cos(a) * R : d.to.x - d.face * (26 + i * 24);
-    const wy = at ? at.y + Math.sin(a) * R / (d.v.squash || 0.6) * 0.6 : d.to.y + (i % 2 ? 12 : -12);
+    const wy = at ? at.y + Math.sin(a) * R / 0.75 : d.to.y + (i % 2 ? 12 : -12);
     d.ghost(wx, wy, poses[i % poses.length], 0.55 + i * 0.12, { a0: 0.62 - i * 0.07, fade: 1, tint: col, flip: at ? Math.cos(a) > 0 : d.face < 0 });
   }
 }
@@ -877,7 +877,7 @@ export const MAJON_CHOREO = {
         for (let i = 0; i < n; i++) {
           const a = Math.random() * TAU;
           const r = R * Math.sqrt(Math.random()) * 0.9;
-          const spot = { x: d.center.x + Math.cos(a) * r, y: d.center.y + Math.sin(a) * r / v.squash * 0.6 };
+          const spot = { x: d.center.x + Math.cos(a) * r, y: d.center.y + Math.sin(a) * r / 0.75 };
           d.at(0.55 + i * 0.025, () => {
             d.fx('needle', 0.3, { wx: spot.x, wy: spot.y, a: Math.PI / 2, len: 140, w: 8, h: 80, col: '244,114,182' });
             d.fx('shock', 0.3, { wx: spot.x, wy: spot.y, r: 30, col: PLUM, w: 3 });

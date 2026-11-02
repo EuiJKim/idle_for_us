@@ -529,16 +529,16 @@ export function drawPoisonField(v, ctx, f, k, tier) {
   ctx.globalCompositeOperation = 'source-over';
   ctx.globalAlpha = 0.55 * fade;
   ctx.fillStyle = `rgb(${c.dark})`;
-  ctx.beginPath(); ctx.ellipse(x, y, f.r * 0.92, f.r * 0.92 * v.squash, 0, 0, TAU); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(x, y, f.r * 0.92, f.r * 0.92 * v.squash / 0.75, 0, 0, TAU); ctx.fill();   // v285 실제 범위 모양(세로 squash/0.75)
   ctx.globalAlpha = 0.35 * fade;
   ctx.fillStyle = `rgb(${c.glow})`;
-  ctx.beginPath(); ctx.ellipse(x, y, f.r * 0.7, f.r * 0.7 * v.squash, 0, 0, TAU); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(x, y, f.r * 0.7, f.r * 0.7 * v.squash / 0.75, 0, 0, TAU); ctx.fill();
   // 끓는 방울
   ctx.globalCompositeOperation = 'lighter';
   for (const [a, b, d] of f.seeds) {
     const ph = (t * (0.6 + d * 0.8) + a * 5) % 1;
     const bx = x + Math.cos(a * TAU) * f.r * 0.75 * b;
-    const by = y + Math.sin(a * TAU) * f.r * 0.75 * b * v.squash;
+    const by = y + Math.sin(a * TAU) * f.r * 0.75 * b * v.squash / 0.75;
     const r = 2 + ph * (4 + d * 4);
     ctx.globalAlpha = fade * (ph < 0.85 ? 0.8 : (1 - ph) * 5);
     ctx.strokeStyle = `rgb(${c.core})`;
@@ -1068,7 +1068,7 @@ export const CHOREO = {
       for (let i = 0; i < n; i++) {
         const a = (i / n) * TAU + Math.random() * 0.5;
         const r = R * (0.25 + Math.random() * 0.5);
-        const spot = { x: d.center.x + Math.cos(a) * r, y: d.center.y + Math.sin(a) * r / v.squash * 0.6 };
+        const spot = { x: d.center.x + Math.cos(a) * r, y: d.center.y + Math.sin(a) * r / 0.75 };
         const fly = 0.22 + i * 0.035;
         d.lob('pglob', fly, spot, { size: 6 + d.tier, h: 90 + Math.random() * 40 });
         d.at(0.16 + fly, () => d.burst(spot, 60, { puddle: 0, ring: false, drops: 5 }));
