@@ -92,6 +92,10 @@ export function migrateWorld(raw, now = Date.now()) {
     s.custom = { head: W.CUSTOM_HEADS.some(([k]) => k === c.head) ? c.head : null, robe: hex(c.robe), band: hex(c.band) }; }   // v280 꾸미기
   s.fragPts = Math.max(0, Math.floor(Number(raw.fragPts) || 0));  // 조각으로 얻은 무공 점수(보이기용)
   s.autoEnh = !!raw.autoEnh; s.autoInf = !!raw.autoInf;   // v262
+  // v292 자동 등급 각인 고르기 — only: 고른 증표만 · marks: {증표: 고유 효과 번호} · slots: {칸: false면 건너뜀}
+  { const c = raw.autoInfCfg && typeof raw.autoInfCfg === 'object' ? raw.autoInfCfg : {}; const mk = {}; for (const [k, v] of Object.entries(c.marks || {})) if (W.isMarkKey(k)) mk[k] = Math.max(0, Math.min(2, Math.floor(Number(v) || 0)));
+    const sl = {}; for (const k of W.GROW_SLOTS) if (c.slots?.[k] === false) sl[k] = false;
+    s.autoInfCfg = { only: !!c.only, marks: mk, slots: sl }; }
   s.loadout = raw.loadout === 1 ? 1 : 0;
   { const dx = raw.dex && typeof raw.dex === 'object' ? raw.dex : {}; s.dex = {}; for (const [k, v] of Object.entries(dx)) { const n = Math.min(9999, Math.floor(Number(v) || 0)); if (n > 0) s.dex[k] = n; } }
   s.awaken = raw.awaken && typeof raw.awaken === 'object' && W.AWAKEN_KINDS.some((k) => k.id === raw.awaken.kind) && /^s[0-3]$/.test(raw.awaken.slot) ? { slot: raw.awaken.slot, kind: raw.awaken.kind } : null;
@@ -126,9 +130,17 @@ export function migrateWorld(raw, now = Date.now()) {
   for (const k of Object.keys(s.stats)) s.stats[k] = Math.max(0, Math.floor(Number(s.stats[k]) || 0));
   s.equip = { ...base.equip, ...(raw.equip || {}) };
   const okPet = (p) => p && W.PETS.some((x) => x.id === p.kind) && W.RARITY[p.rar];
-  s.pets = Array.isArray(raw.pets) ? raw.pets.filter(okPet) : [];
-  s.petBox = Array.isArray(raw.petBox) ? raw.petBox.filter(okPet).slice(0, W.PET_BOX) : [];
-  s.mounts = Array.isArray(raw.mounts) ? raw.mounts.filter((m) => m && W.mountOf(m.kind)) : [];
+  const fixPet = (p) => { p.star = Math.max(0, Math.min(W.PET_STAR_MAX, Math.floor(Number(p.star) || 0))); return p; };   // v292 별
+  s.pets = Array.isArray(raw.pets) ? raw.pets.filter(okPet).map(fixPet) : [];
+  s.petBox = Array.isArray(raw.petBox) ? raw.petBox.filter(okPet).map(fixPet).slice(0, W.PET_BOX) : [];
+  s.mounts = Array.isArray(raw.mounts) ? raw.mounts.filter((m) => m && W.mountOf(m.kind)).map((m) => ({ ...m, lv: Math.max(0, Math.min(W.MOUNT_LV_MAX, Math.floor(Number(m.lv) || 0))) })) : [];   // v292 길들이기
+  // v292 도감 — 한 번이라도 가진 종(애완은 가장 높은 등급) · 이정표 받은 것
+  { const pd = raw.petDex && typeof raw.petDex === 'object' ? raw.petDex : {}; s.petDex = {}; for (const pp of W.PETS) if (pd[pp.id] != null && W.RARITY[pd[pp.id]]) s.petDex[pp.id] = Math.floor(pd[pp.id]); }
+  { const md = raw.mountDex && typeof raw.mountDex === 'object' ? raw.mountDex : {}; s.mountDex = {}; for (const mm of W.MOUNTS) if (md[mm.id]) s.mountDex[mm.id] = 1; }
+  { const g = raw.dexGoals && typeof raw.dexGoals === 'object' ? raw.dexGoals : {}; const arr = (v) => (Array.isArray(v) ? v.filter((x) => Number.isInteger(x) && x >= 0 && x < 20) : []); s.dexGoals = { pet: arr(g.pet), myth: arr(g.myth), mount: arr(g.mount) }; }
+  for (const pp of [...s.pets, ...s.petBox]) s.petDex[pp.kind] = Math.max(s.petDex[pp.kind] ?? -1, pp.rar || 0);
+  for (const mm of s.mounts) s.mountDex[mm.kind] = 1;
+  s.mountShard = Math.max(0, Math.floor(Number(raw.mountShard) || 0));
   if (!s.mounts.some((m) => m.uid === s.mount)) s.mount = null;
   s.mats = {};
   // v273 옛 지역 재료는 그 지역 가중치대로 현철로 (한 번만 — 들어온 뒤로는 지역 재료 열쇠가 남지 않는다)
@@ -309,6 +321,8 @@ export class WorldGame {
   // 그리는 쪽: 무인 뒤를 따르는 애완동물 · 탄 탈것
   petTeam() { return this.activePets().map((p) => ({ kind: p.kind, emoji: W.petOf(p.kind).emoji, rar: p.rar })); }
   mountNow() { const m = this.s.mounts.find((x) => x.uid === this.s.mount); return m ? W.mountOf(m.kind) : null; }
+  mountInst() { return this.s.mounts.find((x) => x.uid === this.s.mount) || null; }
+  mountK(m) { return 1 + ((m?.lv) || 0) * W.MOUNT_LV_K; }   // v292 길들이기
   bestGrade(slot) { const it = this.s.equip[slot]; return it ? it.grade : -1; }
   aoeCenter() { return this.ranged() && this.mon?.alive ? { x: this.mon.x, y: this.mon.y } : { x: this.heroX, y: this.heroY }; }
   // 그리는 쪽은 s.stage로 지역 그림을 고른다 — 사냥터 k = 옛 지역 k의 첫 관문
@@ -415,7 +429,11 @@ export class WorldGame {
       for (const [k, v] of Object.entries(d.also || {})) gear[k] = (gear[k] || 0) + v * W.petScale(p);   // 황룡: 둘 다
     }
     const mt = this.mountNow();
-    if (mt) { gear.atkPct += mt.stat; gear.hpPct += mt.stat; }
+    const mk = this.mountK(this.mountInst());
+    if (mt) { gear.atkPct += mt.stat * mk; gear.hpPct += mt.stat * mk; }
+    // v292 도감 — 모은 종만큼 영구히
+    const db = this.compDexBonus();
+    gear.atkPct += db; gear.hpPct += db;
     // 무한의 탑: 오른 층마다 영구히
     const tb = D.towerBonus(s.tower?.floor);
     gear.atkPct += tb; gear.hpPct += tb;
@@ -460,7 +478,7 @@ export class WorldGame {
       expMult: 1 + gear.exp + this.dexBonus(),   // v263 견문록
       matMult: 1 + gear.mat,
       // v262: 스탯마다 다른 축 — 힘=두목 피해 · 민첩=걸음 · 체력=받는 피해 감소 · 내공=무공 숨(어디에 찍든 사냥만 같던 것)
-      moveSpeed: 1 + (mt ? mt.speed : 0) + (cls.move || 0) + (pm.move || 0) + gear.move + Math.min(W.STAT_ROLE.dexMoveMax, dex * W.STAT_ROLE.dexMove),
+      moveSpeed: 1 + (mt ? mt.speed * mk : 0) + (cls.move || 0) + (pm.move || 0) + gear.move + Math.min(W.STAT_ROLE.dexMoveMax, dex * W.STAT_ROLE.dexMove),
       boss: (cls.boss || 1) * (1 + gear.bossDmg) * (1 + Math.min(W.STAT_ROLE.strBossMax, str * W.STAT_ROLE.strBoss)),
       gold: gear.gold + (cls.goldUp || 0), dodge: Math.min(0.5, gear.dodge), drain: gear.drain, dmgRed: Math.min(0.5, gear.dmgRed + Math.min(W.STAT_ROLE.vitRedMax, vit * W.STAT_ROLE.vitRed)),
       cdr: Math.min(0.4, gear.cdr + Math.min(W.STAT_ROLE.intCdrMax, int * W.STAT_ROLE.intCdr)), skillRange: gear.range, thorns: gear.thorns, stunHit: Math.min(0.3, gear.stunHit),
@@ -480,7 +498,7 @@ export class WorldGame {
     const s = this.s;
     const e = s.equip;
     const g = (it) => (it ? `${it.uid}.${it.plus || 0}.${it.rar || 0}` : '-');
-    const pets = this.activePets().map((p) => `${p.uid}.${p.lv}`).join(',');
+    const pets = this.activePets().map((p) => `${p.uid}.${p.lv}.${p.rar || 0}.${p.star || 0}`).join(',') + `|d${Object.values(s.petDex || {}).reduce((a, v) => a + v + 1, 0)}.${Object.keys(s.mountDex || {}).length}|m${this.mountInst()?.lv || 0}`;
     return `${s.level}|${JSON.stringify(s.passLv || {})}|${s.guildId ? W.guildLevel(this.guildExp) : 0}|${s.job}|${s.stats.str},${s.stats.dex},${s.stats.vit},${s.stats.int}|${W.SLOTS.map((x) => g(e[x.id])).join(',')}|${pets}|${s.mount || '-'}|${s.tower?.floor || 0}|${s.path || '-'}|${s.jobTier || 0}|${this.growItems().map((x) => x.plus || 0).join('.')}|t${s.temper || 0}`;   // v243 · v274 단련: 가방 속 성장 장비 강화도(공유)
   }
   power() { return this.stats().power; }
@@ -1354,6 +1372,8 @@ export class WorldGame {
       }
       this.tday('kill'); if (m.elite) this.tday('elite'); if (m.isBoss) this.tday('boss');
       if (!m.isBoss && this.rng() < W.PET_SHARD_RATE * (m.elite ? 3 : 1) * this.lootK()) this.s.petShard = (this.s.petShard || 0) + 1;   // v262 포획 조각
+      if (!m.isBoss && this.rng() < W.MOUNT_SHARD_RATE * (m.elite ? 3 : 1) * this.lootK()) this.s.mountShard = (this.s.mountShard || 0) + 1;   // v292 탈것 조각
+      if (m.isBoss) this.bossShards(m);   // v292 두목은 조각 한 움큼
       if (this.rng() < W.FRAG_RATE * (m.isBoss ? 20 : m.elite ? 5 : 1)) this.gainFrag(1, { x: m.x, y: m.y });   // v275 무공 비급 조각
     }
     this.s.gold += gold;
@@ -2306,10 +2326,21 @@ export class WorldGame {
       this.emit('petLost', { pet: out, swapped: true });
     }
     this._stats = null;
+    this.noteDex();
     this.emit('petDrop', { pet, at: at ? { x: at.x, y: at.y } : null, joined: this.s.pets.includes(pet) });
     return pet;
   }
   // v262 포획 조각 · 혼
+  // v292 두목이 떨구는 조각 — 왕·고수는 두 배
+  bossShards(m) {
+    const big = this.map.king || this.map.master ? 2 : 1;
+    const roll = ([a, b]) => Math.round((a + this.rng() * (b - a)) * big * this.lootK());
+    const ps = roll(W.BOSS_SHARDS.pet), ms = roll(W.BOSS_SHARDS.mount);
+    this.s.petShard = (this.s.petShard || 0) + ps;
+    this.s.mountShard = (this.s.mountShard || 0) + ms;
+    this.emit('shards', { pet: ps, mount: ms, at: { x: m.x, y: m.y } });
+  }
+  addShards(pet, mount) { if (pet) this.s.petShard = (this.s.petShard || 0) + pet; if (mount) this.s.mountShard = (this.s.mountShard || 0) + mount; }
   canShardPet() { return (this.s.petShard || 0) >= W.PET_SHARD_NEED && !this.map.town; }
   shardPet() {
     if (!this.canShardPet()) return null;
@@ -2324,6 +2355,7 @@ export class WorldGame {
     this.s.petSoul -= this.petSoulCost(p);
     p.rar++;
     this._stats = null;
+    this.noteDex();
     return p;
   }
   adoptPet(uid) {
@@ -2335,12 +2367,82 @@ export class WorldGame {
     return true;
   }
   // 놓아주기 — 키우던 것은 사라진다(되돌릴 수 없다)
+  // v292 놓아주면 혼이 남는다(등급별 + 레벨 10마다 1) — 돌려주는 값: 받은 혼(못 찾으면 0)
   releasePet(uid) {
-    const n0 = this.s.pets.length + this.s.petBox.length;
-    this.s.pets = this.s.pets.filter((p) => p.uid !== uid);
-    this.s.petBox = this.s.petBox.filter((p) => p.uid !== uid);
+    const p = [...this.s.pets, ...this.s.petBox].find((x) => x.uid === uid);
+    if (!p) return 0;
+    this.s.pets = this.s.pets.filter((x) => x.uid !== uid);
+    this.s.petBox = this.s.petBox.filter((x) => x.uid !== uid);
+    const soul = W.petReleaseSoul(p);
+    this.s.petSoul = (this.s.petSoul || 0) + soul;
     this._stats = null;
-    return this.s.pets.length + this.s.petBox.length < n0;
+    return soul;
+  }
+  // v292 별 — 우리에 있는 같은 종을 먹이로 주면 별 하나(최대 다섯). 먹이는 사라진다(혼은 안 남는다)
+  starFodder(uid) {
+    const p = [...this.s.pets, ...this.s.petBox].find((x) => x.uid === uid);
+    if (!p) return [];
+    return this.s.petBox.filter((x) => x.uid !== uid && x.kind === p.kind).sort((a, b) => (a.rar || 0) - (b.rar || 0) || (a.star || 0) - (b.star || 0) || a.lv - b.lv);
+  }
+  canStar(uid) { const p = [...this.s.pets, ...this.s.petBox].find((x) => x.uid === uid); return !!p && (p.star || 0) < W.PET_STAR_MAX && this.starFodder(uid).length > 0; }
+  starUp(uid) {
+    if (!this.canStar(uid)) return null;
+    const p = [...this.s.pets, ...this.s.petBox].find((x) => x.uid === uid);
+    const f = this.starFodder(uid)[0];
+    this.s.petBox = this.s.petBox.filter((x) => x.uid !== f.uid);
+    p.star = (p.star || 0) + 1;
+    this._stats = null;
+    this.mark('petStar');
+    this.emit('petStar', { pet: p });
+    return p;
+  }
+  // ---------- v292 도감 ----------
+  noteDex() {
+    const pd = this.s.petDex || (this.s.petDex = {});
+    for (const p of [...this.s.pets, ...this.s.petBox]) pd[p.kind] = Math.max(pd[p.kind] ?? -1, p.rar || 0);
+    const md = this.s.mountDex || (this.s.mountDex = {});
+    for (const m of this.s.mounts) md[m.kind] = 1;
+  }
+  compDexBonus() {   // (dexBonus는 견문록 경험치 — 이름이 겹치지 않게)
+    const pd = this.s.petDex || {};
+    let b = 0;
+    for (const v of Object.values(pd)) b += (v + 1) * W.PET_DEX_K;
+    return b + Object.keys(this.s.mountDex || {}).length * W.MOUNT_DEX_K;
+  }
+  dexCounts() {
+    const pd = this.s.petDex || {};
+    return { pet: Object.keys(pd).length, myth: Object.values(pd).filter((v) => v >= W.RARITY.length - 1).length, mount: Object.keys(this.s.mountDex || {}).length };
+  }
+  dexGoalList(kind) { return kind === 'pet' ? W.PET_DEX_GOALS : kind === 'myth' ? W.PET_DEX_MYTH_GOALS : W.MOUNT_DEX_GOALS; }
+  canDexGoal(kind, i) { const g = this.dexGoalList(kind)[i]; return !!g && this.dexCounts()[kind] >= g.n && !(this.s.dexGoals?.[kind] || []).includes(i); }
+  claimDexGoal(kind, i) {
+    if (!this.canDexGoal(kind, i)) return null;
+    const g = this.dexGoalList(kind)[i];
+    (this.s.dexGoals[kind] || (this.s.dexGoals[kind] = [])).push(i);
+    if (g.soul) this.s.petSoul = (this.s.petSoul || 0) + g.soul;
+    this.addShards(g.petShard || 0, g.mountShard || 0);
+    this.emit('dexGoal', { kind, goal: g });
+    return g;
+  }
+  dexGoalsReady() { return ['pet', 'myth', 'mount'].reduce((a, k) => a + this.dexGoalList(k).filter((_, i) => this.canDexGoal(k, i)).length, 0); }
+  // ---------- v292 탈것 조각 · 길들이기 ----------
+  canShardMount() { return (this.s.mountShard || 0) >= W.MOUNT_SHARD_NEED && !this.map.town; }
+  shardMount() {
+    if (!this.canShardMount()) return null;
+    this.s.mountShard -= W.MOUNT_SHARD_NEED;
+    return this.gainMount(W.rollMount(this.rng, this.map.mz || 1, false), null);
+  }
+  tameCost(uid) { const m = this.s.mounts.find((x) => x.uid === uid); const d = m && W.mountOf(m.kind); return d && (m.lv || 0) < W.MOUNT_LV_MAX ? W.mountTameCost(d.tier, m.lv || 0) : null; }
+  canTame(uid) { const c = this.tameCost(uid); return !!c && (this.s.mountShard || 0) >= c.shard && this.s.gold >= c.gold; }
+  tame(uid) {
+    if (!this.canTame(uid)) return null;
+    const c = this.tameCost(uid);
+    const m = this.s.mounts.find((x) => x.uid === uid);
+    this.s.mountShard -= c.shard; this.s.gold -= c.gold;
+    m.lv = (m.lv || 0) + 1;
+    this._stats = null;
+    this.mark('tame');
+    return m;
   }
   petExp(n) {
     for (const p of this.activePets()) {
@@ -2403,8 +2505,9 @@ export class WorldGame {
 
   // ---------- 탈것 (v111) ----------
   gainMount(kind, at) {
-    const mt = { uid: uidSeq++, kind };
+    const mt = { uid: uidSeq++, kind, lv: 0 };
     this.s.mounts.push(mt);
+    this.noteDex();
     // 처음 얻었거나 지금 것보다 좋으면 바로 탄다
     const cur = this.mountNow();
     if (!cur || W.mountOf(kind).speed > cur.speed) this.s.mount = mt.uid;
@@ -2427,12 +2530,14 @@ export class WorldGame {
     if (!this.canFuseMounts(tier)) return null;
     const pool = this.fuseCandidates(tier).sort((a, b) => (a.uid === this.s.mount) - (b.uid === this.s.mount));
     const used = pool.slice(0, W.MOUNT_FUSE_N).map((m) => m.uid);
+    const carry = Math.floor(Math.max(0, ...pool.slice(0, W.MOUNT_FUSE_N).map((m) => m.lv || 0)) / 2);   // v292 길들인 것의 절반은 이어 간다
     this.s.gold -= W.mountFuseCost(tier);
     this.s.mounts = this.s.mounts.filter((m) => !used.includes(m.uid));
     if (used.includes(this.s.mount)) this.s.mount = null;
     const kind = W.mountOfTier(tier + 1).id;
-    const mt = { uid: uidSeq++, kind };
+    const mt = { uid: uidSeq++, kind, lv: carry };
     this.s.mounts.push(mt);
+    this.noteDex();
     const cur = this.mountNow();
     if (!cur || W.mountOf(kind).speed > cur.speed) this.s.mount = mt.uid;
     this._stats = null;
@@ -2713,7 +2818,8 @@ export class WorldGame {
     this.s.gold += c.gold;
     this.s.prot = (this.s.prot || 0) + c.prot;
     this.s.elixir = Math.min(W.ELIXIR_MAX, (this.s.elixir || 0) + c.elixirSec);
-    return c;
+    this.addShards(W.WEEK_SHARDS, W.WEEK_SHARDS);   // v292
+    return { ...c, petShard: W.WEEK_SHARDS, mountShard: W.WEEK_SHARDS };
   }
   // ---------- v262 자동 강화 · 자동 등급 각인 ----------
   // 강화: 낀 성장 장비 여섯 칸을 가장 낮은 것부터 레벨 상한까지(은자는 물약 60개 값을 남긴다 · +11부터는 보호부를 쓴다)
@@ -2732,12 +2838,14 @@ export class WorldGame {
     if (this.s.autoInf) {
       const keep = {};
       for (const it of worn()) { const m = this.enhanceMats(it); if (m && it.step != null) { const bk = W.bossKey(W.itemZone(it)); keep[bk] = (keep[bk] || 0) + W.breakMarks(W.ENHANCE_MAX - 1) * 3; } }
-      const marks = Object.keys(this.s.mats).filter((k) => W.isMarkKey(k) && this.s.mats[k] > 0).sort((a, b) => W.markLv(b) - W.markLv(a));
+      // v292 고른 증표만(고른 고유 효과로) · 고른 칸만
+      const cfg = this.s.autoInfCfg || { only: false, marks: {}, slots: {} };
+      const marks = Object.keys(this.s.mats).filter((k) => W.isMarkKey(k) && this.s.mats[k] > 0 && (!cfg.only || k in cfg.marks)).sort((a, b) => W.markLv(b) - W.markLv(a));
       for (let n = 0; n < 6; n++) {
         let done = false;
-        for (const it of worn().sort((a, b) => (a.rar || 0) - (b.rar || 0))) {
+        for (const it of worn().filter((x) => cfg.slots?.[x.slot] !== false).sort((a, b) => (a.rar || 0) - (b.rar || 0))) {
           const k = marks.find((m) => { const f = this.infuseInfo(it, m); return f && this.canInfuse(it, m) && this.s.gold - f.gold > reserve && (this.s.mats[m] - f.n) >= (keep[m] || 0); });
-          if (k) { this.infuse(it.uid, k); out.inf++; done = true; break; }
+          if (k) { this.infuse(it.uid, k, cfg.marks[k] || 0); out.inf++; done = true; break; }
         }
         if (!done) break;
       }
@@ -2873,6 +2981,7 @@ export class WorldGame {
     const mats = {};
     if (W.MATS[z]) { mats[z] = L.TREASURE_MATS; if (this.rng() < L.TREASURE_MARK) mats[W.bossKey(z)] = 1; }
     for (const [k, n] of Object.entries(mats)) this.addMats(k, n);
+    this.addShards(W.TREASURE_SHARDS, W.TREASURE_SHARDS);   // v292
     this.note(0, 0, gold, 0);
     this.emit('kill', { gold, isBoss: false, add: true, at: m, mat: null });
     this.emit('treasureKill', { gold, mats, at: { x: m.x, y: m.y } });
@@ -3637,6 +3746,9 @@ export class WorldGame {
       out.mats = {};
       for (const [key, n] of Object.entries(r.mats)) { const v = Math.floor(n * k); if (v > 0) { out.mats[key] = v; this.addMats(key, v); } }
     }
+    // v292 조각
+    if (r.petShard) { out.petShard = Math.max(1, Math.floor(r.petShard * k)); this.addShards(out.petShard, 0); }
+    if (r.mountShard) { out.mountShard = Math.max(1, Math.floor(r.mountShard * k)); this.addShards(0, out.mountShard); }
     return out;
   }
 
@@ -3691,7 +3803,11 @@ export class WorldGame {
     // v260: 경험치 — 방치 중 레벨이 오르면 접속 때처럼 레벨 차 감쇠가 붙는다(전엔 처음 레벨의 벌이를 끝까지)
     const exp = Math.floor(this.offlineExp(r, te, m) * ek);
     const frag = Math.floor(kills * W.FRAG_RATE + this.rng());   // v275 비급 조각(기댓값 · 남는 몫은 굴린다)
-    return { sec, t, te, eff: t > 0 ? te / t : 1, kills, exp, gold: Math.floor(r.gold * te * ek), elix, frag,
+    // v292 포획·탈것 조각 — 졸개 몫 + 두목(잡은 만큼 · 평균)
+    const big = m.king || m.master ? 2 : 1;
+    const petShard = Math.floor(kills * W.PET_SHARD_RATE + marks * (W.BOSS_SHARDS.pet[0] + W.BOSS_SHARDS.pet[1]) / 2 * big);
+    const mountShard = Math.floor(kills * W.MOUNT_SHARD_RATE + marks * (W.BOSS_SHARDS.mount[0] + W.BOSS_SHARDS.mount[1]) / 2 * big);
+    return { sec, t, te, eff: t > 0 ? te / t : 1, kills, exp, gold: Math.floor(r.gold * te * ek), elix, frag, petShard, mountShard,
       potions: Math.ceil(r.potions * t), mats, marks, stoppedByPotion: potionSec < sec, map: r.map };
   }
   // 효율 시간 te 동안의 경험치 — 스무 토막으로 나눠 토막마다 그때 레벨의 레벨 차 감쇠를 곱한다
@@ -3715,6 +3831,7 @@ export class WorldGame {
     if (!rw) return;
     if (rw.elix) this.s.elixir = Math.max(0, (this.s.elixir || 0) - rw.elix);
     if (rw.frag > 0) this.gainFrag(rw.frag);
+    this.addShards(rw.petShard || 0, rw.mountShard || 0);   // v292
     this.s.gold += rw.gold;
     this.s.potions = Math.max(0, this.s.potions - rw.potions);
     this.addExp(rw.exp);

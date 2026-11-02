@@ -977,10 +977,43 @@ export const PET_BOX = 10;
 // 무인 경험치의 절반을 받는다. 무인 레벨 10+4×(애완 레벨)의 60% — 무인과 함께 오래 자란다
 export const petExpToNext = (lv) => Math.round(expBase(10 + lv * 4) * 0.6);
 // 순위·등급(레어~신화)·레벨로 버프·공격이 커진다
-export const petScale = (pet) => RARITY[pet.rar].mult * (1 + (pet.lv - 1) * 0.05);
+export const petScale = (pet) => RARITY[pet.rar].mult * (1 + (pet.lv - 1) * 0.05) * (1 + (pet.star || 0) * PET_STAR_K);   // v292 별
 export const petBuff = (pet) => petOf(pet.kind).base * petScale(pet);
-export const petAtkRatio = (pet) => (0.1 + petOf(pet.kind).tier * 0.025 + (pet.lv - 1) * 0.012) * RARITY[pet.rar].mult;   // 무인 공격력 대비 한 대
+export const petAtkRatio = (pet) => (0.1 + petOf(pet.kind).tier * 0.025 + (pet.lv - 1) * 0.012) * RARITY[pet.rar].mult * (1 + (pet.star || 0) * PET_STAR_K);   // 무인 공격력 대비 한 대 · v292 별
 export const PET_ATK_SEC = 1.6;
+
+// ---------- v292 동료 키우기 — 얻는 곳 늘리기 · 별 · 도감 · 길들이기 ----------
+// 탈것 조각: 졸개가 가끔(정예 ×3) · 모으면 지금 지역의 탈것 하나(포획 조각과 같은 꼴)
+export const MOUNT_SHARD_RATE = 1 / 500;
+export const MOUNT_SHARD_NEED = 100;
+// 조각을 주는 곳 — 두목(왕·고수 ×2) · 일일 던전 한 판(소탕 포함) · 탑(처음 오른 층, 10층마다 ×5) · 보물 원숭이 · 주간 상자 · 방치(두목 처치만큼)
+export const BOSS_SHARDS = { pet: [3, 6], mount: [2, 4] };
+export const dailyShards = (stage) => 3 + Math.floor(stage / 3);
+export const TOWER_SHARDS = 4;
+export const TREASURE_SHARDS = 6;
+export const WEEK_SHARDS = 40;
+// 별 — 같은 종을 먹이로 주면 별 하나(최대 다섯) · 별마다 버프·공격 +12%
+export const PET_STAR_MAX = 5;
+export const PET_STAR_K = 0.12;
+// 놓아주면 혼이 남는다(등급별 + 레벨 10마다 1) — 전엔 그냥 사라졌다
+export const petReleaseSoul = (p) => [1, 2, 4, 8][p.rar || 0] + Math.floor((p.lv || 1) / 10);
+// 도감 — 한 번이라도 가진 종(애완은 그 종의 가장 높은 등급까지)만큼 공격력·최대 체력이 영구히 오른다
+export const PET_DEX_K = 0.003;     // 종마다 (가장 높은 등급 + 1) × 0.3% → 열 종 모두 신화면 +12%
+export const MOUNT_DEX_K = 0.002;   // 탈것 종마다 0.2% → 스물넷 모두 +4.8%
+// 도감 이정표 — 모은 만큼 상을 받는다(한 번씩)
+export const PET_DEX_GOALS = [
+  { n: 2, soul: 5, text: '두 종' }, { n: 4, soul: 12, petShard: 50, text: '네 종' }, { n: 6, soul: 25, petShard: 100, text: '여섯 종' },
+  { n: 8, soul: 40, petShard: 150, text: '여덟 종' }, { n: 10, soul: 80, petShard: 300, text: '열 종 모두' },
+];
+export const PET_DEX_MYTH_GOALS = [{ n: 1, soul: 20, text: '신화 한 종' }, { n: 5, soul: 60, text: '신화 다섯 종' }, { n: 10, soul: 150, text: '신화 열 종' }];
+export const MOUNT_DEX_GOALS = [
+  { n: 3, mountShard: 50, text: '세 종' }, { n: 6, mountShard: 100, text: '여섯 종' }, { n: 9, mountShard: 150, text: '아홉 종' },
+  { n: 12, mountShard: 250, text: '열두 종' }, { n: 18, mountShard: 400, text: '열여덟 종' }, { n: 24, mountShard: 800, text: '스물넷 모두' },
+];
+// 길들이기 — 탈것마다 레벨(최대 10). 레벨마다 이동·공격·체력 +6% · 조각과 은자
+export const MOUNT_LV_MAX = 10;
+export const MOUNT_LV_K = 0.06;
+export const mountTameCost = (tier, lv) => ({ shard: 10 + lv * 6, gold: Math.round(2000 * 2.1 ** Math.min(12, tier) * (lv + 1)) });
 
 // ---------- 탈것 (v111 · v112 열둘) ----------
 // 이동 속도 +%와 공격력·체력 +%. 아주 드물게 — 졸개는 2만 마리에 하나 꼴, 두목은 지역이 높을수록 자주.

@@ -905,6 +905,16 @@ function handleEvents() {
         sfx('loot');
         break;
       }
+      // v292 두목이 떨군 조각 · 별 · 도감 이정표
+      case 'shards':
+        if (ev.at) view.float(`🐾${ev.pet} 🐎${ev.mount}`, view.sx(ev.at), view.sy(ev.at) - 70, '#fcd34d', 13, 1.2);
+        break;
+      case 'petStar':
+        toast(`★ ${W.petOf(ev.pet.kind).name} 별 ${ev.pet.star} — 버프·공격 +${Math.round(ev.pet.star * W.PET_STAR_K * 100)}%`);
+        break;
+      case 'dexGoal':
+        toast(`📖 도감 ${ev.goal.text} 달성 — ${[ev.goal.soul ? `혼 ${ev.goal.soul}` : '', ev.goal.petShard ? `포획 조각 ${ev.goal.petShard}` : '', ev.goal.mountShard ? `탈것 조각 ${ev.goal.mountShard}` : ''].filter(Boolean).join(' · ')}`);
+        break;
       case 'petLevel':
         view.float(`${W.petOf(ev.pet.kind).name} Lv.${ev.pet.lv}`, view.heroX - 50, view.groundY - 120, '#86efac', 14, 1.1);
         break;
@@ -1264,7 +1274,9 @@ function showPendingOffline() {
         h('div', {}, '경험치', h('b', { 'data-count': rw.exp }, fmt(rw.exp))),
         h('div', {}, '은자', h('b', { 'data-count': rw.gold }, fmt(rw.gold))),
         h('div', {}, '먹은 물약', h('b', {}, `${rw.potions}개`)),
-        rw.frag > 0 ? h('div', {}, '비급 조각', h('b', {}, `${rw.frag}개`)) : null),
+        rw.frag > 0 ? h('div', {}, '비급 조각', h('b', {}, `${rw.frag}개`)) : null,
+        rw.petShard > 0 ? h('div', {}, '포획 조각', h('b', {}, `${rw.petShard}개`)) : null,   // v292
+        rw.mountShard > 0 ? h('div', {}, '탈것 조각', h('b', {}, `${rw.mountShard}개`)) : null),
       h('p', { class: 'muted' }, !rw.mats ? '' : `모은 재료: ${W.ORE_NAME} ${fmt(W.oreOf(W.mapOf(rw.map).mz, rw.mats + (rw.marks || 0) * W.BOSS_MATS).n)}개`
         + (rw.marks ? ` · ${W.matName(W.bossKey(rw.map))} ${rw.marks}개` : '') + ' — 장비 강화에 써요 (증표는 등급 각인)'),
       h('button', { class: 'btn primary', style: 'width:100%', onclick: closeModal }, '받기'));

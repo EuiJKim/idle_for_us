@@ -5,7 +5,7 @@
 //   깬 단계는 '소탕'으로 바로 보상을 받는다(들어가지 않고 한 번 쓴다) — 방치형이라 매일 누르기만 해도 된다.
 //   못 깨도 잡은 만큼 절반은 준다.
 // 무한의 탑: 층마다 수문장 하나, 30초. 이기면 다음 층(자동으로 이어 오른다), 오른 층마다 공격력·체력이 영구히 오른다.
-import { ZONES_W, ZONE_COUNT, MAPS, mapId, BOSS, KINGS, mobHp, mobAtk, mobGold, expToNext } from './wdata.js';
+import { ZONES_W, ZONE_COUNT, MAPS, mapId, BOSS, KINGS, mobHp, mobAtk, mobGold, expToNext, dailyShards, TOWER_SHARDS } from './wdata.js';
 
 // 한국 시간 하루 — 'YYYY-MM-DD'와 요일(0 일요일)
 export const kstDay = (now = Date.now()) => new Date(now + 9 * 3600e3).toISOString().slice(0, 10);
@@ -55,9 +55,11 @@ export function dailyReward(kind, s, gapMult = 1, myLv = 999) {
   const z = zoneForLv(dailyLv(s));
   const lv = Math.max(1, Math.min(dailyLv(s), myLv + DAILY_LV_OVER));
   // 한 판 ≈ 들판 10분~한 시간어치 (경험치 그 레벨 0.2 · 은자 몹 1000마리 · 재료 300 · 증표 8)
-  if (kind === 'exp') return { exp: Math.round(expToNext(lv) * 0.2 * gapMult) };
-  if (kind === 'gold') return { gold: Math.round(mobGold(lv) * 1000) };
-  return { mats: { [z]: 300, [`b${z}`]: 8 } };
+  // v292 한 판마다 포획·탈것 조각도(단계가 높을수록 더)
+  const sh = { petShard: dailyShards(s), mountShard: dailyShards(s) };
+  if (kind === 'exp') return { exp: Math.round(expToNext(lv) * 0.2 * gapMult), ...sh };
+  if (kind === 'gold') return { gold: Math.round(mobGold(lv) * 1000), ...sh };
+  return { mats: { [z]: 300, [`b${z}`]: 8 }, ...sh };
 }
 // 던전 구역 — 그 단계 지역의 들판 몹을 빌린다
 export function dailyMap(kind, s) {
@@ -195,8 +197,9 @@ export function towerBoss(f) {
 export const ZODIAC_TICKETS = 3;
 export function towerReward(f) {
   const lv = towerLv(f);
-  const out = { gold: Math.round(mobGold(lv) * 30) };
+  const out = { gold: Math.round(mobGold(lv) * 30), petShard: TOWER_SHARDS, mountShard: TOWER_SHARDS };   // v292 조각
   if (isZodiacFloor(f)) {
+    out.petShard *= 5; out.mountShard *= 5;
     const z = zoneForLv(lv);
     out.gold += Math.round(mobGold(lv) * 300);
     out.mats = { [z]: 150, [`b${z}`]: 5 };

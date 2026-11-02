@@ -2290,6 +2290,75 @@ console.log('\n=== v289 만독귀원 자동 ===');
   g.heroHp = st.hp; g.mons[1].dot = 3;
   ok(g.wantSupport(sk, st), '중독 둘이면 쓴다(전엔 셋)');
 }
+console.log('\n=== v292 동료 — 얻는 곳 · 별 · 도감 · 길들이기 ===');
+{
+  const g = fresh('poison');
+  const DG = await import('../js/world/wdgn.js');
+  const s0 = DG.dailyReward('exp', 9, 1, 99);
+  ok(s0.petShard === W.dailyShards(9) && s0.mountShard === W.dailyShards(9), '일일 던전 한 판에 포획·탈것 조각');
+  ok(DG.towerReward(10).petShard === W.TOWER_SHARDS * 5 && DG.towerReward(7).mountShard === W.TOWER_SHARDS, '탑 처음 오른 층 — 조각(10층마다 다섯 배)');
+  const r = g.grant({ petShard: 7, mountShard: 3 });
+  ok(g.s.petShard === 7 && g.s.mountShard === 3 && r.petShard === 7, 'grant가 조각을 준다');
+  // 별
+  g.s.pets = []; g.s.petBox = [];
+  const a = g.gainPet(0, null, 'fox'), b = g.gainPet(1, null, 'fox'), c2 = g.gainPet(0, null, 'crane');
+  ok(g.s.pets.length === 1 && g.s.petBox.length === 2, '(키우는 칸 하나 · 우리 둘)');
+  ok(g.canStar(a.uid) && !g.canStar(c2.uid), '같은 종이 우리에 있으면 별을 올린다(다른 종은 못)');
+  const atk0 = W.petAtkRatio(a);
+  g.starUp(a.uid);
+  ok(a.star === 1 && !g.s.petBox.includes(b) && Math.abs(W.petAtkRatio(a) / atk0 - (1 + W.PET_STAR_K)) < 1e-9, `별 하나 — 먹이는 사라지고 공격·버프 +${W.PET_STAR_K * 100}%`);
+  // 놓아주기 → 혼
+  const soul0 = g.s.petSoul || 0;
+  const got = g.releasePet(c2.uid);
+  ok(got === W.petReleaseSoul(c2) && g.s.petSoul === soul0 + got, '놓아주면 혼이 남는다');
+  // 도감
+  ok(g.s.petDex.fox === 1 && g.s.petDex.crane === 0, '도감은 가진 적 있는 종의 가장 높은 등급(놓아줘도 남는다)');
+  const st0 = g.stats().atk;
+  const bon = g.compDexBonus();
+  ok(Math.abs(bon - ((1 + 1) + (0 + 1)) * W.PET_DEX_K - Object.keys(g.s.mountDex).length * W.MOUNT_DEX_K) < 1e-9 && Object.keys(g.s.petDex).length === 2, '도감 보너스 = 종마다 (등급+1)×0.3% (+ 탈것 종마다 0.2%)', JSON.stringify([g.s.petDex, g.s.mountDex]));
+  ok(g.canDexGoal('pet', 0) && !g.canDexGoal('pet', 1), '이정표 — 두 종이면 첫 상');
+  const sp = g.s.petSoul; g.claimDexGoal('pet', 0);
+  ok(g.s.petSoul === sp + W.PET_DEX_GOALS[0].soul && !g.canDexGoal('pet', 0), '이정표 상은 한 번만');
+  const m = migrateWorld(JSON.parse(JSON.stringify(g.s)));
+  ok(m.petDex.fox === 1 && m.dexGoals.pet.includes(0) && m.pets[0].star === 1, '별·도감·받은 상이 저장된다');
+  // 탈것 조각 · 길들이기
+  g.s.mounts = []; g.s.mount = null;
+  const mt = g.gainMount('horse', null);
+  ok(g.s.mountDex.horse === 1, '탈것 도감');
+  g.s.mountShard = 500; g.s.gold = 1e12;
+  const spd0 = g.stats().moveSpeed;
+  ok(g.tame(mt.uid) && mt.lv === 1 && g.stats().moveSpeed > spd0, '길들이기 — 레벨이 오르면 이동·공격·체력이 오른다');
+  g.s.mountShard = W.MOUNT_SHARD_NEED; g.enterMap(W.MAPS.find((x) => !x.town && !x.bossRoom && x.lv[0] <= 10).id, true);
+  const n0 = g.s.mounts.length;
+  ok(g.shardMount() && g.s.mounts.length === n0 + 1 && g.s.mountShard === 0, '탈것 조각 100 → 지금 지역의 탈것 하나');
+  // 방치
+  g.s.rates = { kills: 2, exp: 100, gold: 100, potions: 0, bosses: 1 / 60, map: W.MAPS.find((x) => x.bossRoom && !x.king && !x.master && x.lv[0] <= 40).id };
+  g.s.lastSeen = 0; g.s.clockMax = 0;
+  const rw = g.offlineReward(3600 * 1000);
+  ok(rw.petShard > 0 && rw.mountShard > 0, '방치에도 조각(두목 잡은 만큼)', `${rw.petShard} / ${rw.mountShard}`);
+}
+console.log('\n=== v292 자동 등급 각인 고르기 ===');
+{
+  const g = fresh('sword');
+  while (g.s.level < 60) g.addExp(W.expToNext(g.s.level));
+  g.s.gold = 1e15; g.s.autoInf = true; g.s.autoEnh = false;
+  for (const it of W.GROW_SLOTS.map((k) => g.s.equip[k]).filter(Boolean)) { it.rar = 0; it.imps = []; }
+  g.s.mats.b3 = 500; g.s.mats.b6 = 500;
+  g.rng = () => 0;   // 늘 성공
+  g.s.autoInfCfg = { only: true, marks: { b3: 0 }, slots: { weapon: false } };
+  const b6 = g.s.mats.b6;
+  g.autoGear();
+  const worn = W.GROW_SLOTS.map((k) => g.s.equip[k]).filter(Boolean);
+  ok(g.s.mats.b6 === b6, '고른 증표만 쓴다(안 고른 증표는 그대로)');
+  ok((g.s.equip.weapon?.rar || 0) === 0, '끈 칸(무기)은 건드리지 않는다');
+  ok(worn.filter((x) => x.slot !== 'weapon').some((x) => x.rar > 0 && x.imps?.some((im) => im?.k === 'b3')), '다른 칸에 고른 증표로 새긴다');
+  const m = migrateWorld(JSON.parse(JSON.stringify(g.s)));
+  ok(m.autoInfCfg.only && m.autoInfCfg.marks.b3 === 0 && m.autoInfCfg.slots.weapon === false, '고른 것이 저장된다');
+  g.s.autoInfCfg = { only: true, marks: {}, slots: {} };
+  const tot = Object.keys(g.s.mats).filter((k) => W.isMarkKey(k)).reduce((a, k) => a + g.s.mats[k], 0);
+  g.autoGear();
+  ok(Object.keys(g.s.mats).filter((k) => W.isMarkKey(k)).reduce((a, k) => a + g.s.mats[k], 0) === tot, '고른 증표가 없으면 쉰다');
+}
 console.log('\n=== v280 꾸미기 ===');
 {
   const m = migrateWorld({ ...newWorldSave(), custom: { head: 'hat', robe: '#8B1F22', band: 'red; x' } });

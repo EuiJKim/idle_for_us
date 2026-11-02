@@ -1943,3 +1943,38 @@ body.hunt-nocv #cv { visibility: hidden !important; }
 .sk-road-row.next .st { color: var(--gold); }
 .sk-road-desc { font-size: 12.5px; color: #e7dcc4; background: var(--card-2); border-radius: 8px; padding: 8px 10px; margin: 0 0 6px 43px; line-height: 1.5; }
 .sk-prev-tabs { display: flex; flex-wrap: wrap; gap: 6px; }
+
+/* v292 동료 — 별 · 도감 · 얻는 곳 */
+.pet-star { color: #fcd34d; font-size: 12px; letter-spacing: -1px; }
+.where-line { font-size: 12.5px; color: #e7dcc4; padding: 5px 0; border-top: 1px dashed var(--line); line-height: 1.5; }
+.where-line:first-of-type { border-top: 0; }
+.dex-head { margin: 12px 0 6px; }
+.dex-head small { color: var(--muted); }
+.dex-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(72px, 1fr)); gap: 6px; margin-bottom: 8px; }
+.dex-tile { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 4px; border-radius: 10px; background: var(--card-2); border: 1px solid var(--line); opacity: 0.45; text-align: center; }
+.dex-tile.own { opacity: 1; border-color: var(--rc, var(--gold)); box-shadow: 0 0 0 1px color-mix(in srgb, var(--rc, #e8c87a) 35%, transparent) inset; }
+.dex-tile .ico { width: 40px; height: 40px; display: grid; place-items: center; font: 800 18px var(--serif); color: var(--muted); }
+.dex-tile b { font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.dex-tile small { font-size: 10.5px; color: var(--muted); }
+.dex-goal { display: grid; grid-template-columns: 1fr auto; grid-template-rows: auto auto; column-gap: 8px; align-items: center; padding: 7px 4px; border-top: 1px dashed var(--line); }
+.dex-goal span { font-size: 13px; font-weight: 700; }
+.dex-goal small { grid-column: 1; color: var(--muted); font-size: 11.5px; }
+.dex-goal > :last-child { grid-row: 1 / span 2; grid-column: 2; }
+.dex-goal.ok { background: rgba(232,200,122,0.08); border-radius: 8px; }
+.dex-goal.got { opacity: 0.55; }
+.dex-goal .dg-st { color: #86efac; font-size: 12px; }
+
+/* v292 자동 등급 각인 고르기 */
+.auto-inf-line { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.ainf-sec { margin: 10px 0 6px; }
+.ainf-sec .btn-row { margin-top: 6px; }
+.ainf-list { max-height: 46vh; overflow-y: auto; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); }
+.ainf-row { padding: 8px 10px; border-top: 1px solid rgba(255,255,255,.04); border-left: 3px solid transparent; opacity: 0.7; }
+.ainf-row:first-child { border-top: 0; }
+.ainf-row.on { opacity: 1; border-left-color: var(--ic); background: rgba(255,255,255,.03); }
+.ainf-row label { display: flex; align-items: center; gap: 8px; }
+.ainf-row label small { color: var(--muted); }
+.ainf-th { font-size: 12px; color: #e7dcc4; margin: 4px 0 0 26px; }
+.ainf-chip { display: inline-block; font-size: 11px; font-weight: 800; color: #111; background: var(--ic); border-radius: 999px; padding: 0 7px; margin-right: 6px; }
+.ainf-row .sp-pick { margin: 6px 0 0 26px; }
+.ainf-slots { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
