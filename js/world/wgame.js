@@ -2840,13 +2840,32 @@ export class WorldGame {
     // 이미 해 본 것은 '다 받기'로 한꺼번에 받는다(끼운 단계도 모두 겪어 보게)
     // v208: 판 2·3 → 지금 판 — 옛 판의 차례(QUEST_IDS_BY_V)로 하던 단계를 찾는다
     // v213: 판 4 → 5는 '계열 각인' 하나를 뺐을 뿐 — 끼운 단계가 없으니 번호만 옮긴다(옮겨 오던 중인 것도 그대로)
-    if (this.s.questV === 4 && Q.QUEST_V === 5) {
+    //   (v269: 판 5의 차례로 옮긴다 — 아래 5 → 6이 이어서 지금 판으로 옮긴다)
+    if (this.s.questV === 4 && Q.QUEST_V >= 5) {
       const ids4 = Q.QUEST_IDS_BY_V[4];
-      const remap = (i) => { for (; i < ids4.length; i++) { const j = Q.QUESTS.findIndex((q) => q.id === ids4[i]); if (j >= 0) return j; } return Q.QUEST_COUNT; };
+      const ids5x = Q.QUEST_IDS_BY_V[5];
+      const remap = (i) => { for (; i < ids4.length; i++) { const j = ids5x.indexOf(ids4[i]); if (j >= 0) return j; } return ids5x.length; };
       if (this.s.questGift >= 0) this.s.questGift = ids4[this.s.questGift] === 'line' ? -1 : remap(this.s.questGift);
       this.s.quest = remap(this.s.quest || 0);
       if (this.s.questTo != null) this.s.questTo = remap(this.s.questTo);
       this.s.questV = 5;
+    }
+    // v269: 판 5 → 6 — 1차 전직 단계(tier1)를 레벨 5 뒤로 당겼다. 단계 이름으로 자리를 다시 찾는다.
+    //   아직 전직 단계를 안 받은 사람은 새 자리의 전직 단계부터 하고, 받으면 하던 단계로 돌아간다(questBack).
+    if (this.s.questV === 5 && Q.QUEST_V === 6) {
+      const ids5 = Q.QUEST_IDS_BY_V[5];
+      const remap = (i) => { for (; i < ids5.length; i++) { const j = Q.QUESTS.findIndex((q) => q.id === ids5[i]); if (j >= 0) return j; } return Q.QUEST_COUNT; };
+      const t1Old = ids5.indexOf('tier1');
+      const t1New = Q.QUESTS.findIndex((q) => q.id === 'tier1');
+      const q0 = this.s.quest || 0;
+      const at = remap(q0 === t1Old ? q0 + 1 : q0);
+      if (q0 <= t1Old && at > t1New) {
+        this.s.quest = t1New;
+        if (at > t1New + 1) this.s.questBack = at;
+      } else this.s.quest = remap(q0);
+      if (this.s.questTo != null) this.s.questTo = remap(this.s.questTo);
+      if (this.s.questGift >= 0) this.s.questGift = remap(this.s.questGift);
+      this.s.questV = 6;
     }
     const oldIds = Q.QUEST_IDS_BY_V[this.s.questV];
     if (oldIds && this.s.questV < Q.QUEST_V) {
@@ -2910,8 +2929,15 @@ export class WorldGame {
       reward = this.grant(half);
     }
     this.s.quest++;
+    this.questReturn();
     if (reward) this.emit('quest', { id: cur.q.id, title: cur.q.title, reward, left: Q.QUEST_COUNT - this.s.quest, skipped: true });
     return reward || true;
+  }
+  // v269 옮겨 온 전직 단계를 끝내면 하던 단계로 돌아간다
+  questReturn() {
+    if (this.s.questBack == null) return;
+    if (this.s.quest <= this.s.questBack) this.s.quest = this.s.questBack;
+    delete this.s.questBack;
   }
   // 해 본 것 하나 (길잡이용)
   mark(k) { const d = this.s.did || (this.s.did = {}); d[k] = (d[k] || 0) + 1; }
@@ -2954,6 +2980,7 @@ export class WorldGame {
     if (!cur || !cur.done) return null;
     const reward = this.grant(cur.reward);
     this.s.quest++;
+    this.questReturn();
     this.emit('quest', { id: cur.q.id, title: cur.q.title, reward, left: Q.QUEST_COUNT - this.s.quest });
     return reward;
   }

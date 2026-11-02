@@ -56,6 +56,10 @@ export const QUESTS = [
   { id: 'lv5', mile: true, title: '레벨 5까지', tab: 'map', min: 2, xp: 0,
     why: '들판 위 사냥터 이름을 누르면 지도가 열린다. 몹 레벨이 내 레벨쯤인 곳이 가장 빠르다.',
     goal: lv(5) },
+  // v269: 1차 전직을 레벨 5로 당겼다 — 장비 단계보다 먼저
+  { id: 'tier1', mile: true, title: `레벨 ${W.TIERS[1].level}에 1차 전직`, tab: 'town/master', min: 5, xp: 0.2,
+    why: '마을 → 사부. 전직하면 둘레를 쓸어 담는 무공이 열려 사냥 속도가 확 달라진다.',
+    goal: tier(1) },
   // ---- 2. 장비 (레벨 5~10) ----
   // v158: 장비는 만들지 않는다 — 여섯 칸이 레벨을 따라 자란다. 눌러서 강화·등급 각인.
   { id: 'craft', title: '낀 무기를 눌러 살펴보자', tab: 'bag/gear', min: 2, xp: 0.2,
@@ -82,7 +86,7 @@ export const QUESTS = [
   { id: 'armor', title: '옷도 +1 강화하자', tab: 'bag/gear', min: 3, xp: 0.15,
     why: '무기만 좋으면 금방 쓰러진다. 옷·모자·장갑·신발이 체력을 받친다.',
     goal: (g) => ({ now: g.s.equip.armor?.plus ? 1 : 0, need: 1 }) },
-  // ---- 3. 두목과 1차 전직 (레벨 10~15) ----
+  // ---- 3. 두목 (레벨 10~15) ----
   { id: 'boss', title: '두목 구역에서 두목을 잡자', tab: 'map/murim', min: 4, xp: 0.2,
     why: '지역마다 두목 구역이 있다. 두목 증표는 거기서만 나오고, 장비·애완동물도 가끔 떨군다.',
     goal: flag('boss') },
@@ -92,9 +96,6 @@ export const QUESTS = [
   { id: 'enh5', title: '무기를 +5까지', tab: 'bag/gear', min: 4, xp: 0.15,
     why: '+7까지는 실패해도 그대로다 — 은자·재료만 들면 마음 놓고 두드리자.',
     goal: (g) => ({ now: g.s.equip.weapon?.plus || 0, need: 5 }) },
-  { id: 'tier1', mile: true, title: '레벨 15에 1차 전직', tab: 'town/master', min: 5, xp: 0.2,
-    why: '마을 → 사부. 전직하면 둘레를 쓸어 담는 무공이 열려 사냥 속도가 확 달라진다.',
-    goal: tier(1) },
   { id: 'skill', title: '무공을 한 번 올리자', tab: 'char/skill', min: 4, xp: 0.15,
     why: `레벨 ${W.SKILL_PT_FROM}부터 무공 점수가 쌓인다. 무공 레벨이 곧 피해다.`,
     goal: (g) => ({ now: skillSum(g), need: 6 }) },
@@ -318,7 +319,7 @@ export const QUESTS = [
 ];
 
 export const QUEST_COUNT = QUESTS.length;
-export const QUEST_V = 5;   // v213: 계열 각인 단계를 뺐다
+export const QUEST_V = 6;   // v269: 1차 전직 단계를 레벨 5 뒤로 옮겼다 (v213: 계열 각인 단계를 뺐다)
 // v180: 판 2의 차례 — 판 3으로 옮길 때 '지금 하던 단계'를 찾는다(끼워 넣은 단계는 새로 해 보게)
 export const QUEST_V3_IDS = ['job', 'kill10', 'move', 'zoom', 'stat', 'lv5', 'craft', 'enh1', 'potion', 'refill', 'potionAt', 'area2', 'lv10', 'armor', 'boss', 'enh3', 'tier1', 'skill', 'range', 'pet', 'mount', 'passive', 'lv20', 'saver', 'app', 'daily', 'dauto', 'sweep', 'tower3', 'gear4', 'mast1', 'convert', 'book', 'lv30', 'guild', 'checkin', 'donate', 'bag', 'alt', 'tower10', 'zodiac', 'tier2', 'duel', 'lore', 'promote', 'reimp', 'line', 'enh7', 'prot', 'lv50', 'daily10', 'tower20', 'lv60', 'petLv', 'treasure', 'raid', 'mast5', 'tier3', 'duel5', 'imp3', 'tower30', 'gear6', 'lv90', 'king', 'kingKill', 'tier4', 'set1', 'kacc', 'coop', 'tower50', 'enh10', 'set5', 'lord'];
 // v208: 판마다 차례 — 옛 판에서 옮길 때 '하던 단계'를 찾고, 새로 끼운 단계를 짚는다
@@ -338,4 +339,6 @@ export function questReward(q, level) {
 
 // v213: 판 4의 차례 — 계열 각인('line')을 빼기 전
 export const QUEST_V4_IDS = ['job', 'kill10', 'move', 'zoom', 'stat', 'lv5', 'craft', 'enh1', 'potion', 'refill', 'potionAt', 'area2', 'lv10', 'armor', 'boss', 'enh3', 'enh5', 'tier1', 'skill', 'range', 'pet', 'mount', 'petSkill', 'passive', 'skill5', 'lv20', 'saver', 'app', 'daily', 'dauto', 'sweep', 'tower3', 'gear4', 'mast1', 'convert', 'book', 'lv30', 'guild', 'checkin', 'donate', 'bag', 'alt', 'tower10', 'zodiac', 'tier2', 'duel', 'lore', 'promote', 'reimp', 'line', 'enh7', 'prot', 'lv50', 'daily10', 'tower20', 'lv60', 'skill10', 'lv70', 'petLv', 'treasure', 'raid', 'mast5', 'tier3', 'lv80', 'fuse', 'duel5', 'imp2', 'imp3', 'tower30', 'tower40', 'gear6', 'lv90', 'king', 'kingKill', 'mast10', 'tier4', 'skillMax', 'set1', 'kacc', 'coop', 'lv120', 'tower50', 'enh10', 'enh12', 'set5', 'lord', 'lv150'];
-export const QUEST_IDS_BY_V = { 2: QUEST_V2_IDS, 3: QUEST_V3_IDS, 4: QUEST_V4_IDS };
+// v269: 판 5의 차례 — 1차 전직(tier1)을 레벨 5 뒤로 옮기기 전
+export const QUEST_V5_IDS = ['job', 'kill10', 'move', 'zoom', 'stat', 'lv5', 'craft', 'enh1', 'potion', 'refill', 'potionAt', 'area2', 'lv10', 'armor', 'boss', 'enh3', 'enh5', 'tier1', 'skill', 'range', 'pet', 'mount', 'petSkill', 'passive', 'skill5', 'lv20', 'saver', 'app', 'daily', 'dauto', 'sweep', 'tower3', 'gear4', 'mast1', 'convert', 'book', 'lv30', 'guild', 'checkin', 'donate', 'bag', 'alt', 'tower10', 'zodiac', 'tier2', 'duel', 'lore', 'promote', 'reimp', 'enh7', 'prot', 'lv50', 'daily10', 'tower20', 'lv60', 'skill10', 'lv70', 'petLv', 'treasure', 'raid', 'mast5', 'tier3', 'lv80', 'fuse', 'duel5', 'imp2', 'imp3', 'tower30', 'tower40', 'gear6', 'lv90', 'king', 'kingKill', 'mast10', 'tier4', 'skillMax', 'set1', 'kacc', 'coop', 'lv120', 'tower50', 'enh10', 'enh12', 'set5', 'lord', 'lv150'];
+export const QUEST_IDS_BY_V = { 2: QUEST_V2_IDS, 3: QUEST_V3_IDS, 4: QUEST_V4_IDS, 5: QUEST_V5_IDS };

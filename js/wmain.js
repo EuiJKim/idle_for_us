@@ -1139,7 +1139,7 @@ function askClass() {
         h('span', { class: 'desc' }, W.CLASSES[j.id].trait))));
     }
     s.append(h('h2', {}, '캐릭터를 고르세요'),
-      h('p', { class: 'muted' }, '레벨 15·40·75에 전직하면 스킬을 하나씩 배워요.'), grid);
+      h('p', { class: 'muted' }, `레벨 ${W.TIERS.slice(1, 4).map((t) => t.level).join('·')}에 전직하면 스킬을 하나씩 배워요.`), grid);
     const look = RANKS[0].look;
     const tick = () => {
       // 고른 뒤에도 창이 숨기만 하고 남아 있어서 이 그림이 끝없이 돌았다 (v181)
