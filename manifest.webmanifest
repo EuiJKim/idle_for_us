@@ -1,6 +1,6 @@
 {
-  "name": "우리끼리 회귀무림",
-  "short_name": "회귀무림",
+  "name": "방치형키우기",
+  "short_name": "방치형키우기",
   "description": "친구끼리 하는 무협 회귀 방치형 RPG",
   "start_url": "./",
   "scope": "./",

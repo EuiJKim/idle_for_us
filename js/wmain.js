@@ -1167,7 +1167,7 @@ function askNickname(first = false) {
     };
     ok.onclick = submit;
     input.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.isComposing) submit(); });
-    s.append(h('h2', {}, first ? '우리끼리 무림' : '이름 바꾸기'),
+    s.append(h('h2', {}, first ? '방치형키우기' : '이름 바꾸기'),
       ...(first ? [h('p', { class: 'muted' }, game.s.legacyNote
         ? '무림이 새로 열렸어요! 마을에서 시작해 사냥터를 돌며 강해지는 판이에요. 옛 판에서 오신 분께는 칭호 〈개국공신〉과 은자 2,000을 드려요.'
         : '강호에서 불릴 이름을 정해 주세요.')] : []),
@@ -1547,7 +1547,7 @@ $('btn-settings').addEventListener('click', () => openModal((s) => {
       h('button', { class: 'btn primary', style: 'padding:6px 12px', onclick: async () => {
         const url = new URL('install.html', location.href).href;
         try {
-          if (navigator.share) await navigator.share({ title: '우리끼리 회귀무림', text: '같이 하자! 친구끼리 하는 무협 방치형 RPG', url });
+          if (navigator.share) await navigator.share({ title: '방치형키우기', text: '같이 하자! 친구끼리 하는 무협 방치형 RPG', url });
           else { await navigator.clipboard.writeText(url); toast('설치 안내 링크를 복사했어요'); }
         } catch { /* 취소 */ }
       } }, '보내기')),

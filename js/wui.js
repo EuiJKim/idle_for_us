@@ -1963,7 +1963,7 @@ function guildView(app) {
     const code = h('b', { style: 'letter-spacing:2px;color:#fde68a' });
     const share = h('button', { class: 'btn', style: 'padding:6px 10px' }, '복사');
     share.onclick = async () => {
-      const text = `우리끼리 무림 문파 "${net.guild.name}" 가입 코드: ${net.guild.code}\n${location.origin}${location.pathname}`;
+      const text = `방치형키우기 문파 "${net.guild.name}" 가입 코드: ${net.guild.code}\n${location.origin}${location.pathname}`;
       try { if (navigator.share) await navigator.share({ text }); else { await navigator.clipboard.writeText(text); toast('코드를 복사했어요'); } } catch { /* 취소 */ }
     };
     const leave = h('button', { class: 'btn danger mini' }, '문파 탈퇴');
