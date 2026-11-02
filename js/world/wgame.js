@@ -1275,6 +1275,7 @@ export class WorldGame {
   addDot(m, total, sec) {
     const sb = this.setBonus();
     total *= (1 + (sb.dotUp || 0) + (this.stats().dotUp || 0)) * (sb.bossDot && m.isBoss ? 2 : 1);     // 암천독야 · 길(v237)
+    if (m.isBoss && (m.lv || 0) >= W.BOSS_HARD_FROM) total *= W.BOSS_DOT_K;   // v278 두목은 지속 피해를 덜 받는다(레벨 30 두목부터 — 초반 독마는 독으로 두목을 잡는다)
     m.dot = (m.dot || 0) + total;
     m.dotTau = sec / 2;
     m.poison = sec;

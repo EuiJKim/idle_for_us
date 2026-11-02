@@ -2222,5 +2222,13 @@ console.log('\n=== v275 숙련도·견문록 전투 보상 · 무공 비급 조�
   const fr0 = o.s.frag || 0, sp0 = o.s.skillPts || 0; o.claimOffline(rw);
   { let need = 0; for (let k = 0; k < (o.s.fragPts || 0); k++) need += W.fragNeed(k); ok((o.s.frag || 0) + need === fr0 + rw.frag, '방치 조각을 받는다'); }
 }
+console.log('\n=== v278 두목은 지속 피해를 덜 받는다 ===');
+{
+  const g = fresh('poison');
+  const mob = { isBoss: false, dot: 0, lv: 60 }, boss = { isBoss: true, dot: 0, lv: 60 }, early = { isBoss: true, dot: 0, lv: 12 };
+  g.addDot(mob, 1000, 4); g.addDot(boss, 1000, 4); g.addDot(early, 1000, 4);
+  ok(early.dot === mob.dot, '초반(레벨 30 아래) 두목은 그대로');
+  ok(Math.abs(boss.dot / mob.dot - W.BOSS_DOT_K) < 1e-9, `두목 독은 ×${W.BOSS_DOT_K} · 사냥터 몹은 그대로`, `${Math.round(mob.dot)} / ${Math.round(boss.dot)}`);
+}
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);

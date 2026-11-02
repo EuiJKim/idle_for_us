@@ -54,8 +54,10 @@ export const CLASSES = {
     speed: 1.25, dmgRed: 0.2, basicBase: 0.95, basicPerLv: 0.0065, atkK: 1.08, boss: 1.2, bossTime: 0.7, bossExp: 1.5 },   // v239: 무리 사냥이 평균의 0.8 언저리
   fan: { base: { str: 4, dex: 4, vit: 4, int: 6 }, trait: '섭혼(攝魂) — 멀리서 친다 · 맞은 적이 느려지고 받는 피해 +15% · 준 피해의 2%를 빨아들인다',
     slow: true, vuln: 0.15, drain: 0.02, atkK: 1.18 },   // v239: 다섯 직업 가운데 가장 약했다(사냥·단일 모두 평균의 0.7~0.9)
-  poison: { base: { str: 4, dex: 4, vit: 4, int: 6 }, trait: '독아(毒牙) — 멀리서 친다 · 맞은 적이 중독(피해의 20%가 독으로 쌓인다) · 중독된 적이 쓰러지면 독이 둘레로 번진다',
+  poison: { base: { str: 4, dex: 4, vit: 4, int: 6 }, trait: '독아(毒牙) — 멀리서 친다 · 맞은 적이 중독(피해의 20%가 독으로 쌓인다) · 중독된 적이 쓰러지면 독이 둘레로 번진다 · 무리 사냥에 가장 강하다(두목은 독을 절반만 받는다)',
     poison: 0.2, poisonSec: 4, spread: true },
+  // v278 두목은 지속 피해(독·화상·출혈)를 BOSS_DOT_K만 받는다 — 독마 무공의 독(칠보단혼침 320%·만독지옥 200%…)이 오래 버티는 두목에게 다 들어가
+  //   사냥도 가장 빠른 독마가 두목 피해까지 두목 사냥꾼(권마)보다 높았다(같은 장비 검사 대비 1.24~1.75배 → 0.85~1.3배). 사냥터 몹은 그대로.
   ring: { base: { str: 5, dex: 6, vit: 4, int: 3 }, trait: '공포(恐怖) — 붙은 적이 25% 확률로 공격을 머뭇거린다 · 붙으면 피해 +20% · 치명 피해 +15% · 두목 사냥꾼: 두목 싸움 -30% · 두목 경험치 +50% · 두목에게 주는 피해 +35%',
     fear: 0.25, critDmg: 0.15, boss: 1.35, bossTime: 0.7, bossExp: 1.5 },
 };
@@ -515,6 +517,7 @@ export const FRAG_NEED = 20;
 // 점수를 하나 받을 때마다 다음 비급에 조각이 이만큼 더 — 처치 수가 2.5배인 직업이 무공 점수를 2.5배 받지 않게(시뮬 권마 77점 → 26점쯤)
 export const FRAG_NEED_UP = 2;
 export const fragNeed = (got) => FRAG_NEED + FRAG_NEED_UP * Math.max(0, got | 0);
+export const BOSS_DOT_K = 0.5;
 export const TEMPER_STEP = 0.003;   // 시뮬 15일 118~143단계 → +35~43%
 export const TEMPER_BASE = 150;
 export const TEMPER_GROW = 1.06;
