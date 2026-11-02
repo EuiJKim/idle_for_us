@@ -95,7 +95,12 @@ export function migrateWorld(raw, now = Date.now()) {
   // v292 자동 등급 각인 고르기 — only: 고른 증표만 · marks: {증표: 고유 효과 번호} · slots: {칸: false면 건너뜀}
   { const c = raw.autoInfCfg && typeof raw.autoInfCfg === 'object' ? raw.autoInfCfg : {}; const mk = {}; for (const [k, v] of Object.entries(c.marks || {})) if (W.isMarkKey(k)) mk[k] = Math.max(0, Math.min(2, Math.floor(Number(v) || 0)));
     const sl = {}; for (const k of W.GROW_SLOTS) if (c.slots?.[k] === false) sl[k] = false;
-    s.autoInfCfg = { only: !!c.only, marks: mk, slots: sl }; }
+    // v293 mode: all(센 것부터) · pick(고른 증표) · pref(좋아하는 효과 — 맞는 증표를 찾아서). only는 옛 저장(pick)
+    const FXK = new Set(Object.values(IM.THEMES).flatMap((t) => t.fx.map(([k]) => k)));
+    const mode = ['all', 'pick', 'pref'].includes(c.mode) ? c.mode : c.only ? 'pick' : 'all';
+    const prefFx = Array.isArray(c.prefFx) ? [...new Set(c.prefFx.filter((k) => FXK.has(k)))].slice(0, 8) : [];
+    const prefSp = Array.isArray(c.prefSp) ? [...new Set(c.prefSp.filter((k) => k in IM.SPECIAL_KIND))].slice(0, 8) : [];
+    s.autoInfCfg = { mode, only: mode === 'pick', marks: mk, slots: sl, prefFx, prefSp }; }
   s.loadout = raw.loadout === 1 ? 1 : 0;
   { const dx = raw.dex && typeof raw.dex === 'object' ? raw.dex : {}; s.dex = {}; for (const [k, v] of Object.entries(dx)) { const n = Math.min(9999, Math.floor(Number(v) || 0)); if (n > 0) s.dex[k] = n; } }
   s.awaken = raw.awaken && typeof raw.awaken === 'object' && W.AWAKEN_KINDS.some((k) => k.id === raw.awaken.kind) && /^s[0-3]$/.test(raw.awaken.slot) ? { slot: raw.awaken.slot, kind: raw.awaken.kind } : null;
@@ -2838,20 +2843,37 @@ export class WorldGame {
     if (this.s.autoInf) {
       const keep = {};
       for (const it of worn()) { const m = this.enhanceMats(it); if (m && it.step != null) { const bk = W.bossKey(W.itemZone(it)); keep[bk] = (keep[bk] || 0) + W.breakMarks(W.ENHANCE_MAX - 1) * 3; } }
-      // v292 고른 증표만(고른 고유 효과로) · 고른 칸만
-      const cfg = this.s.autoInfCfg || { only: false, marks: {}, slots: {} };
-      const marks = Object.keys(this.s.mats).filter((k) => W.isMarkKey(k) && this.s.mats[k] > 0 && (!cfg.only || k in cfg.marks)).sort((a, b) => W.markLv(b) - W.markLv(a));
+      // v292 고른 증표만(고른 고유 효과로) · 고른 칸만 · v293 좋아하는 효과에 맞는 증표부터
+      const cfg = this.s.autoInfCfg || { mode: 'all', marks: {}, slots: {} };
+      const mode = cfg.mode || (cfg.only ? 'pick' : 'all');
+      const sc = {};
+      let marks = Object.keys(this.s.mats).filter((k) => W.isMarkKey(k) && this.s.mats[k] > 0 && (mode !== 'pick' || k in cfg.marks));
+      if (mode === 'pref') { for (const k of marks) sc[k] = this.markPref(k, cfg); marks = marks.filter((k) => sc[k].score > 0); }
+      marks.sort((a, b) => (mode === 'pref' ? sc[b].score - sc[a].score : 0) || W.markLv(b) - W.markLv(a));
+      const spOf = (k) => (mode === 'pref' ? sc[k].sp : cfg.marks?.[k] || 0);
       for (let n = 0; n < 6; n++) {
         let done = false;
         for (const it of worn().filter((x) => cfg.slots?.[x.slot] !== false).sort((a, b) => (a.rar || 0) - (b.rar || 0))) {
           const k = marks.find((m) => { const f = this.infuseInfo(it, m); return f && this.canInfuse(it, m) && this.s.gold - f.gold > reserve && (this.s.mats[m] - f.n) >= (keep[m] || 0); });
-          if (k) { this.infuse(it.uid, k, cfg.marks[k] || 0); out.inf++; done = true; break; }
+          if (k) { this.infuse(it.uid, k, spOf(k)); out.inf++; done = true; break; }
         }
         if (!done) break;
       }
     }
     if (out.enh || out.inf) this.emit('autoGear', out);
     return out;
+  }
+  // v293 좋아하는 효과와 증표가 얼마나 맞나 — 앞에 고른 것일수록 무겁다. 고유 효과는 맞는 것 가운데 가장 앞 것을 고른다.
+  markPref(k, cfg = this.s.autoInfCfg) {
+    const z = +String(k).slice(1);
+    const fx = IM.THEMES[IM.themeOfZone(z)]?.fx.map(([f]) => f) || [];
+    const pf = cfg?.prefFx || [], ps = cfg?.prefSp || [];
+    let score = 0;
+    pf.forEach((f, i) => { if (fx.includes(f)) score += pf.length - i; });
+    const sps = IM.specialsOfZone(z) || [];
+    let sp = 0, best = 0;
+    sps.forEach((x, j) => { const i = ps.indexOf(x.kind); const w = i < 0 ? 0 : (ps.length - i) * 1.5; if (w > best) { best = w; sp = j; } });
+    return { score: score + best, sp, fx: pf.filter((f) => fx.includes(f)), spKind: best ? sps[sp].kind : null };
   }
   // ---------- v262 영약 · 무관 증축 · 세력 상점 ----------
   elixirPrice() { return W.elixirPrice(this.s.level); }

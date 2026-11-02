@@ -2359,6 +2359,38 @@ console.log('\n=== v292 자동 등급 각인 고르기 ===');
   g.autoGear();
   ok(Object.keys(g.s.mats).filter((k) => W.isMarkKey(k)).reduce((a, k) => a + g.s.mats[k], 0) === tot, '고른 증표가 없으면 쉰다');
 }
+console.log('\n=== v293 자동 등급 각인 — 좋아하는 효과 ===');
+{
+  const IMm = await import('../js/world/wimprint.js');
+  const g = fresh('sword');
+  while (g.s.level < 60) g.addExp(W.expToNext(g.s.level));
+  g.s.gold = 1e15; g.s.autoInf = true; g.s.autoEnh = false;
+  for (const it of W.GROW_SLOTS.map((k) => g.s.equip[k]).filter(Boolean)) { it.rar = 0; it.imps = []; }
+  // 테마가 다른 증표 둘을 찾는다 — 하나는 좋아하는 효과가 있고 하나는 없다
+  const keys = Object.keys(W.ZONES_W).map((z) => `b${z}`).filter((k) => W.markLv(k) < 60);
+  const want = 'hpPct';
+  const kYes = keys.find((k) => IMm.THEMES[IMm.themeOfZone(+k.slice(1))].fx.some(([f]) => f === want));
+  const kNo = keys.find((k) => !IMm.THEMES[IMm.themeOfZone(+k.slice(1))].fx.some(([f]) => f === want) && W.markLv(k) > W.markLv(kYes));
+  g.s.mats[kYes] = 500; g.s.mats[kNo] = 500;
+  g.rng = () => 0;
+  g.s.autoInfCfg = { mode: 'pref', marks: {}, slots: {}, prefFx: [want], prefSp: [] };
+  ok(g.markPref(kYes).score > 0 && g.markPref(kNo).score === 0, '좋아하는 효과가 든 증표만 점수가 있다', `${kYes} ${kNo}`);
+  g.autoGear();
+  ok(g.s.mats[kNo] === 500 && g.s.mats[kYes] < 500, '좋아하는 효과가 든 증표로만 새긴다(더 센 다른 증표는 남긴다)');
+  // 여러 개 · 앞 것이 무겁다
+  const c2 = { prefFx: ['crit', 'hpPct'], prefSp: [] };
+  const a1 = keys.find((k) => IMm.THEMES[IMm.themeOfZone(+k.slice(1))].fx.some(([f]) => f === 'crit'));
+  ok(g.markPref(a1, c2).score > g.markPref(kYes, c2).score, '앞에 고른 효과가 더 무겁다');
+  // 고유 효과 고르기
+  const hi = Object.keys(W.ZONES_W).map((z) => +z).find((z) => IMm.specialsOfZone(z));
+  if (hi) {
+    const sps = IMm.specialsOfZone(hi);
+    const r = g.markPref(`b${hi}`, { prefFx: [], prefSp: [sps[2].kind] });
+    ok(r.sp === 2 && r.score > 0, '고유 효과도 좋아하는 것을 골라 새긴다');
+  }
+  const m = migrateWorld(JSON.parse(JSON.stringify({ ...g.s, autoInfCfg: { only: true, marks: { b3: 1 } } })));
+  ok(m.autoInfCfg.mode === 'pick' && m.autoInfCfg.marks.b3 === 1, '옛 저장(only)은 직접 고르기로');
+}
 console.log('\n=== v280 꾸미기 ===');
 {
   const m = migrateWorld({ ...newWorldSave(), custom: { head: 'hat', robe: '#8B1F22', band: 'red; x' } });

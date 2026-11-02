@@ -648,7 +648,7 @@ function bagTab(app) {
         return h('div', { class: 'mark-list' }, ...keys.map((k) => {
           const z = +k.slice(1);
           return h('button', { class: `mark-row${k === sel ? ' on' : ''}`, style: `--mc:${W.matColor(k)}`, onclick: () => onPick(k) },
-            matIcon(k, 30), h('span', { class: 'mr-name' }, h('b', {}, short(k)), h('small', {}, `${IM.THEMES[IM.themeOfZone(z)].name}${IM.specialOfZone(z) ? ' · ★고유' : ''}`)),
+            matIcon(k, 30), h('span', { class: 'mr-name' }, h('b', {}, short(k), game.s.autoInfCfg?.mode === 'pref' && game.markPref(k).score > 0 ? h('em', { class: 'pref-heart' }, ' ♥') : ''), h('small', {}, `${IM.THEMES[IM.themeOfZone(z)].name}${IM.specialOfZone(z) ? ' · ★고유' : ''}`)),
             h('span', { class: 'mr-n' }, h('b', {}, fmt(game.s.mats[k])), info ? h('small', {}, pct(info(k), 0)) : null));
         }));
       };
@@ -837,7 +837,7 @@ function bagTab(app) {
           h('label', {}, h('input', { type: 'checkbox', checked: s.autoEnh ? true : null, onchange: (e) => { game.s.autoEnh = e.target.checked; app.save(); } }), ' 자동 강화', h('small', {}, ' 낮은 칸부터 · 레벨 상한까지 · +11부터 보호부')),
           h('div', { class: 'auto-inf-line' },
             h('label', {}, h('input', { type: 'checkbox', checked: s.autoInf ? true : null, onchange: (e) => { game.s.autoInf = e.target.checked; app.save(); } }), ' 자동 등급 각인',
-              h('small', {}, s.autoInfCfg?.only ? ` 고른 증표 ${Object.keys(s.autoInfCfg.marks).length}가지만` : ' 센 증표부터', Object.values(s.autoInfCfg?.slots || {}).some((v) => v === false) ? ` · ${W.GROW_SLOTS.filter((k) => s.autoInfCfg.slots[k] !== false).length}칸만` : '', ' · 돌파용 증표는 남겨요')),
+              h('small', {}, s.autoInfCfg?.mode === 'pref' ? ` 좋아하는 효과 ${(s.autoInfCfg.prefFx || []).length + (s.autoInfCfg.prefSp || []).length}가지로` : s.autoInfCfg?.mode === 'pick' || s.autoInfCfg?.only ? ` 고른 증표 ${Object.keys(s.autoInfCfg.marks).length}가지만` : ' 센 증표부터', Object.values(s.autoInfCfg?.slots || {}).some((v) => v === false) ? ` · ${W.GROW_SLOTS.filter((k) => s.autoInfCfg.slots[k] !== false).length}칸만` : '', ' · 돌파용 증표는 남겨요')),
             h('button', { class: 'btn', style: 'padding:4px 10px;font-size:12px', onclick: () => openAutoInfCfg(app) }, '고르기')))),
       ...setNow.map(({ st }) => setBox(game, st)),
     ].filter(Boolean));
@@ -1864,10 +1864,41 @@ function townTab(app) {
 // v292 자동 등급 각인 고르기 — 어떤 증표(테마·고유 효과)를 어느 칸에. 안 고르면 전처럼 센 증표부터 모두.
 export function openAutoInfCfg(app) {
   const { game } = app;
-  const cfg = game.s.autoInfCfg || (game.s.autoInfCfg = { only: false, marks: {}, slots: {} });
+  const cfg = game.s.autoInfCfg || (game.s.autoInfCfg = { mode: 'all', only: false, marks: {}, slots: {}, prefFx: [], prefSp: [] });
+  if (!cfg.mode) cfg.mode = cfg.only ? 'pick' : 'all';
+  cfg.prefFx = cfg.prefFx || []; cfg.prefSp = cfg.prefSp || [];
+  const setMode = (m) => { cfg.mode = m; cfg.only = m === 'pick'; };
+  // 효과 이름 — '공격력 +1%' → '공격력'
+  const FX_KEYS = [...new Set(Object.values(IM.THEMES).flatMap((t) => t.fx.map(([k]) => k)))];
+  const fxName = (k) => IM.FX_TEXT[k](0.01).replace(/^적중 피해의 [\d.]+% /, '').replace(/^[\d.]+% 확률로 /, '').replace(/ ?[+-]?[\d.]+%p?$/, '').replace(/ [\d.]+%$/, '');
+  const SP_NAME = { echo: '한 번 더', execute: '약한 적 마무리', bane: '두목 피해', chain: '치명 번짐', nova: '둘레 폭발', rain: '쏟아짐', guard: '보호막', reap: '처치 회복',
+    frenzy: '맞으면 쾌속', mirror: '반격', bleed: '출혈', berserk: '위기 광폭', phoenix: '불사', stunwave: '기절 파동', vigor: '지속 회복', surge: '스킬 뒤 강화' };
+  const toggle = (arr, k) => { const i = arr.indexOf(k); if (i >= 0) arr.splice(i, 1); else arr.push(k); };
   const SLOT_NAME = Object.fromEntries(W.SLOTS.map((x) => [x.id, x.name]));
   const done = () => { app.save(); draw(); app.refresh(); };
   let box = null;
+  // v293 좋아하는 효과 — 누른 차례가 우선순위(앞일수록 무겁다). 수치는 고르지 않고 '무엇을'만.
+  const prefView = () => {
+    const chipP = (arr, k, label) => {
+      const i = arr.indexOf(k);
+      return h('button', { class: `chip pref-chip${i >= 0 ? ' on' : ''}`, onclick: () => { toggle(arr, k); done(); } }, i >= 0 ? h('i', {}, `${i + 1}`) : null, label);
+    };
+    const keys = Object.keys(game.s.mats).filter((k) => W.isMarkKey(k) && game.s.mats[k] > 0);
+    const match = keys.map((k) => ({ k, ...game.markPref(k, cfg) })).filter((x) => x.score > 0).sort((a, b) => b.score - a.score || W.markLv(b.k) - W.markLv(a.k));
+    return [
+      h('div', { class: 'ainf-sec' }, h('b', {}, '능력치'), h('small', { class: 'muted' }, ' 여러 개 · 누른 차례가 우선'), h('div', { class: 'ainf-slots' }, ...FX_KEYS.map((k) => chipP(cfg.prefFx, k, fxName(k))))),
+      h('div', { class: 'ainf-sec' }, h('b', {}, '고유 효과'), h('small', { class: 'muted' }, ' 레벨 100 넘는 두목의 증표에만 · 맞는 것을 골라 새겨요'), h('div', { class: 'ainf-slots' }, ...Object.keys(SP_NAME).map((k) => chipP(cfg.prefSp, k, SP_NAME[k])))),
+      h('div', { class: 'ainf-sec' }, h('b', {}, '지금 가진 증표 가운데 맞는 것'), h('small', { class: 'muted' }, ' 위에서부터 써요'),
+        match.length ? h('div', { class: 'ainf-list' }, ...match.slice(0, 12).map((x) => {
+          const z = +x.k.slice(1);
+          const th = IM.THEMES[IM.themeOfZone(z)];
+          const sp = x.spKind ? IM.specialsOfZone(z)?.[x.sp] : null;
+          return h('div', { class: 'ainf-row on', style: `--ic:${th.col}` },
+            h('label', {}, h('b', {}, W.matName(x.k)), h('small', {}, ` ${fmt(game.s.mats[x.k] || 0)}개`)),
+            h('div', { class: 'ainf-th' }, h('span', { class: 'ainf-chip' }, th.name), x.fx.map(fxName).join(' · '), sp ? ` · ★${sp.name}(${SP_NAME[sp.kind] || ''})` : ''));
+        })) : h('p', { class: 'muted', style: 'font-size:12px' }, cfg.prefFx.length || cfg.prefSp.length ? '맞는 증표가 아직 없어요 — 생기면 그때 새겨요.' : '위에서 좋아하는 효과를 고르세요(안 고르면 자동이 쉬어요).')),
+    ];
+  };
   const draw = () => {
     if (!box) return;
     const keys = [...new Set([...Object.keys(game.s.mats).filter((k) => W.isMarkKey(k) && game.s.mats[k] > 0), ...Object.keys(cfg.marks)])].sort((a, b) => W.markLv(b) - W.markLv(a));
@@ -1877,7 +1908,7 @@ export function openAutoInfCfg(app) {
       const sps = IM.specialsOfZone(z);
       const on = k in cfg.marks;
       return h('div', { class: `ainf-row${on ? ' on' : ''}`, style: `--ic:${th.col}` },
-        h('label', {}, h('input', { type: 'checkbox', checked: on ? true : null, disabled: cfg.only ? null : true, onchange: (e) => { if (e.target.checked) cfg.marks[k] = 0; else delete cfg.marks[k]; done(); } }),
+        h('label', {}, h('input', { type: 'checkbox', checked: on ? true : null, disabled: cfg.mode === 'pick' ? null : true, onchange: (e) => { if (e.target.checked) cfg.marks[k] = 0; else delete cfg.marks[k]; done(); } }),
           h('b', {}, W.matName(k)), h('small', {}, ` ${fmt(game.s.mats[k] || 0)}개`)),
         h('div', { class: 'ainf-th' }, h('span', { class: 'ainf-chip' }, th.name), th.fx.map(([kk, v]) => IM.FX_TEXT[kk](v)).join(' · ')),
         sps && on ? h('div', { class: 'sp-pick' }, h('small', {}, '새길 고유 효과'), ...sps.map((sp, j) => h('button', { class: `chip${(cfg.marks[k] || 0) === j ? ' on' : ''}`, onclick: () => { cfg.marks[k] = j; done(); } }, h('b', {}, sp.name), h('small', {}, ` ${IM.SPECIAL_KIND[sp.kind](1)}`)))) : null);
@@ -1887,10 +1918,12 @@ export function openAutoInfCfg(app) {
       h('p', { class: 'muted', style: 'font-size:12.5px;margin-top:-4px' }, '등급 각인에 성공하면 그 두목의 테마 능력치와 고유 효과가 장비 칸에 새겨져요. 원하는 것만 새기도록 고를 수 있어요.'),
       h('div', { class: 'ainf-sec' }, h('b', {}, '어떤 증표를'),
         h('div', { class: 'btn-row' },
-          h('button', { class: `chip${cfg.only ? '' : ' on'}`, onclick: () => { cfg.only = false; done(); } }, '센 증표부터 모두'),
-          h('button', { class: `chip${cfg.only ? ' on' : ''}`, onclick: () => { cfg.only = true; done(); } }, '고른 증표만'))),
-      cfg.only && !Object.keys(cfg.marks).length ? h('p', { class: 'muted', style: 'font-size:12px;color:#fca5a5' }, '아직 고른 증표가 없어요 — 아래에서 고르면 그것만 써요(안 고르면 자동이 쉬어요).') : null,
-      keys.length ? h('div', { class: 'ainf-list' }, ...rows) : h('p', { class: 'muted' }, '가진 증표가 없어요 — 두목을 잡으면 나와요.'),
+          h('button', { class: `chip${cfg.mode === 'all' ? ' on' : ''}`, onclick: () => { setMode('all'); done(); } }, '센 증표부터'),
+          h('button', { class: `chip${cfg.mode === 'pref' ? ' on' : ''}`, onclick: () => { setMode('pref'); done(); } }, '♥ 좋아하는 효과로'),
+          h('button', { class: `chip${cfg.mode === 'pick' ? ' on' : ''}`, onclick: () => { setMode('pick'); done(); } }, '증표 직접 고르기'))),
+      ...(cfg.mode === 'pref' ? prefView() : []),
+      cfg.mode === 'pick' && !Object.keys(cfg.marks).length ? h('p', { class: 'muted', style: 'font-size:12px;color:#fca5a5' }, '아직 고른 증표가 없어요 — 아래에서 고르면 그것만 써요(안 고르면 자동이 쉬어요).') : null,
+      cfg.mode !== 'pref' ? (keys.length ? h('div', { class: 'ainf-list' }, ...rows) : h('p', { class: 'muted' }, '가진 증표가 없어요 — 두목을 잡으면 나와요.')) : null,
       h('div', { class: 'ainf-sec' }, h('b', {}, '어느 칸에'), h('small', { class: 'muted' }, ' 끈 칸은 자동이 건드리지 않아요'),
         h('div', { class: 'ainf-slots' }, ...W.GROW_SLOTS.map((k) => h('button', { class: `chip${cfg.slots[k] === false ? '' : ' on'}`, onclick: () => { if (cfg.slots[k] === false) delete cfg.slots[k]; else cfg.slots[k] = false; done(); } }, SLOT_NAME[k] || k)))),
       h('div', { class: 'btn-row' }, h('button', { class: 'btn primary', onclick: closeModal }, '닫기'))].filter(Boolean));
