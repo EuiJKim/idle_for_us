@@ -131,7 +131,7 @@ export const QUESTS = [
     goal: flag('app') },
   // ---- 5. 던전 (레벨 20~30) ----
   { id: 'daily', title: '일일 던전을 한 판 깨자', tab: 'dgn/daily', min: 5, xp: 0.2,
-    why: `던전 창 → 일일 던전. ${D.DAILY_SEC}초에 ${D.DAILY_KILLS}마리. 수련동(경험치)·금광굴(은자)·천공광맥(재료) 셋 다 매일 ${D.DAILY_ENTRIES}번씩.`,
+    why: `던전 창 → 일일 던전. ${D.DAILY_SEC}초에 ${D.DAILY_KILLS}마리. 수련동(경험치)·금광굴(은자)·천공광맥(재료) 도전은 언제든, 온전한 보상은 하루 ${D.DAILY_ENTRIES}번씩(새 단계를 깨면 몫을 안 써요).`,
     goal: (g) => ({ now: dailyMax(g), need: 1 }) },
   { id: 'dauto', title: '일일 던전 자동 도전을 켜자', tab: 'dgn/daily', min: 2, xp: 0.1,
     why: '켜 두면 사냥하다가 남은 횟수만큼 알아서 들어가 가장 높은 단계를 돈다.',

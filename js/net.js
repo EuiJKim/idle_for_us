@@ -46,6 +46,10 @@ export class Net {
     this.uid = null;
     this.guild = null;
     this.messages = [];
+    this.world = [];          // v302 전체 채팅
+    this.worldSeen = 0;       // 마지막으로 본 메시지 수(안 읽음 표시)
+    this.worldAt = 0;         // 마지막으로 보낸 때(2초에 한 번)
+    this.worldUnsub = null;
     this.stash = [];
     this.raid = null;
     this.unsubs = [];
@@ -88,6 +92,7 @@ export class Net {
       await this.syncEntitlement();
       await this.loadShop();
       if (this.game.s.guildId) this.watchGuild(this.game.s.guildId);
+      this.watchWorld();
     } catch (err) {
       console.warn('[net] offline:', err?.message || err);
       this.status = 'offline';
@@ -661,6 +666,34 @@ export class Net {
     }
     return true;
   }
+
+  // ---------- v302 전체 채팅 ----------
+  watchWorld() {
+    if (!this.online || this.worldUnsub) return;
+    const { onSnapshot, collection, query, orderBy, limit } = this.fs;
+    this.worldUnsub = onSnapshot(
+      query(collection(this.db, 'chat'), orderBy('createdAt', 'desc'), limit(80)),
+      (snap) => {
+        this.world = snap.docs.map((d) => ({ id: d.id, ...d.data({ serverTimestamps: 'estimate' }) })).reverse();
+        this.changed('wchat');
+      },
+      (err) => console.warn('[net] world chat', err),
+    );
+  }
+  worldUnread() { return Math.max(0, this.world.filter((m) => m.uid !== this.uid).length - this.worldSeen); }
+  worldMarkSeen() { this.worldSeen = this.world.filter((m) => m.uid !== this.uid).length; }
+  async sendWorld(text, type = 'chat') {
+    const clean = String(text).trim().slice(0, 200);
+    if (!clean || !this.online) return false;
+    const now = Date.now();
+    if (type === 'chat' && now - this.worldAt < 2000) throw new Error('너무 빨라요 — 잠깐 뒤에 보내 주세요');
+    this.worldAt = now;
+    await this.fs.addDoc(this.fs.collection(this.db, 'chat'), {
+      uid: this.uid, name: String(this.game.s.nickname || '무명').slice(0, 12), text: clean, type, createdAt: this.fs.serverTimestamp(),
+    });
+    return true;
+  }
+  async deleteWorld(id) { await this.fs.deleteDoc(this.ref('chat', id)); }
 
   async sendChat(text, type = 'chat') {
     const clean = text.trim().slice(0, 200);

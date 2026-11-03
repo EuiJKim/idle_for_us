@@ -189,5 +189,6 @@ export class WNet extends Net {
   // 문파 채팅에 알림 한 줄 (전직·상급 조합 같은 자랑거리)
   announce(text) {
     if (this.guild && this.online) this.sendChat(text, 'system').catch(() => {});
+    if (this.online) this.sendWorld(text, 'system').catch(() => {});   // v302 전체 채팅에도
   }
 }

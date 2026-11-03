@@ -3180,15 +3180,18 @@ export class WorldGame {
   }
   canDaily(kind, stage, now = Date.now()) {
     const d = D.dailyOf(kind);
-    return !!d && !!this.s.job && !this.inst && D.dailyOpen(d, now) && this.dailyLeft(kind, now) > 0
+    // v302 횟수 제한 없음 — 몫(dailyLeft)은 보상 크기만 정한다
+    return !!d && !!this.s.job && !this.inst && D.dailyOpen(d, now)
       && stage >= 1 && stage <= this.dailyMaxStage(kind);
   }
+  // v302 이 판이 온전한 보상인가 — 몫이 남았거나(한 번 쓴다) 아직 못 깬 단계(몫을 안 쓴다)
+  dailyFull(kind, stage, now = Date.now()) { return this.dailyLeft(kind, now) > 0 || stage > this.dailyBest(kind); }
   startDaily(kind, stage, now = Date.now()) {
     if (!this.canDaily(kind, stage, now)) return false;
     this.tday('daily');
-    const used = this.dgnToday(now).used;
-    used[kind] = (used[kind] || 0) + 1;
-    this.startInst({ kind: 'daily', id: kind, stage, map: D.dailyMap(kind, stage), t: D.DAILY_SEC, max: D.DAILY_SEC, target: D.DAILY_KILLS, kills: 0, now });
+    const full = this.dailyLeft(kind, now) > 0;
+    if (full) { const used = this.dgnToday(now).used; used[kind] = (used[kind] || 0) + 1; }
+    this.startInst({ kind: 'daily', id: kind, stage, map: D.dailyMap(kind, stage), t: D.DAILY_SEC, max: D.DAILY_SEC, target: D.DAILY_KILLS, kills: 0, now, full });
     for (let i = 0; i < D.DAILY_ALIVE; i++) this.spawnMob(false);
     return true;
   }
@@ -3378,8 +3381,11 @@ export class WorldGame {
     if (!(this.s.dgn.auto || this.s.dgn.routine) || this.inst || !this.s.job) return null;
     for (const d of D.DAILY) {
       const stage = this.dailyMaxStage(d.id);
-      // v283 등반 모드: 아직 못 깬 단계만 · 오늘 그 단계에서 졌으면(막혔으면) 그 던전은 멈춘다 — 남은 횟수는 그대로 둔다
-      if (this.s.dgn.climb && (stage <= this.dailyBest(d.id) || (this.dgnToday(now).fail[d.id] || 0) >= stage)) continue;
+      const fresh = stage > this.dailyBest(d.id) && (this.dgnToday(now).fail[d.id] || 0) < stage;   // 아직 못 깬 단계 · 오늘 안 진 곳
+      // v283 등반 모드: 아직 못 깬 단계만 · 오늘 그 단계에서 졌으면(막혔으면) 그 던전은 멈춘다 — 남은 몫은 그대로 둔다
+      if (this.s.dgn.climb && !fresh) continue;
+      // v302 자동은 온전한 보상일 때만 — 몫이 없고 새 단계도 아니면(10% 보상 추가 도전) 돌지 않는다
+      if (!fresh && this.dailyLeft(d.id, now) <= 0) continue;
       if (this.canDaily(d.id, stage, now)) return { kind: d.id, stage };
     }
     return null;
@@ -3437,6 +3443,7 @@ export class WorldGame {
     if ((nx.stage <= this.dailyBest(nx.kind) || lost || learnSweep) && this.canSweep(nx.kind, now)) {
       return !!this.sweepDaily(nx.kind, now);
     }
+    if ((nx.stage <= this.dailyBest(nx.kind) || lost) && this.dailyLeft(nx.kind, now) <= 0) return false;   // v302 추가 도전(10%)은 자동이 안 한다
     return this.startDaily(nx.kind, nx.stage, now);
   }
 
@@ -3818,20 +3825,19 @@ export class WorldGame {
   finishInst() {
     const I = this.inst;
     const ok = !!I.done?.ok;
-    let reward = null;
+    let reward = null, fresh0 = false;
     if (I.kind === 'daily') {
-      const full = D.dailyReward(I.id, I.stage, this.levelGapMult(D.dailyLv(I.stage)), this.s.level);
-      const k = ok ? 1 : D.DAILY_FAIL * Math.min(1, I.kills / I.target);
-      reward = this.grant(full, k);
-      // 새 단계를 깨면 열쇠 하나 — 들어간 횟수가 돌아온다 (v156)
-      // v260: 열쇠는 하루 종류마다 DAILY_KEYS번까지 — 끝없이 오르면 하루 만에 30단계를 다 깼다
+      const base = D.dailyReward(I.id, I.stage, this.levelGapMult(D.dailyLv(I.stage)), this.s.level);
+      // v302: 새 단계를 깨면 늘 온전히(몫을 썼으면 돌려준다 · 끝없이 오른다). 몫을 쓴 판도 온전히. 둘 다 아니면(추가 도전) 10%.
       // v260: 들어간 날로 센다(끝나는 순간의 시계가 아니라) — 자정을 넘긴 판도 그날 몫
       const today = this.dgnToday(I.now);
-      if (ok && I.stage > this.dailyBest(I.id) && (today.keys[I.id] || 0) < D.DAILY_KEYS) {
-        today.used[I.id] = Math.max(0, (today.used[I.id] || 0) - 1);
-        today.keys[I.id] = (today.keys[I.id] || 0) + 1;
-        I.gotKey = true;
-      }
+      const fresh = ok && I.stage > this.dailyBest(I.id);
+      fresh0 = fresh;
+      if (fresh && I.full) { today.used[I.id] = Math.max(0, (today.used[I.id] || 0) - 1); I.gotKey = true; }
+      const mult = fresh || I.full ? 1 : D.DAILY_EXTRA;
+      I.extra = !fresh && !I.full;
+      const k = (ok ? 1 : D.DAILY_FAIL * Math.min(1, I.kills / I.target)) * mult;
+      reward = this.grant(base, k);
       if (ok) this.s.dgn.best[I.id] = Math.max(this.dailyBest(I.id), I.stage);
       // v260: 오늘 이 단계에서 졌다(그만두기 빼고) — 자동은 남은 횟수를 같은 단계에 또 쓰지 않고 소탕한다
       else if (!I.done?.left) this.dgnToday(I.now).fail[I.id] = I.stage;
@@ -3855,7 +3861,7 @@ export class WorldGame {
         reward = this.grant(D.raidJoinReward(this.s.level, I.z));
       }
     }
-    const res = { kind: I.kind, id: I.id, stage: I.stage, ok, gotKey: !!I.gotKey, died: !!I.done?.died, timeout: !!I.done?.timeout, left: !!I.done?.left, key: I.key, dealt: I.dealt || 0,
+    const res = { kind: I.kind, id: I.id, stage: I.stage, ok, gotKey: !!I.gotKey, extra: !!I.extra, died: !!I.done?.died, timeout: !!I.done?.timeout, left: !!I.done?.left, key: I.key, dealt: I.dealt || 0,
       kills: I.kills || 0, target: I.target || 0, reward, chain: false };
     this.inst = null;
     // 탑: 이기고 '이어 오르기'면 다음 층으로
@@ -3871,8 +3877,8 @@ export class WorldGame {
       this.startTower(true);
       return res;
     }
-    // v166: 새 단계를 깼으면(열쇠) 자동 도전을 안 켰어도 바로 윗단계로 — 못 깰 때까지 오른다
-    if (I.kind === 'daily' && ok && I.gotKey && !I.done?.left && this.canDaily(I.id, I.stage + 1, I.now)) {
+    // v166: 새 단계를 깼으면 자동 도전을 안 켰어도 바로 윗단계로 — 못 깰 때까지 오른다 (v302: 끝없이)
+    if (I.kind === 'daily' && fresh0 && !I.done?.left && this.canDaily(I.id, I.stage + 1, I.now)) {
       res.chain = true; res.next = I.stage + 1;
       this.emit('instEnd', res);
       this.startDaily(I.id, I.stage + 1, I.now);

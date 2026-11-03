@@ -12,9 +12,11 @@ export const kstDay = (now = Date.now()) => new Date(now + 9 * 3600e3).toISOStri
 export const kstWeekday = (now = Date.now()) => new Date(now + 9 * 3600e3).getUTCDay();
 const DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토'];
 
+// v302: 들어가는 횟수 제한을 없앴다 — 언제든 도전한다. DAILY_ENTRIES는 '온전한 보상 몫'(하루 종류마다, 남긴 것은 다음 날로).
+//   몫이 있으면 도전·소탕에 온전한 보상. 새 단계를 깨면 몫을 안 쓴다(끝없이 오른다 · 경험치·은자는 내 레벨+5로 막혀 있다).
+//   몫이 없으면 도전은 되지만 보상 DAILY_EXTRA(10%) — 소탕은 몫이 있을 때만(눌러서 무한히 받을 수 없게).
 export const DAILY_ENTRIES = 3;
-// v156: 새 단계를 깨면(깬 단계를 넘으면) 열쇠 하나 — 들어간 횟수가 하나 돌아와 또 들어간다. 계속 깨는 한 끝없이 오른다.
-// 못 깨면 열쇠가 없다 — 남은 횟수는 소탕(깬 단계 보상)으로.
+export const DAILY_EXTRA = 0.1;
 export const DAILY_SEC = 75;
 // 마흔 마리는 너무 많았다 — 한 판이 '잡는 일'이 되어 버린다.
 // 시간은 그대로 두고 수만 줄인다. 덜 조이는 대신 끝까지 안 끌린다.
@@ -23,7 +25,6 @@ export const DAILY_ALIVE = 10;
 export const DAILY_RESPAWN = 0.7;
 export const DAILY_STAGES = 30;
 export const DAILY_FAIL = 0.5;
-export const DAILY_KEYS = 3;           // v260: 새 단계 열쇠(들어간 횟수 돌려받기)는 하루 종류마다 이만큼           // 못 깨면 잡은 만큼의 절반
 
 export const DAILY = [
   { id: 'exp', name: '수련동', hanja: '修鍊洞', ico: '修', days: [1, 4], scene: 'relic', what: '경험치',

@@ -1671,7 +1671,7 @@ function dgnTab(app) {
         h('span', { class: 'rt-arrow' }, '›'),
         step('獵', '사냥터', '돌아가 사냥', true)));
     const head = h('div', { class: 'card dgn-head' },
-      h('div', {}, h('b', {}, '일일 던전'), h('small', { class: 'muted' }, ` · 하루 ${D.DAILY_ENTRIES}번(남긴 것은 다음 날로) · 새 단계 🔑는 한 번 더`),
+      h('div', {}, h('b', {}, '일일 던전'), h('small', { class: 'muted' }, ` · 도전은 언제든 · 온전한 보상은 하루 ${D.DAILY_ENTRIES}번(남긴 것은 다음 날로) · 새 단계 🔑는 몫을 안 써요 · 그 뒤는 ${Math.round(D.DAILY_EXTRA * 100)}%`),
         h('label', { class: 'chk' }, dAuto, ' 요일 던전만 자동'),
         h('label', { class: 'chk', title: '자동(루틴 포함)이 새 단계만 오르고, 막히면 소탕하지 않고 멈춰요' }, dClimb, ' 등반 모드(막히면 멈춤)')),
       h('button', { class: 'btn primary', disabled: sweepN ? null : true, onclick: () => {
@@ -1693,7 +1693,7 @@ function dgnTab(app) {
           skinImg(h('div', { class: 'dgn-ico' }, d.ico), `dg-${d.id}`),
           h('div', { class: 'dgn-name' }, h('b', {}, d.name), h('small', {}, ` ${d.hanja} · ${d.what}`),
             open ? h('div', { class: 'dgn-pips' }, ...Array.from({ length: Math.max(D.DAILY_ENTRIES, left) }, (_, i) => h('i', { class: i < left ? 'on' : '' })),
-              h('small', {}, ` 깬 단계 ${best || '-'}${max > best ? ` · ${best + 1}단계 🔑` : ''}`))
+              h('small', {}, ` 보상 몫 ${left}번 · 깬 단계 ${best || '-'}${max > best ? ` · ${best + 1}단계 🔑` : ''}`))
               : h('div', { class: 'muted' }, `${D.dailyDaysText(d)}요일에 열려요`))),
         h('div', { class: 'dgn-stage' },
           h('button', { class: 'stp', disabled: stg <= 1 ? true : null, onclick: () => step(-1) }, '−'),
@@ -1706,10 +1706,12 @@ function dgnTab(app) {
             `${W.zoneOfW(D.zoneForLv(D.dailyLv(stg)))?.name || ''}의 재료·증표예요 — 이름을 누르면 그 사냥터로 갈 수 있어요`)
           : null,
         // v258: 도전을 못 할 때 왜 못 하는지 한 줄
-        !game.canDaily(d.id, stg, now) && game.s.job ? h('p', { class: 'inf-why' }, game.inst ? '던전 안에서는 다른 던전에 못 들어가요' : !D.dailyOpen(d, now) ? '오늘은 열리지 않는 던전이에요' : game.dailyLeft(d.id, now) <= 0 ? '오늘 들어갈 횟수를 다 썼어요 — 새 단계를 깨면 열쇠로 한 번 돌아와요(하루 ' + D.DAILY_KEYS + '번)' : '아직 열리지 않은 단계예요') : null,
+        !game.canDaily(d.id, stg, now) && game.s.job ? h('p', { class: 'inf-why' }, game.inst ? '던전 안에서는 다른 던전에 못 들어가요' : !D.dailyOpen(d, now) ? '오늘은 열리지 않는 던전이에요' : '아직 열리지 않은 단계예요') : null,
+        // v302 몫이 없고 이미 깬 단계면 — 도전은 되지만 보상 10%
+        game.canDaily(d.id, stg, now) && !game.dailyFull(d.id, stg, now) ? h('p', { class: 'inf-why' }, `오늘 보상 몫을 다 썼어요 — 도전은 할 수 있지만 보상 ${Math.round(D.DAILY_EXTRA * 100)}% (${best + 1}단계를 깨면 온전히)`) : null,
         h('div', { class: 'btn-row' },
           h('button', { class: 'btn primary', disabled: game.canDaily(d.id, stg, now) ? null : true, onclick: () => start(() => game.startDaily(d.id, stg, now)) },
-            `도전 (${D.DAILY_SEC}초 · ${D.DAILY_KILLS}마리)${stg > best ? ' 🔑' : ''}`),
+            `도전 (${D.DAILY_SEC}초 · ${D.DAILY_KILLS}마리)${stg > best ? ' 🔑' : !game.dailyFull(d.id, stg, now) ? ` · 보상 ${Math.round(D.DAILY_EXTRA * 100)}%` : ''}`),
           h('button', { class: 'btn', disabled: game.canSweep(d.id, now) ? null : true, onclick: () => {
             const r = game.sweepDaily(d.id, now);
             if (!r) return;
@@ -2445,8 +2447,56 @@ function guildView(app) {
   };
 }
 
+// v302 전체 채팅 — 모든 무인이 한 방. 문파가 없어도 된다. 무림 소식(전직·신화 각인·천품)도 여기 흐른다.
+function worldChatView(app) {
+  const { game, net } = app;
+  const root = h('div');
+  let sig = '', draft = '';
+  const box = h('div', { class: 'chat chat-world' });
+  const input = h('input', { class: 'field', maxlength: 200, placeholder: '모두에게 한마디 (200자)' });
+  input.addEventListener('input', () => { draft = input.value; });
+  const send = h('button', { class: 'btn primary' }, '보내기');
+  const doSend = async () => {
+    const text = input.value.trim();
+    if (!text) return;
+    if (!game.s.nickname) return toast('이름을 먼저 정해요 (캐릭터 창)');
+    input.value = ''; draft = '';
+    try { await net.sendWorld(text); } catch (err) { toast(err.message || '보내지 못했어요'); input.value = text; draft = text; }
+  };
+  send.onclick = doSend;
+  input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); doSend(); } });
+  const status = h('p', { class: 'muted' });
+  root.append(h('div', { class: 'card' }, h('h3', {}, '전체 채팅', h('small', {}, ' 무림의 모든 무인')), status, box, h('div', { class: 'chat-input' }, input, send)));
+  const isAdmin = () => !!net?.isAdmin?.();
+  function render() {
+    const on = !!net?.online;
+    status.textContent = on ? '' : net?.status === 'connecting' ? '서버에 연결하는 중이에요…' : '인터넷에 연결되면 이야기할 수 있어요.';
+    input.disabled = send.disabled = on ? null : true;
+    const msgs = net?.world || [];
+    const nsig = msgs.map((m) => m.id).join(',') + (on ? '1' : '0');
+    if (nsig === sig) return;
+    sig = nsig;
+    const nearBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 60;
+    box.replaceChildren(...(msgs.length ? msgs.map((m) => {
+      const t = m.createdAt?.toDate ? m.createdAt.toDate() : null;
+      const time = t ? `${t.getHours()}:${String(t.getMinutes()).padStart(2, '0')}` : '';
+      const del = isAdmin() ? h('button', { class: 'msg-del', title: '지우기', onclick: () => { if (confirm('이 말을 지울까요?')) net.deleteWorld(m.id).catch((e) => toast(e.message)); } }, '✕') : null;
+      if (m.type === 'system') return h('div', { class: 'msg system' }, m.text, h('time', {}, time), del);
+      return h('div', { class: `msg${m.uid === net.uid ? ' mine' : ''}` }, h('span', { class: 'who' }, m.name || '무명'), m.text, h('time', {}, time), del);
+    }) : [h('div', { class: 'muted' }, on ? '아직 아무 말도 없어요 — 첫 인사를 남겨 보세요 👋' : '')]));
+    if (nearBottom) box.scrollTop = box.scrollHeight;
+    net?.worldMarkSeen?.();
+  }
+  return {
+    root,
+    update() { render(); },
+    shown() { input.value = draft; render(); box.scrollTop = box.scrollHeight; net?.worldMarkSeen?.(); },
+    netChanged(what) { if (what === 'wchat' || what === 'status') render(); },
+  };
+}
 function socialTab(app) {
   return subTabs([
+    { key: 'world', label: '전체', make: () => worldChatView(app) },
     { key: 'guild', label: '문파', make: () => guildView(app) },
     { key: 'rank', label: '서열', make: () => rankView(app) },
     { key: 'lore', label: '인물록', make: () => loreView(app) },

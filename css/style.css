@@ -2064,3 +2064,7 @@ button.next-step { cursor: pointer; }
 .prot-none b { color: var(--gold); white-space: nowrap; }
 .next-step em { font-size: 12px; white-space: nowrap; }
 .cost-chip.lack { cursor: pointer; }
+/* v302 전체 채팅 */
+.chat-world { height: min(46vh, 420px); }
+.msg-del { float: right; background: none; border: 0; color: #6b7280; font-size: 11px; cursor: pointer; padding: 0 2px; }
+.msg-del:hover { color: #fca5a5; }

@@ -460,6 +460,7 @@ function showTab(name, sub) {
   if (activeTab === name) return closePanel();
   if (!tabs[name]) tabs[name] = WTABS[name](app);
   activeTab = name;
+  if (name === 'social') dot('social', false);   // v302 전체 채팅 읽음
   $('panel-body').replaceChildren(tabs[name].root);
   $('panel-body').scrollTop = 0;
   // v261: 열린 창에서 다른 창으로 바꾸면 내용이 살짝 밀려 들어온다
@@ -751,15 +752,16 @@ function showInstEnd(ev) {
   if (ev.left) return;
   // v166: 이어서 다음 판으로 들어갔으면 창을 띄우지 않고 알림만 (방치가 끊기지 않게)
   if (ev.kind === 'daily' && ev.chain && ev.ok) {
-    toast(`${name} 돌파!${ev.gotKey ? ' 🔑' : ''} ${ev.next ? `→ ${ev.next}단계 도전` : '→ 다음 던전'}${ev.reward ? ` · ${rewardText(ev.reward)}` : ''}`);
+    toast(`${name} 돌파!${ev.next ? ` → ${ev.next}단계 도전` : ' → 다음 던전'}${ev.reward ? ` · ${rewardText(ev.reward)}` : ''}`);
     return;
   }
   const why = ev.ok ? '' : ev.died ? '쓰러졌어요' : ev.timeout ? '시간이 다 됐어요' : '';
   openModal((el) => el.append(...[
     h('h3', {}, ev.ok ? `${name} 성공!` : `${name} — ${why}`),
     ev.kind === 'daily' ? h('p', { class: 'muted' }, `처치 ${ev.kills} / ${ev.target}${ev.ok ? ' — 다음부터 이 단계는 소탕할 수 있어요' : ' — 잡은 만큼 보상의 절반'}`) : null,
-    ev.kind === 'daily' && ev.gotKey ? h('p', { class: 'dgn-key' }, `🔑 열쇠를 얻었어요 — 오늘 횟수가 하나 돌아왔어요. ${Math.min(D.DAILY_STAGES, ev.stage + 1)}단계에 또 들어가 보세요`) : null,
-    ev.kind === 'daily' && !ev.ok ? h('p', { class: 'muted' }, `깨지 못하면 열쇠가 없어요 — 남은 ${game.dailyLeft(ev.id)}번은 소탕으로 받으세요`) : null,
+    ev.kind === 'daily' && ev.gotKey ? h('p', { class: 'dgn-key' }, `🔑 새 단계라 보상 몫을 안 썼어요 — ${Math.min(D.DAILY_STAGES, ev.stage + 1)}단계에 또 들어가 보세요`) : null,
+    ev.kind === 'daily' && ev.extra ? h('p', { class: 'muted' }, `오늘 보상 몫을 다 써서 추가 도전 보상(${Math.round(D.DAILY_EXTRA * 100)}%)이에요 — 새 단계를 깨면 온전히 받아요`) : null,
+    ev.kind === 'daily' && !ev.ok && !ev.extra ? h('p', { class: 'muted' }, `깨지 못하면 몫을 하나 써요 — 남은 ${game.dailyLeft(ev.id)}번은 소탕으로도 받아요`) : null,
     ev.kind === 'tower' && !ev.ok ? h('p', { class: 'muted' }, `오른 층 ${game.s.tower.floor} — 장비·스킬을 키워서 다시 도전하세요`) : null,
     ev.reward && rewardText(ev.reward) !== '없음' ? h('p', {}, `받은 것: ${rewardText(ev.reward)}`) : null,
     h('div', { class: 'btn-row' }, h('button', { class: 'btn primary', onclick: closeModal }, '확인'))].filter(Boolean)));
@@ -1606,6 +1608,8 @@ function netChanged(what) {
   }
   // 문파가 바뀌면 버프(공격력)가 바뀐다 · 열려 있는 창(문파·채팅)에 알린다
   if (what === 'guild') { refreshUI(true); }
+  // v302 전체 채팅 — 무림 창이 닫혀 있으면 점
+  if (what === 'wchat') dot('social', activeTab !== 'social' && net.worldUnread?.() > 0);
   for (const t of Object.values(tabs)) t.netChanged?.(what);
 }
 
@@ -2098,6 +2102,7 @@ async function startBoot() {
   else showPendingOffline();
 }
 window.__game = game;
+window.__net = net;   // v302 시험용
 window.__test_linkGoogle = (cred) => linkGoogle(cred);
 window.__test_loginGoogle = (cred) => loginGoogle(cred);   // 시험: 로그인 화면의 Google 단추(팝업 대신 토큰)   // 시험: 에뮬레이터 id 토큰으로 팝업 없이 잇는다
 window.__test_cloud = () => ({ ok: cloudOk, at: cloudSyncedAt(), dev: DEV_ID, google: net.isGoogle(), uid: net.uid });

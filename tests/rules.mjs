@@ -66,6 +66,23 @@ const profile = (extra = {}) => ({ world: 1, nickname: '무인', level: 10, job:
     ok(await denied(F.deleteDoc(friend.ref('players', victim.uid))), '운영자 아니면 남의 서열 지우기 거부');
     ok(await allowed(F.deleteDoc(F.doc(adb, 'players', victim.uid))), '운영자는 서열 문서를 지운다');
     ok(!(await F.getDoc(victim.ref('players', victim.uid))).exists(), '지워졌다');
+
+    console.log('# 전체 채팅 (v302)');
+    const wm = (u, o = {}) => ({ uid: u.uid, name: '무인', text: '안녕하세요', type: 'chat', createdAt: F.serverTimestamp(), ...o });
+    ok(await allowed(F.addDoc(F.collection(friend.db, 'chat'), wm(friend))), '누구나(문파 없어도) 전체 채팅');
+    ok(await allowed(F.addDoc(F.collection(bad.db, 'chat'), wm(bad, { type: 'system', text: '✦ 소식' }))), '무림 소식(system)도');
+    ok(await denied(F.addDoc(F.collection(bad.db, 'chat'), wm(bad, { uid: friend.uid }))), '남인 척 거부');
+    ok(await denied(F.addDoc(F.collection(bad.db, 'chat'), wm(bad, { text: '가'.repeat(201) }))), '201자 거부');
+    ok(await denied(F.addDoc(F.collection(bad.db, 'chat'), wm(bad, { text: '' }))), '빈 말 거부');
+    ok(await denied(F.addDoc(F.collection(bad.db, 'chat'), wm(bad, { name: '가'.repeat(13) }))), '긴 이름 거부');
+    ok(await denied(F.addDoc(F.collection(bad.db, 'chat'), wm(bad, { createdAt: new Date(0) }))), '시각을 꾸미면 거부(서버 시각만)');
+    ok(await denied(F.addDoc(F.collection(bad.db, 'chat'), wm(bad, { type: 'admin' }))), '이상한 종류 거부');
+    ok(await denied(F.addDoc(F.collection(bad.db, 'chat'), wm(bad, { extra: 1 }))), '다른 칸 거부');
+    const mine = await F.addDoc(F.collection(friend.db, 'chat'), wm(friend));
+    ok(await denied(F.updateDoc(friend.ref('chat', mine.id), { text: '고침' })), '자기 말도 고치기 거부');
+    ok(await denied(F.deleteDoc(friend.ref('chat', mine.id))), '자기 말도 지우기 거부(운영자만)');
+    ok(await allowed(F.getDocs(F.collection(bad.db, 'chat'))), '누구나 읽는다');
+    ok(await allowed(F.deleteDoc(F.doc(adb, 'chat', mine.id))), '운영자는 지운다');
   }
 
   console.log('# 운영자 전용');
