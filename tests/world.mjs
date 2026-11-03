@@ -2411,5 +2411,36 @@ console.log('\n=== v280 꾸미기 ===');
   ok(o.custom && o.custom.head === null && o.custom.robe === null && o.custom.band === null, '옛 저장 → 모두 기본');
   ok(!W.CUSTOM_HEADS.some(([k]) => k === 'band'), '머리띠 그림(뒤통수)은 고를 수 없다 — 상투 머리띠로');
 }
+console.log('\n=== v296 걸어와서 바로 친다 ===');
+{
+  const g = fresh();
+  g.s.autoSkill = false;
+  g.enterMap(11);
+  const st = g.stats();
+  const m = g.mons.find((o) => o.alive && !o.npc);
+  g.mons = [m];
+  g.mon = m;
+  m.aggro = false; m.atkTimer = 99; m.stun = 999;   // 몹은 제자리 — 무인만 걸어간다
+  m.hp = m.maxHp = 1e12;
+  // 무인과 몹을 아홉 칸 떨어뜨려 놓고, 막 한 대 친 것처럼 평타 쿨을 가득 채운다
+  m.c = g.hc + 9 < W.COLS ? g.hc + 9 : Math.max(0, g.hc - 9); m.r = g.hr; m.x = (m.c + 0.5) * W.TILE; m.y = (m.r + 0.5) * W.TILE; m.move = null;
+  g.atkTimer = st.atkSec;
+  let hits = 0, arrive = null, first = null, t = 0;
+  const orig = g.basicAttack.bind(g);
+  g.basicAttack = (...a) => { hits++; if (first == null) first = t; return orig(...a); };
+  const dt = 1 / 30;
+  for (let i = 0; i < 30 * 8 && first == null; i++) {
+    g.tick(dt); t += dt; g.events.length = 0;
+    if (arrive == null && !g.hmove && g.tileDist({ c: g.hc, r: g.hr }, g.mobTile(m)) <= st.range) arrive = t;
+  }
+  ok(arrive != null && arrive > st.atkSec, '걷는 데 평타 쿨보다 오래 걸렸다', `도착 ${arrive?.toFixed(2)}초 · 쿨 ${st.atkSec.toFixed(2)}초`);
+  ok(first != null && first - arrive <= dt * 1.5, '다 걸어오면 쉬지 않고 바로 친다 (후딜레이 없음)', `도착 뒤 ${((first ?? 99) - (arrive ?? 0)).toFixed(2)}초`);
+  // 쿨은 쌓이지 않는다 — 한참 걸어도 연달아 두 대를 치지 않는다
+  const t0 = first; hits = 0;
+  for (let i = 0; i < 30 * 3; i++) { g.tick(dt); t += dt; g.events.length = 0; }
+  ok(hits <= Math.ceil(3 / st.atkSec) + 1, '바로 친 뒤로는 원래 박자대로', `${hits}대 / 3초`);
+  ok(/this\.atkTimer = Math\.max\(0, this\.atkTimer - dt\)/.test(read('js/world/wgame.js')), '평타 쿨은 걷는 동안에도 흐른다');
+  void t0;
+}
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);

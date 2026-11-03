@@ -970,6 +970,8 @@ export class WorldGame {
   }
 
   tickHero(dt, st) {
+    // v296: 평타 쿨은 걷는 동안에도 흐른다 — 다 걸어와서 다시 한 박자 쉬고 치던 후딜레이를 없앤다(쌓이지는 않는다)
+    this.atkTimer = Math.max(0, this.atkTimer - dt);
     // 칸 사이를 옮겨 가는 중이면 마저 간다 — 칸 가운데에 서야 다음 일을 정한다
     if (this.hmove) {
       this.walking = true;
@@ -1029,7 +1031,6 @@ export class WorldGame {
       return;
     }
     this.walking = false;
-    this.atkTimer -= dt;
     if (this.atkTimer <= 0) {
       this.atkTimer = st.atkSec / (this.frenzyT > 0 ? 1.5 : 1) / (1 + (this.buffv.haste || 0)) / Math.max(0.3, 1 + (this.envNow().speed || 0));
       this.basicAttack(m, st, dist);
