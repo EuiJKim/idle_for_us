@@ -2047,3 +2047,17 @@ button.next-step { cursor: pointer; }
 .help-step b { display: block; color: var(--gold); font-size: 13px; margin-bottom: 3px; }
 .help-step p { margin: 3px 0 0; font-size: 12.5px; line-height: 1.45; color: #d6d3d1; }
 .help-step p.hl { color: #fcd34d; }
+/* v300 강화 창 UX — 여정 · 오르는 것 */
+.enh-road { margin: 0 0 8px; }
+.road-pips { display: grid; grid-template-columns: repeat(15, 1fr); gap: 3px; }
+.road-pips i { height: 18px; border-radius: 4px; font-style: normal; font-size: 9.5px; line-height: 18px; text-align: center; color: rgba(255, 255, 255, .55); background: rgba(255, 255, 255, .07); border: 1px solid transparent; }
+.road-pips i.safe.on { background: #3f7d5a; color: #fff; }
+.road-pips i.warn.on { background: #a16207; color: #fff; }
+.road-pips i.brk.on { background: #a3242a; color: #fff; }
+.road-pips i.next { border-color: var(--gold); color: var(--gold); font-weight: 700; box-shadow: 0 0 8px rgba(232, 200, 122, .45); }
+.road-pips i.lock { opacity: .3; }
+.road-legend { display: flex; flex-wrap: wrap; gap: 3px 10px; margin-top: 4px; font-size: 10.5px; color: var(--muted); }
+.road-legend .safe { color: #86efac; } .road-legend .warn { color: #fcd34d; } .road-legend .brk { color: #fca5a5; }
+.enh-gain { display: flex; align-items: baseline; justify-content: center; gap: 6px; font-size: 13px; color: #d6d3d1; margin: -2px 0 8px; }
+.enh-gain b { font-size: 15px; } .enh-gain b.up { color: #86efac; } .enh-gain i { font-style: normal; color: var(--muted); } .enh-gain small { color: var(--muted); }
+.prot-none { display: block; color: #fca5a5; font-size: 11.5px; margin: 2px 0 6px; }
