@@ -2725,5 +2725,18 @@ console.log('\n=== v309 규칙 판 ===');
   ok(rv && rv === inRules, '앱의 RULES_VER와 firestore.rules의 rulesv 판이 같다 (규칙을 고치면 둘 다 올린다)', `앱 ${rv} · 규칙 ${inRules}`);
   ok(/checkRules/.test(read('js/net.js')) && /rulesOk === false && net\.isAdmin/.test(read('js/wmain.js')), '옛 규칙이면 운영자에게 알린다');
 }
+console.log('\n=== v312 애완동물 해제 · 바꿔 데려가기 ===');
+{
+  const g = fresh();
+  g.s.pets = []; g.s.petBox = [];
+  const a = g.gainPet(1, null, W.PETS[0].id), b = g.gainPet(2, null, W.PETS[1].id);
+  ok(g.s.pets.length === 1 && g.s.petBox.length === 1 && g.s.pets[0] === a && g.s.petBox[0] === b, '칸 하나 — 하나는 키우고 하나는 우리');
+  ok(g.unequipPet(a.uid) && !g.s.pets.length && g.s.petBox.includes(a), '해제하면 우리로(사라지지 않는다)');
+  ok(g.adoptPet(b.uid) && g.s.pets[0] === b, '빈 칸에 다시 데려간다');
+  ok(g.swapPet(a.uid, b.uid) && g.s.pets[0] === a && g.s.petBox.includes(b) && g.s.pets.length === 1, '꽉 찼으면 바꿔 데려간다 — 바뀐 것은 우리로');
+  while (g.s.petBox.length < W.PET_BOX) g.s.petBox.push({ uid: 900000 + g.s.petBox.length, kind: W.PETS[0].id, rar: 0, lv: 1, exp: 0 });
+  ok(!g.canUnequipPet(a.uid) && !g.unequipPet(a.uid) && g.s.pets[0] === a, '우리가 가득이면 해제 못 한다');
+  ok(/unequipPet/.test(read('js/wui.js')) && /swapPet/.test(read('js/wui.js')), '창에 해제 · 바꿔 데려가기');
+}
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);

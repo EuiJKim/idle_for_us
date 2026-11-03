@@ -2561,6 +2561,25 @@ export class WorldGame {
     this._stats = null;
     return true;
   }
+  // v312 장착 해제 — 키우던 것을 우리로 돌려보낸다(사라지지 않는다). 우리가 가득이면 못 한다
+  canUnequipPet(uid) { return this.s.pets.some((p) => p.uid === uid) && this.s.petBox.length < W.PET_BOX; }
+  unequipPet(uid) {
+    if (!this.canUnequipPet(uid)) return false;
+    const i = this.s.pets.findIndex((p) => p.uid === uid);
+    this.s.petBox.push(this.s.pets.splice(i, 1)[0]);
+    this._stats = null;
+    return true;
+  }
+  // v312 바꿔 데려가기 — 우리의 것과 키우던 것을 자리 바꿈(칸이 꽉 차도 된다)
+  swapPet(boxUid, petUid) {
+    const bi = this.s.petBox.findIndex((p) => p.uid === boxUid);
+    const pi = this.s.pets.findIndex((p) => p.uid === petUid);
+    if (bi < 0 || pi < 0) return false;
+    const a = this.s.petBox[bi], b = this.s.pets[pi];
+    this.s.petBox[bi] = b; this.s.pets[pi] = a;
+    this._stats = null;
+    return true;
+  }
   // 놓아주기 — 키우던 것은 사라진다(되돌릴 수 없다)
   // v292 놓아주면 혼이 남는다(등급별 + 레벨 10마다 1) — 돌려주는 값: 받은 혼(못 찾으면 0)
   releasePet(uid) {

@@ -2109,3 +2109,7 @@ button.next-step { cursor: pointer; }
 .aw-ask > div { display: flex; gap: 10px; font-size: 13px; }
 .aw-ask b { flex: none; width: 74px; color: var(--muted); font-weight: 600; }
 .aw-ask .warn { color: #fca5a5; }
+/* v312 애완동물 해제 · 바꿔 데려가기 */
+.pet-swap { display: grid; gap: 6px; margin: 4px 0 8px; }
+.pet-swap .btn { display: flex; align-items: center; gap: 6px; justify-content: center; }
+.pet-swap .pet-ico { width: 26px; height: 26px; }

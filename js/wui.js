@@ -2681,9 +2681,11 @@ function compTab(app) {
         h('div', { class: 'pet-btns' },
           game.petSoulCost(p) != null ? h('button', { class: 'buy', disabled: game.canSoulUp(p.uid) ? null : true, onclick: () => { if (game.soulUp(p.uid)) { toast(`${d.name} — ${W.RARITY[p.rar].name}(으)로!`); done(); } } }, `등급 ↑`, h('small', {}, `혼 ${game.petSoulCost(p)}`)) : null,
           (p.star || 0) < W.PET_STAR_MAX ? h('button', { class: 'buy', disabled: game.canStar(p.uid) ? null : true, title: '우리에 있는 같은 종을 먹이로', onclick: () => { if (game.starUp(p.uid)) done(); } }, '별 ↑', h('small', {}, `먹이 ${game.starFodder(p.uid).length}`)) : null,
+          // v312 장착 해제 — 우리로(사라지지 않는다)
+          h('button', { class: 'btn', style: 'padding:6px 10px', disabled: game.canUnequipPet(p.uid) ? null : true, title: s.petBox.length >= W.PET_BOX ? '우리가 가득 찼어요' : '', onclick: () => { if (game.unequipPet(p.uid)) { toast(`${d.name}을(를) 우리로 보냈어요`); done(); } } }, '해제'),
           h('button', { class: 'btn danger', style: 'padding:6px 10px', onclick: () => confirmRelease(p, done) }, '놓아주기'))));
     });
-    boxCard.replaceChildren(h('h3', {}, '우리', h('small', {}, `${s.petBox.length}/${W.PET_BOX} · 키우던 것을 놓아줘야 데려갈 수 있어요`)));
+    boxCard.replaceChildren(h('h3', {}, '우리', h('small', {}, `${s.petBox.length}/${W.PET_BOX} · 누르면 데려가기 · 칸이 꽉 차면 키우던 것과 바꿔요`)));
     if (!s.petBox.length) boxCard.append(h('p', { class: 'muted' }, '비어 있어요.'));
     // v231: 우리는 그림 칸 셋씩 — 글 줄이 길고 단추가 끼어 비좁았다. 누르면 자세히(데려가기·놓아주기)
     const openPen = (p) => openModal((m) => {
@@ -2693,7 +2695,10 @@ function compTab(app) {
         h('div', {}, h('h2', {}, d.name, ' ', rarTag(p.rar)), h('small', { class: 'muted' }, `순위 ${d.tier} · Lv.${p.lv}`))),
         h('p', { class: 'muted' }, petInfo(p)),
         // v254: 칸이 남으면 null을 넘겨 창에 'null' 글자가 찍혔다(DOM append는 null을 글자로 넣는다)
-        ...(full ? [h('p', { class: 'muted', style: 'font-size:12px' }, `키우는 칸이 꽉 찼어요(${s.pets.length}/${slots}) — 위에서 하나를 놓아주면 데려갈 수 있어요.`)] : []),
+        // v312 꽉 찼으면 키우던 것과 바꿔 데려간다(바뀐 것은 우리로)
+        ...(full ? [h('p', { class: 'muted', style: 'font-size:12px' }, `키우는 칸이 꽉 찼어요(${s.pets.length}/${slots}) — 아래에서 하나와 바꿔 데려가요(그 아이는 우리로).`),
+          h('div', { class: 'pet-swap' }, ...s.pets.slice(0, slots).map((q) => h('button', { class: 'btn', onclick: () => { if (game.swapPet(p.uid, q.uid)) { closeModal(); toast(`${d.name}을(를) 데려가고 ${W.petOf(q.kind).name}은(는) 우리로`); done(); } } },
+            h('span', { class: 'ico pet-ico' }, creatureIcon(q.kind)), ` ${W.petOf(q.kind).name} 대신`)))] : []),
         // v292 같은 종 키우는 것에게 먹이로(별 하나)
         ...(() => { const host = s.pets.find((x) => x.kind === p.kind && (x.star || 0) < W.PET_STAR_MAX); return host ? [h('button', { class: 'btn', style: 'width:100%;margin-bottom:6px', onclick: () => {
           // 먹이는 가장 못한 것부터 — 이것을 먹이로 쓰려면 이것보다 못한 같은 종이 없어야 한다
