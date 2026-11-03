@@ -56,6 +56,7 @@ export class Net {
     this.lastProfile = 0;
     this.blocked = false;   // 서버가 거부해서 멈춘 상태 (끊긴 것과 다르다)
     this.shop = null;       // 상점에 띄울 계좌 정보 (config/shop)
+    this.hidden = [];       // v308 서열에서 숨긴 무인(config/hidden.uids) — 지운 서열 문서가 그 계정에서 다시 올라와도 안 보이게
   }
 
   get online() { return this.status === 'online'; }
@@ -91,6 +92,7 @@ export class Net {
       await this.pushProfile(true);
       await this.syncEntitlement();
       await this.loadShop();
+      await this.loadHidden();
       if (this.game.s.guildId) this.watchGuild(this.game.s.guildId);
       this.watchWorld();
     } catch (err) {
@@ -233,6 +235,25 @@ export class Net {
     }
   }
 
+  // v308 숨긴 무인 목록 — 운영자가 '무인 정리'로 지우면 여기에 적힌다. 서열(ranking)에서 거르고, 그 계정은 자기 기록을 다시 올리지 않는다.
+  async loadHidden() {
+    if (!this.online || this.blocked) return;
+    try {
+      const snap = await this.fs.getDoc(this.ref('config', 'hidden'));
+      this.hidden = snap.exists() && Array.isArray(snap.data().uids) ? snap.data().uids.filter((u) => typeof u === 'string') : [];
+    } catch (err) { if (!this.denied(err, '숨김 목록(config/hidden)')) console.warn('[net] hidden', err); }
+  }
+  isHidden(uid) { return this.hidden.includes(uid); }
+  async setHidden(uid, on) {
+    if (!this.isAdmin() || !uid) return false;
+    try {
+      const { setDoc, arrayUnion, arrayRemove } = this.fs;
+      await setDoc(this.ref('config', 'hidden'), { uids: on ? arrayUnion(uid) : arrayRemove(uid) }, { merge: true });
+      this.hidden = on ? [...new Set([...this.hidden, uid])] : this.hidden.filter((u) => u !== uid);
+      return true;
+    } catch (err) { console.warn('[net] setHidden', err); return false; }
+  }
+
   // ---------- 운영자 ----------
   //
   // 여기서 참이라고 **허락되는 건 아니다.** 서버 규칙이 같은 값을 다시 본다.
@@ -282,13 +303,17 @@ export class Net {
     try {
       const snap = await this.fs.getDocs(this.fs.query(this.fs.collection(this.db, 'players'), this.fs.limit(n)));
       const rows = [];
-      snap.forEach((d) => rows.push({ uid: d.id, ...d.data() }));
+      snap.forEach((d) => rows.push({ uid: d.id, ...d.data(), hidden: this.isHidden(d.id) }));
       return rows;
     } catch (err) { console.warn('[net] allPlayers', err); return []; }
   }
   async deletePlayer(uid) {
     if (!this.isAdmin() || !uid || uid === this.uid) return false;
-    try { await this.fs.deleteDoc(this.ref('players', uid)); return true; } catch (err) { console.warn('[net] deletePlayer', err); return false; }
+    try {
+      await this.fs.deleteDoc(this.ref('players', uid));
+      await this.setHidden(uid, true);   // v308 그 계정이 다시 들어와 올려도 서열에 안 보이게
+      return true;
+    } catch (err) { console.warn('[net] deletePlayer', err); return false; }
   }
 
   // ---------- 운영자 선물 (v175) ----------
@@ -450,6 +475,7 @@ export class Net {
 
   async pushProfile(force = false) {
     if (!this.online || this.blocked || !this.game.s.nickname) return;
+    if (this.isHidden(this.uid)) return;   // v308 운영자가 숨긴 계정은 자기 기록을 올리지 않는다
     const now = Date.now();
     if (!force && now - this.lastProfile < PROFILE_INTERVAL) return;
     this.lastProfile = now;
@@ -463,7 +489,7 @@ export class Net {
   async ranking() {
     const { collection, query, orderBy, limit, getDocs } = this.fs;
     const snap = await getDocs(query(collection(this.db, 'players'), orderBy('power', 'desc'), limit(50)));
-    return snap.docs.map((d) => ({ uid: d.id, ...d.data() }));
+    return snap.docs.map((d) => ({ uid: d.id, ...d.data() })).filter((p) => !this.isHidden(p.uid));   // v308 숨긴 무인은 뺀다
   }
 
   async player(uid) {

@@ -67,6 +67,12 @@ const profile = (extra = {}) => ({ world: 1, nickname: '무인', level: 10, job:
     ok(await allowed(F.deleteDoc(F.doc(adb, 'players', victim.uid))), '운영자는 서열 문서를 지운다');
     ok(!(await F.getDoc(victim.ref('players', victim.uid))).exists(), '지워졌다');
 
+    console.log('# 숨김 목록 (v308)');
+    ok(await allowed(F.setDoc(F.doc(adb, 'config', 'hidden'), { uids: F.arrayUnion(victim.uid) }, { merge: true })), '운영자가 숨김 목록에 올린다');
+    ok(await allowed(F.getDoc(friend.ref('config', 'hidden'))), '누구나 숨김 목록을 읽는다(서열에서 거르려고)');
+    ok(await denied(F.setDoc(friend.ref('config', 'hidden'), { uids: F.arrayRemove(victim.uid) }, { merge: true })), '운영자 아니면 숨김 목록을 못 고친다');
+    ok(await allowed(F.setDoc(F.doc(adb, 'config', 'hidden'), { uids: F.arrayRemove(victim.uid) }, { merge: true })), '운영자가 되살린다');
+
     console.log('# 칭호 우편 (v305)');
     ok(await allowed(F.setDoc(F.doc(adb, 'gifts', friend.uid, 'box', 'gt1'), { title: 'okheir', memo: '이미옥의 후예', at: Date.now() })), '운영자가 칭호 우편');
     ok(await denied(F.setDoc(F.doc(adb, 'gifts', friend.uid, 'box', 'gt2'), { title: 'x'.repeat(21), at: Date.now() })), '긴 칭호 열쇠 거부');

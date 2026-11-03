@@ -1446,26 +1446,29 @@ async function openPlayerAdmin() {
   const sync = () => { go.disabled = !picked.size; go.textContent = picked.size ? `고른 ${picked.size}명 서열에서 지우기` : '지울 무인을 고르세요'; };
   openModal((s) => s.append(h('h2', {}, '무인 정리'),
     h('p', { class: 'muted', style: 'margin:-4px 0 10px;font-size:12.5px' },
-      '서열에서만 지워요(다시 들어오면 다시 올라와요). ', h('b', {}, '미리 고른 것'), ': Lv10 이하 · 3일 넘게 안 들어옴 · 문파 없음'),
+      '서열 기록을 지우고 숨김 목록에 올려요 — 그 계정이 다시 들어와도 서열에 안 보여요(되살리기로 풀어요). ', h('b', {}, '미리 고른 것'), ': Lv10 이하 · 3일 넘게 안 들어옴 · 문파 없음'),
     list,
     h('div', { class: 'btn-row' }, go, h('button', { class: 'btn', onclick: closeModal }, '닫기'))));
   async function load() {
     picked.clear(); sync();
     const now = Date.now();
-    const rows = (await net.allPlayers(400)).map((p) => ({ ...p, ...staleGuess(p, now, net.uid) }));
-    rows.sort((a, b) => (b.pick - a.pick) || (b.days - a.days));
-    if (!rows.length) { list.replaceChildren(h('p', { class: 'muted' }, '무인 목록을 못 불러왔어요 (규칙 게시를 확인하세요)')); return; }
-    list.replaceChildren(h('p', { class: 'pa-sum' }, `서열에 ${rows.length}명 · 미리 고른 ${rows.filter((r) => r.pick).length}명`), ...rows.map((p) => {
+    await net.loadHidden();
+    const rows = (await net.allPlayers(400)).map((p) => ({ ...p, ...staleGuess(p, now, net.uid) })).map((p) => (p.hidden ? { ...p, pick: false } : p));
+    rows.sort((a, b) => (a.hidden - b.hidden) || (b.pick - a.pick) || (b.days - a.days));
+    if (!rows.length && !net.hidden.length) { list.replaceChildren(h('p', { class: 'muted' }, '무인 목록을 못 불러왔어요 (규칙 게시를 확인하세요)')); return; }
+    // v308 서열 문서가 없어도 숨김 목록에만 있는 계정(지운 뒤 아직 안 들어온 것)
+    for (const u of net.hidden) if (!rows.some((p) => p.uid === u)) rows.push({ uid: u, hidden: true, days: Infinity, pick: false, gone: true });
+    list.replaceChildren(h('p', { class: 'pa-sum' }, `서열에 ${rows.filter((r) => !r.hidden).length}명 · 미리 고른 ${rows.filter((r) => r.pick).length}명 · 숨김 ${rows.filter((r) => r.hidden).length}명`), ...rows.map((p) => {
       const me = p.uid === net.uid;
-      const cb = h('input', { type: 'checkbox', disabled: me ? true : null });
+      const cb = h('input', { type: 'checkbox', disabled: me || p.hidden ? true : null });
       cb.checked = p.pick;
       if (p.pick) picked.add(p.uid);
       cb.onchange = () => { if (cb.checked) picked.add(p.uid); else picked.delete(p.uid); sync(); };
       const ago = !Number.isFinite(p.days) ? '접속 기록 없음' : p.days < 1 ? '오늘' : `${Math.floor(p.days)}일 전`;
-      return h('label', { class: `pa-row${p.pick ? ' pick' : ''}` }, cb,
-        h('span', { class: 'pa-name' }, h('b', {}, p.nickname || '이름없음', me ? h('em', {}, ' · 나') : ''),
-          h('small', {}, `Lv.${p.level || 1}${p.tierName ? ` · ${p.tierName}` : ''}${p.guildName ? ` · 문파 ${p.guildName}` : ''} · ${ago}`)),
-        h('code', { class: 'pa-uid' }, p.uid.slice(0, 6)));
+      return h('label', { class: `pa-row${p.pick ? ' pick' : ''}${p.hidden ? ' hidden' : ''}` }, cb,
+        h('span', { class: 'pa-name' }, h('b', {}, p.nickname || (p.gone ? '(서열 기록 없음)' : '이름없음'), me ? h('em', {}, ' · 나') : '', p.hidden ? h('em', {}, ' · 숨김') : ''),
+          h('small', {}, p.gone ? '지운 뒤 아직 안 들어옴' : `Lv.${p.level || 1}${p.tierName ? ` · ${p.tierName}` : ''}${p.guildName ? ` · 문파 ${p.guildName}` : ''} · ${ago}`)),
+        p.hidden ? h('button', { class: 'btn', style: 'padding:3px 8px;font-size:11.5px', onclick: async (e) => { e.preventDefault(); if (await net.setHidden(p.uid, false)) { toast('되살렸어요 — 다음에 들어오면 서열에 올라와요'); net.changed('rank'); load(); } else toast('되살리지 못했어요'); } }, '되살리기') : h('code', { class: 'pa-uid' }, p.uid.slice(0, 6)));
     }));
     sync();
   }
@@ -1475,7 +1478,8 @@ async function openPlayerAdmin() {
     go.disabled = true; go.textContent = '지우는 중…';
     let n = 0;
     for (const id of ids) if (await net.deletePlayer(id)) n++;
-    toast(n === ids.length ? `${n}명을 서열에서 지웠어요` : `${n}/${ids.length}명 지웠어요 — 나머지는 규칙 게시를 확인하세요`);
+    toast(n === ids.length ? `${n}명을 서열에서 지우고 숨겼어요` : `${n}/${ids.length}명 지웠어요 — 나머지는 규칙 게시를 확인하세요`);
+    net.changed('rank');   // v308 서열 창이 바로 다시 읽는다
     load();
   };
   load();

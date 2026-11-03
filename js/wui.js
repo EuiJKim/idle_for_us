@@ -2245,7 +2245,7 @@ function rankView(app) {
       console.warn('[ranking]', err);
     }
   }
-  return { root, update() {}, shown() { if (Date.now() - loaded > 30000) load(); } };
+  return { root, update() {}, shown() { if (Date.now() - loaded > 30000) load(); }, netChanged(what) { if (what === 'rank') load(); } };   // v308 정리 뒤 바로
 }
 
 const ago = (ms) => {
