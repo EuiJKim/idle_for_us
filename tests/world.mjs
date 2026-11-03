@@ -2222,8 +2222,8 @@ console.log('\n=== v275 숙련도·견문록 전투 보상 · 무공 비급 조�
   // 몹 처치로 떨어지는 빈도
   const h2 = fresh(); h2.enterMap(11); let got = 0; h2.rng = Math.random;
   const f0 = h2.s.frag || 0;
-  for (let i = 0; i < 60000; i++) { if (h2.rng() < W.FRAG_RATE) got++; }
-  ok(got >= 1 && got <= 10, '몹 만오천에 하나 꼴', `${got}/60000`);
+  for (let i = 0; i < 300000; i++) { if (h2.rng() < W.FRAG_RATE) got++; }   // v305: 6만 번은 0이 나올 때가 있었다(1.8%) — 30만 번
+  ok(got >= 4 && got <= 50, '몹 만오천에 하나 꼴', `${got}/300000`);
   // 방치에도
   const o = fresh('sword'); o.s.level = 80; o.s.lastSeen = Date.now() - 10 * 3600e3; o.s.rates = { map: 11, kills: 20, exp: 1, gold: 1, potions: 0 };
   const rw = o.offlineReward(Date.now());
@@ -2648,14 +2648,14 @@ console.log('\n=== v303 손으로 움직인 뒤 · 잡은 뒤 후딜 없음 ==='
   m2.c = Math.min(W.COLS - 1, g2.hc + 8); m2.r = g2.hr; m2.x = (m2.c + 0.5) * W.TILE; m2.y = (m2.r + 0.5) * W.TILE; m2.move = null;
   const tc = g2.hc + 1;
   g2.moveTo((tc + 0.5) * W.TILE, (g2.hr + 0.5) * W.TILE);
-  for (let i = 0; i < 30 * 1.0; i++) { g2.tick(dt); g2.events.length = 0; }
+  for (let i = 0; i < 15; i++) { g2.tick(dt); g2.events.length = 0; }
   ok(!g2.manual && g2.manualHold > 0 && g2.hc === tc && !g2.hmove, '찍은 칸에 닿은 직후에는 먼 몹을 쫓아가지 않는다(손 움직임을 존중)', `무인 ${g2.hc} 찍은 칸 ${tc} 몹 ${m2.c} hold ${g2.manualHold.toFixed(2)}`);
   // 잡으면 쿨이 짧아진다
   const g3 = fresh(); g3.s.autoSkill = false; g3.enterMap(11);
   const m3 = g3.mons.find((o) => o.alive && !o.npc); g3.mons = [m3]; g3.mon = m3; m3.stun = 999; m3.hp = 1;
   m3.c = g3.hc + 1; m3.r = g3.hr; m3.x = (m3.c + 0.5) * W.TILE; m3.y = (m3.r + 0.5) * W.TILE; m3.move = null;
   g3.atkTimer = 0; g3.tick(dt);
-  ok(!m3.alive && g3.atkTimer <= W.KILL_RECOVER + 1e-9, '과녁을 쓰러뜨리면 평타 쿨이 0.3초로', `쿨 ${g3.atkTimer.toFixed(2)}`);
+  ok(!m3.alive && g3.atkTimer <= W.KILL_RECOVER + 1e-9, `과녁을 쓰러뜨리면 평타 쿨이 ${W.KILL_RECOVER}초로`, `쿨 ${g3.atkTimer.toFixed(2)}`);
   const g4 = fresh(); g4.s.autoSkill = false; g4.enterMap(11);
   const m4 = g4.mons.find((o) => o.alive && !o.npc); g4.mons = [m4]; g4.mon = m4; m4.stun = 999; m4.hp = m4.maxHp = 1e12;
   m4.c = g4.hc + 1; m4.r = g4.hr; m4.x = (m4.c + 0.5) * W.TILE; m4.y = (m4.r + 0.5) * W.TILE; m4.move = null;
@@ -2670,6 +2670,27 @@ console.log('\n=== v303 손으로 움직인 뒤 · 잡은 뒤 후딜 없음 ==='
   ok(!a1.alive && !a2.alive && acc1 > 0 && Math.abs(g5.dmgAcc - acc1) < 1e-6, '잡은 직후 0.3초 만에 나간 평타는 초당 피해에 안 센다', `첫 ${acc1.toFixed(0)} → ${g5.dmgAcc.toFixed(0)}`);
   ok(/_quickAtk/.test(read('js/world/wgame.js')), '빠른 평타 표시로 거른다');
   void st;
+}
+console.log('\n=== v305 칭호 ===');
+{
+  const g = fresh('sword');
+  while (g.s.level < 30) g.addExp(W.expToNext(g.s.level));
+  const atk0 = g.stats().atk;
+  ok(!g.titleNow() && !g.s.titles.length, '처음엔 칭호가 없다');
+  ok(!g.grantTitle('nope') && !g.wearTitle('okheir'), '없는 칭호는 못 받고 · 안 가진 칭호는 못 낀다');
+  g.events.length = 0;
+  ok(g.grantTitle('okheir') && g.hasTitle('okheir') && g.s.title === 'okheir' && g.events.some((e) => e.type === 'title' && e.id === 'okheir'), '〈이미옥의 후예〉를 받으면 바로 끼고 알린다');
+  ok(Math.abs(g.stats().atk / atk0 - 2) < 1e-9, '공격력 ×2', `${atk0.toFixed(0)} → ${g.stats().atk.toFixed(0)}`);
+  ok(g.titleNow().hitFx === '옥' && /〈이미옥의 후예〉 Lv\.30/.test(g.heroLabel()), '때릴 때 글자 〈옥〉 · 이름표에 칭호');
+  ok(!g.grantTitle('okheir') && g.s.titles.length === 1, '두 번 받아도 하나');
+  ok(g.wearTitle(null) && !g.s.title && Math.abs(g.stats().atk - atk0) < 1e-6, '벗으면 원래 공격력');
+  ok(g.wearTitle('okheir') && g.s.title === 'okheir', '다시 낀다');
+  const m = migrateWorld({ ...newWorldSave(), titles: ['개국공신', 'okheir', 'bogus', 5], title: 'okheir' });
+  ok(m.titles.length === 2 && m.titles.includes('개국공신') && m.titles.includes('okheir') && m.title === 'okheir', '저장: 아는 칭호만 남고 낀 것도 남는다', JSON.stringify(m.titles));
+  ok(migrateWorld({ ...newWorldSave(), titles: [], title: 'okheir' }).title === null, '안 가진 칭호를 끼고 있으면 벗긴다');
+  ok(W.titleOf('개국공신')?.id === 'founder' && !W.titleOf('개국공신').atkMul, '옛 개국공신은 효과 없는 칭호');
+  ok(/titleK/.test(read('js/wmain.js')) && /g\.title/.test(read('js/wmain.js')) && /'title'/.test(read('firestore.rules')), '우편으로 보내고 받는다 · 규칙에 title');
+  ok(/tf\.hitFx/.test(read('js/battle.js')), '때릴 때마다 글자');
 }
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);

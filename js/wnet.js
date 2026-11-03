@@ -35,6 +35,7 @@ export class WNet extends Net {
       atk: Math.round(st.atk), hp: Math.round(st.hp),
       weaponGrade: g.bestGrade('weapon'),
       titles: s.titles || [],
+      title: s.title || null,   // v305 끼고 있는 칭호 — 서열에 보인다
       raidDps: Math.round(g.raidDpsEst()),
       // v268 문파 코드는 올리지 않는다 — 코드가 곧 들어가는 열쇠인데 서열은 누구나 읽는다(예전 값은 지운다)
       guildId: this.fs.deleteField(), guildName: this.guild?.name || null,

@@ -67,6 +67,13 @@ const profile = (extra = {}) => ({ world: 1, nickname: '무인', level: 10, job:
     ok(await allowed(F.deleteDoc(F.doc(adb, 'players', victim.uid))), '운영자는 서열 문서를 지운다');
     ok(!(await F.getDoc(victim.ref('players', victim.uid))).exists(), '지워졌다');
 
+    console.log('# 칭호 우편 (v305)');
+    ok(await allowed(F.setDoc(F.doc(adb, 'gifts', friend.uid, 'box', 'gt1'), { title: 'okheir', memo: '이미옥의 후예', at: Date.now() })), '운영자가 칭호 우편');
+    ok(await denied(F.setDoc(F.doc(adb, 'gifts', friend.uid, 'box', 'gt2'), { title: 'x'.repeat(21), at: Date.now() })), '긴 칭호 열쇠 거부');
+    ok(await denied(F.setDoc(friend.ref('gifts', friend.uid, 'box', 'gt3'), { title: 'okheir', at: Date.now() })), '스스로 칭호 우편 넣기 거부');
+    ok(await allowed(F.setDoc(friend.ref('players', friend.uid), profile({ title: 'okheir' }), { merge: true })), '서열에 낀 칭호 올리기');
+    ok(await denied(F.setDoc(friend.ref('players', friend.uid), profile({ title: 'x'.repeat(21) }), { merge: true })), '긴 칭호 거부');
+
     console.log('# 전체 채팅 (v302)');
     const wm = (u, o = {}) => ({ uid: u.uid, name: '무인', text: '안녕하세요', type: 'chat', createdAt: F.serverTimestamp(), ...o });
     ok(await allowed(F.addDoc(F.collection(friend.db, 'chat'), wm(friend))), '누구나(문파 없어도) 전체 채팅');

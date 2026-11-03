@@ -33,7 +33,7 @@ service cloud.firestore {
     }
     function profileKeys() {
       return ['world', 'nickname', 'level', 'job', 'jobTier', 'tierName', 'map', 'mapName', 'power', 'atk', 'hp',
-        'weaponGrade', 'titles', 'raidDps', 'guildId', 'guildName', 'updatedAt'];
+        'weaponGrade', 'titles', 'title', 'raidDps', 'guildId', 'guildName', 'updatedAt'];
     }
     function strOk(d, k, n) { return !(k in d) || d[k] == null || (d[k] is string && d[k].size() <= n); }
     function numOk(d, k, lo, hi) { return !(k in d) || d[k] == null || (d[k] is number && d[k] >= lo && d[k] <= hi); }
@@ -43,7 +43,7 @@ service cloud.firestore {
         && numOk(d, 'world', 0, 1)
         && (!('level' in d) || (d.level is int && d.level >= 0 && d.level <= 300))
         && (!('jobTier' in d) || (d.jobTier is int && d.jobTier >= 0 && d.jobTier <= 4))
-        && strOk(d, 'job', 16) && strOk(d, 'tierName', 24) && strOk(d, 'mapName', 24) && strOk(d, 'guildName', 16)
+        && strOk(d, 'job', 16) && strOk(d, 'tierName', 24) && strOk(d, 'mapName', 24) && strOk(d, 'guildName', 16) && strOk(d, 'title', 20)
         && numOk(d, 'map', 0, 1000) && numOk(d, 'weaponGrade', -1, 50)
         && numOk(d, 'power', 0, 1000000000000000000000000000000.0) && numOk(d, 'atk', 0, 1000000000000000000000000000000.0) && numOk(d, 'hp', 0, 1000000000000000000000000000000.0) && numOk(d, 'raidDps', 0, 1000000000000000000000000000000.0)
         && (!('titles' in d) || (d.titles is list && d.titles.size() <= 40))
@@ -86,8 +86,9 @@ service cloud.firestore {
     match /gifts/{uid}/box/{gid} {
       allow read, delete: if signedIn() && (request.auth.uid == uid || isAdmin());
       allow create: if isAdmin()
-        && request.resource.data.keys().hasOnly(['gold', 'potions', 'prot', 'pet', 'mount', 'memo', 'at'])
+        && request.resource.data.keys().hasOnly(['gold', 'potions', 'prot', 'pet', 'mount', 'title', 'memo', 'at'])
         && (!('pet' in request.resource.data) || (request.resource.data.pet is string && request.resource.data.pet.size() <= 20))
+        && (!('title' in request.resource.data) || (request.resource.data.title is string && request.resource.data.title.size() <= 20))
         && (!('mount' in request.resource.data) || (request.resource.data.mount is string && request.resource.data.mount.size() <= 20))
         && (!('gold' in request.resource.data) || (request.resource.data.gold is int && request.resource.data.gold > 0 && request.resource.data.gold <= 1000000000000))
         && (!('potions' in request.resource.data) || (request.resource.data.potions is int && request.resource.data.potions > 0 && request.resource.data.potions <= 100000))

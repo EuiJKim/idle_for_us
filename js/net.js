@@ -302,7 +302,8 @@ export class Net {
     for (const k of ['gold', 'potions', 'prot']) if (Math.floor(gift?.[k] || 0) > 0) doc[k] = Math.floor(gift[k]);
     if (gift?.pet) doc.pet = String(gift.pet).slice(0, 20);
     if (gift?.mount) doc.mount = String(gift.mount).slice(0, 20);
-    if (!doc.gold && !doc.potions && !doc.prot && !doc.pet && !doc.mount) return false;
+    if (gift?.title) doc.title = String(gift.title).slice(0, 20);   // v305 칭호
+    if (!doc.gold && !doc.potions && !doc.prot && !doc.pet && !doc.mount && !doc.title) return false;
     try {
       await this.fs.setDoc(this.ref('gifts', uid, 'box', `g${Date.now()}`), doc);
       return true;

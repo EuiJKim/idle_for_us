@@ -413,9 +413,15 @@ function charTab(app) {
     const s = game.s;
     const st = game.stats();
     const cls = W.classOf(s.job);
+    const tn = game.titleNow();
     head.replaceChildren(
-      h('h3', {}, `${s.nickname || '무명'} `, h('small', {}, `${game.tierName()} · Lv.${s.level}`)),
+      h('h3', {}, tn ? h('span', { class: 'title-tag', style: `--tc:${tn.col}` }, `〈${tn.name}〉 `) : null, `${s.nickname || '무명'} `, h('small', {}, `${game.tierName()} · Lv.${s.level}`)),
       h('p', { class: 'muted' }, cls ? `${cls.name} — ${W.CLASSES[s.job].trait}` : ''),
+      // v305 칭호 — 가진 것 가운데 하나를 낀다
+      s.titles.length ? h('div', { class: 'title-row' }, h('small', {}, '칭호'),
+        ...s.titles.map((k) => { const t = W.titleOf(k); return t ? h('button', { class: `chip title-chip${s.title === k ? ' on' : ''}`, style: `--tc:${t.col}`, title: t.desc,
+          onclick: () => { game.wearTitle(s.title === k ? null : k); app.save(); app.refresh(); toast(s.title ? `〈${t.name}〉 — ${t.desc}` : '칭호를 벗었어요'); } }, `〈${t.name}〉`) : null; }),
+        tn?.desc ? h('span', { class: 'title-desc' }, tn.desc) : null) : null,
 
       h('div', { class: 'bar' }, h('div', { style: `width:${Math.min(100, (s.exp / game.expNeed()) * 100)}%` }),
         h('span', {}, `경험치 ${fmt(s.exp)} / ${fmt(game.expNeed())}`)));
@@ -2206,7 +2212,7 @@ function rankView(app) {
       list.replaceChildren(...rows.map((p, i) => h('div', { class: `row rank-row${p.uid === net.uid ? ' me' : ''}` },
         h('div', { class: 'rank-no' }, i < 3 ? ['🥇', '🥈', '🥉'][i] : i + 1),
         h('div', { class: 'info' },
-          h('div', { class: 'name' }, p.nickname || '이름없음', h('small', {}, `${p.tierName || ''}`)),
+          h('div', { class: 'name' }, p.title && W.titleOf(p.title) ? h('span', { class: 'title-tag', style: `--tc:${W.titleOf(p.title).col}` }, `〈${W.titleOf(p.title).name}〉 `) : null, p.nickname || '이름없음', h('small', {}, `${p.tierName || ''}`)),
           h('div', { class: 'desc' }, `Lv.${p.level || 1} · ${p.mapName || ''}${p.guildName ? ` · ${p.guildName}` : ''}`)),
         h('div', { style: 'font-weight:900;color:#fde68a' }, fmt(p.power || 0)))));
     } catch (err) {

@@ -993,6 +993,13 @@ function handleEvents() {
         if (ev.type === 'infuse' && ev.ok && ev.item.rar >= 2 && !ev.reimp && !ev.fill && !ev.dan && !ev.rewrite) net.announce(`✦ ${game.s.nickname}님의 〈${itemTitle(game, ev.item)}〉에 ${W.RARITY[ev.item.rar].name} 등급이 새겨졌어요`);
         break;
       }
+      case 'title': {   // v305 칭호를 받았다
+        sfx('level');
+        view.float(`〈${ev.name}〉`, view.heroX, view.groundY - 210, W.titleOf(ev.id)?.col || '#fde68a', 24, 2);
+        toast(`🏷 칭호 〈${ev.name}〉을(를) 받았어요 — 캐릭터 창에서 끼고 벗어요`);
+        drawPortrait();
+        break;
+      }
       case 'resonance': {
         // v297 공명 단계가 오르면 무인 위로 크게 · 내려가면 조용히 알린다
         const th = IM.THEMES[ev.theme];
@@ -1392,16 +1399,17 @@ async function openGiftAdmin() {
   const petK = sel([['', '없음'], ...W.PETS.map((p) => [p.id, `${p.emoji} ${p.name} — ${p.text}`])]);
   const petR = sel(W.RARITY.map((r, i) => [String(i), r.name]));
   const mountK = sel([['', '없음'], ...W.MOUNTS.map((m) => [m.id, `${m.emoji} ${m.name}`])]);
+  const titleK = sel([['', '없음'], ...Object.values(W.TITLES).filter((t) => t.id !== 'founder').map((t) => [t.id, `〈${t.name}〉 ${t.desc}`])]);   // v305
   const memo = h('input', { type: 'text', placeholder: '한마디 (없어도 돼요)', maxlength: '60', class: 'gift-memo' });
   const field = (name, el) => h('div', { class: 'row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, name)), el);
   openModal((s) => s.append(h('h2', {}, '우편 보내기'), list,
-    field('은자', amt), field('물약', pots), field('강화 보호부', prot), field('애완동물', petK), field('애완동물 등급', petR), field('탈것', mountK), memo,
+    field('은자', amt), field('물약', pots), field('강화 보호부', prot), field('애완동물', petK), field('애완동물 등급', petR), field('탈것', mountK), field('칭호', titleK), memo,
     h('div', { class: 'btn-row' },
       h('button', { class: 'btn primary', onclick: async () => {
         const gift = { gold: Number(amt.value) || 0, potions: Number(pots.value) || 0, prot: Number(prot.value) || 0,
-          pet: petK.value ? `${petK.value}:${petR.value}` : '', mount: mountK.value };
+          pet: petK.value ? `${petK.value}:${petR.value}` : '', mount: mountK.value, title: titleK.value };
         if (!pick) return toast('받을 무인을 고르세요');
-        if (!(gift.gold > 0 || gift.potions > 0 || gift.prot > 0 || gift.pet || gift.mount)) return toast('보낼 것을 적으세요');
+        if (!(gift.gold > 0 || gift.potions > 0 || gift.prot > 0 || gift.pet || gift.mount || gift.title)) return toast('보낼 것을 적으세요');
         const ok = await net.sendGift(pick.uid, gift, memo.value);
         toast(ok ? `${pick.nickname || '무인'}의 우편함에 넣었어요 — ${giftText(gift)}` : '보내지 못했어요 (규칙 게시를 확인하세요)');
         if (ok) closeModal();
@@ -1626,6 +1634,7 @@ function petName(code) {
 }
 function giftText(g) {
   return [g.gold > 0 ? `은자 ${fmt(g.gold)}` : '', g.potions > 0 ? `물약 ${fmt(g.potions)}` : '', g.prot > 0 ? `보호부 ${fmt(g.prot)}` : '',
+    ...[].concat(g.title || []).map((t) => (W.titleOf(t) ? `칭호 〈${W.titleOf(t).name}〉` : '')),
     ...[].concat(g.pet || []).map((p) => `애완동물 ${petName(p)}`),
     ...[].concat(g.mount || []).map((m) => W.mountOf(m) ? `탈것 ${W.mountOf(m).emoji} ${W.mountOf(m).name}` : '')]
     .filter(Boolean).join(' · ');
@@ -1647,7 +1656,7 @@ async function claimMail(ids) {
   try { await claimMailNow(ids); } finally { claimingMail = false; }
 }
 async function claimMailNow(ids) {
-  const got = { gold: 0, potions: 0, prot: 0, pet: [], mount: [] };
+  const got = { gold: 0, potions: 0, prot: 0, pet: [], mount: [], title: [] };
   const left = [];
   for (const id of ids) {
     // 애완동물은 키우는 칸·우리에 자리가 있어야 받는다 — 없으면 우편을 남겨 둔다
@@ -1659,11 +1668,12 @@ async function claimMailNow(ids) {
     // v254: 우편은 이미 지웠으니 잃지 않게 — 우리가 차도 우리에 넣는다(force). 여러 마리·여러 탈것도
     for (const code of [].concat(g.pet || [])) if (game.takeMailPet(code, true)) got.pet.push(code);
     for (const kind of [].concat(g.mount || [])) if (game.takeMailMount(kind)) got.mount.push(kind);
+    for (const t of [].concat(g.title || [])) if (game.grantTitle(t)) got.title.push(t);   // v305 (이미 있으면 그냥 지나간다)
   }
   mail = mail.filter((m) => !ids.includes(m.id) || left.includes(m.id));
   showMailBtn();
   if (left.length) toast('애완동물 우리가 가득 찼어요 — 한 마리를 놓아주고 받으세요');
-  if (!(got.gold || got.potions || got.prot || got.pet.length || got.mount.length)) { if (!left.length) toast('받을 것이 없어요'); return; }
+  if (!(got.gold || got.potions || got.prot || got.pet.length || got.mount.length || got.title.length)) { if (!left.length) toast('받을 것이 없어요'); return; }
   game.s.gold += got.gold;
   game.s.potions += got.potions;
   game.s.prot = (game.s.prot || 0) + got.prot;
@@ -1684,6 +1694,7 @@ function mailChips(g) {
     out.push(chip(d.emoji, d.name, rr.name, rr.color));
   }
   for (const m of [].concat(g.mount || [])) { const d = W.mountOf(m); if (d) out.push(chip(d.emoji, d.name, `이동 +${Math.round(d.speed * 100)}%`)); }
+  for (const t of [].concat(g.title || [])) { const d = W.titleOf(t); if (d) out.push(chip('🏷', `〈${d.name}〉`, d.desc, d.col)); }   // v305
   return out;
 }
 const mailWhen = (at) => {

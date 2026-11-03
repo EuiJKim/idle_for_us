@@ -849,7 +849,15 @@ export const statBookCost = (n) => Math.round(3000 * 1.09 ** n);
 // ---------- 무인 수치 ----------
 export const CRIT_DMG = 1.8;
 export const BASE_ATK_SEC = 0.85;     // 평타 간격(초)
-export const KILL_RECOVER = 0.3;      // v303 과녁을 쓰러뜨리면 평타 쿨을 이만큼으로 줄인다 — 다음 몹까지 걸어가 또 한 박자 쉬지 않게
+export const KILL_RECOVER = 0.15;     // v303 과녁을 쓰러뜨리면 평타 쿨을 이만큼으로 — 다음 몹까지 걸어가 또 한 박자 쉬지 않게 (v305 0.3 → 0.15)
+export const MANUAL_HOLD = 0.3;       // v305 손으로 움직인 직후 과녁을 쫓아가지 않는 시간(닿는 적은 친다) — 전엔 0.6~1.2초를 서 있었다
+// v305 칭호 — 운영자가 우편으로 준다. 끼면 능력치·연출. 옛 '개국공신'은 글자 그대로 저장돼 있다(효과 없음).
+//   atkMul: 공격력 배수 · hitFx: 때릴 때마다 과녁 위에 뜨는 글자 · col: 빛깔
+export const TITLES = {
+  founder: { id: 'founder', name: '개국공신', desc: '옛 판에서 온 무인', col: '#fde68a' },
+  okheir: { id: 'okheir', name: '이미옥의 후예', desc: '공격력 ×2 · 때릴 때마다 〈옥〉', atkMul: 2, hitFx: '옥', col: '#6ee7b7' },
+};
+export const titleOf = (k) => (k === '개국공신' ? TITLES.founder : TITLES[k] || null);      // v303 과녁을 쓰러뜨리면 평타 쿨을 이만큼으로 줄인다 — 다음 몹까지 걸어가 또 한 박자 쉬지 않게
 export const HERO_SPEED = 200;      // 한 칸에 0.32초 (칸 길은 비스듬히 못 가서 자유 이동보다 조금 빠르게)
 export const MELEE_RANGE = 70;
 export const DEATH_EXP_LOSS = 0.05;

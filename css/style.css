@@ -2068,3 +2068,10 @@ button.next-step { cursor: pointer; }
 .chat-world { height: min(46vh, 420px); }
 .msg-del { float: right; background: none; border: 0; color: #6b7280; font-size: 11px; cursor: pointer; padding: 0 2px; }
 .msg-del:hover { color: #fca5a5; }
+/* v305 칭호 */
+.title-tag { color: var(--tc, #fde68a); text-shadow: 0 0 8px color-mix(in srgb, var(--tc, #fde68a) 60%, transparent); font-weight: 800; }
+.title-row { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin: 6px 0; }
+.title-row > small { color: var(--muted); }
+.title-chip { border-color: color-mix(in srgb, var(--tc, #fde68a) 50%, transparent); color: var(--tc, #fde68a); }
+.title-chip.on { background: color-mix(in srgb, var(--tc, #fde68a) 20%, transparent); box-shadow: 0 0 10px color-mix(in srgb, var(--tc, #fde68a) 40%, transparent); }
+.title-desc { font-size: 11.5px; color: var(--muted); }

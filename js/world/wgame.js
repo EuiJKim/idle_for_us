@@ -58,6 +58,7 @@ export function newWorldSave(now = Date.now()) {
     kingParty: false,        // 십이지왕 두목 구역: false 혼자 · true 문파원과 함께 (v145, 들어갈 때 고른다)
     lastSeen: now,
     titles: [],
+    title: null,          // v305 끼고 있는 칭호(열쇠)
     kills: 0,
     deaths: 0,
     bestMap: W.mapId(1, 1),
@@ -92,6 +93,9 @@ export function migrateWorld(raw, now = Date.now()) {
     s.custom = { head: W.CUSTOM_HEADS.some(([k]) => k === c.head) ? c.head : null, robe: hex(c.robe), band: hex(c.band) }; }   // v280 꾸미기
   s.fragPts = Math.max(0, Math.floor(Number(raw.fragPts) || 0));  // 조각으로 얻은 무공 점수(보이기용)
   s.autoEnh = !!raw.autoEnh; s.autoInf = !!raw.autoInf;   // v262
+  // v305 칭호 — 아는 것만 · 끼는 것은 가진 것 가운데
+  s.titles = [...new Set((Array.isArray(raw.titles) ? raw.titles : []).filter((k) => typeof k === 'string' && W.titleOf(k)))];
+  s.title = typeof raw.title === 'string' && s.titles.includes(raw.title) && W.titleOf(raw.title) ? raw.title : null;
   // v292 자동 등급 각인 고르기 — only: 고른 증표만 · marks: {증표: 고유 효과 번호} · slots: {칸: false면 건너뜀}
   { const c = raw.autoInfCfg && typeof raw.autoInfCfg === 'object' ? raw.autoInfCfg : {}; const mk = {}; for (const [k, v] of Object.entries(c.marks || {})) if (W.isMarkKey(k)) mk[k] = Math.max(0, Math.min(2, Math.floor(Number(v) || 0)));
     const sl = {}; for (const k of W.GROW_SLOTS) if (c.slots?.[k] === false) sl[k] = false;
@@ -324,7 +328,23 @@ export class WorldGame {
     if (this.events.length > 300) this.events.splice(0, this.events.length - 300);
   }
   jobTier() { return this.s.jobTier; }
-  heroLabel() { return `Lv.${this.s.level} ${this.s.nickname || ''}`; }
+  heroLabel() { const t = this.titleNow(); return `${t ? `〈${t.name}〉 ` : ''}Lv.${this.s.level} ${this.s.nickname || ''}`; }
+  // ---------- v305 칭호 ----------
+  titleNow() { return this.s.title ? W.titleOf(this.s.title) : null; }
+  hasTitle(k) { return this.s.titles.includes(k); }
+  grantTitle(k) {
+    if (!W.titleOf(k) || this.hasTitle(k)) return false;
+    this.s.titles.push(k);
+    if (!this.s.title) this.wearTitle(k);
+    this.emit('title', { id: k, name: W.titleOf(k).name });
+    return true;
+  }
+  wearTitle(k) {
+    if (k != null && !this.hasTitle(k)) return false;
+    this.s.title = k || null;
+    this._stats = null;
+    return true;
+  }
   ranged() { return !!W.classOf(this.s.job)?.range; }
   // 그리는 쪽: 무인 뒤를 따르는 애완동물 · 탄 탈것
   petTeam() { return this.activePets().map((p) => ({ kind: p.kind, emoji: W.petOf(p.kind).emoji, rar: p.rar })); }
@@ -476,7 +496,7 @@ export class WorldGame {
     // 레벨·스탯 몫은 작게, 장비 몫은 크게 (v108) — 강해지는 건 대부분 장비 덕
     // v110: 레벨·스탯 몫을 키웠다(장비보다는 작게).
     // 장비가 2/3 남짓, 레벨·스탯이 1/3 남짓(시뮬로 맞춤). 힘·체력은 1점에 0.3%씩도 올린다.
-    const atk = (5 + L * 3 + str * 3 + gear.atk) * (1 + gear.atkPct + str * 0.003 + (s.guildId ? W.guildAtk(this.guildExp) : 0)) * (cls.atkK || 1) * (1 + gear.impMul);   // atkK: 직업 맞춤(v239) · v297 각인 배율
+    const atk = (5 + L * 3 + str * 3 + gear.atk) * (1 + gear.atkPct + str * 0.003 + (s.guildId ? W.guildAtk(this.guildExp) : 0)) * (cls.atkK || 1) * (1 + gear.impMul) * (this.titleNow()?.atkMul || 1);   // atkK: 직업 맞춤(v239) · v297 각인 배율 · v305 칭호
     const hp = (60 + L * 25 + vit * 20 + gear.hp) * (1 + gear.hpPct + vit * 0.003) * (1 + gear.impMul);
     const st = {
       atk, hp,
@@ -512,7 +532,7 @@ export class WorldGame {
     const e = s.equip;
     const g = (it) => (it ? `${it.uid}.${it.plus || 0}.${it.rar || 0}` : '-');
     const pets = this.activePets().map((p) => `${p.uid}.${p.lv}.${p.rar || 0}.${p.star || 0}`).join(',') + `|d${Object.values(s.petDex || {}).reduce((a, v) => a + v + 1, 0)}.${Object.keys(s.mountDex || {}).length}|m${this.mountInst()?.lv || 0}`;
-    return `${s.level}|${JSON.stringify(s.passLv || {})}|${s.guildId ? W.guildLevel(this.guildExp) : 0}|${s.job}|${s.stats.str},${s.stats.dex},${s.stats.vit},${s.stats.int}|${W.SLOTS.map((x) => g(e[x.id])).join(',')}|${pets}|${s.mount || '-'}|${s.tower?.floor || 0}|${s.path || '-'}|${s.jobTier || 0}|${this.growItems().map((x) => x.plus || 0).join('.')}|t${s.temper || 0}|i${this.impSig()}`;   // v243 · v274 단련: 가방 속 성장 장비 강화도(공유)
+    return `${s.level}|${JSON.stringify(s.passLv || {})}|${s.guildId ? W.guildLevel(this.guildExp) : 0}|${s.job}|${s.stats.str},${s.stats.dex},${s.stats.vit},${s.stats.int}|${W.SLOTS.map((x) => g(e[x.id])).join(',')}|${pets}|${s.mount || '-'}|${s.tower?.floor || 0}|${s.path || '-'}|${s.jobTier || 0}|${this.growItems().map((x) => x.plus || 0).join('.')}|t${s.temper || 0}|i${this.impSig()}|T${s.title || ''}`;   // v243 · v274 단련: 가방 속 성장 장비 강화도(공유)
   }
   power() { return this.stats().power; }
   // v297 각인 서명 — 칸(증표·단·고유)이 바뀌면 능력치를 다시 센다
@@ -1010,14 +1030,14 @@ export class WorldGame {
       for (const [a, b] of tries) { if ((a || b) && this.stepTo({ c: this.hc + a, r: this.hr + b })) { moved = true; break; } }
       if (moved && !this.s.did?.move) this.mark('move');
       if (!moved) this.walking = false;
-      this.manualHold = 0.8;
+      this.manualHold = W.MANUAL_HOLD;   // v305: 0.8 → 0.3
       this.moveSkills(st);
       return;
     }
     // 손으로 찍은 칸이 있으면 거기로 먼저 간다
     if (this.manual) {
-      if (this.hc === this.manual.c && this.hr === this.manual.r) { this.manual = null; this.manualHold = 1.2; } else {
-        if (!this.stepHero(this.manual.c, this.manual.r)) { this.manual = null; this.manualHold = 0.6; }
+      if (this.hc === this.manual.c && this.hr === this.manual.r) { this.manual = null; this.manualHold = W.MANUAL_HOLD; } else {   // v305: 1.2 → 0.3
+        if (!this.stepHero(this.manual.c, this.manual.r)) { this.manual = null; this.manualHold = W.MANUAL_HOLD; }
         this.moveSkills(st);
         return;
       }
