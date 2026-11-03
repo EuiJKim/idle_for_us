@@ -103,7 +103,7 @@ export function migrateWorld(raw, now = Date.now()) {
     // v294 좋아하는 스킬 변화(꼴 · 몇 차 무공) — 다시 굴릴 때 경고 · ♥
     const prefSk = Array.isArray(c.prefSk) ? [...new Set(c.prefSk.filter((k) => IM.SK_KINDS.includes(k)))] : [];
     const prefSkSlot = Array.isArray(c.prefSkSlot) ? [...new Set(c.prefSkSlot.filter((k) => [0, 1, 2].includes(k)))] : [];
-    s.autoInfCfg = { mode, only: mode === 'pick', marks: mk, slots: sl, prefFx, prefSp, prefSk, prefSkSlot }; }
+    s.autoInfCfg = { mode, only: mode === 'pick', marks: mk, slots: sl, prefFx, prefSp, prefSk, prefSkSlot, dan: c.dan !== false }; }   // v297 dan: 남는 증표로 칸 단 올리기
   s.loadout = raw.loadout === 1 ? 1 : 0;
   { const dx = raw.dex && typeof raw.dex === 'object' ? raw.dex : {}; s.dex = {}; for (const [k, v] of Object.entries(dx)) { const n = Math.min(9999, Math.floor(Number(v) || 0)); if (n > 0) s.dex[k] = n; } }
   s.awaken = raw.awaken && typeof raw.awaken === 'object' && W.AWAKEN_KINDS.some((k) => k.id === raw.awaken.kind) && /^s[0-3]$/.test(raw.awaken.slot) ? { slot: raw.awaken.slot, kind: raw.awaken.kind } : null;
@@ -426,7 +426,12 @@ export class WorldGame {
       if (u) gear[u.k] = (gear[u.k] || 0) + u.v;
     }
     // v270 증표 각인 능력치는 종류마다 끝이 있다 — 넘친 몫만 뺀다
-    { const tot = IM.impFxTotals(s.equip); for (const [k, cap] of Object.entries(IM.IMP_STAT_CAP)) if ((tot[k] || 0) > cap) gear[k] -= tot[k] - cap; }
+    // v297 공명: 같은 기운 칸을 모으면 그 기운 능력치가 커진다(이 몫도 각인 끝 안에서) · 공격력·체력 덤은 끝과 따로
+    { const tot = IM.impFxTotals(s.equip); const rs = this.resonance();
+      for (const [k, v] of Object.entries(rs.extra)) if (k !== 'resAtk' && k !== 'resHp') { gear[k] = (gear[k] || 0) + v; tot[k] = (tot[k] || 0) + v; }
+      for (const [k, cap] of Object.entries(IM.IMP_STAT_CAP)) if ((tot[k] || 0) > cap) gear[k] -= tot[k] - cap;
+      // 각인 배율 — 각인력(칸마다) + 공명 덤. 다른 % 몫(탑·고수·펫…)과 섞지 않고 따로 곱한다(넣은 만큼 그대로 보이게)
+      gear.impMul = IM.impCoreTotal(s.equip) + (rs.extra.resAtk || 0); }
     // 세트 효과 중 능력치 (무공 쪽은 setBonus()를 그 자리에서 읽는다)
     for (const [k, v] of Object.entries(this.setBonus())) if (k in gear) gear[k] += v;
     // 애완동물 버프 · 탈것(공격력·체력 %) · 십이지왕 신화
@@ -471,8 +476,8 @@ export class WorldGame {
     // 레벨·스탯 몫은 작게, 장비 몫은 크게 (v108) — 강해지는 건 대부분 장비 덕
     // v110: 레벨·스탯 몫을 키웠다(장비보다는 작게).
     // 장비가 2/3 남짓, 레벨·스탯이 1/3 남짓(시뮬로 맞춤). 힘·체력은 1점에 0.3%씩도 올린다.
-    const atk = (5 + L * 3 + str * 3 + gear.atk) * (1 + gear.atkPct + str * 0.003 + (s.guildId ? W.guildAtk(this.guildExp) : 0)) * (cls.atkK || 1);   // atkK: 직업 맞춤(v239)
-    const hp = (60 + L * 25 + vit * 20 + gear.hp) * (1 + gear.hpPct + vit * 0.003);
+    const atk = (5 + L * 3 + str * 3 + gear.atk) * (1 + gear.atkPct + str * 0.003 + (s.guildId ? W.guildAtk(this.guildExp) : 0)) * (cls.atkK || 1) * (1 + gear.impMul);   // atkK: 직업 맞춤(v239) · v297 각인 배율
+    const hp = (60 + L * 25 + vit * 20 + gear.hp) * (1 + gear.hpPct + vit * 0.003) * (1 + gear.impMul);
     const st = {
       atk, hp,
       def: vit * 0.2 + gear.def,
@@ -507,9 +512,22 @@ export class WorldGame {
     const e = s.equip;
     const g = (it) => (it ? `${it.uid}.${it.plus || 0}.${it.rar || 0}` : '-');
     const pets = this.activePets().map((p) => `${p.uid}.${p.lv}.${p.rar || 0}.${p.star || 0}`).join(',') + `|d${Object.values(s.petDex || {}).reduce((a, v) => a + v + 1, 0)}.${Object.keys(s.mountDex || {}).length}|m${this.mountInst()?.lv || 0}`;
-    return `${s.level}|${JSON.stringify(s.passLv || {})}|${s.guildId ? W.guildLevel(this.guildExp) : 0}|${s.job}|${s.stats.str},${s.stats.dex},${s.stats.vit},${s.stats.int}|${W.SLOTS.map((x) => g(e[x.id])).join(',')}|${pets}|${s.mount || '-'}|${s.tower?.floor || 0}|${s.path || '-'}|${s.jobTier || 0}|${this.growItems().map((x) => x.plus || 0).join('.')}|t${s.temper || 0}`;   // v243 · v274 단련: 가방 속 성장 장비 강화도(공유)
+    return `${s.level}|${JSON.stringify(s.passLv || {})}|${s.guildId ? W.guildLevel(this.guildExp) : 0}|${s.job}|${s.stats.str},${s.stats.dex},${s.stats.vit},${s.stats.int}|${W.SLOTS.map((x) => g(e[x.id])).join(',')}|${pets}|${s.mount || '-'}|${s.tower?.floor || 0}|${s.path || '-'}|${s.jobTier || 0}|${this.growItems().map((x) => x.plus || 0).join('.')}|t${s.temper || 0}|i${this.impSig()}`;   // v243 · v274 단련: 가방 속 성장 장비 강화도(공유)
   }
   power() { return this.stats().power; }
+  // v297 각인 서명 — 칸(증표·단·고유)이 바뀌면 능력치를 다시 센다
+  impSig() {
+    let o = '';
+    for (const x of W.SLOTS) { const it = this.s.equip[x.id]; if (it?.imps) for (const e of it.imps) o += e ? (typeof e === 'string' ? e : `${e.k}${e.d || 1}${e.sp | 0}${e.sk}${e.g | 0}${e.s | 0}`) : '_'; o += ','; }
+    return o;
+  }
+  resonance() {
+    const sig = this.impSig();
+    if (this._res?.sig === sig) return this._res.v;
+    const v = IM.resonance(this.s.equip);
+    this._res = { sig, v };
+    return v;
+  }
 
   // ---------- 지도 ----------
   // v146: 레벨과 상관없이 어디든 들어간다 — 센 곳에서 빨리 크고 싶은 사람을 막지 않는다.
@@ -1212,9 +1230,9 @@ export class WorldGame {
     for (const it of Object.values(this.s.equip)) for (const im of IM.imprintsOf(it)) {
       const sp = im.special;
       if (!sp) continue;
-      (ws[sp.kind] || (ws[sp.kind] = [])).push(im.w);
+      (ws[sp.kind] || (ws[sp.kind] = [])).push(im.wp);          // v297 단이 깊을수록 무겁다
       const cur = v[sp.kind];
-      if (!cur || im.w > cur.w0) v[sp.kind] = { ...sp, w0: im.w, col: IM.THEMES[im.theme].col };
+      if (!cur || im.wp > cur.w0) v[sp.kind] = { ...sp, w0: im.wp, col: IM.THEMES[im.theme].col };
     }
     for (const [k, o] of Object.entries(v)) o.p = IM.specialP(ws[k]);
     this._isp = { sig, v };
@@ -1986,6 +2004,7 @@ export class WorldGame {
     const it = this.findItem(uid);
     if (!this.canInfuse(it, key)) return null;
     const f = this.infuseInfo(it, key);
+    const res0 = this.resonance();
     this.s.mats[key] -= f.n;
     this.s.gold -= f.gold;
     this.mark('infuse');
@@ -2010,6 +2029,7 @@ export class WorldGame {
     } else it.pity = (it.pity || 0) + W.INFUSE_BASE[f.to] * W.INFUSE_PITY_K;
     this.lastInfuse = { ok, to: f.to, chance: f.chance };
     this.emit('infuse', { item: it, ok });
+    if (ok) this.resNote(res0);
     return ok;
   }
   // v251 빈 칸 새기기 — 이미 그 등급으로 얻은 장비(두목 드랍·제작·왕의 장비)는 '오를 때' 새기는 칸이 비어 있었고
@@ -2026,6 +2046,7 @@ export class WorldGame {
     const it = this.findItem(uid);
     if (!this.canFillImp(it, slot, key)) return null;
     const f = this.fillImpInfo(it, slot, key);
+    const res0 = this.resonance();
     this.s.mats[key] -= f.n;
     this.s.gold -= f.gold;
     it.imps = (it.imps || []).slice();
@@ -2034,6 +2055,7 @@ export class WorldGame {
     this._stats = null; this._mods = null; this._pass = null; this._isp = null;
     this.mark('infuse');
     this.emit('infuse', { item: it, ok: true, fill: true });
+    this.resNote(res0);
     return it.imps[slot];
   }
   // 각인 다시 새기기 (v167) — 그 칸을 새긴 두목의 증표(그 칸 등급 값) + 은자.
@@ -2070,6 +2092,69 @@ export class WorldGame {
     it.imps[slot].sp = idx;
     this.emit('infuse', { item: it, ok: true, reimp: true });
     return true;
+  }
+  // ---------- v297 칸 단(段) 올리기 — 그 칸 두목의 증표 + 은자, 확률 없이 한 단 ----------
+  danInfo(it, slot) {
+    const e = IM.normEntry(it?.imps?.[slot]);
+    if (!this.canImprintItem(it) || !e) return null;
+    const d = IM.danOf(e);
+    if (d >= IM.DAN_MAX) return { key: e.k, d, max: true };
+    return { key: e.k, d, to: d + 1, n: IM.danMarks(slot, d), gold: Math.round(W.infuseGold(it.ilv, slot + 1) * (0.3 + 0.15 * d)), have: this.s.mats[e.k] || 0 };
+  }
+  canDanUp(it, slot) {
+    const f = this.danInfo(it, slot);
+    return !!f && !f.max && f.have >= f.n && this.s.gold >= f.gold;
+  }
+  danUp(uid, slot) {
+    const it = this.findItem(uid);
+    if (!this.canDanUp(it, slot)) return null;
+    const f = this.danInfo(it, slot);
+    const res0 = this.resonance();
+    this.s.mats[f.key] -= f.n;
+    this.s.gold -= f.gold;
+    it.imps = it.imps.slice();
+    it.imps[slot] = { ...IM.normEntry(it.imps[slot]), d: f.to };
+    this._stats = null; this._mods = null; this._isp = null;
+    this.mark('infuse');
+    this.emit('infuse', { item: it, ok: true, dan: f.to, slot });
+    this.resNote(res0);
+    return it.imps[slot];
+  }
+  // ---------- v297 다시 새기기 — 이미 새겨진 칸을 다른 두목으로 (스킬 변화는 그대로 · 단은 절반 이어받는다) ----------
+  rewriteInfo(it, slot, key) {
+    const e = IM.normEntry(it?.imps?.[slot]);
+    if (!this.canImprintItem(it) || !e || !W.isMarkKey(key) || key === e.k) return null;
+    const d = IM.danOf(e);
+    return { n: W.INFUSE_MARKS[slot + 1], gold: W.infuseGold(it.ilv, slot + 1), have: this.s.mats[key] || 0, d, keep: Math.max(1, Math.floor(d / 2)) };
+  }
+  canRewrite(it, slot, key) {
+    const f = this.rewriteInfo(it, slot, key);
+    return !!f && f.have >= f.n && this.s.gold >= f.gold;
+  }
+  rewriteImp(uid, slot, key, spIdx = 0) {
+    const it = this.findItem(uid);
+    if (!this.canRewrite(it, slot, key)) return null;
+    const f = this.rewriteInfo(it, slot, key);
+    const e = IM.normEntry(it.imps[slot]);
+    const res0 = this.resonance();
+    this.s.mats[key] -= f.n;
+    this.s.gold -= f.gold;
+    it.imps = it.imps.slice();
+    it.imps[slot] = { k: key, s: e.s | 0, sk: e.sk, g: e.g | 0, sp: Math.max(0, Math.min(2, spIdx | 0)), d: f.keep };
+    this._stats = null; this._mods = null; this._isp = null;
+    this.mark('infuse');
+    this.emit('infuse', { item: it, ok: true, rewrite: true, slot });
+    this.resNote(res0);
+    return it.imps[slot];
+  }
+  // 공명 단계가 바뀌었으면 알린다
+  resNote(before) {
+    const after = this.resonance();
+    for (const [t, r] of Object.entries(after.by)) {
+      const was = before.by[t]?.tier ?? -1;
+      if (r.tier > was) this.emit('resonance', { theme: t, tier: r.tier, n: r.n, up: true });
+    }
+    for (const [t, r] of Object.entries(before.by)) if (r.tier >= 0 && (after.by[t]?.tier ?? -1) < r.tier) this.emit('resonance', { theme: t, tier: after.by[t]?.tier ?? -1, n: after.by[t]?.n || 0, up: false });
   }
   // v213: 계열 각인(setLine)을 없앴다 — 이미 붙인 계열(it.line)의 수치·덤은 그대로 남는다
 
@@ -2863,8 +2948,24 @@ export class WorldGame {
         }
         if (!done) break;
       }
+      // v297 남는 증표로 칸 단(段) 올리기 — 그 칸 두목의 증표만 쓴다(고르는 방식이 허락한 증표만). 다음 등급 각인 몫(12개)과 돌파 몫은 남긴다. 낮은 단부터.
+      if (cfg.dan !== false) {
+        const top = W.RARITY.length - 1;
+        const gradeHold = worn().some((x) => cfg.slots?.[x.slot] !== false && this.canImprintItem(x) && (x.rar || 0) < top) ? W.INFUSE_MARKS[top] : 0;
+        for (let n = 0; n < 8; n++) {
+          let best = null;
+          for (const it of worn().filter((x) => cfg.slots?.[x.slot] !== false)) for (let i = 0; i < (it.imps || []).length; i++) {
+            const f = this.danInfo(it, i);
+            if (!f || f.max || !marks.includes(f.key) || !this.canDanUp(it, i) || this.s.gold - f.gold <= reserve) continue;   // 고른 증표만(직접 고르기 · 좋아하는 효과)
+            if (f.have - f.n < (keep[f.key] || 0) + gradeHold) continue;
+            if (!best || f.d < best.f.d) best = { it, i, f };
+          }
+          if (!best) break;
+          this.danUp(best.it.uid, best.i); out.dan = (out.dan || 0) + 1;
+        }
+      }
     }
-    if (out.enh || out.inf) this.emit('autoGear', out);
+    if (out.enh || out.inf || out.dan) this.emit('autoGear', out);
     return out;
   }
   // v293 좋아하는 효과와 증표가 얼마나 맞나 — 앞에 고른 것일수록 무겁다. 고유 효과는 맞는 것 가운데 가장 앞 것을 고른다.

@@ -600,17 +600,40 @@ function bagTab(app) {
         it.king != null ? h('p', { class: 'muted' }, `레벨 100 왕의 장비 — 강화는 ${W.matName(G.stoneFor(it))}`) : W.isDropOnly(it.slot) ? h('p', { class: 'muted' }, '두목에게서만 나와요 — 강화가 어려워요') : it.grow ? h('p', { class: 'muted' }, `성장 장비 — 레벨을 따라 자라요 (Lv.${it.ilv}, ${W.ILV_CAP}까지)`) : null,
       ];
       // ---- 각인 칸: 세 칸 타일(눌러서 자세히) + 등급 각인 ----
-      const impView = () => [slotTiles(), infuseBox()];
+      // v297 전투력이 얼마나 올랐나 — 각인한 뒤 알림에 붙인다
+      const powNote = (p0) => { const p1 = game.power(); const d = p1 / Math.max(1, p0) - 1; return Math.abs(d) < 0.0005 ? '' : ` · 전투력 ${d > 0 ? '+' : ''}${(d * 100).toFixed(d * 100 >= 10 ? 0 : 1)}%`; };
+      // v297 각인 배율 · 공명 — 끼고 있는 장비 전부
+      const resPanel = () => {
+        const rs = game.resonance();
+        const core = IM.impCoreTotal(game.s.equip);
+        const mul = core + (rs.extra.resAtk || 0);
+        const list = Object.values(rs.by).sort((a, b) => b.n - a.n).slice(0, 4);
+        return h('div', { class: 'res-box' },
+          h('div', { class: 'res-head' }, h('b', {}, '각인 배율 '), h('b', { class: 'res-mul' }, `×${(1 + mul).toFixed(3)}`),
+            h('small', {}, ` 공격력·체력 · 각인력 +${pct(core, 1)}${rs.extra.resAtk ? ` · 공명 +${pct(rs.extra.resAtk, 0)}` : ''}`)),
+          list.length ? h('div', { class: 'res-list' }, ...list.map((r) => {
+            const th = IM.THEMES[r.theme];
+            const nx = r.tier < IM.RES_NEED.length - 1 ? IM.RES_NEED[r.tier + 1] : null;
+            const lo = r.tier >= 0 ? IM.RES_NEED[r.tier] : 0;
+            return h('div', { class: `res-row${r.tier >= 0 ? ' on' : ''}`, style: `--ic:${th.col}` },
+              h('span', { class: 'res-name' }, `${th.name}`, r.tier >= 0 ? h('em', {}, ` 공명 ${IM.RES_ROMAN[r.tier]}`) : null),
+              h('span', { class: 'res-bar' }, h('i', { style: `width:${nx ? Math.round(((r.n - lo) / (nx - lo)) * 100) : 100}%` })),
+              h('small', {}, nx ? `${r.n}/${nx}칸 → ${IM.RES_ROMAN[r.tier + 1]}` : `${r.n}칸 · 끝`));
+          })) : h('p', { class: 'muted' }, '같은 기운(테마)의 칸을 4·8·12·16칸 모으면 공명해요.'),
+          h('small', { class: 'muted' }, '공명 Ⅰ~Ⅳ: 그 기운 능력치 +15%·+35%·+60%·+100% · 각인 배율 +3%·+7%·+12%·+20%'));
+      };
+      const impView = () => [resPanel(), slotTiles(), infuseBox()];
       const slotTiles = () => {
         const ims = it.imps || [];
         return h('div', { class: 'slot-tiles' }, ...[0, 1, 2].map((i) => {
           const im = ims[i] ? IM.imprintOf(ims[i], i) : null;
           const locked = !im && i >= (it.rar || 0);
           const hole = !im && !locked;
-          return h('button', { class: `slot-tile${im ? ' on' : ''}${locked ? ' locked' : ''}${hole ? ' hole' : ''}`, style: im ? `--ic:${IM.THEMES[im.theme].col}` : '',
+          return h('button', { class: `slot-tile${im ? ' on' : ''}${locked ? ' locked' : ''}${hole ? ' hole' : ''}${im && im.d >= IM.DAN_MAX ? ' dan-max' : ''}`, style: im ? `--ic:${IM.THEMES[im.theme].col}` : '',
             onclick: () => (locked ? toast(`${RAR3[i]} 등급이 되면 새겨져요`) : hole ? fillView(i) : slotView(i)) },
           h('small', {}, `${ORD[i]} · ${RAR3[i]}`),
           im ? h('b', {}, im.boss.split(' ').pop()) : h('b', {}, locked ? '🔒' : '＋ 새기기'),
+          im ? h('span', { class: `st-dan${im.d >= IM.DAN_MAX ? ' max' : im.d >= 5 ? ' hi' : ''}` }, IM.DAN_NAME(im.d)) : null,
           im ? h('span', { class: 'st-theme' }, IM.THEMES[im.theme].name) : null,
           im ? h('span', { class: 'st-skill', style: `--gc:${IM.SK_GRADE[im.skill.g].col}` }, `${IM.SKILL_NAME[im.skill.s]} ${SK_SHORT[im.skill.k]}`) : null,
           im?.special ? h('i', { class: 'st-sp' }, '★') : null,
@@ -622,12 +645,26 @@ function bagTab(app) {
         const im = IM.imprintOf(it.imps[i], i);
         const c = game.reimpCost(it, i);
         const can = game.canReimp(it, i);
+        const dn = game.danInfo(it, i);
+        const nxt = dn && !dn.max ? IM.imprintOf({ ...IM.normEntry(it.imps[i]), d: dn.to }, i) : null;
         sub(`${ORD[i]} 각인 · ${im.boss}`,
           h('div', { class: 'imp-row', style: `--ic:${IM.THEMES[im.theme].col}` },
-            h('b', {}, `${IM.THEMES[im.theme].name}의 기운`),
+            h('b', {}, `${IM.THEMES[im.theme].name}의 기운 `, h('span', { class: `st-dan${im.d >= IM.DAN_MAX ? ' max' : im.d >= 5 ? ' hi' : ''}` }, IM.DAN_NAME(im.d))),
+            h('div', { class: 'imp-core' }, `각인력 +${pct(im.core, 2)} (공격력·체력에 곱)`),
             h('div', {}, Object.entries(im.fx).map(([k, v]) => IM.FX_TEXT[k](v)).join(' · ')),
             h('div', { class: 'imp-skill', style: `--gc:${IM.SK_GRADE[im.skill.g].col}` }, IM.skillModText(im.skill)),
-            im.special ? h('div', { class: 'imp-sp' }, IM.specialText(im.special, im.w)) : null),
+            im.special ? h('div', { class: 'imp-sp' }, IM.specialText(im.special, im.wp)) : null),
+          // v297 칸 단 — 같은 두목 증표로 확률 없이 한 단
+          h('div', { class: 'dan-box', style: `--ic:${IM.THEMES[im.theme].col}` },
+            h('div', { class: 'dan-head' }, h('b', {}, '칸 단(段) '), h('span', { class: 'dan-pips' }, ...Array.from({ length: IM.DAN_MAX }, (_, j) => h('i', { class: j < im.d ? 'on' : '' })))),
+            nxt ? h('small', { class: 'muted' }, `${IM.DAN_NAME(dn.to)}: 각인력 +${pct(nxt.core, 2)} · ${Object.entries(nxt.fx).map(([k, v]) => IM.FX_TEXT[k](v)).join(' · ')}`) : h('small', { class: 'muted' }, '극(極) — 이 칸은 끝까지 깊어졌어요'),
+            nxt ? h('div', { class: 'cost-chips' }, costChip(dn.key, '증표', dn.n, dn.have, matIcon(dn.key, 24)), costChip(null, '은자', dn.gold, game.s.gold, goldIco())) : null,
+            nxt ? h('button', { class: 'btn good dan-go', disabled: game.canDanUp(it, i) ? null : true, onclick: () => {
+              const p0 = game.power();
+              const e = game.danUp(it.uid, i);
+              if (!e) return toast('증표·은자가 모자라요');
+              toast(`${ORD[i]} 칸 ${IM.DAN_NAME(e.d)}!${powNote(p0)}`); app.save(); app.refresh(); slotView(i);
+            } }, `단 올리기 → ${IM.DAN_NAME(dn.to)}`) : null),
           // v294 무엇이 좋아하는 것인지
           ...(() => { const f = game.favOf(it.imps[i]); return f ? [h('div', { class: 'pref-link', style: 'cursor:default' }, `♥ 좋아하는 효과 — ${[f.skill ? '스킬 변화' : '', f.special ? '고유 효과' : '', f.fx.length ? '테마 능력치' : ''].filter(Boolean).join(' · ')}`)] : []; })(),
           c ? h('div', { class: 'cost-chips' }, costChip(c.key, '증표', c.n, game.s.mats[c.key] || 0, matIcon(c.key, 24)), costChip(null, '은자', c.gold, game.s.gold, goldIco())) : null,
@@ -646,7 +683,33 @@ function bagTab(app) {
               if (ps.includes(im.special.kind) && !ps.includes(sp.kind) && !confirm(`♥ 지금 고유 효과 【${im.special.name}】는 좋아하는 효과예요.\n좋아하지 않는 【${sp.name}】(으)로 바꿀까요?`)) return;
               if (!game.changeImpSpecial(it.uid, i, j)) return toast('증표·은자가 모자라요');
               toast(`고유 효과를 【${sp.name}】(으)로 바꿨어요`); app.save(); app.refresh(); slotView(i);
-            } }, h('b', {}, sp.name), h('small', {}, ` ${IM.SPECIAL_KIND[sp.kind](im.w)}`)))) : null);
+            } }, h('b', {}, sp.name), h('small', {}, ` ${IM.SPECIAL_KIND[sp.kind](im.wp)}`)))) : null,
+          // v297 다른 두목으로 — 맨 아래(위의 증표·은자는 스킬 변화·고유 효과 몫)
+          h('button', { class: 'btn rewrite-go', onclick: () => rewriteView(i) }, '다른 두목으로 다시 새기기 ▸'));
+      };
+      // v297 다시 새기기 — 다른 두목 증표로 이 칸을 덮는다(스킬 변화는 그대로 · 단은 절반)
+      let rwPick = null, rwSp = 0;
+      const rewriteView = (i) => {
+        const cur = IM.normEntry(it.imps[i]);
+        const im = IM.imprintOf(cur, i);
+        const keys = Object.keys(game.s.mats).filter((k) => W.isMarkKey(k) && game.s.mats[k] > 0 && k !== cur.k);
+        if (!keys.includes(rwPick)) { rwPick = keys.sort((a, b) => W.markLv(b) - W.markLv(a)).find((k) => game.canRewrite(it, i, k)) || keys[0] || null; rwSp = 0; }
+        const f = rwPick ? game.rewriteInfo(it, i, rwPick) : null;
+        const nim = rwPick ? IM.imprintOf({ ...cur, k: rwPick, sp: rwSp, d: f?.keep || 1 }, i) : null;
+        sub(`${ORD[i]} 칸 다시 새기기`,
+          h('p', { class: 'muted', style: 'font-size:12.5px' }, `지금: ${im.boss} ${IM.DAN_NAME(im.d)} · 각인력 +${pct(im.core, 2)}. 스킬 변화는 그대로 남고, 단은 절반(${IM.DAN_NAME(f?.keep || Math.max(1, Math.floor(im.d / 2)))})을 이어받아요.`),
+          markRows(rwPick, (k) => { rwPick = k; rwSp = 0; rewriteView(i); }),
+          rwPick ? spRows(rwPick, i, rwSp, (j) => { rwSp = j; rewriteView(i); }) : null,
+          nim ? h('div', { class: 'imp-core', style: 'margin:6px 0' }, `새기면: 각인력 +${pct(nim.core, 2)} (지금 +${pct(im.core, 2)}) · ${IM.THEMES[nim.theme].name}의 기운`) : null,
+          f ? h('div', { class: 'cost-chips' }, costChip(rwPick, '증표', f.n, f.have, matIcon(rwPick, 24)), costChip(null, '은자', f.gold, game.s.gold, goldIco())) : null,
+          f ? h('button', { class: 'btn primary rw-go', disabled: game.canRewrite(it, i, rwPick) ? null : true, onclick: () => {
+            const fav = game.favOf(it.imps[i]);
+            if ((fav?.special || fav?.fx?.length || im.d >= 4) && !confirm(`${fav ? '♥ 좋아하는 효과가 든 칸이에요.\n' : ''}지금 ${im.boss} ${IM.DAN_NAME(im.d)}을(를) 지우고 ${short(rwPick)}(으)로 새길까요? (단은 ${IM.DAN_NAME(f.keep)})`)) return;
+            const p0 = game.power();
+            const e = game.rewriteImp(it.uid, i, rwPick, rwSp);
+            if (!e) return toast('증표·은자가 모자라요');
+            toast(`${ORD[i]} 칸 — ${short(rwPick)}(으)로 다시 새겼어요${powNote(p0)}`); app.save(); app.refresh(); slotView(i);
+          } }, '다시 새기기') : h('p', { class: 'muted' }, '다른 두목 증표가 없어요.'));
       };
       // 증표 고르기 목록 (등급 각인 · 빈 칸 새기기 함께)
       const markRows = (sel, onPick, info) => {
@@ -668,6 +731,7 @@ function bagTab(app) {
         const lo = IM.skillValue('cd', 0, pv.lv), hi = IM.skillValue('dmg', 3, pv.lv);
         return h('div', { class: 'imp-row preview', style: `--ic:${IM.THEMES[pv.theme].col}` },
           h('b', {}, `${pv.boss} · ${IM.THEMES[pv.theme].name}`),
+          h('div', { class: 'imp-core' }, `각인력 +${pct(pv.core, 2)}`),
           h('div', {}, Object.entries(pv.fx).map(([kk, v]) => IM.FX_TEXT[kk](v)).join(' · ')),
           h('div', { class: 'muted' }, `스킬 변화는 새길 때 굴려요 (${pct(lo, 1)}~${pct(hi, 1)})`),
           pv.specials ? h('div', { class: 'sp-pick' }, h('small', {}, '고유 효과 — 하나를 골라요'),
@@ -689,10 +753,11 @@ function bagTab(app) {
           spRows(fillPick, i, fillSp, (j) => { fillSp = j; fillView(i); }),
           f ? h('div', { class: 'cost-chips' }, costChip(fillPick, '증표', f.n, f.have, matIcon(fillPick, 24)), costChip(null, '은자', f.gold, game.s.gold, goldIco())) : null,
           f ? h('button', { class: 'btn primary fill-go', disabled: game.canFillImp(it, i, fillPick) ? null : true, onclick: () => {
+            const p0 = game.power();
             const e = game.fillImp(it.uid, i, fillPick, fillSp);
             if (!e) return toast('증표·은자가 모자라요');
             const nim = IM.imprintOf(e, i);
-            toast(`${ORD[i]} 각인 — ${nim?.boss || ''} · ${nim ? IM.skillModText(nim.skill) : ''}`); app.save(); app.refresh(); paint();
+            toast(`${ORD[i]} 각인 — ${nim?.boss || ''} · ${nim ? IM.skillModText(nim.skill) : ''}${powNote(p0)}`); app.save(); app.refresh(); paint();
           } }, '새기기') : null);
       };
       // 등급 각인 — 고른 증표 하나(눌러서 바꾸기) · 성공 막대 · 비용 칩 · 단추
@@ -725,10 +790,11 @@ function bagTab(app) {
             h('small', { class: 'enh-skip' }, '눌러서 건너뛰기')));
         bar.style.animationDuration = '1.6s';
         afterAnim(s, skipFx() ? 0 : 1.6, () => {
+          const p0 = game.power();
           const ok = game.infuse(it.uid, markPick, spPick);
           app.save(); app.refresh();
           const nim = ok ? IM.imprintOf(it.imps[it.rar - 1], it.rar - 1) : null;
-          const msg = ok ? `각인 성공! ${W.RARITY[it.rar].name} — ${nim ? IM.skillModText(nim.skill) : optLines(it).join(' / ')}` : `각인 실패 — 다음 확률 +${pct(it.pity || 0, 0)}p`;
+          const msg = ok ? `각인 성공! ${W.RARITY[it.rar].name} — ${nim ? IM.skillModText(nim.skill) : optLines(it).join(' / ')}${powNote(p0)}` : `각인 실패 — 다음 확률 +${pct(it.pity || 0, 0)}p`;
           s.replaceChildren(
             h('div', { class: `enh-anim result ${ok ? 'ok' : 'fail'}` },
               h('div', { class: 'enh-anvil' }, h('div', { class: 'enh-item', style: `--gc:${gradeOf(it).color}` }, itemTitle(game, it))),
@@ -1941,6 +2007,9 @@ export function openAutoInfCfg(app, onClose) {
       cfg.mode !== 'pref' ? (keys.length ? h('div', { class: 'ainf-list' }, ...rows) : h('p', { class: 'muted' }, '가진 증표가 없어요 — 두목을 잡으면 나와요.')) : null,
       h('div', { class: 'ainf-sec' }, h('b', {}, '어느 칸에'), h('small', { class: 'muted' }, ' 끈 칸은 자동이 건드리지 않아요'),
         h('div', { class: 'ainf-slots' }, ...W.GROW_SLOTS.map((k) => h('button', { class: `chip${cfg.slots[k] === false ? '' : ' on'}`, onclick: () => { if (cfg.slots[k] === false) delete cfg.slots[k]; else cfg.slots[k] = false; done(); } }, SLOT_NAME[k] || k)))),
+      // v297 칸 단 올리기
+      h('div', { class: 'ainf-sec' }, h('label', { class: 'chk' }, h('input', { type: 'checkbox', checked: cfg.dan !== false ? true : null, onchange: (e) => { cfg.dan = !!e.target.checked; done(); } }), ' 남는 증표로 칸 단(段) 올리기'),
+        h('small', { class: 'muted' }, ' 새겨진 칸의 두목 증표가 남으면 그 칸을 깊게 해요(낮은 단부터). 다음 등급 각인 몫(12개)·돌파 몫은 남겨요')),
       h('div', { class: 'btn-row' }, h('button', { class: 'btn primary', onclick: closeModal }, '닫기'))].filter(Boolean));
   };
   openModal((s) => { box = s; draw(); }, { onClose });

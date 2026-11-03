@@ -5,6 +5,7 @@ import { artReady, putArt, putArtBand, putArtEdge, putArtTint, loadArt, FIT, ART
 import { drawCreature, saddleY, mountTilt, mountGait } from './creatures.js';
 import { ZONES_W, itemZone } from './world/wdata.js';
 import { setOf } from './world/wgear.js';
+import { THEMES as IMP_THEMES } from './world/wimprint.js';
 import { tellCovers } from './world/wdgn.js';
 import { envOf } from './world/wland.js';
 import { OUTFITS } from './data.js';
@@ -1518,6 +1519,9 @@ export class BattleView {
       kps: game.passives ? game.passives() : new Set(),
     };
     if (set) { v.bestCol = set.col; v.setLook = set.col; }
+    // v297 공명 Ⅱ부터 — 그 기운 빛깔의 결이 발밑에서 돈다(Ⅲ 두 겹 · Ⅳ 세 겹 + 솟는 빛)
+    const rt = game.resonance ? game.resonance().top : null;
+    if (rt && rt.tier >= 1) { v.resCol = IMP_THEMES[rt.theme]?.col || '#fde68a'; v.resTier = rt.tier; }
     // 장신구·가락지·귀걸이는 그 두목 빛깔의 구슬이 몸을 돈다
     v.gems = ['acc', 'finger', 'ear'].map((k) => bz[k]?.col).filter(Boolean);    // 한 두목의 무기·옷·모자를 다 끼면 발밑 고리도 그 두목 빛깔
     this._gearLook = { sig, v };
@@ -2717,6 +2721,29 @@ export class BattleView {
         ctx.beginPath();
         for (let i = 0; i <= 6; i++) { const a = t * 0.8 + (i * Math.PI) / 3; const px = x + Math.cos(a) * 52, py = y - 55 + Math.sin(a) * 52 * 0.95; if (i) ctx.lineTo(px, py); else ctx.moveTo(px, py); }
         ctx.fill(); ctx.stroke();
+      }
+      if (gear.resCol) {                            // v297 공명 — 기운 빛깔의 마름모 결이 거꾸로 돈다
+        ctx.save(); ctx.globalCompositeOperation = 'lighter';
+        ctx.translate(x, y + 2); ctx.scale(1, 0.36);
+        for (let k = 0; k < gear.resTier; k++) {
+          const r = 50 + k * 14, n = 6 + k * 2, rot = -t * (0.6 + k * 0.25) * (k % 2 ? -1 : 1);
+          ctx.fillStyle = hexA(gear.resCol, 0.5 - k * 0.08);
+          for (let i = 0; i < n; i++) {
+            const a = rot + (i * Math.PI * 2) / n;
+            const px = Math.cos(a) * r, py = Math.sin(a) * r;
+            ctx.beginPath(); ctx.moveTo(px, py - 7); ctx.lineTo(px + 4, py); ctx.lineTo(px, py + 7); ctx.lineTo(px - 4, py); ctx.closePath(); ctx.fill();
+          }
+        }
+        ctx.restore();
+        if (gear.resTier >= 3) {                    // Ⅳ: 기운이 몸을 타고 솟는다
+          ctx.save(); ctx.globalCompositeOperation = 'lighter';
+          for (let i = 0; i < 10; i++) {
+            const ph = (t * 0.55 + i * 0.1) % 1;
+            ctx.fillStyle = hexA(gear.resCol, 0.55 * (1 - ph));
+            circle(ctx, x + Math.sin(i * 2.1 + t * 1.3) * 26, y - ph * 120, 3 - ph * 2);
+          }
+          ctx.restore();
+        }
       }
       if (gear.setLook) {                           // 한 두목의 세 벌: 그 두목 빛깔의 붓 고리가 발밑에서 돈다
         ctx.save(); ctx.translate(x, y + 2); ctx.scale(1, 0.36); ctx.rotate(t * 0.5);

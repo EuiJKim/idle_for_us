@@ -1984,3 +1984,30 @@ body.hunt-nocv #cv { visibility: hidden !important; }
 /* v294 */
 .pref-link { display: block; width: 100%; text-align: left; border: 0; background: rgba(244,114,182,0.08); color: #f9a8d4; font: inherit; font-size: 12px; padding: 7px 10px; border-radius: 8px; margin-bottom: 6px; cursor: pointer; }
 .slot-tile .st-fav { position: absolute; top: 4px; left: 6px; color: #f472b6; font-style: normal; font-size: 12px; }
+/* v297 각인 개편 — 각인 배율 · 공명 · 칸 단(段) · 다시 새기기 */
+.res-box { margin: 0 0 10px; padding: 9px 11px; border-radius: 12px; background: linear-gradient(135deg, rgba(253, 224, 71, .07), rgba(168, 85, 247, .06)); border: 1px solid rgba(253, 224, 71, .25); }
+.res-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: 2px 6px; font-size: 13px; }
+.res-head small { color: var(--muted); font-size: 11.5px; }
+.res-mul { color: var(--gold); font-size: 20px; letter-spacing: .5px; }
+.res-list { display: grid; gap: 4px; margin: 7px 0 4px; }
+.res-row { display: grid; grid-template-columns: 7.5em 1fr auto; align-items: center; gap: 8px; font-size: 12px; color: #a8a29e; }
+.res-row.on { color: var(--text); }
+.res-name { color: var(--ic); font-weight: 600; white-space: nowrap; }
+.res-name em { font-style: normal; color: var(--gold); }
+.res-bar { height: 6px; border-radius: 99px; background: rgba(255, 255, 255, .08); overflow: hidden; }
+.res-bar i { display: block; height: 100%; background: var(--ic); border-radius: inherit; }
+.res-row small { font-size: 10.5px; color: var(--muted); white-space: nowrap; }
+.res-box > small { display: block; font-size: 10.5px; line-height: 1.4; }
+.st-dan { font-size: 10.5px; padding: 0 6px; border-radius: 99px; background: rgba(255, 255, 255, .08); color: #e7e5e4; font-weight: 600; }
+.st-dan.hi { background: color-mix(in srgb, var(--ic, #fde68a) 35%, transparent); color: #fff; }
+.st-dan.max { background: linear-gradient(90deg, #f59e0b, #f43f5e); color: #fff; }
+.slot-tile.dan-max { box-shadow: 0 0 0 1px var(--ic), 0 0 14px color-mix(in srgb, var(--ic) 55%, transparent); }
+.imp-core { color: var(--gold); font-size: 12px; font-weight: 600; }
+.dan-box { margin: 8px 0; padding: 8px 10px; border-radius: 10px; border: 1px solid color-mix(in srgb, var(--ic, #fde68a) 40%, transparent); background: color-mix(in srgb, var(--ic, #fde68a) 7%, transparent); display: grid; gap: 6px; }
+.dan-head { display: flex; align-items: center; gap: 8px; }
+.dan-head b { color: var(--ic, #fde68a); }
+.dan-pips { display: flex; gap: 3px; }
+.dan-pips i { width: 12px; height: 12px; border-radius: 3px; background: rgba(255, 255, 255, .1); transform: rotate(45deg); }
+.dan-pips i.on { background: var(--ic, #fde68a); box-shadow: 0 0 6px var(--ic, #fde68a); }
+.dan-box small { font-size: 11.5px; line-height: 1.4; }
+.rewrite-go { width: 100%; margin-top: 2px; }

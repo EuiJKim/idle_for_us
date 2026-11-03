@@ -33,15 +33,75 @@ export const THEMES = {
 export const STEPK = [1, 1.3, 1.6];                          // 첫째(유니크) · 둘째(전설) · 셋째(신화) 칸
 export const lvScale = (lv) => 0.4 + lv / 100;               // 레벨 9 ×0.49 · 99 ×1.39 · 175 ×2.15
 // 더해도 넘지 않는 끝 (여섯 칸을 한 테마로 맞춰도 게임이 깨지지 않게)
-export const IMP_CAP = { venom: 0.6, burn: 0.6, chill: 0.3, shock: 0.3 };
+// v297: 칸 단(段)·공명이 생겨 끝을 조금 올렸다 (전엔 거의 닿지 않던 끝이라 키워도 의미가 없었다)
+export const IMP_CAP = { venom: 0.8, burn: 0.8, chill: 0.4, shock: 0.4 };
 // v270 각인 능력치의 끝 — 장비 여섯 × 칸 셋(18칸)이 그대로 더해져 끝판에 치명 피해 +110%·치명 +35%까지 갔다.
 //   각인으로 얻는 몫만 여기서 자른다(장비·심법·길 몫은 그대로).
-export const IMP_STAT_CAP = { atkPct: 0.25, hpPct: 0.3, critDmg: 0.5, crit: 0.12, bossDmg: 0.3, dmgRed: 0.12, dodge: 0.1,
-  cdr: 0.12, speed: 0.15, drain: 0.015, move: 0.2, stunHit: 0.08 };
+export const IMP_STAT_CAP = { atkPct: 0.4, hpPct: 0.45, critDmg: 0.8, crit: 0.15, bossDmg: 0.45, dmgRed: 0.15, dodge: 0.12,
+  cdr: 0.15, speed: 0.2, drain: 0.02, move: 0.25, stunHit: 0.1 };
 export function impFxTotals(equip) {
   const out = {};
   for (const it of Object.values(equip || {})) for (const im of imprintsOf(it)) for (const [k, v] of Object.entries(im.fx)) out[k] = (out[k] || 0) + v;
   return out;
+}
+export function impCoreTotal(equip) {
+  let c = 0;
+  for (const it of Object.values(equip || {})) for (const im of imprintsOf(it)) c += im.core;
+  return Math.min(IMP_CORE_CAP, c);
+}
+
+// ---------- v297 칸 단(段) ----------
+// 새겨진 칸에 **같은 두목의 증표**를 더 넣으면 그 칸이 한 단씩 깊어진다 — 확률 없이, 넣는 만큼 쌓인다.
+//   테마 능력치 ×(1 + 0.3 × (단-1)) → 10단 ×3.7 · 스킬 변화 ×(1 + 0.06 × (단-1)) → ×1.54 · 고유 효과 위력 ×(1 + 0.1 × (단-1)) → ×1.9
+//   한 단 올리는 데 증표 (2 + 지금 단 + 칸 번호)개 — 첫째 칸 1→2단 3개 … 셋째 칸 9→10단 13개
+export const DAN_MAX = 10;
+export const danFx = (d) => 1 + 0.3 * (Math.max(1, d) - 1);
+export const danSk = (d) => 1 + 0.06 * (Math.max(1, d) - 1);
+export const danSp = (d) => 1 + 0.1 * (Math.max(1, d) - 1);
+export const danMarks = (slot, d) => 2 + d + slot;
+// 각인력(v297): 칸마다 기운과 상관없이 공격력·체력 % — 두목 레벨 · 칸 무게 · 단을 따라 곧게 자란다(전투력에 그대로 보인다)
+//   테마 능력치는 종류마다 끝이 있어 금방 막히지만 각인력은 끝(IMP_CORE_CAP)이 멀다 — 단을 올리는 만큼 늘 세진다.
+//   다른 % 몫과 섞지 않고 공격력·체력에 따로 곱한다(각인 배율 = 각인력 합 + 공명 덤).
+export const IMP_CORE = 0.004;
+export const IMP_CORE_CAP = 0.8;
+export const danOf = (e) => Math.max(1, Math.min(DAN_MAX, (e && e.d) | 0 || 1));
+export const DAN_NAME = (d) => (d >= DAN_MAX ? '극(極)' : `${d}단`);
+
+// ---------- v297 공명 ----------
+// 끼고 있는 장비 전부에서 **같은 기운(테마)의 칸**을 모으면 공명한다 — 4 · 8 · 12 · 16칸 (장비 여덟 × 칸 셋 = 24칸).
+//   단계마다 그 기운의 능력치를 키우고(+15% · +35% · +60% · +100%), 각인 배율도 +3% · +7% · +12% · +20% (각인 끝과 따로).
+//   공명 Ⅱ부터는 무인 둘레에 그 기운의 빛이 돈다.
+export const RES_NEED = [4, 8, 12, 16];
+export const RES_BONUS = [
+  { fx: 0.15, atkPct: 0.03, hpPct: 0.03 },
+  { fx: 0.35, atkPct: 0.07, hpPct: 0.07 },
+  { fx: 0.6, atkPct: 0.12, hpPct: 0.12 },
+  { fx: 1.0, atkPct: 0.2, hpPct: 0.2 },
+];
+export const RES_ROMAN = ['Ⅰ', 'Ⅱ', 'Ⅲ', 'Ⅳ'];
+export const resTier = (n) => { let t = -1; for (let i = 0; i < RES_NEED.length; i++) if (n >= RES_NEED[i]) t = i; return t; };
+// { theme: { n 칸 수, tier -1~3, fx 그 기운 능력치 합, next 다음 단계까지 칸 } } · extra: 공명이 더하는 능력치 · top: 가장 센 공명
+export function resonance(equip) {
+  const by = {};
+  for (const it of Object.values(equip || {})) for (const im of imprintsOf(it)) {
+    const r = by[im.theme] || (by[im.theme] = { theme: im.theme, n: 0, fx: {} });
+    r.n++;
+    for (const [k, v] of Object.entries(im.fx)) r.fx[k] = (r.fx[k] || 0) + v;
+  }
+  const extra = {};
+  let top = null;
+  for (const r of Object.values(by)) {
+    r.tier = resTier(r.n);
+    r.next = r.tier < RES_NEED.length - 1 ? RES_NEED[r.tier + 1] - r.n : 0;
+    if (r.tier < 0) continue;
+    const b = RES_BONUS[r.tier];
+    r.extraFx = {};
+    for (const [k, v] of Object.entries(r.fx)) { r.extraFx[k] = v * b.fx; extra[k] = (extra[k] || 0) + v * b.fx; }
+    extra.resAtk = (extra.resAtk || 0) + b.atkPct;
+    extra.resHp = (extra.resHp || 0) + b.hpPct;
+    if (!top || r.tier > top.tier || (r.tier === top.tier && r.n > top.n)) top = r;
+  }
+  return { by, extra, top };
 }
 // 스킬 변화 — 테마마다 어떤 변화인지, 두목(지역 번호)마다 몇 차 스킬인지. 같은 스킬에 겹치면 더해진다(그림도 커지고 두 번 펼친다).
 //   range 범위 +(그림이 커진다) · echo 한 번 더 펼칠 확률(그림도 두 번) · cd 숨 - · dmg 피해 +
@@ -94,7 +154,7 @@ export function themeOfZone(z) {
 //   rain 쏟아짐(쿨) · guard 보호막(쿨) · reap 처치 회복 · frenzy 맞으면 쾌속 · mirror 되돌림
 // 위력 p = 그 고유 효과가 새겨진 칸 중 가장 무거운 칸의 STEPK + 칸 하나 더할 때마다 0.3, 끝은 SPECIAL_P_MAX
 // (v270: 전엔 칸 무게를 다 더해 열여덟 칸이면 p가 20 남짓 — 둘레 폭발이 공격력 ×40으로 4초마다 터졌다)
-export const SPECIAL_P_MAX = 2.5;
+export const SPECIAL_P_MAX = 3.2;   // v297 단(段)으로 칸이 무거워져 2.5 → 3.2
 export const specialP = (ws) => (ws.length ? Math.min(SPECIAL_P_MAX, Math.max(...ws) + 0.3 * (ws.length - 1)) : 0);
 export const SPECIAL_KIND = {
   echo: (p) => `${Math.round(Math.min(60, 10 * p))}% 확률로 같은 적을 한 번 더 (×2)`,
@@ -183,13 +243,16 @@ export function imprintOf(entry, step = 0) {
   const t = themeOfZone(z);
   const w = STEPK[Math.max(0, Math.min(2, step))];
   const lv = markLv(e.k);
-  const k = w * lvScale(lv);
+  const d = danOf(e);
+  const k = w * lvScale(lv) * danFx(d);
   const fx = {};
   for (const [kk, v] of THEMES[t].fx) fx[kk] = v * k;
   const sps = specialsOfZone(z);
   const g = Math.max(0, Math.min(SK_GRADE.length - 1, e.g | 0));
-  return { key: e.k, boss: zn.boss?.name || '', theme: t, fx, skill: { s: e.s | 0, k: e.sk, g, v: skillValue(e.sk, g, lv) },
-    special: sps ? sps[Math.max(0, Math.min(2, e.sp | 0))] : null, specials: sps, w, lv };
+  // wp: 고유 효과 위력에 쓰는 칸 무게(단이 깊을수록 무겁다) · w는 칸 자리 무게 그대로
+  const core = IMP_CORE * k;
+  return { key: e.k, boss: zn.boss?.name || '', theme: t, fx, core, skill: { s: e.s | 0, k: e.sk, g, v: skillValue(e.sk, g, lv) * danSk(d) },
+    special: sps ? sps[Math.max(0, Math.min(2, e.sp | 0))] : null, specials: sps, w, wp: w * danSp(d), d, lv };
 }
 export const imprintsOf = (it) => (Array.isArray(it?.imps) ? it.imps.map((e, i) => imprintOf(e, i)).filter(Boolean) : []);
 
@@ -205,7 +268,7 @@ export const FX_TEXT = {
 export const skillModText = (m) => `[${SK_GRADE[m.g || 0].name}] ` + (m.k === 'echo' ? `${SKILL_NAME[m.s]} 스킬 ${PCT(m.v)} 확률로 한 번 더` : `${SKILL_NAME[m.s]} 스킬 ${SKILL_TXT[m.k]} ${m.k === 'cd' ? '-' : '+'}${PCT(m.v)}`);
 export function imprintText(im) {
   if (!im) return '';
-  return [...Object.entries(im.fx).map(([k, v]) => (FX_TEXT[k] ? FX_TEXT[k](v) : `${k} ${v}`)), skillModText(im.skill)].join(' · ');
+  return [`각인력 +${PCT(im.core)}`, ...Object.entries(im.fx).map(([k, v]) => (FX_TEXT[k] ? FX_TEXT[k](v) : `${k} ${v}`)), skillModText(im.skill)].join(' · ');
 }
 export const specialText = (sp, p = 1) => (sp ? `【${sp.name}】 ${SPECIAL_KIND[sp.kind](p)}` : '');
 export const MASTER_IDS = MASTERS.map((m) => m.id);

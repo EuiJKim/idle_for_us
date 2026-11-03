@@ -12,6 +12,7 @@ import { Coop } from './world/wcoop.js';
 import { h, toast, openModal, closeModal, modalOpen } from './ui/common.js';
 import { WTABS, WTAB_TITLE, itemTitle, skillText, rangeText, rewardText, dailyWaiting, skipFx, setSkipFx, openSkillPreview } from './wui.js';
 import * as D from './world/wdgn.js';
+import * as IM from './world/wimprint.js';
 import { QUEST_COUNT } from './world/wquest.js';
 import { fmt, duration } from './fmt.js';
 import { sfx, unlockAudio, setSound, soundOn } from './sfx.js';
@@ -982,8 +983,18 @@ function handleEvents() {
         break;
       case 'infuse':
         if (ev.ok !== false) { sfx('loot'); drawPortrait(); }
-        if (ev.type === 'infuse' && ev.ok && ev.item.rar >= 2) net.announce(`✦ ${game.s.nickname}님의 〈${itemTitle(game, ev.item)}〉에 ${W.RARITY[ev.item.rar].name} 등급이 새겨졌어요`);
+        if (ev.type === 'infuse' && ev.ok && ev.item.rar >= 2 && !ev.reimp && !ev.fill && !ev.dan && !ev.rewrite) net.announce(`✦ ${game.s.nickname}님의 〈${itemTitle(game, ev.item)}〉에 ${W.RARITY[ev.item.rar].name} 등급이 새겨졌어요`);
         break;
+      case 'resonance': {
+        // v297 공명 단계가 오르면 무인 위로 크게 · 내려가면 조용히 알린다
+        const th = IM.THEMES[ev.theme];
+        if (ev.up) {
+          sfx('level');
+          view.float(`${th.name} 공명 ${IM.RES_ROMAN[ev.tier]}`, view.heroX, view.groundY - 210, th.col, 24, 1.6);
+          toast(`✦ ${th.name} 공명 ${IM.RES_ROMAN[ev.tier]} — ${th.name} 기운 +${Math.round(IM.RES_BONUS[ev.tier].fx * 100)}% · 공격력·체력 +${Math.round(IM.RES_BONUS[ev.tier].atkPct * 100)}%`);
+        } else toast(ev.tier >= 0 ? `${th.name} 공명이 ${IM.RES_ROMAN[ev.tier]}(으)로 내려갔어요 (${ev.n}칸)` : `${th.name} 공명이 풀렸어요 (${ev.n}칸)`);
+        break;
+      }
       case 'echo':
         view.float('한 번 더!', view.heroX, view.groundY - 190, '#f9a8d4', 18, 1);
         break;
@@ -1010,7 +1021,7 @@ function handleEvents() {
       case 'todayDone': sfx('loot'); break;
       // v262: 자동 강화·각인 — 몇 번 했는지 짧게(결과는 강화 연출 없이)
       case 'autoGear':
-        if (ev.enh + ev.inf >= 1) toast(`자동${ev.enh ? ` 강화 ${ev.enh}번` : ''}${ev.inf ? ` · 등급 각인 ${ev.inf}번` : ''}`);
+        if (ev.enh + ev.inf + (ev.dan || 0) >= 1) toast(`자동${ev.enh ? ` 강화 ${ev.enh}번` : ''}${ev.inf ? ` · 등급 각인 ${ev.inf}번` : ''}${ev.dan ? ` · 칸 단 올리기 ${ev.dan}번` : ''}`);
         break;
       // v260: 알맞은 사냥터 따라가기
       case 'followMap':

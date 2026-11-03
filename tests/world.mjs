@@ -2442,5 +2442,96 @@ console.log('\n=== v296 걸어와서 바로 친다 ===');
   ok(/this\.atkTimer = Math\.max\(0, this\.atkTimer - dt\)/.test(read('js/world/wgame.js')), '평타 쿨은 걷는 동안에도 흐른다');
   void t0;
 }
+console.log('\n=== v297 각인 개편 — 칸 단 · 다시 새기기 · 공명 · 각인 배율 ===');
+{
+  const IMm = await import('../js/world/wimprint.js');
+  const g = fresh('sword');
+  while (g.s.level < 60) g.addExp(W.expToNext(g.s.level));
+  g.s.gold = 1e15; g.s.autoInf = false; g.s.autoEnh = false;
+  const worn = W.GROW_SLOTS.map((k) => g.s.equip[k]).filter(Boolean);
+  for (const it of worn) { it.rar = 0; it.imps = []; }
+  const keys = Object.keys(W.ZONES_W).filter((z) => +z >= 1 && W.ZONES_W[z]?.boss).map((z) => `b${z}`).filter((k) => W.markLv(k) < 90 && IMm.imprintOf({ k, s: 0, sk: 'dmg', g: 0 }, 0));
+  const k1 = keys[keys.length - 1];
+  const th = IMm.themeOfZone(+k1.slice(1));
+  const k2 = keys.find((k) => IMm.themeOfZone(+k.slice(1)) !== th);
+  g.s.mats[k1] = 5000; g.s.mats[k2] = 5000;
+  const w = g.s.equip.weapon;
+  w.rar = 3; w.imps = [{ k: k2, s: 1, sk: 'range', g: 2, sp: 0 }, null, null];
+  g._stats = null;
+  // 단 올리기 — 확률 없이 한 단 · 값이 커진다 · 같은 두목 증표만 · 10단이 끝
+  const im0 = IMm.imprintOf(w.imps[0], 0);
+  const di = g.danInfo(w, 0);
+  ok(di && di.key === k2 && di.d === 1 && di.n === IMm.danMarks(0, 1), '단 올리기 값 — 그 칸 두목 증표', JSON.stringify(di));
+  const p0 = g.power(), m0 = g.s.mats[k2];
+  const e = g.danUp(w.uid, 0);
+  const im1 = IMm.imprintOf(w.imps[0], 0);
+  ok(e && e.d === 2 && g.s.mats[k2] === m0 - di.n, '한 단 오른다 · 증표가 든다');
+  ok(im1.core > im0.core && Object.keys(im1.fx).every((kk) => im1.fx[kk] > im0.fx[kk]) && im1.skill.v > im0.skill.v, '단이 오르면 각인력·테마·스킬 변화가 커진다', `${(im0.core * 100).toFixed(2)}% → ${(im1.core * 100).toFixed(2)}%`);
+  ok(g.power() > p0, '전투력이 오른다', `${p0} → ${g.power()}`);
+  for (let i = 0; i < 20; i++) g.danUp(w.uid, 0);
+  ok(IMm.danOf(w.imps[0]) === IMm.DAN_MAX && !g.canDanUp(w, 0) && g.danInfo(w, 0).max, '10단(극)이 끝');
+  ok(w.imps[0].s === 1 && w.imps[0].sk === 'range' && w.imps[0].g === 2, '단을 올려도 스킬 변화는 그대로');
+  // 다시 새기기 — 다른 두목으로 · 스킬 변화는 그대로 · 단은 절반
+  const ri = g.rewriteInfo(w, 0, k1);
+  ok(ri && ri.n === W.INFUSE_MARKS[1] && ri.keep === 5, '다시 새기기 값 — 그 칸 등급 값 · 단 절반', JSON.stringify(ri));
+  ok(!g.rewriteInfo(w, 0, k2), '같은 두목으로는 다시 새기지 않는다');
+  const r = g.rewriteImp(w.uid, 0, k1, 0);
+  ok(r && r.k === k1 && r.d === 5 && r.s === 1 && r.sk === 'range' && r.g === 2, '다시 새기면 두목이 바뀌고 스킬 변화는 남는다', JSON.stringify(r));
+  ok(!g.rewriteImp(w.uid, 1, k1, 0), '빈 칸은 다시 새기지 않는다(빈 칸 새기기로)');
+  // 공명 — 같은 기운 4칸
+  const before = g.resonance().by[th]?.tier ?? -1;
+  g.events.length = 0;
+  const its = worn.filter((x) => x !== w).slice(0, 3);
+  for (const it of its) { it.rar = 1; it.imps = [{ k: k1, s: 0, sk: 'dmg', g: 0, sp: 0 }]; }
+  g._stats = null;
+  const rs = g.resonance();
+  ok(before < 0 && rs.by[th].n === 4 && rs.by[th].tier === 0 && rs.top.theme === th, '같은 기운 4칸 → 공명 Ⅰ', `${IMm.THEMES[th].name} ${rs.by[th].n}칸`);
+  ok(Math.abs((rs.extra.resAtk || 0) - IMm.RES_BONUS[0].atkPct) < 1e-9, '공명 Ⅰ — 각인 배율 +3%');
+  const fxk = Object.keys(rs.by[th].fx)[0];
+  ok(rs.extra[fxk] > 0 && Math.abs(rs.extra[fxk] - rs.by[th].fx[fxk] * IMm.RES_BONUS[0].fx) < 1e-12, '공명 — 그 기운 능력치가 커진다');
+  // 공명 알림: 단 올리기로 칸 수는 안 바뀌고 · 다섯째 칸을 새기면 Ⅰ 그대로 · 여덟째에서 Ⅱ
+  g.s.mats[k1] = 5000;
+  const it4 = worn.filter((x) => x !== w && !its.includes(x))[0];
+  it4.rar = 3; it4.imps = [null, null, null];
+  g.events.length = 0;
+  for (let i = 0; i < 3; i++) g.fillImp(it4.uid, i, k1, 0);
+  ok(g.resonance().by[th].n === 7 && !g.events.some((e) => e.type === 'resonance'), '7칸 — 아직 Ⅱ가 아니면 알림 없음');
+  its[0].rar = 2; its[0].imps.push(null);
+  g.events.length = 0;
+  g.fillImp(its[0].uid, 1, k1, 0);
+  ok(g.resonance().by[th].tier === 1 && g.events.some((e) => e.type === 'resonance' && e.up && e.tier === 1 && e.theme === th), '8칸 → 공명 Ⅱ 알림');
+  // 각인 배율 — 다른 % 몫과 섞지 않고 공격력·체력에 그대로 곱한다
+  const st = g.stats();
+  const save = worn.map((x) => x.imps);
+  const rawCore = IMm.impCoreTotal(g.s.equip), mul = rawCore + (g.resonance().extra.resAtk || 0);
+  for (const x of worn) x.imps = [];
+  g._stats = null;
+  const st0 = g.stats();
+  worn.forEach((x, i) => { x.imps = save[i]; }); g._stats = null;
+  ok(mul > 0 && st.atk / st0.atk > 1 + mul - 1e-6, '각인 배율만큼(이상) 공격력이 오른다', `×${(st.atk / st0.atk).toFixed(3)} · 배율 ×${(1 + mul).toFixed(3)}`);
+  ok(Math.abs(st.hp / st0.hp - (1 + mul)) < 0.02 || st.hp / st0.hp > 1 + mul - 1e-6, '체력도');
+  // 옛 저장 — 글자만 든 칸·단 없는 칸은 1단
+  const m = migrateWorld(JSON.parse(JSON.stringify({ ...newWorldSave(), equip: { weapon: { uid: 9, slot: 'weapon', grow: true, step: 10, ilv: 60, rar: 2, imps: ['b5', { k: 'b6', s: 0, sk: 'dmg', g: 0, sp: 0 }] } } })));
+  ok(IMm.imprintsOf(m.equip.weapon || g.s.equip.weapon).every((x) => x.d >= 1 && x.core > 0), '옛 칸은 1단 · 각인력이 있다');
+  ok(IMm.danOf({ k: 'b5', d: 99 }) === IMm.DAN_MAX && IMm.danOf({ k: 'b5', d: -3 }) === 1, '이상한 단은 1~10으로');
+  // 자동 — 남는 증표로 단 올리기(다음 등급 몫 12개는 남긴다) · 끄면 안 한다
+  const A = fresh('sword');
+  while (A.s.level < 60) A.addExp(W.expToNext(A.s.level));
+  A.s.gold = 1e15; A.s.autoInf = true; A.s.autoEnh = false;
+  for (const it of W.GROW_SLOTS.map((k) => A.s.equip[k]).filter(Boolean)) { it.rar = 3; it.imps = [{ k: k2, s: 0, sk: 'dmg', g: 0, sp: 0 }, null, null]; }
+  for (const k of Object.keys(A.s.mats)) if (W.isMarkKey(k)) A.s.mats[k] = 0;
+  A.s.mats[k2] = 40;
+  A.s.autoInfCfg = { ...A.s.autoInfCfg, mode: 'all', dan: false };
+  A.autoGear();
+  ok(A.s.mats[k2] === 40, '자동 단 올리기를 끄면 그대로');
+  A.s.autoInfCfg.dan = true;
+  A.autoGear();
+  const ds = W.GROW_SLOTS.map((k) => A.s.equip[k]).filter(Boolean).map((x) => IMm.danOf(x.imps[0]));
+  ok(ds.some((d) => d > 1) && A.s.mats[k2] < 40, '자동이 남는 증표로 단을 올린다', `단 ${ds.join(',')} · 남은 증표 ${A.s.mats[k2]}`);
+  ok(Math.max(...ds) - Math.min(...ds) <= 1, '낮은 단부터 고르게');
+  // 알림 · 글
+  ok(/!ev\.dan && !ev\.rewrite/.test(read('js/wmain.js')) && /case 'resonance'/.test(read('js/wmain.js')), '단·다시 새기기는 소문내지 않고 · 공명은 알린다');
+  ok(/각인 배율/.test(read('js/wui.js')) && /단 올리기/.test(read('js/wui.js')) && /다시 새기기/.test(read('js/wui.js')), '각인 창에 각인 배율·단·다시 새기기');
+}
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);
