@@ -2749,5 +2749,50 @@ console.log('\n=== v313 두목 다시 나기 10초(화무기만 30초) ===');
   ok(/bossT = this\.bossRespawn\(\)/.test(read('js/world/wgame.js')), '두목이 나설 때 그 방의 초를 쓴다');
 }
 
+console.log('\n=== v314 분당 경험치 · 낮은 사냥터 알림 · 두목까지 남은 초 ===');
+{
+  const g = fresh();
+  while (g.s.level < 40) g.addExp(W.expToNext(g.s.level));
+  g.enterMap(W.mapId(1, 1));
+  const gap = g.huntGap();
+  ok(gap && gap.k < 1 && gap.to && W.mapOf(gap.to).lv[0] > W.mapOf(W.mapId(1, 1)).lv[0], '레벨보다 많이 낮은 사냥터면 깎인 배율과 옮길 곳', JSON.stringify(gap));
+  ok(gap.to === g.fitMap(W.mapId(1, 1)) && W.mapOf(gap.to).lv[1] <= g.s.level, '옮길 곳은 몹이 내 레벨을 넘지 않는 가장 높은 곳', W.mapOf(gap.to).name);
+  g.enterMap(gap.to);
+  ok(g.huntGap() === null, '알맞은 곳에선 알림이 없다');
+  g.enterMap(W.mapId(1, W.BOSS_AREA));
+  ok(g.huntGap() === null, '두목 구역은 보지 않는다(일부러 가는 곳)');
+  g.enterMap(gap.to);
+  ok(g.expPerMin() === null || g.expPerMin() >= 0, '벌이를 아직 모르면 null');
+  for (let i = 0; i < 20 * 60; i++) { g.tick(0.05); g.events.length = 0; }
+  const epm = g.expPerMin();
+  ok(epm > 0 && Number.isFinite(epm), '사냥하면 분당 경험치(레벨의 %)를 센다', epm?.toFixed(2));
+  ok(epm < 1000, '말이 되는 크기', epm.toFixed(2));
+  g.enterMap(W.mapId(1, 1));
+  ok(g.expPerMin() === null, '사냥터를 옮긴 직후엔 안 보인다(앞 사냥터 벌이를 섞지 않는다)');
+  g.enterMap(gap.to);
+  g.goTown();
+  ok(g.expPerMin() === null, '마을에선 안 보인다');
+  // 두목까지
+  const b = fresh();
+  b.enterMap(W.mapId(1, W.BOSS_AREA));
+  ok(b.bossWait() && b.bossWait().left <= 1.5, '두목 방에 들어서면 곧 나선다', JSON.stringify(b.bossWait()));
+  for (let i = 0; i < 40; i++) { b.tick(0.05); b.events.length = 0; }
+  ok(b.mons.some((m) => m.isBoss && m.alive) && b.bossWait() === null, '두목이 있으면 남은 초는 없다');
+  const boss = b.mons.find((m) => m.isBoss && m.alive);
+  boss.alive = false; boss.hp = 0;
+  b.tick(0.05); b.events.length = 0;
+  const w = b.bossWait();
+  ok(w && w.total === W.BOSS_RESPAWN && w.left > W.BOSS_RESPAWN - 0.5 && w.left <= W.BOSS_RESPAWN, '쓰러지면 10초부터 줄어든다', JSON.stringify(w));
+  for (let i = 0; i < 20 * 4; i++) { b.tick(0.05); b.events.length = 0; }
+  ok(b.bossWait().left < w.left - 3.5, '시간이 가면 준다', JSON.stringify(b.bossWait()));
+  const hw = Object.values(W.ZONES_W).find((z) => z?.master === 'hwamugi');
+  const hwRoom = W.MAPS.find((m) => m.zone === hw.id && m.bossRoom);
+  b.s.duel.won = { ...b.s.duel.won };
+  if (b.enterMap(hwRoom.id)) { const bb = b.mons.find((m) => m.isBoss); if (bb) { bb.alive = false; b.mons = b.mons.filter((m) => !m.isBoss); } b.bossT = 30; ok(b.bossWait()?.total === 30, '화무기 방은 30초 고리', JSON.stringify(b.bossWait())); }
+  const ui = read('js/wmain.js'), html = read('index.html');
+  ok(/expPerMin\(\)/.test(ui) && /huntGap\(\)/.test(ui) && /bossWait\(\)/.test(ui), '화면이 셋 다 쓴다');
+  ok(/id="exp-rate"/.test(html) && /id="exp-warn"/.test(html) && /id="boss-wait"/.test(html), '자리(분당 경험치 · 알림 · 고리)');
+}
+
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);

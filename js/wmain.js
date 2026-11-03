@@ -609,6 +609,27 @@ function setBar(el, r) {
   const v = `scaleX(${Math.max(0, Math.min(1, r || 0)).toFixed(4)})`;
   if (el.style.transform !== v) el.style.transform = v;
 }
+// v314 분당 경험치 글 — 레벨의 몇 %를 1분에 버나(100%가 넘으면 분당 레벨로)
+function fmtExpRate(x) {
+  if (x >= 100) return `+${(x / 100).toFixed(1)}Lv/분`;
+  if (x >= 10) return `+${x.toFixed(0)}%/분`;
+  if (x >= 1) return `+${x.toFixed(1)}%/분`;
+  return `+${x.toFixed(2)}%/분`;
+}
+// v314 두목까지 남은 초 — 두목 방 가운데 위에 고리로
+function bossWaitHud() {
+  const el = $('boss-wait');
+  const w = game.bossWait();
+  el.classList.toggle('hidden', !w);
+  if (!w) return;
+  const sec = Math.ceil(w.left);
+  setText($('bw-sec'), String(sec));
+  setText($('bw-txt'), `두목까지 ${sec}초`);
+  const p = (w.total > 0 ? w.left / w.total : 0).toFixed(3);
+  const ring = el.firstChild;
+  if (ring.style.getPropertyValue('--p') !== p) ring.style.setProperty('--p', p);
+  el.classList.toggle('soon', sec <= 3);
+}
 function refreshUI(full = false) {
   const s = game.s;
   // v254: 창이 닫히면 미뤄 둔 방치 보상을 띄운다
@@ -620,6 +641,20 @@ function refreshUI(full = false) {
   // v185: 너비 대신 transform으로 — 너비를 바꾸면 배치를 다시 하고 화면 전체를 다시 칠했다(막대가 움직이는 동안 매 프레임)
   expBar(s.level, s.exp / game.expNeed());
   setText($('exp-pct'), `${Math.min(99.9, (s.exp / game.expNeed()) * 100).toFixed(1)}%`);
+  // v314 분당 경험치 · 낮은 사냥터 알림
+  const epm = game.expPerMin();
+  setText($('exp-rate'), epm == null ? '' : fmtExpRate(epm));
+  const gap = game.huntGap();
+  $('exp-rate').classList.toggle('slow', !!gap);
+  const ew = $('exp-warn');
+  ew.classList.toggle('hidden', !gap);
+  if (gap) {
+    const cut = Math.round((1 - gap.k) * 100);
+    setText(ew, gap.to ? `⚠ 경험치 −${cut}% → ${W.mapOf(gap.to).name}로` : `⚠ 경험치 −${cut}% → 지도`);
+    ew.title = '사냥터가 내 레벨보다 낮아 경험치가 깎여요 — 누르면 알맞은 곳으로';
+    ew._to = gap.to;
+  }
+  bossWaitHud();
   setText($('gold'), fmt(goldTween(s.gold)));
   setText($('potions'), fmt(s.potions));   // v258 은자처럼 쉼표
   const m = game.map;
@@ -1116,6 +1151,12 @@ function handleEvents() {
 }
 
 // 남은 스탯 점수 알약을 누르면 캐릭터 창
+// v314 낮은 사냥터 알림 — 누르면 알맞은 사냥터로(갈 곳이 없으면 지도)
+$('exp-warn').addEventListener('click', () => {
+  const to = $('exp-warn')._to;
+  if (to && game.enterMap(to)) { toast(`${W.mapOf(to).name}으로 왔어요 — 경험치가 제대로 들어와요`); save(); refreshUI(true); return; }
+  showTab('map');
+});
 $('advice').addEventListener('click', () => showTab('char', game.s.statPts > 0 && !game.s.autoStat ? 'stat' : 'skill'));
 // 길잡이 — 끝냈으면 받고, 아니면 할 자리를 열어 준다
 $('quest').addEventListener('click', () => {

@@ -617,13 +617,48 @@ export class WorldGame {
     if (!force && this._retreatAt != null && this.clock - this._retreatAt < 600) return false;
     if (s.level - cur.lv[1] <= W.FOLLOW_GAP) return false;
     // 몹이 내 레벨을 넘지 않는 가장 높은 일반 구역 — safeMap(시작 레벨 기준)은 몹이 나보다 두셋 높은 곳까지 골랐다
-    let to = cur.id;
-    for (const m of W.MAPS) if (!m.town && !m.bossRoom && !m.king && !m.master && !m.inst && m.lv[1] <= s.level && m.lv[0] > W.mapOf(to).lv[0]) to = m.id;
+    const to = this.fitMap(cur.id);
     if (to === s.huntMap || W.mapOf(to).lv[0] <= cur.lv[0]) return false;
     s.huntMap = to;
     if (this.map.id === cur.id) this.enterMap(to, true);
     this.emit('followMap', { name: W.mapOf(to).name });
     return true;
+  }
+  // v314 몹이 내 레벨을 넘지 않는 가장 높은 일반 구역 (from보다 낮은 곳은 고르지 않는다)
+  fitMap(from = W.mapId(1, 1)) {
+    let to = from;
+    for (const m of W.MAPS) if (!m.town && !m.bossRoom && !m.king && !m.master && !m.inst && m.lv[1] <= this.s.level && m.lv[0] > W.mapOf(to).lv[0]) to = m.id;
+    return to;
+  }
+  // v314 지금 사냥터가 낮아 경험치가 깎이고 있나 — { k: 배율(1 미만), to: 옮길 곳 } · 안 깎이면 null
+  // 두목·고수·왕 구역·마을·던전은 보지 않는다(거기는 일부러 가는 곳)
+  huntGap() {
+    const m = this.map;
+    if (!m || m.town || this.inst || m.bossRoom || m.king || m.master) return null;
+    const k = this.levelGapMult(m.lv[1]);
+    if (k >= 1) return null;
+    const to = this.fitMap(m.id);
+    return { k, to: to !== m.id ? to : null };
+  }
+  // v314 분당 경험치 — 이번 레벨의 몇 %를 1분에 버나(이 사냥터의 최근 5분 실제 벌이). 셀 수 없으면 null
+  expPerMin() {
+    if (this.map.town || this.inst) return null;
+    // 이 사냥터에 온 뒤의 벌이만 — 옮긴 직후엔 앞 사냥터 벌이가 섞이거나 0에 가깝게 나왔다. 20초는 지나야 센다
+    const from = Math.max(this._mapAt ?? -Infinity, this.clock - W.RATE_WINDOW_SEC);
+    const span = this.clock - from;
+    if (!(span >= 20)) return null;
+    let exp = 0;
+    for (const r of this.ledger) if (r[0] >= Math.floor(from)) exp += r[2];
+    if (!(exp > 0)) return null;
+    return (exp / span) * 60 / this.expNeed() * 100;
+  }
+  // v314 두목 방에서 두목이 다시 나서기까지 — { left, total } 초 · 두목이 있거나 두목 방이 아니면 null
+  bossWait() {
+    const m = this.map;
+    if (!m || m.town || this.inst || !m.bossRoom) return null;
+    if (this.mons.some((x) => x.isBoss && x.alive)) return null;
+    const total = this.coop?.hold ? W.BOSS_RESPAWN : this.bossRespawn();
+    return { left: Math.max(0, Math.min(total, this.bossT)), total };
   }
   // 내 레벨에 알맞은 가장 높은 일반 구역 (물러날 곳)
   safeMap() {
@@ -638,6 +673,7 @@ export class WorldGame {
     this.dmgLog = []; this.dmgAcc = 0;   // v255: 던전·다른 사냥터의 피해 기록이 두목 체력 셈에 섞이지 않게
     if (this.inst) this.inst = null;     // 던전에서 다른 데로 가면 그 판은 버린다
     this.sceneKey = null;
+    this._mapAt = this.clock;            // v314 분당 경험치는 이 사냥터에 온 뒤의 벌이만
     this.tells = [];
     const terr = L.terrainOf(id);
     this.blocked = terr?.grid || null;
