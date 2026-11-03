@@ -2661,6 +2661,14 @@ console.log('\n=== v303 손으로 움직인 뒤 · 잡은 뒤 후딜 없음 ==='
   m4.c = g4.hc + 1; m4.r = g4.hr; m4.x = (m4.c + 0.5) * W.TILE; m4.y = (m4.r + 0.5) * W.TILE; m4.move = null;
   g4.atkTimer = 0; g4.tick(dt);
   ok(m4.alive && g4.atkTimer > W.KILL_RECOVER, '못 쓰러뜨리면 쿨은 그대로', `쿨 ${g4.atkTimer.toFixed(2)}`);
+  // v304: 잡은 직후 빨리 나간 평타는 초당 피해 기록에 안 든다 — 두목 최소 싸움 시간이 부풀지 않게
+  const g5 = fresh(); g5.s.autoSkill = false; g5.enterMap(11);
+  const mk = (c) => { const o = g5.mons.find((x) => x.alive && !x.npc && x !== g5.mon); o.stun = 999; o.hp = o.maxHp = 1; o.c = c; o.r = g5.hr; o.x = (c + 0.5) * W.TILE; o.y = (o.r + 0.5) * W.TILE; o.move = null; return o; };
+  const a1 = mk(g5.hc + 1); g5.mon = a1; g5.atkTimer = 0; g5.dmgAcc = 0; g5.tick(dt);
+  const acc1 = g5.dmgAcc;
+  const a2 = mk(g5.hc + 1); g5.mon = a2; for (let i = 0; i < 12 && a2.alive; i++) g5.tick(dt);   // 0.3초 뒤 바로 또 — 빠른 평타
+  ok(!a1.alive && !a2.alive && acc1 > 0 && Math.abs(g5.dmgAcc - acc1) < 1e-6, '잡은 직후 0.3초 만에 나간 평타는 초당 피해에 안 센다', `첫 ${acc1.toFixed(0)} → ${g5.dmgAcc.toFixed(0)}`);
+  ok(/_quickAtk/.test(read('js/world/wgame.js')), '빠른 평타 표시로 거른다');
   void st;
 }
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);

@@ -1051,8 +1051,14 @@ export class WorldGame {
     }
     this.walking = false;
     if (this.atkTimer <= 0) {
-      this.atkTimer = st.atkSec / (this.frenzyT > 0 ? 1.5 : 1) / (1 + (this.buffv.haste || 0)) / Math.max(0.3, 1 + (this.envNow().speed || 0));
+      const iv = st.atkSec / (this.frenzyT > 0 ? 1.5 : 1) / (1 + (this.buffv.haste || 0)) / Math.max(0.3, 1 + (this.envNow().speed || 0));
+      this.atkTimer = iv;
+      // v304: 잡은 직후(KILL_RECOVER)라 제 박자보다 빨리 나간 평타는 초당 피해 기록(dmgAcc)에 넣지 않는다 —
+      //   잔챙이를 초에 셋씩 잡는 속도로 두목 최소 싸움 시간을 재면 두목·고수 체력이 서너 배로 부풀어 비무가 막혔다
+      this._quickAtk = this.clock - (this._atkAt ?? -99) < iv * 0.95;
+      this._atkAt = this.clock;
       this.basicAttack(m, st, dist);
+      this._quickAtk = false;
     }
   }
 
@@ -1348,7 +1354,7 @@ export class WorldGame {
     m.aggro = true;
     // v241: 실제 준 피해(넘친 몫은 빼고) — 두목 최소 싸움 길이 잣대
     // v255: 과녁(this.mon)에 준 것만 — 광역 합을 세면 독마·검사는 한 몸에 주는 피해의 5~7배로 잡혀 두목이 몇 분짜리가 됐다
-    if (m === this.mon) this.dmgAcc = (this.dmgAcc || 0) + Math.min(dmg, Math.max(0, m.hp + dmg));
+    if (m === this.mon && !this._quickAtk) this.dmgAcc = (this.dmgAcc || 0) + Math.min(dmg, Math.max(0, m.hp + dmg));
     if (!quiet) this.emit('dmg', { amount: dmg, kind, crit: crit ? 1 : 0, at: m, add: m !== this.mon });
     if (m.hp <= 0) { m.over = Math.max(0, -m.hp) / (m.maxHp || 1); this.killMob(m); }   // v261 넘친 피해(그리는 쪽이 날아가는 거리에 쓴다)
   }
