@@ -267,6 +267,17 @@ export function migrateWorld(raw, now = Date.now()) {
     s.bag = s.bag.map(toNew);
     s.gearV = 3;
   }
+  // v307 각인은 장비마다 한 칸 — 옛 세 칸은 가장 깊은(단) 칸 하나만 남기고, 나머지에 든 증표(새긴 값 + 단 올린 값)를 돌려준다
+  { const one = (it) => {
+      if (!it || !Array.isArray(it.imps)) return;
+      const es = it.imps.map((e, i) => [IM.normEntry(e), i]).filter(([e]) => e && W.isMarkKey(e.k));
+      if (es.length <= 1) { it.imps = es.length ? [es[0][0]] : []; return; }
+      es.sort((a, b) => (IM.danOf(b[0]) - IM.danOf(a[0])) || (b[1] - a[1]));
+      for (const [e, i] of es.slice(1)) s.mats[e.k] = (s.mats[e.k] || 0) + W.INFUSE_MARKS[Math.min(3, i + 1)] + IM.danSpent(0, IM.danOf(e));
+      it.imps = [es[0][0]];
+    };
+    for (const it of Object.values(s.equip || {})) one(it);
+    for (const it of s.bag || []) one(it); }
   return s;
 }
 
@@ -333,11 +344,38 @@ export class WorldGame {
   titleNow() { return this.s.title ? W.titleOf(this.s.title) : null; }
   hasTitle(k) { return this.s.titles.includes(k); }
   grantTitle(k) {
-    if (!W.titleOf(k) || this.hasTitle(k)) return false;
+    const t = W.titleOf(k);
+    if (!t || this.hasTitle(k)) return false;
     this.s.titles.push(k);
     if (!this.s.title) this.wearTitle(k);
-    this.emit('title', { id: k, name: W.titleOf(k).name });
+    this.emit('title', { id: k, name: t.name, auto: !!t.how });
     return true;
+  }
+  // v307 자동 칭호 — 조건을 이룬 칭호를 저절로 준다 (5초마다 · 던전 끝·전직 때)
+  titleDone(id) {
+    const s = this.s;
+    switch (id) {
+      case 'tower50': return (s.tower?.floor || 0) >= 50;
+      case 'tower120': return (s.tower?.floor || 0) >= 120;
+      case 'kings': return Object.keys(W.ZONES_W).filter((z) => W.ZONES_W[z]?.king).every((z) => (s.bossKills?.[W.mapId(+z, W.BOSS_AREA)] || 0) > 0);
+      case 'cheonma': return !!s.duel?.won?.cheonma;
+      case 'hwamugi': return !!s.duel?.won?.hwamugi;
+      case 'magwi': return !!s.duel?.won?.magwi;
+      case 'lv100': return s.level >= 100;
+      case 'lv150': return s.level >= 150;
+      case 'quest': return (s.quest || 0) >= Q.QUEST_COUNT;
+      case 'dan10': return W.SLOTS.some((x) => IM.imprintsOf(s.equip[x.id]).some((im) => im.d >= IM.DAN_MAX));
+      case 'res4': return (this.resonance().top?.tier ?? -1) >= 3;
+      case 'okq': return W.SLOTS.some((x) => IM.imprintsOf(s.equip[x.id]).some((im) => im.q.id === 2));
+      case 'k100k': return (s.kills || 0) >= 100000;
+      case 'k1m': return (s.kills || 0) >= 1000000;
+      default: return false;
+    }
+  }
+  checkTitles() {
+    let n = 0;
+    for (const t of Object.values(W.TITLES)) if (t.how && !this.hasTitle(t.id) && this.titleDone(t.id)) { this.grantTitle(t.id); n++; }
+    return n;
   }
   wearTitle(k) {
     if (k != null && !this.hasTitle(k)) return false;
@@ -809,6 +847,7 @@ export class WorldGame {
     // 매 틱 보면 비싸므로 몇 초에 한 번만 본다.
     if (this._followDue && !this.inst) { this._followDue = false; this.followMap(); }
     if ((this.s.autoEnh || this.s.autoInf) && !this.inst && (this._autoGearT = (this._autoGearT ?? 5) - dt) <= 0) { this._autoGearT = 5; this.autoGear(); }
+    if ((this._titleT = (this._titleT ?? 3) - dt) <= 0) { this._titleT = 5; this.checkTitles(); }   // v307 자동 칭호
     if ((this.s.dgn.auto || this.s.dgn.routine) && !this.inst) {
       this.autoDgnT = (this.autoDgnT || 0) - dt;
       if (this.autoDgnT <= 0) { this.autoDgnT = AUTO_DGN_SEC; this.startRoutine(); }
@@ -2038,6 +2077,7 @@ export class WorldGame {
     this.s.gold -= f.gold;
     this.mark('infuse');
     const ok = this.rng() < f.chance;
+    let kept = false;
     if (ok) {
       it.rar = f.to;
       it.grade = W.RARITY_GRADE[it.rar];
@@ -2049,23 +2089,25 @@ export class WorldGame {
       const oldTf = oldOpts.find((o) => o.tf);
       if (oldTf && !it.opts.some((o) => o.tf)) it.opts.push({ ...oldTf });
       it.pity = 0;
-      // 증표 각인 (v163): 오른 칸에 그 두목을 새긴다 (유니크=첫째 · 전설=둘째 · 신화=셋째)
-      it.imps = (it.imps || []).slice(0, f.to - 1);
-      while (it.imps.length < f.to - 1) it.imps.push(null);
-      // v167: 스킬 변화는 굴리고(몇 차 · 무엇 · 효과 등급), 고유 효과는 고른 것
-      it.imps[f.to - 1] = { k: key, ...IM.rollSkillChange(this.rng), sp: Math.max(0, Math.min(2, spIdx | 0)), q: IM.rollQual(this.rng) };   // v298 극품·천품
+      // v307 각인은 한 칸 — 비어 있으면 그 두목을 새기고, 이미 있으면 그대로(등급이 올라 칸이 세진다)
+      // v167: 스킬 변화는 굴리고(몇 차 · 무엇 · 효과 등급), 고유 효과는 고른 것 · v298 극품·천품
+      it.imps = (it.imps || []).slice(0, 1);
+      if (!IM.normEntry(it.imps[0])) it.imps[0] = { k: key, ...IM.rollSkillChange(this.rng), sp: Math.max(0, Math.min(2, spIdx | 0)), q: IM.rollQual(this.rng) };
+      else kept = true;
       this._stats = null; this._mods = null; this._pass = null;
     } else it.pity = (it.pity || 0) + W.INFUSE_BASE[f.to] * W.INFUSE_PITY_K;
-    this.lastInfuse = { ok, to: f.to, chance: f.chance };
-    this.emit('infuse', { item: it, ok });
+    this.lastInfuse = { ok, to: f.to, chance: f.chance, kept };
+    this.emit('infuse', { item: it, ok, kept });
     if (ok) this.resNote(res0);
     return ok;
   }
+  // v307 각인 한 칸에 드는 증표 수 — 그 장비 등급 값(유니크 3 · 전설 6 · 신화 12)
+  impMarksN(it) { return W.INFUSE_MARKS[Math.max(1, Math.min(3, it?.rar || 0))]; }
   // v251 빈 칸 새기기 — 이미 그 등급으로 얻은 장비(두목 드랍·제작·왕의 장비)는 '오를 때' 새기는 칸이 비어 있었고
   //   채울 길이 없었다(무기 첫째·둘째 각인이 안 박힌다). 그 칸 등급 값의 증표 + 은자로, 확률 없이 새긴다.
   fillImpInfo(it, slot, key) {
-    if (!this.canImprintItem(it) || slot < 0 || slot >= (it.rar || 0) || IM.normEntry(it.imps?.[slot]) || !W.isMarkKey(key)) return null;
-    return { n: W.INFUSE_MARKS[slot + 1], gold: W.infuseGold(it.ilv, slot + 1), have: this.s.mats[key] || 0 };
+    if (!this.canImprintItem(it) || slot !== 0 || (it.rar || 0) < 1 || IM.normEntry(it.imps?.[0]) || !W.isMarkKey(key)) return null;   // v307 한 칸
+    return { n: this.impMarksN(it), gold: W.infuseGold(it.ilv, it.rar), have: this.s.mats[key] || 0 };
   }
   canFillImp(it, slot, key) {
     const f = this.fillImpInfo(it, slot, key);
@@ -2092,7 +2134,7 @@ export class WorldGame {
   reimpCost(it, slot) {
     const e = IM.normEntry(it?.imps?.[slot]);
     if (!this.canImprintItem(it) || !e) return null;
-    return { key: e.k, n: W.INFUSE_MARKS[slot + 1], gold: W.infuseGold(it.ilv, slot + 1) };
+    return { key: e.k, n: this.impMarksN(it), gold: W.infuseGold(it.ilv, it.rar) };
   }
   canReimp(it, slot) {
     const c = this.reimpCost(it, slot);
@@ -2128,7 +2170,7 @@ export class WorldGame {
     if (!this.canImprintItem(it) || !e) return null;
     const d = IM.danOf(e);
     if (d >= IM.DAN_MAX) return { key: e.k, d, max: true };
-    return { key: e.k, d, to: d + 1, n: IM.danMarks(slot, d), gold: Math.round(W.infuseGold(it.ilv, slot + 1) * (0.3 + 0.15 * d)), have: this.s.mats[e.k] || 0 };
+    return { key: e.k, d, to: d + 1, n: IM.danMarks(0, d), gold: Math.round(W.infuseGold(it.ilv, it.rar) * (0.3 + 0.15 * d)), have: this.s.mats[e.k] || 0 };
   }
   canDanUp(it, slot) {
     const f = this.danInfo(it, slot);
@@ -2159,7 +2201,7 @@ export class WorldGame {
     if (!this.canImprintItem(it) || !e) return null;
     const d = IM.danOf(e);
     if (d <= 1) return null;
-    return { key: e.k, d, back: Math.floor(IM.danSpent(slot, d) / 2), gs: IM.gsOf(e) };
+    return { key: e.k, d, back: Math.floor(IM.danSpent(0, d) / 2), gs: IM.gsOf(e) };
   }
   danReset(uid, slot) {
     const it = this.findItem(uid);
@@ -2179,7 +2221,7 @@ export class WorldGame {
     const e = IM.normEntry(it?.imps?.[slot]);
     if (!this.canImprintItem(it) || !e || !W.isMarkKey(key) || key === e.k) return null;
     const d = IM.danOf(e);
-    return { n: W.INFUSE_MARKS[slot + 1], gold: W.infuseGold(it.ilv, slot + 1), have: this.s.mats[key] || 0, d, keep: Math.max(1, Math.floor(d / 2)) };
+    return { n: this.impMarksN(it), gold: W.infuseGold(it.ilv, it.rar), have: this.s.mats[key] || 0, d, keep: Math.max(1, Math.floor(d / 2)) };
   }
   canRewrite(it, slot, key) {
     const f = this.rewriteInfo(it, slot, key);

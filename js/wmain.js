@@ -994,7 +994,7 @@ function handleEvents() {
         if (ev.ok !== false) { sfx('loot'); drawPortrait(); }
         // v298 대성 — 무인 위로 크게 · 천품 — 무림 소식
         if (ev.gs) { sfx('level'); view.float(`大成 · ${IM.GS_KIND[ev.gs]} ×${1 + IM.gsOf(ev.item.imps?.[ev.slot]).filter((k) => k === ev.gs).length}`, view.heroX, view.groundY - 210, '#fcd34d', 24, 1.6); }
-        const ne = ev.ok && !ev.dan && !ev.reimp ? ev.item.imps?.[ev.slot ?? (ev.item.rar - 1)] : null;
+        const ne = ev.ok && !ev.dan && !ev.reimp && !ev.kept ? ev.item.imps?.[0] : null;   // v307 한 칸
         if (ne && (ne.q | 0) === 2) { sfx('level'); view.float('天品!', view.heroX, view.groundY - 210, '#fcd34d', 28, 2); net.announce(`✦ ${game.s.nickname}님의 〈${itemTitle(game, ev.item)}〉에 천품(天品) 각인이 새겨졌어요!`); }
         else if (ne && (ne.q | 0) === 1) view.float('極品', view.heroX, view.groundY - 190, '#c4b5fd', 20, 1.2);
         if (ev.type === 'infuse' && ev.ok && ev.item.rar >= 2 && !ev.reimp && !ev.fill && !ev.dan && !ev.rewrite) net.announce(`✦ ${game.s.nickname}님의 〈${itemTitle(game, ev.item)}〉에 ${W.RARITY[ev.item.rar].name} 등급이 새겨졌어요`);
@@ -1004,6 +1004,7 @@ function handleEvents() {
         sfx('level');
         view.float(`〈${ev.name}〉`, view.heroX, view.groundY - 210, W.titleOf(ev.id)?.col || '#fde68a', 24, 2);
         toast(`🏷 칭호 〈${ev.name}〉을(를) 받았어요 — 캐릭터 창에서 끼고 벗어요`);
+        if (ev.auto) net.announce(`🏷 ${game.s.nickname}님이 칭호 〈${ev.name}〉을(를) 얻었어요 — ${W.titleOf(ev.id)?.how || ''}`);   // v307
         drawPortrait();
         break;
       }
@@ -1406,7 +1407,7 @@ async function openGiftAdmin() {
   const petK = sel([['', '없음'], ...W.PETS.map((p) => [p.id, `${p.emoji} ${p.name} — ${p.text}`])]);
   const petR = sel(W.RARITY.map((r, i) => [String(i), r.name]));
   const mountK = sel([['', '없음'], ...W.MOUNTS.map((m) => [m.id, `${m.emoji} ${m.name}`])]);
-  const titleK = sel([['', '없음'], ...Object.values(W.TITLES).filter((t) => t.id !== 'founder').map((t) => [t.id, `〈${t.name}〉 ${t.desc}`])]);   // v305
+  const titleK = sel([['', '없음'], ...Object.values(W.TITLES).filter((t) => t.id !== 'founder' && !t.how).map((t) => [t.id, `〈${t.name}〉 ${t.desc}`])]);   // v305 · v307 저절로 얻는 칭호는 뺀다
   const memo = h('input', { type: 'text', placeholder: '한마디 (없어도 돼요)', maxlength: '60', class: 'gift-memo' });
   const field = (name, el) => h('div', { class: 'row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, name)), el);
   openModal((s) => s.append(h('h2', {}, '우편 보내기'), list,

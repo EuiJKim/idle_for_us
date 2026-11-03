@@ -867,7 +867,23 @@ export const MANUAL_HOLD = 0.3;       // v305 손으로 움직인 직후 과녁�
 export const TITLES = {
   founder: { id: 'founder', name: '개국공신', desc: '옛 판에서 온 무인', col: '#fde68a' },
   okheir: { id: 'okheir', name: '이미옥의 후예', desc: '공격력 ×2 · 때릴 때마다 〈옥〉', atkMul: 2, hitFx: '옥', col: '#6ee7b7' },
+  // v307 저절로 얻는 칭호 — how: 이루는 길(글). 조건은 wgame.titleDone
+  lv100: { id: 'lv100', name: '초절정', desc: '공격력 +2%', how: '레벨 100', atkMul: 1.02, col: '#a5b4fc' },
+  lv150: { id: 'lv150', name: '천하제일', desc: '공격력 +5% · 때릴 때마다 〈天〉', how: '레벨 150', atkMul: 1.05, hitFx: '天', col: '#fde68a' },
+  quest: { id: 'quest', name: '길잡이 졸업', desc: '공격력 +2%', how: '길잡이를 끝까지', atkMul: 1.02, col: '#86efac' },
+  tower50: { id: 'tower50', name: '탑의 주인', desc: '공격력 +3%', how: '무한의 탑 50층', atkMul: 1.03, col: '#93c5fd' },
+  tower120: { id: 'tower120', name: '탑을 넘은 자', desc: '공격력 +6% · 때릴 때마다 〈塔〉', how: '무한의 탑 120층(끝)', atkMul: 1.06, hitFx: '塔', col: '#60a5fa' },
+  kings: { id: 'kings', name: '십이지 제압', desc: '공격력 +6% · 때릴 때마다 〈王〉', how: '십이지왕 열둘을 모두 잡기', atkMul: 1.06, hitFx: '王', col: '#fbbf24' },
+  cheonma: { id: 'cheonma', name: '천마를 꺾은 자', desc: '공격력 +5% · 때릴 때마다 〈魔〉', how: '천마 비무 승리', atkMul: 1.05, hitFx: '魔', col: '#c084fc' },
+  hwamugi: { id: 'hwamugi', name: '화무기의 호적수', desc: '공격력 +8% · 때릴 때마다 〈極〉', how: '화무기 비무 승리', atkMul: 1.08, hitFx: '極', col: '#f97316' },
+  magwi: { id: 'magwi', name: '마귀 사냥꾼', desc: '공격력 +10% · 때릴 때마다 〈鬼〉', how: '숨은 두목 마귀 격파', atkMul: 1.1, hitFx: '鬼', col: '#f43f5e' },
+  dan10: { id: 'dan10', name: '각인의 극', desc: '공격력 +3%', how: '각인 한 칸을 10단(극)까지', atkMul: 1.03, col: '#fcd34d' },
+  res4: { id: 'res4', name: '공명의 주인', desc: '공격력 +4% · 때릴 때마다 〈鳴〉', how: '공명 Ⅳ(장비 여덟 모두 같은 기운)', atkMul: 1.04, hitFx: '鳴', col: '#7dd3fc' },
+  okq: { id: 'okq', name: '옥안(玉眼)', desc: '공격력 +3%', how: '천품(天品) 각인을 끼기', atkMul: 1.03, col: '#fcd34d' },
+  k100k: { id: 'k100k', name: '십만 처치', desc: '공격력 +2%', how: '몹 10만 마리', atkMul: 1.02, col: '#d6d3d1' },
+  k1m: { id: 'k1m', name: '백만 처치', desc: '공격력 +4% · 때릴 때마다 〈萬〉', how: '몹 100만 마리', atkMul: 1.04, hitFx: '萬', col: '#e7e5e4' },
 };
+export const AUTO_TITLES = Object.values(TITLES).filter((t) => t.how);
 export const titleOf = (k) => (k === '개국공신' ? TITLES.founder : TITLES[k] || null);      // v303 과녁을 쓰러뜨리면 평타 쿨을 이만큼으로 줄인다 — 다음 몹까지 걸어가 또 한 박자 쉬지 않게
 export const HERO_SPEED = 200;      // 한 칸에 0.32초 (칸 길은 비스듬히 못 가서 자유 이동보다 조금 빠르게)
 export const MELEE_RANGE = 70;

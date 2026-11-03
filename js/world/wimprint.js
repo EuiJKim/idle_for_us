@@ -5,9 +5,9 @@
 //   고유   레벨 100 넘는 특별 두목(십이지왕 · 100 넘는 고수 · 맹주 · 천마)은 테마에 더해 제 독문무공의
 //          고유 효과가 붙는다. 유니크 < 전설 < 신화로 갈수록 발동률·위력이 커진다.
 //
-// **장비 하나에 각인 세 칸** — 레어→유니크→전설→신화로 오를 때마다 넣은 증표의 두목이 한 칸씩 새겨진다
-// (it.imps = ['b<지역>', …]). 같은 두목을 셋 다 넣으면 그 성질이 세 겹으로 쌓인다.
-// 칸마다 무게 STEPK(유니크 칸 1 · 전설 칸 1.3 · 신화 칸 1.6).
+// **v307 장비 하나에 각인 한 칸** — 처음 유니크가 될 때 넣은 증표의 두목이 새겨지고(it.imps[0]), 전설·신화로 오를수록
+// 그 칸이 세진다(IMP_RAR_W 유니크 1.5 · 전설 2.5 · 신화 4). 전엔 세 칸(무게 1·1.3·1.6)이었다 — 셋은 너무 많았다.
+// 옛 저장의 세 칸은 가장 깊은(단) 칸 하나만 남기고 나머지에 든 증표를 돌려준다(migrateWorld).
 import { ZONES_W, isMarkKey, markLv } from './wdata.js';
 import { MASTERS } from './wmasters_data.js';
 
@@ -30,7 +30,8 @@ export const THEMES = {
   water: { name: '수류', col: '#22d3ee', fx: [['move', 0.015], ['hpPct', 0.012]] },
   iron: { name: '철갑', col: '#cbd5e1', fx: [['dmgRed', 0.01], ['hpPct', 0.012]] },
 };
-export const STEPK = [1, 1.3, 1.6];                          // 첫째(유니크) · 둘째(전설) · 셋째(신화) 칸
+export const STEPK = [1, 1.3, 1.6];                          // (옛) 첫째·둘째·셋째 칸 무게 — v307부터는 IMP_RAR_W
+export const IMP_RAR_W = [0, 1.5, 2.5, 4];                  // v307 장비 등급에 따른 그 한 칸의 무게 (레어 0 · 유니크 · 전설 · 신화)
 export const lvScale = (lv) => 0.4 + lv / 100;               // 레벨 9 ×0.49 · 99 ×1.39 · 175 ×2.15
 // 더해도 넘지 않는 끝 (여섯 칸을 한 테마로 맞춰도 게임이 깨지지 않게)
 // v297: 칸 단(段)·공명이 생겨 끝을 조금 올렸다 (전엔 거의 닿지 않던 끝이라 키워도 의미가 없었다)
@@ -58,7 +59,7 @@ export const DAN_MAX = 10;
 export const danFx = (d) => 1 + 0.3 * (Math.max(1, d) - 1);
 export const danSk = (d) => 1 + 0.06 * (Math.max(1, d) - 1);
 export const danSp = (d) => 1 + 0.1 * (Math.max(1, d) - 1);
-export const danMarks = (slot, d) => 2 + d + slot;
+export const danMarks = (slot, d) => 2 + d;   // v307 칸이 하나라 slot은 안 본다(옛 서명 유지)
 // 각인력(v297): 칸마다 기운과 상관없이 공격력·체력 % — 두목 레벨 · 칸 무게 · 단을 따라 곧게 자란다(전투력에 그대로 보인다)
 //   테마 능력치는 종류마다 끝이 있어 금방 막히지만 각인력은 끝(IMP_CORE_CAP)이 멀다 — 단을 올리는 만큼 늘 세진다.
 //   다른 % 몫과 섞지 않고 공격력·체력에 따로 곱한다(각인 배율 = 각인력 합 + 공명 덤).
@@ -94,10 +95,10 @@ export const qualOf = (e) => QUAL[Math.max(0, Math.min(2, (e && e.q) | 0))];
 export function rollQual(rng) { const r = rng(); return r < QUAL_P[1] ? 2 : r < QUAL_P[1] + QUAL_P[0] ? 1 : 0; }
 
 // ---------- v297 공명 ----------
-// 끼고 있는 장비 전부에서 **같은 기운(테마)의 칸**을 모으면 공명한다 — 4 · 8 · 12 · 16칸 (장비 여덟 × 칸 셋 = 24칸).
+// 끼고 있는 장비 전부에서 **같은 기운(테마)의 칸**을 모으면 공명한다 — 3 · 5 · 7 · 8칸 (장비 여덟 × 칸 하나).
 //   단계마다 그 기운의 능력치를 키우고(+15% · +35% · +60% · +100%), 각인 배율도 +3% · +7% · +12% · +20% (각인 끝과 따로).
 //   공명 Ⅱ부터는 무인 둘레에 그 기운의 빛이 돈다.
-export const RES_NEED = [4, 8, 12, 16];
+export const RES_NEED = [3, 5, 7, 8];   // v307 장비 여덟 × 칸 하나 = 8칸
 export const RES_BONUS = [
   { fx: 0.15, atkPct: 0.03, hpPct: 0.03 },
   { fx: 0.35, atkPct: 0.07, hpPct: 0.07 },
@@ -180,7 +181,7 @@ export function themeOfZone(z) {
 //   rain 쏟아짐(쿨) · guard 보호막(쿨) · reap 처치 회복 · frenzy 맞으면 쾌속 · mirror 되돌림
 // 위력 p = 그 고유 효과가 새겨진 칸 중 가장 무거운 칸의 STEPK + 칸 하나 더할 때마다 0.3, 끝은 SPECIAL_P_MAX
 // (v270: 전엔 칸 무게를 다 더해 열여덟 칸이면 p가 20 남짓 — 둘레 폭발이 공격력 ×40으로 4초마다 터졌다)
-export const SPECIAL_P_MAX = 3.2;   // v297 단(段)으로 칸이 무거워져 2.5 → 3.2
+export const SPECIAL_P_MAX = 4;     // v297 단(段)으로 칸이 무거워져 2.5 → 3.2 · v307 한 칸이 신화 ×4라 4
 export const specialP = (ws) => (ws.length ? Math.min(SPECIAL_P_MAX, Math.max(...ws) + 0.3 * (ws.length - 1)) : 0);
 export const SPECIAL_KIND = {
   echo: (p) => `${Math.round(Math.min(60, 10 * p))}% 확률로 같은 적을 한 번 더 (×2)`,
@@ -259,15 +260,15 @@ export function normEntry(e) {
   }
   return e.k ? e : null;
 }
-// step 몇째 칸(0~2) → { key, boss, theme, fx, skill: { s, k, g, v }, special, specials, w }
-export function imprintOf(entry, step = 0) {
+// v307 rar: 그 장비의 등급(1 유니크 · 2 전설 · 3 신화) — 칸 무게가 여기서 난다 → { key, boss, theme, fx, core, skill, special, specials, w, wp, d, lv, q, gs }
+export function imprintOf(entry, rar = 1) {
   const e = normEntry(entry);
   if (!e || !isMarkKey(e.k)) return null;
   const z = +String(e.k).slice(1);
   const zn = ZONES_W[z];
   if (!zn) return null;
   const t = themeOfZone(z);
-  const w = STEPK[Math.max(0, Math.min(2, step))];
+  const w = IMP_RAR_W[Math.max(1, Math.min(3, rar | 0))];
   const lv = markLv(e.k);
   const d = danOf(e);
   const q = qualOf(e);
@@ -281,7 +282,7 @@ export function imprintOf(entry, step = 0) {
   return { key: e.k, boss: zn.boss?.name || '', theme: t, fx, core, skill: { s: e.s | 0, k: e.sk, g, v: skillValue(e.sk, g, lv) * danSk(d) * gsMult(e, 'sk') },
     special: sps ? sps[Math.max(0, Math.min(2, e.sp | 0))] : null, specials: sps, w, wp: w * danSp(d) * gsMult(e, 'sp'), d, lv, q, gs: gsOf(e) };
 }
-export const imprintsOf = (it) => (Array.isArray(it?.imps) ? it.imps.map((e, i) => imprintOf(e, i)).filter(Boolean) : []);
+export const imprintsOf = (it) => { const im = Array.isArray(it?.imps) && it.imps[0] ? imprintOf(it.imps[0], it.rar || 1) : null; return im ? [im] : []; };
 
 // 글로 — '독 묻힘 7.4%' 꼴
 const PCT = (v, d = 1) => `${(v * 100).toFixed(d).replace(/\.0$/, '')}%`;

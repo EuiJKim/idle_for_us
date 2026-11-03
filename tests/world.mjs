@@ -821,7 +821,7 @@ console.log('\n=== 장비 개편 (v130) ===');
   sw2.rar = 0; sw.s.gold = 1e15; sw.s.mats.b27 = 1000; sw.rng = () => 0;
   ok(sw.infuse(sw2.uid, 'b27', 0) && sw2.rar === 1 && sw2.imps?.[0]?.k === 'b27' && sw2.set === 'plum', '세트 무기도 두목 증표로 등급 각인 — 세트는 그대로');
   sw.infuse(sw2.uid, 'b27', 1); sw.infuse(sw2.uid, 'b27', 2);
-  ok(sw2.rar === 3 && sw2.imps.length === 3 && sw.impSpecials() && Object.keys(sw.impSpecials()).length > 0, '세트도 신화면 각인 세 칸 · 검왕 고유 효과가 켜진다');
+  ok(sw2.rar === 3 && sw2.imps.length === 1 && sw.lastInfuse?.kept && sw.impSpecials() && Object.keys(sw.impSpecials()).length > 0, '세트도 신화면 각인 한 칸이 ×4(새겨진 두목 그대로) · 검왕 고유 효과가 켜진다 (v307)');
   // 검혼석은 만능 강화석 — 부위 강화석이 모자라면 대신
   sw.s.mats.st26 = 0; sw.s.mats.st27 = 500;
   ok(sw.enhanceMats(sw2).key === 'st27', '검왕의 검혼석은 부위 강화석이 모자라면 대신 든다');
@@ -1379,10 +1379,14 @@ console.log('\n=== 증표 각인 세 칸 (v163) ===');
   ok(w.rar === 1 && w.imps.length === 1 && w.imps[0].k === poison, '유니크로 오르면 첫째 칸에 그 두목이 새겨진다');
   g._stats = null;
   ok(g.stats().venom > 0, '독수마군 각인: 적중 피해 일부가 독으로', `${(g.stats().venom * 100).toFixed(2)}%`);
+  const v1 = g.stats().venom;
   g.infuse(w.uid, poison); g.infuse(w.uid, king1);
-  ok(w.rar === 3 && w.imps.map((e) => e.k).join() === [poison, poison, king1].join(), '신화면 세 칸 — 같은 두목을 겹칠 수 있다');
+  g._stats = null;
+  ok(w.rar === 3 && w.imps.length === 1 && w.imps[0].k === poison && g.lastInfuse?.kept, '신화까지 올려도 칸은 하나 — 새겨진 두목은 그대로 (v307)');
+  ok(g.stats().venom > v1 * 2, '등급이 오르면 그 한 칸이 세진다(유니크 ×1.5 → 신화 ×4)', `${(v1 * 100).toFixed(2)}% → ${(g.stats().venom * 100).toFixed(2)}%`);
+  w.imps = [{ k: king1, s: 2, sk: 'echo', g: 0, sp: 0 }];   // 검왕으로 다시 새긴 셈
   g._stats = null; g._mods = null; g._isp = null;
-  const im3 = IM.imprintOf(w.imps[2], 2);
+  const im3 = IM.imprintOf(w.imps[0], 3);
   const md = g.skillMods(`s${im3.skill.s}`);
   const base3 = fresh(); base3.s.level = g.s.level; base3.s.jobTier = 3; base3._stats = null;
   const md0 = base3.skillMods(`s${im3.skill.s}`);
@@ -1393,14 +1397,14 @@ console.log('\n=== 증표 각인 세 칸 (v163) ===');
   let rz = 1; while (IM.SKILL_KIND[IM.themeOfZone(rz)] !== 'range' || rz % 3 !== 1) rz++;
   const sk1 = R.skillDef('s1');
   const r0 = R.skillRadius(sk1);
-  R.s.equip.armor.rar = 2; R.s.equip.armor.imps = [W.bossKey(rz), W.bossKey(rz)];
+  R.s.equip.armor.rar = 2; R.s.equip.armor.imps = [W.bossKey(rz)];
   R._stats = null; R._mods = null;
-  ok(R.skillRadius(sk1) > r0, '2차 스킬 범위 각인 두 겹 — 범위가 커진다(그림도 커진다)', `${r0.toFixed(0)} → ${R.skillRadius(sk1).toFixed(0)} (${W.zoneOfW(rz).boss.name})`);
+  ok(R.skillRadius(sk1) > r0, '2차 스킬 범위 각인(전설 ×2.5) — 범위가 커진다(그림도 커진다)', `${r0.toFixed(0)} → ${R.skillRadius(sk1).toFixed(0)} (${W.zoneOfW(rz).boss.name})`);
   // 한 번 더 각인: 스킬이 두 번 펼쳐지고 그림 사건도 두 번
   const E = fresh(); while (E.s.level < 60) E.addExp(W.expToNext(E.s.level)); E.s.jobTier = 3; E._stats = null;
   E.enterMap(W.mapId(5, 1)); for (let i = 0; i < 30; i++) E.tick(0.05);
   let ez = 1; while (IM.SKILL_KIND[IM.themeOfZone(ez)] !== 'echo' || ez % 3 !== 1) ez++;
-  E.s.equip.hat.rar = 3; E.s.equip.hat.imps = [W.bossKey(ez), W.bossKey(ez), W.bossKey(ez)];
+  E.s.equip.hat.rar = 3; E.s.equip.hat.imps = [W.bossKey(ez)];
   E._stats = null; E._mods = null; E.rng = () => 0; E.cd.s1 = 0; E.heroHp = E.stats().hp;
   E.events.length = 0;
   E.useSkill('s1');
@@ -1451,7 +1455,7 @@ console.log('\n=== 각인 v167: 스킬 변화 랜덤 · 고유 셋 중 고르기
 console.log('\n=== 고유 효과가 쓸모 있는가 (v167 · 꼴 열여섯을 시뮬로 잰다) ===');
 {
   const IM = await import('../js/world/wimprint.js');
-  // 레벨 120 검사 · 신화 칸 하나(무게 1.6)에 그 고유 하나. 같은 장비·같은 각인에서 고유만 끈 판과 견준다(같은 난수).
+  // 레벨 120 검사 · 유니크 칸 하나(무게 1.5 — v307)에 그 고유 하나. 같은 장비·같은 각인에서 고유만 끈 판과 견준다(같은 난수).
   //   dummy   허수아비 여섯이 둘레에 (때리지 않는다) — 60초 동안 준 피해
   //   counter  허수아비가 때린다(무인은 쓰러지지 않게) — 맞을 때 터지는 반격·쾌속을 60초 동안 준 피해로
   //   pressure 물약 없이 벅찬 사냥터(남만 독림 2)에서 120초 — 평균 체력·쓰러짐·준 피해
@@ -1464,7 +1468,7 @@ console.log('\n=== 고유 효과가 쓸모 있는가 (v167 · 꼴 열여섯을 �
     const sp = pick(kind);
     const [zid, i] = sp.id.split('.');
     const z = zid[0] === 'k' ? W.NORMAL_ZONES + 13 - +zid.slice(1) : W.masterZoneOf(zid);
-    g.s.equip.weapon.rar = 3; g.s.equip.weapon.imps = [null, null, { k: W.bossKey(z), s: 0, sk: 'dmg', g: 0, sp: +i }];
+    g.s.equip.weapon.rar = 1; g.s.equip.weapon.imps = [{ k: W.bossKey(z), s: 0, sk: 'dmg', g: 0, sp: +i }];   // v307: 유니크 ×1.5 ≈ 옛 신화 칸 1.6 (버티기 장면의 벅참을 그대로)
     g._stats = null; g._isp = null; g._mods = null;
     if (off) g.impSpecials = () => ({});
     g.autoDodge = true;
@@ -2031,14 +2035,13 @@ console.log('\n=== 빈 각인 칸 새기기 (v251) ===');
   while (g.s.level < 100) g.addExp(W.expToNext(g.s.level));
   g.s.gold = 1e15;
   const it = g.makeKing('weapon', G2.SLOT_KING.weapon, 0, G2.setsOfJob('sword')[0].id, 0);
-  it.rar = 2; it.imps = [];              // 전설로 얻은 장비 — 첫째·둘째 칸이 비어 있다
+  it.rar = 2; it.imps = [];              // 전설로 얻은 장비 — 각인 칸이 비어 있다
   if (!g.findItem(it.uid)) g.s.bag.push(it);
   const k = W.bossKey(10);
   g.s.mats[k] = 100;
-  ok(g.canImprintItem(it) && g.fillImpInfo(it, 0, k) && g.fillImpInfo(it, 1, k) && !g.fillImpInfo(it, 2, k), '이미 전설이면 첫째·둘째 빈 칸을 새길 수 있다(셋째는 신화가 되어야)');
+  ok(g.canImprintItem(it) && g.fillImpInfo(it, 0, k) && !g.fillImpInfo(it, 1, k) && g.fillImpInfo(it, 0, k).n === W.INFUSE_MARKS[2], '이미 전설이면 빈 각인 칸을 전설 값(증표 6)으로 새길 수 있다 (v307 한 칸)');
   const e0 = g.fillImp(it.uid, 0, k, 0);
-  ok(e0 && it.imps[0]?.k === k && g.s.mats[k] === 100 - W.INFUSE_MARKS[1], '빈 첫째 칸 — 증표를 내고 확률 없이 새긴다');
-  ok(g.fillImp(it.uid, 1, k, 1) && it.imps[1]?.k === k && it.rar === 2, '둘째 칸도 — 등급은 그대로');
+  ok(e0 && it.imps[0]?.k === k && g.s.mats[k] === 100 - W.INFUSE_MARKS[2] && it.rar === 2, '빈 칸 — 증표를 내고 확률 없이 새긴다 · 등급은 그대로');
   ok(!g.fillImpInfo(it, 0, k), '새긴 칸은 다시 새기기로만');
 }
 console.log('\n=== 세트 장비가 공유 강화를 이어받는다 (v253) ===');
@@ -2128,13 +2131,13 @@ console.log('\n=== v270 각인 상한 · 스킬 점수 레벨 5부터 ===');
   // 가장 센 왕(검왕 b27) 증표 · 신화 등급 · 1차 스킬 피해만 — 여섯 장비 × 셋
   for (const k of ['weapon', 'armor', 'hat', 'glove', 'shoe', 'acc']) {
     const it = g.s.equip[k]; if (!it) continue;
-    it.imps = [0, 1, 2].map((i) => ({ k: 'b27', s: 0, sk: i === 1 ? 'range' : 'dmg', g: 3, sp: i === 2 ? 1 : 0 }));
+    it.imps = [{ k: 'b27', s: 0, sk: k === 'armor' ? 'range' : 'dmg', g: 3, sp: k === 'weapon' ? 0 : 1 }];   // v307 한 칸 (무기는 무형신검 · 나머지 무형검기)
   }
   g._stats = null; g._mods = {}; g._isp = null;
   const m = g.skillMods('s0');
   ok(m.dmg - base.s0 <= IM.SKILL_CAP.dmg + 1e-9 && m.range - base.r <= IM.SKILL_CAP.range + 1e-9, '스킬 변화 각인은 피해·범위 끝을 넘지 않는다', `피해 +${(m.dmg - base.s0).toFixed(2)} 범위 +${(m.range - base.r).toFixed(2)}`);
   const isp = g.impSpecials();
-  ok(Object.values(isp).every((v) => v.p <= IM.SPECIAL_P_MAX + 1e-9) && isp.echo && isp.nova, '고유 효과 위력은 끝(2.5)을 넘지 않는다', JSON.stringify(Object.fromEntries(Object.entries(isp).map(([k, v]) => [k, +v.p.toFixed(2)]))));
+  ok(Object.values(isp).every((v) => v.p <= IM.SPECIAL_P_MAX + 1e-9) && isp.echo && isp.nova, `고유 효과 위력은 끝(${IM.SPECIAL_P_MAX})을 넘지 않는다`, JSON.stringify(Object.fromEntries(Object.entries(isp).map(([k, v]) => [k, +v.p.toFixed(2)]))));
   const st = g.stats();
   ok(st.critDmg - c0 <= IM.IMP_STAT_CAP.critDmg + 1e-9 && st.crit - k0 <= IM.IMP_STAT_CAP.crit + 1e-9, '각인 능력치(치명·치명 피해)는 끝을 넘지 않는다', `치명 +${(st.crit - k0).toFixed(3)} 치명 피해 +${(st.critDmg - c0).toFixed(2)}`);
   ok(IM.specialP([1.6]) === 1.6 && Math.abs(IM.specialP([1.6, 1, 1.3]) - 2.2) < 1e-9 && IM.specialP(Array(18).fill(1.6)) === IM.SPECIAL_P_MAX, '고유 위력 = 가장 무거운 칸 + 하나마다 0.3');
@@ -2471,7 +2474,7 @@ console.log('\n=== v297 각인 개편 — 칸 단 · 다시 새기기 · 공명 
   const k2 = keys.find((k) => IMm.themeOfZone(+k.slice(1)) !== th);
   g.s.mats[k1] = 5000; g.s.mats[k2] = 5000;
   const w = g.s.equip.weapon;
-  w.rar = 3; w.imps = [{ k: k2, s: 1, sk: 'range', g: 2, sp: 0 }, null, null];
+  w.rar = 3; w.imps = [{ k: k2, s: 1, sk: 'range', g: 2, sp: 0 }];
   g._stats = null;
   // 단 올리기 — 확률 없이 한 단 · 값이 커진다 · 같은 두목 증표만 · 10단이 끝
   const im0 = IMm.imprintOf(w.imps[0], 0);
@@ -2488,7 +2491,7 @@ console.log('\n=== v297 각인 개편 — 칸 단 · 다시 새기기 · 공명 
   ok(w.imps[0].s === 1 && w.imps[0].sk === 'range' && w.imps[0].g === 2, '단을 올려도 스킬 변화는 그대로');
   // 다시 새기기 — 다른 두목으로 · 스킬 변화는 그대로 · 단은 절반
   const ri = g.rewriteInfo(w, 0, k1);
-  ok(ri && ri.n === W.INFUSE_MARKS[1] && ri.keep === 5, '다시 새기기 값 — 그 칸 등급 값 · 단 절반', JSON.stringify(ri));
+  ok(ri && ri.n === W.INFUSE_MARKS[3] && ri.keep === 5, '다시 새기기 값 — 그 장비 등급 값(신화 12) · 단 절반', JSON.stringify(ri));
   ok(!g.rewriteInfo(w, 0, k2), '같은 두목으로는 다시 새기지 않는다');
   const r = g.rewriteImp(w.uid, 0, k1, 0);
   ok(r && r.k === k1 && r.d === 5 && r.s === 1 && r.sk === 'range' && r.g === 2, '다시 새기면 두목이 바뀌고 스킬 변화는 남는다', JSON.stringify(r));
@@ -2504,17 +2507,17 @@ console.log('\n=== v297 각인 개편 — 칸 단 · 다시 새기기 · 공명 
   ok(Math.abs((rs.extra.resAtk || 0) - IMm.RES_BONUS[0].atkPct) < 1e-9, '공명 Ⅰ — 각인 배율 +3%');
   const fxk = Object.keys(rs.by[th].fx)[0];
   ok(rs.extra[fxk] > 0 && Math.abs(rs.extra[fxk] - rs.by[th].fx[fxk] * IMm.RES_BONUS[0].fx) < 1e-12, '공명 — 그 기운 능력치가 커진다');
-  // 공명 알림: 단 올리기로 칸 수는 안 바뀌고 · 다섯째 칸을 새기면 Ⅰ 그대로 · 여덟째에서 Ⅱ
+  // 공명 알림 (v307 3·5·7·8): 다섯째에서 Ⅱ · 여섯째는 그대로
   g.s.mats[k1] = 5000;
-  const it4 = worn.filter((x) => x !== w && !its.includes(x))[0];
-  it4.rar = 3; it4.imps = [null, null, null];
+  const rest = worn.filter((x) => x !== w && !its.includes(x));
+  const it4 = rest[0]; it4.rar = 3; it4.imps = [];
   g.events.length = 0;
-  for (let i = 0; i < 3; i++) g.fillImp(it4.uid, i, k1, 0);
-  ok(g.resonance().by[th].n === 7 && !g.events.some((e) => e.type === 'resonance'), '7칸 — 아직 Ⅱ가 아니면 알림 없음');
-  its[0].rar = 2; its[0].imps.push(null);
+  g.fillImp(it4.uid, 0, k1, 0);
+  ok(g.resonance().by[th].n === 5 && g.resonance().by[th].tier === 1 && g.events.some((e) => e.type === 'resonance' && e.up && e.tier === 1 && e.theme === th), '5개 → 공명 Ⅱ 알림');
+  const it5 = rest[1]; it5.rar = 1; it5.imps = [];
   g.events.length = 0;
-  g.fillImp(its[0].uid, 1, k1, 0);
-  ok(g.resonance().by[th].tier === 1 && g.events.some((e) => e.type === 'resonance' && e.up && e.tier === 1 && e.theme === th), '8칸 → 공명 Ⅱ 알림');
+  g.fillImp(it5.uid, 0, k1, 0);
+  ok(g.resonance().by[th].n === 6 && g.resonance().by[th].tier === 1 && !g.events.some((e) => e.type === 'resonance'), '6개 — 아직 Ⅲ이 아니면 알림 없음');
   // 각인 배율 — 다른 % 몫과 섞지 않고 공격력·체력에 그대로 곱한다
   const st = g.stats();
   const save = worn.map((x) => x.imps);
@@ -2528,12 +2531,16 @@ console.log('\n=== v297 각인 개편 — 칸 단 · 다시 새기기 · 공명 
   // 옛 저장 — 글자만 든 칸·단 없는 칸은 1단
   const m = migrateWorld(JSON.parse(JSON.stringify({ ...newWorldSave(), equip: { weapon: { uid: 9, slot: 'weapon', grow: true, step: 10, ilv: 60, rar: 2, imps: ['b5', { k: 'b6', s: 0, sk: 'dmg', g: 0, sp: 0 }] } } })));
   ok(IMm.imprintsOf(m.equip.weapon || g.s.equip.weapon).every((x) => x.d >= 1 && x.core > 0), '옛 칸은 1단 · 각인력이 있다');
+  // v307 옛 세 칸 → 한 칸: 가장 깊은 칸(같으면 뒤 칸)만 남고, 나머지 칸의 증표는 돌아온다
+  const m3 = migrateWorld({ ...newWorldSave(), mats: { b5: 1 }, equip: { weapon: { uid: 9, slot: 'weapon', grow: true, step: 10, ilv: 60, rar: 3, imps: [{ k: 'b5', s: 0, sk: 'dmg', g: 0, sp: 0, d: 4 }, { k: 'b6', s: 0, sk: 'dmg', g: 0, sp: 0, d: 2 }, { k: 'b7', s: 0, sk: 'dmg', g: 0, sp: 0 }] } } });
+  ok(m3.equip.weapon.imps.length === 1 && m3.equip.weapon.imps[0].k === 'b5' && m3.equip.weapon.imps[0].d === 4, '세 칸이던 장비는 가장 깊은 칸 하나만', JSON.stringify(m3.equip.weapon.imps));
+  ok(m3.mats.b6 === W.INFUSE_MARKS[2] + IMm.danSpent(0, 2) && m3.mats.b7 === W.INFUSE_MARKS[3] && m3.mats.b5 === 1, '남은 칸의 증표(새긴 값 + 단 올린 값)는 돌아온다', `b6 ${m3.mats.b6} b7 ${m3.mats.b7}`);
   ok(IMm.danOf({ k: 'b5', d: 99 }) === IMm.DAN_MAX && IMm.danOf({ k: 'b5', d: -3 }) === 1, '이상한 단은 1~10으로');
   // 자동 — 남는 증표로 단 올리기(다음 등급 몫 12개는 남긴다) · 끄면 안 한다
   const A = fresh('sword');
   while (A.s.level < 60) A.addExp(W.expToNext(A.s.level));
   A.s.gold = 1e15; A.s.autoInf = true; A.s.autoEnh = false;
-  for (const it of W.GROW_SLOTS.map((k) => A.s.equip[k]).filter(Boolean)) { it.rar = 3; it.imps = [{ k: k2, s: 0, sk: 'dmg', g: 0, sp: 0 }, null, null]; }
+  for (const it of W.GROW_SLOTS.map((k) => A.s.equip[k]).filter(Boolean)) { it.rar = 3; it.imps = [{ k: k2, s: 0, sk: 'dmg', g: 0, sp: 0 }]; }
   for (const k of Object.keys(A.s.mats)) if (W.isMarkKey(k)) A.s.mats[k] = 0;
   A.s.mats[k2] = 40;
   A.s.autoInfCfg = { ...A.s.autoInfCfg, mode: 'all', dan: false };
@@ -2558,7 +2565,7 @@ console.log('\n=== v298 대성(大成) · 극품·천품 ===');
   const k1 = keys[0];
   g.s.mats[k1] = 9999;
   const w = g.s.equip.weapon;
-  w.rar = 3; w.imps = [{ k: k1, s: 0, sk: 'dmg', g: 0, sp: 0 }, null, null];
+  w.rar = 3; w.imps = [{ k: k1, s: 0, sk: 'dmg', g: 0, sp: 0 }];
   g._stats = null;
   // 대성 — 3·6·10단에서 하나씩 · rng로 종류를 정한다 · 그 효과가 ×2
   g.rng = () => 0;                       // 첫 종류(core)
@@ -2596,12 +2603,13 @@ console.log('\n=== v298 대성(大成) · 극품·천품 ===');
   ok(Math.abs(q1.core / q0.core - 1.5) < 1e-9 && Math.abs(q1.fx[fk] / q0.fx[fk] - 1) < 1e-9, '극품 — 각인력 ×1.5');
   ok(Math.abs(q2.core / q0.core - 2) < 1e-9 && Math.abs(q2.fx[fk] / q0.fx[fk] - 1.5) < 1e-9, '천품 — 각인력 ×2 · 기운 ×1.5');
   g.rng = () => 0.001;
-  g.fillImp(w.uid, 1, k1, 0);
-  ok(w.imps[1].q === 2, '빈 칸 새기기에 천품이 뜬다');
+  const h2 = g.s.equip.hat; h2.rar = 1; h2.imps = [];
+  g.fillImp(h2.uid, 0, k1, 0);
+  ok(h2.imps[0].q === 2, '빈 칸 새기기에 천품이 뜬다');
   g.rng = () => 0.5;
   const k2 = keys.find((k) => k !== k1); g.s.mats[k2] = 99;
-  g.rewriteImp(w.uid, 1, k2, 0);
-  ok(w.imps[1].q === 0 && w.imps[1].k === k2, '다시 새기면 품질을 새로 굴린다');
+  g.rewriteImp(h2.uid, 0, k2, 0);
+  ok(h2.imps[0].q === 0 && h2.imps[0].k === k2, '다시 새기면 품질을 새로 굴린다');
   // 등급 각인 성공에도
   const a = g.s.equip.armor; a.rar = 0; a.imps = [];
   g.rng = () => 0.001;
