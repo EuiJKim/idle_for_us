@@ -887,7 +887,7 @@ export class WorldGame {
       this.bossT -= dt;
       // 함께 사냥(v138): 십이지왕 구역에서 문파원과 같은 방이면 두목은 서버의 것을 따른다(wcoop.js)
       if (this.coop?.hold) this.coop.bossTick();
-      else if (this.bossT <= 0) { this.bossT = W.BOSS_RESPAWN; this.spawnMob(true); }
+      else if (this.bossT <= 0) { this.bossT = this.bossRespawn(); this.spawnMob(true); }
     }
     // 십이지왕·고수의 초식 (v148) — 두목 방에서 설정집의 독문무공을 쓴다. 바닥 경고를 피한다.
     if (!this.inst && this.map.bossRoom) this.tickBossSkill(dt);
@@ -3583,6 +3583,8 @@ export class WorldGame {
   // v277 두목 사냥꾼(권마·극악소마) — 두목 싸움 시간 배수
   // v279 탐보(환마) — 두목 장신구·애완동물·포획 조각 배수
   lootK() { return W.CLASSES[this.s.job]?.lootK || 1; }
+  // v313 두목이 다시 나서는 데 걸리는 초 — 화무기만 길다
+  bossRespawn(map = this.map) { return W.BOSS_RESPAWN_SLOW[map?.master] || W.BOSS_RESPAWN; }
   bossTimeK() { return W.CLASSES[this.s.job]?.bossTime || 1; }
   bossGapK(m) { return Math.max(W.GAP_OUT_MIN, 1 - W.GAP_OUT * Math.max(0, m.lv[1] + 2 - this.s.level)); }
   overPower(baseHp, m) {
@@ -4038,7 +4040,7 @@ export class WorldGame {
     const bl = this.bossLog || [];
     while (bl.length && bl[0] < this.clock - W.RATE_WINDOW_SEC) bl.shift();
     // 창이 짧으면(두목 한 판보다 짧게 봤으면) 최근 처치 하나로 다시 나기 주기를 짐작한다
-    const bspan = Math.max(span, W.BOSS_RESPAWN + W.BOSS_MIN_SEC.zone * W.BOSS_REPEAT_K * this.bossTimeK());
+    const bspan = Math.max(span, this.bossRespawn() + W.BOSS_MIN_SEC.zone * W.BOSS_REPEAT_K * this.bossTimeK());
     return { kills: sum[0] / span, exp: sum[1] / span, gold: sum[2] / span, potions: sum[3] / span, bosses: bl.length / bspan,
       lv: this.s.level, map: this.s.huntMap };
   }
@@ -4066,8 +4068,8 @@ export class WorldGame {
     const mats = W.MATS[m.mz] ? Math.floor(kills * W.MAT_RATE) : 0;
     // 두목 증표 — v260: 최근 실제로 잡은 빠르기(rates.bosses)로. 그 값이 없는 옛 세이브만 '다시 나기 + 45초에 하나'
     // 은자는 실측(rates)에 두목 은자가 이미 들어 있어 따로 더하지 않는다(전엔 두 번 셌다)
-    const bossCap = 1 / (W.BOSS_RESPAWN + W.BOSS_MIN_SEC.zone * W.BOSS_REPEAT_K * this.bossTimeK());
-    const bossRate = r.bosses != null ? Math.min(r.bosses, bossCap) : 1 / (W.BOSS_RESPAWN + W.BOSS_MIN_SEC.zone);
+    const bossCap = 1 / (this.bossRespawn(m) + W.BOSS_MIN_SEC.zone * W.BOSS_REPEAT_K * this.bossTimeK());
+    const bossRate = r.bosses != null ? Math.min(r.bosses, bossCap) : 1 / (this.bossRespawn(m) + W.BOSS_MIN_SEC.zone);
     const marks = m.bossRoom ? Math.floor(te * bossRate) : 0;
     // v260: 경험치 — 방치 중 레벨이 오르면 접속 때처럼 레벨 차 감쇠가 붙는다(전엔 처음 레벨의 벌이를 끝까지)
     const exp = Math.floor(this.offlineExp(r, te, m) * ek);

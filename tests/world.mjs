@@ -2738,5 +2738,16 @@ console.log('\n=== v312 애완동물 해제 · 바꿔 데려가기 ===');
   ok(!g.canUnequipPet(a.uid) && !g.unequipPet(a.uid) && g.s.pets[0] === a, '우리가 가득이면 해제 못 한다');
   ok(/unequipPet/.test(read('js/wui.js')) && /swapPet/.test(read('js/wui.js')), '창에 해제 · 바꿔 데려가기');
 }
+console.log('\n=== v313 두목 다시 나기 10초(화무기만 30초) ===');
+{
+  const g = fresh();
+  const hw = Object.values(W.ZONES_W).find((z) => z?.master === 'hwamugi');
+  const ch = Object.values(W.ZONES_W).find((z) => z?.master && z.master !== 'hwamugi');
+  ok(W.BOSS_RESPAWN === 10, '두목은 10초마다 다시 난다', `${W.BOSS_RESPAWN}`);
+  ok(g.bossRespawn({ master: 'hwamugi' }) === 30 && !!hw, '화무기만 30초');
+  ok(g.bossRespawn({ master: ch?.master }) === 10 && g.bossRespawn({ master: null }) === 10, '다른 고수·지역 두목은 10초');
+  ok(/bossT = this\.bossRespawn\(\)/.test(read('js/world/wgame.js')), '두목이 나설 때 그 방의 초를 쓴다');
+}
+
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);

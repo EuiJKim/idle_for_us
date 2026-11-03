@@ -1513,7 +1513,7 @@ function mapTab(app) {
         zn.king ? h('p', { class: 'muted king-desc' }, `${zn.king.hanja} · ${zn.king.desc}`) : null,
         h('div', { class: 'area-row' }, ...btns)));
   }
-  // 고수 한 명 — 두목 방 카드 (v148). 수하 졸개가 늘 있고 고수가 30초마다 다시 나선다. 이야기는 접어 둔다.
+  // 고수 한 명 — 두목 방 카드 (v148). 수하 졸개가 늘 있고 고수가 10초마다(화무기는 30초) 다시 나선다. 이야기는 접어 둔다.
   function masterCard(m, fac) {
     const s = game.s;
     // v238: 히든 두목 — 화무기를 쓰러뜨리기 전에는 이름도 초식도 가린다
