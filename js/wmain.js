@@ -8,6 +8,7 @@ import { BUILD, RANKS, JOBS } from './data.js';
 import { BattleView, drawFighter } from './battle.js';
 import { loadIcons, skinImg } from './icons.js';
 import { WNet } from './wnet.js';
+import { RULES_VER } from './net.js';
 import { Coop } from './world/wcoop.js';
 import { h, toast, openModal, closeModal, modalOpen } from './ui/common.js';
 import { WTABS, WTAB_TITLE, itemTitle, skillText, rangeText, rewardText, dailyWaiting, skipFx, setSkipFx, openSkillPreview } from './wui.js';
@@ -1524,6 +1525,14 @@ $('btn-settings').addEventListener('click', () => openModal((s) => {
     }),
     net.isAdmin?.() ? h('div', { class: 'row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, '운영자 · 우편 보내기'), h('div', { class: 'desc' }, '무인을 골라 은자·물약·보호부·애완동물·탈것을 그 무인의 우편함에 넣어요')),
       h('button', { class: 'btn primary', style: 'padding:6px 12px', onclick: () => { closeModal(); openGiftAdmin(); } }, '보내기')) : '',
+    // v309 규칙 판 — 게시를 잊으면 우편·채팅·칭호가 조용히 막힌다
+    net.isAdmin?.() ? (() => {
+      const st = h('div', { class: 'desc' }, '');
+      const paint = () => { st.textContent = net.rulesOk === true ? `✔ 게시된 규칙이 이 판(v${RULES_VER})과 맞아요` : net.rulesOk === false ? `⚠ 게시된 규칙이 옛 판이에요 — 저장소의 firestore.rules를 Firebase 콘솔 → Firestore → 규칙에 붙여 넣고 게시하세요(v${RULES_VER} 필요)` : '아직 확인 못 했어요 (온라인이 되면 확인해요)'; st.style.color = net.rulesOk === false ? '#fca5a5' : ''; };
+      paint();
+      return h('div', { class: 'row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, '운영자 · 서버 규칙'), st),
+        h('button', { class: 'btn', style: 'padding:6px 12px', onclick: async () => { await net.checkRules(); paint(); toast(net.rulesOk ? '규칙이 맞아요' : net.rulesOk === false ? '옛 규칙이에요 — 다시 게시하세요' : '확인하지 못했어요'); } }, '확인'));
+    })() : '',
     net.isAdmin?.() ? h('div', { class: 'row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, '운영자 · 무인 정리'), h('div', { class: 'desc' }, '테스트·버려진 계정을 골라 서열에서 지워요')),
       h('button', { class: 'btn', style: 'padding:6px 12px', onclick: () => { closeModal(); openPlayerAdmin(); } }, '정리')) : '',
     toggleRow('강화·각인 연출 건너뛰기', skipFx(), '켜면 두드리는 연출 없이 바로 결과 — 끄면 연출을 눌러서 건너뛸 수 있어요', (v) => setSkipFx(v)),
@@ -1619,7 +1628,13 @@ $('btn-settings').addEventListener('click', () => openModal((s) => {
     h('p', { class: 'muted', style: 'text-align:center;margin-top:10px' }, `판 ${BUILD}`));
 }));
 
+let rulesWarned = false;
 function netChanged(what) {
+  // v309 규칙이 옛 판이면 운영자에게 한 번 알린다(다른 무인에게는 보이지 않는다)
+  if (what === 'rules' && net.rulesOk === false && net.isAdmin?.() && !rulesWarned) {
+    rulesWarned = true;
+    setTimeout(() => toast('⚠ 운영자: 게시된 Firestore 규칙이 옛 판이에요 — firestore.rules를 다시 게시하세요 (설정 → 운영자)'), 2500);
+  }
   if (what === 'status') {
     const b = $('net-badge');
     b.className = `net ${net.status}`;

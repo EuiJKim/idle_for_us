@@ -19,6 +19,12 @@ service cloud.firestore {
         && request.auth.uid in get(/databases/$(database)/documents/guilds/$(gid)).data.memberIds;
     }
 
+    // v309 규칙 판 표 — 앱이 rulesv/{판}을 읽어 본다. 지금 판만 읽히고 옛 판은 거부된다(없는 문서라 읽혀도 비어 있다).
+    //   규칙을 고치면 여기 숫자와 js/net.js의 RULES_VER를 같이 올린다 → 게시를 잊으면 운영자에게 '다시 게시' 알림.
+    match /rulesv/{v} {
+      allow get: if signedIn() && v == '309';
+    }
+
     // 플레이어 프로필: 누구나 읽기(랭킹·구경), 본인만 쓰기
     match /players/{uid} {
       allow read: if signedIn();

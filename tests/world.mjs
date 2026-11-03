@@ -2706,5 +2706,12 @@ console.log('\n=== v305 칭호 ===');
   ok(/titleK/.test(read('js/wmain.js')) && /g\.title/.test(read('js/wmain.js')) && /'title'/.test(read('firestore.rules')), '우편으로 보내고 받는다 · 규칙에 title');
   ok(/tf\.hitFx/.test(read('js/battle.js')), '때릴 때마다 글자');
 }
+console.log('\n=== v309 규칙 판 ===');
+{
+  const rv = read('js/net.js').match(/RULES_VER = '(\d+)'/)?.[1];
+  const inRules = read('firestore.rules').match(/match \/rulesv\/\{v\} \{\s*allow get: if signedIn\(\) && v == '(\d+)'/)?.[1];
+  ok(rv && rv === inRules, '앱의 RULES_VER와 firestore.rules의 rulesv 판이 같다 (규칙을 고치면 둘 다 올린다)', `앱 ${rv} · 규칙 ${inRules}`);
+  ok(/checkRules/.test(read('js/net.js')) && /rulesOk === false && net\.isAdmin/.test(read('js/wmain.js')), '옛 규칙이면 운영자에게 알린다');
+}
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);

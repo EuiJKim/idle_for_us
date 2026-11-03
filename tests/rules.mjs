@@ -67,6 +67,11 @@ const profile = (extra = {}) => ({ world: 1, nickname: '무인', level: 10, job:
     ok(await allowed(F.deleteDoc(F.doc(adb, 'players', victim.uid))), '운영자는 서열 문서를 지운다');
     ok(!(await F.getDoc(victim.ref('players', victim.uid))).exists(), '지워졌다');
 
+    console.log('# 규칙 판 (v309)');
+    const RV = fs.readFileSync(new URL('../js/net.js', import.meta.url), 'utf8').match(/RULES_VER = '(\d+)'/)[1];
+    ok(await allowed(F.getDoc(friend.ref('rulesv', RV))), `앱의 판(v${RV})이 게시된 규칙과 맞는다`);
+    ok(await denied(F.getDoc(friend.ref('rulesv', String(+RV - 1)))), '옛 판 번호는 거부 — 앱이 옛 규칙을 알아챈다');
+
     console.log('# 숨김 목록 (v308)');
     ok(await allowed(F.setDoc(F.doc(adb, 'config', 'hidden'), { uids: F.arrayUnion(victim.uid) }, { merge: true })), '운영자가 숨김 목록에 올린다');
     ok(await allowed(F.getDoc(friend.ref('config', 'hidden'))), '누구나 숨김 목록을 읽는다(서열에서 거르려고)');

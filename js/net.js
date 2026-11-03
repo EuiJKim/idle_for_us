@@ -1,6 +1,8 @@
 // Firebase 연동: 익명 로그인, 프로필·서열, 문파·채팅, 문파 토벌.
 // SDK를 동적으로 불러오므로 실패해도 혼자 하기는 그대로 동작한다.
 import { firebaseConfig, FIREBASE_SDK_VERSION, ADMIN_UID } from './firebase-config.js';
+// v309 이 앱이 바라는 규칙 판 — firestore.rules의 rulesv 숫자와 같아야 한다(규칙을 고치면 둘 다 올린다)
+export const RULES_VER = '309';
 import { big } from './big.js';
 import { Big } from './big.js';
 
@@ -56,6 +58,7 @@ export class Net {
     this.lastProfile = 0;
     this.blocked = false;   // 서버가 거부해서 멈춘 상태 (끊긴 것과 다르다)
     this.shop = null;       // 상점에 띄울 계좌 정보 (config/shop)
+    this.rulesOk = null;    // v309 게시된 규칙이 이 앱 판과 맞나(null 아직 모름 · true · false)
     this.hidden = [];       // v308 서열에서 숨긴 무인(config/hidden.uids) — 지운 서열 문서가 그 계정에서 다시 올라와도 안 보이게
   }
 
@@ -93,6 +96,7 @@ export class Net {
       await this.syncEntitlement();
       await this.loadShop();
       await this.loadHidden();
+      await this.checkRules();
       if (this.game.s.guildId) this.watchGuild(this.game.s.guildId);
       this.watchWorld();
     } catch (err) {
@@ -233,6 +237,19 @@ export class Net {
     } catch (err) {
       if (!this.denied(err, '상점 정보(config/shop)')) console.warn('[net] shop', err);
     }
+  }
+
+  // v309 게시된 규칙 판 확인 — rulesv/{RULES_VER} 읽기가 거부되면 옛 규칙이다.
+  //   **denied()를 부르지 않는다** — 그건 서버를 끊는다. 여기서는 표시만 하고 다른 일은 그대로 한다.
+  async checkRules() {
+    if (!this.online || this.blocked) return this.rulesOk;
+    try { await this.fs.getDoc(this.ref('rulesv', RULES_VER)); this.rulesOk = true; }
+    catch (err) {
+      const code = err?.code || '', msg = String(err?.message || err);
+      this.rulesOk = code === 'permission-denied' || msg.includes('insufficient permissions') ? false : this.rulesOk;
+    }
+    this.changed('rules');
+    return this.rulesOk;
   }
 
   // v308 숨긴 무인 목록 — 운영자가 '무인 정리'로 지우면 여기에 적힌다. 서열(ranking)에서 거르고, 그 계정은 자기 기록을 다시 올리지 않는다.
