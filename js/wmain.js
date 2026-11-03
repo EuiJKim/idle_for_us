@@ -1528,7 +1528,7 @@ $('btn-settings').addEventListener('click', () => openModal((s) => {
     // v309 규칙 판 — 게시를 잊으면 우편·채팅·칭호가 조용히 막힌다
     net.isAdmin?.() ? (() => {
       const st = h('div', { class: 'desc' }, '');
-      const paint = () => { st.textContent = net.rulesOk === true ? `✔ 게시된 규칙이 이 판(v${RULES_VER})과 맞아요` : net.rulesOk === false ? `⚠ 게시된 규칙이 옛 판이에요 — 저장소의 firestore.rules를 Firebase 콘솔 → Firestore → 규칙에 붙여 넣고 게시하세요(v${RULES_VER} 필요)` : '아직 확인 못 했어요 (온라인이 되면 확인해요)'; st.style.color = net.rulesOk === false ? '#fca5a5' : ''; };
+      const paint = () => { st.textContent = net.rulesOk === true ? `✔ 게시된 규칙이 이 판(v${RULES_VER})과 맞아요` : net.rulesOk === false ? `⚠ 게시된 규칙이 옛 판이에요(v${RULES_VER} 필요) — 자동 게시를 켰다면 몇 분 뒤 맞춰져요. 안 켰다면 firestore.rules를 콘솔에 붙여 넣고 게시` : '아직 확인 못 했어요 (온라인이 되면 확인해요)'; st.style.color = net.rulesOk === false ? '#fca5a5' : ''; };
       paint();
       return h('div', { class: 'row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, '운영자 · 서버 규칙'), st),
         h('button', { class: 'btn', style: 'padding:6px 12px', onclick: async () => { await net.checkRules(); paint(); toast(net.rulesOk ? '규칙이 맞아요' : net.rulesOk === false ? '옛 규칙이에요 — 다시 게시하세요' : '확인하지 못했어요'); } }, '확인'));

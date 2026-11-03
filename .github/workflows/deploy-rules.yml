@@ -1,0 +1,59 @@
+# v310 서버 규칙 자동 게시 — main에 firestore.rules · database.rules.json이 바뀌어 올라오면 Firebase에 바로 게시한다.
+# 한 번만 해 둘 것: 저장소 Settings → Secrets and variables → Actions → New repository secret
+#   이름 FIREBASE_SERVICE_ACCOUNT · 값 = Firebase 콘솔 → 프로젝트 설정 → 서비스 계정 → '새 비공개 키 생성'으로 받은 JSON 전체
+# 비밀이 없으면 게시를 건너뛰고(실패로 표시하지 않고) 무엇을 하라는지 적어 둔다.
+name: 서버 규칙 게시
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - firestore.rules
+      - database.rules.json
+      - firebase.json
+      - .github/workflows/deploy-rules.yml
+  workflow_dispatch: {}
+
+concurrency:
+  group: deploy-rules
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 비밀 키가 있나
+        id: key
+        env:
+          SA: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          if [ -z "$SA" ]; then
+            echo "has=no" >> "$GITHUB_OUTPUT"
+            echo "::warning::FIREBASE_SERVICE_ACCOUNT 비밀이 없어 게시를 건너뜁니다 — Settings → Secrets and variables → Actions 에 넣으세요"
+          else
+            echo "has=yes" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-node@v4
+        if: steps.key.outputs.has == 'yes'
+        with:
+          node-version: 20
+
+      - name: 서비스 계정으로 로그인
+        if: steps.key.outputs.has == 'yes'
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+
+      - name: Firestore 규칙 게시
+        if: steps.key.outputs.has == 'yes'
+        run: npx --yes firebase-tools@13 deploy --only firestore:rules --project idle-69772 --non-interactive
+
+      # Realtime Database(함께 사냥)는 만들어 둔 경우에만 — 없으면 이 단계만 실패로 남고 위 게시는 그대로다
+      - name: Realtime Database 규칙 게시
+        if: steps.key.outputs.has == 'yes'
+        continue-on-error: true
+        run: npx --yes firebase-tools@13 deploy --only database --project idle-69772 --non-interactive
