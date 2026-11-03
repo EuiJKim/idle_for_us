@@ -603,28 +603,58 @@ function bagTab(app) {
       // v297 전투력이 얼마나 올랐나 — 각인한 뒤 알림에 붙인다
       const qualNote = (e) => { const q = IM.qualOf(e); return q.id ? `${q.mark} ${q.name}! ` : ''; };
       const powNote = (p0) => { const p1 = game.power(); const d = p1 / Math.max(1, p0) - 1; return Math.abs(d) < 0.0005 ? '' : ` · 전투력 ${d > 0 ? '+' : ''}${(d * 100).toFixed(d * 100 >= 10 ? 0 : 1)}%`; };
-      // v297 각인 배율 · 공명 — 끼고 있는 장비 전부
+      // v299 각인 요약 — 배율 하나만 크게 · 공명은 가장 가까운 둘 · 설명은 ⓘ 안으로
       const resPanel = () => {
         const rs = game.resonance();
         const core = IM.impCoreTotal(game.s.equip);
         const mul = core + (rs.extra.resAtk || 0);
-        const list = Object.values(rs.by).sort((a, b) => b.n - a.n).slice(0, 4);
+        // 다음 단계가 가까운 순(공명이 있으면 그것부터)
+        const list = Object.values(rs.by).sort((a, b) => (b.tier - a.tier) || (a.next || 99) - (b.next || 99) || b.n - a.n).slice(0, 2);
         return h('div', { class: 'res-box' },
-          h('div', { class: 'res-head' }, h('b', {}, '각인 배율 '), h('b', { class: 'res-mul' }, `×${(1 + mul).toFixed(3)}`),
-            h('small', {}, ` 공격력·체력 · 각인력 +${pct(core, 1)}${rs.extra.resAtk ? ` · 공명 +${pct(rs.extra.resAtk, 0)}` : ''}`)),
+          h('div', { class: 'res-head' },
+            h('div', { class: 'res-big' }, h('small', {}, '각인으로 세진 만큼'), h('b', { class: 'res-mul' }, `×${(1 + mul).toFixed(3)}`), h('small', {}, '공격력·체력')),
+            h('button', { class: 'btn itm-info res-info', onclick: () => helpView() }, 'ⓘ 각인이란?')),
           list.length ? h('div', { class: 'res-list' }, ...list.map((r) => {
             const th = IM.THEMES[r.theme];
             const nx = r.tier < IM.RES_NEED.length - 1 ? IM.RES_NEED[r.tier + 1] : null;
             const lo = r.tier >= 0 ? IM.RES_NEED[r.tier] : 0;
             return h('div', { class: `res-row${r.tier >= 0 ? ' on' : ''}`, style: `--ic:${th.col}` },
-              h('span', { class: 'res-name' }, `${th.name}`, r.tier >= 0 ? h('em', {}, ` 공명 ${IM.RES_ROMAN[r.tier]}`) : null),
+              h('span', { class: 'res-name' }, `${th.name} 공명`, r.tier >= 0 ? h('em', {}, ` ${IM.RES_ROMAN[r.tier]}`) : null),
               h('span', { class: 'res-bar' }, h('i', { style: `width:${nx ? Math.round(((r.n - lo) / (nx - lo)) * 100) : 100}%` })),
-              h('small', {}, nx ? `${r.n}/${nx}칸 → ${IM.RES_ROMAN[r.tier + 1]}` : `${r.n}칸 · 끝`));
-          })) : h('p', { class: 'muted' }, '같은 기운(테마)의 칸을 4·8·12·16칸 모으면 공명해요.'),
-          h('small', { class: 'muted' }, '공명 Ⅰ~Ⅳ: 그 기운 능력치 +15%·+35%·+60%·+100% · 각인 배율 +3%·+7%·+12%·+20%'),
-          h('small', { class: 'muted' }, '새길 때 5% ★극품(각인력 ×1.5) · 0.5% ★천품(×2 · 기운 ×1.5) · 3·6·10단에 大成(효과 하나 ×2)'));
+              h('small', {}, nx ? `${nx - r.n}칸 더 → ${IM.RES_ROMAN[r.tier + 1]}` : '끝까지'));
+          })) : null);
       };
-      const impView = () => [resPanel(), slotTiles(), infuseBox()];
+      // v299 다음 할 일 — 지금 이 장비에서 할 수 있는 것 하나. 누르면 그 화면으로
+      const nextStep = () => {
+        const ims = it.imps || [];
+        const rar = it.rar || 0;
+        const marks = Object.keys(game.s.mats).filter((k) => W.isMarkKey(k) && game.s.mats[k] > 0);
+        let txt = null, go = null, cls = '';
+        const hole = [0, 1, 2].find((i) => i < rar && !IM.normEntry(ims[i]));
+        const gradeKey = rar < W.RARITY.length - 1 ? marks.find((k) => game.canInfuse(it, k)) : null;
+        const danI = [0, 1, 2].find((i) => IM.normEntry(ims[i]) && game.canDanUp(it, i));
+        if (hole != null && marks.some((k) => game.canFillImp(it, hole, k))) { txt = `${ORD[hole]} 칸이 비었어요 — 증표로 새기기`; go = () => fillView(hole); cls = 'hot'; }
+        else if (gradeKey) { txt = `${W.RARITY[rar + 1].name}(으)로 등급 각인할 수 있어요 — 성공하면 ${ORD[rar]} 칸에 두목이 새겨져요`; go = () => document.querySelector('#modal .inf-box')?.scrollIntoView({ behavior: 'smooth', block: 'center' }); cls = 'hot'; }
+        else if (danI != null) { const d = game.danInfo(it, danI); txt = `${ORD[danI]} 칸 단 올리기 가능 (${short(d.key)} 증표 ${d.n}개)${IM.GS_DAN.includes(d.to) ? ` — ${d.to}단에서 大成!` : ''}`; go = () => slotView(danI); cls = 'hot'; }
+        else if (rar >= W.RARITY.length - 1 && ims.every((e) => IM.normEntry(e))) {
+          const rs = game.resonance().top;
+          const near = Object.values(game.resonance().by).filter((r) => r.next > 0).sort((a, b) => a.next - b.next)[0];
+          txt = near ? `${IM.THEMES[near.theme].name} 기운 ${near.next}칸 더 모으면 공명 ${IM.RES_ROMAN[near.tier + 1]} — 다른 장비 칸도 같은 기운으로` : rs ? '증표가 모이면 칸 단을 올려요 — 두목 구역에서 두목을 잡아요' : '증표가 모이면 칸 단을 올려요';
+        } else if (hole != null) txt = `${ORD[hole]} 칸이 비었어요 — 두목 증표가 ${W.INFUSE_MARKS[hole + 1]}개 있으면 새길 수 있어요`;
+        else if (rar < W.RARITY.length - 1) txt = `${W.RARITY[rar + 1].name} 등급 각인에 두목 증표 ${W.INFUSE_MARKS[rar + 1]}개 — 두목 구역에서 두목을 잡아요`;
+        else txt = '증표가 모이면 칸 단을 올려요';
+        return h(go ? 'button' : 'div', { class: `next-step ${cls}`, onclick: go || undefined }, h('i', {}, '▶'), h('span', {}, txt), go ? h('em', {}, '›') : null);
+      };
+      // v299 ⓘ 각인이란? — 순서대로 넷
+      const helpView = () => sub('각인은 이렇게 해요',
+        h('div', { class: 'help-steps' },
+          h('div', { class: 'help-step' }, h('b', {}, '① 두목을 잡아 증표를 모아요'), h('p', {}, '두목 구역·고수의 두목 방에서 두목을 잡으면 그 두목의 증표가 나와요. 센 두목 증표일수록 각인 효과가 커요.')),
+          h('div', { class: 'help-step' }, h('b', {}, '② 등급 각인 — 레어 → 유니크 → 전설 → 신화'), h('p', {}, `증표 ${W.INFUSE_MARKS.slice(1).join('·')}개와 은자를 넣어요. 확률이 있고(센 두목 증표일수록 높아요), 실패하면 다음 확률이 쌓여서 언젠가는 돼요.`), h('p', {}, '성공하면 그 두목이 칸(유니크·전설·신화 칸)에 새겨져요: 기운 능력치 + 스킬 변화 + 각인력(공격력·체력 %). 레벨 100 넘는 두목은 고유 효과도.')),
+          h('div', { class: 'help-step' }, h('b', {}, '③ 칸 단(段) 올리기 — 1단 → 10단'), h('p', {}, '새겨진 칸에 같은 두목 증표를 더 넣으면 실패 없이 한 단씩 깊어져요. 10단이면 효과가 약 3.7배.'), h('p', { class: 'hl' }, '3·6·10단에서 大成 — 그 칸 효과 하나가 랜덤으로 ×2! 마음에 안 들면 \'다시 닦기\'로 1단부터 다시 노려요(증표 절반 환급).')),
+          h('div', { class: 'help-step' }, h('b', {}, '④ 공명 — 같은 기운을 모아요'), h('p', {}, `끼고 있는 장비 전부에서 같은 기운(독·검기·빙결…) 칸을 ${IM.RES_NEED.join('·')}칸 모으면 공명 Ⅰ~Ⅳ. 그 기운 효과가 +15·35·60·100%, 각인 배율도 +3·7·12·20%.`)),
+          h('div', { class: 'help-step' }, h('b', {}, '✦ 운'), h('p', {}, `새길 때 ${pct(IM.QUAL_P[0], 0)}로 ★극품(각인력 ×1.5), ${pct(IM.QUAL_P[1], 1)}로 ★천품(×2 · 기운 ×1.5)이 떠요. 마음에 안 드는 칸은 '다른 두목으로 다시 새기기'로 바꿀 수 있어요(스킬 변화는 그대로, 단은 절반).`)),
+          h('div', { class: 'help-step' }, h('b', {}, '⚙ 자동'), h('p', {}, '설정의 \'자동 등급 각인\'을 켜면 등급 각인과 단 올리기를 알아서 해요. 어떤 증표·효과를 좋아하는지 고를 수 있어요.'))));
+      const impView = () => [resPanel(), nextStep(), slotTiles(), infuseBox()];
       const slotTiles = () => {
         const ims = it.imps || [];
         return h('div', { class: 'slot-tiles' }, ...[0, 1, 2].map((i) => {
@@ -633,12 +663,12 @@ function bagTab(app) {
           const hole = !im && !locked;
           return h('button', { class: `slot-tile${im ? ' on' : ''}${locked ? ' locked' : ''}${hole ? ' hole' : ''}${im && im.d >= IM.DAN_MAX ? ' dan-max' : ''}${im?.q.id === 2 ? ' q2' : ''}`, style: im ? `--ic:${IM.THEMES[im.theme].col}` : '',
             onclick: () => (locked ? toast(`${RAR3[i]} 등급이 되면 새겨져요`) : hole ? fillView(i) : slotView(i)) },
-          h('small', {}, `${ORD[i]} · ${RAR3[i]}`),
-          im ? h('b', {}, im.q.id ? h('i', { class: `st-q q${im.q.id}`, title: im.q.name }, `${im.q.mark} `) : null, im.boss.split(' ').pop()) : h('b', {}, locked ? '🔒' : '＋ 새기기'),
+          h('small', {}, `${ORD[i]} 칸 · ${RAR3[i]}`),
+          im ? h('b', {}, im.q.id ? h('i', { class: `st-q q${im.q.id}`, title: im.q.name }, `${im.q.mark} `) : null, im.boss.split(' ').pop()) : h('b', {}, locked ? '🔒 잠김' : '＋ 새기기'),
+          !im ? h('span', { class: 'st-note' }, locked ? `${RAR3[i]}이 되면` : '증표로') : null,
           im ? h('span', { class: `st-dan${im.d >= IM.DAN_MAX ? ' max' : im.d >= 5 ? ' hi' : ''}` }, IM.DAN_NAME(im.d), im.gs.length ? h('em', { class: 'st-gs' }, ` 大${im.gs.length}`) : null) : null,
           im ? h('span', { class: 'st-theme' }, IM.THEMES[im.theme].name) : null,
-          im ? h('span', { class: 'st-skill', style: `--gc:${IM.SK_GRADE[im.skill.g].col}` }, `${IM.SKILL_NAME[im.skill.s]} ${SK_SHORT[im.skill.k]}`) : null,
-          im?.special ? h('i', { class: 'st-sp' }, '★') : null,
+          im ? h('span', { class: 'st-chips' }, h('span', { class: 'st-skill', style: `--gc:${IM.SK_GRADE[im.skill.g].col}` }, `${IM.SKILL_NAME[im.skill.s]} ${SK_SHORT[im.skill.k]}`), im.special ? h('i', { class: 'st-sp' }, '고유') : null) : null,
           im && game.favOf(it.imps[i]) ? h('i', { class: 'st-fav' }, '♥') : null);
         }));
       };
@@ -649,7 +679,8 @@ function bagTab(app) {
         const can = game.canReimp(it, i);
         const dn = game.danInfo(it, i);
         const nxt = dn && !dn.max ? IM.imprintOf({ ...IM.normEntry(it.imps[i]), d: dn.to }, i) : null;
-        sub(`${ORD[i]} 각인 · ${im.boss}`,
+        sub(`${ORD[i]} 칸 · ${im.boss}`,
+          h('div', { class: 'sec-head' }, '지금 효과'),
           h('div', { class: 'imp-row', style: `--ic:${IM.THEMES[im.theme].col}` },
             h('b', {}, `${IM.THEMES[im.theme].name}의 기운 `, h('span', { class: `st-dan${im.d >= IM.DAN_MAX ? ' max' : im.d >= 5 ? ' hi' : ''}` }, IM.DAN_NAME(im.d)),
               im.q.id ? h('span', { class: `q-tag q${im.q.id}` }, ` ${im.q.mark} ${im.q.name}`) : null),
@@ -659,9 +690,11 @@ function bagTab(app) {
             h('div', { class: 'imp-skill', style: `--gc:${IM.SK_GRADE[im.skill.g].col}` }, IM.skillModText(im.skill)),
             im.special ? h('div', { class: 'imp-sp' }, IM.specialText(im.special, im.wp)) : null),
           // v297 칸 단 — 같은 두목 증표로 확률 없이 한 단
+          h('div', { class: 'sec-head' }, '단 올리기', h('small', {}, ` 같은 두목(${short(im.key)}) 증표로 · 실패 없음 · 3·6·10단에 大成`)),
           h('div', { class: 'dan-box', style: `--ic:${IM.THEMES[im.theme].col}` },
-            h('div', { class: 'dan-head' }, h('b', {}, '칸 단(段) '), h('span', { class: 'dan-pips' }, ...Array.from({ length: IM.DAN_MAX }, (_, j) => h('i', { class: `${j < im.d ? 'on' : ''}${IM.GS_DAN.includes(j + 1) ? ' gs' : ''}` })))),
-            nxt ? h('small', { class: 'muted' }, `${IM.DAN_NAME(dn.to)}: 각인력 +${pct(nxt.core, 2)} · ${Object.entries(nxt.fx).map(([k, v]) => IM.FX_TEXT[k](v)).join(' · ')}${IM.GS_DAN.includes(dn.to) ? ' · ✦ 大成이 터져요(효과 하나 ×2, 무엇이 될지는 랜덤)' : ''}`) : h('small', { class: 'muted' }, '극(極) — 이 칸은 끝까지 깊어졌어요'),
+            h('div', { class: 'dan-head' }, h('b', {}, IM.DAN_NAME(im.d)), h('span', { class: 'dan-pips' }, ...Array.from({ length: IM.DAN_MAX }, (_, j) => h('i', { class: `${j < im.d ? 'on' : ''}${IM.GS_DAN.includes(j + 1) ? ' gs' : ''}` })))),
+            nxt ? h('small', { class: 'muted' }, `${IM.DAN_NAME(dn.to)}이 되면: 각인력 +${pct(nxt.core, 2)} · ${Object.entries(nxt.fx).map(([k, v]) => IM.FX_TEXT[k](v)).join(' · ')}`) : h('small', { class: 'muted' }, '극(極) — 이 칸은 끝까지 깊어졌어요'),
+            nxt && IM.GS_DAN.includes(dn.to) ? h('div', { class: 'gs-note' }, `✦ ${dn.to}단에서 大成이 터져요 — 효과 하나가 ×2 (무엇이 될지는 운)`) : null,
             nxt ? h('div', { class: 'cost-chips' }, costChip(dn.key, '증표', dn.n, dn.have, matIcon(dn.key, 24)), costChip(null, '은자', dn.gold, game.s.gold, goldIco())) : null,
             nxt ? h('button', { class: 'btn good dan-go', disabled: game.canDanUp(it, i) ? null : true, onclick: () => {
               const p0 = game.power();
@@ -675,6 +708,9 @@ function bagTab(app) {
               if (!confirm(`${ORD[i]} 칸을 1단으로 되돌려요.${rs.gs.length ? `\n지금 大成(${IM.gsText(it.imps[i])})이 사라지고` : '\n'} 올리는 데 든 ${short(rs.key)} 증표 ${rs.back}개를 돌려받아요.\n다시 올리면 3·6·10단에서 大成을 새로 굴려요. 되돌릴까요?`)) return;
               game.danReset(it.uid, i); toast(`${ORD[i]} 칸 1단으로 · ${short(rs.key)} 증표 +${rs.back}`); app.save(); app.refresh(); slotView(i);
             } }, `다시 닦기 (1단으로 · 증표 ${rs.back}개 환급)`) : null; })()),
+          // ③ 바꾸기 — 스킬 변화 다시 굴리기 · 고유 효과 바꾸기 (한 번에 아래 값)
+          h('div', { class: 'sec-head' }, '바꾸기', h('small', {}, ' 한 번에 아래 값 · 두목·단은 그대로')),
+          h('div', { class: 'chg-box' },
           // v294 무엇이 좋아하는 것인지
           ...(() => { const f = game.favOf(it.imps[i]); return f ? [h('div', { class: 'pref-link', style: 'cursor:default' }, `♥ 좋아하는 효과 — ${[f.skill ? '스킬 변화' : '', f.special ? '고유 효과' : '', f.fx.length ? '테마 능력치' : ''].filter(Boolean).join(' · ')}`)] : []; })(),
           c ? h('div', { class: 'cost-chips' }, costChip(c.key, '증표', c.n, game.s.mats[c.key] || 0, matIcon(c.key, 24)), costChip(null, '은자', c.gold, game.s.gold, goldIco())) : null,
@@ -687,14 +723,15 @@ function bagTab(app) {
             const txt = IM.skillModText(IM.imprintOf(e, i).skill);
             toast(game.favOf(e)?.skill ? `♥ 좋아하는 스킬 변화가 나왔어요! — ${txt}` : `스킬 변화 다시 — ${txt}`); app.save(); app.refresh(); slotView(i);
           } }, '🎲 스킬 변화 다시 굴리기'),
-          im.specials ? h('div', { class: 'sp-pick' }, h('small', {}, '고유 효과 바꾸기 (스킬 변화는 그대로)'),
-            ...im.specials.map((sp, j) => h('button', { class: `chip${sp.id === im.special.id ? ' on' : ''}`, disabled: sp.id === im.special.id || !can ? true : null, onclick: () => {
+          im.specials ? h('div', { class: 'sp-pick' }, h('small', {}, '고유 효과 — 누르면 그것으로 (초록 테두리가 지금 것)'),
+            ...im.specials.map((sp, j) => h('button', { class: `chip${sp.id === im.special.id ? ' on' : ''}`, disabled: sp.id === im.special.id || !can ? true : null, title: sp.id === im.special.id ? '지금 이것' : '', onclick: () => {
               const ps = game.s.autoInfCfg?.prefSp || [];
               if (ps.includes(im.special.kind) && !ps.includes(sp.kind) && !confirm(`♥ 지금 고유 효과 【${im.special.name}】는 좋아하는 효과예요.\n좋아하지 않는 【${sp.name}】(으)로 바꿀까요?`)) return;
               if (!game.changeImpSpecial(it.uid, i, j)) return toast('증표·은자가 모자라요');
               toast(`고유 효과를 【${sp.name}】(으)로 바꿨어요`); app.save(); app.refresh(); slotView(i);
-            } }, h('b', {}, sp.name), h('small', {}, ` ${IM.SPECIAL_KIND[sp.kind](im.wp)}`)))) : null,
-          // v297 다른 두목으로 — 맨 아래(위의 증표·은자는 스킬 변화·고유 효과 몫)
+            } }, h('b', {}, sp.name), h('small', {}, ` ${IM.SPECIAL_KIND[sp.kind](im.wp)}`)))) : null),
+          // ④ 다른 두목으로
+          h('div', { class: 'sec-head' }, '다시 새기기', h('small', {}, ' 다른 두목으로 바꿔요 · 스킬 변화는 그대로 · 단은 절반')),
           h('button', { class: 'btn rewrite-go', onclick: () => rewriteView(i) }, '다른 두목으로 다시 새기기 ▸'));
       };
       // v297 다시 새기기 — 다른 두목 증표로 이 칸을 덮는다(스킬 변화는 그대로 · 단은 절반)
@@ -782,6 +819,7 @@ function bagTab(app) {
         const pv = markPick ? IM.imprintOf({ k: markPick, s: 0, sk: 'range', g: 0, sp: spPick }, to - 1) : null;
         return h('div', { class: 'inf-box' },
           h('div', { class: 'inf-head' }, h('b', {}, '등급 각인 '), h('b', { style: `color:${R.color}` }, `→ ${R.name}`), h('small', {}, ` 기본 수치 ×${(R.mult / W.RARITY[to - 1].mult).toFixed(2)}`)),
+          h('small', { class: 'inf-why' }, `성공하면 고른 두목이 ${ORD[to - 1]} 칸에 새겨져요 · 실패해도 다음 확률이 쌓여요`),
           markPick ? h('div', { class: 'mark-pick-wrap' }, h('div', { class: 'mark-pick', style: `--mc:${W.matColor(markPick)}`, onclick: () => markPicker() },
             matIcon(markPick, 30), h('span', { class: 'mr-name' }, h('b', {}, short(markPick)), h('small', {}, `${IM.THEMES[IM.themeOfZone(+markPick.slice(1))].name}${pv?.specials ? ` · ★${pv.specials[spPick]?.name || ''}` : ''}`)),
             h('span', { class: 'mp-change' }, '바꾸기 ▸'))) : h('p', { class: 'muted' }, '두목 증표가 없어요 — 두목을 잡으면 나와요.'),

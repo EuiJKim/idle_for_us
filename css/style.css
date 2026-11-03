@@ -1880,7 +1880,6 @@ body.hunt-nocv #cv { visibility: hidden !important; }
 .slot-tile.on { border-color: var(--ic); background: color-mix(in srgb, var(--ic) 12%, var(--card)); }
 .slot-tile .st-theme { font-size: 11px; color: var(--ic); }
 .slot-tile .st-skill { font-size: 10.5px; padding: 1px 6px; border-radius: 99px; border: 1px solid var(--gc); color: var(--gc); }
-.slot-tile .st-sp { position: absolute; top: 5px; right: 7px; font-style: normal; color: var(--gold); font-size: 12px; }
 .slot-tile.locked { opacity: 0.45; }
 .slot-tile.hole { border-style: dashed; border-color: var(--gold); }
 .slot-tile.hole b { color: var(--gold); font-size: 13px; }
@@ -1986,7 +1985,6 @@ body.hunt-nocv #cv { visibility: hidden !important; }
 .slot-tile .st-fav { position: absolute; top: 4px; left: 6px; color: #f472b6; font-style: normal; font-size: 12px; }
 /* v297 각인 개편 — 각인 배율 · 공명 · 칸 단(段) · 다시 새기기 */
 .res-box { margin: 0 0 10px; padding: 9px 11px; border-radius: 12px; background: linear-gradient(135deg, rgba(253, 224, 71, .07), rgba(168, 85, 247, .06)); border: 1px solid rgba(253, 224, 71, .25); }
-.res-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: 2px 6px; font-size: 13px; }
 .res-head small { color: var(--muted); font-size: 11.5px; }
 .res-mul { color: var(--gold); font-size: 20px; letter-spacing: .5px; }
 .res-list { display: grid; gap: 4px; margin: 7px 0 4px; }
@@ -2022,3 +2020,30 @@ body.hunt-nocv #cv { visibility: hidden !important; }
 .dan-pips i.gs { border: 1px solid rgba(252, 211, 77, .7); }
 .dan-pips i.gs.on { background: #fcd34d; box-shadow: 0 0 8px #fcd34d; }
 .dan-reset { font-size: 12px; opacity: .85; }
+/* v299 각인 창 UX — 요약 · 다음 할 일 · 묶음 제목 · 설명 */
+.res-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.res-big { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
+.res-big small { color: var(--muted); font-size: 11.5px; }
+.res-info { font-size: 11.5px; padding: 4px 9px; white-space: nowrap; }
+.next-step { display: flex; align-items: center; gap: 8px; width: 100%; margin: 0 0 10px; padding: 8px 10px; border-radius: 10px; background: rgba(255, 255, 255, .04); border: 1px solid var(--line); color: var(--text); font-size: 12.5px; text-align: left; line-height: 1.35; }
+.next-step i { font-style: normal; color: var(--muted); font-size: 10px; }
+.next-step span { flex: 1; }
+.next-step em { font-style: normal; color: var(--muted); font-size: 16px; }
+.next-step.hot { border-color: rgba(253, 224, 71, .55); background: rgba(253, 224, 71, .08); }
+.next-step.hot i { color: var(--gold); }
+button.next-step { cursor: pointer; }
+.slot-tile .st-note { font-size: 10.5px; color: var(--muted); }
+.slot-tile .st-chips { display: flex; gap: 3px; flex-wrap: wrap; justify-content: center; }
+.slot-tile .st-sp { font-size: 10px; padding: 1px 5px; border-radius: 99px; border: 1px solid rgba(253, 224, 71, .5); color: var(--gold); font-style: normal; }
+.dan-box small { white-space: normal; }
+.sec-head { margin: 12px 0 5px; font-size: 13px; font-weight: 700; color: #e7e5e4; }
+.sec-head small { font-weight: 400; color: var(--muted); font-size: 11px; }
+.sec-head:first-child { margin-top: 0; }
+.chg-box { display: grid; gap: 6px; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--line); background: rgba(255, 255, 255, .03); }
+.gs-note { font-size: 12px; color: #fcd34d; }
+.inf-why { display: block; color: var(--muted); font-size: 11.5px; margin: -2px 0 6px; }
+.help-steps { display: grid; gap: 10px; }
+.help-step { padding: 9px 11px; border-radius: 10px; background: rgba(255, 255, 255, .03); border: 1px solid var(--line); }
+.help-step b { display: block; color: var(--gold); font-size: 13px; margin-bottom: 3px; }
+.help-step p { margin: 3px 0 0; font-size: 12.5px; line-height: 1.45; color: #d6d3d1; }
+.help-step p.hl { color: #fcd34d; }
