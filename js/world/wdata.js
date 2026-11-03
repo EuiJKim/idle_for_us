@@ -990,13 +990,13 @@ export function dexZones() {
   }
   return out;
 }
-// v263 무공 각성(Lv55) — 1~3차 무공 하나를 골라 변형 하나를 붙인다(바꾸려면 은자)
+// v263 무공 각성(Lv55) — v311부터 1~3차 무공마다 변형 하나씩. 맨 처음 하나는 공짜, 그 뒤(새로 붙이기·바꾸기)는 은자
 export const AWAKEN_LV = 55;
 export const AWAKEN_KINDS = [
-  { id: 'twin', name: '쌍(雙)', desc: '한 번 더 — 펼칠 때 30%로 메아리가 한 번 더', mods: { echoP: 0.3 } },
-  { id: 'wide', name: '광(廣)', desc: '범위 +40%', mods: { range: 0.4 } },
-  { id: 'swift', name: '속(速)', desc: '숨 -25%', mods: { cd: 0.25 } },
-  { id: 'heavy', name: '중(重)', desc: '피해 +60% · 숨 +15%', mods: { dmg: 0.6, cd: -0.15 } },
+  { id: 'twin', name: '쌍(雙)', desc: '30% 확률로 한 번 더', long: '펼칠 때마다 30% 확률로 같은 무공이 한 번 더 터져요(그림도 두 번). 운이 좋으면 피해가 두 배.', mods: { echoP: 0.3 } },
+  { id: 'wide', name: '광(廣)', desc: '범위 +40%', long: '무공이 닿는 둘레가 40% 넓어져요. 몹이 많이 몰린 사냥터에서 한 번에 더 많이 잡아요.', mods: { range: 0.4 } },
+  { id: 'swift', name: '속(速)', desc: '숨 -25%', long: '다시 쓰기까지 기다리는 시간(숨)이 25% 줄어요. 같은 시간에 더 자주 펼쳐요.', mods: { cd: 0.25 } },
+  { id: 'heavy', name: '중(重)', desc: '피해 +60% · 숨 +15%', long: '한 방이 60% 세지는 대신 숨이 15% 길어져요. 두목처럼 오래 때리는 상대에게 좋아요.', mods: { dmg: 0.6, cd: -0.15 } },
 ];
 export const awakenSwapCost = (level) => Math.round(mobGold(level) * 100 * 30);
 // v263 깨달음(만렙) — 만렙 뒤 경험치가 깨달음 점수가 된다. 무공 칸마다 깨달음 단계(피해 +3% · 숨 -1%), 단계가 오를수록 비싸진다.

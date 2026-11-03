@@ -110,7 +110,12 @@ export function migrateWorld(raw, now = Date.now()) {
     s.autoInfCfg = { mode, only: mode === 'pick', marks: mk, slots: sl, prefFx, prefSp, prefSk, prefSkSlot, dan: c.dan !== false }; }   // v297 dan: 남는 증표로 칸 단 올리기
   s.loadout = raw.loadout === 1 ? 1 : 0;
   { const dx = raw.dex && typeof raw.dex === 'object' ? raw.dex : {}; s.dex = {}; for (const [k, v] of Object.entries(dx)) { const n = Math.min(9999, Math.floor(Number(v) || 0)); if (n > 0) s.dex[k] = n; } }
-  s.awaken = raw.awaken && typeof raw.awaken === 'object' && W.AWAKEN_KINDS.some((k) => k.id === raw.awaken.kind) && /^s[0-3]$/.test(raw.awaken.slot) ? { slot: raw.awaken.slot, kind: raw.awaken.kind } : null;
+  // v311 각성은 무공마다 — { s0: 'wide', s2: 'twin', … }. 옛 저장의 하나({ slot, kind })는 그 무공 자리로 옮긴다
+  { const ok = (sl, k) => /^s[0-3]$/.test(sl) && W.AWAKEN_KINDS.some((x) => x.id === k);
+    s.awakens = {};
+    if (raw.awakens && typeof raw.awakens === 'object') for (const [sl, k] of Object.entries(raw.awakens)) if (ok(sl, k)) s.awakens[sl] = k;
+    if (raw.awaken && typeof raw.awaken === 'object' && ok(raw.awaken.slot, raw.awaken.kind) && !s.awakens[raw.awaken.slot]) s.awakens[raw.awaken.slot] = raw.awaken.kind;
+    delete s.awaken; }
   { const e = raw.enl && typeof raw.enl === 'object' ? raw.enl : {}; s.enl = { pts: Math.max(0, Math.floor(Number(e.pts) || 0)), exp: Math.max(0, Number(e.exp) || 0), nodes: {} }; for (const [k, v] of Object.entries(e.nodes || {})) { const n = Math.min(W.ENL_MAX, Math.floor(Number(v) || 0)); if (n > 0) s.enl.nodes[k] = n; } }
   s.loadouts = Array.isArray(raw.loadouts) ? [0, 1].map((i) => { const lo = raw.loadouts[i]; return lo && typeof lo === 'object' ? { stats: { ...(lo.stats || {}) }, skillLv: { ...(lo.skillLv || {}) }, passLv: { ...(lo.passLv || {}) } } : null; }) : [null, null];
   s.petShard = Math.max(0, Math.floor(Number(raw.petShard) || 0)); s.petSoul = Math.max(0, Math.floor(Number(raw.petSoul) || 0)); s.petSoulExp = Math.max(0, Number(raw.petSoulExp) || 0);
@@ -2814,15 +2819,17 @@ export class WorldGame {
   }
   // ---------- v263 각성 · 깨달음 ----------
   awakenSlots() { return this.skills().filter((k) => /^s[0-3]$/.test(k.id)).map((k) => k.id); }
-  awakenCost() { return this.s.awaken ? W.awakenSwapCost(this.s.level) : 0; }
+  // v311 무공마다 하나 — 아직 아무 무공도 각성하지 않았으면 공짜, 그 뒤로는(새로 붙이기·바꾸기 모두) 은자
+  awakenOf(slot) { return this.s.awakens?.[slot] || null; }
+  awakenCost() { return Object.keys(this.s.awakens || {}).length ? W.awakenSwapCost(this.s.level) : 0; }
   canAwaken(slot, kind) {
     return this.s.level >= W.AWAKEN_LV && this.awakenSlots().includes(slot) && W.AWAKEN_KINDS.some((k) => k.id === kind)
-      && !(this.s.awaken?.slot === slot && this.s.awaken?.kind === kind) && this.s.gold >= this.awakenCost();
+      && this.awakenOf(slot) !== kind && this.s.gold >= this.awakenCost();
   }
   awaken(slot, kind) {
     if (!this.canAwaken(slot, kind)) return false;
     this.s.gold -= this.awakenCost();
-    this.s.awaken = { slot, kind };
+    this.s.awakens = { ...(this.s.awakens || {}), [slot]: kind };
     this._mods = null;
     return true;
   }
@@ -2928,7 +2935,7 @@ export class WorldGame {
 
   // 스킬 하나에 걸린 것: 스킬 레벨 + 끼고 있는 장비의 옵션
   skillMods(id) {
-    const key = `${this.statSig()}|${JSON.stringify(this.s.skillLv)}|${JSON.stringify(this.s.enl?.nodes || {})}|${this.s.awaken?.slot || ''}${this.s.awaken?.kind || ''}`;
+    const key = `${this.statSig()}|${JSON.stringify(this.s.skillLv)}|${JSON.stringify(this.s.enl?.nodes || {})}|${JSON.stringify(this.s.awakens || {})}`;
     if (!this._mods || this._mods.key !== key) this._mods = { key };
     if (this._mods[id]) return this._mods[id];
     // v256: 길 무공(pa·pb)은 칸 5 — 전엔 +'a'가 NaN이라 장비 스킬 옵션·각인 스킬 변화가 길 무공에 붙지 못했다
@@ -2954,12 +2961,12 @@ export class WorldGame {
       for (const k of ['range', 'dmg', 'cd']) m[k] = (m[k] || 0) + Math.min(IM.SKILL_CAP[k], ip[k]);
       m.echoP = Math.min(IM.SKILL_CAP.echo, ip.echo); }
     // v263 각성 — 고른 무공 하나에 변형 하나
-    const aw = this.s.awaken;
-    if (aw?.slot === id && this.s.level >= W.AWAKEN_LV) { const k = W.AWAKEN_KINDS.find((x) => x.id === aw.kind); if (k) for (const [kk, v] of Object.entries(k.mods)) m[kk] = (m[kk] || 0) + v; }
+    const awk = this.awakenOf(id);   // v311 무공마다
+    if (awk && this.s.level >= W.AWAKEN_LV) { const k = W.AWAKEN_KINDS.find((x) => x.id === awk); if (k) for (const [kk, v] of Object.entries(k.mods)) m[kk] = (m[kk] || 0) + v; }
     // v263 깨달음 — 무공 칸마다 단계
     const en = this.s.enl?.nodes?.[id] || 0;
     if (en) { m.dmg += en * W.ENL_STEP.dmg; m.cd += en * W.ENL_STEP.cd; }
-    m.echoP = Math.min(IM.SKILL_CAP.echo + (aw?.slot === id && aw.kind === 'twin' ? 0.3 : 0), m.echoP);
+    m.echoP = Math.min(IM.SKILL_CAP.echo + (awk === 'twin' ? 0.3 : 0), m.echoP);
     m.cd = Math.min(0.7, m.cd);
     m.cost = Math.min(1, m.cost);
     if (m.free) m.cost = 1;

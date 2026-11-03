@@ -1723,6 +1723,18 @@ console.log('\n=== v263 각성 · 깨달음 · 견문록 · 회랑 · 길잡이 
   ok(g.awaken(sl, 'wide') && Math.abs(g.skillMods(sl).range - d0 - 0.4) < 1e-9, '각성 광 — 범위 +40%');
   const gold0 = g.s.gold;
   ok(g.awaken(sl, 'heavy') && g.s.gold < gold0, '각성을 바꾸면 은자');
+  // v311 무공마다 하나
+  const sl2 = g.awakenSlots()[1];
+  const c2 = g.awakenCost(), g1 = g.s.gold;
+  ok(sl2 && c2 > 0 && g.awaken(sl2, 'twin') && g.s.gold === g1 - c2 && g.awakenOf(sl) === 'heavy' && g.awakenOf(sl2) === 'twin', '다른 무공에도 따로 하나 — 앞 무공 각성은 그대로 · 은자', JSON.stringify(g.s.awakens));
+  ok(g.skillMods(sl2).echoP >= 0.3 && g.skillMods(sl).dmg > g.skillMods(sl2).dmg - 1, '각 무공에 제 각성이 든다');
+  ok(!g.canAwaken(sl2, 'twin'), '같은 것은 다시 못 붙인다');
+  const fresh0 = fresh(); while (fresh0.s.level < 60) fresh0.addExp(W.expToNext(fresh0.s.level)); fresh0.s.jobTier = 3; fresh0.s.gold = 0;
+  ok(fresh0.awakenCost() === 0 && fresh0.awaken(fresh0.awakenSlots()[0], 'swift') && fresh0.awakenCost() > 0 && !fresh0.canAwaken(fresh0.awakenSlots()[1], 'swift'), '맨 처음 하나만 공짜 — 그 뒤엔 은자');
+  const mo = migrateWorld({ ...newWorldSave(), awaken: { slot: 's1', kind: 'wide' } });
+  ok(mo.awakens.s1 === 'wide' && !('awaken' in mo), '옛 저장의 각성 하나는 그 무공 자리로', JSON.stringify(mo.awakens));
+  ok(Object.keys(migrateWorld({ ...newWorldSave(), awakens: { s0: 'twin', s9: 'wide', s1: 'nope' } }).awakens).join() === 's0', '이상한 칸·이름은 버린다');
+  ok(/askAwaken/.test(read('js/wui.js')) && /첫 각성은 공짜/.test(read('js/wui.js')), '누르기 전에 드는 것 · 누르면 무엇인지 설명');
   // 깨달음
   while (g.s.level < W.LEVEL_MAX) g.addExp(W.expToNext(g.s.level));
   g.addExp(W.enlExp() * 3);

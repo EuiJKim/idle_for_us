@@ -232,7 +232,7 @@ function charTab(app) {
   let skSig = '';
   function skills() {
     const s = game.s;
-    const nsig = `${s.skillPts}|${JSON.stringify(s.skillLv)}|${s.jobTier}|${game.statSig()}|${goldSig(game, 'skills')}|${JSON.stringify(s.enl || {})}|${JSON.stringify(s.awaken || {})}`;
+    const nsig = `${s.skillPts}|${JSON.stringify(s.skillLv)}|${s.jobTier}|${game.statSig()}|${goldSig(game, 'skills')}|${JSON.stringify(s.enl || {})}|${JSON.stringify(s.awakens || {})}`;
     if (nsig === skSig) return;
     skSig = nsig;
     const rc = game.skillResetCost();
@@ -276,21 +276,47 @@ function charTab(app) {
     }
     // v263 각성 — 레벨 55부터 1~3차 무공 하나에 변형 하나
     if (game.s.level >= W.AWAKEN_LV) {
-      const aw = game.s.awaken;
+      // v311 무공마다 하나 · 누르기 전에 드는 것 · 누르면 무엇인지 설명하고 묻는다
       const slots = game.awakenSlots();
+      const cost = game.awakenCost();
       const card = h('div', { class: 'awaken-box' },
-        h('b', {}, '무공 각성'), h('small', { class: 'muted' }, aw ? ` 지금: ${list.find((k) => k.id === aw.slot)?.name || ''} — ${W.AWAKEN_KINDS.find((k) => k.id === aw.kind)?.name} · 바꾸기 은자 ${fmt(game.awakenCost())}` : ' 1~3차 무공 하나를 골라 변형 하나를 붙여요(처음은 공짜)'));
+        h('div', { class: 'aw-head' }, h('b', {}, '무공 각성'),
+          h('span', { class: `aw-cost${cost ? '' : ' free'}` }, cost ? `한 번에 은자 ${fmt(cost)}` : '첫 각성은 공짜')),
+        h('small', { class: 'muted' }, '1~3차 무공마다 변형 하나씩 붙여요. 눌러서 무엇인지 보고 붙여요 — 바꾸면 전 변형은 사라져요.'));
       for (const sl of slots) {
         const sk = list.find((k) => k.id === sl);
-        card.append(h('div', { class: 'aw-line' }, h('span', {}, sk?.name || sl), ...W.AWAKEN_KINDS.map((k) => h('button', {
-          class: `chip${aw?.slot === sl && aw?.kind === k.id ? ' on' : ''}`, title: k.desc, disabled: game.canAwaken(sl, k.id) ? null : true,
-          onclick: () => { if (game.awaken(sl, k.id)) { toast(`각성 — ${sk?.name} ${k.name}: ${k.desc}`); app.save(); skSig = ''; upd(); } },
-        }, k.name))));
+        const cur = game.awakenOf(sl);
+        const curK = W.AWAKEN_KINDS.find((k) => k.id === cur);
+        card.append(h('div', { class: 'aw-line' },
+          h('div', { class: 'aw-skill' }, h('b', {}, sk?.name || sl), h('small', { class: curK ? 'on' : '' }, curK ? `${curK.name} · ${curK.desc}` : '아직 없음')),
+          h('div', { class: 'aw-chips' }, ...W.AWAKEN_KINDS.map((k) => h('button', {
+            class: `chip aw-chip${cur === k.id ? ' on' : ''}`, disabled: cur === k.id ? true : null,
+            onclick: () => askAwaken(sl, sk, k, curK),
+          }, h('b', {}, k.name), h('small', {}, k.desc))))));
       }
-      card.append(h('small', { class: 'muted' }, W.AWAKEN_KINDS.map((k) => `${k.name} ${k.desc}`).join(' · ')));
       skillCard.append(card);
     }
     if (game.s.level >= W.LEVEL_MAX) skillCard.append(h('p', { class: 'muted' }, `깨달음 점수 ${fmt(game.s.enl?.pts || 0)} · 다음까지 ${Math.min(99, Math.floor((game.s.enl?.exp || 0) / W.enlExp() * 100))}% — 만렙 뒤 경험치가 깨달음이 돼요`));
+  }
+  // v311 각성 묻기 — 무엇이 되는지 · 드는 것 · 바뀌는 것을 보여 주고 붙인다
+  function askAwaken(sl, sk, k, curK) {
+    const cost = game.awakenCost();
+    const lack = game.s.gold < cost;
+    openModal((s) => s.append(...[
+      h('h2', {}, `${sk?.name || sl} — ${k.name}`),
+      h('p', { class: 'aw-long' }, k.long || k.desc),
+      h('div', { class: 'aw-ask' },
+        h('div', {}, h('b', {}, '붙는 것'), h('span', {}, k.desc)),
+        curK ? h('div', {}, h('b', {}, '사라지는 것'), h('span', { class: 'warn' }, `${curK.name} · ${curK.desc}`)) : null,
+        h('div', {}, h('b', {}, '드는 것'), h('span', { class: lack ? 'warn' : '' }, cost ? `은자 ${fmt(cost)} (가진 것 ${fmt(game.s.gold)})` : '없음 — 첫 각성은 공짜')),
+        !cost ? h('small', { class: 'muted' }, `그 뒤로는 새로 붙이거나 바꿀 때마다 은자 ${fmt(W.awakenSwapCost(game.s.level))}쯤(레벨에 따라)`) : null),
+      h('div', { class: 'btn-row' },
+        h('button', { class: 'btn', onclick: closeModal }, '그만두기'),
+        h('button', { class: 'btn primary', disabled: game.canAwaken(sl, k.id) ? null : true, onclick: () => {
+          if (!game.awaken(sl, k.id)) return toast('은자가 모자라요');
+          closeModal(); toast(`각성 — ${sk?.name} ${k.name}: ${k.desc}`); app.save(); skSig = ''; upd();
+        } }, lack ? '은자가 모자라요' : curK ? '바꾸기' : '붙이기')),
+    ].filter(Boolean)));
   }
   // 마존 설정 — 머리 칸은 자주 다시 그려서(경험치 막대) 펼친 게 닫히므로 따로 둔다
   const loreBox = h('div');
