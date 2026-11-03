@@ -790,7 +790,7 @@ function drawPortrait() {
 $('portrait').addEventListener('click', () => { if (game.s.job && !modalOpen()) openCustom(false); });   // v280 얼굴을 누르면 꾸미기
 // ---------- 꾸미기 (v280) — 처음 캐릭터를 고른 뒤 · 왼쪽 위 얼굴을 눌러 ----------
 function openCustom(first = false) {
-  const cu = { head: null, robe: null, band: null, ...(game.s.custom || {}) };
+  const cu = { head: null, robe: null, band: null, face: null, ...(game.s.custom || {}) };
   openModal((s) => {
     const cv = h('canvas', { width: 220, height: 230, class: 'cust-preview' });
     const rows = h('div', { class: 'cust-rows' });
@@ -798,13 +798,20 @@ function openCustom(first = false) {
       h('div', { class: 'cust-chips' }, ...items.map(([v, name, col]) => h('button', {
         class: `cust-chip${cu[key] === v ? ' on' : ''}${col ? ' col' : ''}`, style: col ? `--cc:${col}` : '',
         onclick: () => { cu[key] = v; paintRows(); } }, col ? h('i') : null, name ? h('span', {}, name) : null))));
+    // v306 차림 — 한 번에 어울리게. 고른 뒤 아래에서 하나씩 바꿀 수 있다
+    const presetOn = (p) => cu.head === p.head && (cu.face || null) === p.face && cu.robe === p.robe && cu.band === p.band;
+    const presets = () => h('div', { class: 'cust-row' }, h('b', {}, '차림'),
+      h('div', { class: 'cust-chips' }, ...W.CUSTOM_PRESETS.map((p) => h('button', { class: `cust-chip preset${presetOn(p) ? ' on' : ''}`, style: `--cc:${p.robe}`,
+        onclick: () => { cu.head = p.head; cu.face = p.face; cu.robe = p.robe; cu.band = p.band; paintRows(); } }, h('i'), h('span', {}, p.name)))));
     const paintRows = () => rows.replaceChildren(
+      presets(),
       pick('머리', [[null, '기본'], ...W.CUSTOM_HEADS.map(([k, n]) => [k, n])], 'head'),
+      pick('눈', [[null, '기본'], ...W.CUSTOM_FACES.map(([k, n]) => [k, n])], 'face'),
       pick('도포', [[null, '기본'], ...W.CUSTOM_ROBES.map((c) => [c, null, c])], 'robe'),
-      pick('띠', [[null, '기본'], ...W.CUSTOM_BANDS.map((c) => [c, null, c])], 'band'));
+      pick('띠', [[null, '기본(안대 색도)'], ...W.CUSTOM_BANDS.map((c) => [c, null, c])], 'band'));
     paintRows();
     const finish = () => {
-      game.s.custom = { head: cu.head || null, robe: cu.robe || null, band: cu.band || null };
+      game.s.custom = { head: cu.head || null, robe: cu.robe || null, band: cu.band || null, face: cu.face || null };
       save(); portraitSig = ''; refreshUI(true);
       closeModal();
       toast(first ? '강호에 나섰어요 — 지도에서 사냥터를 골라요 (왼쪽 위 얼굴을 누르면 다시 꾸밀 수 있어요)' : '모습을 바꿨어요');
@@ -815,7 +822,7 @@ function openCustom(first = false) {
       h('div', { class: 'cust-stage' }, cv),
       rows,
       h('div', { class: 'btn-row' },
-        h('button', { class: 'btn', onclick: () => { cu.head = cu.robe = cu.band = null; paintRows(); } }, '기본으로'),
+        h('button', { class: 'btn', onclick: () => { cu.head = cu.robe = cu.band = cu.face = null; paintRows(); } }, '기본으로'),
         !first ? h('button', { class: 'btn', onclick: closeModal }, '그만두기') : null,
         h('button', { class: 'btn primary cust-go', onclick: finish }, first ? '이대로 시작' : '이대로')),
     ].filter(Boolean));

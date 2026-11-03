@@ -2075,3 +2075,5 @@ button.next-step { cursor: pointer; }
 .title-chip { border-color: color-mix(in srgb, var(--tc, #fde68a) 50%, transparent); color: var(--tc, #fde68a); }
 .title-chip.on { background: color-mix(in srgb, var(--tc, #fde68a) 20%, transparent); box-shadow: 0 0 10px color-mix(in srgb, var(--tc, #fde68a) 40%, transparent); }
 .title-desc { font-size: 11.5px; color: var(--muted); }
+/* v306 차림 */
+.cust-chip.preset i { width: 12px; height: 12px; border-radius: 3px; background: var(--cc); border: 1px solid rgba(255,255,255,.25); }

@@ -107,9 +107,10 @@ async function tab(page, name) {
 
   console.log('# 스탯');
   await G(p, () => { const g = window.__game; g.s.autoStat = false; g.s.statPts = 6; });
-  await p.waitForSelector('#advice:not(.hidden)');
+  // v306: 안내 줄은 다른 글(길잡이·스킬)이 먼저 잠깐 보이기도 한다 — '스탯 N'이 뜰 때까지 기다린다
+  await p.waitForFunction(() => { const a = document.getElementById('advice'); return a && !a.classList.contains('hidden') && /스탯 (\d+)/.test(a.textContent); }, null, { timeout: 15000 });
   // 사냥 중에 레벨이 올라 점수가 더 붙을 수 있다 — 숫자는 6 이상이면 된다
-  assert(/스탯 (\d+)/.test(await p.textContent('#advice')) && +(await p.textContent('#advice')).match(/스탯 (\d+)/)[1] >= 6, '남은 레벨업 점수가 들판 위에 보인다');
+  assert(+(await p.textContent('#advice')).match(/스탯 (\d+)/)[1] >= 6, '남은 레벨업 점수가 들판 위에 보인다');
   await p.click('#advice');
   await p.waitForSelector('#panel .row:has-text("힘")');
   const str0 = await G(p, () => window.__game.s.stats.str);

@@ -1,7 +1,7 @@
 // 전투 화면 캔버스 렌더러 (수묵화 무협풍). 게임 이벤트를 받아 연출만 담당한다.
 import { drawObstacle, drawLowObstacle } from './obstacles.js';
 import { zoneOf, RANKS, GRADES, FIELD_SQUASH, JOB_TRAITS, QI, jobOf, critTierName } from './data.js';
-import { artReady, putArt, putArtBand, putArtEdge, putArtTint, loadArt, FIT, ART_SHOULDER, ART_BAND, headKey, bodyKey, weaponKey } from './art.js';
+import { artReady, putArt, putArtBand, putArtEdge, putArtTint, loadArt, FIT, ART_SHOULDER, ART_BAND, headKey, bodyKey, weaponKey, artHeight, hasBodyArt } from './art.js';
 import { drawCreature, saddleY, mountTilt, mountGait } from './creatures.js';
 import { ZONES_W, itemZone } from './world/wdata.js';
 import { setOf } from './world/wgear.js';
@@ -1459,8 +1459,10 @@ export class BattleView {
     // v280 꾸미기 — 고른 것은 경지·장비 겉모습보다 먼저 (고르지 않은 칸은 그대로)
     const cu = game.s.custom || {};
     if (cu.head) look.head = cu.head;
-    if (cu.robe) { look.robe = cu.robe; look.robeTint = cu.robe; delete look.outfitBody; }
+    // v306: 그 색 도포 그림이 있으면 그 그림(명암·허리띠가 산다) · 없는 색만 흰 도포에 곱한다
+    if (cu.robe) { look.robe = cu.robe; delete look.outfitBody; if (hasBodyArt(cu.robe)) delete look.robeTint; else look.robeTint = cu.robe; }
     if (cu.band) { look.band = cu.band; if (!cu.head && !look.head) look.head = 'topknot'; }
+    if (cu.face === 'blind') look.blind = cu.band || '#7f1d1d';   // v306 안대 — 띠 색
     // 머리띠 그림은 뒤통수 쪽이라 얼굴이 어둡게 가려진다 — 무인은 얼굴이 보이는 상투(띠 있음) 그림으로
     if (look.head === 'band') look.head = 'topknot';
     look.bandTint = true;
@@ -4521,6 +4523,22 @@ export function drawFighter(ctx, x, y, look = {}, o = {}) {
     ctx.fillStyle = look.eyes || '#f8fafc';
     ctx.fillRect(6, -90, 4, 2);
   }
+  }
+  // v306 안대 — 눈 자리를 가로지르는 띠, 뒤통수 쪽에 매듭 꼬리 둘
+  if (look.blind && look.head !== 'mask' && !jiang) {
+    const hh = hk ? artHeight(hk, FIT.head) : 0;
+    const ey = hk ? FIT.head.y - hh * (hk === 'head-bald' ? 0.47 : hk === 'head-hat' ? 0.36 : 0.43) : -89;
+    const cx = hk ? FIT.head.x : 1;
+    ctx.save();
+    ctx.fillStyle = look.blind;
+    ctx.strokeStyle = 'rgba(0,0,0,.45)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(cx - 12, ey - 2.2); ctx.quadraticCurveTo(cx, ey - 4.2, cx + 12, ey - 2.4); ctx.lineTo(cx + 12, ey + 2.4); ctx.quadraticCurveTo(cx, ey + 4.6, cx - 12, ey + 2.6); ctx.closePath(); ctx.fill(); ctx.stroke();
+    // 매듭 꼬리 (뒤쪽)
+    ctx.lineWidth = 2.2; ctx.strokeStyle = look.blind; ctx.lineCap = 'round';
+    const sw = Math.sin(t * 5) * 1.5;
+    ctx.beginPath(); ctx.moveTo(cx - 12, ey); ctx.quadraticCurveTo(cx - 19, ey + 2 + sw, cx - 21, ey + 9 + sw); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(cx - 12, ey + 1); ctx.quadraticCurveTo(cx - 17, ey + 5 - sw, cx - 16, ey + 12 - sw); ctx.stroke();
+    ctx.restore();
   }
   if (look.crown) drawCrown(ctx, t);
   if (look.beard && !artReady()) {

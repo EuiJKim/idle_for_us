@@ -524,6 +524,17 @@ export const BOSS_DOT_K = 0.5;
 export const CUSTOM_HEADS = [['plain', '맨머리'], ['topknot', '상투 머리띠'], ['hat', '삿갓'], ['hood', '두건'], ['bald', '민머리']];
 export const CUSTOM_ROBES = ['#14120f', '#f1e8d6', '#8b1f22', '#32486b', '#1f5f4a', '#5b3a7a', '#6b5640', '#b08d57'];
 export const CUSTOM_BANDS = ['#7f1d1d', '#e8c87a', '#1e3a8a', '#f1f5f9', '#14120f', '#15803d'];
+// v306 눈 — 안대(띠 색으로). 민머리와 함께 눈을 가린 무승 차림이 된다
+export const CUSTOM_FACES = [['blind', '안대']];
+// v306 차림 — 한 번에 어울리게(머리·눈·도포·띠). 따로따로 고르면 따로 놀던 것을 묶었다
+export const CUSTOM_PRESETS = [
+  { id: 'monk', name: '맹인 무승', head: 'bald', face: 'blind', robe: '#b08d57', band: '#7f1d1d' },
+  { id: 'black', name: '흑의 검객', head: 'topknot', face: null, robe: '#14120f', band: '#14120f' },
+  { id: 'white', name: '백의 도사', head: 'topknot', face: null, robe: '#f1e8d6', band: '#1e3a8a' },
+  { id: 'red', name: '홍의 협객', head: 'topknot', face: null, robe: '#8b1f22', band: '#e8c87a' },
+  { id: 'ronin', name: '삿갓 낭인', head: 'hat', face: null, robe: '#6b5640', band: '#14120f' },
+  { id: 'shadow', name: '두건 자객', head: 'hood', face: null, robe: '#32486b', band: '#1e3a8a' },
+];
 export const TEMPER_STEP = 0.003;   // 시뮬 15일 118~143단계 → +35~43%
 export const TEMPER_BASE = 150;
 export const TEMPER_GROW = 1.06;

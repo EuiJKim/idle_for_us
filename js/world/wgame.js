@@ -90,7 +90,7 @@ export function migrateWorld(raw, now = Date.now()) {
   s.temper = Math.max(0, Math.floor(Number(raw.temper) || 0));   // v274 현철 단련 단계
   s.frag = Math.max(0, Math.floor(Number(raw.frag) || 0));        // v275 무공 비급 조각
   { const c = raw.custom && typeof raw.custom === 'object' ? raw.custom : {}; const hex = (v) => (typeof v === 'string' && /^#[0-9a-f]{6}$/i.test(v) ? v : null);
-    s.custom = { head: W.CUSTOM_HEADS.some(([k]) => k === c.head) ? c.head : null, robe: hex(c.robe), band: hex(c.band) }; }   // v280 꾸미기
+    s.custom = { head: W.CUSTOM_HEADS.some(([k]) => k === c.head) ? c.head : null, robe: hex(c.robe), band: hex(c.band), face: W.CUSTOM_FACES.some(([k]) => k === c.face) ? c.face : null }; }   // v280 꾸미기 · v306 눈
   s.fragPts = Math.max(0, Math.floor(Number(raw.fragPts) || 0));  // 조각으로 얻은 무공 점수(보이기용)
   s.autoEnh = !!raw.autoEnh; s.autoInf = !!raw.autoInf;   // v262
   // v305 칭호 — 아는 것만 · 끼는 것은 가진 것 가운데

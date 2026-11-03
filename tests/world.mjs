@@ -2419,6 +2419,12 @@ console.log('\n=== v280 꾸미기 ===');
   const o = migrateWorld({ ...newWorldSave() });
   ok(o.custom && o.custom.head === null && o.custom.robe === null && o.custom.band === null, '옛 저장 → 모두 기본');
   ok(!W.CUSTOM_HEADS.some(([k]) => k === 'band'), '머리띠 그림(뒤통수)은 고를 수 없다 — 상투 머리띠로');
+  // v306 눈(안대) · 차림
+  const f = migrateWorld({ ...newWorldSave(), custom: { head: 'bald', face: 'blind', robe: '#b08d57', band: '#7f1d1d' } });
+  ok(f.custom.face === 'blind' && f.custom.head === 'bald', '안대는 남는다', JSON.stringify(f.custom));
+  ok(migrateWorld({ ...newWorldSave(), custom: { face: 'mask' } }).custom.face === null, '없는 눈 값은 버린다');
+  ok(W.CUSTOM_PRESETS.some((p) => p.head === 'bald' && p.face === 'blind') && W.CUSTOM_PRESETS.every((p) => W.CUSTOM_HEADS.some(([k]) => k === p.head) && W.CUSTOM_ROBES.includes(p.robe) && W.CUSTOM_BANDS.includes(p.band)), '차림은 고를 수 있는 값으로만 · 민머리+안대 차림이 있다');
+  ok(/look\.blind/.test(read('js/battle.js')) && /hasBodyArt\(cu\.robe\)/.test(read('js/battle.js')), '안대를 그린다 · 그 색 도포 그림이 있으면 그대로');
 }
 console.log('\n=== v296 걸어와서 바로 친다 ===');
 {

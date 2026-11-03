@@ -218,6 +218,17 @@ export function putArtBand(ctx, key, fit, col) {
   ctx.drawImage(im, fit.x - fit.w / 2, fit.y - h, fit.w, h);
   return true;
 }
+// v306 그림의 그려지는 높이(fit 너비 기준) — 안대처럼 그림 위에 덧그릴 때 자리를 잡는다
+export function artHeight(key, fit) { const im = img[key]; return im ? (im.height * fit.w) / im.width : 0; }
+// v306 그 색 그대로 그린 도포 그림이 있나(여섯 빛깔 · 경지 도포) — 있으면 흰 도포에 색을 곱하지 않고 그 그림을 쓴다(명암·띠가 산다)
+export function hasBodyArt(color) {
+  const c = String(color || '').toLowerCase();
+  if (RANK_ROBES[c]) return true;
+  const m = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/.exec(c);
+  if (!m) return false;
+  const v = [1, 2, 3].map((i) => parseInt(m[i], 16));
+  return Object.values(BODIES).some((b) => b[0] === v[0] && b[1] === v[1] && b[2] === v[2]);
+}
 export function putArt(ctx, key, fit) {
   const im = img[key];
   if (!im) return false;
