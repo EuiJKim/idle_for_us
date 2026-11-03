@@ -849,6 +849,7 @@ export const statBookCost = (n) => Math.round(3000 * 1.09 ** n);
 // ---------- 무인 수치 ----------
 export const CRIT_DMG = 1.8;
 export const BASE_ATK_SEC = 0.85;     // 평타 간격(초)
+export const KILL_RECOVER = 0.3;      // v303 과녁을 쓰러뜨리면 평타 쿨을 이만큼으로 줄인다 — 다음 몹까지 걸어가 또 한 박자 쉬지 않게
 export const HERO_SPEED = 200;      // 한 칸에 0.32초 (칸 길은 비스듬히 못 가서 자유 이동보다 조금 빠르게)
 export const MELEE_RANGE = 70;
 export const DEATH_EXP_LOSS = 0.05;

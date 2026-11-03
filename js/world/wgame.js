@@ -1022,7 +1022,8 @@ export class WorldGame {
         return;
       }
     }
-    if (this.manualHold > 0) { this.manualHold -= dt; this.walking = false; return; }
+    // v303: 손으로 움직인 직후(manualHold)에는 과녁을 쫓아가지만 않을 뿐, 닿는 적은 바로 친다 — 전엔 0.6~1.2초를 그냥 서 있었다(후딜)
+    if (this.manualHold > 0) { this.manualHold -= dt; this.holdApproach = true; }
     // 과녁: 나를 치고 있는 몹 → 가장 가까운 몹. 자동 사냥이 꺼져 있으면 붙어 있는 것만 친다.
     if (!this.mon?.alive) this.mon = this.pickTarget(st);
     // 두목 구역: 졸개를 치던 중에도 두목이 나서면 바로 두목에게 (손으로 찍어 움직이는 중은 빼고)
@@ -1174,6 +1175,8 @@ export class WorldGame {
     if (ps.has('formless')) {
       for (const o of this.mons.slice()) if (o.alive && o !== m && !o.npc && Math.hypot(o.x - tx, (o.y - ty) * 0.75) <= 120) this.strike(o, st, mult * 0.7, 'cleave');
     }
+    // v303 과녁이 쓰러졌으면 쿨을 짧게 — 다음 몹으로 걸어가서 또 기다리지 않게(붙어 있는 몹을 연달아 베는 속도는 KILL_RECOVER가 막는다)
+    if (!m.alive) this.atkTimer = Math.min(this.atkTimer, W.KILL_RECOVER);
   }
 
   strike(m, st, mult, kind, extraCrit = 0, quiet = false) {

@@ -2618,5 +2618,50 @@ console.log('\n=== v298 대성(大成) · 극품·천품 ===');
   ok(/大成/.test(read('js/wmain.js')) && /천품\(天品\) 각인이 새겨졌어요/.test(read('js/wmain.js')), '대성은 크게 · 천품은 무림 소식');
   ok(/다시 닦기/.test(read('js/wui.js')) && /qualNote/.test(read('js/wui.js')), '각인 창에 다시 닦기 · 품질 알림');
 }
+console.log('\n=== v303 손으로 움직인 뒤 · 잡은 뒤 후딜 없음 ===');
+{
+  const g = fresh();
+  g.s.autoSkill = false;
+  g.enterMap(11);
+  const st = g.stats();
+  const m = g.mons.find((o) => o.alive && !o.npc);
+  g.mons = [m]; g.mon = null;
+  m.aggro = false; m.atkTimer = 99; m.stun = 999; m.hp = m.maxHp = 1e12;
+  // 손으로 몹 바로 옆 칸을 찍는다 — 도착하면 manualHold 1.2초. 그동안에도 닿는 적은 친다
+  m.c = g.hc + 3; m.r = g.hr; m.x = (m.c + 0.5) * W.TILE; m.y = (m.r + 0.5) * W.TILE; m.move = null;
+  g.moveTo((m.c - 1 + 0.5) * W.TILE, (m.r + 0.5) * W.TILE);
+  g.atkTimer = 0;
+  let hits = 0, arrive = null, first = null, t = 0;
+  const orig = g.basicAttack.bind(g);
+  g.basicAttack = (...a) => { hits++; if (first == null) first = t; return orig(...a); };
+  const dt = 1 / 30;
+  for (let i = 0; i < 30 * 6; i++) {
+    g.tick(dt); t += dt; g.events.length = 0;
+    if (arrive == null && !g.manual && !g.hmove) arrive = t;
+    if (arrive != null && first != null) break;
+  }
+  ok(arrive != null && g.manualHold > 0 || first != null, '찍은 칸에 닿았다', `도착 ${arrive?.toFixed(2)}초`);
+  ok(first != null && first - arrive <= dt * 2, '닿자마자 옆 몹을 친다 — 1.2초 멍하니 서 있지 않는다 (v303)', `도착 뒤 ${((first ?? 99) - (arrive ?? 0)).toFixed(2)}초`);
+  // 그동안 쫓아가지는 않는다 — 멀리 있는 몹에게는 걸어가지 않는다
+  const g2 = fresh(); g2.s.autoSkill = false; g2.enterMap(11);
+  const m2 = g2.mons.find((o) => o.alive && !o.npc); g2.mons = [m2]; g2.mon = null; m2.aggro = false; m2.atkTimer = 99; m2.stun = 999;
+  m2.c = Math.min(W.COLS - 1, g2.hc + 8); m2.r = g2.hr; m2.x = (m2.c + 0.5) * W.TILE; m2.y = (m2.r + 0.5) * W.TILE; m2.move = null;
+  const tc = g2.hc + 1;
+  g2.moveTo((tc + 0.5) * W.TILE, (g2.hr + 0.5) * W.TILE);
+  for (let i = 0; i < 30 * 1.0; i++) { g2.tick(dt); g2.events.length = 0; }
+  ok(!g2.manual && g2.manualHold > 0 && g2.hc === tc && !g2.hmove, '찍은 칸에 닿은 직후에는 먼 몹을 쫓아가지 않는다(손 움직임을 존중)', `무인 ${g2.hc} 찍은 칸 ${tc} 몹 ${m2.c} hold ${g2.manualHold.toFixed(2)}`);
+  // 잡으면 쿨이 짧아진다
+  const g3 = fresh(); g3.s.autoSkill = false; g3.enterMap(11);
+  const m3 = g3.mons.find((o) => o.alive && !o.npc); g3.mons = [m3]; g3.mon = m3; m3.stun = 999; m3.hp = 1;
+  m3.c = g3.hc + 1; m3.r = g3.hr; m3.x = (m3.c + 0.5) * W.TILE; m3.y = (m3.r + 0.5) * W.TILE; m3.move = null;
+  g3.atkTimer = 0; g3.tick(dt);
+  ok(!m3.alive && g3.atkTimer <= W.KILL_RECOVER + 1e-9, '과녁을 쓰러뜨리면 평타 쿨이 0.3초로', `쿨 ${g3.atkTimer.toFixed(2)}`);
+  const g4 = fresh(); g4.s.autoSkill = false; g4.enterMap(11);
+  const m4 = g4.mons.find((o) => o.alive && !o.npc); g4.mons = [m4]; g4.mon = m4; m4.stun = 999; m4.hp = m4.maxHp = 1e12;
+  m4.c = g4.hc + 1; m4.r = g4.hr; m4.x = (m4.c + 0.5) * W.TILE; m4.y = (m4.r + 0.5) * W.TILE; m4.move = null;
+  g4.atkTimer = 0; g4.tick(dt);
+  ok(m4.alive && g4.atkTimer > W.KILL_RECOVER, '못 쓰러뜨리면 쿨은 그대로', `쿨 ${g4.atkTimer.toFixed(2)}`);
+  void st;
+}
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);
