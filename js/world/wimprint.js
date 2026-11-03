@@ -67,6 +67,32 @@ export const IMP_CORE_CAP = 0.8;
 export const danOf = (e) => Math.max(1, Math.min(DAN_MAX, (e && e.d) | 0 || 1));
 export const DAN_NAME = (d) => (d >= DAN_MAX ? '극(極)' : `${d}단`);
 
+// ---------- v298 대성(大成) ----------
+// 3·6·10단에 오를 때 그 칸의 효과 가운데 **하나가 랜덤으로 ×2** (같은 것이 또 터지면 ×3·×4). e.gs = ['core', 'fx', …]
+//   core 각인력 · fx 테마 능력치 · sk 스킬 변화 · sp 고유 효과(고유가 있는 두목만)
+// '다시 닦기': 1단으로 되돌리고 대성을 지운다 — 올리는 데 든 증표의 절반을 돌려받는다. 다시 올라가며 새로 굴린다.
+export const GS_DAN = [3, 6, 10];
+export const GS_KIND = { core: '각인력', fx: '기운 능력치', sk: '스킬 변화', sp: '고유 효과' };
+export const gsOf = (e) => (Array.isArray(e?.gs) ? e.gs.filter((k) => k in GS_KIND) : []);
+export const gsMult = (e, kind) => 1 + gsOf(e).filter((k) => k === kind).length;
+export function rollGs(rng, hasSp) {
+  const ks = hasSp ? ['core', 'fx', 'sk', 'sp'] : ['core', 'fx', 'sk'];
+  return ks[Math.floor(rng() * ks.length)];
+}
+export const danSpent = (slot, d) => { let n = 0; for (let i = 1; i < d; i++) n += danMarks(slot, i); return n; };
+export const gsText = (e) => { const c = {}; for (const k of gsOf(e)) c[k] = (c[k] || 0) + 1; return Object.entries(c).map(([k, n]) => `${GS_KIND[k]} ×${n + 1}`).join(' · '); };
+
+// ---------- v298 극품(極品) · 천품(天品) ----------
+// 등급 각인·빈 칸 새기기·다시 새기기에 성공할 때 굴린다 — 5% 극품(각인력 ×1.5 · ★) · 0.5% 천품(각인력 ×2 · 기운 능력치 ×1.5 · 金★)
+export const QUAL = [
+  { id: 0, name: '', core: 1, fx: 1, col: '', mark: '' },
+  { id: 1, name: '극품', core: 1.5, fx: 1, col: '#c4b5fd', mark: '★' },
+  { id: 2, name: '천품', core: 2, fx: 1.5, col: '#fcd34d', mark: '★' },
+];
+export const QUAL_P = [0.05, 0.005];
+export const qualOf = (e) => QUAL[Math.max(0, Math.min(2, (e && e.q) | 0))];
+export function rollQual(rng) { const r = rng(); return r < QUAL_P[1] ? 2 : r < QUAL_P[1] + QUAL_P[0] ? 1 : 0; }
+
 // ---------- v297 공명 ----------
 // 끼고 있는 장비 전부에서 **같은 기운(테마)의 칸**을 모으면 공명한다 — 4 · 8 · 12 · 16칸 (장비 여덟 × 칸 셋 = 24칸).
 //   단계마다 그 기운의 능력치를 키우고(+15% · +35% · +60% · +100%), 각인 배율도 +3% · +7% · +12% · +20% (각인 끝과 따로).
@@ -244,15 +270,16 @@ export function imprintOf(entry, step = 0) {
   const w = STEPK[Math.max(0, Math.min(2, step))];
   const lv = markLv(e.k);
   const d = danOf(e);
+  const q = qualOf(e);
   const k = w * lvScale(lv) * danFx(d);
   const fx = {};
-  for (const [kk, v] of THEMES[t].fx) fx[kk] = v * k;
+  for (const [kk, v] of THEMES[t].fx) fx[kk] = v * k * q.fx * gsMult(e, 'fx');   // v298 천품 · 대성
   const sps = specialsOfZone(z);
   const g = Math.max(0, Math.min(SK_GRADE.length - 1, e.g | 0));
-  // wp: 고유 효과 위력에 쓰는 칸 무게(단이 깊을수록 무겁다) · w는 칸 자리 무게 그대로
-  const core = IMP_CORE * k;
-  return { key: e.k, boss: zn.boss?.name || '', theme: t, fx, core, skill: { s: e.s | 0, k: e.sk, g, v: skillValue(e.sk, g, lv) * danSk(d) },
-    special: sps ? sps[Math.max(0, Math.min(2, e.sp | 0))] : null, specials: sps, w, wp: w * danSp(d), d, lv };
+  const core = IMP_CORE * k * q.core * gsMult(e, 'core');
+  // wp: 고유 효과 위력에 쓰는 칸 무게(단이 깊을수록 무겁다 · 대성이면 더) · w는 칸 자리 무게 그대로
+  return { key: e.k, boss: zn.boss?.name || '', theme: t, fx, core, skill: { s: e.s | 0, k: e.sk, g, v: skillValue(e.sk, g, lv) * danSk(d) * gsMult(e, 'sk') },
+    special: sps ? sps[Math.max(0, Math.min(2, e.sp | 0))] : null, specials: sps, w, wp: w * danSp(d) * gsMult(e, 'sp'), d, lv, q, gs: gsOf(e) };
 }
 export const imprintsOf = (it) => (Array.isArray(it?.imps) ? it.imps.map((e, i) => imprintOf(e, i)).filter(Boolean) : []);
 

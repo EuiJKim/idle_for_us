@@ -518,7 +518,7 @@ export class WorldGame {
   // v297 각인 서명 — 칸(증표·단·고유)이 바뀌면 능력치를 다시 센다
   impSig() {
     let o = '';
-    for (const x of W.SLOTS) { const it = this.s.equip[x.id]; if (it?.imps) for (const e of it.imps) o += e ? (typeof e === 'string' ? e : `${e.k}${e.d || 1}${e.sp | 0}${e.sk}${e.g | 0}${e.s | 0}`) : '_'; o += ','; }
+    for (const x of W.SLOTS) { const it = this.s.equip[x.id]; if (it?.imps) for (const e of it.imps) o += e ? (typeof e === 'string' ? e : `${e.k}${e.d || 1}${e.sp | 0}${e.sk}${e.g | 0}${e.s | 0}q${e.q | 0}${(e.gs || []).join('')}`) : '_'; o += ','; }
     return o;
   }
   resonance() {
@@ -2024,7 +2024,7 @@ export class WorldGame {
       it.imps = (it.imps || []).slice(0, f.to - 1);
       while (it.imps.length < f.to - 1) it.imps.push(null);
       // v167: 스킬 변화는 굴리고(몇 차 · 무엇 · 효과 등급), 고유 효과는 고른 것
-      it.imps[f.to - 1] = { k: key, ...IM.rollSkillChange(this.rng), sp: Math.max(0, Math.min(2, spIdx | 0)) };
+      it.imps[f.to - 1] = { k: key, ...IM.rollSkillChange(this.rng), sp: Math.max(0, Math.min(2, spIdx | 0)), q: IM.rollQual(this.rng) };   // v298 극품·천품
       this._stats = null; this._mods = null; this._pass = null;
     } else it.pity = (it.pity || 0) + W.INFUSE_BASE[f.to] * W.INFUSE_PITY_K;
     this.lastInfuse = { ok, to: f.to, chance: f.chance };
@@ -2051,7 +2051,7 @@ export class WorldGame {
     this.s.gold -= f.gold;
     it.imps = (it.imps || []).slice();
     while (it.imps.length <= slot) it.imps.push(null);
-    it.imps[slot] = { k: key, ...IM.rollSkillChange(this.rng), sp: Math.max(0, Math.min(2, spIdx | 0)) };
+    it.imps[slot] = { k: key, ...IM.rollSkillChange(this.rng), sp: Math.max(0, Math.min(2, spIdx | 0)), q: IM.rollQual(this.rng) };   // v298 극품·천품
     this._stats = null; this._mods = null; this._pass = null; this._isp = null;
     this.mark('infuse');
     this.emit('infuse', { item: it, ok: true, fill: true });
@@ -2113,11 +2113,36 @@ export class WorldGame {
     this.s.mats[f.key] -= f.n;
     this.s.gold -= f.gold;
     it.imps = it.imps.slice();
-    it.imps[slot] = { ...IM.normEntry(it.imps[slot]), d: f.to };
+    const e = { ...IM.normEntry(it.imps[slot]), d: f.to };
+    // v298 대성 — 3·6·10단에서 효과 하나가 랜덤으로 ×2
+    let gs = null;
+    if (IM.GS_DAN.includes(f.to)) { gs = IM.rollGs(this.rng, !!IM.specialsOfZone(+e.k.slice(1))); e.gs = [...IM.gsOf(e), gs]; }
+    it.imps[slot] = e;
     this._stats = null; this._mods = null; this._isp = null;
     this.mark('infuse');
-    this.emit('infuse', { item: it, ok: true, dan: f.to, slot });
+    this.emit('infuse', { item: it, ok: true, dan: f.to, slot, gs });
     this.resNote(res0);
+    return it.imps[slot];
+  }
+  // v298 다시 닦기 — 1단으로 되돌리고 대성을 지운다. 올리는 데 든 증표의 절반을 돌려받는다(극품·천품·스킬 변화·고유는 그대로)
+  danResetInfo(it, slot) {
+    const e = IM.normEntry(it?.imps?.[slot]);
+    if (!this.canImprintItem(it) || !e) return null;
+    const d = IM.danOf(e);
+    if (d <= 1) return null;
+    return { key: e.k, d, back: Math.floor(IM.danSpent(slot, d) / 2), gs: IM.gsOf(e) };
+  }
+  danReset(uid, slot) {
+    const it = this.findItem(uid);
+    const f = this.danResetInfo(it, slot);
+    if (!f) return null;
+    this.s.mats[f.key] = (this.s.mats[f.key] || 0) + f.back;
+    it.imps = it.imps.slice();
+    const e = { ...IM.normEntry(it.imps[slot]), d: 1 };
+    delete e.gs;
+    it.imps[slot] = e;
+    this._stats = null; this._mods = null; this._isp = null;
+    this.emit('infuse', { item: it, ok: true, dan: 1, slot, reset: true });
     return it.imps[slot];
   }
   // ---------- v297 다시 새기기 — 이미 새겨진 칸을 다른 두목으로 (스킬 변화는 그대로 · 단은 절반 이어받는다) ----------
@@ -2140,7 +2165,7 @@ export class WorldGame {
     this.s.mats[key] -= f.n;
     this.s.gold -= f.gold;
     it.imps = it.imps.slice();
-    it.imps[slot] = { k: key, s: e.s | 0, sk: e.sk, g: e.g | 0, sp: Math.max(0, Math.min(2, spIdx | 0)), d: f.keep };
+    it.imps[slot] = { k: key, s: e.s | 0, sk: e.sk, g: e.g | 0, sp: Math.max(0, Math.min(2, spIdx | 0)), d: f.keep, q: IM.rollQual(this.rng) };   // v298 품질은 새로 굴린다 · 대성은 사라진다
     this._stats = null; this._mods = null; this._isp = null;
     this.mark('infuse');
     this.emit('infuse', { item: it, ok: true, rewrite: true, slot });
@@ -2961,7 +2986,8 @@ export class WorldGame {
             if (!best || f.d < best.f.d) best = { it, i, f };
           }
           if (!best) break;
-          this.danUp(best.it.uid, best.i); out.dan = (out.dan || 0) + 1;
+          const r = this.danUp(best.it.uid, best.i); out.dan = (out.dan || 0) + 1;
+          if (IM.GS_DAN.includes(IM.danOf(r))) out.gs = (out.gs || 0) + 1;
         }
       }
     }

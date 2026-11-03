@@ -2533,5 +2533,81 @@ console.log('\n=== v297 각인 개편 — 칸 단 · 다시 새기기 · 공명 
   ok(/!ev\.dan && !ev\.rewrite/.test(read('js/wmain.js')) && /case 'resonance'/.test(read('js/wmain.js')), '단·다시 새기기는 소문내지 않고 · 공명은 알린다');
   ok(/각인 배율/.test(read('js/wui.js')) && /단 올리기/.test(read('js/wui.js')) && /다시 새기기/.test(read('js/wui.js')), '각인 창에 각인 배율·단·다시 새기기');
 }
+console.log('\n=== v298 대성(大成) · 극품·천품 ===');
+{
+  const IMm = await import('../js/world/wimprint.js');
+  const g = fresh('sword');
+  while (g.s.level < 60) g.addExp(W.expToNext(g.s.level));
+  g.s.gold = 1e15; g.s.autoInf = false; g.s.autoEnh = false;
+  const keys = Object.keys(W.ZONES_W).filter((z) => +z >= 1 && W.ZONES_W[z]?.boss).map((z) => `b${z}`).filter((k) => W.markLv(k) < 90 && IMm.imprintOf({ k, s: 0, sk: 'dmg', g: 0 }, 0));
+  const k1 = keys[0];
+  g.s.mats[k1] = 9999;
+  const w = g.s.equip.weapon;
+  w.rar = 3; w.imps = [{ k: k1, s: 0, sk: 'dmg', g: 0, sp: 0 }, null, null];
+  g._stats = null;
+  // 대성 — 3·6·10단에서 하나씩 · rng로 종류를 정한다 · 그 효과가 ×2
+  g.rng = () => 0;                       // 첫 종류(core)
+  g.danUp(w.uid, 0); g.danUp(w.uid, 0);
+  const e3 = w.imps[0];
+  ok(IMm.danOf(e3) === 3 && IMm.gsOf(e3).length === 1 && e3.gs[0] === 'core', '3단에서 대성 하나', JSON.stringify(e3.gs));
+  const plain = IMm.imprintOf({ ...e3, gs: [] }, 0), great = IMm.imprintOf(e3, 0);
+  ok(Math.abs(great.core / plain.core - 2) < 1e-9 && Math.abs(great.fx[Object.keys(great.fx)[0]] / plain.fx[Object.keys(plain.fx)[0]] - 1) < 1e-9, '대성(각인력)은 각인력만 ×2');
+  g.danUp(w.uid, 0); g.danUp(w.uid, 0);
+  ok(IMm.gsOf(w.imps[0]).length === 1, '4·5단에는 안 터진다');
+  g.rng = () => 0.4;                     // fx
+  g.danUp(w.uid, 0);
+  ok(IMm.danOf(w.imps[0]) === 6 && IMm.gsOf(w.imps[0]).length === 2 && w.imps[0].gs[1] === 'fx', '6단에서 둘째 대성');
+  g.rng = () => 0;                       // core 또
+  for (let i = 0; i < 4; i++) g.danUp(w.uid, 0);
+  const e10 = w.imps[0];
+  ok(IMm.danOf(e10) === 10 && IMm.gsOf(e10).length === 3 && IMm.gsMult(e10, 'core') === 3, '10단에서 셋째 · 같은 것이면 ×3', JSON.stringify(e10.gs));
+  ok(/각인력 ×3/.test(IMm.gsText(e10)) && /기운 능력치 ×2/.test(IMm.gsText(e10)), '대성 글', IMm.gsText(e10));
+  ok(!g.danUp(w.uid, 0) && IMm.gsOf(w.imps[0]).length === 3, '극(極) 뒤엔 더 안 터진다');
+  // 다시 닦기 — 1단 · 대성 사라짐 · 증표 절반 환급 · 품질·스킬 변화는 그대로
+  w.imps[0].q = 1;
+  const m0 = g.s.mats[k1];
+  const rs = g.danResetInfo(w, 0);
+  ok(rs && rs.d === 10 && rs.back === Math.floor(IMm.danSpent(0, 10) / 2) && rs.back > 0, '다시 닦기 값 — 든 증표의 절반', JSON.stringify(rs));
+  const r = g.danReset(w.uid, 0);
+  ok(r && IMm.danOf(r) === 1 && !IMm.gsOf(r).length && r.q === 1 && r.sk === 'dmg' && g.s.mats[k1] === m0 + rs.back, '1단으로 · 대성 없음 · 극품·스킬 변화는 남고 · 환급', JSON.stringify(r));
+  ok(!g.danResetInfo(w, 0), '1단은 닦을 것이 없다');
+  // 고유 효과 없는 두목은 sp 대성이 안 나온다
+  const hasSp = !!IMm.specialsOfZone(+k1.slice(1));
+  ok(IMm.rollGs(() => 0.99, hasSp) === (hasSp ? 'sp' : 'sk'), '고유 없는 두목은 고유 대성이 없다');
+  // 극품·천품 — 굴림 · 효과 · 다시 새기면 새로 굴린다
+  ok(IMm.rollQual(() => 0.5) === 0 && IMm.rollQual(() => 0.03) === 1 && IMm.rollQual(() => 0.001) === 2, '5% 극품 · 0.5% 천품');
+  const q0 = IMm.imprintOf({ k: k1, s: 0, sk: 'dmg', g: 0, q: 0 }, 0), q1 = IMm.imprintOf({ k: k1, s: 0, sk: 'dmg', g: 0, q: 1 }, 0), q2 = IMm.imprintOf({ k: k1, s: 0, sk: 'dmg', g: 0, q: 2 }, 0);
+  const fk = Object.keys(q0.fx)[0];
+  ok(Math.abs(q1.core / q0.core - 1.5) < 1e-9 && Math.abs(q1.fx[fk] / q0.fx[fk] - 1) < 1e-9, '극품 — 각인력 ×1.5');
+  ok(Math.abs(q2.core / q0.core - 2) < 1e-9 && Math.abs(q2.fx[fk] / q0.fx[fk] - 1.5) < 1e-9, '천품 — 각인력 ×2 · 기운 ×1.5');
+  g.rng = () => 0.001;
+  g.fillImp(w.uid, 1, k1, 0);
+  ok(w.imps[1].q === 2, '빈 칸 새기기에 천품이 뜬다');
+  g.rng = () => 0.5;
+  const k2 = keys.find((k) => k !== k1); g.s.mats[k2] = 99;
+  g.rewriteImp(w.uid, 1, k2, 0);
+  ok(w.imps[1].q === 0 && w.imps[1].k === k2, '다시 새기면 품질을 새로 굴린다');
+  // 등급 각인 성공에도
+  const a = g.s.equip.armor; a.rar = 0; a.imps = [];
+  g.rng = () => 0.001;
+  g.infuse(a.uid, k1, 0);
+  ok(a.rar === 1 && a.imps[0]?.q === 2, '등급 각인 성공에도 천품이 뜬다 · 알림에 천품', JSON.stringify(a.imps[0]));
+  ok(g.events.some((ev) => ev.type === 'infuse' && ev.ok && ev.item === a), '각인 이벤트');
+  // 서명 — 대성·품질이 바뀌면 능력치를 다시 센다
+  const sig0 = g.impSig(); w.imps[0] = { ...w.imps[0], gs: ['core'] }; const sig1 = g.impSig(); w.imps[0] = { ...w.imps[0], q: 2 };
+  ok(sig0 !== sig1 && sig1 !== g.impSig(), '대성·품질이 서명에 든다');
+  // 자동 단 올리기에도 대성 — 알림 수
+  const A = fresh('sword');
+  while (A.s.level < 60) A.addExp(W.expToNext(A.s.level));
+  A.s.gold = 1e15; A.s.autoInf = true; A.s.autoEnh = false;
+  for (const it of W.GROW_SLOTS.map((k) => A.s.equip[k]).filter(Boolean)) { it.rar = 3; it.imps = [{ k: k1, s: 0, sk: 'dmg', g: 0, sp: 0, d: 2 }, null, null]; }
+  for (const k of Object.keys(A.s.mats)) if (W.isMarkKey(k)) A.s.mats[k] = 0;
+  A.s.mats[k1] = 100; A.rng = () => 0;
+  A.events.length = 0;
+  const out = A.autoGear();
+  ok(out.gs >= 1 && A.events.some((ev) => ev.type === 'autoGear' && ev.gs >= 1), '자동이 올린 단에서도 대성이 터지고 알린다', `대성 ${out.gs}`);
+  ok(/大成/.test(read('js/wmain.js')) && /천품\(天品\) 각인이 새겨졌어요/.test(read('js/wmain.js')), '대성은 크게 · 천품은 무림 소식');
+  ok(/다시 닦기/.test(read('js/wui.js')) && /qualNote/.test(read('js/wui.js')), '각인 창에 다시 닦기 · 품질 알림');
+}
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);

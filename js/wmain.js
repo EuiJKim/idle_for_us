@@ -981,10 +981,16 @@ function handleEvents() {
         sfx('loot');
         drawPortrait();
         break;
-      case 'infuse':
+      case 'infuse': {
         if (ev.ok !== false) { sfx('loot'); drawPortrait(); }
+        // v298 대성 — 무인 위로 크게 · 천품 — 무림 소식
+        if (ev.gs) { sfx('level'); view.float(`大成 · ${IM.GS_KIND[ev.gs]} ×${1 + IM.gsOf(ev.item.imps?.[ev.slot]).filter((k) => k === ev.gs).length}`, view.heroX, view.groundY - 210, '#fcd34d', 24, 1.6); }
+        const ne = ev.ok && !ev.dan && !ev.reimp ? ev.item.imps?.[ev.slot ?? (ev.item.rar - 1)] : null;
+        if (ne && (ne.q | 0) === 2) { sfx('level'); view.float('天品!', view.heroX, view.groundY - 210, '#fcd34d', 28, 2); net.announce(`✦ ${game.s.nickname}님의 〈${itemTitle(game, ev.item)}〉에 천품(天品) 각인이 새겨졌어요!`); }
+        else if (ne && (ne.q | 0) === 1) view.float('極品', view.heroX, view.groundY - 190, '#c4b5fd', 20, 1.2);
         if (ev.type === 'infuse' && ev.ok && ev.item.rar >= 2 && !ev.reimp && !ev.fill && !ev.dan && !ev.rewrite) net.announce(`✦ ${game.s.nickname}님의 〈${itemTitle(game, ev.item)}〉에 ${W.RARITY[ev.item.rar].name} 등급이 새겨졌어요`);
         break;
+      }
       case 'resonance': {
         // v297 공명 단계가 오르면 무인 위로 크게 · 내려가면 조용히 알린다
         const th = IM.THEMES[ev.theme];
@@ -1021,7 +1027,7 @@ function handleEvents() {
       case 'todayDone': sfx('loot'); break;
       // v262: 자동 강화·각인 — 몇 번 했는지 짧게(결과는 강화 연출 없이)
       case 'autoGear':
-        if (ev.enh + ev.inf + (ev.dan || 0) >= 1) toast(`자동${ev.enh ? ` 강화 ${ev.enh}번` : ''}${ev.inf ? ` · 등급 각인 ${ev.inf}번` : ''}${ev.dan ? ` · 칸 단 올리기 ${ev.dan}번` : ''}`);
+        if (ev.enh + ev.inf + (ev.dan || 0) >= 1) toast(`자동${ev.enh ? ` 강화 ${ev.enh}번` : ''}${ev.inf ? ` · 등급 각인 ${ev.inf}번` : ''}${ev.dan ? ` · 칸 단 올리기 ${ev.dan}번` : ''}${ev.gs ? ` · 大成 ${ev.gs}번!` : ''}`);
         break;
       // v260: 알맞은 사냥터 따라가기
       case 'followMap':

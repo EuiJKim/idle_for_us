@@ -160,7 +160,9 @@ async function tab(page, name) {
   // 강화에 드는 은자·재료·증표를 넉넉히 — 그때까지 모인 양에 기대면 판마다 단추가 꺼져 있기도 했다(v269)
   await G(p, () => {
     const g = window.__game; const it = g.s.equip.weapon; it.plus = 10; g.s.gold = Math.max(g.s.gold, 1e12);
-    const m = g.enhanceMats(it); if (m) { g.s.mats[m.key] = (g.s.mats[m.key] || 0) + m.n * 10; g.s.mats[`b${m.key}`] = (g.s.mats[`b${m.key}`] || 0) + 100; }
+    const m = g.enhanceMats(it); if (m) { g.s.mats[m.key] = (g.s.mats[m.key] || 0) + m.n * 10; }
+    // v298: 돌파 증표는 그 장비 지역 두목 것 — 전엔 'b'+재료 열쇠(없는 열쇠)에 넣어서 사냥 중 떨어진 증표 운에 기댔다
+    for (let z = 1; z <= 40; z++) g.s.mats['b' + z] = (g.s.mats['b' + z] || 0) + 100;
   });
   await p.click('#modal button:has-text("닫기")');
   await p.locator('#panel .gear-tile:has-text("무기")').click();
