@@ -2060,4 +2060,7 @@ button.next-step { cursor: pointer; }
 .road-legend .safe { color: #86efac; } .road-legend .warn { color: #fcd34d; } .road-legend .brk { color: #fca5a5; }
 .enh-gain { display: flex; align-items: baseline; justify-content: center; gap: 6px; font-size: 13px; color: #d6d3d1; margin: -2px 0 8px; }
 .enh-gain b { font-size: 15px; } .enh-gain b.up { color: #86efac; } .enh-gain i { font-style: normal; color: var(--muted); } .enh-gain small { color: var(--muted); }
-.prot-none { display: block; color: #fca5a5; font-size: 11.5px; margin: 2px 0 6px; }
+.prot-none { display: block; width: 100%; color: #fca5a5; font-size: 11.5px; margin: 2px 0 6px; background: none; border: 0; text-align: center; line-height: 1.4; cursor: pointer; }
+.prot-none b { color: var(--gold); white-space: nowrap; }
+.next-step em { font-size: 12px; white-space: nowrap; }
+.cost-chip.lack { cursor: pointer; }

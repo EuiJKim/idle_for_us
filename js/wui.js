@@ -505,8 +505,12 @@ function bagTab(app) {
       const short = (k) => W.matName(k).replace(/의 증표$/, '');
       const goldIco = () => h('span', { class: 'gold-ico' }, '銀');
       // 비용 칩 — 아이콘·필요한 수 · 아래에 가진 수. 모자라면 붉게. 누르면 가진 수를 알린다
+      // v301 모자라면 바로 가는 길 — 재료는 '어디서 나와요 → 가기' 창(돌아오면 장비 창) · 보호부는 마을 상인 · 은자는 가장 센 사냥터
+      const goWhere = (key) => openMatWhere(app, key, () => openItem(it, worn));
+      const goShop = () => { closeModal(); app.showTab('town', 'shop'); setTimeout(() => document.querySelector('#panel .prot-card')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 250); };
+      const goHunt = () => { const w = matWhere(game, W.ORE); if (!w || !game.enterMap(w.id)) return toast('지금은 갈 수 없어요'); game.s.huntMap = w.id; closeModal(); app.save(); app.closePanel(); app.refresh(); toast(`${w.map.name}으로 왔어요 — 은자·현철이 모여요`); };
       const costChip = (key, label, need, have, icon) => h('button', { class: `cost-chip${have < need ? ' lack' : ''}`, style: key ? `--mc:${W.matColor(key)}` : '',
-        onclick: () => toast(`${label} — 가진 것 ${fmt(have)}${have < need ? ` · ${fmt(need - have)} 모자라요` : ''}`) },
+        onclick: () => (have < need && key ? goWhere(key) : toast(`${label} — 가진 것 ${fmt(have)}${have < need ? ` · ${fmt(need - have)} 모자라요` : ''}`)) },
       icon, h('span', { class: 'cc-n' }, h('b', {}, fmt(need)), h('small', {}, `${label} ${fmt(have)}`)));
       const rateBar = (rate, cls = '') => h('div', { class: `enh-ratebar ${cls}` }, h('i', { style: `width:${Math.max(2, Math.round(rate * 100))}%` }));
       // 같은 창 안의 자세히 화면
@@ -573,19 +577,19 @@ function bagTab(app) {
       const enhNext = () => {
         const lv = it.plus || 0;
         const cap = game.enhanceMax(it);
-        let txt, hot = false, go = null;
-        if (lv >= game.enhanceMaxItem(it)) txt = '끝까지 강화했어요 — 이제 각인으로 세져요';
+        let txt, hot = false, go = null, act = '';
+        if (lv >= game.enhanceMaxItem(it)) { txt = '끝까지 강화했어요 — 이제 각인으로 세져요'; go = () => { itemTab = 'imp'; paint(); }; act = '각인'; }
         else if (lv >= cap) { const nx = W.enhanceCapNext(game.s.level); txt = nx ? `레벨 ${nx[0]}이 되면 +${nx[1]}까지 열려요 (지금 Lv.${game.s.level})` : '끝까지 강화했어요'; }
         else if (game.canEnhance(it)) { const f = W.enhanceFail(lv); txt = `${lv >= W.ENHANCE_NORMAL ? '돌파' : '강화'}할 수 있어요 — 성공 ${pct(game.enhanceRateOf(it), 0)} · ${f ? `실패하면 +${Math.max(0, lv + f)}` : '실패해도 그대로'}`; hot = true; go = () => askEnhance(); }
         else {
           const em = game.enhanceMats(it), bm = game.breakMarksOf(it);
           const gold = game.enhanceCost(it) - game.s.gold;
-          if (gold > 0) txt = `은자 ${fmt(gold)} 모자라요 — 사냥하면 모여요`;
-          else if (em && game.enhanceMatHave(em) < em.n) txt = `${W.matName(em.key)} ${fmt(em.n - game.enhanceMatHave(em))} 모자라요 — 몹·두목이 떨궈요(높은 사냥터일수록 많이)`;
-          else if (bm && !game.breakMarkKey(it, bm)) { const own = W.bossKey(W.itemZone(it)); txt = `돌파 증표 ${bm}개 필요 — ${W.zoneOfW(W.itemZone(it))?.name || ''} 두목 구역의 ${short(own)}${game.s.level >= 99 ? ' (십이지왕 증표도 돼요)' : ''}`; }
+          if (gold > 0) { txt = `은자 ${fmt(gold)} 모자라요 — 사냥하면 모여요`; go = goHunt; act = '사냥터로'; }
+          else if (em && game.enhanceMatHave(em) < em.n) { txt = `${W.matName(em.key)} ${fmt(em.n - game.enhanceMatHave(em))} 모자라요 — 몹·두목이 떨궈요(높은 사냥터일수록 많이)`; go = () => goWhere(em.key); act = '어디서?'; }
+          else if (bm && !game.breakMarkKey(it, bm)) { const own = W.bossKey(W.itemZone(it)); txt = `돌파 증표 ${bm}개 필요 — ${W.zoneOfW(W.itemZone(it))?.name || ''} 두목 구역의 ${short(own)}${game.s.level >= 99 ? ' (십이지왕 증표도 돼요)' : ''}`; go = () => goWhere(own); act = '가기'; }
           else txt = '지금은 강화할 수 없어요';
         }
-        return h(go ? 'button' : 'div', { class: `next-step${hot ? ' hot' : ''}`, onclick: go || undefined }, h('i', {}, '▶'), h('span', {}, txt), go ? h('em', {}, '›') : null);
+        return h(go ? 'button' : 'div', { class: `next-step${hot ? ' hot' : ''}`, onclick: go || undefined }, h('i', {}, '▶'), h('span', {}, txt), go ? h('em', {}, act ? `${act} ›` : '›') : null);
       };
       const enhView = () => {
         const lv = it.plus || 0;
@@ -613,7 +617,7 @@ function bagTab(app) {
             em ? costChip(em.key, W.matName(em.key), em.n, game.s.mats[em.key] || 0, matIcon(em.key, 24)) : null,
             bm ? costChip(bk, `${short(bk)} 증표`, bm, game.s.mats[bk] || 0, matIcon(bk, 24)) : null),
           risky ? (game.s.prot ? h('label', { class: 'chk prot-chk' }, (() => { const c = h('input', { type: 'checkbox' }); c.checked = useProt; c.onchange = () => { useProt = c.checked; paint(); }; return c; })(), ` 보호부 쓰기 (${game.s.prot}장) — 실패해도 +${lv} 그대로`)
-            : h('small', { class: 'prot-none' }, '보호부가 없어요 — 마을 상인에서 사면 실패해도 그대로예요')) : null,
+            : h('button', { class: 'prot-none', onclick: goShop }, '보호부가 없어요 — 마을 상인에서 사면 실패해도 그대로예요 ', h('b', {}, '상인에게 ›'))) : null,
           h('div', { class: 'enh-actions' },
             h('button', { class: 'btn itm-info', onclick: () => enhHelp() }, 'ⓘ 강화란?'),
             h('button', { class: 'btn good enh-go', disabled: game.canEnhance(it) ? null : true, onclick: () => askEnhance() }, breaking ? '돌파' : '강화')))];
@@ -672,7 +676,7 @@ function bagTab(app) {
         const ims = it.imps || [];
         const rar = it.rar || 0;
         const marks = Object.keys(game.s.mats).filter((k) => W.isMarkKey(k) && game.s.mats[k] > 0);
-        let txt = null, go = null, cls = '';
+        let txt = null, go = null, cls = '', act = '';
         const hole = [0, 1, 2].find((i) => i < rar && !IM.normEntry(ims[i]));
         const gradeKey = rar < W.RARITY.length - 1 ? marks.find((k) => game.canInfuse(it, k)) : null;
         const danI = [0, 1, 2].find((i) => IM.normEntry(ims[i]) && game.canDanUp(it, i));
@@ -683,10 +687,11 @@ function bagTab(app) {
           const rs = game.resonance().top;
           const near = Object.values(game.resonance().by).filter((r) => r.next > 0).sort((a, b) => a.next - b.next)[0];
           txt = near ? `${IM.THEMES[near.theme].name} 기운 ${near.next}칸 더 모으면 공명 ${IM.RES_ROMAN[near.tier + 1]} — 다른 장비 칸도 같은 기운으로` : rs ? '증표가 모이면 칸 단을 올려요 — 두목 구역에서 두목을 잡아요' : '증표가 모이면 칸 단을 올려요';
-        } else if (hole != null) txt = `${ORD[hole]} 칸이 비었어요 — 두목 증표가 ${W.INFUSE_MARKS[hole + 1]}개 있으면 새길 수 있어요`;
-        else if (rar < W.RARITY.length - 1) txt = `${W.RARITY[rar + 1].name} 등급 각인에 두목 증표 ${W.INFUSE_MARKS[rar + 1]}개 — 두목 구역에서 두목을 잡아요`;
-        else txt = '증표가 모이면 칸 단을 올려요';
-        return h(go ? 'button' : 'div', { class: `next-step ${cls}`, onclick: go || undefined }, h('i', {}, '▶'), h('span', {}, txt), go ? h('em', {}, '›') : null);
+          if (!near) { go = () => goWhere(bestMarkKey(game)); act = '두목 구역'; }
+        } else if (hole != null) { txt = `${ORD[hole]} 칸이 비었어요 — 두목 증표가 ${W.INFUSE_MARKS[hole + 1]}개 있으면 새길 수 있어요`; go = () => goWhere(bestMarkKey(game)); act = '두목 구역'; }
+        else if (rar < W.RARITY.length - 1) { txt = `${W.RARITY[rar + 1].name} 등급 각인에 두목 증표 ${W.INFUSE_MARKS[rar + 1]}개 — 두목 구역에서 두목을 잡아요`; go = () => goWhere(bestMarkKey(game)); act = '두목 구역'; }
+        else { const d = [0, 1, 2].map((i) => IM.normEntry(ims[i]) && game.danInfo(it, i)).find((f) => f && !f.max); txt = d ? `${short(d.key)} 증표 ${d.n}개 모으면 칸 단을 올려요` : '증표가 모이면 칸 단을 올려요'; if (d) { go = () => goWhere(d.key); act = '가기'; } }
+        return h(go ? 'button' : 'div', { class: `next-step ${cls}`, onclick: go || undefined }, h('i', {}, '▶'), h('span', {}, txt), go ? h('em', {}, act ? `${act} ›` : '›') : null);
       };
       // v299 ⓘ 각인이란? — 순서대로 넷
       const helpView = () => sub('각인은 이렇게 해요',
@@ -807,7 +812,7 @@ function bagTab(app) {
         const pf = game.hasPrefs() ? Object.fromEntries(Object.keys(game.s.mats).map((k) => [k, W.isMarkKey(k) ? game.markPref(k).score : 0])) : null;
         const keys = Object.keys(game.s.mats).filter((k) => W.isMarkKey(k) && game.s.mats[k] > 0)
           .sort((a, b) => (pf ? pf[b] - pf[a] : 0) || (info ? info(b) - info(a) : 0) || game.s.mats[b] - game.s.mats[a]);
-        if (!keys.length) return h('p', { class: 'muted' }, '두목 증표가 없어요 — 두목 구역·고수의 두목 방에서 두목을 잡으면 나와요.');
+        if (!keys.length) return h('button', { class: 'next-step', onclick: () => goWhere(bestMarkKey(game)) }, h('i', {}, '▶'), h('span', {}, '두목 증표가 없어요 — 두목 구역·고수의 두목 방에서 두목을 잡으면 나와요'), h('em', {}, '두목 구역 ›'));
         return h('div', { class: 'mark-list' }, h('button', { class: 'pref-link', onclick: () => openAutoInfCfg(app, () => openItem(it, worn)) }, game.hasPrefs() ? '♥ 좋아하는 효과 차례로 · 바꾸기' : '♥ 좋아하는 효과를 정하면 그 차례로 보여요'), ...keys.map((k) => {
           const z = +k.slice(1);
           return h('button', { class: `mark-row${k === sel ? ' on' : ''}`, style: `--mc:${W.matColor(k)}`, onclick: () => onPick(k) },
@@ -865,7 +870,7 @@ function bagTab(app) {
           h('small', { class: 'inf-why' }, `성공하면 고른 두목이 ${ORD[to - 1]} 칸에 새겨져요 · 실패해도 다음 확률이 쌓여요`),
           markPick ? h('div', { class: 'mark-pick-wrap' }, h('div', { class: 'mark-pick', style: `--mc:${W.matColor(markPick)}`, onclick: () => markPicker() },
             matIcon(markPick, 30), h('span', { class: 'mr-name' }, h('b', {}, short(markPick)), h('small', {}, `${IM.THEMES[IM.themeOfZone(+markPick.slice(1))].name}${pv?.specials ? ` · ★${pv.specials[spPick]?.name || ''}` : ''}`)),
-            h('span', { class: 'mp-change' }, '바꾸기 ▸'))) : h('p', { class: 'muted' }, '두목 증표가 없어요 — 두목을 잡으면 나와요.'),
+            h('span', { class: 'mp-change' }, '바꾸기 ▸'))) : h('button', { class: 'next-step', onclick: () => goWhere(bestMarkKey(game)) }, h('i', {}, '▶'), h('span', {}, '두목 증표가 없어요 — 두목을 잡으면 나와요'), h('em', {}, '두목 구역 ›')),
           f ? rateBar(f.chance) : null,
           f ? h('div', { class: 'enh-meta' }, h('span', {}, `성공 ${pct(f.chance, 0)}`), it.pity ? h('span', {}, `쌓인 확률 +${pct(it.pity, 0)}p`) : null) : null,
           f ? h('div', { class: 'cost-chips' }, costChip(markPick, '증표', f.n, f.have, matIcon(markPick, 24)), costChip(null, '은자', f.gold, game.s.gold, goldIco())) : null,
@@ -1340,8 +1345,14 @@ export function matUse(game, key) {
   const up = W.matUpTarget(z);
   return `장비 강화(이 지역 레벨대 장비)${up ? ` · ${W.MAT_CONVERT}개를 ${W.matName(up)} 하나로 바꿀 수 있어요` : ''}`;
 }
+// v301 증표를 하나도 안 가졌을 때 — 갈 수 있는 두목 구역 가운데 위험하지 않은 가장 센 곳의 증표 열쇠
+export function bestMarkKey(game) {
+  let id = null;
+  for (const m of W.MAPS) if (m.bossRoom && !m.master && game.canEnter(m.id) && game.danger(m.id) <= 0 && (!id || m.lv[0] > W.mapOf(id).lv[0])) id = m.id;
+  return W.bossKey(W.mapOf(id || W.mapId(1, W.BOSS_AREA)).zone);
+}
 // 누르면 뜨는 창 — 어디서 나오는지 알려 주고, 갈지 묻고, 간다
-export function openMatWhere(app, key) {
+export function openMatWhere(app, key, back = null) {
   const { game } = app;
   const w = matWhere(game, key);
   if (!w) return;
@@ -1356,7 +1367,7 @@ export function openMatWhere(app, key) {
       h('p', { class: 'muted' }, `지금 가진 것 ${fmt(w.have)}개 · ${w.map ? `${w.map.name} (몹 Lv.${w.map.lv[0]}~${w.map.lv[1]})` : ''}`),
       w.can ? null : h('p', { class: 'dgn-warn' }, `레벨 ${w.need}부터 들어갈 수 있어요 — 지금 ${game.s.level}.`),
       h('div', { class: 'btn-row' },
-        h('button', { class: 'btn', onclick: closeModal }, '안 갈래요'),
+        h('button', { class: 'btn', onclick: () => (back ? back() : closeModal()) }, back ? '← 돌아가기' : '안 갈래요'),
         h('button', { class: 'btn primary', disabled: w.can ? null : true, onclick: () => {
           const arrived = () => {
             // 돌아갈 곳도 여기로 — 안 그러면 쓰러진 뒤 옛 사냥터로 되돌아간다
@@ -1971,7 +1982,7 @@ function townTab(app) {
             if (r) { toast(`세력 상점 — ${r}`); app.save(); sig = ''; upd(); }
           } }, '바꾸기')))),
       // 강화 보호부 (v150 · v192) — +11부터 실패해도 -2 대신 그대로
-      h('div', { class: 'card shop-card' },
+      h('div', { class: 'card shop-card prot-card' },
         h('div', { class: 'shop-item' },
           h('span', { class: 'book-ico' }, '符'),
           h('div', { class: 'info' }, h('b', {}, '강화 보호부', h('small', {}, ` ${s.prot || 0}장 가짐`)),
