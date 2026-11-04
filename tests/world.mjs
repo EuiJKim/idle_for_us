@@ -3054,5 +3054,44 @@ console.log('\n=== v320 출석부 · 저장 코드 ===');
   ok(sw.includes("'js/savecode.js'"), '서비스워커에 savecode.js');
 }
 
+console.log('\n=== v321 약한 장비 자동 정리 · 얻은 것 모음 · 신고·입막음 ===');
+{
+  const g = fresh();
+  while (g.s.level < 30) g.addExp(W.expToNext(g.s.level));
+  const weak = () => { const it = g.makeCrafted('finger', 0, 0, 0); return it; };
+  // 끼고 있는 가락지가 있어야 '약하다'
+  const ring = g.makeCrafted('finger', 3, 0, 1); g.s.equip.finger = ring; g._stats = null;
+  const w1 = weak();
+  ok(g.isJunk(w1), '낀 것보다 못하고·강화 안 한 레어 아래는 정리 대상');
+  const kept = [{ ...weak(), plus: 2 }, { ...weak(), rar: 2 }, { ...weak(), set: 'x' }];
+  ok(kept.every((it) => !g.isJunk(it)), '강화한 것·전설 이상·세트는 남긴다');
+  const bag0 = g.s.bag.length, gold0 = g.s.gold;
+  g.gainItem(weak());
+  ok(g.s.bag.length === bag0 + 1, '끄면 가방에 들어간다');
+  g.s.autoJunk = true; g.events.length = 0;
+  g.gainItem(weak());
+  ok(g.s.bag.length === bag0 + 1 && g.s.gold > gold0 && g.s.junkLog.n === 1 && g.events.some((e) => e.type === 'autoJunk'), '켜면 떨어지는 대로 판다(가방에 안 넣는다)');
+  g.gainItem(weak(), true);
+  ok(g.s.bag.length === bag0 + 2, '대장장이에서 만든 것은 정리하지 않는다');
+  const raw = JSON.parse(JSON.stringify(g.toJSON()));
+  const g2 = new WorldGame(raw, 0);
+  ok(g2.s.autoJunk === true && g2.s.junkLog.n === 1, '저장에 남는다');
+  // 두목 증표 수를 알린다(모음이 정확하게)
+  const b = fresh();
+  b.enterMap(W.mapId(1, W.BOSS_AREA));
+  for (let i = 0; i < 40; i++) { b.tick(0.05); b.events.length = 0; }
+  const boss = b.mons.find((m) => m.isBoss && m.alive);
+  const mk0 = b.s.mats[W.bossKey(1)] || 0;
+  b.events.length = 0;
+  b.killMob(boss);
+  const ke = b.events.find((e) => e.type === 'kill' && e.mat?.boss);
+  ok(ke && ke.mat.markN >= 1 && (b.s.mats[W.bossKey(1)] || 0) - mk0 === ke.mat.markN, '두목 처치 알림에 증표 수가 실려 온다', JSON.stringify(ke?.mat));
+  const mn = read('js/wmain.js'), ui = read('js/wui.js'), net = read('js/net.js'), rules = read('firestore.rules');
+  ok(/function tally\(/.test(mn) && !/두목을 잡았어요 — /.test(mn) && /tally\('frag'/.test(mn) && /tally\('ps'/.test(mn), '두목·조각·비급 조각 알림 → 이름 ×수 모음');
+  ok(/junk-toggle/.test(ui) && /autoJunk/.test(ui), '가방: 자동 정리 켜기');
+  ok(/net\.report\(m\)/.test(ui) && /net\.mute\(/.test(ui) && /openReports/.test(mn) && /checkMute/.test(net), '채팅: 신고 · 운영자 입막음 · 신고함 · 막혔나 보기');
+  ok(/match \/reports\/\{rid\}/.test(rules) && /match \/mutes\/\{uid\}/.test(rules) && /mutes\/\$\(request\.auth\.uid\)\)\.data\.until < request\.time/.test(rules), '규칙: 신고 · 입막음 · 막힌 동안 채팅 거부');
+}
+
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);

@@ -114,6 +114,25 @@ const profile = (extra = {}) => ({ world: 1, nickname: '무인', level: 10, job:
     ok(await allowed(F.getDocs(F.collection(bad.db, 'chat'))), '누구나 읽는다');
     ok(await allowed(F.deleteDoc(F.doc(adb, 'chat', mine.id))), '운영자는 지운다');
 
+    console.log('# 신고 · 입막음 (v321)');
+    const rep = (u, o = {}) => ({ by: u.uid, uid: bad.uid, name: '나쁜이', text: '욕', mid: 'm1', at: F.serverTimestamp(), ...o });
+    ok(await allowed(F.addDoc(F.collection(friend.db, 'reports'), rep(friend))), '남의 말을 신고');
+    ok(await denied(F.addDoc(F.collection(friend.db, 'reports'), rep(friend, { by: bad.uid }))), '남인 척 신고 거부');
+    ok(await denied(F.addDoc(F.collection(friend.db, 'reports'), rep(friend, { uid: friend.uid }))), '자기를 신고하기 거부');
+    ok(await denied(F.addDoc(F.collection(friend.db, 'reports'), rep(friend, { text: '가'.repeat(201) }))), '긴 신고 거부');
+    ok(await denied(F.getDocs(F.collection(friend.db, 'reports'))), '보통 무인은 신고함을 못 본다');
+    ok(await allowed(F.getDocs(F.collection(adb, 'reports'))), '운영자는 신고함을 본다');
+    const muteDoc = (ms) => ({ until: F.Timestamp.fromMillis(Date.now() + ms), by: 'x', reason: '욕', name: '나쁜이' });
+    ok(await denied(F.setDoc(friend.ref('mutes', bad.uid), muteDoc(3600e3))), '보통 무인은 입막음 못 한다');
+    ok(await denied(F.setDoc(bad.ref('mutes', bad.uid), muteDoc(-1000))), '스스로 입막음 풀기 거부');
+    ok(await allowed(F.setDoc(F.doc(adb, 'mutes', bad.uid), muteDoc(3600e3))), '운영자가 1시간 입막음');
+    await wait(2200);
+    ok(await denied(say(bad, { text: '막혔나' })), '입막힌 동안은 전체 채팅 거부(서버)');
+    ok(await allowed(F.getDoc(bad.ref('mutes', bad.uid))), '자기가 막혔는지 읽는다');
+    ok(await allowed(F.setDoc(F.doc(adb, 'mutes', bad.uid), muteDoc(-1000))), '(운영자가 기한을 지난 것으로)');
+    ok(await allowed(say(bad, { text: '풀렸다' })), '기한이 지나면 다시 말한다');
+    ok(await allowed(F.deleteDoc(F.doc(adb, 'mutes', bad.uid))), '운영자가 입막음을 지운다');
+
     console.log('# 주간 두목 순위 (v316)');
     const WK = '2026-11-02';
     const wb = (o = {}) => ({ name: '무인', kills: 5, lv: 120, at: F.serverTimestamp(), ...o });

@@ -1056,7 +1056,7 @@ function bagTab(app) {
   function gearView() {
     const s = game.s;
     // v256: 등급(rar)·각인 칸 수도 — 가방 속 장비를 각인으로 올려도 타일 색·등급이 그대로였다
-    const nsig = `${game.statSig()}|${s.bag.map((i) => `${i.uid}.${i.plus || 0}.${i.rar || 0}.${(i.imps || []).filter(Boolean).length}`).join(',')}|${s.bagSize}|${ui.slot}|${s.gold >= game.bagUpgradeCost()}`;
+    const nsig = `${game.statSig()}|${s.bag.map((i) => `${i.uid}.${i.plus || 0}.${i.rar || 0}.${(i.imps || []).filter(Boolean).length}`).join(',')}|${s.bagSize}|${ui.slot}|${s.autoJunk ? 1 : 0}.${s.junkLog?.n || 0}|${s.gold >= game.bagUpgradeCost()}`;
     if (nsig === sigs.gear) return;
     sigs.gear = nsig;
     // 낀 여섯 칸 — 셋씩 두 줄
@@ -1115,6 +1115,10 @@ function bagTab(app) {
             toast(`약한 장비 ${n}개를 팔아 은자 +${fmt(p)} (강화·전설 이상은 남겨요)`);
             done();
           } }, `약한 것 팔기${old.length ? ` ${old.length}` : ''}`),
+          // v321 자동 정리 — 같은 잣대로 떨어지는 대로 판다
+          h('label', { class: 'btn junk-toggle', title: '낀 것보다 못하고·강화 안 했고·전설 아래인 장비는 떨어지는 대로 팔아요' },
+            h('input', { type: 'checkbox', checked: s.autoJunk ? true : null, onchange: (e) => { game.s.autoJunk = e.target.checked; if (e.target.checked && old.length) { let p = 0; for (const it of old) p += game.sell(it); toast(`자동 정리를 켰어요 — 가방의 약한 장비 ${old.length}개도 팔았어요 · 은자 +${fmt(p)}`); } else toast(e.target.checked ? '자동 정리를 켰어요' : '자동 정리를 껐어요'); done(); } }),
+            ` 자동 정리${s.autoJunk && s.junkLog?.n ? ` · ${fmt(s.junkLog.n)}개` : ''}`),
           h('button', { class: 'btn', disabled: game.s.gold < game.bagUpgradeCost() || s.bagSize >= 80 ? true : null, onclick: () => { if (game.buyBagSpace()) { toast('가방이 10칸 넓어졌어요'); done(); } } },
             s.bagSize >= 80 ? '가방 끝까지' : `+10칸 · ${fmt(game.bagUpgradeCost())}`)))].filter(Boolean));
   }
@@ -2611,7 +2615,20 @@ function worldChatView(app) {
       h('p', { class: 'muted' }, '가리면 이 무인의 말이 내 전체 채팅에 안 보여요. 상대는 몰라요. 아래 \'가린 무인\'에서 언제든 풀 수 있어요.'),
       h('div', { class: 'btn-row' },
         h('button', { class: 'btn danger', onclick: () => { game.muteChat(m.uid, m.name); app.save(); closeModal(); sig = ''; render(); toast(`${m.name || '무명'}의 말을 가렸어요`); } }, '이 무인 가리기'),
-        h('button', { class: 'btn', onclick: closeModal }, '닫기'))));
+        // v321 신고 — 운영자에게 이 말을 보낸다
+        h('button', { class: 'btn', onclick: async () => {
+          if (!confirm(`'${String(m.text).slice(0, 40)}' — 이 말을 운영자에게 신고할까요?`)) return;
+          try { const r = await net.report(m); toast(r === 'dup' ? '이미 신고한 말이에요' : '신고했어요 — 운영자가 살펴볼게요'); } catch (err) { toast('신고하지 못했어요'); console.warn(err); }
+          closeModal();
+        } }, '신고')),
+      // v321 운영자 — 입막음(서버가 막는다)
+      ...(isAdmin() ? [h('div', { class: 'btn-row admin-mute' }, h('small', {}, '운영자 · 입막음'),
+        ...[['1시간', 3600e3], ['1일', 86400e3], ['영구', Infinity]].map(([t, ms]) => h('button', { class: 'btn', onclick: async () => {
+          try { await net.mute(m.uid, m.name, ms, m.text); toast(`${m.name || '무명'} — ${t} 입막음`); } catch (err) { toast(err.message || '막지 못했어요'); }
+          closeModal();
+        } }, t)),
+        h('button', { class: 'btn', onclick: async () => { try { await net.unmute(m.uid); toast('입막음을 풀었어요'); } catch (err) { toast(err.message || '풀지 못했어요'); } closeModal(); } }, '풀기'))] : []),
+      h('button', { class: 'btn', style: 'width:100%;margin-top:6px', onclick: closeModal }, '닫기')));
   };
   const muteList = () => openModal((sh) => {
     const list = h('div', { class: 'mute-list' });
@@ -2624,8 +2641,11 @@ function worldChatView(app) {
   const isAdmin = () => !!net?.isAdmin?.();
   function render() {
     const on = !!net?.online;
-    status.textContent = on ? '' : net?.status === 'connecting' ? '서버에 연결하는 중이에요…' : '인터넷에 연결되면 이야기할 수 있어요.';
-    input.disabled = send.disabled = on ? null : true;
+    const muted = (net?.muteUntil || 0) > Date.now();   // v321 입막음
+    status.textContent = !on ? (net?.status === 'connecting' ? '서버에 연결하는 중이에요…' : '인터넷에 연결되면 이야기할 수 있어요.')
+      : muted ? (net.muteUntil - Date.now() > 1e11 ? '🔇 운영자가 입을 막았어요 — 전체 채팅을 쓸 수 없어요' : `🔇 운영자가 입을 막았어요 — ${Math.ceil((net.muteUntil - Date.now()) / 60000)}분 뒤에 말할 수 있어요`) : '';
+    status.style.color = muted ? '#fca5a5' : '';
+    input.disabled = send.disabled = on && !muted ? null : true;
     const all = net?.world || [];
     const msgs = all.filter((m) => m.type === 'system' || !game.isMuted(m.uid));   // v315 가린 무인
     const hid = all.length - msgs.length;
@@ -2650,7 +2670,7 @@ function worldChatView(app) {
   return {
     root,
     update() { render(); },
-    shown() { input.value = draft; recount(); render(); box.scrollTop = box.scrollHeight; net?.worldMarkSeen?.(); },
+    shown() { input.value = draft; recount(); render(); box.scrollTop = box.scrollHeight; net?.worldMarkSeen?.(); net?.checkMute?.().then(() => { sig = ''; render(); }); },   // v321 입막음을 본다
     netChanged(what) { if (what === 'wchat' || what === 'status') render(); },
   };
 }

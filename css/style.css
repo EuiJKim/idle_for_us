@@ -2218,3 +2218,23 @@ body.hunt-noui #exp-warn, body.hunt-noui #boss-wait { visibility: hidden !import
 .att-cell.got { opacity: 0.55; }
 .att-cell i { position: absolute; top: 2px; right: 4px; font-style: normal; color: #4ade80; font-weight: 900; }
 .code-box { width: 100%; font-family: ui-monospace, monospace; font-size: 11px; word-break: break-all; resize: vertical; }
+.junk-toggle { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; font-size: 12.5px; }
+.junk-toggle input { margin: 0; }
+
+/* v321 신고 · 입막음 */
+.admin-mute { flex-wrap: wrap; align-items: center; gap: 4px; margin-top: 6px; padding-top: 6px; border-top: 1px dashed var(--line); }
+.admin-mute small { width: 100%; color: #fca5a5; }
+.report-list { display: grid; gap: 8px; max-height: 60vh; overflow: auto; }
+.report-row { padding: 8px 10px; border-radius: 10px; background: rgba(255, 255, 255, 0.04); border: 1px solid var(--line); }
+.report-row .btn-row { flex-wrap: wrap; gap: 4px; }
+.report-text { margin: 4px 0 6px; font-size: 13px; word-break: break-word; }
+
+/* v321 얻은 것 모음 — 들판 왼쪽 가운데. 두목·조각·자동 정리를 '이름 ×수'로 쌓는다 */
+#loot-tally { position: absolute; left: 8px; top: 42%; z-index: 9; pointer-events: none; display: flex; flex-direction: column; align-items: flex-start; gap: 3px; max-width: 46%; transition: opacity 1s; }
+#loot-tally.hidden { display: none; }
+#loot-tally.fade { opacity: 0; }
+#loot-tally .lt { padding: 2px 8px; border-radius: 999px; background: rgba(12, 8, 6, 0.72); border: 1px solid rgba(255, 255, 255, 0.12); color: var(--lc); font-size: 11.5px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+#loot-tally .lt b { color: #fff; font-variant-numeric: tabular-nums; }
+#loot-tally .lt.bump { animation: lt-bump 0.35s ease-out; }
+@keyframes lt-bump { 0% { transform: scale(1.12); } 100% { transform: scale(1); } }
+body.hunt-noui #loot-tally { visibility: hidden !important; }

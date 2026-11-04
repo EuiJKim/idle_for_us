@@ -3,7 +3,53 @@
 // 옛 main.js(관문·수련·무공 여덟 …)를 대신한다. 들판 그림(BattleView)·초식 연출·창틀·서버는 그대로 쓴다.
 import * as RM from './rendermode.js';   // 맨 먼저 — 캔버스를 만들기 전에 그리기 방식을 정한다 (v188)
 import { WorldGame, newWorldSave } from './world/wgame.js';
-import { encodeSave, decodeSave } from './savecode.js';   // v320 저장 코드
+import { encodeSave, decodeSave } from './savecode.js';   // v321 얻은 것 모음 — 방치 중 두목·조각·자동 정리를 알림 하나하나 대신 '이름 ×수'로 쌓는다. 8초 동안 새로 얻은 게 없으면 사라진다
+const TALLY_SEC = 8;
+const tallyBox = { items: new Map(), at: 0, el: null };
+function tally(key, label, n = 1, col = '#e5e7eb') {
+  if (!(n > 0)) return;
+  const it = tallyBox.items.get(key) || { label, n: 0, col };
+  it.n += n; it.label = label;
+  tallyBox.items.set(key, it);
+  tallyBox.at = performance.now();
+  paintTally(key);
+}
+function paintTally(bump) {
+  const el = tallyBox.el || (tallyBox.el = $('loot-tally'));
+  if (!el) return;
+  el.classList.remove('hidden', 'fade');
+  el.replaceChildren(...[...tallyBox.items.entries()].slice(-6).map(([k, x]) => h('span', { class: `lt${k === bump ? ' bump' : ''}`, style: `--lc:${x.col}` }, x.label, h('b', {}, ` ×${fmt(x.n)}`))));
+}
+function tallyTick() {
+  if (!tallyBox.items.size) return;
+  const dt = (performance.now() - tallyBox.at) / 1000;
+  if (dt > TALLY_SEC) { tallyBox.items.clear(); tallyBox.el?.classList.add('hidden'); }
+  else if (dt > TALLY_SEC - 1.2) tallyBox.el?.classList.add('fade');
+}
+// v321 운영자 신고함
+async function openReports() {
+  const list = h('div', { class: 'report-list' }, h('p', { class: 'muted' }, '불러오는 중…'));
+  openModal((s) => s.append(h('h2', {}, '신고함'), list, h('button', { class: 'btn primary', style: 'width:100%;margin-top:8px', onclick: closeModal }, '닫기')));
+  const paint = async () => {
+    let rows = [];
+    try { rows = await net.reports(); } catch (err) { list.replaceChildren(h('p', { class: 'muted' }, `불러오지 못했어요 — ${err?.code || err?.message || ''}`)); return; }
+    // 같은 말을 여럿이 신고했으면 하나로(몇 명이 했는지)
+    const by = new Map();
+    for (const r of rows) { const k = r.mid || r.id; const o = by.get(k) || { ...r, ids: [], n: 0 }; o.ids.push(r.id); o.n++; by.set(k, o); }
+    const items = [...by.values()];
+    if (!items.length) { list.replaceChildren(h('p', { class: 'muted' }, '신고가 없어요 👍')); return; }
+    const done = async (r, fn, msg) => { try { await fn(); for (const id of r.ids) await net.dropReport(id); toast(msg); } catch (err) { toast(err?.message || '하지 못했어요'); } paint(); };
+    list.replaceChildren(...items.map((r) => h('div', { class: 'report-row' },
+      h('div', {}, h('b', {}, r.name || '무명'), h('small', { class: 'muted' }, ` · 신고 ${r.n}명 · ${r.at?.toDate ? r.at.toDate().toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''}`)),
+      h('p', { class: 'report-text' }, r.text || '(빈 말)'),
+      h('div', { class: 'btn-row' },
+        ...[['1시간', 3600e3], ['1일', 86400e3], ['영구', Infinity]].map(([t, ms]) => h('button', { class: 'btn', style: 'padding:4px 8px', onclick: () => done(r, () => net.mute(r.uid, r.name, ms, r.text), `${r.name} — ${t} 입막음`) }, t)),
+        h('button', { class: 'btn danger', style: 'padding:4px 8px', onclick: () => done(r, () => (r.mid ? net.deleteWorld(r.mid) : Promise.resolve()), '말을 지웠어요') }, '말 지우기'),
+        h('button', { class: 'btn', style: 'padding:4px 8px', onclick: () => done(r, () => Promise.resolve(), '넘겼어요') }, '넘기기')))));
+  };
+  paint();
+}
+// v320 저장 코드
 import * as W from './world/wdata.js';
 import { BUILD, RANKS, JOBS } from './data.js';
 import { BattleView, drawFighter } from './battle.js';
@@ -724,6 +770,7 @@ function refreshUI(full = false) {
     ew._to = gap.to;
   }
   bossWaitHud();
+  tallyTick();   // v321 얻은 것 모음
   setText($('gold'), fmt(goldTween(s.gold)));
   setText($('potions'), fmt(s.potions));   // v258 은자처럼 쉼표
   const m = game.map;
@@ -992,7 +1039,8 @@ function handleEvents() {
         break;
       }
       case 'kill':
-        if (ev.mat?.boss) { toast(`두목을 잡았어요 — ${ev.mat.boss} · ${ev.mat.name} ${ev.mat.n}개`); saverLoot(`⚔ ${ev.mat.boss} — ${ev.mat.name} ${ev.mat.n}`); }
+        // v321 두목을 잡을 때마다 알림이 뜨던 것을 한 줄 모음으로 — 두목 ×12 · 현철 ×480 · 증표 ×12
+        if (ev.mat?.boss) { tally('boss', '⚔ 두목', 1, '#fca5a5'); tally('ore', ev.mat.name, ev.mat.n, ev.mat.color || '#e5e7eb'); tally('mark:' + ev.mat.boss, ev.mat.boss, ev.mat.markN || 1, '#fde68a'); saverLoot(`⚔ ${ev.mat.boss} — ${ev.mat.name} ${ev.mat.n}`); }
         break;
       case 'equip':
         drawPortrait();
@@ -1025,7 +1073,8 @@ function handleEvents() {
       }
       // v292 두목이 떨군 조각 · 별 · 도감 이정표
       case 'shards':
-        if (ev.at) view.float(`🐾${ev.pet} 🐎${ev.mount}`, view.sx(ev.at), view.sy(ev.at) - 70, '#fcd34d', 13, 1.2);
+        if (ev.pet) tally('ps', '🐾 포획 조각', ev.pet, '#fcd34d');   // v321 들판 글자 대신 모음
+        if (ev.mount) tally('ms', '🐎 탈것 조각', ev.mount, '#fcd34d');
         break;
       // v316 단 수련 · 품 물려받기
       case 'petDan': {
@@ -1047,6 +1096,7 @@ function handleEvents() {
       case 'weekReward': toast(`🏆 지난주 ${ev.best}위 보상 — 혼 ${ev.soul} · 조각 ${ev.shard} · 은자 ${fmt(ev.gold)}${ev.title ? ` · 〈${W.titleOf(ev.title).name}〉` : ''}`); sfx('level'); break;
       case 'titleExpire': toast(`〈${ev.name}〉 칭호의 기한이 끝났어요`); break;
       case 'attend': toast(`📅 출석 ${ev.day}일째 — ${ev.reward.gold ? `은자 ${fmt(ev.reward.gold)}` : ''}${ev.reward.gold && ev.reward.text !== '은자' ? ' · ' : ''}${ev.reward.text !== '은자' ? ev.reward.text : ''}`); sfx('loot'); break;
+      case 'autoJunk': tally('junk', '🧹 자동 정리', 1, '#a8a29e'); break;   // v321
       case 'petQualUp': toast(`${W.PET_QUAL[ev.pet.q].mark} ${W.petOf(ev.pet.kind).name} — 먹이의 품을 물려받아 ${W.PET_QUAL[ev.pet.q].name}이 됐어요`); break;
       case 'petStar':
         toast(`★ ${W.petOf(ev.pet.kind).name} 별 ${ev.pet.star} — 버프·공격 +${Math.round(ev.pet.star * W.PET_STAR_K * 100)}%`);
@@ -1092,7 +1142,7 @@ function handleEvents() {
       }
       // 스킬 변화 옵션 (v130) — 화염·빙결·뇌전·거대화·응축이 연출에도 보인다
       case 'stone':
-        if (ev.at) view.float(`+${ev.n} ${W.matName(ev.key)}`, view.sx(ev.at), view.sy(ev.at) - 150, '#f0abfc', 14, 1.2);
+        tally('stone:' + ev.key, W.matName(ev.key), ev.n, '#f0abfc');   // v321 모음
         break;
       case 'tfHit': {
         if (view.fxLevel <= 0 || !ev.at) break;
@@ -1160,7 +1210,7 @@ function handleEvents() {
         break;
       // v263: 견문록 낙관
       case 'dexStamp': toast(`견문록 — ${ev.name} 낙관 · 공격력·체력 +${(W.DEX_STAMP_STAT * 100).toFixed(2)}%${ev.zoneDone ? ` · 지역 완성! 경험치 +0.5% · 공격력·체력 +${(W.DEX_ZONE_STAT * 100).toFixed(1)}%` : ''}`); break;
-      case 'frag': if (ev.pts) toast(`📜 무공 비급 완성 — 무공 점수 +${ev.pts}`); else if (ev.at) toast(`📜 무공 비급 조각 (${ev.have}/${W.fragNeed(game.s.fragPts)})`); if (ev.at) saverLoot(`📜 비급 조각 ${ev.have}/${W.fragNeed(game.s.fragPts)}`); break;
+      case 'frag': if (ev.pts) toast(`📜 무공 비급 완성 — 무공 점수 +${ev.pts}`); else if (ev.at) tally('frag', `📜 비급 조각 ${ev.have}/${W.fragNeed(game.s.fragPts)} ·`, 1, '#c4b5fd');   // v321 조각마다 알림 → 모음 if (ev.at) saverLoot(`📜 비급 조각 ${ev.have}/${W.fragNeed(game.s.fragPts)}`); break;
       // v263: 깨달음 점수
       case 'temper': toast(`🔨 단련 ${ev.lv}단계${ev.n > 1 ? ` (+${ev.n})` : ''} — 공격력·체력 +${(ev.lv * W.TEMPER_STEP * 100).toFixed(1)}%`); break;
       case 'enlight': toast(`깨달음 +${ev.got} — 무공 창에서 올려요 (가진 것 ${ev.pts})`); break;
@@ -1680,6 +1730,9 @@ $('btn-settings').addEventListener('click', () => openModal((s) => {
       return h('div', { class: 'row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, '운영자 · 서버 규칙'), st),
         h('button', { class: 'btn', style: 'padding:6px 12px', onclick: async () => { await net.checkRules(); paint(); toast(net.rulesOk ? '규칙이 맞아요' : net.rulesOk === false ? '옛 규칙이에요 — 다시 게시하세요' : '확인하지 못했어요'); } }, '확인'));
     })() : '',
+    // v321 신고함 — 신고된 말을 보고 입막음·말 지우기·넘기기
+    net.isAdmin?.() ? h('div', { class: 'row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, '운영자 · 신고함'), h('div', { class: 'desc' }, '전체 채팅에서 신고된 말 — 입막음(1시간·1일·영구) · 말 지우기 · 넘기기')),
+      h('button', { class: 'btn', style: 'padding:6px 12px', onclick: () => { closeModal(); openReports(); } }, '열기')) : '',
     net.isAdmin?.() ? h('div', { class: 'row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, '운영자 · 무인 정리'), h('div', { class: 'desc' }, '테스트·버려진 계정을 골라 서열에서 지워요')),
       h('button', { class: 'btn', style: 'padding:6px 12px', onclick: () => { closeModal(); openPlayerAdmin(); } }, '정리')) : '',
     toggleRow('강화·각인 연출 건너뛰기', skipFx(), '켜면 두드리는 연출 없이 바로 결과 — 끄면 연출을 눌러서 건너뛸 수 있어요', (v) => setSkipFx(v)),

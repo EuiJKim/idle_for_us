@@ -253,6 +253,15 @@ async function tab(page, name) {
   assert(re.job === 'sword' && re.tier === 1 && re.lv >= 15 && re.plus >= 1, '새로 고침 후 캐릭터·전직·레벨·강화 유지');
   assert(!(await p.isVisible('.class-card')), '새로 고침 후 캐릭터를 다시 묻지 않음');
 
+  console.log('# 얻은 것 모음 (v321)');
+  {
+    await G(p, () => { const g = window.__game; for (let i = 0; i < 3; i++) g.emit('kill', { mat: { boss: '시험의 증표', name: '현철', n: 12, markN: 1 } }); g.emit('shards', { pet: 4, mount: 2 }); });
+    await p.waitForSelector('#loot-tally:not(.hidden)', { timeout: 5000 });
+    const t = await p.$eval('#loot-tally', (e) => e.textContent);
+    assert(/두목 ×3/.test(t) && /현철 ×36/.test(t) && /포획 조각 ×4/.test(t), `두목·재료가 알림 대신 '이름 ×수'로 쌓인다 (${t})`);
+    await shot(p, '07c-tally.png');
+  }
+
   console.log('# 출석부 · 저장 코드 (v320)');
   {
     // 출석부 — 캐릭터 창 맨 위 카드에서 받는다(오늘 것을 아직 안 받은 것으로 돌려 둔다)
@@ -364,6 +373,12 @@ async function tab(page, name) {
     await G(p, () => document.querySelector('#modal .btn.primary')?.click());
     await p.waitForSelector('#panel .msg:has-text("반가워요 v315")', { timeout: 5000 });
     assert(await G(p, () => window.__game.s.chatMute.length === 0), '풀면 다시 보인다');
+    // v321 신고 — 이름을 누르고 '신고'
+    await p.click('#panel .msg:has-text("반가워요 v315") .who');
+    p.once('dialog', (d) => d.accept());
+    await p.click('#modal .btn:has-text("신고")');
+    await p.waitForFunction(() => window.__app.net.reported?.size === 1, null, { timeout: 8000 });
+    assert(true, '말 하나를 운영자에게 신고한다');
     for (const pg of [p, q]) if (await pg.isVisible('#panel-close')) { await pg.click('#panel-close'); await sleep(250); }
   }
 

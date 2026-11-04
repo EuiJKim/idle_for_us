@@ -2,7 +2,7 @@
 // SDK를 동적으로 불러오므로 실패해도 혼자 하기는 그대로 동작한다.
 import { firebaseConfig, FIREBASE_SDK_VERSION, ADMIN_UID } from './firebase-config.js';
 // v309 이 앱이 바라는 규칙 판 — firestore.rules의 rulesv 숫자와 같아야 한다(규칙을 고치면 둘 다 올린다)
-export const RULES_VER = '316';
+export const RULES_VER = '321';
 export const WORLD_MAX = 100;   // v315 전체 채팅 한 마디 길이
 import { big } from './big.js';
 import { Big } from './big.js';
@@ -816,6 +816,8 @@ export class Net {
         b.set(this.ref('chatlimit', this.uid), { at: serverTimestamp() });
         await b.commit();
       } catch (err) {
+        // v321 입막음이면 다시 보내지 않는다
+        if (await this.checkMute()) { const left = this.muteUntil - Date.now(); throw new Error(left > 1e11 ? '운영자가 입을 막았어요 — 전체 채팅을 쓸 수 없어요' : `운영자가 입을 막았어요 — ${Math.ceil(left / 60000)}분 뒤에 말할 수 있어요`); }
         // 2초 막이에 걸렸다(다른 기기와 겹침) — 한 번만 조금 뒤에 다시
         if (retry) { await new Promise((r) => setTimeout(r, 2300)); return this.sendWorld(text, type, false); }
         throw new Error(type === 'chat' ? '너무 빨라요 — 잠깐 뒤에 보내 주세요' : (err?.message || '보내지 못했어요'));
@@ -825,6 +827,42 @@ export class Net {
     return true;
   }
   async deleteWorld(id) { await this.fs.deleteDoc(this.ref('chat', id)); }
+  // ---------- v321 신고 · 입막음 ----------
+  async report(m) {
+    if (!this.online || !m?.uid || m.uid === this.uid) return false;
+    this.reported = this.reported || new Set();
+    if (this.reported.has(m.id)) return 'dup';
+    await this.fs.addDoc(this.fs.collection(this.db, 'reports'), {
+      by: this.uid, uid: String(m.uid).slice(0, 128), name: String(m.name || '무명').slice(0, 12), text: String(m.text || '').slice(0, 200), mid: String(m.id || '').slice(0, 64), at: this.fs.serverTimestamp(),
+    });
+    this.reported.add(m.id);
+    return true;
+  }
+  async reports() {
+    if (!this.isAdmin()) return [];
+    const { collection, query, orderBy, limit, getDocs } = this.fs;
+    const snap = await getDocs(query(collection(this.db, 'reports'), orderBy('at', 'desc'), limit(60)));
+    return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  }
+  async dropReport(id) { if (this.isAdmin()) await this.fs.deleteDoc(this.ref('reports', id)); }
+  // ms: 막을 시간(밀리초) · Infinity면 영구
+  async mute(uid, name, ms, reason = '') {
+    if (!this.isAdmin() || !uid || uid === this.uid) return false;
+    const until = this.fs.Timestamp.fromMillis(Number.isFinite(ms) ? Date.now() + ms : 253402300799000);
+    await this.fs.setDoc(this.ref('mutes', uid), { until, by: this.uid, reason: String(reason).slice(0, 60), name: String(name || '').slice(0, 12) });
+    return true;
+  }
+  async unmute(uid) { if (this.isAdmin()) await this.fs.deleteDoc(this.ref('mutes', uid)); }
+  // 내가 막혔나 — 막힌 끝 시각(ms) · 안 막혔으면 0
+  async checkMute() {
+    if (!this.online) return this.muteUntil || 0;
+    try {
+      const d = await this.fs.getDoc(this.ref('mutes', this.uid));
+      const u = d.exists() ? d.data().until?.toMillis?.() || 0 : 0;
+      this.muteUntil = u > Date.now() ? u : 0;
+    } catch { /* 못 읽으면 그대로 */ }
+    return this.muteUntil || 0;
+  }
 
   async sendChat(text, type = 'chat') {
     const clean = text.trim().slice(0, 200);

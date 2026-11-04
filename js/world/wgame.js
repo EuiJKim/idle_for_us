@@ -94,6 +94,8 @@ export function migrateWorld(raw, now = Date.now()) {
     s.custom = { head: W.CUSTOM_HEADS.some(([k]) => k === c.head) ? c.head : null, robe: hex(c.robe), band: hex(c.band), face: W.CUSTOM_FACES.some(([k]) => k === c.face) ? c.face : null }; }   // v280 꾸미기 · v306 눈
   s.fragPts = Math.max(0, Math.floor(Number(raw.fragPts) || 0));  // 조각으로 얻은 무공 점수(보이기용)
   s.autoEnh = !!raw.autoEnh; s.autoInf = !!raw.autoInf;   // v262
+  s.autoJunk = !!raw.autoJunk;   // v321 약한 장비 자동 정리
+  { const j = raw.junkLog && typeof raw.junkLog === 'object' ? raw.junkLog : {}; s.junkLog = { n: Math.max(0, Math.floor(Number(j.n) || 0)), gold: Math.max(0, Number(j.gold) || 0) }; }
   // v305 칭호 — 아는 것만 · 끼는 것은 가진 것 가운데
   s.titles = [...new Set((Array.isArray(raw.titles) ? raw.titles : []).filter((k) => typeof k === 'string' && W.titleOf(k)))];
   s.title = typeof raw.title === 'string' && s.titles.includes(raw.title) && W.titleOf(raw.title) ? raw.title : null;
@@ -2065,7 +2067,8 @@ export class WorldGame {
     if (!W.MATS[id]) return null;
     if (m.isBoss) {
       this.addMats(id, W.BOSS_MATS);
-      this.addMats(W.bossKey(id), 1 + (this.rng() < this.braveBonus() ? 1 : 0));   // v262 패기: 센 곳 두목은 증표를 하나 더 줄 때가 있다
+      const markN = 1 + (this.rng() < this.braveBonus() ? 1 : 0);
+      this.addMats(W.bossKey(id), markN);   // v262 패기: 센 곳 두목은 증표를 하나 더 줄 때가 있다
       // 십이지왕 (v132): 전반 다섯은 맡은 부위의 내 직업 세트 조각(두 세트 가운데 하나), 후반 일곱은 강화석(늘) + 가끔 공용 장신구
       if (W.kingOf(id)) {
         const stone = G.STONES[id];
@@ -2081,7 +2084,7 @@ export class WorldGame {
           this.gainItem(it);
         }
         if (this.rng() < W.petDropRate(id) * this.lootK()) this.gainPet(W.rollRarity(W.KING_RAR_W, this.rng), m, W.rollPetKind(id, this.rng));
-        return { id: W.ORE, n: W.BOSS_MATS * W.matWeight(id), name: W.ORE_NAME, color: W.ORE_COL, boss: W.matName(W.bossKey(id)) };
+        return { id: W.ORE, n: W.BOSS_MATS * W.matWeight(id), name: W.ORE_NAME, color: W.ORE_COL, boss: W.matName(W.bossKey(id)), markN };
       }
       // v158: 사다리 장비는 이제 떨구지 않는다(장비는 레벨을 따라 자란다) — 대신 가끔 증표 한 움큼(등급 각인 재료)
       if (this.rng() < W.BOSS_ITEM_RATE) this.addMats(W.bossKey(id), W.INFUSE_MARKS[1]);
@@ -2097,7 +2100,7 @@ export class WorldGame {
       // 애완동물 — 두목만, 낮은 확률
       // 초반 두목은 아주 낮게·아래 순위만, 높은 두목일수록 자주·위 순위까지
       if (this.rng() < W.petDropRate(id) * this.lootK()) this.gainPet(W.rollRarity(W.kingOf(id) ? W.KING_RAR_W : W.BOSS_RAR_W, this.rng), m, W.rollPetKind(id, this.rng));
-      return { id: W.ORE, n: W.BOSS_MATS * W.matWeight(id), name: W.ORE_NAME, color: W.ORE_COL, boss: W.matName(W.bossKey(id)) };
+      return { id: W.ORE, n: W.BOSS_MATS * W.matWeight(id), name: W.ORE_NAME, color: W.ORE_COL, boss: W.matName(W.bossKey(id)), markN };
     }
     if (this.rng() >= W.MAT_RATE * (this.stats().matMult || 1) * (1 + this.masteryLevel(this.map.zone) * L.MASTERY.mat) * (1 + this.braveBonus()) * (!this.inst && TD.bloodOn() ? 1 + TD.BLOOD_BONUS : 1)) return null;
     this.addMats(id, 1);
@@ -2457,20 +2460,33 @@ export class WorldGame {
   }
   // v158: 사다리 조합(recipeFor·craft·craftSteps·nextSteps)은 없앴다 — 장비는 레벨을 따라 자란다(성장 장비)
   // 새 장비: 끼고 있는 것보다 좋으면 끼고, 아니면 가방에.
-  gainItem(it) {
+  gainItem(it, made = false) {   // made: 대장장이에서 만든 것(자동 정리하지 않는다)
     const cur = this.s.equip[it.slot];
     // 세트 조각을 끼고 있으면 다른 것으로 저절로 바꾸지 않는다 (세트 효과가 깨진다)
-    if (cur?.set && !(it.set === cur.set)) return this.stash(it);
+    if (cur?.set && !(it.set === cur.set)) return this.stash(it, made);
     if (this.itemScore(it) > this.itemScore(cur)) {
       this.s.equip[it.slot] = it;
       this.emit('equip', { item: it, auto: true });
-      if (cur) this.stash(cur);
+      if (cur) this.stash(cur, true);   // 벗은 것은 남긴다(직접 팔기)
       this._stats = null;
       return 'equip';
     }
-    return this.stash(it);
+    return this.stash(it, made);
   }
-  stash(it) {
+  // v321 자동 정리 — '약한 것 팔기'와 같은 잣대: 낀 것보다 못하고 · 강화 안 했고 · 전설 아래 · 세트·성장 장비가 아니면
+  isJunk(it) {
+    const cur = this.s.equip[it?.slot];
+    return !!it && !!cur && !it.grow && !it.set && !(it.plus > 0) && !((it.rar || 0) >= 2) && this.itemScore(it) < this.itemScore(cur);
+  }
+  stash(it, keep = false) {
+    // v321 켜 두면 떨어지는 대로 판다(가방에 넣지 않는다) — 방치 중 가방이 차지 않게. 만든 것·벗은 것은 남긴다
+    if (!keep && this.s.autoJunk && this.isJunk(it)) {
+      const p = this.sell(it, true);
+      const j = this.s.junkLog || (this.s.junkLog = { n: 0, gold: 0 });
+      j.n++; j.gold += p;
+      this.emit('autoJunk', { item: it, gold: p });
+      return 'sold';
+    }
     this.s.bag.push(it);
     // 가방이 넘치면 가장 나쁜 것부터 판다
     while (this.s.bag.length > this.s.bagSize) {
