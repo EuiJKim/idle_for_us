@@ -2394,3 +2394,4 @@ body.hunt-noui #gather, body.in-inst #gather { display: none !important; }
 .reveal-stats { display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
 .reveal-stats span { padding: 3px 10px; border-radius: 999px; background: rgba(0,0,0,.35); border: 1px solid var(--rc); color: #fef3c7; font-weight: 700; font-size: 13px; }
 @media (prefers-reduced-motion: reduce) { .hard-card, .hard-card .hard-glow, .hard-card .dgn-name b, .hard-go, .reveal-name { animation: none; } }
+.reveal-sp { margin: 0 0 8px; color: #fde68a; font-weight: 700; font-size: 13.5px; }

@@ -2004,7 +2004,7 @@ function dgnTab(app) {
       const nb2 = D.hardBoss(nh), nmd = D.hardMountOf(nh);
       const mounts = W.HARD_MOUNTS.map((m, i) => {
         const own = s.mounts.some((x) => x.kind === m.id);
-        return h('div', { class: `hard-mt${own ? ' own' : ''}${hf >= (i + 1) * 10 ? ' clear' : ''}`, style: `--mc:${m.col}`, title: `${m.name} — ${m.desc} · 이동 +100% 고정 · 공격·체력 +${Math.round(m.stat * 100)}%` },
+        return h('div', { class: `hard-mt${own ? ' own' : ''}${hf >= (i + 1) * 10 ? ' clear' : ''}`, style: `--mc:${m.col}`, title: `${m.name} — ${m.desc} · 이동 +100% 고정 · 공격·체력 +${Math.round(m.stat * 100)}% · ${m.sp}` },
           creatureIcon(m.id, 46), h('b', {}, m.name), h('small', {}, own ? '얻음 ✓' : `극 ${(i + 1) * 10}층`));
       });
       out.push(h('div', { class: `card dgn-card hard-card${open ? '' : ' locked'}` },
@@ -3152,7 +3152,7 @@ function compTab(app) {
       const tc = game.tameCost(m.uid);
       mountCard.append(h('div', { class: `row${on ? ' me' : ''}` },
         h('div', { class: 'ico pet-ico' }, creatureIcon(m.kind)),
-        h('div', { class: 'info' }, h('div', { class: 'name' }, d.name, h('small', {}, `순위 ${d.tier}${m.lv ? ` · 길들이기 ${m.lv}/${W.MOUNT_LV_MAX}` : ''}`)), h('div', { class: 'desc' }, `이동 속도 +${Math.round(d.speed * (d.fixedSpeed ? 1 : k) * 100)}%${d.fixedSpeed ? '(고정)' : ''} · 공격력·체력 +${(d.stat * k * 100).toFixed(1).replace(/\.0$/, '')}%`),
+        h('div', { class: 'info' }, h('div', { class: 'name' }, d.name, h('small', {}, `순위 ${d.tier}${m.lv ? ` · 길들이기 ${m.lv}/${W.MOUNT_LV_MAX}` : ''}`)), h('div', { class: 'desc' }, `${d.sp ? `${d.sp} · ` : ''}이동 속도 +${Math.round(d.speed * (d.fixedSpeed ? 1 : k) * 100)}%${d.fixedSpeed ? '(고정)' : ''} · 공격력·체력 +${(d.stat * k * 100).toFixed(1).replace(/\.0$/, '')}%`),
           tc ? h('div', { class: 'desc', style: 'color:#fde68a' }, `길들이기 +1: 탈것 조각 ${tc.shard} · 은자 ${fmt(tc.gold)} → +${Math.round(W.MOUNT_LV_K * 100)}%`) : null),
         h('div', { class: 'pet-btns' },
           tc ? h('button', { class: 'buy', disabled: game.canTame(m.uid) ? null : true, onclick: () => { if (game.tame(m.uid)) { toast(`${d.name} 길들이기 ${m.lv}`); done(); } } }, '길들이기') : h('span', { class: 'sk-max' }, '極'),

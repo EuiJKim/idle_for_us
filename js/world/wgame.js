@@ -387,6 +387,8 @@ export class WorldGame {
     switch (id) {
       case 'tower50': return (s.tower?.floor || 0) >= 50;
       case 'tower120': return (s.tower?.floor || 0) >= 120;
+      case 'hard30': return (s.tower?.hard || 0) >= 30;
+      case 'hard60': return (s.tower?.hard || 0) >= 60;
       case 'kings': return Object.keys(W.ZONES_W).filter((z) => W.ZONES_W[z]?.king).every((z) => (s.bossKills?.[W.mapId(+z, W.BOSS_AREA)] || 0) > 0);
       case 'cheonma': return !!s.duel?.won?.cheonma;
       case 'hwamugi': return !!s.duel?.won?.hwamugi;
@@ -591,6 +593,9 @@ export class WorldGame {
     const mt = this.mountNow();
     const mk = this.mountK(this.mountInst());
     if (mt) { gear.atkPct += mt.stat * mk; gear.hpPct += mt.stat * mk; }
+    // v359 극의 신수 전용 — 야천흑표 회피 · 혼원금룡 두목 피해·은자 (불길·서리·벼락·물결은 tickMountFx)
+    if (mt?.fx === 'void') gear.dodge += 0.08;
+    if (mt?.fx === 'gold') { gear.gold += 0.15; gear.bossDmg += 0.1; }
     // v292 도감 — 모은 종만큼 영구히
     const db = this.compDexBonus();
     gear.atkPct += db; gear.hpPct += db;
@@ -1027,6 +1032,22 @@ export class WorldGame {
     this.tickImprint(dt, st);
     this.tickHero(dt, st);
     this.tickPets(dt, st);
+    this.tickMountFx(dt, st);
+  }
+  // v359 극의 신수 전용 효과 — 탄 동안(마을 빼고)
+  tickMountFx(dt, st) {
+    const mt = this.mountNow();
+    if (!mt?.hard || this.map?.town) return;
+    const hx = this.heroX, hy = this.heroY;
+    const near = (r) => this.mons.filter((m) => m.alive && !m.npc && !(m.introT > 0) && Math.hypot(m.x - hx, (m.y - hy) * 0.75) <= r);
+    if (mt.fx === 'frost') for (const m of near(170)) m.slow = Math.max(m.slow || 0, 0.6);
+    this._mfxT = (this._mfxT || 0) - dt;
+    if (this._mfxT > 0) return;
+    if (mt.fx === 'flame') { this._mfxT = 1; const ms = near(110); for (const m of ms) this.hurt(m, st.atk * 0.35, 'mount', false, ms.length > 3); if (ms.length) this.emit('mountFx', { fx: 'flame', at: { x: hx, y: hy } }); }
+    else if (mt.fx === 'thunder') { this._mfxT = 2.2; const m = near(380).sort((a, b) => b.hp - a.hp)[0]; if (m) { this.emit('mountFx', { fx: 'thunder', at: { x: m.x, y: m.y } }); this.hurt(m, st.atk * 2.2, 'mount', false); } }
+    else if (mt.fx === 'frost') { this._mfxT = 1.5; if (near(170).length) this.emit('mountFx', { fx: 'frost', at: { x: hx, y: hy } }); }
+    else if (mt.fx === 'tide') { this._mfxT = 1; if (this.heroHp > 0 && this.heroHp < st.hp) { this.heroHp = Math.min(st.hp, this.heroHp + st.hp * 0.015); this.emit('mountFx', { fx: 'tide', at: { x: hx, y: hy } }); } }
+    else this._mfxT = 5;
   }
 
   // 장판(독마 화골산) — tick마다 둘레를 친다

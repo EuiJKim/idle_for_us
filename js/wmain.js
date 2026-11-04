@@ -88,7 +88,7 @@ import { fmt, duration } from './fmt.js';
 import { sfx, unlockAudio, setSound, soundOn } from './sfx.js';
 import * as AM from './appmode.js';
 import { bootStart, bootProgress, bootHide, waitFor, showLogin, loginPref, setLoginPref, standalone, inAppBrowser } from './boot.js';
-import { artReady, mergeGen } from './art.js';
+import { artReady, mergeGen, preloadLook } from './art.js';
 import * as CH from './chars.js';
 import * as VT from './vault.js';
 import { drawCreature } from './creatures.js';
@@ -1223,13 +1223,14 @@ function mountReveal(kind, floor) {
   openModal((el) => {
     el.classList.add('reveal-sheet');
     el.style.setProperty('--rc', md.col);
-    el.append(
+    el.append(...[
       h('div', { class: 'reveal-tag' }, `무한의 탑 · 극 ${floor}층 — 신수가 그대를 따른다`),
       cv,
       h('h2', { class: 'reveal-name' }, `${md.emoji} ${md.name}`),
       h('p', { class: 'reveal-desc' }, md.desc),
       h('div', { class: 'reveal-stats' }, h('span', {}, `이동 +${Math.round(md.speed * 100)}% 고정`), h('span', {}, `공격력·체력 +${Math.round(md.stat * 100)}%`)),
-      h('div', { class: 'btn-row' }, h('button', { class: 'btn primary', onclick: () => { on = false; closeModal(); } }, '타고 가기')));
+      md.sp ? h('p', { class: 'reveal-sp' }, `✦ ${md.sp}`) : null,
+      h('div', { class: 'btn-row' }, h('button', { class: 'btn primary', onclick: () => { on = false; closeModal(); } }, '타고 가기'))].filter(Boolean));
     requestAnimationFrame(frame);
   });
 }
@@ -1280,7 +1281,19 @@ function openCustom(first = false) {
     const wpnRow = () => h('div', { class: 'cust-row' }, h('b', {}, `${jobOf(game.s.job)?.name || ''}의 무기`),
       h('div', { class: 'cust-chips' }, ...[[null, '기본'], ...(W.WEAPON_SKINS[jl] || []).map((x) => [x.id, x.name])].map(([v, name]) => h('button', {
         class: `cust-chip${(cu.wpn[jl] || null) === v ? ' on' : ''}`, onclick: () => { if (v) cu.wpn[jl] = v; else delete cu.wpn[jl]; paintRows(); } }, h('span', {}, name)))));
-    const paintRows = () => rows.replaceChildren(...(ctab === 'wpn' ? [ctabs(), wpnRow(), h('p', { class: 'muted', style: 'font-size:11.5px' }, '무기 모양은 직업마다 따로 기억해요 — 겉모습만 바뀌고 능력치는 그대로예요.')]
+    // v359 고를 만한 조합의 한 장 그림을 미리 — 지금 옷에 다른 머리 · 지금 머리에 다른 옷 · 다른 성별
+    const preloadCust = () => {
+      const real = game.s.custom, tries = [];
+      const fem = cu.gender === 'f';
+      for (const hd of fem ? [null, ...W.CUSTOM_FHEADS.map((x) => x[0])] : [null, ...W.CUSTOM_HEADS.map((x) => x[0])]) tries.push(fem ? { ...cu, fhead: hd } : { ...cu, head: hd });
+      for (const hc of fem ? W.CUSTOM_HAIRS.map((x) => x[0]) : []) tries.push({ ...cu, hair: hc });
+      for (const ht of [null, ...W.CUSTOM_HATS.map((x) => x[0])]) tries.push({ ...cu, hat: ht });
+      for (const rb of [null, ...W.CUSTOM_ROBES]) tries.push({ ...cu, robe: rb });
+      for (const p of W.CUSTOM_PRESETS) tries.push({ ...cu, head: p.head, hat: p.hat, robe: p.robe, gender: p.gender || null, fhead: p.fhead || null, hair: p.hair || null });
+      tries.push({ ...cu, gender: fem ? null : 'f' });
+      try { for (const t of tries) { game.s.custom = t; preloadLook(view.heroLook(game, false).look); } } finally { game.s.custom = real; }
+    };
+    const paintRows = () => (preloadCust(), rows).replaceChildren(...(ctab === 'wpn' ? [ctabs(), wpnRow(), h('p', { class: 'muted', style: 'font-size:11.5px' }, '무기 모양은 직업마다 따로 기억해요 — 겉모습만 바뀌고 능력치는 그대로예요.')]
       : ctab === 'fx' ? [ctabs(),
         pick('기운', [[null, '없음'], ...W.CUSTOM_AURAS.map(([k, n]) => [k, n])], 'aura'),
         pick('발밑 문양', [[null, '없음'], ...W.CUSTOM_RINGS.map(([k, n]) => [k, n])], 'ring'),

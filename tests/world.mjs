@@ -615,8 +615,22 @@ console.log('\n=== 십이지왕 신화 · 가락지·귀걸이 · 애완동물 �
     g.mountInst().lv = 10; g._stats = null;
     ok(Math.abs(g.stats().moveSpeed - mv0) < 1e-9 && g.stats().atk > a0, '신수는 길들여도 이동은 +100% 그대로, 공격은 오른다', `${mv0.toFixed(2)} → ${g.stats().moveSpeed.toFixed(2)}`);
     ok(W.HARD_MOUNTS.every((m, i) => i === 0 || m.stat > W.HARD_MOUNTS[i - 1].stat) && W.HARD_MOUNTS[0].stat > W.mountOf('azure').stat, '극의 신수는 뒤로 갈수록 세고, 첫째도 청룡마보다 세다');
-    ok(DG.hardHp(1) > DG.towerHp(DG.hardF(1)) * 2 && DG.hardDelay(1) < DG.tellDelay(DG.hardF(1)), '극 수문장은 같은 세기 보통 층보다 단단하고 경고가 짧다');
-    ok(DG.hardHp(1) >= DG.towerHp(DG.hardF(1)) * 20 && DG.hardAtk(1) >= DG.towerAtk(DG.hardF(1)) * 3, 'v357 극은 열 배 — 같은 세기 보통 층보다 체력 20배 넘게 · 붙어 치기 3배');
+    ok(DG.hardHp(1) > DG.towerHpBase(DG.hardF(1)) * 2 && DG.hardDelay(1) < DG.tellDelay(DG.hardF(1)), '극 수문장은 같은 세기 보통 층보다 단단하고 경고가 짧다');
+    ok(DG.hardHp(1) >= DG.towerHpBase(DG.hardF(1)) * 200 && DG.hardAtk(1) >= DG.towerAtkBase(DG.hardF(1)) * 6, 'v359 극은 처음의 백 배 — 같은 세기 보통 층 기준 체력 220배 · 붙어 치기 6배');
+    ok(DG.towerHp(30) === DG.towerHpBase(30) * 10 && DG.towerAtk(30) === DG.towerAtkBase(30) * 2, 'v359 보통 탑 수문장 열 배(체력 ×10 · 붙어 치기 ×2)');
+    // v359 극 보상 · 칭호 · 신수 전용 효과
+    ok(DG.HARD_BONUS === 0.008 && DG.hardReward(10).gold > 1e6 && !!W.TITLES.hard60 && !!W.TITLES.hard30, '극 층 덤 0.8% · 보상 크게 · 칭호 둘', `극10 은자 ${DG.hardReward(10).gold}`);
+    {
+      const t = new WorldGame(newWorldSave(0), 0); t.s.job = 'sword'; t.s.level = 120; t.enterMap(W.mapId(10, 1));
+      t.gainMount('h4'); t._stats = null; const dg = t.stats().dodge;
+      t.gainMount('h1'); t.s.mount = t.s.mounts.find((m) => m.kind === 'h1').uid; t._stats = null;
+      ok(t.stats().dodge < dg, '야천흑표를 타면 회피 +8% (내리면 빠진다)', `${dg.toFixed(3)} → ${t.stats().dodge.toFixed(3)}`);
+      for (let i = 0; i < 40 && !t.mons.some((m) => m.alive); i++) t.tick(0.1);
+      const m = t.mons.find((x) => x.alive); if (m) { m.x = t.heroX + 30; m.y = t.heroY; }
+      const hp0 = m?.hp; t._mfxT = 0; t.tickMountFx(0.05, t.stats());
+      ok(m && m.hp < hp0, '염화주작 — 둘레 적에게 불 피해', `${hp0} → ${m?.hp}`);
+      t.s.tower.hard = 60; ok(t.titleDone('hard60') && t.titleDone('hard30'), '극 30·60층 칭호');
+    }
     ok(W.mountFuseCost(11) < 2e6 && W.mountFuseCost(1) < 3000, '탈것 합성 값이 크게 내렸다', `${W.mountFuseCost(1)} … ${W.mountFuseCost(11)}`);
   }
   const mtTop = (z, boss) => { let t = 0; for (let i = 0; i < 3000; i++) t = Math.max(t, W.mountOf(W.rollMount(rr, z, boss)).tier); return t; };

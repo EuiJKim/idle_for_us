@@ -78,6 +78,7 @@ let tried = false;
 
 // ---------- v323 조각 기준점 — 그림마다 '어디를 잡고 어디에 놓나'를 적어 둔다(치수는 scripts로 잰 값) ----------
 // 머리: crop — 턱 아래(목·옷깃)를 잘라 낸다(그러면 모든 머리의 맨 아래가 턱) · brow — 삿갓을 얹는 눈썹 선(위에서) · eye — 안대 선(아래에서)
+export const FEM_HEAD_K = 0.84;   // v359 여협 머리 크기
 export const HEAD_FIT = {
   'head': { crop: 0.88, brow: 0.36, eye: 0.46, eyeX: 0.72 },
   'head-topknot': { crop: 0.93, brow: 0.44, eye: 0.44 },
@@ -173,7 +174,11 @@ export function loadArt2(onEach) {
   if (tried2 || typeof Image === 'undefined') return;
   tried2 = true;
   const one = (n, then) => { const im = new Image(); im.onload = () => { img[n] = n.startsWith('fh-') ? fadeBottom(im, 0.86) : im; then?.(); onEach?.(n); }; im.src = `art/hero2/${n}.png`; };
-  for (const [n, f] of Object.entries(ART2_HEADS)) one(n, () => { HEAD_FIT[n] = { crop: 1, brow: f.brow, eye: f.eye, eyeX: f.eyeX, fit: { w: f.w, x: f.x, y: f.y } }; });
+  // v359 여협 머리는 남자(폭 25)보다 30~36으로 커 머리만 커 보였다 — 턱(목 줄 -64)을 축으로 0.84배
+  for (const [n, f] of Object.entries(ART2_HEADS)) one(n, () => {
+    const k = n.startsWith('fh-') ? FEM_HEAD_K : 1, cy = -64;
+    HEAD_FIT[n] = { crop: 1, brow: f.brow, eye: f.eye, eyeX: f.eyeX, fit: { w: f.w * k, x: f.x, y: cy + (f.y - cy) * k } };
+  });
   for (const [n, f] of Object.entries(ART2_WEAPONS)) one(n, () => { WEAPON_FIT[n] = { ...f }; });
   for (const n of ART2_SPRITES) one(n);
   // v346 여협 도포 — 남자 도포 스물두 장과 같은 무늬·빛깔을 여성 체형(좁은 어깨·잘록한 허리)으로 다시 그린 것
@@ -439,6 +444,8 @@ export const mergeGen = () => mGen;   // 한 장 그림이 새로 올 때마다 
 const HAIR_HEX = { black: null, brown: '#6b4226', white: '#e5e7eb', red: '#7f1d1d', blue: '#1e3a5f' };
 // 그 머리 그림에 맞는 한 장 그림 열쇠 — 여협 머리 빛깔은 흑발 그림 하나를 물들여 쓴다
 function mergeBase(bk, hk) {
+  // v359 그 빛깔로 직접 그린 한 장(긴 생머리·말총)이 있으면 그것 — 물들이지 않는다
+  if (MERGE_BOX[`${bk}--${hk}`]) return { key: `${bk}--${hk}`, hair: null };
   let hair = null, base = hk;
   const m = /^(fh-[a-z]+)-(black|brown|white|red|blue)$/.exec(hk);
   if (m) { base = `${m[1]}-black`; hair = m[2] === 'black' ? null : m[2]; }
@@ -555,4 +562,13 @@ export function putMergedEdge(ctx, m, color, w, alpha = 1) {
 export function putMergedTint(ctx, m, color, alpha) {
   const s = mSilhouette(m.cv, color), [x0, y0, x1, y1] = m.box;
   ctx.save(); ctx.globalAlpha *= alpha; ctx.drawImage(s, x0, y0, x1 - x0, y1 - y0); ctx.restore();
+}
+// v359 미리 받기 — 이 모습의 한 장 그림을 받아 둔다(꾸미기 창에서 고를 만한 조합을 미리 · 처음 고를 때 옛 조각이 깜빡이지 않게)
+export function preloadLook(look) {
+  try {
+    const hk = headKey(look);
+    const bk = look.robeTint ? (look.female ? 'f-body-white' : 'body-white') : bodyKey(look);
+    const mb = mergeBase(bk, hk);
+    if (mb) mLoad(mb.key);
+  } catch { /* 미리 받기는 덤 */ }
 }

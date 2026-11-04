@@ -138,8 +138,12 @@ export const towerLv = (f) => Math.min(150, 2 + Math.round(f * 1.24));
 export const towerPow = () => 1;
 // 수문장 체력: 같은 레벨 무인이 16초 칠 만큼(피하느라 못 치는 시간을 셈해 넉넉히), 십이지신은 1.6배
 export const TOWER_HIT_SEC = 20;   // v154: 16→20 — 기준표를 다시 잰 뒤 피하는 무인이 목표 층보다 열 층쯤 더 올랐다
-export const towerHp = (f) => Math.round(Math.max(mobHp(towerLv(f)) * BOSS.hp, refDps(towerLv(f)) * TOWER_HIT_SEC) * (isZodiacFloor(f) ? 1.6 : 1) * (f > TOWER_MAX ? CORRIDOR_HP_UP ** (f - TOWER_MAX) : 1));
-export const towerAtk = (f) => mobAtk(towerLv(f)) * BOSS.atk * 0.6;   // 붙어 치는 건 약하게 — 무서운 건 바닥 경고
+// v359 보통 탑(회랑 포함)을 열 배 세게 — 체력 ×10 · 붙어 치기 ×2. 극은 따로 정한 세기(아래 towerHpBase × 22) 그대로
+export const TOWER_HP_K = 10, TOWER_ATK_K = 2;
+export const towerHp = (f) => towerHpBase(f) * TOWER_HP_K;
+export const towerHpBase = (f) => Math.round(Math.max(mobHp(towerLv(f)) * BOSS.hp, refDps(towerLv(f)) * TOWER_HIT_SEC) * (isZodiacFloor(f) ? 1.6 : 1) * (f > TOWER_MAX ? CORRIDOR_HP_UP ** (f - TOWER_MAX) : 1));
+export const towerAtkBase = (f) => mobAtk(towerLv(f)) * BOSS.atk * 0.6;
+export const towerAtk = (f) => towerAtkBase(f) * TOWER_ATK_K;   // 붙어 치는 건 약하게 — 무서운 건 바닥 경고
 
 // 십이지신 — 자축인묘진사오미신유술해. mount: 그 신수 탈것(wdata MOUNTS의 z1~z12), pat: 고유 초식
 export const ZODIAC = [
@@ -219,15 +223,15 @@ export function towerMap(f) {
 //   극의 층마다 공격력·체력 +0.4% 영구(60층 +24%).
 export const HARD_OPEN = 60;
 export const HARD_MAX = 60;
-export const HARD_BONUS = 0.004;
+export const HARD_BONUS = 0.008;   // v359 열 배 어려워진 만큼 0.4% → 0.8% (60층 +48%)
 export const hardBonus = (h) => Math.min(HARD_MAX, h || 0) * HARD_BONUS;
 export const hardF = (h) => Math.min(TOWER_MAX, HARD_OPEN + h);   // 같은 세기의 보통 층
 export const isHardBossFloor = (h) => h % 10 === 0;
 export const hardSec = (h) => (isHardBossFloor(h) ? 60 : 40);
 export const hardLv = (h) => Math.min(150, towerLv(hardF(h)) + 4);
-export const HARD_HP_K = 22;   // v357 극을 열 배 어렵게(2.2 → 22)
-export const hardHp = (h) => Math.round(towerHp(hardF(h)) * HARD_HP_K * (isHardBossFloor(h) ? 1.5 : 1) * (1 + h * 0.012));
-export const hardAtk = (h) => towerAtk(hardF(h)) * 3;   // v357 붙어 치는 것도 아프게(1.3 → 3)
+export const HARD_HP_K = 220;   // v357 극을 열 배(2.2 → 22) · v359 백 배(→ 220)
+export const hardHp = (h) => Math.round(towerHpBase(hardF(h)) * HARD_HP_K * (isHardBossFloor(h) ? 1.5 : 1) * (1 + h * 0.012));
+export const hardAtk = (h) => towerAtkBase(hardF(h)) * 6;   // v359 붙어 치기 1.3 → 3 → 6   // v357 붙어 치는 것도 아프게(1.3 → 3)
 export const hardDelay = (h) => tellDelay(hardF(h)) * 0.82;
 export const hardGap = (h) => castGap(hardF(h)) * 0.75 * (isHardBossFloor(h) ? 0.9 : 1);
 export const HARD_DMG = 1.25;
@@ -248,11 +252,12 @@ export function hardBoss(h) {
 }
 export function hardReward(h) {
   const lv = hardLv(h);
-  const out = { gold: Math.round(mobGold(lv) * 80), petShard: TOWER_SHARDS * 2, mountShard: TOWER_SHARDS * 3 };
+  // v359 보상 크게(은자 스물다섯 배 · 조각 두 배 · 신수 층 재료 두 배)
+  const out = { gold: Math.round(mobGold(lv) * 2000), petShard: TOWER_SHARDS * 4, mountShard: TOWER_SHARDS * 6 };
   if (isHardBossFloor(h)) {
     const z = zoneForLv(lv);
-    out.gold += Math.round(mobGold(lv) * 600); out.mountShard *= 4; out.petShard *= 4;
-    out.mats = { [z]: 300, [`b${z}`]: 10 };
+    out.gold += Math.round(mobGold(lv) * 15000); out.mountShard *= 4; out.petShard *= 4;
+    out.mats = { [z]: 600, [`b${z}`]: 20 };
   }
   return out;
 }

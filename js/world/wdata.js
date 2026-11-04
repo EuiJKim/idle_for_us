@@ -917,6 +917,8 @@ export const TITLES = {
   lv150: { id: 'lv150', name: '천하제일', desc: '공격력 +5% · 때릴 때마다 〈天〉', how: '레벨 150', atkMul: 1.05, hitFx: '天', col: '#fde68a' },
   quest: { id: 'quest', name: '길잡이 졸업', desc: '공격력 +2%', how: '길잡이를 끝까지', atkMul: 1.02, col: '#86efac' },
   tower50: { id: 'tower50', name: '탑의 주인', desc: '공격력 +3%', how: '무한의 탑 50층', atkMul: 1.03, col: '#93c5fd' },
+  hard30: { id: 'hard30', name: '극의 도전자', desc: '공격력 +4%', how: '무한의 탑 · 극 30층', atkMul: 1.04, col: '#f59e0b' },
+  hard60: { id: 'hard60', name: '극을 넘은 자', desc: '공격력 +8% · 때릴 때마다 〈極〉', how: '무한의 탑 · 극 60층(끝)', atkMul: 1.08, hitFx: '極', col: '#fbbf24' },
   tower120: { id: 'tower120', name: '탑을 넘은 자', desc: '공격력 +6% · 때릴 때마다 〈塔〉', how: '무한의 탑 120층(끝)', atkMul: 1.06, hitFx: '塔', col: '#60a5fa' },
   kings: { id: 'kings', name: '십이지 제압', desc: '공격력 +6% · 때릴 때마다 〈王〉', how: '십이지왕 열둘을 모두 잡기', atkMul: 1.06, hitFx: '王', col: '#fbbf24' },
   cheonma: { id: 'cheonma', name: '천마를 꺾은 자', desc: '공격력 +5% · 때릴 때마다 〈魔〉', how: '천마 비무 승리', atkMul: 1.05, hitFx: '魔', col: '#c084fc' },
@@ -1155,12 +1157,12 @@ for (const m of MOUNTS) m.speed = +(m.speed * MOUNT_SPEED_K).toFixed(3);
 // v350 극(極)의 신수 — 무한의 탑 하드 모드 10층마다 그 층을 지키는 신수(처음 깨면 꼭). 이동은 +100%로 고정(길들여도 그대로),
 //   대신 공격력·체력이 크게 오른다. 합성·떨굼 없음. fx: 탈 때 둘레에 이는 기운(battle.js drawMountAura)
 export const HARD_MOUNTS = [
-  { id: 'h1', name: '염화주작', emoji: '🔥', stat: 0.27, fx: 'flame', col: '#f97316', desc: '불꽃 깃이 흩날리는 남방의 신조' },
-  { id: 'h2', name: '빙백설린', emoji: '❄️', stat: 0.31, fx: 'frost', col: '#7dd3fc', desc: '서리꽃을 밟고 달리는 얼음 기린' },
-  { id: 'h3', name: '뇌령기린', emoji: '⚡', stat: 0.35, fx: 'thunder', col: '#c084fc', desc: '발굽마다 벼락이 튀는 천둥 기린' },
-  { id: 'h4', name: '야천흑표', emoji: '🌑', stat: 0.39, fx: 'void', col: '#a855f7', desc: '그림자 불꽃을 두른 밤하늘의 표범' },
-  { id: 'h5', name: '창해교룡', emoji: '🌊', stat: 0.44, fx: 'tide', col: '#22d3ee', desc: '물결 비늘로 허공을 헤엄치는 교룡' },
-  { id: 'h6', name: '혼원금룡', emoji: '🐲', stat: 0.5, fx: 'gold', col: '#fbbf24', desc: '금빛 법륜을 이고 하늘을 가르는 태초의 용' },
+  { id: 'h1', name: '염화주작', emoji: '🔥', stat: 0.27, fx: 'flame', col: '#f97316', desc: '불꽃 깃이 흩날리는 남방의 신조', sp: '불길 — 1초마다 둘레 적에게 공격력 35% 불 피해' },
+  { id: 'h2', name: '빙백설린', emoji: '❄️', stat: 0.31, fx: 'frost', col: '#7dd3fc', desc: '서리꽃을 밟고 달리는 얼음 기린', sp: '서리 — 둘레 적이 느려진다(이동·공격 둔화)' },
+  { id: 'h3', name: '뇌령기린', emoji: '⚡', stat: 0.35, fx: 'thunder', col: '#c084fc', desc: '발굽마다 벼락이 튀는 천둥 기린', sp: '벼락 — 2.2초마다 가장 센 적에게 공격력 220% 벼락' },
+  { id: 'h4', name: '야천흑표', emoji: '🌑', stat: 0.39, fx: 'void', col: '#a855f7', desc: '그림자 불꽃을 두른 밤하늘의 표범', sp: '그림자 — 회피 +8%' },
+  { id: 'h5', name: '창해교룡', emoji: '🌊', stat: 0.44, fx: 'tide', col: '#22d3ee', desc: '물결 비늘로 허공을 헤엄치는 교룡', sp: '물결 — 1초마다 최대 체력 1.5% 회복' },
+  { id: 'h6', name: '혼원금룡', emoji: '🐲', stat: 0.5, fx: 'gold', col: '#fbbf24', desc: '금빛 법륜을 이고 하늘을 가르는 태초의 용', sp: '법륜 — 두목 피해 +10% · 은자 +15%' },
 ];
 for (const [i, m] of HARD_MOUNTS.entries()) MOUNTS.push({ ...m, tier: 14, hard: i + 1, speed: 1, fixedSpeed: true });
 // 어느 탈것이 더 좋은가(새로 얻으면 갈아탈지) — 이동과 공격·체력을 함께 본다

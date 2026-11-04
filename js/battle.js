@@ -997,6 +997,14 @@ export class BattleView {
       case '_fx':
         for (const f of ev.fx || []) this.effects.push({ ...f });
         break;
+      case 'mountFx': {   // v359 극의 신수 전용 효과
+        if (!ev.at || this.fxLevel <= 0) break;
+        if (ev.fx === 'flame') this.effects.push({ kind: 'flare', life: 0.45, max: 0.45, wx: ev.at.x, wy: ev.at.y, r: 120, col: '249,115,22' });
+        else if (ev.fx === 'thunder') { skyBolt(this, ev.at, '216,180,254', 6, 260); this.effects.push({ kind: 'shock', life: 0.45, max: 0.45, wx: ev.at.x, wy: ev.at.y, r: 90, col: '253,224,71', rings: 2, w: 3 }); }
+        else if (ev.fx === 'frost') this.effects.push({ kind: 'shock', life: 0.6, max: 0.6, wx: ev.at.x, wy: ev.at.y, r: 170, col: '186,230,253', rings: 1, w: 2 });
+        else if (ev.fx === 'tide') this.effects.push({ kind: 'flare', life: 0.4, max: 0.4, wx: ev.at.x, wy: ev.at.y, r: 60, col: '34,211,238' });
+        break;
+      }
       case 'petHit': {
         // 애완동물의 한 대 — 과녁 쪽으로 튀어 나가고(drawHeroUnit), 맞은 자리에 짧은 빛
         if (!ev.at) break;
@@ -4570,6 +4578,7 @@ export function drawFighter(ctx, x, y, look = {}, o = {}) {
   // v358 두목 옷(흰 도포에 그 빛깔)도 한 장 그림으로 — 전엔 이때만 옛 조각이라 머리·몸 테두리가 따로 둘러 깨져 보였다
   const mBody = look.robeTint ? (look.female ? 'f-body-white' : 'body-white') : bodyKey(look);
   const MG = hk0 && !o.noMerge ? mergedArt(mBody, hk0, look.band, tintHead0, look.robeTint || null) : null;
+  if (hk0 && !o.noMerge) { if (MG) DRAW_STAT.merged++; else { DRAW_STAT.parts++; DRAW_STAT.last = `${mBody}--${hk0}`; } }
   if (hk0 && !MG) { const F0 = (HEAD_FIT[hk0]?.fit) || FIT.head; drawHeadArt(ctx, hk0, { ...F0, y: F0.y + neckDy }, look, HEAD_SPLIT + neckDy, 99); }
   // 상체 — 그림 조각이 있으면 도포·상체·허리띠를 한 장으로 갈음한다
   const artBody = artReady() && !jiang && !look.ghost;
@@ -4803,6 +4812,8 @@ function femaleHeadKey(style, hairK, band) {
   }
   return key;
 }
+// v359 모습 점검(tests/looks.cjs) — 무인을 한 장 그림으로 그렸나, 옛 조각으로 그렸나
+export const DRAW_STAT = { merged: 0, parts: 0, last: '' };
 const HEAD_SPLIT = FIT.head.y - 2;   // v327 이 선 아래 머리 그림은 몸 뒤로
 // v355 도구용 — 조각(머리 뒤쪽 · 도포 · 머리 앞쪽)만 이어 그린다(팔·다리·무기 없이). tools/charv355가 이걸 sunburst에 한 장으로 다시 그리게 넘긴다
 export function drawBodyHeadParts(ctx, look) {

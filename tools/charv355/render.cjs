@@ -11,6 +11,8 @@ fs.mkdirSync(OUT, { recursive: true });
   await p.route(/fonts\.(googleapis|gstatic)\.com|gstatic\.com\/firebasejs/, (r) => r.abort());
   await p.goto('http://127.0.0.1:8123/', { waitUntil: 'domcontentloaded' });
   await p.waitForSelector('.char-card', { timeout: 20000 });
+  if (process.env.FONLY) await p.evaluate(() => { window.__FONLY = true; });
+  if (process.env.HONLY) await p.evaluate((h) => { window.__HONLY = h; }, process.env.HONLY);
   const res = await p.evaluate(async () => {
     const A = await import('/js/art.js');
     await new Promise((r) => { if (A.artReady()) r(); else A.loadArt(r); });
@@ -18,11 +20,12 @@ fs.mkdirSync(OUT, { recursive: true });
     await new Promise((r) => setTimeout(r, 4000));
     const { drawBodyHeadParts } = await import('/js/battle.js');
     const ROBES = ['black', 'blue', 'brown', 'dark', 'red', 'white', 'o0', 'o1', 'o2', 'o3', 'o4', 'o5', 'r0', 'r1', 'r2', 'r3', 'r4', 'r5', 'r6', 'r7', 'r8', 'r9'];
-    const MHEAD = [['head', {}], ['head-topknot', { head: 'topknot' }], ['head-bald', { head: 'bald' }], ['head-hood', { head: 'hood' }], ['head-band', { head: 'band' }]];
+    const MHEAD = [['head', {}], ['head-topknot', { head: 'topknot' }], ['head-bald', { head: 'bald' }], ['head-hood', { head: 'hood' }], ['head-band', { head: 'band' }], ['head-hat', { head: 'hat' }]];
     const FHEAD = ['long', 'bun', 'pony', 'twin', 'short'].map((s) => [`fh-${s}-black`, { female: true, fstyle: s, fhead: `fh-${s}-black` }]).concat([['fh-hood', { female: true, head: 'hood', fstyle: 'long' }]]);
     const out = {};
     const S = 8, OX = 512, OY = 984;
-    for (const fem of [false, true]) for (const r of ROBES) for (const [hk, lk] of (fem ? FHEAD : MHEAD)) {
+    for (const fem of (window.__FONLY ? [true] : window.__HONLY ? [false] : [false, true])) for (const r of ROBES) for (const [hk, lk] of (fem ? FHEAD : MHEAD)) {
+      if (window.__HONLY && hk !== window.__HONLY) continue;
       A.OUTFIT_BODY[0] = `body-${r}`;
       const look = { outfitBody: 0, ...lk };
       const c = document.createElement('canvas'); c.width = 1024; c.height = 1024;
