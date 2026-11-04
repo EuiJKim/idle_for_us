@@ -197,8 +197,11 @@ async function tab(page, name) {
   assert(await G(p, () => !window.__game.map.town && window.__game.canAdvance()), '사냥터에서도 전직할 수 있다');
   if (await p.isVisible('#panel-close')) { await p.click('#panel-close'); await sleep(250); }
   await p.click('#tabs button[data-tab="town"]');
+  await p.waitForSelector('#town-go', { timeout: 5000 });
+  assert(await G(p, () => !window.__game.map.town), '마을 단추 → 먼저 묻는다 (v338)');
+  await p.click('#town-go');
   await sleep(300);
-  assert(await G(p, () => window.__game.map.town), '마을 단추를 누르면 바로 마을로 (v333)');
+  assert(await G(p, () => window.__game.map.town), '마을로 가기를 누르면 마을로');
   await sleep(4500);
   assert(await G(p, () => window.__game.map.town), '스스로 간 마을에서는 머문다');
   await tab(p, 'town');

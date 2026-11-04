@@ -64,7 +64,7 @@ const ok = (c, m) => { if (!c) fails++; console.log(c ? '  ✓' : '  ✗', m); }
     const s0 = await page.evaluate(() => window.__game.mons.length);
     await page.keyboard.press('h'); await page.waitForTimeout(500);
     ok(await page.evaluate(() => !window.__game.map.town), 'H 사냥');
-    await page.keyboard.press('t'); await page.waitForTimeout(500);
+    await page.keyboard.press('t'); await page.waitForTimeout(400); if (await page.isVisible('#town-go')) await page.click('#town-go'); await page.waitForTimeout(400);
     ok(await page.evaluate(() => window.__game.map.town), 'T 마을');
     await page.keyboard.press('m'); await page.waitForTimeout(400);
     ok(await page.evaluate(() => document.getElementById('panel').classList.contains('open')), 'M 지도');

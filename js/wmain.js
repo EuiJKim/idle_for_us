@@ -729,9 +729,19 @@ function goHuntNow() {
 //   던전·탑 안에서는 나가면 그 판이 끝나므로 전처럼 창만 연다.
 function goTownNow() {
   if (game.map.town || game.inst) { showTab('town'); return; }
-  if (!game.goTown(false)) { showTab('town'); return; }
-  closePanel(); save(); refreshUI(true);
-  toast('🏠 마을로 왔어요 — 사람을 누르거나 마을 단추를 한 번 더 누르면 마을 창');
+  // v338 바로 가지 않고 한 번 묻는다(사냥 중 잘못 눌러 끊기지 않게) — 마을 창만 열어 볼 수도 있다
+  if (modalOpen()) return;
+  openModal((m) => m.append(h('h2', {}, '🏠 마을로 갈까요?'),
+    h('p', { class: 'muted' }, `지금 사냥터(${game.map.name || ''})를 떠나 마을로 가요. 사냥은 '사냥' 단추로 다시 이어 할 수 있어요.`),
+    h('div', { class: 'btn-row', style: 'margin-top:10px' },
+      h('button', { class: 'btn', id: 'town-cancel', onclick: () => closeModal() }, '그만두기'),
+      h('button', { class: 'btn', id: 'town-panel', onclick: () => { closeModal(); showTab('town'); } }, '마을 창만 보기'),
+      h('button', { class: 'btn primary', id: 'town-go', onclick: () => {
+        closeModal();
+        if (!game.goTown(false)) { showTab('town'); return; }
+        closePanel(); save(); refreshUI(true);
+        toast('🏠 마을로 왔어요 — 사람을 누르거나 마을 단추를 한 번 더 누르면 마을 창');
+      } }, '마을로 가기'))));
 }
 document.querySelectorAll('#tabs button[data-tab]').forEach((b) => b.addEventListener('click', () => {
   if (b.dataset.tab === 'hunt') { goHuntNow(); return; }
