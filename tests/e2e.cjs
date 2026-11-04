@@ -33,8 +33,11 @@ async function newPlayer(browser, name, cls = '검사') {
   });
   await page.goto(BASE + (PKG ? '?emu=1' : ''), { waitUntil: 'domcontentloaded' });
   // v266 로딩 → (온라인이면) 로그인 화면 — 손님으로 들어간다
-  await page.waitForSelector('#modal input, #login-guest', { timeout: 20000 });
+  await page.waitForSelector('#modal input, #login-guest, .char-card', { timeout: 20000 });
   if (await page.isVisible('#login-guest')) await page.click('#login-guest');
+  // v328 캐릭터 고르기 — 처음이면 빈 칸(새 무인 만들기)
+  await page.waitForSelector('#modal input, .char-card', { timeout: 10000 });
+  if (await page.isVisible('.char-card.empty')) await page.click('.char-card.empty >> nth=0');
   await page.fill('#modal input', name);
   await page.click('#modal .btn.primary');
   await page.waitForSelector('.class-card');
@@ -248,6 +251,10 @@ async function tab(page, name) {
   assert(await G(p, () => window.__game.s.kills) > k0, '방치 보상을 받는다');
   await G(p, () => window.__save());
   await p.reload({ waitUntil: 'domcontentloaded' });
+  // v328 켜면 무인 고르기 — 지금 무인을 누르면 이어 한다
+  await p.waitForSelector('.char-card.act', { timeout: 15000 });
+  assert(await p.$$eval('.char-card', (e) => e.length) === 4 && await p.isVisible('#trial-open'), '켜면 무인 고르기 창 — 네 칸 + 체험 모드 (v328)');
+  await p.click('.char-card.act');
   await sleep(1500);
   const re = await G(p, () => ({ job: window.__game.s.job, tier: window.__game.s.jobTier, lv: window.__game.s.level, plus: window.__game.s.equip.weapon?.plus }));
   assert(re.job === 'sword' && re.tier === 1 && re.lv >= 15 && re.plus >= 1, '새로 고침 후 캐릭터·전직·레벨·강화 유지');
@@ -295,6 +302,53 @@ async function tab(page, name) {
     await sleep(1500);
     assert(await G(p, () => window.__game.s.level) === lv0, '코드로 되살리면 그때 레벨로');
     assert(await G(p, () => !!localStorage.getItem('ifu.world.v1.beforeCode') || Object.keys(localStorage).some((k) => k.endsWith('.beforeCode'))), '되살리기 전 진행은 따로 남는다');
+  }
+
+  console.log('# 무인 넷까지 · 체험 모드 (v328)');
+  {
+    if (await p.isVisible('#modal .btn.primary')) await p.click('#modal .btn.primary');
+    const first = await G(p, () => ({ n: window.__game.s.nickname, lv: window.__game.s.level }));
+    await G(p, () => window.__save());
+    // 둘째 무인 만들기 — 빈 칸을 누르면 새로 열리고 이름·직업을 묻는다
+    await G(p, () => { window.__test_charSelect(); });
+    await p.waitForSelector('.char-card.empty');
+    await Promise.all([p.waitForNavigation({ waitUntil: 'domcontentloaded' }), p.click('.char-card.empty >> nth=0')]);
+    await p.waitForSelector('#modal input', { timeout: 15000 });
+    await p.fill('#modal input', '둘째무인');
+    await p.click('#modal .btn.primary');
+    await p.waitForSelector('.class-card');
+    await p.click('.class-card >> nth=1');
+    await p.waitForSelector('#modal .cust-go', { timeout: 5000 });
+    await p.click('#modal .cust-go');
+    await G(p, () => { window.__game.attend(); window.__save(); });
+    assert(await G(p, () => window.__game.s.nickname === '둘째무인' && window.__game.s.level === 1), '빈 칸으로 둘째 무인을 새로 만든다');
+    // 첫째로 돌아가기 — 레벨 그대로
+    await G(p, () => { window.__test_charSelect(); });
+    await p.waitForSelector('.char-card:not(.act):not(.empty)');
+    assert(await p.$$eval('.char-card:not(.empty)', (e) => e.length) === 2, '무인 고르기에 둘이 보인다');
+    await shot(p, '07d-chars.png');
+    await Promise.all([p.waitForNavigation({ waitUntil: 'domcontentloaded' }), p.click('.char-card:not(.act):not(.empty)')]);
+    await sleep(2000);
+    const back = await G(p, () => ({ n: window.__game.s.nickname, lv: window.__game.s.level }));
+    assert(back.n === first.n && back.lv === first.lv, `첫째 무인으로 돌아오면 그대로 (${back.n} Lv ${back.lv})`);
+    // 체험 모드 — 저장되지 않고, 끝내면 고르기로
+    await G(p, () => { window.__test_charSelect(); });
+    await p.waitForSelector('#trial-open');
+    await p.click('#trial-open');
+    await p.waitForSelector('#modal .class-card');
+    await Promise.all([p.waitForNavigation({ waitUntil: 'domcontentloaded' }), p.click('#modal .class-card >> nth=0')]);
+    await p.waitForSelector('#trial-bar', { timeout: 15000 });
+    const before = await G(p, () => localStorage.getItem('ifu-world-v1'));
+    const tr = await G(p, () => ({ lv: window.__game.s.level, tier: window.__game.s.jobTier, mt: !!window.__game.mountNow() }));
+    assert(tr.lv === 80 && tr.tier === 3 && tr.mt, '체험 모드 — Lv 80 · 3차 · 탈것');
+    await sleep(6000);
+    assert(await G(p, () => localStorage.getItem('ifu-world-v1')) === before, '체험 모드는 저장하지 않는다');
+    await shot(p, '07e-trial.png');
+    await Promise.all([p.waitForNavigation({ waitUntil: 'domcontentloaded' }), p.click('#trial-bar .btn')]);
+    await p.waitForSelector('.char-card.act', { timeout: 15000 });
+    await p.click('.char-card.act');
+    await sleep(800);
+    assert(await G(p, () => window.__game.s.nickname) === first.n, '체험을 끝내면 고르기로 — 내 무인 그대로');
   }
 
   console.log('# 설정');

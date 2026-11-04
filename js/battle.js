@@ -3,7 +3,7 @@ import { drawObstacle, drawLowObstacle } from './obstacles.js';
 import { zoneOf, RANKS, GRADES, FIELD_SQUASH, JOB_TRAITS, QI, jobOf, critTierName } from './data.js';
 import { artReady, putArt, putArtBand, putArtEdge, putArtTint, loadArt, FIT, ART_SHOULDER, ART_BAND, headKey, bodyKey, weaponKey, artHeight, hasBodyArt, putWeapon, weaponBare, putHat, hatRect, headGeom, headMasked, bodyColors, hasArt, HEAD_FIT, registerArt, artImg } from './art.js';
 import { drawFemaleHead, drawBackHair, FHEAD_W, FHEAD_H, FHEAD_FIT } from './femhead.js';
-import { drawCreature, saddleY, mountTilt, mountGait } from './creatures.js';
+import { drawCreature, saddleY, mountTilt, mountGait, CREATURES } from './creatures.js';
 import { ZONES_W, itemZone, weaponSkinOf, CUSTOM_HAIRS } from './world/wdata.js';
 import { setOf } from './world/wgear.js';
 import { THEMES as IMP_THEMES } from './world/wimprint.js';
@@ -1308,9 +1308,9 @@ export class BattleView {
     ctx.beginPath(); ctx.ellipse(x, y + 2, 27, 11, 0, 0, Math.PI * 2); ctx.stroke();
     let fy = y;
     const ride = o.mt || null;
-    if (ride) { drawCreature(ctx, ride, x, y, { t: this.t, moving: !!o.moving, flip: o.f < 0, layer: 'back' }); fy = y + saddleY(ride, this.t, !!o.moving); }
-    drawFighter(ctx, x, fy, look, { ...op, run: ride ? false : op.run });
-    if (ride) drawCreature(ctx, ride, x, y, { t: this.t, moving: !!o.moving, flip: o.f < 0, layer: 'front' });
+    if (ride) { drawRideRing(ctx, x, y, look, this.t, 1.1); drawCreature(ctx, ride, x, y, { t: this.t, moving: !!o.moving, flip: o.f < 0, layer: 'back' }); fy = y + saddleY(ride, this.t, !!o.moving) + RIDE_DROP; }
+    drawFighter(ctx, x, fy, look, { ...op, run: ride ? false : op.run, ride: !!ride });
+    if (ride) { drawCreature(ctx, ride, x, y, { t: this.t, moving: !!o.moving, flip: o.f < 0, layer: 'front' }); drawRiderLeg(ctx, x, fy, look, { t: this.t, moving: !!o.moving, flip: o.f < 0, kind: ride }); }
     // 이름표 · 체력
     const ty = fy - 104;
     ctx.font = `800 12px system-ui, sans-serif`;
@@ -2605,8 +2605,9 @@ export class BattleView {
       riderBob = moving ? -Math.abs(Math.sin(this.t * mountGait(mt.id) - 0.7)) * 1.6 + 0.8 : 0;
       this.ctx.save();
       if (rideLean) { this.ctx.translate(x, y); this.ctx.rotate(rideLean); this.ctx.translate(-x, -y); }
+      drawRideRing(this.ctx, x, y, look, this.t, 1.1);
       drawCreature(this.ctx, mt.id, x, y, { ...rideOpt, layer: 'back' });
-      fy = y + saddleY(mt.id, this.t, moving) + riderBob;
+      fy = y + saddleY(mt.id, this.t, moving) + riderBob + RIDE_DROP;
     } else this._rideMoving = undefined;
     if (downRot) {
       this.ctx.save();
@@ -2617,12 +2618,19 @@ export class BattleView {
     } else if (ride) {
       this.ctx.save();
       if (riderTilt) { this.ctx.translate(x, y); this.ctx.rotate(riderTilt); this.ctx.translate(-x, -y); }
-      drawFighter(this.ctx, x, fy, look, { ...opts, run: false, turn: null });
+      drawFighter(this.ctx, x, fy, look, { ...opts, run: false, turn: null, ride: true });
       this.ctx.restore();
     } else drawFighter(this.ctx, x, fy, look, opts);
     // v261: 필살 중에는 연출 층 위에 무인을 한 번 더 얹는다(아래 drawEffects 뒤) — 극악소마의 붉은 층에 무인이 묻혔다
     this._heroTop = !downRot && !ride ? { x, y: fy, look, opts } : null;
-    if (ride) { drawCreature(this.ctx, mt.id, x, y, { ...rideOpt, layer: 'front' }); this.ctx.restore(); }
+    if (ride) {
+      drawCreature(this.ctx, mt.id, x, y, { ...rideOpt, layer: 'front' });
+      this.ctx.save();
+      if (riderTilt) { this.ctx.translate(x, y); this.ctx.rotate(riderTilt); this.ctx.translate(-x, -y); }
+      drawRiderLeg(this.ctx, x, fy, look, { t: this.t, moving, flip: !!opts.flip, kind: mt.id });
+      this.ctx.restore();
+      this.ctx.restore();
+    }
     if (this.fxLevel > 0) this.buffAura(game, x, y, true);
     // 데려간 영수들이 뒤를 따른다 (예전엔 s.pet 한 마리만 그렸는데, 영수가 여럿이 된 뒤로
     // 그 값이 늘 비어 있어서 아무것도 안 그려졌다)
@@ -4335,11 +4343,16 @@ export function drawFighter(ctx, x, y, look = {}, o = {}) {
   // turn(-1~1): 돌아서는 중 — 몸이 납작해졌다가 반대로 펴진다 (v160). 없으면 flip대로 곧장.
   if (o.turn != null) ctx.scale(o.turn, 1);
   else if (o.flip) ctx.scale(-1, 1);
+  if (o.ride) {
+    // v328 탄 무인 — 발밑 문양·그림자는 탈것 아래 땅에(호출부), 허리 아래는 탈것 몸 속이라 그리지 않는다(다리는 drawRiderLeg가 탈것 옆구리에)
+    ctx.beginPath(); ctx.rect(-90, -400, 180, 400 + RIDE_CUT); ctx.clip();
+  } else {
   // v325 발밑 문양(기믹) — 그림자 아래 땅에 납작하게 돈다
   if (look.gRing) drawFootRing(ctx, look.gRing, t);
   // 그림자
   ctx.fillStyle = 'rgba(0,0,0,0.28)';
   ctx.beginPath(); ctx.ellipse(0, 2, 24, 6, 0, 0, Math.PI * 2); ctx.fill();
+  }
   // v325 여협 — 어깨·몸을 조금 가늘게
   if (look.female) ctx.scale(0.92, 0.985);
   // 자세(pose.js). 그림자는 땅에 두고 몸만 기울이고 띄운다.
@@ -4543,9 +4556,10 @@ export function drawFighter(ctx, x, y, look = {}, o = {}) {
   const hk = artReady() && !jiang ? headKey(look) : null;   // v323 복면도 그림(두건)
   // v280 띠가 그려진 머리(상투·머리띠)는 띠를 무인이 고른 색으로
   const HF = (hk && HEAD_FIT[hk]?.fit) || FIT.head;   // v325 그림마다 놓는 자리(여협 머리)
-  const tintHead = look.bandTint && (hk === 'head-topknot' || hk === 'head-band' || (hk?.startsWith('fh-') && !hk.endsWith('-red')));
+  const tintHead = look.bandTint && (hk === 'head-topknot' || hk === 'head-band' || (hk?.startsWith('fh-') && !hk.endsWith('-red') && hk !== 'fh-hood'));
   // v327 삿갓을 쓰면 챙 위로 삐져나온 머리카락(상투·쪽·꽁지)은 갓 속에 — 머리 그림을 챙 조금 위에서 자른다
-  const hatR = look.hat === 'straw' && hk && hk !== 'head-hat' && hk !== 'head-hood' ? hatRect('hat-straw', hk, HF) : null;
+  const isHood = hk === 'head-hood' || hk === 'fh-hood';
+  const hatR = look.hat === 'straw' && hk && hk !== 'head-hat' && !isHood ? hatRect('hat-straw', hk, HF) : null;
   const headTop = hatR ? hatR.brim - hatR.h * 0.16 : -999;
   const backDone = hk && hk === hk0 && !look.ghost;
   if (hk && (backDone ? drawHeadArt(ctx, hk, HF, look, headTop, HEAD_SPLIT, tintHead) : hatR ? drawHeadArt(ctx, hk, HF, look, headTop, 99, tintHead) : (tintHead ? putArtBand(ctx, hk, HF, look.band) : putArt(ctx, hk, HF)))) {
@@ -4568,7 +4582,7 @@ export function drawFighter(ctx, x, y, look = {}, o = {}) {
   }
   }
   // v306 안대 — 눈 자리를 가로지르는 띠, 뒤통수 쪽에 매듭 꼬리 둘
-  if (look.blind && look.head !== 'mask' && !jiang) {
+  if (look.blind && look.head !== 'mask' && !isHood && !jiang) {
     const g = hk ? headGeom(hk, HF) : null;
     if (g) drawBlindArt(ctx, hk, g, look.blind, t);
     else {
@@ -4590,7 +4604,7 @@ export function drawFighter(ctx, x, y, look = {}, o = {}) {
   // v323 쓰개 덧씌우기 — 삿갓을 어느 머리(맨머리·상투·민머리 + 안대)에나 얹는다
   if (hatR) putHat(ctx, 'hat-straw', hk, HF);
   // v325 얼굴 덧그림 — 외눈 안대 · 면사 · 칼자국 (그림, 눈 자리에)
-  if (look.faceAcc && hk && !jiang) drawFaceAcc(ctx, look.faceAcc, hk, HF, t);
+  if (look.faceAcc && hk && !isHood && !jiang) drawFaceAcc(ctx, look.faceAcc, hk, HF, t);
   if (look.crown) drawCrown(ctx, t);
   if (look.beard && !artReady()) {
     ctx.fillStyle = look.hair === '#e5e7eb' || look.hair === '#f1f5f9' ? '#e5e7eb' : '#1c1917';
@@ -4728,7 +4742,7 @@ const HEAD_SPLIT = FIT.head.y - 2;   // v327 이 선 아래 머리 그림은 몸
 function drawHeadArt(ctx, hk, HF, look, top, bot, tint) {
   ctx.save();
   ctx.beginPath(); ctx.rect(HF.x - HF.w * 1.5, top, HF.w * 3, bot - top); ctx.clip();
-  const ok = tint ?? (look.bandTint && (hk === 'head-topknot' || hk === 'head-band' || (hk.startsWith('fh-') && !hk.endsWith('-red'))))
+  const ok = tint ?? (look.bandTint && (hk === 'head-topknot' || hk === 'head-band' || (hk.startsWith('fh-') && !hk.endsWith('-red') && hk !== 'fh-hood')))
     ? putArtBand(ctx, hk, HF, look.band) : putArt(ctx, hk, HF);
   ctx.restore();
   return ok;
@@ -4867,6 +4881,56 @@ function drawHandArt(ctx, x, y, k = 1) {
   ctx.restore();
 }
 // 다리·신발 — 바지는 도포 그늘빛, 장화는 고른 빛깔(기본 진갈색)
+// v328 탈것에 앉은 모습 — 전엔 선 무인을 안장 위에 통째로 세워 도포 자락이 안장에 네모로 잘렸고 발밑 문양·그림자가 탈것 배에 떠 있었다.
+//   이제 무인을 RIDE_DROP만큼 내려 엉덩이를 안장에 앉히고, 허리 아래(RIDE_CUT)는 탈것 몸이 가린다.
+//   가까운 쪽 다리(허벅지는 앞으로, 정강이는 옆구리를 따라 아래로)와 도포 앞자락은 탈것 앞 겹 위에 그린다.
+export const RIDE_DROP = 22;
+const RIDE_CUT = -16;
+export function drawRiderLeg(ctx, x, y, look = {}, o = {}) {
+  if (!artReady() || look.jiangshi || look.ghost) return;
+  const C = bodyColors(look.robeTint ? 'body-white' : bodyKey(look), look.robeTint);
+  if (!C) return;
+  const boot = look.boot || '#2a1f18', t = o.t || 0;
+  const sw = o.moving ? Math.sin(t * 9) * 1.6 : 0;
+  ctx.save();
+  ctx.translate(x, y);
+  if (o.flip) ctx.scale(-1, 1);
+  if (look.female) ctx.scale(0.92, 1);
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  // 용·뱀처럼 몸이 얇은 탈것은 다리를 접어 무릎 꿇듯 앉는다(배 아래로 늘어지지 않게)
+  const thin = CREATURES[o.kind]?.type === 'dragon';
+  const hip = [3, -38], knee = [14, -31 + sw * 0.3], ank = thin ? [8 + sw * 0.5, -25] : [11 + sw, -15];
+  for (const [w, col] of [[10.6, LINE], [8, C.dark]]) {
+    ctx.strokeStyle = col; ctx.lineWidth = w;
+    ctx.beginPath(); ctx.moveTo(...hip); ctx.lineTo(...knee); ctx.lineTo(...ank); ctx.stroke();
+  }
+  ctx.strokeStyle = hexA(C.main, 0.3); ctx.lineWidth = 2.2;
+  ctx.beginPath(); ctx.moveTo(hip[0], hip[1] - 3); ctx.lineTo(knee[0], knee[1] - 3); ctx.stroke();
+  // 장화 — 발끝이 앞으로
+  const [fx, fy] = ank;
+  const bg = ctx.createLinearGradient(0, fy - 6, 0, fy + 1);
+  bg.addColorStop(0, shade(boot, 0.3)); bg.addColorStop(1, shade(boot, -0.25));
+  ctx.fillStyle = bg; ctx.strokeStyle = LINE; ctx.lineWidth = 1.3;
+  ctx.beginPath(); ctx.moveTo(fx - 5, fy - 7); ctx.lineTo(fx + 4, fy - 7); ctx.quadraticCurveTo(fx + 10, fy - 4, fx + 9, fy);
+  ctx.quadraticCurveTo(fx + 2, fy + 2, fx - 5, fy + 1); ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.strokeStyle = shade(boot, 0.25); ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(fx - 5, fy - 8); ctx.lineTo(fx + 4, fy - 8); ctx.stroke();
+  // 도포 앞자락 — 허리에서 허벅지 위로 짧게 덮인다(바람에 조금 날린다)
+  const fl = o.moving ? Math.sin(t * 7) * 1.5 : Math.sin(t * 2) * 0.5;
+  const g = ctx.createLinearGradient(0, -44, 0, -27);
+  g.addColorStop(0, C.main); g.addColorStop(1, C.dark);
+  ctx.fillStyle = g; ctx.strokeStyle = LINE; ctx.lineWidth = 1.1;
+  ctx.beginPath(); ctx.moveTo(-5, -44); ctx.lineTo(7, -44);
+  ctx.quadraticCurveTo(14, -39, 17 + fl, -30); ctx.quadraticCurveTo(9, -26.5, 0, -28); ctx.quadraticCurveTo(-5, -34, -5, -44);
+  ctx.closePath(); ctx.fill(); ctx.stroke();
+  if (look.band) { ctx.strokeStyle = hexA(look.band, 0.8); ctx.lineWidth = 1.4; ctx.beginPath(); ctx.moveTo(17 + fl, -30); ctx.quadraticCurveTo(9, -26.5, 0, -28); ctx.stroke(); }
+  ctx.restore();
+}
+// 탈것 아래 땅의 발밑 문양 — 탈것 길이에 맞춰 넓힌다
+export function drawRideRing(ctx, x, y, look, t, k = 1) {
+  if (!look?.gRing) return;
+  ctx.save(); ctx.translate(x, y); ctx.scale(k, k); drawFootRing(ctx, look.gRing, t); ctx.restore();
+}
 function drawLegsArt(ctx, swing, C, boot, flash) {
   const pantsC = flash > 0 ? mix(C.dark, '#ffffff', 0.4 * flash) : C.dark;
   ctx.lineCap = 'round';

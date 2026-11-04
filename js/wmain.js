@@ -88,6 +88,7 @@ import { sfx, unlockAudio, setSound, soundOn } from './sfx.js';
 import * as AM from './appmode.js';
 import { bootStart, bootProgress, bootHide, waitFor, showLogin, loginPref, setLoginPref, standalone, inAppBrowser } from './boot.js';
 import { artReady } from './art.js';
+import * as CH from './chars.js';   // v328 캐릭터 칸(넷까지) · 체험 모드
 loadIcons();
 for (const b of document.querySelectorAll('#tabs button[data-tab]')) skinImg(b.querySelector('i'), `tab-${b.dataset.tab}`);
 
@@ -116,11 +117,34 @@ function loadSave() {
   saveNote = '세이브가 망가져 새로 시작했어요 — 망가진 세이브는 따로 보관해 두었어요';
   return null;
 }
-const saved = loadSave();
+// v328 체험 모드 — 이번 탭만, 다 키운 무인으로 맛보기(저장·서버 없음)
+const TRIAL_JOB = CH.trialJob();
+const saved = TRIAL_JOB ? null : loadSave();
 const bootSeen = Number(saved?.lastSeen) || 0;   // v265 이 기기에서 마지막으로 저장한 때(서버 진행과 견줄 때 보여 준다)
 const game = new WorldGame(saved || newWorldSave());
+if (TRIAL_JOB) setupTrial(game, TRIAL_JOB);
+function setupTrial(g, job) {
+  if (!W.CLASSES[job]) job = Object.keys(W.CLASSES)[0];
+  const L = 80;
+  g.s.nickname = '체험 무인';
+  g.setJob(job);
+  g.s.level = L;
+  g.s.statPts = (L - 1) * W.STAT_PER_LEVEL;
+  g.s.autoStat = true;
+  g.autoStats();
+  g.s.jobTier = 3;
+  g.s.gold = 3e6;
+  g.s.potions = 300;
+  for (const k of Object.keys(g.s.skillLv)) g.s.skillLv[k] = 10;
+  g.s.quest = QUEST_COUNT;   // 길잡이는 건너뛴다(창이 다 열린다)
+  g.syncGrow();
+  g.gainMount('warhorse');
+  g.s.huntMap = g.fitMap();
+  g._stats = null;
+  g.heroHp = g.stats().hp;
+}
 // 옛 판에서 온 사람 — 칭호와 시작 은자 (한 번만)
-if (!saved) {
+if (!saved && !TRIAL_JOB) {
   let old = null;
   try { old = localStorage.getItem(OLD_SAVE_KEY); } catch { /* 사생활 모드 */ }
   if (old) {
@@ -194,7 +218,7 @@ $('btn-party').addEventListener('click', () => {
 net.coopForget = (gid) => coop.forget(gid);
 window.__coop = coop;
 
-let stopSaving = false;
+let stopSaving = !!TRIAL_JOB;   // 체험 모드는 저장하지 않는다
 let lastBak = 0;
 let saveFailNoted = false;
 function save() {
@@ -236,7 +260,7 @@ function showTabLost() {
   openModal((s) => {
     s.append(h('h2', {}, '다른 창에서 이어 하고 있어요'),
       h('p', { class: 'muted' }, '같은 캐릭터를 두 창에서 하면 서로 덮어써 진행이 사라질 수 있어 이 창은 멈췄어요.'),
-      h('button', { class: 'btn primary', style: 'width:100%', onclick: () => location.reload() }, '이 창에서 이어 하기'));
+      h('button', { class: 'btn primary', style: 'width:100%', onclick: () => { CH.setSkip(); location.reload(); } }, '이 창에서 이어 하기'));
   }, { dismissable: false });
 }
 claimTab();
@@ -269,7 +293,7 @@ async function cloudPush(force) {
   cloudBusy = true;
   cloudLast = Date.now();
   try {
-    const at = await net.pushSave(JSON.stringify(game.toJSON()), DEV_ID, BUILD);
+    const at = await net.pushSave(JSON.stringify(game.toJSON()), DEV_ID, BUILD, CH.readIndex().act);
     if (at) setCloudSyncedAt(at);
     return !!at;
   } catch (err) {
@@ -282,6 +306,15 @@ async function cloudCheck() {
   cloudChecking = true;
   try {
     const c = await net.fetchSave();
+    // v328 서버의 '지금 캐릭터'가 이 기기에서 하는 캐릭터와 다른 칸이면 다툼이 아니다 — 그 칸으로 받아 두고(서버 칸에도 올려 둔 뒤) 이 캐릭터를 올린다
+    const cs = Number.isInteger(c?.slot) ? c.slot : 0;
+    if (c?.data && c.dev !== DEV_ID && cs !== CH.readIndex().act) {
+      CH.storeSlot(cs, c.data);
+      try { await net.pushChar(cs, c.data); } catch (err) { console.warn('[cloud] keep char', err?.code || err); }
+      cloudOk = true;
+      cloudPush(true);
+      return;
+    }
     if (c?.data && c.dev !== DEV_ID && (Number(c.at) || 0) > cloudSyncedAt()) { askCloud(c); return; }
     cloudOk = true;
     cloudPush(true);
@@ -296,7 +329,9 @@ function loadCloud(c) {
   try { JSON.parse(c.data); } catch { toast('서버 세이브가 망가져 있어 불러오지 않았어요'); return false; }
   try {
     localStorage.setItem(`${W.SAVE_KEY}.beforeCloud`, JSON.stringify(game.toJSON()));
+    if (Number.isInteger(c.slot)) CH.adoptSlot(c.slot, game.s.nickname ? JSON.stringify(game.toJSON()) : null);   // v328 다른 칸이면 지금 캐릭터는 제 칸에
     localStorage.setItem(W.SAVE_KEY, c.data);
+    CH.setSkip();
     setCloudSyncedAt(Number(c.at) || Date.now());
   } catch { toast('⚠ 기기 저장 공간이 모자라 불러오지 못했어요'); return false; }
   stopSaving = true;
@@ -409,7 +444,7 @@ async function switchAndLoad(r) {
   cloudOk = true;
   await cloudPush(true);
   stopSaving = true;
-  location.reload();
+  CH.setSkip(); location.reload();
 }
 async function loginGoogle(testCred) {
   if (linking) return;
@@ -470,8 +505,128 @@ async function logout() {
   try { await net.signOut(); } catch (err) { console.warn('[logout]', err); }
   location.reload();
 }
+// ---------- v328 캐릭터 고르기(넷까지) · 체험 모드 ----------
+// 캐릭터 그림 — 세이브를 잠깐 게임으로 만들어 지금 모습(꾸미기·도포·무기)을 그린다
+function charLook(json) {
+  try { const g = json === game ? game : new WorldGame(JSON.parse(json)); return view.heroLook(g, false); } catch { return null; }
+}
+function charSelect(boot) {
+  return new Promise((resolve) => {
+    const idx = CH.syncActive(game.s);
+    const cloud = {};   // 칸 → 서버 것(이 기기 것보다 새것일 때)
+    let done = false, busy = false;
+    const finish = () => { if (done) return; done = true; closeModal(); resolve(); };
+    const curJSON = () => (game.s.nickname || game.s.job ? JSON.stringify(game.toJSON()) : null);
+    const google = () => !!(net.isGoogle?.() && net.ready?.());
+    const go = async (slot, json) => {
+      if (busy) return;
+      busy = true;
+      save();
+      const cur = curJSON();
+      // Google이면 지금 캐릭터를 서버 칸에도 올려 둔다(다른 기기에서 고를 수 있게)
+      if (cur && google()) { try { await net.pushChar(idx.act, cur); } catch (err) { console.warn('[chars] push', err?.code || err); } }
+      if (!CH.switchTo(slot, cur, json)) { busy = false; toast('⚠ 기기 저장 공간이 모자라 바꾸지 못했어요'); return; }
+      stopSaving = true;
+      location.reload();
+    };
+    const grid = h('div', { class: 'char-grid' });
+    const paint = () => {
+      grid.innerHTML = '';
+      for (let i = 0; i < CH.MAX_CHARS; i++) {
+        const isAct = i === idx.act && !!(game.s.nickname || game.s.job);
+        const cl = cloud[i];
+        const e = isAct ? CH.summarize(game.s, i) : cl ? { slot: i, n: cl.n, lv: cl.lv, job: cl.job } : idx.list.find((x) => x.slot === i);
+        if (!e) {
+          grid.append(h('button', { class: 'char-card empty', onclick: () => {
+            if (!curJSON()) { finish(); return; }   // 아직 아무도 없다 — 이 판으로 새로 만든다
+            go(i, null);
+          } }, h('div', { class: 'cc-plus' }, '＋'), h('b', {}, '새 무인 만들기'), h('small', {}, `${i + 1}번 칸`)));
+          continue;
+        }
+        const cv = h('canvas', { width: 130, height: 132 });
+        const json = isAct ? game : cl ? cl.data : CH.slotJSON(i);
+        const L = json ? charLook(json) : null;
+        if (L) {
+          const c = cv.getContext('2d');
+          c.setTransform(1.05, 0, 0, 1.05, 0, 0);
+          try { drawFighter(c, 58, 120, L.look, { ...L.opts, t: 0.4 + i }); } catch { /* 그림이 덜 왔다 */ }
+        }
+        const job = e.job ? (W.CLASSES[e.job]?.name || jobOf(e.job)?.name || e.job) : '직업 고르기 전';
+        const del = !isAct ? h('button', { class: 'cc-del', title: '지우기', onclick: async (ev) => {
+          ev.stopPropagation();
+          const nm = prompt(`'${e.n || '이름 없음'}'(Lv ${e.lv})을(를) 지우면 되돌릴 수 없어요.\n지우려면 이름을 그대로 적어 주세요.`);
+          if (nm == null) return;
+          if (nm.trim() !== (e.n || '')) { toast('이름이 달라 지우지 않았어요'); return; }
+          CH.removeChar(i);
+          idx.list = idx.list.filter((x) => x.slot !== i);
+          delete cloud[i];
+          if (google()) { try { await net.deleteChar(i); } catch (err) { console.warn('[chars] delete', err?.code || err); } }
+          toast(`${e.n || '그 무인'}을(를) 지웠어요`);
+          paint();
+        } }, '✕') : '';
+        grid.append(h('button', { class: `char-card${isAct ? ' act' : ''}`, onclick: () => {
+          if (isAct) { finish(); return; }
+          const data = cl ? cl.data : CH.slotJSON(i);
+          if (!data) { toast('그 캐릭터의 세이브를 찾지 못했어요'); return; }
+          go(i, data);
+        } }, del, cv, h('b', {}, e.n || '이름 없음'), h('small', {}, `Lv ${e.lv} · ${job}`),
+          h('span', { class: 'cc-go' }, isAct ? (boot ? '▶ 이어 하기' : '지금 하는 무인') : cl ? '☁ 접속(서버)' : '▶ 접속')));
+      }
+    };
+    openModal((m) => {
+      m.append(h('h2', {}, '무인 고르기'),
+        h('p', { class: 'muted' }, `한 계정에 무인을 ${CH.MAX_CHARS}명까지 키울 수 있어요. 문파·서열·우편은 계정 하나로 묶여 지금 고른 무인으로 보여요.`),
+        grid,
+        h('button', { class: 'btn', id: 'trial-open', style: 'width:100%;margin-top:10px', onclick: () => { done = true; trialPick(() => charSelect(boot).then(resolve)); } }, '🎮 체험 모드 — 다 키운 무인(Lv 80·3차)으로 맛보기 · 저장 안 됨'),
+        boot ? '' : h('button', { class: 'btn', style: 'width:100%;margin-top:6px', onclick: finish }, '닫기'));
+      paint();
+      if (google()) net.fetchChars().then((list) => {
+        for (const c of list) {
+          if (c.slot === idx.act) continue;
+          const loc = idx.list.find((x) => x.slot === c.slot);
+          if (!loc || (Number(c.at) || 0) > (Number(loc.at) || 0) + 1000) cloud[c.slot] = c;
+        }
+        if (!done) paint();
+      }).catch((err) => console.warn('[chars] fetch', err?.code || err));
+    }, { dismissable: !boot, onClose: () => { if (!done) { done = true; resolve(); } } });
+  });
+}
+function trialPick(back) {
+  let left = false;
+  openModal((m) => {
+    const grid = h('div', { class: 'class-grid' });
+    for (const j of JOBS) {
+      grid.append(h('button', { class: 'class-card', style: `border-color:${j.color}`, onclick: () => {
+        save();
+        stopSaving = true;
+        CH.startTrial(j.id);
+        location.reload();
+      } }, h('div', { class: 'cc-txt' }, h('b', { style: `color:${j.color}` }, j.name), h('small', {}, `${j.weapon}${j.range ? ' · 멀리서' : ''}`), h('span', { class: 'desc' }, W.CLASSES[j.id].trait))));
+    }
+    m.append(h('h2', {}, '🎮 체험 모드'),
+      h('p', { class: 'muted' }, 'Lv 80 · 3차 전직 · 흑풍마를 탄 무인으로 이번 창에서만 놀아 봐요. 아무것도 저장되지 않고, 끝내면 내 캐릭터로 돌아가요.'),
+      grid,
+      h('button', { class: 'btn', style: 'width:100%;margin-top:10px', onclick: () => { left = true; back?.(); } }, '← 돌아가기'));
+  }, { dismissable: false, onClose: () => { if (!left) { left = true; back?.(); } } });
+}
+function trialStart() {
+  document.body.classList.add('in-trial');
+  const nb = $('net-badge'); if (nb) nb.textContent = '체험 모드';
+  document.body.append(h('div', { id: 'trial-bar' }, h('span', {}, '🎮 체험 중 · 저장 안 됨'),
+    h('button', { class: 'btn', onclick: () => { CH.endTrial(); location.reload(); } }, '끝내기')));
+  setTimeout(() => toast('체험 모드예요 — 무공·창을 마음껏 눌러 보세요. 끝내면 내 캐릭터 고르기로 돌아가요'), 500);
+}
+window.__test_charSelect = () => charSelect(false);
 function accountRows() {
   const rows = [];
+  if (TRIAL_JOB) {
+    rows.push(h('div', { class: 'row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, '체험 모드'), h('div', { class: 'desc' }, '저장되지 않아요 — 끝내면 내 캐릭터 고르기로 돌아가요')),
+      h('button', { class: 'btn primary', style: 'padding:6px 12px', onclick: () => { CH.endTrial(); location.reload(); } }, '끝내기')));
+    return rows;
+  }
+  rows.push(h('div', { class: 'row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, '무인 바꾸기'),
+    h('div', { class: 'desc' }, `한 계정에 ${CH.MAX_CHARS}명까지 · 지금 ${CH.readIndex().list.length}명`)),
+    h('button', { class: 'btn primary', id: 'btn-chars', style: 'padding:6px 12px', onclick: () => { closeModal(); charSelect(false); } }, '고르기')));
   if (net.isGoogle?.()) {
     const t = cloudSyncedAt();
     rows.push(h('div', { class: 'row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, `Google 계정 · ${net.googleEmail()}`),
@@ -725,7 +880,7 @@ function askSaveCode() {
           localStorage.setItem(W.SAVE_KEY, JSON.stringify(obj));
         } catch { msg.style.color = '#fca5a5'; msg.textContent = '기기 저장 공간이 모자라 바꾸지 못했어요'; return; }
         stopSaving = true;
-        location.reload();
+        CH.setSkip(); location.reload();
       } }, '되살리기'))));
 }
 // v320 출석부 — 그날 처음 들어오면 한 번 띄운다(닫으면 받는다)
@@ -1843,7 +1998,7 @@ $('btn-settings').addEventListener('click', () => openModal((s) => {
         const next = RM.RENDER_MODES[(RM.RENDER_MODES.indexOf(RM.renderPref()) + 1) % RM.RENDER_MODES.length];
         try { localStorage.setItem('ifu.render', next); localStorage.removeItem('ifu.renderAuto'); } catch { /* 이번만 */ }
         save();
-        location.reload();
+        CH.setSkip(); location.reload();
       };
       return h('div', {},
         h('div', { class: 'row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, '그리기 방식'), h('div', { class: 'desc' }, '어떤 폰은 GPU가 이 게임 그림에 느려요 — CPU로 그리면 빨라질 수 있어요. 누르면 다시 읽어요')), rb),
@@ -2077,7 +2232,7 @@ function perfTick(ms) {
     if (!st && perf.slow >= 3 && perf.ema > 26 && (perf.q !== 'auto' || perf.step >= 2)) {
       try { localStorage.setItem('ifu.renderGpuMs', String(perf.ema)); localStorage.setItem('ifu.renderAuto', 'cpu'); } catch { /* 못 하면 그만 */ }
       save();
-      location.reload();
+      CH.setSkip(); location.reload();
       return;
     }
     if (st === 'cpu' && RM.useCpu && perf.age === 20) {
@@ -2085,7 +2240,7 @@ function perfTick(ms) {
       if (gpu && perf.ema > gpu * 0.85) {
         try { localStorage.setItem('ifu.renderAuto', 'gpu'); } catch { /* 없음 */ }
         save();
-        location.reload();
+        CH.setSkip(); location.reload();
         return;
       }
       if (gpu) toast(`그리기를 CPU로 바꿨어요 — ${(1000 / gpu).toFixed(0)} → ${(1000 / perf.ema).toFixed(0)}fps`);
@@ -2388,7 +2543,7 @@ if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.
   navigator.serviceWorker.addEventListener('controllerchange', () => {
     if (swReloaded) return;
     swReloaded = true;
-    if (performance.now() < 5000 && !modalOpen()) { save(); stopSaving = true; location.reload(); } else showUpdate(null);
+    if (performance.now() < 5000 && !modalOpen()) { save(); stopSaving = true; CH.setSkip(); location.reload(); } else showUpdate(null);
   });
 }
 checkBuild();
@@ -2402,8 +2557,8 @@ refreshUI(true);
 paintTabLocks();   // v263
 requestAnimationFrame((t) => { last = t; frame(t); });
 // v266 방치 보상은 지금 셈해 둔다(로딩·로그인이 길어도 5초 저장이 돌아온 때를 덮지 않게) — 창은 로딩이 끝난 뒤
-if (game.s.nickname && game.s.job) checkReturn();
-net.init();
+if (game.s.nickname && game.s.job && !TRIAL_JOB) checkReturn();
+if (!TRIAL_JOB) net.init();
 startBoot();
 async function startBoot() {
   const t0 = performance.now();
@@ -2412,14 +2567,18 @@ async function startBoot() {
     bootProgress(0.55, '무인을 그리는 중…');
     await waitFor(() => artReady(), 2500);
     bootProgress(0.75, '강호와 잇는 중…');
-    await waitFor(() => net.status !== 'connecting', 7000);
+    if (!TRIAL_JOB) await waitFor(() => net.status !== 'connecting', 7000);
     bootProgress(1, net.online ? (net.isGoogle?.() ? `${net.googleEmail() || 'Google'} 계정으로 들어가는 중…` : '준비됐어요') : '오프라인으로 시작해요');
     await new Promise((r) => setTimeout(r, Math.max(200, 650 - (performance.now() - t0))));
-    if (needLogin()) await loginScreen();
+    if (!TRIAL_JOB && needLogin()) await loginScreen();
   } catch (err) { console.warn('[boot]', err); }
-  booting = false;
   loginUI = null;
   bootHide();
+  if (TRIAL_JOB) { booting = false; trialStart(); return; }
+  // v328 캐릭터 고르기 — 로그인 뒤 늘(방금 바꾸거나 새로 만들어 다시 연 때만 건너뛴다)
+  CH.syncActive(game.s);
+  if (!CH.takeSkip()) await charSelect(true);
+  booting = false;
   if (!game.s.nickname) askNickname(true);
   else if (!game.s.job) askClass();
   else showPendingOffline();

@@ -231,8 +231,9 @@ export function artImg(key) { return img[key] || null; }
 // v325 캔버스로 그린 조각(여협 머리)을 그림 조각처럼 쓴다 — putArt·artHeight·HEAD_FIT이 그대로 통한다
 export function registerArt(key, canvas, fit) { img[key] = canvas; if (fit) HEAD_FIT[key] = fit; }
 export function headKey(look) {
-  if (look?.fhead && img[look.fhead]) return look.fhead;   // v325 여협 머리
   const h = look?.head;
+  if (look?.female && (h === 'hood' || h === 'mask') && img['fh-hood']) return 'fh-hood';   // v328 여협 복면(sunburst)
+  if (look?.fhead && img[look.fhead]) return look.fhead;   // v325 여협 머리
   if (h === 'mask') return 'head-hood';   // v323 복면 — 전엔 벡터 머리가 그림 몸 위에 떠 있었다. 두건 그림(입을 가린 복면)으로
   return HEADS.includes(h) ? `head-${h}` : 'head';
 }

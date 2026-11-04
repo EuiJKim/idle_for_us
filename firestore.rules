@@ -22,7 +22,7 @@ service cloud.firestore {
     // v309 규칙 판 표 — 앱이 rulesv/{판}을 읽어 본다. 지금 판만 읽히고 옛 판은 거부된다(없는 문서라 읽혀도 비어 있다).
     //   규칙을 고치면 여기 숫자와 js/net.js의 RULES_VER를 같이 올린다 → 게시를 잊으면 운영자에게 '다시 게시' 알림.
     match /rulesv/{v} {
-      allow get: if signedIn() && v == '321';
+      allow get: if signedIn() && v == '328';
     }
 
     // 플레이어 프로필: 누구나 읽기(랭킹·구경), 본인만 쓰기
@@ -62,13 +62,25 @@ service cloud.firestore {
     match /saves/{uid} {
       allow read: if signedIn() && request.auth.uid == uid;
       allow create, update: if signedIn() && request.auth.uid == uid
-        && request.resource.data.keys().hasOnly(['data', 'at', 'dev', 'lv', 'build'])
+        && request.resource.data.keys().hasOnly(['data', 'at', 'dev', 'lv', 'build', 'slot'])
+        && (!('slot' in request.resource.data) || (request.resource.data.slot is int && request.resource.data.slot >= 0 && request.resource.data.slot <= 3))
         && request.resource.data.data is string
         && request.resource.data.data.size() <= 900000
         && request.resource.data.at is int
         && request.resource.data.dev is string && request.resource.data.dev.size() <= 32
         && request.resource.data.lv is int
         && request.resource.data.build is string && request.resource.data.build.size() <= 32;
+      // v328 쉬는 캐릭터(칸 0~3) — 본인만 읽고 쓰고 지운다
+      match /chars/{slot} {
+        allow read, delete: if signedIn() && request.auth.uid == uid;
+        allow create, update: if signedIn() && request.auth.uid == uid
+          && slot in ['0', '1', '2', '3']
+          && request.resource.data.keys().hasOnly(['data', 'at', 'lv', 'n', 'job'])
+          && request.resource.data.data is string && request.resource.data.data.size() <= 900000
+          && request.resource.data.at is int && request.resource.data.lv is int
+          && request.resource.data.n is string && request.resource.data.n.size() <= 16
+          && request.resource.data.job is string && request.resource.data.job.size() <= 16;
+      }
     }
 
     // 광고 제거 — **플레이어는 못 쓴다.** 자기 것만 읽을 수 있다.

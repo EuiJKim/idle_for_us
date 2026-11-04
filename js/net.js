@@ -2,7 +2,7 @@
 // SDK를 동적으로 불러오므로 실패해도 혼자 하기는 그대로 동작한다.
 import { firebaseConfig, FIREBASE_SDK_VERSION, ADMIN_UID } from './firebase-config.js';
 // v309 이 앱이 바라는 규칙 판 — firestore.rules의 rulesv 숫자와 같아야 한다(규칙을 고치면 둘 다 올린다)
-export const RULES_VER = '321';
+export const RULES_VER = '328';
 export const WORLD_MAX = 100;   // v315 전체 채팅 한 마디 길이
 import { big } from './big.js';
 import { Big } from './big.js';
@@ -174,14 +174,35 @@ export class Net {
       throw err;
     }
   }
+  // v328 쉬는 캐릭터(칸 0~3) — saves/{uid}/chars/{칸}. 지금 하는 캐릭터는 saves/{uid} 그대로
+  async fetchChars() {
+    if (!this.online || this.blocked || !this.uid) return [];
+    const snap = await this.fs.getDocs(this.fs.collection(this.db, 'saves', this.uid, 'chars'));
+    return snap.docs.map((d) => ({ slot: Number(d.id), ...d.data() })).filter((c) => Number.isInteger(c.slot) && c.slot >= 0 && c.slot < 4 && typeof c.data === 'string');
+  }
+  async pushChar(slot, json) {
+    if (!this.online || this.blocked || !this.uid || !(slot >= 0 && slot < 4)) return false;
+    let o = {};
+    try { o = JSON.parse(json); } catch { return false; }
+    const at = Date.now();
+    await this.fs.setDoc(this.ref('saves', this.uid, 'chars', String(slot)), {
+      data: json, at, lv: Math.floor(Number(o.level) || 0), n: String(o.nickname || '').slice(0, 16), job: String(o.job || '').slice(0, 16),
+    });
+    return at;
+  }
+  async deleteChar(slot) {
+    if (!this.online || this.blocked || !this.uid) return false;
+    await this.fs.deleteDoc(this.ref('saves', this.uid, 'chars', String(slot)));
+    return true;
+  }
   // 인증은 됐다(로그인 가능) — Firestore가 막혀 '끊김'인 것과 가른다
   authed() { return !!(this.authM && this.auth?.currentUser); }
-  async pushSave(json, dev, build) {
+  async pushSave(json, dev, build, slot = 0) {
     if (!this.online || this.blocked || !this.uid) return false;
     const at = Date.now();
     try {
       await this.fs.setDoc(this.ref('saves', this.uid), {
-        data: json, at, dev: String(dev || ''), lv: Math.floor(Number(this.game.s.level) || 0), build: String(build || ''),
+        data: json, at, dev: String(dev || ''), lv: Math.floor(Number(this.game.s.level) || 0), build: String(build || ''), slot: Math.max(0, Math.min(3, slot | 0)),
       });
     } catch (err) {
       if (err?.code === 'permission-denied') this.savesDenied = true;

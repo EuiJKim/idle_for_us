@@ -2265,3 +2265,19 @@ body.has-keys [data-hk]::after {
 }
 /* v326 컴퓨터 — 9px 글자(무공 칸 아래 글·창 단추 이름·지역 날씨)를 조금 키운다 */
 body.has-keys .skill-btn .lock, body.has-keys #tabs button span, body.has-keys .zone-env small { font-size: 10.5px; }
+/* v328 캐릭터 고르기 · 체험 모드 */
+.char-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.char-card { position: relative; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 6px 10px; border-radius: 12px;
+  border: 1.5px solid rgba(253, 230, 138, 0.25); background: linear-gradient(180deg, rgba(41, 37, 36, 0.92), rgba(28, 25, 23, 0.95)); color: #f5f5f4; cursor: pointer; min-height: 196px; }
+.char-card.act { border-color: #fbbf24; box-shadow: 0 0 0 1px rgba(251, 191, 36, 0.35), 0 0 14px rgba(251, 191, 36, 0.18); }
+.char-card canvas { width: 104px; height: 106px; }
+.char-card b { font-size: 15px; }
+.char-card small { color: #d6d3d1; font-size: 12.5px; }
+.char-card .cc-go { margin-top: 4px; font-size: 12.5px; font-weight: 800; color: #fde68a; }
+.char-card.empty { justify-content: center; border-style: dashed; color: #d6d3d1; }
+.char-card .cc-plus { font-size: 34px; line-height: 1; color: #fde68a; margin-bottom: 4px; }
+.char-card .cc-del { position: absolute; top: 4px; right: 4px; width: 26px; height: 26px; border-radius: 50%; border: 1px solid rgba(248, 113, 113, 0.5);
+  background: rgba(127, 29, 29, 0.55); color: #fecaca; font-size: 13px; line-height: 1; padding: 0; cursor: pointer; }
+#trial-bar { position: fixed; left: 50%; top: calc(142px + env(safe-area-inset-top, 0px)); transform: translateX(-50%); z-index: 60; display: flex; align-items: center; gap: 8px;
+  padding: 4px 6px 4px 12px; border-radius: 999px; background: rgba(30, 27, 75, 0.88); border: 1px solid #a5b4fc; color: #e0e7ff; font-size: 13px; font-weight: 700; white-space: nowrap; }
+#trial-bar .btn { padding: 4px 10px; font-size: 12.5px; }

@@ -33,6 +33,13 @@ m_cx = FIT_HEAD['x'] - FIT_HEAD['w'] / 2 + ((ml + mr) / 2) / PX
 print('male skin', (ml, mt, mr, mb), 'skinH units %.1f' % m_skinH)
 
 heads, weapons, sprites = {}, {}, []
+# v328 여협 복면(두건) — 살빛이 눈가뿐이라 얼굴 상자로 못 맞춘다. 남자 두건(head-hood)과 같은 턱 선, 높이 97%로 (tools/charv326/gen/fh-hood.png)
+_hood = '../charv326/gen/fh-hood.png'
+if os.path.exists(_hood):
+    _m = Image.open('../../art/hero/head-hood.png'); _f = trim(Image.open(_hood).convert('RGBA'))
+    _h = 25 * _m.height / _m.width * 0.97; _w = _f.width * _h / _f.height
+    _f.resize((round(_w * PX * 1.5), round(_h * PX * 1.5)), Image.LANCZOS).save(f'{OUT}/fh-hood.png', optimize=True)
+    heads['fh-hood'] = {'w': round(_w, 2), 'x': round(13.5 - _w / 2 - 0.5, 2), 'y': round(FIT_HEAD['y'], 2), 'eye': 0.55, 'eyeX': 0.75, 'brow': 0.4}
 for f in sorted(glob.glob(f'{G}/fh-*.png')):
     name = os.path.basename(f)[:-4]
     im = trim(Image.open(f).convert('RGBA'))

@@ -160,6 +160,15 @@ const profile = (extra = {}) => ({ world: 1, nickname: '무인', level: 10, job:
   ok(await allowed(F.setDoc(boss.ref('saves', boss.uid), { data: '{}', at: Date.now(), dev: 'd', lv: 1, build: 'b' })), '내 세이브는 올린다');
   ok(await denied(F.getDoc(bad.ref('saves', boss.uid))), '남의 세이브 읽기 거부');
   ok(await denied(F.setDoc(bad.ref('saves', boss.uid), { data: '{}', at: 1, dev: 'd', lv: 1, build: 'b' })), '남의 세이브 덮기 거부');
+  // v328 캐릭터 칸
+  ok(await allowed(F.setDoc(boss.ref('saves', boss.uid), { data: '{}', at: Date.now(), dev: 'd', lv: 1, build: 'b', slot: 2 })), '세이브에 칸 번호(0~3)');
+  ok(await denied(F.setDoc(boss.ref('saves', boss.uid), { data: '{}', at: Date.now(), dev: 'd', lv: 1, build: 'b', slot: 7 })), '칸 번호 4 이상 거부');
+  ok(await allowed(F.setDoc(boss.ref('saves', boss.uid, 'chars', '1'), { data: '{}', at: Date.now(), lv: 3, n: '둘째', job: 'sword' })), '쉬는 캐릭터 올리기');
+  ok(await allowed(F.getDocs(F.collection(boss.db, 'saves', boss.uid, 'chars'))), '내 캐릭터 목록 읽기');
+  ok(await denied(F.setDoc(boss.ref('saves', boss.uid, 'chars', '4'), { data: '{}', at: Date.now(), lv: 3, n: 'x', job: 'sword' })), '칸 4 거부');
+  ok(await denied(F.getDocs(F.collection(bad.db, 'saves', boss.uid, 'chars'))), '남의 캐릭터 목록 거부');
+  ok(await denied(F.setDoc(bad.ref('saves', boss.uid, 'chars', '1'), { data: '{}', at: Date.now(), lv: 3, n: 'x', job: 'sword' })), '남의 캐릭터 덮기 거부');
+  ok(await allowed(F.deleteDoc(boss.ref('saves', boss.uid, 'chars', '1'))), '내 쉬는 캐릭터 지우기');
 
   console.log('# 문파');
   const gid = 'TEST01';

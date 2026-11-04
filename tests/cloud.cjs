@@ -26,6 +26,7 @@ async function newPlayer(browser, name) {
   await o.page.waitForSelector('#login-guest', { timeout: 20000 });
   assert(await o.page.isVisible('#login-google'), '로그인 화면(Google · 손님)');
   await o.page.click('#login-guest');
+  await pass(o.page);
   await o.page.fill('#modal input', name); await o.page.click('#modal .btn.primary');
   await o.page.waitForSelector('.class-card'); await o.page.click('.class-card:has-text("검사")'); await o.page.waitForSelector('#modal .cust-go'); await o.page.click('#modal .cust-go');
   await o.page.waitForFunction(() => document.querySelector('#net-badge')?.textContent.includes('온라인'), null, { timeout: 20000 });
@@ -33,6 +34,12 @@ async function newPlayer(browser, name) {
   return o;
 }
 const C = (p) => p.evaluate(() => window.__test_cloud());
+// v328 켜면 무인 고르기 — 지금 무인(없으면 빈 칸)을 누르고 들어간다
+async function pass(p) {
+  try { await p.waitForSelector('.char-card', { timeout: 8000 }); } catch { return; }
+  if (await p.isVisible('.char-card.act')) await p.click('.char-card.act'); else await p.click('.char-card.empty >> nth=0');
+  await sleep(300);
+}
 (async () => {
   await fetch('http://127.0.0.1:8080/emulator/v1/projects/idle-69772/databases/(default)/documents', { method: 'DELETE' });
   await fetch('http://127.0.0.1:9099/emulator/v1/projects/idle-69772/accounts', { method: 'DELETE' });
@@ -53,7 +60,7 @@ const C = (p) => p.evaluate(() => window.__test_cloud());
   await A.page.evaluate(() => { window.__game.s.level = 30; window.__save(); });
   assert(await A.page.evaluate(() => window.__test_cloudPush()), '레벨 30으로 다시 올림');
   // 새로 고침해도 Google 그대로(새 익명 안 만듦)
-  await A.page.reload(); await A.page.waitForFunction(() => document.querySelector('#net-badge')?.textContent.includes('온라인'), null, { timeout: 20000 }); await sleep(1500);
+  await A.page.reload(); await pass(A.page); await A.page.waitForFunction(() => document.querySelector('#net-badge')?.textContent.includes('온라인'), null, { timeout: 20000 }); await sleep(1500);
   let a2 = await C(A.page); assert(a2.google && a2.uid === a0.uid, '새로 고침 후에도 Google 계정 그대로');
   assert(!(await A.page.isVisible('#login-google')) && !(await A.page.isVisible('#boot-login')), 'Google로 들어온 뒤엔 로그인 화면이 다시 안 뜸');
   assert(!(await A.page.isVisible('#modal h2:has-text("다른 기기의 진행")')), '내가 올린 것만 있으면 묻지 않음');
@@ -78,7 +85,7 @@ const C = (p) => p.evaluate(() => window.__test_cloud());
   assert(old.fields?.world?.integerValue === '0', '버린 익명 계정은 서열에서 내림(world 0)');
 
   console.log('# A 다시 — 다른 기기가 더 최근에 올렸다');
-  await A.page.reload(); await A.page.waitForFunction(() => document.querySelector('#net-badge')?.textContent.includes('온라인'), null, { timeout: 20000 });
+  await A.page.reload(); await pass(A.page); await A.page.waitForFunction(() => document.querySelector('#net-badge')?.textContent.includes('온라인'), null, { timeout: 20000 });
   await A.page.waitForSelector('#modal h2:has-text("다른 기기의 진행")', { timeout: 10000 });
   const txt = await A.page.textContent('#modal');
   assert(/서버 · Lv 41/.test(txt) && /이 기기 · Lv 30/.test(txt), '두 진행(서버 Lv41 · 이 기기 Lv30)을 보여 줌');
@@ -110,6 +117,7 @@ const C = (p) => p.evaluate(() => window.__test_cloud());
   assert(!cs.g, '로그아웃하면 익명으로 돌아가 로그인 화면이 뜸');
   // 손님으로 고르면 다음엔 안 뜬다
   await Cc.page.click('#login-guest');
+  await pass(Cc.page);
   await Cc.page.waitForSelector('#modal input'); await Cc.page.fill('#modal input', '병철'); await Cc.page.click('#modal .btn.primary');
   await Cc.page.waitForSelector('.class-card'); await Cc.page.click('.class-card:has-text("검사")'); await Cc.page.waitForSelector('#modal .cust-go'); await Cc.page.click('#modal .cust-go'); await sleep(800);
   await Cc.page.reload(); await Cc.page.waitForFunction(() => document.querySelector('#boot')?.classList.contains('out'), null, { timeout: 20000 });
@@ -125,7 +133,7 @@ const C = (p) => p.evaluate(() => window.__test_cloud());
   try {
     const D = await ctxPage(browser);
     await D.page.goto(BASE + '?emu=1');
-    await D.page.waitForSelector('#login-guest', { timeout: 20000 }); await D.page.click('#login-guest');
+    await D.page.waitForSelector('#login-guest', { timeout: 20000 }); await D.page.click('#login-guest'); await pass(D.page);
     await D.page.fill('#modal input', '정희'); await D.page.click('#modal .btn.primary');
     await D.page.waitForSelector('.class-card'); await D.page.click('.class-card:has-text("검사")'); await D.page.waitForSelector('#modal .cust-go'); await D.page.click('#modal .cust-go');
     await D.page.waitForFunction(() => window.__app.net.blocked, null, { timeout: 15000 });
@@ -138,6 +146,34 @@ const C = (p) => p.evaluate(() => window.__test_cloud());
     assert(await D.page.isVisible('#modal .login-hint:has-text("내 기록 쓰기")'), '설정에 막힌 곳 안내');
     await D.ctx.close();
   } finally { await setRules(RULES); }
+
+  console.log('# 무인 넷 — 다른 기기에서도 고른다 (v328)');
+  {
+    const online = () => document.querySelector('#net-badge')?.textContent.includes('온라인');
+    await A.page.evaluate(() => { window.__test_charSelect(); });
+    await A.page.waitForSelector('.char-card.empty');
+    await Promise.all([A.page.waitForNavigation({ timeout: 15000 }), A.page.click('.char-card.empty >> nth=0')]);
+    await A.page.waitForSelector('#modal input', { timeout: 15000 }); await A.page.fill('#modal input', '둘째'); await A.page.click('#modal .btn.primary');
+    await A.page.waitForSelector('.class-card'); await A.page.click('.class-card >> nth=2'); await A.page.waitForSelector('#modal .cust-go'); await A.page.click('#modal .cust-go');
+    await A.page.waitForFunction(online, null, { timeout: 20000 }); await sleep(2500);
+    assert(await A.page.evaluate(() => window.__test_cloudPush()), 'A에서 새로 만든 둘째를 서버에 올림');
+    const ch = await fetch(`http://127.0.0.1:8080/v1/projects/idle-69772/databases/(default)/documents/saves/${a0.uid}/chars/0`, { headers: { Authorization: 'Bearer owner' } }).then((r) => r.json());
+    assert(ch.fields?.n?.stringValue === '갑돌' && ch.fields?.lv?.integerValue === '41', '바꾸기 전 무인(갑돌 Lv41)은 서버 칸(chars/0)에 쉰다');
+    const sv = await fetch(`http://127.0.0.1:8080/v1/projects/idle-69772/databases/(default)/documents/saves/${a0.uid}`, { headers: { Authorization: 'Bearer owner' } }).then((r) => r.json());
+    assert(sv.fields?.slot?.integerValue === '1', '서버 세이브에 지금 무인의 칸 번호(1)');
+    // B(같은 Google · 갑돌을 하던 기기)를 다시 켜면 — 둘째는 다른 칸이라 묻지 않고 받아 두고, 고르기에 둘 다 보인다
+    await B.page.reload(); await pass(B.page); await B.page.waitForFunction(online, null, { timeout: 20000 }); await sleep(2500);
+    assert(!(await B.page.isVisible('#modal h2:has-text("다른 기기의 진행")')), '다른 무인의 진행은 다툼으로 묻지 않는다');
+    assert(await B.page.evaluate(() => window.__game.s.nickname) === '갑돌', 'B는 하던 무인(갑돌) 그대로');
+    await B.page.evaluate(() => { window.__test_charSelect(); });
+    await B.page.waitForSelector('.char-card:not(.empty):not(.act)', { timeout: 10000 });
+    const names = await B.page.$$eval('.char-card:not(.empty) b', (es) => es.map((e) => e.textContent));
+    assert(names.includes('갑돌') && names.includes('둘째'), `B의 고르기에 다른 기기에서 만든 무인도 보인다 (${names.join('·')})`);
+    await B.page.screenshot({ path: path.join(OUT, 'cloud-chars.png') });
+    await Promise.all([B.page.waitForNavigation({ timeout: 15000 }), B.page.click('.char-card:not(.empty):not(.act)')]);
+    await B.page.waitForFunction(online, null, { timeout: 20000 }); await sleep(1500);
+    assert(await B.page.evaluate(() => window.__game.s.nickname) === '둘째', 'B에서 둘째로 접속');
+  }
 
   // 규칙: 남의 세이브는 못 읽고 못 쓴다
   const anon = await fetch('http://127.0.0.1:9099/identitytoolkit.googleapis.com/v1/accounts:signUp?key=fake', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{"returnSecureToken":true}' }).then((r) => r.json());
