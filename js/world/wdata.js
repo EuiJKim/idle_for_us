@@ -885,6 +885,11 @@ export const TITLES = {
   petdan: { id: 'petdan', name: '영수의 주인', desc: '공격력 +3% · 때릴 때마다 〈獸〉', how: '애완동물 하나를 10단까지', atkMul: 1.03, hitFx: '獸', col: '#fb923c' },
   petq: { id: 'petq', name: '천품 영수', desc: '공격력 +3%', how: '천품(天品) 애완동물을 얻기', atkMul: 1.03, col: '#fcd34d' },
   wking: { id: 'wking', name: '주간 패왕', desc: '공격력 +6% · 때릴 때마다 〈霸〉 · 한 주 동안', how: '이번 주 두목 순위 1위 → 다음 주 내내', atkMul: 1.06, hitFx: '霸', col: '#f87171', timed: true },
+  // v319 새 칭호
+  wb100: { id: 'wb100', name: '두목 사냥꾼', desc: '공격력 +3%', how: '한 주에 두목 100마리', atkMul: 1.03, col: '#fca5a5' },
+  wbfast: { id: 'wbfast', name: '일각(一刻)', desc: '공격력 +4% · 때릴 때마다 〈刻〉', how: '화무기를 1분 안에 쓰러뜨리기', atkMul: 1.04, hitFx: '刻', col: '#fb7185' },
+  pet5q: { id: 'pet5q', name: '영수 수집가', desc: '공격력 +3%', how: '극품 이상 애완동물 다섯', atkMul: 1.03, col: '#c4b5fd' },
+  titles15: { id: 'titles15', name: '천하의 이름', desc: '공격력 +5% · 때릴 때마다 〈名〉', how: '칭호 열다섯 모으기', atkMul: 1.05, hitFx: '名', col: '#fef08a' },
   k1m: { id: 'k1m', name: '백만 처치', desc: '공격력 +4% · 때릴 때마다 〈萬〉', how: '몹 100만 마리', atkMul: 1.04, hitFx: '萬', col: '#e7e5e4' },
 };
 export const AUTO_TITLES = Object.values(TITLES).filter((t) => t.how);

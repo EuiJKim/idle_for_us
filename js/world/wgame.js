@@ -387,6 +387,10 @@ export class WorldGame {
       case 'okq': return W.SLOTS.some((x) => IM.imprintsOf(s.equip[x.id]).some((im) => im.q.id === 2));
       case 'petdan': return [...s.pets, ...s.petBox].some((p) => (p.dan || 0) >= W.PET_DAN_MAX);
       case 'petq': return [...s.pets, ...s.petBox].some((p) => (p.q || 0) >= 2);
+      case 'wb100': return (s.wboss?.kills || 0) >= 100;
+      case 'wbfast': return s.wboss?.best?.hwamugi > 0 && s.wboss.best.hwamugi <= 60;
+      case 'pet5q': return [...s.pets, ...s.petBox].filter((p) => (p.q || 0) >= 1).length >= 5;
+      case 'titles15': return this.titleSet().n >= 15;
       case 'k100k': return (s.kills || 0) >= 100000;
       case 'k1m': return (s.kills || 0) >= 1000000;
       default: return false;
@@ -2755,6 +2759,12 @@ export class WorldGame {
     this.mark('petStar');
     this.emit('petStar', { pet: p });
     return p;
+  }
+  // v319 모두 먹이기 — 우리의 같은 종을 못한 것부터, 별이 다 찰 때까지
+  starUpAll(uid) {
+    let n = 0;
+    while (this.canStar(uid) && n < W.PET_STAR_MAX) { if (!this.starUp(uid)) break; n++; }
+    return n;
   }
   // ---------- v292 도감 ----------
   noteDex() {

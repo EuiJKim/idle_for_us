@@ -2983,5 +2983,36 @@ console.log('\n=== v318 지난주 순위 보상 · 가방 칸 견주기(전투�
   ok(/lastWeekRanks/.test(net) && /checkWeekReward/.test(mn) && /claimWeekReward/.test(mn), '접속하면 지난주 순위를 보고 보상 창');
 }
 
+console.log('\n=== v319 우리에서도 키우기 · 모두 먹이기 · 새 칭호 ===');
+{
+  const g = fresh();
+  g.s.pets = []; g.s.petBox = [];
+  const host = g.gainPet(0, null, 'tiger');
+  const boxed = g.gainPet(1, null, 'dragon');   // 칸이 하나 — 우리로
+  ok(g.s.petBox.includes(boxed), '둘째는 우리에');
+  g.s.petSoul = 1000;
+  ok(g.soulUp(boxed.uid) && boxed.rar === 2, '우리에 있어도 등급 올리기');
+  boxed.lv = W.PET_LV_MAX; g.rng = () => 0;
+  ok(g.petDan(boxed.uid)?.ok && boxed.dan >= 1, '우리에 있어도 단 수련(Lv.30이면)');
+  for (let i = 0; i < 4; i++) g.gainPet(0, null, 'tiger');
+  const n = g.starUpAll(host.uid);
+  ok(n === 4 && host.star === 4 && !g.s.petBox.some((x) => x.kind === 'tiger'), '모두 먹이기 — 먹이 넷을 한 번에', `${n} · ★${host.star}`);
+  for (let i = 0; i < 3; i++) g.gainPet(0, null, 'tiger');
+  ok(g.starUpAll(host.uid) === 1 && host.star === W.PET_STAR_MAX && g.s.petBox.filter((x) => x.kind === 'tiger').length === 2, '별이 다 차면 멈춘다(남은 먹이는 그대로)');
+  // 새 칭호
+  const t = fresh();
+  t.s.wboss = { key: TD.weekKey(), kills: 100, best: { hwamugi: 58.2 } };
+  t.s.pets = []; t.s.petBox = [];
+  for (let i = 0; i < 5; i++) { const p = t.gainPet(0, null, 'crane'); if (p) p.q = 1; }
+  t.checkTitles();
+  ok(t.hasTitle('wb100') && t.hasTitle('wbfast') && t.hasTitle('pet5q'), '〈두목 사냥꾼〉 · 〈일각〉 · 〈영수 수집가〉');
+  ok(!t.hasTitle('titles15'), '칭호 열다섯은 아직');
+  for (const k of ['lv100', 'quest', 'tower50', 'tower120', 'kings', 'cheonma', 'hwamugi', 'magwi', 'dan10', 'res4', 'okq', 'k100k']) t.grantTitle(k);
+  t.checkTitles();
+  ok(t.titleSet().n >= 15 && t.hasTitle('titles15'), '〈천하의 이름〉 — 칭호 열다섯', `${t.titleSet().n}`);
+  const ui = read('js/wui.js');
+  ok(/pen-train/.test(ui) && /starUpAll/.test(ui), '동료 창: 우리에서 키우기 · 모두 먹이기');
+}
+
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);
