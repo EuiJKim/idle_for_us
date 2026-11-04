@@ -721,8 +721,17 @@ function goHuntNow() {
   closePanel(); save(); refreshUI(true);
   toast(`⚔ ${W.mapOf(to).name}에서 사냥해요`);
 }
+// v333 마을 단추 — 사냥터에 있으면 누르자마자 마을로 간다(창만 열리고 몸은 사냥터에 남던 것). 이미 마을이면 마을 창을 연다.
+//   던전·탑 안에서는 나가면 그 판이 끝나므로 전처럼 창만 연다.
+function goTownNow() {
+  if (game.map.town || game.inst) { showTab('town'); return; }
+  if (!game.goTown(false)) { showTab('town'); return; }
+  closePanel(); save(); refreshUI(true);
+  toast('🏠 마을로 왔어요 — 사람을 누르거나 마을 단추를 한 번 더 누르면 마을 창');
+}
 document.querySelectorAll('#tabs button[data-tab]').forEach((b) => b.addEventListener('click', () => {
   if (b.dataset.tab === 'hunt') { goHuntNow(); return; }
+  if (b.dataset.tab === 'town' && !tabLocked('town')) { goTownNow(); return; }
   if (tabLocked(b.dataset.tab)) { toast(`${TAB_NAME[b.dataset.tab]} 창은 레벨 ${TAB_LV[b.dataset.tab]}에 열려요`); return; }
   showTab(b.dataset.tab);
 }));
@@ -2626,6 +2635,7 @@ document.addEventListener('keydown', (e) => {
   if (k === 'q') { potionEl?.click(); return; }
   if (k === 'a') { autoEl?.click(); return; }
   if (k === 'h') { goHuntNow(); return; }
+  if (k === 't' && !tabLocked('town') && activeTab !== 'town') { goTownNow(); return; }
   const tab = HOTKEY_TAB[k];
   if (tab) { if (activeTab === tab) closePanel(); else if (!tabLocked(tab)) showTab(tab); }
 });
