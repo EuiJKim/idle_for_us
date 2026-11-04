@@ -683,7 +683,10 @@ export class BattleView {
     const lv = this.camLevel ?? 1;
     if (lv <= 0) return cover;
     const T = game.tile || 64;
-    return Math.max(cover, Math.min(1.3, this.W / (T * (lv === 1 ? 7.2 : 5.2))));
+    // v336 컴퓨터(넓은 화면)에서는 지도(704px)보다 화면이 넓어 '전체'가 이미 1.3을 넘었고, 보통·가까이가 1.3에 막혀 셋이 똑같았다
+    //   → 상한을 전체 배율의 1.35배·1.8배로(폰에서는 전처럼 1.3)
+    const cap = Math.max(1.3, cover * (lv === 1 ? 1.35 : 1.8));
+    return Math.max(cover, Math.min(cap, this.W / (T * (lv === 1 ? 7.2 : 5.2))));
   }
   // 지도가 화면보다 크면(보통·가까이) 카메라가 무인을 따라가되 지도 밖은 비추지 않는다
   // pt: 무인 대신 비출 자리(두목 등장 v260)
