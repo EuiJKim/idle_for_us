@@ -654,6 +654,18 @@ async function tab(page, name) {
     await q.waitForFunction(() => window.__lastToasts?.some((t) => /보상 \+10%/.test(t)), null, { timeout: 15000 })
       .catch(async (e) => { console.log('DEBUG toasts', await G(q, () => window.__lastToasts)); throw e; });
     assert(true, '둘이 함께 잡으면 처치 보상 +10% (v343)');
+    // v344 문파원은 지금 어디에 — 지도 칸 🤝 · 문파원 목록 '● 접속 중'
+    await q.waitForFunction((id) => window.__where.list().some((o) => o.m === id), nid, { timeout: 15000 });
+    assert(true, '문파원이 어느 구역에 있는지 실시간으로 안다 (v344)');
+    await G(q, () => window.__app.showTab('map', 'murim'));
+    await sleep(600);
+    const hasDot = await q.evaluate(() => !!document.querySelector('#panel .who-dot') || !!document.querySelector('#panel .zone-who'));
+    if (!hasDot) { for (const k of ['sapa', 'magyo']) { await q.click(`#panel .subtabs button[data-key="${k}"]`).catch(() => {}); await sleep(400); if (await q.evaluate(() => !!document.querySelector('#panel .zone-who'))) break; } }
+    assert(await q.evaluate(() => !!document.querySelector('#panel .zone-who .who-chip')), '지도 지역 칸에 그 문파원 이름이 뜬다');
+    await shot(q, '12-where.png');
+    await G(q, () => window.__app.showTab('social', 'guild'));
+    await q.waitForSelector('#panel .who-on', { timeout: 15000, state: 'attached' });
+    assert(true, '문파원 목록에 ● 접속 중 · 어디에서 사냥 중');
   }
 
   const errs = [...a.errors, ...b.errors];

@@ -9,6 +9,19 @@
         }
       }
     },
+    "where": {
+      "$gid": {
+        ".read": "auth != null && root.child('gm').child($gid).child(auth.uid).exists()",
+        "$uid": {
+          ".write": "auth != null && auth.uid === $uid && root.child('gm').child($gid).child(auth.uid).exists()",
+          ".validate": "newData.hasChildren(['m', 't'])",
+          "m": { ".validate": "newData.isNumber()" },
+          "n": { ".validate": "newData.isString() && newData.val().length <= 24" },
+          "t": { ".validate": "newData.isNumber()" },
+          "$other": { ".validate": false }
+        }
+      }
+    },
     "coop": {
       "$gid": {
         ".read": "auth != null && root.child('gm').child($gid).child(auth.uid).exists()",

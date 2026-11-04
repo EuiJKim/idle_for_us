@@ -78,6 +78,7 @@ import { loadIcons, skinImg } from './icons.js';
 import { WNet } from './wnet.js';
 import { RULES_VER } from './net.js';
 import { Coop } from './world/wcoop.js';
+import { Where } from './world/wwhere.js';
 import { h, toast, openModal, closeModal, modalOpen } from './ui/common.js';
 import { WTABS, WTAB_TITLE, itemTitle, skillText, rangeText, rewardText, dailyWaiting, skipFx, setSkipFx, openSkillPreview, attGrid } from './wui.js';
 import * as D from './world/wdgn.js';
@@ -214,6 +215,10 @@ const coop = new Coop(game, net, {
 });
 game.coop = coop;
 app.coop = coop;
+// v344 문파원은 지금 어디에 — 지도 칸·문파원 목록이 읽는다
+const where = new Where(game, net, () => { tabs.map?.netChanged?.('where'); tabs.social?.netChanged?.('where'); });
+app.where = where;
+window.__where = where;
 // 왕 구역 안에서 혼자 ↔ 함께 (v145)
 $('btn-party').addEventListener('click', () => {
   if (!coop.can()) return toast('문파에 들어 있고 온라인일 때 함께 사냥할 수 있어요');
@@ -2509,6 +2514,7 @@ function step(now) {
   const steps = Math.min(3, Math.ceil(dt / 0.05));
   if (game.s.job && !modalOpen()) for (let i = 0; i < steps; i++) game.tick(dt / steps);
   coop.tick(dt);
+  where.tick(dt);   // v344
   view.game = game;
   const tB = dg ? performance.now() : 0;
   handleEvents();

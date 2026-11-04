@@ -1587,8 +1587,11 @@ function mapTab(app) {
           disabled: !game.canEnter(m.id) ? true : null,
           title: `${m.name} · Lv.${m.lv[0]}~${m.lv[1]}${risky ? ' · 위험 — 내 레벨보다 훨씬 세요' : ''}`,
           onclick: () => go(m.id),
-        }, m.bossRoom ? '두목' : String(m.area), h('small', {}, `${risky ? '⚠' : ''}Lv${m.lv[0]}`));
+        }, m.bossRoom ? '두목' : String(m.area), h('small', {}, `${risky ? '⚠' : ''}Lv${m.lv[0]}`),
+          (app.where?.at(m.id).length || 0) > 0 ? h('i', { class: 'who-dot', title: app.where.at(m.id).map((o) => o.n).join(', ') }, `🤝${app.where.at(m.id).length}`) : null);
       });
+      // v344 이 지역에 있는 문파원 — 누가 몇 구역에
+      const who = app.where?.inZone(zn.id) || [];
       const env = L.ENVS[zn.art];
       const mk = s.mast?.[zn.id] || 0;
       const ml = L.masteryLv(mk);
@@ -1604,6 +1607,7 @@ function mapTab(app) {
         h('div', { class: 'zone-mast' }, h('span', {}, `숙련 ${ml}${ml >= L.MASTERY_MAX ? ' (최고)' : ''}`), mBar,
           h('small', {}, ml ? `경험치 +${ml * L.MASTERY.exp * 100}% · 재료 +${ml * L.MASTERY.mat * 100}%` : next ? `${next - mk}마리 더` : '')),
         zn.king ? h('p', { class: 'muted king-desc' }, `${zn.king.hanja} · ${zn.king.desc}`) : null,
+        who.length ? h('div', { class: 'zone-who' }, '🤝 ', ...who.map((o) => { const mm = W.mapOf(o.m); return h('button', { class: 'who-chip', onclick: () => go(o.m) }, `${o.n} · ${mm.bossRoom ? '두목' : `${mm.area}구역`}`); })) : null,
         h('div', { class: 'area-row' }, ...btns)));
   }
   // 고수 한 명 — 두목 방 카드 (v148). 수하 졸개가 늘 있고 고수가 10초마다(화무기는 30초) 다시 나선다. 이야기는 접어 둔다.
@@ -1647,7 +1651,7 @@ function mapTab(app) {
       root: box,
       update() {
         const s = game.s;
-        const nsig = `${s.level}|${s.map}|${s.huntMap}|${Object.values(s.mast || {}).map((k) => L.masteryLv(k)).join(',')}|${JSON.stringify(s.duel.won)}|${!!game.inst}|${s.autoMap}`;
+        const nsig = `${s.level}|${s.map}|${s.huntMap}|${Object.values(s.mast || {}).map((k) => L.masteryLv(k)).join(',')}|${JSON.stringify(s.duel.won)}|${!!game.inst}|${s.autoMap}|${JSON.stringify(app.where?.list() || [])}`;
         if (nsig === sig) return;
         sig = nsig;
         const here = W.mapOf(s.map);
@@ -2566,13 +2570,25 @@ function guildView(app) {
     membersAt = Date.now();
     const rows = await net.members().catch(() => []);
     if (!els) return;
+    rows.sort((a, b) => (b.level || 0) - (a.level || 0));
+    memRows = rows;
+    renderMembers();
+  }
+  let memRows = null;
+  // v344 문파원 줄 — '● 접속 중 · 어디에서'는 실시간(where)이 바뀔 때마다 다시 그린다(서버를 다시 읽지 않는다)
+  function renderMembers() {
+    const rows = memRows;
+    if (!els || !rows) return;
     const today = dayKey();
     const gd = net.guild;
-    rows.sort((a, b) => (b.level || 0) - (a.level || 0));
     els.members.replaceChildren(...rows.map((p) => h('div', { class: `row rank-row${p.uid === net.uid ? ' me' : ''}` },
       h('div', { class: 'info' },
         h('div', { class: 'name' }, `${p.uid === gd?.owner ? '👑 ' : ''}${p.nickname || '이름없음'}`, h('small', {}, p.tierName || '')),
-        h('div', { class: 'desc' }, `Lv.${p.level || 1} · ${p.mapName || ''} · ${ago(p.updatedAt?.toMillis?.())}`)),
+        h('div', { class: 'desc' }, ...(() => {
+          const w = p.uid === net.uid ? { m: app.where?.here?.() ?? game.s.map } : app.where?.of(p.uid);
+          return w ? [h('b', { class: 'who-on' }, '● 접속 중 '), `Lv.${p.level || 1} · ${app.where.placeName(w.m)}${w.m > 0 && !W.mapOf(w.m)?.town ? '에서 사냥 중' : ''}`]
+            : [`Lv.${p.level || 1} · ${p.mapName || ''} · ${ago(p.updatedAt?.toMillis?.())} (접속 안 함)`];
+        })())),
       h('div', { class: `chip${gd?.checkins?.[p.uid] === today ? ' on' : ''}` }, gd?.checkins?.[p.uid] === today ? '오늘 출석' : '미출석'))));
   }
 
@@ -2652,6 +2668,7 @@ function guildView(app) {
     netChanged(what) {
       const want = !net?.online ? 'offline' : !game.s.guildId ? 'none' : net.guild ? 'guild' : 'loading';
       if (want !== view || what === 'status') render();
+      else if (what === 'where') renderMembers();
       else update();
     },
   };
