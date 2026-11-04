@@ -1359,8 +1359,19 @@ function checkReturn(now = Date.now()) {
 function showPendingOffline() {
   const rw = game.s.pendingOffline;
   if (!rw || modalOpen() || booting) return;
+  // v317 한눈에 — 오른 레벨 · 잡은 두목 · 조각. 레벨이 오르고 스탯을 손으로 찍는다면 '받고 스탯 찍기'
+  const pj = game.projectLevel(rw.exp);
+  const lvUp = pj.gained > 0;
+  const statAfter = game.s.statPts + pj.gained * W.STAT_PER_LEVEL;
+  const sum = [
+    lvUp ? h('span', { class: 'ofs lv' }, `Lv.${game.s.level} → `, h('b', {}, `Lv.${pj.lv}`), h('small', {}, ` (+${pj.gained})`)) : h('span', { class: 'ofs lv' }, `Lv.${game.s.level} · 경험치 +${(Math.min(1, rw.exp / game.expNeed()) * 100).toFixed(1)}%`),
+    rw.marks > 0 ? h('span', { class: 'ofs boss' }, `두목 ${fmt(rw.marks)}마리`) : null,
+    rw.petShard > 0 || rw.mountShard > 0 ? h('span', { class: 'ofs shard' }, `조각 🐾${fmt(rw.petShard || 0)} 🐎${fmt(rw.mountShard || 0)}`) : null,
+  ].filter(Boolean);
+  const takeAnd = (then) => () => { closeModal(); then?.(); };
   openModal((s) => {
     s.append(h('h2', {}, '🌙 다녀오셨어요!'),
+      h('div', { class: 'off-sum' }, ...sum),
       h('p', { class: 'muted' }, `${duration(rw.t)} 동안 ${W.mapOf(rw.map).name}에서 사냥했어요.`
         + (rw.stoppedByPotion ? ` 물약이 떨어져서 거기서 멈췄어요 (${duration(rw.sec)} 중).` : '')
         // v260: 오래 비우면 효율이 준다 — 얼마나 줄었는지, 상한까지 몇 시간인지
@@ -1377,7 +1388,9 @@ function showPendingOffline() {
         rw.mountShard > 0 ? h('div', {}, '탈것 조각', h('b', {}, `${rw.mountShard}개`)) : null),
       h('p', { class: 'muted' }, !rw.mats ? '' : `모은 재료: ${W.ORE_NAME} ${fmt(W.oreOf(W.mapOf(rw.map).mz, rw.mats + (rw.marks || 0) * W.BOSS_MATS).n)}개`
         + (rw.marks ? ` · ${W.matName(W.bossKey(rw.map))} ${rw.marks}개` : '') + ' — 장비 강화에 써요 (증표는 등급 각인)'),
-      h('button', { class: 'btn primary', style: 'width:100%', onclick: closeModal }, '받기'));
+      h('div', { class: 'btn-row off-btns' },
+        lvUp && !game.s.autoStat && statAfter > 0 ? h('button', { class: 'btn', onclick: takeAnd(() => showTab('char', 'stat')) }, `받고 스탯 찍기 (${statAfter}점)`) : null,
+        h('button', { class: 'btn primary', style: 'flex:1', onclick: takeAnd() }, lvUp ? `모두 받기 · Lv.${pj.lv}` : '모두 받기')));
   }, { dismissable: false, onClose: () => { if (game.s.pendingOffline === rw) { game.claimOffline(rw); delete game.s.pendingOffline; } save(); refreshUI(true); } });
 }
 

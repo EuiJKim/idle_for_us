@@ -2909,5 +2909,38 @@ console.log('\n=== v316 애완동물 품·단 수련 · 주간 두목 ===');
   ok(/petDan\(p\.uid\)/.test(ui) && /qualTag/.test(ui), '동료 창: 단 수련 · 품 표시');
 }
 
+console.log('\n=== v317 끼면 견주기 · 방치 보상 한눈에 ===');
+{
+  const g = fresh();
+  while (g.s.level < 30) g.addExp(W.expToNext(g.s.level));
+  const st0 = g.stats(), sig0 = g.statSig();
+  const better = { ...JSON.parse(JSON.stringify(g.s.equip.weapon)), uid: 987654, grow: false, plus: (g.s.equip.weapon.plus || 0) + 6 };   // 낀 것과 같고 강화만 더 높은 것
+  const pv = g.previewEquip(better);
+  ok(pv.then.atk > pv.now.atk && pv.then.power > pv.now.power, '좋은 무기면 공격력·전투력 ▲', `${pv.now.atk.toFixed(0)} → ${pv.then.atk.toFixed(0)}`);
+  ok(g.statSig() === sig0 && g.stats().atk === st0.atk && !g.s.bag.includes(better) && g.s.equip.weapon !== better, '견주기만 하고 아무것도 바꾸지 않는다');
+  g.s.equip.weapon.plus = 12;
+  const worse = g.makeCrafted('weapon', 0);
+  const pw = g.previewEquip(worse);
+  ok(pw.then.atk < pw.now.atk, '못한 무기면 ▼');
+  ok(g.previewEquip(g.s.equip.weapon).same, '낀 것은 그대로');
+  // 끼고 나서의 능력치와 같다
+  g.gainItem(worse);
+  const pv2 = g.previewEquip(worse);
+  g.equipFromBag(worse.uid);
+  ok(Math.abs(g.stats().power - pv2.then.power) < 1e-6, '미리 본 전투력 = 실제로 낀 뒤 전투력');
+  // 레벨 셈
+  const h = fresh();
+  while (h.s.level < 20) h.addExp(W.expToNext(h.s.level));
+  const need = W.expToNext(20) - h.s.exp + W.expToNext(21) + 5;
+  const pj = h.projectLevel(need);
+  ok(pj.lv === 22 && pj.gained === 2 && h.s.level === 20, '경험치로 몇 레벨이 되나(바꾸지 않는다)', JSON.stringify(pj));
+  h.addExp(need);
+  ok(h.s.level === pj.lv && Math.abs(h.s.exp - pj.exp) < 1e-6, '셈한 레벨 = 실제로 받은 뒤 레벨');
+  ok(h.projectLevel(0).gained === 0, '0이면 그대로');
+  const ui = read('js/wui.js'), mn = read('js/wmain.js');
+  ok(/equipCompare\(game, it\)/.test(ui) && /previewEquip/.test(ui), '장비 창: 끼면 → 온 능력치');
+  ok(/projectLevel\(rw\.exp\)/.test(mn) && /받고 스탯 찍기/.test(mn) && /모두 받기/.test(mn), '방치 보상: 오른 레벨 · 두목 · 받고 스탯 찍기');
+}
+
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);

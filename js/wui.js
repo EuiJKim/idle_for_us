@@ -72,6 +72,26 @@ const gradeOf = (it) => (it.rar != null ? W.RARITY[it.rar] : W.GRADES[it.grade])
 export const optLines = (it) => (it.opts || []).map(W.optText);
 
 // 아이템 한 줄 요약 — '공격력 +123' 같은 것
+// v317 끼면 어떻게 되나 — 온 능력치 한 줄(오르면 초록 ▲ · 내리면 빨강 ▼). 세트·공명·각인까지 든 값
+export function equipCompare(game, it) {
+  const { now, then } = game.previewEquip(it);
+  const parts = [];
+  const add = (label, a, b, kind = 'num') => {
+    const d = b - a;
+    if (kind === 'num' ? Math.abs(d) < Math.max(0.5, Math.abs(a) * 0.0005) : Math.abs(d) < 0.0005) return;
+    const txt = kind === 'pp' ? `${d > 0 ? '+' : '−'}${(Math.abs(d) * 100).toFixed(1)}%p` : kind === 'pct' ? `${d > 0 ? '+' : '−'}${(Math.abs(d / (a || 1)) * 100).toFixed(1)}%` : `${d > 0 ? '+' : '−'}${fmt(Math.round(Math.abs(d)))}`;
+    parts.push(h('span', { class: `cmp ${d > 0 ? 'up' : 'down'}` }, `${label} ${d > 0 ? '▲' : '▼'} ${txt}`));
+  };
+  add('공격력', now.atk, then.atk);
+  add('체력', now.hp, then.hp);
+  add('방어', now.def, then.def);
+  add('치명', now.crit, then.crit, 'pp');
+  add('공속', now.speed, then.speed, 'pct');
+  const dp = (then.power - now.power) / (now.power || 1);
+  const verdict = Math.abs(dp) < 0.0005 ? h('b', { class: 'cmp same' }, '전투력 그대로')
+    : h('b', { class: `cmp ${dp > 0 ? 'up' : 'down'}` }, `전투력 ${dp > 0 ? '▲' : '▼'} ${fmt(Math.round(Math.abs(then.power - now.power)))} (${dp > 0 ? '+' : '−'}${(Math.abs(dp) * 100).toFixed(1)}%)`);
+  return h('div', { class: `equip-cmp ${dp > 0.0005 ? 'better' : dp < -0.0005 ? 'worse' : ''}` }, h('small', {}, '끼면 →'), verdict, ...parts);
+}
 export function itemLines(game, it) {
   const st = game.itemStats(it);
   const out = [];
@@ -572,6 +592,7 @@ function bagTab(app) {
         s.replaceChildren(...[
           head,
           h('p', { class: 'item-stat' }, itemLines(game, it)),
+          !worn ? equipCompare(game, it) : null,   // v317 끼면 → 공격력 ▲ +3,200 · 체력 ▼ … · 전투력
           tabRow,
           h('div', { class: 'item-pane' }, ...pane.filter(Boolean)),
           h('div', { class: 'btn-row' },

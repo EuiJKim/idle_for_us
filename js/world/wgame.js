@@ -1889,6 +1889,12 @@ export class WorldGame {
 
   // ---------- 레벨 ----------
   expNeed() { return W.expToNext(this.s.level); }
+  // v317 경험치 n을 받으면 몇 레벨이 되나(바꾸지 않고 셈만) — 방치 보상 창의 'Lv.40 → Lv.43'
+  projectLevel(n) {
+    let lv = this.s.level, exp = this.s.exp + Math.max(0, n || 0);
+    while (lv < W.LEVEL_MAX && exp >= W.expToNext(lv)) { exp -= W.expToNext(lv); lv++; }
+    return { lv, exp, gained: lv - this.s.level, pct: lv < W.LEVEL_MAX ? exp / W.expToNext(lv) : 1 };
+  }
   addExp(n) {
     const s = this.s;
     if (s.level >= W.LEVEL_MAX) {
@@ -2455,6 +2461,17 @@ export class WorldGame {
     this._stats = null;
     this.heroHp = Math.min(this.heroHp, this.stats().hp);
     return true;
+  }
+  // v317 끼면 어떻게 되나 — 그 칸에 잠깐 넣어 본 온 능력치(세트·공명·각인 모두 든다)와 지금을 견준다. 아무것도 바꾸지 않는다
+  previewEquip(it) {
+    const pick = (st) => ({ atk: st.atk, hp: st.hp, def: st.def, crit: st.crit, speed: st.speed, power: st.power });
+    const now = pick(this.stats());
+    if (!it || !W.SLOTS.some((x) => x.id === it.slot) || this.s.equip[it.slot] === it) return { now, then: now, same: true };
+    const cur = this.s.equip[it.slot];
+    this.s.equip[it.slot] = it; this._stats = null;
+    let then;
+    try { then = pick(this.stats()); } finally { this.s.equip[it.slot] = cur; this._stats = null; }
+    return { now, then, same: false };
   }
   findItem(uid) {
     return Object.values(this.s.equip).find((x) => x?.uid === uid) || this.s.bag.find((x) => x.uid === uid) || null;

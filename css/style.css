@@ -2182,3 +2182,22 @@ body.hunt-noui #exp-warn, body.hunt-noui #boss-wait { visibility: hidden !import
 .rank-seg .chip { border: 1px solid var(--line); color: var(--text); font: inherit; font-size: 12.5px; font-weight: 700; padding: 6px 10px; cursor: pointer; }
 .rank-seg .chip.on { background: rgba(185, 28, 28, 0.55); border-color: #ef4444; color: #fff; box-shadow: none; }
 .buy.dan-btn small { display: block; }
+
+/* v317 끼면 → 온 능력치 견주기 */
+.equip-cmp { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin: 4px 0 8px; padding: 7px 10px; border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04); border: 1px solid var(--line); font-size: 12px; }
+.equip-cmp.better { border-color: rgba(74, 222, 128, 0.5); background: rgba(22, 101, 52, 0.18); }
+.equip-cmp.worse { border-color: rgba(248, 113, 113, 0.45); background: rgba(127, 29, 29, 0.18); }
+.equip-cmp small { color: var(--muted); }
+.equip-cmp .cmp.up { color: #4ade80; }
+.equip-cmp .cmp.down { color: #f87171; }
+.equip-cmp .cmp.same { color: var(--muted); }
+.equip-cmp b.cmp { font-size: 13px; }
+/* v317 방치 보상 한눈에 */
+.off-sum { display: flex; flex-wrap: wrap; gap: 6px; margin: 2px 0 10px; }
+.off-sum .ofs { padding: 5px 10px; border-radius: 999px; font-size: 12.5px; font-weight: 700; background: rgba(255, 255, 255, 0.06); border: 1px solid var(--line); }
+.off-sum .ofs.lv { color: #c4b5fd; border-color: rgba(196, 181, 253, 0.5); }
+.off-sum .ofs.lv b { font-size: 15px; color: #ede9fe; }
+.off-sum .ofs.boss { color: #fca5a5; border-color: rgba(252, 165, 165, 0.45); }
+.off-sum .ofs.shard { color: #fde68a; }
+.off-btns { display: flex; gap: 8px; }

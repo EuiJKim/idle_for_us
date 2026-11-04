@@ -142,6 +142,15 @@ async function tab(page, name) {
 
   console.log('# 가방·강화');
   await G(p, () => { const g = window.__game; g.gainItem(g.makeCrafted('armor', 0)); });
+  // v317 가방 장비를 누르면 '끼면 →' 견주기 줄
+  await G(p, () => { const g = window.__game; const it = g.makeCrafted('weapon', 0); it.plus = 0; it.ilv = 1; g.s.bag.push(it); window.__app.refresh(); });
+  await p.click('#panel .subtabs button[data-key="bag"]');
+  await p.locator('#panel .inv-grid button').first().click();
+  await p.waitForSelector('#modal .equip-cmp', { timeout: 5000 });
+  assert(/끼면/.test(await p.$eval('#modal .equip-cmp', (e) => e.textContent)), '가방 장비 창에 끼면 → 온 능력치 견주기');
+  await shot(p, '05b-equip-cmp.png');
+  await p.click('#modal .btn-row .btn:has-text("닫기")');
+  await p.click('#panel .subtabs button[data-key="gear"]');
   await p.locator('#panel .gear-tile:has-text("무기")').click();
   await p.waitForSelector('#modal h2');
   const plus0 = await G(p, () => window.__game.s.equip.weapon.plus);
@@ -231,8 +240,9 @@ async function tab(page, name) {
   });
   await p.waitForSelector('text=다녀오셨어요');
   const k0 = await G(p, () => window.__game.s.kills);
+  assert(await p.isVisible('#modal .off-sum .ofs.lv'), '방치 보상 창에 레벨 한눈에 (v317)');
   await shot(p, '07-offline.png');
-  await p.click('#modal button:has-text("받기")');
+  await p.click('#modal .off-btns .btn.primary');
   assert(await G(p, () => window.__game.s.kills) > k0, '방치 보상을 받는다');
   await G(p, () => window.__save());
   await p.reload({ waitUntil: 'domcontentloaded' });
