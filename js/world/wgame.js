@@ -1662,8 +1662,11 @@ export class WorldGame {
     }
     this.heroHp = 0;
     this.s.deaths++;
-    const loss = Math.floor(this.s.exp * W.DEATH_EXP_LOSS);
-    this.s.exp -= loss;
+    // v354 쓰러져도 레벨은 절대 안 내려간다 — 잃는 건 지금 레벨에서 쌓은 경험치의 5%뿐(0 아래로는 안 간다)
+    const lv0 = this.s.level;
+    const loss = Math.max(0, Math.min(this.s.exp, Math.floor(this.s.exp * W.DEATH_EXP_LOSS)));
+    this.s.exp = Math.max(0, this.s.exp - loss);
+    this.s.level = Math.max(this.s.level, lv0);
     // 레벨보다 한참 센 곳에서 쓰러지면 돌아갈 곳을 알맞은 사냥터로 바꾼다 — 방치하다 같은 자리에서 계속 쓰러지지 않게
     let retreat = null;
     // v258: 위험 레벨이 아니어도 5분 안에 같은 사냥터에서 세 번 쓰러지면 물러난다(경험치 5%·물약이 되풀이로 새던 것)

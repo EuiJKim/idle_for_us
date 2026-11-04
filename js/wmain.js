@@ -1550,7 +1550,7 @@ function handleEvents() {
         sfx('loot');
         break;
       case 'heroDied':
-        if (!ev.inst) toast(`쓰러졌어요… 경험치 ${fmt(ev.loss)}을 잃고 마을로 돌아가요${ev.retreat ? ` — 너무 센 곳이라 다음엔 ${ev.retreat}(으)로 나가요` : ''}`);
+        if (!ev.inst) toast(`쓰러졌어요… 경험치 ${fmt(ev.loss)}을 잃고(레벨은 그대로) 마을로 돌아가요${ev.retreat ? ` — 너무 센 곳이라 다음엔 ${ev.retreat}(으)로 나가요` : ''}`);
         break;
       // v263: 견문록 낙관
       case 'dexStamp': toast(`견문록 — ${ev.name} 낙관 · 공격력·체력 +${(W.DEX_STAMP_STAT * 100).toFixed(2)}%${ev.zoneDone ? ` · 지역 완성! 경험치 +0.5% · 공격력·체력 +${(W.DEX_ZONE_STAT * 100).toFixed(1)}%` : ''}`); break;

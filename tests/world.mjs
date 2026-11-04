@@ -593,6 +593,13 @@ console.log('\n=== 십이지왕 신화 · 가락지·귀걸이 · 애완동물 �
   const tiersOf = (z) => { const set = new Set(); for (let i = 0; i < 3000; i++) set.add(W.petOf(W.rollPetKind(z, rr)).tier); return Math.max(...set); };
   ok(W.petDropRate(1) < 0.001 && tiersOf(1) <= 1 && tiersOf(15) === 7 && tiersOf(27) === 10 && W.petDropRate(27) > W.petDropRate(15) * 3,
     '애완동물 드랍: 죽림 0.08%(선학만) … 천외천 0.9%(손오공까지) … 검왕 3.8%(황룡까지)', `${(W.petDropRate(1) * 100).toFixed(2)}% · ${(W.petDropRate(15) * 100).toFixed(2)}% · ${(W.petDropRate(27) * 100).toFixed(2)}%`);
+  // v354 쓰러져도 레벨은 안 내려간다
+  {
+    const g = new WorldGame(newWorldSave(0), 0);
+    g.s.job = 'sword'; g.s.level = 50; g.s.exp = 0;
+    g.s.exp = 10; for (let i = 0; i < 30; i++) g.heroDied(null);
+    ok(g.s.level === 50 && g.s.exp >= 0, '경험치가 0일 때 몇 번을 쓰러져도 레벨 50 그대로', `Lv ${g.s.level} · exp ${g.s.exp} · 쓰러짐 ${g.s.deaths}`);
+  }
   // v350 무한의 탑 · 극 — 보통 60층부터 · 10층마다 신수(이동 +100% 고정 · 길들여도 이동은 그대로 · 공격·체력은 길들이면 오른다)
   {
     const g = new WorldGame(newWorldSave(0), 0);
