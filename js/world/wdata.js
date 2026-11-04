@@ -864,10 +864,12 @@ export const BASE_ATK_SEC = 0.85;     // 평타 간격(초)
 export const KILL_RECOVER = 0.15;     // v303 과녁을 쓰러뜨리면 평타 쿨을 이만큼으로 — 다음 몹까지 걸어가 또 한 박자 쉬지 않게 (v305 0.3 → 0.15)
 export const MANUAL_HOLD = 0.3;       // v305 손으로 움직인 직후 과녁을 쫓아가지 않는 시간(닿는 적은 친다) — 전엔 0.6~1.2초를 서 있었다
 // v305 칭호 — 운영자가 우편으로 준다. 끼면 능력치·연출. 옛 '개국공신'은 글자 그대로 저장돼 있다(효과 없음).
-//   atkMul: 공격력 배수 · hitFx: 때릴 때마다 과녁 위에 뜨는 글자 · col: 빛깔
+//   atkMul: 공격력 배수 · hitFx: 때릴 때마다 과녁 위에 뜨는 글자 · col: 빛깔 · (v322) spdMul 공격 속도 · goldMul 은자 · expMul 경험치 배수
 export const TITLES = {
   founder: { id: 'founder', name: '개국공신', desc: '옛 판에서 온 무인', col: '#fde68a' },
   okheir: { id: 'okheir', name: '이미옥의 후예', desc: '공격력 ×2 · 때릴 때마다 〈옥〉', atkMul: 2, hitFx: '옥', col: '#6ee7b7' },
+  // v322 운영자만 보낼 수 있다(얻는 길 없음 — how가 없다) · spdMul 공격 속도 · goldMul 은자 · expMul 경험치 · fxSize 글자 크기
+  yoon: { id: 'yoon', name: '윤석열의 가호', desc: '공격력 ×3 · 공격 속도 ×1.5 · 은자 ×2 · 경험치 ×2 · 때릴 때마다 〈Yoon Again〉', atkMul: 3, spdMul: 1.5, goldMul: 2, expMul: 2, hitFx: 'Yoon Again', fxSize: 22, col: '#f87171' },
   // v307 저절로 얻는 칭호 — how: 이루는 길(글). 조건은 wgame.titleDone
   lv100: { id: 'lv100', name: '초절정', desc: '공격력 +2%', how: '레벨 100', atkMul: 1.02, col: '#a5b4fc' },
   lv150: { id: 'lv150', name: '천하제일', desc: '공격력 +5% · 때릴 때마다 〈天〉', how: '레벨 150', atkMul: 1.05, hitFx: '天', col: '#fde68a' },

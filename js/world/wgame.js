@@ -623,12 +623,13 @@ export class WorldGame {
       def: vit * 0.2 + gear.def,
       crit: Math.min(0.75, 0.05 + dex * 0.004 + gear.crit + (cls.crit || 0)),
       critDmg: W.CRIT_DMG + gear.critDmg + (cls.critDmg || 0),
-      atkSec: W.BASE_ATK_SEC / ((1 + dex * 0.01 + gear.speed) * (cls.speed || 1)),
-      speed: (1 + dex * 0.01 + gear.speed) * (cls.speed || 1),
+      atkSec: W.BASE_ATK_SEC / ((1 + dex * 0.01 + gear.speed) * (cls.speed || 1) * (this.titleNow()?.spdMul || 1)),   // v322 칭호 공격 속도
+      speed: (1 + dex * 0.01 + gear.speed) * (cls.speed || 1) * (this.titleNow()?.spdMul || 1),
       skillMult: 1 + int * 0.007 + gear.skill,
       // 자연 회복: 최대 체력의 0.6%/초 + 내공·레벨 몫 (물약만 바라보지 않게)
       regen: (1 + int * 0.12 + L * 0.08 + hp * (0.006 + gear.regenPct)) * (1 + (pm.regen || 0)),
-      expMult: 1 + gear.exp + this.dexBonus(),   // v263 견문록
+      expMult: (1 + gear.exp + this.dexBonus()) * (this.titleNow()?.expMul || 1),   // v263 견문록 · v322 칭호 경험치
+      goldMul: this.titleNow()?.goldMul || 1,   // v322 칭호 은자
       matMult: 1 + gear.mat,
       // v262: 스탯마다 다른 축 — 힘=두목 피해 · 민첩=걸음 · 체력=받는 피해 감소 · 내공=무공 숨(어디에 찍든 사냥만 같던 것)
       moveSpeed: 1 + (mt ? mt.speed * mk : 0) + (cls.move || 0) + (pm.move || 0) + gear.move + Math.min(W.STAT_ROLE.dexMoveMax, dex * W.STAT_ROLE.dexMove),
@@ -1574,7 +1575,7 @@ export class WorldGame {
     }
     const exp = W.mobExp(m.lv) * (m.isBoss ? W.BOSS.exp * (W.CLASSES[this.s.job]?.bossExp || 1) : m.elite ? W.ELITE.exp : 1) * this.levelGapMult(m.lv) * (st.expMult || 1) * (1 + (env.exp || 0) + mlv * L.MASTERY.exp) * ek * sat;
     const blood = !this.inst && TD.bloodOn() ? 1 + TD.BLOOD_BONUS : 1;   // v262 혈겁
-    const gold = Math.round(W.mobGold(m.lv) * (m.isBoss ? W.BOSS.gold : m.elite ? W.ELITE.gold : 1) * (1 + (env.gold || 0) + (st.gold || 0)) * ek * blood);
+    const gold = Math.round(W.mobGold(m.lv) * (m.isBoss ? W.BOSS.gold : m.elite ? W.ELITE.gold : 1) * (1 + (env.gold || 0) + (st.gold || 0)) * ek * blood * (st.goldMul || 1));   // v322 칭호
     if (!this.inst) {
       // v263 견문록 — 졸개 종마다 센다(낙관이 찍히는 순간 지역이 다 찼는지 본다)
       if (!m.isBoss && m.name) {
@@ -3447,7 +3448,7 @@ export class WorldGame {
   killTreasure(m, st, env) {
     this.tday('treasure');
     const z = this.map.mz;
-    const gold = Math.round(W.mobGold(m.lv) * L.TREASURE_GOLD * (1 + (env.gold || 0) + (st.gold || 0)));
+    const gold = Math.round(W.mobGold(m.lv) * L.TREASURE_GOLD * (1 + (env.gold || 0) + (st.gold || 0)) * (st.goldMul || 1));
     this.s.gold += gold;
     const mats = {};
     if (W.MATS[z]) { mats[z] = L.TREASURE_MATS; if (this.rng() < L.TREASURE_MARK) mats[W.bossKey(z)] = 1; }

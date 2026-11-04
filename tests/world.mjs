@@ -3093,5 +3093,33 @@ console.log('\n=== v321 약한 장비 자동 정리 · 얻은 것 모음 · 신�
   ok(/match \/reports\/\{rid\}/.test(rules) && /match \/mutes\/\{uid\}/.test(rules) && /mutes\/\$\(request\.auth\.uid\)\)\.data\.until < request\.time/.test(rules), '규칙: 신고 · 입막음 · 막힌 동안 채팅 거부');
 }
 
+console.log('\n=== v322 운영자 칭호 〈윤석열의 가호〉 ===');
+{
+  const g = fresh();
+  while (g.s.level < 30) g.addExp(W.expToNext(g.s.level));
+  const t = W.titleOf('yoon');
+  ok(t && !t.how && !W.AUTO_TITLES.includes(t), '얻는 길이 없다(운영자가 보내야만)');
+  g.checkTitles();
+  ok(!g.hasTitle('yoon'), '저절로 얻지 않는다');
+  ok(/t\.id !== 'founder' && !t\.how/.test(read('js/wmain.js')), '운영자 우편 칭호 목록에 든다(얻는 길 없는 칭호)');
+  const s0 = g.stats();
+  ok(g.grantTitle('yoon') && g.s.title === 'yoon', '받으면 바로 낀다');
+  const s1 = g.stats();
+  const k = 1 + W.TITLE_SET_BONUS;
+  ok(Math.abs(s1.atk / s0.atk - 3 * k) < 1e-9, '공격력 ×3', (s1.atk / s0.atk).toFixed(3));
+  ok(Math.abs(s0.atkSec / s1.atkSec - 1.5) < 1e-9 && Math.abs(s1.speed / s0.speed - 1.5) < 1e-9, '공격 속도 ×1.5');
+  ok(Math.abs(s1.expMult / s0.expMult - 2) < 1e-9 && s1.goldMul === 2 && s0.goldMul === 1, '경험치 ×2 · 은자 ×2');
+  ok(t.hitFx === 'Yoon Again', '때릴 때마다 〈Yoon Again〉');
+  // 실제 사냥에서 은자가 두 배로 들어온다
+  const a = fresh(), b = fresh();
+  b.grantTitle('yoon');
+  const m = { lv: 5, isBoss: false, elite: false, x: 0, y: 0 };
+  const ga = a.s.gold, gb = b.s.gold;
+  const env = {};
+  ok(typeof a.stats().goldMul === 'number', '은자 배수를 능력치에 싣는다');
+  g.wearTitle(null);
+  ok(Math.abs(g.stats().atk / s0.atk - k) < 1e-9 && g.stats().goldMul === 1, '벗으면 배수는 빠진다(모음 +1%만)');
+}
+
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);

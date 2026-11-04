@@ -826,7 +826,7 @@ export class BattleView {
         // v251: 숫자가 화면을 너무 가렸다 — 약 25% 줄이고(치명·무공 숫자가 특히 컸다) 머리 위로 더 올린다
         const size = ev.kind === 'pet' ? 12 : ev.kind === 'ally' ? 14 : skill ? 21 : ct ? 18 + Math.min(4, ct) * 2 : 14;
         // v305 칭호 — 무인이 때릴 때마다 과녁 위에 그 글자(〈옥〉). 광역 졸개는 넷에 하나만(글자 비가 되지 않게)
-        { const tf = game?.titleNow?.(); if (tf?.hitFx && ev.kind !== 'pet' && ev.kind !== 'ally' && (!ev.add || (this._okN = ((this._okN || 0) + 1)) % 4 === 0)) this.float(tf.hitFx, atX + (Math.random() - 0.5) * 30, atY - 70, tf.col || '#6ee7b7', ev.add ? 20 : 30, 0.8, true); }
+        { const tf = game?.titleNow?.(); if (tf?.hitFx && ev.kind !== 'pet' && ev.kind !== 'ally' && (!ev.add || (this._okN = ((this._okN || 0) + 1)) % 4 === 0)) this.float(tf.hitFx, atX + (Math.random() - 0.5) * 30, atY - 70, tf.col || '#6ee7b7', ev.add ? Math.min(20, tf.fxSize || 20) : (tf.fxSize || 30), 0.8, true); }
         if (ev.add) {
           // 맞은 졸개는 움찔한다(drawAdd가 이 시각을 보고 밀리고 찌그러진다)
           // v255: 붙들었다 푼 사건의 at은 복사본이다 — 진짜 몹(ref)에 적어야 움찔한다
