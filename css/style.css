@@ -2148,3 +2148,19 @@ body.hunt-noui #exp-warn, body.hunt-noui #boss-wait { visibility: hidden !import
 #boss-wait.soon .bw-ring { animation: bw-pulse 0.5s ease-in-out infinite alternate; }
 #boss-wait.soon b { color: #fca5a5; }
 @keyframes bw-pulse { to { transform: scale(1.12); box-shadow: 0 0 22px rgba(248, 113, 113, 0.7); } }
+
+/* v315 칭호 모음 보너스 */
+.title-set { margin: 6px 0 8px; padding: 8px 12px; border-radius: 10px; background: rgba(253, 224, 71, 0.08); border: 1px solid rgba(253, 224, 71, 0.35); color: #fde68a; font-size: 13px; }
+.title-set small { color: var(--muted); font-size: 11px; }
+
+/* v315 전체 채팅 — 이름(누르면 가리기) · 낀 칭호 빛깔 · 글자 수 */
+.msg button.who { background: none; border: 0; padding: 0; font: inherit; font-size: 13px; font-weight: 800; color: #a5b4fc; margin-right: 6px; cursor: pointer; }
+.msg button.who[style*="--tc"] { color: var(--tc); }
+.msg .who-title { font-size: 11px; font-weight: 700; margin-right: 3px; opacity: 0.95; }
+.msg.mine button.who { cursor: default; }
+.chat-input { position: relative; }
+.chat-count { align-self: center; font-size: 10.5px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.chat-count.full { color: #fca5a5; }
+.chat-mute-row { margin-top: 6px; display: flex; justify-content: flex-end; }
+.chat-mute-row:empty { display: none; }
+.mute-list { display: grid; gap: 6px; margin: 8px 0; max-height: 50vh; overflow: auto; }

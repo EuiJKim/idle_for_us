@@ -59,6 +59,7 @@ export function newWorldSave(now = Date.now()) {
     lastSeen: now,
     titles: [],
     title: null,          // v305 끼고 있는 칭호(열쇠)
+    chatMute: [],         // v315 전체 채팅에서 가린 무인 [{ uid, name }]
     kills: 0,
     deaths: 0,
     bestMap: W.mapId(1, 1),
@@ -96,6 +97,9 @@ export function migrateWorld(raw, now = Date.now()) {
   // v305 칭호 — 아는 것만 · 끼는 것은 가진 것 가운데
   s.titles = [...new Set((Array.isArray(raw.titles) ? raw.titles : []).filter((k) => typeof k === 'string' && W.titleOf(k)))];
   s.title = typeof raw.title === 'string' && s.titles.includes(raw.title) && W.titleOf(raw.title) ? raw.title : null;
+  // v315 가린 무인 — uid·이름만, 200명까지
+  s.chatMute = (Array.isArray(raw.chatMute) ? raw.chatMute : []).filter((x) => x && typeof x.uid === 'string' && x.uid.length <= 128)
+    .map((x) => ({ uid: x.uid, name: String(x.name || '무명').slice(0, 12) })).filter((x, i, a) => a.findIndex((y) => y.uid === x.uid) === i).slice(0, 200);
   // v292 자동 등급 각인 고르기 — only: 고른 증표만 · marks: {증표: 고유 효과 번호} · slots: {칸: false면 건너뜀}
   { const c = raw.autoInfCfg && typeof raw.autoInfCfg === 'object' ? raw.autoInfCfg : {}; const mk = {}; for (const [k, v] of Object.entries(c.marks || {})) if (W.isMarkKey(k)) mk[k] = Math.max(0, Math.min(2, Math.floor(Number(v) || 0)));
     const sl = {}; for (const k of W.GROW_SLOTS) if (c.slots?.[k] === false) sl[k] = false;
@@ -352,6 +356,7 @@ export class WorldGame {
     const t = W.titleOf(k);
     if (!t || this.hasTitle(k)) return false;
     this.s.titles.push(k);
+    this._stats = null;
     if (!this.s.title) this.wearTitle(k);
     this.emit('title', { id: k, name: t.name, auto: !!t.how });
     return true;
@@ -382,6 +387,22 @@ export class WorldGame {
     for (const t of Object.values(W.TITLES)) if (t.how && !this.hasTitle(t.id) && this.titleDone(t.id)) { this.grantTitle(t.id); n++; }
     return n;
   }
+  // v315 칭호 모음 — 가진 칭호(겹친 옛 이름은 하나로) 하나마다 공격력·체력 +1%. 끼지 않아도 붙는다
+  titleSet() {
+    const ids = new Set();
+    for (const k of this.s.titles || []) { const t = W.titleOf(k); if (t) ids.add(t.id); }
+    const n = ids.size;
+    return { n, atk: n * W.TITLE_SET_BONUS, hp: n * W.TITLE_SET_BONUS };
+  }
+  // v315 전체 채팅 가리기 — 이 기기·이 계정에서만 안 보인다(그 사람은 모른다)
+  isMuted(uid) { return !!uid && this.s.chatMute.some((x) => x.uid === uid); }
+  muteChat(uid, name) {
+    if (!uid || this.isMuted(uid)) return false;
+    this.s.chatMute.push({ uid, name: String(name || '무명').slice(0, 12) });
+    if (this.s.chatMute.length > 200) this.s.chatMute.shift();
+    return true;
+  }
+  unmuteChat(uid) { const n = this.s.chatMute.length; this.s.chatMute = this.s.chatMute.filter((x) => x.uid !== uid); return this.s.chatMute.length < n; }
   wearTitle(k) {
     if (k != null && !this.hasTitle(k)) return false;
     this.s.title = k || null;
@@ -539,8 +560,9 @@ export class WorldGame {
     // 레벨·스탯 몫은 작게, 장비 몫은 크게 (v108) — 강해지는 건 대부분 장비 덕
     // v110: 레벨·스탯 몫을 키웠다(장비보다는 작게).
     // 장비가 2/3 남짓, 레벨·스탯이 1/3 남짓(시뮬로 맞춤). 힘·체력은 1점에 0.3%씩도 올린다.
-    const atk = (5 + L * 3 + str * 3 + gear.atk) * (1 + gear.atkPct + str * 0.003 + (s.guildId ? W.guildAtk(this.guildExp) : 0)) * (cls.atkK || 1) * (1 + gear.impMul) * (this.titleNow()?.atkMul || 1);   // atkK: 직업 맞춤(v239) · v297 각인 배율 · v305 칭호
-    const hp = (60 + L * 25 + vit * 20 + gear.hp) * (1 + gear.hpPct + vit * 0.003) * (1 + gear.impMul);
+    const tset = this.titleSet();   // v315 칭호 모음
+    const atk = (5 + L * 3 + str * 3 + gear.atk) * (1 + gear.atkPct + str * 0.003 + (s.guildId ? W.guildAtk(this.guildExp) : 0)) * (cls.atkK || 1) * (1 + gear.impMul) * (this.titleNow()?.atkMul || 1) * (1 + tset.atk);   // atkK: 직업 맞춤(v239) · v297 각인 배율 · v305 칭호
+    const hp = (60 + L * 25 + vit * 20 + gear.hp) * (1 + gear.hpPct + vit * 0.003) * (1 + gear.impMul) * (1 + tset.hp);   // v315 칭호 모음
     const st = {
       atk, hp,
       def: vit * 0.2 + gear.def,
@@ -575,7 +597,7 @@ export class WorldGame {
     const e = s.equip;
     const g = (it) => (it ? `${it.uid}.${it.plus || 0}.${it.rar || 0}` : '-');
     const pets = this.activePets().map((p) => `${p.uid}.${p.lv}.${p.rar || 0}.${p.star || 0}`).join(',') + `|d${Object.values(s.petDex || {}).reduce((a, v) => a + v + 1, 0)}.${Object.keys(s.mountDex || {}).length}|m${this.mountInst()?.lv || 0}`;
-    return `${s.level}|${JSON.stringify(s.passLv || {})}|${s.guildId ? W.guildLevel(this.guildExp) : 0}|${s.job}|${s.stats.str},${s.stats.dex},${s.stats.vit},${s.stats.int}|${W.SLOTS.map((x) => g(e[x.id])).join(',')}|${pets}|${s.mount || '-'}|${s.tower?.floor || 0}|${s.path || '-'}|${s.jobTier || 0}|${this.growItems().map((x) => x.plus || 0).join('.')}|t${s.temper || 0}|i${this.impSig()}|T${s.title || ''}`;   // v243 · v274 단련: 가방 속 성장 장비 강화도(공유)
+    return `${s.level}|${JSON.stringify(s.passLv || {})}|${s.guildId ? W.guildLevel(this.guildExp) : 0}|${s.job}|${s.stats.str},${s.stats.dex},${s.stats.vit},${s.stats.int}|${W.SLOTS.map((x) => g(e[x.id])).join(',')}|${pets}|${s.mount || '-'}|${s.tower?.floor || 0}|${s.path || '-'}|${s.jobTier || 0}|${this.growItems().map((x) => x.plus || 0).join('.')}|t${s.temper || 0}|i${this.impSig()}|T${s.title || ''}.${s.titles.length}`;   // v243 · v274 단련: 가방 속 성장 장비 강화도(공유)
   }
   power() { return this.stats().power; }
   // v297 각인 서명 — 칸(증표·단·고유)이 바뀌면 능력치를 다시 센다

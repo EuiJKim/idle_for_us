@@ -67,7 +67,7 @@ const profile = (extra = {}) => ({ world: 1, nickname: '무인', level: 10, job:
     ok(await allowed(F.deleteDoc(F.doc(adb, 'players', victim.uid))), '운영자는 서열 문서를 지운다');
     ok(!(await F.getDoc(victim.ref('players', victim.uid))).exists(), '지워졌다');
 
-    console.log('# 규칙 판 (v309)');
+    console.log('# 규칙 판 (v309 · v315)');
     const RV = fs.readFileSync(new URL('../js/net.js', import.meta.url), 'utf8').match(/RULES_VER = '(\d+)'/)[1];
     ok(await allowed(F.getDoc(friend.ref('rulesv', RV))), `앱의 판(v${RV})이 게시된 규칙과 맞는다`);
     ok(await denied(F.getDoc(friend.ref('rulesv', String(+RV - 1)))), '옛 판 번호는 거부 — 앱이 옛 규칙을 알아챈다');
@@ -85,18 +85,30 @@ const profile = (extra = {}) => ({ world: 1, nickname: '무인', level: 10, job:
     ok(await allowed(F.setDoc(friend.ref('players', friend.uid), profile({ title: 'okheir' }), { merge: true })), '서열에 낀 칭호 올리기');
     ok(await denied(F.setDoc(friend.ref('players', friend.uid), profile({ title: 'x'.repeat(21) }), { merge: true })), '긴 칭호 거부');
 
-    console.log('# 전체 채팅 (v302)');
+    console.log('# 전체 채팅 (v302 · v315 2초 막이 · 100자 · 칭호)');
     const wm = (u, o = {}) => ({ uid: u.uid, name: '무인', text: '안녕하세요', type: 'chat', createdAt: F.serverTimestamp(), ...o });
-    ok(await allowed(F.addDoc(F.collection(friend.db, 'chat'), wm(friend))), '누구나(문파 없어도) 전체 채팅');
-    ok(await allowed(F.addDoc(F.collection(bad.db, 'chat'), wm(bad, { type: 'system', text: '✦ 소식' }))), '무림 소식(system)도');
-    ok(await denied(F.addDoc(F.collection(bad.db, 'chat'), wm(bad, { uid: friend.uid }))), '남인 척 거부');
-    ok(await denied(F.addDoc(F.collection(bad.db, 'chat'), wm(bad, { text: '가'.repeat(201) }))), '201자 거부');
-    ok(await denied(F.addDoc(F.collection(bad.db, 'chat'), wm(bad, { text: '' }))), '빈 말 거부');
-    ok(await denied(F.addDoc(F.collection(bad.db, 'chat'), wm(bad, { name: '가'.repeat(13) }))), '긴 이름 거부');
-    ok(await denied(F.addDoc(F.collection(bad.db, 'chat'), wm(bad, { createdAt: new Date(0) }))), '시각을 꾸미면 거부(서버 시각만)');
-    ok(await denied(F.addDoc(F.collection(bad.db, 'chat'), wm(bad, { type: 'admin' }))), '이상한 종류 거부');
-    ok(await denied(F.addDoc(F.collection(bad.db, 'chat'), wm(bad, { extra: 1 }))), '다른 칸 거부');
-    const mine = await F.addDoc(F.collection(friend.db, 'chat'), wm(friend));
+    // 앱처럼 — 말과 chatlimit/{uid}를 한 묶음으로
+    const say = async (u, o = {}) => { const b = F.writeBatch(u.db); const r = F.doc(F.collection(u.db, 'chat')); b.set(r, wm(u, o)); b.set(u.ref('chatlimit', u.uid), { at: F.serverTimestamp() }); await b.commit(); return r; };
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    ok(await allowed(say(friend)), '누구나(문파 없어도) 전체 채팅');
+    ok(await denied(say(friend, { text: '또' })), '2초 안에 또 말하면 거부(서버가 막는다)');
+    ok(await denied(F.addDoc(F.collection(bad.db, 'chat'), wm(bad))), '빠르기 막이 없이(옛 방식) 보내면 거부');
+    ok(await allowed(say(bad, { type: 'system', text: '✦ 소식' })), '무림 소식(system)도');
+    await wait(2200);
+    ok(await denied(say(bad, { uid: friend.uid })), '남인 척 거부');
+    ok(await denied(say(bad, { text: '가'.repeat(101) })), '101자 거부(한 마디 100자)');
+    ok(await denied(say(bad, { text: '' })), '빈 말 거부');
+    ok(await denied(say(bad, { name: '가'.repeat(13) })), '긴 이름 거부');
+    ok(await denied(say(bad, { createdAt: new Date(0) })), '시각을 꾸미면 거부(서버 시각만)');
+    ok(await denied(say(bad, { type: 'admin' })), '이상한 종류 거부');
+    ok(await denied(say(bad, { extra: 1 })), '다른 칸 거부');
+    ok(await denied(say(bad, { title: 'x'.repeat(17) })), '긴 칭호 거부');
+    ok(await denied(F.setDoc(bad.ref('chatlimit', bad.uid), { at: new Date(0) })), '빠르기 막이 시각 꾸미기 거부');
+    ok(await denied(F.setDoc(bad.ref('chatlimit', friend.uid), { at: F.serverTimestamp() })), '남의 빠르기 막이 거부');
+    ok(await denied(F.deleteDoc(bad.ref('chatlimit', bad.uid))), '빠르기 막이 지우기 거부');
+    ok(await allowed(say(bad, { text: '가'.repeat(100) })), '100자는 된다');
+    const mine = await say(friend, { title: 'okheir' });
+    ok(!!mine, '칭호를 실어 보낸다');
     ok(await denied(F.updateDoc(friend.ref('chat', mine.id), { text: '고침' })), '자기 말도 고치기 거부');
     ok(await denied(F.deleteDoc(friend.ref('chat', mine.id))), '자기 말도 지우기 거부(운영자만)');
     ok(await allowed(F.getDocs(F.collection(bad.db, 'chat'))), '누구나 읽는다');

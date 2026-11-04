@@ -9,6 +9,8 @@
 // 사람 눈으로는 매번 놓친다. 짝이 맞는지 기계가 본다.
 import fs from 'node:fs';
 import path from 'node:path';
+import os from 'node:os';
+import { spawnSync } from 'node:child_process';
 
 const R = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')), '..');
 const read = (f) => fs.readFileSync(path.join(R, f), 'utf-8');
@@ -389,6 +391,19 @@ console.log('=== 11. 큰 수를 보통 셈으로 다루는 곳 ===');
   const cache = /const CACHE = '([^']+)'/.exec(sw)?.[1];
   const build = /export const BUILD = '([^']+)'/.exec(read('js/data.js'))?.[1];
   ok(cache && cache === build, '서비스워커 CACHE = data.js BUILD', `${cache} / ${build}`);
+}
+// v315 문법 검사 — 같은 이름을 두 번 선언하면(const t 두 번) 파일 전체가 안 열려 화면이 멈춘다. 브라우저 없이 미리 잡는다
+{
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'ifu-syntax-'));
+  const bad = [];
+  for (const f of JS_FILES) {
+    const out = path.join(tmp, f.replace(/[\\/]/g, '__') + '.mjs');
+    fs.writeFileSync(out, read(f));
+    const r = spawnSync(process.execPath, ['--check', out], { encoding: 'utf8' });
+    if (r.status !== 0) bad.push(`${f}: ${(r.stderr.match(/SyntaxError[^\n]*/) || [''])[0]}`);
+  }
+  fs.rmSync(tmp, { recursive: true, force: true });
+  ok(bad.length === 0, `모든 js 문법이 맞다 (${JS_FILES.length}개)`, bad.join(' | '));
 }
 console.log(`\n${fail === 0 ? '짝이 전부 맞는다' : `짝이 안 맞는 것 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);

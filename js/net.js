@@ -2,7 +2,8 @@
 // SDK를 동적으로 불러오므로 실패해도 혼자 하기는 그대로 동작한다.
 import { firebaseConfig, FIREBASE_SDK_VERSION, ADMIN_UID } from './firebase-config.js';
 // v309 이 앱이 바라는 규칙 판 — firestore.rules의 rulesv 숫자와 같아야 한다(규칙을 고치면 둘 다 올린다)
-export const RULES_VER = '309';
+export const RULES_VER = '315';
+export const WORLD_MAX = 100;   // v315 전체 채팅 한 마디 길이
 import { big } from './big.js';
 import { Big } from './big.js';
 
@@ -726,15 +727,41 @@ export class Net {
   }
   worldUnread() { return Math.max(0, this.world.filter((m) => m.uid !== this.uid).length - this.worldSeen); }
   worldMarkSeen() { this.worldSeen = this.world.filter((m) => m.uid !== this.uid).length; }
-  async sendWorld(text, type = 'chat') {
-    const clean = String(text).trim().slice(0, 200);
+  // v315 한 말은 100자 · 2초에 하나(서버 규칙도 chatlimit/{uid}로 막는다) · 같은 말을 30초 안에 거듭 못 한다 · 낀 칭호를 같이 싣는다
+  async sendWorld(text, type = 'chat', retry = true) {
+    const clean = String(text).replace(/\s+/g, ' ').trim().slice(0, type === 'chat' ? WORLD_MAX : 200);
     if (!clean || !this.online) return false;
     const now = Date.now();
-    if (type === 'chat' && now - this.worldAt < 2000) throw new Error('너무 빨라요 — 잠깐 뒤에 보내 주세요');
-    this.worldAt = now;
-    await this.fs.addDoc(this.fs.collection(this.db, 'chat'), {
-      uid: this.uid, name: String(this.game.s.nickname || '무명').slice(0, 12), text: clean, type, createdAt: this.fs.serverTimestamp(),
-    });
+    if (type === 'chat' && retry) {
+      if (now - (this.worldChatAt || 0) < 2000) throw new Error('너무 빨라요 — 잠깐 뒤에 보내 주세요');
+      if (this.worldLast && this.worldLast.text === clean && now - this.worldLast.at < 30000) throw new Error('같은 말을 거듭 보내지 않아요 — 조금 뒤에');
+      this.worldChatAt = now;
+    }
+    // 서버 막이(2초)는 소식(system)과 내 말을 함께 센다 — 앞 것에서 2초가 안 지났으면 남은 만큼 기다렸다 보낸다(내 말이 소식에 막히지 않게)
+    const gap = 2100 - (Date.now() - (this.worldAt || 0));
+    if (gap > 0) await new Promise((r) => setTimeout(r, gap));
+    this.worldAt = Date.now();
+    const name = String(this.game.s.nickname || '무명').slice(0, 12);
+    const { writeBatch, doc, collection, serverTimestamp } = this.fs;
+    // 옛 규칙이 게시돼 있으면(rulesOk false) 옛 모양으로 — 새 규칙이 올라가는 사이에도 말이 막히지 않게
+    if (this.rulesOk === false) {
+      await this.fs.addDoc(collection(this.db, 'chat'), { uid: this.uid, name, text: clean, type, createdAt: serverTimestamp() });
+    } else {
+      const msg = { uid: this.uid, name, text: clean, type, createdAt: serverTimestamp() };
+      const t = this.game.s.title;
+      if (t && typeof t === 'string' && t.length <= 16) msg.title = t;
+      try {
+        const b = writeBatch(this.db);
+        b.set(doc(collection(this.db, 'chat')), msg);
+        b.set(this.ref('chatlimit', this.uid), { at: serverTimestamp() });
+        await b.commit();
+      } catch (err) {
+        // 2초 막이에 걸렸다(다른 기기와 겹침) — 한 번만 조금 뒤에 다시
+        if (retry) { await new Promise((r) => setTimeout(r, 2300)); return this.sendWorld(text, type, false); }
+        throw new Error(type === 'chat' ? '너무 빨라요 — 잠깐 뒤에 보내 주세요' : (err?.message || '보내지 못했어요'));
+      }
+    }
+    if (type === 'chat') this.worldLast = { text: clean, at: Date.now() };
     return true;
   }
   async deleteWorld(id) { await this.fs.deleteDoc(this.ref('chat', id)); }

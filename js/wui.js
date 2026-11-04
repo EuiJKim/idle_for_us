@@ -7,7 +7,7 @@ import * as G from './world/wgear.js';
 import * as Q from './world/wquest.js';
 import { h, toast, openModal, closeModal, subTabs, popUp, holdRepeat, modalGen } from './ui/common.js';
 import { fmt } from './fmt.js';
-import { dayKey } from './net.js';
+import { dayKey, WORLD_MAX } from './net.js';
 import { drawCreature, CREATURES, crArt } from './creatures.js';
 import { skinImg } from './icons.js';
 import * as MS from './world/wmaster.js';
@@ -448,7 +448,7 @@ function charTab(app) {
         ...s.titles.map((k) => { const t = W.titleOf(k); return t ? h('button', { class: `chip title-chip${s.title === k ? ' on' : ''}`, style: `--tc:${t.col}`, title: t.desc,
           onclick: () => { game.wearTitle(s.title === k ? null : k); app.save(); app.refresh(); toast(s.title ? `〈${t.name}〉 — ${t.desc}` : '칭호를 벗었어요'); } }, `〈${t.name}〉`) : null; }),
         tn?.desc ? h('span', { class: 'title-desc' }, tn.desc) : null,
-        h('button', { class: 'btn itm-info', style: 'font-size:11.5px;padding:3px 8px', onclick: () => openTitles(app) }, '칭호 모음 ›')) : h('div', { class: 'title-row' }, h('small', {}, '칭호'), h('span', { class: 'title-desc' }, '아직 없어요'), h('button', { class: 'btn itm-info', style: 'font-size:11.5px;padding:3px 8px', onclick: () => openTitles(app) }, '칭호 모음 ›')),
+        h('button', { class: 'btn itm-info', style: 'font-size:11.5px;padding:3px 8px', onclick: () => openTitles(app) }, `칭호 모음 · +${Math.round(game.titleSet().atk * 100)}% ›`)) : h('div', { class: 'title-row' }, h('small', {}, '칭호'), h('span', { class: 'title-desc' }, '아직 없어요'), h('button', { class: 'btn itm-info', style: 'font-size:11.5px;padding:3px 8px', onclick: () => openTitles(app) }, '칭호 모음 ›')),
 
       h('div', { class: 'bar' }, h('div', { style: `width:${Math.min(100, (s.exp / game.expNeed()) * 100)}%` }),
         h('span', {}, `경험치 ${fmt(s.exp)} / ${fmt(game.expNeed())}`)));
@@ -2093,8 +2093,11 @@ export function openTitles(app) {
     const got = (t) => game.hasTitle(t.id) || (t.id === 'founder' && game.hasTitle('개국공신'));
     const auto = W.AUTO_TITLES;
     const mine = Object.values(W.TITLES).filter((t) => !t.how && got(t));
+    const ts = game.titleSet();
     s.append(h('h2', {}, '칭호 모음', h('small', {}, ` ${auto.filter(got).length}/${auto.length}`)),
-      h('p', { class: 'muted' }, '칭호는 하나만 껴요. 끼면 그 효과(공격력·때릴 때 글자)가 붙어요. 이루면 저절로 받아요.'),
+      h('div', { class: 'title-set' }, h('b', {}, `모은 칭호 ${ts.n}개`), ` → 공격력·체력 +${Math.round(ts.atk * 100)}%`,
+        h('small', {}, ` (칭호 하나마다 +${Math.round(W.TITLE_SET_BONUS * 100)}% · 끼지 않아도 붙어요)`)),
+      h('p', { class: 'muted' }, '끼는 칭호는 하나 — 끼면 그 효과(공격력·때릴 때 글자)가 더 붙어요. 이루면 저절로 받아요.'),
       h('div', { class: 'title-list' }, ...auto.map((t) => row(t, got(t))), ...mine.map((t) => row(t, true))),
       h('div', { class: 'btn-row' }, h('button', { class: 'btn primary', onclick: closeModal }, '닫기')));
   });
@@ -2510,27 +2513,51 @@ function worldChatView(app) {
   const root = h('div');
   let sig = '', draft = '';
   const box = h('div', { class: 'chat chat-world' });
-  const input = h('input', { class: 'field', maxlength: 200, placeholder: '모두에게 한마디 (200자)' });
-  input.addEventListener('input', () => { draft = input.value; });
+  const input = h('input', { class: 'field', maxlength: WORLD_MAX, placeholder: `모두에게 한마디 (${WORLD_MAX}자)` });
+  const count = h('small', { class: 'chat-count' }, '');
+  const recount = () => { const n = input.value.length; count.textContent = n ? `${n}/${WORLD_MAX}` : ''; count.classList.toggle('full', n >= WORLD_MAX); };
+  input.addEventListener('input', () => { draft = input.value; recount(); });
   const send = h('button', { class: 'btn primary' }, '보내기');
   const doSend = async () => {
     const text = input.value.trim();
     if (!text) return;
     if (!game.s.nickname) return toast('이름을 먼저 정해요 (캐릭터 창)');
-    input.value = ''; draft = '';
+    input.value = ''; draft = ''; recount();
     try { await net.sendWorld(text); } catch (err) { toast(err.message || '보내지 못했어요'); input.value = text; draft = text; }
   };
   send.onclick = doSend;
   input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); doSend(); } });
   const status = h('p', { class: 'muted' });
-  root.append(h('div', { class: 'card' }, h('h3', {}, '전체 채팅', h('small', {}, ' 무림의 모든 무인')), status, box, h('div', { class: 'chat-input' }, input, send)));
+  const muteRow = h('div', { class: 'chat-mute-row' });
+  root.append(h('div', { class: 'card' }, h('h3', {}, '전체 채팅', h('small', {}, ' 무림의 모든 무인 · 이름을 누르면 가리기')), status, box, h('div', { class: 'chat-input' }, input, count, send), muteRow));
+  // v315 이름을 누르면 — 그 무인 가리기(이 기기에서만 안 보인다)
+  const whoMenu = (m) => {
+    if (!m.uid || m.uid === net.uid) return;
+    const t = m.title ? W.titleOf(m.title) : null;
+    openModal((sh) => sh.append(
+      h('h2', {}, t ? h('span', { class: 'title-tag', style: `--tc:${t.col}` }, `〈${t.name}〉 `) : null, m.name || '무명'),
+      h('p', { class: 'muted' }, '가리면 이 무인의 말이 내 전체 채팅에 안 보여요. 상대는 몰라요. 아래 \'가린 무인\'에서 언제든 풀 수 있어요.'),
+      h('div', { class: 'btn-row' },
+        h('button', { class: 'btn danger', onclick: () => { game.muteChat(m.uid, m.name); app.save(); closeModal(); sig = ''; render(); toast(`${m.name || '무명'}의 말을 가렸어요`); } }, '이 무인 가리기'),
+        h('button', { class: 'btn', onclick: closeModal }, '닫기'))));
+  };
+  const muteList = () => openModal((sh) => {
+    const list = h('div', { class: 'mute-list' });
+    const paint = () => list.replaceChildren(...(game.s.chatMute.length ? game.s.chatMute.map((x) => h('div', { class: 'row' },
+      h('div', { class: 'info' }, h('div', { class: 'name' }, x.name)),
+      h('button', { class: 'btn', onclick: () => { game.unmuteChat(x.uid); app.save(); sig = ''; render(); paint(); } }, '풀기'))) : [h('p', { class: 'muted' }, '가린 무인이 없어요')]));
+    paint();
+    sh.append(h('h2', {}, '가린 무인'), list, h('div', { class: 'btn-row' }, h('button', { class: 'btn primary', onclick: closeModal }, '닫기')));
+  });
   const isAdmin = () => !!net?.isAdmin?.();
   function render() {
     const on = !!net?.online;
     status.textContent = on ? '' : net?.status === 'connecting' ? '서버에 연결하는 중이에요…' : '인터넷에 연결되면 이야기할 수 있어요.';
     input.disabled = send.disabled = on ? null : true;
-    const msgs = net?.world || [];
-    const nsig = msgs.map((m) => m.id).join(',') + (on ? '1' : '0');
+    const all = net?.world || [];
+    const msgs = all.filter((m) => m.type === 'system' || !game.isMuted(m.uid));   // v315 가린 무인
+    const hid = all.length - msgs.length;
+    const nsig = msgs.map((m) => m.id).join(',') + (on ? '1' : '0') + `|${game.s.chatMute.length}`;
     if (nsig === sig) return;
     sig = nsig;
     const nearBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 60;
@@ -2539,15 +2566,19 @@ function worldChatView(app) {
       const time = t ? `${t.getHours()}:${String(t.getMinutes()).padStart(2, '0')}` : '';
       const del = isAdmin() ? h('button', { class: 'msg-del', title: '지우기', onclick: () => { if (confirm('이 말을 지울까요?')) net.deleteWorld(m.id).catch((e) => toast(e.message)); } }, '✕') : null;
       if (m.type === 'system') return h('div', { class: 'msg system' }, m.text, h('time', {}, time), del);
-      return h('div', { class: `msg${m.uid === net.uid ? ' mine' : ''}` }, h('span', { class: 'who' }, m.name || '무명'), m.text, h('time', {}, time), del);
+      const tt = m.title ? W.titleOf(m.title) : null;   // v315 낀 칭호 — 칭호 빛깔로
+      return h('div', { class: `msg${m.uid === net.uid ? ' mine' : ''}` },
+        h('button', { class: 'who', style: tt ? `--tc:${tt.col}` : null, onclick: () => whoMenu(m) }, tt ? h('span', { class: 'who-title' }, `〈${tt.name}〉`) : null, m.name || '무명'),
+        m.text, h('time', {}, time), del);
     }) : [h('div', { class: 'muted' }, on ? '아직 아무 말도 없어요 — 첫 인사를 남겨 보세요 👋' : '')]));
+    muteRow.replaceChildren(...(game.s.chatMute.length ? [h('button', { class: 'btn itm-info', style: 'font-size:11.5px;padding:3px 8px', onclick: muteList }, `가린 무인 ${game.s.chatMute.length}명${hid ? ` · 지금 ${hid}마디 가림` : ''} ›`)] : []));
     if (nearBottom) box.scrollTop = box.scrollHeight;
     net?.worldMarkSeen?.();
   }
   return {
     root,
     update() { render(); },
-    shown() { input.value = draft; render(); box.scrollTop = box.scrollHeight; net?.worldMarkSeen?.(); },
+    shown() { input.value = draft; recount(); render(); box.scrollTop = box.scrollHeight; net?.worldMarkSeen?.(); },
     netChanged(what) { if (what === 'wchat' || what === 'status') render(); },
   };
 }

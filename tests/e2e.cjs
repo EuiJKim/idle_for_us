@@ -271,6 +271,30 @@ async function tab(page, name) {
   assert(rows.length >= 2 && rows[0].includes('철수'), `서열: 레벨 높은 철수가 맨 위 (${rows.length}명)`);
   await shot(q, '08-rank.png');
 
+  console.log('# 온라인: 전체 채팅 (v315 칭호 · 가리기 · 2초 막이)');
+  {
+    await G(q, () => { const g = window.__game; g.grantTitle('quest'); g.wearTitle('quest'); });
+    await q.click('#panel .subtabs button:has-text("전체")');
+    await q.fill('#panel .chat-world ~ .chat-input input', '반가워요 v315');
+    await q.click('#panel .chat-world ~ .chat-input .btn.primary');
+    assert(await G(q, async () => { try { await window.__app.net.sendWorld('곧바로 또'); return false; } catch (e) { return true; } }), '2초 안에 또 보내면 막힌다');
+    await tab(p, 'social');
+    await p.click('#panel .subtabs button:has-text("전체")');
+    await p.waitForSelector('#panel .msg:has-text("반가워요 v315")', { timeout: 15000 });
+    assert(/길잡이 졸업/.test(await p.$eval('#panel .msg:has-text("반가워요 v315") .who', (e) => e.textContent)), '말에 낀 칭호가 붙어 온다');
+    await shot(p, '07c-world-chat.png');
+    await p.click('#panel .msg:has-text("반가워요 v315") .who');
+    await p.click('#modal .btn.danger');
+    await p.waitForFunction(() => !document.querySelector('#panel .chat-world')?.textContent.includes('반가워요 v315'), null, { timeout: 5000 });
+    assert(await G(p, () => window.__game.s.chatMute.length === 1), '가리면 그 무인의 말이 사라진다');
+    await p.click('#panel .chat-mute-row button');
+    await p.click('#modal .mute-list .btn');
+    await G(p, () => document.querySelector('#modal .btn.primary')?.click());
+    await p.waitForSelector('#panel .msg:has-text("반가워요 v315")', { timeout: 5000 });
+    assert(await G(p, () => window.__game.s.chatMute.length === 0), '풀면 다시 보인다');
+    for (const pg of [p, q]) if (await pg.isVisible('#panel-close')) { await pg.click('#panel-close'); await sleep(250); }
+  }
+
   console.log('# 온라인: 우편함 (v175)');
   {
     // 운영자만 넣을 수 있다 — 보통 무인이 넣으려 하면 규칙이 막는다
@@ -316,6 +340,7 @@ async function tab(page, name) {
   console.log('# 온라인: 문파');
   await G(p, () => { const g = window.__game; g.s.mats = { hc: 100 }; g.s.gold = Math.max(g.s.gold, 1e5); });
   await tab(p, 'social');
+  await p.click('#panel .subtabs button:has-text("문파")');   // v315 앞에서 '전체'를 봤다 — 칸은 마지막 것을 기억한다
   await p.fill('#panel input[placeholder^="문파 이름"]', '우리끼리');
   await p.click('#panel button:has-text("만들기")');
   await p.waitForSelector('#panel button:has-text("출석")', { timeout: 15000 });

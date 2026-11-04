@@ -2706,10 +2706,10 @@ console.log('\n=== v305 칭호 ===');
   ok(!g.grantTitle('nope') && !g.wearTitle('okheir'), '없는 칭호는 못 받고 · 안 가진 칭호는 못 낀다');
   g.events.length = 0;
   ok(g.grantTitle('okheir') && g.hasTitle('okheir') && g.s.title === 'okheir' && g.events.some((e) => e.type === 'title' && e.id === 'okheir'), '〈이미옥의 후예〉를 받으면 바로 끼고 알린다');
-  ok(Math.abs(g.stats().atk / atk0 - 2) < 1e-9, '공격력 ×2', `${atk0.toFixed(0)} → ${g.stats().atk.toFixed(0)}`);
+  ok(Math.abs(g.stats().atk / atk0 - 2 * (1 + W.TITLE_SET_BONUS)) < 1e-9, '공격력 ×2 (v315 + 모음 1%)', `${atk0.toFixed(0)} → ${g.stats().atk.toFixed(0)}`);
   ok(g.titleNow().hitFx === '옥' && /〈이미옥의 후예〉 Lv\.30/.test(g.heroLabel()), '때릴 때 글자 〈옥〉 · 이름표에 칭호');
   ok(!g.grantTitle('okheir') && g.s.titles.length === 1, '두 번 받아도 하나');
-  ok(g.wearTitle(null) && !g.s.title && Math.abs(g.stats().atk - atk0) < 1e-6, '벗으면 원래 공격력');
+  ok(g.wearTitle(null) && !g.s.title && Math.abs(g.stats().atk / atk0 - (1 + W.TITLE_SET_BONUS)) < 1e-9, '벗으면 ×2는 빠진다(모음 +1%만 남는다)');
   ok(g.wearTitle('okheir') && g.s.title === 'okheir', '다시 낀다');
   const m = migrateWorld({ ...newWorldSave(), titles: ['개국공신', 'okheir', 'bogus', 5], title: 'okheir' });
   ok(m.titles.length === 2 && m.titles.includes('개국공신') && m.titles.includes('okheir') && m.title === 'okheir', '저장: 아는 칭호만 남고 낀 것도 남는다', JSON.stringify(m.titles));
@@ -2792,6 +2792,34 @@ console.log('\n=== v314 분당 경험치 · 낮은 사냥터 알림 · 두목까
   const ui = read('js/wmain.js'), html = read('index.html');
   ok(/expPerMin\(\)/.test(ui) && /huntGap\(\)/.test(ui) && /bossWait\(\)/.test(ui), '화면이 셋 다 쓴다');
   ok(/id="exp-rate"/.test(html) && /id="exp-warn"/.test(html) && /id="boss-wait"/.test(html), '자리(분당 경험치 · 알림 · 고리)');
+}
+
+console.log('\n=== v315 칭호 모음 보너스 · 전체 채팅 가리기 ===');
+{
+  const g = fresh();
+  const a0 = g.stats().atk, h0 = g.stats().hp;
+  ok(g.titleSet().n === 0, '처음엔 칭호 0개');
+  g.grantTitle('quest'); g.wearTitle(null);
+  ok(g.titleSet().n === 1 && Math.abs(g.stats().atk / a0 - 1.01) < 1e-9 && Math.abs(g.stats().hp / h0 - 1.01) < 1e-9, '하나 가지면(끼지 않아도) 공격력·체력 +1%', `${(g.stats().atk / a0).toFixed(4)}`);
+  g.grantTitle('lv100'); g.grantTitle('k100k');
+  ok(g.titleSet().n === 3 && Math.abs(g.stats().hp / h0 - 1.03) < 1e-9, '셋이면 +3%');
+  g.wearTitle('lv100');
+  ok(Math.abs(g.stats().atk / a0 - 1.03 * 1.02) < 1e-9, '끼는 칭호 효과는 따로 곱해진다', `${(g.stats().atk / a0).toFixed(4)}`);
+  g.s.titles.push('개국공신', 'founder');
+  ok(g.titleSet().n === 4, '옛 이름(개국공신)과 founder는 하나로 센다');
+  const raw = JSON.parse(JSON.stringify(g.toJSON()));
+  raw.chatMute = [{ uid: 'u1', name: '시끄러운이' }, { uid: 'u1', name: '겹침' }, { uid: 5 }, null, { uid: 'u2', name: '가'.repeat(30) }];
+  const g2 = new WorldGame(raw, 0);
+  ok(g2.s.chatMute.length === 2 && g2.s.chatMute[1].name.length === 12, '가린 무인 — 겹침·이상한 값은 버리고 이름은 12자', JSON.stringify(g2.s.chatMute));
+  ok(g2.isMuted('u1') && !g2.isMuted('u3') && !g2.isMuted(''), '가렸나 본다');
+  ok(g2.muteChat('u3', '셋') && !g2.muteChat('u3', '셋') && g2.isMuted('u3'), '가리기(두 번은 안 된다)');
+  ok(g2.unmuteChat('u3') && !g2.isMuted('u3') && !g2.unmuteChat('u3'), '풀기');
+  for (let i = 0; i < 250; i++) g2.muteChat(`x${i}`, 'x');
+  ok(g2.s.chatMute.length === 200, '200명까지(오래된 것부터 밀린다)');
+  const ui = read('js/wui.js'), net = read('js/net.js');
+  ok(/isMuted\(m\.uid\)/.test(ui) && /muteChat/.test(ui) && /unmuteChat/.test(ui) && /who-title/.test(ui), '채팅 창: 가리기 · 풀기 · 칭호 빛깔');
+  ok(/WORLD_MAX = 100/.test(net) && /chatlimit/.test(net) && /writeBatch/.test(net) && /같은 말을 거듭/.test(net), '보내기: 100자 · 2초 막이(chatlimit) · 같은 말 거듭 막기');
+  ok(/titleSet\(\)/.test(ui) && /TITLE_SET_BONUS/.test(ui), '칭호 모음 창에 보너스');
 }
 
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
