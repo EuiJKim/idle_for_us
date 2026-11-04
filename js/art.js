@@ -71,6 +71,7 @@ export const ART_SHOULDER = { x: 9, y: BODY_TOP + 9 };
 export const ART_BAND = { x: -5, y: BODY_TOP + 4 - 14 };
 
 import { ART2_HEADS, ART2_WEAPONS, ART2_SPRITES } from './art2.js';
+import { HEAD_ANCHOR } from './headanchor.js';
 const img = {};
 let ready = false;
 let tried = false;
@@ -171,10 +172,60 @@ let tried2 = false;
 export function loadArt2(onEach) {
   if (tried2 || typeof Image === 'undefined') return;
   tried2 = true;
-  const one = (n, then) => { const im = new Image(); im.onload = () => { img[n] = im; then?.(); onEach?.(n); }; im.src = `art/hero2/${n}.png`; };
+  const one = (n, then) => { const im = new Image(); im.onload = () => { img[n] = n.startsWith('fh-') ? fadeBottom(im, 0.86) : im; then?.(); onEach?.(n); }; im.src = `art/hero2/${n}.png`; };
   for (const [n, f] of Object.entries(ART2_HEADS)) one(n, () => { HEAD_FIT[n] = { crop: 1, brow: f.brow, eye: f.eye, eyeX: f.eyeX, fit: { w: f.w, x: f.x, y: f.y } }; });
   for (const [n, f] of Object.entries(ART2_WEAPONS)) one(n, () => { WEAPON_FIT[n] = { ...f }; });
   for (const n of ART2_SPRITES) one(n);
+}
+// v327 여협 머리 그림 맨 아래(목·늘어진 머리카락)는 네모로 잘려 있었다 — 아래 14%를 투명하게 흐려 끝을 부드럽게
+function fadeBottom(im, from) {
+  if (typeof document === 'undefined') return im;
+  const c = document.createElement('canvas'); c.width = im.width; c.height = im.height;
+  const g = c.getContext('2d'); g.drawImage(im, 0, 0);
+  g.globalCompositeOperation = 'destination-out';
+  const gr = g.createLinearGradient(0, im.height * from, 0, im.height);
+  gr.addColorStop(0, 'rgba(0,0,0,0)'); gr.addColorStop(1, 'rgba(0,0,0,1)');
+  g.fillStyle = gr; g.fillRect(0, im.height * from - 1, im.width, im.height * (1 - from) + 2);
+  return c;
+}
+// v327 머리 그림에서 잰 자리(눈·눈썹·정수리·턱·얼굴 좌우·뒤통수)를 그려지는 좌표로 — 덧그림을 '그 얼굴'에 맞춘다
+export function headGeom(hk, HF) {
+  const im = img[hk], a = HEAD_ANCHOR[hk];
+  if (!im || !a) return null;
+  const w = HF.w, h = (im.height * w) / im.width, x0 = HF.x - w / 2, y0 = HF.y - h;
+  const X = (f) => x0 + w * f, Y = (f) => y0 + h * f;
+  return { x0, y0, w, h, a, eyeX: X(a.eyeX), eyeY: Y(a.eyeY), browY: Y(a.browY), topY: Y(a.topY), jawY: Y(a.jawY),
+    faceL: X(a.faceL), faceR: X(a.faceR), backX: X(a.backX), browL: X(a.browL), browR: X(a.browR), faceW: w * (a.faceR - a.faceL) };
+}
+// 머리 그림 모양대로 오린 덧그림(안대 띠·외눈 끈·칼자국) — 그림 크기 캔버스에 그리고 머리 밖은 지운다. 한 번 만들어 둔다
+const maskCache = new Map();
+export function headMasked(hk, tag, draw) {
+  const id = hk + '|' + tag;
+  if (maskCache.has(id)) return maskCache.get(id);
+  const im = img[hk], a = HEAD_ANCHOR[hk];
+  if (!im || !a || typeof document === 'undefined') return null;
+  const cv = document.createElement('canvas'); cv.width = im.width; cv.height = im.height;
+  const c = cv.getContext('2d');
+  draw(c, im.width, im.height, a);
+  c.globalCompositeOperation = 'destination-in'; c.drawImage(im, 0, 0);
+  maskCache.set(id, cv);
+  return cv;
+}
+// v327 삿갓 자리 — 챙이 눈썹 선에, 폭은 그 머리(머리카락 포함) 눈썹 줄 폭보다 넉넉히
+export function hatRect(hatKey, headKey, headFit) {
+  const im = img[hatKey], hf = HAT_FIT[hatKey], hd = HEAD_FIT[headKey] || HEAD_FIT.head;
+  if (!im || !hf) return null;
+  headFit = hd.fit || headFit;
+  const g = headGeom(headKey, headFit);
+  if (g) {
+    const w = Math.max(hf.w, (g.browR - g.browL) * 1.16), h = (im.height * w) / im.width;
+    const brim = g.browY + g.faceW * 0.04;
+    return { x: (g.browL + g.browR) / 2 + g.faceW * 0.04 - w / 2, y: brim - h * 0.92, w, h, brim };
+  }
+  const hh = artHeight(headKey, headFit);
+  const browY = headFit.y - hh + hh * hd.brow;
+  const w = hf.w, h = (im.height * w) / im.width;
+  return { x: headFit.x - w / 2 - 1, y: browY - h * 0.92, w, h, brim: browY };
 }
 export function artImg(key) { return img[key] || null; }
 // v325 캔버스로 그린 조각(여협 머리)을 그림 조각처럼 쓴다 — putArt·artHeight·HEAD_FIT이 그대로 통한다
@@ -328,13 +379,9 @@ export function hasArt(key) { return !!img[key]; }
 export function weaponBare(key) { return !!WEAPON_FIT[key]?.bare; }
 // v323 쓰개 덧씌우기 — 머리 그림의 눈썹 선에 챙이 오게
 export function putHat(ctx, hatKey, headKey, headFit) {
-  const im = img[hatKey], hf = HAT_FIT[hatKey], hd = HEAD_FIT[headKey] || HEAD_FIT.head;
-  if (!im || !hf) return false;
-  headFit = hd.fit || headFit;   // v325 그림마다 놓는 자리가 다를 수 있다(여협 머리)
-  const hh = artHeight(headKey, headFit);
-  const browY = headFit.y - hh + hh * hd.brow;   // 머리 위에서 brow만큼 내려온 자리
-  const w = hf.w, h = (im.height * w) / im.width;
-  ctx.drawImage(im, headFit.x + (hd.fit ? (hd.eyeX - 0.5) * headFit.w * 0.4 : 0) - w / 2 - 1, browY - h * 0.92, w, h);
+  const r = hatRect(hatKey, headKey, headFit);
+  if (!r) return false;
+  ctx.drawImage(img[hatKey], r.x, r.y, r.w, r.h);
   return true;
 }
 export function putArt(ctx, key, fit) {

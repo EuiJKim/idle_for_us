@@ -1,7 +1,7 @@
 // 전투 화면 캔버스 렌더러 (수묵화 무협풍). 게임 이벤트를 받아 연출만 담당한다.
 import { drawObstacle, drawLowObstacle } from './obstacles.js';
 import { zoneOf, RANKS, GRADES, FIELD_SQUASH, JOB_TRAITS, QI, jobOf, critTierName } from './data.js';
-import { artReady, putArt, putArtBand, putArtEdge, putArtTint, loadArt, FIT, ART_SHOULDER, ART_BAND, headKey, bodyKey, weaponKey, artHeight, hasBodyArt, putWeapon, weaponBare, putHat, bodyColors, hasArt, HEAD_FIT, registerArt, artImg } from './art.js';
+import { artReady, putArt, putArtBand, putArtEdge, putArtTint, loadArt, FIT, ART_SHOULDER, ART_BAND, headKey, bodyKey, weaponKey, artHeight, hasBodyArt, putWeapon, weaponBare, putHat, hatRect, headGeom, headMasked, bodyColors, hasArt, HEAD_FIT, registerArt, artImg } from './art.js';
 import { drawFemaleHead, drawBackHair, FHEAD_W, FHEAD_H, FHEAD_FIT } from './femhead.js';
 import { drawCreature, saddleY, mountTilt, mountGait } from './creatures.js';
 import { ZONES_W, itemZone, weaponSkinOf, CUSTOM_HAIRS } from './world/wdata.js';
@@ -4504,6 +4504,10 @@ export function drawFighter(ctx, x, y, look = {}, o = {}) {
   // v325 기운 낟알(뒤쪽 반) · 여협 뒷머리(그림 머리가 아직 안 왔을 때만 — 그림 머리에는 머리카락이 다 있다)
   if (look.gAura) drawAuraFx(ctx, look.gAura, t, false);
   if (look.female && look.fhead && look.fhead.startsWith('fhv|')) drawBackHair(ctx, look.fstyle, hairHex(look.hairK), look.band, t, o.run);
+  // v327 머리 그림의 턱 아래(목·늘어진 머리카락)는 몸보다 먼저 — 목이 옷깃 안으로 들어가고 머리카락이 어깨 뒤로 넘어간다.
+  //   전엔 머리 한 장을 몸 위에 얹어 목 밑동·머리카락 끝이 옷깃 앞에 네모로 떠 있었다
+  const hk0 = artReady() && !jiang && !look.ghost ? headKey(look) : null;
+  if (hk0) drawHeadArt(ctx, hk0, (HEAD_FIT[hk0]?.fit) || FIT.head, look, HEAD_SPLIT, 99);
   // 상체 — 그림 조각이 있으면 도포·상체·허리띠를 한 장으로 갈음한다
   const artBody = artReady() && !jiang && !look.ghost;
   // 두목 옷: 흰 도포 그림에 그 빛깔을 곱해 입힌다(그림 도포 여섯 빛깔에 없는 색도 그대로 나온다)
@@ -4540,7 +4544,11 @@ export function drawFighter(ctx, x, y, look = {}, o = {}) {
   // v280 띠가 그려진 머리(상투·머리띠)는 띠를 무인이 고른 색으로
   const HF = (hk && HEAD_FIT[hk]?.fit) || FIT.head;   // v325 그림마다 놓는 자리(여협 머리)
   const tintHead = look.bandTint && (hk === 'head-topknot' || hk === 'head-band' || (hk?.startsWith('fh-') && !hk.endsWith('-red')));
-  if (hk && (tintHead ? putArtBand(ctx, hk, HF, look.band) : putArt(ctx, hk, HF))) {
+  // v327 삿갓을 쓰면 챙 위로 삐져나온 머리카락(상투·쪽·꽁지)은 갓 속에 — 머리 그림을 챙 조금 위에서 자른다
+  const hatR = look.hat === 'straw' && hk && hk !== 'head-hat' && hk !== 'head-hood' ? hatRect('hat-straw', hk, HF) : null;
+  const headTop = hatR ? hatR.brim - hatR.h * 0.16 : -999;
+  const backDone = hk && hk === hk0 && !look.ghost;
+  if (hk && (backDone ? drawHeadArt(ctx, hk, HF, look, headTop, HEAD_SPLIT, tintHead) : hatR ? drawHeadArt(ctx, hk, HF, look, headTop, 99, tintHead) : (tintHead ? putArtBand(ctx, hk, HF, look.band) : putArt(ctx, hk, HF)))) {
     // 머리카락까지 한 장
   } else {
   ctx.fillStyle = skin;
@@ -4561,6 +4569,9 @@ export function drawFighter(ctx, x, y, look = {}, o = {}) {
   }
   // v306 안대 — 눈 자리를 가로지르는 띠, 뒤통수 쪽에 매듭 꼬리 둘
   if (look.blind && look.head !== 'mask' && !jiang) {
+    const g = hk ? headGeom(hk, HF) : null;
+    if (g) drawBlindArt(ctx, hk, g, look.blind, t);
+    else {
     const hh = hk ? artHeight(hk, HF) : 0;
     const ey = hk ? HF.y - hh * (HEAD_FIT[hk]?.eye ?? 0.44) : -89;   // v323 머리마다 눈 선
     const cx = hk ? HF.x : 1;
@@ -4574,9 +4585,10 @@ export function drawFighter(ctx, x, y, look = {}, o = {}) {
     ctx.beginPath(); ctx.moveTo(cx - 12, ey); ctx.quadraticCurveTo(cx - 19, ey + 2 + sw, cx - 21, ey + 9 + sw); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(cx - 12, ey + 1); ctx.quadraticCurveTo(cx - 17, ey + 5 - sw, cx - 16, ey + 12 - sw); ctx.stroke();
     ctx.restore();
+    }
   }
   // v323 쓰개 덧씌우기 — 삿갓을 어느 머리(맨머리·상투·민머리 + 안대)에나 얹는다
-  if (look.hat === 'straw' && hk && hk !== 'head-hat' && hk !== 'head-hood') putHat(ctx, 'hat-straw', hk, HF);
+  if (hatR) putHat(ctx, 'hat-straw', hk, HF);
   // v325 얼굴 덧그림 — 외눈 안대 · 면사 · 칼자국 (그림, 눈 자리에)
   if (look.faceAcc && hk && !jiang) drawFaceAcc(ctx, look.faceAcc, hk, HF, t);
   if (look.crown) drawCrown(ctx, t);
@@ -4711,18 +4723,71 @@ function femaleHeadKey(style, hairK, band) {
   }
   return key;
 }
+const HEAD_SPLIT = FIT.head.y - 2;   // v327 이 선 아래 머리 그림은 몸 뒤로
+// v327 머리 그림을 y 범위(top~bot)만 — 몸 뒤 패스(턱 아래)와 몸 앞 패스(턱 위·삿갓 아래)로 나눠 그린다
+function drawHeadArt(ctx, hk, HF, look, top, bot, tint) {
+  ctx.save();
+  ctx.beginPath(); ctx.rect(HF.x - HF.w * 1.5, top, HF.w * 3, bot - top); ctx.clip();
+  const ok = tint ?? (look.bandTint && (hk === 'head-topknot' || hk === 'head-band' || (hk.startsWith('fh-') && !hk.endsWith('-red'))))
+    ? putArtBand(ctx, hk, HF, look.band) : putArt(ctx, hk, HF);
+  ctx.restore();
+  return ok;
+}
+// v327 안대 — 머리 그림 모양대로 오린 띠(눈 줄 · 얼굴 폭에 맞춘 두께) + 뒤통수에서 늘어지는 매듭 꼬리
+function drawBlindArt(ctx, hk, g, col, t) {
+  const cv = headMasked(hk, `blind${col}`, (c, W, H, a) => {
+    const fw = (a.faceR - a.faceL) * W, cy = a.eyeY * H, th = fw * 0.2;
+    c.fillStyle = col;
+    c.beginPath();
+    c.moveTo(0, cy - th * 0.62); c.quadraticCurveTo(W * 0.55, cy - th * 0.72, W, cy - th * 0.4);
+    c.lineTo(W, cy + th * 0.6); c.quadraticCurveTo(W * 0.55, cy + th * 0.42, 0, cy + th * 0.38);
+    c.closePath(); c.fill();
+    c.strokeStyle = 'rgba(0,0,0,.4)'; c.lineWidth = Math.max(1, th * 0.09); c.stroke();
+    c.strokeStyle = 'rgba(255,255,255,.18)'; c.lineWidth = Math.max(1, th * 0.07);
+    c.beginPath(); c.moveTo(0, cy - th * 0.4); c.quadraticCurveTo(W * 0.55, cy - th * 0.5, W, cy - th * 0.2); c.stroke();
+    c.strokeStyle = 'rgba(0,0,0,.18)'; c.lineWidth = Math.max(1, th * 0.05);
+    for (const f of [0.3, 0.5, 0.68]) { c.beginPath(); c.moveTo(W * f, cy - th * 0.5); c.lineTo(W * (f + 0.03), cy + th * 0.45); c.stroke(); }
+  });
+  if (!cv) return;
+  ctx.drawImage(cv, g.x0, g.y0, g.w, g.h);
+  const k = g.faceW / 16, bx = g.backX + 0.8 * k, by = g.eyeY;
+  ctx.save();
+  ctx.strokeStyle = col; ctx.lineCap = 'round'; ctx.lineWidth = 1.9 * k;
+  const sw = Math.sin(t * 5) * 1.3 * k;
+  ctx.beginPath(); ctx.moveTo(bx, by); ctx.quadraticCurveTo(bx - 6 * k, by + 2 * k + sw, bx - 8 * k, by + 8 * k + sw); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(bx, by + 0.6 * k); ctx.quadraticCurveTo(bx - 4 * k, by + 4.5 * k - sw, bx - 3.5 * k, by + 10 * k - sw); ctx.stroke();
+  ctx.fillStyle = col; ctx.beginPath(); ctx.ellipse(bx, by + 0.3 * k, 1.5 * k, 1.2 * k, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+}
 function drawFaceAcc(ctx, kind, hk, HF, t) {
   const im = artImg(`face-${kind}`);
+  const g = headGeom(hk, HF);
+  if (im && g) {
+    if (kind === 'veil') {
+      // 면사 — 눈 아래부터 코·입·턱을 덮고 턱 밑으로 조금 늘어진다
+      // 그림 왼쪽 매듭 꼬리는 뺨 위에서 핏자국처럼 보여 천 부분(32%~)만 쓴다
+      const x0 = g.eyeX - g.faceW * 0.3, x1 = g.faceR + g.faceW * 0.07;
+      const top = g.eyeY + (g.jawY - g.eyeY) * 0.3;
+      const hh = Math.max((g.jawY - top) * 2, g.faceW * 0.4);
+      ctx.drawImage(im, im.width * 0.32, 0, im.width * 0.68, im.height, x0, top - hh * 0.08, x1 - x0, hh);
+      return;
+    }
+    const cv = headMasked(hk, kind, (c, W, H, a) => {
+      const fw = (a.faceR - a.faceL) * W, ex = a.eyeX * W, ey = a.eyeY * H;
+      if (kind === 'patch') {   // 외눈 안대 — 원판(그림의 72%·62% 자리)을 눈에, 끈은 뒤통수로(머리 밖은 잘림)
+        const sw = fw * 0.72, sh = (im.height * sw) / im.width;
+        c.drawImage(im, ex - sw * 0.72, ey - sh * 0.6, sw, sh);
+      } else {                  // 칼자국 — 눈썹 위에서 눈을 지나 뺨까지
+        const L = fw * 0.46, sw = (im.width * L) / im.height;
+        c.save(); c.translate(ex - fw * 0.05, ey + fw * 0.04); c.rotate(-0.18);
+        c.drawImage(im, -sw / 2, -L / 2, sw, L); c.restore();
+      }
+    });
+    if (cv) { ctx.drawImage(cv, g.x0, g.y0, g.w, g.h); return; }
+  }
   const f = HEAD_FIT[hk] || {};
   const hh = artHeight(hk, HF);
   const ey = HF.y - hh * (f.eye ?? 0.44), ex = HF.x - HF.w / 2 + HF.w * (f.eyeX ?? 0.72);
-  if (im) {
-    const w = kind === 'veil' ? HF.w * 0.62 : kind === 'patch' ? HF.w * 0.42 : HF.w * 0.1;
-    const h = (im.height * w) / im.width;
-    const yy = kind === 'veil' ? ey + HF.w * 0.08 : ey - h / 2;
-    ctx.drawImage(im, ex - w / 2 + (kind === 'veil' ? -HF.w * 0.05 : 0), yy, w, h);
-    return;
-  }
   // 그림이 아직 안 왔으면 단순한 모양
   ctx.save();
   if (kind === 'patch') { ctx.fillStyle = '#111'; ctx.beginPath(); ctx.ellipse(ex, ey, 2.6, 2.2, 0, 0, Math.PI * 2); ctx.fill(); ctx.strokeStyle = '#111'; ctx.lineWidth = 0.9; ctx.beginPath(); ctx.moveTo(ex - 2, ey - 1.5); ctx.lineTo(ex - 11, ey - 4); ctx.stroke(); }
