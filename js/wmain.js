@@ -711,8 +711,8 @@ function showTab(name, sub) {
   panelRes();
 }
 // v263: 창은 레벨에 따라 열린다 — Lv1부터 일곱 개가 다 열려 있어 첫 10분이 어지러웠다(옛 세이브는 이미 높아 그대로)
-const TAB_LV = { comp: 12, dgn: 18, social: 25 };
-const TAB_NAME = { comp: '동료', dgn: '던전', social: '무림' };
+const TAB_LV = { comp: 12, dgn: 18, social: 5 };   // v345 문파·채팅(무림 창)은 레벨 5부터 — 25까지 잠겨 문파·함께 사냥을 늦게 알았다
+const TAB_NAME = { comp: '동료', dgn: '던전', social: '무림·문파' };
 const tabLocked = (k) => (game.s.level || 1) < (TAB_LV[k] || 0);
 function paintTabLocks() {
   document.querySelectorAll('#tabs button[data-tab]').forEach((b) => {

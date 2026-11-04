@@ -22,7 +22,7 @@ service cloud.firestore {
     // v309 규칙 판 표 — 앱이 rulesv/{판}을 읽어 본다. 지금 판만 읽히고 옛 판은 거부된다(없는 문서라 읽혀도 비어 있다).
     //   규칙을 고치면 여기 숫자와 js/net.js의 RULES_VER를 같이 올린다 → 게시를 잊으면 운영자에게 '다시 게시' 알림.
     match /rulesv/{v} {
-      allow get: if signedIn() && v == '339';
+      allow get: if signedIn() && v == '345';
     }
 
     // 플레이어 프로필: 누구나 읽기(랭킹·구경), 본인만 쓰기
@@ -198,11 +198,16 @@ service cloud.firestore {
       allow read: if signedIn();
       allow create, update: if signedIn()
         && request.auth.uid in get(/databases/$(database)/documents/guilds/$(gid)).data.memberIds
-        && request.resource.data.keys().hasOnly(['name', 'n', 'exp', 'open', 'at'])
+        && request.resource.data.keys().hasOnly(['name', 'n', 'exp', 'open', 'at', 'intro', 'minLv'])
+        && request.resource.data.get('intro', '') is string && request.resource.data.get('intro', '').size() <= 40
+        && request.resource.data.get('minLv', 0) is int && request.resource.data.get('minLv', 0) >= 0 && request.resource.data.get('minLv', 0) <= 200
         && request.resource.data.name is string && request.resource.data.name.size() <= 16
         && request.resource.data.n is int && request.resource.data.n >= 0 && request.resource.data.n <= 10
         && request.resource.data.exp is number
-        && (request.resource.data.get('open', true) == (resource == null ? true : resource.data.get('open', true))
+        // 모집 여닫기·소개·가입 레벨(v345)은 문주만 바꾼다
+        && ((request.resource.data.get('open', true) == (resource == null ? true : resource.data.get('open', true))
+             && request.resource.data.get('intro', '') == (resource == null ? '' : resource.data.get('intro', ''))
+             && request.resource.data.get('minLv', 0) == (resource == null ? 0 : resource.data.get('minLv', 0)))
             || get(/databases/$(database)/documents/guilds/$(gid)).data.owner == request.auth.uid);
       allow delete: if signedIn() && get(/databases/$(database)/documents/guilds/$(gid)).data.owner == request.auth.uid;
     }

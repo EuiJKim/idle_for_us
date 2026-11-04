@@ -2544,9 +2544,11 @@ function guildView(app) {
     const load = () => net.listGuilds().then((gs) => {
       if (!list.isConnected && list.parentNode == null) return;
       list.replaceChildren(...(gs.length ? gs.slice(0, 20).map((g) => {
-        const btn = h('button', { class: 'btn good', style: 'padding:6px 12px' }, '가입');
+        const lvOk = game.s.level >= (g.minLv || 0);
+        const btn = h('button', { class: 'btn good', style: 'padding:6px 12px', disabled: lvOk ? null : true }, lvOk ? '가입' : `Lv${g.minLv}부터`);
         btn.onclick = busy(btn, async () => { await net.joinGuild(g.id); toast(`${g.name}에 들어갔어요!`); });
-        return h('div', { class: 'row guild-row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, g.name),
+        return h('div', { class: 'row guild-row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, g.name, g.minLv ? h('small', {}, ` Lv${g.minLv} 이상`) : null),
+          g.intro ? h('div', { class: 'guild-intro-line' }, `“${g.intro}”`) : null,
           h('div', { class: 'desc' }, `Lv.${W.guildLevel(g.exp)} · ${g.n}/${W.GUILD_MAX}명 · 전원 공격력 +${pct(W.guildAtk(g.exp))}`)), btn);
       }) : [h('p', { class: 'muted' }, '지금 모집 중인 문파가 없어요 — 새로 만들어 보세요')]));
     }).catch(() => list.replaceChildren(h('p', { class: 'muted' }, '문파 목록을 불러오지 못했어요 — 잠시 뒤 다시 열어 주세요')));
@@ -2562,7 +2564,18 @@ function guildView(app) {
     net.guildOpen(net.guild.id).then((v) => { open = v; paint(); });
     btn.onclick = busy(btn, async () => { open = !open; await net.setGuildOpen(open); paint(); toast(open ? '문파 찾기 목록에 보여요' : '문파 찾기 목록에서 숨겼어요(코드로는 가입 돼요)'); });
     paint();
-    return h('div', { class: 'gh-code' }, h('span', { class: 'muted' }, '문파 찾기'), btn);
+    const info = h('button', { class: 'btn', style: 'padding:4px 10px' }, '✎ 소개·가입 레벨');
+    info.onclick = async () => {
+      const cur = await net.guildInfo(net.guild.id);
+      const intro = h('input', { class: 'field', id: 'guild-intro-in', maxlength: 40, placeholder: '한 줄 소개 (예: 매일 토벌 · 초보 환영)', value: cur.intro });
+      const lv = h('input', { class: 'field', id: 'guild-minlv-in', type: 'number', min: 0, max: 200, value: String(cur.minLv || 0) });
+      openModal((m) => m.append(h('h2', {}, '문파 소개 · 가입 레벨'),
+        h('p', { class: 'muted' }, '문파 찾기 목록에 보여요. 가입 레벨보다 낮은 무인은 목록에서 가입 단추가 잠겨요(코드로는 들어와요).'),
+        h('label', { class: 'muted' }, '한 줄 소개 (40자)'), intro, h('label', { class: 'muted', style: 'display:block;margin-top:8px' }, '가입 레벨 (0이면 누구나)'), lv,
+        h('div', { class: 'btn-row', style: 'margin-top:10px' }, h('button', { class: 'btn', onclick: closeModal }, '그만두기'),
+          h('button', { class: 'btn primary', id: 'guild-info-save', onclick: async () => { try { await net.setGuildInfo(intro.value.trim(), lv.value); closeModal(); toast('문파 소개를 바꿨어요'); } catch (err) { toast(`바꾸지 못했어요 — ${err?.message || err}`); } } }, '저장'))));
+    };
+    return h('div', { class: 'gh-code' }, h('span', { class: 'muted' }, '문파 찾기'), btn, info);
   }
 
   let membersAt = 0;
@@ -2589,7 +2602,20 @@ function guildView(app) {
           return w ? [h('b', { class: 'who-on' }, '● 접속 중 '), `Lv.${p.level || 1} · ${app.where.placeName(w.m)}${w.m > 0 && !W.mapOf(w.m)?.town ? '에서 사냥 중' : ''}`]
             : [`Lv.${p.level || 1} · ${p.mapName || ''} · ${ago(p.updatedAt?.toMillis?.())} (접속 안 함)`];
         })())),
+      // v345 따라가기 — 접속 중인 문파원이 있는 구역으로(두목 구역이면 '함께'로)
+      (() => { const w = p.uid !== net.uid ? app.where?.of(p.uid) : null; return w && w.m !== -1 && w.m !== game.s.map ? h('button', { class: 'btn mini primary follow-btn', onclick: () => follow(w.m, p.nickname || '문파원') }, '따라가기') : null; })(),
       h('div', { class: `chip${gd?.checkins?.[p.uid] === today ? ' on' : ''}` }, gd?.checkins?.[p.uid] === today ? '오늘 출석' : '미출석'))));
+  }
+  function follow(m, name) {
+    if (game.inst) return toast('던전 안에서는 따라갈 수 없어요 — 던전을 마치고 가요');
+    if (m === 0 || W.mapOf(m)?.town) { game.goTown(false); app.save(); app.closePanel(); app.refresh(); return toast(`🏠 ${name}님이 있는 마을로 왔어요`); }
+    const mm = W.mapOf(m);
+    if (!mm || !game.canEnter(m)) return toast(`${name}님이 있는 곳(${mm?.name || '?'})은 아직 갈 수 없어요`);
+    if (mm.bossRoom) game.s.kingParty = true;   // 두목 구역은 함께로
+    if (!game.enterMap(m)) return toast('지금은 갈 수 없어요');
+    game.s.autoHunt = true;
+    app.save(); app.closePanel(); app.refresh();
+    toast(`🤝 ${name}님이 있는 ${mm.name}(으)로 왔어요${mm.bossRoom ? ' — 함께 사냥' : ''}`);
   }
 
   let bankSig = '';
@@ -3039,4 +3065,4 @@ function compTab(app) {
 }
 
 export const WTABS = { char: charTab, bag: bagTab, map: mapTab, dgn: dgnTab, town: townTab, social: socialTab, comp: compTab };
-export const WTAB_TITLE = { char: '캐릭터', bag: '가방', map: '지도', dgn: '던전', town: '마을', social: '무림', comp: '동료' };
+export const WTAB_TITLE = { char: '캐릭터', bag: '가방', map: '지도', dgn: '던전', town: '마을', social: '무림 · 문파', comp: '동료' };

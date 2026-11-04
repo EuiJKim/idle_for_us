@@ -666,6 +666,19 @@ async function tab(page, name) {
     await G(q, () => window.__app.showTab('social', 'guild'));
     await q.waitForSelector('#panel .who-on', { timeout: 15000, state: 'attached' });
     assert(true, '문파원 목록에 ● 접속 중 · 어디에서 사냥 중');
+    // v345 따라가기 — p가 다른 구역으로 가면 q가 목록에서 '따라가기'로 그리로
+    await G(p, () => { window.__game.s.kingParty = false; window.__game.enterMap(21); });
+    await q.waitForFunction(() => window.__where.list().some((o) => o.m === 21), null, { timeout: 15000 });
+    await G(q, () => { const v = window.__app; v.closePanel(); v.showTab('social', 'guild'); });
+    await sleep(800);
+    await q.evaluate(() => document.querySelector('#panel .guild-seg button[data-key="members"]')?.click());
+    await q.waitForSelector('#panel .follow-btn', { timeout: 15000 });
+    await q.click('#panel .follow-btn');
+    await q.waitForFunction(() => window.__game.map.id === 21, null, { timeout: 5000 });
+    assert(true, '문파원 목록에서 따라가기 → 그 사람 구역으로 (v345)');
+    // v345 소개·가입 레벨 — 문주(p)가 쓰면 찾기 목록에 보인다
+    assert(await G(p, async () => window.__app.net.setGuildInfo('매일 토벌 · 초보 환영', 1)), '문주가 소개·가입 레벨을 쓴다');
+    assert(await G(q, async () => (await window.__app.net.listGuilds()).some((g) => g.intro === '매일 토벌 · 초보 환영' && g.minLv === 1)), '찾기 목록에 소개·가입 레벨');
   }
 
   const errs = [...a.errors, ...b.errors];

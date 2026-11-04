@@ -2,7 +2,7 @@
 // SDK를 동적으로 불러오므로 실패해도 혼자 하기는 그대로 동작한다.
 import { firebaseConfig, FIREBASE_SDK_VERSION, ADMIN_UID } from './firebase-config.js';
 // v309 이 앱이 바라는 규칙 판 — firestore.rules의 rulesv 숫자와 같아야 한다(규칙을 고치면 둘 다 올린다)
-export const RULES_VER = '339';
+export const RULES_VER = '345';
 export const WORLD_MAX = 100;   // v315 전체 채팅 한 마디 길이
 import { big } from './big.js';
 import { Big } from './big.js';
@@ -669,6 +669,16 @@ export class Net {
   }
   async guildOpen(gid) {
     try { const d = await this.fs.getDoc(this.ref('guildlist', gid)); return d.exists() ? d.data().open !== false : true; } catch { return true; }
+  }
+  // v345 문파 소개(40자)·가입 레벨 — 문주만
+  async guildInfo(gid) {
+    try { const d = await this.fs.getDoc(this.ref('guildlist', gid)); return d.exists() ? { intro: d.data().intro || '', minLv: d.data().minLv || 0, open: d.data().open !== false } : { intro: '', minLv: 0, open: true }; } catch { return { intro: '', minLv: 0, open: true }; }
+  }
+  async setGuildInfo(intro, minLv) {
+    const g = this.guild;
+    if (!g || g.owner !== this.uid) return false;
+    await this.fs.setDoc(this.ref('guildlist', g.id), { name: g.name, n: g.memberIds.length, exp: g.exp || 0, intro: String(intro || '').slice(0, 40), minLv: Math.max(0, Math.min(200, Math.floor(Number(minLv) || 0))), at: this.fs.serverTimestamp() }, { merge: true });
+    return true;
   }
   async listGuilds() {
     const { getDocs, query, collection, orderBy, limit } = this.fs;

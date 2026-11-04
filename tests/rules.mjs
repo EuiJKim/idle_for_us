@@ -202,6 +202,12 @@ const profile = (extra = {}) => ({ world: 1, nickname: '무인', level: 10, job:
   ok(await allowed(gl(friend, { n: 3 })), '(문파원이 인원만 고치면 닫힌 채로)');
   ok(await denied(gl(friend, { n: 99 })), '인원 11명 이상 거부');
   ok(await denied(F.setDoc(friend.ref('guildlist', gid), { name: 'x', n: 1, exp: 0, at: F.serverTimestamp(), code: 'HACK' }, { merge: true })), '정해진 칸 말고 거부');
+  ok(await allowed(gl(boss, { intro: '매일 토벌', minLv: 30 })), '문주는 소개·가입 레벨을 쓴다 (v345)');
+  ok(await denied(gl(friend, { intro: '해킹' })), '문주가 아니면 소개 바꾸기 거부');
+  ok(await denied(gl(friend, { minLv: 1 })), '문주가 아니면 가입 레벨 바꾸기 거부');
+  ok(await denied(gl(boss, { intro: '가'.repeat(41) })), '소개 41자 거부');
+  ok(await denied(gl(boss, { minLv: 999 })), '가입 레벨 200 넘게 거부');
+  ok(await allowed(gl(friend, { n: 2 })), '(문파원이 인원만 고치면 소개는 그대로)');
 
   console.log('# 채팅');
   ok(await allowed(F.addDoc(F.collection(friend.db, 'guilds', gid, 'messages'), { uid: friend.uid, name: '친구', text: '안녕', type: 'chat', createdAt: F.serverTimestamp() })), '문파원 채팅');
