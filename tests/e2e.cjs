@@ -513,9 +513,12 @@ async function tab(page, name) {
   assert(await G(p, () => window.__game.s.mats.hc < 100 + 200), '재료 반을 문파 창고에 넣는다');
   await tab(q, 'social');
   await q.click('#panel .subtabs button:has-text("문파")');
-  await q.fill('#panel input[placeholder^="친구에게"]', code);
-  await q.click('#panel button:has-text("가입")');
+  // v339 문파 찾기 — 코드 없이 목록에서 가입
+  await q.waitForSelector('#panel .guild-find .guild-row:has-text("우리끼리")', { timeout: 15000 });
+  assert(true, '문파 찾기 목록에 모집 중인 문파가 보인다 (v339)');
+  await q.click('#panel .guild-find .guild-row:has-text("우리끼리") button:has-text("가입")');
   await q.waitForSelector('#panel .guild-seg', { timeout: 15000 });
+  assert(await G(q, () => window.__app.net.guild?.code) === code, '목록에서 가입하면 그 문파로');
   await q.click('#panel .guild-seg button[data-key="bank"]');
   await q.waitForSelector('#panel .bank-in .bank-row:has-text("현철")', { timeout: 15000 });
   const m0 = await G(q, () => window.__game.s.mats.hc || 0);
@@ -597,6 +600,23 @@ async function tab(page, name) {
   await q.waitForFunction(() => { const g = window.__game; const b = g.mons.find((x) => x.isBoss && x.alive); return g.map.id === 164 && b && b.coopSeq == null; }, null, { timeout: 70000 });
   assert(true, '혼자로 바꿔도 그 왕 구역에서 혼자 왕이 나서 방치 사냥이 이어진다');
   await G(q, () => window.__game.enterMap(163));
+
+  console.log('# 온라인: 일반 두목 구역도 함께 (v339)');
+  {
+    const nid = 24;   // 지역 2의 두목 구역(십이지왕 아님)
+    await G(q, (id) => { const g = window.__game; g.s.kingParty = true; g.enterMap(id); }, nid);
+    await G(p, () => window.__app.closePanel());
+    await G(p, (id) => { const g = window.__game; g.s.kingParty = true; g.enterMap(id); }, nid);
+    await p.waitForFunction(() => window.__coop.on && window.__coop.others.length === 1, null, { timeout: 20000 });
+    await q.waitForFunction(() => window.__coop.on && window.__coop.others.length === 1, null, { timeout: 20000 });
+    assert(await G(p, () => !window.__game.map.king && window.__game.map.bossRoom), '일반 두목 구역(왕 아님)에서도 문파원과 같은 방');
+    assert(await p.isVisible('#btn-party'), '일반 두목 구역에도 혼자/함께 단추');
+    await p.waitForFunction(() => window.__game.mons.some((x) => x.alive && x.coopSeq != null), null, { timeout: 20000 });
+    const seqP = await G(p, () => window.__game.mons.find((x) => x.alive && x.coopSeq != null).coopSeq);
+    await q.waitForFunction(() => window.__game.mons.some((x) => x.alive && x.coopSeq != null), null, { timeout: 20000 });
+    const seqQ = await G(q, () => window.__game.mons.find((x) => x.alive && x.coopSeq != null).coopSeq);
+    assert(seqP === seqQ, `둘이 같은 두목을 본다 (seq ${seqP})`);
+  }
 
   const errs = [...a.errors, ...b.errors];
   console.log('errors:', errs);

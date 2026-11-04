@@ -2,7 +2,7 @@
 // SDK를 동적으로 불러오므로 실패해도 혼자 하기는 그대로 동작한다.
 import { firebaseConfig, FIREBASE_SDK_VERSION, ADMIN_UID } from './firebase-config.js';
 // v309 이 앱이 바라는 규칙 판 — firestore.rules의 rulesv 숫자와 같아야 한다(규칙을 고치면 둘 다 올린다)
-export const RULES_VER = '328';
+export const RULES_VER = '339';
 export const WORLD_MAX = 100;   // v315 전체 채팅 한 마디 길이
 import { big } from './big.js';
 import { Big } from './big.js';
@@ -649,6 +649,32 @@ export class Net {
     return this.enterGuild(code);
   }
 
+  // v339 문파 찾기 — 공개 목록 guildlist/{코드}: 이름·인원·경험치·모집 중(open). 문파원이 문파가 바뀔 때 고쳐 둔다.
+  //   문파 문서(guilds)는 코드를 알아야 읽히므로(list 막힘) 찾기는 이 목록으로. 모집을 닫으면(open false) 목록에 안 보인다(문주만).
+  async publishGuild() {
+    const g = this.guild;
+    if (!g || !this.online || this.blocked) return;
+    const sig = `${g.name}|${g.memberIds.length}|${Math.floor((g.exp || 0) / 50)}`;
+    if (this._pubSig === sig) return;
+    this._pubSig = sig;
+    try {
+      await this.fs.setDoc(this.ref('guildlist', g.id), { name: g.name, n: g.memberIds.length, exp: g.exp || 0, at: this.fs.serverTimestamp() }, { merge: true });
+    } catch (err) { console.warn('[net] guildlist', err?.code || err); }
+  }
+  async setGuildOpen(open) {
+    const g = this.guild;
+    if (!g || g.owner !== this.uid) return false;
+    await this.fs.setDoc(this.ref('guildlist', g.id), { name: g.name, n: g.memberIds.length, exp: g.exp || 0, open: !!open, at: this.fs.serverTimestamp() }, { merge: true });
+    return true;
+  }
+  async guildOpen(gid) {
+    try { const d = await this.fs.getDoc(this.ref('guildlist', gid)); return d.exists() ? d.data().open !== false : true; } catch { return true; }
+  }
+  async listGuilds() {
+    const { getDocs, query, collection, orderBy, limit } = this.fs;
+    const snap = await getDocs(query(collection(this.db, 'guildlist'), orderBy('at', 'desc'), limit(60)));
+    return snap.docs.map((d) => ({ id: d.id, ...d.data() })).filter((g) => g.open !== false && (g.n || 0) < GUILD_MAX && (g.n || 0) > 0);
+  }
   async enterGuild(code) {
     this.game.s.guildId = code;
     this.watchGuild(code);
@@ -702,6 +728,7 @@ export class Net {
       if (firstTime) this.watchStash(gid);
       this.game.guildExp = this.guild.exp || 0;
       if (prevName !== this.guild.name) this.pushProfile(true);
+      this.publishGuild();
       this.changed('guild');
     }, (err) => console.warn('[net] guild', err)));
 

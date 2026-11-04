@@ -1309,11 +1309,45 @@ function bagTab(app) {
       ...(rows.length ? rows : [h('p', { class: 'muted' }, '두목은 현철 한 움큼과 증표를 떨궈요 — 증표는 등급 각인·돌파에 써요.')])));
   }
 
+  // v339 물약 — 가방에서 바로: 가진 수 · 사기(사냥터에서도) · 자동 마시기 켜기 · 몇 % 아래에서 마실지 · 자동 보충
+  const potRoot = h('div');
+  let potSig = '';
+  function potView() {
+    const s = game.s;
+    const price = game.potionPrice();
+    const nsig = `${s.potions}|${s.gold >= price * 200}|${s.gold >= price * 50}|${s.gold >= price * 10}|${s.autoPotion}|${game.potionAt()}|${s.autoRefill}|${price}`;
+    if (nsig === potSig) return;
+    potSig = nsig;
+    const redo = () => { potSig = ''; app.save(); potView(); app.refresh(); };
+    const maxN = Math.max(0, Math.floor(s.gold / price));
+    const buy = (n, max = false) => h('button', { class: 'buy', disabled: n <= 0 || s.gold < price * n ? true : null, onclick: () => {
+      if (game.buyPotions(n)) { toast(`물약 ${fmt(n)}개를 샀어요`); redo(); }
+    } }, max ? '최대' : `${n}개`, h('small', {}, max ? `${fmt(n)}개` : fmt(price * n)));
+    const chip = (on, label, fn) => h('button', { class: `cust-chip${on ? ' on' : ''}`, onclick: fn }, h('span', {}, label));
+    potRoot.replaceChildren(
+      h('div', { class: 'card shop-card pot-card' },
+        h('div', { class: 'shop-item' },
+          h('span', { class: 'pot-ico big' }),
+          h('div', { class: 'info' }, h('b', {}, '빨간 물약', h('small', {}, ` 개당 ${fmt(price)}`)),
+            h('div', { class: 'desc' }, `한 병에 최대 체력의 ${pct(W.POTION_HEAL, 0)} 회복 · 아래 물약 단추(컴퓨터는 Q)로 직접 마셔요`)),
+          h('div', { class: 'have' }, h('small', {}, '가진 것'), h('b', {}, fmt(s.potions)))),
+        h('div', { class: 'buy-grid' }, buy(10), buy(50), buy(200), buy(Math.max(maxN, 1), true)),
+        h('p', { class: 'muted', style: 'font-size:12px;margin:4px 0 0' }, '사냥터에서도 바로 사요.')),
+      h('div', { class: 'card pot-auto' },
+        h('h3', {}, '자동 마시기'),
+        h('div', { class: 'cust-chips' }, chip(s.autoPotion, '켜기', () => { s.autoPotion = true; redo(); }), chip(!s.autoPotion, '끄기', () => { s.autoPotion = false; redo(); })),
+        h('h3', { style: 'margin-top:10px' }, '체력이 몇 % 아래면 마실까요', h('small', {}, ' 높을수록 안전하지만 물약이 많이 들어요')),
+        h('div', { class: 'cust-chips', id: 'pot-at' }, ...W.POTION_ATS.map((v) => chip(game.potionAt() === v, `${Math.round(v * 100)}%`, () => { s.potionAt = v; game.mark?.('potionAt'); redo(); }))),
+        h('h3', { style: 'margin-top:10px' }, '자동 보충', h('small', {}, ' 물약이 10개 아래면 50개까지 알아서 사요(사냥터에서도)')),
+        h('div', { class: 'cust-chips' }, chip(s.autoRefill, '켜기', () => { s.autoRefill = true; redo(); }), chip(!s.autoRefill, '끄기', () => { s.autoRefill = false; redo(); }))));
+  }
+
   return subTabs([
     { key: 'gear', label: '착용', make: () => ({ root: gearRoot, update: gearView }) },
     { key: 'bag', label: '가방', make: () => ({ root: bagRoot, update: gearView }) },
     { key: 'smith', label: '대장장이', make: () => ({ root: smithRoot, update: smithView }) },
     { key: 'mats', label: '재료', make: () => ({ root: matRoot, update: matView }) },
+    { key: 'pot', label: '물약', make: () => ({ root: potRoot, update: potView }) },
   ]);
 }
 
@@ -1392,35 +1426,36 @@ export function matWhere(game, key) {
   };
 }
 
-// 십이지왕 두목 구역에 들어갈 때 — 혼자 / 문파원과 함께를 고른다 (v145).
+// 두목 구역에 들어갈 때 — 혼자 / 문파원과 함께를 고른다 (v145 십이지왕 · v339 모든 두목 구역).
 // 문파가 없거나 서버에 못 닿으면 묻지 않고 혼자 들어간다. then(ok)는 들어간 뒤 부른다.
 export function enterKingRoom(app, id, then) {
   const { game } = app;
   const m = W.mapOf(id);
   const coop = app.coop;
+  const title = m.king ? m.king.title : `${m.zoneName || m.name || ''}`;   // v339 일반 두목 구역도
   const enter = (party) => {
     game.s.kingParty = party;
     const ok = game.enterMap(id);
-    if (ok) toast(party ? `🤝 ${m.king.title} — 문파원과 함께 들어왔어요. 자동 사냥은 그대로 돌아요` : `${m.king.title} — 혼자 들어왔어요`);
+    if (ok) toast(party ? `🤝 ${title} — 문파원과 함께 들어왔어요. 자동 사냥은 그대로 돌아요` : `${title} — 혼자 들어왔어요`);
     then?.(ok);
   };
-  if (!m.bossRoom || !m.king || !coop?.can()) { if (m.bossRoom && m.king) game.s.kingParty = false; const ok = game.enterMap(id); then?.(ok); return; }
+  if (!m.bossRoom || !coop?.can()) { if (m.bossRoom) game.s.kingParty = false; const ok = game.enterMap(id); then?.(ok); return; }
   if (!game.canEnter(id)) { toast('지금은 갈 수 없어요'); return; }
   const who = h('p', { class: 'muted' }, '같은 구역의 문파원을 찾는 중…');
   openModal((sheet) => {
     sheet.append(
-      h('h2', {}, `${m.king.title} 두목 구역`),
+      h('h2', {}, `${title} 두목 구역`),
       h('p', {}, '어떻게 들어갈까요? 둘 다 자동 사냥(방치)으로 계속 돌아요.'),
       h('div', { class: 'party-pick' },
         h('button', { class: `party-opt${game.s.kingParty ? '' : ' on'}`, onclick: () => { closeModal(); enter(false); } },
-          h('b', {}, '⚔ 혼자'), h('span', {}, '왕을 혼자 잡아요. 체력도 보상도 나만의 것.')),
+          h('b', {}, '⚔ 혼자'), h('span', {}, '두목을 혼자 잡아요. 체력도 보상도 나만의 것.')),
         h('button', { class: `party-opt${game.s.kingParty ? ' on' : ''}`, onclick: () => { closeModal(); enter(true); } },
-          h('b', {}, '🤝 문파원과 함께'), h('span', {}, '같은 구역의 문파원과 왕 체력을 나눠요. 한 대라도 치면 처치 보상을 다 받아요.'))),
+          h('b', {}, '🤝 문파원과 함께'), h('span', {}, '같은 구역의 문파원과 두목 체력을 나눠요. 한 대라도 치면 처치 보상을 다 받아요.'))),
       who,
       h('p', { class: 'muted', style: 'font-size:11px' }, '들어가서도 위의 단추로 바꿀 수 있어요. 앱을 끈 동안의 방치 보상은 혼자 사냥으로 셈해요.'),
       h('div', { class: 'btn-row' }, h('button', { class: 'btn', onclick: closeModal }, '닫기')));
   });
-  coop.peek(id).then((n) => { who.textContent = n == null ? '' : n > 0 ? `🤝 지금 이 왕 구역에 문파원 ${n}명이 사냥 중이에요` : '지금 이 왕 구역에 있는 문파원은 없어요 — 함께로 들어가 두면 나중에 온 문파원과 같이 잡아요'; });
+  coop.peek(id).then((n) => { who.textContent = n == null ? '' : n > 0 ? `🤝 지금 이 두목 구역에 문파원 ${n}명이 사냥 중이에요` : '지금 이 두목 구역에 있는 문파원은 없어요 — 함께로 들어가 두면 나중에 온 문파원과 같이 잡아요'; });
 }
 
 // v262: 재료를 어디에 쓰나 — 쌓인 숫자가 무엇인지 알게
@@ -1467,7 +1502,7 @@ export function openMatWhere(app, key, back = null) {
             app.closePanel();
             app.refresh();
           };
-          if (w.map?.king && w.map.bossRoom && app.coop?.can()) { closeModal(); enterKingRoom(app, w.id, (ok) => ok && arrived()); return; }
+          if (w.map?.bossRoom && app.coop?.can()) { closeModal(); enterKingRoom(app, w.id, (ok) => ok && arrived()); return; }
           if (!game.enterMap(w.id)) return toast('지금은 갈 수 없어요');
           closeModal();
           arrived();
@@ -1529,7 +1564,7 @@ function mapTab(app) {
   const { game } = app;
   const go = (id) => {
     const m = W.mapOf(id);
-    if (m.bossRoom && m.king) return enterKingRoom(app, id, (ok) => { if (ok) { app.save(); app.closePanel(); app.refresh(); } });
+    if (m.bossRoom) return enterKingRoom(app, id, (ok) => { if (ok) { app.save(); app.closePanel(); app.refresh(); } });
     if (!game.enterMap(id)) return; app.save(); app.closePanel(); app.refresh();
   };
   // 지역 카드 한 장 — 구역 1·2·3과 두목 구역 단추 · 기운 · 숙련
@@ -2029,7 +2064,7 @@ function townTab(app) {
         h('div', { class: 'shop-item' },
           h('span', { class: 'pot-ico big' }),
           h('div', { class: 'info' }, h('b', {}, '빨간 물약', h('small', {}, ` 개당 ${fmt(price)}`)),
-            h('div', { class: 'desc' }, `최대 체력의 ${pct(W.POTION_HEAL, 0)} 회복 · 체력 ${pct(game.potionAt(), 0)} 아래면 알아서 먹어요 (설정에서 바꿔요)`)),
+            h('div', { class: 'desc' }, `최대 체력의 ${pct(W.POTION_HEAL, 0)} 회복 · 체력 ${pct(game.potionAt(), 0)} 아래면 알아서 먹어요 (가방 → 물약에서 바꿔요)`)),
           h('div', { class: 'have' }, h('small', {}, '가진 것'), h('b', {}, fmt(s.potions)))),
         h('div', { class: 'buy-grid' }, buy(10), buy(50), buy(200), buy(Math.max(maxN, 1), true)),
         h('div', { class: 'refill-row' }, h('span', { class: 'muted' }, '물약이 10개 아래면 50개까지 알아서 사요 (사냥터에서도)'), refill)),
@@ -2412,6 +2447,7 @@ function guildView(app) {
             h('li', {}, h('b', {}, '창고'), ' 남는 조합 재료를 넣고 꺼내 써요'),
             h('li', {}, h('b', {}, '채팅'), ' 문파원끼리 이야기'),
             h('li', {}, h('b', {}, '레벨'), ' 날마다 출석·은자 기부로 올라요'))),
+        findCard(),
         h('div', { class: 'card' }, h('h3', {}, '새 문파 만들기'), h('div', { class: 'chat-input' }, nameIn, createBtn)),
         h('div', { class: 'card' }, h('h3', {}, '코드로 가입', h('small', {}, '문파원에게 6자리 코드를 받아요')), h('div', { class: 'chat-input' }, codeIn, joinBtn)));
       return;
@@ -2483,12 +2519,40 @@ function guildView(app) {
         h('div', { class: 'gh-top' }, seal, h('div', { class: 'gh-name' }, h('h3', {}, title, lvl), buff)),
         bar,
         h('div', { class: 'gh-code' }, h('span', { class: 'muted' }, '가입 코드'), code, share),
+        net.guild.owner === net.uid ? openRow() : null,
         h('div', { class: 'btn-row' }, checkBtn, donateBtn)),
       segBtns, secs.members, secs.bank, secs.chat,
       h('div', { class: 'guild-foot' }, leave));
     pickSeg(seg);
     loadMembers();
     update();
+  }
+
+  // v339 문파 찾기 — 모집 중인 문파 목록에서 바로 가입(코드 없이)
+  function findCard() {
+    const list = h('div', { class: 'guild-find' }, h('p', { class: 'muted' }, '모집 중인 문파를 불러오는 중…'));
+    const load = () => net.listGuilds().then((gs) => {
+      if (!list.isConnected && list.parentNode == null) return;
+      list.replaceChildren(...(gs.length ? gs.slice(0, 20).map((g) => {
+        const btn = h('button', { class: 'btn good', style: 'padding:6px 12px' }, '가입');
+        btn.onclick = busy(btn, async () => { await net.joinGuild(g.id); toast(`${g.name}에 들어갔어요!`); });
+        return h('div', { class: 'row guild-row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, g.name),
+          h('div', { class: 'desc' }, `Lv.${W.guildLevel(g.exp)} · ${g.n}/${W.GUILD_MAX}명 · 전원 공격력 +${pct(W.guildAtk(g.exp))}`)), btn);
+      }) : [h('p', { class: 'muted' }, '지금 모집 중인 문파가 없어요 — 새로 만들어 보세요')]));
+    }).catch(() => list.replaceChildren(h('p', { class: 'muted' }, '문파 목록을 불러오지 못했어요 — 잠시 뒤 다시 열어 주세요')));
+    load();
+    return h('div', { class: 'card' }, h('h3', {}, '문파 찾기', h('small', {}, '모집 중인 문파에 바로 가입')),
+      list, h('button', { class: 'btn', style: 'width:100%;margin-top:6px', onclick: () => { list.replaceChildren(h('p', { class: 'muted' }, '불러오는 중…')); load(); } }, '새로 고침'));
+  }
+  // 문주 — 문파 찾기 목록에 보일지(모집 중 / 닫음)
+  function openRow() {
+    const btn = h('button', { class: 'btn', style: 'padding:4px 10px' }, '…');
+    let open = true;
+    const paint = () => { btn.textContent = open ? '📢 모집 중 (찾기에 보임)' : '🔒 모집 닫음'; btn.classList.toggle('primary', open); };
+    net.guildOpen(net.guild.id).then((v) => { open = v; paint(); });
+    btn.onclick = busy(btn, async () => { open = !open; await net.setGuildOpen(open); paint(); toast(open ? '문파 찾기 목록에 보여요' : '문파 찾기 목록에서 숨겼어요(코드로는 가입 돼요)'); });
+    paint();
+    return h('div', { class: 'gh-code' }, h('span', { class: 'muted' }, '문파 찾기'), btn);
   }
 
   let membersAt = 0;

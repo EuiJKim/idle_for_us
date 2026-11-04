@@ -1,4 +1,4 @@
-// 십이지왕 함께 사냥 (v138) — 문파원끼리, 십이지왕 두목 구역에서만, Realtime Database로.
+// 두목 함께 사냥 (v138 십이지왕 · v339 모든 두목 구역) — 문파원끼리, Realtime Database로.
 //
 // 같은 문파원이 같은 왕 구역에 서면 한 방이다(coop/{문파}/{구역}).
 //   p/{uid}  누가 어디 서 있나 — 0.4초마다(움직였을 때만) 자리·바라보는 쪽·친 횟수, 들어올 때 한 번 생김새.
@@ -58,7 +58,7 @@ export class Coop {
 
   wantKey() {
     const g = this.game, n = this.net;
-    if (!g.s.kingParty || !this.can() || g.inst || g.map.town || !g.map.bossRoom || !g.map.king) return null;
+    if (!g.s.kingParty || !this.can() || g.inst || g.map.town || !g.map.bossRoom) return null;   // v339 모든 두목 구역
     return `${n.guild.id}/${g.map.id}`;
   }
 
@@ -306,7 +306,7 @@ export class Coop {
 
   kingMaxHp() {
     const lv = this.game.map.lv[1] + 2;
-    return D.fieldMobHp(lv) * W.BOSS.hp * patternHpMult(this.game.map);     // spawnMob과 같은 셈 (v149 사냥터 몹 공식 · v170 초식 두목 ×4)
+    return D.fieldMobHp(lv) * W.BOSS.hp * patternHpMult(this.game.map) * (this.game.map.lord ? W.LORD_HP : 1);     // spawnMob과 같은 셈 (v149 사냥터 몹 공식 · v170 초식 두목 ×4 · v339 맹주)
   }
 
   async open() {

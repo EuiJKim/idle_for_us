@@ -170,6 +170,7 @@ const profile = (extra = {}) => ({ world: 1, nickname: '무인', level: 10, job:
   ok(await denied(F.setDoc(bad.ref('saves', boss.uid, 'chars', '1'), { data: '{}', at: Date.now(), lv: 3, n: 'x', job: 'sword' })), '남의 캐릭터 덮기 거부');
   ok(await allowed(F.deleteDoc(boss.ref('saves', boss.uid, 'chars', '1'))), '내 쉬는 캐릭터 지우기');
 
+
   console.log('# 문파');
   const gid = 'TEST01';
   ok(await denied(F.setDoc(bad.ref('guilds', 'BAD001'), { name: '가짜', code: 'BAD001', owner: bad.uid, memberIds: [bad.uid], members: {}, exp: 999999, checkins: {} })), '경험치를 잔뜩 든 문파 만들기 거부');
@@ -189,6 +190,18 @@ const profile = (extra = {}) => ({ world: 1, nickname: '무인', level: 10, job:
   ok(await allowed(F.updateDoc(bad.ref('guilds', gid), { exp: F.increment(20), [`checkins.${bad.uid}`]: '2026-11-02' })), '(정상 출석은 된다)');
   ok(await allowed(F.updateDoc(bad.ref('guilds', gid), { memberIds: F.arrayRemove(bad.uid), [`members.${bad.uid}`]: F.deleteField() })), '(스스로 나가기는 된다)');
   ok(await denied(F.getDoc(bad.ref('guilds', gid, 'raids', 'wk-1'))), '나간 뒤엔 토벌 못 봄');
+
+  console.log('# 문파 찾기 (v339)');
+  const gl = (u, o) => F.setDoc(u.ref('guildlist', gid), { name: '우리끼리', n: 2, exp: 20, at: F.serverTimestamp(), ...o }, { merge: true });
+  ok(await allowed(gl(friend)), '문파원은 찾기 목록을 고친다');
+  ok(await allowed(F.getDocs(F.collection(bad.db, 'guildlist'))), '누구나 찾기 목록을 본다');
+  ok(await denied(gl(bad)), '문파원이 아니면 목록을 못 고친다');
+  ok(await denied(gl(friend, { open: false })), '문주가 아니면 모집 닫기 거부');
+  ok(await allowed(gl(boss, { open: false })), '문주는 모집을 닫는다');
+  ok(await denied(gl(friend, { open: true })), '문주가 아니면 모집 다시 열기 거부');
+  ok(await allowed(gl(friend, { n: 3 })), '(문파원이 인원만 고치면 닫힌 채로)');
+  ok(await denied(gl(friend, { n: 99 })), '인원 11명 이상 거부');
+  ok(await denied(F.setDoc(friend.ref('guildlist', gid), { name: 'x', n: 1, exp: 0, at: F.serverTimestamp(), code: 'HACK' }, { merge: true })), '정해진 칸 말고 거부');
 
   console.log('# 채팅');
   ok(await allowed(F.addDoc(F.collection(friend.db, 'guilds', gid, 'messages'), { uid: friend.uid, name: '친구', text: '안녕', type: 'chat', createdAt: F.serverTimestamp() })), '문파원 채팅');

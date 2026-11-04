@@ -941,7 +941,7 @@ export class WorldGame {
     if (boss && m.lord) { mob.maxHp = mob.hp = mob.hp * W.LORD_HP; mob.atk *= W.LORD_ATK; }
     if (boss && MS.patternHpMult(m) !== 1) mob.maxHp = mob.hp = mob.hp * MS.patternHpMult(m);     // 초식 두목 (v170)
     // v241: 오버파워 — 무인이 그 레벨 기준보다 세면 두목이 그만큼 단단해진다(^0.6 · 최대 3배). 함께 사냥 왕·던전은 그대로
-    if (boss && !this.inst && !(m.king && this.s.kingParty)) {
+    if (boss && !this.inst && !(this.s.kingParty && this.coop?.hold)) {   // v339 함께 잡는 두목은 서버 체력(내 전투력 보정 없음)
       const base = mob.hp;
       const k = this.overPower(mob.hp, m); if (k > 1) mob.maxHp = mob.hp = mob.hp * k; mob.op = k;
       if (lv >= W.BOSS_HARD_FROM) mob.calib = { base, sec: this.bossMinSec(m) * this.bossGapK(m) };   // v271 첫 몇 초 실제 피해로 다시 맞춘다(v272 레벨 30 두목부터)
