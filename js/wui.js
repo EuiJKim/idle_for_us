@@ -2004,7 +2004,7 @@ function dgnTab(app) {
       const nb2 = D.hardBoss(nh), nmd = D.hardMountOf(nh);
       const mounts = W.HARD_MOUNTS.map((m, i) => {
         const own = s.mounts.some((x) => x.kind === m.id);
-        return h('div', { class: `hard-mt${own ? ' own' : ''}${hf >= (i + 1) * 10 ? ' clear' : ''}`, style: `--mc:${m.col}`, title: `${m.name} — ${m.desc} · 이동 +100% 고정 · 공격·체력 +${Math.round(m.stat * 100)}% · ${m.sp}` },
+        return h('div', { class: `hard-mt${own ? ' own' : ''}${hf >= (i + 1) * 10 ? ' clear' : ''}`, style: `--mc:${m.col}`, title: `${m.name} — ${m.desc} · 이동 +${W.spdPct(m.speed)}% 고정 · 공격·체력 +${Math.round(m.stat * 100)}% · ${m.sp}` },
           creatureIcon(m.id, 46), h('b', {}, m.name), h('small', {}, own ? '얻음 ✓' : `극 ${(i + 1) * 10}층`));
       });
       out.push(h('div', { class: `card dgn-card hard-card${open ? '' : ' locked'}` },
@@ -2049,7 +2049,7 @@ function dgnTab(app) {
         return h('button', {
           class: `zodiac-cell${own ? ' own' : ''}${n ? ' ready' : ''}${cleared ? '' : ' locked'}`,
           disabled: n ? null : true,
-          title: `${z.god} · ${md.name} (이동 +${Math.round(md.speed * 100)}% · 공격·체력 +${Math.round(md.stat * 100)}%)`,
+          title: `${z.god} · ${md.name} (이동 +${W.spdPct(md.speed)}% · 공격·체력 +${Math.round(md.stat * 100)}%)`,
           onclick: () => { const mt = game.drawZodiac(z.no); if (!mt) return; app.save(); rerender(); app.refresh(); },
         }, creatureIcon(z.mount, 40), h('b', {}, `${z.ji} ${z.animal}`), h('small', {}, n ? `뽑기 ${n}` : own ? '신수 ✓' : `${z.no * 10}층`));
       })));
@@ -2994,7 +2994,7 @@ function compTab(app) {
     ...W.MOUNTS.slice().sort((a, b) => b.tier - a.tier).map((d) => {
       const z = firstZone(W.mountMaxTier, d.tier);
       return h('div', { class: 'rank-line' }, h('span', { class: 'rk' }, `${d.tier}`), h('span', { class: 'em' }, creatureIcon(d.id, 34)),
-        h('b', {}, d.name), h('span', {}, `이동 +${Math.round(d.speed * 100)}% · 공격·체력 +${Math.round(d.stat * 100)}%`), h('small', {}, d.hard ? `무한의 탑 · 극 ${d.hard * 10}층` : d.zodiac ? `무한의 탑 ${d.zodiac * 10}층 십이지 뽑기` : `${z?.name || ''} 두목부터`));
+        h('b', {}, d.name), h('span', {}, `이동 +${W.spdPct(d.speed)}% · 공격·체력 +${Math.round(d.stat * 100)}%`), h('small', {}, d.hard ? `무한의 탑 · 극 ${d.hard * 10}층` : d.zodiac ? `무한의 탑 ${d.zodiac * 10}층 십이지 뽑기` : `${z?.name || ''} 두목부터`));
     }));
   // v147: 애완동물 | 탈것 두 칸으로 · v292 도감 칸 · 얻는 곳
   const where = (title, lines) => h('details', { class: 'card rank-card' }, h('summary', {}, h('b', {}, title), h('small', {}, ' 눌러서 보기')), ...lines.map((t) => h('div', { class: 'where-line' }, t)));
@@ -3013,7 +3013,7 @@ function compTab(app) {
     `  · 졸개 가끔(정예 3배) · 두목 ${W.BOSS_SHARDS.mount[0]}~${W.BOSS_SHARDS.mount[1]}개(왕·고수 2배) · 일일 던전 한 판 · 무한의 탑 처음 오른 층 · 보물 원숭이 · 주간 상자 · 방치 · 도감 이정표`,
     `🔮 합성 — 같은 순위 ${W.MOUNT_FUSE_N}마리 → 다음 순위 하나(길들인 레벨의 절반을 이어 간다)`,
     '🐲 십이지 신수 — 무한의 탑 10층마다 십이지 뽑기',
-    `⚡ 극의 신수 여섯 — 무한의 탑 · 극(하드) 10층마다 그 층의 신수를 이기면 (이동 +100% 고정 · 공격·체력 크게)`,
+    `⚡ 극의 신수 여섯 — 무한의 탑 · 극(하드) 10층마다 그 층의 신수를 이기면 (이동 +90~120% 고정 · 공격·체력 크게)`,
     `🪢 길들이기 — 탈것 조각과 은자로 레벨(최대 ${W.MOUNT_LV_MAX}) · 레벨마다 이동·공격·체력 +${Math.round(W.MOUNT_LV_K * 100)}%`,
   ]);
   const dexCard = h('div', { class: 'card' });
@@ -3133,7 +3133,7 @@ function compTab(app) {
         fuse.append(h('div', { class: 'row fuse-row' },
           h('div', { class: 'ico pet-ico' }, creatureIcon(a.id)),
           h('div', { class: 'info' }, h('div', { class: 'name' }, `${a.name} ×${W.MOUNT_FUSE_N} → ${b.name}`, h('small', {}, ` (가진 것 ${game.fuseCandidates(t).length})`)),
-            h('div', { class: 'desc' }, `이동 +${Math.round(b.speed * 100)}% · 공격력·체력 +${Math.round(b.stat * 100)}% · 은자 ${fmt(cost)}`)),
+            h('div', { class: 'desc' }, `이동 +${W.spdPct(b.speed)}% · 공격력·체력 +${Math.round(b.stat * 100)}% · 은자 ${fmt(cost)}`)),
           h('button', { class: 'buy', disabled: game.canFuseMounts(t) ? null : true, onclick: () => {
             const used = game.fuseCandidates(t).sort((x, y) => (x.uid === game.s.mount) - (y.uid === game.s.mount)).slice(0, W.MOUNT_FUSE_N);
             if (!confirm(`${a.name} ${W.MOUNT_FUSE_N}마리를 합쳐 ${b.name} 한 마리로 만들어요.${used.some((m) => m.uid === game.s.mount) ? '\n지금 타고 있는 것도 들어가요.' : ''}${used.some((m) => (m.lv || 0) > 0) ? `\n길들인 정도는 절반(Lv.${Math.floor(Math.max(...used.map((m) => m.lv || 0)) / 2)})만 이어 가요.` : ''}\n은자 ${fmt(cost)} · 되돌릴 수 없어요. 합칠까요?`)) return;
@@ -3152,7 +3152,7 @@ function compTab(app) {
       const tc = game.tameCost(m.uid);
       mountCard.append(h('div', { class: `row${on ? ' me' : ''}` },
         h('div', { class: 'ico pet-ico' }, creatureIcon(m.kind)),
-        h('div', { class: 'info' }, h('div', { class: 'name' }, d.name, h('small', {}, `순위 ${d.tier}${m.lv ? ` · 길들이기 ${m.lv}/${W.MOUNT_LV_MAX}` : ''}`)), h('div', { class: 'desc' }, `${d.sp ? `${d.sp} · ` : ''}이동 속도 +${Math.round(d.speed * (d.fixedSpeed ? 1 : k) * 100)}%${d.fixedSpeed ? '(고정)' : ''} · 공격력·체력 +${(d.stat * k * 100).toFixed(1).replace(/\.0$/, '')}%`),
+        h('div', { class: 'info' }, h('div', { class: 'name' }, d.name, h('small', {}, `순위 ${d.tier}${m.lv ? ` · 길들이기 ${m.lv}/${W.MOUNT_LV_MAX}` : ''}`)), h('div', { class: 'desc' }, `${d.sp ? `${d.sp} · ` : ''}이동 속도 +${W.spdPct(W.mountSpeed(d, k))}%${d.fixedSpeed ? '(고정)' : ''} · 공격력·체력 +${(d.stat * k * 100).toFixed(1).replace(/\.0$/, '')}%`),
           tc ? h('div', { class: 'desc', style: 'color:#fde68a' }, `길들이기 +1: 탈것 조각 ${tc.shard} · 은자 ${fmt(tc.gold)} → +${Math.round(W.MOUNT_LV_K * 100)}%`) : null),
         h('div', { class: 'pet-btns' },
           tc ? h('button', { class: 'buy', disabled: game.canTame(m.uid) ? null : true, onclick: () => { if (game.tame(m.uid)) { toast(`${d.name} 길들이기 ${m.lv}`); done(); } } }, '길들이기') : h('span', { class: 'sk-max' }, '極'),

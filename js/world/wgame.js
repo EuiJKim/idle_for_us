@@ -645,7 +645,7 @@ export class WorldGame {
       goldMul: this.titleNow()?.goldMul || 1,   // v322 칭호 은자
       matMult: 1 + gear.mat,
       // v262: 스탯마다 다른 축 — 힘=두목 피해 · 민첩=걸음 · 체력=받는 피해 감소 · 내공=무공 숨(어디에 찍든 사냥만 같던 것)
-      moveSpeed: 1 + (mt ? mt.speed * (mt.fixedSpeed ? 1 : mk) : 0) + (cls.move || 0) + (pm.move || 0) + gear.move + Math.min(W.STAT_ROLE.dexMoveMax, dex * W.STAT_ROLE.dexMove),
+      moveSpeed: 1 + (mt ? W.mountSpeed(mt, mk) : 0) + (cls.move || 0) + (pm.move || 0) + gear.move + Math.min(W.STAT_ROLE.dexMoveMax, dex * W.STAT_ROLE.dexMove),
       boss: (cls.boss || 1) * (1 + gear.bossDmg) * (1 + Math.min(W.STAT_ROLE.strBossMax, str * W.STAT_ROLE.strBoss)),
       gold: gear.gold + (cls.goldUp || 0), dodge: Math.min(0.5, gear.dodge), drain: gear.drain, dmgRed: Math.min(0.5, gear.dmgRed + Math.min(W.STAT_ROLE.vitRedMax, vit * W.STAT_ROLE.vitRed)),
       cdr: Math.min(0.4, gear.cdr + Math.min(W.STAT_ROLE.intCdrMax, int * W.STAT_ROLE.intCdr)), skillRange: gear.range, thorns: gear.thorns, stunHit: Math.min(0.3, gear.stunHit),

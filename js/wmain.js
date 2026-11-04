@@ -1228,7 +1228,7 @@ function mountReveal(kind, floor) {
       cv,
       h('h2', { class: 'reveal-name' }, `${md.emoji} ${md.name}`),
       h('p', { class: 'reveal-desc' }, md.desc),
-      h('div', { class: 'reveal-stats' }, h('span', {}, `이동 +${Math.round(md.speed * 100)}% 고정`), h('span', {}, `공격력·체력 +${Math.round(md.stat * 100)}%`)),
+      h('div', { class: 'reveal-stats' }, h('span', {}, `이동 +${W.spdPct(md.speed)}% 고정`), h('span', {}, `공격력·체력 +${Math.round(md.stat * 100)}%`)),
       md.sp ? h('p', { class: 'reveal-sp' }, `✦ ${md.sp}`) : null,
       h('div', { class: 'btn-row' }, h('button', { class: 'btn primary', onclick: () => { on = false; closeModal(); } }, '타고 가기'))].filter(Boolean));
     requestAnimationFrame(frame);
@@ -1466,7 +1466,7 @@ function handleEvents() {
       case 'mountDrop': {
         const d = W.mountOf(ev.mount.kind);
         saverLoot(`mount:${d.name}`, `🐎 ${d.name}`);
-        toast(d.hard ? `⚡ 극의 신수 ${d.name}! 이동 +100% 고정 · 공격·체력 +${Math.round(d.stat * 100)}%` : d.zodiac ? `🎉 십이지 신수 ${d.name}! 이동 +${Math.round(d.speed * 100)}% · 공격·체력 +${Math.round(d.stat * 100)}%` : `탈것 ${d.name}(순위 ${d.tier})! 이동 속도 +${Math.round(d.speed * 100)}%`);
+        toast(d.hard ? `⚡ 극의 신수 ${d.name}! 이동 +${W.spdPct(d.speed)}% 고정 · 공격·체력 +${Math.round(d.stat * 100)}%` : d.zodiac ? `🎉 십이지 신수 ${d.name}! 이동 +${W.spdPct(d.speed)}% · 공격·체력 +${Math.round(d.stat * 100)}%` : `탈것 ${d.name}(순위 ${d.tier})! 이동 속도 +${W.spdPct(d.speed)}%`);
         view.showBanner(d.name, d.zodiac ? '#f472b6' : '#fde68a', d.zodiac ? 2.6 : 1.8, d.zodiac ? '십이지 신수' : '탈것');
         sfx('loot');
         break;
@@ -2317,7 +2317,7 @@ function mailChips(g) {
     const [k, r] = String(p).split(':'); const d = W.petOf(k); const rr = W.RARITY[Number(r) || 0] || W.RARITY[0];
     out.push(chip(d.emoji, d.name, rr.name, rr.color));
   }
-  for (const m of [].concat(g.mount || [])) { const d = W.mountOf(m); if (d) out.push(chip(d.emoji, d.name, `이동 +${Math.round(d.speed * 100)}%`)); }
+  for (const m of [].concat(g.mount || [])) { const d = W.mountOf(m); if (d) out.push(chip(d.emoji, d.name, `이동 +${W.spdPct(d.speed)}%`)); }
   for (const t of [].concat(g.title || [])) { const d = W.titleOf(t); if (d) out.push(chip('🏷', `〈${d.name}〉`, d.desc, d.col)); }   // v305
   return out;
 }

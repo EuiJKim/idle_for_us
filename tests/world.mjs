@@ -583,7 +583,7 @@ console.log('\n=== 십이지왕 신화 · 가락지·귀걸이 · 애완동물 �
   const m = fresh();
   const sp0 = m.stats().moveSpeed;
   m.gainMount('redhare');
-  ok(Math.abs(m.stats().moveSpeed - sp0 - 0.45) < 0.01 && m.stats().atk > fresh().stats().atk, '탈것: 이동 속도(적토마 +45% — v157 절반)와 공격력·체력 %', `이동 ×${m.stats().moveSpeed.toFixed(2)}`);
+  ok(Math.abs(m.stats().moveSpeed - sp0 - 0.3825) < 0.002 && m.stats().atk > fresh().stats().atk, '탈것: 이동 속도(적토마 +38% — v157 절반 · v360 ×0.85)와 공격력·체력 %', `이동 ×${m.stats().moveSpeed.toFixed(2)}`);
   m.gainMount('donkey');
   ok(m.mountNow().name === '적토마', '더 느린 탈것을 얻으면 갈아타지 않는다');
   // 순위: 아래 것보다 위 것이 세다 · 초반 두목은 아주 낮게·아래 순위만

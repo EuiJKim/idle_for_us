@@ -1154,7 +1154,7 @@ export const MOUNTS = [
 // v157: 이동 속도 증가폭을 절반으로 — 60%만 돼도 너무 빨랐다 (청룡마 +170% → +85%)
 export const MOUNT_SPEED_K = 0.5;
 for (const m of MOUNTS) m.speed = +(m.speed * MOUNT_SPEED_K).toFixed(3);
-// v350 극(極)의 신수 — 무한의 탑 하드 모드 10층마다 그 층을 지키는 신수(처음 깨면 꼭). 이동은 +100%로 고정(길들여도 그대로),
+// v350 극(極)의 신수 — 무한의 탑 하드 모드 10층마다 그 층을 지키는 신수(처음 깨면 꼭). 이동은 고정(길들여도 그대로 · v360 층 따라 +90%~+120%),
 //   대신 공격력·체력이 크게 오른다. 합성·떨굼 없음. fx: 탈 때 둘레에 이는 기운(battle.js drawMountAura)
 export const HARD_MOUNTS = [
   { id: 'h1', name: '염화주작', emoji: '🔥', stat: 0.27, fx: 'flame', col: '#f97316', desc: '불꽃 깃이 흩날리는 남방의 신조', sp: '불길 — 1초마다 둘레 적에게 공격력 35% 불 피해' },
@@ -1165,6 +1165,14 @@ export const HARD_MOUNTS = [
   { id: 'h6', name: '혼원금룡', emoji: '🐲', stat: 0.5, fx: 'gold', col: '#fbbf24', desc: '금빛 법륜을 이고 하늘을 가르는 태초의 용', sp: '법륜 — 두목 피해 +10% · 은자 +15%' },
 ];
 for (const [i, m] of HARD_MOUNTS.entries()) MOUNTS.push({ ...m, tier: 14, hard: i + 1, speed: 1, fixedSpeed: true });
+// v360 이동 줄 세우기 — 극의 신수는 층 따라 차등(염화주작 +90% … 창해교룡 +112% · 혼원금룡 +120%),
+//   보통 탈것·십이지는 신수 아래로 같은 비율(×0.85 — 청룡마 +72% · 적토마 +38% · 나귀 +6%)
+export const HARD_SPEED = [0.9, 0.96, 1.01, 1.06, 1.12, 1.2];
+export const MOUNT_SPEED_K2 = 0.85;
+for (const m of MOUNTS) m.speed = m.hard ? HARD_SPEED[m.hard - 1] : +(m.speed * MOUNT_SPEED_K2).toFixed(4);
+// 길들인 이동 — 보통 탈것은 길들여도 극의 신수 가장 낮은 것(염화주작) 아래까지만(줄 순서가 뒤집히지 않게)
+export const mountSpeed = (d, k = 1) => (!d ? 0 : d.fixedSpeed ? d.speed : Math.min(HARD_SPEED[0] - 0.02, d.speed * k));
+export const spdPct = (v) => (v * 100).toFixed(1).replace(/\.0$/, '');   // 이동 +몇 %(소수 한 자리)
 // 어느 탈것이 더 좋은가(새로 얻으면 갈아탈지) — 이동과 공격·체력을 함께 본다
 export const mountRank = (d) => (d ? d.speed + d.stat : -1);
 export const mountOf = (id) => MOUNTS.find((m) => m.id === id) || null;
