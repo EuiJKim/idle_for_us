@@ -1,7 +1,7 @@
 // 전투 화면 캔버스 렌더러 (수묵화 무협풍). 게임 이벤트를 받아 연출만 담당한다.
 import { drawObstacle, drawLowObstacle } from './obstacles.js';
 import { zoneOf, RANKS, GRADES, FIELD_SQUASH, JOB_TRAITS, QI, jobOf, critTierName } from './data.js';
-import { artReady, putArt, putArtBand, putArtEdge, putArtTint, loadArt, FIT, ART_SHOULDER, ART_BAND, headKey, bodyKey, weaponKey, artHeight, hasBodyArt, putWeapon, weaponBare, putHat, hatRect, headGeom, headMasked, bodyNeckDy, bodyColors, hasArt, HEAD_FIT, registerArt, artImg } from './art.js';
+import { artReady, putArt, putArtBand, putArtEdge, putArtTint, loadArt, FIT, ART_SHOULDER, ART_BAND, headKey, bodyKey, weaponKey, artHeight, hasBodyArt, putWeapon, weaponBare, putHat, hatRect, headGeom, headMasked, bodyNeckDy, robeTinted, bodyColors, hasArt, HEAD_FIT, registerArt, artImg } from './art.js';
 import { drawFemaleHead, drawBackHair, FHEAD_W, FHEAD_H, FHEAD_FIT } from './femhead.js';
 import { drawCreature, saddleY, mountTilt, mountGait, CREATURES } from './creatures.js';
 import { ZONES_W, itemZone, weaponSkinOf, CUSTOM_HAIRS } from './world/wdata.js';
@@ -1300,7 +1300,10 @@ export class BattleView {
     const x = this.sx(o), y = this.sy(o);
     if (x < -80 || x > this.w + 80 || y < -40 || y > this.h + 160) return;
     const L = o.lk || {};
-    const look = L.look || {};
+    // v349 문파원 모습 — 여협 머리 그림이 이 기기에 아직 없거나(늦게 받는 묶음) 그 기기에서만 만든 벡터 머리(fhv|…)면
+    //   남자 머리로 그려졌다. 이 기기에서 같은 머리를 찾아(없으면 만들어) 쓴다
+    const look = L.look ? { ...L.look } : {};
+    if (look.female && look.fstyle && !(look.fhead && hasArt(look.fhead))) look.fhead = femaleHeadKey(look.fstyle, look.hairK || 'black', look.band);
     const op = { t: this.t + (o.uid.charCodeAt(0) || 0), run: !!o.moving, hold: true, weapon: 'sword', blade: '#e5e7eb', ...(L.opts || {}),
       flip: o.f < 0, lunge: o.lunge > 0 ? Math.sin(o.lunge * Math.PI) : 0, flash: 0 };
     ctx.save();
@@ -4933,6 +4936,16 @@ export function drawRiderLeg(ctx, x, y, look = {}, o = {}) {
   ctx.lineCap = 'round'; ctx.lineJoin = 'round';
   // 용·뱀처럼 몸이 얇은 탈것은 다리를 접어 무릎 꿇듯 앉는다(배 아래로 늘어지지 않게)
   const thin = CREATURES[o.kind]?.type === 'dragon';
+  // v349 그림 다리(sunburst) — 허벅지 앞으로 · 무릎 굽힘 · 장화 · 도포 자락이 허벅지를 덮고 무릎 아래로 늘어진다. 도포 빛깔을 입힌다.
+  //   전엔 벡터 막대 다리 + 네모 자락이라 탈것 옆구리에 판자를 댄 것 같았다
+  const legArt = !thin ? robeTinted('rider-leg', look.robeTint || C.main) : null;
+  if (legArt) {
+    const H = 40, W = (legArt.width * H) / legArt.height;
+    const sway = o.moving ? Math.sin(t * 9) * 0.6 : 0;
+    ctx.drawImage(legArt, -W * 0.337 + 1, -49 + sway, W, H);   // 허리띠 가운데를 엉덩이 자리(x≈1)에 · 위를 허리(-49)에
+    ctx.restore();
+    return;
+  }
   const hip = [3, -38], knee = [14, -31 + sw * 0.3], ank = thin ? [8 + sw * 0.5, -25] : [11 + sw, -15];
   for (const [w, col] of [[10.6, LINE], [8, C.dark]]) {
     ctx.strokeStyle = col; ctx.lineWidth = w;

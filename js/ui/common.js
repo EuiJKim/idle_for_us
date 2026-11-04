@@ -59,6 +59,22 @@ export function popUp(el, text) {
   setTimeout(() => el.classList.remove('lvup'), 500);
 }
 
+// v349 컴퓨터 오른쪽 클릭 메뉴 — [[이름, 할 일], …] · 바깥을 누르거나 Esc면 닫힌다
+export function ctxMenu(e, items) {
+  e.preventDefault(); e.stopPropagation();
+  document.getElementById('ctx-menu')?.remove();
+  const m = h('div', { id: 'ctx-menu', role: 'menu' }, ...items.filter(Boolean).map(([label, fn, dis]) => h('button', { disabled: dis ? true : null, onclick: () => { m.remove(); fn(); } }, label)));
+  document.body.append(m);
+  const z = parseFloat(document.documentElement.style.zoom) || 1;
+  const r = m.getBoundingClientRect();
+  let x = e.clientX / z, y = e.clientY / z;
+  if (x + r.width / z > innerWidth / z - 4) x = innerWidth / z - r.width / z - 4;
+  if (y + r.height / z > innerHeight / z - 4) y = innerHeight / z - r.height / z - 4;
+  m.style.left = `${Math.max(4, x)}px`; m.style.top = `${Math.max(4, y)}px`;
+  const close = (ev) => { if (ev.type === 'keydown' && ev.key !== 'Escape') return; if (ev.type !== 'keydown' && m.contains(ev.target)) return; m.remove(); off(); };
+  const off = () => { removeEventListener('pointerdown', close, true); removeEventListener('keydown', close, true); removeEventListener('wheel', close, true); };
+  setTimeout(() => { addEventListener('pointerdown', close, true); addEventListener('keydown', close, true); addEventListener('wheel', close, true); }, 0);
+}
 export function toast(text) {
   const box = document.getElementById('toast');
   const el = h('div', { class: 'toast' }, tidyNum(text));

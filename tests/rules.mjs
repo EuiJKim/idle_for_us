@@ -166,6 +166,13 @@ const profile = (extra = {}) => ({ world: 1, nickname: '무인', level: 10, job:
   ok(await allowed(F.setDoc(boss.ref('saves', boss.uid, 'chars', '1'), { data: '{}', at: Date.now(), lv: 3, n: '둘째', job: 'sword' })), '쉬는 캐릭터 올리기');
   ok(await allowed(F.getDocs(F.collection(boss.db, 'saves', boss.uid, 'chars'))), '내 캐릭터 목록 읽기');
   ok(await denied(F.setDoc(boss.ref('saves', boss.uid, 'chars', '4'), { data: '{}', at: Date.now(), lv: 3, n: 'x', job: 'sword' })), '칸 4 거부');
+  console.log('# 계정 창고 (v349)');
+  ok(await allowed(F.setDoc(boss.ref('saves', boss.uid, 'vault', 'main'), { data: '{"gold":5}', at: Date.now() })), '내 창고 올리기');
+  ok(await allowed(F.getDoc(boss.ref('saves', boss.uid, 'vault', 'main'))), '내 창고 읽기');
+  ok(await denied(F.getDoc(bad.ref('saves', boss.uid, 'vault', 'main'))), '남의 창고 읽기 거부');
+  ok(await denied(F.setDoc(bad.ref('saves', boss.uid, 'vault', 'main'), { data: '{}', at: 1 })), '남의 창고 덮기 거부');
+  ok(await denied(F.setDoc(boss.ref('saves', boss.uid, 'vault', 'two'), { data: '{}', at: 1 })), 'main 말고 다른 창고 거부');
+  ok(await denied(F.setDoc(boss.ref('saves', boss.uid, 'vault', 'main'), { data: '{}', at: 1, gold: 9e9 })), '다른 칸 끼우기 거부');
   ok(await denied(F.getDocs(F.collection(bad.db, 'saves', boss.uid, 'chars'))), '남의 캐릭터 목록 거부');
   ok(await denied(F.setDoc(bad.ref('saves', boss.uid, 'chars', '1'), { data: '{}', at: Date.now(), lv: 3, n: 'x', job: 'sword' })), '남의 캐릭터 덮기 거부');
   ok(await allowed(F.deleteDoc(boss.ref('saves', boss.uid, 'chars', '1'))), '내 쉬는 캐릭터 지우기');

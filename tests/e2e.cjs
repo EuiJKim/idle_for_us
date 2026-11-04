@@ -274,6 +274,7 @@ async function tab(page, name) {
     await shot(p, '07c-tally.png');
     // v329 절전 화면도 이름별로 모은다 — 두목 셋이면 '현철 ×36' 한 줄(전엔 '현철 12'가 세 줄)
     await G(p, () => { window.__test_saver(true); const g = window.__game; for (let i = 0; i < 3; i++) g.emit('kill', { mat: { boss: '시험의 증표', name: '현철', n: 12, markN: 1 } }); });
+    await p.waitForFunction(() => window.__test_saver().some((x) => /현철 ×36/.test(x)), null, { timeout: 3000 }).catch(() => {});
     const sl = await G(p, () => window.__test_saver());
     await G(p, () => window.__test_saver(false));
     assert(sl.filter((x) => /현철/.test(x)).length === 1 && sl.includes('현철 ×36') && sl.includes('⚔ 두목 처치 ×3'), `절전 화면 얻은 것도 이름별로 더한다 (${sl.join(' / ')})`);
@@ -332,6 +333,18 @@ async function tab(page, name) {
     await p.click('#modal .cust-go');
     await G(p, () => { window.__game.attend(); window.__save(); });
     assert(await G(p, () => window.__game.s.nickname === '둘째무인' && window.__game.s.level === 1), '빈 칸으로 둘째 무인을 새로 만든다');
+    // v349 계정 창고 — 둘째가 은자·장비를 넣고 첫째가 꺼낸다
+    await G(p, () => { const g = window.__game; g.s.gold = 12345; window.__app.refresh(); window.__app.showTab('bag', 'vault'); window.prompt = (m, d) => d; });
+    await p.waitForSelector('#vault-gold-in');
+    await p.click('#vault-gold-in'); await sleep(300);
+    const vin = await G(p, () => ({ g: window.__game.s.gold, v: window.__app.vault.get().gold }));
+    assert(vin.g === 0 && vin.v === 12345, `창고에 은자 넣기 (가방 ${vin.g} · 창고 ${vin.v})`);
+    const bagN = await G(p, () => window.__game.s.bag.filter((x) => !x.grow).length);
+    if (bagN) {
+      await p.click('#panel .vault-item .btn:has-text("넣기") >> nth=0').catch(() => {}); await sleep(300);
+      assert(await G(p, () => window.__app.vault.get().items.length) === 1, '창고에 장비 넣기');
+    }
+    await G(p, () => { window.__app.closePanel(); window.__save(); });
     // 첫째로 돌아가기 — 레벨 그대로
     await G(p, () => { window.__test_charSelect(); });
     await p.waitForSelector('.char-card:not(.act):not(.empty)');
@@ -341,6 +354,21 @@ async function tab(page, name) {
     await sleep(2000);
     const back = await G(p, () => ({ n: window.__game.s.nickname, lv: window.__game.s.level }));
     assert(back.n === first.n && back.lv === first.lv, `첫째 무인으로 돌아오면 그대로 (${back.n} Lv ${back.lv})`);
+    {
+      const g0 = await G(p, () => window.__game.s.gold);
+      await G(p, () => { window.__app.showTab('bag', 'vault'); window.prompt = (m, d) => d; });
+      await p.waitForSelector('#vault-gold-out');
+      await p.click('#vault-gold-out'); await sleep(300);
+      const vo = await G(p, () => ({ g: window.__game.s.gold, v: window.__app.vault.get().gold }));
+      assert(vo.g - g0 >= 12345 && vo.g - g0 < 13000 && vo.v === 0, `다른 무인이 창고 은자를 꺼낸다 (+${vo.g - g0})`);
+      if (bagN) {
+        const n0 = await G(p, () => window.__game.s.bag.length);
+        await p.click('#panel .vault-item .btn:has-text("꺼내기") >> nth=0').catch(() => {}); await sleep(300);
+        assert(await G(p, () => window.__game.s.bag.length === n0 + 1 && window.__app.vault.get().items.length === 0), '다른 무인이 창고 장비를 꺼낸다');
+      }
+      await shot(p, '07f-vault.png');
+      await G(p, () => { window.__app.closePanel(); window.__save(); });
+    }
     // 체험 모드 — 저장되지 않고, 끝내면 고르기로
     await G(p, () => { window.__test_charSelect(); });
     await p.waitForSelector('#trial-open');
@@ -486,7 +514,6 @@ async function tab(page, name) {
     assert(await G(p, () => window.__game.s.chatMute.length === 0), '풀면 다시 보인다');
     // v321 신고 — 이름을 누르고 '신고'
     await p.click('#panel .msg:has-text("반가워요 v315") .who');
-    p.once('dialog', (d) => d.accept());
     await p.click('#modal .btn:has-text("신고")');
     await p.waitForFunction(() => window.__app.net.reported?.size === 1, null, { timeout: 8000 });
     assert(true, '말 하나를 운영자에게 신고한다');
@@ -690,6 +717,20 @@ async function tab(page, name) {
     await q.click('#panel .follow-btn');
     await q.waitForFunction(() => window.__game.map.id === 21, null, { timeout: 5000 });
     assert(true, '문파원 목록에서 따라가기 → 그 사람 구역으로 (v345)');
+    // v349 문파원 모임 알림 — 두목 구역에 문파원이 둘 넘게 모이면 위에 '🤝 … 외 N명이 … 잡는 중 — 가기'
+    {
+      await G(p, (id) => { window.__game.s.kingParty = true; window.__game.enterMap(id); }, nid);
+      await G(q, () => { window.__game.goTown(false); });
+      await q.waitForFunction((id) => window.__where.list().some((o) => o.m === id), nid, { timeout: 15000 });
+      await G(q, (id) => { const w = window.__where; w.all.__fake = { m: id, n: '가짜문파원', t: Date.now() + w.offset }; }, nid);
+      await q.waitForSelector('#gather:not(.hidden)', { timeout: 5000 });
+      const gt = await q.textContent('#gather .g-go');
+      assert(/외 1명이 .+ 잡는 중 — 가기/.test(gt), `문파원 둘이 두목 구역에 모이면 알림 (${gt})`);
+      await shot(q, '12-gather.png');
+      await q.click('#gather .g-go');
+      await q.waitForFunction((id) => window.__game.map.id === id && window.__game.s.kingParty, nid, { timeout: 5000 });
+      assert(true, '알림을 누르면 그 두목 구역으로 함께 (v349)');
+    }
     // v345 소개·가입 레벨 — 문주(p)가 쓰면 찾기 목록에 보인다
     assert(await G(p, async () => window.__app.net.setGuildInfo('매일 토벌 · 초보 환영', 1)), '문주가 소개·가입 레벨을 쓴다');
     assert(await G(q, async () => (await window.__app.net.listGuilds()).some((g) => g.intro === '매일 토벌 · 초보 환영' && g.minLv === 1)), '찾기 목록에 소개·가입 레벨');

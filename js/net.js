@@ -2,7 +2,7 @@
 // SDK를 동적으로 불러오므로 실패해도 혼자 하기는 그대로 동작한다.
 import { firebaseConfig, FIREBASE_SDK_VERSION, ADMIN_UID } from './firebase-config.js';
 // v309 이 앱이 바라는 규칙 판 — firestore.rules의 rulesv 숫자와 같아야 한다(규칙을 고치면 둘 다 올린다)
-export const RULES_VER = '345';
+export const RULES_VER = '349';
 export const WORLD_MAX = 100;   // v315 전체 채팅 한 마디 길이
 import { big } from './big.js';
 import { Big } from './big.js';
@@ -175,6 +175,17 @@ export class Net {
     }
   }
   // v328 쉬는 캐릭터(칸 0~3) — saves/{uid}/chars/{칸}. 지금 하는 캐릭터는 saves/{uid} 그대로
+  // v349 계정 창고 — saves/{uid}/vault/main
+  async fetchVault() {
+    if (!this.online || this.blocked || !this.uid) return null;
+    const d = await this.fs.getDoc(this.ref('saves', this.uid, 'vault', 'main'));
+    return d.exists() ? d.data() : null;
+  }
+  async pushVault(json, at) {
+    if (!this.online || this.blocked || !this.uid) return false;
+    await this.fs.setDoc(this.ref('saves', this.uid, 'vault', 'main'), { data: json, at: Math.floor(at || Date.now()) });
+    return true;
+  }
   async fetchChars() {
     if (!this.online || this.blocked || !this.uid) return [];
     const snap = await this.fs.getDocs(this.fs.collection(this.db, 'saves', this.uid, 'chars'));

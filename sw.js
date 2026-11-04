@@ -1,8 +1,8 @@
 // 앱 껍데기를 캐시해 오프라인에서도 열리게 한다. 온라인이면 항상 새 파일을 먼저 받는다.
-const CACHE = 'ifu-v348';
+const CACHE = 'ifu-v349';
 const SHELL = [
   './', 'index.html', 'install.html', 'icons/qr-install.png', 'css/style.css', 'manifest.webmanifest',
-  'js/big.js', 'js/data.js', 'js/battle.js', 'js/net.js', 'js/savecode.js', 'js/art2.js', 'js/headanchor.js', 'js/chars.js', 'js/femhead.js', 'js/fmt.js', 'js/firebase-config.js',
+  'js/big.js', 'js/data.js', 'js/battle.js', 'js/net.js', 'js/savecode.js', 'js/art2.js', 'js/headanchor.js', 'js/chars.js', 'js/vault.js', 'js/femhead.js', 'js/fmt.js', 'js/firebase-config.js',
   'js/ui/common.js',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png', 'icons/icon-maskable-512.png',
   'js/world/wpath.js',   // v254: v237부터 빠져 있어 오프라인으로 열면 빈 화면이었다
@@ -238,6 +238,7 @@ const SHELL = [
   'art/hero2/face-scar.png',
   'art/hero2/face-veil.png',
   'art/hero2/fh-hood.png',
+  'art/hero2/rider-leg.png',
   'art/hero2/f-body-black.png',
   'art/hero2/f-body-blue.png',
   'art/hero2/f-body-brown.png',

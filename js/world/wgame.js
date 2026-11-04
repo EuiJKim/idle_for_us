@@ -2552,6 +2552,21 @@ export class WorldGame {
     }
     return 'bag';
   }
+  // v349 계정 창고 — 내 무인 넷이 함께 쓴다(창고 자체는 vault.js가 기기·서버에 둔다).
+  //   넣기: 가방의 장비(낀 것·성장 장비 빼고)를 빼서 그대로 준다 · 꺼내기: 새 번호를 붙여 가방에(무인마다 번호가 따로 매겨져 겹친다)
+  vaultTakeOut(uid) {
+    const i = this.s.bag.findIndex((x) => x.uid === uid);
+    if (i < 0 || this.s.bag[i].grow) return null;
+    const it = this.s.bag.splice(i, 1)[0];
+    return JSON.parse(JSON.stringify(it));
+  }
+  vaultPutIn(it) {
+    if (!it || this.s.bag.length >= this.s.bagSize) return false;
+    const x = JSON.parse(JSON.stringify(it));
+    x.uid = uidSeq++;
+    this.s.bag.push(x);
+    return x;
+  }
   sell(it, auto = false) {
     if (it?.grow) return 0;                 // 성장 장비는 칸마다 하나 — 팔지 않는다 (v158)
     // 조합 장비: 만들 때 든 것의 1/4 (재료도 돌아온다) · 그 밖: 은자

@@ -5,7 +5,7 @@ import * as D from './world/wdgn.js';
 import * as L from './world/wland.js';
 import * as G from './world/wgear.js';
 import * as Q from './world/wquest.js';
-import { h, toast, openModal, closeModal, subTabs, popUp, holdRepeat, modalGen } from './ui/common.js';
+import { h, toast, openModal, closeModal, subTabs, popUp, holdRepeat, modalGen, ctxMenu } from './ui/common.js';
 import { fmt } from './fmt.js';
 import { dayKey, WORLD_MAX } from './net.js';
 import { drawCreature, CREATURES, crArt } from './creatures.js';
@@ -17,6 +17,7 @@ import * as PT from './world/wpath.js';
 import * as TD from './world/wtoday.js';
 import { drawFighter } from './battle.js';
 import { JOBS as JOBS_LIST } from './data.js';
+import { VAULT_ITEMS as VAULT_MAX } from './vault.js';
 
 // 애완동물·탈것 그림 아이콘 (창 목록용) — 들판과 같은 그림을 작게
 export function creatureIcon(kind, size = 44) {
@@ -131,16 +132,26 @@ function itemIcon(it, size = 44) {
   return skinImg(h('span', { class: `it-ico${it.rar === 3 ? ' mythic' : ''}`, style: `--gc:${g.color};width:${size}px;height:${size}px` }), `slot-${it.slot}`);
 }
 // 가방 칸 — 그림 하나 + 강화 수치 · 낀 것보다 좋은지 화살표 · 이름 한 줄
-function itemTile(game, it, d, onclick) {
+function itemTile(game, it, d, onclick, oncontextmenu) {
   const g = gradeOf(it);
   const up = d > 0.005, down = d < -0.005;
-  return h('button', { class: `inv-tile${it.rar === 3 ? ' mythic' : ''}${it.set ? ' set' : ''}${up ? ' up' : ''}`, style: `--gc:${g.color}`, onclick },
+  return h('button', { class: `inv-tile${it.rar === 3 ? ' mythic' : ''}${it.set ? ' set' : ''}${up ? ' up' : ''}`, style: `--gc:${g.color}`, onclick, oncontextmenu,
+    title: itemHover(game, it, d) },
     itemIcon(it, 46),
     it.plus ? h('i', { class: 'inv-plus' }, `+${it.plus}`) : null,
     up ? h('i', { class: 'inv-d up' }, '▲') : down ? h('i', { class: 'inv-d down' }, '▼') : null,
     it.set ? h('i', { class: 'inv-set' }, '세트') : null,
     h('b', {}, itemTitle(game, it)),
     h('small', {}, `Lv.${it.ilv} · ${g.name}`));
+}
+// v349 마우스를 올리면 — 이름 · 등급 · 능력치 · 끼면 얼마나 바뀌나 · 오른쪽 클릭 안내
+function itemHover(game, it, d) {
+  const g = gradeOf(it);
+  const lines = [`${itemTitle(game, it)}${it.plus ? ` +${it.plus}` : ''}`, `${g.name} · Lv.${it.ilv}${it.set ? ` · 세트 ${G.setOf(it.set)?.name || ''}` : ''}`, itemLines(game, it)];
+  if (d != null && Math.abs(d) > 0.0005) lines.push(`끼면 전투력 ${d > 0 ? '▲' : '▼'} ${(Math.abs(d) * 100).toFixed(1)}%`);
+  if (it.imps?.some(Boolean)) { const im = IM.imprintOf(it.imps.find(Boolean), it.rar || 1); if (im) lines.push(`각인 ${im.boss} ${IM.DAN_NAME(im.d)} · ${IM.skillModText(im.skill)}`); }
+  lines.push('오른쪽 클릭: 끼기 · 강화 · 각인 · 팔기');
+  return lines.join('\n');
 }
 function itemChip(game, it, extra = {}, withOpts = false) {
   const g = gradeOf(it);
@@ -585,6 +596,17 @@ function bagTab(app) {
     if (!b) return null;
     const what = { weapon: '무기에 그 기운 빛', armor: '그 도포 빛깔', hat: '그 쓰개', acc: '몸을 도는 구슬', finger: '몸을 도는 구슬', ear: '몸을 도는 구슬' }[it.slot];
     return h('p', { class: 'boss-gear' }, `두목 장비 — 끼면 ${b.name}의 ${what}`, ['weapon', 'armor', 'hat'].includes(it.slot) ? ' (무기·옷·모자를 한 두목 것으로 맞추면 발밑에 그 빛깔 고리)' : '');
+  }
+  // v349 오른쪽 클릭 — 바로 그 칸으로 연다
+  function itemMenu(e, it, worn) {
+    const at = (tab) => () => { try { localStorage.setItem('ifu.itemTab', tab); } catch { /* 이번만 */ } openItem(it, worn); };
+    ctxMenu(e, [
+      ['🔍 자세히', () => openItem(it, worn)],
+      !worn ? ['⬆ 끼기', () => { game.equipFromBag(it.uid); done(); toast('꼈어요'); }] : null,
+      ['⚒ 강화', at('enh')],
+      game.canImprintItem(it) ? ['✦ 각인', at('imp')] : null,
+      !worn && !it.grow ? ['💰 팔기', () => { if (!sureSell(it)) return; const p = game.sell(it); toast(`팔았어요 — 은자 +${fmt(p)}`); done(); }] : null,
+    ]);
   }
   function openItem(it, worn) {
     let useProt = true;
@@ -1102,7 +1124,8 @@ function bagTab(app) {
       const it = s.equip[sl.id];
       if (!it) return skinImg(h('div', { class: 'gear-tile empty' }, h('small', {}, sl.name), h('b', {}, '비어 있음')), `slot-${sl.id}`);
       const g = gradeOf(it);
-      return skinImg(h('button', { class: `gear-tile${it.rar === 3 ? ' mythic' : ''}${it.set ? ' set' : ''}`, style: `--gc:${g.color}${it.set ? `;--sc:${G.setOf(it.set).col}` : ''}`, onclick: () => openItem(it, true) },
+      return skinImg(h('button', { class: `gear-tile${it.rar === 3 ? ' mythic' : ''}${it.set ? ' set' : ''}`, style: `--gc:${g.color}${it.set ? `;--sc:${G.setOf(it.set).col}` : ''}`, onclick: () => openItem(it, true),
+        title: itemHover(game, it), oncontextmenu: (e) => itemMenu(e, it, true) },
         h('small', {}, `${sl.name} · ${g.name}${it.set ? ' · 세트' : ''}`),
         h('b', {}, itemTitle(game, it)),
         h('span', {}, itemLines(game, it).split(' · ').slice(0, 2).join(' · '))), `slot-${sl.id}`);
@@ -1116,7 +1139,7 @@ function bagTab(app) {
       .map((it) => ({ it, d: vsWorn(it) }))
       .sort((a, b) => (b.d > 0.005) - (a.d > 0.005) || b.d - a.d || game.itemScore(b.it) - game.itemScore(a.it));
     // v230: 글 줄 대신 그림 칸 넷씩 — 누르면 자세히(끼기·팔기·강화)
-    const cards = list.map(({ it, d }) => itemTile(game, it, d, () => openItem(it, false)));
+    const cards = list.map(({ it, d }) => itemTile(game, it, d, () => openItem(it, false), (e) => itemMenu(e, it, false)));
     const better = list.filter((x) => x.d > 0.005);
     // v256: 성장 장비는 팔지 않으니(sell → 0) 세지 않는다 — '+0 은자' 토스트만 되풀이됐다
     const old = s.bag.filter((x) => !x.grow && s.equip[x.slot] && game.itemScore(x) < game.itemScore(s.equip[x.slot]) && !x.plus && !(x.rar >= 2));
@@ -1196,7 +1219,7 @@ function bagTab(app) {
       const canInf = marks.some((k) => game.canInfuse(it, k));
       // v230: 글 줄 대신 그림 카드 둘씩 — 할 수 있는 것은 초록 딱지로
       const canE = game.canEnhance(it);
-      return h('button', { class: `grow-card${canInf || canE ? ' ready' : ''}`, style: `--gc:${g.color}`, onclick: () => openItem(it, worn) },
+      return h('button', { class: `grow-card${canInf || canE ? ' ready' : ''}`, style: `--gc:${g.color}`, onclick: () => openItem(it, worn), title: itemHover(game, it), oncontextmenu: (e) => itemMenu(e, it, worn) },
         h('div', { class: 'gc-top' }, itemIcon(it, 50),
           h('div', { class: 'gc-txt' },
             h('small', {}, `${SLOT_SHORT[it.slot]} · ${g.name}`),
@@ -1379,12 +1402,67 @@ function bagTab(app) {
         h('div', { class: 'cust-chips' }, chip(s.autoRefill, '켜기', () => { s.autoRefill = true; redo(); }), chip(!s.autoRefill, '끄기', () => { s.autoRefill = false; redo(); }))));
   }
 
+  // v349 계정 창고 — 내 무인 넷이 함께 쓴다(은자 · 재료 · 장비 40칸). 빼는 쪽을 먼저 저장하고 넣는 쪽을 저장한다
+  const vaultRoot = h('div');
+  let vaultSig = '';
+  function vaultView(force) {
+    const V = app.vault?.get?.();
+    const s = game.s;
+    if (!V) { vaultRoot.replaceChildren(h('p', { class: 'muted' }, '창고를 열 수 없어요')); return; }
+    const sig = `${V.at}|${s.gold}|${s.bag.length}|${JSON.stringify(s.mats).length}`;
+    if (!force && sig === vaultSig) return;
+    vaultSig = sig;
+    const redo = () => { vaultSig = ''; vaultView(true); app.refresh(); };
+    const moveGold = (toVault) => {
+      const have = toVault ? s.gold : V.gold;
+      const v = prompt(`${toVault ? '창고에 넣을' : '꺼낼'} 은자 (가진 것 ${fmt(have)})`, String(Math.floor(have)));
+      const n = Math.floor(Number(String(v || '').replace(/[^0-9]/g, '')) || 0);
+      if (n <= 0) return;
+      if (n > have) return toast('그만큼 없어요');
+      if (toVault) { s.gold -= n; app.save(); V.gold += n; app.vault.save(); }
+      else { V.gold -= n; app.vault.save(); s.gold += n; app.save(); }
+      toast(`은자 ${fmt(n)} ${toVault ? '넣었어요' : '꺼냈어요'}`); redo();
+    };
+    const matRows = Object.keys({ ...s.mats, ...V.mats }).filter((k) => (s.mats[k] || 0) > 0 || (V.mats[k] || 0) > 0)
+      .sort((a, b) => (V.mats[b] || 0) - (V.mats[a] || 0)).slice(0, 40).map((k) => {
+        const put = (n) => { n = Math.min(n, s.mats[k] || 0); if (n <= 0) return; s.mats[k] -= n; app.save(); V.mats[k] = (V.mats[k] || 0) + n; app.vault.save(); redo(); };
+        const take = (n) => { n = Math.min(n, V.mats[k] || 0); if (n <= 0) return; V.mats[k] -= n; if (!V.mats[k]) delete V.mats[k]; app.vault.save(); s.mats[k] = (s.mats[k] || 0) + n; app.save(); redo(); };
+        return h('div', { class: 'bank-row vault-row', style: `--mc:${W.matColor(k)}` }, h('b', {}, W.matName(k)),
+          h('span', { class: 'n' }, `내 ${fmt(s.mats[k] || 0)} · 창고 ${fmt(V.mats[k] || 0)}`),
+          h('button', { class: 'btn mini', disabled: (s.mats[k] || 0) > 0 ? null : true, onclick: () => put(s.mats[k] || 0) }, '전부 넣기'),
+          h('button', { class: 'btn mini primary', disabled: (V.mats[k] || 0) > 0 ? null : true, onclick: () => take(V.mats[k] || 0) }, '전부 꺼내기'));
+      });
+    const myItems = s.bag.filter((it) => !it.grow);
+    const itemRow = (it, inVault, idx) => h('div', { class: 'row vault-item', style: `--rc:${W.RARITY[it.rar || 0].color}` },
+      h('div', { class: 'info' }, h('div', { class: 'name', style: `color:${W.RARITY[it.rar || 0].color}` }, itemTitle(game, it)), h('div', { class: 'desc' }, `${W.RARITY[it.rar || 0].name}${it.plus ? ` · +${it.plus}` : ''}${it.imps?.some(Boolean) ? ' · 각인' : ''}`)),
+      inVault ? h('button', { class: 'btn mini primary', onclick: () => {
+        if (s.bag.length >= s.bagSize) return toast('가방이 가득 찼어요');
+        const [x] = V.items.splice(idx, 1); app.vault.save();
+        game.vaultPutIn(x); app.save(); toast('가방으로 꺼냈어요'); redo();
+      } }, '꺼내기')
+        : h('button', { class: 'btn mini', onclick: () => {
+          if (V.items.length >= VAULT_MAX) return toast(`창고 장비 칸이 가득 찼어요 (${VAULT_MAX})`);
+          const x = game.vaultTakeOut(it.uid); if (!x) return; app.save();
+          V.items.push(x); app.vault.save(); toast('창고에 넣었어요'); redo();
+        } }, '넣기'));
+    vaultRoot.replaceChildren(
+      h('div', { class: 'card' }, h('h3', {}, '계정 창고', h('small', {}, ' 내 무인 넷이 함께 써요 · Google이면 다른 기기에서도')),
+        h('div', { class: 'row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, `은자 · 창고 ${fmt(V.gold)}`), h('div', { class: 'desc' }, `내 은자 ${fmt(s.gold)}`)),
+          h('div', { class: 'btn-row', style: 'gap:6px' }, h('button', { class: 'btn mini', id: 'vault-gold-in', onclick: () => moveGold(true) }, '넣기'), h('button', { class: 'btn mini primary', id: 'vault-gold-out', onclick: () => moveGold(false) }, '꺼내기')))),
+      h('div', { class: 'card' }, h('h3', {}, '재료', h('small', {}, ' 같은 재료는 무인끼리 나눠 써요')), ...(matRows.length ? matRows : [h('p', { class: 'muted' }, '재료가 없어요')])),
+      h('div', { class: 'card' }, h('h3', {}, '창고 장비', h('small', {}, ` ${V.items.length}/${VAULT_MAX}`)),
+        ...(V.items.length ? V.items.map((it, i) => itemRow(it, true, i)) : [h('p', { class: 'muted' }, '비어 있어요 — 아래 가방 장비를 넣어 다른 무인에게 건네요')])),
+      h('div', { class: 'card' }, h('h3', {}, '내 가방', h('small', {}, ` ${myItems.length}개 · 낀 것·성장 장비는 못 넣어요`)),
+        ...(myItems.length ? myItems.map((it) => itemRow(it, false)) : [h('p', { class: 'muted' }, '가방이 비었어요')])));
+  }
+
   return subTabs([
     { key: 'gear', label: '착용', make: () => ({ root: gearRoot, update: gearView }) },
     { key: 'bag', label: '가방', make: () => ({ root: bagRoot, update: gearView }) },
     { key: 'smith', label: '대장장이', make: () => ({ root: smithRoot, update: smithView }) },
     { key: 'mats', label: '재료', make: () => ({ root: matRoot, update: matView }) },
     { key: 'pot', label: '물약', make: () => ({ root: potRoot, update: potView }) },
+    { key: 'vault', label: '창고', make: () => ({ root: vaultRoot, update: vaultView }) },
   ]);
 }
 
@@ -1399,7 +1477,15 @@ export const matIcon = (key, size = 40) => h('span', { class: `mat-ico k-${matKi
 export const matChip = (app, key, label, n) => h('button', {
   class: `mat-chip tap${n ? '' : ' none'}`, style: `--mc:${W.matColor(key)}`,
   onclick: () => openMatWhere(app, key),
+  title: matHover(app.game, key, label, n),
 }, matIcon(key), h('b', {}, fmt(n)), h('small', {}, label));
+// v349 재료에 마우스를 올리면 — 이름 · 가진 수 · 어디서 · 쓰는 곳
+function matHover(game, key, label, n) {
+  try {
+    const w = matWhere(game, key), use = matUse(game, key);
+    return [`${label} ${fmt(n || 0)}개`, w?.from, use ? `쓰는 곳: ${use}` : null].filter(Boolean).join('\n');
+  } catch { return label; }
+}
 
 // ---------- 재료가 어디서 나오나 (v141) ----------
 // 재료 열쇠에서 지역과 '어디를 쳐야 하나'를 읽는다.

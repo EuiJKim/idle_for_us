@@ -2344,3 +2344,17 @@ body.modal-open #guide-tip { display: none; }
 .res-col .res b.long { font-size: 11.5px; letter-spacing: -0.3px; margin-left: 4px; }
 .res-col .res b { min-width: 0; }
 @media (max-width: 440px) { #exp-rate { display: none; } }
+.vault-row .n { font-size: 12px; color: var(--muted); } .vault-item .desc { font-size: 12px; }
+/* v349 문파원 모임 알림 — 들판 위쪽 가운데 */
+#gather { position: absolute; left: 50%; transform: translateX(-50%); top: 112px; z-index: 12; display: flex; align-items: center; gap: 4px; max-width: calc(100% - 24px); }
+#gather.hidden { display: none; }
+#gather .g-go { flex: 1 1 auto; min-width: 0; padding: 6px 12px; border-radius: 999px; border: 1.5px solid #a5b4fc; background: rgba(49, 46, 129, 0.92); color: #eef2ff; font: inherit; font-size: 12.5px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; animation: pts-glow 1.6s ease-in-out infinite; }
+#gather .g-x { flex: none; width: 26px; height: 26px; border-radius: 50%; border: 1px solid rgba(165, 180, 252, 0.6); background: rgba(30, 27, 75, 0.9); color: #c7d2fe; font-size: 12px; padding: 0; }
+body.hunt-noui #gather, body.in-inst #gather { display: none !important; }
+
+/* v349 컴퓨터 오른쪽 클릭 메뉴 */
+#ctx-menu { position: fixed; z-index: 9000; min-width: 132px; padding: 4px; display: flex; flex-direction: column; gap: 2px;
+  background: #1c1915; border: 1px solid #6b5a3a; border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.55); }
+#ctx-menu button { text-align: left; padding: 7px 10px; font: inherit; font-size: 13px; color: #f1e6cf; background: none; border: 0; border-radius: 5px; cursor: pointer; }
+#ctx-menu button:hover:not([disabled]) { background: #3a3123; }
+#ctx-menu button[disabled] { opacity: .4; cursor: default; }

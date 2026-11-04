@@ -89,7 +89,8 @@ import { sfx, unlockAudio, setSound, soundOn } from './sfx.js';
 import * as AM from './appmode.js';
 import { bootStart, bootProgress, bootHide, waitFor, showLogin, loginPref, setLoginPref, standalone, inAppBrowser } from './boot.js';
 import { artReady } from './art.js';
-import * as CH from './chars.js';   // v328 캐릭터 칸(넷까지) · 체험 모드
+import * as CH from './chars.js';
+import * as VT from './vault.js';   // v349 계정 창고   // v328 캐릭터 칸(넷까지) · 체험 모드
 loadIcons();
 for (const b of document.querySelectorAll('#tabs button[data-tab]')) skinImg(b.querySelector('i'), `tab-${b.dataset.tab}`);
 
@@ -215,6 +216,42 @@ const coop = new Coop(game, net, {
 });
 game.coop = coop;
 app.coop = coop;
+// v349 계정 창고 — 기기에 두고, Google이면 서버와 맞춘다(더 새것)
+let vault = VT.loadVault();
+app.vault = {
+  get: () => vault,
+  save: () => { if (TRIAL_JOB) return false; const ok = VT.saveVault(vault); if (net.isGoogle?.() && net.ready?.()) net.pushVault(JSON.stringify(vault), vault.at).catch((e) => console.warn('[vault] push', e?.code || e)); return ok; },
+};
+async function vaultSync() {
+  if (TRIAL_JOB || !net.isGoogle?.() || !net.ready?.()) return;
+  try {
+    const c = await net.fetchVault();
+    if (c?.data && (Number(c.at) || 0) > (vault.at || 0)) { vault = VT.adoptVault(c.data); vault.at = Number(c.at) || vault.at; }
+    else if ((vault.at || 0) > (Number(c?.at) || 0)) await net.pushVault(JSON.stringify(vault), vault.at);
+  } catch (err) { console.warn('[vault] sync', err?.code || err); }
+}
+// v349 문파원 모임 알림 — 문파원 둘 이상이 한 두목 구역에 모이면 '🤝 철수님 외 1명이 ○○ 두목을 잡는 중 — 가기'.
+//   내가 이미 그 구역이면 · 던전 안이면 · 닫은(✕) 그 모임이면 안 띄운다. 누르면 그리로(함께로)
+let gatherKey = null, gatherShut = '';
+function gatherTick() {
+  const el = $('gather');
+  if (!el) return;
+  const list = where.list();
+  const by = {};
+  for (const o of list) if (o.m > 0 && W.hasMap(o.m) && W.mapOf(o.m).bossRoom) (by[o.m] = by[o.m] || []).push(o);
+  let best = null;
+  for (const [m, os] of Object.entries(by)) if (os.length >= 2 && +m !== game.s.map && (!best || os.length > best.os.length)) best = { m: +m, os };
+  const key = best ? `${best.m}|${best.os.map((o) => o.uid).sort().join(',')}` : null;
+  if (!best || game.inst || key === gatherShut || !game.s.job) { el.classList.add('hidden'); gatherKey = null; return; }
+  if (key !== gatherKey) {
+    gatherKey = key;
+    const mm = W.mapOf(best.m);
+    const bn = W.zoneOfW(mm.zone)?.boss?.name || `${mm.zoneName || mm.name} 두목`;
+    el.querySelector('.g-go').textContent = `🤝 ${best.os[0].n}님 외 ${best.os.length - 1}명이 ${bn}을(를) 잡는 중 — 가기`;
+    el._m = best.m;
+  }
+  el.classList.remove('hidden');
+}
 // v344 문파원은 지금 어디에 — 지도 칸·문파원 목록이 읽는다
 const where = new Where(game, net, () => { tabs.map?.netChanged?.('where'); tabs.social?.netChanged?.('where'); });
 app.where = where;
@@ -229,6 +266,7 @@ $('btn-party').addEventListener('click', () => {
 net.coopForget = (gid) => coop.forget(gid);
 window.__coop = coop;
 
+let gatherT = 0;
 let stopSaving = !!TRIAL_JOB;   // 체험 모드는 저장하지 않는다
 let lastBak = 0;
 let saveFailNoted = false;
@@ -326,6 +364,7 @@ async function cloudCheck() {
       cloudPush(true);
       return;
     }
+    vaultSync();
     if (c?.data && c.dev !== DEV_ID && (Number(c.at) || 0) > cloudSyncedAt()) { askCloud(c); return; }
     cloudOk = true;
     cloudPush(true);
@@ -2517,6 +2556,7 @@ function step(now) {
   if (game.s.job && !booting && !game.s.pendingOffline) for (let i = 0; i < steps; i++) game.tick(dt / steps);
   coop.tick(dt);
   where.tick(dt);   // v344
+  gatherT = (gatherT || 0) - dt; if (gatherT <= 0) { gatherT = 1; gatherTick(); }   // v349
   view.game = game;
   const tB = dg ? performance.now() : 0;
   handleEvents();
@@ -2683,6 +2723,18 @@ const finePointer = matchMedia?.('(pointer: fine)').matches;
 if (finePointer) document.body.classList.add('has-keys');
 for (const [k, t] of [...Object.entries(HOTKEY_TAB).map(([key, tab]) => [key.toUpperCase(), tab])]) { const b = document.querySelector(`#tabs button[data-tab="${t}"]`); if (b) b.dataset.hk = k; }
 $('loot-tally').addEventListener('click', tallyClear);   // v324 누르면 모음을 비운다
+// v349 모임 알림 — 누르면 그 두목 구역으로(함께) · ✕는 이 모임만 닫는다
+$('gather').querySelector('.g-go').addEventListener('click', () => {
+  const m = $('gather')._m;
+  if (!m || game.inst) return;
+  if (!game.canEnter(m)) { toast('아직 갈 수 없는 곳이에요'); return; }
+  game.s.kingParty = true;
+  if (!game.enterMap(m)) { toast('지금은 갈 수 없어요'); return; }
+  game.s.autoHunt = true; closePanel(); save(); refreshUI(true);
+  toast(`🤝 ${W.mapOf(m).name} — 문파원과 함께 들어왔어요`);
+  $('gather').classList.add('hidden');
+});
+$('gather').querySelector('.g-x').addEventListener('click', () => { gatherShut = gatherKey || ''; $('gather').classList.add('hidden'); });
 $('go-hunt').addEventListener('click', () => goHuntNow());   // v341
 if (finePointer) $('go-hunt').dataset.hk = 'H';
 window.__test_claimAll = () => claimMail(mail.map((m) => m.id));

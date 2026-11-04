@@ -178,6 +178,7 @@ export function loadArt2(onEach) {
   for (const n of ART2_SPRITES) one(n);
   // v346 여협 도포 — 남자 도포 스물두 장과 같은 무늬·빛깔을 여성 체형(좁은 어깨·잘록한 허리)으로 다시 그린 것
   for (const k of FEM_BODIES) one(`f-${k}`);
+  one('rider-leg');   // v349 탄 무인의 가까운 다리 + 늘어진 도포 자락(흰 도포 — 빛깔을 입혀 쓴다)
 }
 // v327 여협 머리 그림 맨 아래(목·늘어진 머리카락)는 네모로 잘려 있었다 — 아래 14%를 투명하게 흐려 끝을 부드럽게
 function fadeBottom(im, from) {
@@ -232,6 +233,34 @@ export function hatRect(hatKey, headKey, headFit) {
 // v334 도포 22장을 머리와 같은 3/4 시점·목 포함으로 다시 그려(tools/charv334) 목 꼭대기가 캔버스 맨 위·목 가운데가 머리 자리(x=1)에 오게 맞췄다.
 //   그래서 도포마다 머리를 따로 내릴 일이 없다(v332의 어깨선 재기는 정면 도포 때 것 — 0으로).
 export function bodyNeckDy() { return 0; }
+// v349 흰 도포 그림의 크림빛(채도 낮고 밝은 것)만 그 빛깔로 물들인다 — 띠·금테·장화는 제 빛깔 그대로
+const robeTintCache = new Map();
+export function robeTinted(key, col) {
+  const id = `${key}|${col}`;
+  if (robeTintCache.has(id)) return robeTintCache.get(id);
+  const im = img[key];
+  if (!im || typeof document === 'undefined') return null;
+  let out = null;
+  try {
+    const c = document.createElement('canvas'); c.width = im.width; c.height = im.height;
+    const g = c.getContext('2d'); g.drawImage(im, 0, 0);
+    const d = g.getImageData(0, 0, c.width, c.height); const a = d.data;
+    const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})/i.exec(col || '#888888');
+    const [tr, tg, tb] = m ? [1, 2, 3].map((i) => parseInt(m[i], 16)) : [136, 136, 136];
+    for (let i = 0; i < a.length; i += 4) {
+      if (a[i + 3] < 10) continue;
+      const r = a[i], gg = a[i + 1], b = a[i + 2];
+      const mx = Math.max(r, gg, b), mn = Math.min(r, gg, b);
+      if (mx < 120 || mx - mn > 48) continue;          // 띠(녹색)·금테(노랑)·장화(어두움)는 그대로
+      const L = mx / 255;                              // 밝기를 살려 명암을 남긴다
+      a[i] = Math.min(255, tr * L * 1.08); a[i + 1] = Math.min(255, tg * L * 1.08); a[i + 2] = Math.min(255, tb * L * 1.08);
+    }
+    g.putImageData(d, 0, 0);
+    out = c;
+  } catch { out = null; }
+  robeTintCache.set(id, out);
+  return out;
+}
 export function artImg(key) { return img[key] || null; }
 // v325 캔버스로 그린 조각(여협 머리)을 그림 조각처럼 쓴다 — putArt·artHeight·HEAD_FIT이 그대로 통한다
 export function registerArt(key, canvas, fit) { img[key] = canvas; if (fit) HEAD_FIT[key] = fit; }
