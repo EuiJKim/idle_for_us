@@ -1406,8 +1406,9 @@ export class BattleView {
     // v261: 물든 그림(잔상·화신)은 (자세·방향·빛깔·해상도·차림)마다 한 번 구워 두고 다시 쓴다.
     //   전엔 매 프레임 drawFighter 전체 + source-atop 물들임을 새로 그려 필살 중 가장 비쌌고(화신 84~96ms/2.2초),
     //   180×200을 3.4배(dpr 2면 7배)로 늘려 화신이 뿌옜다 — 이제 그리는 배율만큼 크게 굽는다.
-    const W = 180;
-    const H = 200;
+    // v352 틀을 넉넉히 — 180×200이면 몸이 뜨거나 기우는 자세에서 머리가 틀 위로 잘려 잔상이 '머리 없는 옷'으로 떠다녔다
+    const W = 260;
+    const H = 300;
     const tr = ctx.getTransform();
     const res = Math.max(1, Math.min(4, Math.round(Math.hypot(tr.a, tr.b) * 2) / 2));
     const pid = pose ? (POSE_ID.get(pose) ?? (POSE_ID.set(pose, ++POSE_N), POSE_N)) : 0;
@@ -1419,14 +1420,14 @@ export class BattleView {
       c.width = Math.ceil(W * res); c.height = Math.ceil(H * res);
       const gx = c.getContext('2d');
       gx.setTransform(res, 0, 0, res, 0, 0);
-      drawFighter(gx, W / 2, H - 30, look, o);
+      drawFighter(gx, W / 2, H - 50, look, o);
       gx.globalCompositeOperation = 'source-atop';
       gx.fillStyle = `rgba(${tint},0.75)`;
       gx.fillRect(0, 0, W, H);
       if (cache.size >= 24) cache.delete(cache.keys().next().value);   // 오래된 것부터
       cache.set(key, c);
     }
-    ctx.drawImage(c, x - W / 2, y - (H - 30), W, H);
+    ctx.drawImage(c, x - W / 2, y - (H - 50), W, H);
   }
 
   // 무인의 생김새와 그리기 옵션 — 본체와 잔상이 같이 쓴다
@@ -4570,8 +4571,12 @@ export function drawFighter(ctx, x, y, look = {}, o = {}) {
   // 옷 등급 테두리 (v115) — 도포 둘레에 등급 빛깔 테, 전설부터 도포가 그 빛을 머금는다
   if (artBody && look.edge) {
     const pulse = look.edgePulse ? 0.7 + Math.sin(t * 3) * 0.3 : 1;
-    if (look.edgeGlow) { ctx.save(); ctx.shadowColor = look.edge; ctx.shadowBlur = 10 * pulse; putArtEdge(ctx, bKey, FIT.body, look.edge, look.edgeW || 1.2, pulse); ctx.restore(); }
-    else putArtEdge(ctx, bKey, FIT.body, look.edge, look.edgeW || 1.2, pulse);
+    // v352 테두리는 머리까지 한 몸으로 — 전엔 도포 둘레에만 둘러 옷이 오려 붙인 것처럼 떠 보였다(머리 테를 먼저, 몸이 그 아래쪽을 덮는다)
+    const hkE = artReady() && !jiang ? headKey(look) : null;
+    const HFE0 = (hkE && HEAD_FIT[hkE]?.fit) || FIT.head;
+    const HFE = hkE && hkE === hk0 && neckDy ? { ...HFE0, y: HFE0.y + neckDy } : HFE0;
+    if (look.edgeGlow) { ctx.save(); ctx.shadowColor = look.edge; ctx.shadowBlur = 10 * pulse; if (hkE) putArtEdge(ctx, hkE, HFE, look.edge, look.edgeW || 1.2, pulse); putArtEdge(ctx, bKey, FIT.body, look.edge, look.edgeW || 1.2, pulse); ctx.restore(); }
+    else { if (hkE) putArtEdge(ctx, hkE, HFE, look.edge, look.edgeW || 1.2, pulse); putArtEdge(ctx, bKey, FIT.body, look.edge, look.edgeW || 1.2, pulse); }
   }
   if (artBody && putArt(ctx, bKey, FIT.body)) {
     // 그림 한 장이 도포·상체·허리띠를 한꺼번에 갈음한다
