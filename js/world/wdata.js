@@ -522,19 +522,23 @@ export const FRAG_NEED_UP = 2;
 export const fragNeed = (got) => FRAG_NEED + FRAG_NEED_UP * Math.max(0, got | 0);
 export const BOSS_DOT_K = 0.5;
 // v280 꾸미기 — 처음 캐릭터를 고른 뒤 · 프로필(왼쪽 위 얼굴)을 눌러 바꾼다. null은 '기본'(경지·장비를 따른다)
-export const CUSTOM_HEADS = [['plain', '맨머리'], ['topknot', '상투 머리띠'], ['hat', '삿갓'], ['hood', '두건'], ['bald', '민머리']];
+export const CUSTOM_HEADS = [['plain', '맨머리'], ['topknot', '상투 머리띠'], ['bald', '민머리']];
+// v323 쓰개 — 머리와 따로 고른다(삿갓은 어느 머리에나 얹는 덧씌우기 · 두건은 머리를 통째로 감싼다)
+export const CUSTOM_HATS = [['straw', '삿갓'], ['hood', '두건']];
+// v323 신발 빛깔
+export const CUSTOM_BOOTS = ['#2a1f18', '#111111', '#6b3a1e', '#8b1f22', '#1e3a5f', '#e7e0d0'];
 export const CUSTOM_ROBES = ['#14120f', '#f1e8d6', '#8b1f22', '#32486b', '#1f5f4a', '#5b3a7a', '#6b5640', '#b08d57'];
 export const CUSTOM_BANDS = ['#7f1d1d', '#e8c87a', '#1e3a8a', '#f1f5f9', '#14120f', '#15803d'];
 // v306 눈 — 안대(띠 색으로). 민머리와 함께 눈을 가린 무승 차림이 된다
 export const CUSTOM_FACES = [['blind', '안대']];
 // v306 차림 — 한 번에 어울리게(머리·눈·도포·띠). 따로따로 고르면 따로 놀던 것을 묶었다
 export const CUSTOM_PRESETS = [
-  { id: 'monk', name: '맹인 무승', head: 'bald', face: 'blind', robe: '#b08d57', band: '#7f1d1d' },
-  { id: 'black', name: '흑의 검객', head: 'topknot', face: null, robe: '#14120f', band: '#14120f' },
-  { id: 'white', name: '백의 도사', head: 'topknot', face: null, robe: '#f1e8d6', band: '#1e3a8a' },
-  { id: 'red', name: '홍의 협객', head: 'topknot', face: null, robe: '#8b1f22', band: '#e8c87a' },
-  { id: 'ronin', name: '삿갓 낭인', head: 'hat', face: null, robe: '#6b5640', band: '#14120f' },
-  { id: 'shadow', name: '두건 자객', head: 'hood', face: null, robe: '#32486b', band: '#1e3a8a' },
+  { id: 'monk', name: '맹인 무승', head: 'bald', hat: null, face: 'blind', robe: '#b08d57', band: '#7f1d1d', boot: '#6b3a1e' },
+  { id: 'black', name: '흑의 검객', head: 'topknot', hat: null, face: null, robe: '#14120f', band: '#14120f', boot: '#111111' },
+  { id: 'white', name: '백의 도사', head: 'topknot', hat: null, face: null, robe: '#f1e8d6', band: '#1e3a8a', boot: '#2a1f18' },
+  { id: 'red', name: '홍의 협객', head: 'topknot', hat: null, face: null, robe: '#8b1f22', band: '#e8c87a', boot: '#2a1f18' },
+  { id: 'wanderer', name: '삿갓 낭인', head: 'plain', hat: 'straw', face: null, robe: '#6b5640', band: '#14120f', boot: '#111111' },   // v323
+  { id: 'shadow', name: '두건 자객', head: 'topknot', hat: 'hood', face: null, robe: '#32486b', band: '#1e3a8a', boot: '#111111' },
 ];
 export const TEMPER_STEP = 0.003;   // 시뮬 15일 118~143단계 → +35~43%
 export const TEMPER_BASE = 150;

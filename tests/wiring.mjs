@@ -405,5 +405,16 @@ console.log('=== 11. 큰 수를 보통 셈으로 다루는 곳 ===');
   fs.rmSync(tmp, { recursive: true, force: true });
   ok(bad.length === 0, `모든 js 문법이 맞다 (${JS_FILES.length}개)`, bad.join(' | '));
 }
+// v323 그림 조각 기준점 — 쓰는 머리·무기마다 표가 있어야 손에 쥐고 턱이 옷깃에 든다
+{
+  const art = read('js/art.js');
+  const heads = [...art.matchAll(/const HEADS = \[([^\]]+)\]/g)][0][1].match(/'[a-z]+'/g).map((x) => `head-${x.slice(1, -1)}`).concat('head');
+  const weps = [...art.matchAll(/const WEAPONS = \[([^\]]+)\]/g)][0][1].match(/'[a-z]+'/g).map((x) => `wp-${x.slice(1, -1)}`).concat(['wp-s0', 'wp-s1', 'wp-s2', 'wp-s3', 'wp-s4', 'wp-s5']);
+  const hf = [...art.matchAll(/'(head[-a-z]*)': \{ crop/g)].map((m) => m[1]);
+  const wf = [...art.matchAll(/'(wp-[a-z0-9]+)': \{ grip/g)].map((m) => m[1]);
+  ok(heads.every((k) => hf.includes(k)), '머리 그림마다 HEAD_FIT', heads.filter((k) => !hf.includes(k)).join(','));
+  ok(weps.every((k) => wf.includes(k)), '무기 그림마다 WEAPON_FIT', weps.filter((k) => !wf.includes(k)).join(','));
+  for (const k of [...heads, ...weps, 'head-hat']) ok(fs.existsSync(path.join(R, 'art/hero', `${k}.png`)), `art/hero/${k}.png 있음`);
+}
 console.log(`\n${fail === 0 ? '짝이 전부 맞는다' : `짝이 안 맞는 것 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);

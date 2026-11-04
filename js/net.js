@@ -360,6 +360,20 @@ export class Net {
       return snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => (a.at || 0) - (b.at || 0));
     } catch (err) { if (!this.denied(err, '우편함(gifts)')) console.warn('[net] listGifts', err); return []; }
   }
+  // v323 우편함 지켜보기 — 1분마다 읽지 않고 서버가 밀어 준다. 처음 한 번은 '있는 것', 그 뒤 added는 '새로 온 것'
+  watchGifts(onChange) {
+    if (!this.online || !this.uid || this.giftUnsub) return false;
+    const { onSnapshot, collection } = this.fs;
+    let first = true;
+    this.giftUnsub = onSnapshot(collection(this.db, 'gifts', this.uid, 'box'), (snap) => {
+      const list = snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => (a.at || 0) - (b.at || 0));
+      const fresh = first || snap.metadata.hasPendingWrites ? 0 : snap.docChanges().filter((c) => c.type === 'added').length;
+      first = false;
+      onChange(list, fresh);
+    }, (err) => { console.warn('[net] gifts watch', err?.message || err); this.giftUnsub = null; });
+    return true;
+  }
+  unwatchGifts() { try { this.giftUnsub?.(); } catch { /* */ } this.giftUnsub = null; }
   // 받기 — 지우기에 성공한 것만 돌려준다(두 번 받지 않게)
   // v254: 읽기와 지우기를 한 거래로 — 전엔 '받기'와 '모두 받기'(또는 두 탭)가 동시에 읽고 둘 다 지워 같은 선물을 두 번 받았다
   async claimGift(id) {

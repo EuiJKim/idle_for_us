@@ -942,39 +942,47 @@ function drawPortrait() {
 $('portrait').addEventListener('click', () => { if (game.s.job && !modalOpen()) openCustom(false); });   // v280 얼굴을 누르면 꾸미기
 // ---------- 꾸미기 (v280) — 처음 캐릭터를 고른 뒤 · 왼쪽 위 얼굴을 눌러 ----------
 function openCustom(first = false) {
-  const cu = { head: null, robe: null, band: null, face: null, ...(game.s.custom || {}) };
+  const cu = { head: null, hat: null, robe: null, band: null, face: null, boot: null, ...(game.s.custom || {}) };
+  let flip = false, pose = 'stand';
   openModal((s) => {
-    const cv = h('canvas', { width: 220, height: 230, class: 'cust-preview' });
+    const cv = h('canvas', { width: 300, height: 300, class: 'cust-preview' });
     const rows = h('div', { class: 'cust-rows' });
     const pick = (label, items, key) => h('div', { class: 'cust-row' }, h('b', {}, label),
       h('div', { class: 'cust-chips' }, ...items.map(([v, name, col]) => h('button', {
         class: `cust-chip${cu[key] === v ? ' on' : ''}${col ? ' col' : ''}`, style: col ? `--cc:${col}` : '',
         onclick: () => { cu[key] = v; paintRows(); } }, col ? h('i') : null, name ? h('span', {}, name) : null))));
     // v306 차림 — 한 번에 어울리게. 고른 뒤 아래에서 하나씩 바꿀 수 있다
-    const presetOn = (p) => cu.head === p.head && (cu.face || null) === p.face && cu.robe === p.robe && cu.band === p.band;
+    const presetOn = (p) => cu.head === p.head && (cu.hat || null) === p.hat && (cu.face || null) === p.face && cu.robe === p.robe && cu.band === p.band && (cu.boot || null) === p.boot;
     const presets = () => h('div', { class: 'cust-row' }, h('b', {}, '차림'),
       h('div', { class: 'cust-chips' }, ...W.CUSTOM_PRESETS.map((p) => h('button', { class: `cust-chip preset${presetOn(p) ? ' on' : ''}`, style: `--cc:${p.robe}`,
-        onclick: () => { cu.head = p.head; cu.face = p.face; cu.robe = p.robe; cu.band = p.band; paintRows(); } }, h('i'), h('span', {}, p.name)))));
+        onclick: () => { cu.head = p.head; cu.hat = p.hat; cu.face = p.face; cu.robe = p.robe; cu.band = p.band; cu.boot = p.boot; paintRows(); } }, h('i'), h('span', {}, p.name)))));
+    // v323 머리·쓰개·눈·도포·띠·신발 — 쓰개는 머리와 따로(삿갓은 어느 머리에나 얹는다)
     const paintRows = () => rows.replaceChildren(
       presets(),
       pick('머리', [[null, '기본'], ...W.CUSTOM_HEADS.map(([k, n]) => [k, n])], 'head'),
+      pick('쓰개', [[null, '없음'], ...W.CUSTOM_HATS.map(([k, n]) => [k, n])], 'hat'),
       pick('눈', [[null, '기본'], ...W.CUSTOM_FACES.map(([k, n]) => [k, n])], 'face'),
       pick('도포', [[null, '기본'], ...W.CUSTOM_ROBES.map((c) => [c, null, c])], 'robe'),
-      pick('띠', [[null, '기본(안대 색도)'], ...W.CUSTOM_BANDS.map((c) => [c, null, c])], 'band'));
+      pick('띠 · 소맷단', [[null, '기본(안대 색도)'], ...W.CUSTOM_BANDS.map((c) => [c, null, c])], 'band'),
+      pick('신발', [[null, '기본'], ...W.CUSTOM_BOOTS.map((c) => [c, null, c])], 'boot'));
     paintRows();
     const finish = () => {
-      game.s.custom = { head: cu.head || null, robe: cu.robe || null, band: cu.band || null, face: cu.face || null };
+      game.s.custom = { head: cu.head || null, hat: cu.hat || null, robe: cu.robe || null, band: cu.band || null, face: cu.face || null, boot: cu.boot || null };
       save(); portraitSig = ''; refreshUI(true);
       closeModal();
       toast(first ? '강호에 나섰어요 — 지도에서 사냥터를 골라요 (왼쪽 위 얼굴을 누르면 다시 꾸밀 수 있어요)' : '모습을 바꿨어요');
     };
+    // v323 돌려보기 · 자세
+    const stageBtns = h('div', { class: 'cust-stage-btns' },
+      h('button', { class: 'btn', onclick: () => { flip = !flip; } }, '↔ 돌려보기'),
+      h('button', { class: 'btn', onclick: (e) => { pose = pose === 'stand' ? 'attack' : pose === 'attack' ? 'run' : 'stand'; e.target.textContent = pose === 'stand' ? '서기' : pose === 'attack' ? '공격' : '달리기'; } }, '서기'));
     s.append(...[
       h('h2', {}, first ? '모습을 꾸며요' : '꾸미기'),
       h('p', { class: 'muted' }, first ? '나중에 왼쪽 위 얼굴을 눌러 언제든 바꿀 수 있어요.' : '\'기본\'은 경지·장비에 따라 바뀌어요. 고른 것은 장비 겉모습보다 먼저예요.'),
-      h('div', { class: 'cust-stage' }, cv),
+      h('div', { class: 'cust-stage' }, cv, stageBtns),
       rows,
       h('div', { class: 'btn-row' },
-        h('button', { class: 'btn', onclick: () => { cu.head = cu.robe = cu.band = cu.face = null; paintRows(); } }, '기본으로'),
+        h('button', { class: 'btn', onclick: () => { cu.head = cu.hat = cu.robe = cu.band = cu.face = cu.boot = null; paintRows(); } }, '기본으로'),
         !first ? h('button', { class: 'btn', onclick: closeModal }, '그만두기') : null,
         h('button', { class: 'btn primary cust-go', onclick: finish }, first ? '이대로 시작' : '이대로')),
     ].filter(Boolean));
@@ -983,13 +991,15 @@ function openCustom(first = false) {
       if (!cv.isConnected || !modalOpen()) return;
       const real = game.s.custom;
       game.s.custom = cu;
-      const { look, opts } = view.heroLook(game, false);
+      const { look, opts } = view.heroLook(game, pose === 'run');
       game.s.custom = real;
       const c = cv.getContext('2d');
       c.setTransform(1, 0, 0, 1, 0, 0);
       c.clearRect(0, 0, cv.width, cv.height);
-      c.setTransform(1.55, 0, 0, 1.55, 0, 0);
-      drawFighter(c, 71, 138, { ...look, swords: 0, halo: false, wings: false }, { ...opts, t: performance.now() / 1000, flip: false, turn: null, run: false });
+      c.setTransform(2.2, 0, 0, 2.2, 0, 0);
+      const tt = performance.now() / 1000;
+      const lunge = pose === 'attack' ? 0.35 + Math.abs(Math.sin(tt * 2.5)) * 0.5 : 0;
+      drawFighter(c, 68, 128, { ...look, swords: 0, halo: false, wings: false }, { ...opts, t: tt, flip, turn: null, run: pose === 'run', lunge });
       requestAnimationFrame(tick);
     };
     requestAnimationFrame(tick);
@@ -1835,7 +1845,17 @@ $('btn-settings').addEventListener('click', () => openModal((s) => {
 }));
 
 let rulesWarned = false;
+// v323 우편이 오면 바로 — 서버가 밀어 주면 단추·알림·소리
+function watchMail() {
+  if (!net.watchGifts || !net.ready?.() || !game.s.job) return;
+  net.watchGifts((list, fresh) => {
+    mail = list;
+    showMailBtn();
+    if (fresh > 0) { toast(`📮 우편이 ${fresh > 1 ? `${fresh}통 ` : ''}왔어요 — 오른쪽 📮를 눌러 받아요`); sfx('loot'); const b = $('btn-mail'); b.classList.remove('pop'); void b.offsetWidth; b.classList.add('pop'); }
+  });
+}
 function netChanged(what) {
+  if (what === 'status') { if (net.ready?.()) watchMail(); else net.unwatchGifts?.(); }
   // v309 규칙이 옛 판이면 운영자에게 한 번 알린다(다른 무인에게는 보이지 않는다)
   if (what === 'rules' && net.rulesOk === false && net.isAdmin?.() && !rulesWarned) {
     rulesWarned = true;
@@ -2249,7 +2269,7 @@ function step(now) {
   if (!attAsked && game.s.job && game.s.nickname && game.s.kills >= 30 && !modalOpen() && !booting && !game.s.pendingOffline && game.canAttend()) { attAsked = true; showAttend(); }   // v320 출석부(하루 한 번)
   // 운영자 선물 (v175) — 처음엔 8초 뒤, 그다음 1분마다 본다
   giftTimer += dt;
-  if (giftTimer > 60 && net.ready?.() && game.s.job) { giftTimer = 0; checkGifts(); }
+  if (giftTimer > 60 && net.ready?.() && game.s.job) { giftTimer = 0; if (!net.giftUnsub) checkGifts(); else watchMail(); }   // v323 지켜보는 중이면 읽지 않는다
 }
 
 document.addEventListener('visibilitychange', () => {
