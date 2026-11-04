@@ -996,6 +996,7 @@ function refreshUI(full = false) {
     : m.bossRoom ? (boss ? `두목 ${boss.name} Lv.${boss.lv}` : `두목 다시 나기까지 ${Math.floor(bossLeft / 60)}:${String(bossLeft % 60).padStart(2, '0')}`) + (coop.on ? ` · 🤝${coop.count + 1}명` : '')
       : `몹 Lv.${m.lv[0]}~${m.lv[1]} · 두목은 두목 구역에`);
   // v341 '사냥하러 가기' — 아래 창 줄의 사냥 단추를 빼고, 마을에 있을 때만 들판 가운데에 띄운다(창이 열려 있으면 숨김)
+  if (guideQ != null && (guideQ !== s.quest || game.questNow()?.done)) hideGuide();   // v342 그 단계를 마치면 안내를 닫는다
   const goHuntOn = !!(m.town && !game.inst && s.job && !activeTab);
   $('go-hunt').classList.toggle('hidden', !goHuntOn);
   document.body.classList.toggle('go-hunt-on', goHuntOn);   // 알림 글이 단추를 가리지 않게 위로
@@ -1553,7 +1554,7 @@ $('quest').addEventListener('click', () => {
   if (!cur.done) {
     // 던전은 지도 창 안의 칸이다
     if (cur.q.tab) { const [t, sub] = cur.q.tab.split('/'); showTab(t, sub); }
-    toast(cur.q.why);
+    showGuide(cur.q);   // v342 금방 사라지던 알림 대신 닫을 때까지 남는 안내 카드
     return;
   }
   const got = game.claimQuest();
@@ -1562,6 +1563,17 @@ $('quest').addEventListener('click', () => {
   toast(`길잡이 — ${cur.q.title} ✓ ${rewardText(got)}`);
 });
 
+// v342 길잡이 안내 카드 — 할 일을 따라가는 동안 떠 있다(✕ · 다음 단계로 넘어가면 닫힌다)
+let guideQ = null;
+function showGuide(q) {
+  let el = $('guide-tip');
+  if (!el) { el = h('div', { id: 'guide-tip', class: 'hidden' }); $('app').append(el); }
+  guideQ = game.s.quest;
+  el.replaceChildren(h('b', {}, `📜 길잡이 — ${q.title}`), h('p', {}, q.why),
+    h('button', { class: 'gt-x', 'aria-label': '닫기', onclick: () => hideGuide() }, '✕'));
+  el.classList.remove('hidden');
+}
+function hideGuide() { $('guide-tip')?.classList.add('hidden'); guideQ = null; }
 // 사냥터 이름을 누르면 지도
 $('stagebar').addEventListener('click', () => showTab('map'));
 

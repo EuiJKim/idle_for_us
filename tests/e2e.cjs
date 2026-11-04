@@ -379,6 +379,19 @@ async function tab(page, name) {
   {
     const bad = await G(p, () => { const out = []; for (const el of document.querySelectorAll('#panel, #modal, #toast, #top, #hud')) { const m = el.innerText.match(/\d+\.\d{4,}/g); if (m) out.push(...m); } return out; });
     assert(bad.length === 0, `화면 글자에 넷째 자리 아래 소수가 없다 (${bad.join(',') || '없음'})`);
+    // v342 null·undefined·NaN이 글자로 찍힌 곳이 없다(replaceChildren에 null을 넘기면 'null'이 찍힌다)
+    const raw = [];
+    for (const t of ['char', 'bag', 'map', 'comp', 'town']) {
+      await G(p, (x) => window.__app.showTab(x), t); await sleep(350);
+      const subs = await p.$$eval('#panel .subtabs button[data-key]', (bs) => bs.map((b) => b.dataset.key));
+      for (const sb of subs.length ? subs : [null]) {
+        if (sb) { await p.click(`#panel .subtabs button[data-key="${sb}"]`).catch(() => {}); await sleep(250); }
+        const m = await G(p, () => (document.getElementById('panel').innerText.match(/(^|[^a-zA-Z])(null|undefined|NaN)(?![a-zA-Z])/g) || []));
+        if (m.length) raw.push(`${t}/${sb}: ${m.join(',')}`);
+      }
+    }
+    await G(p, () => window.__app.closePanel());
+    assert(raw.length === 0, `창 글자에 null·undefined·NaN이 없다 (${raw.join(' | ') || '없음'})`);
   }
 
   console.log('# 설정');

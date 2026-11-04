@@ -489,7 +489,7 @@ function charTab(app) {
       // v325 1차 전직 전에는 직업을 공짜로 바꿔 본다(무공 점수는 돌려받는다)
       (s.jobTier || 0) === 0 && s.job ? h('div', { class: 'job-swap' }, h('small', {}, '1차 전직 전까지 직업을 공짜로 바꿔 볼 수 있어요'),
         h('div', { class: 'job-swap-row' }, ...W.CLASS_LIST.map((c) => h('button', { class: `chip${c.id === s.job ? ' on' : ''}`, disabled: c.id === s.job ? true : null, style: `--cc:${c.color || '#e5e7eb'}`,
-          onclick: () => { if (confirm(`${c.name}(으)로 바꿀까요? 무공 점수는 다 돌려받고, 레벨·장비·은자는 그대로예요.`) && game.changeJob(c.id)) { app.save(); app.refresh(); } } }, c.name)))) : null,
+          onclick: () => { if (confirm(`${c.name}(으)로 바꿀까요? 무공 점수는 다 돌려받고, 레벨·장비·은자는 그대로예요.`) && game.changeJob(c.id)) { app.save(); app.refresh(); } } }, c.name)))) : '',   // replaceChildren에 null을 주면 'null' 글자가 찍힌다
       // v305 칭호 — 가진 것 가운데 하나를 낀다
       s.titles.length ? h('div', { class: 'title-row' }, h('small', {}, '칭호'),
         ...s.titles.map((k) => { const t = W.titleOf(k); return t ? h('button', { class: `chip title-chip${s.title === k ? ' on' : ''}`, style: `--tc:${t.col}`, title: t.desc,
@@ -802,10 +802,12 @@ function bagTab(app) {
           im ? h('span', { class: `st-dan${im.d >= IM.DAN_MAX ? ' max' : im.d >= 5 ? ' hi' : ''}` }, IM.DAN_NAME(im.d), im.gs.length ? h('em', { class: 'st-gs' }, ` 大${im.gs.length}`) : null) : null,
           im ? h('span', { class: 'st-theme' }, IM.THEMES[im.theme].name) : null,
           im ? h('span', { class: 'st-chips' }, h('span', { class: 'st-skill', style: `--gc:${IM.SK_GRADE[im.skill.g].col}` }, `${IM.SKILL_NAME[im.skill.s]} ${SK_SHORT[im.skill.k]}`), im.special ? h('i', { class: 'st-sp' }, '고유') : null) : null,
-          im && game.favOf(it.imps[i]) ? h('i', { class: 'st-fav' }, '♥') : null);
+          im && game.favOf(it.imps[i]) ? h('i', { class: 'st-fav' }, '♥') : null,
+          im ? h('span', { class: 'st-roll' }, '🎲 다시 굴리기 · 단 올리기 ›') : null);   // v342 칸을 누르면 무엇을 하는지
         }));
       };
-      // 새겨진 칸 자세히 — 효과 · 다시 굴리기 · 고유 바꾸기
+      // 새겨진 칸 자세히 — 효과 · 다시 굴리기(v342 맨 위로 · 크게) · 단 올리기 · 다시 새기기
+      let lastRoll = null;   // v342 직전 굴림(이전 → 지금)
       const slotView = (i) => {
         const im = IM.imprintOf(it.imps[i], it.rar || 1);
         const c = game.reimpCost(it, i);
@@ -822,6 +824,32 @@ function bagTab(app) {
             h('div', {}, Object.entries(im.fx).map(([k, v]) => IM.FX_TEXT[k](v)).join(' · ')),
             h('div', { class: 'imp-skill', style: `--gc:${IM.SK_GRADE[im.skill.g].col}` }, IM.skillModText(im.skill)),
             im.special ? h('div', { class: 'imp-sp' }, IM.specialText(im.special, im.wp)) : null),
+          // ③ 바꾸기 — 스킬 변화 다시 굴리기 · 고유 효과 바꾸기 (한 번에 아래 값)
+          h('div', { class: 'sec-head reroll-head' }, '🎲 스킬 변화 다시 굴리기', h('small', {}, ' 범위·두 번·숨·피해 중 하나가 새로 뽑혀요 · 두목·단은 그대로')),
+          h('div', { class: 'chg-box reroll-box' },
+          h('div', { class: 'reroll-now', style: `--gc:${IM.SK_GRADE[im.skill.g].col}` }, h('small', {}, '지금'), h('b', {}, IM.skillModText(im.skill)), h('em', {}, IM.SK_GRADE[im.skill.g].name)),
+          lastRoll && lastRoll.uid === it.uid && lastRoll.i === i ? h('div', { class: 'reroll-was' }, `방금 전: ${lastRoll.was}  →  지금: ${IM.skillModText(im.skill)}`) : null,
+          // v294 무엇이 좋아하는 것인지
+          ...(() => { const f = game.favOf(it.imps[i]); return f ? [h('div', { class: 'pref-link', style: 'cursor:default' }, `♥ 좋아하는 효과 — ${[f.skill ? '스킬 변화' : '', f.special ? '고유 효과' : '', f.fx.length ? '테마 능력치' : ''].filter(Boolean).join(' · ')}`)] : []; })(),
+          c ? h('div', { class: 'cost-chips' }, costChip(c.key, '증표', c.n, game.s.mats[c.key] || 0, matIcon(c.key, 24)), costChip(null, '은자', c.gold, game.s.gold, goldIco())) : null,
+          h('button', { class: 'btn primary reroll-go', disabled: can ? null : true, onclick: () => {
+            // v294 좋아하는 스킬 변화면 넘길지 묻는다(등급이 높을 때와 함께)
+            const fav = game.favOf(it.imps[i])?.skill;
+            if ((fav || im.skill.g >= 2) && !confirm(`${fav ? '♥ 좋아하는 스킬 변화예요' : `지금 스킬 변화가 ${IM.SK_GRADE[im.skill.g].name}예요`}\n(${IM.skillModText(im.skill)} · ${IM.SK_GRADE[im.skill.g].name})\n\n다시 돌리면 이 효과는 사라져요. 넘기고 다시 돌리겠습니까?`)) return;
+            const was = IM.skillModText(im.skill);
+            const e = game.rerollImpSkill(it.uid, i);
+            if (e) lastRoll = { uid: it.uid, i, was };
+            if (!e) return toast('증표·은자가 모자라요');
+            const txt = IM.skillModText(IM.imprintOf(e, it.rar || 1).skill);
+            toast(game.favOf(e)?.skill ? `♥ 좋아하는 스킬 변화가 나왔어요! — ${txt}` : `스킬 변화 다시 — ${txt}`); app.save(); app.refresh(); slotView(i);
+          } }, can ? '🎲 다시 굴리기' : '🎲 다시 굴리기 — 증표·은자가 모자라요'),
+          im.specials ? h('div', { class: 'sp-pick' }, h('small', {}, '고유 효과 — 누르면 그것으로 (초록 테두리가 지금 것)'),
+            ...im.specials.map((sp, j) => h('button', { class: `chip${sp.id === im.special.id ? ' on' : ''}`, disabled: sp.id === im.special.id || !can ? true : null, title: sp.id === im.special.id ? '지금 이것' : '', onclick: () => {
+              const ps = game.s.autoInfCfg?.prefSp || [];
+              if (ps.includes(im.special.kind) && !ps.includes(sp.kind) && !confirm(`♥ 지금 고유 효과 【${im.special.name}】는 좋아하는 효과예요.\n좋아하지 않는 【${sp.name}】(으)로 바꿀까요?`)) return;
+              if (!game.changeImpSpecial(it.uid, i, j)) return toast('증표·은자가 모자라요');
+              toast(`고유 효과를 【${sp.name}】(으)로 바꿨어요`); app.save(); app.refresh(); slotView(i);
+            } }, h('b', {}, sp.name), h('small', {}, ` ${IM.SPECIAL_KIND[sp.kind](im.wp)}`)))) : null),
           // v297 칸 단 — 같은 두목 증표로 확률 없이 한 단
           h('div', { class: 'sec-head' }, '단 올리기', h('small', {}, ` 같은 두목(${short(im.key)}) 증표로 · 실패 없음 · 3·6·10단에 大成 · 칸 세기 ×${IM.IMP_RAR_W[it.rar || 1]}(${W.RARITY[it.rar || 1].name})`)),
           h('div', { class: 'dan-box', style: `--ic:${IM.THEMES[im.theme].col}` },
@@ -841,28 +869,6 @@ function bagTab(app) {
               if (!confirm(`각인을 1단으로 되돌려요.${rs.gs.length ? `\n지금 大成(${IM.gsText(it.imps[i])})이 사라지고` : '\n'} 올리는 데 든 ${short(rs.key)} 증표 ${rs.back}개를 돌려받아요.\n다시 올리면 3·6·10단에서 大成을 새로 굴려요. 되돌릴까요?`)) return;
               game.danReset(it.uid, i); toast(`각인 1단으로 · ${short(rs.key)} 증표 +${rs.back}`); app.save(); app.refresh(); slotView(i);
             } }, `다시 닦기 (1단으로 · 증표 ${rs.back}개 환급)`) : null; })()),
-          // ③ 바꾸기 — 스킬 변화 다시 굴리기 · 고유 효과 바꾸기 (한 번에 아래 값)
-          h('div', { class: 'sec-head' }, '바꾸기', h('small', {}, ' 한 번에 아래 값 · 두목·단은 그대로')),
-          h('div', { class: 'chg-box' },
-          // v294 무엇이 좋아하는 것인지
-          ...(() => { const f = game.favOf(it.imps[i]); return f ? [h('div', { class: 'pref-link', style: 'cursor:default' }, `♥ 좋아하는 효과 — ${[f.skill ? '스킬 변화' : '', f.special ? '고유 효과' : '', f.fx.length ? '테마 능력치' : ''].filter(Boolean).join(' · ')}`)] : []; })(),
-          c ? h('div', { class: 'cost-chips' }, costChip(c.key, '증표', c.n, game.s.mats[c.key] || 0, matIcon(c.key, 24)), costChip(null, '은자', c.gold, game.s.gold, goldIco())) : null,
-          h('button', { class: 'btn', disabled: can ? null : true, onclick: () => {
-            // v294 좋아하는 스킬 변화면 넘길지 묻는다(등급이 높을 때와 함께)
-            const fav = game.favOf(it.imps[i])?.skill;
-            if ((fav || im.skill.g >= 2) && !confirm(`${fav ? '♥ 좋아하는 스킬 변화예요' : `지금 스킬 변화가 ${IM.SK_GRADE[im.skill.g].name}예요`}\n(${IM.skillModText(im.skill)} · ${IM.SK_GRADE[im.skill.g].name})\n\n다시 돌리면 이 효과는 사라져요. 넘기고 다시 돌리겠습니까?`)) return;
-            const e = game.rerollImpSkill(it.uid, i);
-            if (!e) return toast('증표·은자가 모자라요');
-            const txt = IM.skillModText(IM.imprintOf(e, it.rar || 1).skill);
-            toast(game.favOf(e)?.skill ? `♥ 좋아하는 스킬 변화가 나왔어요! — ${txt}` : `스킬 변화 다시 — ${txt}`); app.save(); app.refresh(); slotView(i);
-          } }, '🎲 스킬 변화 다시 굴리기'),
-          im.specials ? h('div', { class: 'sp-pick' }, h('small', {}, '고유 효과 — 누르면 그것으로 (초록 테두리가 지금 것)'),
-            ...im.specials.map((sp, j) => h('button', { class: `chip${sp.id === im.special.id ? ' on' : ''}`, disabled: sp.id === im.special.id || !can ? true : null, title: sp.id === im.special.id ? '지금 이것' : '', onclick: () => {
-              const ps = game.s.autoInfCfg?.prefSp || [];
-              if (ps.includes(im.special.kind) && !ps.includes(sp.kind) && !confirm(`♥ 지금 고유 효과 【${im.special.name}】는 좋아하는 효과예요.\n좋아하지 않는 【${sp.name}】(으)로 바꿀까요?`)) return;
-              if (!game.changeImpSpecial(it.uid, i, j)) return toast('증표·은자가 모자라요');
-              toast(`고유 효과를 【${sp.name}】(으)로 바꿨어요`); app.save(); app.refresh(); slotView(i);
-            } }, h('b', {}, sp.name), h('small', {}, ` ${IM.SPECIAL_KIND[sp.kind](im.wp)}`)))) : null),
           // ④ 다른 두목으로
           h('div', { class: 'sec-head' }, '다시 새기기', h('small', {}, ' 다른 두목으로 바꿔요 · 스킬 변화는 그대로 · 단은 절반')),
           h('button', { class: 'btn rewrite-go', onclick: () => rewriteView(i) }, '다른 두목으로 다시 새기기 ▸'));

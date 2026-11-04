@@ -196,7 +196,7 @@ export const QUESTS = [
     goal: flag('infuse'),
     gift: (g) => { const k = W.bossKey(W.stepMap(W.stepOfLevel(g.s.level))); g.addMats(k, W.INFUSE_MARKS[1] * 2); return '두목 증표'; } },
   { id: 'reimp', title: '각인의 스킬 변화를 다시 굴려 보자', tab: 'bag/gear', min: 8, xp: 0.15,
-    why: '장비를 눌러 → 각인 칸 → 다시 굴리기. 스킬 변화(범위·두 번·숨·피해)가 새로 뽑힌다 — 센 두목의 증표일수록 높은 등급이 잘 나온다. 증표를 조금 챙겨 줬다.',
+    why: '가방 → 착용 → 각인한 장비를 눌러 → 위 칸 \'각인\' → 새겨진 칸을 누르면 맨 위에 🎲 다시 굴리기. 스킬 변화(범위·두 번·숨·피해)가 새로 뽑힌다 — 센 두목의 증표일수록 높은 등급이 잘 나온다. 증표를 조금 챙겨 줬다.',
     goal: flag('reimp'),
     gift: (g) => {
       const it = W.SLOTS.map((x) => g.s.equip[x.id]).find((x) => x?.imps?.some(Boolean));

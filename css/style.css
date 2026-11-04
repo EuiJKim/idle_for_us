@@ -2296,3 +2296,29 @@ body.has-keys .skill-btn .lock, body.has-keys #tabs button span, body.has-keys .
 #go-hunt:active { transform: translateX(-50%) translateY(2px); box-shadow: 0 1px 0 #431407; }
 body.hunt-noui #go-hunt, body.in-inst #go-hunt { display: none; }
 body.go-hunt-on #toast { bottom: calc(168px + var(--safe-bottom, 0px)); }
+/* v342 위 정보칸 — 경지 이름이 길면(북천검가 검호) 경험치 %가 오른쪽 은자 칸 밑으로 밀려 잘렸다.
+   한 줄 안에서 경지 이름이 먼저 줄어들고(…), 경험치 %·Lv는 늘 보인다. */
+.hero-box { min-width: 0; overflow: hidden; }
+.hero-txt { min-width: 0; }
+.hero-sub { min-width: 0; overflow: hidden; }
+#hero-rank { min-width: 0; flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#hero-lv, #exp-pct, #exp-rate { flex: 0 0 auto; white-space: nowrap; }
+/* v342 각인 칸 — 다시 굴리기를 맨 위에 크게 */
+.reroll-head { color: #fde68a; }
+.reroll-box { border: 1.5px solid rgba(253, 230, 138, 0.45); border-radius: 12px; padding: 10px; background: rgba(120, 53, 15, 0.18); }
+.reroll-now { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; padding: 6px 8px; border-radius: 8px; background: rgba(0, 0, 0, 0.25); border-left: 4px solid var(--gc, #fde68a); margin-bottom: 6px; }
+.reroll-now small { color: var(--muted); }
+.reroll-now b { color: var(--gc, #fde68a); font-size: 15px; }
+.reroll-now em { font-style: normal; font-size: 12px; color: var(--gc, #fde68a); opacity: 0.85; }
+.reroll-was { font-size: 12.5px; color: #fcd34d; margin: 0 0 6px; animation: pts-glow 1.2s ease-in-out 2; }
+.reroll-go { width: 100%; margin-top: 6px; padding: 12px; font-size: 16px; font-weight: 800; }
+.st-roll { display: block; margin-top: 3px; font-size: 11px; color: #fde68a; opacity: 0.9; }
+/* v342 길잡이 안내 — 금방 사라지는 알림 대신 닫을 때까지 남는 카드 */
+#guide-tip { position: absolute; left: 50%; transform: translateX(-50%); top: calc(172px + var(--safe-top, 0px)); z-index: 40; width: min(92%, 420px);
+  background: rgba(28, 20, 10, 0.96); border: 1.5px solid #fde68a; border-radius: 14px; padding: 10px 36px 10px 12px; color: #fef3c7; box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5); }
+#guide-tip b { display: block; color: #fde68a; font-size: 14px; margin-bottom: 4px; }
+#guide-tip p { margin: 0; font-size: 13.5px; line-height: 1.5; }
+#guide-tip .gt-x { position: absolute; top: 6px; right: 6px; width: 28px; height: 28px; border-radius: 50%; border: 1px solid rgba(253, 230, 138, 0.4); background: transparent; color: #fde68a; font-size: 14px; }
+#guide-tip.hidden { display: none; }
+body.modal-open #guide-tip { display: none; }
+#toast .toast { pointer-events: auto; cursor: pointer; }   /* v342 누르면 닫힌다 */

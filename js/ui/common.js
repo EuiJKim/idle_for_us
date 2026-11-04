@@ -63,7 +63,10 @@ export function toast(text) {
   const box = document.getElementById('toast');
   const el = h('div', { class: 'toast' }, tidyNum(text));
   box.append(el);
-  setTimeout(() => el.remove(), 2700);
+  // v342 긴 글은 오래 — 글자 수만큼 읽을 시간을 준다(2.7초 ~ 9초) · 누르면 바로 닫힌다
+  const len = String(text ?? '').length;
+  el.addEventListener('click', () => el.remove());
+  setTimeout(() => el.remove(), Math.min(9000, Math.max(2700, 1200 + len * 75)));
   while (box.children.length > 3) box.firstChild.remove();
 }
 
