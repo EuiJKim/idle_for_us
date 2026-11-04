@@ -92,6 +92,7 @@ export function openModal(build, { dismissable = true, onClose } = {}) {
   modal.classList.remove('hidden');
   document.body.classList.add('modal-open');
   modal.onclick = dismissable ? (e) => { if (e.target === modal) closeModal(); } : null;
+  modal.dataset.dismiss = dismissable ? '1' : '';   // v326 Esc로 닫아도 되나
   modalOnClose = onClose || null;
 }
 export function closeModal() {

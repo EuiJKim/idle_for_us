@@ -16,6 +16,9 @@ function applyUiScale() {
   const auto = w >= 600 ? Math.max(1, Math.min(2.4, Math.min(w / 560, hgt / 620))) : 1;
   const k = +(auto * (UI_SCALE[uiScalePref()] || 1)).toFixed(3);
   if (k !== 1) root.style.zoom = String(k);
+  // v326 zoom을 걸면 vh·vw는 화면 크기에 zoom을 한 번 더 곱해 커진다(창이 화면 밖으로 넘쳤다) — css는 var(--vh)를 쓰고 여기서 바로잡는다
+  if (k !== 1) { root.style.setProperty('--vh', `${(hgt / k / 100).toFixed(3)}px`); root.style.setProperty('--vw', `${(w / k / 100).toFixed(3)}px`); }
+  else { root.style.removeProperty('--vh'); root.style.removeProperty('--vw'); }
   setTimeout(() => { view.resize?.(); measurePads?.(); hudGoldAt?.(); }, 30);
   return k;
 }
@@ -617,6 +620,7 @@ function buildSkillbar() {
     });
     for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) btn.addEventListener(ev, endHold);
     btn.addEventListener('contextmenu', (e) => e.preventDefault());
+    if (all.indexOf(sk) < 5) btn.dataset.hk = String(all.indexOf(sk) + 1);   // v326 단축키 글자
     return { sk, btn, cd, num, lock, was: 0 };
   });
   potionEl = h('button', { class: 'skill-btn potion-btn', 'aria-label': '물약', onclick: () => {
@@ -627,6 +631,7 @@ function buildSkillbar() {
     toast(game.s.autoHunt ? '자동 사냥을 켰어요' : '자동 사냥을 껐어요 — 들판을 눌러 움직여요');
     save();
   } }, skinImg(h('b', {}, '자동'), 'auto'), h('div', { class: 'lock' }));
+  potionEl.dataset.hk = 'Q'; autoEl.dataset.hk = 'A';
   $('skillbar').replaceChildren(...skillEls.map((e) => e.btn), ...(advEl ? [advEl] : []), potionEl, autoEl);
 }
 
@@ -2428,6 +2433,31 @@ window.__test_cloudPush = () => cloudPush(true);
 window.__test_checkGifts = () => checkGifts();     // 시험: 1분을 기다리지 않고 우편함을 본다
 window.__test_weekReward = () => { game.s.wbClaimed = null; wbChecked = true; return checkWeekReward(); };   // v318 시험: 지난주 순위 보상을 바로 본다
 applyUiScale();   // v324 컴퓨터에서는 화면에 맞춰 키운다(상수들이 다 정의된 뒤에)
+// v326 컴퓨터 단축키 — 1~5 무공 · Q 물약 · A 자동 사냥 · H 사냥터 · M 지도 · B 가방 · C 캐릭터 · Esc 창 닫기
+const HOTKEY_TAB = { m: 'map', b: 'bag', c: 'char', t: 'town', d: 'dgn', g: 'social', p: 'comp' };
+document.addEventListener('keydown', (e) => {
+  if (e.ctrlKey || e.metaKey || e.altKey || e.isComposing) return;
+  const tag = (e.target?.tagName || '').toLowerCase();
+  if (tag === 'input' || tag === 'textarea' || tag === 'select' || e.target?.isContentEditable) return;
+  const k = e.key.toLowerCase();
+  if (k === 'escape') {
+    const m = document.getElementById('modal');
+    if (modalOpen()) { if (m?.dataset.dismiss === '1') closeModal(); return; }
+    if (activeTab) { closePanel(); return; }
+    return;
+  }
+  if (modalOpen()) return;
+  if (/^[1-5]$/.test(k)) { skillEls[+k - 1]?.btn?.click(); e.preventDefault(); return; }
+  if (k === 'q') { potionEl?.click(); return; }
+  if (k === 'a') { autoEl?.click(); return; }
+  if (k === 'h') { goHuntNow(); return; }
+  const tab = HOTKEY_TAB[k];
+  if (tab) { if (activeTab === tab) closePanel(); else if (!tabLocked(tab)) showTab(tab); }
+});
+// 컴퓨터(마우스)면 단추에 단축키 글자를 단다
+const finePointer = matchMedia?.('(pointer: fine)').matches;
+if (finePointer) document.body.classList.add('has-keys');
+for (const [k, t] of [['H', 'hunt'], ...Object.entries(HOTKEY_TAB).map(([key, tab]) => [key.toUpperCase(), tab])]) { const b = document.querySelector(`#tabs button[data-tab="${t}"]`); if (b) b.dataset.hk = k; }
 $('loot-tally').addEventListener('click', tallyClear);   // v324 누르면 모음을 비운다
 window.__test_claimAll = () => claimMail(mail.map((m) => m.id));
 window.__view = view;
