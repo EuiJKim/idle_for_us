@@ -359,6 +359,12 @@ async function tab(page, name) {
     assert(await G(p, () => window.__game.s.nickname) === first.n, '체험을 끝내면 고르기로 — 내 무인 그대로');
   }
 
+  console.log('# 아래 창 단추가 겹치지 않는다 (v340)');
+  {
+    const ov = await G(p, () => { const bs = [...document.querySelectorAll('#tabs button[data-tab]')].map((b) => ({ t: b.dataset.tab, r: b.getBoundingClientRect() })); const o = []; for (let i = 0; i < bs.length; i++) for (let j = i + 1; j < bs.length; j++) { const a = bs[i].r, c = bs[j].r; if (a.left < c.right - 1 && c.left < a.right - 1 && a.top < c.bottom - 1 && c.top < a.bottom - 1) o.push(bs[i].t + '/' + bs[j].t); } const s = bs.find((x) => x.t === 'social').r; return { o, top: document.elementFromPoint(s.left + s.width / 2, s.top + s.height / 2)?.closest('button')?.dataset.tab }; });
+    assert(ov.o.length === 0 && ov.top === 'social', `창 단추 여덟이 겹치지 않고 무림이 눌린다 (${ov.o.join(',') || '겹침 없음'})`);
+  }
+
   console.log('# 수는 소수점 셋째 자리까지 (v335)');
   {
     const bad = await G(p, () => { const out = []; for (const el of document.querySelectorAll('#panel, #modal, #toast, #top, #hud')) { const m = el.innerText.match(/\d+\.\d{4,}/g); if (m) out.push(...m); } return out; });

@@ -2281,3 +2281,9 @@ body.has-keys .skill-btn .lock, body.has-keys #tabs button span, body.has-keys .
 #trial-bar { position: fixed; left: 50%; top: calc(142px + env(safe-area-inset-top, 0px)); transform: translateX(-50%); z-index: 60; display: flex; align-items: center; gap: 8px;
   padding: 4px 6px 4px 12px; border-radius: 999px; background: rgba(30, 27, 75, 0.88); border: 1px solid #a5b4fc; color: #e0e7ff; font-size: 13px; font-weight: 700; white-space: nowrap; }
 #trial-bar .btn { padding: 4px 10px; font-size: 12.5px; }
+/* v340 창 단추 여덟(왼쪽 넷 · 오른쪽 넷) — 폭 390 폰에서 50px×8이 화면보다 넓어 가운데 '무림'과 '사냥'이 겹쳐 무림이 안 눌렸다.
+   왼쪽·오른쪽 줄이 각각 화면 절반을 넘지 않게 하고, 단추는 그 안에서 고르게 줄어든다(최대 50px). */
+.tabcol.left { left: 6px; right: calc(50% + 2px); justify-content: flex-start; }
+.tabcol.right { right: 6px; left: calc(50% + 2px); justify-content: flex-end; }
+#tabs button { flex: 0 1 50px; min-width: 0; }
+#tabs button span { white-space: nowrap; overflow: hidden; text-overflow: clip; max-width: 100%; }
