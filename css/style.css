@@ -2201,3 +2201,4 @@ body.hunt-noui #exp-warn, body.hunt-noui #boss-wait { visibility: hidden !import
 .off-sum .ofs.boss { color: #fca5a5; border-color: rgba(252, 165, 165, 0.45); }
 .off-sum .ofs.shard { color: #fde68a; }
 .off-btns { display: flex; gap: 8px; }
+.wr-line { font-size: 15px; font-weight: 800; margin: 4px 0; color: #fde68a; }

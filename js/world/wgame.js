@@ -100,6 +100,11 @@ export function migrateWorld(raw, now = Date.now()) {
   // v316 주간 두목 — 이번 주 것만 쓴다(키가 다르면 wbossState가 새로 연다)
   { const w = raw.wboss && typeof raw.wboss === 'object' ? raw.wboss : null; const b = w?.best && typeof w.best === 'object' ? w.best : {};
     s.wboss = w && typeof w.key === 'string' ? { key: w.key.slice(0, 10), kills: Math.max(0, Math.min(1e6, Math.floor(Number(w.kills) || 0))), best: Object.fromEntries(W.WBOSS_RACE.filter((k) => Number(b[k]) >= W.WBOSS_MIN_SEC).map((k) => [k, Math.min(36000, Number(b[k]))])) } : null; }
+  // v318 기한 있는 칭호(주간 패왕) · 받은 지난주 순위 보상
+  { const tu = raw.titleUntil && typeof raw.titleUntil === 'object' ? raw.titleUntil : {}; s.titleUntil = {}; for (const [k, v] of Object.entries(tu)) if (W.titleOf(k)?.timed && Number(v) > 0) s.titleUntil[k] = Number(v); }
+  for (const t of Object.values(W.TITLES)) if (t.timed && s.titles.includes(t.id) && !s.titleUntil[t.id]) s.titles = s.titles.filter((k) => k !== t.id);   // 기한 없이 남은 것은 버린다
+  if (s.title && !s.titles.includes(s.title)) s.title = null;
+  s.wbClaimed = typeof raw.wbClaimed === 'string' ? raw.wbClaimed.slice(0, 10) : null;
   // v315 가린 무인 — uid·이름만, 200명까지
   s.chatMute = (Array.isArray(raw.chatMute) ? raw.chatMute : []).filter((x) => x && typeof x.uid === 'string' && x.uid.length <= 128)
     .map((x) => ({ uid: x.uid, name: String(x.name || '무명').slice(0, 12) })).filter((x, i, a) => a.findIndex((y) => y.uid === x.uid) === i).slice(0, 200);
@@ -387,10 +392,47 @@ export class WorldGame {
       default: return false;
     }
   }
-  checkTitles() {
+  checkTitles(now = Date.now()) {
     let n = 0;
+    // v318 기한이 지난 칭호는 거둔다(끼고 있었으면 벗긴다)
+    for (const [k, until] of Object.entries(this.s.titleUntil || {})) {
+      if (until > now) continue;
+      delete this.s.titleUntil[k];
+      this.s.titles = this.s.titles.filter((x) => x !== k);
+      if (this.s.title === k) this.s.title = null;
+      this._stats = null;
+      this.emit('titleExpire', { id: k, name: W.titleOf(k)?.name });
+    }
     for (const t of Object.values(W.TITLES)) if (t.how && !this.hasTitle(t.id) && this.titleDone(t.id)) { this.grantTitle(t.id); n++; }
     return n;
+  }
+  // v318 기한 있는 칭호 — 이미 있으면 기한만 늘린다
+  grantTimedTitle(k, until) {
+    const t = W.titleOf(k);
+    if (!t?.timed) return false;
+    const tu = this.s.titleUntil || (this.s.titleUntil = {});
+    tu[k] = Math.max(tu[k] || 0, until);
+    if (!this.hasTitle(k)) this.grantTitle(k);
+    return true;
+  }
+  // v318 지난주 두목 순위 보상 — ranks: { kills, hwamugi, magwi } (1~3 또는 null). 가장 좋은 자리 하나로 한 번
+  weekRewardFor(ranks) {
+    const best = Math.min(...['kills', 'hwamugi', 'magwi'].map((k) => (ranks?.[k] >= 1 && ranks[k] <= 3 ? ranks[k] : 99)));
+    if (best > 3) return null;
+    const r = W.WB_REWARD[best - 1];
+    return { best, soul: r.soul, shard: r.shard, gold: Math.round(TD.weekChest(this.s.level).gold * r.goldK), title: best === 1 ? 'wking' : null };
+  }
+  claimWeekReward(key, ranks, now = Date.now()) {
+    if (!key || this.s.wbClaimed === key) return null;
+    const rw = this.weekRewardFor(ranks);
+    this.s.wbClaimed = key;
+    if (!rw) return null;
+    this.s.petSoul = (this.s.petSoul || 0) + rw.soul;
+    this.addShards(rw.shard, rw.shard);
+    this.s.gold += rw.gold;
+    if (rw.title) this.grantTimedTitle(rw.title, now + W.WB_TITLE_DAYS * 86400e3);
+    this.emit('weekReward', { key, ranks, ...rw });
+    return rw;
   }
   // v315 칭호 모음 — 가진 칭호(겹친 옛 이름은 하나로) 하나마다 공격력·체력 +1%. 끼지 않아도 붙는다
   titleSet() {
@@ -2465,12 +2507,14 @@ export class WorldGame {
   // v317 끼면 어떻게 되나 — 그 칸에 잠깐 넣어 본 온 능력치(세트·공명·각인 모두 든다)와 지금을 견준다. 아무것도 바꾸지 않는다
   previewEquip(it) {
     const pick = (st) => ({ atk: st.atk, hp: st.hp, def: st.def, crit: st.crit, speed: st.speed, power: st.power });
-    const now = pick(this.stats());
+    const st0 = this.stats();
+    const now = pick(st0);
     if (!it || !W.SLOTS.some((x) => x.id === it.slot) || this.s.equip[it.slot] === it) return { now, then: now, same: true };
     const cur = this.s.equip[it.slot];
     this.s.equip[it.slot] = it; this._stats = null;
     let then;
-    try { then = pick(this.stats()); } finally { this.s.equip[it.slot] = cur; this._stats = null; }
+    // v318 되돌린 뒤 지금 능력치를 그대로 둔다(서명이 같다) — 가방 칸마다 부를 때 다시 세지 않게
+    try { then = pick(this.stats()); } finally { this.s.equip[it.slot] = cur; this._stats = st0; }
     return { now, then, same: false };
   }
   findItem(uid) {

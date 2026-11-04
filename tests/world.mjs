@@ -2942,5 +2942,46 @@ console.log('\n=== v317 끼면 견주기 · 방치 보상 한눈에 ===');
   ok(/projectLevel\(rw\.exp\)/.test(mn) && /받고 스탯 찍기/.test(mn) && /모두 받기/.test(mn), '방치 보상: 오른 레벨 · 두목 · 받고 스탯 찍기');
 }
 
+console.log('\n=== v318 지난주 순위 보상 · 가방 칸 견주기(전투력) ===');
+{
+  const g = fresh();
+  ok(g.weekRewardFor({ kills: null, hwamugi: null, magwi: null }) === null && g.weekRewardFor({ kills: 4 }) === null, '3위 밖이면 보상 없음');
+  const r2 = g.weekRewardFor({ kills: 3, hwamugi: 2, magwi: null });
+  ok(r2.best === 2 && r2.soul === W.WB_REWARD[1].soul && !r2.title, '가장 좋은 자리 하나로(2위)');
+  const s0 = g.s.petSoul || 0, gold0 = g.s.gold, ps0 = g.s.petShard || 0;
+  const now = Date.UTC(2026, 10, 9, 3);
+  const got = g.claimWeekReward('2026-11-02', { kills: 1 }, now);
+  ok(got && got.best === 1 && g.s.petSoul === s0 + W.WB_REWARD[0].soul && g.s.gold === gold0 + got.gold && g.s.petShard === ps0 + W.WB_REWARD[0].shard, '1위 보상 — 혼·조각·은자');
+  ok(g.hasTitle('wking') && g.s.titleUntil.wking === now + W.WB_TITLE_DAYS * 86400e3, '〈주간 패왕〉 한 주 동안');
+  ok(g.claimWeekReward('2026-11-02', { kills: 1 }, now) === null && g.s.petSoul === s0 + W.WB_REWARD[0].soul, '같은 주는 한 번만');
+  g.wearTitle('wking');
+  const a1 = g.stats().atk;
+  g.checkTitles(now + 6 * 86400e3);
+  ok(g.hasTitle('wking') && g.s.title === 'wking', '기한 안에는 그대로');
+  g.events.length = 0;
+  g.checkTitles(now + 8 * 86400e3);
+  ok(!g.hasTitle('wking') && !g.s.title && !g.s.titleUntil.wking && g.events.some((e) => e.type === 'titleExpire') && g.stats().atk < a1, '기한이 지나면 거두고 벗긴다');
+  ok(g.claimWeekReward('2026-11-09', { kills: null }, now) === null && g.s.wbClaimed === '2026-11-09', '순위 밖이어도 본 것으로 적는다');
+  // 저장: 기한 없는 기한 칭호는 버린다
+  const raw = JSON.parse(JSON.stringify(g.toJSON()));
+  raw.titles = [...raw.titles, 'wking']; raw.title = 'wking'; raw.titleUntil = {};
+  const g2 = new WorldGame(raw, 0);
+  ok(!g2.hasTitle('wking') && !g2.s.title, '기한이 적히지 않은 〈주간 패왕〉은 불러올 때 버린다');
+  raw.titleUntil = { wking: Date.now() + 86400e3, lv100: 5 };
+  const g3 = new WorldGame(raw, 0);
+  ok(g3.hasTitle('wking') && g3.s.titleUntil.wking > 0 && !('lv100' in g3.s.titleUntil), '기한이 있으면 남는다 · 기한 칭호가 아닌 것은 버린다');
+  // 가방 칸 — 전투력으로
+  const b = fresh();
+  while (b.s.level < 30) b.addExp(W.expToNext(b.s.level));
+  const st0 = b.stats();
+  const up = { ...JSON.parse(JSON.stringify(b.s.equip.weapon)), uid: 55555, grow: false, plus: (b.s.equip.weapon.plus || 0) + 4 };
+  const pv = b.previewEquip(up);
+  ok(b.stats() === st0, '견준 뒤 지금 능력치를 다시 세지 않는다(같은 것을 쓴다)');
+  ok(pv.then.power > pv.now.power, '좋은 것은 전투력 ▲');
+  const ui = read('js/wui.js'), mn = read('js/wmain.js'), net = read('js/net.js');
+  ok(/const p = game\.previewEquip\(it\)/.test(ui) && /vsWorn\(it\) > 0\.005/.test(ui), '가방 칸 ▲▼와 좋은 것 모두 끼기 — 전투력으로');
+  ok(/lastWeekRanks/.test(net) && /checkWeekReward/.test(mn) && /claimWeekReward/.test(mn), '접속하면 지난주 순위를 보고 보상 창');
+}
+
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);

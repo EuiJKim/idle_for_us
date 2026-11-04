@@ -292,6 +292,18 @@ async function tab(page, name) {
     assert(/두목 2마리/.test(await q.$eval('#panel .wb-mine', (e) => e.textContent)), '내 기록 줄');
     await shot(q, '08a-week-boss.png');
     await G(q, () => window.__game.enterMap(11));
+    // v318 지난주 순위 보상 — 지난주 문서를 하나 써 두고(영희 1위) 보상 창을 띄운다
+    await G(q, async () => {
+      const TD = await import('/js/world/wtoday.js');
+      const n = window.__app.net, key = TD.weekKey(Date.now() - 7 * 86400e3);
+      await n.fs.setDoc(n.ref('wboss', key, 'p', n.uid), { name: '영희', kills: 7, lv: 1, at: n.fs.serverTimestamp() }, { merge: true });
+    });
+    const soul0 = await G(q, () => window.__game.s.petSoul || 0);
+    await G(q, () => { window.__test_weekReward(); });
+    await q.waitForSelector('#modal h2:has-text("지난주 두목 순위")', { timeout: 15000 });
+    await shot(q, '08b-week-reward.png');
+    await q.click('#modal .btn.primary');
+    assert(await G(q, () => window.__game.hasTitle('wking')) && (await G(q, () => window.__game.s.petSoul)) > soul0, '지난주 1위 — 보상과 〈주간 패왕〉');
   }
 
   console.log('# 온라인: 전체 채팅 (v315 칭호 · 가리기 · 2초 막이)');

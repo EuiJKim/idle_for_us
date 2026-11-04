@@ -1018,11 +1018,11 @@ function bagTab(app) {
     });
   }
   // 낀 것과 견준 세기 (같은 칸 점수의 몇 %)
+  // v318 전투력으로 — 그 칸에 끼워 본 온 능력치(세트·공명·각인 모두)의 전투력이 지금보다 몇 % 오르나. 장비 창 '끼면 →'과 같은 값
   const vsWorn = (it) => {
-    const cur = game.s.equip[it.slot];
-    const a = game.itemScore(it), b = game.itemScore(cur);
-    if (!cur || b <= 0) return a > 0 ? 1 : 0;
-    return a / b - 1;
+    const p = game.previewEquip(it);
+    if (p.same) return 0;
+    return p.then.power / (p.now.power || 1) - 1;
   };
   const deltaTag = (d) => (Math.abs(d) < 0.005 ? h('span', { class: 'delta same' }, '같음')
     : h('span', { class: `delta ${d > 0 ? 'up' : 'down'}` }, `${d > 0 ? '▲' : '▼'} ${pct(Math.abs(d), 0)}`));
@@ -1081,7 +1081,7 @@ function bagTab(app) {
           let n = 0;
           // v258: 세트 조각을 세트 아닌 것으로 바꾸면 세트 효과가 깨진다 — 그런 것은 건너뛰고 알린다
           let kept = 0;
-          for (const { it } of better) { const cur = s.equip[it.slot]; if (cur?.set && it.set !== cur.set) { kept++; continue; } if (!cur || game.itemScore(it) > game.itemScore(cur)) { game.equipFromBag(it.uid); n++; } }
+          for (const { it } of better) { const cur = s.equip[it.slot]; if (cur?.set && it.set !== cur.set) { kept++; continue; } if (vsWorn(it) > 0.005) { game.equipFromBag(it.uid); n++; } }   // v318 하나 낄 때마다 다시 견준다(전투력)
           toast(`더 좋은 장비 ${n}개를 꼈어요${kept ? ` · 세트가 깨지는 ${kept}개는 남겼어요(눌러서 직접 낄 수 있어요)` : ''}`); done();
         } }, `▲ 더 좋은 것 모두 끼기 (${better.length})`) : null,
         cards.length ? h('div', { class: 'inv-grid' }, ...cards) : h('p', { class: 'muted' }, ui.slot === 'all' ? '가방이 비었어요. 대장장이가 만든 장비는 낀 것보다 좋으면 바로 껴요.' : '이 칸 장비가 가방에 없어요.'),
@@ -2109,7 +2109,7 @@ export function openTitles(app) {
     const row = (t, got) => h('div', { class: `title-card${got ? ' got' : ''}`, style: `--tc:${t.col}` },
       h('div', { class: 'tc-name' }, h('span', { class: 'title-tag' }, `〈${t.name}〉`), got ? h('small', { class: 'tc-got' }, game.s.title === t.id ? ' 끼는 중' : ' ✓') : null),
       h('div', { class: 'tc-desc' }, t.desc),
-      t.how ? h('div', { class: 'tc-how' }, got ? '이뤘어요' : `이루는 길: ${t.how}`) : h('div', { class: 'tc-how' }, '운영자가 주는 칭호'),
+      t.how ? h('div', { class: 'tc-how' }, got ? (t.timed && game.s.titleUntil?.[t.id] ? `남은 기한 ${Math.max(0, Math.ceil((game.s.titleUntil[t.id] - Date.now()) / 3600e3))}시간` : '이뤘어요') : `이루는 길: ${t.how}`) : h('div', { class: 'tc-how' }, '운영자가 주는 칭호'),   // v318 기한
       got && game.s.title !== t.id ? h('button', { class: 'btn', style: 'margin-top:4px', onclick: () => { game.wearTitle(t.id); app.save(); app.refresh(); openTitles(app); } }, '끼기') : null);
     const got = (t) => game.hasTitle(t.id) || (t.id === 'founder' && game.hasTitle('개국공신'));
     const auto = W.AUTO_TITLES;

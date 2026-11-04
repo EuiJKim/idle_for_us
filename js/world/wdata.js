@@ -884,12 +884,20 @@ export const TITLES = {
   k100k: { id: 'k100k', name: '십만 처치', desc: '공격력 +2%', how: '몹 10만 마리', atkMul: 1.02, col: '#d6d3d1' },
   petdan: { id: 'petdan', name: '영수의 주인', desc: '공격력 +3% · 때릴 때마다 〈獸〉', how: '애완동물 하나를 10단까지', atkMul: 1.03, hitFx: '獸', col: '#fb923c' },
   petq: { id: 'petq', name: '천품 영수', desc: '공격력 +3%', how: '천품(天品) 애완동물을 얻기', atkMul: 1.03, col: '#fcd34d' },
+  wking: { id: 'wking', name: '주간 패왕', desc: '공격력 +6% · 때릴 때마다 〈霸〉 · 한 주 동안', how: '이번 주 두목 순위 1위 → 다음 주 내내', atkMul: 1.06, hitFx: '霸', col: '#f87171', timed: true },
   k1m: { id: 'k1m', name: '백만 처치', desc: '공격력 +4% · 때릴 때마다 〈萬〉', how: '몹 100만 마리', atkMul: 1.04, hitFx: '萬', col: '#e7e5e4' },
 };
 export const AUTO_TITLES = Object.values(TITLES).filter((t) => t.how);
 // v316 주간 두목 순위 — 빨리 잡기를 겨루는 두목 · 기록의 가장 짧은 초(꾸민 값 거르기 — 서버 규칙도 같은 값)
 export const WBOSS_RACE = ['hwamugi', 'magwi'];
 export const WBOSS_MIN_SEC = 3;
+// v318 지난주 순위 보상 — 세 순위표(처치·화무기·마귀) 가운데 가장 좋은 자리 하나로 한 번. 1위는 〈주간 패왕〉 한 주 동안
+export const WB_REWARD = [
+  { soul: 30, shard: 60, goldK: 2 },     // 1위
+  { soul: 20, shard: 40, goldK: 1.5 },   // 2위
+  { soul: 10, shard: 25, goldK: 1 },     // 3위
+];
+export const WB_TITLE_DAYS = 7;
 export const TITLE_SET_BONUS = 0.01;   // v315 칭호 모음 — 가진 칭호 하나마다 공격력·체력 +1% (끼지 않아도)
 export const titleOf = (k) => (k === '개국공신' ? TITLES.founder : TITLES[k] || null);      // v303 과녁을 쓰러뜨리면 평타 쿨을 이만큼으로 줄인다 — 다음 몹까지 걸어가 또 한 박자 쉬지 않게
 export const HERO_SPEED = 200;      // 한 칸에 0.32초 (칸 길은 비스듬히 못 가서 자유 이동보다 조금 빠르게)

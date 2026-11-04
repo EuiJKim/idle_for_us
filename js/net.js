@@ -547,6 +547,17 @@ export class Net {
     g._wbBest = false;
     return true;
   }
+  // v318 지난주 순위 — 세 순위표에서 내 자리(1~3만 · 없으면 null). 이미 받았으면 null(다시 읽지 않는다)
+  async lastWeekRanks() {
+    if (!this.online || this.blocked || this.isHidden(this.uid)) return null;
+    const { weekKey } = await import('./world/wtoday.js');
+    const key = weekKey(Date.now() - 7 * 86400e3);
+    if (this.game.s.wbClaimed === key) return null;
+    const b = await this.weekBossBoard(key);
+    const at = (rows, f) => { const i = rows.filter((p) => f(p)).slice(0, 3).findIndex((p) => p.uid === this.uid); return i >= 0 ? i + 1 : null; };
+    const ranks = { kills: at(b.kills, (p) => p.kills > 0), hwamugi: at(b.hwamugi, (p) => p.hwamugi > 0), magwi: at(b.magwi, (p) => p.magwi > 0) };
+    return { key, ranks };
+  }
   async weekBossBoard(key) {
     const { collection, query, orderBy, limit, getDocs } = this.fs;
     const col = collection(this.db, 'wboss', key, 'p');

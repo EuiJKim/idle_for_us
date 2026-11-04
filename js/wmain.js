@@ -609,6 +609,27 @@ function setBar(el, r) {
   const v = `scaleX(${Math.max(0, Math.min(1, r || 0)).toFixed(4)})`;
   if (el.style.transform !== v) el.style.transform = v;
 }
+// v318 지난주 두목 순위 보상 — 접속마다 한 번 본다. 3위 안이면 창, 아니면 조용히 '본 것'으로
+let wbChecked = false;
+async function checkWeekReward() {
+  let r = null;
+  try { r = await net.lastWeekRanks(); } catch (err) { console.warn('[week reward]', err?.message || err); wbChecked = false; return; }
+  if (!r) return;
+  const rw = game.weekRewardFor(r.ranks);
+  if (!rw) { game.claimWeekReward(r.key, r.ranks); save(); return; }
+  const lines = [['kills', '두목 처치'], ['hwamugi', '화무기 최단'], ['magwi', '마귀 최단']].filter(([k]) => r.ranks[k]).map(([k, n]) => h('div', { class: 'wr-line' }, `${['🥇', '🥈', '🥉'][r.ranks[k] - 1]} ${n} ${r.ranks[k]}위`));
+  const show = () => openModal((s) => {
+    s.append(h('h2', {}, '🏆 지난주 두목 순위'), h('p', { class: 'muted' }, `${r.key} 주 · 가장 좋은 자리 하나로 보상을 받아요`),
+      ...lines,
+      h('div', { class: 'stat-grid' },
+        h('div', {}, '혼', h('b', {}, `${rw.soul}`)),
+        h('div', {}, '포획·탈것 조각', h('b', {}, `${rw.shard}개씩`)),
+        h('div', {}, '은자', h('b', {}, fmt(rw.gold))),
+        rw.title ? h('div', {}, '칭호', h('b', { style: `color:${W.titleOf(rw.title).col}` }, `〈${W.titleOf(rw.title).name}〉 ${W.WB_TITLE_DAYS}일`)) : null),
+      h('button', { class: 'btn primary', style: 'width:100%', onclick: closeModal }, '받기'));
+  }, { dismissable: false, onClose: () => { const got = game.claimWeekReward(r.key, r.ranks); if (got?.title) net.announce(`🏆 ${game.s.nickname}님이 지난주 두목 순위 1위 — 〈${W.titleOf(got.title).name}〉!`); save(); refreshUI(true); } });
+  if (modalOpen()) setTimeout(() => { if (!modalOpen()) show(); else wbChecked = false; }, 3000); else show();
+}
 // v316 초 → 1:23.4
 function fmtSec(x) { const m = Math.floor(x / 60), r = x - m * 60; return m ? `${m}:${r.toFixed(1).padStart(4, '0')}` : `${r.toFixed(1)}초`; }
 // v314 분당 경험치 글 — 레벨의 몇 %를 1분에 버나(100%가 넘으면 분당 레벨로)
@@ -976,6 +997,9 @@ function handleEvents() {
         net.pushWeekBoss?.(true);
         break;
       }
+      // v318 지난주 순위 보상 · 기한이 지난 칭호
+      case 'weekReward': toast(`🏆 지난주 ${ev.best}위 보상 — 혼 ${ev.soul} · 조각 ${ev.shard} · 은자 ${fmt(ev.gold)}${ev.title ? ` · 〈${W.titleOf(ev.title).name}〉` : ''}`); sfx('level'); break;
+      case 'titleExpire': toast(`〈${ev.name}〉 칭호의 기한이 끝났어요`); break;
       case 'petQualUp': toast(`${W.PET_QUAL[ev.pet.q].mark} ${W.petOf(ev.pet.kind).name} — 먹이의 품을 물려받아 ${W.PET_QUAL[ev.pet.q].name}이 됐어요`); break;
       case 'petStar':
         toast(`★ ${W.petOf(ev.pet.kind).name} 별 ${ev.pet.star} — 버프·공격 +${Math.round(ev.pet.star * W.PET_STAR_K * 100)}%`);
@@ -2115,6 +2139,7 @@ function step(now) {
     if (dg) dg.ui += performance.now() - tU;
   }
   if (saveTimer > 5) { saveTimer = 0; save(); net.pushProfile(); cloudPush(); net.pushWeekBoss?.(); }   // v316 주간 두목(1분에 한 번)
+  if (!wbChecked && net.online && game.s.nickname && !modalOpen() && !booting && !game.s.pendingOffline) { wbChecked = true; checkWeekReward(); }   // v318 지난주 순위 보상
   // 운영자 선물 (v175) — 처음엔 8초 뒤, 그다음 1분마다 본다
   giftTimer += dt;
   if (giftTimer > 60 && net.ready?.() && game.s.job) { giftTimer = 0; checkGifts(); }
@@ -2222,6 +2247,7 @@ window.__test_loginGoogle = (cred) => loginGoogle(cred);   // 시험: 로그인 
 window.__test_cloud = () => ({ ok: cloudOk, at: cloudSyncedAt(), dev: DEV_ID, google: net.isGoogle(), uid: net.uid });
 window.__test_cloudPush = () => cloudPush(true);
 window.__test_checkGifts = () => checkGifts();     // 시험: 1분을 기다리지 않고 우편함을 본다
+window.__test_weekReward = () => { game.s.wbClaimed = null; wbChecked = true; return checkWeekReward(); };   // v318 시험: 지난주 순위 보상을 바로 본다
 window.__test_claimAll = () => claimMail(mail.map((m) => m.id));
 window.__view = view;
 window.__save = save;
