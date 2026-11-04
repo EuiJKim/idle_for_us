@@ -24,6 +24,8 @@ async function newPlayer(browser, name, cls = '검사') {
   const errors = [];
   const NOISE = /Failed to load resource|ERR_FAILED|Could not reach Cloud Firestore backend/;
   page.on('pageerror', (e) => errors.push(e.message));
+  // v348 되돌릴 수 없는 것은 묻는다 — 시험에서는 '예'(물은 말은 남겨 두고 본다)
+  page.on('dialog', (d) => { (page.__dialogs = page.__dialogs || []).push(d.message()); d.accept().catch(() => {}); });
   page.on('console', (m) => { if (m.type() === 'error' && !NOISE.test(m.text())) errors.push(m.text()); });
   await page.route(/fonts\.(googleapis|gstatic)\.com/, (route) => route.abort());
   await page.route('https://www.gstatic.com/firebasejs/**', (route) => {
@@ -305,7 +307,7 @@ async function tab(page, name) {
     await p.click('#modal summary:has-text("앱·계정")');
     await p.click('#modal .row:has-text("저장 코드") button:has-text("불러오기")');
     await p.fill('#modal .code-box', code);
-    p.once('dialog', (d) => d.accept());
+    // (확인 창은 newPlayer의 '예'가 받는다 — v348)
     await Promise.all([p.waitForNavigation({ waitUntil: 'domcontentloaded' }), p.click('#modal .btn.primary:has-text("되살리기")')]);
     await sleep(1500);
     assert(await G(p, () => window.__game.s.level) === lv0, '코드로 되살리면 그때 레벨로');

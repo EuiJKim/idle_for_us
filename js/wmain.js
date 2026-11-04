@@ -991,7 +991,7 @@ function refreshUI(full = false) {
   bossWaitHud();
   document.body.classList.toggle('in-inst', !!game.inst);   // v325 던전 안에서는 길잡이·찍기 알약을 숨긴다(던전 머리와 겹쳤다)
   tallyTick();   // v321 얻은 것 모음
-  setText($('gold'), fmt(goldTween(s.gold)));
+  { const gt = fmt(goldTween(s.gold)); setText($('gold'), gt); $('gold').classList.toggle('long', gt.length >= 10); }   // v348 열 자리 넘으면 글자를 줄인다(은자 그림이 첫 자리를 덮었다)
   setText($('potions'), fmt(s.potions));   // v258 은자처럼 쉼표
   const m = game.map;
   instHud();

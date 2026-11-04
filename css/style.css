@@ -2339,3 +2339,8 @@ body.modal-open #guide-tip { display: none; }
 .reroll-cand small { display: block; color: #fcd34d; }
 .reroll-cand b { color: var(--gc, #fde68a); font-size: 15px; }
 .reroll-cand em { font-style: normal; font-size: 12px; margin-left: 6px; color: var(--gc, #fde68a); }
+/* v348 화면 점검 — 은자가 길면(50,001,224) 그림이 첫 자리를 덮었다 · 폰에서 분당 경험치가 '+0.00%/'로 잘렸다 */
+.res-col .res { justify-content: flex-end; }
+.res-col .res b.long { font-size: 11.5px; letter-spacing: -0.3px; margin-left: 4px; }
+.res-col .res b { min-width: 0; }
+@media (max-width: 440px) { #exp-rate { display: none; } }

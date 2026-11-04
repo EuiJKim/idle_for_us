@@ -163,6 +163,7 @@ function charTab(app) {
   const ptsEl = h('b');
   const autoBtn = h('button', { class: 'btn', onclick: () => { game.s.autoStat = !game.s.autoStat; if (game.s.autoStat) game.autoStats(); app.save(); upd(); } });
   const resetBtn = h('button', { class: 'btn', onclick: () => {
+    if (game.s.gold >= game.statResetCost() && !confirm(`찍은 스탯을 모두 돌려받고 처음부터 다시 찍어요.\n은자 ${fmt(game.statResetCost())}이 들어요. 되돌릴까요?`)) return;
     if (!game.resetStats()) return toast('은자가 모자라요');
     game.s.autoStat = false;
     toast('스탯을 되돌렸어요 — 다시 찍어 주세요');
@@ -245,6 +246,7 @@ function charTab(app) {
           // 서버가 있어야 하는 단계는 건너뛸 수 있다 (보상 없이) · v260: 두 시간 넘게 막힌 단계도(보상 절반)
           : isNow && (q.skip || cur.stuck)
             ? h('button', { class: 'buy ghost', onclick: () => {
+              if (cur.stuck && !confirm(`'${q.title}'을(를) 건너뛰고 보상을 절반만 받아요. 건너뛸까요?`)) return;
               const r = game.skipQuest();
               if (!r) return;
               app.save(); qSig = ''; upd(); app.refresh();
@@ -552,7 +554,24 @@ function charTab(app) {
 //   대장장이  칸을 고르면 만들 수 있는 장비가 좋은 것부터 — 재료만 있으면 어느 칸이든(아래 장비는 넣으면 이득)
 //   재료      지역마다 재료·증표와 나오는 곳
 const SLOT_SHORT = { weapon: '무기', armor: '옷', hat: '모자', glove: '장갑', shoe: '신발', acc: '장신구', finger: '가락지', ear: '귀걸이' };
+// v348 되돌릴 수 없는 것은 무엇을 잃는지 보여 주고 묻는다(다시 굴리기가 좋은 효과를 강제로 날리던 일 뒤 전부 점검)
+function sureSell(it) {
+  if (!it) return false;
+  const worth = (it.rar || 0) >= 1 || (it.plus || 0) > 0 || it.imps?.some(Boolean) || it.set || it.king != null;
+  if (!worth) return true;
+  const what = [W.RARITY[it.rar || 0].name, it.plus ? `+${it.plus}` : '', it.imps?.some(Boolean) ? '각인' : '', it.set ? '세트' : ''].filter(Boolean).join(' · ');
+  return confirm(`이 장비(${what})를 팔아요. 판 장비는 되돌릴 수 없어요. 팔까요?`);
+}
+function surePetFeed(host, n) {
+  const g = surePetFeed.game;
+  const f = g ? g.starFodder(host.uid).slice(0, n) : [];
+  if (!f.length) return true;
+  const good = f.filter((x) => (x.rar || 0) >= 2 || (x.star || 0) > 0 || (x.lv || 1) >= 30);
+  const names = f.slice(0, 4).map((x) => `${W.RARITY[x.rar || 0].name}${x.star ? `★${x.star}` : ''} Lv.${x.lv || 1}`).join(', ');
+  return confirm(`같은 종 ${f.length}마리를 먹이로 써요 (${names}${f.length > 4 ? ' …' : ''}).${good.length ? `\n그 가운데 ${good.length}마리는 전설 이상·별·높은 레벨이에요.` : ''}\n먹인 것은 사라져요. 먹일까요?`);
+}
 function bagTab(app) {
+  surePetFeed.game = app.game;
   const { game } = app;
   let ui = { slot: 'all', smith: 'weapon', useBase: true, readyOnly: false, smode: 'ladder', kz: 0, kslot: 'acc', rar: 0 };
   try { ui = { ...ui, ...JSON.parse(localStorage.getItem('ifu.bagui') || '{}') }; } catch { /* 사생활 모드 */ }
@@ -624,7 +643,7 @@ function bagTab(app) {
           h('div', { class: 'item-pane' }, ...pane.filter(Boolean)),
           h('div', { class: 'btn-row' },
             !worn ? h('button', { class: 'btn primary', onclick: () => { game.equipFromBag(it.uid); closeModal(); done(); } }, '끼기') : null,
-            !worn && !it.grow ? h('button', { class: 'btn', onclick: () => { const b = W.sellBack(it); const p = game.sell(it); toast(b ? `되팔기 — 은자 +${fmt(p)} · ${Object.entries(b.mats).map(([k, n]) => { const o = W.oreOf(k, n); return `${W.matName(o.key)} ${fmt(o.n)}`; }).join(' · ')}` : `은자 +${fmt(p)}`); closeModal(); done(); } },
+            !worn && !it.grow ? h('button', { class: 'btn', onclick: () => { if (!sureSell(it)) return; const b = W.sellBack(it); const p = game.sell(it); toast(b ? `되팔기 — 은자 +${fmt(p)} · ${Object.entries(b.mats).map(([k, n]) => { const o = W.oreOf(k, n); return `${W.matName(o.key)} ${fmt(o.n)}`; }).join(' · ')}` : `은자 +${fmt(p)}`); closeModal(); done(); } },
               W.sellBack(it) ? `되팔기 (제작비 ¼)` : `팔기 ${fmt(W.sellPrice(it))}`) : null,
             h('button', { class: 'btn', onclick: closeModal }, '닫기')),
         ].filter(Boolean));   // replaceChildren은 null을 글자 'null'로 넣는다
@@ -854,6 +873,7 @@ function bagTab(app) {
             ...im.specials.map((sp, j) => h('button', { class: `chip${sp.id === im.special.id ? ' on' : ''}`, disabled: sp.id === im.special.id || !can ? true : null, title: sp.id === im.special.id ? '지금 이것' : '', onclick: () => {
               const ps = game.s.autoInfCfg?.prefSp || [];
               if (ps.includes(im.special.kind) && !ps.includes(sp.kind) && !confirm(`♥ 지금 고유 효과 【${im.special.name}】는 좋아하는 효과예요.\n좋아하지 않는 【${sp.name}】(으)로 바꿀까요?`)) return;
+              if (!(ps.includes(im.special.kind) && !ps.includes(sp.kind)) && !confirm(`고유 효과를 바꿔요\n지금 【${im.special.name}】 → 【${sp.name}】\n${c ? `증표 ${c.n} · 은자 ${fmt(c.gold)}이 들어요(다시 바꾸려면 또 들어요). ` : ''}바꿀까요?`)) return;
               if (!game.changeImpSpecial(it.uid, i, j)) return toast('증표·은자가 모자라요');
               toast(`고유 효과를 【${sp.name}】(으)로 바꿨어요`); app.save(); app.refresh(); slotView(i);
             } }, h('b', {}, sp.name), h('small', {}, ` ${IM.SPECIAL_KIND[sp.kind](im.wp)}`)))) : null),
@@ -897,6 +917,7 @@ function bagTab(app) {
           f ? h('div', { class: 'cost-chips' }, costChip(rwPick, '증표', f.n, f.have, matIcon(rwPick, 24)), costChip(null, '은자', f.gold, game.s.gold, goldIco())) : null,
           f ? h('button', { class: 'btn primary rw-go', disabled: game.canRewrite(it, i, rwPick) ? null : true, onclick: () => {
             const fav = game.favOf(it.imps[i]);
+            if (!(fav?.special || fav?.fx?.length || im.d >= 4 || im.q.id || im.gs.length) && !confirm(`지금 ${im.boss} ${IM.DAN_NAME(im.d)}을(를) 지우고 ${short(rwPick)}(으)로 다시 새겨요.\n단은 ${IM.DAN_NAME(f.keep)}로 줄고, 고유 효과는 새 두목 것이 돼요(스킬 변화는 그대로).\n되돌릴 수 없어요. 다시 새길까요?`)) return;
             if ((fav?.special || fav?.fx?.length || im.d >= 4 || im.q.id || im.gs.length) && !confirm(`${fav ? '♥ 좋아하는 효과가 든 칸이에요.\n' : ''}${im.q.id ? `${im.q.mark} ${im.q.name} 각인이에요 — 품질은 새로 굴려요.\n` : ''}${im.gs.length ? `大成(${IM.gsText(it.imps[i])})이 사라져요.\n` : ''}지금 ${im.boss} ${IM.DAN_NAME(im.d)}을(를) 지우고 ${short(rwPick)}(으)로 새길까요? (단은 ${IM.DAN_NAME(f.keep)})`)) return;
             const p0 = game.power();
             const e = game.rewriteImp(it.uid, i, rwPick, rwSp);
@@ -1127,6 +1148,9 @@ function bagTab(app) {
         cards.length ? h('div', { class: 'inv-grid' }, ...cards) : h('p', { class: 'muted' }, ui.slot === 'all' ? '가방이 비었어요. 대장장이가 만든 장비는 낀 것보다 좋으면 바로 껴요.' : '이 칸 장비가 가방에 없어요.'),
         h('div', { class: 'btn-row' },
           h('button', { class: 'btn', disabled: old.length ? null : true, onclick: () => {
+            // v348 무엇을 파는지 먼저 — 등급별 몇 개
+            const by = {}; for (const it of old) { const r = W.RARITY[it.rar || 0].name; by[r] = (by[r] || 0) + 1; }
+            if (!confirm(`약한 장비 ${old.length}개를 팔아요 (${Object.entries(by).map(([k, v]) => `${k} ${v}`).join(' · ')}).\n강화한 것·전설 이상·각인한 것은 남겨요. 판 장비는 되돌릴 수 없어요.`)) return;
             let p = 0, n = 0;
             for (const it of old) { const g = game.sell(it); if (g > 0 || !s.bag.includes(it)) { p += g; n++; } }
             toast(`약한 장비 ${n}개를 팔아 은자 +${fmt(p)} (강화·전설 이상은 남겨요)`);
@@ -2842,6 +2866,7 @@ function loreView(app) {
 
 // ---------- 동료: 애완동물 · 탈것 (v111) ----------
 function compTab(app) {
+  surePetFeed.game = app.game;
   const { game } = app;
   const root = h('div');
   const petCard = h('div', { class: 'card' });
@@ -2935,9 +2960,9 @@ function compTab(app) {
           // v316 단 수련 — 다 큰 뒤
           game.petDanCost(p) != null ? h('button', { class: 'buy dan-btn', disabled: game.canPetDan(p.uid) ? null : true, title: `성공하면 ${(p.dan || 0) + 1}단(가끔 大成으로 두 단) · 실패해도 다음 확률이 올라요`, onclick: () => { if (game.petDan(p.uid)) done(); } },
             '단 수련', h('small', {}, `혼 ${game.petDanCost(p)} · ${Math.round(W.petDanChance(p.dan || 0, p.danFail || 0) * 100)}%`)) : null,
-          (p.star || 0) < W.PET_STAR_MAX ? h('button', { class: 'buy', disabled: game.canStar(p.uid) ? null : true, title: '우리에 있는 같은 종을 먹이로', onclick: () => { if (game.starUp(p.uid)) done(); } }, '별 ↑', h('small', {}, `먹이 ${game.starFodder(p.uid).length}`)) : null,
+          (p.star || 0) < W.PET_STAR_MAX ? h('button', { class: 'buy', disabled: game.canStar(p.uid) ? null : true, title: '우리에 있는 같은 종을 먹이로', onclick: () => { if (!surePetFeed(p, 1)) return; if (game.starUp(p.uid)) done(); } }, '별 ↑', h('small', {}, `먹이 ${game.starFodder(p.uid).length}`)) : null,
           // v319 모두 먹이기 — 먹이가 둘 이상이면 한 번에
-          (p.star || 0) < W.PET_STAR_MAX - 1 && game.starFodder(p.uid).length >= 2 ? h('button', { class: 'buy', title: '같은 종을 못한 것부터, 별이 찰 때까지', onclick: () => { const n = game.starUpAll(p.uid); if (n) { toast(`★ ${d.name} 별 ${p.star} — 먹이 ${n}마리`); done(); } } }, '모두 먹이기', h('small', {}, `★${Math.min(W.PET_STAR_MAX, (p.star || 0) + game.starFodder(p.uid).length)}까지`)) : null,
+          (p.star || 0) < W.PET_STAR_MAX - 1 && game.starFodder(p.uid).length >= 2 ? h('button', { class: 'buy', title: '같은 종을 못한 것부터, 별이 찰 때까지', onclick: () => { if (!surePetFeed(p, 99)) return; const n = game.starUpAll(p.uid); if (n) { toast(`★ ${d.name} 별 ${p.star} — 먹이 ${n}마리`); done(); } } }, '모두 먹이기', h('small', {}, `★${Math.min(W.PET_STAR_MAX, (p.star || 0) + game.starFodder(p.uid).length)}까지`)) : null,
           // v312 장착 해제 — 우리로(사라지지 않는다)
           h('button', { class: 'btn', style: 'padding:6px 10px', disabled: game.canUnequipPet(p.uid) ? null : true, title: s.petBox.length >= W.PET_BOX ? '우리가 가득 찼어요' : '', onclick: () => { if (game.unequipPet(p.uid)) { toast(`${d.name}을(를) 우리로 보냈어요`); done(); } } }, '해제'),
           h('button', { class: 'btn danger', style: 'padding:6px 10px', onclick: () => confirmRelease(p, done) }, '놓아주기'))));
@@ -2960,13 +2985,14 @@ function compTab(app) {
         h('div', { class: 'pen-train' },
           game.petSoulCost(p) != null ? h('button', { class: 'buy', disabled: game.canSoulUp(p.uid) ? null : true, onclick: () => { if (game.soulUp(p.uid)) { toast(`${d.name} — ${W.RARITY[p.rar].name}(으)로!`); closeModal(); done(); openPen(p); } } }, '등급 ↑', h('small', {}, `혼 ${game.petSoulCost(p)}`)) : null,
           game.petDanCost(p) != null ? h('button', { class: 'buy dan-btn', disabled: game.canPetDan(p.uid) ? null : true, onclick: () => { if (game.petDan(p.uid)) { closeModal(); done(); openPen(p); } } }, '단 수련', h('small', {}, `혼 ${game.petDanCost(p)} · ${Math.round(W.petDanChance(p.dan || 0, p.danFail || 0) * 100)}%`)) : null,
-          (p.star || 0) < W.PET_STAR_MAX && game.starFodder(p.uid).length ? h('button', { class: 'buy', onclick: () => { const n = game.starUpAll(p.uid); if (n) { toast(`★ ${d.name} 별 ${p.star} — 먹이 ${n}마리`); closeModal(); done(); openPen(p); } } }, '모두 먹이기', h('small', {}, `먹이 ${game.starFodder(p.uid).length}`)) : null),
+          (p.star || 0) < W.PET_STAR_MAX && game.starFodder(p.uid).length ? h('button', { class: 'buy', onclick: () => { if (!surePetFeed(p, 99)) return; const n = game.starUpAll(p.uid); if (n) { toast(`★ ${d.name} 별 ${p.star} — 먹이 ${n}마리`); closeModal(); done(); openPen(p); } } }, '모두 먹이기', h('small', {}, `먹이 ${game.starFodder(p.uid).length}`)) : null),
         ...(p.lv < W.PET_LV_MAX ? [h('p', { class: 'muted', style: 'font-size:11.5px;margin:2px 0 6px' }, `단 수련은 Lv.${W.PET_LV_MAX}부터 — 우리에 있는 동안은 자라지 않아요(데려가면 자라요)`)] : []),   // m.append는 null을 글자로 넣는다
         // v292 같은 종 키우는 것에게 먹이로(별 하나)
         ...(() => { const host = s.pets.find((x) => x.kind === p.kind && (x.star || 0) < W.PET_STAR_MAX); return host ? [h('button', { class: 'btn', style: 'width:100%;margin-bottom:6px', onclick: () => {
           // 먹이는 가장 못한 것부터 — 이것을 먹이로 쓰려면 이것보다 못한 같은 종이 없어야 한다
           const f = game.starFodder(host.uid)[0];
           if (f && f.uid !== p.uid) { toast('같은 종 가운데 더 못한 것부터 먹이로 써요'); }
+          if (!surePetFeed(host, 1)) return;
           if (game.starUp(host.uid)) { closeModal(); done(); }
         } }, `★ ${d.name}(키우는 중)에게 먹이로 — 별 ${(host.star || 0) + 1}`)] : []; })(),
         h('div', { class: 'btn-row' },
@@ -2999,6 +3025,8 @@ function compTab(app) {
           h('div', { class: 'info' }, h('div', { class: 'name' }, `${a.name} ×${W.MOUNT_FUSE_N} → ${b.name}`, h('small', {}, ` (가진 것 ${game.fuseCandidates(t).length})`)),
             h('div', { class: 'desc' }, `이동 +${Math.round(b.speed * 100)}% · 공격력·체력 +${Math.round(b.stat * 100)}% · 은자 ${fmt(cost)}`)),
           h('button', { class: 'buy', disabled: game.canFuseMounts(t) ? null : true, onclick: () => {
+            const used = game.fuseCandidates(t).sort((x, y) => (x.uid === game.s.mount) - (y.uid === game.s.mount)).slice(0, W.MOUNT_FUSE_N);
+            if (!confirm(`${a.name} ${W.MOUNT_FUSE_N}마리를 합쳐 ${b.name} 한 마리로 만들어요.${used.some((m) => m.uid === game.s.mount) ? '\n지금 타고 있는 것도 들어가요.' : ''}${used.some((m) => (m.lv || 0) > 0) ? `\n길들인 정도는 절반(Lv.${Math.floor(Math.max(...used.map((m) => m.lv || 0)) / 2)})만 이어 가요.` : ''}\n은자 ${fmt(cost)} · 되돌릴 수 없어요. 합칠까요?`)) return;
             const m = game.fuseMounts(t);
             if (!m) return toast('은자가 모자라요');
             toast(`합성 성공! ${b.name}(순위 ${b.tier})`); app.save(); done();
