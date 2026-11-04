@@ -23,6 +23,9 @@ const POS_SEC = 0.4;        // 자리 올리는 간격
 const BEAT_SEC = 5;         // 가만히 있어도 이만큼마다 '살아 있음'
 const COMMIT_SEC = 0.7;     // 친 피해 올리는 간격
 const STALE_MS = 15000;     // 이보다 오래 소식 없는 문파원은 안 그린다
+export const COOP_BONUS = 0.1;       // v343 함께 잡으면 문파원 한 명마다 +10%
+export const COOP_BONUS_MAX = 5;     //       최대 다섯 명(+50%)
+export const COOP_SHARE = 0.5;       //       못 친 문파원은 절반
 
 export class Coop {
   // look(): 내 생김새 {look, opts} (battle.js heroLook) — 문파원 화면에 나를 그릴 때 쓴다
@@ -41,6 +44,8 @@ export class Coop {
     this.urgent = false;
     this.mine = {};
     this.atkN = 0;
+    this.skN = 0;       // v343 무공을 쓴 횟수 — 문파원 화면에 옅게 보여 준다
+    this.skLast = '';
     this.offset = 0;
     this.posT = 0;
     this.beatT = 0;
@@ -150,6 +155,7 @@ export class Coop {
     const hpMax = g.stats().hp || 1;
     const o = {
       x: Math.round(g.heroX), y: Math.round(g.heroY), f: g.heroFacing < 0 ? -1 : 1, a: this.atkN,
+      ...(this.skLast ? { sk: this.skLast } : {}),
       hp: Math.round(Math.max(0, Math.min(1, g.heroHp / hpMax)) * 100) / 100,
       t: this.rt?.m.serverTimestamp() ?? Date.now(),
     };
@@ -164,6 +170,14 @@ export class Coop {
     return o;
   }
   noteAttack() { this.atkN = (this.atkN + 1) % 1000; }
+  // v343 무공 — '번호|이름|직업|차수|반지름|x|y' 한 줄. 받는 쪽은 그 자리에 직업 인장·고리·이름만 옅게 그린다(연출표 전부를 다시 돌리지 않는다)
+  noteSkill(ev) {
+    if (!this.on || ev.echo || ev.motion === 'buff' && !ev.name) return;
+    this.skN = (this.skN + 1) % 1000;
+    const at = ev.at || { x: this.game.heroX, y: this.game.heroY };
+    this.skLast = [this.skN, String(ev.name || '').slice(0, 12), ev.job || '', ev.tier || 1, Math.round(ev.radius || 0), Math.round(at.x), Math.round(at.y)].join('|');
+    this.posT = 0;   // 다음 틱에 바로 올린다
+  }
 
   // ---------- 매 틱 ----------
   tick(dt) {
@@ -187,7 +201,7 @@ export class Coop {
     if (this.posT <= 0) {
       this.posT = POS_SEC;
       const p = this.presence(false);
-      const sig = `${p.x},${p.y},${p.f},${p.a},${p.hp}`;
+      const sig = `${p.x},${p.y},${p.f},${p.a},${p.hp},${p.sk || ''}`;
       if (sig !== this.last || this.beatT <= 0) {
         this.last = sig;
         this.beatT = BEAT_SEC;
@@ -205,7 +219,7 @@ export class Coop {
     for (const [uid, p] of Object.entries(all)) {
       if (uid === this.net.uid || !p || typeof p.x !== 'number') continue;
       if (typeof p.t === 'number' && now - p.t > STALE_MS) continue;
-      const o = prev.get(uid) || { uid, x: p.x, y: p.y, lunge: 0, a: p.a };
+      const o = prev.get(uid) || { uid, x: p.x, y: p.y, lunge: 0, a: p.a, sk: p.sk ?? null };   // 들어올 때 남아 있던 무공은 다시 안 보인다
       o.tx = p.x; o.ty = p.y; o.f = p.f; o.hp = p.hp;
       if (p.n) o.n = p.n;
       if (p.lv) o.lv = p.lv;
@@ -213,6 +227,12 @@ export class Coop {
       if (p.mt !== undefined) o.mt = p.mt;
       if (p.lk && p.lk !== o.lkRaw) { o.lkRaw = p.lk; try { o.lk = JSON.parse(p.lk); } catch { o.lk = null; } }
       if (p.a !== o.a) { o.a = p.a; o.lunge = 1; }
+      // v343 문파원이 무공을 썼다
+      if (typeof p.sk === 'string' && p.sk !== o.sk) {
+        o.sk = p.sk;
+        const [, name, job, tier, r, x, y] = p.sk.split('|');
+        if (name) this.onEvent('allySkill', { name, job, tier: +tier || 1, radius: +r || 0, at: { x: +x, y: +y }, from: { x: o.tx, y: o.ty }, who: o.n || '문파원' });
+      }
       next.push(o);
       if (!this.seen.has(uid)) { this.seen.add(uid); this.onEvent('peerIn', { name: o.n || '문파원' }); }
     }
@@ -245,11 +265,16 @@ export class Coop {
     delete this.mine[b.seq];
     this.pend = 0;
     mob.coopSeq = null;
-    const ev = { mine, share: mine / (b.max || 1), killer: b.kn || '문파원', me: b.killer === this.net.uid, name: mob.name, n: this.others.length + 1 };
-    if (mine > 0) { g.killMob(mob); if (this.others.length) g.mark('coop'); }
+    const n = this.others.length + 1;
+    // v343 함께 잡은 보상 — 한 대라도 쳤으면 처치 보상 전부에 문파원 한 명마다 +10%(최대 +50%) ·
+    //   같은 방에 있었는데 못 쳤으면(멀리 있었거나 막 들어왔거나) 경험치·은자·현철 절반(장비·탈것·조각은 없음)
+    const bonus = 1 + COOP_BONUS * Math.min(COOP_BONUS_MAX, n - 1);
+    const ev = { mine, share: mine / (b.max || 1), killer: b.kn || '문파원', me: b.killer === this.net.uid, name: mob.name, n, bonus };
+    if (mine > 0) { g.coopK = bonus; try { g.killMob(mob); } finally { g.coopK = null; } if (this.others.length) g.mark('coop'); }
+    else if (n > 1) g.coopShare(mob, COOP_SHARE);
     else { mob.alive = false; mob.hp = 0; if (g.mon === mob) g.mon = null; }
     g.bossT = W.BOSS_RESPAWN;
-    this.onEvent(mine > 0 ? 'kill' : 'missed', ev);
+    this.onEvent(mine > 0 ? 'kill' : n > 1 ? 'shared' : 'missed', ev);
   }
 
   // 내가 친 만큼 모은다 (wgame.hurt가 부른다)

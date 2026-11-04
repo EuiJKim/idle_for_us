@@ -203,11 +203,13 @@ const coop = new Coop(game, net, {
     return { look, opts: { weapon: opts.weapon, blade: opts.blade, glow: opts.glow, bladeCol: opts.bladeCol, bladeFx: opts.bladeFx, hold: true } };
   },
   onEvent: (kind, e) => {
-    if (kind === 'join') toast('🤝 함께 사냥 — 이 왕은 같은 구역의 문파원과 체력을 나눠요. 조금이라도 치면 처치 보상을 받아요');
-    else if (kind === 'peerIn') toast(`🤝 ${e.name}님이 같은 왕 구역에 왔어요`);
-    else if (kind === 'peerOut') toast(`${e.name}님이 왕 구역을 떠났어요`);
-    else if (kind === 'kill') toast(`👑 ${e.name} 처치! ${e.n > 1 ? `${e.n}명이 함께 · 내 몫 ${Math.round(e.share * 100)}%` : '혼자서'}${e.me ? ' — 마무리 일격' : ` — ${e.killer}님 마무리`}`);
-    else if (kind === 'missed') toast(`${e.killer}님 일행이 ${e.name}을(를) 쓰러뜨렸어요 — 이번 왕은 안 쳐서 보상이 없어요`);
+    if (kind === 'join') toast('🤝 함께 사냥 — 이 두목은 같은 구역의 문파원과 체력을 나눠요. 한 대라도 치면 처치 보상에 문파원 한 명마다 +10%');
+    else if (kind === 'peerIn') toast(`🤝 ${e.name}님이 같은 두목 구역에 왔어요`);
+    else if (kind === 'peerOut') toast(`${e.name}님이 두목 구역을 떠났어요`);
+    else if (kind === 'kill') toast(`👑 ${e.name} 처치! ${e.n > 1 ? `${e.n}명이 함께 · 보상 +${Math.round((e.bonus - 1) * 100)}% · 내가 깎은 몫 ${Math.round(e.share * 100)}%` : '혼자서'}${e.me ? ' — 마무리 일격' : ` — ${e.killer}님 마무리`}`);
+    else if (kind === 'shared') toast(`🤝 ${e.killer}님 일행이 ${e.name}을(를) 쓰러뜨렸어요 — 못 쳤지만 같은 방이라 절반을 받아요`);
+    else if (kind === 'missed') toast(`${e.killer}님 일행이 ${e.name}을(를) 쓰러뜨렸어요 — 이번 두목은 안 쳐서 보상이 없어요`);
+    else if (kind === 'allySkill') view.allySkill?.(e);   // v343 문파원 무공 — 그 자리에 옅게
   },
 });
 game.coop = coop;
@@ -1248,7 +1250,7 @@ function handleEvents() {
     switch (ev.type) {
       case 'attack': sfx('swish'); coop.noteAttack(); break;
       case 'dmg': sfx('hit', ev.crit > 0); break;
-      case 'skill': sfx('skill'); coop.noteAttack(); break;
+      case 'skill': sfx('skill'); coop.noteAttack(); coop.noteSkill(ev); break;
       case 'kill': sfx('kill'); break;
       case 'levelUp': sfx('level'); break;
       case 'path': sfx('level'); break;   // v254 길을 고르면(받는 쪽이 없었다)

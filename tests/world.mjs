@@ -2721,6 +2721,20 @@ console.log('\n=== v305 칭호 ===');
   ok(/titleK/.test(read('js/wmain.js')) && /g\.title/.test(read('js/wmain.js')) && /'title'/.test(read('firestore.rules')), '우편으로 보내고 받는다 · 규칙에 title');
   ok(/tf\.hitFx/.test(read('js/battle.js')), '때릴 때마다 글자');
 }
+console.log('\n=== v343 함께 잡은 두목 보상 ===');
+{
+  const C = await import('../js/world/wcoop.js');
+  const mk = () => { const g = fresh(); g.s.level = 30; g.enterMap(W.mapId(2, W.BOSS_AREA)); g.mons.length = 0; const b = g.spawnMob(true); b.hp = 0; return { g, b }; };
+  const a = mk(); const e0 = a.g.s.exp, g0 = a.g.s.gold, o0 = a.g.s.mats[W.ORE] || 0; a.g.killMob(a.b);
+  const solo = { exp: a.g.s.exp - e0, gold: a.g.s.gold - g0, ore: (a.g.s.mats[W.ORE] || 0) - o0 };
+  const b = mk(); const e1 = b.g.s.exp, g1 = b.g.s.gold, o1 = b.g.s.mats[W.ORE] || 0; b.g.coopK = 1 + C.COOP_BONUS * 3; b.g.killMob(b.b); b.g.coopK = null;
+  const four = { exp: b.g.s.exp - e1, gold: b.g.s.gold - g1, ore: (b.g.s.mats[W.ORE] || 0) - o1 };
+  ok(four.exp > solo.exp * 1.25 && four.gold >= solo.gold * 1.25 && four.ore >= solo.ore, '넷이 함께 잡으면 경험치·은자·현철 +30%', `혼자 ${Math.round(solo.exp)}/${solo.gold}/${solo.ore} · 넷 ${Math.round(four.exp)}/${four.gold}/${four.ore}`);
+  const c = mk(); const e2 = c.g.s.exp, bag0 = c.g.s.bag.length, mt0 = c.g.s.mounts.length; c.g.coopShare(c.b, C.COOP_SHARE);
+  ok(c.g.s.exp - e2 > 0 && Math.abs((c.g.s.exp - e2) - solo.exp * 0.5) < solo.exp * 0.2 && c.g.s.bag.length === bag0 && c.g.s.mounts.length === mt0 && !c.b.alive, '못 친 문파원은 절반(장비·탈것 없음)');
+  ok(C.COOP_BONUS === 0.1 && C.COOP_BONUS_MAX === 5, '한 명마다 +10% · 최대 +50%');
+}
+
 console.log('\n=== v309 규칙 판 ===');
 {
   const rv = read('js/net.js').match(/RULES_VER = '(\d+)'/)?.[1];

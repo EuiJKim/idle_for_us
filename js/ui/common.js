@@ -62,6 +62,7 @@ export function popUp(el, text) {
 export function toast(text) {
   const box = document.getElementById('toast');
   const el = h('div', { class: 'toast' }, tidyNum(text));
+  try { const L = (window.__lastToasts = window.__lastToasts || []); L.push(String(text)); if (L.length > 30) L.shift(); } catch { /* 시험용 기록 */ }
   box.append(el);
   // v342 긴 글은 오래 — 글자 수만큼 읽을 시간을 준다(2.7초 ~ 9초) · 누르면 바로 닫힌다
   const len = String(text ?? '').length;

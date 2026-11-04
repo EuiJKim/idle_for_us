@@ -1580,9 +1580,10 @@ export class WorldGame {
       while (kt.length && kt[0] < this.clock - 30) kt.shift();
       sat = W.expSat(kt.length * 2);
     }
-    const exp = W.mobExp(m.lv) * (m.isBoss ? W.BOSS.exp * (W.CLASSES[this.s.job]?.bossExp || 1) : m.elite ? W.ELITE.exp : 1) * this.levelGapMult(m.lv) * (st.expMult || 1) * (1 + (env.exp || 0) + mlv * L.MASTERY.exp) * ek * sat;
+    const ck = m.isBoss && this.coopK ? this.coopK : 1;   // v343 함께 잡은 두목 — 인원만큼 더
+    const exp = W.mobExp(m.lv) * (m.isBoss ? W.BOSS.exp * (W.CLASSES[this.s.job]?.bossExp || 1) : m.elite ? W.ELITE.exp : 1) * this.levelGapMult(m.lv) * (st.expMult || 1) * (1 + (env.exp || 0) + mlv * L.MASTERY.exp) * ek * sat * ck;
     const blood = !this.inst && TD.bloodOn() ? 1 + TD.BLOOD_BONUS : 1;   // v262 혈겁
-    const gold = Math.round(W.mobGold(m.lv) * (m.isBoss ? W.BOSS.gold : m.elite ? W.ELITE.gold : 1) * (1 + (env.gold || 0) + (st.gold || 0)) * ek * blood * (st.goldMul || 1));   // v322 칭호
+    const gold = Math.round(W.mobGold(m.lv) * (m.isBoss ? W.BOSS.gold : m.elite ? W.ELITE.gold : 1) * (1 + (env.gold || 0) + (st.gold || 0)) * ek * blood * (st.goldMul || 1) * ck);   // v322 칭호
     if (!this.inst) {
       // v263 견문록 — 졸개 종마다 센다(낙관이 찍히는 순간 지역이 다 찼는지 본다)
       if (!m.isBoss && m.name) {
@@ -1613,6 +1614,21 @@ export class WorldGame {
       this.gainMount(W.rollMount(this.rng, this.map.mz, true), m);
     }
     if (!m.isBoss) this.respawns.push({ t: W.RESPAWN_SEC });
+  }
+
+  // v343 함께 잡은 두목을 못 친 문파원 몫 — 경험치·은자·현철만 k배(장비·탈것·조각·증표는 없음)
+  coopShare(m, k) {
+    const st = this.stats();
+    const exp = W.mobExp(m.lv) * W.BOSS.exp * (W.CLASSES[this.s.job]?.bossExp || 1) * this.levelGapMult(m.lv) * (st.expMult || 1) * k;
+    const gold = Math.round(W.mobGold(m.lv) * W.BOSS.gold * (1 + (st.gold || 0)) * (st.goldMul || 1) * k);
+    const id = this.map.mz;
+    let mat = null;
+    if (W.MATS[id]) { const n = Math.max(1, Math.round(W.BOSS_MATS * k)); this.addMats(id, n); mat = { id: W.ORE, n: n * W.matWeight(id), name: W.ORE_NAME, color: W.ORE_COL }; }
+    this.s.gold += gold;
+    m.alive = false; m.hp = 0; if (this.mon === m) this.mon = null;
+    this.emit('kill', { gold, isBoss: true, add: true, at: m, mat, share: true });
+    this.addExp(exp);
+    this.note(1, exp, gold, 0);
   }
 
   // 레벨 차이 (v149) — 나보다 높은 몹에게는 내 피해가 줄고 그 몹의 공격은 더 아프다(사냥터만, 던전·탑은 따로 맞춰 둠).
@@ -2087,7 +2103,8 @@ export class WorldGame {
     const id = this.map.mz;              // 재료는 지역 번호 (구역 셋·두목 구역이 같다 · 새 지역은 짝 지역)
     if (!W.MATS[id]) return null;
     if (m.isBoss) {
-      this.addMats(id, W.BOSS_MATS);
+      const bossN = Math.round(W.BOSS_MATS * (this.coopK || 1));   // v343 함께 잡으면 현철도 인원만큼
+      this.addMats(id, bossN);
       const markN = 1 + (this.rng() < this.braveBonus() ? 1 : 0);
       this.addMats(W.bossKey(id), markN);   // v262 패기: 센 곳 두목은 증표를 하나 더 줄 때가 있다
       // 십이지왕 (v132): 전반 다섯은 맡은 부위의 내 직업 세트 조각(두 세트 가운데 하나), 후반 일곱은 강화석(늘) + 가끔 공용 장신구
@@ -2105,7 +2122,7 @@ export class WorldGame {
           this.gainItem(it);
         }
         if (this.rng() < W.petDropRate(id) * this.lootK()) this.gainPet(W.rollRarity(W.KING_RAR_W, this.rng), m, W.rollPetKind(id, this.rng));
-        return { id: W.ORE, n: W.BOSS_MATS * W.matWeight(id), name: W.ORE_NAME, color: W.ORE_COL, boss: W.matName(W.bossKey(id)), markN };
+        return { id: W.ORE, n: bossN * W.matWeight(id), name: W.ORE_NAME, color: W.ORE_COL, boss: W.matName(W.bossKey(id)), markN };
       }
       // v158: 사다리 장비는 이제 떨구지 않는다(장비는 레벨을 따라 자란다) — 대신 가끔 증표 한 움큼(등급 각인 재료)
       if (this.rng() < W.BOSS_ITEM_RATE) this.addMats(W.bossKey(id), W.INFUSE_MARKS[1]);
@@ -2121,7 +2138,7 @@ export class WorldGame {
       // 애완동물 — 두목만, 낮은 확률
       // 초반 두목은 아주 낮게·아래 순위만, 높은 두목일수록 자주·위 순위까지
       if (this.rng() < W.petDropRate(id) * this.lootK()) this.gainPet(W.rollRarity(W.kingOf(id) ? W.KING_RAR_W : W.BOSS_RAR_W, this.rng), m, W.rollPetKind(id, this.rng));
-      return { id: W.ORE, n: W.BOSS_MATS * W.matWeight(id), name: W.ORE_NAME, color: W.ORE_COL, boss: W.matName(W.bossKey(id)), markN };
+      return { id: W.ORE, n: bossN * W.matWeight(id), name: W.ORE_NAME, color: W.ORE_COL, boss: W.matName(W.bossKey(id)), markN };
     }
     if (this.rng() >= W.MAT_RATE * (this.stats().matMult || 1) * (1 + this.masteryLevel(this.map.zone) * L.MASTERY.mat) * (1 + this.braveBonus()) * (!this.inst && TD.bloodOn() ? 1 + TD.BLOOD_BONUS : 1)) return null;
     this.addMats(id, 1);

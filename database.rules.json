@@ -28,6 +28,7 @@
               "hp": { ".validate": "newData.isNumber()" },
               "lv": { ".validate": "newData.isNumber()" },
               "t": { ".validate": "newData.isNumber()" },
+              "sk": { ".validate": "newData.isString() && newData.val().length <= 64" },
               "$other": { ".validate": false }
             }
           },

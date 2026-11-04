@@ -645,6 +645,15 @@ async function tab(page, name) {
     await q.waitForFunction(() => window.__game.mons.some((x) => x.alive && x.coopSeq != null), null, { timeout: 20000 });
     const seqQ = await G(q, () => window.__game.mons.find((x) => x.alive && x.coopSeq != null).coopSeq);
     assert(seqP === seqQ, `둘이 같은 두목을 본다 (seq ${seqP})`);
+    // v343 문파원의 무공은 내 화면에 옅게 · 함께 잡으면 보상 +10%/명
+    await G(p, () => { const g = window.__game; g.emit('skill', { id: 's0', name: '시험무공', job: g.s.job, tier: 1, at: { x: g.heroX + 40, y: g.heroY }, radius: 80, motion: 'aoe' }); });
+    await q.waitForFunction(() => (window.__view._allyT || []).length > 0, null, { timeout: 10000 })
+      .catch(async (e) => { console.log('DEBUG', await G(p, () => ({ sk: window.__coop.skLast, on: window.__coop.on, fx: window.__view.fxLevel })), await G(q, () => ({ o: window.__coop.others.map((x) => x.sk), fx: window.__view.fxLevel }))); throw e; });
+    assert(true, '문파원이 무공을 쓰면 내 화면에 그 자리 인장·고리·이름이 옅게 (v343)');
+    await G(q, () => { const g = window.__game; const m = g.mons.find((x) => x.alive && x.coopSeq != null); g.hurt(m, m.maxHp, 'hit', false); });
+    await q.waitForFunction(() => window.__lastToasts?.some((t) => /보상 \+10%/.test(t)), null, { timeout: 15000 })
+      .catch(async (e) => { console.log('DEBUG toasts', await G(q, () => window.__lastToasts)); throw e; });
+    assert(true, '둘이 함께 잡으면 처치 보상 +10% (v343)');
   }
 
   const errs = [...a.errors, ...b.errors];

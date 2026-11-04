@@ -1785,6 +1785,22 @@ export class BattleView {
       ang: game.heroAngle || 0, col });
   }
 
+  // v343 문파원 무공 — 연출표 전부를 다시 돌리지 않고 그 자리에 직업 인장 · 맞는 곳 고리 · 무공 이름만 옅게(내 화면이 시끄럽지 않게, 1초에 셋까지)
+  allySkill(e) {
+    if (this.fxLevel <= 0 || !e?.at) return;
+    const now = this.t;
+    this._allyT = (this._allyT || []).filter((x) => now - x < 1);
+    if (this._allyT.length >= 3) return;
+    this._allyT.push(now);
+    const col = CAST_COL[e.job] || '229,231,235';
+    const tr = Math.max(1, Math.min(4, e.tier || 1));
+    const from = e.from || e.at;
+    if (JOB_SEAL[e.job]) this.effects.push({ kind: 'jobseal', wx: from.x, wy: from.y, ch: JOB_SEAL[e.job], col, r: 50 + tr * 12, spin: 1.2, life: 0.5, max: 0.5, ally: true });
+    if (e.radius > 0) this.effects.push({ kind: 'shock', life: 0.45, max: 0.45, wx: e.at.x, wy: e.at.y, r: Math.min(260, e.radius), col, rings: 2, w: 3 });
+    else this.effects.push({ kind: 'shock', life: 0.35, max: 0.35, wx: e.at.x, wy: e.at.y, r: 40, col, rings: 1, w: 3 });
+    if (e.name) this.float(e.name, this.sx(from), this.sy(from) - 120, `rgba(${col},0.85)`, 12, 0.8, true);
+  }
+
   float(text, x, y, color, size = 18, life = 1, brush = false) {
     // 튀어 올랐다가 멈추며 옅어진다(처음이 빠르고 점점 느리게). 옆으로 살짝 흩어진다.
     this.floats.push({ text, x, y, color, size, life, max: life, brush, vy: -150, vx: (Math.random() - 0.5) * 40 });
