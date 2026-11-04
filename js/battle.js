@@ -2637,7 +2637,15 @@ export class BattleView {
     } else if (ride) {
       this.ctx.save();
       if (riderTilt) { this.ctx.translate(x, y); this.ctx.rotate(riderTilt); this.ctx.translate(-x, -y); }
-      drawFighter(this.ctx, x, fy, look, { ...opts, run: false, turn: null, ride: true });
+      // v346 탄 채로 친다 — 초식 자세는 윗몸(기울기·뻗기)만, 몸을 띄우거나 옮기는 것(lift·dx·crouch)은 빼서 안장에서 떨어지지 않게.
+      //   평타는 팔이 휘두르고(lunge) 윗몸이 앞으로 살짝 숙인다
+      //   손이 아래(1.2rad 넘게)를 향하는 초식은 칼이 탈것 몸속에 묻혀 안 보였다 — 탄 동안은 손을 앞(0.5rad 아래)까지만
+      const rp = opts.pose ? { ...opts.pose, lift: 0, dx: 0, crouch: 0, lean: opts.pose.lean * 0.7, stretch: opts.pose.stretch * 0.6,
+        hand: opts.pose.hand ? [Math.min(opts.pose.hand[0], 0.5), opts.pose.hand[1]] : opts.pose.hand,
+        blade: opts.pose.blade != null ? Math.min(opts.pose.blade, 0.6) : opts.pose.blade } : null;
+      const swingLean = !rp && opts.lunge > 0 ? opts.lunge * 0.12 * (opts.flip ? -1 : 1) : 0;
+      if (swingLean) { this.ctx.translate(x, fy - 30); this.ctx.rotate(swingLean); this.ctx.translate(-x, -(fy - 30)); }
+      drawFighter(this.ctx, x, fy, look, { ...opts, pose: rp, run: false, turn: null, ride: true });
       this.ctx.restore();
     } else drawFighter(this.ctx, x, fy, look, opts);
     // v261: 필살 중에는 연출 층 위에 무인을 한 번 더 얹는다(아래 drawEffects 뒤) — 극악소마의 붉은 층에 무인이 묻혔다
@@ -4373,7 +4381,7 @@ export function drawFighter(ctx, x, y, look = {}, o = {}) {
   ctx.beginPath(); ctx.ellipse(0, 2, 24, 6, 0, 0, Math.PI * 2); ctx.fill();
   }
   // v325 여협 — 어깨·몸을 조금 가늘게
-  if (look.female) ctx.scale(0.92, 0.985);
+  if (look.female) ctx.scale(artImg('f-body-red') ? 0.97 : 0.92, 0.985);   // v346 여협 도포가 이미 날씬하면 조금만
   // 자세(pose.js). 그림자는 땅에 두고 몸만 기울이고 띄운다.
   const P = o.pose;
   if (P) {
@@ -4489,12 +4497,13 @@ export function drawFighter(ctx, x, y, look = {}, o = {}) {
   const swing = (o.run ? Math.sin(t * 14) * 8 : 0) + (P ? P.crouch * 9 : 0);
   // v323 그림 몸이면 팔·다리도 그림 도포에서 잰 빛깔로 칠한 조각(명암·테두리) — 벡터 막대가 그림 위에 따로 놀던 것
   const artLimb = artReady() && !jiang && !look.ghost;
-  const bKey0 = look.robeTint ? 'body-white' : bodyKey(look);
+  const bKey0 = look.robeTint ? (look.female && artImg('f-body-white') ? 'f-body-white' : 'body-white') : bodyKey(look);
   const LC = artLimb ? bodyColors(bKey0, look.robeTint) : null;
   ctx.strokeStyle = pants;
   ctx.lineWidth = 9;
   ctx.lineCap = 'round';
-  if (artLimb) drawLegsArt(ctx, swing, LC, look.boot || '#2a1f18', o.flash);
+  // v346 3/4 도포(v334)는 폭이 좁아 정면 도포 때의 다리 벌림(-13~15)이면 장화가 아랫단 밖으로 벌어졌다 — 간격만 좁힌다(장화 크기는 그대로)
+  if (artLimb) { ctx.save(); ctx.translate(1, 0); ctx.scale(0.72, 1); drawLegsArt(ctx, swing, LC, look.boot || '#2a1f18', o.flash); ctx.restore(); }
   else if (!look.ghost) {
     ctx.beginPath(); ctx.moveTo(-4, -36); ctx.lineTo(-13 - swing, -3); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(4, -36); ctx.lineTo(13 + swing, -3); ctx.stroke();
@@ -4517,9 +4526,11 @@ export function drawFighter(ctx, x, y, look = {}, o = {}) {
     ctx.fill();
   }
 
-  // 도포 아랫자락
+  // 도포 아랫자락 — v346 그림 도포에는 그리지 않는다: 정면 도포 폭(-20~19)으로 그린 벡터 자락이 v334의 날씬한 3/4 도포 양옆으로
+  //   삐져나와 다른 빛깔 겉옷을 하나 더 걸친 것처럼 보였다(검은 도포 뒤 파란 자락). 그림 도포는 아랫단까지 다 그려져 있다.
   const flap = Math.sin(t * 5) * 2 + (o.run ? 4 : 0);
   const robeNow = o.flash > 0 ? mix(robe, '#ffffff', 0.45 * o.flash) : robe;
+  if (!(artReady() && !jiang && !look.ghost)) {
   ctx.fillStyle = robeNow;
   ctx.beginPath();
   ctx.moveTo(-12, -46);
@@ -4532,6 +4543,7 @@ export function drawFighter(ctx, x, y, look = {}, o = {}) {
   ctx.lineWidth = 2;
   ctx.beginPath(); ctx.moveTo(19, -14); ctx.quadraticCurveTo(0, -10, -20 - flap, -12); ctx.stroke();
   ctx.beginPath(); ctx.moveTo(2, -46); ctx.lineTo(5, -12); ctx.stroke();
+  }
 
   // v325 기운 낟알(뒤쪽 반) · 여협 뒷머리(그림 머리가 아직 안 왔을 때만 — 그림 머리에는 머리카락이 다 있다)
   if (look.gAura) drawAuraFx(ctx, look.gAura, t, false);
@@ -4545,7 +4557,7 @@ export function drawFighter(ctx, x, y, look = {}, o = {}) {
   // 상체 — 그림 조각이 있으면 도포·상체·허리띠를 한 장으로 갈음한다
   const artBody = artReady() && !jiang && !look.ghost;
   // 두목 옷: 흰 도포 그림에 그 빛깔을 곱해 입힌다(그림 도포 여섯 빛깔에 없는 색도 그대로 나온다)
-  const bKey = look.robeTint ? 'body-white' : bodyKey(look);
+  const bKey = look.robeTint ? (look.female && artImg('f-body-white') ? 'f-body-white' : 'body-white') : bodyKey(look);
   // 옷 등급 테두리 (v115) — 도포 둘레에 등급 빛깔 테, 전설부터 도포가 그 빛을 머금는다
   if (artBody && look.edge) {
     const pulse = look.edgePulse ? 0.7 + Math.sin(t * 3) * 0.3 : 1;

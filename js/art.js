@@ -176,6 +176,8 @@ export function loadArt2(onEach) {
   for (const [n, f] of Object.entries(ART2_HEADS)) one(n, () => { HEAD_FIT[n] = { crop: 1, brow: f.brow, eye: f.eye, eyeX: f.eyeX, fit: { w: f.w, x: f.x, y: f.y } }; });
   for (const [n, f] of Object.entries(ART2_WEAPONS)) one(n, () => { WEAPON_FIT[n] = { ...f }; });
   for (const n of ART2_SPRITES) one(n);
+  // v346 여협 도포 — 남자 도포 스물두 장과 같은 무늬·빛깔을 여성 체형(좁은 어깨·잘록한 허리)으로 다시 그린 것
+  for (const k of FEM_BODIES) one(`f-${k}`);
 }
 // v327 여협 머리 그림 맨 아래(목·늘어진 머리카락)는 네모로 잘려 있었다 — 아래 14%를 투명하게 흐려 끝을 부드럽게
 function fadeBottom(im, from) {
@@ -247,9 +249,10 @@ export const OUTFIT_BODY = ['body-o0', 'body-o1', 'body-o2', 'body-o3', 'body-o4
 export const OUTFIT_WEAPON = ['wp-s0', 'wp-s1', 'wp-s2', 'wp-s3', 'wp-s4', 'wp-s5'];
 
 export function bodyKey(look) {
-  if (look?.outfitBody != null && OUTFIT_BODY[look.outfitBody]) return OUTFIT_BODY[look.outfitBody];
-  return bodyFor(look?.robe);
+  const k = look?.outfitBody != null && OUTFIT_BODY[look.outfitBody] ? OUTFIT_BODY[look.outfitBody] : bodyFor(look?.robe);
+  return look?.female && img[`f-${k}`] ? `f-${k}` : k;   // v346 여협이면 여협 도포(받아 둔 뒤부터)
 }
+const FEM_BODIES = ['black', 'blue', 'brown', 'dark', 'red', 'white', ...[0, 1, 2, 3, 4, 5].map((i) => `o${i}`), ...[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((i) => `r${i}`)].map((x) => `body-${x}`);
 export function weaponKey(w, look) {
   // v325 무기 모양(꾸미기) — 그림이면 그 조각, 그려 넣는 모양이면 null(drawWeapon이 o.wskin을 본다)
   if (look?.wskin) return look.wskin.art && img[look.wskin.art] ? look.wskin.art : null;
