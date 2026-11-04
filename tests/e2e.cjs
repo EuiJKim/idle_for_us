@@ -359,10 +359,20 @@ async function tab(page, name) {
     assert(await G(p, () => window.__game.s.nickname) === first.n, '체험을 끝내면 고르기로 — 내 무인 그대로');
   }
 
+  console.log('# 마을에서만 \'사냥하러 가기\' (v341)');
+  {
+    if (await p.isVisible('#panel-close')) { await p.click('#panel-close'); await sleep(250); }
+    await G(p, () => window.__game.goTown(false)); await sleep(500);
+    assert(await p.isVisible('#go-hunt'), '마을에 있으면 들판에 사냥하러 가기 단추');
+    await p.click('#go-hunt'); await sleep(500);
+    assert(await G(p, () => !window.__game.map.town), '누르면 사냥터로');
+    assert(!(await p.isVisible('#go-hunt')), '사냥터에서는 숨는다');
+  }
+
   console.log('# 아래 창 단추가 겹치지 않는다 (v340)');
   {
     const ov = await G(p, () => { const bs = [...document.querySelectorAll('#tabs button[data-tab]')].map((b) => ({ t: b.dataset.tab, r: b.getBoundingClientRect() })); const o = []; for (let i = 0; i < bs.length; i++) for (let j = i + 1; j < bs.length; j++) { const a = bs[i].r, c = bs[j].r; if (a.left < c.right - 1 && c.left < a.right - 1 && a.top < c.bottom - 1 && c.top < a.bottom - 1) o.push(bs[i].t + '/' + bs[j].t); } const s = bs.find((x) => x.t === 'social').r; return { o, top: document.elementFromPoint(s.left + s.width / 2, s.top + s.height / 2)?.closest('button')?.dataset.tab }; });
-    assert(ov.o.length === 0 && ov.top === 'social', `창 단추 여덟이 겹치지 않고 무림이 눌린다 (${ov.o.join(',') || '겹침 없음'})`);
+    assert(ov.o.length === 0 && ov.top === 'social', `창 단추들이 겹치지 않고 무림이 눌린다 (${ov.o.join(',') || '겹침 없음'})`);
   }
 
   console.log('# 수는 소수점 셋째 자리까지 (v335)');

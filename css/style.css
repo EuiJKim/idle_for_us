@@ -2287,3 +2287,12 @@ body.has-keys .skill-btn .lock, body.has-keys #tabs button span, body.has-keys .
 .tabcol.right { right: 6px; left: calc(50% + 2px); justify-content: flex-end; }
 #tabs button { flex: 0 1 50px; min-width: 0; }
 #tabs button span { white-space: nowrap; overflow: hidden; text-overflow: clip; max-width: 100%; }
+/* v341 '사냥하러 가기' — 마을에 있을 때만 들판 가운데 아래(창 단추 줄 위)에 */
+#go-hunt { position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(112px + var(--safe-bottom, 0px)); z-index: 13;
+  padding: 10px 22px; border-radius: 999px; border: 1.5px solid #fde68a; color: #fff7ed; font: 400 19px/1.1 var(--brush);
+  background: linear-gradient(180deg, #b45309, #7c2d12); box-shadow: 0 3px 0 #431407, 0 0 18px rgba(253, 186, 116, 0.35);
+  animation: pts-glow 1.6s ease-in-out infinite; white-space: nowrap; cursor: pointer; }
+#go-hunt.hidden { display: none; }
+#go-hunt:active { transform: translateX(-50%) translateY(2px); box-shadow: 0 1px 0 #431407; }
+body.hunt-noui #go-hunt, body.in-inst #go-hunt { display: none; }
+body.go-hunt-on #toast { bottom: calc(168px + var(--safe-bottom, 0px)); }

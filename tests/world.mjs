@@ -3169,7 +3169,7 @@ console.log('\n=== v325 성별·무기 모양·기믹 · 1차 전직 전 직업 
   const heads = W.CUSTOM_FHEADS.flatMap(([h]) => W.CUSTOM_HAIRS.map(([c]) => `fh-${h}-${c}`));
   ok(heads.every((k) => art2.includes(`"${k}"`)), '여협 머리 × 머리 빛깔 그림이 다 있다', heads.filter((k) => !art2.includes(`"${k}"`)).join(','));
   ok([...W.CUSTOM_AURAS.map(([k]) => `pt-${k}`), ...W.CUSTOM_RINGS.map(([k]) => `ring-${k}`), 'face-patch', 'face-veil', 'face-scar'].every((k) => art2.includes(`"${k}"`)), '기믹·얼굴 덧그림 그림');
-  ok(read('index.html').includes('data-tab="hunt"') && read('js/wmain.js').includes('function goHuntNow'), '아래 창 줄에 사냥 단추');
+  ok(!read('index.html').includes('data-tab="hunt"') && read('index.html').includes('id="go-hunt"') && read('js/wmain.js').includes('function goHuntNow'), 'v341 사냥 단추는 아래 줄에서 빼고 마을에서만 들판에 \'사냥하러 가기\'');
 }
 
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);

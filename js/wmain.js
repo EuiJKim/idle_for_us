@@ -744,7 +744,6 @@ function goTownNow() {
       } }, '마을로 가기'))));
 }
 document.querySelectorAll('#tabs button[data-tab]').forEach((b) => b.addEventListener('click', () => {
-  if (b.dataset.tab === 'hunt') { goHuntNow(); return; }
   if (b.dataset.tab === 'town' && !tabLocked('town')) { goTownNow(); return; }
   if (tabLocked(b.dataset.tab)) { toast(`${TAB_NAME[b.dataset.tab]} 창은 레벨 ${TAB_LV[b.dataset.tab]}에 열려요`); return; }
   showTab(b.dataset.tab);
@@ -996,6 +995,10 @@ function refreshUI(full = false) {
   setText($('zone-label'), m.inst ? (game.inst.kind === 'tower' ? `수문장 Lv.${m.lv[0]} · ${D.towerSec(game.inst.stage)}초 안에` : game.inst.kind === 'raid' ? `문파원과 함께 — ${D.RAID_SEC}초 동안 친 만큼` : `몹 Lv.${m.lv[0]} · ${D.DAILY_KILLS}마리 잡으면 깬다`) : m.town ? (s.autoHunt ? `쉬는 중 → ${W.mapOf(s.huntMap).name}` : '쉬는 중')
     : m.bossRoom ? (boss ? `두목 ${boss.name} Lv.${boss.lv}` : `두목 다시 나기까지 ${Math.floor(bossLeft / 60)}:${String(bossLeft % 60).padStart(2, '0')}`) + (coop.on ? ` · 🤝${coop.count + 1}명` : '')
       : `몹 Lv.${m.lv[0]}~${m.lv[1]} · 두목은 두목 구역에`);
+  // v341 '사냥하러 가기' — 아래 창 줄의 사냥 단추를 빼고, 마을에 있을 때만 들판 가운데에 띄운다(창이 열려 있으면 숨김)
+  const goHuntOn = !!(m.town && !game.inst && s.job && !activeTab);
+  $('go-hunt').classList.toggle('hidden', !goHuntOn);
+  document.body.classList.toggle('go-hunt-on', goHuntOn);   // 알림 글이 단추를 가리지 않게 위로
   // 혼자/함께 단추 — 두목 구역에서(v339 십이지왕만 → 모든 두목 구역) · 문파가 있고 온라인일 때
   const pb = $('btn-party');
   const inKing = !m.inst && !m.town && m.bossRoom && (coop.can() || game.s.kingParty);
@@ -2656,8 +2659,10 @@ document.addEventListener('keydown', (e) => {
 // 컴퓨터(마우스)면 단추에 단축키 글자를 단다
 const finePointer = matchMedia?.('(pointer: fine)').matches;
 if (finePointer) document.body.classList.add('has-keys');
-for (const [k, t] of [['H', 'hunt'], ...Object.entries(HOTKEY_TAB).map(([key, tab]) => [key.toUpperCase(), tab])]) { const b = document.querySelector(`#tabs button[data-tab="${t}"]`); if (b) b.dataset.hk = k; }
+for (const [k, t] of [...Object.entries(HOTKEY_TAB).map(([key, tab]) => [key.toUpperCase(), tab])]) { const b = document.querySelector(`#tabs button[data-tab="${t}"]`); if (b) b.dataset.hk = k; }
 $('loot-tally').addEventListener('click', tallyClear);   // v324 누르면 모음을 비운다
+$('go-hunt').addEventListener('click', () => goHuntNow());   // v341
+if (finePointer) $('go-hunt').dataset.hk = 'H';
 window.__test_claimAll = () => claimMail(mail.map((m) => m.id));
 window.__view = view;
 window.__save = save;

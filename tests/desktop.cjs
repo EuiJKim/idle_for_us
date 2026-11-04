@@ -62,6 +62,7 @@ const ok = (c, m) => { if (!c) fails++; console.log(c ? '  ✓' : '  ✗', m); }
     await page.click('#panel-grip'); await page.click('#panel-close'); await page.waitForTimeout(300);
     // 7) 무공 단추 · 단축키 · 물약 길게
     const s0 = await page.evaluate(() => window.__game.mons.length);
+    await page.evaluate(() => window.__game.goTown(false)); await page.waitForTimeout(300);
     await page.keyboard.press('h'); await page.waitForTimeout(500);
     ok(await page.evaluate(() => !window.__game.map.town), 'H 사냥');
     await page.keyboard.press('t'); await page.waitForTimeout(400); if (await page.isVisible('#town-go')) await page.click('#town-go'); await page.waitForTimeout(400);
