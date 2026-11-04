@@ -456,15 +456,16 @@ function mLoad(key) {
   return null;
 }
 // 그릴 그림(물들인 것) + 놓을 자리. 아직 안 왔으면 null(받기 시작한다)
-export function mergedArt(bk, hk, band, tintBand) {
+export function mergedArt(bk, hk, band, tintBand, robeCol) {
   const mb = mergeBase(bk, hk);
   if (!mb) return null;
   const im = mLoad(mb.key);
   if (!im) return null;
   const box = MERGE_BOX[mb.key];
   const bandOn = tintBand && band && /^#?[0-9a-f]{6}$/i.test(band) && band.toLowerCase() !== '#b91c1c';
-  if (!mb.hair && !bandOn) return { cv: im, box };
-  const id = `${mb.key}|${mb.hair}|${bandOn ? band : ''}`;
+  const rc = robeCol && /^#?[0-9a-f]{6}/i.test(robeCol) ? robeCol : null;
+  if (!mb.hair && !bandOn && !rc) return { cv: im, box };
+  const id = `${mb.key}|${mb.hair}|${bandOn ? band : ''}|${rc || ''}`;
   if (mCache.has(id)) return mCache.get(id);
   const hb = /--(fh-[a-z]+-black)$/.exec(mb.key)?.[1];
   if (mb.hair && hb && !img[hb]) return { cv: im, box };   // 머리 그림(머리카락 자리)이 아직이면 이번엔 그대로 — 굳혀 두지 않는다
@@ -501,9 +502,15 @@ export function mergedArt(bk, hk, band, tintBand) {
     }
     const hc = mb.hair ? [1, 3, 5].map((i) => parseInt(HAIR_HEX[mb.hair].slice(i, i + 2), 16)) : null;
     const bc = bandOn ? [1, 3, 5].map((i) => parseInt(band.replace('#', '').padStart(7, '#').slice(i, i + 2), 16)) : null;
+    // v358 두목 옷 빛깔 — 흰 도포의 크림빛(밝고 채도 낮은 것)만 그 빛깔로(목 아래 · 살빛·띠·금테·머리카락은 그대로)
+    const tc = rc ? [1, 3, 5].map((j) => parseInt(rc.replace('#', '').padStart(7, '#').slice(j, j + 2), 16)) : null;
     for (let i = 0; i < p.length; i += 4) {
       if (p[i + 3] < 8) continue;
       const below = ((i / 4) / W | 0) > neckRow;
+      if (tc && below) {
+        const mx0 = Math.max(p[i], p[i + 1], p[i + 2]), mn0 = Math.min(p[i], p[i + 1], p[i + 2]);
+        if (mx0 >= 120 && mx0 - mn0 <= 48) { const L = mx0 / 255; p[i] = Math.min(255, tc[0] * L * 1.08); p[i + 1] = Math.min(255, tc[1] * L * 1.08); p[i + 2] = Math.min(255, tc[2] * L * 1.08); continue; }
+      }
       if (below && !(hairMask && hairMask[i + 3] > 40)) {
         if (!robePart) continue;
         const ra = robePart[i + 3], rl = Math.max(robePart[i], robePart[i + 1], robePart[i + 2]);

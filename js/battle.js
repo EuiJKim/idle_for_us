@@ -4567,7 +4567,9 @@ export function drawFighter(ctx, x, y, look = {}, o = {}) {
   const neckDy = hk0 ? bodyNeckDy(look.robeTint ? 'body-white' : bodyKey(look)) : 0;
   // v355 머리+옷 한 장 그림 — 있으면 머리·도포를 따로 붙이지 않는다(삿갓을 쓴 때는 머리를 갓 속에 잘라 넣어야 해 조각 그대로)
   const tintHead0 = look.bandTint && (hk0 === 'head-topknot' || hk0 === 'head-band' || (hk0?.startsWith('fh-') && !hk0.endsWith('-red') && hk0 !== 'fh-hood'));
-  const MG = hk0 && !look.robeTint && !o.noMerge ? mergedArt(bodyKey(look), hk0, look.band, tintHead0) : null;
+  // v358 두목 옷(흰 도포에 그 빛깔)도 한 장 그림으로 — 전엔 이때만 옛 조각이라 머리·몸 테두리가 따로 둘러 깨져 보였다
+  const mBody = look.robeTint ? (look.female ? 'f-body-white' : 'body-white') : bodyKey(look);
+  const MG = hk0 && !o.noMerge ? mergedArt(mBody, hk0, look.band, tintHead0, look.robeTint || null) : null;
   if (hk0 && !MG) { const F0 = (HEAD_FIT[hk0]?.fit) || FIT.head; drawHeadArt(ctx, hk0, { ...F0, y: F0.y + neckDy }, look, HEAD_SPLIT + neckDy, 99); }
   // 상체 — 그림 조각이 있으면 도포·상체·허리띠를 한 장으로 갈음한다
   const artBody = artReady() && !jiang && !look.ghost;
