@@ -4368,7 +4368,9 @@ export function drawFighter(ctx, x, y, look = {}, o = {}) {
   const weapon = o.weapon || look.weapon || 'sword';
   const jiang = look.jiangshi;
   const hop = jiang ? Math.abs(Math.sin(t * 5)) * -10 : 0;
-  const bob = o.run ? Math.abs(Math.sin(t * 14)) * -3 : Math.sin(t * 4) * 1.5;
+  // v353 서 있을 때는 몸을 통째로 띄우지 않는다 — 전엔 발까지 ±1.5씩 오르내려 그림자 위로 머리·옷·발이 둥둥 떠 보였다(크게 보는 꾸미기 창에선 ±6px).
+  //   숨은 발을 축으로 부푸는 것(아래 scale)만 — 발은 땅에 붙어 있고 가슴·머리만 살짝
+  const bob = o.run ? Math.abs(Math.sin(t * 14)) * -3 : 0;
   const lunge = o.lunge || 0;
 
   ctx.save();
