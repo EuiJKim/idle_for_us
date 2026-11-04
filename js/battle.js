@@ -4,6 +4,7 @@ import { zoneOf, RANKS, GRADES, FIELD_SQUASH, JOB_TRAITS, QI, jobOf, critTierNam
 import { artReady, putArt, putArtBand, putArtEdge, putArtTint, loadArt, FIT, ART_SHOULDER, ART_BAND, headKey, bodyKey, weaponKey, artHeight, hasBodyArt, putWeapon, weaponBare, putHat, hatRect, headGeom, headMasked, bodyNeckDy, robeTinted, bodyColors, hasArt, HEAD_FIT, registerArt, artImg } from './art.js';
 import { drawFemaleHead, drawBackHair, FHEAD_W, FHEAD_H, FHEAD_FIT } from './femhead.js';
 import { drawCreature, saddleY, mountTilt, mountGait, CREATURES } from './creatures.js';
+import { drawMountAura } from './mountfx.js';
 import { ZONES_W, itemZone, weaponSkinOf, CUSTOM_HAIRS } from './world/wdata.js';
 import { setOf } from './world/wgear.js';
 import { THEMES as IMP_THEMES } from './world/wimprint.js';
@@ -1314,9 +1315,9 @@ export class BattleView {
     ctx.beginPath(); ctx.ellipse(x, y + 2, 27, 11, 0, 0, Math.PI * 2); ctx.stroke();
     let fy = y;
     const ride = o.mt || null;
-    if (ride) { drawRideRing(ctx, x, y, look, this.t, 1.1); drawCreature(ctx, ride, x, y, { t: this.t, moving: !!o.moving, flip: o.f < 0, layer: 'back' }); fy = y + saddleY(ride, this.t, !!o.moving) + RIDE_DROP; }
+    if (ride) { drawRideRing(ctx, x, y, look, this.t, 1.1); if (this.fxLevel > 0) drawMountAura(ctx, ride, x, y, this.t, { flip: o.f < 0, moving: !!o.moving, layer: 'back', lite: true }); drawCreature(ctx, ride, x, y, { t: this.t, moving: !!o.moving, flip: o.f < 0, layer: 'back' }); fy = y + saddleY(ride, this.t, !!o.moving) + RIDE_DROP; }
     drawFighter(ctx, x, fy, look, { ...op, run: ride ? false : op.run, ride: !!ride });
-    if (ride) { drawCreature(ctx, ride, x, y, { t: this.t, moving: !!o.moving, flip: o.f < 0, layer: 'front' }); drawRiderLeg(ctx, x, fy, look, { t: this.t, moving: !!o.moving, flip: o.f < 0, kind: ride }); }
+    if (ride) { drawCreature(ctx, ride, x, y, { t: this.t, moving: !!o.moving, flip: o.f < 0, layer: 'front' }); drawRiderLeg(ctx, x, fy, look, { t: this.t, moving: !!o.moving, flip: o.f < 0, kind: ride }); if (this.fxLevel > 0) drawMountAura(ctx, ride, x, y, this.t, { flip: o.f < 0, moving: !!o.moving, layer: 'front', lite: true }); }
     // 이름표 · 체력
     const ty = fy - 104;
     ctx.font = `800 12px system-ui, sans-serif`;
@@ -2628,6 +2629,7 @@ export class BattleView {
       this.ctx.save();
       if (rideLean) { this.ctx.translate(x, y); this.ctx.rotate(rideLean); this.ctx.translate(-x, -y); }
       drawRideRing(this.ctx, x, y, look, this.t, 1.1);
+      if (this.fxLevel > 0) drawMountAura(this.ctx, mt.id, x, y, this.t, { flip: !!opts.flip, moving, layer: 'back', lite: this.fxLevel < 2 });   // v350
       drawCreature(this.ctx, mt.id, x, y, { ...rideOpt, layer: 'back' });
       fy = y + saddleY(mt.id, this.t, moving) + riderBob + RIDE_DROP;
     } else this._rideMoving = undefined;
@@ -2659,6 +2661,7 @@ export class BattleView {
       if (riderTilt) { this.ctx.translate(x, y); this.ctx.rotate(riderTilt); this.ctx.translate(-x, -y); }
       drawRiderLeg(this.ctx, x, fy, look, { t: this.t, moving, flip: !!opts.flip, kind: mt.id });
       this.ctx.restore();
+      if (this.fxLevel > 0) drawMountAura(this.ctx, mt.id, x, y, this.t, { flip: !!opts.flip, moving, layer: 'front', lite: this.fxLevel < 2 });
       this.ctx.restore();
     }
     if (this.fxLevel > 0) this.buffAura(game, x, y, true);
@@ -3156,7 +3159,10 @@ export class BattleView {
       ctx.translate(x + kx, y + ky);
       if (hk > 0) ctx.scale(1 + 0.08 * hk, 1 - 0.1 * hk);
       if (fx) { ctx.shadowColor = this.mobCol(a); ctx.shadowBlur = a.grade >= 2 ? 18 : 10; }
-      drawCreature(ctx, def.beast, 0, 0, { t: time, moving: !!a.move, flip: face, scale: (def.bscale || 1.7) * this.crowdScale * persp * (a.grade === 1 ? 1.1 : 1) });
+      const bsc = (def.bscale || 1.7) * this.crowdScale * persp * (a.grade === 1 ? 1.1 : 1);
+      if (this.fxLevel > 0) drawMountAura(ctx, def.beast, 0, 0, time, { s: bsc, flip: face, moving: !!a.move, layer: 'back', lite: this.fxLevel < 2 });   // v350 극의 신수
+      drawCreature(ctx, def.beast, 0, 0, { t: time, moving: !!a.move, flip: face, scale: bsc });
+      if (this.fxLevel > 0) drawMountAura(ctx, def.beast, 0, 0, time, { s: bsc, flip: face, moving: !!a.move, layer: 'front', lite: this.fxLevel < 2 });
       // v193: 들짐승도 맞은 순간 하얗게 번쩍인다(사람 몹과 같게)
       if (hk > 0.5 && this.fxLevel > 0) {
         ctx.shadowBlur = 0;

@@ -399,6 +399,16 @@ Object.assign(CREATURES, {
   z12: Q({ len: 88, bh: 36, leg: 26, legW: 9, col: '#1c1917', belly: '#44403c', mane: '#7f1d1d', ear: 'pointy', tusk: true, tail: 'tuft', neck: [8, -0.4], neckW: 26, head: [26, 18], muzzle: '#57534e', eye: '#ef4444', saddle: '#7f1d1d', hoof: '#000', gait: 8 }),
 });
 
+// v350 극(極)의 신수 — 무한의 탑 하드 모드 10층마다 (탈 때 둘레의 기운은 battle.js drawMountAura)
+Object.assign(CREATURES, {
+  h1: { type: 'bird', len: 90, bh: 46, leg: 36, col: '#dc2626', wing: '#f97316', tail: '#facc15', tail2: '#ef4444', tailLen: 66, plumes: 7, neck: 28, neckW: 14, headR: 11, crown: '#facc15', beak: 9, beakCol: '#fbbf24', legCol: '#7c2d12', flame: true },
+  h2: Q({ len: 82, bh: 30, leg: 40, col: '#e0f2fe', belly: '#ffffff', mane: '#38bdf8', horn: 'one', hornCol: '#bae6fd', scales: '#7dd3fc', clouds: true, tail: 'flame', neck: [28, -1.05], head: [27, 14], saddle: '#0c4a6e', hoof: '#e0f2fe', eye: '#0284c7', gait: 12 }),
+  h3: Q({ len: 82, bh: 30, leg: 40, col: '#4c1d95', belly: '#c4b5fd', mane: '#facc15', horn: 'one', hornCol: '#fde047', scales: '#7c3aed', tail: 'flame', neck: [28, -1.05], head: [27, 14], saddle: '#a16207', hoof: '#fde047', eye: '#fde047', gait: 13 }),
+  h4: Q({ len: 84, bh: 28, leg: 32, legW: 7, col: '#18181b', belly: '#3f3f46', stripes: null, spots: '#7e22ce', ear: 'round', tail: 'tiger', tailLen: 44, tailW: 5, mane: null, neck: [10, -0.8], neckW: 18, head: [26, 15], muzzle: '#27272a', whisker: true, eye: '#e879f9', saddle: '#581c87', hoof: '#000', gait: 12 }),
+  h5: { type: 'dragon', len: 128, thick: 13, lift: 30, amp: 9, col: '#0891b2', belly: '#cffafe', fin: '#155e75', horn: '#a5f3fc', whisker: '#ecfeff', pearl: true, mount: true },
+  h6: { type: 'dragon', len: 140, thick: 15, lift: 34, amp: 8, col: '#f59e0b', belly: '#fff7ed', fin: '#b91c1c', horn: '#fef3c7', whisker: '#fffbeb', pearl: true, mount: true },
+});
+
 // 들짐승 몹 (v117) — 몹 자리에서 크게(몹 정의의 bscale) 그린다
 const WOLF = { type: 'quad', len: 34, bh: 12, leg: 13, legW: 3.4, ear: 'pointy', tail: 'brush', tailLen: 15, neck: [7, -0.7], head: [13, 8], gait: 12 };
 const BEAR = { type: 'quad', len: 40, bh: 20, leg: 11, legW: 6, ear: 'round', tail: 'tuft', tailLen: 6, neck: [4, -0.5], neckW: 14, head: [14, 12], gait: 7 };

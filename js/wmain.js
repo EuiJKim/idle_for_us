@@ -90,7 +90,9 @@ import * as AM from './appmode.js';
 import { bootStart, bootProgress, bootHide, waitFor, showLogin, loginPref, setLoginPref, standalone, inAppBrowser } from './boot.js';
 import { artReady } from './art.js';
 import * as CH from './chars.js';
-import * as VT from './vault.js';   // v349 계정 창고   // v328 캐릭터 칸(넷까지) · 체험 모드
+import * as VT from './vault.js';
+import { drawCreature } from './creatures.js';
+import { drawMountAura } from './mountfx.js';   // v349 계정 창고   // v328 캐릭터 칸(넷까지) · 체험 모드
 loadIcons();
 for (const b of document.querySelectorAll('#tabs button[data-tab]')) skinImg(b.querySelector('i'), `tab-${b.dataset.tab}`);
 
@@ -1038,7 +1040,7 @@ function refreshUI(full = false) {
   setText($('stage-label'), m.town || m.inst ? m.name : `${m.king ? m.king.title : m.zoneName} ${m.bossRoom ? '두목' : m.area}`);
   const bossLeft = Math.max(0, Math.ceil(game.bossT));
   const boss = game.mons.find((x) => x.isBoss && x.alive);
-  setText($('zone-label'), m.inst ? (game.inst.kind === 'tower' ? `수문장 Lv.${m.lv[0]} · ${D.towerSec(game.inst.stage)}초 안에` : game.inst.kind === 'raid' ? `문파원과 함께 — ${D.RAID_SEC}초 동안 친 만큼` : `몹 Lv.${m.lv[0]} · ${D.DAILY_KILLS}마리 잡으면 깬다`) : m.town ? (s.autoHunt ? `쉬는 중 → ${W.mapOf(s.huntMap).name}` : '쉬는 중')
+  setText($('zone-label'), m.inst ? (game.inst.kind === 'tower' ? `수문장 Lv.${m.lv[0]} · ${game.inst.hard ? D.hardSec(game.inst.stage) : D.towerSec(game.inst.stage)}초 안에` : game.inst.kind === 'raid' ? `문파원과 함께 — ${D.RAID_SEC}초 동안 친 만큼` : `몹 Lv.${m.lv[0]} · ${D.DAILY_KILLS}마리 잡으면 깬다`) : m.town ? (s.autoHunt ? `쉬는 중 → ${W.mapOf(s.huntMap).name}` : '쉬는 중')
     : m.bossRoom ? (boss ? `두목 ${boss.name} Lv.${boss.lv}` : `두목 다시 나기까지 ${Math.floor(bossLeft / 60)}:${String(bossLeft % 60).padStart(2, '0')}`) + (coop.on ? ` · 🤝${coop.count + 1}명` : '')
       : `몹 Lv.${m.lv[0]}~${m.lv[1]} · 두목은 두목 구역에`);
   // v341 '사냥하러 가기' — 아래 창 줄의 사냥 단추를 빼고, 마을에 있을 때만 들판 가운데에 띄운다(창이 열려 있으면 숨김)
@@ -1135,6 +1137,7 @@ function instHud() {
   hud.classList.toggle('hidden', !I);
   hud.classList.toggle('tower', I?.kind === 'tower');
   hud.classList.toggle('raid', I?.kind === 'raid');
+  hud.classList.toggle('hard', !!I?.hard);   // v350 극
   if (!I) return;
   const left = Math.max(0, Math.ceil(I.t));
   $('contest-title').textContent = I.map.name;
@@ -1158,9 +1161,13 @@ function showInstEnd(ev) {
     return;
   }
   const d = ev.kind === 'daily' ? D.dailyOf(ev.id) : null;
-  const name = d ? `${d.name} ${ev.stage}단계` : ev.stage > D.TOWER_MAX ? `주간 회랑 ${ev.stage - D.TOWER_MAX}층` : `무한의 탑 ${ev.stage}층`;
+  const name = d ? `${d.name} ${ev.stage}단계` : ev.hard ? `무한의 탑 · 극 ${ev.stage}층` : ev.stage > D.TOWER_MAX ? `주간 회랑 ${ev.stage - D.TOWER_MAX}층` : `무한의 탑 ${ev.stage}층`;
   // 탑을 이어 오르는 중이면 알림만 (창이 계속 뜨면 방치가 끊긴다)
-  if (ev.kind === 'tower' && ev.ok) {
+  if (ev.kind === 'tower' && ev.ok && ev.hard) {
+    toast(`⚡ ${name} 돌파! 극의 덤 공격력·체력 +${(D.hardBonus(game.s.tower.hard) * 100).toFixed(1)}%${ev.reward ? ` · ${rewardText(ev.reward)}` : ''}`);
+    if (ev.newMount) { mountReveal(ev.newMount, ev.stage); return; }
+    if (ev.chain) return;
+  } else if (ev.kind === 'tower' && ev.ok) {
     toast(ev.stage > D.TOWER_MAX ? `🏯 ${name} 돌파!${ev.reward?.gold ? ` 은자 ${fmt(ev.reward.gold)}` : ''}`
       : `🏯 ${name} 돌파! 공격력·체력 +${(D.towerBonus(game.s.tower.floor) * 100).toFixed(1)}%${ev.reward?.mats ? ` · 보따리 ${rewardText(ev.reward)}` : ''}`);
     if (ev.chain) return;
@@ -1178,10 +1185,54 @@ function showInstEnd(ev) {
     ev.kind === 'daily' && ev.gotKey ? h('p', { class: 'dgn-key' }, `🔑 새 단계라 보상 몫을 안 썼어요 — ${Math.min(D.DAILY_STAGES, ev.stage + 1)}단계에 또 들어가 보세요`) : null,
     ev.kind === 'daily' && ev.extra ? h('p', { class: 'muted' }, `오늘 보상 몫을 다 써서 추가 도전 보상(${Math.round(D.DAILY_EXTRA * 100)}%)이에요 — 새 단계를 깨면 온전히 받아요`) : null,
     ev.kind === 'daily' && !ev.ok && !ev.extra ? h('p', { class: 'muted' }, `깨지 못하면 몫을 하나 써요 — 남은 ${game.dailyLeft(ev.id)}번은 소탕으로도 받아요`) : null,
-    ev.kind === 'tower' && !ev.ok ? h('p', { class: 'muted' }, `오른 층 ${game.s.tower.floor} — 장비·스킬을 키워서 다시 도전하세요`) : null,
+    ev.kind === 'tower' && !ev.ok ? h('p', { class: 'muted' }, ev.hard ? `극 ${game.s.tower.hard || 0}층까지 — 장비·스킬을 키워서 다시 도전하세요` : `오른 층 ${game.s.tower.floor} — 장비·스킬을 키워서 다시 도전하세요`) : null,
     ev.reward && rewardText(ev.reward) !== '없음' ? h('p', {}, `받은 것: ${rewardText(ev.reward)}`) : null,
     h('div', { class: 'btn-row' }, h('button', { class: 'btn primary', onclick: closeModal }, '확인'))].filter(Boolean)));
 }
+// v350 극의 신수를 얻었을 때 — 큰 창에 신수가 기운을 두르고 나타난다(창이 닫힐 때까지 움직인다)
+function mountReveal(kind, floor) {
+  const md = W.mountOf(kind);
+  if (!md) return;
+  sfx('king');
+  const cv = h('canvas', { class: 'reveal-cv', width: 640, height: 400 });
+  const c = cv.getContext('2d');
+  const t0 = performance.now();
+  let on = true;
+  const frame = () => {
+    if (!on || !cv.isConnected) return;
+    const t = (performance.now() - t0) / 1000;
+    c.setTransform(1, 0, 0, 1, 0, 0);
+    c.clearRect(0, 0, 640, 400);
+    const k = Math.min(1, t / 0.9), e = 1 - (1 - k) ** 3;
+    // 빛기둥 → 신수
+    c.globalCompositeOperation = 'lighter';
+    const g = c.createRadialGradient(320, 230, 0, 320, 230, 300);
+    g.addColorStop(0, md.col + 'aa'); g.addColorStop(1, md.col + '00');
+    c.fillStyle = g; c.globalAlpha = 0.6 + 0.2 * Math.sin(t * 3); c.fillRect(0, 0, 640, 400);
+    c.globalAlpha = Math.max(0, 1 - t * 0.8); c.fillStyle = '#fff'; c.fillRect(320 - 60 * (1 - e) - 4, 0, 8 + 120 * (1 - e), 400);
+    c.globalAlpha = 1; c.globalCompositeOperation = 'source-over';
+    const sc = 2.2 * (0.6 + 0.4 * e);
+    c.save(); c.translate(320, 330); c.scale(sc, sc); c.translate(-320, -330);
+    drawMountAura(c, kind, 320, 330, t, { layer: 'back', moving: false });
+    c.globalAlpha = e; drawCreature(c, kind, 320, 330, { t }); c.globalAlpha = 1;
+    drawMountAura(c, kind, 320, 330, t, { layer: 'front', moving: false });
+    c.restore();
+    requestAnimationFrame(frame);
+  };
+  openModal((el) => {
+    el.classList.add('reveal-sheet');
+    el.style.setProperty('--rc', md.col);
+    el.append(
+      h('div', { class: 'reveal-tag' }, `무한의 탑 · 극 ${floor}층 — 신수가 그대를 따른다`),
+      cv,
+      h('h2', { class: 'reveal-name' }, `${md.emoji} ${md.name}`),
+      h('p', { class: 'reveal-desc' }, md.desc),
+      h('div', { class: 'reveal-stats' }, h('span', {}, `이동 +${Math.round(md.speed * 100)}% 고정`), h('span', {}, `공격력·체력 +${Math.round(md.stat * 100)}%`)),
+      h('div', { class: 'btn-row' }, h('button', { class: 'btn primary', onclick: () => { on = false; closeModal(); } }, '타고 가기')));
+    requestAnimationFrame(frame);
+  });
+}
+window.__test_mountReveal = (k) => mountReveal(k, 10);
 function dot(tab, on) {
   const b = document.querySelector(`#tabs button[data-tab="${tab}"]`);
   if (!b) return;
@@ -1401,7 +1452,7 @@ function handleEvents() {
       case 'mountDrop': {
         const d = W.mountOf(ev.mount.kind);
         saverLoot(`mount:${d.name}`, `🐎 ${d.name}`);
-        toast(d.zodiac ? `🎉 십이지 신수 ${d.name}! 이동 +${Math.round(d.speed * 100)}% · 공격·체력 +${Math.round(d.stat * 100)}%` : `탈것 ${d.name}(순위 ${d.tier})! 이동 속도 +${Math.round(d.speed * 100)}%`);
+        toast(d.hard ? `⚡ 극의 신수 ${d.name}! 이동 +100% 고정 · 공격·체력 +${Math.round(d.stat * 100)}%` : d.zodiac ? `🎉 십이지 신수 ${d.name}! 이동 +${Math.round(d.speed * 100)}% · 공격·체력 +${Math.round(d.stat * 100)}%` : `탈것 ${d.name}(순위 ${d.tier})! 이동 속도 +${Math.round(d.speed * 100)}%`);
         view.showBanner(d.name, d.zodiac ? '#f472b6' : '#fde68a', d.zodiac ? 2.6 : 1.8, d.zodiac ? '십이지 신수' : '탈것');
         sfx('loot');
         break;

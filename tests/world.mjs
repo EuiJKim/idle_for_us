@@ -6,6 +6,7 @@ import * as TD from '../js/world/wtoday.js';
 import * as Q from '../js/world/wquest.js';
 import * as MS from '../js/world/wmaster.js';
 import * as D from '../js/data.js';
+import * as DG from '../js/world/wdgn.js';
 import { fmt } from '../js/fmt.js';
 import fs from 'node:fs';
 // 코드를 글로도 본다 — 상수만 보고 넘기면 쓰는 쪽이 어긋나도 모른다
@@ -592,8 +593,26 @@ console.log('\n=== 십이지왕 신화 · 가락지·귀걸이 · 애완동물 �
   const tiersOf = (z) => { const set = new Set(); for (let i = 0; i < 3000; i++) set.add(W.petOf(W.rollPetKind(z, rr)).tier); return Math.max(...set); };
   ok(W.petDropRate(1) < 0.001 && tiersOf(1) <= 1 && tiersOf(15) === 7 && tiersOf(27) === 10 && W.petDropRate(27) > W.petDropRate(15) * 3,
     '애완동물 드랍: 죽림 0.08%(선학만) … 천외천 0.9%(손오공까지) … 검왕 3.8%(황룡까지)', `${(W.petDropRate(1) * 100).toFixed(2)}% · ${(W.petDropRate(15) * 100).toFixed(2)}% · ${(W.petDropRate(27) * 100).toFixed(2)}%`);
+  // v350 무한의 탑 · 극 — 보통 60층부터 · 10층마다 신수(이동 +100% 고정 · 길들여도 이동은 그대로 · 공격·체력은 길들이면 오른다)
+  {
+    const g = new WorldGame(newWorldSave(0), 0);
+    g.s.job = 'sword'; g.s.level = 120; g.s.tower.floor = 59;
+    ok(!g.canHard(), '극은 보통 60층 전엔 닫혀 있다');
+    g.s.tower.floor = 60;
+    ok(g.canHard() && g.startHard() && g.inst?.hard && g.inst.stage === 1, '보통 60층이면 극 1층에 들어간다');
+    g.inst = null; g.s.tower.hard = 9;
+    g.startHard(); g.inst.done = { ok: true }; const r = g.finishInst();
+    const md = g.mountNow();
+    ok(g.s.tower.hard === 10 && r.newMount === 'h1' && md?.id === 'h1', '극 10층을 이기면 신수 염화주작을 얻고 바로 탄다', `${g.s.tower.hard} ${r.newMount} ${md?.name}`);
+    const mv0 = g.stats().moveSpeed, a0 = g.stats().atk;
+    g.mountInst().lv = 10; g._stats = null;
+    ok(Math.abs(g.stats().moveSpeed - mv0) < 1e-9 && g.stats().atk > a0, '신수는 길들여도 이동은 +100% 그대로, 공격은 오른다', `${mv0.toFixed(2)} → ${g.stats().moveSpeed.toFixed(2)}`);
+    ok(W.HARD_MOUNTS.every((m, i) => i === 0 || m.stat > W.HARD_MOUNTS[i - 1].stat) && W.HARD_MOUNTS[0].stat > W.mountOf('azure').stat, '극의 신수는 뒤로 갈수록 세고, 첫째도 청룡마보다 세다');
+    ok(DG.hardHp(1) > DG.towerHp(DG.hardF(1)) * 2 && DG.hardDelay(1) < DG.tellDelay(DG.hardF(1)), '극 수문장은 같은 세기 보통 층보다 단단하고 경고가 짧다');
+    ok(W.mountFuseCost(11) < 2e6 && W.mountFuseCost(1) < 3000, '탈것 합성 값이 크게 내렸다', `${W.mountFuseCost(1)} … ${W.mountFuseCost(11)}`);
+  }
   const mtTop = (z, boss) => { let t = 0; for (let i = 0; i < 3000; i++) t = Math.max(t, W.mountOf(W.rollMount(rr, z, boss)).tier); return t; };
-  ok(W.MOUNTS.filter((x) => !x.zodiac).length === 12 && W.MOUNTS.filter((x) => x.zodiac).length === 12 && mtTop(1, true) === 2 && mtTop(27, true) === 12,
+  ok(W.MOUNTS.filter((x) => !x.zodiac && !x.hard).length === 12 && W.MOUNTS.filter((x) => x.zodiac).length === 12 && W.MOUNTS.filter((x) => x.hard).length === 6 && mtTop(1, true) === 2 && mtTop(27, true) === 12,
     `탈것 열둘(+십이지 신수 열둘은 떨구지 않는다) — 죽림 두목은 노새까지 … 검왕은 청룡마까지`, W.MOUNTS.filter((x) => !x.zodiac).map((x) => x.name).join(' < '));
   // v144: 탈것은 **두목만** 떨군다. 졸개 드랍(0.005%)은 없앴다 —
   // 2만 마리에 하나라 사실상 없는 것인데 '어디서나 나온다'는 착각만 줬다.

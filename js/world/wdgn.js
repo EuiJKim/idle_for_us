@@ -5,7 +5,7 @@
 //   깬 단계는 '소탕'으로 바로 보상을 받는다(들어가지 않고 한 번 쓴다) — 방치형이라 매일 누르기만 해도 된다.
 //   못 깨도 잡은 만큼 절반은 준다.
 // 무한의 탑: 층마다 수문장 하나, 30초. 이기면 다음 층(자동으로 이어 오른다), 오른 층마다 공격력·체력이 영구히 오른다.
-import { ZONES_W, ZONE_COUNT, MAPS, mapId, BOSS, KINGS, mobHp, mobAtk, mobGold, expToNext, dailyShards, TOWER_SHARDS } from './wdata.js';
+import { ZONES_W, ZONE_COUNT, MAPS, mapId, BOSS, KINGS, mobHp, mobAtk, mobGold, expToNext, dailyShards, TOWER_SHARDS, MOUNTS } from './wdata.js';
 
 // 한국 시간 하루 — 'YYYY-MM-DD'와 요일(0 일요일)
 export const kstDay = (now = Date.now()) => new Date(now + 9 * 3600e3).toISOString().slice(0, 10);
@@ -212,6 +212,53 @@ export function towerMap(f) {
   const z = zoneForLv(towerLv(f));
   return { id: -2, inst: true, name: f > TOWER_MAX ? `주간 회랑 ${f - TOWER_MAX}층` : `무한의 탑 ${f}층`, zoneName: '무한의 탑', zone: z, mz: z, area: 0, art: ZONES_W[z].art,
     lv: [towerLv(f), towerLv(f)], mobs: [], boss: towerBoss(f), scene: isZodiacFloor(f) ? 'raid' : 'trial', bossFirst: true };
+}
+// ---------- v350 무한의 탑 · 극(極) — 하드 모드 ----------
+// 보통 탑 60층을 오르면 열린다. 60층. 극 h층 수문장 = 보통 (60+h)층의 그것보다 체력 ×2.2 · 경고가 짧고(×0.82) · 자주(×0.75) · 아프다(×1.25),
+//   초식 하나가 더(천라지망·도는 칼날·붕괴…). 10층마다 신수(HARD_MOUNTS)가 몸소 지킨다 — 처음 이기면 그 신수가 내 탈것으로.
+//   극의 층마다 공격력·체력 +0.4% 영구(60층 +24%).
+export const HARD_OPEN = 60;
+export const HARD_MAX = 60;
+export const HARD_BONUS = 0.004;
+export const hardBonus = (h) => Math.min(HARD_MAX, h || 0) * HARD_BONUS;
+export const hardF = (h) => Math.min(TOWER_MAX, HARD_OPEN + h);   // 같은 세기의 보통 층
+export const isHardBossFloor = (h) => h % 10 === 0;
+export const hardSec = (h) => (isHardBossFloor(h) ? 60 : 40);
+export const hardLv = (h) => Math.min(150, towerLv(hardF(h)) + 4);
+export const hardHp = (h) => Math.round(towerHp(hardF(h)) * 2.2 * (isHardBossFloor(h) ? 1.5 : 1) * (1 + h * 0.012));
+export const hardAtk = (h) => towerAtk(hardF(h)) * 1.3;
+export const hardDelay = (h) => tellDelay(hardF(h)) * 0.82;
+export const hardGap = (h) => castGap(hardF(h)) * 0.75 * (isHardBossFloor(h) ? 0.9 : 1);
+export const HARD_DMG = 1.25;
+const HARD_EXTRA = [[1, 'spiral'], [11, 'cage'], [21, 'collapse'], [31, 'quad'], [41, 'lead'], [51, 'ring3']];
+// 신수 층의 고유 초식 — 그 기운대로
+const HARD_BOSS_PAT = { 1: ['rain', 'nova', 'spiral', 'chase'], 2: ['ring3', 'donut', 'cage', 'aim'], 3: ['xcross', 'rain', 'lead', 'chase'],
+  4: ['collapse', 'chase', 'spiral', 'quad'], 5: ['ring3', 'twin', 'cage', 'donut'], 6: ['xcross', 'spiral', 'collapse', 'cage', 'quad'] };
+export function hardPatterns(h) {
+  if (isHardBossFloor(h)) return HARD_BOSS_PAT[h / 10] || HARD_BOSS_PAT[6];
+  return [...towerPatterns(hardF(h)).slice(-3), ...HARD_EXTRA.filter(([at]) => h >= at).map(([, p]) => p).slice(-2)];
+}
+export const hardMountOf = (h) => (isHardBossFloor(h) ? MOUNTS.find((m) => m.hard === h / 10) || null : null);
+export function hardBoss(h) {
+  const md = hardMountOf(h);
+  if (md) return { name: `극 ${h}층 신수 ${md.name}`, beast: md.id, bscale: 1.7, hardBeast: md.hard };
+  const b = ZONES_W[zoneForLv(hardLv(h))].boss;
+  return { name: `극 ${h}층 수문장 ${b.name}`, look: b.look };
+}
+export function hardReward(h) {
+  const lv = hardLv(h);
+  const out = { gold: Math.round(mobGold(lv) * 80), petShard: TOWER_SHARDS * 2, mountShard: TOWER_SHARDS * 3 };
+  if (isHardBossFloor(h)) {
+    const z = zoneForLv(lv);
+    out.gold += Math.round(mobGold(lv) * 600); out.mountShard *= 4; out.petShard *= 4;
+    out.mats = { [z]: 300, [`b${z}`]: 10 };
+  }
+  return out;
+}
+export function hardMap(h) {
+  const z = zoneForLv(hardLv(h));
+  return { id: -2, inst: true, hard: true, name: `무한의 탑 · 극 ${h}층`, zoneName: '무한의 탑 · 극', zone: z, mz: z, area: 0, art: ZONES_W[z].art,
+    lv: [hardLv(h), hardLv(h)], mobs: [], boss: hardBoss(h), scene: isHardBossFloor(h) ? 'raid' : 'trial', bossFirst: true };
 }
 // 십이지 뽑기 — 그 신수가 35%(이미 가졌으면 안 나온다), 셋째 뽑기까지 안 나오면 셋째에 꼭.
 // 신수가 아니면 보통 탈것(10층에 3단 … 뒤로 갈수록 좋은 것)

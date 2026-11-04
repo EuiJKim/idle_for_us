@@ -227,6 +227,7 @@ export function migrateWorld(raw, now = Date.now()) {
   }
   const tw = raw.tower && typeof raw.tower === 'object' ? raw.tower : {};
   s.tower = { floor: clamp(Math.floor(Number(tw.floor) || 0), 0, D.TOWER_MAX), auto: tw.auto !== false };
+  s.tower.hard = clamp(Math.floor(Number(tw.hard) || 0), 0, D.HARD_MAX);   // v350 극(하드) 오른 층
   if (tw.cor && typeof tw.cor.key === 'string') s.tower.cor = { key: tw.cor.key, best: Math.max(0, Math.floor(Number(tw.cor.best) || 0)), all: Math.max(0, Math.floor(Number(tw.cor.all) || 0)) };   // v263
   // v230: 전에는 s.dgn을 새로 짜며 auto를 빼먹어 다시 들어오면 늘 꺼져 있었다
   s.path = raw.path === 'a' || raw.path === 'b' ? raw.path : null;   // v237
@@ -594,7 +595,7 @@ export class WorldGame {
     const db = this.compDexBonus();
     gear.atkPct += db; gear.hpPct += db;
     // 무한의 탑: 오른 층마다 영구히
-    const tb = D.towerBonus(s.tower?.floor);
+    const tb = D.towerBonus(s.tower?.floor) + D.hardBonus(s.tower?.hard);   // v350 극의 층도
     gear.atkPct += tb; gear.hpPct += tb;
     // 고수 비무: 처음 이긴 고수마다 영구히 (v148)
     const mb = this.masterBonus();
@@ -639,7 +640,7 @@ export class WorldGame {
       goldMul: this.titleNow()?.goldMul || 1,   // v322 칭호 은자
       matMult: 1 + gear.mat,
       // v262: 스탯마다 다른 축 — 힘=두목 피해 · 민첩=걸음 · 체력=받는 피해 감소 · 내공=무공 숨(어디에 찍든 사냥만 같던 것)
-      moveSpeed: 1 + (mt ? mt.speed * mk : 0) + (cls.move || 0) + (pm.move || 0) + gear.move + Math.min(W.STAT_ROLE.dexMoveMax, dex * W.STAT_ROLE.dexMove),
+      moveSpeed: 1 + (mt ? mt.speed * (mt.fixedSpeed ? 1 : mk) : 0) + (cls.move || 0) + (pm.move || 0) + gear.move + Math.min(W.STAT_ROLE.dexMoveMax, dex * W.STAT_ROLE.dexMove),
       boss: (cls.boss || 1) * (1 + gear.bossDmg) * (1 + Math.min(W.STAT_ROLE.strBossMax, str * W.STAT_ROLE.strBoss)),
       gold: gear.gold + (cls.goldUp || 0), dodge: Math.min(0.5, gear.dodge), drain: gear.drain, dmgRed: Math.min(0.5, gear.dmgRed + Math.min(W.STAT_ROLE.vitRedMax, vit * W.STAT_ROLE.vitRed)),
       cdr: Math.min(0.4, gear.cdr + Math.min(W.STAT_ROLE.intCdrMax, int * W.STAT_ROLE.intCdr)), skillRange: gear.range, thorns: gear.thorns, stunHit: Math.min(0.3, gear.stunHit),
@@ -660,7 +661,7 @@ export class WorldGame {
     const e = s.equip;
     const g = (it) => (it ? `${it.uid}.${it.plus || 0}.${it.rar || 0}` : '-');
     const pets = this.activePets().map((p) => `${p.uid}.${p.lv}.${p.rar || 0}.${p.star || 0}.${p.q || 0}.${p.dan || 0}`).join(',') + `|d${Object.values(s.petDex || {}).reduce((a, v) => a + v + 1, 0)}.${Object.keys(s.mountDex || {}).length}|m${this.mountInst()?.lv || 0}`;
-    return `${s.level}|${JSON.stringify(s.passLv || {})}|${s.guildId ? W.guildLevel(this.guildExp) : 0}|${s.job}|${s.stats.str},${s.stats.dex},${s.stats.vit},${s.stats.int}|${W.SLOTS.map((x) => g(e[x.id])).join(',')}|${pets}|${s.mount || '-'}|${s.tower?.floor || 0}|${s.path || '-'}|${s.jobTier || 0}|${this.growItems().map((x) => x.plus || 0).join('.')}|t${s.temper || 0}|i${this.impSig()}|T${s.title || ''}.${s.titles.length}`;   // v243 · v274 단련: 가방 속 성장 장비 강화도(공유)
+    return `${s.level}|${JSON.stringify(s.passLv || {})}|${s.guildId ? W.guildLevel(this.guildExp) : 0}|${s.job}|${s.stats.str},${s.stats.dex},${s.stats.vit},${s.stats.int}|${W.SLOTS.map((x) => g(e[x.id])).join(',')}|${pets}|${s.mount || '-'}|${s.tower?.floor || 0}.${s.tower?.hard || 0}|${s.path || '-'}|${s.jobTier || 0}|${this.growItems().map((x) => x.plus || 0).join('.')}|t${s.temper || 0}|i${this.impSig()}|T${s.title || ''}.${s.titles.length}`;   // v243 · v274 단련: 가방 속 성장 장비 강화도(공유)
   }
   power() { return this.stats().power; }
   // v297 각인 서명 — 칸(증표·단·고유)이 바뀌면 능력치를 다시 센다
@@ -2968,7 +2969,7 @@ export class WorldGame {
     this.noteDex();
     // 처음 얻었거나 지금 것보다 좋으면 바로 탄다
     const cur = this.mountNow();
-    if (!cur || W.mountOf(kind).speed > cur.speed) this.s.mount = mt.uid;
+    if (!cur || W.mountRank(W.mountOf(kind)) > W.mountRank(cur)) this.s.mount = mt.uid;
     this._stats = null;
     this.emit('mountDrop', { mount: mt, at: at ? { x: at.x, y: at.y } : null });
     return mt;
@@ -2997,7 +2998,7 @@ export class WorldGame {
     this.s.mounts.push(mt);
     this.noteDex();
     const cur = this.mountNow();
-    if (!cur || W.mountOf(kind).speed > cur.speed) this.s.mount = mt.uid;
+    if (!cur || W.mountRank(W.mountOf(kind)) > W.mountRank(cur)) this.s.mount = mt.uid;
     this._stats = null;
     this.mark('fuse');
     return mt;
@@ -3713,7 +3714,7 @@ export class WorldGame {
     const mt = { uid: uidSeq++, kind };
     this.s.mounts.push(mt);
     const cur = this.mountNow();
-    if (!cur || W.mountOf(kind).speed > cur.speed) this.s.mount = mt.uid;
+    if (!cur || W.mountRank(W.mountOf(kind)) > W.mountRank(cur)) this.s.mount = mt.uid;
     this._stats = null;
     return mt;
   }
@@ -3957,6 +3958,15 @@ export class WorldGame {
     this.bossSeen = chain;
     return true;
   }
+  // v350 극(하드) — 보통 탑 60층부터. 다음 극 층으로
+  canHard() { return !this.inst && !!this.s.job && this.s.tower.floor >= D.HARD_OPEN && (this.s.tower.hard || 0) < D.HARD_MAX; }
+  startHard(chain = false) {
+    if (!this.canHard()) return false;
+    const h = (this.s.tower.hard || 0) + 1;
+    this.startInst({ kind: 'tower', hard: true, stage: h, map: D.hardMap(h), t: D.hardSec(h), max: D.hardSec(h), wait: chain ? 1.2 : 0.9, castT: 2.2 });
+    this.bossSeen = chain;
+    return true;
+  }
   startTower(chain = false) {
     if (!this.canTower()) return false;
     const f = this.s.tower.floor + 1;
@@ -3995,6 +4005,7 @@ export class WorldGame {
         const b = this.spawnMob(true);
         I.boss = b;
         if (b && I.kind === 'raid') { b.lv = this.s.level + 5; b.maxHp = I.sharedMax; b.hp = I.hpLeft; b.atk = W.mobAtk(b.lv) * W.BOSS.atk; b.armor = 0; b.grade = 3; }
+        else if (b && I.hard) { b.lv = D.hardLv(I.stage); b.maxHp = b.hp = D.hardHp(I.stage); b.atk = D.hardAtk(I.stage); b.armor = W.mobDef(b.lv); b.grade = 3; b.hardFx = D.hardMountOf(I.stage)?.fx || 'hard'; }
         else if (b) { b.lv = D.towerLv(I.stage); b.maxHp = b.hp = D.towerHp(I.stage); b.atk = D.towerAtk(I.stage); b.armor = W.mobDef(b.lv); if (D.isZodiacFloor(I.stage)) b.grade = 3; }
       }
       return;
@@ -4005,7 +4016,8 @@ export class WorldGame {
       if (b && !(b.stun > 0)) {
         I.castT -= dt;
         // 토벌 두목은 35층 수문장만큼의 초식을 약하게 (함께 오래 치는 판이라)
-        if (I.castT <= 0) { const f = I.kind === 'raid' ? 35 : I.stage; I.castT = D.castGap(f) * (I.kind === 'raid' ? 1.3 : 1); this.bossCast(b, f, I.kind === 'raid' ? 0.6 : 1); }
+        if (I.castT <= 0 && I.hard) { I.castT = D.hardGap(I.stage); this.bossCast(b, D.hardF(I.stage), D.HARD_DMG, D.hardPatterns(I.stage), null, { delay: D.hardDelay(I.stage) }); }
+        else if (I.castT <= 0) { const f = I.kind === 'raid' ? 35 : I.stage; I.castT = D.castGap(f) * (I.kind === 'raid' ? 1.3 : 1); this.bossCast(b, f, I.kind === 'raid' ? 0.6 : 1); }
       }
     }
     I.t -= dt;
@@ -4219,13 +4231,22 @@ export class WorldGame {
       if (ok) this.s.dgn.best[I.id] = Math.max(this.dailyBest(I.id), I.stage);
       // v260: 오늘 이 단계에서 졌다(그만두기 빼고) — 자동은 남은 횟수를 같은 단계에 또 쓰지 않고 소탕한다
       else if (!I.done?.left) this.dgnToday(I.now).fail[I.id] = I.stage;
-    } else if (I.kind === 'tower' && !ok) {
+    } else if (I.kind === 'tower' && !ok && !I.hard) {
       this.s.tower.failPow = this.stats().power;      // v230: 루틴이 같은 층에서 헛돌지 않게(그만둬도 — 다시 끌려 들어가지 않게)
+    } else if (I.kind === 'tower' && ok && I.hard) {
+      this.tday('tower');
+      if (I.stage > (this.s.tower.hard || 0)) {
+        this.s.tower.hard = I.stage;
+        this._stats = null;
+        reward = this.grant(D.hardReward(I.stage));
+        const md = D.hardMountOf(I.stage);
+        if (md && !this.s.mounts.some((m) => m.kind === md.id)) { this.gainMount(md.id); I.newMount = md.id; }
+      }
     } else if (I.kind === 'tower' && ok && I.corridor) {
       this.tday('tower');
       const c = this.corridorState();
       if (I.stage - D.TOWER_MAX > c.best) { c.best = I.stage - D.TOWER_MAX; c.all = Math.max(c.all || 0, c.best); reward = this.grant({ gold: D.corridorGold(I.stage) }); }
-    } else if (I.kind === 'tower' && ok) {
+    } else if (I.kind === 'tower' && ok && !I.hard) {
       this.tday('tower');
       this.s.tower.floor = Math.max(this.s.tower.floor, I.stage);
       this._stats = null;
@@ -4240,16 +4261,22 @@ export class WorldGame {
       }
     }
     const res = { kind: I.kind, id: I.id, stage: I.stage, ok, gotKey: !!I.gotKey, extra: !!I.extra, died: !!I.done?.died, timeout: !!I.done?.timeout, left: !!I.done?.left, key: I.key, dealt: I.dealt || 0,
-      kills: I.kills || 0, target: I.target || 0, reward, chain: false };
+      kills: I.kills || 0, target: I.target || 0, reward, chain: false, hard: !!I.hard, newMount: I.newMount || null };
     this.inst = null;
     // 탑: 이기고 '이어 오르기'면 다음 층으로
+    if (I.kind === 'tower' && ok && I.hard && this.s.tower.auto && !I.done.left && !I.newMount && this.canHard()) {
+      res.chain = true;
+      this.emit('instEnd', res);
+      this.startHard(true);
+      return res;
+    }
     if (I.kind === 'tower' && ok && I.corridor && this.s.tower.auto && !I.done.left && this.canCorridor()) {
       res.chain = true;
       this.emit('instEnd', res);
       this.startCorridor(true);
       return res;
     }
-    if (I.kind === 'tower' && ok && !I.corridor && (this.s.tower.auto || this.s.dgn.routine) && !I.done.left && this.canTower()) {
+    if (I.kind === 'tower' && ok && !I.corridor && !I.hard && (this.s.tower.auto || this.s.dgn.routine) && !I.done.left && this.canTower()) {
       res.chain = true;
       this.emit('instEnd', res);
       this.startTower(true);

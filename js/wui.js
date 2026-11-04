@@ -1997,8 +1997,31 @@ function dgnTab(app) {
       h('label', { class: 'chk' }, auto, ' 이기면 이어서 다음 층으로'),
       h('div', { class: 'btn-row' },
         h('button', { class: 'btn primary', disabled: game.canTower() ? null : true, onclick: () => start(() => game.startTower()) }, tw.floor >= D.TOWER_MAX ? '꼭대기까지 올랐어요' : `${nf}층 도전`)));
-    // v263 주간 회랑 — 120층 위, 한 주마다 초식 조합이 바뀐다
     const out = [tower];
+    // v350 무한의 탑 · 극(極) — 하드 모드
+    {
+      const hf = tw.hard || 0, open = tw.floor >= D.HARD_OPEN, nh = Math.min(D.HARD_MAX, hf + 1);
+      const nb2 = D.hardBoss(nh), nmd = D.hardMountOf(nh);
+      const mounts = W.HARD_MOUNTS.map((m, i) => {
+        const own = s.mounts.some((x) => x.kind === m.id);
+        return h('div', { class: `hard-mt${own ? ' own' : ''}${hf >= (i + 1) * 10 ? ' clear' : ''}`, style: `--mc:${m.col}`, title: `${m.name} — ${m.desc} · 이동 +100% 고정 · 공격·체력 +${Math.round(m.stat * 100)}%` },
+          creatureIcon(m.id, 46), h('b', {}, m.name), h('small', {}, own ? '얻음 ✓' : `극 ${(i + 1) * 10}층`));
+      });
+      out.push(h('div', { class: `card dgn-card hard-card${open ? '' : ' locked'}` },
+        h('div', { class: 'hard-glow' }),
+        h('div', { class: 'dgn-top' }, h('div', { class: 'dgn-ico hard-ico' }, '極'),
+          h('div', { class: 'dgn-name' }, h('b', {}, '무한의 탑 · 극'), h('small', {}, ' 無限塔 極 · 하드 모드'),
+            h('div', { class: 'muted' }, open ? `극 ${hf}층 · 덤 공격력·체력 +${(D.hardBonus(hf) * 100).toFixed(1).replace(/\.0$/, '')}%` : `보통 탑 ${D.HARD_OPEN}층을 오르면 열려요 (지금 ${tw.floor}층)`))),
+        h('p', { class: 'muted dgn-desc' }, `${D.HARD_MAX}층. 수문장이 훨씬 단단하고(체력 2배 넘게) 경고가 짧고 잦고 아파요. 초식도 더 — 도는 칼날·천라지망·붕괴…. 층마다 공격력·체력 +${D.HARD_BONUS * 100}% 영구, 10층마다 신수가 몸소 지켜요 — 이기면 그 신수가 내 탈것으로.`),
+        h('div', { class: 'hard-mounts' }, ...mounts),
+        open && hf < D.HARD_MAX ? h('div', { class: 'dgn-stage' },
+          h('div', { class: 'stg' }, h('b', {}, `극 ${nh}층`), h('small', {}, ` ${nb2.name.replace(/^극 \d+층 (수문장|신수) /, '')} · Lv.${D.hardLv(nh)} · ${D.hardSec(nh)}초`)),
+          h('div', { class: 'rw' }, ...rewardNodes(app, D.hardReward(nh), '처음 오르면 '), nmd && !s.mounts.some((x) => x.kind === nmd.id) ? h('span', { class: 'hard-prize' }, `+ 신수 ${nmd.name}`) : null)) : null,
+        h('div', { class: 'btn-row' },
+          h('button', { class: 'btn primary hard-go', id: 'hard-go', disabled: game.canHard() ? null : true, onclick: () => start(() => game.startHard()) },
+            !open ? `🔒 보통 ${D.HARD_OPEN}층부터` : hf >= D.HARD_MAX ? '극을 모두 올랐어요' : `⚡ 극 ${nh}층 도전`))));
+    }
+    // v263 주간 회랑 — 120층 위, 한 주마다 초식 조합이 바뀐다
     if (tw.floor >= D.TOWER_MAX) {
       const c = game.corridorState();
       const cf = D.TOWER_MAX + c.best + 1;
@@ -2971,7 +2994,7 @@ function compTab(app) {
     ...W.MOUNTS.slice().sort((a, b) => b.tier - a.tier).map((d) => {
       const z = firstZone(W.mountMaxTier, d.tier);
       return h('div', { class: 'rank-line' }, h('span', { class: 'rk' }, `${d.tier}`), h('span', { class: 'em' }, creatureIcon(d.id, 34)),
-        h('b', {}, d.name), h('span', {}, `이동 +${Math.round(d.speed * 100)}% · 공격·체력 +${Math.round(d.stat * 100)}%`), h('small', {}, d.zodiac ? `무한의 탑 ${d.zodiac * 10}층 십이지 뽑기` : `${z?.name || ''} 두목부터`));
+        h('b', {}, d.name), h('span', {}, `이동 +${Math.round(d.speed * 100)}% · 공격·체력 +${Math.round(d.stat * 100)}%`), h('small', {}, d.hard ? `무한의 탑 · 극 ${d.hard * 10}층` : d.zodiac ? `무한의 탑 ${d.zodiac * 10}층 십이지 뽑기` : `${z?.name || ''} 두목부터`));
     }));
   // v147: 애완동물 | 탈것 두 칸으로 · v292 도감 칸 · 얻는 곳
   const where = (title, lines) => h('details', { class: 'card rank-card' }, h('summary', {}, h('b', {}, title), h('small', {}, ' 눌러서 보기')), ...lines.map((t) => h('div', { class: 'where-line' }, t)));
@@ -2990,6 +3013,7 @@ function compTab(app) {
     `  · 졸개 가끔(정예 3배) · 두목 ${W.BOSS_SHARDS.mount[0]}~${W.BOSS_SHARDS.mount[1]}개(왕·고수 2배) · 일일 던전 한 판 · 무한의 탑 처음 오른 층 · 보물 원숭이 · 주간 상자 · 방치 · 도감 이정표`,
     `🔮 합성 — 같은 순위 ${W.MOUNT_FUSE_N}마리 → 다음 순위 하나(길들인 레벨의 절반을 이어 간다)`,
     '🐲 십이지 신수 — 무한의 탑 10층마다 십이지 뽑기',
+    `⚡ 극의 신수 여섯 — 무한의 탑 · 극(하드) 10층마다 그 층의 신수를 이기면 (이동 +100% 고정 · 공격·체력 크게)`,
     `🪢 길들이기 — 탈것 조각과 은자로 레벨(최대 ${W.MOUNT_LV_MAX}) · 레벨마다 이동·공격·체력 +${Math.round(W.MOUNT_LV_K * 100)}%`,
   ]);
   const dexCard = h('div', { class: 'card' });
@@ -3128,7 +3152,7 @@ function compTab(app) {
       const tc = game.tameCost(m.uid);
       mountCard.append(h('div', { class: `row${on ? ' me' : ''}` },
         h('div', { class: 'ico pet-ico' }, creatureIcon(m.kind)),
-        h('div', { class: 'info' }, h('div', { class: 'name' }, d.name, h('small', {}, `순위 ${d.tier}${m.lv ? ` · 길들이기 ${m.lv}/${W.MOUNT_LV_MAX}` : ''}`)), h('div', { class: 'desc' }, `이동 속도 +${Math.round(d.speed * k * 100)}% · 공격력·체력 +${(d.stat * k * 100).toFixed(1).replace(/\.0$/, '')}%`),
+        h('div', { class: 'info' }, h('div', { class: 'name' }, d.name, h('small', {}, `순위 ${d.tier}${m.lv ? ` · 길들이기 ${m.lv}/${W.MOUNT_LV_MAX}` : ''}`)), h('div', { class: 'desc' }, `이동 속도 +${Math.round(d.speed * (d.fixedSpeed ? 1 : k) * 100)}%${d.fixedSpeed ? '(고정)' : ''} · 공격력·체력 +${(d.stat * k * 100).toFixed(1).replace(/\.0$/, '')}%`),
           tc ? h('div', { class: 'desc', style: 'color:#fde68a' }, `길들이기 +1: 탈것 조각 ${tc.shard} · 은자 ${fmt(tc.gold)} → +${Math.round(W.MOUNT_LV_K * 100)}%`) : null),
         h('div', { class: 'pet-btns' },
           tc ? h('button', { class: 'buy', disabled: game.canTame(m.uid) ? null : true, onclick: () => { if (game.tame(m.uid)) { toast(`${d.name} 길들이기 ${m.lv}`); done(); } } }, '길들이기') : h('span', { class: 'sk-max' }, '極'),

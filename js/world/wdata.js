@@ -1152,11 +1152,24 @@ export const MOUNTS = [
 // v157: 이동 속도 증가폭을 절반으로 — 60%만 돼도 너무 빨랐다 (청룡마 +170% → +85%)
 export const MOUNT_SPEED_K = 0.5;
 for (const m of MOUNTS) m.speed = +(m.speed * MOUNT_SPEED_K).toFixed(3);
+// v350 극(極)의 신수 — 무한의 탑 하드 모드 10층마다 그 층을 지키는 신수(처음 깨면 꼭). 이동은 +100%로 고정(길들여도 그대로),
+//   대신 공격력·체력이 크게 오른다. 합성·떨굼 없음. fx: 탈 때 둘레에 이는 기운(battle.js drawMountAura)
+export const HARD_MOUNTS = [
+  { id: 'h1', name: '염화주작', emoji: '🔥', stat: 0.27, fx: 'flame', col: '#f97316', desc: '불꽃 깃이 흩날리는 남방의 신조' },
+  { id: 'h2', name: '빙백설린', emoji: '❄️', stat: 0.31, fx: 'frost', col: '#7dd3fc', desc: '서리꽃을 밟고 달리는 얼음 기린' },
+  { id: 'h3', name: '뇌령기린', emoji: '⚡', stat: 0.35, fx: 'thunder', col: '#c084fc', desc: '발굽마다 벼락이 튀는 천둥 기린' },
+  { id: 'h4', name: '야천흑표', emoji: '🌑', stat: 0.39, fx: 'void', col: '#a855f7', desc: '그림자 불꽃을 두른 밤하늘의 표범' },
+  { id: 'h5', name: '창해교룡', emoji: '🌊', stat: 0.44, fx: 'tide', col: '#22d3ee', desc: '물결 비늘로 허공을 헤엄치는 교룡' },
+  { id: 'h6', name: '혼원금룡', emoji: '🐲', stat: 0.5, fx: 'gold', col: '#fbbf24', desc: '금빛 법륜을 이고 하늘을 가르는 태초의 용' },
+];
+for (const [i, m] of HARD_MOUNTS.entries()) MOUNTS.push({ ...m, tier: 14, hard: i + 1, speed: 1, fixedSpeed: true });
+// 어느 탈것이 더 좋은가(새로 얻으면 갈아탈지) — 이동과 공격·체력을 함께 본다
+export const mountRank = (d) => (d ? d.speed + d.stat : -1);
 export const mountOf = (id) => MOUNTS.find((m) => m.id === id) || null;
 // 탈것 합성 (v204) — 같은 순위 셋 + 은자 → 다음 순위 하나. 십이지 신수(순위 13)와 맨 위(청룡마 12)는 합성하지 않는다.
 export const MOUNT_FUSE_N = 3;
 export const MOUNT_TOP = 12;
-export const mountFuseCost = (tier) => Math.round(3000 * 2.4 ** tier);
+export const mountFuseCost = (tier) => Math.round(1000 * 1.9 ** tier);   // v350 크게 내림 (청룡마 합성 4,570만 → 116만)
 export const mountOfTier = (tier) => MOUNTS.find((m) => m.tier === tier && !m.zodiac) || null;
 // **졸개는 더 이상 안 떨군다.** 0.005%였다 — 2만 마리에 하나, 하루 꼬박
 // 사냥해 한두 번이다. 사실상 없는 것인데 '어디서나 나온다'는 착각만 줬다.
