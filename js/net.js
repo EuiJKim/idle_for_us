@@ -2,7 +2,7 @@
 // SDK를 동적으로 불러오므로 실패해도 혼자 하기는 그대로 동작한다.
 import { firebaseConfig, FIREBASE_SDK_VERSION, ADMIN_UID } from './firebase-config.js';
 // v309 이 앱이 바라는 규칙 판 — firestore.rules의 rulesv 숫자와 같아야 한다(규칙을 고치면 둘 다 올린다)
-export const RULES_VER = '315';
+export const RULES_VER = '316';
 export const WORLD_MAX = 100;   // v315 전체 채팅 한 마디 길이
 import { big } from './big.js';
 import { Big } from './big.js';
@@ -508,6 +508,55 @@ export class Net {
     const { collection, query, orderBy, limit, getDocs } = this.fs;
     const snap = await getDocs(query(collection(this.db, 'players'), orderBy('power', 'desc'), limit(50)));
     return snap.docs.map((d) => ({ uid: d.id, ...d.data() })).filter((p) => !this.isHidden(p.uid));   // v308 숨긴 무인은 뺀다
+  }
+
+  // ---------- v316 주간 두목 순위 — wboss/{주}/p/{uid} ----------
+  // 1분에 한 번(새 최단 기록이면 바로). 규칙: 처치 수는 줄지 않고 최단 초는 늘지 않는다 → 다른 기기와 어긋나 거부되면 서버 값과 합쳐 한 번 다시
+  async pushWeekBoss(force = false) {
+    if (!this.online || this.blocked || !this.game.s.nickname || this.isHidden(this.uid)) return false;
+    const g = this.game;
+    const w = g.wbossState();
+    if (!w.kills) return false;
+    const now = Date.now();
+    if (!force && !g._wbBest && now - (this.wbAt || 0) < 60000) return false;
+    const sig = `${w.key}|${w.kills}|${w.best.hwamugi || ''}|${w.best.magwi || ''}|${g.s.title || ''}`;
+    if (sig === this.wbSig) { g._wbBest = false; return false; }
+    this.wbAt = now;
+    const ref = this.ref('wboss', w.key, 'p', this.uid);
+    const body = () => {
+      const d = { name: String(g.s.nickname).slice(0, 12), kills: w.kills, lv: g.s.level, at: this.fs.serverTimestamp() };
+      if (g.s.title) d.title = String(g.s.title).slice(0, 16);
+      for (const k of ['hwamugi', 'magwi']) if (w.best[k] > 0) d[k] = w.best[k];
+      return d;
+    };
+    try {
+      await this.fs.setDoc(ref, body(), { merge: true });
+    } catch (err) {
+      // 다른 기기가 더 많이·더 빨리 올렸다 — 서버 값과 합쳐 다시(denied를 부르지 않는다: 서버를 끊는다)
+      try {
+        const cur = await this.fs.getDoc(ref);
+        if (cur.exists()) {
+          const c = cur.data();
+          w.kills = Math.max(w.kills, Math.floor(c.kills || 0));
+          for (const k of ['hwamugi', 'magwi']) if (c[k] > 0 && !(w.best[k] > 0 && w.best[k] <= c[k])) w.best[k] = c[k];
+        }
+        await this.fs.setDoc(ref, body(), { merge: true });
+      } catch (err2) { console.warn('[net] week boss', err2?.message || err2); return false; }
+    }
+    this.wbSig = sig;
+    g._wbBest = false;
+    return true;
+  }
+  async weekBossBoard(key) {
+    const { collection, query, orderBy, limit, getDocs } = this.fs;
+    const col = collection(this.db, 'wboss', key, 'p');
+    const rows = (snap) => snap.docs.map((d) => ({ uid: d.id, ...d.data() })).filter((p) => !this.isHidden(p.uid));
+    const [kills, hwamugi, magwi] = await Promise.all([
+      getDocs(query(col, orderBy('kills', 'desc'), limit(20))).then(rows),
+      getDocs(query(col, orderBy('hwamugi', 'asc'), limit(10))).then(rows),
+      getDocs(query(col, orderBy('magwi', 'asc'), limit(10))).then(rows),
+    ]);
+    return { kills, hwamugi, magwi };
   }
 
   async player(uid) {

@@ -113,6 +113,23 @@ const profile = (extra = {}) => ({ world: 1, nickname: '무인', level: 10, job:
     ok(await denied(F.deleteDoc(friend.ref('chat', mine.id))), '자기 말도 지우기 거부(운영자만)');
     ok(await allowed(F.getDocs(F.collection(bad.db, 'chat'))), '누구나 읽는다');
     ok(await allowed(F.deleteDoc(F.doc(adb, 'chat', mine.id))), '운영자는 지운다');
+
+    console.log('# 주간 두목 순위 (v316)');
+    const WK = '2026-11-02';
+    const wb = (o = {}) => ({ name: '무인', kills: 5, lv: 120, at: F.serverTimestamp(), ...o });
+    const mineRef = friend.ref('wboss', WK, 'p', friend.uid);
+    ok(await allowed(F.setDoc(mineRef, wb({ hwamugi: 95.3, title: 'okheir' }), { merge: true })), '내 주간 기록 올리기');
+    ok(await allowed(F.setDoc(mineRef, wb({ kills: 9, hwamugi: 80.1 }), { merge: true })), '더 많이 · 더 빨리는 된다');
+    ok(await denied(F.setDoc(mineRef, wb({ kills: 3 }), { merge: true })), '처치 수를 줄이면 거부');
+    ok(await denied(F.setDoc(mineRef, wb({ kills: 9, hwamugi: 120 }), { merge: true })), '최단 기록을 늘리면 거부');
+    ok(await denied(F.setDoc(mineRef, wb({ kills: 9, magwi: 1 }), { merge: true })), '3초보다 짧은 기록 거부');
+    ok(await denied(F.setDoc(mineRef, wb({ kills: 200000 }), { merge: true })), '말이 안 되는 처치 수 거부');
+    ok(await denied(F.setDoc(mineRef, wb({ kills: 9, extra: 1 }), { merge: true })), '다른 칸 거부');
+    ok(await denied(F.setDoc(mineRef, wb({ kills: 9, at: new Date(0) }), { merge: true })), '시각을 꾸미면 거부');
+    ok(await denied(F.setDoc(bad.ref('wboss', WK, 'p', friend.uid), wb({ kills: 99 }), { merge: true })), '남의 기록 거부');
+    ok(await denied(F.setDoc(bad.ref('wboss', '2026-11', 'p', bad.uid), wb(), { merge: true })), '이상한 주 열쇠 거부');
+    ok(await allowed(F.getDocs(F.query(F.collection(bad.db, 'wboss', WK, 'p'), F.orderBy('kills', 'desc'), F.limit(20)))), '누구나 순위를 읽는다');
+    ok(await denied(F.deleteDoc(mineRef)), '자기 기록도 지우기 거부(운영자만)');
   }
 
   console.log('# 운영자 전용');

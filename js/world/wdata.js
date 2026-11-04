@@ -882,9 +882,14 @@ export const TITLES = {
   res4: { id: 'res4', name: '공명의 주인', desc: '공격력 +4% · 때릴 때마다 〈鳴〉', how: '공명 Ⅳ(장비 여덟 모두 같은 기운)', atkMul: 1.04, hitFx: '鳴', col: '#7dd3fc' },
   okq: { id: 'okq', name: '옥안(玉眼)', desc: '공격력 +3%', how: '천품(天品) 각인을 끼기', atkMul: 1.03, col: '#fcd34d' },
   k100k: { id: 'k100k', name: '십만 처치', desc: '공격력 +2%', how: '몹 10만 마리', atkMul: 1.02, col: '#d6d3d1' },
+  petdan: { id: 'petdan', name: '영수의 주인', desc: '공격력 +3% · 때릴 때마다 〈獸〉', how: '애완동물 하나를 10단까지', atkMul: 1.03, hitFx: '獸', col: '#fb923c' },
+  petq: { id: 'petq', name: '천품 영수', desc: '공격력 +3%', how: '천품(天品) 애완동물을 얻기', atkMul: 1.03, col: '#fcd34d' },
   k1m: { id: 'k1m', name: '백만 처치', desc: '공격력 +4% · 때릴 때마다 〈萬〉', how: '몹 100만 마리', atkMul: 1.04, hitFx: '萬', col: '#e7e5e4' },
 };
 export const AUTO_TITLES = Object.values(TITLES).filter((t) => t.how);
+// v316 주간 두목 순위 — 빨리 잡기를 겨루는 두목 · 기록의 가장 짧은 초(꾸민 값 거르기 — 서버 규칙도 같은 값)
+export const WBOSS_RACE = ['hwamugi', 'magwi'];
+export const WBOSS_MIN_SEC = 3;
 export const TITLE_SET_BONUS = 0.01;   // v315 칭호 모음 — 가진 칭호 하나마다 공격력·체력 +1% (끼지 않아도)
 export const titleOf = (k) => (k === '개국공신' ? TITLES.founder : TITLES[k] || null);      // v303 과녁을 쓰러뜨리면 평타 쿨을 이만큼으로 줄인다 — 다음 몹까지 걸어가 또 한 박자 쉬지 않게
 export const HERO_SPEED = 200;      // 한 칸에 0.32초 (칸 길은 비스듬히 못 가서 자유 이동보다 조금 빠르게)
@@ -1015,9 +1020,22 @@ export const PET_BOX = 10;
 // 무인 경험치의 절반을 받는다. 무인 레벨 10+4×(애완 레벨)의 60% — 무인과 함께 오래 자란다
 export const petExpToNext = (lv) => Math.round(expBase(10 + lv * 4) * 0.6);
 // 순위·등급(레어~신화)·레벨로 버프·공격이 커진다
-export const petScale = (pet) => RARITY[pet.rar].mult * (1 + (pet.lv - 1) * 0.05) * (1 + (pet.star || 0) * PET_STAR_K);   // v292 별
+// v316 품(品) — 얻을 때 굴린다(극품 5% · 천품 0.5%) · 단(段) — 다 큰 뒤 혼으로 수련(성공 확률 · 실패하면 다음 확률 +10% · 大成은 두 단)
+export const PET_QUAL = [{ id: 0, name: '', mark: '', mult: 1 }, { id: 1, name: '극품', mark: '◆', mult: 1.25, col: '#c4b5fd' }, { id: 2, name: '천품', mark: '✦', mult: 1.6, col: '#fcd34d' }];
+export const PET_QUAL_P = [0.05, 0.005];   // 극품 · 천품
+export const rollPetQual = (rng) => { const r = rng(); return r < PET_QUAL_P[1] ? 2 : r < PET_QUAL_P[0] + PET_QUAL_P[1] ? 1 : 0; };
+export const PET_DAN_MAX = 10;
+export const PET_DAN_K = 0.08;                // 단마다 버프·공격 +8% → 10단 +80%
+export const petDanSoul = (d) => 3 + 2 * d;   // 0→1단 혼 3 … 9→10단 혼 21
+export const PET_DAN_P = [1, 0.9, 0.8, 0.7, 0.6, 0.5, 0.45, 0.4, 0.35, 0.3];
+export const PET_DAN_PITY = 0.1;              // 실패할 때마다 다음 확률 +10%p (성공하면 0)
+export const PET_DAN_GREAT = 0.12;            // 성공하면 12%로 大成 — 한 번에 두 단
+export const petDanChance = (d, fails = 0) => Math.min(1, (PET_DAN_P[d] ?? 0) + fails * PET_DAN_PITY);
+export const petQualMult = (pet) => PET_QUAL[pet.q || 0]?.mult || 1;
+export const petDanMult = (pet) => 1 + (pet.dan || 0) * PET_DAN_K;
+export const petScale = (pet) => RARITY[pet.rar].mult * (1 + (pet.lv - 1) * 0.05) * (1 + (pet.star || 0) * PET_STAR_K) * petQualMult(pet) * petDanMult(pet);   // v292 별 · v316 품·단
 export const petBuff = (pet) => petOf(pet.kind).base * petScale(pet);
-export const petAtkRatio = (pet) => (0.1 + petOf(pet.kind).tier * 0.025 + (pet.lv - 1) * 0.012) * RARITY[pet.rar].mult * (1 + (pet.star || 0) * PET_STAR_K);   // 무인 공격력 대비 한 대 · v292 별
+export const petAtkRatio = (pet) => (0.1 + petOf(pet.kind).tier * 0.025 + (pet.lv - 1) * 0.012) * RARITY[pet.rar].mult * (1 + (pet.star || 0) * PET_STAR_K) * petQualMult(pet) * petDanMult(pet);   // 무인 공격력 대비 한 대 · v292 별 · v316 품·단
 export const PET_ATK_SEC = 1.6;
 
 // ---------- v292 동료 키우기 — 얻는 곳 늘리기 · 별 · 도감 · 길들이기 ----------

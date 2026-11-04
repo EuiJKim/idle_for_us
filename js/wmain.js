@@ -609,6 +609,8 @@ function setBar(el, r) {
   const v = `scaleX(${Math.max(0, Math.min(1, r || 0)).toFixed(4)})`;
   if (el.style.transform !== v) el.style.transform = v;
 }
+// v316 초 → 1:23.4
+function fmtSec(x) { const m = Math.floor(x / 60), r = x - m * 60; return m ? `${m}:${r.toFixed(1).padStart(4, '0')}` : `${r.toFixed(1)}초`; }
 // v314 분당 경험치 글 — 레벨의 몇 %를 1분에 버나(100%가 넘으면 분당 레벨로)
 function fmtExpRate(x) {
   if (x >= 100) return `+${(x / 100).toFixed(1)}Lv/분`;
@@ -946,8 +948,11 @@ function handleEvents() {
       case 'petDrop': {
         const d = W.petOf(ev.pet.kind);
         saverLoot(`🐾 ${W.RARITY[ev.pet.rar].name} ${d.name}`);
-        toast(`${W.RARITY[ev.pet.rar].name} 애완동물 ${d.name}(순위 ${d.tier})! ${ev.joined ? '데려갔어요' : '우리에서 기다려요(동료 창)'}`);
-        view.showBanner(d.name, W.RARITY[ev.pet.rar].color, 1.6, '동료');
+        const pq = W.PET_QUAL[ev.pet.q || 0];   // v316 품
+        toast(`${pq.id ? `${pq.mark} ${pq.name} ` : ''}${W.RARITY[ev.pet.rar].name} 애완동물 ${d.name}(순위 ${d.tier})! ${ev.joined ? '데려갔어요' : '우리에서 기다려요(동료 창)'}`);
+        view.showBanner(pq.id ? `${pq.name} ${d.name}` : d.name, pq.id ? pq.col : W.RARITY[ev.pet.rar].color, pq.id ? 2.4 : 1.6, '동료');
+        if (pq.id) view.float(pq.id === 2 ? '天品!' : '極品!', view.heroX, view.groundY - 200, pq.col, pq.id === 2 ? 28 : 22, 2);
+        if (pq.id === 2) net.announce(`✦ ${game.s.nickname}님이 천품(天品) ${d.name}을(를) 얻었어요!`);
         sfx('loot');
         break;
       }
@@ -955,6 +960,23 @@ function handleEvents() {
       case 'shards':
         if (ev.at) view.float(`🐾${ev.pet} 🐎${ev.mount}`, view.sx(ev.at), view.sy(ev.at) - 70, '#fcd34d', 13, 1.2);
         break;
+      // v316 단 수련 · 품 물려받기
+      case 'petDan': {
+        const d = W.petOf(ev.pet.kind);
+        if (!ev.ok) { toast(`${d.name} 수련 실패 — 혼은 썼지만 다음 확률이 올라요(${Math.round(W.petDanChance(ev.pet.dan || 0, ev.pet.danFail) * 100)}%)`); sfx('down'); break; }
+        if (ev.great) { view.float('大成!', view.heroX, view.groundY - 200, '#fcd34d', 28, 2); sfx('level'); }
+        toast(`${ev.great ? '大成! ' : ''}${d.name} ${ev.pet.dan}단 — 버프·공격 +${Math.round(ev.pet.dan * W.PET_DAN_K * 100)}%`);
+        if (ev.pet.dan >= W.PET_DAN_MAX) net.announce(`🐾 ${game.s.nickname}님의 ${d.name}이(가) ${W.PET_DAN_MAX}단에 올랐어요!`);
+        break;
+      }
+      // v316 주간 두목 — 화무기·마귀 이번 주 최단
+      case 'wbossBest': {
+        const nm = ev.id === 'magwi' ? '마귀' : '화무기';
+        toast(`⏱ 이번 주 ${nm} 최단 ${fmtSec(ev.sec)}${ev.prev ? ` (전 ${fmtSec(ev.prev)})` : ''} — 무림 › 서열 › 이번 주 두목`);
+        net.pushWeekBoss?.(true);
+        break;
+      }
+      case 'petQualUp': toast(`${W.PET_QUAL[ev.pet.q].mark} ${W.petOf(ev.pet.kind).name} — 먹이의 품을 물려받아 ${W.PET_QUAL[ev.pet.q].name}이 됐어요`); break;
       case 'petStar':
         toast(`★ ${W.petOf(ev.pet.kind).name} 별 ${ev.pet.star} — 버프·공격 +${Math.round(ev.pet.star * W.PET_STAR_K * 100)}%`);
         break;
@@ -2079,7 +2101,7 @@ function step(now) {
     refreshUI();
     if (dg) dg.ui += performance.now() - tU;
   }
-  if (saveTimer > 5) { saveTimer = 0; save(); net.pushProfile(); cloudPush(); }
+  if (saveTimer > 5) { saveTimer = 0; save(); net.pushProfile(); cloudPush(); net.pushWeekBoss?.(); }   // v316 주간 두목(1분에 한 번)
   // 운영자 선물 (v175) — 처음엔 8초 뒤, 그다음 1분마다 본다
   giftTimer += dt;
   if (giftTimer > 60 && net.ready?.() && game.s.job) { giftTimer = 0; checkGifts(); }

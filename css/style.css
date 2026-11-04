@@ -2164,3 +2164,21 @@ body.hunt-noui #exp-warn, body.hunt-noui #boss-wait { visibility: hidden !import
 .chat-mute-row { margin-top: 6px; display: flex; justify-content: flex-end; }
 .chat-mute-row:empty { display: none; }
 .mute-list { display: grid; gap: 6px; margin: 8px 0; max-height: 50vh; overflow: auto; }
+
+/* v316 애완동물 품 · 단 */
+.pet-q { font-weight: 800; font-size: 11.5px; margin-right: 3px; }
+.pet-q.q1 { color: #c4b5fd; }
+.pet-q.q2 { color: #fcd34d; text-shadow: 0 0 6px rgba(252, 211, 77, 0.6); }
+.pet-dan { color: #fb923c; font-weight: 800; font-size: 12px; }
+.buy.dan-btn { border-color: rgba(251, 146, 60, 0.6); color: #fdba74; }
+
+/* v316 서열 | 이번 주 두목 */
+.rank-seg { display: flex; gap: 6px; margin-bottom: 8px; }
+.rank-seg .chip { flex: 1; text-align: center; }
+.wb-mine { padding: 8px 10px; margin: 4px 0 10px; border-radius: 10px; background: rgba(253, 224, 71, 0.08); border: 1px solid rgba(253, 224, 71, 0.3); font-size: 12.5px; color: #fde68a; }
+.wb-block { margin-bottom: 12px; }
+.wb-head { margin: 6px 0 4px; font-size: 14px; }
+.wb-head small { color: var(--muted); font-size: 11px; }
+.rank-seg .chip { border: 1px solid var(--line); color: var(--text); font: inherit; font-size: 12.5px; font-weight: 700; padding: 6px 10px; cursor: pointer; }
+.rank-seg .chip.on { background: rgba(185, 28, 28, 0.55); border-color: #ef4444; color: #fff; box-shadow: none; }
+.buy.dan-btn small { display: block; }

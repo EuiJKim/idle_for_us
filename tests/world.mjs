@@ -2,6 +2,7 @@
 // node tests/world.mjs
 import { WorldGame, newWorldSave, migrateWorld } from '../js/world/wgame.js';
 import * as W from '../js/world/wdata.js';
+import * as TD from '../js/world/wtoday.js';
 import * as Q from '../js/world/wquest.js';
 import * as MS from '../js/world/wmaster.js';
 import * as D from '../js/data.js';
@@ -2820,6 +2821,92 @@ console.log('\n=== v315 칭호 모음 보너스 · 전체 채팅 가리기 ===')
   ok(/isMuted\(m\.uid\)/.test(ui) && /muteChat/.test(ui) && /unmuteChat/.test(ui) && /who-title/.test(ui), '채팅 창: 가리기 · 풀기 · 칭호 빛깔');
   ok(/WORLD_MAX = 100/.test(net) && /chatlimit/.test(net) && /writeBatch/.test(net) && /같은 말을 거듭/.test(net), '보내기: 100자 · 2초 막이(chatlimit) · 같은 말 거듭 막기');
   ok(/titleSet\(\)/.test(ui) && /TITLE_SET_BONUS/.test(ui), '칭호 모음 창에 보너스');
+}
+
+console.log('\n=== v316 애완동물 품·단 수련 · 주간 두목 ===');
+{
+  // 품 — 굴림 비율
+  let n1 = 0, n2 = 0; const r = (() => { let a = 0x9e3779b9; return () => { a |= 0; a = (a + 0x6d2b79f5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; })();   // mulberry32 — LCG는 아래 자리가 치우쳤다
+  for (let i = 0; i < 200000; i++) { const q = W.rollPetQual(r); if (q === 1) n1++; else if (q === 2) n2++; }
+  ok(Math.abs(n1 / 200000 - W.PET_QUAL_P[0]) < 0.004 && Math.abs(n2 / 200000 - W.PET_QUAL_P[1]) < 0.0012, '극품 5% · 천품 0.5%', `${(n1 / 2000).toFixed(2)}% · ${(n2 / 2000).toFixed(2)}%`);
+  const g = fresh();
+  g.s.pets = []; g.s.petBox = [];
+  const p = g.gainPet(1, null, 'tiger');
+  ok([0, 1, 2].includes(p.q) && p.dan === 0, '얻을 때 품을 굴린다', `q${p.q}`);
+  p.q = 0; g._stats = null;
+  const base = W.petBuff(p), baseA = W.petAtkRatio(p);
+  p.q = 2;
+  ok(Math.abs(W.petBuff(p) / base - W.PET_QUAL[2].mult) < 1e-9 && Math.abs(W.petAtkRatio(p) / baseA - W.PET_QUAL[2].mult) < 1e-9, '천품은 버프·공격 ×1.6');
+  p.q = 0;
+  const a0 = g.stats().atk; p.q = 2; const a1 = g.stats().atk;
+  ok(a1 > a0, '품이 바뀌면 능력치를 다시 센다(statSig)', `${a0.toFixed(0)} → ${a1.toFixed(0)}`);
+  p.q = 0;
+  // 먹이의 품을 물려받는다
+  const f = g.gainPet(0, null, 'tiger'); f.q = 2;
+  ok(g.starUp(p.uid) && p.star === 1 && p.q === 2 && !g.s.petBox.includes(f), '먹이의 품이 더 높으면 물려받는다');
+  // 단 수련
+  ok(g.petDanCost(p) === null && !g.petDan(p.uid), 'Lv.30 전에는 수련 못 한다');
+  p.lv = W.PET_LV_MAX; g.s.petSoul = 0;
+  ok(g.petDanCost(p) === W.petDanSoul(0) && !g.canPetDan(p.uid), '혼이 모자라면 못 한다');
+  g.s.petSoul = 10000;
+  g.rng = () => 0.99;   // 실패
+  p.dan = 3;
+  const before = g.s.petSoul;
+  const rf = g.petDan(p.uid);
+  ok(rf && !rf.ok && p.dan === 3 && p.danFail === 1 && g.s.petSoul === before - W.petDanSoul(3) && Math.abs(rf.next - (W.PET_DAN_P[3] + W.PET_DAN_PITY)) < 1e-9, '실패: 혼은 쓰고 단은 그대로 · 다음 확률 +10%p');
+  g.rng = (() => { const seq = [0.0, 0.5]; let i = 0; return () => seq[i++ % seq.length]; })();   // 성공 · 大成 아님
+  const rs = g.petDan(p.uid);
+  ok(rs.ok && !rs.great && p.dan === 4 && p.danFail === 0, '성공: 한 단 · 쌓인 확률은 0으로');
+  g.rng = () => 0.0;   // 성공 + 大成
+  const rg = g.petDan(p.uid);
+  ok(rg.ok && rg.great && p.dan === 6, '大成: 한 번에 두 단');
+  ok(Math.abs(W.petDanMult(p) - (1 + 6 * W.PET_DAN_K)) < 1e-9, '단마다 +8%');
+  p.dan = 9; g.rng = () => 0.0;
+  const r9 = g.petDan(p.uid);
+  ok(r9.ok && !r9.great && p.dan === W.PET_DAN_MAX && g.petDanCost(p) === null, '10단 끝(大成이 넘치지 않는다)');
+  g.checkTitles();
+  ok(g.hasTitle('petdan') && g.hasTitle('petq'), '칭호 〈영수의 주인〉 · 〈천품 영수〉');
+  ok(W.petDanChance(9, 50) === 1, '확률은 100%를 넘지 않는다');
+  // 저장·불러오기
+  const raw = JSON.parse(JSON.stringify(g.toJSON()));
+  raw.pets[0].q = 7; raw.pets[0].dan = 99; raw.pets[0].danFail = -3;
+  const g2 = new WorldGame(raw, 0);
+  ok(g2.s.pets[0].q === 2 && g2.s.pets[0].dan === W.PET_DAN_MAX && g2.s.pets[0].danFail === 0, '불러올 때 품·단을 범위 안으로');
+
+  // 주간 두목
+  const b = fresh();
+  const t0 = Date.UTC(2026, 10, 2, 3);   // 월요일(한국 정오)
+  const w = b.wbossState(t0);
+  ok(w.kills === 0 && w.key === TD.weekKey(t0), '이번 주 기록을 연다', w.key);
+  b.enterMap(W.mapId(1, W.BOSS_AREA));
+  const mob = { isBoss: true, bornAt: b.clock - 20 };
+  b.noteWeekBoss(mob, t0);
+  ok(b.s.wboss.kills === 1 && !b.s.wboss.best.hwamugi, '두목을 잡으면 한 마리 · 일반 두목은 시간 기록 없음');
+  const hw = W.MAPS.find((m) => m.master === 'hwamugi' && m.bossRoom);
+  ok(b.enterMap(hw.id) && b.map.master === 'hwamugi', '화무기 방');
+  b.events.length = 0;
+  b.noteWeekBoss({ isBoss: true, bornAt: b.clock - 95.34 }, t0);
+  ok(b.s.wboss.best.hwamugi === 95.3 && b.events.some((e) => e.type === 'wbossBest'), '화무기 시간 기록(0.1초)', `${b.s.wboss.best.hwamugi}`);
+  b.noteWeekBoss({ isBoss: true, bornAt: b.clock - 120 }, t0);
+  ok(b.s.wboss.best.hwamugi === 95.3 && b.s.wboss.kills === 3, '더 느리면 그대로');
+  b.noteWeekBoss({ isBoss: true, bornAt: b.clock - 1 }, t0);
+  ok(b.s.wboss.best.hwamugi === W.WBOSS_MIN_SEC, `${W.WBOSS_MIN_SEC}초보다 짧게는 적지 않는다`);
+  const w2 = b.wbossState(t0 + 7 * 86400e3);
+  ok(w2.kills === 0 && !w2.best.hwamugi && w2.key !== w.key, '다음 주엔 새로');
+  const raw2 = JSON.parse(JSON.stringify(b.toJSON()));
+  raw2.wboss = { key: '2026-11-09', kills: -5, best: { hwamugi: 1, magwi: 50, x: 3 } };
+  const b2 = new WorldGame(raw2, 0);
+  ok(b2.s.wboss.kills === 0 && !b2.s.wboss.best.hwamugi && b2.s.wboss.best.magwi === 50 && !('x' in b2.s.wboss.best), '불러올 때 이상한 값은 버린다', JSON.stringify(b2.s.wboss));
+  // 진짜로 잡으면 센다(killMob 연결)
+  const c = fresh();
+  c.enterMap(W.mapId(1, W.BOSS_AREA));
+  for (let i = 0; i < 40; i++) { c.tick(0.05); c.events.length = 0; }
+  const bb = c.mons.find((m) => m.isBoss && m.alive);
+  c.killMob(bb);
+  ok(c.wbossState().kills === 1, '두목을 쓰러뜨리면 주간 처치 +1');
+  const ui = read('js/wui.js'), net = read('js/net.js'), rules = read('firestore.rules');
+  ok(/weekBossBoard/.test(ui) && /이번 주 두목/.test(ui) && /pushWeekBoss/.test(net) && /match \/wboss\/\{wk\}\/p\/\{uid\}/.test(rules), '서열 › 이번 주 두목 · 올리기 · 규칙');
+  ok(/petDan\(p\.uid\)/.test(ui) && /qualTag/.test(ui), '동료 창: 단 수련 · 품 표시');
 }
 
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);

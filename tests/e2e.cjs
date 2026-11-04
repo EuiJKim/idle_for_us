@@ -271,6 +271,19 @@ async function tab(page, name) {
   assert(rows.length >= 2 && rows[0].includes('철수'), `서열: 레벨 높은 철수가 맨 위 (${rows.length}명)`);
   await shot(q, '08-rank.png');
 
+  console.log('# 온라인: 이번 주 두목 (v316)');
+  {
+    // 영희가 화무기를 1분 32초에 잡았다고 치고(방 안의 두목으로 noteWeekBoss) — 철수 화면의 순위에 뜬다
+    await G(q, async () => { const W = await import('/js/world/wdata.js'); const g = window.__game; const hw = W.MAPS.find((m) => m.master === 'hwamugi' && m.bossRoom); g.enterMap(hw.id); g.noteWeekBoss({ isBoss: true, bornAt: g.clock - 92 }); g.noteWeekBoss({ isBoss: true, bornAt: g.clock - 200 }); });
+    assert(await G(q, () => window.__app.net.pushWeekBoss(true)), '주간 기록을 올렸다');
+    await q.click('#panel .rank-seg button:has-text("이번 주 두목")');
+    await q.waitForSelector('#panel .wb-block:has-text("화무기 최단") .rank-row:has-text("영희")', { timeout: 15000 });
+    assert(/1:32\.0/.test(await q.$eval('#panel .wb-block:has-text("화무기 최단") .rank-row:has-text("영희")', (e) => e.textContent)), '화무기 최단 1:32.0 — 순위에 뜬다');
+    assert(/두목 2마리/.test(await q.$eval('#panel .wb-mine', (e) => e.textContent)), '내 기록 줄');
+    await shot(q, '08a-week-boss.png');
+    await G(q, () => window.__game.enterMap(11));
+  }
+
   console.log('# 온라인: 전체 채팅 (v315 칭호 · 가리기 · 2초 막이)');
   {
     await G(q, () => { const g = window.__game; g.grantTitle('quest'); g.wearTitle('quest'); });
