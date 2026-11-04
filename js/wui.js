@@ -807,7 +807,6 @@ function bagTab(app) {
         }));
       };
       // 새겨진 칸 자세히 — 효과 · 다시 굴리기(v342 맨 위로 · 크게) · 단 올리기 · 다시 새기기
-      let lastRoll = null;   // v342 직전 굴림(이전 → 지금)
       const slotView = (i) => {
         const im = IM.imprintOf(it.imps[i], it.rar || 1);
         const c = game.reimpCost(it, i);
@@ -828,21 +827,29 @@ function bagTab(app) {
           h('div', { class: 'sec-head reroll-head' }, '🎲 스킬 변화 다시 굴리기', h('small', {}, ' 범위·두 번·숨·피해 중 하나가 새로 뽑혀요 · 두목·단은 그대로')),
           h('div', { class: 'chg-box reroll-box' },
           h('div', { class: 'reroll-now', style: `--gc:${IM.SK_GRADE[im.skill.g].col}` }, h('small', {}, '지금'), h('b', {}, IM.skillModText(im.skill)), h('em', {}, IM.SK_GRADE[im.skill.g].name)),
-          lastRoll && lastRoll.uid === it.uid && lastRoll.i === i ? h('div', { class: 'reroll-was' }, `방금 전: ${lastRoll.was}  →  지금: ${IM.skillModText(im.skill)}`) : null,
+          // v347 새로 뽑힌 것은 후보 — 지금 것과 견주어 고른다(전엔 굴리자마자 덮어써 좋은 효과가 날아갔다)
+          (() => {
+            const cand = IM.normEntry(it.imps[i])?.cand;
+            if (!cand) return null;
+            const cs = IM.imprintOf({ ...IM.normEntry(it.imps[i]), ...cand, cand: undefined }, it.rar || 1).skill;
+            const better = cs.g > im.skill.g ? '등급 ↑' : cs.g < im.skill.g ? '등급 ↓' : '같은 등급';
+            return h('div', { class: 'reroll-cand', style: `--gc:${IM.SK_GRADE[cs.g].col}` },
+              h('small', {}, `새로 뽑힌 것 · ${better}`), h('b', {}, IM.skillModText(cs)), h('em', {}, IM.SK_GRADE[cs.g].name),
+              h('div', { class: 'btn-row', style: 'margin-top:8px' },
+                h('button', { class: 'btn', id: 'reroll-drop', onclick: () => { game.dropReroll(it.uid, i); toast('지금 효과를 지켰어요'); app.save(); app.refresh(); slotView(i); } }, '지금 것 지키기'),
+                h('button', { class: 'btn good', id: 'reroll-keep', onclick: () => { const p0 = game.power(); game.keepReroll(it.uid, i); toast(`새 효과로 바꿨어요 — ${IM.skillModText(cs)}${powNote(p0)}`); app.save(); app.refresh(); slotView(i); } }, '새 것으로 바꾸기')));
+          })(),
           // v294 무엇이 좋아하는 것인지
           ...(() => { const f = game.favOf(it.imps[i]); return f ? [h('div', { class: 'pref-link', style: 'cursor:default' }, `♥ 좋아하는 효과 — ${[f.skill ? '스킬 변화' : '', f.special ? '고유 효과' : '', f.fx.length ? '테마 능력치' : ''].filter(Boolean).join(' · ')}`)] : []; })(),
           c ? h('div', { class: 'cost-chips' }, costChip(c.key, '증표', c.n, game.s.mats[c.key] || 0, matIcon(c.key, 24)), costChip(null, '은자', c.gold, game.s.gold, goldIco())) : null,
           h('button', { class: 'btn primary reroll-go', disabled: can ? null : true, onclick: () => {
             // v294 좋아하는 스킬 변화면 넘길지 묻는다(등급이 높을 때와 함께)
-            const fav = game.favOf(it.imps[i])?.skill;
-            if ((fav || im.skill.g >= 2) && !confirm(`${fav ? '♥ 좋아하는 스킬 변화예요' : `지금 스킬 변화가 ${IM.SK_GRADE[im.skill.g].name}예요`}\n(${IM.skillModText(im.skill)} · ${IM.SK_GRADE[im.skill.g].name})\n\n다시 돌리면 이 효과는 사라져요. 넘기고 다시 돌리겠습니까?`)) return;
-            const was = IM.skillModText(im.skill);
             const e = game.rerollImpSkill(it.uid, i);
-            if (e) lastRoll = { uid: it.uid, i, was };
             if (!e) return toast('증표·은자가 모자라요');
             const txt = IM.skillModText(IM.imprintOf(e, it.rar || 1).skill);
-            toast(game.favOf(e)?.skill ? `♥ 좋아하는 스킬 변화가 나왔어요! — ${txt}` : `스킬 변화 다시 — ${txt}`); app.save(); app.refresh(); slotView(i);
-          } }, can ? '🎲 다시 굴리기' : '🎲 다시 굴리기 — 증표·은자가 모자라요'),
+            toast(game.favOf(e)?.skill ? `♥ 좋아하는 스킬 변화가 나왔어요! — ${txt} (바꿀지 골라요)` : `새로 뽑혔어요 — ${txt} · 바꿀지 골라요`); app.save(); app.refresh(); slotView(i);
+          } }, !can ? '🎲 다시 굴리기 — 증표·은자가 모자라요' : IM.normEntry(it.imps[i])?.cand ? '🎲 한 번 더 굴리기' : '🎲 다시 굴리기'),
+          h('p', { class: 'muted', style: 'font-size:11.5px;margin:6px 0 0' }, '굴려도 지금 효과는 그대로예요 — 새로 뽑힌 것이 마음에 들 때만 바꿔요.'),
           im.specials ? h('div', { class: 'sp-pick' }, h('small', {}, '고유 효과 — 누르면 그것으로 (초록 테두리가 지금 것)'),
             ...im.specials.map((sp, j) => h('button', { class: `chip${sp.id === im.special.id ? ' on' : ''}`, disabled: sp.id === im.special.id || !can ? true : null, title: sp.id === im.special.id ? '지금 이것' : '', onclick: () => {
               const ps = game.s.autoInfCfg?.prefSp || [];

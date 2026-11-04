@@ -2512,7 +2512,9 @@ function step(now) {
   if (dt > 3) dt = 0;
   dt = Math.min(dt, 0.25);
   const steps = Math.min(3, Math.ceil(dt / 0.05));
-  if (game.s.job && !modalOpen()) for (let i = 0; i < steps; i++) game.tick(dt / steps);
+  // v347 창(장비·각인·강화 같은 팝업)을 열어 둬도 사냥은 계속 — 전엔 팝업이 뜨면 사냥이 멈춰, 가방에서 장비를 보는 동안 증표·재료가 하나도 안 들어왔다.
+  //   켜는 중(로딩·로그인·무인 고르기 · 이름·직업을 묻는 첫 창)과 방치 보상을 받기 전에만 멈춘다
+  if (game.s.job && !booting && !game.s.pendingOffline) for (let i = 0; i < steps; i++) game.tick(dt / steps);
   coop.tick(dt);
   where.tick(dt);   // v344
   view.game = game;

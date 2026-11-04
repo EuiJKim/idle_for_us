@@ -2310,13 +2310,30 @@ export class WorldGame {
     it.imps[slot] = { ...IM.normEntry(it.imps[slot]) };
     this._stats = null; this._mods = null; this._isp = null;
   }
+  // v347 다시 굴리기 — 새로 뽑힌 스킬 변화는 '후보'로만 둔다(it.imps[slot].cand). 지금 것과 견주어 고른다:
+  //   keepReroll(새 것으로) / dropReroll(지금 것 지키기). 전엔 굴리자마자 덮어써 좋은 효과가 강제로 날아갔다(길잡이 퀘스트라 안 할 수도 없었다).
+  //   후보가 있는 채로 또 굴리면 그 후보를 버리고 새 후보를 뽑는다(지금 것은 그대로).
   rerollImpSkill(uid, slot) {
     const it = this.findItem(uid);
     if (!this.canReimp(it, slot)) return null;
     this.payReimp(it, slot);
-    Object.assign(it.imps[slot], IM.rollSkillChange(this.rng));
+    if (typeof it.imps[slot] === 'string') it.imps[slot] = IM.normEntry(it.imps[slot]);
+    it.imps[slot].cand = IM.rollSkillChange(this.rng);
     this.emit('infuse', { item: it, ok: true, reimp: true });
-    return it.imps[slot];
+    return { ...it.imps[slot], ...it.imps[slot].cand, cand: undefined };
+  }
+  keepReroll(uid, slot) {
+    const it = this.findItem(uid); const e = it?.imps?.[slot];
+    if (!e?.cand) return null;
+    const c = e.cand; delete e.cand; Object.assign(e, c);
+    this._stats = null; this._imp = null;
+    return e;
+  }
+  dropReroll(uid, slot) {
+    const it = this.findItem(uid); const e = it?.imps?.[slot];
+    if (!e?.cand) return false;
+    delete e.cand;
+    return true;
   }
   changeImpSpecial(uid, slot, idx) {
     const it = this.findItem(uid);

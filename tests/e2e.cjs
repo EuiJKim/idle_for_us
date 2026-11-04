@@ -369,6 +369,18 @@ async function tab(page, name) {
     assert(!(await p.isVisible('#go-hunt')), '사냥터에서는 숨는다');
   }
 
+  console.log('# 창을 열어 둬도 사냥은 계속 (v347)');
+  {
+    await G(p, () => { const g = window.__game; g.enterMap(11); g.s.autoHunt = true; });
+    await sleep(500);
+    const k0 = await G(p, () => window.__game.s.kills);
+    await G(p, async () => { const M = await import('/js/ui/common.js'); M.openModal((s) => s.append(M.h('h2', {}, '시험 창'))); });
+    await sleep(6000);
+    const k1 = await G(p, () => window.__game.s.kills);
+    await G(p, async () => { const M = await import('/js/ui/common.js'); M.closeModal(); });
+    assert(k1 > k0, `팝업이 떠 있어도 사냥이 이어진다 (처치 ${k0} → ${k1})`);
+  }
+
   console.log('# 아래 창 단추가 겹치지 않는다 (v340)');
   {
     const ov = await G(p, () => { const bs = [...document.querySelectorAll('#tabs button[data-tab]')].map((b) => ({ t: b.dataset.tab, r: b.getBoundingClientRect() })); const o = []; for (let i = 0; i < bs.length; i++) for (let j = i + 1; j < bs.length; j++) { const a = bs[i].r, c = bs[j].r; if (a.left < c.right - 1 && c.left < a.right - 1 && a.top < c.bottom - 1 && c.top < a.bottom - 1) o.push(bs[i].t + '/' + bs[j].t); } const s = bs.find((x) => x.t === 'social').r; return { o, top: document.elementFromPoint(s.left + s.width / 2, s.top + s.height / 2)?.closest('button')?.dataset.tab }; });

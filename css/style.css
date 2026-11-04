@@ -2334,3 +2334,8 @@ body.modal-open #guide-tip { display: none; }
 .guild-intro-line { font-size: 12.5px; color: #fde68a; margin: 1px 0 2px; }
 .follow-btn { margin-right: 6px; }
 .gh-code { flex-wrap: wrap; gap: 6px; }
+/* v347 다시 굴리기 후보 — 지금 것과 견주어 고른다 */
+.reroll-cand { padding: 8px 10px; border-radius: 8px; background: rgba(0, 0, 0, 0.3); border: 1.5px dashed var(--gc, #fde68a); margin-bottom: 6px; }
+.reroll-cand small { display: block; color: #fcd34d; }
+.reroll-cand b { color: var(--gc, #fde68a); font-size: 15px; }
+.reroll-cand em { font-style: normal; font-size: 12px; margin-left: 6px; color: var(--gc, #fde68a); }

@@ -1449,7 +1449,11 @@ console.log('\n=== 각인 v167: 스킬 변화 랜덤 · 고유 셋 중 고르기
   const m0 = g.s.mats[cm];
   g.rng = seeded(99);
   let changed = false;
-  for (let i = 0; i < 6 && !changed; i++) { g.rerollImpSkill(w.uid, 0); changed = JSON.stringify(IM.imprintOf(w.imps[0], 0).skill) !== sk0; }
+  // v347 굴리면 후보만 — 지금 것은 그대로, 고르면(keepReroll) 바뀐다
+  g.rerollImpSkill(w.uid, 0);
+  ok(JSON.stringify(IM.imprintOf(w.imps[0], 0).skill) === sk0 && w.imps[0].cand, '다시 굴리면 후보만 생기고 지금 효과는 그대로 (v347)');
+  ok(g.dropReroll(w.uid, 0) && !w.imps[0].cand && JSON.stringify(IM.imprintOf(w.imps[0], 0).skill) === sk0, '지금 것 지키기 — 후보만 버린다');
+  for (let i = 0; i < 6 && !changed; i++) { g.rerollImpSkill(w.uid, 0); g.keepReroll(w.uid, 0); changed = JSON.stringify(IM.imprintOf(w.imps[0], 0).skill) !== sk0; }
   ok(changed && IM.imprintOf(w.imps[0], 0).special.name === '천마군림' && g.s.mats[cm] < m0, '스킬 변화만 다시 굴리면 고유는 그대로 · 증표가 든다');
   // 옛 판(v163) 각인 글자도 읽힌다
   ok(IM.imprintOf('b1', 0)?.theme === 'poison', '옛 판 각인(증표 글자만)도 읽힌다');
