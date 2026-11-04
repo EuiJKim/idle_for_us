@@ -6,7 +6,7 @@ import * as L from './world/wland.js';
 import * as G from './world/wgear.js';
 import * as Q from './world/wquest.js';
 import { h, toast, openModal, closeModal, subTabs, popUp, holdRepeat, modalGen, ctxMenu } from './ui/common.js';
-import { fmt } from './fmt.js';
+import { fmt, duration } from './fmt.js';
 import { dayKey, WORLD_MAX } from './net.js';
 import { drawCreature, CREATURES, crArt } from './creatures.js';
 import { skinImg } from './icons.js';
@@ -1988,7 +1988,7 @@ function dgnTab(app) {
         skinImg(h('div', { class: 'dgn-ico' }, '塔'), 'dg-tower'),
         h('div', { class: 'dgn-name' }, h('b', {}, '무한의 탑'), h('small', {}, ` 無限塔 · 영구 능력치`),
           h('div', { class: 'muted' }, `오른 층 ${tw.floor} · 공격력·체력 +${(D.towerBonus(tw.floor) * 100).toFixed(1).replace(/\.0$/, '')}%`))),
-      h('p', { class: 'muted dgn-desc' }, `${D.TOWER_MAX}층까지. 층마다 수문장 하나 — ${D.TOWER_SEC}초(십이지신 ${D.TOWER_ZODIAC_SEC}초) 안에 쓰러뜨리면 다음 층. 오른 층마다 공격력·체력 +${D.TOWER_BONUS * 100}% 영구. 횟수 제한 없음.`),
+      h('p', { class: 'muted dgn-desc' }, `${D.TOWER_MAX}층까지. 층마다 수문장 하나 — ${duration(D.TOWER_SEC)} 안에 쓰러뜨리면 다음 층. 오른 층마다 공격력·체력 +${D.TOWER_BONUS * 100}% 영구. 횟수 제한 없음.`),
       h('p', { class: 'dgn-warn' }, '⚠ 수문장은 바닥에 붉은 경고를 깔고 크게 쳐요(두 번 맞으면 거의 쓰러져요). 자동으로는 안 피해요 — 화면을 눌러 끌어서(조이스틱) 직접 피하세요. 탑에서는 물약을 못 써요.'),
       D.zodiacOf(nf) ? h('p', { class: 'dgn-zodiac' }, `${nf}층 ${D.zodiacOf(nf).god} — ${D.zodiacOf(nf).move}`) : null,
       h('div', { class: 'dgn-stage' },
@@ -2004,7 +2004,7 @@ function dgnTab(app) {
       const nb2 = D.hardBoss(nh), nmd = D.hardMountOf(nh);
       const mounts = W.HARD_MOUNTS.map((m, i) => {
         const own = s.mounts.some((x) => x.kind === m.id);
-        return h('div', { class: `hard-mt${own ? ' own' : ''}${hf >= (i + 1) * 10 ? ' clear' : ''}`, style: `--mc:${m.col}`, title: `${m.name} — ${m.desc} · 이동 +${W.spdPct(m.speed)}% 고정 · 공격·체력 +${Math.round(m.stat * 100)}% · ${m.sp}` },
+        return h('div', { class: `hard-mt${own ? ' own' : ''}${hf >= (i + 1) * 10 ? ' clear' : ''}`, style: `--mc:${m.col}`, title: `${m.name} — ${m.desc} · 이동 +${W.spdPct(m.speed)}%(길들이기 최대 20) · 공격·체력 +${Math.round(m.stat * 100)}% · ${m.sp}` },
           creatureIcon(m.id, 46), h('b', {}, m.name), h('small', {}, own ? '얻음 ✓' : `극 ${(i + 1) * 10}층`));
       });
       out.push(h('div', { class: `card dgn-card hard-card${open ? '' : ' locked'}` },
@@ -2015,7 +2015,7 @@ function dgnTab(app) {
         h('p', { class: 'muted dgn-desc' }, `${D.HARD_MAX}층. 수문장이 엄청나게 단단하고(같은 세기 보통 층의 체력 20배 넘게) 붙어 치는 것도 세 배, 경고가 짧고 잦고 아파요. 초식도 더 — 도는 칼날·천라지망·붕괴…. 층마다 공격력·체력 +${D.HARD_BONUS * 100}% 영구, 10층마다 신수가 몸소 지켜요 — 이기면 그 신수가 내 탈것으로.`),
         h('div', { class: 'hard-mounts' }, ...mounts),
         open && hf < D.HARD_MAX ? h('div', { class: 'dgn-stage' },
-          h('div', { class: 'stg' }, h('b', {}, `극 ${nh}층`), h('small', {}, ` ${nb2.name.replace(/^극 \d+층 (수문장|신수) /, '')} · Lv.${D.hardLv(nh)} · ${D.hardSec(nh)}초`)),
+          h('div', { class: 'stg' }, h('b', {}, `극 ${nh}층`), h('small', {}, ` ${nb2.name.replace(/^극 \d+층 (수문장|신수) /, '')} · Lv.${D.hardLv(nh)} · ${duration(D.hardSec(nh))}`)),
           h('div', { class: 'rw' }, ...rewardNodes(app, D.hardReward(nh), '처음 오르면 '), nmd && !s.mounts.some((x) => x.kind === nmd.id) ? h('span', { class: 'hard-prize' }, `+ 신수 ${nmd.name}`) : null)) : null,
         h('div', { class: 'btn-row' },
           h('button', { class: 'btn primary hard-go', id: 'hard-go', disabled: game.canHard() ? null : true, onclick: () => start(() => game.startHard()) },
@@ -3013,8 +3013,8 @@ function compTab(app) {
     `  · 졸개 가끔(정예 3배) · 두목 ${W.BOSS_SHARDS.mount[0]}~${W.BOSS_SHARDS.mount[1]}개(왕·고수 2배) · 일일 던전 한 판 · 무한의 탑 처음 오른 층 · 보물 원숭이 · 주간 상자 · 방치 · 도감 이정표`,
     `🔮 합성 — 같은 순위 ${W.MOUNT_FUSE_N}마리 → 다음 순위 하나(길들인 레벨의 절반을 이어 간다)`,
     '🐲 십이지 신수 — 무한의 탑 10층마다 십이지 뽑기',
-    `⚡ 극의 신수 여섯 — 무한의 탑 · 극(하드) 10층마다 그 층의 신수를 이기면 (이동 +90~120% 고정 · 공격·체력 크게)`,
-    `🪢 길들이기 — 탈것 조각과 은자로 레벨(최대 ${W.MOUNT_LV_MAX}) · 레벨마다 이동·공격·체력 +${Math.round(W.MOUNT_LV_K * 100)}%`,
+    `⚡ 극의 신수 여섯 — 무한의 탑 · 극(하드) 10층마다 그 층의 신수를 이기면 (이동 +90~120% · 공격·체력 크게 · 길들이기 최대 20)`,
+    `🪢 길들이기 — 탈것 조각과 은자로 레벨(최대 ${W.MOUNT_LV_MAX}) · 레벨마다 이동·공격·체력 +${Math.round(W.MOUNT_LV_K * 100)}% · 극의 신수는 최대 ${W.HARD_LV_MAX} · 레벨마다 이동 +${Math.round(W.HARD_SPD_LV_K * 100)}%·공격·체력 +${Math.round(W.HARD_LV_K * 100)}%`,
   ]);
   const dexCard = h('div', { class: 'card' });
   const petBox = h('div', {}, petCard, boxCard, petWhere, rankCard);
@@ -3152,8 +3152,8 @@ function compTab(app) {
       const tc = game.tameCost(m.uid);
       mountCard.append(h('div', { class: `row${on ? ' me' : ''}` },
         h('div', { class: 'ico pet-ico' }, creatureIcon(m.kind)),
-        h('div', { class: 'info' }, h('div', { class: 'name' }, d.name, h('small', {}, `순위 ${d.tier}${m.lv ? ` · 길들이기 ${m.lv}/${W.MOUNT_LV_MAX}` : ''}`)), h('div', { class: 'desc' }, `${d.sp ? `${d.sp} · ` : ''}이동 속도 +${W.spdPct(W.mountSpeed(d, k))}%${d.fixedSpeed ? '(고정)' : ''} · 공격력·체력 +${(d.stat * k * 100).toFixed(1).replace(/\.0$/, '')}%`),
-          tc ? h('div', { class: 'desc', style: 'color:#fde68a' }, `길들이기 +1: 탈것 조각 ${tc.shard} · 은자 ${fmt(tc.gold)} → +${Math.round(W.MOUNT_LV_K * 100)}%`) : null),
+        h('div', { class: 'info' }, h('div', { class: 'name' }, d.name, h('small', {}, `순위 ${d.tier}${m.lv ? ` · 길들이기 ${m.lv}/${W.mountLvMax(d)}` : ''}`)), h('div', { class: 'desc' }, `${d.sp ? `${d.sp} · ` : ''}이동 속도 +${W.spdPct(W.mountSpeed(d, k, m.lv || 0))}% · 공격력·체력 +${(d.stat * k * 100).toFixed(1).replace(/\.0$/, '')}%`),
+          tc ? h('div', { class: 'desc', style: 'color:#fde68a' }, `길들이기 +1: 탈것 조각 ${tc.shard} · 은자 ${fmt(tc.gold)} → ${d.hard ? `이동 +${Math.round(W.HARD_SPD_LV_K * 100)}% · 공격·체력 +${Math.round(W.HARD_LV_K * 100)}%` : `+${Math.round(W.MOUNT_LV_K * 100)}%`}`) : null),
         h('div', { class: 'pet-btns' },
           tc ? h('button', { class: 'buy', disabled: game.canTame(m.uid) ? null : true, onclick: () => { if (game.tame(m.uid)) { toast(`${d.name} 길들이기 ${m.lv}`); done(); } } }, '길들이기') : h('span', { class: 'sk-max' }, '極'),
           h('button', { class: on ? 'btn' : 'buy', onclick: () => { game.ride(on ? null : m.uid); done(); } }, on ? '내리기' : '타기'))));

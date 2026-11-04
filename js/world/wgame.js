@@ -173,7 +173,7 @@ export function migrateWorld(raw, now = Date.now()) {
   const fixPet = (p) => { p.star = Math.max(0, Math.min(W.PET_STAR_MAX, Math.floor(Number(p.star) || 0))); p.q = Math.max(0, Math.min(2, Math.floor(Number(p.q) || 0))); p.dan = Math.max(0, Math.min(W.PET_DAN_MAX, Math.floor(Number(p.dan) || 0))); p.danFail = Math.max(0, Math.min(20, Math.floor(Number(p.danFail) || 0))); return p; };   // v292 별 · v316 품·단
   s.pets = Array.isArray(raw.pets) ? raw.pets.filter(okPet).map(fixPet) : [];
   s.petBox = Array.isArray(raw.petBox) ? raw.petBox.filter(okPet).map(fixPet).slice(0, W.PET_BOX) : [];
-  s.mounts = Array.isArray(raw.mounts) ? raw.mounts.filter((m) => m && W.mountOf(m.kind)).map((m) => ({ ...m, lv: Math.max(0, Math.min(W.MOUNT_LV_MAX, Math.floor(Number(m.lv) || 0))) })) : [];   // v292 길들이기
+  s.mounts = Array.isArray(raw.mounts) ? raw.mounts.filter((m) => m && W.mountOf(m.kind)).map((m) => ({ ...m, lv: Math.max(0, Math.min(W.mountLvMax(W.mountOf(m.kind)), Math.floor(Number(m.lv) || 0))) })) : [];   // v292 길들이기
   // v292 도감 — 한 번이라도 가진 종(애완은 가장 높은 등급) · 이정표 받은 것
   { const pd = raw.petDex && typeof raw.petDex === 'object' ? raw.petDex : {}; s.petDex = {}; for (const pp of W.PETS) if (pd[pp.id] != null && W.RARITY[pd[pp.id]]) s.petDex[pp.id] = Math.floor(pd[pp.id]); }
   { const md = raw.mountDex && typeof raw.mountDex === 'object' ? raw.mountDex : {}; s.mountDex = {}; for (const mm of W.MOUNTS) if (md[mm.id]) s.mountDex[mm.id] = 1; }
@@ -479,7 +479,7 @@ export class WorldGame {
   petTeam() { return this.activePets().map((p) => ({ kind: p.kind, emoji: W.petOf(p.kind).emoji, rar: p.rar })); }
   mountNow() { const m = this.s.mounts.find((x) => x.uid === this.s.mount); return m ? W.mountOf(m.kind) : null; }
   mountInst() { return this.s.mounts.find((x) => x.uid === this.s.mount) || null; }
-  mountK(m) { return 1 + ((m?.lv) || 0) * W.MOUNT_LV_K; }   // v292 길들이기
+  mountK(m) { return 1 + ((m?.lv) || 0) * W.mountLvK(m && W.mountOf(m.kind)); }   // v292 길들이기 · v361 신수는 레벨마다 4%
   bestGrade(slot) { const it = this.s.equip[slot]; return it ? it.grade : -1; }
   aoeCenter() { return this.ranged() && this.mon?.alive ? { x: this.mon.x, y: this.mon.y } : { x: this.heroX, y: this.heroY }; }
   // 그리는 쪽은 s.stage로 지역 그림을 고른다 — 사냥터 k = 옛 지역 k의 첫 관문
@@ -645,7 +645,7 @@ export class WorldGame {
       goldMul: this.titleNow()?.goldMul || 1,   // v322 칭호 은자
       matMult: 1 + gear.mat,
       // v262: 스탯마다 다른 축 — 힘=두목 피해 · 민첩=걸음 · 체력=받는 피해 감소 · 내공=무공 숨(어디에 찍든 사냥만 같던 것)
-      moveSpeed: 1 + (mt ? W.mountSpeed(mt, mk) : 0) + (cls.move || 0) + (pm.move || 0) + gear.move + Math.min(W.STAT_ROLE.dexMoveMax, dex * W.STAT_ROLE.dexMove),
+      moveSpeed: 1 + (mt ? W.mountSpeed(mt, mk, this.mountInst()?.lv || 0) : 0) + (cls.move || 0) + (pm.move || 0) + gear.move + Math.min(W.STAT_ROLE.dexMoveMax, dex * W.STAT_ROLE.dexMove),
       boss: (cls.boss || 1) * (1 + gear.bossDmg) * (1 + Math.min(W.STAT_ROLE.strBossMax, str * W.STAT_ROLE.strBoss)),
       gold: gear.gold + (cls.goldUp || 0), dodge: Math.min(0.5, gear.dodge), drain: gear.drain, dmgRed: Math.min(0.5, gear.dmgRed + Math.min(W.STAT_ROLE.vitRedMax, vit * W.STAT_ROLE.vitRed)),
       cdr: Math.min(0.4, gear.cdr + Math.min(W.STAT_ROLE.intCdrMax, int * W.STAT_ROLE.intCdr)), skillRange: gear.range, thorns: gear.thorns, stunHit: Math.min(0.3, gear.stunHit),
@@ -2915,7 +2915,7 @@ export class WorldGame {
     this.s.mountShard -= W.MOUNT_SHARD_NEED;
     return this.gainMount(W.rollMount(this.rng, this.map.mz || 1, false), null);
   }
-  tameCost(uid) { const m = this.s.mounts.find((x) => x.uid === uid); const d = m && W.mountOf(m.kind); return d && (m.lv || 0) < W.MOUNT_LV_MAX ? W.mountTameCost(d.tier, m.lv || 0) : null; }
+  tameCost(uid) { const m = this.s.mounts.find((x) => x.uid === uid); const d = m && W.mountOf(m.kind); return d && (m.lv || 0) < W.mountLvMax(d) ? W.mountTameCost(d.tier, m.lv || 0, !!d.hard) : null; }
   canTame(uid) { const c = this.tameCost(uid); return !!c && (this.s.mountShard || 0) >= c.shard && this.s.gold >= c.gold; }
   tame(uid) {
     if (!this.canTame(uid)) return null;

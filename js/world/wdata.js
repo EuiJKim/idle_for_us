@@ -1127,8 +1127,11 @@ export const MOUNT_DEX_GOALS = [
 ];
 // 길들이기 — 탈것마다 레벨(최대 10). 레벨마다 이동·공격·체력 +6% · 조각과 은자
 export const MOUNT_LV_MAX = 10;
+export const HARD_LV_MAX = 20, HARD_LV_K = 0.04, HARD_SPD_LV_K = 0.02;
+export const mountLvMax = (d) => (d?.hard ? HARD_LV_MAX : MOUNT_LV_MAX);
+export const mountLvK = (d) => (d?.hard ? HARD_LV_K : MOUNT_LV_K);
 export const MOUNT_LV_K = 0.06;
-export const mountTameCost = (tier, lv) => ({ shard: 10 + lv * 6, gold: Math.round(2000 * 2.1 ** Math.min(12, tier) * (lv + 1)) });
+export const mountTameCost = (tier, lv, hard = false) => (hard ? { shard: 20 + lv * 10, gold: Math.round(3000 * 2.1 ** 12 * (lv + 1)) } : { shard: 10 + lv * 6, gold: Math.round(2000 * 2.1 ** Math.min(12, tier) * (lv + 1)) });
 
 // ---------- 탈것 (v111 · v112 열둘) ----------
 // 이동 속도 +%와 공격력·체력 +%. 아주 드물게 — 졸개는 2만 마리에 하나 꼴, 두목은 지역이 높을수록 자주.
@@ -1164,14 +1167,15 @@ export const HARD_MOUNTS = [
   { id: 'h5', name: '창해교룡', emoji: '🌊', stat: 0.44, fx: 'tide', col: '#22d3ee', desc: '물결 비늘로 허공을 헤엄치는 교룡', sp: '물결 — 1초마다 최대 체력 1.5% 회복' },
   { id: 'h6', name: '혼원금룡', emoji: '🐲', stat: 0.5, fx: 'gold', col: '#fbbf24', desc: '금빛 법륜을 이고 하늘을 가르는 태초의 용', sp: '법륜 — 두목 피해 +10% · 은자 +15%' },
 ];
-for (const [i, m] of HARD_MOUNTS.entries()) MOUNTS.push({ ...m, tier: 14, hard: i + 1, speed: 1, fixedSpeed: true });
+for (const [i, m] of HARD_MOUNTS.entries()) MOUNTS.push({ ...m, tier: 14, hard: i + 1, speed: 1 });
 // v360 이동 줄 세우기 — 극의 신수는 층 따라 차등(염화주작 +90% … 창해교룡 +112% · 혼원금룡 +120%),
 //   보통 탈것·십이지는 신수 아래로 같은 비율(×0.85 — 청룡마 +72% · 적토마 +38% · 나귀 +6%)
 export const HARD_SPEED = [0.9, 0.96, 1.01, 1.06, 1.12, 1.2];
 export const MOUNT_SPEED_K2 = 0.85;
 for (const m of MOUNTS) m.speed = m.hard ? HARD_SPEED[m.hard - 1] : +(m.speed * MOUNT_SPEED_K2).toFixed(4);
 // 길들인 이동 — 보통 탈것은 길들여도 극의 신수 가장 낮은 것(염화주작) 아래까지만(줄 순서가 뒤집히지 않게)
-export const mountSpeed = (d, k = 1) => (!d ? 0 : d.fixedSpeed ? d.speed : Math.min(HARD_SPEED[0] - 0.02, d.speed * k));
+export const mountSpeed = (d, k = 1, lv = 0) => (!d ? 0 : d.hard ? d.speed * (1 + lv * HARD_SPD_LV_K) : Math.min(HARD_SPEED[0] - 0.02, d.speed * k));
+// v361 극의 신수 길들이기 — 최대 20 · 레벨마다 이동 +2%(혼원금룡 20이면 +168%) · 공격·체력 +4% · 값은 보통 탈것 맨 위의 1.5배
 export const spdPct = (v) => (v * 100).toFixed(1).replace(/\.0$/, '');   // 이동 +몇 %(소수 한 자리)
 // 어느 탈것이 더 좋은가(새로 얻으면 갈아탈지) — 이동과 공격·체력을 함께 본다
 export const mountRank = (d) => (d ? d.speed + d.stat : -1);

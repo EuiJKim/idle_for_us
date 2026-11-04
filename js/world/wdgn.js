@@ -127,8 +127,8 @@ export const dailyMobAtk = (lv) => mobAtk(lv) * 1.5;
 // 자동 사냥은 피하지 않는다(조이스틱·화면 누르기로). 층이 오를수록 경고가 짧고, 자주, 아프다.
 // 10층마다 십이지신이 지킨다 — 이기면 그 신의 '십이지 뽑기권' 셋(그 신수 탈것이 나온다, 셋째에는 꼭).
 export const TOWER_MAX = 120;
-export const TOWER_SEC = 35;
-export const TOWER_ZODIAC_SEC = 50;
+export const TOWER_SEC = 300;   // v361 5분(전엔 35초)
+export const TOWER_ZODIAC_SEC = 300;   // v361 5분(전엔 50초)
 export const TOWER_BONUS = 0.005;        // 오른 층마다 공격력·체력 +0.5% (120층 +60%)
 export const towerBonus = (floor) => Math.min(TOWER_MAX, floor || 0) * TOWER_BONUS;
 export const isZodiacFloor = (f) => f % 10 === 0;
@@ -227,7 +227,7 @@ export const HARD_BONUS = 0.008;   // v359 열 배 어려워진 만큼 0.4% → 
 export const hardBonus = (h) => Math.min(HARD_MAX, h || 0) * HARD_BONUS;
 export const hardF = (h) => Math.min(TOWER_MAX, HARD_OPEN + h);   // 같은 세기의 보통 층
 export const isHardBossFloor = (h) => h % 10 === 0;
-export const hardSec = (h) => (isHardBossFloor(h) ? 60 : 40);
+export const hardSec = () => 300;   // v361 5분(전엔 40초 · 신수 층 60초)
 export const hardLv = (h) => Math.min(150, towerLv(hardF(h)) + 4);
 export const HARD_HP_K = 220;   // v357 극을 열 배(2.2 → 22) · v359 백 배(→ 220)
 export const hardHp = (h) => Math.round(towerHpBase(hardF(h)) * HARD_HP_K * (isHardBossFloor(h) ? 1.5 : 1) * (1 + h * 0.012));

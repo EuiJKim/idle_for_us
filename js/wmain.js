@@ -1040,7 +1040,7 @@ function refreshUI(full = false) {
   setText($('stage-label'), m.town || m.inst ? m.name : `${m.king ? m.king.title : m.zoneName} ${m.bossRoom ? '두목' : m.area}`);
   const bossLeft = Math.max(0, Math.ceil(game.bossT));
   const boss = game.mons.find((x) => x.isBoss && x.alive);
-  setText($('zone-label'), m.inst ? (game.inst.kind === 'tower' ? `수문장 Lv.${m.lv[0]} · ${game.inst.hard ? D.hardSec(game.inst.stage) : D.towerSec(game.inst.stage)}초 안에` : game.inst.kind === 'raid' ? `문파원과 함께 — ${D.RAID_SEC}초 동안 친 만큼` : `몹 Lv.${m.lv[0]} · ${D.DAILY_KILLS}마리 잡으면 깬다`) : m.town ? (s.autoHunt ? `쉬는 중 → ${W.mapOf(s.huntMap).name}` : '쉬는 중')
+  setText($('zone-label'), m.inst ? (game.inst.kind === 'tower' ? `수문장 Lv.${m.lv[0]} · ${duration(game.inst.hard ? D.hardSec(game.inst.stage) : D.towerSec(game.inst.stage))} 안에` : game.inst.kind === 'raid' ? `문파원과 함께 — ${D.RAID_SEC}초 동안 친 만큼` : `몹 Lv.${m.lv[0]} · ${D.DAILY_KILLS}마리 잡으면 깬다`) : m.town ? (s.autoHunt ? `쉬는 중 → ${W.mapOf(s.huntMap).name}` : '쉬는 중')
     : m.bossRoom ? (boss ? `두목 ${boss.name} Lv.${boss.lv}` : `두목 다시 나기까지 ${Math.floor(bossLeft / 60)}:${String(bossLeft % 60).padStart(2, '0')}`) + (coop.on ? ` · 🤝${coop.count + 1}명` : '')
       : `몹 Lv.${m.lv[0]}~${m.lv[1]} · 두목은 두목 구역에`);
   // v341 '사냥하러 가기' — 아래 창 줄의 사냥 단추를 빼고, 마을에 있을 때만 들판 가운데에 띄운다(창이 열려 있으면 숨김)
@@ -1228,7 +1228,7 @@ function mountReveal(kind, floor) {
       cv,
       h('h2', { class: 'reveal-name' }, `${md.emoji} ${md.name}`),
       h('p', { class: 'reveal-desc' }, md.desc),
-      h('div', { class: 'reveal-stats' }, h('span', {}, `이동 +${W.spdPct(md.speed)}% 고정`), h('span', {}, `공격력·체력 +${Math.round(md.stat * 100)}%`)),
+      h('div', { class: 'reveal-stats' }, h('span', {}, `이동 +${W.spdPct(md.speed)}% · 길들이면 더`), h('span', {}, `공격력·체력 +${Math.round(md.stat * 100)}%`)),
       md.sp ? h('p', { class: 'reveal-sp' }, `✦ ${md.sp}`) : null,
       h('div', { class: 'btn-row' }, h('button', { class: 'btn primary', onclick: () => { on = false; closeModal(); } }, '타고 가기'))].filter(Boolean));
     requestAnimationFrame(frame);
@@ -1466,7 +1466,7 @@ function handleEvents() {
       case 'mountDrop': {
         const d = W.mountOf(ev.mount.kind);
         saverLoot(`mount:${d.name}`, `🐎 ${d.name}`);
-        toast(d.hard ? `⚡ 극의 신수 ${d.name}! 이동 +${W.spdPct(d.speed)}% 고정 · 공격·체력 +${Math.round(d.stat * 100)}%` : d.zodiac ? `🎉 십이지 신수 ${d.name}! 이동 +${W.spdPct(d.speed)}% · 공격·체력 +${Math.round(d.stat * 100)}%` : `탈것 ${d.name}(순위 ${d.tier})! 이동 속도 +${W.spdPct(d.speed)}%`);
+        toast(d.hard ? `⚡ 극의 신수 ${d.name}! 이동 +${W.spdPct(d.speed)}%(길들이면 더) · 공격·체력 +${Math.round(d.stat * 100)}%` : d.zodiac ? `🎉 십이지 신수 ${d.name}! 이동 +${W.spdPct(d.speed)}% · 공격·체력 +${Math.round(d.stat * 100)}%` : `탈것 ${d.name}(순위 ${d.tier})! 이동 속도 +${W.spdPct(d.speed)}%`);
         view.showBanner(d.name, d.zodiac ? '#f472b6' : '#fde68a', d.zodiac ? 2.6 : 1.8, d.zodiac ? '십이지 신수' : '탈것');
         sfx('loot');
         break;

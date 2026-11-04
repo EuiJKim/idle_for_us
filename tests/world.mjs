@@ -613,7 +613,7 @@ console.log('\n=== 십이지왕 신화 · 가락지·귀걸이 · 애완동물 �
     ok(g.s.tower.hard === 10 && r.newMount === 'h1' && md?.id === 'h1', '극 10층을 이기면 신수 염화주작을 얻고 바로 탄다', `${g.s.tower.hard} ${r.newMount} ${md?.name}`);
     const mv0 = g.stats().moveSpeed, a0 = g.stats().atk;
     g.mountInst().lv = 10; g._stats = null;
-    ok(Math.abs(g.stats().moveSpeed - mv0) < 1e-9 && g.stats().atk > a0, '신수는 길들여도 이동은 +100% 그대로, 공격은 오른다', `${mv0.toFixed(2)} → ${g.stats().moveSpeed.toFixed(2)}`);
+    ok(Math.abs(g.stats().moveSpeed - mv0 - W.mountOf('h1').speed * 10 * W.HARD_SPD_LV_K) < 1e-6 && g.stats().atk > a0 && W.mountLvMax(W.mountOf('h1')) === 20, 'v361 신수도 길들이면 이동(레벨마다 +2%)·공격이 오르고 최대 20', `${mv0.toFixed(2)} → ${g.stats().moveSpeed.toFixed(2)}`);
     ok(W.HARD_MOUNTS.every((m, i) => i === 0 || m.stat > W.HARD_MOUNTS[i - 1].stat) && W.HARD_MOUNTS[0].stat > W.mountOf('azure').stat, '극의 신수는 뒤로 갈수록 세고, 첫째도 청룡마보다 세다');
     ok(DG.hardHp(1) > DG.towerHpBase(DG.hardF(1)) * 2 && DG.hardDelay(1) < DG.tellDelay(DG.hardF(1)), '극 수문장은 같은 세기 보통 층보다 단단하고 경고가 짧다');
     ok(DG.hardHp(1) >= DG.towerHpBase(DG.hardF(1)) * 200 && DG.hardAtk(1) >= DG.towerAtkBase(DG.hardF(1)) * 6, 'v359 극은 처음의 백 배 — 같은 세기 보통 층 기준 체력 220배 · 붙어 치기 6배');
