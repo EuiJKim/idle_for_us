@@ -3014,5 +3014,45 @@ console.log('\n=== v319 우리에서도 키우기 · 모두 먹이기 · 새 칭
   ok(/pen-train/.test(ui) && /starUpAll/.test(ui), '동료 창: 우리에서 키우기 · 모두 먹이기');
 }
 
+console.log('\n=== v320 출석부 · 저장 코드 ===');
+{
+  const g = fresh();
+  const t0 = Date.UTC(2026, 10, 4, 3);
+  ok(g.canAttend(t0) && g.attNext() === 1, '처음엔 1일째');
+  const gold0 = g.s.gold;
+  const r1 = g.attend(t0);
+  ok(r1.day === 1 && g.s.gold === gold0 + r1.gold && g.s.att.n === 1 && g.s.att.total === 1, '1일째 받기(은자)');
+  ok(!g.canAttend(t0 + 3600e3) && g.attend(t0 + 3600e3) === null, '같은 날은 한 번');
+  const pot0 = g.s.potions;
+  ok(g.attend(t0 + 86400e3).day === 2 && g.s.potions === pot0 + 100, '다음 날 2일째(물약)');
+  ok(g.attend(t0 + 5 * 86400e3).day === 3, '며칠 빠져도 끊기지 않는다(3일째)');
+  for (let d = 6; d <= 8; d++) g.attend(t0 + d * 86400e3);   // 4·5·6일째
+  const soul0 = g.s.petSoul || 0, prot0 = g.s.prot || 0;
+  const r7 = g.attend(t0 + 9 * 86400e3);
+  ok(r7.day === 7 && g.s.petSoul === soul0 + 15 && g.s.prot === prot0 + 3, '7일째가 크다(은자·보호부 3·혼 15)');
+  ok(g.attend(t0 + 10 * 86400e3).day === 1 && g.s.att.total === 8, '한 바퀴 돌면 다시 1일째');
+  const raw = JSON.parse(JSON.stringify(g.toJSON())); raw.att = { day: 5, n: 99, total: -3 };
+  const g2 = new WorldGame(raw, 0);
+  ok(g2.s.att.day === null && g2.s.att.n === 7 && g2.s.att.total === 0, '불러올 때 이상한 값은 고친다');
+  // 저장 코드
+  const SC = await import('../js/savecode.js');
+  const code = await SC.encodeSave(g.toJSON());
+  ok(code.startsWith('IFU1.') && !/[+/=]/.test(code), '코드는 IFU1. + 주소에 써도 되는 글자', `${code.length}자`);
+  const back = await SC.decodeSave('  ' + code.slice(0, 40) + '\n' + code.slice(40) + ' ');
+  ok(back.level === g.s.level && back.job === g.s.job && JSON.stringify(back) === JSON.stringify(g.toJSON()), '되살리면 똑같다(빈칸·줄바꿈 섞여도)');
+  let e1 = null; try { await SC.decodeSave(code.slice(0, -12)); } catch (err) { e1 = err.message; }
+  ok(e1 && /잘렸거나/.test(e1), '잘린 코드는 열지 않는다', e1);
+  let e2 = null; try { await SC.decodeSave('hello'); } catch (err) { e2 = err.message; }
+  ok(e2 && /저장 코드가 아니에요/.test(e2), '아닌 글은 알아본다');
+  let e3 = null; try { await SC.decodeSave(await SC.encodeSave({ a: 1 })); } catch (err) { e3 = err.message; }
+  ok(e3 && /캐릭터가 들어 있지 않은/.test(e3), '캐릭터 없는 코드는 거른다');
+  const plain = 'IFU0.' + Buffer.from(JSON.stringify(g.toJSON())).toString('base64url');
+  ok((await SC.decodeSave(plain)).level === g.s.level, '압축 없는 코드(IFU0)도 연다');
+  const mn = read('js/wmain.js'), sw = read('sw.js');
+  ok(/showSaveCode/.test(mn) && /askSaveCode/.test(mn) && /beforeCode/.test(mn) && /obj\.lastSeen = Date\.now\(\)/.test(mn), '설정: 복사 · 되살리기(지금 것은 따로 · 방치 보상은 되살린 때부터)');
+  ok(/showAttend/.test(mn) && /attGrid/.test(read('js/wui.js')), '하루 처음 들어오면 출석 창 · 캐릭터 창 출석부');
+  ok(sw.includes("'js/savecode.js'"), '서비스워커에 savecode.js');
+}
+
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);

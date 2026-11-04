@@ -42,6 +42,8 @@ async function newPlayer(browser, name, cls = '검사') {
   // v280: 캐릭터를 고르면 꾸미기 창이 뜬다 — 그대로 시작
   await page.waitForSelector('#modal .cust-go', { timeout: 5000 });
   await page.click('#modal .cust-go');
+  // v320 출석부 창이 시험 중간에 뜨지 않게 오늘 것은 먼저 받아 둔다(출석은 아래에서 따로 본다)
+  await page.evaluate(() => window.__game.attend());
   return { ctx, page, errors, name };
 }
 // 'map/king'처럼 창/칸 (v147 — 창마다 칸이 나뉘었다)
@@ -250,6 +252,41 @@ async function tab(page, name) {
   const re = await G(p, () => ({ job: window.__game.s.job, tier: window.__game.s.jobTier, lv: window.__game.s.level, plus: window.__game.s.equip.weapon?.plus }));
   assert(re.job === 'sword' && re.tier === 1 && re.lv >= 15 && re.plus >= 1, '새로 고침 후 캐릭터·전직·레벨·강화 유지');
   assert(!(await p.isVisible('.class-card')), '새로 고침 후 캐릭터를 다시 묻지 않음');
+
+  console.log('# 출석부 · 저장 코드 (v320)');
+  {
+    // 출석부 — 캐릭터 창 맨 위 카드에서 받는다(오늘 것을 아직 안 받은 것으로 돌려 둔다)
+    // 그날 처음 들어온 것처럼 — 출석 창이 저절로 뜨고, 받으면 캐릭터 창 출석부에 ✓
+    const n0 = await G(p, () => window.__game.s.att.n);
+    await G(p, () => { window.__game.s.att.day = '2000-01-01'; });
+    await p.waitForSelector('#modal h2:has-text("오늘의 출석")', { timeout: 10000 });
+    await shot(p, '07b-attend.png');
+    await p.click('#modal .btn.primary');
+    assert(await G(p, () => window.__game.s.att.n) === (n0 % 7) + 1, '출석 창 — 하루 한 칸 받기');
+    await tab(p, 'char/info');
+    assert(await p.isVisible('#panel .att-card .btn.primary[disabled]'), '캐릭터 창 출석부 — 오늘은 받았어요');
+    await p.click('#panel-close'); await sleep(250);
+    // 저장 코드 — 복사 → 레벨을 바꿔 놓고 → 코드로 되살리면 옛 레벨로
+    await p.click('#btn-settings');
+    await p.click('#modal summary:has-text("앱·계정")');
+    await p.click('#modal .row:has-text("저장 코드") button:has-text("복사")');
+    await p.waitForSelector('#modal .code-box');
+    const code = await p.$eval('#modal .code-box', (t) => t.value);
+    assert(/^IFU[01]\./.test(code) && code.length > 100, `저장 코드를 만든다 (${code.length}자)`);
+    await p.click('#modal .btn:has-text("닫기")');
+    const lv0 = await G(p, () => window.__game.s.level);
+    await G(p, () => { const g = window.__game; g.addExp(g.expNeed() * 1.01); window.__save(); });
+    assert(await G(p, () => window.__game.s.level) === lv0 + 1, '레벨을 하나 올려 둔다');
+    await p.click('#btn-settings');
+    await p.click('#modal summary:has-text("앱·계정")');
+    await p.click('#modal .row:has-text("저장 코드") button:has-text("불러오기")');
+    await p.fill('#modal .code-box', code);
+    p.once('dialog', (d) => d.accept());
+    await Promise.all([p.waitForNavigation({ waitUntil: 'domcontentloaded' }), p.click('#modal .btn.primary:has-text("되살리기")')]);
+    await sleep(1500);
+    assert(await G(p, () => window.__game.s.level) === lv0, '코드로 되살리면 그때 레벨로');
+    assert(await G(p, () => !!localStorage.getItem('ifu.world.v1.beforeCode') || Object.keys(localStorage).some((k) => k.endsWith('.beforeCode'))), '되살리기 전 진행은 따로 남는다');
+  }
 
   console.log('# 설정');
   if (await p.isVisible('#modal .btn.primary')) await p.click('#modal .btn.primary');

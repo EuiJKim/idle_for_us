@@ -105,6 +105,8 @@ export function migrateWorld(raw, now = Date.now()) {
   for (const t of Object.values(W.TITLES)) if (t.timed && s.titles.includes(t.id) && !s.titleUntil[t.id]) s.titles = s.titles.filter((k) => k !== t.id);   // 기한 없이 남은 것은 버린다
   if (s.title && !s.titles.includes(s.title)) s.title = null;
   s.wbClaimed = typeof raw.wbClaimed === 'string' ? raw.wbClaimed.slice(0, 10) : null;
+  // v320 출석부
+  { const a = raw.att && typeof raw.att === 'object' ? raw.att : {}; s.att = { day: typeof a.day === 'string' ? a.day.slice(0, 10) : null, n: Math.max(0, Math.min(TD.ATT_DAYS, Math.floor(Number(a.n) || 0))), total: Math.max(0, Math.floor(Number(a.total) || 0)) }; }
   // v315 가린 무인 — uid·이름만, 200명까지
   s.chatMute = (Array.isArray(raw.chatMute) ? raw.chatMute : []).filter((x) => x && typeof x.uid === 'string' && x.uid.length <= 128)
     .map((x) => ({ uid: x.uid, name: String(x.name || '무명').slice(0, 12) })).filter((x, i, a) => a.findIndex((y) => y.uid === x.uid) === i).slice(0, 200);
@@ -3175,6 +3177,23 @@ export class WorldGame {
       if (!(w.best[id] > 0) || sec < w.best[id]) { const prev = w.best[id] || null; w.best[id] = sec; this._wbBest = true; this.emit('wbossBest', { id, sec, prev }); }
     }
     this._wbDirty = true;
+  }
+  // ---------- v320 출석부 ----------
+  attNext() { return ((this.s.att?.n || 0) % TD.ATT_DAYS) + 1; }
+  canAttend(now = Date.now()) { return this.s.att?.day !== D.kstDay(now); }
+  attend(now = Date.now()) {
+    if (!this.canAttend(now)) return null;
+    const day = this.attNext();
+    const r = TD.attReward(day, this.s.level);
+    if (r.gold) this.s.gold += r.gold;
+    if (r.potions) this.s.potions += r.potions;
+    if (r.prot) this.s.prot = (this.s.prot || 0) + r.prot;
+    if (r.petShard || r.mountShard) this.addShards(r.petShard || 0, r.mountShard || 0);
+    if (r.elixirSec) this.s.elixir = Math.min(W.ELIXIR_MAX, (this.s.elixir || 0) + r.elixirSec);
+    if (r.soul) this.s.petSoul = (this.s.petSoul || 0) + r.soul;
+    this.s.att = { day: D.kstDay(now), n: day, total: (this.s.att?.total || 0) + 1 };
+    this.emit('attend', { day, reward: r });
+    return { day, ...r };
   }
   // ---------- v262 오늘의 강호 · 주간 상자 ----------
   todayState(now = Date.now()) {

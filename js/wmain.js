@@ -3,6 +3,7 @@
 // 옛 main.js(관문·수련·무공 여덟 …)를 대신한다. 들판 그림(BattleView)·초식 연출·창틀·서버는 그대로 쓴다.
 import * as RM from './rendermode.js';   // 맨 먼저 — 캔버스를 만들기 전에 그리기 방식을 정한다 (v188)
 import { WorldGame, newWorldSave } from './world/wgame.js';
+import { encodeSave, decodeSave } from './savecode.js';   // v320 저장 코드
 import * as W from './world/wdata.js';
 import { BUILD, RANKS, JOBS } from './data.js';
 import { BattleView, drawFighter } from './battle.js';
@@ -11,7 +12,7 @@ import { WNet } from './wnet.js';
 import { RULES_VER } from './net.js';
 import { Coop } from './world/wcoop.js';
 import { h, toast, openModal, closeModal, modalOpen } from './ui/common.js';
-import { WTABS, WTAB_TITLE, itemTitle, skillText, rangeText, rewardText, dailyWaiting, skipFx, setSkipFx, openSkillPreview } from './wui.js';
+import { WTABS, WTAB_TITLE, itemTitle, skillText, rangeText, rewardText, dailyWaiting, skipFx, setSkipFx, openSkillPreview, attGrid } from './wui.js';
 import * as D from './world/wdgn.js';
 import * as IM from './world/wimprint.js';
 import { QUEST_COUNT } from './world/wquest.js';
@@ -609,6 +610,51 @@ function setBar(el, r) {
   const v = `scaleX(${Math.max(0, Math.min(1, r || 0)).toFixed(4)})`;
   if (el.style.transform !== v) el.style.transform = v;
 }
+// v320 저장 코드
+async function showSaveCode() {
+  save();
+  let code = '';
+  try { code = await encodeSave(game.toJSON()); } catch (err) { toast('코드를 만들지 못했어요'); console.warn(err); return; }
+  const ta = h('textarea', { class: 'field code-box', readonly: true, rows: 5 });
+  ta.value = code;
+  openModal((s) => s.append(h('h2', {}, '저장 코드'),
+    h('p', { class: 'muted' }, `Lv.${game.s.level} ${game.s.nickname || ''} · ${new Date().toLocaleString('ko-KR')} · ${fmt(code.length)}자 — 통째로 복사해 두세요.`),
+    h('p', { class: 'muted', style: 'color:#fca5a5' }, '⚠ 이 코드가 있으면 누구든 이 캐릭터를 가져갈 수 있어요. 남에게 주지 마세요.'),
+    ta,
+    h('div', { class: 'btn-row' },
+      h('button', { class: 'btn primary', onclick: async () => { try { await navigator.clipboard.writeText(code); toast('저장 코드를 복사했어요'); } catch { ta.select(); toast('길게 눌러 전체 선택 → 복사해 주세요'); } } }, '복사'),
+      h('button', { class: 'btn', onclick: closeModal }, '닫기'))));
+}
+function askSaveCode() {
+  const ta = h('textarea', { class: 'field code-box', rows: 5, placeholder: 'IFU1.… 으로 시작하는 저장 코드를 통째로 붙여 넣어 주세요' });
+  const msg = h('p', { class: 'muted' }, '');
+  openModal((s) => s.append(h('h2', {}, '저장 코드로 되살리기'), h('p', { class: 'muted' }, '지금 진행은 이 기기에 따로 남겨 두고, 코드의 진행으로 바꿔요.'), ta, msg,
+    h('div', { class: 'btn-row' },
+      h('button', { class: 'btn', onclick: closeModal }, '그만두기'),
+      h('button', { class: 'btn primary', onclick: async () => {
+        msg.style.color = ''; msg.textContent = '여는 중…';
+        let obj;
+        try { obj = await decodeSave(ta.value); new WorldGame(JSON.parse(JSON.stringify(obj))); } catch (err) { msg.style.color = '#fca5a5'; msg.textContent = err?.message || '열지 못했어요'; return; }
+        const job = W.classOf(obj.job)?.name || obj.job;
+        if (!confirm(`지금: Lv.${game.s.level} ${game.s.nickname || ''}\n코드: Lv.${obj.level} ${obj.nickname || ''} (${job})\n\n코드의 진행으로 바꿀까요? 지금 진행은 이 기기에 따로 남아요.`)) return;
+        try {
+          localStorage.setItem(`${W.SAVE_KEY}.beforeCode`, JSON.stringify(game.toJSON()));
+          // 되살린 때부터 다시 센다 — 옛 코드로 방치 보상을 여러 번 받지 못하게
+          obj.lastSeen = Date.now(); obj.clockMax = Date.now(); delete obj.pendingOffline;
+          localStorage.setItem(W.SAVE_KEY, JSON.stringify(obj));
+        } catch { msg.style.color = '#fca5a5'; msg.textContent = '기기 저장 공간이 모자라 바꾸지 못했어요'; return; }
+        stopSaving = true;
+        location.reload();
+      } }, '되살리기'))));
+}
+// v320 출석부 — 그날 처음 들어오면 한 번 띄운다(닫으면 받는다)
+let attAsked = false;
+function showAttend() {
+  const day = game.attNext();
+  openModal((s) => s.append(h('h2', {}, '📅 오늘의 출석'), h('p', { class: 'muted' }, `${day}일째 — 7일째가 커요 · 빠져도 끊기지 않아요`), attGrid(game),
+    h('button', { class: 'btn primary', style: 'width:100%;margin-top:8px', onclick: closeModal }, `${day}일째 받기`)),
+  { dismissable: false, onClose: () => { game.attend(); save(); refreshUI(true); } });
+}
 // v318 지난주 두목 순위 보상 — 접속마다 한 번 본다. 3위 안이면 창, 아니면 조용히 '본 것'으로
 let wbChecked = false;
 async function checkWeekReward() {
@@ -1000,6 +1046,7 @@ function handleEvents() {
       // v318 지난주 순위 보상 · 기한이 지난 칭호
       case 'weekReward': toast(`🏆 지난주 ${ev.best}위 보상 — 혼 ${ev.soul} · 조각 ${ev.shard} · 은자 ${fmt(ev.gold)}${ev.title ? ` · 〈${W.titleOf(ev.title).name}〉` : ''}`); sfx('level'); break;
       case 'titleExpire': toast(`〈${ev.name}〉 칭호의 기한이 끝났어요`); break;
+      case 'attend': toast(`📅 출석 ${ev.day}일째 — ${ev.reward.gold ? `은자 ${fmt(ev.reward.gold)}` : ''}${ev.reward.gold && ev.reward.text !== '은자' ? ' · ' : ''}${ev.reward.text !== '은자' ? ev.reward.text : ''}`); sfx('loot'); break;
       case 'petQualUp': toast(`${W.PET_QUAL[ev.pet.q].mark} ${W.petOf(ev.pet.kind).name} — 먹이의 품을 물려받아 ${W.PET_QUAL[ev.pet.q].name}이 됐어요`); break;
       case 'petStar':
         toast(`★ ${W.petOf(ev.pet.kind).name} 별 ${ev.pet.star} — 버프·공격 +${Math.round(ev.pet.star * W.PET_STAR_K * 100)}%`);
@@ -1713,6 +1760,12 @@ $('btn-settings').addEventListener('click', () => openModal((s) => {
           else { await navigator.clipboard.writeText(url); toast('설치 안내 링크를 복사했어요'); }
         } catch { /* 취소 */ }
       } }, '보내기')),
+    // v320 저장 코드 — 진행 전부를 글자 한 줄로 복사 · 붙여 넣어 되살리기
+    h('div', { class: 'row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, '저장 코드'),
+      h('div', { class: 'desc' }, '진행 전부를 글자 한 줄로 — 메모장·카톡 나에게에 붙여 두면 다른 기기나 지운 뒤에도 되살려요')),
+      h('div', { class: 'btn-row', style: 'gap:6px' },
+        h('button', { class: 'btn primary', style: 'padding:6px 10px', onclick: () => { closeModal(); showSaveCode(); } }, '복사'),
+        h('button', { class: 'btn', style: 'padding:6px 10px', onclick: () => { closeModal(); askSaveCode(); } }, '불러오기'))),
     ...accountRows(),
     h('div', { class: 'btn-row', style: 'margin-top:8px' },
       h('button', { class: 'btn', onclick: () => { closeModal(); askNickname(false); } }, '이름 바꾸기'),
@@ -2140,6 +2193,7 @@ function step(now) {
   }
   if (saveTimer > 5) { saveTimer = 0; save(); net.pushProfile(); cloudPush(); net.pushWeekBoss?.(); }   // v316 주간 두목(1분에 한 번)
   if (!wbChecked && net.online && game.s.nickname && !modalOpen() && !booting && !game.s.pendingOffline) { wbChecked = true; checkWeekReward(); }   // v318 지난주 순위 보상
+  if (!attAsked && game.s.job && game.s.nickname && game.s.kills >= 30 && !modalOpen() && !booting && !game.s.pendingOffline && game.canAttend()) { attAsked = true; showAttend(); }   // v320 출석부(하루 한 번)
   // 운영자 선물 (v175) — 처음엔 8초 뒤, 그다음 1분마다 본다
   giftTimer += dt;
   if (giftTimer > 60 && net.ready?.() && game.s.job) { giftTimer = 0; checkGifts(); }

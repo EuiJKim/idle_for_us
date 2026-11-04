@@ -92,6 +92,17 @@ export function equipCompare(game, it) {
     : h('b', { class: `cmp ${dp > 0 ? 'up' : 'down'}` }, `전투력 ${dp > 0 ? '▲' : '▼'} ${fmt(Math.round(Math.abs(then.power - now.power)))} (${dp > 0 ? '+' : '−'}${(Math.abs(dp) * 100).toFixed(1)}%)`);
   return h('div', { class: `equip-cmp ${dp > 0.0005 ? 'better' : dp < -0.0005 ? 'worse' : ''}` }, h('small', {}, '끼면 →'), verdict, ...parts);
 }
+// v320 출석부 칸 일곱 — 받은 칸 ✓ · 오늘 받을 칸 빛남
+export function attGrid(game) {
+  const n = game.s.att?.n || 0, can = game.canAttend(), next = game.attNext();
+  return h('div', { class: 'att-grid' }, ...Array.from({ length: TD.ATT_DAYS }, (_, i) => {
+    const d = i + 1, r = TD.attReward(d, game.s.level);
+    const got = can ? d < next && n < TD.ATT_DAYS : d <= n;
+    const today = can && d === next;
+    return h('div', { class: `att-cell${got ? ' got' : ''}${today ? ' today' : ''}${d === TD.ATT_DAYS ? ' big' : ''}` },
+      h('b', {}, `${d}일`), h('span', {}, r.gold && !r.prot ? `은자 ${fmt(r.gold)}` : r.text), got ? h('i', {}, '✓') : null);
+  }));
+}
 export function itemLines(game, it) {
   const st = game.itemStats(it);
   const out = [];
@@ -439,7 +450,19 @@ function charTab(app) {
         if (game.switchLoadout(i)) { toast(`차림 ${i + 1}로 바꿨어요${s.loadouts[i] ? '' : ''}`); app.save(); loSig = ''; app.refresh(); }
       } }, `차림 ${i + 1}${(s.loadout || 0) === i ? ' (지금)' : ''}`))));
   }
-  const infoBox = h('div', {}, head, todayCard, questCard, loreBox);
+  // v320 출석부 — 7일 한 바퀴
+  const attCard = h('div', { class: 'card att-card' });
+  let attSig = '';
+  function attView() {
+    const can = game.canAttend();
+    const nsig = `${game.s.att?.day}|${game.s.att?.n}|${can}|${game.s.level}`;
+    if (nsig === attSig) return;
+    attSig = nsig;
+    attCard.replaceChildren(h('h3', {}, '출석부', h('small', {}, ` 하루 한 칸 · 7일째가 커요 · 빠져도 끊기지 않아요 · 모두 ${game.s.att?.total || 0}일`)),
+      attGrid(game),
+      h('button', { class: 'btn primary', style: 'width:100%;margin-top:6px', disabled: can ? null : true, onclick: () => { const r = game.attend(); if (r) { app.save(); attSig = ''; attView(); } } }, can ? `오늘 출석 — ${game.attNext()}일째 받기` : '오늘은 받았어요 · 내일 또'));
+  }
+  const infoBox = h('div', {}, head, attCard, todayCard, questCard, loreBox);
   const statBox = h('div', {}, loadRow, stats, h('div', { class: 'card' }, h('h3', {}, '능력치'), derived));
   // v291 앞으로 배울 무공 — 언제 무엇을 배우는지
   const roadCard = h('div', { class: 'card' });
@@ -482,7 +505,7 @@ function charTab(app) {
     road();
     passives();
     loadouts();
-    today();
+    today(); attView();
     quests();
     ptsEl.textContent = s.statPts;
     autoBtn.textContent = s.autoStat ? '자동 분배 켬' : '자동 분배 끔';

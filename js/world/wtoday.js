@@ -55,3 +55,18 @@ export function bloodNext(now = Date.now()) {
   for (const [a] of BLOOD_HOURS) if (hr < a) return Math.round((a - hr) * 3600);
   return Math.round((24 - hr + BLOOD_HOURS[0][0]) * 3600);
 }
+
+// v320 출석부 — 7일이 한 바퀴(빠져도 끊기지 않는다 · 하루에 한 칸). 7일째가 크다
+export const ATT_DAYS = 7;
+export function attReward(day, level) {
+  const g = weekChest(level).gold;
+  switch (day) {
+    case 1: return { gold: Math.round(g * 0.15), text: '은자' };
+    case 2: return { potions: 100, text: '물약 100' };
+    case 3: return { prot: 1, text: '보호부 1' };
+    case 4: return { petShard: 20, mountShard: 20, text: '조각 20씩' };
+    case 5: return { elixirSec: 1800, text: '영약 30분' };
+    case 6: return { gold: Math.round(g * 0.3), text: '은자' };
+    default: return { gold: Math.round(g * 0.5), prot: 3, soul: 15, text: '은자·보호부 3·혼 15' };
+  }
+}
