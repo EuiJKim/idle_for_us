@@ -1,0 +1,47 @@
+[
+ {
+  "name": "fh-long-black",
+  "refs": [
+   "../../art/hero/head-topknot.png",
+   "../../art/hero/head.png"
+  ],
+  "size": "1024x1024",
+  "prompt": "Use EXACTLY the same hand-painted Korean wuxia (murim) manhwa illustration style as the reference head images: crisp clean dark outlines, rich soft cel shading, fine hair strands, the same 3/4 profile view FACING RIGHT, same scale and framing as the references. Draw ONLY the head (cut cleanly at the chin and below the jaw, like the references — no neck, no shoulders, no body). Transparent background, nothing else, no text. A beautiful young WOMAN swordswoman. Long straight black hair with soft bangs, the long hair falls behind her head and down past the chin (let it flow downward and slightly back), a thin bright crimson red ribbon tied around her head as a headband."
+ },
+ {
+  "name": "fh-bun-black",
+  "refs": [
+   "../../art/hero/head-topknot.png",
+   "../../art/hero/head.png"
+  ],
+  "size": "1024x1024",
+  "prompt": "Use EXACTLY the same hand-painted Korean wuxia (murim) manhwa illustration style as the reference head images: crisp clean dark outlines, rich soft cel shading, fine hair strands, the same 3/4 profile view FACING RIGHT, same scale and framing as the references. Draw ONLY the head (cut cleanly at the chin and below the jaw, like the references — no neck, no shoulders, no body). Transparent background, nothing else, no text. A beautiful young WOMAN martial artist. Elegant black hair tied up in a neat round bun at the back of the head, a long golden hairpin (binyeo) with a bright crimson red bead stuck through the bun, soft side locks framing the face."
+ },
+ {
+  "name": "fh-pony-black",
+  "refs": [
+   "../../art/hero/head-topknot.png",
+   "../../art/hero/head.png"
+  ],
+  "size": "1024x1024",
+  "prompt": "Use EXACTLY the same hand-painted Korean wuxia (murim) manhwa illustration style as the reference head images: crisp clean dark outlines, rich soft cel shading, fine hair strands, the same 3/4 profile view FACING RIGHT, same scale and framing as the references. Draw ONLY the head (cut cleanly at the chin and below the jaw, like the references — no neck, no shoulders, no body). Transparent background, nothing else, no text. A beautiful young WOMAN martial artist. Black hair in a HIGH ponytail tied at the crown with a bright crimson red ribbon, the ponytail flows back and down behind the head, side bangs."
+ },
+ {
+  "name": "fh-twin-black",
+  "refs": [
+   "../../art/hero/head-topknot.png",
+   "../../art/hero/head.png"
+  ],
+  "size": "1024x1024",
+  "prompt": "Use EXACTLY the same hand-painted Korean wuxia (murim) manhwa illustration style as the reference head images: crisp clean dark outlines, rich soft cel shading, fine hair strands, the same 3/4 profile view FACING RIGHT, same scale and framing as the references. Draw ONLY the head (cut cleanly at the chin and below the jaw, like the references — no neck, no shoulders, no body). Transparent background, nothing else, no text. A cute young WOMAN martial artist. Black hair in two low twin tails tied behind the ears with bright crimson red ribbons, the twin tails hang down behind, short bangs."
+ },
+ {
+  "name": "fh-short-black",
+  "refs": [
+   "../../art/hero/head-topknot.png",
+   "../../art/hero/head.png"
+  ],
+  "size": "1024x1024",
+  "prompt": "Use EXACTLY the same hand-painted Korean wuxia (murim) manhwa illustration style as the reference head images: crisp clean dark outlines, rich soft cel shading, fine hair strands, the same 3/4 profile view FACING RIGHT, same scale and framing as the references. Draw ONLY the head (cut cleanly at the chin and below the jaw, like the references — no neck, no shoulders, no body). Transparent background, nothing else, no text. A cool young WOMAN martial artist. Black hair in a short bob cut ending at the jaw line, straight bangs, a thin bright crimson red headband."
+ }
+]

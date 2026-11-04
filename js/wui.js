@@ -486,6 +486,10 @@ function charTab(app) {
     head.replaceChildren(
       h('h3', {}, tn ? h('span', { class: 'title-tag', style: `--tc:${tn.col}` }, `〈${tn.name}〉 `) : null, `${s.nickname || '무명'} `, h('small', {}, `${game.tierName()} · Lv.${s.level}`)),
       h('p', { class: 'muted' }, cls ? `${cls.name} — ${W.CLASSES[s.job].trait}` : ''),
+      // v325 1차 전직 전에는 직업을 공짜로 바꿔 본다(무공 점수는 돌려받는다)
+      (s.jobTier || 0) === 0 && s.job ? h('div', { class: 'job-swap' }, h('small', {}, '1차 전직 전까지 직업을 공짜로 바꿔 볼 수 있어요'),
+        h('div', { class: 'job-swap-row' }, ...W.CLASS_LIST.map((c) => h('button', { class: `chip${c.id === s.job ? ' on' : ''}`, disabled: c.id === s.job ? true : null, style: `--cc:${c.color || '#e5e7eb'}`,
+          onclick: () => { if (confirm(`${c.name}(으)로 바꿀까요? 무공 점수는 다 돌려받고, 레벨·장비·은자는 그대로예요.`) && game.changeJob(c.id)) { app.save(); app.refresh(); } } }, c.name)))) : null,
       // v305 칭호 — 가진 것 가운데 하나를 낀다
       s.titles.length ? h('div', { class: 'title-row' }, h('small', {}, '칭호'),
         ...s.titles.map((k) => { const t = W.titleOf(k); return t ? h('button', { class: `chip title-chip${s.title === k ? ' on' : ''}`, style: `--tc:${t.col}`, title: t.desc,

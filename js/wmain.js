@@ -12,7 +12,8 @@ function applyUiScale() {
   root.style.zoom = '';   // 먼저 되돌려야 창 크기를 제대로 잰다
   const w = window.innerWidth, hgt = window.innerHeight;
   // 폰 설계(390×844)를 창에 맞춰 키운다 — 창이 넓고 높을수록 크게(2.2배까지). 폰(600px 미만)은 그대로
-  const auto = w >= 600 ? Math.max(1, Math.min(2.2, Math.min(w / 720, hgt / 720))) : 1;
+  // v325 컴퓨터에서 여전히 작았다 — 높이 620을 기준으로(1440×900 → 1.45배 · 1920×1080 → 1.74배)
+  const auto = w >= 600 ? Math.max(1, Math.min(2.4, Math.min(w / 560, hgt / 620))) : 1;
   const k = +(auto * (UI_SCALE[uiScalePref()] || 1)).toFixed(3);
   if (k !== 1) root.style.zoom = String(k);
   setTimeout(() => { view.resize?.(); measurePads?.(); hudGoldAt?.(); }, 30);
@@ -68,7 +69,7 @@ async function openReports() {
 }
 // v320 저장 코드
 import * as W from './world/wdata.js';
-import { BUILD, RANKS, JOBS } from './data.js';
+import { BUILD, RANKS, JOBS, jobOf } from './data.js';
 import { BattleView, drawFighter } from './battle.js';
 import { loadIcons, skinImg } from './icons.js';
 import { WNet } from './wnet.js';
@@ -551,7 +552,19 @@ function paintTabLocks() {
     if (lk) b.dataset.lv = `Lv${TAB_LV[b.dataset.tab]}`; else delete b.dataset.lv;
   });
 }
+// v325 사냥 단추 — 처음 하면 들판을 눌러야 사냥터로 가는 줄 몰랐다. 마을·던전이면 하던 사냥터로, 사냥 중이면 알맞은 사냥터로
+function goHuntNow() {
+  const m = game.map;
+  const last = game.s.huntMap && W.hasMap(game.s.huntMap) && !W.mapOf(game.s.huntMap).town ? game.s.huntMap : null;
+  const to = m.town || game.inst ? (last || game.fitMap()) : game.fitMap();
+  if (!m.town && !game.inst && to === m.id) { toast(`이미 알맞은 사냥터(${m.name})에서 사냥 중이에요 — 다른 곳은 지도에서`); return; }
+  if (!game.enterMap(to)) { toast('지금은 갈 수 없어요'); return; }
+  game.s.autoHunt = true;
+  closePanel(); save(); refreshUI(true);
+  toast(`⚔ ${W.mapOf(to).name}에서 사냥해요`);
+}
 document.querySelectorAll('#tabs button[data-tab]').forEach((b) => b.addEventListener('click', () => {
+  if (b.dataset.tab === 'hunt') { goHuntNow(); return; }
   if (tabLocked(b.dataset.tab)) { toast(`${TAB_NAME[b.dataset.tab]} 창은 레벨 ${TAB_LV[b.dataset.tab]}에 열려요`); return; }
   showTab(b.dataset.tab);
 }));
@@ -787,6 +800,7 @@ function refreshUI(full = false) {
     ew._to = gap.to;
   }
   bossWaitHud();
+  document.body.classList.toggle('in-inst', !!game.inst);   // v325 던전 안에서는 길잡이·찍기 알약을 숨긴다(던전 머리와 겹쳤다)
   tallyTick();   // v321 얻은 것 모음
   setText($('gold'), fmt(goldTween(s.gold)));
   setText($('potions'), fmt(s.potions));   // v258 은자처럼 쉼표
@@ -959,8 +973,10 @@ function drawPortrait() {
 $('portrait').addEventListener('click', () => { if (game.s.job && !modalOpen()) openCustom(false); });   // v280 얼굴을 누르면 꾸미기
 // ---------- 꾸미기 (v280) — 처음 캐릭터를 고른 뒤 · 왼쪽 위 얼굴을 눌러 ----------
 function openCustom(first = false) {
-  const cu = { head: null, hat: null, robe: null, band: null, face: null, boot: null, ...(game.s.custom || {}) };
-  let flip = false, pose = 'stand';
+  const cu = { head: null, hat: null, robe: null, band: null, face: null, boot: null, gender: null, fhead: null, hair: null, aura: null, ring: null, glow: null, ...(game.s.custom || {}) };
+  cu.wpn = { ...(game.s.custom?.wpn || {}) };
+  let flip = false, pose = 'stand', ctab = 'look';
+  const jl = jobOf(game.s.job)?.look || 'sword';
   openModal((s) => {
     const cv = h('canvas', { width: 300, height: 300, class: 'cust-preview' });
     const rows = h('div', { class: 'cust-rows' });
@@ -969,22 +985,36 @@ function openCustom(first = false) {
         class: `cust-chip${cu[key] === v ? ' on' : ''}${col ? ' col' : ''}`, style: col ? `--cc:${col}` : '',
         onclick: () => { cu[key] = v; paintRows(); } }, col ? h('i') : null, name ? h('span', {}, name) : null))));
     // v306 차림 — 한 번에 어울리게. 고른 뒤 아래에서 하나씩 바꿀 수 있다
-    const presetOn = (p) => cu.head === p.head && (cu.hat || null) === p.hat && (cu.face || null) === p.face && cu.robe === p.robe && cu.band === p.band && (cu.boot || null) === p.boot;
+    const presetOn = (p) => cu.head === p.head && (cu.hat || null) === p.hat && (cu.face || null) === p.face && cu.robe === p.robe && cu.band === p.band && (cu.boot || null) === p.boot && (cu.gender || null) === (p.gender || null) && (cu.fhead || null) === (p.fhead || null);
     const presets = () => h('div', { class: 'cust-row' }, h('b', {}, '차림'),
       h('div', { class: 'cust-chips' }, ...W.CUSTOM_PRESETS.map((p) => h('button', { class: `cust-chip preset${presetOn(p) ? ' on' : ''}`, style: `--cc:${p.robe}`,
-        onclick: () => { cu.head = p.head; cu.hat = p.hat; cu.face = p.face; cu.robe = p.robe; cu.band = p.band; cu.boot = p.boot; paintRows(); } }, h('i'), h('span', {}, p.name)))));
+        onclick: () => { cu.head = p.head; cu.hat = p.hat; cu.face = p.face; cu.robe = p.robe; cu.band = p.band; cu.boot = p.boot; cu.gender = p.gender || null; cu.fhead = p.fhead || null; cu.hair = p.hair || null; paintRows(); } }, h('i'), h('span', {}, p.name)))));
     // v323 머리·쓰개·눈·도포·띠·신발 — 쓰개는 머리와 따로(삿갓은 어느 머리에나 얹는다)
-    const paintRows = () => rows.replaceChildren(
-      presets(),
-      pick('머리', [[null, '기본'], ...W.CUSTOM_HEADS.map(([k, n]) => [k, n])], 'head'),
-      pick('쓰개', [[null, '없음'], ...W.CUSTOM_HATS.map(([k, n]) => [k, n])], 'hat'),
-      pick('눈', [[null, '기본'], ...W.CUSTOM_FACES.map(([k, n]) => [k, n])], 'face'),
-      pick('도포', [[null, '기본'], ...W.CUSTOM_ROBES.map((c) => [c, null, c])], 'robe'),
-      pick('띠 · 소맷단', [[null, '기본(안대 색도)'], ...W.CUSTOM_BANDS.map((c) => [c, null, c])], 'band'),
-      pick('신발', [[null, '기본'], ...W.CUSTOM_BOOTS.map((c) => [c, null, c])], 'boot'));
+    // v325 칸 셋 — 모습 · 무기 · 기믹
+    const ctabs = () => h('div', { class: 'cust-tabs' }, ...[['look', '모습'], ['wpn', '무기'], ['fx', '기믹']].map(([k, n]) => h('button', { class: `item-tab${ctab === k ? ' on' : ''}`, onclick: () => { ctab = k; paintRows(); } }, n)));
+    const wpnRow = () => h('div', { class: 'cust-row' }, h('b', {}, `${jobOf(game.s.job)?.name || ''}의 무기`),
+      h('div', { class: 'cust-chips' }, ...[[null, '기본'], ...(W.WEAPON_SKINS[jl] || []).map((x) => [x.id, x.name])].map(([v, name]) => h('button', {
+        class: `cust-chip${(cu.wpn[jl] || null) === v ? ' on' : ''}`, onclick: () => { if (v) cu.wpn[jl] = v; else delete cu.wpn[jl]; paintRows(); } }, h('span', {}, name)))));
+    const paintRows = () => rows.replaceChildren(...(ctab === 'wpn' ? [ctabs(), wpnRow(), h('p', { class: 'muted', style: 'font-size:11.5px' }, '무기 모양은 직업마다 따로 기억해요 — 겉모습만 바뀌고 능력치는 그대로예요.')]
+      : ctab === 'fx' ? [ctabs(),
+        pick('기운', [[null, '없음'], ...W.CUSTOM_AURAS.map(([k, n]) => [k, n])], 'aura'),
+        pick('발밑 문양', [[null, '없음'], ...W.CUSTOM_RINGS.map(([k, n]) => [k, n])], 'ring'),
+        pick('칼빛', [[null, '장비 따라'], ...W.CUSTOM_GLOWS.map((c) => [c, null, c])], 'glow')]
+      : [ctabs(),
+        presets(),
+        pick('성별', W.CUSTOM_GENDERS.map(([k, n]) => [k === 'm' ? null : k, n]), 'gender'),
+        ...(cu.gender === 'f'
+          ? [pick('머리', [[null, '기본(긴 생머리)'], ...W.CUSTOM_FHEADS.map(([k, n]) => [k, n])], 'fhead'), pick('머리 빛깔', W.CUSTOM_HAIRS.map(([k, , c]) => [k === 'black' ? null : k, null, c]), 'hair')]
+          : [pick('머리', [[null, '기본'], ...W.CUSTOM_HEADS.map(([k, n]) => [k, n])], 'head')]),
+        pick('쓰개', [[null, '없음'], ...W.CUSTOM_HATS.map(([k, n]) => [k, n])], 'hat'),
+        pick('눈 · 얼굴', [[null, '기본'], ...W.CUSTOM_FACES.map(([k, n]) => [k, n])], 'face'),
+        pick('도포', [[null, '기본'], ...W.CUSTOM_ROBES.map((c) => [c, null, c])], 'robe'),
+        pick('띠 · 리본 · 소맷단', [[null, '기본(안대 색도)'], ...W.CUSTOM_BANDS.map((c) => [c, null, c])], 'band'),
+        pick('신발', [[null, '기본'], ...W.CUSTOM_BOOTS.map((c) => [c, null, c])], 'boot')]));
     paintRows();
     const finish = () => {
-      game.s.custom = { head: cu.head || null, hat: cu.hat || null, robe: cu.robe || null, band: cu.band || null, face: cu.face || null, boot: cu.boot || null };
+      game.s.custom = { head: cu.head || null, hat: cu.hat || null, robe: cu.robe || null, band: cu.band || null, face: cu.face || null, boot: cu.boot || null,
+        gender: cu.gender || null, fhead: cu.fhead || null, hair: cu.hair || null, wpn: { ...cu.wpn }, aura: cu.aura || null, ring: cu.ring || null, glow: cu.glow || null };
       save(); portraitSig = ''; refreshUI(true);
       closeModal();
       toast(first ? '강호에 나섰어요 — 지도에서 사냥터를 골라요 (왼쪽 위 얼굴을 누르면 다시 꾸밀 수 있어요)' : '모습을 바꿨어요');
@@ -999,7 +1029,7 @@ function openCustom(first = false) {
       h('div', { class: 'cust-stage' }, cv, stageBtns),
       rows,
       h('div', { class: 'btn-row' },
-        h('button', { class: 'btn', onclick: () => { cu.head = cu.hat = cu.robe = cu.band = cu.face = cu.boot = null; paintRows(); } }, '기본으로'),
+        h('button', { class: 'btn', onclick: () => { cu.head = cu.hat = cu.robe = cu.band = cu.face = cu.boot = cu.gender = cu.fhead = cu.hair = cu.aura = cu.ring = cu.glow = null; cu.wpn = {}; paintRows(); } }, '기본으로'),
         !first ? h('button', { class: 'btn', onclick: closeModal }, '그만두기') : null,
         h('button', { class: 'btn primary cust-go', onclick: finish }, first ? '이대로 시작' : '이대로')),
     ].filter(Boolean));
@@ -1124,6 +1154,7 @@ function handleEvents() {
       case 'titleExpire': toast(`〈${ev.name}〉 칭호의 기한이 끝났어요`); break;
       case 'attend': toast(`📅 출석 ${ev.day}일째 — ${ev.reward.gold ? `은자 ${fmt(ev.reward.gold)}` : ''}${ev.reward.gold && ev.reward.text !== '은자' ? ' · ' : ''}${ev.reward.text !== '은자' ? ev.reward.text : ''}`); sfx('loot'); break;
       case 'autoJunk': tally('junk', '🧹 자동 정리', 1, '#a8a29e'); break;   // v321
+      case 'jobChange': toast(`${W.classOf(ev.job)?.name || ev.job}(으)로 바꿨어요${ev.back ? ` — 무공 점수 ${ev.back}점을 돌려받았어요` : ''}`); lastSig = ''; drawPortrait(); break;
       case 'petQualUp': toast(`${W.PET_QUAL[ev.pet.q].mark} ${W.petOf(ev.pet.kind).name} — 먹이의 품을 물려받아 ${W.PET_QUAL[ev.pet.q].name}이 됐어요`); break;
       case 'petStar':
         toast(`★ ${W.petOf(ev.pet.kind).name} 별 ${ev.pet.star} — 버프·공격 +${Math.round(ev.pet.star * W.PET_STAR_K * 100)}%`);

@@ -10,6 +10,8 @@ import { fmt } from '../js/fmt.js';
 import fs from 'node:fs';
 // 코드를 글로도 본다 — 상수만 보고 넘기면 쓰는 쪽이 어긋나도 모른다
 const read = (f) => fs.readFileSync(new URL('../' + f, import.meta.url), 'utf-8');
+// v325 시계를 한국 아침 9시에서 시작한다 — 혈겁(12~14시·20~22시)이면 정예가 두 배라 버티기 비교가 그때그때 달랐다
+{ const t0 = Date.UTC(2026, 10, 4, 0, 0), real0 = Date.now(), realNow = Date.now.bind(Date); Date.now = () => t0 + (realNow() - real0); }
 
 let fail = 0;
 const ok = (cond, label, extra = '') => {
@@ -2439,7 +2441,7 @@ console.log('\n=== v280 꾸미기 ===');
   const f = migrateWorld({ ...newWorldSave(), custom: { head: 'bald', face: 'blind', robe: '#b08d57', band: '#7f1d1d' } });
   ok(f.custom.face === 'blind' && f.custom.head === 'bald', '안대는 남는다', JSON.stringify(f.custom));
   ok(migrateWorld({ ...newWorldSave(), custom: { face: 'mask' } }).custom.face === null, '없는 눈 값은 버린다');
-  ok(W.CUSTOM_PRESETS.some((p) => p.head === 'bald' && p.face === 'blind') && W.CUSTOM_PRESETS.every((p) => W.CUSTOM_HEADS.some(([k]) => k === p.head) && (p.hat == null || W.CUSTOM_HATS.some(([k]) => k === p.hat)) && (p.boot == null || W.CUSTOM_BOOTS.includes(p.boot)) && W.CUSTOM_ROBES.includes(p.robe) && W.CUSTOM_BANDS.includes(p.band)), '차림은 고를 수 있는 값으로만 · 민머리+안대 차림이 있다');
+  ok(W.CUSTOM_PRESETS.some((p) => p.head === 'bald' && p.face === 'blind') && W.CUSTOM_PRESETS.every((p) => (p.gender === 'f' ? W.CUSTOM_FHEADS.some(([k]) => k === p.fhead) && W.CUSTOM_HAIRS.some(([k]) => k === p.hair) : W.CUSTOM_HEADS.some(([k]) => k === p.head)) && (p.hat == null || W.CUSTOM_HATS.some(([k]) => k === p.hat)) && (p.boot == null || W.CUSTOM_BOOTS.includes(p.boot)) && W.CUSTOM_ROBES.includes(p.robe) && W.CUSTOM_BANDS.includes(p.band)), '차림은 고를 수 있는 값으로만 · 민머리+안대 차림이 있다');
   ok(/look\.blind/.test(read('js/battle.js')) && /hasBodyArt\(cu\.robe\)/.test(read('js/battle.js')), '안대를 그린다 · 그 색 도포 그림이 있으면 그대로');
 }
 console.log('\n=== v296 걸어와서 바로 친다 ===');
@@ -3136,6 +3138,38 @@ console.log('\n=== v324 자동 강화는 +10까지 ===');
   const it = g.s.equip.weapon;
   ok(g.canEnhance(it) && g.enhance(it.uid) && it.plus === W.AUTO_ENH_MAX + 1, '직접은 +11로 올라간다');
   ok(/AUTO_ENH_MAX/.test(read('js/wui.js')), '가방 창 글에 상한이 적혀 있다');
+}
+
+console.log('\n=== v325 성별·무기 모양·기믹 · 1차 전직 전 직업 바꾸기 ===');
+{
+  const g = fresh();
+  while (g.s.level < 12) g.addExp(W.expToNext(g.s.level));
+  const ks = Object.keys(g.s.skillLv).length;
+  g.s.skillPts = 5; const id0 = g.skills().find((k) => g.canSkillUp(k.id))?.id;
+  if (id0) g.skillUp(id0);
+  const spent = g.skillSpentAll(), pts = g.s.skillPts, lv = g.s.level, gold = g.s.gold, wpn = g.s.equip.weapon;
+  ok(g.canChangeJob('fan') && !g.canChangeJob('sword'), '1차 전직 전에는 다른 직업으로 바꿀 수 있다');
+  ok(g.changeJob('fan') && g.s.job === 'fan' && g.s.skillPts === pts + spent && g.s.level === lv && g.s.gold === gold && g.s.equip.weapon === wpn, '바꾸면 무공 점수는 돌려받고 레벨·은자·장비는 그대로');
+  g.s.jobTier = 1;
+  ok(!g.canChangeJob('sword') && !g.changeJob('sword'), '1차 전직 뒤에는 못 바꾼다');
+  // 꾸미기 저장
+  const raw = JSON.parse(JSON.stringify(g.toJSON()));
+  raw.custom = { gender: 'f', fhead: 'pony', hair: 'red', face: 'veil', wpn: { fan: 'black', sword: 'nope', bad: 'x' }, aura: 'petals', ring: 'lotus', glow: '#fcd34d' };
+  const g2 = new WorldGame(raw, 0);
+  const c = g2.s.custom;
+  ok(c.gender === 'f' && c.fhead === 'pony' && c.hair === 'red' && c.face === 'veil' && c.aura === 'petals' && c.ring === 'lotus' && c.glow === '#fcd34d', '성별·여협 머리·머리 빛깔·면사·기믹이 남는다', JSON.stringify(c));
+  ok(JSON.stringify(c.wpn) === JSON.stringify({ fan: 'black' }), '없는 무기 모양은 버린다');
+  raw.custom = { gender: 'x', fhead: 'mohawk', hair: '#ff0000', aura: 'nuke' };
+  const c3 = new WorldGame(raw, 0).s.custom;
+  ok(!c3.gender && !c3.fhead && !c3.hair && !c3.aura, '이상한 값은 버린다');
+  // 그림 목록 — 무기 모양이 가리키는 그림이 다 있다
+  const art2 = read('js/art2.js');
+  const all = Object.values(W.WEAPON_SKINS).flat().map((x) => x.art);
+  ok(all.every((k) => fs.existsSync(new URL(`../art/hero/${k}.png`, import.meta.url)) || fs.existsSync(new URL(`../art/hero2/${k}.png`, import.meta.url))), '무기 모양 그림이 다 있다', all.filter((k) => !fs.existsSync(new URL(`../art/hero/${k}.png`, import.meta.url)) && !fs.existsSync(new URL(`../art/hero2/${k}.png`, import.meta.url))).join(','));
+  const heads = W.CUSTOM_FHEADS.flatMap(([h]) => W.CUSTOM_HAIRS.map(([c]) => `fh-${h}-${c}`));
+  ok(heads.every((k) => art2.includes(`"${k}"`)), '여협 머리 × 머리 빛깔 그림이 다 있다', heads.filter((k) => !art2.includes(`"${k}"`)).join(','));
+  ok([...W.CUSTOM_AURAS.map(([k]) => `pt-${k}`), ...W.CUSTOM_RINGS.map(([k]) => `ring-${k}`), 'face-patch', 'face-veil', 'face-scar'].every((k) => art2.includes(`"${k}"`)), '기믹·얼굴 덧그림 그림');
+  ok(read('index.html').includes('data-tab="hunt"') && read('js/wmain.js').includes('function goHuntNow'), '아래 창 줄에 사냥 단추');
 }
 
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);

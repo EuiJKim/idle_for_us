@@ -93,7 +93,12 @@ export function migrateWorld(raw, now = Date.now()) {
   { const c = raw.custom && typeof raw.custom === 'object' ? raw.custom : {}; const hex = (v) => (typeof v === 'string' && /^#[0-9a-f]{6}$/i.test(v) ? v : null);
     // v323 쓰개·신발 — 옛 세이브의 머리 '삿갓/두건'은 쓰개로 옮긴다
     const hat = W.CUSTOM_HATS.some(([k]) => k === c.hat) ? c.hat : c.head === 'hat' ? 'straw' : c.head === 'hood' ? 'hood' : null;
-    s.custom = { head: W.CUSTOM_HEADS.some(([k]) => k === c.head) ? c.head : null, hat, robe: hex(c.robe), band: hex(c.band), face: W.CUSTOM_FACES.some(([k]) => k === c.face) ? c.face : null, boot: hex(c.boot) }; }   // v280 꾸미기 · v306 눈 · v323 쓰개·신발
+    const one = (list, v) => (list.some(([k]) => k === v) ? v : null);
+    s.custom = { head: W.CUSTOM_HEADS.some(([k]) => k === c.head) ? c.head : null, hat, robe: hex(c.robe), band: hex(c.band), face: W.CUSTOM_FACES.some(([k]) => k === c.face) ? c.face : null, boot: hex(c.boot),
+      // v325 성별·여협 머리·머리 빛깔 · 무기 모양(직업마다) · 기믹
+      gender: c.gender === 'f' ? 'f' : null, fhead: one(W.CUSTOM_FHEADS, c.fhead), hair: one(W.CUSTOM_HAIRS, c.hair),
+      wpn: c.wpn && typeof c.wpn === 'object' ? Object.fromEntries(Object.entries(c.wpn).filter(([k, v]) => W.weaponSkinOf(k, v))) : {},
+      aura: one(W.CUSTOM_AURAS, c.aura), ring: one(W.CUSTOM_RINGS, c.ring), glow: hex(c.glow) }; }   // v280 꾸미기 · v306 눈 · v323 쓰개·신발
   s.fragPts = Math.max(0, Math.floor(Number(raw.fragPts) || 0));  // 조각으로 얻은 무공 점수(보이기용)
   s.autoEnh = !!raw.autoEnh; s.autoInf = !!raw.autoInf;   // v262
   s.autoJunk = !!raw.autoJunk;   // v321 약한 장비 자동 정리
@@ -2017,6 +2022,19 @@ export class WorldGame {
     this.growInit();
     this._stats = null;
     this.heroHp = this.stats().hp;
+    return true;
+  }
+  // v325 1차 전직 전에는 직업을 공짜로 바꾼다 — 무공 점수는 다 돌려받고, 성장 장비·레벨·은자는 그대로
+  canChangeJob(id) { return !!this.s.job && (this.s.jobTier || 0) === 0 && !!W.CLASSES[id] && id !== this.s.job; }
+  changeJob(id) {
+    if (!this.canChangeJob(id)) return false;
+    const back = this.skillSpentAll();
+    this.s.skillLv = {}; this.s.passLv = {}; this.s.skillPts += back;
+    this.s.path = null;
+    this.s.job = id;
+    this._mods = null; this._pm = null; this._pass = null; this._stats = null;
+    this.heroHp = Math.min(this.heroHp, this.stats().hp);
+    this.emit('jobChange', { job: id, back });
     return true;
   }
   // 다음 전직 — 3차까지는 누구나, 4차는 4차 무공이 있는 직업만(v121: 환마 환영분신술)

@@ -1,9 +1,10 @@
 // 전투 화면 캔버스 렌더러 (수묵화 무협풍). 게임 이벤트를 받아 연출만 담당한다.
 import { drawObstacle, drawLowObstacle } from './obstacles.js';
 import { zoneOf, RANKS, GRADES, FIELD_SQUASH, JOB_TRAITS, QI, jobOf, critTierName } from './data.js';
-import { artReady, putArt, putArtBand, putArtEdge, putArtTint, loadArt, FIT, ART_SHOULDER, ART_BAND, headKey, bodyKey, weaponKey, artHeight, hasBodyArt, putWeapon, weaponBare, putHat, bodyColors, hasArt, HEAD_FIT } from './art.js';
+import { artReady, putArt, putArtBand, putArtEdge, putArtTint, loadArt, FIT, ART_SHOULDER, ART_BAND, headKey, bodyKey, weaponKey, artHeight, hasBodyArt, putWeapon, weaponBare, putHat, bodyColors, hasArt, HEAD_FIT, registerArt, artImg } from './art.js';
+import { drawFemaleHead, drawBackHair, FHEAD_W, FHEAD_H, FHEAD_FIT } from './femhead.js';
 import { drawCreature, saddleY, mountTilt, mountGait } from './creatures.js';
-import { ZONES_W, itemZone } from './world/wdata.js';
+import { ZONES_W, itemZone, weaponSkinOf, CUSTOM_HAIRS } from './world/wdata.js';
 import { setOf } from './world/wgear.js';
 import { THEMES as IMP_THEMES } from './world/wimprint.js';
 import { tellCovers } from './world/wdgn.js';
@@ -1464,6 +1465,19 @@ export class BattleView {
     else if (cu.hat === 'hood') look.head = 'hood';
     else if (cu.head && ['hat', 'hood'].includes(look.head)) look.head = cu.head;
     if (cu.boot) look.boot = cu.boot;
+    // v325 무기 모양(직업마다) · 성별 · 얼굴 덧그림 · 기믹
+    const jl = jobOf(game.s.job)?.look || 'sword';
+    const wsk = cu.wpn?.[jl] ? weaponSkinOf(jl, cu.wpn[jl]) : null;
+    if (wsk) { look.wskin = wsk; delete look.outfitWeapon; }
+    if (cu.gender === 'f') {
+      look.female = true;
+      look.fstyle = cu.fhead || 'long';
+      look.hairK = cu.hair || 'black';
+      if (look.head !== 'hood') look.fhead = femaleHeadKey(look.fstyle, look.hairK, look.band);
+    }
+    if (cu.face && cu.face !== 'blind') look.faceAcc = cu.face;
+    if (cu.aura) look.gAura = cu.aura;
+    if (cu.ring) look.gRing = cu.ring;
     // v306: 그 색 도포 그림이 있으면 그 그림(명암·허리띠가 산다) · 없는 색만 흰 도포에 곱한다
     if (cu.robe) { look.robe = cu.robe; delete look.outfitBody; if (hasBodyArt(cu.robe)) delete look.robeTint; else look.robeTint = cu.robe; }
     if (cu.band) { look.band = cu.band; if (!cu.head && !look.head) look.head = 'topknot'; }
@@ -1485,7 +1499,9 @@ export class BattleView {
       bladeCol: gear.weaponCol,
     };
     if (gear.weaponRar >= 2) opts.glow = true;
-    if (B.weapon) {
+    // v325 칼빛(꾸미기) — 장비 빛보다 먼저
+    if (game.s.custom?.glow) { opts.glow = true; opts.glowCol = game.s.custom.glow; opts.bladeCol = game.s.custom.glow; if (!opts.bladeFx && this.fxLevel > 0) opts.bladeFx = 'shimmer'; }
+    else if (B.weapon) {
       opts.glow = true; opts.glowCol = B.weapon.col;
       if (!opts.bladeFx && this.fxLevel > 0) opts.bladeFx = 'shimmer';
       if (opts.bladeFx !== 'rainbow') opts.bladeCol = B.weapon.col;
@@ -4319,9 +4335,13 @@ export function drawFighter(ctx, x, y, look = {}, o = {}) {
   // turn(-1~1): 돌아서는 중 — 몸이 납작해졌다가 반대로 펴진다 (v160). 없으면 flip대로 곧장.
   if (o.turn != null) ctx.scale(o.turn, 1);
   else if (o.flip) ctx.scale(-1, 1);
+  // v325 발밑 문양(기믹) — 그림자 아래 땅에 납작하게 돈다
+  if (look.gRing) drawFootRing(ctx, look.gRing, t);
   // 그림자
   ctx.fillStyle = 'rgba(0,0,0,0.28)';
   ctx.beginPath(); ctx.ellipse(0, 2, 24, 6, 0, 0, Math.PI * 2); ctx.fill();
+  // v325 여협 — 어깨·몸을 조금 가늘게
+  if (look.female) ctx.scale(0.92, 0.985);
   // 자세(pose.js). 그림자는 땅에 두고 몸만 기울이고 띄운다.
   const P = o.pose;
   if (P) {
@@ -4414,7 +4434,7 @@ export function drawFighter(ctx, x, y, look = {}, o = {}) {
   // 그림 머리에는 띠가 **그려져 있는 것과 없는 것**이 있다. 삿갓·복면·민머리
   // 까지 붉은 끈이 날려서 머리 뒤 허공에 리본이 붙은 꼴이었다.
   const bandHead = artReady() && !jiang
-    ? (look.head === 'band' || look.head === 'topknot')
+    ? (!look.fhead && (look.head === 'band' || look.head === 'topknot'))   // v325 여협 머리에는 리본이 그림에 있다
     : (look.band || !look.head || look.head === 'band' || look.head === 'topknot');
   if (bandHead) {
     ctx.strokeStyle = look.band || '#7f1d1d';
@@ -4481,6 +4501,9 @@ export function drawFighter(ctx, x, y, look = {}, o = {}) {
   ctx.beginPath(); ctx.moveTo(19, -14); ctx.quadraticCurveTo(0, -10, -20 - flap, -12); ctx.stroke();
   ctx.beginPath(); ctx.moveTo(2, -46); ctx.lineTo(5, -12); ctx.stroke();
 
+  // v325 기운 낟알(뒤쪽 반) · 여협 뒷머리(그림 머리가 아직 안 왔을 때만 — 그림 머리에는 머리카락이 다 있다)
+  if (look.gAura) drawAuraFx(ctx, look.gAura, t, false);
+  if (look.female && look.fhead && look.fhead.startsWith('fhv|')) drawBackHair(ctx, look.fstyle, hairHex(look.hairK), look.band, t, o.run);
   // 상체 — 그림 조각이 있으면 도포·상체·허리띠를 한 장으로 갈음한다
   const artBody = artReady() && !jiang && !look.ghost;
   // 두목 옷: 흰 도포 그림에 그 빛깔을 곱해 입힌다(그림 도포 여섯 빛깔에 없는 색도 그대로 나온다)
@@ -4515,7 +4538,9 @@ export function drawFighter(ctx, x, y, look = {}, o = {}) {
   // 머리
   const hk = artReady() && !jiang ? headKey(look) : null;   // v323 복면도 그림(두건)
   // v280 띠가 그려진 머리(상투·머리띠)는 띠를 무인이 고른 색으로
-  if (hk && (look.bandTint && (hk === 'head-topknot' || hk === 'head-band') ? putArtBand(ctx, hk, FIT.head, look.band) : putArt(ctx, hk, FIT.head))) {
+  const HF = (hk && HEAD_FIT[hk]?.fit) || FIT.head;   // v325 그림마다 놓는 자리(여협 머리)
+  const tintHead = look.bandTint && (hk === 'head-topknot' || hk === 'head-band' || (hk?.startsWith('fh-') && !hk.endsWith('-red')));
+  if (hk && (tintHead ? putArtBand(ctx, hk, HF, look.band) : putArt(ctx, hk, HF))) {
     // 머리카락까지 한 장
   } else {
   ctx.fillStyle = skin;
@@ -4536,9 +4561,9 @@ export function drawFighter(ctx, x, y, look = {}, o = {}) {
   }
   // v306 안대 — 눈 자리를 가로지르는 띠, 뒤통수 쪽에 매듭 꼬리 둘
   if (look.blind && look.head !== 'mask' && !jiang) {
-    const hh = hk ? artHeight(hk, FIT.head) : 0;
-    const ey = hk ? FIT.head.y - hh * (HEAD_FIT[hk]?.eye ?? 0.44) : -89;   // v323 머리마다 눈 선
-    const cx = hk ? FIT.head.x : 1;
+    const hh = hk ? artHeight(hk, HF) : 0;
+    const ey = hk ? HF.y - hh * (HEAD_FIT[hk]?.eye ?? 0.44) : -89;   // v323 머리마다 눈 선
+    const cx = hk ? HF.x : 1;
     ctx.save();
     ctx.fillStyle = look.blind;
     ctx.strokeStyle = 'rgba(0,0,0,.45)'; ctx.lineWidth = 1;
@@ -4551,13 +4576,16 @@ export function drawFighter(ctx, x, y, look = {}, o = {}) {
     ctx.restore();
   }
   // v323 쓰개 덧씌우기 — 삿갓을 어느 머리(맨머리·상투·민머리 + 안대)에나 얹는다
-  if (look.hat === 'straw' && hk && hk !== 'head-hat' && hk !== 'head-hood') putHat(ctx, 'hat-straw', hk, FIT.head);
+  if (look.hat === 'straw' && hk && hk !== 'head-hat' && hk !== 'head-hood') putHat(ctx, 'hat-straw', hk, HF);
+  // v325 얼굴 덧그림 — 외눈 안대 · 면사 · 칼자국 (그림, 눈 자리에)
+  if (look.faceAcc && hk && !jiang) drawFaceAcc(ctx, look.faceAcc, hk, HF, t);
   if (look.crown) drawCrown(ctx, t);
   if (look.beard && !artReady()) {
     ctx.fillStyle = look.hair === '#e5e7eb' || look.hair === '#f1f5f9' ? '#e5e7eb' : '#1c1917';
     ctx.beginPath(); ctx.moveTo(2, -82); ctx.lineTo(12, -82); ctx.lineTo(6, -68); ctx.fill();
   }
 
+  if (look.gAura) drawAuraFx(ctx, look.gAura, t, true);   // v325 기운 낟알(앞쪽 반)
   // 앞팔 + 무기
   // 어깨가 벡터 뼈대와 그림 도포에서 서로 다른 자리다. 벡터는 상체가
   // -74..-44지만 그림 도포는 어깨가 -67이고 소매가 이미 그려져 있다.
@@ -4669,6 +4697,79 @@ export function drawFighter(ctx, x, y, look = {}, o = {}) {
   ctx.restore();
 }
 
+// ---------- v325 여협 머리 · 얼굴 덧그림 · 기믹(발밑 문양 · 기운 낟알) ----------
+const hairHex = (k) => (CUSTOM_HAIRS.find(([id]) => id === k) || CUSTOM_HAIRS[0])[2];
+// 그림(art/hero2/fh-머리-빛깔)이 있으면 그 열쇠, 없으면 캔버스로 그린 머리를 한 번 굽고 그 열쇠
+function femaleHeadKey(style, hairK, band) {
+  const art = `fh-${style}-${hairK}`;
+  if (hasArt(art)) return art;
+  const key = `fhv|${style}|${hairK}|${band || ''}`;
+  if (!hasArt(key) && typeof document !== 'undefined') {
+    const cv = document.createElement('canvas'); cv.width = FHEAD_W; cv.height = FHEAD_H;
+    drawFemaleHead(cv.getContext('2d'), style, hairHex(hairK), band || '#7f1d1d');
+    registerArt(key, cv, FHEAD_FIT);
+  }
+  return key;
+}
+function drawFaceAcc(ctx, kind, hk, HF, t) {
+  const im = artImg(`face-${kind}`);
+  const f = HEAD_FIT[hk] || {};
+  const hh = artHeight(hk, HF);
+  const ey = HF.y - hh * (f.eye ?? 0.44), ex = HF.x - HF.w / 2 + HF.w * (f.eyeX ?? 0.72);
+  if (im) {
+    const w = kind === 'veil' ? HF.w * 0.62 : kind === 'patch' ? HF.w * 0.42 : HF.w * 0.1;
+    const h = (im.height * w) / im.width;
+    const yy = kind === 'veil' ? ey + HF.w * 0.08 : ey - h / 2;
+    ctx.drawImage(im, ex - w / 2 + (kind === 'veil' ? -HF.w * 0.05 : 0), yy, w, h);
+    return;
+  }
+  // 그림이 아직 안 왔으면 단순한 모양
+  ctx.save();
+  if (kind === 'patch') { ctx.fillStyle = '#111'; ctx.beginPath(); ctx.ellipse(ex, ey, 2.6, 2.2, 0, 0, Math.PI * 2); ctx.fill(); ctx.strokeStyle = '#111'; ctx.lineWidth = 0.9; ctx.beginPath(); ctx.moveTo(ex - 2, ey - 1.5); ctx.lineTo(ex - 11, ey - 4); ctx.stroke(); }
+  else if (kind === 'veil') { ctx.fillStyle = 'rgba(185,28,28,0.65)'; ctx.beginPath(); ctx.moveTo(ex - 9, ey + 3); ctx.quadraticCurveTo(ex + 4, ey + 2, ex + 5, ey + 4); ctx.lineTo(ex + 3, ey + 13 + Math.sin(t * 3)); ctx.lineTo(ex - 8, ey + 12); ctx.closePath(); ctx.fill(); }
+  else { ctx.strokeStyle = 'rgba(190,60,60,0.9)'; ctx.lineWidth = 0.9; ctx.beginPath(); ctx.moveTo(ex - 1, ey - 5); ctx.lineTo(ex + 1.5, ey + 4); ctx.stroke(); }
+  ctx.restore();
+}
+const RING_COL = { taiji: '#fde68a', lotus: '#f9a8d4', bagua: '#67e8f9', flame: '#fb923c', frost: '#bfdbfe' };
+function drawFootRing(ctx, kind, t) {
+  const im = artImg(`ring-${kind}`);
+  ctx.save();
+  ctx.translate(0, 2);
+  ctx.scale(1, 0.34);
+  ctx.rotate(t * 0.35);
+  ctx.globalAlpha *= 0.75 + Math.sin(t * 2) * 0.12;
+  ctx.globalCompositeOperation = 'lighter';
+  const R = 34;
+  if (im) ctx.drawImage(im, -R, -R, R * 2, R * 2);
+  else { ctx.strokeStyle = RING_COL[kind] || '#fde68a'; ctx.lineWidth = 2.4; ctx.beginPath(); ctx.arc(0, 0, R * 0.9, 0, Math.PI * 2); ctx.stroke(); ctx.beginPath(); ctx.arc(0, 0, R * 0.6, 0, Math.PI * 2); ctx.stroke(); }
+  ctx.restore();
+}
+// 기운 낟알 — 몸 둘레를 오르내린다(낙엽·꽃잎·눈은 내리고 나머지는 오른다). 앞쪽 반은 몸 앞에, 뒤쪽 반은 몸 뒤에
+const AURA_FALL = { petals: 1, snow: 1, leaf: 1 };
+const AURA_COL = { petals: '#f9a8d4', firefly: '#d9f99d', snow: '#f8fafc', ember: '#fb923c', spark: '#93c5fd', ink: '#1f2937', gold: '#fde68a', leaf: '#ea580c' };
+function drawAuraFx(ctx, kind, t, front) {
+  const im = artImg(`pt-${kind}`);
+  const N = 10, fall = AURA_FALL[kind];
+  ctx.save();
+  if (kind === 'firefly' || kind === 'ember' || kind === 'spark' || kind === 'gold') ctx.globalCompositeOperation = 'lighter';
+  for (let i = 0; i < N; i++) {
+    if ((i % 2 === 0) !== front) continue;
+    const sp = 0.22 + (i % 3) * 0.06;
+    const ph = (t * sp + i / N) % 1;
+    const a = i * 2.39 + t * 0.6;
+    const x = Math.cos(a) * (18 + (i % 4) * 4) + Math.sin(t * 1.3 + i) * 3;
+    const y = fall ? -100 + ph * 104 : -4 - ph * 100;
+    const al = Math.sin(ph * Math.PI) * (kind === 'firefly' ? 0.6 + Math.sin(t * 6 + i) * 0.4 : 0.9);
+    if (al <= 0.02) continue;
+    const sz = kind === 'spark' ? 7 : kind === 'ink' ? 8 : 6 + (i % 3);
+    ctx.globalAlpha = al;
+    if (im) {
+      ctx.save(); ctx.translate(x, y); ctx.rotate(fall ? t * 1.5 + i : 0); ctx.drawImage(im, -sz / 2, -sz / 2, sz, sz); ctx.restore();
+    } else { ctx.fillStyle = AURA_COL[kind] || '#fff'; ctx.beginPath(); ctx.arc(x, y, sz * 0.22, 0, Math.PI * 2); ctx.fill(); }
+  }
+  ctx.restore();
+}
+
 // ---------- v323 그림 몸에 맞춘 팔·손·다리 — 도포 그림에서 잰 빛깔로 명암·테두리까지 ----------
 const LINE = 'rgba(22,15,10,0.88)';
 function drawForearmArt(ctx, hx, hy, C, cuff, flash) {
@@ -4683,9 +4784,9 @@ function drawForearmArt(ctx, hx, hy, C, cuff, flash) {
   // 그림 소매가 위팔을 이미 덮고 있다 — 소매 끝(절반 자리)부터 손목까지만 그린다
   const s0 = len * 0.42;
   ctx.beginPath(); ctx.moveTo(s0, -4.6); ctx.lineTo(len * 0.82, -3.1); ctx.quadraticCurveTo(len * 0.9, 0, len * 0.82, 3.1); ctx.lineTo(s0, 4.8); ctx.closePath(); ctx.fill(); ctx.stroke();
-  // 소맷단 — 띠 빛깔(없으면 도포 그늘)
-  ctx.fillStyle = cuff || C.dark; ctx.strokeStyle = LINE; ctx.lineWidth = 1;
-  ctx.beginPath(); ctx.moveTo(s0 - 1, -5); ctx.lineTo(s0 + 4, -4.6); ctx.lineTo(s0 + 4, 4.8); ctx.lineTo(s0 - 1, 5.2); ctx.closePath(); ctx.fill(); ctx.stroke();
+  // 소맷단 — 가는 띠 한 줄(띠 빛깔을 살짝). v325: 두꺼운 네모가 팔에 붙인 딱지처럼 보였다
+  ctx.strokeStyle = cuff ? mix(cuff, C.dark, 0.35) : C.dark; ctx.lineWidth = 1.6;
+  ctx.beginPath(); ctx.moveTo(s0 + 1, -4.4); ctx.lineTo(s0 + 1, 4.6); ctx.stroke();
   ctx.restore();
 }
 // 손 — 살빛에 명암, 테두리, 엄지 금. k: 호출 쪽 배율을 되돌리는 값

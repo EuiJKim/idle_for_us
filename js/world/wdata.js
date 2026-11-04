@@ -78,6 +78,7 @@ export const LORE = {
 };
 
 export const classOf = (id) => JOBS.find((j) => j.id === id) || null;
+export const CLASS_LIST = JOBS.filter((j) => CLASSES[j.id]);   // v325 직업 바꾸기 줄
 
 // ---------- 전직과 스킬 ----------
 export const TIERS = [
@@ -527,10 +528,43 @@ export const CUSTOM_HEADS = [['plain', '맨머리'], ['topknot', '상투 머리�
 export const CUSTOM_HATS = [['straw', '삿갓'], ['hood', '두건']];
 // v323 신발 빛깔
 export const CUSTOM_BOOTS = ['#2a1f18', '#111111', '#6b3a1e', '#8b1f22', '#1e3a5f', '#e7e0d0'];
-export const CUSTOM_ROBES = ['#14120f', '#f1e8d6', '#8b1f22', '#32486b', '#1f5f4a', '#5b3a7a', '#6b5640', '#b08d57'];
-export const CUSTOM_BANDS = ['#7f1d1d', '#e8c87a', '#1e3a8a', '#f1f5f9', '#14120f', '#15803d'];
+export const CUSTOM_ROBES = ['#14120f', '#f1e8d6', '#8b1f22', '#32486b', '#1f5f4a', '#5b3a7a', '#6b5640', '#b08d57', '#0f3b3a', '#7c2d12', '#be7c8b', '#1e293b', '#9ca3af', '#c9a227'];   // v325 +6
+export const CUSTOM_BANDS = ['#7f1d1d', '#e8c87a', '#1e3a8a', '#f1f5f9', '#14120f', '#15803d', '#c026d3', '#f59e0b', '#0ea5e9', '#f9a8d4'];   // v325 +4
 // v306 눈 — 안대(띠 색으로). 민머리와 함께 눈을 가린 무승 차림이 된다
-export const CUSTOM_FACES = [['blind', '안대']];
+export const CUSTOM_FACES = [['blind', '안대'], ['patch', '외눈 안대'], ['veil', '면사'], ['scar', '칼자국']];   // v325 +3
+// v325 성별 · 여협 머리 · 머리 빛깔(여협) — 여협 머리는 그림 조각이 없어 js/femhead.js가 그린다(FHEAD_STYLES와 같은 순서)
+export const CUSTOM_GENDERS = [['m', '남'], ['f', '여']];
+export const CUSTOM_FHEADS = [['long', '긴 생머리'], ['bun', '쪽머리 비녀'], ['pony', '높은 말총'], ['twin', '양갈래'], ['short', '단발']];
+export const CUSTOM_HAIRS = [['black', '흑발', '#1c1612'], ['brown', '갈발', '#6b4226'], ['white', '백발', '#e5e7eb'], ['red', '적발', '#7f1d1d'], ['blue', '청발', '#1e3a5f']];   // 그림 art/hero2/fh-<머리>-<빛깔>
+// v325 직업마다 무기 모양 — art: 그림 조각(art/hero 또는 art/hero2, sunburst). 그림이 아직 안 왔으면 그 직업 기본 무기
+export const WEAPON_SKINS = {
+  sword: [
+    { id: 'jian', name: '장검', art: 'wp-sword' }, { id: 'moon', name: '월하검', art: 'wp-s0' }, { id: 'grass', name: '초결검', art: 'wp-s1' },
+    { id: 'doom', name: '흑철검', art: 'wp-s2' }, { id: 'plum', name: '홍매검', art: 'wp-s3' }, { id: 'dragon', name: '용린검', art: 'wp-s4' },
+    { id: 'bell', name: '은방울검', art: 'wp-s5' }, { id: 'saber', name: '환도', art: 'wp-saber' }, { id: 'spear', name: '장창', art: 'wp-spear' },
+  ],
+  fist: [
+    { id: 'gauntlet', name: '철권갑', art: 'wp-fist' }, { id: 'gold', name: '금강권', art: 'wp-fist-gold' }, { id: 'jade', name: '비취권', art: 'wp-fist-jade' },
+    { id: 'wrap', name: '붕대 맨주먹', art: 'wp-fist-wrap' }, { id: 'tiger', name: '호조', art: 'wp-fist-tiger' }, { id: 'claw', name: '쌍구조', art: 'wp-claw' },
+  ],
+  fan: [
+    { id: 'white', name: '산수선', art: 'wp-fan-white' }, { id: 'black', name: '흑룡선', art: 'wp-fan-black' }, { id: 'red', name: '홍매선', art: 'wp-fan-red' },
+    { id: 'blue', name: '청파선', art: 'wp-fan-blue' }, { id: 'iron', name: '철선', art: 'wp-fan-iron' }, { id: 'crane', name: '학우선', art: 'wp-fan-crane' },
+  ],
+  dagger: [
+    { id: 'dagger', name: '비수', art: 'wp-dagger' }, { id: 'needle', name: '독침', art: 'wp-needle' }, { id: 'gourd', name: '독호로', art: 'wp-gourd' },
+    { id: 'sickle', name: '독낫', art: 'wp-sickle' }, { id: 'claw', name: '독조', art: 'wp-claw' },
+  ],
+  jihwan: [
+    { id: 'violet', name: '자지환', art: 'wp-ring-violet' }, { id: 'blood', name: '혈지환', art: 'wp-ring-blood' }, { id: 'jade', name: '옥지환', art: 'wp-ring-jade' },
+    { id: 'gold', name: '금지환', art: 'wp-ring-gold' }, { id: 'shadow', name: '흑지환', art: 'wp-ring-shadow' }, { id: 'moon', name: '월지환', art: 'wp-ring-moon' },
+  ],
+};
+export const weaponSkinOf = (look, id) => (WEAPON_SKINS[look] || []).find((x) => x.id === id) || null;
+// v325 기믹 — 몸을 도는 기운 · 발밑 문양 · 칼빛
+export const CUSTOM_AURAS = [['petals', '꽃잎'], ['firefly', '반딧불'], ['snow', '눈송이'], ['ember', '불티'], ['spark', '번개'], ['ink', '먹물'], ['gold', '금가루'], ['leaf', '낙엽']];
+export const CUSTOM_RINGS = [['taiji', '태극'], ['lotus', '연꽃'], ['bagua', '팔괘'], ['flame', '불꽃 고리'], ['frost', '서리 문양']];
+export const CUSTOM_GLOWS = ['#7dd3fc', '#f87171', '#fcd34d', '#c084fc', '#f8fafc', '#4ade80'];
 // v306 차림 — 한 번에 어울리게(머리·눈·도포·띠). 따로따로 고르면 따로 놀던 것을 묶었다
 export const CUSTOM_PRESETS = [
   { id: 'monk', name: '맹인 무승', head: 'bald', hat: null, face: 'blind', robe: '#b08d57', band: '#7f1d1d', boot: '#6b3a1e' },
@@ -538,6 +572,9 @@ export const CUSTOM_PRESETS = [
   { id: 'white', name: '백의 도사', head: 'topknot', hat: null, face: null, robe: '#f1e8d6', band: '#1e3a8a', boot: '#2a1f18' },
   { id: 'red', name: '홍의 협객', head: 'topknot', hat: null, face: null, robe: '#8b1f22', band: '#e8c87a', boot: '#2a1f18' },
   { id: 'wanderer', name: '삿갓 낭인', head: 'plain', hat: 'straw', face: null, robe: '#6b5640', band: '#14120f', boot: '#111111' },   // v323
+  { id: 'swordmaiden', name: '백의 여협', gender: 'f', fhead: 'long', hair: 'black', head: null, hat: null, face: null, robe: '#f1e8d6', band: '#7f1d1d', boot: '#2a1f18' },   // v325
+  { id: 'poisonlady', name: '독문 여인', gender: 'f', fhead: 'bun', hair: 'blue', head: null, hat: null, face: 'veil', robe: '#1f5f4a', band: '#c026d3', boot: '#111111' },
+  { id: 'redfox', name: '홍호 낭자', gender: 'f', fhead: 'pony', hair: 'red', head: null, hat: null, face: null, robe: '#8b1f22', band: '#e8c87a', boot: '#2a1f18' },
   { id: 'shadow', name: '두건 자객', head: 'topknot', hat: 'hood', face: null, robe: '#32486b', band: '#1e3a8a', boot: '#111111' },
 ];
 export const TEMPER_STEP = 0.003;   // 시뮬 15일 118~143단계 → +35~43%

@@ -1,0 +1,416 @@
+[
+ {
+  "name": "fh-long-brown",
+  "refs": [
+   "gen/fh-long-black.png"
+  ],
+  "size": "1024x1024",
+  "prompt": "Keep this exact image identical — same face, pose, framing, line art, shading, ribbon and hairpin — and change ONLY the hair color to warm chestnut brown. The crimson red ribbon stays bright crimson red. Transparent background, nothing else."
+ },
+ {
+  "name": "fh-long-white",
+  "refs": [
+   "gen/fh-long-black.png"
+  ],
+  "size": "1024x1024",
+  "prompt": "Keep this exact image identical — same face, pose, framing, line art, shading, ribbon and hairpin — and change ONLY the hair color to silvery white (snow white with soft grey shading). The crimson red ribbon stays bright crimson red. Transparent background, nothing else."
+ },
+ {
+  "name": "fh-long-red",
+  "refs": [
+   "gen/fh-long-black.png"
+  ],
+  "size": "1024x1024",
+  "prompt": "Keep this exact image identical — same face, pose, framing, line art, shading, ribbon and hairpin — and change ONLY the hair color to deep crimson red. The crimson red ribbon stays bright crimson red. Transparent background, nothing else."
+ },
+ {
+  "name": "fh-long-blue",
+  "refs": [
+   "gen/fh-long-black.png"
+  ],
+  "size": "1024x1024",
+  "prompt": "Keep this exact image identical — same face, pose, framing, line art, shading, ribbon and hairpin — and change ONLY the hair color to dark midnight blue. The crimson red ribbon stays bright crimson red. Transparent background, nothing else."
+ },
+ {
+  "name": "fh-bun-brown",
+  "refs": [
+   "gen/fh-bun-black.png"
+  ],
+  "size": "1024x1024",
+  "prompt": "Keep this exact image identical — same face, pose, framing, line art, shading, ribbon and hairpin — and change ONLY the hair color to warm chestnut brown. The crimson red ribbon stays bright crimson red. Transparent background, nothing else."
+ },
+ {
+  "name": "fh-bun-white",
+  "refs": [
+   "gen/fh-bun-black.png"
+  ],
+  "size": "1024x1024",
+  "prompt": "Keep this exact image identical — same face, pose, framing, line art, shading, ribbon and hairpin — and change ONLY the hair color to silvery white (snow white with soft grey shading). The crimson red ribbon stays bright crimson red. Transparent background, nothing else."
+ },
+ {
+  "name": "fh-bun-red",
+  "refs": [
+   "gen/fh-bun-black.png"
+  ],
+  "size": "1024x1024",
+  "prompt": "Keep this exact image identical — same face, pose, framing, line art, shading, ribbon and hairpin — and change ONLY the hair color to deep crimson red. The crimson red ribbon stays bright crimson red. Transparent background, nothing else."
+ },
+ {
+  "name": "fh-bun-blue",
+  "refs": [
+   "gen/fh-bun-black.png"
+  ],
+  "size": "1024x1024",
+  "prompt": "Keep this exact image identical — same face, pose, framing, line art, shading, ribbon and hairpin — and change ONLY the hair color to dark midnight blue. The crimson red ribbon stays bright crimson red. Transparent background, nothing else."
+ },
+ {
+  "name": "fh-pony-brown",
+  "refs": [
+   "gen/fh-pony-black.png"
+  ],
+  "size": "1024x1024",
+  "prompt": "Keep this exact image identical — same face, pose, framing, line art, shading, ribbon and hairpin — and change ONLY the hair color to warm chestnut brown. The crimson red ribbon stays bright crimson red. Transparent background, nothing else."
+ },
+ {
+  "name": "fh-pony-white",
+  "refs": [
+   "gen/fh-pony-black.png"
+  ],
+  "size": "1024x1024",
+  "prompt": "Keep this exact image identical — same face, pose, framing, line art, shading, ribbon and hairpin — and change ONLY the hair color to silvery white (snow white with soft grey shading). The crimson red ribbon stays bright crimson red. Transparent background, nothing else."
+ },
+ {
+  "name": "fh-pony-red",
+  "refs": [
+   "gen/fh-pony-black.png"
+  ],
+  "size": "1024x1024",
+  "prompt": "Keep this exact image identical — same face, pose, framing, line art, shading, ribbon and hairpin — and change ONLY the hair color to deep crimson red. The crimson red ribbon stays bright crimson red. Transparent background, nothing else."
+ },
+ {
+  "name": "fh-pony-blue",
+  "refs": [
+   "gen/fh-pony-black.png"
+  ],
+  "size": "1024x1024",
+  "prompt": "Keep this exact image identical — same face, pose, framing, line art, shading, ribbon and hairpin — and change ONLY the hair color to dark midnight blue. The crimson red ribbon stays bright crimson red. Transparent background, nothing else."
+ },
+ {
+  "name": "fh-twin-brown",
+  "refs": [
+   "gen/fh-twin-black.png"
+  ],
+  "size": "1024x1024",
+  "prompt": "Keep this exact image identical — same face, pose, framing, line art, shading, ribbon and hairpin — and change ONLY the hair color to warm chestnut brown. The crimson red ribbon stays bright crimson red. Transparent background, nothing else."
+ },
+ {
+  "name": "fh-twin-white",
+  "refs": [
+   "gen/fh-twin-black.png"
+  ],
+  "size": "1024x1024",
+  "prompt": "Keep this exact image identical — same face, pose, framing, line art, shading, ribbon and hairpin — and change ONLY the hair color to silvery white (snow white with soft grey shading). The crimson red ribbon stays bright crimson red. Transparent background, nothing else."
+ },
+ {
+  "name": "fh-twin-red",
+  "refs": [
+   "gen/fh-twin-black.png"
+  ],
+  "size": "1024x1024",
+  "prompt": "Keep this exact image identical — same face, pose, framing, line art, shading, ribbon and hairpin — and change ONLY the hair color to deep crimson red. The crimson red ribbon stays bright crimson red. Transparent background, nothing else."
+ },
+ {
+  "name": "fh-twin-blue",
+  "refs": [
+   "gen/fh-twin-black.png"
+  ],
+  "size": "1024x1024",
+  "prompt": "Keep this exact image identical — same face, pose, framing, line art, shading, ribbon and hairpin — and change ONLY the hair color to dark midnight blue. The crimson red ribbon stays bright crimson red. Transparent background, nothing else."
+ },
+ {
+  "name": "fh-short-brown",
+  "refs": [
+   "gen/fh-short-black.png"
+  ],
+  "size": "1024x1024",
+  "prompt": "Keep this exact image identical — same face, pose, framing, line art, shading, ribbon and hairpin — and change ONLY the hair color to warm chestnut brown. The crimson red ribbon stays bright crimson red. Transparent background, nothing else."
+ },
+ {
+  "name": "fh-short-white",
+  "refs": [
+   "gen/fh-short-black.png"
+  ],
+  "size": "1024x1024",
+  "prompt": "Keep this exact image identical — same face, pose, framing, line art, shading, ribbon and hairpin — and change ONLY the hair color to silvery white (snow white with soft grey shading). The crimson red ribbon stays bright crimson red. Transparent background, nothing else."
+ },
+ {
+  "name": "fh-short-red",
+  "refs": [
+   "gen/fh-short-black.png"
+  ],
+  "size": "1024x1024",
+  "prompt": "Keep this exact image identical — same face, pose, framing, line art, shading, ribbon and hairpin — and change ONLY the hair color to deep crimson red. The crimson red ribbon stays bright crimson red. Transparent background, nothing else."
+ },
+ {
+  "name": "fh-short-blue",
+  "refs": [
+   "gen/fh-short-black.png"
+  ],
+  "size": "1024x1024",
+  "prompt": "Keep this exact image identical — same face, pose, framing, line art, shading, ribbon and hairpin — and change ONLY the hair color to dark midnight blue. The crimson red ribbon stays bright crimson red. Transparent background, nothing else."
+ },
+ {
+  "name": "wp-fist-gold",
+  "refs": [
+   "../../art/hero/wp-sword.png",
+   "../../art/hero/wp-dagger.png"
+  ],
+  "size": "1024x1536",
+  "prompt": "Single weapon sprite in EXACTLY the same hand-painted Korean wuxia (murim) game illustration style as the reference weapon images: crisp dark outlines, rich soft shading, fine metal and wood detail. Drawn PERFECTLY VERTICAL like the references: the part held in the hand (handle / grip / wrist) at the BOTTOM, the tip pointing straight UP, centered, nothing else, no hand unless stated, no text, transparent background. A golden armored gauntlet: a clenched fist covered in ornate gold plates with small studs on the knuckles, leather wrist strap at the bottom, knuckles pointing up."
+ },
+ {
+  "name": "wp-fist-jade",
+  "refs": [
+   "../../art/hero/wp-sword.png",
+   "../../art/hero/wp-dagger.png"
+  ],
+  "size": "1024x1536",
+  "prompt": "Single weapon sprite in EXACTLY the same hand-painted Korean wuxia (murim) game illustration style as the reference weapon images: crisp dark outlines, rich soft shading, fine metal and wood detail. Drawn PERFECTLY VERTICAL like the references: the part held in the hand (handle / grip / wrist) at the BOTTOM, the tip pointing straight UP, centered, nothing else, no hand unless stated, no text, transparent background. A jade-green armored gauntlet: clenched fist with polished green jade plates and silver rims, wrist wrap at the bottom, knuckles pointing up."
+ },
+ {
+  "name": "wp-fist-wrap",
+  "refs": [
+   "../../art/hero/wp-sword.png",
+   "../../art/hero/wp-dagger.png"
+  ],
+  "size": "1024x1536",
+  "prompt": "Single weapon sprite in EXACTLY the same hand-painted Korean wuxia (murim) game illustration style as the reference weapon images: crisp dark outlines, rich soft shading, fine metal and wood detail. Drawn PERFECTLY VERTICAL like the references: the part held in the hand (handle / grip / wrist) at the BOTTOM, the tip pointing straight UP, centered, nothing else, no hand unless stated, no text, transparent background. A bare clenched human fist tightly wrapped in worn white cloth bandages (martial artist hand wraps), wrist at the bottom, knuckles pointing up. Skin visible between wraps."
+ },
+ {
+  "name": "wp-fist-tiger",
+  "refs": [
+   "../../art/hero/wp-sword.png",
+   "../../art/hero/wp-dagger.png"
+  ],
+  "size": "1024x1536",
+  "prompt": "Single weapon sprite in EXACTLY the same hand-painted Korean wuxia (murim) game illustration style as the reference weapon images: crisp dark outlines, rich soft shading, fine metal and wood detail. Drawn PERFECTLY VERTICAL like the references: the part held in the hand (handle / grip / wrist) at the BOTTOM, the tip pointing straight UP, centered, nothing else, no hand unless stated, no text, transparent background. A tiger-claw gauntlet: dark iron glove with three long curved orange-tinted steel claws extending upward from the knuckles, fur trim at the wrist (bottom)."
+ },
+ {
+  "name": "wp-fan-white",
+  "refs": [
+   "../../art/hero/wp-sword.png",
+   "../../art/hero/wp-dagger.png"
+  ],
+  "size": "1024x1536",
+  "prompt": "Single weapon sprite in EXACTLY the same hand-painted Korean wuxia (murim) game illustration style as the reference weapon images: crisp dark outlines, rich soft shading, fine metal and wood detail. Drawn PERFECTLY VERTICAL like the references: the part held in the hand (handle / grip / wrist) at the BOTTOM, the tip pointing straight UP, centered, nothing else, no hand unless stated, no text, transparent background. An OPEN folding fan held by its pivot: white paper fan spread upward in a half circle, with an elegant black ink-wash mountain landscape painted on it, bamboo ribs, the closed pivot end at the bottom with a small red tassel."
+ },
+ {
+  "name": "wp-fan-black",
+  "refs": [
+   "../../art/hero/wp-sword.png",
+   "../../art/hero/wp-dagger.png"
+  ],
+  "size": "1024x1536",
+  "prompt": "Single weapon sprite in EXACTLY the same hand-painted Korean wuxia (murim) game illustration style as the reference weapon images: crisp dark outlines, rich soft shading, fine metal and wood detail. Drawn PERFECTLY VERTICAL like the references: the part held in the hand (handle / grip / wrist) at the BOTTOM, the tip pointing straight UP, centered, nothing else, no hand unless stated, no text, transparent background. An OPEN folding fan held by its pivot: black lacquered fan spread upward in a half circle with a golden dragon painted on it, dark ribs, gold pivot at the bottom with a gold tassel."
+ },
+ {
+  "name": "wp-fan-red",
+  "refs": [
+   "../../art/hero/wp-sword.png",
+   "../../art/hero/wp-dagger.png"
+  ],
+  "size": "1024x1536",
+  "prompt": "Single weapon sprite in EXACTLY the same hand-painted Korean wuxia (murim) game illustration style as the reference weapon images: crisp dark outlines, rich soft shading, fine metal and wood detail. Drawn PERFECTLY VERTICAL like the references: the part held in the hand (handle / grip / wrist) at the BOTTOM, the tip pointing straight UP, centered, nothing else, no hand unless stated, no text, transparent background. An OPEN folding fan held by its pivot: crimson red silk fan spread upward in a half circle with white plum blossoms painted on it, dark wood ribs, pivot at the bottom with a red tassel."
+ },
+ {
+  "name": "wp-fan-blue",
+  "refs": [
+   "../../art/hero/wp-sword.png",
+   "../../art/hero/wp-dagger.png"
+  ],
+  "size": "1024x1536",
+  "prompt": "Single weapon sprite in EXACTLY the same hand-painted Korean wuxia (murim) game illustration style as the reference weapon images: crisp dark outlines, rich soft shading, fine metal and wood detail. Drawn PERFECTLY VERTICAL like the references: the part held in the hand (handle / grip / wrist) at the BOTTOM, the tip pointing straight UP, centered, nothing else, no hand unless stated, no text, transparent background. An OPEN folding fan held by its pivot: deep blue fan spread upward in a half circle with white crashing waves painted on it, pivot at the bottom with a blue tassel."
+ },
+ {
+  "name": "wp-fan-iron",
+  "refs": [
+   "../../art/hero/wp-sword.png",
+   "../../art/hero/wp-dagger.png"
+  ],
+  "size": "1024x1536",
+  "prompt": "Single weapon sprite in EXACTLY the same hand-painted Korean wuxia (murim) game illustration style as the reference weapon images: crisp dark outlines, rich soft shading, fine metal and wood detail. Drawn PERFECTLY VERTICAL like the references: the part held in the hand (handle / grip / wrist) at the BOTTOM, the tip pointing straight UP, centered, nothing else, no hand unless stated, no text, transparent background. An OPEN iron war fan held by its pivot: steel fan spread upward in a half circle, made of sharp metal ribs with razor edges and rivets, grey steel, pivot at the bottom."
+ },
+ {
+  "name": "wp-fan-crane",
+  "refs": [
+   "../../art/hero/wp-sword.png",
+   "../../art/hero/wp-dagger.png"
+  ],
+  "size": "1024x1536",
+  "prompt": "Single weapon sprite in EXACTLY the same hand-painted Korean wuxia (murim) game illustration style as the reference weapon images: crisp dark outlines, rich soft shading, fine metal and wood detail. Drawn PERFECTLY VERTICAL like the references: the part held in the hand (handle / grip / wrist) at the BOTTOM, the tip pointing straight UP, centered, nothing else, no hand unless stated, no text, transparent background. A crane-feather fan (like Zhuge Liang's): long white crane feathers spreading upward from a short dark wooden handle with a red tassel at the bottom."
+ },
+ {
+  "name": "wp-needle",
+  "refs": [
+   "../../art/hero/wp-sword.png",
+   "../../art/hero/wp-dagger.png"
+  ],
+  "size": "1024x1536",
+  "prompt": "Single weapon sprite in EXACTLY the same hand-painted Korean wuxia (murim) game illustration style as the reference weapon images: crisp dark outlines, rich soft shading, fine metal and wood detail. Drawn PERFECTLY VERTICAL like the references: the part held in the hand (handle / grip / wrist) at the BOTTOM, the tip pointing straight UP, centered, nothing else, no hand unless stated, no text, transparent background. Three long thin poison needles held together in a fan shape, each glowing sickly green at the tip, a small cloth-wrapped grip at the bottom where they meet."
+ },
+ {
+  "name": "wp-gourd",
+  "refs": [
+   "../../art/hero/wp-sword.png",
+   "../../art/hero/wp-dagger.png"
+  ],
+  "size": "1024x1536",
+  "prompt": "Single weapon sprite in EXACTLY the same hand-painted Korean wuxia (murim) game illustration style as the reference weapon images: crisp dark outlines, rich soft shading, fine metal and wood detail. Drawn PERFECTLY VERTICAL like the references: the part held in the hand (handle / grip / wrist) at the BOTTOM, the tip pointing straight UP, centered, nothing else, no hand unless stated, no text, transparent background. A poison gourd: a dark green calabash bottle with a cork, wrapped with a rope that goes down to a short wooden handle at the bottom, green poison mist leaking from the top."
+ },
+ {
+  "name": "wp-sickle",
+  "refs": [
+   "../../art/hero/wp-sword.png",
+   "../../art/hero/wp-dagger.png"
+  ],
+  "size": "1024x1536",
+  "prompt": "Single weapon sprite in EXACTLY the same hand-painted Korean wuxia (murim) game illustration style as the reference weapon images: crisp dark outlines, rich soft shading, fine metal and wood detail. Drawn PERFECTLY VERTICAL like the references: the part held in the hand (handle / grip / wrist) at the BOTTOM, the tip pointing straight UP, centered, nothing else, no hand unless stated, no text, transparent background. A poison kama sickle: a short wooden handle at the bottom, a curved blade at the top whose edge glows toxic green, dripping green poison."
+ },
+ {
+  "name": "wp-ring-violet",
+  "refs": [
+   "../../art/hero/wp-fist.png"
+  ],
+  "size": "1024x1536",
+  "prompt": "A single right hand making the 'sword-finger' gesture (index and middle fingers pointing straight UP together, other fingers curled), seen from the side, wrist at the BOTTOM. Same hand-painted Korean wuxia game illustration style as the reference: crisp dark outlines, soft shading. Two rings on the raised fingers, polished purple amethyst rings, a soft violet glow at the fingertips. Nothing else, no text, transparent background."
+ },
+ {
+  "name": "wp-ring-blood",
+  "refs": [
+   "../../art/hero/wp-fist.png"
+  ],
+  "size": "1024x1536",
+  "prompt": "A single right hand making the 'sword-finger' gesture (index and middle fingers pointing straight UP together, other fingers curled), seen from the side, wrist at the BOTTOM. Same hand-painted Korean wuxia game illustration style as the reference: crisp dark outlines, soft shading. Two rings on the raised fingers, blood-red ruby rings, a crimson glow at the fingertips. Nothing else, no text, transparent background."
+ },
+ {
+  "name": "wp-ring-jade",
+  "refs": [
+   "../../art/hero/wp-fist.png"
+  ],
+  "size": "1024x1536",
+  "prompt": "A single right hand making the 'sword-finger' gesture (index and middle fingers pointing straight UP together, other fingers curled), seen from the side, wrist at the BOTTOM. Same hand-painted Korean wuxia game illustration style as the reference: crisp dark outlines, soft shading. Two rings on the raised fingers, green jade rings, a soft jade-green glow at the fingertips. Nothing else, no text, transparent background."
+ },
+ {
+  "name": "wp-ring-gold",
+  "refs": [
+   "../../art/hero/wp-fist.png"
+  ],
+  "size": "1024x1536",
+  "prompt": "A single right hand making the 'sword-finger' gesture (index and middle fingers pointing straight UP together, other fingers curled), seen from the side, wrist at the BOTTOM. Same hand-painted Korean wuxia game illustration style as the reference: crisp dark outlines, soft shading. Two rings on the raised fingers, ornate gold rings, a warm golden glow at the fingertips. Nothing else, no text, transparent background."
+ },
+ {
+  "name": "wp-ring-shadow",
+  "refs": [
+   "../../art/hero/wp-fist.png"
+  ],
+  "size": "1024x1536",
+  "prompt": "A single right hand making the 'sword-finger' gesture (index and middle fingers pointing straight UP together, other fingers curled), seen from the side, wrist at the BOTTOM. Same hand-painted Korean wuxia game illustration style as the reference: crisp dark outlines, soft shading. Two rings on the raised fingers, black iron rings with red runes, a red-black glow at the fingertips. Nothing else, no text, transparent background."
+ },
+ {
+  "name": "wp-ring-moon",
+  "refs": [
+   "../../art/hero/wp-fist.png"
+  ],
+  "size": "1024x1536",
+  "prompt": "A single right hand making the 'sword-finger' gesture (index and middle fingers pointing straight UP together, other fingers curled), seen from the side, wrist at the BOTTOM. Same hand-painted Korean wuxia game illustration style as the reference: crisp dark outlines, soft shading. Two rings on the raised fingers, pale silver moonstone rings, a cold white-blue glow at the fingertips. Nothing else, no text, transparent background."
+ },
+ {
+  "name": "ring-taiji",
+  "size": "1024x1024",
+  "prompt": "A circular magic seal for a 2D wuxia game, seen from DIRECTLY ABOVE, perfectly round and centered, filling most of the canvas, glowing luminous energy lines with a soft glow, hand-painted. Transparent background, nothing else, no text. A taiji yin-yang symbol inside two concentric glowing rings with eight small trigram marks, white and black with a pale gold glow."
+ },
+ {
+  "name": "ring-lotus",
+  "size": "1024x1024",
+  "prompt": "A circular magic seal for a 2D wuxia game, seen from DIRECTLY ABOVE, perfectly round and centered, filling most of the canvas, glowing luminous energy lines with a soft glow, hand-painted. Transparent background, nothing else, no text. A blooming pink lotus flower mandala, layered petals radiating from the center, pink and gold glow."
+ },
+ {
+  "name": "ring-bagua",
+  "size": "1024x1024",
+  "prompt": "A circular magic seal for a 2D wuxia game, seen from DIRECTLY ABOVE, perfectly round and centered, filling most of the canvas, glowing luminous energy lines with a soft glow, hand-painted. Transparent background, nothing else, no text. A bagua octagon with the eight trigrams around a central ring, glowing cyan-blue lines."
+ },
+ {
+  "name": "ring-flame",
+  "size": "1024x1024",
+  "prompt": "A circular magic seal for a 2D wuxia game, seen from DIRECTLY ABOVE, perfectly round and centered, filling most of the canvas, glowing luminous energy lines with a soft glow, hand-painted. Transparent background, nothing else, no text. A ring of orange and red flames forming a circle with a glowing fiery core rim, empty center."
+ },
+ {
+  "name": "ring-frost",
+  "size": "1024x1024",
+  "prompt": "A circular magic seal for a 2D wuxia game, seen from DIRECTLY ABOVE, perfectly round and centered, filling most of the canvas, glowing luminous energy lines with a soft glow, hand-painted. Transparent background, nothing else, no text. A frost seal: an icy hexagonal snowflake mandala with crystal shards, pale blue and white glow."
+ },
+ {
+  "name": "pt-petals",
+  "size": "1024x1024",
+  "prompt": "A single tiny game particle sprite for a 2D wuxia game, hand-painted with soft glow, centered, filling about half the canvas, transparent background, nothing else, no text: one pink cherry blossom petal"
+ },
+ {
+  "name": "pt-firefly",
+  "size": "1024x1024",
+  "prompt": "A single tiny game particle sprite for a 2D wuxia game, hand-painted with soft glow, centered, filling about half the canvas, transparent background, nothing else, no text: one glowing yellow-green firefly light orb with a soft halo"
+ },
+ {
+  "name": "pt-snow",
+  "size": "1024x1024",
+  "prompt": "A single tiny game particle sprite for a 2D wuxia game, hand-painted with soft glow, centered, filling about half the canvas, transparent background, nothing else, no text: one delicate white snowflake"
+ },
+ {
+  "name": "pt-ember",
+  "size": "1024x1024",
+  "prompt": "A single tiny game particle sprite for a 2D wuxia game, hand-painted with soft glow, centered, filling about half the canvas, transparent background, nothing else, no text: one glowing orange fire ember spark"
+ },
+ {
+  "name": "pt-spark",
+  "size": "1024x1024",
+  "prompt": "A single tiny game particle sprite for a 2D wuxia game, hand-painted with soft glow, centered, filling about half the canvas, transparent background, nothing else, no text: one small crackling blue-white lightning spark"
+ },
+ {
+  "name": "pt-ink",
+  "size": "1024x1024",
+  "prompt": "A single tiny game particle sprite for a 2D wuxia game, hand-painted with soft glow, centered, filling about half the canvas, transparent background, nothing else, no text: one swirling black ink wisp drop"
+ },
+ {
+  "name": "pt-gold",
+  "size": "1024x1024",
+  "prompt": "A single tiny game particle sprite for a 2D wuxia game, hand-painted with soft glow, centered, filling about half the canvas, transparent background, nothing else, no text: one sparkling golden four-point star glint"
+ },
+ {
+  "name": "pt-leaf",
+  "size": "1024x1024",
+  "prompt": "A single tiny game particle sprite for a 2D wuxia game, hand-painted with soft glow, centered, filling about half the canvas, transparent background, nothing else, no text: one red-orange autumn maple leaf"
+ },
+ {
+  "name": "face-patch",
+  "refs": [
+   "../../art/hero/head-topknot.png"
+  ],
+  "size": "1024x1024",
+  "prompt": "A single accessory sprite to overlay on a right-facing 3/4 profile head in the same hand-painted Korean wuxia game illustration style as the reference: crisp dark outlines, soft shading. Only the accessory, no head, no face, transparent background, nothing else: a black leather eyepatch (small rounded patch) with a thin black strap going back, as seen from the right side"
+ },
+ {
+  "name": "face-veil",
+  "refs": [
+   "../../art/hero/head-topknot.png"
+  ],
+  "size": "1024x1024",
+  "prompt": "A single accessory sprite to overlay on a right-facing 3/4 profile head in the same hand-painted Korean wuxia game illustration style as the reference: crisp dark outlines, soft shading. Only the accessory, no head, no face, transparent background, nothing else: a sheer semi-transparent crimson silk face veil that covers the lower half of a face from the nose down, hanging loosely, seen from the right side"
+ },
+ {
+  "name": "face-scar",
+  "refs": [
+   "../../art/hero/head-topknot.png"
+  ],
+  "size": "1024x1024",
+  "prompt": "A single accessory sprite to overlay on a right-facing 3/4 profile head in the same hand-painted Korean wuxia game illustration style as the reference: crisp dark outlines, soft shading. Only the accessory, no head, no face, transparent background, nothing else: a single healed vertical sword scar (two slightly pink-red lines) as would be painted across an eye, nothing else"
+ }
+]

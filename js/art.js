@@ -70,6 +70,7 @@ export const ART_SHOULDER = { x: 9, y: BODY_TOP + 9 };
 // 시작해 21px이라 -90이면 **정수리 위 허공**에서 끈이 뻗어 나왔다.
 export const ART_BAND = { x: -5, y: BODY_TOP + 4 - 14 };
 
+import { ART2_HEADS, ART2_WEAPONS, ART2_SPRITES } from './art2.js';
 const img = {};
 let ready = false;
 let tried = false;
@@ -77,7 +78,7 @@ let tried = false;
 // ---------- v323 조각 기준점 — 그림마다 '어디를 잡고 어디에 놓나'를 적어 둔다(치수는 scripts로 잰 값) ----------
 // 머리: crop — 턱 아래(목·옷깃)를 잘라 낸다(그러면 모든 머리의 맨 아래가 턱) · brow — 삿갓을 얹는 눈썹 선(위에서) · eye — 안대 선(아래에서)
 export const HEAD_FIT = {
-  'head': { crop: 0.88, brow: 0.36, eye: 0.46 },
+  'head': { crop: 0.88, brow: 0.36, eye: 0.46, eyeX: 0.72 },
   'head-topknot': { crop: 0.93, brow: 0.44, eye: 0.44 },
   'head-band': { crop: 0.95, brow: 0.46, eye: 0.5 },
   'head-hat': { crop: 1, brow: 0.5, eye: 0.4 },
@@ -164,7 +165,22 @@ function bodyFor(robe) {
   return hit;
 }
 
+// v325 꾸미기 그림(sunburst) — art/hero2/. 기본 조각이 다 온 뒤 천천히 받는다. 없으면 그 칸만 옛 모양(벡터)으로 간다.
+//   머리는 HEAD_FIT에 fit(놓을 자리 w·x·y)까지 · 무기는 WEAPON_FIT에 손잡이·길이
+let tried2 = false;
+export function loadArt2(onEach) {
+  if (tried2 || typeof Image === 'undefined') return;
+  tried2 = true;
+  const one = (n, then) => { const im = new Image(); im.onload = () => { img[n] = im; then?.(); onEach?.(n); }; im.src = `art/hero2/${n}.png`; };
+  for (const [n, f] of Object.entries(ART2_HEADS)) one(n, () => { HEAD_FIT[n] = { crop: 1, brow: f.brow, eye: f.eye, eyeX: f.eyeX, fit: { w: f.w, x: f.x, y: f.y } }; });
+  for (const [n, f] of Object.entries(ART2_WEAPONS)) one(n, () => { WEAPON_FIT[n] = { ...f }; });
+  for (const n of ART2_SPRITES) one(n);
+}
+export function artImg(key) { return img[key] || null; }
+// v325 캔버스로 그린 조각(여협 머리)을 그림 조각처럼 쓴다 — putArt·artHeight·HEAD_FIT이 그대로 통한다
+export function registerArt(key, canvas, fit) { img[key] = canvas; if (fit) HEAD_FIT[key] = fit; }
 export function headKey(look) {
+  if (look?.fhead && img[look.fhead]) return look.fhead;   // v325 여협 머리
   const h = look?.head;
   if (h === 'mask') return 'head-hood';   // v323 복면 — 전엔 벡터 머리가 그림 몸 위에 떠 있었다. 두건 그림(입을 가린 복면)으로
   return HEADS.includes(h) ? `head-${h}` : 'head';
@@ -180,6 +196,8 @@ export function bodyKey(look) {
   return bodyFor(look?.robe);
 }
 export function weaponKey(w, look) {
+  // v325 무기 모양(꾸미기) — 그림이면 그 조각, 그려 넣는 모양이면 null(drawWeapon이 o.wskin을 본다)
+  if (look?.wskin) return look.wskin.art && img[look.wskin.art] ? look.wskin.art : null;
   if (look?.outfitWeapon != null && OUTFIT_WEAPON[look.outfitWeapon]) return OUTFIT_WEAPON[look.outfitWeapon];
   // v121 권갑 그림은 주먹 위로 붉은 칼날이 솟아 칼을 든 것처럼 보였다 → v323 칼날을 잘라 낸 권갑 그림을 쓴다(WEAPON_FIT.cropTop)
   return WEAPONS.includes(w) ? `wp-${w}` : null;
@@ -193,7 +211,7 @@ export function loadArt(onDone) {
   let bad = false;
   for (const n of FILES) {
     const im = new Image();
-    im.onload = () => { img[n] = im; if (--left === 0 && !bad) { prepareArt(); ready = true; onDone?.(); } };
+    im.onload = () => { img[n] = im; if (--left === 0 && !bad) { prepareArt(); ready = true; loadArt2(); onDone?.(); } };
     im.onerror = () => { bad = true; left--; };
     im.src = `art/hero/${n}.png`;
   }
@@ -312,10 +330,11 @@ export function weaponBare(key) { return !!WEAPON_FIT[key]?.bare; }
 export function putHat(ctx, hatKey, headKey, headFit) {
   const im = img[hatKey], hf = HAT_FIT[hatKey], hd = HEAD_FIT[headKey] || HEAD_FIT.head;
   if (!im || !hf) return false;
+  headFit = hd.fit || headFit;   // v325 그림마다 놓는 자리가 다를 수 있다(여협 머리)
   const hh = artHeight(headKey, headFit);
   const browY = headFit.y - hh + hh * hd.brow;   // 머리 위에서 brow만큼 내려온 자리
   const w = hf.w, h = (im.height * w) / im.width;
-  ctx.drawImage(im, headFit.x - w / 2 - 1, browY - h * 0.92, w, h);
+  ctx.drawImage(im, headFit.x + (hd.fit ? (hd.eyeX - 0.5) * headFit.w * 0.4 : 0) - w / 2 - 1, browY - h * 0.92, w, h);
   return true;
 }
 export function putArt(ctx, key, fit) {
