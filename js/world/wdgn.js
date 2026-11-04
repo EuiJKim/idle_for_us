@@ -214,7 +214,7 @@ export function towerMap(f) {
     lv: [towerLv(f), towerLv(f)], mobs: [], boss: towerBoss(f), scene: isZodiacFloor(f) ? 'raid' : 'trial', bossFirst: true };
 }
 // ---------- v350 무한의 탑 · 극(極) — 하드 모드 ----------
-// 보통 탑 60층을 오르면 열린다. 60층. 극 h층 수문장 = 보통 (60+h)층의 그것보다 체력 ×2.2 · 경고가 짧고(×0.82) · 자주(×0.75) · 아프다(×1.25),
+// 보통 탑 60층을 오르면 열린다. 60층. 극 h층 수문장 = 보통 (60+h)층의 그것보다 체력 ×22(v357 열 배로 · 전엔 ×2.2) · 붙어 치기 ×3 · 경고가 짧고(×0.82) · 자주(×0.75) · 아프다(×1.25),
 //   초식 하나가 더(천라지망·도는 칼날·붕괴…). 10층마다 신수(HARD_MOUNTS)가 몸소 지킨다 — 처음 이기면 그 신수가 내 탈것으로.
 //   극의 층마다 공격력·체력 +0.4% 영구(60층 +24%).
 export const HARD_OPEN = 60;
@@ -225,8 +225,9 @@ export const hardF = (h) => Math.min(TOWER_MAX, HARD_OPEN + h);   // 같은 세�
 export const isHardBossFloor = (h) => h % 10 === 0;
 export const hardSec = (h) => (isHardBossFloor(h) ? 60 : 40);
 export const hardLv = (h) => Math.min(150, towerLv(hardF(h)) + 4);
-export const hardHp = (h) => Math.round(towerHp(hardF(h)) * 2.2 * (isHardBossFloor(h) ? 1.5 : 1) * (1 + h * 0.012));
-export const hardAtk = (h) => towerAtk(hardF(h)) * 1.3;
+export const HARD_HP_K = 22;   // v357 극을 열 배 어렵게(2.2 → 22)
+export const hardHp = (h) => Math.round(towerHp(hardF(h)) * HARD_HP_K * (isHardBossFloor(h) ? 1.5 : 1) * (1 + h * 0.012));
+export const hardAtk = (h) => towerAtk(hardF(h)) * 3;   // v357 붙어 치는 것도 아프게(1.3 → 3)
 export const hardDelay = (h) => tellDelay(hardF(h)) * 0.82;
 export const hardGap = (h) => castGap(hardF(h)) * 0.75 * (isHardBossFloor(h) ? 0.9 : 1);
 export const HARD_DMG = 1.25;

@@ -2012,7 +2012,7 @@ function dgnTab(app) {
         h('div', { class: 'dgn-top' }, h('div', { class: 'dgn-ico hard-ico' }, '極'),
           h('div', { class: 'dgn-name' }, h('b', {}, '무한의 탑 · 극'), h('small', {}, ' 無限塔 極 · 하드 모드'),
             h('div', { class: 'muted' }, open ? `극 ${hf}층 · 덤 공격력·체력 +${(D.hardBonus(hf) * 100).toFixed(1).replace(/\.0$/, '')}%` : `보통 탑 ${D.HARD_OPEN}층을 오르면 열려요 (지금 ${tw.floor}층)`))),
-        h('p', { class: 'muted dgn-desc' }, `${D.HARD_MAX}층. 수문장이 훨씬 단단하고(체력 2배 넘게) 경고가 짧고 잦고 아파요. 초식도 더 — 도는 칼날·천라지망·붕괴…. 층마다 공격력·체력 +${D.HARD_BONUS * 100}% 영구, 10층마다 신수가 몸소 지켜요 — 이기면 그 신수가 내 탈것으로.`),
+        h('p', { class: 'muted dgn-desc' }, `${D.HARD_MAX}층. 수문장이 엄청나게 단단하고(같은 세기 보통 층의 체력 20배 넘게) 붙어 치는 것도 세 배, 경고가 짧고 잦고 아파요. 초식도 더 — 도는 칼날·천라지망·붕괴…. 층마다 공격력·체력 +${D.HARD_BONUS * 100}% 영구, 10층마다 신수가 몸소 지켜요 — 이기면 그 신수가 내 탈것으로.`),
         h('div', { class: 'hard-mounts' }, ...mounts),
         open && hf < D.HARD_MAX ? h('div', { class: 'dgn-stage' },
           h('div', { class: 'stg' }, h('b', {}, `극 ${nh}층`), h('small', {}, ` ${nb2.name.replace(/^극 \d+층 (수문장|신수) /, '')} · Lv.${D.hardLv(nh)} · ${D.hardSec(nh)}초`)),
