@@ -105,6 +105,11 @@ export class Saver {
       this.paintTip();
     });
     for (const ev of ['pointerdown', 'keydown', 'wheel', 'touchstart']) window.addEventListener(ev, () => { this.idle = 0; }, { capture: true, passive: true });
+    // v337 컴퓨터 — 마우스만 움직여도(누르지 않고 창을 읽는 중) 쓰는 중으로 본다. 전엔 눌러야만 세어 읽는 도중 절전 화면이 덮였다
+    let mx = 0, my = 0;
+    window.addEventListener('mousemove', (e) => { if (Math.abs(e.clientX - mx) + Math.abs(e.clientY - my) > 6) { mx = e.clientX; my = e.clientY; if (!this.on) this.idle = 0; } }, { passive: true });
+    // 절전 중 아무 글쇠나 누르면 깬다(폰은 두 번 누르기) — 컴퓨터에서는 화면을 두 번 누르는 걸 모르고 헤맸다
+    window.addEventListener('keydown', (e) => { if (this.on && !e.repeat) { e.preventDefault(); e.stopPropagation(); this.exit(); } }, { capture: true });
     this.t = 0;
     this.moveT = 0;
   }
@@ -144,7 +149,7 @@ export class Saver {
   }
   paintTip() {
     this.tip.classList.toggle('armed', this.armT > 0);
-    this.tip.textContent = this.armT > 0 ? '한 번 더 누르면 돌아가요' : '절전 중 · 사냥은 계속돼요 — 두 번 누르면 돌아가요';
+    this.tip.textContent = this.armT > 0 ? '한 번 더 누르면 돌아가요' : `절전 중 · 사냥은 계속돼요 — 두 번 누르면${matchMedia?.('(pointer: fine)').matches ? '(아무 글쇠나)' : ''} 돌아가요`;
   }
   paint() {
     const d = this.info();

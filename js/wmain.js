@@ -100,6 +100,10 @@ bootStart(BUILD);   // v266 로딩 화면을 넘겨받는다(모듈이 다 왔�
 bootProgress(0.35, '강호 지도를 펼치는 중…');
 const OLD_SAVE_KEY = 'idleForUs.save.v1';
 const $ = (id) => document.getElementById(id);
+// v337 컴퓨터는 html에 zoom을 건다(v324) — 그러면 getBoundingClientRect·마우스 clientX는 '커진 화면' px인데
+//   캔버스·들판·style.left는 '원래' px다. 둘을 섞으면 클릭한 곳이 1.7배 어긋났다(들판 이동·조이스틱·마을 사람·은자 자리·아래 여백).
+//   화면 px → 원래 px: 나누기 uiK(). 폰(zoom 없음)은 1.
+const uiK = () => { const cv = document.getElementById('cv'); const w = cv?.offsetWidth; return w ? (cv.getBoundingClientRect().width / w) || 1 : 1; };
 
 // v257 세이브 안전망 — 본 세이브가 깨졌으면(JSON 실패) 백업 둘에서 되살리고, 되살릴 게 없으면 깨진 원본을 따로 보관한다.
 // 전엔 깨지면 새 캐릭터로 시작해 5초 뒤 깨진 원본까지 덮어써 영영 잃었다.
@@ -1557,7 +1561,7 @@ let press = null;   // { id, x, y, t, drag }
 function fieldPoint(e) {
   const r = $('cv').getBoundingClientRect();
   const z = view.zoom || 1;    // 카메라를 물렸으면 화면 1px가 들판 1/z
-  const px = e.clientX - r.left, py = e.clientY - r.top;
+  const px = e.clientX - r.left, py = e.clientY - r.top;   // 캔버스는 화면 px로 그린다(view.W = 화면 폭) — zoom이 걸려도 그대로
   return { px, py, wx: game.heroX + (px / z - view.heroX), wy: game.heroY + (py / z - view.groundY) / view.squash };
 }
 function tapAt(e) {
@@ -1580,19 +1584,19 @@ $('cv').addEventListener('pointerdown', (e) => {
 });
 $('cv').addEventListener('pointermove', (e) => {
   if (!press || e.pointerId !== press.id || game.map.town) return;
+  const k = uiK();
   const dx = e.clientX - press.x, dy = e.clientY - press.y;
   const d = Math.hypot(dx, dy);
   if (!press.drag && d < 14) return;
   if (!press.drag) {
     press.drag = true;
     const br = $('battle').getBoundingClientRect();
-    joyEl.style.left = `${press.x - br.left}px`;
-    joyEl.style.top = `${press.y - br.top}px`;
+    joyEl.style.left = `${(press.x - br.left) / k}px`;
+    joyEl.style.top = `${(press.y - br.top) / k}px`;
     joyEl.classList.remove('hidden');
   }
   const R = 42;
-  const k = Math.min(1, R / Math.max(1, d));
-  joyEl.firstChild.style.transform = `translate(${dx * k}px, ${dy * k}px)`;
+  joyEl.firstChild.style.transform = `translate(${dx * Math.min(1, R * k / Math.max(1, d)) / k}px, ${dy * Math.min(1, R * k / Math.max(1, d)) / k}px)`;
   game.joy = d > 14 ? { dx, dy } : null;
 });
 function endPress(e) {
