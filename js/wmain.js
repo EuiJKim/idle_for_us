@@ -2553,7 +2553,8 @@ if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.
   navigator.serviceWorker.addEventListener('controllerchange', () => {
     if (swReloaded) return;
     swReloaded = true;
-    if (performance.now() < 5000 && !modalOpen()) { save(); stopSaving = true; CH.setSkip(); location.reload(); } else showUpdate(null);
+    // v330 켜는 중(로딩·로그인·무인 고르기 창)이면 바로 새 판으로 — v328부터 켜자마자 무인 고르기 창이 떠서 '창 없음' 조건에 걸려 새 판이 안 받아졌다(옛 그림으로 놀게 됐다)
+    if ((performance.now() < 5000 && !modalOpen()) || (booting && !TRIAL_JOB)) { save(); stopSaving = true; location.reload(); } else showUpdate(null);
   });
 }
 checkBuild();
