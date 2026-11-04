@@ -2525,6 +2525,11 @@ async function hardReload() {
     await Promise.all(regs.map((r) => r.unregister()));
     const keys = await caches?.keys?.() || [];
     await Promise.all(keys.map((k) => caches.delete(k)));
+    // v331 브라우저 HTTP 캐시도 — 앱 캐시를 지워도 js·css는 브라우저가 10분 동안 들고 있어(서버 max-age) 옛 판이 그대로 열리고,
+    //   sw.js만 새것이라 '새 판이 나왔어요' 띠가 곧바로 다시 떴다. 새 판의 파일 목록을 받아 모두 '다시 받기'로 끌어온다(그림은 빼고)
+    const sw = await fetch(`sw.js?ts=${Date.now()}`, { cache: 'no-store' }).then((r) => r.text());
+    const files = [...new Set(['index.html', 'sw.js', 'manifest.webmanifest', ...(sw.match(/'(?:\.\/)?((?:js|css)\/[^']+)'/g) || []).map((m) => m.replace(/^'(?:\.\/)?|'$/g, ''))])];
+    await Promise.all(files.map((f) => fetch(f, { cache: 'reload' }).catch(() => null)));
   } catch (err) { console.warn('hardReload', err); }
   const u = new URL(location.href);
   u.searchParams.set('v', Date.now().toString(36));
