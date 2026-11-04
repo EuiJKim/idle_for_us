@@ -88,7 +88,7 @@ import { fmt, duration } from './fmt.js';
 import { sfx, unlockAudio, setSound, soundOn } from './sfx.js';
 import * as AM from './appmode.js';
 import { bootStart, bootProgress, bootHide, waitFor, showLogin, loginPref, setLoginPref, standalone, inAppBrowser } from './boot.js';
-import { artReady } from './art.js';
+import { artReady, mergeGen } from './art.js';
 import * as CH from './chars.js';
 import * as VT from './vault.js';
 import { drawCreature } from './creatures.js';
@@ -1118,7 +1118,7 @@ function refreshUI(full = false) {
   dot('dgn', dailyWaiting(game) || Object.values(game.s.zTickets || {}).some((n) => n > 0));
   if (activeTab) { tabs[activeTab].update(); panelRes(); }
   // v280 얼굴은 모습이 바뀌거나(경지·장비·꾸미기) 그림이 다 오면 다시 그린다 — 전엔 켤 때 한 번(그림이 오기 전 도형으로) 그리고 끝이었다
-  const psig = `${s.rank}|${game.statSig()}|${JSON.stringify(s.custom || {})}|${s.outfit || ''}|${artReady()}`;
+  const psig = `${s.rank}|${game.statSig()}|${JSON.stringify(s.custom || {})}|${s.outfit || ''}|${artReady()}|${mergeGen()}`;
   if (full || psig !== portraitSig) { portraitSig = psig; drawPortrait(); }
 }
 let portraitSig = '';

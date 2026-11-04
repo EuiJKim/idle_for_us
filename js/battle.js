@@ -1,7 +1,7 @@
 // 전투 화면 캔버스 렌더러 (수묵화 무협풍). 게임 이벤트를 받아 연출만 담당한다.
 import { drawObstacle, drawLowObstacle } from './obstacles.js';
 import { zoneOf, RANKS, GRADES, FIELD_SQUASH, JOB_TRAITS, QI, jobOf, critTierName } from './data.js';
-import { artReady, putArt, putArtBand, putArtEdge, putArtTint, loadArt, FIT, ART_SHOULDER, ART_BAND, headKey, bodyKey, weaponKey, artHeight, hasBodyArt, putWeapon, weaponBare, putHat, hatRect, headGeom, headMasked, bodyNeckDy, robeTinted, bodyColors, hasArt, HEAD_FIT, registerArt, artImg } from './art.js';
+import { artReady, putArt, putArtBand, putArtEdge, putArtTint, loadArt, FIT, ART_SHOULDER, ART_BAND, headKey, bodyKey, weaponKey, artHeight, hasBodyArt, putWeapon, weaponBare, putHat, hatRect, headGeom, headMasked, bodyNeckDy, robeTinted, bodyColors, hasArt, HEAD_FIT, registerArt, artImg, mergedArt, putMerged, putMergedEdge, putMergedTint, mergeGen } from './art.js';
 import { drawFemaleHead, drawBackHair, FHEAD_W, FHEAD_H, FHEAD_FIT } from './femhead.js';
 import { drawCreature, saddleY, mountTilt, mountGait, CREATURES } from './creatures.js';
 import { drawMountAura } from './mountfx.js';
@@ -261,7 +261,7 @@ function fighterSprite(look, time, weapon, dpr, run = false) {
   if (!sprCacheable(look)) return null;
   const cyc = run ? RUN_CYCLE : SPR.cycle;
   const ph = Math.floor((((time % cyc) + cyc) % cyc) / cyc * SPR.phases);
-  const key = `${lookId(look)}|${ph}|${weapon || ''}|${dpr}${run ? '|r' : ''}`;
+  const key = `${lookId(look)}|${ph}|${weapon || ''}|${dpr}${run ? '|r' : ''}|m${mergeGen()}`;
   let c = sprCache.get(key);
   if (c) return c;
   // 통째로 비우면 아직 화면에 있는 것까지 날아가 그 프레임에 전부 다시 굽는다.
@@ -1412,7 +1412,7 @@ export class BattleView {
     const tr = ctx.getTransform();
     const res = Math.max(1, Math.min(4, Math.round(Math.hypot(tr.a, tr.b) * 2) / 2));
     const pid = pose ? (POSE_ID.get(pose) ?? (POSE_ID.set(pose, ++POSE_N), POSE_N)) : 0;
-    const key = `${pid}|${flip ? 1 : 0}|${tint}|${res}|${g.s.rank}|${this._gearLook?.sig ?? ''}`;
+    const key = `${pid}|${flip ? 1 : 0}|${tint}|${res}|${g.s.rank}|${this._gearLook?.sig ?? ''}|m${mergeGen()}`;
     const cache = this._tintCache || (this._tintCache = new Map());
     let c = cache.get(key);
     if (!c) {
@@ -4565,7 +4565,10 @@ export function drawFighter(ctx, x, y, look = {}, o = {}) {
   const hk0 = artReady() && !jiang && !look.ghost ? headKey(look) : null;
   // v332 이 도포의 어깨선만큼 머리를 내린다(어깨가 낮은 도포에서 떠 보이던 것)
   const neckDy = hk0 ? bodyNeckDy(look.robeTint ? 'body-white' : bodyKey(look)) : 0;
-  if (hk0) { const F0 = (HEAD_FIT[hk0]?.fit) || FIT.head; drawHeadArt(ctx, hk0, { ...F0, y: F0.y + neckDy }, look, HEAD_SPLIT + neckDy, 99); }
+  // v355 머리+옷 한 장 그림 — 있으면 머리·도포를 따로 붙이지 않는다(삿갓을 쓴 때는 머리를 갓 속에 잘라 넣어야 해 조각 그대로)
+  const tintHead0 = look.bandTint && (hk0 === 'head-topknot' || hk0 === 'head-band' || (hk0?.startsWith('fh-') && !hk0.endsWith('-red') && hk0 !== 'fh-hood'));
+  const MG = hk0 && !look.robeTint && !o.noMerge ? mergedArt(bodyKey(look), hk0, look.band, tintHead0) : null;
+  if (hk0 && !MG) { const F0 = (HEAD_FIT[hk0]?.fit) || FIT.head; drawHeadArt(ctx, hk0, { ...F0, y: F0.y + neckDy }, look, HEAD_SPLIT + neckDy, 99); }
   // 상체 — 그림 조각이 있으면 도포·상체·허리띠를 한 장으로 갈음한다
   const artBody = artReady() && !jiang && !look.ghost;
   // 두목 옷: 흰 도포 그림에 그 빛깔을 곱해 입힌다(그림 도포 여섯 빛깔에 없는 색도 그대로 나온다)
@@ -4577,10 +4580,19 @@ export function drawFighter(ctx, x, y, look = {}, o = {}) {
     const hkE = artReady() && !jiang ? headKey(look) : null;
     const HFE0 = (hkE && HEAD_FIT[hkE]?.fit) || FIT.head;
     const HFE = hkE && hkE === hk0 && neckDy ? { ...HFE0, y: HFE0.y + neckDy } : HFE0;
-    if (look.edgeGlow) { ctx.save(); ctx.shadowColor = look.edge; ctx.shadowBlur = 10 * pulse; if (hkE) putArtEdge(ctx, hkE, HFE, look.edge, look.edgeW || 1.2, pulse); putArtEdge(ctx, bKey, FIT.body, look.edge, look.edgeW || 1.2, pulse); ctx.restore(); }
+    if (MG) { ctx.save(); if (look.edgeGlow) { ctx.shadowColor = look.edge; ctx.shadowBlur = 10 * pulse; } putMergedEdge(ctx, MG, look.edge, look.edgeW || 1.2, pulse); ctx.restore(); }
+    else if (look.edgeGlow) { ctx.save(); ctx.shadowColor = look.edge; ctx.shadowBlur = 10 * pulse; if (hkE) putArtEdge(ctx, hkE, HFE, look.edge, look.edgeW || 1.2, pulse); putArtEdge(ctx, bKey, FIT.body, look.edge, look.edgeW || 1.2, pulse); ctx.restore(); }
     else { if (hkE) putArtEdge(ctx, hkE, HFE, look.edge, look.edgeW || 1.2, pulse); putArtEdge(ctx, bKey, FIT.body, look.edge, look.edgeW || 1.2, pulse); }
   }
-  if (artBody && putArt(ctx, bKey, FIT.body)) {
+  if (artBody && MG) {
+    // 삿갓을 쓰면 챙 위로 삐져나온 머리(상투·쪽)는 갓 속에 — 챙 조금 위에서 자른다(갓은 뒤에서 덮는다)
+    const hf0 = (HEAD_FIT[hk0]?.fit) || FIT.head;
+    const hr0 = look.hat === 'straw' && hk0 !== 'head-hood' && hk0 !== 'fh-hood' && hk0 !== 'head-hat' ? hatRect('hat-straw', hk0, hf0) : null;
+    if (hr0) { ctx.save(); ctx.beginPath(); ctx.rect(-200, hr0.brim - hr0.h * 0.16, 400, 400); ctx.clip(); }
+    putMerged(ctx, MG);
+    if (hr0) ctx.restore();
+    if (look.edge && look.edgeTint) putMergedTint(ctx, MG, look.edge, look.edgeTint * (look.edgePulse ? 0.8 + Math.sin(t * 3) * 0.2 : 1));
+  } else if (artBody && putArt(ctx, bKey, FIT.body)) {
     // 그림 한 장이 도포·상체·허리띠를 한꺼번에 갈음한다
     if (look.robeTint) putArtTint(ctx, bKey, FIT.body, look.robeTint, 1, 'multiply');
     if (look.edge && look.edgeTint) putArtTint(ctx, bKey, FIT.body, look.edge, look.edgeTint * (look.edgePulse ? 0.8 + Math.sin(t * 3) * 0.2 : 1));
@@ -4612,7 +4624,9 @@ export function drawFighter(ctx, x, y, look = {}, o = {}) {
   const hatR = look.hat === 'straw' && hk && hk !== 'head-hat' && !isHood ? hatRect('hat-straw', hk, HF) : null;
   const headTop = hatR ? hatR.brim - hatR.h * 0.16 : -999;
   const backDone = hk && hk === hk0 && !look.ghost;
-  if (hk && (backDone ? drawHeadArt(ctx, hk, HF, look, headTop, HEAD_SPLIT + neckDy, tintHead) : hatR ? drawHeadArt(ctx, hk, HF, look, headTop, 99, tintHead) : (tintHead ? putArtBand(ctx, hk, HF, look.band) : putArt(ctx, hk, HF)))) {
+  if (hk && MG && hk === hk0) {
+    // 한 장 그림에 머리까지 다 있다
+  } else if (hk && (backDone ? drawHeadArt(ctx, hk, HF, look, headTop, HEAD_SPLIT + neckDy, tintHead) : hatR ? drawHeadArt(ctx, hk, HF, look, headTop, 99, tintHead) : (tintHead ? putArtBand(ctx, hk, HF, look.band) : putArt(ctx, hk, HF)))) {
     // 머리카락까지 한 장
   } else {
   ctx.fillStyle = skin;
@@ -4788,6 +4802,15 @@ function femaleHeadKey(style, hairK, band) {
   return key;
 }
 const HEAD_SPLIT = FIT.head.y - 2;   // v327 이 선 아래 머리 그림은 몸 뒤로
+// v355 도구용 — 조각(머리 뒤쪽 · 도포 · 머리 앞쪽)만 이어 그린다(팔·다리·무기 없이). tools/charv355가 이걸 sunburst에 한 장으로 다시 그리게 넘긴다
+export function drawBodyHeadParts(ctx, look) {
+  const hk = headKey(look), bk = bodyKey(look);
+  const F0 = (HEAD_FIT[hk]?.fit) || FIT.head;
+  drawHeadArt(ctx, hk, F0, look, HEAD_SPLIT, 99, false);
+  putArt(ctx, bk, FIT.body);
+  drawHeadArt(ctx, hk, F0, look, -999, HEAD_SPLIT, false);
+  return { hk, bk, neckY: HEAD_SPLIT };
+}
 // v327 머리 그림을 y 범위(top~bot)만 — 몸 뒤 패스(턱 아래)와 몸 앞 패스(턱 위·삿갓 아래)로 나눠 그린다
 function drawHeadArt(ctx, hk, HF, look, top, bot, tint) {
   ctx.save();

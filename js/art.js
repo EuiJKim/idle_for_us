@@ -427,3 +427,124 @@ export function putArt(ctx, key, fit) {
   ctx.drawImage(im, fit.x - fit.w / 2, fit.y - h, fit.w, h);
   return true;
 }
+
+// ---------- v355 머리+옷 한 장 그림 (art/hero3/m-<옷>--<머리>.webp) ----------
+// 따로 그린 머리와 도포를 이어 붙이면 어느 조합에서든 목·어깨에 이음새가 생겼다(떠 보였다).
+// 조합마다 sunburst가 머리부터 옷자락까지 한 장으로 다시 그린 그림을 쓴다. 받아 오기 전·없는 조합은 옛 조각 그대로.
+// 여협 머리 빛깔(흑발 그림 → 갈·백·적·청)과 머리띠 빛깔은 목 위만 물들인다.
+import { MERGE_BOX } from './mergebox.js';
+const mImg = {}, mTried = {}, mCache = new Map();
+let mGen = 0;
+export const mergeGen = () => mGen;   // 한 장 그림이 새로 올 때마다 1씩 — 구워 둔 무인 그림(스프라이트·잔상)을 다시 굽게
+const HAIR_HEX = { black: null, brown: '#6b4226', white: '#e5e7eb', red: '#7f1d1d', blue: '#1e3a5f' };
+// 그 머리 그림에 맞는 한 장 그림 열쇠 — 여협 머리 빛깔은 흑발 그림 하나를 물들여 쓴다
+function mergeBase(bk, hk) {
+  let hair = null, base = hk;
+  const m = /^(fh-[a-z]+)-(black|brown|white|red|blue)$/.exec(hk);
+  if (m) { base = `${m[1]}-black`; hair = m[2] === 'black' ? null : m[2]; }
+  const key = `${bk}--${base}`;
+  return MERGE_BOX[key] ? { key, hair } : null;
+}
+export function hasMerged(bk, hk) { return !!mergeBase(bk, hk); }
+function mLoad(key) {
+  if (mImg[key] || mTried[key] || typeof Image === 'undefined') return mImg[key] || null;
+  mTried[key] = true;
+  const im = new Image();
+  im.onload = () => { mImg[key] = im; mGen++; };
+  im.src = `art/hero3/m-${key}.webp`;
+  return null;
+}
+// 그릴 그림(물들인 것) + 놓을 자리. 아직 안 왔으면 null(받기 시작한다)
+export function mergedArt(bk, hk, band, tintBand) {
+  const mb = mergeBase(bk, hk);
+  if (!mb) return null;
+  const im = mLoad(mb.key);
+  if (!im) return null;
+  const box = MERGE_BOX[mb.key];
+  const bandOn = tintBand && band && /^#?[0-9a-f]{6}$/i.test(band) && band.toLowerCase() !== '#b91c1c';
+  if (!mb.hair && !bandOn) return { cv: im, box };
+  const id = `${mb.key}|${mb.hair}|${bandOn ? band : ''}`;
+  if (mCache.has(id)) return mCache.get(id);
+  const hb = /--(fh-[a-z]+-black)$/.exec(mb.key)?.[1];
+  if (mb.hair && hb && !img[hb]) return { cv: im, box };   // 머리 그림(머리카락 자리)이 아직이면 이번엔 그대로 — 굳혀 두지 않는다
+  let out = { cv: im, box };
+  try {
+    const cv = document.createElement('canvas'); cv.width = im.width; cv.height = im.height;
+    const c = cv.getContext('2d'); c.drawImage(im, 0, 0);
+    const d = c.getImageData(0, 0, cv.width, cv.height), p = d.data, W = cv.width;
+    // 목 줄 아래(옷)는 건드리지 않는다 — 다만 머리카락은 원래 머리 그림이 있던 자리(조금 넓힌 것)라면 목 아래도(늘어진 머리)
+    const neckRow = Math.round(((box[4] - box[1]) / (box[3] - box[1])) * cv.height);
+    let hairMask = null, robePart = null;
+    const hbase = /--(fh-[a-z]+-black)$/.exec(mb.key)?.[1];
+    if (mb.hair && hbase && img[hbase]) {
+      const him = img[hbase], hf = (HEAD_FIT[hbase]?.fit) || FIT.head;
+      const kx = cv.width / (box[2] - box[0]), ky = cv.height / (box[3] - box[1]);
+      const hw = hf.w, hh = (him.height * hf.w) / him.width;
+      const mc = document.createElement('canvas'); mc.width = cv.width; mc.height = cv.height;
+      const mx = mc.getContext('2d');
+      const dx = (hf.x - hw / 2 - box[0]) * kx, dy = (hf.y - hh - box[1]) * ky;
+      const r = Math.max(2, Math.round(cv.width * 0.025));
+      for (let a = 0; a < 16; a++) mx.drawImage(him, dx + Math.cos(a * Math.PI / 8) * r, dy + Math.sin(a * Math.PI / 8) * r, hw * kx, hh * ky);
+      mx.drawImage(him, dx, dy, hw * kx, hh * ky);
+      hairMask = mx.getImageData(0, 0, mc.width, mc.height).data;
+      // 도포 조각을 같은 자리에 — 목 아래 어두운 것이 도포 자리 밖이거나 도포 빛깔과 다르면 늘어진 머리카락
+      const bpart = mb.key.split('--')[0];
+      const bim = img[bpart];
+      if (bim) {
+        const bc2 = document.createElement('canvas'); bc2.width = cv.width; bc2.height = cv.height;
+        const bx = bc2.getContext('2d');
+        const bw = FIT.body.w, bh = (bim.height * bw) / bim.width;
+        bx.drawImage(bim, (FIT.body.x - bw / 2 - box[0]) * kx, (FIT.body.y - bh - box[1]) * ky, bw * kx, bh * ky);
+        robePart = bx.getImageData(0, 0, bc2.width, bc2.height).data;
+      }
+    }
+    const hc = mb.hair ? [1, 3, 5].map((i) => parseInt(HAIR_HEX[mb.hair].slice(i, i + 2), 16)) : null;
+    const bc = bandOn ? [1, 3, 5].map((i) => parseInt(band.replace('#', '').padStart(7, '#').slice(i, i + 2), 16)) : null;
+    for (let i = 0; i < p.length; i += 4) {
+      if (p[i + 3] < 8) continue;
+      const below = ((i / 4) / W | 0) > neckRow;
+      if (below && !(hairMask && hairMask[i + 3] > 40)) {
+        if (!robePart) continue;
+        const ra = robePart[i + 3], rl = Math.max(robePart[i], robePart[i + 1], robePart[i + 2]);
+        const ml = Math.max(p[i], p[i + 1], p[i + 2]);
+        if (!(ra < 40 || rl - ml > 70)) continue;   // 도포 자리이고 도포도 어두우면(검은 도포) 건드리지 않는다
+      }
+      const r = p[i], g = p[i + 1], b = p[i + 2];
+      const mx = Math.max(r, g, b), mn = Math.min(r, g, b);
+      if (bc && !below && r >= 70 && r >= g * 1.7 && r >= b * 1.7) {   // 붉은 띠
+        const k = Math.min(1.25, r / 190);
+        p[i] = Math.min(255, bc[0] * k); p[i + 1] = Math.min(255, bc[1] * k); p[i + 2] = Math.min(255, bc[2] * k);
+      } else if (hc && mx < 110 && mx - mn < 40) {   // 검은 머리카락(어둡고 채도 낮은 것) — 밝기를 살려 그 빛깔로
+        const L = mx / 110;
+        const lift = mb.hair === 'white' ? 0.55 + L * 0.45 : 0.45 + L * 0.9;
+        p[i] = Math.min(255, hc[0] * lift); p[i + 1] = Math.min(255, hc[1] * lift); p[i + 2] = Math.min(255, hc[2] * lift);
+      }
+    }
+    c.putImageData(d, 0, 0);
+    out = { cv, box };
+  } catch { /* 물들이지 못하면 흑발·붉은 띠 그대로 */ }
+  mCache.set(id, out);
+  return out;
+}
+const mSil = new Map();
+function mSilhouette(cv, color) {
+  const id = cv; let per = mSil.get(id);
+  if (!per) { per = {}; mSil.set(id, per); }
+  if (!per[color]) {
+    const c = document.createElement('canvas'); c.width = cv.width; c.height = cv.height;
+    const x = c.getContext('2d'); x.drawImage(cv, 0, 0); x.globalCompositeOperation = 'source-in'; x.fillStyle = color; x.fillRect(0, 0, c.width, c.height);
+    per[color] = c;
+  }
+  return per[color];
+}
+export function putMerged(ctx, m) { const [x0, y0, x1, y1] = m.box; ctx.drawImage(m.cv, x0, y0, x1 - x0, y1 - y0); }
+export function putMergedEdge(ctx, m, color, w, alpha = 1) {
+  const s = mSilhouette(m.cv, color), [x0, y0, x1, y1] = m.box;
+  ctx.save(); ctx.globalAlpha *= alpha;
+  for (let i = 0; i < 8; i++) { const a = (i * Math.PI) / 4; ctx.drawImage(s, x0 + Math.cos(a) * w, y0 + Math.sin(a) * w, x1 - x0, y1 - y0); }
+  ctx.restore();
+}
+export function putMergedTint(ctx, m, color, alpha) {
+  const s = mSilhouette(m.cv, color), [x0, y0, x1, y1] = m.box;
+  ctx.save(); ctx.globalAlpha *= alpha; ctx.drawImage(s, x0, y0, x1 - x0, y1 - y0); ctx.restore();
+}
