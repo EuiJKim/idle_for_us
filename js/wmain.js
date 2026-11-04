@@ -1194,15 +1194,16 @@ function mountReveal(kind, floor) {
   const md = W.mountOf(kind);
   if (!md) return;
   sfx('king');
-  const cv = h('canvas', { class: 'reveal-cv', width: 640, height: 400 });
+  const cv = h('canvas', { class: 'reveal-cv', width: 1280, height: 800 });   // 두 배로 그려 또렷하게
   const c = cv.getContext('2d');
   const t0 = performance.now();
   let on = true;
   const frame = () => {
     if (!on || !cv.isConnected) return;
     const t = (performance.now() - t0) / 1000;
-    c.setTransform(1, 0, 0, 1, 0, 0);
+    c.setTransform(2, 0, 0, 2, 0, 0);
     c.clearRect(0, 0, 640, 400);
+    c.imageSmoothingQuality = 'high';
     const k = Math.min(1, t / 0.9), e = 1 - (1 - k) ** 3;
     // 빛기둥 → 신수
     c.globalCompositeOperation = 'lighter';
@@ -1211,7 +1212,7 @@ function mountReveal(kind, floor) {
     c.fillStyle = g; c.globalAlpha = 0.6 + 0.2 * Math.sin(t * 3); c.fillRect(0, 0, 640, 400);
     c.globalAlpha = Math.max(0, 1 - t * 0.8); c.fillStyle = '#fff'; c.fillRect(320 - 60 * (1 - e) - 4, 0, 8 + 120 * (1 - e), 400);
     c.globalAlpha = 1; c.globalCompositeOperation = 'source-over';
-    const sc = 2.2 * (0.6 + 0.4 * e);
+    const sc = 2.4 * (0.6 + 0.4 * e);
     c.save(); c.translate(320, 330); c.scale(sc, sc); c.translate(-320, -330);
     drawMountAura(c, kind, 320, 330, t, { layer: 'back', moving: false });
     c.globalAlpha = e; drawCreature(c, kind, 320, 330, { t }); c.globalAlpha = 1;

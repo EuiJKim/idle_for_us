@@ -469,6 +469,9 @@ export function saddleY(kind, t = 0, moving = false) {
 // 벡터 모습을 크게 그려 그대로 다시 그리게 했다(tools/fxgen/crender.cjs → edit.py). CR_BOX는 벡터 모습의 내용 상자
 // (발밑 (0,0) · 오른쪽을 봄 · 크기 1) — 그림을 그 상자에 맞춰 놓으므로 크기·안장 높이가 옛 모습과 같다.
 // 다리를 따로 움직일 수 없어 걸을 땐 통째로 들썩이고 살짝 기울며, 서 있으면 숨을 쉰다. 그림이 없으면 옛 벡터 그대로.
+// v350 극의 신수는 크고 세밀하게(960px · webp) — 256색으로 줄이면 깃·비늘·금장식이 뭉개졌다
+const CR_HI = new Set(['h1', 'h2', 'h3', 'h4', 'h5', 'h6']);
+const crSrc = (kind) => `art/cr/${kind}.${CR_HI.has(kind) ? 'webp' : 'png'}`;
 const crImg = {};
 const crTried = {};
 function crSprite(kind) {
@@ -478,11 +481,11 @@ function crSprite(kind) {
     crTried[kind] = true;
     const x = new Image();
     x.onload = () => { crImg[kind] = x; };
-    x.src = `art/cr/${kind}.png`;
+    x.src = crSrc(kind);
   }
   return null;
 }
-export const crArt = (kind) => (CR_BOX[kind] ? `art/cr/${kind}.png` : null);
+export const crArt = (kind) => (CR_BOX[kind] ? crSrc(kind) : null);
 function drawSprite(ctx, s, kind, im, t, moving, layer) {
   const [x0, y0, x1, y1] = CR_BOX[kind];
   const air = s.type === 'dragon' || s.fly;
@@ -501,6 +504,7 @@ function drawSprite(ctx, s, kind, im, t, moving, layer) {
     ctx.rect(x1 - (x1 - x0) * 0.3, y0 - 2, (x1 - x0) * 0.3 + 2, sy - y0 + 2);
     ctx.clip();
   }
+  if (CR_HI.has(kind)) ctx.imageSmoothingQuality = 'high';   // 크게 줄여 그릴 때 또렷하게
   ctx.drawImage(im, x0, y0, x1 - x0, y1 - y0);
   ctx.restore();
 }
