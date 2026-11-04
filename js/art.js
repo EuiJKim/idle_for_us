@@ -451,6 +451,7 @@ function mLoad(key) {
   mTried[key] = true;
   const im = new Image();
   im.onload = () => { mImg[key] = im; mGen++; };
+  im.onerror = () => { setTimeout(() => { mTried[key] = false; }, 8000); };   // 못 받으면(끊김) 잠시 뒤 다시 — 전엔 한 번 실패하면 계속 옛 조각(잘린 머리)으로 그렸다
   im.src = `art/hero3/m-${key}.webp`;
   return null;
 }
