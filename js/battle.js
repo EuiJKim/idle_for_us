@@ -1,7 +1,7 @@
 // 전투 화면 캔버스 렌더러 (수묵화 무협풍). 게임 이벤트를 받아 연출만 담당한다.
 import { drawObstacle, drawLowObstacle } from './obstacles.js';
 import { zoneOf, RANKS, GRADES, FIELD_SQUASH, JOB_TRAITS, QI, jobOf, critTierName } from './data.js';
-import { artReady, putArt, putArtBand, putArtEdge, putArtTint, loadArt, FIT, ART_SHOULDER, ART_BAND, headKey, bodyKey, weaponKey, artHeight, hasBodyArt, putWeapon, weaponBare, putHat, hatRect, headGeom, headMasked, bodyColors, hasArt, HEAD_FIT, registerArt, artImg } from './art.js';
+import { artReady, putArt, putArtBand, putArtEdge, putArtTint, loadArt, FIT, ART_SHOULDER, ART_BAND, headKey, bodyKey, weaponKey, artHeight, hasBodyArt, putWeapon, weaponBare, putHat, hatRect, headGeom, headMasked, bodyNeckDy, bodyColors, hasArt, HEAD_FIT, registerArt, artImg } from './art.js';
 import { drawFemaleHead, drawBackHair, FHEAD_W, FHEAD_H, FHEAD_FIT } from './femhead.js';
 import { drawCreature, saddleY, mountTilt, mountGait, CREATURES } from './creatures.js';
 import { ZONES_W, itemZone, weaponSkinOf, CUSTOM_HAIRS } from './world/wdata.js';
@@ -4455,7 +4455,7 @@ export function drawFighter(ctx, x, y, look = {}, o = {}) {
     ctx.lineCap = 'round';
     // 벡터 머리는 -90이 뒤통수지만 그림 머리는 더 낮다. 한 좌표로 쓰면
     // 그림 쪽에서 끈이 정수리 위 허공에서 시작한다.
-    const bd = artReady() && !jiang ? ART_BAND : { x: -8, y: -90 };
+    const bd = artReady() && !jiang ? { x: ART_BAND.x, y: ART_BAND.y + bodyNeckDy(look.robeTint ? 'body-white' : bodyKey(look)) } : { x: -8, y: -90 };
     for (let i = 0; i < 2; i++) {
       ctx.beginPath();
       ctx.moveTo(bd.x, bd.y);
@@ -4520,7 +4520,9 @@ export function drawFighter(ctx, x, y, look = {}, o = {}) {
   // v327 머리 그림의 턱 아래(목·늘어진 머리카락)는 몸보다 먼저 — 목이 옷깃 안으로 들어가고 머리카락이 어깨 뒤로 넘어간다.
   //   전엔 머리 한 장을 몸 위에 얹어 목 밑동·머리카락 끝이 옷깃 앞에 네모로 떠 있었다
   const hk0 = artReady() && !jiang && !look.ghost ? headKey(look) : null;
-  if (hk0) drawHeadArt(ctx, hk0, (HEAD_FIT[hk0]?.fit) || FIT.head, look, HEAD_SPLIT, 99);
+  // v332 이 도포의 어깨선만큼 머리를 내린다(어깨가 낮은 도포에서 떠 보이던 것)
+  const neckDy = hk0 ? bodyNeckDy(look.robeTint ? 'body-white' : bodyKey(look)) : 0;
+  if (hk0) { const F0 = (HEAD_FIT[hk0]?.fit) || FIT.head; drawHeadArt(ctx, hk0, { ...F0, y: F0.y + neckDy }, look, HEAD_SPLIT + neckDy, 99); }
   // 상체 — 그림 조각이 있으면 도포·상체·허리띠를 한 장으로 갈음한다
   const artBody = artReady() && !jiang && !look.ghost;
   // 두목 옷: 흰 도포 그림에 그 빛깔을 곱해 입힌다(그림 도포 여섯 빛깔에 없는 색도 그대로 나온다)
@@ -4555,14 +4557,15 @@ export function drawFighter(ctx, x, y, look = {}, o = {}) {
   // 머리
   const hk = artReady() && !jiang ? headKey(look) : null;   // v323 복면도 그림(두건)
   // v280 띠가 그려진 머리(상투·머리띠)는 띠를 무인이 고른 색으로
-  const HF = (hk && HEAD_FIT[hk]?.fit) || FIT.head;   // v325 그림마다 놓는 자리(여협 머리)
+  const HF0 = (hk && HEAD_FIT[hk]?.fit) || FIT.head;   // v325 그림마다 놓는 자리(여협 머리)
+  const HF = hk && hk === hk0 && neckDy ? { ...HF0, y: HF0.y + neckDy } : HF0;   // v332 도포 어깨선에 맞춰
   const tintHead = look.bandTint && (hk === 'head-topknot' || hk === 'head-band' || (hk?.startsWith('fh-') && !hk.endsWith('-red') && hk !== 'fh-hood'));
   // v327 삿갓을 쓰면 챙 위로 삐져나온 머리카락(상투·쪽·꽁지)은 갓 속에 — 머리 그림을 챙 조금 위에서 자른다
   const isHood = hk === 'head-hood' || hk === 'fh-hood';
   const hatR = look.hat === 'straw' && hk && hk !== 'head-hat' && !isHood ? hatRect('hat-straw', hk, HF) : null;
   const headTop = hatR ? hatR.brim - hatR.h * 0.16 : -999;
   const backDone = hk && hk === hk0 && !look.ghost;
-  if (hk && (backDone ? drawHeadArt(ctx, hk, HF, look, headTop, HEAD_SPLIT, tintHead) : hatR ? drawHeadArt(ctx, hk, HF, look, headTop, 99, tintHead) : (tintHead ? putArtBand(ctx, hk, HF, look.band) : putArt(ctx, hk, HF)))) {
+  if (hk && (backDone ? drawHeadArt(ctx, hk, HF, look, headTop, HEAD_SPLIT + neckDy, tintHead) : hatR ? drawHeadArt(ctx, hk, HF, look, headTop, 99, tintHead) : (tintHead ? putArtBand(ctx, hk, HF, look.band) : putArt(ctx, hk, HF)))) {
     // 머리카락까지 한 장
   } else {
   ctx.fillStyle = skin;

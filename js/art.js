@@ -215,7 +215,7 @@ export function headMasked(hk, tag, draw) {
 export function hatRect(hatKey, headKey, headFit) {
   const im = img[hatKey], hf = HAT_FIT[hatKey], hd = HEAD_FIT[headKey] || HEAD_FIT.head;
   if (!im || !hf) return null;
-  headFit = hd.fit || headFit;
+  headFit = headFit || hd.fit;   // v332 부른 쪽이 도포 어깨에 맞춰 옮긴 자리를 먼저
   const g = headGeom(headKey, headFit);
   if (g) {
     const w = Math.max(hf.w, (g.browR - g.browL) * 1.16), h = (im.height * w) / im.width;
@@ -226,6 +226,34 @@ export function hatRect(hatKey, headKey, headFit) {
   const browY = headFit.y - hh + hh * hd.brow;
   const w = hf.w, h = (im.height * w) / im.width;
   return { x: headFit.x - w / 2 - 1, y: browY - h * 0.92, w, h, brim: browY };
+}
+// v332 도포 그림마다 어깨선이 다르다(276x348 캔버스에서 28~63px) — 머리는 한 자리(FIT.head)에 두니
+//   어깨가 낮고 목깃이 좁은 도포(홍의·흑의·적포)에서는 머리가 목깃 위에 막대 사탕처럼 떠 보였다.
+//   어깨선(가로로 절반 넘게 찬 첫 줄)을 재서 기준(백의 42px)보다 낮은 만큼 머리를 내린다(높으면 조금 올린다).
+const neckCache = new Map();
+const NECK_REF = 42;
+export function bodyNeckDy(key) {
+  if (!key) return 0;
+  if (neckCache.has(key)) return neckCache.get(key);
+  const im = img[key];
+  if (!im || typeof document === 'undefined') return 0;
+  let dy = 0;
+  try {
+    const c = document.createElement('canvas'); c.width = im.width; c.height = Math.min(im.height, Math.round(im.height * 0.35));
+    const g = c.getContext('2d'); g.drawImage(im, 0, 0);
+    const d = g.getImageData(0, 0, c.width, c.height).data;
+    const need = im.width * 0.5;
+    let sh = c.height;
+    for (let y = 0; y < c.height; y++) {
+      let n = 0;
+      for (let x = 0; x < c.width; x++) if (d[(y * c.width + x) * 4 + 3] > 120) n++;
+      if (n > need) { sh = y; break; }
+    }
+    const unit = FIT.body.w / im.width;   // 그림 1px → 뼈대 칸(도포는 폭 FIT.body.w로 그린다)
+    dy = Math.max(-3, Math.min(7, (sh - NECK_REF * im.height / 348) * unit * (sh > NECK_REF ? 0.8 : 0.5)));
+  } catch { dy = 0; }
+  neckCache.set(key, dy);
+  return dy;
 }
 export function artImg(key) { return img[key] || null; }
 // v325 캔버스로 그린 조각(여협 머리)을 그림 조각처럼 쓴다 — putArt·artHeight·HEAD_FIT이 그대로 통한다
