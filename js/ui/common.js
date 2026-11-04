@@ -3,16 +3,24 @@ import { big } from '../big.js';
 import { GRADES, GACHA_LV_MAX, GACHA_GRADE_OPEN, gachaLvNeed, gachaMaxGrade } from '../data.js';
 import { fmt, pct } from '../fmt.js';
 
+// v335 화면에 찍히는 수는 소수점 셋째 자리까지(반올림) — 셈한 값(0.015×3×100 = 4.500000000000001 같은 것)이 그대로 찍히던 것.
+//   글자 조각(h의 아이·toast·textContent 대신 쓰는 setText)에서 넷째 자리 아래가 있는 수만 고친다. 1e21 같은 지수 표기는 건드리지 않는다.
+const LONG_DEC = /(^|[^\d.])(\d+\.\d{4,})(?![\d.])/g;
+export function tidyNum(t) {
+  if (typeof t === 'number') return Math.round(t * 1000) / 1000;
+  if (typeof t !== 'string' || !/\.\d{4}/.test(t)) return t;
+  return t.replace(LONG_DEC, (m, a, d) => a + String(Math.round(parseFloat(d) * 1000) / 1000));
+}
 export function h(tag, attrs = {}, ...kids) {
   const el = document.createElement(tag);
   for (const [k, v] of Object.entries(attrs || {})) {
     if (v === undefined || v === null || v === false) continue;
     if (k === 'class') el.className = v;
-    else if (k === 'html') el.innerHTML = v;
+    else if (k === 'html') el.innerHTML = tidyNum(v);
     else if (k.startsWith('on')) el.addEventListener(k.slice(2), v);
     else el.setAttribute(k, v === true ? '' : v);
   }
-  for (const kid of kids.flat()) if (kid !== null && kid !== undefined && kid !== false) el.append(kid);
+  for (const kid of kids.flat()) if (kid !== null && kid !== undefined && kid !== false) el.append(typeof kid === 'string' || typeof kid === 'number' ? String(tidyNum(kid)) : kid);
   return el;
 }
 
@@ -53,7 +61,7 @@ export function popUp(el, text) {
 
 export function toast(text) {
   const box = document.getElementById('toast');
-  const el = h('div', { class: 'toast' }, text);
+  const el = h('div', { class: 'toast' }, tidyNum(text));
   box.append(el);
   setTimeout(() => el.remove(), 2700);
   while (box.children.length > 3) box.firstChild.remove();

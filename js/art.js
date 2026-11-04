@@ -53,8 +53,8 @@ const FILES = [
 // 그림을 어디에 얼마만큼 그릴지. 뼈대 좌표계 그대로다.
 // w는 폭(높이는 그림 비율대로), (x, y)는 **그림의 가운데 아래**가 놓일 자리.
 // 처음엔 몸통 46·검 11로 넣었는데 화면에서 재 보니 사람이 뚱뚱하고 검이 몸만 했다.
-// 도포 열여섯 장이 전부 92x116으로 구워져 있다(높이를 맞춰 어깨선을 한 줄에
-// 세운다). 그래서 아래 숫자 하나가 열여섯 장 전부에 같이 맞는다.
+// 도포 스물두 장이 전부 276x348로 구워져 있다 — v334부터 머리와 같은 3/4 시점에 목까지 그려,
+// 목 꼭대기가 맨 위·목 가운데가 머리 자리(x=1)·아랫단이 맨 아래(tools/charv334/fit_body.py).
 // 폭만 맞춰 굽던 때는 높이가 98~131이라 어깨가 제각각이었고, 머리를 고정
 // 좌표(-72)에 두니 **20px 떠 있었다.** 그게 '몸이 깨졌다'의 정체다.
 export const BODY_W = 50;                    // 그려지는 높이는 50 x 116/92 = 63
@@ -227,34 +227,9 @@ export function hatRect(hatKey, headKey, headFit) {
   const w = hf.w, h = (im.height * w) / im.width;
   return { x: headFit.x - w / 2 - 1, y: browY - h * 0.92, w, h, brim: browY };
 }
-// v332 도포 그림마다 어깨선이 다르다(276x348 캔버스에서 28~63px) — 머리는 한 자리(FIT.head)에 두니
-//   어깨가 낮고 목깃이 좁은 도포(홍의·흑의·적포)에서는 머리가 목깃 위에 막대 사탕처럼 떠 보였다.
-//   어깨선(가로로 절반 넘게 찬 첫 줄)을 재서 기준(백의 42px)보다 낮은 만큼 머리를 내린다(높으면 조금 올린다).
-const neckCache = new Map();
-const NECK_REF = 42;
-export function bodyNeckDy(key) {
-  if (!key) return 0;
-  if (neckCache.has(key)) return neckCache.get(key);
-  const im = img[key];
-  if (!im || typeof document === 'undefined') return 0;
-  let dy = 0;
-  try {
-    const c = document.createElement('canvas'); c.width = im.width; c.height = Math.min(im.height, Math.round(im.height * 0.35));
-    const g = c.getContext('2d'); g.drawImage(im, 0, 0);
-    const d = g.getImageData(0, 0, c.width, c.height).data;
-    const need = im.width * 0.5;
-    let sh = c.height;
-    for (let y = 0; y < c.height; y++) {
-      let n = 0;
-      for (let x = 0; x < c.width; x++) if (d[(y * c.width + x) * 4 + 3] > 120) n++;
-      if (n > need) { sh = y; break; }
-    }
-    const unit = FIT.body.w / im.width;   // 그림 1px → 뼈대 칸(도포는 폭 FIT.body.w로 그린다)
-    dy = Math.max(-3, Math.min(7, (sh - NECK_REF * im.height / 348) * unit * (sh > NECK_REF ? 0.8 : 0.5)));
-  } catch { dy = 0; }
-  neckCache.set(key, dy);
-  return dy;
-}
+// v334 도포 22장을 머리와 같은 3/4 시점·목 포함으로 다시 그려(tools/charv334) 목 꼭대기가 캔버스 맨 위·목 가운데가 머리 자리(x=1)에 오게 맞췄다.
+//   그래서 도포마다 머리를 따로 내릴 일이 없다(v332의 어깨선 재기는 정면 도포 때 것 — 0으로).
+export function bodyNeckDy() { return 0; }
 export function artImg(key) { return img[key] || null; }
 // v325 캔버스로 그린 조각(여협 머리)을 그림 조각처럼 쓴다 — putArt·artHeight·HEAD_FIT이 그대로 통한다
 export function registerArt(key, canvas, fit) { img[key] = canvas; if (fit) HEAD_FIT[key] = fit; }

@@ -1,0 +1,20 @@
+[
+ {
+  "name": "body-red",
+  "refs": [
+   "../../art/hero/body-red.png",
+   "../../art/hero/head-topknot.png"
+  ],
+  "size": "1024x1536",
+  "prompt": "Use EXACTLY the same hand-painted Korean wuxia (murim) manhwa illustration style as the references: crisp clean dark outlines, rich soft cel shading. The FIRST reference is a robe drawn from the FRONT. REDRAW this very same robe — identical colors, collar, trims, sash/belt, patterns, hem — but seen from the SAME 3/4 PROFILE VIEW FACING RIGHT as the head in the SECOND reference (the body turned the same way as that head, right shoulder toward the viewer, the far shoulder mostly hidden). Draw ONLY the torso and robe from the neck down to the hem: include a short bare NECK (skin colored, cut cleanly at the top where a head would sit, slightly right of center) rising out of the collar. NO head, NO hands, NO feet — the arms hang naturally in the sleeves and the sleeves end at the wrists with nothing beyond; the hem covers the legs. Same scale and framing as the first reference: the robe fills the canvas from the neck at the top to the hem at the very bottom. Transparent background, nothing else, no text."
+ },
+ {
+  "name": "body-white",
+  "refs": [
+   "../../art/hero/body-white.png",
+   "../../art/hero/head-topknot.png"
+  ],
+  "size": "1024x1536",
+  "prompt": "Use EXACTLY the same hand-painted Korean wuxia (murim) manhwa illustration style as the references: crisp clean dark outlines, rich soft cel shading. The FIRST reference is a robe drawn from the FRONT. REDRAW this very same robe — identical colors, collar, trims, sash/belt, patterns, hem — but seen from the SAME 3/4 PROFILE VIEW FACING RIGHT as the head in the SECOND reference (the body turned the same way as that head, right shoulder toward the viewer, the far shoulder mostly hidden). Draw ONLY the torso and robe from the neck down to the hem: include a short bare NECK (skin colored, cut cleanly at the top where a head would sit, slightly right of center) rising out of the collar. NO head, NO hands, NO feet — the arms hang naturally in the sleeves and the sleeves end at the wrists with nothing beyond; the hem covers the legs. Same scale and framing as the first reference: the robe fills the canvas from the neck at the top to the hem at the very bottom. Transparent background, nothing else, no text."
+ }
+]

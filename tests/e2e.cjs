@@ -356,6 +356,12 @@ async function tab(page, name) {
     assert(await G(p, () => window.__game.s.nickname) === first.n, '체험을 끝내면 고르기로 — 내 무인 그대로');
   }
 
+  console.log('# 수는 소수점 셋째 자리까지 (v335)');
+  {
+    const bad = await G(p, () => { const out = []; for (const el of document.querySelectorAll('#panel, #modal, #toast, #top, #hud')) { const m = el.innerText.match(/\d+\.\d{4,}/g); if (m) out.push(...m); } return out; });
+    assert(bad.length === 0, `화면 글자에 넷째 자리 아래 소수가 없다 (${bad.join(',') || '없음'})`);
+  }
+
   console.log('# 설정');
   if (await p.isVisible('#modal .btn.primary')) await p.click('#modal .btn.primary');
   await p.click('#btn-settings');

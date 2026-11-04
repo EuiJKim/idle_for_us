@@ -1,0 +1,200 @@
+[
+ {
+  "name": "body-black",
+  "refs": [
+   "../../art/hero/body-black.png",
+   "../../art/hero/head-topknot.png"
+  ],
+  "size": "1024x1536",
+  "prompt": "Use EXACTLY the same hand-painted Korean wuxia (murim) manhwa illustration style as the references: crisp clean dark outlines, rich soft cel shading. The FIRST reference is a robe drawn from the FRONT. REDRAW this very same robe — identical colors, collar, trims, sash/belt, patterns, hem — but seen from the SAME 3/4 PROFILE VIEW FACING RIGHT as the head in the SECOND reference (the body turned the same way as that head, right shoulder toward the viewer, the far shoulder mostly hidden). Draw ONLY the torso and robe from the neck down to the hem: include a short bare NECK (skin colored, cut cleanly at the top where a head would sit, slightly right of center) rising out of the collar. NO head, NO hands, NO feet — the arms hang naturally in the sleeves and the sleeves end at the wrists with nothing beyond; the hem covers the legs. Same scale and framing as the first reference: the robe fills the canvas from the neck at the top to the hem at the very bottom. Transparent background, nothing else, no text."
+ },
+ {
+  "name": "body-blue",
+  "refs": [
+   "../../art/hero/body-blue.png",
+   "../../art/hero/head-topknot.png"
+  ],
+  "size": "1024x1536",
+  "prompt": "Use EXACTLY the same hand-painted Korean wuxia (murim) manhwa illustration style as the references: crisp clean dark outlines, rich soft cel shading. The FIRST reference is a robe drawn from the FRONT. REDRAW this very same robe — identical colors, collar, trims, sash/belt, patterns, hem — but seen from the SAME 3/4 PROFILE VIEW FACING RIGHT as the head in the SECOND reference (the body turned the same way as that head, right shoulder toward the viewer, the far shoulder mostly hidden). Draw ONLY the torso and robe from the neck down to the hem: include a short bare NECK (skin colored, cut cleanly at the top where a head would sit, slightly right of center) rising out of the collar. NO head, NO hands, NO feet — the arms hang naturally in the sleeves and the sleeves end at the wrists with nothing beyond; the hem covers the legs. Same scale and framing as the first reference: the robe fills the canvas from the neck at the top to the hem at the very bottom. Transparent background, nothing else, no text."
+ },
+ {
+  "name": "body-brown",
+  "refs": [
+   "../../art/hero/body-brown.png",
+   "../../art/hero/head-topknot.png"
+  ],
+  "size": "1024x1536",
+  "prompt": "Use EXACTLY the same hand-painted Korean wuxia (murim) manhwa illustration style as the references: crisp clean dark outlines, rich soft cel shading. The FIRST reference is a robe drawn from the FRONT. REDRAW this very same robe — identical colors, collar, trims, sash/belt, patterns, hem — but seen from the SAME 3/4 PROFILE VIEW FACING RIGHT as the head in the SECOND reference (the body turned the same way as that head, right shoulder toward the viewer, the far shoulder mostly hidden). Draw ONLY the torso and robe from the neck down to the hem: include a short bare NECK (skin colored, cut cleanly at the top where a head would sit, slightly right of center) rising out of the collar. NO head, NO hands, NO feet — the arms hang naturally in the sleeves and the sleeves end at the wrists with nothing beyond; the hem covers the legs. Same scale and framing as the first reference: the robe fills the canvas from the neck at the top to the hem at the very bottom. Transparent background, nothing else, no text."
+ },
+ {
+  "name": "body-dark",
+  "refs": [
+   "../../art/hero/body-dark.png",
+   "../../art/hero/head-topknot.png"
+  ],
+  "size": "1024x1536",
+  "prompt": "Use EXACTLY the same hand-painted Korean wuxia (murim) manhwa illustration style as the references: crisp clean dark outlines, rich soft cel shading. The FIRST reference is a robe drawn from the FRONT. REDRAW this very same robe — identical colors, collar, trims, sash/belt, patterns, hem — but seen from the SAME 3/4 PROFILE VIEW FACING RIGHT as the head in the SECOND reference (the body turned the same way as that head, right shoulder toward the viewer, the far shoulder mostly hidden). Draw ONLY the torso and robe from the neck down to the hem: include a short bare NECK (skin colored, cut cleanly at the top where a head would sit, slightly right of center) rising out of the collar. NO head, NO hands, NO feet — the arms hang naturally in the sleeves and the sleeves end at the wrists with nothing beyond; the hem covers the legs. Same scale and framing as the first reference: the robe fills the canvas from the neck at the top to the hem at the very bottom. Transparent background, nothing else, no text."
+ },
+ {
+  "name": "body-o0",
+  "refs": [
+   "../../art/hero/body-o0.png",
+   "../../art/hero/head-topknot.png"
+  ],
+  "size": "1024x1536",
+  "prompt": "Use EXACTLY the same hand-painted Korean wuxia (murim) manhwa illustration style as the references: crisp clean dark outlines, rich soft cel shading. The FIRST reference is a robe drawn from the FRONT. REDRAW this very same robe — identical colors, collar, trims, sash/belt, patterns, hem — but seen from the SAME 3/4 PROFILE VIEW FACING RIGHT as the head in the SECOND reference (the body turned the same way as that head, right shoulder toward the viewer, the far shoulder mostly hidden). Draw ONLY the torso and robe from the neck down to the hem: include a short bare NECK (skin colored, cut cleanly at the top where a head would sit, slightly right of center) rising out of the collar. NO head, NO hands, NO feet — the arms hang naturally in the sleeves and the sleeves end at the wrists with nothing beyond; the hem covers the legs. Same scale and framing as the first reference: the robe fills the canvas from the neck at the top to the hem at the very bottom. Transparent background, nothing else, no text."
+ },
+ {
+  "name": "body-o1",
+  "refs": [
+   "../../art/hero/body-o1.png",
+   "../../art/hero/head-topknot.png"
+  ],
+  "size": "1024x1536",
+  "prompt": "Use EXACTLY the same hand-painted Korean wuxia (murim) manhwa illustration style as the references: crisp clean dark outlines, rich soft cel shading. The FIRST reference is a robe drawn from the FRONT. REDRAW this very same robe — identical colors, collar, trims, sash/belt, patterns, hem — but seen from the SAME 3/4 PROFILE VIEW FACING RIGHT as the head in the SECOND reference (the body turned the same way as that head, right shoulder toward the viewer, the far shoulder mostly hidden). Draw ONLY the torso and robe from the neck down to the hem: include a short bare NECK (skin colored, cut cleanly at the top where a head would sit, slightly right of center) rising out of the collar. NO head, NO hands, NO feet — the arms hang naturally in the sleeves and the sleeves end at the wrists with nothing beyond; the hem covers the legs. Same scale and framing as the first reference: the robe fills the canvas from the neck at the top to the hem at the very bottom. Transparent background, nothing else, no text."
+ },
+ {
+  "name": "body-o2",
+  "refs": [
+   "../../art/hero/body-o2.png",
+   "../../art/hero/head-topknot.png"
+  ],
+  "size": "1024x1536",
+  "prompt": "Use EXACTLY the same hand-painted Korean wuxia (murim) manhwa illustration style as the references: crisp clean dark outlines, rich soft cel shading. The FIRST reference is a robe drawn from the FRONT. REDRAW this very same robe — identical colors, collar, trims, sash/belt, patterns, hem — but seen from the SAME 3/4 PROFILE VIEW FACING RIGHT as the head in the SECOND reference (the body turned the same way as that head, right shoulder toward the viewer, the far shoulder mostly hidden). Draw ONLY the torso and robe from the neck down to the hem: include a short bare NECK (skin colored, cut cleanly at the top where a head would sit, slightly right of center) rising out of the collar. NO head, NO hands, NO feet — the arms hang naturally in the sleeves and the sleeves end at the wrists with nothing beyond; the hem covers the legs. Same scale and framing as the first reference: the robe fills the canvas from the neck at the top to the hem at the very bottom. Transparent background, nothing else, no text."
+ },
+ {
+  "name": "body-o3",
+  "refs": [
+   "../../art/hero/body-o3.png",
+   "../../art/hero/head-topknot.png"
+  ],
+  "size": "1024x1536",
+  "prompt": "Use EXACTLY the same hand-painted Korean wuxia (murim) manhwa illustration style as the references: crisp clean dark outlines, rich soft cel shading. The FIRST reference is a robe drawn from the FRONT. REDRAW this very same robe — identical colors, collar, trims, sash/belt, patterns, hem — but seen from the SAME 3/4 PROFILE VIEW FACING RIGHT as the head in the SECOND reference (the body turned the same way as that head, right shoulder toward the viewer, the far shoulder mostly hidden). Draw ONLY the torso and robe from the neck down to the hem: include a short bare NECK (skin colored, cut cleanly at the top where a head would sit, slightly right of center) rising out of the collar. NO head, NO hands, NO feet — the arms hang naturally in the sleeves and the sleeves end at the wrists with nothing beyond; the hem covers the legs. Same scale and framing as the first reference: the robe fills the canvas from the neck at the top to the hem at the very bottom. Transparent background, nothing else, no text."
+ },
+ {
+  "name": "body-o4",
+  "refs": [
+   "../../art/hero/body-o4.png",
+   "../../art/hero/head-topknot.png"
+  ],
+  "size": "1024x1536",
+  "prompt": "Use EXACTLY the same hand-painted Korean wuxia (murim) manhwa illustration style as the references: crisp clean dark outlines, rich soft cel shading. The FIRST reference is a robe drawn from the FRONT. REDRAW this very same robe — identical colors, collar, trims, sash/belt, patterns, hem — but seen from the SAME 3/4 PROFILE VIEW FACING RIGHT as the head in the SECOND reference (the body turned the same way as that head, right shoulder toward the viewer, the far shoulder mostly hidden). Draw ONLY the torso and robe from the neck down to the hem: include a short bare NECK (skin colored, cut cleanly at the top where a head would sit, slightly right of center) rising out of the collar. NO head, NO hands, NO feet — the arms hang naturally in the sleeves and the sleeves end at the wrists with nothing beyond; the hem covers the legs. Same scale and framing as the first reference: the robe fills the canvas from the neck at the top to the hem at the very bottom. Transparent background, nothing else, no text."
+ },
+ {
+  "name": "body-o5",
+  "refs": [
+   "../../art/hero/body-o5.png",
+   "../../art/hero/head-topknot.png"
+  ],
+  "size": "1024x1536",
+  "prompt": "Use EXACTLY the same hand-painted Korean wuxia (murim) manhwa illustration style as the references: crisp clean dark outlines, rich soft cel shading. The FIRST reference is a robe drawn from the FRONT. REDRAW this very same robe — identical colors, collar, trims, sash/belt, patterns, hem — but seen from the SAME 3/4 PROFILE VIEW FACING RIGHT as the head in the SECOND reference (the body turned the same way as that head, right shoulder toward the viewer, the far shoulder mostly hidden). Draw ONLY the torso and robe from the neck down to the hem: include a short bare NECK (skin colored, cut cleanly at the top where a head would sit, slightly right of center) rising out of the collar. NO head, NO hands, NO feet — the arms hang naturally in the sleeves and the sleeves end at the wrists with nothing beyond; the hem covers the legs. Same scale and framing as the first reference: the robe fills the canvas from the neck at the top to the hem at the very bottom. Transparent background, nothing else, no text."
+ },
+ {
+  "name": "body-r0",
+  "refs": [
+   "../../art/hero/body-r0.png",
+   "../../art/hero/head-topknot.png"
+  ],
+  "size": "1024x1536",
+  "prompt": "Use EXACTLY the same hand-painted Korean wuxia (murim) manhwa illustration style as the references: crisp clean dark outlines, rich soft cel shading. The FIRST reference is a robe drawn from the FRONT. REDRAW this very same robe — identical colors, collar, trims, sash/belt, patterns, hem — but seen from the SAME 3/4 PROFILE VIEW FACING RIGHT as the head in the SECOND reference (the body turned the same way as that head, right shoulder toward the viewer, the far shoulder mostly hidden). Draw ONLY the torso and robe from the neck down to the hem: include a short bare NECK (skin colored, cut cleanly at the top where a head would sit, slightly right of center) rising out of the collar. NO head, NO hands, NO feet — the arms hang naturally in the sleeves and the sleeves end at the wrists with nothing beyond; the hem covers the legs. Same scale and framing as the first reference: the robe fills the canvas from the neck at the top to the hem at the very bottom. Transparent background, nothing else, no text."
+ },
+ {
+  "name": "body-r1",
+  "refs": [
+   "../../art/hero/body-r1.png",
+   "../../art/hero/head-topknot.png"
+  ],
+  "size": "1024x1536",
+  "prompt": "Use EXACTLY the same hand-painted Korean wuxia (murim) manhwa illustration style as the references: crisp clean dark outlines, rich soft cel shading. The FIRST reference is a robe drawn from the FRONT. REDRAW this very same robe — identical colors, collar, trims, sash/belt, patterns, hem — but seen from the SAME 3/4 PROFILE VIEW FACING RIGHT as the head in the SECOND reference (the body turned the same way as that head, right shoulder toward the viewer, the far shoulder mostly hidden). Draw ONLY the torso and robe from the neck down to the hem: include a short bare NECK (skin colored, cut cleanly at the top where a head would sit, slightly right of center) rising out of the collar. NO head, NO hands, NO feet — the arms hang naturally in the sleeves and the sleeves end at the wrists with nothing beyond; the hem covers the legs. Same scale and framing as the first reference: the robe fills the canvas from the neck at the top to the hem at the very bottom. Transparent background, nothing else, no text."
+ },
+ {
+  "name": "body-r2",
+  "refs": [
+   "../../art/hero/body-r2.png",
+   "../../art/hero/head-topknot.png"
+  ],
+  "size": "1024x1536",
+  "prompt": "Use EXACTLY the same hand-painted Korean wuxia (murim) manhwa illustration style as the references: crisp clean dark outlines, rich soft cel shading. The FIRST reference is a robe drawn from the FRONT. REDRAW this very same robe — identical colors, collar, trims, sash/belt, patterns, hem — but seen from the SAME 3/4 PROFILE VIEW FACING RIGHT as the head in the SECOND reference (the body turned the same way as that head, right shoulder toward the viewer, the far shoulder mostly hidden). Draw ONLY the torso and robe from the neck down to the hem: include a short bare NECK (skin colored, cut cleanly at the top where a head would sit, slightly right of center) rising out of the collar. NO head, NO hands, NO feet — the arms hang naturally in the sleeves and the sleeves end at the wrists with nothing beyond; the hem covers the legs. Same scale and framing as the first reference: the robe fills the canvas from the neck at the top to the hem at the very bottom. Transparent background, nothing else, no text."
+ },
+ {
+  "name": "body-r3",
+  "refs": [
+   "../../art/hero/body-r3.png",
+   "../../art/hero/head-topknot.png"
+  ],
+  "size": "1024x1536",
+  "prompt": "Use EXACTLY the same hand-painted Korean wuxia (murim) manhwa illustration style as the references: crisp clean dark outlines, rich soft cel shading. The FIRST reference is a robe drawn from the FRONT. REDRAW this very same robe — identical colors, collar, trims, sash/belt, patterns, hem — but seen from the SAME 3/4 PROFILE VIEW FACING RIGHT as the head in the SECOND reference (the body turned the same way as that head, right shoulder toward the viewer, the far shoulder mostly hidden). Draw ONLY the torso and robe from the neck down to the hem: include a short bare NECK (skin colored, cut cleanly at the top where a head would sit, slightly right of center) rising out of the collar. NO head, NO hands, NO feet — the arms hang naturally in the sleeves and the sleeves end at the wrists with nothing beyond; the hem covers the legs. Same scale and framing as the first reference: the robe fills the canvas from the neck at the top to the hem at the very bottom. Transparent background, nothing else, no text."
+ },
+ {
+  "name": "body-r4",
+  "refs": [
+   "../../art/hero/body-r4.png",
+   "../../art/hero/head-topknot.png"
+  ],
+  "size": "1024x1536",
+  "prompt": "Use EXACTLY the same hand-painted Korean wuxia (murim) manhwa illustration style as the references: crisp clean dark outlines, rich soft cel shading. The FIRST reference is a robe drawn from the FRONT. REDRAW this very same robe — identical colors, collar, trims, sash/belt, patterns, hem — but seen from the SAME 3/4 PROFILE VIEW FACING RIGHT as the head in the SECOND reference (the body turned the same way as that head, right shoulder toward the viewer, the far shoulder mostly hidden). Draw ONLY the torso and robe from the neck down to the hem: include a short bare NECK (skin colored, cut cleanly at the top where a head would sit, slightly right of center) rising out of the collar. NO head, NO hands, NO feet — the arms hang naturally in the sleeves and the sleeves end at the wrists with nothing beyond; the hem covers the legs. Same scale and framing as the first reference: the robe fills the canvas from the neck at the top to the hem at the very bottom. Transparent background, nothing else, no text."
+ },
+ {
+  "name": "body-r5",
+  "refs": [
+   "../../art/hero/body-r5.png",
+   "../../art/hero/head-topknot.png"
+  ],
+  "size": "1024x1536",
+  "prompt": "Use EXACTLY the same hand-painted Korean wuxia (murim) manhwa illustration style as the references: crisp clean dark outlines, rich soft cel shading. The FIRST reference is a robe drawn from the FRONT. REDRAW this very same robe — identical colors, collar, trims, sash/belt, patterns, hem — but seen from the SAME 3/4 PROFILE VIEW FACING RIGHT as the head in the SECOND reference (the body turned the same way as that head, right shoulder toward the viewer, the far shoulder mostly hidden). Draw ONLY the torso and robe from the neck down to the hem: include a short bare NECK (skin colored, cut cleanly at the top where a head would sit, slightly right of center) rising out of the collar. NO head, NO hands, NO feet — the arms hang naturally in the sleeves and the sleeves end at the wrists with nothing beyond; the hem covers the legs. Same scale and framing as the first reference: the robe fills the canvas from the neck at the top to the hem at the very bottom. Transparent background, nothing else, no text."
+ },
+ {
+  "name": "body-r6",
+  "refs": [
+   "../../art/hero/body-r6.png",
+   "../../art/hero/head-topknot.png"
+  ],
+  "size": "1024x1536",
+  "prompt": "Use EXACTLY the same hand-painted Korean wuxia (murim) manhwa illustration style as the references: crisp clean dark outlines, rich soft cel shading. The FIRST reference is a robe drawn from the FRONT. REDRAW this very same robe — identical colors, collar, trims, sash/belt, patterns, hem — but seen from the SAME 3/4 PROFILE VIEW FACING RIGHT as the head in the SECOND reference (the body turned the same way as that head, right shoulder toward the viewer, the far shoulder mostly hidden). Draw ONLY the torso and robe from the neck down to the hem: include a short bare NECK (skin colored, cut cleanly at the top where a head would sit, slightly right of center) rising out of the collar. NO head, NO hands, NO feet — the arms hang naturally in the sleeves and the sleeves end at the wrists with nothing beyond; the hem covers the legs. Same scale and framing as the first reference: the robe fills the canvas from the neck at the top to the hem at the very bottom. Transparent background, nothing else, no text."
+ },
+ {
+  "name": "body-r7",
+  "refs": [
+   "../../art/hero/body-r7.png",
+   "../../art/hero/head-topknot.png"
+  ],
+  "size": "1024x1536",
+  "prompt": "Use EXACTLY the same hand-painted Korean wuxia (murim) manhwa illustration style as the references: crisp clean dark outlines, rich soft cel shading. The FIRST reference is a robe drawn from the FRONT. REDRAW this very same robe — identical colors, collar, trims, sash/belt, patterns, hem — but seen from the SAME 3/4 PROFILE VIEW FACING RIGHT as the head in the SECOND reference (the body turned the same way as that head, right shoulder toward the viewer, the far shoulder mostly hidden). Draw ONLY the torso and robe from the neck down to the hem: include a short bare NECK (skin colored, cut cleanly at the top where a head would sit, slightly right of center) rising out of the collar. NO head, NO hands, NO feet — the arms hang naturally in the sleeves and the sleeves end at the wrists with nothing beyond; the hem covers the legs. Same scale and framing as the first reference: the robe fills the canvas from the neck at the top to the hem at the very bottom. Transparent background, nothing else, no text."
+ },
+ {
+  "name": "body-r8",
+  "refs": [
+   "../../art/hero/body-r8.png",
+   "../../art/hero/head-topknot.png"
+  ],
+  "size": "1024x1536",
+  "prompt": "Use EXACTLY the same hand-painted Korean wuxia (murim) manhwa illustration style as the references: crisp clean dark outlines, rich soft cel shading. The FIRST reference is a robe drawn from the FRONT. REDRAW this very same robe — identical colors, collar, trims, sash/belt, patterns, hem — but seen from the SAME 3/4 PROFILE VIEW FACING RIGHT as the head in the SECOND reference (the body turned the same way as that head, right shoulder toward the viewer, the far shoulder mostly hidden). Draw ONLY the torso and robe from the neck down to the hem: include a short bare NECK (skin colored, cut cleanly at the top where a head would sit, slightly right of center) rising out of the collar. NO head, NO hands, NO feet — the arms hang naturally in the sleeves and the sleeves end at the wrists with nothing beyond; the hem covers the legs. Same scale and framing as the first reference: the robe fills the canvas from the neck at the top to the hem at the very bottom. Transparent background, nothing else, no text."
+ },
+ {
+  "name": "body-r9",
+  "refs": [
+   "../../art/hero/body-r9.png",
+   "../../art/hero/head-topknot.png"
+  ],
+  "size": "1024x1536",
+  "prompt": "Use EXACTLY the same hand-painted Korean wuxia (murim) manhwa illustration style as the references: crisp clean dark outlines, rich soft cel shading. The FIRST reference is a robe drawn from the FRONT. REDRAW this very same robe — identical colors, collar, trims, sash/belt, patterns, hem — but seen from the SAME 3/4 PROFILE VIEW FACING RIGHT as the head in the SECOND reference (the body turned the same way as that head, right shoulder toward the viewer, the far shoulder mostly hidden). Draw ONLY the torso and robe from the neck down to the hem: include a short bare NECK (skin colored, cut cleanly at the top where a head would sit, slightly right of center) rising out of the collar. NO head, NO hands, NO feet — the arms hang naturally in the sleeves and the sleeves end at the wrists with nothing beyond; the hem covers the legs. Same scale and framing as the first reference: the robe fills the canvas from the neck at the top to the hem at the very bottom. Transparent background, nothing else, no text."
+ },
+ {
+  "name": "body-red",
+  "refs": [
+   "../../art/hero/body-red.png",
+   "../../art/hero/head-topknot.png"
+  ],
+  "size": "1024x1536",
+  "prompt": "Use EXACTLY the same hand-painted Korean wuxia (murim) manhwa illustration style as the references: crisp clean dark outlines, rich soft cel shading. The FIRST reference is a robe drawn from the FRONT. REDRAW this very same robe — identical colors, collar, trims, sash/belt, patterns, hem — but seen from the SAME 3/4 PROFILE VIEW FACING RIGHT as the head in the SECOND reference (the body turned the same way as that head, right shoulder toward the viewer, the far shoulder mostly hidden). Draw ONLY the torso and robe from the neck down to the hem: include a short bare NECK (skin colored, cut cleanly at the top where a head would sit, slightly right of center) rising out of the collar. NO head, NO hands, NO feet — the arms hang naturally in the sleeves and the sleeves end at the wrists with nothing beyond; the hem covers the legs. Same scale and framing as the first reference: the robe fills the canvas from the neck at the top to the hem at the very bottom. Transparent background, nothing else, no text."
+ },
+ {
+  "name": "body-white",
+  "refs": [
+   "../../art/hero/body-white.png",
+   "../../art/hero/head-topknot.png"
+  ],
+  "size": "1024x1536",
+  "prompt": "Use EXACTLY the same hand-painted Korean wuxia (murim) manhwa illustration style as the references: crisp clean dark outlines, rich soft cel shading. The FIRST reference is a robe drawn from the FRONT. REDRAW this very same robe — identical colors, collar, trims, sash/belt, patterns, hem — but seen from the SAME 3/4 PROFILE VIEW FACING RIGHT as the head in the SECOND reference (the body turned the same way as that head, right shoulder toward the viewer, the far shoulder mostly hidden). Draw ONLY the torso and robe from the neck down to the hem: include a short bare NECK (skin colored, cut cleanly at the top where a head would sit, slightly right of center) rising out of the collar. NO head, NO hands, NO feet — the arms hang naturally in the sleeves and the sleeves end at the wrists with nothing beyond; the hem covers the legs. Same scale and framing as the first reference: the robe fills the canvas from the neck at the top to the hem at the very bottom. Transparent background, nothing else, no text."
+ }
+]
