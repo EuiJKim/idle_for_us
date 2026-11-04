@@ -1257,7 +1257,7 @@ function handleEvents() {
       }
       case 'kill':
         // v321 두목을 잡을 때마다 알림이 뜨던 것을 한 줄 모음으로 — 두목 ×12 · 현철 ×480 · 증표 ×12
-        if (ev.mat?.boss) { tally('boss', '⚔ 두목', 1, '#fca5a5'); tally('ore', ev.mat.name, ev.mat.n, ev.mat.color || '#e5e7eb'); tally('mark:' + ev.mat.boss, ev.mat.boss, ev.mat.markN || 1, '#fde68a'); saverLoot(`⚔ ${ev.mat.boss} — ${ev.mat.name} ${ev.mat.n}`); }
+        if (ev.mat?.boss) { tally('boss', '⚔ 두목', 1, '#fca5a5'); tally('ore', ev.mat.name, ev.mat.n, ev.mat.color || '#e5e7eb'); tally('mark:' + ev.mat.boss, ev.mat.boss, ev.mat.markN || 1, '#fde68a'); saverLoot('boss', '⚔ 두목 처치', 1); saverLoot('ore:' + ev.mat.name, ev.mat.name, ev.mat.n); saverLoot('mark:' + ev.mat.boss, ev.mat.boss, ev.mat.markN || 1); }
         break;
       case 'equip':
         drawPortrait();
@@ -1279,7 +1279,7 @@ function handleEvents() {
       }
       case 'petDrop': {
         const d = W.petOf(ev.pet.kind);
-        saverLoot(`🐾 ${W.RARITY[ev.pet.rar].name} ${d.name}`);
+        saverLoot(`pet:${ev.pet.rar}:${d.name}`, `🐾 ${W.RARITY[ev.pet.rar].name} ${d.name}`);
         const pq = W.PET_QUAL[ev.pet.q || 0];   // v316 품
         toast(`${pq.id ? `${pq.mark} ${pq.name} ` : ''}${W.RARITY[ev.pet.rar].name} 애완동물 ${d.name}(순위 ${d.tier})! ${ev.joined ? '데려갔어요' : '우리에서 기다려요(동료 창)'}`);
         view.showBanner(pq.id ? `${pq.name} ${d.name}` : d.name, pq.id ? pq.col : W.RARITY[ev.pet.rar].color, pq.id ? 2.4 : 1.6, '동료');
@@ -1327,7 +1327,7 @@ function handleEvents() {
         break;
       case 'mountDrop': {
         const d = W.mountOf(ev.mount.kind);
-        saverLoot(`🐎 ${d.name}`);
+        saverLoot(`mount:${d.name}`, `🐎 ${d.name}`);
         toast(d.zodiac ? `🎉 십이지 신수 ${d.name}! 이동 +${Math.round(d.speed * 100)}% · 공격·체력 +${Math.round(d.stat * 100)}%` : `탈것 ${d.name}(순위 ${d.tier})! 이동 속도 +${Math.round(d.speed * 100)}%`);
         view.showBanner(d.name, d.zodiac ? '#f472b6' : '#fde68a', d.zodiac ? 2.6 : 1.8, d.zodiac ? '십이지 신수' : '탈것');
         sfx('loot');
@@ -1421,7 +1421,7 @@ function handleEvents() {
       case 'drop':
         tally('drop', `🗡 두목 장비`, 1, W.RARITY[ev.item.rar || 0].color);   // v324 모음에도
         toast(`두목이 장비를 떨궜어요! ${W.RARITY[ev.item.rar || 0].name} ${itemTitle(game, ev.item)}`);
-        saverLoot(`🗡 ${W.RARITY[ev.item.rar || 0].name} ${itemTitle(game, ev.item)}`);
+        saverLoot(`drop:${ev.item.rar || 0}`, `🗡 ${W.RARITY[ev.item.rar || 0].name} 두목 장비`);
         sfx('loot');
         break;
       case 'heroDied':
@@ -1738,7 +1738,16 @@ function showPendingOffline() {
 const saverName = (m) => (m ? `${m}분 뒤` : '끔');
 // 절전 화면 (v179) — 시계 · 체력/경험치 막대 · 벌이 · '이번 절전 동안' 모은 것 · 좋은 것 · 경고
 let saverRun = null;
-const saverLoot = (t) => { if (saver.on && saverRun) { saverRun.loot.unshift(t); saverRun.loot.length = Math.min(saverRun.loot.length, 5); } };
+// v329 절전 화면 '얻은 것' — 두목을 잡을 때마다 '현철 288'이 줄줄이 새로 쌓이던 것을 이름별로 모아 '현철 ×744'처럼 더한다.
+//   가장 최근에 더해진 것이 맨 위로 · 다섯 줄까지
+const saverLoot = (key, label, n = 1) => {
+  if (!saver.on || !saverRun) return;
+  const m = saverRun.lootMap || (saverRun.lootMap = new Map());
+  const e = m.get(key) || { label, n: 0 };
+  e.n += n; e.label = label;
+  m.delete(key); m.set(key, e);
+  saverRun.loot = [...m.values()].reverse().slice(0, 5).map((x) => `${x.label} ×${fmt(x.n)}`);
+};
 const saver = new AM.Saver($('app'), () => {
   const s = game.s;
   const r = game.rates();
@@ -1769,6 +1778,7 @@ const saver = new AM.Saver($('app'), () => {
     warns,
   };
 });
+window.__test_saver = (on) => { if (on) saver.enter(); else if (on === false) saver.exit(); return saverRun?.loot || []; };
 saver.onEnter = () => { game.mark('saver'); const s = game.s; saverRun = { t0: Date.now(), gold: s.gold, kills: s.kills, deaths: s.deaths, level: s.level, exp: s.exp / game.expNeed(), loot: [] }; };
 $('btn-saver').addEventListener('click', () => saver.enter());
 const fsBtn = $('btn-fs');

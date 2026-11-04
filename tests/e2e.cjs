@@ -267,6 +267,11 @@ async function tab(page, name) {
     const t = await p.$eval('#loot-tally', (e) => e.textContent);
     assert(/두목 ×3/.test(t) && /현철 ×36/.test(t) && /포획 조각 ×4/.test(t), `두목·재료가 알림 대신 '이름 ×수'로 쌓인다 (${t})`);
     await shot(p, '07c-tally.png');
+    // v329 절전 화면도 이름별로 모은다 — 두목 셋이면 '현철 ×36' 한 줄(전엔 '현철 12'가 세 줄)
+    await G(p, () => { window.__test_saver(true); const g = window.__game; for (let i = 0; i < 3; i++) g.emit('kill', { mat: { boss: '시험의 증표', name: '현철', n: 12, markN: 1 } }); });
+    const sl = await G(p, () => window.__test_saver());
+    await G(p, () => window.__test_saver(false));
+    assert(sl.filter((x) => /현철/.test(x)).length === 1 && sl.includes('현철 ×36') && sl.includes('⚔ 두목 처치 ×3'), `절전 화면 얻은 것도 이름별로 더한다 (${sl.join(' / ')})`);
   }
 
   console.log('# 출석부 · 저장 코드 (v320)');
