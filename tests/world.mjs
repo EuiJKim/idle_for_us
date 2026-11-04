@@ -3121,5 +3121,22 @@ console.log('\n=== v322 운영자 칭호 〈윤석열의 가호〉 ===');
   ok(Math.abs(g.stats().atk / s0.atk - k) < 1e-9 && g.stats().goldMul === 1, '벗으면 배수는 빠진다(모음 +1%만)');
 }
 
+console.log('\n=== v324 자동 강화는 +10까지 ===');
+{
+  const g = fresh();
+  while (g.s.level < 120) g.addExp(W.expToNext(g.s.level));
+  g.s.gold = 1e15; g.s.prot = 999; g.s.autoEnh = true;
+  for (const k of W.GROW_SLOTS) if (g.s.equip[k]) g.s.equip[k].plus = 9;
+  for (const z of Object.keys(W.MATS)) { g.addMats(z, 1e9); g.addMats(W.bossKey(z), 1e6); }
+  g.addMats(W.ORE, 1e12);
+  g.rng = () => 0;   // 강화는 늘 성공
+  for (let i = 0; i < 20; i++) g.autoGear();
+  const plus = W.GROW_SLOTS.map((k) => g.s.equip[k]?.plus || 0);
+  ok(plus.every((p) => p === W.AUTO_ENH_MAX), `자동 강화는 +${W.AUTO_ENH_MAX}에서 멈춘다(돌파는 직접)`, plus.join(','));
+  const it = g.s.equip.weapon;
+  ok(g.canEnhance(it) && g.enhance(it.uid) && it.plus === W.AUTO_ENH_MAX + 1, '직접은 +11로 올라간다');
+  ok(/AUTO_ENH_MAX/.test(read('js/wui.js')), '가방 창 글에 상한이 적혀 있다');
+}
+
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);

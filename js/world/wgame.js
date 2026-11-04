@@ -3249,7 +3249,7 @@ export class WorldGame {
     return { ...c, petShard: W.WEEK_SHARDS, mountShard: W.WEEK_SHARDS };
   }
   // ---------- v262 자동 강화 · 자동 등급 각인 ----------
-  // 강화: 낀 성장 장비 여섯 칸을 가장 낮은 것부터 레벨 상한까지(은자는 물약 60개 값을 남긴다 · +11부터는 보호부를 쓴다)
+  // 강화: 낀 성장 장비 여섯 칸을 가장 낮은 것부터 +10까지(은자는 물약 60개 값을 남긴다 · v324 돌파부터는 직접)
   // 등급 각인: 가진 증표 중 센 것부터, 등급 낮은 칸부터. 돌파에 쓸 그 지역 증표는 세 번어치를 남긴다.
   autoGear() {
     const reserve = this.potionPrice() * 60;
@@ -3257,7 +3257,8 @@ export class WorldGame {
     const worn = () => W.GROW_SLOTS.map((k) => this.s.equip[k]).filter(Boolean);
     if (this.s.autoEnh) {
       for (let n = 0; n < 30; n++) {
-        const it = worn().sort((a, b) => (a.plus || 0) - (b.plus || 0)).find((x) => this.canEnhance(x) && this.s.gold - this.enhanceCost(x) > reserve);
+        // v324 자동 강화는 +10(돌파 전)까지만 — 돌파(증표·보호부·부서짐)는 직접
+        const it = worn().sort((a, b) => (a.plus || 0) - (b.plus || 0)).find((x) => (x.plus || 0) < W.AUTO_ENH_MAX && this.canEnhance(x) && this.s.gold - this.enhanceCost(x) > reserve);
         if (!it) break;
         this.enhance(it.uid, true); out.enh++;
       }

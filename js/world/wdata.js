@@ -638,6 +638,7 @@ const STEP_PREFIX = [null, '청죽', '사철', '빙정', '혈석', '귀화', '�
 // 강화 +1~+10, 그 위로 **돌파** +11~+15(조합 장비만). 돌파는 두목 증표가 더 들고, 한 단계가 더 크다.
 export const ENHANCE_MAX = 15;
 export const ENHANCE_NORMAL = 10;
+export const AUTO_ENH_MAX = 10;   // v324 자동 강화 상한 — 여기까지만 저절로, 돌파는 직접
 // v261: 강화 상한을 레벨에 묶는다 — 6칸 +10이 2.8시간(Lv32)에 끝나 중반에 이정표가 없었다. [이 레벨부터, 여기까지]
 export const ENHANCE_LV_CAP = [[1, 5], [12, 7], [30, 9], [45, 10], [65, 11], [80, 12], [95, 13], [110, 14], [125, 15]];
 export function enhanceLvCap(level) { let c = ENHANCE_LV_CAP[0][1]; for (const [lv, m] of ENHANCE_LV_CAP) if (level >= lv) c = m; return c; }

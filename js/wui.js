@@ -1089,7 +1089,7 @@ function bagTab(app) {
         h('div', { class: 'gear-grid' }, ...tiles),
         // v262 자동 강화·등급 각인
         h('div', { class: 'auto-gear' },
-          h('label', {}, h('input', { type: 'checkbox', checked: s.autoEnh ? true : null, onchange: (e) => { game.s.autoEnh = e.target.checked; app.save(); } }), ' 자동 강화', h('small', {}, ' 낮은 칸부터 · 레벨 상한까지 · +11부터 보호부')),
+          h('label', {}, h('input', { type: 'checkbox', checked: s.autoEnh ? true : null, onchange: (e) => { game.s.autoEnh = e.target.checked; app.save(); } }), ' 자동 강화', h('small', {}, ` 낮은 칸부터 +${W.AUTO_ENH_MAX}까지 · 돌파(+${W.AUTO_ENH_MAX + 1}~)는 직접`)),
           h('div', { class: 'auto-inf-line' },
             h('label', {}, h('input', { type: 'checkbox', checked: s.autoInf ? true : null, onchange: (e) => { game.s.autoInf = e.target.checked; app.save(); } }), ' 자동 등급 각인',
               h('small', {}, s.autoInfCfg?.mode === 'pref' ? ` 좋아하는 효과 ${(s.autoInfCfg.prefFx || []).length + (s.autoInfCfg.prefSp || []).length}가지로` : s.autoInfCfg?.mode === 'pick' || s.autoInfCfg?.only ? ` 고른 증표 ${Object.keys(s.autoInfCfg.marks).length}가지만` : ' 센 증표부터', Object.values(s.autoInfCfg?.slots || {}).some((v) => v === false) ? ` · ${W.GROW_SLOTS.filter((k) => s.autoInfCfg.slots[k] !== false).length}칸만` : '', ' · 돌파용 증표는 남겨요')),

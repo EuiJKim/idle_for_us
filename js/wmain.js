@@ -3,9 +3,26 @@
 // 옛 main.js(관문·수련·무공 여덟 …)를 대신한다. 들판 그림(BattleView)·초식 연출·창틀·서버는 그대로 쓴다.
 import * as RM from './rendermode.js';   // 맨 먼저 — 캔버스를 만들기 전에 그리기 방식을 정한다 (v188)
 import { WorldGame, newWorldSave } from './world/wgame.js';
-import { encodeSave, decodeSave } from './savecode.js';   // v321 얻은 것 모음 — 방치 중 두목·조각·자동 정리를 알림 하나하나 대신 '이름 ×수'로 쌓는다. 8초 동안 새로 얻은 게 없으면 사라진다
-const TALLY_SEC = 8;
-const tallyBox = { items: new Map(), at: 0, el: null };
+import { encodeSave, decodeSave } from './savecode.js';   // v324 화면 크기 — 컴퓨터(넓은 화면)에서는 세로 높이에 맞춰 키우고(폰 크기 설계 그대로 확대), 설정의 '글자·화면 크기'를 곱한다
+const UI_SCALE = { normal: 1, big: 1.12, huge: 1.25 };
+const UI_SCALE_NAME = { normal: '보통', big: '크게', huge: '아주 크게' };
+function uiScalePref() { try { return localStorage.getItem('ifu.uiScale') || 'normal'; } catch { return 'normal'; } }
+function applyUiScale() {
+  const root = document.documentElement;
+  root.style.zoom = '';   // 먼저 되돌려야 창 크기를 제대로 잰다
+  const w = window.innerWidth, hgt = window.innerHeight;
+  // 폰 설계(390×844)를 창에 맞춰 키운다 — 창이 넓고 높을수록 크게(2.2배까지). 폰(600px 미만)은 그대로
+  const auto = w >= 600 ? Math.max(1, Math.min(2.2, Math.min(w / 720, hgt / 720))) : 1;
+  const k = +(auto * (UI_SCALE[uiScalePref()] || 1)).toFixed(3);
+  if (k !== 1) root.style.zoom = String(k);
+  setTimeout(() => { view.resize?.(); measurePads?.(); hudGoldAt?.(); }, 30);
+  return k;
+}
+window.addEventListener('resize', () => setTimeout(applyUiScale, 60));
+window.__uiScale = applyUiScale;
+// v321 얻은 것 모음 — 방치 중 두목·조각·자동 정리를 알림 하나하나 대신 '이름 ×수'로 쌓는다
+// v324 사라지지 않고 계속 쌓인다(×168 → ×336 …) — 사냥터를 옮기거나 누르면 비운다(요청: 방치 동안 얼마나 모였는지)
+const tallyBox = { items: new Map(), at: 0, el: null, map: null };
 function tally(key, label, n = 1, col = '#e5e7eb') {
   if (!(n > 0)) return;
   const it = tallyBox.items.get(key) || { label, n: 0, col };
@@ -18,13 +35,13 @@ function paintTally(bump) {
   const el = tallyBox.el || (tallyBox.el = $('loot-tally'));
   if (!el) return;
   el.classList.remove('hidden', 'fade');
-  el.replaceChildren(...[...tallyBox.items.entries()].slice(-6).map(([k, x]) => h('span', { class: `lt${k === bump ? ' bump' : ''}`, style: `--lc:${x.col}` }, x.label, h('b', {}, ` ×${fmt(x.n)}`))));
+  el.replaceChildren(...[...tallyBox.items.entries()].slice(-7).map(([k, x]) => h('span', { class: `lt${k === bump ? ' bump' : ''}`, style: `--lc:${x.col}` }, x.label, h('b', {}, ` ×${fmt(x.n)}`))));
 }
+function tallyClear() { tallyBox.items.clear(); tallyBox.el?.classList.add('hidden'); }
 function tallyTick() {
-  if (!tallyBox.items.size) return;
-  const dt = (performance.now() - tallyBox.at) / 1000;
-  if (dt > TALLY_SEC) { tallyBox.items.clear(); tallyBox.el?.classList.add('hidden'); }
-  else if (dt > TALLY_SEC - 1.2) tallyBox.el?.classList.add('fade');
+  // 다른 사냥터로 가거나 마을·던전이면 새로 센다
+  const key = game.map?.town || game.inst ? null : game.s.map;
+  if (key !== tallyBox.map) { tallyBox.map = key; if (tallyBox.items.size) tallyClear(); }
 }
 // v321 운영자 신고함
 async function openReports() {
@@ -1211,6 +1228,7 @@ function handleEvents() {
         view.float('한 번 더!', view.heroX, view.groundY - 190, '#f9a8d4', 18, 1);
         break;
       case 'drop':
+        tally('drop', `🗡 두목 장비`, 1, W.RARITY[ev.item.rar || 0].color);   // v324 모음에도
         toast(`두목이 장비를 떨궜어요! ${W.RARITY[ev.item.rar || 0].name} ${itemTitle(game, ev.item)}`);
         saverLoot(`🗡 ${W.RARITY[ev.item.rar || 0].name} ${itemTitle(game, ev.item)}`);
         sfx('loot');
@@ -1745,6 +1763,9 @@ $('btn-settings').addEventListener('click', () => openModal((s) => {
       h('button', { class: 'btn', style: 'padding:6px 12px', onclick: () => { closeModal(); openReports(); } }, '열기')) : '',
     net.isAdmin?.() ? h('div', { class: 'row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, '운영자 · 무인 정리'), h('div', { class: 'desc' }, '테스트·버려진 계정을 골라 서열에서 지워요')),
       h('button', { class: 'btn', style: 'padding:6px 12px', onclick: () => { closeModal(); openPlayerAdmin(); } }, '정리')) : '',
+    // v324 글자·화면 크기 — 폰에서도 키울 수 있고, 컴퓨터에서는 자동 확대에 곱한다
+    h('div', { class: 'row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, '글자·화면 크기'), h('div', { class: 'desc' }, '컴퓨터처럼 넓은 화면에서는 저절로 키워요 — 여기서 더 키울 수 있어요')),
+      (() => { const b = h('button', { class: 'btn', style: 'padding:6px 12px' }, UI_SCALE_NAME[uiScalePref()]); b.onclick = () => { const ks = Object.keys(UI_SCALE); const nx = ks[(ks.indexOf(uiScalePref()) + 1) % ks.length]; try { localStorage.setItem('ifu.uiScale', nx); } catch { /* 이번만 */ } b.textContent = UI_SCALE_NAME[nx]; applyUiScale(); }; return b; })()),
     toggleRow('강화·각인 연출 건너뛰기', skipFx(), '켜면 두드리는 연출 없이 바로 결과 — 끄면 연출을 눌러서 건너뛸 수 있어요', (v) => setSkipFx(v)),
     toggleRow('자동 물약', game.s.autoPotion, `한 병에 최대 체력의 ${Math.round(W.POTION_HEAL * 100)}%를 채워요`, (v) => { game.s.autoPotion = v; save(); }),
     h('div', { class: 'row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, '자동 물약 체력'), h('div', { class: 'desc' }, '체력이 이만큼 아래로 내려가면 먹어요 — 높을수록 안전하지만 물약이 많이 들어요')),
@@ -2375,6 +2396,8 @@ window.__test_cloud = () => ({ ok: cloudOk, at: cloudSyncedAt(), dev: DEV_ID, go
 window.__test_cloudPush = () => cloudPush(true);
 window.__test_checkGifts = () => checkGifts();     // 시험: 1분을 기다리지 않고 우편함을 본다
 window.__test_weekReward = () => { game.s.wbClaimed = null; wbChecked = true; return checkWeekReward(); };   // v318 시험: 지난주 순위 보상을 바로 본다
+applyUiScale();   // v324 컴퓨터에서는 화면에 맞춰 키운다(상수들이 다 정의된 뒤에)
+$('loot-tally').addEventListener('click', tallyClear);   // v324 누르면 모음을 비운다
 window.__test_claimAll = () => claimMail(mail.map((m) => m.id));
 window.__view = view;
 window.__save = save;

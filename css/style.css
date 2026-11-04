@@ -2230,9 +2230,8 @@ body.hunt-noui #exp-warn, body.hunt-noui #boss-wait { visibility: hidden !import
 .report-text { margin: 4px 0 6px; font-size: 13px; word-break: break-word; }
 
 /* v321 얻은 것 모음 — 들판 왼쪽 가운데. 두목·조각·자동 정리를 '이름 ×수'로 쌓는다 */
-#loot-tally { position: absolute; left: 8px; top: 42%; z-index: 9; pointer-events: none; display: flex; flex-direction: column; align-items: flex-start; gap: 3px; max-width: 46%; transition: opacity 1s; }
+#loot-tally { position: absolute; left: 8px; top: 42%; z-index: 9; pointer-events: auto; cursor: pointer; display: flex; flex-direction: column; align-items: flex-start; gap: 3px; max-width: 46%; transition: opacity 1s; }
 #loot-tally.hidden { display: none; }
-#loot-tally.fade { opacity: 0; }
 #loot-tally .lt { padding: 2px 8px; border-radius: 999px; background: rgba(12, 8, 6, 0.72); border: 1px solid rgba(255, 255, 255, 0.12); color: var(--lc); font-size: 11.5px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 #loot-tally .lt b { color: #fff; font-variant-numeric: tabular-nums; }
 #loot-tally .lt.bump { animation: lt-bump 0.35s ease-out; }
