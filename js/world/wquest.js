@@ -114,6 +114,10 @@ export const QUESTS = [
   { id: 'petSkill', title: '애완동물 기술을 보자', tab: 'comp/pet', min: 3, xp: 0.1,
     why: '데려간 애완동물은 몇 초마다 제 기술(여우불·백호참…)로 둘레를 한꺼번에 친다. 등급이 높을수록 자주.',
     goal: flag('petSkill') },
+  // v369 소환(뽑기) — 동료 창 맨 위. 하루 한 번은 무료라 누구나 바로 해 볼 수 있다
+  { id: 'gacha', title: '영수·탈것을 소환해 보자', tab: 'comp/pet', min: 6, xp: 0.2,
+    why: '동료 창 맨 위 "소환" — 조각 100개로 한 번, 1000개로 열 번. 🎁 오늘 무료는 하루 한 번 공짜! 좋은 영수·탈것일수록 크게 세진다(신화·신수는 문파·전체에 알려진다).',
+    goal: flag('gacha') },
   { id: 'passive', title: '심법을 하나 올리자', tab: 'char/skill', min: 4, xp: 0.15,
     why: '캐릭터 창 → 심법. 무공 점수로 올리는 늘 켜진 능력(이동 속도·받는 피해…).',
     goal: (g) => ({ now: passSum(g), need: 1 }) },
@@ -320,7 +324,7 @@ export const QUESTS = [
 ];
 
 export const QUEST_COUNT = QUESTS.length;
-export const QUEST_V = 6;   // v269: 1차 전직 단계를 레벨 5 뒤로 옮겼다 (v213: 계열 각인 단계를 뺐다)
+export const QUEST_V = 7;   // v369: 소환 단계를 끼웠다(애완동물 기술 다음)   // v269: 1차 전직 단계를 레벨 5 뒤로 옮겼다 (v213: 계열 각인 단계를 뺐다)
 // v180: 판 2의 차례 — 판 3으로 옮길 때 '지금 하던 단계'를 찾는다(끼워 넣은 단계는 새로 해 보게)
 export const QUEST_V3_IDS = ['job', 'kill10', 'move', 'zoom', 'stat', 'lv5', 'craft', 'enh1', 'potion', 'refill', 'potionAt', 'area2', 'lv10', 'armor', 'boss', 'enh3', 'tier1', 'skill', 'range', 'pet', 'mount', 'passive', 'lv20', 'saver', 'app', 'daily', 'dauto', 'sweep', 'tower3', 'gear4', 'mast1', 'convert', 'book', 'lv30', 'guild', 'checkin', 'donate', 'bag', 'alt', 'tower10', 'zodiac', 'tier2', 'duel', 'lore', 'promote', 'reimp', 'line', 'enh7', 'prot', 'lv50', 'daily10', 'tower20', 'lv60', 'petLv', 'treasure', 'raid', 'mast5', 'tier3', 'duel5', 'imp3', 'tower30', 'gear6', 'lv90', 'king', 'kingKill', 'tier4', 'set1', 'kacc', 'coop', 'tower50', 'enh10', 'set5', 'lord'];
 // v208: 판마다 차례 — 옛 판에서 옮길 때 '하던 단계'를 찾고, 새로 끼운 단계를 짚는다
@@ -342,4 +346,5 @@ export function questReward(q, level) {
 export const QUEST_V4_IDS = ['job', 'kill10', 'move', 'zoom', 'stat', 'lv5', 'craft', 'enh1', 'potion', 'refill', 'potionAt', 'area2', 'lv10', 'armor', 'boss', 'enh3', 'enh5', 'tier1', 'skill', 'range', 'pet', 'mount', 'petSkill', 'passive', 'skill5', 'lv20', 'saver', 'app', 'daily', 'dauto', 'sweep', 'tower3', 'gear4', 'mast1', 'convert', 'book', 'lv30', 'guild', 'checkin', 'donate', 'bag', 'alt', 'tower10', 'zodiac', 'tier2', 'duel', 'lore', 'promote', 'reimp', 'line', 'enh7', 'prot', 'lv50', 'daily10', 'tower20', 'lv60', 'skill10', 'lv70', 'petLv', 'treasure', 'raid', 'mast5', 'tier3', 'lv80', 'fuse', 'duel5', 'imp2', 'imp3', 'tower30', 'tower40', 'gear6', 'lv90', 'king', 'kingKill', 'mast10', 'tier4', 'skillMax', 'set1', 'kacc', 'coop', 'lv120', 'tower50', 'enh10', 'enh12', 'set5', 'lord', 'lv150'];
 // v269: 판 5의 차례 — 1차 전직(tier1)을 레벨 5 뒤로 옮기기 전
 export const QUEST_V5_IDS = ['job', 'kill10', 'move', 'zoom', 'stat', 'lv5', 'craft', 'enh1', 'potion', 'refill', 'potionAt', 'area2', 'lv10', 'armor', 'boss', 'enh3', 'enh5', 'tier1', 'skill', 'range', 'pet', 'mount', 'petSkill', 'passive', 'skill5', 'lv20', 'saver', 'app', 'daily', 'dauto', 'sweep', 'tower3', 'gear4', 'mast1', 'convert', 'book', 'lv30', 'guild', 'checkin', 'donate', 'bag', 'alt', 'tower10', 'zodiac', 'tier2', 'duel', 'lore', 'promote', 'reimp', 'enh7', 'prot', 'lv50', 'daily10', 'tower20', 'lv60', 'skill10', 'lv70', 'petLv', 'treasure', 'raid', 'mast5', 'tier3', 'lv80', 'fuse', 'duel5', 'imp2', 'imp3', 'tower30', 'tower40', 'gear6', 'lv90', 'king', 'kingKill', 'mast10', 'tier4', 'skillMax', 'set1', 'kacc', 'coop', 'lv120', 'tower50', 'enh10', 'enh12', 'set5', 'lord', 'lv150'];
-export const QUEST_IDS_BY_V = { 2: QUEST_V2_IDS, 3: QUEST_V3_IDS, 4: QUEST_V4_IDS, 5: QUEST_V5_IDS };
+export const QUEST_V6_IDS = ['job', 'kill10', 'move', 'zoom', 'stat', 'lv5', 'tier1', 'craft', 'enh1', 'potion', 'refill', 'potionAt', 'area2', 'lv10', 'armor', 'boss', 'enh3', 'enh5', 'skill', 'range', 'pet', 'mount', 'petSkill', 'passive', 'skill5', 'lv20', 'saver', 'app', 'daily', 'dauto', 'sweep', 'tower3', 'gear4', 'mast1', 'convert', 'book', 'lv30', 'guild', 'checkin', 'donate', 'bag', 'alt', 'tower10', 'zodiac', 'tier2', 'duel', 'lore', 'promote', 'reimp', 'enh7', 'prot', 'lv50', 'daily10', 'tower20', 'lv60', 'skill10', 'lv70', 'petLv', 'treasure', 'raid', 'mast5', 'tier3', 'lv80', 'fuse', 'duel5', 'imp2', 'imp3', 'tower30', 'tower40', 'gear6', 'lv90', 'king', 'kingKill', 'mast10', 'tier4', 'skillMax', 'set1', 'kacc', 'coop', 'lv120', 'tower50', 'enh10', 'enh12', 'set5', 'lord', 'lv150'];
+export const QUEST_IDS_BY_V = { 2: QUEST_V2_IDS, 3: QUEST_V3_IDS, 4: QUEST_V4_IDS, 5: QUEST_V5_IDS, 6: QUEST_V6_IDS };

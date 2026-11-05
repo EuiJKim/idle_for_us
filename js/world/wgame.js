@@ -3722,11 +3722,11 @@ export class WorldGame {
     }
     // v269: 판 5 → 6 — 1차 전직 단계(tier1)를 레벨 5 뒤로 당겼다. 단계 이름으로 자리를 다시 찾는다.
     //   아직 전직 단계를 안 받은 사람은 새 자리의 전직 단계부터 하고, 받으면 하던 단계로 돌아간다(questBack).
-    if (this.s.questV === 5 && Q.QUEST_V === 6) {
+    if (this.s.questV === 5 && Q.QUEST_V >= 6) {
       const ids5 = Q.QUEST_IDS_BY_V[5];
-      const remap = (i) => { for (; i < ids5.length; i++) { const j = Q.QUESTS.findIndex((q) => q.id === ids5[i]); if (j >= 0) return j; } return Q.QUEST_COUNT; };
+      const remap = (i) => { for (; i < ids5.length; i++) { const j = Q.QUEST_V6_IDS.indexOf(ids5[i]); if (j >= 0) return j; } return Q.QUEST_V6_IDS.length; };   // v369 판 6의 차례로(아래 일반 옮기기가 지금 판으로)
       const t1Old = ids5.indexOf('tier1');
-      const t1New = Q.QUESTS.findIndex((q) => q.id === 'tier1');
+      const t1New = Q.QUEST_V6_IDS.indexOf('tier1');
       const q0 = this.s.quest || 0;
       const at = remap(q0 === t1Old ? q0 + 1 : q0);
       if (q0 <= t1Old && at > t1New) {

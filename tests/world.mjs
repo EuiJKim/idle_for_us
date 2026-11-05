@@ -335,7 +335,9 @@ console.log('\n=== 재료 · 성장 장비 (v158) ===');
     for (const [from, to] of [['line', 'enh7'], ['enh7', 'enh7'], ['reimp', 'reimp'], ['lord', 'lord']]) {
       const M = fresh(); M.s.questV = 4; M.s.quest = ids4.indexOf(from); M.s.questTo = M.s.quest;
       M.questNow();
-      ok(QQ.questAt(M.s.quest)?.id === to && M.s.questV === QQ.QUEST_V, `길잡이 판 4→5: ${from} → ${to}`, QQ.questAt(M.s.quest)?.id);
+      // v369 판 7은 소환 단계를 끼웠다 — 그 단계를 먼저 하고 하던 단계(questTo)로 돌아간다
+      const cur = QQ.questAt(M.s.quest)?.id, back = QQ.questAt(M.s.questTo)?.id;
+      ok((cur === to || (cur === 'gacha' && back === to)) && M.s.questV === QQ.QUEST_V, `길잡이 판 4→5: ${from} → ${to}`, `${cur} → ${back}`);
     }
   }
   // 옛 판(드랍) 장비도 그대로 읽힌다
@@ -628,6 +630,14 @@ console.log('\n=== 십이지왕 신화 · 가락지·귀걸이 · 애완동물 �
       g = mk('yellow'); fire(g); ok(g.buffv.petMight === 0.2, '황룡진 — 무인 피해 +20%');
       g = mk('crane'); g.heroHp = 1; fire(g); ok(g.heroHp > 1, '학익진 — 체력 회복');
       ok(W.petSkillR({ kind: 'tiger', rar: 3 }) > 300 && W.petSkillSec({ rar: 3 }) < 4 && W.PET_SKILL_MULT === 7, '기술 반지름 300 넘게(신화 백호) · 신화 4초 안 · 평타의 7배');
+    }
+    // v369 길잡이 소환 단계 · 판 6 → 7 옮기기
+    {
+      const g = new WorldGame(newWorldSave(0), 0); g.s.job = 'sword';
+      g.s.questV = 6; g.s.quest = Q.QUEST_V6_IDS.indexOf('lv20'); g.s.questGift = -1; g.questNow();
+      ok(Q.questAt(g.s.quest)?.id === 'gacha' && Q.questAt(g.s.questTo)?.id === 'lv20', '판 6에서 Lv20 하던 무인 — 새 소환 단계부터, 끝나면 Lv20으로');
+      g.gacha('pet', 1, true);
+      ok((g.s.did?.gacha || 0) > 0, '오늘 무료로 소환하면 단계가 깨진다');
     }
     // v368 오늘 무료 · 픽업
     {
