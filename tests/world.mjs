@@ -3483,5 +3483,17 @@ console.log('\n=== v384 간단 각인 — 기운 하나 · Lv 하나 · 올리�
   ok(m.impTheme.weapon === 'dark' && !m.impTheme.armor && !m.impTheme.nose, '고른 기운 저장 · 이상한 값은 버린다');
   ok(/key: 'imp', label: '각인'/.test(read('js/wui.js')) && /openImpSlot/.test(read('js/wui.js')), '가방 › 각인 칸');
 }
+console.log('\n=== v385 골라 팔기 ===');
+{
+  const g = fresh('sword');
+  const a = g.makeCrafted('weapon', 0), b = g.makeCrafted('armor', 0), c = g.makeCrafted('hat', 0);
+  g.s.bag.push(a, b, c);
+  const v = g.sellValue(a) + g.sellValue(b), gold0 = g.s.gold, n0 = g.s.bag.length;
+  const r = g.sellMany([a.uid, b.uid, 'nope']);
+  ok(r.n === 2 && g.s.gold - gold0 === v && r.gold === v && g.s.bag.length === n0 - 2 && g.s.bag.includes(c), '고른 것만 판다 · 미리 본 값 그대로', `${r.n} ${r.gold}`);
+  const gr = { ...g.makeCrafted('shoe', 0), grow: true }; g.s.bag.push(gr);
+  ok(g.sellMany([gr.uid]).n === 0 && g.s.bag.includes(gr) && g.sellValue(gr) === 0, '성장 장비는 팔지 않는다');
+  ok(/골라 팔기/.test(read('js/wui.js')) && /pick-go/.test(read('js/wui.js')), '가방 › 골라 팔기 단추');
+}
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);

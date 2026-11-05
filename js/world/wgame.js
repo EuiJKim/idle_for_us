@@ -2708,6 +2708,19 @@ export class WorldGame {
     this.note(0, 0, p, 0);
     return p;
   }
+  // v385 팔면 얼마 — 팔기 전에 보여 주려고(바꾸지 않는다)
+  sellValue(it) {
+    if (!it || it.grow) return 0;
+    const back = W.sellBack(it);
+    return back ? back.gold : W.sellPrice({ ...it, plus: Math.max(0, (it.plus || 0) - this.sharedPlus(it)) });
+  }
+  // v385 골라 팔기 — 가방에서 고른 것만(성장 장비는 빼고)
+  sellMany(uids) {
+    const want = new Set(uids);
+    let gold = 0, n = 0;
+    for (const it of this.s.bag.slice()) if (want.has(it.uid) && !it.grow) { gold += this.sell(it); n++; }
+    return { n, gold };
+  }
   sellBagBelow(grade) {
     let sum = 0;
     for (const it of this.s.bag.slice()) if (it.grade <= grade && !((it.plus || 0) > this.sharedPlus(it))) sum += this.sell(it);

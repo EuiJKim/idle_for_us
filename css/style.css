@@ -2583,3 +2583,12 @@ body.hunt-noui #gather, body.in-inst #gather { display: none !important; }
 
 /* v384 각인 칸 창 — 기운 목록이 길면 그 안에서 굴린다 */
 .imp-themes { max-height: 46vh; overflow-y: auto; }
+
+/* v385 골라 팔기 */
+.pick-bar { border: 1px solid var(--gold, #c9a45c); border-radius: 10px; padding: 8px; margin: 6px 0; background: rgba(201,164,92,.08); }
+.pick-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px; }
+.pick-head span { color: var(--gold, #e3c27a); font-weight: 700; }
+.inv-tile.pickable { opacity: .72; }
+.inv-tile.picked { opacity: 1; outline: 3px solid #e05a4a; outline-offset: -3px; }
+.inv-tile.nosell { opacity: .35; }
+.inv-check { position: absolute; top: 2px; left: 4px; background: #e05a4a; color: #fff; border-radius: 50%; width: 20px; height: 20px; font-style: normal; font-size: 13px; line-height: 20px; text-align: center; font-weight: 700; z-index: 2; }

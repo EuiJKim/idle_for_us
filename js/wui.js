@@ -1125,10 +1125,38 @@ function bagTab(app) {
   // ===== 장비 =====
   const gearRoot = h('div');
   const bagRoot = h('div');
+  // v385 골라 팔기 — 하나하나 눌러 팔지 않고 여러 개를 골라 한 번에
+  const pick = { on: false, sel: new Set() };
+  function pickBar(list, old) {
+    const s = game.s;
+    const chosen = s.bag.filter((it) => pick.sel.has(it.uid));
+    const gold = chosen.reduce((a, it) => a + game.sellValue(it), 0);
+    const add = (arr) => { for (const it of arr) if (!it.grow) pick.sel.add(it.uid); sigs.gear = ''; gearView(); };
+    const shown = list.map((x) => x.it);
+    return h('div', { class: 'pick-bar' },
+      h('div', { class: 'pick-head' }, h('b', {}, `${chosen.length}개 골랐어요`), h('span', {}, `은자 +${fmt(gold)}`)),
+      h('div', { class: 'chip-row' },
+        h('button', { class: 'chip', onclick: () => add(old) }, `▼ 약한 것 ${old.length}`),
+        h('button', { class: 'chip', onclick: () => add(shown.filter((it) => !(it.rar >= 1) && !it.plus && !it.set)) }, '레어만'),
+        h('button', { class: 'chip', onclick: () => add(shown.filter((it) => !(it.rar >= 2) && !it.set)) }, '유니크 이하'),
+        h('button', { class: 'chip', onclick: () => add(shown) }, '보이는 것 모두'),
+        h('button', { class: 'chip', onclick: () => { pick.sel.clear(); sigs.gear = ''; gearView(); } }, '모두 풀기')),
+      h('small', { class: 'muted' }, '장비를 눌러 고르고 풀어요 · 위 칸(무기·옷…)으로 거르면 그 칸에서만'),
+      h('div', { class: 'btn-row' },
+        h('button', { class: 'btn primary', id: 'pick-go', disabled: chosen.length ? null : true, onclick: () => {
+          const risky = chosen.filter((it) => it.plus || it.rar >= 2 || it.set || it.imps?.some(Boolean));
+          const by = {}; for (const it of chosen) { const r = W.RARITY[it.rar || 0].name; by[r] = (by[r] || 0) + 1; }
+          if (!confirm(`${chosen.length}개를 팔아요 (${Object.entries(by).map(([k, v]) => `${k} ${v}`).join(' · ')}) · 은자 +${fmt(gold)}${risky.length ? `\n⚠ 강화·전설 이상·세트·각인한 장비 ${risky.length}개가 들어 있어요.` : ''}\n판 장비는 되돌릴 수 없어요.`)) return;
+          const r = game.sellMany([...pick.sel]);
+          pick.sel.clear(); pick.on = false;
+          toast(`${r.n}개를 팔아 은자 +${fmt(r.gold)}`); done();
+        } }, `팔기 ${chosen.length}`),
+        h('button', { class: 'btn', onclick: () => { pick.on = false; pick.sel.clear(); sigs.gear = ''; gearView(); } }, '그만')));
+  }
   function gearView() {
     const s = game.s;
     // v256: 등급(rar)·각인 칸 수도 — 가방 속 장비를 각인으로 올려도 타일 색·등급이 그대로였다
-    const nsig = `${game.statSig()}|${s.bag.map((i) => `${i.uid}.${i.plus || 0}.${i.rar || 0}.${(i.imps || []).filter(Boolean).length}`).join(',')}|${s.bagSize}|${ui.slot}|${s.autoJunk ? 1 : 0}.${s.junkLog?.n || 0}|${s.gold >= game.bagUpgradeCost()}|${s.autoEnh ? 1 : 0}${s.autoInf ? 1 : 0}.${JSON.stringify(s.autoEnhCfg || 0)}.${JSON.stringify(s.autoInfCfg || 0).length}`;   // v371 자동 설정이 바뀌면 다시
+    const nsig = `${game.statSig()}|${s.bag.map((i) => `${i.uid}.${i.plus || 0}.${i.rar || 0}.${(i.imps || []).filter(Boolean).length}`).join(',')}|${s.bagSize}|${ui.slot}|${s.autoJunk ? 1 : 0}.${s.junkLog?.n || 0}|${s.gold >= game.bagUpgradeCost()}|${pick.on ? [...pick.sel].join('.') : 'x'}|${s.autoEnh ? 1 : 0}${s.autoInf ? 1 : 0}.${JSON.stringify(s.autoEnhCfg || 0)}.${JSON.stringify(s.autoInfCfg || 0).length}`;   // v371 자동 설정이 바뀌면 다시
     if (nsig === sigs.gear) return;
     sigs.gear = nsig;
     // 낀 여섯 칸 — 셋씩 두 줄
@@ -1151,7 +1179,15 @@ function bagTab(app) {
       .map((it) => ({ it, d: vsWorn(it) }))
       .sort((a, b) => (b.d > 0.005) - (a.d > 0.005) || b.d - a.d || game.itemScore(b.it) - game.itemScore(a.it));
     // v230: 글 줄 대신 그림 칸 넷씩 — 누르면 자세히(끼기·팔기·강화)
-    const cards = list.map(({ it, d }) => itemTile(game, it, d, () => openItem(it, false), (e) => itemMenu(e, it, false)));
+    for (const u of [...pick.sel]) if (!s.bag.some((x) => x.uid === u)) pick.sel.delete(u);   // 판 것·낀 것은 빼기
+    const cards = list.map(({ it, d }) => {
+      // v385 골라 팔기 — 누르면 고르기/풀기
+      if (!pick.on) return itemTile(game, it, d, () => openItem(it, false), (e) => itemMenu(e, it, false));
+      const t = itemTile(game, it, d, () => { if (it.grow) { toast('성장 장비는 팔 수 없어요'); return; } pick.sel.has(it.uid) ? pick.sel.delete(it.uid) : pick.sel.add(it.uid); sigs.gear = ''; gearView(); }, (e) => e.preventDefault());
+      t.classList.add('pickable'); if (pick.sel.has(it.uid)) t.classList.add('picked'); if (it.grow) t.classList.add('nosell');
+      if (pick.sel.has(it.uid)) t.append(h('i', { class: 'inv-check' }, '✓'));
+      return t;
+    });
     const better = list.filter((x) => x.d > 0.005);
     // v256: 성장 장비는 팔지 않으니(sell → 0) 세지 않는다 — '+0 은자' 토스트만 되풀이됐다
     const old = s.bag.filter((x) => !x.grow && s.equip[x.slot] && game.itemScore(x) < game.itemScore(s.equip[x.slot]) && !x.plus && !(x.rar >= 2));
@@ -1176,7 +1212,8 @@ function bagTab(app) {
       h('div', { class: 'card' },
         h('h3', {}, '가방', h('small', {}, `${s.bag.length} / ${s.bagSize} · 넘치면 가장 나쁜 것부터 팔아요`)),
         chips,
-        better.length ? h('button', { class: 'btn primary', style: 'width:100%;margin:6px 0', onclick: () => {
+        pick.on ? pickBar(list, old) : null,
+        !pick.on && better.length ? h('button', { class: 'btn primary', style: 'width:100%;margin:6px 0', onclick: () => {
           let n = 0;
           // v258: 세트 조각을 세트 아닌 것으로 바꾸면 세트 효과가 깨진다 — 그런 것은 건너뛰고 알린다
           let kept = 0;
@@ -1194,6 +1231,7 @@ function bagTab(app) {
             toast(`약한 장비 ${n}개를 팔아 은자 +${fmt(p)} (강화·전설 이상은 남겨요)`);
             done();
           } }, `약한 것 팔기${old.length ? ` ${old.length}` : ''}`),
+          h('button', { class: 'btn', id: 'pick-sell', disabled: s.bag.length ? null : true, onclick: () => { pick.on = true; pick.sel.clear(); sigs.gear = ''; gearView(); } }, '☑ 골라 팔기'),
           // v321 자동 정리 — 같은 잣대로 떨어지는 대로 판다
           h('label', { class: 'btn junk-toggle', title: '낀 것보다 못하고·강화 안 했고·전설 아래인 장비는 떨어지는 대로 팔아요' },
             h('input', { type: 'checkbox', checked: s.autoJunk ? true : null, onchange: (e) => { game.s.autoJunk = e.target.checked; if (e.target.checked && old.length) { let p = 0; for (const it of old) p += game.sell(it); toast(`자동 정리를 켰어요 — 가방의 약한 장비 ${old.length}개도 팔았어요 · 은자 +${fmt(p)}`); } else toast(e.target.checked ? '자동 정리를 켰어요' : '자동 정리를 껐어요'); done(); } }),
