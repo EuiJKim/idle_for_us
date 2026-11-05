@@ -3313,5 +3313,22 @@ console.log('\n=== v371 자동 강화 설정 ===');
   ok(g2.s.gold >= g0 * 0.5 - 1 && g2.s.gold < g0, '은자 50% 남기기', `${g0} → ${g2.s.gold}`);
   ok(/openAutoEnhCfg\(app\); \} \}\), ' 자동 강화'/.test(read('js/wui.js')) && /openAutoInfCfg\(app\); \} \}\), ' 자동 등급 각인'/.test(read('js/wui.js')), '켜면 설정 창이 열린다');
 }
+console.log('\n=== v372 Lv90~120 곡선 · 방치 뒤 자동 정리 ===');
+{
+  ok(W.expSlow(100) < 6 && W.expSlow(110) < 5 && Math.abs(W.expSlow(150) - 7.8) < 1e-9 && W.expSlow(75) === 6, 'Lv90~120 배율을 낮췄다 · 75와 150은 그대로');
+  let mono = true; for (let l = 1; l < 150; l++) if (W.expToNext(l + 1) <= W.expToNext(l)) mono = false;
+  ok(mono, '필요 경험치는 여전히 레벨마다 오른다');
+  const g = fresh('sword');
+  while (g.s.level < 60) g.addExp(W.expToNext(g.s.level));
+  for (const z of Object.keys(W.MATS)) g.addMats(z, 1e9); g.addMats(W.ORE, 1e12); g.rng = () => 0;
+  g.s.gold = 1e12; g.s.autoEnh = true; g.s.autoInf = false;
+  g.events.length = 0; g.events.push({ type: 'level' });
+  const t = g.catchUpAutoGear();
+  const ws = W.GROW_SLOTS.map((k) => g.s.equip[k]).filter(Boolean);
+  ok(t.enh > 30 && ws.every((x) => (x.plus || 0) >= Math.min(W.AUTO_ENH_MAX, W.enhanceLvCap(g.s.level))), '밀린 자동 강화를 한 번에 끝까지', `강화 ${t.enh}번`);
+  ok(!g.events.some((e) => e.type === 'autoGear' || e.type === 'enhance') && g.events.some((e) => e.type === 'level'), '하나하나 알림은 지우고 다른 소식은 남긴다');
+  g.s.autoEnh = false; ok(g.catchUpAutoGear().enh === 0, '자동을 껐으면 아무것도 안 한다');
+  ok(/claimAndShow/.test(read('js/wmain.js')) && /showOfflineResult/.test(read('js/wmain.js')), '방치 보상 창 — 받은 뒤 결과');
+}
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);

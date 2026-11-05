@@ -1858,7 +1858,20 @@ function showPendingOffline() {
     rw.petShard > 0 || rw.mountShard > 0 ? h('span', { class: 'ofs shard' }, `조각 🐾${fmt(rw.petShard || 0)} 🐎${fmt(rw.mountShard || 0)}`) : null,
   ].filter(Boolean);
   const takeAnd = (then) => () => { closeModal(); then?.(); };
+  // v372 받은 뒤 한눈에 — '모두 받기'를 누르면 받고, 그동안 밀린 자동 강화·각인을 한 번에 돌린 다음 같은 창에서 결과를 보인다
+  let box = null;
+  const claimAndShow = () => {
+    if (game.s.pendingOffline !== rw) return closeModal();
+    const before = { lv: game.s.level, pow: game.stats().power, gold: game.s.gold, petLv: (game.s.pets || []).reduce((a, p) => a + (p.lv || 0), 0) };
+    game.claimOffline(rw); delete game.s.pendingOffline;
+    const auto = game.catchUpAutoGear();
+    game._stats = null;
+    const after = { lv: game.s.level, pow: game.stats().power, petLv: (game.s.pets || []).reduce((a, p) => a + (p.lv || 0), 0) };
+    save(); refreshUI(true);
+    showOfflineResult(box, rw, before, after, auto);
+  };
   openModal((s) => {
+    box = s;
     s.append(h('h2', {}, '🌙 다녀오셨어요!'),
       h('div', { class: 'off-sum' }, ...sum),
       h('p', { class: 'muted' }, `${duration(rw.t)} 동안 ${W.mapOf(rw.map).name}에서 사냥했어요.`
@@ -1879,8 +1892,37 @@ function showPendingOffline() {
         + (rw.marks ? ` · ${W.matName(W.bossKey(rw.map))} ${rw.marks}개` : '') + ' — 장비 강화에 써요 (증표는 등급 각인)'),
       h('div', { class: 'btn-row off-btns' },
         lvUp && !game.s.autoStat && statAfter > 0 ? h('button', { class: 'btn', onclick: takeAnd(() => showTab('char', 'stat')) }, `받고 스탯 찍기 (${statAfter}점)`) : null,
-        h('button', { class: 'btn primary', style: 'flex:1', onclick: takeAnd() }, lvUp ? `모두 받기 · Lv.${pj.lv}` : '모두 받기')));
+        h('button', { class: 'btn primary', id: 'off-take', style: 'flex:1', onclick: claimAndShow }, lvUp ? `모두 받기 · Lv.${pj.lv}` : '모두 받기')));
   }, { dismissable: false, onClose: () => { if (game.s.pendingOffline === rw) { game.claimOffline(rw); delete game.s.pendingOffline; } save(); refreshUI(true); } });
+}
+
+// v372 방치 보상 받은 뒤 — 레벨 · 전투력 · 밀린 자동 강화/각인 · 애완동물 · 다음 할 일
+function showOfflineResult(s, rw, b, a, auto) {
+  if (!s) return closeModal();
+  const powUp = a.pow - b.pow;
+  const pct = b.pow > 0 ? (powUp / b.pow) * 100 : 0;
+  const potNeed = Math.ceil((game.s.rates?.potions || 0) * game.offlineCapSec());
+  const potLow = rw.stoppedByPotion || (potNeed > 0 && game.s.potions < potNeed * 0.5);
+  const potBuy = Math.max(0, potNeed - game.s.potions);
+  const potCost = potBuy * game.potionPrice();
+  const rows = [
+    h('div', { class: 'ofr-row' }, h('span', {}, '레벨'), h('b', {}, a.lv > b.lv ? `Lv.${b.lv} → Lv.${a.lv}` : `Lv.${a.lv}`)),
+    h('div', { class: 'ofr-row' }, h('span', {}, '전투력'), h('b', { class: powUp > 0 ? 'up' : '' }, powUp > 0 ? `${fmt(b.pow)} → ${fmt(a.pow)} (+${pct < 0.1 ? pct.toFixed(2) : pct.toFixed(1)}%)` : fmt(a.pow))),
+    auto.enh || auto.inf || auto.dan ? h('div', { class: 'ofr-row' }, h('span', {}, '자동 정리'), h('b', {}, [auto.enh ? `강화 ${auto.enh}번` : '', auto.inf ? `등급 각인 ${auto.inf}번` : '', auto.dan ? `단 ${auto.dan}번` : '', auto.gs ? `大成 ${auto.gs}번` : ''].filter(Boolean).join(' · '))) : null,
+    a.petLv > b.petLv ? h('div', { class: 'ofr-row' }, h('span', {}, '애완동물'), h('b', {}, `레벨 +${a.petLv - b.petLv}`)) : null,
+    h('div', { class: 'ofr-row' }, h('span', {}, '은자'), h('b', {}, `${fmt(game.s.gold)}`, h('small', {}, ` (+${fmt(rw.gold)})`))),
+  ].filter(Boolean);
+  const todo = [];
+  if (!game.s.autoStat && game.s.statPts > 0) todo.push(h('button', { class: 'btn', onclick: () => { closeModal(); showTab('char', 'stat'); } }, `스탯 ${game.s.statPts}점 찍기`));
+  if (game.s.skillPts > 0 && game.skills?.().some((x) => game.canSkillUp(x.id))) todo.push(h('button', { class: 'btn', onclick: () => { closeModal(); showTab('char', 'skill'); } }, `무공 점수 ${game.s.skillPts}`));
+  if (potLow && potBuy > 0) todo.push(h('button', { class: 'btn', id: 'ofr-pot', disabled: game.s.gold < potCost ? true : null, onclick: (e) => { if (game.buyPotions(potBuy)) { toast(`물약 ${fmt(potBuy)}개를 샀어요`); e.target.disabled = true; e.target.textContent = '물약 채움 ✓'; save(); refreshUI(true); } } }, `물약 ${fmt(potBuy)}개 채우기 (${fmt(potCost)})`));
+  if (!game.s.autoEnh && !game.s.autoInf) todo.push(h('button', { class: 'btn', onclick: () => { closeModal(); showTab('bag', 'gear'); } }, '장비 강화하러'));
+  s.replaceChildren(
+    h('h2', {}, '✨ 받았어요'),
+    h('div', { class: 'ofr' }, ...rows),
+    potLow ? h('p', { class: 'muted', style: 'color:#fca5a5' }, rw.stoppedByPotion ? '물약이 떨어져 방치가 일찍 멈췄어요 — 채워 두면 다음엔 끝까지 사냥해요.' : '물약이 다음 방치에 모자랄 수 있어요.') : null,
+    todo.length ? h('div', { class: 'ofr-todo' }, h('small', { class: 'muted' }, '이어서 하면 좋은 것'), h('div', { class: 'btn-row' }, ...todo)) : null,
+    h('div', { class: 'btn-row' }, h('button', { class: 'btn primary', id: 'ofr-ok', style: 'flex:1', onclick: closeModal }, '확인')));
 }
 
 // ---------- 앱처럼 (v159): 설치 · 전체 화면 · 절전 ----------

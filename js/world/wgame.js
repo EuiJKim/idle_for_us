@@ -3508,6 +3508,22 @@ export class WorldGame {
     if (out.enh || out.inf || out.dan) this.emit('autoGear', out);
     return out;
   }
+  // v372 방치 보상을 받은 뒤 밀린 자동 강화·각인을 한 번에 — 합친 횟수만 돌려주고, 하나하나의 연출·알림은 지운다(쏟아지지 않게)
+  catchUpAutoGear() {
+    const tot = { enh: 0, inf: 0, dan: 0, gs: 0 };
+    if (!this.s.autoEnh && !this.s.autoInf) return tot;
+    const n0 = this.events.length;
+    for (let i = 0; i < 40; i++) {
+      const o = this.autoGear();
+      tot.enh += o.enh || 0; tot.inf += o.inf || 0; tot.dan += o.dan || 0; tot.gs += o.gs || 0;
+      if (!o.enh && !o.inf && !o.dan) break;
+    }
+    const quiet = new Set(['autoGear', 'infuse', 'enhance']);
+    const added = this.events.splice(n0).filter((ev) => !quiet.has(ev.type));
+    this.events.push(...added);
+    this._autoGearT = 5;
+    return tot;
+  }
   // v293 좋아하는 효과와 증표가 얼마나 맞나 — 앞에 고른 것일수록 무겁다. 고유 효과는 맞는 것 가운데 가장 앞 것을 고른다.
   markPref(k, cfg = this.s.autoInfCfg) {
     const z = +String(k).slice(1);

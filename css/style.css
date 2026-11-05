@@ -2194,6 +2194,14 @@ body.hunt-noui #exp-warn, body.hunt-noui #boss-wait { visibility: hidden !import
 .equip-cmp .cmp.same { color: var(--muted); }
 .equip-cmp b.cmp { font-size: 13px; }
 /* v317 방치 보상 한눈에 */
+.ofr { display: grid; gap: 6px; margin: 4px 0 12px; }
+.ofr-row { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; padding: 8px 12px; border-radius: 10px; background: rgba(255, 255, 255, 0.05); border: 1px solid var(--line); font-size: 13.5px; }
+.ofr-row > span { color: var(--muted, #a8a29e); white-space: nowrap; }
+.ofr-row > b { text-align: right; }
+.ofr-row > b.up { color: #86efac; }
+.ofr-todo { margin: 2px 0 10px; }
+.ofr-todo .btn-row { flex-wrap: wrap; margin-top: 6px; }
+.ofr-todo .btn { flex: 1 1 auto; font-size: 12.5px; padding: 8px 10px; white-space: nowrap; min-height: 0; }
 .off-sum { display: flex; flex-wrap: wrap; gap: 6px; margin: 2px 0 10px; }
 .off-sum .ofs { padding: 5px 10px; border-radius: 999px; font-size: 12.5px; font-weight: 700; background: rgba(255, 255, 255, 0.06); border: 1px solid var(--line); }
 .off-sum .ofs.lv { color: #c4b5fd; border-color: rgba(196, 181, 253, 0.5); }
