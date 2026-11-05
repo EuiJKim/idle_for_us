@@ -1176,6 +1176,8 @@ details.lore p { margin: 4px 0 0; line-height: 1.5; }
 @keyframes wbBreath { 0%, 100% { transform: translateY(0) scale(1); } 50% { transform: translateY(-4px) scale(1.02); } }
 .wraid-name { position: absolute; left: 14px; bottom: 12px; z-index: 2; display: grid; gap: 2px; text-shadow: 0 2px 6px #000; }
 .wraid-name b { font-size: 26px; letter-spacing: 2px; color: #fff; font-family: var(--brush, serif); }
+.wraid-name b i { font-size: 15px; font-style: normal; opacity: 0.75; letter-spacing: 1px; }
+.wraid-how { margin: 0 0 8px; padding-left: 4px; list-style: none; display: grid; gap: 3px; font-size: 12px; color: var(--muted); }
 .wraid-name small { color: color-mix(in srgb, var(--wb) 70%, #fff); font-weight: 700; }
 .wraid-hp { height: 22px; }
 .wraid-hp i { background: linear-gradient(90deg, color-mix(in srgb, var(--wb) 40%, #000), var(--wb)); transition: width 0.6s; }

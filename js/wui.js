@@ -2060,6 +2060,7 @@ function dgnTab(app) {
     return [zodiacCard];
   }
   // v373 월드보스 — 무림 전체가 하루 한 마리
+const finePointer = typeof matchMedia === 'function' && matchMedia('(pointer: fine)').matches;
   function buildWraid() {
     const s = game.s;
     const now = Date.now();
@@ -2071,9 +2072,14 @@ function dgnTab(app) {
     const head = h('div', { class: 'wraid-head' },
       h('img', { class: 'wraid-banner', src: 'art/ui/wb-banner.webp', alt: '' }),
       h('img', { class: 'wraid-boss', src: `art/boss/${boss.art}.png`, alt: boss.name }),
-      h('div', { class: 'wraid-name' }, h('small', {}, `오늘의 월드보스 · ${boss.title}`), h('b', {}, boss.name)));
+      h('div', { class: 'wraid-name' }, h('small', {}, `오늘의 마왕 · ${boss.title}`), h('b', {}, boss.name, h('i', {}, ` ${boss.hanja}`))));
     const rows = [head,
-      h('p', { class: 'muted dgn-desc' }, `무림 사람 모두가 함께 치는 두목 — 하루 ${D.WRAID_PER_DAY}번, 한 번에 ${D.WRAID_SEC}초 · 체력이 반 아래면 분노, 1/5 아래면 광폭 · 쓰러지면 친 사람 모두 순위대로 큰 보상(1위 ×3 · 2~3위 ×2 · 10위까지 ×1.5)`)];
+      h('p', { class: 'muted dgn-desc' }, `팔마왕(八魔王)이 날마다 돌아가며 강림해요. 무림 사람 모두가 함께 깎는 체력 하나 — 언제든 들어가요(한 판 ${D.WRAID_SEC}초). 같은 판에 든 무인이 서로 보여요.`),
+      h('ul', { class: 'wraid-how' },
+        h('li', {}, '🎯 마왕이 쏟아내는 탄을 피하며 쳐요 — 작은 흰 점만 맞아요(맞으면 잠깐 무적)'),
+        h('li', {}, `⚔ 근거리는 마왕 코앞까지 붙어야, 원거리는 멀리서 · ${finePointer ? 'WASD·화살표' : '화면을 끌어'} 움직이고, 손을 떼면 자동으로 피해요`),
+        h('li', {}, '🔥 체력이 반 아래면 분노, 1/5 아래면 광폭 — 탄이 빨라지고 빽빽해져요'),
+        h('li', {}, `🏆 쓰러지면 친 사람 모두 순위대로(1위 ×3 · 2~3위 ×2 · 10위까지 ×1.5) · 참여 보상은 하루 ${D.WRAID_PAID}판`)) ];
     const claimBtn = (rr, label) => h('button', { class: 'btn primary wraid-claim', onclick: async (e) => {
       e.target.disabled = true;
       try {
@@ -2105,9 +2111,9 @@ function dgnTab(app) {
           h('b', {}, `${i + 1}`), ` ${r.names?.[uid] || '?'}${uid === r.killer ? ' ⚔' : ''}`, h('small', {}, ` ${fmt(d)} · ×${D.wraidRankK(i + 1)}`))),
           rank.length ? null : h('div', { class: 'muted' }, '아직 아무도 안 쳤어요 — 첫 일격을!'),
           myRank > 10 ? h('div', { class: 'me' }, h('b', {}, `${myRank}`), ` 나`, h('small', {}, ` ${fmt(mine)}`)) : null),
-        h('p', { class: 'muted dgn-desc' }, `내 피해 ${fmt(mine)}${myRank ? ` · ${myRank}위` : ''} · 오늘 ${game.wraidLeft(now)}/${D.WRAID_PER_DAY}번 남음 · 칠 때마다 참여 보상(은자·애완동물·탈것 조각)`),
+        h('p', { class: 'muted dgn-desc' }, `내 피해 ${fmt(mine)}${myRank ? ` · ${myRank}위` : ''} · 참여 보상 ${game.wraidLeft(now)}/${D.WRAID_PAID}판 남음(은자·애완동물·탈것 조각)`),
         h('div', { class: 'btn-row' },
-          left > 0 ? h('button', { class: 'btn primary', id: 'wraid-go', disabled: game.canWraid(left, now) ? null : true, onclick: () => start(() => game.startWraid({ day: r.id, hpLeft: left, maxHp: r.maxHp }, now)) }, `도전 (${D.WRAID_SEC}초)`) : null,
+          left > 0 ? h('button', { class: 'btn primary', id: 'wraid-go', disabled: game.canWraid(left, now) ? null : true, onclick: () => start(() => game.startWraid({ day: r.id, hpLeft: left, maxHp: r.maxHp }, now)) }, `토벌하러 가기 (${D.WRAID_SEC}초)`) : null,
           net.canClaimWraid(r) ? claimBtn(r, `처치 보상 받기 (${myRank}위 ×${D.wraidRankK(myRank)})`) : null,
           left <= 0 && r.claimed?.[net.uid] ? h('span', { class: 'muted' }, '보상을 받았어요 · 내일 새 월드보스') : null));
     }

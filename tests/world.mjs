@@ -3330,45 +3330,70 @@ console.log('\n=== v372 Lv90~120 곡선 · 방치 뒤 자동 정리 ===');
   g.s.autoEnh = false; ok(g.catchUpAutoGear().enh === 0, '자동을 껐으면 아무것도 안 한다');
   ok(/claimAndShow/.test(read('js/wmain.js')) && /showOfflineResult/.test(read('js/wmain.js')), '방치 보상 창 — 받은 뒤 결과');
 }
-console.log('\n=== v373 월드보스 ===');
+console.log('\n=== v373 월드보스 · v374 팔마왕 탄막 ===');
 {
   const D3 = await import('../js/world/wdgn.js');
-  ok(D3.WRAID_BOSSES.length === 4 && new Set(D3.WRAID_BOSSES.map((b) => D3.wraidBossOf(`2026-11-0${1 + D3.WRAID_BOSSES.indexOf(b)}`).id)).size >= 1, '월드보스 넷');
-  ok(new Set(['2026-11-05', '2026-11-06', '2026-11-07', '2026-11-08'].map((d) => D3.wraidBossOf(d).id)).size === 4, '날마다 넷이 돌아가며');
-  ok(D3.wraidMaxHp(0) === D3.WRAID_MIN_HP && D3.wraidMaxHp(1e6) === Math.round(1e6 * D3.WRAID_SEC * D3.WRAID_PER_DAY * D3.WRAID_HP_SHARE), '체력 = 초당 피해 합 × 초 × 횟수 × 몫');
-  ok(D3.wraidRage(1) === 0 && D3.wraidRage(0.5) === 1 && D3.wraidRage(0.2) === 2, '반·1/5에서 분노·광폭');
+  const SH = await import('../js/world/wshmup.js');
+  ok(D3.WRAID_BOSSES.length === 8 && D3.WRAID_BOSSES.some((b) => b.name === '우마왕') && D3.WRAID_BOSSES.some((b) => b.name === '미후왕'), '팔마왕 — 우마왕 · 미후왕 …');
+  const days = Array.from({ length: 8 }, (_, i) => new Date(Date.parse('2026-11-01') + i * 86400e3).toISOString().slice(0, 10));
+  ok(new Set(days.map((d) => D3.wraidBossOf(d).id)).size === 8, '날마다 여덟이 돌아가며');
+  for (const b of D3.WRAID_BOSSES) ok(fs.existsSync(new URL(`../art/boss/${b.art}.png`, import.meta.url)) && read('js/bossfx.js').includes(`'${b.art}'`) && b.pats.every((p) => SH.PATTERNS.includes(p.p)), `${b.name}(${b.hanja}) — 그림 · 패턴 ${b.pats.map((p) => p.name).join('·')}`);
+  ok(D3.wraidMaxHp(0) === D3.WRAID_MIN_HP && D3.wraidMaxHp(1e6) === Math.round(1e6 * D3.WRAID_SEC * D3.WRAID_HP_RUNS * D3.WRAID_HP_SHARE), '체력 = 초당 피해 합 × 초 × 판 수 × 몫');
+  ok(D3.wraidRage(1) === 0 && D3.wraidRage(0.5) === 1 && D3.wraidRage(0.2) === 2 && D3.WRAID_RAGE[2].dens > 1 && D3.WRAID_RAGE[2].spd > 1, '반·1/5에서 분노·광폭 — 탄이 빽빽·빠르게');
   ok(D3.wraidRankK(1) === 3 && D3.wraidRankK(3) === 2 && D3.wraidRankK(10) === 1.5 && D3.wraidRankK(11) === 1, '순위 배율');
-  for (const b of D3.WRAID_BOSSES) ok(fs.existsSync(new URL(`../art/boss/${b.art}.png`, import.meta.url)) && /wb-/.test(read('js/bossfx.js')), `그림 ${b.name}`);
-  const g = fresh('sword');
-  while (g.s.level < 60) g.addExp(W.expToNext(g.s.level));
   const now = Date.now(); const day = D3.kstDay(now);
+  const mk = (job) => { const g = fresh(job); while (g.s.level < 60) g.addExp(W.expToNext(g.s.level)); g.s.potions = 99; return g; };
+  const g = mk('sword');
   ok(!g.canWraid(0, now) && g.canWraid(1000, now), '체력이 남아야 친다');
-  const g2 = fresh('sword'); ok(!g2.canWraid(1000, now), `레벨 ${D3.WRAID_LV} 전엔 못 친다`);
-  const maxHp = 5e8, hpLeft = 3e8;
-  ok(g.startWraid({ day, hpLeft, maxHp }, now) && g.inst?.kind === 'wraid' && g.wraidLeft(now) === D3.WRAID_PER_DAY - 1, '도전 — 하루 몫 하나를 쓴다');
-  for (let i = 0; i < 60 && !g.inst.boss; i++) g.tick(0.05);
+  ok(!fresh('sword').canWraid(1000, now), `레벨 ${D3.WRAID_LV} 전엔 못 친다`);
+  const maxHp = 5e9, hpLeft = 3e9;
+  ok(g.startWraid({ day, hpLeft, maxHp }, now) && g.inst?.kind === 'wraid' && g.inst.paid, '도전 — 참여 보상 몫');
+  for (let i = 0; i < 200 && (!g.inst.boss || g.freezeT > 0 || g.inst.boss.introT > 0); i++) g.tick(0.05);
   const b = g.inst.boss;
-  ok(b && b.maxHp === maxHp && b.hp === hpLeft && g.map.wb === D3.wraidBossOf(day).id && b.def?.art === D3.wraidBossOf(day).art, '두목은 함께 깎은 체력 · 그 날의 그림');
-  for (let i = 0; i < 80 && (g.freezeT > 0 || b.introT > 0); i++) g.tick(0.05);
-  g.tick(0.05);
-  ok(g.inst.rage === 0, '반 넘게 남으면 보통');
+  ok(b && b.maxHp === maxHp && b.c === SH.BOSS_C && b.r === SH.BOSS_R && b.def?.art === D3.wraidBossOf(day).art, '마왕은 위 가운데 · 함께 깎은 체력 · 그 날의 그림');
+  ok(g.heroY > b.y + 200, '무인은 아래에서 시작');
+  const y0 = g.heroY; g.shIn = { dx: 0, dy: -1 }; for (let i = 0; i < 10; i++) g.tick(0.05); g.shIn = null;
+  ok(g.heroY < y0 - 60, '키(WASD)로 자유롭게 움직인다', `${Math.round(y0)} → ${Math.round(g.heroY)}`);
+  for (let i = 0; i < 80; i++) g.tick(0.05);
+  ok(g.bullets.length > 0, '마왕이 탄을 쏟아낸다', `${g.bullets.length}발`);
+  // 근거리 — 멀리 있으면 못 친다
+  g.heroX = b.x; g.heroY = SH.ARENA.y1; g.shIdle = 0; g.shTarget = { x: b.x, y: SH.ARENA.y1 };
+  const d0 = g.inst.myDealt || 0; g.bullets = []; g.emitters = []; g.shPatT = 99;
+  for (let i = 0; i < 20; i++) { g.shTarget = { x: b.x, y: SH.ARENA.y1 }; g.tick(0.05); }
+  ok(!g.shNear && (g.inst.myDealt || 0) === d0, '근거리는 멀리서 못 친다');
+  for (let i = 0; i < 80; i++) { g.shTarget = { x: b.x, y: b.y + 80 }; g.tick(0.05); }
+  ok(g.shNear && (g.inst.myDealt || 0) > d0, '붙으면 친다');
+  // 원거리 — 멀리서도
+  const f = mk('fan'); f.startWraid({ day, hpLeft, maxHp }, now);
+  for (let i = 0; i < 200 && (!f.inst.boss || f.freezeT > 0 || f.inst.boss.introT > 0); i++) f.tick(0.05);
+  f.shPatT = 99; f.heroY = f.inst.boss.y + 260; f.heroX = f.inst.boss.x;
+  for (let i = 0; i < 40; i++) { f.shTarget = { x: f.inst.boss.x, y: f.inst.boss.y + 260 }; f.tick(0.05); }
+  ok(f.shNear && (f.inst.myDealt || 0) > 0, '원거리는 멀리서 쏜다');
+  // 맞으면 체력 % · 잠깐 무적
+  const st = g.stats(); g.heroHp = st.hp; g.shIframe = 0;
+  g.bullets = [{ t: 0, x: g.heroX, y: g.heroY - 26, vx: 0, vy: 0, r: 9, kind: 'fire' }, { t: 0, x: g.heroX, y: g.heroY - 26, vx: 0, vy: 0, r: 9, kind: 'fire' }];
+  g.shPatT = 99; g.tick(0.05);
+  ok(g.shHits >= 1 && g.heroHp < st.hp && g.heroHp > st.hp * 0.8 && g.shIframe > 0, '맞으면 최대 체력의 몇 % · 맞은 뒤 무적', `${Math.round((1 - g.heroHp / st.hp) * 100)}%`);
+  // 함께 — 서버 체력으로 맞춘다 · 남이 쓰러뜨리면 끝
+  const hp1 = b.hp; g.wraidSync(hp1 * 0.5);
+  ok(b.hp <= hp1 * 0.5 + g.wraidUnsent() + 1, '무림 전체가 깎은 체력으로 맞춘다');
   b.hp = maxHp * 0.4; g.events.length = 0; g.tick(0.05);
-  ok(g.inst.rage === 1 && b.atk > b.baseAtk && g.events.some((e) => e.type === 'wraidRage' && e.rage === 1), '반 아래 — 분노(알린다)');
-  b.hp = maxHp * 0.1; g.tick(0.05);
-  ok(g.inst.rage === 2 && Math.abs(b.atk - b.baseAtk * D3.WRAID_RAGE[2].atk) < 1e-6, '1/5 아래 — 광폭');
-  const shards0 = g.s.petShard || 0;
-  g.events.length = 0; g.leaveInst(); g.handle?.();
+  ok(g.inst.rage === 1 && g.events.some((e) => e.type === 'wraidRage'), '반 아래 — 분노(알린다)');
+  g.wraidSync(0);
+  ok(g.inst.done?.ok && g.inst.done.byOther, '다른 사람이 쓰러뜨리면 판이 끝난다');
+  g.events.length = 0; g.handle?.(); g.tick(0.05);
   const end = g.events.find((e) => e.type === 'instEnd');
-  ok(end && end.kind === 'wraid' && end.dealt === hpLeft - maxHp * 0.1 && end.key === day && g.s.wraid.dps > 0, '나가도 친 만큼(서버에 올릴 값)', `${end?.dealt}`);
-  ok((g.s.petShard || 0) > shards0 && end.reward?.gold > 0, '칠 때마다 참여 보상');
-  g.s.wraid.n = D3.WRAID_PER_DAY; ok(!g.canWraid(1000, now), '하루 몫을 다 쓰면 못 친다');
-  ok(g.canWraid(1000, now + 86400e3), '다음 날 다시');
+  ok(end && end.kind === 'wraid' && end.dealt > 0 && end.unsent === end.dealt && end.byOther && end.reward?.gold > 0 && !g.inst && g.bullets.length === 0, '끝 — 내 몫 · 안 올린 몫 · 참여 보상 · 탄을 치운다');
+  // 언제든 — 보상 몫을 다 써도 들어간다(보상만 없다)
+  g.s.wraid.n = D3.WRAID_PAID;
+  ok(g.canWraid(1000, now) && g.startWraid({ day, hpLeft, maxHp }, now) && g.inst.paid === false, '언제든 들어간다 — 참여 보상은 하루 몫까지');
+  g.leaveInst();
   const k0 = g.s.wraid.kills; const r1 = g.wraidClaim(1);
   ok(g.s.wraid.kills === k0 + 1 && g.s.wraid.top1 === 1 && r1.gold === D3.wraidKillReward(g.s.level, 1).gold, '처치 보상 — 1위 ×3');
   g.checkTitles(); ok(g.hasTitle('wraid1'), '〈천하 토벌 일인자〉');
   const m = migrateWorld({ ...newWorldSave(), wraid: { day: '2026-11-05', n: 99, dps: -5, kills: 3, top1: 'x' } });
   ok(m.wraid.n === D3.WRAID_PER_DAY && m.wraid.dps === 0 && m.wraid.kills === 3 && m.wraid.top1 === 0, '저장 값 다듬기');
-  ok(/match \/wraid\/\{day\}/.test(read('firestore.rules')) && /commitWraid/.test(read('js/wnet.js')) && /buildWraid/.test(read('js/wui.js')), '규칙 · 서버 · 창');
+  ok(/match \/wraid\/\{day\}/.test(read('firestore.rules')) && /"wbr"/.test(read('database.rules.json')) && /commitWraid/.test(read('js/wnet.js')) && /class WbCoop/.test(read('js/world/wbcoop.js')) && /buildWraid/.test(read('js/wui.js')), '규칙(Firestore·RTDB) · 서버 · 함께 · 창');
 }
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);

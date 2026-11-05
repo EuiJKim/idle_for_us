@@ -58,6 +58,28 @@
           }
         }
       }
+    },
+    "wbr": {
+      "$day": {
+        ".read": "auth != null",
+        ".validate": "$day.matches(/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/)",
+        "$uid": {
+          ".write": "auth != null && auth.uid === $uid",
+          "x": { ".validate": "newData.isNumber()" },
+          "y": { ".validate": "newData.isNumber()" },
+          "n": { ".validate": "newData.isString() && newData.val().length <= 24" },
+          "lk": { ".validate": "newData.isString() && newData.val().length <= 4000" },
+          "j": { ".validate": "newData.isString() && newData.val().length <= 16" },
+          "mt": { ".validate": "newData.isString() && newData.val().length <= 16" },
+          "f": { ".validate": "newData.isNumber()" },
+          "a": { ".validate": "newData.isNumber()" },
+          "hp": { ".validate": "newData.isNumber()" },
+          "lv": { ".validate": "newData.isNumber()" },
+          "t": { ".validate": "newData.isNumber()" },
+          "sk": { ".validate": "newData.isString() && newData.val().length <= 64" },
+          "$other": { ".validate": false }
+        }
+      }
     }
   }
 }

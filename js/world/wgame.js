@@ -15,6 +15,7 @@ import * as G from './wgear.js';
 import * as IM from './wimprint.js';
 import * as PT from './wpath.js';
 import * as TD from './wtoday.js';
+import * as SH from './wshmup.js';
 
 const rand = Math.random;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -1105,6 +1106,7 @@ export class WorldGame {
         if (!m.alive) continue;
       } else m.poison = 0;
       if (m.introT > 0) { m.introT -= dt; continue; }
+      if (m.wb) continue;   // v374 마왕은 움직이지도 때리지도 않는다 — 탄막(wshmup)으로만
       if (m.treasure) { this.tickTreasure(m, dt); continue; }
       if (m.stun > 0) { m.stun -= dt; continue; }
       if (m.slow > 0) m.slow -= dt;
@@ -1118,8 +1120,7 @@ export class WorldGame {
       const dist = this.tileDist(m, ht);
       if (dist < W.MOB_AGGRO || m.aggro) m.aggro = dist < W.MOB_AGGRO * 2;
       if (m.aggro) {
-        const reach = m.wb ? W.MOB_REACH * 4 : m.isBoss ? W.MOB_REACH * 1.5 : W.MOB_REACH;   // v373 월드보스는 버티고 서서 멀리서 친다
-        if (dist > reach && m.wb) continue;
+        const reach = m.isBoss ? W.MOB_REACH * 1.5 : W.MOB_REACH;
         if (dist > reach) {
           // 곧장 다가가고, 막혔으면 돌아서 (가끔만 길을 찾는다 — 몹이 많아서)
           let st2 = this.nextStep(m.c, m.r, ht.c, ht.r, m);
@@ -1208,6 +1209,7 @@ export class WorldGame {
   }
 
   tickHero(dt, st) {
+    if (this.inst?.kind === 'wraid' && !this.inst.done) { SH.tick(this, dt, st); return; }   // v374 탄막
     // v296: 평타 쿨은 걷는 동안에도 흐른다 — 다 걸어와서 다시 한 박자 쉬고 치던 후딜레이를 없앤다(쌓이지는 않는다)
     this.atkTimer = Math.max(0, this.atkTimer - dt);
     // 칸 사이를 옮겨 가는 중이면 마저 간다 — 칸 가운데에 서야 다음 일을 정한다
@@ -1351,6 +1353,7 @@ export class WorldGame {
   // 손으로 들판을 찍으면 그 칸으로 간다 (들판 좌표)
   moveTo(x, y) {
     if (this.map.town) return;
+    if (this.inst?.kind === 'wraid') { SH.target(this, x, y); return; }   // v374 탄막 — 칸이 아니라 그 자리로
     this.manual = { c: clamp(Math.floor(x / W.TILE), 0, W.COLS - 1), r: clamp(Math.floor(y / W.TILE), 0, W.ROWS - 1) };
     this.mon = null;
   }
@@ -1571,6 +1574,7 @@ export class WorldGame {
       return;
     }
     if (m.calib) this.bossCalib(m, dmg);
+    if (m.wb && this.inst?.kind === 'wraid') this.inst.myDealt = (this.inst.myDealt || 0) + Math.min(dmg, Math.max(0, m.hp));   // v374 내가 준 몫(서버에 올린다)
     m.hp -= dmg;
     m.aggro = true;
     // v241: 실제 준 피해(넘친 몫은 빼고) — 두목 최소 싸움 길이 잣대
@@ -1988,12 +1992,12 @@ export class WorldGame {
         if (!this.mon?.alive) continue;
         // 한 대에 죽을 놈에게는 아끼고, 두목·센 놈에게 쓴다
         if (!this.mon.isBoss && this.mon.hp < st.atk * 1.5) continue;
-        if (Math.hypot(this.mon.x - this.heroX, this.mon.y - this.heroY) > (sk.far ? 400 : Math.max(st.range, 160))) continue;
+        if (!this._shReach && Math.hypot(this.mon.x - this.heroX, this.mon.y - this.heroY) > (sk.far ? 400 : Math.max(st.range, 160))) continue;
       } else {
         const c = this.ranged() && this.mon?.alive ? this.mon : { x: this.heroX, y: this.heroY };
         const rr = this.skillRadius(sk);
         const n = this.mons.filter((m) => m.alive && Math.hypot(m.x - c.x, (m.y - c.y) * 0.75) <= rr).length;
-        const boss = this.mons.some((m) => m.alive && m.isBoss && Math.hypot(m.x - c.x, m.y - c.y) <= rr);
+        const boss = this.mons.some((m) => m.alive && m.isBoss && (this._shReach || Math.hypot(m.x - c.x, m.y - c.y) <= rr));
         if (n < 3 && !boss) continue;
       }
       if (this.useSkill(sk.id)) return;
@@ -4164,10 +4168,9 @@ export class WorldGame {
       if (I.wait <= 0) {
         const b = this.spawnMob(true);
         I.boss = b;
-        if (b && I.kind === 'wraid') { b.lv = this.s.level + 8; b.maxHp = I.sharedMax; b.hp = I.hpLeft; b.baseAtk = W.mobAtk(b.lv) * W.BOSS.atk * 1.2; b.armor = 0; b.grade = 3; b.wb = I.boss0; I.rage = -1;
-          // 거대한 두목은 무인과 같은 줄 오른쪽에 버티고 선다(위에 서면 무인 뒤에 가려진다)
-          const h = this.heroTile(); const c = Math.min(W.COLS - 3, h.c + 3);
-          if (this.inMap(c, h.r)) { b.c = b.hc = c; b.r = b.hr = h.r; b.x = W.tileCenter(c); b.y = W.tileCenter(h.r); b.move = null; } }
+        if (b && I.kind === 'wraid') { b.lv = this.s.level + 8; b.maxHp = I.sharedMax; b.hp = I.hpLeft; b.baseAtk = b.atk = W.mobAtk(b.lv) * W.BOSS.atk; b.armor = 0; b.grade = 3; b.wb = I.boss0; I.rage = -1;
+          // v374 거대한 마왕은 위 가운데에 버티고 선다 — 무인은 아래에서 탄을 피하며 친다
+          b.c = b.hc = SH.BOSS_C; b.r = b.hr = SH.BOSS_R; b.x = W.tileCenter(SH.BOSS_C); b.y = W.tileCenter(SH.BOSS_R); b.move = null; }
         else if (b && I.kind === 'raid') { b.lv = this.s.level + 5; b.maxHp = I.sharedMax; b.hp = I.hpLeft; b.atk = W.mobAtk(b.lv) * W.BOSS.atk; b.armor = 0; b.grade = 3; }
         else if (b && I.hard) { b.lv = D.hardLv(I.stage); b.maxHp = b.hp = D.hardHp(I.stage); b.atk = D.hardAtk(I.stage); b.armor = W.mobDef(b.lv); b.grade = 3; b.hardFx = D.hardMountOf(I.stage)?.fx || 'hard'; }
         else if (b) { b.lv = D.towerLv(I.stage); b.maxHp = b.hp = D.towerHp(I.stage); b.atk = D.towerAtk(I.stage); b.armor = W.mobDef(b.lv); if (D.isZodiacFloor(I.stage)) b.grade = 3; }
@@ -4175,16 +4178,12 @@ export class WorldGame {
       return;
     }
     // 수문장 초식 — 바닥 경고
-    // v373 월드보스 — 함께 깎은 체력이 반·1/5 아래면 분노·광폭(공격·초식 빠르기)
+    // v373 월드보스 — 함께 깎은 체력이 반·1/5 아래면 분노·광폭(v374 탄이 빠르고 빽빽해진다 · wshmup)
     if (I.kind === 'wraid') {
       const b = this.mons.find((m) => m.isBoss && m.alive);
       if (b) {
         const rg = D.wraidRage(Math.max(0, b.hp) / b.maxHp);
-        if (rg !== I.rage) { const up = I.rage >= 0 && rg > I.rage; I.rage = rg; b.atk = b.baseAtk * D.WRAID_RAGE[rg].atk; if (up) this.emit('wraidRage', { rage: rg, name: D.WRAID_RAGE[rg].name, x: b.x, y: b.y }); }
-        if (!(b.introT > 0) && !(b.stun > 0)) {
-          I.castT -= dt;
-          if (I.castT <= 0) { I.castT = D.castGap(45) * 1.1 * D.WRAID_RAGE[rg].gap; this.bossCast(b, 45, 0.5 * D.WRAID_RAGE[rg].atk); }
-        }
+        if (rg !== I.rage) { const up = I.rage >= 0 && rg > I.rage; I.rage = rg; if (up) this.emit('wraidRage', { rage: rg, name: D.WRAID_RAGE[rg].name, x: b.x, y: b.y }); }
       }
     }
     if (I.kind === 'tower' || I.kind === 'raid') {
@@ -4381,18 +4380,34 @@ export class WorldGame {
     const r = this.s.wraid;
     return r.day === D.kstDay(now) ? Math.max(0, D.WRAID_PER_DAY - r.n) : D.WRAID_PER_DAY;
   }
-  canWraid(hpLeft, now = Date.now()) { return !this.inst && !!this.s.job && this.s.level >= D.WRAID_LV && this.wraidLeft(now) > 0 && hpLeft > 0; }
+  // v374 언제든 들어간다 — 참여 보상만 하루 WRAID_PAID판
+  canWraid(hpLeft, now = Date.now()) { return !this.inst && !!this.s.job && this.s.level >= D.WRAID_LV && hpLeft > 0; }
   // o: { day, hpLeft, maxHp } — 서버 문서에서
   startWraid(o, now = Date.now()) {
     if (!this.canWraid(o.hpLeft, now)) return false;
     const r = this.s.wraid;
     if (r.day !== D.kstDay(now)) { r.day = D.kstDay(now); r.n = 0; }
-    r.n++;
+    r.n = Math.min(999, r.n + 1);
     const z = W.mapOf(this.s.huntMap).mz || 1;
     const boss = D.wraidBossOf(o.day);
     this.startInst({ kind: 'wraid', key: o.day, boss0: boss.id, map: D.wraidMap(boss, this.s.level, z), t: D.WRAID_SEC, max: D.WRAID_SEC, wait: 1.2, castT: 3,
-      hpLeft: o.hpLeft, sharedMax: o.maxHp, z });
+      hpLeft: o.hpLeft, sharedMax: o.maxHp, z, myDealt: 0, sent: 0, paid: r.n <= D.WRAID_PAID });
+    SH.start(this);
     return true;
+  }
+  // v374 함께 — 서버(무림 전체)의 남은 체력으로 내 화면의 마왕을 맞춘다. 아직 안 올린 내 몫은 빼고. 다른 사람이 쓰러뜨렸으면 끝
+  wraidSync(serverLeft) {
+    const I = this.inst;
+    if (I?.kind !== 'wraid' || I.done) return;
+    const unsent = (I.myDealt || 0) - (I.sent || 0);
+    const b = I.boss;
+    if (serverLeft <= 0) { I.done = { ok: true, byOther: true }; return; }
+    if (b?.alive) {
+      const want = Math.max(1, serverLeft - unsent);
+      if (want < b.hp - 1) { const d = b.hp - want; b.hp = want; this.emit('dmg', { amount: d, kind: 'ally', crit: 0, at: b, add: true }); }
+    } else if (!b) I.hpLeft = Math.min(I.hpLeft, Math.max(1, serverLeft - unsent));
+  }
+  wraidUnsent() { const I = this.inst; return I?.kind === 'wraid' ? Math.max(0, (I.myDealt || 0) - (I.sent || 0)) : 0;
   }
   // 잡혔을 때 받기 — rank: 피해 순위(1부터). 서버에서 받음 표시를 한 뒤에 부른다
   wraidClaim(rank) {
@@ -4455,13 +4470,15 @@ export class WorldGame {
       this._stats = null;
       reward = this.grant(D.towerReward(I.stage));
     } else if (I.kind === 'wraid') {
-      // v373 친 만큼 — 서버에는 그리는 쪽(wmain → WNet)이 올린다
-      I.dealt = I.boss ? Math.max(0, Math.round(I.hpLeft - Math.max(0, I.boss.hp))) : 0;
+      // v374 내가 준 몫 — 서버에는 그리는 쪽(wmain → WNet)이 아직 안 올린 만큼(unsent) 올린다
+      I.dealt = Math.round(I.myDealt || 0);
+      I.unsent = Math.max(0, Math.round((I.myDealt || 0) - (I.sent || 0)));
       const spent = Math.max(1, I.max - Math.max(0, I.t));
       if (I.dealt > 0) {
         this.s.wraid.dps = Math.round(I.dealt / spent);
-        reward = this.grant(D.wraidJoinReward(this.s.level, I.dealt / Math.max(1, I.sharedMax)));
+        if (I.paid) reward = this.grant(D.wraidJoinReward(this.s.level, I.dealt / Math.max(1, I.sharedMax)));
       }
+      this.bullets = []; this.emitters = [];
     } else if (I.kind === 'raid') {
       // 친 만큼 — 서버에 올리는 건 그리는 쪽(wmain → WNet)이 한다
       I.dealt = I.boss ? Math.max(0, Math.round(I.hpLeft - Math.max(0, I.boss.hp))) : 0;
@@ -4472,7 +4489,7 @@ export class WorldGame {
       }
     }
     const res = { kind: I.kind, id: I.id, stage: I.stage, ok, gotKey: !!I.gotKey, extra: !!I.extra, died: !!I.done?.died, timeout: !!I.done?.timeout, left: !!I.done?.left, key: I.key, dealt: I.dealt || 0,
-      kills: I.kills || 0, target: I.target || 0, reward, chain: false, hard: !!I.hard, newMount: I.newMount || null };
+      kills: I.kills || 0, target: I.target || 0, reward, chain: false, unsent: I.unsent || 0, byOther: !!I.done?.byOther, paid: I.paid !== false, hard: !!I.hard, newMount: I.newMount || null };
     this.inst = null;
     // 탑: 이기고 '이어 오르기'면 다음 층으로
     if (I.kind === 'tower' && ok && I.hard && this.s.tower.auto && !I.done.left && !I.newMount && this.canHard()) {

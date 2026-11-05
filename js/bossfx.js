@@ -31,7 +31,7 @@ export const BOSS_ART = new Set([
   'zb-11', 'zb-12', 'zb-13', 'zb-14', 'zb-15', 'zb-16', 'zb-17', 'zb-18',
   'zb-19', 'zb-2', 'zb-20', 'zb-21', 'zb-3', 'zb-4', 'zb-5', 'zb-6',
   'zb-7', 'zb-8', 'zb-9',
-  'wb-hyeolma', 'wb-gonbung', 'wb-guyu', 'wb-noejeong',   // v373 월드보스
+  'wb-umawang', 'wb-gyomawang', 'wb-bungmawang', 'wb-satawang', 'wb-mihuwang', 'wb-uyungwang', 'wb-guryeong', 'wb-hwangpung',   // v374 팔마왕
 ]);
 export const BFX_READY = new Set([
   'blood-burst', 'dark-orb', 'fire-pillar', 'fist-quake', 'ghost-hand', 'ice-burst', 'palm-wave', 'petal-storm',

@@ -27,6 +27,12 @@ import { drawBossSprite, drawTellFx, fxFor, bossImg, bossHeight } from './bossfx
 import { big } from './big.js';
 import { fmt } from './fmt.js';
 const WB_SCALE = 1.6;   // v373 월드보스는 크게
+// v374 탄 생김새 — [빛 r,g,b · 속 빛깔 · 길쭉한가]
+const BULLET_COL = {
+  fire: ['249,115,22', '#fb923c', true], water: ['34,211,238', '#67e8f9', false], feather: ['250,204,21', '#fde047', true],
+  gold: ['234,179,8', '#facc15', false], shade: ['167,139,250', '#a78bfa', false], bolt: ['96,165,250', '#93c5fd', true],
+  spirit: ['244,63,94', '#fb7185', false], sand: ['217,119,6', '#f59e0b', false],
+};
 
 export const BRUSH = '"Yuji Syuku", "Nanum Brush Script", "Gowun Batang", serif';
 // v260 줍기 글자를 한 줄로 모으는 틈(초)
@@ -741,6 +747,68 @@ export class BattleView {
   }
   screenXOf(m) { return this.sx(m); }
 
+  // ---------- v374 월드보스 탄막 ----------
+  // 무인이 쏜 기(氣) — 무인에서 마왕으로 빛줄기
+  drawWbShots(game) {
+    const { ctx } = this;
+    const dt = this._wbT != null ? Math.max(0, Math.min(0.1, this.t - this._wbT)) : 0;
+    this._wbT = this.t;
+    let shots = this.wbShots || (this.wbShots = []);
+    for (const s of shots) s.life -= dt;
+    shots = this.wbShots = shots.filter((s) => s.life > 0);
+    if (!shots.length) return;
+    const col = game.map?.wbCol || '253,224,71';
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.lineCap = 'round';
+    for (const s of shots) {
+      const k = s.life / 0.22;
+      const x0 = this.sx({ x: s.x0 }), y0 = this.sy({ y: s.y0 }), x1 = this.sx({ x: s.x1 }), y1 = this.sy({ y: s.y1 });
+      const hx = x0 + (x1 - x0) * Math.min(1, (1 - k) * 2.2), hy = y0 + (y1 - y0) * Math.min(1, (1 - k) * 2.2);
+      ctx.strokeStyle = `rgba(255,248,220,${0.85 * k})`; ctx.lineWidth = 4;
+      ctx.beginPath(); ctx.moveTo(x0 + (hx - x0) * 0.55, y0 + (hy - y0) * 0.55); ctx.lineTo(hx, hy); ctx.stroke();
+      putGlow(ctx, '255,236,170', hx, hy, 22, 0.55 * k);
+      if (k < 0.55) putGlow(ctx, col, x1, y1, 34, 0.5 * k);
+    }
+    ctx.restore();
+  }
+  // 탄 — 빛 · 속 · 결(깃·번개·불은 가는 쪽으로 길게). 무인 맞는 점(작은 흰 점)도 함께
+  drawBullets(game) {
+    const { ctx } = this;
+    const list = game.bullets || [];
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    for (const u of list) {
+      const x = this.sx(u), y = this.sy(u);
+      if (x < -40 || x > this.w + 40 || y < -40 || y > this.h + 40) continue;
+      const c = BULLET_COL[u.kind] || BULLET_COL.fire;
+      const r = u.r * (u.big ? 1.15 : 1);
+      putGlow(ctx, c[0], x, y, r * 2.8, u.big ? 0.75 : 0.6);
+    }
+    ctx.globalCompositeOperation = 'source-over';
+    for (const u of list) {
+      const x = this.sx(u), y = this.sy(u);
+      if (x < -40 || x > this.w + 40 || y < -40 || y > this.h + 40) continue;
+      const c = BULLET_COL[u.kind] || BULLET_COL.fire;
+      const r = u.r * (u.big ? 1.15 : 1);
+      const long = c[2];
+      ctx.save();
+      ctx.translate(x, y);
+      if (long) ctx.rotate(Math.atan2(u.vy * this.squash, u.vx));
+      ctx.fillStyle = c[1];
+      ctx.beginPath(); ctx.ellipse(0, 0, r * (long ? 1.7 : 1), r * (long ? 0.62 : 1), 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.92)';
+      ctx.beginPath(); ctx.ellipse(0, 0, r * (long ? 0.95 : 0.5), r * (long ? 0.3 : 0.5), 0, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    }
+    // 무인 맞는 점 — 탄막 놀이처럼 작은 점만 맞는다는 걸 보인다. 맞은 뒤 무적이면 깜빡
+    const hx = this.heroX, hy = this.groundY - 26 * this.squash;
+    const blink = game.shIframe > 0 && Math.floor(this.t * 20) % 2 === 0;
+    ctx.fillStyle = blink ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.95)';
+    ctx.strokeStyle = 'rgba(239,68,68,0.95)'; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.arc(hx, hy, 6, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    ctx.restore();
+  }
   handle(ev, game) {
     if (this.pending && !ev._released && this.hold(ev, game)) return;
     // 날아가는 평타는 닿을 때 숫자가 뜬다
@@ -749,6 +817,8 @@ export class BattleView {
       return;
     }
     switch (ev.type) {
+      case 'wbShot': (this.wbShots || (this.wbShots = [])).push({ ...ev, life: 0.22 }); if (this.wbShots.length > 24) this.wbShots.shift(); return;
+      case 'wbSplit': if (this.fxLevel > 0) this.particles.push(...Array.from({ length: 8 }, () => ({ x: this.sx(ev), y: this.sy(ev), vx: (Math.random() - 0.5) * 220, vy: (Math.random() - 0.5) * 220, life: 0.4, size: 4, color: `rgb(${(BULLET_COL[ev.kind] || BULLET_COL.fire)[0]})` }))); return;
       case 'attack': {
         // 멀리서 쏘는 캐릭터 — 무기마다 날아가는 게 다르다. 맞은 숫자는 닿을 때 뜬다.
         const cls = game.s.job;
@@ -3000,6 +3070,7 @@ export class BattleView {
     }
     // 함께 사냥하는 문파원 (v138)
     if (this.fieldMode && game.coop?.on) for (const o of game.coop.others) list.push({ y: o.y, go: () => this.drawAlly(o) });
+    if (game.wbCoop?.on) for (const o of game.wbCoop.others) list.push({ y: o.y, go: () => this.drawAlly(o) });   // v374 마왕 토벌을 함께
     // 쓰러지는 졸개 — 0.5초에 걸쳐 넘어지며 옅어진다
     if (this.corpses.length) {
       this.corpses = this.corpses.filter((c) => this.t - c.t0 < CORPSE_SEC);
@@ -3028,7 +3099,9 @@ export class BattleView {
     // 무인은 깊이와 상관없이 맨 위에 그린다. 적이 수십이면 파묻혀서 누가 나인지 모른다.
     // 흑백은 무인 바로 앞에서 건다 — 무인만 색이 남는다.
     this.applyDesat();
+    if (game.inst?.kind === 'wraid') this.drawWbShots(game);
     this.drawHeroUnit(game, moving);
+    if (game.inst?.kind === 'wraid') this.drawBullets(game);   // v374 탄막은 무인 위에 — 가려지면 못 피한다
   }
 
   drawObstacleAt(o, wx, wy) {

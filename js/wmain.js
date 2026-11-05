@@ -78,6 +78,7 @@ import { loadIcons, skinImg } from './icons.js';
 import { WNet } from './wnet.js';
 import { RULES_VER } from './net.js';
 import { Coop } from './world/wcoop.js';
+import { WbCoop } from './world/wbcoop.js';
 import { Where } from './world/wwhere.js';
 import { h, toast, openModal, closeModal, modalOpen } from './ui/common.js';
 import { WTABS, WTAB_TITLE, itemTitle, skillText, rangeText, rewardText, dailyWaiting, skipFx, setSkipFx, openSkillPreview, attGrid } from './wui.js';
@@ -218,6 +219,19 @@ const coop = new Coop(game, net, {
 });
 game.coop = coop;
 app.coop = coop;
+// v374 월드보스 함께 — 같은 날 마왕 판에 든 무림 사람들이 서로 보인다(체력은 Firestore가 나눈다)
+const wbCoop = new WbCoop(game, net, {
+  look: () => {
+    const { look, opts } = view.heroLook(game, false);
+    return { look, opts: { weapon: opts.weapon, blade: opts.blade, glow: opts.glow, bladeCol: opts.bladeCol, bladeFx: opts.bladeFx, hold: true } };
+  },
+  onEvent: (kind, e) => {
+    if (kind === 'peerIn') toast(`🤝 ${e.name}님이 마왕 토벌에 합류했어요`);
+    else if (kind === 'peerOut') toast(`${e.name}님이 마왕 토벌을 떠났어요`);
+    else if (kind === 'allySkill') view.allySkill?.(e);
+  },
+});
+game.wbCoop = wbCoop;
 // v349 계정 창고 — 기기에 두고, Google이면 서버와 맞춘다(더 새것)
 let vault = VT.loadVault();
 app.vault = {
@@ -1148,7 +1162,8 @@ function instHud() {
   } else if (I.kind === 'wraid') {
     const b = I.boss;
     const rg = I.rage > 0 ? ` · ${D.WRAID_RAGE[I.rage].name}!` : '';
-    $('contest-sub').textContent = I.wait > 0 ? '월드보스가 강림한다…' : `피해 ${fmt(b ? Math.max(0, I.hpLeft - Math.max(0, b.hp)) : 0)} · 남은 체력 ${b ? ((Math.max(0, b.hp) / b.maxHp) * 100).toFixed(1) : 100}%${rg} · ${left}초`;
+    const with_ = wbCoop.on && wbCoop.count ? ` · 🤝${wbCoop.count + 1}명` : '';
+    $('contest-sub').textContent = I.wait > 0 ? '마왕이 강림한다…' : `내 피해 ${fmt(I.myDealt || 0)} · 남은 체력 ${b ? ((Math.max(0, b.hp) / b.maxHp) * 100).toFixed(1) : 100}%${rg}${with_} · ${left}초`;
   } else if (I.kind === 'raid') {
     const b = I.boss;
     $('contest-sub').textContent = I.wait > 0 ? '두목이 나선다…' : `피해 ${fmt(b ? Math.max(0, I.hpLeft - Math.max(0, b.hp)) : 0)} · 남은 체력 ${b ? ((Math.max(0, b.hp) / b.maxHp) * 100).toFixed(1) : 100}% · ${left}초`;
@@ -1156,12 +1171,14 @@ function instHud() {
   hud.classList.toggle('hurry', left <= 10);
 }
 function showInstEnd(ev) {
-  // v373 월드보스 — 친 만큼 서버에 올리고, 잡혔으면 바로 받기를 권한다
+  // v373 월드보스 — 아직 안 올린 내 몫을 올리고 알린다(v374 싸우는 동안 4초마다 올렸다)
   if (ev.kind === 'wraid') {
-    const send = ev.dealt > 0 ? net.commitWraid(ev.key, ev.dealt) : Promise.resolve(false);
+    game.shIn = null;
+    const send = ev.unsent > 0 ? net.commitWraid(ev.key, ev.unsent) : Promise.resolve(false);
     send.then((killed) => {
-      toast(`🌋 월드보스 피해 ${fmt(ev.dealt)}${ev.reward ? ` · 참여 보상 ${rewardText(ev.reward)}` : ''}${killed ? ' — 마무리 일격! 월드보스 처치' : ''}`);
-      if (killed) { sfx('level'); view.shake = Math.max(view.shake || 0, 0.4); }
+      const why = ev.byOther ? ' — 마왕이 쓰러졌어요!' : ev.died ? ' — 쓰러졌어요' : ev.timeout ? ' — 시간 끝' : '';
+      toast(`🌋 마왕 토벌 피해 ${fmt(ev.dealt)}${ev.reward ? ` · 참여 보상 ${rewardText(ev.reward)}` : ev.paid ? '' : ' · 오늘 참여 보상은 다 받았어요(피해·순위는 쌓여요)'}${why}${killed ? ' — 마무리 일격!' : ''}`);
+      if (killed || ev.byOther) { sfx('level'); view.shake = Math.max(view.shake || 0, 0.4); }
       app.refresh();
     }).catch((err) => toast(`월드보스 기록 실패: ${err.message || err}`));
     return;
@@ -1372,9 +1389,9 @@ function handleEvents() {
     view.handle(ev, game);
     // 소리 (타격감) — 광역기 수십 대는 sfx가 간격을 둬서 몇 번만 난다
     switch (ev.type) {
-      case 'attack': sfx('swish'); coop.noteAttack(); break;
+      case 'attack': sfx('swish'); coop.noteAttack(); wbCoop.noteAttack(); break;
       case 'dmg': sfx('hit', ev.crit > 0); break;
-      case 'skill': sfx('skill'); coop.noteAttack(); coop.noteSkill(ev); break;
+      case 'skill': sfx('skill'); coop.noteAttack(); coop.noteSkill(ev); wbCoop.noteAttack(); wbCoop.noteSkill(ev); break;
       case 'kill': sfx('kill'); break;
       case 'levelUp': sfx('level'); break;
       case 'path': sfx('level'); break;   // v254 길을 고르면(받는 쪽이 없었다)
@@ -1646,6 +1663,12 @@ function handleEvents() {
       case 'zodiacDraw':
         if (!ev.zodiac) toast(`${D.ZODIAC[ev.no - 1].animal} 뽑기 — 신수는 아니었어요${game.zodiacOwned(ev.no) ? '' : ` (${D.ZODIAC_TICKETS}번째에는 꼭 나와요)`}`);
         break;
+      // v374 마왕이 패턴을 펼친다 — 이름을 마왕 위에
+      case 'wbPattern': {
+        const b = game.inst?.boss;
+        if (b) view.float(`「${ev.name}」`, view.sx(b), view.sy(b) + 40, ev.rage >= 2 ? '#f87171' : '#fde68a', 22, 1.3);
+        break;
+      }
       // v373 월드보스가 분노·광폭으로 — 크게 알리고 흔든다
       case 'wraidRage':
         sfx('level');
@@ -2307,15 +2330,30 @@ function netChanged(what) {
   if (what === 'guild') { refreshUI(true); }
   // v302 전체 채팅 — 무림 창이 닫혀 있으면 점
   if (what === 'wchat') dot('social', activeTab !== 'social' && net.worldUnread?.() > 0);
-  if (what === 'wraid') dot('dgn', dailyWaiting(game) || wraidWaiting());   // v373
+  if (what === 'wraid') { dot('dgn', dailyWaiting(game) || wraidWaiting()); if (game.inst?.kind === 'wraid' && net.wraid) game.wraidSync(net.wraidHpLeft()); }   // v373 · v374 함께 깎은 체력
   for (const t of Object.values(tabs)) t.netChanged?.(what);
 }
 
+// v374 월드보스 — 싸우는 동안 4초마다 내 몫을 올리고, 무림 전체의 남은 체력으로 맞춘다
+let wraidSendT = 4, wraidSending = false, wraidTip = false;
+function wraidNetTick(dt) {
+  const I = game.inst;
+  if (I?.kind !== 'wraid' || I.done) { wraidSendT = 4; return; }
+  if (!wraidTip) { wraidTip = true; toast(finePointer ? '🌋 WASD·화살표로 탄을 피하세요 — 손을 떼면 자동으로 피해요(가끔 맞아요). 작은 흰 점만 맞아요' : '🌋 화면을 끌어 탄을 피하세요 — 손을 떼면 자동으로 피해요(가끔 맞아요). 작은 흰 점만 맞아요'); }
+  if ((wraidSendT -= dt) > 0 || wraidSending || !net.ready?.()) return;
+  wraidSendT = 4;
+  const amt = Math.floor(game.wraidUnsent());
+  if (amt <= 0) return;
+  wraidSending = true;
+  net.commitWraid(I.key, amt).then((killed) => {
+    if (game.inst === I) { I.sent = (I.sent || 0) + amt; if (killed && !I.done) I.done = { ok: true }; }
+  }).catch(() => {}).finally(() => { wraidSending = false; });
+}
 // v373 월드보스 — 오늘 칠 수 있거나 받을 보상이 있으면 던전 창에 점
 function wraidWaiting() {
   if (!net.ready?.() || !game.s.job) return false;
   const r = net.wraid;
-  return !!(net.canClaimWraid?.() || net.wraidPrev || (game.s.level >= D.WRAID_LV && game.wraidLeft() > 0 && (!r || net.wraidHpLeft(r) > 0)));
+  return !!(net.canClaimWraid?.() || net.wraidPrev || (game.s.level >= D.WRAID_LV && game.wraidLeft() > 0 && (!r || net.wraidHpLeft(r) > 0)));   // 참여 보상이 남았을 때만 점
 }
 // ---------- 루프 ----------
 let last = performance.now();
@@ -2709,6 +2747,8 @@ function step(now) {
   //   켜는 중(로딩·로그인·무인 고르기 · 이름·직업을 묻는 첫 창)과 방치 보상을 받기 전에만 멈춘다
   if (game.s.job && !booting && !game.s.pendingOffline) for (let i = 0; i < steps; i++) game.tick(dt / steps);
   coop.tick(dt);
+  wbCoop.tick(dt);
+  wraidNetTick(dt);   // v374
   where.tick(dt);   // v344
   gatherT = (gatherT || 0) - dt; if (gatherT <= 0) { gatherT = 1; gatherTick(); }   // v349
   view.game = game;
@@ -2860,6 +2900,8 @@ function keyMove() {
   let dx = 0, dy = 0;
   for (const k of moveHeld) { const v = MOVE_KEYS[k]; dx += v[0]; dy += v[1]; }
   dx = Math.sign(dx); dy = Math.sign(dy);
+  // v374 월드보스 탄막 — 칸이 아니라 누르는 동안 그쪽으로 미끄러진다
+  if (game.inst?.kind === 'wraid') { game.shIn = (dx || dy) && !modalOpen() ? { dx, dy } : null; keyMoving = !!game.shIn; return; }
   if ((dx || dy) && game.s.job && !game.map.town && !modalOpen() && !saver.on) {
     // 두 칸 앞을 찍어 끊김 없이 — 벽·끝이면 moveTo가 가둔다
     game.moveTo((game.hc + dx * 2 + 0.5) * W.TILE, (game.hr + dy * 2 + 0.5) * W.TILE);
