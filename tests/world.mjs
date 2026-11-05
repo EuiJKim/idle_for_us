@@ -3677,6 +3677,10 @@ console.log('\n=== v398 5차 레벨 130 · 독존 · 골라 팔기 ===');
   const P = W.fifthOf('poison');
   ok(P.slow && P.bossDot > W.BOSS_DOT_K && P.mods.drain > 0 && W.skillsOf('poison', true).find((k) => k.id === 's0').stun > 0, '독존 — 마비독(기절) · 둔화 · 두목에게도 독 · 흡혈');
   ok(/pick-sell-top/.test(read('js/wui.js')) && /여러 개 골라 팔기/.test(read('js/wui.js')), '골라 팔기 — 가방 위에도 · 길게 누른 메뉴에도');
+  { const D9 = await import('../js/world/wdgn.js'); const g = fresh('sword'); while (g.s.level < 80) g.addExp(W.expToNext(g.s.level));
+    g.s.dgn.climb = true; g.s.dgn.auto = true; const top = D9.DAILY_MAX || 30; for (const d of D9.DAILY) g.s.dgn.best[d.id] = top; g.s.quest = Q.QUESTS.findIndex((q) => q.id === 'sweep'); g.s.questV = Q.QUEST_V;
+    const now = Date.now(); const n0 = g.s.did?.sweep || 0; g.startAutoDaily(now);
+    ok((g.s.did?.sweep || 0) > n0, '등반 모드라도 길잡이가 소탕을 시키면 자동이 한 번 소탕한다(그 단계에 영영 멈췄다)'); }
 }
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);

@@ -4094,7 +4094,8 @@ export class WorldGame {
       const stage = this.dailyMaxStage(d.id);
       const fresh = stage > this.dailyBest(d.id) && (this.dgnToday(now).fail[d.id] || 0) < stage;   // 아직 못 깬 단계 · 오늘 안 진 곳
       // v283 등반 모드: 아직 못 깬 단계만 · 오늘 그 단계에서 졌으면(막혔으면) 그 던전은 멈춘다 — 남은 몫은 그대로 둔다
-      if (this.s.dgn.climb && !fresh) continue;
+      // v398 길잡이가 '소탕을 한 번' 시키면 등반 모드라도 한 번은 소탕하러 간다(자동만 켠 무인이 그 단계에 영영 멈췄다). 그 밖에는 v283 그대로 — 남은 몫은 무인이 쓴다
+      if (this.s.dgn.climb && !fresh && !(Q.questAt(this.s.quest)?.id === 'sweep' && this.canSweep(d.id, now))) continue;
       // v302 자동은 온전한 보상일 때만 — 몫이 없고 새 단계도 아니면(10% 보상 추가 도전) 돌지 않는다
       if (!fresh && this.dailyLeft(d.id, now) <= 0) continue;
       if (this.canDaily(d.id, stage, now)) return { kind: d.id, stage };
@@ -4150,7 +4151,11 @@ export class WorldGame {
     const lost = (today.fail[nx.kind] || 0) >= nx.stage;
     const learnSweep = Q.questAt(this.s.quest)?.id === 'sweep';
     // v283 등반 모드는 소탕하지 않는다 — 막히면 그대로 멈추고 남은 횟수는 무인이 쓴다(다음 날로 넘어가기도 한다)
-    if (this.s.dgn.climb) return nx.stage > this.dailyBest(nx.kind) && !lost ? this.startDaily(nx.kind, nx.stage, now) : false;
+    // v398 등반 모드라도 길잡이가 소탕을 시키면 소탕한다 — 자동만 켜 둔 무인이 '소탕' 단계에 영영 멈췄다
+    if (this.s.dgn.climb) {
+      if (learnSweep && this.canSweep(nx.kind, now)) return !!this.sweepDaily(nx.kind, now);
+      return nx.stage > this.dailyBest(nx.kind) && !lost ? this.startDaily(nx.kind, nx.stage, now) : false;
+    }
     if ((nx.stage <= this.dailyBest(nx.kind) || lost || learnSweep) && this.canSweep(nx.kind, now)) {
       return !!this.sweepDaily(nx.kind, now);
     }
