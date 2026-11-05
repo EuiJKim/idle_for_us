@@ -609,7 +609,7 @@ export class WorldGame {
     for (const p of this.activePets()) {
       const d = W.petOf(p.kind);
       gear[d.buff] = (gear[d.buff] || 0) + W.petBuff(p);
-      for (const [k, v] of Object.entries(d.also || {})) gear[k] = (gear[k] || 0) + v * W.petScale(p);   // 황룡: 둘 다
+      for (const [k, v] of Object.entries(d.also || {})) gear[k] = (gear[k] || 0) + v * W.petBuffScale(p);   // 황룡: 둘 다 · v390 완만하게
     }
     const mt = this.mountNow();
     const mk = this.mountK(this.mountInst());
@@ -2878,9 +2878,9 @@ export class WorldGame {
 
   // ---------- 애완동물 (v111) ----------
   petSlots() {
-    let n = 1;
+    let n = 1 + W.PET_SLOT_LV.filter((lv) => (this.s.level || 1) >= lv).length;   // v390 레벨 50 · 100에 하나씩
     for (const it of Object.values(this.s.equip)) for (const o of it?.opts || []) if (o.pet) n += o.pet;
-    return n;
+    return Math.min(W.PET_SLOT_MAX, n);
   }
   activePets() { return (this.s.pets || []).slice(0, this.petSlots()); }
   gainPet(rar, at, kind) {
@@ -4163,7 +4163,9 @@ export class WorldGame {
   // v313 두목이 다시 나서는 데 걸리는 초 — 화무기만 길다
   bossRespawn(map = this.map) { return W.BOSS_RESPAWN_SLOW[map?.master] || W.BOSS_RESPAWN; }
   bossTimeK() { return W.CLASSES[this.s.job]?.bossTime || 1; }
-  bossGapK(m) { return Math.max(W.GAP_OUT_MIN, 1 - W.GAP_OUT * Math.max(0, m.lv[1] + 2 - this.s.level)); }
+  // v390 맹주·천마·화무기·마귀는 만렙(150)보다 늘 높아 '높으니 덜 버텨도 된다'가 거꾸로 먹었다(천마 94초 · 화무기 60초 · 마귀 37초).
+  //   우두머리는 깎지 않고 고수마다 배수(minK) — 맹주·천마 1 · 화무기 1.6 · 마귀 2.4
+  bossGapK(m) { if (m.lord) return MS.masterOf(m.master)?.minK || 1; return Math.max(W.GAP_OUT_MIN, 1 - W.GAP_OUT * Math.max(0, m.lv[1] + 2 - this.s.level)); }
   overPower(baseHp, m) {
     const need = this.heroDpsEst() * this.bossMinSec(m) * this.bossGapK(m);
     return Math.max(1, Math.min(W.OVERPOWER_MAX, need / baseHp));

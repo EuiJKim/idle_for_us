@@ -181,7 +181,7 @@ export const MASTERS = [
   // ---------- 천외 (v238): 천마보다 강한 자 · 그 너머 ----------
   M({ id: 'hwamugi', skills: [{ name: '천하일통', pat: 'spiral' }, { name: '천라지망', pat: 'cage' }, { name: '붕천', pat: 'collapse' }, { name: '일점', pat: 'lead' }],
     mobs: [{ name: '십이지왕의 그림자', look: { robe: '#0c0a09', trim: '#fde047', head: 'mask', weapon: 'sword', scale: 1.15 } }, { name: '천하의 호위', look: { robe: '#1c1917', trim: '#facc15', head: 'topknot', weapon: 'spear', scale: 1.1 } }],
-    fac: 'apex', title: '천하제일인', name: '화무기', lv: 190, art: 15, lord: true, hit: 55, sec: 100, dmg: 1.6,
+    fac: 'apex', title: '천하제일인', name: '화무기', lv: 190, art: 15, lord: true, hit: 55, sec: 100, dmg: 1.6, minK: 1.6,
     castK: 0.72, tellK: 0.82, absK: 1.25, ultEvery: 3,
     look: { robe: '#fafaf9', trim: '#fde047', head: 'topknot', hair: '#e7e5e4', weapon: 'sword', aura: '#fde047', eyes: '#fde68a', scale: 1.9 },
     move: '무극 — 정·사·마의 수장을 모두 꺾은 손',
@@ -189,7 +189,7 @@ export const MASTERS = [
   // 히든 — 화무기를 쓰러뜨린 자에게만 길이 열린다
   M({ id: 'magwi', skills: [{ name: '자책하기', pat: 'blame' }, { name: '도박하기', pat: 'quad' }, { name: '마약하기', pat: 'haze' }],
     mobs: [{ name: '빚쟁이', look: { robe: '#18181b', trim: '#a1a1aa', head: 'hat', weapon: 'axe', scale: 1.1 } }, { name: '마귀의 하수인', look: { robe: '#2e1065', trim: '#a855f7', head: 'mask', weapon: 'claw', scale: 1.15 } }],
-    fac: 'apex', title: '히든', name: '마귀', lv: 200, art: 15, lord: true, hidden: true, hit: 70, sec: 120, dmg: 1.9,
+    fac: 'apex', title: '히든', name: '마귀', lv: 200, art: 15, lord: true, hidden: true, hit: 70, sec: 120, dmg: 1.9, minK: 2.4,
     castK: 0.6, tellK: 0.72, absK: 1.5, ultEvery: 2,
     look: { robe: '#09090b', trim: '#7c3aed', head: 'band', band: '#4c1d95', weapon: 'claw', aura: '#a855f7', eyes: '#f0abfc', scale: 2.0 },
     move: '자책 · 도박 · 마약 — 스스로를 갉아먹으며 남까지 끌어내린다',

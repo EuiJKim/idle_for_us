@@ -3568,5 +3568,22 @@ console.log('\n=== v387 칠대성·천계 어렵게 ===');
   ok(g.heroHp - h0 < st.hp * W.POTION_HEAL * 0.5 && g.potionT > W.POTION_GAP * 2, '마왕 앞에서는 물약이 덜 들고 숨이 길다(천계일수록 더)', `${((g.heroHp - h0) / st.hp).toFixed(3)} · ${g.potionT.toFixed(1)}s`);
   ok(/this\.inst\?\.kind === 'wraid';/.test(read('js/world/wgame.js')), '월드보스에서도 두목 흡혈·재생 상한');
 }
+console.log('\n=== v390 밸런스 점검 — 애완동물 칸·버프 · 우두머리 차례 · 강화석 어디서 ===');
+{
+  const MSx = await import('../js/world/wmaster.js');
+  const g = fresh('sword');
+  ok(g.petSlots() === 1, '처음엔 애완동물 한 칸');
+  while (g.s.level < 100) g.addExp(W.expToNext(g.s.level));
+  ok(g.petSlots() === 3, '레벨 50 · 100에 한 칸씩');
+  g.s.equip.finger = { ...(g.s.equip.finger || g.makeCrafted('finger', 0)), opts: [{ pet: 3 }] };
+  ok(g.petSlots() === W.PET_SLOT_MAX, '장비 옵션까지 합쳐 다섯까지', `${g.petSlots()}`);
+  const maxed = { kind: 'tiger', rar: 3, lv: 30, star: 5, dan: 10, q: 0 };
+  const lo = { kind: 'tiger', rar: 0, lv: 1, star: 0, dan: 0, q: 0 };
+  ok(W.petBuff(lo) === W.petOf('tiger').base * W.petScale(lo) && W.petBuff(maxed) < 1.2 && W.petBuff(maxed) > 0.9, '다 키운 백호 공격력 +100% 안팎(전엔 +275%) · 처음 것은 그대로', W.petBuff(maxed).toFixed(2));
+  const at = (id) => { const m = W.MAPS.find((x) => x.master === id && x.bossRoom); return g.bossMinSec(m) * g.bossGapK(m); };
+  while (g.s.level < 150) g.addExp(W.expToNext(g.s.level));
+  ok(at('jinpaecheon') <= at('cheonma') && at('cheonma') < at('hwamugi') && at('hwamugi') < at('magwi'), '최소 싸움 시간 — 맹주 ≤ 천마 < 화무기 < 마귀(높을수록 짧던 것을 바로)', ['jinpaecheon', 'cheonma', 'hwamugi', 'magwi'].map(at).map((v) => v.toFixed(0)).join(' · '));
+  ok(/k\.replace\(\/\^\(st\|b\|s\)\//.test(read('js/wui.js')), '강화석(st26) 어디서 — 지역 번호를 바로 읽는다');
+}
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);

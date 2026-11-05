@@ -792,6 +792,9 @@ export const SKILL_ORDINAL = ['1차', '2차', '3차', '보조기', '4차', '길'
 // 가락지·귀걸이에만 붙을 수 있는 '애완동물 +N' (함께 키울 수 있는 수가 는다)
 export const PET_SLOT_OPT = [0, 1, 2, 3];      // 등급별 (레어는 없음)
 export const PET_SLOT_CHANCE = 0.35;
+// v390 애완동물 칸 — 장비 옵션 운만이 아니라 레벨로도(50 · 100에 하나씩) · 모두 합쳐 다섯까지
+export const PET_SLOT_LV = [50, 100];
+export const PET_SLOT_MAX = 5;
 export function rollSkillOpts(rar, rng, extra = 0) {
   const out = [];
   const pick = (arr) => arr[Math.floor(rng() * arr.length)];
@@ -1116,7 +1119,11 @@ export const petDanMult = (pet) => 1 + (pet.dan || 0) * PET_DAN_K;
 export const PET_POWER_K = 1.3;
 export const PET_RAR_MULT = [1, 1.35, 1.8, 2.5];
 export const petScale = (pet) => PET_POWER_K * PET_RAR_MULT[pet.rar] * (1 + (pet.lv - 1) * 0.05) * (1 + (pet.star || 0) * PET_STAR_K) * petQualMult(pet) * petDanMult(pet);   // v292 별 · v316 품·단
-export const petBuff = (pet) => petOf(pet.kind).base * petScale(pet);
+// v390 다 키운 신화(별 5 · 단 10 · Lv30)는 ×23까지 커져 백호 하나가 공격력 +275%, 황룡이 공격·체력 +412%였다 — 칸 운(1~5마리)이 곧 강함(두 배)이었다.
+//   버프만 ×3 위로는 완만하게(×23 → ×9.2). 처음 몇 마리(×3 아래)는 그대로. 애완동물이 치는 힘(petAtkRatio)은 그대로.
+export const PET_BUFF_SOFT = 3;
+export const petBuffScale = (pet) => { const sc = petScale(pet); return sc <= PET_BUFF_SOFT ? sc : PET_BUFF_SOFT * (sc / PET_BUFF_SOFT) ** 0.55; };
+export const petBuff = (pet) => petOf(pet.kind).base * petBuffScale(pet);
 export const petAtkRatio = (pet) => (0.1 + petOf(pet.kind).tier * 0.025 + (pet.lv - 1) * 0.012) * PET_POWER_K * PET_RAR_MULT[pet.rar] * (1 + (pet.star || 0) * PET_STAR_K) * petQualMult(pet) * petDanMult(pet);   // 무인 공격력 대비 한 대 · v292 별 · v316 품·단
 export const PET_ATK_SEC = 1.6;
 

@@ -683,13 +683,14 @@ function bagTab(app) {
       };
       // ---- 강화 칸: +N → +N+1 · 성공 막대 · 비용 칩 · 단추 ----
       // v300 강화 창 — 여정(+1~+15) · 무엇이 오르나 · ▶ 다음 할 일 · ⓘ 강화란?
-      const STAT_KO = { atk: '공격력', hp: '체력', def: '방어' };
+      const STAT_KO = { atk: '공격력', hp: '체력', def: '방어', hpPct: '최대 체력', atkPct: '공격력', crit: '치명', critDmg: '치명 피해', skillDmg: '스킬 피해', bossDmg: '두목 피해', dmgRed: '피해 감소', speed: '공격 속도', drain: '흡혈' };   // v390 장신구 몫(%)도 이름으로
       const mainStat = (o) => ['atk', 'hp', 'def'].find((k) => o[k] > 0) || Object.keys(o)[0];
       const enhGain = () => {
         const lv = it.plus || 0;
         const a = game.itemStats(it), b = game.itemStats({ ...it, plus: lv + 1 });
         const k = mainStat(a);
-        return k ? h('div', { class: 'enh-gain' }, h('span', {}, STAT_KO[k] || k), h('b', {}, fmt(Math.round(a[k] || 0))), h('i', {}, '→'), h('b', { class: 'up' }, fmt(Math.round(b[k] || 0))), h('small', {}, ` +${pct(lv >= W.ENHANCE_NORMAL ? W.BREAK_STEP : W.ENHANCE_STEP, 0)}`)) : null;
+        const flat = ['atk', 'hp', 'def'].includes(k); const show = (v) => (flat ? fmt(Math.round(v || 0)) : `${((v || 0) * 100).toFixed(1)}%`);
+        return k ? h('div', { class: 'enh-gain' }, h('span', {}, STAT_KO[k] || k), h('b', {}, show(a[k])), h('i', {}, '→'), h('b', { class: 'up' }, show(b[k])), h('small', {}, ` +${pct(lv >= W.ENHANCE_NORMAL ? W.BREAK_STEP : W.ENHANCE_STEP, 0)}`)) : null;
       };
       // 여정 — 15칸. 1~6 그대로 · 7~9 실패 -1 · 10~ 돌파(-2 · 증표 · 보호부). 레벨 상한 너머는 잠김
       const enhRoad = () => {
@@ -1693,7 +1694,7 @@ export function matWhere(game, key) {
   }
   const stone = G.isStoneKey(k);
   const boss = stone || k.startsWith('b');
-  const z = parseInt(k.replace(/^[bs]/, ''), 10);
+  const z = parseInt(k.replace(/^(st|b|s)/, ''), 10);   // v390 강화석(st26)은 's'만 떼면 't26' — 아무 데도 안 갔다
   const zone = W.zoneOfW(z);
   if (!zone) return null;
   // 두목 것은 두목 구역으로, 몹 것은 갈 수 있는 가장 센 구역으로 (거기가 제일 잘 나온다)
@@ -1711,7 +1712,7 @@ export function matWhere(game, key) {
     have: game.s.mats[k] || 0,
     can: game.canEnter(id),
     need: map ? map.lv[0] : 0,
-    from: stone ? `${zone.name} 두목이 떨궈요` : boss ? `${zone.name} 두목 구역의 두목이 떨궈요` : `${zone.name} 몹이 떨궈요`,
+    from: stone ? `${zone.name} 두목이 ${G.STONE_PER_BOSS}개씩 떨궈요 · 가방 › 대장장이(세트 장비)에서 ${W.ORE_NAME}으로 만들 수도 있어요` : boss ? `${zone.name} 두목 구역의 두목이 떨궈요` : `${zone.name} 몹이 떨궈요`,
   };
 }
 
