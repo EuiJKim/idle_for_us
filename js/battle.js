@@ -813,6 +813,13 @@ export class BattleView {
     ctx.beginPath(); ctx.arc(hx, hy, this.shBigDot ? 10 : 6, 0, Math.PI * 2); ctx.fill(); ctx.stroke();   // v377 크게 보기(맞는 크기는 그대로)
     ctx.restore();
   }
+  // v379 절전 — 그리지 않는 동안 연출 목록은 줄지 않고 쌓인다(지우는 일은 그릴 때만 한다). 몇 시간 쌓이면
+  //   깨어나는 첫 프레임이 수만 개를 한꺼번에 처리하느라 멈칫했다 → 들어갈 때·나올 때 모두 비운다
+  resetFx() {
+    for (const k of ['floats', 'particles', 'effects', 'projectiles', 'corpses', 'sparks', 'paths', 'rangeRings', 'later', 'wbShots']) if (Array.isArray(this[k])) this[k].length = 0;
+    this.pending = null; this.director = null; this.banner = null; this.hanja = null; this.shake = 0;
+    if (this.loot) this.loot = {};
+  }
   handle(ev, game) {
     if (this.pending && !ev._released && this.hold(ev, game)) return;
     // 날아가는 평타는 닿을 때 숫자가 뜬다

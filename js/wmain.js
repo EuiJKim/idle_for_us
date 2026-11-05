@@ -1388,9 +1388,11 @@ function openCustom(first = false) {
 }
 
 // ---------- 사건 ----------
+// v379 절전 중에는 그리지 않으니 연출 사건은 화면 쪽으로 넘기지 않는다(쌓이기만 한다) — 화면 상태에 필요한 것만
+const SAVER_VIEW_EV = new Set(['mapEnter', 'instEnd', 'heroDied', 'revive', 'jobChange', 'advance']);
 function handleEvents() {
   for (const ev of game.events) {
-    view.handle(ev, game);
+    if (!saver.on || SAVER_VIEW_EV.has(ev.type)) view.handle(ev, game);
     // 소리 (타격감) — 광역기 수십 대는 sfx가 간격을 둬서 몇 번만 난다
     switch (ev.type) {
       case 'attack': sfx('swish'); coop.noteAttack(); wbCoop.noteAttack(); break;
@@ -2060,7 +2062,8 @@ const saver = new AM.Saver($('app'), () => {
   };
 });
 window.__test_saver = (on) => { if (on) saver.enter(); else if (on === false) saver.exit(); return saverRun?.loot || []; };
-saver.onEnter = () => { game.mark('saver'); const s = game.s; saverRun = { t0: Date.now(), gold: s.gold, kills: s.kills, deaths: s.deaths, level: s.level, exp: s.exp / game.expNeed(), loot: [] }; };
+saver.onExit = () => { view.resetFx(); last = performance.now(); refreshUI(true); };   // v379 깨어날 때 쌓인 연출을 비운다
+saver.onEnter = () => { view.resetFx(); game.mark('saver'); const s = game.s; saverRun = { t0: Date.now(), gold: s.gold, kills: s.kills, deaths: s.deaths, level: s.level, exp: s.exp / game.expNeed(), loot: [] }; };
 $('btn-saver').addEventListener('click', () => saver.enter());
 const fsBtn = $('btn-fs');
 if (!AM.isStandalone() && AM.canFullscreen()) fsBtn.classList.remove('hidden');
@@ -2817,6 +2820,7 @@ function step(now) {
   const t1 = performance.now();
   if (dg) { dg.tick += tB - tA; dg.ev += t1 - tB; }
   if (!saver.on && !hunt?.noDraw) view.draw(game, dt);
+  else if (saver.on && (view.effects.length || view.floats.length || view.particles.length)) view.resetFx();   // v379 절전 중엔 쌓아 두지 않는다
   if (dg) dg.draw += performance.now() - t1;
   if (perfBox) perfNote(now, t1, performance.now());
   uiTimer += dt;

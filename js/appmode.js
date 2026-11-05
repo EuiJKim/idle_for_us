@@ -131,6 +131,7 @@ export class Saver {
     this.idle = 0;
     this.el.classList.add('hidden');
     keepAwake(false);
+    this.onExit?.();   // v379 깨어날 때 — 그리는 쪽이 쌓인 연출을 비운다
   }
   // 바깥 고리가 dt마다 부른다. 저절로 들어갈 때가 되면 true
   tick(dt, canAuto) {
