@@ -4384,12 +4384,12 @@ export class WorldGame {
     const r = this.s.wraid;
     return r.day === D.kstDay(now) ? Math.max(0, D.WRAID_PER_DAY - r.n) : D.WRAID_PER_DAY;
   }
-  // v374 언제든 들어간다 — 참여 보상만 하루 WRAID_PAID판 · v375 옥황상제는 대성신장 여덟 +12
+  // v374 언제든 들어간다 — 참여 보상만 하루 WRAID_PAID판 · v375 옥황상제는 대성신장 일곱을 모두 끼면
   canWraid(hpLeft, now = Date.now(), boss = null) {
     if (this.inst || !this.s.job || this.s.level < D.WRAID_LV || !(hpLeft > 0)) return false;
     return boss !== D.OKHWANG.id || this.okhwangOpen();
   }
-  // 대성신장 여덟을 OK_PLUS 넘게 끼었나 — { n: 갖춘 부위 수, ok }
+  // 대성신장 일곱을 모두 끼었나 — { n: 낀 부위 수, ok }
   palmaReady() {
     const n = G.PALMA_SLOTS.filter((sl) => { const it = this.s.equip[sl]; return G.isPalma(it) && (it.plus || 0) >= D.OK_PLUS; }).length;
     return { n, ok: n >= G.PALMA_SLOTS.length };

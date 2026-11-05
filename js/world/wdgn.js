@@ -296,7 +296,7 @@ export function tellCovers(tl, x, y) {
 //   서버: wbp/{마왕} = {seq} 지금 몇 번째 마왕인가 · wraid/{마왕}_{seq} = 그 마왕의 체력·피해·받음. 쓰러지면 누구든 다음 마왕(seq+1)을 바로 세운다.
 //   체력 = 화무기 기본 체력 × WRAID_HP_K(4) — 혼자서는 한참, 같이 쳐야 잡힌다. 옥황상제는 그 × OK_HP_K.
 //   쓰러지면 한 대라도 친 사람은 모두 그 마왕이 맡은 **대성신장 한 부위**(등급은 굴린다) + 순위대로 은자·조각.
-//   대성신장 일곱 부위를 모두 +12 넘게 끼면 천외천 천궁의 **옥황상제**에게 갈 수 있다.
+//   대성신장 일곱 부위를 모두 끼면(강화와 상관없이) 천외천 천궁의 **옥황상제**에게 갈 수 있다.
 // 한 판 WRAID_SEC초 · 언제든 · 참여 보상은 하루 WRAID_PAID판까지 · 같은 마왕 판에 든 무인이 서로 보인다(wbcoop.js).
 export const WRAID_SEC = 120;
 export const WRAID_PAID = 5;
@@ -305,7 +305,7 @@ export const WRAID_HP_K = 4;                 // 화무기 기본 체력의 몇 �
 export const WRAID_PARTS = 7;                // 칠대성 — 대성신장 일곱 부위(귀걸이는 없다)
 export const OK_HP_K = 3;                    // 옥황상제 = 마왕 × 이것
 export const WRAID_LV = 120;                 // 이 레벨부터
-export const OK_PLUS = 12;                   // 옥황상제에게 가려면 대성신장 일곱 부위 모두 이 강화 넘게
+export const OK_PLUS = 0;                    // v375 옥황상제 — 대성신장 일곱 부위를 모두 끼기만 하면(강화 요구 없음)
 // v375 칠대성(七大聖) — 화과산에서 의형제를 맺은 일곱 요괴 왕(우마왕이 맏형, 손오공이 막내). 생김새·빛깔·탄(shot)·패턴 차례 · 맡은 세트 부위(slot)와 이름(piece)
 //   shot: fire 불덩이 · water 물방울 · feather 깃 · gold 금빛 포효 · shade 그림자 혼 · bolt 번개 · cloud 근두운 금빛 · heaven 천광
 const P = (p, name, o = {}) => ({ p, name, ...o });
@@ -325,7 +325,7 @@ export const WRAID_BOSSES = [
   { id: 'sonogong', name: '손오공', hanja: '孫悟空', title: '제천대성(齊天大聖)', art: 'wb-sonogong', col: '#fbbf24', shot: 'cloud', slot: 'finger', piece: '긴고환',
     pats: [P('cross', '여의봉 팔방'), P('homing', '칠십이변 분신'), P('spiral', '근두운', { arms: 6 }), P('rain', '천궁 대소동'), P('burst', '화안금정')] },
 ];
-// 천외천 천궁의 주인 — 대성신장 일곱을 +12로 갖춘 자만. 칠대성의 패턴을 섞어 쓴다
+// 천외천 천궁의 주인 — 대성신장 일곱을 모두 낀 자만. 칠대성의 패턴을 섞어 쓴다
 export const OKHWANG = { id: 'okhwang', name: '옥황상제', hanja: '玉皇上帝', title: '천외천 천궁의 주인', art: 'wb-okhwang', col: '#fde68a', shot: 'heaven', final: true,
   pats: [P('ring', '남천문 천광', { big: true }), P('cross', '사대천사의 진'), P('homing', '천병천장'), P('fan', '탁탑천왕의 보탑'), P('spiral', '나타 풍화륜', { arms: 6 }),
     P('rain', '이랑진군의 천안'), P('burst', '태상노군의 팔괘로'), P('wave', '반도원 은하수'), P('spiral', '구룡승천', { arms: 9 })] };

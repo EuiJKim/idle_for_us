@@ -2096,7 +2096,7 @@ function dgnTab(app) {
         h('li', {}, `👹 화과산의 의형제 칠대성(우마왕~손오공)이 늘 서 있어요 — 체력은 화무기의 ${D.WRAID_HP_K}배, 무림 사람 모두가 함께 깎아요(혼자서는 한참)`),
         h('li', {}, `🎯 탄을 피하며 쳐요 — 작은 흰 점만 맞아요 · 근거리는 코앞까지 붙어야, 원거리는 멀리서 · ${finePointer ? 'WASD·화살표' : '화면을 끌어'} 움직이고 손을 떼면 자동으로 피해요`),
         h('li', {}, `🛡 쓰러지면 한 대라도 친 사람 모두 그 마왕의 대성신장 한 부위 + 순위 보상(1위 ×3 · 2~3위 ×2 · 10위까지 ×1.5) · 쓰러지면 곧 다음 마왕이 일어나요`),
-        h('li', {}, `☁ 대성신장 일곱을 모두 +${D.OK_PLUS} 넘게 끼면 천외천 천궁 — 옥황상제에게 갈 수 있어요`),
+        h('li', {}, '☁ 대성신장 일곱 부위를 모두 끼면 천외천 천궁 — 옥황상제에게 갈 수 있어요'),
         h('li', {}, `⏱ 한 판 ${D.WRAID_SEC}초 · 언제든 · 참여 보상은 하루 ${D.WRAID_PAID}판(오늘 ${game.wraidLeft(now)}판 남음) · 레벨 ${D.WRAID_LV}부터`))));
     if (!on) out.push(h('p', { class: 'muted dgn-desc' }, '온라인일 때 들어갈 수 있어요.'));
     else if (s.level < D.WRAID_LV) out.push(h('p', { class: 'muted dgn-desc' }, `레벨 ${D.WRAID_LV}부터 마왕에게 갈 수 있어요.`));
@@ -2146,8 +2146,8 @@ function dgnTab(app) {
         h('div', { class: 'wraid-head' }, h('img', { class: 'wraid-banner', src: 'art/ui/wb-heaven.webp', alt: '' }), h('img', { class: 'wraid-boss', src: `art/boss/${ok.art}.png`, alt: ok.name }),
           h('div', { class: 'wraid-name' }, h('small', {}, '천외천(天外天) · 천궁'), h('b', {}, ok.name, h('i', {}, ` ${ok.hanja}`)))),
         h('p', { class: 'muted dgn-desc' }, pr.ok ? `대성신장을 두른 자에게 하늘 문이 열렸어요. 체력은 마왕의 ${D.OK_HP_K}배 · 칠대성의 탄을 모두 쓰고 더 빠르고 빽빽해요.`
-          : `대성신장 일곱 부위를 모두 +${D.OK_PLUS} 넘게 끼면 열려요 — 지금 ${pr.n}/${G.PALMA_SLOTS.length}`),
-        h('div', { class: 'wraid-slots' }, ...W.SLOTS.filter((x) => G.PALMA_SLOTS.includes(x.id)).map((x) => { const it = s.equip[x.id]; const good = it?.set === 'palma' && (it.plus || 0) >= D.OK_PLUS; return h('span', { class: `chip${good ? ' on' : ''}` }, `${x.name}${it?.set === 'palma' ? ` +${it.plus || 0}` : ''}`); })),
+          : `대성신장 일곱 부위를 모두 끼면 열려요 — 지금 ${pr.n}/${G.PALMA_SLOTS.length}`),
+        h('div', { class: 'wraid-slots' }, ...W.SLOTS.filter((x) => G.PALMA_SLOTS.includes(x.id)).map((x) => { const it = s.equip[x.id]; const good = it?.set === 'palma'; return h('span', { class: `chip${good ? ' on' : ''}` }, `${x.name}${it?.set === 'palma' ? ` +${it.plus || 0}` : ''}`); })),
         h('button', { class: 'pref-link', onclick: () => openModal((el) => el.append(h('h2', {}, '☁ 천계 이야기'),
           h('p', { class: 'muted', style: 'font-size:12.5px' }, '칠대성의 막내 제천대성이 한바탕 휘젓고 간 하늘 — 이제 그 신장을 두른 무인이 남천문 앞에 섰다.'),
           ...D.HEAVEN_STORY.map((x) => h('div', { class: 'heaven-story' }, h('b', {}, x.who), h('p', {}, x.text))),

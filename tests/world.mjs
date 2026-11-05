@@ -3349,7 +3349,7 @@ console.log('\n=== v373~v375 칠대성(상시 최종 두목) · 탄막 · 대성
   ok(!mk('sword', 110).canWraid(1000, now), `레벨 ${D3.WRAID_LV} 전엔 못 간다`);
   const g = mk('sword');
   const maxHp = 5e10, hpLeft = 3e10;
-  ok(g.canWraid(1000, now, 'umawang') && !g.canWraid(1000, now, 'okhwang'), '대성은 늘 · 옥황상제는 대성신장 일곱 +12 뒤에');
+  ok(g.canWraid(1000, now, 'umawang') && !g.canWraid(1000, now, 'okhwang'), '대성은 늘 · 옥황상제는 대성신장 일곱을 다 낀 뒤에');
   ok(g.startWraid({ id: 'umawang_1', hpLeft, maxHp }, now) && g.inst?.kind === 'wraid' && g.inst.key === 'umawang_1' && g.inst.boss0 === 'umawang', '마왕 판 — 문서 이름 · 마왕');
   for (let i = 0; i < 200 && (!g.inst.boss || g.freezeT > 0 || g.inst.boss.introT > 0); i++) g.tick(0.05);
   const b = g.inst.boss;
@@ -3398,9 +3398,10 @@ console.log('\n=== v373~v375 칠대성(상시 최종 두목) · 탄막 · 대성
   g._stats = null; g._setb = null;
   ok(g.setCounts().palma === 7 && g.setBonus().bossDmg >= 1.3, '일곱 부위 세트 효과(2·4·6·7)', JSON.stringify(g.setBonus()));
   ok(g.stats().power > p0 * 2, '대성신장 +12 일곱 — 크게 세진다', `${Math.round(p0)} → ${Math.round(g.stats().power)}`);
-  ok(g.palmaReady().ok && g.canWraid(1000, now, 'okhwang'), `일곱 모두 +${D3.OK_PLUS} → 천외천 옥황상제`);
-  g.s.equip.finger.plus = 11; ok(!g.okhwangOpen() && g.palmaReady().n === 6, '하나라도 +12가 안 되면 닫힌다');
-  g.s.equip.finger.plus = 12;
+  ok(g.palmaReady().ok && g.canWraid(1000, now, 'okhwang'), '일곱 부위를 모두 끼면 → 천외천 옥황상제');
+  g.s.equip.finger.plus = 0; ok(g.okhwangOpen(), '강화와 상관없이 — +0이어도 열린다');
+  const ring0 = g.s.equip.finger; g.s.equip.finger = null; g._stats = null; ok(!g.okhwangOpen() && g.palmaReady().n === 6, '한 부위라도 빠지면 닫힌다');
+  g.s.equip.finger = ring0;
   ok(g.startWraid({ id: 'okhwang_1', hpLeft, maxHp }, now) && g.map.final && g.map.wb === 'okhwang', '옥황상제 판'); g.leaveInst();
   g.wraidClaim(4, 'okhwang'); g.checkTitles();
   ok(g.hasTitle('wraid1') && g.hasTitle('palma8') && g.hasTitle('okhwang'), '〈천하 토벌 일인자〉 · 〈대성신장을 두른 자〉 · 〈천외천〉');
