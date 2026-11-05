@@ -3553,7 +3553,7 @@ console.log('\n=== v387 칠대성·천계 어렵게 ===');
 {
   const Dx = await import('../js/world/wdgn.js');
   const hw = 5e9;
-  ok(Dx.wraidMaxHp(hw, 'umawang') >= hw * 200 && Dx.wraidMaxHp(hw, 'seokga') / Dx.wraidMaxHp(hw, 'umawang') >= 10, '체력 크게 — 칠대성 화무기 ×300 · 석가여래는 그 ×12');
+  ok(Dx.wraidMaxHp(hw, 'umawang') >= hw * 1000 && Dx.wraidMaxHp(hw, 'seokga') / Dx.wraidMaxHp(hw, 'umawang') >= 10, '체력 크게 — 칠대성 화무기 ×1000 · 석가여래는 그 ×12');
   ok([0, 1, 2, 3].every((i) => i === 0 || (Dx.WB_TIER[i].hit > Dx.WB_TIER[i - 1].hit && Dx.WB_TIER[i].heal < Dx.WB_TIER[i - 1].heal && Dx.WB_TIER[i].dens > Dx.WB_TIER[i - 1].dens && Dx.WB_TIER[i].pot > Dx.WB_TIER[i - 1].pot)), '단계마다 — 아프게 · 회복 덜 · 빽빽하게 · 물약 숨 길게');
   ok(Dx.wbTierOf('umawang') === 0 && Dx.wbTierOf('nata') === 1 && Dx.wbTierOf('okhwang') === 2 && Dx.wbTierOf('seokga') === 3, '단계 나누기');
   // 회복이 줄어든다 — 흡혈·물약이 끝없이 들지 않는다
