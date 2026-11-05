@@ -2479,6 +2479,7 @@ export class BattleView {
   }
 
   drawWeather(z, dt) {
+    if (this.lowSpec) return;   // v368 저사양 모드 — 날씨 끔
     const { ctx, w, h } = this;
     // v261: 카메라가 흐르면 알갱이도 흐른다(앞 겹 1배 · 뒤 겹 0.5배) — 전엔 화면에 붙어 있어 무인이 걸어도 눈·잎이 그대로였다
     const cx0 = this.fieldMode && this.camX != null ? this.camX : 0, cy0 = this.fieldMode && this.camY != null ? this.camY * this.squash : 0;
@@ -2601,7 +2602,7 @@ export class BattleView {
       }
     }
     if (this.fxLevel > 0) this.buffAura(game, x, y, false);
-    if (gale) { // 잔상
+    if (gale && !this.lowSpec) { // 잔상 (v368 저사양 모드면 끔)
       for (let i = 3; i >= 1; i--) {
         this.ctx.save();
         this.ctx.globalAlpha = 0.12 * (4 - i);

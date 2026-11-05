@@ -227,6 +227,7 @@ export const FX = {
   },
   // 무인의 잔상. 순보로 사라진 자리, 지나간 길에 남는다.
   ghost(v, ctx, e, k) {
+    if (v.lowSpec) return;   // v368 저사양 모드 — 잔상 끔
     const f = e.fade ?? 1;
     const a = (e.a0 ?? 1) * (k < f ? k / f : 1);
     if (a <= 0.01) return;

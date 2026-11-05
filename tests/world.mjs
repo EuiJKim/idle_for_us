@@ -629,6 +629,13 @@ console.log('\n=== 십이지왕 신화 · 가락지·귀걸이 · 애완동물 �
       g = mk('crane'); g.heroHp = 1; fire(g); ok(g.heroHp > 1, '학익진 — 체력 회복');
       ok(W.petSkillR({ kind: 'tiger', rar: 3 }) > 300 && W.petSkillSec({ rar: 3 }) < 4 && W.PET_SKILL_MULT === 7, '기술 반지름 300 넘게(신화 백호) · 신화 4초 안 · 평타의 7배');
     }
+    // v368 오늘 무료 · 픽업
+    {
+      const g = new WorldGame(newWorldSave(0), 0); g.s.job = 'sword';
+      ok(g.canGacha('pet', 1, true) && g.gacha('pet', 1, true)?.length === 1 && !g.canGacha('pet', 1, true) && g.canGacha('mount', 1, true), '오늘 무료 소환 — 종류마다 하루 한 번');
+      const pk = W.gachaPickup(), pk2 = W.gachaPickup(Date.now() + 7 * 86400e3);
+      ok(W.withPickup(W.GACHA_PET_KIND, pk.pet).find(([k]) => k === pk.pet)[1] === W.GACHA_PET_KIND.find(([k]) => k === pk.pet)[1] * 2 && (pk.pet !== pk2.pet || pk.mount !== pk2.mount), '이번 주 픽업 두 배 · 주마다 바뀐다', `${pk.pet}/${pk.mount} → ${pk2.pet}/${pk2.mount}`);
+    }
     // v366 우리 정리 · 기록
     {
       const g = new WorldGame(newWorldSave(0), 0); g.s.job = 'sword';

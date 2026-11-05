@@ -1205,6 +1205,14 @@ export const GACHA_MOUNT = [
 export const GACHA_MOUNT_PITY = 300;  // v363 300번 안에 신수(십이지·극)가 안 나오면 300번째 신수(전엔 100)
 export const GACHA_MOUNT_TEN = 9;     // 10연차엔 적토마(순위 9) 이상 하나
 export const GACHA_DUP_SHARD = 300;   // 가진 신수가 또 나오면 길들이기 +1 · 다 길들였으면 조각
+// v368 오늘의 무료 소환(하루 한 번 · 종류마다) · 이번 주 픽업(확률 두 배 — 월요일 0시 한국 시간마다 바뀐다)
+export const gachaDay = (now = Date.now()) => new Date(now + 9 * 3600e3).toISOString().slice(0, 10);
+export const gachaWeek = (now = Date.now()) => Math.floor((now + 9 * 3600e3 - 4 * 86400e3) / (7 * 86400e3));   // 1970-01-05(월)부터 센 주
+export const PICKUP_K = 2;
+const PICK_PET = ['yellow', 'tiger', 'dragon', 'monkey', 'phoenix'];
+const PICK_MOUNT = ['azure', 'cloud', 'ochu', 'z12', 'z7', 'z5', 'z3', 'redhare'];
+export const gachaPickup = (now = Date.now()) => { const w = gachaWeek(now); return { pet: PICK_PET[w % PICK_PET.length], mount: PICK_MOUNT[(w * 3 + 1) % PICK_MOUNT.length] }; };
+export const withPickup = (table, id) => table.map(([k, w]) => [k, k === id ? w * PICKUP_K : w]);
 export function pickW(table, rng, filter = null) {
   const t = filter ? table.filter(filter) : table;
   let r = rng() * t.reduce((a, [, w]) => a + w, 0);

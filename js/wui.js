@@ -3049,15 +3049,17 @@ function compTab(app) {
     const done = () => { app.save(); sig = ''; app.refresh(); };
     // v362 뽑기 — 조각 100으로 한 번 · 1000으로 열 번 · 확률 보기
     const gachaRow = (kind, have, note) => h('div', { class: 'gacha-row' },
-      h('div', { class: 'g-info' }, h('b', {}, have), h('small', {}, ` ${note} · 천장 ${s.gacha[kind].pity}/${kind === 'pet' ? W.GACHA_PET_PITY : W.GACHA_MOUNT_PITY}`)),
+      h('div', { class: 'g-info' }, h('b', {}, have), h('small', {}, ` ${note} · 천장 ${s.gacha[kind].pity}/${kind === 'pet' ? W.GACHA_PET_PITY : W.GACHA_MOUNT_PITY}`),
+        h('small', { class: 'g-pick' }, `✨ 이번 주 픽업 — ${kind === 'pet' ? `${W.petOf(W.gachaPickup().pet).emoji} ${W.petOf(W.gachaPickup().pet).name}` : `${W.mountOf(W.gachaPickup().mount).emoji} ${W.mountOf(W.gachaPickup().mount).name}`} 확률 ${W.PICKUP_K}배`)),
       h('div', { class: 'g-btns' },
+        game.freeGacha(kind) ? h('button', { class: 'buy gacha-free', id: `gacha-${kind}-free`, disabled: game.canGacha(kind, 1, true) ? null : true, onclick: () => runGacha(kind, 1, true) }, '🎁 오늘 무료') : null,
         h('button', { class: 'btn mini', onclick: () => openGachaRates(kind) }, '확률'),
         h('button', { class: 'btn mini', onclick: () => openGachaLog(game, kind) }, '기록'),
         h('button', { class: 'buy gacha-1', id: `gacha-${kind}-1`, disabled: game.canGacha(kind, 1) ? null : true, onclick: () => runGacha(kind, 1) }, `소환 ×1 (${W.GACHA_COST})`),
         h('button', { class: 'buy gacha-10', id: `gacha-${kind}-10`, disabled: game.canGacha(kind, 10) ? null : true, onclick: () => runGacha(kind, 10) }, `×10 (${W.GACHA_COST * 10})`)));
-    const runGacha = (kind, n) => {
-      if (!game.canGacha(kind, n)) return toast(game.gachaRoom(kind) < n ? '우리가 모자라요 — 놓아주거나 키우는 칸으로 옮겨요' : '조각이 모자라요');
-      const res = game.gacha(kind, n);
+    const runGacha = (kind, n, free = false) => {
+      if (!game.canGacha(kind, n, free)) return toast(game.gachaRoom(kind) < n ? '우리가 모자라요 — 놓아주거나 키우는 칸으로 옮겨요' : '조각이 모자라요');
+      const res = game.gacha(kind, n, free);
       if (!res) return;
       app.save();
       // v366 자랑 — 신화 애완동물 · 신수 탈것이 나오면 문파·전체 채팅에 한 줄(열 번이어도 한 줄)
@@ -3232,8 +3234,8 @@ function compTab(app) {
   ], 'ifu.compsub');
   const upd0 = t.update;
   t.update = () => {
-    t.setDot('pet', (game.s.petBox.length > 0 && game.s.pets.length < game.petSlots()) || game.canGacha('pet', 1) || game.s.pets.some((p) => game.canStar(p.uid)));
-    t.setDot('mount', (game.s.mounts.length > 0 && game.s.mount == null) || game.canGacha('mount', 1));
+    t.setDot('pet', (game.s.petBox.length > 0 && game.s.pets.length < game.petSlots()) || game.canGacha('pet', 1) || game.canGacha('pet', 1, true) || game.s.pets.some((p) => game.canStar(p.uid)));
+    t.setDot('mount', (game.s.mounts.length > 0 && game.s.mount == null) || game.canGacha('mount', 1) || game.canGacha('mount', 1, true));
     t.setDot('dex', game.dexGoalsReady() > 0);
     upd0();
   };
@@ -3258,13 +3260,15 @@ function openGachaLog(game, kind) {
 // v362 뽑기 확률표
 function openGachaRates(kind) {
   const pct = (v) => `${String(+v.toFixed(3))}%`;
+  const pk = W.gachaPickup();   // v368 이번 주 픽업은 두 배로 보여 준다(나머지는 그만큼 나눠 줄어든다)
+  const norm = (t, id) => { const w = W.withPickup(t, id); const sum = w.reduce((a, [, x]) => a + x, 0); return w.map(([k, x]) => [k, (x / sum) * 100]); };
   openModal((el) => {
     const rows = kind === 'pet'
       ? [h('h3', {}, '영수 소환 확률'), h('p', { class: 'muted' }, `종과 등급을 따로 뽑아요 · 10연차엔 전설 이상 하나 · ${W.GACHA_PET_PITY}번 안에 신화가 안 나오면 ${W.GACHA_PET_PITY}번째 신화`),
-        h('div', { class: 'rate-grid' }, h('b', {}, '종'), h('b', {}, '확률'), ...W.GACHA_PET_KIND.flatMap(([k, w]) => [h('span', {}, `${W.petOf(k).emoji} ${W.petOf(k).name}`), h('span', {}, pct(w))])),
+        h('div', { class: 'rate-grid' }, h('b', {}, '종'), h('b', {}, '확률'), ...norm(W.GACHA_PET_KIND, pk.pet).flatMap(([k, w]) => [h('span', {}, `${W.petOf(k).emoji} ${W.petOf(k).name}${k === pk.pet ? ' ✨픽업' : ''}`), h('span', {}, pct(w))])),
         h('div', { class: 'rate-grid' }, h('b', {}, '등급'), h('b', {}, '확률'), ...W.GACHA_PET_RAR.flatMap(([r, w]) => [h('span', { style: `color:${W.RARITY[r].color}` }, W.RARITY[r].name), h('span', {}, pct(w))]))]
       : [h('h3', {}, '탈것 소환 확률'), h('p', { class: 'muted' }, `10연차엔 적토마(순위 ${W.GACHA_MOUNT_TEN}) 이상 하나 · ${W.GACHA_MOUNT_PITY}번 안에 신수(십이지·극)가 안 나오면 ${W.GACHA_MOUNT_PITY}번째 신수 · 가진 신수가 또 나오면 길들이기 +1`),
-        h('div', { class: 'rate-grid' }, h('b', {}, '탈것'), h('b', {}, '확률'), ...W.GACHA_MOUNT.flatMap(([k, w]) => { const d = W.mountOf(k); return [h('span', { style: d.hard ? 'color:#fde047' : d.zodiac ? 'color:#f472b6' : '' }, `${d.emoji} ${d.name}${d.hard ? ' (극)' : ''}`), h('span', {}, pct(w))]; }))];
+        h('div', { class: 'rate-grid' }, h('b', {}, '탈것'), h('b', {}, '확률'), ...norm(W.GACHA_MOUNT, pk.mount).flatMap(([k, w]) => { const d = W.mountOf(k); return [h('span', { style: d.hard ? 'color:#fde047' : d.zodiac ? 'color:#f472b6' : '' }, `${d.emoji} ${d.name}${d.hard ? ' (극)' : ''}${k === pk.mount ? ' ✨픽업' : ''}`), h('span', {}, pct(w))]; }))];
     el.append(...rows, h('div', { class: 'btn-row' }, h('button', { class: 'btn primary', onclick: closeModal }, '닫기')));
   });
 }

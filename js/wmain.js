@@ -2094,6 +2094,7 @@ $('btn-settings').addEventListener('click', () => openModal((s) => {
   };
   s.append(h('h2', {}, '설정'),
     setSec('게임', true,
+    toggleRow('저사양 모드', lowSpec, '버벅이는 폰이면 켜요 — 연출(기술 그림·기운·잔상)·화질·초당 그림 수를 한 번에 낮춰요', (v) => { setLowSpec(v); toast(v ? '저사양 모드 — 가볍게 그려요' : '저사양 모드를 껐어요 — 화질·연출 자동/높음'); }),
     toggleRow('소리', soundOn(), '때리는 소리·레벨업·좋은 장비 — 이 기기에만 남아요', (v) => {
       setSound(v);
       try { localStorage.setItem('ifu.sound', v ? '1' : '0'); } catch { /* 이번만 */ }
@@ -2370,6 +2371,21 @@ function applyQuality() {
 }
 applyQuality();
 window.__perf = perf;
+// v368 저사양 모드 — 한 번에: 연출 낮음(기술 그림·신수 기운·잔상·흔들림 빼고) · 화질 가볍게 · 초당 30 · 날씨 끔
+//   끄면 모두 자동/높음으로 되돌린다. 버거운 폰이 자동으로 끝까지 내려가도 버벅이면 한 번 권한다.
+let lowSpec = (() => { try { return localStorage.getItem('ifu.lowspec') === '1'; } catch { return false; } })();
+function setLowSpec(on) {
+  lowSpec = !!on;
+  try { localStorage.setItem('ifu.lowspec', lowSpec ? '1' : '0'); } catch { /* 이번만 */ }
+  perf.q = lowSpec ? 'low' : 'auto'; perf.fps = lowSpec ? '30' : 'auto'; perf.step = 0;
+  view.fxPref = lowSpec ? 0 : 2; view.lowSpec = lowSpec;
+  if (lowSpec) view.shakePref = 0;
+  try { localStorage.setItem('ifu.quality', perf.q); localStorage.setItem('ifu.fps', perf.fps); localStorage.setItem('ifu.fx', lowSpec ? 'low' : 'high'); } catch { /* 이번만 */ }
+  applyQuality();
+}
+if (lowSpec) { view.lowSpec = true; view.fxPref = 0; }
+window.__setLowSpec = setLowSpec;
+let lowSpecAsked = false;
 window.__diag = () => startDiag();
 window.__hunt = () => startHunt();
 // 1초마다: 지난 1초의 평균 프레임 간격을 보고 고친다 (30으로 묶였을 때는 두 번에 한 번 그리므로 반으로 본다)
@@ -2411,6 +2427,7 @@ function perfTick(ms) {
       if (now - perf.lastDrop < 60000 && perf.raised) perf.locked = true;   // 올렸다가 다시 버거웠다 — 더는 안 올린다
       perf.step++; perf.lastDrop = now; applyQuality();
     } else if (perf.fps === 'auto' && !perf.autoCap30) { perf.autoCap30 = true; applyQuality(); }
+    else if (!lowSpec && !lowSpecAsked && perf.ema > 40) { lowSpecAsked = true; toast('화면이 버거워 보여요 — 설정 › 저사양 모드를 켜면 훨씬 가벼워져요'); }   // v368
   } else if (perf.fast >= 20 && !perf.locked && !perf.cap30) {
     perf.fast = 0;
     if (perf.q === 'auto' && perf.step > 0 && now - perf.lastDrop > 30000) { perf.step--; perf.raised = true; applyQuality(); }

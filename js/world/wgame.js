@@ -183,7 +183,7 @@ export function migrateWorld(raw, now = Date.now()) {
   s.mountShard = Math.max(0, Math.floor(Number(raw.mountShard) || 0));
   const gc = raw.gacha && typeof raw.gacha === 'object' ? raw.gacha : {};   // v362 뽑기 천장
   s.gachaLog = Array.isArray(raw.gachaLog) ? raw.gachaLog.filter((e) => e && typeof e.id === 'string' && (W.PETS.some((p) => p.id === e.id) || W.mountOf(e.id))).slice(-100).map((e) => ({ t: Number(e.t) || 0, k: e.k === 'mount' ? 'mount' : 'pet', id: e.id, r: Math.max(0, Math.min(4, Math.floor(Number(e.r) || 0))), g: Math.max(0, Math.min(4, Math.floor(Number(e.g) || 0))) })) : [];   // v366 뽑기 기록(최근 100)
-  s.gacha = Object.fromEntries(['pet', 'mount'].map((k) => [k, { n: Math.max(0, Math.floor(Number(gc[k]?.n) || 0)), pity: Math.max(0, Math.floor(Number(gc[k]?.pity) || 0)) }]));
+  s.gacha = Object.fromEntries(['pet', 'mount'].map((k) => [k, { n: Math.max(0, Math.floor(Number(gc[k]?.n) || 0)), pity: Math.max(0, Math.floor(Number(gc[k]?.pity) || 0)), free: typeof gc[k]?.free === 'string' ? gc[k].free.slice(0, 10) : null }]));
   if (!s.mounts.some((m) => m.uid === s.mount)) s.mount = null;
   s.mats = {};
   // v273 옛 지역 재료는 그 지역 가중치대로 현철로 (한 번만 — 들어온 뒤로는 지역 재료 열쇠가 남지 않는다)
@@ -2783,13 +2783,18 @@ export class WorldGame {
   addShards(pet, mount) { if (pet) this.s.petShard = (this.s.petShard || 0) + pet; if (mount) this.s.mountShard = (this.s.mountShard || 0) + mount; }
   // ---------- v362 뽑기 ----------
   gachaRoom(kind) { return kind === 'pet' ? Math.max(0, this.petSlots() - this.s.pets.length) + Math.max(0, W.PET_BOX - this.s.petBox.length) : 999; }
-  canGacha(kind, n = 1) {
+  freeGacha(kind, now = Date.now()) { return this.s.gacha[kind].free !== W.gachaDay(now); }   // v368 오늘 무료 한 번
+  canGacha(kind, n = 1, free = false) {
+    if (free) return this.freeGacha(kind) && this.gachaRoom(kind) >= 1;
     const have = kind === 'pet' ? this.s.petShard || 0 : this.s.mountShard || 0;
     return have >= W.GACHA_COST * n && this.gachaRoom(kind) >= n;
   }
-  gacha(kind, n = 1) {
-    if (!this.canGacha(kind, n)) return null;
-    if (kind === 'pet') this.s.petShard -= W.GACHA_COST * n; else this.s.mountShard -= W.GACHA_COST * n;
+  gacha(kind, n = 1, free = false) {
+    if (!this.canGacha(kind, n, free)) return null;
+    if (free) { n = 1; this.s.gacha[kind].free = W.gachaDay(); }
+    else if (kind === 'pet') this.s.petShard -= W.GACHA_COST * n; else this.s.mountShard -= W.GACHA_COST * n;
+    const pick = W.gachaPickup();
+    const PK = W.withPickup(W.GACHA_PET_KIND, pick.pet), MT = W.withPickup(W.GACHA_MOUNT, pick.mount);
     const st = this.s.gacha[kind];
     const out = [];
     this._gachaQuiet = true;   // 알림 대신 뽑기 연출이 보여 준다
@@ -2800,15 +2805,15 @@ export class WorldGame {
         let rar = W.pickW(W.GACHA_PET_RAR, this.rng);
         if (st.pity >= W.GACHA_PET_PITY) rar = 3;
         if (lastOfTen && !out.some((r) => r.rar >= W.GACHA_PET_TEN) && rar < W.GACHA_PET_TEN) rar = W.pickW(W.GACHA_PET_RAR, this.rng, ([r]) => r >= W.GACHA_PET_TEN);
-        const pk = W.pickW(W.GACHA_PET_KIND, this.rng);
+        const pk = W.pickW(PK, this.rng);
         if (rar === 3) st.pity = 0;
         const pet = this.gainPet(rar, null, pk);
         out.push({ kind: 'pet', id: pk, rar, grade: W.petGachaGrade(pk, rar), pity: rar === 3 && st.pity === 0, pet });
         this.s.gachaLog.push({ t: Date.now(), k: 'pet', id: pk, r: rar, g: W.petGachaGrade(pk, rar) });
       } else {
         const sacred = (k) => { const d = W.mountOf(k); return d.zodiac || d.hard; };
-        let id = st.pity >= W.GACHA_MOUNT_PITY ? W.pickW(W.GACHA_MOUNT, this.rng, ([k]) => sacred(k)) : W.pickW(W.GACHA_MOUNT, this.rng);
-        if (lastOfTen && !out.some((r) => W.mountOf(r.id).tier >= W.GACHA_MOUNT_TEN) && W.mountOf(id).tier < W.GACHA_MOUNT_TEN) id = W.pickW(W.GACHA_MOUNT, this.rng, ([k]) => W.mountOf(k).tier >= W.GACHA_MOUNT_TEN);
+        let id = st.pity >= W.GACHA_MOUNT_PITY ? W.pickW(MT, this.rng, ([k]) => sacred(k)) : W.pickW(MT, this.rng);
+        if (lastOfTen && !out.some((r) => W.mountOf(r.id).tier >= W.GACHA_MOUNT_TEN) && W.mountOf(id).tier < W.GACHA_MOUNT_TEN) id = W.pickW(MT, this.rng, ([k]) => W.mountOf(k).tier >= W.GACHA_MOUNT_TEN);
         const d = W.mountOf(id);
         if (sacred(id)) st.pity = 0;
         let dup = null;
