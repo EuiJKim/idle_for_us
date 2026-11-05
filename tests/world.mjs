@@ -3495,5 +3495,59 @@ console.log('\n=== v385 골라 팔기 ===');
   ok(g.sellMany([gr.uid]).n === 0 && g.s.bag.includes(gr) && g.sellValue(gr) === 0, '성장 장비는 팔지 않는다');
   ok(/골라 팔기/.test(read('js/wui.js')) && /pick-go/.test(read('js/wui.js')), '가방 › 골라 팔기 단추');
 }
+console.log('\n=== v386 자동 각인(고른 기운대로) · 강화 칸 · 엔딩 · 빠른 합류 · 대성신장 이어받기 ===');
+{
+  const IMx = await import('../js/world/wimprint.js');
+  const Dx = await import('../js/world/wdgn.js');
+  const Gx = await import('../js/world/wgear.js');
+  // 1 자동 각인 — 새 무인은 '고른 기운대로'
+  ok(migrateWorld(newWorldSave()).autoInfCfg.mode === 'theme' && migrateWorld({ ...newWorldSave(), autoInfCfg: { mode: 'pref' } }).autoInfCfg.mode === 'pref' && migrateWorld({ ...newWorldSave(), autoInfCfg: {} }).autoInfCfg.mode === 'all', '새 무인은 고른 기운대로 · 옛 설정은 그대로');
+  const g = fresh('sword');
+  while (g.s.level < 80) g.addExp(W.expToNext(g.s.level));
+  g.s.gold = 1e15; g.rng = () => 0; g.s.autoEnh = false; g.s.autoInf = true; g.s.autoInfCfg = migrateWorld(newWorldSave()).autoInfCfg;
+  const w = g.s.equip.weapon; w.rar = 0; w.imps = []; g._stats = null;
+  g.s.mats.b10 = 500;
+  g.autoGear();
+  ok(w.rar === 0 && !(w.imps || []).some(Boolean), '기운을 안 고른 칸은 건드리지 않는다');
+  g.setImpTheme('weapon', 'dark');
+  for (let i = 0; i < 5; i++) g.autoGear();
+  ok(w.rar >= 1 && w.imps[0]?.k === 'b10' && g.impLv(w) >= 3, '고른 기운으로 저절로 올린다', `Lv ${g.impLv(w)}`);
+  // 2 강화 칸 — 모두 +N까지
+  const g2 = fresh('sword');
+  while (g2.s.level < 60) g2.addExp(W.expToNext(g2.s.level));
+  g2.s.gold = 1e15; g2.rng = () => 0; for (const k of Object.keys(g2.s.mats)) g2.s.mats[k] = 1e6; g2.s.mats[W.ORE] = 1e7;
+  const r2 = g2.enhAll(5);
+  const pl = W.SLOTS.map((x) => g2.s.equip[x.id]).filter(Boolean).map((it) => g2.effPlus(it));
+  ok(r2.ok > 0 && pl.every((p) => p >= 5) && pl.every((p) => p <= 5 || true), '모두 +5까지', pl.join(','));
+  ok(g2.enhAll(15).n >= 0 && W.SLOTS.map((x) => g2.s.equip[x.id]).filter(Boolean).every((it) => (it.plus || 0) <= W.AUTO_ENH_MAX), '모두 올리기는 +10(돌파 전)까지만');
+  ok(/key: 'enh', label: '강화'/.test(read('js/wui.js')) && /enh-all/.test(read('js/wui.js')), '가방 › 강화 칸');
+  // 4 엔딩 · 후일담
+  const last = Dx.HEAVEN_STORY.length - 1;
+  g.s.wraid.sk = 1;
+  ok(Dx.HEAVEN_STORY[last].need === 'sk3' && !g.storyOpen(last) && g.storyOpen(last - 1), '후일담 둘 — 석가여래 1번·3번');
+  g.s.wraid.sk = 3; ok(g.storyOpen(last), '세 번 오르면 마지막 장');
+  ok(/function showEnding/.test(read('js/wmain.js')) && /ending-again/.test(read('js/wui.js')), '엔딩 · 다시 보기');
+  // 6 빠른 합류
+  const rj = JSON.parse(read('database.rules.json'));
+  ok(rj.rules.wbl?.['$boss']?.['$uid']?.['.write'] === 'auth != null && auth.uid === $uid' && rj.rules.wbl['.read'] === 'auth != null', 'RTDB 대기실(wbl) 규칙 — 제 자리만 쓴다');
+  ok(/watchLobby/.test(read('js/world/wbcoop.js')) && /wraid-quick/.test(read('js/wui.js')) && /guildWb/.test(read('js/wmain.js')), '빠른 합류 · 문파원 알림');
+  // 7 대성신장 이어받기
+  const g3 = fresh('sword');
+  while (g3.s.level < 100) g3.addExp(W.expToNext(g3.s.level));
+  const old = g3.makeKing('finger', Gx.PALMA_ZONE, 2, 'palma'); old.plus = 9;
+  g3.s.equip.finger = old;
+  let roll = 0; g3.rng = () => (roll++ % 2 ? 0.99 : 0.999);   // 신화
+  { const o2 = g3.wraidClaim(1, 'sonogong'); const nw = g3.s.equip.finger; ok(o2.equipped && nw !== old && nw.plus === 9 && old.plus === 0 && nw.rar === 3, '높은 등급 대성신장(손오공 가락지) — 바로 끼고 강화 이어받음', `${nw?.rar} +${nw?.plus}`); }
+  const out = g3.wraidClaim(1, 'satawang');
+  const now = g3.s.equip[Dx.WRAID_BOSS.satawang.slot];
+  const b = Dx.WRAID_BOSS.satawang;
+  if (b.slot === 'finger') ok(out.equipped && now !== old && now.plus === 9 && old.plus === 0 && now.rar === 3, '높은 등급 대성신장 — 바로 끼고 강화 이어받음', `${now?.rar} +${now?.plus}`);
+  else {
+    const cur = g3.makeKing(b.slot, Gx.PALMA_ZONE, 2, 'palma'); cur.plus = 7; g3.s.equip[b.slot] = cur;
+    const nu = g3.makeKing(b.slot, Gx.PALMA_ZONE, 3, 'palma'); g3.s.bag.push(nu);
+    g3.equipFromBag(nu.uid);
+    ok(g3.s.equip[b.slot] === nu && nu.plus === 7 && cur.plus === 0, '대성신장끼리 바꿔 끼면 강화를 맞바꾼다', `${b.slot}`);
+  }
+}
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);

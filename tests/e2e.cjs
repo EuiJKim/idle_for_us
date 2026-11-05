@@ -178,6 +178,23 @@ async function tab(page, name) {
   await shot(p, '05d-imp-slot.png');
   await p.click('#modal .btn-row .btn:has-text("닫기")');
   assert(await p.isVisible('#panel #imp-all'), '각인 칸 — 모두 올리기 단추');
+  // v386 가방 › 강화 칸
+  await p.click('#panel .subtabs button[data-key="enh"]');
+  await p.waitForSelector('#panel #enh-all', { timeout: 5000 });
+  const ep0 = await G(p, () => Object.values(window.__game.s.equip).filter(Boolean).reduce((a, it) => a + (it.plus || 0), 0));
+  await p.locator('#panel .subtabs').scrollIntoViewIfNeeded();
+  await shot(p, '05f-enh.png');
+  await p.click('#panel #enh-all');
+  await sleep(300);
+  assert(await G(p, () => Object.values(window.__game.s.equip).filter(Boolean).reduce((a, it) => a + (it.plus || 0), 0)) > ep0, '강화 칸 — 모두 +N까지');
+  // v386 엔딩 화면
+  await G(p, () => window.__app.showEnding());
+  await p.waitForSelector('#modal .ending-roll', { timeout: 5000 });
+  await sleep(2600);
+  await shot(p, '05g-ending.png');
+  await p.click('#modal .btn:has-text("강호로 돌아가기")');
+  await G(p, () => { for (const it of Object.values(window.__game.s.equip)) if (it) it.plus = 0; window.__game._stats = null; window.__app.refresh(); });   // 아래 강화 시험은 +0부터
+
   await p.click('#panel .subtabs button[data-key="gear"]');
   await p.locator('#panel .gear-tile:has-text("무기")').click();
   await p.waitForSelector('#modal h2');

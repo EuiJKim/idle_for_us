@@ -59,6 +59,20 @@
         }
       }
     },
+    "wbl": {
+      ".read": "auth != null",
+      "$boss": {
+        ".validate": "$boss.matches(/^[a-z]{4,12}$/)",
+        "$uid": {
+          ".write": "auth != null && auth.uid === $uid",
+          ".validate": "newData.hasChildren(['n', 't'])",
+          "n": { ".validate": "newData.isString() && newData.val().length <= 24" },
+          "g": { ".validate": "newData.isString() && newData.val().length <= 40" },
+          "t": { ".validate": "newData.isNumber()" },
+          "$other": { ".validate": false }
+        }
+      }
+    },
     "wbr": {
       "$day": {
         ".read": "auth != null",

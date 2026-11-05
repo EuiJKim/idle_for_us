@@ -129,7 +129,7 @@ export function migrateWorld(raw, now = Date.now()) {
     const sl = {}; for (const k of W.GROW_SLOTS) if (c.slots?.[k] === false) sl[k] = false;
     // v293 mode: all(센 것부터) · pick(고른 증표) · pref(좋아하는 효과 — 맞는 증표를 찾아서). only는 옛 저장(pick)
     const FXK = new Set(Object.values(IM.THEMES).flatMap((t) => t.fx.map(([k]) => k)));
-    const mode = ['all', 'pick', 'pref'].includes(c.mode) ? c.mode : c.only ? 'pick' : 'all';
+    const mode = ['all', 'pick', 'pref', 'theme'].includes(c.mode) ? c.mode : c.only ? 'pick' : raw.autoInfCfg ? 'all' : 'theme';   // v386 새 무인은 '고른 기운대로'
     const prefFx = Array.isArray(c.prefFx) ? [...new Set(c.prefFx.filter((k) => FXK.has(k)))].slice(0, 8) : [];
     const prefSp = Array.isArray(c.prefSp) ? [...new Set(c.prefSp.filter((k) => k in IM.SPECIAL_KIND))].slice(0, 8) : [];
     // v294 좋아하는 스킬 변화(꼴 · 몇 차 무공) — 다시 굴릴 때 경고 · ♥
@@ -2731,6 +2731,8 @@ export class WorldGame {
     if (i < 0) return false;
     const it = this.s.bag.splice(i, 1)[0];
     const cur = this.s.equip[it.slot];
+    // v386 대성신장끼리 바꿔 끼면 강화를 맞바꾼다(더 높은 강화가 새 조각으로) — 같은 부위를 더 좋은 등급으로 받아도 강화가 날아가지 않게
+    if (G.isPalma(it) && G.isPalma(cur) && (cur.plus || 0) > (it.plus || 0)) { const t = it.plus || 0; it.plus = cur.plus; cur.plus = t; const te = it.epity || 0; it.epity = cur.epity || 0; cur.epity = te; this.emit('palmaCarry', { item: it, plus: it.plus }); }
     this.s.equip[it.slot] = it;
     if (cur) this.s.bag.push(cur);
     this._stats = null;
@@ -2834,6 +2836,21 @@ export class WorldGame {
     this.lastEnhance = r;
     this.emit('enhance', { item: it, ...r });
     return ok;
+  }
+  // v386 간단 강화 — 낀 장비 모두를 target까지(낮은 칸부터 · 돌파 +10 위는 직접). 물약 값은 남긴다.
+  enhAll(target = W.AUTO_ENH_MAX) {
+    const t = Math.max(1, Math.min(W.AUTO_ENH_MAX, target | 0));
+    const reserve = this.potionPrice() * 60;
+    const out = { n: 0, ok: 0, fail: 0 };
+    for (let i = 0; i < 300; i++) {
+      const it = W.SLOTS.map((x) => this.s.equip[x.id]).filter((x) => x && this.effPlus(x) < t && this.canEnhance(x) && this.s.gold - this.enhanceCost(x) > reserve)
+        .sort((a, b) => this.effPlus(a) - this.effPlus(b))[0];
+      if (!it) break;
+      const r = this.enhance(it.uid, true);
+      if (r == null) break;
+      out.n++; if (r) out.ok++; else out.fail++;
+    }
+    return out;
   }
   // 강화에 실패해 부서진 장비를 없앤다 (낀 것이면 칸이 빈다)
   destroyItem(it) {
@@ -3584,8 +3601,23 @@ export class WorldGame {
       const keep = {};
       for (const it of worn()) { const m = this.enhanceMats(it); if (m && it.step != null) { const bk = W.bossKey(W.itemZone(it)); keep[bk] = (keep[bk] || 0) + W.breakMarks(W.ENHANCE_MAX - 1) * 3; } }
       // v292 고른 증표만(고른 고유 효과로) · 고른 칸만 · v293 좋아하는 효과에 맞는 증표부터
-      const cfg = this.s.autoInfCfg || { mode: 'all', marks: {}, slots: {} };
+      const cfg = this.s.autoInfCfg || { mode: 'theme', marks: {}, slots: {} };
       const mode = cfg.mode || (cfg.only ? 'pick' : 'all');
+      // v386 고른 기운대로 — 각인 칸에서 고른 기운을 「올리기」와 똑같이(낮은 Lv 칸부터). 돌파 몫 증표·물약 값은 남긴다.
+      if (mode === 'theme') {
+        for (let n = 0; n < 12; n++) {
+          const cand = W.SLOTS.map((x) => this.s.equip[x.id]).filter((it) => it && cfg.slots?.[it.slot] !== false && this.canImprintItem(it))
+            .map((it) => ({ it, nx: this.impNext(it) }))
+            .filter(({ nx }) => nx.can && this.s.gold - (nx.gold || 0) > reserve && (!nx.key || (this.s.mats[nx.key] || 0) - nx.n >= (keep[nx.key] || 0)))
+            .sort((a, b) => this.impLv(a.it) - this.impLv(b.it));
+          if (!cand.length) break;
+          const r = this.impUp(cand[0].it.uid);
+          if (!r) break;
+          if (r.kind === 'dan') { out.dan = (out.dan || 0) + 1; if (r.ok && IM.GS_DAN.includes(IM.danOf(cand[0].it.imps?.[0]))) out.gs = (out.gs || 0) + 1; } else out.inf++;
+        }
+        if (out.enh || out.inf || out.dan) this.emit('autoGear', out);
+        return out;
+      }
       const sc = {};
       let marks = Object.keys(this.s.mats).filter((k) => W.isMarkKey(k) && this.s.mats[k] > 0 && (mode !== 'pick' || k in cfg.marks));
       if (mode === 'pref') { for (const k of marks) sc[k] = this.markPref(k, cfg); marks = marks.filter((k) => sc[k].score > 0); }
@@ -4500,7 +4532,7 @@ export class WorldGame {
     const x = D.HEAVEN_STORY[i];
     if (!x) return false;
     const w = this.s.wraid;
-    return x.need === 'palma' ? this.palmaReady().ok : x.need === 'okhwang' ? (w.ok || 0) >= 1 : x.need === 'seokga' ? (w.sk || 0) >= 1 : !!w.gates?.[x.need];
+    return x.need === 'palma' ? this.palmaReady().ok : x.need === 'okhwang' ? (w.ok || 0) >= 1 : x.need === 'seokga' ? (w.sk || 0) >= 1 : x.need === 'sk3' ? (w.sk || 0) >= 3 : !!w.gates?.[x.need];
   }
   storyUnread() { return D.HEAVEN_STORY.filter((_, i) => this.storyOpen(i) && !this.s.wraid.read?.[i]).length; }
   readStory(i) {
@@ -4555,6 +4587,9 @@ export class WorldGame {
       it.mw = b.id;
       this.gainItem(it);
       out.item = it;
+      // v386 낀 대성신장보다 등급이 높으면 바로 바꿔 낀다 — 강화는 이어받는다
+      const cur = this.s.equip[b.slot];
+      if (this.s.bag.includes(it) && (!cur || (G.isPalma(cur) && (it.rar || 0) > (cur.rar || 0)))) { this.equipFromBag(it.uid); out.equipped = true; this._stats = null; }
       this.emit('palmaPiece', { item: it, boss: b.name });
     }
     this.checkTitles?.();

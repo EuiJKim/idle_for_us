@@ -198,7 +198,7 @@ setCam(loadCam());
 $('btn-zoom').addEventListener('click', () => { setCam((view.camLevel + 1) % 3); game.mark('zoom'); });
 $('cv').addEventListener('wheel', (e) => { e.preventDefault(); setCam(view.camLevel + (e.deltaY < 0 ? 1 : -1)); }, { passive: false });
 
-const app = { game, net: null, refresh: () => refreshUI(true), save: () => save(), closePanel: () => closePanel(), showTab: (t, sub) => showTab(t, sub) };
+const app = { game, net: null, refresh: () => refreshUI(true), save: () => save(), closePanel: () => closePanel(), showTab: (t, sub) => showTab(t, sub), showEnding: () => showEnding() };
 const net = new WNet(game, { onChange: (w) => netChanged(w) });
 app.net = net;
 // 십이지왕 함께 사냥 (v138) — 문파원끼리 같은 왕 구역에 서면 왕 체력을 나눈다
@@ -229,9 +229,12 @@ const wbCoop = new WbCoop(game, net, {
     if (kind === 'peerIn') toast(`🤝 ${e.name}님이 마왕 토벌에 합류했어요`);
     else if (kind === 'peerOut') toast(`${e.name}님이 마왕 토벌을 떠났어요`);
     else if (kind === 'allySkill') view.allySkill?.(e);
+    else if (kind === 'lobby') { if (activeTab === 'dgn') refreshUI(true); }
+    else if (kind === 'guildWb' && !game.inst) toast(`🌋 문파원 ${e.name}님이 ${D.WRAID_BOSS[e.boss]?.name || '마왕'} 토벌 중 — 던전 › 칠대성에서 합류해요`);   // v386
   },
 });
 game.wbCoop = wbCoop;
+app.wbLobby = { count: (b) => wbCoop.lobbyCount(b), guild: (b) => wbCoop.lobbyGuild(b) };
 // v349 계정 창고 — 기기에 두고, Google이면 서버와 맞춘다(더 새것)
 let vault = VT.loadVault();
 app.vault = {
@@ -1699,6 +1702,7 @@ function handleEvents() {
         sfx('level');
         toast(`🌋 ${ev.boss}의 대성신장 — 〈${W.itemName(ev.item, game.s.job)}〉 ${W.RARITY[ev.item.rar || 0]?.name || ''} 획득! (가방)`);
         break;
+      case 'palmaCarry': toast(`🌋 대성신장 바꿔 끼기 — 강화 +${ev.plus}를 이어받았어요`); break;   // v386
       // v373 월드보스가 분노·광폭으로 — 크게 알리고 흔든다
       case 'wraidRage':
         sfx('level');
@@ -2432,11 +2436,38 @@ function showPalmReveal(n = 1) {
     const next = () => {
       if (i < lines.length) { txt.append(h('p', { class: 'palm-line' }, lines[i++])); if (i < lines.length) setTimeout(next, 1400); else btn.textContent = '손바닥 밖으로… (닫기)'; }
     };
-    const btn = h('button', { class: 'btn primary', onclick: () => { if (i < lines.length) { while (i < lines.length) txt.append(h('p', { class: 'palm-line' }, lines[i++])); btn.textContent = '손바닥 밖으로… (닫기)'; } else closeModal(); } }, '…');
+    const btn = h('button', { class: 'btn primary', onclick: () => { if (i < lines.length) { while (i < lines.length) txt.append(h('p', { class: 'palm-line' }, lines[i++])); btn.textContent = '손바닥 밖으로… (닫기)'; } else { closeModal(); if (n === 1) setTimeout(showEnding, 300); } } }, '…');   // v386 처음이면 엔딩
     el.classList.add('palm-modal');
     el.append(h('div', { class: 'palm-hand' }, h('img', { src: 'art/boss/wb-seokga.png', alt: '' })), h('h2', {}, n > 1 ? `🖐 또다시 — 손바닥 안 (${n}번째)` : '🖐 손바닥 안'), txt,
       h('p', { class: 'muted', style: 'font-size:12px;text-align:center' }, '보상은 그대로 받았어요 · 칭호 〈손바닥 안의 무인〉'), h('div', { class: 'btn-row' }, btn));
     next();
+  });
+}
+// v386 엔딩 — 석가여래를 처음 쓰러뜨리면(손바닥 반전 뒤). 이야기 창에서 다시 볼 수 있다
+const ENDING = [
+  ['죽림의 작은 무인', '대나무 숲에서 목검 하나로 시작했다.'],
+  ['십이지왕', '열두 왕을 넘어 강호에 이름을 새겼다.'],
+  ['화무기 · 마귀', '천마보다 깊은 어둠도 베어 넘겼다.'],
+  ['칠대성', '우마왕에서 제천대성까지 — 일곱 대성의 신장을 둘렀다.'],
+  ['남천문', '사대천사 · 탁탑천왕 · 나타 · 이랑진군의 문을 넘었다.'],
+  ['옥황상제', '하늘의 임금 앞에서 칼을 거두지 않았다.'],
+  ['석가여래', '그리고 — 처음부터 끝까지, 손바닥 안이었다.'],
+];
+function showEnding() {
+  const s = game.s, w = s.wraid || {};
+  sfx('level');
+  openModal((el) => {
+    el.classList.add('palm-modal', 'ending-modal');
+    const roll = h('div', { class: 'ending-roll' },
+      h('p', { class: 'ending-kicker' }, '천계편 · 끝'),
+      h('h2', {}, '손바닥 위의 강호'),
+      ...ENDING.map(([t, d]) => h('div', { class: 'ending-row' }, h('b', {}, t), h('span', {}, d))),
+      h('div', { class: 'ending-stats' },
+        h('span', {}, `${s.nickname || '무인'} · Lv.${s.level}`),
+        h('span', {}, `칠대성 토벌 ${w.kills || 0}번 · 관문 ${Object.keys(w.gates || {}).length}/4 · 옥황상제 ${w.ok || 0}번 · 석가여래 ${w.sk || 0}번`)),
+      h('p', { class: 'ending-last' }, '「다시 오너라. 손바닥은 언제나 여기 있으니.」'),
+      h('p', { class: 'muted', style: 'font-size:12px' }, '이야기는 여기서 끝나지만 강호는 계속돼요 — 후일담은 천계 이야기에서.'));
+    el.append(roll, h('div', { class: 'btn-row' }, h('button', { class: 'btn primary', onclick: closeModal }, '강호로 돌아가기')));
   });
 }
 // v374 월드보스 — 싸우는 동안 4초마다 내 몫을 올리고, 무림 전체의 남은 체력으로 맞춘다

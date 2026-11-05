@@ -2592,3 +2592,28 @@ body.hunt-noui #gather, body.in-inst #gather { display: none !important; }
 .inv-tile.picked { opacity: 1; outline: 3px solid #e05a4a; outline-offset: -3px; }
 .inv-tile.nosell { opacity: .35; }
 .inv-check { position: absolute; top: 2px; left: 4px; background: #e05a4a; color: #fff; border-radius: 50%; width: 20px; height: 20px; font-style: normal; font-size: 13px; line-height: 20px; text-align: center; font-weight: 700; z-index: 2; }
+
+/* v386 엔딩 */
+.ending-roll { text-align: center; max-height: 64vh; overflow-y: auto; padding: 4px 2px; }
+.ending-kicker { letter-spacing: .3em; color: #fcd34d; font-size: 12px; margin: 0; }
+.ending-roll h2 { margin: 4px 0 12px; }
+.ending-row { display: flex; flex-direction: column; margin: 0 0 10px; animation: palmIn .9s both; }
+.ending-row b { color: #fde68a; font-size: 15px; }
+.ending-row span { font-size: 13px; opacity: .85; }
+.ending-row:nth-child(4) { animation-delay: .4s } .ending-row:nth-child(5) { animation-delay: .8s } .ending-row:nth-child(6) { animation-delay: 1.2s }
+.ending-row:nth-child(7) { animation-delay: 1.6s } .ending-row:nth-child(8) { animation-delay: 2s } .ending-row:nth-child(9) { animation-delay: 2.4s }
+.ending-stats { display: flex; flex-direction: column; gap: 2px; font-size: 12px; margin: 10px 0; padding: 8px; border-top: 1px solid rgba(252,211,77,.3); border-bottom: 1px solid rgba(252,211,77,.3); }
+.ending-last { font-style: italic; color: #fcd34d; }
+
+/* v386 월드보스 빠른 합류 */
+.wraid-quick { padding: 8px; }
+.wraid-quick .btn { width: 100%; }
+.wraid-ppl { position: absolute; bottom: 4px; right: 6px; font-size: 11px; background: rgba(34,197,94,.85); color: #fff; border-radius: 8px; padding: 1px 6px; }
+.wraid-cell-top { position: relative; }
+/* v386 강화 칸 — 각인 칸과 같은 꼴(등급 빛깔) */
+.enh-tile { border: 1px solid color-mix(in srgb, var(--gc, #57534e) 55%, transparent); border-radius: 12px; padding: 8px; background: linear-gradient(180deg, color-mix(in srgb, var(--gc, #57534e) 14%, transparent), rgba(0,0,0,0.15)); display: grid; gap: 6px; min-width: 0; }
+.enh-top { display: grid; gap: 1px; text-align: left; background: none; border: 0; color: inherit; padding: 0; cursor: pointer; font: inherit; min-width: 0; }
+.enh-top b { font-size: 18px; color: var(--gc, #e7e5e4); }
+.enh-top small { font-size: 11.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.enh-tile .imp-up small { display: block; font-size: 10.5px; opacity: .9; }
+.subtabs button { white-space: nowrap; }

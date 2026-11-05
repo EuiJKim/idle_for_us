@@ -25,6 +25,11 @@ export class WbCoop extends Coop {
       const me = m.ref(db, `${this.base}/${uid}`);
       await m.onDisconnect(me).remove();
       await m.set(me, this.presence(true));
+      // v386 대기실 — 어느 마왕에 누가 있나(가볍게 이름·문파만). 빠른 합류·문파원 알림에 쓴다
+      const lb = m.ref(db, `wbl/${day.split('_')[0]}/${uid}`);
+      await m.onDisconnect(lb).remove();
+      await m.set(lb, { n: (this.game.s.nickname || '무명').slice(0, 24), g: String(this.net.guild?.id || '').slice(0, 40), t: m.serverTimestamp() });
+      this.lobbyRef = lb;
       if (this.wantKey() !== key) { m.remove(me).catch(() => {}); this.joining = false; return; }
       this.key = key;
       this.subs = [
@@ -48,6 +53,7 @@ export class WbCoop extends Coop {
     this.subs = [];
     const me = m.ref(db, `${this.base}/${this.net.uid}`);
     m.remove(me).catch(() => {});
+    if (this.lobbyRef) { m.remove(this.lobbyRef).catch(() => {}); m.onDisconnect(this.lobbyRef).cancel().catch(() => {}); this.lobbyRef = null; }
     m.onDisconnect(me).cancel().catch(() => {});
     this.key = null;
     this.on = false;
@@ -62,6 +68,7 @@ export class WbCoop extends Coop {
       if (want && this.failed !== want) this.join(want);
     }
     if (!want) this.failed = null;
+    if (!this.lobbyOn && this.game.s.job && (this._lbT = (this._lbT || 0) - dt) <= 0) { this._lbT = 10; if (this.can()) this.watchLobby(); }   // v386 대기실
     for (const o of this.others) {
       const k = Math.min(1, dt * 8);
       o.x += (o.tx - o.x) * k; o.y += (o.ty - o.y) * k;
@@ -78,6 +85,32 @@ export class WbCoop extends Coop {
       if (sig !== this.last || this.beatT <= 0) { this.last = sig; this.beatT = 5; m.update(m.ref(db, `${this.base}/${this.net.uid}`), p).catch(() => {}); }
     }
   }
+  // v386 대기실 보기 — 온라인이면 한 번 붙어서 계속 받는다. { 마왕: { uid: {n, g, t} } }
+  async watchLobby() {
+    if (this.lobbyOn || !this.can()) return;
+    this.lobbyOn = true;
+    const rt = await this.net.rtdb();
+    if (!rt) { this.lobbyOn = false; return; }
+    const { m, db } = rt;
+    this.lobby = {};
+    const first = { v: true };
+    this.lobbyOff = m.onValue(m.ref(db, 'wbl'), (snap) => {
+      const v = snap.val() || {};
+      const gid = this.net.guild?.id;
+      if (gid && !first.v) for (const [boss, us] of Object.entries(v)) for (const [u, o] of Object.entries(us || {})) {
+        if (u !== this.net.uid && o?.g === gid && !this.lobby[boss]?.[u]) this.onEvent('guildWb', { name: o.n || '문파원', boss });
+      }
+      first.v = false;
+      this.lobby = v;
+      this.onEvent('lobby', {});
+    }, () => { this.lobbyOn = false; });
+  }
+  // 마왕마다 지금 있는 사람 수(오래된 것은 빼고 · 나 빼고)
+  lobbyCount(boss, now = Date.now()) {
+    const us = this.lobby?.[boss] || {};
+    return Object.entries(us).filter(([u, o]) => u !== this.net.uid && (!o?.t || now - o.t < 6 * 60e3)).length;
+  }
+  lobbyGuild(boss) { const gid = this.net.guild?.id; return gid ? Object.entries(this.lobby?.[boss] || {}).filter(([u, o]) => u !== this.net.uid && o?.g === gid).map(([, o]) => o.n) : []; }
   gotBoss() {}
   bossTick() {}
   async commit() { this.pend = 0; }

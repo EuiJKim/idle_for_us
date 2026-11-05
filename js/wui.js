@@ -598,8 +598,8 @@ function bagTab(app) {
   let ui = { slot: 'all', smith: 'weapon', useBase: true, readyOnly: false, smode: 'ladder', kz: 0, kslot: 'acc', rar: 0 };
   try { ui = { ...ui, ...JSON.parse(localStorage.getItem('ifu.bagui') || '{}') }; } catch { /* 사생활 모드 */ }
   const keepUi = () => { try { localStorage.setItem('ifu.bagui', JSON.stringify(ui)); } catch { /* 사생활 모드 */ } };
-  const sigs = { gear: '', smith: '', mats: '', imp: '' };
-  const done = () => { app.save(); sigs.gear = sigs.smith = sigs.mats = sigs.imp = ''; app.refresh(); };
+  const sigs = { gear: '', smith: '', mats: '', imp: '', enh: '' };
+  const done = () => { app.save(); sigs.gear = sigs.smith = sigs.mats = sigs.imp = sigs.enh = ''; app.refresh(); };
   // 두목 장비(두목 증표로 만든 상급 · 두목이 떨군 것)는 끼면 그 두목의 겉모습이 든다 (v116)
   function bossGearNote(it) {
     if (it.grow || it.step == null || !(it.step % 2 === 1 || it.boss)) return null;
@@ -1204,7 +1204,7 @@ function bagTab(app) {
             h('button', { class: 'btn', id: 'auto-enh-cfg', style: 'padding:4px 10px;font-size:12px', onclick: () => openAutoEnhCfg(app) }, '설정')),
           h('div', { class: 'auto-inf-line' },
             h('label', {}, h('input', { type: 'checkbox', checked: s.autoInf ? true : null, onchange: (e) => { game.s.autoInf = e.target.checked; app.save(); if (e.target.checked) openAutoInfCfg(app); } }), ' 자동 등급 각인',
-              h('small', {}, s.autoInfCfg?.mode === 'pref' ? ` 좋아하는 효과 ${(s.autoInfCfg.prefFx || []).length + (s.autoInfCfg.prefSp || []).length}가지로` : s.autoInfCfg?.mode === 'pick' || s.autoInfCfg?.only ? ` 고른 증표 ${Object.keys(s.autoInfCfg.marks).length}가지만` : ' 센 증표부터', Object.values(s.autoInfCfg?.slots || {}).some((v) => v === false) ? ` · ${W.GROW_SLOTS.filter((k) => s.autoInfCfg.slots[k] !== false).length}칸만` : '', ' · 돌파용 증표는 남겨요')),
+              h('small', {}, s.autoInfCfg?.mode === 'theme' ? ' 각인 칸에서 고른 기운대로' : s.autoInfCfg?.mode === 'pref' ? ` 좋아하는 효과 ${(s.autoInfCfg.prefFx || []).length + (s.autoInfCfg.prefSp || []).length}가지로` : s.autoInfCfg?.mode === 'pick' || s.autoInfCfg?.only ? ` 고른 증표 ${Object.keys(s.autoInfCfg.marks).length}가지만` : ' 센 증표부터', Object.values(s.autoInfCfg?.slots || {}).some((v) => v === false) ? ` · ${W.GROW_SLOTS.filter((k) => s.autoInfCfg.slots[k] !== false).length}칸만` : '', ' · 돌파용 증표는 남겨요')),
             h('button', { class: 'btn', style: 'padding:4px 10px;font-size:12px', id: 'auto-inf-cfg', onclick: () => openAutoInfCfg(app) }, '설정')))),
       ...setNow.map(({ st }) => setBox(game, st)),
     ].filter(Boolean));
@@ -1410,6 +1410,48 @@ function bagTab(app) {
       draw();
     });
   }
+  // ---------- v386 간단 강화 — 여덟 칸을 한 화면에 ----------
+  const enhRoot = h('div');
+  let enhTo = 10;
+  function enhView() {
+    const s = game.s;
+    const worn = W.SLOTS.map((x) => ({ x, it: s.equip[x.id] })).filter((o) => o.it);
+    const nsig = `${worn.map(({ it }) => `${it.uid}.${game.effPlus(it)}.${it.epity || 0}`).join(',')}|${Math.floor(s.gold / 1e3)}|${s.prot || 0}|${enhTo}|${JSON.stringify(Object.entries(s.mats).filter(([k]) => !W.isMarkKey(k)).length)}|${s.mats[W.ORE] || 0}`;
+    if (nsig === sigs.enh) return;
+    sigs.enh = nsig;
+    const tiles = worn.map(({ x, it }) => {
+      game.adoptShared(it);
+      const p = it.plus || 0, mx = game.enhanceMax(it), mxi = game.enhanceMaxItem(it);
+      const can = game.canEnhance(it);
+      const m = game.enhanceMats(it);
+      const rate = game.enhanceRateOf(it);
+      const fail = W.enhanceFail(p);
+      const lack = !can && p < mx ? (s.gold < game.enhanceCost(it) ? '은자 부족' : m && game.enhanceMatHave(m) < m.n ? `${W.matName(m.key)} 부족` : '증표 부족(돌파)') : '';
+      return h('div', { class: 'enh-tile', style: `--gc:${gradeOf(it).color}` },
+        h('button', { class: 'enh-top', onclick: () => openItem(it, true) }, h('span', { class: 'imp-slot' }, x.name), h('b', {}, `+${p}`), h('small', {}, itemTitle(game, it))),
+        h('div', { class: 'imp-lv' }, h('i', { style: `width:${(p / mxi) * 100}%` }), h('span', {}, `+${p} / ${mxi}${mx < mxi ? ` (레벨 상한 +${mx})` : ''}`)),
+        p >= mx ? h('div', { class: 'imp-done' }, p >= mxi ? '✓ 끝' : `레벨이 오르면 +${mx + 1}`)
+          : h('button', { class: `btn imp-up${can ? ' primary' : ' lack'}`, disabled: can ? null : true, onclick: () => {
+            const r = game.enhance(it.uid, true);
+            if (r != null) { const L = game.lastEnhance; toast(r ? `${x.name} +${it.plus} 성공!` : `${x.name} 실패${L?.drop ? ` (${L.drop})` : L?.prot ? ' · 보호부로 그대로' : ' · 그대로'} · 다음 확률 ↑`); done(); }
+          } }, can ? `⬆ +${p + 1}` : lack, h('small', {}, ` ${Math.round(rate * 100)}% · ${fmt(game.enhanceCost(it))}${m ? ` · ${W.matName(m.key)} ${m.n}` : ''}${fail ? ` · 실패 ${fail}${W.enhanceRisky(p) ? `(보호부 ${s.prot || 0})` : ''}` : ''}`)));
+    });
+    const tops = [5, 7, 10];
+    enhRoot.replaceChildren(
+      h('div', { class: 'card imp-card' },
+        h('h3', {}, '강화', h('small', {}, ' 여덟 칸을 한눈에 · 누르면 한 단계')),
+        h('p', { class: 'muted', style: 'font-size:12px;margin:0 0 8px' }, `+1~+6은 실패해도 그대로 · +7~+9는 실패하면 -1 · +10부터(돌파)는 실패하면 -2 — 보호부가 있으면 그대로. 실패할수록 다음 확률이 올라요. 보호부 ${s.prot || 0}개`),
+        h('div', { class: 'imp-all' }, h('small', { class: 'muted' }, '모두 몇 강까지:'),
+          ...tops.map((t) => h('button', { class: `chip${enhTo === t ? ' on' : ''}`, onclick: () => { enhTo = t; sigs.enh = ''; enhView(); } }, `+${t}`))),
+        h('div', { class: 'btn-row' },
+          h('button', { class: 'btn primary', id: 'enh-all', onclick: () => {
+            if (enhTo > 7 && !confirm(`+7부터는 실패하면 한 단계 떨어질 수 있어요. 모두 +${enhTo}까지 올릴까요?`)) return;
+            const r = game.enhAll(enhTo); toast(r.n ? `강화 ${r.n}번 — 성공 ${r.ok} · 실패 ${r.fail}` : '더 올릴 수 있는 칸이 없어요(은자·재료를 확인해요)'); done();
+          } }, `⏫ 모두 +${enhTo}까지`),
+          h('button', { class: 'btn', onclick: () => openAutoEnhCfg(app) }, '⚙ 자동 강화'))),
+      h('div', { class: 'imp-grid' }, ...tiles),
+      h('p', { class: 'muted', style: 'font-size:12px' }, '+10을 넘는 돌파(+11~+15)는 칸을 하나씩 눌러 올려요 — 두목 증표가 들어요.'));
+  }
   function impView() {
     const s = game.s;
     const worn = W.SLOTS.map((x) => ({ x, it: s.equip[x.id] })).filter((o) => o.it && game.canImprintItem(o.it));
@@ -1582,6 +1624,7 @@ function bagTab(app) {
     { key: 'gear', label: '착용', make: () => ({ root: gearRoot, update: gearView }) },
     { key: 'bag', label: '가방', make: () => ({ root: bagRoot, update: gearView }) },
     { key: 'imp', label: '각인', make: () => ({ root: impRoot, update: impView }) },   // v384
+    { key: 'enh', label: '강화', make: () => ({ root: enhRoot, update: enhView }) },   // v386
     { key: 'smith', label: '대장장이', make: () => ({ root: smithRoot, update: smithView }) },
     { key: 'mats', label: '재료', make: () => ({ root: matRoot, update: matView }) },
     { key: 'pot', label: '물약', make: () => ({ root: potRoot, update: potView }) },
@@ -2045,7 +2088,7 @@ function dgnTab(app) {
     const now = Date.now();
     const net = app.net;
     const rd = net?.raid;
-    const nsig = `${s.level}|${JSON.stringify(s.dgn)}|${s.tower.floor}|${s.tower.auto}|${D.kstDay(now)}|${JSON.stringify(stagePick)}|${!!game.inst}|${!!s.job}|${JSON.stringify(s.zTickets)}|${s.mounts.length}|${net?.status}|${s.guildId}|${rd?.kind}|${rd?.total}|${rd?.maxHp}|${JSON.stringify(rd?.claimed || {})}|${JSON.stringify(s.raid)}|${JSON.stringify(s.wraid)}|${Object.values(net?.wgen || {}).map((r) => `${r?.id}:${r?.total}:${Object.keys(r?.claimed || {}).length}:${Object.keys(r?.damage || {}).length}`).join(',')}|${Object.keys(net?.wdone || {}).join(',')}|${wbPick}|${JSON.stringify(s.wraid?.gates || {})}|${JSON.stringify(s.wraid?.read || {})}.${s.wraid?.ok}.${s.wraid?.sk}|${W.SLOTS.map((x) => `${s.equip[x.id]?.set}${s.equip[x.id]?.plus}`).join('')}`;
+    const nsig = `${s.level}|${JSON.stringify(s.dgn)}|${s.tower.floor}|${s.tower.auto}|${D.kstDay(now)}|${JSON.stringify(stagePick)}|${!!game.inst}|${!!s.job}|${JSON.stringify(s.zTickets)}|${s.mounts.length}|${net?.status}|${s.guildId}|${rd?.kind}|${rd?.total}|${rd?.maxHp}|${JSON.stringify(rd?.claimed || {})}|${JSON.stringify(s.raid)}|${JSON.stringify(s.wraid)}|${Object.values(net?.wgen || {}).map((r) => `${r?.id}:${r?.total}:${Object.keys(r?.claimed || {}).length}:${Object.keys(r?.damage || {}).length}`).join(',')}|${Object.keys(net?.wdone || {}).join(',')}|${wbPick}|${JSON.stringify(s.wraid?.gates || {})}|${JSON.stringify(s.wraid?.read || {})}.${s.wraid?.ok}.${s.wraid?.sk}|${W.SLOTS.map((x) => `${s.equip[x.id]?.set}${s.equip[x.id]?.plus}`).join('')}|${D.WRAID_IDS.map((b) => app.wbLobby?.count(b) || 0).join('')}`;
     return `${bump}|${nsig}`;
   };
   // 어느 칸이든 맨 위에 — 던전 안이거나 직업이 없으면 알린다
@@ -2288,6 +2331,17 @@ function dgnTab(app) {
         h('span', {}, `${b.name} ${r.seq}번째 · 내 순위 ${rk}위 ×${D.wraidRankK(rk)}${b.slot ? ` · ${SLOT_NAME[b.slot]} 한 부위` : ''}`), claimBtn(r, '받기')); })));
     // 칠대성 여덟
     const grid = h('div', { class: 'wraid-grid' });
+    // v386 빠른 합류 — 지금 사람이 가장 많은 마왕으로(문파원이 있으면 그쪽 먼저)
+    if (on && s.level >= D.WRAID_LV && app.wbLobby) {
+      const cand = D.WRAID_IDS.filter((id) => id === D.SEOKGA.id ? game.seokgaOpen() : id === D.OKHWANG.id ? game.okhwangOpen() : D.isGate(id) ? game.gateOpen(id) : true)
+        .map((id) => ({ id, n: app.wbLobby.count(id), g: app.wbLobby.guild(id) })).filter((x) => x.n > 0)
+        .sort((a, b) => b.g.length - a.g.length || b.n - a.n);
+      const best = cand[0];
+      out.push(h('div', { class: 'card wraid-quick' },
+        best ? h('button', { class: 'btn primary', id: 'wraid-quick', disabled: game.inst ? true : null, onclick: (e) => go(best.id, e) },
+          `⚡ 빠른 합류 — ${D.WRAID_BOSS[best.id].name} (${best.n}명${best.g.length ? ` · 문파원 ${best.g.join('·')}` : ''})`)
+          : h('p', { class: 'muted', style: 'margin:0;font-size:12.5px' }, '⚡ 지금 토벌 중인 무인이 없어요 — 먼저 들어가면 다른 무인이 합류할 수 있어요. 문파원이 들어가면 알려 드려요.')));
+    }
     for (const b of D.WRAID_BOSSES) {
       const r = on ? net.wraidOf(b.id) : null;
       const left = r ? net.wraidHpLeft(r) : 0;
@@ -2300,7 +2354,8 @@ function dgnTab(app) {
         h('button', { class: 'wraid-cell-top', onclick: () => { wbPick = open ? null : b.id; rerender(); } },
           h('img', { src: `art/boss/${b.art}.png`, alt: b.name }),
           h('div', { class: 'wraid-cell-name' }, h('b', {}, b.name), h('small', {}, `${b.hanja} · ${SLOT_NAME[b.slot]}`)),
-          have ? h('span', { class: 'wraid-have' }, `✓ +${have.plus || 0}`) : null),
+          have ? h('span', { class: 'wraid-have' }, `✓ +${have.plus || 0}`) : null,
+          app.wbLobby?.count(b.id) ? h('span', { class: 'wraid-ppl' }, `👥 ${app.wbLobby.count(b.id)}`) : ''),
         h('div', { class: `raid-hp wraid-hp rage${r ? rg : 0}` }, h('i', { style: `width:${frac * 100}%` }),
           h('span', {}, !r ? '깨어나지 않음' : left > 0 ? `${(frac * 100).toFixed(1)}%${rg ? ` · ${D.WRAID_RAGE[rg].name}` : ''}` : '쓰러짐')));
       if (open) {
@@ -2328,7 +2383,8 @@ function dgnTab(app) {
           h('div', { class: 'wraid-name' }, h('small', {}, '천외천(天外天) · 천궁'), h('b', {}, ok.name, h('i', {}, ` ${ok.hanja}`)))),
         h('p', { class: 'muted dgn-desc' }, pr.ok ? `대성신장을 두른 자에게 남천문이 열렸어요. 관문 넷(사대천사 → 탁탑천왕 → 나타 → 이랑진군)을 차례로 넘으면 옥황상제 — 넘은 관문마다 천계의 가호 +${Math.round(D.GATE_BONUS * 100)}%(공격력·체력, 영구).`
           : `대성신장 일곱 부위를 모두 끼면 열려요 — 지금 ${pr.n}/${G.PALMA_SLOTS.length}`),
-        h('div', { class: 'wraid-slots' }, ...W.SLOTS.filter((x) => G.PALMA_SLOTS.includes(x.id)).map((x) => { const it = s.equip[x.id]; const good = it?.set === 'palma'; return h('span', { class: `chip${good ? ' on' : ''}` }, `${x.name}${it?.set === 'palma' ? ` +${it.plus || 0}` : ''}`); })),
+        h('div', { class: 'wraid-slots' }, ...W.SLOTS.filter((x) => G.PALMA_SLOTS.includes(x.id)).map((x) => { const it = s.equip[x.id]; const good = it?.set === 'palma'; const by = D.WRAID_BOSSES.find((b) => b.slot === x.id); return h('span', { class: `chip${good ? ' on' : ''}`, title: `${by?.name || ''}이(가) 줘요`, style: good ? `--gc:${W.RARITY[it.rar || 0].color};border-color:var(--gc)` : '' }, `${x.name}${good ? ` ${W.RARITY[it.rar || 0].name} +${it.plus || 0}` : ` ← ${by?.name || '?'}`}`); })),
+        h('p', { class: 'muted', style: 'font-size:11.5px;margin:2px 0 6px' }, '같은 부위를 더 높은 등급으로 받으면 바로 바꿔 끼고, 강화 수치는 그대로 이어받아요(대성신장끼리 바꿔 끼면 강화를 맞바꿔요).'),
         h('button', { class: 'pref-link', id: 'heaven-story-btn', onclick: () => openModal((el) => {
           const draw = () => el.replaceChildren(h('h2', {}, '☁ 천계 이야기'),
             h('p', { class: 'muted', style: 'font-size:12.5px' }, `칠대성의 막내 제천대성이 한바탕 휘젓고 간 하늘 — 이제 그 신장을 두른 무인이 남천문 앞에 섰다. 한 장씩 열리고, 처음 읽으면 보상을 받아요(${game.storyUnread()}장 읽을 것).`),
@@ -2338,7 +2394,7 @@ function dgnTab(app) {
               return h('div', { class: `heaven-story${read ? '' : ' new'}` }, h('b', {}, `${i + 1}장 · ${x.who}`),
                 read ? h('p', {}, x.text) : h('button', { class: 'btn primary', style: 'margin-top:6px;padding:5px 10px;font-size:12.5px', onclick: () => { const r = game.readStory(i); if (r) { toast(`📜 ${x.who} — ${rewardText(r)}`); app.save(); app.refresh(); } draw(); } }, `읽고 보상 받기 (${rewardText(D.storyReward(s.level, i))})`));
             }),
-            h('div', { class: 'btn-row' }, h('button', { class: 'btn primary', onclick: closeModal }, '닫기')));
+            h('div', { class: 'btn-row' }, (s.wraid.sk || 0) >= 1 ? h('button', { class: 'btn', id: 'ending-again', onclick: () => { closeModal(); app.showEnding?.(); } }, '🎬 엔딩 다시 보기') : '', h('button', { class: 'btn primary', onclick: closeModal }, '닫기')));
           draw();
         }) }, `📜 천계 이야기${game.storyUnread() ? ` — 새 이야기 ${game.storyUnread()}장 · 보상` : ' — 옥황상제 · 사대천사 · 태백금성 · 태상노군 · 이랑진군 …'}`),
         h('div', { class: 'wraid-grid wraid-gates' }, ...D.HEAVEN_GATES.map((g) => {
@@ -2725,6 +2781,15 @@ export function openAutoInfCfg(app, onClose) {
         })) : h('p', { class: 'muted', style: 'font-size:12px' }, cfg.prefFx.length || cfg.prefSp.length ? '맞는 증표가 아직 없어요 — 생기면 그때 새겨요.' : '위에서 좋아하는 효과를 고르세요(안 고르면 자동이 쉬어요).')),
     ];
   };
+  // v386 고른 기운대로 — 칸마다 고른 기운과 Lv만 보여 준다(고르기는 가방 › 각인)
+  const themeSummary = () => {
+    const worn = W.SLOTS.map((x) => game.s.equip[x.id]).filter((it) => it && game.canImprintItem(it));
+    const none = worn.filter((it) => !game.impThemeOf(it)).length;
+    return h('div', { class: 'ainf-sec' }, h('b', {}, '칸마다 고른 기운'), h('small', { class: 'muted' }, ' 가방 › 각인에서 고른 기운을 「올리기」처럼 — 낮은 Lv 칸부터 · 돌파 몫 증표는 남겨요'),
+      h('div', { class: 'ainf-slots' }, ...worn.map((it) => { const t = game.impThemeOf(it); return h('span', { class: `chip${t ? ' on' : ''}`, style: t ? `--tc:${IM.THEMES[t].col}` : '' }, `${SLOT_NAME[it.slot]} ${t ? IM.THEMES[t].name : '—'} · Lv ${game.impLv(it)}`); })),
+      none ? h('p', { class: 'muted', style: 'font-size:12px;color:#fca5a5' }, `기운을 안 고른 칸 ${none}개는 건너뛰어요.`) : null,
+      h('button', { class: 'btn', onclick: () => { closeModal(); app.showTab('bag', 'imp'); } }, '가방 › 각인에서 고르기 ›'));
+  };
   const draw = () => {
     if (!box) return;
     const keys = [...new Set([...Object.keys(game.s.mats).filter((k) => W.isMarkKey(k) && game.s.mats[k] > 0), ...Object.keys(cfg.marks)])].sort((a, b) => W.markLv(b) - W.markLv(a));
@@ -2746,17 +2811,19 @@ export function openAutoInfCfg(app, onClose) {
       h('div', { class: 'ainf-sec' }, h('label', { class: 'chk' }, h('input', { type: 'checkbox', id: 'ainf-on', checked: game.s.autoInf ? true : null, onchange: (e) => { game.s.autoInf = !!e.target.checked; done(); } }), ' 자동 등급 각인 켜기')),
       h('div', { class: 'ainf-sec' }, h('b', {}, '어떤 증표를'),
         h('div', { class: 'btn-row' },
+          h('button', { class: `chip${cfg.mode === 'theme' ? ' on' : ''}`, id: 'ainf-theme', onclick: () => { setMode('theme'); done(); } }, '✨ 고른 기운대로(쉬움)'),
           h('button', { class: `chip${cfg.mode === 'all' ? ' on' : ''}`, onclick: () => { setMode('all'); done(); } }, '센 증표부터'),
           h('button', { class: `chip${cfg.mode === 'pref' ? ' on' : ''}`, onclick: () => { setMode('pref'); done(); } }, '♥ 좋아하는 효과로'),
           h('button', { class: `chip${cfg.mode === 'pick' ? ' on' : ''}`, onclick: () => { setMode('pick'); done(); } }, '증표 직접 고르기'))),
-      h('div', { class: 'ainf-sec' }, h('b', {}, '♥ 좋아하는 효과'), h('small', { class: 'muted' }, cfg.mode === 'pref' ? ' 자동이 이것으로 골라 새겨요 · 손으로 각인할 때도 이 차례로 보이고, 좋아하는 것을 넘기려 하면 물어요' : ' 손으로 각인할 때 이 차례로 보이고, 좋아하는 것을 넘기려 하면 물어요(자동은 \'좋아하는 효과로\'일 때 써요)')),
-      ...prefView(),
+      cfg.mode === 'theme' ? themeSummary() : null,
+      cfg.mode === 'theme' ? null : h('div', { class: 'ainf-sec' }, h('b', {}, '♥ 좋아하는 효과'), h('small', { class: 'muted' }, cfg.mode === 'pref' ? ' 자동이 이것으로 골라 새겨요 · 손으로 각인할 때도 이 차례로 보이고, 좋아하는 것을 넘기려 하면 물어요' : ' 손으로 각인할 때 이 차례로 보이고, 좋아하는 것을 넘기려 하면 물어요(자동은 \'좋아하는 효과로\'일 때 써요)')),
+      ...(cfg.mode === 'theme' ? [] : prefView()),
       cfg.mode === 'pick' && !Object.keys(cfg.marks).length ? h('p', { class: 'muted', style: 'font-size:12px;color:#fca5a5' }, '아직 고른 증표가 없어요 — 아래에서 고르면 그것만 써요(안 고르면 자동이 쉬어요).') : null,
-      cfg.mode !== 'pref' ? (keys.length ? h('div', { class: 'ainf-list' }, ...rows) : h('p', { class: 'muted' }, '가진 증표가 없어요 — 두목을 잡으면 나와요.')) : null,
+      cfg.mode !== 'pref' && cfg.mode !== 'theme' ? (keys.length ? h('div', { class: 'ainf-list' }, ...rows) : h('p', { class: 'muted' }, '가진 증표가 없어요 — 두목을 잡으면 나와요.')) : null,
       h('div', { class: 'ainf-sec' }, h('b', {}, '어느 칸에'), h('small', { class: 'muted' }, ' 끈 칸은 자동이 건드리지 않아요'),
         h('div', { class: 'ainf-slots' }, ...W.GROW_SLOTS.map((k) => h('button', { class: `chip${cfg.slots[k] === false ? '' : ' on'}`, onclick: () => { if (cfg.slots[k] === false) delete cfg.slots[k]; else cfg.slots[k] = false; done(); } }, SLOT_NAME[k] || k)))),
       // v297 칸 단 올리기
-      h('div', { class: 'ainf-sec' }, h('label', { class: 'chk' }, h('input', { type: 'checkbox', checked: cfg.dan === true ? true : null, onchange: (e) => { cfg.dan = !!e.target.checked; cfg.danV = 2; done(); } }), ' 남는 증표로 칸 단(段) 올리기'),
+      cfg.mode === 'theme' ? null : h('div', { class: 'ainf-sec' }, h('label', { class: 'chk' }, h('input', { type: 'checkbox', checked: cfg.dan === true ? true : null, onchange: (e) => { cfg.dan = !!e.target.checked; cfg.danV = 2; done(); } }), ' 남는 증표로 칸 단(段) 올리기'),
         h('small', { class: 'muted' }, ' 기본은 꺼짐 — 켜면 5초마다 한 단씩만, 낮은 단부터 올려요. 다음 등급 각인 몫(12개)·돌파 몫은 남겨요')),
       h('div', { class: 'btn-row' }, h('button', { class: 'btn primary', onclick: closeModal }, '닫기'))].filter(Boolean));
   };
