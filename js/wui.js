@@ -3196,6 +3196,7 @@ function compTab(app) {
   const mountBox = h('div', {}, mountCard, mountWhere, mountRank);
   const dexBox = h('div', {}, dexCard);
   void root;
+  let mountFlt = (() => { try { return localStorage.getItem('ifu.mflt') || 'all'; } catch { return 'all'; } })();   // v380 탈것 걸러 보기
   let sig = '';
   const rarTag = (r) => h('b', { style: `color:${W.RARITY[r].color}` }, W.RARITY[r].name);
   const starTag = (p) => ((p.star || 0) ? h('span', { class: 'pet-star' }, ` ${'★'.repeat(p.star)}`) : '');   // v292
@@ -3329,11 +3330,69 @@ function compTab(app) {
       // v292 탈것 조각
       h('div', { class: 'pet-extra' }, gachaRow('mount', `탈것 조각 ${fmt(s.mountShard || 0)}`, '길들이기에도 써요')));
     if (!s.mounts.length) mountCard.append(h('p', { class: 'muted' }, '몹이 아주 드물게 탈것을 떨궈요 — 높은 두목일수록 자주·좋은 것까지. 타면 빨리 움직이고 공격력·체력이 올라요.'));
-    // 탈것 합성 (v204) — 같은 순위가 셋 이상 모인 순위만 보인다
+    // v380 탈것 — 한 줄씩 길게 늘어서 보기 불편했다 → 타는 중(크게) · 같은 종은 한 칸에 묶은 격자 · 걸러 보기 · 누르면 자세히
+    const MG = ['일반', '좋은', '귀한', '십이지', '신수'];   // mountGachaGrade 0~4
+    const MG_COL = ['#a8a29e', '#60a5fa', '#c084fc', '#f59e0b', '#f43f5e'];
+    const statLine = (m) => { const d = W.mountOf(m.kind), k = game.mountK(m); return `이동 +${W.spdPct(W.mountSpeed(d, k, m.lv || 0))}% · 공격·체력 +${(d.stat * k * 100).toFixed(1).replace(/\.0$/, '')}%`; };
+    const openMount = (kind) => openModal((el) => {
+      const d = W.mountOf(kind);
+      const draw = () => {
+        const list = s.mounts.filter((m) => m.kind === kind).sort((a, b) => (b.uid === s.mount) - (a.uid === s.mount) || (b.lv || 0) - (a.lv || 0));
+        if (!list.length) { closeModal(); done(); return; }
+        el.replaceChildren(
+          h('div', { class: 'mount-head', style: `--rc:${MG_COL[W.mountGachaGrade(d)]}` }, h('div', { class: 'ico pet-ico' }, creatureIcon(kind)),
+            h('div', {}, h('h3', {}, d.name), h('small', {}, `${MG[W.mountGachaGrade(d)]} · 순위 ${d.tier}${d.zodiac ? ` · 십이지 ${d.zodiac}` : ''} · ${list.length}마리`), d.sp ? h('p', { class: 'muted', style: 'margin:4px 0 0;font-size:12.5px' }, d.sp) : null)),
+          ...list.map((m) => {
+            const on = s.mount === m.uid, tc = game.tameCost(m.uid);
+            return h('div', { class: `row mount-copy${on ? ' me' : ''}` },
+              h('div', { class: 'info' }, h('div', { class: 'name' }, on ? '🐎 타는 중' : `한 마리`, h('small', {}, ` 길들이기 ${m.lv || 0}/${W.mountLvMax(d)}`)), h('div', { class: 'desc' }, statLine(m)),
+                tc ? h('div', { class: 'desc', style: 'color:#fde68a' }, `길들이기 +1: 탈것 조각 ${tc.shard} · 은자 ${fmt(tc.gold)}`) : null),
+              h('div', { class: 'pet-btns' },
+                tc ? h('button', { class: 'buy', disabled: game.canTame(m.uid) ? null : true, onclick: () => { if (game.tame(m.uid)) { toast(`${d.name} 길들이기 ${m.lv}`); app.save(); draw(); done(); } } }, '길들이기') : h('span', { class: 'sk-max' }, '極'),
+                h('button', { class: on ? 'btn' : 'buy', onclick: () => { game.ride(on ? null : m.uid); app.save(); draw(); done(); } }, on ? '내리기' : '타기')));
+          }),
+          h('div', { class: 'btn-row' }, h('button', { class: 'btn primary', onclick: closeModal }, '닫기')));
+      };
+      draw();
+    });
+    // 타는 중
+    const rideM = s.mounts.find((m) => m.uid === s.mount);
+    if (rideM) {
+      const d = W.mountOf(rideM.kind), tc = game.tameCost(rideM.uid);
+      mountCard.append(h('div', { class: 'mount-now', style: `--rc:${MG_COL[W.mountGachaGrade(d)]}` },
+        h('div', { class: 'ico pet-ico' }, creatureIcon(rideM.kind)),
+        h('div', { class: 'info' }, h('b', {}, d.name, h('small', {}, ` · ${MG[W.mountGachaGrade(d)]} · 길들이기 ${rideM.lv || 0}/${W.mountLvMax(d)}`)), h('div', { class: 'desc' }, statLine(rideM)), d.sp ? h('div', { class: 'desc muted' }, d.sp) : null),
+        h('div', { class: 'pet-btns' },
+          tc ? h('button', { class: 'buy', disabled: game.canTame(rideM.uid) ? null : true, onclick: () => { if (game.tame(rideM.uid)) { toast(`${d.name} 길들이기 ${rideM.lv}`); done(); } } }, '길들이기', h('small', {}, `조각 ${tc.shard}`)) : h('span', { class: 'sk-max' }, '極'),
+          h('button', { class: 'btn', onclick: () => { game.ride(null); done(); } }, '내리기'))));
+    } else if (s.mounts.length) mountCard.append(h('p', { class: 'muted', style: 'font-size:12.5px' }, '걸어 다니는 중 — 아래에서 골라 타세요(빠른 것이 위에).'));
+    // 묶음 — 같은 종을 한 칸에
+    const groups = new Map();
+    for (const m of s.mounts) { const g = groups.get(m.kind) || []; g.push(m); groups.set(m.kind, g); }
+    const flt = mountFlt;
+    const FLT = [['all', '전체'], ['hard', '신수'], ['zodiac', '십이지'], ['normal', '일반']];
+    const pass = (d) => flt === 'all' || (flt === 'hard' ? d.hard : flt === 'zodiac' ? d.zodiac : !d.hard && !d.zodiac);
+    const kinds = [...groups.keys()].map((k) => W.mountOf(k)).filter((d) => d && pass(d)).sort((a, b) => W.mountSpeed(b) - W.mountSpeed(a) || b.stat - a.stat);
+    if (s.mounts.length) {
+      mountCard.append(h('div', { class: 'mount-flt' }, h('small', { class: 'muted' }, `${groups.size}종 · ${s.mounts.length}마리`),
+        ...FLT.map(([k, t]) => h('button', { class: `chip${flt === k ? ' on' : ''}`, onclick: () => { mountFlt = k; try { localStorage.setItem('ifu.mflt', k); } catch { /* 사생활 모드 */ } done(); } }, t))));
+      mountCard.append(kinds.length ? h('div', { class: 'pen-grid mount-grid' }, ...kinds.map((d) => {
+        const list = groups.get(d.id);
+        const best = list.reduce((a, b) => ((b.lv || 0) > (a.lv || 0) ? b : a));
+        const riding = list.some((m) => m.uid === s.mount);
+        return h('button', { class: `pen-tile mount-tile${riding ? ' riding' : ''}`, style: `--rc:${MG_COL[W.mountGachaGrade(d)]}`, onclick: () => openMount(d.id) },
+          list.length > 1 ? h('span', { class: 'mt-n' }, `×${list.length}`) : null,
+          riding ? h('span', { class: 'mt-on' }, '타는 중') : null,
+          h('div', { class: 'ico pet-ico' }, creatureIcon(d.id)),
+          h('b', {}, d.name.replace('십이지 ', '')),
+          h('small', {}, `이동 +${W.spdPct(W.mountSpeed(d, game.mountK(best), best.lv || 0))}%${best.lv ? ` · 길${best.lv}` : ''}`));
+      })) : h('p', { class: 'muted' }, '이 갈래의 탈것이 없어요.'));
+    }
+    // 탈것 합성 (v204) — 같은 순위가 셋 이상 모인 순위만 · v380 접어 둔다
     const tiers = [...new Set(s.mounts.map((m) => W.mountOf(m.kind)).filter((d) => d && !d.zodiac && d.tier < W.MOUNT_TOP).map((d) => d.tier))]
       .filter((t) => game.fuseCandidates(t).length >= W.MOUNT_FUSE_N).sort((a, b) => a - b);
     if (tiers.length) {
-      const fuse = h('div', { class: 'fuse-box' }, h('b', {}, '🔮 탈것 합성 '), h('small', {}, `같은 순위 ${W.MOUNT_FUSE_N}마리 → 다음 순위 하나`));
+      const fuse = h('details', { class: 'fuse-box' }, h('summary', {}, h('b', {}, `🔮 탈것 합성 — ${tiers.length}가지 할 수 있어요 `), h('small', {}, `같은 순위 ${W.MOUNT_FUSE_N}마리 → 다음 순위 하나`)));
       for (const t of tiers) {
         const a = W.mountOfTier(t), b = W.mountOfTier(t + 1);
         const cost = W.mountFuseCost(t);
@@ -3350,20 +3409,6 @@ function compTab(app) {
           } }, '합성')));
       }
       mountCard.append(fuse);
-    }
-    const sorted = s.mounts.slice().sort((a, b) => W.mountOf(b.kind).speed - W.mountOf(a.kind).speed);
-    for (const m of sorted) {
-      const d = W.mountOf(m.kind);
-      const on = s.mount === m.uid;
-      const k = game.mountK(m);
-      const tc = game.tameCost(m.uid);
-      mountCard.append(h('div', { class: `row${on ? ' me' : ''}` },
-        h('div', { class: 'ico pet-ico' }, creatureIcon(m.kind)),
-        h('div', { class: 'info' }, h('div', { class: 'name' }, d.name, h('small', {}, `순위 ${d.tier}${m.lv ? ` · 길들이기 ${m.lv}/${W.mountLvMax(d)}` : ''}`)), h('div', { class: 'desc' }, `${d.sp ? `${d.sp} · ` : ''}이동 속도 +${W.spdPct(W.mountSpeed(d, k, m.lv || 0))}% · 공격력·체력 +${(d.stat * k * 100).toFixed(1).replace(/\.0$/, '')}%`),
-          tc ? h('div', { class: 'desc', style: 'color:#fde68a' }, `길들이기 +1: 탈것 조각 ${tc.shard} · 은자 ${fmt(tc.gold)} → ${d.hard ? `이동 +${Math.round(W.HARD_SPD_LV_K * 100)}% · 공격·체력 +${Math.round(W.HARD_LV_K * 100)}%` : `+${Math.round(W.MOUNT_LV_K * 100)}%`}`) : null),
-        h('div', { class: 'pet-btns' },
-          tc ? h('button', { class: 'buy', disabled: game.canTame(m.uid) ? null : true, onclick: () => { if (game.tame(m.uid)) { toast(`${d.name} 길들이기 ${m.lv}`); done(); } } }, '길들이기') : h('span', { class: 'sk-max' }, '極'),
-          h('button', { class: on ? 'btn' : 'buy', onclick: () => { game.ride(on ? null : m.uid); done(); } }, on ? '내리기' : '타기'))));
     }
   }
   // v292 도감 — 모은 종 · 영구 보너스 · 이정표

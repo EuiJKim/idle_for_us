@@ -1603,6 +1603,27 @@ body.hunt-nocv #cv { visibility: hidden !important; }
 .fac-masters-link { display: block; width: 100%; text-align: left; border-left: 3px solid var(--fc, #fde68a); margin-top: 10px; color: #f5e9cf; }
 .fuse-box { margin: 6px 0 10px; padding: 8px 10px; border-radius: 10px; border: 1px solid rgba(192, 132, 252, 0.45); background: rgba(76, 29, 149, 0.18); }
 .fuse-box small { color: #c4b5fd; }
+/* v380 탈것 — 타는 중 · 묶은 격자 · 자세히 */
+.mount-now { display: flex; align-items: center; gap: 10px; padding: 10px; margin: 6px 0 10px; border-radius: 12px; border: 1px solid var(--rc); background: linear-gradient(90deg, color-mix(in srgb, var(--rc) 22%, transparent), rgba(0,0,0,0.1)); }
+.mount-now .pet-ico { width: 64px; height: 64px; flex: none; }
+.mount-now .info { flex: 1; min-width: 0; }
+.mount-now .info b { font-size: 15px; }
+.mount-now .info small { color: var(--muted); font-weight: 500; }
+.mount-flt { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; margin: 4px 0 6px; }
+.mount-flt small { margin-right: auto; }
+.mount-tile { position: relative; border: 1px solid color-mix(in srgb, var(--rc) 60%, transparent); background: linear-gradient(180deg, color-mix(in srgb, var(--rc) 16%, transparent), rgba(0,0,0,0.15)); }
+.mount-tile small { color: var(--muted); font-size: 10.5px; }
+.mount-tile.riding { box-shadow: 0 0 0 2px #86efac inset; }
+.mt-n { position: absolute; top: 4px; right: 6px; font-size: 11px; font-weight: 800; color: #fde68a; }
+.mt-on { position: absolute; top: 4px; left: 6px; font-size: 10px; font-weight: 800; color: #86efac; }
+.mt-dot { position: absolute; top: 6px; left: 6px; width: 8px; height: 8px; border-radius: 50%; background: #f87171; }
+.mount-head { display: flex; gap: 10px; align-items: center; padding-bottom: 8px; margin-bottom: 6px; border-bottom: 1px solid var(--line); }
+.mount-head .pet-ico { width: 72px; height: 72px; flex: none; filter: drop-shadow(0 0 8px var(--rc)); }
+.mount-head h3 { margin: 0; }
+.mount-head small { color: var(--muted); }
+details.fuse-box summary { cursor: pointer; list-style: none; }
+details.fuse-box summary::-webkit-details-marker { display: none; }
+
 .sk-reset { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 4px 0 8px; }
 .sk-reset small { color: var(--muted); }
 .sk-max { margin-left: 6px; padding: 1px 6px; border-radius: 999px; font-size: 10.5px; font-weight: 800; color: #1c1408; background: linear-gradient(180deg, #fde68a, #f59e0b); }
