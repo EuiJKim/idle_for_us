@@ -829,7 +829,7 @@ console.log('\n=== 환마 4차 · 환영분신술 (v121) ===');
   g.s.level = 100; g.s.gold = 1e9;
   while (g.canAdvance()) g.advance();
   ok(g.s.jobTier === 4 && g.tierName() === '섭혼마존' && g.skills().some((k) => k.name === '환영분신술'), '환마는 레벨 100에 4차 전직 → 섭혼마존 · 환영분신술', g.tierName());
-  ok(['sword', 'fist', 'poison', 'ring'].every((j) => { const o = fresh(j); o.s.level = 100; o.s.gold = 1e9; while (o.canAdvance()) o.advance(); return o.s.jobTier === 4 && o.tierName() === W.LORE[j].title && (!o.nextTier() || (j === 'sword' && o.nextTier().need === 'cheonma')); }), '다섯 직업 모두 레벨 100에 4차 → 마존 이름 (v123) · 검사만 5차가 남는다(v391)');
+  ok(['sword', 'fist', 'poison', 'ring'].every((j) => { const o = fresh(j); o.s.level = 100; o.s.gold = 1e9; while (o.canAdvance()) o.advance(); return o.s.jobTier === 4 && o.tierName() === W.LORE[j].title && (!o.nextTier() || o.nextTier().need === W.fifthOf(j).need); }), '다섯 직업 모두 레벨 100에 4차 → 마존 이름 (v123) · 5차는 숨은 두목을 꺾어야(v393)');
   g.enterMap(11); g._stats = null; g.heroHp = g.stats().hp;
   for (const m of g.mons) { m.hp = m.maxHp = 1e12; m.atk = 0; m.x = g.heroX + 40; m.y = g.heroY; }
   g.mon = g.mons[0];
@@ -3604,8 +3604,35 @@ console.log('\n=== v391 검사 5차 전직 · 천마신공 ===');
   const f = fresh('fist');
   while (f.s.level < 150) f.addExp(W.expToNext(f.s.level));
   f.s.gold = 1e12; while (f.canAdvance()) f.advance(); f.s.duel.won = { cheonma: 1 };
-  ok(f.s.jobTier === 4 && !f.nextTier() && !f.cheonmaOn() && migrateWorld({ ...f.toJSON(), jobTier: 5 }).jobTier === 4, '다른 직업은 4차까지');
-  ok(/cheonma-go/.test(read('js/wui.js')) && /ev\.cheonma/.test(read('js/wmain.js')) && /'魔'/.test(read('js/battle.js')), '사부 창 · 전직 연출 · 붉은 魔 인장');
+  ok(f.s.jobTier === 4 && f.nextTier()?.need === 'hwamugi' && !f.cheonmaOn(), 'v393 권마는 화무기를 꺾어야 5차(천마로는 안 된다)');
+  ok(/cheonma-go/.test(read('js/wui.js')) && /ev\.cheonma/.test(read('js/wmain.js')) && /seal: '魔'/.test(read('js/world/wdata.js')) && /fifthOf\(game\.s\.job\)\.seal/.test(read('js/battle.js')), '사부 창 · 전직 연출 · 붉은 魔 인장');
+}
+console.log('\n=== v393 다섯 직업 5차 · 초월 ===');
+{
+  const want = { sword: ['cheonma', '천마', '직단결'], fist: ['hwamugi', '투신', '붕천권'], fan: ['baekjagang', '혈마', '혈영섭혼'], poison: ['jinpaecheon', '독존', '단혼독룡침'], ring: ['magwi', '악존', '혈앙멸혼지'] };
+  for (const [j, [need, tier, s0]] of Object.entries(want)) {
+    const g = fresh(j);
+    while (g.s.level < 150) g.addExp(W.expToNext(g.s.level));
+    g.s.gold = 1e12; while (g.s.jobTier < 4 && g.canAdvance()) g.advance();
+    const blocked = !g.canAdvance() && g.nextTier()?.need === need;
+    g.s.duel.won = { ...(g.s.duel.won || {}), [need]: 1 };
+    const p0 = g.stats().power;
+    ok(blocked && g.advance() && g.tierName() === tier && g.skillDef('s0').name === s0 && W.skillsOf(j, true).filter((k) => k.cm).length === 7 && W.skillsOf(j, true).find((k) => k.soul) && g.stats().power > p0 * 1.1, `${j} 5차 — ${need} 격파 → ${tier} · 일곱 초식 · 혼`, `${(p0 / 1e3).toFixed(0)}k → ${(g.stats().power / 1e3).toFixed(0)}k`);
+  }
+  // 초월
+  const g = fresh('sword');
+  while (g.s.level < 150) g.addExp(W.expToNext(g.s.level));
+  const it = g.s.equip.weapon; it.rar = 3; it.plus = 15; g._stats = null;
+  g.s.gold = 1e13; g.s.mats[W.ORE] = 1e6; g.s.mats.b27 = 500; g.rng = () => 0;
+  const a0 = g.itemStats(it).atk;
+  ok(g.canTransItem(it) && g.canTranscend(it), '신화 +15 — 초월할 수 있다');
+  for (let i = 0; i < 12; i++) g.transcend(it.uid);
+  ok(it.tr === W.TRANS_MAX && Math.abs(g.itemStats(it).atk / a0 - (1 + W.TRANS_MAX * W.TRANS_STEP)) < 0.01 && !g.canTransItem(it), '초월 十까지 — 기본 능력치 +80%', `${it.tr}`);
+  const it2 = g.s.equip.armor; it2.rar = 3; it2.plus = 15; g.rng = () => 0.99; const b0 = g.s.mats.b27;
+  ok(g.transcend(it2.uid) === false && (it2.tr || 0) === 0 && it2.tpity > 0 && g.s.mats.b27 < b0, '실패해도 떨어지지 않고 천장');
+  const it3 = g.s.equip.hat; it3.rar = 2; it3.plus = 15;
+  ok(!g.canTransItem(it3), '전설은 초월 못 한다');
+  ok(/trans-go/.test(read('js/wui.js')) && /'w5'/.test(read('js/wmain.js')) && /art\/soul\//.test(read('js/battle.js')), '초월 창 · 5차 무공 그림 · 혼 그림');
 }
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);

@@ -5,7 +5,7 @@ import { artReady, putArt, putArtBand, putArtEdge, putArtTint, loadArt, FIT, ART
 import { drawFemaleHead, drawBackHair, FHEAD_W, FHEAD_H, FHEAD_FIT } from './femhead.js';
 import { drawCreature, saddleY, mountTilt, mountGait, CREATURES } from './creatures.js';
 import { drawMountAura } from './mountfx.js';
-import { ZONES_W, itemZone, weaponSkinOf, CUSTOM_HAIRS, petArt, CHEONMA } from './world/wdata.js';
+import { ZONES_W, itemZone, weaponSkinOf, CUSTOM_HAIRS, petArt, fifthOf } from './world/wdata.js';
 import { setOf } from './world/wgear.js';
 import { THEMES as IMP_THEMES } from './world/wimprint.js';
 import { tellCovers } from './world/wdgn.js';
@@ -480,6 +480,18 @@ function skillAccent(v, cls, at, crit) {
   }
 }
 const JOB_SEAL = { sword: '劍', fist: '拳', fan: '扇', ring: '指', poison: '毒' };
+// v393 5차 혼(魂) 그림 — art/soul/<직업>.png(sunburst) · 없으면 천마 두목 그림
+const SOUL_IMG = {};
+function soulImg(F5) {
+  const k = F5.soulArt;
+  if (SOUL_IMG[k]) return SOUL_IMG[k].ok ? SOUL_IMG[k].im : SOUL_IMG[k].fb;
+  const im = new Image(), fb = bossImg('m-cheonma');
+  if (fb) fb._fallback = true;
+  SOUL_IMG[k] = { im, ok: false, fb };
+  im.onload = () => { SOUL_IMG[k].ok = true; };
+  im.src = `art/soul/${k}.png`;
+  return fb;
+}
 const DROP_COL = ['96,165,250', '192,132,252', '251,146,60', '244,63,94'];
 const PET_COL = { crane: '241,245,249', fox: '96,165,250', qilin: '253,224,71', turtle: '56,189,248', haetae: '214,180,120', phoenix: '249,115,22', monkey: '250,204,21', dragon: '125,211,252', tiger: '241,245,249', yellow: '250,204,21' };
 const PET_SKILL_NAME = { crane: '학익진', fox: '여우불', qilin: '기린각', turtle: '현무파', haetae: '해태충', phoenix: '주작염', monkey: '분신봉', dragon: '청룡뇌', tiger: '백호참', yellow: '황룡진' };
@@ -1322,8 +1334,8 @@ export class BattleView {
           // v250: 멀리서 펼치는 직업(환마·독마·극악소마)의 광역은 터지는 자리에 인장을 — 발밑 인장과 폭발 자리가 떨어져 있었다
           const far = ['fan', 'poison', 'ring'].includes(game.s.job) && ev.radius > 0 && ev.at && ev.motion !== 'buff';
           const cm = game.cheonmaOn?.();   // v391 천마신공 — 인장이 붉은 魔로, 한 단 크게
-          this.effects.push({ kind: 'jobseal', wx: far ? ev.at.x : game.heroX, wy: far ? ev.at.y : game.heroY, ch: cm ? '魔' : JOB_SEAL[game.s.job], col: cm ? '220,38,38' : CAST_COL[game.s.job], r: 80 + (cm ? 5 : tr) * 22, spin: cm || tr >= 4 ? 2.6 : 1.2, life: 0.55 + tr * 0.1, max: 0.55 + tr * 0.1 });
-          if (cm && ev.radius > 0 && ev.at) this.effects.push({ kind: 'shock', life: 0.5, max: 0.5, wx: ev.at.x, wy: ev.at.y, r: ev.radius, col: '153,27,27', rings: 2, w: 4 });
+          this.effects.push({ kind: 'jobseal', wx: far ? ev.at.x : game.heroX, wy: far ? ev.at.y : game.heroY, ch: cm ? fifthOf(game.s.job).seal : JOB_SEAL[game.s.job], col: cm ? fifthOf(game.s.job).sealCol : CAST_COL[game.s.job], r: 80 + (cm ? 5 : tr) * 22, spin: cm || tr >= 4 ? 2.6 : 1.2, life: 0.55 + tr * 0.1, max: 0.55 + tr * 0.1 });
+          if (cm && ev.radius > 0 && ev.at) this.effects.push({ kind: 'shock', life: 0.5, max: 0.5, wx: ev.at.x, wy: ev.at.y, r: ev.radius, col: fifthOf(game.s.job).sealCol, rings: 2, w: 4 });
           // v228: 4차 무공은 빛살이 사방으로 뻗고 화면이 울린다
           if (tr >= 4 && !ev.echo) {
             this.effects.push({ kind: 'ultrays', wx: game.heroX, wy: game.heroY, col: CAST_COL[game.s.job], r: 260, life: 0.6, max: 0.6 });
@@ -1573,7 +1585,7 @@ export class BattleView {
     if (B.weapon?.look.aura) look.aura = B.weapon.look.aura;
     else if (B.armor?.look.aura) look.aura = B.armor.look.aura;
 
-    if (game.cheonmaOn?.()) look.aura = '#b91c1c';   // v391 천마혼 — 핏빛 기운
+    if (game.cheonmaOn?.()) look.aura = fifthOf(game.s.job).aura;   // v391 천마혼 — 핏빛 기운 · v393 직업마다
     // v280 꾸미기 — 고른 것은 경지·장비 겉모습보다 먼저 (고르지 않은 칸은 그대로)
     const cu = game.s.custom || {};
     if (cu.head) look.head = cu.head;
@@ -2631,18 +2643,19 @@ export class BattleView {
     }
     // 순보로 사라진 동안은 발밑 고리·이름표까지 같이 옅어진다
     const alpha = pose ? Math.max(0, Math.min(1, pose.alpha)) : 1;
-    if (game.cheonmaOn?.()) bossImg('m-cheonma');   // 미리 받아 둔다
+    const F5 = game.cheonmaOn?.() ? fifthOf(game.s.job) : null;
+    if (F5) soulImg(F5);   // 미리 받아 둔다
     // v391 천마혼 발현 — 심마도를 펼치면 무인 뒤로 천마의 형상이 선다(남은 동안 · 숨 쉬듯)
     if (game.buffs?.cmSoul > 0) {
-      const im = bossImg('m-cheonma');
+      const im = soulImg(F5);
       if (im && im.complete && im.naturalWidth) {
-        const left = game.buffs.cmSoul, k = Math.min(1, left / 0.6, (CHEONMA.soulSec - left) / 0.5 + 0.2);
+        const left = game.buffs.cmSoul, k = Math.min(1, left / 0.6, (F5.soulSec - left) / 0.5 + 0.2);
         const H = 300 * (1 + 0.03 * Math.sin(this.t * 3)), Wd = H * im.naturalWidth / im.naturalHeight;
         const c = this.ctx;
         c.save();
         c.globalAlpha = Math.max(0, Math.min(0.62, 0.62 * k));
-        c.shadowColor = '#dc2626'; c.shadowBlur = 28;
-        c.filter = 'brightness(0.75) sepia(1) saturate(5) hue-rotate(-30deg)';   // 핏빛으로(그림에만)
+        c.shadowColor = F5.col; c.shadowBlur = 28;
+        if (im._fallback) c.filter = 'brightness(0.75) sepia(1) saturate(5) hue-rotate(-30deg)';   // 옛 천마 그림은 핏빛으로(그림에만)
         c.drawImage(im, x - Wd / 2, y - H + 24, Wd, H);
         c.restore();
       }

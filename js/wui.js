@@ -725,12 +725,33 @@ function bagTab(app) {
         }
         return h(go ? 'button' : 'div', { class: `next-step${hot ? ' hot' : ''}`, onclick: go || undefined }, h('i', {}, '▶'), h('span', {}, txt), go ? h('em', {}, act ? `${act} ›` : '›') : null);
       };
+      // v393 초월 — +15까지 다 한 신화 장비
+      const transBox = () => {
+        const tr = it.tr || 0;
+        if ((it.rar || 0) < 3 || (it.plus || 0) < game.enhanceMaxItem(it) || game.enhanceMaxItem(it) < W.ENHANCE_MAX) return h('p', { class: 'muted tr-hint' }, `✦ 초월 — 신화 · +${W.ENHANCE_MAX}까지 다 한 장비만 (기본 능력치 단계마다 +${Math.round(W.TRANS_STEP * 100)}%, ${W.TRANS_MAX}단계)`);
+        if (tr >= W.TRANS_MAX) return h('div', { class: 'card tr-box' }, h('b', {}, `✦ ${W.TRANS_NAME[tr]} — 끝`), h('small', { class: 'muted' }, ` 기본 능력치 +${Math.round(tr * W.TRANS_STEP * 100)}%`));
+        const f = game.transInfo(it);
+        const can = game.canTranscend(it);
+        return h('div', { class: 'card tr-box' },
+          h('div', { class: 'tr-head' }, h('b', {}, `✦ 초월 ${tr} → ${tr + 1}`), h('small', {}, ` 기본 능력치 +${Math.round(tr * W.TRANS_STEP * 100)}% → +${Math.round((tr + 1) * W.TRANS_STEP * 100)}%`)),
+          h('div', { class: 'tr-cost' },
+            h('span', { class: game.s.gold >= f.gold ? '' : 'lack' }, `은자 ${fmt(f.gold)}`),
+            h('span', { class: (game.s.mats[W.ORE] || 0) >= f.ore ? '' : 'lack' }, `${W.ORE_NAME} ${fmt(f.ore)}`),
+            h('span', { class: f.mark ? '' : 'lack' }, f.mark ? `${W.matName(f.mark)} ${f.markN}` : `두목 증표 ${f.markN}개(한 종류)`)),
+          h('div', { class: 'tr-rate' }, `성공 ${pct(f.rate, 0)} · 실패해도 떨어지지 않고 다음 확률 ↑`),
+          h('button', { class: 'btn primary', id: 'trans-go', style: 'width:100%', disabled: can ? null : true, onclick: () => {
+            const ok = game.transcend(it.uid);
+            if (ok == null) return;
+            toast(ok ? `✦ ${W.TRANS_NAME[it.tr]}! 기본 능력치 +${Math.round(it.tr * W.TRANS_STEP * 100)}%` : '초월 실패 — 다음 확률이 올라요');
+            app.save(); paint(); app.refresh();
+          } }, can ? '✦ 초월하기' : '재료가 모자라요'));
+      };
       const enhView = () => {
         const lv = it.plus || 0;
         const breaking = lv >= W.ENHANCE_NORMAL;
         if (lv >= game.enhanceMax(it)) {
-          return [enhRoad(), enhNext(), h('div', { class: 'enh-box enh-max' }, h('div', { class: 'enh-hero' }, h('b', {}, `+${lv}`)),
-            h('div', { class: 'enh-actions' }, h('button', { class: 'btn itm-info', onclick: () => enhHelp() }, 'ⓘ 강화란?')))];
+          return [enhRoad(), enhNext(), h('div', { class: 'enh-box enh-max' }, h('div', { class: 'enh-hero' }, h('b', {}, `+${lv}`), it.tr ? h('em', { class: 'tr-badge' }, W.TRANS_NAME[it.tr]) : ''),
+            h('div', { class: 'enh-actions' }, h('button', { class: 'btn itm-info', onclick: () => enhHelp() }, 'ⓘ 강화란?'))), transBox()];
         }
         const rate = game.enhanceRateOf(it);
         const risky = W.enhanceRisky(lv);
@@ -1431,7 +1452,7 @@ function bagTab(app) {
       return h('div', { class: 'enh-tile', style: `--gc:${gradeOf(it).color}` },
         h('button', { class: 'enh-top', onclick: () => openItem(it, true) }, h('span', { class: 'imp-slot' }, x.name), h('b', {}, `+${p}`), h('small', {}, itemTitle(game, it))),
         h('div', { class: 'imp-lv' }, h('i', { style: `width:${(p / mxi) * 100}%` }), h('span', {}, `+${p} / ${mxi}${mx < mxi ? ` (레벨 상한 +${mx})` : ''}`)),
-        p >= mx ? h('div', { class: 'imp-done' }, p >= mxi ? '✓ 끝' : `레벨이 오르면 +${mx + 1}`)
+        p >= mx ? (game.canTransItem(it) ? h('button', { class: `btn imp-up${game.canTranscend(it) ? ' primary' : ' lack'}`, onclick: () => openItem(it, true) }, `✦ 초월 ${it.tr || 0}/${W.TRANS_MAX}`, h('small', {}, ' 눌러서')) : h('div', { class: 'imp-done' }, p >= mxi ? (it.tr ? `✓ ${W.TRANS_NAME[it.tr]}` : '✓ 끝') : `레벨이 오르면 +${mx + 1}`))
           : h('button', { class: `btn imp-up${can ? ' primary' : ' lack'}`, disabled: can ? null : true, onclick: () => {
             const r = game.enhance(it.uid, true);
             if (r != null) { const L = game.lastEnhance; toast(r ? `${x.name} +${it.plus} 성공!` : `${x.name} 실패${L?.drop ? ` (${L.drop})` : L?.prot ? ' · 보호부로 그대로' : ' · 그대로'} · 다음 확률 ↑`); done(); }
@@ -2524,25 +2545,26 @@ function townTab(app) {
     const s = game.s;
     const t = game.nextTier();
     const card = h('div', { class: 'card' }, h('h3', {}, '사부', h('small', {}, `지금 ${game.tierName() || '입문'}`)));
-    if (!t) card.append(h('p', {}, game.cheonmaOn?.() ? `천마신공을 이었구나. 하늘 아래 너를 막을 자가 없다 — ${W.CHEONMA.soul}(${W.CHEONMA.soulHanja})이 깃들었다.` : '더 배울 것이 없다. 이제 네 길을 가거라.'));
-    else if (t.need === 'cheonma') {
-      // v391 5차 — 천마신공(검사만)
-      const lvOk = s.level >= t.level, goldOk = s.gold >= t.cost, won = !!s.duel?.won?.cheonma;
-      const cm = W.skillsOf(s.job, true).filter((k) => k.cm);
-      card.append(h('div', { class: 'advance-box cheonma-box' },
-        h('div', { class: 'adv-title' }, '5차 전직 → ', h('b', { style: `color:${W.CHEONMA.col}` }, `${W.CHEONMA.tierName} · ${W.CHEONMA.name}(${W.CHEONMA.hanja})`)),
-        h('p', { class: 'muted', style: 'font-size:12.5px' }, '천마 검우진을 꺾은 검사만이 잇는다 — 모든 무공이 천마신공 구화마도식(九華魔刀式) 일곱 초식으로 바뀌고 천마혼이 깃든다. 칠초식 심마도를 펼치면 등 뒤로 천마의 형상이 선다.'),
+    const F5 = W.fifthOf(s.job);
+    if (!t) card.append(h('p', {}, game.cheonmaOn?.() ? `${F5.name}을 이었구나. 하늘 아래 너를 막을 자가 없다 — ${F5.soul}(${F5.soulHanja})이 깃들었다.` : '더 배울 것이 없다. 이제 네 길을 가거라.'));
+    else if (t.need) {
+      // v391 5차 — 직업마다(v393): 검사 천마신공 · 권마 투신 · 환마 혈마 · 독마 독존 · 극악소마 악존
+      const lvOk = s.level >= t.level, goldOk = s.gold >= t.cost, won = !!s.duel?.won?.[t.need];
+      const cm = W.skillsOf(s.job, true).filter((k) => k.cm).sort((a, b) => (a.form || 0) - (b.form || 0));
+      card.append(h('div', { class: 'advance-box cheonma-box', style: `--fc:${F5.col}` },
+        h('div', { class: 'adv-title' }, '5차 전직 → ', h('b', { style: `color:${F5.col}` }, `${F5.tierName} · ${F5.name}(${F5.hanja})`)),
+        h('p', { class: 'muted', style: 'font-size:12.5px' }, `${F5.needName}을(를) 꺾은 자만이 잇는다 — 모든 무공이 ${F5.form}(${F5.formHanja}) 일곱 초식으로 바뀌고 ${F5.soul}이 깃든다. 마지막 초식을 펼치면 등 뒤로 ${F5.soul}의 형상이 선다.`),
         h('div', { class: 'checks' },
-          h('span', { class: `need${won ? ' ok' : ''}` }, '천마 격파', ' ', h('b', {}, won ? '✓' : '✗')),
+          h('span', { class: `need${won ? ' ok' : ''}` }, `${F5.needName} 격파`, ' ', h('b', {}, won ? '✓' : '✗')),
           h('span', { class: `need${lvOk ? ' ok' : ''}` }, `레벨 ${t.level}`, ' ', h('b', {}, lvOk ? '✓' : `${s.level}/${t.level}`)),
           h('span', { class: `need${goldOk ? ' ok' : ''}` }, '은자', ' ', h('b', {}, goldOk ? '✓' : `${fmt(s.gold)}/${fmt(t.cost)}`))),
-        h('p', { class: 'cm-soul' }, W.CHEONMA.trait),
-        h('div', { class: 'cm-list' }, ...cm.map((k) => h('div', {}, h('b', {}, k.name), h('small', {}, ` ${k.desc}`)))),
+        h('p', { class: 'cm-soul' }, F5.trait),
+        h('div', { class: 'cm-list' }, ...cm.map((k) => h('div', {}, h('b', { style: `color:${F5.col}` }, k.name), h('small', {}, ` ${k.desc}`)))),
         h('button', { class: 'btn primary', id: 'cheonma-go', style: 'width:100%', disabled: game.canAdvance() ? null : true, onclick: () => {
-          if (!confirm(`5차 전직 — ${W.CHEONMA.name}\n모든 무공이 천마신공으로 바뀌어요(무공 레벨·각성은 그대로). 은자 ${fmt(t.cost)}.`)) return;
+          if (!confirm(`5차 전직 — ${F5.name}\n모든 무공이 ${F5.form}으로 바뀌어요(무공 레벨·각성은 그대로). 은자 ${fmt(t.cost)}.`)) return;
           if (!game.advance()) return;
           app.save(); app.refresh();
-        } }, !won ? '천마를 먼저 쓰러뜨려요' : !lvOk ? `레벨 ${t.level}이 되면` : !goldOk ? '은자가 모자라요' : '천마신공을 잇는다')));
+        } }, !won ? `${F5.needName}을(를) 먼저 쓰러뜨려요` : !lvOk ? `레벨 ${t.level}이 되면` : !goldOk ? '은자가 모자라요' : `${F5.name}을 잇는다`)));
     } else {
       const sk = W.skillsOf(s.job).find((k) => k.tier === s.jobTier + 1);
       const lvOk = s.level >= t.level, goldOk = s.gold >= t.cost;

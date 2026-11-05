@@ -236,7 +236,6 @@ export const skillsOf = (job, cm = false) => {
 };
 // ---------- v391 5차 전직 · 천마신공(天魔神功) ----------
 // 천마 검우진을 쓰러뜨린 검사가 레벨 150에 — 절대회귀의 천마신공. 모든 무공이 천마신공으로 바뀌고 천마혼(天魔魂)이 깃든다.
-export const CHEONMA_JOBS = ['sword'];
 export const CHEONMA = {
   name: '천마신공', hanja: '天魔神功', soul: '천마혼', soulHanja: '天魔魂', tierName: '천마', col: '#dc2626',
   form: '구화마도식', formHanja: '九華魔刀式',
@@ -265,6 +264,57 @@ export const CHEONMA_SKILLS = {
       desc: '칠초식 心魔刀 — 구화마도식의 최종장. 정·사·선·악의 경계를 무너뜨리고 제 마음의 마(魔)를 검에 담아 열여섯 번 가른다 · 천마혼 발현(15초 모든 피해 2배)' },
   },
 };
+// ---------- v393 다른 직업도 5차 — 숨은 두목을 꺾으면(직업마다 다르다) ----------
+//   fx·자리는 그대로 두고 이름·설명을 바꾸고 배수를 키운다(FIFTH_K · 숨 FIFTH_CD). 마지막 초식(4차 자리)이 혼(魂)을 깨운다.
+export const FIFTH_K = 1.6, FIFTH_CD = 0.85;
+const F5 = (o) => ({ atkMul: 2.0, hpMul: 1.5, mods: { skill: 0.4, bossDmg: 0.4, dmgRed: 0.2 }, soulSec: 15, soulDmg: 1.0, ...o });
+export const FIFTH = {
+  sword: { ...CHEONMA, need: 'cheonma', needName: '천마 검우진', seal: '魔', sealCol: '220,38,38', aura: '#b91c1c', soulArt: 'soul-sword', banner: '天魔' },
+  fist: F5({ name: '투신불패공', hanja: '鬪神不敗功', soul: '투신혼', soulHanja: '鬪神魂', tierName: '투신', col: '#f59e0b', form: '투신칠권', formHanja: '鬪神七拳',
+    need: 'hwamugi', needName: '천하제일인 화무기', seal: '鬪', sealCol: '245,158,11', aura: '#d97706', soulArt: 'soul-fist', banner: '鬪神',
+    atkMul: 1.22, hpMul: 1.25,
+    trait: '투신혼(鬪神魂) — 공격력 ×1.22 · 최대 체력 ×1.25(따로 곱한다) · 무공 피해 +40% · 두목 피해 +40% · 받는 피해 -20% · 칠권 투신현신을 펼치면 투신혼 발현(15초 모든 피해 2배)' }),
+  fan: F5({ name: '혈마대법', hanja: '血魔大法', soul: '혈마혼', soulHanja: '血魔魂', tierName: '혈마', col: '#be123c', form: '혈마칠법', formHanja: '血魔七法',
+    need: 'baekjagang', needName: '사도맹주 백자강', seal: '血', sealCol: '190,18,60', aura: '#9f1239', soulArt: 'soul-fan', banner: '血魔',
+    atkMul: 1.32, hpMul: 1.3,
+    trait: '혈마혼(血魔魂) — 공격력 ×1.32 · 최대 체력 ×1.3(따로 곱한다) · 무공 피해 +40% · 두목 피해 +40% · 받는 피해 -20% · 칠법 혈마강림을 펼치면 혈마혼 발현(15초 모든 피해 2배)' }),
+  poison: F5({ name: '만독귀종공', hanja: '萬毒歸宗功', soul: '독룡혼', soulHanja: '毒龍魂', tierName: '독존', col: '#65a30d', form: '만독칠식', formHanja: '萬毒七式',
+    need: 'jinpaecheon', needName: '무림맹주 진패천', seal: '毒', sealCol: '101,163,13', aura: '#4d7c0f', soulArt: 'soul-poison', banner: '毒尊',
+    atkMul: 1.75, hpMul: 1.5,
+    trait: '독룡혼(毒龍魂) — 공격력 ×1.75 · 최대 체력 ×1.5(따로 곱한다) · 무공 피해 +40% · 두목 피해 +40% · 받는 피해 -20% · 칠식 만독귀종을 펼치면 독룡혼 발현(15초 모든 피해 2배)' }),
+  ring: F5({ name: '무면천악공', hanja: '無面天惡功', soul: '무면귀', soulHanja: '無面鬼', tierName: '악존', col: '#7c3aed', form: '천악칠지', formHanja: '天惡七指',
+    need: 'magwi', needName: '히든 마귀', seal: '惡', sealCol: '124,58,237', aura: '#6d28d9', soulArt: 'soul-ring', banner: '惡尊',
+    atkMul: 1.12, hpMul: 1.2,
+    trait: '무면귀(無面鬼) — 공격력 ×1.12 · 최대 체력 ×1.2(따로 곱한다) · 무공 피해 +40% · 두목 피해 +40% · 받는 피해 -20% · 칠지 삼공악림을 펼치면 무면귀 발현(15초 모든 피해 2배)' }),
+};
+export const CHEONMA_JOBS = Object.keys(FIFTH);
+export const fifthOf = (job) => FIFTH[job] || null;
+// 초식 이름 — 자리(0~4)·길(a·b). 마지막(4) 초식이 혼을 깨운다(soul).
+const FORMS = {
+  fist: { 0: ['일권 붕천권', '崩天拳', '하늘을 무너뜨리는 한 주먹'], 3: ['이권 금강불괴', '金剛不壞', '금강의 몸으로 막아 낸다'], 1: ['삼권 백열난무', '百裂亂舞', '백 번 찢는 난무'],
+    2: ['사권 패왕진천', '霸王震天', '패왕의 일격이 하늘을 울린다'], b: ['오권 섬전연환', '閃電連環', '번개처럼 이어 치는 연환권'], a: ['육권 파산신권', '破山神拳', '산을 깨는 신권의 충격파'], 4: ['칠권 투신현신', '鬪神顯身', '투신이 몸에 내려선다 — 투신혼 발현'] },
+  fan: { 0: ['일법 혈영섭혼', '血影攝魂', '핏빛 그림자로 혼을 홀린다'], 3: ['이법 혈마불사', '血魔不死', '죽음 직전 피로 되살아난다'], 1: ['삼법 혈우난무', '血雨亂舞', '피의 비가 둘레를 휩쓴다'],
+    2: ['사법 혈해천망', '血海天網', '피의 바다가 하늘 그물이 된다'], b: ['오법 혈영보', '血影步', '핏빛 그림자 걸음'], a: ['육법 혈마수라장', '血魔修羅掌', '수라의 장력'], 4: ['칠법 혈마강림', '血魔降臨', '혈마의 분신이 내려선다 — 혈마혼 발현'] },
+  poison: { 0: ['일식 단혼독룡침', '斷魂毒龍針', '혼을 끊는 독룡의 침'], 3: ['이식 만독불침', '萬毒不侵', '만 가지 독이 몸을 지킨다'], 1: ['삼식 부골화혈산', '腐骨化血散', '뼈를 삭이고 피를 녹이는 독무'],
+    2: ['사식 만독천라', '萬毒天羅', '만독의 하늘 그물'], b: ['오식 만천독우', '滿天毒雨', '하늘 가득 독의 비'], a: ['육식 독룡출해', '毒龍出海', '독룡이 바다를 뚫고 나온다'], 4: ['칠식 만독귀종', '萬毒歸宗', '만 가지 독이 하나로 돌아간다 — 독룡혼 발현'] },
+  ring: { 0: ['일지 혈앙멸혼지', '血殃滅魂指', '혼을 지우는 재앙의 손가락'], 3: ['이지 무면현신', '無面顯身', '가면 아래 얼굴 없는 공포'], 1: ['삼지 공포광란장', '恐怖狂亂掌', '공포가 미쳐 날뛰는 장력'],
+    2: ['사지 만비수라', '萬匕修羅', '만 자루 비수의 수라장'], b: ['오지 귀영무흔', '鬼影無痕', '흔적 없는 귀신 그림자'], a: ['육지 육맥멸혼', '六脈滅魂', '여섯 맥으로 혼을 멸한다'], 4: ['칠지 삼공악림', '三功惡臨', '세 무공이 악으로 임한다 — 무면귀 발현'] },
+};
+for (const [job, forms] of Object.entries(FORMS)) {
+  const out = {};
+  for (const [k, [full, hanja, line]] of Object.entries(forms)) {
+    const base = k === 'a' || k === 'b' ? PATH_SKILLS[job][k] : JOB_SKILLS[job].find((d) => String(d.slot) === k);
+    const name = full.split(' ')[1];
+    const o = { name, icon: name.slice(0, 2), form: '일이삼사오육칠'.indexOf(full[0]) + 1, cd: Math.round(base.cd * FIFTH_CD * 10) / 10,
+      desc: `${full.split(' ')[0]} ${hanja} — ${line} · ${base.desc.replace(/ — [^—]*의 길$/, '')}${k === 'a' || k === 'b' ? base.desc.match(/ — [^—]*의 길$/)?.[0] || '' : ''}` };
+    if (base.mult) o.mult = Math.round(base.mult * FIFTH_K * 100) / 100;
+    if (base.bossMult) o.bossMult = Math.round(base.bossMult * 1.2 * 100) / 100;
+    if (k === '4') o.soul = true;
+    out[k] = o;
+  }
+  CHEONMA_SKILLS[job] = out;
+}
+
 
 // ---------- 지도 ----------
 // 0번은 마을(객잔 마을). 1~15는 사냥터 — 옛 지역 그림과 몹 생김새를 쓴다.
@@ -725,6 +775,16 @@ export const enhanceMult = (plus) => 1 + Math.min(plus, ENHANCE_NORMAL) * ENHANC
 export const breakMarks = (plus) => (plus >= ENHANCE_NORMAL ? plus - ENHANCE_NORMAL + 1 : 0);   // +10→11 증표 1 … +14→15 증표 5
 // 강화에는 은자와 함께 그 장비 지역의 재료가 든다 — 재료를 넣을수록 장비가 세진다
 export const enhanceMatsN = (plus) => 4 + plus * 3;
+// ---------- v393 초월(超越) — +15까지 다 한 신화 장비를 그 너머로(만렙 뒤 장비 목표) ----------
+// 열 단계 · 단계마다 기본 능력치 +TRANS_STEP(곱) · 은자·현철·가장 센 두목 증표 · 실패해도 떨어지지 않고 천장이 쌓인다
+export const TRANS_MAX = 10;
+export const TRANS_STEP = 0.08;
+export const TRANS_RATE = [0.9, 0.8, 0.7, 0.6, 0.5, 0.42, 0.35, 0.3, 0.25, 0.2];
+export const TRANS_PITY_K = 0.5;
+export const transGold = (ilv, tr) => Math.round(enhanceCost(ilv, 15) * 4 * (tr + 1) ** 1.5);
+export const transOre = (tr) => (4 + 15 * 3) * 3 * (tr + 1);
+export const transMarks = (tr) => 3 + tr * 2;
+export const TRANS_NAME = ['', '초월 一', '초월 二', '초월 三', '초월 四', '초월 五', '초월 六', '초월 七', '초월 八', '초월 九', '초월 十'];
 export const BOSS_ITEM_RATE = 0.12;              // 두목이 그 지역 하급 장비를 떨굴 확률
 export const KING_ITEM_RATE = 0.3;               // 십이지왕은 더 자주
 // 가락지·귀걸이: 강화가 어렵다 — 성공률 절반, 은자 ×3, 돌파 없음

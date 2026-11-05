@@ -847,7 +847,7 @@ function buildSkillbar() {
       if (held) { held = false; return; }
       if (sk.tier > game.s.jobTier) return showTab('town', 'master');
       if (!game.useSkill(sk.id)) toast({ town: '사냥터에서 쓸 수 있어요', hp: '체력이 모자라요', cd: '아직 숨이 안 돌아왔어요', far: '닿는 적이 없어요 — 가까이 가요', none: '칠 적이 없어요' }[game.skillFail] || '지금은 펼칠 수 없어요');
-    } }, h('span', { class: 'sk-name' }, sk.icon), cd, num, lock), `w-${game.s.job}-${sk.id}`);
+    } }, h('span', { class: 'sk-name' }, sk.icon), cd, num, lock), `${sk.cm && /^s[0-4]$/.test(sk.id) ? 'w5' : 'w'}-${game.s.job}-${sk.id}`);   // v393 5차 초식 그림
     btn.addEventListener('pointerdown', () => {
       held = false;
       clearTimeout(holdT);
@@ -1644,12 +1644,13 @@ function handleEvents() {
         break;
       case 'advance': {
         if (ev.cheonma) {   // v391 5차 천마신공
-          view.showBanner(`5차 전직 · ${W.CHEONMA.name}`, W.CHEONMA.col, 3.2, '天魔');
-          net.announce(`🩸 ${game.s.nickname}님이 천마를 꺾고 ${W.CHEONMA.name}(${W.CHEONMA.hanja})을 이었다 — 5차 전직 · 천마`);
+          const F5 = W.fifthOf(game.s.job);
+          view.showBanner(`5차 전직 · ${F5.name}`, F5.col, 3.2, F5.banner);
+          net.announce(`🩸 ${game.s.nickname}님이 ${F5.needName}을(를) 꺾고 ${F5.name}(${F5.hanja})을 이었다 — 5차 전직 · ${F5.tierName}`);
           view.effects.push({ kind: 'pillar', life: 2.2, max: 2.2 });
           view.flash = Math.max(view.flash || 0, 0.5); view.shake = Math.max(view.shake || 0, 0.6);
           sfx('level');
-          toast(`🩸 ${W.CHEONMA.trait}`);
+          toast(`🩸 ${F5.trait}`);
           drawPortrait(); save();
           break;
         }
@@ -1712,8 +1713,9 @@ function handleEvents() {
         sfx('level');
         toast(`🌋 ${ev.boss}의 대성신장 — 〈${W.itemName(ev.item, game.s.job)}〉 ${W.RARITY[ev.item.rar || 0]?.name || ''} 획득! (가방)`);
         break;
+      case 'transcend': if (ev.ok) sfx('level'); break;   // v393 초월 (알림은 창에서)
       case 'cmSoul':   // v391 천마혼 발현
-        view.showBanner(`${W.CHEONMA.soul} 발현`, W.CHEONMA.col, 1.6, '天魔魂');
+        { const F5 = W.fifthOf(game.s.job); view.showBanner(`${F5.soul} 발현`, F5.col, 1.6, F5.soulHanja); }
         view.shake = Math.max(view.shake || 0, 0.35); view.flash = Math.max(view.flash || 0, 0.2);
         break;
       case 'palmaCarry': toast(`🌋 대성신장 바꿔 끼기 — 강화 +${ev.plus}를 이어받았어요`); break;   // v386
