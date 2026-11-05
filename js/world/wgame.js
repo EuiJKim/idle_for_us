@@ -1590,7 +1590,8 @@ export class WorldGame {
       return;
     }
     if (m.calib) this.bossCalib(m, dmg);
-    if (m.wb && this.inst?.kind === 'wraid') { dmg *= SH.focusMult(this); this.inst.myDealt = (this.inst.myDealt || 0) + Math.min(dmg, Math.max(0, m.hp)); }   // v374 내가 준 몫(서버에 올린다) · v377 집중
+    if (m.wb && this.inst?.kind === 'wraid') { dmg *= SH.focusMult(this) * (SH.closeIn(this) ? SH.MELEE_DMG : 1);   // v397 근접은 붙어서 더 맞는 만큼 더 친다
+      this.inst.myDealt = (this.inst.myDealt || 0) + Math.min(dmg, Math.max(0, m.hp)); }   // v374 내가 준 몫(서버에 올린다) · v377 집중
     m.hp -= dmg;
     m.aggro = true;
     // v241: 실제 준 피해(넘친 몫은 빼고) — 두목 최소 싸움 길이 잣대
@@ -1754,7 +1755,7 @@ export class WorldGame {
     return sk.kind === 'support' ? this.s.level >= sk.from : sk.tier <= this.s.jobTier;
   }
   skillDef(id) { return this.skillList().find((k) => k.id === id) || null; }
-  hpCostOf(sk) { const st = this.stats(); return Math.round(st.hp * (sk.hpCost || 0) * (1 - this.skillMods(sk.id).cost) * (1 - (st.hpCostDown || 0))); }
+  hpCostOf(sk) { const st = this.stats(); return Math.round(st.hp * (sk.hpCost || 0) * (1 - this.skillMods(sk.id).cost) * (1 - (st.hpCostDown || 0)) * (this.inst?.kind === 'wraid' ? D.WB_TIER[D.wbTierOf(this.map?.wb)].heal : 1)); }   // v397 월드보스는 회복이 줄어드는 만큼 무공 체력 값도(극악소마가 제 무공에 쓰러졌다)
   skillRadius(sk) { return (sk.radius || 0) * Math.max(0.3, 1 + this.skillMods(sk.id).range + (this.stats().skillRange || 0)); }
   skillCd(sk) {
     const sb = this.setBonus();
@@ -1776,7 +1777,8 @@ export class WorldGame {
     const sk = this.skillDef(id);
     const st = this.stats();
     // v391 칠초식 심마도 — 천마혼 발현(무인 뒤 천마의 형상 · 모든 피해 +)
-    if (sk.soul && this.cheonmaOn()) { this.buffs.cmSoul = this.fifth().soulSec; this.buffv.cmSoul = this.fifth().soulDmg; this.emit('cmSoul', { sec: this.fifth().soulSec }); }
+    // v397 혼 발현은 따로 숨(SOUL_CD)이 있다 — 검사는 심마도 숨(15초)이 발현 시간과 같아 늘 켜져 있었다(남은 60~75%)
+    if (sk.soul && this.cheonmaOn() && !(this.buffs.cmSoulCd > 0)) { this.buffs.cmSoul = this.fifth().soulSec; this.buffv.cmSoul = this.fifth().soulDmg; this.buffs.cmSoulCd = W.SOUL_CD; this.emit('cmSoul', { sec: this.fifth().soulSec }); }
     if (sk.kind === 'support') return this.useSupport(sk, st);
     if (sk.kind === 'awaken') { const c = this.hpCostOf(sk); this.heroHp -= c; if (c) this.emit('hpCost', { amount: c }); return this.useSupport(sk, st); }
     if (sk.kind === 'clone') return this.useClone(sk, st);

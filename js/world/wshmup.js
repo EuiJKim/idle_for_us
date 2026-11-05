@@ -27,6 +27,10 @@ export const GRAZE_T = 0.6;
 export const WK_SEC = 15;
 export const WK_MAX = 2;
 export const IFRAME = 0.6;
+// v397 근접(검사·권마·극악소마)은 마왕에 붙어야 해서 탄을 2~3배 더 맞는다 — 받는 탄 피해는 줄이고 주는 피해는 키운다
+export const MELEE_HIT = 0.7, MELEE_DMG = 1.35;
+// 붙어 싸우는 직업 — 사거리가 없거나 짧다(극악소마 180 · 환마 230 · 독마 240)
+export const closeIn = (g) => (W.classOf(g.s.job)?.range || 0) < 200;
 export const HIT_PCT = 0.10;                                     // 탄 한 대 = 최대 체력의 몫(큰 탄은 2배) — v387부터 단계별 D.WB_TIER.hit
 export const SPEED = 250;
 export const KEEP = 330;                                          // 원거리 자동 회피가 두목과 두는 거리
@@ -319,7 +323,7 @@ function hitHero(g, st, u) {
   const pm = g.pmods();
   const red = (1 - (W.CLASSES[g.s.job]?.dmgRed || 0)) * (1 - (g.buffv.guard || 0)) * (1 - Math.min(0.6, pm.dmgRed || 0)) * (1 - (st.dmgRed || 0));
   const k = rageK(g).atk;
-  const dmg = st.hp * D.WB_TIER[D.wbTierOf(g.map?.wb)].hit * (u.big ? 2 : 1) * k * red;   // v387 단계마다 아프게
+  const dmg = st.hp * D.WB_TIER[D.wbTierOf(g.map?.wb)].hit * (u.big ? 2 : 1) * k * red * (closeIn(g) ? MELEE_HIT : 1);   // v387 단계마다 아프게
   let left = dmg;
   if (g.shield > 0 && g.buffs.shield > 0) { const a = Math.min(g.shield, left); g.shield -= a; left -= a; }
   g.heroHp -= left;

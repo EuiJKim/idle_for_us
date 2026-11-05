@@ -49,7 +49,7 @@ export const lookTierOf = (level) => Math.min(RANKS.length - 1, Math.floor((leve
 //  극악소마: 붙은 적이 공포에 질려 공격을 머뭇거린다 + 붙으면 더 아프다 + 치명 피해
 export const CLASSES = {
   sword: { base: { str: 6, dex: 4, vit: 5, int: 3 }, trait: '일화(一花) — 팔마존 중 가장 빠르다: 이동 속도 +15% · 평타 네 번째마다 꽃잎 검기가 둘레를 벤다(220%) · 두목에게 주는 피해 +10%',
-    move: 0.15, boss: 1.1, flower: { every: 4, mult: 2.2, r: 150 }, atkK: 1.12 },   // v396 atkK — 전직 20·50·100·130에 만렙이 14일로 늦었다
+    move: 0.15, boss: 1.1, flower: { every: 4, mult: 2.2, r: 150 }, atkK: 1.12, dmgRed: 0.1 },   // v397 근접 — 받는 피해 -10%   // v396 atkK — 전직 20·50·100·130에 만렙이 14일로 늦었다
   // 권마는 평타가 곧 무공 — 평타 피해가 레벨마다 1%씩 붙는다. 무공은 약한 편이라 초반엔 뒤지고 후반에 앞선다.
   // v277 두목 사냥꾼 — 근접 한 적이라 사냥(무리)이 남의 1/3~1/4이고 레벨이 늦다. 대신 두목을 더 빨리(싸움 시간 ×bossTime) · 두목 경험치 ×bossExp
   fist: { base: { str: 6, dex: 6, vit: 4, int: 2 }, trait: '불패(不敗) — 평타가 곧 무공: 평타가 레벨과 함께 자란다(레벨 1에 85% → 레벨 100에 150%) · 공격 속도 +25% · 받는 피해 -20% · 두목 사냥꾼: 두목 싸움 -30% · 두목 경험치 +50% · 두목에게 주는 피해 +20%',
@@ -62,7 +62,7 @@ export const CLASSES = {
   // v278 두목은 지속 피해(독·화상·출혈)를 BOSS_DOT_K만 받는다 — 독마 무공의 독(칠보단혼침 320%·만독지옥 200%…)이 오래 버티는 두목에게 다 들어가
   //   사냥도 가장 빠른 독마가 두목 피해까지 두목 사냥꾼(권마)보다 높았다(같은 장비 검사 대비 1.24~1.75배 → 0.85~1.3배). 사냥터 몹은 그대로.
   ring: { base: { str: 5, dex: 6, vit: 4, int: 3 }, trait: '공포(恐怖) — 붙은 적이 25% 확률로 공격을 머뭇거린다 · 붙으면 피해 +20% · 치명 피해 +15% · 두목 사냥꾼: 두목 싸움 -30% · 두목 경험치 +50% · 두목에게 주는 피해 +35%',
-    fear: 0.25, critDmg: 0.15, boss: 1.35, bossTime: 0.7, bossExp: 1.5 },
+    fear: 0.25, critDmg: 0.15, boss: 1.35, bossTime: 0.7, bossExp: 1.5, dmgRed: 0.12 },   // v397 붙어 싸운다 — 받는 피해 -12%
 };
 
 // 다섯 마존 (v118) — 3차 전직의 끝에 닿는 이름. 캐릭터를 고를 때와 캐릭터 창에 보인다.
@@ -239,34 +239,35 @@ export const skillsOf = (job, cm = false) => {
 export const CHEONMA = {
   name: '천마신공', hanja: '天魔神功', soul: '천마혼', soulHanja: '天魔魂', tierName: '천마', col: '#dc2626',
   form: '구화마도식', formHanja: '九華魔刀式',
-  trait: '천마혼(天魔魂) — 공격력 ×2.2 · 최대 체력 ×1.6(따로 곱한다) · 무공 피해 +50% · 두목 피해 +50% · 받는 피해 -20% · 꽃잎 검기가 천마검강으로(세 번째 평타마다 · 600% · 더 넓게) · 칠초식 심마도를 펼치면 천마혼 발현(15초 모든 피해 2배)',
-  atkMul: 2.2, hpMul: 1.6,   // v392 더 세게(1.5 · 1.3 → 2.2 · 1.6)
-  mods: { skill: 0.5, bossDmg: 0.5, dmgRed: 0.2 },
-  flower: { every: 3, mult: 6.0, r: 240 },
+  trait: '천마혼(天魔魂) — 공격력 ×1.6 · 최대 체력 ×1.6(따로 곱한다) · 무공 피해 +40% · 두목 피해 +40% · 받는 피해 -20% · 꽃잎 검기가 천마검강으로(세 번째 평타마다 · 400% · 더 넓게) · 칠초식 심마도를 펼치면 천마혼 발현(15초 모든 피해 2배)',
+  atkMul: 1.6, hpMul: 1.6,   // v392 더 세게(1.5 · 1.3 → 2.2 · 1.6) · v397 2.2 → 1.6(탄막·두목에서 남의 2.5배였다)
+  mods: { skill: 0.4, bossDmg: 0.4, dmgRed: 0.2 },   // v397 다른 직업과 같게
+  flower: { every: 3, mult: 4.0, r: 240 },
   soulSec: 15, soulDmg: 1.0,   // 천마혼 발현 — 심마도 뒤 이 초 동안 모든 피해 +soulDmg · 무인 뒤에 천마의 형상
 };
 // 구화마도식(九華魔刀式) 일곱 초식 — 자리마다 하나씩(1차 한 적 · 2차 둘레 · 3차 비기 · 보조 · 4차 · 두 갈래 길)
 export const CHEONMA_SKILLS = {
   sword: {
-    0: { name: '직단결', icon: '직단', form: 1, role: 'frost', kind: 'single', mult: 7.0, cd: 4, hpCost: 0, bossMult: 1.5, sure: true, far: true,
+    0: { name: '직단결', icon: '직단', form: 1, role: 'frost', kind: 'single', mult: 5.6, cd: 4, hpCost: 0, bossMult: 1.5, sure: true, far: true,
       desc: '일초식 直斷決 — 직선의 파괴력을 극대화해 앞을 가로막는 모든 것을 곧게 베어 가른다 · 반드시 치명 · 두목에겐 1.5배' },
     3: { name: '방원결', icon: '방원', form: 2, role: 'sup', kind: 'support', cd: 22, hpCost: 0, from: 25, auto: 'hurt', hurtAt: 0.75, shield: 0.4, buff: { sec: 10, dmgRed: 0.25, dodge: 0.2 },
       desc: '이초식 防圓決 — 마도의 기운을 둥글게 펼쳐 막는다. 최대 체력 40% 보호막 · 10초간 받는 피해 -25% · 공격을 20% 흘린다(다치면 저절로)' },
     1: { name: '만환결', icon: '만환', form: 3, role: 'slash', kind: 'aoe', mult: 1.8, hits: 4, cd: 4.5, hpCost: 0.06, radius: 300, vuln: { sec: 5, v: 0.2 },
       desc: '삼초식 萬幻決 — 수많은 환영 속에 치명의 검격을 숨겨 둘레를 네 번 찌른다 · 맞은 적은 5초간 받는 피해 +20%' },
-    2: { name: '망월참', icon: '망월', form: 4, role: 'thunder', kind: 'aoe', mult: 9.0, cd: 8, hpCost: 0.12, radius: 380, buff: { sec: 10, speed: 0.5 },
+    2: { name: '망월참', icon: '망월', form: 4, role: 'thunder', kind: 'aoe', mult: 8.0, cd: 8, hpCost: 0.12, radius: 380, buff: { sec: 10, speed: 0.5 },
       desc: '사초식 望月斬 — 달을 바라보듯 높고 거대한 궤적으로 내려친다 · 넓게 · 10초간 공격 속도 +50%' },
     b: { name: '귀영참', icon: '귀영', form: 5, role: 'awaken', kind: 'awaken', cd: 18, hpCost: 0.05, auto: 'fight', autoAbove: 0.4, buff: { sec: 12, speed: 0.7, triple: 2, move: 0.4 },
       desc: '오초식 鬼影斬 — 귀신의 그림자처럼 사각을 파고든다. 12초간 공격 속도 +70% · 평타 한 번에 세 대 · 이동 +40% — 쾌검의 길' },
-    a: { name: '절혼참', icon: '절혼', form: 6, role: 'thunder', kind: 'aoe', mult: 4.2, hits: 3, cd: 6, hpCost: 0.08, radius: 340, autoAbove: 0.5, bossMult: 1.3,
+    a: { name: '절혼참', icon: '절혼', form: 6, role: 'thunder', kind: 'aoe', mult: 2.6, hits: 3, cd: 6, hpCost: 0.08, radius: 340, autoAbove: 0.5, bossMult: 1.3,
       desc: '육초식 絶魂斬 — 살기와 마기를 극한으로 끌어올려 혼백까지 끊는다 · 세 번 · 두목에겐 1.3배 — 검기의 길' },
-    4: { name: '심마도', icon: '심마', form: 7, role: 'chain4', kind: 'daggers', mult: 2.6, n: 16, targets: 16, cd: 15, hpCost: 0.1, radius: 460, autoAbove: 0.5, blink: true, soul: true,
-      desc: '칠초식 心魔刀 — 구화마도식의 최종장. 정·사·선·악의 경계를 무너뜨리고 제 마음의 마(魔)를 검에 담아 열여섯 번 가른다 · 천마혼 발현(15초 모든 피해 2배)' },
+    4: { name: '심마도', icon: '심마', form: 7, role: 'chain4', kind: 'daggers', mult: 2.2, n: 14, targets: 14, cd: 15, hpCost: 0.1, radius: 460, autoAbove: 0.5, blink: true, soul: true,
+      desc: '칠초식 心魔刀 — 구화마도식의 최종장. 정·사·선·악의 경계를 무너뜨리고 제 마음의 마(魔)를 검에 담아 열네 번 가른다 · 천마혼 발현(15초 모든 피해 2배)' },
   },
 };
 // ---------- v393 다른 직업도 5차 — 숨은 두목을 꺾으면(직업마다 다르다) ----------
 //   fx·자리는 그대로 두고 이름·설명을 바꾸고 배수를 키운다(FIFTH_K · 숨 FIFTH_CD). 마지막 초식(4차 자리)이 혼(魂)을 깨운다.
 export const FIFTH_K = 1.6, FIFTH_CD = 0.85;
+export const SOUL_CD = 40;   // v397 혼 발현 숨 — 15초 켜지고 40초마다(직업 무공 숨과 상관없이 같은 몫)
 const F5 = (o) => ({ atkMul: 2.0, hpMul: 1.5, mods: { skill: 0.4, bossDmg: 0.4, dmgRed: 0.2 }, soulSec: 15, soulDmg: 1.0, ...o });
 export const FIFTH = {
   sword: { ...CHEONMA, need: 'cheonma', needName: '천마 검우진', seal: '魔', sealCol: '220,38,38', aura: '#b91c1c', soulArt: 'soul-sword', banner: '天魔' },
@@ -280,12 +281,12 @@ export const FIFTH = {
     trait: '혈마혼(血魔魂) — 공격력 ×1.32 · 최대 체력 ×1.3(따로 곱한다) · 무공 피해 +40% · 두목 피해 +40% · 받는 피해 -20% · 칠법 혈마강림을 펼치면 혈마혼 발현(15초 모든 피해 2배)' }),
   poison: F5({ name: '만독귀종공', hanja: '萬毒歸宗功', soul: '독룡혼', soulHanja: '毒龍魂', tierName: '독존', col: '#65a30d', form: '만독칠식', formHanja: '萬毒七式',
     need: 'jinpaecheon', needName: '무림맹주 진패천', seal: '毒', sealCol: '101,163,13', aura: '#4d7c0f', soulArt: 'soul-poison', banner: '毒尊',
-    atkMul: 1.75, hpMul: 1.5,
-    trait: '독룡혼(毒龍魂) — 공격력 ×1.75 · 최대 체력 ×1.5(따로 곱한다) · 무공 피해 +40% · 두목 피해 +40% · 받는 피해 -20% · 칠식 만독귀종을 펼치면 독룡혼 발현(15초 모든 피해 2배)' }),
+    atkMul: 1.95, hpMul: 1.5,
+    trait: '독룡혼(毒龍魂) — 공격력 ×1.95 · 최대 체력 ×1.5(따로 곱한다) · 무공 피해 +40% · 두목 피해 +40% · 받는 피해 -20% · 칠식 만독귀종을 펼치면 독룡혼 발현(15초 모든 피해 2배)' }),
   ring: F5({ name: '무면천악공', hanja: '無面天惡功', soul: '무면귀', soulHanja: '無面鬼', tierName: '악존', col: '#7c3aed', form: '천악칠지', formHanja: '天惡七指',
     need: 'magwi', needName: '히든 마귀', seal: '惡', sealCol: '124,58,237', aura: '#6d28d9', soulArt: 'soul-ring', banner: '惡尊',
-    atkMul: 1.12, hpMul: 1.2,
-    trait: '무면귀(無面鬼) — 공격력 ×1.12 · 최대 체력 ×1.2(따로 곱한다) · 무공 피해 +40% · 두목 피해 +40% · 받는 피해 -20% · 칠지 삼공악림을 펼치면 무면귀 발현(15초 모든 피해 2배)' }),
+    atkMul: 1.05, hpMul: 1.5,
+    trait: '무면귀(無面鬼) — 공격력 ×1.05 · 최대 체력 ×1.5(따로 곱한다) · 무공 피해 +40% · 두목 피해 +40% · 받는 피해 -20% · 칠지 삼공악림을 펼치면 무면귀 발현(15초 모든 피해 2배)' }),
 };
 export const CHEONMA_JOBS = Object.keys(FIFTH);
 export const fifthOf = (job) => FIFTH[job] || null;

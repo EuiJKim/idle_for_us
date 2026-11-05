@@ -1565,6 +1565,7 @@ console.log('\n=== 고유 효과가 쓸모 있는가 (v167 · 꼴 열여섯을 �
   //   counter  허수아비가 때린다(무인은 쓰러지지 않게) — 맞을 때 터지는 반격·쾌속을 60초 동안 준 피해로
   //   pressure 물약 없이 벅찬 사냥터(남만 독림 2)에서 120초 — 평균 체력·쓰러짐·준 피해
   const pick = (kind) => IM.ALL_SPECIALS().find((x) => x.kind === kind);
+  const swRed = W.CLASSES.sword.dmgRed; W.CLASSES.sword.dmgRed = 0;   // v397 검사 근접 보정(받는 피해 -10%)은 끄고 — 고유 효과만 잰다
   const run = (kind, scene, off, seed = 4242) => {
     const g = fresh();
     g.rng = seeded(seed);
@@ -1630,6 +1631,7 @@ console.log('\n=== 고유 효과가 쓸모 있는가 (v167 · 꼴 열여섯을 �
       sc === 'pressure' ? `평균 체력 ${(b.hp * 100).toFixed(0)}% → ${(r.hp * 100).toFixed(0)}% · 쓰러짐 ${b.deaths} → ${r.deaths} · 준 피해 ${dmgUp >= 0 ? '+' : ''}${(dmgUp * 100).toFixed(0)}%`
         : `준 피해 +${(dmgUp * 100).toFixed(1)}%`);
   }
+  W.CLASSES.sword.dmgRed = swRed;
 }
 
 console.log('\n=== 십이지왕·고수 초식 (v168): 고정 피해 · 테마 꼴 · 오의 ===');
@@ -1654,7 +1656,8 @@ console.log('\n=== 십이지왕·고수 초식 (v168): 고정 피해 · 테마 �
   const typ = mk(150, false); typ.s.autoStat = true; typ.autoStats(); for (const k of W.GROW_SLOTS) { typ.s.equip[k].rar = 1; typ.s.equip[k].plus = 9; } typ._stats = null;
   const nAbs = DG.refHp(bw.lv) * MS.PAT_K;
   const fr = typ.patternHit(nAbs, bw) / typ.stats().hp, lordUlt = typ.patternHit(nAbs * MS.PAT_ULT * MS.PAT_LORD, bw) / typ.stats().hp;
-  ok(fr > 0.3 && fr < 0.6 && lordUlt >= 1, '흔한 차림: 보통 초식 한 대는 버틴다 · 맹주·천마 오의는 쓰러진다', `보통 ${Math.round(fr * 100)}% · 맹주 오의 ${Math.round(lordUlt * 100)}%`);
+  ok(fr > 0.27 && fr < 0.6 && lordUlt >= 0.9,   // v397 검사 받는 피해 -10%
+     '흔한 차림: 보통 초식 한 대는 버틴다 · 맹주·천마 오의는 쓰러진다', `보통 ${Math.round(fr * 100)}% · 맹주 오의 ${Math.round(lordUlt * 100)}%`);
   // 세 번째마다 오의 · 경고에 고정 피해가 실린다
   weak.events.length = 0;
   let ults = 0, casts = 0, absOk = true;
@@ -3653,6 +3656,18 @@ console.log('\n=== v394 길잡이 점검 — 못 깨던 각인 단계 · 새 단
   ok(['pickSell', 'enhAll', 'autoEnh', 'impTheme', 'impLv6'].every(done), '골라 팔기 · 모두 올리기 · 자동 강화 · 기운 · 각인 Lv 6 — 해 보면 깨진다', ['pickSell', 'enhAll', 'autoEnh', 'impTheme', 'impLv6'].filter((x) => !done(x)).join(','));
   for (const x of ['armor', 'hat']) { h.setImpTheme(x, 'dark'); h.impMax(h.s.equip[x].uid); }
   ok(done('res3'), '같은 기운 세 칸 — 공명 단계가 깨진다');
+}
+console.log('\n=== v397 근접·원거리 ===');
+{
+  const SHx = await import('../js/world/wshmup.js');
+  const mk = (j) => { const g = fresh(j); return g; };
+  ok(['sword', 'fist', 'ring'].every((j) => SHx.closeIn(mk(j))) && ['fan', 'poison'].every((j) => !SHx.closeIn(mk(j))), '붙어 싸우는 직업 — 검사·권마·극악소마');
+  ok(SHx.MELEE_HIT < 1 && SHx.MELEE_DMG > 1 && W.CLASSES.sword.dmgRed > 0 && W.CLASSES.ring.dmgRed > 0, '근접 보정 — 탄막은 덜 아프고 더 친다 · 검사·극악소마 받는 피해 감소');
+  const g = fresh('ring'); while (g.s.level < 120) g.addExp(W.expToNext(g.s.level));
+  const sk = g.skillDef('s2'); const c0 = g.hpCostOf(sk);
+  g.startWraid({ id: 'okhwang_1', hpLeft: 1e15, maxHp: 1e15 }, Date.now());
+  ok(!g.inst || g.hpCostOf(sk) < c0, '월드보스에서는 무공 체력 값도 회복만큼 줄어든다', `${c0} → ${g.hpCostOf(sk)}`);
+  ok(W.SOUL_CD > W.FIFTH.sword.soulSec, '혼 발현은 따로 숨 — 늘 켜져 있지 않다');
 }
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);
