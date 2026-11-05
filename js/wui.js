@@ -3100,7 +3100,7 @@ function compTab(app) {
     });
     boxCard.replaceChildren(h('h3', {}, '우리', h('small', {}, `${s.petBox.length}/${W.PET_BOX} · 누르면 데려가기 · 칸이 꽉 차면 키우던 것과 바꿔요`)),
       // v366 우리 정리 — 모두 별 올리기 · 일괄 놓아주기(잠근 것 · 종마다 가장 좋은 하나는 남긴다)
-      s.petBox.length ? h('div', { class: 'pen-tools' },
+      ...(s.petBox.length ? [h('div', { class: 'pen-tools' },
         h('button', { class: 'btn mini', id: 'pen-star-all', onclick: () => { const n = game.autoStarAll(); toast(n ? `★ 종마다 가장 좋은 것에게 먹여 별 ${n}개를 올렸어요` : '먹일 같은 종이 없어요(잠근 것 · 더 좋은 것은 먹이로 안 써요)'); if (n) done(); } }, '★ 모두 별 올리기'),
         ...[[0, '레어'], [1, '유니크까지'], [2, '전설까지']].map(([r, nm]) => h('button', { class: 'btn mini danger', onclick: () => {
           const list = game.bulkReleasePreview(r);
@@ -3108,7 +3108,7 @@ function compTab(app) {
           const soul = list.reduce((a, p) => a + W.petReleaseSoul(p), 0);
           if (!confirm(`${nm} ${list.length}마리를 놓아줄까요? (혼 +${soul})\n잠근 것과 종마다 가장 좋은 하나는 남아요. 되돌릴 수 없어요.`)) return;
           const res = game.bulkRelease(r); toast(`${res.n}마리를 놓아줬어요 — 혼 +${res.soul}`); done();
-        } }, `${nm} 놓아주기`))) : null);
+        } }, `${nm} 놓아주기`)))] : []));   // replaceChildren에 null을 넘기면 'null' 글자가 찍힌다
     if (!s.petBox.length) boxCard.append(h('p', { class: 'muted' }, '비어 있어요.'));
     // v231: 우리는 그림 칸 셋씩 — 글 줄이 길고 단추가 끼어 비좁았다. 누르면 자세히(데려가기·놓아주기)
     const openPen = (p) => openModal((m) => {
