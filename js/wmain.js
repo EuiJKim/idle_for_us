@@ -2227,42 +2227,9 @@ $('btn-settings').addEventListener('click', () => openModal((s) => {
     try { localStorage.setItem('ifu.fx', v); } catch { /* 이번만 */ }
     fxBtn.textContent = FX_NAME[v];
   };
-  s.append(h('h2', {}, '설정'),
-    setSec('게임', true,
-    toggleRow('저사양 모드', lowSpec, '버벅이는 폰이면 켜요 — 연출(기술 그림·기운·잔상)·화질·초당 그림 수를 한 번에 낮춰요', (v) => { setLowSpec(v); toast(v ? '저사양 모드 — 가볍게 그려요' : '저사양 모드를 껐어요 — 화질·연출 자동/높음'); }),
-    toggleRow('소리', soundOn(), '때리는 소리·레벨업·좋은 장비 — 이 기기에만 남아요', (v) => {
-      setSound(v);
-      try { localStorage.setItem('ifu.sound', v ? '1' : '0'); } catch { /* 이번만 */ }
-    }),
-    net.isAdmin?.() ? h('div', { class: 'row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, '운영자 · 우편 보내기'), h('div', { class: 'desc' }, '무인을 골라 은자·물약·보호부·애완동물·탈것을 그 무인의 우편함에 넣어요')),
-      h('button', { class: 'btn primary', style: 'padding:6px 12px', onclick: () => { closeModal(); openGiftAdmin(); } }, '보내기')) : '',
-    // v309 규칙 판 — 게시를 잊으면 우편·채팅·칭호가 조용히 막힌다
-    net.isAdmin?.() ? (() => {
-      const st = h('div', { class: 'desc' }, '');
-      const paint = () => { st.textContent = net.rulesOk === true ? `✔ 게시된 규칙이 이 판(v${RULES_VER})과 맞아요` : net.rulesOk === false ? `⚠ 게시된 규칙이 옛 판이에요(v${RULES_VER} 필요) — 자동 게시를 켰다면 몇 분 뒤 맞춰져요. 안 켰다면 firestore.rules를 콘솔에 붙여 넣고 게시` : '아직 확인 못 했어요 (온라인이 되면 확인해요)'; st.style.color = net.rulesOk === false ? '#fca5a5' : ''; };
-      paint();
-      return h('div', { class: 'row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, '운영자 · 서버 규칙'), st),
-        h('button', { class: 'btn', style: 'padding:6px 12px', onclick: async () => { await net.checkRules(); paint(); toast(net.rulesOk ? '규칙이 맞아요' : net.rulesOk === false ? '옛 규칙이에요 — 다시 게시하세요' : '확인하지 못했어요'); } }, '확인'));
-    })() : '',
-    // v321 신고함 — 신고된 말을 보고 입막음·말 지우기·넘기기
-    net.isAdmin?.() ? h('div', { class: 'row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, '운영자 · 신고함'), h('div', { class: 'desc' }, '전체 채팅에서 신고된 말 — 입막음(1시간·1일·영구) · 말 지우기 · 넘기기')),
-      h('button', { class: 'btn', style: 'padding:6px 12px', onclick: () => { closeModal(); openReports(); } }, '열기')) : '',
-    net.isAdmin?.() ? h('div', { class: 'row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, '운영자 · 무인 정리'), h('div', { class: 'desc' }, '테스트·버려진 계정을 골라 서열에서 지워요')),
-      h('button', { class: 'btn', style: 'padding:6px 12px', onclick: () => { closeModal(); openPlayerAdmin(); } }, '정리')) : '',
-    // v324 글자·화면 크기 — 폰에서도 키울 수 있고, 컴퓨터에서는 자동 확대에 곱한다
-    h('div', { class: 'row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, '글자·화면 크기'), h('div', { class: 'desc' }, '컴퓨터처럼 넓은 화면에서는 저절로 키워요 — 여기서 더 키울 수 있어요')),
-      (() => { const b = h('button', { class: 'btn', style: 'padding:6px 12px' }, UI_SCALE_NAME[uiScalePref()]); b.onclick = () => { const ks = Object.keys(UI_SCALE); const nx = ks[(ks.indexOf(uiScalePref()) + 1) % ks.length]; try { localStorage.setItem('ifu.uiScale', nx); } catch { /* 이번만 */ } b.textContent = UI_SCALE_NAME[nx]; applyUiScale(); }; return b; })()),
-    // v377 탄막 조작(칠대성·천외천)
-    (() => {   // v378 탄막 밀도
-      const row = h('div', { class: 'chips' });
-      const paint = () => row.replaceChildren(...[['roomy', '여유'], ['normal', '보통'], ['dense', '촘촘']].map(([k, t]) => h('button', { class: `chip${SHC.ease === k ? ' on' : ''}`, onclick: () => { SHC.ease = k; saveShc(); paint(); } }, t)));
-      paint();
-      return h('div', { class: 'row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, '탄막 밀도'), h('div', { class: 'desc' }, '칠대성·천궁의 탄 — 여유: 탄 60%·느리게·맞는 판정 작게(폰 기본) · 보통 · 촘촘: 그대로(컴퓨터 기본)')), row);
-    })(),
-    toggleRow('탄막 — 화면 멀리 보기', SHC.wide, '탄막 판에서는 화면을 「전체」로 — 탄이 오는 걸 미리 봐요(폰 기본)', (v) => { SHC.wide = v; saveShc(); }),
-    toggleRow('탄막 — 손가락 따라 움직이기', SHC.follow, '칠대성·천궁에서 끈 만큼 그대로 움직여요(조이스틱 대신) — 정밀하게 피할 때', (v) => { SHC.follow = v; saveShc(); }),
-    toggleRow('탄막 — 맞는 점 크게 보기', SHC.bigDot, '무인의 맞는 점(흰 점)을 크게 그려요 — 맞는 크기는 그대로', (v) => { SHC.bigDot = v; saveShc(); }),
-    toggleRow('탄막 — 빠르게 움직이기', SHC.fast, '손으로 움직일 때 ×1.25 (자동 회피는 그대로)', (v) => { SHC.fast = v; saveShc(); }),
+  // v381 설정 — 한 줄로 길게 늘어서 찾기 어려웠다 → 위 갈래 단추(전투·탄막·화면·성능·앱·계정·운영자)를 누르면 그 줄만
+  const PANES = [
+    ['play', '⚔ 전투', [
     toggleRow('강화·각인 연출 건너뛰기', skipFx(), '켜면 두드리는 연출 없이 바로 결과 — 끄면 연출을 눌러서 건너뛸 수 있어요', (v) => setSkipFx(v)),
     toggleRow('자동 물약', game.s.autoPotion, `한 병에 최대 체력의 ${Math.round(W.POTION_HEAL * 100)}%를 채워요`, (v) => { game.s.autoPotion = v; save(); }),
     h('div', { class: 'row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, '자동 물약 체력'), h('div', { class: 'desc' }, '체력이 이만큼 아래로 내려가면 먹어요 — 높을수록 안전하지만 물약이 많이 들어요')),
@@ -2278,8 +2245,41 @@ $('btn-settings').addEventListener('click', () => openModal((s) => {
       view.showRange = v;
       try { localStorage.setItem('ifu.range', v ? '1' : '0'); } catch { /* 이번만 */ }
     }),
-    h('div', { class: 'row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, '절전 화면'), h('div', { class: 'desc' }, '손대지 않으면 검은 화면에 숫자만 — 화면은 켜 둔 채 사냥은 계속돼요. 들판의 🌙로 바로 들어가요')), saverBtn)),
-    setSec('화면·성능', false,
+    ]],
+    ['shmup', '🌋 탄막', [
+    // v377 탄막 조작(칠대성·천외천)
+    (() => {   // v378 탄막 밀도
+      const row = h('div', { class: 'chips' });
+      const paint = () => row.replaceChildren(...[['roomy', '여유'], ['normal', '보통'], ['dense', '촘촘']].map(([k, t]) => h('button', { class: `chip${SHC.ease === k ? ' on' : ''}`, onclick: () => { SHC.ease = k; saveShc(); paint(); } }, t)));
+      paint();
+      return h('div', { class: 'row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, '탄막 밀도'), h('div', { class: 'desc' }, '칠대성·천궁의 탄 — 여유: 탄 60%·느리게·맞는 판정 작게(폰 기본) · 보통 · 촘촘: 그대로(컴퓨터 기본)')), row);
+    })(),
+    toggleRow('탄막 — 화면 멀리 보기', SHC.wide, '탄막 판에서는 화면을 「전체」로 — 탄이 오는 걸 미리 봐요(폰 기본)', (v) => { SHC.wide = v; saveShc(); }),
+    toggleRow('탄막 — 손가락 따라 움직이기', SHC.follow, '칠대성·천궁에서 끈 만큼 그대로 움직여요(조이스틱 대신) — 정밀하게 피할 때', (v) => { SHC.follow = v; saveShc(); }),
+    toggleRow('탄막 — 맞는 점 크게 보기', SHC.bigDot, '무인의 맞는 점(흰 점)을 크게 그려요 — 맞는 크기는 그대로', (v) => { SHC.bigDot = v; saveShc(); }),
+    toggleRow('탄막 — 빠르게 움직이기', SHC.fast, '손으로 움직일 때 ×1.25 (자동 회피는 그대로)', (v) => { SHC.fast = v; saveShc(); }),
+    ]],
+    ['view', '🖼 화면', [
+    // v324 글자·화면 크기 — 폰에서도 키울 수 있고, 컴퓨터에서는 자동 확대에 곱한다
+    h('div', { class: 'row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, '글자·화면 크기'), h('div', { class: 'desc' }, '컴퓨터처럼 넓은 화면에서는 저절로 키워요 — 여기서 더 키울 수 있어요')),
+      (() => { const b = h('button', { class: 'btn', style: 'padding:6px 12px' }, UI_SCALE_NAME[uiScalePref()]); b.onclick = () => { const ks = Object.keys(UI_SCALE); const nx = ks[(ks.indexOf(uiScalePref()) + 1) % ks.length]; try { localStorage.setItem('ifu.uiScale', nx); } catch { /* 이번만 */ } b.textContent = UI_SCALE_NAME[nx]; applyUiScale(); }; return b; })()),
+    h('div', { class: 'row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, '연출'), h('div', { class: 'desc' }, '폰이 버거우면 낮춰요')), fxBtn),
+    // v233: 화면 흔들림 — 어지러우면 줄이거나 끈다
+    (() => {
+      const NAME = { 1: '보통', 0.5: '약하게', 0: '끔' };
+      const b = h('button', { class: 'btn', style: 'padding:6px 12px;min-width:62px' }, NAME[view.shakePref ?? 1] || '보통');
+      b.onclick = () => {
+        const order = [1, 0.5, 0];
+        view.shakePref = order[(order.indexOf(view.shakePref ?? 1) + 1) % order.length];
+        try { localStorage.setItem('ifu.shake', String(view.shakePref)); } catch { /* 이번만 */ }
+        b.textContent = NAME[view.shakePref];
+      };
+      return h('div', { class: 'row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, '화면 흔들림'), h('div', { class: 'desc' }, '때리고 맞을 때 화면이 울리는 세기 — 어지러우면 줄여요')), b);
+    })(),
+    toggleRow('저사양 모드', lowSpec, '버벅이는 폰이면 켜요 — 연출(기술 그림·기운·잔상)·화질·초당 그림 수를 한 번에 낮춰요', (v) => { setLowSpec(v); toast(v ? '저사양 모드 — 가볍게 그려요' : '저사양 모드를 껐어요 — 화질·연출 자동/높음'); }),
+    h('div', { class: 'row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, '절전 화면'), h('div', { class: 'desc' }, '손대지 않으면 검은 화면에 숫자만 — 화면은 켜 둔 채 사냥은 계속돼요. 들판의 🌙로 바로 들어가요')), saverBtn),
+    ]],
+    ['perf', '⚙ 성능', [
     (() => {
       const qb = h('button', { class: 'btn', style: 'padding:6px 12px;min-width:84px' });
       const fb = h('button', { class: 'btn', style: 'padding:6px 12px;min-width:84px' });
@@ -2316,20 +2316,12 @@ $('btn-settings').addEventListener('click', () => openModal((s) => {
     h('div', { class: 'row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, '원인 찾기'), h('div', { class: 'desc' }, `하나씩 끄고 켜 보며 무엇이 무거운지 찾아요 (${HUNT_STEPS.length * HUNT_SEC}초) — 버벅이는 곳에서 눌러 주세요`)),
       h('button', { class: 'btn primary', style: 'padding:6px 12px', onclick: startHunt }, '찾기')),
     toggleRow('성능 보기', !!perfBox, '들판 왼쪽 위에 초당 그림 수·한 장 그리는 시간·해상도 — 버벅일 때 이 숫자를 알려 주세요', (v) => setPerfBox(v)),
-    h('div', { class: 'row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, '연출'), h('div', { class: 'desc' }, '폰이 버거우면 낮춰요')), fxBtn),
-    // v233: 화면 흔들림 — 어지러우면 줄이거나 끈다
-    (() => {
-      const NAME = { 1: '보통', 0.5: '약하게', 0: '끔' };
-      const b = h('button', { class: 'btn', style: 'padding:6px 12px;min-width:62px' }, NAME[view.shakePref ?? 1] || '보통');
-      b.onclick = () => {
-        const order = [1, 0.5, 0];
-        view.shakePref = order[(order.indexOf(view.shakePref ?? 1) + 1) % order.length];
-        try { localStorage.setItem('ifu.shake', String(view.shakePref)); } catch { /* 이번만 */ }
-        b.textContent = NAME[view.shakePref];
-      };
-      return h('div', { class: 'row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, '화면 흔들림'), h('div', { class: 'desc' }, '때리고 맞을 때 화면이 울리는 세기 — 어지러우면 줄여요')), b);
-    })()),
-    setSec('앱·계정', false,
+    ]],
+    ['app', '📱 앱·계정', [
+    toggleRow('소리', soundOn(), '때리는 소리·레벨업·좋은 장비 — 이 기기에만 남아요', (v) => {
+      setSound(v);
+      try { localStorage.setItem('ifu.sound', v ? '1' : '0'); } catch { /* 이번만 */ }
+    }),
     appRow(),
     // v281 친구에게 — 설치 안내 페이지(QR·안드로이드/아이폰 방법·카카오톡이면 바깥 브라우저로)
     h('div', { class: 'row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, '친구 부르기'),
@@ -2357,7 +2349,37 @@ $('btn-settings').addEventListener('click', () => openModal((s) => {
         stopSaving = true;
         try { localStorage.removeItem(W.SAVE_KEY); } catch { /* 없음 */ }
         location.reload();
-      } }, '처음부터'))),
+      } }, '처음부터')),
+    ]],
+    ...(net.isAdmin?.() ? [['admin', '🛡 운영자', [
+    net.isAdmin?.() ? h('div', { class: 'row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, '운영자 · 우편 보내기'), h('div', { class: 'desc' }, '무인을 골라 은자·물약·보호부·애완동물·탈것을 그 무인의 우편함에 넣어요')),
+      h('button', { class: 'btn primary', style: 'padding:6px 12px', onclick: () => { closeModal(); openGiftAdmin(); } }, '보내기')) : '',
+    // v309 규칙 판 — 게시를 잊으면 우편·채팅·칭호가 조용히 막힌다
+    net.isAdmin?.() ? (() => {
+      const st = h('div', { class: 'desc' }, '');
+      const paint = () => { st.textContent = net.rulesOk === true ? `✔ 게시된 규칙이 이 판(v${RULES_VER})과 맞아요` : net.rulesOk === false ? `⚠ 게시된 규칙이 옛 판이에요(v${RULES_VER} 필요) — 자동 게시를 켰다면 몇 분 뒤 맞춰져요. 안 켰다면 firestore.rules를 콘솔에 붙여 넣고 게시` : '아직 확인 못 했어요 (온라인이 되면 확인해요)'; st.style.color = net.rulesOk === false ? '#fca5a5' : ''; };
+      paint();
+      return h('div', { class: 'row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, '운영자 · 서버 규칙'), st),
+        h('button', { class: 'btn', style: 'padding:6px 12px', onclick: async () => { await net.checkRules(); paint(); toast(net.rulesOk ? '규칙이 맞아요' : net.rulesOk === false ? '옛 규칙이에요 — 다시 게시하세요' : '확인하지 못했어요'); } }, '확인'));
+    })() : '',
+    // v321 신고함 — 신고된 말을 보고 입막음·말 지우기·넘기기
+    net.isAdmin?.() ? h('div', { class: 'row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, '운영자 · 신고함'), h('div', { class: 'desc' }, '전체 채팅에서 신고된 말 — 입막음(1시간·1일·영구) · 말 지우기 · 넘기기')),
+      h('button', { class: 'btn', style: 'padding:6px 12px', onclick: () => { closeModal(); openReports(); } }, '열기')) : '',
+    net.isAdmin?.() ? h('div', { class: 'row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, '운영자 · 무인 정리'), h('div', { class: 'desc' }, '테스트·버려진 계정을 골라 서열에서 지워요')),
+      h('button', { class: 'btn', style: 'padding:6px 12px', onclick: () => { closeModal(); openPlayerAdmin(); } }, '정리')) : '',
+    ]]] : []),
+  ];
+  let paneKey = (() => { try { return localStorage.getItem('ifu.settab') || 'play'; } catch { return 'play'; } })();
+  if (!PANES.some(([k]) => k === paneKey)) paneKey = 'play';
+  const tabsEl = h('div', { class: 'set-tabs' });
+  const paneEl = h('div', { class: 'set-pane' });
+  const paintPane = () => {
+    tabsEl.replaceChildren(...PANES.map(([k, t]) => h('button', { class: `chip${k === paneKey ? ' on' : ''}`, onclick: () => { paneKey = k; try { localStorage.setItem('ifu.settab', k); } catch { /* 이번만 */ } paintPane(); } }, t)));
+    paneEl.replaceChildren(...PANES.find(([k]) => k === paneKey)[2].filter(Boolean));
+    paneEl.scrollTop = 0;
+  };
+  paintPane();
+  s.append(h('h2', {}, '설정'), tabsEl, paneEl,
     h('div', { class: 'btn-row', style: 'margin-top:8px' }, h('button', { class: 'btn', onclick: closeModal }, '닫기')),
     h('p', { class: 'muted', style: 'text-align:center;margin-top:10px' }, `판 ${BUILD}`));
 }));

@@ -2516,3 +2516,12 @@ body.hunt-noui #gather, body.in-inst #gather { display: none !important; }
 .gacha-row .g-btns .gacha-free { grid-column: span 4; }
 .gacha-row .g-btns .gacha-1, .gacha-row .g-btns .gacha-10 { grid-column: span 3; }
 .gacha-row .g-btns .btn.mini:first-child { grid-column: span 3; }
+
+/* v381 설정 — 갈래 단추 · 그 갈래의 줄만 */
+.set-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 10px; position: sticky; top: -2px; z-index: 2; padding: 4px 0 8px; background: inherit; border-bottom: 1px solid var(--line); }
+.set-tabs .chip { padding: 6px 11px; font-size: 13px; }
+.set-pane { display: grid; gap: 6px; min-height: 220px; }
+.set-pane > .row { padding: 10px 12px; border-radius: 10px; background: rgba(255, 255, 255, 0.04); border: 1px solid var(--line); margin: 0; }
+.set-pane > .row .name { font-size: 14px; font-weight: 700; }
+.set-pane > .row .desc { font-size: 11.5px; line-height: 1.45; margin-top: 2px; }
+.set-pane > .btn-row { margin-top: 2px !important; }
