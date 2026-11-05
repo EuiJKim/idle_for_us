@@ -1017,7 +1017,7 @@ export class WorldGame {
     // 회복
     const ev = this.envNow();
     // v271 두목과 싸우는 동안은 자연 회복을 줄인다 — 회복%가 쌓이면 초당 최대 체력의 3% 가까이 돌아와 두목이 깎지를 못했다(물약·흡혈은 그대로)
-    const inBoss = !this.inst && this.map.bossRoom && this.mons.some((m) => m.isBoss && m.alive && !(m.introT > 0) && m.lv >= W.BOSS_HARD_FROM);
+    const inBoss = (!this.inst && this.map.bossRoom && this.mons.some((m) => m.isBoss && m.alive && !(m.introT > 0) && m.lv >= W.BOSS_HARD_FROM)) || this.inst?.kind === 'wraid';   // v387 월드보스도 — 흡혈이 끝없이 들어 맞아도 안 쓰러졌다
     this._inBoss = inBoss;
     // 흡혈 몫 — 두목과 싸우는 동안은 초당 최대 체력의 BOSS_DRAIN_CAP까지만 (1초치까지 모아 둔다)
     this._drainLeft = inBoss ? Math.min(st.hp * W.BOSS_DRAIN_CAP, (this._drainLeft ?? 0) + st.hp * W.BOSS_DRAIN_CAP * dt) : Infinity;
@@ -1212,7 +1212,7 @@ export class WorldGame {
     const st = this.stats();
     if (this.s.potions <= 0 || this.heroHp >= st.hp) return false;
     this.s.potions--;
-    this.potionT = W.POTION_GAP;
+    this.potionT = W.POTION_GAP * (this.inst?.kind === 'wraid' ? D.WB_TIER[D.wbTierOf(this.map?.wb)].pot : 1);   // v387 월드보스는 물약 숨이 길다
     this.heroHp = Math.min(st.hp, this.heroHp + st.hp * W.POTION_HEAL);
     this.note(0, 0, 0, 1);
     this.emit('potion', { left: this.s.potions });
@@ -4560,6 +4560,7 @@ export class WorldGame {
   // o: { id: 'umawang_3', hpLeft, maxHp } — 서버 문서에서
   startWraid(o, now = Date.now()) {
     const boss = D.wraidBossOfId(o.id || o.day);
+    this._shHp = null;   // v387 회복 줄이기 기준을 새 판마다
     if (!this.canWraid(o.hpLeft, now, boss.id)) return false;
     const r = this.s.wraid;
     if (r.day !== D.kstDay(now)) { r.day = D.kstDay(now); r.n = 0; }

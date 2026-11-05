@@ -301,9 +301,9 @@ export function tellCovers(tl, x, y) {
 export const WRAID_SEC = 120;
 export const WRAID_PAID = 5;
 export const WRAID_PER_DAY = WRAID_PAID;     // 옛 이름(저장 다듬기) — 참여 보상 몫
-export const WRAID_HP_K = 4;                 // 화무기 기본 체력의 몇 배
+export const WRAID_HP_K = 300;               // 화무기 기본 체력의 몇 배 · v387 4 → 300(만렙 전설+12 혼자 한 판에 ~5%, 여럿이 여러 판)
 export const WRAID_PARTS = 7;                // 칠대성 — 대성신장 일곱 부위(귀걸이는 없다)
-export const OK_HP_K = 3;                    // 옥황상제 = 마왕 × 이것
+export const OK_HP_K = 5;                    // 옥황상제 = 마왕 × 이것
 export const WRAID_LV = 120;                 // 이 레벨부터
 export const OK_PLUS = 0;                    // v375 옥황상제 — 대성신장 일곱 부위를 모두 끼기만 하면(강화 요구 없음)
 // v375 칠대성(七大聖) — 화과산에서 의형제를 맺은 일곱 요괴 왕(우마왕이 맏형, 손오공이 막내). 생김새·빛깔·탄(shot)·패턴 차례 · 맡은 세트 부위(slot)와 이름(piece)
@@ -348,7 +348,7 @@ export const HEAVEN_STORY = [
 ];
 // v377 남천문 관문 — 옥황상제 앞에서 차례로 막아선다. 대성신장 일곱을 낀 자만 · 앞 관문을 넘어야(처치에 함께해야) 다음으로.
 //   처음 넘으면 천계의 가호(공격력·체력 +GATE_BONUS 영구) · 넷을 모두 넘어야 옥황상제.
-export const GATE_HP_K = 1.5;     // 대성의 몇 배
+export const GATE_HP_K = 2;       // 대성의 몇 배 (v387 1.5 → 2)
 export const GATE_BONUS = 0.06;
 export const HEAVEN_GATES = [
   { id: 'sadae', gate: 1, name: '사대천사', hanja: '四大天師', title: '장도릉 · 갈선옹 · 허정양 · 구홍제', art: 'wb-sadae', col: '#e0f2fe', shot: 'heaven',
@@ -363,7 +363,7 @@ export const HEAVEN_GATES = [
 // v378 천외천 너머 — 석가여래(숨은 두목). 옥황상제를 쓰러뜨리는 데 함께한 자만. 손바닥 안에서 좁혀 오는 탄을 빈틈으로 빠져나간다
 export const SEOKGA = { id: 'seokga', name: '석가여래', hanja: '釋迦如來', title: '손바닥 밖은 없다', art: 'wb-seokga', col: '#fcd34d', shot: 'heaven', final: true, secret: true,
   pats: [P('palm', '여래신장(如來神掌)'), P('ring', '만(卍)자 광명', { big: true }), P('homing', '오백 나한'), P('palm', '손바닥 안'), P('spiral', '천엽 연화', { arms: 8 }), P('rain', '오행산 낙하'), P('burst', '대일여래의 빛')] };
-export const SK_HP_K = 1.5;    // 옥황상제의 몇 배
+export const SK_HP_K = 2.4;    // 옥황상제의 몇 배 (v387 1.5 → 2.4)
 // v383 쓰러뜨려도 — 모두 여래의 손바닥 안이었다(서유기의 오지산). 처치하면 이 반전이 뜨고, 여래는 다시 손바닥을 편다
 export const PALM_REVEAL = ['쓰러뜨렸다 — 고 생각한 순간.', '눈앞에 다섯 개의 하늘 기둥이 솟아 있었다. 기둥에는 제 손으로 새긴 글자가 남아 있다.', '기둥이 아니었다. 여래의 다섯 손가락이었다.', '오백 년 전 제천대성처럼 — 처음부터 끝까지, 손바닥 안이었다.', '「다시 오너라. 손바닥은 언제나 여기 있으니.」'];
 export const WRAID_BOSS = Object.fromEntries([...WRAID_BOSSES, ...HEAVEN_GATES, OKHWANG, SEOKGA].map((b) => [b.id, b]));
@@ -380,6 +380,15 @@ export const wraidRage = (frac) => (frac <= 0.2 ? 2 : frac <= 0.5 ? 1 : 0);
 // atk: 탄 피해 · spd: 탄 빠르기 · dens: 탄 수(빽빽함). 옥황상제는 한 단 더(final)
 export const WRAID_RAGE = [{ atk: 1, spd: 1, dens: 1, gap: 1, name: '' }, { atk: 1.15, spd: 1.12, dens: 1.25, gap: 0.85, name: '분노' }, { atk: 1.3, spd: 1.25, dens: 1.5, gap: 0.7, name: '광폭' }];
 export const OK_K = { atk: 1.25, spd: 1.12, dens: 1.2 };
+// v387 단계마다 더 세게 — 0 칠대성 · 1 남천문 관문 · 2 옥황상제 · 3 석가여래
+//   hit: 탄 한 대 = 최대 체력의 몇 몫(큰 탄 ×2) · heal: 싸우는 동안 회복이 이만큼만(천계의 기운) · dens·spd: 탄 수·빠르기 · pot: 물약 숨 배수
+export const WB_TIER = [
+  { hit: 0.10, heal: 0.35, dens: 1.1, spd: 1.05, pot: 3, name: '' },
+  { hit: 0.12, heal: 0.30, dens: 1.25, spd: 1.12, pot: 4, name: '관문' },
+  { hit: 0.15, heal: 0.25, dens: 1.4, spd: 1.18, pot: 5, name: '천궁' },
+  { hit: 0.18, heal: 0.20, dens: 1.55, spd: 1.25, pot: 6, name: '손바닥' },
+];
+export const wbTierOf = (id) => (id === 'seokga' ? 3 : id === 'okhwang' ? 2 : HEAVEN_GATES.some((b) => b.id === id) ? 1 : 0);
 // 한 판마다 — 친 몫이 클수록 조금 더(0~+100%)
 export const wraidJoinReward = (lv, share = 0) => {
   const k = 1 + Math.min(1, Math.max(0, share) * 20);

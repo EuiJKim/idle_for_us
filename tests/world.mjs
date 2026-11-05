@@ -3342,7 +3342,7 @@ console.log('\n=== v373~v375 칠대성(상시 최종 두목) · 탄막 · 대성
   ok(D3.wraidBossOfId('umawang_7').id === 'umawang' && D3.wraidDocId('satawang', 3) === 'satawang_3', '문서 이름 = 마왕_몇 번째');
   const gA = fresh('sword');
   const hw = gA.hwamugiHp();
-  ok(hw > 1e9 && D3.wraidMaxHp(hw, 'umawang') === Math.round(hw * 4) && D3.wraidMaxHp(hw, 'okhwang') === Math.round(hw * 4 * D3.OK_HP_K), '체력 — 화무기 기본 체력 ×4 · 옥황상제는 그 ×3', `${hw.toExponential(2)}`);
+  ok(hw > 1e9 && D3.wraidMaxHp(hw, 'umawang') === Math.round(hw * D3.WRAID_HP_K) && D3.wraidMaxHp(hw, 'okhwang') === Math.round(hw * D3.WRAID_HP_K * D3.OK_HP_K), '체력 — 화무기 기본 체력 ×WRAID_HP_K · 옥황상제는 그 ×OK_HP_K', `${hw.toExponential(2)}`);
   ok(D3.wraidRage(1) === 0 && D3.wraidRage(0.5) === 1 && D3.wraidRage(0.2) === 2, '반·1/5에서 분노·광폭');
   const now = Date.now();
   const mk = (job, L = 130) => { const g = fresh(job); while (g.s.level < L) g.addExp(W.expToNext(g.s.level)); g.s.potions = 99; return g; };
@@ -3390,7 +3390,7 @@ console.log('\n=== v373~v375 칠대성(상시 최종 두목) · 탄막 · 대성
   const st = g.stats(); g.heroHp = st.hp; g.shIframe = 0;
   g.bullets = [{ t: 0, x: g.heroX, y: g.heroY - 26, vx: 0, vy: 0, r: 9, kind: 'fire' }, { t: 0, x: g.heroX, y: g.heroY - 26, vx: 0, vy: 0, r: 9, kind: 'fire' }];
   g.shPatT = 99; g.tick(0.05);
-  ok(g.shHits >= 1 && g.heroHp < st.hp && g.heroHp > st.hp * 0.8 && g.shIframe > 0, '맞으면 최대 체력의 몇 % · 맞은 뒤 무적');
+  ok(g.shHits >= 1 && g.heroHp < st.hp && g.heroHp > st.hp * 0.6 && g.shIframe > 0, '맞으면 최대 체력의 몇 % · 맞은 뒤 무적', `${g.shHits} ${(g.heroHp / st.hp).toFixed(3)} ${g.shIframe}`);
   const hp1 = b.hp; g.wraidSync(hp1 * 0.5);
   ok(b.hp <= hp1 * 0.5 + g.wraidUnsent() + 1, '무림 전체가 깎은 체력으로 맞춘다');
   g.wraidSync(0);
@@ -3419,7 +3419,7 @@ console.log('\n=== v373~v375 칠대성(상시 최종 두목) · 탄막 · 대성
   ok(g.palmaReady().ok && g.canWraid(1000, now, 'sadae') && !g.canWraid(1000, now, 'takap') && !g.canWraid(1000, now, 'okhwang'), '일곱 부위를 모두 끼면 → 남천문 첫 관문(사대천사)부터');
   // v377 남천문 관문 — 차례로 · 넘을 때마다 천계의 가호
   ok(D3.HEAVEN_GATES.map((x) => x.name).join(',') === '사대천사,탁탑천왕,나타,이랑진군' && D3.HEAVEN_GATES.every((x) => fs.existsSync(new URL(`../art/boss/${x.art}.png`, import.meta.url)) && read('js/bossfx.js').includes(`'${x.art}'`)), '관문 넷 — 그림');
-  ok(D3.wraidMaxHp(hw, 'nata') === Math.round(hw * 4 * D3.GATE_HP_K), '관문 체력 = 대성 ×1.5');
+  ok(D3.wraidMaxHp(hw, 'nata') === Math.round(hw * D3.WRAID_HP_K * D3.GATE_HP_K), '관문 체력 = 대성 ×GATE_HP_K');
   const pw0 = g.stats().power;
   for (const x of D3.HEAVEN_GATES) { ok(g.canWraid(1000, now, x.id), `${x.gate}. ${x.name} — 열렸다`); g.wraidClaim(3, x.id); }
   g._stats = null;
@@ -3430,7 +3430,7 @@ console.log('\n=== v373~v375 칠대성(상시 최종 두목) · 탄막 · 대성
   { const gold0 = g.s.gold; const r = g.readStory(0); ok(r && g.s.gold > gold0 && !g.readStory(0) && g.storyUnread() === 5, '이야기 — 처음 읽으면 보상(한 번)'); }
   g.wraidClaim(9, 'okhwang');
   ok(g.canWraid(1000, now, 'seokga') && g.storyOpen(6) && !g.storyOpen(7), '옥황상제 처치에 함께하면 → 석가여래 · 7장');
-  ok(D3.wraidMaxHp(hw, 'seokga') === Math.round(hw * 4 * D3.OK_HP_K * D3.SK_HP_K) && D3.SEOKGA.pats.some((p) => p.p === 'palm') && fs.existsSync(new URL('../art/boss/wb-seokga.png', import.meta.url)), '석가여래 — 체력 · 손바닥 패턴 · 그림');
+  ok(D3.wraidMaxHp(hw, 'seokga') === Math.round(hw * D3.WRAID_HP_K * D3.OK_HP_K * D3.SK_HP_K) && D3.SEOKGA.pats.some((p) => p.p === 'palm') && fs.existsSync(new URL('../art/boss/wb-seokga.png', import.meta.url)), '석가여래 — 체력 · 손바닥 패턴 · 그림');
   g.events.length = 0; g.wraidClaim(2, 'seokga'); g.checkTitles(); ok(g.hasTitle('seokga') && W.TITLES.seokga.name === '손바닥 안의 무인' && g.storyOpen(7) && /손바닥 안/.test(D3.HEAVEN_STORY[7].text), '쓰러뜨려도 — 손바닥 안 · 〈손바닥 안의 무인〉 · 마지막 장');
   ok(g.events.some((e) => e.type === 'palmReveal') && D3.PALM_REVEAL.length >= 4, '처치하면 반전 장면');
   // v378 칠십이변(대성신장 7)
@@ -3548,6 +3548,25 @@ console.log('\n=== v386 자동 각인(고른 기운대로) · 강화 칸 · 엔�
     g3.equipFromBag(nu.uid);
     ok(g3.s.equip[b.slot] === nu && nu.plus === 7 && cur.plus === 0, '대성신장끼리 바꿔 끼면 강화를 맞바꾼다', `${b.slot}`);
   }
+}
+console.log('\n=== v387 칠대성·천계 어렵게 ===');
+{
+  const Dx = await import('../js/world/wdgn.js');
+  const hw = 5e9;
+  ok(Dx.wraidMaxHp(hw, 'umawang') >= hw * 200 && Dx.wraidMaxHp(hw, 'seokga') / Dx.wraidMaxHp(hw, 'umawang') >= 10, '체력 크게 — 칠대성 화무기 ×300 · 석가여래는 그 ×12');
+  ok([0, 1, 2, 3].every((i) => i === 0 || (Dx.WB_TIER[i].hit > Dx.WB_TIER[i - 1].hit && Dx.WB_TIER[i].heal < Dx.WB_TIER[i - 1].heal && Dx.WB_TIER[i].dens > Dx.WB_TIER[i - 1].dens && Dx.WB_TIER[i].pot > Dx.WB_TIER[i - 1].pot)), '단계마다 — 아프게 · 회복 덜 · 빽빽하게 · 물약 숨 길게');
+  ok(Dx.wbTierOf('umawang') === 0 && Dx.wbTierOf('nata') === 1 && Dx.wbTierOf('okhwang') === 2 && Dx.wbTierOf('seokga') === 3, '단계 나누기');
+  // 회복이 줄어든다 — 흡혈·물약이 끝없이 들지 않는다
+  const g = fresh('sword');
+  while (g.s.level < 120) g.addExp(W.expToNext(g.s.level));
+  const st = g.stats(); g.heroHp = st.hp * 0.3;
+  const mx = 1e15; ok(g.startWraid({ id: 'umawang_1', hpLeft: mx, maxHp: mx }, Date.now()), '들어가기');
+  for (let i = 0; i < 80; i++) g.tick(0.05);   // 등장 뒤까지
+  g.s.autoPotion = false; g.heroHp = st.hp * 0.3; g._shHp = g.heroHp; g.bullets = []; g.shPatT = 99;
+  const h0 = g.heroHp; g.s.potions = 10; g.potionT = 0;
+  g.drinkPotion(); g.tick(0.05);
+  ok(g.heroHp - h0 < st.hp * W.POTION_HEAL * 0.5 && g.potionT > W.POTION_GAP * 2, '마왕 앞에서는 물약이 덜 들고 숨이 길다(천계일수록 더)', `${((g.heroHp - h0) / st.hp).toFixed(3)} · ${g.potionT.toFixed(1)}s`);
+  ok(/this\.inst\?\.kind === 'wraid';/.test(read('js/world/wgame.js')), '월드보스에서도 두목 흡혈·재생 상한');
 }
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);

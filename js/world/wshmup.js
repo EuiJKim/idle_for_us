@@ -27,7 +27,7 @@ export const GRAZE_T = 0.6;
 export const WK_SEC = 15;
 export const WK_MAX = 2;
 export const IFRAME = 0.6;
-export const HIT_PCT = 0.07;                                     // 탄 한 대 = 최대 체력의 7%(큰 탄은 2배)
+export const HIT_PCT = 0.10;                                     // 탄 한 대 = 최대 체력의 몫(큰 탄은 2배) — v387부터 단계별 D.WB_TIER.hit
 export const SPEED = 250;
 export const KEEP = 330;                                          // 원거리 자동 회피가 두목과 두는 거리
 export const BODY = 120;                                          // 마왕 몸 크기(px) — 사거리에 더한다
@@ -153,7 +153,8 @@ function shoot(g, o) {
 }
 function rageK(g) {
   const k0 = D.WRAID_RAGE[Math.max(0, g.inst?.rage || 0)];
-  const k = g.map?.final ? { ...k0, atk: k0.atk * D.OK_K.atk, spd: k0.spd * D.OK_K.spd, dens: k0.dens * D.OK_K.dens } : k0;   // v375 옥황상제는 한 단 더
+  const T = D.WB_TIER[D.wbTierOf(g.map?.wb)];   // v387 단계마다(옥황상제 한 단 · 석가여래 두 단 더)
+  const k = { ...k0, spd: k0.spd * T.spd, dens: k0.dens * T.dens };
   const e = ease(g);   // v378 밀도(설정)
   return { ...k, spd: k.spd * e.spd, dens: k.dens * e.dens };
 }
@@ -250,7 +251,9 @@ export function tick(g, dt, st) {
   g.heroAngle = Math.atan2((b.y - 90 - g.heroY) * 0.6, b.x - g.heroX);
   if (Math.abs(b.x - g.heroX) > 6) g.heroFacing = b.x >= g.heroX ? 1 : -1;
   g.mon = b;
-  if (b.introT > 0) return;
+  // v387 천계의 기운 — 싸우는 동안 회복(흡혈·재생·물약·동료)이 일부만 든다. 지난 틱 뒤 오른 몫만 줄인다
+  if (g._shHp != null && g.heroHp > g._shHp && g.heroHp > 0) g.heroHp = g._shHp + (g.heroHp - g._shHp) * D.WB_TIER[D.wbTierOf(g.map?.wb)].heal;
+  if (b.introT > 0) { g._shHp = g.heroHp; return; }
   // 패턴
   g.shPatT -= dt;
   if (g.shPatT <= 0 && !g.emitters.length) g.shPatT = pickPattern(g, b) + 0.5 / rageK(g).dens;
@@ -258,6 +261,7 @@ export function tick(g, dt, st) {
   if (g.emitters.length) g.emitters = g.emitters.filter((e) => !e.done);
   tickBullets(g, dt, st);
   if (g.setBonus().wukong && g.shWk < WK_MAX && (g.shWkT = (g.shWkT || 0) + dt) >= WK_SEC) { g.shWkT = 0; g.shWk++; g.emit('wukongReady', { n: g.shWk }); }
+  g._shHp = g.heroHp;
   // 친다 — 제 사거리(+마왕 몸) 안에 들었을 때만. 근거리는 붙어야, 원거리는 멀리서
   g.atkTimer = Math.max(0, g.atkTimer - dt);
   const near = inReach(g, b, st);
@@ -315,7 +319,7 @@ function hitHero(g, st, u) {
   const pm = g.pmods();
   const red = (1 - (W.CLASSES[g.s.job]?.dmgRed || 0)) * (1 - (g.buffv.guard || 0)) * (1 - Math.min(0.6, pm.dmgRed || 0)) * (1 - (st.dmgRed || 0));
   const k = rageK(g).atk;
-  const dmg = st.hp * HIT_PCT * (u.big ? 2 : 1) * k * red;
+  const dmg = st.hp * D.WB_TIER[D.wbTierOf(g.map?.wb)].hit * (u.big ? 2 : 1) * k * red;   // v387 단계마다 아프게
   let left = dmg;
   if (g.shield > 0 && g.buffs.shield > 0) { const a = Math.min(g.shield, left); g.shield -= a; left -= a; }
   g.heroHp -= left;

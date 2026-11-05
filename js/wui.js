@@ -2321,6 +2321,7 @@ function dgnTab(app) {
         h('li', {}, `🎯 탄을 피하며 쳐요 — 작은 흰 점만 맞아요 · 근거리는 코앞까지 붙어야, 원거리는 멀리서 · ${finePointer ? 'WASD·화살표' : '화면을 끌어'} 움직이고 손을 떼면 자동으로 피해요`),
         h('li', {}, `🛡 쓰러지면 한 대라도 친 사람 모두 그 마왕의 대성신장 한 부위 + 순위 보상(1위 ×3 · 2~3위 ×2 · 10위까지 ×1.5) · 쓰러지면 곧 다음 마왕이 일어나요`),
         h('li', {}, '☁ 대성신장 일곱 부위를 모두 끼면 천외천 천궁 — 옥황상제에게 갈 수 있어요'),
+        h('li', {}, `⚠ 단계가 오를수록 탄 한 대가 아파요(체력의 ${D.WB_TIER.map((t) => Math.round(t.hit * 100)).join('→')}%) · 싸우는 동안 회복(흡혈·물약)이 잘 안 들고 물약 숨이 길어요 — 직접 피하세요`),
         h('li', {}, `⏱ 한 판 ${D.WRAID_SEC}초 · 언제든 · 참여 보상은 하루 ${D.WRAID_PAID}판(오늘 ${game.wraidLeft(now)}판 남음) · 레벨 ${D.WRAID_LV}부터`))));
     if (!on) out.push(h('p', { class: 'muted dgn-desc' }, '온라인일 때 들어갈 수 있어요.'));
     else if (s.level < D.WRAID_LV) out.push(h('p', { class: 'muted dgn-desc' }, `레벨 ${D.WRAID_LV}부터 마왕에게 갈 수 있어요.`));
