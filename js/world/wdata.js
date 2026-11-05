@@ -1072,7 +1072,7 @@ export const enlCost = (lv) => 1 + Math.floor(lv / 5);
 export const enlExp = () => Math.round(expToNext(149) * 0.25);
 export const PET_LV_MAX = 30;
 // v262 애완동물 — 포획 조각(졸개가 가끔 떨군다 → 모으면 그 지역 애완동물 하나) · 혼(Lv30 뒤 경험치 → 등급 올리기)
-export const PET_SHARD_RATE = 1 / 300;
+export const PET_SHARD_RATE = 1 / 150;   // v364 두 배
 export const PET_SHARD_NEED = 100;
 export const PET_SOUL_COST = [6, 18, 45];   // 레어→영웅 · 영웅→전설 · 전설→신화
 export const PET_BOX = 30;   // v362 우리 10 → 30칸
@@ -1092,21 +1092,24 @@ export const PET_DAN_GREAT = 0.12;            // 성공하면 12%로 大成 — 
 export const petDanChance = (d, fails = 0) => Math.min(1, (PET_DAN_P[d] ?? 0) + fails * PET_DAN_PITY);
 export const petQualMult = (pet) => PET_QUAL[pet.q || 0]?.mult || 1;
 export const petDanMult = (pet) => 1 + (pet.dan || 0) * PET_DAN_K;
-export const petScale = (pet) => RARITY[pet.rar].mult * (1 + (pet.lv - 1) * 0.05) * (1 + (pet.star || 0) * PET_STAR_K) * petQualMult(pet) * petDanMult(pet);   // v292 별 · v316 품·단
+// v364 뽑기 운이 곧 강함 — 애완동물 효과 1.3배 · 등급 차를 크게(레어 1 · 유니크 1.35 · 전설 1.8 · 신화 2.5)
+export const PET_POWER_K = 1.3;
+export const PET_RAR_MULT = [1, 1.35, 1.8, 2.5];
+export const petScale = (pet) => PET_POWER_K * PET_RAR_MULT[pet.rar] * (1 + (pet.lv - 1) * 0.05) * (1 + (pet.star || 0) * PET_STAR_K) * petQualMult(pet) * petDanMult(pet);   // v292 별 · v316 품·단
 export const petBuff = (pet) => petOf(pet.kind).base * petScale(pet);
-export const petAtkRatio = (pet) => (0.1 + petOf(pet.kind).tier * 0.025 + (pet.lv - 1) * 0.012) * RARITY[pet.rar].mult * (1 + (pet.star || 0) * PET_STAR_K) * petQualMult(pet) * petDanMult(pet);   // 무인 공격력 대비 한 대 · v292 별 · v316 품·단
+export const petAtkRatio = (pet) => (0.1 + petOf(pet.kind).tier * 0.025 + (pet.lv - 1) * 0.012) * PET_POWER_K * PET_RAR_MULT[pet.rar] * (1 + (pet.star || 0) * PET_STAR_K) * petQualMult(pet) * petDanMult(pet);   // 무인 공격력 대비 한 대 · v292 별 · v316 품·단
 export const PET_ATK_SEC = 1.6;
 
 // ---------- v292 동료 키우기 — 얻는 곳 늘리기 · 별 · 도감 · 길들이기 ----------
 // 탈것 조각: 졸개가 가끔(정예 ×3) · 모으면 지금 지역의 탈것 하나(포획 조각과 같은 꼴)
-export const MOUNT_SHARD_RATE = 1 / 500;
+export const MOUNT_SHARD_RATE = 1 / 250;   // v364 두 배
 export const MOUNT_SHARD_NEED = 100;
 // 조각을 주는 곳 — 두목(왕·고수 ×2) · 일일 던전 한 판(소탕 포함) · 탑(처음 오른 층, 10층마다 ×5) · 보물 원숭이 · 주간 상자 · 방치(두목 처치만큼)
-export const BOSS_SHARDS = { pet: [3, 6], mount: [2, 4] };
-export const dailyShards = (stage) => 3 + Math.floor(stage / 3);
-export const TOWER_SHARDS = 4;
-export const TREASURE_SHARDS = 6;
-export const WEEK_SHARDS = 40;
+export const BOSS_SHARDS = { pet: [6, 12], mount: [4, 8] };   // v364 두 배
+export const dailyShards = (stage) => 2 * (3 + Math.floor(stage / 3));   // v364 두 배
+export const TOWER_SHARDS = 8;   // v364 두 배
+export const TREASURE_SHARDS = 12;   // v364 두 배
+export const WEEK_SHARDS = 80;   // v364 두 배
 // 별 — 같은 종을 먹이로 주면 별 하나(최대 다섯) · 별마다 버프·공격 +12%
 export const PET_STAR_MAX = 5;
 export const PET_STAR_K = 0.12;
@@ -1171,8 +1174,11 @@ for (const [i, m] of HARD_MOUNTS.entries()) MOUNTS.push({ ...m, tier: 14, hard: 
 // v360 이동 줄 세우기 — 극의 신수는 층 따라 차등(염화주작 +90% … 창해교룡 +112% · 혼원금룡 +120%),
 //   보통 탈것·십이지는 신수 아래로 같은 비율(×0.85 — 청룡마 +72% · 적토마 +38% · 나귀 +6%)
 export const HARD_SPEED = [0.9, 0.96, 1.01, 1.06, 1.12, 1.2];
+// v364 탈것 공격·체력 1.8배 — 좋은 탈것을 뽑으면 그만큼 세게(청룡마 +40% · 십이지 흑저 +44% · 혼원금룡 +90%)
+export const MOUNT_STAT_K = 1.8;
 export const MOUNT_SPEED_K2 = 0.85;
-for (const m of MOUNTS) m.speed = m.hard ? HARD_SPEED[m.hard - 1] : +(m.speed * MOUNT_SPEED_K2).toFixed(4);
+for (const m of MOUNTS) { m.speed = m.hard ? HARD_SPEED[m.hard - 1] : +(m.speed * MOUNT_SPEED_K2).toFixed(4); m.stat = +(m.stat * MOUNT_STAT_K).toFixed(4); }
+for (const h of HARD_MOUNTS) h.stat = MOUNTS.find((m) => m.id === h.id).stat;   // 극 카드·얻는 창 표시도 같은 값
 // 길들인 이동 — 보통 탈것은 길들여도 극의 신수 가장 낮은 것(염화주작) 아래까지만(줄 순서가 뒤집히지 않게)
 export const mountSpeed = (d, k = 1, lv = 0) => (!d ? 0 : d.hard ? d.speed * (1 + lv * HARD_SPD_LV_K) : Math.min(HARD_SPEED[0] - 0.02, d.speed * k));
 // v361 극의 신수 길들이기 — 최대 20 · 레벨마다 이동 +2%(혼원금룡 20이면 +168%) · 공격·체력 +4% · 값은 보통 탈것 맨 위의 1.5배
