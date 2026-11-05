@@ -332,15 +332,15 @@ export const QUESTS = [
   { id: 'lord', title: '맹주를 쓰러뜨리자', tab: 'map/masters', min: 25, xp: 0.3,
     why: '무림맹주·사도맹주는 세력의 끝이다. 처음 쓰러뜨리면 영구 능력치가 고수의 세 배. 그 너머에는 천마가 있다.',
     goal: (g) => ({ now: Object.keys(g.s.duel?.won || {}).filter((id) => MS.masterOf(id)?.lord).length, need: 1 }) },
-  { id: 'lv150', mile: true, title: '레벨 150 — 강호의 끝', tab: 'map', min: 25, xp: 0,
-    why: '여기까지 온 무인은 드물다. 천마에게 도전해 보자.',
-    goal: lv(150) },
   { id: 'fifthBoss', title: '5차 전직의 숨은 두목을 쓰러뜨리자', tab: 'town/master', min: 25, xp: 0,
     why: '검사는 천마 · 권마는 화무기 · 환마는 사도맹주 · 독마는 무림맹주 · 극악소마는 마귀. 마을 → 사부에서 내 직업의 두목을 볼 수 있다.',
     goal: (g) => ({ now: g.s.duel?.won?.[W.fifthOf(g.s.job)?.need] ? 1 : 0, need: 1 }) },
   { id: 'tier5', mile: true, title: '5차 전직', tab: 'town/master', min: 25, xp: 0,
     why: '모든 무공이 일곱 초식으로 바뀌고 혼(魂)이 깃든다. 마지막 초식을 펼치면 등 뒤로 혼의 형상이 선다.',
     goal: tier(5) },
+  { id: 'lv150', mile: true, title: '레벨 150 — 강호의 끝', tab: 'map', min: 25, xp: 0,
+    why: '여기까지 온 무인은 드물다. 천마에게 도전해 보자.',
+    goal: lv(150) },
   { id: 'trans1', title: '장비를 초월 一까지', tab: 'bag/enh', min: 25, xp: 0,
     why: '신화 +15를 다 한 장비만 — 장비 창 강화 칸 아래 「✦ 초월」. 단계마다 기본 능력치 +8%, 실패해도 떨어지지 않는다.',
     goal: (g) => ({ now: Math.max(0, ...W.SLOTS.map((x) => g.s.equip[x.id]?.tr || 0)), need: 1 }) },
@@ -353,7 +353,9 @@ export const QUESTS = [
 ];
 
 export const QUEST_COUNT = QUESTS.length;
-export const QUEST_V = 9;   // v395: 전직 20·50·100·130 — 전직·무공 단계를 그 레벨 뒤로 옮겼다
+export const QUEST_V = 10;   // v398: 5차(레벨 130) 단계를 맹주 뒤로
+export const QUEST_V9_IDS = ['job', 'kill10', 'move', 'zoom', 'stat', 'lv5', 'craft', 'enh1', 'potion', 'refill', 'potionAt', 'area2', 'lv10', 'armor', 'pickSell', 'enh3', 'enh5', 'enhAll', 'pet', 'mount', 'petSkill', 'gacha', 'passive', 'lv20', 'tier1', 'boss', 'skill', 'range', 'skill5', 'saver', 'app', 'daily', 'dauto', 'sweep', 'tower3', 'gear4', 'autoEnh', 'mast1', 'convert', 'book', 'lv30', 'guild', 'checkin', 'donate', 'bag', 'alt', 'tower10', 'zodiac', 'duel', 'lore', 'promote', 'impTheme', 'reimp', 'enh7', 'prot', 'lv50', 'tier2', 'daily10', 'tower20', 'lv60', 'skill10', 'lv70', 'petLv', 'treasure', 'raid', 'mast5', 'lv80', 'fuse', 'duel5', 'impLv6', 'res3', 'tower30', 'tower40', 'gear6', 'lv90', 'king', 'kingKill', 'mast10', 'tier3', 'skillMax', 'set1', 'kacc', 'coop', 'lv120', 'tier4', 'wraid', 'tower50', 'enh10', 'enh12', 'set5', 'lord', 'lv150', 'fifthBoss', 'tier5', 'trans1', 'tower120', 'trans5'];
+// v395   // v395: 전직 20·50·100·130 — 전직·무공 단계를 그 레벨 뒤로 옮겼다
 export const QUEST_V8_IDS = ['job', 'kill10', 'move', 'zoom', 'stat', 'lv5', 'tier1', 'craft', 'enh1', 'potion', 'refill', 'potionAt', 'area2', 'lv10', 'armor', 'pickSell', 'boss', 'enh3', 'enh5', 'enhAll', 'skill', 'range', 'pet', 'mount', 'petSkill', 'gacha', 'passive', 'skill5', 'lv20', 'saver', 'app', 'daily', 'dauto', 'sweep', 'tower3', 'gear4', 'autoEnh', 'mast1', 'convert', 'book', 'lv30', 'guild', 'checkin', 'donate', 'bag', 'alt', 'tower10', 'zodiac', 'tier2', 'duel', 'lore', 'promote', 'impTheme', 'reimp', 'enh7', 'prot', 'lv50', 'daily10', 'tower20', 'lv60', 'skill10', 'lv70', 'petLv', 'treasure', 'raid', 'mast5', 'tier3', 'lv80', 'fuse', 'duel5', 'impLv6', 'res3', 'tower30', 'tower40', 'gear6', 'lv90', 'king', 'kingKill', 'mast10', 'tier4', 'skillMax', 'set1', 'kacc', 'coop', 'lv120', 'wraid', 'tower50', 'enh10', 'enh12', 'set5', 'lord', 'lv150', 'fifthBoss', 'tier5', 'trans1', 'tower120', 'trans5'];
 // v394   // v394: 각인 두·세 칸(못 깨던 단계)을 각인 Lv·공명으로 · 강화 칸·골라 팔기·자동 강화·기운·칠대성·5차·초월·탑 꼭대기를 끼웠다
 export const QUEST_V7_IDS = ['job', 'kill10', 'move', 'zoom', 'stat', 'lv5', 'tier1', 'craft', 'enh1', 'potion', 'refill', 'potionAt', 'area2', 'lv10', 'armor', 'boss', 'enh3', 'enh5', 'skill', 'range', 'pet', 'mount', 'petSkill', 'gacha', 'passive', 'skill5', 'lv20', 'saver', 'app', 'daily', 'dauto', 'sweep', 'tower3', 'gear4', 'mast1', 'convert', 'book', 'lv30', 'guild', 'checkin', 'donate', 'bag', 'alt', 'tower10', 'zodiac', 'tier2', 'duel', 'lore', 'promote', 'reimp', 'enh7', 'prot', 'lv50', 'daily10', 'tower20', 'lv60', 'skill10', 'lv70', 'petLv', 'treasure', 'raid', 'mast5', 'tier3', 'lv80', 'fuse', 'duel5', 'imp2', 'imp3', 'tower30', 'tower40', 'gear6', 'lv90', 'king', 'kingKill', 'mast10', 'tier4', 'skillMax', 'set1', 'kacc', 'coop', 'lv120', 'tower50', 'enh10', 'enh12', 'set5', 'lord', 'lv150'];
@@ -380,4 +382,4 @@ export const QUEST_V4_IDS = ['job', 'kill10', 'move', 'zoom', 'stat', 'lv5', 'cr
 // v269: 판 5의 차례 — 1차 전직(tier1)을 레벨 5 뒤로 옮기기 전
 export const QUEST_V5_IDS = ['job', 'kill10', 'move', 'zoom', 'stat', 'lv5', 'craft', 'enh1', 'potion', 'refill', 'potionAt', 'area2', 'lv10', 'armor', 'boss', 'enh3', 'enh5', 'tier1', 'skill', 'range', 'pet', 'mount', 'petSkill', 'passive', 'skill5', 'lv20', 'saver', 'app', 'daily', 'dauto', 'sweep', 'tower3', 'gear4', 'mast1', 'convert', 'book', 'lv30', 'guild', 'checkin', 'donate', 'bag', 'alt', 'tower10', 'zodiac', 'tier2', 'duel', 'lore', 'promote', 'reimp', 'enh7', 'prot', 'lv50', 'daily10', 'tower20', 'lv60', 'skill10', 'lv70', 'petLv', 'treasure', 'raid', 'mast5', 'tier3', 'lv80', 'fuse', 'duel5', 'imp2', 'imp3', 'tower30', 'tower40', 'gear6', 'lv90', 'king', 'kingKill', 'mast10', 'tier4', 'skillMax', 'set1', 'kacc', 'coop', 'lv120', 'tower50', 'enh10', 'enh12', 'set5', 'lord', 'lv150'];
 export const QUEST_V6_IDS = ['job', 'kill10', 'move', 'zoom', 'stat', 'lv5', 'tier1', 'craft', 'enh1', 'potion', 'refill', 'potionAt', 'area2', 'lv10', 'armor', 'boss', 'enh3', 'enh5', 'skill', 'range', 'pet', 'mount', 'petSkill', 'passive', 'skill5', 'lv20', 'saver', 'app', 'daily', 'dauto', 'sweep', 'tower3', 'gear4', 'mast1', 'convert', 'book', 'lv30', 'guild', 'checkin', 'donate', 'bag', 'alt', 'tower10', 'zodiac', 'tier2', 'duel', 'lore', 'promote', 'reimp', 'enh7', 'prot', 'lv50', 'daily10', 'tower20', 'lv60', 'skill10', 'lv70', 'petLv', 'treasure', 'raid', 'mast5', 'tier3', 'lv80', 'fuse', 'duel5', 'imp2', 'imp3', 'tower30', 'tower40', 'gear6', 'lv90', 'king', 'kingKill', 'mast10', 'tier4', 'skillMax', 'set1', 'kacc', 'coop', 'lv120', 'tower50', 'enh10', 'enh12', 'set5', 'lord', 'lv150'];
-export const QUEST_IDS_BY_V = { 2: QUEST_V2_IDS, 3: QUEST_V3_IDS, 4: QUEST_V4_IDS, 5: QUEST_V5_IDS, 6: QUEST_V6_IDS, 7: QUEST_V7_IDS, 8: QUEST_V8_IDS };
+export const QUEST_IDS_BY_V = { 2: QUEST_V2_IDS, 3: QUEST_V3_IDS, 4: QUEST_V4_IDS, 5: QUEST_V5_IDS, 6: QUEST_V6_IDS, 7: QUEST_V7_IDS, 8: QUEST_V8_IDS, 9: QUEST_V9_IDS };

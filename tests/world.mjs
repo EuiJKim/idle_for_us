@@ -3669,5 +3669,14 @@ console.log('\n=== v397 근접·원거리 ===');
   ok(!g.inst || g.hpCostOf(sk) < c0, '월드보스에서는 무공 체력 값도 회복만큼 줄어든다', `${c0} → ${g.hpCostOf(sk)}`);
   ok(W.SOUL_CD > W.FIFTH.sword.soulSec, '혼 발현은 따로 숨 — 늘 켜져 있지 않다');
 }
+console.log('\n=== v398 5차 레벨 130 · 독존 · 골라 팔기 ===');
+{
+  const g = fresh('fist'); while (g.s.level < 130) g.addExp(W.expToNext(g.s.level));
+  g.s.gold = 1e12; while (g.s.jobTier < 4 && g.canAdvance()) g.advance(); g.s.duel.won = { hwamugi: 1 };
+  ok(W.TIERS[5].level === 130 && g.canAdvance() && g.advance() && g.s.jobTier === 5, '5차는 레벨 130에(4차와 같은 레벨 · 숨은 두목 격파)');
+  const P = W.fifthOf('poison');
+  ok(P.slow && P.bossDot > W.BOSS_DOT_K && P.mods.drain > 0 && W.skillsOf('poison', true).find((k) => k.id === 's0').stun > 0, '독존 — 마비독(기절) · 둔화 · 두목에게도 독 · 흡혈');
+  ok(/pick-sell-top/.test(read('js/wui.js')) && /여러 개 골라 팔기/.test(read('js/wui.js')), '골라 팔기 — 가방 위에도 · 길게 누른 메뉴에도');
+}
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);

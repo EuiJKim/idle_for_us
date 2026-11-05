@@ -89,7 +89,7 @@ export const TIERS = [
   { level: 50, cost: 20000 },
   { level: 100, cost: 1000000 },
   { level: 130, cost: 8000000 },   // 4차 (v121 환마 · v123 모든 직업) — 4차 무공이 있는 직업만
-  { level: 150, cost: 50000000, need: 'cheonma' },   // v391 5차 — 천마를 쓰러뜨린 검사만 · 천마신공
+  { level: 130, cost: 50000000, need: 'cheonma' },   // v391 5차 — 숨은 두목을 꺾으면(직업마다) · v398 레벨 150 → 130
 ];
 // 스킬 셋 (v118 — 다섯 마존의 무공). 차수마다 자리(slot)는 같다: 1차 한 적 · 2차 둘레 · 3차 비기.
 // role은 연출표(skillfx) 열쇠 — '캐릭터:role'. hpCost는 최대 체력 대비. mult는 한 번 맞을 때의 배수.
@@ -281,8 +281,8 @@ export const FIFTH = {
     trait: '혈마혼(血魔魂) — 공격력 ×1.32 · 최대 체력 ×1.3(따로 곱한다) · 무공 피해 +40% · 두목 피해 +40% · 받는 피해 -20% · 칠법 혈마강림을 펼치면 혈마혼 발현(15초 모든 피해 2배)' }),
   poison: F5({ name: '만독귀종공', hanja: '萬毒歸宗功', soul: '독룡혼', soulHanja: '毒龍魂', tierName: '독존', col: '#65a30d', form: '만독칠식', formHanja: '萬毒七式',
     need: 'jinpaecheon', needName: '무림맹주 진패천', seal: '毒', sealCol: '101,163,13', aura: '#4d7c0f', soulArt: 'soul-poison', banner: '毒尊',
-    atkMul: 1.95, hpMul: 1.5,
-    trait: '독룡혼(毒龍魂) — 공격력 ×1.95 · 최대 체력 ×1.5(따로 곱한다) · 무공 피해 +40% · 두목 피해 +40% · 받는 피해 -20% · 칠식 만독귀종을 펼치면 독룡혼 발현(15초 모든 피해 2배)' }),
+    atkMul: 1.95, hpMul: 1.5, bossDot: 0.9, slow: true, mods: { skill: 0.4, bossDmg: 0.4, dmgRed: 0.2, drain: 0.03 },   // v398 독을 빨아들여 흡혈 3%   // v398 두목이 독을 덜 받는 규칙(×0.5)을 독존은 ×0.9로
+    trait: '독룡혼(毒龍魂) — 공격력 ×1.95 · 최대 체력 ×1.5(따로 곱한다) · 무공 피해 +40% · 두목 피해 +40% · 받는 피해 -20% · 두목에게도 독이 깊이(두목 독 피해 ×0.5 → ×0.9) · 준 피해의 3%를 빨아들인다 · 맞은 적이 독에 굼떠진다(공격 박자 ×1.5) · 칠식 만독귀종을 펼치면 독룡혼 발현(15초 모든 피해 2배)' }),
   ring: F5({ name: '무면천악공', hanja: '無面天惡功', soul: '무면귀', soulHanja: '無面鬼', tierName: '악존', col: '#7c3aed', form: '천악칠지', formHanja: '天惡七指',
     need: 'magwi', needName: '히든 마귀', seal: '惡', sealCol: '124,58,237', aura: '#6d28d9', soulArt: 'soul-ring', banner: '惡尊',
     atkMul: 1.05, hpMul: 1.5,
@@ -315,6 +315,9 @@ for (const [job, forms] of Object.entries(FORMS)) {
   }
   CHEONMA_SKILLS[job] = out;
 }
+// v398 독존 — 마비독: 두목 초식을 끊는다(환마의 섭혼술·혈루미혼처럼). 무공 설명에도.
+Object.assign(CHEONMA_SKILLS.poison[0], { stun: 2 }); CHEONMA_SKILLS.poison[0].desc += ' · 마비독 2초 기절';
+Object.assign(CHEONMA_SKILLS.poison[2], { stun: 1.5 }); CHEONMA_SKILLS.poison[2].desc += ' · 마비독 1.5초 기절';
 
 
 // ---------- 지도 ----------

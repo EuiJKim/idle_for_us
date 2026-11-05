@@ -617,6 +617,7 @@ function bagTab(app) {
       ['⚒ 강화', at('enh')],
       game.canImprintItem(it) ? ['✦ 각인', at('imp')] : null,
       !worn && !it.grow ? ['💰 팔기', () => { if (!sureSell(it)) return; const p = game.sell(it); toast(`팔았어요 — 은자 +${fmt(p)}`); done(); }] : null,
+      !worn && !it.grow ? ['☑ 여러 개 골라 팔기', () => { pick.on = true; pick.sel.clear(); game.mark('pickSell'); pick.sel.add(it.uid); app.showTab('bag', 'bag'); sigs.gear = ''; gearView(); toast('다른 장비도 눌러 고른 뒤 「팔기」'); }] : null,   // v398
     ]);
   }
   function openItem(it, worn) {
@@ -1234,7 +1235,7 @@ function bagTab(app) {
       h('div', { class: 'card' },
         h('h3', {}, '가방', h('small', {}, `${s.bag.length} / ${s.bagSize} · 넘치면 가장 나쁜 것부터 팔아요`)),
         chips,
-        pick.on ? pickBar(list, old) : null,
+        pick.on ? pickBar(list, old) : h('button', { class: 'btn pick-top', id: 'pick-sell-top', disabled: s.bag.length ? null : true, onclick: () => { pick.on = true; pick.sel.clear(); game.mark('pickSell'); sigs.gear = ''; gearView(); toast('장비를 눌러 고르세요 — 여러 개를 한 번에 팔아요'); } }, '☑ 골라 팔기 — 여러 개를 한 번에'),   // v398 맨 아래에만 있어 못 찾았다
         !pick.on && better.length ? h('button', { class: 'btn primary', style: 'width:100%;margin:6px 0', onclick: () => {
           let n = 0;
           // v258: 세트 조각을 세트 아닌 것으로 바꾸면 세트 효과가 깨진다 — 그런 것은 건너뛰고 알린다
@@ -1253,7 +1254,7 @@ function bagTab(app) {
             toast(`약한 장비 ${n}개를 팔아 은자 +${fmt(p)} (강화·전설 이상은 남겨요)`);
             done();
           } }, `약한 것 팔기${old.length ? ` ${old.length}` : ''}`),
-          h('button', { class: 'btn', id: 'pick-sell', disabled: s.bag.length ? null : true, onclick: () => { pick.on = true; pick.sel.clear(); sigs.gear = ''; gearView(); } }, '☑ 골라 팔기'),
+          h('button', { class: 'btn', id: 'pick-sell', disabled: s.bag.length ? null : true, onclick: () => { pick.on = true; pick.sel.clear(); game.mark('pickSell'); sigs.gear = ''; gearView(); } }, '☑ 골라 팔기'),
           // v321 자동 정리 — 같은 잣대로 떨어지는 대로 판다
           h('label', { class: 'btn junk-toggle', title: '낀 것보다 못하고·강화 안 했고·전설 아래인 장비는 떨어지는 대로 팔아요' },
             h('input', { type: 'checkbox', checked: s.autoJunk ? true : null, onchange: (e) => { game.s.autoJunk = e.target.checked; if (e.target.checked && old.length) { let p = 0; for (const it of old) p += game.sell(it); toast(`자동 정리를 켰어요 — 가방의 약한 장비 ${old.length}개도 팔았어요 · 은자 +${fmt(p)}`); } else toast(e.target.checked ? '자동 정리를 켰어요' : '자동 정리를 껐어요'); done(); } }),

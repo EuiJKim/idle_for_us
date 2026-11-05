@@ -1456,7 +1456,7 @@ export class WorldGame {
       }
     }
     const cls = W.CLASSES[this.s.job] || {};
-    if (m.alive && cls.slow) m.slow = 2.5;
+    if (m.alive && (cls.slow || (this.cheonmaOn() && this.fifth().slow))) m.slow = 2.5;   // v398 독존 — 중독된 적은 굼떠진다
     const pm = this.pmods();
     if (m.alive && cls.vuln) {
       const vv = cls.vuln + (pm.vulnUp || 0);
@@ -1572,7 +1572,7 @@ export class WorldGame {
   addDot(m, total, sec) {
     const sb = this.setBonus();
     total *= (1 + (sb.dotUp || 0) + (this.stats().dotUp || 0)) * (sb.bossDot && m.isBoss ? 2 : 1);     // 암천독야 · 길(v237)
-    if (m.isBoss && (m.lv || 0) >= W.BOSS_HARD_FROM) total *= W.BOSS_DOT_K;   // v278 두목은 지속 피해를 덜 받는다(레벨 30 두목부터 — 초반 독마는 독으로 두목을 잡는다)
+    if (m.isBoss && (m.lv || 0) >= W.BOSS_HARD_FROM) total *= (this.cheonmaOn() && this.fifth().bossDot) || W.BOSS_DOT_K;   // v398 독존은 두목에게도 독이 깊이   // v278 두목은 지속 피해를 덜 받는다(레벨 30 두목부터 — 초반 독마는 독으로 두목을 잡는다)
     m.dot = (m.dot || 0) + total;
     m.dotTau = sec / 2;
     m.poison = sec;
