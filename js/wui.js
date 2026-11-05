@@ -2410,8 +2410,8 @@ export function openAutoInfCfg(app, onClose) {
       h('div', { class: 'ainf-sec' }, h('b', {}, '어느 칸에'), h('small', { class: 'muted' }, ' 끈 칸은 자동이 건드리지 않아요'),
         h('div', { class: 'ainf-slots' }, ...W.GROW_SLOTS.map((k) => h('button', { class: `chip${cfg.slots[k] === false ? '' : ' on'}`, onclick: () => { if (cfg.slots[k] === false) delete cfg.slots[k]; else cfg.slots[k] = false; done(); } }, SLOT_NAME[k] || k)))),
       // v297 칸 단 올리기
-      h('div', { class: 'ainf-sec' }, h('label', { class: 'chk' }, h('input', { type: 'checkbox', checked: cfg.dan !== false ? true : null, onchange: (e) => { cfg.dan = !!e.target.checked; done(); } }), ' 남는 증표로 칸 단(段) 올리기'),
-        h('small', { class: 'muted' }, ' 새겨진 칸의 두목 증표가 남으면 그 칸을 깊게 해요(낮은 단부터). 다음 등급 각인 몫(12개)·돌파 몫은 남겨요')),
+      h('div', { class: 'ainf-sec' }, h('label', { class: 'chk' }, h('input', { type: 'checkbox', checked: cfg.dan === true ? true : null, onchange: (e) => { cfg.dan = !!e.target.checked; cfg.danV = 2; done(); } }), ' 남는 증표로 칸 단(段) 올리기'),
+        h('small', { class: 'muted' }, ' 기본은 꺼짐 — 켜면 5초마다 한 단씩만, 낮은 단부터 올려요. 다음 등급 각인 몫(12개)·돌파 몫은 남겨요')),
       h('div', { class: 'btn-row' }, h('button', { class: 'btn primary', onclick: closeModal }, '닫기'))].filter(Boolean));
   };
   openModal((s) => { box = s; draw(); }, { onClose });

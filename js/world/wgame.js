@@ -130,7 +130,7 @@ export function migrateWorld(raw, now = Date.now()) {
     // v294 좋아하는 스킬 변화(꼴 · 몇 차 무공) — 다시 굴릴 때 경고 · ♥
     const prefSk = Array.isArray(c.prefSk) ? [...new Set(c.prefSk.filter((k) => IM.SK_KINDS.includes(k)))] : [];
     const prefSkSlot = Array.isArray(c.prefSkSlot) ? [...new Set(c.prefSkSlot.filter((k) => [0, 1, 2].includes(k)))] : [];
-    s.autoInfCfg = { mode, only: mode === 'pick', marks: mk, slots: sl, prefFx, prefSp, prefSk, prefSkSlot, dan: c.dan !== false }; }   // v297 dan: 남는 증표로 칸 단 올리기
+    s.autoInfCfg = { mode, only: mode === 'pick', marks: mk, slots: sl, prefFx, prefSp, prefSk, prefSkSlot, dan: c.danV === 2 && c.dan === true, danV: 2 }; }   // v297 dan: 남는 증표로 칸 단 올리기 · v370 기본 꺼짐(옛 저장도 끔) — 켜야만 한다
   s.loadout = raw.loadout === 1 ? 1 : 0;
   { const dx = raw.dex && typeof raw.dex === 'object' ? raw.dex : {}; s.dex = {}; for (const [k, v] of Object.entries(dx)) { const n = Math.min(9999, Math.floor(Number(v) || 0)); if (n > 0) s.dex[k] = n; } }
   // v311 각성은 무공마다 — { s0: 'wide', s2: 'twin', … }. 옛 저장의 하나({ slot, kind })는 그 무공 자리로 옮긴다
@@ -3481,10 +3481,10 @@ export class WorldGame {
         if (!done) break;
       }
       // v297 남는 증표로 칸 단(段) 올리기 — 그 칸 두목의 증표만 쓴다(고르는 방식이 허락한 증표만). 다음 등급 각인 몫(12개)과 돌파 몫은 남긴다. 낮은 단부터.
-      if (cfg.dan !== false) {
+      if (cfg.dan === true) {   // v370 켠 사람만 · 한 번에 한 단만
         const top = W.RARITY.length - 1;
         const gradeHold = worn().some((x) => cfg.slots?.[x.slot] !== false && this.canImprintItem(x) && (x.rar || 0) < top) ? W.INFUSE_MARKS[top] : 0;
-        for (let n = 0; n < 8; n++) {
+        for (let n = 0; n < 1; n++) {
           let best = null;
           for (const it of worn().filter((x) => cfg.slots?.[x.slot] !== false)) for (let i = 0; i < (it.imps || []).length; i++) {
             const f = this.danInfo(it, i);

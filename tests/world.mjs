@@ -2668,6 +2668,11 @@ console.log('\n=== v297 각인 개편 — 칸 단 · 다시 새기기 · 공명 
   const ds = W.GROW_SLOTS.map((k) => A.s.equip[k]).filter(Boolean).map((x) => IMm.danOf(x.imps[0]));
   ok(ds.some((d) => d > 1) && A.s.mats[k2] < 40, '자동이 남는 증표로 단을 올린다', `단 ${ds.join(',')} · 남은 증표 ${A.s.mats[k2]}`);
   ok(Math.max(...ds) - Math.min(...ds) <= 1, '낮은 단부터 고르게');
+  // v370 한 번 돌 때 한 단만 · 기본은 꺼짐(옛 저장도 끔)
+  ok(ds.reduce((a, d) => a + d - 1, 0) === 1, '자동은 한 번에 한 단만 올린다', `단 ${ds.join(',')}`);
+  ok(migrateWorld({ ...newWorldSave(), autoInfCfg: { mode: 'all', dan: true } }).autoInfCfg.dan === false, '옛 저장의 자동 단 올리기는 꺼진다');
+  ok(migrateWorld({ ...newWorldSave(), autoInfCfg: { mode: 'all', dan: true, danV: 2 } }).autoInfCfg.dan === true, '새로 켠 것은 남는다');
+  ok(migrateWorld(newWorldSave()).autoInfCfg.dan === false, '새 캐릭터는 꺼짐');
   // 알림 · 글
   ok(/!ev\.dan && !ev\.rewrite/.test(read('js/wmain.js')) && /case 'resonance'/.test(read('js/wmain.js')), '단·다시 새기기는 소문내지 않고 · 공명은 알린다');
   ok(/각인 배율/.test(read('js/wui.js')) && /단 올리기/.test(read('js/wui.js')) && /다시 새기기/.test(read('js/wui.js')), '각인 창에 각인 배율·단·다시 새기기');
@@ -2742,7 +2747,7 @@ console.log('\n=== v298 대성(大成) · 극품·천품 ===');
   A.s.gold = 1e15; A.s.autoInf = true; A.s.autoEnh = false;
   for (const it of W.GROW_SLOTS.map((k) => A.s.equip[k]).filter(Boolean)) { it.rar = 3; it.imps = [{ k: k1, s: 0, sk: 'dmg', g: 0, sp: 0, d: 2 }, null, null]; }
   for (const k of Object.keys(A.s.mats)) if (W.isMarkKey(k)) A.s.mats[k] = 0;
-  A.s.mats[k1] = 100; A.rng = () => 0;
+  A.s.mats[k1] = 100; A.rng = () => 0; A.s.autoInfCfg.dan = true;   // v370 기본은 꺼짐
   A.events.length = 0;
   const out = A.autoGear();
   ok(out.gs >= 1 && A.events.some((ev) => ev.type === 'autoGear' && ev.gs >= 1), '자동이 올린 단에서도 대성이 터지고 알린다', `대성 ${out.gs}`);
