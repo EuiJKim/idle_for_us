@@ -793,7 +793,7 @@ function bagTab(app) {
         return h('div', { class: 'res-box' },
           h('div', { class: 'res-head' },
             h('div', { class: 'res-big' }, h('small', {}, '각인으로 세진 만큼'), h('b', { class: 'res-mul' }, `×${(1 + mul).toFixed(3)}`), h('small', {}, '공격력·체력')),
-            h('button', { class: 'btn itm-info res-info', onclick: () => helpView() }, 'ⓘ 각인이란?')),
+            h('div', { class: 'res-btns' }, h('button', { class: 'btn itm-info res-info', onclick: () => helpView() }, 'ⓘ 각인이란?'), h('button', { class: 'btn itm-info res-info ig-open', onclick: () => { closeModal(); openImprintGuide(app, () => openItem(it, worn)); } }, '🔎 원하는 능력 찾기'))),
           list.length ? h('div', { class: 'res-list' }, ...list.map((r) => {
             const th = IM.THEMES[r.theme];
             const nx = r.tier < IM.RES_NEED.length - 1 ? IM.RES_NEED[r.tier + 1] : null;
@@ -830,6 +830,7 @@ function bagTab(app) {
       };
       // v299 ⓘ 각인이란? — 순서대로 넷
       const helpView = () => sub('각인은 이렇게 해요',
+        h('button', { class: 'btn primary', style: 'width:100%;margin-bottom:8px', onclick: () => { closeModal(); openImprintGuide(app, () => openItem(it, worn)); } }, '🔎 원하는 능력은 어느 두목에게? — 각인 안내서'),
         h('div', { class: 'help-steps' },
           h('div', { class: 'help-step' }, h('b', {}, '① 두목을 잡아 증표를 모아요'), h('p', {}, '두목 구역·고수의 두목 방에서 두목을 잡으면 그 두목의 증표가 나와요. 센 두목 증표일수록 각인 효과가 커요.')),
           h('div', { class: 'help-step' }, h('b', {}, '② 등급 각인 — 레어 → 유니크 → 전설 → 신화'), h('p', {}, `증표 ${W.INFUSE_MARKS.slice(1).join('·')}개와 은자를 넣어요. 확률이 있고(센 두목 증표일수록 높아요), 실패하면 다음 확률이 쌓여서 언젠가는 돼요.`), h('p', {}, `장비마다 각인은 한 칸. 처음 유니크가 될 때 그 두목이 새겨져요: 기운 능력치 + 스킬 변화 + 각인력(공격력·체력 %). 레벨 100 넘는 두목은 고유 효과도. 전설·신화로 오르면 그 칸이 세져요(×${IM.IMP_RAR_W[1]} → ×${IM.IMP_RAR_W[2]} → ×${IM.IMP_RAR_W[3]}).`)),
@@ -1609,6 +1610,68 @@ export function matUse(game, key) {
   return `장비 강화(이 지역 레벨대 장비)${up ? ` · ${W.MAT_CONVERT}개를 ${W.matName(up)} 하나로 바꿀 수 있어요` : ''}`;
 }
 // v301 증표를 하나도 안 가졌을 때 — 갈 수 있는 두목 구역 가운데 위험하지 않은 가장 센 곳의 증표 열쇠
+// v382 각인 안내서 — 「이 능력치를 원하면 어느 두목 증표를, 그 두목은 어디에」를 한눈에.
+//   ① 각인이란(세 줄) ② 원하는 능력 고르기 → 그 기운의 두목들(내 레벨에 맞는 순 · 신화로 새기면 얼마 · 가진 증표 · 사냥터로) ③ 지금 내 장비 각인
+const GUIDE_STATS = [
+  ['atkPct', '공격력', '⚔'], ['hpPct', '체력', '❤'], ['crit', '치명', '✦'], ['critDmg', '치명 피해', '💥'], ['bossDmg', '두목 피해', '👑'],
+  ['dmgRed', '받는 피해 감소', '🛡'], ['dodge', '회피', '💨'], ['speed', '공격 속도', '⚡'], ['move', '이동 속도', '👣'], ['drain', '흡혈', '🩸'],
+  ['cdr', '무공 숨(재사용)', '⏳'], ['venom', '독', '☠'], ['burn', '화상', '🔥'], ['chill', '둔화', '❄'], ['shock', '뇌전', '⚡'], ['stunHit', '기절', '💫'],
+];
+let guidePick = 'atkPct';
+export function openImprintGuide(app, back = null) {
+  const { game } = app;
+  const s = game.s;
+  const zones = Object.keys(W.ZONES_W).map(Number).filter((z) => W.ZONES_W[z]?.boss);
+  const bossMap = (z) => W.MAPS.find((m) => m.zone === z && m.bossRoom) || W.MAPS.find((m) => m.zone === z && !m.town) || null;
+  const pct = (v, d = 1) => `${(v * 100).toFixed(d).replace(/\.0$/, '')}%`;
+  openModal((el) => {
+    const draw = () => {
+      const st = GUIDE_STATS.find((x) => x[0] === guidePick) || GUIDE_STATS[0];
+      const themes = Object.entries(IM.THEMES).filter(([, t]) => t.fx.some(([k]) => k === st[0])).map(([k]) => k);
+      // 그 기운의 두목들 — 갈 수 있는(레벨 +10 안) 것부터 센 순, 그 다음 멀리 있는 것
+      const rows = zones.filter((z) => themes.includes(IM.themeOfZone(z))).map((z) => {
+        const key = W.bossKey(z);
+        const im = IM.imprintOf({ k: key, s: 0, sk: 'dmg', g: 0, sp: 0 }, 3);
+        const lv = W.markLv(key);
+        return { z, key, lv, v: im?.fx?.[st[0]] || 0, im, have: s.mats[key] || 0, near: lv <= s.level + 10, map: bossMap(z) };
+      }).sort((a, b) => (b.near - a.near) || (a.near ? b.v - a.v : a.lv - b.lv)).slice(0, 8);
+      // 지금 내 장비 각인
+      const mine = W.SLOTS.map((x) => ({ x, it: s.equip[x.id] })).filter((o) => o.it).map(({ x, it }) => {
+        const im = IM.imprintsOf(it)[0];
+        return h('div', { class: 'ig-mine-row' }, h('b', {}, x.name),
+          im ? h('span', {}, h('i', { style: `color:${IM.THEMES[im.theme].col}` }, `${IM.THEMES[im.theme].name} `), `${im.boss} ${IM.DAN_NAME(im.d)} · `, Object.entries(im.fx).map(([k, v]) => IM.FX_TEXT[k]?.(v) || k).join(' · '))
+            : h('span', { class: 'muted' }, (it.rar || 0) >= 1 || it.grow || it.king != null ? '비었어요 — 등급을 올리면(유니크부터) 새겨져요' : '레어 — 유니크로 올리면 새겨져요'));
+      });
+      el.replaceChildren(
+        h('h2', {}, '📖 각인 안내서'),
+        h('div', { class: 'ig-steps' },
+          h('div', {}, h('b', {}, '①'), ' 두목을 잡으면 그 두목의 ', h('b', {}, '증표'), '가 나와요'),
+          h('div', {}, h('b', {}, '②'), ' 장비 등급을 올릴 때(유니크·전설·신화) 넣은 증표 두목의 ', h('b', {}, '기운'), '이 장비에 새겨져요 — 기운마다 능력치 둘 + 스킬 변화'),
+          h('div', {}, h('b', {}, '③'), ' 같은 두목 증표를 더 넣으면 ', h('b', {}, '단'), '이 깊어지고(최대 10단), 장비 여덟에 같은 기운을 모으면 ', h('b', {}, '공명'))),
+        h('h3', { class: 'ig-h' }, '원하는 능력을 골라요'),
+        h('div', { class: 'ig-stats' }, ...GUIDE_STATS.map(([k, t, ic]) => h('button', { class: `chip${k === guidePick ? ' on' : ''}`, onclick: () => { guidePick = k; draw(); } }, `${ic} ${t}`))),
+        h('p', { class: 'muted ig-note' }, `〈${st[1]}〉을(를) 주는 기운: `, ...themes.map((t) => h('b', { style: `color:${IM.THEMES[t].col}` }, `${IM.THEMES[t].name} `)),
+          ` — 같은 기운의 두목은 모두 같은 능력치를 줘요(센 두목일수록 크게). 아래는 지금 레벨(${s.level})에 맞는 순이에요.`),
+        h('div', { class: 'ig-list' }, ...rows.map((r) => {
+          const zn = W.ZONES_W[r.z];
+          const th = IM.THEMES[IM.themeOfZone(r.z)];
+          return h('div', { class: `ig-row${r.near ? '' : ' far'}`, style: `--tc:${th.col}` },
+            h('div', { class: 'ig-ico' }, matIcon(r.key, 30)),
+            h('div', { class: 'ig-info' },
+              h('b', {}, zn.boss.name, h('small', {}, ` · ${th.name} · Lv.${r.lv}${r.map ? ` · ${r.map.name}` : ''}`)),
+              h('div', { class: 'ig-fx' }, `신화로 새기면 `, h('em', {}, Object.entries(r.im.fx).map(([k, v]) => IM.FX_TEXT[k]?.(v) || k).join(' · ')), IM.specialsOfZone(r.z) ? ` + 고유 효과 ${IM.specialsOfZone(r.z).map((x) => x.name).join('·')}` : ''),
+              h('small', { class: 'muted' }, `증표 ${fmt(r.have)}개 가짐${r.near ? '' : ' · 아직 센 곳(레벨을 더 올려요)'}`)),
+            r.map ? h('button', { class: 'btn ig-go', onclick: () => { closeModal(); openMatWhere(app, r.key, () => openImprintGuide(app, back)); } }, '어디서?') : null);
+        }), rows.length ? null : h('p', { class: 'muted' }, '이 능력을 주는 두목이 없어요.')),
+        h('h3', { class: 'ig-h' }, '지금 내 장비 각인'),
+        h('div', { class: 'ig-mine' }, ...mine),
+        h('div', { class: 'btn-row' },
+          h('button', { class: 'btn', onclick: () => { closeModal(); openAutoInfCfg(app, back); } }, '⚙ 자동 각인 설정'),
+          h('button', { class: 'btn primary', onclick: () => { closeModal(); back?.(); } }, back ? '돌아가기' : '닫기')));
+    };
+    draw();
+  });
+}
 export function bestMarkKey(game) {
   let id = null;
   for (const m of W.MAPS) if (m.bossRoom && !m.master && game.canEnter(m.id) && game.danger(m.id) <= 0 && (!id || m.lv[0] > W.mapOf(id).lv[0])) id = m.id;
@@ -2570,6 +2633,7 @@ export function openAutoInfCfg(app, onClose) {
     });
     box.replaceChildren(...[
       h('h2', {}, '자동 등급 각인 설정'),
+      h('button', { class: 'pref-link', onclick: () => { closeModal(); openImprintGuide(app, () => openAutoInfCfg(app, onClose)); } }, '🔎 어떤 두목 증표가 어떤 능력을 주는지 — 각인 안내서'),
       h('p', { class: 'muted', style: 'font-size:12.5px;margin-top:-4px' }, '등급 각인에 성공하면 그 두목의 테마 능력치와 고유 효과가 장비 칸에 새겨져요. 원하는 것만 새기도록 고를 수 있어요.'),
       h('div', { class: 'ainf-sec' }, h('label', { class: 'chk' }, h('input', { type: 'checkbox', id: 'ainf-on', checked: game.s.autoInf ? true : null, onchange: (e) => { game.s.autoInf = !!e.target.checked; done(); } }), ' 자동 등급 각인 켜기')),
       h('div', { class: 'ainf-sec' }, h('b', {}, '어떤 증표를'),

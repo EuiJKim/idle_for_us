@@ -2525,3 +2525,25 @@ body.hunt-noui #gather, body.in-inst #gather { display: none !important; }
 .set-pane > .row .name { font-size: 14px; font-weight: 700; }
 .set-pane > .row .desc { font-size: 11.5px; line-height: 1.45; margin-top: 2px; }
 .set-pane > .btn-row { margin-top: 2px !important; }
+
+/* v382 각인 안내서 */
+.ig-steps { display: grid; gap: 4px; padding: 10px 12px; border-radius: 10px; background: rgba(253, 230, 138, 0.06); border: 1px solid rgba(253, 230, 138, 0.25); font-size: 12.5px; line-height: 1.5; }
+.ig-steps b { color: #fde68a; }
+.ig-h { margin: 12px 0 6px; font-size: 15px; }
+.ig-stats { display: flex; flex-wrap: wrap; gap: 5px; }
+.ig-stats .chip { padding: 5px 9px; font-size: 12.5px; }
+.ig-note { font-size: 12px; margin: 8px 0 6px; }
+.ig-list { display: grid; gap: 6px; }
+.ig-row { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 10px; border: 1px solid color-mix(in srgb, var(--tc) 45%, transparent); background: linear-gradient(90deg, color-mix(in srgb, var(--tc) 12%, transparent), rgba(0,0,0,0.12)); }
+.ig-row.far { opacity: 0.6; }
+.ig-ico { flex: none; }
+.ig-info { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.ig-info b { font-size: 13.5px; }
+.ig-info b small { color: var(--muted); font-weight: 500; }
+.ig-fx { font-size: 12px; }
+.ig-fx em { font-style: normal; color: #86efac; font-weight: 700; }
+.ig-go { flex: none; padding: 5px 9px; font-size: 12px; }
+.ig-mine { display: grid; gap: 4px; font-size: 12px; }
+.ig-mine-row { display: flex; gap: 8px; padding: 5px 8px; border-radius: 8px; background: rgba(255,255,255,0.04); }
+.ig-mine-row > b { flex: none; width: 42px; color: var(--muted); }
+.res-btns { display: flex; flex-direction: column; gap: 4px; }
