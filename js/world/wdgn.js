@@ -23,7 +23,12 @@ export const DAILY_SEC = 75;
 export const DAILY_KILLS = 24;           // 이만큼 잡으면 깬다
 export const DAILY_ALIVE = 10;
 export const DAILY_RESPAWN = 0.7;
-export const DAILY_STAGES = 30;
+export const DAILY_STAGES = 999;   // v401 30에서 끝나지 않는다 — 계속 오른다(DAILY_BASE 위로는 단계마다 더 세게)
+export const DAILY_BASE = 30;      // 몹 레벨이 150에 닿는 단계
+export const DAILY_OVER_K = 1.12;  // 30단계 위로 한 단계마다 몹 체력·공격 ×1.12
+export const DAILY_OVER_RW = 0.06; // 보상 +6%씩
+export const dailyOverK = (s) => (s > DAILY_BASE ? DAILY_OVER_K ** (s - DAILY_BASE) : 1);
+export const dailyRwK = (s) => 1 + Math.max(0, s - DAILY_BASE) * DAILY_OVER_RW;
 export const DAILY_FAIL = 0.5;
 
 export const DAILY = [
@@ -58,9 +63,10 @@ export function dailyReward(kind, s, gapMult = 1, myLv = 999) {
   // 한 판 ≈ 들판 10분~한 시간어치 (경험치 그 레벨 0.2 · 은자 몹 1000마리 · 재료 300 · 증표 8)
   // v292 한 판마다 포획·탈것 조각도(단계가 높을수록 더)
   const sh = { petShard: dailyShards(s), mountShard: dailyShards(s) };
-  if (kind === 'exp') return { exp: Math.round(expToNext(lv) * 0.2 * gapMult), ...sh };
-  if (kind === 'gold') return { gold: Math.round(mobGold(lv) * 1000), ...sh };
-  return { mats: { [z]: 300, [`b${z}`]: 8 }, ...sh };
+  const rk = dailyRwK(s);   // v401 30단계 위로는 보상도 오른다
+  if (kind === 'exp') return { exp: Math.round(expToNext(lv) * 0.2 * gapMult * rk), ...sh };
+  if (kind === 'gold') return { gold: Math.round(mobGold(lv) * 1000 * rk), ...sh };
+  return { mats: { [z]: Math.round(300 * rk), [`b${z}`]: Math.round(8 * rk) }, ...sh };
 }
 // 던전 구역 — 그 단계 지역의 들판 몹을 빌린다
 export function dailyMap(kind, s) {

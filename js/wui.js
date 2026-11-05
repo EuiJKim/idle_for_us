@@ -2213,7 +2213,7 @@ function dgnTab(app) {
               : h('div', { class: 'muted' }, `${D.dailyDaysText(d)}요일에 열려요`))),
         h('div', { class: 'dgn-stage' },
           h('button', { class: 'stp', disabled: stg <= 1 ? true : null, onclick: () => step(-1) }, '−'),
-          h('div', { class: 'stg' }, h('b', {}, `${stg}단계`), h('small', {}, ` 몹 Lv.${D.dailyLv(stg)}${D.dailyLv(stg) - s.level > W.DANGER_LV ? ' ⚠위험' : ''}`)),
+          h('div', { class: 'stg' }, h('b', {}, `${stg}단계`), h('small', {}, ` 몹 Lv.${D.dailyLv(stg)}${stg > D.DAILY_BASE ? ` · 세기 ×${D.dailyOverK(stg).toFixed(1)} · 보상 ×${D.dailyRwK(stg).toFixed(2)}` : ''}${D.dailyLv(stg) - s.level > W.DANGER_LV ? ' ⚠위험' : ''}`)),
           h('button', { class: 'stp', disabled: stg >= max ? true : null, onclick: () => step(1) }, '+'),
           h('div', { class: 'rw' }, ...rewardNodes(app, rw, '보상 '))),
         // 천공광맥은 단계마다 나오는 재료가 통째로 바뀐다 — 어느 지역인지 적는다

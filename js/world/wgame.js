@@ -982,7 +982,7 @@ export class WorldGame {
       if (lv >= W.BOSS_HARD_FROM) mob.calib = { base, sec: this.bossMinSec(m) * this.bossGapK(m) };   // v271 첫 몇 초 실제 피해로 다시 맞춘다(v272 레벨 30 두목부터)
     }
     // 요일 던전 몹은 같은 레벨 무인에 맞춰 단단하다 (v126)
-    if (this.inst?.kind === 'daily') { mob.maxHp = mob.hp = D.dailyMobHp(lv) * (elite ? W.ELITE.hp : 1); mob.atk = D.dailyMobAtk(lv) * (elite ? W.ELITE.atk : 1); }
+    if (this.inst?.kind === 'daily') { const ok = D.dailyOverK(this.inst.stage || 1); mob.maxHp = mob.hp = D.dailyMobHp(lv) * (elite ? W.ELITE.hp : 1) * ok; mob.atk = D.dailyMobAtk(lv) * (elite ? W.ELITE.atk : 1) * ok; }   // v401 30단계 위로 단계마다 더 세게
     // 두목 등장 연출: 구역에 들어와 처음 나설 때는 길게(들판이 멈추고 두목은 맞지도 않는다),
     // 같은 구역에서 다시 날 때는 짧게(멈추지 않는다) — 30초마다 길게 멈추면 사냥이 끊긴다.
     const full = boss && !this.bossSeen;

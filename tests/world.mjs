@@ -3694,5 +3694,17 @@ console.log('\n=== v399 강화석 몇 개 · 되돌리기 ===');
   ok(old.stoneMade[k] === 24642 - 300, '옛 세이브 — 300개를 뺀 나머지는 만든 것으로(한꺼번에 만들어진 것을 무른다)', `${old.stoneMade[k]}`);
   ok(/stone-btns/.test(read('js/wui.js')) && /최대 \$\{fmt\(can\)\}/.test(read('js/wui.js')), '대장장이 — 1 · 10 · 100개 · 최대(묻는다)');
 }
+console.log('\n=== v401 일일 던전 — 30단계 위로 계속 ===');
+{
+  const D1 = await import('../js/world/wdgn.js');
+  ok(D1.DAILY_STAGES > 100 && D1.dailyOverK(30) === 1 && D1.dailyOverK(40) > 3 && D1.dailyRwK(40) > 1.5, '30단계 위로 — 단계마다 몹 ×1.12 · 보상 +6%');
+  const g = fresh('sword'); while (g.s.level < 150) g.addExp(W.expToNext(g.s.level));
+  for (const d of D1.DAILY) g.s.dgn.best[d.id] = 44;
+  ok(g.dailyMaxStage('gold') === 45 && g.startDaily('gold', 45, Date.now()), '깬 다음 단계(45)로 들어간다');
+  for (let t = 0; t < 3; t += 0.05) g.tick(0.05);
+  const m = g.mons.find((x) => x.alive);
+  ok(m && Math.abs(m.maxHp / (D1.dailyMobHp(150) * (m.elite ? W.ELITE.hp : 1)) - D1.dailyOverK(45)) < 0.01, '45단계 몹 체력 = 150레벨 몹 × 1.12^15');
+  ok(D1.dailyReward('gold', 50, 1, 150).gold > D1.dailyReward('gold', 30, 1, 150).gold * 2, '50단계 은자 = 30단계의 두 배 넘게');
+}
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);
