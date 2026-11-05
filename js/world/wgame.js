@@ -2731,6 +2731,7 @@ export class WorldGame {
     const want = new Set(uids);
     let gold = 0, n = 0;
     for (const it of this.s.bag.slice()) if (want.has(it.uid) && !it.grow) { gold += this.sell(it); n++; }
+    if (n) this.mark('pickSell');   // v394 길잡이
     return { n, gold };
   }
   sellBagBelow(grade) {
@@ -2862,6 +2863,7 @@ export class WorldGame {
       if (r == null) break;
       out.n++; if (r) out.ok++; else out.fail++;
     }
+    this.mark('enhAll');   // v394 길잡이 — 눌러 보면 된다(이미 다 올라 있어도 막히지 않게)
     return out;
   }
   // ---------- v393 초월 — +15(그 장비의 끝)까지 다 한 신화 장비 ----------

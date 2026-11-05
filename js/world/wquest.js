@@ -86,6 +86,9 @@ export const QUESTS = [
   { id: 'armor', title: '옷도 +1 강화하자', tab: 'bag/gear', min: 3, xp: 0.15,
     why: '무기만 좋으면 금방 쓰러진다. 옷·모자·장갑·신발이 체력을 받친다.',
     goal: (g) => ({ now: g.s.equip.armor?.plus ? 1 : 0, need: 1 }) },
+  { id: 'pickSell', title: '가방에서 골라 팔기를 써 보자', tab: 'bag/bag', min: 2, xp: 0.1,
+    why: '가방 → ☑ 골라 팔기. 장비를 눌러 고르고 한 번에 판다 — 약한 것·레어만처럼 빠르게 고르는 단추도 있다.',
+    goal: flag('pickSell') },
   // ---- 3. 두목 (레벨 10~15) ----
   { id: 'boss', title: '두목 구역에서 두목을 잡자', tab: 'map/murim', min: 4, xp: 0.2,
     why: '지역마다 두목 구역이 있다. 두목 증표는 거기서만 나오고, 장비·애완동물도 가끔 떨군다.',
@@ -96,6 +99,9 @@ export const QUESTS = [
   { id: 'enh5', title: '무기를 +5까지', tab: 'bag/gear', min: 4, xp: 0.15,
     why: '+7까지는 실패해도 그대로다 — 은자·재료만 들면 마음 놓고 두드리자.',
     goal: (g) => ({ now: g.s.equip.weapon?.plus || 0, need: 5 }) },
+  { id: 'enhAll', title: '강화 칸에서 「모두 올리기」를 해 보자', tab: 'bag/enh', min: 3, xp: 0.15,
+    why: '가방 → 강화. 여덟 칸이 한 화면에 — 「⏫ 모두 +N까지」는 낮은 칸부터 한꺼번에 올린다.',
+    goal: flag('enhAll') },
   { id: 'skill', title: '무공을 한 번 올리자', tab: 'char/skill', min: 4, xp: 0.15,
     why: `레벨 ${W.SKILL_PT_FROM}부터 무공 점수가 쌓인다. 무공 레벨이 곧 피해다.`,
     goal: (g) => ({ now: skillSum(g), need: 6 }) },
@@ -149,6 +155,9 @@ export const QUESTS = [
   { id: 'gear4', title: '장비 네 칸을 +3까지', tab: 'bag/gear', min: 5, xp: 0.15,
     why: '모자·장갑·신발도. +3까지는 실패해도 그대로다. 칸마다 그 레벨 지역의 고유 옵션이 붙는다.',
     goal: (g) => ({ now: W.GROW_SLOTS.filter((k) => (g.s.equip[k]?.plus || 0) >= 3).length, need: 4 }) },
+  { id: 'autoEnh', title: '자동 강화를 켜자', tab: 'bag/gear', min: 3, xp: 0.1,
+    why: '가방 → 착용 → 자동 강화. 낮은 칸부터 정한 강까지 저절로(+10 돌파는 직접). 은자를 얼마 남길지도 정한다.',
+    goal: (g) => ({ now: g.s.autoEnh ? 1 : 0, need: 1 }) },
   { id: 'mast1', title: '한 지역 숙련도 1', tab: 'map', min: 5, xp: 0.15,
     why: '한 지역에서 오래 사냥하면 숙련이 올라 경험치·재료가 늘고 나쁜 기운을 견딘다.',
     goal: (g) => ({ now: mastMax(g), need: 1 }) },
@@ -199,6 +208,9 @@ export const QUESTS = [
     why: '장비를 눌러 → 등급 각인. 어느 두목의 증표든 된다 — 센 두목 것일수록 잘 붙고, 실패해도 다음 확률이 올라 언젠가는 붙는다. 이번엔 증표를 챙겨 줬다.',
     goal: flag('infuse'),
     gift: (g) => { const k = W.bossKey(W.stepMap(W.stepOfLevel(g.s.level))); g.addMats(k, W.INFUSE_MARKS[1] * 2); return '두목 증표'; } },
+  { id: 'impTheme', title: '각인 칸에서 기운을 골라 올리자', tab: 'bag/imp', min: 8, xp: 0.15,
+    why: '가방 → 각인. 장비마다 기운(능력)을 하나 고르고 「⬆ 올리기」만 누르면 된다 — 새기기·단·등급을 알아서 차례로. 자동 각인은 「고른 기운대로」로 켜 두자.',
+    goal: (g) => ({ now: Math.max(0, ...W.SLOTS.map((x) => (g.s.equip[x.id] ? g.impLv(g.s.equip[x.id]) : 0))) >= 1 && Object.keys(g.s.impTheme || {}).length ? 1 : 0, need: 1 }) },
   { id: 'reimp', title: '각인의 스킬 변화를 다시 굴려 보자', tab: 'bag/gear', min: 8, xp: 0.15,
     why: '가방 → 착용 → 각인한 장비를 눌러 → 위 칸 \'각인\' → 새겨진 칸을 누르면 맨 위에 🎲 다시 굴리기. 스킬 변화(범위·두 번·숨·피해)가 새로 뽑힌다 — 센 두목의 증표일수록 높은 등급이 잘 나온다. 증표를 조금 챙겨 줬다.',
     goal: flag('reimp'),
@@ -256,13 +268,12 @@ export const QUESTS = [
   { id: 'duel5', title: '고수 다섯을 쓰러뜨리자', tab: 'map/masters', min: 15, xp: 0.25,
     why: '고수 하나마다 영구 능력치가 쌓인다. 세력마다 무공과 경고 모양이 다르다.',
     goal: (g) => ({ now: Object.keys(g.s.duel?.won || {}).length, need: 5 }) },
-  { id: 'imp2', title: '장비 하나에 각인 두 칸', tab: 'bag/gear', min: 14, xp: 0.2,
-    why: '등급 각인을 두 번(전설). 같은 두목 증표 6개 — 센 두목 것일수록 잘 붙는다.',
-    // v256: 빈 칸(null)은 세지 않는다 — 전설로 떨어진 장비를 한 번 각인하면 길이가 3이라 바로 끝났다
-    goal: (g) => ({ now: Math.max(0, ...W.SLOTS.map((x) => (g.s.equip[x.id]?.imps || []).filter(Boolean).length)), need: 2 }) },
-  { id: 'imp3', title: '장비 하나에 각인 세 칸을 채우자', tab: 'bag/gear', min: 15, xp: 0.25,
-    why: '각인은 칸마다 그 두목의 테마 효과와 스킬 변화를 붙인다. 세 칸이 다 차면 신화 — 백 레벨 넘는 두목 증표는 고유 효과를 고를 수 있다.',
-    goal: (g) => ({ now: Math.max(0, ...W.SLOTS.map((x) => (g.s.equip[x.id]?.imps || []).filter(Boolean).length)), need: 3 }) },
+  { id: 'impLv6', title: '장비 하나를 각인 Lv 6까지', tab: 'bag/imp', min: 14, xp: 0.2,
+    why: '각인 Lv은 등급(유니크·전설·신화) + 단으로 0~12. 「⏫ 최대로」를 누르면 증표·은자가 되는 데까지 올린다. 센 두목 증표일수록 등급이 잘 오른다.',
+    goal: (g) => ({ now: Math.max(0, ...W.SLOTS.map((x) => (g.s.equip[x.id] ? g.impLv(g.s.equip[x.id]) : 0))), need: 6 }) },
+  { id: 'res3', title: '같은 기운 세 칸 — 공명을 켜자', tab: 'bag/imp', min: 15, xp: 0.25,
+    why: '같은 기운으로 세 칸 넘게 새기면 공명 — 더 세진다. 각인 칸 위 「여덟 칸 모두 한 기운으로」를 누르면 한 번에 맞춘다.',
+    goal: (g) => ({ now: Math.max(0, ...Object.values(g.resonance().by || {}).map((r) => r.n || 0)), need: 3 }) },
   // ---- 9. 십이지왕 (레벨 75~) ----
   { id: 'tower30', title: '무한의 탑 30층까지', tab: 'dgn/tower', min: 15, xp: 0.25,
     why: '십이지신 셋을 넘긴 셈이다.',
@@ -303,6 +314,9 @@ export const QUESTS = [
   { id: 'lv120', mile: true, title: '레벨 120까지', tab: 'map', min: 22, xp: 0,
     why: '후반 십이지왕과 팔마존이 기다린다.',
     goal: lv(120) },
+  { id: 'wraid', title: '칠대성 토벌에 한 번 들어가자', tab: 'dgn/wraid', min: 22, xp: 0.25, skip: true,
+    why: '던전 → 칠대성. 무림 모두가 함께 깎는 거대한 마왕 — 탄을 피하며 친다. 쓰러지면 대성신장 한 부위를 받는다. 「⚡ 빠른 합류」로 사람 많은 곳에.',
+    goal: flag('wraid') },
   { id: 'tower50', title: '무한의 탑 50층까지', tab: 'dgn/tower', min: 25, xp: 0.3,
     why: '여기까지 왔으면 길잡이는 필요 없다. 탑은 120층까지.',
     goal: floor(50) },
@@ -321,10 +335,27 @@ export const QUESTS = [
   { id: 'lv150', mile: true, title: '레벨 150 — 강호의 끝', tab: 'map', min: 25, xp: 0,
     why: '여기까지 온 무인은 드물다. 천마에게 도전해 보자.',
     goal: lv(150) },
+  { id: 'fifthBoss', title: '5차 전직의 숨은 두목을 쓰러뜨리자', tab: 'town/master', min: 25, xp: 0,
+    why: '검사는 천마 · 권마는 화무기 · 환마는 사도맹주 · 독마는 무림맹주 · 극악소마는 마귀. 마을 → 사부에서 내 직업의 두목을 볼 수 있다.',
+    goal: (g) => ({ now: g.s.duel?.won?.[W.fifthOf(g.s.job)?.need] ? 1 : 0, need: 1 }) },
+  { id: 'tier5', mile: true, title: '5차 전직', tab: 'town/master', min: 25, xp: 0,
+    why: '모든 무공이 일곱 초식으로 바뀌고 혼(魂)이 깃든다. 마지막 초식을 펼치면 등 뒤로 혼의 형상이 선다.',
+    goal: tier(5) },
+  { id: 'trans1', title: '장비를 초월 一까지', tab: 'bag/enh', min: 25, xp: 0,
+    why: '신화 +15를 다 한 장비만 — 장비 창 강화 칸 아래 「✦ 초월」. 단계마다 기본 능력치 +8%, 실패해도 떨어지지 않는다.',
+    goal: (g) => ({ now: Math.max(0, ...W.SLOTS.map((x) => g.s.equip[x.id]?.tr || 0)), need: 1 }) },
+  { id: 'tower120', title: '무한의 탑 120층 — 꼭대기', tab: 'dgn/tower', min: 25, xp: 0,
+    why: '층마다 영구 공격력·체력. 꼭대기 위로는 극(極)의 층이 이어진다.',
+    goal: floor(120) },
+  { id: 'trans5', title: '장비를 초월 五까지', tab: 'bag/enh', min: 25, xp: 0,
+    why: '초월 五면 그 장비의 기본 능력치 +40%. 은자·현철·두목 증표를 꾸준히.',
+    goal: (g) => ({ now: Math.max(0, ...W.SLOTS.map((x) => g.s.equip[x.id]?.tr || 0)), need: 5 }) },
 ];
 
 export const QUEST_COUNT = QUESTS.length;
-export const QUEST_V = 7;   // v369: 소환 단계를 끼웠다(애완동물 기술 다음)   // v269: 1차 전직 단계를 레벨 5 뒤로 옮겼다 (v213: 계열 각인 단계를 뺐다)
+export const QUEST_V = 8;   // v394: 각인 두·세 칸(못 깨던 단계)을 각인 Lv·공명으로 · 강화 칸·골라 팔기·자동 강화·기운·칠대성·5차·초월·탑 꼭대기를 끼웠다
+export const QUEST_V7_IDS = ['job', 'kill10', 'move', 'zoom', 'stat', 'lv5', 'tier1', 'craft', 'enh1', 'potion', 'refill', 'potionAt', 'area2', 'lv10', 'armor', 'boss', 'enh3', 'enh5', 'skill', 'range', 'pet', 'mount', 'petSkill', 'gacha', 'passive', 'skill5', 'lv20', 'saver', 'app', 'daily', 'dauto', 'sweep', 'tower3', 'gear4', 'mast1', 'convert', 'book', 'lv30', 'guild', 'checkin', 'donate', 'bag', 'alt', 'tower10', 'zodiac', 'tier2', 'duel', 'lore', 'promote', 'reimp', 'enh7', 'prot', 'lv50', 'daily10', 'tower20', 'lv60', 'skill10', 'lv70', 'petLv', 'treasure', 'raid', 'mast5', 'tier3', 'lv80', 'fuse', 'duel5', 'imp2', 'imp3', 'tower30', 'tower40', 'gear6', 'lv90', 'king', 'kingKill', 'mast10', 'tier4', 'skillMax', 'set1', 'kacc', 'coop', 'lv120', 'tower50', 'enh10', 'enh12', 'set5', 'lord', 'lv150'];
+// v369: 소환 단계를 끼웠다(애완동물 기술 다음)   // v269: 1차 전직 단계를 레벨 5 뒤로 옮겼다 (v213: 계열 각인 단계를 뺐다)
 // v180: 판 2의 차례 — 판 3으로 옮길 때 '지금 하던 단계'를 찾는다(끼워 넣은 단계는 새로 해 보게)
 export const QUEST_V3_IDS = ['job', 'kill10', 'move', 'zoom', 'stat', 'lv5', 'craft', 'enh1', 'potion', 'refill', 'potionAt', 'area2', 'lv10', 'armor', 'boss', 'enh3', 'tier1', 'skill', 'range', 'pet', 'mount', 'passive', 'lv20', 'saver', 'app', 'daily', 'dauto', 'sweep', 'tower3', 'gear4', 'mast1', 'convert', 'book', 'lv30', 'guild', 'checkin', 'donate', 'bag', 'alt', 'tower10', 'zodiac', 'tier2', 'duel', 'lore', 'promote', 'reimp', 'line', 'enh7', 'prot', 'lv50', 'daily10', 'tower20', 'lv60', 'petLv', 'treasure', 'raid', 'mast5', 'tier3', 'duel5', 'imp3', 'tower30', 'gear6', 'lv90', 'king', 'kingKill', 'tier4', 'set1', 'kacc', 'coop', 'tower50', 'enh10', 'set5', 'lord'];
 // v208: 판마다 차례 — 옛 판에서 옮길 때 '하던 단계'를 찾고, 새로 끼운 단계를 짚는다
@@ -347,4 +378,4 @@ export const QUEST_V4_IDS = ['job', 'kill10', 'move', 'zoom', 'stat', 'lv5', 'cr
 // v269: 판 5의 차례 — 1차 전직(tier1)을 레벨 5 뒤로 옮기기 전
 export const QUEST_V5_IDS = ['job', 'kill10', 'move', 'zoom', 'stat', 'lv5', 'craft', 'enh1', 'potion', 'refill', 'potionAt', 'area2', 'lv10', 'armor', 'boss', 'enh3', 'enh5', 'tier1', 'skill', 'range', 'pet', 'mount', 'petSkill', 'passive', 'skill5', 'lv20', 'saver', 'app', 'daily', 'dauto', 'sweep', 'tower3', 'gear4', 'mast1', 'convert', 'book', 'lv30', 'guild', 'checkin', 'donate', 'bag', 'alt', 'tower10', 'zodiac', 'tier2', 'duel', 'lore', 'promote', 'reimp', 'enh7', 'prot', 'lv50', 'daily10', 'tower20', 'lv60', 'skill10', 'lv70', 'petLv', 'treasure', 'raid', 'mast5', 'tier3', 'lv80', 'fuse', 'duel5', 'imp2', 'imp3', 'tower30', 'tower40', 'gear6', 'lv90', 'king', 'kingKill', 'mast10', 'tier4', 'skillMax', 'set1', 'kacc', 'coop', 'lv120', 'tower50', 'enh10', 'enh12', 'set5', 'lord', 'lv150'];
 export const QUEST_V6_IDS = ['job', 'kill10', 'move', 'zoom', 'stat', 'lv5', 'tier1', 'craft', 'enh1', 'potion', 'refill', 'potionAt', 'area2', 'lv10', 'armor', 'boss', 'enh3', 'enh5', 'skill', 'range', 'pet', 'mount', 'petSkill', 'passive', 'skill5', 'lv20', 'saver', 'app', 'daily', 'dauto', 'sweep', 'tower3', 'gear4', 'mast1', 'convert', 'book', 'lv30', 'guild', 'checkin', 'donate', 'bag', 'alt', 'tower10', 'zodiac', 'tier2', 'duel', 'lore', 'promote', 'reimp', 'enh7', 'prot', 'lv50', 'daily10', 'tower20', 'lv60', 'skill10', 'lv70', 'petLv', 'treasure', 'raid', 'mast5', 'tier3', 'lv80', 'fuse', 'duel5', 'imp2', 'imp3', 'tower30', 'tower40', 'gear6', 'lv90', 'king', 'kingKill', 'mast10', 'tier4', 'skillMax', 'set1', 'kacc', 'coop', 'lv120', 'tower50', 'enh10', 'enh12', 'set5', 'lord', 'lv150'];
-export const QUEST_IDS_BY_V = { 2: QUEST_V2_IDS, 3: QUEST_V3_IDS, 4: QUEST_V4_IDS, 5: QUEST_V5_IDS, 6: QUEST_V6_IDS };
+export const QUEST_IDS_BY_V = { 2: QUEST_V2_IDS, 3: QUEST_V3_IDS, 4: QUEST_V4_IDS, 5: QUEST_V5_IDS, 6: QUEST_V6_IDS, 7: QUEST_V7_IDS };

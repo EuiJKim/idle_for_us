@@ -337,7 +337,7 @@ console.log('\n=== 재료 · 성장 장비 (v158) ===');
       M.questNow();
       // v369 판 7은 소환 단계를 끼웠다 — 그 단계를 먼저 하고 하던 단계(questTo)로 돌아간다
       const cur = QQ.questAt(M.s.quest)?.id, back = QQ.questAt(M.s.questTo)?.id;
-      ok((cur === to || (cur === 'gacha' && back === to)) && M.s.questV === QQ.QUEST_V, `길잡이 판 4→5: ${from} → ${to}`, `${cur} → ${back}`);
+      ok((cur === to || (!QQ.QUEST_V6_IDS.includes(cur) && back === to)) && M.s.questV === QQ.QUEST_V, `길잡이 판 4→5: ${from} → ${to}`, `${cur} → ${back}`);
     }
   }
   // 옛 판(드랍) 장비도 그대로 읽힌다
@@ -635,7 +635,7 @@ console.log('\n=== 십이지왕 신화 · 가락지·귀걸이 · 애완동물 �
     {
       const g = new WorldGame(newWorldSave(0), 0); g.s.job = 'sword';
       g.s.questV = 6; g.s.quest = Q.QUEST_V6_IDS.indexOf('lv20'); g.s.questGift = -1; g.questNow();
-      ok(Q.questAt(g.s.quest)?.id === 'gacha' && Q.questAt(g.s.questTo)?.id === 'lv20', '판 6에서 Lv20 하던 무인 — 새 소환 단계부터, 끝나면 Lv20으로');
+      ok(!Q.QUEST_V6_IDS.includes(Q.questAt(g.s.quest)?.id) && Q.QUESTS.slice(g.s.quest, g.s.questTo).some((q) => q.id === 'gacha') && Q.questAt(g.s.questTo)?.id === 'lv20', '판 6에서 Lv20 하던 무인 — 새로 끼운 단계(소환 포함)부터, 끝나면 Lv20으로', Q.questAt(g.s.quest)?.id);
       g.gacha('pet', 1, true);
       ok((g.s.did?.gacha || 0) > 0, '오늘 무료로 소환하면 단계가 깨진다');
     }
@@ -1316,7 +1316,7 @@ console.log('\n=== 길잡이 (v146) ===');
   ok(new Set(ids).size === ids.length && Q.QUEST_COUNT >= 50, `단계가 쉰 남짓이고 이름이 겹치지 않는다`, `${Q.QUEST_COUNT}단계`);
   const TABS = new Set(['char', 'bag', 'map', 'town', 'social', 'comp', 'dgn', null]);
   ok(Q.QUESTS.every((q) => q.title && q.why && TABS.has(q.tab ? q.tab.split('/')[0] : null) && typeof q.goal === 'function'), '모든 단계에 제목·설명·열 화면·조건이 있다');
-  const SUBS = { char: ['info', 'stat', 'skill'], bag: ['gear', 'bag', 'smith', 'mats'], map: ['murim', 'sapa', 'magyo', 'king', 'masters'], dgn: ['daily', 'tower', 'zodiac', 'raid'], comp: ['pet', 'mount'], town: ['master', 'shop', 'smith', 'inn'], social: ['guild', 'rank', 'lore'] };
+  const SUBS = { char: ['info', 'stat', 'skill'], bag: ['gear', 'bag', 'imp', 'enh', 'smith', 'mats'], map: ['murim', 'sapa', 'magyo', 'king', 'masters'], dgn: ['daily', 'tower', 'zodiac', 'raid', 'wraid'], comp: ['pet', 'mount'], town: ['master', 'shop', 'smith', 'inn'], social: ['guild', 'rank', 'lore'] };
   const badSub = Q.QUESTS.filter((q) => q.tab?.includes('/') && !SUBS[q.tab.split('/')[0]]?.includes(q.tab.split('/')[1])).map((q) => q.id);
   ok(badSub.length === 0, '길잡이가 여는 칸(창/칸)이 실제로 있다', badSub.join(' '));
   const g0 = fresh();
@@ -1356,7 +1356,7 @@ console.log('\n=== 길잡이 (v146) ===');
   ok(!g5.skipQuest() && g5.s.quest === at('lv10'), '보통 단계는 건너뛸 수 없다');
   g5.s.quest = at('guild');
   ok(g5.skipQuest() && g5.s.quest === at('guild') + 1, '문파 단계는 건너뛸 수 있다(보상 없이)');
-  ok(['guild', 'checkin', 'donate', 'raid', 'coop', 'app', 'fuse'].every((k) => Q.QUESTS[at(k)].skip) && Q.QUESTS.filter((q) => q.skip).length === 7, '건너뛸 수 있는 건 문파·출석·기부·토벌·함께 사냥·앱 설치·탈것 합성 일곱');
+  ok(['guild', 'checkin', 'donate', 'raid', 'coop', 'app', 'fuse', 'wraid'].every((k) => Q.QUESTS[at(k)].skip) && Q.QUESTS.filter((q) => q.skip).length === 8, '건너뛸 수 있는 건 문파·출석·기부·토벌·함께 사냥·앱 설치·탈것 합성·칠대성 여덟');
   // 보상: 그 레벨 사냥 몇 분어치 — 레벨 1이든 100이든 같은 결
   const mins = Q.QUESTS.map((q) => q.min || 0);
   ok(Math.max(...mins) <= 25 && Math.min(...mins.filter(Boolean)) >= 1, '은자 보상은 사냥 1~25분어치', `${Math.min(...mins.filter(Boolean))}~${Math.max(...mins)}분`);
@@ -1383,11 +1383,11 @@ console.log('\n=== 길잡이 (v146) ===');
   // v208: 판 3 → 4 — 판 3에서 하던 단계(tier2) 앞의 새 단계(무기 +5)부터, 옛 단계는 다시 안 받는다
   const v3 = newWorldSave(0); v3.questV = 3; v3.quest = Q.QUEST_V3_IDS.indexOf('tier2'); v3.job = 'sword'; v3.level = 40;
   const g9 = new WorldGame(migrateWorld(v3, 0), 0);
-  ok(g9.questNow().q.id === 'enh5', '판 3 세이브는 판 4에 새로 끼운 첫 단계부터', g9.questNow().q.id);
-  g9.s.equip.weapon.plus = 5; g9.claimQuest();
-  ok(g9.questNow().q.id === 'petSkill', '그다음 새 단계로(옛 단계는 건너뛴다)', g9.questNow().q.id);
+  ok(g9.questNow().q.id === 'pickSell', '판 3 세이브는 새로 끼운 첫 단계부터(v394 골라 팔기)', g9.questNow().q.id);
+  g9.mark('pickSell'); g9.claimQuest();
+  ok(g9.questNow().q.id === 'enh5', '그다음 새 단계로(옛 단계는 건너뛴다)', g9.questNow().q.id);
   const v3b = newWorldSave(0); v3b.questV = 3; v3b.quest = Q.QUEST_V3_IDS.length; v3b.job = 'sword';
-  ok(new WorldGame(migrateWorld(v3b, 0), 0).questNow()?.q.id === 'enh5', '판 3을 다 끝낸 사람도 새 단계를 겪는다');
+  ok(new WorldGame(migrateWorld(v3b, 0), 0).questNow()?.q.id === 'pickSell', '판 3을 다 끝낸 사람도 새 단계를 겪는다');
   // 새 단계: 해 보면 끝난다
   for (const [id, k] of [['prot', 'prot'], ['lore', 'lore']]) {   // v263: 절전·범위는 '알아두기'(바로 받는다) · v272: 재료 합치기도 '알아두기'
     const gg = fresh(); gg.s.quest = at(id);
@@ -3633,6 +3633,26 @@ console.log('\n=== v393 다섯 직업 5차 · 초월 ===');
   const it3 = g.s.equip.hat; it3.rar = 2; it3.plus = 15;
   ok(!g.canTransItem(it3), '전설은 초월 못 한다');
   ok(/trans-go/.test(read('js/wui.js')) && /'w5'/.test(read('js/wmain.js')) && /art\/soul\//.test(read('js/battle.js')), '초월 창 · 5차 무공 그림 · 혼 그림');
+}
+console.log('\n=== v394 길잡이 점검 — 못 깨던 각인 단계 · 새 단계 ===');
+{
+  ok(!Q.QUESTS.some((q) => ['imp2', 'imp3'].includes(q.id)), '각인 두·세 칸 단계(장비당 한 칸이라 못 깸)를 뺐다');
+  const need = ['pickSell', 'enhAll', 'autoEnh', 'impTheme', 'impLv6', 'res3', 'wraid', 'fifthBoss', 'tier5', 'trans1', 'tower120', 'trans5'];
+  ok(need.every((id) => Q.QUESTS.some((q) => q.id === id)), '새 단계 열둘', need.filter((id) => !Q.QUESTS.some((q) => q.id === id)).join(','));
+  // 판 7에서 '각인 두 칸'에 막혀 있던 무인 — 다음 단계로 풀린다(새로 끼운 것을 먼저)
+  const g = fresh('sword'); while (g.s.level < 85) g.addExp(W.expToNext(g.s.level));
+  g.s.questV = 7; g.s.quest = Q.QUEST_V7_IDS.indexOf('imp2'); g.s.questGift = -1; g.questNow();
+  ok(g.s.questV === Q.QUEST_V && Q.questAt(g.s.questTo)?.id === 'tower30' && Q.questAt(g.s.quest)?.id !== 'imp2', '판 7 각인 두 칸에 막힌 무인 — 풀려서 새 단계부터 · 끝나면 탑 30층', `${Q.questAt(g.s.quest)?.id} → ${Q.questAt(g.s.questTo)?.id}`);
+  // 새 단계가 실제로 깨진다
+  const h = fresh('sword'); while (h.s.level < 60) h.addExp(W.expToNext(h.s.level)); h.s.gold = 1e12;
+  const at = (id) => Q.QUESTS.find((q) => q.id === id);
+  const done = (id) => { const r = at(id).goal(h); return (r.now || 0) >= (r.need || 1); };
+  h.s.bag.push(h.makeCrafted('glove', 0)); h.sellMany([h.s.bag[h.s.bag.length - 1].uid]);
+  h.enhAll(1); h.s.autoEnh = true;
+  h.s.mats.b10 = 500; h.rng = () => 0; h.setImpTheme('weapon', 'dark'); for (let i = 0; i < 10; i++) h.impUp(h.s.equip.weapon.uid);
+  ok(['pickSell', 'enhAll', 'autoEnh', 'impTheme', 'impLv6'].every(done), '골라 팔기 · 모두 올리기 · 자동 강화 · 기운 · 각인 Lv 6 — 해 보면 깨진다', ['pickSell', 'enhAll', 'autoEnh', 'impTheme', 'impLv6'].filter((x) => !done(x)).join(','));
+  for (const x of ['armor', 'hat']) { h.setImpTheme(x, 'dark'); h.impMax(h.s.equip[x].uid); }
+  ok(done('res3'), '같은 기운 세 칸 — 공명 단계가 깨진다');
 }
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);
