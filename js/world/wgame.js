@@ -1400,6 +1400,7 @@ export class WorldGame {
     if (m.isBoss) dmg *= st.boss;
     if (m.vulnT > this.clock) dmg *= 1 + m.vulnV;              // 섭혼: 받는 피해 +
     if (this.buffv.might) dmg *= 1 + this.buffv.might;          // 삼공조화
+    if (this.buffv.petMight) dmg *= 1 + this.buffv.petMight;    // v365 황룡진
     if (crit && this.buffv.critUp) dmg *= 1 + this.buffv.critUp / st.critDmg;   // 무면개방
     const ps = this.passives();
     if (ps.size) {
@@ -3013,14 +3014,35 @@ export class WorldGame {
       this.petSkT = this.petSkT || [];
       this.petSkT[i] = (this.petSkT[i] ?? W.PET_SKILL_SEC * (0.5 + i * 0.3)) - W.PET_ATK_SEC;
       if (this.petSkT[i] <= 0) {
-        this.petSkT[i] = W.PET_SKILL_SEC * (1 - (p.rar || 0) * 0.1);
-        const at = { x: t.x, y: t.y };
-        this.emit('petSkill', { i, kind: p.kind, rar: p.rar || 0, at, r: W.PET_SKILL_R });
+        this.petSkT[i] = W.petSkillSec(p);
+        const R = W.petSkillR(p);
+        const at = p.kind === 'yellow' ? { x: this.heroX, y: this.heroY } : { x: t.x, y: t.y };
+        this.emit('petSkill', { i, kind: p.kind, rar: p.rar || 0, at, r: R });
         if (!this.s.did?.petSkill) this.mark('petSkill');
+        const base = st.atk * W.petAtkRatio(p) * W.PET_SKILL_MULT;
+        const hit = [];
         for (const m of this.mons) {
-          if (!m.alive || m.npc || m.introT > 0 || Math.hypot(m.x - at.x, (m.y - at.y) * 0.75) > W.PET_SKILL_R) continue;
-          const c2 = this.rng() < st.crit;
-          this.hurt(m, Math.max(1, st.atk * W.petAtkRatio(p) * W.PET_SKILL_MULT * (c2 ? st.critDmg : 1) - m.armor * 0.5), 'pet', c2);
+          if (!m.alive || m.npc || m.introT > 0 || Math.hypot(m.x - at.x, (m.y - at.y) * 0.75) > R) continue;
+          hit.push(m);
+          const c2 = p.kind === 'tiger' || this.rng() < st.crit;
+          const k = p.kind === 'tiger' ? 1.3 : 1;
+          const one = Math.max(1, base * k * (c2 ? st.critDmg : 1) - m.armor * 0.5);
+          if (p.kind === 'monkey') { for (let n = 0; n < 3 && m.alive; n++) this.hurt(m, one * 0.5, 'pet', c2, n > 0); }
+          else this.hurt(m, one, 'pet', c2);
+          // v365 종마다 고유 효과
+          if (!m.alive) continue;
+          if (p.kind === 'fox') this.addDot(m, base * 0.8, 3);
+          else if (p.kind === 'phoenix') this.addDot(m, base * 1.2, 4);
+          else if (p.kind === 'qilin') m.stun = Math.max(m.stun || 0, m.isBoss ? 0.4 : 1.2);
+          else if (p.kind === 'haetae') m.slow = Math.max(m.slow || 0, 3);
+        }
+        if (p.kind === 'crane' && this.heroHp > 0) { this.heroHp = Math.min(st.hp, this.heroHp + st.hp * 0.04); this.emit('petBuff', { kind: 'heal', at: { x: this.heroX, y: this.heroY } }); }
+        if (p.kind === 'turtle') { this.shield = Math.max(this.shield || 0, st.hp * 0.1); this.buffs.shield = Math.max(this.buffs.shield || 0, 6); this.emit('petBuff', { kind: 'shield', at: { x: this.heroX, y: this.heroY } }); }
+        if (p.kind === 'yellow') { this.buffs.petMight = 6; this.buffv.petMight = 0.2; this.emit('petBuff', { kind: 'might', at: { x: this.heroX, y: this.heroY } }); }
+        if (p.kind === 'dragon') {
+          const far = this.mons.filter((m) => m.alive && !m.npc && !(m.introT > 0) && !hit.includes(m) && Math.hypot(m.x - at.x, (m.y - at.y) * 0.75) < 560).slice(0, 5);
+          for (const m of far) this.hurt(m, Math.max(1, base * 0.6 - m.armor * 0.5), 'pet', false);
+          if (far.length) this.emit('petChain', { from: at, pts: far.map((m) => ({ x: m.x, y: m.y })) });
         }
         return;
       }

@@ -3032,7 +3032,7 @@ function compTab(app) {
     const d = W.petOf(p.kind);
     const v = W.petBuff(p);
     const vt = d.buff === 'crit' ? `+${(v * 100).toFixed(1)}%p` : d.buff === 'def' ? `+${v.toFixed(0)}` : d.buff === 'regenPct' ? `+${(v * 100).toFixed(2)}%` : `+${(v * 100).toFixed(1)}%`;
-    return `${d.text} ${vt} · 한 대에 무인 공격력의 ${Math.round(W.petAtkRatio(p) * 100)}% · 기술 【${W.PET_SKILL_NAME[p.kind]}】 ${(W.PET_SKILL_SEC * (1 - (p.rar || 0) * 0.1)).toFixed(1)}초마다 둘레를 ${Math.round(W.petAtkRatio(p) * W.PET_SKILL_MULT * 100)}%로`;
+    return `${d.text} ${vt} · 한 대에 무인 공격력의 ${Math.round(W.petAtkRatio(p) * 100)}% · 기술 【${W.PET_SKILL_NAME[p.kind]}】 ${W.petSkillSec(p).toFixed(1)}초마다 ${p.kind === 'yellow' ? '화면 전체' : `반지름 ${W.petSkillR(p)}`}를 ${Math.round(W.petAtkRatio(p) * W.PET_SKILL_MULT * 100)}%로 · ${W.PET_SKILL_SP[p.kind]}`;
   };
   const confirmRelease = (p, then) => openModal((m) => {
     m.append(h('h2', {}, `${W.petOf(p.kind).name}을(를) 놓아줄까요?`),

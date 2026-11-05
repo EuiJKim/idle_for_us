@@ -988,7 +988,8 @@ export class BattleView {
         if (this.fxLevel <= 0) break;
         if (PET_FX[ev.kind]) PET_FX[ev.kind](this, ev.at, this.petPos?.[ev.i], (ev.rar || 0) + 5);
         const col = PET_COL[ev.kind] || '253,224,71';
-        this.effects.push({ kind: 'shock', life: 0.6, max: 0.6, wx: ev.at.x, wy: ev.at.y, r: ev.r || 170, col, rings: 2, w: 4 });
+        this.effects.push({ kind: 'shock', life: 0.7, max: 0.7, wx: ev.at.x, wy: ev.at.y, r: ev.r || 240, col, rings: 3, w: 5 });
+        this.effects.push({ kind: 'flare', life: 0.5, max: 0.5, wx: ev.at.x, wy: ev.at.y, r: (ev.r || 240) * 0.6, col });   // v365 넓어진 만큼 크게
         this.float(PET_SKILL_NAME[ev.kind] || '', px, py - 130, `rgb(${col})`, 17, 1.1, true);
         this.shake = Math.max(this.shake, 0.1);
         break;
@@ -997,6 +998,19 @@ export class BattleView {
       case '_fx':
         for (const f of ev.fx || []) this.effects.push({ ...f });
         break;
+      case 'petChain': {   // v365 청룡뇌 — 번개가 다섯에게 튄다
+        if (this.fxLevel <= 0 || !ev.pts) break;
+        for (const p of ev.pts) { skyBolt(this, p, '125,211,252', 4, 220); this.effects.push({ kind: 'shock', life: 0.35, max: 0.35, wx: p.x, wy: p.y, r: 60, col: '186,230,253', rings: 1, w: 2 }); }
+        break;
+      }
+      case 'petBuff': {   // v365 선학 회복 · 현무 보호막 · 황룡 기세
+        if (!ev.at || this.fxLevel <= 0) break;
+        const col = ev.kind === 'heal' ? '134,239,172' : ev.kind === 'shield' ? '56,189,248' : '250,204,21';
+        this.effects.push({ kind: 'flare', life: 0.6, max: 0.6, wx: ev.at.x, wy: ev.at.y, r: ev.kind === 'might' ? 160 : 90, col });
+        this.effects.push({ kind: 'shock', life: 0.6, max: 0.6, wx: ev.at.x, wy: ev.at.y, r: ev.kind === 'might' ? 200 : 110, col, rings: 2, w: 3 });
+        this.float(ev.kind === 'heal' ? '학익 회복' : ev.kind === 'shield' ? '현무 보호막' : '황룡의 기세', this.sx(ev.at), this.sy(ev.at) - 120, `rgb(${col})`, 15, 1, true);
+        break;
+      }
       case 'mountFx': {   // v359 극의 신수 전용 효과
         if (!ev.at || this.fxLevel <= 0) break;
         if (ev.fx === 'flame') this.effects.push({ kind: 'flare', life: 0.45, max: 0.45, wx: ev.at.x, wy: ev.at.y, r: 120, col: '249,115,22' });

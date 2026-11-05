@@ -618,6 +618,17 @@ console.log('\n=== 십이지왕 신화 · 가락지·귀걸이 · 애완동물 �
     ok(DG.hardHp(1) > DG.towerHpBase(DG.hardF(1)) * 2 && DG.hardDelay(1) < DG.tellDelay(DG.hardF(1)), '극 수문장은 같은 세기 보통 층보다 단단하고 경고가 짧다');
     ok(DG.hardHp(1) >= DG.towerHpBase(DG.hardF(1)) * 200 && DG.hardAtk(1) >= DG.towerAtkBase(DG.hardF(1)) * 6, 'v359 극은 처음의 백 배 — 같은 세기 보통 층 기준 체력 220배 · 붙어 치기 6배');
     ok(DG.towerHp(30) === DG.towerHpBase(30) * 10 && DG.towerAtk(30) === DG.towerAtkBase(30) * 2, 'v359 보통 탑 수문장 열 배(체력 ×10 · 붙어 치기 ×2)');
+    // v365 애완동물 기술 — 넓게·세게·자주 + 종마다 고유 효과
+    {
+      const mk = (kind) => { const g = new WorldGame(newWorldSave(0), 0); g.s.job = 'sword'; g.s.level = 60; g.enterMap(W.mapId(10, 1)); for (let i = 0; i < 60 && g.mons.filter((m) => m.alive).length < 3; i++) g.tick(0.1); g.s.pets = [{ uid: 9e9, kind, rar: 3, lv: 30, exp: 0, q: 0, dan: 0 }]; g._stats = null; g.mon = g.mons.find((m) => m.alive); return g; };
+      const fire = (g) => { g.petT = [0]; g.petSkT = [0]; g.tickPets(0.01, g.stats()); };
+      let g = mk('qilin'); const m0 = g.mon; for (const m of g.mons) { m.x = g.heroX + 40; m.y = g.heroY; } fire(g);
+      ok(m0 && (m0.stun > 0 || !m0.alive), '기린각 — 기절');
+      g = mk('turtle'); fire(g); ok(g.shield > 0 && g.buffs.shield > 0, '현무파 — 무인 보호막');
+      g = mk('yellow'); fire(g); ok(g.buffv.petMight === 0.2, '황룡진 — 무인 피해 +20%');
+      g = mk('crane'); g.heroHp = 1; fire(g); ok(g.heroHp > 1, '학익진 — 체력 회복');
+      ok(W.petSkillR({ kind: 'tiger', rar: 3 }) > 300 && W.petSkillSec({ rar: 3 }) < 4 && W.PET_SKILL_MULT === 7, '기술 반지름 300 넘게(신화 백호) · 신화 4초 안 · 평타의 7배');
+    }
     // v362 뽑기
     {
       const sum = (t) => t.reduce((a, [, w]) => a + w, 0);

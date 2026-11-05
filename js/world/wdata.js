@@ -1025,9 +1025,16 @@ export const PETS = [
 ];
 export const petOf = (id) => PETS.find((p) => p.id === id) || PETS[0];
 // 애완동물 기술 (v206) — 몇 초마다 과녁 둘레를 한 번에 친다(평타의 PET_SKILL_MULT배 · 반지름 PET_SKILL_R). 등급이 높을수록 자주.
-export const PET_SKILL_SEC = 8;
-export const PET_SKILL_MULT = 4;
-export const PET_SKILL_R = 170;
+// v365 더 넓게 · 세게 · 자주 + 종마다 고유 효과 — 6초(등급마다 12% 짧게 · 신화 3.8초) · 평타의 7배 · 반지름 240 + 등급 30 + 순위 6(황룡은 화면 전체)
+export const PET_SKILL_SEC = 6;
+export const PET_SKILL_MULT = 7;
+export const PET_SKILL_R = 240;
+export const petSkillSec = (p) => PET_SKILL_SEC * (1 - (p.rar || 0) * 0.12);
+export const petSkillR = (p) => (p.kind === 'yellow' ? 620 : PET_SKILL_R + (p.rar || 0) * 30 + petOf(p.kind).tier * 6);
+export const PET_SKILL_SP = {
+  crane: '무인 체력 4% 회복', fox: '3초 동안 불태움(80%)', qilin: '기절(두목은 짧게)', turtle: '무인에게 보호막(체력 10% · 6초)', haetae: '크게 둔화(3초)',
+  phoenix: '거센 불태움(120% · 4초)', monkey: '분신 셋이 연타(1.5배)', dragon: '번개가 둘레 적 다섯에게 튄다(60%)', tiger: '반드시 치명타 · 1.3배', yellow: '화면 전체 · 무인 피해 +20%(6초)',
+};
 export const PET_SKILL_NAME = { crane: '학익진', fox: '여우불', qilin: '기린각', turtle: '현무파', haetae: '해태충', phoenix: '주작염', monkey: '분신봉', dragon: '청룡뇌', tiger: '백호참', yellow: '황룡진' };
 // 지역 → 두목 애완동물 확률과 나올 수 있는 가장 높은 순위
 export const petDropRate = (z) => (z > NORMAL_ZONES ? 0.02 + (z - NORMAL_ZONES) * 0.0015 : 0.0008 + (z - 1) * 0.0006);   // 죽림 0.08% … 천외천 0.92% · 왕 2.15~3.8%
