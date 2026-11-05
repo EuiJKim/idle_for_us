@@ -274,7 +274,8 @@ export class WNet extends Net {
     }), 12000);
     if (killed) {
       const b = D.wraidBossOfId(id);
-      this.sendWorld(b.final ? `☁ ${this.game.s.nickname}님의 마무리 일격! 천외천 천궁의 옥황상제가 쓰러졌다 — 함께 친 무인 모두 보상을 받아 가세요.`
+      this.sendWorld(b.secret ? `🖐 ${this.game.s.nickname}님의 마무리 일격 — 석가여래가 쓰러졌다… 고 모두가 믿은 순간, 다섯 손가락이 하늘을 덮었다. 처음부터 손바닥 안이었다.`
+        : b.final ? `☁ ${this.game.s.nickname}님의 마무리 일격! 천외천 천궁의 옥황상제가 쓰러졌다 — 함께 친 무인 모두 보상을 받아 가세요.`
         : `🌋 ${this.game.s.nickname}님의 마무리 일격! ${b.name}(${b.hanja}) 쓰러짐 — 함께 친 무인 모두 대성신장을 받아 가세요.`, 'system').catch(() => {});
     }
     return killed;

@@ -4458,7 +4458,7 @@ export class WorldGame {
     if (rank === 1) r.top1++;
     const b = D.WRAID_BOSS[bossId];
     if (bossId === D.OKHWANG.id) r.ok = (r.ok || 0) + 1;
-    if (bossId === D.SEOKGA.id) r.sk = (r.sk || 0) + 1;
+    if (bossId === D.SEOKGA.id) { r.sk = (r.sk || 0) + 1; this.emit('palmReveal', { n: r.sk }); }   // v383 손바닥 안이었다
     if (D.isGate(bossId) && !r.gates?.[bossId]) { r.gates = { ...(r.gates || {}), [bossId]: 1 }; this._stats = null; this.emit('gateClear', { boss: b.name, n: this.gatesCleared(), bonus: D.GATE_BONUS }); }
     const out = this.grant(D.wraidKillReward(this.s.level, rank, bossId));
     if (b?.slot) {

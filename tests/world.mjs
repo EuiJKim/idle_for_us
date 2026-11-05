@@ -3431,7 +3431,8 @@ console.log('\n=== v373~v375 칠대성(상시 최종 두목) · 탄막 · 대성
   g.wraidClaim(9, 'okhwang');
   ok(g.canWraid(1000, now, 'seokga') && g.storyOpen(6) && !g.storyOpen(7), '옥황상제 처치에 함께하면 → 석가여래 · 7장');
   ok(D3.wraidMaxHp(hw, 'seokga') === Math.round(hw * 4 * D3.OK_HP_K * D3.SK_HP_K) && D3.SEOKGA.pats.some((p) => p.p === 'palm') && fs.existsSync(new URL('../art/boss/wb-seokga.png', import.meta.url)), '석가여래 — 체력 · 손바닥 패턴 · 그림');
-  g.wraidClaim(2, 'seokga'); g.checkTitles(); ok(g.hasTitle('seokga') && g.storyOpen(7), '〈손바닥 밖으로〉 · 마지막 장');
+  g.events.length = 0; g.wraidClaim(2, 'seokga'); g.checkTitles(); ok(g.hasTitle('seokga') && W.TITLES.seokga.name === '손바닥 안의 무인' && g.storyOpen(7) && /손바닥 안/.test(D3.HEAVEN_STORY[7].text), '쓰러뜨려도 — 손바닥 안 · 〈손바닥 안의 무인〉 · 마지막 장');
+  ok(g.events.some((e) => e.type === 'palmReveal') && D3.PALM_REVEAL.length >= 4, '처치하면 반전 장면');
   // v378 칠십이변(대성신장 7)
   ok(g.setBonus().wukong === 1 && /칠십이변/.test(G3.setBonusText({ wukong: 1 })), '대성신장 7조각 — 칠십이변');
   { const mob = { alive: true, hp: 1e15, maxHp: 1e15, x: g.heroX + 30, y: g.heroY, lv: 150, c: 0, r: 0 }; g.events.length = 0; g._wkN = 0; for (let i = 0; i < 6; i++) g.basicAttack(mob, g.stats(), 1); ok(g.events.filter((e) => e.type === 'wukongClone').length === 1, '평타 여섯 번마다 분신 일격'); }

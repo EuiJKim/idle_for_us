@@ -1180,7 +1180,8 @@ function showInstEnd(ev) {
     game.shIn = null;
     const send = ev.unsent > 0 ? net.commitWraid(ev.key, ev.unsent) : Promise.resolve(false);
     send.then((killed) => {
-      const why = ev.byOther ? ' — 마왕이 쓰러졌어요!' : ev.died ? ' — 쓰러졌어요' : ev.timeout ? ' — 시간 끝' : '';
+      const sk = String(ev.key || '').startsWith('seokga_');
+      const why = ev.byOther ? (sk ? ' — 여래가 쓰러졌다…? 받기를 눌러 보세요' : ' — 마왕이 쓰러졌어요!') : ev.died ? ' — 쓰러졌어요' : ev.timeout ? ' — 시간 끝' : '';
       toast(`🌋 칠대성 토벌 피해 ${fmt(ev.dealt)}${ev.reward ? ` · 참여 보상 ${rewardText(ev.reward)}` : ev.paid ? '' : ' · 오늘 참여 보상은 다 받았어요(피해·순위는 쌓여요)'}${why}${killed ? ' — 마무리 일격!' : ''}`);
       if (killed || ev.byOther) { sfx('level'); view.shake = Math.max(view.shake || 0, 0.4); }
       app.refresh();
@@ -1675,6 +1676,8 @@ function handleEvents() {
         if (b) view.float(`「${ev.name}」`, view.sx(b), view.sy(b) + 40, ev.rage >= 2 ? '#f87171' : '#fde68a', 22, 1.3);
         break;
       }
+      // v383 석가여래 — 쓰러뜨려도 손바닥 안이었다
+      case 'palmReveal': setTimeout(() => showPalmReveal(ev.n), 400); break;
       // v378 스침 · 칠십이변
       case 'wbGraze': if (view.fxLevel > 0) view.effects.push({ kind: 'shock', life: 0.25, max: 0.25, wx: ev.x, wy: ev.y, r: 10, col: '255,255,255', rings: 1, w: 2 }); break;
       case 'wukongBlock': sfx('loot'); view.float(`분신이 대신 맞았다${ev.left ? ` (${ev.left})` : ''}`, view.heroX, view.groundY - 150, '#fbbf24', 16, 1); break;
@@ -2419,6 +2422,23 @@ function netChanged(what) {
   for (const t of Object.values(tabs)) t.netChanged?.(what);
 }
 
+// v383 손바닥 안 — 한 줄씩 떠오르는 반전 장면(누르면 넘어간다)
+function showPalmReveal(n = 1) {
+  const lines = D.PALM_REVEAL;
+  sfx('level');
+  openModal((el) => {
+    let i = 0;
+    const txt = h('div', { class: 'palm-lines' });
+    const next = () => {
+      if (i < lines.length) { txt.append(h('p', { class: 'palm-line' }, lines[i++])); if (i < lines.length) setTimeout(next, 1400); else btn.textContent = '손바닥 밖으로… (닫기)'; }
+    };
+    const btn = h('button', { class: 'btn primary', onclick: () => { if (i < lines.length) { while (i < lines.length) txt.append(h('p', { class: 'palm-line' }, lines[i++])); btn.textContent = '손바닥 밖으로… (닫기)'; } else closeModal(); } }, '…');
+    el.classList.add('palm-modal');
+    el.append(h('div', { class: 'palm-hand' }, h('img', { src: 'art/boss/wb-seokga.png', alt: '' })), h('h2', {}, n > 1 ? `🖐 또다시 — 손바닥 안 (${n}번째)` : '🖐 손바닥 안'), txt,
+      h('p', { class: 'muted', style: 'font-size:12px;text-align:center' }, '보상은 그대로 받았어요 · 칭호 〈손바닥 안의 무인〉'), h('div', { class: 'btn-row' }, btn));
+    next();
+  });
+}
 // v374 월드보스 — 싸우는 동안 4초마다 내 몫을 올리고, 무림 전체의 남은 체력으로 맞춘다
 let wraidSendT = 4, wraidSending = false, wraidTip = false;
 function wraidNetTick(dt) {

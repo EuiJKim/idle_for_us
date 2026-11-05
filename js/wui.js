@@ -2259,7 +2259,7 @@ function dgnTab(app) {
       out.push(h('div', { class: `card wraid-card wraid-heaven${op ? '' : ' locked secret'}`, style: `--wb:${sk.col}` },
         h('div', { class: 'wraid-head' }, h('img', { class: 'wraid-banner', src: 'art/ui/wb-heaven.webp', alt: '' }), op ? h('img', { class: 'wraid-boss', src: `art/boss/${sk.art}.png`, alt: sk.name }) : null,
           h('div', { class: 'wraid-name' }, h('small', {}, op ? '천외천 너머 · 숨은 두목' : '천외천 너머'), h('b', {}, op ? sk.name : '???', op ? h('i', {}, ` ${sk.hanja}`) : null))),
-        h('p', { class: 'muted dgn-desc' }, op ? `하늘조차 막지 못한 제천대성을 손바닥 하나로 눌렀던 자. 손바닥 안에서 좁혀 오는 탄 — 빈틈은 한 군데뿐. 체력은 옥황상제의 ${D.SK_HP_K}배.` : '🔒 옥황상제를 쓰러뜨리는 데 함께한 자만 — 그 너머에 무엇이 있는지 아무도 모른다.'),
+        h('p', { class: 'muted dgn-desc' }, op ? ((s.wraid.sk || 0) >= 1 ? `몇 번을 쓰러뜨려도 — 손바닥 안이었다(${s.wraid.sk}번). 여래는 언제나 다시 손바닥을 편다.` : `하늘조차 막지 못한 제천대성을 손바닥 하나로 눌렀던 자. 손바닥 안에서 좁혀 오는 탄 — 빈틈은 한 군데뿐. 체력은 옥황상제의 ${D.SK_HP_K}배.`) : '🔒 옥황상제를 쓰러뜨리는 데 함께한 자만 — 그 너머에 무엇이 있는지 아무도 모른다.'),
         r ? h('div', { class: 'raid-hp wraid-hp' }, h('i', { style: `width:${(left / r.maxHp) * 100}%` }), h('span', {}, left > 0 ? `${fmt(left)} / ${fmt(r.maxHp)}` : '쓰러짐')) : null,
         on && op && s.level >= D.WRAID_LV ? h('div', { class: 'btn-row' }, h('button', { class: 'btn primary', id: 'wraid-go-seokga', disabled: game.inst ? true : null, onclick: (e) => go(sk.id, e) }, r && left <= 0 ? '다시 손바닥으로' : `손바닥 안으로 (${D.WRAID_SEC}초)`)) : null));
     }

@@ -945,7 +945,7 @@ export const TITLES = {
   // v373 월드보스
   wraid10: { id: 'wraid10', name: '강호의 방패', desc: '공격력 +3%', how: '월드보스 처치에 열 번 함께하기', atkMul: 1.03, col: '#f472b6' },
   palma8: { id: 'palma8', name: '대성신장을 두른 자', desc: '공격력 +8% · 때릴 때마다 〈魔〉', how: '대성신장 일곱 부위를 모두 끼기', atkMul: 1.08, hitFx: '魔', col: '#f97316' },
-  seokga: { id: 'seokga', name: '손바닥 밖으로', desc: '공격력 +20% · 때릴 때마다 〈佛〉', how: '천외천 너머의 석가여래 쓰러뜨리기', atkMul: 1.2, hitFx: '佛', col: '#fcd34d' },
+  seokga: { id: 'seokga', name: '손바닥 안의 무인', desc: '공격력 +20% · 때릴 때마다 〈佛〉', how: '석가여래를 쓰러뜨리기 — 그래도 손바닥 안이었다', atkMul: 1.2, hitFx: '佛', col: '#fcd34d' },
   okhwang: { id: 'okhwang', name: '천외천(天外天)', desc: '공격력 +15% · 때릴 때마다 〈天〉', how: '천궁의 옥황상제 쓰러뜨리기', atkMul: 1.15, hitFx: '天', col: '#fde68a' },
   wraid1: { id: 'wraid1', name: '천하 토벌 일인자', desc: '공격력 +6% · 때릴 때마다 〈討〉', how: '월드보스 피해 순위 1위로 처치', atkMul: 1.06, hitFx: '討', col: '#ef4444' },
   k1m: { id: 'k1m', name: '백만 처치', desc: '공격력 +4% · 때릴 때마다 〈萬〉', how: '몹 100만 마리', atkMul: 1.04, hitFx: '萬', col: '#e7e5e4' },

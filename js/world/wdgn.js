@@ -341,7 +341,7 @@ export const HEAVEN_STORY = [
   { who: '탁탑천왕 이정 · 나타', need: 'nata', text: '보탑을 든 천병의 대장과 풍화륜을 탄 그의 셋째 아들. 제천대성을 잡으러 내려왔다 물러난 적이 있다 — 그 설욕을 무인에게 갚으려 한다.' },
   { who: '현성 이랑진군', need: 'irang', text: '이마의 세 번째 눈으로 모든 변신을 꿰뚫는 신장. 칠십이변의 손오공과 맞붙어 끝내 사로잡았던 하늘 최강의 무장.' },
   { who: '서왕모(西王母)', need: 'okhwang', text: '반도대회를 열었다가 손오공에게 복숭아 잔치를 통째로 망친 여신. 그 원망이 반도원의 은하수가 되어 흐른다.' },
-  { who: '석가여래', need: 'seokga', text: '하늘조차 손오공을 막지 못했을 때, 손바닥 하나로 그를 오행산 아래에 오백 년 묻었다 — 이 세계의 절대자. 천외천 너머, 아직 아무도 그 손바닥 밖을 본 적이 없다.' },
+  { who: '석가여래 — 손바닥 안', need: 'seokga', text: '쓰러뜨렸다 — 고 생각한 순간, 무인 앞에 다섯 개의 하늘 기둥이 솟아 있었다. 기둥에는 제 손으로 새긴 글자가 남아 있었다. 그것은 기둥이 아니라 여래의 다섯 손가락. 오백 년 전 제천대성이 그랬듯, 무인도 처음부터 끝까지 그 손바닥 안을 뛰어다녔을 뿐이다. 여래는 웃으며 손을 거두었다 — 「다시 오너라. 손바닥은 언제나 여기 있으니.」' },
 ];
 // v377 남천문 관문 — 옥황상제 앞에서 차례로 막아선다. 대성신장 일곱을 낀 자만 · 앞 관문을 넘어야(처치에 함께해야) 다음으로.
 //   처음 넘으면 천계의 가호(공격력·체력 +GATE_BONUS 영구) · 넷을 모두 넘어야 옥황상제.
@@ -361,6 +361,8 @@ export const HEAVEN_GATES = [
 export const SEOKGA = { id: 'seokga', name: '석가여래', hanja: '釋迦如來', title: '손바닥 밖은 없다', art: 'wb-seokga', col: '#fcd34d', shot: 'heaven', final: true, secret: true,
   pats: [P('palm', '여래신장(如來神掌)'), P('ring', '만(卍)자 광명', { big: true }), P('homing', '오백 나한'), P('palm', '손바닥 안'), P('spiral', '천엽 연화', { arms: 8 }), P('rain', '오행산 낙하'), P('burst', '대일여래의 빛')] };
 export const SK_HP_K = 1.5;    // 옥황상제의 몇 배
+// v383 쓰러뜨려도 — 모두 여래의 손바닥 안이었다(서유기의 오지산). 처치하면 이 반전이 뜨고, 여래는 다시 손바닥을 편다
+export const PALM_REVEAL = ['쓰러뜨렸다 — 고 생각한 순간.', '눈앞에 다섯 개의 하늘 기둥이 솟아 있었다. 기둥에는 제 손으로 새긴 글자가 남아 있다.', '기둥이 아니었다. 여래의 다섯 손가락이었다.', '오백 년 전 제천대성처럼 — 처음부터 끝까지, 손바닥 안이었다.', '「다시 오너라. 손바닥은 언제나 여기 있으니.」'];
 export const WRAID_BOSS = Object.fromEntries([...WRAID_BOSSES, ...HEAVEN_GATES, OKHWANG, SEOKGA].map((b) => [b.id, b]));
 export const WRAID_IDS = [...WRAID_BOSSES.map((b) => b.id), ...HEAVEN_GATES.map((b) => b.id), OKHWANG.id, SEOKGA.id];
 export const isGate = (id) => HEAVEN_GATES.some((b) => b.id === id);
