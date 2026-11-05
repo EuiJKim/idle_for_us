@@ -746,7 +746,7 @@ console.log('\n=== 다섯 마존의 무공 (v118) ===');
 {
   const ready = (job) => {
     const g = fresh(job);
-    g.s.level = 80; g.s.gold = 1e9;
+    g.s.level = W.TIERS[3].level; g.s.gold = 1e9;   // v395 3차가 레벨 100
     while (g.canAdvance()) g.advance();
     g.enterMap(11);
     g._stats = null; g.heroHp = g.stats().hp;
@@ -826,10 +826,10 @@ console.log('\n=== 보조기 (v120) ===');
 console.log('\n=== 환마 4차 · 환영분신술 (v121) ===');
 {
   const g = fresh('fan');
-  g.s.level = 100; g.s.gold = 1e9;
+  g.s.level = W.TIERS[4].level; g.s.gold = 1e9;
   while (g.canAdvance()) g.advance();
   ok(g.s.jobTier === 4 && g.tierName() === '섭혼마존' && g.skills().some((k) => k.name === '환영분신술'), '환마는 레벨 100에 4차 전직 → 섭혼마존 · 환영분신술', g.tierName());
-  ok(['sword', 'fist', 'poison', 'ring'].every((j) => { const o = fresh(j); o.s.level = 100; o.s.gold = 1e9; while (o.canAdvance()) o.advance(); return o.s.jobTier === 4 && o.tierName() === W.LORE[j].title && (!o.nextTier() || o.nextTier().need === W.fifthOf(j).need); }), '다섯 직업 모두 레벨 100에 4차 → 마존 이름 (v123) · 5차는 숨은 두목을 꺾어야(v393)');
+  ok(['sword', 'fist', 'poison', 'ring'].every((j) => { const o = fresh(j); o.s.level = W.TIERS[4].level; o.s.gold = 1e9; while (o.canAdvance()) o.advance(); return o.s.jobTier === 4 && o.tierName() === W.LORE[j].title && (!o.nextTier() || o.nextTier().need === W.fifthOf(j).need); }), '다섯 직업 모두 레벨 100에 4차 → 마존 이름 (v123) · 5차는 숨은 두목을 꺾어야(v393)');
   g.enterMap(11); g._stats = null; g.heroHp = g.stats().hp;
   for (const m of g.mons) { m.hp = m.maxHp = 1e12; m.atk = 0; m.x = g.heroX + 40; m.y = g.heroY; }
   g.mon = g.mons[0];
@@ -844,7 +844,7 @@ console.log('\n=== 환마 4차 · 환영분신술 (v121) ===');
 console.log('\n=== 4차 무공 넷 (v123) ===');
 {
   const mk = (job) => {
-    const g = fresh(job); g.s.level = 120; g.s.gold = 1e12;
+    const g = fresh(job); g.s.level = W.TIERS[4].level; g.s.gold = 1e12;
     while (g.canAdvance()) g.advance();
     g.enterMap(11); g._stats = null; g.heroHp = g.stats().hp;
     g.mons.forEach((m, i) => { m.hp = m.maxHp = 1e15; m.atk = 0; m.x = g.heroX + 40 + (i % 4) * 20; m.y = g.heroY + 20 * Math.floor(i / 4) - 30; });
@@ -1146,9 +1146,9 @@ console.log('\n=== 전직·스킬 ===');
 {
   const g = fresh();
   ok(g.skills().length === 0, '전직 전에는 스킬이 없다');
-  g.s.level = 15; g.s.gold = 1000;
-  ok(g.canAdvance() && g.advance() && g.s.jobTier === 1 && g.skills().length === 1, '레벨 15에 마을에서 1차 전직 → 스킬 하나');
-  g.s.level = 40; g.s.gold = 1e6;
+  g.s.level = W.TIERS[1].level; g.s.gold = 1e5;
+  ok(g.canAdvance() && g.advance() && g.s.jobTier === 1 && g.skills().length === 1, `레벨 ${W.TIERS[1].level}에 마을에서 1차 전직 → 스킬 하나`);
+  g.s.level = W.TIERS[2].level; g.s.gold = 1e6;
   g.enterMap(11);
   ok(g.canAdvance() && g.advance(), '전직은 사냥터에서도 된다');
   ok(g.s.jobTier === 2 && g.skills().filter((k) => k.kind !== 'support').length === 2, '2차 전직 → 공격 무공 둘 (+ 레벨 25부터 보조기)');
@@ -1265,7 +1265,7 @@ console.log('\n=== 다섯 캐릭터 · 2시간 ===');
       for (const m of W.MAPS) if (!m.town && !m.bossRoom && g.canEnter(m.id) && g.s.level >= m.lv[0] + 1) best = m.id;
       const z = W.mapOf(best).zone;
       const bossRoom = W.mapId(z, W.BOSS_AREA);
-      if (g.canEnter(bossRoom) && (g.s.mats[W.bossKey(z)] || 0) < 13 && (g.s.mats[W.ORE] || 0) > 100 * W.matWeight(z)) best = bossRoom;
+      if (g.s.jobTier >= 1 && g.canEnter(bossRoom) && (g.s.mats[W.bossKey(z)] || 0) < 13 && (g.s.mats[W.ORE] || 0) > 100 * W.matWeight(z)) best = bossRoom;
       if ((best !== g.s.huntMap && !g.map.town) || (g.map.town && !g.townReturn)) g.enterMap(best);
       if (t % 600 < 0.1 && !finite(g)) nan = true;
     }

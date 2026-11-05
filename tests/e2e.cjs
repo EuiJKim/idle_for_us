@@ -232,7 +232,7 @@ async function tab(page, name) {
   await shot(p, '04-bag.png');
 
   console.log('# 마을·전직');
-  await G(p, () => { const g = window.__game; g.s.level = 15; });
+  await G(p, () => { const g = window.__game; g.s.level = 20; g.s.gold = Math.max(g.s.gold, 5000); });   // v395 1차 전직 레벨 20
   // 전직·물약은 사냥터에서도
   assert(await G(p, () => !window.__game.map.town && window.__game.canAdvance()), '사냥터에서도 전직할 수 있다');
   if (await p.isVisible('#panel-close')) { await p.click('#panel-close'); await sleep(250); }

@@ -57,9 +57,6 @@ export const QUESTS = [
     why: '들판 위 사냥터 이름을 누르면 지도가 열린다. 몹 레벨이 내 레벨쯤인 곳이 가장 빠르다.',
     goal: lv(5) },
   // v269: 1차 전직을 레벨 5로 당겼다 — 장비 단계보다 먼저
-  { id: 'tier1', mile: true, title: `레벨 ${W.TIERS[1].level}에 1차 전직`, tab: 'town/master', min: 5, xp: 0.2,
-    why: '마을 → 사부. 전직하면 둘레를 쓸어 담는 무공이 열려 사냥 속도가 확 달라진다.',
-    goal: tier(1) },
   // ---- 2. 장비 (레벨 5~10) ----
   // v158: 장비는 만들지 않는다 — 여섯 칸이 레벨을 따라 자란다. 눌러서 강화·등급 각인.
   { id: 'craft', title: '낀 무기를 눌러 살펴보자', tab: 'bag/gear', min: 2, xp: 0.2,
@@ -90,9 +87,6 @@ export const QUESTS = [
     why: '가방 → ☑ 골라 팔기. 장비를 눌러 고르고 한 번에 판다 — 약한 것·레어만처럼 빠르게 고르는 단추도 있다.',
     goal: flag('pickSell') },
   // ---- 3. 두목 (레벨 10~15) ----
-  { id: 'boss', title: '두목 구역에서 두목을 잡자', tab: 'map/murim', min: 4, xp: 0.2,
-    why: '지역마다 두목 구역이 있다. 두목 증표는 거기서만 나오고, 장비·애완동물도 가끔 떨군다.',
-    goal: flag('boss') },
   { id: 'enh3', title: '무기를 +3까지', tab: 'bag/gear', min: 4, xp: 0.15,
     why: '강화는 등급을 올리는 것보다 싸고 확실하다.',
     goal: (g) => ({ now: g.s.equip.weapon?.plus || 0, need: 3 }) },
@@ -102,12 +96,6 @@ export const QUESTS = [
   { id: 'enhAll', title: '강화 칸에서 「모두 올리기」를 해 보자', tab: 'bag/enh', min: 3, xp: 0.15,
     why: '가방 → 강화. 여덟 칸이 한 화면에 — 「⏫ 모두 +N까지」는 낮은 칸부터 한꺼번에 올린다.',
     goal: flag('enhAll') },
-  { id: 'skill', title: '무공을 한 번 올리자', tab: 'char/skill', min: 4, xp: 0.15,
-    why: `레벨 ${W.SKILL_PT_FROM}부터 무공 점수가 쌓인다. 무공 레벨이 곧 피해다.`,
-    goal: (g) => ({ now: skillSum(g), need: 6 }) },
-  { id: 'range', title: '무공 단추를 길게 눌러 범위를 보자', tab: null, min: 2, xp: 0.1,
-    why: '아래 무공 단추를 꾹 누르고 있으면 맞는 자리가 금빛으로 보인다. 설정 → 스킬 범위 보기를 켜면 펼칠 때마다 보인다.',
-    tip: true, goal: tip('range') },
   // ---- 4. 동료 (레벨 15~20) ----
   { id: 'pet', title: '애완동물을 데려가자', tab: 'comp/pet', min: 4, xp: 0.15,
     why: '동료 창 → 우리. 선학 한 마리를 넣어 뒀다 — "데려가기"를 누르면 곁에서 함께 싸운다. 더 좋은 것은 두목이 떨군다.',
@@ -127,12 +115,24 @@ export const QUESTS = [
   { id: 'passive', title: '심법을 하나 올리자', tab: 'char/skill', min: 4, xp: 0.15,
     why: '캐릭터 창 → 심법. 무공 점수로 올리는 늘 켜진 능력(이동 속도·받는 피해…).',
     goal: (g) => ({ now: passSum(g), need: 1 }) },
-  { id: 'skill5', title: '무공 하나를 Lv5까지', tab: 'char/skill', min: 4, xp: 0.15,
-    why: 'Lv5에 범위가 넓어진다(1차는 주변 적까지). 한 무공에 몰아 주면 사냥이 빨라진다.',
-    goal: (g) => ({ now: Math.max(1, ...Object.values(g.s.skillLv || {})), need: 5 }) },
   { id: 'lv20', mile: true, title: '레벨 20까지', tab: 'map', min: 5, xp: 0,
     why: '이제 사냥터 셋째 지역이 열린다.',
     goal: lv(20) },
+  { id: 'tier1', mile: true, title: `레벨 ${W.TIERS[1].level}에 1차 전직`, tab: 'town/master', min: 5, xp: 0.2,
+    why: '마을 → 사부. 전직하면 둘레를 쓸어 담는 무공이 열려 사냥 속도가 확 달라진다.',
+    goal: tier(1) },
+  { id: 'boss', title: '두목 구역에서 두목을 잡자', tab: 'map/murim', min: 4, xp: 0.2,
+    why: '지역마다 두목 구역이 있다. 두목 증표는 거기서만 나오고, 장비·애완동물도 가끔 떨군다.',
+    goal: flag('boss') },
+  { id: 'skill', title: '무공을 한 번 올리자', tab: 'char/skill', min: 4, xp: 0.15,
+    why: `레벨 ${W.SKILL_PT_FROM}부터 무공 점수가 쌓인다. 무공 레벨이 곧 피해다.`,
+    goal: (g) => ({ now: skillSum(g), need: 6 }) },
+  { id: 'range', title: '무공 단추를 길게 눌러 범위를 보자', tab: null, min: 2, xp: 0.1,
+    why: '아래 무공 단추를 꾹 누르고 있으면 맞는 자리가 금빛으로 보인다. 설정 → 스킬 범위 보기를 켜면 펼칠 때마다 보인다.',
+    tip: true, goal: tip('range') },
+  { id: 'skill5', title: '무공 하나를 Lv5까지', tab: 'char/skill', min: 4, xp: 0.15,
+    why: 'Lv5에 범위가 넓어진다(1차는 주변 적까지). 한 무공에 몰아 주면 사냥이 빨라진다.',
+    goal: (g) => ({ now: Math.max(1, ...Object.values(g.s.skillLv || {})), need: 5 }) },
   { id: 'saver', title: '절전 화면을 켜 보자', tab: null, min: 3, xp: 0.1,
     why: '들판 오른쪽 🌙. 검은 화면에 숫자만 남기고 사냥은 계속된다 — 오래 켜 둘 때 배터리를 아낀다. 두 번 누르면 돌아온다. 설정에서 저절로 들어갈 시간을 정한다.',
     tip: true, goal: tip('saver') },
@@ -194,9 +194,6 @@ export const QUESTS = [
   { id: 'zodiac', title: '십이지 뽑기를 한 번 하자', tab: 'dgn/zodiac', min: 4, xp: 0.1,
     why: '던전 창 → 십이지. 뽑기권으로 그 신의 신수(탈것)를 노린다. 셋째에는 꼭 나온다.',
     goal: flag('zodiac') },
-  { id: 'tier2', mile: true, title: '레벨 40에 2차 전직', tab: 'town/master', min: 10, xp: 0.25,
-    why: '2차 무공은 한 번에 크게 때린다. 두목 앞에서 체감이 다르다.',
-    goal: tier(2) },
   { id: 'duel', title: '고수 한 명을 쓰러뜨리자', tab: 'map/masters', min: 10, xp: 0.25,
     why: '지도 → 무림고수. 세 세력의 이름난 고수가 모여 있다(레벨 45부터). 처음 쓰러뜨리면 공격력·체력이 영구히 오르고 큰 보상을 준다. 고수 구역에서는 세력 재료가 나온다.',
     goal: (g) => ({ now: Object.keys(g.s.duel?.won || {}).length, need: 1 }) },
@@ -229,6 +226,9 @@ export const QUESTS = [
   { id: 'lv50', mile: true, title: '레벨 50까지', tab: 'map', min: 10, xp: 0,
     why: '이제 하루에 몇 레벨씩이다 — 방치가 일을 한다.',
     goal: lv(50) },
+  { id: 'tier2', mile: true, title: `레벨 ${W.TIERS[2].level}에 2차 전직`, tab: 'town/master', min: 10, xp: 0.25,
+    why: '2차 무공은 한 번에 크게 때린다. 두목 앞에서 체감이 다르다.',
+    goal: tier(2) },
   { id: 'daily10', title: '일일 던전 10단계를 깨자', tab: 'dgn/daily', min: 10, xp: 0.2,
     why: '단계가 높을수록 보상이 크다. 자동 도전은 갈 수 있는 가장 높은 단계로 간다.',
     goal: (g) => ({ now: dailyMax(g), need: 10 }) },
@@ -242,7 +242,7 @@ export const QUESTS = [
     why: 'Lv10에 범위가 한 번 더 넓어지고 치명이 붙는다. 다시 고르고 싶으면 무공 초기화(처음 한 번 공짜).',
     goal: (g) => ({ now: Math.max(1, ...Object.values(g.s.skillLv || {})), need: 10 }) },
   { id: 'lv70', mile: true, title: '레벨 70까지', tab: 'map', min: 12, xp: 0,
-    why: '혼원일기공(70)이 열린다. 3차 전직(75)이 가깝다.',
+    why: '혼원일기공(70)이 열린다. 3차 전직은 레벨 100.',
     goal: lv(70) },
   { id: 'petLv', title: '애완동물을 레벨 10까지', tab: 'comp/pet', min: 10, xp: 0.15,
     why: '데려간 애완동물은 함께 사냥하며 자란다. 레벨이 오를수록 버프가 세진다.',
@@ -256,9 +256,6 @@ export const QUESTS = [
   { id: 'mast5', title: '한 지역 숙련도 5', tab: 'map', min: 12, xp: 0.2,
     why: '숙련 5면 그 지역의 나쁜 기운을 거의 견딘다.',
     goal: (g) => ({ now: mastMax(g), need: 5 }) },
-  { id: 'tier3', mile: true, title: '레벨 75에 3차 전직', tab: 'town/master', min: 15, xp: 0.3,
-    why: '3차는 비기다. 여기서부터 장비 사다리의 끝이 보인다.',
-    goal: tier(3) },
   { id: 'lv80', mile: true, title: '레벨 80까지', tab: 'map', min: 14, xp: 0,
     why: '고수 구역의 세력 재료를 모아 두면 레벨 100에 고수 세트를 만든다.',
     goal: lv(80) },
@@ -296,9 +293,9 @@ export const QUESTS = [
   { id: 'mast10', title: '한 지역 숙련도 10', tab: 'map', min: 18, xp: 0.25,
     why: '눌러앉아 파밍하는 곳의 숙련을 끝까지 — 경험치·재료가 크게 는다.',
     goal: (g) => ({ now: mastMax(g), need: 10 }) },
-  { id: 'tier4', mile: true, title: '레벨 100에 4차 전직', tab: 'town/master', min: 20, xp: 0.3,
-    why: '마지막 무공이다. 여기서부터는 왕의 장비를 모은다.',
-    goal: tier(4) },
+  { id: 'tier3', mile: true, title: `레벨 ${W.TIERS[3].level}에 3차 전직`, tab: 'town/master', min: 15, xp: 0.3,
+    why: '3차는 비기다. 여기서부터 장비 사다리의 끝이 보인다.',
+    goal: tier(3) },
   { id: 'skillMax', title: '무공 하나를 만렙(極 15)', tab: 'char/skill', min: 20, xp: 0.25,
     why: `만렙 ${W.SKILL_LV_MAX}에 범위·치명이 한 번 더 붙는다. 점수는 모자라니 주력 무공에.`,
     goal: (g) => ({ now: Math.max(1, ...Object.values(g.s.skillLv || {})), need: W.SKILL_LV_MAX }) },
@@ -314,6 +311,9 @@ export const QUESTS = [
   { id: 'lv120', mile: true, title: '레벨 120까지', tab: 'map', min: 22, xp: 0,
     why: '후반 십이지왕과 팔마존이 기다린다.',
     goal: lv(120) },
+  { id: 'tier4', mile: true, title: `레벨 ${W.TIERS[4].level}에 4차 전직`, tab: 'town/master', min: 20, xp: 0.3,
+    why: '마지막 무공이다. 여기서부터는 왕의 장비를 모은다.',
+    goal: tier(4) },
   { id: 'wraid', title: '칠대성 토벌에 한 번 들어가자', tab: 'dgn/wraid', min: 22, xp: 0.25, skip: true,
     why: '던전 → 칠대성. 무림 모두가 함께 깎는 거대한 마왕 — 탄을 피하며 친다. 쓰러지면 대성신장 한 부위를 받는다. 「⚡ 빠른 합류」로 사람 많은 곳에.',
     goal: flag('wraid') },
@@ -353,7 +353,9 @@ export const QUESTS = [
 ];
 
 export const QUEST_COUNT = QUESTS.length;
-export const QUEST_V = 8;   // v394: 각인 두·세 칸(못 깨던 단계)을 각인 Lv·공명으로 · 강화 칸·골라 팔기·자동 강화·기운·칠대성·5차·초월·탑 꼭대기를 끼웠다
+export const QUEST_V = 9;   // v395: 전직 20·50·100·130 — 전직·무공 단계를 그 레벨 뒤로 옮겼다
+export const QUEST_V8_IDS = ['job', 'kill10', 'move', 'zoom', 'stat', 'lv5', 'tier1', 'craft', 'enh1', 'potion', 'refill', 'potionAt', 'area2', 'lv10', 'armor', 'pickSell', 'boss', 'enh3', 'enh5', 'enhAll', 'skill', 'range', 'pet', 'mount', 'petSkill', 'gacha', 'passive', 'skill5', 'lv20', 'saver', 'app', 'daily', 'dauto', 'sweep', 'tower3', 'gear4', 'autoEnh', 'mast1', 'convert', 'book', 'lv30', 'guild', 'checkin', 'donate', 'bag', 'alt', 'tower10', 'zodiac', 'tier2', 'duel', 'lore', 'promote', 'impTheme', 'reimp', 'enh7', 'prot', 'lv50', 'daily10', 'tower20', 'lv60', 'skill10', 'lv70', 'petLv', 'treasure', 'raid', 'mast5', 'tier3', 'lv80', 'fuse', 'duel5', 'impLv6', 'res3', 'tower30', 'tower40', 'gear6', 'lv90', 'king', 'kingKill', 'mast10', 'tier4', 'skillMax', 'set1', 'kacc', 'coop', 'lv120', 'wraid', 'tower50', 'enh10', 'enh12', 'set5', 'lord', 'lv150', 'fifthBoss', 'tier5', 'trans1', 'tower120', 'trans5'];
+// v394   // v394: 각인 두·세 칸(못 깨던 단계)을 각인 Lv·공명으로 · 강화 칸·골라 팔기·자동 강화·기운·칠대성·5차·초월·탑 꼭대기를 끼웠다
 export const QUEST_V7_IDS = ['job', 'kill10', 'move', 'zoom', 'stat', 'lv5', 'tier1', 'craft', 'enh1', 'potion', 'refill', 'potionAt', 'area2', 'lv10', 'armor', 'boss', 'enh3', 'enh5', 'skill', 'range', 'pet', 'mount', 'petSkill', 'gacha', 'passive', 'skill5', 'lv20', 'saver', 'app', 'daily', 'dauto', 'sweep', 'tower3', 'gear4', 'mast1', 'convert', 'book', 'lv30', 'guild', 'checkin', 'donate', 'bag', 'alt', 'tower10', 'zodiac', 'tier2', 'duel', 'lore', 'promote', 'reimp', 'enh7', 'prot', 'lv50', 'daily10', 'tower20', 'lv60', 'skill10', 'lv70', 'petLv', 'treasure', 'raid', 'mast5', 'tier3', 'lv80', 'fuse', 'duel5', 'imp2', 'imp3', 'tower30', 'tower40', 'gear6', 'lv90', 'king', 'kingKill', 'mast10', 'tier4', 'skillMax', 'set1', 'kacc', 'coop', 'lv120', 'tower50', 'enh10', 'enh12', 'set5', 'lord', 'lv150'];
 // v369: 소환 단계를 끼웠다(애완동물 기술 다음)   // v269: 1차 전직 단계를 레벨 5 뒤로 옮겼다 (v213: 계열 각인 단계를 뺐다)
 // v180: 판 2의 차례 — 판 3으로 옮길 때 '지금 하던 단계'를 찾는다(끼워 넣은 단계는 새로 해 보게)
@@ -378,4 +380,4 @@ export const QUEST_V4_IDS = ['job', 'kill10', 'move', 'zoom', 'stat', 'lv5', 'cr
 // v269: 판 5의 차례 — 1차 전직(tier1)을 레벨 5 뒤로 옮기기 전
 export const QUEST_V5_IDS = ['job', 'kill10', 'move', 'zoom', 'stat', 'lv5', 'craft', 'enh1', 'potion', 'refill', 'potionAt', 'area2', 'lv10', 'armor', 'boss', 'enh3', 'enh5', 'tier1', 'skill', 'range', 'pet', 'mount', 'petSkill', 'passive', 'skill5', 'lv20', 'saver', 'app', 'daily', 'dauto', 'sweep', 'tower3', 'gear4', 'mast1', 'convert', 'book', 'lv30', 'guild', 'checkin', 'donate', 'bag', 'alt', 'tower10', 'zodiac', 'tier2', 'duel', 'lore', 'promote', 'reimp', 'enh7', 'prot', 'lv50', 'daily10', 'tower20', 'lv60', 'skill10', 'lv70', 'petLv', 'treasure', 'raid', 'mast5', 'tier3', 'lv80', 'fuse', 'duel5', 'imp2', 'imp3', 'tower30', 'tower40', 'gear6', 'lv90', 'king', 'kingKill', 'mast10', 'tier4', 'skillMax', 'set1', 'kacc', 'coop', 'lv120', 'tower50', 'enh10', 'enh12', 'set5', 'lord', 'lv150'];
 export const QUEST_V6_IDS = ['job', 'kill10', 'move', 'zoom', 'stat', 'lv5', 'tier1', 'craft', 'enh1', 'potion', 'refill', 'potionAt', 'area2', 'lv10', 'armor', 'boss', 'enh3', 'enh5', 'skill', 'range', 'pet', 'mount', 'petSkill', 'passive', 'skill5', 'lv20', 'saver', 'app', 'daily', 'dauto', 'sweep', 'tower3', 'gear4', 'mast1', 'convert', 'book', 'lv30', 'guild', 'checkin', 'donate', 'bag', 'alt', 'tower10', 'zodiac', 'tier2', 'duel', 'lore', 'promote', 'reimp', 'enh7', 'prot', 'lv50', 'daily10', 'tower20', 'lv60', 'skill10', 'lv70', 'petLv', 'treasure', 'raid', 'mast5', 'tier3', 'lv80', 'fuse', 'duel5', 'imp2', 'imp3', 'tower30', 'tower40', 'gear6', 'lv90', 'king', 'kingKill', 'mast10', 'tier4', 'skillMax', 'set1', 'kacc', 'coop', 'lv120', 'tower50', 'enh10', 'enh12', 'set5', 'lord', 'lv150'];
-export const QUEST_IDS_BY_V = { 2: QUEST_V2_IDS, 3: QUEST_V3_IDS, 4: QUEST_V4_IDS, 5: QUEST_V5_IDS, 6: QUEST_V6_IDS, 7: QUEST_V7_IDS };
+export const QUEST_IDS_BY_V = { 2: QUEST_V2_IDS, 3: QUEST_V3_IDS, 4: QUEST_V4_IDS, 5: QUEST_V5_IDS, 6: QUEST_V6_IDS, 7: QUEST_V7_IDS, 8: QUEST_V8_IDS };
