@@ -70,7 +70,7 @@ export function playGacha(results, kind, onDone) {
       el.className = `g-res g${r.grade}`;
       el.style.setProperty('--gc', r.grade === 3 ? '#f472b6' : GCOL[r.grade]);
       const cc = document.createElement('canvas'); cc.width = 120; cc.height = 100;
-      const x = cc.getContext('2d'); drawCreature(x, r.id, 60, 92, { t: 0.4, scale: r.kind === 'mount' ? 0.62 : 1.6 });
+      const x = cc.getContext('2d'); drawCreature(x, r.kind === 'pet' ? W.petArt(r.id, r.rar) : r.id, 60, 92, { t: 0.4, scale: r.kind === 'mount' ? 0.62 : 1.6 });
       el.append(cc);
       const b = document.createElement('b'); b.textContent = L.name; el.append(b);
       const s = document.createElement('small'); s.textContent = L.sub; el.append(s);
@@ -148,7 +148,7 @@ export function playGacha(results, kind, onDone) {
     const sc = Math.min(W0 * 0.86 / bw, s * (r.kind === 'mount' ? 1.25 : 0.95) / Math.min(bw, 90)) * (0.5 + 0.5 * e);
     c.translate(x, y + s * 0.45); c.scale(sc, sc);
     if (r.kind === 'mount') drawMountAura(c, r.id, 0, 0, t, { layer: 'back' });
-    c.globalAlpha = e; drawCreature(c, r.id, 0, 0, { t }); c.globalAlpha = 1;
+    c.globalAlpha = e; drawCreature(c, r.kind === 'pet' ? W.petArt(r.id, r.rar) : r.id, 0, 0, { t }); c.globalAlpha = 1;
     if (r.kind === 'mount') drawMountAura(c, r.id, 0, 0, t, { layer: 'front' });
     c.restore();
     const card = ov.querySelector('.g-card');
@@ -202,7 +202,7 @@ export function playGacha(results, kind, onDone) {
               const col = colAt(q.r.grade, T);
               c.globalCompositeOperation = 'lighter'; const gr = c.createRadialGradient(0, 0, 0, 0, 0, gs * 0.7); gr.addColorStop(0, col + 'aa'); gr.addColorStop(1, col + '00'); c.fillStyle = gr; c.beginPath(); c.arc(0, 0, gs * 0.7, 0, Math.PI * 2); c.fill();
               c.globalCompositeOperation = 'source-over';
-              c.save(); c.translate(0, gs * 0.35); const sc = q.r.kind === 'mount' ? gs / 180 : gs / 50; c.scale(sc, sc); drawCreature(c, q.r.id, 0, 0, { t: T }); c.restore();
+              c.save(); c.translate(0, gs * 0.35); const sc = q.r.kind === 'mount' ? gs / 180 : gs / 50; c.scale(sc, sc); drawCreature(c, q.r.kind === 'pet' ? W.petArt(q.r.id, q.r.rar) : q.r.id, 0, 0, { t: T }); c.restore();
               c.fillStyle = '#fff'; c.font = `700 ${Math.round(gs * 0.16)}px sans-serif`; c.textAlign = 'center'; c.fillText(L.name, 0, gs * 0.62);
               c.restore();
             }

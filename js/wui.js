@@ -3052,6 +3052,7 @@ function compTab(app) {
       h('div', { class: 'g-info' }, h('b', {}, have), h('small', {}, ` ${note} · 천장 ${s.gacha[kind].pity}/${kind === 'pet' ? W.GACHA_PET_PITY : W.GACHA_MOUNT_PITY}`)),
       h('div', { class: 'g-btns' },
         h('button', { class: 'btn mini', onclick: () => openGachaRates(kind) }, '확률'),
+        h('button', { class: 'btn mini', onclick: () => openGachaLog(game, kind) }, '기록'),
         h('button', { class: 'buy gacha-1', id: `gacha-${kind}-1`, disabled: game.canGacha(kind, 1) ? null : true, onclick: () => runGacha(kind, 1) }, `소환 ×1 (${W.GACHA_COST})`),
         h('button', { class: 'buy gacha-10', id: `gacha-${kind}-10`, disabled: game.canGacha(kind, 10) ? null : true, onclick: () => runGacha(kind, 10) }, `×10 (${W.GACHA_COST * 10})`)));
     const runGacha = (kind, n) => {
@@ -3059,6 +3060,12 @@ function compTab(app) {
       const res = game.gacha(kind, n);
       if (!res) return;
       app.save();
+      // v366 자랑 — 신화 애완동물 · 신수 탈것이 나오면 문파·전체 채팅에 한 줄(열 번이어도 한 줄)
+      const big = res.filter((r) => (r.kind === 'pet' ? r.rar >= 3 : r.grade >= 3));
+      if (big.length && app.net?.announce) {
+        const names = big.map((r) => (r.kind === 'pet' ? `신화 ${W.petOf(r.id).name}` : `${W.mountOf(r.id).hard ? '극의 신수' : '십이지 신수'} ${W.mountOf(r.id).name}`));
+        app.net.announce(`🎊 ${s.nickname}님이 ${kind === 'pet' ? '영수' : '탈것'} 소환에서 ${names.join(' · ')}을(를) 불러냈어요!`);
+      }
       playGacha(res, kind, () => { done(); });
     };
     const slots = game.petSlots();
@@ -3074,7 +3081,7 @@ function compTab(app) {
       const active = i < slots;
       const need = W.petExpToNext(p.lv);
       petCard.append(h('div', { class: `row pet-row${active ? '' : ' locked'}` },
-        h('div', { class: 'ico pet-ico' }, creatureIcon(p.kind)),
+        h('div', { class: 'ico pet-ico' }, creatureIcon(W.petArt(p))),
         h('div', { class: 'info' },
           h('div', { class: 'name' }, qualTag(p), d.name, ' ', rarTag(p.rar), starTag(p), danTag(p), h('small', {}, `순위 ${d.tier} · Lv.${p.lv}${p.lv >= W.PET_LV_MAX ? ' (최대)' : ''}${active ? '' : ' · 칸이 모자라 쉬는 중'}`)),
           h('div', { class: 'desc' }, petInfo(p)),
@@ -3091,20 +3098,30 @@ function compTab(app) {
           h('button', { class: 'btn', style: 'padding:6px 10px', disabled: game.canUnequipPet(p.uid) ? null : true, title: s.petBox.length >= W.PET_BOX ? '우리가 가득 찼어요' : '', onclick: () => { if (game.unequipPet(p.uid)) { toast(`${d.name}을(를) 우리로 보냈어요`); done(); } } }, '해제'),
           h('button', { class: 'btn danger', style: 'padding:6px 10px', onclick: () => confirmRelease(p, done) }, '놓아주기'))));
     });
-    boxCard.replaceChildren(h('h3', {}, '우리', h('small', {}, `${s.petBox.length}/${W.PET_BOX} · 누르면 데려가기 · 칸이 꽉 차면 키우던 것과 바꿔요`)));
+    boxCard.replaceChildren(h('h3', {}, '우리', h('small', {}, `${s.petBox.length}/${W.PET_BOX} · 누르면 데려가기 · 칸이 꽉 차면 키우던 것과 바꿔요`)),
+      // v366 우리 정리 — 모두 별 올리기 · 일괄 놓아주기(잠근 것 · 종마다 가장 좋은 하나는 남긴다)
+      s.petBox.length ? h('div', { class: 'pen-tools' },
+        h('button', { class: 'btn mini', id: 'pen-star-all', onclick: () => { const n = game.autoStarAll(); toast(n ? `★ 종마다 가장 좋은 것에게 먹여 별 ${n}개를 올렸어요` : '먹일 같은 종이 없어요(잠근 것 · 더 좋은 것은 먹이로 안 써요)'); if (n) done(); } }, '★ 모두 별 올리기'),
+        ...[[0, '레어'], [1, '유니크까지'], [2, '전설까지']].map(([r, nm]) => h('button', { class: 'btn mini danger', onclick: () => {
+          const list = game.bulkReleasePreview(r);
+          if (!list.length) return toast('놓아줄 것이 없어요(잠근 것 · 종마다 가장 좋은 하나는 남겨요)');
+          const soul = list.reduce((a, p) => a + W.petReleaseSoul(p), 0);
+          if (!confirm(`${nm} ${list.length}마리를 놓아줄까요? (혼 +${soul})\n잠근 것과 종마다 가장 좋은 하나는 남아요. 되돌릴 수 없어요.`)) return;
+          const res = game.bulkRelease(r); toast(`${res.n}마리를 놓아줬어요 — 혼 +${res.soul}`); done();
+        } }, `${nm} 놓아주기`))) : null);
     if (!s.petBox.length) boxCard.append(h('p', { class: 'muted' }, '비어 있어요.'));
     // v231: 우리는 그림 칸 셋씩 — 글 줄이 길고 단추가 끼어 비좁았다. 누르면 자세히(데려가기·놓아주기)
     const openPen = (p) => openModal((m) => {
       const d = W.petOf(p.kind);
       const full = s.pets.length >= slots;
-      m.append(h('div', { class: 'pen-head' }, h('div', { class: 'ico pet-ico big' }, creatureIcon(p.kind)),
+      m.append(h('div', { class: 'pen-head' }, h('div', { class: 'ico pet-ico big' }, creatureIcon(W.petArt(p))),
         h('div', {}, h('h2', {}, qualTag(p), d.name, ' ', rarTag(p.rar), danTag(p)), h('small', { class: 'muted' }, `순위 ${d.tier} · Lv.${p.lv}`))),
         h('p', { class: 'muted' }, petInfo(p)),
         // v254: 칸이 남으면 null을 넘겨 창에 'null' 글자가 찍혔다(DOM append는 null을 글자로 넣는다)
         // v312 꽉 찼으면 키우던 것과 바꿔 데려간다(바뀐 것은 우리로)
         ...(full ? [h('p', { class: 'muted', style: 'font-size:12px' }, `키우는 칸이 꽉 찼어요(${s.pets.length}/${slots}) — 아래에서 하나와 바꿔 데려가요(그 아이는 우리로).`),
           h('div', { class: 'pet-swap' }, ...s.pets.slice(0, slots).map((q) => h('button', { class: 'btn', onclick: () => { if (game.swapPet(p.uid, q.uid)) { closeModal(); toast(`${d.name}을(를) 데려가고 ${W.petOf(q.kind).name}은(는) 우리로`); done(); } } },
-            h('span', { class: 'ico pet-ico' }, creatureIcon(q.kind)), ` ${W.petOf(q.kind).name} 대신`)))] : []),
+            h('span', { class: 'ico pet-ico' }, creatureIcon(W.petArt(q))), ` ${W.petOf(q.kind).name} 대신`)))] : []),
         // v319 우리에서도 키운다 — 등급 올리기 · 단 수련 · 별(우리의 같은 종을 먹이로)
         h('div', { class: 'pen-train' },
           game.petSoulCost(p) != null ? h('button', { class: 'buy', disabled: game.canSoulUp(p.uid) ? null : true, onclick: () => { if (game.soulUp(p.uid)) { toast(`${d.name} — ${W.RARITY[p.rar].name}(으)로!`); closeModal(); done(); openPen(p); } } }, '등급 ↑', h('small', {}, `혼 ${game.petSoulCost(p)}`)) : null,
@@ -3120,15 +3137,16 @@ function compTab(app) {
           if (game.starUp(host.uid)) { closeModal(); done(); }
         } }, `★ ${d.name}(키우는 중)에게 먹이로 — 별 ${(host.star || 0) + 1}`)] : []; })(),
         h('div', { class: 'btn-row' },
-          h('button', { class: 'btn danger', onclick: () => { closeModal(); confirmRelease(p, done); } }, '놓아주기'),
+          h('button', { class: 'btn', id: 'pet-lock', onclick: () => { const on = game.togglePetLock(p.uid); toast(on ? '🔒 잠갔어요 — 먹이·일괄 놓아주기에서 빠져요' : '잠금을 풀었어요'); closeModal(); done(); openPen(p); } }, p.lock ? '🔓 풀기' : '🔒 잠금'),
+          h('button', { class: 'btn danger', disabled: p.lock ? true : null, onclick: () => { closeModal(); confirmRelease(p, done); } }, '놓아주기'),
           h('button', { class: 'btn primary', disabled: full ? true : null, onclick: () => { if (game.adoptPet(p.uid)) { closeModal(); toast(`${d.name}을(를) 데려갔어요`); done(); } } }, '데려가기')),
         h('button', { class: 'btn', style: 'width:100%;margin-top:6px', onclick: closeModal }, '닫기'));
     });
     if (s.petBox.length) boxCard.append(h('div', { class: 'pen-grid' }, ...[...s.petBox].sort((a, b) => (b.rar || 0) - (a.rar || 0) || W.petOf(b.kind).tier - W.petOf(a.kind).tier).map((p) => {
       const d = W.petOf(p.kind);
       return h('button', { class: 'pen-tile', style: `--rc:${W.RARITY[p.rar || 0].color}`, onclick: () => openPen(p) },
-        h('div', { class: 'ico pet-ico' }, creatureIcon(p.kind)),
-        h('b', {}, (p.q || 0) ? h('span', { class: `pet-q q${p.q}` }, W.PET_QUAL[p.q].mark) : '', d.name, (p.star || 0) ? h('span', { class: 'pet-star' }, ` ${'★'.repeat(p.star)}`) : ''), h('small', {}, `${W.RARITY[p.rar || 0].name} · 순위 ${d.tier}${(p.dan || 0) ? ` · ${p.dan}단` : ''}`));
+        h('div', { class: 'ico pet-ico' }, creatureIcon(W.petArt(p))),
+        h('b', {}, p.lock ? '🔒' : '', (p.q || 0) ? h('span', { class: `pet-q q${p.q}` }, W.PET_QUAL[p.q].mark) : '', d.name, (p.star || 0) ? h('span', { class: 'pet-star' }, ` ${'★'.repeat(p.star)}`) : ''), h('small', {}, `${W.RARITY[p.rar || 0].name} · 순위 ${d.tier}${(p.dan || 0) ? ` · ${p.dan}단` : ''}`));
     })));
     const cur = game.mountNow();
     mountCard.replaceChildren(h('h3', {}, '탈것', h('small', {}, cur ? `${cur.name}을(를) 타는 중` : '걸어 다니는 중')),
@@ -3222,6 +3240,21 @@ function compTab(app) {
   return t;
 }
 
+// v366 뽑기 기록 — 최근 100번 · 좋은 것 셈
+function openGachaLog(game, kind) {
+  const L = (game.s.gachaLog || []).filter((e) => e.k === kind).slice().reverse();
+  const GC = ['#60a5fa', '#c084fc', '#fb923c', '#f472b6', '#fde047'];
+  const cnt = [0, 0, 0, 0, 0]; for (const e of L) cnt[e.g]++;
+  openModal((el) => el.append(
+    h('h3', {}, `${kind === 'pet' ? '영수' : '탈것'} 소환 기록`, h('small', {}, ` 최근 ${L.length}번 · 지금까지 ${game.s.gacha[kind].n}번 · 천장 ${game.s.gacha[kind].pity}`)),
+    h('p', { class: 'muted' }, `빛깔별: ${['파랑', '보라', '주황', '무지개', '금빛'].map((n, i) => `${n} ${cnt[i]}`).join(' · ')}`),
+    h('div', { class: 'glog' }, ...(L.length ? L.map((e) => {
+      const nm = e.k === 'pet' ? `${W.RARITY[e.r].name} ${W.petOf(e.id).name}` : `${W.mountOf(e.id).name}${W.mountOf(e.id).hard ? ' (극)' : W.mountOf(e.id).zodiac ? ' (십이지)' : ''}`;
+      const d = new Date(e.t);
+      return h('div', { class: `glog-row g${e.g}`, style: `--gc:${GC[e.g]}` }, h('b', {}, nm), h('small', {}, `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`));
+    }) : [h('p', { class: 'muted' }, '아직 없어요')])),
+    h('div', { class: 'btn-row' }, h('button', { class: 'btn primary', onclick: closeModal }, '닫기'))));
+}
 // v362 뽑기 확률표
 function openGachaRates(kind) {
   const pct = (v) => `${String(+v.toFixed(3))}%`;

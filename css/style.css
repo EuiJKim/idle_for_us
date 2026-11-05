@@ -2421,3 +2421,9 @@ body.hunt-noui #gather, body.in-inst #gather { display: none !important; }
 #gacha-ov .g-res.g3, #gacha-ov .g-res.g4 { box-shadow: 0 0 16px var(--gc), 0 0 10px var(--gc) inset; }
 @keyframes gPop2 { from { transform: scale(.6); opacity: 0; } }
 #gacha-ov .g-ok { position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(20px + var(--safe-bottom, 0px)); padding: 10px 40px; border-radius: 10px; border: 0; background: linear-gradient(90deg, #b45309, #f59e0b); color: #1c0a00; font: inherit; font-weight: 800; font-size: 16px; }
+/* v366 우리 정리 · 뽑기 기록 */
+.pen-tools { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 8px; }
+.glog { max-height: 50vh; overflow-y: auto; display: flex; flex-direction: column; gap: 3px; margin-bottom: 8px; }
+.glog-row { display: flex; justify-content: space-between; align-items: center; padding: 5px 8px; border-radius: 6px; background: rgba(0,0,0,.3); border-left: 3px solid var(--gc); font-size: 13px; }
+.glog-row.g3, .glog-row.g4 { background: linear-gradient(90deg, color-mix(in srgb, var(--gc) 30%, transparent), rgba(0,0,0,.3)); }
+.glog-row small { color: #94a3b8; }

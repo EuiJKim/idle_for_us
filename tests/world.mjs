@@ -629,6 +629,19 @@ console.log('\n=== 십이지왕 신화 · 가락지·귀걸이 · 애완동물 �
       g = mk('crane'); g.heroHp = 1; fire(g); ok(g.heroHp > 1, '학익진 — 체력 회복');
       ok(W.petSkillR({ kind: 'tiger', rar: 3 }) > 300 && W.petSkillSec({ rar: 3 }) < 4 && W.PET_SKILL_MULT === 7, '기술 반지름 300 넘게(신화 백호) · 신화 4초 안 · 평타의 7배');
     }
+    // v366 우리 정리 · 기록
+    {
+      const g = new WorldGame(newWorldSave(0), 0); g.s.job = 'sword';
+      const P = (kind, rar, lock) => ({ uid: Math.floor(Math.random() * 1e9), kind, rar, lv: 1, exp: 0, q: 0, dan: 0, star: 0, lock: lock || undefined });
+      g.s.pets = [P('tiger', 2)];
+      g.s.petBox = [P('tiger', 0), P('tiger', 1), P('tiger', 3), P('fox', 0), P('fox', 0), P('fox', 1, true), P('crane', 0)];
+      const n = g.autoStarAll();
+      ok(n === 4 && g.s.pets[0].star === 2 && g.s.petBox.some((p) => p.kind === 'tiger' && p.rar === 3), '모두 별 올리기 — 더 좋은 것(신화)은 먹이로 안 쓴다', `별 ${n}`);
+      const pre = g.bulkReleasePreview(0);
+      ok(pre.every((p) => !p.lock && p.rar === 0) && !pre.some((p) => p.kind === 'crane'), '일괄 놓아주기 — 잠근 것 · 종마다 가장 좋은 하나는 남긴다');
+      g.s.petShard = 1000; g.gacha('pet', 10);
+      ok(g.s.gachaLog.length === 10 && g.s.gachaLog.every((e) => e.k === 'pet'), '뽑기 기록이 남는다');
+    }
     // v362 뽑기
     {
       const sum = (t) => t.reduce((a, [, w]) => a + w, 0);

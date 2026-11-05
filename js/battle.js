@@ -5,7 +5,7 @@ import { artReady, putArt, putArtBand, putArtEdge, putArtTint, loadArt, FIT, ART
 import { drawFemaleHead, drawBackHair, FHEAD_W, FHEAD_H, FHEAD_FIT } from './femhead.js';
 import { drawCreature, saddleY, mountTilt, mountGait, CREATURES } from './creatures.js';
 import { drawMountAura } from './mountfx.js';
-import { ZONES_W, itemZone, weaponSkinOf, CUSTOM_HAIRS } from './world/wdata.js';
+import { ZONES_W, itemZone, weaponSkinOf, CUSTOM_HAIRS, petArt } from './world/wdata.js';
 import { setOf } from './world/wgear.js';
 import { THEMES as IMP_THEMES } from './world/wimprint.js';
 import { tellCovers } from './world/wdgn.js';
@@ -987,6 +987,8 @@ export class BattleView {
         this.petAtk[ev.i] = { t: 0.32, x: px, y: py };
         if (this.fxLevel <= 0) break;
         if (PET_FX[ev.kind]) PET_FX[ev.kind](this, ev.at, this.petPos?.[ev.i], (ev.rar || 0) + 5);
+        // v366 종마다 그린 기술 그림 — 바닥에 크게 피었다가 돌며 사라진다(황룡진은 무인 둘레로 더 크게)
+        this.effects.push({ kind: 'petArt', pk: ev.kind, life: 1.1, max: 1.1, wx: ev.at.x, wy: ev.at.y, r: Math.min(ev.r || 240, ev.kind === 'yellow' ? 420 : 320), spin: ev.kind === 'yellow' || ev.kind === 'dragon' ? 1.4 : 0.6, a0: ev.kind === 'yellow' ? 0.5 : 0.7 });
         const col = PET_COL[ev.kind] || '253,224,71';
         this.effects.push({ kind: 'shock', life: 0.7, max: 0.7, wx: ev.at.x, wy: ev.at.y, r: ev.r || 240, col, rings: 3, w: 5 });
         this.effects.push({ kind: 'flare', life: 0.5, max: 0.5, wx: ev.at.x, wy: ev.at.y, r: (ev.r || 240) * 0.6, col });   // v365 넓어진 만큼 크게
@@ -2722,7 +2724,7 @@ export class BattleView {
       // 덮칠 때 몸을 늘였다 줄인다(펄쩍 → 착지) — v193
       const lunge = atk && atk.t > 0 ? Math.sin(Math.PI * Math.max(0, Math.min(1, 1 - atk.t / 0.32))) : 0;
       if (this.fxLevel > 0) petAura(this.ctx, pet, px, py, this.t + i * 1.7, false, this.squash);
-      drawCreature(this.ctx, pet.kind, px, py, { t: pp.ph, moving: pMoving || lunge > 0, flip: atk && atk.t > 0 ? atk.x < px : pp.flip, scale: 1.05 * (1 + lunge * 0.14) });
+      drawCreature(this.ctx, petArt(pet), px, py, { t: pp.ph, moving: pMoving || lunge > 0, flip: atk && atk.t > 0 ? atk.x < px : pp.flip, scale: 1.05 * (1 + lunge * 0.14) });
       if (this.fxLevel > 0) petAura(this.ctx, pet, px, py, this.t + i * 1.7, true, this.squash);
     });
     if (this.fxLevel > 0) this.drawGearAura(this.ctx, x, fy, this.gearLook(game), true);

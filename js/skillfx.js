@@ -207,7 +207,24 @@ export class Director {
 // battle.js drawEffects가 kind를 보고 여기로 넘긴다. e.wx/e.wy는 들판 좌표 —
 // 카메라가 움직이는 중에도 제자리에 붙어 있게 그릴 때마다 화면 좌표로 바꾼다.
 // k는 남은 수명 비율(1 → 0).
+const PFX = {};   // v366 애완동물 기술 그림
 export const FX = {
+  // v366 애완동물 기술 그림(art/pfx/<종>.webp · sunburst) — 과녁 자리에서 크게 피어올라 돌며 사라진다(바닥에 눕혀 납작하게)
+  petArt(v, ctx, e, k) {
+    const im = PFX[e.pk] || (PFX[e.pk] = Object.assign(new Image(), { src: `art/pfx/${e.pk}.webp` }));
+    if (!im.complete || !im.naturalWidth) return;
+    const p = 1 - k, grow = 1 - (1 - Math.min(1, p / 0.35)) ** 3;
+    const a = Math.min(1, k / 0.35) * (e.a0 ?? 0.95);
+    const R = e.r * (0.55 + 0.6 * grow) * (v.zoomK || 1);
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = a;
+    ctx.translate(v.sx({ x: e.wx }), v.sy({ y: e.wy }) - (e.lift || 0));
+    ctx.scale(1, e.flat ?? 0.62);
+    ctx.rotate(p * (e.spin ?? 0.9));
+    ctx.drawImage(im, -R, -R, R * 2, R * 2);
+    ctx.restore();
+  },
   // 무인의 잔상. 순보로 사라진 자리, 지나간 길에 남는다.
   ghost(v, ctx, e, k) {
     const f = e.fade ?? 1;

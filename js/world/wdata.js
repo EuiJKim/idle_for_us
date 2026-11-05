@@ -1024,6 +1024,7 @@ export const PETS = [
   { id: 'yellow', tier: 10, name: '황룡', emoji: '🐲', buff: 'atkPct', base: 0.18, also: { hpPct: 0.18 }, text: '공격력·최대 체력' },
 ];
 export const petOf = (id) => PETS.find((p) => p.id === id) || PETS[0];
+export const petArt = (p, rar) => ((rar ?? p?.rar) >= 3 ? `${p?.kind ?? p}_m` : (p?.kind ?? p));   // v366 신화는 따로 그린 겉모습
 // 애완동물 기술 (v206) — 몇 초마다 과녁 둘레를 한 번에 친다(평타의 PET_SKILL_MULT배 · 반지름 PET_SKILL_R). 등급이 높을수록 자주.
 // v365 더 넓게 · 세게 · 자주 + 종마다 고유 효과 — 6초(등급마다 12% 짧게 · 신화 3.8초) · 평타의 7배 · 반지름 240 + 등급 30 + 순위 6(황룡은 화면 전체)
 export const PET_SKILL_SEC = 6;

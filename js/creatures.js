@@ -399,6 +399,8 @@ Object.assign(CREATURES, {
   z12: Q({ len: 88, bh: 36, leg: 26, legW: 9, col: '#1c1917', belly: '#44403c', mane: '#7f1d1d', ear: 'pointy', tusk: true, tail: 'tuft', neck: [8, -0.4], neckW: 26, head: [26, 18], muzzle: '#57534e', eye: '#ef4444', saddle: '#7f1d1d', hoof: '#000', gait: 8 }),
 });
 
+// v366 신화 애완동물 — 모양은 그 종 그대로(그림만 따로)
+for (const k of ['crane', 'fox', 'qilin', 'turtle', 'haetae', 'phoenix', 'monkey', 'dragon', 'tiger', 'yellow']) CREATURES[`${k}_m`] = CREATURES[k];
 // v350 극(極)의 신수 — 무한의 탑 하드 모드 10층마다 (탈 때 둘레의 기운은 battle.js drawMountAura)
 Object.assign(CREATURES, {
   h1: { type: 'bird', len: 90, bh: 46, leg: 36, col: '#dc2626', wing: '#f97316', tail: '#facc15', tail2: '#ef4444', tailLen: 66, plumes: 7, neck: 28, neckW: 14, headR: 11, crown: '#facc15', beak: 9, beakCol: '#fbbf24', legCol: '#7c2d12', flame: true },
@@ -470,7 +472,9 @@ export function saddleY(kind, t = 0, moving = false) {
 // (발밑 (0,0) · 오른쪽을 봄 · 크기 1) — 그림을 그 상자에 맞춰 놓으므로 크기·안장 높이가 옛 모습과 같다.
 // 다리를 따로 움직일 수 없어 걸을 땐 통째로 들썩이고 살짝 기울며, 서 있으면 숨을 쉰다. 그림이 없으면 옛 벡터 그대로.
 // v350 극의 신수는 크고 세밀하게(960px · webp) — 256색으로 줄이면 깃·비늘·금장식이 뭉개졌다
-const CR_HI = new Set(['h1', 'h2', 'h3', 'h4', 'h5', 'h6']);
+// v366 애완동물 열 종도 고해상도 · 신화 등급은 따로 그린 겉모습(<종>_m)
+const PET_IDS = ['crane', 'fox', 'qilin', 'turtle', 'haetae', 'phoenix', 'monkey', 'dragon', 'tiger', 'yellow'];
+const CR_HI = new Set(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', ...PET_IDS, ...PET_IDS.map((k) => `${k}_m`)]);
 const crSrc = (kind) => `art/cr/${kind}.${CR_HI.has(kind) ? 'webp' : 'png'}`;
 const crImg = {};
 const crTried = {};

@@ -170,7 +170,7 @@ export function migrateWorld(raw, now = Date.now()) {
   for (const k of Object.keys(s.stats)) s.stats[k] = Math.max(0, Math.floor(Number(s.stats[k]) || 0));
   s.equip = { ...base.equip, ...(raw.equip || {}) };
   const okPet = (p) => p && W.PETS.some((x) => x.id === p.kind) && W.RARITY[p.rar];
-  const fixPet = (p) => { p.star = Math.max(0, Math.min(W.PET_STAR_MAX, Math.floor(Number(p.star) || 0))); p.q = Math.max(0, Math.min(2, Math.floor(Number(p.q) || 0))); p.dan = Math.max(0, Math.min(W.PET_DAN_MAX, Math.floor(Number(p.dan) || 0))); p.danFail = Math.max(0, Math.min(20, Math.floor(Number(p.danFail) || 0))); return p; };   // v292 별 · v316 품·단
+  const fixPet = (p) => { p.star = Math.max(0, Math.min(W.PET_STAR_MAX, Math.floor(Number(p.star) || 0))); p.q = Math.max(0, Math.min(2, Math.floor(Number(p.q) || 0))); p.dan = Math.max(0, Math.min(W.PET_DAN_MAX, Math.floor(Number(p.dan) || 0))); p.danFail = Math.max(0, Math.min(20, Math.floor(Number(p.danFail) || 0))); p.lock = !!p.lock || undefined; return p; };   // v292 별 · v316 품·단
   s.pets = Array.isArray(raw.pets) ? raw.pets.filter(okPet).map(fixPet) : [];
   s.petBox = Array.isArray(raw.petBox) ? raw.petBox.filter(okPet).map(fixPet).slice(0, W.PET_BOX) : [];
   s.mounts = Array.isArray(raw.mounts) ? raw.mounts.filter((m) => m && W.mountOf(m.kind)).map((m) => ({ ...m, lv: Math.max(0, Math.min(W.mountLvMax(W.mountOf(m.kind)), Math.floor(Number(m.lv) || 0))) })) : [];   // v292 길들이기
@@ -182,6 +182,7 @@ export function migrateWorld(raw, now = Date.now()) {
   for (const mm of s.mounts) s.mountDex[mm.kind] = 1;
   s.mountShard = Math.max(0, Math.floor(Number(raw.mountShard) || 0));
   const gc = raw.gacha && typeof raw.gacha === 'object' ? raw.gacha : {};   // v362 뽑기 천장
+  s.gachaLog = Array.isArray(raw.gachaLog) ? raw.gachaLog.filter((e) => e && typeof e.id === 'string' && (W.PETS.some((p) => p.id === e.id) || W.mountOf(e.id))).slice(-100).map((e) => ({ t: Number(e.t) || 0, k: e.k === 'mount' ? 'mount' : 'pet', id: e.id, r: Math.max(0, Math.min(4, Math.floor(Number(e.r) || 0))), g: Math.max(0, Math.min(4, Math.floor(Number(e.g) || 0))) })) : [];   // v366 뽑기 기록(최근 100)
   s.gacha = Object.fromEntries(['pet', 'mount'].map((k) => [k, { n: Math.max(0, Math.floor(Number(gc[k]?.n) || 0)), pity: Math.max(0, Math.floor(Number(gc[k]?.pity) || 0)) }]));
   if (!s.mounts.some((m) => m.uid === s.mount)) s.mount = null;
   s.mats = {};
@@ -2803,6 +2804,7 @@ export class WorldGame {
         if (rar === 3) st.pity = 0;
         const pet = this.gainPet(rar, null, pk);
         out.push({ kind: 'pet', id: pk, rar, grade: W.petGachaGrade(pk, rar), pity: rar === 3 && st.pity === 0, pet });
+        this.s.gachaLog.push({ t: Date.now(), k: 'pet', id: pk, r: rar, g: W.petGachaGrade(pk, rar) });
       } else {
         const sacred = (k) => { const d = W.mountOf(k); return d.zodiac || d.hard; };
         let id = st.pity >= W.GACHA_MOUNT_PITY ? W.pickW(W.GACHA_MOUNT, this.rng, ([k]) => sacred(k)) : W.pickW(W.GACHA_MOUNT, this.rng);
@@ -2816,9 +2818,11 @@ export class WorldGame {
           this._stats = null;
         } else this.gainMount(id);
         out.push({ kind: 'mount', id, grade: W.mountGachaGrade(d), dup });
+        this.s.gachaLog.push({ t: Date.now(), k: 'mount', id, r: 0, g: W.mountGachaGrade(d) });
       }
     }
     this._gachaQuiet = false;
+    if (this.s.gachaLog.length > 100) this.s.gachaLog = this.s.gachaLog.slice(-100);
     this.mark('gacha');
     this.noteDex();
     return out;
@@ -2904,7 +2908,8 @@ export class WorldGame {
   starFodder(uid) {
     const p = [...this.s.pets, ...this.s.petBox].find((x) => x.uid === uid);
     if (!p) return [];
-    return this.s.petBox.filter((x) => x.uid !== uid && x.kind === p.kind).sort((a, b) => (a.rar || 0) - (b.rar || 0) || (a.star || 0) - (b.star || 0) || a.lv - b.lv);
+    // v366 잠근 것은 먹이로 쓰지 않는다 · 모두 별 올리기(_safeFeed)에선 이것보다 등급이 높은 것도
+    return this.s.petBox.filter((x) => x.uid !== uid && x.kind === p.kind && !x.lock && (!this._safeFeed || (x.rar || 0) <= (p.rar || 0))).sort((a, b) => (a.rar || 0) - (b.rar || 0) || (a.star || 0) - (b.star || 0) || a.lv - b.lv);
   }
   canStar(uid) { const p = [...this.s.pets, ...this.s.petBox].find((x) => x.uid === uid); return !!p && (p.star || 0) < W.PET_STAR_MAX && this.starFodder(uid).length > 0; }
   starUp(uid) {
@@ -2924,6 +2929,35 @@ export class WorldGame {
     let n = 0;
     while (this.canStar(uid) && n < W.PET_STAR_MAX) { if (!this.starUp(uid)) break; n++; }
     return n;
+  }
+  // ---------- v366 우리 정리 ----------
+  togglePetLock(uid) { const p = [...this.s.pets, ...this.s.petBox].find((x) => x.uid === uid); if (!p) return null; p.lock = !p.lock || undefined; return !!p.lock; }
+  // 모두 별 올리기 — 종마다 가장 좋은 것(키우는 것 먼저)에게 우리의 같은 종을 못한 것부터 먹인다
+  autoStarAll() {
+    const all = [...this.s.pets, ...this.s.petBox];
+    const score = (p) => (this.s.pets.includes(p) ? 1e6 : 0) + (p.rar || 0) * 1e4 + (p.star || 0) * 1e3 + (p.dan || 0) * 100 + p.lv;
+    let n = 0;
+    for (const kind of new Set(all.map((p) => p.kind))) {
+      const host = all.filter((p) => p.kind === kind).sort((a, b) => score(b) - score(a))[0];
+      if (host) { this._safeFeed = true; try { n += this.starUpAll(host.uid); } finally { this._safeFeed = false; } }
+    }
+    return n;
+  }
+  // 일괄 놓아주기 — 우리에서 그 등급 이하(잠근 것 · 종마다 가장 좋은 하나는 남긴다)
+  bulkReleasePreview(maxRar) {
+    const keep = new Set();
+    for (const kind of new Set([...this.s.pets, ...this.s.petBox].map((p) => p.kind))) {
+      if (this.s.pets.some((p) => p.kind === kind)) continue;
+      const best = this.s.petBox.filter((p) => p.kind === kind).sort((a, b) => (b.rar || 0) - (a.rar || 0) || (b.star || 0) - (a.star || 0) || b.lv - a.lv)[0];
+      if (best) keep.add(best.uid);
+    }
+    return this.s.petBox.filter((p) => !p.lock && (p.rar || 0) <= maxRar && !keep.has(p.uid));
+  }
+  bulkRelease(maxRar) {
+    const list = this.bulkReleasePreview(maxRar);
+    let soul = 0;
+    for (const p of list) soul += this.releasePet(p.uid);
+    return { n: list.length, soul };
   }
   // ---------- v292 도감 ----------
   noteDex() {
