@@ -1360,7 +1360,18 @@ function bagTab(app) {
         h('div', { class: 'info' },
           h('div', { class: 'name' }, W.matName(key), h('small', {}, ` ${fmt(s.mats[key] || 0)}개`)),
           h('div', { class: 'desc' }, `${stn.what} · ${W.zoneOfW(+z).name} 두목이 ${G.STONE_PER_BOSS}개씩 · ${W.ORE_NAME} ${fmt(game.stoneOre(z))}개로 하나 (가진 ${W.ORE_NAME} ${fmt(s.mats[W.ORE] || 0)})`)),
-        h('button', { class: 'buy', disabled: can ? null : true, onclick: () => { const n = game.makeStone(+z, can); if (n) { toast(`${W.matName(key)} +${n}`); done(); } } }, can ? `만들기 ${can}` : '만들기'));
+        // v399 몇 개 만들지 고른다 — 전엔 누르면 가진 현철로 만들 수 있는 만큼(수만 개)을 한꺼번에 만들었다
+        h('div', { class: 'stone-btns' }, ...[1, 10, 100].map((n) => h('button', { class: 'buy', disabled: can >= n ? null : true, onclick: () => { const m = game.makeStone(+z, n); if (m) { toast(`${W.matName(key)} +${m} · ${W.ORE_NAME} -${fmt(game.stoneOre(z) * m)}`); done(); } } }, `${n}개`)),
+          h('button', { class: 'buy ghost', disabled: can ? null : true, onclick: () => {
+            if (!confirm(`${W.matName(key)} ${fmt(can)}개를 만들어요 — ${W.ORE_NAME} ${fmt(game.stoneOre(z) * can)}개를 써요. 정말 다?`)) return;
+            const m = game.makeStone(+z, can); if (m) { toast(`${W.matName(key)} +${fmt(m)}`); done(); }
+          } }, can ? `최대 ${fmt(can)}` : '최대'),
+          game.stoneRefundable(+z) > 0 ? h('button', { class: 'buy ghost refund', style: 'grid-column:1/-1', onclick: () => {
+            const r = game.stoneRefundable(+z);
+            const v = prompt(`만든 ${W.matName(key)}을 ${W.ORE_NAME}으로 되돌려요(하나에 ${fmt(game.stoneOre(z))}개). 몇 개? (되돌릴 수 있는 것 ${fmt(r)}개)`, String(r));
+            const n = Math.floor(Number(v) || 0); if (n <= 0) return;
+            const m = game.unmakeStone(+z, n); if (m) { toast(`${W.matName(key)} -${fmt(m)} · ${W.ORE_NAME} +${fmt(game.stoneOre(z) * m)}`); done(); }
+          } }, `↩ 되돌리기 ${fmt(game.stoneRefundable(+z))}`) : ''));
     });
     smithRoot.replaceChildren(modes,
       h('div', { class: 'card' }, h('h3', {}, '세트 장비', h('small', {}, `레벨 ${G.KING_LV}부터 · 레벨 100 · 무기·옷·모자·장갑·신발`)),

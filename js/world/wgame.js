@@ -199,6 +199,9 @@ export function migrateWorld(raw, now = Date.now()) {
   if (raw.mats?.[W.ORE] > 0) s.mats[W.ORE] = (s.mats[W.ORE] || 0) + Math.floor(Number(raw.mats[W.ORE]) || 0);
   for (const [k, v] of Object.entries(raw.mats || {})) if (!W.isZoneMatKey(k) && ( (k[0] === 'b' && W.MATS[k.slice(1)]) || G.isStoneKey(k) || LN.isFacMat(k) || G.isLordMat(k)) && v > 0) s.mats[k] = Math.floor(Number(v) || 0);
   delete s.autoSell;
+  // v399 만든 강화석(되돌릴 수 있는 몫) — 옛 세이브는 개수를 몰라 두목이 떨군 몫(300)을 뺀 나머지를 만든 것으로 본다
+  { const sm = raw.stoneMade && typeof raw.stoneMade === 'object' ? raw.stoneMade : null; s.stoneMade = {};
+    for (const z of Object.keys(G.STONES)) { const k = G.stoneKey(z); const v = sm ? Math.floor(Number(sm[k]) || 0) : Math.max(0, (s.mats[k] || 0) - 300); if (v > 0) s.stoneMade[k] = v; } }
   // v105: 레벨업 점수를 직접 찍게 바꿨다 — 옛 세이브의 '자동 분배 켬'은 한 번 끈다
   if ((raw.statV || 0) < 2) { s.autoStat = false; s.statV = 2; }
   s.bag = Array.isArray(raw.bag) ? raw.bag.filter((i) => i && W.SLOTS.some((x) => x.id === i.slot)) : [];
@@ -2611,6 +2614,18 @@ export class WorldGame {
     if (!G.STONES[z] || n <= 0) return 0;
     this.s.mats[W.ORE] -= this.stoneOre(z) * n;
     this.addMats(G.stoneKey(z), n);
+    this.s.stoneMade = { ...(this.s.stoneMade || {}), [G.stoneKey(z)]: (this.s.stoneMade?.[G.stoneKey(z)] || 0) + n };   // v399 되돌릴 수 있는 몫(만든 것만)
+    return n;
+  }
+  // v399 만든 강화석을 현철로 되돌린다 — 두목이 떨군 것은 안 된다(현철 공장이 되지 않게). 고르지 못하고 한꺼번에 만들어진 것을 무를 수 있게.
+  stoneRefundable(z) { const k = G.stoneKey(z); return Math.min(this.s.stoneMade?.[k] || 0, this.s.mats[k] || 0); }
+  unmakeStone(z, n = 1) {
+    const k = G.stoneKey(z);
+    n = Math.min(n, this.stoneRefundable(z));
+    if (!G.STONES[z] || n <= 0) return 0;
+    this.s.mats[k] -= n;
+    this.s.stoneMade = { ...this.s.stoneMade, [k]: this.s.stoneMade[k] - n };
+    this.addMats(W.ORE, this.stoneOre(z) * n);
     return n;
   }
   // 공용 장신구 — 아무 왕의 재료로

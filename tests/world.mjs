@@ -3682,5 +3682,17 @@ console.log('\n=== v398 5차 레벨 130 · 독존 · 골라 팔기 ===');
     const now = Date.now(); const n0 = g.s.did?.sweep || 0; g.startAutoDaily(now);
     ok((g.s.did?.sweep || 0) > n0, '등반 모드라도 길잡이가 소탕을 시키면 자동이 한 번 소탕한다(그 단계에 영영 멈췄다)'); }
 }
+console.log('\n=== v399 강화석 몇 개 · 되돌리기 ===');
+{
+  const Gx = await import('../js/world/wgear.js');
+  const z = Object.keys(Gx.STONES)[0], k = Gx.stoneKey(z);
+  const g = fresh('sword'); g.s.mats[W.ORE] = g.stoneOre(z) * 50; g.s.mats[k] = 6;   // 6개는 두목이 떨군 것
+  ok(g.makeStone(+z, 10) === 10 && g.s.mats[k] === 16 && g.stoneRefundable(+z) === 10, '10개만 만든다 · 만든 것만 되돌릴 수 있다');
+  const ore0 = g.s.mats[W.ORE];
+  ok(g.unmakeStone(+z, 999) === 10 && g.s.mats[k] === 6 && g.s.mats[W.ORE] === ore0 + g.stoneOre(z) * 10 && g.unmakeStone(+z, 1) === 0, '되돌리면 현철 그대로 · 두목이 떨군 6개는 못 되돌린다');
+  const old = migrateWorld({ ...newWorldSave(), mats: { [k]: 24642 } });
+  ok(old.stoneMade[k] === 24642 - 300, '옛 세이브 — 300개를 뺀 나머지는 만든 것으로(한꺼번에 만들어진 것을 무른다)', `${old.stoneMade[k]}`);
+  ok(/stone-btns/.test(read('js/wui.js')) && /최대 \$\{fmt\(can\)\}/.test(read('js/wui.js')), '대장장이 — 1 · 10 · 100개 · 최대(묻는다)');
+}
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);
