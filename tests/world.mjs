@@ -3454,5 +3454,34 @@ console.log('\n=== v373~v375 칠대성(상시 최종 두목) · 탄막 · 대성
   ok(m.wraid.n === 999 && m.wraid.dps === 0 && m.wraid.kills === 3 && m.wraid.top1 === 0 && m.wraid.ok === 2, '저장 값 다듬기');
   ok(/match \/wbp\/\{boss\}/.test(read('firestore.rules')) && /"wbr"/.test(read('database.rules.json')) && /ensureWraid\(boss\)/.test(read('js/wnet.js')) && /class WbCoop/.test(read('js/world/wbcoop.js')) && /wraid-go-okhwang/.test(read('js/wui.js')), '규칙(Firestore·RTDB) · 서버 · 함께 · 창');
 }
+console.log('\n=== v384 간단 각인 — 기운 하나 · Lv 하나 · 올리기 ===');
+{
+  const IMx = await import('../js/world/wimprint.js');
+  const g = fresh('sword');
+  while (g.s.level < 80) g.addExp(W.expToNext(g.s.level));
+  g.s.gold = 1e15; g.s.autoInf = false; g.s.autoEnh = false; g.rng = () => 0;   // 등급 올리기는 늘 성공
+  const w = g.s.equip.weapon; w.rar = 0; w.imps = []; w.pity = 0; g._stats = null;
+  ok(g.impLv(w) === 0 && g.impNext(w).need === 'theme', '처음엔 기운부터 고른다');
+  // 마기 두목 증표(낙양 흑도주 b10 · 천마 b7)를 넉넉히
+  g.s.mats.b10 = 500; g.s.mats.b7 = 500;
+  ok(IMx.themeOfZone(10) === 'dark' && g.setImpTheme('weapon', 'dark') && g.themeMark('dark', 1) === 'b10', '마기 — 가진 것 가운데 가장 센 두목 증표를 쓴다');
+  const kinds = [];
+  for (let i = 0; i < 20; i++) { const nx = g.impNext(w); if (!nx.can) break; kinds.push(nx.kind); g.impUp(w.uid); }
+  ok(g.impLv(w) === 12 && w.rar === 3 && IMx.danOf(w.imps[0]) === 10 && g.impNext(w).kind === 'max', '올리기만 눌러 신화 10단(Lv 12)까지', kinds.join(','));
+  ok(kinds[0] === 'rare' && kinds.filter((k) => k === 'rare').length === 3 && kinds.filter((k) => k === 'dan').length === 9, '차례 — 유니크 새김 → 단 → 전설 → 단 → 신화 → 단');
+  ok(w.imps[0].k === 'b10' && IMx.imprintsOf(w)[0].fx.bossDmg > 0, '마기 기운이 새겨졌다(두목 피해)');
+  // 기운 바꾸기 — 다시 새기기로(단은 절반)
+  g.s.mats.b6 = 500; g.setImpTheme('weapon', 'sword');
+  ok(g.impNext(w).kind === 'theme' && g.impUp(w.uid)?.ok && IMx.themeOfZone(+w.imps[0].k.slice(1)) === 'sword' && IMx.danOf(w.imps[0]) === 5, '기운을 바꾸면 「올리기」가 바꿔 준다(단 절반)');
+  // 모두 올리기 · 최대로
+  for (const x of W.SLOTS) if (g.s.equip[x.id] && g.canImprintItem(g.s.equip[x.id])) { g.s.equip[x.id].rar = 0; g.s.equip[x.id].imps = []; g.setImpTheme(x.id, 'dark'); }
+  const r = g.impAll();
+  const lvs = W.SLOTS.map((x) => g.s.equip[x.id]).filter((it) => it && g.canImprintItem(it)).map((it) => g.impLv(it));
+  ok(r.ok > 10 && lvs.every((l) => l >= 1), '모두 올리기 — 낀 장비가 한꺼번에', lvs.join(','));
+  ok(g.resonance().by.dark?.n >= 3, '같은 기운으로 모이면 공명');
+  const m = migrateWorld({ ...newWorldSave(), impTheme: { weapon: 'dark', armor: 'nope', nose: 'dark' } });
+  ok(m.impTheme.weapon === 'dark' && !m.impTheme.armor && !m.impTheme.nose, '고른 기운 저장 · 이상한 값은 버린다');
+  ok(/key: 'imp', label: '각인'/.test(read('js/wui.js')) && /openImpSlot/.test(read('js/wui.js')), '가방 › 각인 칸');
+}
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);

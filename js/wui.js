@@ -598,8 +598,8 @@ function bagTab(app) {
   let ui = { slot: 'all', smith: 'weapon', useBase: true, readyOnly: false, smode: 'ladder', kz: 0, kslot: 'acc', rar: 0 };
   try { ui = { ...ui, ...JSON.parse(localStorage.getItem('ifu.bagui') || '{}') }; } catch { /* 사생활 모드 */ }
   const keepUi = () => { try { localStorage.setItem('ifu.bagui', JSON.stringify(ui)); } catch { /* 사생활 모드 */ } };
-  const sigs = { gear: '', smith: '', mats: '' };
-  const done = () => { app.save(); sigs.gear = sigs.smith = sigs.mats = ''; app.refresh(); };
+  const sigs = { gear: '', smith: '', mats: '', imp: '' };
+  const done = () => { app.save(); sigs.gear = sigs.smith = sigs.mats = sigs.imp = ''; app.refresh(); };
   // 두목 장비(두목 증표로 만든 상급 · 두목이 떨군 것)는 끼면 그 두목의 겉모습이 든다 (v116)
   function bossGearNote(it) {
     if (it.grow || it.step == null || !(it.step % 2 === 1 || it.boss)) return null;
@@ -1339,6 +1339,75 @@ function bagTab(app) {
   }
 
   // ===== 재료 =====
+  // ---------- v384 간단 각인 — 기운을 고르고 올리기만 ----------
+  const impRoot = h('div');
+  const SHORT_FX = { venom: '독', burn: '화상', chill: '둔화', shock: '뇌전', atkPct: '공격력', critDmg: '치명 피해', hpPct: '체력', drain: '흡혈', speed: '공속', bossDmg: '두목 피해', crit: '치명', stunHit: '기절', dmgRed: '피해 감소', cdr: '무공 숨', dodge: '회피', move: '이속' };
+  const themeStats = (t) => IM.THEMES[t].fx.map(([k]) => SHORT_FX[k] || k).join('·');
+  const THEME_ORDER = ['dark', 'saber', 'sword', 'blood', 'holy', 'iron', 'fire', 'poison', 'thunder', 'ice', 'petal', 'ghost', 'water', 'fist'];
+  const markName = (k) => W.ZONES_W[+k.slice(1)]?.boss?.name || k;
+  function openImpSlot(it) {
+    openModal((el) => {
+      const draw = () => {
+        const nx = game.impNext(it);
+        const cur = game.impThemeOf(it);
+        const im = IM.imprintsOf(it)[0];
+        el.replaceChildren(
+          h('h3', {}, `${W.SLOTS.find((x) => x.id === it.slot)?.name} — 기운 고르기`),
+          h('p', { class: 'muted', style: 'font-size:12px;margin:0 0 8px' }, '고른 기운의 두목 증표 가운데 가진 것으로 가장 센 것을 저절로 써요. 이미 새겨진 기운과 다르면 「올리기」가 바꿔 줘요(단은 절반 이어받아요).'),
+          h('div', { class: 'imp-themes' }, ...THEME_ORDER.map((t) => {
+            const th = IM.THEMES[t];
+            const mk = game.themeMark(t, 1);
+            return h('button', { class: `imp-theme${cur === t ? ' on' : ''}`, style: `--tc:${th.col}`, onclick: () => { game.setImpTheme(it.slot, t); app.save(); draw(); sigs.imp = ''; impView(); } },
+              h('b', {}, th.name), h('small', {}, themeStats(t)), h('em', {}, mk ? `증표 ${fmt(game.s.mats[mk])} · ${markName(mk)}` : '증표 없음'));
+          })),
+          im ? h('p', { class: 'imp-now' }, `지금: ${IM.THEMES[im.theme].name} · ${im.boss} ${IM.DAN_NAME(im.d)} · `, Object.entries(im.fx).map(([k, v]) => IM.FX_TEXT[k]?.(v) || k).join(' · ')) : '',
+          h('div', { class: 'btn-row' },
+            h('button', { class: 'btn primary', disabled: nx.can ? null : true, onclick: () => { const r = game.impUp(it.uid); if (r) { toast(r.ok ? `각인 — ${nx.label} 성공!` : `${nx.label} 실패 — 다음 확률이 올라요`); app.save(); draw(); sigs.imp = ''; impView(); } } }, `⬆ ${nx.label}`),
+            h('button', { class: 'btn', disabled: nx.can ? null : true, onclick: () => { const r = game.impMax(it.uid); toast(`각인 ${r.n}번 — 성공 ${r.ok}${r.fail ? ` · 실패 ${r.fail}` : ''} · Lv ${game.impLv(it)}`); app.save(); draw(); sigs.imp = ''; impView(); } }, '⏫ 최대로')),
+          h('div', { class: 'btn-row' },
+            h('button', { class: 'btn', onclick: () => { closeModal(); openImprintGuide(app, () => openImpSlot(it)); } }, '📖 안내'),
+            h('button', { class: 'btn', onclick: () => { closeModal(); openItem(it, true); } }, '⚙ 고급'),
+            h('button', { class: 'btn', onclick: closeModal }, '닫기')));
+      };
+      draw();
+    });
+  }
+  function impView() {
+    const s = game.s;
+    const worn = W.SLOTS.map((x) => ({ x, it: s.equip[x.id] })).filter((o) => o.it && game.canImprintItem(o.it));
+    const nsig = `${worn.map(({ it }) => `${it.uid}.${it.rar}.${JSON.stringify(it.imps?.[0] || 0)}.${it.pity || 0}`).join(',')}|${JSON.stringify(s.impTheme)}|${Object.entries(s.mats).filter(([k]) => W.isMarkKey(k)).map(([k, v]) => `${k}${v}`).join('')}|${Math.floor(s.gold / 1e4)}`;
+    if (nsig === sigs.imp) return;
+    sigs.imp = nsig;
+    const rs = game.resonance();
+    const top = Object.values(rs.by).sort((a, b) => b.n - a.n)[0];
+    const tiles = worn.map(({ x, it }) => {
+      const t = game.impThemeOf(it);
+      const th = t ? IM.THEMES[t] : null;
+      const lv = game.impLv(it);
+      const nx = game.impNext(it);
+      return h('div', { class: 'imp-tile', style: th ? `--tc:${th.col}` : '' },
+        h('button', { class: 'imp-tile-top', onclick: () => openImpSlot(it) },
+          h('span', { class: 'imp-slot' }, x.name),
+          h('b', {}, th ? th.name : '기운 고르기 ›'), h('small', {}, th ? themeStats(t) : '누르면 골라요')),
+        h('div', { class: 'imp-lv' }, h('i', { style: `width:${(lv / 12) * 100}%` }), h('span', {}, `Lv ${lv}/12`)),
+        nx.kind === 'max' ? h('div', { class: 'imp-done' }, '✓ 끝(신화 10단)')
+          : nx.can ? h('button', { class: 'btn primary imp-up', onclick: () => { const r = game.impUp(it.uid); if (r) toast(r.ok ? `${x.name} — ${nx.label} 성공!` : `${x.name} — ${nx.label} 실패 · 다음 확률 ↑`); done(); } }, `⬆ ${nx.label}`, h('small', {}, ` 증표 ${nx.n}${nx.chance != null && nx.chance < 1 ? ` · ${Math.round(nx.chance * 100)}%` : ''}`))
+          : h('button', { class: 'btn imp-up lack', onclick: () => (nx.need === 'theme' ? openImpSlot(it) : nx.key ? openMatWhere(app, nx.key) : openImprintGuide(app)) }, nx.need === 'theme' ? '기운을 골라요 ›' : nx.key ? `증표·은자 부족 — 어디서? ›` : `${th ? th.name : ''} 증표가 없어요 — 어디서? ›`));
+    });
+    const canAny = worn.some(({ it }) => game.impNext(it).can);
+    impRoot.replaceChildren(
+      h('div', { class: 'card imp-card' },
+        h('h3', {}, '각인', h('small', {}, ' 기운을 고르고 올리기만 하면 돼요')),
+        h('p', { class: 'muted', style: 'font-size:12px;margin:0 0 8px' }, '① 칸마다 원하는 기운(능력)을 골라요 ② 「올리기」 — 새기기·단·등급을 알아서 차례로 ③ 여덟 칸을 같은 기운으로 모으면 공명(더 세요)'),
+        h('div', { class: 'imp-all' }, h('small', { class: 'muted' }, '여덟 칸 모두 한 기운으로(공명):'),
+          ...THEME_ORDER.slice(0, 8).map((t) => h('button', { class: 'chip', style: `--tc:${IM.THEMES[t].col}`, onclick: () => { for (const { x } of worn) game.setImpTheme(x.id, t); app.save(); toast(`여덟 칸 모두 ${IM.THEMES[t].name}(${themeStats(t)}) — 「모두 올리기」로 새겨요`); done(); } }, IM.THEMES[t].name))),
+        top && top.n >= 2 ? h('p', { class: 'imp-res' }, `공명: ${IM.THEMES[top.theme].name} ${top.n}칸${top.tier >= 0 ? ` · ${IM.RES_ROMAN[top.tier]}` : ''}${top.next ? ` · ${top.next}칸 더 모으면 다음 단계` : ''}`) : '',
+        h('div', { class: 'btn-row' },
+          h('button', { class: 'btn primary', id: 'imp-all', disabled: canAny ? null : true, onclick: () => { const r = game.impAll(); toast(`각인 ${r.n}번 — 성공 ${r.ok}${r.fail ? ` · 실패 ${r.fail}` : ''}`); done(); } }, '⏫ 모두 올리기'),
+          h('button', { class: 'btn', onclick: () => openImprintGuide(app) }, '📖 안내서'))),
+      h('div', { class: 'imp-grid' }, ...tiles),
+      worn.length ? '' : h('p', { class: 'muted' }, '각인할 수 있는 장비를 끼면 여기 보여요.'));
+  }
   const matRoot = h('div');
   function matView() {
     const s = game.s;
@@ -1474,6 +1543,7 @@ function bagTab(app) {
   return subTabs([
     { key: 'gear', label: '착용', make: () => ({ root: gearRoot, update: gearView }) },
     { key: 'bag', label: '가방', make: () => ({ root: bagRoot, update: gearView }) },
+    { key: 'imp', label: '각인', make: () => ({ root: impRoot, update: impView }) },   // v384
     { key: 'smith', label: '대장장이', make: () => ({ root: smithRoot, update: smithView }) },
     { key: 'mats', label: '재료', make: () => ({ root: matRoot, update: matView }) },
     { key: 'pot', label: '물약', make: () => ({ root: potRoot, update: potView }) },

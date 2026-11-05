@@ -157,6 +157,16 @@ async function tab(page, name) {
   assert(/끼면/.test(await p.$eval('#modal .equip-cmp', (e) => e.textContent)), '가방 장비 창에 끼면 → 온 능력치 견주기');
   await shot(p, '05b-equip-cmp.png');
   await p.click('#modal .btn-row .btn:has-text("닫기")');
+  // v384 가방 › 각인 — 기운 고르기 · 올리기
+  await G(p, () => { const g = window.__game; g.s.mats.b1 = 50; g.s.gold += 1e9; window.__app.refresh(); });
+  await p.click('#panel .subtabs button[data-key="imp"]');
+  await p.waitForSelector('#panel .imp-tile', { timeout: 5000 });
+  await shot(p, '05c-imp.png');
+  await p.locator('#panel .imp-tile-top').first().click();
+  await p.waitForSelector('#modal .imp-themes', { timeout: 5000 });
+  await shot(p, '05d-imp-slot.png');
+  await p.click('#modal .btn-row .btn:has-text("닫기")');
+  assert(await p.isVisible('#panel #imp-all'), '각인 칸 — 모두 올리기 단추');
   await p.click('#panel .subtabs button[data-key="gear"]');
   await p.locator('#panel .gear-tile:has-text("무기")').click();
   await p.waitForSelector('#modal h2');

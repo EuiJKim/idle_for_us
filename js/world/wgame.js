@@ -136,6 +136,9 @@ export function migrateWorld(raw, now = Date.now()) {
     const prefSk = Array.isArray(c.prefSk) ? [...new Set(c.prefSk.filter((k) => IM.SK_KINDS.includes(k)))] : [];
     const prefSkSlot = Array.isArray(c.prefSkSlot) ? [...new Set(c.prefSkSlot.filter((k) => [0, 1, 2].includes(k)))] : [];
     s.autoInfCfg = { mode, only: mode === 'pick', marks: mk, slots: sl, prefFx, prefSp, prefSk, prefSkSlot, dan: c.danV === 2 && c.dan === true, danV: 2 }; }   // v297 dan: 남는 증표로 칸 단 올리기 · v370 기본 꺼짐(옛 저장도 끔) — 켜야만 한다
+  // v384 간단 각인 — 장비 칸마다 고른 기운(테마)
+  s.impTheme = {};
+  for (const [k, v] of Object.entries(raw.impTheme || {})) if (W.SLOTS.some((x) => x.id === k) && v in IM.THEMES) s.impTheme[k] = v;
   s.loadout = raw.loadout === 1 ? 1 : 0;
   { const dx = raw.dex && typeof raw.dex === 'object' ? raw.dex : {}; s.dex = {}; for (const [k, v] of Object.entries(dx)) { const n = Math.min(9999, Math.floor(Number(v) || 0)); if (n > 0) s.dex[k] = n; } }
   // v311 각성은 무공마다 — { s0: 'wide', s2: 'twin', … }. 옛 저장의 하나({ slot, kind })는 그 무공 자리로 옮긴다
@@ -2476,6 +2479,78 @@ export class WorldGame {
     this.resNote(res0);
     return it.imps[slot];
   }
+  // ---------- v384 간단 각인 — 기운 하나 · 각인 Lv 하나 · 「올리기」가 다음 할 일을 고른다 ----------
+  // 각인 Lv = 등급(유니크 1 · 전설 2 · 신화 3) + (단 - 1) → 0~12 (신화 10단이 12). 수치 셈(imprintOf)은 그대로다.
+  impLv(it) { const e = IM.normEntry(it?.imps?.[0]); return e ? Math.min(3, it.rar || 0) + IM.danOf(e) - 1 : 0; }
+  // 이 칸이 노리는 기운 — 고른 것 · 없으면 지금 새겨진 것
+  impThemeOf(it) { const e = IM.normEntry(it?.imps?.[0]); return this.s.impTheme?.[it?.slot] || (e ? IM.themeOfZone(+e.k.slice(1)) : null); }
+  setImpTheme(slot, theme) {
+    if (!W.SLOTS.some((x) => x.id === slot)) return false;
+    if (theme && !(theme in IM.THEMES)) return false;
+    this.s.impTheme = { ...(this.s.impTheme || {}) };
+    if (theme) this.s.impTheme[slot] = theme; else delete this.s.impTheme[slot];
+    return true;
+  }
+  // 그 기운의 증표 가운데 n개 넘게 가진 가장 센 두목 증표(없으면 null)
+  themeMark(theme, n = 1) {
+    let best = null;
+    for (const [k, v] of Object.entries(this.s.mats)) if (W.isMarkKey(k) && v >= n && IM.themeOfZone(+k.slice(1)) === theme && (!best || W.markLv(k) > W.markLv(best))) best = k;
+    return best;
+  }
+  // 다음에 할 일 — { kind: fill · rare · theme · dan · max · none, key, n, gold, chance, label, can }
+  impNext(it) {
+    if (!this.canImprintItem(it)) return { kind: 'none', label: '각인할 수 없는 장비', can: false };
+    const theme = this.impThemeOf(it);
+    const e = IM.normEntry(it.imps?.[0]);
+    const rar = it.rar || 0;
+    const top = W.RARITY.length - 1;
+    const pick = (n) => (theme ? this.themeMark(theme, n) : null) || (e && (this.s.mats[e.k] || 0) >= n ? e.k : null);
+    const tn = (k) => (k ? W.ZONES_W[+k.slice(1)]?.boss?.name || k : '');
+    if (!theme && !e) return { kind: 'none', label: '기운을 먼저 골라요', can: false, need: 'theme' };
+    // 레어 — 유니크로 올리며 새긴다
+    if (rar === 0) { const n = W.INFUSE_MARKS[1]; const key = pick(n); const f = key ? this.infuseInfo(it, key) : null;
+      return { kind: 'rare', key, n, gold: f?.gold ?? W.infuseGold(it.ilv, 1), chance: f?.chance, label: `유니크로 새기기${key ? ` (${tn(key)})` : ''}`, can: !!key && this.canInfuse(it, key) }; }
+    // 칸이 비었다 — 새기기
+    if (!e) { const n = this.impMarksN(it); const key = pick(n); return { kind: 'fill', key, n, gold: W.infuseGold(it.ilv, rar), label: `새기기${key ? ` (${tn(key)})` : ''}`, can: !!key && this.canFillImp(it, 0, key) }; }
+    // 고른 기운과 다르다 — 바꾸기(단은 절반 이어받는다)
+    if (theme && IM.themeOfZone(+e.k.slice(1)) !== theme) { const n = this.impMarksN(it); const key = this.themeMark(theme, n); return { kind: 'theme', key, n, gold: W.infuseGold(it.ilv, rar), label: `${IM.THEMES[theme].name} 기운으로 바꾸기`, can: !!key && this.canRewrite(it, 0, key) }; }
+    // 단 — 유니크 3단 · 전설 6단 · 신화 10단까지
+    const cap = [0, 3, 6, IM.DAN_MAX][Math.min(3, rar)];
+    const d = IM.danOf(e);
+    if (d < cap) { const f = this.danInfo(it, 0); return { kind: 'dan', key: e.k, n: f.n, gold: f.gold, label: `${d + 1}단으로`, can: this.canDanUp(it, 0) }; }
+    if (rar < top) { const n = W.INFUSE_MARKS[rar + 1]; const key = (this.s.mats[e.k] || 0) >= n ? e.k : pick(n); const f = key ? this.infuseInfo(it, key) : null;
+      return { kind: 'rare', key, n, gold: f?.gold ?? W.infuseGold(it.ilv, rar + 1), chance: f?.chance, label: `${W.RARITY[rar + 1].name}(으)로`, can: !!key && this.canInfuse(it, key) }; }
+    return { kind: 'max', label: '각인 끝(Lv 12)', can: false };
+  }
+  // 올리기 한 번 — 다음 할 일을 한다. { ok, kind } (등급 올리기는 실패할 수 있다 — 천장이 쌓인다)
+  impUp(uid) {
+    const it = this.findItem(uid);
+    const nx = this.impNext(it);
+    if (!nx.can) return null;
+    let ok = false;
+    if (nx.kind === 'rare') ok = !!this.infuse(uid, nx.key, 0);
+    else if (nx.kind === 'fill') ok = !!this.fillImp(uid, 0, nx.key, 0);
+    else if (nx.kind === 'theme') ok = !!this.rewriteImp(uid, 0, nx.key, 0);
+    else if (nx.kind === 'dan') ok = !!this.danUp(uid, 0);
+    return { ok, kind: nx.kind };
+  }
+  // 할 수 있는 만큼 — 증표·은자가 떨어지거나 끝에 닿을 때까지(최대 40번)
+  impMax(uid) {
+    const out = { n: 0, ok: 0, fail: 0 };
+    for (let i = 0; i < 40; i++) { const r = this.impUp(uid); if (!r) break; out.n++; if (r.ok) out.ok++; else out.fail++; }
+    return out;
+  }
+  // 낀 장비 모두 한 번씩 돌며 할 수 있는 만큼
+  impAll() {
+    const out = { n: 0, ok: 0, fail: 0 };
+    for (let round = 0; round < 40; round++) {
+      let any = false;
+      for (const x of W.SLOTS) { const it = this.s.equip[x.id]; if (!it) continue; const r = this.impUp(it.uid); if (r) { any = true; out.n++; if (r.ok) out.ok++; else out.fail++; } }
+      if (!any) break;
+    }
+    return out;
+  }
+
   // 공명 단계가 바뀌었으면 알린다
   resNote(before) {
     const after = this.resonance();
