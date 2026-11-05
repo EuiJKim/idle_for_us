@@ -626,10 +626,11 @@ console.log('\n=== 십이지왕 신화 · 가락지·귀걸이 · 애완동물 �
       q.s.petShard = 100 * 200; q.s.mountShard = 100 * 300;
       let rar3 = 0, worst = 0, n = 0;
       for (let k = 0; k < 18; k++) { const r = q.gacha('pet', 10); if (!r) break; n += 10; if (!r.some((x) => x.rar >= 2)) worst++; rar3 += r.filter((x) => x.rar === 3).length; q.s.petBox = []; q.s.pets = []; }
-      ok(n === 180 && worst === 0 && rar3 >= 2, '애완동물 10연차마다 전설 이상 · 80번 천장으로 180번에 신화 둘 넘게', `신화 ${rar3}`);
+      ok(n === 180 && worst === 0, '애완동물 10연차마다 전설 이상', `신화 ${rar3}`);
+      { const t = new WorldGame(newWorldSave(0), 0); t.s.petShard = 1e6; t.rng = () => 0.999; let got = 0; for (let k = 0; k < 30; k++) { got += t.gacha('pet', 10).filter((x) => x.rar === 3).length; t.s.petBox = []; t.s.pets = []; } ok(got === 1 && W.GACHA_PET_PITY === 300, 'v363 운이 없어도 300번째엔 신화(천장 300)', `신화 ${got}`); }
       let sacred = 0;
       for (let k = 0; k < 20; k++) { const r = q.gacha('mount', 10); sacred += r.filter((x) => x.grade >= 3).length; if (!r.some((x) => W.mountOf(x.id).tier >= 9)) worst++; }
-      ok(sacred >= 2, '탈것 200번 — 100번 천장으로 신수 둘 넘게', `신수 ${sacred}`);
+      ok(W.GACHA_MOUNT_PITY === 300, '탈것 천장 300', `200번에 신수 ${sacred}`);
       const z = new WorldGame(newWorldSave(0), 0); z.s.petShard = 5000; z.s.petBox = Array.from({ length: 30 }, () => ({ ...q.s.petBox[0] || {}, uid: Math.random() }));
       ok(!z.canGacha('pet', 10) || z.gachaRoom('pet') >= 10, '우리가 가득이면 뽑기 막힘');
     }

@@ -1181,14 +1181,14 @@ export const mountSpeed = (d, k = 1, lv = 0) => (!d ? 0 : d.hard ? d.speed * (1 
 export const GACHA_COST = 100;
 export const GACHA_PET_KIND = [['yellow', 0.5], ['tiger', 1], ['dragon', 2], ['monkey', 3.5], ['phoenix', 5], ['haetae', 8], ['turtle', 12], ['qilin', 18], ['fox', 22], ['crane', 28]];
 export const GACHA_PET_RAR = [[3, 0.5], [2, 4.5], [1, 20], [0, 75]];   // 신화 · 전설 · 유니크 · 레어
-export const GACHA_PET_PITY = 80;     // 80번 안에 신화가 안 나오면 80번째 신화
+export const GACHA_PET_PITY = 300;    // v363 300번 안에 신화가 안 나오면 300번째 신화(전엔 80)
 export const GACHA_PET_TEN = 2;       // 10연차엔 전설 이상 하나
 export const GACHA_MOUNT = [
   ...['h6', 'h5', 'h4', 'h3', 'h2', 'h1'].map((k) => [k, 0.05]),
   ...['z12', 'z11', 'z10', 'z9', 'z8', 'z7', 'z6', 'z5', 'z4', 'z3', 'z2', 'z1'].map((k) => [k, 0.1]),
   ['azure', 0.5], ['cloud', 1], ['ochu', 2], ['redhare', 3.5], ['tigerm', 5], ['white', 7], ['warhorse', 9], ['deer', 11], ['camel', 12.5], ['horse', 13.5], ['mule', 15.5], ['donkey', 18],
 ];
-export const GACHA_MOUNT_PITY = 100;  // 100번 안에 신수(십이지·극)가 안 나오면 100번째 신수
+export const GACHA_MOUNT_PITY = 300;  // v363 300번 안에 신수(십이지·극)가 안 나오면 300번째 신수(전엔 100)
 export const GACHA_MOUNT_TEN = 9;     // 10연차엔 적토마(순위 9) 이상 하나
 export const GACHA_DUP_SHARD = 300;   // 가진 신수가 또 나오면 길들이기 +1 · 다 길들였으면 조각
 export function pickW(table, rng, filter = null) {
