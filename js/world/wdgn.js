@@ -301,7 +301,7 @@ export function tellCovers(tl, x, y) {
 export const WRAID_SEC = 120;
 export const WRAID_PAID = 5;
 export const WRAID_PER_DAY = WRAID_PAID;     // 옛 이름(저장 다듬기) — 참여 보상 몫
-export const WRAID_HP_K = 1000;              // 화무기 기본 체력의 몇 배 · v387 4 → 300 · v388 → 1000(만렙 전설+12 혼자 한 판에 ~1.5%, 신화+15 ~5%)
+export const WRAID_HP_K = 300;               // 화무기 기본 체력의 몇 배 · v387 4 → 300(만렙 전설+12 혼자 한 판에 ~5%, 여럿이 여러 판) · v388에 1000으로 올렸다가 v389 다시 300
 export const WRAID_PARTS = 7;                // 칠대성 — 대성신장 일곱 부위(귀걸이는 없다)
 export const OK_HP_K = 5;                    // 옥황상제 = 마왕 × 이것
 export const WRAID_LV = 120;                 // 이 레벨부터

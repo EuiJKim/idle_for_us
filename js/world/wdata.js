@@ -1095,7 +1095,7 @@ export const PET_LV_MAX = 30;
 export const PET_SHARD_RATE = 1 / 150;   // v364 두 배
 export const PET_SHARD_NEED = 100;
 export const PET_SOUL_COST = [6, 18, 45];   // 레어→영웅 · 영웅→전설 · 전설→신화
-export const PET_BOX = 30;   // v362 우리 10 → 30칸
+export const PET_BOX = 300;   // v362 우리 10 → 30칸 · v389 → 300칸
 // 무인 경험치의 절반을 받는다. 무인 레벨 10+4×(애완 레벨)의 60% — 무인과 함께 오래 자란다
 export const petExpToNext = (lv) => Math.round(expBase(10 + lv * 4) * 0.6);
 // 순위·등급(레어~신화)·레벨로 버프·공격이 커진다
