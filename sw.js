@@ -1,5 +1,5 @@
 // 앱 껍데기를 캐시해 오프라인에서도 열리게 한다. 온라인이면 항상 새 파일을 먼저 받는다.
-const CACHE = 'ifu-v372';
+const CACHE = 'ifu-v373';
 const SHELL = [
   './', 'index.html', 'install.html', 'icons/qr-install.png', 'css/style.css', 'manifest.webmanifest',
   'js/big.js', 'js/data.js', 'js/battle.js', 'js/net.js', 'js/savecode.js', 'js/art2.js', 'js/headanchor.js', 'js/chars.js', 'js/vault.js', 'js/femhead.js', 'js/fmt.js', 'js/firebase-config.js',
@@ -372,6 +372,7 @@ const SHELL = [
   'art/jfx/serpent-head.png',
   'art/jfx/skull.png',
   'art/jfx/soul-orb.png',
+  'art/boss/wb-hyeolma.png', 'art/boss/wb-gonbung.png', 'art/boss/wb-guyu.png', 'art/boss/wb-noejeong.png', 'art/ui/wb-banner.webp',
   'art/boss/king-1.png',
   'art/boss/king-10.png',
   'art/boss/king-11.png',

@@ -291,6 +291,48 @@ export function tellCovers(tl, x, y) {
   return false;
 }
 
+// ---------- v373 월드보스 — 무림 전체가 하루에 한 마리를 함께 친다 ----------
+// 서버 wraid/{한국 날짜} 문서 하나에 체력 하나. 한 사람 하루 WRAID_PER_DAY번 · 한 번에 WRAID_SEC초.
+// 체력 = 무림 사람들(서열에 오른 새 판 무인)의 초당 피해 합 × 초 × 횟수 × 몫 — 다들 몫만큼 나오면 하루 안에 잡힌다.
+// 남은 체력이 반 · 1/5 아래로 내려가면 광폭(공격·초식 빠르기↑). 잡히면 친 사람 모두 순위대로 큰 보상.
+export const WRAID_SEC = 60;
+export const WRAID_PER_DAY = 3;
+export const WRAID_HP_SHARE = 0.35;
+export const WRAID_MIN_HP = 200000;
+export const WRAID_LV = 30;               // 이 레벨부터
+export const WRAID_BOSSES = [
+  { id: 'hyeolma', name: '혈마천존', title: '피의 하늘을 연 자', art: 'wb-hyeolma', col: '#ef4444', look: { robe: '#7f1d1d', band: '#ef4444', hair: '#111827', aura: '#ef4444', weapon: 'sword' } },
+  { id: 'gonbung', name: '북명곤붕', title: '북쪽 바다의 거대한 새', art: 'wb-gonbung', col: '#38bdf8', look: { robe: '#1e3a8a', band: '#38bdf8', hair: '#e0f2fe', aura: '#38bdf8', weapon: 'fist' } },
+  { id: 'guyu', name: '구유명왕', title: '아홉 저승의 판관', art: 'wb-guyu', col: '#a855f7', look: { robe: '#2e1065', band: '#a855f7', hair: '#111827', aura: '#a855f7', weapon: 'spear' } },
+  { id: 'noejeong', name: '뇌정천제', title: '하늘의 벼락 임금', art: 'wb-noejeong', col: '#facc15', look: { robe: '#78350f', band: '#facc15', hair: '#fef9c3', aura: '#facc15', weapon: 'spear' } },
+];
+// 날마다 넷이 돌아가며
+export function wraidBossOf(day) {
+  const n = Math.floor(Date.parse(day) / 86400e3);
+  return WRAID_BOSSES[((n % WRAID_BOSSES.length) + WRAID_BOSSES.length) % WRAID_BOSSES.length];
+}
+export const wraidMaxHp = (dpsSum) => Math.max(WRAID_MIN_HP, Math.round(dpsSum * WRAID_SEC * WRAID_PER_DAY * WRAID_HP_SHARE));
+// 광폭 — 남은 체력 몫(0~1)으로. 0: 보통 · 1: 분노(50%↓) · 2: 광폭(20%↓)
+export const wraidRage = (frac) => (frac <= 0.2 ? 2 : frac <= 0.5 ? 1 : 0);
+export const WRAID_RAGE = [{ atk: 1, gap: 1, name: '' }, { atk: 1.15, gap: 0.85, name: '분노' }, { atk: 1.3, gap: 0.7, name: '광폭' }];
+// 한 번 칠 때마다 — 친 몫(이번 판 피해 / 최대 체력)이 클수록 조금 더(0~+100%)
+export const wraidJoinReward = (lv, share = 0) => {
+  const k = 1 + Math.min(1, Math.max(0, share) * 20);
+  return { gold: Math.round(mobGold(lv) * 400 * k), petShard: Math.round(8 * k), mountShard: Math.round(8 * k) };
+};
+// 잡혔을 때 — 순위로 배율(1위 ×3 · 2~3위 ×2 · 10위까지 ×1.5 · 그 밖 ×1)
+export const wraidRankK = (rank) => (rank === 1 ? 3 : rank <= 3 ? 2 : rank <= 10 ? 1.5 : 1);
+export const wraidKillReward = (lv, rank) => {
+  const k = wraidRankK(rank);
+  return { gold: Math.round(mobGold(lv) * 4000 * k), petShard: Math.round(40 * k), mountShard: Math.round(40 * k) };
+};
+// 캔버스 빛(putGlow)은 'r,g,b' 꼴을 받는다
+const hexRgb = (hex) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)).join(',');
+export function wraidMap(boss, lv, z) {
+  return { id: -4, inst: true, name: `월드보스 · ${boss.name}`, zoneName: '월드보스', zone: z, mz: z, area: 0, art: ZONES_W[z]?.art || 1,
+    lv: [lv, lv], mobs: [], boss: { name: boss.name, look: boss.look, art: boss.art }, scene: 'raid', bossFirst: true, wb: boss.id, wbCol: hexRgb(boss.col) };
+}
+
 // ---------- 문파 토벌 (v128) ----------
 // 한 주(한국 시간 월요일부터)에 두목 하나를 문파원이 함께 친다. 체력은 문파 문서(guilds/{id}/raids/wk-…)에 하나.
 // 한 사람 하루 두 번, 한 번에 40초. 친 만큼 서버의 체력이 깎인다. 칠 때마다 참여 보상, 잡히면 친 사람 모두 큰 보상.

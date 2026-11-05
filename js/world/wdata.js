@@ -938,6 +938,9 @@ export const TITLES = {
   wbfast: { id: 'wbfast', name: '일각(一刻)', desc: '공격력 +4% · 때릴 때마다 〈刻〉', how: '화무기를 1분 안에 쓰러뜨리기', atkMul: 1.04, hitFx: '刻', col: '#fb7185' },
   pet5q: { id: 'pet5q', name: '영수 수집가', desc: '공격력 +3%', how: '극품 이상 애완동물 다섯', atkMul: 1.03, col: '#c4b5fd' },
   titles15: { id: 'titles15', name: '천하의 이름', desc: '공격력 +5% · 때릴 때마다 〈名〉', how: '칭호 열다섯 모으기', atkMul: 1.05, hitFx: '名', col: '#fef08a' },
+  // v373 월드보스
+  wraid10: { id: 'wraid10', name: '강호의 방패', desc: '공격력 +3%', how: '월드보스 처치에 열 번 함께하기', atkMul: 1.03, col: '#f472b6' },
+  wraid1: { id: 'wraid1', name: '천하 토벌 일인자', desc: '공격력 +6% · 때릴 때마다 〈討〉', how: '월드보스 피해 순위 1위로 처치', atkMul: 1.06, hitFx: '討', col: '#ef4444' },
   k1m: { id: 'k1m', name: '백만 처치', desc: '공격력 +4% · 때릴 때마다 〈萬〉', how: '몹 100만 마리', atkMul: 1.04, hitFx: '萬', col: '#e7e5e4' },
 };
 export const AUTO_TITLES = Object.values(TITLES).filter((t) => t.how);

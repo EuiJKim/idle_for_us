@@ -1863,7 +1863,7 @@ function dgnTab(app) {
     const now = Date.now();
     const net = app.net;
     const rd = net?.raid;
-    const nsig = `${s.level}|${JSON.stringify(s.dgn)}|${s.tower.floor}|${s.tower.auto}|${D.kstDay(now)}|${JSON.stringify(stagePick)}|${!!game.inst}|${!!s.job}|${JSON.stringify(s.zTickets)}|${s.mounts.length}|${net?.status}|${s.guildId}|${rd?.kind}|${rd?.total}|${rd?.maxHp}|${JSON.stringify(rd?.claimed || {})}|${JSON.stringify(s.raid)}`;
+    const nsig = `${s.level}|${JSON.stringify(s.dgn)}|${s.tower.floor}|${s.tower.auto}|${D.kstDay(now)}|${JSON.stringify(stagePick)}|${!!game.inst}|${!!s.job}|${JSON.stringify(s.zTickets)}|${s.mounts.length}|${net?.status}|${s.guildId}|${rd?.kind}|${rd?.total}|${rd?.maxHp}|${JSON.stringify(rd?.claimed || {})}|${JSON.stringify(s.raid)}|${JSON.stringify(s.wraid)}|${net?.wraid?.total}|${net?.wraid?.maxHp}|${JSON.stringify(net?.wraid?.claimed || {})}|${!!net?.wraidPrev}`;
     return `${bump}|${nsig}`;
   };
   // 어느 칸이든 맨 위에 — 던전 안이거나 직업이 없으면 알린다
@@ -2059,6 +2059,61 @@ function dgnTab(app) {
       })));
     return [zodiacCard];
   }
+  // v373 월드보스 — 무림 전체가 하루 한 마리
+  function buildWraid() {
+    const s = game.s;
+    const now = Date.now();
+    const net = app.net;
+    const r = net?.wraid;
+    const day = D.kstDay(now);
+    const boss = D.wraidBossOf(day);
+    const card = h('div', { class: 'card wraid-card', style: `--wb:${boss.col}` });
+    const head = h('div', { class: 'wraid-head' },
+      h('img', { class: 'wraid-banner', src: 'art/ui/wb-banner.webp', alt: '' }),
+      h('img', { class: 'wraid-boss', src: `art/boss/${boss.art}.png`, alt: boss.name }),
+      h('div', { class: 'wraid-name' }, h('small', {}, `오늘의 월드보스 · ${boss.title}`), h('b', {}, boss.name)));
+    const rows = [head,
+      h('p', { class: 'muted dgn-desc' }, `무림 사람 모두가 함께 치는 두목 — 하루 ${D.WRAID_PER_DAY}번, 한 번에 ${D.WRAID_SEC}초 · 체력이 반 아래면 분노, 1/5 아래면 광폭 · 쓰러지면 친 사람 모두 순위대로 큰 보상(1위 ×3 · 2~3위 ×2 · 10위까지 ×1.5)`)];
+    const claimBtn = (rr, label) => h('button', { class: 'btn primary wraid-claim', onclick: async (e) => {
+      e.target.disabled = true;
+      try {
+        const got = await net.claimWraid(rr);
+        if (got) { toast(`🌋 월드보스 ${got.boss.name} 보상 — ${got.rank}위 · ${rewardText(got.reward)}`); app.save(); app.refresh(); }
+      } catch (err) { toast(`받지 못했어요: ${err.message || err}`); }
+      rerender();
+    } }, label);
+    if (net?.wraidPrev) rows.push(h('div', { class: 'wraid-prev' }, h('span', {}, `어제의 ${D.wraidBossOf(net.wraidPrev.id).name}가 쓰러졌어요 — 내 순위 ${net.wraidMyRank(net.wraidPrev)}위`), claimBtn(net.wraidPrev, '어제 보상 받기')));
+    if (!net?.ready?.()) rows.push(h('p', { class: 'muted dgn-desc' }, '온라인일 때 칠 수 있어요.'));
+    else if (s.level < D.WRAID_LV) rows.push(h('p', { class: 'muted dgn-desc' }, `레벨 ${D.WRAID_LV}부터 함께 칠 수 있어요.`));
+    else if (!r) {
+      rows.push(h('div', { class: 'btn-row' }, h('button', { class: 'btn primary', id: 'wraid-open', onclick: async (e) => {
+        e.target.disabled = true;
+        try { await net.ensureWraid(); } catch (err) { toast(`월드보스를 못 불렀어요: ${err.message || err}`); }
+        rerender();
+      } }, '오늘의 월드보스 부르기')));
+    } else {
+      const left = net.wraidHpLeft(r);
+      const frac = left / r.maxHp;
+      const rg = D.wraidRage(frac);
+      const rank = net.wraidRank(r);
+      const myRank = net.wraidMyRank(r);
+      const mine = r.damage?.[net.uid] || 0;
+      rows.push(
+        h('div', { class: `raid-hp wraid-hp rage${rg}` }, h('i', { style: `width:${frac * 100}%` }), h('em', { style: 'left:50%' }), h('em', { style: 'left:20%' }),
+          h('span', {}, left > 0 ? `${fmt(left)} / ${fmt(r.maxHp)}${rg ? ` · ${D.WRAID_RAGE[rg].name}` : ''}` : '쓰러짐!')),
+        h('div', { class: 'raid-rank' }, ...rank.slice(0, 10).map(([uid, d], i) => h('div', { class: uid === net.uid ? 'me' : '' },
+          h('b', {}, `${i + 1}`), ` ${r.names?.[uid] || '?'}${uid === r.killer ? ' ⚔' : ''}`, h('small', {}, ` ${fmt(d)} · ×${D.wraidRankK(i + 1)}`))),
+          rank.length ? null : h('div', { class: 'muted' }, '아직 아무도 안 쳤어요 — 첫 일격을!'),
+          myRank > 10 ? h('div', { class: 'me' }, h('b', {}, `${myRank}`), ` 나`, h('small', {}, ` ${fmt(mine)}`)) : null),
+        h('p', { class: 'muted dgn-desc' }, `내 피해 ${fmt(mine)}${myRank ? ` · ${myRank}위` : ''} · 오늘 ${game.wraidLeft(now)}/${D.WRAID_PER_DAY}번 남음 · 칠 때마다 참여 보상(은자·애완동물·탈것 조각)`),
+        h('div', { class: 'btn-row' },
+          left > 0 ? h('button', { class: 'btn primary', id: 'wraid-go', disabled: game.canWraid(left, now) ? null : true, onclick: () => start(() => game.startWraid({ day: r.id, hpLeft: left, maxHp: r.maxHp }, now)) }, `도전 (${D.WRAID_SEC}초)`) : null,
+          net.canClaimWraid(r) ? claimBtn(r, `처치 보상 받기 (${myRank}위 ×${D.wraidRankK(myRank)})`) : null,
+          left <= 0 && r.claimed?.[net.uid] ? h('span', { class: 'muted' }, '보상을 받았어요 · 내일 새 월드보스') : null));
+    }
+    card.append(...rows);
+    return [card];
+  }
   function buildRaid() {
     const s = game.s;
     const now = Date.now();
@@ -2106,12 +2161,14 @@ function dgnTab(app) {
     { key: 'daily', label: '일일 던전', make: () => view(buildDaily) },
     { key: 'tower', label: '무한의 탑', make: () => view(buildTower) },
     { key: 'zodiac', label: '십이지', make: () => view(buildZodiac) },
+    { key: 'wraid', label: '월드보스', make: () => view(buildWraid) },
     { key: 'raid', label: '문파 토벌', make: () => view(buildRaid) },
   ], 'ifu.dgnsub');
   const upd0 = t.update;
   t.update = () => {
     t.setDot('daily', dailyWaiting(game));
     t.setDot('zodiac', Object.values(game.s.zTickets || {}).some((n) => n > 0));
+    { const n = app.net; t.setDot('wraid', !!(n?.ready?.() && (n.canClaimWraid?.() || n.wraidPrev || (game.s.level >= D.WRAID_LV && game.wraidLeft() > 0 && (!n.wraid || n.wraidHpLeft() > 0))))); }
     upd0();
   };
   return t;

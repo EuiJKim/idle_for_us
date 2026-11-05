@@ -22,7 +22,7 @@ service cloud.firestore {
     // v309 규칙 판 표 — 앱이 rulesv/{판}을 읽어 본다. 지금 판만 읽히고 옛 판은 거부된다(없는 문서라 읽혀도 비어 있다).
     //   규칙을 고치면 여기 숫자와 js/net.js의 RULES_VER를 같이 올린다 → 게시를 잊으면 운영자에게 '다시 게시' 알림.
     match /rulesv/{v} {
-      allow get: if signedIn() && v == '349';
+      allow get: if signedIn() && v == '373';
     }
 
     // 플레이어 프로필: 누구나 읽기(랭킹·구경), 본인만 쓰기
@@ -143,6 +143,48 @@ service cloud.firestore {
           && (!('hwamugi' in resource.data) || request.resource.data.hwamugi <= resource.data.hwamugi)
           && (!('magwi' in resource.data) || request.resource.data.magwi <= resource.data.magwi)));
       allow delete: if isAdmin();
+    }
+    // v373 월드보스 — 날마다('YYYY-MM-DD') 문서 하나에 체력 하나. 로그인한 누구나 연다(빈 채로) · 칠 땐 자기 피해만 늘리고 그만큼만 합계를 올린다.
+    //   마무리 일격이면 killedAt(서버 시각) · killer(자기). 쓰러진 뒤엔 친 사람만 자기 받음 표시. 지우기는 운영자만.
+    match /wraid/{day} {
+      allow read: if signedIn();
+      allow create: if signedIn() && day.size() == 10
+        && request.resource.data.keys().hasOnly(['boss', 'maxHp', 'total', 'damage', 'names', 'claimed', 'killedAt', 'killer', 'createdAt'])
+        && request.resource.data.boss is string && request.resource.data.boss.size() <= 16
+        && request.resource.data.maxHp is number && request.resource.data.maxHp >= 1000 && request.resource.data.maxHp <= 1000000000000000.0
+        && request.resource.data.total == 0
+        && request.resource.data.damage == {} && request.resource.data.names == {} && request.resource.data.claimed == {}
+        && request.resource.data.killedAt == null && request.resource.data.killer == null
+        && request.resource.data.createdAt == request.time;
+      allow update: if signedIn() && (wHit() || wClaim());
+      allow delete: if isAdmin();
+
+      function wChanged() { return request.resource.data.diff(resource.data).affectedKeys(); }
+      function wDelta() {
+        return request.resource.data.damage.get(request.auth.uid, 0) - resource.data.damage.get(request.auth.uid, 0);
+      }
+      function wHit() {
+        return wChanged().hasOnly(['total', 'damage', 'names', 'killedAt', 'killer'])
+          && resource.data.total < resource.data.maxHp
+          && request.resource.data.damage.diff(resource.data.damage).affectedKeys().hasOnly([request.auth.uid])
+          && request.resource.data.names.diff(resource.data.names).affectedKeys().hasOnly([request.auth.uid])
+          && request.resource.data.names.get(request.auth.uid, '') is string
+          && request.resource.data.names.get(request.auth.uid, '').size() <= 12
+          && wDelta() > 0
+          && request.resource.data.total > resource.data.total
+          && request.resource.data.total - resource.data.total <= wDelta()
+          && request.resource.data.total <= resource.data.maxHp
+          && (request.resource.data.total < resource.data.maxHp
+            ? (!('killedAt' in wChanged()) && !('killer' in wChanged()))
+            : (request.resource.data.killedAt == request.time && request.resource.data.killer == request.auth.uid));
+      }
+      function wClaim() {
+        return wChanged().hasOnly(['claimed'])
+          && resource.data.total >= resource.data.maxHp
+          && resource.data.damage.get(request.auth.uid, 0) > 0
+          && request.resource.data.claimed.diff(resource.data.claimed).affectedKeys().hasOnly([request.auth.uid])
+          && request.resource.data.claimed[request.auth.uid] == true;
+      }
     }
     // v321 신고 — 누구나 남의 말 하나를 신고 · 운영자만 읽고 지운다
     match /reports/{rid} {

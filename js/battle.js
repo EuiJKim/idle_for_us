@@ -26,6 +26,7 @@ import { CHOREO, Director, FX, VENOM, drawPoisonField } from './skillfx.js';
 import { drawBossSprite, drawTellFx, fxFor, bossImg, bossHeight } from './bossfx.js';
 import { big } from './big.js';
 import { fmt } from './fmt.js';
+const WB_SCALE = 1.6;   // v373 월드보스는 크게
 
 export const BRUSH = '"Yuji Syuku", "Nanum Brush Script", "Gowun Batang", serif';
 // v260 줍기 글자를 한 줄로 모으는 틈(초)
@@ -1104,13 +1105,13 @@ export class BattleView {
         break;
       // v226: 던전·탑을 깨면 무인 발밑에서 금빛 기둥이 서고 고리 세 겹 · '破' 낙관과 함께 크게 알린다
       case 'instEnd':
-        if (ev.ok && ev.kind !== 'raid' && this.fxLevel > 0 && game?.heroX != null) {
+        if (ev.ok && ev.kind !== 'raid' && ev.kind !== 'wraid' && this.fxLevel > 0 && game?.heroX != null) {
           if (!this.effects.some((e) => e.kind === 'pillar' && e.life > 0.5)) this.effects.push({ kind: 'pillar', life: 1.2, max: 1.2 });
           this.effects.push({ kind: 'shock', life: 0.8, max: 0.8, wx: game.heroX, wy: game.heroY, r: 200, col: '253,224,71', rings: 3, w: 4 });
           this.effects.push({ kind: 'petals', life: 1.4, max: 1.4, wx: game.heroX, wy: game.heroY, r: 170, col: '253,230,138', seeds: seedsN(20), spin: 3, oy: -80 });
           this.showBanner(ev.kind === 'tower' ? `${ev.stage}층 돌파` : '던전 돌파', '#fde68a', 1.3, '破');
           this.flash = Math.max(this.flash, 0.2);
-        } else if (!ev.ok && !ev.left && ev.kind !== 'raid' && this.fxLevel > 0 && game?.heroX != null) {
+        } else if (!ev.ok && !ev.left && ev.kind !== 'raid' && ev.kind !== 'wraid' && this.fxLevel > 0 && game?.heroX != null) {
           // 못 깼다 — 잿빛 고리가 가라앉는다
           this.effects.push({ kind: 'shock', life: 0.7, max: 0.7, wx: game.heroX, wy: game.heroY, r: 140, col: '120,113,108', rings: 2, w: 3 });
         }
@@ -3176,8 +3177,8 @@ export class BattleView {
     const kx = hk * hk * 14 * away - swing * 14 * away;
     const ky = (1 - born) * 10 + swing * 3;
     // v160: 두목은 제 그림으로 — 과녁이 아니어도
-    if (a.isBoss && def.art && bossImg(def.art) && drawBossSprite(this, ctx, a, x + kx, y, depth, { lord: !!game.map?.lord, king: !!game.map?.king, fac: game.map?.master ? ZONES_W[game.map.zone]?.fac : null,
-      casting: game.tells?.length > 0, col: fxFor('', def.look || {}).col, flash: hk, lunge: 0, heroX: game.heroX })) { /* 그렸다 */ } else
+    if (a.isBoss && def.art && bossImg(def.art) && drawBossSprite(this, ctx, a, x + kx, y, depth, { lord: !!game.map?.lord, king: !!game.map?.king || !!game.map?.wb, fac: game.map?.master ? ZONES_W[game.map.zone]?.fac : null,
+      casting: game.tells?.length > 0, col: game.map?.wbCol || fxFor('', def.look || {}).col, flash: hk, lunge: 0, heroX: game.heroX, scale: game.map?.wb ? WB_SCALE : 1 })) { /* 그렸다 */ } else
     if (def.emoji) emoji(ctx, def.emoji, x + kx, y, 44, face);
     else if (def.beast) {
       // 들짐승 (v117) — 맞으면 찌그러졌다 돌아온다
@@ -3311,7 +3312,7 @@ export class BattleView {
     ctx.beginPath(); ctx.ellipse(x, y + 2, shw, shw * 0.4, 0, 0, Math.PI * 2); ctx.fill();
     if (fx) this.drawMobFx(ctx, m, x, y, scale, false);
     // v160: 두목은 제 그림으로 (없으면 아래 종이 인형)
-    const bossH = boss && m.def?.art && bossImg(m.def.art) ? bossHeight({ lord: game.map?.lord, king: game.map?.king }) : 0;
+    const bossH = boss && m.def?.art && bossImg(m.def.art) ? bossHeight({ lord: game.map?.lord, king: game.map?.king }) * (game.map?.wb ? WB_SCALE : 1) : 0;
     // v261: 두목이 무인 앞(아래 칸)에 서서 무인을 가리면 두목을 옅게 — 둘이 한 덩어리가 되어 둘 다 안 읽혔다
     let occ = 1;
     if (bossH && m.alive && (m.y ?? 0) > game.heroY) {
@@ -3335,8 +3336,8 @@ export class BattleView {
         if (!this.hanja || this.hanja.life <= 0) this.hanja = { text: '怒', life: 1.1, max: 1.1, color: `rgb(${col})`, scale: 0.9, y: 0.3 };
       }
     }
-    if (bossH && drawBossSprite(this, ctx, m, x, y, alpha * this._bossOcc, { lord: !!game.map?.lord, king: !!game.map?.king, casting: game.tells?.length > 0,
-      col: fxFor('', look || {}).col, flash: m === game.mon ? this.monFlash : 0, lunge: m === game.mon ? this.monLunge : 0, heroX: game.heroX })) {
+    if (bossH && drawBossSprite(this, ctx, m, x, y, alpha * this._bossOcc, { lord: !!game.map?.lord, king: !!game.map?.king || !!game.map?.wb, casting: game.tells?.length > 0,
+      col: game.map?.wbCol || fxFor('', look || {}).col, flash: m === game.mon ? this.monFlash : 0, lunge: m === game.mon ? this.monLunge : 0, heroX: game.heroX, scale: game.map?.wb ? WB_SCALE : 1 })) {
       // 그렸다
     } else if (look) {
       ctx.translate(x, y + (m.alive ? 0 : (1 - alpha) * 10));

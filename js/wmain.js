@@ -856,7 +856,7 @@ function buildSkillbar() {
     toast(game.s.autoHunt ? '자동 사냥을 켰어요' : '자동 사냥을 껐어요 — 들판을 눌러 움직여요');
     save();
   } }, skinImg(h('b', {}, '자동'), 'auto'), h('div', { class: 'lock' }));
-  potionEl.dataset.hk = 'Q'; autoEl.dataset.hk = 'A';
+  potionEl.dataset.hk = 'Q'; autoEl.dataset.hk = 'F';   // v373 A는 이동(WASD)으로 — 자동 사냥은 F
   $('skillbar').replaceChildren(...skillEls.map((e) => e.btn), ...(advEl ? [advEl] : []), potionEl, autoEl);
 }
 
@@ -1040,7 +1040,7 @@ function refreshUI(full = false) {
   setText($('stage-label'), m.town || m.inst ? m.name : `${m.king ? m.king.title : m.zoneName} ${m.bossRoom ? '두목' : m.area}`);
   const bossLeft = Math.max(0, Math.ceil(game.bossT));
   const boss = game.mons.find((x) => x.isBoss && x.alive);
-  setText($('zone-label'), m.inst ? (game.inst.kind === 'tower' ? `수문장 Lv.${m.lv[0]} · ${duration(game.inst.hard ? D.hardSec(game.inst.stage) : D.towerSec(game.inst.stage))} 안에` : game.inst.kind === 'raid' ? `문파원과 함께 — ${D.RAID_SEC}초 동안 친 만큼` : `몹 Lv.${m.lv[0]} · ${D.DAILY_KILLS}마리 잡으면 깬다`) : m.town ? (s.autoHunt ? `쉬는 중 → ${W.mapOf(s.huntMap).name}` : '쉬는 중')
+  setText($('zone-label'), m.inst ? (game.inst.kind === 'tower' ? `수문장 Lv.${m.lv[0]} · ${duration(game.inst.hard ? D.hardSec(game.inst.stage) : D.towerSec(game.inst.stage))} 안에` : game.inst.kind === 'raid' ? `문파원과 함께 — ${D.RAID_SEC}초 동안 친 만큼` : game.inst.kind === 'wraid' ? `무림 전체와 함께 — ${D.WRAID_SEC}초 동안 친 만큼` : `몹 Lv.${m.lv[0]} · ${D.DAILY_KILLS}마리 잡으면 깬다`) : m.town ? (s.autoHunt ? `쉬는 중 → ${W.mapOf(s.huntMap).name}` : '쉬는 중')
     : m.bossRoom ? (boss ? `두목 ${boss.name} Lv.${boss.lv}` : `두목 다시 나기까지 ${Math.floor(bossLeft / 60)}:${String(bossLeft % 60).padStart(2, '0')}`) + (coop.on ? ` · 🤝${coop.count + 1}명` : '')
       : `몹 Lv.${m.lv[0]}~${m.lv[1]} · 두목은 두목 구역에`);
   // v341 '사냥하러 가기' — 아래 창 줄의 사냥 단추를 빼고, 마을에 있을 때만 들판 가운데에 띄운다(창이 열려 있으면 숨김)
@@ -1115,7 +1115,7 @@ function refreshUI(full = false) {
   const t = game.nextTier();
   dot('town', (!!t && s.level >= t.level && s.gold >= t.cost) || (game.canChoosePath() && !s.path));   // v237: 길을 아직 안 골랐으면
   dot('comp', s.petBox.length > 0 && s.pets.length < game.petSlots());
-  dot('dgn', dailyWaiting(game) || Object.values(game.s.zTickets || {}).some((n) => n > 0));
+  dot('dgn', dailyWaiting(game) || wraidWaiting() || Object.values(game.s.zTickets || {}).some((n) => n > 0));
   if (activeTab) { tabs[activeTab].update(); panelRes(); }
   // v280 얼굴은 모습이 바뀌거나(경지·장비·꾸미기) 그림이 다 오면 다시 그린다 — 전엔 켤 때 한 번(그림이 오기 전 도형으로) 그리고 끝이었다
   const psig = `${s.rank}|${game.statSig()}|${JSON.stringify(s.custom || {})}|${s.outfit || ''}|${artReady()}|${mergeGen()}`;
@@ -1127,7 +1127,7 @@ const hud = $('contest-hud');
 const leaveBtn = h('button', { class: 'inst-leave', onclick: () => {
   if (!game.inst) return;
   openModal((el) => el.append(h('h3', {}, '던전에서 나갈까요?'),
-    h('p', { class: 'muted' }, game.inst.kind === 'daily' ? '깬 것으로 치지 않아요 — 잡은 만큼 보상의 절반만 받아요. 쓴 횟수는 돌아오지 않아요.' : game.inst.kind === 'raid' ? '지금까지 친 피해는 올라가요. 쓴 횟수는 돌아오지 않아요.' : '이번 층은 다시 도전할 수 있어요.'),
+    h('p', { class: 'muted' }, game.inst.kind === 'daily' ? '깬 것으로 치지 않아요 — 잡은 만큼 보상의 절반만 받아요. 쓴 횟수는 돌아오지 않아요.' : game.inst.kind === 'raid' || game.inst.kind === 'wraid' ? '지금까지 친 피해는 올라가요. 쓴 횟수는 돌아오지 않아요.' : '이번 층은 다시 도전할 수 있어요.'),
     h('div', { class: 'btn-row' }, h('button', { class: 'btn', onclick: closeModal }, '계속하기'),
       h('button', { class: 'btn primary', onclick: () => { closeModal(); game.leaveInst(); handleEvents(); save(); refreshUI(true); } }, '나가기'))));
 } }, '나가기');
@@ -1136,7 +1136,8 @@ function instHud() {
   const I = game.inst;
   hud.classList.toggle('hidden', !I);
   hud.classList.toggle('tower', I?.kind === 'tower');
-  hud.classList.toggle('raid', I?.kind === 'raid');
+  hud.classList.toggle('raid', I?.kind === 'raid' || I?.kind === 'wraid');
+  hud.classList.toggle('wraid', I?.kind === 'wraid');   // v373
   hud.classList.toggle('hard', !!I?.hard);   // v350 극
   if (!I) return;
   const left = Math.max(0, Math.ceil(I.t));
@@ -1144,6 +1145,10 @@ function instHud() {
   if (I.kind === 'tower') {
     const b = game.mons.find((x) => x.isBoss && x.alive);
     $('contest-sub').textContent = I.wait > 0 ? '수문장이 나선다…' : `수문장 ${b ? Math.ceil((b.hp / b.maxHp) * 100) : 0}% · 남은 ${left}초`;
+  } else if (I.kind === 'wraid') {
+    const b = I.boss;
+    const rg = I.rage > 0 ? ` · ${D.WRAID_RAGE[I.rage].name}!` : '';
+    $('contest-sub').textContent = I.wait > 0 ? '월드보스가 강림한다…' : `피해 ${fmt(b ? Math.max(0, I.hpLeft - Math.max(0, b.hp)) : 0)} · 남은 체력 ${b ? ((Math.max(0, b.hp) / b.maxHp) * 100).toFixed(1) : 100}%${rg} · ${left}초`;
   } else if (I.kind === 'raid') {
     const b = I.boss;
     $('contest-sub').textContent = I.wait > 0 ? '두목이 나선다…' : `피해 ${fmt(b ? Math.max(0, I.hpLeft - Math.max(0, b.hp)) : 0)} · 남은 체력 ${b ? ((Math.max(0, b.hp) / b.maxHp) * 100).toFixed(1) : 100}% · ${left}초`;
@@ -1151,6 +1156,16 @@ function instHud() {
   hud.classList.toggle('hurry', left <= 10);
 }
 function showInstEnd(ev) {
+  // v373 월드보스 — 친 만큼 서버에 올리고, 잡혔으면 바로 받기를 권한다
+  if (ev.kind === 'wraid') {
+    const send = ev.dealt > 0 ? net.commitWraid(ev.key, ev.dealt) : Promise.resolve(false);
+    send.then((killed) => {
+      toast(`🌋 월드보스 피해 ${fmt(ev.dealt)}${ev.reward ? ` · 참여 보상 ${rewardText(ev.reward)}` : ''}${killed ? ' — 마무리 일격! 월드보스 처치' : ''}`);
+      if (killed) { sfx('level'); view.shake = Math.max(view.shake || 0, 0.4); }
+      app.refresh();
+    }).catch((err) => toast(`월드보스 기록 실패: ${err.message || err}`));
+    return;
+  }
   // 문파 토벌 — 친 만큼 서버에 올리고 알린다 (나가기로 끝내도 친 건 올린다)
   if (ev.kind === 'raid') {
     const send = ev.dealt > 0 ? net.commitWeekRaid(ev.key, ev.dealt) : Promise.resolve(false);
@@ -1630,6 +1645,13 @@ function handleEvents() {
         break;
       case 'zodiacDraw':
         if (!ev.zodiac) toast(`${D.ZODIAC[ev.no - 1].animal} 뽑기 — 신수는 아니었어요${game.zodiacOwned(ev.no) ? '' : ` (${D.ZODIAC_TICKETS}번째에는 꼭 나와요)`}`);
+        break;
+      // v373 월드보스가 분노·광폭으로 — 크게 알리고 흔든다
+      case 'wraidRage':
+        sfx('level');
+        view.shake = Math.max(view.shake || 0, 0.35);
+        view.float(`${ev.name}!`, ev.x ?? view.heroX, (ev.y ?? view.groundY) - 260, ev.rage >= 2 ? '#f87171' : '#fb923c', 34, 1.8);
+        toast(ev.rage >= 2 ? '🔥 월드보스 광폭 — 공격이 훨씬 세지고 초식이 빨라져요!' : '💢 월드보스 분노 — 공격이 세지고 초식이 빨라져요');
         break;
       case 'instEnd':
         showInstEnd(ev);
@@ -2285,9 +2307,16 @@ function netChanged(what) {
   if (what === 'guild') { refreshUI(true); }
   // v302 전체 채팅 — 무림 창이 닫혀 있으면 점
   if (what === 'wchat') dot('social', activeTab !== 'social' && net.worldUnread?.() > 0);
+  if (what === 'wraid') dot('dgn', dailyWaiting(game) || wraidWaiting());   // v373
   for (const t of Object.values(tabs)) t.netChanged?.(what);
 }
 
+// v373 월드보스 — 오늘 칠 수 있거나 받을 보상이 있으면 던전 창에 점
+function wraidWaiting() {
+  if (!net.ready?.() || !game.s.job) return false;
+  const r = net.wraid;
+  return !!(net.canClaimWraid?.() || net.wraidPrev || (game.s.level >= D.WRAID_LV && game.wraidLeft() > 0 && (!r || net.wraidHpLeft(r) > 0)));
+}
 // ---------- 루프 ----------
 let last = performance.now();
 let uiTimer = 0;
@@ -2504,6 +2533,7 @@ function frame(now) {
   // 초당 30번 — 두 번에 한 번만 셈하고 그린다 (창을 띄워 둔 동안에도 30)
   perf.odd = !perf.odd;
   if (hunt) huntFrame(now);
+  if (moveHeld.size || keyMoving) keyMove();   // v373 WASD · 화살표
   if (!saver.on && !hunt && (perf.cap30 || modalOpen()) && perf.odd) { requestAnimationFrame(frame); return; }
   try { step(now ?? performance.now()); } catch (e) {
     if (loopErr++ < 5) console.error('[프레임]', e);
@@ -2820,8 +2850,27 @@ window.__test_cloudPush = () => cloudPush(true);
 window.__test_checkGifts = () => checkGifts();     // 시험: 1분을 기다리지 않고 우편함을 본다
 window.__test_weekReward = () => { game.s.wbClaimed = null; wbChecked = true; return checkWeekReward(); };   // v318 시험: 지난주 순위 보상을 바로 본다
 applyUiScale();   // v324 컴퓨터에서는 화면에 맞춰 키운다(상수들이 다 정의된 뒤에)
-// v326 컴퓨터 단축키 — 1~5 무공 · Q 물약 · A 자동 사냥 · H 사냥터 · M 지도 · B 가방 · C 캐릭터 · Esc 창 닫기
-const HOTKEY_TAB = { m: 'map', b: 'bag', c: 'char', t: 'town', d: 'dgn', g: 'social', p: 'comp' };
+// v326 컴퓨터 단축키 — 1~5 무공 · Q 물약 · F 자동 사냥 · H 사냥터 · M 지도 · B 가방 · C 캐릭터 · R 던전 · Esc 창 닫기
+// v373 WASD · 화살표로 걷는다(누르는 동안 그쪽으로, 떼면 그 자리에 선다 — 잠깐 뒤 자동 사냥이 이어서). A·D가 이동이 되어 자동 사냥은 F, 던전은 R
+const HOTKEY_TAB = { m: 'map', b: 'bag', c: 'char', t: 'town', r: 'dgn', g: 'social', p: 'comp' };
+const MOVE_KEYS = { w: [0, -1], arrowup: [0, -1], s: [0, 1], arrowdown: [0, 1], a: [-1, 0], arrowleft: [-1, 0], d: [1, 0], arrowright: [1, 0] };
+const moveHeld = new Set();
+let keyMoving = false;
+function keyMove() {
+  let dx = 0, dy = 0;
+  for (const k of moveHeld) { const v = MOVE_KEYS[k]; dx += v[0]; dy += v[1]; }
+  dx = Math.sign(dx); dy = Math.sign(dy);
+  if ((dx || dy) && game.s.job && !game.map.town && !modalOpen() && !saver.on) {
+    // 두 칸 앞을 찍어 끊김 없이 — 벽·끝이면 moveTo가 가둔다
+    game.moveTo((game.hc + dx * 2 + 0.5) * W.TILE, (game.hr + dy * 2 + 0.5) * W.TILE);
+    keyMoving = true;
+  } else if (keyMoving) {
+    keyMoving = false;
+    if (!game.map.town) game.manual = { c: game.hc, r: game.hr };   // 그 자리에 선다
+  }
+}
+window.addEventListener('keyup', (e) => { moveHeld.delete(e.key.toLowerCase()); });
+window.addEventListener('blur', () => moveHeld.clear());
 document.addEventListener('keydown', (e) => {
   if (e.ctrlKey || e.metaKey || e.altKey || e.isComposing) return;
   const tag = (e.target?.tagName || '').toLowerCase();
@@ -2834,9 +2883,10 @@ document.addEventListener('keydown', (e) => {
     return;
   }
   if (modalOpen()) return;
+  if (MOVE_KEYS[k]) { moveHeld.add(k); e.preventDefault(); return; }
   if (/^[1-5]$/.test(k)) { skillEls[+k - 1]?.btn?.click(); e.preventDefault(); return; }
   if (k === 'q') { potionEl?.click(); return; }
-  if (k === 'a') { autoEl?.click(); return; }
+  if (k === 'f') { autoEl?.click(); return; }
   if (k === 'h') { goHuntNow(); return; }
   if (k === 't' && !tabLocked('town') && activeTab !== 'town') { goTownNow(); return; }
   const tab = HOTKEY_TAB[k];

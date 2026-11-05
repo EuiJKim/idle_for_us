@@ -235,6 +235,31 @@ const profile = (extra = {}) => ({ world: 1, nickname: '무인', level: 10, job:
   ok(await allowed(F.updateDoc(friend.ref('guilds', gid, 'raids', rk), { [`claimed.${friend.uid}`]: true })), '쓰러진 뒤 내 보상 표시');
   ok(await denied(F.updateDoc(friend.ref('guilds', gid, 'raids', rk), { [`claimed.${boss.uid}`]: true })), '남의 보상 표시 거부');
 
+  console.log('# 월드보스 (v373)');
+  {
+    const day = '2026-11-05';
+    const base = { boss: 'hyeolma', maxHp: 1000, total: 0, damage: {}, names: {}, claimed: {}, killedAt: null, killer: null, createdAt: F.serverTimestamp() };
+    ok(await denied(F.setDoc(bad.ref('wraid', day), { ...base, total: 1000 })), '처음부터 쓰러진 월드보스 만들기 거부');
+    ok(await denied(F.setDoc(bad.ref('wraid', day), { ...base, maxHp: 1 })), '체력 1짜리 월드보스 거부');
+    ok(await denied(F.setDoc(bad.ref('wraid', '2026-11'), base)), '이상한 날 열쇠 거부');
+    ok(await allowed(F.setDoc(friend.ref('wraid', day), base)), '누구나(문파 없이도) 오늘 월드보스를 연다');
+    ok(await denied(F.updateDoc(bad.ref('wraid', day), { maxHp: 1000000 })), '체력 바꾸기 거부');
+    ok(await denied(F.updateDoc(bad.ref('wraid', day), { [`claimed.${bad.uid}`]: true })), '쓰러지기 전에 받기 거부');
+    ok(await denied(F.updateDoc(bad.ref('wraid', day), { total: 500, [`damage.${bad.uid}`]: 10, [`names.${bad.uid}`]: '나쁜' })), '친 것보다 체력 더 깎기 거부');
+    ok(await denied(F.updateDoc(bad.ref('wraid', day), { total: 10, [`damage.${friend.uid}`]: 10 })), '남의 피해 고치기 거부');
+    ok(await denied(F.updateDoc(bad.ref('wraid', day), { total: 10, [`damage.${bad.uid}`]: 10, [`names.${bad.uid}`]: '나쁜', killer: bad.uid, killedAt: F.serverTimestamp() })), '안 쓰러졌는데 마무리 표시 거부');
+    ok(await allowed(F.updateDoc(bad.ref('wraid', day), { total: 100, [`damage.${bad.uid}`]: 100, [`names.${bad.uid}`]: '나쁜' })), '정상 일격');
+    ok(await denied(F.updateDoc(friend.ref('wraid', day), { total: 1000, [`damage.${friend.uid}`]: 900, [`names.${friend.uid}`]: '친구' })), '마무리 일격인데 killedAt·killer 없으면 거부');
+    ok(await denied(F.updateDoc(friend.ref('wraid', day), { total: 1000, [`damage.${friend.uid}`]: 900, [`names.${friend.uid}`]: '친구', killedAt: F.serverTimestamp(), killer: bad.uid })), '마무리 일격을 남 이름으로 거부');
+    ok(await allowed(F.updateDoc(friend.ref('wraid', day), { total: 1000, [`damage.${friend.uid}`]: 900, [`names.${friend.uid}`]: '친구', killedAt: F.serverTimestamp(), killer: friend.uid })), '마무리 일격');
+    ok(await denied(F.updateDoc(bad.ref('wraid', day), { total: 1000, [`damage.${bad.uid}`]: 200 })), '쓰러진 뒤 더 치기 거부');
+    ok(await allowed(F.updateDoc(friend.ref('wraid', day), { [`claimed.${friend.uid}`]: true })), '쓰러진 뒤 내 보상 표시');
+    ok(await denied(F.updateDoc(bad.ref('wraid', day), { [`claimed.${friend.uid}`]: false })), '남의 보상 표시 거부');
+    ok(await denied(F.updateDoc(boss.ref('wraid', day), { [`claimed.${boss.uid}`]: true })), '안 친 사람은 보상 표시 거부');
+    ok(await allowed(F.getDoc(boss.ref('wraid', day))), '누구나 읽는다');
+    ok(await denied(F.deleteDoc(friend.ref('wraid', day))), '지우기 거부');
+  }
+
   console.log('# 창고');
   ok(await denied(F.addDoc(F.collection(friend.db, 'guilds', gid, 'stash'), { kind: 'equip', type: 'weapon', grade: 99, uid: friend.uid })), '없는 등급 장비 넣기 거부');
   ok(await denied(F.addDoc(F.collection(friend.db, 'guilds', gid, 'stash'), { kind: 'equip', type: 'weapon', grade: 1, uid: boss.uid })), '남 이름으로 넣기 거부');

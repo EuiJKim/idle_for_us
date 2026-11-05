@@ -71,6 +71,7 @@ export function newWorldSave(now = Date.now()) {
     zPity: {},                               // 신마다 신수 없이 뽑은 횟수 (셋째에 꼭)
     mast: {},                                // 지역 숙련도 (v127) — 지역 번호: 잡은 수
     raid: { day: '', n: 0, dps: 0 },         // 문파 토벌 (v128): 오늘 친 횟수 · 마지막 초당 피해
+    wraid: { day: '', n: 0, dps: 0, kills: 0, top1: 0 },   // v373 월드보스: 오늘 친 횟수 · 초당 피해 · 잡힌 것을 받은 수 · 1위 수
     prot: 0,                                 // 강화 보호부 (v150)
     duel: { won: {} },                       // 고수 (v148): 처음 쓰러뜨린 고수 — 영구 능력치
     quest: 0,                                // 길잡이 (v139): 받은 단계 수 — 지금 할 일은 QUESTS[quest]
@@ -248,6 +249,9 @@ export function migrateWorld(raw, now = Date.now()) {
   s.questGift = Number.isInteger(raw.questGift) ? raw.questGift : -1;
   const rd = raw.raid && typeof raw.raid === 'object' ? raw.raid : {};
   s.raid = { day: typeof rd.day === 'string' ? rd.day : '', n: clamp(Math.floor(Number(rd.n) || 0), 0, D.RAID_PER_DAY), dps: Math.max(0, Number(rd.dps) || 0) };
+  { const w = raw.wraid && typeof raw.wraid === 'object' ? raw.wraid : {};   // v373 월드보스
+    s.wraid = { day: typeof w.day === 'string' ? w.day.slice(0, 10) : '', n: clamp(Math.floor(Number(w.n) || 0), 0, D.WRAID_PER_DAY), dps: Math.max(0, Number(w.dps) || 0),
+      kills: Math.max(0, Math.floor(Number(w.kills) || 0)), top1: Math.max(0, Math.floor(Number(w.top1) || 0)) }; }
   s.mast = {};
   for (const [k, v] of Object.entries(raw.mast || {})) if (W.zoneOfW(+k) && v > 0) s.mast[k] = Math.floor(Number(v) || 0);
   s.zTickets = {}; s.zPity = {};
@@ -413,6 +417,8 @@ export class WorldGame {
       case 'titles15': return this.titleSet().n >= 15;
       case 'k100k': return (s.kills || 0) >= 100000;
       case 'k1m': return (s.kills || 0) >= 1000000;
+      case 'wraid10': return (s.wraid?.kills || 0) >= 10;
+      case 'wraid1': return (s.wraid?.top1 || 0) >= 1;
       default: return false;
     }
   }
@@ -1112,7 +1118,8 @@ export class WorldGame {
       const dist = this.tileDist(m, ht);
       if (dist < W.MOB_AGGRO || m.aggro) m.aggro = dist < W.MOB_AGGRO * 2;
       if (m.aggro) {
-        const reach = m.isBoss ? W.MOB_REACH * 1.5 : W.MOB_REACH;
+        const reach = m.wb ? W.MOB_REACH * 4 : m.isBoss ? W.MOB_REACH * 1.5 : W.MOB_REACH;   // v373 월드보스는 버티고 서서 멀리서 친다
+        if (dist > reach && m.wb) continue;
         if (dist > reach) {
           // 곧장 다가가고, 막혔으면 돌아서 (가끔만 길을 찾는다 — 몹이 많아서)
           let st2 = this.nextStep(m.c, m.r, ht.c, ht.r, m);
@@ -4157,13 +4164,29 @@ export class WorldGame {
       if (I.wait <= 0) {
         const b = this.spawnMob(true);
         I.boss = b;
-        if (b && I.kind === 'raid') { b.lv = this.s.level + 5; b.maxHp = I.sharedMax; b.hp = I.hpLeft; b.atk = W.mobAtk(b.lv) * W.BOSS.atk; b.armor = 0; b.grade = 3; }
+        if (b && I.kind === 'wraid') { b.lv = this.s.level + 8; b.maxHp = I.sharedMax; b.hp = I.hpLeft; b.baseAtk = W.mobAtk(b.lv) * W.BOSS.atk * 1.2; b.armor = 0; b.grade = 3; b.wb = I.boss0; I.rage = -1;
+          // 거대한 두목은 무인과 같은 줄 오른쪽에 버티고 선다(위에 서면 무인 뒤에 가려진다)
+          const h = this.heroTile(); const c = Math.min(W.COLS - 3, h.c + 3);
+          if (this.inMap(c, h.r)) { b.c = b.hc = c; b.r = b.hr = h.r; b.x = W.tileCenter(c); b.y = W.tileCenter(h.r); b.move = null; } }
+        else if (b && I.kind === 'raid') { b.lv = this.s.level + 5; b.maxHp = I.sharedMax; b.hp = I.hpLeft; b.atk = W.mobAtk(b.lv) * W.BOSS.atk; b.armor = 0; b.grade = 3; }
         else if (b && I.hard) { b.lv = D.hardLv(I.stage); b.maxHp = b.hp = D.hardHp(I.stage); b.atk = D.hardAtk(I.stage); b.armor = W.mobDef(b.lv); b.grade = 3; b.hardFx = D.hardMountOf(I.stage)?.fx || 'hard'; }
         else if (b) { b.lv = D.towerLv(I.stage); b.maxHp = b.hp = D.towerHp(I.stage); b.atk = D.towerAtk(I.stage); b.armor = W.mobDef(b.lv); if (D.isZodiacFloor(I.stage)) b.grade = 3; }
       }
       return;
     }
     // 수문장 초식 — 바닥 경고
+    // v373 월드보스 — 함께 깎은 체력이 반·1/5 아래면 분노·광폭(공격·초식 빠르기)
+    if (I.kind === 'wraid') {
+      const b = this.mons.find((m) => m.isBoss && m.alive);
+      if (b) {
+        const rg = D.wraidRage(Math.max(0, b.hp) / b.maxHp);
+        if (rg !== I.rage) { const up = I.rage >= 0 && rg > I.rage; I.rage = rg; b.atk = b.baseAtk * D.WRAID_RAGE[rg].atk; if (up) this.emit('wraidRage', { rage: rg, name: D.WRAID_RAGE[rg].name, x: b.x, y: b.y }); }
+        if (!(b.introT > 0) && !(b.stun > 0)) {
+          I.castT -= dt;
+          if (I.castT <= 0) { I.castT = D.castGap(45) * 1.1 * D.WRAID_RAGE[rg].gap; this.bossCast(b, 45, 0.5 * D.WRAID_RAGE[rg].atk); }
+        }
+      }
+    }
     if (I.kind === 'tower' || I.kind === 'raid') {
       const b = this.mons.find((m) => m.isBoss && m.alive && !(m.introT > 0));
       if (b && !(b.stun > 0)) {
@@ -4183,7 +4206,7 @@ export class WorldGame {
       I.kills++;
       this.respawns.push({ t: D.DAILY_RESPAWN });
       if (I.kills >= I.target) I.done = { ok: true };
-    } else if ((I.kind === 'tower' || I.kind === 'raid') && m.isBoss) I.done = { ok: true };
+    } else if ((I.kind === 'tower' || I.kind === 'raid' || I.kind === 'wraid') && m.isBoss) I.done = { ok: true };
   }
   // 수문장 초식: 그 층의 초식 가운데 하나를 골라 바닥에 경고를 깐다 (D.tellDelay초 뒤 터진다)
   bossCast(b, f, dmgMul = 1, pats = D.towerPatterns(f), skillName = null, opt = {}) {
@@ -4353,6 +4376,33 @@ export class WorldGame {
       hpLeft: o.hpLeft, sharedMax: o.maxHp, z });
     return true;
   }
+  // ---------- v373 월드보스 ----------
+  wraidLeft(now = Date.now()) {
+    const r = this.s.wraid;
+    return r.day === D.kstDay(now) ? Math.max(0, D.WRAID_PER_DAY - r.n) : D.WRAID_PER_DAY;
+  }
+  canWraid(hpLeft, now = Date.now()) { return !this.inst && !!this.s.job && this.s.level >= D.WRAID_LV && this.wraidLeft(now) > 0 && hpLeft > 0; }
+  // o: { day, hpLeft, maxHp } — 서버 문서에서
+  startWraid(o, now = Date.now()) {
+    if (!this.canWraid(o.hpLeft, now)) return false;
+    const r = this.s.wraid;
+    if (r.day !== D.kstDay(now)) { r.day = D.kstDay(now); r.n = 0; }
+    r.n++;
+    const z = W.mapOf(this.s.huntMap).mz || 1;
+    const boss = D.wraidBossOf(o.day);
+    this.startInst({ kind: 'wraid', key: o.day, boss0: boss.id, map: D.wraidMap(boss, this.s.level, z), t: D.WRAID_SEC, max: D.WRAID_SEC, wait: 1.2, castT: 3,
+      hpLeft: o.hpLeft, sharedMax: o.maxHp, z });
+    return true;
+  }
+  // 잡혔을 때 받기 — rank: 피해 순위(1부터). 서버에서 받음 표시를 한 뒤에 부른다
+  wraidClaim(rank) {
+    const r = this.s.wraid;
+    r.kills++;
+    if (rank === 1) r.top1++;
+    const out = this.grant(D.wraidKillReward(this.s.level, rank));
+    this.checkTitles?.();
+    return out;
+  }
   // 서열·토벌 체력 셈에 올리는 초당 피해 (토벌을 쳐 봤으면 그 값, 아니면 어림)
   raidDpsEst() {
     if (this.s.raid?.dps > 0) return this.s.raid.dps;
@@ -4404,6 +4454,14 @@ export class WorldGame {
       this.s.tower.floor = Math.max(this.s.tower.floor, I.stage);
       this._stats = null;
       reward = this.grant(D.towerReward(I.stage));
+    } else if (I.kind === 'wraid') {
+      // v373 친 만큼 — 서버에는 그리는 쪽(wmain → WNet)이 올린다
+      I.dealt = I.boss ? Math.max(0, Math.round(I.hpLeft - Math.max(0, I.boss.hp))) : 0;
+      const spent = Math.max(1, I.max - Math.max(0, I.t));
+      if (I.dealt > 0) {
+        this.s.wraid.dps = Math.round(I.dealt / spent);
+        reward = this.grant(D.wraidJoinReward(this.s.level, I.dealt / Math.max(1, I.sharedMax)));
+      }
     } else if (I.kind === 'raid') {
       // 친 만큼 — 서버에 올리는 건 그리는 쪽(wmain → WNet)이 한다
       I.dealt = I.boss ? Math.max(0, Math.round(I.hpLeft - Math.max(0, I.boss.hp))) : 0;
@@ -4579,7 +4637,7 @@ export class WorldGame {
 // 길잡이가 보는 '해 봤나' (v146) — 이룬 때만 센다(돌려준 값이 참일 때). always는 부르기만 하면.
 for (const [fn, key, always] of [
   ['craftSet', 'set'], ['craftKacc', 'kacc'], ['makeStone', 'stone'], ['promote', 'promote'], ['enhance', 'enhance'],
-  ['sweepDaily', 'sweep'], ['drawZodiac', 'zodiac'], ['buyStatBook', 'book'], ['buyBagSpace', 'bag'], ['startRaid', 'raid'],
+  ['sweepDaily', 'sweep'], ['drawZodiac', 'zodiac'], ['buyStatBook', 'book'], ['buyBagSpace', 'bag'], ['startRaid', 'raid'], ['startWraid', 'wraid'],
   ['killTreasure', 'treasure', true], ['moveTo', 'move', true],
   ['convertMats', 'convert'], ['buyProt', 'prot'], ['rerollImpSkill', 'reimp'], ['changeImpSpecial', 'reimp'],
 ]) {
