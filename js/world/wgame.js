@@ -119,6 +119,9 @@ export function migrateWorld(raw, now = Date.now()) {
   // v315 가린 무인 — uid·이름만, 200명까지
   s.chatMute = (Array.isArray(raw.chatMute) ? raw.chatMute : []).filter((x) => x && typeof x.uid === 'string' && x.uid.length <= 128)
     .map((x) => ({ uid: x.uid, name: String(x.name || '무명').slice(0, 12) })).filter((x, i, a) => a.findIndex((y) => y.uid === x.uid) === i).slice(0, 200);
+  // v371 자동 강화 설정 — max: 몇 강까지(1~AUTO_ENH_MAX) · slots: {칸: false면 건너뜀} · keep: 남길 은자 몫(0·10·30·50%)
+  { const c = raw.autoEnhCfg && typeof raw.autoEnhCfg === 'object' ? raw.autoEnhCfg : {}; const sl = {}; for (const k of W.GROW_SLOTS) if (c.slots?.[k] === false) sl[k] = false;
+    s.autoEnhCfg = { max: Math.max(1, Math.min(W.AUTO_ENH_MAX, Math.floor(Number(c.max) || W.AUTO_ENH_MAX))), slots: sl, keep: [0, 10, 30, 50].includes(c.keep) ? c.keep : 0 }; }
   // v292 자동 등급 각인 고르기 — only: 고른 증표만 · marks: {증표: 고유 효과 번호} · slots: {칸: false면 건너뜀}
   { const c = raw.autoInfCfg && typeof raw.autoInfCfg === 'object' ? raw.autoInfCfg : {}; const mk = {}; for (const [k, v] of Object.entries(c.marks || {})) if (W.isMarkKey(k)) mk[k] = Math.max(0, Math.min(2, Math.floor(Number(v) || 0)));
     const sl = {}; for (const k of W.GROW_SLOTS) if (c.slots?.[k] === false) sl[k] = false;
@@ -3454,9 +3457,13 @@ export class WorldGame {
     const out = { enh: 0, inf: 0 };
     const worn = () => W.GROW_SLOTS.map((k) => this.s.equip[k]).filter(Boolean);
     if (this.s.autoEnh) {
+      // v371 설정 — 몇 강까지 · 어느 칸 · 은자 얼마 남기기
+      const ec = this.s.autoEnhCfg || {};
+      const emax = Math.max(1, Math.min(W.AUTO_ENH_MAX, ec.max || W.AUTO_ENH_MAX));
+      const ekeep = Math.max(reserve, Math.floor(this.s.gold * (ec.keep || 0) / 100));
       for (let n = 0; n < 30; n++) {
         // v324 자동 강화는 +10(돌파 전)까지만 — 돌파(증표·보호부·부서짐)는 직접
-        const it = worn().sort((a, b) => (a.plus || 0) - (b.plus || 0)).find((x) => (x.plus || 0) < W.AUTO_ENH_MAX && this.canEnhance(x) && this.s.gold - this.enhanceCost(x) > reserve);
+        const it = worn().filter((x) => ec.slots?.[x.slot] !== false).sort((a, b) => (a.plus || 0) - (b.plus || 0)).find((x) => (x.plus || 0) < emax && this.canEnhance(x) && this.s.gold - this.enhanceCost(x) > ekeep);
         if (!it) break;
         this.enhance(it.uid, true); out.enh++;
       }

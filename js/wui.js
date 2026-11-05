@@ -1117,7 +1117,7 @@ function bagTab(app) {
   function gearView() {
     const s = game.s;
     // v256: 등급(rar)·각인 칸 수도 — 가방 속 장비를 각인으로 올려도 타일 색·등급이 그대로였다
-    const nsig = `${game.statSig()}|${s.bag.map((i) => `${i.uid}.${i.plus || 0}.${i.rar || 0}.${(i.imps || []).filter(Boolean).length}`).join(',')}|${s.bagSize}|${ui.slot}|${s.autoJunk ? 1 : 0}.${s.junkLog?.n || 0}|${s.gold >= game.bagUpgradeCost()}`;
+    const nsig = `${game.statSig()}|${s.bag.map((i) => `${i.uid}.${i.plus || 0}.${i.rar || 0}.${(i.imps || []).filter(Boolean).length}`).join(',')}|${s.bagSize}|${ui.slot}|${s.autoJunk ? 1 : 0}.${s.junkLog?.n || 0}|${s.gold >= game.bagUpgradeCost()}|${s.autoEnh ? 1 : 0}${s.autoInf ? 1 : 0}.${JSON.stringify(s.autoEnhCfg || 0)}.${JSON.stringify(s.autoInfCfg || 0).length}`;   // v371 자동 설정이 바뀌면 다시
     if (nsig === sigs.gear) return;
     sigs.gear = nsig;
     // 낀 여섯 칸 — 셋씩 두 줄
@@ -1151,11 +1151,14 @@ function bagTab(app) {
         h('div', { class: 'gear-grid' }, ...tiles),
         // v262 자동 강화·등급 각인
         h('div', { class: 'auto-gear' },
-          h('label', {}, h('input', { type: 'checkbox', checked: s.autoEnh ? true : null, onchange: (e) => { game.s.autoEnh = e.target.checked; app.save(); } }), ' 자동 강화', h('small', {}, ` 낮은 칸부터 +${W.AUTO_ENH_MAX}까지 · 돌파(+${W.AUTO_ENH_MAX + 1}~)는 직접`)),
           h('div', { class: 'auto-inf-line' },
-            h('label', {}, h('input', { type: 'checkbox', checked: s.autoInf ? true : null, onchange: (e) => { game.s.autoInf = e.target.checked; app.save(); } }), ' 자동 등급 각인',
+            h('label', {}, h('input', { type: 'checkbox', checked: s.autoEnh ? true : null, onchange: (e) => { game.s.autoEnh = e.target.checked; app.save(); if (e.target.checked) openAutoEnhCfg(app); } }), ' 자동 강화',
+              h('small', {}, ` 낮은 칸부터 +${s.autoEnhCfg?.max || W.AUTO_ENH_MAX}까지`, Object.values(s.autoEnhCfg?.slots || {}).some((v) => v === false) ? ` · ${W.GROW_SLOTS.filter((k) => s.autoEnhCfg.slots[k] !== false).length}칸만` : '', s.autoEnhCfg?.keep ? ` · 은자 ${s.autoEnhCfg.keep}% 남김` : '', ` · 돌파(+${W.AUTO_ENH_MAX + 1}~)는 직접`)),
+            h('button', { class: 'btn', id: 'auto-enh-cfg', style: 'padding:4px 10px;font-size:12px', onclick: () => openAutoEnhCfg(app) }, '설정')),
+          h('div', { class: 'auto-inf-line' },
+            h('label', {}, h('input', { type: 'checkbox', checked: s.autoInf ? true : null, onchange: (e) => { game.s.autoInf = e.target.checked; app.save(); if (e.target.checked) openAutoInfCfg(app); } }), ' 자동 등급 각인',
               h('small', {}, s.autoInfCfg?.mode === 'pref' ? ` 좋아하는 효과 ${(s.autoInfCfg.prefFx || []).length + (s.autoInfCfg.prefSp || []).length}가지로` : s.autoInfCfg?.mode === 'pick' || s.autoInfCfg?.only ? ` 고른 증표 ${Object.keys(s.autoInfCfg.marks).length}가지만` : ' 센 증표부터', Object.values(s.autoInfCfg?.slots || {}).some((v) => v === false) ? ` · ${W.GROW_SLOTS.filter((k) => s.autoInfCfg.slots[k] !== false).length}칸만` : '', ' · 돌파용 증표는 남겨요')),
-            h('button', { class: 'btn', style: 'padding:4px 10px;font-size:12px', onclick: () => openAutoInfCfg(app) }, '고르기')))),
+            h('button', { class: 'btn', style: 'padding:4px 10px;font-size:12px', id: 'auto-inf-cfg', onclick: () => openAutoInfCfg(app) }, '설정')))),
       ...setNow.map(({ st }) => setBox(game, st)),
     ].filter(Boolean));
     bagRoot.replaceChildren(...[
@@ -2340,6 +2343,31 @@ export function openTitles(app) {
       h('div', { class: 'btn-row' }, h('button', { class: 'btn primary', onclick: closeModal }, '닫기')));
   });
 }
+// v371 자동 강화 설정 — 켜는 순간 열린다 · 몇 강까지 · 어느 칸 · 은자 남기기
+export function openAutoEnhCfg(app, onClose) {
+  const { game } = app;
+  const cfg = game.s.autoEnhCfg || (game.s.autoEnhCfg = { max: W.AUTO_ENH_MAX, slots: {}, keep: 0 });
+  cfg.slots = cfg.slots || {};
+  const SLOT_NAME = Object.fromEntries(W.SLOTS.map((x) => [x.id, x.name]));
+  const done = () => { app.save(); draw(); app.refresh(); };
+  let box = null;
+  const draw = () => {
+    if (!box) return;
+    const on = !!game.s.autoEnh;
+    box.replaceChildren(...[
+      h('h2', {}, '자동 강화 설정'),
+      h('div', { class: 'ainf-sec' }, h('label', { class: 'chk' }, h('input', { type: 'checkbox', id: 'aenh-on', checked: on ? true : null, onchange: (e) => { game.s.autoEnh = !!e.target.checked; done(); } }), ' 자동 강화 켜기'),
+        h('small', { class: 'muted' }, ' 5초마다 가장 낮은 칸부터 한 강씩 올려요')),
+      h('div', { class: 'ainf-sec' }, h('b', {}, '몇 강까지'), h('small', { class: 'muted' }, ` 돌파(+${W.AUTO_ENH_MAX + 1}~)는 언제나 직접`),
+        h('div', { class: 'ainf-slots' }, ...Array.from({ length: W.AUTO_ENH_MAX }, (_, i) => i + 1).map((n) => h('button', { class: `chip${(cfg.max || W.AUTO_ENH_MAX) === n ? ' on' : ''}`, onclick: () => { cfg.max = n; done(); } }, `+${n}`)))),
+      h('div', { class: 'ainf-sec' }, h('b', {}, '어느 칸에'), h('small', { class: 'muted' }, ' 끈 칸은 자동이 건드리지 않아요'),
+        h('div', { class: 'ainf-slots' }, ...W.GROW_SLOTS.map((k) => h('button', { class: `chip${cfg.slots[k] === false ? '' : ' on'}`, onclick: () => { if (cfg.slots[k] === false) delete cfg.slots[k]; else cfg.slots[k] = false; done(); } }, SLOT_NAME[k] || k)))),
+      h('div', { class: 'ainf-sec' }, h('b', {}, '은자 남기기'), h('small', { class: 'muted' }, ' 가진 은자의 이만큼은 강화에 쓰지 않아요(물약 값은 늘 남겨요)'),
+        h('div', { class: 'ainf-slots' }, ...[0, 10, 30, 50].map((n) => h('button', { class: `chip${(cfg.keep || 0) === n ? ' on' : ''}`, onclick: () => { cfg.keep = n; done(); } }, n ? `${n}%` : '안 남김')))),
+      h('div', { class: 'btn-row' }, h('button', { class: 'btn primary', onclick: closeModal }, '닫기'))]);
+  };
+  openModal((s) => { box = s; draw(); }, { onClose });
+}
 export function openAutoInfCfg(app, onClose) {
   const { game } = app;
   const cfg = game.s.autoInfCfg || (game.s.autoInfCfg = { mode: 'all', only: false, marks: {}, slots: {}, prefFx: [], prefSp: [] });
@@ -2396,8 +2424,9 @@ export function openAutoInfCfg(app, onClose) {
         sps && on ? h('div', { class: 'sp-pick' }, h('small', {}, '새길 고유 효과'), ...sps.map((sp, j) => h('button', { class: `chip${(cfg.marks[k] || 0) === j ? ' on' : ''}`, onclick: () => { cfg.marks[k] = j; done(); } }, h('b', {}, sp.name), h('small', {}, ` ${IM.SPECIAL_KIND[sp.kind](1)}`)))) : null);
     });
     box.replaceChildren(...[
-      h('h2', {}, '자동 등급 각인 고르기'),
+      h('h2', {}, '자동 등급 각인 설정'),
       h('p', { class: 'muted', style: 'font-size:12.5px;margin-top:-4px' }, '등급 각인에 성공하면 그 두목의 테마 능력치와 고유 효과가 장비 칸에 새겨져요. 원하는 것만 새기도록 고를 수 있어요.'),
+      h('div', { class: 'ainf-sec' }, h('label', { class: 'chk' }, h('input', { type: 'checkbox', id: 'ainf-on', checked: game.s.autoInf ? true : null, onchange: (e) => { game.s.autoInf = !!e.target.checked; done(); } }), ' 자동 등급 각인 켜기')),
       h('div', { class: 'ainf-sec' }, h('b', {}, '어떤 증표를'),
         h('div', { class: 'btn-row' },
           h('button', { class: `chip${cfg.mode === 'all' ? ' on' : ''}`, onclick: () => { setMode('all'); done(); } }, '센 증표부터'),

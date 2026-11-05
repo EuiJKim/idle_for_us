@@ -3293,5 +3293,25 @@ console.log('\n=== v325 성별·무기 모양·기믹 · 1차 전직 전 직업 
   ok(!read('index.html').includes('data-tab="hunt"') && read('index.html').includes('id="go-hunt"') && read('js/wmain.js').includes('function goHuntNow'), 'v341 사냥 단추는 아래 줄에서 빼고 마을에서만 들판에 \'사냥하러 가기\'');
 }
 
+console.log('\n=== v371 자동 강화 설정 ===');
+{
+  const g = fresh('sword');
+  while (g.s.level < 60) g.addExp(W.expToNext(g.s.level));
+  g.s.gold = 1e15; g.s.autoEnh = true; g.s.autoInf = false;
+  ok(migrateWorld(newWorldSave()).autoEnhCfg.max === W.AUTO_ENH_MAX, '기본은 +10까지');
+  ok(migrateWorld({ ...newWorldSave(), autoEnhCfg: { max: 99, keep: 7, slots: { weapon: false, x: false } } }).autoEnhCfg.max === W.AUTO_ENH_MAX, '이상한 값은 고친다');
+  for (const z of Object.keys(W.MATS)) { g.addMats(z, 1e9); g.addMats(W.bossKey(z), 1e6); } g.addMats(W.ORE, 1e12); g.rng = () => 0;
+  g.s.autoEnhCfg = { max: 3, slots: { weapon: false }, keep: 0 };
+  for (let i = 0; i < 20; i++) g.autoGear();
+  const ws = W.GROW_SLOTS.map((k) => g.s.equip[k]).filter(Boolean);
+  ok(ws.filter((x) => x.slot !== 'weapon').every((x) => (x.plus || 0) <= 3) && ws.some((x) => x.slot !== 'weapon' && x.plus === 3), '정한 강까지만', ws.map((x) => `${x.slot}+${x.plus || 0}`).join(' '));
+  ok((g.s.equip.weapon?.plus || 0) === 0, '끈 칸은 안 건드린다');
+  const g2 = fresh('sword'); while (g2.s.level < 60) g2.addExp(W.expToNext(g2.s.level));
+  for (const z of Object.keys(W.MATS)) g2.addMats(z, 1e9); g2.addMats(W.ORE, 1e12); g2.rng = () => 0;
+  g2.s.gold = 1e9; g2.s.autoEnh = true; g2.s.autoEnhCfg = { max: 10, slots: {}, keep: 50 };
+  const g0 = g2.s.gold; g2.autoGear();
+  ok(g2.s.gold >= g0 * 0.5 - 1 && g2.s.gold < g0, '은자 50% 남기기', `${g0} → ${g2.s.gold}`);
+  ok(/openAutoEnhCfg\(app\); \} \}\), ' 자동 강화'/.test(read('js/wui.js')) && /openAutoInfCfg\(app\); \} \}\), ' 자동 등급 각인'/.test(read('js/wui.js')), '켜면 설정 창이 열린다');
+}
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);
