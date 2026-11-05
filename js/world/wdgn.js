@@ -291,65 +291,89 @@ export function tellCovers(tl, x, y) {
   return false;
 }
 
-// ---------- v373 월드보스 · v374 팔마왕(八魔王) 탄막 ----------
-// 서버 wraid/{한국 날짜} 문서 하나에 체력 하나 — 무림 전체가 하루 한 마왕을 함께 깎는다.
-// v374: 언제든 들어간다(횟수 제한 없음) · 한 판 WRAID_SEC초 · 탄막을 피하며 친다(wshmup.js) · 같은 판에 든 무인이 서로 보인다(wbcoop.js).
-//   참여 보상은 하루 WRAID_PAID판까지만(그 뒤에도 피해·순위는 쌓인다). 체력 = 무림 사람들의 초당 피해 합 × 초 × 판 수 × 몫.
+// ---------- v373 월드보스 · v374 칠대성(七大聖) 탄막 · v375 최종 두목 ----------
+// v375 칠대성은 날마다 바뀌지 않는다 — 일곱 모두 늘 서 있는 최종 두목(화무기 그 위). 마왕마다 서버 체력 하나를 무림 전체가 함께 깎는다.
+//   서버: wbp/{마왕} = {seq} 지금 몇 번째 마왕인가 · wraid/{마왕}_{seq} = 그 마왕의 체력·피해·받음. 쓰러지면 누구든 다음 마왕(seq+1)을 바로 세운다.
+//   체력 = 화무기 기본 체력 × WRAID_HP_K(4) — 혼자서는 한참, 같이 쳐야 잡힌다. 옥황상제는 그 × OK_HP_K.
+//   쓰러지면 한 대라도 친 사람은 모두 그 마왕이 맡은 **대성신장 한 부위**(등급은 굴린다) + 순위대로 은자·조각.
+//   대성신장 일곱 부위를 모두 +12 넘게 끼면 천외천 천궁의 **옥황상제**에게 갈 수 있다.
+// 한 판 WRAID_SEC초 · 언제든 · 참여 보상은 하루 WRAID_PAID판까지 · 같은 마왕 판에 든 무인이 서로 보인다(wbcoop.js).
 export const WRAID_SEC = 120;
 export const WRAID_PAID = 5;
-export const WRAID_HP_RUNS = 6;
-export const WRAID_PER_DAY = WRAID_PAID;     // 옛 이름(문서·저장 다듬기) — 참여 보상 몫
-export const WRAID_HP_SHARE = 0.35;
-export const WRAID_MIN_HP = 300000;
-export const WRAID_LV = 30;               // 이 레벨부터
-// 팔마왕 — 서유기의 여덟 요괴 왕. 생김새·빛깔·탄(shot)·패턴 차례
-//   shot: fire 불덩이 · water 물방울 · feather 깃 · gold 금빛 포효 · shade 그림자 혼 · bolt 번개 · spirit 아홉 빛 · sand 모래
+export const WRAID_PER_DAY = WRAID_PAID;     // 옛 이름(저장 다듬기) — 참여 보상 몫
+export const WRAID_HP_K = 4;                 // 화무기 기본 체력의 몇 배
+export const WRAID_PARTS = 7;                // 칠대성 — 대성신장 일곱 부위(귀걸이는 없다)
+export const OK_HP_K = 3;                    // 옥황상제 = 마왕 × 이것
+export const WRAID_LV = 120;                 // 이 레벨부터
+export const OK_PLUS = 12;                   // 옥황상제에게 가려면 대성신장 일곱 부위 모두 이 강화 넘게
+// v375 칠대성(七大聖) — 화과산에서 의형제를 맺은 일곱 요괴 왕(우마왕이 맏형, 손오공이 막내). 생김새·빛깔·탄(shot)·패턴 차례 · 맡은 세트 부위(slot)와 이름(piece)
+//   shot: fire 불덩이 · water 물방울 · feather 깃 · gold 금빛 포효 · shade 그림자 혼 · bolt 번개 · cloud 근두운 금빛 · heaven 천광
 const P = (p, name, o = {}) => ({ p, name, ...o });
 export const WRAID_BOSSES = [
-  { id: 'umawang', name: '우마왕', hanja: '牛魔王', title: '평천대성(平天大聖)', art: 'wb-umawang', col: '#f97316', shot: 'fire',
+  { id: 'umawang', name: '우마왕', hanja: '牛魔王', title: '평천대성(平天大聖)', art: 'wb-umawang', col: '#f97316', shot: 'fire', slot: 'weapon', piece: null,
     pats: [P('fan', '화염 돌진'), P('burst', '파초선 불덩이'), P('ring', '화염산 폭발'), P('rain', '삼매진화')] },
-  { id: 'gyomawang', name: '교마왕', hanja: '蛟魔王', title: '복해대성(覆海大聖)', art: 'wb-gyomawang', col: '#22d3ee', shot: 'water',
+  { id: 'gyomawang', name: '교마왕', hanja: '蛟魔王', title: '복해대성(覆海大聖)', art: 'wb-gyomawang', col: '#22d3ee', shot: 'water', slot: 'armor', piece: '비늘갑',
     pats: [P('wave', '해일'), P('spiral', '소용돌이', { arms: 3 }), P('ring', '물기둥'), P('fan', '용의 숨')] },
-  { id: 'bungmawang', name: '붕마왕', hanja: '鵬魔王', title: '혼천대성(混天大聖)', art: 'wb-bungmawang', col: '#facc15', shot: 'feather',
+  { id: 'bungmawang', name: '붕마왕', hanja: '鵬魔王', title: '혼천대성(混天大聖)', art: 'wb-bungmawang', col: '#facc15', shot: 'feather', slot: 'hat', piece: '금시관',
     pats: [P('fan', '금시 깃털'), P('rain', '깃털 폭풍'), P('cross', '구만리 회오리'), P('spiral', '날개 바람', { arms: 4 })] },
-  { id: 'satawang', name: '사타왕', hanja: '獅駝王', title: '이산대성(移山大聖)', art: 'wb-satawang', col: '#eab308', shot: 'gold',
+  { id: 'satawang', name: '사타왕', hanja: '獅駝王', title: '이산대성(移山大聖)', art: 'wb-satawang', col: '#eab308', shot: 'gold', slot: 'glove', piece: '사자수투',
     pats: [P('ring', '사자후', { big: true }), P('burst', '산 옮기기'), P('fan', '금빛 발톱'), P('homing', '포효의 혼')] },
-  { id: 'mihuwang', name: '미후왕', hanja: '獼猴王', title: '통풍대성(通風大聖)', art: 'wb-mihuwang', col: '#a78bfa', shot: 'shade',
-    pats: [P('homing', '분신술'), P('fan', '여의봉 휘두르기'), P('spiral', '근두운', { arms: 5 }), P('burst', '털 한 줌 분신')] },
-  { id: 'uyungwang', name: '우융왕', hanja: '禺狨王', title: '구신대성(驅神大聖)', art: 'wb-uyungwang', col: '#60a5fa', shot: 'bolt',
+  { id: 'mihuwang', name: '미후왕', hanja: '獼猴王', title: '통풍대성(通風大聖)', art: 'wb-mihuwang', col: '#a78bfa', shot: 'shade', slot: 'shoe', piece: '통풍혜',
+    pats: [P('homing', '육이 분신'), P('fan', '철봉 난타'), P('burst', '털 한 줌'), P('ring', '통풍(通風)')] },
+  { id: 'uyungwang', name: '우융왕', hanja: '禺狨王', title: '구신대성(驅神大聖)', art: 'wb-uyungwang', col: '#60a5fa', shot: 'bolt', slot: 'acc', piece: '뇌정패',
     pats: [P('cross', '뇌정 십자'), P('fan', '긴 팔 번개'), P('rain', '벼락비'), P('ring', '천둥 고리')] },
-  { id: 'guryeong', name: '구령원성', hanja: '九靈元聖', title: '아홉 머리 사자', art: 'wb-guryeong', col: '#f43f5e', shot: 'spirit',
-    pats: [P('spiral', '아홉 머리 포효', { arms: 9 }), P('ring', '구령광'), P('homing', '아홉 혼'), P('burst', '원성의 빛')] },
-  { id: 'hwangpung', name: '황풍대왕', hanja: '黃風大王', title: '누런 바람의 왕', art: 'wb-hwangpung', col: '#d97706', shot: 'sand',
-    pats: [P('wave', '모래 물결'), P('rain', '황사'), P('spiral', '삼매신풍', { arms: 3 }), P('fan', '강철 삼지창')] },
+  { id: 'sonogong', name: '손오공', hanja: '孫悟空', title: '제천대성(齊天大聖)', art: 'wb-sonogong', col: '#fbbf24', shot: 'cloud', slot: 'finger', piece: '긴고환',
+    pats: [P('cross', '여의봉 팔방'), P('homing', '칠십이변 분신'), P('spiral', '근두운', { arms: 6 }), P('rain', '천궁 대소동'), P('burst', '화안금정')] },
 ];
-export const WRAID_BOSS = Object.fromEntries(WRAID_BOSSES.map((b) => [b.id, b]));
-// 날마다 여덟이 돌아가며
-export function wraidBossOf(day) {
-  const n = Math.floor(Date.parse(day) / 86400e3);
-  return WRAID_BOSSES[((n % WRAID_BOSSES.length) + WRAID_BOSSES.length) % WRAID_BOSSES.length];
-}
-export const wraidMaxHp = (dpsSum) => Math.max(WRAID_MIN_HP, Math.round(dpsSum * WRAID_SEC * WRAID_HP_RUNS * WRAID_HP_SHARE));
+// 천외천 천궁의 주인 — 대성신장 일곱을 +12로 갖춘 자만. 칠대성의 패턴을 섞어 쓴다
+export const OKHWANG = { id: 'okhwang', name: '옥황상제', hanja: '玉皇上帝', title: '천외천 천궁의 주인', art: 'wb-okhwang', col: '#fde68a', shot: 'heaven', final: true,
+  pats: [P('ring', '남천문 천광', { big: true }), P('cross', '사대천사의 진'), P('homing', '천병천장'), P('fan', '탁탑천왕의 보탑'), P('spiral', '나타 풍화륜', { arms: 6 }),
+    P('rain', '이랑진군의 천안'), P('burst', '태상노군의 팔괘로'), P('wave', '반도원 은하수'), P('spiral', '구룡승천', { arms: 9 })] };
+// 천계 이야기 — 천궁 카드의 '이야기'에서 읽는다(서유기의 천계를 이 무림의 말로)
+export const HEAVEN_STORY = [
+  { who: '옥황상제(玉皇上帝)', text: '하늘의 임금. 돌원숭이가 태어나며 쏜 빛에 놀란 날부터, 벼슬을 내려도 연회를 엎고 천궁을 휘젓는 제천대성 때문에 편할 날이 없었다. 이제 칠대성의 신장을 두른 무인이 남천문을 두드리자, 하늘은 다시 시험한다 — 그 힘이 하늘을 지킬 힘인지, 무너뜨릴 힘인지.' },
+  { who: '사대천사(四大天師)', text: '장도릉·갈선옹·허정양·구홍제. 옥황상제 곁에서 하늘의 법을 받드는 네 천사가 진을 펼쳐 문 앞을 막는다.' },
+  { who: '태백금성(太白金星)', text: '천계에서 가장 너그러운 어른. 토벌보다 벼슬을 주자 했던 이 — 무인이 천궁에 오르는 것도 그가 옥황상제를 설득한 덕이다. 손오공조차 그 앞에서는 예를 갖춘다.' },
+  { who: '태상노군(太上老君)', text: '단약을 굽다 손오공에게 몽땅 털린 신선. 팔괘로에 가두어 태우려다 화로만 뒤집혔다. 이번엔 그 팔괘로의 불을 그대로 쏟아낸다.' },
+  { who: '탁탑천왕 이정 · 나타', text: '보탑을 든 천병의 대장과 풍화륜을 탄 그의 셋째 아들. 제천대성을 잡으러 내려왔다 물러난 적이 있다 — 그 설욕을 무인에게 갚으려 한다.' },
+  { who: '현성 이랑진군', text: '이마의 세 번째 눈으로 모든 변신을 꿰뚫는 신장. 칠십이변의 손오공과 맞붙어 끝내 사로잡았던 하늘 최강의 무장.' },
+  { who: '서왕모(西王母)', text: '반도대회를 열었다가 손오공에게 복숭아 잔치를 통째로 망친 여신. 그 원망이 반도원의 은하수가 되어 흐른다.' },
+  { who: '석가여래', text: '하늘조차 손오공을 막지 못했을 때, 손바닥 하나로 그를 오행산 아래에 오백 년 묻었다 — 이 세계의 절대자. 천외천 너머, 아직 아무도 그 손바닥 밖을 본 적이 없다.' },
+];
+export const WRAID_BOSS = Object.fromEntries([...WRAID_BOSSES, OKHWANG].map((b) => [b.id, b]));
+export const WRAID_IDS = [...WRAID_BOSSES.map((b) => b.id), OKHWANG.id];
+export const wraidDocId = (boss, seq) => `${boss}_${seq}`;
+export const wraidBossOfId = (id) => WRAID_BOSS[String(id).split('_')[0]] || WRAID_BOSSES[0];
+// v374 옛 이름 — 날짜로 고르던 것(이제는 문서 이름에서)
+export const wraidBossOf = (id) => WRAID_BOSS[String(id).split('_')[0]] || WRAID_BOSSES[((Math.floor(Date.parse(id) / 86400e3) % 8) + 8) % 8] || WRAID_BOSSES[0];
+// 체력 — hwamugiHp: 화무기 두목의 기본 체력(wgame.hwamugiHp)
+export const wraidMaxHp = (hwamugiHp, boss) => Math.round(Math.max(1e6, hwamugiHp) * WRAID_HP_K * (boss === OKHWANG.id ? OK_HP_K : 1));
 // 광폭 — 남은 체력 몫(0~1)으로. 0: 보통 · 1: 분노(50%↓) · 2: 광폭(20%↓)
 export const wraidRage = (frac) => (frac <= 0.2 ? 2 : frac <= 0.5 ? 1 : 0);
-// atk: 탄 피해 · spd: 탄 빠르기 · dens: 탄 수(빽빽함)
+// atk: 탄 피해 · spd: 탄 빠르기 · dens: 탄 수(빽빽함). 옥황상제는 한 단 더(final)
 export const WRAID_RAGE = [{ atk: 1, spd: 1, dens: 1, gap: 1, name: '' }, { atk: 1.15, spd: 1.12, dens: 1.25, gap: 0.85, name: '분노' }, { atk: 1.3, spd: 1.25, dens: 1.5, gap: 0.7, name: '광폭' }];
-// 한 판마다 — 친 몫(이번 판 피해 / 최대 체력)이 클수록 조금 더(0~+100%)
+export const OK_K = { atk: 1.25, spd: 1.12, dens: 1.2 };
+// 한 판마다 — 친 몫이 클수록 조금 더(0~+100%)
 export const wraidJoinReward = (lv, share = 0) => {
   const k = 1 + Math.min(1, Math.max(0, share) * 20);
   return { gold: Math.round(mobGold(lv) * 600 * k), petShard: Math.round(10 * k), mountShard: Math.round(10 * k) };
 };
-// 잡혔을 때 — 순위로 배율(1위 ×3 · 2~3위 ×2 · 10위까지 ×1.5 · 그 밖 ×1)
+// 잡혔을 때 — 순위로 배율(1위 ×3 · 2~3위 ×2 · 10위까지 ×1.5 · 그 밖 ×1). 옥황상제 ×3
 export const wraidRankK = (rank) => (rank === 1 ? 3 : rank <= 3 ? 2 : rank <= 10 ? 1.5 : 1);
-export const wraidKillReward = (lv, rank) => {
-  const k = wraidRankK(rank);
-  return { gold: Math.round(mobGold(lv) * 4000 * k), petShard: Math.round(40 * k), mountShard: Math.round(40 * k) };
+export const wraidKillReward = (lv, rank, boss) => {
+  const k = wraidRankK(rank) * (boss === OKHWANG.id ? 3 : 1);
+  return { gold: Math.round(mobGold(lv) * 6000 * k), petShard: Math.round(60 * k), mountShard: Math.round(60 * k) };
 };
+// 대성신장 부위 등급 — 1위일수록 좋게(전설 이상이 잘 뜬다)
+//   [레어 · 유니크 · 전설 · 신화] 가중치
+export const PALMA_RAR_W = [0, 0, 60, 40];
+export const palmaRarW = (rank) => (rank === 1 ? [0, 0, 30, 70] : rank <= 3 ? [0, 0, 45, 55] : PALMA_RAR_W);
 // 캔버스 빛(putGlow)은 'r,g,b' 꼴을 받는다
 const hexRgb = (hex) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)).join(',');
 export function wraidMap(boss, lv, z) {
-  return { id: -4, inst: true, name: `월드보스 · ${boss.name}`, zoneName: '월드보스', zone: z, mz: z, area: 0, art: ZONES_W[z]?.art || 1,
-    lv: [lv, lv], mobs: [], boss: { name: boss.name, look: { aura: boss.col }, art: boss.art }, scene: 'raid', bossFirst: true, wb: boss.id, wbCol: hexRgb(boss.col), wbHex: boss.col };
+  const fin = !!boss.final;
+  return { id: -4, inst: true, name: `${fin ? '천외천 · ' : '칠대성 토벌 · '}${boss.name}`, zoneName: fin ? '천외천 천궁' : '칠대성', zone: z, mz: z, area: 0, art: ZONES_W[z]?.art || 1,
+    lv: [lv, lv], mobs: [], boss: { name: boss.name, look: { aura: boss.col }, art: boss.art }, scene: 'raid', bossFirst: true, wb: boss.id, wbCol: hexRgb(boss.col), wbHex: boss.col, final: fin };
 }
 
 // ---------- 문파 토벌 (v128) ----------

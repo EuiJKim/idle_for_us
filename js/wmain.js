@@ -1177,7 +1177,7 @@ function showInstEnd(ev) {
     const send = ev.unsent > 0 ? net.commitWraid(ev.key, ev.unsent) : Promise.resolve(false);
     send.then((killed) => {
       const why = ev.byOther ? ' — 마왕이 쓰러졌어요!' : ev.died ? ' — 쓰러졌어요' : ev.timeout ? ' — 시간 끝' : '';
-      toast(`🌋 마왕 토벌 피해 ${fmt(ev.dealt)}${ev.reward ? ` · 참여 보상 ${rewardText(ev.reward)}` : ev.paid ? '' : ' · 오늘 참여 보상은 다 받았어요(피해·순위는 쌓여요)'}${why}${killed ? ' — 마무리 일격!' : ''}`);
+      toast(`🌋 칠대성 토벌 피해 ${fmt(ev.dealt)}${ev.reward ? ` · 참여 보상 ${rewardText(ev.reward)}` : ev.paid ? '' : ' · 오늘 참여 보상은 다 받았어요(피해·순위는 쌓여요)'}${why}${killed ? ' — 마무리 일격!' : ''}`);
       if (killed || ev.byOther) { sfx('level'); view.shake = Math.max(view.shake || 0, 0.4); }
       app.refresh();
     }).catch((err) => toast(`월드보스 기록 실패: ${err.message || err}`));
@@ -1669,6 +1669,11 @@ function handleEvents() {
         if (b) view.float(`「${ev.name}」`, view.sx(b), view.sy(b) + 40, ev.rage >= 2 ? '#f87171' : '#fde68a', 22, 1.3);
         break;
       }
+      // v375 대성신장 한 부위를 얻었다
+      case 'palmaPiece':
+        sfx('level');
+        toast(`🌋 ${ev.boss}의 대성신장 — 〈${W.itemName(ev.item, game.s.job)}〉 ${W.RARITY[ev.item.rar || 0]?.name || ''} 획득! (가방)`);
+        break;
       // v373 월드보스가 분노·광폭으로 — 크게 알리고 흔든다
       case 'wraidRage':
         sfx('level');
@@ -2330,7 +2335,11 @@ function netChanged(what) {
   if (what === 'guild') { refreshUI(true); }
   // v302 전체 채팅 — 무림 창이 닫혀 있으면 점
   if (what === 'wchat') dot('social', activeTab !== 'social' && net.worldUnread?.() > 0);
-  if (what === 'wraid') { dot('dgn', dailyWaiting(game) || wraidWaiting()); if (game.inst?.kind === 'wraid' && net.wraid) game.wraidSync(net.wraidHpLeft()); }   // v373 · v374 함께 깎은 체력
+  if (what === 'wraid') {   // v373 · v374 함께 깎은 체력 · v375 마왕별 문서
+    dot('dgn', dailyWaiting(game) || wraidWaiting());
+    const I = game.inst;
+    if (I?.kind === 'wraid') { const r = net.wraidOf?.(I.boss0); if (r && r.id === I.key) game.wraidSync(net.wraidHpLeft(r)); else if (r && r.id !== I.key) game.wraidSync(0); }
+  }
   for (const t of Object.values(tabs)) t.netChanged?.(what);
 }
 
@@ -2352,8 +2361,7 @@ function wraidNetTick(dt) {
 // v373 월드보스 — 오늘 칠 수 있거나 받을 보상이 있으면 던전 창에 점
 function wraidWaiting() {
   if (!net.ready?.() || !game.s.job) return false;
-  const r = net.wraid;
-  return !!(net.canClaimWraid?.() || net.wraidPrev || (game.s.level >= D.WRAID_LV && game.wraidLeft() > 0 && (!r || net.wraidHpLeft(r) > 0)));   // 참여 보상이 남았을 때만 점
+  return !!(net.wraidClaims?.().length || (game.s.level >= D.WRAID_LV && game.wraidLeft() > 0));   // 받을 것 · 참여 보상이 남았을 때 점
 }
 // ---------- 루프 ----------
 let last = performance.now();

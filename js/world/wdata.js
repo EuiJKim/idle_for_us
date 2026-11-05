@@ -869,11 +869,15 @@ export function acc2Trait(z, slot) {
   return { [k]: TRAIT_BASE[k] * (1 + z * 0.22) };
 }
 const ACC2_NOUN = { finger: '가락지', ear: '귀걸이' };
+// v375 대성신장 부위 이름 — 맡은 마왕(wdgn.WRAID_BOSSES와 같게)
+export const PALMA_BY_SLOT = { weapon: { name: '우마왕' }, armor: { name: '교마왕', piece: '비늘갑' }, hat: { name: '붕마왕', piece: '금시관' }, glove: { name: '사타왕', piece: '사자수투' },
+  shoe: { name: '미후왕', piece: '통풍혜' }, acc: { name: '우융왕', piece: '뇌정패' }, finger: { name: '손오공', piece: '긴고환' } };
 export const itemName = (item, job) => {
   // v130 왕의 장비 (레벨 100) — 세트 조각 · 공용 장신구
   if (item.king != null) {
     const st = item.set ? setOf(item.set) : null;
     const wn = SLOT_NOUN.weapon[st?.job || job] || '검';
+    if (st?.palma) { const b = PALMA_BY_SLOT[item.slot]; return b ? `${b.name}의 ${item.slot === 'weapon' ? wn : b.piece}` : `팔마${wn}`; }   // v375
     if (st) return `${st.short}${item.slot === 'weapon' ? wn : SET_PIECE[item.slot]}`;
     if (ACC2_NOUN[item.slot]) return ACC2_NAMES[item.king]?.[item.slot === 'ear' ? 1 : 0] || ACC2_NOUN[item.slot];
     return `${STEP_PREFIX[item.king] || ''} 옥패`;
@@ -940,6 +944,8 @@ export const TITLES = {
   titles15: { id: 'titles15', name: '천하의 이름', desc: '공격력 +5% · 때릴 때마다 〈名〉', how: '칭호 열다섯 모으기', atkMul: 1.05, hitFx: '名', col: '#fef08a' },
   // v373 월드보스
   wraid10: { id: 'wraid10', name: '강호의 방패', desc: '공격력 +3%', how: '월드보스 처치에 열 번 함께하기', atkMul: 1.03, col: '#f472b6' },
+  palma8: { id: 'palma8', name: '대성신장을 두른 자', desc: '공격력 +8% · 때릴 때마다 〈魔〉', how: '대성신장 일곱 부위를 모두 +12 넘게 끼기', atkMul: 1.08, hitFx: '魔', col: '#f97316' },
+  okhwang: { id: 'okhwang', name: '천외천(天外天)', desc: '공격력 +15% · 때릴 때마다 〈天〉', how: '천궁의 옥황상제 쓰러뜨리기', atkMul: 1.15, hitFx: '天', col: '#fde68a' },
   wraid1: { id: 'wraid1', name: '천하 토벌 일인자', desc: '공격력 +6% · 때릴 때마다 〈討〉', how: '월드보스 피해 순위 1위로 처치', atkMul: 1.06, hitFx: '討', col: '#ef4444' },
   k1m: { id: 'k1m', name: '백만 처치', desc: '공격력 +4% · 때릴 때마다 〈萬〉', how: '몹 100만 마리', atkMul: 1.04, hitFx: '萬', col: '#e7e5e4' },
 };

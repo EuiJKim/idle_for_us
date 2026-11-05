@@ -22,7 +22,7 @@ service cloud.firestore {
     // v309 규칙 판 표 — 앱이 rulesv/{판}을 읽어 본다. 지금 판만 읽히고 옛 판은 거부된다(없는 문서라 읽혀도 비어 있다).
     //   규칙을 고치면 여기 숫자와 js/net.js의 RULES_VER를 같이 올린다 → 게시를 잊으면 운영자에게 '다시 게시' 알림.
     match /rulesv/{v} {
-      allow get: if signedIn() && v == '373';
+      allow get: if signedIn() && v == '375';
     }
 
     // 플레이어 프로필: 누구나 읽기(랭킹·구경), 본인만 쓰기
@@ -144,14 +144,31 @@ service cloud.firestore {
           && (!('magwi' in resource.data) || request.resource.data.magwi <= resource.data.magwi)));
       allow delete: if isAdmin();
     }
-    // v373 월드보스 — 날마다('YYYY-MM-DD') 문서 하나에 체력 하나. 로그인한 누구나 연다(빈 채로) · 칠 땐 자기 피해만 늘리고 그만큼만 합계를 올린다.
-    //   마무리 일격이면 killedAt(서버 시각) · killer(자기). 쓰러진 뒤엔 친 사람만 자기 받음 표시. 지우기는 운영자만.
-    match /wraid/{day} {
+    // v373 월드보스 · v375 팔마왕(상시 최종 두목)·옥황상제 — 마왕마다 wbp/{마왕} = {seq}(지금 몇 번째)와 wraid/{마왕}_{seq}(그 마왕의 체력).
+    //   세우기: 첫째(seq 1)는 누구나 · 다음(seq+1)은 지금 마왕이 쓰러졌을 때만 — 두 문서를 한 번에(batch) 쓴다.
+    //   칠 땐 자기 피해만 늘리고 그만큼만 합계 · 마무리면 killedAt·killer(자기) · 쓰러진 뒤 친 사람만 자기 받음 표시. 지우기는 운영자만.
+    function wbBoss(b) { return b in ['umawang', 'gyomawang', 'bungmawang', 'satawang', 'mihuwang', 'uyungwang', 'sonogong', 'okhwang']; }
+    match /wbp/{boss} {
       allow read: if signedIn();
-      allow create: if signedIn() && day.size() == 10
-        && request.resource.data.keys().hasOnly(['boss', 'maxHp', 'total', 'damage', 'names', 'claimed', 'killedAt', 'killer', 'createdAt'])
-        && request.resource.data.boss is string && request.resource.data.boss.size() <= 16
-        && request.resource.data.maxHp is number && request.resource.data.maxHp >= 1000 && request.resource.data.maxHp <= 1000000000000000.0
+      allow create: if signedIn() && wbBoss(boss)
+        && request.resource.data.keys().hasOnly(['seq']) && request.resource.data.seq == 1
+        && existsAfter(/databases/$(database)/documents/wraid/$(boss + '_1'));
+      allow update: if signedIn() && wbBoss(boss)
+        && request.resource.data.keys().hasOnly(['seq']) && request.resource.data.seq == resource.data.seq + 1
+        && get(/databases/$(database)/documents/wraid/$(boss + '_' + string(resource.data.seq))).data.total
+           >= get(/databases/$(database)/documents/wraid/$(boss + '_' + string(resource.data.seq))).data.maxHp
+        && existsAfter(/databases/$(database)/documents/wraid/$(boss + '_' + string(request.resource.data.seq)));
+      allow delete: if isAdmin();
+    }
+    match /wraid/{id} {
+      allow read: if signedIn();
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['boss', 'seq', 'maxHp', 'total', 'damage', 'names', 'claimed', 'killedAt', 'killer', 'createdAt'])
+        && request.resource.data.boss is string && wbBoss(request.resource.data.boss)
+        && request.resource.data.seq is int && request.resource.data.seq >= 1
+        && id == request.resource.data.boss + '_' + string(request.resource.data.seq)
+        && getAfter(/databases/$(database)/documents/wbp/$(request.resource.data.boss)).data.seq == request.resource.data.seq
+        && request.resource.data.maxHp is number && request.resource.data.maxHp >= 1000000 && request.resource.data.maxHp <= 1000000000000000000.0
         && request.resource.data.total == 0
         && request.resource.data.damage == {} && request.resource.data.names == {} && request.resource.data.claimed == {}
         && request.resource.data.killedAt == null && request.resource.data.killer == null

@@ -3330,70 +3330,83 @@ console.log('\n=== v372 Lv90~120 곡선 · 방치 뒤 자동 정리 ===');
   g.s.autoEnh = false; ok(g.catchUpAutoGear().enh === 0, '자동을 껐으면 아무것도 안 한다');
   ok(/claimAndShow/.test(read('js/wmain.js')) && /showOfflineResult/.test(read('js/wmain.js')), '방치 보상 창 — 받은 뒤 결과');
 }
-console.log('\n=== v373 월드보스 · v374 팔마왕 탄막 ===');
+console.log('\n=== v373~v375 칠대성(상시 최종 두목) · 탄막 · 대성신장 · 옥황상제 ===');
 {
   const D3 = await import('../js/world/wdgn.js');
   const SH = await import('../js/world/wshmup.js');
-  ok(D3.WRAID_BOSSES.length === 8 && D3.WRAID_BOSSES.some((b) => b.name === '우마왕') && D3.WRAID_BOSSES.some((b) => b.name === '미후왕'), '팔마왕 — 우마왕 · 미후왕 …');
-  const days = Array.from({ length: 8 }, (_, i) => new Date(Date.parse('2026-11-01') + i * 86400e3).toISOString().slice(0, 10));
-  ok(new Set(days.map((d) => D3.wraidBossOf(d).id)).size === 8, '날마다 여덟이 돌아가며');
-  for (const b of D3.WRAID_BOSSES) ok(fs.existsSync(new URL(`../art/boss/${b.art}.png`, import.meta.url)) && read('js/bossfx.js').includes(`'${b.art}'`) && b.pats.every((p) => SH.PATTERNS.includes(p.p)), `${b.name}(${b.hanja}) — 그림 · 패턴 ${b.pats.map((p) => p.name).join('·')}`);
-  ok(D3.wraidMaxHp(0) === D3.WRAID_MIN_HP && D3.wraidMaxHp(1e6) === Math.round(1e6 * D3.WRAID_SEC * D3.WRAID_HP_RUNS * D3.WRAID_HP_SHARE), '체력 = 초당 피해 합 × 초 × 판 수 × 몫');
-  ok(D3.wraidRage(1) === 0 && D3.wraidRage(0.5) === 1 && D3.wraidRage(0.2) === 2 && D3.WRAID_RAGE[2].dens > 1 && D3.WRAID_RAGE[2].spd > 1, '반·1/5에서 분노·광폭 — 탄이 빽빽·빠르게');
-  ok(D3.wraidRankK(1) === 3 && D3.wraidRankK(3) === 2 && D3.wraidRankK(10) === 1.5 && D3.wraidRankK(11) === 1, '순위 배율');
-  const now = Date.now(); const day = D3.kstDay(now);
-  const mk = (job) => { const g = fresh(job); while (g.s.level < 60) g.addExp(W.expToNext(g.s.level)); g.s.potions = 99; return g; };
+  const G3 = await import('../js/world/wgear.js');
+  ok(D3.WRAID_BOSSES.length === 7 && ['우마왕', '교마왕', '붕마왕', '사타왕', '미후왕', '우융왕', '손오공'].every((n) => D3.WRAID_BOSSES.some((b) => b.name === n)) && D3.WRAID_BOSSES.every((b) => /대성\(/.test(b.title)), '칠대성 — 우마왕(평천대성) … 손오공(제천대성)');
+  ok(new Set(D3.WRAID_BOSSES.map((b) => b.slot)).size === 7 && G3.PALMA_SLOTS.every((sl) => D3.WRAID_BOSSES.some((b) => b.slot === sl)) && !G3.PALMA_SLOTS.includes('ear'), '일곱 대성이 일곱 부위를 하나씩 맡는다(귀걸이 없음)');
+  ok(D3.HEAVEN_STORY.length >= 6 && D3.HEAVEN_STORY.some((x) => /태백금성/.test(x.who)) && D3.OKHWANG.pats.some((p) => /이랑진군/.test(p.name)), '천계 이야기 · 옥황상제 패턴에 천계 인물');
+  for (const b of [...D3.WRAID_BOSSES, D3.OKHWANG]) ok(fs.existsSync(new URL(`../art/boss/${b.art}.png`, import.meta.url)) && read('js/bossfx.js').includes(`'${b.art}'`) && b.pats.every((p) => SH.PATTERNS.includes(p.p)), `${b.name}(${b.hanja}) — 그림 · 패턴 ${b.pats.length}`);
+  ok(D3.wraidBossOfId('umawang_7').id === 'umawang' && D3.wraidDocId('satawang', 3) === 'satawang_3', '문서 이름 = 마왕_몇 번째');
+  const gA = fresh('sword');
+  const hw = gA.hwamugiHp();
+  ok(hw > 1e9 && D3.wraidMaxHp(hw, 'umawang') === Math.round(hw * 4) && D3.wraidMaxHp(hw, 'okhwang') === Math.round(hw * 4 * D3.OK_HP_K), '체력 — 화무기 기본 체력 ×4 · 옥황상제는 그 ×3', `${hw.toExponential(2)}`);
+  ok(D3.wraidRage(1) === 0 && D3.wraidRage(0.5) === 1 && D3.wraidRage(0.2) === 2, '반·1/5에서 분노·광폭');
+  const now = Date.now();
+  const mk = (job, L = 130) => { const g = fresh(job); while (g.s.level < L) g.addExp(W.expToNext(g.s.level)); g.s.potions = 99; return g; };
+  ok(!mk('sword', 110).canWraid(1000, now), `레벨 ${D3.WRAID_LV} 전엔 못 간다`);
   const g = mk('sword');
-  ok(!g.canWraid(0, now) && g.canWraid(1000, now), '체력이 남아야 친다');
-  ok(!fresh('sword').canWraid(1000, now), `레벨 ${D3.WRAID_LV} 전엔 못 친다`);
-  const maxHp = 5e9, hpLeft = 3e9;
-  ok(g.startWraid({ day, hpLeft, maxHp }, now) && g.inst?.kind === 'wraid' && g.inst.paid, '도전 — 참여 보상 몫');
+  const maxHp = 5e10, hpLeft = 3e10;
+  ok(g.canWraid(1000, now, 'umawang') && !g.canWraid(1000, now, 'okhwang'), '대성은 늘 · 옥황상제는 대성신장 일곱 +12 뒤에');
+  ok(g.startWraid({ id: 'umawang_1', hpLeft, maxHp }, now) && g.inst?.kind === 'wraid' && g.inst.key === 'umawang_1' && g.inst.boss0 === 'umawang', '마왕 판 — 문서 이름 · 마왕');
   for (let i = 0; i < 200 && (!g.inst.boss || g.freezeT > 0 || g.inst.boss.introT > 0); i++) g.tick(0.05);
   const b = g.inst.boss;
-  ok(b && b.maxHp === maxHp && b.c === SH.BOSS_C && b.r === SH.BOSS_R && b.def?.art === D3.wraidBossOf(day).art, '마왕은 위 가운데 · 함께 깎은 체력 · 그 날의 그림');
-  ok(g.heroY > b.y + 200, '무인은 아래에서 시작');
+  ok(b && b.maxHp === maxHp && b.c === SH.BOSS_C && b.def?.art === 'wb-umawang', '마왕은 위 가운데 · 함께 깎은 체력 · 그림');
   const y0 = g.heroY; g.shIn = { dx: 0, dy: -1 }; for (let i = 0; i < 10; i++) g.tick(0.05); g.shIn = null;
-  ok(g.heroY < y0 - 60, '키(WASD)로 자유롭게 움직인다', `${Math.round(y0)} → ${Math.round(g.heroY)}`);
+  ok(g.heroY < y0 - 60, '키(WASD)로 자유롭게 움직인다');
   for (let i = 0; i < 80; i++) g.tick(0.05);
   ok(g.bullets.length > 0, '마왕이 탄을 쏟아낸다', `${g.bullets.length}발`);
-  // 근거리 — 멀리 있으면 못 친다
-  g.heroX = b.x; g.heroY = SH.ARENA.y1; g.shIdle = 0; g.shTarget = { x: b.x, y: SH.ARENA.y1 };
-  const d0 = g.inst.myDealt || 0; g.bullets = []; g.emitters = []; g.shPatT = 99;
+  g.heroX = b.x; g.heroY = SH.ARENA.y1; g.bullets = []; g.emitters = []; g.shPatT = 99;
+  const d0 = g.inst.myDealt || 0;
   for (let i = 0; i < 20; i++) { g.shTarget = { x: b.x, y: SH.ARENA.y1 }; g.tick(0.05); }
   ok(!g.shNear && (g.inst.myDealt || 0) === d0, '근거리는 멀리서 못 친다');
   for (let i = 0; i < 80; i++) { g.shTarget = { x: b.x, y: b.y + 80 }; g.tick(0.05); }
   ok(g.shNear && (g.inst.myDealt || 0) > d0, '붙으면 친다');
-  // 원거리 — 멀리서도
-  const f = mk('fan'); f.startWraid({ day, hpLeft, maxHp }, now);
+  const f = mk('fan'); f.startWraid({ id: 'gyomawang_2', hpLeft, maxHp }, now);
   for (let i = 0; i < 200 && (!f.inst.boss || f.freezeT > 0 || f.inst.boss.introT > 0); i++) f.tick(0.05);
   f.shPatT = 99; f.heroY = f.inst.boss.y + 260; f.heroX = f.inst.boss.x;
   for (let i = 0; i < 40; i++) { f.shTarget = { x: f.inst.boss.x, y: f.inst.boss.y + 260 }; f.tick(0.05); }
   ok(f.shNear && (f.inst.myDealt || 0) > 0, '원거리는 멀리서 쏜다');
-  // 맞으면 체력 % · 잠깐 무적
   const st = g.stats(); g.heroHp = st.hp; g.shIframe = 0;
   g.bullets = [{ t: 0, x: g.heroX, y: g.heroY - 26, vx: 0, vy: 0, r: 9, kind: 'fire' }, { t: 0, x: g.heroX, y: g.heroY - 26, vx: 0, vy: 0, r: 9, kind: 'fire' }];
   g.shPatT = 99; g.tick(0.05);
-  ok(g.shHits >= 1 && g.heroHp < st.hp && g.heroHp > st.hp * 0.8 && g.shIframe > 0, '맞으면 최대 체력의 몇 % · 맞은 뒤 무적', `${Math.round((1 - g.heroHp / st.hp) * 100)}%`);
-  // 함께 — 서버 체력으로 맞춘다 · 남이 쓰러뜨리면 끝
+  ok(g.shHits >= 1 && g.heroHp < st.hp && g.heroHp > st.hp * 0.8 && g.shIframe > 0, '맞으면 최대 체력의 몇 % · 맞은 뒤 무적');
   const hp1 = b.hp; g.wraidSync(hp1 * 0.5);
   ok(b.hp <= hp1 * 0.5 + g.wraidUnsent() + 1, '무림 전체가 깎은 체력으로 맞춘다');
-  b.hp = maxHp * 0.4; g.events.length = 0; g.tick(0.05);
-  ok(g.inst.rage === 1 && g.events.some((e) => e.type === 'wraidRage'), '반 아래 — 분노(알린다)');
   g.wraidSync(0);
   ok(g.inst.done?.ok && g.inst.done.byOther, '다른 사람이 쓰러뜨리면 판이 끝난다');
-  g.events.length = 0; g.handle?.(); g.tick(0.05);
+  g.events.length = 0; g.tick(0.05);
   const end = g.events.find((e) => e.type === 'instEnd');
-  ok(end && end.kind === 'wraid' && end.dealt > 0 && end.unsent === end.dealt && end.byOther && end.reward?.gold > 0 && !g.inst && g.bullets.length === 0, '끝 — 내 몫 · 안 올린 몫 · 참여 보상 · 탄을 치운다');
-  // 언제든 — 보상 몫을 다 써도 들어간다(보상만 없다)
+  ok(end && end.kind === 'wraid' && end.key === 'umawang_1' && end.dealt > 0 && end.unsent === end.dealt && end.reward?.gold > 0 && !g.inst && g.bullets.length === 0, '끝 — 내 몫 · 안 올린 몫 · 참여 보상 · 탄을 치운다');
   g.s.wraid.n = D3.WRAID_PAID;
-  ok(g.canWraid(1000, now) && g.startWraid({ day, hpLeft, maxHp }, now) && g.inst.paid === false, '언제든 들어간다 — 참여 보상은 하루 몫까지');
+  ok(g.canWraid(1000, now) && g.startWraid({ id: 'umawang_1', hpLeft, maxHp }, now) && g.inst.paid === false, '언제든 들어간다 — 참여 보상은 하루 몫까지');
   g.leaveInst();
-  const k0 = g.s.wraid.kills; const r1 = g.wraidClaim(1);
-  ok(g.s.wraid.kills === k0 + 1 && g.s.wraid.top1 === 1 && r1.gold === D3.wraidKillReward(g.s.level, 1).gold, '처치 보상 — 1위 ×3');
-  g.checkTitles(); ok(g.hasTitle('wraid1'), '〈천하 토벌 일인자〉');
-  const m = migrateWorld({ ...newWorldSave(), wraid: { day: '2026-11-05', n: 99, dps: -5, kills: 3, top1: 'x' } });
-  ok(m.wraid.n === D3.WRAID_PER_DAY && m.wraid.dps === 0 && m.wraid.kills === 3 && m.wraid.top1 === 0, '저장 값 다듬기');
-  ok(/match \/wraid\/\{day\}/.test(read('firestore.rules')) && /"wbr"/.test(read('database.rules.json')) && /commitWraid/.test(read('js/wnet.js')) && /class WbCoop/.test(read('js/world/wbcoop.js')) && /buildWraid/.test(read('js/wui.js')), '규칙(Firestore·RTDB) · 서버 · 함께 · 창');
+  // 쓰러진 마왕 — 그 마왕의 팔마신장 한 부위
+  ok(/손오공의 긴고환/.test(W.itemName(g.wraidClaim(5, 'sonogong').item, 'sword')), '손오공 → 가락지 〈긴고환〉');
+  const bag0 = g.s.bag.length;
+  const r1 = g.wraidClaim(1, 'umawang');
+  const it = r1.item;
+  ok(it && it.set === 'palma' && it.slot === 'weapon' && it.rar >= 2 && g.s.bag.length === bag0 + 1 && /우마왕의/.test(W.itemName(it, 'sword')), '우마왕 → 대성신장 무기(전설 이상)', W.itemName(it, 'sword'));
+  ok(g.s.wraid.top1 === 1 && r1.gold === D3.wraidKillReward(g.s.level, 1, 'umawang').gold, '처치 보상 — 1위 ×3');
+  // 팔마신장 — 여덟 부위 세트 · 가락지·귀걸이도 돌파까지
+  const ring = g.makeKing('finger', G3.PALMA_ZONE, 3, 'palma');
+  ok(g.enhanceMaxItem(ring) === W.ENHANCE_MAX && g.enhanceBaseRate(ring) === W.enhanceRate(0), '대성신장 가락지(손오공의 긴고환)는 반 확률·+10 끝이 아니다');
+  const p0 = g.stats().power;
+  for (const sl of G3.PALMA_SLOTS) { const p = g.makeKing(sl, G3.PALMA_ZONE, 3, 'palma', 12); p.opts = []; g.s.equip[sl] = p; }
+  g._stats = null; g._setb = null;
+  ok(g.setCounts().palma === 7 && g.setBonus().bossDmg >= 1.3, '일곱 부위 세트 효과(2·4·6·7)', JSON.stringify(g.setBonus()));
+  ok(g.stats().power > p0 * 2, '대성신장 +12 일곱 — 크게 세진다', `${Math.round(p0)} → ${Math.round(g.stats().power)}`);
+  ok(g.palmaReady().ok && g.canWraid(1000, now, 'okhwang'), `일곱 모두 +${D3.OK_PLUS} → 천외천 옥황상제`);
+  g.s.equip.finger.plus = 11; ok(!g.okhwangOpen() && g.palmaReady().n === 6, '하나라도 +12가 안 되면 닫힌다');
+  g.s.equip.finger.plus = 12;
+  ok(g.startWraid({ id: 'okhwang_1', hpLeft, maxHp }, now) && g.map.final && g.map.wb === 'okhwang', '옥황상제 판'); g.leaveInst();
+  g.wraidClaim(4, 'okhwang'); g.checkTitles();
+  ok(g.hasTitle('wraid1') && g.hasTitle('palma8') && g.hasTitle('okhwang'), '〈천하 토벌 일인자〉 · 〈대성신장을 두른 자〉 · 〈천외천〉');
+  const m = migrateWorld({ ...newWorldSave(), wraid: { day: '2026-11-05', n: 9999, dps: -5, kills: 3, top1: 'x', ok: 2 } });
+  ok(m.wraid.n === 999 && m.wraid.dps === 0 && m.wraid.kills === 3 && m.wraid.top1 === 0 && m.wraid.ok === 2, '저장 값 다듬기');
+  ok(/match \/wbp\/\{boss\}/.test(read('firestore.rules')) && /"wbr"/.test(read('database.rules.json')) && /ensureWraid\(boss\)/.test(read('js/wnet.js')) && /class WbCoop/.test(read('js/world/wbcoop.js')) && /wraid-go-okhwang/.test(read('js/wui.js')), '규칙(Firestore·RTDB) · 서버 · 함께 · 창');
 }
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);

@@ -1,4 +1,4 @@
-// v374 월드보스 탄막 — 팔마왕(八魔王)이 쏟아내는 탄을 피하며 친다.
+// v374 월드보스 탄막 — 칠대성(七大聖)이 쏟아내는 탄을 피하며 친다.
 //
 // 월드보스 판(inst.kind === 'wraid') 안에서만 돈다. 칸 단위로 걷는 평소 사냥과 달리 무인이 **자유롭게** 움직인다.
 //   움직임: 키보드(WASD·화살표 → g.shIn) · 조이스틱(g.joy) · 누른 자리(g.shTarget). 아무 손도 없으면 **자동 회피**(방치용 — 가끔 맞는다).
@@ -113,7 +113,7 @@ function shoot(g, o) {
   if (g.bullets.length >= MAX_BULLETS) return;
   g.bullets.push({ t: 0, r: 9, ...o });
 }
-function rageK(g) { return D.WRAID_RAGE[Math.max(0, g.inst?.rage || 0)]; }
+function rageK(g) { const k = D.WRAID_RAGE[Math.max(0, g.inst?.rage || 0)]; return g.map?.final ? { ...k, atk: k.atk * D.OK_K.atk, spd: k.spd * D.OK_K.spd, dens: k.dens * D.OK_K.dens } : k; }   // v375 옥황상제는 한 단 더
 const PAT = {
   // 한꺼번에 둥글게
   ring(g, b, P, k) {
@@ -249,7 +249,7 @@ function hitHero(g, st, u) {
   if (g._invulnUntil > g.clock) return;
   const pm = g.pmods();
   const red = (1 - (W.CLASSES[g.s.job]?.dmgRed || 0)) * (1 - (g.buffv.guard || 0)) * (1 - Math.min(0.6, pm.dmgRed || 0)) * (1 - (st.dmgRed || 0));
-  const k = D.WRAID_RAGE[Math.max(0, g.inst?.rage || 0)].atk;
+  const k = rageK(g).atk;
   const dmg = st.hp * HIT_PCT * (u.big ? 2 : 1) * k * red;
   let left = dmg;
   if (g.shield > 0 && g.buffs.shield > 0) { const a = Math.min(g.shield, left); g.shield -= a; left -= a; }

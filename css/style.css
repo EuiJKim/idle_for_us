@@ -1187,6 +1187,27 @@ details.lore p { margin: 4px 0 0; line-height: 1.5; }
 .wraid-hp em { position: absolute; top: 0; bottom: 0; width: 2px; background: rgba(255,255,255,0.35); }
 .wraid-hp span { line-height: 22px; font-size: 12px; }
 .wraid-prev { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; padding: 8px 10px; margin-bottom: 8px; border-radius: 10px; background: rgba(250, 204, 21, 0.1); border: 1px solid rgba(250, 204, 21, 0.4); font-size: 12.5px; }
+.wraid-intro .wraid-head { height: 120px; }
+.wraid-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.wraid-cell { border: 1px solid color-mix(in srgb, var(--wb) 45%, transparent); border-radius: 12px; padding: 6px; background: linear-gradient(180deg, color-mix(in srgb, var(--wb) 14%, transparent), rgba(0,0,0,0.15)); min-width: 0; }
+.wraid-cell.open { grid-column: 1 / -1; }
+.wraid-cell-top { position: relative; display: flex; align-items: center; gap: 8px; width: 100%; background: none; border: 0; color: inherit; padding: 0; text-align: left; cursor: pointer; }
+.wraid-cell-top img { width: 56px; height: 70px; object-fit: contain; filter: drop-shadow(0 0 6px var(--wb)); flex: none; }
+.wraid-cell.open .wraid-cell-top img { width: 84px; height: 106px; }
+.wraid-cell-name { display: grid; min-width: 0; }
+.wraid-cell-name b { font-size: 15px; color: #fff; }
+.wraid-cell-name small { color: var(--muted); font-size: 11px; }
+.wraid-have { position: absolute; top: 0; right: 0; font-size: 11px; font-weight: 800; color: #86efac; }
+.wraid-cell .wraid-hp { height: 16px; margin: 6px 0 4px; }
+.wraid-cell .wraid-hp span { line-height: 16px; font-size: 10.5px; }
+.wraid-go { width: 100%; padding: 6px 8px; font-size: 12.5px; }
+.wraid-heaven.locked .wraid-boss { filter: grayscale(0.7) brightness(0.55) drop-shadow(0 0 10px var(--wb)); }
+.wraid-slots { display: flex; flex-wrap: wrap; gap: 4px; margin: 4px 0 8px; }
+.wraid-slots .chip { font-size: 11px; padding: 3px 7px; }
+.wraid-claims { display: grid; gap: 6px; }
+.heaven-story { padding: 8px 10px; margin: 6px 0; border-left: 3px solid #fde68a; background: rgba(253, 230, 138, 0.06); border-radius: 0 8px 8px 0; }
+.heaven-story b { color: #fde68a; font-size: 13.5px; }
+.heaven-story p { margin: 4px 0 0; font-size: 12.5px; line-height: 1.55; color: var(--muted, #d6d3d1); }
 #contest-hud.wraid { border-color: #f87171; box-shadow: 0 0 22px rgba(239, 68, 68, 0.45); }
 .dgn-raid .dgn-ico { background: radial-gradient(circle at 35% 30%, #ef4444, #450a0a); color: #fff1f2; }
 .raid-hp { position: relative; height: 18px; border-radius: 9px; background: rgba(255, 255, 255, 0.08); overflow: hidden; margin: 8px 0 6px; }

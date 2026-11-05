@@ -32,6 +32,8 @@ const BULLET_COL = {
   fire: ['249,115,22', '#fb923c', true], water: ['34,211,238', '#67e8f9', false], feather: ['250,204,21', '#fde047', true],
   gold: ['234,179,8', '#facc15', false], shade: ['167,139,250', '#a78bfa', false], bolt: ['96,165,250', '#93c5fd', true],
   spirit: ['244,63,94', '#fb7185', false], sand: ['217,119,6', '#f59e0b', false],
+  heaven: ['253,230,138', '#fef3c7', false],   // v375 옥황상제의 천광
+  cloud: ['251,191,36', '#fde68a', true],      // v375 손오공 — 근두운 금빛
 };
 
 export const BRUSH = '"Yuji Syuku", "Nanum Brush Script", "Gowun Batang", serif';

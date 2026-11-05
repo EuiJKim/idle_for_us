@@ -251,8 +251,8 @@ export function migrateWorld(raw, now = Date.now()) {
   const rd = raw.raid && typeof raw.raid === 'object' ? raw.raid : {};
   s.raid = { day: typeof rd.day === 'string' ? rd.day : '', n: clamp(Math.floor(Number(rd.n) || 0), 0, D.RAID_PER_DAY), dps: Math.max(0, Number(rd.dps) || 0) };
   { const w = raw.wraid && typeof raw.wraid === 'object' ? raw.wraid : {};   // v373 월드보스
-    s.wraid = { day: typeof w.day === 'string' ? w.day.slice(0, 10) : '', n: clamp(Math.floor(Number(w.n) || 0), 0, D.WRAID_PER_DAY), dps: Math.max(0, Number(w.dps) || 0),
-      kills: Math.max(0, Math.floor(Number(w.kills) || 0)), top1: Math.max(0, Math.floor(Number(w.top1) || 0)) }; }
+    s.wraid = { day: typeof w.day === 'string' ? w.day.slice(0, 10) : '', n: clamp(Math.floor(Number(w.n) || 0), 0, 999), dps: Math.max(0, Number(w.dps) || 0),
+      kills: Math.max(0, Math.floor(Number(w.kills) || 0)), top1: Math.max(0, Math.floor(Number(w.top1) || 0)), ok: Math.max(0, Math.floor(Number(w.ok) || 0)) }; }
   s.mast = {};
   for (const [k, v] of Object.entries(raw.mast || {})) if (W.zoneOfW(+k) && v > 0) s.mast[k] = Math.floor(Number(v) || 0);
   s.zTickets = {}; s.zPity = {};
@@ -420,6 +420,8 @@ export class WorldGame {
       case 'k1m': return (s.kills || 0) >= 1000000;
       case 'wraid10': return (s.wraid?.kills || 0) >= 10;
       case 'wraid1': return (s.wraid?.top1 || 0) >= 1;
+      case 'palma8': return this.palmaReady().ok;
+      case 'okhwang': return (s.wraid?.ok || 0) >= 1;
       default: return false;
     }
   }
@@ -557,12 +559,12 @@ export class WorldGame {
   // 끼고 있는 세트 — { 세트 id: 조각 수 } (자기 직업 세트만 효과가 난다)
   setCounts() {
     const out = {};
-    for (const sl of G.SET_SLOTS) { const it = this.s.equip[sl]; if (it?.set) out[it.set] = (out[it.set] || 0) + 1; }
+    for (const x of W.SLOTS) { const it = this.s.equip[x.id]; if (it?.set) out[it.set] = (out[it.set] || 0) + 1; }   // v375 대성신장은 여덟 부위
     return out;
   }
   // 켜진 세트 효과를 한데 모은다 — 능력치 키와 무공 키가 섞여 있다
   setBonus() {
-    const sig = `${this.s.job}|${G.SET_SLOTS.map((k) => this.s.equip[k]?.set || '-').join(',')}`;
+    const sig = `${this.s.job}|${W.SLOTS.map((x) => this.s.equip[x.id]?.set || '-').join(',')}`;
     if (this._setb?.sig === sig) return this._setb.v;
     const v = {};
     for (const [id, n] of Object.entries(this.setCounts())) {
@@ -2655,7 +2657,9 @@ export class WorldGame {
   findItem(uid) {
     return Object.values(this.s.equip).find((x) => x?.uid === uid) || this.s.bag.find((x) => x.uid === uid) || null;
   }
-  enhanceCost(it) { return W.enhanceCost(it.ilv, it.plus || 0) * (W.isDropOnly(it.slot) ? W.ACC2_COST : 1); }
+  // v375 대성신장의 가락지·귀걸이는 다른 부위처럼(반 확률·세 배 값·+10 끝이 아니다)
+  hardAcc(it) { return W.isDropOnly(it?.slot) && !G.isPalma(it); }
+  enhanceCost(it) { return W.enhanceCost(it.ilv, it.plus || 0) * (this.hardAcc(it) ? W.ACC2_COST : 1); }
   // 강화 재료: 조합 장비는 그 지역 재료 (옛 장비·수련용은 은자만)
   enhanceMats(it) {
     if (it.king != null) {                                                                // 왕의 장비: 후반 왕의 부위별 강화석 (v132)
@@ -2668,11 +2672,11 @@ export class WorldGame {
     return { key: W.ORE, n: W.enhanceMatsN(it.plus || 0) * W.matWeight(W.itemZone(it)) };   // v273 현철 — 장비 지역 가중치만큼
   }
   // 조합·왕의 장비는 +10 위로 돌파(+15까지) — 두목 증표가 더 든다. 옛 장비·가락지·귀걸이는 +10까지.
-  enhanceMaxItem(it) { return (it?.step != null || it?.king != null) && !W.isDropOnly(it.slot) ? W.ENHANCE_MAX : W.ENHANCE_NORMAL; }
+  enhanceMaxItem(it) { return (it?.step != null || it?.king != null) && !this.hardAcc(it) ? W.ENHANCE_MAX : W.ENHANCE_NORMAL; }
   // v261: 장비가 갈 수 있는 끝과 레벨 상한 중 낮은 쪽
   enhanceMax(it) { return Math.min(this.enhanceMaxItem(it), W.enhanceLvCap(this.s.level)); }
   breakMarksOf(it) { return it?.step != null && !W.isDropOnly(it.slot) ? W.breakMarks(it.plus || 0) : 0; }   // 왕의 장비는 강화석 수에 들어 있다
-  enhanceBaseRate(it) { return W.enhanceRate(it.plus || 0) * (W.isDropOnly(it.slot) ? W.ACC2_RATE : 1); }
+  enhanceBaseRate(it) { return W.enhanceRate(it.plus || 0) * (this.hardAcc(it) ? W.ACC2_RATE : 1); }
   // v192 천장: 실패가 쌓인 만큼 더한다
   enhanceRateOf(it) { return Math.min(1, this.enhanceBaseRate(it) + (it.epity || 0)); }
   // v272 강화 재료는 지역을 가리지 않는다 — 레벨이 오르면 성장 장비가 다음 지역 재료를 받아서, 모아 둔 재료가 2:1 변환으로 반 토막 났다.
@@ -4380,20 +4384,55 @@ export class WorldGame {
     const r = this.s.wraid;
     return r.day === D.kstDay(now) ? Math.max(0, D.WRAID_PER_DAY - r.n) : D.WRAID_PER_DAY;
   }
-  // v374 언제든 들어간다 — 참여 보상만 하루 WRAID_PAID판
-  canWraid(hpLeft, now = Date.now()) { return !this.inst && !!this.s.job && this.s.level >= D.WRAID_LV && hpLeft > 0; }
-  // o: { day, hpLeft, maxHp } — 서버 문서에서
+  // v374 언제든 들어간다 — 참여 보상만 하루 WRAID_PAID판 · v375 옥황상제는 대성신장 여덟 +12
+  canWraid(hpLeft, now = Date.now(), boss = null) {
+    if (this.inst || !this.s.job || this.s.level < D.WRAID_LV || !(hpLeft > 0)) return false;
+    return boss !== D.OKHWANG.id || this.okhwangOpen();
+  }
+  // 대성신장 여덟을 OK_PLUS 넘게 끼었나 — { n: 갖춘 부위 수, ok }
+  palmaReady() {
+    const n = G.PALMA_SLOTS.filter((sl) => { const it = this.s.equip[sl]; return G.isPalma(it) && (it.plus || 0) >= D.OK_PLUS; }).length;
+    return { n, ok: n >= G.PALMA_SLOTS.length };
+  }
+  okhwangOpen() { return this.palmaReady().ok; }
+  // 화무기 두목의 기본 체력 — 마왕 체력의 잣대(spawnMob과 같은 셈, 맞춤 키우기 빼고)
+  hwamugiHp() {
+    const m = W.MAPS.find((x) => x.master === 'hwamugi');
+    if (!m) return 5e9;
+    return D.fieldMobHp(m.lv[1] + 2) * W.BOSS.hp * (m.lord ? W.LORD_HP : 1) * MS.patternHpMult(m);
+  }
+  // o: { id: 'umawang_3', hpLeft, maxHp } — 서버 문서에서
   startWraid(o, now = Date.now()) {
-    if (!this.canWraid(o.hpLeft, now)) return false;
+    const boss = D.wraidBossOfId(o.id || o.day);
+    if (!this.canWraid(o.hpLeft, now, boss.id)) return false;
     const r = this.s.wraid;
     if (r.day !== D.kstDay(now)) { r.day = D.kstDay(now); r.n = 0; }
     r.n = Math.min(999, r.n + 1);
     const z = W.mapOf(this.s.huntMap).mz || 1;
-    const boss = D.wraidBossOf(o.day);
-    this.startInst({ kind: 'wraid', key: o.day, boss0: boss.id, map: D.wraidMap(boss, this.s.level, z), t: D.WRAID_SEC, max: D.WRAID_SEC, wait: 1.2, castT: 3,
+    this.startInst({ kind: 'wraid', key: o.id || o.day, boss0: boss.id, map: D.wraidMap(boss, this.s.level, z), t: D.WRAID_SEC, max: D.WRAID_SEC, wait: 1.2, castT: 3,
       hpLeft: o.hpLeft, sharedMax: o.maxHp, z, myDealt: 0, sent: 0, paid: r.n <= D.WRAID_PAID });
     SH.start(this);
     return true;
+  }
+  // 잡혔을 때 받기 — rank: 피해 순위(1부터). 서버에서 받음 표시를 한 뒤에 부른다.
+  //   마왕이면 그 마왕이 맡은 대성신장 한 부위(등급은 순위로 굴린다) · 옥황상제면 순위 보상 ×3
+  wraidClaim(rank, bossId = null) {
+    const r = this.s.wraid;
+    r.kills++;
+    if (rank === 1) r.top1++;
+    const b = D.WRAID_BOSS[bossId];
+    if (bossId === D.OKHWANG.id) r.ok = (r.ok || 0) + 1;
+    const out = this.grant(D.wraidKillReward(this.s.level, rank, bossId));
+    if (b?.slot) {
+      const rar = W.rollRarity(D.palmaRarW(rank), this.rng);
+      const it = this.makeKing(b.slot, G.PALMA_ZONE, rar, 'palma');
+      it.mw = b.id;
+      this.gainItem(it);
+      out.item = it;
+      this.emit('palmaPiece', { item: it, boss: b.name });
+    }
+    this.checkTitles?.();
+    return out;
   }
   // v374 함께 — 서버(무림 전체)의 남은 체력으로 내 화면의 마왕을 맞춘다. 아직 안 올린 내 몫은 빼고. 다른 사람이 쓰러뜨렸으면 끝
   wraidSync(serverLeft) {
@@ -4408,15 +4447,6 @@ export class WorldGame {
     } else if (!b) I.hpLeft = Math.min(I.hpLeft, Math.max(1, serverLeft - unsent));
   }
   wraidUnsent() { const I = this.inst; return I?.kind === 'wraid' ? Math.max(0, (I.myDealt || 0) - (I.sent || 0)) : 0;
-  }
-  // 잡혔을 때 받기 — rank: 피해 순위(1부터). 서버에서 받음 표시를 한 뒤에 부른다
-  wraidClaim(rank) {
-    const r = this.s.wraid;
-    r.kills++;
-    if (rank === 1) r.top1++;
-    const out = this.grant(D.wraidKillReward(this.s.level, rank));
-    this.checkTitles?.();
-    return out;
   }
   // 서열·토벌 체력 셈에 올리는 초당 피해 (토벌을 쳐 봤으면 그 값, 아니면 어림)
   raidDpsEst() {

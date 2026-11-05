@@ -1857,13 +1857,14 @@ function dgnTab(app) {
   const { game } = app;
   const stagePick = {};
   let bump = 0;
+  let wbPick = null;   // v375 펼쳐 본 마왕
   const start = (fn) => { if (!fn()) return; app.save(); app.closePanel(); app.refresh(); };
   const sigOf = () => {
     const s = game.s;
     const now = Date.now();
     const net = app.net;
     const rd = net?.raid;
-    const nsig = `${s.level}|${JSON.stringify(s.dgn)}|${s.tower.floor}|${s.tower.auto}|${D.kstDay(now)}|${JSON.stringify(stagePick)}|${!!game.inst}|${!!s.job}|${JSON.stringify(s.zTickets)}|${s.mounts.length}|${net?.status}|${s.guildId}|${rd?.kind}|${rd?.total}|${rd?.maxHp}|${JSON.stringify(rd?.claimed || {})}|${JSON.stringify(s.raid)}|${JSON.stringify(s.wraid)}|${net?.wraid?.total}|${net?.wraid?.maxHp}|${JSON.stringify(net?.wraid?.claimed || {})}|${!!net?.wraidPrev}`;
+    const nsig = `${s.level}|${JSON.stringify(s.dgn)}|${s.tower.floor}|${s.tower.auto}|${D.kstDay(now)}|${JSON.stringify(stagePick)}|${!!game.inst}|${!!s.job}|${JSON.stringify(s.zTickets)}|${s.mounts.length}|${net?.status}|${s.guildId}|${rd?.kind}|${rd?.total}|${rd?.maxHp}|${JSON.stringify(rd?.claimed || {})}|${JSON.stringify(s.raid)}|${JSON.stringify(s.wraid)}|${Object.values(net?.wgen || {}).map((r) => `${r?.id}:${r?.total}:${Object.keys(r?.claimed || {}).length}:${Object.keys(r?.damage || {}).length}`).join(',')}|${Object.keys(net?.wdone || {}).join(',')}|${wbPick}|${W.SLOTS.map((x) => `${s.equip[x.id]?.set}${s.equip[x.id]?.plus}`).join('')}`;
     return `${bump}|${nsig}`;
   };
   // 어느 칸이든 맨 위에 — 던전 안이거나 직업이 없으면 알린다
@@ -2059,66 +2060,103 @@ function dgnTab(app) {
       })));
     return [zodiacCard];
   }
-  // v373 월드보스 — 무림 전체가 하루 한 마리
-const finePointer = typeof matchMedia === 'function' && matchMedia('(pointer: fine)').matches;
+  // v373 월드보스 · v375 칠대성(상시 최종 두목) · 천외천 옥황상제
+  const finePointer = typeof matchMedia === 'function' && matchMedia('(pointer: fine)').matches;
   function buildWraid() {
     const s = game.s;
     const now = Date.now();
     const net = app.net;
-    const r = net?.wraid;
-    const day = D.kstDay(now);
-    const boss = D.wraidBossOf(day);
-    const card = h('div', { class: 'card wraid-card', style: `--wb:${boss.col}` });
-    const head = h('div', { class: 'wraid-head' },
-      h('img', { class: 'wraid-banner', src: 'art/ui/wb-banner.webp', alt: '' }),
-      h('img', { class: 'wraid-boss', src: `art/boss/${boss.art}.png`, alt: boss.name }),
-      h('div', { class: 'wraid-name' }, h('small', {}, `오늘의 마왕 · ${boss.title}`), h('b', {}, boss.name, h('i', {}, ` ${boss.hanja}`))));
-    const rows = [head,
-      h('p', { class: 'muted dgn-desc' }, `팔마왕(八魔王)이 날마다 돌아가며 강림해요. 무림 사람 모두가 함께 깎는 체력 하나 — 언제든 들어가요(한 판 ${D.WRAID_SEC}초). 같은 판에 든 무인이 서로 보여요.`),
-      h('ul', { class: 'wraid-how' },
-        h('li', {}, '🎯 마왕이 쏟아내는 탄을 피하며 쳐요 — 작은 흰 점만 맞아요(맞으면 잠깐 무적)'),
-        h('li', {}, `⚔ 근거리는 마왕 코앞까지 붙어야, 원거리는 멀리서 · ${finePointer ? 'WASD·화살표' : '화면을 끌어'} 움직이고, 손을 떼면 자동으로 피해요`),
-        h('li', {}, '🔥 체력이 반 아래면 분노, 1/5 아래면 광폭 — 탄이 빨라지고 빽빽해져요'),
-        h('li', {}, `🏆 쓰러지면 친 사람 모두 순위대로(1위 ×3 · 2~3위 ×2 · 10위까지 ×1.5) · 참여 보상은 하루 ${D.WRAID_PAID}판`)) ];
+    const on = !!net?.ready?.();
+    const SLOT_NAME = Object.fromEntries(W.SLOTS.map((x) => [x.id, x.name]));
+    const owned = (slot) => [...Object.values(s.equip), ...s.bag].filter((it) => it && it.set === 'palma' && it.slot === slot).sort((a, b) => (b.plus || 0) - (a.plus || 0))[0] || null;
+    const go = async (boss, e) => {
+      if (e) e.target.disabled = true;
+      try {
+        let r = net.wraidOf(boss);
+        if (!r || net.wraidHpLeft(r) <= 0) r = await net.ensureWraid(boss);
+        if (!r) throw new Error('마왕을 깨우지 못했어요');
+        start(() => game.startWraid({ id: r.id, hpLeft: net.wraidHpLeft(r), maxHp: r.maxHp }, now));
+      } catch (err) { toast(`들어가지 못했어요: ${err.message || err}`); }
+      rerender();
+    };
     const claimBtn = (rr, label) => h('button', { class: 'btn primary wraid-claim', onclick: async (e) => {
       e.target.disabled = true;
       try {
         const got = await net.claimWraid(rr);
-        if (got) { toast(`🌋 월드보스 ${got.boss.name} 보상 — ${got.rank}위 · ${rewardText(got.reward)}`); app.save(); app.refresh(); }
+        if (got) { toast(`🌋 ${got.boss.name} 처치 보상 — ${got.rank}위 · ${rewardText(got.reward)}${got.reward.item ? ` · 〈${W.itemName(got.reward.item, s.job)}〉` : ''}`); app.save(); app.refresh(); }
       } catch (err) { toast(`받지 못했어요: ${err.message || err}`); }
       rerender();
     } }, label);
-    if (net?.wraidPrev) rows.push(h('div', { class: 'wraid-prev' }, h('span', {}, `어제의 ${D.wraidBossOf(net.wraidPrev.id).name}가 쓰러졌어요 — 내 순위 ${net.wraidMyRank(net.wraidPrev)}위`), claimBtn(net.wraidPrev, '어제 보상 받기')));
-    if (!net?.ready?.()) rows.push(h('p', { class: 'muted dgn-desc' }, '온라인일 때 칠 수 있어요.'));
-    else if (s.level < D.WRAID_LV) rows.push(h('p', { class: 'muted dgn-desc' }, `레벨 ${D.WRAID_LV}부터 함께 칠 수 있어요.`));
-    else if (!r) {
-      rows.push(h('div', { class: 'btn-row' }, h('button', { class: 'btn primary', id: 'wraid-open', onclick: async (e) => {
-        e.target.disabled = true;
-        try { await net.ensureWraid(); } catch (err) { toast(`월드보스를 못 불렀어요: ${err.message || err}`); }
-        rerender();
-      } }, '오늘의 월드보스 부르기')));
-    } else {
-      const left = net.wraidHpLeft(r);
-      const frac = left / r.maxHp;
+    const out = [];
+    // 머리 — 무엇인가
+    out.push(h('div', { class: 'card wraid-intro' },
+      h('div', { class: 'wraid-head', style: '--wb:#f97316' }, h('img', { class: 'wraid-banner', src: 'art/ui/wb-banner.webp', alt: '' }),
+        h('div', { class: 'wraid-name' }, h('small', {}, '화무기 그 너머 · 무림 전체가 함께'), h('b', {}, '칠대성(七大聖)'))),
+      h('ul', { class: 'wraid-how' },
+        h('li', {}, `👹 화과산의 의형제 칠대성(우마왕~손오공)이 늘 서 있어요 — 체력은 화무기의 ${D.WRAID_HP_K}배, 무림 사람 모두가 함께 깎아요(혼자서는 한참)`),
+        h('li', {}, `🎯 탄을 피하며 쳐요 — 작은 흰 점만 맞아요 · 근거리는 코앞까지 붙어야, 원거리는 멀리서 · ${finePointer ? 'WASD·화살표' : '화면을 끌어'} 움직이고 손을 떼면 자동으로 피해요`),
+        h('li', {}, `🛡 쓰러지면 한 대라도 친 사람 모두 그 마왕의 대성신장 한 부위 + 순위 보상(1위 ×3 · 2~3위 ×2 · 10위까지 ×1.5) · 쓰러지면 곧 다음 마왕이 일어나요`),
+        h('li', {}, `☁ 대성신장 일곱을 모두 +${D.OK_PLUS} 넘게 끼면 천외천 천궁 — 옥황상제에게 갈 수 있어요`),
+        h('li', {}, `⏱ 한 판 ${D.WRAID_SEC}초 · 언제든 · 참여 보상은 하루 ${D.WRAID_PAID}판(오늘 ${game.wraidLeft(now)}판 남음) · 레벨 ${D.WRAID_LV}부터`))));
+    if (!on) out.push(h('p', { class: 'muted dgn-desc' }, '온라인일 때 들어갈 수 있어요.'));
+    else if (s.level < D.WRAID_LV) out.push(h('p', { class: 'muted dgn-desc' }, `레벨 ${D.WRAID_LV}부터 마왕에게 갈 수 있어요.`));
+    // 받을 것
+    const claims = on ? net.wraidClaims() : [];
+    if (claims.length) out.push(h('div', { class: 'card wraid-claims' }, h('b', {}, '🎁 쓰러진 마왕 — 보상 받기'),
+      ...claims.map((r) => { const b = D.wraidBossOfId(r.id); const rk = net.wraidMyRank(r); return h('div', { class: 'wraid-prev' },
+        h('span', {}, `${b.name} ${r.seq}번째 · 내 순위 ${rk}위 ×${D.wraidRankK(rk)}${b.slot ? ` · ${SLOT_NAME[b.slot]} 한 부위` : ''}`), claimBtn(r, '받기')); })));
+    // 칠대성 여덟
+    const grid = h('div', { class: 'wraid-grid' });
+    for (const b of D.WRAID_BOSSES) {
+      const r = on ? net.wraidOf(b.id) : null;
+      const left = r ? net.wraidHpLeft(r) : 0;
+      const frac = r ? left / r.maxHp : 1;
       const rg = D.wraidRage(frac);
-      const rank = net.wraidRank(r);
-      const myRank = net.wraidMyRank(r);
-      const mine = r.damage?.[net.uid] || 0;
-      rows.push(
-        h('div', { class: `raid-hp wraid-hp rage${rg}` }, h('i', { style: `width:${frac * 100}%` }), h('em', { style: 'left:50%' }), h('em', { style: 'left:20%' }),
-          h('span', {}, left > 0 ? `${fmt(left)} / ${fmt(r.maxHp)}${rg ? ` · ${D.WRAID_RAGE[rg].name}` : ''}` : '쓰러짐!')),
-        h('div', { class: 'raid-rank' }, ...rank.slice(0, 10).map(([uid, d], i) => h('div', { class: uid === net.uid ? 'me' : '' },
-          h('b', {}, `${i + 1}`), ` ${r.names?.[uid] || '?'}${uid === r.killer ? ' ⚔' : ''}`, h('small', {}, ` ${fmt(d)} · ×${D.wraidRankK(i + 1)}`))),
-          rank.length ? null : h('div', { class: 'muted' }, '아직 아무도 안 쳤어요 — 첫 일격을!'),
-          myRank > 10 ? h('div', { class: 'me' }, h('b', {}, `${myRank}`), ` 나`, h('small', {}, ` ${fmt(mine)}`)) : null),
-        h('p', { class: 'muted dgn-desc' }, `내 피해 ${fmt(mine)}${myRank ? ` · ${myRank}위` : ''} · 참여 보상 ${game.wraidLeft(now)}/${D.WRAID_PAID}판 남음(은자·애완동물·탈것 조각)`),
-        h('div', { class: 'btn-row' },
-          left > 0 ? h('button', { class: 'btn primary', id: 'wraid-go', disabled: game.canWraid(left, now) ? null : true, onclick: () => start(() => game.startWraid({ day: r.id, hpLeft: left, maxHp: r.maxHp }, now)) }, `토벌하러 가기 (${D.WRAID_SEC}초)`) : null,
-          net.canClaimWraid(r) ? claimBtn(r, `처치 보상 받기 (${myRank}위 ×${D.wraidRankK(myRank)})`) : null,
-          left <= 0 && r.claimed?.[net.uid] ? h('span', { class: 'muted' }, '보상을 받았어요 · 내일 새 월드보스') : null));
+      const mine = r?.damage?.[net?.uid] || 0;
+      const have = owned(b.slot);
+      const open = wbPick === b.id;
+      const cell = h('div', { class: `wraid-cell${open ? ' open' : ''}`, style: `--wb:${b.col}` },
+        h('button', { class: 'wraid-cell-top', onclick: () => { wbPick = open ? null : b.id; rerender(); } },
+          h('img', { src: `art/boss/${b.art}.png`, alt: b.name }),
+          h('div', { class: 'wraid-cell-name' }, h('b', {}, b.name), h('small', {}, `${b.hanja} · ${SLOT_NAME[b.slot]}`)),
+          have ? h('span', { class: 'wraid-have' }, `✓ +${have.plus || 0}`) : null),
+        h('div', { class: `raid-hp wraid-hp rage${r ? rg : 0}` }, h('i', { style: `width:${frac * 100}%` }),
+          h('span', {}, !r ? '깨어나지 않음' : left > 0 ? `${(frac * 100).toFixed(1)}%${rg ? ` · ${D.WRAID_RAGE[rg].name}` : ''}` : '쓰러짐')));
+      if (open) {
+        const rank = r ? net.wraidRank(r) : [];
+        const myRank = r ? net.wraidMyRank(r) : 0;
+        cell.append(...[
+          h('p', { class: 'muted', style: 'font-size:12px;margin:4px 0' }, `${b.title} · 대성신장 〈${b.slot === 'weapon' ? `${b.name}의 무기` : `${b.name}의 ${b.piece}`}〉${r ? ` · ${r.seq}번째 마왕` : ''}`),
+          r ? h('div', { class: 'raid-rank' }, ...rank.slice(0, 5).map(([uid, d], i) => h('div', { class: uid === net.uid ? 'me' : '' }, h('b', {}, `${i + 1}`), ` ${r.names?.[uid] || '?'}`, h('small', {}, ` ${fmt(d)}`))),
+            rank.length ? null : h('div', { class: 'muted' }, '아직 아무도 안 쳤어요 — 첫 일격을!'),
+            myRank > 5 ? h('div', { class: 'me' }, h('b', {}, `${myRank}`), ' 나', h('small', {}, ` ${fmt(mine)}`)) : null) : null,
+          r ? h('p', { class: 'muted', style: 'font-size:12px;margin:2px 0 6px' }, `체력 ${fmt(left)} / ${fmt(r.maxHp)} · 내 피해 ${fmt(mine)}`) : null].filter(Boolean));
+      }
+      if (on && s.level >= D.WRAID_LV) cell.append(h('button', { class: 'btn primary wraid-go', id: `wraid-go-${b.id}`, disabled: game.inst ? true : null, onclick: (e) => go(b.id, e) }, r && left <= 0 ? '다음 마왕 깨우기' : `토벌하러 (${D.WRAID_SEC}초)`));
+      grid.append(cell);
     }
-    card.append(...rows);
-    return [card];
+    out.push(h('div', { class: 'card' }, h('h3', {}, '칠대성', h('small', {}, ` · 대성신장 ${G.PALMA_SLOTS.filter((sl) => owned(sl)).length}/${G.PALMA_SLOTS.length} 부위`)), grid));
+    // 천외천 — 옥황상제
+    {
+      const ok = D.OKHWANG;
+      const pr = game.palmaReady();
+      const r = on ? net.wraidOf(ok.id) : null;
+      const left = r ? net.wraidHpLeft(r) : 0;
+      const card = h('div', { class: `card wraid-card wraid-heaven${pr.ok ? '' : ' locked'}`, style: `--wb:${ok.col}` },
+        h('div', { class: 'wraid-head' }, h('img', { class: 'wraid-banner', src: 'art/ui/wb-heaven.webp', alt: '' }), h('img', { class: 'wraid-boss', src: `art/boss/${ok.art}.png`, alt: ok.name }),
+          h('div', { class: 'wraid-name' }, h('small', {}, '천외천(天外天) · 천궁'), h('b', {}, ok.name, h('i', {}, ` ${ok.hanja}`)))),
+        h('p', { class: 'muted dgn-desc' }, pr.ok ? `대성신장을 두른 자에게 하늘 문이 열렸어요. 체력은 마왕의 ${D.OK_HP_K}배 · 칠대성의 탄을 모두 쓰고 더 빠르고 빽빽해요.`
+          : `대성신장 일곱 부위를 모두 +${D.OK_PLUS} 넘게 끼면 열려요 — 지금 ${pr.n}/${G.PALMA_SLOTS.length}`),
+        h('div', { class: 'wraid-slots' }, ...W.SLOTS.filter((x) => G.PALMA_SLOTS.includes(x.id)).map((x) => { const it = s.equip[x.id]; const good = it?.set === 'palma' && (it.plus || 0) >= D.OK_PLUS; return h('span', { class: `chip${good ? ' on' : ''}` }, `${x.name}${it?.set === 'palma' ? ` +${it.plus || 0}` : ''}`); })),
+        h('button', { class: 'pref-link', onclick: () => openModal((el) => el.append(h('h2', {}, '☁ 천계 이야기'),
+          h('p', { class: 'muted', style: 'font-size:12.5px' }, '칠대성의 막내 제천대성이 한바탕 휘젓고 간 하늘 — 이제 그 신장을 두른 무인이 남천문 앞에 섰다.'),
+          ...D.HEAVEN_STORY.map((x) => h('div', { class: 'heaven-story' }, h('b', {}, x.who), h('p', {}, x.text))),
+          h('div', { class: 'btn-row' }, h('button', { class: 'btn primary', onclick: closeModal }, '닫기')))) }, '📜 천계 이야기 — 옥황상제 · 사대천사 · 태백금성 · 태상노군 · 이랑진군 …'),
+        r ? h('div', { class: 'raid-hp wraid-hp' }, h('i', { style: `width:${(left / r.maxHp) * 100}%` }), h('span', {}, left > 0 ? `${fmt(left)} / ${fmt(r.maxHp)}` : '쓰러짐')) : null,
+        on && pr.ok && s.level >= D.WRAID_LV ? h('div', { class: 'btn-row' }, h('button', { class: 'btn primary', id: 'wraid-go-okhwang', disabled: game.inst ? true : null, onclick: (e) => go(ok.id, e) }, r && left <= 0 ? '다시 하늘 문을 두드리기' : `천궁으로 (${D.WRAID_SEC}초)`)) : null);
+      out.push(card);
+    }
+    return out;
   }
   function buildRaid() {
     const s = game.s;
@@ -2167,14 +2205,14 @@ const finePointer = typeof matchMedia === 'function' && matchMedia('(pointer: fi
     { key: 'daily', label: '일일 던전', make: () => view(buildDaily) },
     { key: 'tower', label: '무한의 탑', make: () => view(buildTower) },
     { key: 'zodiac', label: '십이지', make: () => view(buildZodiac) },
-    { key: 'wraid', label: '월드보스', make: () => view(buildWraid) },
+    { key: 'wraid', label: '칠대성', make: () => view(buildWraid) },
     { key: 'raid', label: '문파 토벌', make: () => view(buildRaid) },
   ], 'ifu.dgnsub');
   const upd0 = t.update;
   t.update = () => {
     t.setDot('daily', dailyWaiting(game));
     t.setDot('zodiac', Object.values(game.s.zTickets || {}).some((n) => n > 0));
-    { const n = app.net; t.setDot('wraid', !!(n?.ready?.() && (n.canClaimWraid?.() || n.wraidPrev || (game.s.level >= D.WRAID_LV && game.wraidLeft() > 0 && (!n.wraid || n.wraidHpLeft() > 0))))); }
+    { const n = app.net; t.setDot('wraid', !!(n?.ready?.() && (n.wraidClaims?.().length || (game.s.level >= D.WRAID_LV && game.wraidLeft() > 0)))); }
     upd0();
   };
   return t;

@@ -205,6 +205,17 @@ export const LORD_SETS = [
     bonus: { 2: { atkPct: 0.25, hpPct: 0.15 }, 3: { skill: 0.35, crit: 0.1 }, 5: { atkPct: 0.3, bossDmg: 0.5, drain: 0.03, dmgRed: 0.12, cdr: 0.15 } } },
 ];
 SETS.push(...LORD_SETS);
+// ---------- v375 대성신장(大聖神裝) — 칠대성 일곱이 한 부위씩 ----------
+// 모든 직업 · 여덟 부위(장신구·가락지·귀걸이까지) · 수치 ×2(천마신장 ×1.5보다 위) · 2·4·6·8조각.
+// 강화는 왕의 장비처럼 강화석으로(+15까지) — 가락지·귀걸이도 돌파까지(다른 가락지·귀걸이처럼 반 확률이 아니다).
+// 여덟 모두 +12 넘게 끼면 천외천 천궁(옥황상제)으로 간다.
+export const PALMA_SLOTS = ['weapon', 'armor', 'hat', 'glove', 'shoe', 'acc', 'finger'];   // 칠대성이 하나씩 — 귀걸이는 없다
+export const PALMA = { id: 'palma', job: null, palma: true, name: '대성신장', short: '대성', col: '#f97316', mult: 2,
+  lore: '화과산에서 의형제를 맺은 칠대성 — 평천대성 우마왕·복해대성 교마왕·혼천대성 붕마왕·이산대성 사타왕·통풍대성 미후왕·구신대성 우융왕·제천대성 손오공이 한 부위씩 남긴 신장(神裝). 일곱을 갖추면 남천문이 열린다.',
+  bonus: { 2: { atkPct: 0.25, hpPct: 0.25 }, 4: { bossDmg: 0.5, crit: 0.1, critDmg: 0.5 }, 6: { skill: 0.5, dmgRed: 0.15, cdr: 0.15 }, 7: { atkPct: 0.6, bossDmg: 0.8, drain: 0.04, dodge: 0.08, speed: 0.2 } } };
+SETS.push(PALMA);
+export const PALMA_ZONE = 27;          // 강화석·증표 셈에 쓰는 지역(가장 높은 왕)
+export const isPalma = (it) => it?.set === 'palma';
 const LORD_W = { weapon: 1.3, armor: 1.1, hat: 0.9, glove: 0.9, shoe: 0.9 };
 export function lordRecipe(st, slot) {
   const w = LORD_W[slot] || 1;

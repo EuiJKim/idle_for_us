@@ -35,6 +35,7 @@ const profile = (extra = {}) => ({ world: 1, nickname: '무인', level: 10, job:
 (async () => {
   await fetch(`http://127.0.0.1:8080/emulator/v1/projects/${PROJECT}/databases/(default)/documents`, { method: 'DELETE' });
   const boss = await user();      // 문주
+  const boss_ = boss;
   const friend = await user();    // 문파원
   const bad = await user();       // 나쁜 사람(규칙을 다 안다)
 
@@ -235,29 +236,39 @@ const profile = (extra = {}) => ({ world: 1, nickname: '무인', level: 10, job:
   ok(await allowed(F.updateDoc(friend.ref('guilds', gid, 'raids', rk), { [`claimed.${friend.uid}`]: true })), '쓰러진 뒤 내 보상 표시');
   ok(await denied(F.updateDoc(friend.ref('guilds', gid, 'raids', rk), { [`claimed.${boss.uid}`]: true })), '남의 보상 표시 거부');
 
-  console.log('# 월드보스 (v373)');
+  console.log('# 칠대성 (v375)');
   {
-    const day = '2026-11-05';
-    const base = { boss: 'hyeolma', maxHp: 1000, total: 0, damage: {}, names: {}, claimed: {}, killedAt: null, killer: null, createdAt: F.serverTimestamp() };
-    ok(await denied(F.setDoc(bad.ref('wraid', day), { ...base, total: 1000 })), '처음부터 쓰러진 월드보스 만들기 거부');
-    ok(await denied(F.setDoc(bad.ref('wraid', day), { ...base, maxHp: 1 })), '체력 1짜리 월드보스 거부');
-    ok(await denied(F.setDoc(bad.ref('wraid', '2026-11'), base)), '이상한 날 열쇠 거부');
-    ok(await allowed(F.setDoc(friend.ref('wraid', day), base)), '누구나(문파 없이도) 오늘 월드보스를 연다');
-    ok(await denied(F.updateDoc(bad.ref('wraid', day), { maxHp: 1000000 })), '체력 바꾸기 거부');
-    ok(await denied(F.updateDoc(bad.ref('wraid', day), { [`claimed.${bad.uid}`]: true })), '쓰러지기 전에 받기 거부');
-    ok(await denied(F.updateDoc(bad.ref('wraid', day), { total: 500, [`damage.${bad.uid}`]: 10, [`names.${bad.uid}`]: '나쁜' })), '친 것보다 체력 더 깎기 거부');
-    ok(await denied(F.updateDoc(bad.ref('wraid', day), { total: 10, [`damage.${friend.uid}`]: 10 })), '남의 피해 고치기 거부');
-    ok(await denied(F.updateDoc(bad.ref('wraid', day), { total: 10, [`damage.${bad.uid}`]: 10, [`names.${bad.uid}`]: '나쁜', killer: bad.uid, killedAt: F.serverTimestamp() })), '안 쓰러졌는데 마무리 표시 거부');
-    ok(await allowed(F.updateDoc(bad.ref('wraid', day), { total: 100, [`damage.${bad.uid}`]: 100, [`names.${bad.uid}`]: '나쁜' })), '정상 일격');
-    ok(await denied(F.updateDoc(friend.ref('wraid', day), { total: 1000, [`damage.${friend.uid}`]: 900, [`names.${friend.uid}`]: '친구' })), '마무리 일격인데 killedAt·killer 없으면 거부');
-    ok(await denied(F.updateDoc(friend.ref('wraid', day), { total: 1000, [`damage.${friend.uid}`]: 900, [`names.${friend.uid}`]: '친구', killedAt: F.serverTimestamp(), killer: bad.uid })), '마무리 일격을 남 이름으로 거부');
-    ok(await allowed(F.updateDoc(friend.ref('wraid', day), { total: 1000, [`damage.${friend.uid}`]: 900, [`names.${friend.uid}`]: '친구', killedAt: F.serverTimestamp(), killer: friend.uid })), '마무리 일격');
-    ok(await denied(F.updateDoc(bad.ref('wraid', day), { total: 1000, [`damage.${bad.uid}`]: 200 })), '쓰러진 뒤 더 치기 거부');
-    ok(await allowed(F.updateDoc(friend.ref('wraid', day), { [`claimed.${friend.uid}`]: true })), '쓰러진 뒤 내 보상 표시');
-    ok(await denied(F.updateDoc(bad.ref('wraid', day), { [`claimed.${friend.uid}`]: false })), '남의 보상 표시 거부');
-    ok(await denied(F.updateDoc(boss.ref('wraid', day), { [`claimed.${boss.uid}`]: true })), '안 친 사람은 보상 표시 거부');
-    ok(await allowed(F.getDoc(boss.ref('wraid', day))), '누구나 읽는다');
-    ok(await denied(F.deleteDoc(friend.ref('wraid', day))), '지우기 거부');
+    const boss = 'umawang';
+    const gen = (seq, o = {}) => ({ boss, seq, maxHp: 2000000, total: 0, damage: {}, names: {}, claimed: {}, killedAt: null, killer: null, createdAt: F.serverTimestamp(), ...o });
+    const open = async (u, seq, o = {}, first = seq === 1) => {
+      const b = F.writeBatch(u.db);
+      if (first) b.set(u.ref('wbp', boss), { seq }); else b.update(u.ref('wbp', boss), { seq });
+      b.set(u.ref('wraid', `${boss}_${seq}`), gen(seq, o));
+      return b.commit();
+    };
+    ok(await denied(F.setDoc(bad.ref('wraid', `${boss}_1`), gen(1))), '자리표(wbp) 없이 마왕 세우기 거부');
+    ok(await denied(F.setDoc(bad.ref('wbp', boss), { seq: 1 })), '마왕 문서 없이 자리표만 거부');
+    ok(await denied(open(bad, 1, { total: 2000000 })), '처음부터 쓰러진 마왕 거부');
+    ok(await denied(open(bad, 1, { maxHp: 5 })), '체력 5짜리 마왕 거부');
+    ok(await denied((async () => { const b = F.writeBatch(bad.db); b.set(bad.ref('wbp', 'hacker'), { seq: 1 }); b.set(bad.ref('wraid', 'hacker_1'), { ...gen(1), boss: 'hacker' }); return b.commit(); })()), '없는 마왕 거부');
+    ok(await allowed(open(friend, 1)), '첫 마왕 세우기(문파 없이도)');
+    ok(await denied(open(bad, 2, {}, false)), '살아 있는데 다음 마왕 세우기 거부');
+    const id = `${boss}_1`;
+    ok(await denied(F.updateDoc(bad.ref('wraid', id), { maxHp: 10000000 })), '체력 바꾸기 거부');
+    ok(await denied(F.updateDoc(bad.ref('wraid', id), { [`claimed.${bad.uid}`]: true })), '쓰러지기 전에 받기 거부');
+    ok(await denied(F.updateDoc(bad.ref('wraid', id), { total: 500000, [`damage.${bad.uid}`]: 10, [`names.${bad.uid}`]: '나쁜' })), '친 것보다 체력 더 깎기 거부');
+    ok(await denied(F.updateDoc(bad.ref('wraid', id), { total: 10, [`damage.${friend.uid}`]: 10 })), '남의 피해 고치기 거부');
+    ok(await allowed(F.updateDoc(bad.ref('wraid', id), { total: 100, [`damage.${bad.uid}`]: 100, [`names.${bad.uid}`]: '나쁜' })), '정상 일격');
+    ok(await denied(F.updateDoc(friend.ref('wraid', id), { total: 2000000, [`damage.${friend.uid}`]: 1999900, [`names.${friend.uid}`]: '친구' })), '마무리인데 killedAt·killer 없으면 거부');
+    ok(await allowed(F.updateDoc(friend.ref('wraid', id), { total: 2000000, [`damage.${friend.uid}`]: 1999900, [`names.${friend.uid}`]: '친구', killedAt: F.serverTimestamp(), killer: friend.uid })), '마무리 일격');
+    ok(await denied(F.updateDoc(bad.ref('wraid', id), { total: 2000000, [`damage.${bad.uid}`]: 200 })), '쓰러진 뒤 더 치기 거부');
+    ok(await allowed(F.updateDoc(friend.ref('wraid', id), { [`claimed.${friend.uid}`]: true })), '쓰러진 뒤 내 보상 표시');
+    ok(await denied(F.updateDoc(bad.ref('wraid', id), { [`claimed.${friend.uid}`]: false })), '남의 보상 표시 거부');
+    ok(await denied(F.updateDoc(boss_.ref('wraid', id), { [`claimed.${boss_.uid}`]: true })), '안 친 사람은 보상 표시 거부');
+    ok(await denied(open(bad, 3, {}, false)), '다음 마왕은 seq+1만');
+    ok(await allowed(open(bad, 2, {}, false)), '쓰러졌으면 누구든 다음 마왕을 세운다');
+    ok(await allowed(F.getDoc(boss_.ref('wraid', `${boss}_2`))), '누구나 읽는다');
+    ok(await denied(F.deleteDoc(friend.ref('wraid', `${boss}_2`))), '지우기 거부');
   }
 
   console.log('# 창고');

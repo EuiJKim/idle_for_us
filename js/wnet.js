@@ -117,7 +117,6 @@ export class WNet extends Net {
   }
   refreshDay() {
     if (this.guild && this.raidDay !== D.weekKey()) this.watchGuild(this.guild.id);
-    if (this.online && this.wraidDay && this.wraidDay !== D.kstDay()) this.watchWraid();   // v373 월드보스는 날마다
   }
   // 이번 주 토벌을 연다(없으면 만든다) — 체력은 문파원들의 초당 피해 합으로
   async ensureWeekRaid() {
@@ -174,51 +173,93 @@ export class WNet extends Net {
     return g.grant(D.raidKillReward(g.s.level, W.mapOf(g.s.huntMap).mz || 1));
   }
 
-  // ---------- v373 월드보스 — wraid/{한국 날짜}: 무림 전체가 하루 한 마리 ----------
+  // ---------- v373 월드보스 · v375 칠대성(상시 최종 두목)과 옥황상제 ----------
+  // wbp/{마왕} = {seq}: 지금 몇 번째 마왕인가 · wraid/{마왕}_{seq}: 그 마왕의 체력·피해·받음.
+  // 쓰러지면 누구든 다음 마왕(seq+1)을 바로 세운다(규칙이 '앞 마왕이 쓰러졌을 때만'을 본다). 지난 마왕을 못 받았으면 wdone에 남긴다.
   watchWorld() {
     super.watchWorld();
     this.watchWraid();
   }
   watchWraid() {
-    if (!this.online) return;
-    const day = D.kstDay();
-    if (this.wraidDay === day && this.wraidUnsub) return;
-    this.wraidUnsub?.();
-    this.wraidDay = day;
-    this.wraid = null;
-    this.wraidUnsub = this.fs.onSnapshot(this.ref('wraid', day), (snap) => {
-      this.wraid = snap.exists() ? { id: day, ...snap.data() } : null;
+    if (!this.online || this.wbpUnsub) return;
+    this.wbp = {};
+    this.wgen = {};
+    this.wdone = this.wdone || {};
+    this.wgenUnsub = {};
+    const { onSnapshot, collection } = this.fs;
+    this.wbpUnsub = onSnapshot(collection(this.db, 'wbp'), (snap) => {
+      for (const d of snap.docs) {
+        const boss = d.id, seq = d.data().seq;
+        if (!D.WRAID_BOSS[boss] || !(seq >= 1)) continue;
+        const was = this.wbp[boss];
+        if (was === seq) continue;
+        this.wbp[boss] = seq;
+        this.watchGen(boss, seq);
+        // 지난 마왕을 친 채로 못 받았으면 남겨 둔다(처음 볼 때도 한 번)
+        this.checkGen(boss, seq - 1);
+      }
+      this.changed('wraid');
+    }, (err) => console.warn('[net] wbp', err));
+  }
+  watchGen(boss, seq) {
+    this.wgenUnsub[boss]?.();
+    const id = D.wraidDocId(boss, seq);
+    this.wgenUnsub[boss] = this.fs.onSnapshot(this.ref('wraid', id), (snap) => {
+      const prev = this.wgen[boss];
+      this.wgen[boss] = snap.exists() ? { id, boss, ...snap.data() } : null;
+      // 내 판의 마왕이 쓰러진 것도 받을 것에 남긴다
+      if (prev && prev.total < prev.maxHp && this.wgen[boss] && this.wgen[boss].total >= this.wgen[boss].maxHp) this.noteDone(this.wgen[boss]);
       this.changed('wraid');
     }, (err) => console.warn('[net] wraid', err));
-    this.checkWraidYesterday();
   }
-  // 오늘의 월드보스를 연다(없으면 만든다) — 체력은 무림 사람들(최근 일주일에 들어온 새 판 무인)의 초당 피해 합으로
-  async ensureWraid() {
-    if (!this.ready()) throw new Error('온라인일 때 열 수 있어요.');
-    const day = D.kstDay();
-    const ref = this.ref('wraid', day);
-    const got = await ack(this.fs.getDoc(ref));
-    if (got.exists()) return { id: day, ...got.data() };
-    const rows = await ack(this.ranking()).catch(() => []);
-    const fresh = Date.now() - 7 * 86400e3;
-    const sum = rows.filter((p) => p.uid !== this.uid && (p.updatedAt?.toMillis?.() || 0) >= fresh).reduce((a, p) => a + (Number(p.raidDps) || 0), 0) + this.game.raidDpsEst();
-    const maxHp = D.wraidMaxHp(sum);
-    const boss = D.wraidBossOf(day).id;
-    await ack(this.fs.runTransaction(this.db, async (tx) => {
-      if ((await tx.get(ref)).exists()) return;
-      tx.set(ref, { boss, maxHp, total: 0, damage: {}, names: {}, claimed: {}, killedAt: null, killer: null, createdAt: this.fs.serverTimestamp() });
-    }));
-    const snap = await this.fs.getDoc(ref);
-    return { id: day, ...snap.data() };
+  async checkGen(boss, seq) {
+    if (!(seq >= 1)) return;
+    try {
+      const snap = await this.fs.getDoc(this.ref('wraid', D.wraidDocId(boss, seq)));
+      if (snap.exists()) this.noteDone({ id: snap.id, boss, ...snap.data() });
+    } catch { /* 없으면 그만 */ }
   }
-  wraidHpLeft(r = this.wraid) { return r ? Math.max(0, (r.maxHp || 0) - (r.total || 0)) : 0; }
+  noteDone(r) {
+    if (this.canClaimWraid(r)) { this.wdone[r.id] = r; this.changed('wraid'); }
+  }
+  wraidOf(boss) { return this.wgen?.[boss] || null; }
+  // 받을 수 있는 쓰러진 마왕들(지금 것 · 지난 것)
+  wraidClaims() {
+    const out = new Map();
+    for (const r of Object.values(this.wdone || {})) if (this.canClaimWraid(r)) out.set(r.id, r);
+    for (const r of Object.values(this.wgen || {})) if (r && this.canClaimWraid(r)) out.set(r.id, r);
+    return [...out.values()];
+  }
+  // 마왕을 세운다(없으면 첫째, 쓰러져 있으면 다음) — 체력은 화무기 기본 체력 × 4(옥황상제 × 3 더)
+  async ensureWraid(boss) {
+    if (!this.ready()) throw new Error('온라인일 때 들어갈 수 있어요.');
+    if (!D.WRAID_BOSS[boss]) throw new Error('없는 마왕이에요.');
+    const pref = this.ref('wbp', boss);
+    const p = await ack(this.fs.getDoc(pref));
+    const seq = p.exists() ? p.data().seq : 0;
+    if (seq) {
+      const cur = await ack(this.fs.getDoc(this.ref('wraid', D.wraidDocId(boss, seq))));
+      if (cur.exists() && cur.data().total < cur.data().maxHp) return { id: cur.id, boss, ...cur.data() };
+    }
+    const next = seq + 1;
+    const maxHp = D.wraidMaxHp(this.game.hwamugiHp(), boss);
+    const b = this.fs.writeBatch(this.db);
+    if (seq) b.update(pref, { seq: next }); else b.set(pref, { seq: 1 });
+    b.set(this.ref('wraid', D.wraidDocId(boss, next)), { boss, seq: next, maxHp, total: 0, damage: {}, names: {}, claimed: {}, killedAt: null, killer: null, createdAt: this.fs.serverTimestamp() });
+    try { await ack(b.commit()); } catch (err) { if (err?.code !== 'permission-denied') throw err; }   // 다른 사람이 먼저 세웠으면 그것을
+    const p2 = await ack(this.fs.getDoc(pref));
+    const s2 = p2.exists() ? p2.data().seq : next;
+    const snap = await ack(this.fs.getDoc(this.ref('wraid', D.wraidDocId(boss, s2))));
+    return snap.exists() ? { id: snap.id, boss, ...snap.data() } : null;
+  }
+  wraidHpLeft(r) { return r ? Math.max(0, (r.maxHp || 0) - (r.total || 0)) : 0; }
   // 피해 순위 [[uid, 피해], …]
-  wraidRank(r = this.wraid) { return Object.entries(r?.damage || {}).filter(([, d]) => d > 0).sort((a, b) => b[1] - a[1]); }
-  wraidMyRank(r = this.wraid) { const i = this.wraidRank(r).findIndex(([u]) => u === this.uid); return i >= 0 ? i + 1 : 0; }
+  wraidRank(r) { return Object.entries(r?.damage || {}).filter(([, d]) => d > 0).sort((a, b) => b[1] - a[1]); }
+  wraidMyRank(r) { const i = this.wraidRank(r).findIndex(([u]) => u === this.uid); return i >= 0 ? i + 1 : 0; }
   // 친 만큼 올린다. 이번 일격으로 쓰러졌으면 true
-  async commitWraid(day, amount) {
+  async commitWraid(id, amount) {
     if (!this.ready() || !(amount > 0)) return false;
-    const ref = this.ref('wraid', day);
+    const ref = this.ref('wraid', id);
     const killed = await ack(this.fs.runTransaction(this.db, async (tx) => {
       const snap = await tx.get(ref);
       if (!snap.exists()) return false;
@@ -232,15 +273,16 @@ export class WNet extends Net {
       return sum >= r.maxHp;
     }), 12000);
     if (killed) {
-      const b = D.wraidBossOf(day);
-      this.sendWorld(`🌋 ${this.game.s.nickname}님의 마무리 일격! 월드보스 ${b.name} 쓰러짐 — 함께 친 무인 모두 보상을 받아 가세요.`, 'system').catch(() => {});
+      const b = D.wraidBossOfId(id);
+      this.sendWorld(b.final ? `☁ ${this.game.s.nickname}님의 마무리 일격! 천외천 천궁의 옥황상제가 쓰러졌다 — 함께 친 무인 모두 보상을 받아 가세요.`
+        : `🌋 ${this.game.s.nickname}님의 마무리 일격! ${b.name}(${b.hanja}) 쓰러짐 — 함께 친 무인 모두 대성신장을 받아 가세요.`, 'system').catch(() => {});
     }
     return killed;
   }
-  canClaimWraid(r = this.wraid) {
+  canClaimWraid(r) {
     return !!(r && r.total >= r.maxHp && (r.damage?.[this.uid] || 0) > 0 && !r.claimed?.[this.uid]);
   }
-  async claimWraid(r = this.wraid) {
+  async claimWraid(r) {
     if (!this.canClaimWraid(r)) return null;
     const ref = this.ref('wraid', r.id);
     const ok = await ack(this.fs.runTransaction(this.db, async (tx) => {
@@ -249,23 +291,13 @@ export class WNet extends Net {
       tx.update(ref, { [`claimed.${this.uid}`]: true });
       return true;
     }));
-    if (!ok) return null;
+    if (!ok) { delete this.wdone[r.id]; return null; }
     const rank = this.wraidMyRank(r);
-    const out = this.game.wraidClaim(rank);
-    if (r === this.wraidPrev) this.wraidPrev = null;
+    const boss = D.wraidBossOfId(r.id);
+    const out = this.game.wraidClaim(rank, boss.id);
+    delete this.wdone[r.id];
     this.changed('wraid');
-    return { rank, reward: out, boss: D.wraidBossOf(r.id) };
-  }
-  // 어제 잡힌 월드보스를 못 받았으면 한 번 알려 둔다(그날 친 사람만)
-  async checkWraidYesterday() {
-    try {
-      const day = D.kstDay(Date.now() - 86400e3);
-      const snap = await this.fs.getDoc(this.ref('wraid', day));
-      if (!snap.exists()) return;
-      const r = { id: day, ...snap.data() };
-      this.wraidPrev = this.canClaimWraid(r) ? r : null;
-      if (this.wraidPrev) this.changed('wraid');
-    } catch { /* 없으면 그만 */ }
+    return { rank, reward: out, boss };
   }
 
   // 문파 출석 — 길잡이가 본다 (v146)
