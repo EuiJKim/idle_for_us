@@ -13,6 +13,19 @@ import * as D from './wdgn.js';
 export const ARENA = { x0: 40, x1: W.COLS * W.TILE - 40, y1: W.ROWS * W.TILE - 80 };
 export const BOSS_C = Math.floor(W.COLS / 2), BOSS_R = 7;          // 두목 자리(칸)
 export const HERO_R = 13;                                        // 무인 맞는 크기(작게 — 탄막답게)
+// v378 탄막 밀도 — 폰은 화면이 좁아 촘촘하면 못 피한다. dens 탄 수 · spd 빠르기 · hit 맞는 크기 배율(무인·탄 둘 다)
+export const EASE = {
+  dense: { name: '촘촘', dens: 1, spd: 1, hit: 1 },
+  normal: { name: '보통', dens: 0.8, spd: 0.92, hit: 0.85 },
+  roomy: { name: '여유', dens: 0.6, spd: 0.85, hit: 0.7 },
+};
+const ease = (g) => EASE[g.shEase] || EASE.dense;
+// v378 스침(그레이즈) — 맞지 않고 이만큼 가까이 스치면 집중이 GRAZE_T초 빨리 찬다(탄 하나에 한 번)
+export const GRAZE_PAD = 20;
+export const GRAZE_T = 0.6;
+// v378 칠십이변(대성신장 7) — WK_SEC초마다 분신 방패 한 장(최대 WK_MAX) · 탄 한 대를 대신 맞는다
+export const WK_SEC = 15;
+export const WK_MAX = 2;
 export const IFRAME = 0.6;
 export const HIT_PCT = 0.07;                                     // 탄 한 대 = 최대 체력의 7%(큰 탄은 2배)
 export const SPEED = 250;
@@ -39,7 +52,8 @@ export function start(g) {
   g.shTarget = null;
   g.shPatIdx = 0;
   g.shHits = 0;
-  g.shFocus = 0; g.shFocusT = 0; g.shHand = 99;
+  g.shFocus = 0; g.shFocusT = 0; g.shHand = 99; g.shGraze = 0;
+  g.shWk = g.setBonus().wukong ? 1 : 0; g.shWkT = 0;
   g.heroX = W.tileCenter(BOSS_C);
   g.heroY = W.tileCenter(BOSS_R) + 440;
   syncTile(g);
@@ -137,7 +151,12 @@ function shoot(g, o) {
   if (g.bullets.length >= MAX_BULLETS) return;
   g.bullets.push({ t: 0, r: 9, ...o });
 }
-function rageK(g) { const k = D.WRAID_RAGE[Math.max(0, g.inst?.rage || 0)]; return g.map?.final ? { ...k, atk: k.atk * D.OK_K.atk, spd: k.spd * D.OK_K.spd, dens: k.dens * D.OK_K.dens } : k; }   // v375 옥황상제는 한 단 더
+function rageK(g) {
+  const k0 = D.WRAID_RAGE[Math.max(0, g.inst?.rage || 0)];
+  const k = g.map?.final ? { ...k0, atk: k0.atk * D.OK_K.atk, spd: k0.spd * D.OK_K.spd, dens: k0.dens * D.OK_K.dens } : k0;   // v375 옥황상제는 한 단 더
+  const e = ease(g);   // v378 밀도(설정)
+  return { ...k, spd: k.spd * e.spd, dens: k.dens * e.dens };
+}
 const PAT = {
   // 한꺼번에 둥글게
   ring(g, b, P, k) {
@@ -192,6 +211,20 @@ const PAT = {
     return 2.8;
   },
 };
+// v378 석가여래 — 손바닥 안: 무인 둘레 큰 원에서 안으로 좁혀 오는 탄(빈틈 한 군데)
+PAT.palm = function (g, b, P, k) {
+  const n = Math.round(26 * k.dens);
+  for (let w = 0; w < 3; w++) g.emitters.push({ at: w * 0.9, fn: () => {
+    const R = 430, gap = rnd(g) * Math.PI * 2;
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * Math.PI * 2;
+      if (Math.abs(((a - gap + Math.PI * 3) % (Math.PI * 2)) - Math.PI) < 0.42) continue;   // 빈틈
+      const x = g.heroX + Math.cos(a) * R, y = g.heroY - 26 + Math.sin(a) * R;
+      shoot(g, { x, y, vx: -Math.cos(a) * 120 * k.spd, vy: -Math.sin(a) * 120 * k.spd, r: 10, kind: P.shot, life: 4.2 });
+    }
+  } });
+  return 3.6;
+};
 export const PATTERNS = Object.keys(PAT);
 
 function pickPattern(g, b) {
@@ -224,6 +257,7 @@ export function tick(g, dt, st) {
   for (const e of g.emitters) { e.at -= dt; if (e.at <= 0) { e.fn(); e.done = true; } }
   if (g.emitters.length) g.emitters = g.emitters.filter((e) => !e.done);
   tickBullets(g, dt, st);
+  if (g.setBonus().wukong && g.shWk < WK_MAX && (g.shWkT = (g.shWkT || 0) + dt) >= WK_SEC) { g.shWkT = 0; g.shWk++; g.emit('wukongReady', { n: g.shWk }); }
   // 친다 — 제 사거리(+마왕 몸) 안에 들었을 때만. 근거리는 붙어야, 원거리는 멀리서
   g.atkTimer = Math.max(0, g.atkTimer - dt);
   const near = inReach(g, b, st);
@@ -259,9 +293,12 @@ function tickBullets(g, dt, st) {
       g.emit('wbSplit', { x: u.x, y: u.y, kind: u.kind });
       continue;
     }
-    if (u.x < -60 || u.x > W.COLS * W.TILE + 60 || u.y < -60 || u.y > W.ROWS * W.TILE + 60 || u.t > 9) continue;
+    if (u.x < -60 || u.x > W.COLS * W.TILE + 60 || u.y < -60 || u.y > W.ROWS * W.TILE + 60 || u.t > (u.life || 9)) continue;
     // 맞음
-    if (g.shIframe <= 0 && g.heroHp > 0 && Math.hypot(u.x - g.heroX, u.y - (g.heroY - 26)) < u.r + HERO_R) {
+    const hd = Math.hypot(u.x - g.heroX, u.y - (g.heroY - 26)), hr = (u.r + HERO_R) * ease(g).hit;
+    // v378 스침 — 손으로 피하는 중에 아슬아슬하게 비껴가면 집중이 빨리 찬다
+    if (!u.gz && hd < hr + GRAZE_PAD && hd >= hr && g.shHand < 1) { u.gz = true; g.shFocusT = (g.shFocusT || 0) + GRAZE_T; g.shGraze = (g.shGraze || 0) + 1; g.emit('wbGraze', { x: u.x, y: u.y }); }
+    if (g.shIframe <= 0 && g.heroHp > 0 && hd < hr) {
       g.shIframe = IFRAME;
       hitHero(g, st, u);
       continue;
@@ -273,6 +310,8 @@ function tickBullets(g, dt, st) {
 
 function hitHero(g, st, u) {
   if (g._invulnUntil > g.clock) return;
+  // v378 칠십이변 — 분신이 대신 맞는다
+  if (g.shWk > 0) { g.shWk--; g.emit('wukongBlock', { x: g.heroX, y: g.heroY, left: g.shWk }); return; }
   const pm = g.pmods();
   const red = (1 - (W.CLASSES[g.s.job]?.dmgRed || 0)) * (1 - (g.buffv.guard || 0)) * (1 - Math.min(0.6, pm.dmgRed || 0)) * (1 - (st.dmgRed || 0));
   const k = rageK(g).atk;

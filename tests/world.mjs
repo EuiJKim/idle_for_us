@@ -3378,6 +3378,12 @@ console.log('\n=== v373~v375 칠대성(상시 최종 두목) · 탄막 · 대성
   ok(f.shFocus < fz, '손을 놓으면 한 겹씩 빠진다');
   f.shFocus = 5; f.shIframe = 0; f.heroHp = f.stats().hp; f.bullets = [{ t: 0, x: f.heroX, y: f.heroY - 26, vx: 0, vy: 0, r: 9, kind: 'fire' }]; f.tick(0.05);
   ok(f.shFocus === 0, '맞으면 집중이 흩어진다');
+  // v378 스침 — 손으로 피하는 중 아슬아슬하게 비껴가면 집중이 빨리 찬다(탄 하나에 한 번)
+  { f.shHand = 0; f.shFocusT = 0; f.shIframe = 0; const hr = (9 + SH.HERO_R); f.bullets = [{ t: 0, x: f.heroX + hr + 8, y: f.heroY - 26, vx: 0, vy: 0, r: 9, kind: 'fire' }]; f.shPatT = 999; f.shIn = { dx: 0, dy: 0.0001 };
+    const t0 = f.shFocusT; f.tick(0.02); f.shIn = null; ok(f.shGraze >= 1 && f.shFocusT >= t0 + SH.GRAZE_T - 0.1, '스침 — 집중이 빨리 찬다'); }
+  // v378 탄막 밀도 — 여유는 탄이 적고 느리다
+  { const cnt = (ease) => { const q = mk('fan'); q.shEase = ease; q.startWraid({ id: 'bungmawang_1', hpLeft, maxHp }, now); let n = 0; for (let i = 0; i < 400; i++) { q.tick(0.05); n = Math.max(n, q.bullets.length); } return n; };
+    const a = cnt('dense'), b = cnt('roomy'); ok(b < a * 0.85 && SH.EASE.roomy.hit < 1, '여유 — 탄이 적고 맞는 판정이 작다', `${a} → ${b}`); }
   // v377 손가락 따라 · 아날로그 조이스틱 · 감도
   { const x0 = f.heroX; f.shPush = { x: 40, y: 0 }; f.tick(0.05); f.tick(0.05); ok(f.heroX > x0 + 20, '손가락 따라 — 끈 만큼 옮긴다'); }
   { const x0 = f.heroX; f.joy = { dx: -10, dy: 0 }; f.tick(0.1); const slow = x0 - f.heroX; const x1 = f.heroX; f.joy = { dx: -60, dy: 0 }; f.tick(0.1); f.joy = null; ok(slow > 0 && x1 - f.heroX > slow * 2, '조이스틱 — 조금 끌면 천천히', `${slow.toFixed(1)} / ${(x1 - f.heroX).toFixed(1)}`); }
@@ -3419,6 +3425,23 @@ console.log('\n=== v373~v375 칠대성(상시 최종 두목) · 탄막 · 대성
   g._stats = null;
   ok(g.gatesCleared() === 4 && Math.abs(g.gateBonus() - 4 * D3.GATE_BONUS) < 1e-9 && g.stats().power > pw0, '넷을 넘으면 천계의 가호 +24%(공격력·체력)', `${Math.round(pw0)} → ${Math.round(g.stats().power)}`);
   ok(g.canWraid(1000, now, 'okhwang'), '관문 넷을 넘으면 → 옥황상제');
+  // v378 천외천 너머 · 천계 이야기
+  ok(!g.canWraid(1000, now, 'seokga') && g.storyOpen(0) && g.storyOpen(5) && !g.storyOpen(6), '석가여래는 아직 · 이야기 1~6장 열림');
+  { const gold0 = g.s.gold; const r = g.readStory(0); ok(r && g.s.gold > gold0 && !g.readStory(0) && g.storyUnread() === 5, '이야기 — 처음 읽으면 보상(한 번)'); }
+  g.wraidClaim(9, 'okhwang');
+  ok(g.canWraid(1000, now, 'seokga') && g.storyOpen(6) && !g.storyOpen(7), '옥황상제 처치에 함께하면 → 석가여래 · 7장');
+  ok(D3.wraidMaxHp(hw, 'seokga') === Math.round(hw * 4 * D3.OK_HP_K * D3.SK_HP_K) && D3.SEOKGA.pats.some((p) => p.p === 'palm') && fs.existsSync(new URL('../art/boss/wb-seokga.png', import.meta.url)), '석가여래 — 체력 · 손바닥 패턴 · 그림');
+  g.wraidClaim(2, 'seokga'); g.checkTitles(); ok(g.hasTitle('seokga') && g.storyOpen(7), '〈손바닥 밖으로〉 · 마지막 장');
+  // v378 칠십이변(대성신장 7)
+  ok(g.setBonus().wukong === 1 && /칠십이변/.test(G3.setBonusText({ wukong: 1 })), '대성신장 7조각 — 칠십이변');
+  { const mob = { alive: true, hp: 1e15, maxHp: 1e15, x: g.heroX + 30, y: g.heroY, lv: 150, c: 0, r: 0 }; g.events.length = 0; g._wkN = 0; for (let i = 0; i < 6; i++) g.basicAttack(mob, g.stats(), 1); ok(g.events.filter((e) => e.type === 'wukongClone').length === 1, '평타 여섯 번마다 분신 일격'); }
+  { g.startWraid({ id: 'umawang_1', hpLeft, maxHp }, now); ok(g.shWk === 1, '탄막 판에 들어가면 분신 방패 하나'); const st2 = g.stats(); g.heroHp = st2.hp; g.shIframe = 0;
+    for (let i = 0; i < 200 && (!g.inst.boss || g.freezeT > 0 || g.inst.boss.introT > 0); i++) g.tick(0.05);
+    g.shPatT = 99; g.emitters = []; g.heroHp = st2.hp; g.bullets = [{ t: 0, x: g.heroX, y: g.heroY - 26, vx: 0, vy: 0, r: 9, kind: 'fire' }]; g.tick(0.05);
+    ok(g.shWk === 0 && g.heroHp === st2.hp, '분신이 탄 한 대를 대신 맞는다'); g.leaveInst(); }
+  // v378 장비 비교 — 세트 조각 수
+  { const extra = g.makeKing('ear', G3.PALMA_ZONE, 3, 'palma'); const keep = g.s.equip.finger; g.s.equip.finger = null; g._stats = null; g._setb = null;
+    const pv = g.previewEquip(keep); ok(pv.sets0.palma === 6 && pv.sets1.palma === 7, '장비 비교 — 끼면 대성신장 6→7조각'); g.s.equip.finger = keep; g._stats = null; g._setb = null; void extra; }
   ok(migrateWorld({ ...newWorldSave(), wraid: { gates: { sadae: 1, hacker: 1 } } }).wraid.gates.sadae === 1 && !('hacker' in migrateWorld({ ...newWorldSave(), wraid: { gates: { sadae: 1, hacker: 1 } } }).wraid.gates), '넘은 관문 저장 · 이상한 열쇠는 버린다');
   g.s.equip.finger.plus = 0; ok(g.okhwangOpen(), '강화와 상관없이 — +0이어도 열린다');
   const ring0 = g.s.equip.finger; g.s.equip.finger = null; g._stats = null; ok(!g.okhwangOpen() && g.palmaReady().n === 6, '한 부위라도 빠지면 닫힌다');

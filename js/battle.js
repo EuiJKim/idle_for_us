@@ -32,7 +32,7 @@ const BULLET_COL = {
   fire: ['249,115,22', '#fb923c', true], water: ['34,211,238', '#67e8f9', false], feather: ['250,204,21', '#fde047', true],
   gold: ['234,179,8', '#facc15', false], shade: ['167,139,250', '#a78bfa', false], bolt: ['96,165,250', '#93c5fd', true],
   spirit: ['244,63,94', '#fb7185', false], sand: ['217,119,6', '#f59e0b', false],
-  heaven: ['253,230,138', '#fef3c7', false],   // v375 옥황상제의 천광
+  heaven: ['245,158,11', '#f59e0b', false],   // v375 옥황상제의 천광 · v378 밝은 천궁 바닥에서 보이게 진한 금빛
   cloud: ['251,191,36', '#fde68a', true],      // v375 손오공 — 근두운 금빛
 };
 
@@ -322,6 +322,7 @@ const SPECIAL_INK = {
   stone: { ink: ['#5a5f66', '#2c3036', '#16181c', '#24272c'], sun: '#94a3b8', moon: true, prop: 'mine', night: true },
   pet: { ink: ['#dfe8d2', '#a9bf95', '#4a6040', '#3c5032'], sun: '#b91c1c', prop: 'bamboo' },
   relic: { ink: ['#4a4f5c', '#252832', '#121419', '#1b1e25'], sun: '#cbd5e1', moon: true, prop: 'grave', night: true },
+  heaven: { idx: 'heaven', ink: ['#fbf3dc', '#e7d6a6', '#9c8a5c', '#efe6cf'], sun: '#fde68a', prop: 'none' },   // v378 천외천 천궁 — 구름 위 옥돌 바닥
 };
 
 // ---------- 애완동물 공격 연출 (v193) ----------
@@ -690,7 +691,7 @@ export class BattleView {
     //   가로: 화면 폭 ≤ 지도 폭 · 세로: 캔버스 맨 위(머리 몫 MAP_HEAD 포함)부터 아래 단추 줄까지 ≤ 지도 높이
     const cover = Math.max(this.W / game.mapW, (this.H - (this.padBottom ?? 130)) / (game.mapH * this.squash + MAP_HEAD));
     // 카메라 단계 (v115): 0 전체(지도가 화면에 꽉) · 1 보통(가로 일곱 칸 남짓) · 2 가까이(가로 다섯 칸) — 모두 무인을 따라간다
-    const lv = this.camLevel ?? 1;
+    const lv = this.camOverride ?? this.camLevel ?? 1;   // v378 탄막 판은 멀리(설정)
     if (lv <= 0) return cover;
     const T = game.tile || 64;
     // v336 컴퓨터(넓은 화면)에서는 지도(704px)보다 화면이 넓어 '전체'가 이미 1.3을 넘었고, 보통·가까이가 1.3에 막혀 셋이 똑같았다
@@ -799,6 +800,7 @@ export class BattleView {
       if (long) ctx.rotate(Math.atan2(u.vy * this.squash, u.vx));
       ctx.fillStyle = c[1];
       ctx.beginPath(); ctx.ellipse(0, 0, r * (long ? 1.7 : 1), r * (long ? 0.62 : 1), 0, 0, Math.PI * 2); ctx.fill();
+      ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(20,10,0,0.75)'; ctx.stroke();   // v378 어떤 바닥에서도 보이게 어두운 테두리
       ctx.fillStyle = 'rgba(255,255,255,0.92)';
       ctx.beginPath(); ctx.ellipse(0, 0, r * (long ? 0.95 : 0.5), r * (long ? 0.3 : 0.5), 0, 0, Math.PI * 2); ctx.fill();
       ctx.restore();

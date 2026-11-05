@@ -252,8 +252,9 @@ export function migrateWorld(raw, now = Date.now()) {
   s.raid = { day: typeof rd.day === 'string' ? rd.day : '', n: clamp(Math.floor(Number(rd.n) || 0), 0, D.RAID_PER_DAY), dps: Math.max(0, Number(rd.dps) || 0) };
   { const w = raw.wraid && typeof raw.wraid === 'object' ? raw.wraid : {};   // v373 월드보스
     s.wraid = { day: typeof w.day === 'string' ? w.day.slice(0, 10) : '', n: clamp(Math.floor(Number(w.n) || 0), 0, 999), dps: Math.max(0, Number(w.dps) || 0),
-      kills: Math.max(0, Math.floor(Number(w.kills) || 0)), top1: Math.max(0, Math.floor(Number(w.top1) || 0)), ok: Math.max(0, Math.floor(Number(w.ok) || 0)),
-      gates: Object.fromEntries(Object.keys(w.gates || {}).filter((k) => D.isGate(k)).map((k) => [k, 1])) }; }
+      kills: Math.max(0, Math.floor(Number(w.kills) || 0)), top1: Math.max(0, Math.floor(Number(w.top1) || 0)), ok: Math.max(0, Math.floor(Number(w.ok) || 0)), sk: Math.max(0, Math.floor(Number(w.sk) || 0)),
+      gates: Object.fromEntries(Object.keys(w.gates || {}).filter((k) => D.isGate(k)).map((k) => [k, 1])),
+      read: Object.fromEntries(Object.keys(w.read || {}).filter((k) => /^\d$/.test(k) && +k < D.HEAVEN_STORY.length).map((k) => [k, 1])) }; }
   s.mast = {};
   for (const [k, v] of Object.entries(raw.mast || {})) if (W.zoneOfW(+k) && v > 0) s.mast[k] = Math.floor(Number(v) || 0);
   s.zTickets = {}; s.zPity = {};
@@ -423,6 +424,7 @@ export class WorldGame {
       case 'wraid1': return (s.wraid?.top1 || 0) >= 1;
       case 'palma8': return this.palmaReady().ok;
       case 'okhwang': return (s.wraid?.ok || 0) >= 1;
+      case 'seokga': return (s.wraid?.sk || 0) >= 1;
       default: return false;
     }
   }
@@ -1368,6 +1370,8 @@ export class WorldGame {
   basicAttack(m, st, dist) {
     const close = dist <= W.MELEE_RANGE * 1.3;
     this.emit('attack', { close, to: { x: m.x, y: m.y } });   // v244: 과녁 자리 — 한 방에 죽어 mon이 지워져도 연출이 과녁을 안다
+    // v378 칠십이변(대성신장 7) — 평타 여섯 번마다 손오공의 분신이 함께 친다(×300%)
+    if (this.setBonus().wukong && m.alive && (this._wkN = (this._wkN || 0) + 1) % 6 === 0) { this.emit('wukongClone', { at: { x: m.x, y: m.y }, from: { x: this.heroX, y: this.heroY } }); this.strike(m, st, 3, 'clone'); if (!m.alive) return; }
     let mult = 1;
     if (this.s.job === 'ring' && close) mult *= 1.2;
     const cls0 = W.CLASSES[this.s.job] || {};
@@ -2650,13 +2654,14 @@ export class WorldGame {
     const pick = (st) => ({ atk: st.atk, hp: st.hp, def: st.def, crit: st.crit, speed: st.speed, power: st.power });
     const st0 = this.stats();
     const now = pick(st0);
-    if (!it || !W.SLOTS.some((x) => x.id === it.slot) || this.s.equip[it.slot] === it) return { now, then: now, same: true };
+    const sets0 = this.setCounts();
+    if (!it || !W.SLOTS.some((x) => x.id === it.slot) || this.s.equip[it.slot] === it) return { now, then: now, same: true, sets0, sets1: sets0 };
     const cur = this.s.equip[it.slot];
-    this.s.equip[it.slot] = it; this._stats = null;
-    let then;
-    // v318 되돌린 뒤 지금 능력치를 그대로 둔다(서명이 같다) — 가방 칸마다 부를 때 다시 세지 않게
-    try { then = pick(this.stats()); } finally { this.s.equip[it.slot] = cur; this._stats = st0; }
-    return { now, then, same: false };
+    this.s.equip[it.slot] = it; this._stats = null; this._setb = null;
+    let then, sets1;
+    // v318 되돌린 뒤 지금 능력치를 그대로 둔다(서명이 같다) — 가방 칸마다 부를 때 다시 세지 않게 · v378 세트 조각 수도
+    try { then = pick(this.stats()); sets1 = this.setCounts(); } finally { this.s.equip[it.slot] = cur; this._stats = st0; this._setb = null; }
+    return { now, then, same: false, sets0, sets1 };
   }
   findItem(uid) {
     return Object.values(this.s.equip).find((x) => x?.uid === uid) || this.s.bag.find((x) => x.uid === uid) || null;
@@ -4391,6 +4396,7 @@ export class WorldGame {
   // v374 언제든 들어간다 — 참여 보상만 하루 WRAID_PAID판 · v375 옥황상제는 대성신장 일곱을 모두 끼면
   canWraid(hpLeft, now = Date.now(), boss = null) {
     if (this.inst || !this.s.job || this.s.level < D.WRAID_LV || !(hpLeft > 0)) return false;
+    if (boss === D.SEOKGA.id) return this.seokgaOpen();
     if (boss === D.OKHWANG.id) return this.okhwangOpen();
     if (D.isGate(boss)) return this.gateOpen(boss);
     return true;
@@ -4401,6 +4407,21 @@ export class WorldGame {
     if (!g?.gate || !this.palmaReady().ok) return false;
     return D.HEAVEN_GATES.filter((x) => x.gate < g.gate).every((x) => this.s.wraid.gates?.[x.id]);
   }
+  // v378 천계 이야기 — 이 장이 열렸나 · 읽어서 보상(한 번)
+  storyOpen(i) {
+    const x = D.HEAVEN_STORY[i];
+    if (!x) return false;
+    const w = this.s.wraid;
+    return x.need === 'palma' ? this.palmaReady().ok : x.need === 'okhwang' ? (w.ok || 0) >= 1 : x.need === 'seokga' ? (w.sk || 0) >= 1 : !!w.gates?.[x.need];
+  }
+  storyUnread() { return D.HEAVEN_STORY.filter((_, i) => this.storyOpen(i) && !this.s.wraid.read?.[i]).length; }
+  readStory(i) {
+    if (!this.storyOpen(i) || this.s.wraid.read?.[i]) return null;
+    this.s.wraid.read = { ...(this.s.wraid.read || {}), [i]: 1 };
+    const out = this.grant(D.storyReward(this.s.level, i));
+    this.emit('storyRead', { i, who: D.HEAVEN_STORY[i].who });
+    return out;
+  }
   gatesCleared() { return D.HEAVEN_GATES.filter((x) => this.s.wraid.gates?.[x.id]).length; }
   gateBonus() { return this.gatesCleared() * D.GATE_BONUS; }
   // 대성신장 일곱을 모두 끼었나 — { n: 낀 부위 수, ok }
@@ -4408,6 +4429,7 @@ export class WorldGame {
     const n = G.PALMA_SLOTS.filter((sl) => { const it = this.s.equip[sl]; return G.isPalma(it) && (it.plus || 0) >= D.OK_PLUS; }).length;
     return { n, ok: n >= G.PALMA_SLOTS.length };
   }
+  seokgaOpen() { return (this.s.wraid.ok || 0) >= 1 && this.palmaReady().ok; }   // v378 옥황상제를 쓰러뜨리는 데 함께한 자
   okhwangOpen() { return this.palmaReady().ok && this.gatesCleared() >= D.HEAVEN_GATES.length; }   // v377 관문 넷을 넘어야
   // 화무기 두목의 기본 체력 — 마왕 체력의 잣대(spawnMob과 같은 셈, 맞춤 키우기 빼고)
   hwamugiHp() {
@@ -4436,6 +4458,7 @@ export class WorldGame {
     if (rank === 1) r.top1++;
     const b = D.WRAID_BOSS[bossId];
     if (bossId === D.OKHWANG.id) r.ok = (r.ok || 0) + 1;
+    if (bossId === D.SEOKGA.id) r.sk = (r.sk || 0) + 1;
     if (D.isGate(bossId) && !r.gates?.[bossId]) { r.gates = { ...(r.gates || {}), [bossId]: 1 }; this._stats = null; this.emit('gateClear', { boss: b.name, n: this.gatesCleared(), bonus: D.GATE_BONUS }); }
     const out = this.grant(D.wraidKillReward(this.s.level, rank, bossId));
     if (b?.slot) {

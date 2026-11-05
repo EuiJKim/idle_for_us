@@ -1152,6 +1152,7 @@ function instHud() {
   hud.classList.toggle('tower', I?.kind === 'tower');
   hud.classList.toggle('raid', I?.kind === 'raid' || I?.kind === 'wraid');
   hud.classList.toggle('wraid', I?.kind === 'wraid');   // v373
+  view.camOverride = I?.kind === 'wraid' && SHC.wide ? 0 : null;   // v378 탄막 판은 멀리
   // v377 터치 — 탄막 판에서는 조이스틱 자리를 옅게 보여 준다(누른 곳으로 옮겨 온다)
   { const idle = I?.kind === 'wraid' && !finePointer && !SHC.follow && !press; joyEl.classList.toggle('idle', idle); if (idle) { joyEl.classList.remove('hidden'); joyEl.style.left = '22%'; joyEl.style.top = '78%'; joyEl.firstChild.style.transform = ''; } else if (!press) joyEl.classList.add('hidden'); }
   hud.classList.toggle('hard', !!I?.hard);   // v350 극
@@ -1672,6 +1673,12 @@ function handleEvents() {
         if (b) view.float(`「${ev.name}」`, view.sx(b), view.sy(b) + 40, ev.rage >= 2 ? '#f87171' : '#fde68a', 22, 1.3);
         break;
       }
+      // v378 스침 · 칠십이변
+      case 'wbGraze': if (view.fxLevel > 0) view.effects.push({ kind: 'shock', life: 0.25, max: 0.25, wx: ev.x, wy: ev.y, r: 10, col: '255,255,255', rings: 1, w: 2 }); break;
+      case 'wukongBlock': sfx('loot'); view.float(`분신이 대신 맞았다${ev.left ? ` (${ev.left})` : ''}`, view.heroX, view.groundY - 150, '#fbbf24', 16, 1); break;
+      case 'wukongReady': view.float(`칠십이변 — 분신 방패 ${ev.n}`, view.heroX, view.groundY - 150, '#fde68a', 15, 1); break;
+      case 'wukongClone': if (view.fxLevel > 0) view.effects.push({ kind: 'shock', life: 0.4, max: 0.4, wx: ev.at.x, wy: ev.at.y, r: 30, col: '251,191,36', rings: 2, w: 3 }); break;
+      case 'storyRead': break;
       // v377 집중 — 손으로 피하며 쌓은 겹
       case 'wbFocus':
         if (ev.lost) view.float(`집중 흩어짐 (${ev.lost})`, view.heroX, view.groundY - 150, '#fca5a5', 16, 1);
@@ -1752,9 +1759,12 @@ function hideGuide() { $('guide-tip')?.classList.add('hidden'); guideQ = null; }
 $('stagebar').addEventListener('click', () => showTab('map'));
 
 // v377 탄막(칠대성·천외천) 조작 설정 — 이 기기에만
-const SHC = (() => { try { return { follow: false, bigDot: false, fast: false, ...JSON.parse(localStorage.getItem('ifu.shc') || '{}') }; } catch { return { follow: false, bigDot: false, fast: false }; } })();
+// v378 폰(손가락)이면 처음부터 '여유'(탄 60%·느리게·맞는 판정 작게) · 탄막 판에서 화면을 한 단계 멀리(wide)
+const SH_TOUCH = typeof matchMedia === 'function' && !matchMedia('(pointer: fine)').matches;
+const SHC_DEF = { follow: false, bigDot: false, fast: false, ease: SH_TOUCH ? 'roomy' : 'dense', wide: SH_TOUCH };
+const SHC = (() => { try { return { ...SHC_DEF, ...JSON.parse(localStorage.getItem('ifu.shc') || '{}') }; } catch { return { ...SHC_DEF }; } })();
 const saveShc = () => { try { localStorage.setItem('ifu.shc', JSON.stringify(SHC)); } catch { /* 사생활 모드 */ } applyShc(); };
-function applyShc() { game.shSens = SHC.fast ? 1.25 : 1; view.shBigDot = !!SHC.bigDot; }
+function applyShc() { game.shSens = SHC.fast ? 1.25 : 1; game.shEase = SHC.ease; view.shBigDot = !!SHC.bigDot; }
 applyShc();
 // ---------- 들판을 눌러 움직이기 ----------
 // 톡 누르면 그 칸으로 · 누른 채 끌면 그 자리에 조이스틱이 나와 끄는 쪽으로 계속 걷는다(v125).
@@ -2240,6 +2250,13 @@ $('btn-settings').addEventListener('click', () => openModal((s) => {
     h('div', { class: 'row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, '글자·화면 크기'), h('div', { class: 'desc' }, '컴퓨터처럼 넓은 화면에서는 저절로 키워요 — 여기서 더 키울 수 있어요')),
       (() => { const b = h('button', { class: 'btn', style: 'padding:6px 12px' }, UI_SCALE_NAME[uiScalePref()]); b.onclick = () => { const ks = Object.keys(UI_SCALE); const nx = ks[(ks.indexOf(uiScalePref()) + 1) % ks.length]; try { localStorage.setItem('ifu.uiScale', nx); } catch { /* 이번만 */ } b.textContent = UI_SCALE_NAME[nx]; applyUiScale(); }; return b; })()),
     // v377 탄막 조작(칠대성·천외천)
+    (() => {   // v378 탄막 밀도
+      const row = h('div', { class: 'chips' });
+      const paint = () => row.replaceChildren(...[['roomy', '여유'], ['normal', '보통'], ['dense', '촘촘']].map(([k, t]) => h('button', { class: `chip${SHC.ease === k ? ' on' : ''}`, onclick: () => { SHC.ease = k; saveShc(); paint(); } }, t)));
+      paint();
+      return h('div', { class: 'row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, '탄막 밀도'), h('div', { class: 'desc' }, '칠대성·천궁의 탄 — 여유: 탄 60%·느리게·맞는 판정 작게(폰 기본) · 보통 · 촘촘: 그대로(컴퓨터 기본)')), row);
+    })(),
+    toggleRow('탄막 — 화면 멀리 보기', SHC.wide, '탄막 판에서는 화면을 「전체」로 — 탄이 오는 걸 미리 봐요(폰 기본)', (v) => { SHC.wide = v; saveShc(); }),
     toggleRow('탄막 — 손가락 따라 움직이기', SHC.follow, '칠대성·천궁에서 끈 만큼 그대로 움직여요(조이스틱 대신) — 정밀하게 피할 때', (v) => { SHC.follow = v; saveShc(); }),
     toggleRow('탄막 — 맞는 점 크게 보기', SHC.bigDot, '무인의 맞는 점(흰 점)을 크게 그려요 — 맞는 크기는 그대로', (v) => { SHC.bigDot = v; saveShc(); }),
     toggleRow('탄막 — 빠르게 움직이기', SHC.fast, '손으로 움직일 때 ×1.25 (자동 회피는 그대로)', (v) => { SHC.fast = v; saveShc(); }),

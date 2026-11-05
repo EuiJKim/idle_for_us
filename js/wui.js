@@ -76,8 +76,18 @@ export const optLines = (it) => (it.opts || []).map(W.optText);
 // 아이템 한 줄 요약 — '공격력 +123' 같은 것
 // v317 끼면 어떻게 되나 — 온 능력치 한 줄(오르면 초록 ▲ · 내리면 빨강 ▼). 세트·공명·각인까지 든 값
 export function equipCompare(game, it) {
-  const { now, then } = game.previewEquip(it);
+  const { now, then, sets0 = {}, sets1 = {} } = game.previewEquip(it);
   const parts = [];
+  // v378 세트 — 끼면 몇 조각이 되고 무엇이 켜지나(빠지는 세트는 무엇이 꺼지나)
+  const setLines = [];
+  for (const id of new Set([...Object.keys(sets0), ...Object.keys(sets1)])) {
+    const st = G.setOf(id);
+    const a = sets0[id] || 0, b = sets1[id] || 0;
+    if (!st || a === b || (st.job && st.job !== game.s.job)) continue;
+    const ons = Object.keys(st.bonus).map(Number).filter((n) => (b > a ? n > a && n <= b : n > b && n <= a));
+    setLines.push(h('div', { class: `cmp-set ${b > a ? 'up' : 'down'}` }, `〈${st.name}〉 ${a}→${b}조각`,
+      ...ons.map((n) => h('small', {}, ` · ${n}조각 ${b > a ? '켜짐' : '꺼짐'}: ${G.setBonusText(st.bonus[n])}`))));
+  }
   const add = (label, a, b, kind = 'num') => {
     const d = b - a;
     if (kind === 'num' ? Math.abs(d) < Math.max(0.5, Math.abs(a) * 0.0005) : Math.abs(d) < 0.0005) return;
@@ -92,7 +102,7 @@ export function equipCompare(game, it) {
   const dp = (then.power - now.power) / (now.power || 1);
   const verdict = Math.abs(dp) < 0.0005 ? h('b', { class: 'cmp same' }, '전투력 그대로')
     : h('b', { class: `cmp ${dp > 0 ? 'up' : 'down'}` }, `전투력 ${dp > 0 ? '▲' : '▼'} ${fmt(Math.round(Math.abs(then.power - now.power)))} (${dp > 0 ? '+' : '−'}${(Math.abs(dp) * 100).toFixed(1)}%)`);
-  return h('div', { class: `equip-cmp ${dp > 0.0005 ? 'better' : dp < -0.0005 ? 'worse' : ''}` }, h('small', {}, '끼면 →'), verdict, ...parts);
+  return h('div', { class: `equip-cmp ${dp > 0.0005 ? 'better' : dp < -0.0005 ? 'worse' : ''}` }, h('small', {}, '끼면 →'), verdict, ...parts, ...setLines);
 }
 // v320 출석부 칸 일곱 — 받은 칸 ✓ · 오늘 받을 칸 빛남
 export function attGrid(game) {
@@ -1864,7 +1874,7 @@ function dgnTab(app) {
     const now = Date.now();
     const net = app.net;
     const rd = net?.raid;
-    const nsig = `${s.level}|${JSON.stringify(s.dgn)}|${s.tower.floor}|${s.tower.auto}|${D.kstDay(now)}|${JSON.stringify(stagePick)}|${!!game.inst}|${!!s.job}|${JSON.stringify(s.zTickets)}|${s.mounts.length}|${net?.status}|${s.guildId}|${rd?.kind}|${rd?.total}|${rd?.maxHp}|${JSON.stringify(rd?.claimed || {})}|${JSON.stringify(s.raid)}|${JSON.stringify(s.wraid)}|${Object.values(net?.wgen || {}).map((r) => `${r?.id}:${r?.total}:${Object.keys(r?.claimed || {}).length}:${Object.keys(r?.damage || {}).length}`).join(',')}|${Object.keys(net?.wdone || {}).join(',')}|${wbPick}|${JSON.stringify(s.wraid?.gates || {})}|${W.SLOTS.map((x) => `${s.equip[x.id]?.set}${s.equip[x.id]?.plus}`).join('')}`;
+    const nsig = `${s.level}|${JSON.stringify(s.dgn)}|${s.tower.floor}|${s.tower.auto}|${D.kstDay(now)}|${JSON.stringify(stagePick)}|${!!game.inst}|${!!s.job}|${JSON.stringify(s.zTickets)}|${s.mounts.length}|${net?.status}|${s.guildId}|${rd?.kind}|${rd?.total}|${rd?.maxHp}|${JSON.stringify(rd?.claimed || {})}|${JSON.stringify(s.raid)}|${JSON.stringify(s.wraid)}|${Object.values(net?.wgen || {}).map((r) => `${r?.id}:${r?.total}:${Object.keys(r?.claimed || {}).length}:${Object.keys(r?.damage || {}).length}`).join(',')}|${Object.keys(net?.wdone || {}).join(',')}|${wbPick}|${JSON.stringify(s.wraid?.gates || {})}|${JSON.stringify(s.wraid?.read || {})}.${s.wraid?.ok}.${s.wraid?.sk}|${W.SLOTS.map((x) => `${s.equip[x.id]?.set}${s.equip[x.id]?.plus}`).join('')}`;
     return `${bump}|${nsig}`;
   };
   // 어느 칸이든 맨 위에 — 던전 안이거나 직업이 없으면 알린다
@@ -2148,10 +2158,18 @@ function dgnTab(app) {
         h('p', { class: 'muted dgn-desc' }, pr.ok ? `대성신장을 두른 자에게 남천문이 열렸어요. 관문 넷(사대천사 → 탁탑천왕 → 나타 → 이랑진군)을 차례로 넘으면 옥황상제 — 넘은 관문마다 천계의 가호 +${Math.round(D.GATE_BONUS * 100)}%(공격력·체력, 영구).`
           : `대성신장 일곱 부위를 모두 끼면 열려요 — 지금 ${pr.n}/${G.PALMA_SLOTS.length}`),
         h('div', { class: 'wraid-slots' }, ...W.SLOTS.filter((x) => G.PALMA_SLOTS.includes(x.id)).map((x) => { const it = s.equip[x.id]; const good = it?.set === 'palma'; return h('span', { class: `chip${good ? ' on' : ''}` }, `${x.name}${it?.set === 'palma' ? ` +${it.plus || 0}` : ''}`); })),
-        h('button', { class: 'pref-link', onclick: () => openModal((el) => el.append(h('h2', {}, '☁ 천계 이야기'),
-          h('p', { class: 'muted', style: 'font-size:12.5px' }, '칠대성의 막내 제천대성이 한바탕 휘젓고 간 하늘 — 이제 그 신장을 두른 무인이 남천문 앞에 섰다.'),
-          ...D.HEAVEN_STORY.map((x) => h('div', { class: 'heaven-story' }, h('b', {}, x.who), h('p', {}, x.text))),
-          h('div', { class: 'btn-row' }, h('button', { class: 'btn primary', onclick: closeModal }, '닫기')))) }, '📜 천계 이야기 — 옥황상제 · 사대천사 · 태백금성 · 태상노군 · 이랑진군 …'),
+        h('button', { class: 'pref-link', id: 'heaven-story-btn', onclick: () => openModal((el) => {
+          const draw = () => el.replaceChildren(h('h2', {}, '☁ 천계 이야기'),
+            h('p', { class: 'muted', style: 'font-size:12.5px' }, `칠대성의 막내 제천대성이 한바탕 휘젓고 간 하늘 — 이제 그 신장을 두른 무인이 남천문 앞에 섰다. 한 장씩 열리고, 처음 읽으면 보상을 받아요(${game.storyUnread()}장 읽을 것).`),
+            ...D.HEAVEN_STORY.map((x, i) => {
+              const open = game.storyOpen(i), read = !!s.wraid.read?.[i];
+              if (!open) return h('div', { class: 'heaven-story locked' }, h('b', {}, `${i + 1}장 · ???`), h('p', {}, `🔒 ${D.STORY_NEED_TEXT[x.need]} 열려요`));
+              return h('div', { class: `heaven-story${read ? '' : ' new'}` }, h('b', {}, `${i + 1}장 · ${x.who}`),
+                read ? h('p', {}, x.text) : h('button', { class: 'btn primary', style: 'margin-top:6px;padding:5px 10px;font-size:12.5px', onclick: () => { const r = game.readStory(i); if (r) { toast(`📜 ${x.who} — ${rewardText(r)}`); app.save(); app.refresh(); } draw(); } }, `읽고 보상 받기 (${rewardText(D.storyReward(s.level, i))})`));
+            }),
+            h('div', { class: 'btn-row' }, h('button', { class: 'btn primary', onclick: closeModal }, '닫기')));
+          draw();
+        }) }, `📜 천계 이야기${game.storyUnread() ? ` — 새 이야기 ${game.storyUnread()}장 · 보상` : ' — 옥황상제 · 사대천사 · 태백금성 · 태상노군 · 이랑진군 …'}`),
         h('div', { class: 'wraid-grid wraid-gates' }, ...D.HEAVEN_GATES.map((g) => {
           const gr = on ? net.wraidOf(g.id) : null;
           const gl = gr ? net.wraidHpLeft(gr) : 0;
@@ -2168,6 +2186,19 @@ function dgnTab(app) {
         r ? h('div', { class: 'raid-hp wraid-hp' }, h('i', { style: `width:${(left / r.maxHp) * 100}%` }), h('span', {}, left > 0 ? `${fmt(left)} / ${fmt(r.maxHp)}` : '쓰러짐')) : null,
         on && game.okhwangOpen() && s.level >= D.WRAID_LV ? h('div', { class: 'btn-row' }, h('button', { class: 'btn primary', id: 'wraid-go-okhwang', disabled: game.inst ? true : null, onclick: (e) => go(ok.id, e) }, r && left <= 0 ? '다시 하늘 문을 두드리기' : `천궁으로 (${D.WRAID_SEC}초)`)) : null);
       out.push(card);
+    }
+    // v378 천외천 너머 — 석가여래(숨은 두목)
+    {
+      const sk = D.SEOKGA;
+      const op = game.seokgaOpen();
+      const r = on && op ? net.wraidOf(sk.id) : null;
+      const left = r ? net.wraidHpLeft(r) : 0;
+      out.push(h('div', { class: `card wraid-card wraid-heaven${op ? '' : ' locked secret'}`, style: `--wb:${sk.col}` },
+        h('div', { class: 'wraid-head' }, h('img', { class: 'wraid-banner', src: 'art/ui/wb-heaven.webp', alt: '' }), op ? h('img', { class: 'wraid-boss', src: `art/boss/${sk.art}.png`, alt: sk.name }) : null,
+          h('div', { class: 'wraid-name' }, h('small', {}, op ? '천외천 너머 · 숨은 두목' : '천외천 너머'), h('b', {}, op ? sk.name : '???', op ? h('i', {}, ` ${sk.hanja}`) : null))),
+        h('p', { class: 'muted dgn-desc' }, op ? `하늘조차 막지 못한 제천대성을 손바닥 하나로 눌렀던 자. 손바닥 안에서 좁혀 오는 탄 — 빈틈은 한 군데뿐. 체력은 옥황상제의 ${D.SK_HP_K}배.` : '🔒 옥황상제를 쓰러뜨리는 데 함께한 자만 — 그 너머에 무엇이 있는지 아무도 모른다.'),
+        r ? h('div', { class: 'raid-hp wraid-hp' }, h('i', { style: `width:${(left / r.maxHp) * 100}%` }), h('span', {}, left > 0 ? `${fmt(left)} / ${fmt(r.maxHp)}` : '쓰러짐')) : null,
+        on && op && s.level >= D.WRAID_LV ? h('div', { class: 'btn-row' }, h('button', { class: 'btn primary', id: 'wraid-go-seokga', disabled: game.inst ? true : null, onclick: (e) => go(sk.id, e) }, r && left <= 0 ? '다시 손바닥으로' : `손바닥 안으로 (${D.WRAID_SEC}초)`)) : null));
     }
     return out;
   }

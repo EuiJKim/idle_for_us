@@ -1204,12 +1204,18 @@ details.lore p { margin: 4px 0 0; line-height: 1.5; }
 .wraid-go { width: 100%; padding: 6px 8px; font-size: 12.5px; }
 .wraid-heaven.locked .wraid-boss { filter: grayscale(0.7) brightness(0.55) drop-shadow(0 0 10px var(--wb)); }
 .wraid-gates { margin: 8px 0; }
+.cmp-set { flex-basis: 100%; font-size: 12px; font-weight: 700; margin-top: 2px; }
+.cmp-set.up { color: #fde68a; } .cmp-set.down { color: #fca5a5; }
+.cmp-set small { display: block; font-weight: 500; color: var(--muted); }
 .wraid-cell.locked img { filter: grayscale(0.8) brightness(0.6); }
 .wraid-slots { display: flex; flex-wrap: wrap; gap: 4px; margin: 4px 0 8px; }
 .wraid-slots .chip { font-size: 11px; padding: 3px 7px; }
 .wraid-claims { display: grid; gap: 6px; }
 .heaven-story { padding: 8px 10px; margin: 6px 0; border-left: 3px solid #fde68a; background: rgba(253, 230, 138, 0.06); border-radius: 0 8px 8px 0; }
 .heaven-story b { color: #fde68a; font-size: 13.5px; }
+.heaven-story.locked { opacity: 0.55; border-left-color: #78716c; }
+.heaven-story.new { box-shadow: 0 0 0 1px rgba(253, 230, 138, 0.5) inset; }
+.wraid-heaven.secret .wraid-banner { filter: grayscale(1) brightness(0.35); }
 .heaven-story p { margin: 4px 0 0; font-size: 12.5px; line-height: 1.55; color: var(--muted, #d6d3d1); }
 #contest-hud.wraid { border-color: #f87171; box-shadow: 0 0 22px rgba(239, 68, 68, 0.45); }
 .dgn-raid .dgn-ico { background: radial-gradient(circle at 35% 30%, #ef4444, #450a0a); color: #fff1f2; }

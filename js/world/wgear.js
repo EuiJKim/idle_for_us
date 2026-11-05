@@ -79,6 +79,7 @@ export const SET_FX = {
   fearUp: (v) => `공포 확률 +${Math.round(v * 100)}%p`, fearVuln: (v) => `공포에 걸린 적은 3초간 받는 피해 +${Math.round(v * 100)}%`,
   maskAlways: (v) => `공포가 걸릴 때마다 가면의 일격(×${v * 100}%)`, harmonyUp: (v) => `삼공조화 피해 +${Math.round(v * 100)}%p`,
   daggersUp: (v) => `소향비술 비수 +${v}자루`, killCdr: (v) => `적을 쓰러뜨릴 때마다 모든 무공 숨 ${v}초 감소`,
+  wukong: () => '칠십이변 — 평타 여섯 번마다 손오공의 분신이 함께 친다(×300%) · 탄막 판에서 15초마다 분신 방패(탄 한 대, 최대 2)',
 };
 export const SETS = [
   { id: 'plum', job: 'sword', king: 21, name: '매화검진', short: '매화', col: '#f9a8d4',
@@ -212,7 +213,7 @@ SETS.push(...LORD_SETS);
 export const PALMA_SLOTS = ['weapon', 'armor', 'hat', 'glove', 'shoe', 'acc', 'finger'];   // 칠대성이 하나씩 — 귀걸이는 없다
 export const PALMA = { id: 'palma', job: null, palma: true, name: '대성신장', short: '대성', col: '#f97316', mult: 2,
   lore: '화과산에서 의형제를 맺은 칠대성 — 평천대성 우마왕·복해대성 교마왕·혼천대성 붕마왕·이산대성 사타왕·통풍대성 미후왕·구신대성 우융왕·제천대성 손오공이 한 부위씩 남긴 신장(神裝). 일곱을 갖추면 남천문이 열린다.',
-  bonus: { 2: { atkPct: 0.25, hpPct: 0.25 }, 4: { bossDmg: 0.5, crit: 0.1, critDmg: 0.5 }, 6: { skill: 0.5, dmgRed: 0.15, cdr: 0.15 }, 7: { atkPct: 0.6, bossDmg: 0.8, drain: 0.04, dodge: 0.08, speed: 0.2 } } };
+  bonus: { 2: { atkPct: 0.25, hpPct: 0.25 }, 4: { bossDmg: 0.5, crit: 0.1, critDmg: 0.5 }, 6: { skill: 0.5, dmgRed: 0.15, cdr: 0.15 }, 7: { atkPct: 0.6, bossDmg: 0.8, drain: 0.04, dodge: 0.08, speed: 0.2, wukong: 1 } } };
 SETS.push(PALMA);
 export const PALMA_ZONE = 27;          // 강화석·증표 셈에 쓰는 지역(가장 높은 왕)
 export const isPalma = (it) => it?.set === 'palma';
