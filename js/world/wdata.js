@@ -240,11 +240,11 @@ export const CHEONMA_JOBS = ['sword'];
 export const CHEONMA = {
   name: '천마신공', hanja: '天魔神功', soul: '천마혼', soulHanja: '天魔魂', tierName: '천마', col: '#dc2626',
   form: '구화마도식', formHanja: '九華魔刀式',
-  trait: '천마혼(天魔魂) — 공격력 ×1.5 · 최대 체력 ×1.3(따로 곱한다) · 무공 피해 +30% · 두목 피해 +30% · 받는 피해 -15% · 꽃잎 검기가 천마검강으로(세 번째 평타마다 · 400% · 더 넓게) · 칠초식 심마도를 펼치면 천마혼 발현(12초 모든 피해 +50%)',
-  atkMul: 1.5, hpMul: 1.3,
-  mods: { skill: 0.3, bossDmg: 0.3, dmgRed: 0.15 },
-  flower: { every: 3, mult: 4.0, r: 210 },
-  soulSec: 12, soulDmg: 0.5,   // 천마혼 발현 — 심마도 뒤 이 초 동안 모든 피해 +soulDmg · 무인 뒤에 천마의 형상
+  trait: '천마혼(天魔魂) — 공격력 ×2.2 · 최대 체력 ×1.6(따로 곱한다) · 무공 피해 +50% · 두목 피해 +50% · 받는 피해 -20% · 꽃잎 검기가 천마검강으로(세 번째 평타마다 · 600% · 더 넓게) · 칠초식 심마도를 펼치면 천마혼 발현(15초 모든 피해 2배)',
+  atkMul: 2.2, hpMul: 1.6,   // v392 더 세게(1.5 · 1.3 → 2.2 · 1.6)
+  mods: { skill: 0.5, bossDmg: 0.5, dmgRed: 0.2 },
+  flower: { every: 3, mult: 6.0, r: 240 },
+  soulSec: 15, soulDmg: 1.0,   // 천마혼 발현 — 심마도 뒤 이 초 동안 모든 피해 +soulDmg · 무인 뒤에 천마의 형상
 };
 // 구화마도식(九華魔刀式) 일곱 초식 — 자리마다 하나씩(1차 한 적 · 2차 둘레 · 3차 비기 · 보조 · 4차 · 두 갈래 길)
 export const CHEONMA_SKILLS = {
@@ -262,7 +262,7 @@ export const CHEONMA_SKILLS = {
     a: { name: '절혼참', icon: '절혼', form: 6, role: 'thunder', kind: 'aoe', mult: 4.2, hits: 3, cd: 6, hpCost: 0.08, radius: 340, autoAbove: 0.5, bossMult: 1.3,
       desc: '육초식 絶魂斬 — 살기와 마기를 극한으로 끌어올려 혼백까지 끊는다 · 세 번 · 두목에겐 1.3배 — 검기의 길' },
     4: { name: '심마도', icon: '심마', form: 7, role: 'chain4', kind: 'daggers', mult: 2.6, n: 16, targets: 16, cd: 15, hpCost: 0.1, radius: 460, autoAbove: 0.5, blink: true, soul: true,
-      desc: '칠초식 心魔刀 — 구화마도식의 최종장. 정·사·선·악의 경계를 무너뜨리고 제 마음의 마(魔)를 검에 담아 열여섯 번 가른다 · 천마혼 발현(12초 모든 피해 +50%)' },
+      desc: '칠초식 心魔刀 — 구화마도식의 최종장. 정·사·선·악의 경계를 무너뜨리고 제 마음의 마(魔)를 검에 담아 열여섯 번 가른다 · 천마혼 발현(15초 모든 피해 2배)' },
   },
 };
 
