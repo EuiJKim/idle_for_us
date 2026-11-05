@@ -181,6 +181,8 @@ export function migrateWorld(raw, now = Date.now()) {
   for (const pp of [...s.pets, ...s.petBox]) s.petDex[pp.kind] = Math.max(s.petDex[pp.kind] ?? -1, pp.rar || 0);
   for (const mm of s.mounts) s.mountDex[mm.kind] = 1;
   s.mountShard = Math.max(0, Math.floor(Number(raw.mountShard) || 0));
+  const gc = raw.gacha && typeof raw.gacha === 'object' ? raw.gacha : {};   // v362 뽑기 천장
+  s.gacha = Object.fromEntries(['pet', 'mount'].map((k) => [k, { n: Math.max(0, Math.floor(Number(gc[k]?.n) || 0)), pity: Math.max(0, Math.floor(Number(gc[k]?.pity) || 0)) }]));
   if (!s.mounts.some((m) => m.uid === s.mount)) s.mount = null;
   s.mats = {};
   // v273 옛 지역 재료는 그 지역 가중치대로 현철로 (한 번만 — 들어온 뒤로는 지역 재료 열쇠가 남지 않는다)
@@ -2763,7 +2765,7 @@ export class WorldGame {
     }
     this._stats = null;
     this.noteDex();
-    this.emit('petDrop', { pet, at: at ? { x: at.x, y: at.y } : null, joined: this.s.pets.includes(pet) });
+    if (!this._gachaQuiet) this.emit('petDrop', { pet, at: at ? { x: at.x, y: at.y } : null, joined: this.s.pets.includes(pet) });
     return pet;
   }
   // v262 포획 조각 · 혼
@@ -2777,6 +2779,49 @@ export class WorldGame {
     this.emit('shards', { pet: ps, mount: ms, at: { x: m.x, y: m.y } });
   }
   addShards(pet, mount) { if (pet) this.s.petShard = (this.s.petShard || 0) + pet; if (mount) this.s.mountShard = (this.s.mountShard || 0) + mount; }
+  // ---------- v362 뽑기 ----------
+  gachaRoom(kind) { return kind === 'pet' ? Math.max(0, this.petSlots() - this.s.pets.length) + Math.max(0, W.PET_BOX - this.s.petBox.length) : 999; }
+  canGacha(kind, n = 1) {
+    const have = kind === 'pet' ? this.s.petShard || 0 : this.s.mountShard || 0;
+    return have >= W.GACHA_COST * n && this.gachaRoom(kind) >= n;
+  }
+  gacha(kind, n = 1) {
+    if (!this.canGacha(kind, n)) return null;
+    if (kind === 'pet') this.s.petShard -= W.GACHA_COST * n; else this.s.mountShard -= W.GACHA_COST * n;
+    const st = this.s.gacha[kind];
+    const out = [];
+    this._gachaQuiet = true;   // 알림 대신 뽑기 연출이 보여 준다
+    for (let i = 0; i < n; i++) {
+      st.n++; st.pity++;
+      const lastOfTen = n === 10 && i === 9;
+      if (kind === 'pet') {
+        let rar = W.pickW(W.GACHA_PET_RAR, this.rng);
+        if (st.pity >= W.GACHA_PET_PITY) rar = 3;
+        if (lastOfTen && !out.some((r) => r.rar >= W.GACHA_PET_TEN) && rar < W.GACHA_PET_TEN) rar = W.pickW(W.GACHA_PET_RAR, this.rng, ([r]) => r >= W.GACHA_PET_TEN);
+        const pk = W.pickW(W.GACHA_PET_KIND, this.rng);
+        if (rar === 3) st.pity = 0;
+        const pet = this.gainPet(rar, null, pk);
+        out.push({ kind: 'pet', id: pk, rar, grade: W.petGachaGrade(pk, rar), pity: rar === 3 && st.pity === 0, pet });
+      } else {
+        const sacred = (k) => { const d = W.mountOf(k); return d.zodiac || d.hard; };
+        let id = st.pity >= W.GACHA_MOUNT_PITY ? W.pickW(W.GACHA_MOUNT, this.rng, ([k]) => sacred(k)) : W.pickW(W.GACHA_MOUNT, this.rng);
+        if (lastOfTen && !out.some((r) => W.mountOf(r.id).tier >= W.GACHA_MOUNT_TEN) && W.mountOf(id).tier < W.GACHA_MOUNT_TEN) id = W.pickW(W.GACHA_MOUNT, this.rng, ([k]) => W.mountOf(k).tier >= W.GACHA_MOUNT_TEN);
+        const d = W.mountOf(id);
+        if (sacred(id)) st.pity = 0;
+        let dup = null;
+        const owned = (d.zodiac || d.hard) && this.s.mounts.find((m) => m.kind === id);
+        if (owned) {
+          if ((owned.lv || 0) < W.mountLvMax(d)) { owned.lv = (owned.lv || 0) + 1; dup = 'tame'; } else { this.s.mountShard += W.GACHA_DUP_SHARD; dup = 'shard'; }
+          this._stats = null;
+        } else this.gainMount(id);
+        out.push({ kind: 'mount', id, grade: W.mountGachaGrade(d), dup });
+      }
+    }
+    this._gachaQuiet = false;
+    this.mark('gacha');
+    this.noteDex();
+    return out;
+  }
   canShardPet() { return (this.s.petShard || 0) >= W.PET_SHARD_NEED && !this.map.town; }
   shardPet() {
     if (!this.canShardPet()) return null;
@@ -2995,7 +3040,7 @@ export class WorldGame {
     const cur = this.mountNow();
     if (!cur || W.mountRank(W.mountOf(kind)) > W.mountRank(cur)) this.s.mount = mt.uid;
     this._stats = null;
-    this.emit('mountDrop', { mount: mt, at: at ? { x: at.x, y: at.y } : null });
+    if (!this._gachaQuiet) this.emit('mountDrop', { mount: mt, at: at ? { x: at.x, y: at.y } : null });
     return mt;
   }
   ride(uid) {

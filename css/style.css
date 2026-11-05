@@ -2395,3 +2395,29 @@ body.hunt-noui #gather, body.in-inst #gather { display: none !important; }
 .reveal-stats span { padding: 3px 10px; border-radius: 999px; background: rgba(0,0,0,.35); border: 1px solid var(--rc); color: #fef3c7; font-weight: 700; font-size: 13px; }
 @media (prefers-reduced-motion: reduce) { .hard-card, .hard-card .hard-glow, .hard-card .dgn-name b, .hard-go, .reveal-name { animation: none; } }
 .reveal-sp { margin: 0 0 8px; color: #fde68a; font-weight: 700; font-size: 13.5px; }
+
+/* v362 뽑기 */
+.gacha-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: space-between; padding: 8px 10px; border-radius: 10px; background: linear-gradient(90deg, rgba(120,53,15,.35), rgba(76,29,149,.3)); border: 1px solid rgba(251,191,36,.35); }
+.gacha-row .g-info { display: flex; flex-direction: column; min-width: 0; }
+.gacha-row .g-btns { display: flex; gap: 6px; }
+.gacha-row .gacha-10:not([disabled]) { background: linear-gradient(90deg, #b45309, #f59e0b); color: #1c0a00; font-weight: 800; }
+.rate-grid { display: grid; grid-template-columns: 1fr auto; gap: 3px 12px; margin: 6px 0 10px; font-size: 13px; }
+.rate-grid b { color: #fde68a; border-bottom: 1px solid rgba(255,255,255,.12); padding-bottom: 2px; }
+#gacha-ov { position: fixed; inset: 0; z-index: 9500; background: #050403; overflow: hidden; touch-action: none; user-select: none; }
+#gacha-ov canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+#gacha-ov .g-top { position: absolute; top: calc(14px + var(--safe-top, 0px)); left: 0; right: 0; text-align: center; color: #fde68a; font-size: 18px; font-weight: 800; letter-spacing: .12em; text-shadow: 0 0 10px #000; }
+#gacha-ov .g-skip { position: absolute; right: 12px; top: calc(48px + var(--safe-top, 0px)); padding: 7px 12px; border-radius: 999px; border: 1px solid rgba(255,255,255,.35); background: rgba(0,0,0,.5); color: #fff; font: inherit; font-size: 13px; }
+#gacha-ov .g-hint { position: absolute; bottom: calc(24px + var(--safe-bottom, 0px)); left: 0; right: 0; text-align: center; color: rgba(255,255,255,.55); font-size: 12px; }
+#gacha-ov .g-card { position: absolute; left: 50%; bottom: 16%; transform: translateX(-50%); text-align: center; padding: 10px 22px; border-radius: 14px; background: rgba(0,0,0,.55); border: 2px solid var(--gc); box-shadow: 0 0 24px var(--gc); min-width: 220px; animation: gPop .4s cubic-bezier(.2,1.6,.4,1); }
+#gacha-ov .g-card b { display: block; font-size: 26px; color: #fff; text-shadow: 0 0 12px var(--gc); }
+#gacha-ov .g-card small { color: #fde68a; font-size: 13px; }
+#gacha-ov .g-card.g3 b, #gacha-ov .g-card.g4 b { background: linear-gradient(90deg, #fff, #fde047, #f472b6, #67e8f9, #fff); background-size: 200% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: hardText 2s linear infinite; }
+@keyframes gPop { from { transform: translateX(-50%) scale(.4); opacity: 0; } }
+#gacha-ov .g-grid { position: absolute; left: 10px; right: 10px; top: 70px; bottom: 80px; display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; align-content: center; overflow-y: auto; }
+#gacha-ov .g-res { display: flex; flex-direction: column; align-items: center; padding: 6px 4px; border-radius: 10px; background: rgba(0,0,0,.6); border: 1px solid var(--gc); box-shadow: 0 0 10px var(--gc) inset; text-align: center; animation: gPop2 .35s ease-out backwards; }
+#gacha-ov .g-res canvas { position: static; width: 84px; height: 70px; }
+#gacha-ov .g-res b { color: #fff; font-size: 13px; }
+#gacha-ov .g-res small { color: #cbd5e1; font-size: 10px; line-height: 1.2; }
+#gacha-ov .g-res.g3, #gacha-ov .g-res.g4 { box-shadow: 0 0 16px var(--gc), 0 0 10px var(--gc) inset; }
+@keyframes gPop2 { from { transform: scale(.6); opacity: 0; } }
+#gacha-ov .g-ok { position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(20px + var(--safe-bottom, 0px)); padding: 10px 40px; border-radius: 10px; border: 0; background: linear-gradient(90deg, #b45309, #f59e0b); color: #1c0a00; font: inherit; font-weight: 800; font-size: 16px; }

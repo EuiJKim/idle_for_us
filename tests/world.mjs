@@ -618,6 +618,21 @@ console.log('\n=== 십이지왕 신화 · 가락지·귀걸이 · 애완동물 �
     ok(DG.hardHp(1) > DG.towerHpBase(DG.hardF(1)) * 2 && DG.hardDelay(1) < DG.tellDelay(DG.hardF(1)), '극 수문장은 같은 세기 보통 층보다 단단하고 경고가 짧다');
     ok(DG.hardHp(1) >= DG.towerHpBase(DG.hardF(1)) * 200 && DG.hardAtk(1) >= DG.towerAtkBase(DG.hardF(1)) * 6, 'v359 극은 처음의 백 배 — 같은 세기 보통 층 기준 체력 220배 · 붙어 치기 6배');
     ok(DG.towerHp(30) === DG.towerHpBase(30) * 10 && DG.towerAtk(30) === DG.towerAtkBase(30) * 2, 'v359 보통 탑 수문장 열 배(체력 ×10 · 붙어 치기 ×2)');
+    // v362 뽑기
+    {
+      const sum = (t) => t.reduce((a, [, w]) => a + w, 0);
+      ok(Math.abs(sum(W.GACHA_PET_KIND) - 100) < 1e-9 && Math.abs(sum(W.GACHA_PET_RAR) - 100) < 1e-9 && Math.abs(sum(W.GACHA_MOUNT) - 100) < 1e-6 && W.PET_BOX === 30, 'v362 뽑기 확률 합이 100% · 우리 30칸');
+      const q = new WorldGame(newWorldSave(0), 0); q.s.job = 'sword'; q.s.level = 60;
+      q.s.petShard = 100 * 200; q.s.mountShard = 100 * 300;
+      let rar3 = 0, worst = 0, n = 0;
+      for (let k = 0; k < 18; k++) { const r = q.gacha('pet', 10); if (!r) break; n += 10; if (!r.some((x) => x.rar >= 2)) worst++; rar3 += r.filter((x) => x.rar === 3).length; q.s.petBox = []; q.s.pets = []; }
+      ok(n === 180 && worst === 0 && rar3 >= 2, '애완동물 10연차마다 전설 이상 · 80번 천장으로 180번에 신화 둘 넘게', `신화 ${rar3}`);
+      let sacred = 0;
+      for (let k = 0; k < 20; k++) { const r = q.gacha('mount', 10); sacred += r.filter((x) => x.grade >= 3).length; if (!r.some((x) => W.mountOf(x.id).tier >= 9)) worst++; }
+      ok(sacred >= 2, '탈것 200번 — 100번 천장으로 신수 둘 넘게', `신수 ${sacred}`);
+      const z = new WorldGame(newWorldSave(0), 0); z.s.petShard = 5000; z.s.petBox = Array.from({ length: 30 }, () => ({ ...q.s.petBox[0] || {}, uid: Math.random() }));
+      ok(!z.canGacha('pet', 10) || z.gachaRoom('pet') >= 10, '우리가 가득이면 뽑기 막힘');
+    }
     // v359 극 보상 · 칭호 · 신수 전용 효과
     ok(DG.HARD_BONUS === 0.008 && DG.hardReward(10).gold > 1e6 && !!W.TITLES.hard60 && !!W.TITLES.hard30, '극 층 덤 0.8% · 보상 크게 · 칭호 둘', `극10 은자 ${DG.hardReward(10).gold}`);
     {

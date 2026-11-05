@@ -1,6 +1,7 @@
 // 바람식 개편 — 창 다섯: 캐릭터 · 가방 · 지도 · 마을 · 무림.
 // 창 하나는 { root, update } 를 돌려준다. update는 0.2초마다 불린다(열려 있을 때만).
 import * as W from './world/wdata.js';
+import { playGacha } from './gacha.js';
 import * as D from './world/wdgn.js';
 import * as L from './world/wland.js';
 import * as G from './world/wgear.js';
@@ -3046,12 +3047,25 @@ function compTab(app) {
     if (nsig === sig) return;
     sig = nsig;
     const done = () => { app.save(); sig = ''; app.refresh(); };
+    // v362 뽑기 — 조각 100으로 한 번 · 1000으로 열 번 · 확률 보기
+    const gachaRow = (kind, have, note) => h('div', { class: 'gacha-row' },
+      h('div', { class: 'g-info' }, h('b', {}, have), h('small', {}, ` ${note} · 천장 ${s.gacha[kind].pity}/${kind === 'pet' ? W.GACHA_PET_PITY : W.GACHA_MOUNT_PITY}`)),
+      h('div', { class: 'g-btns' },
+        h('button', { class: 'btn mini', onclick: () => openGachaRates(kind) }, '확률'),
+        h('button', { class: 'buy gacha-1', id: `gacha-${kind}-1`, disabled: game.canGacha(kind, 1) ? null : true, onclick: () => runGacha(kind, 1) }, `소환 ×1 (${W.GACHA_COST})`),
+        h('button', { class: 'buy gacha-10', id: `gacha-${kind}-10`, disabled: game.canGacha(kind, 10) ? null : true, onclick: () => runGacha(kind, 10) }, `×10 (${W.GACHA_COST * 10})`)));
+    const runGacha = (kind, n) => {
+      if (!game.canGacha(kind, n)) return toast(game.gachaRoom(kind) < n ? '우리가 모자라요 — 놓아주거나 키우는 칸으로 옮겨요' : '조각이 모자라요');
+      const res = game.gacha(kind, n);
+      if (!res) return;
+      app.save();
+      playGacha(res, kind, () => { done(); });
+    };
     const slots = game.petSlots();
     petCard.replaceChildren(h('h3', {}, '애완동물', h('small', {}, `키우는 칸 ${s.pets.length}/${slots}`)),
       // v262 포획 조각 · 혼
       h('div', { class: 'pet-extra' },
-        h('div', {}, h('b', {}, `포획 조각 ${fmt(s.petShard || 0)}/${W.PET_SHARD_NEED}`), h('small', {}, ' 졸개가 가끔(정예는 세 배) 떨궈요 · 모으면 지금 지역의 애완동물 하나'),
-          h('button', { class: 'buy', disabled: game.canShardPet() ? null : true, onclick: () => { const p = game.shardPet(); if (p) { toast(`포획! ${W.petOf(p.kind).name}`); done(); } } }, '불러오기')),
+        gachaRow('pet', `포획 조각 ${fmt(s.petShard || 0)}`, `우리 ${s.petBox.length}/${W.PET_BOX}`),
         h('div', {}, h('b', {}, `혼 ${fmt(s.petSoul || 0)}`), h('small', {}, ` 다 큰(Lv.${W.PET_LV_MAX}) 애완동물이 받는 경험치가 혼이 돼요 · 등급 올리기 · 단 수련에 써요`))),
       ...(slots === 1 ? [h('p', { class: 'muted', style: 'font-size:12px;margin:0 0 6px' }, "가락지·귀걸이에 '애완동물 +N'이 붙으면 함께 키우는 칸이 늘어요.")] : []));   // v292 null이 글자로 찍혔다
     if (!s.pets.length) petCard.append(h('p', { class: 'muted' }, '두목이 아주 가끔 애완동물을 떨궈요 — 초반 두목은 아주 드물게 아래 순위만, 높은 두목일수록 자주·위 순위까지. 데려가면 곁에서 무인 공격력에 비례해 싸우고 버프를 걸어 줘요. 무인과 함께 자라요.'));
@@ -3119,8 +3133,7 @@ function compTab(app) {
     const cur = game.mountNow();
     mountCard.replaceChildren(h('h3', {}, '탈것', h('small', {}, cur ? `${cur.name}을(를) 타는 중` : '걸어 다니는 중')),
       // v292 탈것 조각
-      h('div', { class: 'pet-extra' }, h('div', {}, h('b', {}, `탈것 조각 ${fmt(s.mountShard || 0)}/${W.MOUNT_SHARD_NEED}`), h('small', {}, ' 졸개·두목·던전·탑에서 · 모으면 지금 지역의 탈것 하나 · 길들이기에도 써요'),
-        h('button', { class: 'buy', disabled: game.canShardMount() ? null : true, onclick: () => { const m = game.shardMount(); if (m) { toast(`탈것! ${W.mountOf(m.kind).name}`); done(); } } }, '부르기'))));
+      h('div', { class: 'pet-extra' }, gachaRow('mount', `탈것 조각 ${fmt(s.mountShard || 0)}`, '길들이기에도 써요')));
     if (!s.mounts.length) mountCard.append(h('p', { class: 'muted' }, '몹이 아주 드물게 탈것을 떨궈요 — 높은 두목일수록 자주·좋은 것까지. 타면 빨리 움직이고 공격력·체력이 올라요.'));
     // 탈것 합성 (v204) — 같은 순위가 셋 이상 모인 순위만 보인다
     const tiers = [...new Set(s.mounts.map((m) => W.mountOf(m.kind)).filter((d) => d && !d.zodiac && d.tier < W.MOUNT_TOP).map((d) => d.tier))]
@@ -3201,13 +3214,26 @@ function compTab(app) {
   ], 'ifu.compsub');
   const upd0 = t.update;
   t.update = () => {
-    t.setDot('pet', (game.s.petBox.length > 0 && game.s.pets.length < game.petSlots()) || game.canShardPet() || game.s.pets.some((p) => game.canStar(p.uid)));
-    t.setDot('mount', (game.s.mounts.length > 0 && game.s.mount == null) || game.canShardMount());
+    t.setDot('pet', (game.s.petBox.length > 0 && game.s.pets.length < game.petSlots()) || game.canGacha('pet', 1) || game.s.pets.some((p) => game.canStar(p.uid)));
+    t.setDot('mount', (game.s.mounts.length > 0 && game.s.mount == null) || game.canGacha('mount', 1));
     t.setDot('dex', game.dexGoalsReady() > 0);
     upd0();
   };
   return t;
 }
 
+// v362 뽑기 확률표
+function openGachaRates(kind) {
+  const pct = (v) => `${String(+v.toFixed(3))}%`;
+  openModal((el) => {
+    const rows = kind === 'pet'
+      ? [h('h3', {}, '영수 소환 확률'), h('p', { class: 'muted' }, `종과 등급을 따로 뽑아요 · 10연차엔 전설 이상 하나 · ${W.GACHA_PET_PITY}번 안에 신화가 안 나오면 ${W.GACHA_PET_PITY}번째 신화`),
+        h('div', { class: 'rate-grid' }, h('b', {}, '종'), h('b', {}, '확률'), ...W.GACHA_PET_KIND.flatMap(([k, w]) => [h('span', {}, `${W.petOf(k).emoji} ${W.petOf(k).name}`), h('span', {}, pct(w))])),
+        h('div', { class: 'rate-grid' }, h('b', {}, '등급'), h('b', {}, '확률'), ...W.GACHA_PET_RAR.flatMap(([r, w]) => [h('span', { style: `color:${W.RARITY[r].color}` }, W.RARITY[r].name), h('span', {}, pct(w))]))]
+      : [h('h3', {}, '탈것 소환 확률'), h('p', { class: 'muted' }, `10연차엔 적토마(순위 ${W.GACHA_MOUNT_TEN}) 이상 하나 · ${W.GACHA_MOUNT_PITY}번 안에 신수(십이지·극)가 안 나오면 ${W.GACHA_MOUNT_PITY}번째 신수 · 가진 신수가 또 나오면 길들이기 +1`),
+        h('div', { class: 'rate-grid' }, h('b', {}, '탈것'), h('b', {}, '확률'), ...W.GACHA_MOUNT.flatMap(([k, w]) => { const d = W.mountOf(k); return [h('span', { style: d.hard ? 'color:#fde047' : d.zodiac ? 'color:#f472b6' : '' }, `${d.emoji} ${d.name}${d.hard ? ' (극)' : ''}`), h('span', {}, pct(w))]; }))];
+    el.append(...rows, h('div', { class: 'btn-row' }, h('button', { class: 'btn primary', onclick: closeModal }, '닫기')));
+  });
+}
 export const WTABS = { char: charTab, bag: bagTab, map: mapTab, dgn: dgnTab, town: townTab, social: socialTab, comp: compTab };
 export const WTAB_TITLE = { char: '캐릭터', bag: '가방', map: '지도', dgn: '던전', town: '마을', social: '무림 · 문파', comp: '동료' };

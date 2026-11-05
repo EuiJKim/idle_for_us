@@ -1075,7 +1075,7 @@ export const PET_LV_MAX = 30;
 export const PET_SHARD_RATE = 1 / 300;
 export const PET_SHARD_NEED = 100;
 export const PET_SOUL_COST = [6, 18, 45];   // 레어→영웅 · 영웅→전설 · 전설→신화
-export const PET_BOX = 10;
+export const PET_BOX = 30;   // v362 우리 10 → 30칸
 // 무인 경험치의 절반을 받는다. 무인 레벨 10+4×(애완 레벨)의 60% — 무인과 함께 오래 자란다
 export const petExpToNext = (lv) => Math.round(expBase(10 + lv * 4) * 0.6);
 // 순위·등급(레어~신화)·레벨로 버프·공격이 커진다
@@ -1176,6 +1176,30 @@ for (const m of MOUNTS) m.speed = m.hard ? HARD_SPEED[m.hard - 1] : +(m.speed * 
 // 길들인 이동 — 보통 탈것은 길들여도 극의 신수 가장 낮은 것(염화주작) 아래까지만(줄 순서가 뒤집히지 않게)
 export const mountSpeed = (d, k = 1, lv = 0) => (!d ? 0 : d.hard ? d.speed * (1 + lv * HARD_SPD_LV_K) : Math.min(HARD_SPEED[0] - 0.02, d.speed * k));
 // v361 극의 신수 길들이기 — 최대 20 · 레벨마다 이동 +2%(혼원금룡 20이면 +168%) · 공격·체력 +4% · 값은 보통 탈것 맨 위의 1.5배
+// ---------- v362 뽑기(소환) — 조각 100으로 한 번 · 1000으로 열 번. 좋은 것부터 % (합 100) ----------
+//   애완동물은 종과 등급을 따로 뽑는다. 10연차는 상위 하나 보장 · 천장(그 횟수 안에 맨 위가 안 나오면 꼭)
+export const GACHA_COST = 100;
+export const GACHA_PET_KIND = [['yellow', 0.5], ['tiger', 1], ['dragon', 2], ['monkey', 3.5], ['phoenix', 5], ['haetae', 8], ['turtle', 12], ['qilin', 18], ['fox', 22], ['crane', 28]];
+export const GACHA_PET_RAR = [[3, 0.5], [2, 4.5], [1, 20], [0, 75]];   // 신화 · 전설 · 유니크 · 레어
+export const GACHA_PET_PITY = 80;     // 80번 안에 신화가 안 나오면 80번째 신화
+export const GACHA_PET_TEN = 2;       // 10연차엔 전설 이상 하나
+export const GACHA_MOUNT = [
+  ...['h6', 'h5', 'h4', 'h3', 'h2', 'h1'].map((k) => [k, 0.05]),
+  ...['z12', 'z11', 'z10', 'z9', 'z8', 'z7', 'z6', 'z5', 'z4', 'z3', 'z2', 'z1'].map((k) => [k, 0.1]),
+  ['azure', 0.5], ['cloud', 1], ['ochu', 2], ['redhare', 3.5], ['tigerm', 5], ['white', 7], ['warhorse', 9], ['deer', 11], ['camel', 12.5], ['horse', 13.5], ['mule', 15.5], ['donkey', 18],
+];
+export const GACHA_MOUNT_PITY = 100;  // 100번 안에 신수(십이지·극)가 안 나오면 100번째 신수
+export const GACHA_MOUNT_TEN = 9;     // 10연차엔 적토마(순위 9) 이상 하나
+export const GACHA_DUP_SHARD = 300;   // 가진 신수가 또 나오면 길들이기 +1 · 다 길들였으면 조각
+export function pickW(table, rng, filter = null) {
+  const t = filter ? table.filter(filter) : table;
+  let r = rng() * t.reduce((a, [, w]) => a + w, 0);
+  for (const [k, w] of t) { r -= w; if (r <= 0) return k; }
+  return t[t.length - 1][0];
+}
+// 연출 등급 0 파랑 · 1 보라 · 2 주황 · 3 무지개(최상) · 4 금빛 하늘(극의 신수)
+export const mountGachaGrade = (d) => (d.hard ? 4 : d.zodiac ? 3 : d.tier >= 11 ? 2 : d.tier >= 8 ? 1 : 0);
+export const petGachaGrade = (kind, rar) => Math.min(3, Math.max(rar, petOf(kind).tier >= 9 ? 2 : petOf(kind).tier >= 7 ? 1 : 0) + (rar >= 2 && petOf(kind).tier >= 9 ? 1 : 0));
 export const spdPct = (v) => (v * 100).toFixed(1).replace(/\.0$/, '');   // 이동 +몇 %(소수 한 자리)
 // 어느 탈것이 더 좋은가(새로 얻으면 갈아탈지) — 이동과 공격·체력을 함께 본다
 export const mountRank = (d) => (d ? d.speed + d.stat : -1);
