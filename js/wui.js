@@ -2524,8 +2524,26 @@ function townTab(app) {
     const s = game.s;
     const t = game.nextTier();
     const card = h('div', { class: 'card' }, h('h3', {}, '사부', h('small', {}, `지금 ${game.tierName() || '입문'}`)));
-    if (!t) card.append(h('p', {}, '더 배울 것이 없다. 이제 네 길을 가거라.'));
-    else {
+    if (!t) card.append(h('p', {}, game.cheonmaOn?.() ? `천마신공을 이었구나. 하늘 아래 너를 막을 자가 없다 — ${W.CHEONMA.soul}(${W.CHEONMA.soulHanja})이 깃들었다.` : '더 배울 것이 없다. 이제 네 길을 가거라.'));
+    else if (t.need === 'cheonma') {
+      // v391 5차 — 천마신공(검사만)
+      const lvOk = s.level >= t.level, goldOk = s.gold >= t.cost, won = !!s.duel?.won?.cheonma;
+      const cm = W.skillsOf(s.job, true).filter((k) => k.cm);
+      card.append(h('div', { class: 'advance-box cheonma-box' },
+        h('div', { class: 'adv-title' }, '5차 전직 → ', h('b', { style: `color:${W.CHEONMA.col}` }, `${W.CHEONMA.tierName} · ${W.CHEONMA.name}(${W.CHEONMA.hanja})`)),
+        h('p', { class: 'muted', style: 'font-size:12.5px' }, '천마 검우진을 꺾은 검사만이 잇는다 — 모든 무공이 천마신공 구화마도식(九華魔刀式) 일곱 초식으로 바뀌고 천마혼이 깃든다. 칠초식 심마도를 펼치면 등 뒤로 천마의 형상이 선다.'),
+        h('div', { class: 'checks' },
+          h('span', { class: `need${won ? ' ok' : ''}` }, '천마 격파', ' ', h('b', {}, won ? '✓' : '✗')),
+          h('span', { class: `need${lvOk ? ' ok' : ''}` }, `레벨 ${t.level}`, ' ', h('b', {}, lvOk ? '✓' : `${s.level}/${t.level}`)),
+          h('span', { class: `need${goldOk ? ' ok' : ''}` }, '은자', ' ', h('b', {}, goldOk ? '✓' : `${fmt(s.gold)}/${fmt(t.cost)}`))),
+        h('p', { class: 'cm-soul' }, W.CHEONMA.trait),
+        h('div', { class: 'cm-list' }, ...cm.map((k) => h('div', {}, h('b', {}, k.name), h('small', {}, ` ${k.desc}`)))),
+        h('button', { class: 'btn primary', id: 'cheonma-go', style: 'width:100%', disabled: game.canAdvance() ? null : true, onclick: () => {
+          if (!confirm(`5차 전직 — ${W.CHEONMA.name}\n모든 무공이 천마신공으로 바뀌어요(무공 레벨·각성은 그대로). 은자 ${fmt(t.cost)}.`)) return;
+          if (!game.advance()) return;
+          app.save(); app.refresh();
+        } }, !won ? '천마를 먼저 쓰러뜨려요' : !lvOk ? `레벨 ${t.level}이 되면` : !goldOk ? '은자가 모자라요' : '천마신공을 잇는다')));
+    } else {
       const sk = W.skillsOf(s.job).find((k) => k.tier === s.jobTier + 1);
       const lvOk = s.level >= t.level, goldOk = s.gold >= t.cost;
       card.append(
@@ -2838,7 +2856,7 @@ export function skillRoadmap(game, job) {
   const s = game.s;
   const mine = !!s.job && job === s.job;
   const lvOf = (k) => (k.path ? W.TIERS[2].level : k.kind === 'support' ? k.from : W.TIERS[k.tier].level);
-  const all = W.skillsOf(job).sort((a, b) => lvOf(a) - lvOf(b) || (a.path ? 1 : 0) - (b.path ? 1 : 0) || a.slot - b.slot);
+  const all = W.skillsOf(job, mine && game.cheonmaOn?.()).sort((a, b) => lvOf(a) - lvOf(b) || (a.path ? 1 : 0) - (b.path ? 1 : 0) || a.slot - b.slot);
   const box = h('div', { class: 'sk-road' });
   let marked = false;
   for (const k of all) {

@@ -1130,7 +1130,7 @@ function refreshUI(full = false) {
       : `길잡이 ${game.s.quest + 1}/${QUEST_COUNT} · ${cur.q.title} (${fmt(cur.now)}/${fmt(cur.need)})`;
   }
   const t = game.nextTier();
-  dot('town', (!!t && s.level >= t.level && s.gold >= t.cost) || (game.canChoosePath() && !s.path));   // v237: 길을 아직 안 골랐으면
+  dot('town', (!!t && game.canAdvance()) || (game.canChoosePath() && !s.path));   // v391 5차는 천마 격파도   // v237: 길을 아직 안 골랐으면
   dot('comp', s.petBox.length > 0 && s.pets.length < game.petSlots());
   dot('dgn', dailyWaiting(game) || wraidWaiting() || Object.values(game.s.zTickets || {}).some((n) => n > 0));
   if (activeTab) { tabs[activeTab].update(); panelRes(); }
@@ -1643,6 +1643,16 @@ function handleEvents() {
         toast(`🎁 길잡이 선물: ${ev.what} — ${ev.title}`);
         break;
       case 'advance': {
+        if (ev.cheonma) {   // v391 5차 천마신공
+          view.showBanner(`5차 전직 · ${W.CHEONMA.name}`, W.CHEONMA.col, 3.2, '天魔');
+          net.announce(`🩸 ${game.s.nickname}님이 천마를 꺾고 ${W.CHEONMA.name}(${W.CHEONMA.hanja})을 이었다 — 5차 전직 · 천마`);
+          view.effects.push({ kind: 'pillar', life: 2.2, max: 2.2 });
+          view.flash = Math.max(view.flash || 0, 0.5); view.shake = Math.max(view.shake || 0, 0.6);
+          sfx('level');
+          toast(`🩸 ${W.CHEONMA.trait}`);
+          drawPortrait(); save();
+          break;
+        }
         view.showBanner(`${ev.tier}차 전직 · ${game.tierName()}`, '#fde68a', 2.4, '전직');
         net.announce(`🎉 ${game.s.nickname}님이 ${ev.tier}차 전직 — ${game.tierName()}`);
         view.effects.push({ kind: 'pillar', life: 1.6, max: 1.6 });
@@ -1701,6 +1711,10 @@ function handleEvents() {
       case 'palmaPiece':
         sfx('level');
         toast(`🌋 ${ev.boss}의 대성신장 — 〈${W.itemName(ev.item, game.s.job)}〉 ${W.RARITY[ev.item.rar || 0]?.name || ''} 획득! (가방)`);
+        break;
+      case 'cmSoul':   // v391 천마혼 발현
+        view.showBanner(`${W.CHEONMA.soul} 발현`, W.CHEONMA.col, 1.6, '天魔魂');
+        view.shake = Math.max(view.shake || 0, 0.35); view.flash = Math.max(view.flash || 0, 0.2);
         break;
       case 'palmaCarry': toast(`🌋 대성신장 바꿔 끼기 — 강화 +${ev.plus}를 이어받았어요`); break;   // v386
       // v373 월드보스가 분노·광폭으로 — 크게 알리고 흔든다

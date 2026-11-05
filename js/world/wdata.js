@@ -89,6 +89,7 @@ export const TIERS = [
   { level: 40, cost: 5000 },
   { level: 75, cost: 120000 },
   { level: 100, cost: 3000000 },   // 4차 (v121 환마 · v123 모든 직업) — 4차 무공이 있는 직업만
+  { level: 150, cost: 50000000, need: 'cheonma' },   // v391 5차 — 천마를 쓰러뜨린 검사만 · 천마신공
 ];
 // 스킬 셋 (v118 — 다섯 마존의 무공). 차수마다 자리(slot)는 같다: 1차 한 적 · 2차 둘레 · 3차 비기.
 // role은 연출표(skillfx) 열쇠 — '캐릭터:role'. hpCost는 최대 체력 대비. mult는 한 번 맞을 때의 배수.
@@ -224,10 +225,46 @@ export const PATH_SKILLS = {
       desc: '독침이 비처럼 — 10초간 공격 속도 +45% · 평타 한 번에 세 침 — 독침의 길' }),
   },
 };
-export const skillsOf = (job) => [
-  ...(JOB_SKILLS[job] || []).map((d) => ({ ...d, id: `s${d.slot}`, icon: d.name.slice(0, 2), fx: `${job}:m${d.slot}` })),   // 연출: skillfx_majon.js
-  ...Object.values(PATH_SKILLS[job] || {}).map((d) => ({ ...d, id: `p${d.path}`, icon: d.name.slice(0, 2), fx: `${job}:p${d.path}` })),
-];
+// cm: 5차 천마신공(v391) — 같은 자리(id·연출)에 천마신공의 무공을 덮어쓴다
+export const skillsOf = (job, cm = false) => {
+  const over = cm ? CHEONMA_SKILLS[job] : null;
+  const pick = (d, k) => (over?.[k] ? { ...d, ...over[k], cm: true } : d);
+  return [
+    ...(JOB_SKILLS[job] || []).map((d) => pick(d, d.slot)).map((d) => ({ ...d, id: `s${d.slot}`, icon: d.icon || d.name.slice(0, 2), fx: `${job}:m${d.slot}` })),   // 연출: skillfx_majon.js
+    ...Object.values(PATH_SKILLS[job] || {}).map((d) => pick(d, d.path)).map((d) => ({ ...d, id: `p${d.path}`, icon: d.icon || d.name.slice(0, 2), fx: `${job}:p${d.path}` })),
+  ];
+};
+// ---------- v391 5차 전직 · 천마신공(天魔神功) ----------
+// 천마 검우진을 쓰러뜨린 검사가 레벨 150에 — 절대회귀의 천마신공. 모든 무공이 천마신공으로 바뀌고 천마혼(天魔魂)이 깃든다.
+export const CHEONMA_JOBS = ['sword'];
+export const CHEONMA = {
+  name: '천마신공', hanja: '天魔神功', soul: '천마혼', soulHanja: '天魔魂', tierName: '천마', col: '#dc2626',
+  form: '구화마도식', formHanja: '九華魔刀式',
+  trait: '천마혼(天魔魂) — 공격력 ×1.5 · 최대 체력 ×1.3(따로 곱한다) · 무공 피해 +30% · 두목 피해 +30% · 받는 피해 -15% · 꽃잎 검기가 천마검강으로(세 번째 평타마다 · 400% · 더 넓게) · 칠초식 심마도를 펼치면 천마혼 발현(12초 모든 피해 +50%)',
+  atkMul: 1.5, hpMul: 1.3,
+  mods: { skill: 0.3, bossDmg: 0.3, dmgRed: 0.15 },
+  flower: { every: 3, mult: 4.0, r: 210 },
+  soulSec: 12, soulDmg: 0.5,   // 천마혼 발현 — 심마도 뒤 이 초 동안 모든 피해 +soulDmg · 무인 뒤에 천마의 형상
+};
+// 구화마도식(九華魔刀式) 일곱 초식 — 자리마다 하나씩(1차 한 적 · 2차 둘레 · 3차 비기 · 보조 · 4차 · 두 갈래 길)
+export const CHEONMA_SKILLS = {
+  sword: {
+    0: { name: '직단결', icon: '직단', form: 1, role: 'frost', kind: 'single', mult: 7.0, cd: 4, hpCost: 0, bossMult: 1.5, sure: true, far: true,
+      desc: '일초식 直斷決 — 직선의 파괴력을 극대화해 앞을 가로막는 모든 것을 곧게 베어 가른다 · 반드시 치명 · 두목에겐 1.5배' },
+    3: { name: '방원결', icon: '방원', form: 2, role: 'sup', kind: 'support', cd: 22, hpCost: 0, from: 25, auto: 'hurt', hurtAt: 0.75, shield: 0.4, buff: { sec: 10, dmgRed: 0.25, dodge: 0.2 },
+      desc: '이초식 防圓決 — 마도의 기운을 둥글게 펼쳐 막는다. 최대 체력 40% 보호막 · 10초간 받는 피해 -25% · 공격을 20% 흘린다(다치면 저절로)' },
+    1: { name: '만환결', icon: '만환', form: 3, role: 'slash', kind: 'aoe', mult: 1.8, hits: 4, cd: 4.5, hpCost: 0.06, radius: 300, vuln: { sec: 5, v: 0.2 },
+      desc: '삼초식 萬幻決 — 수많은 환영 속에 치명의 검격을 숨겨 둘레를 네 번 찌른다 · 맞은 적은 5초간 받는 피해 +20%' },
+    2: { name: '망월참', icon: '망월', form: 4, role: 'thunder', kind: 'aoe', mult: 9.0, cd: 8, hpCost: 0.12, radius: 380, buff: { sec: 10, speed: 0.5 },
+      desc: '사초식 望月斬 — 달을 바라보듯 높고 거대한 궤적으로 내려친다 · 넓게 · 10초간 공격 속도 +50%' },
+    b: { name: '귀영참', icon: '귀영', form: 5, role: 'awaken', kind: 'awaken', cd: 18, hpCost: 0.05, auto: 'fight', autoAbove: 0.4, buff: { sec: 12, speed: 0.7, triple: 2, move: 0.4 },
+      desc: '오초식 鬼影斬 — 귀신의 그림자처럼 사각을 파고든다. 12초간 공격 속도 +70% · 평타 한 번에 세 대 · 이동 +40% — 쾌검의 길' },
+    a: { name: '절혼참', icon: '절혼', form: 6, role: 'thunder', kind: 'aoe', mult: 4.2, hits: 3, cd: 6, hpCost: 0.08, radius: 340, autoAbove: 0.5, bossMult: 1.3,
+      desc: '육초식 絶魂斬 — 살기와 마기를 극한으로 끌어올려 혼백까지 끊는다 · 세 번 · 두목에겐 1.3배 — 검기의 길' },
+    4: { name: '심마도', icon: '심마', form: 7, role: 'chain4', kind: 'daggers', mult: 2.6, n: 16, targets: 16, cd: 15, hpCost: 0.1, radius: 460, autoAbove: 0.5, blink: true, soul: true,
+      desc: '칠초식 心魔刀 — 구화마도식의 최종장. 정·사·선·악의 경계를 무너뜨리고 제 마음의 마(魔)를 검에 담아 열여섯 번 가른다 · 천마혼 발현(12초 모든 피해 +50%)' },
+  },
+};
 
 // ---------- 지도 ----------
 // 0번은 마을(객잔 마을). 1~15는 사냥터 — 옛 지역 그림과 몹 생김새를 쓴다.

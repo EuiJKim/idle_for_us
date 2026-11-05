@@ -204,7 +204,7 @@ export function migrateWorld(raw, now = Date.now()) {
   s.bag = Array.isArray(raw.bag) ? raw.bag.filter((i) => i && W.SLOTS.some((x) => x.id === i.slot)) : [];
   s.level = clamp(Math.floor(Number(s.level) || 1), 1, W.LEVEL_MAX);
   for (const k of ['exp', 'gold', 'potions', 'statPts', 'jobTier', 'kills', 'deaths', 'books', 'prot']) s[k] = Math.max(0, Number(s[k]) || 0);
-  s.jobTier = Math.min(4, Math.floor(s.jobTier));
+  s.jobTier = Math.min(W.CHEONMA_JOBS.includes(s.job) ? 5 : 4, Math.floor(s.jobTier));   // v391 검사는 5차까지
   s.passLv = {};
   for (const [k, v] of Object.entries(raw.passLv || {})) if (/^p_[a-z]+$/.test(k) && v > 0) s.passLv[k] = Math.min(10, Math.floor(Number(v) || 0));
   // v118: 내공 효율(스킬 피해 3%→0.7%)과 직업 특성을 바꿨다 — 찍은 능력치를 한 번 다 돌려준다
@@ -623,6 +623,8 @@ export class WorldGame {
     // 무한의 탑: 오른 층마다 영구히
     const tb = D.towerBonus(s.tower?.floor) + D.hardBonus(s.tower?.hard);   // v350 극의 층도
     gear.atkPct += tb; gear.hpPct += tb;
+    // v391 천마혼 — 5차 천마신공
+    if (this.cheonmaOn()) for (const [k, v] of Object.entries(W.CHEONMA.mods)) gear[k] = (gear[k] || 0) + v;
     // 고수 비무: 처음 이긴 고수마다 영구히 (v148)
     const mb = this.masterBonus();
     gear.atkPct += mb; gear.hpPct += mb;
@@ -653,8 +655,8 @@ export class WorldGame {
     // v110: 레벨·스탯 몫을 키웠다(장비보다는 작게).
     // 장비가 2/3 남짓, 레벨·스탯이 1/3 남짓(시뮬로 맞춤). 힘·체력은 1점에 0.3%씩도 올린다.
     const tset = this.titleSet();   // v315 칭호 모음
-    const atk = (5 + L * 3 + str * 3 + gear.atk) * (1 + gear.atkPct + str * 0.003 + (s.guildId ? W.guildAtk(this.guildExp) : 0)) * (cls.atkK || 1) * (1 + gear.impMul) * (this.titleNow()?.atkMul || 1) * (1 + tset.atk);   // atkK: 직업 맞춤(v239) · v297 각인 배율 · v305 칭호
-    const hp = (60 + L * 25 + vit * 20 + gear.hp) * (1 + gear.hpPct + vit * 0.003) * (1 + gear.impMul) * (1 + tset.hp);   // v315 칭호 모음
+    const atk = (5 + L * 3 + str * 3 + gear.atk) * (1 + gear.atkPct + str * 0.003 + (s.guildId ? W.guildAtk(this.guildExp) : 0)) * (cls.atkK || 1) * (1 + gear.impMul) * (this.titleNow()?.atkMul || 1) * (1 + tset.atk) * (this.cheonmaOn() ? W.CHEONMA.atkMul : 1);   // v391 천마혼 · atkK: 직업 맞춤(v239) · v297 각인 배율 · v305 칭호
+    const hp = (60 + L * 25 + vit * 20 + gear.hp) * (1 + gear.hpPct + vit * 0.003) * (1 + gear.impMul) * (1 + tset.hp) * (this.cheonmaOn() ? W.CHEONMA.hpMul : 1);   // v315 칭호 모음
     const st = {
       atk, hp,
       def: vit * 0.2 + gear.def,
@@ -1391,7 +1393,7 @@ export class WorldGame {
     // 투신강림: 한 번에 세 대
     const sb = this.setBonus();
     for (let k = 0; k < (this.buffv.triple ? this.buffv.triple + (sb.tripleUp || 0) : 0) && m.alive; k++) this.strike(m, st, mult * 0.5, 'hit');   // 덧 두 대는 절반
-    const cls = W.CLASSES[this.s.job] || {};
+    const cls = this.cheonmaOn() ? { ...W.CLASSES[this.s.job], flower: W.CHEONMA.flower } : W.CLASSES[this.s.job] || {};   // v391 천마검강
     // 검사 일화: 네 번째마다 꽃잎 검기가 과녁 둘레를 벤다
     if (cls.flower && (this.flowerN = (this.flowerN || 0) + 1) % Math.min(pm.own5 ? 3 : cls.flower.every, sb.flowerEvery || 99) === 0) {
       this.emit('passive', { id: 'flower', at: { x: tx, y: ty } });
@@ -1428,6 +1430,7 @@ export class WorldGame {
     if (m.vulnT > this.clock) dmg *= 1 + m.vulnV;              // 섭혼: 받는 피해 +
     if (this.buffv.might) dmg *= 1 + this.buffv.might;          // 삼공조화
     if (this.buffv.petMight) dmg *= 1 + this.buffv.petMight;    // v365 황룡진
+    if (this.buffv.cmSoul && this.buffs.cmSoul > 0) dmg *= 1 + this.buffv.cmSoul;   // v391 천마혼 발현
     if (crit && this.buffv.critUp) dmg *= 1 + this.buffv.critUp / st.critDmg;   // 무면개방
     const ps = this.passives();
     if (ps.size) {
@@ -1738,7 +1741,10 @@ export class WorldGame {
   }
 
   // ---------- 스킬 ----------
-  skills() { return this.s.job ? W.skillsOf(this.s.job).filter((k) => this.knows(k)) : []; }
+  // v391 5차 천마신공 — 천마를 쓰러뜨린 검사가 5차 전직을 마쳤나
+  cheonmaOn() { return W.CHEONMA_JOBS.includes(this.s.job) && (this.s.jobTier || 0) >= 5; }
+  skillList() { return this.s.job ? W.skillsOf(this.s.job, this.cheonmaOn()) : []; }
+  skills() { return this.skillList().filter((k) => this.knows(k)); }
   // 배웠나 — 공격 무공은 전직 차수, 보조기는 레벨(v120)
   // 길 무공(v240)은 그 길을 걷거나 합일했을 때만
   knows(sk) {
@@ -1746,7 +1752,7 @@ export class WorldGame {
     if (sk.path) return (this.s.path === sk.path || PT.merged(this.s)) && sk.tier <= (this.s.jobTier || 0);
     return sk.kind === 'support' ? this.s.level >= sk.from : sk.tier <= this.s.jobTier;
   }
-  skillDef(id) { return this.s.job ? W.skillsOf(this.s.job).find((k) => k.id === id) : null; }
+  skillDef(id) { return this.skillList().find((k) => k.id === id) || null; }
   hpCostOf(sk) { const st = this.stats(); return Math.round(st.hp * (sk.hpCost || 0) * (1 - this.skillMods(sk.id).cost) * (1 - (st.hpCostDown || 0))); }
   skillRadius(sk) { return (sk.radius || 0) * Math.max(0.3, 1 + this.skillMods(sk.id).range + (this.stats().skillRange || 0)); }
   skillCd(sk) {
@@ -1768,6 +1774,8 @@ export class WorldGame {
     if (!o.free && !this.canUseSkill(id)) return false;
     const sk = this.skillDef(id);
     const st = this.stats();
+    // v391 칠초식 심마도 — 천마혼 발현(무인 뒤 천마의 형상 · 모든 피해 +)
+    if (sk.soul && this.cheonmaOn()) { this.buffs.cmSoul = W.CHEONMA.soulSec; this.buffv.cmSoul = W.CHEONMA.soulDmg; this.emit('cmSoul', { sec: W.CHEONMA.soulSec }); }
     if (sk.kind === 'support') return this.useSupport(sk, st);
     if (sk.kind === 'awaken') { const c = this.hpCostOf(sk); this.heroHp -= c; if (c) this.emit('hpCost', { amount: c }); return this.useSupport(sk, st); }
     if (sk.kind === 'clone') return this.useClone(sk, st);
@@ -2113,11 +2121,12 @@ export class WorldGame {
   nextTier() {
     const n = this.s.jobTier + 1;
     if (n <= 3) return W.TIERS[n];
+    if (n === 5) return W.CHEONMA_JOBS.includes(this.s.job) ? W.TIERS[5] : null;   // v391 천마신공 — 검사만
     return n === 4 && W.skillsOf(this.s.job).some((k) => k.tier === 4) ? W.TIERS[4] : null;
   }
   canAdvance() {
     const t = this.nextTier();
-    return !!t && this.s.level >= t.level && this.s.gold >= t.cost;   // 사냥터에서도 (마을까지 안 가도 된다)
+    return !!t && this.s.level >= t.level && this.s.gold >= t.cost && (!t.need || !!this.s.duel?.won?.[t.need]);   // 사냥터에서도 (마을까지 안 가도 된다) · v391 5차는 천마를 쓰러뜨려야
   }
   advance() {
     if (!this.canAdvance()) return false;
@@ -2125,10 +2134,12 @@ export class WorldGame {
     this.s.gold -= t.cost;
     this.s.jobTier++;
     const sk = W.skillsOf(this.s.job).find((k) => k.tier === this.s.jobTier);
+    this._stats = null;
+    if (this.s.jobTier >= 5) { this.emit('advance', { tier: 5, skill: W.CHEONMA.name, cheonma: true }); return true; }   // v391
     this.emit('advance', { tier: this.s.jobTier, skill: sk?.name });
     return true;
   }
-  tierName(t = this.s.jobTier) { return W.classOf(this.s.job)?.tiers?.[t] || ''; }
+  tierName(t = this.s.jobTier) { return t >= 5 && W.CHEONMA_JOBS.includes(this.s.job) ? W.CHEONMA.tierName : W.classOf(this.s.job)?.tiers?.[t] || ''; }
 
   // ---------- 장비 ----------
   makeItem(slot, ilv, grade) { return { uid: uidSeq++, slot, ilv, grade, plus: 0 }; }

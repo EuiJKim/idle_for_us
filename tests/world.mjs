@@ -829,7 +829,7 @@ console.log('\n=== 환마 4차 · 환영분신술 (v121) ===');
   g.s.level = 100; g.s.gold = 1e9;
   while (g.canAdvance()) g.advance();
   ok(g.s.jobTier === 4 && g.tierName() === '섭혼마존' && g.skills().some((k) => k.name === '환영분신술'), '환마는 레벨 100에 4차 전직 → 섭혼마존 · 환영분신술', g.tierName());
-  ok(['sword', 'fist', 'poison', 'ring'].every((j) => { const o = fresh(j); o.s.level = 100; o.s.gold = 1e9; while (o.canAdvance()) o.advance(); return o.s.jobTier === 4 && o.tierName() === W.LORE[j].title && !o.nextTier(); }), '다섯 직업 모두 레벨 100에 4차 → 마존 이름 (v123)');
+  ok(['sword', 'fist', 'poison', 'ring'].every((j) => { const o = fresh(j); o.s.level = 100; o.s.gold = 1e9; while (o.canAdvance()) o.advance(); return o.s.jobTier === 4 && o.tierName() === W.LORE[j].title && (!o.nextTier() || (j === 'sword' && o.nextTier().need === 'cheonma')); }), '다섯 직업 모두 레벨 100에 4차 → 마존 이름 (v123) · 검사만 5차가 남는다(v391)');
   g.enterMap(11); g._stats = null; g.heroHp = g.stats().hp;
   for (const m of g.mons) { m.hp = m.maxHp = 1e12; m.atk = 0; m.x = g.heroX + 40; m.y = g.heroY; }
   g.mon = g.mons[0];
@@ -3584,6 +3584,28 @@ console.log('\n=== v390 밸런스 점검 — 애완동물 칸·버프 · 우두�
   while (g.s.level < 150) g.addExp(W.expToNext(g.s.level));
   ok(at('jinpaecheon') <= at('cheonma') && at('cheonma') < at('hwamugi') && at('hwamugi') < at('magwi'), '최소 싸움 시간 — 맹주 ≤ 천마 < 화무기 < 마귀(높을수록 짧던 것을 바로)', ['jinpaecheon', 'cheonma', 'hwamugi', 'magwi'].map(at).map((v) => v.toFixed(0)).join(' · '));
   ok(/k\.replace\(\/\^\(st\|b\|s\)\//.test(read('js/wui.js')), '강화석(st26) 어디서 — 지역 번호를 바로 읽는다');
+}
+console.log('\n=== v391 검사 5차 전직 · 천마신공 ===');
+{
+  const g = fresh('sword');
+  while (g.s.level < 150) g.addExp(W.expToNext(g.s.level));
+  g.s.gold = 1e12; while (g.s.jobTier < 4 && g.canAdvance()) g.advance();
+  ok(g.s.jobTier === 4 && g.nextTier()?.need === 'cheonma' && !g.canAdvance(), '4차 뒤 — 5차는 천마를 쓰러뜨려야');
+  const p0 = g.stats().power, names0 = g.skills().map((k) => k.name);
+  g.s.duel.won = { ...(g.s.duel.won || {}), cheonma: 1 };
+  ok(g.canAdvance() && g.advance() && g.s.jobTier === 5 && g.cheonmaOn() && g.tierName() === '천마', '천마를 꺾으면 5차 — 천마');
+  const names = g.skills().map((k) => k.name);
+  ok(['직단결', '만환결', '망월참', '방원결', '심마도'].every((n) => names.includes(n)) && names.length === names0.length, '무공이 모두 구화마도식으로 — 자리 그대로', names.join(','));
+  ok(g.skillDef('s0').name === '직단결' && g.skillDef('s0').fx === 'sword:m0' && W.skillsOf('sword', true).map((k) => k.form).sort().join('') === '1234567', '일곱 초식 · 같은 연출 열쇠');
+  { g.enterMap(W.mapId(14, 1), true); g.heroHp = g.stats().hp; for (let i = 0; i < 40; i++) g.tick(0.05); const m = g.mons.find((x) => x.alive); if (m) g.mon = m;
+    const k = 's4'; g.cds = {}; g.skillCd = {}; g.useSkill(k, { free: true }); ok(g.buffs.cmSoul > 0 && g.buffv.cmSoul === W.CHEONMA.soulDmg, '칠초식 심마도 — 천마혼 발현'); }
+  ok(g.stats().power > p0 * 1.3, '천마혼 — 전투력이 크게', `${(p0 / 1e3).toFixed(0)}k → ${(g.stats().power / 1e3).toFixed(0)}k`);
+  ok(migrateWorld({ ...g.toJSON() }).jobTier === 5, '저장해도 5차 그대로');
+  const f = fresh('fist');
+  while (f.s.level < 150) f.addExp(W.expToNext(f.s.level));
+  f.s.gold = 1e12; while (f.canAdvance()) f.advance(); f.s.duel.won = { cheonma: 1 };
+  ok(f.s.jobTier === 4 && !f.nextTier() && !f.cheonmaOn() && migrateWorld({ ...f.toJSON(), jobTier: 5 }).jobTier === 4, '다른 직업은 4차까지');
+  ok(/cheonma-go/.test(read('js/wui.js')) && /ev\.cheonma/.test(read('js/wmain.js')) && /'魔'/.test(read('js/battle.js')), '사부 창 · 전직 연출 · 붉은 魔 인장');
 }
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);
