@@ -252,7 +252,8 @@ export function migrateWorld(raw, now = Date.now()) {
   s.raid = { day: typeof rd.day === 'string' ? rd.day : '', n: clamp(Math.floor(Number(rd.n) || 0), 0, D.RAID_PER_DAY), dps: Math.max(0, Number(rd.dps) || 0) };
   { const w = raw.wraid && typeof raw.wraid === 'object' ? raw.wraid : {};   // v373 월드보스
     s.wraid = { day: typeof w.day === 'string' ? w.day.slice(0, 10) : '', n: clamp(Math.floor(Number(w.n) || 0), 0, 999), dps: Math.max(0, Number(w.dps) || 0),
-      kills: Math.max(0, Math.floor(Number(w.kills) || 0)), top1: Math.max(0, Math.floor(Number(w.top1) || 0)), ok: Math.max(0, Math.floor(Number(w.ok) || 0)) }; }
+      kills: Math.max(0, Math.floor(Number(w.kills) || 0)), top1: Math.max(0, Math.floor(Number(w.top1) || 0)), ok: Math.max(0, Math.floor(Number(w.ok) || 0)),
+      gates: Object.fromEntries(Object.keys(w.gates || {}).filter((k) => D.isGate(k)).map((k) => [k, 1])) }; }
   s.mast = {};
   for (const [k, v] of Object.entries(raw.mast || {})) if (W.zoneOfW(+k) && v > 0) s.mast[k] = Math.floor(Number(v) || 0);
   s.zTickets = {}; s.zPity = {};
@@ -620,6 +621,9 @@ export class WorldGame {
     // 고수 비무: 처음 이긴 고수마다 영구히 (v148)
     const mb = this.masterBonus();
     gear.atkPct += mb; gear.hpPct += mb;
+    // v377 천계의 가호 — 넘은 남천문 관문마다
+    const gb = this.gateBonus();
+    gear.atkPct += gb; gear.hpPct += gb;
     // 현철 단련 (v274) · 숙련도·견문록 (v275)
     const tp = (s.temper || 0) * W.TEMPER_STEP + this.huntBonus().total;
     gear.atkPct += tp; gear.hpPct += tp;
@@ -681,7 +685,7 @@ export class WorldGame {
     const e = s.equip;
     const g = (it) => (it ? `${it.uid}.${it.plus || 0}.${it.rar || 0}` : '-');
     const pets = this.activePets().map((p) => `${p.uid}.${p.lv}.${p.rar || 0}.${p.star || 0}.${p.q || 0}.${p.dan || 0}`).join(',') + `|d${Object.values(s.petDex || {}).reduce((a, v) => a + v + 1, 0)}.${Object.keys(s.mountDex || {}).length}|m${this.mountInst()?.lv || 0}`;
-    return `${s.level}|${JSON.stringify(s.passLv || {})}|${s.guildId ? W.guildLevel(this.guildExp) : 0}|${s.job}|${s.stats.str},${s.stats.dex},${s.stats.vit},${s.stats.int}|${W.SLOTS.map((x) => g(e[x.id])).join(',')}|${pets}|${s.mount || '-'}|${s.tower?.floor || 0}.${s.tower?.hard || 0}|${s.path || '-'}|${s.jobTier || 0}|${this.growItems().map((x) => x.plus || 0).join('.')}|t${s.temper || 0}|i${this.impSig()}|T${s.title || ''}.${s.titles.length}`;   // v243 · v274 단련: 가방 속 성장 장비 강화도(공유)
+    return `${s.level}|${JSON.stringify(s.passLv || {})}|${s.guildId ? W.guildLevel(this.guildExp) : 0}|${s.job}|${s.stats.str},${s.stats.dex},${s.stats.vit},${s.stats.int}|${W.SLOTS.map((x) => g(e[x.id])).join(',')}|${pets}|${s.mount || '-'}|${s.tower?.floor || 0}.${s.tower?.hard || 0}|${s.path || '-'}|${s.jobTier || 0}|${this.growItems().map((x) => x.plus || 0).join('.')}|t${s.temper || 0}|i${this.impSig()}|T${s.title || ''}.${s.titles.length}|G${this.gatesCleared()}`;   // v243 · v274 단련: 가방 속 성장 장비 강화도(공유)
   }
   power() { return this.stats().power; }
   // v297 각인 서명 — 칸(증표·단·고유)이 바뀌면 능력치를 다시 센다
@@ -1576,7 +1580,7 @@ export class WorldGame {
       return;
     }
     if (m.calib) this.bossCalib(m, dmg);
-    if (m.wb && this.inst?.kind === 'wraid') this.inst.myDealt = (this.inst.myDealt || 0) + Math.min(dmg, Math.max(0, m.hp));   // v374 내가 준 몫(서버에 올린다)
+    if (m.wb && this.inst?.kind === 'wraid') { dmg *= SH.focusMult(this); this.inst.myDealt = (this.inst.myDealt || 0) + Math.min(dmg, Math.max(0, m.hp)); }   // v374 내가 준 몫(서버에 올린다) · v377 집중
     m.hp -= dmg;
     m.aggro = true;
     // v241: 실제 준 피해(넘친 몫은 빼고) — 두목 최소 싸움 길이 잣대
@@ -4387,14 +4391,24 @@ export class WorldGame {
   // v374 언제든 들어간다 — 참여 보상만 하루 WRAID_PAID판 · v375 옥황상제는 대성신장 일곱을 모두 끼면
   canWraid(hpLeft, now = Date.now(), boss = null) {
     if (this.inst || !this.s.job || this.s.level < D.WRAID_LV || !(hpLeft > 0)) return false;
-    return boss !== D.OKHWANG.id || this.okhwangOpen();
+    if (boss === D.OKHWANG.id) return this.okhwangOpen();
+    if (D.isGate(boss)) return this.gateOpen(boss);
+    return true;
   }
+  // v377 남천문 관문 — 대성신장 일곱을 끼고, 앞 관문을 넘었으면
+  gateOpen(id) {
+    const g = D.WRAID_BOSS[id];
+    if (!g?.gate || !this.palmaReady().ok) return false;
+    return D.HEAVEN_GATES.filter((x) => x.gate < g.gate).every((x) => this.s.wraid.gates?.[x.id]);
+  }
+  gatesCleared() { return D.HEAVEN_GATES.filter((x) => this.s.wraid.gates?.[x.id]).length; }
+  gateBonus() { return this.gatesCleared() * D.GATE_BONUS; }
   // 대성신장 일곱을 모두 끼었나 — { n: 낀 부위 수, ok }
   palmaReady() {
     const n = G.PALMA_SLOTS.filter((sl) => { const it = this.s.equip[sl]; return G.isPalma(it) && (it.plus || 0) >= D.OK_PLUS; }).length;
     return { n, ok: n >= G.PALMA_SLOTS.length };
   }
-  okhwangOpen() { return this.palmaReady().ok; }
+  okhwangOpen() { return this.palmaReady().ok && this.gatesCleared() >= D.HEAVEN_GATES.length; }   // v377 관문 넷을 넘어야
   // 화무기 두목의 기본 체력 — 마왕 체력의 잣대(spawnMob과 같은 셈, 맞춤 키우기 빼고)
   hwamugiHp() {
     const m = W.MAPS.find((x) => x.master === 'hwamugi');
@@ -4422,6 +4436,7 @@ export class WorldGame {
     if (rank === 1) r.top1++;
     const b = D.WRAID_BOSS[bossId];
     if (bossId === D.OKHWANG.id) r.ok = (r.ok || 0) + 1;
+    if (D.isGate(bossId) && !r.gates?.[bossId]) { r.gates = { ...(r.gates || {}), [bossId]: 1 }; this._stats = null; this.emit('gateClear', { boss: b.name, n: this.gatesCleared(), bonus: D.GATE_BONUS }); }
     const out = this.grant(D.wraidKillReward(this.s.level, rank, bossId));
     if (b?.slot) {
       const rar = W.rollRarity(D.palmaRarW(rank), this.rng);

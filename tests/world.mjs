@@ -3369,6 +3369,18 @@ console.log('\n=== v373~v375 칠대성(상시 최종 두목) · 탄막 · 대성
   f.shPatT = 99; f.heroY = f.inst.boss.y + 260; f.heroX = f.inst.boss.x;
   for (let i = 0; i < 40; i++) { f.shTarget = { x: f.inst.boss.x, y: f.inst.boss.y + 260 }; f.tick(0.05); }
   ok(f.shNear && (f.inst.myDealt || 0) > 0, '원거리는 멀리서 쏜다');
+  // v377 집중 — 손으로 피하며 안 맞으면 겹이 쌓여 피해가 는다 · 맞으면 흩어진다 · 손을 놓으면 빠진다
+  f.bullets = []; f.emitters = []; f.shPatT = 999; f.shFocus = 0; f.shFocusT = 0;
+  for (let i = 0; i < 160; i++) { f.shIn = { dx: i % 40 < 20 ? 1 : -1, dy: 0 }; f.tick(0.05); }
+  f.shIn = null;
+  ok(f.shFocus >= 2 && SH.focusMult(f) === 1 + SH.FOCUS_K * f.shFocus, '손으로 피하면 집중이 쌓인다', `${f.shFocus}겹`);
+  const fz = f.shFocus; for (let i = 0; i < 100; i++) f.tick(0.05);
+  ok(f.shFocus < fz, '손을 놓으면 한 겹씩 빠진다');
+  f.shFocus = 5; f.shIframe = 0; f.heroHp = f.stats().hp; f.bullets = [{ t: 0, x: f.heroX, y: f.heroY - 26, vx: 0, vy: 0, r: 9, kind: 'fire' }]; f.tick(0.05);
+  ok(f.shFocus === 0, '맞으면 집중이 흩어진다');
+  // v377 손가락 따라 · 아날로그 조이스틱 · 감도
+  { const x0 = f.heroX; f.shPush = { x: 40, y: 0 }; f.tick(0.05); f.tick(0.05); ok(f.heroX > x0 + 20, '손가락 따라 — 끈 만큼 옮긴다'); }
+  { const x0 = f.heroX; f.joy = { dx: -10, dy: 0 }; f.tick(0.1); const slow = x0 - f.heroX; const x1 = f.heroX; f.joy = { dx: -60, dy: 0 }; f.tick(0.1); f.joy = null; ok(slow > 0 && x1 - f.heroX > slow * 2, '조이스틱 — 조금 끌면 천천히', `${slow.toFixed(1)} / ${(x1 - f.heroX).toFixed(1)}`); }
   const st = g.stats(); g.heroHp = st.hp; g.shIframe = 0;
   g.bullets = [{ t: 0, x: g.heroX, y: g.heroY - 26, vx: 0, vy: 0, r: 9, kind: 'fire' }, { t: 0, x: g.heroX, y: g.heroY - 26, vx: 0, vy: 0, r: 9, kind: 'fire' }];
   g.shPatT = 99; g.tick(0.05);
@@ -3398,7 +3410,16 @@ console.log('\n=== v373~v375 칠대성(상시 최종 두목) · 탄막 · 대성
   g._stats = null; g._setb = null;
   ok(g.setCounts().palma === 7 && g.setBonus().bossDmg >= 1.3, '일곱 부위 세트 효과(2·4·6·7)', JSON.stringify(g.setBonus()));
   ok(g.stats().power > p0 * 2, '대성신장 +12 일곱 — 크게 세진다', `${Math.round(p0)} → ${Math.round(g.stats().power)}`);
-  ok(g.palmaReady().ok && g.canWraid(1000, now, 'okhwang'), '일곱 부위를 모두 끼면 → 천외천 옥황상제');
+  ok(g.palmaReady().ok && g.canWraid(1000, now, 'sadae') && !g.canWraid(1000, now, 'takap') && !g.canWraid(1000, now, 'okhwang'), '일곱 부위를 모두 끼면 → 남천문 첫 관문(사대천사)부터');
+  // v377 남천문 관문 — 차례로 · 넘을 때마다 천계의 가호
+  ok(D3.HEAVEN_GATES.map((x) => x.name).join(',') === '사대천사,탁탑천왕,나타,이랑진군' && D3.HEAVEN_GATES.every((x) => fs.existsSync(new URL(`../art/boss/${x.art}.png`, import.meta.url)) && read('js/bossfx.js').includes(`'${x.art}'`)), '관문 넷 — 그림');
+  ok(D3.wraidMaxHp(hw, 'nata') === Math.round(hw * 4 * D3.GATE_HP_K), '관문 체력 = 대성 ×1.5');
+  const pw0 = g.stats().power;
+  for (const x of D3.HEAVEN_GATES) { ok(g.canWraid(1000, now, x.id), `${x.gate}. ${x.name} — 열렸다`); g.wraidClaim(3, x.id); }
+  g._stats = null;
+  ok(g.gatesCleared() === 4 && Math.abs(g.gateBonus() - 4 * D3.GATE_BONUS) < 1e-9 && g.stats().power > pw0, '넷을 넘으면 천계의 가호 +24%(공격력·체력)', `${Math.round(pw0)} → ${Math.round(g.stats().power)}`);
+  ok(g.canWraid(1000, now, 'okhwang'), '관문 넷을 넘으면 → 옥황상제');
+  ok(migrateWorld({ ...newWorldSave(), wraid: { gates: { sadae: 1, hacker: 1 } } }).wraid.gates.sadae === 1 && !('hacker' in migrateWorld({ ...newWorldSave(), wraid: { gates: { sadae: 1, hacker: 1 } } }).wraid.gates), '넘은 관문 저장 · 이상한 열쇠는 버린다');
   g.s.equip.finger.plus = 0; ok(g.okhwangOpen(), '강화와 상관없이 — +0이어도 열린다');
   const ring0 = g.s.equip.finger; g.s.equip.finger = null; g._stats = null; ok(!g.okhwangOpen() && g.palmaReady().n === 6, '한 부위라도 빠지면 닫힌다');
   g.s.equip.finger = ring0;

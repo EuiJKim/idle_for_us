@@ -1152,6 +1152,8 @@ function instHud() {
   hud.classList.toggle('tower', I?.kind === 'tower');
   hud.classList.toggle('raid', I?.kind === 'raid' || I?.kind === 'wraid');
   hud.classList.toggle('wraid', I?.kind === 'wraid');   // v373
+  // v377 터치 — 탄막 판에서는 조이스틱 자리를 옅게 보여 준다(누른 곳으로 옮겨 온다)
+  { const idle = I?.kind === 'wraid' && !finePointer && !SHC.follow && !press; joyEl.classList.toggle('idle', idle); if (idle) { joyEl.classList.remove('hidden'); joyEl.style.left = '22%'; joyEl.style.top = '78%'; joyEl.firstChild.style.transform = ''; } else if (!press) joyEl.classList.add('hidden'); }
   hud.classList.toggle('hard', !!I?.hard);   // v350 극
   if (!I) return;
   const left = Math.max(0, Math.ceil(I.t));
@@ -1163,7 +1165,8 @@ function instHud() {
     const b = I.boss;
     const rg = I.rage > 0 ? ` · ${D.WRAID_RAGE[I.rage].name}!` : '';
     const with_ = wbCoop.on && wbCoop.count ? ` · 🤝${wbCoop.count + 1}명` : '';
-    $('contest-sub').textContent = I.wait > 0 ? '마왕이 강림한다…' : `내 피해 ${fmt(I.myDealt || 0)} · 남은 체력 ${b ? ((Math.max(0, b.hp) / b.maxHp) * 100).toFixed(1) : 100}%${rg}${with_} · ${left}초`;
+    const fc = game.shFocus > 0 ? ` · 집중 ${game.shFocus}(+${game.shFocus * 5}%)` : '';
+    $('contest-sub').textContent = I.wait > 0 ? '마왕이 강림한다…' : `내 피해 ${fmt(I.myDealt || 0)} · 남은 ${b ? ((Math.max(0, b.hp) / b.maxHp) * 100).toFixed(1) : 100}%${rg}${fc}${with_} · ${left}초`;
   } else if (I.kind === 'raid') {
     const b = I.boss;
     $('contest-sub').textContent = I.wait > 0 ? '두목이 나선다…' : `피해 ${fmt(b ? Math.max(0, I.hpLeft - Math.max(0, b.hp)) : 0)} · 남은 체력 ${b ? ((Math.max(0, b.hp) / b.maxHp) * 100).toFixed(1) : 100}% · ${left}초`;
@@ -1669,6 +1672,16 @@ function handleEvents() {
         if (b) view.float(`「${ev.name}」`, view.sx(b), view.sy(b) + 40, ev.rage >= 2 ? '#f87171' : '#fde68a', 22, 1.3);
         break;
       }
+      // v377 집중 — 손으로 피하며 쌓은 겹
+      case 'wbFocus':
+        if (ev.lost) view.float(`집중 흩어짐 (${ev.lost})`, view.heroX, view.groundY - 150, '#fca5a5', 16, 1);
+        else { sfx('loot'); view.float(ev.n >= 10 ? '集中 極 — 피해 +50%' : `集中 ${ev.n} — 피해 +${ev.n * 5}%`, view.heroX, view.groundY - 160, '#fde68a', 20, 1.4); }
+        break;
+      // v377 남천문 관문을 처음 넘었다
+      case 'gateClear':
+        sfx('level');
+        toast(`☁ 남천문 — ${ev.boss}을(를) 넘었어요! 천계의 가호 공격력·체력 +${Math.round(ev.bonus * 100)}% (넘은 관문 ${ev.n}/${D.HEAVEN_GATES.length})`);
+        break;
       // v375 대성신장 한 부위를 얻었다
       case 'palmaPiece':
         sfx('level');
@@ -1738,6 +1751,11 @@ function hideGuide() { $('guide-tip')?.classList.add('hidden'); guideQ = null; }
 // 사냥터 이름을 누르면 지도
 $('stagebar').addEventListener('click', () => showTab('map'));
 
+// v377 탄막(칠대성·천외천) 조작 설정 — 이 기기에만
+const SHC = (() => { try { return { follow: false, bigDot: false, fast: false, ...JSON.parse(localStorage.getItem('ifu.shc') || '{}') }; } catch { return { follow: false, bigDot: false, fast: false }; } })();
+const saveShc = () => { try { localStorage.setItem('ifu.shc', JSON.stringify(SHC)); } catch { /* 사생활 모드 */ } applyShc(); };
+function applyShc() { game.shSens = SHC.fast ? 1.25 : 1; view.shBigDot = !!SHC.bigDot; }
+applyShc();
 // ---------- 들판을 눌러 움직이기 ----------
 // 톡 누르면 그 칸으로 · 누른 채 끌면 그 자리에 조이스틱이 나와 끄는 쪽으로 계속 걷는다(v125).
 // 손을 떼면 0.8초 뒤 자동 사냥으로 돌아간다. 마을에서는 사람을 누르면 그 창.
@@ -1765,12 +1783,23 @@ function tapAt(e) {
 }
 $('cv').addEventListener('pointerdown', (e) => {
   if (modalOpen() || !e.isPrimary) return;
-  press = { id: e.pointerId, x: e.clientX, y: e.clientY, drag: false };
+  press = { id: e.pointerId, x: e.clientX, y: e.clientY, drag: false, lx: e.clientX, ly: e.clientY };
+  if (game.inst?.kind === 'wraid' && SHC.follow) game.shHold = true;
   try { $('cv').setPointerCapture(e.pointerId); } catch { /* 무시 */ }
 });
 $('cv').addEventListener('pointermove', (e) => {
   if (!press || e.pointerId !== press.id || game.map.town) return;
   const k = uiK();
+  // v377 탄막 — 손가락 따라: 끈 만큼 그대로 옮긴다(조이스틱 없이)
+  if (game.inst?.kind === 'wraid' && SHC.follow) {
+    const z = view.zoom || 1;
+    const mx = (e.clientX - press.lx) / z, my = (e.clientY - press.ly) / z / (view.squash || 1);
+    press.lx = e.clientX; press.ly = e.clientY;
+    if (!press.drag && Math.hypot(e.clientX - press.x, e.clientY - press.y) < 6) return;
+    press.drag = true;
+    game.shPush = { x: (game.shPush?.x || 0) + mx * 1.4, y: (game.shPush?.y || 0) + my * 1.4 };
+    return;
+  }
   const dx = e.clientX - press.x, dy = e.clientY - press.y;
   const d = Math.hypot(dx, dy);
   if (!press.drag && d < 14) return;
@@ -1789,6 +1818,7 @@ function endPress(e) {
   if (!press || e.pointerId !== press.id) return;
   if (!press.drag && e.type === 'pointerup') tapAt(e);
   game.joy = null;
+  game.shHold = false;
   joyEl.classList.add('hidden');
   press = null;
 }
@@ -2209,6 +2239,10 @@ $('btn-settings').addEventListener('click', () => openModal((s) => {
     // v324 글자·화면 크기 — 폰에서도 키울 수 있고, 컴퓨터에서는 자동 확대에 곱한다
     h('div', { class: 'row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, '글자·화면 크기'), h('div', { class: 'desc' }, '컴퓨터처럼 넓은 화면에서는 저절로 키워요 — 여기서 더 키울 수 있어요')),
       (() => { const b = h('button', { class: 'btn', style: 'padding:6px 12px' }, UI_SCALE_NAME[uiScalePref()]); b.onclick = () => { const ks = Object.keys(UI_SCALE); const nx = ks[(ks.indexOf(uiScalePref()) + 1) % ks.length]; try { localStorage.setItem('ifu.uiScale', nx); } catch { /* 이번만 */ } b.textContent = UI_SCALE_NAME[nx]; applyUiScale(); }; return b; })()),
+    // v377 탄막 조작(칠대성·천외천)
+    toggleRow('탄막 — 손가락 따라 움직이기', SHC.follow, '칠대성·천궁에서 끈 만큼 그대로 움직여요(조이스틱 대신) — 정밀하게 피할 때', (v) => { SHC.follow = v; saveShc(); }),
+    toggleRow('탄막 — 맞는 점 크게 보기', SHC.bigDot, '무인의 맞는 점(흰 점)을 크게 그려요 — 맞는 크기는 그대로', (v) => { SHC.bigDot = v; saveShc(); }),
+    toggleRow('탄막 — 빠르게 움직이기', SHC.fast, '손으로 움직일 때 ×1.25 (자동 회피는 그대로)', (v) => { SHC.fast = v; saveShc(); }),
     toggleRow('강화·각인 연출 건너뛰기', skipFx(), '켜면 두드리는 연출 없이 바로 결과 — 끄면 연출을 눌러서 건너뛸 수 있어요', (v) => setSkipFx(v)),
     toggleRow('자동 물약', game.s.autoPotion, `한 병에 최대 체력의 ${Math.round(W.POTION_HEAL * 100)}%를 채워요`, (v) => { game.s.autoPotion = v; save(); }),
     h('div', { class: 'row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, '자동 물약 체력'), h('div', { class: 'desc' }, '체력이 이만큼 아래로 내려가면 먹어요 — 높을수록 안전하지만 물약이 많이 들어요')),

@@ -1864,7 +1864,7 @@ function dgnTab(app) {
     const now = Date.now();
     const net = app.net;
     const rd = net?.raid;
-    const nsig = `${s.level}|${JSON.stringify(s.dgn)}|${s.tower.floor}|${s.tower.auto}|${D.kstDay(now)}|${JSON.stringify(stagePick)}|${!!game.inst}|${!!s.job}|${JSON.stringify(s.zTickets)}|${s.mounts.length}|${net?.status}|${s.guildId}|${rd?.kind}|${rd?.total}|${rd?.maxHp}|${JSON.stringify(rd?.claimed || {})}|${JSON.stringify(s.raid)}|${JSON.stringify(s.wraid)}|${Object.values(net?.wgen || {}).map((r) => `${r?.id}:${r?.total}:${Object.keys(r?.claimed || {}).length}:${Object.keys(r?.damage || {}).length}`).join(',')}|${Object.keys(net?.wdone || {}).join(',')}|${wbPick}|${W.SLOTS.map((x) => `${s.equip[x.id]?.set}${s.equip[x.id]?.plus}`).join('')}`;
+    const nsig = `${s.level}|${JSON.stringify(s.dgn)}|${s.tower.floor}|${s.tower.auto}|${D.kstDay(now)}|${JSON.stringify(stagePick)}|${!!game.inst}|${!!s.job}|${JSON.stringify(s.zTickets)}|${s.mounts.length}|${net?.status}|${s.guildId}|${rd?.kind}|${rd?.total}|${rd?.maxHp}|${JSON.stringify(rd?.claimed || {})}|${JSON.stringify(s.raid)}|${JSON.stringify(s.wraid)}|${Object.values(net?.wgen || {}).map((r) => `${r?.id}:${r?.total}:${Object.keys(r?.claimed || {}).length}:${Object.keys(r?.damage || {}).length}`).join(',')}|${Object.keys(net?.wdone || {}).join(',')}|${wbPick}|${JSON.stringify(s.wraid?.gates || {})}|${W.SLOTS.map((x) => `${s.equip[x.id]?.set}${s.equip[x.id]?.plus}`).join('')}`;
     return `${bump}|${nsig}`;
   };
   // 어느 칸이든 맨 위에 — 던전 안이거나 직업이 없으면 알린다
@@ -2145,15 +2145,28 @@ function dgnTab(app) {
       const card = h('div', { class: `card wraid-card wraid-heaven${pr.ok ? '' : ' locked'}`, style: `--wb:${ok.col}` },
         h('div', { class: 'wraid-head' }, h('img', { class: 'wraid-banner', src: 'art/ui/wb-heaven.webp', alt: '' }), h('img', { class: 'wraid-boss', src: `art/boss/${ok.art}.png`, alt: ok.name }),
           h('div', { class: 'wraid-name' }, h('small', {}, '천외천(天外天) · 천궁'), h('b', {}, ok.name, h('i', {}, ` ${ok.hanja}`)))),
-        h('p', { class: 'muted dgn-desc' }, pr.ok ? `대성신장을 두른 자에게 하늘 문이 열렸어요. 체력은 마왕의 ${D.OK_HP_K}배 · 칠대성의 탄을 모두 쓰고 더 빠르고 빽빽해요.`
+        h('p', { class: 'muted dgn-desc' }, pr.ok ? `대성신장을 두른 자에게 남천문이 열렸어요. 관문 넷(사대천사 → 탁탑천왕 → 나타 → 이랑진군)을 차례로 넘으면 옥황상제 — 넘은 관문마다 천계의 가호 +${Math.round(D.GATE_BONUS * 100)}%(공격력·체력, 영구).`
           : `대성신장 일곱 부위를 모두 끼면 열려요 — 지금 ${pr.n}/${G.PALMA_SLOTS.length}`),
         h('div', { class: 'wraid-slots' }, ...W.SLOTS.filter((x) => G.PALMA_SLOTS.includes(x.id)).map((x) => { const it = s.equip[x.id]; const good = it?.set === 'palma'; return h('span', { class: `chip${good ? ' on' : ''}` }, `${x.name}${it?.set === 'palma' ? ` +${it.plus || 0}` : ''}`); })),
         h('button', { class: 'pref-link', onclick: () => openModal((el) => el.append(h('h2', {}, '☁ 천계 이야기'),
           h('p', { class: 'muted', style: 'font-size:12.5px' }, '칠대성의 막내 제천대성이 한바탕 휘젓고 간 하늘 — 이제 그 신장을 두른 무인이 남천문 앞에 섰다.'),
           ...D.HEAVEN_STORY.map((x) => h('div', { class: 'heaven-story' }, h('b', {}, x.who), h('p', {}, x.text))),
           h('div', { class: 'btn-row' }, h('button', { class: 'btn primary', onclick: closeModal }, '닫기')))) }, '📜 천계 이야기 — 옥황상제 · 사대천사 · 태백금성 · 태상노군 · 이랑진군 …'),
+        h('div', { class: 'wraid-grid wraid-gates' }, ...D.HEAVEN_GATES.map((g) => {
+          const gr = on ? net.wraidOf(g.id) : null;
+          const gl = gr ? net.wraidHpLeft(gr) : 0;
+          const done = !!s.wraid.gates?.[g.id];
+          const open = game.gateOpen(g.id);
+          return h('div', { class: `wraid-cell${open ? '' : ' locked'}`, style: `--wb:${g.col}` },
+            h('div', { class: 'wraid-cell-top' }, h('img', { src: `art/boss/${g.art}.png`, alt: g.name }),
+              h('div', { class: 'wraid-cell-name' }, h('b', {}, `${g.gate}. ${g.name}`), h('small', {}, `${g.hanja} · ${g.title}`)),
+              done ? h('span', { class: 'wraid-have' }, '✓ 넘음') : null),
+            h('div', { class: 'raid-hp wraid-hp' }, h('i', { style: `width:${gr ? (gl / gr.maxHp) * 100 : 100}%` }), h('span', {}, !gr ? '아직 아무도' : gl > 0 ? `${((gl / gr.maxHp) * 100).toFixed(1)}%` : '쓰러짐')),
+            on && s.level >= D.WRAID_LV ? h('button', { class: 'btn primary wraid-go', id: `wraid-go-${g.id}`, disabled: open && !game.inst ? null : true, onclick: (e) => go(g.id, e) },
+              open ? (gr && gl <= 0 ? '다시 세우기' : `관문 돌파 (${D.WRAID_SEC}초)`) : !pr.ok ? '대성신장 일곱' : '앞 관문부터') : null);
+        })),
         r ? h('div', { class: 'raid-hp wraid-hp' }, h('i', { style: `width:${(left / r.maxHp) * 100}%` }), h('span', {}, left > 0 ? `${fmt(left)} / ${fmt(r.maxHp)}` : '쓰러짐')) : null,
-        on && pr.ok && s.level >= D.WRAID_LV ? h('div', { class: 'btn-row' }, h('button', { class: 'btn primary', id: 'wraid-go-okhwang', disabled: game.inst ? true : null, onclick: (e) => go(ok.id, e) }, r && left <= 0 ? '다시 하늘 문을 두드리기' : `천궁으로 (${D.WRAID_SEC}초)`)) : null);
+        on && game.okhwangOpen() && s.level >= D.WRAID_LV ? h('div', { class: 'btn-row' }, h('button', { class: 'btn primary', id: 'wraid-go-okhwang', disabled: game.inst ? true : null, onclick: (e) => go(ok.id, e) }, r && left <= 0 ? '다시 하늘 문을 두드리기' : `천궁으로 (${D.WRAID_SEC}초)`)) : null);
       out.push(card);
     }
     return out;

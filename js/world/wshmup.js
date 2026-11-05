@@ -19,6 +19,12 @@ export const SPEED = 250;
 export const KEEP = 330;                                          // 원거리 자동 회피가 두목과 두는 거리
 export const BODY = 120;                                          // 마왕 몸 크기(px) — 사거리에 더한다
 export const MAX_BULLETS = 420;
+// v377 집중(集中) — 손으로 피하는 동안 FOCUS_SEC초 안 맞을 때마다 한 겹(최대 FOCUS_MAX) · 겹마다 마왕에게 주는 피해 +FOCUS_K.
+//   맞으면 모두 흩어지고, 손을 놓아(자동 회피) 두면 FOCUS_DECAY초마다 한 겹씩 빠진다 — 방치보다 손으로 피하는 게 이득.
+export const FOCUS_SEC = 3;
+export const FOCUS_MAX = 10;
+export const FOCUS_K = 0.05;
+export const FOCUS_DECAY = 2;
 
 const rnd = (g) => g.rng();
 const ang = (x0, y0, x1, y1) => Math.atan2(y1 - y0, x1 - x0);
@@ -33,6 +39,7 @@ export function start(g) {
   g.shTarget = null;
   g.shPatIdx = 0;
   g.shHits = 0;
+  g.shFocus = 0; g.shFocusT = 0; g.shHand = 99;
   g.heroX = W.tileCenter(BOSS_C);
   g.heroY = W.tileCenter(BOSS_R) + 440;
   syncTile(g);
@@ -52,17 +59,34 @@ export const inReach = (g, b, st) => Math.hypot(g.heroX - b.x, g.heroY - (b.y - 
 function steer(g, b, dt, st) {
   let vx = 0, vy = 0, manual = false;
   if (g.shIn && (g.shIn.dx || g.shIn.dy)) { vx = g.shIn.dx; vy = g.shIn.dy; manual = true; g.shTarget = null; }
-  else if (g.joy) { vx = g.joy.dx; vy = g.joy.dy; manual = true; g.shTarget = null; }
+  else if (g.shPush && (g.shPush.x || g.shPush.y)) {
+    // v377 손가락 따라 — 끈 만큼 그대로(한 번에 너무 멀리는 못 간다)
+    const max = SPEED * 2.2 * (g.shSens || 1) * dt, d = Math.hypot(g.shPush.x, g.shPush.y), k = Math.min(1, max / d);
+    g.heroX += g.shPush.x * k; g.heroY += g.shPush.y * k; g.shPush.x -= g.shPush.x * k; g.shPush.y -= g.shPush.y * k;
+    if (Math.hypot(g.shPush.x, g.shPush.y) < 0.5) g.shPush = null;
+    manual = true; g.shTarget = null; g.walking = true;
+  } else if (g.joy) {
+    // v377 아날로그 — 조금 끌면 천천히, 끝까지 끌면 제 빠르기
+    const d = Math.hypot(g.joy.dx, g.joy.dy) || 1, m = Math.min(1, d / 42);
+    vx = (g.joy.dx / d) * m; vy = (g.joy.dy / d) * m; manual = true; g.shTarget = null;
+  }
   else if (g.shTarget) {
     const dx = g.shTarget.x - g.heroX, dy = g.shTarget.y - g.heroY, d = Math.hypot(dx, dy);
     if (d < 6) g.shTarget = null; else { vx = dx / d; vy = dy / d; manual = true; }
   }
+  if (!manual && g.shHold) manual = true;   // 손가락을 대고 멈춰 있으면 그 자리(자동 회피로 넘기지 않는다)
   if (manual) g.shIdle = 0; else g.shIdle += dt;
+  // 집중 — 손으로 움직인 지 1초 안이면 쌓이고, 아니면 빠진다
+  g.shHand = manual ? 0 : (g.shHand || 0) + dt;
+  g.shFocusT = (g.shFocusT || 0) + dt;
+  if (g.shHand < 1) {
+    if (g.shFocusT >= FOCUS_SEC && (g.shFocus || 0) < FOCUS_MAX) { g.shFocusT = 0; g.shFocus = (g.shFocus || 0) + 1; if (g.shFocus === 5 || g.shFocus === FOCUS_MAX) g.emit('wbFocus', { n: g.shFocus }); }
+  } else if (g.shFocusT >= FOCUS_DECAY && g.shFocus > 0) { g.shFocusT = 0; g.shFocus--; }
   // 손을 놓은 지 0.8초가 지나면 자동 회피
   if (!manual && g.shIdle > 0.8) [vx, vy] = autoDir(g, b, st);
   const n = Math.hypot(vx, vy);
-  if (n > 0.05) {
-    const sp = SPEED * Math.min(1.5, Math.max(1, st.moveSpeed || 1)) * (manual ? 1 : 0.85);
+  if (manual && !(vx || vy)) { /* 손가락 따라 — 위에서 옮겼다 */ } else if (n > 0.05) {
+    const sp = SPEED * Math.min(1.5, Math.max(1, st.moveSpeed || 1)) * (manual ? (g.shSens || 1) : 0.85);   // v377 손 조작 감도(설정)
     g.heroX += (vx / Math.max(1, n)) * sp * dt;
     g.heroY += (vy / Math.max(1, n)) * sp * dt;
     g.walking = true;
@@ -183,6 +207,8 @@ function pickPattern(g, b) {
 }
 
 // ---------- 매 틱 ----------
+// 집중이 주는 피해 배율
+export const focusMult = (g) => 1 + FOCUS_K * (g.shFocus || 0);
 export function tick(g, dt, st) {
   const I = g.inst;
   const b = I.boss && I.boss.alive ? I.boss : null;
@@ -255,6 +281,8 @@ function hitHero(g, st, u) {
   if (g.shield > 0 && g.buffs.shield > 0) { const a = Math.min(g.shield, left); g.shield -= a; left -= a; }
   g.heroHp -= left;
   g.shHits++;
+  if (g.shFocus >= 3) g.emit('wbFocus', { n: 0, lost: g.shFocus });
+  g.shFocus = 0; g.shFocusT = 0;
   g.emit('heroHit', { amount: left, shielded: dmg - left, boss: true, from: { x: u.x, y: u.y } });
   if (g.heroHp <= 0) g.heroDied(g.inst?.boss);
 }

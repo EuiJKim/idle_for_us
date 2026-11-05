@@ -808,7 +808,7 @@ export class BattleView {
     const blink = game.shIframe > 0 && Math.floor(this.t * 20) % 2 === 0;
     ctx.fillStyle = blink ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.95)';
     ctx.strokeStyle = 'rgba(239,68,68,0.95)'; ctx.lineWidth = 2.5;
-    ctx.beginPath(); ctx.arc(hx, hy, 6, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.arc(hx, hy, this.shBigDot ? 10 : 6, 0, Math.PI * 2); ctx.fill(); ctx.stroke();   // v377 크게 보기(맞는 크기는 그대로)
     ctx.restore();
   }
   handle(ev, game) {

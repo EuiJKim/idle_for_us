@@ -340,14 +340,29 @@ export const HEAVEN_STORY = [
   { who: '서왕모(西王母)', text: '반도대회를 열었다가 손오공에게 복숭아 잔치를 통째로 망친 여신. 그 원망이 반도원의 은하수가 되어 흐른다.' },
   { who: '석가여래', text: '하늘조차 손오공을 막지 못했을 때, 손바닥 하나로 그를 오행산 아래에 오백 년 묻었다 — 이 세계의 절대자. 천외천 너머, 아직 아무도 그 손바닥 밖을 본 적이 없다.' },
 ];
-export const WRAID_BOSS = Object.fromEntries([...WRAID_BOSSES, OKHWANG].map((b) => [b.id, b]));
-export const WRAID_IDS = [...WRAID_BOSSES.map((b) => b.id), OKHWANG.id];
+// v377 남천문 관문 — 옥황상제 앞에서 차례로 막아선다. 대성신장 일곱을 낀 자만 · 앞 관문을 넘어야(처치에 함께해야) 다음으로.
+//   처음 넘으면 천계의 가호(공격력·체력 +GATE_BONUS 영구) · 넷을 모두 넘어야 옥황상제.
+export const GATE_HP_K = 1.5;     // 대성의 몇 배
+export const GATE_BONUS = 0.06;
+export const HEAVEN_GATES = [
+  { id: 'sadae', gate: 1, name: '사대천사', hanja: '四大天師', title: '장도릉 · 갈선옹 · 허정양 · 구홍제', art: 'wb-sadae', col: '#e0f2fe', shot: 'heaven',
+    pats: [P('cross', '팔괘진'), P('homing', '부적 비'), P('ring', '사방 결계', { big: true }), P('rain', '천뢰부')] },
+  { id: 'takap', gate: 2, name: '탁탑천왕', hanja: '托塔天王', title: '천병의 대장 이정(李靖)', art: 'wb-takap', col: '#fbbf24', shot: 'gold',
+    pats: [P('burst', '보탑 낙하'), P('ring', '보탑의 빛'), P('fan', '천병 돌격'), P('wave', '천하 진압')] },
+  { id: 'nata', gate: 3, name: '나타', hanja: '哪吒', title: '삼태자 · 풍화륜', art: 'wb-nata', col: '#f43f5e', shot: 'fire',
+    pats: [P('spiral', '풍화륜', { arms: 4 }), P('fan', '화첨창'), P('homing', '건곤권'), P('cross', '혼천릉')] },
+  { id: 'irang', gate: 4, name: '이랑진군', hanja: '二郞眞君', title: '천안(天眼)의 신장', art: 'wb-irang', col: '#93c5fd', shot: 'bolt',
+    pats: [P('fan', '삼첨양인도'), P('homing', '효천견'), P('cross', '천안 개안'), P('rain', '관강구의 비'), P('spiral', '칠십삼변', { arms: 5 })] },
+];
+export const WRAID_BOSS = Object.fromEntries([...WRAID_BOSSES, ...HEAVEN_GATES, OKHWANG].map((b) => [b.id, b]));
+export const WRAID_IDS = [...WRAID_BOSSES.map((b) => b.id), ...HEAVEN_GATES.map((b) => b.id), OKHWANG.id];
+export const isGate = (id) => HEAVEN_GATES.some((b) => b.id === id);
 export const wraidDocId = (boss, seq) => `${boss}_${seq}`;
 export const wraidBossOfId = (id) => WRAID_BOSS[String(id).split('_')[0]] || WRAID_BOSSES[0];
 // v374 옛 이름 — 날짜로 고르던 것(이제는 문서 이름에서)
 export const wraidBossOf = (id) => WRAID_BOSS[String(id).split('_')[0]] || WRAID_BOSSES[((Math.floor(Date.parse(id) / 86400e3) % 8) + 8) % 8] || WRAID_BOSSES[0];
 // 체력 — hwamugiHp: 화무기 두목의 기본 체력(wgame.hwamugiHp)
-export const wraidMaxHp = (hwamugiHp, boss) => Math.round(Math.max(1e6, hwamugiHp) * WRAID_HP_K * (boss === OKHWANG.id ? OK_HP_K : 1));
+export const wraidMaxHp = (hwamugiHp, boss) => Math.round(Math.max(1e6, hwamugiHp) * WRAID_HP_K * (boss === OKHWANG.id ? OK_HP_K : isGate(boss) ? GATE_HP_K : 1));
 // 광폭 — 남은 체력 몫(0~1)으로. 0: 보통 · 1: 분노(50%↓) · 2: 광폭(20%↓)
 export const wraidRage = (frac) => (frac <= 0.2 ? 2 : frac <= 0.5 ? 1 : 0);
 // atk: 탄 피해 · spd: 탄 빠르기 · dens: 탄 수(빽빽함). 옥황상제는 한 단 더(final)
@@ -361,7 +376,7 @@ export const wraidJoinReward = (lv, share = 0) => {
 // 잡혔을 때 — 순위로 배율(1위 ×3 · 2~3위 ×2 · 10위까지 ×1.5 · 그 밖 ×1). 옥황상제 ×3
 export const wraidRankK = (rank) => (rank === 1 ? 3 : rank <= 3 ? 2 : rank <= 10 ? 1.5 : 1);
 export const wraidKillReward = (lv, rank, boss) => {
-  const k = wraidRankK(rank) * (boss === OKHWANG.id ? 3 : 1);
+  const k = wraidRankK(rank) * (boss === OKHWANG.id ? 3 : isGate(boss) ? 1.5 : 1);
   return { gold: Math.round(mobGold(lv) * 6000 * k), petShard: Math.round(60 * k), mountShard: Math.round(60 * k) };
 };
 // 대성신장 부위 등급 — 1위일수록 좋게(전설 이상이 잘 뜬다)
@@ -371,8 +386,8 @@ export const palmaRarW = (rank) => (rank === 1 ? [0, 0, 30, 70] : rank <= 3 ? [0
 // 캔버스 빛(putGlow)은 'r,g,b' 꼴을 받는다
 const hexRgb = (hex) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)).join(',');
 export function wraidMap(boss, lv, z) {
-  const fin = !!boss.final;
-  return { id: -4, inst: true, name: `${fin ? '천외천 · ' : '칠대성 토벌 · '}${boss.name}`, zoneName: fin ? '천외천 천궁' : '칠대성', zone: z, mz: z, area: 0, art: ZONES_W[z]?.art || 1,
+  const fin = !!boss.final || !!boss.gate;
+  return { id: -4, inst: true, name: `${boss.gate ? '남천문 · ' : fin ? '천외천 · ' : '칠대성 토벌 · '}${boss.name}`, zoneName: fin ? '천외천 천궁' : '칠대성', zone: z, mz: z, area: 0, art: ZONES_W[z]?.art || 1,
     lv: [lv, lv], mobs: [], boss: { name: boss.name, look: { aura: boss.col }, art: boss.art }, scene: 'raid', bossFirst: true, wb: boss.id, wbCol: hexRgb(boss.col), wbHex: boss.col, final: fin };
 }
 

@@ -1106,6 +1106,7 @@ details.lore p { margin: 4px 0 0; line-height: 1.5; }
 #joy { position: absolute; width: 112px; height: 112px; margin: -56px 0 0 -56px; border-radius: 50%; pointer-events: none; z-index: 4;
   background: radial-gradient(circle, rgba(253,224,71,0.08), rgba(10,8,6,0.35)); border: 2px solid rgba(253,224,71,0.45); box-shadow: 0 0 18px rgba(0,0,0,0.35) inset; }
 #joy.hidden { display: none; }
+#joy.idle { opacity: 0.35; }   /* v377 탄막 — 조이스틱 자리 */
 #joy .joy-knob { position: absolute; left: 50%; top: 50%; width: 46px; height: 46px; margin: -23px 0 0 -23px; border-radius: 50%;
   background: radial-gradient(circle at 35% 30%, #fde68a, #b45309); border: 2px solid #fef3c7; box-shadow: 0 2px 8px rgba(0,0,0,0.5); }
 #cv { touch-action: none; }
@@ -1202,6 +1203,8 @@ details.lore p { margin: 4px 0 0; line-height: 1.5; }
 .wraid-cell .wraid-hp span { line-height: 16px; font-size: 10.5px; }
 .wraid-go { width: 100%; padding: 6px 8px; font-size: 12.5px; }
 .wraid-heaven.locked .wraid-boss { filter: grayscale(0.7) brightness(0.55) drop-shadow(0 0 10px var(--wb)); }
+.wraid-gates { margin: 8px 0; }
+.wraid-cell.locked img { filter: grayscale(0.8) brightness(0.6); }
 .wraid-slots { display: flex; flex-wrap: wrap; gap: 4px; margin: 4px 0 8px; }
 .wraid-slots .chip { font-size: 11px; padding: 3px 7px; }
 .wraid-claims { display: grid; gap: 6px; }
