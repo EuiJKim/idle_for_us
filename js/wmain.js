@@ -800,7 +800,7 @@ function showTab(name, sub) {
   $('panel').classList.add('open');
   $('panel-dim').classList.add('open');
   paintSheet();
-  document.querySelectorAll('#tabs button[data-tab], #ptabs button[data-tab]').forEach((b) => b.classList.toggle('active', b.dataset.tab === name));
+  document.querySelectorAll('#tabs button[data-tab], #ptabs button[data-tab]').forEach((b) => { b.classList.toggle('active', b.dataset.tab === name); b.classList.toggle('locked', tabLocked(b.dataset.tab)); });   // v423 잠긴 창은 흐리게
   try { localStorage.setItem('ifu.lastTab', name); } catch { /* 이번만 */ }
   if (sub) tabs[name].select?.(sub);
   tabs[name].shown?.(sub);
@@ -1345,11 +1345,11 @@ function mountReveal(kind, floor) {
 }
 window.__test_mountReveal = (k) => mountReveal(k, 10);
 function dot(tab, on) {
-  const b = document.querySelector(`#tabs button[data-tab="${tab}"]`);
-  if (!b) return;
-  let d = b.querySelector('.dot');
-  if (on && !d) b.append(h('i', { class: 'dot' }));
-  if (!on && d) d.remove();
+  for (const b of document.querySelectorAll(`#tabs button[data-tab="${tab}"], #ptabs button[data-tab="${tab}"]`)) {   // v423 창 안의 창 줄에도 점
+    const d = b.querySelector('.dot');
+    if (on && !d) b.append(h('i', { class: 'dot' }));
+    if (!on && d) d.remove();
+  }
 }
 function drawPortrait() {
   const cv = $('portrait');

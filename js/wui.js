@@ -2054,7 +2054,7 @@ function mapTab(app) {
         sig = nsig;
         const here = W.mapOf(s.map);
         if (fac === 'king') {
-          box.replaceChildren(h('p', { class: 'muted' }, '권장 레벨 99 · 제12왕에서 제1왕 검왕까지. 두목 구역에 들어갈 때 혼자 또는 문파원과 함께를 골라요. 전반 다섯 왕은 직업 세트 조각, 후반 일곱 왕은 세트 강화석을 떨궈요.'));
+          box.replaceChildren(foldBox('king', h('p', { class: 'muted' }, '권장 레벨 99 · 제12왕에서 제1왕 검왕까지. 두목 구역에 들어갈 때 혼자 또는 문파원과 함께를 골라요. 전반 다섯 왕은 직업 세트 조각, 후반 일곱 왕은 세트 강화석을 떨궈요.')));
           for (const zn of W.ZONE_ORDER) if (zn.king) zoneCard(box, zn, here);
           return;
         }
@@ -2225,8 +2225,14 @@ function dgnTab(app) {
         step('塔', '무한의 탑', game.s.tower.floor >= D.TOWER_MAX ? '끝까지' : twOk ? `${game.s.tower.floor + 1}층 도전` : '더 세지면', twOk),
         h('span', { class: 'rt-arrow' }, '›'),
         step('獵', '사냥터', '돌아가 사냥', true)));
-    const head = h('div', { class: 'card dgn-head' },
-      h('div', {}, h('b', {}, '일일 던전'), h('small', { class: 'muted' }, ` · 도전은 언제든 · 온전한 보상은 하루 ${D.DAILY_ENTRIES}번(남긴 것은 다음 날로) · 새 단계 🔑는 몫을 안 써요 · 그 뒤는 ${Math.round(D.DAILY_EXTRA * 100)}%`),
+    const head = h('div', { class: 'card dgn-head' },   // v423 줄 나누기 — 제목·소탕 단추 / 설명(접기) / 목표 / 선택
+      h('div', { class: 'dgn-head-top' }, h('b', {}, '일일 던전'), h('button', { class: 'btn primary', disabled: sweepN ? null : true, onclick: () => {
+        const got = game.sweepAll(now);
+        if (!got.length) return;
+        app.save(); app.refresh();
+        toast(`소탕 ${got.length}번 — ${got.map((x) => rewardText(x.reward)).join(' / ')}`);
+      } }, sweepN ? `모두 소탕 (${sweepN})` : '모두 소탕')),
+      foldBox('daily', h('small', { class: 'muted' }, `도전은 언제든 · 온전한 보상은 하루 ${D.DAILY_ENTRIES}번(남긴 것은 다음 날로) · 새 단계 🔑는 몫을 안 써요 · 그 뒤는 ${Math.round(D.DAILY_EXTRA * 100)}%`)),
         (() => {   // v403 높은 단계 첫 돌파 칭호 — 다음 목표
           const top = Math.max(0, ...D.DAILY.map((d) => game.dailyBest(d.id)));
           const nx = [50, 75, 100].find((n) => top < n);
@@ -2234,14 +2240,9 @@ function dgnTab(app) {
         })(),
         game.s.dgn.pauseUntil > Date.now() ? h('div', { class: 'muted dgn-goal' }, `⏸ 나가기를 눌러 자동 던전이 쉬는 중(${Math.ceil((game.s.dgn.pauseUntil - Date.now()) / 60e3)}분) `,
           h('button', { class: 'btn', id: 'dgn-resume', style: 'padding:2px 10px;font-size:12px', onclick: () => { game.s.dgn.pauseUntil = 0; app.save(); toast('자동 던전을 다시 켰어요'); rerender(); } }, '다시 켜기')) : '',
+      h('div', { class: 'dgn-opts' },
         h('label', { class: 'chk' }, dAuto, ' 요일 던전만 자동'),
-        h('label', { class: 'chk', title: '자동(루틴 포함)이 새 단계만 오르고, 막히면 소탕하지 않고 멈춰요' }, dClimb, ' 등반 모드(막히면 멈춤)')),
-      h('button', { class: 'btn primary', disabled: sweepN ? null : true, onclick: () => {
-        const got = game.sweepAll(now);
-        if (!got.length) return;
-        app.save(); app.refresh();
-        toast(`소탕 ${got.length}번 — ${got.map((x) => rewardText(x.reward)).join(' / ')}`);
-      } }, sweepN ? `모두 소탕 (${sweepN})` : '모두 소탕'));
+        h('label', { class: 'chk', title: '자동(루틴 포함)이 새 단계만 오르고, 막히면 소탕하지 않고 멈춰요' }, dClimb, ' 등반 모드(막히면 멈춤)')));
     const cards = D.DAILY.map((d) => {
       const open = D.dailyOpen(d, now);
       const left = game.dailyLeft(d.id, now);
@@ -2297,8 +2298,9 @@ function dgnTab(app) {
         skinImg(h('div', { class: 'dgn-ico' }, '塔'), 'dg-tower'),
         h('div', { class: 'dgn-name' }, h('b', {}, '무한의 탑'), h('small', {}, ` 無限塔 · 영구 능력치`),
           h('div', { class: 'muted' }, `오른 층 ${tw.floor} · 공격력·체력 +${(D.towerBonus(tw.floor) * 100).toFixed(1).replace(/\.0$/, '')}%`))),
+      foldBox('tower',
       h('p', { class: 'muted dgn-desc' }, `${D.TOWER_MAX}층까지. 층마다 수문장 하나 — ${duration(D.TOWER_SEC)} 안에 쓰러뜨리면 다음 층. 오른 층마다 공격력·체력 +${D.TOWER_BONUS * 100}% 영구. 횟수 제한 없음.`),
-      h('p', { class: 'dgn-warn' }, '⚠ 수문장은 바닥에 붉은 경고를 깔고 크게 쳐요(두 번 맞으면 거의 쓰러져요). 자동으로는 안 피해요 — 화면을 눌러 끌어서(조이스틱) 직접 피하세요. 탑에서는 물약을 못 써요.'),
+      h('p', { class: 'dgn-warn' }, '⚠ 수문장은 바닥에 붉은 경고를 깔고 크게 쳐요(두 번 맞으면 거의 쓰러져요). 자동으로는 안 피해요 — 화면을 눌러 끌어서(조이스틱) 직접 피하세요. 탑에서는 물약을 못 써요.')),
       D.zodiacOf(nf) ? h('p', { class: 'dgn-zodiac' }, `${nf}층 ${D.zodiacOf(nf).god} — ${D.zodiacOf(nf).move}`) : null,
       h('div', { class: 'dgn-stage' },
         h('div', { class: 'stg' }, h('b', {}, `${nf}층`), h('small', {}, ` ${nb.name.replace(/^\d+층 수문장 /, '')} · Lv.${D.towerLv(nf)}${D.towerPow(nf) > 1 ? '+' : ''}`)),
@@ -2321,7 +2323,7 @@ function dgnTab(app) {
         h('div', { class: 'dgn-top' }, h('div', { class: 'dgn-ico hard-ico' }, '極'),
           h('div', { class: 'dgn-name' }, h('b', {}, '무한의 탑 · 극'), h('small', {}, ' 無限塔 極 · 하드 모드'),
             h('div', { class: 'muted' }, open ? `극 ${hf}층 · 덤 공격력·체력 +${(D.hardBonus(hf) * 100).toFixed(1).replace(/\.0$/, '')}%` : `보통 탑 ${D.HARD_OPEN}층을 오르면 열려요 (지금 ${tw.floor}층)`))),
-        h('p', { class: 'muted dgn-desc' }, `${D.HARD_MAX}층. 수문장이 엄청나게 단단하고(같은 세기 보통 층의 체력 20배 넘게) 붙어 치는 것도 세 배, 경고가 짧고 잦고 아파요. 초식도 더 — 도는 칼날·천라지망·붕괴…. 층마다 공격력·체력 +${D.HARD_BONUS * 100}% 영구, 10층마다 신수가 몸소 지켜요 — 이기면 그 신수가 내 탈것으로.`),
+        foldBox('hard', h('p', { class: 'muted dgn-desc' }, `${D.HARD_MAX}층. 수문장이 엄청나게 단단하고(같은 세기 보통 층의 체력 20배 넘게) 붙어 치는 것도 세 배, 경고가 짧고 잦고 아파요. 초식도 더 — 도는 칼날·천라지망·붕괴…. 층마다 공격력·체력 +${D.HARD_BONUS * 100}% 영구, 10층마다 신수가 몸소 지켜요 — 이기면 그 신수가 내 탈것으로.`)),
         h('div', { class: 'hard-mounts' }, ...mounts),
         open && hf < D.HARD_MAX ? h('div', { class: 'dgn-stage' },
           h('div', { class: 'stg' }, h('b', {}, `극 ${nh}층`), h('small', {}, ` ${nb2.name.replace(/^극 \d+층 (수문장|신수) /, '')} · Lv.${D.hardLv(nh)} · ${duration(D.hardSec(nh))}`)),
@@ -2338,7 +2340,7 @@ function dgnTab(app) {
         h('div', { class: 'dgn-top' }, h('div', { class: 'dgn-ico' }, '廊'),
           h('div', { class: 'dgn-name' }, h('b', {}, '끝없는 회랑'), h('small', {}, ` 無盡回廊 · 이번 주 ${c.best}층 · 기록 ${Math.max(c.all || 0, c.best)}층 · 영구 +${(D.corridorBonus(c.all) * 100).toFixed(2).replace(/\.?0+$/, '')}%`),
             h('div', { class: 'muted' }, `이번 주 초식: ${D.corridorPats().map((p) => D.TELL_NAMES[p] || p).join(' · ')}`))),
-        h('p', { class: 'muted dgn-desc' }, `${D.TOWER_MAX}층 위로 끝없이. 층마다 수문장이 ${Math.round((D.CORRIDOR_HP_UP - 1) * 100)}%씩 단단해지고 보상도 늘어요. 기록 층마다 공격력·체력 +${D.CORRIDOR_BONUS * 100}% 영구(상한 없음) · 새 기록이면 은자 세 배 + 조각(10층마다 더). 월요일 0시(한국 시간)마다 이번 주 층은 처음부터, 초식 조합이 바뀌어요(기록·덤은 남아요).`),
+        foldBox('corridor', h('p', { class: 'muted dgn-desc' }, `${D.TOWER_MAX}층 위로 끝없이. 층마다 수문장이 ${Math.round((D.CORRIDOR_HP_UP - 1) * 100)}%씩 단단해지고 보상도 늘어요. 기록 층마다 공격력·체력 +${D.CORRIDOR_BONUS * 100}% 영구(상한 없음) · 새 기록이면 은자 세 배 + 조각(10층마다 더). 월요일 0시(한국 시간)마다 이번 주 층은 처음부터, 초식 조합이 바뀌어요(기록·덤은 남아요).`)),
         h('div', { class: 'dgn-stage' }, h('div', { class: 'stg' }, h('b', {}, `${cf - D.TOWER_MAX}층`), h('small', {}, cf - D.TOWER_MAX > (c.all || 0) ? ` 새 기록 · 은자 ${fmt(D.corridorRecordReward(cf).gold)} + 조각 · 영구 +${D.CORRIDOR_BONUS * 100}%` : ` 이번 주 처음 오르면 은자 ${fmt(D.corridorGold(cf))}`))),
         h('div', { class: 'btn-row' }, h('button', { class: 'btn primary', disabled: game.canCorridor() ? null : true, onclick: () => start(() => game.startCorridor()) }, `회랑 ${cf - D.TOWER_MAX}층 도전`))));
     }
@@ -2398,14 +2400,14 @@ function dgnTab(app) {
     out.push(h('div', { class: 'card wraid-intro' },
       h('div', { class: 'wraid-head', style: '--wb:#f97316' }, h('img', { class: 'wraid-banner', src: 'art/ui/wb-banner.webp', alt: '' }),
         h('div', { class: 'wraid-name' }, h('small', {}, '화무기 그 너머 · 무림 전체가 함께'), h('b', {}, '칠대성(七大聖)'))),
-      h('ul', { class: 'wraid-how' },
+      foldBox('wraid', h('ul', { class: 'wraid-how' },
         h('li', {}, `👹 화과산의 의형제 칠대성(우마왕~손오공)이 늘 서 있어요 — 체력은 화무기의 ${D.WRAID_HP_K}배, 무림 사람 모두가 함께 깎아요(혼자서는 한참)`),
         h('li', {}, `🎯 탄을 피하며 쳐요 — 작은 흰 점만 맞아요 · 근거리는 코앞까지 붙어야, 원거리는 멀리서 · ${finePointer ? 'WASD·화살표' : '화면을 끌어'} 움직이고 손을 떼면 자동으로 피해요`),
         h('li', {}, `🛡 쓰러지면 한 대라도 친 사람 모두 순위 보상(1위 ×3 · 2~3위 ×2 · 10위까지 ×1.5) + 확률로 그 마왕의 대성신장 한 부위(1위 ${Math.round(D.PALMA_DROP(1) * 100)}% · 3위까지 ${Math.round(D.PALMA_DROP(3) * 100)}% · 10위까지 ${Math.round(D.PALMA_DROP(10) * 100)}% · 그 밖 ${Math.round(D.PALMA_DROP(99) * 100)}% · ${D.PALMA_PITY}번 못 받으면 다음엔 꼭) · 쓰러지면 곧 다음 마왕이 일어나요`),
         h('li', {}, '☁ 대성신장 일곱 부위를 모두 끼면 천외천 천궁 — 옥황상제에게 갈 수 있어요'),
         h('li', {}, '🛡 탄은 맞으면 사라져요 — 함께 치는 무인이 앞에서 막아 주면 뒤로 안 와요(탱커가 앞에 서면 좋아요)'),
         h('li', {}, `⚠ 단계가 오를수록 탄 한 대가 아파요(체력의 ${D.WB_TIER.map((t) => Math.round(t.hit * 100)).join('→')}%) · 싸우는 동안 회복(흡혈·물약)이 잘 안 들고 물약 숨이 길어요 — 직접 피하세요`),
-        h('li', {}, `⏱ 한 판 ${D.WRAID_SEC}초 · 언제든 · 참여 보상은 판마다(제한 없음) · 레벨 ${D.WRAID_LV}부터`))));
+        h('li', {}, `⏱ 한 판 ${D.WRAID_SEC}초 · 언제든 · 참여 보상은 판마다(제한 없음) · 레벨 ${D.WRAID_LV}부터`)))));
     // v413 자동 반복 — 판이 끝나면 같은 마왕(쓰러졌으면 다음 마왕)에 다시
     if (on && s.level >= D.WRAID_LV) out.push(h('label', { class: 'chk wraid-auto' }, h('input', { type: 'checkbox', id: 'wraid-auto', checked: s.wraid.auto ? true : null, onchange: (e) => { game.s.wraid.auto = e.target.checked; app.save(); toast(e.target.checked ? '🔁 칠대성 자동 반복 — 판이 끝나면 2초 뒤 같은 마왕에 다시 들어가요(나가기를 누르면 멈춰요)' : '자동 반복을 껐어요'); } }), ' 🔁 자동 반복(판이 끝나면 다시 들어가기)'));
     if (!on) out.push(h('p', { class: 'muted dgn-desc' }, '온라인일 때 들어갈 수 있어요.'));
@@ -3851,6 +3853,16 @@ function compTab(app) {
   return t;
 }
 
+// v423 설명 접기 — 긴 설명은 한 번 읽고 나면 접어 둘 수 있다(이 기기에 기억 · 처음엔 펼쳐져 있다)
+export function foldBox(key, ...nodes) {
+  let closed = false; try { closed = localStorage.getItem(`ifu.fold.${key}`) === '1'; } catch { /* 처음 */ }
+  const body = h('div', { class: 'helpfold-body' }, ...nodes);
+  const btn = h('button', { class: 'helpfold-btn', type: 'button' });
+  const paint = () => { btn.textContent = closed ? 'ⓘ 설명 보기 ▾' : '설명 접기 ▴'; body.classList.toggle('hidden', closed); btn.classList.toggle('closed', closed); };
+  btn.onclick = (e) => { e.stopPropagation(); closed = !closed; try { localStorage.setItem(`ifu.fold.${key}`, closed ? '1' : '0'); } catch { /* 이번만 */ } paint(); };
+  paint();
+  return h('div', { class: 'helpfold' }, btn, body);
+}
 // v366 뽑기 기록 — 최근 100번 · 좋은 것 셈
 function openGachaLog(game, kind) {
   const L = (game.s.gachaLog || []).filter((e) => e.k === kind).slice().reverse();
