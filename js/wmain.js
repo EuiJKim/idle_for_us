@@ -763,10 +763,10 @@ function paintSheet() {
   view.sheetOpen = !!activeTab && !sheetFull && !pcWide();   // v414 컴퓨터 배치는 창이 옆에 있어 들판을 안 가린다
 }
 // v414 컴퓨터 배치 — 창 머리에 탭 줄 · 늘 열어 둔다 · Tab / Shift+Tab으로 넘긴다
-// v429 차례를 아래 창 단추(왼쪽 줄 지도·던전·마을·무림 → 오른쪽 줄 캐릭터·가방·동료)와 같게 · 같은 한 글자 그림을 붙인다 — 창 줄과 아래 단추 차례가 달라 헷갈렸다
+// v429 차례를 아래 창 단추(왼쪽 줄 지도·던전·마을·무림 → 오른쪽 줄 캐릭터·가방·동료)와 같게 — 창 줄과 아래 단추 차례가 달라 헷갈렸다
 const PC_TABS = [['map', '지도', '지'], ['dgn', '던전', '전'], ['town', '마을', '촌'], ['social', '무림', '무'], ['char', '캐릭터', '인'], ['bag', '가방', '낭'], ['comp', '동료', '수']];
 {
-  const nav = h('nav', { id: 'ptabs' }, ...PC_TABS.map(([k, name, ic]) => h('button', { 'data-tab': k, onclick: () => { if (tabLocked(k)) { toast(`${TAB_NAME[k] || name} 창은 레벨 ${TAB_LV[k]}부터 열려요`); return; } showTab(k); } }, h('i', {}, ic), h('span', {}, name))));
+  const nav = h('nav', { id: 'ptabs' }, ...PC_TABS.map(([k, name, ic]) => h('button', { 'data-tab': k, onclick: () => { if (tabLocked(k)) { toast(`${TAB_NAME[k] || name} 창은 레벨 ${TAB_LV[k]}부터 열려요`); return; } showTab(k); } }, h('span', {}, name))));   // v430 한 글자 그림은 뺐다(글자만)
   $('panel').insertBefore(nav, $('panel-body'));
 }
 function pcEnsureOpen() {
