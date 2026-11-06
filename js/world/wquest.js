@@ -242,7 +242,7 @@ export const QUESTS = [
     why: 'Lv10에 범위가 한 번 더 넓어지고 치명이 붙는다. 다시 고르고 싶으면 무공 초기화(처음 한 번 공짜).',
     goal: (g) => ({ now: Math.max(1, ...Object.values(g.s.skillLv || {})), need: 10 }) },
   { id: 'lv70', mile: true, title: '레벨 70까지', tab: 'map', min: 12, xp: 0,
-    why: '혼원일기공(70)이 열린다. 3차 전직은 레벨 100.',
+    why: `혼원일기공(70)이 열린다. 3차 전직은 레벨 ${W.TIERS[3].level}.`,
     goal: lv(70) },
   { id: 'petLv', title: '애완동물을 레벨 10까지', tab: 'comp/pet', min: 10, xp: 0.15,
     why: '데려간 애완동물은 함께 사냥하며 자란다. 레벨이 오를수록 버프가 세진다.',
