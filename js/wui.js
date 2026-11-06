@@ -508,7 +508,8 @@ function charTab(app) {
     const cls = W.classOf(s.job);
     const tn = game.titleNow();
     head.replaceChildren(
-      h('h3', {}, tn ? h('span', { class: 'title-tag', style: `--tc:${tn.col}` }, `〈${tn.name}〉 `) : null, `${s.nickname || '무명'} `, h('small', {}, `${game.tierName()} · Lv.${s.level}`)),
+      h('h3', {}, tn ? h('span', { class: 'title-tag', style: `--tc:${tn.col}` }, `〈${tn.name}〉 `) : null, `${s.nickname || '무명'} `,
+        h('button', { class: 'btn rename-btn', id: 'rename-btn', title: '이름 바꾸기', onclick: () => app.askNickname?.() }, '✎ 이름'), h('small', {}, ` ${game.tierName()} · Lv.${s.level}`)),   // v418 이름 바꾸기를 이름 옆에
       h('p', { class: 'muted' }, cls ? `${cls.name} — ${W.CLASSES[s.job].trait}` : ''),
       // v325 1차 전직 전에는 직업을 공짜로 바꿔 본다(무공 점수는 돌려받는다)
       (s.jobTier || 0) === 0 && s.job ? h('div', { class: 'job-swap' }, h('small', {}, '1차 전직 전까지 직업을 공짜로 바꿔 볼 수 있어요'),

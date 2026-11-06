@@ -3759,6 +3759,8 @@ console.log('\n=== v413 각성 고수 전용 발밑 문양 ===');
   ok(fs.existsSync(new URL('../art/hero2/ring-awk-cheonma.png', import.meta.url)) && W.AWAKEN_IDS.every((id) => fs.existsSync(new URL(`../art/hero2/ring-awk-${id}.png`, import.meta.url))), '문양 그림 여섯');
   g.s.custom = { ...(g.s.custom || {}), ring: 'awk-cheonma' }; ok(migrateWorld(JSON.parse(JSON.stringify(g.s))).custom.ring === 'awk-cheonma' && migrateWorld(JSON.parse(JSON.stringify(g.s))).awk.rings.cheonma === 1, '끼고 저장 · 불러오기');
 }
+console.log('\n=== v419 이름 바꾸기 — 위쪽 이름 · 캐릭터 창 이름 옆 ===');
+ok(/id: 'rename-btn'/.test(read('js/wui.js')) && /\$\('hero-name'\)\.addEventListener\('click'/.test(read('js/wmain.js')) && /askNickname: \(\) => askNickname\(false\)/.test(read('js/wmain.js')), '이름은 위쪽 이름이나 캐릭터 창 「✎ 이름」으로 바꾼다(설정 맨 아래에만 있었다)');
 console.log('\n=== v418 칠대성 — 쓰러뜨리면 「쓰러뜨렸어요」 · 서버에 1이 남지 않게 · 보상 저절로 ===');
 {
   const N = read('js/wnet.js'), M = read('js/wmain.js');

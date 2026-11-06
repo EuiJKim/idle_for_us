@@ -213,7 +213,7 @@ setCam(loadCam());
 $('btn-zoom').addEventListener('click', () => { setCam((view.camLevel + 1) % 3); game.mark('zoom'); });
 $('cv').addEventListener('wheel', (e) => { e.preventDefault(); setCam(view.camLevel + (e.deltaY < 0 ? 1 : -1)); }, { passive: false });
 
-const app = { game, net: null, refresh: () => refreshUI(true), save: () => save(), closePanel: () => closePanel(), showTab: (t, sub) => showTab(t, sub), showEnding: () => showEnding() };
+const app = { game, net: null, refresh: () => refreshUI(true), save: () => save(), closePanel: () => closePanel(), showTab: (t, sub) => showTab(t, sub), showEnding: () => showEnding(), askNickname: () => askNickname(false) };
 const net = new WNet(game, { onChange: (w) => netChanged(w) });
 app.net = net;
 // 십이지왕 함께 사냥 (v138) — 문파원끼리 같은 왕 구역에 서면 왕 체력을 나눈다
@@ -2177,6 +2177,7 @@ window.__test_saver = (on) => { if (on) saver.enter(); else if (on === false) sa
 saver.onExit = () => { view.resetFx(); last = performance.now(); refreshUI(true); };   // v379 깨어날 때 쌓인 연출을 비운다
 saver.onEnter = () => { view.resetFx(); game.mark('saver'); const s = game.s; saverRun = { t0: Date.now(), gold: s.gold, kills: s.kills, deaths: s.deaths, level: s.level, exp: s.exp / game.expNeed(), loot: [] }; };
 $('btn-saver').addEventListener('click', () => saver.enter());
+$('hero-name').addEventListener('click', (e) => { e.stopPropagation(); if (game.s.job && !modalOpen()) askNickname(false); });   // v418 위쪽 이름을 누르면 이름 바꾸기
 // v411 지난 알림 — 토스트로 지나간 글을 다시 본다 · v413 종류별로 거르고, 눌러서 그 화면으로
 const NOTE_KIND = [['all', '전체'], ['title', '칭호'], ['reward', '보상'], ['warn', '경고'], ['etc', '그 밖']];
 const noteKind = (t) => (/칭호|〈.+〉 얻|새 칭호/.test(t) ? 'title' : /⚠|못 |실패|막혔|멈췄|모자라|버거|쓰러졌/.test(t) ? 'warn' : /보상|받았|🎁|은자|조각|대성신장|검혼석|기록/.test(t) ? 'reward' : 'etc');

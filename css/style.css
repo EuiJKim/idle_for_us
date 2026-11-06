@@ -2689,3 +2689,7 @@ body.pc-wide #ptabs button { flex: 1; padding: 8px 4px; border-radius: 9px; font
 body.pc-wide #ptabs button:hover { color: #f5e9cf; background: rgba(255, 255, 255, .07); }
 body.pc-wide #ptabs button.active { color: var(--accent-2); border-color: rgba(212, 166, 74, .5); background: rgba(212, 166, 74, .12); }
 body.pc-wide #tabs .tabcol { display: none; }   /* 들판 위 창 단추는 창 머리 탭 줄로 */
+
+/* v418 이름 바꾸기 */
+.rename-btn { padding: 2px 8px; font-size: 11px; border-radius: 8px; vertical-align: middle; margin-right: 4px; }
+#hero-name { cursor: pointer; }
