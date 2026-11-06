@@ -224,6 +224,7 @@ const coop = new Coop(game, net, {
   },
   onEvent: (kind, e) => {
     if (kind === 'join') toast('🤝 함께 사냥 — 이 두목은 같은 구역의 문파원과 체력을 나눠요. 한 대라도 치면 처치 보상에 문파원 한 명마다 +10%');
+    else if (kind === 'coopSolo') toast('⚠ 서버가 두목 체력에 답하지 않아 이번 두목은 내 화면에서 마저 잡아요');   // v420
     else if (kind === 'peerIn') toast(`🤝 ${e.name}님이 같은 두목 구역에 왔어요`);
     else if (kind === 'peerOut') toast(`${e.name}님이 두목 구역을 떠났어요`);
     else if (kind === 'kill') toast(`👑 ${e.name} 처치! ${e.n > 1 ? `${e.n}명이 함께 · 보상 +${Math.round((e.bonus - 1) * 100)}% · 내가 깎은 몫 ${Math.round(e.share * 100)}%` : '혼자서'}${e.me ? ' — 마무리 일격' : ` — ${e.killer}님 마무리`}`);
@@ -2538,7 +2539,7 @@ let wraidClaimT = 0;
 function netChanged(what) {
   if (what === 'status') { if (net.ready?.()) watchMail(); else net.unwatchGifts?.(); }
   // v418 받을 칠대성 보상이 생기면(다른 무인이 마무리했어도) 저절로 받는다
-  if (what === 'wraid' && net.wraidClaims?.().length && !game.inst) { clearTimeout(wraidClaimT); wraidClaimT = setTimeout(() => autoClaimWraid(), 1200); }
+  if (what === 'wraid' && net.wraidClaims?.().some((r) => game.wraidPart?.(r.id)) && !game.inst) { clearTimeout(wraidClaimT); wraidClaimT = setTimeout(() => autoClaimWraid(), 1200); }
   // v309 규칙이 옛 판이면 운영자에게 한 번 알린다(다른 무인에게는 보이지 않는다)
   if (what === 'rules' && net.rulesOk === false && net.isAdmin?.() && !rulesWarned) {
     rulesWarned = true;
@@ -2613,6 +2614,7 @@ let wraidKilledByMe = null;
 async function autoClaimWraid() {
   if (!net.ready?.()) return;
   for (const r of net.wraidClaims?.() || []) {
+    if (!game.wraidPart?.(r.id)) continue;   // v420 이 캐릭터가 친 판만 저절로 — 다른 캐릭터 몫은 던전 창에서 그 캐릭터로 받는다
     try {
       const got = await net.claimWraid(r);
       if (got) {

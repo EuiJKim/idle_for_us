@@ -2383,10 +2383,12 @@ function dgnTab(app) {
       } catch (err) { toast(`들어가지 못했어요: ${err.message || err}`); }
       rerender();
     };
-    const claimBtn = (rr, label) => h('button', { class: 'btn primary wraid-claim', onclick: async (e) => {
+    const claimBtn = (rr, label) => h('button', { class: `btn ${game.wraidPart(rr.id) ? 'primary' : ''} wraid-claim`, onclick: async (e) => {
+      // v420 이 캐릭터가 친 판이 아니면(다른 캐릭터 몫) 한 번 묻는다 — 보상(대성신장)은 받는 캐릭터 것이 된다
+      if (!game.wraidPart(rr.id) && !confirm('이 캐릭터가 친 기록이 없는 판이에요(다른 캐릭터 몫일 수 있어요). 이 캐릭터로 받으면 대성신장도 이 캐릭터 것이 돼요. 받을까요?')) return;
       e.target.disabled = true;
       try {
-        const got = await net.claimWraid(rr);
+        const got = await net.claimWraid(rr, true);
         if (got) { toast(`🌋 ${got.boss.name} 처치 보상 — ${got.rank}위 · ${rewardText(got.reward)}${got.reward.item ? ` · 〈${W.itemName(got.reward.item, s.job)}〉` : got.reward.miss ? ` · 이번엔 대성신장이 안 나왔어요(${got.reward.miss.left}번 안에 꼭)` : ''}`); app.save(); app.refresh(); }
       } catch (err) { toast(`받지 못했어요: ${err.message || err}`); }
       rerender();
@@ -2412,7 +2414,7 @@ function dgnTab(app) {
     const claims = on ? net.wraidClaims() : [];
     if (claims.length) out.push(h('div', { class: 'card wraid-claims' }, h('b', {}, '🎁 쓰러진 마왕 — 보상 받기'),
       ...claims.map((r) => { const b = D.wraidBossOfId(r.id); const rk = net.wraidMyRank(r); return h('div', { class: 'wraid-prev' },
-        h('span', {}, `${b.name} ${r.seq}번째 · 내 순위 ${rk}위 ×${D.wraidRankK(rk)}${b.slot ? ` · ${SLOT_NAME[b.slot]} 한 부위` : ''}`), claimBtn(r, '받기')); })));
+        h('span', {}, `${b.name} ${r.seq}번째 · 내 순위 ${rk}위 ×${D.wraidRankK(rk)}${b.slot ? ` · ${SLOT_NAME[b.slot]} 한 부위` : ''}${game.wraidPart(r.id) ? '' : ' · ⚠ 다른 캐릭터가 친 판'}`), claimBtn(r, game.wraidPart(r.id) ? '받기' : '이 캐릭터로 받기')); })));
     // 칠대성 여덟
     const grid = h('div', { class: 'wraid-grid' });
     // v386 빠른 합류 — 지금 사람이 가장 많은 마왕으로(문파원이 있으면 그쪽 먼저)

@@ -288,7 +288,10 @@ export class Coop {
   // v415 서버에 아직 남은 체력(보내는 중인 몫은 빼고) — 내 화면 체력이 1에 멈춰도 친 만큼은 서버로 보낸다
   serverLeft(mob) { return Math.max(0, (this.b?.seq === mob.coopSeq && this.b.hp > 0 ? this.b.hp : mob.hp) - this.pend); }
   // v415 서버 소식이 15초 넘게 끊겼다 — 함께 잡기를 놓고 내 화면에서 마저 잡는다(체력 0인데 안 죽던 것)
-  stale() { return !!this.bAt && Date.now() - this.bAt > 15000; }
+  //   v420 전송이 여섯 번 넘게 물러나거나(거부·다른 번호) 전송은 되는데 서버 체력이 15초 넘게 안 줄어도 같다
+  stale() { return (!!this.bAt && Date.now() - this.bAt > 15000) || (this.miss || 0) >= 6 || (!!this.okAt && !!this.bAt && this.okAt - this.bAt > 15000); }
+  // v420 내 화면에서 혼자 잡기로 넘어간 왕 — 같은 번호를 다시 세우지 않는다(보상을 두 번 받지 않게)
+  gaveUp(seq) { this.deadLocal = seq; this.pend = 0; this.onEvent('coopSolo', { seq }); }
 
   async commit() {
     if (this.busy || !this.rt || !this.base) return;
@@ -302,15 +305,19 @@ export class Coop {
     const { m, db } = this.rt;
     const uid = this.net.uid, nick = this.game.s.nickname || '무명';
     try {
-      await m.runTransaction(m.ref(db, `${this.base}/b`), (b) => {
+      const res = await m.runTransaction(m.ref(db, `${this.base}/b`), (b) => {
         if (!b || b.seq !== seq || !(b.hp > 0)) return undefined;
         b.hp = Math.max(0, b.hp - amt);
         if (b.hp <= 0) { b.dead = m.serverTimestamp(); b.killer = uid; b.kn = nick; }
         return b;
       }, { applyLocally: false });
+      // v420 조용히 물러난 거래(committed=false: 서버의 왕이 다른 번호거나 이미 쓰러짐·아직 못 읽음)도 몫을 버리지 않는다
+      if (res && res.committed === false) { this.pend += amt; this.miss = (this.miss || 0) + 1; }
+      else { this.okAt = Date.now(); this.miss = 0; }
     } catch (err) {
       console.warn('[coop] commit', err?.message || err);
       this.pend += amt;   // v415 못 보낸 몫은 버리지 않고 다음에 다시
+      this.miss = (this.miss || 0) + 1;
     }
     this.busy = false;
   }
@@ -322,6 +329,7 @@ export class Coop {
     const g = this.game, b = this.b;
     if (b && b.hp > 0) {
       if (this.spawnedSeq === b.seq && this.localBoss()) return;
+      if (this.deadLocal === b.seq) { g.bossT = W.BOSS_RESPAWN; return; }   // v420 혼자 잡기로 끝낸 왕은 다시 안 세운다
       const mob = g.spawnMob(true);
       if (!mob) return;
       mob.coopSeq = b.seq;

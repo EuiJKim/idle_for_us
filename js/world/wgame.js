@@ -285,7 +285,8 @@ export function migrateWorld(raw, now = Date.now()) {
       gates: Object.fromEntries(Object.keys(w.gates || {}).filter((k) => D.isGate(k)).map((k) => [k, 1])),
       read: Object.fromEntries(Object.keys(w.read || {}).filter((k) => /^\d{1,2}$/.test(k) && +k < D.HEAVEN_STORY.length).map((k) => [k, 1])),
       pity: Object.fromEntries(Object.entries(w.pity || {}).filter(([k, v]) => D.WRAID_BOSS[k] && v > 0).map(([k, v]) => [k, clamp(Math.floor(Number(v) || 0), 0, D.PALMA_PITY)])),   // v409 대성신장 천장
-      auto: w.auto === true }; }   // v413 칠대성 자동 반복
+      auto: w.auto === true,
+      part: Object.fromEntries(Object.entries(w.part || {}).filter(([k, v]) => D.WRAID_BOSS[String(k).split('_')[0]] && v > 0).slice(-40).map(([k, v]) => [k, Number(v)])) }; }   // v413 칠대성 자동 반복 · v420 이 캐릭터가 친 판
   s.mast = {};
   for (const [k, v] of Object.entries(raw.mast || {})) if (W.zoneOfW(+k) && v > 0) s.mast[k] = Math.floor(Number(v) || 0);
   s.zTickets = {}; s.zPity = {};
@@ -1622,7 +1623,7 @@ export class WorldGame {
   hurt(m, dmg, kind, crit, quiet = false) {
     if (!m.alive || m.introT > 0) return;
     // 함께 잡는 왕: 친 만큼 모아 서버에 올리고, 쓰러뜨리는 건 서버가 정한다(내 화면에서 먼저 죽지 않는다)
-    if (m.coopSeq != null && this.coop?.on && this.coop.stale?.() && m.hp <= 1) m.coopSeq = null;   // v415 서버가 끊겼다 — 내 화면에서 마저 잡는다
+    if (m.coopSeq != null && this.coop?.on && this.coop.stale?.() && m.hp <= 1) { this.coop.gaveUp?.(m.coopSeq); m.coopSeq = null; }   // v415 서버가 끊겼다 — 내 화면에서 마저 잡는다 · v420 같은 왕을 다시 세우지 않게
     if (m.coopSeq != null && this.coop?.on) {
       const d = Math.min(dmg, Math.max(0, m.hp - 1));
       this.coop.dealt(m, Math.min(dmg, this.coop.serverLeft ? this.coop.serverLeft(m) : m.hp));   // v415 서버에 남은 만큼(전엔 내 화면 체력까지만 — 1에 멈추면 한 대에 1씩만 보내 안 죽었다)
@@ -4745,6 +4746,9 @@ export class WorldGame {
     const r = this.s.wraid;
     if (r.day !== D.kstDay(now)) { r.day = D.kstDay(now); r.n = 0; }
     r.n = Math.min(999, r.n + 1);
+    // v420 이 캐릭터가 친 판 — 보상은 계정(uid) 단위라 다른 캐릭터가 받아 가던 것(저절로 받기 v418)
+    r.part = { ...(r.part || {}), [o.id || o.day]: now };
+    { const ks = Object.keys(r.part); if (ks.length > 40) for (const k of ks.sort((a, b) => r.part[a] - r.part[b]).slice(0, ks.length - 40)) delete r.part[k]; }
     const z = W.mapOf(this.s.huntMap).mz || 1;
     this.startInst({ kind: 'wraid', key: o.id || o.day, boss0: boss.id, map: D.wraidMap(boss, this.s.level, z), t: D.WRAID_SEC, max: D.WRAID_SEC, wait: 1.2, castT: 3,
       hpLeft: o.hpLeft, sharedMax: o.maxHp, z, myDealt: 0, sent: 0, paid: r.n <= D.WRAID_PAID });
@@ -4753,8 +4757,10 @@ export class WorldGame {
   }
   // 잡혔을 때 받기 — rank: 피해 순위(1부터). 서버에서 받음 표시를 한 뒤에 부른다.
   //   마왕이면 그 마왕이 맡은 대성신장 한 부위(등급은 순위로 굴린다) · 옥황상제면 순위 보상 ×3
+  wraidPart(id) { return !!this.s.wraid.part?.[id]; }   // v420 이 캐릭터가 친 판인가
   wraidClaim(rank, bossId = null) {
     const r = this.s.wraid;
+    if (r.part?.[bossId]) delete r.part[bossId];
     r.kills++;
     if (rank === 1) r.top1++;
     const b = D.WRAID_BOSS[bossId];

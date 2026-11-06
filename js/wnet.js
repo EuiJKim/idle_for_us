@@ -294,8 +294,9 @@ export class WNet extends Net {
   canClaimWraid(r) {
     return !!(r && r.total >= r.maxHp && (r.damage?.[this.uid] || 0) > 0 && !r.claimed?.[this.uid]);
   }
-  async claimWraid(r) {
-    if (!this.canClaimWraid(r)) return null;
+  // v420 이 캐릭터가 친 판만(계정 단위 보상이라 다른 캐릭터로 바꾸면 그 캐릭터가 받아 갔다) · force: 사람이 눌러 받는다
+  async claimWraid(r, force = false) {
+    if (!this.canClaimWraid(r) || (!force && !this.game.wraidPart?.(r.id))) return null;
     const ref = this.ref('wraid', r.id);
     const ok = await ack(this.fs.runTransaction(this.db, async (tx) => {
       const d = (await tx.get(ref)).data();
@@ -307,6 +308,7 @@ export class WNet extends Net {
     const rank = this.wraidMyRank(r);
     const boss = D.wraidBossOfId(r.id);
     const out = this.game.wraidClaim(rank, boss.id);
+    if (this.game.s.wraid.part?.[r.id]) delete this.game.s.wraid.part[r.id];
     delete this.wdone[r.id];
     this.changed('wraid');
     return { rank, reward: out, boss };

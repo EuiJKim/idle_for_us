@@ -3759,6 +3759,26 @@ console.log('\n=== v413 각성 고수 전용 발밑 문양 ===');
   ok(fs.existsSync(new URL('../art/hero2/ring-awk-cheonma.png', import.meta.url)) && W.AWAKEN_IDS.every((id) => fs.existsSync(new URL(`../art/hero2/ring-awk-${id}.png`, import.meta.url))), '문양 그림 여섯');
   g.s.custom = { ...(g.s.custom || {}), ring: 'awk-cheonma' }; ok(migrateWorld(JSON.parse(JSON.stringify(g.s))).custom.ring === 'awk-cheonma' && migrateWorld(JSON.parse(JSON.stringify(g.s))).awk.rings.cheonma === 1, '끼고 저장 · 불러오기');
 }
+console.log('\n=== v420 칠대성 보상은 그 캐릭터만 · 함께 사냥 전송이 물러나도 끝까지 ===');
+{
+  const Dx = await import('../js/world/wdgn.js');
+  const g = fresh('sword'); while (g.s.level < Dx.WRAID_LV) g.addExp(W.expToNext(g.s.level));
+  const hp = Dx.wraidMaxHp(g.hwamugiHp(), 'umawang');
+  ok(!g.wraidPart('umawang_3') && g.startWraid({ id: 'umawang_3', hpLeft: hp, maxHp: hp }, Date.now()) && g.wraidPart('umawang_3'), '들어간 판은 이 캐릭터가 친 판으로 적힌다');
+  g.leaveInst();
+  ok(migrateWorld(JSON.parse(JSON.stringify(g.s))).wraid.part.umawang_3 > 0, '저장된다');
+  const alt = fresh('fan'); ok(!alt.wraidPart('umawang_3'), '다른 캐릭터에는 없다');
+  const N = read('js/wnet.js'), M = read('js/wmain.js'), U = read('js/wui.js');
+  ok(/async claimWraid\(r, force = false\)/.test(N) && /!force && !this\.game\.wraidPart/.test(N) && /if \(!game\.wraidPart\?\.\(r\.id\)\) continue;/.test(M) && /다른 캐릭터가 친 판/.test(U), '저절로 받기는 그 캐릭터가 친 판만 · 남의 판은 눌러서 한 번 묻고 받는다');
+  // 함께 사냥 — 전송이 조용히 물러나면(committed=false) 몫을 버리지 않고, 여섯 번 넘으면 혼자 잡기로
+  const CoopMod = await import('../js/world/wcoop.js');
+  const c = new CoopMod.Coop(g, {}); c.on = true; g.coop = c; c.bAt = Date.now(); c.b = { seq: 1, hp: 500, max: 1e6 }; c.miss = 6;
+  const mob = { alive: true, isBoss: true, hp: 1, maxHp: 1e6, coopSeq: 1, x: 0, y: 0, introT: 0 }; g.mons.push(mob); g.mon = mob;
+  g.hurt(mob, 10, 'hit', false, true);
+  ok(!mob.alive && c.deadLocal === 1, '전송이 여섯 번 물러나면 내 화면에서 마저 잡는다');
+  c.spawnedSeq = null; g.bossT = 0; g.mons = []; c.bossTick();
+  ok(!g.mons.some((m) => m.isBoss) && g.bossT > 0, '그 왕(같은 번호)은 다시 세우지 않는다');
+}
 console.log('\n=== v419 이름 바꾸기 — 위쪽 이름 · 캐릭터 창 이름 옆 ===');
 ok(/id: 'rename-btn'/.test(read('js/wui.js')) && /\$\('hero-name'\)\.addEventListener\('click'/.test(read('js/wmain.js')) && /askNickname: \(\) => askNickname\(false\)/.test(read('js/wmain.js')), '이름은 위쪽 이름이나 캐릭터 창 「✎ 이름」으로 바꾼다(설정 맨 아래에만 있었다)');
 console.log('\n=== v418 칠대성 — 쓰러뜨리면 「쓰러뜨렸어요」 · 서버에 1이 남지 않게 · 보상 저절로 ===');
