@@ -861,6 +861,7 @@ export class BattleView {
     }
     switch (ev.type) {
       case 'wbShot': (this.wbShots || (this.wbShots = [])).push({ ...ev, life: 0.22 }); if (this.wbShots.length > 24) this.wbShots.shift(); return;
+      case 'wbBlock': if (this.fxLevel > 0 && this.sparks.length < 40) this.sparks.push({ x: this.sx(ev), y: this.sy(ev), life: 0.16, max: 0.16, r: 14, color: `rgb(${(BULLET_COL[ev.kind] || BULLET_COL.fire)[0]})` }); return;   // v405 함께 치는 무인이 막은 탄
       case 'wbSplit': if (this.fxLevel > 0) this.particles.push(...Array.from({ length: 8 }, () => ({ x: this.sx(ev), y: this.sy(ev), vx: (Math.random() - 0.5) * 220, vy: (Math.random() - 0.5) * 220, life: 0.4, size: 4, color: `rgb(${(BULLET_COL[ev.kind] || BULLET_COL.fire)[0]})` }))); return;
       case 'attack': {
         // 멀리서 쏘는 캐릭터 — 무기마다 날아가는 게 다르다. 맞은 숫자는 닿을 때 뜬다.

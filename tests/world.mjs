@@ -3744,6 +3744,32 @@ console.log('\n=== v403 지금 뭘 올리면 제일 세지나 ===');
   ok(!g.upgradeTip(), '은자가 없으면 추천 없음');
   ok(/id: 'up-tip'/.test(read('js/wui.js')), '가방 위 한 줄 — 누르면 그 장비 창');
 }
+console.log('\n=== v405 천계 마왕 단계 · 맞은 탄은 사라진다 · 함께 치는 무인이 막는다 ===');
+{
+  const Dx = await import('../js/world/wdgn.js');
+  const SH = await import('../js/world/wshmup.js');
+  const g = fresh('sword'); const hw = g.hwamugiHp();
+  const b1 = Dx.wraidMaxHp(hw, 'umawang'), b5 = Dx.wraidMaxHp(hw, 'umawang', 5);
+  ok(Math.abs(b5 / b1 - 1.5 ** 4) < 1e-6 && Dx.wraidStepOfHp(b5, hw, 'umawang') === 5 && Dx.wraidStepOfHp(b1, hw, 'umawang') === 1, '단계마다 체력 ×1.5 — 체력에서 단계를 읽는다');
+  ok(Dx.wraidNextStep(5, 3600e3) === 6 && Dx.wraidNextStep(5, 30 * 3600e3) === 4 && Dx.wraidNextStep(1, 30 * 3600e3) === 1 && Dx.wraidNextStep(20, 1) === 20 && Dx.wraidNextStep(3, 0) === 3, '빨리 잡히면 한 단계 위 · 오래 걸리면 아래 · 1~20');
+  ok(Dx.wraidMaxHp(hw, 'seokga', 20) < 1e18, '석가여래 20단계도 서버 상한(1e18) 안');
+  ok(Dx.wraidKillReward(150, 1, 'umawang', 11).gold > Dx.wraidKillReward(150, 1, 'umawang', 1).gold * 1.9, '단계가 높을수록 보상 +10%씩');
+  // 판 — 단계를 마왕 체력에서 읽고, 탄이 더 아프다
+  while (g.s.level < Dx.WRAID_LV) g.addExp(W.expToNext(g.s.level));
+  ok(g.startWraid({ id: 'umawang_9', hpLeft: b5, maxHp: b5 }, Date.now()) && g.inst.step === 5, '판에 든 마왕 단계 = 5');
+  // 맞은 탄은 사라진다(무적 중에 닿은 탄도)
+  g.inst.wait = 0.01; for (let i = 0; i < 400 && !(g.inst.boss && g.inst.boss.alive); i++) g.tick(0.05); if (g.inst.boss) g.inst.boss.introT = 0; g.freezeT = 0; g.emitters = []; g.shPatT = 99;
+  g.bullets = [{ t: 0, x: g.heroX, y: g.heroY - 26, vx: 0, vy: 0, r: 9, kind: 'fire' }, { t: 0, x: g.heroX, y: g.heroY - 26, vx: 0, vy: 0, r: 9, kind: 'fire' }];
+  g.shIframe = 0; g.heroHp = g.stats().hp; const h0 = g.heroHp;
+  g.tick(0.016);
+  ok(g.heroHp < h0 && !g.bullets.some((u) => Math.hypot(u.x - g.heroX, u.y - (g.heroY - 26)) < 5), '맞은 탄은 둘 다 사라진다(한 대만 아프다)');
+  // 함께 치는 무인이 막는다
+  g.wbCoop = { on: true, others: [{ x: g.heroX + 200, y: g.heroY }] };
+  const ax = g.heroX + 200, ay = g.heroY;
+  g.bullets = [{ t: 0, x: ax, y: ay - 26, vx: 0, vy: 0, r: 9, kind: 'fire' }];
+  g.tick(0.016);
+  ok(!g.bullets.some((u) => Math.hypot(u.x - ax, u.y - (ay - 26)) < 5) && g.shBlocked >= 1, '함께 치는 무인 몸에 닿은 탄은 사라진다');
+}
 console.log('\n=== v404 5차 직업 순서(끝까지 올린 최종 상태 기준) ===');
 {
   const F = (j) => W.fifthOf(j).atkMul;

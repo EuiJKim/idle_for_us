@@ -12,7 +12,8 @@ import * as D from './wdgn.js';
 
 export const ARENA = { x0: 40, x1: W.COLS * W.TILE - 40, y1: W.ROWS * W.TILE - 80 };
 export const BOSS_C = Math.floor(W.COLS / 2), BOSS_R = 7;          // 두목 자리(칸)
-export const HERO_R = 13;                                        // 무인 맞는 크기(작게 — 탄막답게)
+export const HERO_R = 13;
+export const ALLY_R = 22;                                        // v405 함께 치는 무인이 탄을 막는 크기(몸통 — 맞는 점보다 크게)                                        // 무인 맞는 크기(작게 — 탄막답게)
 // v378 탄막 밀도 — 폰은 화면이 좁아 촘촘하면 못 피한다. dens 탄 수 · spd 빠르기 · hit 맞는 크기 배율(무인·탄 둘 다)
 export const EASE = {
   dense: { name: '촘촘', dens: 1, spd: 1, hit: 1 },
@@ -158,7 +159,7 @@ function shoot(g, o) {
 function rageK(g) {
   const k0 = D.WRAID_RAGE[Math.max(0, g.inst?.rage || 0)];
   const T = D.WB_TIER[D.wbTierOf(g.map?.wb)];   // v387 단계마다(옥황상제 한 단 · 석가여래 두 단 더)
-  const k = { ...k0, spd: k0.spd * T.spd, dens: k0.dens * T.dens };
+  const k = { ...k0, spd: k0.spd * T.spd, dens: k0.dens * T.dens * D.wraidStepDens(g.inst?.step) };   // v405 마왕 단계마다 탄 +2%
   const e = ease(g);   // v378 밀도(설정)
   return { ...k, spd: k.spd * e.spd, dens: k.dens * e.dens };
 }
@@ -284,6 +285,7 @@ export function tick(g, dt, st) {
 function tickBullets(g, dt, st) {
   if (g.shIframe > 0) g.shIframe -= dt;
   const out = [];
+  const allies = g.wbCoop?.on ? (g.wbCoop.others || []).filter((o) => Number.isFinite(o.x) && Number.isFinite(o.y)) : [];   // v405 함께 치는 무인
   for (const u of g.bullets) {
     u.t += dt;
     if (u.home > 0) {
@@ -302,13 +304,15 @@ function tickBullets(g, dt, st) {
       continue;
     }
     if (u.x < -60 || u.x > W.COLS * W.TILE + 60 || u.y < -60 || u.y > W.ROWS * W.TILE + 60 || u.t > (u.life || 9)) continue;
+    // v405 함께 치는 무인이 앞에서 막아 주면 그 탄은 사라진다(내 화면에 보이는 자리 · 그 무인은 제 판에서 따로 맞는다)
+    if (allies.length && allies.some((o) => Math.hypot(u.x - o.x, u.y - (o.y - 26)) < u.r + ALLY_R)) { g.shBlocked = (g.shBlocked || 0) + 1; g.emit('wbBlock', { x: u.x, y: u.y, kind: u.kind }); continue; }
     // 맞음
     const hd = Math.hypot(u.x - g.heroX, u.y - (g.heroY - 26)), hr = (u.r + HERO_R) * ease(g).hit;
     // v378 스침 — 손으로 피하는 중에 아슬아슬하게 비껴가면 집중이 빨리 찬다
     if (!u.gz && hd < hr + GRAZE_PAD && hd >= hr && g.shHand < 1) { u.gz = true; g.shFocusT = (g.shFocusT || 0) + GRAZE_T; g.shGraze = (g.shGraze || 0) + 1; g.emit('wbGraze', { x: u.x, y: u.y }); }
-    if (g.shIframe <= 0 && g.heroHp > 0 && hd < hr) {
-      g.shIframe = IFRAME;
-      hitHero(g, st, u);
+    if (g.heroHp > 0 && hd < hr) {
+      // v405 맞은 탄은 사라진다 — 맞은 뒤 무적인 동안 닿은 탄도 몸에 막혀 없어진다(피해는 없음)
+      if (g.shIframe <= 0) { g.shIframe = IFRAME; hitHero(g, st, u); }
       continue;
     }
     out.push(u);
@@ -323,7 +327,7 @@ function hitHero(g, st, u) {
   const pm = g.pmods();
   const red = (1 - (W.CLASSES[g.s.job]?.dmgRed || 0)) * (1 - (g.buffv.guard || 0)) * (1 - Math.min(0.6, pm.dmgRed || 0)) * (1 - (st.dmgRed || 0));
   const k = rageK(g).atk;
-  const dmg = st.hp * D.WB_TIER[D.wbTierOf(g.map?.wb)].hit * (u.big ? 2 : 1) * k * red * (closeIn(g) ? MELEE_HIT : 1);   // v387 단계마다 아프게
+  const dmg = st.hp * (D.WB_TIER[D.wbTierOf(g.map?.wb)].hit + D.wraidStepHit(g.inst?.step)) * (u.big ? 2 : 1) * k * red * (closeIn(g) ? MELEE_HIT : 1);   // v387 단계마다 아프게
   let left = dmg;
   if (g.shield > 0 && g.buffs.shield > 0) { const a = Math.min(g.shield, left); g.shield -= a; left -= a; }
   g.heroHp -= left;

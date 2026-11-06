@@ -388,7 +388,21 @@ export const wraidBossOfId = (id) => WRAID_BOSS[String(id).split('_')[0]] || WRA
 // v374 옛 이름 — 날짜로 고르던 것(이제는 문서 이름에서)
 export const wraidBossOf = (id) => WRAID_BOSS[String(id).split('_')[0]] || WRAID_BOSSES[((Math.floor(Date.parse(id) / 86400e3) % 8) + 8) % 8] || WRAID_BOSSES[0];
 // 체력 — hwamugiHp: 화무기 두목의 기본 체력(wgame.hwamugiHp)
-export const wraidMaxHp = (hwamugiHp, boss) => Math.round(Math.max(1e6, hwamugiHp) * WRAID_HP_K * (boss === SEOKGA.id ? OK_HP_K * SK_HP_K : boss === OKHWANG.id ? OK_HP_K : isGate(boss) ? GATE_HP_K : 1));
+// v405 단계 — 마왕이 빨리(WRAID_STEP_FAST 안에) 쓰러지면 다음 마왕은 한 단계 위, 오래 걸렸으면 한 단계 아래(1단계 밑으로는 안 간다).
+//   단계마다 체력 ×1.5 · 탄 한 대 +0.5%p · 탄 수 +2% · 보상 +10% (20단계까지 · 20단계 체력 = 1단계 ×2,217).
+//   단계는 따로 적지 않고 마왕 체력에서 읽는다(서버 문서·규칙 그대로) — 중반 무인이 많으면 낮게, 끝까지 올린 무인이 몰리면 높게 저절로 맞춰진다.
+export const WRAID_STEP_HP = 1.5, WRAID_STEP_MAX = 20, WRAID_STEP_FAST = 6 * 3600e3;
+export const wraidStep = (n) => Math.max(1, Math.min(WRAID_STEP_MAX, Math.round(Number(n) || 1)));
+export const wraidStepHp = (n) => WRAID_STEP_HP ** (wraidStep(n) - 1);
+export const wraidStepHit = (n) => (wraidStep(n) - 1) * 0.005;
+export const wraidStepDens = (n) => 1 + (wraidStep(n) - 1) * 0.02;
+export const wraidStepRw = (n) => 1 + (wraidStep(n) - 1) * 0.1;
+const wraidBaseHp = (hwamugiHp, boss) => Math.max(1e6, hwamugiHp) * WRAID_HP_K * (boss === SEOKGA.id ? OK_HP_K * SK_HP_K : boss === OKHWANG.id ? OK_HP_K : isGate(boss) ? GATE_HP_K : 1);
+export const wraidMaxHp = (hwamugiHp, boss, step = 1) => Math.round(wraidBaseHp(hwamugiHp, boss) * wraidStepHp(step));
+// 마왕 체력 → 단계
+export const wraidStepOfHp = (maxHp, hwamugiHp, boss) => wraidStep(1 + Math.log(Math.max(1, maxHp) / wraidBaseHp(hwamugiHp, boss)) / Math.log(WRAID_STEP_HP));
+// 쓰러진 마왕 다음 — ms: 일어나서 쓰러질 때까지 걸린 시간(모르면 그대로)
+export const wraidNextStep = (step, ms) => wraidStep(!(ms > 0) ? step : ms <= WRAID_STEP_FAST ? step + 1 : step - 1);
 // 광폭 — 남은 체력 몫(0~1)으로. 0: 보통 · 1: 분노(50%↓) · 2: 광폭(20%↓)
 export const wraidRage = (frac) => (frac <= 0.2 ? 2 : frac <= 0.5 ? 1 : 0);
 // atk: 탄 피해 · spd: 탄 빠르기 · dens: 탄 수(빽빽함). 옥황상제는 한 단 더(final)
@@ -410,8 +424,8 @@ export const wraidJoinReward = (lv, share = 0) => {
 };
 // 잡혔을 때 — 순위로 배율(1위 ×3 · 2~3위 ×2 · 10위까지 ×1.5 · 그 밖 ×1). 옥황상제 ×3
 export const wraidRankK = (rank) => (rank === 1 ? 3 : rank <= 3 ? 2 : rank <= 10 ? 1.5 : 1);
-export const wraidKillReward = (lv, rank, boss) => {
-  const k = wraidRankK(rank) * (boss === SEOKGA.id ? 5 : boss === OKHWANG.id ? 3 : isGate(boss) ? 1.5 : 1);
+export const wraidKillReward = (lv, rank, boss, step = 1) => {
+  const k = wraidRankK(rank) * (boss === SEOKGA.id ? 5 : boss === OKHWANG.id ? 3 : isGate(boss) ? 1.5 : 1) * wraidStepRw(step);
   return { gold: Math.round(mobGold(lv) * 6000 * k), petShard: Math.round(60 * k), mountShard: Math.round(60 * k) };
 };
 // 대성신장 부위 등급 — 1위일수록 좋게(전설 이상이 잘 뜬다)
