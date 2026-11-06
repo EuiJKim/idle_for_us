@@ -3987,3 +3987,21 @@ console.log('\n=== v403 자동 각인이 막히면 알린다 ===');
 }
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);
+
+console.log('\n=== v426 걷는 동안은 걷는 쪽을 본다 ===');
+{
+  const g = new WorldGame(newWorldSave(), Date.now()); g.emit = () => {}; g.rng = () => 0.5; g.s.job = 'sword'; g.s.level = 30; g._stats = null; g.enterMap(21);
+  const st = g.stats();
+  // 과녁은 왼쪽 멀리, 첫걸음은 오른쪽으로(가로막힘 흉내) — 사거리 밖이면 과녁 쪽으로 돌지 않는다
+  const m = g.mons.find((x) => x.alive && !x.npc); g.mon = m; m.x = g.heroX - 600; m.y = g.heroY;
+  g.heroFacing = 1; g.hmove = null;
+  g.heroAngle = 0;
+  const dist = g.tileDist({ c: g.hc, r: g.hr }, g.mobTile(m));
+  ok(dist > st.range, '과녁이 사거리 밖');
+  const before = g.heroFacing;
+  g.stepTo({ c: g.hc + 1, r: g.hr });
+  ok(g.heroFacing === 1 && before === 1, '오른쪽으로 걸으면 오른쪽을 본다');
+  const src = read('js/world/wgame.js');
+  ok(/dist <= st\.range && Math\.abs\(m\.x - this\.heroX\) > 6\) this\.heroFacing/.test(src), '사거리 안에 서 있을 때만 과녁 쪽으로 돈다');
+  ok(/const mvx = g\.shIn\?\.dx \|\| g\.joy\?\.dx \|\| 0;/.test(read('js/world/wshmup.js')), '탄막 판 — 옆으로 움직이는 동안은 가는 쪽을 본다');
+}

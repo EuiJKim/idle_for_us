@@ -1314,7 +1314,8 @@ export class WorldGame {
     const mt = this.mobTile(m);
     const dist = this.tileDist({ c: this.hc, r: this.hr }, mt);
     this.heroAngle = Math.atan2((m.y - this.heroY) * 0.6, m.x - this.heroX);
-    if (Math.abs(m.x - this.heroX) > 6) this.heroFacing = m.x >= this.heroX ? 1 : -1;
+    // v426 사거리 안에 서 있을 때만 과녁 쪽으로 돈다 — 걷는 중엔 걷는 방향 그대로(전엔 칸마다 과녁 쪽으로 홱 돌아 무공을 쓰고 다시 걷는 쪽으로 돌았다)
+    if (dist <= st.range && Math.abs(m.x - this.heroX) > 6) this.heroFacing = m.x >= this.heroX ? 1 : -1;
     if (this.s.autoSkill) this.autoSkills(st);
     if (!this.mon?.alive) return;
     if (dist > st.range) {

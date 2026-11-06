@@ -254,7 +254,10 @@ export function tick(g, dt, st) {
   if (!b) { g.walking = false; return; }
   steer(g, b, dt, st);
   g.heroAngle = Math.atan2((b.y - 90 - g.heroY) * 0.6, b.x - g.heroX);
-  if (Math.abs(b.x - g.heroX) > 6) g.heroFacing = b.x >= g.heroX ? 1 : -1;
+  // v426 손으로 옆으로 움직이는 동안은 가는 쪽을 보고, 서 있거나 위아래로만 갈 때 마왕 쪽을 본다
+  const mvx = g.shIn?.dx || g.joy?.dx || 0;
+  if (Math.abs(mvx) > 0.2) g.heroFacing = mvx > 0 ? 1 : -1;
+  else if (Math.abs(b.x - g.heroX) > 6) g.heroFacing = b.x >= g.heroX ? 1 : -1;
   g.mon = b;
   // v387 천계의 기운 — 싸우는 동안 회복(흡혈·재생·물약·동료)이 일부만 든다. 지난 틱 뒤 오른 몫만 줄인다
   if (g._shHp != null && g.heroHp > g._shHp && g.heroHp > 0) g.heroHp = g._shHp + (g.heroHp - g._shHp) * D.WB_TIER[D.wbTierOf(g.map?.wb)].heal;
