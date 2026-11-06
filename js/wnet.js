@@ -268,14 +268,13 @@ export class WNet extends Net {
       if ((r.total || 0) >= r.maxHp) {
         // v417 같이 치던 중 다른 무인이 마무리했다 — 내 몫이 아직 0이면 늦은 한 몫(체력의 5%까지)을 올려 보상을 받게(규칙 wLate)
         if (!(r.damage?.[this.uid] > 0) && r.killedAt) {
-          tx.update(ref, { [`damage.${this.uid}`]: Math.max(1, Math.min(Math.round(amount), Math.floor(r.maxHp * 0.05))), [`names.${this.uid}`]: this.game.s.nickname || '무명' });
-          this.lateDone = id;
+          if (amount >= 1 && r.seen?.[this.uid]) tx.update(ref, { [`damage.${this.uid}`]: Math.max(1, Math.min(Math.round(amount), Math.floor(r.maxHp * 0.05))), [`names.${this.uid}`]: this.game.s.nickname || '무명' });   // v421 들어왔다는 표시(seen)가 있고 진짜 친 몫이 있을 때만
         }
         return false;
       }
       let add = Math.max(0, Math.round(amount));
       const rest = r.maxHp - (r.total || 0);
-      if (finish && add < rest && rest <= Math.max(10, r.maxHp * 0.001)) add = rest;   // v418 남은 게 아주 조금(반올림 찌꺼기)이면 채운다
+      if (finish && add < rest && rest <= Math.max(50, r.maxHp * 0.0001)) add = rest;   // v418 남은 게 아주 조금(반올림 찌꺼기)이면 채운다 · v421 0.1% → 0.01%(채운 몫이 순위를 바꾸지 않게 — 4초마다 내림한 찌꺼기는 수십이다)
       if (!(add > 0)) return false;
       const sum = Math.min(r.maxHp, (r.total || 0) + add);
       const up = { total: sum, [`damage.${this.uid}`]: (r.damage?.[this.uid] || 0) + add, [`names.${this.uid}`]: this.game.s.nickname || '무명' };
@@ -290,6 +289,14 @@ export class WNet extends Net {
         : `🌋 ${this.game.s.nickname}님의 마무리 일격! ${b.name}(${b.hanja}) 쓰러짐 — 함께 친 무인 모두 대성신장을 받아 가세요.`, 'system').catch(() => {});
     }
     return killed;
+  }
+  // v421 들어왔다는 표시 — 늦은 한 몫(commitWraid의 wLate)은 이 표시가 있는 사람만 받는다(규칙 wSeen)
+  async seenWraid(id) {
+    if (!this.ready() || !id) return false;
+    const r = this.wgen?.[D.wraidBossOfId(id)?.id];
+    if (r && r.id === id && r.seen?.[this.uid]) return true;
+    await ack(this.fs.updateDoc(this.ref('wraid', id), { [`seen.${this.uid}`]: this.fs.serverTimestamp() }), 8000);
+    return true;
   }
   canClaimWraid(r) {
     return !!(r && r.total >= r.maxHp && (r.damage?.[this.uid] || 0) > 0 && !r.claimed?.[this.uid]);

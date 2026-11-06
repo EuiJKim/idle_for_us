@@ -353,7 +353,7 @@ export const QUESTS = [
 ];
 
 // v413 전직 10·30·70·100(v412)에 맞춰 전직 단계를 그 레벨 바로 뒤로 — 3차가 레벨 70에 열리는데 길잡이는 왕 사냥·숙련 뒤(레벨 110~140)에야 짚었다
-for (const [id, after] of [['tier1', 'lv10'], ['tier2', 'lv30'], ['tier3', 'lv70'], ['tier4', 'lv90']]) {
+for (const [id, after] of [['tier1', 'lv10'], ['tier2', 'lv30'], ['tier3', 'lv70'], ['tier4', 'kingKill']]) {   // v421 4차(레벨 100)는 왕 사냥 뒤(레벨 90에 바로 짚으면 열 레벨 동안 할 수 없는 단계가 앞을 막았다)
   const i = QUESTS.findIndex((q) => q.id === id);
   const [q] = QUESTS.splice(i, 1);
   QUESTS.splice(QUESTS.findIndex((x) => x.id === after) + 1, 0, q);

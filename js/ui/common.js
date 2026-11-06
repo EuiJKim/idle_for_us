@@ -90,8 +90,13 @@ function notePush(text) {
   while (L.length > NOTE_MAX) L.shift();
   notesNew++;
   document.getElementById('btn-notes')?.classList.add('has');
-  try { localStorage.setItem(NOTE_KEY, JSON.stringify(L)); } catch { /* 저장 못 해도 이번 판은 남는다 */ }
+  noteFlushSoon();
 }
+// v421 토스트마다 쓰지 않고 1초 모아 한 번(전투 중 줍기 토스트가 잦다) · 창을 숨길 때는 바로
+let noteT = 0;
+function noteFlush() { noteT = 0; if (!notes) return; try { localStorage.setItem(NOTE_KEY, JSON.stringify(notes)); } catch { /* 저장 못 해도 이번 판은 남는다 */ } }
+function noteFlushSoon() { if (!noteT) noteT = setTimeout(noteFlush, 1000); }
+document.addEventListener('visibilitychange', () => { if (document.hidden && noteT) { clearTimeout(noteT); noteFlush(); } });
 export function toast(text, act) {   // v403 act: 누르면 할 일(바로가기)
   notePush(text);
   const box = document.getElementById('toast');

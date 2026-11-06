@@ -1225,7 +1225,7 @@ async function rejoinWraid(boss) {
     let r = net.wraidOf(boss);
     if (!r || net.wraidHpLeft(r) <= 0) r = await net.ensureWraid(boss);
     if (!r) throw new Error('마왕을 깨우지 못했어요');
-    if (game.startWraid({ id: r.id, hpLeft: net.wraidHpLeft(r), maxHp: r.maxHp }, Date.now())) { save(); closePanel(); refreshUI(true); }
+    if (game.startWraid({ id: r.id, hpLeft: net.wraidHpLeft(r), maxHp: r.maxHp }, Date.now())) { save(); closePanel(); refreshUI(true); net.seenWraid?.(r.id).catch(() => {}); }   // v421 들어왔다는 표시
   } catch (err) { toast(`들어가지 못했어요: ${err.message || err}`); }
 }
 let rejoinEl = null, rejoinT = 0;
@@ -1242,12 +1242,13 @@ function showInstEnd(ev) {
   if (ev.kind === 'wraid') {
     game.shIn = null;
     const mine = ev.ok && !ev.byOther && !ev.died && !ev.timeout && !ev.left;   // v418 내 화면에서 쓰러뜨렸다
-    const send = ev.unsent > 0 || mine ? net.commitWraid(ev.key, Math.max(ev.unsent, mine ? 1 : 0), mine) : Promise.resolve(false);
+    const send = ev.unsent > 0 || mine ? net.commitWraid(ev.key, Math.max(0, ev.unsent), mine) : Promise.resolve(false);   // v421 안 친 1은 안 올린다(finish만)
     send.then((killed0) => {
       const killed = killed0 || (mine && wraidKilledByMe === ev.key);   // v418 4초마다 올리던 몫이 마무리했어도 「마무리 일격」
+      const sr = net.wraidOf?.(D.wraidBossOfId(ev.key).id), srvDead = killed || ev.byOther || !!(sr && sr.id === ev.key && sr.total >= sr.maxHp);   // v421 서버에서도 쓰러졌나
       if (killed || ev.byOther || mine) setTimeout(() => autoClaimWraid(), 1500);   // v418 쓰러뜨렸으면 보상을 저절로 받는다
       const sk = String(ev.key || '').startsWith('seokga_');
-      const why = ev.byOther ? (sk ? ' — 여래가 쓰러졌다…?' : ' — 마왕이 쓰러졌어요!') : mine ? (sk ? ' — 여래가 쓰러졌다…?' : ' — 마왕을 쓰러뜨렸어요!') : ev.died ? ' — 쓰러졌어요' : ev.timeout ? ' — 시간 끝' : '';
+      const why = ev.byOther ? (sk ? ' — 여래가 쓰러졌다…?' : ' — 마왕이 쓰러졌어요!') : mine ? (srvDead ? (sk ? ' — 여래가 쓰러졌다…?' : ' — 마왕을 쓰러뜨렸어요!') : ' — 내 화면에선 쓰러졌지만 서버엔 조금 남았어요(다른 무인이 마무리하면 받아요)') : ev.died ? ' — 쓰러졌어요' : ev.timeout ? ' — 시간 끝' : '';
       const again = ev.died || ev.timeout || killed || ev.byOther || mine;   // v408 쓰러져도·시간이 끝나도 바로 같은 마왕(또는 다음 마왕) 방으로
       toast(`🌋 칠대성 토벌 피해 ${fmt(ev.dealt)}${ev.reward ? ` · 참여 보상 ${rewardText(ev.reward)}` : ''}${why}${killed ? ' — 마무리 일격!' : ''}${again ? ' · ⚡ 누르면 다시 합류' : ''}`, again ? () => rejoinWraid(D.wraidBossOfId(ev.key).id) : null);
       if (again && game.s.wraid.auto && !ev.left) {   // v413 자동 반복 — 2초 뒤 같은 마왕(쓰러졌으면 다음 마왕)으로

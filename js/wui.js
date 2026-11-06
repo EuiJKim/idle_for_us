@@ -1225,9 +1225,9 @@ function bagTab(app) {
           const t = game.upgradeTip();
           if (!t) return '';
           const it = s.equip[t.slot];
-          return h('button', { class: 'up-tip', id: 'up-tip', onclick: () => { game.mark?.('upTip'); if (t.kind === 'skill') app.showTab('char', 'skill'); else if (it) openItem(it, true, t.kind === 'imp' ? 'imp' : 'enh'); } },
+          return h('button', { class: 'up-tip', id: 'up-tip', onclick: () => { game.mark?.('upTip'); if (it) openItem(it, true, t.kind === 'imp' ? 'imp' : 'enh'); } },
             h('span', {}, '💡 지금 올리면 가장 세져요: '), h('b', {}, t.name),
-            h('span', {}, ` 전투력 +${(t.gain * 100).toFixed(t.gain < 0.01 ? 2 : 1)}%${t.p < 1 ? ` · 성공 ${Math.round(t.p * 100)}%(기대 +${(t.ev * 100).toFixed(t.ev < 0.01 ? 2 : 1)}%)` : ''}${t.kind === 'skill' ? ' · 무공 점수' : ` · 은자 ${fmt(t.cost)}`}`), h('i', {}, ' ›'));
+            h('span', {}, ` 전투력 +${(t.gain * 100).toFixed(t.gain < 0.01 ? 2 : 1)}%${t.p < 1 ? ` · 성공 ${Math.round(t.p * 100)}%(기대 +${(t.ev * 100).toFixed(t.ev < 0.01 ? 2 : 1)}%)` : ''} · 은자 ${fmt(t.cost)}`), h('i', {}, ' ›'));
         })(),
         h('div', { class: 'gear-grid' }, ...tiles),
         // v262 자동 강화·등급 각인

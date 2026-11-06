@@ -2580,10 +2580,10 @@ export class WorldGame {
         const c = new WorldGame(JSON.parse(raw), now);
         c.rng = () => 0; c.emit = () => {};
         const g0 = c.s.gold;
-        const r = t.kind === 'enh' ? c.enhance(t.uid, true) : t.kind === 'imp' ? c.impUp(t.uid) : t.kind === 'skill' ? c.skillUp(t.id) : c.transcend(t.uid);
+        const r = t.kind === 'enh' ? c.enhance(t.uid, true) : t.kind === 'imp' ? c.impUp(t.uid) : c.transcend(t.uid);   // v421 무공은 따로(wui 한 줄) — 죽은 가지 정리
         if (!r) continue;
         c._stats = null; c._mods = null;
-        const gain = c.power() / base - 1, cost = t.kind === 'skill' ? 0 : Math.max(1, g0 - c.s.gold);
+        const gain = c.power() / base - 1, cost = Math.max(1, g0 - c.s.gold);
         if (!(gain > 0.0005)) continue;
         const ev = gain * (t.p ?? 1);
         const score = ev / Math.max(cost, this.s.gold * 0.01);
@@ -4760,7 +4760,6 @@ export class WorldGame {
   wraidPart(id) { return !!this.s.wraid.part?.[id]; }   // v420 이 캐릭터가 친 판인가
   wraidClaim(rank, bossId = null) {
     const r = this.s.wraid;
-    if (r.part?.[bossId]) delete r.part[bossId];
     r.kills++;
     if (rank === 1) r.top1++;
     const b = D.WRAID_BOSS[bossId];
@@ -5067,7 +5066,7 @@ for (const [fn, key, always] of [
       this.noteWeekBoss(m);   // v316 주간 두목 순위
     }
     // v262 비무 별 — 이번 판이 빨랐나 · 안 맞았나
-    if (m.isBoss && !this.inst && this.map.master) {
+    if (m.isBoss && !this.inst && this.map.master && !m.awk) {   // v421 각성 고수는 비무 별에 안 섞는다(보통 고수의 기록)
       const mm = MS.masterOf(this.map.master);
       const st = this.s.duel.stars || (this.s.duel.stars = {});
       const before = st[mm.id] || 0;

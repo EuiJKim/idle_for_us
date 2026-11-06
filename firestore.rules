@@ -175,7 +175,7 @@ service cloud.firestore {
         && request.resource.data.damage == {} && request.resource.data.names == {} && request.resource.data.claimed == {}
         && request.resource.data.killedAt == null && request.resource.data.killer == null
         && request.resource.data.createdAt == request.time;
-      allow update: if signedIn() && (wHit() || wLate() || wClaim());
+      allow update: if signedIn() && (wHit() || wSeen() || wLate() || wClaim());
       allow delete: if isAdmin();
 
       function wChanged() { return request.resource.data.diff(resource.data).affectedKeys(); }
@@ -199,9 +199,17 @@ service cloud.firestore {
       }
       // v417 늦은 한 몫 — 같이 치던 중 다른 무인이 마무리해 내 마지막 몫(4초마다 올린다)이 못 올라간 경우.
       //   쓰러진 뒤 3분 안 · 아직 내 피해가 0일 때만 · 체력의 5%까지(순위를 사지 못하게) · 합계·마무리는 그대로
+      // v421 들어왔다는 표시 — 살아 있을 때 내 칸(seen)에 지금 시각만. 늦은 한 몫(wLate)은 이 표시가 있는 사람만(안 치고 3분 안에 올려 순위 보상을 받던 구멍)
+      function wSeen() {
+        return wChanged().hasOnly(['seen'])
+          && resource.data.total < resource.data.maxHp
+          && request.resource.data.seen.diff(resource.data.get('seen', {})).affectedKeys().hasOnly([request.auth.uid])
+          && request.resource.data.seen[request.auth.uid] == request.time;
+      }
       function wLate() {
         return wChanged().hasOnly(['damage', 'names'])
           && resource.data.total >= resource.data.maxHp
+          && request.auth.uid in resource.data.get('seen', {})
           && resource.data.killedAt != null && request.time < resource.data.killedAt + duration.value(3, 'm')
           && resource.data.damage.get(request.auth.uid, 0) == 0
           && request.resource.data.damage.diff(resource.data.damage).affectedKeys().hasOnly([request.auth.uid])

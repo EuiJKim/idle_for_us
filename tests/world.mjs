@@ -3785,6 +3785,10 @@ console.log('\n=== v418 칠대성 — 쓰러뜨리면 「쓰러뜨렸어요」 �
 {
   const N = read('js/wnet.js'), M = read('js/wmain.js');
   ok(/async commitWraid\(id, amount, finish = false\)/.test(N) && /if \(finish && add < rest/.test(N), '내 화면에서 쓰러졌으면 반올림 찌꺼기(서버에 남은 1)까지 채워 마무리');
+  // v421 늦은 한 몫은 들어왔다는 표시(seen)가 있고 진짜 친 몫이 있을 때만 · 채우기는 0.01%까지 · 판에 들어가면 seen을 올린다
+  ok(/amount >= 1 && r\.seen\?\.\[this\.uid\]/.test(N) && /rest <= Math\.max\(50, r\.maxHp \* 0\.0001\)/.test(N) && /async seenWraid\(id\)/.test(N) && !/lateDone/.test(N), '늦은 한 몫 — seen 있는 사람만 · 채우기 0.01% · seenWraid · lateDone 없음');
+  { const R = read('firestore.rules'); ok(/function wSeen\(\)/.test(R) && /wHit\(\) \|\| wSeen\(\) \|\| wLate\(\) \|\| wClaim\(\)/.test(R) && /request\.auth\.uid in resource\.data\.get\('seen', \{\}\)/.test(R), '규칙 — wSeen · wLate는 seen 있는 사람만'); }
+  { const M2 = read('js/wmain.js'); ok(/net\.seenWraid\?\.\(r\.id\)/.test(M2) && /commitWraid\(ev\.key, Math\.max\(0, ev\.unsent\), mine\)/.test(M2) && /srvDead/.test(M2), '들어가면 seen · 안 친 1은 안 올린다 · 서버에 남았으면 솔직히'); }
   ok(/wraidKilledByMe/.test(M) && /마왕을 쓰러뜨렸어요/.test(M), '4초마다 올린 몫이 마무리했어도 「쓰러뜨렸어요 · 마무리 일격」');
   ok(/async function autoClaimWraid/.test(M) && /what === 'wraid' && net\.wraidClaims/.test(M), '받을 보상은 저절로 받는다(다른 무인이 마무리해도)');
 }
@@ -3799,7 +3803,7 @@ console.log('\n=== v417 일일던전 나가기는 등반 모드라도 그날 멈
   for (let i = 0; i < 20; i++) g.tick(1);
   ok(!g.inst && g.s.dgn.pauseUntil > Date.now(), '나간 뒤 자동 던전은 30분 쉰다(다른 요일 던전에도 바로 안 들어간다)');
   const R = read('firestore.rules'), N = read('js/wnet.js');
-  ok(/function wLate\(\)/.test(R) && /wHit\(\) \|\| wLate\(\) \|\| wClaim\(\)/.test(R) && /lateDone/.test(N), '칠대성 — 다른 무인이 마무리해 내 마지막 몫이 못 올라가도 늦은 한 몫(5%까지)으로 보상');
+  ok(/function wLate\(\)/.test(R) && /wHit\(\) \|\| wSeen\(\) \|\| wLate\(\) \|\| wClaim\(\)/.test(R) && /r\.killedAt\) \{/.test(N), '칠대성 — 다른 무인이 마무리해 내 마지막 몫이 못 올라가도 늦은 한 몫(5%까지)으로 보상');
 }
 console.log('\n=== v416 서버 규칙 — 5차 전직 무인도 내 기록을 쓴다 ===');
 {
@@ -3835,7 +3839,7 @@ console.log('\n=== v415 넘치는 최고 등급 탈것은 조각으로 · 전직
 console.log('\n=== v413 길잡이 — 전직 단계는 그 레벨 바로 뒤 ===');
 {
   const ix = (id) => Q.QUESTS.findIndex((q) => q.id === id);
-  ok(ix('tier1') === ix('lv10') + 1 && ix('tier2') === ix('lv30') + 1 && ix('tier3') === ix('lv70') + 1 && ix('tier4') === ix('lv90') + 1, '1차 Lv10 · 2차 Lv30 · 3차 Lv70 · 4차 Lv90 단계 바로 뒤');
+  ok(ix('tier1') === ix('lv10') + 1 && ix('tier2') === ix('lv30') + 1 && ix('tier3') === ix('lv70') + 1 && ix('tier4') === ix('kingKill') + 1, '1차 Lv10 · 2차 Lv30 · 3차 Lv70 단계 바로 뒤 · 4차는 왕 사냥 뒤');
   ok(Q.QUEST_V === 11 && Q.QUEST_IDS_BY_V[10].length === Q.QUEST_COUNT && Q.QUEST_IDS_BY_V[10].every((id) => ix(id) >= 0), '옛 판(10) 차례로 옮겨 온다');
 }
 console.log('\n=== v413 천계 이야기 이어 쓰기 ===');
