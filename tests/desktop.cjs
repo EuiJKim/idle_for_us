@@ -107,7 +107,7 @@ const ok = (c, m) => { if (!c) fails++; console.log(c ? '  ✓' : '  ✗', m); }
     const t1 = await page.evaluate(() => document.querySelector('#ptabs button.active')?.dataset.tab);
     await page.keyboard.press('Shift+Tab'); await page.waitForTimeout(300);
     const t2 = await page.evaluate(() => document.querySelector('#ptabs button.active')?.dataset.tab);
-    ok(t1 === 'map' && t2 === 'bag', `Tab → ${t1} · Shift+Tab → ${t2}`);
+    ok(t1 === 'comp' && t2 === 'bag', `Tab → ${t1} · Shift+Tab → ${t2}`);   // v429 차례: 지도·던전·마을·무림·캐릭터·가방·동료
     await page.keyboard.press('Escape'); await page.waitForTimeout(300);
     ok(await page.evaluate(() => document.getElementById('panel').classList.contains('open')), 'Esc를 눌러도 옆 창은 그대로');
     ok(await page.evaluate(() => !document.getElementById('go-hunt').classList.contains('hidden') || !window.__game.map.town), '마을이면 「사냥하러 가기」가 보인다');
