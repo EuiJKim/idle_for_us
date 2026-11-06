@@ -3759,6 +3759,19 @@ console.log('\n=== v413 각성 고수 전용 발밑 문양 ===');
   ok(fs.existsSync(new URL('../art/hero2/ring-awk-cheonma.png', import.meta.url)) && W.AWAKEN_IDS.every((id) => fs.existsSync(new URL(`../art/hero2/ring-awk-${id}.png`, import.meta.url))), '문양 그림 여섯');
   g.s.custom = { ...(g.s.custom || {}), ring: 'awk-cheonma' }; ok(migrateWorld(JSON.parse(JSON.stringify(g.s))).custom.ring === 'awk-cheonma' && migrateWorld(JSON.parse(JSON.stringify(g.s))).awk.rings.cheonma === 1, '끼고 저장 · 불러오기');
 }
+console.log('\n=== v417 일일던전 나가기는 등반 모드라도 그날 멈춘다 · 칠대성 늦은 한 몫 ===');
+{
+  const g = fresh('sword'); while (g.s.level < 60) g.addExp(W.expToNext(g.s.level));
+  g.s.dgn.auto = true; g.s.dgn.climb = true; const now = Date.now();
+  const nx = g.autoDailyNext(now);
+  ok(nx && g.startDaily(nx.kind, nx.stage, now), '자동(등반) — 새 단계로 들어간다');
+  g.leaveInst();
+  ok(!g.inst && g.autoDailyNext(now)?.kind !== nx.kind, '나가기를 누르면 그날 그 던전은 자동이 다시 안 들어간다');
+  for (let i = 0; i < 20; i++) g.tick(1);
+  ok(!g.inst && g.s.dgn.pauseUntil > Date.now(), '나간 뒤 자동 던전은 30분 쉰다(다른 요일 던전에도 바로 안 들어간다)');
+  const R = read('firestore.rules'), N = read('js/wnet.js');
+  ok(/function wLate\(\)/.test(R) && /wHit\(\) \|\| wLate\(\) \|\| wClaim\(\)/.test(R) && /lateDone/.test(N), '칠대성 — 다른 무인이 마무리해 내 마지막 몫이 못 올라가도 늦은 한 몫(5%까지)으로 보상');
+}
 console.log('\n=== v416 서버 규칙 — 5차 전직 무인도 내 기록을 쓴다 ===');
 {
   const R = read('firestore.rules'); const m = R.match(/d\.jobTier <= (\d+)/);

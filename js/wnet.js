@@ -264,7 +264,14 @@ export class WNet extends Net {
       const snap = await tx.get(ref);
       if (!snap.exists()) return false;
       const r = snap.data();
-      if ((r.total || 0) >= r.maxHp) return false;
+      if ((r.total || 0) >= r.maxHp) {
+        // v417 같이 치던 중 다른 무인이 마무리했다 — 내 몫이 아직 0이면 늦은 한 몫(체력의 5%까지)을 올려 보상을 받게(규칙 wLate)
+        if (!(r.damage?.[this.uid] > 0) && r.killedAt) {
+          tx.update(ref, { [`damage.${this.uid}`]: Math.max(1, Math.min(Math.round(amount), Math.floor(r.maxHp * 0.05))), [`names.${this.uid}`]: this.game.s.nickname || '무명' });
+          this.lateDone = id;
+        }
+        return false;
+      }
       const add = Math.round(amount);
       const sum = Math.min(r.maxHp, (r.total || 0) + add);
       const up = { total: sum, [`damage.${this.uid}`]: (r.damage?.[this.uid] || 0) + add, [`names.${this.uid}`]: this.game.s.nickname || '무명' };

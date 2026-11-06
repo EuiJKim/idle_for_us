@@ -2231,6 +2231,8 @@ function dgnTab(app) {
           const nx = [50, 75, 100].find((n) => top < n);
           return h('div', { class: 'muted dgn-goal' }, nx ? `🏅 어느 요일이든 ${nx}단계를 처음 넘으면 칭호 〈${W.TITLES[`daily${nx}`].name}〉(${W.TITLES[`daily${nx}`].desc.split(' · ')[0]}) · 지금 가장 높이 ${top}단계` : `🏅 〈${W.TITLES.daily100.name}〉 — 요일 던전 칭호를 모두 얻었어요`);
         })(),
+        game.s.dgn.pauseUntil > Date.now() ? h('div', { class: 'muted dgn-goal' }, `⏸ 나가기를 눌러 자동 던전이 쉬는 중(${Math.ceil((game.s.dgn.pauseUntil - Date.now()) / 60e3)}분) `,
+          h('button', { class: 'btn', id: 'dgn-resume', style: 'padding:2px 10px;font-size:12px', onclick: () => { game.s.dgn.pauseUntil = 0; app.save(); toast('자동 던전을 다시 켰어요'); rerender(); } }, '다시 켜기')) : '',
         h('label', { class: 'chk' }, dAuto, ' 요일 던전만 자동'),
         h('label', { class: 'chk', title: '자동(루틴 포함)이 새 단계만 오르고, 막히면 소탕하지 않고 멈춰요' }, dClimb, ' 등반 모드(막히면 멈춤)')),
       h('button', { class: 'btn primary', disabled: sweepN ? null : true, onclick: () => {

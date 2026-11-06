@@ -250,6 +250,7 @@ export function migrateWorld(raw, now = Date.now()) {
   for (const d of D.DAILY) {
     s.dgn.used[d.id] = Math.max(0, Math.floor(Number(dg.used?.[d.id]) || 0));
     if (dg.fail?.[d.id]) s.dgn.fail[d.id] = Math.max(0, Math.floor(Number(dg.fail[d.id]) || 0));
+    if (dg.left?.[d.id]) (s.dgn.left || (s.dgn.left = {}))[d.id] = 1;   // v417 오늘 손으로 나온 던전
     if (dg.keys?.[d.id]) s.dgn.keys[d.id] = Math.max(0, Math.floor(Number(dg.keys[d.id]) || 0));
     if (dg.extra?.[d.id]) s.dgn.extra[d.id] = Math.max(0, Math.min(D.DAILY_ENTRIES, Math.floor(Number(dg.extra[d.id]) || 0)));
     s.dgn.best[d.id] = clamp(Math.floor(Number(dg.best?.[d.id]) || 0), 0, D.DAILY_STAGES);
@@ -262,6 +263,7 @@ export function migrateWorld(raw, now = Date.now()) {
   s.path = raw.path === 'a' || raw.path === 'b' ? raw.path : null;   // v237
   s.dgn.auto = !!dg.auto;
   s.dgn.routine = !!dg.routine;
+  if (dg.pauseUntil > 0) s.dgn.pauseUntil = Math.min(Number(dg.pauseUntil), Date.now() + 3600e3);   // v417
   s.dgn.climb = dg.climb !== false;   // v283 등반 모드 — 처음엔 켜 둔다
   s.tower.failPow = Math.max(0, Number(tw.failPow) || 0);
   s.quest = clamp(Math.floor(Number(s.quest) || 0), 0, Q.QUEST_COUNT);
@@ -1045,7 +1047,7 @@ export class WorldGame {
     if (this._followDue && !this.inst) { this._followDue = false; this.followMap(); }
     if ((this.s.autoEnh || this.s.autoInf) && !this.inst && (this._autoGearT = (this._autoGearT ?? 5) - dt) <= 0) { this._autoGearT = 5; this.autoGear(); }
     if ((this._titleT = (this._titleT ?? 3) - dt) <= 0) { this._titleT = 5; this.checkTitles(); }   // v307 자동 칭호
-    if ((this.s.dgn.auto || this.s.dgn.routine) && !this.inst) {
+    if ((this.s.dgn.auto || this.s.dgn.routine) && !this.inst && !(this.s.dgn.pauseUntil > Date.now())) {   // v417 나가기를 누른 뒤 30분은 쉰다
       this.autoDgnT = (this.autoDgnT || 0) - dt;
       if (this.autoDgnT <= 0) { this.autoDgnT = AUTO_DGN_SEC; this.startRoutine(); }
     }
@@ -4007,7 +4009,7 @@ export class WorldGame {
       const yest = D.kstDay(now - 86400e3);
       const carry = {};
       if (d.day === yest) for (const x of D.DAILY) { const left = D.DAILY_ENTRIES + (d.extra?.[x.id] || 0) - (d.used[x.id] || 0); if (left > 0) carry[x.id] = Math.min(D.DAILY_ENTRIES, left); }
-      d.day = day; d.used = {}; d.fail = {}; d.keys = {}; d.extra = carry;
+      d.day = day; d.used = {}; d.fail = {}; d.left = {}; d.keys = {}; d.extra = carry;
     }
     if (!d.fail) d.fail = {};
     if (!d.keys) d.keys = {};
@@ -4223,6 +4225,7 @@ export class WorldGame {
   autoDailyNext(now = Date.now()) {
     if (!(this.s.dgn.auto || this.s.dgn.routine) || this.inst || !this.s.job) return null;
     for (const d of D.DAILY) {
+      if (this.dgnToday(now).left?.[d.id]) continue;   // v417 오늘 손으로 나온 던전
       const stage = this.dailyMaxStage(d.id);
       const fresh = stage > this.dailyBest(d.id) && (this.dgnToday(now).fail[d.id] || 0) < stage;   // 아직 못 깬 단계 · 오늘 안 진 곳
       // v283 등반 모드: 아직 못 깬 단계만 · 오늘 그 단계에서 졌으면(막혔으면) 그 던전은 멈춘다 — 남은 몫은 그대로 둔다
@@ -4823,6 +4826,7 @@ export class WorldGame {
       if (ok) this.s.dgn.best[I.id] = Math.max(this.dailyBest(I.id), I.stage);
       // v260: 오늘 이 단계에서 졌다(그만두기 빼고) — 자동은 남은 횟수를 같은 단계에 또 쓰지 않고 소탕한다
       else if (!I.done?.left) this.dgnToday(I.now).fail[I.id] = I.stage;
+      if (I.done?.left) { const td = this.dgnToday(I.now); (td.left || (td.left = {}))[I.id] = 1; this.s.dgn.pauseUntil = Date.now() + 30 * 60e3; }   // v417 나가기를 누르면 그날 그 던전은 자동(등반 모드도)이 다시 안 들어가고, 자동 던전은 30분 쉰다
     } else if (I.kind === 'tower' && !ok && !I.hard) {
       this.s.tower.failPow = this.stats().power;      // v230: 루틴이 같은 층에서 헛돌지 않게(그만둬도 — 다시 끌려 들어가지 않게)
     } else if (I.kind === 'tower' && ok && I.hard) {

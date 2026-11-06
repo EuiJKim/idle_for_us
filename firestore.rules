@@ -175,7 +175,7 @@ service cloud.firestore {
         && request.resource.data.damage == {} && request.resource.data.names == {} && request.resource.data.claimed == {}
         && request.resource.data.killedAt == null && request.resource.data.killer == null
         && request.resource.data.createdAt == request.time;
-      allow update: if signedIn() && (wHit() || wClaim());
+      allow update: if signedIn() && (wHit() || wLate() || wClaim());
       allow delete: if isAdmin();
 
       function wChanged() { return request.resource.data.diff(resource.data).affectedKeys(); }
@@ -196,6 +196,19 @@ service cloud.firestore {
           && (request.resource.data.total < resource.data.maxHp
             ? (!('killedAt' in wChanged()) && !('killer' in wChanged()))
             : (request.resource.data.killedAt == request.time && request.resource.data.killer == request.auth.uid));
+      }
+      // v417 늦은 한 몫 — 같이 치던 중 다른 무인이 마무리해 내 마지막 몫(4초마다 올린다)이 못 올라간 경우.
+      //   쓰러진 뒤 3분 안 · 아직 내 피해가 0일 때만 · 체력의 5%까지(순위를 사지 못하게) · 합계·마무리는 그대로
+      function wLate() {
+        return wChanged().hasOnly(['damage', 'names'])
+          && resource.data.total >= resource.data.maxHp
+          && resource.data.killedAt != null && request.time < resource.data.killedAt + duration.value(3, 'm')
+          && resource.data.damage.get(request.auth.uid, 0) == 0
+          && request.resource.data.damage.diff(resource.data.damage).affectedKeys().hasOnly([request.auth.uid])
+          && request.resource.data.names.diff(resource.data.names).affectedKeys().hasOnly([request.auth.uid])
+          && request.resource.data.names.get(request.auth.uid, '') is string
+          && request.resource.data.names.get(request.auth.uid, '').size() <= 12
+          && wDelta() > 0 && wDelta() <= resource.data.maxHp * 0.05;
       }
       function wClaim() {
         return wChanged().hasOnly(['claimed'])
