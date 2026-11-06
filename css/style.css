@@ -2803,3 +2803,13 @@ body.hunt-noui #guide-ptr, body.in-inst #guide-ptr { display: none !important; }
 .mr-body .mr-story { margin: 6px 0; line-height: 1.55; color: #d6d3d1; }
 /* v425 도전 경험치 — 높은 사냥터에서는 초록 알약 */
 #exp-warn.up { background: rgba(20, 60, 30, 0.85); border-color: rgba(134, 239, 172, 0.6); color: #bbf7d0; cursor: default; }
+
+/* v427 성장 지도 */
+.road-card { padding: 10px 12px; }
+.road-card h3 { margin: 0 0 6px; }
+.road-row { display: flex; align-items: center; gap: 8px; width: 100%; padding: 6px 8px; margin: 0 0 4px; border-radius: 9px; background: rgba(255, 255, 255, .04); border: 1px solid rgba(255, 255, 255, .06); color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.road-row i { flex: none; width: 26px; height: 26px; border-radius: 7px; display: grid; place-items: center; font-style: normal; font-weight: 800; font-size: 14px; color: #fde68a; background: rgba(212, 166, 74, .14); font-family: var(--serif); }
+.road-row .road-txt { flex: 1; min-width: 0; } .road-row .road-txt b { display: block; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .road-row .road-txt small { display: block; color: var(--muted); font-size: 10.5px; }
+.road-row .road-next { flex: none; max-width: 46%; font-size: 11.5px; color: #d6d3d1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.road-row.hot { border-color: rgba(253, 224, 71, .55); background: rgba(253, 224, 71, .07); } .road-row.hot .road-next { color: #fde68a; font-weight: 800; }
+.road-row.done { opacity: .7; } .road-row.done i { color: #86efac; background: rgba(134, 239, 172, .12); }
