@@ -553,9 +553,11 @@ export class WorldGame {
     const q = it.king != null ? G.KING_MULT * W.RARITY[it.rar || 0].mult * (it.set ? G.setOf(it.set)?.mult || 1 : 1)
       : it.step != null ? (it.grow ? W.growMult(it.ilv) : W.stepMult(it.step)) * W.RARITY[it.rar || 0].mult : W.GRADES[it.grade].mult;
     const ln = it.line ? LN.lineOf(it.line) : null;
-    const m = q * W.enhanceMult(this.effPlus(it)) * (ln ? ln.mult : 1) * (1 + (it.tr || 0) * W.TRANS_STEP);   // v393 초월
+    const m = q * W.enhanceMult(this.effPlus(it)) * (ln ? ln.mult : 1);
+    // v393 초월 · v410 초월은 기본 수치(공격력·체력·방어)만 키운다 — % 능력치(치명 피해·공격력%…)까지 키우면 공격력 × 치명 피해가 제곱처럼 불었다(끝까지 올리면 중반의 30배)
+    const tk = 1 + (it.tr || 0) * W.TRANS_STEP;
     const out = {};
-    for (const [k, v] of Object.entries(b)) out[k] = v * m;
+    for (const [k, v] of Object.entries(b)) out[k] = v * m * (W.TRANS_FLAT.includes(k) ? tk : 1);
     // 계열(v151)의 덤 능력 — 칸·등급만큼 (강화와는 따로)
     if (ln && it.step != null) for (const [k, v] of Object.entries(LN.lineBonus(it.line, it.step, W.RARITY[it.rar || 0].mult))) out[k] = (out[k] || 0) + v;
     // 증표 각인 (v163) — 칸마다 그 두목의 성질

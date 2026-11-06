@@ -3745,6 +3745,12 @@ console.log('\n=== v403 지금 뭘 올리면 제일 세지나 ===');
   ok(!g.upgradeTip(), '은자가 없으면 추천 없음');
   ok(/id: 'up-tip'/.test(read('js/wui.js')), '가방 위 한 줄 — 누르면 그 장비 창');
 }
+console.log('\n=== v410 초월은 기본 수치만 ===');
+{
+  const g = fresh('sword'); while (g.s.level < 100) g.addExp(W.expToNext(g.s.level));
+  const it = g.makeKing('glove', 27, 3, 'palma', 15); const a = g.itemStats(it); it.tr = 10; const b = g.itemStats(it);
+  ok(Math.abs(b.atk / a.atk - (1 + 10 * W.TRANS_STEP)) < 1e-9 && b.critDmg === a.critDmg, '초월 10 — 공격력은 +80% · 치명 피해(%)는 그대로', `${(b.atk / a.atk).toFixed(2)} · ${a.critDmg?.toFixed(2)}`);
+}
 console.log('\n=== v409 대성신장 부위는 확률 · 천장 ===');
 {
   const Dx = await import('../js/world/wdgn.js');

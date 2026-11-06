@@ -800,6 +800,7 @@ export const enhanceMatsN = (plus) => 4 + plus * 3;
 // 열 단계 · 단계마다 기본 능력치 +TRANS_STEP(곱) · 은자·현철·가장 센 두목 증표 · 실패해도 떨어지지 않고 천장이 쌓인다
 export const TRANS_MAX = 10;
 export const TRANS_STEP = 0.08;
+export const TRANS_FLAT = ['atk', 'hp', 'def'];   // v410 초월이 키우는 기본 수치(% 능력치는 그대로)
 export const TRANS_RATE = [0.9, 0.8, 0.7, 0.6, 0.5, 0.42, 0.35, 0.3, 0.25, 0.2];
 export const TRANS_PITY_K = 0.5;
 export const transGold = (ilv, tr) => Math.round(enhanceCost(ilv, 15) * 4 * (tr + 1) ** 1.5);

@@ -729,12 +729,12 @@ function bagTab(app) {
       // v393 초월 — +15까지 다 한 신화 장비
       const transBox = () => {
         const tr = it.tr || 0;
-        if ((it.rar || 0) < 3 || (it.plus || 0) < game.enhanceMaxItem(it) || game.enhanceMaxItem(it) < W.ENHANCE_MAX) return h('p', { class: 'muted tr-hint' }, `✦ 초월 — 신화 · +${W.ENHANCE_MAX}까지 다 한 장비만 (기본 능력치 단계마다 +${Math.round(W.TRANS_STEP * 100)}%, ${W.TRANS_MAX}단계)`);
-        if (tr >= W.TRANS_MAX) return h('div', { class: 'card tr-box' }, h('b', {}, `✦ ${W.TRANS_NAME[tr]} — 끝`), h('small', { class: 'muted' }, ` 기본 능력치 +${Math.round(tr * W.TRANS_STEP * 100)}%`));
+        if ((it.rar || 0) < 3 || (it.plus || 0) < game.enhanceMaxItem(it) || game.enhanceMaxItem(it) < W.ENHANCE_MAX) return h('p', { class: 'muted tr-hint' }, `✦ 초월 — 신화 · +${W.ENHANCE_MAX}까지 다 한 장비만 (공격력·체력·방어 단계마다 +${Math.round(W.TRANS_STEP * 100)}%, ${W.TRANS_MAX}단계)`);
+        if (tr >= W.TRANS_MAX) return h('div', { class: 'card tr-box' }, h('b', {}, `✦ ${W.TRANS_NAME[tr]} — 끝`), h('small', { class: 'muted' }, ` 공격력·체력 +${Math.round(tr * W.TRANS_STEP * 100)}%`));
         const f = game.transInfo(it);
         const can = game.canTranscend(it);
         return h('div', { class: 'card tr-box' },
-          h('div', { class: 'tr-head' }, h('b', {}, `✦ 초월 ${tr} → ${tr + 1}`), h('small', {}, ` 기본 능력치 +${Math.round(tr * W.TRANS_STEP * 100)}% → +${Math.round((tr + 1) * W.TRANS_STEP * 100)}%`)),
+          h('div', { class: 'tr-head' }, h('b', {}, `✦ 초월 ${tr} → ${tr + 1}`), h('small', {}, ` 공격력·체력 +${Math.round(tr * W.TRANS_STEP * 100)}% → +${Math.round((tr + 1) * W.TRANS_STEP * 100)}%`)),
           h('div', { class: 'tr-cost' },
             h('span', { class: game.s.gold >= f.gold ? '' : 'lack' }, `은자 ${fmt(f.gold)}`),
             h('span', { class: (game.s.mats[W.ORE] || 0) >= f.ore ? '' : 'lack' }, `${W.ORE_NAME} ${fmt(f.ore)}`),
@@ -743,7 +743,7 @@ function bagTab(app) {
           h('button', { class: 'btn primary', id: 'trans-go', style: 'width:100%', disabled: can ? null : true, onclick: () => {
             const ok = game.transcend(it.uid);
             if (ok == null) return;
-            toast(ok ? `✦ ${W.TRANS_NAME[it.tr]}! 기본 능력치 +${Math.round(it.tr * W.TRANS_STEP * 100)}%` : '초월 실패 — 다음 확률이 올라요');
+            toast(ok ? `✦ ${W.TRANS_NAME[it.tr]}! 공격력·체력 +${Math.round(it.tr * W.TRANS_STEP * 100)}%` : '초월 실패 — 다음 확률이 올라요');
             app.save(); paint(); app.refresh();
           } }, can ? '✦ 초월하기' : '재료가 모자라요'));
       };
