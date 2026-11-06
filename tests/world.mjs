@@ -3744,6 +3744,27 @@ console.log('\n=== v403 지금 뭘 올리면 제일 세지나 ===');
   ok(!g.upgradeTip(), '은자가 없으면 추천 없음');
   ok(/id: 'up-tip'/.test(read('js/wui.js')), '가방 위 한 줄 — 누르면 그 장비 창');
 }
+console.log('\n=== v407 각성 고수(천마·화무기·마귀) ===');
+{
+  const g = fresh('sword');
+  while (g.s.level < 150) g.addExp(W.expToNext(g.s.level));
+  ok(!g.awakenOpen('cheonma') && !g.setAwaken('cheonma', true), '5차 전에는 닫혀 있다');
+  g.s.gold = 1e15; g.s.duel.won = { cheonma: 1, hwamugi: 1, magwi: 1 };
+  while (g.s.jobTier < 5 && g.canAdvance()) g.advance();
+  ok(g.cheonmaOn() && g.awakenOpen('cheonma') && g.setAwaken('cheonma', true) && g.awakenActive('cheonma'), '5차 + 한 번 쓰러뜨림 → 각성 켜기');
+  const room = W.mapId(W.masterZoneOf('cheonma'), W.BOSS_AREA);
+  g.s.dgn.auto = false; g.s.dgn.routine = false; g.enterMap(room, true);
+  const b = g.spawnMob(true);
+  ok(b && b.awk === 'cheonma' && b.name === W.AWAKEN.cheonma.name && !b.calib, '두목 방에 각성 천마가 선다(전투력 보정 없음)');
+  const s0 = g.s.mats.st27 || 0, k0 = g.s.awk.kills.cheonma || 0;
+  b.hp = 1; g.killMob(b);
+  ok((g.s.mats.st27 || 0) - s0 === W.AWAKEN.cheonma.stone && g.s.awk.kills.cheonma === k0 + 1, '잡을 때마다 검혼석·증표·조각');
+  g.setAwaken('cheonma', false); const b2 = g.spawnMob(true);
+  ok(b2 && !b2.awk, '끄면 보통 천마');
+  const m2 = migrateWorld(JSON.parse(JSON.stringify(g.s)));
+  ok(m2.awk && m2.awk.kills.cheonma === 1 && !m2.awk.on.cheonma, '저장·불러오기');
+  ok(/awk-\$\{m\.id\}/.test(read('js/wui.js')) && /case 'awakenDown'/.test(read('js/wmain.js')), '무림고수 칸 켜기/끄기 · 알림');
+}
 console.log('\n=== v406 맞은 탄은 사라진다 · 함께 치는 무인이 막는다 ===');
 {
   const Dx = await import('../js/world/wdgn.js');

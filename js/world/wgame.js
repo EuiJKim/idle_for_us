@@ -253,6 +253,9 @@ export function migrateWorld(raw, now = Date.now()) {
   s.did = raw.did && typeof raw.did === 'object' ? { ...raw.did } : {};
   s.duel = { won: { ...(raw.duel?.won || {}) }, stars: {} };
   for (const [k, v] of Object.entries(raw.duel?.stars || {})) { const n = Math.floor(Number(v) || 0) & 3; if (n) s.duel.stars[k] = n; }   // v262
+  // v407 각성 고수 — 켠 것(on)과 쓰러뜨린 수(kills)
+  s.awk = { on: {}, kills: {} };
+  for (const id of W.AWAKEN_IDS) { if (raw.awk?.on?.[id] === true) s.awk.on[id] = true; const n = Math.floor(Number(raw.awk?.kills?.[id]) || 0); if (n > 0) s.awk.kills[id] = n; }
   s.questGift = Number.isInteger(raw.questGift) ? raw.questGift : -1;
   const rd = raw.raid && typeof raw.raid === 'object' ? raw.raid : {};
   s.raid = { day: typeof rd.day === 'string' ? rd.day : '', n: clamp(Math.floor(Number(rd.n) || 0), 0, D.RAID_PER_DAY), dps: Math.max(0, Number(rd.dps) || 0) };
@@ -979,7 +982,11 @@ export class WorldGame {
     if (boss && m.lord) { mob.maxHp = mob.hp = mob.hp * W.LORD_HP; mob.atk *= W.LORD_ATK; }
     if (boss && MS.patternHpMult(m) !== 1) mob.maxHp = mob.hp = mob.hp * MS.patternHpMult(m);     // 초식 두목 (v170)
     // v241: 오버파워 — 무인이 그 레벨 기준보다 세면 두목이 그만큼 단단해진다(^0.6 · 최대 3배). 함께 사냥 왕·던전은 그대로
-    if (boss && !this.inst && !(this.s.kingParty && this.coop?.hold)) {   // v339 함께 잡는 두목은 서버 체력(내 전투력 보정 없음)
+    const awk = boss && !this.inst && this.awakenActive(m.master) ? W.AWAKEN[m.master] : null;   // v407 각성 고수
+    if (awk) {
+      mob.maxHp = mob.hp = mob.hp * awk.hp; mob.atk *= awk.atk; mob.awk = m.master; mob.grade = 3;
+      mob.name = awk.name; mob.def = { ...mob.def, name: awk.name };
+    } else if (boss && !this.inst && !(this.s.kingParty && this.coop?.hold)) {   // v339 함께 잡는 두목은 서버 체력(내 전투력 보정 없음)
       const base = mob.hp;
       const k = this.overPower(mob.hp, m); if (k > 1) mob.maxHp = mob.hp = mob.hp * k; mob.op = k;
       if (lv >= W.BOSS_HARD_FROM) mob.calib = { base, sec: this.bossMinSec(m) * this.bossGapK(m) };   // v271 첫 몇 초 실제 피해로 다시 맞춘다(v272 레벨 30 두목부터)
@@ -2503,6 +2510,21 @@ export class WorldGame {
   // 각인 Lv = 등급(유니크 1 · 전설 2 · 신화 3) + (단 - 1) → 0~12 (신화 10단이 12). 수치 셈(imprintOf)은 그대로다.
   impLv(it) { const e = IM.normEntry(it?.imps?.[0]); return e ? Math.min(3, it.rar || 0) + IM.danOf(e) - 1 : 0; }
   // 이 칸이 노리는 기운 — 고른 것 · 없으면 지금 새겨진 것
+  // v407 각성 고수 — 5차를 마치고 그 고수를 한 번 쓰러뜨렸으면 열린다 · 두목 방에서 켜고 끈다
+  awakenOpen(id) { return !!W.AWAKEN[id] && this.cheonmaOn() && !!this.s.duel.won[id]; }
+  awakenActive(id) { return this.awakenOpen(id) && !!this.s.awk?.on?.[id]; }
+  setAwaken(id, on) {
+    if (!this.awakenOpen(id)) return false;
+    this.s.awk.on = { ...this.s.awk.on };
+    if (on) this.s.awk.on[id] = true; else delete this.s.awk.on[id];
+    // 그 두목 방에 있으면 서 있는 두목을 바로 바꿔 세운다
+    if (this.map?.master === id && !this.inst) { this.mons = this.mons.filter((x) => !x.isBoss); this.bossT = 0; this.bossSeen = false; }
+    return true;
+  }
+  awakenReward(id) {
+    const a = W.AWAKEN[id], mm = MS.masterOf(id);
+    return { gold: Math.round(W.mobGold(Math.min(mm.lv, 150)) * a.gold), mats: { [G.stoneKey(G.PALMA_ZONE)]: a.stone, [W.bossKey(W.masterZoneOf(id))]: a.mark }, petShard: a.shard, mountShard: a.shard };
+  }
   // v403 「지금 뭘 올리면 제일 세지나」 — 낀 장비의 강화·각인·초월을 한 번씩 해 본 판(복제)에서 전투력이 은자 값 대비 가장 많이 오르는 것.
   //   성공 확률은 1로 보고(기대값이 아니라 '올리면'), 은자가 모자란 것은 빼며, 10초마다 한 번만 센다
   upgradeTip(now = Date.now()) {
@@ -4993,6 +5015,12 @@ for (const [fn, key, always] of [
       if (this.clock - (m.bornAt ?? this.clock) <= MS.starSec(mm)) f |= 1;
       if (!(m.tellHits > 0)) f |= 2;
       if (f !== before) { st[mm.id] = f; this._stats = null; this.emit('duelStar', { id: mm.id, title: mm.title, name: mm.name, fast: !!(f & 1) && !(before & 1), clean: !!(f & 2) && !(before & 2) }); }
+    }
+    // v407 각성 고수 — 쓰러뜨릴 때마다 보상
+    if (m.isBoss && !this.inst && m.awk) {
+      const k = this.s.awk.kills; k[m.awk] = (k[m.awk] || 0) + 1;
+      const reward = this.grant(this.awakenReward(m.awk));
+      this.emit('awakenDown', { id: m.awk, name: W.AWAKEN[m.awk].name, n: k[m.awk], first: k[m.awk] === 1, reward });
     }
     // 고수를 처음 쓰러뜨리면 (v148): 큰 보상과 영구 공격력·체력
     if (m.isBoss && !this.inst && this.map.master && !this.s.duel.won[this.map.master]) {

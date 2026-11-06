@@ -1624,6 +1624,12 @@ function handleEvents() {
       case 'autoGear':
         if (ev.enh + ev.inf + (ev.dan || 0) >= 1) toast(`자동${ev.enh ? ` 강화 ${ev.enh}번` : ''}${ev.inf ? ` · 등급 각인 ${ev.inf}번` : ''}${ev.dan ? ` · 칸 단 올리기 ${ev.dan}번` : ''}${ev.gs ? ` · 大成 ${ev.gs}번!` : ''}`);
         break;
+      // v407 각성 고수
+      case 'awakenDown':
+        view.showBanner(`覺 ${ev.name} 격파${ev.first ? ' — 처음!' : ` · ${ev.n}번째`}`, '#fca5a5', 1.8, '각성');
+        toast(`覺 ${ev.name} — ${rewardText(ev.reward)}`);
+        sfx('loot');
+        break;
       // v403 자동 각인이 고른 기운 증표가 없어 멈췄다 — 바꿀지 묻는다(누르면 가방 › 각인)
       case 'impStuck':
         toast(`⚠ 자동 각인이 멈췄어요 — 고른 기운의 증표가 없어요(${ev.n}칸). 〈${IM.THEMES[ev.theme]?.name || ev.theme}〉 증표는 ${fmt(ev.have)}개 — 바꿀까요? (누르면 각인 칸)`, () => showTab('bag', 'imp'));

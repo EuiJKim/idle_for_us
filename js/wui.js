@@ -2035,6 +2035,16 @@ function mapTab(app) {
         h('span', { class: st.fast ? 'on' : '' }, '★', h('small', {}, `${MS.starSec(m)}초 안에`)),
         h('span', { class: st.clean ? 'on' : '' }, '★', h('small', {}, '초식에 안 맞고')),
         h('small', { class: 'muted' }, ` 별 하나마다 덤 +${MS.STAR_BONUS * 100}%`)); })(),
+      // v407 각성 고수 — 5차를 마치고 한 번 쓰러뜨렸으면 켤 수 있다
+      W.AWAKEN[m.id] ? (() => {
+        const a = W.AWAKEN[m.id], open = game.awakenOpen(m.id), on = game.awakenActive(m.id), n = s.awk?.kills?.[m.id] || 0;
+        return h('div', { class: `awk-row${on ? ' on' : ''}` },
+          h('div', {}, h('b', {}, `覺 ${a.name}`), h('small', { class: 'muted' }, open
+            ? ` 체력 ×${a.hp} · 공격 ×${a.atk} · 잡을 때마다 ${rewardText(game.awakenReward(m.id))}${n ? ` · ${n}번 쓰러뜨림` : ''}`
+            : ` 🔒 5차 전직을 마치고 ${m.name}을(를) 한 번 쓰러뜨리면`)),
+          h('button', { class: `btn ${on ? '' : 'primary'}`, id: `awk-${m.id}`, disabled: open ? null : true,
+            onclick: () => { game.setAwaken(m.id, !on); app.save(); toast(on ? `${m.name} — 보통으로 돌아왔어요` : `覺 ${a.name} — 두목 방에서 각성한 모습으로 서요`); app.refresh(); } }, on ? '각성 끄기' : '각성 켜기'));
+      })() : '',
       h('div', { class: 'btn-row' },
         h('button', { class: `btn ${here ? '' : 'primary'}`, disabled: here ? true : null, onclick: () => go(room) }, here ? '여기서 사냥 중' : '두목 방으로 가기')));
   }
@@ -2046,7 +2056,7 @@ function mapTab(app) {
       root: box,
       update() {
         const s = game.s;
-        const nsig = `${s.level}|${s.map}|${s.huntMap}|${Object.values(s.mast || {}).map((k) => L.masteryLv(k)).join(',')}|${JSON.stringify(s.duel.won)}|${!!game.inst}|${s.autoMap}|${JSON.stringify(app.where?.list() || [])}`;
+        const nsig = `${s.level}|${s.map}|${s.huntMap}|${Object.values(s.mast || {}).map((k) => L.masteryLv(k)).join(',')}|${JSON.stringify(s.duel.won)}|${!!game.inst}|${s.autoMap}|${JSON.stringify(s.awk || {})}|${JSON.stringify(app.where?.list() || [])}`;
         if (nsig === sig) return;
         sig = nsig;
         const here = W.mapOf(s.map);
@@ -2084,7 +2094,7 @@ function mapTab(app) {
       root: box,
       update() {
         const s = game.s;
-        const nsig = `${s.level}|${s.map}|${JSON.stringify(s.duel.won)}|${JSON.stringify(s.duel.stars || {})}|${!!game.inst}`;
+        const nsig = `${s.level}|${s.map}|${JSON.stringify(s.duel.won)}|${JSON.stringify(s.duel.stars || {})}|${!!game.inst}|${JSON.stringify(s.awk || {})}|${game.cheonmaOn()}`;
         if (nsig === sig) return;
         sig = nsig;
         const all = ['murim', 'sapa', 'magyo', 'apex'].flatMap((f) => MS.mastersOf(f)).filter((m) => !m.hidden || s.duel.won.hwamugi);

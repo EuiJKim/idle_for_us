@@ -521,6 +521,15 @@ export const BOSS_DRAIN_CAP = 0.01;  // v271 두목과 싸우는 동안 흡혈 �
 //   초식을 쓰는 두목(레벨 95 넘는 왕·고수)은 더 아프다 — 물약 한두 개로 끝나던 싸움
 export const BOSS_HIT_FRAC_K = (m) => ((m.king || m.master) && m.lv[0] >= 95 ? 0.12 : m.king || m.master ? 0.08 : 0.09);
 export const BOSS_CALIB_MAX = 40;
+// v407 각성 고수 — 5차 전직을 마친 무인만. 두목 방에서 켜면 그 고수가 각성한 모습으로 선다(전직 길의 보통 고수는 그대로).
+//   체력·공격은 「5차 + 대성신장 전설 +12」가 천마 ~30초 · 화무기 ~1분 · 마귀 ~2분 반에 잡게 맞췄다(전투력 보정·다시 맞추기 없음 — 세질수록 빨리).
+//   보상: 은자 · 대성신장 강화석 · 그 고수 증표 · 조각 — 마귀(2분 반)와 칠대성(혼자 몇 판) 사이 디딤돌
+export const AWAKEN = {
+  cheonma: { name: '각성 천마', hanja: '覺醒天魔', hp: 220, atk: 1.8, gold: 3000, stone: 8, mark: 20, shard: 30 },
+  hwamugi: { name: '각성 화무기', hanja: '覺醒天下第一', hp: 95, atk: 1.9, gold: 5000, stone: 12, mark: 30, shard: 45 },
+  magwi: { name: '각성 마귀', hanja: '覺醒魔鬼', hp: 62, atk: 1.8, gold: 8000, stone: 20, mark: 40, shard: 60 },
+};
+export const AWAKEN_IDS = Object.keys(AWAKEN);
 // 몹 등급 (v116): 0 졸개 · 1 정예 · 2 두목 · 3 십이지왕 — 등급마다 겉모습·기운이 다르다.
 // 들판 정예는 드물게(4%) 섞여 나고 세다(체력 ×3 · 공격 ×1.4) — 대신 경험치·은자 ×2.5, 재료를 두 번 굴린다.
 // 두목 구역의 졸개도 정예로 그리지만 세기는 그대로(이미 그 지역 위끝 레벨이다).

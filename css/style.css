@@ -2648,3 +2648,9 @@ body.hunt-noui #gather, body.in-inst #gather { display: none !important; }
 
 /* v402 막힌 각인 칸 — 기운 바꾸기 제안 */
 .imp-hint { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; justify-content: space-between; padding: 6px 8px; margin: 6px 0; border: 1px dashed #fbbf24; border-radius: 10px; font-size: 12.5px; }
+
+/* v407 각성 고수 */
+.awk-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 8px 0 4px; padding: 7px 10px; border-radius: 10px; border: 1px solid rgba(248, 113, 113, .35); background: rgba(127, 29, 29, .18); font-size: 12.5px; }
+.awk-row.on { border-color: #f87171; box-shadow: 0 0 10px rgba(248, 113, 113, .35) inset; }
+.awk-row b { color: #fca5a5; }
+.awk-row .btn { flex: none; padding: 4px 10px; font-size: 12px; }
