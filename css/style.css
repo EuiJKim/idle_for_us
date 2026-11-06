@@ -2673,3 +2673,19 @@ body.hunt-noui #gather, body.in-inst #gather { display: none !important; }
 .note-row.k-title { border-left: 3px solid #fde047; }
 .note-row.k-reward { border-left: 3px solid #86efac; }
 .wraid-auto { display: block; margin: 0 0 8px; font-size: 13px; }
+
+/* v414 컴퓨터 배치 — 게임(왼쪽 560) + 창(오른쪽 600)을 나란히, 창 머리에 탭 줄. 창은 늘 열려 있고 탭으로 넘긴다 */
+#ptabs { display: none; }
+body.pc-wide #app { max-width: 560px; margin: 0 0 0 max(0px, calc((var(--vw, 1vw) * 100 - 1160px) / 2)); }
+body.pc-wide #panel {
+  left: calc(max(0px, (var(--vw, 1vw) * 100 - 1160px) / 2) + 560px); right: auto; top: 0; bottom: 0;
+  width: 600px; max-width: 600px; height: 100%; margin: 0; transform: none; transition: none;
+  border-left: 1px solid var(--line); box-shadow: -8px 0 24px rgba(0, 0, 0, .35);
+}
+body.pc-wide #panel:not(.open) { visibility: visible; }
+body.pc-wide #panel-dim, body.pc-wide #panel-close, body.pc-wide #panel-grip { display: none !important; }
+body.pc-wide #ptabs { display: flex; gap: 4px; padding: 6px 10px; background: #120f0b; border-bottom: 1px solid var(--line); flex: none; }
+body.pc-wide #ptabs button { flex: 1; padding: 8px 4px; border-radius: 9px; font-weight: 800; font-size: 14px; color: var(--muted); background: rgba(255, 255, 255, .03); border: 1px solid transparent; }
+body.pc-wide #ptabs button:hover { color: #f5e9cf; background: rgba(255, 255, 255, .07); }
+body.pc-wide #ptabs button.active { color: var(--accent-2); border-color: rgba(212, 166, 74, .5); background: rgba(212, 166, 74, .12); }
+body.pc-wide #tabs .tabcol { display: none; }   /* 들판 위 창 단추는 창 머리 탭 줄로 */

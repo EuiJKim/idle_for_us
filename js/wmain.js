@@ -7,13 +7,28 @@ import { encodeSave, decodeSave } from './savecode.js';   // v324 화면 크기 
 const UI_SCALE = { normal: 1, big: 1.12, huge: 1.25 };
 const UI_SCALE_NAME = { normal: '보통', big: '크게', huge: '아주 크게' };
 function uiScalePref() { try { return localStorage.getItem('ifu.uiScale') || 'normal'; } catch { return 'normal'; } }
+// v414 컴퓨터(넓은 화면 · 마우스)에서는 창을 오른쪽에 늘 열어 두고 탭으로 넘긴다(아래에서 올라와 덮고 스크롤하던 것)
+const PC_GAME_W = 560, PC_PANEL_W = 600;
+function pcWidePref() { try { return localStorage.getItem('ifu.pcWide') || 'auto'; } catch { return 'auto'; } }
+function isPcWide() {
+  const pref = pcWidePref();
+  if (pref === 'off') return false;
+  const w = window.innerWidth, hgt = window.innerHeight;
+  const fine = typeof matchMedia === 'function' && matchMedia('(pointer: fine)').matches;
+  return w >= 1000 && w / hgt >= 1.2 && (fine || pref === 'on');
+}
+const pcWide = () => document.body.classList.contains('pc-wide');
 function applyUiScale() {
   const root = document.documentElement;
   root.style.zoom = '';   // 먼저 되돌려야 창 크기를 제대로 잰다
   const w = window.innerWidth, hgt = window.innerHeight;
   // 폰 설계(390×844)를 창에 맞춰 키운다 — 창이 넓고 높을수록 크게(2.2배까지). 폰(600px 미만)은 그대로
   // v325 컴퓨터에서 여전히 작았다 — 높이 620을 기준으로(1440×900 → 1.45배 · 1920×1080 → 1.74배)
-  const auto = w >= 600 ? Math.max(1, Math.min(2.4, Math.min(w / 560, hgt / 620))) : 1;
+  // v414 넓은 컴퓨터 화면 — 게임(왼쪽 560) + 창(오른쪽 600)을 나란히. 둘이 다 들어가게 키운다
+  const wide = isPcWide();
+  document.body.classList.toggle('pc-wide', wide);
+  const auto = wide ? Math.max(1, Math.min(2.4, hgt / 620, w / (PC_GAME_W + PC_PANEL_W + 16)))
+    : w >= 600 ? Math.max(1, Math.min(2.4, Math.min(w / 560, hgt / 620))) : 1;
   const k = +(auto * (UI_SCALE[uiScalePref()] || 1)).toFixed(3);
   if (k !== 1) root.style.zoom = String(k);
   // v326 zoom을 걸면 vh·vw는 화면 크기에 zoom을 한 번 더 곱해 커진다(창이 화면 밖으로 넘쳤다) — css는 var(--vh)를 쓰고 여기서 바로잡는다
@@ -733,14 +748,36 @@ try { sheetFull = localStorage.getItem('ifu-sheet-full') === '1'; } catch { /* �
 function paintSheet() {
   $('panel').classList.toggle('full', sheetFull);
   $('panel-dim').classList.toggle('full', sheetFull);
-  view.sheetOpen = !!activeTab && !sheetFull;
+  view.sheetOpen = !!activeTab && !sheetFull && !pcWide();   // v414 컴퓨터 배치는 창이 옆에 있어 들판을 안 가린다
 }
+// v414 컴퓨터 배치 — 창 머리에 탭 줄 · 늘 열어 둔다 · Tab / Shift+Tab으로 넘긴다
+const PC_TABS = [['char', '캐릭터'], ['bag', '가방'], ['map', '지도'], ['dgn', '던전'], ['town', '마을'], ['social', '무림'], ['comp', '동료']];
+{
+  const nav = h('nav', { id: 'ptabs' }, ...PC_TABS.map(([k, name]) => h('button', { 'data-tab': k, onclick: () => { if (tabLocked(k)) { toast(`${TAB_NAME[k] || name} 창은 레벨 ${TAB_LV[k]}부터 열려요`); return; } showTab(k); } }, name)));
+  $('panel').insertBefore(nav, $('panel-body'));
+}
+function pcEnsureOpen() {
+  if (!pcWide() || activeTab || booting || !game.s.job || modalOpen()) return;
+  let k = 'char'; try { k = localStorage.getItem('ifu.lastTab') || 'char'; } catch { /* 처음 */ }
+  if (!PC_TABS.some(([x]) => x === k) || tabLocked(k)) k = 'char';
+  showTab(k);
+}
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Tab' || !pcWide() || modalOpen() || e.ctrlKey || e.altKey || e.metaKey) return;
+  const tag = (document.activeElement?.tagName || '').toLowerCase();
+  if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
+  const open = PC_TABS.map(([k]) => k).filter((k) => !tabLocked(k));
+  const i = Math.max(0, open.indexOf(activeTab));
+  e.preventDefault();
+  showTab(open[(i + (e.shiftKey ? open.length - 1 : 1)) % open.length]);
+});
 $('panel-grip').addEventListener('click', () => {
   sheetFull = !sheetFull;
   try { localStorage.setItem('ifu-sheet-full', sheetFull ? '1' : '0'); } catch { /* 이번만 */ }
   paintSheet();
 });
 function closePanel() {
+  if (pcWide() && activeTab) return;   // v414 컴퓨터 배치 — 창은 늘 열려 있다(닫기 대신 다른 탭으로)
   activeTab = null;
   paintSheet();
   $('panel').classList.remove('open');
@@ -750,7 +787,7 @@ function closePanel() {
 function showTab(name, sub) {
   // 하위 탭까지 고르면(마을 → 가방의 대장장이) 열려 있어도 닫지 않고 그 칸으로
   if (activeTab === name && sub) { tabs[name].select?.(sub); return; }
-  if (activeTab === name) return closePanel();
+  if (activeTab === name) return pcWide() ? undefined : closePanel();
   if (!tabs[name]) tabs[name] = WTABS[name](app);
   activeTab = name;
   if (name === 'social') dot('social', false);   // v302 전체 채팅 읽음
@@ -762,7 +799,8 @@ function showTab(name, sub) {
   $('panel').classList.add('open');
   $('panel-dim').classList.add('open');
   paintSheet();
-  document.querySelectorAll('#tabs button[data-tab]').forEach((b) => b.classList.toggle('active', b.dataset.tab === name));
+  document.querySelectorAll('#tabs button[data-tab], #ptabs button[data-tab]').forEach((b) => b.classList.toggle('active', b.dataset.tab === name));
+  try { localStorage.setItem('ifu.lastTab', name); } catch { /* 이번만 */ }
   if (sub) tabs[name].select?.(sub);
   tabs[name].shown?.(sub);
   tabs[name].update();
@@ -1024,6 +1062,7 @@ function bossWaitHud() {
 }
 function refreshUI(full = false) {
   const s = game.s;
+  pcEnsureOpen();   // v414
   // v254: 창이 닫히면 미뤄 둔 방치 보상을 띄운다
   if (s.pendingOffline && !modalOpen() && s.job) showPendingOffline();
   const st = game.stats();
@@ -1062,7 +1101,7 @@ function refreshUI(full = false) {
       : `몹 Lv.${m.lv[0]}~${m.lv[1]} · 두목은 두목 구역에`);
   // v341 '사냥하러 가기' — 아래 창 줄의 사냥 단추를 빼고, 마을에 있을 때만 들판 가운데에 띄운다(창이 열려 있으면 숨김)
   if (guideQ != null && (guideQ !== s.quest || game.questNow()?.done)) hideGuide();   // v342 그 단계를 마치면 안내를 닫는다
-  const goHuntOn = !!(m.town && !game.inst && s.job && !activeTab);
+  const goHuntOn = !!(m.town && !game.inst && s.job && (!activeTab || pcWide()));   // v414 컴퓨터 배치는 창이 옆이라 늘
   $('go-hunt').classList.toggle('hidden', !goHuntOn);
   document.body.classList.toggle('go-hunt-on', goHuntOn);   // 알림 글이 단추를 가리지 않게 위로
   // 혼자/함께 단추 — 두목 구역에서(v339 십이지왕만 → 모든 두목 구역) · 문파가 있고 온라인일 때
@@ -2355,6 +2394,9 @@ $('btn-settings').addEventListener('click', () => openModal((s) => {
     // v324 글자·화면 크기 — 폰에서도 키울 수 있고, 컴퓨터에서는 자동 확대에 곱한다
     h('div', { class: 'row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, '글자·화면 크기'), h('div', { class: 'desc' }, '컴퓨터처럼 넓은 화면에서는 저절로 키워요 — 여기서 더 키울 수 있어요')),
       (() => { const b = h('button', { class: 'btn', style: 'padding:6px 12px' }, UI_SCALE_NAME[uiScalePref()]); b.onclick = () => { const ks = Object.keys(UI_SCALE); const nx = ks[(ks.indexOf(uiScalePref()) + 1) % ks.length]; try { localStorage.setItem('ifu.uiScale', nx); } catch { /* 이번만 */ } b.textContent = UI_SCALE_NAME[nx]; applyUiScale(); }; return b; })()),
+    // v414 컴퓨터 배치 — 넓은 화면에서 게임 옆에 창을 늘 열고 탭으로 넘긴다
+    h('div', { class: 'row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, '컴퓨터 배치(옆 창 · 탭)'), h('div', { class: 'desc' }, '넓은 화면에서 게임 오른쪽에 창을 늘 열어 두고 탭으로 넘겨요(Tab · Shift+Tab). 자동은 가로가 넓고 마우스일 때')),
+      (() => { const NAME = { auto: '자동', on: '켬', off: '끔' }; const b = h('button', { class: 'btn', id: 'pcwide-btn', style: 'padding:6px 12px' }, NAME[pcWidePref()]); b.onclick = () => { const ks = ['auto', 'on', 'off']; const nx = ks[(ks.indexOf(pcWidePref()) + 1) % 3]; try { localStorage.setItem('ifu.pcWide', nx); } catch { /* 이번만 */ } b.textContent = NAME[nx]; const was = pcWide(); applyUiScale(); if (was && !pcWide()) { const k = activeTab; activeTab = null; closePanel(); } else if (!was && pcWide()) pcEnsureOpen(); paintSheet(); }; return b; })()),
     h('div', { class: 'row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, '연출'), h('div', { class: 'desc' }, '폰이 버거우면 낮춰요')), fxBtn),
     // v233: 화면 흔들림 — 어지러우면 줄이거나 끈다
     (() => {

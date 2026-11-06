@@ -10,6 +10,7 @@ const ok = (c, m) => { if (!c) fails++; console.log(c ? '  ✓' : '  ✗', m); }
   for (const [W, H] of [[1920, 1080], [1366, 768]]) {
     console.log('#', W, H);
     const page = await b.newPage({ viewport: { width: W, height: H } });
+    await page.addInitScript(() => { try { localStorage.setItem('ifu.pcWide', 'off'); } catch {} });   // v414 옛 배치(아래 창)는 끄고 본다 — 옆 창 배치는 아래에서 따로
     const errs = []; page.on('pageerror', (e) => errs.push(e.message));
     await page.route(/fonts\.(googleapis|gstatic)\.com|gstatic\.com\/firebasejs/, (r) => r.abort());
     await page.goto(BASE, { waitUntil: 'domcontentloaded' });
@@ -81,6 +82,35 @@ const ok = (c, m) => { if (!c) fails++; console.log(c ? '  ✓' : '  ✗', m); }
     const a0 = await page.evaluate(() => window.__game.s.autoHunt);
     await page.keyboard.press('a'); await page.waitForTimeout(300);
     ok(await page.evaluate((x) => document.getElementById('saver').classList.contains('hidden') && window.__game.s.autoHunt === x, a0), '절전은 글쇠 하나로 깨고 그 글쇠는 단축키로 새지 않는다');
+    ok(errs.length === 0, `콘솔 오류 없음 ${errs.join(' | ')}`);
+    await page.close();
+  }
+  // v414 컴퓨터 배치 — 게임 왼쪽 · 창 오른쪽(늘 열림) · 창 머리 탭 줄 · Tab/Shift+Tab
+  for (const [W, H] of [[1920, 1080], [1366, 768]]) {
+    console.log('# 옆 창', W, H);
+    const page = await b.newPage({ viewport: { width: W, height: H } });
+    const errs = []; page.on('pageerror', (e) => errs.push(e.message));
+    await page.route(/fonts\.(googleapis|gstatic)\.com|gstatic\.com\/firebasejs/, (r) => r.abort());
+    await page.goto(BASE, { waitUntil: 'domcontentloaded' });
+    await page.waitForSelector('.char-card', { timeout: 20000 });
+    await page.click('.char-card.empty >> nth=0');
+    await page.fill('#modal input', '옆창'); await page.click('#modal .btn.primary');
+    await page.waitForSelector('.class-card'); await page.click('.class-card >> nth=0');
+    await page.waitForSelector('#modal .cust-go'); await page.click('#modal .cust-go');
+    await page.evaluate(() => { window.__game.attend(); const g = window.__game; while (g.s.level < 30) g.addExp(1e9); });
+    await page.waitForTimeout(1200);
+    const lay = await page.evaluate(() => { const a = document.getElementById('app').getBoundingClientRect(), p = document.getElementById('panel').getBoundingClientRect(); return { wide: document.body.classList.contains('pc-wide'), open: document.getElementById('panel').classList.contains('open'), aR: Math.round(a.right), pL: Math.round(p.left), pR: Math.round(p.right), w: innerWidth, top: Math.round(p.top), bottom: Math.round(p.bottom), h: innerHeight }; });
+    ok(lay.wide && lay.open && Math.abs(lay.pL - lay.aR) <= 2 && lay.pR <= lay.w + 1 && lay.top <= 1 && lay.bottom >= lay.h - 1, `게임 옆에 창이 늘 열려 있다 ${JSON.stringify(lay)}`);
+    await page.click('#ptabs button[data-tab="bag"]'); await page.waitForTimeout(300);
+    ok(await page.evaluate(() => document.querySelector('#ptabs button.active')?.dataset.tab === 'bag' && document.getElementById('panel-title').textContent === '가방'), '탭 줄 — 가방');
+    await page.mouse.click(5, 5); await page.keyboard.press('Tab'); await page.waitForTimeout(300);
+    const t1 = await page.evaluate(() => document.querySelector('#ptabs button.active')?.dataset.tab);
+    await page.keyboard.press('Shift+Tab'); await page.waitForTimeout(300);
+    const t2 = await page.evaluate(() => document.querySelector('#ptabs button.active')?.dataset.tab);
+    ok(t1 === 'map' && t2 === 'bag', `Tab → ${t1} · Shift+Tab → ${t2}`);
+    await page.keyboard.press('Escape'); await page.waitForTimeout(300);
+    ok(await page.evaluate(() => document.getElementById('panel').classList.contains('open')), 'Esc를 눌러도 옆 창은 그대로');
+    ok(await page.evaluate(() => !document.getElementById('go-hunt').classList.contains('hidden') || !window.__game.map.town), '마을이면 「사냥하러 가기」가 보인다');
     ok(errs.length === 0, `콘솔 오류 없음 ${errs.join(' | ')}`);
     await page.close();
   }
