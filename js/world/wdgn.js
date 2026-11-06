@@ -313,7 +313,7 @@ export function tellCovers(tl, x, y) {
 //   대성신장 일곱 부위를 모두 끼면(강화와 상관없이) 천외천 천궁의 **옥황상제**에게 갈 수 있다.
 // 한 판 WRAID_SEC초 · 언제든 · 참여 보상은 하루 WRAID_PAID판까지 · 같은 마왕 판에 든 무인이 서로 보인다(wbcoop.js).
 export const WRAID_SEC = 120;
-export const WRAID_PAID = 5;
+export const WRAID_PAID = Infinity;   // v408 참여 보상 제한 없음(옛 5판)
 export const WRAID_PER_DAY = WRAID_PAID;     // 옛 이름(저장 다듬기) — 참여 보상 몫
 export const WRAID_HP_K = 1500;              // 화무기 기본 체력의 몇 배 · v387 4 → 300(만렙 전설+12 혼자 한 판에 ~5%, 여럿이 여러 판) · v388에 1000으로 올렸다가 v389 다시 300 · v403 1500(5차 천마가 한 판에 거의 혼자 잡았다 — 이제 한 판 ~15~35%)
 export const WRAID_PARTS = 7;                // 칠대성 — 대성신장 일곱 부위(귀걸이는 없다)

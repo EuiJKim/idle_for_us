@@ -1177,6 +1177,26 @@ function instHud() {
   } else $('contest-sub').textContent = `처치 ${I.kills} / ${I.target} · 남은 ${left}초`;
   hud.classList.toggle('hurry', left <= 10);
 }
+// v408 칠대성 다시 합류 — 같은 마왕이 살아 있으면 그 방으로, 쓰러졌으면 다음 마왕으로
+async function rejoinWraid(boss) {
+  hideRejoin();
+  if (game.inst) return;
+  try {
+    let r = net.wraidOf(boss);
+    if (!r || net.wraidHpLeft(r) <= 0) r = await net.ensureWraid(boss);
+    if (!r) throw new Error('마왕을 깨우지 못했어요');
+    if (game.startWraid({ id: r.id, hpLeft: net.wraidHpLeft(r), maxHp: r.maxHp }, Date.now())) { save(); closePanel(); refreshUI(true); }
+  } catch (err) { toast(`들어가지 못했어요: ${err.message || err}`); }
+}
+let rejoinEl = null, rejoinT = 0;
+function hideRejoin() { clearTimeout(rejoinT); rejoinEl?.remove(); rejoinEl = null; }
+function showRejoin(boss) {
+  hideRejoin();
+  const b = D.WRAID_BOSS[boss];
+  rejoinEl = h('button', { class: 'btn primary rejoin-btn', id: 'wraid-rejoin', onclick: () => rejoinWraid(boss) }, `⚡ 다시 합류 — ${b?.name || '마왕'}`);
+  document.body.append(rejoinEl);
+  rejoinT = setTimeout(hideRejoin, 15000);   // 15초 뒤 저절로 닫힌다(방치 중이면 그냥 사냥)
+}
 function showInstEnd(ev) {
   // v373 월드보스 — 아직 안 올린 내 몫을 올리고 알린다(v374 싸우는 동안 4초마다 올렸다)
   if (ev.kind === 'wraid') {
@@ -1185,7 +1205,9 @@ function showInstEnd(ev) {
     send.then((killed) => {
       const sk = String(ev.key || '').startsWith('seokga_');
       const why = ev.byOther ? (sk ? ' — 여래가 쓰러졌다…? 받기를 눌러 보세요' : ' — 마왕이 쓰러졌어요!') : ev.died ? ' — 쓰러졌어요' : ev.timeout ? ' — 시간 끝' : '';
-      toast(`🌋 칠대성 토벌 피해 ${fmt(ev.dealt)}${ev.reward ? ` · 참여 보상 ${rewardText(ev.reward)}` : ev.paid ? '' : ' · 오늘 참여 보상은 다 받았어요(피해·순위는 쌓여요)'}${why}${killed ? ' — 마무리 일격!' : ''}`);
+      const again = ev.died || ev.timeout || killed || ev.byOther;   // v408 쓰러져도·시간이 끝나도 바로 같은 마왕(또는 다음 마왕) 방으로
+      toast(`🌋 칠대성 토벌 피해 ${fmt(ev.dealt)}${ev.reward ? ` · 참여 보상 ${rewardText(ev.reward)}` : ''}${why}${killed ? ' — 마무리 일격!' : ''}${again ? ' · ⚡ 누르면 다시 합류' : ''}`, again ? () => rejoinWraid(D.wraidBossOfId(ev.key).id) : null);
+      if (again) showRejoin(D.wraidBossOfId(ev.key).id);
       if (killed || ev.byOther) { sfx('level'); view.shake = Math.max(view.shake || 0, 0.4); }
       app.refresh();
     }).catch((err) => toast(`월드보스 기록 실패: ${err.message || err}`));
@@ -2514,7 +2536,7 @@ function wraidNetTick(dt) {
 // v373 월드보스 — 오늘 칠 수 있거나 받을 보상이 있으면 던전 창에 점
 function wraidWaiting() {
   if (!net.ready?.() || !game.s.job) return false;
-  return !!(net.wraidClaims?.().length || (game.s.level >= D.WRAID_LV && game.wraidLeft() > 0));   // 받을 것 · 참여 보상이 남았을 때 점
+  return !!net.wraidClaims?.().length;   // 받을 것이 있을 때 점(v408 참여 보상은 제한 없음)
 }
 // ---------- 루프 ----------
 let last = performance.now();

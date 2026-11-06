@@ -782,13 +782,12 @@ function bagTab(app) {
         const lv = it.plus || 0;
         const bm = game.breakMarksOf(it) || 1;
         const own = W.bossKey(W.itemZone(it));
-        const caps = W.ENHANCE_LV_CAP.map(([l, m]) => `Lv.${l} +${m}`).join(' · ');
         sub('강화는 이렇게 해요',
           h('div', { class: 'help-steps' },
             h('div', { class: 'help-step' }, h('b', {}, '① 은자와 현철로 한 단계씩'), h('p', {}, `한 단계마다 장비 기본 수치 +${pct(W.ENHANCE_STEP, 0)}(돌파는 +${pct(W.BREAK_STEP, 0)}). ${W.ORE_NAME}은 모든 몹·두목이 떨궈요 — 높은 사냥터일수록 많이.`)),
             h('div', { class: 'help-step' }, h('b', {}, '② +1~+6은 안전 · +7~+9는 실패하면 -1'), h('p', {}, '실패해도 장비는 안 사라져요. 실패할 때마다 다음 확률이 쌓여서(천장) 운이 나빠도 끝없이 막히지 않아요. 성공하면 쌓인 건 비워져요.')),
             h('div', { class: 'help-step' }, h('b', {}, '③ +10부터 돌파 — 증표와 보호부'), h('p', {}, `두목 증표가 더 들어요(+11에 1개 … +15에 5개). 이 장비는 ${W.zoneOfW(W.itemZone(it))?.name || ''} 두목 구역의 ${short(own)} 증표${game.s.level >= 99 ? ', 99부터는 십이지왕 증표도' : ''}.`), h('p', { class: 'hl' }, '실패하면 -2. 보호부(마을 상인)가 있으면 한 장을 쓰고 그대로예요.')),
-            h('div', { class: 'help-step' }, h('b', {}, '④ 레벨을 따라 열려요'), h('p', {}, caps), h('p', {}, `지금 Lv.${game.s.level} → +${game.enhanceMax(it)}까지.`)),
+            h('div', { class: 'help-step' }, h('b', {}, '④ 레벨 제한 없음'), h('p', {}, `어느 레벨이든 이 장비가 갈 수 있는 끝(+${game.enhanceMaxItem(it)})까지 올릴 수 있어요.`)),
             it.grow ? h('div', { class: 'help-step' }, h('b', {}, '⑤ 성장 장비'), h('p', {}, `레벨을 따라 저절로 자라요(지금 Lv.${it.ilv}). 강화는 그대로 이어지니 바꿔 낄 걱정 없이 올리면 돼요.`)) : null,
             h('div', { class: 'help-step' }, h('b', {}, '⚙ 자동'), h('p', {}, '설정의 \'자동 강화\'를 켜면 낮은 칸부터 알아서 올려요(레벨 상한까지 · +11부터는 보호부를 써요).'))));
         void lv; void bm;
@@ -2388,7 +2387,7 @@ function dgnTab(app) {
         h('li', {}, '☁ 대성신장 일곱 부위를 모두 끼면 천외천 천궁 — 옥황상제에게 갈 수 있어요'),
         h('li', {}, '🛡 탄은 맞으면 사라져요 — 함께 치는 무인이 앞에서 막아 주면 뒤로 안 와요(탱커가 앞에 서면 좋아요)'),
         h('li', {}, `⚠ 단계가 오를수록 탄 한 대가 아파요(체력의 ${D.WB_TIER.map((t) => Math.round(t.hit * 100)).join('→')}%) · 싸우는 동안 회복(흡혈·물약)이 잘 안 들고 물약 숨이 길어요 — 직접 피하세요`),
-        h('li', {}, `⏱ 한 판 ${D.WRAID_SEC}초 · 언제든 · 참여 보상은 하루 ${D.WRAID_PAID}판(오늘 ${game.wraidLeft(now)}판 남음) · 레벨 ${D.WRAID_LV}부터`))));
+        h('li', {}, `⏱ 한 판 ${D.WRAID_SEC}초 · 언제든 · 참여 보상은 판마다(제한 없음) · 레벨 ${D.WRAID_LV}부터`))));
     if (!on) out.push(h('p', { class: 'muted dgn-desc' }, '온라인일 때 들어갈 수 있어요.'));
     else if (s.level < D.WRAID_LV) out.push(h('p', { class: 'muted dgn-desc' }, `레벨 ${D.WRAID_LV}부터 마왕에게 갈 수 있어요.`));
     // 받을 것
@@ -2550,7 +2549,7 @@ function dgnTab(app) {
   t.update = () => {
     t.setDot('daily', dailyWaiting(game));
     t.setDot('zodiac', Object.values(game.s.zTickets || {}).some((n) => n > 0));
-    { const n = app.net; t.setDot('wraid', !!(n?.ready?.() && (n.wraidClaims?.().length || (game.s.level >= D.WRAID_LV && game.wraidLeft() > 0)))); }
+    { const n = app.net; t.setDot('wraid', !!(n?.ready?.() && n.wraidClaims?.().length)); }
     upd0();
   };
   return t;

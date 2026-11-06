@@ -779,7 +779,8 @@ export const ENHANCE_MAX = 15;
 export const ENHANCE_NORMAL = 10;
 export const AUTO_ENH_MAX = 10;   // v324 자동 강화 상한 — 여기까지만 저절로, 돌파는 직접
 // v261: 강화 상한을 레벨에 묶는다 — 6칸 +10이 2.8시간(Lv32)에 끝나 중반에 이정표가 없었다. [이 레벨부터, 여기까지]
-export const ENHANCE_LV_CAP = [[1, 5], [12, 7], [30, 9], [45, 10], [65, 11], [80, 12], [95, 13], [110, 14], [125, 15]];
+// v408 레벨 제한을 풀었다 — 어느 레벨이든 장비가 갈 수 있는 끝(+10 · 돌파 +15)까지. (옛 표: Lv1 +5 · 12 +7 · 30 +9 · 45 +10 · 65 +11 · 80 +12 · 95 +13 · 110 +14 · 125 +15)
+export const ENHANCE_LV_CAP = [[1, ENHANCE_MAX]];
 export function enhanceLvCap(level) { let c = ENHANCE_LV_CAP[0][1]; for (const [lv, m] of ENHANCE_LV_CAP) if (level >= lv) c = m; return c; }
 export function enhanceCapNext(level) { return ENHANCE_LV_CAP.find(([lv]) => lv > level) || null; }
 export const ENHANCE_STEP = 0.15;                // +1~+10: 한 단계에 기본 수치 +15% (v153: 12%에서 — 강화가 어려워진 만큼 크게)

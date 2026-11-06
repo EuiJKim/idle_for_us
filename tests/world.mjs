@@ -1720,9 +1720,9 @@ console.log('\n=== v261 강화 상한 · 경험치 구간 ===');
   g.s.mats[W.ORE] = 1e9;
   const w = g.s.equip.weapon;
   for (let i = 0; i < 50; i++) g.enhance(w.uid);
-  ok(w.plus === W.enhanceLvCap(g.s.level) && w.plus === 5 && !g.canEnhance(w), 'Lv1은 +5까지 — 강화 상한은 레벨에 묶인다', `+${w.plus}`);
+  ok(w.plus >= W.ENHANCE_NORMAL && g.enhanceMax(w) === g.enhanceMaxItem(w) && W.enhanceLvCap(1) === W.ENHANCE_MAX && !W.enhanceCapNext(1), 'v408 레벨 제한 없음 — Lv1도 +10(돌파는 증표가 있어야)', `+${w.plus}`);
   g.s.level = 45;
-  ok(g.enhanceMax(w) === 10 && W.enhanceCapNext(45)[0] === 65, 'Lv45 +10 · 다음은 Lv65', `${g.enhanceMax(w)}`);
+  ok(g.enhanceMax(w) === g.enhanceMaxItem(w), 'Lv45도 장비 끝까지', `${g.enhanceMax(w)}`);
   ok(W.expSlow(5) === 1 && W.expSlow(40) === 2.6 && W.expToNext(10) === Math.round(27 * 10 ** 2.3 * (1 + (10 / 30) ** 2.2)), '첫 시간(~Lv12)의 경험치는 그대로 · 뒤로 갈수록 배율');
 }
 
@@ -1816,8 +1816,8 @@ console.log('\n=== v262 경제 · 복귀 · 선택 ===');
   // 자동 강화
   const A = fresh(); A.s.gold = 1e15; A.s.mats[W.ORE] = 1e9;
   A.s.autoEnh = true;
-  A.autoGear();
-  ok(W.GROW_SLOTS.every((k) => (A.s.equip[k]?.plus || 0) === W.enhanceLvCap(A.s.level)), '자동 강화 — 여섯 칸을 레벨 상한까지');
+  for (let i = 0; i < 10; i++) A.autoGear();   // v408 레벨 제한이 없어 한 번(30번)에 다 못 올린다
+  ok(W.GROW_SLOTS.every((k) => (A.s.equip[k]?.plus || 0) === Math.min(W.AUTO_ENH_MAX, A.enhanceMax(A.s.equip[k]))), '자동 강화 — 여섯 칸을 +10(자동 상한)까지');
 }
 
 console.log('\n=== v263 각성 · 깨달음 · 견문록 · 회랑 · 길잡이 알아두기 ===');
@@ -3418,8 +3418,8 @@ console.log('\n=== v373~v375 칠대성(상시 최종 두목) · 탄막 · 대성
   g.events.length = 0; g.tick(0.05);
   const end = g.events.find((e) => e.type === 'instEnd');
   ok(end && end.kind === 'wraid' && end.key === 'umawang_1' && end.dealt > 0 && end.unsent === end.dealt && end.reward?.gold > 0 && !g.inst && g.bullets.length === 0, '끝 — 내 몫 · 안 올린 몫 · 참여 보상 · 탄을 치운다');
-  g.s.wraid.n = D3.WRAID_PAID;
-  ok(g.canWraid(1000, now) && g.startWraid({ id: 'umawang_1', hpLeft, maxHp }, now) && g.inst.paid === false, '언제든 들어간다 — 참여 보상은 하루 몫까지');
+  g.s.wraid.n = 500;
+  ok(g.canWraid(1000, now) && g.startWraid({ id: 'umawang_1', hpLeft, maxHp }, now) && g.inst.paid === true, 'v408 언제든 들어간다 — 참여 보상은 제한 없음(500판째도)');
   g.leaveInst();
   // 쓰러진 마왕 — 그 마왕의 팔마신장 한 부위
   ok(/손오공의 긴고환/.test(W.itemName(g.wraidClaim(5, 'sonogong').item, 'sword')), '손오공 → 가락지 〈긴고환〉');
@@ -3743,6 +3743,14 @@ console.log('\n=== v403 지금 뭘 올리면 제일 세지나 ===');
   g.s.gold = 0; g._tip = null;
   ok(!g.upgradeTip(), '은자가 없으면 추천 없음');
   ok(/id: 'up-tip'/.test(read('js/wui.js')), '가방 위 한 줄 — 누르면 그 장비 창');
+}
+console.log('\n=== v408 강화 레벨 제한 없음 · 참여 보상 제한 없음 · 다시 합류 ===');
+{
+  ok(W.enhanceLvCap(1) === W.ENHANCE_MAX && W.enhanceLvCap(150) === W.ENHANCE_MAX, '강화 — 어느 레벨이든 +15까지');
+  const Dx = await import('../js/world/wdgn.js');
+  ok(!Number.isFinite(Dx.WRAID_PAID), '칠대성 참여 보상 — 판 제한 없음');
+  const M = read('js/wmain.js');
+  ok(/function rejoinWraid/.test(M) && /id: 'wraid-rejoin'/.test(M) && /net\.ensureWraid\(boss\)/.test(M), '쓰러지면 「⚡ 다시 합류」 — 같은 마왕(쓰러졌으면 다음 마왕)');
 }
 console.log('\n=== v407 각성 고수(천마·화무기·마귀) ===');
 {

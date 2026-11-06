@@ -2654,3 +2654,6 @@ body.hunt-noui #gather, body.in-inst #gather { display: none !important; }
 .awk-row.on { border-color: #f87171; box-shadow: 0 0 10px rgba(248, 113, 113, .35) inset; }
 .awk-row b { color: #fca5a5; }
 .awk-row .btn { flex: none; padding: 4px 10px; font-size: 12px; }
+
+/* v408 칠대성 다시 합류 */
+.rejoin-btn { position: fixed; left: 50%; bottom: calc(96px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); z-index: 60; padding: 10px 18px; font-size: 14px; border-radius: 999px; box-shadow: 0 6px 18px rgba(0, 0, 0, .45); }
