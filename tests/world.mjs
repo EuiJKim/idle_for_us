@@ -3465,7 +3465,9 @@ console.log('\n=== v373~v375 칠대성(상시 최종 두목) · 탄막 · 대성
     const pv = g.previewEquip(keep); ok(pv.sets0.palma === 6 && pv.sets1.palma === 7, '장비 비교 — 끼면 대성신장 6→7조각'); g.s.equip.finger = keep; g._stats = null; g._setb = null; void extra; }
   ok(migrateWorld({ ...newWorldSave(), wraid: { gates: { sadae: 1, hacker: 1 } } }).wraid.gates.sadae === 1 && !('hacker' in migrateWorld({ ...newWorldSave(), wraid: { gates: { sadae: 1, hacker: 1 } } }).wraid.gates), '넘은 관문 저장 · 이상한 열쇠는 버린다');
   g.s.equip.finger.plus = 0; ok(g.okhwangOpen(), '강화와 상관없이 — +0이어도 열린다');
-  const ring0 = g.s.equip.finger; g.s.equip.finger = null; g._stats = null; ok(!g.okhwangOpen() && g.palmaReady().n === 6, '한 부위라도 빠지면 닫힌다');
+  const ring0 = g.s.equip.finger; g.s.equip.finger = null; g._stats = null;
+  ok(g.okhwangOpen() && g.seokgaOpen() && g.palmaReady().n === 6, 'v424 한 번 쓰러뜨렸으면 한 부위가 빠져도 열린 채');
+  { const ok0 = g.s.wraid.ok, sk0 = g.s.wraid.sk; g.s.wraid.ok = 0; g.s.wraid.sk = 0; ok(!g.okhwangOpen() && /7/.test(g.heavenLock('okhwang')) && /옥황상제/.test(g.heavenLock('seokga')), '아직이면 한 부위라도 빠지면 닫힌다 · 까닭을 말해 준다'); g.s.wraid.ok = ok0; g.s.wraid.sk = sk0; }
   g.s.equip.finger = ring0;
   ok(g.startWraid({ id: 'okhwang_1', hpLeft, maxHp }, now) && g.map.final && g.map.wb === 'okhwang', '옥황상제 판'); g.leaveInst();
   g.wraidClaim(4, 'okhwang'); g.checkTitles();

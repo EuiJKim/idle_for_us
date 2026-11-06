@@ -4730,8 +4730,21 @@ export class WorldGame {
     const n = G.PALMA_SLOTS.filter((sl) => { const it = this.s.equip[sl]; return G.isPalma(it) && (it.plus || 0) >= D.OK_PLUS; }).length;
     return { n, ok: n >= G.PALMA_SLOTS.length };
   }
-  seokgaOpen() { return (this.s.wraid.ok || 0) >= 1 && this.palmaReady().ok; }   // v378 옥황상제를 쓰러뜨리는 데 함께한 자
-  okhwangOpen() { return this.palmaReady().ok && this.gatesCleared() >= D.HEAVEN_GATES.length; }   // v377 관문 넷을 넘어야
+  // v424 한 번 연 길은 닫히지 않는다 — 옥황상제·석가여래를 한 번 쓰러뜨렸으면 대성신장을 바꿔 껴도(자동 장비가 바꿔도) 그대로 열려 있다
+  seokgaOpen() { const w = this.s.wraid; return (w.ok || 0) >= 1 && (this.palmaReady().ok || (w.sk || 0) >= 1); }   // v378 옥황상제를 쓰러뜨리는 데 함께한 자
+  okhwangOpen() { return this.gatesCleared() >= D.HEAVEN_GATES.length && (this.palmaReady().ok || (this.s.wraid.ok || 0) >= 1); }   // v377 관문 넷을 넘어야
+  // v424 왜 닫혀 있나 — 창에 보여 줄 까닭(null이면 열림)
+  heavenLock(which) {
+    const w = this.s.wraid, pr = this.palmaReady();
+    if (which === 'seokga') {
+      if (!(w.ok >= 1)) return '🔒 이 캐릭터로 옥황상제를 쓰러뜨리고 보상을 받은 기록이 없어요(다른 캐릭터로 받았다면 그 캐릭터로 · 기록은 캐릭터마다)';
+      if (!pr.ok && !(w.sk >= 1)) return `🔒 대성신장 일곱 부위를 모두 끼고 있어야 해요 — 지금 ${pr.n}/7(가방 › 착용에서 다시 끼면 열려요)`;
+      return null;
+    }
+    if (this.gatesCleared() < D.HEAVEN_GATES.length) return `🔒 남천문 관문 넷을 먼저 — 지금 ${this.gatesCleared()}/4`;
+    if (!pr.ok && !(w.ok >= 1)) return `🔒 대성신장 일곱 부위를 모두 끼고 있어야 해요 — 지금 ${pr.n}/7`;
+    return null;
+  }
   // 화무기 두목의 기본 체력 — 마왕 체력의 잣대(spawnMob과 같은 셈, 맞춤 키우기 빼고)
   hwamugiHp() {
     const m = W.MAPS.find((x) => x.master === 'hwamugi');

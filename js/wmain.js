@@ -18,6 +18,14 @@ function isPcWide() {
   return w >= 1000 && w / hgt >= 1.2 && (fine || pref === 'on');
 }
 const pcWide = () => document.body.classList.contains('pc-wide');
+// v424 폰에서 위쪽을 한 줄로 — 사냥터 이름·몹 레벨은 전투 화면 위 칩으로, 체력 막대는 얇게 한 줄. 컴퓨터 배치는 그대로
+function slimHud(on) {
+  const box = document.querySelector('.stage-box'); if (!box) return;
+  const inHud = box.parentElement?.id === 'hud';
+  if (on && !inHud) $('hud').insertBefore(box, $('net-badge'));
+  else if (!on && inHud) $('stagebar').insertBefore(box, $('stagebar').firstChild);
+  document.body.classList.toggle('hud-slim', on);
+}
 function applyUiScale() {
   const root = document.documentElement;
   root.style.zoom = '';   // 먼저 되돌려야 창 크기를 제대로 잰다
@@ -27,6 +35,7 @@ function applyUiScale() {
   // v414 넓은 컴퓨터 화면 — 게임(왼쪽 560) + 창(오른쪽 600)을 나란히. 둘이 다 들어가게 키운다
   const wide = isPcWide();
   document.body.classList.toggle('pc-wide', wide);
+  slimHud(!wide);   // v424 폰 — 위쪽 두 줄(내 정보·사냥터 줄)을 한 줄로
   const auto = wide ? Math.max(1, Math.min(2.4, hgt / 620, w / (PC_GAME_W + PC_PANEL_W + 16)))
     : w >= 600 ? Math.max(1, Math.min(2.4, Math.min(w / 560, hgt / 620))) : 1;
   const k = +(auto * (UI_SCALE[uiScalePref()] || 1)).toFixed(3);
@@ -763,6 +772,41 @@ function pcEnsureOpen() {
   if (!PC_TABS.some(([x]) => x === k) || tabLocked(k)) k = 'char';
   showTab(k);
 }
+// v424 폰 — 창 머리(제목 줄·창 줄)를 옆으로 쓸면 옆 창, 창 몸을 옆으로 쓸면 옆 칸(하위 탭). 가로로 넘기는 칸(칩 줄·그리드) 안에서 시작한 쓸기는 안 받는다
+function swipeOn(el, onSwipe) {
+  let x0 = 0, y0 = 0, t0 = 0, ok = false;
+  el.addEventListener('touchstart', (e) => {
+    const t = e.touches[0]; x0 = t.clientX; y0 = t.clientY; t0 = Date.now(); ok = true;
+    for (let n = e.target; n && n !== el; n = n.parentElement) {
+      const tag = (n.tagName || '').toLowerCase();
+      if (tag === 'input' || tag === 'textarea' || tag === 'select' || tag === 'canvas' || (n.scrollWidth > n.clientWidth + 4 && getComputedStyle(n).overflowX !== 'visible')) { ok = false; break; }
+    }
+  }, { passive: true });
+  el.addEventListener('touchend', (e) => {
+    if (!ok) return; ok = false;
+    const t = e.changedTouches[0], dx = t.clientX - x0, dy = t.clientY - y0;
+    if (Date.now() - t0 > 600 || Math.abs(dx) < 60 || Math.abs(dy) > 40 || Math.abs(dx) < Math.abs(dy) * 2) return;
+    onSwipe(dx < 0 ? 1 : -1);
+  }, { passive: true });
+}
+function swipeTab(dir) {
+  if (modalOpen() || !activeTab) return;
+  const open = PC_TABS.map(([k]) => k).filter((k) => !tabLocked(k));
+  const i = Math.max(0, open.indexOf(activeTab));
+  showTab(open[(i + dir + open.length) % open.length]);
+}
+function swipeSub(dir) {
+  if (modalOpen() || !activeTab) return;
+  const seg = $('panel-body').querySelector('.seg.wide');
+  if (!seg) return;
+  const bs = [...seg.querySelectorAll('button[data-key]')].filter((b) => !b.disabled);
+  const i = bs.findIndex((b) => b.classList.contains('on'));
+  const nx = bs[i + dir];
+  if (nx) nx.click();
+}
+swipeOn($('panel-head'), swipeTab);
+swipeOn($('ptabs'), swipeTab);
+swipeOn($('panel-body'), swipeSub);
 document.addEventListener('keydown', (e) => {
   if (e.key !== 'Tab' || !pcWide() || modalOpen() || e.ctrlKey || e.altKey || e.metaKey) return;
   const tag = (document.activeElement?.tagName || '').toLowerCase();
@@ -1174,6 +1218,7 @@ function refreshUI(full = false) {
   dot('comp', s.petBox.length > 0 && s.pets.length < game.petSlots());
   dot('dgn', dailyWaiting(game) || wraidWaiting() || Object.values(game.s.zTickets || {}).some((n) => n > 0));
   if (activeTab) { tabs[activeTab].update(); panelRes(); }
+  paintGuidePtr();   // v424
   // v280 얼굴은 모습이 바뀌거나(경지·장비·꾸미기) 그림이 다 오면 다시 그린다 — 전엔 켤 때 한 번(그림이 오기 전 도형으로) 그리고 끝이었다
   const psig = `${s.rank}|${game.statSig()}|${JSON.stringify(s.custom || {})}|${s.outfit || ''}|${artReady()}|${mergeGen()}`;
   if (full || psig !== portraitSig) { portraitSig = psig; drawPortrait(); }
@@ -1862,8 +1907,51 @@ function showGuide(q) {
   el.classList.remove('hidden');
 }
 function hideGuide() { $('guide-tip')?.classList.add('hidden'); guideQ = null; }
+// v424 길잡이 말풍선 — 지금 단계가 가리키는 창·칸 단추 위에 「여기 ▾」. 첫 길잡이 GUIDE_PTR_N단계까지만 · 이미 그 칸에 있으면 안 뜬다
+const GUIDE_PTR_N = 30;
+let guidePtr = null, guidePtrOff = false;
+try { guidePtrOff = localStorage.getItem('ifu.guidePtr') === 'off'; } catch { /* 처음 */ }
+function guideTarget(q) {
+  if (!q?.tab) return null;
+  const [t, sub] = q.tab.split('/');
+  if (tabLocked(t)) return null;
+  if (activeTab !== t || !$('panel').classList.contains('open')) {
+    const b = document.querySelector(pcWide() ? `#ptabs button[data-tab="${t}"]` : `#tabs button[data-tab="${t}"]`);
+    return b ? { el: b, text: `${q.title} — ${WTAB_TITLE[t] || t} 창` } : null;
+  }
+  if (!sub) return null;
+  const sb = $('panel-body').querySelector(`.seg.wide button[data-key="${sub}"]`);
+  if (!sb || sb.classList.contains('on')) return null;
+  return { el: sb, text: `${q.title} — 이 칸`, below: true };   // 칸 단추 아래에(창 줄을 가리지 않게)
+}
+function paintGuidePtr() {
+  const cur = game.questNow();
+  const q = cur && !cur.done && !guidePtrOff && game.s.quest < GUIDE_PTR_N && !game.inst && !modalOpen() && !booting ? cur.q : null;
+  const tg = q ? guideTarget(q) : null;
+  if (!tg) { guidePtr?.classList.add('hidden'); return; }
+  if (!guidePtr) {
+    guidePtr = h('button', { id: 'guide-ptr', class: 'hidden', onclick: () => { const c = game.questNow(); if (!c) return; if (c.q.tab) { const [t, sub] = c.q.tab.split('/'); showTab(t, sub); } showGuide(c.q); } },
+      h('span', { class: 'gp-txt' }), h('i', { class: 'gp-caret' }));
+    document.body.append(guidePtr);
+  }
+  const r = tg.el.getBoundingClientRect();
+  if (!r.width || !r.height) { guidePtr.classList.add('hidden'); return; }
+  const txt = guidePtr.querySelector('.gp-txt');
+  if (txt.textContent !== tg.text) txt.textContent = tg.text;
+  guidePtr.classList.remove('hidden');
+  const vw = window.innerWidth, w = Math.min(guidePtr.offsetWidth || 200, vw - 16);
+  const cx = r.left + r.width / 2;
+  const left = Math.max(8, Math.min(vw - w - 8, cx - w / 2));
+  const above = !tg.below && r.top > 70;
+  guidePtr.classList.toggle('below', !above);
+  guidePtr.style.left = `${left}px`;
+  guidePtr.style.top = above ? `${r.top - (guidePtr.offsetHeight || 34) - 8}px` : `${r.bottom + 8}px`;
+  guidePtr.querySelector('.gp-caret').style.left = `${Math.max(10, Math.min(w - 10, cx - left))}px`;
+}
+window.__guidePtrOff = (off) => { guidePtrOff = !!off; try { localStorage.setItem('ifu.guidePtr', off ? 'off' : 'on'); } catch { /* 이번만 */ } paintGuidePtr(); };
 // 사냥터 이름을 누르면 지도
 $('stagebar').addEventListener('click', () => showTab('map'));
+document.querySelector('.stage-box').addEventListener('click', (e) => { e.stopPropagation(); showTab('map'); });   // v424 칩으로 옮겨도 누르면 지도
 
 // v377 탄막(칠대성·천외천) 조작 설정 — 이 기기에만
 // v378 폰(손가락)이면 처음부터 '여유'(탄 60%·느리게·맞는 판정 작게) · 탄막 판에서 화면을 한 단계 멀리(wide)
@@ -2181,24 +2269,32 @@ saver.onEnter = () => { view.resetFx(); game.mark('saver'); const s = game.s; sa
 $('btn-saver').addEventListener('click', () => saver.enter());
 $('hero-name').addEventListener('click', (e) => { e.stopPropagation(); if (game.s.job && !modalOpen()) askNickname(false); });   // v418 위쪽 이름을 누르면 이름 바꾸기
 // v411 지난 알림 — 토스트로 지나간 글을 다시 본다 · v413 종류별로 거르고, 눌러서 그 화면으로
-const NOTE_KIND = [['all', '전체'], ['title', '칭호'], ['reward', '보상'], ['warn', '경고'], ['etc', '그 밖']];
-const noteKind = (t) => (/칭호|〈.+〉 얻|새 칭호/.test(t) ? 'title' : /⚠|못 |실패|막혔|멈췄|모자라|버거|쓰러졌/.test(t) ? 'warn' : /보상|받았|🎁|은자|조각|대성신장|검혼석|기록/.test(t) ? 'reward' : 'etc');
-const noteGo = (t) => (/각인/.test(t) ? () => showTab('bag', 'imp') : /칠대성|마왕|대성신장|옥황|석가|관문/.test(t) ? () => showTab('dgn') : /覺|각성/.test(t) ? () => showTab('map', 'masters')
-  : /회랑|탑/.test(t) ? () => showTab('dgn') : /칭호/.test(t) ? () => showTab('char') : /강화|초월/.test(t) ? () => showTab('bag', 'gear') : null);
-let noteFilter = 'all';
+const NOTE_KIND = [['all', '전체'], ['title', '칭호'], ['wraid', '칠대성'], ['gacha', '소환'], ['guild', '문파'], ['reward', '보상'], ['warn', '경고'], ['etc', '그 밖']];   // v424 칠대성·소환·문파 종류
+const noteKind = (t) => (/칭호|〈.+〉 얻|새 칭호/.test(t) ? 'title' : /칠대성|마왕|대성신장|옥황|석가|관문|🌋/.test(t) ? 'wraid' : /소환|뽑기|🎊|신수|우리가/.test(t) ? 'gacha' : /문파|문파원|토벌|채팅|🏯/.test(t) ? 'guild'
+  : /⚠|못 |실패|막혔|멈췄|모자라|버거|쓰러졌/.test(t) ? 'warn' : /보상|받았|🎁|은자|조각|검혼석|기록/.test(t) ? 'reward' : 'etc');
+// v424 어디로 가는지 이름까지 — 줄마다 「바로가기 ›」 단추
+const NOTE_GO = [[/각인/, '가방 › 각인', () => showTab('bag', 'imp')], [/칠대성|마왕|대성신장|옥황|석가|관문|🌋/, '던전 › 칠대성', () => showTab('dgn', 'wraid')], [/覺|각성/, '지도 › 무림고수', () => showTab('map', 'masters')],
+  [/회랑|탑/, '던전 › 무한의 탑', () => showTab('dgn', 'tower')], [/요일|일일 던전|소탕/, '던전 › 일일', () => showTab('dgn', 'daily')], [/소환|뽑기|🎊|신수|우리/, '동료', () => showTab('comp')], [/문파|토벌|채팅/, '무림', () => showTab('social')],
+  [/칭호/, '캐릭터', () => showTab('char')], [/강화|초월|돌파/, '가방 › 착용', () => showTab('bag', 'gear')], [/탈것/, '동료 › 탈것', () => showTab('comp', 'mount')], [/애완동물|영수/, '동료 › 애완동물', () => showTab('comp', 'pet')]];
+const noteGoRow = (t) => NOTE_GO.find(([re]) => re.test(t)) || null;
+const noteGo = (t) => noteGoRow(t)?.[2] || null;
+let noteFilter = 'all', noteQuery = '';
 $('btn-notes').addEventListener('click', () => {
   noteSeen();
   const when = (t) => { const d = new Date(t); return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
   openModal((sheet) => {
     const paint = () => {
       const all = noteLog();
-      const L = noteFilter === 'all' ? all : all.filter((n) => noteKind(n.t) === noteFilter);
+      const q = noteQuery.trim();
+      const L = (noteFilter === 'all' ? all : all.filter((n) => noteKind(n.t) === noteFilter)).filter((n) => !q || n.t.includes(q));
+      const inp = h('input', { class: 'field note-q', type: 'search', placeholder: '🔍 글자로 찾기', value: noteQuery, oninput: (e) => { noteQuery = e.target.value; const at = e.target.selectionStart; paint(); const el = sheet.querySelector('.note-q'); el?.focus(); try { el?.setSelectionRange(at, at); } catch { /* 숫자 칸 */ } } });
       sheet.replaceChildren(h('div', {},
         h('h3', {}, '🔔 지난 알림', h('small', { class: 'muted' }, ` 최근 ${all.length}개 · 이 기기에만`)),
+        inp,
         h('div', { class: 'chip-row' }, ...NOTE_KIND.map(([k, name]) => h('button', { class: `chip${noteFilter === k ? ' on' : ''}`, id: `note-${k}`, onclick: () => { noteFilter = k; paint(); } },
           `${name}${k === 'all' ? '' : ` ${all.filter((n) => noteKind(n.t) === k).length}`}`))),
-        L.length ? h('div', { class: 'note-list' }, ...L.map((n) => { const go = noteGo(n.t); return h(go ? 'button' : 'div', { class: `note-row k-${noteKind(n.t)}${go ? ' go' : ''}`, onclick: go ? () => { closeModal(); go(); } : null },
-          h('small', {}, when(n.at), go ? ' · 눌러서 가기 ›' : ''), n.t); })) : h('p', { class: 'muted' }, '이 종류의 알림이 없어요.'),
+        L.length ? h('div', { class: 'note-list' }, ...L.map((n) => { const g = noteGoRow(n.t); return h('div', { class: `note-row k-${noteKind(n.t)}${g ? ' go' : ''}` },
+          h('small', {}, when(n.at)), h('span', { class: 'note-t' }, n.t), g ? h('button', { class: 'btn mini note-go', onclick: () => { closeModal(); g[2](); } }, `${g[1]} ›`) : null); })) : h('p', { class: 'muted' }, q ? '그 글자가 든 알림이 없어요.' : '이 종류의 알림이 없어요.'),
         h('div', { class: 'btn-row' }, h('button', { class: 'btn', onclick: () => closeModal() }, '닫기'))));
     };
     paint();

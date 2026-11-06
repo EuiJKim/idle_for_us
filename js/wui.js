@@ -727,10 +727,22 @@ function bagTab(app) {
         }
         return h(go ? 'button' : 'div', { class: `next-step${hot ? ' hot' : ''}`, onclick: go || undefined }, h('i', {}, '▶'), h('span', {}, txt), go ? h('em', {}, act ? `${act} ›` : '›') : null);
       };
+      // v424 초월까지의 길 — 무엇이 모자란지 · 어디로 가면 되는지(각인 칸·강화 칸으로 바로)
+      const transRoad = () => {
+        const maxP = game.enhanceMaxItem(it), rarOk = (it.rar || 0) >= 3, pOk = (it.plus || 0) >= W.ENHANCE_MAX;
+        const rows = [];
+        rows.push([rarOk, `① 신화 등급 — ${rarOk ? '됐어요' : `지금 ${W.RARITY[it.rar || 0].name}${game.canImprintItem(it) ? ' · 각인 칸에서 두목 증표로 레어 → 유니크 → 전설 → 신화' : ' · 이 장비는 각인이 안 돼요(성장·두목·왕 장비만)'}`}`,
+          !rarOk && game.canImprintItem(it) ? ['각인 칸 ›', () => { itemTab = 'imp'; try { localStorage.setItem('ifu.itemTab', 'imp'); } catch { /* 이번만 */ } paint(); }] : null]);
+        if (maxP < W.ENHANCE_MAX) rows.push([false, `② +${W.ENHANCE_MAX} — 이 장비는 +${maxP}까지만이라 초월이 안 돼요(돌파가 되는 성장·두목·왕 장비로)`, null]);
+        else rows.push([pOk, `② +${W.ENHANCE_MAX}까지 강화 — ${pOk ? '됐어요' : `지금 +${it.plus || 0}${(it.plus || 0) >= W.ENHANCE_NORMAL ? ' · 돌파는 두목 증표·보호부로' : ''}`}`, !pOk ? ['강화 칸 ›', () => { itemTab = 'enh'; paint(); }] : null]);
+        rows.push([false, `③ 재료 — 은자 ${fmt(W.transGold(it.ilv, 0))} · ${W.ORE_NAME} ${fmt(W.transOre(0))} · 두목 증표 한 종류 ${W.transMarks(0)}개 · 성공 ${pct(W.TRANS_RATE[0], 0)}(실패해도 떨어지지 않고 다음 확률 ↑)`, null]);
+        return h('div', { class: 'card tr-road' }, h('b', {}, `✦ 초월까지 — 단계마다 공격력·체력·방어 +${Math.round(W.TRANS_STEP * 100)}% (${W.TRANS_MAX}단계)`),
+          ...rows.map(([ok, txt, go]) => h('div', { class: `tr-step${ok ? ' ok' : ''}` }, h('i', {}, ok ? '✓' : '○'), h('span', {}, txt), go ? h('button', { class: 'btn mini', onclick: go[1] }, go[0]) : null)));
+      };
       // v393 초월 — +15까지 다 한 신화 장비
       const transBox = () => {
         const tr = it.tr || 0;
-        if ((it.rar || 0) < 3 || (it.plus || 0) < game.enhanceMaxItem(it) || game.enhanceMaxItem(it) < W.ENHANCE_MAX) return h('p', { class: 'muted tr-hint' }, `✦ 초월 — 신화 · +${W.ENHANCE_MAX}까지 다 한 장비만 (공격력·체력·방어 단계마다 +${Math.round(W.TRANS_STEP * 100)}%, ${W.TRANS_MAX}단계)`);
+        if ((it.rar || 0) < 3 || (it.plus || 0) < game.enhanceMaxItem(it) || game.enhanceMaxItem(it) < W.ENHANCE_MAX) return transRoad();
         if (tr >= W.TRANS_MAX) return h('div', { class: 'card tr-box' }, h('b', {}, `✦ ${W.TRANS_NAME[tr]} — 끝`), h('small', { class: 'muted' }, ` 공격력·체력 +${Math.round(tr * W.TRANS_STEP * 100)}%`));
         const f = game.transInfo(it);
         const can = game.canTranscend(it);
@@ -777,7 +789,8 @@ function bagTab(app) {
             : h('button', { class: 'prot-none', onclick: goShop }, '보호부가 없어요 — 마을 상인에서 사면 실패해도 그대로예요 ', h('b', {}, '상인에게 ›'))) : null,
           h('div', { class: 'enh-actions' },
             h('button', { class: 'btn itm-info', onclick: () => enhHelp() }, 'ⓘ 강화란?'),
-            h('button', { class: 'btn good enh-go', disabled: game.canEnhance(it) ? null : true, onclick: () => askEnhance() }, breaking ? '돌파' : '강화')))];
+            h('button', { class: 'btn good enh-go', disabled: game.canEnhance(it) ? null : true, onclick: () => askEnhance() }, breaking ? '돌파' : '강화'))),
+          game.enhanceMaxItem(it) >= W.ENHANCE_MAX ? foldBox('-trroad|초월까지의 길', transRoad()) : null];   // v424 +15 전에도 초월까지의 길(접힌 채)
       };
       const enhHelp = () => {
         const lv = it.plus || 0;
@@ -2100,29 +2113,74 @@ function mapTab(app) {
     return h('div', { class: 'card awk-card' }, h('h3', {}, '覺 각성 고수', h('small', {}, ` 5차 뒤 · ${done}/${W.AWAKEN_IDS.length} 쓰러뜨림 · 칭호 〈${W.TITLES.awkAll.name}〉`)), ...rows);
   }
   // 무림고수 (v204) — 세 세력의 고수·맹주·천마를 한 칸에. 세력별로 묶고 레벨 차례.
+  // v424 무림고수 — 한 줄씩 접힌 목록(얼굴·이름·레벨·별·가기), 누르면 펼친다 · 아직/쓰러뜨림 거르기 · 다음 목표 한 장 · 각성 고수는 열리기 전엔 접어 둔다
+  const mOpen = new Set();
+  let mFilter = 'all';
+  function masterRow(m, fac) {
+    const s = game.s;
+    if (m.hidden && !s.duel.won.hwamugi) return masterCard(m, fac);
+    const won = !!s.duel.won[m.id];
+    const room = W.mapId(W.masterZoneOf(m.id), W.BOSS_AREA);
+    const here = s.map === room;
+    const risky = game.danger(room) > W.DANGER_LV;
+    const st = game.duelStars(m.id);
+    const open = mOpen.has(m.id);
+    const head = h('div', { class: 'mr-head', onclick: () => { if (open) mOpen.delete(m.id); else mOpen.add(m.id); this_update(); } },
+      masterPortrait(m.look),
+      h('div', { class: 'master-name' },
+        h('b', {}, `${m.title} `, h('span', {}, m.name)),
+        h('small', {}, `Lv.${m.lv}${risky ? ' ⚠위험' : ''}${won ? ` · 공격력·체력 +${Math.round(MS.masterBonusOf(m) * 100 * (1 + MS.STAR_BONUS * st.extra))}% 영구` : ' · 아직'}`)),
+      h('div', { class: 'mr-stars' }, ...[st.won, st.fast, st.clean].map((on) => h('span', { class: on ? 'on' : '' }, '★'))),
+      h('button', { class: `btn mini ${here || won ? '' : 'primary'}`, disabled: here ? true : null, onclick: (e) => { e.stopPropagation(); go(room); } }, here ? '여기' : '가기'),
+      h('i', { class: 'mr-arrow' }, open ? '▴' : '▾'));
+    const body = open ? h('div', { class: 'mr-body' },
+      h('div', { class: 'muted' }, `수하 ${m.mobs.map((x) => x.name).join('·')} · 초식: ${m.skills.map((k) => k.name).join(' · ')}`),
+      h('p', { class: 'mr-story' }, m.story),
+      h('div', { class: 'master-rw' }, won ? '✓ 쓰러뜨렸어요 — 눌러앉아 파밍하세요(두목 방에서 세력 재료)' : `처음 쓰러뜨리면 ${rewardText(MS.masterReward(m))} · 공격력·체력 +${Math.round(MS.masterBonusOf(m) * 100)}% 영구`),
+      h('div', { class: 'duel-stars' },
+        h('span', { class: st.won ? 'on' : '' }, '★', h('small', {}, '쓰러뜨림')),
+        h('span', { class: st.fast ? 'on' : '' }, '★', h('small', {}, `${MS.starSec(m)}초 안에`)),
+        h('span', { class: st.clean ? 'on' : '' }, '★', h('small', {}, '초식에 안 맞고')),
+        h('small', { class: 'muted' }, ` 별 하나마다 덤 +${MS.STAR_BONUS * 100}%`))) : null;
+    return h('div', { class: `card master-row${m.lord ? ' lord' : ''}${won ? ' won' : ''}${here ? ' me' : ''}${open ? ' open' : ''}`, style: `--fc:${fac.col}` }, head, body);
+  }
+  let this_update = () => {};
   function mastersView() {
     const box = h('div');
-    let sig = '';
-    return {
+    let sig0 = '';
+    const self = {
       root: box,
       update() {
         const s = game.s;
-        const nsig = `${s.level}|${s.map}|${JSON.stringify(s.duel.won)}|${JSON.stringify(s.duel.stars || {})}|${!!game.inst}|${JSON.stringify(s.awk || {})}|${game.cheonmaOn()}`;
-        if (nsig === sig) return;
-        sig = nsig;
+        const nsig = `${s.level}|${s.map}|${JSON.stringify(s.duel.won)}|${JSON.stringify(s.duel.stars || {})}|${!!game.inst}|${JSON.stringify(s.awk || {})}|${game.cheonmaOn()}|${mFilter}|${[...mOpen].join(',')}`;
+        if (nsig === sig0) return;
+        sig0 = nsig;
         const all = ['murim', 'sapa', 'magyo', 'apex'].flatMap((f) => MS.mastersOf(f)).filter((m) => !m.hidden || s.duel.won.hwamugi);
         const won = all.filter((m) => s.duel.won[m.id]).length;
-        box.replaceChildren(h('p', { class: 'muted' }, `세력마다 이름난 고수가 산다 — 처음 쓰러뜨리면 큰 보상과 영구 공격력·체력, 두목 방에서는 세력 재료가 나온다. 쓰러뜨림 ${won}/${all.length}`), awakenCard());
+        const stars = all.reduce((a, m) => a + game.duelStars(m.id).n, 0);
+        const next = all.filter((m) => !s.duel.won[m.id] && !(m.hidden && !s.duel.won.hwamugi)).sort((a, b) => a.lv - b.lv)[0];
+        const awkOpen = W.AWAKEN_IDS.some((id) => game.awakenOpen(id));
+        box.replaceChildren(
+          h('div', { class: 'mr-top' },
+            h('div', { class: 'chip-row' }, ...[['all', '전체'], ['todo', '아직'], ['won', '쓰러뜨림']].map(([k, name]) => h('button', { class: `chip${mFilter === k ? ' on' : ''}`, onclick: () => { mFilter = k; sig0 = ''; self.update(); } },
+              `${name} ${k === 'all' ? all.length : k === 'won' ? won : all.length - won}`))),
+            h('small', { class: 'muted' }, `쓰러뜨림 ${won}/${all.length} · 별 ${stars}/${all.length * 3}`)),
+          next && mFilter !== 'won' ? h('div', { class: 'card mr-next' }, h('b', {}, '🎯 다음 목표 '), h('span', {}, `${next.title} ${next.name} · Lv.${next.lv}`),
+            h('button', { class: 'btn mini primary', onclick: () => go(W.mapId(W.masterZoneOf(next.id), W.BOSS_AREA)) }, '가기')) : null,
+          foldBox(`${awkOpen ? '' : '-'}awkcard|覺 각성 고수`, awakenCard()));
         for (const fac of ['murim', 'sapa', 'magyo', 'apex']) {
           const F = MS.factionOf(fac);
-          const ms = MS.mastersOf(fac).slice().sort((a, b) => a.lv - b.lv);
+          const ms = MS.mastersOf(fac).slice().sort((a, b) => a.lv - b.lv).filter((m) => mFilter === 'all' || (mFilter === 'won') === !!s.duel.won[m.id]);
+          if (!ms.length) continue;
           const w = ms.filter((m) => s.duel.won[m.id]).length;
           box.append(h('h3', { class: 'king-head', style: `color:${F.col}` }, `${F.name} ${fac === 'apex' ? '천하제일인 · 히든' : fac === 'magyo' ? '팔마존 · 천마' : fac === 'murim' ? '칠대고수 · 무림맹주' : '칠대고수 · 사도맹주'}`,
             h('small', {}, ` ${w}/${ms.length}`)));
-          for (const m of ms) box.append(masterCard(m, F));
+          for (const m of ms) box.append(masterRow(m, F));
         }
       },
     };
+    this_update = () => self.update();
+    return self;
   }
   return subTabs([
     { key: 'murim', label: '무림맹', make: () => zoneView('murim') },
@@ -2499,6 +2557,7 @@ function dgnTab(app) {
               open ? (gr && gl <= 0 ? '다시 세우기' : `관문 돌파 (${D.WRAID_SEC}초)`) : !pr.ok ? '대성신장 일곱' : '앞 관문부터') : null);
         })),
         r ? h('div', { class: 'raid-hp wraid-hp' }, h('i', { style: `width:${(left / r.maxHp) * 100}%` }), h('span', {}, left > 0 ? `${fmt(left)} / ${fmt(r.maxHp)}` : '쓰러짐')) : null,
+        !game.okhwangOpen() && s.level >= D.WRAID_LV && pr.n > 0 ? h('p', { class: 'muted dgn-desc heaven-lock' }, game.heavenLock('okhwang')) : null,   // v424
         on && game.okhwangOpen() && s.level >= D.WRAID_LV ? h('div', { class: 'btn-row' }, h('button', { class: 'btn primary', id: 'wraid-go-okhwang', disabled: game.inst ? true : null, onclick: (e) => go(ok.id, e) }, r && left <= 0 ? '다시 하늘 문을 두드리기' : `천궁으로 (${D.WRAID_SEC}초)`)) : null);
       out.push(card);
     }
@@ -2511,6 +2570,7 @@ function dgnTab(app) {
       out.push(h('div', { class: `card wraid-card wraid-heaven${op ? '' : ' locked secret'}`, style: `--wb:${sk.col}` },
         h('div', { class: 'wraid-head' }, h('img', { class: 'wraid-banner', src: 'art/ui/wb-heaven.webp', alt: '' }), op ? h('img', { class: 'wraid-boss', src: `art/boss/${sk.art}.png`, alt: sk.name }) : null,
           h('div', { class: 'wraid-name' }, h('small', {}, op ? '천외천 너머 · 숨은 두목' : '천외천 너머'), h('b', {}, op ? sk.name : '???', op ? h('i', {}, ` ${sk.hanja}`) : null))),
+        !op && s.level >= D.WRAID_LV ? h('p', { class: 'muted dgn-desc heaven-lock' }, game.heavenLock('seokga')) : null,   // v424 왜 닫혀 있나
         h('p', { class: 'muted dgn-desc' }, op ? ((s.wraid.sk || 0) >= 1 ? `몇 번을 쓰러뜨려도 — 손바닥 안이었다(${s.wraid.sk}번). 여래는 언제나 다시 손바닥을 편다.` : `하늘조차 막지 못한 제천대성을 손바닥 하나로 눌렀던 자. 손바닥 안에서 좁혀 오는 탄 — 빈틈은 한 군데뿐. 체력은 옥황상제의 ${D.SK_HP_K}배.`) : '🔒 옥황상제를 쓰러뜨리는 데 함께한 자만 — 그 너머에 무엇이 있는지 아무도 모른다.'),
         r ? h('div', { class: 'raid-hp wraid-hp' }, h('i', { style: `width:${(left / r.maxHp) * 100}%` }), h('span', {}, left > 0 ? `${fmt(left)} / ${fmt(r.maxHp)}` : '쓰러짐')) : null,
         on && op && s.level >= D.WRAID_LV ? h('div', { class: 'btn-row' }, h('button', { class: 'btn primary', id: 'wraid-go-seokga', disabled: game.inst ? true : null, onclick: (e) => go(sk.id, e) }, r && left <= 0 ? '다시 손바닥으로' : `손바닥 안으로 (${D.WRAID_SEC}초)`)) : null));
@@ -3854,11 +3914,12 @@ function compTab(app) {
 }
 
 // v423 설명 접기 — 긴 설명은 한 번 읽고 나면 접어 둘 수 있다(이 기기에 기억 · 처음엔 펼쳐져 있다)
-export function foldBox(key, ...nodes) {
-  let closed = false; try { closed = localStorage.getItem(`ifu.fold.${key}`) === '1'; } catch { /* 처음 */ }
+export function foldBox(key0, ...nodes) {   // v424 key가 '-'로 시작하면 처음엔 접혀 있다 · 'key|이름'이면 단추 글을 그 이름으로
+  const [key, label] = key0.split('|');
+  let closed = key.startsWith('-'); try { const v = localStorage.getItem(`ifu.fold.${key}`); if (v != null) closed = v === '1'; } catch { /* 처음 */ }
   const body = h('div', { class: 'helpfold-body' }, ...nodes);
   const btn = h('button', { class: 'helpfold-btn', type: 'button' });
-  const paint = () => { btn.textContent = closed ? 'ⓘ 설명 보기 ▾' : '설명 접기 ▴'; body.classList.toggle('hidden', closed); btn.classList.toggle('closed', closed); };
+  const paint = () => { btn.textContent = closed ? `${label ? `✦ ${label} 보기` : 'ⓘ 설명 보기'} ▾` : `${label ? `${label} 접기` : '설명 접기'} ▴`; body.classList.toggle('hidden', closed); btn.classList.toggle('closed', closed); };
   btn.onclick = (e) => { e.stopPropagation(); closed = !closed; try { localStorage.setItem(`ifu.fold.${key}`, closed ? '1' : '0'); } catch { /* 이번만 */ } paint(); };
   paint();
   return h('div', { class: 'helpfold' }, btn, body);
