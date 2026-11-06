@@ -10,3 +10,7 @@ $USERPROFILE/
 *.key
 key.txt
 _fc_*.json
+
+# v407 그림 만들 때 생긴 원본·로그 — 게임에는 안 쓴다(사이트 배포 1GB 한도를 넘겼다). 스크립트만 남긴다
+tools/**/*.png
+tools/**/*.log
