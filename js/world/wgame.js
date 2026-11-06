@@ -2544,25 +2544,28 @@ export class WorldGame {
     let best = null;
     const raw = JSON.stringify(this.s);
     const tries = [];
+    // v411 성공 확률(p)을 함께 — 기대값 = 오를 몫 × p, 한 번 시도 값은 그대로(실패해도 낸다)
     for (const x of W.SLOTS) {
       const it = this.s.equip[x.id];
       if (!it) continue;
-      if (this.canEnhance(it) && this.s.gold > this.enhanceCost(it)) tries.push({ kind: 'enh', slot: x.id, uid: it.uid, name: `${x.name} 강화` });
-      if (this.canImprintItem(it) && this.impNext(it).can) tries.push({ kind: 'imp', slot: x.id, uid: it.uid, name: `${x.name} 각인` });
-      if (this.canTransItem(it) && this.canTranscend(it)) tries.push({ kind: 'trans', slot: x.id, uid: it.uid, name: `${x.name} 초월` });
+      if (this.canEnhance(it) && this.s.gold > this.enhanceCost(it)) tries.push({ kind: 'enh', slot: x.id, uid: it.uid, name: `${x.name} 강화`, p: this.enhanceRateOf(it) });
+      if (this.canImprintItem(it)) { const nx = this.impNext(it); if (nx.can) tries.push({ kind: 'imp', slot: x.id, uid: it.uid, name: `${x.name} 각인`, p: nx.chance != null ? Math.min(1, nx.chance) : 1 }); }
+      if (this.canTransItem(it) && this.canTranscend(it)) tries.push({ kind: 'trans', slot: x.id, uid: it.uid, name: `${x.name} 초월`, p: this.transInfo(it)?.rate ?? 1 });
     }
+
     for (const t of tries) {
       try {
         const c = new WorldGame(JSON.parse(raw), now);
         c.rng = () => 0; c.emit = () => {};
         const g0 = c.s.gold;
-        const r = t.kind === 'enh' ? c.enhance(t.uid, true) : t.kind === 'imp' ? c.impUp(t.uid) : c.transcend(t.uid);
+        const r = t.kind === 'enh' ? c.enhance(t.uid, true) : t.kind === 'imp' ? c.impUp(t.uid) : t.kind === 'skill' ? c.skillUp(t.id) : c.transcend(t.uid);
         if (!r) continue;
         c._stats = null; c._mods = null;
-        const gain = c.power() / base - 1, cost = Math.max(1, g0 - c.s.gold);
+        const gain = c.power() / base - 1, cost = t.kind === 'skill' ? 0 : Math.max(1, g0 - c.s.gold);
         if (!(gain > 0.0005)) continue;
-        const score = gain / Math.max(cost, this.s.gold * 0.01);
-        if (!best || score > best.score) best = { ...t, gain, cost, score };
+        const ev = gain * (t.p ?? 1);
+        const score = ev / Math.max(cost, this.s.gold * 0.01);
+        if (!best || score > best.score) best = { ...t, gain, ev, cost, score };
       } catch { /* 해 볼 수 없는 것은 건너뛴다 */ }
     }
     this._tip = { sig, at: now, v: best };

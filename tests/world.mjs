@@ -3744,6 +3744,16 @@ console.log('\n=== v403 지금 뭘 올리면 제일 세지나 ===');
   g.s.gold = 0; g._tip = null;
   ok(!g.upgradeTip(), '은자가 없으면 추천 없음');
   ok(/id: 'up-tip'/.test(read('js/wui.js')), '가방 위 한 줄 — 누르면 그 장비 창');
+  ok(t.p > 0 && t.p <= 1 && Math.abs(t.ev - t.gain * t.p) < 1e-12, 'v411 성공 확률과 기대값', `${Math.round(t.p * 100)}%`);
+  ok(/id: 'up-tip-skill'/.test(read('js/wui.js')), 'v411 무공 점수가 남았으면 따로 한 줄');
+}
+console.log('\n=== v411 지난 알림 · 다녀오셨어요 요약 ===');
+{
+  const C = read('js/ui/common.js'), M = read('js/wmain.js');
+  ok(/function notePush/.test(C) && /notePush\(text\)/.test(C) && /btn-notes/.test(read('index.html')) && /지난 알림/.test(M), '토스트는 지난 알림(60개)에 남고 🔔로 다시 본다');
+  ok(/새 칭호/.test(M) && /각인 막힘/.test(M) && /칠대성 보상/.test(M), '받은 뒤 요약 — 새 칭호 · 막힌 곳 · 받을 것 · 추천');
+  ok(/function wbLiteTick/.test(M) && /perf\.step = AUTO_STEPS\.length - 1/.test(M) && /this\.wbLite \? 0/.test(read('js/battle.js')), '칠대성 판이 버거우면 바로 가장 가벼운 화질 · 그 판 동안 연출 가볍게');
+  ok(/workflow_dispatch/.test(read('.github/workflows/pages.yml')) && /cp -r index\.html/.test(read('.github/workflows/pages.yml')), '배포(Actions) — 게임 파일만 · 손으로만 돈다');
 }
 console.log('\n=== v410 초월은 기본 수치만 ===');
 {

@@ -762,7 +762,7 @@ export class BattleView {
   // anchor는 tick에서 부드럽게 옮긴다(툭 튀면 멀미 난다).
   get groundY() { const g = this.game; return this.h * (this.anchor ?? 0.47) + (g && this.camY != null ? (g.heroY - this.camY) * this.squash : 0); }
   get heroX() { const g = this.game; return this.w * 0.5 + (g && this.camX != null ? g.heroX - this.camX : 0); }
-  get fxLevel() { return this.light ? Math.min(1, this.fxPref) : this.fxPref; }
+  get fxLevel() { return this.wbLite ? 0 : this.light ? Math.min(1, this.fxPref) : this.fxPref; }   // v411 칠대성 판이 버거우면 그 판 동안만 가볍게
   // 월드 Y는 화면에서 살짝 눌러 그린다 — 평면이 너무 넓어 보이지 않게
   get squash() { return FIELD_SQUASH; }
   sx(m) { const g = this.game; return this.heroX + (m.x - (g?.heroX || 0)); }

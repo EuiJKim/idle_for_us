@@ -1,0 +1,39 @@
+# v411 사이트 배포(GitHub Actions) — 게임에 필요한 파일만 올린다(tools/·tests/·docs/는 빼고).
+#   지금은 손으로만 돈다(workflow_dispatch). 쓰려면 한 번만:
+#     저장소 Settings → Pages → Build and deployment → Source를 「GitHub Actions」로 바꾸고,
+#     아래 on: 에 push(main)를 켠다(주석 풀기). 그 전까지는 지금처럼 브랜치(main)에서 바로 배포된다.
+name: 사이트 배포(필요한 파일만)
+
+on:
+  workflow_dispatch: {}
+  # push:
+  #   branches: [main]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: 게임 파일만 모으기
+        run: |
+          mkdir -p _site
+          cp -r index.html install.html manifest.webmanifest sw.js .nojekyll js css art icons _site/ 2>/dev/null || true
+          du -sh _site
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: _site
+      - id: deployment
+        uses: actions/deploy-pages@v4

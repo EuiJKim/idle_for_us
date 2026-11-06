@@ -1434,10 +1434,16 @@ details.lore p { margin: 4px 0 0; line-height: 1.5; }
 .grow-row .name small { color: #a8a29e; font-weight: 400; }
 
 /* v159 앱처럼: 절전 화면 · 전체 화면 · 설치 안내 */
-#btn-saver, #btn-fs { position: absolute; right: 8px; z-index: 3; width: 34px; height: 26px; padding: 0; border-radius: 999px;
+#btn-saver, #btn-fs, #btn-notes { position: absolute; right: 8px; z-index: 3; width: 34px; height: 26px; padding: 0; border-radius: 999px;
   border: 1px solid rgba(253,224,71,0.35); background: rgba(10,8,6,0.62); color: #fde68a; font-size: 14px; line-height: 24px; }
 #btn-saver { top: 92px; }
 #btn-fs { top: 122px; }
+#btn-notes { top: 92px; right: 46px; font-size: 13px; }   /* v411 지난 알림 */
+#btn-notes.has::after { content: ''; position: absolute; right: 2px; top: 2px; width: 7px; height: 7px; border-radius: 50%; background: #f87171; }
+body:has(#btn-mail:not(.hidden)) #btn-notes { right: 96px; }
+.note-list { display: grid; gap: 6px; max-height: 62vh; overflow: auto; }
+.note-row { padding: 6px 8px; border-radius: 8px; background: rgba(255,255,255,.04); font-size: 13px; }
+.note-row small { display: block; color: #a8a29e; font-size: 11px; }
 /* v175 우편함 — 운영자가 보낸 것이 있을 때만 보인다 */
 #btn-mail { position: absolute; right: 48px; top: 92px; z-index: 3; height: 26px; padding: 0 8px; border-radius: 999px;
   border: 1px solid rgba(253,224,71,0.6); background: rgba(10,8,6,0.72); color: #fde68a; font-size: 14px; line-height: 24px; animation: mailPulse 1.6s ease-in-out infinite; }
@@ -1556,7 +1562,7 @@ details.lore p { margin: 4px 0 0; line-height: 1.5; }
    폰이 매 프레임 그 열두 자리를 3.75배 해상도로 다시 흐리게 했다. 바탕은 이미 반투명이라 조금 짙게만 했다. */
 /* v187 원인 찾기 — 하나씩 끄기 */
 body.hunt-noui #topbar, body.hunt-noui #stagebar, body.hunt-noui #tabs, body.hunt-noui #skillbar, body.hunt-noui #hud,
-body.hunt-noui #advice, body.hunt-noui #quest, body.hunt-noui #btn-zoom, body.hunt-noui #btn-saver, body.hunt-noui #btn-fs,
+body.hunt-noui #advice, body.hunt-noui #quest, body.hunt-noui #btn-zoom, body.hunt-noui #btn-saver, body.hunt-noui #btn-fs, body.hunt-noui #btn-notes,
 body.hunt-noui #btn-mail, body.hunt-noui #btn-boss, body.hunt-noui #btn-party, body.hunt-noui .perf-box, body.hunt-noui #toast { visibility: hidden !important; }
 body.hunt-noanim *, body.hunt-noanim *::before, body.hunt-noanim *::after { animation: none !important; transition: none !important; }
 body.hunt-nocv #cv { visibility: hidden !important; }

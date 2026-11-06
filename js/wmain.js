@@ -80,7 +80,7 @@ import { RULES_VER } from './net.js';
 import { Coop } from './world/wcoop.js';
 import { WbCoop } from './world/wbcoop.js';
 import { Where } from './world/wwhere.js';
-import { h, toast, openModal, closeModal, modalOpen } from './ui/common.js';
+import { h, toast, openModal, closeModal, modalOpen, noteLog, noteSeen } from './ui/common.js';
 import { WTABS, WTAB_TITLE, itemTitle, skillText, rangeText, rewardText, dailyWaiting, skipFx, setSkipFx, openSkillPreview, attGrid } from './wui.js';
 import * as D from './world/wdgn.js';
 import * as IM from './world/wimprint.js';
@@ -2009,11 +2009,11 @@ function showPendingOffline() {
   let box = null;
   const claimAndShow = () => {
     if (game.s.pendingOffline !== rw) return closeModal();
-    const before = { lv: game.s.level, pow: game.stats().power, gold: game.s.gold, petLv: (game.s.pets || []).reduce((a, p) => a + (p.lv || 0), 0) };
+    const before = { lv: game.s.level, pow: game.stats().power, gold: game.s.gold, petLv: (game.s.pets || []).reduce((a, p) => a + (p.lv || 0), 0), titles: [...game.s.titles] };
     game.claimOffline(rw); delete game.s.pendingOffline;
     const auto = game.catchUpAutoGear();
-    game._stats = null;
-    const after = { lv: game.s.level, pow: game.stats().power, petLv: (game.s.pets || []).reduce((a, p) => a + (p.lv || 0), 0) };
+    game.checkTitles?.(); game._stats = null;
+    const after = { lv: game.s.level, pow: game.stats().power, petLv: (game.s.pets || []).reduce((a, p) => a + (p.lv || 0), 0), titles: [...game.s.titles] };
     save(); refreshUI(true);
     showOfflineResult(box, rw, before, after, auto);
   };
@@ -2058,12 +2058,21 @@ function showOfflineResult(s, rw, b, a, auto) {
     auto.enh || auto.inf || auto.dan ? h('div', { class: 'ofr-row' }, h('span', {}, '자동 정리'), h('b', {}, [auto.enh ? `강화 ${auto.enh}번` : '', auto.inf ? `등급 각인 ${auto.inf}번` : '', auto.dan ? `단 ${auto.dan}번` : '', auto.gs ? `大成 ${auto.gs}번` : ''].filter(Boolean).join(' · '))) : null,
     a.petLv > b.petLv ? h('div', { class: 'ofr-row' }, h('span', {}, '애완동물'), h('b', {}, `레벨 +${a.petLv - b.petLv}`)) : null,
     h('div', { class: 'ofr-row' }, h('span', {}, '은자'), h('b', {}, `${fmt(game.s.gold)}`, h('small', {}, ` (+${fmt(rw.gold)})`))),
+    // v411 그동안 얻은 칭호
+    (() => { const nt = (a.titles || []).filter((t) => !(b.titles || []).includes(t)); return nt.length ? h('div', { class: 'ofr-row' }, h('span', {}, '새 칭호'), h('b', {}, nt.map((t) => `〈${W.titleOf(t)?.name || t}〉`).join(' '))) : null; })(),
   ].filter(Boolean);
   const todo = [];
   if (!game.s.autoStat && game.s.statPts > 0) todo.push(h('button', { class: 'btn', onclick: () => { closeModal(); showTab('char', 'stat'); } }, `스탯 ${game.s.statPts}점 찍기`));
   if (game.s.skillPts > 0 && game.skills?.().some((x) => game.canSkillUp(x.id))) todo.push(h('button', { class: 'btn', onclick: () => { closeModal(); showTab('char', 'skill'); } }, `무공 점수 ${game.s.skillPts}`));
   if (potLow && potBuy > 0) todo.push(h('button', { class: 'btn', id: 'ofr-pot', disabled: game.s.gold < potCost ? true : null, onclick: (e) => { if (game.buyPotions(potBuy)) { toast(`물약 ${fmt(potBuy)}개를 샀어요`); e.target.disabled = true; e.target.textContent = '물약 채움 ✓'; save(); refreshUI(true); } } }, `물약 ${fmt(potBuy)}개 채우기 (${fmt(potCost)})`));
   if (!game.s.autoEnh && !game.s.autoInf) todo.push(h('button', { class: 'btn', onclick: () => { closeModal(); showTab('bag', 'gear'); } }, '장비 강화하러'));
+  // v411 막힌 곳 — 자동 각인이 증표가 없어 멈춤 · 받을 칠대성 보상 · 지금 가장 세지는 것
+  const stuck = game.impStuck?.();
+  if (stuck) todo.push(h('button', { class: 'btn', onclick: () => { closeModal(); showTab('bag', 'imp'); } }, `⚠ 각인 막힘 ${stuck.slots.length}칸 — 바꾸기`));
+  const wc = net?.wraidClaims?.().length || 0;
+  if (wc) todo.push(h('button', { class: 'btn', onclick: () => { closeModal(); showTab('dgn'); } }, `🎁 칠대성 보상 ${wc}`));
+  const tip = game.upgradeTip?.();
+  if (tip) todo.push(h('button', { class: 'btn', onclick: () => { closeModal(); showTab('bag', 'gear'); } }, `💡 ${tip.name} +${(tip.gain * 100).toFixed(1)}%`));
   s.replaceChildren(
     h('h2', {}, '✨ 받았어요'),
     h('div', { class: 'ofr' }, ...rows),
@@ -2120,6 +2129,16 @@ window.__test_saver = (on) => { if (on) saver.enter(); else if (on === false) sa
 saver.onExit = () => { view.resetFx(); last = performance.now(); refreshUI(true); };   // v379 깨어날 때 쌓인 연출을 비운다
 saver.onEnter = () => { view.resetFx(); game.mark('saver'); const s = game.s; saverRun = { t0: Date.now(), gold: s.gold, kills: s.kills, deaths: s.deaths, level: s.level, exp: s.exp / game.expNeed(), loot: [] }; };
 $('btn-saver').addEventListener('click', () => saver.enter());
+// v411 지난 알림 — 칭호·회랑 기록·자동 각인 막힘·각성 고수… 토스트로 지나간 글을 다시 본다
+$('btn-notes').addEventListener('click', () => {
+  noteSeen();
+  const L = noteLog();
+  const when = (t) => { const d = new Date(t); return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
+  openModal((sheet) => sheet.append(h('div', {},
+    h('h3', {}, '🔔 지난 알림', h('small', { class: 'muted' }, ` 최근 ${L.length}개 · 이 기기에만`)),
+    L.length ? h('div', { class: 'note-list' }, ...L.map((n) => h('div', { class: 'note-row' }, h('small', {}, when(n.at)), n.t))) : h('p', { class: 'muted' }, '아직 알림이 없어요.'),
+    h('div', { class: 'btn-row' }, h('button', { class: 'btn', onclick: () => closeModal() }, '닫기')))));
+});
 const fsBtn = $('btn-fs');
 if (!AM.isStandalone() && AM.canFullscreen()) fsBtn.classList.remove('hidden');
 fsBtn.addEventListener('click', () => { AM.toggleFullscreen(); game.mark('app'); });
@@ -2713,6 +2732,11 @@ function perfTick(ms) {
       if (gpu) toast(`그리기를 CPU로 바꿨어요 — ${(1000 / gpu).toFixed(0)} → ${(1000 / perf.ema).toFixed(0)}fps`);
     }
   }
+  // v411 칠대성(탄막) 판에서 많이 버거우면(평균 40ms 넘게) 한 칸씩이 아니라 바로 가장 가볍게 — 한 칸에 3초씩이면 120초 판의 4분의 1이 버벅였다
+  if (perf.slow >= 1 && perf.ema > 40 && perf.q === 'auto' && perf.step < AUTO_STEPS.length - 1 && game.inst?.kind === 'wraid') {
+    perf.slow = 0; perf.step = AUTO_STEPS.length - 1; perf.lastDrop = now; applyQuality();
+    return;
+  }
   if (perf.slow >= 3) {
     perf.slow = 0;
     if (perf.q === 'auto' && perf.step < AUTO_STEPS.length - 1) {
@@ -2912,6 +2936,20 @@ function endDiag() {
     h('p', { class: 'diag-verdict' }, verdict.replace(/\*\*/g, '')),
     h('div', { class: 'btn-row' }, h('button', { class: 'btn', onclick: closeModal }, '닫기'))));
 }
+// v411 칠대성(탄막) 판에서 화면이 버거우면(프레임 평균 40ms 넘게 1.5초) 그 판 동안만 연출을 「가볍게」 — 판이 끝나면 되돌린다.
+//   CPU 6배 느린 기기 흉내(석가여래 · 탄 70개): 화려 한 프레임 ~190ms → 가볍게 ~29ms
+let wbEma = 0, wbSlowT = 0, wbLiteSaid = false;
+function wbLiteTick(dt) {
+  const inWb = game.inst?.kind === 'wraid' && !game.inst.done;
+  if (!inWb) { if (view.wbLite) view.wbLite = false; wbEma = 0; wbSlowT = 0; return; }
+  if (view.wbLite || !(dt > 0) || dt > 1 || document.hidden) return;
+  wbEma = wbEma ? wbEma * 0.9 + dt * 0.1 : dt;
+  wbSlowT = wbEma > 0.04 ? wbSlowT + dt : 0;
+  if (wbSlowT >= 1.5 && view.fxPref > 0) {
+    view.wbLite = true;
+    if (!wbLiteSaid) { wbLiteSaid = true; toast('탄막이 버거워 보여서 이 판 동안 연출을 가볍게 했어요(탄은 그대로 보여요)'); }
+  }
+}
 function step(now) {
   if (diag) {
     if (diag.last) { const g = now - diag.last; diag.gaps.push(g); if (g > 50) diag.slow++; }
@@ -2923,6 +2961,7 @@ function step(now) {
   const tA = dg ? performance.now() : 0;
   let dt = (now - last) / 1000;
   last = now;
+  wbLiteTick(dt);   // v411
   if (dt > 3) dt = 0;
   dt = Math.min(dt, 0.25);
   const steps = Math.min(3, Math.ceil(dt / 0.05));

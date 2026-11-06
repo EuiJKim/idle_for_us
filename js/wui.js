@@ -1178,7 +1178,7 @@ function bagTab(app) {
   function gearView() {
     const s = game.s;
     // v256: 등급(rar)·각인 칸 수도 — 가방 속 장비를 각인으로 올려도 타일 색·등급이 그대로였다
-    const nsig = `${game.statSig()}|${s.bag.map((i) => `${i.uid}.${i.plus || 0}.${i.rar || 0}.${(i.imps || []).filter(Boolean).length}`).join(',')}|${s.bagSize}|${ui.slot}|${s.autoJunk ? 1 : 0}.${s.junkLog?.n || 0}|${s.gold >= game.bagUpgradeCost()}|${pick.on ? [...pick.sel].join('.') : 'x'}|${(() => { const t = game.upgradeTip(); return t ? `${t.kind}.${t.slot}.${t.gain.toFixed(3)}` : '-'; })()}|${s.autoEnh ? 1 : 0}${s.autoInf ? 1 : 0}.${JSON.stringify(s.autoEnhCfg || 0)}.${JSON.stringify(s.autoInfCfg || 0).length}`;   // v371 자동 설정이 바뀌면 다시
+    const nsig = `${game.statSig()}|${s.skillPts}|${s.bag.map((i) => `${i.uid}.${i.plus || 0}.${i.rar || 0}.${(i.imps || []).filter(Boolean).length}`).join(',')}|${s.bagSize}|${ui.slot}|${s.autoJunk ? 1 : 0}.${s.junkLog?.n || 0}|${s.gold >= game.bagUpgradeCost()}|${pick.on ? [...pick.sel].join('.') : 'x'}|${(() => { const t = game.upgradeTip(); return t ? `${t.kind}.${t.slot}.${t.gain.toFixed(3)}` : '-'; })()}|${s.autoEnh ? 1 : 0}${s.autoInf ? 1 : 0}.${JSON.stringify(s.autoEnhCfg || 0)}.${JSON.stringify(s.autoInfCfg || 0).length}`;   // v371 자동 설정이 바뀌면 다시
     if (nsig === sigs.gear) return;
     sigs.gear = nsig;
     // 낀 여섯 칸 — 셋씩 두 줄
@@ -1218,12 +1218,15 @@ function bagTab(app) {
     gearRoot.replaceChildren(...[
       h('div', { class: 'card' }, h('h3', {}, '끼고 있는 것', h('small', {}, `전투력 ${fmt(game.stats().power)} · 눌러서 강화·승급`)),
         // v403 지금 뭘 올리면 제일 세지나 — 누르면 그 장비의 그 칸
+        // v411 무공 점수는 전투력에 안 잡혀 따로 — 남았으면 한 줄
+        s.skillPts > 0 && game.skillList().some((k) => game.canSkillUp(k.id)) ? h('button', { class: 'up-tip', id: 'up-tip-skill', onclick: () => app.showTab('char', 'skill') }, h('span', {}, '💡 '), h('b', {}, `무공 점수 ${s.skillPts}점`), h('span', {}, ' 남았어요 — 무공을 올려요'), h('i', {}, ' ›')) : '',
         (() => {
           const t = game.upgradeTip();
           if (!t) return '';
           const it = s.equip[t.slot];
-          return h('button', { class: 'up-tip', id: 'up-tip', onclick: () => { game.mark?.('upTip'); if (it) openItem(it, true, t.kind === 'imp' ? 'imp' : 'enh'); } },
-            h('span', {}, '💡 지금 올리면 가장 세져요: '), h('b', {}, t.name), h('span', {}, ` 전투력 +${(t.gain * 100).toFixed(t.gain < 0.01 ? 2 : 1)}% · 은자 ${fmt(t.cost)}`), h('i', {}, ' ›'));
+          return h('button', { class: 'up-tip', id: 'up-tip', onclick: () => { game.mark?.('upTip'); if (t.kind === 'skill') app.showTab('char', 'skill'); else if (it) openItem(it, true, t.kind === 'imp' ? 'imp' : 'enh'); } },
+            h('span', {}, '💡 지금 올리면 가장 세져요: '), h('b', {}, t.name),
+            h('span', {}, ` 전투력 +${(t.gain * 100).toFixed(t.gain < 0.01 ? 2 : 1)}%${t.p < 1 ? ` · 성공 ${Math.round(t.p * 100)}%(기대 +${(t.ev * 100).toFixed(t.ev < 0.01 ? 2 : 1)}%)` : ''}${t.kind === 'skill' ? ' · 무공 점수' : ` · 은자 ${fmt(t.cost)}`}`), h('i', {}, ' ›'));
         })(),
         h('div', { class: 'gear-grid' }, ...tiles),
         // v262 자동 강화·등급 각인

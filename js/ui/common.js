@@ -75,7 +75,25 @@ export function ctxMenu(e, items) {
   const off = () => { removeEventListener('pointerdown', close, true); removeEventListener('keydown', close, true); removeEventListener('wheel', close, true); };
   setTimeout(() => { addEventListener('pointerdown', close, true); addEventListener('keydown', close, true); addEventListener('wheel', close, true); }, 0);
 }
+// v411 지난 알림 — 토스트로 뜬 글을 60개까지 남긴다(이 기기에만 · 새로 고쳐도 남는다)
+const NOTE_KEY = 'ifu.notes', NOTE_MAX = 60;
+let notes = null, notesNew = 0;
+const notesLoad = () => { if (notes) return notes; try { notes = JSON.parse(localStorage.getItem(NOTE_KEY) || '[]'); if (!Array.isArray(notes)) notes = []; } catch { notes = []; } return notes; };
+export function noteLog() { return notesLoad().slice().reverse(); }
+export function noteNew() { return notesNew; }
+export function noteSeen() { notesNew = 0; document.getElementById('btn-notes')?.classList.remove('has'); }
+function notePush(text) {
+  const L = notesLoad();
+  const t = String(text ?? '').trim();
+  if (!t || (L.length && L[L.length - 1].t === t && Date.now() - L[L.length - 1].at < 3000)) return;
+  L.push({ t: t.slice(0, 300), at: Date.now() });
+  while (L.length > NOTE_MAX) L.shift();
+  notesNew++;
+  document.getElementById('btn-notes')?.classList.add('has');
+  try { localStorage.setItem(NOTE_KEY, JSON.stringify(L)); } catch { /* 저장 못 해도 이번 판은 남는다 */ }
+}
 export function toast(text, act) {   // v403 act: 누르면 할 일(바로가기)
+  notePush(text);
   const box = document.getElementById('toast');
   const el = h('div', { class: act ? 'toast act' : 'toast' }, tidyNum(text));
   if (act) el.addEventListener('click', () => { try { act(); } catch { /* 바로가기 실패는 조용히 */ } });
