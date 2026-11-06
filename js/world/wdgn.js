@@ -438,7 +438,7 @@ export function wraidMap(boss, lv, z) {
 // 한 사람 하루 두 번, 한 번에 40초. 친 만큼 서버의 체력이 깎인다. 칠 때마다 참여 보상, 잡히면 친 사람 모두 큰 보상.
 // 두목 체력 = 문파원 저마다의 40초 딜 × 하루 두 번 × 이레 × 절반 — 다들 절반쯤만 나와도 주 안에 잡힌다.
 export const RAID_SEC = 40;
-export const RAID_PER_DAY = 4;   // v428 2 → 4(두목 체력도 그만큼 — raidMaxHp가 이 수를 곱한다)
+export const RAID_PER_DAY = 10;   // v428 2 → 4 · v431 → 10(두목 체력도 그만큼 — raidMaxHp가 이 수를 곱한다)
 export const RAID_HP_SHARE = 0.5;
 export function weekKey(now = Date.now()) {
   const d = new Date(now + 9 * 3600e3);

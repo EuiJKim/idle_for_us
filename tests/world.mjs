@@ -4009,8 +4009,8 @@ console.log('\n=== v426 걷는 동안은 걷는 쪽을 본다 ===');
 console.log('\n=== v428 문파 토벌 하루 4번 · 길잡이 단계면 한 번 더 ===');
 {
   const g = new WorldGame(newWorldSave(), Date.now()); g.emit = () => {}; g.s.job = 'sword'; g.s.level = 40; g.s.guildId = 'g1'; g._stats = null;
-  ok(DG.RAID_PER_DAY === 4 && g.raidLeft() === 4, '하루 4번');
-  g.s.raid.day = DG.kstDay(Date.now()); g.s.raid.n = 4;
+  ok(DG.RAID_PER_DAY === 10 && g.raidLeft() === 10, '하루 10번');
+  g.s.raid.day = DG.kstDay(Date.now()); g.s.raid.n = 10;
   ok(g.raidLeft() === 0, '다 쓰면 0');
   const ix = Q.QUESTS.findIndex((q) => q.id === 'raid'); g.s.quest = ix; g.s.questV = Q.QUEST_V;
   ok(g.questNow()?.q.id === 'raid' && g.raidBonus() === 1 && g.raidLeft() === 1 && g.canRaid(1e9), '길잡이 「문파 토벌」 단계면 한 번 더');
