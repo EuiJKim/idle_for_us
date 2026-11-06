@@ -405,6 +405,9 @@ export class WorldGame {
     const s = this.s;
     switch (id) {
       case 'tower50': return (s.tower?.floor || 0) >= 50;
+      case 'daily50': return Math.max(0, ...Object.values(s.dgn?.best || {})) >= 50;
+      case 'daily75': return Math.max(0, ...Object.values(s.dgn?.best || {})) >= 75;
+      case 'daily100': return Math.max(0, ...Object.values(s.dgn?.best || {})) >= 100;
       case 'tower120': return (s.tower?.floor || 0) >= 120;
       case 'hard30': return (s.tower?.hard || 0) >= 30;
       case 'hard60': return (s.tower?.hard || 0) >= 60;
@@ -624,7 +627,7 @@ export class WorldGame {
     const db = this.compDexBonus();
     gear.atkPct += db; gear.hpPct += db;
     // 무한의 탑: 오른 층마다 영구히
-    const tb = D.towerBonus(s.tower?.floor) + D.hardBonus(s.tower?.hard);   // v350 극의 층도
+    const tb = D.towerBonus(s.tower?.floor) + D.hardBonus(s.tower?.hard) + D.corridorBonus(s.tower?.cor?.all);   // v350 극의 층도 · v403 회랑 기록도
     gear.atkPct += tb; gear.hpPct += tb;
     // v391 천마혼 — 5차 천마신공
     if (this.cheonmaOn()) for (const [k, v] of Object.entries(this.fifth().mods)) gear[k] = (gear[k] || 0) + v;
@@ -2500,6 +2503,48 @@ export class WorldGame {
   // 각인 Lv = 등급(유니크 1 · 전설 2 · 신화 3) + (단 - 1) → 0~12 (신화 10단이 12). 수치 셈(imprintOf)은 그대로다.
   impLv(it) { const e = IM.normEntry(it?.imps?.[0]); return e ? Math.min(3, it.rar || 0) + IM.danOf(e) - 1 : 0; }
   // 이 칸이 노리는 기운 — 고른 것 · 없으면 지금 새겨진 것
+  // v403 「지금 뭘 올리면 제일 세지나」 — 낀 장비의 강화·각인·초월을 한 번씩 해 본 판(복제)에서 전투력이 은자 값 대비 가장 많이 오르는 것.
+  //   성공 확률은 1로 보고(기대값이 아니라 '올리면'), 은자가 모자란 것은 빼며, 10초마다 한 번만 센다
+  upgradeTip(now = Date.now()) {
+    const sig = `${this.statSig?.() || ''}|${Math.floor(Math.log10(this.s.gold + 1) * 20)}|${Object.keys(this.s.mats).length}`;
+    if (this._tip && this._tip.sig === sig && now - this._tip.at < 10e3) return this._tip.v;
+    const base = this.power();
+    let best = null;
+    const raw = JSON.stringify(this.s);
+    const tries = [];
+    for (const x of W.SLOTS) {
+      const it = this.s.equip[x.id];
+      if (!it) continue;
+      if (this.canEnhance(it) && this.s.gold > this.enhanceCost(it)) tries.push({ kind: 'enh', slot: x.id, uid: it.uid, name: `${x.name} 강화` });
+      if (this.canImprintItem(it) && this.impNext(it).can) tries.push({ kind: 'imp', slot: x.id, uid: it.uid, name: `${x.name} 각인` });
+      if (this.canTransItem(it) && this.canTranscend(it)) tries.push({ kind: 'trans', slot: x.id, uid: it.uid, name: `${x.name} 초월` });
+    }
+    for (const t of tries) {
+      try {
+        const c = new WorldGame(JSON.parse(raw), now);
+        c.rng = () => 0; c.emit = () => {};
+        const g0 = c.s.gold;
+        const r = t.kind === 'enh' ? c.enhance(t.uid, true) : t.kind === 'imp' ? c.impUp(t.uid) : c.transcend(t.uid);
+        if (!r) continue;
+        c._stats = null; c._mods = null;
+        const gain = c.power() / base - 1, cost = Math.max(1, g0 - c.s.gold);
+        if (!(gain > 0.0005)) continue;
+        const score = gain / Math.max(cost, this.s.gold * 0.01);
+        if (!best || score > best.score) best = { ...t, gain, cost, score };
+      } catch { /* 해 볼 수 없는 것은 건너뛴다 */ }
+    }
+    this._tip = { sig, at: now, v: best };
+    return best;
+  }
+  // v403 고른 기운의 증표가 바닥나 막힌 칸 — 가진 증표가 가장 많은 기운(30개 이상)과 함께. 각인 칸 짚기(v402)·자동 각인 알림이 같이 쓴다
+  impStuck() {
+    const tot = {};
+    for (const [k, v] of Object.entries(this.s.mats)) if (W.isMarkKey(k) && v > 0) { const t = IM.themeOfZone(+k.slice(1)); tot[t] = (tot[t] || 0) + v; }
+    const best = Object.entries(tot).sort((a, b) => b[1] - a[1])[0];
+    if (!best || best[1] < 30) return null;
+    const slots = W.SLOTS.map((x) => this.s.equip[x.id]).filter((it) => it && this.canImprintItem(it)).filter((it) => { const nx = this.impNext(it); return !nx.can && nx.kind !== 'max' && this.impThemeOf(it) !== best[0]; });
+    return slots.length ? { theme: best[0], have: best[1], slots } : null;
+  }
   impThemeOf(it) { const e = IM.normEntry(it?.imps?.[0]); return this.s.impTheme?.[it?.slot] || (e ? IM.themeOfZone(+e.k.slice(1)) : null); }
   setImpTheme(slot, theme) {
     if (!W.SLOTS.some((x) => x.id === slot)) return false;
@@ -3662,7 +3707,15 @@ export class WorldGame {
             .map((it) => ({ it, nx: this.impNext(it) }))
             .filter(({ nx }) => nx.can && this.s.gold - (nx.gold || 0) > reserve && (!nx.key || (this.s.mats[nx.key] || 0) - nx.n >= (keep[nx.key] || 0)))
             .sort((a, b) => this.impLv(a.it) - this.impLv(b.it));
-          if (!cand.length) break;
+          if (!cand.length) {
+            // v403 하나도 못 올렸는데 막힌 칸이 있으면 — 한 번 알린다(같은 막힘은 30분에 한 번)
+            if (n === 0 && !out.enh) {
+              const st = this.impStuck(), mine = st?.slots.filter((it) => cfg.slots?.[it.slot] !== false) || [], key = st ? `${st.theme}:${mine.map((it) => it.slot).join(',')}` : '';
+              const now = Date.now();
+              if (mine.length && (key !== this._stuckKey || now - (this._stuckAt || 0) > 30 * 60e3)) { this._stuckKey = key; this._stuckAt = now; this.emit('impStuck', { theme: st.theme, have: st.have, n: mine.length }); }
+            }
+            break;
+          }
           const r = this.impUp(cand[0].it.uid);
           if (!r) break;
           if (r.kind === 'dan') { out.dan = (out.dan || 0) + 1; if (r.ok && IM.GS_DAN.includes(IM.danOf(cand[0].it.imps?.[0]))) out.gs = (out.gs || 0) + 1; } else out.inf++;
@@ -4714,7 +4767,13 @@ export class WorldGame {
     } else if (I.kind === 'tower' && ok && I.corridor) {
       this.tday('tower');
       const c = this.corridorState();
-      if (I.stage - D.TOWER_MAX > c.best) { c.best = I.stage - D.TOWER_MAX; c.all = Math.max(c.all || 0, c.best); reward = this.grant({ gold: D.corridorGold(I.stage) }); }
+      if (I.stage - D.TOWER_MAX > c.best) {
+        c.best = I.stage - D.TOWER_MAX;
+        const rec = c.best > (c.all || 0);
+        c.all = Math.max(c.all || 0, c.best);
+        if (rec) { this._stats = null; I.record = true; }
+        reward = this.grant(rec ? D.corridorRecordReward(I.stage) : { gold: D.corridorGold(I.stage) });   // v403 새 기록이면 영구 덤 + 보상 크게
+      }
     } else if (I.kind === 'tower' && ok && !I.hard) {
       this.tday('tower');
       this.s.tower.floor = Math.max(this.s.tower.floor, I.stage);
@@ -4740,7 +4799,7 @@ export class WorldGame {
       }
     }
     const res = { kind: I.kind, id: I.id, stage: I.stage, ok, gotKey: !!I.gotKey, extra: !!I.extra, died: !!I.done?.died, timeout: !!I.done?.timeout, left: !!I.done?.left, key: I.key, dealt: I.dealt || 0,
-      kills: I.kills || 0, target: I.target || 0, reward, chain: false, unsent: I.unsent || 0, byOther: !!I.done?.byOther, paid: I.paid !== false, hard: !!I.hard, newMount: I.newMount || null };
+      kills: I.kills || 0, target: I.target || 0, reward, chain: false, unsent: I.unsent || 0, byOther: !!I.done?.byOther, paid: I.paid !== false, hard: !!I.hard, newMount: I.newMount || null, record: !!I.record };
     this.inst = null;
     // 탑: 이기고 '이어 오르기'면 다음 층으로
     if (I.kind === 'tower' && ok && I.hard && this.s.tower.auto && !I.done.left && !I.newMount && this.canHard()) {

@@ -1863,6 +1863,23 @@ console.log('\n=== v263 각성 · 깨달음 · 견문록 · 회랑 · 길잡이 
   ok(DG.towerHp(DG.TOWER_MAX + 10) > DG.towerHp(DG.TOWER_MAX) * 1.9 && DG.corridorPats('2026-11-02').length === 4 && JSON.stringify(DG.corridorPats('2026-11-02')) !== JSON.stringify(DG.corridorPats('2026-11-09')), '회랑은 층마다 단단해지고 주마다 초식이 바뀐다');
   T.inst.done = { ok: true }; T.tick(0.05);
   ok(T.s.tower.cor.best === 1, '이번 주 기록 1층');
+  {
+    // v403 요일 던전 50·75·100단계 칭호
+    const Y = fresh(); const k = DG.DAILY[0].id;
+    Y.s.dgn.best[k] = 49; ok(!Y.titleDone('daily50'), '49단계 — 아직');
+    Y.s.dgn.best[k] = 76; Y.checkTitles();
+    ok(Y.hasTitle('daily50') && Y.hasTitle('daily75') && !Y.hasTitle('daily100'), '76단계 — 〈요일의 고수〉·〈요일의 절정〉');
+    Y.s.dgn.best[k] = 100; Y.checkTitles(); ok(Y.hasTitle('daily100'), '100단계 — 〈칠요의 주인〉');
+  }
+  {
+    // v403 끝없는 회랑 — 기록 층마다 영구 덤, 새 기록이면 보상 크게
+    const a0 = T.stats().atk;
+    T.s.tower.cor.all = 40; T._stats = null;
+    ok(T.stats().atk > a0 && Math.abs(DG.corridorBonus(40) - 0.1) < 1e-9, '회랑 기록 40층 → 공격력·체력 +10% 영구');
+    ok(DG.corridorRecordReward(DG.TOWER_MAX + 10).petShard > DG.corridorRecordReward(DG.TOWER_MAX + 9).petShard && DG.corridorRecordReward(DG.TOWER_MAX + 9).gold === DG.corridorGold(DG.TOWER_MAX + 9) * 3, '새 기록 보상 — 은자 세 배 · 10층마다 조각 크게');
+    T.inst = null; T.s.tower.cor = { key: T.s.tower.cor.key, best: 40, all: 40 }; T.startCorridor(); const p0 = T.s.petShard || 0; T.inst.done = { ok: true }; T.tick(0.05);
+    ok(T.s.tower.cor.all === 41 && (T.s.petShard || 0) > p0, '새 기록 41층 — 기록 오르고 조각');
+  }
   // 길잡이 — 조작 알아두기는 읽고 바로 받는다
   const Qg = fresh();
   Qg.s.quest = Q.QUESTS.findIndex((q) => q.id === 'zoom');
@@ -3556,7 +3573,7 @@ console.log('\n=== v387 칠대성·천계 어렵게 ===');
 {
   const Dx = await import('../js/world/wdgn.js');
   const hw = 5e9;
-  ok(Dx.wraidMaxHp(hw, 'umawang') >= hw * 300 && Dx.wraidMaxHp(hw, 'seokga') / Dx.wraidMaxHp(hw, 'umawang') >= 10, '체력 크게 — 칠대성 화무기 ×300 · 석가여래는 그 ×12');
+  ok(Dx.wraidMaxHp(hw, 'umawang') >= hw * 1500 && Dx.wraidMaxHp(hw, 'seokga') / Dx.wraidMaxHp(hw, 'umawang') >= 20, '체력 크게 — 칠대성 화무기 ×1500 · 석가여래는 그 ×24');
   ok([0, 1, 2, 3].every((i) => i === 0 || (Dx.WB_TIER[i].hit > Dx.WB_TIER[i - 1].hit && Dx.WB_TIER[i].heal < Dx.WB_TIER[i - 1].heal && Dx.WB_TIER[i].dens > Dx.WB_TIER[i - 1].dens && Dx.WB_TIER[i].pot > Dx.WB_TIER[i - 1].pot)), '단계마다 — 아프게 · 회복 덜 · 빽빽하게 · 물약 숨 길게');
   ok(Dx.wbTierOf('umawang') === 0 && Dx.wbTierOf('nata') === 1 && Dx.wbTierOf('okhwang') === 2 && Dx.wbTierOf('seokga') === 3, '단계 나누기');
   // 회복이 줄어든다 — 흡혈·물약이 끝없이 들지 않는다
@@ -3708,5 +3725,40 @@ console.log('\n=== v401 일일 던전 — 30단계 위로 계속 ===');
 }
 console.log('\n=== v402 막힌 각인 칸 — 기운 바꾸기 제안 ===');
 ok(/imp-switch/.test(read('js/wui.js')) && /가진 증표가 가장 많은 기운/.test(read('js/wui.js')), '각인 칸 — 고른 기운 증표가 없으면 가진 증표 많은 기운으로 바꾸자고 짚는다');
+console.log('\n=== v403 칠대성·천계 더 세게 · 저사양 탄막 ===');
+{
+  const Dx = await import('../js/world/wdgn.js');
+  ok(Dx.WRAID_HP_K >= 1500 && Dx.OK_HP_K >= 8 && Dx.GATE_HP_K >= 3 && Dx.SK_HP_K >= 3 && Dx.WB_TIER[0].hit >= 0.12, '칠대성 ×1500 · 관문 ×3 · 옥황 ×8 · 석가 ×3 · 탄 더 아프게');
+  const B = read('js/battle.js');
+  ok(/function bulletSpr/.test(B) && /bulletSpr\(u\.kind, c, r\)/.test(B) && /lite && !u\.big/.test(B), '탄 몸통은 구워 둔 그림으로 · 가벼운 그리기면 작은 탄 빛 생략');
+}
+console.log('\n=== v403 지금 뭘 올리면 제일 세지나 ===');
+{
+  const g = fresh('sword');
+  while (g.s.level < 60) g.addExp(W.expToNext(g.s.level));
+  g.s.gold = 1e12; for (const x of W.SLOTS) { const m = g.s.equip[x.id] && g.enhanceMats(g.s.equip[x.id]); if (m) g.s.mats[m.key] = 1e4; }
+  const p0 = g.power(), g0 = g.s.gold, t = g.upgradeTip();
+  ok(t && t.gain > 0 && t.cost > 0 && g.s.equip[t.slot] && ['enh', 'imp', 'trans'].includes(t.kind), '추천 — 낀 장비 하나의 강화·각인·초월', t && `${t.name} +${(t.gain * 100).toFixed(2)}%`);
+  ok(g.power() === p0 && g.s.gold === g0, '추천은 복제 판에서만 해 본다(내 판은 그대로)');
+  g.s.gold = 0; g._tip = null;
+  ok(!g.upgradeTip(), '은자가 없으면 추천 없음');
+  ok(/id: 'up-tip'/.test(read('js/wui.js')), '가방 위 한 줄 — 누르면 그 장비 창');
+}
+console.log('\n=== v403 자동 각인이 막히면 알린다 ===');
+{
+  const g = fresh('sword');
+  while (g.s.level < 80) g.addExp(W.expToNext(g.s.level));
+  g.s.gold = 1e15; g.rng = () => 0;
+  for (const k of Object.keys(g.s.mats)) if (W.isMarkKey(k)) g.s.mats[k] = 0;
+  for (const x of W.SLOTS) if (g.s.equip[x.id] && g.canImprintItem(g.s.equip[x.id])) { g.s.equip[x.id].rar = 0; g.s.equip[x.id].imps = []; g.setImpTheme(x.id, 'dark'); }
+  g.s.mats.b6 = 200;   // 검기 증표만 잔뜩 — 마기는 없다
+  const st = g.impStuck();
+  ok(st && st.theme === 'sword' && st.slots.length >= 1, '막힌 칸 — 가진 증표 많은 기운을 짚는다', st && `${st.theme} ${st.slots.length}칸`);
+  const evs = []; g.on?.('impStuck', (e) => evs.push(e)); const em = g.emit.bind(g); g.emit = (k, e) => { if (k === 'impStuck') evs.push(e); return em(k, e); };
+  g.s.autoInf = true; g.s.autoInfCfg = { mode: 'theme', marks: {}, slots: {} };
+  g.autoGear(); g.autoGear();
+  ok(evs.length >= 1 && evs.length <= 2 && evs[0].theme === 'sword', '자동 각인 — 막히면 한 번 알린다(같은 막힘은 되풀이 안 함)', `${evs.length}`);
+  ok(/case 'impStuck'/.test(read('js/wmain.js')) && /showTab\('bag', 'imp'\)/.test(read('js/wmain.js')), '알림을 누르면 가방 › 각인');
+}
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);

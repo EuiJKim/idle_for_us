@@ -620,7 +620,7 @@ function bagTab(app) {
       !worn && !it.grow ? ['☑ 여러 개 골라 팔기', () => { pick.on = true; pick.sel.clear(); game.mark('pickSell'); pick.sel.add(it.uid); app.showTab('bag', 'bag'); sigs.gear = ''; gearView(); toast('다른 장비도 눌러 고른 뒤 「팔기」'); }] : null,   // v398
     ]);
   }
-  function openItem(it, worn) {
+  function openItem(it, worn, tab) {
     let useProt = true;
     game.adoptShared?.(it);   // v258: 공유 강화를 이어받은 단계로 강화 값·확률을 보여 준다(판매가에는 공유 몫을 안 넣는다)
     if (it.grow) game.mark('gearView');
@@ -629,7 +629,7 @@ function bagTab(app) {
     let spPick = 0;                          // v167: 새길 고유 효과 (셋 가운데)
     let fillPick = null;                     // v251: 빈 칸에 새길 증표
     let fillSp = 0;                          // v256: 빈 칸에 새길 고유 효과
-    let itemTab = (() => { try { return localStorage.getItem('ifu.itemTab') || 'enh'; } catch { return 'enh'; } })();   // v207
+    let itemTab = tab || (() => { try { return localStorage.getItem('ifu.itemTab') || 'enh'; } catch { return 'enh'; } })();   // v207 · v403 추천에서 오면 그 칸으로
     openModal((s) => {
       // v276 장비 창 다시 — 한눈에는 꼭 볼 것만(숫자·비용 칩·단추). 자세한 것은 눌러서 같은 창 안에서 보고 '← 돌아가기'
       const ORD = ['각인', '각인', '각인'];   // v307 장비마다 한 칸 — 옛 '첫째·둘째·셋째' 자리
@@ -1179,7 +1179,7 @@ function bagTab(app) {
   function gearView() {
     const s = game.s;
     // v256: 등급(rar)·각인 칸 수도 — 가방 속 장비를 각인으로 올려도 타일 색·등급이 그대로였다
-    const nsig = `${game.statSig()}|${s.bag.map((i) => `${i.uid}.${i.plus || 0}.${i.rar || 0}.${(i.imps || []).filter(Boolean).length}`).join(',')}|${s.bagSize}|${ui.slot}|${s.autoJunk ? 1 : 0}.${s.junkLog?.n || 0}|${s.gold >= game.bagUpgradeCost()}|${pick.on ? [...pick.sel].join('.') : 'x'}|${s.autoEnh ? 1 : 0}${s.autoInf ? 1 : 0}.${JSON.stringify(s.autoEnhCfg || 0)}.${JSON.stringify(s.autoInfCfg || 0).length}`;   // v371 자동 설정이 바뀌면 다시
+    const nsig = `${game.statSig()}|${s.bag.map((i) => `${i.uid}.${i.plus || 0}.${i.rar || 0}.${(i.imps || []).filter(Boolean).length}`).join(',')}|${s.bagSize}|${ui.slot}|${s.autoJunk ? 1 : 0}.${s.junkLog?.n || 0}|${s.gold >= game.bagUpgradeCost()}|${pick.on ? [...pick.sel].join('.') : 'x'}|${(() => { const t = game.upgradeTip(); return t ? `${t.kind}.${t.slot}.${t.gain.toFixed(3)}` : '-'; })()}|${s.autoEnh ? 1 : 0}${s.autoInf ? 1 : 0}.${JSON.stringify(s.autoEnhCfg || 0)}.${JSON.stringify(s.autoInfCfg || 0).length}`;   // v371 자동 설정이 바뀌면 다시
     if (nsig === sigs.gear) return;
     sigs.gear = nsig;
     // 낀 여섯 칸 — 셋씩 두 줄
@@ -1218,6 +1218,14 @@ function bagTab(app) {
     // v150: 착용 | 가방을 칸으로 나눴다 — 한 화면에 낀 것·세트·가방·버튼이 다 있어 복잡했다
     gearRoot.replaceChildren(...[
       h('div', { class: 'card' }, h('h3', {}, '끼고 있는 것', h('small', {}, `전투력 ${fmt(game.stats().power)} · 눌러서 강화·승급`)),
+        // v403 지금 뭘 올리면 제일 세지나 — 누르면 그 장비의 그 칸
+        (() => {
+          const t = game.upgradeTip();
+          if (!t) return '';
+          const it = s.equip[t.slot];
+          return h('button', { class: 'up-tip', id: 'up-tip', onclick: () => { game.mark?.('upTip'); if (it) openItem(it, true, t.kind === 'imp' ? 'imp' : 'enh'); } },
+            h('span', {}, '💡 지금 올리면 가장 세져요: '), h('b', {}, t.name), h('span', {}, ` 전투력 +${(t.gain * 100).toFixed(t.gain < 0.01 ? 2 : 1)}% · 은자 ${fmt(t.cost)}`), h('i', {}, ' ›'));
+        })(),
         h('div', { class: 'gear-grid' }, ...tiles),
         // v262 자동 강화·등급 각인
         h('div', { class: 'auto-gear' },
@@ -1517,10 +1525,9 @@ function bagTab(app) {
           ...THEME_ORDER.slice(0, 8).map((t) => h('button', { class: 'chip', style: `--tc:${IM.THEMES[t].col}`, onclick: () => { for (const { x } of worn) game.setImpTheme(x.id, t); app.save(); toast(`여덟 칸 모두 ${IM.THEMES[t].name}(${themeStats(t)}) — 「모두 올리기」로 새겨요`); done(); } }, IM.THEMES[t].name))),
         // v402 고른 기운의 증표가 없는데 다른 기운 증표가 잔뜩이면 — 바꾸자고 짚는다(옛 기운에 영영 갇혔다)
         (() => {
-          const tot = {}; for (const [k, v] of Object.entries(s.mats)) if (W.isMarkKey(k) && v > 0) { const t = IM.themeOfZone(+k.slice(1)); tot[t] = (tot[t] || 0) + v; }
-          const best = Object.entries(tot).sort((a, b) => b[1] - a[1])[0];
-          const stuck = worn.filter(({ it }) => { const nx = game.impNext(it); return !nx.can && nx.kind !== 'max' && game.impThemeOf(it) !== best?.[0]; });
-          if (!best || best[1] < 30 || !stuck.length) return '';
+          const st = game.impStuck();
+          if (!st) return '';
+          const best = [st.theme, st.have], stuck = st.slots.map((it) => ({ it }));
           return h('div', { class: 'imp-hint' }, h('span', {}, `💡 막힌 칸 ${stuck.length}개 — 가진 증표가 가장 많은 기운은 〈${IM.THEMES[best[0]].name}〉(${fmt(best[1])}개)`),
             h('button', { class: 'btn primary', id: 'imp-switch', onclick: () => { for (const { it } of stuck) game.setImpTheme(it.slot, best[0]); app.save(); toast(`막힌 칸을 ${IM.THEMES[best[0]].name} 기운으로 — 「올리기」가 다시 새겨요(단은 절반)`); done(); } }, '그 기운으로 바꾸기'));
         })(),
@@ -2197,6 +2204,11 @@ function dgnTab(app) {
         step('獵', '사냥터', '돌아가 사냥', true)));
     const head = h('div', { class: 'card dgn-head' },
       h('div', {}, h('b', {}, '일일 던전'), h('small', { class: 'muted' }, ` · 도전은 언제든 · 온전한 보상은 하루 ${D.DAILY_ENTRIES}번(남긴 것은 다음 날로) · 새 단계 🔑는 몫을 안 써요 · 그 뒤는 ${Math.round(D.DAILY_EXTRA * 100)}%`),
+        (() => {   // v403 높은 단계 첫 돌파 칭호 — 다음 목표
+          const top = Math.max(0, ...D.DAILY.map((d) => game.dailyBest(d.id)));
+          const nx = [50, 75, 100].find((n) => top < n);
+          return h('div', { class: 'muted dgn-goal' }, nx ? `🏅 어느 요일이든 ${nx}단계를 처음 넘으면 칭호 〈${W.TITLES[`daily${nx}`].name}〉(${W.TITLES[`daily${nx}`].desc.split(' · ')[0]}) · 지금 가장 높이 ${top}단계` : `🏅 〈${W.TITLES.daily100.name}〉 — 요일 던전 칭호를 모두 얻었어요`);
+        })(),
         h('label', { class: 'chk' }, dAuto, ' 요일 던전만 자동'),
         h('label', { class: 'chk', title: '자동(루틴 포함)이 새 단계만 오르고, 막히면 소탕하지 않고 멈춰요' }, dClimb, ' 등반 모드(막히면 멈춤)')),
       h('button', { class: 'btn primary', disabled: sweepN ? null : true, onclick: () => {
@@ -2299,10 +2311,10 @@ function dgnTab(app) {
       const cf = D.TOWER_MAX + c.best + 1;
       out.push(h('div', { class: 'card dgn-card dgn-tower corridor' },
         h('div', { class: 'dgn-top' }, h('div', { class: 'dgn-ico' }, '廊'),
-          h('div', { class: 'dgn-name' }, h('b', {}, '주간 회랑'), h('small', {}, ` 週間回廊 · 이번 주 ${c.best}층 · 지금껏 가장 높이 ${Math.max(c.all || 0, c.best)}층`),
+          h('div', { class: 'dgn-name' }, h('b', {}, '끝없는 회랑'), h('small', {}, ` 無盡回廊 · 이번 주 ${c.best}층 · 기록 ${Math.max(c.all || 0, c.best)}층 · 영구 +${(D.corridorBonus(c.all) * 100).toFixed(2).replace(/\.?0+$/, '')}%`),
             h('div', { class: 'muted' }, `이번 주 초식: ${D.corridorPats().map((p) => D.TELL_NAMES[p] || p).join(' · ')}`))),
-        h('p', { class: 'muted dgn-desc' }, `120층 위. 월요일 0시(한국 시간)마다 처음부터 — 초식 조합이 바뀌고 층마다 수문장이 ${Math.round((D.CORRIDOR_HP_UP - 1) * 100)}%씩 단단해져요. 영구 덤은 없고, 이번 주 처음 오른 층마다 은자.`),
-        h('div', { class: 'dgn-stage' }, h('div', { class: 'stg' }, h('b', {}, `${cf - D.TOWER_MAX}층`), h('small', {}, ` 처음 오르면 은자 ${fmt(D.corridorGold(cf))}`))),
+        h('p', { class: 'muted dgn-desc' }, `${D.TOWER_MAX}층 위로 끝없이. 층마다 수문장이 ${Math.round((D.CORRIDOR_HP_UP - 1) * 100)}%씩 단단해지고 보상도 늘어요. 기록 층마다 공격력·체력 +${D.CORRIDOR_BONUS * 100}% 영구(상한 없음) · 새 기록이면 은자 세 배 + 조각(10층마다 더). 월요일 0시(한국 시간)마다 이번 주 층은 처음부터, 초식 조합이 바뀌어요(기록·덤은 남아요).`),
+        h('div', { class: 'dgn-stage' }, h('div', { class: 'stg' }, h('b', {}, `${cf - D.TOWER_MAX}층`), h('small', {}, cf - D.TOWER_MAX > (c.all || 0) ? ` 새 기록 · 은자 ${fmt(D.corridorRecordReward(cf).gold)} + 조각 · 영구 +${D.CORRIDOR_BONUS * 100}%` : ` 이번 주 처음 오르면 은자 ${fmt(D.corridorGold(cf))}`))),
         h('div', { class: 'btn-row' }, h('button', { class: 'btn primary', disabled: game.canCorridor() ? null : true, onclick: () => start(() => game.startCorridor()) }, `회랑 ${cf - D.TOWER_MAX}층 도전`))));
     }
     return out;

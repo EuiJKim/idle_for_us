@@ -1052,6 +1052,10 @@ export const TITLES = {
   seokga: { id: 'seokga', name: '손바닥 안의 무인', desc: '공격력 +20% · 때릴 때마다 〈佛〉', how: '석가여래를 쓰러뜨리기 — 그래도 손바닥 안이었다', atkMul: 1.2, hitFx: '佛', col: '#fcd34d' },
   okhwang: { id: 'okhwang', name: '천외천(天外天)', desc: '공격력 +15% · 때릴 때마다 〈天〉', how: '천궁의 옥황상제 쓰러뜨리기', atkMul: 1.15, hitFx: '天', col: '#fde68a' },
   wraid1: { id: 'wraid1', name: '천하 토벌 일인자', desc: '공격력 +6% · 때릴 때마다 〈討〉', how: '월드보스 피해 순위 1위로 처치', atkMul: 1.06, hitFx: '討', col: '#ef4444' },
+  // v403 요일 던전 높은 단계 — 어느 요일이든 처음 닿으면
+  daily50: { id: 'daily50', name: '요일의 고수', desc: '공격력 +3%', how: '요일 던전 한 곳 50단계', atkMul: 1.03, col: '#a7f3d0' },
+  daily75: { id: 'daily75', name: '요일의 절정', desc: '공격력 +5% · 때릴 때마다 〈曜〉', how: '요일 던전 한 곳 75단계', atkMul: 1.05, hitFx: '曜', col: '#5eead4' },
+  daily100: { id: 'daily100', name: '칠요(七曜)의 주인', desc: '공격력 +8% · 때릴 때마다 〈日〉', how: '요일 던전 한 곳 100단계', atkMul: 1.08, hitFx: '日', col: '#2dd4bf' },
   k1m: { id: 'k1m', name: '백만 처치', desc: '공격력 +4% · 때릴 때마다 〈萬〉', how: '몹 100만 마리', atkMul: 1.04, hitFx: '萬', col: '#e7e5e4' },
 };
 export const AUTO_TITLES = Object.values(TITLES).filter((t) => t.how);

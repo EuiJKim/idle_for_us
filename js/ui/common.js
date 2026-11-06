@@ -75,9 +75,10 @@ export function ctxMenu(e, items) {
   const off = () => { removeEventListener('pointerdown', close, true); removeEventListener('keydown', close, true); removeEventListener('wheel', close, true); };
   setTimeout(() => { addEventListener('pointerdown', close, true); addEventListener('keydown', close, true); addEventListener('wheel', close, true); }, 0);
 }
-export function toast(text) {
+export function toast(text, act) {   // v403 act: 누르면 할 일(바로가기)
   const box = document.getElementById('toast');
-  const el = h('div', { class: 'toast' }, tidyNum(text));
+  const el = h('div', { class: act ? 'toast act' : 'toast' }, tidyNum(text));
+  if (act) el.addEventListener('click', () => { try { act(); } catch { /* 바로가기 실패는 조용히 */ } });
   try { const L = (window.__lastToasts = window.__lastToasts || []); L.push(String(text)); if (L.length > 30) L.shift(); } catch { /* 시험용 기록 */ }
   box.append(el);
   // v342 긴 글은 오래 — 글자 수만큼 읽을 시간을 준다(2.7초 ~ 9초) · 누르면 바로 닫힌다

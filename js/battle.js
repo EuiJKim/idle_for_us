@@ -347,6 +347,25 @@ function glowSpr(col, ring = false) {
   glowCache.set(key, c);
   return c;
 }
+// v403 탄 몸통(빛깔 · 속 흰빛 · 어두운 테두리) — 종류·반지름(0.5 단위)마다 한 장
+const bulletCache = new Map();
+function bulletSpr(kind, c, r) {
+  const rq = Math.max(1, Math.round(r * 2) / 2), key = `${kind}|${rq}`;
+  let cv = bulletCache.get(key);
+  if (cv) return cv;
+  const long = c[2], rx = rq * (long ? 1.7 : 1), ry = rq * (long ? 0.62 : 1);
+  cv = document.createElement('canvas'); cv.width = Math.ceil(rx * 2 + 6); cv.height = Math.ceil(ry * 2 + 6);
+  const g = cv.getContext('2d');
+  g.translate(cv.width / 2, cv.height / 2);
+  g.fillStyle = c[1];
+  g.beginPath(); g.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2); g.fill();
+  g.lineWidth = 2; g.strokeStyle = 'rgba(20,10,0,0.75)'; g.stroke();   // v378 어떤 바닥에서도 보이게 어두운 테두리
+  g.fillStyle = 'rgba(255,255,255,0.92)';
+  g.beginPath(); g.ellipse(0, 0, rq * (long ? 0.95 : 0.5), rq * (long ? 0.3 : 0.5), 0, 0, Math.PI * 2); g.fill();
+  if (bulletCache.size > 400) bulletCache.clear();
+  bulletCache.set(key, cv);
+  return cv;
+}
 // 가운데 (x, y), 반지름 r, 진하기 a — 납작하게(sq) 찍을 수도 있다
 function putGlow(ctx, col, x, y, r, a, sq = 1, ring = false) {
   if (a <= 0.003 || r <= 0) return;
@@ -793,7 +812,10 @@ export class BattleView {
     const list = game.bullets || [];
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
+    // v403 가벼운 그리기(fxLevel 0)면 빛은 큰 탄만 — 몸통·테두리만으로도 잘 보인다
+    const lite = this.fxLevel <= 0;
     for (const u of list) {
+      if (lite && !u.big) continue;
       const x = this.sx(u), y = this.sy(u);
       if (x < -40 || x > this.w + 40 || y < -40 || y > this.h + 40) continue;
       const c = BULLET_COL[u.kind] || BULLET_COL.fire;
@@ -806,16 +828,14 @@ export class BattleView {
       if (x < -40 || x > this.w + 40 || y < -40 || y > this.h + 40) continue;
       const c = BULLET_COL[u.kind] || BULLET_COL.fire;
       const r = u.r * (u.big ? 1.15 : 1);
-      const long = c[2];
-      ctx.save();
-      ctx.translate(x, y);
-      if (long) ctx.rotate(Math.atan2(u.vy * this.squash, u.vx));
-      ctx.fillStyle = c[1];
-      ctx.beginPath(); ctx.ellipse(0, 0, r * (long ? 1.7 : 1), r * (long ? 0.62 : 1), 0, 0, Math.PI * 2); ctx.fill();
-      ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(20,10,0,0.75)'; ctx.stroke();   // v378 어떤 바닥에서도 보이게 어두운 테두리
-      ctx.fillStyle = 'rgba(255,255,255,0.92)';
-      ctx.beginPath(); ctx.ellipse(0, 0, r * (long ? 0.95 : 0.5), r * (long ? 0.3 : 0.5), 0, 0, Math.PI * 2); ctx.fill();
-      ctx.restore();
+      // v403 탄 몸통은 빛깔·크기마다 한 번 구워 두고 찍는다(저사양 폰 — 탄마다 경로 둘·테두리·save/restore를 하던 것)
+      const spr = bulletSpr(u.kind, c, r);
+      if (c[2]) {
+        const a = Math.atan2(u.vy * this.squash, u.vx);
+        ctx.translate(x, y); ctx.rotate(a);
+        ctx.drawImage(spr, -spr.width / 2, -spr.height / 2);
+        ctx.rotate(-a); ctx.translate(-x, -y);
+      } else ctx.drawImage(spr, x - spr.width / 2, y - spr.height / 2);
     }
     // 무인 맞는 점 — 탄막 놀이처럼 작은 점만 맞는다는 걸 보인다. 맞은 뒤 무적이면 깜빡
     const hx = this.heroX, hy = this.groundY - 26 * this.squash;

@@ -1208,7 +1208,7 @@ function showInstEnd(ev) {
     if (ev.newMount) { mountReveal(ev.newMount, ev.stage); return; }
     if (ev.chain) return;
   } else if (ev.kind === 'tower' && ev.ok) {
-    toast(ev.stage > D.TOWER_MAX ? `🏯 ${name} 돌파!${ev.reward?.gold ? ` 은자 ${fmt(ev.reward.gold)}` : ''}`
+    toast(ev.stage > D.TOWER_MAX ? `🏯 ${name} 돌파!${ev.record ? ` 새 기록 — 영구 +${(D.corridorBonus(game.s.tower.cor?.all) * 100).toFixed(2).replace(/\.?0+$/, '')}%` : ''}${ev.reward?.gold ? ` · ${rewardText(ev.reward)}` : ''}`
       : `🏯 ${name} 돌파! 공격력·체력 +${(D.towerBonus(game.s.tower.floor) * 100).toFixed(1)}%${ev.reward?.mats ? ` · 보따리 ${rewardText(ev.reward)}` : ''}`);
     if (ev.chain) return;
   }
@@ -1623,6 +1623,10 @@ function handleEvents() {
       // v262: 자동 강화·각인 — 몇 번 했는지 짧게(결과는 강화 연출 없이)
       case 'autoGear':
         if (ev.enh + ev.inf + (ev.dan || 0) >= 1) toast(`자동${ev.enh ? ` 강화 ${ev.enh}번` : ''}${ev.inf ? ` · 등급 각인 ${ev.inf}번` : ''}${ev.dan ? ` · 칸 단 올리기 ${ev.dan}번` : ''}${ev.gs ? ` · 大成 ${ev.gs}번!` : ''}`);
+        break;
+      // v403 자동 각인이 고른 기운 증표가 없어 멈췄다 — 바꿀지 묻는다(누르면 가방 › 각인)
+      case 'impStuck':
+        toast(`⚠ 자동 각인이 멈췄어요 — 고른 기운의 증표가 없어요(${ev.n}칸). 〈${IM.THEMES[ev.theme]?.name || ev.theme}〉 증표는 ${fmt(ev.have)}개 — 바꿀까요? (누르면 각인 칸)`, () => showTab('bag', 'imp'));
         break;
       // v260: 알맞은 사냥터 따라가기
       case 'followMap':
