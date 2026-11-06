@@ -237,18 +237,12 @@ export class WNet extends Net {
     const pref = this.ref('wbp', boss);
     const p = await ack(this.fs.getDoc(pref));
     const seq = p.exists() ? p.data().seq : 0;
-    let step = 1;
     if (seq) {
       const cur = await ack(this.fs.getDoc(this.ref('wraid', D.wraidDocId(boss, seq))));
       if (cur.exists() && cur.data().total < cur.data().maxHp) return { id: cur.id, boss, ...cur.data() };
-      // v405 지난 마왕의 단계(체력에서) · 빨리 쓰러졌으면 한 단계 위, 오래 걸렸으면 아래
-      if (cur.exists()) {
-        const c = cur.data(), ms = (c.killedAt?.toMillis?.() || 0) - (c.createdAt?.toMillis?.() || 0);
-        step = D.wraidNextStep(D.wraidStepOfHp(c.maxHp, this.game.hwamugiHp(), boss), ms);
-      }
     }
     const next = seq + 1;
-    const maxHp = Math.min(1e18, D.wraidMaxHp(this.game.hwamugiHp(), boss, step));
+    const maxHp = D.wraidMaxHp(this.game.hwamugiHp(), boss);
     const b = this.fs.writeBatch(this.db);
     if (seq) b.update(pref, { seq: next }); else b.set(pref, { seq: 1 });
     b.set(this.ref('wraid', D.wraidDocId(boss, next)), { boss, seq: next, maxHp, total: 0, damage: {}, names: {}, claimed: {}, killedAt: null, killer: null, createdAt: this.fs.serverTimestamp() });
@@ -301,7 +295,7 @@ export class WNet extends Net {
     if (!ok) { delete this.wdone[r.id]; return null; }
     const rank = this.wraidMyRank(r);
     const boss = D.wraidBossOfId(r.id);
-    const out = this.game.wraidClaim(rank, boss.id, D.wraidStepOfHp(r.maxHp, this.game.hwamugiHp(), boss.id));
+    const out = this.game.wraidClaim(rank, boss.id);
     delete this.wdone[r.id];
     this.changed('wraid');
     return { rank, reward: out, boss };

@@ -2373,11 +2373,10 @@ function dgnTab(app) {
         h('div', { class: 'wraid-name' }, h('small', {}, '화무기 그 너머 · 무림 전체가 함께'), h('b', {}, '칠대성(七大聖)'))),
       h('ul', { class: 'wraid-how' },
         h('li', {}, `👹 화과산의 의형제 칠대성(우마왕~손오공)이 늘 서 있어요 — 체력은 화무기의 ${D.WRAID_HP_K}배, 무림 사람 모두가 함께 깎아요(혼자서는 한참)`),
-        h('li', {}, `📈 마왕이 ${D.WRAID_STEP_FAST / 3600e3}시간 안에 쓰러지면 다음 마왕은 한 단계 위, 더 걸리면 한 단계 아래로 일어나요 — 단계마다 체력 ×${D.WRAID_STEP_HP} · 탄 한 대 +0.5%p · 탄 +2% · 보상 +10% (${D.WRAID_STEP_MAX}단계까지)`),
-        h('li', {}, '🛡 탄은 맞으면 사라져요 — 함께 치는 무인이 앞에서 막아 주면 뒤로 안 와요(탱커가 앞에 서면 좋아요)'),
         h('li', {}, `🎯 탄을 피하며 쳐요 — 작은 흰 점만 맞아요 · 근거리는 코앞까지 붙어야, 원거리는 멀리서 · ${finePointer ? 'WASD·화살표' : '화면을 끌어'} 움직이고 손을 떼면 자동으로 피해요`),
         h('li', {}, `🛡 쓰러지면 한 대라도 친 사람 모두 그 마왕의 대성신장 한 부위 + 순위 보상(1위 ×3 · 2~3위 ×2 · 10위까지 ×1.5) · 쓰러지면 곧 다음 마왕이 일어나요`),
         h('li', {}, '☁ 대성신장 일곱 부위를 모두 끼면 천외천 천궁 — 옥황상제에게 갈 수 있어요'),
+        h('li', {}, '🛡 탄은 맞으면 사라져요 — 함께 치는 무인이 앞에서 막아 주면 뒤로 안 와요(탱커가 앞에 서면 좋아요)'),
         h('li', {}, `⚠ 단계가 오를수록 탄 한 대가 아파요(체력의 ${D.WB_TIER.map((t) => Math.round(t.hit * 100)).join('→')}%) · 싸우는 동안 회복(흡혈·물약)이 잘 안 들고 물약 숨이 길어요 — 직접 피하세요`),
         h('li', {}, `⏱ 한 판 ${D.WRAID_SEC}초 · 언제든 · 참여 보상은 하루 ${D.WRAID_PAID}판(오늘 ${game.wraidLeft(now)}판 남음) · 레벨 ${D.WRAID_LV}부터`))));
     if (!on) out.push(h('p', { class: 'muted dgn-desc' }, '온라인일 때 들어갈 수 있어요.'));
@@ -2411,7 +2410,7 @@ function dgnTab(app) {
       const cell = h('div', { class: `wraid-cell${open ? ' open' : ''}`, style: `--wb:${b.col}` },
         h('button', { class: 'wraid-cell-top', onclick: () => { wbPick = open ? null : b.id; rerender(); } },
           h('img', { src: `art/boss/${b.art}.png`, alt: b.name }),
-          h('div', { class: 'wraid-cell-name' }, h('b', {}, b.name), h('small', {}, `${b.hanja} · ${SLOT_NAME[b.slot]}${r ? ` · ${D.wraidStepOfHp(r.maxHp, game.hwamugiHp(), b.id)}단계` : ''}`)),
+          h('div', { class: 'wraid-cell-name' }, h('b', {}, b.name), h('small', {}, `${b.hanja} · ${SLOT_NAME[b.slot]}`)),
           have ? h('span', { class: 'wraid-have' }, `✓ +${have.plus || 0}`) : null,
           app.wbLobby?.count(b.id) ? h('span', { class: 'wraid-ppl' }, `👥 ${app.wbLobby.count(b.id)}`) : ''),
         h('div', { class: `raid-hp wraid-hp rage${r ? rg : 0}` }, h('i', { style: `width:${frac * 100}%` }),

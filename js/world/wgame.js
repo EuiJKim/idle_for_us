@@ -4679,13 +4679,13 @@ export class WorldGame {
     r.n = Math.min(999, r.n + 1);
     const z = W.mapOf(this.s.huntMap).mz || 1;
     this.startInst({ kind: 'wraid', key: o.id || o.day, boss0: boss.id, map: D.wraidMap(boss, this.s.level, z), t: D.WRAID_SEC, max: D.WRAID_SEC, wait: 1.2, castT: 3,
-      hpLeft: o.hpLeft, sharedMax: o.maxHp, z, myDealt: 0, sent: 0, paid: r.n <= D.WRAID_PAID, step: o.maxHp ? D.wraidStepOfHp(o.maxHp, this.hwamugiHp(), boss.id) : 1 });
+      hpLeft: o.hpLeft, sharedMax: o.maxHp, z, myDealt: 0, sent: 0, paid: r.n <= D.WRAID_PAID });
     SH.start(this);
     return true;
   }
   // 잡혔을 때 받기 — rank: 피해 순위(1부터). 서버에서 받음 표시를 한 뒤에 부른다.
   //   마왕이면 그 마왕이 맡은 대성신장 한 부위(등급은 순위로 굴린다) · 옥황상제면 순위 보상 ×3
-  wraidClaim(rank, bossId = null, step = 1) {
+  wraidClaim(rank, bossId = null) {
     const r = this.s.wraid;
     r.kills++;
     if (rank === 1) r.top1++;
@@ -4693,7 +4693,7 @@ export class WorldGame {
     if (bossId === D.OKHWANG.id) r.ok = (r.ok || 0) + 1;
     if (bossId === D.SEOKGA.id) { r.sk = (r.sk || 0) + 1; this.emit('palmReveal', { n: r.sk }); }   // v383 손바닥 안이었다
     if (D.isGate(bossId) && !r.gates?.[bossId]) { r.gates = { ...(r.gates || {}), [bossId]: 1 }; this._stats = null; this.emit('gateClear', { boss: b.name, n: this.gatesCleared(), bonus: D.GATE_BONUS }); }
-    const out = this.grant(D.wraidKillReward(this.s.level, rank, bossId, step));   // v405 단계가 높을수록 보상도
+    const out = this.grant(D.wraidKillReward(this.s.level, rank, bossId));
     if (b?.slot) {
       const rar = W.rollRarity(D.palmaRarW(rank), this.rng);
       const it = this.makeKing(b.slot, G.PALMA_ZONE, rar, 'palma');
