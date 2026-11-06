@@ -207,6 +207,9 @@ const FX_PREF = ['low', 'mid', 'high'];
 const FX_NAME = { high: '높음', mid: '보통', low: '낮음' };
 function loadFxPref() { try { return localStorage.getItem('ifu.fx') || 'high'; } catch { return 'high'; } }
 view.fxPref = Math.max(0, FX_PREF.indexOf(loadFxPref()));
+// v430 깔끔 모드 — 기본 켜짐(끄면 옛 그대로: 들판 줍기 글자 · 칭호 타격 글자 · 발밑 인장 · 큰 평타 숫자)
+try { view.clean = localStorage.getItem('ifu.clean') !== '0'; } catch { view.clean = true; }
+view.onLoot = (kind, n, name, color) => { if (kind === 'gold') tally('gold', '은자', n, '#fde68a'); else tally('mat:' + name, name, n, color || '#e5e7eb'); };
 try { const sp = Number(localStorage.getItem('ifu.shake')); if ([0, 0.5, 1].includes(sp) && localStorage.getItem('ifu.shake') !== null) view.shakePref = sp; } catch { /* 사생활 모드 */ }
 
 // 화면 거리 — 전체(지도 한 장) · 보통(가로 꽉) · 가까이. 눌러서 돌리고, 마우스 휠로도 당기고 민다.
@@ -1521,7 +1524,9 @@ function handleEvents() {
     switch (ev.type) {
       case 'attack': sfx('swish'); coop.noteAttack(); wbCoop.noteAttack(); break;
       case 'dmg': sfx('hit', ev.crit > 0); break;
-      case 'skill': sfx('skill'); coop.noteAttack(); coop.noteSkill(ev); wbCoop.noteAttack(); wbCoop.noteSkill(ev); break;
+      case 'skill': sfx('skill'); coop.noteAttack(); coop.noteSkill(ev); wbCoop.noteAttack(); wbCoop.noteSkill(ev);
+        if (view.clean && ev.name) { const b = document.querySelector(`#skillbar .skill-btn[aria-label="${ev.name}"]`); if (b) { b.classList.remove('cast'); void b.offsetWidth; b.classList.add('cast'); } }   // v430 쓴 단추가 밝게 튄다
+        break;
       case 'kill': sfx('kill'); break;
       case 'levelUp': sfx('level'); break;
       case 'path': sfx('level'); break;   // v254 길을 고르면(받는 쪽이 없었다)
@@ -2481,6 +2486,10 @@ $('btn-settings').addEventListener('click', () => openModal((s) => {
         e.target.textContent = `${Math.round(game.s.potionAt * 100)}%`;
         save();
       } }, `${Math.round(game.potionAt() * 100)}%`)),
+    toggleRow('깔끔 모드', view.clean, '줍기 글자는 구석 모음으로 · 평타 숫자는 작게 · 칭호 글자·발밑 인장 없이 · 쓴 무공은 이름 띠와 범위 고리로 하나만 또렷하게 (끄면 화려하게)', (v) => {
+      view.clean = v;
+      try { localStorage.setItem('ifu.clean', v ? '1' : '0'); } catch { /* 이번만 */ }
+    }),
     toggleRow('자동 스킬', game.s.autoSkill, '체력을 쓰는 스킬은 체력이 넉넉할 때만 써요 · 걸으면서도 써요', (v) => { game.s.autoSkill = v; save(); }),
     ]],
     ['shmup', '🌋 탄막', [

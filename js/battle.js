@@ -617,6 +617,8 @@ export class BattleView {
     this.rangeRings = [];             // v157: 펼친 무공의 범위 고리 (설정 '스킬 범위 보기')
     this.rangePreview = null;         // v157: 무공 단추를 길게 누르는 동안 보여 주는 범위 { center, r, reach }
     this.showRange = false;
+    this.clean = true;   // v430 깔끔 모드(기본) — 줍기 글자는 모음으로 · 작은 피해 숫자는 작고 짧게 · 칭호 타격 글자·발밑 인장 없음 · 무공 띠
+    this.skillBand = null;
     this.later = [];       // 조금 뒤에 그릴 사건 (날아가는 평타의 맞은 숫자)
     this.shotDelay = 0;
     this.pending = null;   // 이번 프레임에 시전된 무공 — 결과를 모으는 중
@@ -944,9 +946,9 @@ export class BattleView {
           this.effects.push({ kind: 'shock', life: 0.32, max: 0.32, wx: ev.at.x, wy: ev.at.y, r: 34 + gl.tier * 6, col: rgb, rings: 2, w: 3 });
         }
         // v251: 숫자가 화면을 너무 가렸다 — 약 25% 줄이고(치명·무공 숫자가 특히 컸다) 머리 위로 더 올린다
-        const size = ev.kind === 'pet' ? 12 : ev.kind === 'ally' ? 14 : skill ? 21 : ct ? 18 + Math.min(4, ct) * 2 : 14;
+        const size = (ev.kind === 'pet' ? 12 : ev.kind === 'ally' ? 14 : skill ? 21 : ct ? 18 + Math.min(4, ct) * 2 : 14) * (this.clean && !skill && !ct ? 0.8 : 1);   // v430 깔끔 — 보통 평타 숫자는 작게
         // v305 칭호 — 무인이 때릴 때마다 과녁 위에 그 글자(〈옥〉). 광역 졸개는 넷에 하나만(글자 비가 되지 않게)
-        { const tf = game?.titleNow?.(); if (tf?.hitFx && ev.kind !== 'pet' && ev.kind !== 'ally' && (!ev.add || (this._okN = ((this._okN || 0) + 1)) % 4 === 0)) this.float(tf.hitFx, atX + (Math.random() - 0.5) * 30, atY - 70, tf.col || '#6ee7b7', ev.add ? Math.min(20, tf.fxSize || 20) : (tf.fxSize || 30), 0.8, true); }
+        { const tf = game?.titleNow?.(); if (!this.clean && tf?.hitFx && ev.kind !== 'pet' && ev.kind !== 'ally' && (!ev.add || (this._okN = ((this._okN || 0) + 1)) % 4 === 0)) this.float(tf.hitFx, atX + (Math.random() - 0.5) * 30, atY - 70, tf.col || '#6ee7b7', ev.add ? Math.min(20, tf.fxSize || 20) : (tf.fxSize || 30), 0.8, true); }
         if (ev.add) {
           // 맞은 졸개는 움찔한다(drawAdd가 이 시각을 보고 밀리고 찌그러진다)
           // v255: 붙들었다 푼 사건의 at은 복사본이다 — 진짜 몹(ref)에 적어야 움찔한다
@@ -962,7 +964,7 @@ export class BattleView {
           }
         } else {
           const label = ct >= 2 ? `${critTierName(ct).replace(' 치명', '')}! ` : skill && ct === 1 ? '치명! ' : '';
-          this.float(label + fmt(ev.amount) + (ct === 1 && !skill ? '!' : ''), atX + (Math.random() - 0.5) * 50, atY - FLOAT_UP, color, size, 0.85, ct > 0 || skill);
+          this.float(label + fmt(ev.amount) + (ct === 1 && !skill ? '!' : ''), atX + (Math.random() - 0.5) * 50, atY - FLOAT_UP, color, size, this.clean && !skill && !ct ? 0.55 : 0.85, ct > 0 || skill);   // v430 깔끔 — 보통 평타 숫자는 짧게
         }
         // 맞은 자국은 캐릭터를 따른다 — 독마가 맞힌 자리에 칼자국이 나면 이상하다
         const cls = game.s.job;
@@ -1346,11 +1348,17 @@ export class BattleView {
         if (ev.radius) this.effects.push({ kind: 'area', life: 0.55, max: 0.55, r: ev.radius, id: ev.id, job: ev.job, at: ev.at || null });
         break;
       case 'skill':
+        // v430 깔끔 모드 — 무엇을 썼는지 하나만 또렷하게: 아래쪽 이름 띠 0.7초 · 맞는 범위 고리 한 번 · 그동안 다른 글자는 옅게
+        if (this.clean && ev.name && ev.motion !== 'buff' && !ev.echo) {
+          this.skillBand = { text: ev.name, col: `rgb(${CAST_COL[game?.s?.job] || '253,224,71'})`, life: 0.7, max: 0.7 };
+          if (ev.radius > 0 && ev.at) this.rangeRings = [{ x: ev.at.x, y: ev.at.y, r: ev.radius, life: 0.5, max: 0.5 }];
+        }
         // v220: 발밑 직업 인장 — 차수가 높을수록 크고 오래(4차는 한 바퀴 더 돈다)
         // v245: 4차 필살 연출(ultimate)이 큰 인장·빛살을 따로 그리면 이 둘은 겹치기만 해서 뺀다
         if (this.fxLevel > 0 && !ev._sealed && game?.heroX != null && JOB_SEAL[game.s?.job] && !(ev.fx && /:m4$/.test(ev.fx) && CHOREO[ev.fx])) {
           ev._sealed = true;
           const tr = ev.tier || 1;
+          if (!(this.clean && !(tr >= 4 && !ev.echo))) {   // v430 깔끔 — 발밑 인장은 4차만
           // v250: 멀리서 펼치는 직업(환마·독마·극악소마)의 광역은 터지는 자리에 인장을 — 발밑 인장과 폭발 자리가 떨어져 있었다
           const far = ['fan', 'poison', 'ring'].includes(game.s.job) && ev.radius > 0 && ev.at && ev.motion !== 'buff';
           const cm = game.cheonmaOn?.();   // v391 천마신공 — 인장이 붉은 魔로, 한 단 크게
@@ -1361,6 +1369,7 @@ export class BattleView {
             this.effects.push({ kind: 'ultrays', wx: game.heroX, wy: game.heroY, col: CAST_COL[game.s.job], r: 260, life: 0.6, max: 0.6 });
             this.flash = Math.max(this.flash, 0.22);
             this.shake = Math.max(this.shake, 0.3);
+          }
           }
         }
         // 연출표가 있는 무공은 결과를 모았다가 draw에서 감독에게 넘긴다
@@ -1956,6 +1965,7 @@ export class BattleView {
 
   // v260: 줍기 글자 모으기 — kind 'gold'(은자 합) · 'mat'(재료 이름별 합). LOOT_GAP초 안에 또 들어오면 같은 줄에 더한다.
   lootAdd(kind, n, name = '', color = '#a7f3d0') {
+    if (this.clean) { this.onLoot?.(kind, n, name, color); return; }   // v430 깔끔 모드 — 들판 글자 대신 구석 모음(wmain tally)
     const P = this.loot || (this.loot = {});
     let p = P[kind];
     if (!p || this.t - p.t > LOOT_GAP || !p.f || p.f.life <= 0) {
@@ -2153,6 +2163,7 @@ export class BattleView {
       this.drawFloats(dt, z);
       this.drawHanja(dt);
       this.drawBanner(dt);
+      this.drawSkillBand(dt);   // v430
       this.drawKingIntro(dt, z);
       this.drawDownVignette();
       this.drawHaze(dt);
@@ -4123,6 +4134,7 @@ export class BattleView {
     // v249: 필살 컷인 띠·큰 이름이 떠 있는 동안 그 높이의 숫자는 옅게 — 글자 위에 글자가 찍혀 둘 다 안 읽혔다
     // v260: 컷인 띠는 화면 위쪽(0.08~0.32) · 큰 이름은 0.3 둘레 — 둘 다 위쪽 띠만 옅게
     const band = this.effects.some((e) => (e.kind === 'cutin' || e.kind === 'bigname') && e.life > 0);
+    const sb = this.skillBand && this.skillBand.life > 0.15 ? 0.45 : 1;   // v430 무공 띠가 떠 있는 동안 다른 글자는 옅게
     for (const f of this.floats) {
       f.life -= dt;
       f.y += (f.vy ?? -40) * dt;
@@ -4131,7 +4143,7 @@ export class BattleView {
       if (f.vy != null) { f.vy *= Math.max(0, 1 - dt * 5.5); f.vx *= Math.max(0, 1 - dt * 5); }
       const k = Math.max(0, f.life / f.max);
       // v258: 경고성 글자(치명 경고·피했다!)는 컷인 중에도 흐리지 않는다
-      ctx.globalAlpha = Math.min(1, k * 2.2) * (band && !f.keep && f.y * z > this.h * 0.06 && f.y * z < this.h * 0.4 ? 0.3 : 1) * (this.rangePreview ? 0.3 : 1);   // v425 범위를 보는 동안 옅게
+      ctx.globalAlpha = Math.min(1, k * 2.2) * (band && !f.keep && f.y * z > this.h * 0.06 && f.y * z < this.h * 0.4 ? 0.3 : 1) * (this.rangePreview ? 0.3 : 1) * (f.keep || (f.brush && f.size >= 20) ? 1 : sb);   // v425 범위를 보는 동안 옅게 · v430 무공 띠
       // 처음 0.12초에 크게 튀었다가 제 크기로 — 뒤로 갈수록 살짝 작아진다
       const age = f.max - f.life;
       const pop = age < 0.12 ? 1.45 - age / 0.12 * 0.45 : 1 - Math.max(0, 0.4 - k) * 0.25;
@@ -4460,6 +4472,27 @@ export class BattleView {
     ctx.restore();
   }
 
+  // v430 무공 이름 띠 — 전투 화면 아래쪽(스킬 단추 바로 위)에 작게
+  drawSkillBand(dt) {
+    const b = this.skillBand;
+    if (!b) return;
+    b.life -= dt;
+    if (b.life <= 0) { this.skillBand = null; return; }
+    const { ctx, w } = this;
+    const k = b.life / b.max, inK = Math.min(1, (1 - k) * 8);
+    const y = this.h * 0.80;
+    ctx.save();
+    ctx.globalAlpha = Math.min(1, k * 4) * inK;
+    ctx.font = `22px ${BRUSH}`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const tw = ctx.measureText(b.text).width + 28;
+    ctx.fillStyle = 'rgba(10,8,6,0.72)';
+    roundRect(ctx, w / 2 - tw / 2, y - 15, tw, 30, 8); ctx.fill();
+    ctx.strokeStyle = b.col; ctx.lineWidth = 1.5; ctx.stroke();
+    ctx.fillStyle = '#fdf3d7';
+    ctx.fillText(b.text, w / 2, y + 1);
+    ctx.restore();
+  }
   drawBanner(dt) {
     const b = this.banner;
     if (!b) return;
