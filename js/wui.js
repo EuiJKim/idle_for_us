@@ -2088,7 +2088,7 @@ function mapTab(app) {
       return h('div', { class: `awk-row${on ? ' on' : ''}` },
         h('div', { class: 'awk-info' }, h('b', {}, `覺 ${a.name}`),
           h('small', { class: 'muted' }, open
-            ? ` 체력 ×${a.hp} · 공격 ×${a.atk} · ${n ? `${n}번 · 가장 빨리 ${best}초` : `처음 쓰러뜨리면 보상 ×${W.AWAKEN_FIRST_K}`} · 잡을 때마다 ${rewardText(game.awakenReward(id))}`
+            ? ` 체력 ×${a.hp} · 공격 ×${a.atk} · ${n ? `${n}번 · 가장 빨리 ${best}초` : `처음 쓰러뜨리면 보상 ×${W.AWAKEN_FIRST_K}`} · 잡을 때마다 ${rewardText(game.awakenReward(id))} · 전용 문양 ${s.awk?.rings?.[id] ? '✓ 얻음' : `${Math.round(W.AWAKEN_RING_P * 100)}%(${W.AWAKEN_RING_PITY + 1}번째엔 꼭 · 지금 ${s.awk?.rpity?.[id] || 0})`}`
             : ` 🔒 5차 전직을 마치고 ${base}을(를) 한 번 쓰러뜨리면`)),
         h('div', { class: 'awk-btns' },
           h('button', { class: `btn ${on ? '' : 'primary'}`, id: `awk-${id}`, disabled: open ? null : true,
@@ -2401,6 +2401,8 @@ function dgnTab(app) {
         h('li', {}, '🛡 탄은 맞으면 사라져요 — 함께 치는 무인이 앞에서 막아 주면 뒤로 안 와요(탱커가 앞에 서면 좋아요)'),
         h('li', {}, `⚠ 단계가 오를수록 탄 한 대가 아파요(체력의 ${D.WB_TIER.map((t) => Math.round(t.hit * 100)).join('→')}%) · 싸우는 동안 회복(흡혈·물약)이 잘 안 들고 물약 숨이 길어요 — 직접 피하세요`),
         h('li', {}, `⏱ 한 판 ${D.WRAID_SEC}초 · 언제든 · 참여 보상은 판마다(제한 없음) · 레벨 ${D.WRAID_LV}부터`))));
+    // v413 자동 반복 — 판이 끝나면 같은 마왕(쓰러졌으면 다음 마왕)에 다시
+    if (on && s.level >= D.WRAID_LV) out.push(h('label', { class: 'chk wraid-auto' }, h('input', { type: 'checkbox', id: 'wraid-auto', checked: s.wraid.auto ? true : null, onchange: (e) => { game.s.wraid.auto = e.target.checked; app.save(); toast(e.target.checked ? '🔁 칠대성 자동 반복 — 판이 끝나면 2초 뒤 같은 마왕에 다시 들어가요(나가기를 누르면 멈춰요)' : '자동 반복을 껐어요'); } }), ' 🔁 자동 반복(판이 끝나면 다시 들어가기)'));
     if (!on) out.push(h('p', { class: 'muted dgn-desc' }, '온라인일 때 들어갈 수 있어요.'));
     else if (s.level < D.WRAID_LV) out.push(h('p', { class: 'muted dgn-desc' }, `레벨 ${D.WRAID_LV}부터 마왕에게 갈 수 있어요.`));
     // 받을 것

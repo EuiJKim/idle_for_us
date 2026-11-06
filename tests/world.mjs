@@ -3544,8 +3544,9 @@ console.log('\n=== v386 자동 각인(고른 기운대로) · 강화 칸 · 엔�
   // 4 엔딩 · 후일담
   const last = Dx.HEAVEN_STORY.length - 1;
   g.s.wraid.sk = 1;
-  ok(Dx.HEAVEN_STORY[last].need === 'sk3' && !g.storyOpen(last) && g.storyOpen(last - 1), '후일담 둘 — 석가여래 1번·3번');
-  g.s.wraid.sk = 3; ok(g.storyOpen(last), '세 번 오르면 마지막 장');
+  const s3 = Dx.HEAVEN_STORY.findIndex((x) => x.need === 'sk3');
+  ok(s3 > 0 && !g.storyOpen(s3) && g.storyOpen(s3 - 1), '후일담 둘 — 석가여래 1번·3번');
+  g.s.wraid.sk = 3; ok(g.storyOpen(s3), '세 번 오르면 후일담 〈다시 길 위에〉(v413 종장은 열 번)');
   ok(/function showEnding/.test(read('js/wmain.js')) && /ending-again/.test(read('js/wui.js')), '엔딩 · 다시 보기');
   // 6 빠른 합류
   const rj = JSON.parse(read('database.rules.json'));
@@ -3746,6 +3747,47 @@ console.log('\n=== v403 지금 뭘 올리면 제일 세지나 ===');
   ok(/id: 'up-tip'/.test(read('js/wui.js')), '가방 위 한 줄 — 누르면 그 장비 창');
   ok(t.p > 0 && t.p <= 1 && Math.abs(t.ev - t.gain * t.p) < 1e-12, 'v411 성공 확률과 기대값', `${Math.round(t.p * 100)}%`);
   ok(/id: 'up-tip-skill'/.test(read('js/wui.js')), 'v411 무공 점수가 남았으면 따로 한 줄');
+}
+console.log('\n=== v413 각성 고수 전용 발밑 문양 ===');
+{
+  const g = fresh('sword'); while (g.s.level < 150) g.addExp(W.expToNext(g.s.level));
+  g.s.gold = 1e15; g.s.duel.won = { cheonma: 1 }; while (g.s.jobTier < 5 && g.canAdvance()) g.advance();
+  g.setAwaken('cheonma', true); g.s.dgn.auto = false; g.s.dgn.routine = false; g.enterMap(g.awakenRoom('cheonma'), true);
+  g.rng = () => 0.99; let got = 0, n = 0;
+  for (; n < 30 && !got; n++) { const b = g.spawnMob(true); b.hp = 1; g.events.length = 0; g.killMob(b); if (g.events.some((e) => e.type === 'awakenDown' && e.ring)) got = n + 1; g.mons = g.mons.filter((x) => !x.isBoss); }
+  ok(got === W.AWAKEN_RING_PITY + 1 && g.s.awk.rings.cheonma === 1, `운이 나빠도 ${W.AWAKEN_RING_PITY + 1}번째엔 꼭 — 각성 천마 문양`, `${got}`);
+  ok(fs.existsSync(new URL('../art/hero2/ring-awk-cheonma.png', import.meta.url)) && W.AWAKEN_IDS.every((id) => fs.existsSync(new URL(`../art/hero2/ring-awk-${id}.png`, import.meta.url))), '문양 그림 여섯');
+  g.s.custom = { ...(g.s.custom || {}), ring: 'awk-cheonma' }; ok(migrateWorld(JSON.parse(JSON.stringify(g.s))).custom.ring === 'awk-cheonma' && migrateWorld(JSON.parse(JSON.stringify(g.s))).awk.rings.cheonma === 1, '끼고 저장 · 불러오기');
+}
+console.log('\n=== v413 길잡이 — 전직 단계는 그 레벨 바로 뒤 ===');
+{
+  const ix = (id) => Q.QUESTS.findIndex((q) => q.id === id);
+  ok(ix('tier1') === ix('lv10') + 1 && ix('tier2') === ix('lv30') + 1 && ix('tier3') === ix('lv70') + 1 && ix('tier4') === ix('lv90') + 1, '1차 Lv10 · 2차 Lv30 · 3차 Lv70 · 4차 Lv90 단계 바로 뒤');
+  ok(Q.QUEST_V === 11 && Q.QUEST_IDS_BY_V[10].length === Q.QUEST_COUNT && Q.QUEST_IDS_BY_V[10].every((id) => ix(id) >= 0), '옛 판(10) 차례로 옮겨 온다');
+}
+console.log('\n=== v413 천계 이야기 이어 쓰기 ===');
+{
+  const Dx = await import('../js/world/wdgn.js');
+  const g = fresh('sword'); const L = Dx.HEAVEN_STORY.length; const at = (need) => Dx.HEAVEN_STORY.findIndex((x) => x.need === need);
+  ok(L >= 13 && at('awk1') > 0 && at('awkAll') > 0 && at('sk10') === L - 1, '각성 · 천하의 이름 · 종장(손바닥 밖)');
+  ok(!g.storyOpen(at('awk1')), '각성 고수를 꺾기 전엔 닫힘');
+  g.s.awk.kills.cheonma = 1; ok(g.storyOpen(at('awk1')) && !g.storyOpen(at('awkAll')), '하나 꺾으면 〈각성〉');
+  g.s.wraid.sk = 10; ok(g.storyOpen(at('sk10')), '석가여래 열 번 → 종장');
+  g.s.wraid.read = { 11: 1 }; ok(migrateWorld(JSON.parse(JSON.stringify(g.s))).wraid.read[11] === 1, '두 자리 장 번호도 읽음 표시가 남는다');
+}
+console.log('\n=== v413 칠대성 자동 반복 · 판 보상은 싸운 시간만큼 · 알림 거르기 ===');
+{
+  const Dx = await import('../js/world/wdgn.js');
+  const g = fresh('sword'); while (g.s.level < Dx.WRAID_LV) g.addExp(W.expToNext(g.s.level));
+  const hp = Dx.wraidMaxHp(g.hwamugiHp(), 'umawang');
+  g.startWraid({ id: 'umawang_1', hpLeft: hp, maxHp: hp }, Date.now());
+  g.inst.myDealt = 1000; g.inst.t = Dx.WRAID_SEC - 6; g.inst.done = { left: true }; g.events.length = 0; g.tick(0.05);
+  const e1 = g.events.find((e) => e.type === 'instEnd'); const full = Dx.wraidJoinReward(g.s.level, 1000 / hp).gold;
+  ok(e1 && e1.reward && e1.reward.gold <= full * 0.06 && e1.reward.gold > 0, '6초 만에 나가면 판 보상 5%만', `${e1?.reward?.gold} / ${full}`);
+  g.s.wraid.auto = true; ok(migrateWorld(JSON.parse(JSON.stringify(g.s))).wraid.auto === true, '자동 반복은 저장된다');
+  const M = read('js/wmain.js');
+  ok(/game\.s\.wraid\.auto && !ev\.left/.test(M) && /id: 'wraid-auto'/.test(read('js/wui.js')), '판이 끝나면 2초 뒤 다시(나가기를 누르면 멈춘다)');
+  ok(/const noteKind/.test(M) && /const noteGo/.test(M) && /id: `note-\$\{k\}`/.test(M), '지난 알림 — 칭호·보상·경고로 거르고 눌러서 그 화면');
 }
 console.log('\n=== v411 지난 알림 · 다녀오셨어요 요약 ===');
 {

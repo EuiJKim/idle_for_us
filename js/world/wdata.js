@@ -535,6 +535,9 @@ export const AWAKEN = {
 };
 export const AWAKEN_IDS = Object.keys(AWAKEN);
 export const AWAKEN_FIRST_K = 5;   // v409 처음 쓰러뜨리면 보상 다섯 배
+// v413 각성 고수마다 전용 발밑 문양(꾸미기) — 잡을 때마다 6% · 그 고수에게서 14번 못 받으면 15번째엔 꼭
+export const AWAKEN_RING_P = 0.06, AWAKEN_RING_PITY = 14;
+export const AWAKEN_RINGS = Object.keys(AWAKEN).map((id) => [`awk-${id}`, `${AWAKEN[id].name} 문양`, id]);
 // 두목 방 → 각성 열쇠(고수 id · 검왕은 'geomwang')
 export const awakenKeyOf = (m) => (m?.master && AWAKEN[m.master] ? m.master : m?.king && m.bossRoom ? AWAKEN_IDS.find((k) => AWAKEN[k].king === m.king.no) || null : null);
 // 몹 등급 (v116): 0 졸개 · 1 정예 · 2 두목 · 3 십이지왕 — 등급마다 겉모습·기운이 다르다.

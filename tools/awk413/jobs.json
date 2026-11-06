@@ -1,0 +1,68 @@
+[
+ {
+  "name": "ring-awk-geomwang",
+  "prompt": "Top-down circular magic sigil seen from directly above, a glowing ornate ring emblem that lies flat under a martial artist's feet in a Korean wuxia idle game. Same style, line weight and transparent background as the reference rings: luminous painted strokes, centered, perfectly round, fills the square, no character, no text letters except the one Hanja named, transparent background. Theme: Awakened Sword King — a ring of twelve silver-blue sword blades pointing outward around a double circle, faint frost-white glow, the Hanja 劍 small at the center.",
+  "refs": [
+   "/home/user/idle_for_us/art/hero2/ring-taiji.png",
+   "/home/user/idle_for_us/art/hero2/ring-flame.png"
+  ],
+  "q": "high",
+  "size": "1024x1024",
+  "bg": "transparent"
+ },
+ {
+  "name": "ring-awk-jinpaecheon",
+  "prompt": "Top-down circular magic sigil seen from directly above, a glowing ornate ring emblem that lies flat under a martial artist's feet in a Korean wuxia idle game. Same style, line weight and transparent background as the reference rings: luminous painted strokes, centered, perfectly round, fills the square, no character, no text letters except the one Hanja named, transparent background. Theme: Awakened Murim Alliance Lord — golden righteous sigil, eight radiating golden spear tips and a lotus-like octagon, warm sun-gold glow, the Hanja 盟 small at the center.",
+  "refs": [
+   "/home/user/idle_for_us/art/hero2/ring-taiji.png",
+   "/home/user/idle_for_us/art/hero2/ring-flame.png"
+  ],
+  "q": "high",
+  "size": "1024x1024",
+  "bg": "transparent"
+ },
+ {
+  "name": "ring-awk-baekjagang",
+  "prompt": "Top-down circular magic sigil seen from directly above, a glowing ornate ring emblem that lies flat under a martial artist's feet in a Korean wuxia idle game. Same style, line weight and transparent background as the reference rings: luminous painted strokes, centered, perfectly round, fills the square, no character, no text letters except the one Hanja named, transparent background. Theme: Awakened Unorthodox Alliance Lord — poison-green and white serpent ring, two thin snakes chasing each other around a jade circle with drifting green mist, the Hanja 邪 small at the center.",
+  "refs": [
+   "/home/user/idle_for_us/art/hero2/ring-taiji.png",
+   "/home/user/idle_for_us/art/hero2/ring-flame.png"
+  ],
+  "q": "high",
+  "size": "1024x1024",
+  "bg": "transparent"
+ },
+ {
+  "name": "ring-awk-cheonma",
+  "prompt": "Top-down circular magic sigil seen from directly above, a glowing ornate ring emblem that lies flat under a martial artist's feet in a Korean wuxia idle game. Same style, line weight and transparent background as the reference rings: luminous painted strokes, centered, perfectly round, fills the square, no character, no text letters except the one Hanja named, transparent background. Theme: Awakened Heavenly Demon — blood-red and black demonic seal, crimson flames curling around a spiked circle with nine petals of red light, the Hanja 魔 small at the center.",
+  "refs": [
+   "/home/user/idle_for_us/art/hero2/ring-taiji.png",
+   "/home/user/idle_for_us/art/hero2/ring-flame.png"
+  ],
+  "q": "high",
+  "size": "1024x1024",
+  "bg": "transparent"
+ },
+ {
+  "name": "ring-awk-hwamugi",
+  "prompt": "Top-down circular magic sigil seen from directly above, a glowing ornate ring emblem that lies flat under a martial artist's feet in a Korean wuxia idle game. Same style, line weight and transparent background as the reference rings: luminous painted strokes, centered, perfectly round, fills the square, no character, no text letters except the one Hanja named, transparent background. Theme: Awakened Strongest Under Heaven — brilliant white and pale gold celestial seal, concentric rings with star points and a radiant sunburst, very bright and pure, the Hanja 極 small at the center.",
+  "refs": [
+   "/home/user/idle_for_us/art/hero2/ring-taiji.png",
+   "/home/user/idle_for_us/art/hero2/ring-flame.png"
+  ],
+  "q": "high",
+  "size": "1024x1024",
+  "bg": "transparent"
+ },
+ {
+  "name": "ring-awk-magwi",
+  "prompt": "Top-down circular magic sigil seen from directly above, a glowing ornate ring emblem that lies flat under a martial artist's feet in a Korean wuxia idle game. Same style, line weight and transparent background as the reference rings: luminous painted strokes, centered, perfectly round, fills the square, no character, no text letters except the one Hanja named, transparent background. Theme: Awakened Hidden Demon Ghost — violet and dark purple cursed seal, cracked dice and swirling haze motifs around a jagged circle, eerie violet glow, the Hanja 鬼 small at the center.",
+  "refs": [
+   "/home/user/idle_for_us/art/hero2/ring-taiji.png",
+   "/home/user/idle_for_us/art/hero2/ring-flame.png"
+  ],
+  "q": "high",
+  "size": "1024x1024",
+  "bg": "transparent"
+ }
+]

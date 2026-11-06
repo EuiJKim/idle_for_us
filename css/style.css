@@ -2666,3 +2666,10 @@ body.hunt-noui #gather, body.in-inst #gather { display: none !important; }
 .awk-card h3 { margin: 0 0 6px; }
 .awk-info { min-width: 0; }
 .awk-btns { display: flex; gap: 6px; flex: none; }
+
+/* v413 지난 알림 거르기 */
+.note-row.go { display: block; width: 100%; text-align: left; border: 0; color: inherit; cursor: pointer; }
+.note-row.k-warn { border-left: 3px solid #f87171; }
+.note-row.k-title { border-left: 3px solid #fde047; }
+.note-row.k-reward { border-left: 3px solid #86efac; }
+.wraid-auto { display: block; margin: 0 0 8px; font-size: 13px; }

@@ -1207,7 +1207,10 @@ function showInstEnd(ev) {
       const why = ev.byOther ? (sk ? ' — 여래가 쓰러졌다…? 받기를 눌러 보세요' : ' — 마왕이 쓰러졌어요!') : ev.died ? ' — 쓰러졌어요' : ev.timeout ? ' — 시간 끝' : '';
       const again = ev.died || ev.timeout || killed || ev.byOther;   // v408 쓰러져도·시간이 끝나도 바로 같은 마왕(또는 다음 마왕) 방으로
       toast(`🌋 칠대성 토벌 피해 ${fmt(ev.dealt)}${ev.reward ? ` · 참여 보상 ${rewardText(ev.reward)}` : ''}${why}${killed ? ' — 마무리 일격!' : ''}${again ? ' · ⚡ 누르면 다시 합류' : ''}`, again ? () => rejoinWraid(D.wraidBossOfId(ev.key).id) : null);
-      if (again) showRejoin(D.wraidBossOfId(ev.key).id);
+      if (again && game.s.wraid.auto && !ev.left) {   // v413 자동 반복 — 2초 뒤 같은 마왕(쓰러졌으면 다음 마왕)으로
+        const boss = D.wraidBossOfId(ev.key).id;
+        setTimeout(() => { if (game.s.wraid.auto && !game.inst && !modalOpen()) rejoinWraid(boss); else if (game.s.wraid.auto && !game.inst) showRejoin(boss); }, 2000);
+      } else if (again) showRejoin(D.wraidBossOfId(ev.key).id);
       if (killed || ev.byOther) { sfx('level'); view.shake = Math.max(view.shake || 0, 0.4); }
       app.refresh();
     }).catch((err) => toast(`월드보스 기록 실패: ${err.message || err}`));
@@ -1358,7 +1361,7 @@ function openCustom(first = false) {
     const paintRows = () => (preloadCust(), rows).replaceChildren(...(ctab === 'wpn' ? [ctabs(), wpnRow(), h('p', { class: 'muted', style: 'font-size:11.5px' }, '무기 모양은 직업마다 따로 기억해요 — 겉모습만 바뀌고 능력치는 그대로예요.')]
       : ctab === 'fx' ? [ctabs(),
         pick('기운', [[null, '없음'], ...W.CUSTOM_AURAS.map(([k, n]) => [k, n])], 'aura'),
-        pick('발밑 문양', [[null, '없음'], ...W.CUSTOM_RINGS.map(([k, n]) => [k, n])], 'ring'),
+        pick('발밑 문양', [[null, '없음'], ...W.CUSTOM_RINGS.map(([k, n]) => [k, n]), ...W.AWAKEN_RINGS.filter(([, , id]) => game.s.awk?.rings?.[id]).map(([k, n]) => [k, `覺 ${n}`])], 'ring'),   // v413 각성 고수 문양은 얻은 것만
         pick('칼빛', [[null, '장비 따라'], ...W.CUSTOM_GLOWS.map((c) => [c, null, c])], 'glow')]
       : [ctabs(),
         presets(),
@@ -1649,6 +1652,7 @@ function handleEvents() {
       // v407 각성 고수
       case 'awakenDown':
         view.showBanner(`覺 ${ev.name} 격파${ev.first ? ' — 처음!' : ` · ${ev.n}번째`}`, '#fca5a5', 1.8, '각성');
+        if (ev.ring) { view.showBanner(`覺 ${ev.name} 문양을 얻었어요!`, '#fde047', 2.4, '꾸미기'); toast(`覺 전용 발밑 문양 〈${ev.name} 문양〉 — 꾸미기 › 발밑 문양에서 골라요`, () => openCustom()); }
         toast(`覺 ${ev.name} — ${ev.sec}초${ev.best && ev.prev ? ` (새 기록! 전 ${ev.prev}초)` : ''}${ev.first ? ` · 처음이라 보상 ×${W.AWAKEN_FIRST_K}` : ''} · ${rewardText(ev.reward)}`);
         sfx('loot');
         break;
@@ -2129,15 +2133,29 @@ window.__test_saver = (on) => { if (on) saver.enter(); else if (on === false) sa
 saver.onExit = () => { view.resetFx(); last = performance.now(); refreshUI(true); };   // v379 깨어날 때 쌓인 연출을 비운다
 saver.onEnter = () => { view.resetFx(); game.mark('saver'); const s = game.s; saverRun = { t0: Date.now(), gold: s.gold, kills: s.kills, deaths: s.deaths, level: s.level, exp: s.exp / game.expNeed(), loot: [] }; };
 $('btn-saver').addEventListener('click', () => saver.enter());
-// v411 지난 알림 — 칭호·회랑 기록·자동 각인 막힘·각성 고수… 토스트로 지나간 글을 다시 본다
+// v411 지난 알림 — 토스트로 지나간 글을 다시 본다 · v413 종류별로 거르고, 눌러서 그 화면으로
+const NOTE_KIND = [['all', '전체'], ['title', '칭호'], ['reward', '보상'], ['warn', '경고'], ['etc', '그 밖']];
+const noteKind = (t) => (/칭호|〈.+〉 얻|새 칭호/.test(t) ? 'title' : /⚠|못 |실패|막혔|멈췄|모자라|버거|쓰러졌/.test(t) ? 'warn' : /보상|받았|🎁|은자|조각|대성신장|검혼석|기록/.test(t) ? 'reward' : 'etc');
+const noteGo = (t) => (/각인/.test(t) ? () => showTab('bag', 'imp') : /칠대성|마왕|대성신장|옥황|석가|관문/.test(t) ? () => showTab('dgn') : /覺|각성/.test(t) ? () => showTab('map', 'masters')
+  : /회랑|탑/.test(t) ? () => showTab('dgn') : /칭호/.test(t) ? () => showTab('char') : /강화|초월/.test(t) ? () => showTab('bag', 'gear') : null);
+let noteFilter = 'all';
 $('btn-notes').addEventListener('click', () => {
   noteSeen();
-  const L = noteLog();
   const when = (t) => { const d = new Date(t); return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
-  openModal((sheet) => sheet.append(h('div', {},
-    h('h3', {}, '🔔 지난 알림', h('small', { class: 'muted' }, ` 최근 ${L.length}개 · 이 기기에만`)),
-    L.length ? h('div', { class: 'note-list' }, ...L.map((n) => h('div', { class: 'note-row' }, h('small', {}, when(n.at)), n.t))) : h('p', { class: 'muted' }, '아직 알림이 없어요.'),
-    h('div', { class: 'btn-row' }, h('button', { class: 'btn', onclick: () => closeModal() }, '닫기')))));
+  openModal((sheet) => {
+    const paint = () => {
+      const all = noteLog();
+      const L = noteFilter === 'all' ? all : all.filter((n) => noteKind(n.t) === noteFilter);
+      sheet.replaceChildren(h('div', {},
+        h('h3', {}, '🔔 지난 알림', h('small', { class: 'muted' }, ` 최근 ${all.length}개 · 이 기기에만`)),
+        h('div', { class: 'chip-row' }, ...NOTE_KIND.map(([k, name]) => h('button', { class: `chip${noteFilter === k ? ' on' : ''}`, id: `note-${k}`, onclick: () => { noteFilter = k; paint(); } },
+          `${name}${k === 'all' ? '' : ` ${all.filter((n) => noteKind(n.t) === k).length}`}`))),
+        L.length ? h('div', { class: 'note-list' }, ...L.map((n) => { const go = noteGo(n.t); return h(go ? 'button' : 'div', { class: `note-row k-${noteKind(n.t)}${go ? ' go' : ''}`, onclick: go ? () => { closeModal(); go(); } : null },
+          h('small', {}, when(n.at), go ? ' · 눌러서 가기 ›' : ''), n.t); })) : h('p', { class: 'muted' }, '이 종류의 알림이 없어요.'),
+        h('div', { class: 'btn-row' }, h('button', { class: 'btn', onclick: () => closeModal() }, '닫기'))));
+    };
+    paint();
+  });
 });
 const fsBtn = $('btn-fs');
 if (!AM.isStandalone() && AM.canFullscreen()) fsBtn.classList.remove('hidden');

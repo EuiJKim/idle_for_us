@@ -100,7 +100,7 @@ export function migrateWorld(raw, now = Date.now()) {
       // v325 성별·여협 머리·머리 빛깔 · 무기 모양(직업마다) · 기믹
       gender: c.gender === 'f' ? 'f' : null, fhead: one(W.CUSTOM_FHEADS, c.fhead), hair: one(W.CUSTOM_HAIRS, c.hair),
       wpn: c.wpn && typeof c.wpn === 'object' ? Object.fromEntries(Object.entries(c.wpn).filter(([k, v]) => W.weaponSkinOf(k, v))) : {},
-      aura: one(W.CUSTOM_AURAS, c.aura), ring: one(W.CUSTOM_RINGS, c.ring), glow: hex(c.glow) }; }   // v280 꾸미기 · v306 눈 · v323 쓰개·신발
+      aura: one(W.CUSTOM_AURAS, c.aura), ring: one([...W.CUSTOM_RINGS, ...W.AWAKEN_RINGS], c.ring), glow: hex(c.glow) }; }   // v280 꾸미기 · v306 눈 · v323 쓰개·신발
   s.fragPts = Math.max(0, Math.floor(Number(raw.fragPts) || 0));  // 조각으로 얻은 무공 점수(보이기용)
   s.autoEnh = !!raw.autoEnh; s.autoInf = !!raw.autoInf;   // v262
   s.autoJunk = !!raw.autoJunk;   // v321 약한 장비 자동 정리
@@ -256,6 +256,8 @@ export function migrateWorld(raw, now = Date.now()) {
   // v407 각성 고수 — 켠 것(on)과 쓰러뜨린 수(kills)
   s.awk = { on: {}, kills: {} };
   s.awk.best = {};   // v409 가장 빨리 잡은 초
+  s.awk.rings = {}; s.awk.rpity = {};   // v413 전용 발밑 문양 · 천장
+  for (const id of W.AWAKEN_IDS) { if (raw.awk?.rings?.[id]) s.awk.rings[id] = 1; const p = Math.floor(Number(raw.awk?.rpity?.[id]) || 0); if (p > 0) s.awk.rpity[id] = Math.min(W.AWAKEN_RING_PITY, p); }
   for (const id of W.AWAKEN_IDS) { if (raw.awk?.on?.[id] === true) s.awk.on[id] = true; const n = Math.floor(Number(raw.awk?.kills?.[id]) || 0); if (n > 0) s.awk.kills[id] = n; const b = Number(raw.awk?.best?.[id]); if (b >= 1 && b < 36000) s.awk.best[id] = Math.round(b * 10) / 10; }
   s.questGift = Number.isInteger(raw.questGift) ? raw.questGift : -1;
   const rd = raw.raid && typeof raw.raid === 'object' ? raw.raid : {};
@@ -264,8 +266,9 @@ export function migrateWorld(raw, now = Date.now()) {
     s.wraid = { day: typeof w.day === 'string' ? w.day.slice(0, 10) : '', n: clamp(Math.floor(Number(w.n) || 0), 0, 999), dps: Math.max(0, Number(w.dps) || 0),
       kills: Math.max(0, Math.floor(Number(w.kills) || 0)), top1: Math.max(0, Math.floor(Number(w.top1) || 0)), ok: Math.max(0, Math.floor(Number(w.ok) || 0)), sk: Math.max(0, Math.floor(Number(w.sk) || 0)),
       gates: Object.fromEntries(Object.keys(w.gates || {}).filter((k) => D.isGate(k)).map((k) => [k, 1])),
-      read: Object.fromEntries(Object.keys(w.read || {}).filter((k) => /^\d$/.test(k) && +k < D.HEAVEN_STORY.length).map((k) => [k, 1])),
-      pity: Object.fromEntries(Object.entries(w.pity || {}).filter(([k, v]) => D.WRAID_BOSS[k] && v > 0).map(([k, v]) => [k, clamp(Math.floor(Number(v) || 0), 0, D.PALMA_PITY)])) }; }   // v409 대성신장 천장
+      read: Object.fromEntries(Object.keys(w.read || {}).filter((k) => /^\d{1,2}$/.test(k) && +k < D.HEAVEN_STORY.length).map((k) => [k, 1])),
+      pity: Object.fromEntries(Object.entries(w.pity || {}).filter(([k, v]) => D.WRAID_BOSS[k] && v > 0).map(([k, v]) => [k, clamp(Math.floor(Number(v) || 0), 0, D.PALMA_PITY)])),   // v409 대성신장 천장
+      auto: w.auto === true }; }   // v413 칠대성 자동 반복
   s.mast = {};
   for (const [k, v] of Object.entries(raw.mast || {})) if (W.zoneOfW(+k) && v > 0) s.mast[k] = Math.floor(Number(v) || 0);
   s.zTickets = {}; s.zPity = {};
@@ -4679,7 +4682,8 @@ export class WorldGame {
     const x = D.HEAVEN_STORY[i];
     if (!x) return false;
     const w = this.s.wraid;
-    return x.need === 'palma' ? this.palmaReady().ok : x.need === 'okhwang' ? (w.ok || 0) >= 1 : x.need === 'seokga' ? (w.sk || 0) >= 1 : x.need === 'sk3' ? (w.sk || 0) >= 3 : !!w.gates?.[x.need];
+    return x.need === 'palma' ? this.palmaReady().ok : x.need === 'okhwang' ? (w.ok || 0) >= 1 : x.need === 'seokga' ? (w.sk || 0) >= 1 : x.need === 'sk3' ? (w.sk || 0) >= 3 : x.need === 'sk10' ? (w.sk || 0) >= 10
+      : x.need === 'awk1' ? Object.values(this.s.awk?.kills || {}).some((n) => n > 0) : x.need === 'awkAll' ? W.AWAKEN_IDS.every((k) => (this.s.awk?.kills?.[k] || 0) > 0) : !!w.gates?.[x.need];   // v413
   }
   storyUnread() { return D.HEAVEN_STORY.filter((_, i) => this.storyOpen(i) && !this.s.wraid.read?.[i]).length; }
   readStory(i) {
@@ -4826,7 +4830,9 @@ export class WorldGame {
       const spent = Math.max(1, I.max - Math.max(0, I.t));
       if (I.dealt > 0) {
         this.s.wraid.dps = Math.round(I.dealt / spent);
-        if (I.paid) reward = this.grant(D.wraidJoinReward(this.s.level, I.dealt / Math.max(1, I.sharedMax)));
+        // v413 판 보상은 싸운 시간만큼(쓰러지면 그때까지 · 마왕이 쓰러지면 다 친 셈) — 참여 보상에 제한이 없어 들어가 한 대 치고 나가기를 되풀이하면 사냥의 몇 배였다
+        const tk = I.done?.ok ? 1 : Math.min(1, spent / D.WRAID_SEC);
+        if (I.paid) { const jr = D.wraidJoinReward(this.s.level, I.dealt / Math.max(1, I.sharedMax)); reward = this.grant({ gold: Math.round(jr.gold * tk), petShard: Math.round(jr.petShard * tk), mountShard: Math.round(jr.mountShard * tk) }); }
       }
       this.bullets = []; this.emitters = [];
     } else if (I.kind === 'raid') {
@@ -5042,7 +5048,14 @@ for (const [fn, key, always] of [
       const sec = Math.max(1, Math.round((this.clock - (m.bornAt ?? this.clock)) * 10) / 10), bt = this.s.awk.best;
       const best = !(bt[m.awk] > 0) || sec < bt[m.awk]; const prev = bt[m.awk] || null; if (best) bt[m.awk] = sec;   // v409 가장 빨리
       if (best && m.awk === 'magwi') this._wbBest = true;   // 주간 순위(각성 마귀)
-      this.emit('awakenDown', { id: m.awk, name: W.AWAKEN[m.awk].name, n: k[m.awk], first, reward, sec, best, prev });
+      // v413 전용 발밑 문양 — 확률 · 천장(이미 가졌으면 굴리지 않는다)
+      let ring = null;
+      if (!this.s.awk.rings[m.awk]) {
+        const rp = this.s.awk.rpity;
+        if ((rp[m.awk] || 0) >= W.AWAKEN_RING_PITY || this.rng() < W.AWAKEN_RING_P) { this.s.awk.rings[m.awk] = 1; delete rp[m.awk]; ring = `awk-${m.awk}`; }
+        else rp[m.awk] = (rp[m.awk] || 0) + 1;
+      }
+      this.emit('awakenDown', { id: m.awk, name: W.AWAKEN[m.awk].name, n: k[m.awk], first, reward, sec, best, prev, ring });
       this.checkTitles?.();
     }
     // 고수를 처음 쓰러뜨리면 (v148): 큰 보상과 영구 공격력·체력
