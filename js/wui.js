@@ -3576,7 +3576,52 @@ function compTab(app) {
         h('button', { class: 'btn mini', onclick: () => openGachaRates(kind) }, '확률'),
         h('button', { class: 'btn mini', onclick: () => openGachaLog(game, kind) }, '기록'),
         h('button', { class: 'buy gacha-1', id: `gacha-${kind}-1`, disabled: game.canGacha(kind, 1) ? null : true, onclick: () => runGacha(kind, 1) }, `소환 ×1 (${W.GACHA_COST})`),
-        h('button', { class: 'buy gacha-10', id: `gacha-${kind}-10`, disabled: game.canGacha(kind, 10) ? null : true, onclick: () => runGacha(kind, 10) }, `×10 (${W.GACHA_COST * 10})`)));
+        h('button', { class: 'buy gacha-10', id: `gacha-${kind}-10`, disabled: game.canGacha(kind, 10) ? null : true, onclick: () => runGacha(kind, 10) }, `×10 (${W.GACHA_COST * 10})`),
+        h('button', { class: 'buy gacha-auto', id: `gacha-${kind}-auto`, disabled: game.canGacha(kind, 1) ? null : true, title: kind === 'pet' ? '신화가 나올 때까지 연속으로 — 나오면 멈춰 연출' : '신수가 나올 때까지 연속으로 — 나오면 멈춰 연출', onclick: () => runGachaAuto(kind) }, `🔁 연속 (${kind === 'pet' ? '신화' : '신수'}까지)`)));
+    // v422 연속 소환 — 조각이 있는 동안 10연(모자라면 1연)을 빠르게 이어 가고, 신화(영수)·신수(탈것)가 나오면 멈춰 그 판의 연출을 크게 보여 준다. 「멈추기」로 언제든.
+    const runGachaAuto = (kind) => {
+      if (!game.canGacha(kind, 1)) return toast(game.gachaRoom(kind) < 1 ? '우리가 모자라요 — 놓아주거나 키우는 칸으로 옮겨요' : '조각이 모자라요');
+      const isBig = (r) => (r.kind === 'pet' ? r.rar >= 3 : r.grade >= 3);
+      const bigName = kind === 'pet' ? '신화' : '신수';
+      const tally = [0, 0, 0, 0, 0]; let n = 0, stop = false, timer = 0;
+      const ov = h('div', { id: 'gacha-auto' },
+        h('div', { class: 'ga-box' },
+          h('h3', {}, `🔁 ${kind === 'pet' ? '영수' : '탈것'} 연속 소환`, h('small', {}, ` ${bigName}가 나오면 멈춰요`)),
+          h('div', { class: 'ga-n' }, '0번'), h('div', { class: 'ga-tally muted' }, ''), h('div', { class: 'ga-last' }),
+          h('button', { class: 'btn ga-stop' }, '멈추기')));
+      document.body.append(ov);
+      const nEl = ov.querySelector('.ga-n'), tEl = ov.querySelector('.ga-tally'), lEl = ov.querySelector('.ga-last');
+      const GN = kind === 'pet' ? ['레어', '유니크', '전설', '신화'] : ['일반', '좋은', '귀한', '십이지', '신수'];
+      const paint = (res) => {
+        nEl.textContent = `${n}번 · ${kind === 'pet' ? `포획 조각 ${fmt(s.petShard || 0)}` : `탈것 조각 ${fmt(s.mountShard || 0)}`} · 천장 ${s.gacha[kind].pity}/${kind === 'pet' ? W.GACHA_PET_PITY : W.GACHA_MOUNT_PITY}`;
+        tEl.textContent = GN.map((g, i) => `${g} ${tally[i]}`).join(' · ');
+        if (res) lEl.replaceChildren(...res.map((r) => h('span', { class: `ga-r g${r.kind === 'pet' ? r.rar : r.grade}` }, `${(r.kind === 'pet' ? W.petOf(r.id) : W.mountOf(r.id)).emoji}`)));
+      };
+      const end = () => { clearTimeout(timer); stop = true; ov.remove(); done(); };
+      ov.querySelector('.ga-stop').onclick = end;
+      const step = () => {
+        if (stop) return;
+        const k = game.canGacha(kind, 10) ? 10 : game.canGacha(kind, 1) ? 1 : 0;
+        if (!k) { toast(game.gachaRoom(kind) < 1 ? `연속 소환 끝 — 우리가 가득 찼어요(${n}번)` : `연속 소환 끝 — 조각이 모자라요(${n}번)`); return end(); }
+        const res = game.gacha(kind, k);
+        if (!res) return end();
+        n += k; for (const r of res) tally[Math.min(tally.length - 1, r.kind === 'pet' ? r.rar : r.grade)]++;
+        app.save(); paint(res);
+        const big = res.filter(isBig);
+        if (big.length) {
+          if (app.net?.announce) {
+            const names = big.map((r) => (r.kind === 'pet' ? `신화 ${W.petOf(r.id).name}` : `${W.mountOf(r.id).hard ? '극의 신수' : '십이지 신수'} ${W.mountOf(r.id).name}`));
+            app.net.announce(`🎊 ${s.nickname}님이 ${kind === 'pet' ? '영수' : '탈것'} 소환에서 ${names.join(' · ')}을(를) 불러냈어요!`);
+          }
+          clearTimeout(timer); stop = true; ov.remove();
+          toast(`🔁 ${n}번째에 ${bigName}! — 연속 소환을 멈췄어요`);
+          playGacha(res, kind, () => { done(); });
+          return;
+        }
+        timer = setTimeout(step, 420);
+      };
+      paint(null); timer = setTimeout(step, 250);
+    };
     const runGacha = (kind, n, free = false) => {
       if (!game.canGacha(kind, n, free)) return toast(game.gachaRoom(kind) < n ? '우리가 모자라요 — 놓아주거나 키우는 칸으로 옮겨요' : '조각이 모자라요');
       const res = game.gacha(kind, n, free);

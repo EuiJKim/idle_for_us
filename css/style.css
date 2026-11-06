@@ -2521,6 +2521,8 @@ body.hunt-noui #gather, body.in-inst #gather { display: none !important; }
 .gacha-row .gacha-free:not([disabled]) { background: linear-gradient(90deg, #15803d, #4ade80); color: #052e16; font-weight: 800; animation: hardBreath 1.6s ease-in-out infinite; }
 /* v368 소환 단추 — 폰 폭에서 넘치지 않게: 무료·확률·기록 한 줄, 소환 둘 한 줄 */
 .gacha-row .g-btns { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px; width: 100%; }
+.gacha-row .gacha-auto { grid-column: span 6; }
+.gacha-row .gacha-auto:not([disabled]) { background: linear-gradient(90deg, #4c1d95, #a855f7); color: #faf5ff; font-weight: 800; }
 .gacha-row .g-btns > * { min-width: 0; padding-left: 4px; padding-right: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .gacha-row .g-btns .btn.mini { grid-column: span 1; }
 .gacha-row .g-btns .gacha-free { grid-column: span 4; }
@@ -2693,3 +2695,14 @@ body.pc-wide #tabs .tabcol { display: none; }   /* 들판 위 창 단추는 창 
 /* v418 이름 바꾸기 */
 .rename-btn { padding: 2px 8px; font-size: 11px; border-radius: 8px; vertical-align: middle; margin-right: 4px; }
 #hero-name { cursor: pointer; }
+
+/* v422 연속 소환 — 작은 집계 창(신화·신수가 나오면 큰 연출로 넘어간다) */
+#gacha-auto { position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center; background: rgba(5, 2, 12, .72); }
+#gacha-auto .ga-box { width: min(92vw, 420px); padding: 16px 18px calc(16px + var(--safe-bottom, 0px)); border-radius: 14px; background: linear-gradient(180deg, #1e1033, #0b0618); border: 1px solid rgba(168,85,247,.5); box-shadow: 0 10px 40px rgba(0,0,0,.6); text-align: center; }
+#gacha-auto h3 { margin: 0 0 8px; font-size: 17px; } #gacha-auto h3 small { display: block; font-size: 12px; color: #d8b4fe; font-weight: 400; }
+#gacha-auto .ga-n { font-weight: 800; font-size: 15px; color: #fde68a; } #gacha-auto .ga-tally { font-size: 12.5px; margin: 4px 0 8px; }
+#gacha-auto .ga-last { display: flex; flex-wrap: wrap; gap: 4px; justify-content: center; min-height: 34px; margin-bottom: 10px; }
+#gacha-auto .ga-r { width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; font-size: 17px; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12); animation: gaPop .25s ease-out; }
+#gacha-auto .ga-r.g1 { border-color: #c084fc; } #gacha-auto .ga-r.g2 { border-color: #fb923c; box-shadow: 0 0 8px rgba(251,146,60,.5); } #gacha-auto .ga-r.g3, #gacha-auto .ga-r.g4 { border-color: #fde047; box-shadow: 0 0 12px rgba(253,224,71,.7); }
+#gacha-auto .ga-stop { padding: 8px 28px; font-weight: 800; }
+@keyframes gaPop { from { transform: scale(.4); opacity: 0; } to { transform: scale(1); opacity: 1; } }
