@@ -2657,3 +2657,6 @@ body.hunt-noui #gather, body.in-inst #gather { display: none !important; }
 
 /* v408 칠대성 다시 합류 */
 .rejoin-btn { position: fixed; left: 50%; bottom: calc(96px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); z-index: 60; padding: 10px 18px; font-size: 14px; border-radius: 999px; box-shadow: 0 6px 18px rgba(0, 0, 0, .45); }
+.awk-card h3 { margin: 0 0 6px; }
+.awk-info { min-width: 0; }
+.awk-btns { display: flex; gap: 6px; flex: none; }

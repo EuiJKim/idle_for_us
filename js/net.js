@@ -565,7 +565,7 @@ export class Net {
     if (!w.kills) return false;
     const now = Date.now();
     if (!force && !g._wbBest && now - (this.wbAt || 0) < 60000) return false;
-    const sig = `${w.key}|${w.kills}|${w.best.hwamugi || ''}|${w.best.magwi || ''}|${g.s.title || ''}`;
+    const sig = `${w.key}|${w.kills}|${w.best.hwamugi || ''}|${w.best.magwi || ''}|${w.best.awk || ''}|${g.s.title || ''}`;
     if (sig === this.wbSig) { g._wbBest = false; return false; }
     this.wbAt = now;
     const ref = this.ref('wboss', w.key, 'p', this.uid);
@@ -573,6 +573,7 @@ export class Net {
       const d = { name: String(g.s.nickname).slice(0, 12), kills: w.kills, lv: g.s.level, at: this.fs.serverTimestamp() };
       if (g.s.title) d.title = String(g.s.title).slice(0, 16);
       for (const k of ['hwamugi', 'magwi']) if (w.best[k] > 0) d[k] = w.best[k];
+      if (w.best.awk > 0 && this.awkOk !== false) d.awk = w.best.awk;   // v409 각성 마귀(서버 규칙이 아직이면 빼고 다시)
       return d;
     };
     try {
@@ -584,9 +585,10 @@ export class Net {
         if (cur.exists()) {
           const c = cur.data();
           w.kills = Math.max(w.kills, Math.floor(c.kills || 0));
-          for (const k of ['hwamugi', 'magwi']) if (c[k] > 0 && !(w.best[k] > 0 && w.best[k] <= c[k])) w.best[k] = c[k];
+          for (const k of ['hwamugi', 'magwi', 'awk']) if (c[k] > 0 && !(w.best[k] > 0 && w.best[k] <= c[k])) w.best[k] = c[k];
         }
-        await this.fs.setDoc(ref, body(), { merge: true });
+        try { await this.fs.setDoc(ref, body(), { merge: true }); }
+        catch (e3) { if (!(w.best.awk > 0) || this.awkOk === false) throw e3; this.awkOk = false; await this.fs.setDoc(ref, body(), { merge: true }); }
       } catch (err2) { console.warn('[net] week boss', err2?.message || err2); return false; }
     }
     this.wbSig = sig;
@@ -608,12 +610,13 @@ export class Net {
     const { collection, query, orderBy, limit, getDocs } = this.fs;
     const col = collection(this.db, 'wboss', key, 'p');
     const rows = (snap) => snap.docs.map((d) => ({ uid: d.id, ...d.data() })).filter((p) => !this.isHidden(p.uid));
-    const [kills, hwamugi, magwi] = await Promise.all([
+    const [kills, hwamugi, magwi, awk] = await Promise.all([
       getDocs(query(col, orderBy('kills', 'desc'), limit(20))).then(rows),
       getDocs(query(col, orderBy('hwamugi', 'asc'), limit(10))).then(rows),
       getDocs(query(col, orderBy('magwi', 'asc'), limit(10))).then(rows),
+      getDocs(query(col, orderBy('awk', 'asc'), limit(10))).then(rows).catch(() => []),   // v409 각성 마귀
     ]);
-    return { kills, hwamugi, magwi };
+    return { kills, hwamugi, magwi, awk };
   }
 
   async player(uid) {

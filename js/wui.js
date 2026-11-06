@@ -2034,16 +2034,6 @@ function mapTab(app) {
         h('span', { class: st.fast ? 'on' : '' }, '★', h('small', {}, `${MS.starSec(m)}초 안에`)),
         h('span', { class: st.clean ? 'on' : '' }, '★', h('small', {}, '초식에 안 맞고')),
         h('small', { class: 'muted' }, ` 별 하나마다 덤 +${MS.STAR_BONUS * 100}%`)); })(),
-      // v407 각성 고수 — 5차를 마치고 한 번 쓰러뜨렸으면 켤 수 있다
-      W.AWAKEN[m.id] ? (() => {
-        const a = W.AWAKEN[m.id], open = game.awakenOpen(m.id), on = game.awakenActive(m.id), n = s.awk?.kills?.[m.id] || 0;
-        return h('div', { class: `awk-row${on ? ' on' : ''}` },
-          h('div', {}, h('b', {}, `覺 ${a.name}`), h('small', { class: 'muted' }, open
-            ? ` 체력 ×${a.hp} · 공격 ×${a.atk} · 잡을 때마다 ${rewardText(game.awakenReward(m.id))}${n ? ` · ${n}번 쓰러뜨림` : ''}`
-            : ` 🔒 5차 전직을 마치고 ${m.name}을(를) 한 번 쓰러뜨리면`)),
-          h('button', { class: `btn ${on ? '' : 'primary'}`, id: `awk-${m.id}`, disabled: open ? null : true,
-            onclick: () => { game.setAwaken(m.id, !on); app.save(); toast(on ? `${m.name} — 보통으로 돌아왔어요` : `覺 ${a.name} — 두목 방에서 각성한 모습으로 서요`); app.refresh(); } }, on ? '각성 끄기' : '각성 켜기'));
-      })() : '',
       h('div', { class: 'btn-row' },
         h('button', { class: `btn ${here ? '' : 'primary'}`, disabled: here ? true : null, onclick: () => go(room) }, here ? '여기서 사냥 중' : '두목 방으로 가기')));
   }
@@ -2085,6 +2075,26 @@ function mapTab(app) {
       },
     };
   }
+  // v407·v409 각성 고수 — 5차를 마치고 그 두목을 한 번 쓰러뜨렸으면 켤 수 있다(두목 방에 각성한 모습으로)
+  function awakenCard() {
+    const s = game.s;
+    const rows = W.AWAKEN_IDS.map((id) => {
+      const a = W.AWAKEN[id], open = game.awakenOpen(id), on = game.awakenActive(id), n = s.awk?.kills?.[id] || 0, best = s.awk?.best?.[id];
+      const room = game.awakenRoom(id), here = s.map === room;
+      const base = a.king ? '제1왕 검왕' : MS.masterOf(id)?.name || id;
+      return h('div', { class: `awk-row${on ? ' on' : ''}` },
+        h('div', { class: 'awk-info' }, h('b', {}, `覺 ${a.name}`),
+          h('small', { class: 'muted' }, open
+            ? ` 체력 ×${a.hp} · 공격 ×${a.atk} · ${n ? `${n}번 · 가장 빨리 ${best}초` : `처음 쓰러뜨리면 보상 ×${W.AWAKEN_FIRST_K}`} · 잡을 때마다 ${rewardText(game.awakenReward(id))}`
+            : ` 🔒 5차 전직을 마치고 ${base}을(를) 한 번 쓰러뜨리면`)),
+        h('div', { class: 'awk-btns' },
+          h('button', { class: `btn ${on ? '' : 'primary'}`, id: `awk-${id}`, disabled: open ? null : true,
+            onclick: () => { game.setAwaken(id, !on); app.save(); toast(on ? `${base} — 보통으로 돌아왔어요` : `覺 ${a.name} — 두목 방에서 각성한 모습으로 서요`); app.refresh(); } }, on ? '끄기' : '각성 켜기'),
+          open && room != null ? h('button', { class: 'btn', disabled: here ? true : null, onclick: () => go(room) }, here ? '여기' : '가기') : ''));
+    });
+    const done = W.AWAKEN_IDS.filter((id) => (s.awk?.kills?.[id] || 0) > 0).length;
+    return h('div', { class: 'card awk-card' }, h('h3', {}, '覺 각성 고수', h('small', {}, ` 5차 뒤 · ${done}/${W.AWAKEN_IDS.length} 쓰러뜨림 · 칭호 〈${W.TITLES.awkAll.name}〉`)), ...rows);
+  }
   // 무림고수 (v204) — 세 세력의 고수·맹주·천마를 한 칸에. 세력별로 묶고 레벨 차례.
   function mastersView() {
     const box = h('div');
@@ -2098,7 +2108,7 @@ function mapTab(app) {
         sig = nsig;
         const all = ['murim', 'sapa', 'magyo', 'apex'].flatMap((f) => MS.mastersOf(f)).filter((m) => !m.hidden || s.duel.won.hwamugi);
         const won = all.filter((m) => s.duel.won[m.id]).length;
-        box.replaceChildren(h('p', { class: 'muted' }, `세력마다 이름난 고수가 산다 — 처음 쓰러뜨리면 큰 보상과 영구 공격력·체력, 두목 방에서는 세력 재료가 나온다. 쓰러뜨림 ${won}/${all.length}`));
+        box.replaceChildren(h('p', { class: 'muted' }, `세력마다 이름난 고수가 산다 — 처음 쓰러뜨리면 큰 보상과 영구 공격력·체력, 두목 방에서는 세력 재료가 나온다. 쓰러뜨림 ${won}/${all.length}`), awakenCard());
         for (const fac of ['murim', 'sapa', 'magyo', 'apex']) {
           const F = MS.factionOf(fac);
           const ms = MS.mastersOf(fac).slice().sort((a, b) => a.lv - b.lv);
@@ -2371,7 +2381,7 @@ function dgnTab(app) {
       e.target.disabled = true;
       try {
         const got = await net.claimWraid(rr);
-        if (got) { toast(`🌋 ${got.boss.name} 처치 보상 — ${got.rank}위 · ${rewardText(got.reward)}${got.reward.item ? ` · 〈${W.itemName(got.reward.item, s.job)}〉` : ''}`); app.save(); app.refresh(); }
+        if (got) { toast(`🌋 ${got.boss.name} 처치 보상 — ${got.rank}위 · ${rewardText(got.reward)}${got.reward.item ? ` · 〈${W.itemName(got.reward.item, s.job)}〉` : got.reward.miss ? ` · 이번엔 대성신장이 안 나왔어요(${got.reward.miss.left}번 안에 꼭)` : ''}`); app.save(); app.refresh(); }
       } catch (err) { toast(`받지 못했어요: ${err.message || err}`); }
       rerender();
     } }, label);
@@ -2383,7 +2393,7 @@ function dgnTab(app) {
       h('ul', { class: 'wraid-how' },
         h('li', {}, `👹 화과산의 의형제 칠대성(우마왕~손오공)이 늘 서 있어요 — 체력은 화무기의 ${D.WRAID_HP_K}배, 무림 사람 모두가 함께 깎아요(혼자서는 한참)`),
         h('li', {}, `🎯 탄을 피하며 쳐요 — 작은 흰 점만 맞아요 · 근거리는 코앞까지 붙어야, 원거리는 멀리서 · ${finePointer ? 'WASD·화살표' : '화면을 끌어'} 움직이고 손을 떼면 자동으로 피해요`),
-        h('li', {}, `🛡 쓰러지면 한 대라도 친 사람 모두 그 마왕의 대성신장 한 부위 + 순위 보상(1위 ×3 · 2~3위 ×2 · 10위까지 ×1.5) · 쓰러지면 곧 다음 마왕이 일어나요`),
+        h('li', {}, `🛡 쓰러지면 한 대라도 친 사람 모두 순위 보상(1위 ×3 · 2~3위 ×2 · 10위까지 ×1.5) + 확률로 그 마왕의 대성신장 한 부위(1위 ${Math.round(D.PALMA_DROP(1) * 100)}% · 3위까지 ${Math.round(D.PALMA_DROP(3) * 100)}% · 10위까지 ${Math.round(D.PALMA_DROP(10) * 100)}% · 그 밖 ${Math.round(D.PALMA_DROP(99) * 100)}% · ${D.PALMA_PITY}번 못 받으면 다음엔 꼭) · 쓰러지면 곧 다음 마왕이 일어나요`),
         h('li', {}, '☁ 대성신장 일곱 부위를 모두 끼면 천외천 천궁 — 옥황상제에게 갈 수 있어요'),
         h('li', {}, '🛡 탄은 맞으면 사라져요 — 함께 치는 무인이 앞에서 막아 주면 뒤로 안 와요(탱커가 앞에 서면 좋아요)'),
         h('li', {}, `⚠ 단계가 오를수록 탄 한 대가 아파요(체력의 ${D.WB_TIER.map((t) => Math.round(t.hit * 100)).join('→')}%) · 싸우는 동안 회복(흡혈·물약)이 잘 안 들고 물약 숨이 길어요 — 직접 피하세요`),
@@ -3005,7 +3015,7 @@ function rankView(app) {
     head.replaceChildren('이번 주 두목', h('small', {}, ` ${w.key} 주 · 월요일 0시에 새로`));
     await net.pushWeekBoss(true);
     const b = await net.weekBossBoard(w.key);
-    const mine = h('div', { class: 'wb-mine' }, h('b', {}, '내 기록 '), `두목 ${fmt(w.kills)}마리 · 화무기 ${w.best.hwamugi ? fmtSec(w.best.hwamugi) : '—'} · 마귀 ${w.best.magwi ? fmtSec(w.best.magwi) : '—'}`);
+    const mine = h('div', { class: 'wb-mine' }, h('b', {}, '내 기록 '), `두목 ${fmt(w.kills)}마리 · 화무기 ${w.best.hwamugi ? fmtSec(w.best.hwamugi) : '—'} · 마귀 ${w.best.magwi ? fmtSec(w.best.magwi) : '—'} · 각성 마귀 ${w.best.awk ? fmtSec(w.best.awk) : '—'}`);
     const block = (title, sub, rows, val) => h('div', { class: 'wb-block' }, h('div', { class: 'wb-head' }, h('b', {}, title), h('small', {}, ` ${sub}`)),
       ...(rows.length ? rows.map((p, i) => h('div', { class: `row rank-row${p.uid === net.uid ? ' me' : ''}` }, medal(i),
         h('div', { class: 'info' }, h('div', { class: 'name' }, ...nameOf(p)), h('div', { class: 'desc' }, `Lv.${p.lv || 1}`)),
@@ -3014,7 +3024,8 @@ function rankView(app) {
     list.replaceChildren(mine,
       block('두목 처치', '이번 주 실제로 잡은 두목 수(던전·방치 빼고)', b.kills, (p) => `${fmt(p.kills || 0)}마리`),
       block('⏱ 화무기 최단', '나선 때부터 쓰러질 때까지', b.hwamugi, (p) => fmtSec(p.hwamugi)),
-      block('⏱ 마귀 최단', '화무기를 넘어야 열려요', b.magwi, (p) => fmtSec(p.magwi)));
+      block('⏱ 마귀 최단', '화무기를 넘어야 열려요', b.magwi, (p) => fmtSec(p.magwi)),
+      block('⏱ 覺 각성 마귀 최단', '5차 뒤 · 무림고수 칸에서 각성 켜기', b.awk || [], (p) => fmtSec(p.awk)));
   }
   async function loadLv() {
     head.replaceChildren('서열', h('small', {}, '레벨 순'));

@@ -525,11 +525,18 @@ export const BOSS_CALIB_MAX = 40;
 //   체력·공격은 「5차 + 대성신장 전설 +12」가 천마 ~30초 · 화무기 ~1분 · 마귀 ~2분 반에 잡게 맞췄다(전투력 보정·다시 맞추기 없음 — 세질수록 빨리).
 //   보상: 은자 · 대성신장 강화석 · 그 고수 증표 · 조각 — 마귀(2분 반)와 칠대성(혼자 몇 판) 사이 디딤돌
 export const AWAKEN = {
+  // v409 맹주 둘 · 십이지 검왕도(디딤돌 앞쪽) — 검왕은 고수가 아니라 왕이라 map으로 찾는다
+  geomwang: { name: '각성 검왕', hanja: '覺醒劍王', hp: 400, atk: 1.6, gold: 1500, stone: 4, mark: 12, shard: 15, king: 1 },
+  jinpaecheon: { name: '각성 진패천', hanja: '覺醒武林盟主', hp: 600, atk: 1.7, gold: 2000, stone: 5, mark: 15, shard: 20 },
+  baekjagang: { name: '각성 백자강', hanja: '覺醒邪道盟主', hp: 600, atk: 1.7, gold: 2000, stone: 5, mark: 15, shard: 20 },
   cheonma: { name: '각성 천마', hanja: '覺醒天魔', hp: 220, atk: 1.8, gold: 3000, stone: 8, mark: 20, shard: 30 },
   hwamugi: { name: '각성 화무기', hanja: '覺醒天下第一', hp: 95, atk: 1.9, gold: 5000, stone: 12, mark: 30, shard: 45 },
   magwi: { name: '각성 마귀', hanja: '覺醒魔鬼', hp: 62, atk: 1.8, gold: 8000, stone: 20, mark: 40, shard: 60 },
 };
 export const AWAKEN_IDS = Object.keys(AWAKEN);
+export const AWAKEN_FIRST_K = 5;   // v409 처음 쓰러뜨리면 보상 다섯 배
+// 두목 방 → 각성 열쇠(고수 id · 검왕은 'geomwang')
+export const awakenKeyOf = (m) => (m?.master && AWAKEN[m.master] ? m.master : m?.king && m.bossRoom ? AWAKEN_IDS.find((k) => AWAKEN[k].king === m.king.no) || null : null);
 // 몹 등급 (v116): 0 졸개 · 1 정예 · 2 두목 · 3 십이지왕 — 등급마다 겉모습·기운이 다르다.
 // 들판 정예는 드물게(4%) 섞여 나고 세다(체력 ×3 · 공격 ×1.4) — 대신 경험치·은자 ×2.5, 재료를 두 번 굴린다.
 // 두목 구역의 졸개도 정예로 그리지만 세기는 그대로(이미 그 지역 위끝 레벨이다).
@@ -1066,11 +1073,15 @@ export const TITLES = {
   daily50: { id: 'daily50', name: '요일의 고수', desc: '공격력 +3%', how: '요일 던전 한 곳 50단계', atkMul: 1.03, col: '#a7f3d0' },
   daily75: { id: 'daily75', name: '요일의 절정', desc: '공격력 +5% · 때릴 때마다 〈曜〉', how: '요일 던전 한 곳 75단계', atkMul: 1.05, hitFx: '曜', col: '#5eead4' },
   daily100: { id: 'daily100', name: '칠요(七曜)의 주인', desc: '공격력 +8% · 때릴 때마다 〈日〉', how: '요일 던전 한 곳 100단계', atkMul: 1.08, hitFx: '日', col: '#2dd4bf' },
+  // v409 각성 고수
+  awk1: { id: 'awk1', name: '각성을 꺾은 자', desc: '공격력 +4%', how: '각성 고수 하나를 쓰러뜨리기', atkMul: 1.04, col: '#fca5a5' },
+  awkMagwi: { id: 'awkMagwi', name: '각성 마귀 사냥꾼', desc: '공격력 +6% · 때릴 때마다 〈鬼〉', how: '각성 마귀를 쓰러뜨리기', atkMul: 1.06, hitFx: '鬼', col: '#f43f5e' },
+  awkAll: { id: 'awkAll', name: '각성 천하', desc: '공격력 +10% · 때릴 때마다 〈覺〉', how: '각성 고수 여섯을 모두 쓰러뜨리기', atkMul: 1.1, hitFx: '覺', col: '#ef4444' },
   k1m: { id: 'k1m', name: '백만 처치', desc: '공격력 +4% · 때릴 때마다 〈萬〉', how: '몹 100만 마리', atkMul: 1.04, hitFx: '萬', col: '#e7e5e4' },
 };
 export const AUTO_TITLES = Object.values(TITLES).filter((t) => t.how);
 // v316 주간 두목 순위 — 빨리 잡기를 겨루는 두목 · 기록의 가장 짧은 초(꾸민 값 거르기 — 서버 규칙도 같은 값)
-export const WBOSS_RACE = ['hwamugi', 'magwi'];
+export const WBOSS_RACE = ['hwamugi', 'magwi', 'awk'];   // v409 awk = 각성 마귀 최단(두목 방 고수 id가 아니다)
 export const WBOSS_MIN_SEC = 3;
 // v318 지난주 순위 보상 — 세 순위표(처치·화무기·마귀) 가운데 가장 좋은 자리 하나로 한 번. 1위는 〈주간 패왕〉 한 주 동안
 export const WB_REWARD = [

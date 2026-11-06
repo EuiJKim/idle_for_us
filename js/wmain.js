@@ -1649,7 +1649,7 @@ function handleEvents() {
       // v407 각성 고수
       case 'awakenDown':
         view.showBanner(`覺 ${ev.name} 격파${ev.first ? ' — 처음!' : ` · ${ev.n}번째`}`, '#fca5a5', 1.8, '각성');
-        toast(`覺 ${ev.name} — ${rewardText(ev.reward)}`);
+        toast(`覺 ${ev.name} — ${ev.sec}초${ev.best && ev.prev ? ` (새 기록! 전 ${ev.prev}초)` : ''}${ev.first ? ` · 처음이라 보상 ×${W.AWAKEN_FIRST_K}` : ''} · ${rewardText(ev.reward)}`);
         sfx('loot');
         break;
       // v403 자동 각인이 고른 기운 증표가 없어 멈췄다 — 바꿀지 묻는다(누르면 가방 › 각인)

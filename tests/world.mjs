@@ -3557,6 +3557,7 @@ console.log('\n=== v386 자동 각인(고른 기운대로) · 강화 칸 · 엔�
   const old = g3.makeKing('finger', Gx.PALMA_ZONE, 2, 'palma'); old.plus = 9;
   g3.s.equip.finger = old;
   let roll = 0; g3.rng = () => (roll++ % 2 ? 0.99 : 0.999);   // 신화
+  g3.s.wraid.pity = { sonogong: 9, satawang: 9 };   // v409 부위는 확률 — 천장으로 꼭 나오게
   { const o2 = g3.wraidClaim(1, 'sonogong'); const nw = g3.s.equip.finger; ok(o2.equipped && nw !== old && nw.plus === 9 && old.plus === 0 && nw.rar === 3, '높은 등급 대성신장(손오공 가락지) — 바로 끼고 강화 이어받음', `${nw?.rar} +${nw?.plus}`); }
   const out = g3.wraidClaim(1, 'satawang');
   const now = g3.s.equip[Dx.WRAID_BOSS.satawang.slot];
@@ -3744,6 +3745,39 @@ console.log('\n=== v403 지금 뭘 올리면 제일 세지나 ===');
   ok(!g.upgradeTip(), '은자가 없으면 추천 없음');
   ok(/id: 'up-tip'/.test(read('js/wui.js')), '가방 위 한 줄 — 누르면 그 장비 창');
 }
+console.log('\n=== v409 대성신장 부위는 확률 · 천장 ===');
+{
+  const Dx = await import('../js/world/wdgn.js');
+  const g = fresh('sword'); while (g.s.level < 120) g.addExp(W.expToNext(g.s.level));
+  g.rng = () => 0.99;   // 늘 못 받는 운
+  const got = []; for (let i = 0; i < Dx.PALMA_PITY + 1; i++) got.push(!!g.wraidClaim(20, 'umawang').item);
+  ok(got.slice(0, Dx.PALMA_PITY).every((x) => !x) && got[Dx.PALMA_PITY] && !g.s.wraid.pity.umawang, `운이 나빠도 ${Dx.PALMA_PITY + 1}번째엔 꼭 · 받으면 천장 비움`, got.map(Number).join(''));
+  ok(Dx.PALMA_DROP(1) > Dx.PALMA_DROP(5) && Dx.PALMA_DROP(5) > Dx.PALMA_DROP(50), '순위가 높을수록 잘 나온다');
+  g.rng = () => 0; ok(!!g.wraidClaim(50, 'gyomawang').item, '운이 좋으면 바로');
+  g.s.wraid.pity.satawang = 2; ok(migrateWorld(JSON.parse(JSON.stringify(g.s))).wraid.pity.satawang === 2, '천장은 저장된다');
+}
+console.log('\n=== v409 각성 고수 여섯 · 칭호 · 기록 ===');
+{
+  const g = fresh('sword');
+  while (g.s.level < 150) g.addExp(W.expToNext(g.s.level));
+  g.s.gold = 1e15; g.s.duel.won = { cheonma: 1, hwamugi: 1, magwi: 1, jinpaecheon: 1, baekjagang: 1 };
+  while (g.s.jobTier < 5 && g.canAdvance()) g.advance();
+  ok(W.AWAKEN_IDS.length === 6 && g.awakenOpen('jinpaecheon') && !g.awakenOpen('geomwang'), '맹주 둘 열림 · 검왕은 검왕을 한 번 잡아야');
+  const kr = g.awakenRoom('geomwang'); g.s.bossKills = { ...(g.s.bossKills || {}), [kr]: 1 };
+  ok(g.awakenOpen('geomwang') && W.mapOf(kr).king?.no === 1 && W.awakenKeyOf(W.mapOf(kr)) === 'geomwang', '검왕 두목 방 → 각성 검왕');
+  g.s.dgn.auto = false; g.s.dgn.routine = false;
+  g.setAwaken('geomwang', true); g.enterMap(kr, true);
+  const b = g.spawnMob(true); ok(b?.awk === 'geomwang' && b.name === '각성 검왕', '각성 검왕이 선다');
+  const s0 = g.s.mats.st27 || 0; b.bornAt = g.clock - 12.3; b.hp = 1; g.killMob(b);
+  ok((g.s.mats.st27 || 0) - s0 >= W.AWAKEN.geomwang.stone * W.AWAKEN_FIRST_K && g.s.awk.best.geomwang === 12.3, '처음엔 보상 다섯 배 · 가장 빨리 12.3초');
+  g.checkTitles(); ok(g.hasTitle('awk1') && !g.hasTitle('awkAll'), '〈각성을 꺾은 자〉');
+  const mr = g.awakenRoom('magwi'); g.setAwaken('magwi', true); g.enterMap(mr, true);
+  const bm = g.spawnMob(true); bm.bornAt = g.clock - 80; bm.hp = 1; g.killMob(bm);
+  ok(g.wbossState().best.awk === 80 && !(g.wbossState().best.magwi > 0), '각성 마귀는 주간 순위 「각성 마귀」에만(보통 마귀 기록과 안 섞는다)');
+  g.checkTitles(); ok(g.hasTitle('awkMagwi'), '〈각성 마귀 사냥꾼〉');
+  for (const k of W.AWAKEN_IDS) g.s.awk.kills[k] = 1; g.checkTitles(); ok(g.hasTitle('awkAll'), '여섯 모두 → 〈각성 천하〉');
+  ok(/'awk', 'lv', 'at'/.test(read('firestore.rules')) && /각성 마귀 최단/.test(read('js/wui.js')), '서버 규칙·순위판에 각성 마귀');
+}
 console.log('\n=== v408 강화 레벨 제한 없음 · 참여 보상 제한 없음 · 다시 합류 ===');
 {
   ok(W.enhanceLvCap(1) === W.ENHANCE_MAX && W.enhanceLvCap(150) === W.ENHANCE_MAX, '강화 — 어느 레벨이든 +15까지');
@@ -3766,12 +3800,12 @@ console.log('\n=== v407 각성 고수(천마·화무기·마귀) ===');
   ok(b && b.awk === 'cheonma' && b.name === W.AWAKEN.cheonma.name && !b.calib, '두목 방에 각성 천마가 선다(전투력 보정 없음)');
   const s0 = g.s.mats.st27 || 0, k0 = g.s.awk.kills.cheonma || 0;
   b.hp = 1; g.killMob(b);
-  ok((g.s.mats.st27 || 0) - s0 === W.AWAKEN.cheonma.stone && g.s.awk.kills.cheonma === k0 + 1, '잡을 때마다 검혼석·증표·조각');
+  ok((g.s.mats.st27 || 0) - s0 === W.AWAKEN.cheonma.stone * W.AWAKEN_FIRST_K && g.s.awk.kills.cheonma === k0 + 1, '잡을 때마다 검혼석·증표·조각(처음은 다섯 배)');
   g.setAwaken('cheonma', false); const b2 = g.spawnMob(true);
   ok(b2 && !b2.awk, '끄면 보통 천마');
   const m2 = migrateWorld(JSON.parse(JSON.stringify(g.s)));
   ok(m2.awk && m2.awk.kills.cheonma === 1 && !m2.awk.on.cheonma, '저장·불러오기');
-  ok(/awk-\$\{m\.id\}/.test(read('js/wui.js')) && /case 'awakenDown'/.test(read('js/wmain.js')), '무림고수 칸 켜기/끄기 · 알림');
+  ok(/awk-\$\{id\}/.test(read('js/wui.js')) && /case 'awakenDown'/.test(read('js/wmain.js')), '무림고수 칸 켜기/끄기 · 알림');
 }
 console.log('\n=== v406 맞은 탄은 사라진다 · 함께 치는 무인이 막는다 ===');
 {

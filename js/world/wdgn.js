@@ -417,6 +417,9 @@ export const wraidKillReward = (lv, rank, boss) => {
 // 대성신장 부위 등급 — 1위일수록 좋게(전설 이상이 잘 뜬다)
 //   [레어 · 유니크 · 전설 · 신화] 가중치
 export const PALMA_RAR_W = [0, 0, 60, 40];
+// v409 부위는 확률로 — 순위가 높을수록 잘 나온다 · 그 마왕에게서 PALMA_PITY번 연달아 못 받으면 다음엔 꼭(천장)
+export const PALMA_DROP = (rank) => (rank === 1 ? 0.6 : rank <= 3 ? 0.45 : rank <= 10 ? 0.35 : 0.25);
+export const PALMA_PITY = 4;
 export const palmaRarW = (rank) => (rank === 1 ? [0, 0, 30, 70] : rank <= 3 ? [0, 0, 45, 55] : PALMA_RAR_W);
 // 캔버스 빛(putGlow)은 'r,g,b' 꼴을 받는다
 const hexRgb = (hex) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)).join(',');

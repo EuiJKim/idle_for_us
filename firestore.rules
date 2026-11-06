@@ -125,23 +125,25 @@ service cloud.firestore {
     // 운영자가 콘솔에서 고치면 바로 반영된다(배포가 필요 없다).
     //   config/shop  ->  { bank: '○○은행 000-0000-0000 홍길동', price: '5,000원', note: '...' }
     // v302 전체 채팅 — 로그인한 사람은 누구나 읽고 쓴다. 자기 이름으로만 · 200자 · 시각은 서버 시각. 고치기·지우기는 운영자만.
-    // v316 주간 두목 순위 — 주(월요일, 'YYYY-MM-DD')마다 한 사람 문서 하나. 처치 수는 줄지 않고, 최단 초는 늘지 않는다.
+    // v316 주간 두목 순위(v409 각성 마귀 awk 더함) — 주(월요일, 'YYYY-MM-DD')마다 한 사람 문서 하나. 처치 수는 줄지 않고, 최단 초는 늘지 않는다.
     match /wboss/{wk}/p/{uid} {
       allow read: if signedIn();
       allow create, update: if signedIn() && request.auth.uid == uid
         && wk.size() == 10
-        && request.resource.data.keys().hasOnly(['name', 'title', 'kills', 'hwamugi', 'magwi', 'lv', 'at'])
+        && request.resource.data.keys().hasOnly(['name', 'title', 'kills', 'hwamugi', 'magwi', 'awk', 'lv', 'at'])
         && request.resource.data.name is string && request.resource.data.name.size() <= 12
         && strOk(request.resource.data, 'title', 16)
         && request.resource.data.kills is int && request.resource.data.kills >= 0 && request.resource.data.kills <= 100000
         && numOk(request.resource.data, 'hwamugi', 3, 36000)
         && numOk(request.resource.data, 'magwi', 3, 36000)
+        && numOk(request.resource.data, 'awk', 3, 36000)
         && request.resource.data.lv is int && request.resource.data.lv >= 0 && request.resource.data.lv <= 300
         && request.resource.data.at == request.time
         && (resource == null || (
           request.resource.data.kills >= resource.data.kills
           && (!('hwamugi' in resource.data) || request.resource.data.hwamugi <= resource.data.hwamugi)
-          && (!('magwi' in resource.data) || request.resource.data.magwi <= resource.data.magwi)));
+          && (!('magwi' in resource.data) || request.resource.data.magwi <= resource.data.magwi)
+          && (!('awk' in resource.data) || request.resource.data.awk <= resource.data.awk)));
       allow delete: if isAdmin();
     }
     // v373 월드보스 · v375 팔마왕(상시 최종 두목)·옥황상제 — 마왕마다 wbp/{마왕} = {seq}(지금 몇 번째)와 wraid/{마왕}_{seq}(그 마왕의 체력).

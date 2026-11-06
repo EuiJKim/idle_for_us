@@ -255,7 +255,8 @@ export function migrateWorld(raw, now = Date.now()) {
   for (const [k, v] of Object.entries(raw.duel?.stars || {})) { const n = Math.floor(Number(v) || 0) & 3; if (n) s.duel.stars[k] = n; }   // v262
   // v407 각성 고수 — 켠 것(on)과 쓰러뜨린 수(kills)
   s.awk = { on: {}, kills: {} };
-  for (const id of W.AWAKEN_IDS) { if (raw.awk?.on?.[id] === true) s.awk.on[id] = true; const n = Math.floor(Number(raw.awk?.kills?.[id]) || 0); if (n > 0) s.awk.kills[id] = n; }
+  s.awk.best = {};   // v409 가장 빨리 잡은 초
+  for (const id of W.AWAKEN_IDS) { if (raw.awk?.on?.[id] === true) s.awk.on[id] = true; const n = Math.floor(Number(raw.awk?.kills?.[id]) || 0); if (n > 0) s.awk.kills[id] = n; const b = Number(raw.awk?.best?.[id]); if (b >= 1 && b < 36000) s.awk.best[id] = Math.round(b * 10) / 10; }
   s.questGift = Number.isInteger(raw.questGift) ? raw.questGift : -1;
   const rd = raw.raid && typeof raw.raid === 'object' ? raw.raid : {};
   s.raid = { day: typeof rd.day === 'string' ? rd.day : '', n: clamp(Math.floor(Number(rd.n) || 0), 0, D.RAID_PER_DAY), dps: Math.max(0, Number(rd.dps) || 0) };
@@ -263,7 +264,8 @@ export function migrateWorld(raw, now = Date.now()) {
     s.wraid = { day: typeof w.day === 'string' ? w.day.slice(0, 10) : '', n: clamp(Math.floor(Number(w.n) || 0), 0, 999), dps: Math.max(0, Number(w.dps) || 0),
       kills: Math.max(0, Math.floor(Number(w.kills) || 0)), top1: Math.max(0, Math.floor(Number(w.top1) || 0)), ok: Math.max(0, Math.floor(Number(w.ok) || 0)), sk: Math.max(0, Math.floor(Number(w.sk) || 0)),
       gates: Object.fromEntries(Object.keys(w.gates || {}).filter((k) => D.isGate(k)).map((k) => [k, 1])),
-      read: Object.fromEntries(Object.keys(w.read || {}).filter((k) => /^\d$/.test(k) && +k < D.HEAVEN_STORY.length).map((k) => [k, 1])) }; }
+      read: Object.fromEntries(Object.keys(w.read || {}).filter((k) => /^\d$/.test(k) && +k < D.HEAVEN_STORY.length).map((k) => [k, 1])),
+      pity: Object.fromEntries(Object.entries(w.pity || {}).filter(([k, v]) => D.WRAID_BOSS[k] && v > 0).map(([k, v]) => [k, clamp(Math.floor(Number(v) || 0), 0, D.PALMA_PITY)])) }; }   // v409 대성신장 천장
   s.mast = {};
   for (const [k, v] of Object.entries(raw.mast || {})) if (W.zoneOfW(+k) && v > 0) s.mast[k] = Math.floor(Number(v) || 0);
   s.zTickets = {}; s.zPity = {};
@@ -408,6 +410,9 @@ export class WorldGame {
     const s = this.s;
     switch (id) {
       case 'tower50': return (s.tower?.floor || 0) >= 50;
+      case 'awk1': return Object.values(s.awk?.kills || {}).some((n) => n > 0);
+      case 'awkMagwi': return (s.awk?.kills?.magwi || 0) > 0;
+      case 'awkAll': return W.AWAKEN_IDS.every((k) => (s.awk?.kills?.[k] || 0) > 0);
       case 'daily50': return Math.max(0, ...Object.values(s.dgn?.best || {})) >= 50;
       case 'daily75': return Math.max(0, ...Object.values(s.dgn?.best || {})) >= 75;
       case 'daily100': return Math.max(0, ...Object.values(s.dgn?.best || {})) >= 100;
@@ -982,9 +987,10 @@ export class WorldGame {
     if (boss && m.lord) { mob.maxHp = mob.hp = mob.hp * W.LORD_HP; mob.atk *= W.LORD_ATK; }
     if (boss && MS.patternHpMult(m) !== 1) mob.maxHp = mob.hp = mob.hp * MS.patternHpMult(m);     // 초식 두목 (v170)
     // v241: 오버파워 — 무인이 그 레벨 기준보다 세면 두목이 그만큼 단단해진다(^0.6 · 최대 3배). 함께 사냥 왕·던전은 그대로
-    const awk = boss && !this.inst && this.awakenActive(m.master) ? W.AWAKEN[m.master] : null;   // v407 각성 고수
+    const awkKey = boss && !this.inst ? W.awakenKeyOf(m) : null;
+    const awk = awkKey && this.awakenActive(awkKey) ? W.AWAKEN[awkKey] : null;   // v407 각성 고수 · v409 검왕도
     if (awk) {
-      mob.maxHp = mob.hp = mob.hp * awk.hp; mob.atk *= awk.atk; mob.awk = m.master; mob.grade = 3;
+      mob.maxHp = mob.hp = mob.hp * awk.hp; mob.atk *= awk.atk; mob.awk = awkKey; mob.grade = 3;
       mob.name = awk.name; mob.def = { ...mob.def, name: awk.name };
     } else if (boss && !this.inst && !(this.s.kingParty && this.coop?.hold)) {   // v339 함께 잡는 두목은 서버 체력(내 전투력 보정 없음)
       const base = mob.hp;
@@ -2511,19 +2517,21 @@ export class WorldGame {
   impLv(it) { const e = IM.normEntry(it?.imps?.[0]); return e ? Math.min(3, it.rar || 0) + IM.danOf(e) - 1 : 0; }
   // 이 칸이 노리는 기운 — 고른 것 · 없으면 지금 새겨진 것
   // v407 각성 고수 — 5차를 마치고 그 고수를 한 번 쓰러뜨렸으면 열린다 · 두목 방에서 켜고 끈다
-  awakenOpen(id) { return !!W.AWAKEN[id] && this.cheonmaOn() && !!this.s.duel.won[id]; }
+  awakenRoom(id) { const a = W.AWAKEN[id]; if (!a) return null; if (a.king) { const z = Object.keys(W.ZONES_W).find((k) => W.ZONES_W[k]?.king?.no === a.king); return z ? W.mapId(+z, W.BOSS_AREA) : null; } return W.mapId(W.masterZoneOf(id), W.BOSS_AREA); }
+  awakenBeaten(id) { const a = W.AWAKEN[id]; return a?.king ? (this.s.bossKills?.[this.awakenRoom(id)] || 0) > 0 : !!this.s.duel.won[id]; }
+  awakenOpen(id) { return !!W.AWAKEN[id] && this.cheonmaOn() && this.awakenBeaten(id); }
   awakenActive(id) { return this.awakenOpen(id) && !!this.s.awk?.on?.[id]; }
   setAwaken(id, on) {
     if (!this.awakenOpen(id)) return false;
     this.s.awk.on = { ...this.s.awk.on };
     if (on) this.s.awk.on[id] = true; else delete this.s.awk.on[id];
     // 그 두목 방에 있으면 서 있는 두목을 바로 바꿔 세운다
-    if (this.map?.master === id && !this.inst) { this.mons = this.mons.filter((x) => !x.isBoss); this.bossT = 0; this.bossSeen = false; }
+    if (this.map?.id === this.awakenRoom(id) && !this.inst) { this.mons = this.mons.filter((x) => !x.isBoss); this.bossT = 0; this.bossSeen = false; }
     return true;
   }
-  awakenReward(id) {
-    const a = W.AWAKEN[id], mm = MS.masterOf(id);
-    return { gold: Math.round(W.mobGold(Math.min(mm.lv, 150)) * a.gold), mats: { [G.stoneKey(G.PALMA_ZONE)]: a.stone, [W.bossKey(W.masterZoneOf(id))]: a.mark }, petShard: a.shard, mountShard: a.shard };
+  awakenReward(id, first = false) {
+    const a = W.AWAKEN[id], room = W.mapOf(this.awakenRoom(id)), k = first ? W.AWAKEN_FIRST_K : 1;
+    return { gold: Math.round(W.mobGold(Math.min(room?.lv?.[1] || 150, 150)) * a.gold * k), mats: { [G.stoneKey(G.PALMA_ZONE)]: a.stone * k, [W.bossKey(room?.zone ?? W.masterZoneOf(id))]: a.mark * k }, petShard: a.shard * k, mountShard: a.shard * k };
   }
   // v403 「지금 뭘 올리면 제일 세지나」 — 낀 장비의 강화·각인·초월을 한 번씩 해 본 판(복제)에서 전투력이 은자 값 대비 가장 많이 오르는 것.
   //   성공 확률은 1로 보고(기대값이 아니라 '올리면'), 은자가 모자란 것은 빼며, 10초마다 한 번만 센다
@@ -3639,8 +3647,8 @@ export class WorldGame {
   noteWeekBoss(m, now = Date.now()) {
     const w = this.wbossState(now);
     w.kills++;
-    const id = this.map.master;
-    if (W.WBOSS_RACE.includes(id)) {
+    const id = m.awk ? (m.awk === 'magwi' ? 'awk' : null) : this.map.master;   // v409 각성 고수는 보통 기록과 섞지 않는다(각성 마귀만 따로)
+    if (id && W.WBOSS_RACE.includes(id)) {
       const sec = Math.max(W.WBOSS_MIN_SEC, Math.round((this.clock - (m.bornAt ?? this.clock)) * 10) / 10);
       if (!(w.best[id] > 0) || sec < w.best[id]) { const prev = w.best[id] || null; w.best[id] = sec; this._wbBest = true; this.emit('wbossBest', { id, sec, prev }); }
     }
@@ -4716,7 +4724,12 @@ export class WorldGame {
     if (bossId === D.SEOKGA.id) { r.sk = (r.sk || 0) + 1; this.emit('palmReveal', { n: r.sk }); }   // v383 손바닥 안이었다
     if (D.isGate(bossId) && !r.gates?.[bossId]) { r.gates = { ...(r.gates || {}), [bossId]: 1 }; this._stats = null; this.emit('gateClear', { boss: b.name, n: this.gatesCleared(), bonus: D.GATE_BONUS }); }
     const out = this.grant(D.wraidKillReward(this.s.level, rank, bossId));
-    if (b?.slot) {
+    // v409 대성신장 부위는 확률로 — 못 받은 만큼 천장이 쌓인다(그 마왕마다)
+    const pity = r.pity || (r.pity = {});
+    const drop = b?.slot && ((pity[b.id] || 0) >= D.PALMA_PITY || this.rng() < D.PALMA_DROP(rank));
+    if (b?.slot && !drop) { pity[b.id] = (pity[b.id] || 0) + 1; out.miss = { left: D.PALMA_PITY - pity[b.id] + 1 }; }
+    if (drop) {
+      pity[b.id] = 0;
       const rar = W.rollRarity(D.palmaRarW(rank), this.rng);
       const it = this.makeKing(b.slot, G.PALMA_ZONE, rar, 'palma');
       it.mw = b.id;
@@ -5019,8 +5032,13 @@ for (const [fn, key, always] of [
     // v407 각성 고수 — 쓰러뜨릴 때마다 보상
     if (m.isBoss && !this.inst && m.awk) {
       const k = this.s.awk.kills; k[m.awk] = (k[m.awk] || 0) + 1;
-      const reward = this.grant(this.awakenReward(m.awk));
-      this.emit('awakenDown', { id: m.awk, name: W.AWAKEN[m.awk].name, n: k[m.awk], first: k[m.awk] === 1, reward });
+      const first = k[m.awk] === 1;
+      const reward = this.grant(this.awakenReward(m.awk, first));   // v409 처음이면 다섯 배
+      const sec = Math.max(1, Math.round((this.clock - (m.bornAt ?? this.clock)) * 10) / 10), bt = this.s.awk.best;
+      const best = !(bt[m.awk] > 0) || sec < bt[m.awk]; const prev = bt[m.awk] || null; if (best) bt[m.awk] = sec;   // v409 가장 빨리
+      if (best && m.awk === 'magwi') this._wbBest = true;   // 주간 순위(각성 마귀)
+      this.emit('awakenDown', { id: m.awk, name: W.AWAKEN[m.awk].name, n: k[m.awk], first, reward, sec, best, prev });
+      this.checkTitles?.();
     }
     // 고수를 처음 쓰러뜨리면 (v148): 큰 보상과 영구 공격력·체력
     if (m.isBoss && !this.inst && this.map.master && !this.s.duel.won[this.map.master]) {
