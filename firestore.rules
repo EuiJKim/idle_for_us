@@ -48,7 +48,7 @@ service cloud.firestore {
       return d.nickname is string && d.nickname.size() <= 12
         && numOk(d, 'world', 0, 1)
         && (!('level' in d) || (d.level is int && d.level >= 0 && d.level <= 300))
-        && (!('jobTier' in d) || (d.jobTier is int && d.jobTier >= 0 && d.jobTier <= 4))
+        && (!('jobTier' in d) || (d.jobTier is int && d.jobTier >= 0 && d.jobTier <= 9))   // v415 5차(v391)가 막혀 온라인이 꺼졌다 — 여유 있게 9까지
         && strOk(d, 'job', 16) && strOk(d, 'tierName', 24) && strOk(d, 'mapName', 24) && strOk(d, 'guildName', 16) && strOk(d, 'title', 20)
         && numOk(d, 'map', 0, 1000) && numOk(d, 'weaponGrade', -1, 50)
         && numOk(d, 'power', 0, 1000000000000000000000000000000.0) && numOk(d, 'atk', 0, 1000000000000000000000000000000.0) && numOk(d, 'hp', 0, 1000000000000000000000000000000.0) && numOk(d, 'raidDps', 0, 1000000000000000000000000000000.0)

@@ -3759,6 +3759,11 @@ console.log('\n=== v413 각성 고수 전용 발밑 문양 ===');
   ok(fs.existsSync(new URL('../art/hero2/ring-awk-cheonma.png', import.meta.url)) && W.AWAKEN_IDS.every((id) => fs.existsSync(new URL(`../art/hero2/ring-awk-${id}.png`, import.meta.url))), '문양 그림 여섯');
   g.s.custom = { ...(g.s.custom || {}), ring: 'awk-cheonma' }; ok(migrateWorld(JSON.parse(JSON.stringify(g.s))).custom.ring === 'awk-cheonma' && migrateWorld(JSON.parse(JSON.stringify(g.s))).awk.rings.cheonma === 1, '끼고 저장 · 불러오기');
 }
+console.log('\n=== v416 서버 규칙 — 5차 전직 무인도 내 기록을 쓴다 ===');
+{
+  const R = read('firestore.rules'); const m = R.match(/d\.jobTier <= (\d+)/);
+  ok(m && +m[1] >= W.TIERS.length - 1, `players 규칙 jobTier 상한 ${m?.[1]} ≥ 마지막 전직 ${W.TIERS.length - 1}`);
+}
 console.log('\n=== v415 함께 사냥 — 보스 체력이 0인데 안 죽던 것 ===');
 {
   const CoopMod = await import('../js/world/wcoop.js');
