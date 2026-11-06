@@ -3706,5 +3706,7 @@ console.log('\n=== v401 일일 던전 — 30단계 위로 계속 ===');
   ok(m && Math.abs(m.maxHp / (D1.dailyMobHp(150) * (m.elite ? W.ELITE.hp : 1)) - D1.dailyOverK(45)) < 0.01, '45단계 몹 체력 = 150레벨 몹 × 1.12^15');
   ok(D1.dailyReward('gold', 50, 1, 150).gold > D1.dailyReward('gold', 30, 1, 150).gold * 2, '50단계 은자 = 30단계의 두 배 넘게');
 }
+console.log('\n=== v402 막힌 각인 칸 — 기운 바꾸기 제안 ===');
+ok(/imp-switch/.test(read('js/wui.js')) && /가진 증표가 가장 많은 기운/.test(read('js/wui.js')), '각인 칸 — 고른 기운 증표가 없으면 가진 증표 많은 기운으로 바꾸자고 짚는다');
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);

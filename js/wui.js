@@ -1515,6 +1515,15 @@ function bagTab(app) {
         h('p', { class: 'muted', style: 'font-size:12px;margin:0 0 8px' }, '① 칸마다 원하는 기운(능력)을 골라요 ② 「올리기」 — 새기기·단·등급을 알아서 차례로 ③ 여덟 칸을 같은 기운으로 모으면 공명(더 세요)'),
         h('div', { class: 'imp-all' }, h('small', { class: 'muted' }, '여덟 칸 모두 한 기운으로(공명):'),
           ...THEME_ORDER.slice(0, 8).map((t) => h('button', { class: 'chip', style: `--tc:${IM.THEMES[t].col}`, onclick: () => { for (const { x } of worn) game.setImpTheme(x.id, t); app.save(); toast(`여덟 칸 모두 ${IM.THEMES[t].name}(${themeStats(t)}) — 「모두 올리기」로 새겨요`); done(); } }, IM.THEMES[t].name))),
+        // v402 고른 기운의 증표가 없는데 다른 기운 증표가 잔뜩이면 — 바꾸자고 짚는다(옛 기운에 영영 갇혔다)
+        (() => {
+          const tot = {}; for (const [k, v] of Object.entries(s.mats)) if (W.isMarkKey(k) && v > 0) { const t = IM.themeOfZone(+k.slice(1)); tot[t] = (tot[t] || 0) + v; }
+          const best = Object.entries(tot).sort((a, b) => b[1] - a[1])[0];
+          const stuck = worn.filter(({ it }) => { const nx = game.impNext(it); return !nx.can && nx.kind !== 'max' && game.impThemeOf(it) !== best?.[0]; });
+          if (!best || best[1] < 30 || !stuck.length) return '';
+          return h('div', { class: 'imp-hint' }, h('span', {}, `💡 막힌 칸 ${stuck.length}개 — 가진 증표가 가장 많은 기운은 〈${IM.THEMES[best[0]].name}〉(${fmt(best[1])}개)`),
+            h('button', { class: 'btn primary', id: 'imp-switch', onclick: () => { for (const { it } of stuck) game.setImpTheme(it.slot, best[0]); app.save(); toast(`막힌 칸을 ${IM.THEMES[best[0]].name} 기운으로 — 「올리기」가 다시 새겨요(단은 절반)`); done(); } }, '그 기운으로 바꾸기'));
+        })(),
         top && top.n >= 2 ? h('p', { class: 'imp-res' }, `공명: ${IM.THEMES[top.theme].name} ${top.n}칸${top.tier >= 0 ? ` · ${IM.RES_ROMAN[top.tier]}` : ''}${top.next ? ` · ${top.next}칸 더 모으면 다음 단계` : ''}`) : '',
         h('div', { class: 'btn-row' },
           h('button', { class: 'btn primary', id: 'imp-all', disabled: canAny ? null : true, onclick: () => { const r = game.impAll(); toast(`각인 ${r.n}번 — 성공 ${r.ok}${r.fail ? ` · 실패 ${r.fail}` : ''}`); done(); } }, '⏫ 모두 올리기'),

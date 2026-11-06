@@ -2641,3 +2641,6 @@ body.hunt-noui #gather, body.in-inst #gather { display: none !important; }
 .stone-btns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; min-width: 132px; }
 .stone-btns .buy { padding: 6px 4px; font-size: 13px; min-width: 0; }
 .stone-btns .buy.ghost { background: transparent; border: 1px dashed var(--line, #57534e); color: var(--muted); }
+
+/* v402 막힌 각인 칸 — 기운 바꾸기 제안 */
+.imp-hint { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; justify-content: space-between; padding: 6px 8px; margin: 6px 0; border: 1px dashed #fbbf24; border-radius: 10px; font-size: 12.5px; }
