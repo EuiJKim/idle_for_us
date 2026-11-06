@@ -3759,6 +3759,13 @@ console.log('\n=== v413 각성 고수 전용 발밑 문양 ===');
   ok(fs.existsSync(new URL('../art/hero2/ring-awk-cheonma.png', import.meta.url)) && W.AWAKEN_IDS.every((id) => fs.existsSync(new URL(`../art/hero2/ring-awk-${id}.png`, import.meta.url))), '문양 그림 여섯');
   g.s.custom = { ...(g.s.custom || {}), ring: 'awk-cheonma' }; ok(migrateWorld(JSON.parse(JSON.stringify(g.s))).custom.ring === 'awk-cheonma' && migrateWorld(JSON.parse(JSON.stringify(g.s))).awk.rings.cheonma === 1, '끼고 저장 · 불러오기');
 }
+console.log('\n=== v418 칠대성 — 쓰러뜨리면 「쓰러뜨렸어요」 · 서버에 1이 남지 않게 · 보상 저절로 ===');
+{
+  const N = read('js/wnet.js'), M = read('js/wmain.js');
+  ok(/async commitWraid\(id, amount, finish = false\)/.test(N) && /if \(finish && add < rest/.test(N), '내 화면에서 쓰러졌으면 반올림 찌꺼기(서버에 남은 1)까지 채워 마무리');
+  ok(/wraidKilledByMe/.test(M) && /마왕을 쓰러뜨렸어요/.test(M), '4초마다 올린 몫이 마무리했어도 「쓰러뜨렸어요 · 마무리 일격」');
+  ok(/async function autoClaimWraid/.test(M) && /what === 'wraid' && net\.wraidClaims/.test(M), '받을 보상은 저절로 받는다(다른 무인이 마무리해도)');
+}
 console.log('\n=== v417 일일던전 나가기는 등반 모드라도 그날 멈춘다 · 칠대성 늦은 한 몫 ===');
 {
   const g = fresh('sword'); while (g.s.level < 60) g.addExp(W.expToNext(g.s.level));

@@ -257,8 +257,9 @@ export class WNet extends Net {
   wraidRank(r) { return Object.entries(r?.damage || {}).filter(([, d]) => d > 0).sort((a, b) => b[1] - a[1]); }
   wraidMyRank(r) { const i = this.wraidRank(r).findIndex(([u]) => u === this.uid); return i >= 0 ? i + 1 : 0; }
   // 친 만큼 올린다. 이번 일격으로 쓰러졌으면 true
-  async commitWraid(id, amount) {
-    if (!this.ready() || !(amount > 0)) return false;
+  // v418 finish: 내 화면에서 마왕이 쓰러졌다 — 반올림으로 서버에 1이 남지 않게 남은 체력까지 채워 마무리한다
+  async commitWraid(id, amount, finish = false) {
+    if (!this.ready() || !(amount > 0 || finish)) return false;
     const ref = this.ref('wraid', id);
     const killed = await ack(this.fs.runTransaction(this.db, async (tx) => {
       const snap = await tx.get(ref);
@@ -272,7 +273,10 @@ export class WNet extends Net {
         }
         return false;
       }
-      const add = Math.round(amount);
+      let add = Math.max(0, Math.round(amount));
+      const rest = r.maxHp - (r.total || 0);
+      if (finish && add < rest && rest <= Math.max(10, r.maxHp * 0.001)) add = rest;   // v418 남은 게 아주 조금(반올림 찌꺼기)이면 채운다
+      if (!(add > 0)) return false;
       const sum = Math.min(r.maxHp, (r.total || 0) + add);
       const up = { total: sum, [`damage.${this.uid}`]: (r.damage?.[this.uid] || 0) + add, [`names.${this.uid}`]: this.game.s.nickname || '무명' };
       if (sum >= r.maxHp) { up.killedAt = this.fs.serverTimestamp(); up.killer = this.uid; }

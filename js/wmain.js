@@ -1240,11 +1240,14 @@ function showInstEnd(ev) {
   // v373 월드보스 — 아직 안 올린 내 몫을 올리고 알린다(v374 싸우는 동안 4초마다 올렸다)
   if (ev.kind === 'wraid') {
     game.shIn = null;
-    const send = ev.unsent > 0 ? net.commitWraid(ev.key, ev.unsent) : Promise.resolve(false);
-    send.then((killed) => {
+    const mine = ev.ok && !ev.byOther && !ev.died && !ev.timeout && !ev.left;   // v418 내 화면에서 쓰러뜨렸다
+    const send = ev.unsent > 0 || mine ? net.commitWraid(ev.key, Math.max(ev.unsent, mine ? 1 : 0), mine) : Promise.resolve(false);
+    send.then((killed0) => {
+      const killed = killed0 || (mine && wraidKilledByMe === ev.key);   // v418 4초마다 올리던 몫이 마무리했어도 「마무리 일격」
+      if (killed || ev.byOther || mine) setTimeout(() => autoClaimWraid(), 1500);   // v418 쓰러뜨렸으면 보상을 저절로 받는다
       const sk = String(ev.key || '').startsWith('seokga_');
-      const why = ev.byOther ? (sk ? ' — 여래가 쓰러졌다…? 받기를 눌러 보세요' : ' — 마왕이 쓰러졌어요!') : ev.died ? ' — 쓰러졌어요' : ev.timeout ? ' — 시간 끝' : '';
-      const again = ev.died || ev.timeout || killed || ev.byOther;   // v408 쓰러져도·시간이 끝나도 바로 같은 마왕(또는 다음 마왕) 방으로
+      const why = ev.byOther ? (sk ? ' — 여래가 쓰러졌다…?' : ' — 마왕이 쓰러졌어요!') : mine ? (sk ? ' — 여래가 쓰러졌다…?' : ' — 마왕을 쓰러뜨렸어요!') : ev.died ? ' — 쓰러졌어요' : ev.timeout ? ' — 시간 끝' : '';
+      const again = ev.died || ev.timeout || killed || ev.byOther || mine;   // v408 쓰러져도·시간이 끝나도 바로 같은 마왕(또는 다음 마왕) 방으로
       toast(`🌋 칠대성 토벌 피해 ${fmt(ev.dealt)}${ev.reward ? ` · 참여 보상 ${rewardText(ev.reward)}` : ''}${why}${killed ? ' — 마무리 일격!' : ''}${again ? ' · ⚡ 누르면 다시 합류' : ''}`, again ? () => rejoinWraid(D.wraidBossOfId(ev.key).id) : null);
       if (again && game.s.wraid.auto && !ev.left) {   // v413 자동 반복 — 2초 뒤 같은 마왕(쓰러졌으면 다음 마왕)으로
         const boss = D.wraidBossOfId(ev.key).id;
@@ -2530,8 +2533,11 @@ function watchMail() {
     if (fresh > 0) { toast(`📮 우편이 ${fresh > 1 ? `${fresh}통 ` : ''}왔어요 — 오른쪽 📮를 눌러 받아요`); sfx('loot'); const b = $('btn-mail'); b.classList.remove('pop'); void b.offsetWidth; b.classList.add('pop'); }
   });
 }
+let wraidClaimT = 0;
 function netChanged(what) {
   if (what === 'status') { if (net.ready?.()) watchMail(); else net.unwatchGifts?.(); }
+  // v418 받을 칠대성 보상이 생기면(다른 무인이 마무리했어도) 저절로 받는다
+  if (what === 'wraid' && net.wraidClaims?.().length && !game.inst) { clearTimeout(wraidClaimT); wraidClaimT = setTimeout(() => autoClaimWraid(), 1200); }
   // v309 규칙이 옛 판이면 운영자에게 한 번 알린다(다른 무인에게는 보이지 않는다)
   if (what === 'rules' && net.rulesOk === false && net.isAdmin?.() && !rulesWarned) {
     rulesWarned = true;
@@ -2601,6 +2607,20 @@ function showEnding() {
 }
 // v374 월드보스 — 싸우는 동안 4초마다 내 몫을 올리고, 무림 전체의 남은 체력으로 맞춘다
 let wraidSendT = 4, wraidSending = false, wraidTip = false;
+let wraidKilledByMe = null;
+// v418 쓰러진 마왕 보상은 저절로 받는다 — 「받기」를 눌러야 해서 쓰러뜨리고도 대성신장 칸(✓)이 안 올라갔다
+async function autoClaimWraid() {
+  if (!net.ready?.()) return;
+  for (const r of net.wraidClaims?.() || []) {
+    try {
+      const got = await net.claimWraid(r);
+      if (got) {
+        toast(`🌋 ${got.boss.name} 처치 보상 — ${got.rank}위 · ${rewardText(got.reward)}${got.reward.item ? ` · 〈${W.itemName(got.reward.item, game.s.job)}〉` : got.reward.miss ? ` · 대성신장은 이번엔 안 나왔어요(${got.reward.miss.left}번 안에 꼭)` : ''}`);
+        save(); refreshUI(true);
+      }
+    } catch (err) { console.warn('[wraid] claim', err?.message || err); }
+  }
+}
 function wraidNetTick(dt) {
   const I = game.inst;
   if (I?.kind !== 'wraid' || I.done) { wraidSendT = 4; return; }
@@ -2611,6 +2631,7 @@ function wraidNetTick(dt) {
   if (amt <= 0) return;
   wraidSending = true;
   net.commitWraid(I.key, amt).then((killed) => {
+    if (killed) wraidKilledByMe = I.key;   // v418
     if (game.inst === I) { I.sent = (I.sent || 0) + amt; if (killed && !I.done) I.done = { ok: true }; }
   }).catch(() => {}).finally(() => { wraidSending = false; });
 }
