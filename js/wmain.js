@@ -207,7 +207,6 @@ const FX_PREF = ['low', 'mid', 'high'];
 const FX_NAME = { high: '높음', mid: '보통', low: '낮음' };
 function loadFxPref() { try { return localStorage.getItem('ifu.fx') || 'high'; } catch { return 'high'; } }
 view.fxPref = Math.max(0, FX_PREF.indexOf(loadFxPref()));
-try { view.showRange = localStorage.getItem('ifu.range') === '1'; } catch { /* 사생활 모드 */ }
 try { const sp = Number(localStorage.getItem('ifu.shake')); if ([0, 0.5, 1].includes(sp) && localStorage.getItem('ifu.shake') !== null) view.shakePref = sp; } catch { /* 사생활 모드 */ }
 
 // 화면 거리 — 전체(지도 한 장) · 보통(가로 꽉) · 가까이. 눌러서 돌리고, 마우스 휠로도 당기고 민다.
@@ -1123,12 +1122,18 @@ function refreshUI(full = false) {
   const gap = game.huntGap();
   $('exp-rate').classList.toggle('slow', !!gap);
   const ew = $('exp-warn');
-  ew.classList.toggle('hidden', !gap);
+  const chk = game.challengeNow?.() || 1;   // v425 도전 경험치
+  ew.classList.toggle('hidden', !gap && chk <= 1.001);
+  ew.classList.toggle('up', !gap && chk > 1.001);
   if (gap) {
     const cut = Math.round((1 - gap.k) * 100);
     setText(ew, gap.to ? `⚠ 경험치 −${cut}% → ${W.mapOf(gap.to).name}로` : `⚠ 경험치 −${cut}% → 지도`);
     ew.title = '사냥터가 내 레벨보다 낮아 경험치가 깎여요 — 누르면 알맞은 곳으로';
     ew._to = gap.to;
+  } else if (chk > 1.001) {
+    setText(ew, `⚔ 도전 경험치 +${Math.round((chk - 1) * 100)}%`);
+    ew.title = '나보다 높은 몹 — 레벨 차 1마다 경험치 +5%(네 배까지). 몹도 그만큼 세요';
+    ew._to = null;
   }
   bossWaitHud();
   document.body.classList.toggle('in-inst', !!game.inst);   // v325 던전 안에서는 길잡이·찍기 알약을 숨긴다(던전 머리와 겹쳤다)
@@ -2476,10 +2481,6 @@ $('btn-settings').addEventListener('click', () => openModal((s) => {
         save();
       } }, `${Math.round(game.potionAt() * 100)}%`)),
     toggleRow('자동 스킬', game.s.autoSkill, '체력을 쓰는 스킬은 체력이 넉넉할 때만 써요 · 걸으면서도 써요', (v) => { game.s.autoSkill = v; save(); }),
-    toggleRow('스킬 범위 보기', view.showRange, '펼칠 때마다 맞는 곳을 금빛 고리로 — 스킬 단추를 길게 누르면 언제든 볼 수 있어요', (v) => {
-      view.showRange = v;
-      try { localStorage.setItem('ifu.range', v ? '1' : '0'); } catch { /* 이번만 */ }
-    }),
     ]],
     ['shmup', '🌋 탄막', [
     // v377 탄막 조작(칠대성·천외천)

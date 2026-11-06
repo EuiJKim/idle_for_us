@@ -3059,9 +3059,10 @@ export function rangeText(game, sk) {
   const rc = game.skillReach?.(sk);
   if (!rc) return '';
   const t = (px) => `${(px / W.TILE).toFixed(1).replace(/\.0$/, '')}칸`;
-  if (sk.kind === 'single') return `과녁 하나 · 사거리 ${t(rc.reach)}${rc.r ? ` · 둘레 ${t(rc.r)}도 맞음` : ''}`;
-  if (sk.kind === 'triple') return `내 둘레 ${t(rc.r)}`;
-  return rc.center === 'target' ? `과녁 둘레 반경 ${t(rc.r)}` : `내 둘레 반경 ${t(rc.r)}`;
+  // v425 한 가지 꼴로 — 「범위 ○칸(내 둘레 / 과녁 둘레)」 · 과녁 하나는 「사거리 ○칸」
+  if (sk.kind === 'single') return `사거리 ${t(rc.reach)}${rc.r ? ` · 범위 ${t(rc.r)}(과녁 둘레)` : ' · 과녁 하나'}`;
+  if (sk.kind === 'triple') return `범위 ${t(rc.r)}(내 둘레)`;
+  return `범위 ${t(rc.r)}(${rc.center === 'target' ? '과녁 둘레' : '내 둘레'})`;
 }
 
 // ---------- 무림 ----------

@@ -858,8 +858,9 @@ console.log('\n=== 4차 무공 넷 (v123) ===');
   f.events.length = 0; f.basicAttack(f.mon, f.stats(), 1);
   ok(f.events.filter((e) => e.type === 'dmg' && e.kind === 'hit').length >= 3, '투신강림 중 평타가 세 대', `${f.events.filter((e) => e.type === 'dmg' && e.kind === 'hit').length}대`);
   const p = mk('poison');
-  p.mons[5].x = p.heroX + 900;   // 멀리 있는 적도
-  ok(p.useSkill('s4') && p.mons.every((m) => m.dot > 0), '독마 만독지옥: 사냥터 전체에 독');
+  p.mons[5].x = p.heroX + 480;   // v425 8칸(512px) 안이면 — 전엔 22칸(화면 전체)
+  ok(p.useSkill('s4') && p.mons.every((m) => m.dot > 0), '독마 만독지옥: 8칸 안 모두에 독');
+  { const p2 = mk('poison'); p2.mons[5].x = p2.heroX + 900; ok(p2.useSkill('s4') && !(p2.mons[5].dot > 0), '8칸 밖은 안 닿는다'); }
   const r = mk('ring');
   ok(r.useSkill('s4') && ['s0', 's1', 's2'].every((k) => r.events.some((e) => e.type === 'dmg' && e.kind === k)) && r.buffv.might > 0 && r.cd.s0 === 0, '극악소마 삼공합일: 세 무공을 한꺼번에(숨은 안 쓴다) + 삼공조화');
 }

@@ -1346,7 +1346,6 @@ export class BattleView {
         if (ev.radius) this.effects.push({ kind: 'area', life: 0.55, max: 0.55, r: ev.radius, id: ev.id, job: ev.job, at: ev.at || null });
         break;
       case 'skill':
-        if (this.showRange && ev.radius > 0 && ev.at) this.rangeRings.push({ x: ev.at.x, y: ev.at.y, r: ev.radius, life: 0.8, max: 0.8 });
         // v220: 발밑 직업 인장 — 차수가 높을수록 크고 오래(4차는 한 바퀴 더 돈다)
         // v245: 4차 필살 연출(ultimate)이 큰 인장·빛살을 따로 그리면 이 둘은 겹치기만 해서 뺀다
         if (this.fxLevel > 0 && !ev._sealed && game?.heroX != null && JOB_SEAL[game.s?.job] && !(ev.fx && /:m4$/.test(ev.fx) && CHOREO[ev.fx])) {
@@ -1628,6 +1627,7 @@ export class BattleView {
     if (cu.face && cu.face !== 'blind') look.faceAcc = cu.face;
     if (cu.aura) look.gAura = cu.aura;
     if (cu.ring) look.gRing = cu.ring;
+    if (this.rangePreview) look.gRing = null;   // v425 범위를 보는 동안 발밑 문양은 잠깐 숨긴다
     // v306: 그 색 도포 그림이 있으면 그 그림(명암·허리띠가 산다) · 없는 색만 흰 도포에 곱한다
     if (cu.robe) { look.robe = cu.robe; delete look.outfitBody; if (hasBodyArt(cu.robe)) delete look.robeTint; else look.robeTint = cu.robe; }
     if (cu.band) { look.band = cu.band; if (!cu.head && !look.head) look.head = 'topknot'; }
@@ -4131,7 +4131,7 @@ export class BattleView {
       if (f.vy != null) { f.vy *= Math.max(0, 1 - dt * 5.5); f.vx *= Math.max(0, 1 - dt * 5); }
       const k = Math.max(0, f.life / f.max);
       // v258: 경고성 글자(치명 경고·피했다!)는 컷인 중에도 흐리지 않는다
-      ctx.globalAlpha = Math.min(1, k * 2.2) * (band && !f.keep && f.y * z > this.h * 0.06 && f.y * z < this.h * 0.4 ? 0.3 : 1);
+      ctx.globalAlpha = Math.min(1, k * 2.2) * (band && !f.keep && f.y * z > this.h * 0.06 && f.y * z < this.h * 0.4 ? 0.3 : 1) * (this.rangePreview ? 0.3 : 1);   // v425 범위를 보는 동안 옅게
       // 처음 0.12초에 크게 튀었다가 제 크기로 — 뒤로 갈수록 살짝 작아진다
       const age = f.max - f.life;
       const pop = age < 0.12 ? 1.45 - age / 0.12 * 0.45 : 1 - Math.max(0, 0.4 - k) * 0.25;

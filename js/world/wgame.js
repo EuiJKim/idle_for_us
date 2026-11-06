@@ -1681,7 +1681,7 @@ export class WorldGame {
       sat = W.expSat(kt.length * 2);
     }
     const ck = m.isBoss && this.coopK ? this.coopK : 1;   // v343 함께 잡은 두목 — 인원만큼 더
-    const exp = W.mobExp(m.lv) * (m.isBoss ? W.BOSS.exp * (W.CLASSES[this.s.job]?.bossExp || 1) : m.elite ? W.ELITE.exp : 1) * this.levelGapMult(m.lv) * (st.expMult || 1) * (1 + (env.exp || 0) + mlv * L.MASTERY.exp) * ek * sat * ck;
+    const exp = W.mobExp(m.lv) * (m.isBoss ? W.BOSS.exp * (W.CLASSES[this.s.job]?.bossExp || 1) : m.elite ? W.ELITE.exp : 1) * this.levelGapMult(m.lv) * this.challengeMult(m.lv) * (st.expMult || 1) * (1 + (env.exp || 0) + mlv * L.MASTERY.exp) * ek * sat * ck;   // v425 도전 경험치
     const blood = !this.inst && TD.bloodOn() ? 1 + TD.BLOOD_BONUS : 1;   // v262 혈겁
     const gold = Math.round(W.mobGold(m.lv) * (m.isBoss ? W.BOSS.gold : m.elite ? W.ELITE.gold : 1) * (1 + (env.gold || 0) + (st.gold || 0)) * ek * blood * (st.goldMul || 1) * ck);   // v322 칭호
     if (!this.inst) {
@@ -1719,7 +1719,7 @@ export class WorldGame {
   // v343 함께 잡은 두목을 못 친 문파원 몫 — 경험치·은자·현철만 k배(장비·탈것·조각·증표는 없음)
   coopShare(m, k) {
     const st = this.stats();
-    const exp = W.mobExp(m.lv) * W.BOSS.exp * (W.CLASSES[this.s.job]?.bossExp || 1) * this.levelGapMult(m.lv) * (st.expMult || 1) * k;
+    const exp = W.mobExp(m.lv) * W.BOSS.exp * (W.CLASSES[this.s.job]?.bossExp || 1) * this.levelGapMult(m.lv) * this.challengeMult(m.lv) * (st.expMult || 1) * k;   // v425
     const gold = Math.round(W.mobGold(m.lv) * W.BOSS.gold * (1 + (st.gold || 0)) * (st.goldMul || 1) * k);
     const id = this.map.mz;
     let mat = null;
@@ -1741,6 +1741,10 @@ export class WorldGame {
     const gap = this.s.level - mlv;
     return gap <= 5 ? 1 : Math.max(0.1, 1 - (gap - 5) * 0.08);
   }
+  // v425 도전 경험치 — 나보다 높은 몹을 잡으면 레벨 차 1마다 +5%, 네 배까지(사냥터·두목만 · 던전·방치는 그대로).
+  //   레벨 72가 150 사냥터에서 잡아도 몹 경험치가 3배뿐(lv^1.5)이라 「레벨업을 안 한다」고 느꼈다 — 체력은 3.4배라 더 느렸다
+  challengeMult(mlv) { const d = mlv - this.s.level; return d <= 0 ? 1 : Math.min(W.CHALLENGE_MAX, 1 + d * W.CHALLENGE_K); }
+  challengeNow() { const m = this.map; if (!m || m.town || this.inst || !m.lv) return 1; return this.challengeMult(m.lv[1]); }
 
   heroDied(by) {
     // 증표 고유 · 불사(v167): 60초에 한 번, 쓰러질 피해를 버틴다

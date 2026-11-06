@@ -102,21 +102,21 @@ export const JOB_SKILLS = {
   sword: [
     SK(0, 1, 'frost', '일화참', 'single', { mult: 3.5, cd: 4.5, hpCost: 0, bossMult: 1.25, far: true,
       desc: '가장 빠른 걸음으로 한 적을 벤다 · 두목에겐 1.25배' }),
-    SK(1, 2, 'slash', '낙화유수', 'aoe', { mult: 1.6, hits: 2, cd: 5, hpCost: 0.08, radius: 240,
+    SK(1, 2, 'slash', '낙화유수', 'aoe', { mult: 1.6, hits: 2, cd: 5, hpCost: 0.08, radius: 224,
       desc: '꽃잎 지듯 둘레를 두 번 벤다' }),
-    SK(2, 3, 'thunder', '만화귀일', 'aoe', { mult: 5.0, cd: 9, hpCost: 0.18, radius: 300, buff: { sec: 8, speed: 0.4 },
+    SK(2, 3, 'thunder', '만화귀일', 'aoe', { mult: 5.0, cd: 9, hpCost: 0.18, radius: 288, buff: { sec: 8, speed: 0.4 },
       desc: '만 송이 검화가 하나로 — 넓게 벤 뒤 8초간 공격 속도 +40%(마검 각성)' }),
     SK(3, 0, 'sup', '유운보', 'support', { cd: 24, hpCost: 0, from: 25, auto: 'fight', buff: { sec: 8, move: 0.6, speed: 0.25, dodge: 0.2 },
       desc: '흐르는 구름 같은 걸음 — 8초간 이동 속도 +60% · 공격 속도 +25% · 공격을 20% 흘린다' }),
-    SK(4, 4, 'chain4', '일화천섬', 'daggers', { mult: 1.5, n: 12, targets: 12, cd: 18, hpCost: 0.15, radius: 420, autoAbove: 0.5, blink: true,
+    SK(4, 4, 'chain4', '일화천섬', 'daggers', { mult: 1.5, n: 12, targets: 12, cd: 18, hpCost: 0.15, radius: 384, autoAbove: 0.5, blink: true,
       desc: '번개처럼 적 사이를 오가며 최대 열둘을 차례로 벤다 — 적이 적으면 같은 적을 여러 번(두목 혼자면 열두 번), 지나간 자리마다 꽃이 핀다' }),
   ],
   fist: [
     SK(0, 1, 'frost', '붕산철권', 'single', { mult: 4.4, cd: 4.5, hpCost: 0, stun: 2,
       desc: '산을 무너뜨리는 한 주먹 · 2초 기절' }),
-    SK(1, 2, 'slash', '투신난무', 'aoe', { mult: 1.35, hits: 4, cd: 5, hpCost: 0.08, radius: 230,
+    SK(1, 2, 'slash', '투신난무', 'aoe', { mult: 1.35, hits: 4, cd: 5, hpCost: 0.08, radius: 224,
       desc: '권갑 투신으로 둘레를 네 번 두들긴다' }),
-    SK(2, 3, 'thunder', '불패금신', 'aoe', { mult: 4.2, cd: 11, hpCost: 0, radius: 260, buff: { sec: 10, dmgRed: 0.5, cleave: 0.6 },
+    SK(2, 3, 'thunder', '불패금신', 'aoe', { mult: 4.2, cd: 11, hpCost: 0, radius: 288, buff: { sec: 10, dmgRed: 0.5, cleave: 0.6 },
       desc: '금빛 몸 — 충격파를 낸 뒤 10초간 받는 피해 -50% · 평타가 둘레를 친다(60%) · 체력을 쓰지 않는다' }),
     SK(3, 0, 'sup', '금종조', 'support', { cd: 28, hpCost: 0, from: 25, auto: 'hurt', hurtAt: 0.7, shield: 0.3, buff: { sec: 12 },
       desc: '금종을 뒤집어쓴 듯 — 최대 체력 30%만큼 막아 주는 보호막(12초)' }),
@@ -126,9 +126,9 @@ export const JOB_SKILLS = {
   ring: [
     SK(0, 1, 'frost', '혈앙지', 'single', { mult: 2.6, cd: 4, hpCost: 0, sure: true, dot: { sec: 5, mult: 0.6 },
       desc: '피의 재앙을 짚는 손가락 · 반드시 치명 · 5초 출혈' }),
-    SK(1, 2, 'slash', '마극광폭장', 'aoe', { mult: 3.2, cd: 6, hpCost: 0.12, radius: 250, stun: 1.2,
+    SK(1, 2, 'slash', '마극광폭장', 'aoe', { mult: 3.2, cd: 6, hpCost: 0.12, radius: 224, stun: 1.2,
       desc: '광폭한 장력이 둘레를 휩쓴다 · 맞은 적이 공포에 1.2초 굳는다' }),
-    SK(2, 3, 'thunder', '소향비술', 'daggers', { mult: 0.85, n: 12, targets: 8, cd: 9, hpCost: 0.20, radius: 340, crit: 0.1,
+    SK(2, 3, 'thunder', '소향비술', 'daggers', { mult: 0.85, n: 12, targets: 8, cd: 9, hpCost: 0.20, radius: 288, crit: 0.1,
       desc: '비수 열두 자루가 가까운 적 여덟에게 날아든다(치명 +10%p) · 세 무공을 6초 안에 이으면 삼공조화(8초간 피해 +25%)' }),
     SK(3, 0, 'sup', '무면개방', 'support', { cd: 26, hpCost: 0, from: 25, auto: 'fight', buff: { sec: 10, fear: 0.35, critDmg: 0.3 },
       desc: '가면을 벗는다 — 10초간 붙은 적의 공포 +35%p · 치명 피해 +30%' }),
@@ -138,26 +138,26 @@ export const JOB_SKILLS = {
   poison: [
     SK(0, 1, 'frost', '칠보단혼침', 'single', { mult: 3.4, cd: 5, hpCost: 0, dot: { sec: 6, mult: 3.2 },
       desc: '일곱 걸음 안에 혼이 끊기는 독침 · 6초 맹독' }),
-    SK(1, 2, 'slash', '화골산', 'field', { mult: 0.8, cd: 8, hpCost: 0.10, radius: 200, field: { sec: 6, tick: 0.5, mult: 0.26 },
+    SK(1, 2, 'slash', '화골산', 'field', { mult: 0.8, cd: 8, hpCost: 0.10, radius: 224, field: { sec: 6, tick: 0.5, mult: 0.26 },
       desc: '뼈를 녹이는 독무를 깐다 — 6초 동안 0.5초마다' }),
-    SK(2, 3, 'thunder', '만독천라', 'aoe', { mult: 2.7, cd: 10, hpCost: 0.20, radius: 340, dot: { sec: 8, mult: 1.0 },
+    SK(2, 3, 'thunder', '만독천라', 'aoe', { mult: 2.7, cd: 10, hpCost: 0.20, radius: 288, dot: { sec: 8, mult: 1.0 },
       desc: '만 가지 독이 하늘 그물처럼 — 넓게 맞히고 8초 맹독' }),
-    SK(3, 0, 'sup', '만독귀원', 'support', { cd: 22, hpCost: 0, from: 25, auto: 'poisoned', radius: 320, burst: 1, healMax: 0.12,
+    SK(3, 0, 'sup', '만독귀원', 'support', { cd: 22, hpCost: 0, from: 25, auto: 'poisoned', radius: 288, burst: 1, healMax: 0.12,
       desc: '흩어진 독을 한데 거둔다 — 둘레 적에게 쌓인 독을 한꺼번에 터뜨리고 최대 체력의 12% 회복' }),
     // v288 두목에게 4배 — 4차 필살인데 두목 피해의 1%도 안 됐다(칠보단혼침 한 대보다 약했다). 사냥터는 원래도 한 번에 쓸어 그대로
-    SK(4, 4, 'hell', '만독지옥', 'aoe', { mult: 1.0, cd: 24, hpCost: 0.2, radius: 1400, autoAbove: 0.5, dot: { sec: 10, mult: 2.0 }, bossMult: 4,
+    SK(4, 4, 'hell', '만독지옥', 'aoe', { mult: 1.0, cd: 24, hpCost: 0.2, radius: 512, autoAbove: 0.5, dot: { sec: 10, mult: 2.0 }, bossMult: 4,
       desc: '사냥터 전체에 독비가 내린다 — 보이는 모든 적을 치고 독을 크게 쌓는다(10초에 걸쳐 피해의 2배) · 두목에겐 4배' }),
   ],
   fan: [
     SK(0, 1, 'frost', '섭혼술', 'single', { mult: 4.8, cd: 5, hpCost: 0, stun: 2.5, vuln: { sec: 6, v: 0.3 },
       desc: '혼을 거두는 눈빛 · 2.5초 멎고 6초간 받는 피해 +30%' }),
-    SK(1, 2, 'slash', '혈루미혼', 'aoe', { mult: 2.3, cd: 8, hpCost: 0.10, radius: 200, stun: 2,
+    SK(1, 2, 'slash', '혈루미혼', 'aoe', { mult: 2.3, cd: 8, hpCost: 0.10, radius: 224, stun: 2,
       desc: '핏빛 눈물이 혼을 홀린다 · 둘레가 2초 멎는다' }),
-    SK(2, 3, 'thunder', '천외혈마공', 'aoe', { mult: 5.6, cd: 9, hpCost: 0.15, radius: 300, lifesteal: 0.05, vuln: { sec: 6, v: 0.2 },
+    SK(2, 3, 'thunder', '천외혈마공', 'aoe', { mult: 5.6, cd: 9, hpCost: 0.15, radius: 288, lifesteal: 0.05, vuln: { sec: 6, v: 0.2 },
       desc: '하늘 밖의 혈마공 · 준 피해의 5%를 빨아들이고 6초간 받는 피해 +20%' }),
     SK(3, 0, 'sup', '시공이환술', 'support', { cd: 30, hpCost: 0, from: 25, auto: 'hurt', hurtAt: 0.5, heal: 0.4, buff: { sec: 4, dmgRed: 0.6 },
       desc: '때와 자리를 바꿔 다친 몸을 되돌린다 — 잃은 체력의 40% 회복 · 4초간 받는 피해 -60%' }),
-    SK(4, 4, 'clone', '환영분신술', 'clone', { mult: 0.28, cd: 28, hpCost: 0.12, radius: 240, n: 2, sec: 10, burst: 0.6, autoAbove: 0.5,
+    SK(4, 4, 'clone', '환영분신술', 'clone', { mult: 0.28, cd: 28, hpCost: 0.12, radius: 256, n: 2, sec: 10, burst: 0.6, autoAbove: 0.5,
       desc: '시공이환술의 끝 — 분신 둘이 나와 둘레를 한 번씩 치고(×0.6) 10초 동안 곁에서 함께 싸운다(칠 때마다 공격력 ×0.28)' }),
   ],
 };
@@ -195,31 +195,31 @@ export const HARMONY = { sec: 6, buffSec: 8, dmgUp: 0.25 };   // 극악소마 �
 const PK = (path, role, name, kind, o) => ({ slot: 5, tier: 2, path, role, name, kind, ...o });
 export const PATH_SKILLS = {
   sword: {
-    a: PK('a', 'thunder', '검기종횡', 'aoe', { mult: 2.4, hits: 2, cd: 7, hpCost: 0.1, radius: 320, autoAbove: 0.5,
+    a: PK('a', 'thunder', '검기종횡', 'aoe', { mult: 2.4, hits: 2, cd: 7, hpCost: 0.1, radius: 256, autoAbove: 0.5,
       desc: '검기를 가로세로로 뿌려 둘레를 두 번 벤다 — 검기의 길' }),
     b: PK('b', 'awaken', '전광석화', 'awaken', { cd: 20, hpCost: 0.05, auto: 'fight', autoAbove: 0.4, buff: { sec: 10, speed: 0.5, triple: 1, move: 0.3 },
       desc: '번개처럼 — 10초간 공격 속도 +50% · 평타 한 번에 두 대(덧 한 대는 절반) · 이동 +30% — 쾌검의 길' }),
   },
   fist: {
-    a: PK('a', 'thunder', '벽공장풍', 'aoe', { mult: 2.8, cd: 7, hpCost: 0.1, radius: 300, stun: 0.8, autoAbove: 0.5,
+    a: PK('a', 'thunder', '벽공장풍', 'aoe', { mult: 2.8, cd: 7, hpCost: 0.1, radius: 256, stun: 0.8, autoAbove: 0.5,
       desc: '허공을 가르는 장풍 — 둘레를 충격파로 치고 0.8초 기절 — 장풍의 길' }),
     b: PK('b', 'awaken', '전광연타', 'awaken', { cd: 22, hpCost: 0.05, auto: 'fight', autoAbove: 0.4, buff: { sec: 10, speed: 0.45, triple: 2, cleave: 0.3 },
       desc: '붙어서 두들긴다 — 10초간 공격 속도 +45% · 평타 한 번에 세 대 · 평타가 둘레를 친다(30%) — 연타의 길' }),
   },
   fan: {
-    a: PK('a', 'thunder', '미혼환무', 'aoe', { mult: 2.2, hits: 2, cd: 7, hpCost: 0.1, radius: 330, vuln: { sec: 5, v: 0.2 }, autoAbove: 0.5,
+    a: PK('a', 'thunder', '미혼환무', 'aoe', { mult: 2.2, hits: 2, cd: 7, hpCost: 0.1, radius: 256, vuln: { sec: 5, v: 0.2 }, autoAbove: 0.5,
       desc: '환영이 춤추며 둘레를 두 번 — 맞은 적은 5초간 받는 피해 +20% — 섭혼의 길' }),
     b: PK('b', 'awaken', '선풍난무', 'awaken', { cd: 22, hpCost: 0.05, auto: 'fight', autoAbove: 0.4, buff: { sec: 10, speed: 0.4, triple: 1, cleave: 0.5 },
       desc: '부채가 회오리친다 — 10초간 공격 속도 +40% · 평타 두 대 · 평타가 둘레를 친다(50%) — 선풍의 길' }),
   },
   ring: {
-    a: PK('a', 'thunder', '육맥신검', 'daggers', { mult: 1.1, n: 6, targets: 6, cd: 7, hpCost: 0.1, radius: 360, crit: 0.3, autoAbove: 0.5,
+    a: PK('a', 'thunder', '육맥신검', 'daggers', { mult: 1.1, n: 6, targets: 6, cd: 7, hpCost: 0.1, radius: 256, crit: 0.3, autoAbove: 0.5,
       desc: '여섯 손가락에서 검기 여섯이 날아간다(치명 +30%p) — 지력의 길' }),
     b: PK('b', 'awaken', '귀영난무', 'awaken', { cd: 22, hpCost: 0.05, auto: 'fight', autoAbove: 0.4, buff: { sec: 10, speed: 0.45, triple: 2, critDmg: 0.3 },
       desc: '그림자처럼 — 10초간 공격 속도 +45% · 평타 세 대 · 치명 피해 +30% — 귀영의 길' }),
   },
   poison: {
-    a: PK('a', 'thunder', '독룡출동', 'field', { mult: 1.0, cd: 9, hpCost: 0.1, radius: 260, field: { sec: 6, tick: 0.5, mult: 0.3 }, dot: { sec: 5, mult: 0.8 }, autoAbove: 0.5,
+    a: PK('a', 'thunder', '독룡출동', 'field', { mult: 1.0, cd: 9, hpCost: 0.1, radius: 256, field: { sec: 6, tick: 0.5, mult: 0.3 }, dot: { sec: 5, mult: 0.8 }, autoAbove: 0.5,
       desc: '독룡이 땅을 기어 독무를 넓게 깐다 — 6초 동안 0.5초마다 · 맞은 적은 5초 맹독 — 독무의 길' }),
     b: PK('b', 'awaken', '만천화우', 'awaken', { cd: 22, hpCost: 0.05, auto: 'fight', autoAbove: 0.4, buff: { sec: 10, speed: 0.45, triple: 2 },
       desc: '독침이 비처럼 — 10초간 공격 속도 +45% · 평타 한 번에 세 침 — 독침의 길' }),
@@ -252,15 +252,15 @@ export const CHEONMA_SKILLS = {
       desc: '일초식 直斷決 — 직선의 파괴력을 극대화해 앞을 가로막는 모든 것을 곧게 베어 가른다 · 반드시 치명 · 두목에겐 1.5배' },
     3: { name: '방원결', icon: '방원', form: 2, role: 'sup', kind: 'support', cd: 22, hpCost: 0, from: 25, auto: 'hurt', hurtAt: 0.75, shield: 0.4, buff: { sec: 10, dmgRed: 0.25, dodge: 0.2 },
       desc: '이초식 防圓決 — 마도의 기운을 둥글게 펼쳐 막는다. 최대 체력 40% 보호막 · 10초간 받는 피해 -25% · 공격을 20% 흘린다(다치면 저절로)' },
-    1: { name: '만환결', icon: '만환', form: 3, role: 'slash', kind: 'aoe', mult: 1.8, hits: 4, cd: 4.5, hpCost: 0.06, radius: 300, vuln: { sec: 5, v: 0.2 },
+    1: { name: '만환결', icon: '만환', form: 3, role: 'slash', kind: 'aoe', mult: 1.8, hits: 4, cd: 4.5, hpCost: 0.06, radius: 224, vuln: { sec: 5, v: 0.2 },
       desc: '삼초식 萬幻決 — 수많은 환영 속에 치명의 검격을 숨겨 둘레를 네 번 찌른다 · 맞은 적은 5초간 받는 피해 +20%' },
-    2: { name: '망월참', icon: '망월', form: 4, role: 'thunder', kind: 'aoe', mult: 8.0, cd: 8, hpCost: 0.12, radius: 380, buff: { sec: 10, speed: 0.5 },
+    2: { name: '망월참', icon: '망월', form: 4, role: 'thunder', kind: 'aoe', mult: 8.0, cd: 8, hpCost: 0.12, radius: 288, buff: { sec: 10, speed: 0.5 },
       desc: '사초식 望月斬 — 달을 바라보듯 높고 거대한 궤적으로 내려친다 · 넓게 · 10초간 공격 속도 +50%' },
     b: { name: '귀영참', icon: '귀영', form: 5, role: 'awaken', kind: 'awaken', cd: 18, hpCost: 0.05, auto: 'fight', autoAbove: 0.4, buff: { sec: 12, speed: 0.7, triple: 2, move: 0.4 },
       desc: '오초식 鬼影斬 — 귀신의 그림자처럼 사각을 파고든다. 12초간 공격 속도 +70% · 평타 한 번에 세 대 · 이동 +40% — 쾌검의 길' },
-    a: { name: '절혼참', icon: '절혼', form: 6, role: 'thunder', kind: 'aoe', mult: 2.6, hits: 3, cd: 6, hpCost: 0.08, radius: 340, autoAbove: 0.5, bossMult: 1.3,
+    a: { name: '절혼참', icon: '절혼', form: 6, role: 'thunder', kind: 'aoe', mult: 2.6, hits: 3, cd: 6, hpCost: 0.08, radius: 256, autoAbove: 0.5, bossMult: 1.3,
       desc: '육초식 絶魂斬 — 살기와 마기를 극한으로 끌어올려 혼백까지 끊는다 · 세 번 · 두목에겐 1.3배 — 검기의 길' },
-    4: { name: '심마도', icon: '심마', form: 7, role: 'chain4', kind: 'daggers', mult: 2.2, n: 14, targets: 14, cd: 15, hpCost: 0.1, radius: 460, autoAbove: 0.5, blink: true, soul: true,
+    4: { name: '심마도', icon: '심마', form: 7, role: 'chain4', kind: 'daggers', mult: 2.2, n: 14, targets: 14, cd: 15, hpCost: 0.1, radius: 384, autoAbove: 0.5, blink: true, soul: true,
       desc: '칠초식 心魔刀 — 구화마도식의 최종장. 정·사·선·악의 경계를 무너뜨리고 제 마음의 마(魔)를 검에 담아 열네 번 가른다 · 천마혼 발현(15초 모든 피해 2배)' },
   },
 };
@@ -327,6 +327,7 @@ Object.assign(CHEONMA_SKILLS.poison[2], { stun: 1.5 }); CHEONMA_SKILLS.poison[2]
 // 한 칸에는 하나만 선다. 근접은 앞뒤좌우 바로 옆 칸에서 친다.
 // (처음엔 1300×1700 자유 이동이었다 — 화면에 사냥터 한 귀퉁이만 보였다)
 export const TILE = 64;
+// v425 무공 범위 표 — 직업 공통: 2차 광역 3.5칸(224) · 2차 갈래 4칸(256) · 3차 4.5칸(288) · 4차 6칸(384) · 독마 4차 8칸(512, 전엔 22칸). 직업 차이는 피해·숨·타수로만
 export const MOVE_CAST_R = 420;   // v157: 걷는 중 자동 무공이 과녁을 잡는 거리
 // v241: 9×19 → 11×25 — 들판이 좁아 센 무인은 금세 비웠다. 카메라가 따라가니(보통·가까이) 넓어도 글자는 그대로다
 export const COLS = 11;
@@ -843,7 +844,9 @@ export function sellBack(item) {
   for (const [k, n] of Object.entries(c.mats || {})) { const v = Math.floor(n * SELL_BACK); if (v > 0) mats[k] = v; }
   return { mats, gold: Math.floor((c.gold || 0) * SELL_BACK) };
 }
-export const sellPrice = (item) => Math.round((3 + item.ilv * 1.5) * (item.step != null ? (1 + (item.rar || 0)) ** 2 : GRADES[item.grade].mult ** 2) * (1 + (item.plus || 0) * 0.2));
+// v425 떨어진 장비(레어·유니크·전설·신화) 파는 값 — 레어 ×1 → ×5 · 유니크 ×4 → ×14(「약한 것 팔기」·자동 정리로 파는 레어·유니크가 몹 한 마리 은자의 두세 배뿐이었다)
+export const SELL_RAR_K = [5, 14, 27, 48];
+export const sellPrice = (item) => Math.round((3 + item.ilv * 1.5) * (item.step != null ? SELL_RAR_K[Math.min(3, item.rar || 0)] : GRADES[item.grade].mult ** 2) * (1 + (item.plus || 0) * 0.2));
 // ---------- 장비 등급과 스킬 옵션 (v110) ----------
 // 같은 장비라도 등급이 넷 — 레어 · 유니크 · 전설 · 신화. 등급이 높을수록 기본 수치가 크고,
 // 스킬을 키우는 옵션이 붙는다(1차 스킬 범위 · 2차 스킬 피해 …). 신화에는 사기적인 특수 효과가 하나 더.
@@ -1107,6 +1110,7 @@ export const RATE_WINDOW_SEC = 300;
 // v261: 처치 포화 — 분당 처치가 이만큼을 넘으면 한 마리 경험치가 (기준/분당)^0.8로 준다.
 // 광역 직업(환마·독마)이 다시 나는 속도 상한(분당 2,100)에 닿아 다른 직업보다 세 배 빨리 올랐다(시뮬 7일 vs 16일). 은자는 그대로.
 export const EXP_SAT_KPM = 800;
+export const CHALLENGE_K = 0.05, CHALLENGE_MAX = 4;   // v425 도전 경험치 — 나보다 높은 몹 레벨 차 1마다 +5% · 네 배까지
 export const expSat = (kpm) => (kpm > EXP_SAT_KPM ? (EXP_SAT_KPM / kpm) ** 0.8 : 1);
 export const FOLLOW_GAP = 3;   // v260: 알맞은 사냥터 따라가기 — 구역 최고 레벨보다 이만큼 넘게 높으면 옮긴다
 // v260: 방치 효율 — 오래 비울수록 덜 번다(앞 두 시간은 그대로). [이 시각(초)까지, 그 구간 효율]
