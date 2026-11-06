@@ -278,7 +278,7 @@ export function migrateWorld(raw, now = Date.now()) {
   for (const id of W.AWAKEN_IDS) { if (raw.awk?.on?.[id] === true) s.awk.on[id] = true; const n = Math.floor(Number(raw.awk?.kills?.[id]) || 0); if (n > 0) s.awk.kills[id] = n; const b = Number(raw.awk?.best?.[id]); if (b >= 1 && b < 36000) s.awk.best[id] = Math.round(b * 10) / 10; }
   s.questGift = Number.isInteger(raw.questGift) ? raw.questGift : -1;
   const rd = raw.raid && typeof raw.raid === 'object' ? raw.raid : {};
-  s.raid = { day: typeof rd.day === 'string' ? rd.day : '', n: clamp(Math.floor(Number(rd.n) || 0), 0, D.RAID_PER_DAY), dps: Math.max(0, Number(rd.dps) || 0) };
+  s.raid = { day: typeof rd.day === 'string' ? rd.day : '', n: clamp(Math.floor(Number(rd.n) || 0), 0, D.RAID_PER_DAY + 1), dps: Math.max(0, Number(rd.dps) || 0) };   // v428 길잡이 덤 한 번까지
   { const w = raw.wraid && typeof raw.wraid === 'object' ? raw.wraid : {};   // v373 월드보스
     s.wraid = { day: typeof w.day === 'string' ? w.day.slice(0, 10) : '', n: clamp(Math.floor(Number(w.n) || 0), 0, 999), dps: Math.max(0, Number(w.dps) || 0),
       kills: Math.max(0, Math.floor(Number(w.kills) || 0)), top1: Math.max(0, Math.floor(Number(w.top1) || 0)), ok: Math.max(0, Math.floor(Number(w.ok) || 0)), sk: Math.max(0, Math.floor(Number(w.sk) || 0)),
@@ -4676,9 +4676,12 @@ export class WorldGame {
     return mt;
   }
   // ---------- 문파 토벌 (v128) ----------
+  // v428 길잡이 「문파 토벌에 한 번 참여하자」 단계인데 오늘 몫을 다 썼으면 한 번 더 — 단계를 못 끝내고 다음 날까지 막혔다
+  raidBonus() { const c = this.questNow?.(); return c && !c.done && c.q?.id === 'raid' && !this.s.did?.raid ? 1 : 0; }
   raidLeft(now = Date.now()) {
     const r = this.s.raid;
-    return r.day === D.kstDay(now) ? Math.max(0, D.RAID_PER_DAY - r.n) : D.RAID_PER_DAY;
+    const cap = D.RAID_PER_DAY + this.raidBonus();
+    return r.day === D.kstDay(now) ? Math.max(0, cap - r.n) : cap;
   }
   canRaid(hpLeft, now = Date.now()) { return !this.inst && !!this.s.job && !!this.s.guildId && this.raidLeft(now) > 0 && hpLeft > 0; }
   // o: { key 주 이름, hpLeft 남은 체력, maxHp } — 문파 문서에서

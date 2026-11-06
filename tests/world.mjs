@@ -978,7 +978,7 @@ console.log('\n=== 문파 토벌 (v128) ===');
   for (let i = 0; i < 2000 && !res; i++) { g.tick(0.05); for (const e of g.events) if (e.type === 'instEnd') res = e; g.events.length = 0; }
   ok(res && res.kind === 'raid' && res.dealt > 0 && res.key === key && res.reward?.gold > 0, `${D.RAID_SEC}초 동안 친 피해와 참여 보상`, `피해 ${res?.dealt}`);
   ok(g.s.raid.dps > 0 && g.raidDpsEst() === g.s.raid.dps, '초당 피해를 적어 둔다(다음 주 두목 체력 셈)');
-  g.startRaid({ key, hpLeft: 1e9, maxHp: 2e9 }); g.leaveInst();
+  for (let i = 0; i < D.RAID_PER_DAY - 1; i++) { g.startRaid({ key, hpLeft: 1e9, maxHp: 2e9 }); g.leaveInst(); }   // v428 하루 4번
   ok(g.raidLeft() === 0 && !g.canRaid(1e9), `하루 ${D.RAID_PER_DAY}번`);
   ok(D.raidMaxHp(1000) === 1000 * D.RAID_SEC * D.RAID_PER_DAY * 7 * D.RAID_HP_SHARE, '두목 체력 = 문파원 딜 × 40초 × 2번 × 이레 × 절반');
 }
@@ -4004,4 +4004,16 @@ console.log('\n=== v426 걷는 동안은 걷는 쪽을 본다 ===');
   const src = read('js/world/wgame.js');
   ok(/dist <= st\.range && Math\.abs\(m\.x - this\.heroX\) > 6\) this\.heroFacing/.test(src), '사거리 안에 서 있을 때만 과녁 쪽으로 돈다');
   ok(/const mvx = g\.shIn\?\.dx \|\| g\.joy\?\.dx \|\| 0;/.test(read('js/world/wshmup.js')), '탄막 판 — 옆으로 움직이는 동안은 가는 쪽을 본다');
+}
+
+console.log('\n=== v428 문파 토벌 하루 4번 · 길잡이 단계면 한 번 더 ===');
+{
+  const g = new WorldGame(newWorldSave(), Date.now()); g.emit = () => {}; g.s.job = 'sword'; g.s.level = 40; g.s.guildId = 'g1'; g._stats = null;
+  ok(DG.RAID_PER_DAY === 4 && g.raidLeft() === 4, '하루 4번');
+  g.s.raid.day = DG.kstDay(Date.now()); g.s.raid.n = 4;
+  ok(g.raidLeft() === 0, '다 쓰면 0');
+  const ix = Q.QUESTS.findIndex((q) => q.id === 'raid'); g.s.quest = ix; g.s.questV = Q.QUEST_V;
+  ok(g.questNow()?.q.id === 'raid' && g.raidBonus() === 1 && g.raidLeft() === 1 && g.canRaid(1e9), '길잡이 「문파 토벌」 단계면 한 번 더');
+  g.s.did = { ...(g.s.did || {}), raid: 1 };
+  ok(g.raidBonus() === 0 && g.raidLeft() === 0, '한 번 하고 나면 덤은 끝');
 }
