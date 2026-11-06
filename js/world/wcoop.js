@@ -247,6 +247,7 @@ export class Coop {
 
   gotBoss(b) {
     this.b = b;
+    this.bAt = Date.now();   // v415 서버 소식을 마지막으로 받은 때
     if (!b) return;
     const mob = this.localBoss();
     if (!mob) return;
@@ -284,6 +285,10 @@ export class Coop {
     this.mine[mob.coopSeq] = (this.mine[mob.coopSeq] || 0) + amt;
     if (mob.hp - amt <= 1) this.urgent = true;
   }
+  // v415 서버에 아직 남은 체력(보내는 중인 몫은 빼고) — 내 화면 체력이 1에 멈춰도 친 만큼은 서버로 보낸다
+  serverLeft(mob) { return Math.max(0, (this.b?.seq === mob.coopSeq && this.b.hp > 0 ? this.b.hp : mob.hp) - this.pend); }
+  // v415 서버 소식이 15초 넘게 끊겼다 — 함께 잡기를 놓고 내 화면에서 마저 잡는다(체력 0인데 안 죽던 것)
+  stale() { return !!this.bAt && Date.now() - this.bAt > 15000; }
 
   async commit() {
     if (this.busy || !this.rt || !this.base) return;
@@ -305,6 +310,7 @@ export class Coop {
       }, { applyLocally: false });
     } catch (err) {
       console.warn('[coop] commit', err?.message || err);
+      this.pend += amt;   // v415 못 보낸 몫은 버리지 않고 다음에 다시
     }
     this.busy = false;
   }

@@ -85,10 +85,10 @@ export const CLASS_LIST = JOBS.filter((j) => CLASSES[j.id]);   // v325 직업 �
 // ---------- 전직과 스킬 ----------
 export const TIERS = [
   null,
-  { level: 10, cost: 2000 },      // v269: 15 → 5 · v395 → 20 (전직 20 · 50 · 100 · 130) · v412 10 · 30 · 70 · 100 · 130
-  { level: 30, cost: 20000 },
-  { level: 70, cost: 1000000 },
-  { level: 100, cost: 8000000 },   // 4차 (v121 환마 · v123 모든 직업) — 4차 무공이 있는 직업만
+  { level: 10, cost: 1000 },      // v269: 15 → 5 · v395 → 20 (전직 20 · 50 · 100 · 130) · v412 10 · 30 · 70 · 100 · 130
+  { level: 30, cost: 12000 },      // v415 값도 새 레벨의 벌이에 맞춰(옛 레벨 대비 은자 벌이 0.53 · 0.61 · 0.70 · 0.77배)
+  { level: 70, cost: 700000 },
+  { level: 100, cost: 6000000 },   // 4차 (v121 환마 · v123 모든 직업) — 4차 무공이 있는 직업만
   { level: 130, cost: 50000000, need: 'cheonma' },   // v391 5차 — 숨은 두목을 꺾으면(직업마다) · v398 레벨 150 → 130
 ];
 // 스킬 셋 (v118 — 다섯 마존의 무공). 차수마다 자리(slot)는 같다: 1차 한 적 · 2차 둘레 · 3차 비기.
@@ -1378,6 +1378,8 @@ export const mountOf = (id) => MOUNTS.find((m) => m.id === id) || null;
 // 탈것 합성 (v204) — 같은 순위 셋 + 은자 → 다음 순위 하나. 십이지 신수(순위 13)와 맨 위(청룡마 12)는 합성하지 않는다.
 export const MOUNT_FUSE_N = 3;
 export const MOUNT_TOP = 12;
+// v415 최고 등급(합성할 데가 없는) 탈것이 같은 종으로 MOUNT_KEEP_TOP마리를 넘으면 더 얻은 것은 탈것 조각으로 — 60일 세이브에 청룡마 1,374마리(51KB)가 쌓였다
+export const MOUNT_KEEP_TOP = 10, MOUNT_SPARE_SHARD = 5;
 export const mountFuseCost = (tier) => Math.round(1000 * 1.9 ** tier);   // v350 크게 내림 (청룡마 합성 4,570만 → 116만)
 export const mountOfTier = (tier) => MOUNTS.find((m) => m.tier === tier && !m.zodiac) || null;
 // **졸개는 더 이상 안 떨군다.** 0.005%였다 — 2만 마리에 하나, 하루 꼬박

@@ -1689,6 +1689,8 @@ function handleEvents() {
         if (ev.enh + ev.inf + (ev.dan || 0) >= 1) toast(`자동${ev.enh ? ` 강화 ${ev.enh}번` : ''}${ev.inf ? ` · 등급 각인 ${ev.inf}번` : ''}${ev.dan ? ` · 칸 단 올리기 ${ev.dan}번` : ''}${ev.gs ? ` · 大成 ${ev.gs}번!` : ''}`);
         break;
       // v407 각성 고수
+      // v415 넘치는 최고 등급 탈것 → 조각(조용히 모은다)
+      case 'mountSpare': tally('mountSpare', '넘친 탈것 → 조각', ev.shard || 0, '#c4b5fd'); break;
       case 'awakenDown':
         view.showBanner(`覺 ${ev.name} 격파${ev.first ? ' — 처음!' : ` · ${ev.n}번째`}`, '#fca5a5', 1.8, '각성');
         if (ev.ring) { view.showBanner(`覺 ${ev.name} 문양을 얻었어요!`, '#fde047', 2.4, '꾸미기'); toast(`覺 전용 발밑 문양 〈${ev.name} 문양〉 — 꾸미기 › 발밑 문양에서 골라요`, () => openCustom()); }

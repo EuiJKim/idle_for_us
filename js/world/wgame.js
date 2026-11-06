@@ -84,6 +84,20 @@ export function newWorldSave(now = Date.now()) {
 }
 
 // 저장된 것을 읽는다. 모르는 칸·망가진 값은 기본값으로.
+// v415 최고 등급(합성할 데 없는) 탈것이 같은 종 · 길들이지 않은 것으로 MOUNT_KEEP_TOP마리를 넘으면 넘친 만큼 탈것 조각으로(타고 있는 것은 남긴다)
+export function trimTopMounts(s) {
+  const by = {};
+  for (const m of s.mounts) { const d = W.mountOf(m.kind); if (d && d.tier >= W.MOUNT_TOP && !d.zodiac && !(m.lv > 0)) (by[m.kind] || (by[m.kind] = [])).push(m); }
+  let n = 0;
+  for (const list of Object.values(by)) {
+    if (list.length <= W.MOUNT_KEEP_TOP) continue;
+    const drop = new Set(list.filter((m) => m.uid !== s.mount).slice(W.MOUNT_KEEP_TOP - (list.some((m) => m.uid === s.mount) ? 1 : 0)).map((m) => m.uid));
+    s.mounts = s.mounts.filter((m) => !drop.has(m.uid));
+    n += drop.size;
+  }
+  if (n) s.mountShard = (s.mountShard || 0) + n * W.MOUNT_SPARE_SHARD;
+  return n;
+}
 export function migrateWorld(raw, now = Date.now()) {
   const base = newWorldSave(now);
   if (!raw || typeof raw !== 'object') return base;
@@ -193,6 +207,7 @@ export function migrateWorld(raw, now = Date.now()) {
   s.gachaLog = Array.isArray(raw.gachaLog) ? raw.gachaLog.filter((e) => e && typeof e.id === 'string' && (W.PETS.some((p) => p.id === e.id) || W.mountOf(e.id))).slice(-100).map((e) => ({ t: Number(e.t) || 0, k: e.k === 'mount' ? 'mount' : 'pet', id: e.id, r: Math.max(0, Math.min(4, Math.floor(Number(e.r) || 0))), g: Math.max(0, Math.min(4, Math.floor(Number(e.g) || 0))) })) : [];   // v366 뽑기 기록(최근 100)
   s.gacha = Object.fromEntries(['pet', 'mount'].map((k) => [k, { n: Math.max(0, Math.floor(Number(gc[k]?.n) || 0)), pity: Math.max(0, Math.floor(Number(gc[k]?.pity) || 0)), free: typeof gc[k]?.free === 'string' ? gc[k].free.slice(0, 10) : null }]));
   if (!s.mounts.some((m) => m.uid === s.mount)) s.mount = null;
+  trimTopMounts(s);   // v415 넘치는 최고 등급 탈것은 조각으로
   s.mats = {};
   // v273 옛 지역 재료는 그 지역 가중치대로 현철로 (한 번만 — 들어온 뒤로는 지역 재료 열쇠가 남지 않는다)
   for (const [k, v] of Object.entries(raw.mats || {})) if (W.isZoneMatKey(k) && v > 0) { const o = W.oreOf(k, Math.floor(Number(v) || 0)); s.mats[W.ORE] = (s.mats[W.ORE] || 0) + o.n; }
@@ -1605,9 +1620,10 @@ export class WorldGame {
   hurt(m, dmg, kind, crit, quiet = false) {
     if (!m.alive || m.introT > 0) return;
     // 함께 잡는 왕: 친 만큼 모아 서버에 올리고, 쓰러뜨리는 건 서버가 정한다(내 화면에서 먼저 죽지 않는다)
+    if (m.coopSeq != null && this.coop?.on && this.coop.stale?.() && m.hp <= 1) m.coopSeq = null;   // v415 서버가 끊겼다 — 내 화면에서 마저 잡는다
     if (m.coopSeq != null && this.coop?.on) {
       const d = Math.min(dmg, Math.max(0, m.hp - 1));
-      this.coop.dealt(m, Math.min(dmg, m.hp));
+      this.coop.dealt(m, Math.min(dmg, this.coop.serverLeft ? this.coop.serverLeft(m) : m.hp));   // v415 서버에 남은 만큼(전엔 내 화면 체력까지만 — 1에 멈추면 한 대에 1씩만 보내 안 죽었다)
       m.hp -= d;
       m.aggro = true;
       if (!quiet) this.emit('dmg', { amount: dmg, kind, crit: crit ? 1 : 0, at: m, add: m !== this.mon });
@@ -3361,6 +3377,13 @@ export class WorldGame {
 
   // ---------- 탈것 (v111) ----------
   gainMount(kind, at) {
+    // v415 최고 등급이 같은 종으로 넘치면 조각으로(타고 있는 것·길들인 것은 세지 않는다)
+    const md = W.mountOf(kind);
+    if (md && md.tier >= W.MOUNT_TOP && !md.zodiac && this.s.mounts.filter((m) => m.kind === kind && !(m.lv > 0)).length >= W.MOUNT_KEEP_TOP) {
+      this.s.mountShard = (this.s.mountShard || 0) + W.MOUNT_SPARE_SHARD;
+      if (!this._gachaQuiet) this.emit('mountSpare', { kind, shard: W.MOUNT_SPARE_SHARD });
+      return { uid: -1, kind, lv: 0, spare: true };
+    }
     const mt = { uid: uidSeq++, kind, lv: 0 };
     this.s.mounts.push(mt);
     this.noteDex();
@@ -3393,6 +3416,7 @@ export class WorldGame {
     const kind = W.mountOfTier(tier + 1).id;
     const mt = { uid: uidSeq++, kind, lv: carry };
     this.s.mounts.push(mt);
+    if (trimTopMounts(this.s)) this.emit('mountSpare', { kind, shard: W.MOUNT_SPARE_SHARD });   // v415
     this.noteDex();
     const cur = this.mountNow();
     if (!cur || W.mountRank(W.mountOf(kind)) > W.mountRank(cur)) this.s.mount = mt.uid;
@@ -3717,7 +3741,9 @@ export class WorldGame {
   // 강화: 낀 성장 장비 여섯 칸을 가장 낮은 것부터 +10까지(은자는 물약 60개 값을 남긴다 · v324 돌파부터는 직접)
   // 등급 각인: 가진 증표 중 센 것부터, 등급 낮은 칸부터. 돌파에 쓸 그 지역 증표는 세 번어치를 남긴다.
   autoGear() {
-    const reserve = this.potionPrice() * 60;
+    // v415 전직 레벨이 됐으면 전직 값은 남긴다 — 강화 레벨 제한이 없어져(v408) 자동 강화가 은자를 다 써서 4차 전직(레벨 100)을 못 했다
+    const nt = this.nextTier?.();
+    const reserve = this.potionPrice() * 60 + (nt && this.s.level >= nt.level ? nt.cost : 0);
     const out = { enh: 0, inf: 0 };
     const worn = () => W.GROW_SLOTS.map((k) => this.s.equip[k]).filter(Boolean);
     if (this.s.autoEnh) {

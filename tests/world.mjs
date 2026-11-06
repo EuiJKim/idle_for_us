@@ -3759,6 +3759,32 @@ console.log('\n=== v413 각성 고수 전용 발밑 문양 ===');
   ok(fs.existsSync(new URL('../art/hero2/ring-awk-cheonma.png', import.meta.url)) && W.AWAKEN_IDS.every((id) => fs.existsSync(new URL(`../art/hero2/ring-awk-${id}.png`, import.meta.url))), '문양 그림 여섯');
   g.s.custom = { ...(g.s.custom || {}), ring: 'awk-cheonma' }; ok(migrateWorld(JSON.parse(JSON.stringify(g.s))).custom.ring === 'awk-cheonma' && migrateWorld(JSON.parse(JSON.stringify(g.s))).awk.rings.cheonma === 1, '끼고 저장 · 불러오기');
 }
+console.log('\n=== v415 함께 사냥 — 보스 체력이 0인데 안 죽던 것 ===');
+{
+  const CoopMod = await import('../js/world/wcoop.js');
+  const g = fresh('sword'); while (g.s.level < 30) g.addExp(W.expToNext(g.s.level));
+  const c = new CoopMod.Coop(g, {}); c.on = true; g.coop = c;
+  const mob = { alive: true, isBoss: true, hp: 1, maxHp: 1e6, coopSeq: 7, x: 0, y: 0, introT: 0 };
+  c.b = { seq: 7, hp: 500000, max: 1e6 }; c.bAt = Date.now(); c.pend = 0;
+  g.hurt(mob, 30000, 'hit', false, true);
+  ok(c.pend === 30000 && mob.hp === 1, '내 화면 체력이 1이어도 친 만큼(3만)을 서버로 보낸다(전엔 1)', `${c.pend}`);
+  c.bAt = Date.now() - 20000; g.mon = mob; g.events.length = 0; g.hurt(mob, 10, 'hit', false, true);
+  ok(!mob.alive && mob.coopSeq == null, '서버 소식이 15초 넘게 끊기면 내 화면에서 마저 쓰러뜨린다');
+}
+console.log('\n=== v415 넘치는 최고 등급 탈것은 조각으로 · 전직 값 · 자동 강화가 전직 값을 남긴다 ===');
+{
+  const g = fresh('sword');
+  const top = W.MOUNTS.find((m) => m.tier === W.MOUNT_TOP && !m.zodiac).id;
+  for (let i = 0; i < 30; i++) g.gainMount(top);
+  const n = g.s.mounts.filter((m) => m.kind === top).length;
+  ok(n === W.MOUNT_KEEP_TOP && g.s.mountShard >= 20 * W.MOUNT_SPARE_SHARD, `최고 등급 ${W.MOUNT_KEEP_TOP}마리까지 · 넘친 20마리는 조각 ${20 * W.MOUNT_SPARE_SHARD}`, `${n}`);
+  const raw = JSON.parse(JSON.stringify(g.s)); for (let i = 0; i < 500; i++) raw.mounts.push({ uid: 900000 + i, kind: top, lv: 0 });
+  const m2 = migrateWorld(raw); ok(m2.mounts.filter((m) => m.kind === top).length === W.MOUNT_KEEP_TOP && m2.mountShard >= raw.mountShard + 500 * W.MOUNT_SPARE_SHARD, '옛 세이브(청룡마 수백 마리)도 불러올 때 정리');
+  ok(W.TIERS[4].level === 100 && W.TIERS[4].cost <= 6e6 && W.TIERS[3].cost <= 7e5, '전직 값 — 새 레벨 벌이에 맞춰');
+  const a = fresh('sword'); while (a.s.level < 100) a.addExp(W.expToNext(a.s.level)); a.s.jobTier = 3; a.s.gold = W.TIERS[4].cost + 5e5; a.s.mats[W.ORE] = 1e9; a.s.autoEnh = true;
+  for (let i = 0; i < 5; i++) a.autoGear();
+  ok(a.s.gold >= W.TIERS[4].cost && a.canAdvance(), '자동 강화는 4차 전직 값을 남긴다');
+}
 console.log('\n=== v413 길잡이 — 전직 단계는 그 레벨 바로 뒤 ===');
 {
   const ix = (id) => Q.QUESTS.findIndex((q) => q.id === id);
