@@ -239,8 +239,8 @@ export const skillsOf = (job, cm = false) => {
 export const CHEONMA = {
   name: '천마신공', hanja: '天魔神功', soul: '천마혼', soulHanja: '天魔魂', tierName: '천마', col: '#dc2626',
   form: '구화마도식', formHanja: '九華魔刀式',
-  trait: '천마혼(天魔魂) — 공격력 ×1.6 · 최대 체력 ×1.6(따로 곱한다) · 무공 피해 +40% · 두목 피해 +40% · 받는 피해 -20% · 꽃잎 검기가 천마검강으로(세 번째 평타마다 · 400% · 더 넓게) · 칠초식 심마도를 펼치면 천마혼 발현(15초 모든 피해 2배)',
-  atkMul: 1.6, hpMul: 1.6,   // v392 더 세게(1.5 · 1.3 → 2.2 · 1.6) · v397 2.2 → 1.6(탄막·두목에서 남의 2.5배였다)
+  trait: '천마혼(天魔魂) — 공격력 ×1.52 · 최대 체력 ×1.6(따로 곱한다) · 무공 피해 +40% · 두목 피해 +40% · 받는 피해 -20% · 꽃잎 검기가 천마검강으로(세 번째 평타마다 · 400% · 더 넓게) · 칠초식 심마도를 펼치면 천마혼 발현(15초 모든 피해 2배)',
+  atkMul: 1.52, hpMul: 1.6,   // v392 더 세게(1.5 · 1.3 → 2.2 · 1.6) · v397 2.2 → 1.6(탄막·두목에서 남의 2.5배였다) · v404 1.52(끝까지 올린 최종 상태 1등 — 검사 ≥ 소마 > 환마 > 독마 > 권마)
   mods: { skill: 0.4, bossDmg: 0.4, dmgRed: 0.2 },   // v397 다른 직업과 같게
   flower: { every: 3, mult: 4.0, r: 240 },
   soulSec: 15, soulDmg: 1.0,   // 천마혼 발현 — 심마도 뒤 이 초 동안 모든 피해 +soulDmg · 무인 뒤에 천마의 형상
@@ -273,20 +273,20 @@ export const FIFTH = {
   sword: { ...CHEONMA, need: 'cheonma', needName: '천마 검우진', seal: '魔', sealCol: '220,38,38', aura: '#b91c1c', soulArt: 'soul-sword', banner: '天魔' },
   fist: F5({ name: '투신불패공', hanja: '鬪神不敗功', soul: '투신혼', soulHanja: '鬪神魂', tierName: '투신', col: '#f59e0b', form: '투신칠권', formHanja: '鬪神七拳',
     need: 'hwamugi', needName: '천하제일인 화무기', seal: '鬪', sealCol: '245,158,11', aura: '#d97706', soulArt: 'soul-fist', banner: '鬪神',
-    atkMul: 1.22, hpMul: 1.25,
-    trait: '투신혼(鬪神魂) — 공격력 ×1.22 · 최대 체력 ×1.25(따로 곱한다) · 무공 피해 +40% · 두목 피해 +40% · 받는 피해 -20% · 칠권 투신현신을 펼치면 투신혼 발현(15초 모든 피해 2배)' }),
+    atkMul: 1.25, hpMul: 1.25,   // v404 최종 5등 — 1등과 1.4배 안
+    trait: '투신혼(鬪神魂) — 공격력 ×1.25 · 최대 체력 ×1.25(따로 곱한다) · 무공 피해 +40% · 두목 피해 +40% · 받는 피해 -20% · 칠권 투신현신을 펼치면 투신혼 발현(15초 모든 피해 2배)' }),
   fan: F5({ name: '혈마대법', hanja: '血魔大法', soul: '혈마혼', soulHanja: '血魔魂', tierName: '혈마', col: '#be123c', form: '혈마칠법', formHanja: '血魔七法',
     need: 'baekjagang', needName: '사도맹주 백자강', seal: '血', sealCol: '190,18,60', aura: '#9f1239', soulArt: 'soul-fan', banner: '血魔',
-    atkMul: 1.32, hpMul: 1.3,
-    trait: '혈마혼(血魔魂) — 공격력 ×1.32 · 최대 체력 ×1.3(따로 곱한다) · 무공 피해 +40% · 두목 피해 +40% · 받는 피해 -20% · 칠법 혈마강림을 펼치면 혈마혼 발현(15초 모든 피해 2배)' }),
+    atkMul: 2.13, hpMul: 1.3,   // v404 최종 3등
+    trait: '혈마혼(血魔魂) — 공격력 ×2.13 · 최대 체력 ×1.3(따로 곱한다) · 무공 피해 +40% · 두목 피해 +40% · 받는 피해 -20% · 칠법 혈마강림을 펼치면 혈마혼 발현(15초 모든 피해 2배)' }),
   poison: F5({ name: '만독귀종공', hanja: '萬毒歸宗功', soul: '독룡혼', soulHanja: '毒龍魂', tierName: '독존', col: '#65a30d', form: '만독칠식', formHanja: '萬毒七式',
     need: 'jinpaecheon', needName: '무림맹주 진패천', seal: '毒', sealCol: '101,163,13', aura: '#4d7c0f', soulArt: 'soul-poison', banner: '毒尊',
-    atkMul: 1.95, hpMul: 1.5, bossDot: 0.9, slow: true, mods: { skill: 0.4, bossDmg: 0.4, dmgRed: 0.2, drain: 0.03 },   // v398 독을 빨아들여 흡혈 3%   // v398 두목이 독을 덜 받는 규칙(×0.5)을 독존은 ×0.9로
-    trait: '독룡혼(毒龍魂) — 공격력 ×1.95 · 최대 체력 ×1.5(따로 곱한다) · 무공 피해 +40% · 두목 피해 +40% · 받는 피해 -20% · 두목에게도 독이 깊이(두목 독 피해 ×0.5 → ×0.9) · 준 피해의 3%를 빨아들인다 · 맞은 적이 독에 굼떠진다(공격 박자 ×1.5) · 칠식 만독귀종을 펼치면 독룡혼 발현(15초 모든 피해 2배)' }),
+    atkMul: 1.2, hpMul: 1.5, bossDot: 0.9, slow: true, mods: { skill: 0.4, bossDmg: 0.4, dmgRed: 0.2, drain: 0.03 },   // v404 공격력 1.95 → 1.2 — 끝까지 올리면 두목 독이 공격력 따라 불어나 1등(남의 2.3배)이었다 → 4등 · v398 독을 빨아들여 흡혈 3%   // v398 두목이 독을 덜 받는 규칙(×0.5)을 독존은 ×0.9로
+    trait: '독룡혼(毒龍魂) — 공격력 ×1.2 · 최대 체력 ×1.5(따로 곱한다) · 무공 피해 +40% · 두목 피해 +40% · 받는 피해 -20% · 두목에게도 독이 깊이(두목 독 피해 ×0.5 → ×0.9) · 준 피해의 3%를 빨아들인다 · 맞은 적이 독에 굼떠진다(공격 박자 ×1.5) · 칠식 만독귀종을 펼치면 독룡혼 발현(15초 모든 피해 2배)' }),
   ring: F5({ name: '무면천악공', hanja: '無面天惡功', soul: '무면귀', soulHanja: '無面鬼', tierName: '악존', col: '#7c3aed', form: '천악칠지', formHanja: '天惡七指',
     need: 'magwi', needName: '히든 마귀', seal: '惡', sealCol: '124,58,237', aura: '#6d28d9', soulArt: 'soul-ring', banner: '惡尊',
-    atkMul: 1.05, hpMul: 1.5,
-    trait: '무면귀(無面鬼) — 공격력 ×1.05 · 최대 체력 ×1.5(따로 곱한다) · 무공 피해 +40% · 두목 피해 +40% · 받는 피해 -20% · 칠지 삼공악림을 펼치면 무면귀 발현(15초 모든 피해 2배)' }),
+    atkMul: 1.7, hpMul: 1.5,   // v404 최종 2등(검사 바로 아래)
+    trait: '무면귀(無面鬼) — 공격력 ×1.7 · 최대 체력 ×1.5(따로 곱한다) · 무공 피해 +40% · 두목 피해 +40% · 받는 피해 -20% · 칠지 삼공악림을 펼치면 무면귀 발현(15초 모든 피해 2배)' }),
 };
 export const CHEONMA_JOBS = Object.keys(FIFTH);
 export const fifthOf = (job) => FIFTH[job] || null;

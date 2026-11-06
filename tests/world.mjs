@@ -3744,6 +3744,12 @@ console.log('\n=== v403 지금 뭘 올리면 제일 세지나 ===');
   ok(!g.upgradeTip(), '은자가 없으면 추천 없음');
   ok(/id: 'up-tip'/.test(read('js/wui.js')), '가방 위 한 줄 — 누르면 그 장비 창');
 }
+console.log('\n=== v404 5차 직업 순서(끝까지 올린 최종 상태 기준) ===');
+{
+  const F = (j) => W.fifthOf(j).atkMul;
+  ok(F('sword') === 1.52 && F('ring') === 1.7 && F('fan') === 2.13 && F('poison') === 1.2 && F('fist') === 1.25 && W.fifthOf('poison').bossDot > 0, '공격력 배율 — 검사 1.52 · 소마 1.7 · 환마 2.13 · 독마 1.2(두목 독) · 권마 1.25');
+  ok(/공격력 ×1\.52/.test(W.fifthOf('sword').trait) && /공격력 ×1\.7 /.test(W.fifthOf('ring').trait) && /공격력 ×2\.13/.test(W.fifthOf('fan').trait) && /공격력 ×1\.2 /.test(W.fifthOf('poison').trait), '설명 글이 배율과 같다');
+}
 console.log('\n=== v403 자동 각인이 막히면 알린다 ===');
 {
   const g = fresh('sword');
