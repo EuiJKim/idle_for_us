@@ -26,9 +26,9 @@ export const DAILY_RESPAWN = 0.7;
 export const DAILY_STAGES = 999;   // v401 30에서 끝나지 않는다 — 계속 오른다(DAILY_BASE 위로는 단계마다 더 세게)
 export const DAILY_BASE = 30;      // 몹 레벨이 150에 닿는 단계
 export const DAILY_OVER_K = 1.12;  // 30단계 위로 한 단계마다 몹 체력·공격 ×1.12
-export const DAILY_OVER_RW = 0.06; // 보상 +6%씩
+export const DAILY_OVER_RW = 1.04; // v435 보상 ×1.04씩(복리) — 전엔 +6%씩(선형)이라 60단계 위에서 세기 ×30에 보상 ×2.8, 100단계 위는 ×2,788에 ×5.2였다
 export const dailyOverK = (s) => (s > DAILY_BASE ? DAILY_OVER_K ** (s - DAILY_BASE) : 1);
-export const dailyRwK = (s) => 1 + Math.max(0, s - DAILY_BASE) * DAILY_OVER_RW;
+export const dailyRwK = (s) => (s > DAILY_BASE ? DAILY_OVER_RW ** (s - DAILY_BASE) : 1);
 export const DAILY_FAIL = 0.5;
 
 export const DAILY = [
@@ -46,7 +46,6 @@ export const dailyDaysText = () => '매일';
 
 // 단계 s의 몹 레벨 (1단계 5 … 30단계 150) · 들어갈 수 있는 레벨
 export const dailyLv = (s) => Math.min(150, 5 * s);
-export const dailyNeed = (s) => Math.max(1, dailyLv(s) - 5);
 // 레벨 lv 몹이 사는 지역 (재료·몹 모습을 거기서 빌린다)
 export function zoneForLv(lv) {
   let best = 1;
@@ -182,7 +181,8 @@ export function corridorPats(week = corridorWeek()) {
   return out;
 }
 export const CORRIDOR_HP_UP = 1.07;
-export const corridorGold = (f) => Math.round(mobGold(150) * 60 * (1 + (f - TOWER_MAX) * 0.05));
+export const CORRIDOR_RW_UP = 1.04;   // v435 층마다 은자 ×1.04(복리) — 전엔 +5%씩(선형)이라 60층에서 수문장 ×58에 은자 ×4였다
+export const corridorGold = (f) => Math.round(mobGold(150) * 60 * CORRIDOR_RW_UP ** Math.max(0, f - TOWER_MAX - 1));
 // v403 120층 너머 — 끝없이. 지금껏 가장 높이 오른 회랑 층(all)마다 공격력·체력 +0.25% 영구(상한 없음),
 //   새 기록 층을 처음 넘으면 은자 세 배 + 조각(10층마다 더 크게)
 export const CORRIDOR_BONUS = 0.0025;

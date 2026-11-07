@@ -452,7 +452,7 @@ console.log('\n=== 등급 · 스킬 옵션 · 승급 · 돌파 · 스킬 레벨 
   const atks = items.map((it) => g.itemStats(it).atk);
   ok(atks.every((v, i) => !i || v > atks[i - 1]) && items.map((it) => it.opts.length).join() === '1,1,2,3', '같은 장비도 레어<유니크<전설<신화, 옵션 1·1·2·(2+특수)', atks.map((v) => v.toFixed(0)).join(' < '));
   ok(items[3].opts.some((o) => o.sp), '신화에는 특수 효과', items[3].opts.map(W.optText).join(' / '));
-  ok(!g.canPromote(g.s.equip.weapon), '성장 장비는 승급이 아니라 등급 각인으로 (v158)');
+  ok(typeof g.canPromote !== 'function', '성장 장비는 승급이 아니라 등급 각인으로 (v158)');
   // 스킬 옵션이 스킬을 바꾼다
   const h = fresh();
   h.s.level = 40; h.s.jobTier = 2; h.enterMap(W.mapId(5, 1));
@@ -919,7 +919,7 @@ console.log('\n=== 장비 개편 (v130) ===');
   const p0 = sw2.plus || 0; sw.s.mats.st26 = 500; sw.rng = () => 0;
   ok(sw.enhance(sw2.uid) && sw2.plus === p0 + 1 && sw.s.mats.st26 === 500 - G.stoneN(p0), '강화석으로 강화');
   // v173: 승급 대신 증표 각인 — 세트도 세 칸이 새겨진다
-  ok(!sw.canPromote(sw2), '승급은 없다 (증표 각인으로)');
+  ok(typeof sw.promote !== 'function', '승급은 없다 (증표 각인으로)');
   sw2.rar = 0; sw.s.gold = 1e15; sw.s.mats.b27 = 1000; sw.rng = () => 0;
   ok(sw.infuse(sw2.uid, 'b27', 0) && sw2.rar === 1 && sw2.imps?.[0]?.k === 'b27' && sw2.set === 'plum', '세트 무기도 두목 증표로 등급 각인 — 세트는 그대로');
   sw.infuse(sw2.uid, 'b27', 1); sw.infuse(sw2.uid, 'b27', 2);
@@ -1843,7 +1843,7 @@ console.log('\n=== v263 각성 · 깨달음 · 견문록 · 회랑 · 길잡이 
   const mo = migrateWorld({ ...newWorldSave(), awaken: { slot: 's1', kind: 'wide' } });
   ok(mo.awakens.s1 === 'wide' && !('awaken' in mo), '옛 저장의 각성 하나는 그 무공 자리로', JSON.stringify(mo.awakens));
   ok(Object.keys(migrateWorld({ ...newWorldSave(), awakens: { s0: 'twin', s9: 'wide', s1: 'nope' } }).awakens).join() === 's0', '이상한 칸·이름은 버린다');
-  ok(/askAwaken/.test(read('js/wui.js')) && /첫 각성은 공짜/.test(read('js/wui.js')), '누르기 전에 드는 것 · 누르면 무엇인지 설명');
+  ok(/askAwaken/.test(read('js/wui.js')) && /첫 변초는 공짜/.test(read('js/wui.js')), '누르기 전에 드는 것 · 누르면 무엇인지 설명');
   // 깨달음
   while (g.s.level < W.LEVEL_MAX) g.addExp(W.expToNext(g.s.level));
   g.addExp(W.enlExp() * 3);
@@ -3629,12 +3629,12 @@ console.log('\n=== v391 검사 5차 전직 · 천마신공 ===');
   const f = fresh('fist');
   while (f.s.level < 150) f.addExp(W.expToNext(f.s.level));
   f.s.gold = 1e12; while (f.canAdvance()) f.advance(); f.s.duel.won = { cheonma: 1 };
-  ok(f.s.jobTier === 4 && f.nextTier()?.need === 'hwamugi' && !f.cheonmaOn(), 'v393 권마는 화무기를 꺾어야 5차(천마로는 안 된다)');
+  ok(f.s.jobTier === 4 && f.nextTier()?.need === 'jinpaecheon' && !f.cheonmaOn(), 'v393 권마는 제 두목을 꺾어야 5차(천마로는 안 된다) · v435 화무기 → 무림맹주');
   ok(/cheonma-go/.test(read('js/wui.js')) && /ev\.cheonma/.test(read('js/wmain.js')) && /seal: '魔'/.test(read('js/world/wdata.js')) && /fifthOf\(game\.s\.job\)\.seal/.test(read('js/battle.js')), '사부 창 · 전직 연출 · 붉은 魔 인장');
 }
 console.log('\n=== v393 다섯 직업 5차 · 초월 ===');
 {
-  const want = { sword: ['cheonma', '천마', '직단결'], fist: ['hwamugi', '투신', '붕천권'], fan: ['baekjagang', '혈마', '혈영섭혼'], poison: ['jinpaecheon', '독존', '단혼독룡침'], ring: ['magwi', '악존', '혈앙멸혼지'] };
+  const want = { sword: ['cheonma', '천마', '직단결'], fist: ['jinpaecheon', '투신', '붕천권'], fan: ['baekjagang', '혈마', '혈영섭혼'], poison: ['jinpaecheon', '독존', '단혼독룡침'], ring: ['baekjagang', '악존', '혈앙멸혼지'] };
   for (const [j, [need, tier, s0]] of Object.entries(want)) {
     const g = fresh(j);
     while (g.s.level < 150) g.addExp(W.expToNext(g.s.level));
@@ -3694,7 +3694,7 @@ console.log('\n=== v397 근접·원거리 ===');
 console.log('\n=== v398 5차 레벨 130 · 독존 · 골라 팔기 ===');
 {
   const g = fresh('fist'); while (g.s.level < 130) g.addExp(W.expToNext(g.s.level));
-  g.s.gold = 1e12; while (g.s.jobTier < 4 && g.canAdvance()) g.advance(); g.s.duel.won = { hwamugi: 1 };
+  g.s.gold = 1e12; while (g.s.jobTier < 4 && g.canAdvance()) g.advance(); g.s.duel.won = { jinpaecheon: 1 };   // v435
   ok(W.TIERS[5].level === 130 && g.canAdvance() && g.advance() && g.s.jobTier === 5, '5차는 레벨 130에(4차와 같은 레벨 · 숨은 두목 격파)');
   const P = W.fifthOf('poison');
   ok(P.slow && P.bossDot > W.BOSS_DOT_K && P.mods.drain > 0 && W.skillsOf('poison', true).find((k) => k.id === 's0').stun > 0, '독존 — 마비독(기절) · 둔화 · 두목에게도 독 · 흡혈');
@@ -3719,7 +3719,7 @@ console.log('\n=== v399 강화석 몇 개 · 되돌리기 ===');
 console.log('\n=== v401 일일 던전 — 30단계 위로 계속 ===');
 {
   const D1 = await import('../js/world/wdgn.js');
-  ok(D1.DAILY_STAGES > 100 && D1.dailyOverK(30) === 1 && D1.dailyOverK(40) > 3 && D1.dailyRwK(40) > 1.5, '30단계 위로 — 단계마다 몹 ×1.12 · 보상 +6%');
+  ok(D1.DAILY_STAGES > 100 && D1.dailyOverK(30) === 1 && D1.dailyOverK(40) > 3 && D1.dailyRwK(40) > 1.4 && Math.abs(D1.dailyRwK(90) - 1.04 ** 60) < 1e-9, '30단계 위로 — 단계마다 몹 ×1.12 · 보상 ×1.04(v435 복리)');
   const g = fresh('sword'); while (g.s.level < 150) g.addExp(W.expToNext(g.s.level));
   for (const d of D1.DAILY) g.s.dgn.best[d.id] = 44;
   ok(g.dailyMaxStage('gold') === 45 && g.startDaily('gold', 45, Date.now()), '깬 다음 단계(45)로 들어간다');
@@ -4097,6 +4097,24 @@ console.log('\n=== v434 3판 — UI/UX ===');
   ok(/label: '신수 뽑기'/.test(U) && /무한의 탑을 10층 오를 때마다/.test(U), '던전 › 신수 뽑기 — 무엇을 하면 되는지 한 줄');
   ok(/성공 \$\{Math\.round\(rate \* 100\)\}% · 은자/.test(U) && /가진 \$\{fmt\(game\.enhanceMatHave\(m\)\)\}/.test(U), '강화 타일 — 값마다 이름 · 가진 수');
   ok(/const sg = \(v\) =>/.test(U) && /보장까지/.test(U) && !/천장 \$\{s\.gacha/.test(U), '무공 부호 · 소환 단위·보장');
+}
+
+
+console.log('\n=== v435 4판 — 시스템 설계 ===');
+{
+  const lv = { cheonma: 175, jinpaecheon: 160, baekjagang: 162 };
+  ok(W.CHEONMA_JOBS.every((j) => lv[W.FIFTH[j].need] && lv[W.FIFTH[j].need] <= 175) && W.FIFTH.fist.need === 'jinpaecheon' && W.FIFTH.ring.need === 'baekjagang', '5차 관문 — 직업마다 Lv160~175 두목(화무기 190 · 마귀 200이던 것)');
+  ok(W.TIERS[5].cost === 20000000, '5차 비용 2천만');
+  ok(Math.abs(DG.dailyRwK(90) - 1.04 ** 60) < 1e-9 && DG.corridorGold(DG.TOWER_MAX + 61) / DG.corridorGold(DG.TOWER_MAX + 1) > 10, '끝없는 모드 보상 복리(요일 60단계 위 ×10.5 · 회랑 60층 ×10)');
+  const G2 = await import('../js/world/wgear.js');
+  ok([16, 17, 18, 19, 20].every((z) => G2.STONES[G2.earlyStoneZone(z)]?.slot === G2.KING_SLOT[z]), '전반 다섯 왕 — 맡은 부위 강화석');
+  { const g = new WorldGame(newWorldSave(), Date.now()); g.emit = () => {}; g.rng = () => 0.99; g.s.job = 'sword'; g.s.level = 110; g._stats = null;
+    const z = 16; const k = G2.stoneKey(G2.earlyStoneZone(z)); const n0 = g.s.mats[k] || 0;
+    const room = W.MAPS.find((m) => m.mz === z && m.bossRoom); g.enterMap(room.id, true);
+    g.dropMats({ isBoss: true, x: 0, y: 0, lv: 105 }); ok((g.s.mats[k] || 0) === n0 + G2.EARLY_STONE_PER_BOSS, '전반 왕을 잡으면 그 부위 강화석', `${n0} → ${g.s.mats[k] || 0}`); }
+  ok(W.MOUNT_DEX_GOALS[W.MOUNT_DEX_GOALS.length - 1].n === W.MOUNTS.length, '탈것 도감 마지막 목표 = 탈것 종 수(30)');
+  ok(!('promoteCost' in W) && !/canPromote/.test(read('js/world/wgame.js').replace(/\/\/.*$/gm, '')), '승급 기계 지움');
+  ok(/무공 변초/.test(read('js/wui.js')) && !/'무공 각성'/.test(read('js/wui.js')), '무공 쪽은 「변초」(각성 고수와 다른 말)');
 }
 
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);

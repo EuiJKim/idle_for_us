@@ -6,7 +6,7 @@ import { ZONES, JOBS, CLASS_SKILLS, RANKS } from '../data.js';
 import { areaMobs } from './wmobs.js';
 import { MASTERS } from './wmasters_data.js';
 import { FAC_MAT_INFO, isFacMat, lineMats } from './wline.js';
-import { TRANSFORMS, setOf, SET_PIECE, STONES, isStoneKey, promoteStones, LORD_MATS, isLordMat } from './wgear.js';
+import { TRANSFORMS, setOf, SET_PIECE, STONES, isStoneKey, LORD_MATS, isLordMat } from './wgear.js';
 
 export const SAVE_KEY = 'ifu-world-v1';
 export const LEVEL_MAX = 150;
@@ -89,7 +89,7 @@ export const TIERS = [
   { level: 30, cost: 12000 },      // v415 값도 새 레벨의 벌이에 맞춰(옛 레벨 대비 은자 벌이 0.53 · 0.61 · 0.70 · 0.77배)
   { level: 70, cost: 700000 },
   { level: 100, cost: 6000000 },   // 4차 (v121 환마 · v123 모든 직업) — 4차 무공이 있는 직업만
-  { level: 130, cost: 50000000, need: 'cheonma' },   // v391 5차 — 숨은 두목을 꺾으면(직업마다) · v398 레벨 150 → 130
+  { level: 130, cost: 20000000, need: 'cheonma' },   // v435 5천만 → 2천만(사냥 벌이로 4차 ~7시간 · 5차 ~45시간이던 것 → ~18시간)   // v391 5차 — 숨은 두목을 꺾으면(직업마다) · v398 레벨 150 → 130
 ];
 // 스킬 셋 (v118 — 다섯 마존의 무공). 차수마다 자리(slot)는 같다: 1차 한 적 · 2차 둘레 · 3차 비기.
 // role은 연출표(skillfx) 열쇠 — '캐릭터:role'. hpCost는 최대 체력 대비. mult는 한 번 맞을 때의 배수.
@@ -272,7 +272,8 @@ const F5 = (o) => ({ atkMul: 2.0, hpMul: 1.5, mods: { skill: 0.4, bossDmg: 0.4, 
 export const FIFTH = {
   sword: { ...CHEONMA, need: 'cheonma', needName: '천마 검우진', seal: '魔', sealCol: '220,38,38', aura: '#b91c1c', soulArt: 'soul-sword', banner: '天魔' },
   fist: F5({ name: '투신불패공', hanja: '鬪神不敗功', soul: '투신혼', soulHanja: '鬪神魂', tierName: '투신', col: '#f59e0b', form: '투신칠권', formHanja: '鬪神七拳',
-    need: 'hwamugi', needName: '천하제일인 화무기', seal: '鬪', sealCol: '245,158,11', aura: '#d97706', soulArt: 'soul-fist', banner: '鬪神',
+    need: 'jinpaecheon', needName: '무림맹주 진패천', seal: '鬪',   // v435 화무기(Lv190) → 무림맹주(Lv160) — 5차 관문이 직업마다 Lv160~200으로 40레벨이나 벌어져 있었다
+    sealCol: '245,158,11', aura: '#d97706', soulArt: 'soul-fist', banner: '鬪神',
     atkMul: 1.25, hpMul: 1.25,   // v404 최종 5등 — 1등과 1.4배 안
     trait: '투신혼(鬪神魂) — 공격력 ×1.25 · 최대 체력 ×1.25(따로 곱한다) · 무공 피해 +40% · 두목 피해 +40% · 받는 피해 -20% · 칠권 투신현신을 펼치면 투신혼 발현(15초 모든 피해 2배)' }),
   fan: F5({ name: '혈마대법', hanja: '血魔大法', soul: '혈마혼', soulHanja: '血魔魂', tierName: '혈마', col: '#be123c', form: '혈마칠법', formHanja: '血魔七法',
@@ -284,7 +285,8 @@ export const FIFTH = {
     atkMul: 1.2, hpMul: 1.5, bossDot: 0.9, slow: true, mods: { skill: 0.4, bossDmg: 0.4, dmgRed: 0.2, drain: 0.03 },   // v404 공격력 1.95 → 1.2 — 끝까지 올리면 두목 독이 공격력 따라 불어나 1등(남의 2.3배)이었다 → 4등 · v398 독을 빨아들여 흡혈 3%   // v398 두목이 독을 덜 받는 규칙(×0.5)을 독존은 ×0.9로
     trait: '독룡혼(毒龍魂) — 공격력 ×1.2 · 최대 체력 ×1.5(따로 곱한다) · 무공 피해 +40% · 두목 피해 +40% · 받는 피해 -20% · 두목에게도 독이 깊이(두목 독 피해 ×0.5 → ×0.9) · 준 피해의 3%를 빨아들인다 · 맞은 적이 독에 굼떠진다(공격 박자 ×1.5) · 칠식 만독귀종을 펼치면 독룡혼 발현(15초 모든 피해 2배)' }),
   ring: F5({ name: '무면천악공', hanja: '無面天惡功', soul: '무면귀', soulHanja: '無面鬼', tierName: '악존', col: '#7c3aed', form: '천악칠지', formHanja: '天惡七指',
-    need: 'magwi', needName: '히든 마귀', seal: '惡', sealCol: '124,58,237', aura: '#6d28d9', soulArt: 'soul-ring', banner: '惡尊',
+    need: 'baekjagang', needName: '사도맹주 백자강', seal: '惡',   // v435 히든 마귀(Lv200 · 화무기 먼저) → 사도맹주(Lv162)
+    sealCol: '124,58,237', aura: '#6d28d9', soulArt: 'soul-ring', banner: '惡尊',
     atkMul: 1.7, hpMul: 1.5,   // v404 최종 2등(검사 바로 아래)
     trait: '무면귀(無面鬼) — 공격력 ×1.7 · 최대 체력 ×1.5(따로 곱한다) · 무공 피해 +40% · 두목 피해 +40% · 받는 피해 -20% · 칠지 삼공악림을 펼치면 무면귀 발현(15초 모든 피해 2배)' }),
 };
@@ -566,7 +568,6 @@ export const SLOTS = [
 // 대장장이가 만드는 칸 (가락지·귀걸이는 두목만 떨군다 — 조합 사다리가 없다)
 export const CRAFT_SLOTS = SLOTS.filter((x) => !x.dropOnly);
 // v120: 아래 장비 없이도 조합한다 — 재료만 있으면 어느 칸이든. 아래 장비를 넣으면 재료가 덜 들고 강화·등급을 이어받는다.
-export const NO_BASE_MULT = 1.5;
 export const isDropOnly = (slot) => slot === 'finger' || slot === 'ear';
 export const GRADES = [
   { id: 0, name: '일반', color: '#d6d3d1', mult: 1, w: 70 },
@@ -726,8 +727,6 @@ export function stepMap(step) {
   return best;
 }
 // 하급·상급은 없앴다. 옛 세이브와 옛 코드가 부르는 자리가 있어 거짓만 돌려준다.
-export const stepUpper = () => false;
-export const TIER_COUNT = STEP_COUNT;            // 옛 이름 (칸 수)
 // 한 칸이 레벨 다섯이라 전보다 오래 머문다 — 그만큼 한 번에 더 든다
 const CRAFT_MATS = { weapon: 70, armor: 54, hat: 42, glove: 42, shoe: 42, acc: 54 };
 const CRAFT_BOSS = { weapon: 5, armor: 4, hat: 3, glove: 3, shoe: 3, acc: 4 };
@@ -769,7 +768,6 @@ export const infuseFactor = (key, ilv) => Math.max(INFUSE_F_MIN, Math.min(INFUSE
 export const infuseGold = (ilv, r) => Math.round((30 + ilv * 10) * RAR_GOLD[r] * 2);
 // 빛깔(등급 색)은 지역 셋마다 한 칸씩 — 일반 · 고급 · 희귀 · 영웅 · 전설, 십이지왕 장비는 '지왕'
 // 빛깔(테두리 색)은 네 칸마다 한 단계 — 스무 칸이 다섯 빛깔
-export const stepGrade = (step) => Math.min(4, Math.floor(step / 4));
 // 조합법: 무엇을 내면 이것이 되나
 // 조합법: 무엇을 내면 이것이 되나. rar를 주면 그 등급짜리 값이다.
 export function recipeOf(slot, step, rar = 0, line = 'base') {
@@ -866,20 +864,6 @@ export const rollRarity = (w, rng) => {
   let r = rng() * w.reduce((a, b) => a + b, 0);
   for (let i = 0; i < w.length; i++) { r -= w[i]; if (r <= 0) return i; }
   return 0;
-};
-// 승급 비용: 그 장비 지역 재료 · 증표 · 은자
-export const promoteCost = (it) => {
-  const r = (it.rar || 0) + 1;
-  // v132 왕의 장비: 검왕의 무형 검혼석 (증표 없음)
-  if (it.king != null) return { key: 'st27', mats: promoteStones(it.rar || 0), marks: 0, gold: Math.round((30 + 100 * 10) * 3 * r) };
-  // v153: 승급은 그 등급으로 바로 만들 때와 같은 차이만큼 든다 — 전에는 전설→신화가 재료 90·증표 6이라 신화가 너무 쉬웠다
-  const k = itemZone(it);
-  const sl = CRAFT_MATS[it.slot] ? it.slot : 'weapon';
-  // v157: 계열 장비는 세력 재료도 같은 차이만큼 — 전에는 지역 재료만 들어서 기본 장비를 신화로 올리는 값이 삼파와 같았다
-  const fac = {};
-  if (it.line && it.line !== 'base' && it.step != null) for (const [fk, n] of Object.entries(lineMats(it.line, sl, it.step))) fac[fk] = Math.round(n * (RAR_MATS[r] - RAR_MATS[r - 1]));
-  return { key: k, mats: Math.round(CRAFT_MATS[sl] * (RAR_MATS[r] - RAR_MATS[r - 1])), marks: CRAFT_BOSS[sl] * (RAR_BOSS[r] - RAR_BOSS[r - 1]),
-    gold: Math.round((30 + craftLevel(k) * 10) * (RAR_GOLD[r] - RAR_GOLD[r - 1]) * 1.5), fac };
 };
 // 스킬 옵션: s는 스킬 칸(0 1차 · 1 2차 · 2 3차). 값은 등급별.
 export const SKILL_OPTS = {
@@ -1278,7 +1262,7 @@ export const PET_STAR_K = 0.12;
 export const petReleaseSoul = (p) => [1, 2, 4, 8][p.rar || 0] + Math.floor((p.lv || 1) / 10);
 // 도감 — 한 번이라도 가진 종(애완은 그 종의 가장 높은 등급까지)만큼 공격력·최대 체력이 영구히 오른다
 export const PET_DEX_K = 0.003;     // 종마다 (가장 높은 등급 + 1) × 0.3% → 열 종 모두 신화면 +12%
-export const MOUNT_DEX_K = 0.002;   // 탈것 종마다 0.2% → 스물넷 모두 +4.8%
+export const MOUNT_DEX_K = 0.002;   // 탈것 종마다 0.2% → 서른 모두 +6%
 // 도감 이정표 — 모은 만큼 상을 받는다(한 번씩)
 export const PET_DEX_GOALS = [
   { n: 2, soul: 5, text: '두 종' }, { n: 4, soul: 12, petShard: 50, text: '네 종' }, { n: 6, soul: 25, petShard: 100, text: '여섯 종' },
@@ -1287,7 +1271,8 @@ export const PET_DEX_GOALS = [
 export const PET_DEX_MYTH_GOALS = [{ n: 1, soul: 20, text: '신화 한 종' }, { n: 5, soul: 60, text: '신화 다섯 종' }, { n: 10, soul: 150, text: '신화 열 종' }];
 export const MOUNT_DEX_GOALS = [
   { n: 3, mountShard: 50, text: '세 종' }, { n: 6, mountShard: 100, text: '여섯 종' }, { n: 9, mountShard: 150, text: '아홉 종' },
-  { n: 12, mountShard: 250, text: '열두 종' }, { n: 18, mountShard: 400, text: '열여덟 종' }, { n: 24, mountShard: 800, text: '스물넷 모두' },
+  { n: 12, mountShard: 250, text: '열두 종' }, { n: 18, mountShard: 400, text: '열여덟 종' }, { n: 24, mountShard: 800, text: '스물넷 종' },
+  { n: 30, mountShard: 1500, text: '서른 모두' },   // v435 탈것은 서른 종(보통 12 · 십이지 12 · 극 6) — 「스물넷 모두」라 적혀 있었다(뒤에 붙여 받은 기록은 그대로)
 ];
 // 길들이기 — 탈것마다 레벨(최대 10). 레벨마다 이동·공격·체력 +6% · 조각과 은자
 export const MOUNT_LV_MAX = 10;
@@ -1313,7 +1298,7 @@ export const MOUNTS = [
   { id: 'ochu', tier: 10, name: '오추마', emoji: '🐎', tint: '#111827', speed: 1.05, stat: 0.14 },
   { id: 'cloud', tier: 11, name: '천리운', emoji: '🦄', speed: 1.3, stat: 0.17 },
   { id: 'azure', tier: 12, name: '청룡마', emoji: '🐉', speed: 1.7, stat: 0.22 },
-  // 십이지 신수 (v126) — 무한의 탑 10층마다 십이지 뽑기로만 (떨구지 않는다). 뒤 신일수록 세다.
+  // 십이지 신수 (v126) — 무한의 탑 10층마다 십이지 뽑기권 · 세력 상점 뽑기권 · 탈것 소환(하나에 0.1% · 300번 보장)으로 (사냥터에서 떨구지 않는다). 뒤 신일수록 세다.
   ...[['z1', '금서', '🐀'], ['z2', '철우', '🐂'], ['z3', '백호', '🐅'], ['z4', '옥토', '🐇'], ['z5', '황룡', '🐉'], ['z6', '청사', '🐍'],
     ['z7', '천마', '🐎'], ['z8', '운양', '🐏'], ['z9', '금강원', '🐒'], ['z10', '금계', '🐓'], ['z11', '천구', '🐕'], ['z12', '흑저', '🐗']]
     .map(([id, nm, emoji], i) => ({ id, tier: 13, zodiac: i + 1, name: `십이지 ${nm}`, emoji, speed: +(0.45 + (i + 1) * 0.11).toFixed(2), stat: +(0.04 + (i + 1) * 0.017).toFixed(3) })),
@@ -1322,7 +1307,7 @@ export const MOUNTS = [
 export const MOUNT_SPEED_K = 0.5;
 for (const m of MOUNTS) m.speed = +(m.speed * MOUNT_SPEED_K).toFixed(3);
 // v350 극(極)의 신수 — 무한의 탑 하드 모드 10층마다 그 층을 지키는 신수(처음 깨면 꼭). 이동은 고정(길들여도 그대로 · v360 층 따라 +90%~+120%),
-//   대신 공격력·체력이 크게 오른다. 합성·떨굼 없음. fx: 탈 때 둘레에 이는 기운(battle.js drawMountAura)
+//   대신 공격력·체력이 크게 오른다. 합성·떨굼 없음(극 층을 처음 깨면 꼭 · 탈것 소환 하나에 0.05%). fx: 탈 때 둘레에 이는 기운(battle.js drawMountAura)
 export const HARD_MOUNTS = [
   { id: 'h1', name: '염화주작', emoji: '🔥', stat: 0.27, fx: 'flame', col: '#f97316', desc: '불꽃 깃이 흩날리는 남방의 신조', sp: '불길 — 1초마다 둘레 적에게 공격력 35% 불 피해' },
   { id: 'h2', name: '빙백설린', emoji: '❄️', stat: 0.31, fx: 'frost', col: '#7dd3fc', desc: '서리꽃을 밟고 달리는 얼음 기린', sp: '서리 — 둘레 적이 느려진다(이동·공격 둔화)' },

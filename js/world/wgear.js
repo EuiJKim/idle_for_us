@@ -140,9 +140,10 @@ export function stoneFor(it) {
 }
 // 강화 한 번에 드는 강화석 — +1에 3개 … 돌파(+11~)는 더
 export const stoneN = (plus) => 3 + plus + (plus >= 10 ? (plus - 9) * 3 : 0);
-// 승급: 검혼석 등급마다 5 · 은자
-export const promoteStones = (rar) => 10 * (rar + 1) ** 2;   // v153: 5·10·15 → 10·40·90 (신화 승급이 쉬웠다)
 export const STONE_PER_BOSS = 3;        // 후반 왕 한 번에 그 강화석
+// v435 전반 다섯 왕도 맡은 부위의 강화석을 하나씩 — 세트는 Lv99 전반 왕에게서 나오는데 그 강화석은 Lv124 넘는 후반 왕만 떨궈 사이가 비었다
+export const EARLY_STONE_PER_BOSS = 1;
+export const earlyStoneZone = (z) => { const sl = KING_SLOT[z]; if (!sl) return null; const e = Object.entries(STONES).find(([, v]) => v.slot === sl); return e ? +e[0] : null; };
 export const STONE_FROM_MATS = 40;      // 그 왕 재료 40 → 강화석 하나 (들판 재료도 쓸모 있게)
 export const SET_PIECE = { armor: '포', hat: '관', glove: '수투', shoe: '운혜' };
 // 세트 효과 한 줄

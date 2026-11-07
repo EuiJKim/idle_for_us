@@ -333,7 +333,7 @@ export const QUESTS = [
     why: '무림맹주·사도맹주는 세력의 끝이다. 처음 쓰러뜨리면 영구 능력치가 고수의 세 배. 그 너머에는 천마가 있다.',
     goal: (g) => ({ now: Object.keys(g.s.duel?.won || {}).filter((id) => MS.masterOf(id)?.lord).length, need: 1 }) },
   { id: 'fifthBoss', title: '5차 전직의 숨은 두목을 쓰러뜨리자', tab: 'town/master', min: 25, xp: 0,
-    why: '검사는 천마 · 권마는 화무기 · 환마는 사도맹주 · 독마는 무림맹주 · 극악소마는 마귀. 마을 → 사부에서 내 직업의 두목을 볼 수 있다.',
+    why: '검사는 천마 · 권마·독마는 무림맹주 · 환마·극악소마는 사도맹주. 마을 → 사부에서 내 직업의 두목을 볼 수 있다.',
     goal: (g) => ({ now: g.s.duel?.won?.[W.fifthOf(g.s.job)?.need] ? 1 : 0, need: 1 }) },
   { id: 'tier5', mile: true, title: '5차 전직', tab: 'town/master', min: 25, xp: 0,
     why: '모든 무공이 일곱 초식으로 바뀌고 혼(魂)이 깃든다. 마지막 초식을 펼치면 등 뒤로 혼의 형상이 선다.',

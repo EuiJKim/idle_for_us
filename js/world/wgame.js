@@ -2252,6 +2252,7 @@ export class WorldGame {
       if (W.kingOf(id)) {
         const stone = G.STONES[id];
         if (stone) { this.addMats(G.stoneKey(id), G.STONE_PER_BOSS); this.emit('stone', { key: G.stoneKey(id), n: G.STONE_PER_BOSS, at: { x: m.x, y: m.y } }); }
+        else { const ez = G.earlyStoneZone(id); if (ez) { this.addMats(G.stoneKey(ez), G.EARLY_STONE_PER_BOSS); this.emit('stone', { key: G.stoneKey(ez), n: G.EARLY_STONE_PER_BOSS, at: { x: m.x, y: m.y } }); } }   // v435 전반 왕
         if (this.rng() < W.KING_ITEM_RATE) {
           const rar = W.rollRarity(W.KING_RAR_W, this.rng);
           const slot = G.KING_SLOT[id];
@@ -3461,35 +3462,7 @@ export class WorldGame {
     this._stats = null;
   }
 
-  // ---------- 승급 (v110) ----------
-  // 대장장이: 같은 장비를 한 등급 위로(레어→유니크→전설→신화). 확정. 스킬 옵션은 새 등급으로 다시 붙는다.
-  // v173: 승급은 없앴다 — 모든 장비가 증표 각인으로 오른다 (옛 부르는 자리를 위해 거짓만)
-  canPromote(it) {
-    return false;
-  }
-  canPromoteOld(it) {
-    if (!it || it.grow || (it.step == null && it.king == null) || (it.rar || 0) >= W.RARITY.length - 1) return false;
-    const c = W.promoteCost(it);
-    return (this.s.mats[c.key] || 0) >= c.mats && (!c.marks || (this.s.mats[W.bossKey(c.key)] || 0) >= c.marks) && this.s.gold >= c.gold
-      && Object.entries(c.fac || {}).every(([k, n]) => (this.s.mats[k] || 0) >= n);
-  }
-  promote(uid) {
-    const it = this.findItem(uid);
-    if (!this.canPromote(it)) return null;
-    const c = W.promoteCost(it);
-    this.s.mats[c.key] -= c.mats;
-    if (c.marks) this.s.mats[W.bossKey(c.key)] -= c.marks;
-    for (const [k, n] of Object.entries(c.fac || {})) this.s.mats[k] -= n;
-    this.s.gold -= c.gold;
-    it.rar = (it.rar || 0) + 1;
-    it.grade = W.RARITY_GRADE[it.rar];
-    it.opts = this.rollOpts(it.slot, it.step, it.rar, it.king);
-    this._stats = null;
-    this._mods = null;
-    this._pass = null;
-    this.emit('promote', { item: it });
-    return it;
-  }
+  // v435 승급(v110~v172)은 v173에 없앴다 — 남아 있던 canPromote·promote·promoteCost를 지웠다(모든 장비는 증표 각인으로 오른다)
 
   // ---------- 스킬 레벨 · 스킬 옵션 (v110) ----------
   skillLevel(id) { return this.s.skillLv?.[id] || 1; }
@@ -4985,7 +4958,7 @@ export class WorldGame {
     if (r.gold) { out.gold = Math.floor(r.gold * k); this.s.gold += out.gold; }
     if (r.tickets) {
       out.tickets = {};
-      for (const [k, n] of Object.entries(r.tickets)) { out.tickets[k] = n; this.s.zTickets[k] = (this.s.zTickets[k] || 0) + n; }
+      for (const [tk, n] of Object.entries(r.tickets)) { out.tickets[tk] = n; this.s.zTickets[tk] = (this.s.zTickets[tk] || 0) + n; }   // v435 이름이 배율 k를 가렸다
     }
     if (r.mats) {
       out.mats = {};
@@ -5094,7 +5067,7 @@ export class WorldGame {
 
 // 길잡이가 보는 '해 봤나' (v146) — 이룬 때만 센다(돌려준 값이 참일 때). always는 부르기만 하면.
 for (const [fn, key, always] of [
-  ['craftSet', 'set'], ['craftKacc', 'kacc'], ['makeStone', 'stone'], ['promote', 'promote'], ['enhance', 'enhance'],
+  ['craftSet', 'set'], ['craftKacc', 'kacc'], ['makeStone', 'stone'], ['enhance', 'enhance'],
   ['sweepDaily', 'sweep'], ['drawZodiac', 'zodiac'], ['buyStatBook', 'book'], ['buyBagSpace', 'bag'], ['startRaid', 'raid'], ['startWraid', 'wraid'],
   ['killTreasure', 'treasure', true], ['moveTo', 'move', true],
   ['convertMats', 'convert'], ['buyProt', 'prot'], ['rerollImpSkill', 'reimp'], ['changeImpSpecial', 'reimp'],

@@ -1696,10 +1696,6 @@ function handleEvents() {
         }
         break;
       }
-      case 'promote':
-        sfx('loot');
-        drawPortrait();
-        break;
       case 'infuse': {
         if (ev.ok !== false) { sfx('loot'); drawPortrait(); }
         // v298 대성 — 무인 위로 크게 · 천품 — 무림 소식
@@ -1738,7 +1734,7 @@ function handleEvents() {
         sfx('loot');
         break;
       case 'heroDied':
-        if (!ev.inst) toast(`쓰러졌어요… 경험치 ${fmt(ev.loss)}을 잃고(레벨은 그대로) 마을로 돌아가요${ev.retreat ? ` — 너무 센 곳이라 다음엔 ${ev.retreat}(으)로 나가요` : ''}`);
+        if (!ev.inst) toast(`쓰러졌어요… 경험치 ${fmt(ev.loss)}(쌓은 것의 ${Math.round(W.DEATH_EXP_LOSS * 100)}%)를 잃고(레벨은 그대로) 마을로 돌아가요${ev.retreat ? ` — 너무 센 곳이라 다음엔 ${ev.retreat}(으)로 나가요` : ''}`);
         break;
       // v263: 견문록 낙관
       case 'dexStamp': toast(`견문록 — ${ev.name} 낙관 · 공격력·체력 +${(W.DEX_STAMP_STAT * 100).toFixed(2)}%${ev.zoneDone ? ` · 지역 완성! 경험치 +0.5% · 공격력·체력 +${(W.DEX_ZONE_STAT * 100).toFixed(1)}%` : ''}`); break;
@@ -2181,7 +2177,7 @@ function showPendingOffline() {
       h('p', { class: 'muted' }, `${duration(rw.t)} 동안 ${W.mapOf(rw.map).name}에서 사냥했어요.`
         + (rw.stoppedByPotion ? ` 물약이 떨어져서 거기서 멈췄어요 (${duration(rw.sec)} 중).` : '')
         // v260: 오래 비우면 효율이 준다 — 얼마나 줄었는지, 상한까지 몇 시간인지
-        + (rw.eff != null && rw.eff < 0.995 ? ` 오래 비워서 효율 ${Math.round(rw.eff * 100)}% (앞 2시간 100% · 6시간까지 70% · 10시간까지 40%).` : '')
+        + (rw.eff != null && rw.eff < 0.995 ? ` 오래 비워서 효율 ${Math.round(rw.eff * 100)}% (앞 2시간 100% · 6시간까지 70% · 그 뒤 40%).` : '')
         + (rw.sec >= game.offlineCapSec() - 1 ? ` 방치는 ${Math.round(game.offlineCapSec() / 3600)}시간까지만 쳐요(마을 상인 → 무관 증축으로 늘려요).` : '')
         + (rw.elix ? ` 영약 ${Math.round(rw.elix / 60)}분어치가 함께 들었어요.` : '')),
       h('div', { class: 'stat-grid' },

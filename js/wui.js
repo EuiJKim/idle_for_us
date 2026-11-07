@@ -291,7 +291,8 @@ function charTab(app) {
     if (nsig === skSig) return;
     skSig = nsig;
     const rc = game.skillResetCost();
-    skillCard.replaceChildren(...[h('h3', {}, '스킬', h('small', {}, `스킬 점수 ${s.skillPts} · 레벨 ${W.SKILL_PT_FROM}부터 레벨마다 1점 · 📜 비급 조각 ${s.frag || 0}/${W.fragNeed(s.fragPts)}(모으면 1점${s.fragPts ? ` · 지금까지 +${s.fragPts}` : ''}) · 만렙 ${W.SKILL_LV_MAX}`)),
+    skillCard.replaceChildren(...[(s.jobTier || 0) < 1 && s.skillPts > 0 ? h('p', { class: 'muted', style: 'margin:0 0 6px;color:#fde68a' }, `무공 점수 ${s.skillPts}점은 모아 두었다가 레벨 ${W.TIERS[1].level} 1차 전직 뒤 첫 무공에 써요(점수는 그대로 남아요)`) : null,   // v435 레벨 5~10 사이 쓸 곳 없는 점수
+      h('h3', {}, '스킬', h('small', {}, `스킬 점수 ${s.skillPts} · 레벨 ${W.SKILL_PT_FROM}부터 레벨마다 1점 · 📜 비급 조각 ${s.frag || 0}/${W.fragNeed(s.fragPts)}(모으면 1점${s.fragPts ? ` · 지금까지 +${s.fragPts}` : ''}) · 만렙 ${W.SKILL_LV_MAX}`)),
       // 무공 초기화 (v205)
       game.skillSpentAll() > 0 ? h('div', { class: 'sk-reset' },
         h('small', {}, `무공·심법을 처음으로 — 쓴 점수 ${game.skillSpentAll()}점을 다 돌려받아요 · ${rc ? `은자 ${fmt(rc)}` : '처음 한 번은 공짜'}`),
@@ -336,8 +337,8 @@ function charTab(app) {
       const slots = game.awakenSlots();
       const cost = game.awakenCost();
       const card = h('div', { class: 'awaken-box' },
-        h('div', { class: 'aw-head' }, h('b', {}, '무공 각성'),
-          h('span', { class: `aw-cost${cost ? '' : ' free'}` }, cost ? `한 번에 은자 ${fmt(cost)}` : '첫 각성은 공짜')),
+        h('div', { class: 'aw-head' }, h('b', {}, '무공 변초(變招)'),   // v435 「각성」은 각성 고수(5차 뒤)와 같은 말이라 무공 쪽은 변초로
+          h('span', { class: `aw-cost${cost ? '' : ' free'}` }, cost ? `한 번에 은자 ${fmt(cost)}` : '첫 변초는 공짜')),
         h('small', { class: 'muted' }, '1~3차 무공마다 변형 하나씩 붙여요. 눌러서 무엇인지 보고 붙여요 — 바꾸면 전 변형은 사라져요.'));
       for (const sl of slots) {
         const sk = list.find((k) => k.id === sl);
@@ -364,13 +365,13 @@ function charTab(app) {
       h('div', { class: 'aw-ask' },
         h('div', {}, h('b', {}, '붙는 것'), h('span', {}, k.desc)),
         curK ? h('div', {}, h('b', {}, '사라지는 것'), h('span', { class: 'warn' }, `${curK.name} · ${curK.desc}`)) : null,
-        h('div', {}, h('b', {}, '드는 것'), h('span', { class: lack ? 'warn' : '' }, cost ? `은자 ${fmt(cost)} (가진 것 ${fmt(game.s.gold)})` : '없음 — 첫 각성은 공짜')),
+        h('div', {}, h('b', {}, '드는 것'), h('span', { class: lack ? 'warn' : '' }, cost ? `은자 ${fmt(cost)} (가진 것 ${fmt(game.s.gold)})` : '없음 — 첫 변초는 공짜')),
         !cost ? h('small', { class: 'muted' }, `그 뒤로는 새로 붙이거나 바꿀 때마다 은자 ${fmt(W.awakenSwapCost(game.s.level))}쯤(레벨에 따라)`) : null),
       h('div', { class: 'btn-row' },
         h('button', { class: 'btn', onclick: closeModal }, '그만두기'),
         h('button', { class: 'btn primary', disabled: game.canAwaken(sl, k.id) ? null : true, onclick: () => {
           if (!game.awaken(sl, k.id)) return toast('은자가 모자라요');
-          closeModal(); toast(`각성 — ${sk?.name} ${k.name}: ${k.desc}`); app.save(); skSig = ''; upd();
+          closeModal(); toast(`변초 — ${sk?.name} ${k.name}: ${k.desc}`); app.save(); skSig = ''; upd();
         } }, lack ? '은자가 모자라요' : curK ? '바꾸기' : '붙이기')),
     ].filter(Boolean)));
   }
@@ -2136,6 +2137,10 @@ function mapTab(app) {
             h('div', { class: 'info' }, h('div', { class: 'name' }, '객잔 마을'), h('div', { class: 'desc' }, '쉬는 곳 — 체력이 빨리 차요')),
             h('button', { class: 'buy', disabled: here.town ? true : null, onclick: () => { game.goTown(); app.save(); app.closePanel(); app.refresh(); } }, here.town ? '여기' : '가기')),
           h('h3', { class: 'king-head' }, '사냥터', h('small', {}, '레벨과 상관없이 어디든 — ⚠는 내 레벨보다 훨씬 센 곳')),
+          // v435 눈에 안 보이던 사냥터 규칙 한 줄 — 레벨 차 · 도전 경험치 · 패기 · 처치 포화
+          foldBox('-huntrule|사냥터 규칙', h('p', { class: 'muted hunt-rule' },
+            `내 레벨보다 5 넘게 낮은 곳은 경험치가 1레벨마다 -8%(최소 10%) · 나보다 높은 몹은 도전 경험치 1레벨마다 +${Math.round(W.CHALLENGE_K * 100)}%(${W.CHALLENGE_MAX}배까지) · `
+            + `센 곳일수록 패기 — 재료가 1레벨마다 +${Math.round(W.BRAVE_PER * 100)}%(+${Math.round(W.BRAVE_MAX * 100)}%까지) · 분당 ${W.EXP_SAT_KPM}마리 넘게 잡으면 경험치가 조금씩 덜 붙어요 · 쓰러지면 지금 레벨에서 쌓은 경험치의 ${Math.round(W.DEATH_EXP_LOSS * 100)}%를 잃어요(레벨은 그대로)`)),
           // v260: 적정 사냥터 따라가기 — 레벨이 오르면 알맞은 다음 구역으로 저절로 옮긴다
           h('label', { class: 'row auto-map' },
             h('input', { type: 'checkbox', checked: s.autoMap ? true : null, onchange: (e) => { game.s.autoMap = e.target.checked; if (game.s.autoMap) game.followMap(true); app.save(); sig = ''; this.update(); } }),
@@ -2748,7 +2753,7 @@ function townTab(app) {
         h('p', { class: 'cm-soul' }, F5.trait),
         h('div', { class: 'cm-list' }, ...cm.map((k) => h('div', {}, h('b', { style: `color:${F5.col}` }, k.name), h('small', {}, ` ${k.desc}`)))),
         h('button', { class: 'btn primary', id: 'cheonma-go', style: 'width:100%', disabled: game.canAdvance() ? null : true, onclick: () => {
-          if (!confirm(`5차 전직 — ${F5.name}\n모든 무공이 ${F5.form}으로 바뀌어요(무공 레벨·각성은 그대로). 은자 ${fmt(t.cost)}.`)) return;
+          if (!confirm(`5차 전직 — ${F5.name}\n모든 무공이 ${F5.form}으로 바뀌어요(무공 레벨·변초는 그대로). 은자 ${fmt(t.cost)}.`)) return;
           if (!game.advance()) return;
           app.save(); app.refresh();
         } }, !won ? `${F5.needName}을(를) 먼저 쓰러뜨려요` : !lvOk ? `레벨 ${t.level}이 되면` : !goldOk ? '은자가 모자라요' : `${F5.name}을 잇는다`)));
@@ -3061,7 +3066,7 @@ export function openAutoInfCfg(app, onClose) {
 }
 // v291 무공 미리 보기 — 한 직업의 무공을 배우는 차례대로. 언제(레벨·전직) 배우는지 · 지금 어디까지 왔는지 · 누르면 설명.
 //   무공 창 · 사부 · 직업 고르기에서 같이 쓴다. 다른 직업(또는 아직 직업이 없을 때)은 레벨만 보인다.
-const KIND_NAME = { single: '한 적', aoe: '둘레', daggers: '비수', field: '장판', support: '보조', awaken: '각성', clone: '분신', triple: '삼공' };
+const KIND_NAME = { single: '한 적', aoe: '둘레', daggers: '비수', field: '장판', support: '보조', awaken: '자기 강화', clone: '분신', triple: '삼공' };
 export function skillRoadmap(game, job) {
   const s = game.s;
   const mine = !!s.job && job === s.job;
@@ -3658,8 +3663,8 @@ function compTab(app) {
     `🧩 탈것 조각 ${W.MOUNT_SHARD_NEED}개 → 지금 지역의 탈것 하나`,
     `  · 졸개 가끔(정예 3배) · 두목 ${W.BOSS_SHARDS.mount[0]}~${W.BOSS_SHARDS.mount[1]}개(왕·고수 2배) · 일일 던전 한 판 · 무한의 탑 처음 오른 층 · 보물 원숭이 · 주간 상자 · 방치 · 도감 이정표`,
     `🔮 합성 — 같은 순위 ${W.MOUNT_FUSE_N}마리 → 다음 순위 하나(길들인 레벨의 절반을 이어 간다)`,
-    '🐲 십이지 신수 — 무한의 탑 10층마다 십이지 뽑기',
-    `⚡ 극의 신수 여섯 — 무한의 탑 · 극(하드) 10층마다 그 층의 신수를 이기면 (이동 +90~120% · 공격·체력 크게 · 길들이기 최대 20)`,
+    '🐲 십이지 신수 — 무한의 탑 10층마다 뽑기권(던전 › 신수 뽑기) · 세력 상점 뽑기권 · 탈것 소환(하나에 0.1% · 300번 안에 신수 하나는 꼭)',   // v435 얻는 길 셋을 다 적는다
+    `⚡ 극의 신수 여섯 — 무한의 탑 · 극(하드) 10층마다 그 층의 신수를 이기면 꼭 · 탈것 소환에서도 드물게(0.05%) (이동 +90~120% · 공격·체력 크게 · 길들이기 최대 20)`,
     `🪢 길들이기 — 탈것 조각과 은자로 레벨(최대 ${W.MOUNT_LV_MAX}) · 레벨마다 이동·공격·체력 +${Math.round(W.MOUNT_LV_K * 100)}% · 극의 신수는 최대 ${W.HARD_LV_MAX} · 레벨마다 이동 +${Math.round(W.HARD_SPD_LV_K * 100)}%·공격·체력 +${Math.round(W.HARD_LV_K * 100)}%`,
   ]);
   const dexCard = h('div', { class: 'card' });

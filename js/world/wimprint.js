@@ -140,7 +140,7 @@ export const SKILL_BASE = { range: 0.08, dmg: 0.08, cd: 0.04, echo: 0.06 };
 // (독수마군 레전드 2차 범위 > 혈사도왕 레어 2차 범위 > 독수마군 레어 2차 범위).
 export const SK_KINDS = ['range', 'dmg', 'cd', 'echo'];
 export const SK_GRADE = [{ name: '레어', col: '#60a5fa', w: 55, mult: 1 }, { name: '유니크', col: '#c084fc', w: 28, mult: 1.35 },
-  { name: '레전드', col: '#fb923c', w: 13, mult: 1.8 }, { name: '신화', col: '#f43f5e', w: 4, mult: 2.5 }];
+  { name: '전설', col: '#fb923c', w: 13, mult: 1.8 }, { name: '신화', col: '#f43f5e', w: 4, mult: 2.5 }];
 export function rollSkillChange(rng) {
   const s = Math.floor(rng() * 3);
   const k = SK_KINDS[Math.floor(rng() * SK_KINDS.length)];
