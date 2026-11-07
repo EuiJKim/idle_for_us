@@ -41,7 +41,11 @@ export class WbCoop extends Coop {
       this.lobbyRef = lb;
       if (this.wantKey() !== key) { m.remove(me).catch(() => {}); this.joining = false; return; }
       this.key = key;
+      // v432 다시 이어지면 내 자리를 처음처럼 다시 올린다 — 끊기면 서버가 자리를 지우는데, 다시 이어진 뒤엔 위치만 올라가 이름·모습 없는 「문파원」으로 보였다
+      let conFirst = true;
+      const reconnect = (s) => { if (s.val() === true && !conFirst && this.key === key) { m.onDisconnect(me).remove().catch(() => {}); m.set(me, this.presence(true)).catch(() => {}); } conFirst = false; };
       this.subs = [
+        m.onValue(m.ref(db, '.info/connected'), reconnect),
         m.onValue(m.ref(db, '.info/serverTimeOffset'), (s) => { this.offset = s.val() || 0; }),
         m.onValue(m.ref(db, this.base), (s) => this.gotPeers(s.val() || {})),
       ];

@@ -2490,8 +2490,7 @@ function dgnTab(app) {
     const go = async (boss, e) => {
       if (e) e.target.disabled = true;
       try {
-        let r = net.wraidOf(boss);
-        if (!r || net.wraidHpLeft(r) <= 0) r = await net.ensureWraid(boss);
+        const r = await net.ensureWraid(boss);   // v432 늘 서버에서 새로 읽는다 — 리스너가 늦으면 이미 쓰러진 마왕으로 들어갔다 바로 끝났다
         if (!r) throw new Error('마왕을 깨우지 못했어요');
         start(() => { const ok = game.startWraid({ id: r.id, hpLeft: net.wraidHpLeft(r), maxHp: r.maxHp }, now); if (ok) net.seenWraid?.(r.id).catch(() => {}); return ok; });   // v432 던전 창에서 들어가도 「들어왔다」 표시(늦은 한 몫) — 전엔 다시 합류 단추만
       } catch (err) { toast(`들어가지 못했어요: ${err.message || err}`); }

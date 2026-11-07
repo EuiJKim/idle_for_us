@@ -106,7 +106,11 @@ export class Coop {
       await m.set(me, this.presence(true));
       if (this.wantKey() !== key) { m.remove(me).catch(() => {}); this.joining = false; return; }
       this.key = key;
+      // v432 다시 이어지면 내 자리를 처음처럼 다시 올린다 — 끊기면 서버가 자리를 지우는데, 다시 이어진 뒤엔 위치만 올라가 이름·모습 없는 「문파원」으로 보였다
+      let conFirst = true;
+      const reconnect = (s) => { if (s.val() === true && !conFirst && this.key === key) { m.onDisconnect(me).remove().catch(() => {}); m.set(me, this.presence(true)).catch(() => {}); } conFirst = false; };
       this.subs = [
+        m.onValue(m.ref(db, '.info/connected'), reconnect),
         m.onValue(m.ref(db, '.info/serverTimeOffset'), (s) => { this.offset = s.val() || 0; }),
         m.onValue(m.ref(db, `${this.base}/p`), (s) => this.gotPeers(s.val() || {})),
         m.onValue(m.ref(db, `${this.base}/b`), (s) => this.gotBoss(s.val())),
@@ -135,6 +139,9 @@ export class Coop {
     m.remove(me).catch(() => {});
     m.onDisconnect(me).cancel().catch(() => {});
     if (this.pend > 0) this.commit();
+    // v432 방을 나가면 그 방의 셈은 끝 — 나가며 보낸 몫이 실패해도 다음 방 두목에 얹히지 않게(세대 번호) · 물러남·응답 기록도 비운다
+    this.gen = (this.gen || 0) + 1;
+    this.pend = 0; this.miss = 0; this.okAt = 0; this.bAt = 0; this.deadLocal = null;
     for (const mob of this.game.mons) if (mob.coopSeq != null) mob.coopSeq = null;
     this.key = null;
     this.on = false;
@@ -304,6 +311,7 @@ export class Coop {
     this.urgent = false;
     const { m, db } = this.rt;
     const uid = this.net.uid, nick = this.game.s.nickname || '무명';
+    const gen = this.gen || 0;   // v432
     try {
       const res = await m.runTransaction(m.ref(db, `${this.base}/b`), (b) => {
         if (!b || b.seq !== seq || !(b.hp > 0)) return undefined;
@@ -312,12 +320,12 @@ export class Coop {
         return b;
       }, { applyLocally: false });
       // v420 조용히 물러난 거래(committed=false: 서버의 왕이 다른 번호거나 이미 쓰러짐·아직 못 읽음)도 몫을 버리지 않는다
-      if (res && res.committed === false) { this.pend += amt; this.miss = (this.miss || 0) + 1; }
+      if (gen !== (this.gen || 0)) { /* v432 그새 방을 나갔다 — 옛 방 몫은 버린다 */ }
+      else if (res && res.committed === false) { this.pend += amt; this.miss = (this.miss || 0) + 1; }
       else { this.okAt = Date.now(); this.miss = 0; }
     } catch (err) {
       console.warn('[coop] commit', err?.message || err);
-      this.pend += amt;   // v415 못 보낸 몫은 버리지 않고 다음에 다시
-      this.miss = (this.miss || 0) + 1;
+      if (gen === (this.gen || 0)) { this.pend += amt; this.miss = (this.miss || 0) + 1; }   // v415 못 보낸 몫은 다음에 다시 · v432 같은 방일 때만
     }
     this.busy = false;
   }

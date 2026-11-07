@@ -98,6 +98,8 @@ export class Net {
       await this.loadShop();
       await this.loadHidden();
       await this.checkRules();
+      // v432 문파는 계정에 하나 — 이 캐릭터에 문파가 없으면 쉬는 캐릭터가 든 문파를 이어받는다(전엔 캐릭터마다 따로 들어 한 계정이 두 문파 명단에 있었다)
+      if (!this.game.s.guildId) { try { const gid = await this.accountGuildId(); if (gid) { this.game.s.guildId = gid; this.changed('guild'); } } catch { /* 다음에 */ } }
       if (this.game.s.guildId) this.watchGuild(this.game.s.guildId);
       this.watchWorld();
     } catch (err) {
@@ -522,10 +524,13 @@ export class Net {
   // 경고로 도배됐다. 될 리 없는 요청을 반복하는 것이다.
   //
   // 한 번 막히면 끊긴 것으로 보고 멈춘다. 그래야 화면도 솔직해진다.
-  denied(err, where = '') {
+  denied(err, where = '', fatal = true) {
     const code = err?.code || '';
     const msg = String(err?.message || err);
     if (code !== 'permission-denied' && !msg.includes('insufficient permissions')) return false;
+    // v432 한 기능만 막힌 것(내 기록 쓰기)은 그 기능만 멈춘다 — 전엔 프로필 값 하나(칭호 수·직업 차수)가 규칙 범위를 넘으면
+    //   칠대성·함께 사냥·채팅까지 온라인 전체가 꺼졌다(v416)
+    if (!fatal) { if (!this.partDenied) { this.partDenied = where || '알 수 없는 곳'; console.warn(`[net] 규칙이 ${where}을(를) 막았어요 — 그것만 멈춥니다`); this.changed('partDenied'); } return true; }
     // v267 무엇이 막혔는지 남긴다 — 로그인 화면·설정에 그대로 보인다
     if (!this.deniedAt) this.deniedAt = where || '알 수 없는 곳';
     if (this.status !== 'offline') {
@@ -538,7 +543,7 @@ export class Net {
   }
 
   async pushProfile(force = false) {
-    if (!this.online || this.blocked || !this.game.s.nickname) return;
+    if (!this.online || this.blocked || this.partDenied || !this.game.s.nickname) return;
     if (this.isHidden(this.uid)) return;   // v308 운영자가 숨긴 계정은 자기 기록을 올리지 않는다
     const now = Date.now();
     if (!force && now - this.lastProfile < PROFILE_INTERVAL) return;
@@ -546,7 +551,7 @@ export class Net {
     try {
       await this.fs.setDoc(this.ref('players', this.uid), this.profileData(), { merge: true });
     } catch (err) {
-      if (!this.denied(err, '내 기록 쓰기(players)')) console.warn('[net] profile', err);
+      if (!this.denied(err, '내 기록 쓰기(players)', false)) console.warn('[net] profile', err);
     }
   }
 
@@ -637,6 +642,7 @@ export class Net {
 
   // ---------- 문파 ----------
   async createGuild(name) {
+    { const cur = await this.accountGuildId(); if (cur) throw new Error('이 계정은 이미 문파에 들어 있어요(다른 캐릭터) — 문파는 계정에 하나예요. 그 문파에서 나간 뒤 만들어 주세요.'); }   // v432
     const { runTransaction, serverTimestamp } = this.fs;
     const nick = this.game.s.nickname;
     for (let attempt = 0; attempt < 5; attempt++) {
@@ -656,8 +662,19 @@ export class Net {
     throw new Error('문파 코드를 만들지 못했어요. 다시 시도해 주세요.');
   }
 
+  // v432 이 계정이 든 문파(지금 캐릭터 · 쉬는 캐릭터 저장에서) — 명단에 내가 있는 것만
+  async accountGuildId() {
+    const ids = new Set();
+    if (this.game.s.guildId) ids.add(this.game.s.guildId);
+    try { for (const c of await this.fetchChars()) { try { const g = JSON.parse(c.data)?.guildId; if (g) ids.add(String(g)); } catch { /* 깨진 저장 */ } } } catch { /* 못 읽으면 지금 것만 */ }
+    for (const id of ids) {
+      try { const snap = await this.fs.getDoc(this.ref('guilds', id)); if (snap.exists() && (snap.data().memberIds || []).includes(this.uid)) return id; } catch { /* 다음 */ }
+    }
+    return null;
+  }
   async joinGuild(rawCode) {
     const code = rawCode.trim().toUpperCase();
+    { const cur = await this.accountGuildId(); if (cur && cur !== code) throw new Error('이 계정은 이미 다른 문파에 들어 있어요(다른 캐릭터) — 문파는 계정에 하나예요. 그 문파에서 나간 뒤 들어와 주세요.'); }   // v432
     const { runTransaction } = this.fs;
     const ref = this.ref('guilds', code);
     await runTransaction(this.db, async (tx) => {

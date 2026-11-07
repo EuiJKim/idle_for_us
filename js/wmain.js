@@ -1280,8 +1280,7 @@ async function rejoinWraid(boss) {
   hideRejoin();
   if (game.inst) return;
   try {
-    let r = net.wraidOf(boss);
-    if (!r || net.wraidHpLeft(r) <= 0) r = await net.ensureWraid(boss);
+    const r = await net.ensureWraid(boss);   // v432 늘 새로 읽는다
     if (!r) throw new Error('마왕을 깨우지 못했어요');
     if (game.startWraid({ id: r.id, hpLeft: net.wraidHpLeft(r), maxHp: r.maxHp }, Date.now())) { save(); closePanel(); refreshUI(true); net.seenWraid?.(r.id).catch(() => {}); }   // v421 들어왔다는 표시
   } catch (err) { toast(`들어가지 못했어요: ${err.message || err}`); }
@@ -1315,7 +1314,11 @@ function showInstEnd(ev) {
       } else if (again) showRejoin(D.wraidBossOfId(ev.key).id);
       if (killed || ev.byOther) { sfx('level'); view.shake = Math.max(view.shake || 0, 0.4); }
       app.refresh();
-    }).catch((err) => toast(`월드보스 기록 실패: ${err.message || err}`));
+    }).catch((err) => {
+      // v432 끊겨서 못 올린 피해는 저장해 두었다가 연결되면 올린다(쓰러진 뒤 3분 안이면 늦은 한 몫) — 전엔 그 판 피해가 통째로 사라졌다
+      if (ev.unsent > 0) { const p = game.s.wraid.pend || (game.s.wraid.pend = {}); p[ev.key] = { amt: Math.floor((p[ev.key]?.amt || 0) + ev.unsent), at: Date.now() }; save(); }
+      toast(`월드보스 기록을 못 올렸어요 — 연결되면 다시 올려요 (${err.message || err})`);
+    });
     return;
   }
   // 문파 토벌 — 친 만큼 서버에 올리고 알린다 (나가기로 끝내도 친 건 올린다)
@@ -2654,6 +2657,7 @@ function netChanged(what) {
   // v418 받을 칠대성 보상이 생기면(다른 무인이 마무리했어도) 저절로 받는다
   if (what === 'wraid' && net.wraidClaims?.().some((r) => game.wraidPart?.(r.id)) && !game.inst) { clearTimeout(wraidClaimT); wraidClaimT = setTimeout(() => autoClaimWraid(), 1200); }
   // v309 규칙이 옛 판이면 운영자에게 한 번 알린다(다른 무인에게는 보이지 않는다)
+  if (what === 'partDenied') toast(`⚠ 서버 규칙이 '${net.partDenied}'을(를) 막아 그 기록만 멈췄어요 — 칠대성·함께 사냥·채팅은 그대로예요`);   // v432
   if (what === 'rules' && net.rulesOk === false && net.isAdmin?.() && !rulesWarned) {
     rulesWarned = true;
     setTimeout(() => toast('⚠ 운영자: 게시된 Firestore 규칙이 옛 판이에요 — firestore.rules를 다시 게시하세요 (설정 → 운영자)'), 2500);
@@ -2724,8 +2728,25 @@ function showEnding() {
 let wraidSendT = 4, wraidSending = false, wraidTip = false;
 let wraidKilledByMe = null;
 // v418 쓰러진 마왕 보상은 저절로 받는다 — 「받기」를 눌러야 해서 쓰러뜨리고도 대성신장 칸(✓)이 안 올라갔다
+// v432 끊겨 못 올린 칠대성 피해 — 연결되면 올린다(10분 지나면 버린다 · 늦은 한 몫은 서버 규칙상 3분)
+let wraidPendBusy = false, wraidOweAt = 0;
+async function flushWraidPend() {
+  const p = game.s.wraid.pend;
+  if (wraidPendBusy || !net.ready?.() || !p || !Object.keys(p).length) return;
+  wraidPendBusy = true;
+  try {
+    for (const [id, o] of Object.entries(p)) {
+      if (Date.now() - o.at > 10 * 60e3) { delete p[id]; continue; }
+      try { await net.commitWraid(id, o.amt); delete p[id]; } catch { break; }   // 또 끊겼으면 다음에
+    }
+    save();
+  } finally { wraidPendBusy = false; }
+}
 async function autoClaimWraid() {
   if (!net.ready?.()) return;
+  await flushWraidPend();
+  // v432 받음은 적었는데 못 준 보상(빚)
+  for (const got of net.settleWraidOwed?.() || []) { toast(`🌋 ${got.boss?.name || '마왕'} 처치 보상(못 받았던 것) — ${got.rank}위 · ${rewardText(got.reward)}`); save(); refreshUI(true); }
   for (const r of net.wraidClaims?.() || []) {
     if (!game.wraidPart?.(r.id)) continue;   // v420 이 캐릭터가 친 판만 저절로 — 다른 캐릭터 몫은 던전 창에서 그 캐릭터로 받는다
     try {
@@ -3191,6 +3212,7 @@ function step(now) {
     if (dg) dg.ui += performance.now() - tU;
   }
   if (saveTimer > 5) { saveTimer = 0; save(); net.pushProfile(); cloudPush(); net.pushWeekBoss?.(); }   // v316 주간 두목(1분에 한 번)
+  if (now - wraidOweAt > 10e3 && net.ready?.() && !wraidPendBusy && (Object.keys(game.s.wraid?.pend || {}).length || Object.keys(game.s.wraid?.owe || {}).length)) { wraidOweAt = now; autoClaimWraid(); }   // v432 못 올린 피해 · 못 준 보상(10초마다)
   if (!wbChecked && net.online && game.s.nickname && !modalOpen() && !booting && !game.s.pendingOffline) { wbChecked = true; checkWeekReward(); }   // v318 지난주 순위 보상
   if (!attAsked && game.s.job && game.s.nickname && game.s.kills >= 30 && !modalOpen() && !booting && !game.s.pendingOffline && game.canAttend()) { attAsked = true; showAttend(); }   // v320 출석부(하루 한 번)
   // 운영자 선물 (v175) — 처음엔 8초 뒤, 그다음 1분마다 본다

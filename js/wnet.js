@@ -237,12 +237,19 @@ export class WNet extends Net {
     const pref = this.ref('wbp', boss);
     const p = await ack(this.fs.getDoc(pref));
     const seq = p.exists() ? p.data().seq : 0;
+    const maxHp = D.wraidMaxHp(this.game.hwamugiHp(), boss);
     if (seq) {
-      const cur = await ack(this.fs.getDoc(this.ref('wraid', D.wraidDocId(boss, seq))));
+      const cref = this.ref('wraid', D.wraidDocId(boss, seq));
+      const cur = await ack(this.fs.getDoc(cref));
       if (cur.exists() && cur.data().total < cur.data().maxHp) return { id: cur.id, boss, ...cur.data() };
+      // v432 번호는 있는데 문서가 없으면(지워졌으면) 그 번호 문서를 그대로 세운다 — 전엔 번호를 올리려다 규칙에 막혀 그 마왕은 영영 「깨우지 못했어요」
+      if (!cur.exists()) {
+        try { await ack(this.fs.setDoc(cref, { boss, seq, maxHp, total: 0, damage: {}, names: {}, claimed: {}, killedAt: null, killer: null, createdAt: this.fs.serverTimestamp() })); } catch (err) { if (err?.code !== 'permission-denied') throw err; }
+        const again = await ack(this.fs.getDoc(cref));
+        if (again.exists() && again.data().total < again.data().maxHp) return { id: again.id, boss, ...again.data() };
+      }
     }
     const next = seq + 1;
-    const maxHp = D.wraidMaxHp(this.game.hwamugiHp(), boss);
     const b = this.fs.writeBatch(this.db);
     if (seq) b.update(pref, { seq: next }); else b.set(pref, { seq: 1 });
     b.set(this.ref('wraid', D.wraidDocId(boss, next)), { boss, seq: next, maxHp, total: 0, damage: {}, names: {}, claimed: {}, killedAt: null, killer: null, createdAt: this.fs.serverTimestamp() });
@@ -292,6 +299,9 @@ export class WNet extends Net {
       return false;
     }
     const killed = got;
+    // v432 지금 보고 있는 마왕이 아닌 문서(이미 다음 번호로 넘어간 판)에 올렸으면 한 번 다시 읽어 받을 것에 남긴다 —
+    //   리스너가 이미 떨어져 있어 늦은 한 몫을 올려도 다시 켜기 전까지 「받기」가 안 보였다
+    { const b = D.wraidBossOfId(id)?.id; if (b && this.wgen?.[b]?.id !== id) this.checkGen(b, Number(String(id).split('_').pop())); }
     if (killed) {
       const b = D.wraidBossOfId(id);
       this.sendWorld(b.secret ? `🖐 ${this.game.s.nickname}님의 마무리 일격 — 석가여래가 쓰러졌다… 고 모두가 믿은 순간, 다섯 손가락이 하늘을 덮었다. 처음부터 손바닥 안이었다.`
@@ -308,6 +318,14 @@ export class WNet extends Net {
     await ack(this.fs.updateDoc(this.ref('wraid', id), { [`seen.${this.uid}`]: this.fs.serverTimestamp() }), 8000);
     return true;
   }
+  // v432 받음 표시는 했는데 못 준 보상(빚) — 켤 때·저절로 받기 때 다시 준다
+  settleWraidOwed() {
+    const w = this.game.s.wraid, got = [];
+    for (const [id, o] of Object.entries(w.owe || {})) {
+      try { const out = this.game.wraidClaim(o.rank, o.boss); delete w.owe[id]; got.push({ rank: o.rank, reward: out, boss: D.WRAID_BOSS[o.boss] }); } catch (err) { console.warn('[wraid] owe', err); }
+    }
+    return got;
+  }
   canClaimWraid(r) {
     return !!(r && r.total >= r.maxHp && (r.damage?.[this.uid] || 0) > 0 && !r.claimed?.[this.uid]);
   }
@@ -315,17 +333,21 @@ export class WNet extends Net {
   async claimWraid(r, force = false) {
     if (!this.canClaimWraid(r) || (!force && !this.game.wraidPart?.(r.id))) return null;
     const ref = this.ref('wraid', r.id);
-    const ok = await ack(this.fs.runTransaction(this.db, async (tx) => {
+    // v432 순위는 거래가 읽은 문서로 센다 — 전엔 쓰러진 순간의 사본(리스너)으로 세어, 그 뒤 들어온 늦은 한 몫·내 마지막 몫이 빠졌다
+    const rank = await ack(this.fs.runTransaction(this.db, async (tx) => {
       const d = (await tx.get(ref)).data();
-      if (!d || d.total < d.maxHp || !(d.damage?.[this.uid] > 0) || d.claimed?.[this.uid]) return false;
+      if (!d || d.total < d.maxHp || !(d.damage?.[this.uid] > 0) || d.claimed?.[this.uid]) return 0;
       tx.update(ref, { [`claimed.${this.uid}`]: true });
-      return true;
+      return this.wraidMyRank(d) || 1;
     }));
-    if (!ok) { delete this.wdone[r.id]; return null; }
-    const rank = this.wraidMyRank(r);
+    if (!rank) { delete this.wdone[r.id]; return null; }
     const boss = D.wraidBossOfId(r.id);
-    const out = this.game.wraidClaim(rank, boss.id);
-    if (this.game.s.wraid.part?.[r.id]) delete this.game.s.wraid.part[r.id];
+    // v432 서버에 「받음」을 적은 뒤 주다가 오류가 나면 보상이 영영 사라졌다 — 빚으로 적어 두고 다음에 다시 준다
+    const w = this.game.s.wraid;
+    w.owe = { ...(w.owe || {}), [r.id]: { rank, boss: boss.id } };
+    let out = null;
+    try { out = this.game.wraidClaim(rank, boss.id); delete w.owe[r.id]; } catch (err) { console.warn('[wraid] grant', err); this.changed('wraid'); throw new Error('보상을 주다 멈췄어요 — 다음에 들어오면 다시 받아요'); }
+    if (w.part?.[r.id]) delete w.part[r.id];
     delete this.wdone[r.id];
     this.changed('wraid');
     return { rank, reward: out, boss };

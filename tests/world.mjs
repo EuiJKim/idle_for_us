@@ -4048,5 +4048,44 @@ console.log('\n=== v432 1판 — 구멍 막기 ===');
   ok(!/this\.mons = this\.mons\.filter\(\(x\) => !x\.isBoss\); this\.bossT = 0;/.test(read('js/world/wgame.js')), '각성 켜기·끄기 — 두목을 지우고 바로 세우지 않는다');
 }
 
+
+console.log('\n=== v433 2판 — 온라인·상태 안정 ===');
+{
+  // 던전 안에서 다른 사냥터로 가면 「나가기」로 끝난다 — 체력은 들어갈 때로, instEnd가 난다
+  const g = new WorldGame(newWorldSave(), Date.now()); g.rng = () => 0.5; g.s.job = 'sword'; g.s.level = 40; g._stats = null; g.enterMap(11);
+  g.heroHp = 5; const ev = []; g.emit = (t, e) => ev.push(t);
+  ok(g.startTower(), '탑에 들어간다');
+  ok(g.heroHp > 5, '탑 안에서는 체력이 찬다');
+  g.enterMap(11);
+  ok(!g.inst && g.heroHp === 5 && ev.includes('instEnd'), '탑 안에서 사냥터로 가면 나가기로 끝난다 — 체력은 들어갈 때로 · instEnd', `hp ${g.heroHp}`);
+  // 세이브 값 다듬기
+  const raw = { ...newWorldSave(), equip: { weapon: { uid: 'w', slot: 'weapon', ilv: 50, rar: 9, plus: 99, tr: -3, step: 1 } }, bag: [null, 7, { uid: 'b', slot: 'hat', ilv: 'x', rar: 2 }],
+    pets: [{ uid: 'p', kind: W.PETS[0].id, rar: 1 }], clockMax: Date.now() + 5 * 365 * 86400e3, lastSeen: Date.now() + 86400e3 * 900 };
+  const m = migrateWorld(JSON.parse(JSON.stringify(raw)));
+  ok(m.equip.weapon.rar === W.RARITY.length - 1 && m.equip.weapon.plus === W.ENHANCE_MAX && m.equip.weapon.tr === 0, '장비 등급·강화·초월이 범위 안으로');
+  ok(m.bag.length === 1 && m.bag[0].ilv === 1, '가방의 빈 값은 빼고 레벨은 숫자로');
+  ok(m.pets[0].lv >= 1 && Number.isFinite(m.pets[0].exp), '애완동물 레벨·경험치가 숫자로');
+  ok(m.clockMax <= Date.now() + 86400e3 + 1000 && m.lastSeen <= Date.now() + 86400e3 + 1000, '미래 시계는 지금 + 하루까지만');
+  let opened = true; try { const gg = new WorldGame(m, Date.now()); gg.stats(); } catch { opened = false; }
+  ok(opened, '망가진 값이 있어도 캐릭터가 열린다');
+  // 회랑 — 판 도중 주가 바뀌면 새 주 기록을 옛 층으로 올리지 않는다
+  const c = new WorldGame(newWorldSave(), Date.now()); c.emit = () => {}; c.rng = () => 0.5; c.s.job = 'sword'; c.s.level = 150; c.s.tower.floor = DG.TOWER_MAX; c._stats = null;
+  c.s.tower.cor = { key: DG.corridorWeek(), best: 36, all: 36 };
+  ok(c.startCorridor(), '회랑에 들어간다');
+  c.inst.corWk = '1999-01-04'; c.inst.done = { ok: true };
+  c.s.tower.cor.key = 'other'; c.finishInst();
+  ok(c.s.tower.cor.best === 0, '주가 바뀐 판은 새 주 기록에 안 들어간다', `best ${c.s.tower.cor.best}`);
+  // 칠대성 — 못 올린 피해·못 준 보상이 저장에 남는다
+  const w = migrateWorld({ ...newWorldSave(), wraid: { pend: { umawang_3: { amt: 1234.7, at: 5 } }, owe: { umawang_2: { rank: 2, boss: 'umawang' }, hacker_1: { rank: 1, boss: 'x' } } } });
+  ok(w.wraid.pend.umawang_3.amt === 1234 && w.wraid.owe.umawang_2.rank === 2 && !w.wraid.owe.hacker_1, '못 올린 피해(pend)·못 준 보상(owe)은 저장에 남는다(엉뚱한 것은 버린다)');
+  const N = read('js/wnet.js'), M = read('js/wmain.js'), C = read('js/world/wcoop.js'), NN = read('js/net.js');
+  ok(/return this\.wraidMyRank\(d\) \|\| 1;/.test(N) && /settleWraidOwed\(\)/.test(N), '보상 순위는 거래가 읽은 문서로 · 빚 갚기');
+  ok(/this\.checkGen\(b, Number\(String\(id\)\.split\('_'\)\.pop\(\)\)\)/.test(N), '넘어간 마왕 문서에 올리면 다시 읽어 받을 것에');
+  ok(/async function flushWraidPend\(\)/.test(M) && /p\[ev\.key\] = \{ amt:/.test(M), '끊겨 못 올린 피해는 남겼다가 연결되면 올린다');
+  ok(/this\.gen = \(this\.gen \|\| 0\) \+ 1;/.test(C) && /'\.info\/connected'/.test(C), '함께 사냥 — 방을 나가면 옛 몫은 버린다 · 다시 이어지면 자리를 다시 올린다');
+  ok(/denied\(err, '내 기록 쓰기\(players\)', false\)/.test(NN) && /async accountGuildId\(\)/.test(NN), '프로필 거부는 그 기능만 · 문파는 계정에 하나');
+  ok(/if \(!cur\.exists\(\)\) \{/.test(N), '번호만 있고 문서가 없는 마왕 — 그 번호로 다시 세운다');
+}
+
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);

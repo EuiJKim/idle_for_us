@@ -286,6 +286,8 @@ export function migrateWorld(raw, now = Date.now()) {
       read: Object.fromEntries(Object.keys(w.read || {}).filter((k) => /^\d{1,2}$/.test(k) && +k < D.HEAVEN_STORY.length).map((k) => [k, 1])),
       pity: Object.fromEntries(Object.entries(w.pity || {}).filter(([k, v]) => D.WRAID_BOSS[k] && v > 0).map(([k, v]) => [k, clamp(Math.floor(Number(v) || 0), 0, D.PALMA_PITY)])),   // v409 대성신장 천장
       auto: w.auto === true,
+      owe: Object.fromEntries(Object.entries(w.owe || {}).filter(([k, v]) => D.WRAID_BOSS[String(k).split('_')[0]] && v && D.WRAID_BOSS[v.boss] && v.rank >= 1).slice(-20).map(([k, v]) => [k, { rank: Math.floor(v.rank), boss: v.boss }])),   // v432 받음은 적었는데 못 준 보상
+      pend: Object.fromEntries(Object.entries(w.pend || {}).filter(([k, v]) => D.WRAID_BOSS[String(k).split('_')[0]] && v && v.amt > 0 && v.at > 0).slice(-10).map(([k, v]) => [k, { amt: Math.floor(v.amt), at: Number(v.at) }])),   // v432 끊겨 못 올린 피해
       part: Object.fromEntries(Object.entries(w.part || {}).filter(([k, v]) => D.WRAID_BOSS[String(k).split('_')[0]] && v > 0).slice(-40).map(([k, v]) => [k, Number(v)])) }; }   // v413 칠대성 자동 반복 · v420 이 캐릭터가 친 판
   s.mast = {};
   for (const [k, v] of Object.entries(raw.mast || {})) if (W.zoneOfW(+k) && v > 0) s.mast[k] = Math.floor(Number(v) || 0);
@@ -352,6 +354,25 @@ export function migrateWorld(raw, now = Date.now()) {
     };
     for (const it of Object.values(s.equip || {})) one(it);
     for (const it of s.bag || []) one(it); }
+  // v432 세이브 값 다듬기 — 망가졌거나 다른 기기에서 넘어온 값 하나로 캐릭터가 안 열리거나(등급 9 → RARITY 없음)
+  //   애완동물 레벨이 비어 피해가 NaN(몹이 안 죽는다)이던 것. 범위 밖이면 가까운 값으로
+  { const num = (v, lo, hi, d = lo) => { const n = Number(v); return Number.isFinite(n) ? Math.max(lo, Math.min(hi, n)) : d; };
+    const fixItem = (it) => {
+      if (!it || typeof it !== 'object') return null;
+      if (it.rar != null) it.rar = Math.floor(num(it.rar, 0, W.RARITY.length - 1));
+      if (it.grade != null) it.grade = Math.floor(num(it.grade, 0, W.GRADES.length - 1));
+      if (it.plus != null) it.plus = Math.floor(num(it.plus, 0, W.ENHANCE_MAX));
+      if (it.tr != null) it.tr = Math.floor(num(it.tr, 0, W.TRANS_MAX));
+      if (it.ilv != null) it.ilv = Math.floor(num(it.ilv, 1, 300, 1));
+      for (const k of ['epity', 'tpity']) if (it[k] != null) it[k] = num(it[k], 0, 1, 0);
+      return it;
+    };
+    for (const k of Object.keys(s.equip || {})) s.equip[k] = s.equip[k] ? fixItem(s.equip[k]) : null;
+    s.bag = (s.bag || []).map(fixItem).filter(Boolean);
+    for (const p of [...(s.pets || []), ...(s.petBox || [])]) { p.lv = Math.floor(num(p.lv, 1, W.PET_LV_MAX, 1)); p.exp = num(p.exp, 0, 1e18, 0); }
+    // 시계 — 한 번 미래로 맞춰졌던 기기는 clockMax가 줄지 않아 방치 보상이 영영 0이었다(지금 + 하루까지만)
+    for (const k of ['clockMax', 'lastSeen']) if (s[k] != null) { const v = Number(s[k]); s[k] = Number.isFinite(v) ? Math.min(v, now + 86400e3) : now; }
+  }
   return s;
 }
 
@@ -825,7 +846,9 @@ export class WorldGame {
     this.clones = [];
     this.fields = [];                    // v255: 장판(화골산·독룡출동)을 두고 가면 다음 사냥터 같은 자리에서 계속 터졌다
     this.dmgLog = []; this.dmgAcc = 0;   // v255: 던전·다른 사냥터의 피해 기록이 두목 체력 셈에 섞이지 않게
-    if (this.inst) this.inst = null;     // 던전에서 다른 데로 가면 그 판은 버린다
+    // v432 던전에서 다른 데로 가면 그 판은 「나가기」로 끝낸다 — 전엔 조용히 버려 들어갈 때 체력이 안 돌아오고(탑 들락날락 = 공짜 회복),
+    //   요일 던전 몫만 쓰이고, 칠대성 판의 아직 안 올린 피해가 사라졌다(instEnd가 없어서)
+    if (this.inst) this.leaveInst();
     this.sceneKey = null;
     this._mapAt = this.clock;            // v314 분당 경험치는 이 사냥터에 온 뒤의 벌이만
     this.tells = [];
@@ -4438,7 +4461,7 @@ export class WorldGame {
   startCorridor(chain = false) {
     if (!this.canCorridor()) return false;
     const f = D.TOWER_MAX + this.corridorState().best + 1;
-    this.startInst({ kind: 'tower', corridor: true, stage: f, map: D.towerMap(f), t: D.towerSec(f), max: D.towerSec(f), wait: chain ? 1.2 : 0.6, castT: 2.5 });
+    this.startInst({ kind: 'tower', corridor: true, corWk: D.corridorWeek(), stage: f, map: D.towerMap(f), t: D.towerSec(f), max: D.towerSec(f), wait: chain ? 1.2 : 0.6, castT: 2.5 });
     this.bossSeen = chain;
     return true;
   }
@@ -4870,7 +4893,9 @@ export class WorldGame {
     } else if (I.kind === 'tower' && ok && I.corridor) {
       this.tday('tower');
       const c = this.corridorState();
-      if (I.stage - D.TOWER_MAX > c.best) {
+      // v432 판 도중 주가 바뀌었으면(월요일 0시) 그 판은 지난주 몫 — 새 주를 옛 층에서 시작하고 1층~그 층 보상을 건너뛰던 것
+      if (I.corWk && I.corWk !== c.key) { /* 새 주는 1층부터 */ }
+      else if (I.stage - D.TOWER_MAX > c.best) {
         c.best = I.stage - D.TOWER_MAX;
         const rec = c.best > (c.all || 0);
         c.all = Math.max(c.all || 0, c.best);
