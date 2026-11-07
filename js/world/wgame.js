@@ -2554,8 +2554,8 @@ export class WorldGame {
     if (!this.awakenOpen(id)) return false;
     this.s.awk.on = { ...this.s.awk.on };
     if (on) this.s.awk.on[id] = true; else delete this.s.awk.on[id];
-    // 그 두목 방에 있으면 서 있는 두목을 바로 바꿔 세운다
-    if (this.map?.id === this.awakenRoom(id) && !this.inst) { this.mons = this.mons.filter((x) => !x.isBoss); this.bossT = 0; this.bossSeen = false; }
+    // v432 서 있는 두목은 그대로 두고 다음에 서는 두목부터 바뀐다 — 전엔 두목을 지우고 바로 새로 세워(대기 시간 0)
+    //   켜기·끄기를 거듭하면 두목이 0.1초마다 새로 섰고, 지운 두목은 과녁으로 남아 맞기만 하다 보상까지 줬다
     return true;
   }
   awakenReward(id, first = false) {
@@ -2841,7 +2841,7 @@ export class WorldGame {
     if (back) for (const [k, n] of Object.entries(back.mats)) this.addMats(k, n);
     this.s.gold += p;
     if (!auto) this.s.bag = this.s.bag.filter((x) => x.uid !== it.uid);
-    this.note(0, 0, p, 0);
+    if (auto) this.note(0, 0, p, 0);   // v432 사냥 중 저절로 판 것만 벌이에 — 손으로 판 돈까지 넣어 끄기 전에 가방을 팔면 방치 은자가 몇 배로 불었다
     return p;
   }
   // v385 팔면 얼마 — 팔기 전에 보여 주려고(바꾸지 않는다)
@@ -4010,6 +4010,9 @@ export class WorldGame {
   dgnToday(now = Date.now()) {
     const d = this.s.dgn;
     const day = D.kstDay(now);
+    // v432 지난 날로는 되돌아가지 않는다 — 자정 전에 들어간 판이 자정 뒤에 끝나면(I.now가 어제) 오늘 칸을 어제로 되돌렸다가
+    //   다음 읽기에서 다시 넘어오며 하루치를 통째로 더 줬다(3번 → 6번). 지난 날 몫은 버리는 칸에 적는다
+    if (d.day && day < d.day) return { used: {}, fail: {}, left: {}, keys: {}, extra: {} };
     if (d.day !== day) {
       // v262: 어제 남긴 횟수는 하루만 넘어온다(최대 하루치) — 못 들어온 날의 횟수가 그냥 사라졌다
       const yest = D.kstDay(now - 86400e3);
@@ -4039,7 +4042,6 @@ export class WorldGame {
   dailyFull(kind, stage, now = Date.now()) { return this.dailyLeft(kind, now) > 0 || stage > this.dailyBest(kind); }
   startDaily(kind, stage, now = Date.now()) {
     if (!this.canDaily(kind, stage, now)) return false;
-    this.tday('daily');
     const full = this.dailyLeft(kind, now) > 0;
     if (full) { const used = this.dgnToday(now).used; used[kind] = (used[kind] || 0) + 1; }
     this.startInst({ kind: 'daily', id: kind, stage, map: D.dailyMap(kind, stage), t: D.DAILY_SEC, max: D.DAILY_SEC, target: D.DAILY_KILLS, kills: 0, now, full });
@@ -4848,7 +4850,8 @@ export class WorldGame {
       const mult = fresh || I.full ? 1 : D.DAILY_EXTRA;
       I.extra = !fresh && !I.full;
       const k = (ok ? 1 : D.DAILY_FAIL * Math.min(1, I.kills / I.target)) * mult;
-      reward = this.grant(base, k);
+      reward = k > 0 ? this.grant(base, k) : {};   // v432 하나도 못 잡고 나오면 보상 없음
+      if (ok || I.kills > 0) this.tday('daily');   // v432 오늘의 강호 과제는 들어갈 때가 아니라 잡고 나올 때 센다
       if (ok) this.s.dgn.best[I.id] = Math.max(this.dailyBest(I.id), I.stage);
       // v260: 오늘 이 단계에서 졌다(그만두기 빼고) — 자동은 남은 횟수를 같은 단계에 또 쓰지 않고 소탕한다
       else if (!I.done?.left) this.dgnToday(I.now).fail[I.id] = I.stage;
@@ -4964,8 +4967,9 @@ export class WorldGame {
       for (const [key, n] of Object.entries(r.mats)) { const v = Math.floor(n * k); if (v > 0) { out.mats[key] = v; this.addMats(key, v); } }
     }
     // v292 조각
-    if (r.petShard) { out.petShard = Math.max(1, Math.floor(r.petShard * k)); this.addShards(out.petShard, 0); }
-    if (r.mountShard) { out.mountShard = Math.max(1, Math.floor(r.mountShard * k)); this.addShards(0, out.mountShard); }
+    // v432 조각은 곱한 만큼만(내림) — 전엔 최소 1개라 일일 던전에 들어갔다 바로 나가도(k=0) 조각 1·1, 횟수 제한이 없어 무한이었다
+    if (r.petShard) { const v = Math.floor(r.petShard * k); if (v > 0) { out.petShard = v; this.addShards(v, 0); } }
+    if (r.mountShard) { const v = Math.floor(r.mountShard * k); if (v > 0) { out.mountShard = v; this.addShards(0, v); } }
     return out;
   }
 

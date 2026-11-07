@@ -1072,6 +1072,10 @@ async function checkWeekReward() {
   if (!r) return;
   const rw = game.weekRewardFor(r.ranks);
   if (!rw) { game.claimWeekReward(r.key, r.ranks); save(); return; }
+  // v432 이 계정이 이미 받았으면(다른 캐릭터로) 이 캐릭터는 표시만 하고 넘어간다
+  let first = true;
+  try { first = await net.claimWeekOnce(r.key); } catch (err) { console.warn('[week reward once]', err?.message || err); wbChecked = false; return; }
+  if (!first) { game.s.wbClaimed = r.key; save(); toast('🏆 지난주 두목 순위 보상은 이 계정의 다른 캐릭터가 이미 받았어요'); return; }
   const lines = [['kills', '두목 처치'], ['hwamugi', '화무기 최단'], ['magwi', '마귀 최단']].filter(([k]) => r.ranks[k]).map(([k, n]) => h('div', { class: 'wr-line' }, `${['🥇', '🥈', '🥉'][r.ranks[k] - 1]} ${n} ${r.ranks[k]}위`));
   const show = () => openModal((s) => {
     s.append(h('h2', {}, '🏆 지난주 두목 순위'), h('p', { class: 'muted' }, `${r.key} 주 · 가장 좋은 자리 하나로 보상을 받아요`),
@@ -1528,6 +1532,7 @@ function handleEvents() {
         if (view.clean && ev.name) { const b = document.querySelector(`#skillbar .skill-btn[aria-label="${ev.name}"]`); if (b) { b.classList.remove('cast'); void b.offsetWidth; b.classList.add('cast'); } }   // v430 쓴 단추가 밝게 튄다
         break;
       case 'kill': sfx('kill'); break;
+      case 'wraidSlowKill': wraidKilledByMe = ev.id; break;   // v432 느리게 끝난 전송이 마무리였다
       case 'levelUp': sfx('level'); break;
       case 'path': sfx('level'); break;   // v254 길을 고르면(받는 쪽이 없었다)
       case 'craft': case 'sweep': sfx('loot'); break;

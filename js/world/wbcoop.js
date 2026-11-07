@@ -4,6 +4,15 @@
 //   두목 체력은 RTDB가 아니라 Firestore wraid/{날짜} 문서(무림 전체 공동 체력)가 맡는다 — 여기서는 자리만.
 // 자리: 0.4초마다(움직였을 때만) · 접속이 끊기면 서버가 지운다(onDisconnect).
 import { Coop } from './wcoop.js';
+// v432 문파 표지 — 문파 id는 곧 가입 코드라 누구나 읽는 대기실(wbl)에 그대로 올리면 남이 그 문파에 들어올 수 있었다.
+//   되돌릴 수 없는 짧은 표지(FNV 두 갈래)만 올리고 같은 표지끼리 비교한다
+export function guildTag(id) {
+  if (!id) return '';
+  let a = 0x811c9dc5, b = 0x01000193 ^ 0x5bd1e995;
+  const s = `ifu:${id}`;
+  for (let i = 0; i < s.length; i++) { const c = s.charCodeAt(i); a = Math.imul(a ^ c, 0x01000193) >>> 0; b = Math.imul(b ^ c, 0x5bd1e995) >>> 0; b ^= b >>> 13; }
+  return `h${a.toString(16).padStart(8, '0')}${b.toString(16).padStart(8, '0')}`;
+}
 
 export class WbCoop extends Coop {
   can() { const n = this.net; return !!(n.ready?.() && n.uid); }
@@ -28,7 +37,7 @@ export class WbCoop extends Coop {
       // v386 대기실 — 어느 마왕에 누가 있나(가볍게 이름·문파만). 빠른 합류·문파원 알림에 쓴다
       const lb = m.ref(db, `wbl/${day.split('_')[0]}/${uid}`);
       await m.onDisconnect(lb).remove();
-      await m.set(lb, { n: (this.game.s.nickname || '무명').slice(0, 24), g: String(this.net.guild?.id || '').slice(0, 40), t: m.serverTimestamp() });
+      await m.set(lb, { n: (this.game.s.nickname || '무명').slice(0, 24), g: guildTag(this.net.guild?.id), t: m.serverTimestamp() });
       this.lobbyRef = lb;
       if (this.wantKey() !== key) { m.remove(me).catch(() => {}); this.joining = false; return; }
       this.key = key;
@@ -96,7 +105,7 @@ export class WbCoop extends Coop {
     const first = { v: true };
     this.lobbyOff = m.onValue(m.ref(db, 'wbl'), (snap) => {
       const v = snap.val() || {};
-      const gid = this.net.guild?.id;
+      const gid = guildTag(this.net.guild?.id);
       if (gid && !first.v) for (const [boss, us] of Object.entries(v)) for (const [u, o] of Object.entries(us || {})) {
         if (u !== this.net.uid && o?.g === gid && !this.lobby[boss]?.[u]) this.onEvent('guildWb', { name: o.n || '문파원', boss });
       }
@@ -110,7 +119,7 @@ export class WbCoop extends Coop {
     const us = this.lobby?.[boss] || {};
     return Object.entries(us).filter(([u, o]) => u !== this.net.uid && (!o?.t || now - o.t < 6 * 60e3)).length;
   }
-  lobbyGuild(boss) { const gid = this.net.guild?.id; return gid ? Object.entries(this.lobby?.[boss] || {}).filter(([u, o]) => u !== this.net.uid && o?.g === gid).map(([, o]) => o.n) : []; }
+  lobbyGuild(boss) { const gid = guildTag(this.net.guild?.id); return gid ? Object.entries(this.lobby?.[boss] || {}).filter(([u, o]) => u !== this.net.uid && o?.g === gid).map(([, o]) => o.n) : []; }
   gotBoss() {}
   bossTick() {}
   async commit() { this.pend = 0; }

@@ -261,7 +261,10 @@ export class WNet extends Net {
   async commitWraid(id, amount, finish = false) {
     if (!this.ready() || !(amount > 0 || finish)) return false;
     const ref = this.ref('wraid', id);
-    const killed = await ack(this.fs.runTransaction(this.db, async (tx) => {
+    // v432 끊겨 있으면 바로 실패(올리지 않은 몫으로 남긴다). 느리면 실패로 보지 않는다 — 타임아웃은 거래를 멈추지 못해
+    //   12초 뒤 「실패」로 보고 같은 몫을 다시 보내면 서버에서 둘 다 들어가 피해가 두 번 셌다(순위 왜곡 · 거짓 「기록 실패」)
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) throw new Error('인터넷이 끊겨 있어요 — 연결되면 다시 해 주세요');
+    const txp = this.fs.runTransaction(this.db, async (tx) => {
       const snap = await tx.get(ref);
       if (!snap.exists()) return false;
       const r = snap.data();
@@ -281,7 +284,14 @@ export class WNet extends Net {
       if (sum >= r.maxHp) { up.killedAt = this.fs.serverTimestamp(); up.killer = this.uid; }
       tx.update(ref, up);
       return sum >= r.maxHp;
-    }), 12000);
+    });
+    const SLOW = {};
+    const got = await Promise.race([txp, new Promise((res) => setTimeout(() => res(SLOW), 12000))]);
+    if (got === SLOW) {   // 느린 거래는 보낸 것으로 친다 — 끝나면 마무리였는지만 알린다
+      txp.then((k) => { if (k) this.game.emit?.('wraidSlowKill', { id }); }).catch(() => {});
+      return false;
+    }
+    const killed = got;
     if (killed) {
       const b = D.wraidBossOfId(id);
       this.sendWorld(b.secret ? `🖐 ${this.game.s.nickname}님의 마무리 일격 — 석가여래가 쓰러졌다… 고 모두가 믿은 순간, 다섯 손가락이 하늘을 덮었다. 처음부터 손바닥 안이었다.`

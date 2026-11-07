@@ -126,6 +126,12 @@ service cloud.firestore {
     //   config/shop  ->  { bank: '○○은행 000-0000-0000 홍길동', price: '5,000원', note: '...' }
     // v302 전체 채팅 — 로그인한 사람은 누구나 읽고 쓴다. 자기 이름으로만 · 200자 · 시각은 서버 시각. 고치기·지우기는 운영자만.
     // v316 주간 두목 순위(v409 각성 마귀 awk 더함) — 주(월요일, 'YYYY-MM-DD')마다 한 사람 문서 하나. 처치 수는 줄지 않고, 최단 초는 늘지 않는다.
+    // v432 지난주 두목 순위 보상 — 계정마다 주에 한 번(만들기만)
+    match /wbclaim/{uid}/w/{wk} {
+      allow read: if signedIn() && request.auth.uid == uid;
+      allow create: if signedIn() && request.auth.uid == uid && wk.size() == 10
+        && request.resource.data.keys().hasOnly(['at']) && request.resource.data.at == request.time;
+    }
     match /wboss/{wk}/p/{uid} {
       allow read: if signedIn();
       allow create, update: if signedIn() && request.auth.uid == uid
@@ -150,6 +156,9 @@ service cloud.firestore {
     //   세우기: 첫째(seq 1)는 누구나 · 다음(seq+1)은 지금 마왕이 쓰러졌을 때만 — 두 문서를 한 번에(batch) 쓴다.
     //   칠 땐 자기 피해만 늘리고 그만큼만 합계 · 마무리면 killedAt·killer(자기) · 쓰러진 뒤 친 사람만 자기 받음 표시. 지우기는 운영자만.
     function wbBoss(b) { return b in ['umawang', 'gyomawang', 'bungmawang', 'satawang', 'mihuwang', 'uyungwang', 'sonogong', 'sadae', 'takap', 'nata', 'irang', 'okhwang', 'seokga']; }
+    // v432 마왕 체력 배수(관문 ×3 · 옥황상제 ×8 · 석가여래 ×24) — 아무나 약한 마왕(체력 100만)을 세워 1위·마무리를 먹지 못하게
+    //   기준(마왕 하나)은 화무기 체력 × WRAID_HP_K ≈ 7.7조. 균형을 손볼 여유로 0.4배~4배만 받는다(tests/world.mjs가 범위를 지킨다)
+    function wbHpK(b) { return b == 'seokga' ? 24 : (b == 'okhwang' ? 8 : (b in ['sadae', 'takap', 'nata', 'irang'] ? 3 : 1)); }
     match /wbp/{boss} {
       allow read: if signedIn();
       allow create: if signedIn() && wbBoss(boss)
@@ -170,7 +179,7 @@ service cloud.firestore {
         && request.resource.data.seq is int && request.resource.data.seq >= 1
         && id == request.resource.data.boss + '_' + string(request.resource.data.seq)
         && getAfter(/databases/$(database)/documents/wbp/$(request.resource.data.boss)).data.seq == request.resource.data.seq
-        && request.resource.data.maxHp is number && request.resource.data.maxHp >= 1000000 && request.resource.data.maxHp <= 1000000000000000000.0
+        && request.resource.data.maxHp is number && request.resource.data.maxHp >= 3000000000000.0 * wbHpK(request.resource.data.boss) && request.resource.data.maxHp <= 30000000000000.0 * wbHpK(request.resource.data.boss)
         && request.resource.data.total == 0
         && request.resource.data.damage == {} && request.resource.data.names == {} && request.resource.data.claimed == {}
         && request.resource.data.killedAt == null && request.resource.data.killer == null

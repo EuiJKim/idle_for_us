@@ -1590,7 +1590,7 @@ function bagTab(app) {
         h('h3', {}, '각인', h('small', {}, ' 기운을 고르고 올리기만 하면 돼요')),
         h('p', { class: 'muted', style: 'font-size:12px;margin:0 0 8px' }, '① 칸마다 원하는 기운(능력)을 골라요 ② 「올리기」 — 새기기·단·등급을 알아서 차례로 ③ 여덟 칸을 같은 기운으로 모으면 공명(더 세요)'),
         h('div', { class: 'imp-all' }, h('small', { class: 'muted' }, '여덟 칸 모두 한 기운으로(공명):'),
-          ...THEME_ORDER.slice(0, 8).map((t) => h('button', { class: 'chip', style: `--tc:${IM.THEMES[t].col}`, onclick: () => { for (const { x } of worn) game.setImpTheme(x.id, t); app.save(); toast(`여덟 칸 모두 ${IM.THEMES[t].name}(${themeStats(t)}) — 「모두 올리기」로 새겨요`); done(); } }, IM.THEMES[t].name))),
+          ...THEME_ORDER.slice(0, 8).map((t) => h('button', { class: 'chip', style: `--tc:${IM.THEMES[t].col}`, onclick: () => { if (!confirm(`여덟 칸 모두 〈${IM.THEMES[t].name}〉 기운으로 바꿀까요?\n다른 기운이 새겨진 칸은 「올리기」 때 그 기운으로 다시 새겨지고 단은 절반이 돼요.`)) return; for (const { x } of worn) game.setImpTheme(x.id, t);   /* v432 한 번 묻는다 — 범례처럼 보여 눌렀다가 여덟 칸이 통째로 바뀌었다 */ app.save(); toast(`여덟 칸 모두 ${IM.THEMES[t].name}(${themeStats(t)}) — 「모두 올리기」로 새겨요`); done(); } }, IM.THEMES[t].name))),
         // v402 고른 기운의 증표가 없는데 다른 기운 증표가 잔뜩이면 — 바꾸자고 짚는다(옛 기운에 영영 갇혔다)
         (() => {
           const st = game.impStuck();
@@ -1601,7 +1601,7 @@ function bagTab(app) {
         })(),
         top && top.n >= 2 ? h('p', { class: 'imp-res' }, `공명: ${IM.THEMES[top.theme].name} ${top.n}칸${top.tier >= 0 ? ` · ${IM.RES_ROMAN[top.tier]}` : ''}${top.next ? ` · ${top.next}칸 더 모으면 다음 단계` : ''}`) : '',
         h('div', { class: 'btn-row' },
-          h('button', { class: 'btn primary', id: 'imp-all', disabled: canAny ? null : true, onclick: () => { const r = game.impAll(); toast(`각인 ${r.n}번 — 성공 ${r.ok}${r.fail ? ` · 실패 ${r.fail}` : ''}`); done(); } }, '⏫ 모두 올리기'),
+          h('button', { class: 'btn primary', id: 'imp-all', disabled: canAny ? null : true, onclick: () => { const rw = worn.filter(({ it }) => { const nx = game.impNext(it); return nx.kind === 'theme' && nx.can; }).length; if (rw && !confirm(`${rw}칸은 고른 기운으로 다시 새겨져 단이 절반이 돼요. 모두 올릴까요?`)) return; const r = game.impAll();   /* v432 다시 새기는 칸이 있으면 묻는다 */ toast(`각인 ${r.n}번 — 성공 ${r.ok}${r.fail ? ` · 실패 ${r.fail}` : ''}`); done(); } }, '⏫ 모두 올리기'),
           h('button', { class: 'btn', onclick: () => openImprintGuide(app) }, '📖 안내서'))),
       h('div', { class: 'imp-grid' }, ...tiles),
       worn.length ? '' : h('p', { class: 'muted' }, '각인할 수 있는 장비를 끼면 여기 보여요.'));
@@ -1662,9 +1662,11 @@ function bagTab(app) {
     potSig = nsig;
     const redo = () => { potSig = ''; app.save(); potView(); app.refresh(); };
     const maxN = Math.max(0, Math.floor(s.gold / price));
-    const buy = (n, max = false) => h('button', { class: 'buy', disabled: n <= 0 || s.gold < price * n ? true : null, onclick: () => {
+    // v432 「최대」는 가진 은자를 다 쓴다 — 보조 모양 + 한 번 묻는다(오탭 한 번에 전 재산이 물약이 됐다)
+    const buy = (n, max = false) => h('button', { class: max ? 'btn buy-max' : 'buy', disabled: n <= 0 || s.gold < price * n ? true : null, onclick: () => {
+      if (max && !confirm(`은자 ${fmt(price * n)}을(를) 다 써서 물약 ${fmt(n)}개를 살까요?`)) return;
       if (game.buyPotions(n)) { toast(`물약 ${fmt(n)}개를 샀어요`); redo(); }
-    } }, max ? '최대' : `${n}개`, h('small', {}, max ? `${fmt(n)}개` : fmt(price * n)));
+    } }, max ? '최대' : `${n}개`, h('small', {}, max ? `${fmt(n)}개 · 은자 다` : fmt(price * n)));
     const chip = (on, label, fn) => h('button', { class: `cust-chip${on ? ' on' : ''}`, onclick: fn }, h('span', {}, label));
     potRoot.replaceChildren(
       h('div', { class: 'card shop-card pot-card' },
@@ -2158,7 +2160,7 @@ function mapTab(app) {
             : ` 🔒 5차 전직을 마치고 ${base}을(를) 한 번 쓰러뜨리면`)),
         h('div', { class: 'awk-btns' },
           h('button', { class: `btn ${on ? '' : 'primary'}`, id: `awk-${id}`, disabled: open ? null : true,
-            onclick: () => { game.setAwaken(id, !on); app.save(); toast(on ? `${base} — 보통으로 돌아왔어요` : `覺 ${a.name} — 두목 방에서 각성한 모습으로 서요`); app.refresh(); } }, on ? '끄기' : '각성 켜기'),
+            onclick: () => { game.setAwaken(id, !on); app.save(); toast(on ? `${base} — 다음 두목부터 보통으로` : `覺 ${a.name} — 다음 두목부터 각성한 모습으로 서요`); app.refresh(); } }, on ? '끄기' : '각성 켜기'),
           open && room != null ? h('button', { class: 'btn', disabled: here ? true : null, onclick: () => go(room) }, here ? '여기' : '가기') : ''));
     });
     const done = W.AWAKEN_IDS.filter((id) => (s.awk?.kills?.[id] || 0) > 0).length;
@@ -2491,7 +2493,7 @@ function dgnTab(app) {
         let r = net.wraidOf(boss);
         if (!r || net.wraidHpLeft(r) <= 0) r = await net.ensureWraid(boss);
         if (!r) throw new Error('마왕을 깨우지 못했어요');
-        start(() => game.startWraid({ id: r.id, hpLeft: net.wraidHpLeft(r), maxHp: r.maxHp }, now));
+        start(() => { const ok = game.startWraid({ id: r.id, hpLeft: net.wraidHpLeft(r), maxHp: r.maxHp }, now); if (ok) net.seenWraid?.(r.id).catch(() => {}); return ok; });   // v432 던전 창에서 들어가도 「들어왔다」 표시(늦은 한 몫) — 전엔 다시 합류 단추만
       } catch (err) { toast(`들어가지 못했어요: ${err.message || err}`); }
       rerender();
     };
@@ -2800,9 +2802,10 @@ function townTab(app) {
     const s = game.s;
     const price = game.potionPrice();
     const maxN = Math.max(0, Math.floor(s.gold / price));
-    const buy = (n, max = false) => h('button', { class: 'buy', disabled: n <= 0 || s.gold < price * n ? true : null, onclick: () => {
+    const buy = (n, max = false) => h('button', { class: max ? 'btn buy-max' : 'buy', disabled: n <= 0 || s.gold < price * n ? true : null, onclick: () => {
+      if (max && !confirm(`은자 ${fmt(price * n)}을(를) 다 써서 물약 ${fmt(n)}개를 살까요?`)) return;   // v432
       if (game.buyPotions(n)) { toast(`물약 ${fmt(n)}개를 샀어요`); app.save(); app.refresh(); }
-    } }, max ? '최대' : `${n}개`, h('small', {}, max ? `${fmt(n)}개` : fmt(price * n)));
+    } }, max ? '최대' : `${n}개`, h('small', {}, max ? `${fmt(n)}개 · 은자 다` : fmt(price * n)));
     const refill = h('button', { class: `btn ${s.autoRefill ? 'good' : ''}`, onclick: () => { s.autoRefill = !s.autoRefill; app.save(); sig = ''; upd(); } }, s.autoRefill ? '자동 보충 켜짐' : '자동 보충 꺼짐');
     return [
       h('div', { class: 'card shop-card' },

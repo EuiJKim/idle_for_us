@@ -3985,8 +3985,6 @@ console.log('\n=== v403 자동 각인이 막히면 알린다 ===');
   ok(evs.length >= 1 && evs.length <= 2 && evs[0].theme === 'sword', '자동 각인 — 막히면 한 번 알린다(같은 막힘은 되풀이 안 함)', `${evs.length}`);
   ok(/case 'impStuck'/.test(read('js/wmain.js')) && /showTab\('bag', 'imp'\)/.test(read('js/wmain.js')), '알림을 누르면 가방 › 각인');
 }
-console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
-process.exit(fail === 0 ? 0 : 1);
 
 console.log('\n=== v426 걷는 동안은 걷는 쪽을 본다 ===');
 {
@@ -4017,3 +4015,38 @@ console.log('\n=== v428 문파 토벌 하루 4번 · 길잡이 단계면 한 번
   g.s.did = { ...(g.s.did || {}), raid: 1 };
   ok(g.raidBonus() === 0 && g.raidLeft() === 0, '한 번 하고 나면 덤은 끝');
 }
+
+console.log('\n=== v432 1판 — 구멍 막기 ===');
+{
+  // 마왕 체력이 규칙 범위(기준 3조~30조 × 배수) 안 — 균형을 바꾸면 여기서 먼저 걸린다
+  const g0 = new WorldGame(newWorldSave(), Date.now());
+  const hw = g0.hwamugiHp(), K = (b) => (b === 'seokga' ? 24 : b === 'okhwang' ? 8 : DG.isGate(b) ? 3 : 1);
+  ok(DG.WRAID_IDS.every((b) => { const m = DG.wraidMaxHp(hw, b); return m >= 3e12 * K(b) && m <= 3e13 * K(b); }), '마왕 체력이 규칙 범위 안(firestore.rules wbHpK)');
+  const R = read('firestore.rules');
+  ok(/function wbHpK\(b\)/.test(R) && /maxHp >= 3000000000000\.0 \* wbHpK/.test(R), '규칙 — 마왕 체력 하한·상한');
+  // 일일 던전 — 하나도 못 잡고 나오면 조각도 없다 · 오늘의 강호 과제도 안 센다
+  const g = new WorldGame(newWorldSave(), Date.now()); g.emit = () => {}; g.rng = () => 0.5; g.s.job = 'sword'; g.s.level = 40; g._stats = null;
+  const ps0 = g.s.petShard || 0, ms0 = g.s.mountShard || 0;
+  for (let i = 0; i < 5; i++) { g.startDaily('exp', 1); g.leaveInst(); }
+  ok((g.s.petShard || 0) === ps0 && (g.s.mountShard || 0) === ms0, '일일 던전 들어갔다 바로 나오기 — 조각 0', `${g.s.petShard}/${g.s.mountShard}`);
+  ok(!(g.todayState().cnt.daily > 0), '오늘의 강호 「일일 던전」은 잡지 않으면 안 센다');
+  ok(JSON.stringify(g.grant({ petShard: 6, mountShard: 6 }, 0)) === '{}', 'grant ×0 — 조각 없음');
+  // 자정을 던전 안에서 넘겨도 하루치가 늘지 않는다
+  const t0 = Date.UTC(2026, 10, 7, 14, 59, 0);   // KST 23:59
+  const h = new WorldGame(newWorldSave(), t0); h.emit = () => {}; h.rng = () => 0.5; h.s.job = 'sword'; h.s.level = 40; h._stats = null;
+  h.s.dgn.used = { exp: 3 }; h.s.dgn.day = DG.kstDay(t0);
+  h.dgnToday(t0 + 120e3);   // 자정 넘어 창을 그렸다(오늘로)
+  const before = h.dailyLeft('exp', t0 + 130e3);
+  h.dgnToday(t0);           // 어제 날짜로 끝난 판
+  ok(h.dailyLeft('exp', t0 + 140e3) === before && h.s.dgn.day === DG.kstDay(t0 + 120e3), '지난 날로 되돌아가지 않는다(하루치가 두 번 넘어오지 않는다)', `${before} → ${h.dailyLeft('exp', t0 + 140e3)}`);
+  // 손으로 판 돈은 방치 벌이에 안 든다
+  const s = new WorldGame(newWorldSave(), Date.now()); s.emit = () => {}; s.s.job = 'sword'; s.s.level = 40; s._stats = null;
+  s.note(10, 100, 100, 0); const r0 = s.rates().gold;
+  const it = { uid: 'x1', slot: 'weapon', ilv: 90, rar: 1, step: 1, plus: 0 }; s.s.bag.push(it); s.sell(it);
+  ok(s.rates().gold === r0, '손으로 판 돈은 분당 벌이(방치 보상)에 안 든다');
+  // 각성 켜기·끄기는 서 있는 두목을 지우지 않는다
+  ok(!/this\.mons = this\.mons\.filter\(\(x\) => !x\.isBoss\); this\.bossT = 0;/.test(read('js/world/wgame.js')), '각성 켜기·끄기 — 두목을 지우고 바로 세우지 않는다');
+}
+
+console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
+process.exit(fail === 0 ? 0 : 1);

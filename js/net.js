@@ -606,6 +606,17 @@ export class Net {
     const ranks = { kills: at(b.kills, (p) => p.kills > 0), hwamugi: at(b.hwamugi, (p) => p.hwamugi > 0), magwi: at(b.magwi, (p) => p.magwi > 0) };
     return { key, ranks };
   }
+  // v432 지난주 두목 순위 보상은 계정(uid)에 한 번 — 순위는 계정 단위인데 받음 표시는 캐릭터 저장(s.wbClaimed)이라 캐릭터마다 다시 받았다.
+  //   wbclaim/{uid}/w/{주} 문서를 처음 만드는 쪽만 true(규칙: 만들기만 · 고치기·지우기 없음)
+  async claimWeekOnce(key) {
+    const ref = this.fs.doc(this.db, 'wbclaim', this.uid, 'w', key);
+    return this.fs.runTransaction(this.db, async (tx) => {
+      const snap = await tx.get(ref);
+      if (snap.exists()) return false;
+      tx.set(ref, { at: this.fs.serverTimestamp() });
+      return true;
+    });
+  }
   async weekBossBoard(key) {
     const { collection, query, orderBy, limit, getDocs } = this.fs;
     const col = collection(this.db, 'wboss', key, 'p');
