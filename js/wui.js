@@ -306,8 +306,9 @@ function charTab(app) {
       const lv = game.skillLevel(sk.id);
       const md = game.skillMods(sk.id);
       const bits = [];
-      if (md.dmg) bits.push(`피해 +${pct(md.dmg, 0)}`);
-      if (md.range) bits.push(`범위 +${pct(md.range, 0)}`);
+      const sg = (v) => (v < 0 ? `-${pct(-v, 0)}` : `+${pct(v, 0)}`);   // v434 줄어든 값은 「+-35%」가 아니라 「-35%」
+      if (md.dmg) bits.push(`피해 ${sg(md.dmg)}`);
+      if (md.range) bits.push(`범위 ${sg(md.range)}`);
       if (md.splash) bits.push(`주변 적 ${pct(Math.min(md.splash, 9), 0)}`);
       if (md.cd) bits.push(`숨 -${pct(md.cd, 0)}`);
       if (md.cost && sk.hpCost) bits.push(md.free ? '체력 소모 없음' : `체력 소모 -${pct(md.cost, 0)}`);
@@ -469,7 +470,7 @@ function charTab(app) {
     const nsig = `${s.loadout}|${!!s.loadouts?.[0]}|${!!s.loadouts?.[1]}|${game.canSwitchLoadout(0)}|${game.canSwitchLoadout(1)}`;
     if (nsig === loSig) return;
     loSig = nsig;
-    loadRow.replaceChildren(h('b', {}, '차림'), h('small', { class: 'muted' }, ' 능력치·무공·심법을 두 벌로 — 사냥용·두목용'),
+    loadRow.replaceChildren(h('b', {}, '차림(두 벌 저장)'), h('small', { class: 'muted' }, ' 능력치·무공·심법을 두 벌 저장해 바꿔 껴요 — 사냥용·두목용'),   // v434
       h('div', { class: 'btn-row' }, ...[0, 1].map((i) => h('button', { class: `btn${(s.loadout || 0) === i ? ' primary' : ''}`, disabled: (s.loadout || 0) === i || (s.loadouts?.[i] && !game.canSwitchLoadout(i)) ? true : null, onclick: () => {
         if (game.switchLoadout(i)) { toast(`차림 ${i + 1}로 바꿨어요${s.loadouts[i] ? '' : ''}`); app.save(); loSig = ''; app.refresh(); }
       } }, `차림 ${i + 1}${(s.loadout || 0) === i ? ' (지금)' : ''}`))));
@@ -625,7 +626,7 @@ function charTab(app) {
 
 // ---------- 가방 ----------
 // v120 개편: 한 창에 셋을 줄줄이 늘어놓던 것을 하위 탭 셋으로 —
-//   장비      낀 여섯 칸을 한눈에(눌러서 강화·승급) + 가방(칸별로 거르기, 낀 것보다 좋은 것은 위에 '끼기' 단추)
+//   장비      낀 여섯 칸을 한눈에(눌러서 강화·각인·초월) + 가방(칸별로 거르기, 낀 것보다 좋은 것은 위에 '끼기' 단추)
 //   대장장이  칸을 고르면 만들 수 있는 장비가 좋은 것부터 — 재료만 있으면 어느 칸이든(아래 장비는 넣으면 이득)
 //   재료      지역마다 재료·증표와 나오는 곳
 const SLOT_SHORT = { weapon: '무기', armor: '옷', hat: '모자', glove: '장갑', shoe: '신발', acc: '장신구', finger: '가락지', ear: '귀걸이' };
@@ -1282,7 +1283,7 @@ function bagTab(app) {
     const setNow = Object.entries(game.setCounts()).map(([id, n]) => ({ st: G.setOf(id), n })).filter((x) => x.st);
     // v150: 착용 | 가방을 칸으로 나눴다 — 한 화면에 낀 것·세트·가방·버튼이 다 있어 복잡했다
     gearRoot.replaceChildren(...[
-      h('div', { class: 'card' }, h('h3', {}, '끼고 있는 것', h('small', {}, `전투력 ${fmt(game.stats().power)} · 눌러서 강화·승급`)),
+      h('div', { class: 'card' }, h('h3', {}, '끼고 있는 것', h('small', {}, `전투력 ${fmt(game.stats().power)} · 눌러서 강화·각인·초월`)),
         // v403 지금 뭘 올리면 제일 세지나 — 누르면 그 장비의 그 칸
         // v411 무공 점수는 전투력에 안 잡혀 따로 — 남았으면 한 줄
         s.skillPts > 0 && game.skillList().some((k) => game.canSkillUp(k.id)) ? h('button', { class: 'up-tip', id: 'up-tip-skill', onclick: () => app.showTab('char', 'skill') }, h('span', {}, '💡 '), h('b', {}, `무공 점수 ${s.skillPts}점`), h('span', {}, ' 남았어요 — 무공을 올려요'), h('i', {}, ' ›')) : '',
@@ -1311,7 +1312,7 @@ function bagTab(app) {
       h('div', { class: 'card' },
         h('h3', {}, '가방', h('small', {}, `${s.bag.length} / ${s.bagSize} · 넘치면 가장 나쁜 것부터 팔아요`)),
         chips,
-        pick.on ? pickBar(list, old) : h('button', { class: 'btn pick-top', id: 'pick-sell-top', disabled: s.bag.length ? null : true, onclick: () => { pick.on = true; pick.sel.clear(); game.mark('pickSell'); sigs.gear = ''; gearView(); toast('장비를 눌러 고르세요 — 여러 개를 한 번에 팔아요'); } }, '☑ 골라 팔기 — 여러 개를 한 번에'),   // v398 맨 아래에만 있어 못 찾았다
+        pick.on ? pickBar(list, old) : null,   // v434 「골라 팔기」는 아래 줄 하나만(위·아래 두 번 있었다) — 고르는 중에만 위에 고르기 줄
         !pick.on && better.length ? h('button', { class: 'btn primary', style: 'width:100%;margin:6px 0', onclick: () => {
           let n = 0;
           // v258: 세트 조각을 세트 아닌 것으로 바꾸면 세트 효과가 깨진다 — 그런 것은 건너뛰고 알린다
@@ -1330,13 +1331,13 @@ function bagTab(app) {
             toast(`약한 장비 ${n}개를 팔아 은자 +${fmt(p)} (강화·전설 이상은 남겨요)`);
             done();
           } }, `약한 것 팔기${old.length ? ` ${old.length}` : ''}`),
-          h('button', { class: 'btn', id: 'pick-sell', disabled: s.bag.length ? null : true, onclick: () => { pick.on = true; pick.sel.clear(); game.mark('pickSell'); sigs.gear = ''; gearView(); } }, '☑ 골라 팔기'),
+          h('button', { class: 'btn', id: 'pick-sell', disabled: s.bag.length ? null : true, onclick: () => { pick.on = true; pick.sel.clear(); game.mark('pickSell'); sigs.gear = ''; gearView(); toast('장비를 눌러 고르세요 — 여러 개를 한 번에 팔아요'); } }, '☑ 골라 팔기'),
           // v321 자동 정리 — 같은 잣대로 떨어지는 대로 판다
-          h('label', { class: 'btn junk-toggle', title: '낀 것보다 못하고·강화 안 했고·전설 아래인 장비는 떨어지는 대로 팔아요' },
+          h('label', { class: `btn junk-toggle${s.autoJunk ? ' on' : ''}`, title: '낀 것보다 못하고·강화 안 했고·전설 아래인 장비는 떨어지는 대로 팔아요' },
             h('input', { type: 'checkbox', checked: s.autoJunk ? true : null, onchange: (e) => { game.s.autoJunk = e.target.checked; if (e.target.checked && old.length) { let p = 0; for (const it of old) p += game.sell(it); toast(`자동 정리를 켰어요 — 가방의 약한 장비 ${old.length}개도 팔았어요 · 은자 +${fmt(p)}`); } else toast(e.target.checked ? '자동 정리를 켰어요' : '자동 정리를 껐어요'); done(); } }),
             ` 자동 정리${s.autoJunk && s.junkLog?.n ? ` · ${fmt(s.junkLog.n)}개` : ''}`),
           h('button', { class: 'btn', disabled: game.s.gold < game.bagUpgradeCost() || s.bagSize >= 80 ? true : null, onclick: () => { if (game.buyBagSpace()) { toast('가방이 10칸 넓어졌어요'); done(); } } },
-            s.bagSize >= 80 ? '가방 끝까지' : `+10칸 · ${fmt(game.bagUpgradeCost())}`)))].filter(Boolean));
+            s.bagSize >= 80 ? '가방 끝까지' : `+10칸 · 은자 ${fmt(game.bagUpgradeCost())}`)))].filter(Boolean));   // v434 단위
   }
 
   // ===== 대장장이 =====
@@ -1456,7 +1457,7 @@ function bagTab(app) {
         h('div', { class: 'slot-kings' }, ...G.SET_SLOTS.map((sl) => h('span', {}, h('b', {}, SLOT_SHORT[sl]), ` ${W.kingOf(G.SLOT_KING[sl]).title}`)))),
       ...cards,
       h('div', { class: 'card' }, h('h3', {}, '강화석', h('small', {}, '후반 일곱 왕 — 부위마다 그 강화석으로만')),
-        h('p', { class: 'muted', style: 'font-size:12px;margin:2px 0 6px' }, '세트 장비는 그 부위의 강화석으로만 강화(+15 돌파까지)하고, 승급은 검왕의 검혼석으로 해요.'),
+        h('p', { class: 'muted', style: 'font-size:12px;margin:2px 0 6px' }, '세트 장비는 그 부위의 강화석으로 강화(+15 돌파까지)해요 — 모자라면 검왕의 무형 검혼석이 대신 들어요. 등급은 각인(두목 증표)으로 올려요.'),
         ...stoneRows));
   }
   // ----- 왕의 장신구 (레벨 99부터, 공용) -----
@@ -1544,12 +1545,14 @@ function bagTab(app) {
           : h('button', { class: `btn imp-up${can ? ' primary' : ' lack'}`, disabled: can ? null : true, onclick: () => {
             const r = game.enhance(it.uid, true);
             if (r != null) { const L = game.lastEnhance; toast(r ? `${x.name} +${it.plus} 성공!` : `${x.name} 실패${L?.drop ? ` (${L.drop})` : L?.prot ? ' · 보호부로 그대로' : ' · 그대로'} · 다음 확률 ↑`); done(); }
-          } }, can ? `⬆ +${p + 1}` : lack, h('small', {}, ` ${Math.round(rate * 100)}% · ${fmt(game.enhanceCost(it))}${m ? ` · ${W.matName(m.key)} ${m.n}` : ''}${fail ? ` · 실패 ${fail}${W.enhanceRisky(p) ? `(보호부 ${s.prot || 0})` : ''}` : ''}`)));
+          } }, can ? `⬆ +${p + 1}` : lack, h('small', {}, ` 성공 ${Math.round(rate * 100)}% · 은자 ${fmt(game.enhanceCost(it))}${m ? ` · ${W.matName(m.key)} ${fmt(m.n)}(가진 ${fmt(game.enhanceMatHave(m))})` : ''}${fail ? ` · 실패 ${fail}${W.enhanceRisky(p) ? `(보호부 ${s.prot || 0})` : ''}` : ''}`)));   // v434 값마다 이름 — 「100% · 1,400 · 현철 72」가 무엇인지 몰랐다
     });
     const tops = [5, 7, 10];
     enhRoot.replaceChildren(
       h('div', { class: 'card imp-card' },
         h('h3', {}, '강화', h('small', {}, ' 여덟 칸을 한눈에 · 누르면 한 단계')),
+        // v434 현철 단련(영구 공격력·체력)은 재료 칸에 있어 몰랐다 — 강화 칸에서 바로 가게
+        s.level >= W.TEMPER_FROM ? h('button', { class: 'next-step', id: 'temper-link', onclick: () => app.showTab('bag', 'mats') }, h('i', {}, '▶'), h('span', {}, `🔨 현철 단련 ${s.temper || 0}단계 — 남는 현철로 공격력·체력 영구 +`), h('em', {}, '재료 칸 ›')) : null,
         h('p', { class: 'muted', style: 'font-size:12px;margin:0 0 8px' }, `+1~+6은 실패해도 그대로 · +7~+9는 실패하면 -1 · +10부터(돌파)는 실패하면 -2 — 보호부가 있으면 그대로. 실패할수록 다음 확률이 올라요. 보호부 ${s.prot || 0}개`),
         h('div', { class: 'imp-all' }, h('small', { class: 'muted' }, '모두 몇 강까지:'),
           ...tops.map((t) => h('button', { class: `chip${enhTo === t ? ' on' : ''}`, onclick: () => { enhTo = t; sigs.enh = ''; enhView(); } }, `+${t}`))),
@@ -1673,7 +1676,7 @@ function bagTab(app) {
         h('div', { class: 'shop-item' },
           h('span', { class: 'pot-ico big' }),
           h('div', { class: 'info' }, h('b', {}, '빨간 물약', h('small', {}, ` 개당 ${fmt(price)}`)),
-            h('div', { class: 'desc' }, `한 병에 최대 체력의 ${pct(W.POTION_HEAL, 0)} 회복 · 아래 물약 단추(컴퓨터는 Q)로 직접 마셔요`)),
+            h('div', { class: 'desc' }, `한 병에 최대 체력의 ${pct(W.POTION_HEAL, 0)} 회복 · 아래 물약 단추${typeof matchMedia === 'function' && matchMedia('(pointer: fine)').matches ? '(Q)' : ''}로 직접 마셔요`)),
           h('div', { class: 'have' }, h('small', {}, '가진 것'), h('b', {}, fmt(s.potions)))),
         h('div', { class: 'buy-grid' }, buy(10), buy(50), buy(200), buy(Math.max(maxN, 1), true)),
         h('p', { class: 'muted', style: 'font-size:12px;margin:4px 0 0' }, '사냥터에서도 바로 사요.')),
@@ -2338,12 +2341,12 @@ function dgnTab(app) {
         h('span', { class: 'rt-arrow' }, '›'),
         step('獵', '사냥터', '돌아가 사냥', true)));
     const head = h('div', { class: 'card dgn-head' },   // v423 줄 나누기 — 제목·소탕 단추 / 설명(접기) / 목표 / 선택
-      h('div', { class: 'dgn-head-top' }, h('b', {}, '일일 던전'), h('button', { class: 'btn primary', disabled: sweepN ? null : true, onclick: () => {
+      h('div', { class: 'dgn-head-top' }, h('b', {}, '일일 던전'), h('button', { class: 'btn primary', title: '오늘 남은 몫을 들어가지 않고 바로 받아요(가장 높이 깬 단계의 보상)', disabled: sweepN ? null : true, onclick: () => {
         const got = game.sweepAll(now);
         if (!got.length) return;
         app.save(); app.refresh();
         toast(`소탕 ${got.length}번 — ${got.map((x) => rewardText(x.reward)).join(' / ')}`);
-      } }, sweepN ? `모두 소탕 (${sweepN})` : '모두 소탕')),
+      } }, sweepN ? `모두 소탕 (${sweepN})` : '모두 소탕', h('small', { class: 'sweep-hint' }, '남은 몫 바로 받기'))),   // v434 소탕이 무엇인지
       foldBox('daily', h('small', { class: 'muted' }, `도전은 언제든 · 온전한 보상은 하루 ${D.DAILY_ENTRIES}번(남긴 것은 다음 날로) · 새 단계 🔑는 몫을 안 써요 · 그 뒤는 ${Math.round(D.DAILY_EXTRA * 100)}%`)),
         (() => {   // v403 높은 단계 첫 돌파 칭호 — 다음 목표
           const top = Math.max(0, ...D.DAILY.map((d) => game.dailyBest(d.id)));
@@ -2463,7 +2466,11 @@ function dgnTab(app) {
     const tw = s.tower;
     // 십이지 — 10층마다 신 하나. 뽑기권이 있으면 뽑기, 신수를 가졌으면 표시
     const zodiacCard = h('div', { class: 'card zodiac-card' },
-      h('h3', {}, '십이지 탈것 뽑기', h('small', {}, ` 10층마다 그 신의 뽑기권 ${D.ZODIAC_TICKETS}장 · 신수 ${Math.round(D.ZODIAC_RATE * 100)}% (셋째에 꼭)`)),
+      h('h3', {}, '신수 뽑기', h('small', {}, ' 십이지 신수 탈것')),
+      // v434 무엇을 하면 되는지 한 줄 + 탑으로 — 빈 열두 칸과 「10층」만 보여 뭘 하라는 건지 몰랐다
+      h('div', { class: 'zodiac-how' },
+        h('span', {}, `무한의 탑을 10층 오를 때마다 그 층의 신 뽑기권 ${D.ZODIAC_TICKETS}장 · 한 장에 ${Math.round(D.ZODIAC_RATE * 100)}% · 세 번째엔 꼭 · 지금 ${tw.floor}층`),
+        tw.floor < D.ZODIAC.length * 10 && !Object.values(s.zTickets || {}).some((n) => n > 0) ? h('button', { class: 'btn mini primary', onclick: () => app.showTab('dgn', 'tower') }, `탑 ${Math.floor(tw.floor / 10) * 10 + 10}층으로 ›`) : null),
       h('div', { class: 'zodiac-grid' }, ...D.ZODIAC.map((z) => {
         const n = s.zTickets[z.no] || 0;
         const own = game.zodiacOwned(z.no);
@@ -2511,7 +2518,9 @@ function dgnTab(app) {
     out.push(h('div', { class: 'card wraid-intro' },
       h('div', { class: 'wraid-head', style: '--wb:#f97316' }, h('img', { class: 'wraid-banner', src: 'art/ui/wb-banner.webp', alt: '' }),
         h('div', { class: 'wraid-name' }, h('small', {}, '화무기 그 너머 · 무림 전체가 함께'), h('b', {}, '칠대성(七大聖)'))),
-      foldBox('wraid', h('ul', { class: 'wraid-how' },
+      // v434 한 줄 요약 + 자세한 설명은 처음부터 접어 둔다(일곱 항목이 기본으로 펼쳐져 핵심이 묻혔다)
+      h('p', { class: 'wraid-sum' }, `레벨 ${D.WRAID_LV}부터 · 온라인 · 탄을 피하며 ${D.WRAID_SEC}초 친다 · 쓰러지면 친 사람 모두 순위 보상 + 확률로 대성신장`),
+      foldBox('-wraid2|자세한 규칙', h('ul', { class: 'wraid-how' },
         h('li', {}, `👹 화과산의 의형제 칠대성(우마왕~손오공)이 늘 서 있어요 — 체력은 화무기의 ${D.WRAID_HP_K}배, 무림 사람 모두가 함께 깎아요(혼자서는 한참)`),
         h('li', {}, `🎯 탄을 피하며 쳐요 — 작은 흰 점만 맞아요 · 근거리는 코앞까지 붙어야, 원거리는 멀리서 · ${finePointer ? 'WASD·화살표' : '화면을 끌어'} 움직이고 손을 떼면 자동으로 피해요`),
         h('li', {}, `🛡 쓰러지면 한 대라도 친 사람 모두 순위 보상(1위 ×3 · 2~3위 ×2 · 10위까지 ×1.5) + 확률로 그 마왕의 대성신장 한 부위(1위 ${Math.round(D.PALMA_DROP(1) * 100)}% · 3위까지 ${Math.round(D.PALMA_DROP(3) * 100)}% · 10위까지 ${Math.round(D.PALMA_DROP(10) * 100)}% · 그 밖 ${Math.round(D.PALMA_DROP(99) * 100)}% · ${D.PALMA_PITY}번 못 받으면 다음엔 꼭) · 쓰러지면 곧 다음 마왕이 일어나요`),
@@ -2521,7 +2530,7 @@ function dgnTab(app) {
         h('li', {}, `⏱ 한 판 ${D.WRAID_SEC}초 · 언제든 · 참여 보상은 판마다(제한 없음) · 레벨 ${D.WRAID_LV}부터`)))));
     // v413 자동 반복 — 판이 끝나면 같은 마왕(쓰러졌으면 다음 마왕)에 다시
     if (on && s.level >= D.WRAID_LV) out.push(h('label', { class: 'chk wraid-auto' }, h('input', { type: 'checkbox', id: 'wraid-auto', checked: s.wraid.auto ? true : null, onchange: (e) => { game.s.wraid.auto = e.target.checked; app.save(); toast(e.target.checked ? '🔁 칠대성 자동 반복 — 판이 끝나면 2초 뒤 같은 마왕에 다시 들어가요(나가기를 누르면 멈춰요)' : '자동 반복을 껐어요'); } }), ' 🔁 자동 반복(판이 끝나면 다시 들어가기)'));
-    if (!on) out.push(h('p', { class: 'muted dgn-desc' }, '온라인일 때 들어갈 수 있어요.'));
+    if (!on) out.push(offlineNote(net, '칠대성에 들어갈 수 있어요'));   // v434
     else if (s.level < D.WRAID_LV) out.push(h('p', { class: 'muted dgn-desc' }, `레벨 ${D.WRAID_LV}부터 마왕에게 갈 수 있어요.`));
     // 받을 것
     const claims = on ? net.wraidClaims() : [];
@@ -2645,7 +2654,7 @@ function dgnTab(app) {
           h('div', { class: 'muted' }, `문파원이 한 주 동안 함께 쳐서 잡는 두목 — 하루 ${D.RAID_PER_DAY}번, 한 번에 ${D.RAID_SEC}초`)));
       const rows = [top];
       if (!net?.ready?.() || !s.guildId || !net.guild) {
-        rows.push(h('p', { class: 'muted dgn-desc' }, !net?.ready?.() ? '온라인일 때 칠 수 있어요.' : '무림 → 문파에 들어가면 문파원과 함께 칠 수 있어요.'));
+        rows.push(!net?.ready?.() ? offlineNote(net, '문파 토벌을 칠 수 있어요') : h('p', { class: 'muted dgn-desc' }, '무림 → 문파에 들어가면 문파원과 함께 칠 수 있어요.'));   // v434
       } else if (!rd || rd.kind !== 'world') {
         rows.push(h('div', { class: 'btn-row' }, h('button', { class: 'btn primary', onclick: async (e) => {
           e.target.disabled = true;
@@ -2676,7 +2685,7 @@ function dgnTab(app) {
   const t = subTabs([
     { key: 'daily', label: '일일 던전', make: () => view(buildDaily) },
     { key: 'tower', label: '무한의 탑', make: () => view(buildTower) },
-    { key: 'zodiac', label: '십이지', make: () => view(buildZodiac) },
+    { key: 'zodiac', label: '신수 뽑기', make: () => view(buildZodiac) },   // v434 지도의 「십이지왕」(사냥 구역)과 헷갈리지 않게
     { key: 'wraid', label: '칠대성', make: () => view(buildWraid) },
     { key: 'raid', label: '문파 토벌', make: () => view(buildRaid) },
   ], 'ifu.dgnsub');
@@ -2895,7 +2904,7 @@ function townTab(app) {
   function smithInfo() {
     return [h('div', { class: 'card' }, h('h3', {}, '대장장이', h('small', {}, '강화 · 등급 각인 · 세트')),
       h('p', {}, '"재료만 가져오면 뭐든 두드려 주지. 등급은 골라서 — 위로 갈수록 재료가 확 들어."'),
-      h('p', { class: 'muted' }, '사다리(~100) · 세트(99~) · 왕의 장신구(99~)를 만들고, 낀 장비를 누르면 강화·승급해요.'),
+      h('p', { class: 'muted' }, '사다리(~100) · 세트(99~) · 왕의 장신구(99~)를 만들고, 낀 장비를 누르면 강화·각인·초월해요.'),
       h('button', { class: 'btn primary', style: 'width:100%', onclick: () => app.showTab?.('bag', 'smith') }, '대장장이로 가기 (가방 → 대장장이)'))];
   }
   // v148: 마을 사람 넷을 칸으로 — 사부 | 상인 | 대장장이 | 주모. 머리(쉬는 중·사냥 중)는 칸마다 위에.
@@ -3168,7 +3177,7 @@ function rankView(app) {
   }
   async function load() {
     loaded = Date.now();
-    if (!net?.ready?.()) { status.textContent = '인터넷에 연결되면 볼 수 있어요.'; list.replaceChildren(); return; }
+    if (!net?.ready?.()) { status.textContent = ''; list.replaceChildren(offlineNote(net, '서열을 볼 수 있어요')); return; }   // v434
     status.textContent = '불러오는 중…';
     try { await (mode === 'wboss' ? loadWeek() : loadLv()); }
     catch (err) {
@@ -3204,9 +3213,7 @@ function guildView(app) {
     if (!net?.online) {
       view = 'offline';
       root.append(h('div', { class: 'card' }, h('h3', {}, '문파'),
-        h('p', { class: 'muted' }, net?.blocked ? '서버가 요청을 거부하고 있어요(인터넷 문제가 아니에요). Firestore 규칙을 확인해 주세요.'
-          : net?.status === 'connecting' ? '서버에 연결하는 중이에요…' : '인터넷에 연결되면 문파·채팅을 할 수 있어요.'),
-        net?.status === 'offline' ? h('button', { class: 'btn primary', onclick: () => { net.status = 'connecting'; render(); net.init(); } }, '다시 연결') : null));
+        offlineNote(net, '문파·채팅을 할 수 있어요')));   // v434
       return;
     }
     if (!game.s.guildId || !net.guild) {
@@ -3536,7 +3543,9 @@ function worldChatView(app) {
   function render() {
     const on = !!net?.online;
     const muted = (net?.muteUntil || 0) > Date.now();   // v321 입막음
-    status.textContent = !on ? (net?.status === 'connecting' ? '서버에 연결하는 중이에요…' : '인터넷에 연결되면 이야기할 수 있어요.')
+    if (!on) { const k = `${net?.status}|${!!net?.blocked}`; if (status.dataset.off !== k) { status.dataset.off = k; status.replaceChildren(offlineNote(net, '이야기할 수 있어요')); } input.disabled = send.disabled = true; sig = ''; return; }
+    delete status.dataset.off;   // v434
+    status.textContent = !on ? ''
       : muted ? (net.muteUntil - Date.now() > 1e11 ? '🔇 운영자가 입을 막았어요 — 전체 채팅을 쓸 수 없어요' : `🔇 운영자가 입을 막았어요 — ${Math.ceil((net.muteUntil - Date.now()) / 60000)}분 뒤에 말할 수 있어요`) : '';
     status.style.color = muted ? '#fca5a5' : '';
     input.disabled = send.disabled = on && !muted ? null : true;
@@ -3686,14 +3695,14 @@ function compTab(app) {
     const done = () => { app.save(); sig = ''; app.refresh(); };
     // v362 뽑기 — 조각 100으로 한 번 · 1000으로 열 번 · 확률 보기
     const gachaRow = (kind, have, note) => h('div', { class: 'gacha-row' },
-      h('div', { class: 'g-info' }, h('b', {}, have), h('small', {}, ` ${note} · 천장 ${s.gacha[kind].pity}/${kind === 'pet' ? W.GACHA_PET_PITY : W.GACHA_MOUNT_PITY}`),
+      h('div', { class: 'g-info' }, h('b', {}, have), h('small', {}, ` ${note} · ${kind === 'pet' ? '신화' : '신수'} 보장까지 ${s.gacha[kind].pity}/${kind === 'pet' ? W.GACHA_PET_PITY : W.GACHA_MOUNT_PITY}`),
         h('small', { class: 'g-pick' }, `✨ 이번 주 픽업 — ${kind === 'pet' ? `${W.petOf(W.gachaPickup().pet).emoji} ${W.petOf(W.gachaPickup().pet).name}` : `${W.mountOf(W.gachaPickup().mount).emoji} ${W.mountOf(W.gachaPickup().mount).name}`} 확률 ${W.PICKUP_K}배`)),
       h('div', { class: 'g-btns' },
         game.freeGacha(kind) ? h('button', { class: 'buy gacha-free', id: `gacha-${kind}-free`, disabled: game.canGacha(kind, 1, true) ? null : true, onclick: () => runGacha(kind, 1, true) }, '🎁 오늘 무료') : null,
         h('button', { class: 'btn mini', onclick: () => openGachaRates(kind) }, '확률'),
         h('button', { class: 'btn mini', onclick: () => openGachaLog(game, kind) }, '기록'),
-        h('button', { class: 'buy gacha-1', id: `gacha-${kind}-1`, disabled: game.canGacha(kind, 1) ? null : true, onclick: () => runGacha(kind, 1) }, `소환 ×1 (${W.GACHA_COST})`),
-        h('button', { class: 'buy gacha-10', id: `gacha-${kind}-10`, disabled: game.canGacha(kind, 10) ? null : true, onclick: () => runGacha(kind, 10) }, `×10 (${W.GACHA_COST * 10})`),
+        h('button', { class: 'buy gacha-1', id: `gacha-${kind}-1`, disabled: game.canGacha(kind, 1) ? null : true, onclick: () => runGacha(kind, 1) }, `소환 ×1`, h('small', {}, `${kind === 'pet' ? '포획' : '탈것'} 조각 ${W.GACHA_COST}`)),
+        h('button', { class: 'buy gacha-10', id: `gacha-${kind}-10`, disabled: game.canGacha(kind, 10) ? null : true, onclick: () => runGacha(kind, 10) }, `×10`, h('small', {}, `조각 ${fmt(W.GACHA_COST * 10)}`)),
         h('button', { class: 'buy gacha-auto', id: `gacha-${kind}-auto`, disabled: game.canGacha(kind, 1) ? null : true, title: kind === 'pet' ? '신화가 나올 때까지 연속으로 — 나오면 멈춰 연출' : '신수가 나올 때까지 연속으로 — 나오면 멈춰 연출', onclick: () => runGachaAuto(kind) }, `🔁 연속 (${kind === 'pet' ? '신화' : '신수'}까지)`)));
     // v422 연속 소환 — 조각이 있는 동안 10연(모자라면 1연)을 빠르게 이어 가고, 신화(영수)·신수(탈것)가 나오면 멈춰 그 판의 연출을 크게 보여 준다. 「멈추기」로 언제든.
     const runGachaAuto = (kind) => {
@@ -3710,7 +3719,7 @@ function compTab(app) {
       const nEl = ov.querySelector('.ga-n'), tEl = ov.querySelector('.ga-tally'), lEl = ov.querySelector('.ga-last');
       const GN = kind === 'pet' ? ['레어', '유니크', '전설', '신화'] : ['일반', '좋은', '귀한', '십이지', '신수'];
       const paint = (res) => {
-        nEl.textContent = `${n}번 · ${kind === 'pet' ? `포획 조각 ${fmt(s.petShard || 0)}` : `탈것 조각 ${fmt(s.mountShard || 0)}`} · 천장 ${s.gacha[kind].pity}/${kind === 'pet' ? W.GACHA_PET_PITY : W.GACHA_MOUNT_PITY}`;
+        nEl.textContent = `${n}번 · ${kind === 'pet' ? `포획 조각 ${fmt(s.petShard || 0)}` : `탈것 조각 ${fmt(s.mountShard || 0)}`} · 보장까지 ${s.gacha[kind].pity}/${kind === 'pet' ? W.GACHA_PET_PITY : W.GACHA_MOUNT_PITY}`;
         tEl.textContent = GN.map((g, i) => `${g} ${tally[i]}`).join(' · ');
         if (res) lEl.replaceChildren(...res.map((r) => h('span', { class: `ga-r g${r.kind === 'pet' ? r.rar : r.grade}` }, `${(r.kind === 'pet' ? W.petOf(r.id) : W.mountOf(r.id)).emoji}`)));
       };
@@ -3968,6 +3977,13 @@ function compTab(app) {
   return t;
 }
 
+// v434 오프라인 빈 상태 하나로 — 창마다 문구가 다르고 「다시 연결」은 문파 창에만 있었다
+export function offlineNote(net, what) {
+  const msg = net?.blocked ? '서버가 요청을 거부하고 있어요(인터넷 문제가 아니에요) — 설정 › 새로 받기 뒤에도 그러면 알려 주세요.'
+    : net?.status === 'connecting' ? '서버에 연결하는 중이에요…' : `인터넷에 연결되면 ${what}.`;
+  return h('div', { class: 'offline-note' }, h('span', {}, `📡 ${msg}`),
+    net && net.status === 'offline' && !net.blocked ? h('button', { class: 'btn mini primary', onclick: (e) => { e.target.disabled = true; net.status = 'connecting'; net.init?.(); } }, '다시 연결') : null);
+}
 // v423 설명 접기 — 긴 설명은 한 번 읽고 나면 접어 둘 수 있다(이 기기에 기억 · 처음엔 펼쳐져 있다)
 export function foldBox(key0, ...nodes) {   // v424 key가 '-'로 시작하면 처음엔 접혀 있다 · 'key|이름'이면 단추 글을 그 이름으로
   const [key, label] = key0.split('|');

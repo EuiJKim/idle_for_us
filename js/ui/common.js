@@ -8,8 +8,37 @@ import { fmt, pct } from '../fmt.js';
 const LONG_DEC = /(^|[^\d.])(\d+\.\d{4,})(?![\d.])/g;
 export function tidyNum(t) {
   if (typeof t === 'number') return Math.round(t * 1000) / 1000;
-  if (typeof t !== 'string' || !/\.\d{4}/.test(t)) return t;
+  if (typeof t !== 'string') return t;
+  if (t.includes('(')) t = fixJosa(t);   // v434
+  if (!/\.\d{4}/.test(t)) return t;
   return t.replace(LONG_DEC, (m, a, d) => a + String(Math.round(parseFloat(d) * 1000) / 1000));
+}
+// v434 조사 고르기 — 「〈길잡이 졸업〉을(를)」처럼 기계식으로 둘 다 적던 것을 앞 글자 받침에 맞춰 하나로.
+//   닫는 괄호·따옴표는 건너뛰고 그 앞 글자를 본다 · 숫자는 읽는 소리로 · 그 밖(영문 등)은 그대로 둔다
+const JOSA = /(을\(를\)|이\(가\)|은\(는\)|와\(과\)|\(으\)로|\(이\)라)/g;
+const DIGIT_JONG = { 0: 21, 1: 8, 2: 0, 3: 16, 4: 0, 5: 0, 6: 1, 7: 8, 8: 8, 9: 0 };   // 영·일·이·삼·사·오·육·칠·팔·구의 받침(0 = 없음 · 8 = ㄹ)
+export function fixJosa(t) {
+  if (typeof t !== 'string' || !JOSA.test(t)) return t;
+  JOSA.lastIndex = 0;
+  return t.replace(JOSA, (m, _j, off) => {
+    let i = off - 1;
+    while (i >= 0 && /[\s〉」』)\]"'”’》>]/.test(t[i])) i--;
+    const ch = t[i];
+    let jong = null;
+    if (ch && ch >= '가' && ch <= '힣') jong = (ch.charCodeAt(0) - 0xac00) % 28;
+    else if (ch && /\d/.test(ch)) jong = DIGIT_JONG[ch];
+    if (jong == null) return m;
+    const has = jong > 0;
+    switch (m) {
+      case '을(를)': return has ? '을' : '를';
+      case '이(가)': return has ? '이' : '가';
+      case '은(는)': return has ? '은' : '는';
+      case '와(과)': return has ? '과' : '와';
+      case '(으)로': return has && jong !== 8 ? '으로' : '로';
+      case '(이)라': return has ? '이라' : '라';
+      default: return m;
+    }
+  });
 }
 export function h(tag, attrs = {}, ...kids) {
   const el = document.createElement(tag);

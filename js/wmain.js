@@ -1156,7 +1156,7 @@ function refreshUI(full = false) {
   const boss = game.mons.find((x) => x.isBoss && x.alive);
   setText($('zone-label'), m.inst ? (game.inst.kind === 'tower' ? `수문장 Lv.${m.lv[0]} · ${duration(game.inst.hard ? D.hardSec(game.inst.stage) : D.towerSec(game.inst.stage))} 안에` : game.inst.kind === 'raid' ? `문파원과 함께 — ${D.RAID_SEC}초 동안 친 만큼` : game.inst.kind === 'wraid' ? `무림 전체와 함께 — ${D.WRAID_SEC}초 동안 친 만큼` : `몹 Lv.${m.lv[0]} · ${D.DAILY_KILLS}마리 잡으면 깬다`) : m.town ? (s.autoHunt ? `쉬는 중 → ${W.mapOf(s.huntMap).name}` : '쉬는 중')
     : m.bossRoom ? (boss ? `두목 ${boss.name} Lv.${boss.lv}` : `두목 다시 나기까지 ${Math.floor(bossLeft / 60)}:${String(bossLeft % 60).padStart(2, '0')}`) + (coop.on ? ` · 🤝${coop.count + 1}명` : '')
-      : `몹 Lv.${m.lv[0]}~${m.lv[1]} · 두목은 두목 구역에`);
+      : document.body.classList.contains('hud-slim') ? `Lv.${m.lv[0]}~${m.lv[1]}` : `몹 Lv.${m.lv[0]}~${m.lv[1]} · 두목은 두목 구역에`);   // v434 폰 칩은 짧게(「두목…」에서 잘렸다)
   // v341 '사냥하러 가기' — 아래 창 줄의 사냥 단추를 빼고, 마을에 있을 때만 들판 가운데에 띄운다(창이 열려 있으면 숨김)
   if (guideQ != null && (guideQ !== s.quest || game.questNow()?.done)) hideGuide();   // v342 그 단계를 마치면 안내를 닫는다
   const goHuntOn = !!(m.town && !game.inst && s.job && (!activeTab || pcWide()));   // v414 컴퓨터 배치는 창이 옆이라 늘

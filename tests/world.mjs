@@ -3698,7 +3698,7 @@ console.log('\n=== v398 5차 레벨 130 · 독존 · 골라 팔기 ===');
   ok(W.TIERS[5].level === 130 && g.canAdvance() && g.advance() && g.s.jobTier === 5, '5차는 레벨 130에(4차와 같은 레벨 · 숨은 두목 격파)');
   const P = W.fifthOf('poison');
   ok(P.slow && P.bossDot > W.BOSS_DOT_K && P.mods.drain > 0 && W.skillsOf('poison', true).find((k) => k.id === 's0').stun > 0, '독존 — 마비독(기절) · 둔화 · 두목에게도 독 · 흡혈');
-  ok(/pick-sell-top/.test(read('js/wui.js')) && /여러 개 골라 팔기/.test(read('js/wui.js')), '골라 팔기 — 가방 위에도 · 길게 누른 메뉴에도');
+  ok(!/pick-sell-top/.test(read('js/wui.js')) && /id: 'pick-sell'/.test(read('js/wui.js')) && /여러 개 골라 팔기/.test(read('js/wui.js')), '골라 팔기 — 가방 아래 하나(v434 위아래 두 번이던 것) · 길게 누른 메뉴에도');
   { const D9 = await import('../js/world/wdgn.js'); const g = fresh('sword'); while (g.s.level < 80) g.addExp(W.expToNext(g.s.level));
     g.s.dgn.climb = true; g.s.dgn.auto = true; const top = D9.DAILY_MAX || 30; for (const d of D9.DAILY) g.s.dgn.best[d.id] = top; g.s.quest = Q.QUESTS.findIndex((q) => q.id === 'sweep'); g.s.questV = Q.QUEST_V;
     const now = Date.now(); const n0 = g.s.did?.sweep || 0; g.startAutoDaily(now);
@@ -4085,6 +4085,18 @@ console.log('\n=== v433 2판 — 온라인·상태 안정 ===');
   ok(/this\.gen = \(this\.gen \|\| 0\) \+ 1;/.test(C) && /'\.info\/connected'/.test(C), '함께 사냥 — 방을 나가면 옛 몫은 버린다 · 다시 이어지면 자리를 다시 올린다');
   ok(/denied\(err, '내 기록 쓰기\(players\)', false\)/.test(NN) && /async accountGuildId\(\)/.test(NN), '프로필 거부는 그 기능만 · 문파는 계정에 하나');
   ok(/if \(!cur\.exists\(\)\) \{/.test(N), '번호만 있고 문서가 없는 마왕 — 그 번호로 다시 세운다');
+}
+
+
+console.log('\n=== v434 3판 — UI/UX ===');
+{
+  const C = read('js/ui/common.js'), U = read('js/wui.js');
+  ok(/export function fixJosa\(t\)/.test(C) && /if \(t\.includes\('\('\)\) t = fixJosa\(t\);/.test(C), '조사 고르기 — 화면에 찍히는 모든 글이 거친다');
+  ok(/export function offlineNote\(net, what\)/.test(U) && (U.match(/offlineNote\(net, '/g) || []).length >= 5, '오프라인 빈 상태 하나로(다섯 곳)');
+  ok(!/강화·승급/.test(U) && !/승급은 검왕의/.test(U), '「승급」 글이 장비 쪽에 남지 않는다');
+  ok(/label: '신수 뽑기'/.test(U) && /무한의 탑을 10층 오를 때마다/.test(U), '던전 › 신수 뽑기 — 무엇을 하면 되는지 한 줄');
+  ok(/성공 \$\{Math\.round\(rate \* 100\)\}% · 은자/.test(U) && /가진 \$\{fmt\(game\.enhanceMatHave\(m\)\)\}/.test(U), '강화 타일 — 값마다 이름 · 가진 수');
+  ok(/const sg = \(v\) =>/.test(U) && /보장까지/.test(U) && !/천장 \$\{s\.gacha/.test(U), '무공 부호 · 소환 단위·보장');
 }
 
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
