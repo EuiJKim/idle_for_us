@@ -127,8 +127,11 @@ const tryWrite = (page, fn, v = {}) => G(page, async ([src, v]) => {
     const getR = (p, x) => G(p, async (i) => { const s = await window.__net.fs.getDoc(window.__net.ref('wraid', i)); return { id: s.id, ...s.data() }; }, x);
     const cA = await G(A.page, async (i) => { const n = window.__net; const s = await n.fs.getDoc(n.ref('wraid', i)); const o = await n.claimWraid({ id: s.id, ...s.data() }, true); return o && { rank: o.rank }; }, id);
     assert(cA?.rank === 1, `갑돌 1위로 받음 (${cA?.rank})`);
-    const cB = await G(B.page, async (i) => { const n = window.__net; const s = await n.fs.getDoc(n.ref('wraid', i)); const o = await n.claimWraid({ id: s.id, ...s.data() }, true); return o && { rank: o.rank }; }, id);
-    assert(cB?.rank === 2, `을순 2위로 받음 (${cB?.rank})`);
+    // v437 캐릭터를 바꿨으면(이 캐릭터가 친 판이 아니면) 저절로 받지 않는다 — 계정 보상을 엉뚱한 캐릭터가 가져가지 않게
+    const autoOther = await G(B.page, async (i) => { const n = window.__net; delete window.__game.s.wraid.part?.[i]; const s = await n.fs.getDoc(n.ref('wraid', i)); const o = await n.claimWraid({ id: s.id, ...s.data() }); const s2 = await n.fs.getDoc(n.ref('wraid', i)); return { o, claimed: !!s2.data().claimed?.[n.uid] }; }, id);
+    assert(autoOther.o === null && !autoOther.claimed, '친 판이 아닌 캐릭터는 저절로 받지 않음(서버 받음 표시도 그대로)');
+    const cB = await G(B.page, async (i) => { const n = window.__net, g = window.__game; g.s.wraid.part = { ...(g.s.wraid.part || {}), [i]: Date.now() }; const s = await n.fs.getDoc(n.ref('wraid', i)); const o = await n.claimWraid({ id: s.id, ...s.data() }); return o && { rank: o.rank }; }, id);
+    assert(cB?.rank === 2, `친 캐릭터로는 저절로 받음 — 을순 2위 (${cB?.rank})`);
     const again = await G(B.page, async (i) => { const n = window.__net; const s = await n.fs.getDoc(n.ref('wraid', i)); return n.claimWraid({ id: s.id, ...s.data() }, true); }, id);
     assert(again === null, '두 번 받기는 안 됨');
     const cC = await G(C.page, async (i) => { const n = window.__net; const s = await n.fs.getDoc(n.ref('wraid', i)); return n.claimWraid({ id: s.id, ...s.data() }, true); }, id);

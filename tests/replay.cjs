@@ -16,6 +16,17 @@ const file = process.argv[2];
 if (!file) { console.log('쓰는 법: node tests/replay.cjs <세이브.json>'); process.exit(2); }
 fs.mkdirSync(OUT, { recursive: true });
 
+// v437 화면 글에서 깨진 값(undefined · NaN · [object Object]) — 속성(title)까지
+const BADSCAN = () => {
+  const rx = /\bundefined\b|\bNaN\b|\[object Object\]|Infinity/, hits = [];
+  for (const root of ['#panel-body', '#modal', '#hud', '#topbar', '#stagebar', '#quest']) {
+    const el = document.querySelector(root); if (!el) continue;
+    const w = document.createTreeWalker(el, NodeFilter.SHOW_TEXT); let n;
+    while ((n = w.nextNode())) if (rx.test(n.textContent) && !n.parentElement?.closest('textarea')) hits.push(`${root}: ${n.textContent.trim().slice(0, 90)}`);
+    for (const a of el.querySelectorAll('[title]')) if (rx.test(a.title)) hits.push(`${root} title: ${a.title.slice(0, 90)}`);
+  }
+  return [...new Set(hits)].slice(0, 8);
+};
 // 어떤 꼴로 받았든 세이브 글로
 function saveText(raw) {
   let j; try { j = JSON.parse(raw); } catch { throw new Error('JSON이 아니에요'); }
@@ -77,13 +88,15 @@ function saveText(raw) {
     await new Promise((r) => setTimeout(r, 400));
     // 칸(서브 탭)도 한 바퀴
     const subs = await page.$$eval('#panel .subtabs button[data-key]', (bs) => bs.length).catch(() => 0);
+    const badTxt = new Set(await page.evaluate(BADSCAN).catch(() => []));
     for (let k = 0; k < Math.min(subs, 8); k++) {
       await page.evaluate((i) => document.querySelectorAll('#panel .subtabs button[data-key]')[i]?.click(), k).catch(() => {});
       await new Promise((r) => setTimeout(r, 200));
+      for (const b of await page.evaluate(BADSCAN).catch(() => [])) badTxt.add(b);   // v437 칸마다 깨진 글(undefined · NaN)
     }
     await closeModals();
     await page.screenshot({ path: path.join(OUT, `tab-${t}.png`) });
-    await step(`창 ${t}${subs ? ` (칸 ${subs})` : ''} 열기`, errors.slice(before));
+    await step(`창 ${t}${subs ? ` (칸 ${subs})` : ''} 열기`, [...errors.slice(before), ...[...badTxt].map((b) => '깨진 글 ' + b)]);
     if (await page.isVisible('#panel-close').catch(() => false)) await page.click('#panel-close').catch(() => {});
     await closeModals();
   }

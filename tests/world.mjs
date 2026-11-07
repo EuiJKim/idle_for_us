@@ -4139,5 +4139,21 @@ console.log('\n=== v436 몽키 봇이 찾은 것 ===');
   ok(/match \/bugs\/\{bid\}/.test(read('firestore.rules')) && /bugReport/.test(read('js/net.js')) && /openBugReport/.test(read('js/wmain.js')), '🐞 신고: 규칙 · 보내기 · 창');
 }
 
+console.log('\n=== v437 화면 몽키 · 주석에 삼켜진 코드 ===');
+{
+  // 줄 끝 주석 안에 「…; break;」가 들어가면(v321의 비급 조각처럼) 그 코드가 사라진다 — 모든 js를 훑는다
+  const bad = [];
+  for (const f of fs.readdirSync(new URL('../js/', import.meta.url), { recursive: true }).filter((x) => String(x).endsWith('.js'))) {
+    read('js/' + f).split('\n').forEach((l, i) => {
+      const c = l.indexOf('// '); if (c < 0) return;
+      const pre = l.slice(0, c); if ((pre.match(/`/g) || []).length % 2 || (pre.match(/'/g) || []).length % 2) return;
+      if (/[;)]\s*break;\s*$|\breturn [^;]{0,80};\s*$/.test(l.slice(c)) && /\w\(/.test(l.slice(c))) bad.push(`${f}:${i + 1}`);
+    });
+  }
+  ok(!bad.length, '줄 끝 주석 안에 코드(…; break;)가 숨어 있지 않다', bad.join(' '));
+  ok(W.HARD_MOUNTS.every((m) => Number.isFinite(m.speed) && m.speed > 0 && W.spdPct(m.speed) !== 'NaN'), '극의 신수 카드에 이동이 있다(전엔 「이동 +NaN%」)', W.HARD_MOUNTS.map((m) => W.spdPct(m.speed)).join(' '));
+  ok(fs.existsSync(new URL('../tests/monkey.cjs', import.meta.url)) && /monkey\.cjs/.test(read('tests/all.sh')), '화면 몽키 봇이 한꺼번에 점검에 들어 있다');
+}
+
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);

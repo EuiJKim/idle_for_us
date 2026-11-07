@@ -1324,7 +1324,7 @@ export const HARD_SPEED = [0.9, 0.96, 1.01, 1.06, 1.12, 1.2];
 export const MOUNT_STAT_K = 1.8;
 export const MOUNT_SPEED_K2 = 0.85;
 for (const m of MOUNTS) { m.speed = m.hard ? HARD_SPEED[m.hard - 1] : +(m.speed * MOUNT_SPEED_K2).toFixed(4); m.stat = +(m.stat * MOUNT_STAT_K).toFixed(4); }
-for (const h of HARD_MOUNTS) h.stat = MOUNTS.find((m) => m.id === h.id).stat;   // 극 카드·얻는 창 표시도 같은 값
+for (const h of HARD_MOUNTS) { const m = MOUNTS.find((x) => x.id === h.id); h.stat = m.stat; h.speed = m.speed; }   // v437 이동도 — 없어서 극 카드에 「이동 +NaN%」(화면 몽키) · 극 카드·얻는 창 표시도 같은 값
 // 길들인 이동 — 보통 탈것은 길들여도 극의 신수 가장 낮은 것(염화주작) 아래까지만(줄 순서가 뒤집히지 않게)
 export const mountSpeed = (d, k = 1, lv = 0) => (!d ? 0 : d.hard ? d.speed * (1 + lv * HARD_SPD_LV_K) : Math.min(HARD_SPEED[0] - 0.02, d.speed * k));
 // v361 극의 신수 길들이기 — 최대 20 · 레벨마다 이동 +2%(혼원금룡 20이면 +168%) · 공격·체력 +4% · 값은 보통 탈것 맨 위의 1.5배

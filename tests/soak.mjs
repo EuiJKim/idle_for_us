@@ -93,6 +93,7 @@ for (const [job, prof] of RUNS) {
     }
   }
   if (failed && g.lastPick != null) failed += ` (고른 사냥터 ${g.lastPick} ${W.mapOf?.(g.lastPick)?.name || ''})`;
+  try { fs.writeFileSync(new URL(`soak-end-${job}-${prof}.json`, OUT), JSON.stringify(g.toJSON())); } catch { /* */ }   // v437 끝난 세이브 — tests/replay.cjs 로 화면 점검
   const line = `${(job + '·' + prof).padEnd(12)} Lv ${String(g.s.level).padStart(3)} · 은자 ${Math.round(g.s.gold).toLocaleString()} · 누름 ${counts.tried}(막힘 ${counts.refused}) · 다시 열기 ${counts.saves}`;
   if (failed) {
     fails++;
