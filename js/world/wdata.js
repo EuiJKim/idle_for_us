@@ -1021,6 +1021,14 @@ export const statBookCost = (n) => Math.round(3000 * 1.09 ** n);
 // ---------- 무인 수치 ----------
 export const CRIT_DMG = 1.8;
 export const BASE_ATK_SEC = 0.85;     // 평타 간격(초)
+// v438 바람의나라 걸음 — 게임 안 시간이 실제의 PACE배로 흐른다(걷기·평타·무공 숨·몹·다시 나기·장판 모두 같이 느려진다 · 칠대성 탄막은 그대로).
+//   느려진 만큼 한 마리 벌이(경험치·은자·재료·조각)를 1/PACE배로 — 실제 한 시간 벌이·방치 보상은 전과 같다.
+export const PACE = 0.75;
+export const PACE_REWARD = 1 / PACE;
+// v438 평타는 민첩·장비·칭호로 빨라질수록 「더 빨리」 대신 「더 세게」 — 실제 휘두르는 간격은 빨라짐^SWING_K만, 남은 몫은 한 대 피해로(초당 피해는 같다).
+//   민첩을 많이 찍어 평타가 초에 너댓 번 나가던 것(정신없음)이 한 번 남짓으로 · 바람의나라처럼 한 대 한 대
+export const SWING_K = 0.35;
+export const swingSec = (atkSec) => BASE_ATK_SEC * Math.pow(atkSec / BASE_ATK_SEC, SWING_K);
 export const KILL_RECOVER = 0.15;     // v303 과녁을 쓰러뜨리면 평타 쿨을 이만큼으로 — 다음 몹까지 걸어가 또 한 박자 쉬지 않게 (v305 0.3 → 0.15)
 export const MANUAL_HOLD = 0.3;       // v305 손으로 움직인 직후 과녁을 쫓아가지 않는 시간(닿는 적은 친다) — 전엔 0.6~1.2초를 서 있었다
 // v305 칭호 — 운영자가 우편으로 준다. 끼면 능력치·연출. 옛 '개국공신'은 글자 그대로 저장돼 있다(효과 없음).

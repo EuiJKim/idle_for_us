@@ -740,6 +740,7 @@ export class WorldGame {
       dotUp: pa.dot || 0, hpCostDown: Math.min(0.7, pa.hpCost || 0),
     };
     // 전투력(서열·비교용): 초당 피해 × 버티는 힘의 기하평균 — 보이는 숫자라 작게 둔다
+    st.swingSec = W.swingSec(st.atkSec);   // v438 실제로 휘두르는 간격(느리게) — 한 대 피해는 swingSec/atkSec배라 초당 피해는 atkSec 그대로
     st.power = Math.round(Math.sqrt(st.atk / st.atkSec * (1 + st.crit * (st.critDmg - 1)) * st.hp));
     st.sig = this.statSig();
     this._stats = st;
@@ -819,8 +820,9 @@ export class WorldGame {
   expPerMin() {
     if (this.map.town || this.inst) return null;
     // 이 사냥터에 온 뒤의 벌이만 — 옮긴 직후엔 앞 사냥터 벌이가 섞이거나 0에 가깝게 나왔다. 20초는 지나야 센다
-    const from = Math.max(this._mapAt ?? -Infinity, this.clock - W.RATE_WINDOW_SEC);
-    const span = this.clock - from;
+    const now = this.wall || 0;   // v438 실제 시간
+    const from = Math.max(this._mapAt ?? -Infinity, now - W.RATE_WINDOW_SEC);
+    const span = now - from;
     if (!(span >= 20)) return null;
     let exp = 0;
     for (const r of this.ledger) if (r[0] >= Math.floor(from)) exp += r[2];
@@ -851,7 +853,7 @@ export class WorldGame {
     //   v436 이긴 판이 「이어 오르기」로 다음 판을 열면 안 된다 — 탑을 깬 결과 창이 뜬 틈에 지도를 누르면 다음 층이 열린 채 사냥터로 넘어가 몹을 못 깔고 멈췄다(몽키 봇)
     if (this.inst) { this.inst.noChain = true; this.leaveInst(); }
     this.sceneKey = null;
-    this._mapAt = this.clock;            // v314 분당 경험치는 이 사냥터에 온 뒤의 벌이만
+    this._mapAt = this.wall || 0;        // v314 · v438 실제 시간 분당 경험치는 이 사냥터에 온 뒤의 벌이만
     this.tells = [];
     const terr = L.terrainOf(id);
     this.blocked = terr?.grid || null;
@@ -1061,7 +1063,13 @@ export class WorldGame {
   }
 
   // ---------- 한 틱 ----------
+  // v438 게임 안 시간의 빠르기 — 칠대성(탄막)만 제 빠르기
+  pace() { return this.inst?.kind === 'wraid' ? 1 : W.PACE; }
+  // 게임 안 초 → 실제 초(남은 시간·제한 시간 보이기)
+  realSec(sec) { return sec / this.pace(); }
   tick(dt) {
+    this.wall = (this.wall || 0) + dt;   // v438 실제 시간 — 벌이 장부(방치 보상)·분당 경험치는 이것으로
+    dt *= this.pace();
     this.clock += dt;
     // v241: 지난 30초 실제 초당 피해 — 1초마다 한 칸
     this.dmgT = (this.dmgT || 0) + dt;
@@ -1353,14 +1361,16 @@ export class WorldGame {
     }
     this.walking = false;
     if (this.atkTimer <= 0) {
-      const iv = st.atkSec / (this.frenzyT > 0 ? 1.5 : 1) / (1 + (this.buffv.haste || 0)) / Math.max(0.3, 1 + (this.envNow().speed || 0));
+      const iv = st.swingSec / (this.frenzyT > 0 ? 1.5 : 1) / (1 + (this.buffv.haste || 0)) / Math.max(0.3, 1 + (this.envNow().speed || 0));
       this.atkTimer = iv;
+      this._swingK = st.swingSec / st.atkSec;   // v438 느리게 휘두른 만큼 한 대를 세게
       // v304: 잡은 직후(KILL_RECOVER)라 제 박자보다 빨리 나간 평타는 초당 피해 기록(dmgAcc)에 넣지 않는다 —
       //   잔챙이를 초에 셋씩 잡는 속도로 두목 최소 싸움 시간을 재면 두목·고수 체력이 서너 배로 부풀어 비무가 막혔다
       this._quickAtk = this.clock - (this._atkAt ?? -99) < iv * 0.95;
       this._atkAt = this.clock;
       this.basicAttack(m, st, dist);
       this._quickAtk = false;
+      this._swingK = 1;
     }
   }
 
@@ -1444,7 +1454,7 @@ export class WorldGame {
     this.emit('attack', { close, to: { x: m.x, y: m.y } });   // v244: 과녁 자리 — 한 방에 죽어 mon이 지워져도 연출이 과녁을 안다
     // v378 칠십이변(대성신장 7) — 평타 여섯 번마다 손오공의 분신이 함께 친다(×300%)
     if (this.setBonus().wukong && m.alive && (this._wkN = (this._wkN || 0) + 1) % 6 === 0) { this.emit('wukongClone', { at: { x: m.x, y: m.y }, from: { x: this.heroX, y: this.heroY } }); this.strike(m, st, 3, 'clone'); if (!m.alive) return; }
-    let mult = 1;
+    let mult = this._swingK || 1;   // v438
     if (this.s.job === 'ring' && close) mult *= 1.2;
     const cls0 = W.CLASSES[this.s.job] || {};
     const pm = this.pmods();
@@ -1706,9 +1716,10 @@ export class WorldGame {
       sat = W.expSat(kt.length * 2);
     }
     const ck = m.isBoss && this.coopK ? this.coopK : 1;   // v343 함께 잡은 두목 — 인원만큼 더
-    const exp = W.mobExp(m.lv) * (m.isBoss ? W.BOSS.exp * (W.CLASSES[this.s.job]?.bossExp || 1) : m.elite ? W.ELITE.exp : 1) * this.levelGapMult(m.lv) * this.challengeMult(m.lv) * (st.expMult || 1) * (1 + (env.exp || 0) + mlv * L.MASTERY.exp) * ek * sat * ck;   // v425 도전 경험치
+    const pk = W.PACE_REWARD;   // v438 느려진 만큼 한 마리 벌이를 더(실제 한 시간 벌이는 그대로)
+    const exp = W.mobExp(m.lv) * (m.isBoss ? W.BOSS.exp * (W.CLASSES[this.s.job]?.bossExp || 1) : m.elite ? W.ELITE.exp : 1) * this.levelGapMult(m.lv) * this.challengeMult(m.lv) * (st.expMult || 1) * (1 + (env.exp || 0) + mlv * L.MASTERY.exp) * ek * sat * ck * pk;   // v425 도전 경험치
     const blood = !this.inst && TD.bloodOn() ? 1 + TD.BLOOD_BONUS : 1;   // v262 혈겁
-    const gold = Math.round(W.mobGold(m.lv) * (m.isBoss ? W.BOSS.gold : m.elite ? W.ELITE.gold : 1) * (1 + (env.gold || 0) + (st.gold || 0)) * ek * blood * (st.goldMul || 1) * ck);   // v322 칭호
+    const gold = Math.round(pk * W.mobGold(m.lv) * (m.isBoss ? W.BOSS.gold : m.elite ? W.ELITE.gold : 1) * (1 + (env.gold || 0) + (st.gold || 0)) * ek * blood * (st.goldMul || 1) * ck);   // v322 칭호
     if (!this.inst) {
       // v263 견문록 — 졸개 종마다 센다(낙관이 찍히는 순간 지역이 다 찼는지 본다)
       if (!m.isBoss && m.name) {
@@ -1718,17 +1729,18 @@ export class WorldGame {
         if (n === W.DEX_NEED) { this._dexZ = null; this._huntB = null; this._stats = null; this.emit('dexStamp', { name: m.name, zoneDone: this.dexZoneDone(this.map.zone) }); }
       }
       this.tday('kill'); if (m.elite) this.tday('elite'); if (m.isBoss) this.tday('boss');
-      if (!m.isBoss && this.rng() < W.PET_SHARD_RATE * (m.elite ? 3 : 1) * this.lootK()) this.s.petShard = (this.s.petShard || 0) + 1;   // v262 포획 조각
-      if (!m.isBoss && this.rng() < W.MOUNT_SHARD_RATE * (m.elite ? 3 : 1) * this.lootK()) this.s.mountShard = (this.s.mountShard || 0) + 1;   // v292 탈것 조각
+      if (!m.isBoss && this.rng() < W.PET_SHARD_RATE * (m.elite ? 3 : 1) * this.lootK() * pk) this.s.petShard = (this.s.petShard || 0) + 1;   // v262 포획 조각
+      if (!m.isBoss && this.rng() < W.MOUNT_SHARD_RATE * (m.elite ? 3 : 1) * this.lootK() * pk) this.s.mountShard = (this.s.mountShard || 0) + 1;   // v292 탈것 조각
       if (m.isBoss) this.bossShards(m);   // v292 두목은 조각 한 움큼
-      if (this.rng() < W.FRAG_RATE * (m.isBoss ? 20 : m.elite ? 5 : 1)) this.gainFrag(1, { x: m.x, y: m.y });   // v275 무공 비급 조각
+      if (this.rng() < W.FRAG_RATE * (m.isBoss ? 20 : m.elite ? 5 : 1) * pk) this.gainFrag(1, { x: m.x, y: m.y });   // v275 무공 비급 조각
     }
     this.s.gold += gold;
     const mat = this.dropMats(m);
     if (m.elite) this.dropMats(m);
-    this.addMastery(this.map.zone, 1);
+    if (this.rng() < pk - 1) this.dropMats(m);   // v438 재료·증표·두목 떨굼도 한 번 더 굴릴 때가 있다(기대값 ×1/PACE)
+    this.addMastery(this.map.zone, 1 + (this.rng() < pk - 1 ? 1 : 0));
     // 보물 원숭이 — 들판에서 가끔 (하나만)
-    if (!this.map.bossRoom && this.rng() < L.TREASURE_RATE * (W.CLASSES[this.s.job]?.treasureK || 1) && !this.mons.some((o) => o.alive && o.treasure)) this.spawnTreasure();
+    if (!this.map.bossRoom && this.rng() < L.TREASURE_RATE * (W.CLASSES[this.s.job]?.treasureK || 1) * pk && !this.mons.some((o) => o.alive && o.treasure)) this.spawnTreasure();
     this.emit('kill', { gold, isBoss: m.isBoss, add: true, at: m, mat });
     this.addExp(exp);
     this.note(1, exp, gold, 0);
@@ -1744,8 +1756,8 @@ export class WorldGame {
   // v343 함께 잡은 두목을 못 친 문파원 몫 — 경험치·은자·현철만 k배(장비·탈것·조각·증표는 없음)
   coopShare(m, k) {
     const st = this.stats();
-    const exp = W.mobExp(m.lv) * W.BOSS.exp * (W.CLASSES[this.s.job]?.bossExp || 1) * this.levelGapMult(m.lv) * this.challengeMult(m.lv) * (st.expMult || 1) * k;   // v425
-    const gold = Math.round(W.mobGold(m.lv) * W.BOSS.gold * (1 + (st.gold || 0)) * (st.goldMul || 1) * k);
+    const exp = W.mobExp(m.lv) * W.BOSS.exp * (W.CLASSES[this.s.job]?.bossExp || 1) * this.levelGapMult(m.lv) * this.challengeMult(m.lv) * (st.expMult || 1) * k * W.PACE_REWARD;   // v425 · v438
+    const gold = Math.round(W.mobGold(m.lv) * W.BOSS.gold * (1 + (st.gold || 0)) * (st.goldMul || 1) * k * W.PACE_REWARD);
     const id = this.map.mz;
     let mat = null;
     if (W.MATS[id]) { const n = Math.max(1, Math.round(W.BOSS_MATS * k)); this.addMats(id, n); mat = { id: W.ORE, n: n * W.matWeight(id), name: W.ORE_NAME, color: W.ORE_COL }; }
@@ -4976,21 +4988,21 @@ export class WorldGame {
   // ---------- 방치 ----------
   // 최근 벌이를 적어 둔다 — 방치 보상은 '최근 5분처럼 계속 사냥했다면'으로 셈한다
   note(kills, exp, gold, potions) {
-    const t = Math.floor(this.clock);
+    const t = Math.floor(this.wall || 0);   // v438 실제 시간으로 적는다(게임 안 시간은 느리게 흐른다)
     const last = this.ledger[this.ledger.length - 1];
     if (last && last[0] === t) { last[1] += kills; last[2] += exp; last[3] += gold; last[4] += potions; } else this.ledger.push([t, kills, exp, gold, potions]);
     while (this.ledger.length && this.ledger[0][0] < t - W.RATE_WINDOW_SEC) this.ledger.shift();
   }
   rates() {
     if (!this.ledger.length) return null;
-    const span = Math.max(30, Math.min(W.RATE_WINDOW_SEC, this.clock - this.ledger[0][0]));
+    const span = Math.max(30, Math.min(W.RATE_WINDOW_SEC, (this.wall || 0) - this.ledger[0][0]));
     const sum = [0, 0, 0, 0];
     for (const r of this.ledger) for (let i = 0; i < 4; i++) sum[i] += r[i + 1];
     // v260: 두목을 실제로 잡은 빠르기 — 방치 증표는 이것으로(전엔 두목 구역이면 못 잡아도 90초에 하나)
     const bl = this.bossLog || [];
-    while (bl.length && bl[0] < this.clock - W.RATE_WINDOW_SEC) bl.shift();
+    while (bl.length && bl[0] < (this.wall || 0) - W.RATE_WINDOW_SEC) bl.shift();
     // 창이 짧으면(두목 한 판보다 짧게 봤으면) 최근 처치 하나로 다시 나기 주기를 짐작한다
-    const bspan = Math.max(span, this.bossRespawn() + W.BOSS_MIN_SEC.zone * W.BOSS_REPEAT_K * this.bossTimeK());
+    const bspan = Math.max(span, (this.bossRespawn() + W.BOSS_MIN_SEC.zone * W.BOSS_REPEAT_K * this.bossTimeK()) / W.PACE);   // v438 실제 초
     return { kills: sum[0] / span, exp: sum[1] / span, gold: sum[2] / span, potions: sum[3] / span, bosses: bl.length / bspan,
       lv: this.s.level, map: this.s.huntMap };
   }
@@ -5086,7 +5098,7 @@ for (const [fn, key, always] of [
   WorldGame.prototype.killMob = function (m) {
     const r = kill.call(this, m);
     if (m.isBoss && !this.inst) {
-      this.mark(this.map.king ? 'king' : 'boss'); (this.bossLog || (this.bossLog = [])).push(this.clock);
+      this.mark(this.map.king ? 'king' : 'boss'); (this.bossLog || (this.bossLog = [])).push(this.wall || 0);
       const bk = this.s.bossKills || (this.s.bossKills = {}); bk[this.map.id] = (bk[this.map.id] || 0) + 1;   // v262
       this.noteWeekBoss(m);   // v316 주간 두목 순위
     }

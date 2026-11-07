@@ -278,7 +278,8 @@ async function tab(page, name) {
   console.log('# 쓰러짐·귀환');
   await G(p, () => { const g = window.__game; g.s.autoSkill = true; g.heroDied({ isBoss: false }); });
   assert(await G(p, () => window.__game.map.town), '쓰러지면 마을로');
-  await sleep(4500);
+  // v438 게임 안 시간이 느리게 흘러 쉬는 3초가 실제 4초 — 넉넉히 기다린다
+  await p.waitForFunction(() => window.__game.s.map === 11, null, { timeout: 9000 }).catch(() => {});
   assert(await G(p, () => window.__game.s.map) === 11, '쉬었다가 사냥터로 돌아간다');
 
   console.log('# 방치 보상·저장');

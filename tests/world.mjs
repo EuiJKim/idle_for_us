@@ -837,7 +837,7 @@ console.log('\n=== 환마 4차 · 환영분신술 (v121) ===');
   let hits = 0;
   for (let i = 0; i < 60; i++) { g.tick(0.1); hits += g.events.filter((e) => e.type === 'cloneHit').length; g.events.length = 0; }
   ok(hits >= 6, '분신이 곁에서 함께 친다', `${hits}번`);
-  for (let i = 0; i < 60; i++) g.tick(0.1);
+  for (let i = 0; i < Math.ceil(60 / W.PACE); i++) g.tick(0.1);   // v438 게임 안 10초 = 실제 10/PACE초
   ok(g.clones.length === 0, '10초가 지나면 사라진다');
 }
 
@@ -2929,7 +2929,7 @@ console.log('\n=== v314 분당 경험치 · 낮은 사냥터 알림 · 두목까
   const w = b.bossWait();
   ok(w && w.total === W.BOSS_RESPAWN && w.left > W.BOSS_RESPAWN - 0.5 && w.left <= W.BOSS_RESPAWN, '쓰러지면 10초부터 줄어든다', JSON.stringify(w));
   for (let i = 0; i < 20 * 4; i++) { b.tick(0.05); b.events.length = 0; }
-  ok(b.bossWait().left < w.left - 3.5, '시간이 가면 준다', JSON.stringify(b.bossWait()));
+  ok(b.bossWait().left < w.left - 3.5 * W.PACE, '시간이 가면 준다', JSON.stringify(b.bossWait()));
   const hw = Object.values(W.ZONES_W).find((z) => z?.master === 'hwamugi');
   const hwRoom = W.MAPS.find((m) => m.zone === hw.id && m.bossRoom);
   b.s.duel.won = { ...b.s.duel.won };
@@ -4153,6 +4153,26 @@ console.log('\n=== v437 화면 몽키 · 주석에 삼켜진 코드 ===');
   ok(!bad.length, '줄 끝 주석 안에 코드(…; break;)가 숨어 있지 않다', bad.join(' '));
   ok(W.HARD_MOUNTS.every((m) => Number.isFinite(m.speed) && m.speed > 0 && W.spdPct(m.speed) !== 'NaN'), '극의 신수 카드에 이동이 있다(전엔 「이동 +NaN%」)', W.HARD_MOUNTS.map((m) => W.spdPct(m.speed)).join(' '));
   ok(fs.existsSync(new URL('../tests/monkey.cjs', import.meta.url)) && /monkey\.cjs/.test(read('tests/all.sh')), '화면 몽키 봇이 한꺼번에 점검에 들어 있다');
+}
+
+console.log('\n=== v438 바람의나라 빠르기 ===');
+{
+  ok(W.PACE > 0 && W.PACE < 1 && Math.abs(W.PACE_REWARD * W.PACE - 1) < 1e-9, '게임 안 시간이 느리게 흐르고 한 마리 벌이는 그만큼 더', `PACE ${W.PACE}`);
+  const g = fresh('sword'); g.enterMap(11);
+  const c0 = g.clock, w0 = g.wall || 0; g.tick(1);
+  ok(Math.abs(g.clock - c0 - W.PACE) < 1e-9 && Math.abs((g.wall - w0) - 1) < 1e-9, '실제 1초 = 게임 안 PACE초 · 실제 시간(wall)은 따로');
+  // 평타: 빨라질수록 덜 자주 · 더 세게 — 초당 피해(atkSec)는 그대로
+  const st = g.stats();
+  ok(st.swingSec >= st.atkSec - 1e-9 && Math.abs(W.swingSec(W.BASE_ATK_SEC) - W.BASE_ATK_SEC) < 1e-9, '기본 빠르기면 그대로 · 빨라지면 실제 휘두르기는 덜 빠르게');
+  ok(Math.abs(W.swingSec(W.BASE_ATK_SEC / 4) - W.BASE_ATK_SEC / Math.pow(4, W.SWING_K)) < 1e-9 && W.swingSec(W.BASE_ATK_SEC / 4) / W.PACE > 0.6, '공격 속도 ×4여도 실제 평타 간격 0.6초 넘게', `${(W.swingSec(W.BASE_ATK_SEC / 4) / W.PACE).toFixed(2)}초`);
+  ok(g.realSec(10) > 10 && Math.abs(g.realSec(W.PACE) - 1) < 1e-9, '보이는 초는 실제 초로');
+  // 칠대성은 제 빠르기
+  g.inst = { kind: 'wraid' }; ok(g.pace() === 1, '칠대성(탄막)은 제 빠르기'); g.inst = null;
+  // 벌이 장부는 실제 시간 — 방치 보상이 PACE만큼 부풀지 않는다
+  const h = fresh('sword'); h.enterMap(W.mapId(2, 1));
+  for (let i = 0; i < 600; i++) h.tick(0.5);
+  const r = h.rates();
+  ok(r && r.kills > 0 && Math.abs(((h.wall || 0) - (h.clock / W.PACE))) < 1, '벌이는 실제 초로 센다', r && `처치 ${(r.kills * 60).toFixed(1)}/분`);
 }
 
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);

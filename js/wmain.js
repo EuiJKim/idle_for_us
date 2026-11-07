@@ -1187,7 +1187,7 @@ function bossWaitHud() {
   const w = game.bossWait();
   el.classList.toggle('hidden', !w);
   if (!w) return;
-  const sec = Math.ceil(w.left);
+  const sec = Math.ceil(game.realSec(w.left));   // v438 실제 초
   setText($('bw-sec'), String(sec));
   setText($('bw-txt'), `두목까지 ${sec}초`);
   const p = (w.total > 0 ? w.left / w.total : 0).toFixed(3);
@@ -1235,9 +1235,9 @@ function refreshUI(full = false) {
   instHud();
   // 사냥터 줄은 짧게 — '천산 설원 · 두목'은 체력 막대에 닿았다
   setText($('stage-label'), m.town || m.inst ? m.name : `${m.king ? m.king.title : m.zoneName} ${m.bossRoom ? '두목' : m.area}`);
-  const bossLeft = Math.max(0, Math.ceil(game.bossT));
+  const bossLeft = Math.max(0, Math.ceil(game.realSec(game.bossT)));   // v438 실제 초
   const boss = game.mons.find((x) => x.isBoss && x.alive);
-  setText($('zone-label'), m.inst ? (game.inst.kind === 'tower' ? `수문장 Lv.${m.lv[0]} · ${duration(game.inst.hard ? D.hardSec(game.inst.stage) : D.towerSec(game.inst.stage))} 안에` : game.inst.kind === 'raid' ? `문파원과 함께 — ${D.RAID_SEC}초 동안 친 만큼` : game.inst.kind === 'wraid' ? `무림 전체와 함께 — ${D.WRAID_SEC}초 동안 친 만큼` : `몹 Lv.${m.lv[0]} · ${D.DAILY_KILLS}마리 잡으면 깬다`) : m.town ? (s.autoHunt ? `쉬는 중 → ${W.mapOf(s.huntMap).name}` : '쉬는 중')
+  setText($('zone-label'), m.inst ? (game.inst.kind === 'tower' ? `수문장 Lv.${m.lv[0]} · ${duration(game.realSec(game.inst.hard ? D.hardSec(game.inst.stage) : D.towerSec(game.inst.stage)))} 안에` : game.inst.kind === 'raid' ? `문파원과 함께 — ${Math.round(D.RAID_SEC / W.PACE)}초 동안 친 만큼` : game.inst.kind === 'wraid' ? `무림 전체와 함께 — ${D.WRAID_SEC}초 동안 친 만큼` : `몹 Lv.${m.lv[0]} · ${D.DAILY_KILLS}마리 잡으면 깬다`) : m.town ? (s.autoHunt ? `쉬는 중 → ${W.mapOf(s.huntMap).name}` : '쉬는 중')
     : m.bossRoom ? (boss ? `두목 ${boss.name} Lv.${boss.lv}` : `두목 다시 나기까지 ${Math.floor(bossLeft / 60)}:${String(bossLeft % 60).padStart(2, '0')}`) + (coop.on ? ` · 🤝${coop.count + 1}명` : '')
       : document.body.classList.contains('hud-slim') ? `Lv.${m.lv[0]}~${m.lv[1]}` : `몹 Lv.${m.lv[0]}~${m.lv[1]} · 두목은 두목 구역에`);   // v434 폰 칩은 짧게(「두목…」에서 잘렸다)
   // v341 '사냥하러 가기' — 아래 창 줄의 사냥 단추를 빼고, 마을에 있을 때만 들판 가운데에 띄운다(창이 열려 있으면 숨김)
@@ -1273,8 +1273,8 @@ function refreshUI(full = false) {
     e.btn.classList.toggle('locked', !open);
     e.lock.textContent = open ? (e.sk.hpCost ? `체력 ${Math.round(e.sk.hpCost * 100)}%` : '') :   // v212: 이름은 위에 이미 — 두 번 적지 않는다
       `${e.sk.tier}차 · Lv${W.TIERS[e.sk.tier].level}`;
-    const left = game.cd[e.sk.id] || 0;
-    e.cd.style.height = open ? `${Math.min(1, left / e.sk.cd) * 100}%` : '0';
+    const left = game.realSec(game.cd[e.sk.id] || 0);   // v438 실제 초로 보인다(게임 안 시간은 느리게 흐른다)
+    e.cd.style.height = open ? `${Math.min(1, left / game.realSec(e.sk.cd)) * 100}%` : '0';
     e.num.textContent = open && left > 0.95 ? String(Math.ceil(left)) : '';
     const ready = open && left <= 0;
     e.btn.classList.toggle('ready', ready);
@@ -1341,7 +1341,7 @@ function instHud() {
   { const idle = I?.kind === 'wraid' && !finePointer && !SHC.follow && !press; joyEl.classList.toggle('idle', idle); if (idle) { joyEl.classList.remove('hidden'); joyEl.style.left = '22%'; joyEl.style.top = '78%'; joyEl.firstChild.style.transform = ''; } else if (!press) joyEl.classList.add('hidden'); }
   hud.classList.toggle('hard', !!I?.hard);   // v350 극
   if (!I) return;
-  const left = Math.max(0, Math.ceil(I.t));
+  const left = Math.max(0, Math.ceil(game.realSec(I.t)));   // v438 실제 초
   $('contest-title').textContent = I.map.name;
   if (I.kind === 'tower') {
     const b = game.mons.find((x) => x.isBoss && x.alive);

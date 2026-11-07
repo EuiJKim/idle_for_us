@@ -603,7 +603,7 @@ function charTab(app) {
       h('div', {}, '최대 체력', h('b', {}, fmt(st.hp))),
       h('div', {}, '방어', h('b', {}, st.def.toFixed(1))),
       h('div', {}, '치명', h('b', {}, `${pct(st.crit)} · ×${st.critDmg}`)),
-      h('div', {}, '공격 속도', h('b', {}, `초당 ${(1 / st.atkSec).toFixed(2)}번`)),
+      h('div', {}, '공격 속도', h('b', {}, `초당 ${(W.PACE / st.swingSec).toFixed(2)}번${st.swingSec > st.atkSec * 1.01 ? ` · 한 대 ×${(st.swingSec / st.atkSec).toFixed(2)}` : ''}`)),   // v438 실제로 휘두르는 빠르기 · 빨라진 몫은 한 대 피해로
       h('div', {}, '스킬 피해', h('b', {}, `×${st.skillMult.toFixed(2)}`)),
       h('div', {}, '체력 회복', h('b', {}, `초당 ${st.regen.toFixed(1)}`)),
       h('div', {}, '전투력', h('b', { style: 'color:var(--gold)' }, fmt(st.power))));
@@ -2394,7 +2394,7 @@ function dgnTab(app) {
         game.canDaily(d.id, stg, now) && !game.dailyFull(d.id, stg, now) ? h('p', { class: 'inf-why' }, `오늘 보상 몫을 다 썼어요 — 도전은 할 수 있지만 보상 ${Math.round(D.DAILY_EXTRA * 100)}% (${best + 1}단계를 깨면 온전히)`) : null,
         h('div', { class: 'btn-row' },
           h('button', { class: 'btn primary', disabled: game.canDaily(d.id, stg, now) ? null : true, onclick: () => start(() => game.startDaily(d.id, stg, now)) },
-            `도전 (${D.DAILY_SEC}초 · ${D.DAILY_KILLS}마리)${stg > best ? ' 🔑' : !game.dailyFull(d.id, stg, now) ? ` · 보상 ${Math.round(D.DAILY_EXTRA * 100)}%` : ''}`),
+            `도전 (${Math.round(D.DAILY_SEC / W.PACE)}초 · ${D.DAILY_KILLS}마리)${stg > best ? ' 🔑' : !game.dailyFull(d.id, stg, now) ? ` · 보상 ${Math.round(D.DAILY_EXTRA * 100)}%` : ''}`),
           h('button', { class: 'btn', disabled: game.canSweep(d.id, now) ? null : true, onclick: () => {
             const r = game.sweepDaily(d.id, now);
             if (!r) return;
@@ -2656,7 +2656,7 @@ function dgnTab(app) {
       const boss = D.raidBossOf(key);
       const top = h('div', { class: 'dgn-top' }, skinImg(h('div', { class: 'dgn-ico' }, '討'), 'dg-raid'),
         h('div', { class: 'dgn-name' }, h('b', {}, '문파 토벌'), h('small', {}, ` 이번 주 · ${boss.title}`),
-          h('div', { class: 'muted' }, `문파원이 한 주 동안 함께 쳐서 잡는 두목 — 하루 ${D.RAID_PER_DAY}번, 한 번에 ${D.RAID_SEC}초`)));
+          h('div', { class: 'muted' }, `문파원이 한 주 동안 함께 쳐서 잡는 두목 — 하루 ${D.RAID_PER_DAY}번, 한 번에 ${Math.round(D.RAID_SEC / W.PACE)}초`)));
       const rows = [top];
       if (!net?.ready?.() || !s.guildId || !net.guild) {
         rows.push(!net?.ready?.() ? offlineNote(net, '문파 토벌을 칠 수 있어요') : h('p', { class: 'muted dgn-desc' }, '무림 → 문파에 들어가면 문파원과 함께 칠 수 있어요.'));   // v434
@@ -3114,7 +3114,7 @@ export function openSkillPreview(game, jobs, start, onClose) {
   }, { onClose });
 }
 export function skillText(game, sk) {
-  const cd = game.skillCd ? game.skillCd(sk) : sk.cd;
+  const cd = (game.skillCd ? game.skillCd(sk) : sk.cd) / W.PACE;   // v438 실제 초(무공 미리보기처럼 game이 엔진이 아닐 때도)
   const cost = sk.hpCost * (1 - (game.skillMods ? game.skillMods(sk.id).cost : 0));
   const num = sk.kind === 'field' ? `처음 ×${sk.mult} · ${sk.field.tick}초마다 ×${sk.field.mult}`
     : sk.kind === 'daggers' ? `한 자루 ×${sk.mult}` : sk.mult != null ? `공격력 ×${sk.mult}${sk.hits > 1 ? ` · ${sk.hits}번` : ''}` : '';
