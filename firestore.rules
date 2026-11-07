@@ -22,7 +22,7 @@ service cloud.firestore {
     // v309 규칙 판 표 — 앱이 rulesv/{판}을 읽어 본다. 지금 판만 읽히고 옛 판은 거부된다(없는 문서라 읽혀도 비어 있다).
     //   규칙을 고치면 여기 숫자와 js/net.js의 RULES_VER를 같이 올린다 → 게시를 잊으면 운영자에게 '다시 게시' 알림.
     match /rulesv/{v} {
-      allow get: if signedIn() && v == '378';
+      allow get: if signedIn() && v == '436';
     }
 
     // 플레이어 프로필: 누구나 읽기(랭킹·구경), 본인만 쓰기
@@ -234,6 +234,24 @@ service cloud.firestore {
           && request.resource.data.claimed.diff(resource.data.claimed).affectedKeys().hasOnly([request.auth.uid])
           && request.resource.data.claimed[request.auth.uid] == true;
       }
+    }
+    // v436 버그 신고 — 누구나 자기 이름으로 하나씩(손으로 · 오류 저절로) · 운영자만 읽고 지운다. 문서 하나 1MB 안
+    match /bugs/{bid} {
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['by', 'kind', 'text', 'build', 'ua', 'lv', 'map', 'save', 'notes', 'errs', 'shot', 'at'])
+        && request.resource.data.by == request.auth.uid
+        && request.resource.data.kind in ['user', 'auto']
+        && request.resource.data.text is string && request.resource.data.text.size() <= 2000
+        && request.resource.data.build is string && request.resource.data.build.size() <= 24
+        && request.resource.data.ua is string && request.resource.data.ua.size() <= 240
+        && request.resource.data.lv is int && request.resource.data.map is int
+        && request.resource.data.save is string && request.resource.data.save.size() <= 600000
+        && request.resource.data.notes is string && request.resource.data.notes.size() <= 20000
+        && request.resource.data.errs is string && request.resource.data.errs.size() <= 12000
+        && request.resource.data.shot is string && request.resource.data.shot.size() <= 250000
+        && request.resource.data.at == request.time;
+      allow read, delete: if isAdmin();
+      allow update: if false;
     }
     // v321 신고 — 누구나 남의 말 하나를 신고 · 운영자만 읽고 지운다
     match /reports/{rid} {

@@ -4117,5 +4117,27 @@ console.log('\n=== v435 4판 — 시스템 설계 ===');
   ok(/무공 변초/.test(read('js/wui.js')) && !/'무공 각성'/.test(read('js/wui.js')), '무공 쪽은 「변초」(각성 고수와 다른 말)');
 }
 
+console.log('\n=== v436 몽키 봇이 찾은 것 ===');
+{
+  // 탑 한 층을 깨 「이어 오르기」가 걸린 채 지도를 누르면 다음 층이 열린 채 사냥터로 넘어가 몹을 못 깔고 멈췄다
+  const g = fresh('fan');
+  g.s.level = 150; g.s.gold = 1e9; while (g.canAdvance()) g.advance();
+  g.s.tower.auto = true;
+  ok(g.canTower() && g.startTower() && g.inst?.kind === 'tower', '탑에 들어간다');
+  g.inst.done = { ok: true };
+  let err = null;
+  try { g.enterMap(W.mapId(2, 1)); } catch (e) { err = e; }
+  ok(!err && !g.inst && g.s.map === W.mapId(2, 1) && g.mons.length > 0, '깬 탑에서 지도로 가면 다음 층을 열지 않고 사냥터로', err ? String(err) : `inst ${g.inst?.kind || '-'} · 몹 ${g.mons.length}`);
+  // 체력에 찍은 점을 빼면 체력이 새 최대를 넘지 않는다
+  const h = fresh('sword');
+  h.s.stats.vit = 300; h._stats = null; h.heroHp = h.stats().hp;
+  h.s.gold = 1e9;
+  ok(h.resetStats() && h.heroHp <= h.stats().hp + 1e-6, '능력치를 되돌리면 체력이 새 최대에 맞춰진다', `${Math.round(h.heroHp)}/${Math.round(h.stats().hp)}`);
+  // 시험 장치가 있다
+  for (const f of ['tests/soak.mjs', 'tests/replay.cjs', 'tests/online2.cjs', 'tests/inv.mjs', 'tests/all.sh']) ok(fs.existsSync(new URL('../' + f, import.meta.url)), `점검 장치 ${f}`);
+  { const m = read('js/wmain.js'); const a = m.indexOf("case 'frag':"), b = m.indexOf("case 'temper':", a); ok(a > 0 && b > a && /\n\s*break;/.test(m.slice(a, b)), '비급 조각 알림 뒤에 break(전엔 주석 안에 있어 「단련 undefined단계」로 흘렀다 — v321부터)'); }
+  ok(/match \/bugs\/\{bid\}/.test(read('firestore.rules')) && /bugReport/.test(read('js/net.js')) && /openBugReport/.test(read('js/wmain.js')), '🐞 신고: 규칙 · 보내기 · 창');
+}
+
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);

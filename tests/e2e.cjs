@@ -66,6 +66,8 @@ async function tab(page, name) {
   if (PKG) {
     await fetch('http://127.0.0.1:8080/emulator/v1/projects/idle-69772/databases/(default)/documents', { method: 'DELETE' });
     await fetch('http://127.0.0.1:9099/emulator/v1/projects/idle-69772/accounts', { method: 'DELETE' });
+    // v436 대기실(RTDB)도 비운다 — 지난 판의 함께 사냥·모임 표가 남아 두 번째로 돌리면 문파원 모임이 엇갈렸다
+    await fetch('http://127.0.0.1:9000/.json?ns=idle-69772-default-rtdb', { method: 'DELETE', headers: { Authorization: 'Bearer owner' } }).catch(() => {});
   }
   const browser = await chromium.launch(process.env.CHROMIUM ? { executablePath: process.env.CHROMIUM } : {});
   const a = await newPlayer(browser, '철수');
@@ -592,7 +594,10 @@ async function tab(page, name) {
       method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer owner' },
       body: JSON.stringify({ fields: { pet: { stringValue: 'tiger:3' }, mount: { stringValue: 'azure' }, at: { integerValue: String(Date.now()) } } }) });
     assert(r2.ok, '애완동물·탈것 우편을 넣었다');
-    assert(await G(p, () => window.__test_checkGifts?.()) === 1, '우편함에 한 통 더');
+    // v436 방금 넣은 우편이 첫 읽기에 가끔 안 보였다(지켜보기 리스너와 겹침) — 3초까지 다시 본다
+    let nMail = 0;
+    for (let i = 0; i < 10 && nMail !== 1; i++) { nMail = await G(p, () => window.__test_checkGifts?.()); if (nMail !== 1) await sleep(300); }
+    assert(nMail === 1, '우편함에 한 통 더');
     await G(p, () => window.__test_claimAll?.());
     const got = await G(p, () => ({ pet: [...window.__game.s.pets, ...window.__game.s.petBox].some((x) => x.kind === 'tiger' && x.rar === 3),
       mount: window.__game.s.mounts.some((x) => x.kind === 'azure') }));
@@ -760,8 +765,12 @@ async function tab(page, name) {
       await G(p, (id) => { window.__game.s.kingParty = true; window.__game.enterMap(id); }, nid);
       await G(q, () => { window.__game.goTown(false); });
       await q.waitForFunction((id) => window.__where.list().some((o) => o.m === id), nid, { timeout: 15000 });
-      await G(q, (id) => { const w = window.__where; w.all.__fake = { m: id, n: '가짜문파원', t: Date.now() + w.offset }; }, nid);
-      await q.waitForSelector('#gather:not(.hidden)', { timeout: 5000 });
+      // v436 가짜 문파원은 대기실 표가 새로 오면(onValue가 all을 통째로 바꾼다) 지워진다 — 보일 때까지 다시 넣는다(전엔 가끔 엇갈려 떨어졌다)
+      for (let i = 0; i < 20; i++) {
+        await G(q, (id) => { const w = window.__where; w.all.__fake = { m: id, n: '가짜문파원', t: Date.now() + w.offset }; }, nid);
+        if (await q.waitForSelector('#gather:not(.hidden)', { timeout: 1500 }).then(() => true, () => false)) break;
+      }
+      await q.waitForSelector('#gather:not(.hidden)', { timeout: 1000 });
       const gt = await q.textContent('#gather .g-go');
       assert(/외 1명이 .+ 잡는 중 — 가기/.test(gt), `문파원 둘이 두목 구역에 모이면 알림 (${gt})`);
       await shot(q, '12-gather.png');

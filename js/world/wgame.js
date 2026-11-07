@@ -848,7 +848,8 @@ export class WorldGame {
     this.dmgLog = []; this.dmgAcc = 0;   // v255: 던전·다른 사냥터의 피해 기록이 두목 체력 셈에 섞이지 않게
     // v432 던전에서 다른 데로 가면 그 판은 「나가기」로 끝낸다 — 전엔 조용히 버려 들어갈 때 체력이 안 돌아오고(탑 들락날락 = 공짜 회복),
     //   요일 던전 몫만 쓰이고, 칠대성 판의 아직 안 올린 피해가 사라졌다(instEnd가 없어서)
-    if (this.inst) this.leaveInst();
+    //   v436 이긴 판이 「이어 오르기」로 다음 판을 열면 안 된다 — 탑을 깬 결과 창이 뜬 틈에 지도를 누르면 다음 층이 열린 채 사냥터로 넘어가 몹을 못 깔고 멈췄다(몽키 봇)
+    if (this.inst) { this.inst.noChain = true; this.leaveInst(); }
     this.sceneKey = null;
     this._mapAt = this.clock;            // v314 분당 경험치는 이 사냥터에 온 뒤의 벌이만
     this.tells = [];
@@ -2164,6 +2165,7 @@ export class WorldGame {
     this.s.gold -= cost;
     for (const k of Object.keys(this.s.stats)) this.s.stats[k] = 0;
     this.s.statPts += spent;
+    this.heroHp = Math.min(this.heroHp, this.stats().hp);   // v436 체력에 찍은 점을 빼면 막대가 넘쳐 보였다(몽키 봇)
     return true;
   }
   statResetCost() { return 50 * this.s.level; }
@@ -4905,26 +4907,26 @@ export class WorldGame {
       kills: I.kills || 0, target: I.target || 0, reward, chain: false, unsent: I.unsent || 0, byOther: !!I.done?.byOther, paid: I.paid !== false, hard: !!I.hard, newMount: I.newMount || null, record: !!I.record };
     this.inst = null;
     // 탑: 이기고 '이어 오르기'면 다음 층으로
-    if (I.kind === 'tower' && ok && I.hard && this.s.tower.auto && !I.done.left && !I.newMount && this.canHard()) {
+    if (I.kind === 'tower' && ok && I.hard && this.s.tower.auto && !I.done.left && !I.noChain && !I.newMount && this.canHard()) {
       res.chain = true;
       this.emit('instEnd', res);
       this.startHard(true);
       return res;
     }
-    if (I.kind === 'tower' && ok && I.corridor && this.s.tower.auto && !I.done.left && this.canCorridor()) {
+    if (I.kind === 'tower' && ok && I.corridor && this.s.tower.auto && !I.done.left && !I.noChain && this.canCorridor()) {
       res.chain = true;
       this.emit('instEnd', res);
       this.startCorridor(true);
       return res;
     }
-    if (I.kind === 'tower' && ok && !I.corridor && !I.hard && (this.s.tower.auto || this.s.dgn.routine) && !I.done.left && this.canTower()) {
+    if (I.kind === 'tower' && ok && !I.corridor && !I.hard && (this.s.tower.auto || this.s.dgn.routine) && !I.done.left && !I.noChain && this.canTower()) {
       res.chain = true;
       this.emit('instEnd', res);
       this.startTower(true);
       return res;
     }
     // v166: 새 단계를 깼으면 자동 도전을 안 켰어도 바로 윗단계로 — 못 깰 때까지 오른다 (v302: 끝없이)
-    if (I.kind === 'daily' && fresh0 && !I.done?.left && this.canDaily(I.id, I.stage + 1, I.now)) {
+    if (I.kind === 'daily' && fresh0 && !I.done?.left && !I.noChain && this.canDaily(I.id, I.stage + 1, I.now)) {
       res.chain = true; res.next = I.stage + 1;
       this.emit('instEnd', res);
       this.startDaily(I.id, I.stage + 1, I.now);
@@ -4932,14 +4934,14 @@ export class WorldGame {
     }
     // 요일 던전: 자동이면 남은 횟수만큼 이어서. **그만두기로 나온 건 안 잇는다** —
     // 그만두려고 눌렀는데 바로 다시 들어가면 나올 길이 없다.
-    if (I.kind === 'daily' && !I.done?.left && this.autoDailyNext()) {
+    if (I.kind === 'daily' && !I.done?.left && !I.noChain && this.autoDailyNext()) {
       res.chain = true;
       this.emit('instEnd', res);
       this.startAutoDaily();
       return res;
     }
     // v230: 루틴 — 요일 던전을 다 돌았으면 탑으로 (끝나면 아래에서 사냥터로)
-    if (this.s.dgn.routine && I.kind === 'daily' && !I.done?.left && this.routineNext()?.step === 'tower') {
+    if (this.s.dgn.routine && I.kind === 'daily' && !I.done?.left && !I.noChain && this.routineNext()?.step === 'tower') {
       res.chain = true;
       this.emit('instEnd', res);
       this.startTower(true);

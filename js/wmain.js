@@ -72,6 +72,89 @@ function tallyTick() {
   if (key !== tallyBox.map) { tallyBox.map = key; if (tallyBox.items.size) tallyClear(); }
 }
 // v321 운영자 신고함
+// ---------- v436 버그 신고 · 오류 저절로 모으기 ----------
+// 화면에서 난 오류(잡히지 않은 예외 · 거부된 약속)를 최근 20개까지 모아 두고, 처음 보는 오류는 판마다 3개까지 저절로 보낸다(세이브 없이 가볍게).
+//   사람이 「🐞 버그 신고」를 누르면 세이브 전체 · 지난 알림 60개 · 모은 오류 · 화면 사진(작게)을 같이 보낸다 — 「그 사람의 그 세이브」를 그대로 재현하려고.
+const bugBox = { errs: [], sent: new Set(), autoN: 0, queue: [] };
+const BUG_NOISE = /ResizeObserver|Script error\.?$|Failed to fetch|NetworkError|Load failed|firebase|firestore|ERR_|AbortError|The play\(\) request|NotAllowedError/i;
+function bugNote(msg, stack = '') {
+  const m = String(msg || '').slice(0, 300);
+  if (!m || BUG_NOISE.test(m)) return;
+  bugBox.errs.push({ m, s: String(stack || '').slice(0, 1200), at: Date.now(), v: BUILD });
+  if (bugBox.errs.length > 20) bugBox.errs.shift();
+  if (bugBox.sent.has(m) || bugBox.autoN >= 3) return;
+  bugBox.sent.add(m); bugBox.autoN++;
+  bugBox.queue.push({ kind: 'auto', text: m, errs: JSON.stringify(bugBox.errs.slice(-5)) });
+  flushBugs();
+}
+window.addEventListener('error', (e) => bugNote(e.message || e.error?.message, e.error?.stack));
+window.addEventListener('unhandledrejection', (e) => bugNote(e.reason?.message || String(e.reason || ''), e.reason?.stack));
+window.__bugNote = bugNote;   // 시험용
+function bugBase() {
+  const s = game.s || {};
+  return { build: BUILD, ua: navigator.userAgent, lv: s.level || 0, map: s.map || 0 };
+}
+async function flushBugs() {
+  try { if (!bugBox.queue.length || !net.ready?.()) return; } catch { return; }   // 켜지는 중(net 전)에 난 오류는 연결된 뒤에
+  const q = bugBox.queue.splice(0);
+  for (const o of q) { try { await net.bugReport({ ...bugBase(), save: '', notes: '', shot: '', ...o }); } catch (err) { console.warn('[bug] auto', err?.message || err); } }
+}
+function bugShot() {
+  try {
+    const cv = $('cv'); if (!cv?.width) return '';
+    const k = Math.min(1, 360 / cv.width), c = document.createElement('canvas');
+    c.width = Math.round(cv.width * k); c.height = Math.round(cv.height * k);
+    c.getContext('2d').drawImage(cv, 0, 0, c.width, c.height);
+    for (const q of [0.6, 0.4, 0.25]) { const u = c.toDataURL('image/jpeg', q); if (u.length < 240000) return u; }
+  } catch { /* 그림이 막혀 있으면 사진 없이 */ }
+  return '';
+}
+function openBugReport() {
+  const ta = h('textarea', { class: 'field', id: 'bug-text', rows: 5, maxlength: 2000, placeholder: '무엇이 이상했나요? (언제 · 어디서 · 무엇을 했더니 · 어떻게 됐나)' });
+  const shotChk = h('input', { type: 'checkbox', checked: true });
+  const shot = bugShot();   // 창을 열기 전 화면
+  openModal((s) => {
+    s.append(h('h2', {}, '🐞 버그 신고'),
+      h('p', { class: 'muted', style: 'font-size:12.5px' }, '보내면 지금 세이브 · 지난 알림 · 최근 오류가 같이 가요(운영자만 봐요). 같은 상황을 그대로 다시 열어 고칠 수 있어요.'),
+      ta,
+      h('label', { class: 'chk', style: 'margin:6px 0' }, shotChk, ' 화면 사진도 같이(작게)'),
+      h('div', { class: 'btn-row' }, h('button', { class: 'btn', onclick: closeModal }, '닫기'),
+        h('button', { class: 'btn primary', id: 'bug-send', onclick: async (e) => {
+          const text = ta.value.trim();
+          if (text.length < 4) { toast('무엇이 이상했는지 조금만 적어 주세요'); return; }
+          e.target.disabled = true;
+          try {
+            save();
+            const notes = JSON.stringify(noteLog().slice(0, 60));
+            await net.bugReport({ ...bugBase(), kind: 'user', text, save: JSON.stringify(game.toJSON()), notes, errs: JSON.stringify(bugBox.errs), shot: shotChk.checked ? shot : '' });
+            closeModal(); toast('🐞 보냈어요 — 고마워요!');
+          } catch (err) { e.target.disabled = false; toast(`못 보냈어요: ${err.message || err}`); }
+        } }, '보내기')));
+  });
+  setTimeout(() => ta.focus(), 50);
+}
+// 운영자 — 받은 버그 신고
+async function openBugAdmin() {
+  const list = h('div', { class: 'report-list' }, h('p', { class: 'muted' }, '불러오는 중…'));
+  openModal((s) => s.append(h('h2', {}, '🐞 버그 신고함'), list, h('button', { class: 'btn primary', style: 'width:100%;margin-top:8px', onclick: closeModal }, '닫기')));
+  const when = (t) => { const d = t?.toDate?.() || new Date(); return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
+  const dl = (name, text) => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type: 'application/json' })); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 4000); };
+  const paint = async () => {
+    let rows = [];
+    try { rows = await net.bugs(); } catch (err) { list.replaceChildren(h('p', { class: 'muted' }, `불러오지 못했어요: ${err.message || err}`)); return; }
+    if (!rows.length) { list.replaceChildren(h('p', { class: 'muted' }, '받은 신고가 없어요.')); return; }
+    list.replaceChildren(...rows.map((r) => h('div', { class: `bug-row k-${r.kind}` },
+      h('small', {}, `${when(r.at)} · ${r.kind === 'auto' ? '오류(저절로)' : '신고'} · ${r.build} · Lv.${r.lv} · 지도 ${r.map}`),
+      h('p', {}, r.text),
+      r.shot ? h('img', { class: 'bug-shot', src: r.shot, alt: '' }) : null,
+      h('div', { class: 'btn-row' },
+        r.save ? h('button', { class: 'btn mini', onclick: () => dl(`bug-${r.id}-save.json`, r.save) }, '세이브 받기') : null,
+        r.errs && r.errs !== '[]' ? h('button', { class: 'btn mini', onclick: () => dl(`bug-${r.id}-errs.json`, r.errs) }, '오류 받기') : null,
+        r.notes ? h('button', { class: 'btn mini', onclick: () => dl(`bug-${r.id}-notes.json`, r.notes) }, '알림 받기') : null,
+        h('button', { class: 'btn mini danger', onclick: async () => { try { await net.dropBug(r.id); toast('지웠어요'); paint(); } catch (err) { toast(`못 지웠어요: ${err.message || err}`); } } }, '지우기')))));
+  };
+  paint();
+}
 async function openReports() {
   const list = h('div', { class: 'report-list' }, h('p', { class: 'muted' }, '불러오는 중…'));
   openModal((s) => s.append(h('h2', {}, '신고함'), list, h('button', { class: 'btn primary', style: 'width:100%;margin-top:8px', onclick: closeModal }, '닫기')));
@@ -104,7 +187,7 @@ import { RULES_VER } from './net.js';
 import { Coop } from './world/wcoop.js';
 import { WbCoop } from './world/wbcoop.js';
 import { Where } from './world/wwhere.js';
-import { h, toast, openModal, closeModal, modalOpen, noteLog, noteSeen } from './ui/common.js';
+import { h, toast, openModal, closeModal, modalOpen, noteLog, noteSeen, tidyNum } from './ui/common.js';
 import { WTABS, WTAB_TITLE, itemTitle, skillText, rangeText, rewardText, dailyWaiting, skipFx, setSkipFx, openSkillPreview, attGrid } from './wui.js';
 import * as D from './world/wdgn.js';
 import * as IM from './world/wimprint.js';
@@ -293,7 +376,7 @@ function gatherTick() {
     gatherKey = key;
     const mm = W.mapOf(best.m);
     const bn = W.zoneOfW(mm.zone)?.boss?.name || `${mm.zoneName || mm.name} 두목`;
-    el.querySelector('.g-go').textContent = `🤝 ${best.os[0].n}님 외 ${best.os.length - 1}명이 ${bn}을(를) 잡는 중 — 가기`;
+    el.querySelector('.g-go').textContent = tidyNum(`🤝 ${best.os[0].n}님 외 ${best.os.length - 1}명이 ${bn}을(를) 잡는 중 — 가기`);   // v436 조사
     el._m = best.m;
   }
   el.classList.remove('hidden');
@@ -966,7 +1049,7 @@ function buildSkillbar() {
 // ---------- 화면 갱신 ----------
 let lastSig = '';
 // 같은 글이면 건드리지 않는다 — 같은 글을 다시 넣어도 브라우저는 그 자리를 다시 칠한다 (v185)
-function setText(el, v) { if (el.textContent !== v) el.textContent = v; }
+function setText(el, v) { v = typeof v === 'string' ? tidyNum(v) : v; if (el.textContent !== v) el.textContent = v; }   // v436 조사도 고른다
 // v261: 레벨이 오르면 경험치 막대가 거꾸로 미끄러지지 않게 — 끝까지 채우고 번쩍인 뒤 0에서 새 값으로
 let expLv = null, expBusy = false;
 function expBar(level, r) {
@@ -1738,7 +1821,9 @@ function handleEvents() {
         break;
       // v263: 견문록 낙관
       case 'dexStamp': toast(`견문록 — ${ev.name} 낙관 · 공격력·체력 +${(W.DEX_STAMP_STAT * 100).toFixed(2)}%${ev.zoneDone ? ` · 지역 완성! 경험치 +0.5% · 공격력·체력 +${(W.DEX_ZONE_STAT * 100).toFixed(1)}%` : ''}`); break;
-      case 'frag': if (ev.pts) toast(`📜 무공 비급 완성 — 무공 점수 +${ev.pts}`); else if (ev.at) tally('frag', `📜 비급 조각 ${ev.have}/${W.fragNeed(game.s.fragPts)} ·`, 1, '#c4b5fd');   // v321 조각마다 알림 → 모음 if (ev.at) saverLoot(`📜 비급 조각 ${ev.have}/${W.fragNeed(game.s.fragPts)}`); break;
+      case 'frag': if (ev.pts) toast(`📜 무공 비급 완성 — 무공 점수 +${ev.pts}`); else if (ev.at) tally('frag', `📜 비급 조각 ${ev.have}/${W.fragNeed(game.s.fragPts)} ·`, 1, '#c4b5fd');   // v321 조각마다 알림 → 모음
+        if (ev.at) saverLoot(`📜 비급 조각 ${ev.have}/${W.fragNeed(game.s.fragPts)}`);
+        break;   // v436 이 break가 주석 안에 들어가 있어 비급 조각을 주울 때마다 아래 단련 알림(「단련 undefined단계 · +NaN%」)으로 흘러내렸다
       // v263: 깨달음 점수
       case 'temper': toast(`🔨 단련 ${ev.lv}단계${ev.n > 1 ? ` (+${ev.n})` : ''} — 공격력·체력 +${(ev.lv * W.TEMPER_STEP * 100).toFixed(1)}%`); break;
       case 'enlight': toast(`깨달음 +${ev.got} — 무공 창에서 올려요 (가진 것 ${ev.pts})`); break;
@@ -2571,6 +2656,8 @@ $('btn-settings').addEventListener('click', () => openModal((s) => {
     toggleRow('성능 보기', !!perfBox, '들판 왼쪽 위에 초당 그림 수·한 장 그리는 시간·해상도 — 버벅일 때 이 숫자를 알려 주세요', (v) => setPerfBox(v)),
     ]],
     ['app', '📱 앱·계정', [
+    h('div', { class: 'row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, '🐞 버그 신고'), h('div', { class: 'desc' }, '이상한 것을 보면 적어 보내요 — 지금 세이브·화면이 같이 가서 그대로 다시 열어 고쳐요')),
+      h('button', { class: 'btn primary', id: 'bug-open', style: 'padding:6px 12px', onclick: () => { closeModal(); openBugReport(); } }, '신고')),   // v436
     toggleRow('소리', soundOn(), '때리는 소리·레벨업·좋은 장비 — 이 기기에만 남아요', (v) => {
       setSound(v);
       try { localStorage.setItem('ifu.sound', v ? '1' : '0'); } catch { /* 이번만 */ }
@@ -2615,6 +2702,8 @@ $('btn-settings').addEventListener('click', () => openModal((s) => {
       return h('div', { class: 'row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, '운영자 · 서버 규칙'), st),
         h('button', { class: 'btn', style: 'padding:6px 12px', onclick: async () => { await net.checkRules(); paint(); toast(net.rulesOk ? '규칙이 맞아요' : net.rulesOk === false ? '옛 규칙이에요 — 다시 게시하세요' : '확인하지 못했어요'); } }, '확인'));
     })() : '',
+    net.isAdmin?.() ? h('div', { class: 'row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, '운영자 · 🐞 버그 신고함'), h('div', { class: 'desc' }, '무인들이 보낸 버그 신고와 저절로 모인 오류 — 세이브를 받아 tests/replay.cjs로 그대로 연다')),
+      h('button', { class: 'btn', style: 'padding:6px 12px', onclick: () => { closeModal(); openBugAdmin(); } }, '열기')) : '',   // v436
     // v321 신고함 — 신고된 말을 보고 입막음·말 지우기·넘기기
     net.isAdmin?.() ? h('div', { class: 'row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, '운영자 · 신고함'), h('div', { class: 'desc' }, '전체 채팅에서 신고된 말 — 입막음(1시간·1일·영구) · 말 지우기 · 넘기기')),
       h('button', { class: 'btn', style: 'padding:6px 12px', onclick: () => { closeModal(); openReports(); } }, '열기')) : '',
@@ -2658,6 +2747,7 @@ function netChanged(what) {
     rulesWarned = true;
     setTimeout(() => toast('⚠ 운영자: 게시된 Firestore 규칙이 옛 판이에요 — firestore.rules를 다시 게시하세요 (설정 → 운영자)'), 2500);
   }
+  if (what === 'status' && net.ready?.()) flushBugs();   // v436 끊겨 있던 동안 모인 오류
   if (what === 'status') {
     const b = $('net-badge');
     b.className = `net ${net.status}`;

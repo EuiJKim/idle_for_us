@@ -2,7 +2,7 @@
 // SDK를 동적으로 불러오므로 실패해도 혼자 하기는 그대로 동작한다.
 import { firebaseConfig, FIREBASE_SDK_VERSION, ADMIN_UID } from './firebase-config.js';
 // v309 이 앱이 바라는 규칙 판 — firestore.rules의 rulesv 숫자와 같아야 한다(규칙을 고치면 둘 다 올린다)
-export const RULES_VER = '378';
+export const RULES_VER = '436';   // v436 버그 신고(bugs) · 그 앞 v421~v432 규칙도 이 판에 든다
 export const WORLD_MAX = 100;   // v315 전체 채팅 한 마디 길이
 import { big } from './big.js';
 import { Big } from './big.js';
@@ -941,6 +941,24 @@ export class Net {
     return true;
   }
   async deleteWorld(id) { await this.fs.deleteDoc(this.ref('chat', id)); }
+  // ---------- v436 버그 신고 — bugs/{id} (운영자만 읽는다) ----------
+  async bugReport(o) {
+    if (!this.ready?.() && !this.online) throw new Error('인터넷에 연결되면 보낼 수 있어요');
+    const cut = (v, n) => String(v ?? '').slice(0, n);
+    const ref = await this.fs.addDoc(this.fs.collection(this.db, 'bugs'), {
+      by: this.uid, kind: o.kind === 'auto' ? 'auto' : 'user', text: cut(o.text, 2000), build: cut(o.build, 24), ua: cut(o.ua, 240),
+      lv: Math.floor(Number(o.lv) || 0), map: Math.floor(Number(o.map) || 0),
+      save: cut(o.save, 600000), notes: cut(o.notes, 20000), errs: cut(o.errs, 12000), shot: cut(o.shot, 250000), at: this.fs.serverTimestamp(),
+    });
+    return ref.id;
+  }
+  async bugs(n = 40) {
+    if (!this.isAdmin()) return [];
+    const { collection, query, orderBy, limit, getDocs } = this.fs;
+    const snap = await getDocs(query(collection(this.db, 'bugs'), orderBy('at', 'desc'), limit(n)));
+    return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  }
+  async dropBug(id) { if (this.isAdmin()) await this.fs.deleteDoc(this.ref('bugs', id)); }
   // ---------- v321 신고 · 입막음 ----------
   async report(m) {
     if (!this.online || !m?.uid || m.uid === this.uid) return false;
