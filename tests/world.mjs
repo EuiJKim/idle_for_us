@@ -4212,5 +4212,25 @@ console.log('\n=== v440 던전 수문장도 강타 ===');
   ok(!/this\.bossCast\(/.test(read('js/world/wgame.js')), '바닥 경고 초식을 쓰는 곳이 없다(칠대성 탄막은 따로)');
 }
 
+console.log('\n=== v441 체력이 곧 힘 ===');
+{
+  // 같은 무공을 체력 소모 있이/없이 — 소모한 만큼 더 세다 · 체력을 올리면 더 세진다
+  const dmgOf = (g, hpCost) => { const sk = g.skillDef('s1'); const save = sk.hpCost; sk.hpCost = hpCost; g.cd.s1 = 0; g.heroHp = g.stats().hp; const m = g.mons.find((x) => x.alive && !x.npc); m.hp = m.maxHp = 1e12; m.x = g.heroX + 40; m.y = g.heroY; g.mon = m; const h0 = m.hp; g.useSkill('s1'); sk.hpCost = save; return h0 - m.hp; };
+  const g = fresh('sword'); g.s.level = 40; g.s.gold = 1e9; while (g.canAdvance()) g.advance(); g._stats = null; g.enterMap(11); g.rng = () => 0.5;
+  const a = dmgOf(g, 0), b = dmgOf(g, 0.08);
+  ok(b > a * 1.2, '체력을 쓰는 무공은 소모한 만큼 더 세다', `${Math.round(a)} → ${Math.round(b)}`);
+  g.s.stats.vit += 200; g._stats = null;
+  const c = dmgOf(g, 0.08);
+  ok(c > b * 1.3, '체력을 올리면 같은 무공이 더 세진다', `${Math.round(b)} → ${Math.round(c)}`);
+  ok(/그 ×2 만큼 더 세게|HP_DMG_K/.test(read('js/wui.js')) && /체력을 쓰는 무공이 그만큼 세게/.test(read('js/world/wdata.js')), '무공 설명·체력 능력치 설명에 적혀 있다');
+  // 학(crane)은 체력 8%를 돌려준다
+  const h = fresh('sword'); h.enterMap(11); h.s.pets = [{ uid: 1, kind: 'crane', rar: 0, lv: 1, exp: 0 }]; h._stats = null;
+  const m = h.mons.find((x) => x.alive && !x.npc); m.x = h.heroX + 40; m.y = h.heroY; m.hp = m.maxHp = 1e12; h.mon = m;
+  h.heroHp = h.stats().hp * 0.5; let healed = 0;
+  for (let i = 0; i < 400 && !healed; i++) { h.tick(0.1); for (const e of h.events) if (e.type === 'petBuff' && e.kind === 'heal') healed = 1; h.events.length = 0; }
+  ok(healed && h.heroHp > h.stats().hp * 0.55, '학익진이 체력을 돌려준다', `${Math.round(h.heroHp / h.stats().hp * 100)}%`);
+  ok(W.skillsOf('fan').find((k) => k.id === 's2').lifesteal >= 0.12, '환마 천외혈마공 흡혈 12%');
+}
+
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);

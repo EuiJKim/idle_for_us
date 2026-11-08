@@ -3120,7 +3120,7 @@ export function skillText(game, sk) {
     : sk.kind === 'daggers' ? `한 자루 ×${sk.mult}` : sk.mult != null ? `공격력 ×${sk.mult}${sk.hits > 1 ? ` · ${sk.hits}번` : ''}` : '';
   // 보조기·각성처럼 배수가 없는 무공은 숫자를 빼고 숨만 (전에는 '공격력 ×undefined'가 찍혔다)
   const rg = rangeText(game, sk);
-  return `${sk.desc} — ${num ? `${num} · ` : ''}숨 ${cd.toFixed(cd < 10 ? 1 : 0).replace(/\.0$/, '')}초${sk.hpCost ? ` · 체력 ${pct(cost, 0)} 소모` : ''}${rg ? ` · ${rg}` : ''}`;
+  return `${sk.desc} — ${num ? `${num} · ` : ''}숨 ${cd.toFixed(cd < 10 ? 1 : 0).replace(/\.0$/, '')}초${sk.hpCost ? ` · 체력 ${pct(cost, 0)} 소모(그 ×${W.HP_DMG_K} 만큼 더 세게)` : ''}${rg ? ` · ${rg}` : ''}`;
 }
 // 무공 범위를 칸으로 (v157) — 땅 한 칸이 64. 스킬 단추를 길게 누르면 화면에 고리로도 보인다.
 export function rangeText(game, sk) {

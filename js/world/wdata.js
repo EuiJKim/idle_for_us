@@ -34,7 +34,7 @@ export const STAT_ROLE = { strBoss: 0.0015, strBossMax: 0.6, dexMove: 0.0008, de
 export const STATS = [
   { id: 'str', name: '힘', desc: '공격력 +3 · 공격력 +0.3% · 두목 피해 +0.15%' },
   { id: 'dex', name: '민첩', desc: '치명 +0.4%p · 공격 속도 +1% · 걸음 +0.08%' },
-  { id: 'vit', name: '체력', desc: '최대 체력 +20 · 최대 체력 +0.3% · 방어 +0.2 · 받는 피해 -0.03%' },
+  { id: 'vit', name: '체력', desc: '최대 체력 +20 · 최대 체력 +0.3% · 방어 +0.2 · 받는 피해 -0.03% · 체력을 쓰는 무공이 그만큼 세게' },   // v441
   { id: 'int', name: '내공', desc: '스킬 피해 +0.7% · 체력 회복 +0.12/초 · 무공 숨 -0.04%' },
 ];
 // 레벨이 오르면 겉모습도 한 단계씩 (옛 경지 그림 스물을 레벨에 나눠 쓴다)
@@ -153,9 +153,9 @@ export const JOB_SKILLS = {
       desc: '혼을 거두는 눈빛 · 2.5초 멎고 6초간 받는 피해 +30%' }),
     SK(1, 2, 'slash', '혈루미혼', 'aoe', { mult: 2.3, cd: 8, hpCost: 0.10, radius: 224, stun: 2,
       desc: '핏빛 눈물이 혼을 홀린다 · 둘레가 2초 멎는다' }),
-    SK(2, 3, 'thunder', '천외혈마공', 'aoe', { mult: 5.6, cd: 9, hpCost: 0.15, radius: 288, lifesteal: 0.05, vuln: { sec: 6, v: 0.2 },
-      desc: '하늘 밖의 혈마공 · 준 피해의 5%를 빨아들이고 6초간 받는 피해 +20%' }),
-    SK(3, 0, 'sup', '시공이환술', 'support', { cd: 30, hpCost: 0, from: 25, auto: 'hurt', hurtAt: 0.5, heal: 0.4, buff: { sec: 4, dmgRed: 0.6 },
+    SK(2, 3, 'thunder', '천외혈마공', 'aoe', { mult: 5.6, cd: 9, hpCost: 0.15, radius: 288, lifesteal: 0.12, vuln: { sec: 6, v: 0.2 },
+      desc: '하늘 밖의 혈마공 · 준 피해의 12%를 빨아들이고 6초간 받는 피해 +20%' }),   // v441 흡혈 5 → 12%(환마 = 피를 거두어 버티는 직업)
+    SK(3, 0, 'sup', '시공이환술', 'support', { cd: 24, hpCost: 0, from: 25, auto: 'hurt', hurtAt: 0.5, heal: 0.4, buff: { sec: 4, dmgRed: 0.6 },   // v441 숨 30 → 24
       desc: '때와 자리를 바꿔 다친 몸을 되돌린다 — 잃은 체력의 40% 회복 · 4초간 받는 피해 -60%' }),
     SK(4, 4, 'clone', '환영분신술', 'clone', { mult: 0.28, cd: 28, hpCost: 0.12, radius: 256, n: 2, sec: 10, burst: 0.6, autoAbove: 0.5,
       desc: '시공이환술의 끝 — 분신 둘이 나와 둘레를 한 번씩 치고(×0.6) 10초 동안 곁에서 함께 싸운다(칠 때마다 공격력 ×0.28)' }),
@@ -1040,6 +1040,9 @@ export const STRIKE_WIND = 1.2, STRIKE_K = 0.25, STRIKE_ULT_K = 0.4;
 export const STRIKE_INST_K = 0.85;
 // v439 무공이 중요하게 — 평타(와 평타에서 나가는 꽃잎·쪼개기 같은 덤) 피해 ×BASIC_K, 무공 피해 ×SKILL_K(초당 피해는 비슷하게)
 export const BASIC_K = 0.6, SKILL_K = 1.2;
+// v441 체력이 곧 힘 — 체력을 소모하는 무공은 소모한 체력 × HP_DMG_K 만큼 피해가 더해진다(바람의나라: 체력을 올려 체력을 쓰고 그만큼 세게).
+//   한 번 맞을 때 더해지는 몫 = 소모 체력 × K ÷ 공격력 ÷ (맞는 횟수). 최대 체력이 오를수록 소모도·피해도 같이 오른다.
+export const HP_DMG_K = 2;
 export const swingSec = (atkSec) => BASE_ATK_SEC * Math.pow(atkSec / BASE_ATK_SEC, SWING_K);
 export const KILL_RECOVER = 0.15;     // v303 과녁을 쓰러뜨리면 평타 쿨을 이만큼으로 — 다음 몹까지 걸어가 또 한 박자 쉬지 않게 (v305 0.3 → 0.15)
 export const MANUAL_HOLD = 0.3;       // v305 손으로 움직인 직후 과녁을 쫓아가지 않는 시간(닿는 적은 친다) — 전엔 0.6~1.2초를 서 있었다
@@ -1186,7 +1189,7 @@ export const PET_SKILL_R = 240;
 export const petSkillSec = (p) => PET_SKILL_SEC * (1 - (p.rar || 0) * 0.12);
 export const petSkillR = (p) => (p.kind === 'yellow' ? 620 : PET_SKILL_R + (p.rar || 0) * 30 + petOf(p.kind).tier * 6);
 export const PET_SKILL_SP = {
-  crane: '무인 체력 4% 회복', fox: '3초 동안 불태움(80%)', qilin: '기절(두목은 짧게)', turtle: '무인에게 보호막(체력 10% · 6초)', haetae: '크게 둔화(3초)',
+  crane: '무인 체력 8% 회복', fox: '3초 동안 불태움(80%)', qilin: '기절(두목은 짧게)', turtle: '무인에게 보호막(체력 10% · 6초)', haetae: '크게 둔화(3초)',
   phoenix: '거센 불태움(120% · 4초)', monkey: '분신 셋이 연타(1.5배)', dragon: '번개가 둘레 적 다섯에게 튄다(60%)', tiger: '반드시 치명타 · 1.3배', yellow: '화면 전체 · 무인 피해 +20%(6초)',
 };
 export const PET_SKILL_NAME = { crane: '학익진', fox: '여우불', qilin: '기린각', turtle: '현무파', haetae: '해태충', phoenix: '주작염', monkey: '분신봉', dragon: '청룡뇌', tiger: '백호참', yellow: '황룡진' };

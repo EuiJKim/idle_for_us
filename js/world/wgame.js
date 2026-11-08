@@ -1897,7 +1897,10 @@ export class WorldGame {
       at: center, radius: r, motion: sk.kind === 'single' ? 'single' : 'aoe', dur: 0 });
     if (cost) this.emit('hpCost', { amount: cost });
     // 스킬 레벨·장비 옵션: 피해 · 범위 · 치명 · (1차) 주변 적 · (신화) 한 번 더 · 숨 되돌리기
-    const mult = sk.mult * st.skillMult * (1 + md.dmg) * (o.boost || 1) * W.SKILL_K;   // v439 무공이 중요하게
+    // v441 체력이 곧 힘 — 소모한 체력 × HP_DMG_K 만큼 더(한 번 맞을 때, 여러 번·여러 자루면 나눠서). 공짜로 펼친(삼공합일) 것도 제 소모분으로 센다
+    const hpSpent = this.hpCostOf(sk);
+    const hpMult = hpSpent > 0 && st.atk > 0 ? (hpSpent * W.HP_DMG_K) / st.atk / (sk.hits || 1) / (sk.kind === 'daggers' ? sk.n : 1) : 0;
+    const mult = (sk.mult + hpMult) * st.skillMult * (1 + md.dmg) * (o.boost || 1) * W.SKILL_K;   // v439 무공이 중요하게
     const crit = md.crit + (sk.sure ? 1 : 0) + (sk.crit || 0);
     const kills0 = this.s.kills;
     let dealt = 0;
@@ -3406,7 +3409,7 @@ export class WorldGame {
           else if (p.kind === 'qilin') m.stun = Math.max(m.stun || 0, m.isBoss ? 0.4 : 1.2);
           else if (p.kind === 'haetae') m.slow = Math.max(m.slow || 0, 3);
         }
-        if (p.kind === 'crane' && this.heroHp > 0) { this.heroHp = Math.min(st.hp, this.heroHp + st.hp * 0.04); this.emit('petBuff', { kind: 'heal', at: { x: this.heroX, y: this.heroY } }); }
+        if (p.kind === 'crane' && this.heroHp > 0) { this.heroHp = Math.min(st.hp, this.heroHp + st.hp * 0.08); this.emit('petBuff', { kind: 'heal', at: { x: this.heroX, y: this.heroY } }); }   // v441 4 → 8%
         if (p.kind === 'turtle') { this.shield = Math.max(this.shield || 0, st.hp * 0.1); this.buffs.shield = Math.max(this.buffs.shield || 0, 6); this.emit('petBuff', { kind: 'shield', at: { x: this.heroX, y: this.heroY } }); }
         if (p.kind === 'yellow') { this.buffs.petMight = 6; this.buffv.petMight = 0.2; this.emit('petBuff', { kind: 'might', at: { x: this.heroX, y: this.heroY } }); }
         if (p.kind === 'dragon') {
