@@ -4175,5 +4175,32 @@ console.log('\n=== v438 바람의나라 빠르기 ===');
   ok(r && r.kills > 0 && Math.abs(((h.wall || 0) - (h.clock / W.PACE))) < 1, '벌이는 실제 초로 센다', r && `처치 ${(r.kills * 60).toFixed(1)}/분`);
 }
 
+console.log('\n=== v439 바람식 몹 · 강타 · 무공 중심 ===');
+{
+  // 사냥터 졸개는 곁에 가도 먼저 덤비지 않는다 · 정예는 다가온다
+  const g = fresh('sword'); g.enterMap(W.mapId(3, 1));
+  g.s.autoHunt = false; g.huntOn = () => false;
+  const z = g.mons.find((m) => !m.elite && !m.isBoss); const e = g.mons.find((m) => m !== z) ;
+  if (e) e.elite = true;
+  for (const m of [z, e]) { m.move = null; m.c = g.hc + 2; m.r = g.hr; m.x = W.tileCenter(m.c); m.y = W.tileCenter(m.r); }
+  for (let i = 0; i < 20; i++) { g.tick(0.1); g.events.length = 0; }
+  ok(!z.aggro, '사냥터 졸개는 먼저 덤비지 않는다');
+  ok(!e || e.aggro, '정예는 가까이 가면 덤빈다');
+  g.strike(z, g.stats(), 0.01, 'hit');
+  ok(z.aggro || !z.alive, '치면 그때 덤빈다');
+  // 두목 강타 — 피할 수 없는 한 방(무인을 따라가는 표시) · 자동 피하기가 쫓지 않는다
+  const b = fresh('sword'); b.s.level = 70; b._stats = null; b.heroHp = b.stats().hp;
+  b.enterMap(W.mapId(9, 4));
+  const boss = { x: b.heroX, y: b.heroY - 200, isBoss: true, alive: true, lv: 70, hp: 1, maxHp: 1 };
+  b.bossStrike(boss, { pct: 0.1, name: '강타' });
+  const tl = b.tells.find((t) => t.strike);
+  ok(tl && b.events.some((x) => x.type === 'bossCast' && x.strike), '두목이 이름을 외치고 강타를 모은다');
+  ok(b.dodgeStep(0) === null, '강타는 피하려 들지 않는다');
+  const hp0 = b.heroHp;
+  b.heroX += 300; for (let i = 0; i < 20; i++) b.tickTells(0.1, b.stats());
+  ok(b.heroHp < hp0, '자리를 옮겨도 강타는 맞는다', `${Math.round(hp0)} → ${Math.round(b.heroHp)}`);
+  ok(W.BASIC_K < 1 && W.SKILL_K > 1, '평타 몫은 줄이고 무공을 키운다', `평타 ×${W.BASIC_K} · 무공 ×${W.SKILL_K}`);
+}
+
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);

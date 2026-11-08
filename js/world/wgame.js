@@ -1205,7 +1205,9 @@ export class WorldGame {
       }
       const ht = this.heroTile();
       const dist = this.tileDist(m, ht);
-      if (dist < W.MOB_AGGRO || m.aggro) m.aggro = dist < W.MOB_AGGRO * 2;
+      // v439 바람식: 사냥터 졸개는 맞기 전엔 덤비지 않는다(정예·두목·던전 몹은 다가온다)
+      const fierce = !W.PASSIVE_MOBS || this.inst || m.isBoss || m.elite || this.map.bossRoom;
+      if ((fierce && dist < W.MOB_AGGRO) || m.aggro) m.aggro = dist < W.MOB_AGGRO * 2;
       if (m.aggro) {
         const reach = m.isBoss ? W.MOB_REACH * 1.5 : W.MOB_REACH;
         if (dist > reach) {
@@ -1454,7 +1456,7 @@ export class WorldGame {
     this.emit('attack', { close, to: { x: m.x, y: m.y } });   // v244: 과녁 자리 — 한 방에 죽어 mon이 지워져도 연출이 과녁을 안다
     // v378 칠십이변(대성신장 7) — 평타 여섯 번마다 손오공의 분신이 함께 친다(×300%)
     if (this.setBonus().wukong && m.alive && (this._wkN = (this._wkN || 0) + 1) % 6 === 0) { this.emit('wukongClone', { at: { x: m.x, y: m.y }, from: { x: this.heroX, y: this.heroY } }); this.strike(m, st, 3, 'clone'); if (!m.alive) return; }
-    let mult = this._swingK || 1;   // v438
+    let mult = (this._swingK || 1) * W.BASIC_K;   // v438 느린 평타는 한 대를 세게 · v439 평타 몫은 줄이고 무공을 키운다
     if (this.s.job === 'ring' && close) mult *= 1.2;
     const cls0 = W.CLASSES[this.s.job] || {};
     const pm = this.pmods();
@@ -1716,7 +1718,7 @@ export class WorldGame {
       sat = W.expSat(kt.length * 2);
     }
     const ck = m.isBoss && this.coopK ? this.coopK : 1;   // v343 함께 잡은 두목 — 인원만큼 더
-    const pk = W.PACE_REWARD;   // v438 느려진 만큼 한 마리 벌이를 더(실제 한 시간 벌이는 그대로)
+    const pk = W.PACE_REWARD * (W.PASSIVE_MOBS ? W.PASSIVE_REWARD : 1);   // v438 · v439 먼저 안 덤비는 졸개 몫 느려진 만큼 한 마리 벌이를 더(실제 한 시간 벌이는 그대로)
     const exp = W.mobExp(m.lv) * (m.isBoss ? W.BOSS.exp * (W.CLASSES[this.s.job]?.bossExp || 1) : m.elite ? W.ELITE.exp : 1) * this.levelGapMult(m.lv) * this.challengeMult(m.lv) * (st.expMult || 1) * (1 + (env.exp || 0) + mlv * L.MASTERY.exp) * ek * sat * ck * pk;   // v425 도전 경험치
     const blood = !this.inst && TD.bloodOn() ? 1 + TD.BLOOD_BONUS : 1;   // v262 혈겁
     const gold = Math.round(pk * W.mobGold(m.lv) * (m.isBoss ? W.BOSS.gold : m.elite ? W.ELITE.gold : 1) * (1 + (env.gold || 0) + (st.gold || 0)) * ek * blood * (st.goldMul || 1) * ck);   // v322 칭호
@@ -1895,7 +1897,7 @@ export class WorldGame {
       at: center, radius: r, motion: sk.kind === 'single' ? 'single' : 'aoe', dur: 0 });
     if (cost) this.emit('hpCost', { amount: cost });
     // 스킬 레벨·장비 옵션: 피해 · 범위 · 치명 · (1차) 주변 적 · (신화) 한 번 더 · 숨 되돌리기
-    const mult = sk.mult * st.skillMult * (1 + md.dmg) * (o.boost || 1);
+    const mult = sk.mult * st.skillMult * (1 + md.dmg) * (o.boost || 1) * W.SKILL_K;   // v439 무공이 중요하게
     const crit = md.crit + (sk.sure ? 1 : 0) + (sk.crit || 0);
     const kills0 = this.s.kills;
     let dealt = 0;
@@ -2046,7 +2048,7 @@ export class WorldGame {
     const at = { x: this.heroX, y: this.heroY };
     this.emit('skill', { id, name: sk.name, fx: sk.fx, look: sk.role, job: this.s.job, cls: this.s.job, tier: 4, at, radius: sk.radius, motion: 'aoe', dur: sk.sec });
     if (cost) this.emit('hpCost', { amount: cost });
-    const mult = st.skillMult * (1 + md.dmg);
+    const mult = st.skillMult * (1 + md.dmg) * W.SKILL_K;   // v439
     const sb = this.setBonus();
     const cn = sk.n + (sb.cloneUp || 0), csec = sk.sec + (sb.cloneSec || 0);      // 환영미혼 5
     this.clones = Array.from({ length: cn }, (_, i) => ({ i, life: csec, max: csec, atkT: 0.3 + i * 0.15, mult: sk.mult * mult, crit: md.crit }));
@@ -4397,8 +4399,7 @@ export class WorldGame {
       b.castT = (b.castT ?? 4) - dt;
       if (b.castT > 0) return;
       b.castT = W.FIELD_CAST * 1.25 * (0.85 + this.rng() * 0.3);
-      const p = W.ZONE_BOSS_PATS[Math.floor(this.rng() * W.ZONE_BOSS_PATS.length)];
-      this.bossCast(b, MS.floorOf(b.lv), W.FIELD_TELL * 0.9, [p], null);
+      this.bossStrike(b, { pct: W.FIELD_TELL * 0.9 * D.tellDmg(MS.floorOf(b.lv)) * W.STRIKE_K, name: '강타' });   // v439 바닥 경고 → 한 방
       return;
     }
     b.castT = (b.castT ?? 3) - dt;
@@ -4415,13 +4416,14 @@ export class WorldGame {
       const s1 = ult ? pb.ult : pb.list[Math.floor(this.rng() * pb.list.length)];
       const abs = D.bossRefHp(b.lv) * MS.PAT_K * (ult ? MS.PAT_ULT : 1) * (lord ? MS.PAT_LORD : 1) * (mm?.absK || 1);
       const delay = (ult ? 1.9 : 1.3) * (mm?.tellK || 1);
-      const pats = s1.pats || [s1.pat];
-      pats.forEach((p, i) => this.bossCast(b, MS.floorOf(b.lv), 0, [p], s1.name, { abs, delay: delay + i * 0.25, quiet: i > 0, ult }));
+      // v439 테마 초식(여러 갈래 바닥 경고) → 이름을 외치고 한 방. 오의는 조금 더 길게 모았다가 세게
+      const n = (s1.pats || [s1.pat]).length;
+      this.bossStrike(b, { abs: abs * (ult ? W.STRIKE_ULT_K : W.STRIKE_K) * Math.sqrt(n), name: s1.name, ult, wind: delay * 0.8 });
       if (ult) b.castT += 1.5;
       return;
     }
     const s1 = sk[Math.floor(this.rng() * sk.length)];
-    this.bossCast(b, MS.floorOf(b.lv), lord ? W.FIELD_TELL_LORD : W.FIELD_TELL, [s1.pat], s1.name);
+    this.bossStrike(b, { pct: (lord ? W.FIELD_TELL_LORD : W.FIELD_TELL) * D.tellDmg(MS.floorOf(b.lv)) * W.STRIKE_K, name: s1.name });   // v439
   }
   masterBonus() {
     let b = 0;
@@ -4538,6 +4540,15 @@ export class WorldGame {
     } else if ((I.kind === 'tower' || I.kind === 'raid' || I.kind === 'wraid') && m.isBoss) I.done = { ok: true };
   }
   // 수문장 초식: 그 층의 초식 가운데 하나를 골라 바닥에 경고를 깐다 (D.tellDelay초 뒤 터진다)
+  // v439 바람식 두목 「강타」 — 이름을 외치고 STRIKE_WIND초 뒤 무인에게 그대로 내리꽂는다(피하는 바닥 경고 없이).
+  //   o.pct: 최대 체력의 몫(받는 피해 감소가 깎는다) · o.abs: 고정 피해(patternHit — 방어·감소가 깎는다)
+  bossStrike(b, o) {
+    const T = o.wind ?? W.STRIKE_WIND * (o.ult ? 1.5 : 1);
+    const pred = o.abs ? this.patternHit(o.abs, b) : 0;
+    const cast = this._castSeq = (this._castSeq || 0) + 1;
+    this.tells.push({ kind: 'circle', strike: true, x: this.heroX, y: this.heroY, r: o.ult ? 120 : 90, t: T, max: T, dmg: o.pct || 0, abs: o.abs || 0, pred, ult: !!o.ult, wait: 0, cast });
+    this.emit('bossCast', { name: o.ult ? `오의 · ${o.name}` : o.name, pat: 'strike', at: b, skill: true, ult: !!o.ult, lethal: pred >= this.heroHp, strike: true });
+  }
   bossCast(b, f, dmgMul = 1, pats = D.towerPatterns(f), skillName = null, opt = {}) {
     const p = pats[Math.floor(this.rng() * pats.length)];
     const T = opt.delay ?? D.tellDelay(f);
@@ -4625,11 +4636,12 @@ export class WorldGame {
         }
         continue;
       }
+      if (tl.strike) { tl.x = this.heroX; tl.y = this.heroY; }   // v439 강타는 무인을 따라간다(피할 수 없다)
       tl.t -= dt;
       if (tl.t > 0) continue;
       tl.done = true;
       if (boss && !tl.released) { boss.atkAt = this.clock; tl.released = true; }      // 그 자리에서 초식을 펼친다(내딛는 몸짓, v168)
-      const hit = D.tellCovers(tl, this.heroX, this.heroY);
+      const hit = tl.strike || D.tellCovers(tl, this.heroX, this.heroY);
       if (hit && boss) boss.tellHits = (boss.tellHits || 0) + 1;
       this.emit('tellBoom', { tell: tl, hit });
       if (!hit || this.heroHp <= 0 || this._invulnUntil > this.clock) continue;
@@ -4654,7 +4666,7 @@ export class WorldGame {
   }
   // 시험용 자동 피하기: 지금 칸이 경고 안이면 가장 가까운 안전한 칸으로
   dodgeStep(react = 0) {
-    const live = this.tells.filter((t) => !(t.wait > 0) && t.t <= t.max * (1 - react));
+    const live = this.tells.filter((t) => !t.strike && !(t.wait > 0) && t.t <= t.max * (1 - react));   // v439 강타는 피하지 않는다
     if (!live.length) return null;
     const safe = (c, r) => !live.some((t) => D.tellCovers(t, W.tileCenter(c), W.tileCenter(r)));
     if (safe(this.hc, this.hr)) return 'hold';      // 안전하면 경고가 걷힐 때까지 다가가지 않는다

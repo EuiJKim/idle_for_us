@@ -1028,6 +1028,15 @@ export const PACE_REWARD = 1 / PACE;
 // v438 평타는 민첩·장비·칭호로 빨라질수록 「더 빨리」 대신 「더 세게」 — 실제 휘두르는 간격은 빨라짐^SWING_K만, 남은 몫은 한 대 피해로(초당 피해는 같다).
 //   민첩을 많이 찍어 평타가 초에 너댓 번 나가던 것(정신없음)이 한 번 남짓으로 · 바람의나라처럼 한 대 한 대
 export const SWING_K = 0.35;
+// v439 바람식 몹 — 사냥터 졸개는 먼저 덤비지 않는다(치면 그때 덤빈다) · 정예·두목·던전 몹은 그대로 다가온다
+export const PASSIVE_MOBS = true;
+//   몹이 찾아오지 않아 걸어가 잡는 시간만큼 사냥터 한 마리 벌이 ×PASSIVE_REWARD(시뮬: 처치 -10~30%)
+export const PASSIVE_REWARD = 1.15;
+// v439 사냥터 두목·왕·고수의 초식은 바닥 경고(피하기) 대신 이름을 외치고 STRIKE_WIND초 뒤 무인에게 바로 내리꽂는 「강타」 하나 —
+//   피할 수 없으니 세기는 옛 초식이 실제로 맞던 몫(방치 자동 피하기로 10~30%)에 맞춰 STRIKE_K배. 버티는 건 체력·방어·물약·회복 무공.
+export const STRIKE_WIND = 1.2, STRIKE_K = 0.25, STRIKE_ULT_K = 0.4;
+// v439 무공이 중요하게 — 평타(와 평타에서 나가는 꽃잎·쪼개기 같은 덤) 피해 ×BASIC_K, 무공 피해 ×SKILL_K(초당 피해는 비슷하게)
+export const BASIC_K = 0.6, SKILL_K = 1.2;
 export const swingSec = (atkSec) => BASE_ATK_SEC * Math.pow(atkSec / BASE_ATK_SEC, SWING_K);
 export const KILL_RECOVER = 0.15;     // v303 과녁을 쓰러뜨리면 평타 쿨을 이만큼으로 — 다음 몹까지 걸어가 또 한 박자 쉬지 않게 (v305 0.3 → 0.15)
 export const MANUAL_HOLD = 0.3;       // v305 손으로 움직인 직후 과녁을 쫓아가지 않는 시간(닿는 적은 친다) — 전엔 0.6~1.2초를 서 있었다
