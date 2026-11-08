@@ -3176,7 +3176,6 @@ export class BattleView {
     this.applyDesat();
     if (game.inst?.kind === 'wraid') this.drawWbShots(game);
     this.drawHeroUnit(game, moving);
-    if (game.inst?.kind === 'wraid') this.drawBullets(game);   // v374 탄막은 무인 위에 — 가려지면 못 피한다
   }
 
   drawObstacleAt(o, wx, wy) {

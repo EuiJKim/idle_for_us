@@ -3375,43 +3375,21 @@ console.log('\n=== v373~v375 칠대성(상시 최종 두목) · 탄막 · 대성
   for (let i = 0; i < 200 && (!g.inst.boss || g.freezeT > 0 || g.inst.boss.introT > 0); i++) g.tick(0.05);
   const b = g.inst.boss;
   ok(b && b.maxHp === maxHp && b.c === SH.BOSS_C && b.def?.art === 'wb-umawang', '마왕은 위 가운데 · 함께 깎은 체력 · 그림');
-  const y0 = g.heroY; g.shIn = { dx: 0, dy: -1 }; for (let i = 0; i < 10; i++) g.tick(0.05); g.shIn = null;
-  ok(g.heroY < y0 - 60, '키(WASD)로 자유롭게 움직인다');
-  for (let i = 0; i < 80; i++) g.tick(0.05);
-  ok(g.bullets.length > 0, '마왕이 탄을 쏟아낸다', `${g.bullets.length}발`);
-  g.heroX = b.x; g.heroY = SH.ARENA.y1; g.bullets = []; g.emitters = []; g.shPatT = 99;
-  const d0 = g.inst.myDealt || 0;
-  for (let i = 0; i < 20; i++) { g.shTarget = { x: b.x, y: SH.ARENA.y1 }; g.tick(0.05); }
-  ok(!g.shNear && (g.inst.myDealt || 0) === d0, '근거리는 멀리서 못 친다');
-  for (let i = 0; i < 80; i++) { g.shTarget = { x: b.x, y: b.y + 80 }; g.tick(0.05); }
-  ok(g.shNear && (g.inst.myDealt || 0) > d0, '붙으면 친다');
+  // v443 탄막 없이 — 무인이 걸어 올라가 친다 · 마왕은 초식을 외치고 강타 한 방
+  let strikes = 0, cast = 0;
+  for (let i = 0; i < 600; i++) { g.tick(0.05); if (g.tells.some((t) => t.strike)) strikes = 1; for (const e of g.events) if (e.type === 'bossCast' && e.strike) cast++; g.events.length = 0; if (g.inst.myDealt > 0 && strikes && cast) break; }
+  ok((g.inst.myDealt || 0) > 0, '근거리는 마왕에게 걸어가 붙어 친다', `내 피해 ${Math.round(g.inst.myDealt || 0)}`);
+  ok(strikes && cast && g.bullets.length === 0, '마왕은 탄 대신 초식 이름을 외치고 강타한다', `외침 ${cast}`);
   const f = mk('fan'); f.startWraid({ id: 'gyomawang_2', hpLeft, maxHp }, now);
   for (let i = 0; i < 200 && (!f.inst.boss || f.freezeT > 0 || f.inst.boss.introT > 0); i++) f.tick(0.05);
-  f.shPatT = 99; f.heroY = f.inst.boss.y + 260; f.heroX = f.inst.boss.x;
-  for (let i = 0; i < 40; i++) { f.shTarget = { x: f.inst.boss.x, y: f.inst.boss.y + 260 }; f.tick(0.05); }
-  ok(f.shNear && (f.inst.myDealt || 0) > 0, '원거리는 멀리서 쏜다');
-  // v377 집중 — 손으로 피하며 안 맞으면 겹이 쌓여 피해가 는다 · 맞으면 흩어진다 · 손을 놓으면 빠진다
-  f.bullets = []; f.emitters = []; f.shPatT = 999; f.shFocus = 0; f.shFocusT = 0;
-  for (let i = 0; i < 160; i++) { f.shIn = { dx: i % 40 < 20 ? 1 : -1, dy: 0 }; f.tick(0.05); }
-  f.shIn = null;
-  ok(f.shFocus >= 2 && SH.focusMult(f) === 1 + SH.FOCUS_K * f.shFocus, '손으로 피하면 집중이 쌓인다', `${f.shFocus}겹`);
-  const fz = f.shFocus; for (let i = 0; i < 100; i++) f.tick(0.05);
-  ok(f.shFocus < fz, '손을 놓으면 한 겹씩 빠진다');
-  f.shFocus = 5; f.shIframe = 0; f.heroHp = f.stats().hp; f.bullets = [{ t: 0, x: f.heroX, y: f.heroY - 26, vx: 0, vy: 0, r: 9, kind: 'fire' }]; f.tick(0.05);
-  ok(f.shFocus === 0, '맞으면 집중이 흩어진다');
-  // v378 스침 — 손으로 피하는 중 아슬아슬하게 비껴가면 집중이 빨리 찬다(탄 하나에 한 번)
-  { f.shHand = 0; f.shFocusT = 0; f.shIframe = 0; const hr = (9 + SH.HERO_R); f.bullets = [{ t: 0, x: f.heroX + hr + 8, y: f.heroY - 26, vx: 0, vy: 0, r: 9, kind: 'fire' }]; f.shPatT = 999; f.shIn = { dx: 0, dy: 0.0001 };
-    const t0 = f.shFocusT; f.tick(0.02); f.shIn = null; ok(f.shGraze >= 1 && f.shFocusT >= t0 + SH.GRAZE_T - 0.1, '스침 — 집중이 빨리 찬다'); }
-  // v378 탄막 밀도 — 여유는 탄이 적고 느리다
-  { const cnt = (ease) => { const q = mk('fan'); q.shEase = ease; q.startWraid({ id: 'bungmawang_1', hpLeft, maxHp }, now); let n = 0; for (let i = 0; i < 400; i++) { q.tick(0.05); n = Math.max(n, q.bullets.length); } return n; };
-    const a = cnt('dense'), b = cnt('roomy'); ok(b < a * 0.85 && SH.EASE.roomy.hit < 1, '여유 — 탄이 적고 맞는 판정이 작다', `${a} → ${b}`); }
-  // v377 손가락 따라 · 아날로그 조이스틱 · 감도
-  { const x0 = f.heroX; f.shPush = { x: 40, y: 0 }; f.tick(0.05); f.tick(0.05); ok(f.heroX > x0 + 20, '손가락 따라 — 끈 만큼 옮긴다'); }
-  { const x0 = f.heroX; f.joy = { dx: -10, dy: 0 }; f.tick(0.1); const slow = x0 - f.heroX; const x1 = f.heroX; f.joy = { dx: -60, dy: 0 }; f.tick(0.1); f.joy = null; ok(slow > 0 && x1 - f.heroX > slow * 2, '조이스틱 — 조금 끌면 천천히', `${slow.toFixed(1)} / ${(x1 - f.heroX).toFixed(1)}`); }
-  const st = g.stats(); g.heroHp = st.hp; g.shIframe = 0;
-  g.bullets = [{ t: 0, x: g.heroX, y: g.heroY - 26, vx: 0, vy: 0, r: 9, kind: 'fire' }, { t: 0, x: g.heroX, y: g.heroY - 26, vx: 0, vy: 0, r: 9, kind: 'fire' }];
-  g.shPatT = 99; g.tick(0.05);
-  ok(g.shHits >= 1 && g.heroHp < st.hp && g.heroHp > st.hp * 0.6 && g.shIframe > 0, '맞으면 최대 체력의 몇 % · 맞은 뒤 무적', `${g.shHits} ${(g.heroHp / st.hp).toFixed(3)} ${g.shIframe}`);
+  for (let i = 0; i < 400 && !(f.inst.myDealt > 0); i++) { f.tick(0.05); f.events.length = 0; }
+  ok((f.inst.myDealt || 0) > 0 && f.heroY > f.inst.boss.y + 150, '원거리는 멀리서 쏜다', `거리 ${Math.round(f.heroY - f.inst.boss.y)}`);
+  // 강타는 피할 수 없다 — 자리를 옮겨도 맞는다 · 받는 피해 감소는 든다
+  { const st = g.stats(); g.heroHp = st.hp; g.tells = []; g.bossStrike(b, { pct: 0.2, name: '시험' }); g.heroX += 200; for (const t of g.tells) t.t = 0.01; g.tick(0.05);
+    ok(g.heroHp < st.hp && g.heroHp > st.hp * 0.6, '강타 — 최대 체력의 몫만큼 맞는다', (g.heroHp / st.hp).toFixed(3)); }
+  // 천계의 기운 — 싸우는 동안 회복이 일부만
+  { const st = g.stats(); g.heroHp = st.hp * 0.5; g.tick(0.05); const h0 = g.heroHp; g.heroHp = st.hp; g.tick(0.05);
+    ok(g.heroHp < st.hp && g.heroHp > h0, '싸우는 동안 회복이 일부만 든다(천계의 기운)', `${(h0 / st.hp).toFixed(2)} → ${(g.heroHp / st.hp).toFixed(2)}`); }
   const hp1 = b.hp; g.wraidSync(hp1 * 0.5);
   ok(b.hp <= hp1 * 0.5 + g.wraidUnsent() + 1, '무림 전체가 깎은 체력으로 맞춘다');
   g.wraidSync(0);
@@ -3457,10 +3435,10 @@ console.log('\n=== v373~v375 칠대성(상시 최종 두목) · 탄막 · 대성
   // v378 칠십이변(대성신장 7)
   ok(g.setBonus().wukong === 1 && /칠십이변/.test(G3.setBonusText({ wukong: 1 })), '대성신장 7조각 — 칠십이변');
   { const mob = { alive: true, hp: 1e15, maxHp: 1e15, x: g.heroX + 30, y: g.heroY, lv: 150, c: 0, r: 0 }; g.events.length = 0; g._wkN = 0; for (let i = 0; i < 6; i++) g.basicAttack(mob, g.stats(), 1); ok(g.events.filter((e) => e.type === 'wukongClone').length === 1, '평타 여섯 번마다 분신 일격'); }
-  { g.startWraid({ id: 'umawang_1', hpLeft, maxHp }, now); ok(g.shWk === 1, '탄막 판에 들어가면 분신 방패 하나'); const st2 = g.stats(); g.heroHp = st2.hp; g.shIframe = 0;
+  { g.startWraid({ id: 'umawang_1', hpLeft, maxHp }, now); ok(g.shWk === 1, '칠대성 판에 들어가면 분신 방패 하나'); const st2 = g.stats(); g.heroHp = st2.hp;
     for (let i = 0; i < 200 && (!g.inst.boss || g.freezeT > 0 || g.inst.boss.introT > 0); i++) g.tick(0.05);
-    g.shPatT = 99; g.emitters = []; g.heroHp = st2.hp; g.bullets = [{ t: 0, x: g.heroX, y: g.heroY - 26, vx: 0, vy: 0, r: 9, kind: 'fire' }]; g.tick(0.05);
-    ok(g.shWk === 0 && g.heroHp === st2.hp, '분신이 탄 한 대를 대신 맞는다'); g.leaveInst(); }
+    g.tells = []; g.heroHp = st2.hp; g.bossStrike(g.inst.boss, { pct: 0.2, name: '시험' }); for (const t of g.tells) t.t = 0.01; g.events.length = 0; g.tick(0.05);
+    ok(g.shWk === 0 && g.heroHp >= st2.hp * 0.99 && g.events.some((e) => e.type === 'wukongBlock'), '분신이 강타 한 방을 대신 맞는다'); g.leaveInst(); }
   // v378 장비 비교 — 세트 조각 수
   { const extra = g.makeKing('ear', G3.PALMA_ZONE, 3, 'palma'); const keep = g.s.equip.finger; g.s.equip.finger = null; g._stats = null; g._setb = null;
     const pv = g.previewEquip(keep); ok(pv.sets0.palma === 6 && pv.sets1.palma === 7, '장비 비교 — 끼면 대성신장 6→7조각'); g.s.equip.finger = keep; g._stats = null; g._setb = null; void extra; }
@@ -3586,8 +3564,8 @@ console.log('\n=== v387 칠대성·천계 어렵게 ===');
   while (g.s.level < 120) g.addExp(W.expToNext(g.s.level));
   const st = g.stats(); g.heroHp = st.hp * 0.3;
   const mx = 1e15; ok(g.startWraid({ id: 'umawang_1', hpLeft: mx, maxHp: mx }, Date.now()), '들어가기');
-  for (let i = 0; i < 80; i++) g.tick(0.05);   // 등장 뒤까지
-  g.s.autoPotion = false; g.heroHp = st.hp * 0.3; g._shHp = g.heroHp; g.bullets = []; g.shPatT = 99;
+  for (let i = 0; i < 400 && (!g.inst.boss || g.freezeT > 0 || g.inst.boss.introT > 0); i++) g.tick(0.05);   // 등장 뒤까지(v443 빠르기가 느려져 횟수로는 모자랐다)
+  g.s.autoPotion = false; g.heroHp = st.hp * 0.3; g._shHp = g.heroHp; g.tells = []; g.inst.castT = 99;
   const h0 = g.heroHp; g.s.potions = 10; g.potionT = 0;
   g.drinkPotion(); g.tick(0.05);
   ok(g.heroHp - h0 < st.hp * W.POTION_HEAL * 0.5 && g.potionT > W.POTION_GAP * 2, '마왕 앞에서는 물약이 덜 들고 숨이 길다(천계일수록 더)', `${((g.heroHp - h0) / st.hp).toFixed(3)} · ${g.potionT.toFixed(1)}s`);
@@ -3684,7 +3662,7 @@ console.log('\n=== v397 근접·원거리 ===');
   const SHx = await import('../js/world/wshmup.js');
   const mk = (j) => { const g = fresh(j); return g; };
   ok(['sword', 'fist', 'ring'].every((j) => SHx.closeIn(mk(j))) && ['fan', 'poison'].every((j) => !SHx.closeIn(mk(j))), '붙어 싸우는 직업 — 검사·권마·극악소마');
-  ok(SHx.MELEE_HIT < 1 && SHx.MELEE_DMG > 1 && W.CLASSES.sword.dmgRed > 0 && W.CLASSES.ring.dmgRed > 0, '근접 보정 — 탄막은 덜 아프고 더 친다 · 검사·극악소마 받는 피해 감소');
+  ok(!('MELEE_HIT' in SHx) && !('focusMult' in SHx) && W.CLASSES.sword.dmgRed > 0 && W.CLASSES.ring.dmgRed > 0, 'v443 탄막 근접 보정·집중은 없다 · 검사·극악소마 받는 피해 감소는 그대로');
   const g = fresh('ring'); while (g.s.level < 120) g.addExp(W.expToNext(g.s.level));
   const sk = g.skillDef('s2'); const c0 = g.hpCostOf(sk);
   g.startWraid({ id: 'okhwang_1', hpLeft: 1e15, maxHp: 1e15 }, Date.now());
@@ -3945,23 +3923,14 @@ console.log('\n=== v407 각성 고수(천마·화무기·마귀) ===');
   ok(m2.awk && m2.awk.kills.cheonma === 1 && !m2.awk.on.cheonma, '저장·불러오기');
   ok(/awk-\$\{id\}/.test(read('js/wui.js')) && /case 'awakenDown'/.test(read('js/wmain.js')), '무림고수 칸 켜기/끄기 · 알림');
 }
-console.log('\n=== v406 맞은 탄은 사라진다 · 함께 치는 무인이 막는다 ===');
+console.log('\n=== v406 → v443 칠대성 체력 단계 없음 ===');
 {
   const Dx = await import('../js/world/wdgn.js');
   const g = fresh('sword'); const hp = Dx.wraidMaxHp(g.hwamugiHp(), 'umawang');
   while (g.s.level < Dx.WRAID_LV) g.addExp(W.expToNext(g.s.level));
   ok(g.startWraid({ id: 'umawang_9', hpLeft: hp, maxHp: hp }, Date.now()), '칠대성 판');
-  g.inst.wait = 0.01; for (let i = 0; i < 400 && !(g.inst.boss && g.inst.boss.alive); i++) g.tick(0.05); if (g.inst.boss) g.inst.boss.introT = 0; g.freezeT = 0; g.emitters = []; g.shPatT = 99;
-  g.bullets = [{ t: 0, x: g.heroX, y: g.heroY - 26, vx: 0, vy: 0, r: 9, kind: 'fire' }, { t: 0, x: g.heroX, y: g.heroY - 26, vx: 0, vy: 0, r: 9, kind: 'fire' }];
-  g.shIframe = 0; g.heroHp = g.stats().hp; const h0 = g.heroHp;
-  g.tick(0.016);
-  ok(g.heroHp < h0 && !g.bullets.some((u) => Math.hypot(u.x - g.heroX, u.y - (g.heroY - 26)) < 5), '맞은 탄은 둘 다 사라진다(한 대만 아프다)');
-  g.wbCoop = { on: true, others: [{ x: g.heroX + 200, y: g.heroY }] };
-  const ax = g.heroX + 200, ay = g.heroY;
-  g.bullets = [{ t: 0, x: ax, y: ay - 26, vx: 0, vy: 0, r: 9, kind: 'fire' }];
-  g.tick(0.016);
-  ok(!g.bullets.some((u) => Math.hypot(u.x - ax, u.y - (ay - 26)) < 5) && g.shBlocked >= 1, '함께 치는 무인 몸에 닿은 탄은 사라진다');
   ok(!('wraidStepOfHp' in Dx) && Dx.wraidMaxHp(g.hwamugiHp(), 'umawang') === hp, '단계 없음 — 마왕 체력은 늘 같다');
+  g.leaveInst();
 }
 console.log('\n=== v404 5차 직업 순서(끝까지 올린 최종 상태 기준) ===');
 {
@@ -4001,7 +3970,7 @@ console.log('\n=== v426 걷는 동안은 걷는 쪽을 본다 ===');
   ok(g.heroFacing === 1 && before === 1, '오른쪽으로 걸으면 오른쪽을 본다');
   const src = read('js/world/wgame.js');
   ok(/dist <= st\.range && Math\.abs\(m\.x - this\.heroX\) > 6\) this\.heroFacing/.test(src), '사거리 안에 서 있을 때만 과녁 쪽으로 돈다');
-  ok(/const mvx = g\.shIn\?\.dx \|\| g\.joy\?\.dx \|\| 0;/.test(read('js/world/wshmup.js')), '탄막 판 — 옆으로 움직이는 동안은 가는 쪽을 본다');
+  ok(!/shIn/.test(read('js/world/wshmup.js')) && !/SH\.tick\(/.test(src), 'v443 탄막 자유 이동은 없다 — 칠대성도 칸으로 걷는다');
 }
 
 console.log('\n=== v428 문파 토벌 하루 4번 · 길잡이 단계면 한 번 더 ===');
@@ -4167,7 +4136,7 @@ console.log('\n=== v438 바람의나라 빠르기 ===');
   ok(Math.abs(W.swingSec(W.BASE_ATK_SEC / 4) - W.BASE_ATK_SEC / Math.pow(4, W.SWING_K)) < 1e-9 && W.swingSec(W.BASE_ATK_SEC / 4) / W.PACE > 0.6, '공격 속도 ×4여도 실제 평타 간격 0.6초 넘게', `${(W.swingSec(W.BASE_ATK_SEC / 4) / W.PACE).toFixed(2)}초`);
   ok(g.realSec(10) > 10 && Math.abs(g.realSec(W.PACE) - 1) < 1e-9, '보이는 초는 실제 초로');
   // 칠대성은 제 빠르기
-  g.inst = { kind: 'wraid' }; ok(g.pace() === 1, '칠대성(탄막)은 제 빠르기'); g.inst = null;
+  g.inst = { kind: 'wraid' }; ok(g.pace() === W.PACE, '칠대성도 같은 빠르기(v443 탄막 없음)'); g.inst = null;
   // 벌이 장부는 실제 시간 — 방치 보상이 PACE만큼 부풀지 않는다
   const h = fresh('sword'); h.enterMap(W.mapId(2, 1));
   for (let i = 0; i < 600; i++) h.tick(0.5);

@@ -395,6 +395,9 @@ export const wraidBossOf = (id) => WRAID_BOSS[String(id).split('_')[0]] || WRAID
 export const wraidMaxHp = (hwamugiHp, boss) => Math.round(Math.max(1e6, hwamugiHp) * WRAID_HP_K * (boss === SEOKGA.id ? OK_HP_K * SK_HP_K : boss === OKHWANG.id ? OK_HP_K : isGate(boss) ? GATE_HP_K : 1));
 // 광폭 — 남은 체력 몫(0~1)으로. 0: 보통 · 1: 분노(50%↓) · 2: 광폭(20%↓)
 export const wraidRage = (frac) => (frac <= 0.2 ? 2 : frac <= 0.5 ? 1 : 0);
+// v443 칠대성도 강타 — 탄막 대신 초식 이름을 외치고 무인에게 한 방(피할 수 없다 · 체력·물약·회복으로 버틴다).
+//   간격 WRAID_STRIKE_GAP초(분노·광폭이면 gap배로 짧게) · 한 방 = 최대 체력 × WB_TIER.hit × WRAID_STRIKE_K × 분노 atk · 세 번째마다 오의(×1.6 · 길게 모은다)
+export const WRAID_STRIKE_GAP = 5, WRAID_STRIKE_K = 1.4, WRAID_STRIKE_WIND = 1.4;
 // atk: 탄 피해 · spd: 탄 빠르기 · dens: 탄 수(빽빽함). 옥황상제는 한 단 더(final)
 export const WRAID_RAGE = [{ atk: 1, spd: 1, dens: 1, gap: 1, name: '' }, { atk: 1.15, spd: 1.12, dens: 1.25, gap: 0.85, name: '분노' }, { atk: 1.3, spd: 1.25, dens: 1.5, gap: 0.7, name: '광폭' }];
 export const OK_K = { atk: 1.25, spd: 1.12, dens: 1.2 };

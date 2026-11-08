@@ -2524,15 +2524,14 @@ function dgnTab(app) {
       h('div', { class: 'wraid-head', style: '--wb:#f97316' }, h('img', { class: 'wraid-banner', src: 'art/ui/wb-banner.webp', alt: '' }),
         h('div', { class: 'wraid-name' }, h('small', {}, '화무기 그 너머 · 무림 전체가 함께'), h('b', {}, '칠대성(七大聖)'))),
       // v434 한 줄 요약 + 자세한 설명은 처음부터 접어 둔다(일곱 항목이 기본으로 펼쳐져 핵심이 묻혔다)
-      h('p', { class: 'wraid-sum' }, `레벨 ${D.WRAID_LV}부터 · 온라인 · 탄을 피하며 ${D.WRAID_SEC}초 친다 · 쓰러지면 친 사람 모두 순위 보상 + 확률로 대성신장`),
+      h('p', { class: 'wraid-sum' }, `레벨 ${D.WRAID_LV}부터 · 온라인 · 마왕의 강타를 버티며 ${Math.round(D.WRAID_SEC / W.PACE)}초 친다 · 쓰러지면 친 사람 모두 순위 보상 + 확률로 대성신장`),
       foldBox('-wraid2|자세한 규칙', h('ul', { class: 'wraid-how' },
         h('li', {}, `👹 화과산의 의형제 칠대성(우마왕~손오공)이 늘 서 있어요 — 체력은 화무기의 ${D.WRAID_HP_K}배, 무림 사람 모두가 함께 깎아요(혼자서는 한참)`),
-        h('li', {}, `🎯 탄을 피하며 쳐요 — 작은 흰 점만 맞아요 · 근거리는 코앞까지 붙어야, 원거리는 멀리서 · ${finePointer ? 'WASD·화살표' : '화면을 끌어'} 움직이고 손을 떼면 자동으로 피해요`),
+        h('li', {}, '🎯 마왕이 초식 이름을 외치고 강타를 내리꽂아요 — 피할 수 없어요. 체력·방어·물약·회복 무공으로 버티며 쳐요(세 번째마다 오의 · 체력이 반·1/5 아래면 더 잦고 아파요)'),
         h('li', {}, `🛡 쓰러지면 한 대라도 친 사람 모두 순위 보상(1위 ×3 · 2~3위 ×2 · 10위까지 ×1.5) + 확률로 그 마왕의 대성신장 한 부위(1위 ${Math.round(D.PALMA_DROP(1) * 100)}% · 3위까지 ${Math.round(D.PALMA_DROP(3) * 100)}% · 10위까지 ${Math.round(D.PALMA_DROP(10) * 100)}% · 그 밖 ${Math.round(D.PALMA_DROP(99) * 100)}% · ${D.PALMA_PITY}번 못 받으면 다음엔 꼭) · 쓰러지면 곧 다음 마왕이 일어나요`),
         h('li', {}, '☁ 대성신장 일곱 부위를 모두 끼면 천외천 천궁 — 옥황상제에게 갈 수 있어요'),
-        h('li', {}, '🛡 탄은 맞으면 사라져요 — 함께 치는 무인이 앞에서 막아 주면 뒤로 안 와요(탱커가 앞에 서면 좋아요)'),
-        h('li', {}, `⚠ 단계가 오를수록 탄 한 대가 아파요(체력의 ${D.WB_TIER.map((t) => Math.round(t.hit * 100)).join('→')}%) · 싸우는 동안 회복(흡혈·물약)이 잘 안 들고 물약 숨이 길어요 — 직접 피하세요`),
-        h('li', {}, `⏱ 한 판 ${D.WRAID_SEC}초 · 언제든 · 참여 보상은 판마다(제한 없음) · 레벨 ${D.WRAID_LV}부터`)))));
+        h('li', {}, `⚠ 단계가 오를수록 강타가 아파요(체력의 ${D.WB_TIER.map((t) => Math.round(t.hit * D.WRAID_STRIKE_K * 100)).join('→')}%) · 싸우는 동안 회복(흡혈·물약)이 잘 안 들고 물약 숨이 길어요 — 직접 피하세요`),
+        h('li', {}, `⏱ 한 판 ${Math.round(D.WRAID_SEC / W.PACE)}초 · 언제든 · 참여 보상은 판마다(제한 없음) · 레벨 ${D.WRAID_LV}부터`)))));
     // v413 자동 반복 — 판이 끝나면 같은 마왕(쓰러졌으면 다음 마왕)에 다시
     if (on && s.level >= D.WRAID_LV) out.push(h('label', { class: 'chk wraid-auto' }, h('input', { type: 'checkbox', id: 'wraid-auto', checked: s.wraid.auto ? true : null, onchange: (e) => { game.s.wraid.auto = e.target.checked; app.save(); toast(e.target.checked ? '🔁 칠대성 자동 반복 — 판이 끝나면 2초 뒤 같은 마왕에 다시 들어가요(나가기를 누르면 멈춰요)' : '자동 반복을 껐어요'); } }), ' 🔁 자동 반복(판이 끝나면 다시 들어가기)'));
     if (!on) out.push(offlineNote(net, '칠대성에 들어갈 수 있어요'));   // v434

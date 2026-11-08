@@ -1063,8 +1063,8 @@ export class WorldGame {
   }
 
   // ---------- 한 틱 ----------
-  // v438 게임 안 시간의 빠르기 — 칠대성(탄막)만 제 빠르기
-  pace() { return this.inst?.kind === 'wraid' ? 1 : W.PACE; }
+  // v438 게임 안 시간의 빠르기
+  pace() { return W.PACE; }   // v443 칠대성도 같은 빠르기(탄막이 없어졌다)
   // 게임 안 초 → 실제 초(남은 시간·제한 시간 보이기)
   realSec(sec) { return sec / this.pace(); }
   tick(dt) {
@@ -1193,7 +1193,7 @@ export class WorldGame {
         if (!m.alive) continue;
       } else m.poison = 0;
       if (m.introT > 0) { m.introT -= dt; continue; }
-      if (m.wb) continue;   // v374 마왕은 움직이지도 때리지도 않는다 — 탄막(wshmup)으로만
+      if (m.wb) continue;   // v374 마왕은 움직이지도 때리지도 않는다 — v443 강타(tickInst)로만
       if (m.treasure) { this.tickTreasure(m, dt); continue; }
       if (m.stun > 0) { m.stun -= dt; continue; }
       if (m.slow > 0) m.slow -= dt;
@@ -1298,7 +1298,6 @@ export class WorldGame {
   }
 
   tickHero(dt, st) {
-    if (this.inst?.kind === 'wraid' && !this.inst.done) { SH.tick(this, dt, st); return; }   // v374 탄막
     // v296: 평타 쿨은 걷는 동안에도 흐른다 — 다 걸어와서 다시 한 박자 쉬고 치던 후딜레이를 없앤다(쌓이지는 않는다)
     this.atkTimer = Math.max(0, this.atkTimer - dt);
     // 칸 사이를 옮겨 가는 중이면 마저 간다 — 칸 가운데에 서야 다음 일을 정한다
@@ -1445,7 +1444,6 @@ export class WorldGame {
   // 손으로 들판을 찍으면 그 칸으로 간다 (들판 좌표)
   moveTo(x, y) {
     if (this.map.town) return;
-    if (this.inst?.kind === 'wraid') { SH.target(this, x, y); return; }   // v374 탄막 — 칸이 아니라 그 자리로
     this.manual = { c: clamp(Math.floor(x / W.TILE), 0, W.COLS - 1), r: clamp(Math.floor(y / W.TILE), 0, W.ROWS - 1) };
     this.mon = null;
   }
@@ -1670,8 +1668,7 @@ export class WorldGame {
       return;
     }
     if (m.calib) this.bossCalib(m, dmg);
-    if (m.wb && this.inst?.kind === 'wraid') { dmg *= SH.focusMult(this) * (SH.closeIn(this) ? SH.MELEE_DMG : 1);   // v397 근접은 붙어서 더 맞는 만큼 더 친다
-      this.inst.myDealt = (this.inst.myDealt || 0) + Math.min(dmg, Math.max(0, m.hp)); }   // v374 내가 준 몫(서버에 올린다) · v377 집중
+    if (m.wb && this.inst?.kind === 'wraid') this.inst.myDealt = (this.inst.myDealt || 0) + Math.min(dmg, Math.max(0, m.hp));   // v374 내가 준 몫(서버에 올린다) · v443 집중·근접 배수 없음(탄막이 없어졌다)
     m.hp -= dmg;
     m.aggro = true;
     // v241: 실제 준 피해(넘친 몫은 빼고) — 두목 최소 싸움 길이 잣대
@@ -4505,7 +4502,7 @@ export class WorldGame {
         I.boss = b;
         if (b && I.kind === 'wraid') { b.lv = this.s.level + 8; b.maxHp = I.sharedMax; b.hp = I.hpLeft; b.baseAtk = b.atk = W.mobAtk(b.lv) * W.BOSS.atk; b.armor = 0; b.grade = 3; b.wb = I.boss0; I.rage = -1;
           // v374 거대한 마왕은 위 가운데에 버티고 선다 — 무인은 아래에서 탄을 피하며 친다
-          b.c = b.hc = SH.BOSS_C; b.r = b.hr = SH.BOSS_R; b.x = W.tileCenter(SH.BOSS_C); b.y = W.tileCenter(SH.BOSS_R); b.move = null; }
+          b.c = b.hc = SH.BOSS_C; b.r = b.hr = SH.BOSS_R; b.x = W.tileCenter(SH.BOSS_C); b.y = W.tileCenter(SH.BOSS_R); b.move = null; b.aggro = true; }   // v443 무인이 걸어가 친다
         else if (b && I.kind === 'raid') { b.lv = this.s.level + 5; b.maxHp = I.sharedMax; b.hp = I.hpLeft; b.atk = W.mobAtk(b.lv) * W.BOSS.atk; b.armor = 0; b.grade = 3; }
         else if (b && I.hard) { b.lv = D.hardLv(I.stage); b.maxHp = b.hp = D.hardHp(I.stage); b.atk = D.hardAtk(I.stage); b.armor = W.mobDef(b.lv); b.grade = 3; b.hardFx = D.hardMountOf(I.stage)?.fx || 'hard'; }
         else if (b) { b.lv = D.towerLv(I.stage); b.maxHp = b.hp = D.towerHp(I.stage); b.atk = D.towerAtk(I.stage); b.armor = W.mobDef(b.lv); if (D.isZodiacFloor(I.stage)) b.grade = 3; }
@@ -4516,9 +4513,28 @@ export class WorldGame {
     // v373 월드보스 — 함께 깎은 체력이 반·1/5 아래면 분노·광폭(v374 탄이 빠르고 빽빽해진다 · wshmup)
     if (I.kind === 'wraid') {
       const b = this.mons.find((m) => m.isBoss && m.alive);
+      const tier = D.WB_TIER[D.wbTierOf(this.map?.wb)];
+      // v387 천계의 기운 — 싸우는 동안 회복(흡혈·재생·물약·동료)이 일부만 든다. 지난 틱 뒤 오른 몫만 줄인다 (v443 wshmup에서 옮겨 옴)
+      if (this._shHp != null && this.heroHp > this._shHp && this.heroHp > 0) this.heroHp = this._shHp + (this.heroHp - this._shHp) * tier.heal;
+      this._shHp = this.heroHp;
       if (b) {
         const rg = D.wraidRage(Math.max(0, b.hp) / b.maxHp);
         if (rg !== I.rage) { const up = I.rage >= 0 && rg > I.rage; I.rage = rg; if (up) this.emit('wraidRage', { rage: rg, name: D.WRAID_RAGE[rg].name, x: b.x, y: b.y }); }
+        // v443 강타 — 탄막 대신 초식 이름을 외치고 한 방. 분노·광폭이면 더 잦고 아프다. 세 번째마다 오의
+        if (!(b.introT > 0)) {   // 기절해도 강타는 온다 — 권마·환마·극악소마의 기절이 이어지면 마왕이 한 번도 못 치던 것(시뮬)
+          I.castT = (I.castT ?? 3) - dt;
+          if (I.castT <= 0) {
+            const rk = D.WRAID_RAGE[I.rage > 0 ? I.rage : 0];
+            I.castN = (I.castN || 0) + 1;
+            const ult = I.castN % 3 === 0;
+            const pats = D.WRAID_BOSS[I.boss0]?.pats || [];
+            const p = pats.length ? pats[Math.floor(this.rng() * pats.length)] : null;
+            I.castT = D.WRAID_STRIKE_GAP * rk.gap * (ult ? 1.3 : 1);
+            this.bossStrike(b, { pct: tier.hit * D.WRAID_STRIKE_K * rk.atk * (ult ? 1.6 : 1), name: p?.name || '강타', ult, wind: D.WRAID_STRIKE_WIND * (ult ? 1.4 : 1) });
+          }
+        }
+        // v378 칠십이변(대성신장 7) — 분신 방패가 때마다 하나씩 다시 찬다 (v443 wshmup에서 옮겨 옴)
+        if (this.setBonus().wukong && (this.shWk || 0) < SH.WK_MAX && (this.shWkT = (this.shWkT || 0) + dt) >= SH.WK_SEC) { this.shWkT = 0; this.shWk = (this.shWk || 0) + 1; this.emit('wukongReady', { n: this.shWk }); }
       }
     }
     if (I.kind === 'tower' || I.kind === 'raid') {
@@ -4646,6 +4662,8 @@ export class WorldGame {
       if (tl.t > 0) continue;
       tl.done = true;
       if (boss && !tl.released) { boss.atkAt = this.clock; tl.released = true; }      // 그 자리에서 초식을 펼친다(내딛는 몸짓, v168)
+      // v443 칠십이변 — 칠대성 강타는 분신이 대신 맞는다
+      if (tl.strike && this.inst?.kind === 'wraid' && this.shWk > 0) { this.shWk--; this.emit('wukongBlock', { x: this.heroX, y: this.heroY, left: this.shWk }); this.emit('tellBoom', { tell: tl, hit: false }); continue; }
       const hit = tl.strike || D.tellCovers(tl, this.heroX, this.heroY);
       if (hit && boss) boss.tellHits = (boss.tellHits || 0) + 1;
       this.emit('tellBoom', { tell: tl, hit });
@@ -4802,7 +4820,8 @@ export class WorldGame {
     const z = W.mapOf(this.s.huntMap).mz || 1;
     this.startInst({ kind: 'wraid', key: o.id || o.day, boss0: boss.id, map: D.wraidMap(boss, this.s.level, z), t: D.WRAID_SEC, max: D.WRAID_SEC, wait: 1.2, castT: 3,
       hpLeft: o.hpLeft, sharedMax: o.maxHp, z, myDealt: 0, sent: 0, paid: r.n <= D.WRAID_PAID });
-    SH.start(this);
+    // v443 탄막 없이 — 무인은 아래에서 걸어 올라가 친다. 칠십이변 분신 방패는 그대로
+    this.bullets = []; this.emitters = []; this.shWk = this.setBonus().wukong ? 1 : 0; this.shWkT = 0; this.shFocus = 0;
     return true;
   }
   // 잡혔을 때 받기 — rank: 피해 순위(1부터). 서버에서 받음 표시를 한 뒤에 부른다.
