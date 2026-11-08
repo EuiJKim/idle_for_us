@@ -1035,6 +1035,9 @@ export const PASSIVE_REWARD = 1.15;
 // v439 사냥터 두목·왕·고수의 초식은 바닥 경고(피하기) 대신 이름을 외치고 STRIKE_WIND초 뒤 무인에게 바로 내리꽂는 「강타」 하나 —
 //   피할 수 없으니 세기는 옛 초식이 실제로 맞던 몫(방치 자동 피하기로 10~30%)에 맞춰 STRIKE_K배. 버티는 건 체력·방어·물약·회복 무공.
 export const STRIKE_WIND = 1.2, STRIKE_K = 0.25, STRIKE_ULT_K = 0.4;
+// v440 던전(무한의 탑 · 극 · 문파 토벌) 수문장도 강타 한 방 — 방치로는 못 피하던 경고를 다 맞던 것 대비 ×STRIKE_INST_K
+//   (여러 갈래가 겹쳐 두세 번 맞기도 했다 → 한 방으로). 직접 피하던 사람에겐 조금 아프고, 방치하던 사람에겐 덜 아프다.
+export const STRIKE_INST_K = 0.85;
 // v439 무공이 중요하게 — 평타(와 평타에서 나가는 꽃잎·쪼개기 같은 덤) 피해 ×BASIC_K, 무공 피해 ×SKILL_K(초당 피해는 비슷하게)
 export const BASIC_K = 0.6, SKILL_K = 1.2;
 export const swingSec = (atkSec) => BASE_ATK_SEC * Math.pow(atkSec / BASE_ATK_SEC, SWING_K);

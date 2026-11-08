@@ -4523,8 +4523,10 @@ export class WorldGame {
       if (b && !(b.stun > 0)) {
         I.castT -= dt;
         // 토벌 두목은 35층 수문장만큼의 초식을 약하게 (함께 오래 치는 판이라)
-        if (I.castT <= 0 && I.hard) { I.castT = D.hardGap(I.stage); this.bossCast(b, D.hardF(I.stage), D.HARD_DMG, D.hardPatterns(I.stage), null, { delay: D.hardDelay(I.stage) }); }
-        else if (I.castT <= 0) { const f = I.kind === 'raid' ? 35 : I.stage; I.castT = D.castGap(f) * (I.kind === 'raid' ? 1.3 : 1); this.bossCast(b, f, I.kind === 'raid' ? 0.6 : 1); }
+        // v440 바닥 경고 초식 → 이름을 외치고 한 방(강타) — 이름은 그 층 초식에서 하나
+        const nameOf = (pats) => { const p = pats[Math.floor(this.rng() * pats.length)]; return D.TELL_NAMES[p] || '강타'; };
+        if (I.castT <= 0 && I.hard) { I.castT = D.hardGap(I.stage); this.bossStrike(b, { pct: D.tellDmg(D.hardF(I.stage)) * D.HARD_DMG * W.STRIKE_INST_K, name: nameOf(D.hardPatterns(I.stage)), wind: Math.max(W.STRIKE_WIND, D.hardDelay(I.stage)) }); }
+        else if (I.castT <= 0) { const f = I.kind === 'raid' ? 35 : I.stage; I.castT = D.castGap(f) * (I.kind === 'raid' ? 1.3 : 1); this.bossStrike(b, { pct: D.tellDmg(f) * (I.kind === 'raid' ? 0.6 : 1) * W.STRIKE_INST_K, name: nameOf(D.towerPatterns(f)), wind: Math.max(W.STRIKE_WIND, D.tellDelay(f)) }); }
       }
     }
     I.t -= dt;

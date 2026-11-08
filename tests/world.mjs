@@ -4202,5 +4202,15 @@ console.log('\n=== v439 바람식 몹 · 강타 · 무공 중심 ===');
   ok(W.BASIC_K < 1 && W.SKILL_K > 1, '평타 몫은 줄이고 무공을 키운다', `평타 ×${W.BASIC_K} · 무공 ×${W.SKILL_K}`);
 }
 
+console.log('\n=== v440 던전 수문장도 강타 ===');
+{
+  const g = fresh('sword'); g.s.level = 80; g.s.gold = 1e9; while (g.canAdvance()) g.advance(); g._stats = null; g.heroHp = g.stats().hp;
+  ok(g.startTower(), '탑에 들어간다');
+  let strikes = 0, other = 0;
+  for (let i = 0; i < 400 && g.inst; i++) { g.tick(0.1); for (const t of g.tells) { if (t.strike) strikes++; else other++; } g.events.length = 0; }
+  ok(strikes > 0 && other === 0, '수문장 초식이 바닥 경고 대신 강타 한 방', `강타 ${strikes} · 경고 ${other}`);
+  ok(!/this\.bossCast\(/.test(read('js/world/wgame.js')), '바닥 경고 초식을 쓰는 곳이 없다(칠대성 탄막은 따로)');
+}
+
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);
