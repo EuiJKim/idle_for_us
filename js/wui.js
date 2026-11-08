@@ -497,7 +497,7 @@ function charTab(app) {
     { const t = game.nextTier(), n = (s.jobTier || 0) + 1;
       if (t) {
         const nm = t.need ? (game.fifth?.()?.needName || t.need) : null;
-        const next = s.level < t.level ? `레벨 ${t.level}에 ${n}차 전직` : t.need && !s.duel?.won?.[t.need] ? `${nm} 쓰러뜨리기(5차)` : s.gold < t.cost ? `${n}차 전직 은자 ${fmt(t.cost)} 모으기` : `${n}차 전직 — 사부에게`;
+        const next = s.level < t.level ? `레벨 ${t.level}에 ${W.tierLabel(n)}` : t.need && !s.duel?.won?.[t.need] ? `${nm} 쓰러뜨리기(5차)` : s.gold < t.cost ? `${W.tierLabel(n)} 은자 ${fmt(t.cost)} 모으기` : `${W.tierLabel(n)} — 사부에게`;
         row('成', `Lv.${s.level} · ${game.tierName()}`, `다음 전직 레벨 ${t.level}`, next, game.canAdvance() ? ['town', 'master'] : t.need && s.level >= t.level ? ['map', 'masters'] : ['map'], game.canAdvance());
       } else if (s.level < W.LEVEL_MAX) row('成', `Lv.${s.level} · ${game.tierName()}`, '전직은 끝', `레벨 ${W.LEVEL_MAX} 만렙`, ['map']);
       else row('成', `Lv.${s.level} · ${game.tierName()}`, '만렙', `깨달음 — 무공마다 단계(무공 창)`, ['char', 'skill'], (s.enl?.pts || 0) > 0); }
@@ -2762,11 +2762,12 @@ function townTab(app) {
       const lvOk = s.level >= t.level, goldOk = s.gold >= t.cost;
       card.append(
         h('div', { class: 'advance-box' },
-          h('div', { class: 'adv-title' }, `${s.jobTier + 1}차 전직 → `, h('b', {}, game.tierName(s.jobTier + 1))),
+          h('div', { class: 'adv-title' }, `${W.tierLabel(s.jobTier + 1)} → `, h('b', {}, game.tierName(s.jobTier + 1))),
           h('div', { class: 'checks' },
             h('span', { class: `need${lvOk ? ' ok' : ''}` }, `레벨 ${t.level}`, ' ', h('b', {}, lvOk ? '✓' : `${s.level}/${t.level}`)),
             h('span', { class: `need${goldOk ? ' ok' : ''}` }, '은자', ' ', h('b', {}, goldOk ? '✓' : `${fmt(s.gold)}/${fmt(t.cost)}`))),
           h('p', { class: 'muted' }, '배우는 무공: ', h('b', {}, sk.name), ` — ${skillText(game, sk)}`),
+          h('p', { class: 'muted' }, `최대 체력 +${Math.round(W.tierHp(s.jobTier + 1) * 100)}% (지금 +${Math.round(W.tierHp(s.jobTier) * 100)}%) — 체력을 쓰는 무공이 그만큼 세져요`),   // v442
           h('button', { class: 'btn primary', style: 'width:100%', disabled: game.canAdvance() ? null : true, onclick: () => {
             if (!game.advance()) return;
             toast(`${game.tierName()}(으)로 전직했어요 — 〈${sk.name}〉`);
@@ -3078,7 +3079,7 @@ export function skillRoadmap(game, job) {
     const L = lvOf(k);
     const known = mine && game.knows(k);
     const pathName = k.path ? PT.PATHS[job]?.[k.path]?.name || '' : '';
-    const when = k.path ? `레벨 ${L} · 2차 전직 뒤 '${pathName}'을 고르면` : k.kind === 'support' ? `레벨 ${L}이 되면` : `${k.tier}차 전직 · 레벨 ${L}`;
+    const when = k.path ? `레벨 ${L} · 2차 전직 뒤 '${pathName}'을 고르면` : k.kind === 'support' ? `레벨 ${L}이 되면` : `${W.tierLabel(k.tier)} · 레벨 ${L}`;
     const otherPath = mine && k.path && s.path && s.path !== k.path && !known;
     let st;
     if (known) st = '✓ 배움';

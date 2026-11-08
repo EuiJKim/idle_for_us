@@ -1881,8 +1881,8 @@ function handleEvents() {
           drawPortrait(); save();
           break;
         }
-        view.showBanner(`${ev.tier}차 전직 · ${game.tierName()}`, '#fde68a', 2.4, '전직');
-        net.announce(`🎉 ${game.s.nickname}님이 ${ev.tier}차 전직 — ${game.tierName()}`);
+        view.showBanner(`${W.tierLabel(ev.tier)} · ${game.tierName()}`, '#fde68a', 2.4, ev.tier === 4 ? '승급' : '전직');
+        net.announce(`🎉 ${game.s.nickname}님이 ${W.tierLabel(ev.tier)} — ${game.tierName()}`);
         view.effects.push({ kind: 'pillar', life: 1.6, max: 1.6 });
         const sk = W.skillsOf(game.s.job).find((k) => k.tier === ev.tier);
         toast(`새 스킬 〈${sk.name}〉 — ${skillText(game, sk)}`);

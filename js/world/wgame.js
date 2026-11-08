@@ -714,7 +714,7 @@ export class WorldGame {
     // 장비가 2/3 남짓, 레벨·스탯이 1/3 남짓(시뮬로 맞춤). 힘·체력은 1점에 0.3%씩도 올린다.
     const tset = this.titleSet();   // v315 칭호 모음
     const atk = (5 + L * 3 + str * 3 + gear.atk) * (1 + gear.atkPct + str * 0.003 + (s.guildId ? W.guildAtk(this.guildExp) : 0)) * (cls.atkK || 1) * (1 + gear.impMul) * (this.titleNow()?.atkMul || 1) * (1 + tset.atk) * (this.cheonmaOn() ? this.fifth().atkMul : 1);   // v391 천마혼 · atkK: 직업 맞춤(v239) · v297 각인 배율 · v305 칭호
-    const hp = (60 + L * 25 + vit * 20 + gear.hp) * (1 + gear.hpPct + vit * 0.003) * (1 + gear.impMul) * (1 + tset.hp) * (this.cheonmaOn() ? this.fifth().hpMul : 1);   // v315 칭호 모음
+    const hp = (60 + L * 25 + vit * 20 + gear.hp) * (1 + gear.hpPct + vit * 0.003) * (1 + gear.impMul) * (1 + tset.hp) * (this.cheonmaOn() ? this.fifth().hpMul : 1) * (1 + W.tierHp(s.jobTier || 0));   // v442 전직·승급 체력   // v315 칭호 모음
     const st = {
       atk, hp,
       def: vit * 0.2 + gear.def,

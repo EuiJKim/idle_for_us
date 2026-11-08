@@ -828,7 +828,7 @@ console.log('\n=== 환마 4차 · 환영분신술 (v121) ===');
   const g = fresh('fan');
   g.s.level = W.TIERS[4].level; g.s.gold = 1e9;
   while (g.canAdvance()) g.advance();
-  ok(g.s.jobTier === 4 && g.tierName() === '섭혼마존' && g.skills().some((k) => k.name === '환영분신술'), '환마는 레벨 100에 4차 전직 → 섭혼마존 · 환영분신술', g.tierName());
+  ok(g.s.jobTier === 4 && g.tierName() === '섭혼마존' && g.skills().some((k) => k.name === '환영분신술'), '환마는 레벨 99 승급(4차) → 섭혼마존 · 환영분신술', g.tierName());
   ok(['sword', 'fist', 'poison', 'ring'].every((j) => { const o = fresh(j); o.s.level = W.TIERS[4].level; o.s.gold = 1e9; while (o.canAdvance()) o.advance(); return o.s.jobTier === 4 && o.tierName() === W.LORE[j].title && (!o.nextTier() || o.nextTier().need === W.fifthOf(j).need); }), '다섯 직업 모두 레벨 100에 4차 → 마존 이름 (v123) · 5차는 숨은 두목을 꺾어야(v393)');
   g.enterMap(11); g._stats = null; g.heroHp = g.stats().hp;
   for (const m of g.mons) { m.hp = m.maxHp = 1e12; m.atk = 0; m.x = g.heroX + 40; m.y = g.heroY; }
@@ -3834,8 +3834,8 @@ console.log('\n=== v415 넘치는 최고 등급 탈것은 조각으로 · 전직
   ok(n === W.MOUNT_KEEP_TOP && g.s.mountShard >= 20 * W.MOUNT_SPARE_SHARD, `최고 등급 ${W.MOUNT_KEEP_TOP}마리까지 · 넘친 20마리는 조각 ${20 * W.MOUNT_SPARE_SHARD}`, `${n}`);
   const raw = JSON.parse(JSON.stringify(g.s)); for (let i = 0; i < 500; i++) raw.mounts.push({ uid: 900000 + i, kind: top, lv: 0 });
   const m2 = migrateWorld(raw); ok(m2.mounts.filter((m) => m.kind === top).length === W.MOUNT_KEEP_TOP && m2.mountShard >= raw.mountShard + 500 * W.MOUNT_SPARE_SHARD, '옛 세이브(청룡마 수백 마리)도 불러올 때 정리');
-  ok(W.TIERS[4].level === 100 && W.TIERS[4].cost <= 6e6 && W.TIERS[3].cost <= 7e5, '전직 값 — 새 레벨 벌이에 맞춰');
-  const a = fresh('sword'); while (a.s.level < 100) a.addExp(W.expToNext(a.s.level)); a.s.jobTier = 3; a.s.gold = W.TIERS[4].cost + 5e5; a.s.mats[W.ORE] = 1e9; a.s.autoEnh = true;
+  ok(W.TIERS[4].level === 99 && W.TIERS[4].cost <= 6e6 && W.TIERS[3].cost <= 7e5, '전직 값 — 새 레벨 벌이에 맞춰 (v442 4차=승급은 99)');
+  const a = fresh('sword'); while (a.s.level < W.TIERS[4].level) a.addExp(W.expToNext(a.s.level)); a.s.jobTier = 3; a.s.gold = W.TIERS[4].cost + 5e5; a.s.mats[W.ORE] = 1e9; a.s.autoEnh = true;
   for (let i = 0; i < 5; i++) a.autoGear();
   ok(a.s.gold >= W.TIERS[4].cost && a.canAdvance(), '자동 강화는 4차 전직 값을 남긴다');
 }
@@ -4230,6 +4230,19 @@ console.log('\n=== v441 체력이 곧 힘 ===');
   for (let i = 0; i < 400 && !healed; i++) { h.tick(0.1); for (const e of h.events) if (e.type === 'petBuff' && e.kind === 'heal') healed = 1; h.events.length = 0; }
   ok(healed && h.heroHp > h.stats().hp * 0.55, '학익진이 체력을 돌려준다', `${Math.round(h.heroHp / h.stats().hp * 100)}%`);
   ok(W.skillsOf('fan').find((k) => k.id === 's2').lifesteal >= 0.12, '환마 천외혈마공 흡혈 12%');
+}
+
+console.log('\n=== v442 99 승급 · 전직마다 체력 ===');
+{
+  ok(W.TIERS[4].level === 99 && W.tierLabel(4) === '승급(4차)' && W.tierLabel(3) === '3차 전직', '4차는 레벨 99 「승급」');
+  const g = fresh('sword'); g.s.level = 99; g.s.gold = 1e9; g._stats = null;
+  const hp0 = g.stats().hp; const t0 = g.s.jobTier;
+  while (g.canAdvance()) g.advance();
+  ok(g.s.jobTier === 4, '99에 승급까지 간다', `${t0} → ${g.s.jobTier}`);
+  const hp1 = g.stats().hp;
+  ok(Math.abs(hp1 / hp0 - (1 + W.tierHp(4)) / (1 + W.tierHp(t0))) < 0.01, '승급하면 최대 체력이 오른다', `${Math.round(hp0)} → ${Math.round(hp1)} (+${Math.round(W.tierHp(4) * 100)}%)`);
+  ok(W.TIER_HP.every((v, i) => i === 0 || v > W.TIER_HP[i - 1]), '전직마다 체력 보너스가 커진다', W.TIER_HP.join(' '));
+  ok(/레벨 \$\{W\.TIERS\[4\]\.level\}에 승급/.test(read('js/world/wquest.js')) && /tierLabel/.test(read('js/wui.js')) && /tierLabel/.test(read('js/wmain.js')), '길잡이·사부 창·알림이 「승급」이라 부른다');
 }
 
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
