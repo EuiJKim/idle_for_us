@@ -4243,5 +4243,11 @@ console.log('\n=== v444 주력 무공 하나 · 계승 ===');
   ok(/주력 무공/.test(read('js/wui.js')) && /계승 — 피해/.test(read('js/wui.js')), '무공 창에 주력 · 계승이 보인다');
 }
 
+console.log('\n=== v445 환마 손보기 ===');
+{
+  const sk = (id) => W.skillsOf('fan').find((k) => k.id === id);
+  ok(sk('s1').radius === 288 && sk('s2').radius === 320 && sk('s2').cd === 8, '환마 혈루미혼 범위 288 · 천외혈마공 범위 320 · 숨 8', `${sk('s1').radius} · ${sk('s2').radius} · ${sk('s2').cd}`);
+}
+
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);

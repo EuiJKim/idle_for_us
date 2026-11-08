@@ -151,10 +151,10 @@ export const JOB_SKILLS = {
   fan: [
     SK(0, 1, 'frost', '섭혼술', 'single', { mult: 4.8, cd: 5, hpCost: 0, stun: 2.5, vuln: { sec: 6, v: 0.3 },
       desc: '혼을 거두는 눈빛 · 2.5초 멎고 6초간 받는 피해 +30%' }),
-    SK(1, 2, 'slash', '혈루미혼', 'aoe', { mult: 2.3, cd: 8, hpCost: 0.10, radius: 224, stun: 2,
+    SK(1, 2, 'slash', '혈루미혼', 'aoe', { mult: 2.3, cd: 8, hpCost: 0.10, radius: 288, stun: 2,   // v445 범위 224 → 288 (주력 하나가 된 뒤 환마 사냥이 처졌다)
       desc: '핏빛 눈물이 혼을 홀린다 · 둘레가 2초 멎는다' }),
-    SK(2, 3, 'thunder', '천외혈마공', 'aoe', { mult: 5.6, cd: 9, hpCost: 0.15, radius: 288, lifesteal: 0.12, vuln: { sec: 6, v: 0.2 },
-      desc: '하늘 밖의 혈마공 · 준 피해의 12%를 빨아들이고 6초간 받는 피해 +20%' }),   // v441 흡혈 5 → 12%(환마 = 피를 거두어 버티는 직업)
+    SK(2, 3, 'thunder', '천외혈마공', 'aoe', { mult: 5.6, cd: 8, hpCost: 0.15, radius: 320, lifesteal: 0.12, vuln: { sec: 6, v: 0.2 },
+      desc: '하늘 밖의 혈마공 · 준 피해의 12%를 빨아들이고 6초간 받는 피해 +20%' }),   // v441 흡혈 5 → 12%(환마 = 피를 거두어 버티는 직업) · v445 범위 288 → 320 · 숨 9 → 8
     SK(3, 0, 'sup', '시공이환술', 'support', { cd: 24, hpCost: 0, from: 25, auto: 'hurt', hurtAt: 0.5, heal: 0.4, buff: { sec: 4, dmgRed: 0.6 },   // v441 숨 30 → 24
       desc: '때와 자리를 바꿔 다친 몸을 되돌린다 — 잃은 체력의 40% 회복 · 4초간 받는 피해 -60%' }),
     SK(4, 4, 'clone', '환영분신술', 'clone', { mult: 0.28, cd: 28, hpCost: 0.12, radius: 256, n: 2, sec: 10, burst: 0.6, autoAbove: 0.5,
