@@ -188,10 +188,10 @@ export const SPECIAL_KIND = {
   execute: (p) => `체력 30% 아래 적에게 피해 +${Math.round(Math.min(150, 25 * p))}%`,
   bane: (p) => `두목에게 주는 피해 +${Math.round(Math.min(80, 12 * p))}%`,
   chain: (p) => `치명타가 둘레 적 둘에게 번진다 (×${Math.min(1, 0.25 * p).toFixed(2)})`,
-  nova: (p) => `${Math.max(4, 10 - Math.round(2 * p))}초마다 둘레를 터뜨린다 (공격력 ×${(2 * p).toFixed(1)})`,
-  rain: (p) => `${Math.max(5, 11 - Math.round(2 * p))}초마다 둘레 적 다섯에게 쏟아진다 (×${(1.2 * p).toFixed(1)})`,
+  nova: (p) => `${Math.max(4, 10 - Math.round(2 * p))}초마다 둘레를 터뜨린다 (공격력 ×${(2.6 * p).toFixed(1)})`,
+  rain: (p) => `${Math.max(5, 11 - Math.round(2 * p))}초마다 둘레 적 다섯에게 쏟아진다 (×${(2.2 * p).toFixed(1)})`,
   guard: (p) => `8초마다 최대 체력 ${Math.round(Math.min(40, 10 * p))}% 보호막`,
-  reap: (p) => `적을 쓰러뜨리면 체력 ${Math.min(15, 3 * p).toFixed(1)}% 회복`,
+  reap: (p) => `적을 쓰러뜨리면 체력 ${Math.min(20, 4.5 * p).toFixed(1)}% 회복`,
   frenzy: (p) => `맞을 때 ${Math.round(Math.min(60, 12 * p))}% 확률로 4초간 공격 속도 +40% · 피해 +15%`,
   // 되돌림을 받은 피해로 셈하면 쓸모가 없다 — 몹 한 대가 제 체력의 1/200쯤이라. 무인 공격력으로 반격한다 (v167)
   mirror: (p) => `맞을 때마다 그 적에게 반격 (공격력 ×${Math.min(5, 1.5 * p).toFixed(1)})`,

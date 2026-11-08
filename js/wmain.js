@@ -1266,7 +1266,7 @@ function refreshUI(full = false) {
   setText($('progress-text'), `체력 ${fmt(Math.max(0, game.heroHp))} / ${fmt(st.hp)}`);
   setText($('power-label'), `전투력 ${fmt(st.power)}`);
   // 무공 바
-  const sig = `${s.job}|${s.jobTier}|${game.canAdvance()}|${game.skills().length}`;
+  const sig = `${s.job}|${s.jobTier}|${game.canAdvance()}|${game.skills().map((k) => k.id).join(',')}`;   // v444 주력이 바뀌면 다시 짠다
   if (sig !== lastSig) { lastSig = sig; buildSkillbar(); }
   for (const e of skillEls) {
     const open = game.knows(e.sk);
@@ -1884,7 +1884,8 @@ function handleEvents() {
         net.announce(`🎉 ${game.s.nickname}님이 ${W.tierLabel(ev.tier)} — ${game.tierName()}`);
         view.effects.push({ kind: 'pillar', life: 1.6, max: 1.6 });
         const sk = W.skillsOf(game.s.job).find((k) => k.tier === ev.tier);
-        toast(`새 스킬 〈${sk.name}〉 — ${skillText(game, sk)}`);
+        { const mn = game.mainSkill?.(); const ret = game.retiredSkills?.() || [];   // v444 주력이 바뀌었으면 — 옛 무공이 물러나며 힘을 물려줬다
+          toast(mn && mn.id === sk.id && ret.length ? `새 주력 무공 〈${sk.name}〉 — 〈${ret.map((k) => k.name).join('〉·〈')}〉의 힘과 레벨을 이어받았다(피해 ×${game.inheritDmg(sk.id).toFixed(2)} · 숨 ×${game.inheritCd(sk.id).toFixed(2)})` : `새 스킬 〈${sk.name}〉 — ${skillText(game, sk)}`); }
         drawPortrait();
         save();
         break;

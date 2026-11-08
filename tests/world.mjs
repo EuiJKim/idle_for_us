@@ -98,7 +98,7 @@ console.log('\n=== 무공 만렙 · 초기화 (v205) ===');
 {
   ok(W.SKILL_LV_MAX === 15 && W.skillSpent(10) === 25 && W.skillSpent(15) === 55, '만렙 15 · 10까지 25점 · 15까지 55점');
   const g = fresh();
-  g.s.jobTier = 3; g.s.level = 150; g.s.skillPts = 200; g.s.gold = 1e12;
+  g.s.jobTier = 1; g.s.level = 150; g.s.skillPts = 200; g.s.gold = 1e12;   // v444 1차라 일화참이 주력
   while (g.skillUp('s0'));
   ok(g.skillLevel('s0') === 15 && g.skillMods('s0').crit >= 0.2, '15까지 올라가고 만렙에 치명 덧');
   const spent = g.skillSpentAll(), pts = g.s.skillPts, gold = g.s.gold;
@@ -744,10 +744,10 @@ console.log('\n=== 문파 버프 ===');
 
 console.log('\n=== 다섯 마존의 무공 (v118) ===');
 {
-  const ready = (job) => {
+  const ready = (job, tier = 3) => {   // v444 그 무공이 주력인 차수로
     const g = fresh(job);
-    g.s.level = W.TIERS[3].level; g.s.gold = 1e9;   // v395 3차가 레벨 100
-    while (g.canAdvance()) g.advance();
+    g.s.level = W.TIERS[tier].level; g.s.gold = 1e9;   // v395 3차가 레벨 100
+    while (g.canAdvance() && g.s.jobTier < tier) g.advance();
     g.enterMap(11);
     g._stats = null; g.heroHp = g.stats().hp;
     for (const m of g.mons) { m.hp = m.maxHp = 1e12; m.atk = 0; }
@@ -757,7 +757,7 @@ console.log('\n=== 다섯 마존의 무공 (v118) ===');
     return g;
   };
   ok(['sword', 'fist', 'fan', 'poison', 'ring'].every((j) => new Set(W.skillsOf(j).map((k) => k.name)).size === W.skillsOf(j).length && W.skillsOf(j).length >= 4 && W.LORE[j]?.title), '직업마다 무공 셋 + 보조기 하나가 다르고 마존 설정이 있다');
-  const p = ready('poison');
+  const p = ready('poison', 2);
   ok(p.useSkill('s1') && p.fields.length === 1, '독마 화골산: 독무 장판이 깔린다');
   const hp0 = p.mons.reduce((a, m) => a + m.hp, 0);
   for (let i = 0; i < 30; i++) p.tick(0.1);
@@ -765,9 +765,9 @@ console.log('\n=== 다섯 마존의 무공 (v118) ===');
   const f = ready('fist');
   ok(f.useSkill('s2') && f.buffv.guard === 0.5 && f.buffv.cleave > 0, '권마 불패금신: 받는 피해 -50% · 평타가 둘레를 친다');
   const r = ready('ring');
-  for (const k of ['s0', 's1', 's2']) { r.cd[k] = 0; r.useSkill(k); r.tick(0.1); }
-  ok(r.buffv.might === W.HARMONY.dmgUp, '극악소마: 세 무공을 이으면 삼공조화');
-  const fn = ready('fan');
+  r.cd.s2 = 0; r.useSkill('s2'); r.tick(0.1);
+  ok(r.buffv.might === W.HARMONY.dmgUp, '극악소마: 3차 주력(소향비술) 한 번이 세 무공을 품어 삼공조화');   // v444
+  const fn = ready('fan', 1);
   fn.useSkill('s0');
   ok(fn.mon.stun > 0 && fn.mon.vulnT > fn.clock, '환마 섭혼술: 멎고 더 아프게 맞는다');
   const sw = ready('sword');
@@ -939,9 +939,9 @@ console.log('\n=== 장비 개편 (v130) ===');
   const t = fresh('sword'); t.s.level = 40; t.s.jobTier = 2; t.enterMap(W.mapId(5, 1));
   const sk = t.skillDef('s1'); const r0 = t.skillRadius(sk);
   t.s.equip.acc = { ...t.makeCrafted('acc', 4, 0, 2), opts: [{ tf: 'giant', s: 1 }, { tf: 'fire', s: 0 }] }; t._stats = null; t._mods = null;
-  ok(Math.abs(t.skillRadius(sk) / r0 - 1.5) < 0.01 && t.skillMods('s0').tf?.fire, '스킬 변화: 거대화 범위 +50% · 화염');
+  ok(Math.abs(t.skillRadius(sk) / r0 - 1.5) < 0.01 && t.skillMods('s1').tf?.fire, '스킬 변화: 거대화 범위 +50% · 화염(1차 칸 옵션도 주력이 받는다 v444)');
   for (const m of t.mons) { m.hp = m.maxHp = 1e9; m.x = t.heroX + 40; m.y = t.heroY; }
-  t.mon = t.mons[0]; t.cd.s0 = 0; t.useSkill('s0');
+  t.mon = t.mons[0]; t.cd.s1 = 0; t.useSkill('s1');
   ok(t.events.some((e) => e.type === 'tfHit' && e.tf === 'fire') && t.mons[0].dot > 0, '화염 — 맞은 적이 불탄다(연출 알림)');
   ok(W.optText({ tf: 'thunder', s: 4 }).includes('4차') && W.optText({ tf: 'thunder', s: 4 }).includes('뇌전'), '변화 옵션 글');
   // 십이지왕은 내 직업 세트 조각이나 공용 장신구를 떨군다
@@ -1152,7 +1152,7 @@ console.log('\n=== 전직·스킬 ===');
   g.s.level = W.TIERS[2].level; g.s.gold = 1e6;
   g.enterMap(11);
   ok(g.canAdvance() && g.advance(), '전직은 사냥터에서도 된다');
-  ok(g.s.jobTier === 2 && g.skills().filter((k) => k.kind !== 'support').length === 2, '2차 전직 → 공격 무공 둘 (+ 레벨 25부터 보조기)');
+  ok(g.s.jobTier === 2 && g.skills().filter((k) => k.kind !== 'support').length === 1 && g.mainSkill().id === 's1' && g.retiredSkills().some((k) => k.id === 's0'), '2차 전직 → 2차 무공이 주력 · 1차 무공은 물러난다(v444)');
   g.enterMap(11);
   const sk = g.skills().find((x) => x.hpCost);
   g.heroHp = g.stats().hp;
@@ -1507,9 +1507,9 @@ console.log('\n=== 증표 각인 세 칸 (v163) ===');
   E.enterMap(W.mapId(5, 1)); for (let i = 0; i < 30; i++) E.tick(0.05);
   let ez = 1; while (IM.SKILL_KIND[IM.themeOfZone(ez)] !== 'echo' || ez % 3 !== 1) ez++;
   E.s.equip.hat.rar = 3; E.s.equip.hat.imps = [W.bossKey(ez)];
-  E._stats = null; E._mods = null; E.rng = () => 0; E.cd.s1 = 0; E.heroHp = E.stats().hp;
+  E._stats = null; E._mods = null; E.rng = () => 0; E.cd.s2 = 0; E.heroHp = E.stats().hp;
   E.events.length = 0;
-  E.useSkill('s1');
+  E.useSkill('s2');   // v444 3차 주력이 2차 칸 각인도 받는다
   ok(E.events.filter((e) => e.type === 'skill').length === 2 && E.events.some((e) => e.type === 'echo'), '한 번 더 각인 — 스킬 그림이 두 번 펼쳐진다');
   // 고유 효과: 천마군림(둘레 폭발)이 때마다 터진다
   const N = fresh(); while (N.s.level < 150) N.addExp(W.expToNext(N.s.level)); N._stats = null;
@@ -1576,7 +1576,7 @@ console.log('\n=== 고유 효과가 쓸모 있는가 (v167 · 꼴 열여섯을 �
     const [zid, i] = sp.id.split('.');
     const z = zid[0] === 'k' ? W.NORMAL_ZONES + 13 - +zid.slice(1) : W.masterZoneOf(zid);
     g.s.equip.weapon.rar = 1; g.s.equip.weapon.imps = [{ k: W.bossKey(z), s: 0, sk: 'dmg', g: 0, sp: +i }];   // v307: 유니크 ×1.5 ≈ 옛 신화 칸 1.6 (버티기 장면의 벅참을 그대로)
-    g._stats = null; g._isp = null; g._mods = null;
+    g._stats = null; g._isp = null; g._mods = null; if (scene !== 'pressure') g.heroHp = g.stats().hp;   // v444 허수아비 판은 체력이 가득한 채 — 주력 무공은 체력이 넉넉할 때 나간다(버티기 판은 그대로)
     if (off) g.impSpecials = () => ({});
     g.autoDodge = true;
     let dealt = 0, deaths = 0, hpSum = 0, n = 0;
@@ -1848,8 +1848,8 @@ console.log('\n=== v263 각성 · 깨달음 · 견문록 · 회랑 · 길잡이 
   while (g.s.level < W.LEVEL_MAX) g.addExp(W.expToNext(g.s.level));
   g.addExp(W.enlExp() * 3);
   ok(g.s.enl.pts === 3, '만렙 뒤 경험치 → 깨달음 점수', `${g.s.enl.pts}`);
-  const dm = g.skillMods('s0').dmg;
-  ok(g.enlUp('s0') && Math.abs(g.skillMods('s0').dmg - dm - W.ENL_STEP.dmg) < 1e-9 && g.s.enl.pts === 2, '깨달음 한 단계 — 피해 +3%');
+  const mid = g.mainSkill().id, dm = g.skillMods(mid).dmg;
+  ok(g.enlUp(mid) && Math.abs(g.skillMods(mid).dmg - dm - W.ENL_STEP.dmg) < 1e-9 && g.s.enl.pts === 2, '깨달음 한 단계 — 피해 +3%(주력)');
   // 견문록
   const X = fresh();
   const z = W.dexZones()[0];
@@ -2106,12 +2106,13 @@ console.log('\n=== 직업의 길 (v237) ===');
   const f2 = fresh('fist');
   while (f2.s.level < 45) f2.addExp(W.expToNext(f2.s.level));
   f2.s.jobTier = 2; f2.choosePath('a');
-  const pa = f2.skills().find((k) => k.path === 'a');
-  ok(pa && pa.name === '벽공장풍' && !f2.skills().some((k) => k.path === 'b'), '장풍의 길: 벽공장풍이 생기고 연타 무공은 없다');
+  const pa = f2.retiredSkills().find((k) => k.path === 'a');
+  ok(pa && pa.name === '벽공장풍' && !f2.skills().some((k) => k.path) && f2.inheritK(f2.mainSkill().id) > 1, '장풍의 길: 벽공장풍의 힘이 주력에 들어간다(v444 · 따로 쓰지 않는다) · 연타 무공은 없다');
   f2.enterMap(W.mapId(1, 1)); f2.s.autoHunt = true;
   for (let t = 0; t < 3; t += 0.05) f2.tick(0.05);
   const m0 = f2.mons.find((m) => m.alive && !m.npc); f2.heroX = m0.x - 50; f2.heroY = m0.y; f2.mon = m0; f2.cd.pa = 0;
-  ok(f2.useSkill('pa') && f2.cd.pa > 0, '벽공장풍을 펼친다');
+  f2.cd = {}; f2.heroHp = f2.stats().hp;
+  ok(!f2.useSkill('pa') && f2.useSkill(f2.mainSkill().id), '벽공장풍은 따로 안 나가고 주력이 펼친다(v444)', f2.skillFail || '');
   f2.choosePath('b'); f2.s.gold = 1e12; f2.choosePath('b');
   const pb = f2.skills().find((k) => k.path === 'b');
   ok(pb && pb.name === '전광연타' && pb.kind === 'awaken', '연타의 길로 바꾸면 전광연타(자세)가 생긴다');
@@ -2119,7 +2120,7 @@ console.log('\n=== 직업의 길 (v237) ===');
   ok(f2.useSkill('pb') && f2.buffs.triple > 0 && f2.buffv.haste > 0, '전광연타: 평타 세 대 · 공격 속도 자세가 켜진다');
   while (f2.s.level < 140) f2.addExp(W.expToNext(f2.s.level));
   f2.s.jobTier = 4; f2._stats = null;
-  ok(f2.skills().filter((k) => k.path).length === 2, '합일: 길 무공 둘 다');
+  ok(f2.skills().filter((k) => k.path).length === 1 && f2.retiredSkills().some((k) => k.path === 'a'), '합일: 길 무공 둘 다(장풍은 주력에 · 연타 자세는 따로)');
 
 }
 
@@ -3598,7 +3599,7 @@ console.log('\n=== v391 검사 5차 전직 · 천마신공 ===');
   g.s.duel.won = { ...(g.s.duel.won || {}), cheonma: 1 };
   ok(g.canAdvance() && g.advance() && g.s.jobTier === 5 && g.cheonmaOn() && g.tierName() === '천마', '천마를 꺾으면 5차 — 천마');
   const names = g.skills().map((k) => k.name);
-  ok(['직단결', '만환결', '망월참', '방원결', '심마도'].every((n) => names.includes(n)) && names.length === names0.length, '무공이 모두 구화마도식으로 — 자리 그대로', names.join(','));
+  ok(names.every((n) => ['직단결', '만환결', '망월참', '방원결', '심마도'].includes(n)) && names.length === names0.length, '무공이 모두 구화마도식으로 — 자리 그대로', names.join(','));
   ok(g.skillDef('s0').name === '직단결' && g.skillDef('s0').fx === 'sword:m0' && W.skillsOf('sword', true).map((k) => k.form).sort().join('') === '1234567', '일곱 초식 · 같은 연출 열쇠');
   { g.enterMap(W.mapId(14, 1), true); g.heroHp = g.stats().hp; for (let i = 0; i < 40; i++) g.tick(0.05); const m = g.mons.find((x) => x.alive); if (m) g.mon = m;
     const k = 's4'; g.cds = {}; g.skillCd = {}; g.useSkill(k, { free: true }); ok(g.buffs.cmSoul > 0 && g.buffv.cmSoul === W.CHEONMA.soulDmg, '칠초식 심마도 — 천마혼 발현'); }
@@ -4212,6 +4213,34 @@ console.log('\n=== v442 99 승급 · 전직마다 체력 ===');
   ok(Math.abs(hp1 / hp0 - (1 + W.tierHp(4)) / (1 + W.tierHp(t0))) < 0.01, '승급하면 최대 체력이 오른다', `${Math.round(hp0)} → ${Math.round(hp1)} (+${Math.round(W.tierHp(4) * 100)}%)`);
   ok(W.TIER_HP.every((v, i) => i === 0 || v > W.TIER_HP[i - 1]), '전직마다 체력 보너스가 커진다', W.TIER_HP.join(' '));
   ok(/레벨 \$\{W\.TIERS\[4\]\.level\}에 승급/.test(read('js/world/wquest.js')) && /tierLabel/.test(read('js/wui.js')) && /tierLabel/.test(read('js/wmain.js')), '길잡이·사부 창·알림이 「승급」이라 부른다');
+}
+
+console.log('\n=== v444 주력 무공 하나 · 계승 ===');
+{
+  // 전직할 때마다 새 무공이 주력 · 옛 무공은 물러난다
+  const g = fresh('sword'); g.s.level = 120; g.s.gold = 1e12;
+  const seen = [];
+  while (g.canAdvance()) { g.advance(); seen.push(`${g.s.jobTier}:${g.mainSkill()?.id}:${g.skills().filter((k) => W.ATTACK_KINDS.has(k.kind) && k.slot <= 2).length}`); }
+  ok(seen[0] === '1:s0:1' && seen[1] === '2:s1:1' && seen[2] === '3:s2:1', '1차 일화참 → 2차 낙화유수 → 3차 만화귀일 — 공격 무공은 늘 하나', seen.join(' '));
+  ok(g.skills().some((k) => k.id === 's4') && g.skills().some((k) => k.id === 's3'), '승급 필살기·보조기는 따로 남는다', g.skills().map((k) => k.name).join(','));
+  ok(g.inheritK('s2') > 1.5 && g.inheritCd('s2') < 1 && g.inheritDmg('s2', true) > g.inheritDmg('s2'), '계승 — 숨은 짧게 · 한 방은 세게 · 두목에겐 한 적 무공 몫까지', `×${g.inheritK('s2').toFixed(2)} · 숨 ×${g.inheritCd('s2').toFixed(2)} · 두목 ×${g.inheritDmg('s2', true).toFixed(2)}`);
+  ok(!g.useSkill('s0') && !g.canSkillUp('s0'), '물러난 무공은 쓰지도 올리지도 않는다');
+  // 무공 레벨은 새 주력이 이어받는다(남은 점수는 돌려준다)
+  const h = fresh('fan'); h.s.level = 40; h.s.gold = 1e9; h.advance(); h.s.skillPts = 50;
+  for (let i = 0; i < 6; i++) h.skillUp('s0');
+  const lv0 = h.skillLevel('s0'), pts0 = h.s.skillPts;
+  h.advance();
+  ok(h.mainSkill().id === 's1' && h.skillLevel('s1') === lv0 && h.s.skillPts === pts0, '2차가 되면 1차 무공 레벨을 2차 무공이 그대로 이어받는다', `Lv${lv0} → Lv${h.skillLevel('s1')}`);
+  // 옛 세이브 — 여러 무공에 나눠 쓴 점수는 가장 높은 레벨만 주력에, 나머지는 돌려준다
+  const sv = newWorldSave(0); sv.job = 'ring'; sv.jobTier = 3; sv.level = 100; sv.skillLv = { s0: 10, s1: 6, s2: 3 }; sv.skillPts = 0; delete sv.mainV;
+  const o = new WorldGame(sv, 0);
+  ok(o.skillLevel('s2') === 10 && o.s.skillPts === W.skillSpent(6) + W.skillSpent(3) && o.s.mainV === 1, '옛 세이브 — 가장 높은 레벨(10)을 주력이 · 나머지 점수는 돌려받는다', `점수 ${o.s.skillPts}`);
+  // 물러난 무공 칸의 장비 옵션·취약도 주력이 받는다
+  const f = fresh('fan'); f.s.level = 120; f.s.gold = 1e12; while (f.canAdvance()) f.advance(); f.enterMap(11);
+  const m = f.mons.find((x) => x.alive && !x.npc); m.hp = m.maxHp = 1e12; m.x = f.heroX + 40; m.y = f.heroY; f.mon = m; f.cd = {}; f.heroHp = f.stats().hp;
+  f.useSkill(f.mainSkill().id);
+  ok(m.vulnV >= 0.3, '물러난 섭혼술의 취약(+30%)을 주력이 걸어 준다', `${m.vulnV}`);
+  ok(/주력 무공/.test(read('js/wui.js')) && /계승 — 피해/.test(read('js/wui.js')), '무공 창에 주력 · 계승이 보인다');
 }
 
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);

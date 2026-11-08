@@ -303,6 +303,7 @@ function charTab(app) {
         } }, '무공 초기화')) : null].filter(Boolean));   // v211: null이 'null' 글자로 찍히던 것
     const list = game.skills();
     if (!list.length) { skillCard.append(h('p', { class: 'muted' }, `1차 전직(레벨 ${W.TIERS[1].level})을 하면 스킬을 배워요.`)); return; }
+    skillCard.append(h('p', { class: 'muted', style: 'font-size:12px;margin:0 0 6px' }, '공격 무공은 하나(주력)만 써요 — 전직하면 새 무공이 주력이 되고, 옛 무공은 레벨·힘을 물려주고 물러나요.'));   // v444
     for (const sk of list) {
       const lv = game.skillLevel(sk.id);
       const md = game.skillMods(sk.id);
@@ -320,7 +321,8 @@ function charTab(app) {
       skillCard.append(h('div', { class: 'row' },
         h('div', { class: 'ico' }, sk.icon),
         h('div', { class: 'info' },
-          h('div', { class: 'name' }, sk.name, h('small', {}, `${W.SKILL_ORDINAL[sk.slot]} · Lv.${lv}`), max ? h('span', { class: 'sk-max' }, '極 만렙') : null),
+          h('div', { class: 'name' }, sk.name, h('small', {}, `${game.mainSkill()?.id === sk.id ? '주력 무공' : W.SKILL_ORDINAL[sk.slot]} · Lv.${lv}`), max ? h('span', { class: 'sk-max' }, '極 만렙') : null),
+          game.mainSkill()?.id === sk.id && game.retiredSkills().length ? h('div', { class: 'desc', style: 'color:#93c5fd' }, `계승 — 피해 ×${game.inheritDmg(sk.id).toFixed(2)}(두목 ×${game.inheritDmg(sk.id, true).toFixed(2)}) · 숨 ×${game.inheritCd(sk.id).toFixed(2)} — ${game.retiredSkills().map((k) => k.name).join(' · ')}의 힘을 이어받았다(레벨·장비 옵션·변초도)`) : null,   // v444
           h('div', { class: 'desc' }, skillText(game, sk)),
           bits.length ? h('div', { class: 'desc', style: 'color:#fde68a' }, `레벨·장비: ${bits.join(' · ')}`) : null),
         h('button', { class: 'buy', disabled: game.canSkillUp(sk.id) ? null : true, onclick: () => {

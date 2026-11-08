@@ -400,6 +400,7 @@ export class WorldGame {
     this.obstacles = [];           // 그리는 쪽: [{ c, r, kind, seed }]
     this.tells = [];               // 탑 수문장의 바닥 경고 — 잠깐 뒤 터진다 (v126)
     this.autoDodge = false;        // 시험·시뮬용: 경고를 알아서 피한다 (화면에는 없다 — 직접 피해야 한다)
+    if ((this.s.mainV || 0) < 1) { try { this.consolidateSkills(); } catch { /* 직업 전 */ } this.s.mainV = 1; }   // v444 옛 세이브 — 무공 레벨을 주력으로 모은다
     this.mons = [];
     this.mon = null;
     this.cd = { s0: 0, s1: 0, s2: 0, s3: 0, s4: 0 };
@@ -1593,7 +1594,7 @@ export class WorldGame {
       }
       if (n) this.impShow(isp.chain, m);
     }
-    if (isp.reap && wasAlive && !m.alive) this.heroHp = Math.min(st.hp, this.heroHp + st.hp * Math.min(0.15, 0.03 * isp.reap.p));
+    if (isp.reap && wasAlive && !m.alive) this.heroHp = Math.min(st.hp, this.heroHp + st.hp * Math.min(0.2, 0.045 * isp.reap.p));   // v444 3 → 4.5% (끝 15 → 20%) — 체력이 탄약(v441)이라 처치 회복이 더 값지다
     if (isp.bleed && m.alive) this.addDot(m, dmg * Math.min(0.8, 0.12 * isp.bleed.p), 4);
   }
   // v271 피해 흡수 — 무인 피해가 커질수록 끝없이 늘어 두목이 체력을 못 깎았다(Lv100 왕이 80초 싸움에 7%). 두목 싸움 중엔 몫만큼만
@@ -1628,13 +1629,13 @@ export class WorldGame {
     if (isp.nova && (T.nova -= dt) <= 0) {
       T.nova = Math.max(4, 10 - Math.round(2 * isp.nova.p));
       const hit = this.mons.filter((m) => m.alive && !m.npc && Math.hypot(m.x - this.heroX, (m.y - this.heroY) * 0.75) <= 230);
-      if (hit.length) { for (const m of hit) this.hurt(m, st.atk * 2 * isp.nova.p * (m.isBoss ? st.boss : 1), 'imp', false, true); this._impT = 0; this.impShow(isp.nova, null); this.emit('impNova', { r: 230, col: isp.nova.col }); }
+      if (hit.length) { for (const m of hit) this.hurt(m, st.atk * 2.6 * isp.nova.p * (m.isBoss ? st.boss : 1), 'imp', false, true); this._impT = 0; this.impShow(isp.nova, null); this.emit('impNova', { r: 230, col: isp.nova.col }); }
       else T.nova = 0.5;
     }
     if (isp.rain && (T.rain -= dt) <= 0) {
       T.rain = Math.max(5, 11 - Math.round(2 * isp.rain.p));
       const near = this.mons.filter((m) => m.alive && !m.npc && Math.hypot(m.x - this.heroX, m.y - this.heroY) <= 420).slice(0, 5);
-      if (near.length) { for (const m of near) { this.hurt(m, st.atk * 1.2 * isp.rain.p * (m.isBoss ? st.boss : 1), 'imp', false, true); this.emit('impRain', { at: { x: m.x, y: m.y }, col: isp.rain.col }); } this._impT = 0; this.impShow(isp.rain, null); }
+      if (near.length) { for (const m of near) { this.hurt(m, st.atk * 2.2 * isp.rain.p * (m.isBoss ? st.boss : 1), 'imp', false, true); this.emit('impRain', { at: { x: m.x, y: m.y }, col: isp.rain.col }); } this._impT = 0; this.impShow(isp.rain, null); }
       else T.rain = 0.5;
     }
     if (isp.guard && (T.guard -= dt) <= 0) {
@@ -1829,7 +1830,47 @@ export class WorldGame {
   cheonmaOn() { return !!W.fifthOf(this.s.job) && (this.s.jobTier || 0) >= 5; }
   fifth() { return W.fifthOf(this.s.job); }   // v393 직업마다 5차(검사 천마신공 · 권마 투신 · 환마 혈마 · 독마 독존 · 극악소마 악존)
   skillList() { return this.s.job ? W.skillsOf(this.s.job, this.cheonmaOn()) : []; }
-  skills() { return this.skillList().filter((k) => this.knows(k)); }
+  skills() { return this.skillList().filter((k) => this.knows(k) && !this.retired(k)); }
+  // v444 주력 무공 — 배운 공격 무공(1·2·3차 · 승급의 공격 무공) 가운데 가장 높은 차수 하나. 길 무공은 주력이 되지 않고 힘만 물려준다
+  mainSkill() {
+    const key = `${this.s.job}|${this.s.jobTier}|${this.s.path}|${PT.merged(this.s) ? 1 : 0}|${this.cheonmaOn() ? 1 : 0}`;
+    if (this._main?.key === key) return this._main.sk;
+    let best = null;
+    // 1·2·3차의 사다리(s0 → s1 → s2). 승급(4차) 무공은 따로 남는 필살기라 사다리에 넣지 않는다
+    for (const k of this.skillList()) if (!k.path && k.slot <= 2 && W.ATTACK_KINDS.has(k.kind) && this.knows(k) && (!best || k.tier > best.tier)) best = k;
+    const ret = best ? this.skillList().filter((k) => k.id !== best.id && (k.path || k.slot <= 2) && W.ATTACK_KINDS.has(k.kind) && this.knows(k)) : [];
+    // 초당 몫 — 한 적만 치던 무공이 둘레를 치는 주력에 들어가면 여럿을 치게 되니 W.INHERIT_SINGLE만큼만
+    const base = best ? W.skillPower(best) / Math.max(0.5, best.cd || 1) : 1;
+    const sum = (wSingle) => ret.reduce((a, k) => a + (W.skillPower(k) / Math.max(0.5, k.cd || 1)) * (k.kind === 'single' && best.kind !== 'single' ? wSingle : 1), 0);
+    const inherit = best ? 1 + W.INHERIT_K * sum(W.INHERIT_SINGLE) / Math.max(1e-6, base) : 1;   // 졸개 떼(한 적 무공은 몫만)
+    const inheritBoss = best ? 1 + W.INHERIT_K * sum(1) / Math.max(1e-6, base) : 1;              // 두목 한 마리(한 적 무공도 온전히)
+    // 받은 힘은 반은 숨(더 자주)으로, 반은 한 방으로 — 한 방만 키우면 졸개에게 넘친 피해가 버려지고 펼치는 맛이 없다
+    // 물러난 무공의 덧(기절·받는 피해 +)도 주력이 걸어 준다 — 환마 섭혼술의 취약 같은 것이 사라지지 않게
+    const vuln = ret.reduce((a, k) => (k.vuln && (!a || k.vuln.v > a.v) ? k.vuln : a), null);
+    const stun = ret.reduce((a, k) => Math.max(a, k.stun || 0), 0);
+    this._main = { key, sk: best, ret, inherit, inheritBoss, cdK: 1 / Math.sqrt(inherit), dmgK: Math.sqrt(inherit), vuln, stun };
+    return best;
+  }
+  retiredSkills() { this.mainSkill(); return this._main?.ret || []; }
+  retired(sk) { return !!sk && (sk.path || sk.slot <= 2) && W.ATTACK_KINDS.has(sk.kind) && this.knows(sk) && this.mainSkill()?.id !== sk.id; }
+  inheritK(id) { const m = this.mainSkill(); return m && m.id === id ? this._main.inherit : 1; }
+  inheritDmg(id, boss = false) { const m = this.mainSkill(); return m && m.id === id ? this._main.dmgK * (boss ? this._main.inheritBoss / this._main.inherit : 1) : 1; }
+  inheritCd(id) { const m = this.mainSkill(); return m && m.id === id ? this._main.cdK : 1; }
+  // v444 무공 레벨을 주력으로 모은다 — 가장 높은 레벨을 주력이 갖고, 물러난 무공에 쓴 나머지 점수는 돌려준다(전직·옛 세이브)
+  consolidateSkills() {
+    const main = this.mainSkill();
+    if (!main) return 0;
+    const ids = [main.id, ...this.retiredSkills().map((k) => k.id)];
+    const lv = this.s.skillLv || (this.s.skillLv = {});
+    let spent = 0, top = 1;
+    for (const id of ids) { const l = lv[id] || 1; spent += W.skillSpent(l); top = Math.max(top, l); }
+    for (const id of ids) delete lv[id];
+    if (top > 1) lv[main.id] = top;
+    const back = spent - W.skillSpent(top);
+    if (back > 0) this.s.skillPts = (this.s.skillPts || 0) + back;
+    this._mods = null;
+    return back;
+  }
   // 배웠나 — 공격 무공은 전직 차수, 보조기는 레벨(v120)
   // 길 무공(v240)은 그 길을 걷거나 합일했을 때만
   knows(sk) {
@@ -1842,13 +1883,13 @@ export class WorldGame {
   skillRadius(sk) { return (sk.radius || 0) * Math.max(0.3, 1 + this.skillMods(sk.id).range + (this.stats().skillRange || 0)); }
   skillCd(sk) {
     const sb = this.setBonus();
-    return sk.cd * (1 - this.skillMods(sk.id).cd) * Math.max(0.5, 1 + (this.envNow().cd || 0)) * (1 - (this.stats().cdr || 0)) * (sk.slot === 4 ? 1 - (sb.cd4 || 0) : 1);
+    return sk.cd * this.inheritCd(sk.id) * (1 - this.skillMods(sk.id).cd) * Math.max(0.5, 1 + (this.envNow().cd || 0)) * (1 - (this.stats().cdr || 0)) * (sk.slot === 4 ? 1 - (sb.cd4 || 0) : 1);
   }
   // 못 펼친 까닭 (v199) — 'town' | 'cd' | 'hp' | 'none'(과녁 없음) | 'far'(닿는 적 없음). 단추를 눌렀을 때 바르게 알린다
   canUseSkill(id) {
     const sk = this.skillDef(id);
     this.skillFail = null;
-    if (!this.knows(sk)) return false;
+    if (!this.knows(sk) || this.retired(sk)) return false;   // v444 물러난 무공은 주력이 대신 쓴다
     if (this.map.town) { this.skillFail = 'town'; return false; }
     if (this.cd[id] > 0) { this.skillFail = 'cd'; return false; }
     if (this.heroHp <= this.hpCostOf(sk) + 1) { this.skillFail = 'hp'; return false; }      // 대가로 죽지는 않는다
@@ -1897,7 +1938,9 @@ export class WorldGame {
     // v441 체력이 곧 힘 — 소모한 체력 × HP_DMG_K 만큼 더(한 번 맞을 때, 여러 번·여러 자루면 나눠서). 공짜로 펼친(삼공합일) 것도 제 소모분으로 센다
     const hpSpent = this.hpCostOf(sk);
     const hpMult = hpSpent > 0 && st.atk > 0 ? (hpSpent * W.HP_DMG_K) / st.atk / (sk.hits || 1) / (sk.kind === 'daggers' ? sk.n : 1) : 0;
-    const mult = (sk.mult + hpMult) * st.skillMult * (1 + md.dmg) * (o.boost || 1) * W.SKILL_K;   // v439 무공이 중요하게
+    const mult = (sk.mult + hpMult) * st.skillMult * (1 + md.dmg) * (o.boost || 1) * W.SKILL_K * this.inheritDmg(id);   // v439 무공이 중요하게 · v444 주력은 물러난 무공의 힘을 이어받는다(한 방 몫)
+    const bossInh = this.inheritDmg(id, true) / this.inheritDmg(id);   // 두목에겐 한 적 무공의 힘까지 온전히
+    const isMain = this.mainSkill()?.id === id;
     const crit = md.crit + (sk.sure ? 1 : 0) + (sk.crit || 0);
     const kills0 = this.s.kills;
     let dealt = 0;
@@ -1908,7 +1951,7 @@ export class WorldGame {
     const hit = (m, k = 1) => {
       if (!m.alive) return;
       const mx = m.x, my = m.y;
-      const d = this.strike(m, st, mult * k * (m.isBoss && sk.bossMult ? sk.bossMult : 1), id, crit);
+      const d = this.strike(m, st, mult * k * (m.isBoss && sk.bossMult ? sk.bossMult : 1) * (m.isBoss ? bossInh : 1), id, crit);
       dealt += d;
       // 무형검결 5: 1~3차가 맞을 때 가끔 무형검이 한 번 더
       if (sb.formlessProc && sk.slot <= 2 && m.alive && this.rng() < sb.formlessProc) { this.strike(m, st, mult * k * 1.5, 'formless', crit); this.emit('passive', { id: 'formless', at: { x: mx, y: my } }); }
@@ -1925,8 +1968,10 @@ export class WorldGame {
         if ((tf.giant || tf.focus) && show && tfShown === 1) this.emit('tfHit', { tf: tf.giant ? 'giant' : 'focus', at: { x: mx, y: my } });
       }
       if (!m.alive) return;
-      if (sk.stun) m.stun = Math.max(m.stun || 0, m.isBoss ? sk.stun * 0.4 : sk.stun);
-      if (sk.vuln && !(m.vulnT > this.clock && m.vulnV > sk.vuln.v)) { m.vulnT = this.clock + sk.vuln.sec; m.vulnV = sk.vuln.v; }
+      const stunS = Math.max(sk.stun || 0, isMain ? this._main.stun : 0);
+      if (stunS) m.stun = Math.max(m.stun || 0, m.isBoss ? stunS * 0.4 : stunS);
+      const vu = isMain && this._main.vuln && (!sk.vuln || this._main.vuln.v > sk.vuln.v) ? this._main.vuln : sk.vuln;   // v444 물러난 무공의 취약도
+      if (vu && !(m.vulnT > this.clock && m.vulnV > vu.v)) { m.vulnT = this.clock + vu.sec; m.vulnV = vu.v; }
       if (sk.dot) this.addDot(m, d * sk.dot.mult, sk.dot.sec);
     };
     const inR = (c, rr) => this.mons.filter((m) => m.alive && !m.npc && Math.hypot(m.x - c.x, (m.y - c.y) * 0.75) <= rr);
@@ -1976,6 +2021,7 @@ export class WorldGame {
     if (o.free) return true;
     // 극악소마 삼공조화: 세 무공이 HARMONY.sec 안에 이어지면
     this.skillAt[sk.slot] = this.clock;
+    if (this.mainSkill()?.id === id) for (const r of this.retiredSkills()) if (!r.path) this.skillAt[r.slot] = this.clock;   // v444 주력은 물러난 무공을 품었다 — 극악소마 3차 주력 한 번이 곧 세 무공
     if (this.s.job === 'ring' && [0, 1, 2].every((k) => this.skillAt[k] != null && this.clock - this.skillAt[k] <= W.HARMONY.sec)) {
       this.buffs.might = W.HARMONY.buffSec; this.buffv.might = W.HARMONY.dmgUp + (this.setBonus().harmonyUp || 0); this.buffs.rage = W.HARMONY.buffSec;
       this.skillAt = {};
@@ -2093,7 +2139,10 @@ export class WorldGame {
     try { this.autoSkills0(st); } finally { this._autoCast = false; }
   }
   autoSkills0(st) {
-    for (const sk of this.skills()) {
+    const mainId = this.mainSkill()?.id;
+    for (const sk0 of this.skills()) {
+      // v444 주력은 하나뿐이라 체력이 W.MAIN_AUTO_ABOVE 넘으면 쓴다(전엔 0.6 — 반쯤 다치면 평타만 쳤다)
+      const sk = sk0.id === mainId && sk0.autoAbove > W.MAIN_AUTO_ABOVE ? { ...sk0, autoAbove: W.MAIN_AUTO_ABOVE } : sk0;
       if (this.cd[sk.id] > 0) continue;
       if (sk.kind === 'support' || sk.kind === 'awaken') { if (this.wantSupport(sk, st) && !(sk.autoAbove && this.heroHp < st.hp * sk.autoAbove)) this.useSkill(sk.id); continue; }
       if (sk.kind === 'triple') { if (this.mon?.alive && (this.mon.isBoss || this.mons.filter((m) => m.alive && Math.hypot(m.x - this.heroX, m.y - this.heroY) <= 300).length >= 3)) this.useSkill(sk.id); continue; }
@@ -2225,6 +2274,7 @@ export class WorldGame {
     this.s.jobTier++;
     const sk = W.skillsOf(this.s.job).find((k) => k.tier === this.s.jobTier);
     this._stats = null;
+    this.consolidateSkills();   // v444 새 주력이 옛 무공의 레벨을 이어받는다
     if (this.s.jobTier >= 5) { this.emit('advance', { tier: 5, skill: this.fifth().name, cheonma: true, job: this.s.job }); return true; }   // v391
     this.emit('advance', { tier: this.s.jobTier, skill: sk?.name });
     return true;
@@ -3481,11 +3531,11 @@ export class WorldGame {
   // v435 승급(v110~v172)은 v173에 없앴다 — 남아 있던 canPromote·promote·promoteCost를 지웠다(모든 장비는 증표 각인으로 오른다)
 
   // ---------- 스킬 레벨 · 스킬 옵션 (v110) ----------
-  skillLevel(id) { return this.s.skillLv?.[id] || 1; }
+  skillLevel(id) { const m = this.mainSkill?.(); if (m && m.id !== id && this.retiredSkills().some((k) => k.id === id)) return this.s.skillLv?.[m.id] || 1; return this.s.skillLv?.[id] || 1; }   // v444 물러난 무공(삼공합일이 부를 때)은 주력의 레벨로
   canSkillUp(id) {
     const sk = this.skillDef(id);
     const lv = this.skillLevel(id);
-    return this.knows(sk) && lv < W.SKILL_LV_MAX && this.s.skillPts >= W.skillLvCost(lv);
+    return this.knows(sk) && !this.retired(sk) && lv < W.SKILL_LV_MAX && this.s.skillPts >= W.skillLvCost(lv);
   }
   // 무공 초기화 (v205) — 무공 레벨·심법을 모두 처음으로, 쓴 점수는 다 돌려받는다
   skillResetCost() { return W.skillResetCost(this.s.level, this.s.skillResets || 0); }
@@ -3523,7 +3573,7 @@ export class WorldGame {
     return this._dexZ * W.DEX_ZONE_EXP;
   }
   // ---------- v263 각성 · 깨달음 ----------
-  awakenSlots() { return this.skills().filter((k) => /^s[0-3]$/.test(k.id)).map((k) => k.id); }
+  awakenSlots() { const m = this.mainSkill(); return this.skills().filter((k) => /^s[0-3]$/.test(k.id) || k.id === m?.id).map((k) => k.id); }   // v444 주력(승급 무공이어도) · 보조기
   // v311 무공마다 하나 — 아직 아무 무공도 각성하지 않았으면 공짜, 그 뒤로는(새로 붙이기·바꾸기 모두) 은자
   awakenOf(slot) { return this.s.awakens?.[slot] || null; }
   awakenCost() { return Object.keys(this.s.awakens || {}).length ? W.awakenSwapCost(this.s.level) : 0; }
@@ -3640,15 +3690,19 @@ export class WorldGame {
 
   // 스킬 하나에 걸린 것: 스킬 레벨 + 끼고 있는 장비의 옵션
   skillMods(id) {
-    const key = `${this.statSig()}|${JSON.stringify(this.s.skillLv)}|${JSON.stringify(this.s.enl?.nodes || {})}|${JSON.stringify(this.s.awakens || {})}`;
+    const key = `${this.statSig()}|${JSON.stringify(this.s.skillLv)}|${JSON.stringify(this.s.enl?.nodes || {})}|${JSON.stringify(this.s.awakens || {})}|${this.s.jobTier}|${this.s.path}`;
     if (!this._mods || this._mods.key !== key) this._mods = { key };
     if (this._mods[id]) return this._mods[id];
     // v256: 길 무공(pa·pb)은 칸 5 — 전엔 +'a'가 NaN이라 장비 스킬 옵션·각인 스킬 변화가 길 무공에 붙지 못했다
     const slot = /^p[ab]$/.test(id) ? 5 : +id.slice(1);
+    // v444 주력은 물러난 무공 칸에 붙은 장비 옵션·각인 변화·변초·깨달음도 함께 받는다(장비를 다시 맞추지 않아도 된다)
+    const isMain = this.mainSkill()?.id === id;
+    const oIds = isMain ? this.retiredSkills().map((k) => k.id) : [];
+    const slots = [slot, ...oIds.map((x) => (/^p[ab]$/.test(x) ? 5 : +x.slice(1)))];
     const m = { dmg: 0, range: 0, splash: 0, cd: 0, cost: 0, crit: 0, echo: false, free: false, reset: false, ...W.skillLvMods(slot, this.skillLevel(id)) };
     for (const it of Object.values(this.s.equip)) {
       for (const o of it?.opts || []) {
-        if (o.s !== slot) continue;
+        if (!slots.includes(o.s)) continue;
         if (o.sp) m[o.sp] = true;
         else if (o.tf) {
           m.tf = m.tf || {};
@@ -3661,15 +3715,15 @@ export class WorldGame {
     // 증표 각인의 스킬 변화 (v163) — 겹치면 더한다
     m.echoP = 0;
     { const ip = { range: 0, dmg: 0, cd: 0, echo: 0 };
-      for (const it of Object.values(this.s.equip)) for (const im of IM.imprintsOf(it)) if (im.skill.s === slot) ip[im.skill.k] = (ip[im.skill.k] || 0) + im.skill.v;
+      for (const it of Object.values(this.s.equip)) for (const im of IM.imprintsOf(it)) if (slots.includes(im.skill.s)) ip[im.skill.k] = (ip[im.skill.k] || 0) + im.skill.v;
       // v270 각인 몫마다 끝(SKILL_CAP) — 전엔 '한 번 더'만 잘려 피해·범위가 끝없이 쌓였다
       for (const k of ['range', 'dmg', 'cd']) m[k] = (m[k] || 0) + Math.min(IM.SKILL_CAP[k], ip[k]);
       m.echoP = Math.min(IM.SKILL_CAP.echo, ip.echo); }
     // v263 각성 — 고른 무공 하나에 변형 하나
-    const awk = this.awakenOf(id);   // v311 무공마다
+    const awk = this.awakenOf(id) || oIds.map((x) => this.awakenOf(x)).find(Boolean) || null;   // v311 무공마다 · v444 주력은 물러난 무공의 변초도
     if (awk && this.s.level >= W.AWAKEN_LV) { const k = W.AWAKEN_KINDS.find((x) => x.id === awk); if (k) for (const [kk, v] of Object.entries(k.mods)) m[kk] = (m[kk] || 0) + v; }
     // v263 깨달음 — 무공 칸마다 단계
-    const en = this.s.enl?.nodes?.[id] || 0;
+    const en = [id, ...oIds].reduce((t, x) => t + (this.s.enl?.nodes?.[x] || 0), 0);   // v444 물러난 무공의 깨달음도
     if (en) { m.dmg += en * W.ENL_STEP.dmg; m.cd += en * W.ENL_STEP.cd; }
     m.echoP = Math.min(IM.SKILL_CAP.echo + (awk === 'twin' ? 0.3 : 0), m.echoP);
     m.cd = Math.min(0.7, m.cd);

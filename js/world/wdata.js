@@ -162,6 +162,16 @@ export const JOB_SKILLS = {
   ],
 };
 export const SKILL_DEFS = JOB_SKILLS.sword;   // 옛 이름 (자리·차수만 보는 곳)
+// v444 주력 무공(主功) — 바람의나라처럼 쓰는 공격 무공은 하나. 전직하면 새 차수 무공이 주력이 되고, 옛 공격 무공(과 길 무공)은
+//   물러나며 힘을 물려준다(계승). 계승 = 물러난 무공들의 초당 몫을 주력 숨에 맞춰 더한 배수. 주력은 1·2·3차 사다리 —
+//   보조기 · 승급(4차) 필살기 · 길의 각성형은 그대로 따로 쓴다.
+export const ATTACK_KINDS = new Set(['single', 'aoe', 'daggers', 'field']);
+export const INHERIT_K = 1;   // 물려받는 몫(1 = 옛 무공들의 초당 피해를 그대로)
+export const MAIN_AUTO_ABOVE = 0.45;   // 주력 무공은 체력이 이만큼 넘으면 자동으로(체력을 쓰는 무공이라 바닥에선 아낀다)
+export const INHERIT_SINGLE = 0.25;   // 한 적 무공 → 둘레 주력이면 이만큼(여럿을 치게 되니)
+// 한 번 펼칠 때의 대략 힘(공격력 배수) — 계승 셈에만 쓴다
+export const skillPower = (sk) => (sk.mult || 0) * (sk.hits || 1) * (sk.kind === 'daggers' ? (sk.n || 1) * 0.5 : 1)
+  + (sk.dot ? (sk.mult || 0) * sk.dot.mult : 0) + (sk.field ? sk.field.mult * (sk.field.sec / sk.field.tick) * 0.5 : 0);
 // ---------- 심법 (패시브, v119) ----------
 // 스킬 점수로 올린다. 공용 여섯은 누구나(점수 1씩), 독문 심법은 직업마다 하나(무공처럼 n→n+1에 n점).
 // 레벨이 닿아야 배운다(from). 바람의나라의 보호·무장(버프)·체력 증강 같은 몫을 늘 켜진 심법으로 단순하게.
@@ -1031,7 +1041,7 @@ export const SWING_K = 0.35;
 // v439 바람식 몹 — 사냥터 졸개는 먼저 덤비지 않는다(치면 그때 덤빈다) · 정예·두목·던전 몹은 그대로 다가온다
 export const PASSIVE_MOBS = true;
 //   몹이 찾아오지 않아 걸어가 잡는 시간만큼 사냥터 한 마리 벌이 ×PASSIVE_REWARD(시뮬: 처치 -10~30%)
-export const PASSIVE_REWARD = 1.15;
+export const PASSIVE_REWARD = 1.05;   // v444 1.15 → 1.05 — 주력 무공(숨이 짧아져 자주 쓴다)으로 사냥이 빨라진 만큼
 // v439 사냥터 두목·왕·고수의 초식은 바닥 경고(피하기) 대신 이름을 외치고 STRIKE_WIND초 뒤 무인에게 바로 내리꽂는 「강타」 하나 —
 //   피할 수 없으니 세기는 옛 초식이 실제로 맞던 몫(방치 자동 피하기로 10~30%)에 맞춰 STRIKE_K배. 버티는 건 체력·방어·물약·회복 무공.
 export const STRIKE_WIND = 1.2, STRIKE_K = 0.25, STRIKE_ULT_K = 0.4;

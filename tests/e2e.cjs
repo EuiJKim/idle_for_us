@@ -572,7 +572,10 @@ async function tab(page, name) {
       body: JSON.stringify({ fields: { gold: { integerValue: '4000000' }, potions: { integerValue: '30' }, memo: { stringValue: '시험 선물' }, at: { integerValue: String(Date.now()) } } }) });
     assert(r.ok, '우편을 넣었다');
     const g0 = await G(p, () => window.__game.s.gold);
-    assert(await G(p, () => window.__test_checkGifts?.()) === 1, '우편함에 한 통');
+    // v444 방금 넣은 우편이 첫 읽기에 가끔 안 보인다(v436 두 번째 우편과 같은 엇갈림) — 3초까지 다시 본다
+    let nMail0 = 0;
+    for (let i = 0; i < 10 && nMail0 !== 1; i++) { nMail0 = await G(p, () => window.__test_checkGifts?.()); if (nMail0 !== 1) await sleep(300); }
+    assert(nMail0 === 1, '우편함에 한 통');
     await sleep(300);
     assert(!(await p.$eval('#btn-mail', (b) => b.classList.contains('hidden'))), '📮 단추가 보인다');
     assert(await G(p, () => window.__game.s.gold) < g0 + 1000000, '받기를 누르기 전에는 들어오지 않는다');
