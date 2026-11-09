@@ -4270,5 +4270,19 @@ console.log('\n=== v447 99 뒤 힘은 전직으로 ===');
   ok(g.s.level === 100 && g.s.statPts - sp === W.STAT_PER_TRAIN, '수련 한 단계 능력치 점수 1');
 }
 
+console.log('\n=== v448 독마 손보기 ===');
+{
+  ok(W.CLASSES.poison.venomWeak === 0.3 && /중독된 적은 공격 -30%/.test(W.CLASSES.poison.trait), '독마: 중독된 적의 공격 -30%');
+  const k = W.skillsOf('poison').find((x) => x.id === 's3');
+  ok(k.healMax === 0.2 && k.cd === 18, '만독귀원 회복 20% · 숨 18');
+  // 중독된 몹이 덜 아프게 친다
+  const hitBy = (job, poisoned) => { const g = fresh(job); g.s.level = 60; g._stats = null; g.enterMap(W.mapId(6, 1)); g.rng = () => 0.5; g.heroHp = g.stats().hp;
+    const m = g.mons.find((x) => x.alive && !x.npc); for (const o of g.mons) if (o !== m) o.alive = false;
+    m.x = g.heroX + 40; m.y = g.heroY; m.c = g.hc + 1; m.r = g.hr; m.aggro = true; m.atkTimer = 0; m.atk = 2000; m.poison = poisoned ? 3 : 0; m.dot = poisoned ? 1e9 : 0; m.hp = m.maxHp = 1e15; m.move = null;
+    let dmg = 0; g.s.autoHunt = false; g.huntOn = () => false; for (let i = 0; i < 3; i++) { g.tick(0.05); for (const e of g.events) if (e.type === 'heroHit') dmg += e.amount; g.events.length = 0; } return dmg; };
+  const a = hitBy('poison', false), b = hitBy('poison', true);
+  ok(a > 0 && b > 0 && b < a * 0.8, '중독된 몹의 한 대가 줄어든다', `${Math.round(a)} → ${Math.round(b)}`);
+}
+
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);

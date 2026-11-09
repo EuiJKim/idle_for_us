@@ -1245,7 +1245,8 @@ export class WorldGame {
               continue;
             }
             const red = (1 - (cls.dmgRed || 0)) * (1 - (this.buffv.guard || 0)) * (1 - Math.min(0.6, pm.dmgRed || 0)) * (1 - (st.dmgRed || 0));
-            const dmg = Math.max(1, m.atk * (1 + (env.mobAtk || 0)) * (0.9 + this.rng() * 0.2) * red * this.gapIn(m) - st.def);
+            const weak = cls.venomWeak && m.poison > 0 ? 1 - cls.venomWeak : 1;   // v448 독마: 중독된 적은 힘이 빠진다
+            const dmg = Math.max(1, m.atk * (1 + (env.mobAtk || 0)) * (0.9 + this.rng() * 0.2) * red * this.gapIn(m) * weak - st.def);
             let left = dmg;
             if (this.shield > 0 && this.buffs.shield > 0) { const a = Math.min(this.shield, left); this.shield -= a; left -= a; }   // 금종조
             this.heroHp -= left;
