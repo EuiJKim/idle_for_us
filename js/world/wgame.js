@@ -1841,7 +1841,7 @@ export class WorldGame {
       sat = W.expSat(kt.length * 2);
     }
     const ck = m.isBoss && this.coopK ? this.coopK : 1;   // v343 함께 잡은 두목 — 인원만큼 더
-    const pk = W.PACE_REWARD * (W.PASSIVE_MOBS ? W.PASSIVE_REWARD : 1) * (m.isBoss ? 1 : W.rangeReward(this.s.level));   // v453 범위가 좁아진 만큼(졸개만 — 두목은 한 마리 싸움이라 범위와 무관)   // v438 · v439 먼저 안 덤비는 졸개 몫 느려진 만큼 한 마리 벌이를 더(실제 한 시간 벌이는 그대로)
+    const pk = W.PACE_REWARD * (m.isBoss ? (W.PASSIVE_MOBS ? W.PASSIVE_REWARD : 1) : !this.inst ? W.roomReward(this.s.level) : (W.PASSIVE_MOBS ? W.PASSIVE_REWARD : 1) * W.rangeReward(this.s.level));   // v455 사냥터 졸개는 방 벌이 하나(roomReward) · 던전 졸개는 그대로   // v453 범위가 좁아진 만큼(졸개만 — 두목은 한 마리 싸움이라 범위와 무관)   // v438 · v439 먼저 안 덤비는 졸개 몫 느려진 만큼 한 마리 벌이를 더(실제 한 시간 벌이는 그대로)
     const exp = W.mobExp(m.lv) * (m.isBoss ? W.BOSS.exp * (W.CLASSES[this.s.job]?.bossExp || 1) : m.elite ? W.ELITE.exp : 1) * this.levelGapMult(m.lv) * this.challengeMult(m.lv) * (st.expMult || 1) * (1 + (env.exp || 0) + mlv * L.MASTERY.exp) * ek * sat * ck * pk;   // v425 도전 경험치
     const blood = !this.inst && TD.bloodOn() ? 1 + TD.BLOOD_BONUS : 1;   // v262 혈겁
     const gold = Math.round(pk * W.mobGold(m.lv) * (m.isBoss ? W.BOSS.gold : m.elite ? W.ELITE.gold : 1) * (1 + (env.gold || 0) + (st.gold || 0)) * ek * blood * (st.goldMul || 1) * ck);   // v322 칭호

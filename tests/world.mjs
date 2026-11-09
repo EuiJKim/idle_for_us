@@ -1031,7 +1031,7 @@ console.log('\n=== 사냥터 땅 (v127) ===');
   ok(mg.masteryLevel(1) === 1 && mevt === 1, '잡은 수가 차면 숙련 레벨이 오른다(알림)');
   const mk0 = mg.s.mast[1];
   mg.mons[0].hp = 1; mg.hurt(mg.mons[0], 999, 'hit', false);
-  ok(mg.s.mast[1] >= mk0 + 1 && mg.s.mast[1] <= mk0 + Math.ceil(W.PACE_REWARD * W.PASSIVE_REWARD * W.rangeReward(mg.s.level)), '그 지역 몹을 잡으면 숙련도가 오른다(v453 한 마리 몫만큼)', `+${mg.s.mast[1] - mk0}`);
+  ok(mg.s.mast[1] >= mk0 + 1 && mg.s.mast[1] <= mk0 + Math.ceil(W.PACE_REWARD * W.roomReward(mg.s.level)), '그 지역 몹을 잡으면 숙련도가 오른다(v453 한 마리 몫만큼 · v455 방 벌이)', `+${mg.s.mast[1] - mk0}`);
   // 보물 원숭이
   const tg = fresh(); tg.setJob('fan'); tg.enterMap(11);
   const tm = tg.spawnTreasure();
@@ -4203,6 +4203,7 @@ console.log('\n=== v441 체력이 곧 힘 ===');
   // 학(crane)은 체력 8%를 돌려준다
   const h = fresh('sword'); h.enterMap(11); h.s.pets = [{ uid: 1, kind: 'crane', rar: 0, lv: 1, exp: 0 }]; h._stats = null;
   const m = h.mons.find((x) => x.alive && !x.npc); m.x = h.heroX + 40; m.y = h.heroY; m.hp = m.maxHp = 1e12; h.mon = m;
+  h.mons = [m]; h.respawns = []; h.addExp = () => {};   // v455 다른 몹을 잡아 레벨이 오르면 최대 체력이 커져 몫이 흔들린다
   h.heroHp = h.stats().hp * 0.5; let healed = 0;
   for (let i = 0; i < 400 && !healed; i++) { h.tick(0.1); for (const e of h.events) if (e.type === 'petBuff' && e.kind === 'heal') healed = 1; h.events.length = 0; }
   ok(healed && h.heroHp > h.stats().hp * 0.55, '학익진이 체력을 돌려준다', `${Math.round(h.heroHp / h.stats().hp * 100)}%`);
@@ -4420,7 +4421,8 @@ console.log('\n=== v453 무공 범위 줄이기(바람식) ===');
   const m = k.mons.find((x) => x.alive && !x.npc); const e0 = k.s.exp; k.killMob(m); const e1 = k.s.exp - e0;
   const base = W.mobExp(m.lv) * k.levelGapMult(m.lv) * k.challengeMult(m.lv) * (k.stats().expMult || 1);
   ok(e1 / base > W.rangeReward(60) * W.PACE_REWARD * 0.9, '졸개 경험치에 범위 몫이 들어간다', `×${(e1 / base).toFixed(2)}`);
-  ok(/m\.isBoss \? 1 : W\.rangeReward/.test(read('js/world/wgame.js')), '두목은 한 마리 싸움이라 범위 몫 없음');
+  ok(/m\.isBoss \? \(W\.PASSIVE_MOBS \? W\.PASSIVE_REWARD : 1\) :/.test(read('js/world/wgame.js')), '두목은 한 마리 싸움이라 범위·방 몫 없음');
+  ok(Math.abs(W.roomReward(60) - W.PASSIVE_REWARD * W.rangeReward(60) * W.ROOM_K) < 1e-9 && e1 / base > W.roomReward(60) * W.PACE_REWARD * 0.9, `v455 사냥터 졸개는 방 벌이(×${W.ROOM_K})까지`, `×${(e1 / base).toFixed(2)}`);
   ok(DG.DAILY_R_K === 0.12 && /dailyHpSec\(lv\)\) \* DAILY_R_K/.test(read('js/world/wdgn.js')), '요일 던전 몹 체력 12%(시뮬: 깨는 단계가 전과 같게)');
 }
 

@@ -1107,6 +1107,10 @@ export const SWING_K = 0.35;
 export const PASSIVE_MOBS = true;
 //   몹이 찾아오지 않아 걸어가 잡는 시간만큼 사냥터 한 마리 벌이 ×PASSIVE_REWARD(시뮬: 처치 -10~30%)
 export const PASSIVE_REWARD = 1.05;   // v444 1.15 → 1.05 — 주력 무공(숨이 짧아져 자주 쓴다)으로 사냥이 빨라진 만큼
+// v455 방 벌이 — 방(9×19 · 몹 14)은 옛 들판(11×25 · 48마리)보다 처치가 0.6배 남짓(시뮬 pace/r5.mjs · 직업 5 × 레벨 6 · 15분).
+//   사냥터 졸개 한 마리 벌이(경험치·은자·재료·조각·숙련)를 ROOM_K배 — 실제 한 시간 벌이·방치 보상(실측 rates)이 전과 같게. 던전·두목은 그대로
+export const ROOM_K = 1.6;
+export const roomReward = (lv) => PASSIVE_REWARD * rangeReward(lv) * ROOM_K;
 // v439 사냥터 두목·왕·고수의 초식은 바닥 경고(피하기) 대신 이름을 외치고 STRIKE_WIND초 뒤 무인에게 바로 내리꽂는 「강타」 하나 —
 //   피할 수 없으니 세기는 옛 초식이 실제로 맞던 몫(방치 자동 피하기로 10~30%)에 맞춰 STRIKE_K배. 버티는 건 체력·방어·물약·회복 무공.
 export const STRIKE_WIND = 1.2, STRIKE_K = 0.25, STRIKE_ULT_K = 0.4;
