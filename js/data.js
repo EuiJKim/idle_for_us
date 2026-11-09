@@ -51,7 +51,7 @@ export const critExpect = (C, D) => {
 // NaN이 된다 — 재 보니 적 체력이 관문 8467에서 그 선을 넘었다.
 // 반대로 상한이 있는 값(경지 배수·초월 단계처럼)은 보통 숫자 그대로 둔다.
 
-export const BUILD = 'ifu-v459';
+export const BUILD = 'ifu-v460';
 
 export const SAVE_VERSION = 4;
 export const OFFLINE_CAP_SEC = 12 * 3600;
@@ -1972,7 +1972,7 @@ export const ZONES = [
       F('죽림 도적', { robe: '#57534e', head: 'hat', weapon: 'spear' }),
       F('비수 살수', { robe: '#27272a', head: 'mask', weapon: 'dagger' }),
     ],
-    boss: F('독수마군', { robe: '#14532d', trim: '#bef264', head: 'topknot', weapon: 'claw', aura: '#84cc16', scale: 1.4 }) },
+    boss: F('죽림채 채주', { robe: '#14532d', trim: '#bef264', head: 'topknot', weapon: 'claw', aura: '#84cc16', scale: 1.4 }) },
   { name: '황사 서역', ink: ['#f3d9a4', '#d9a95e', '#8a5a2b', '#7a4f22'], sun: '#9a3412', prop: 'dune',
     mobs: [
       F('사막 도적', { robe: '#a16207', head: 'hood', weapon: 'saber' }),
@@ -1980,7 +1980,7 @@ export const ZONES = [
       F('창기병', { robe: '#78350f', head: 'band', band: '#7f1d1d', weapon: 'spear' }),
       F('사막 낭인', { robe: '#92400e', head: 'hat', weapon: 'sword' }),
     ],
-    boss: F('혈사도왕', { robe: '#7f1d1d', trim: '#fbbf24', head: 'hood', weapon: 'saber', beard: true, scale: 1.45 }) },
+    boss: F('마적 두령 혈사도', { robe: '#7f1d1d', trim: '#fbbf24', head: 'hood', weapon: 'saber', beard: true, scale: 1.45 }) },
   { name: '천산 설원', ink: ['#eef2f6', '#cfd9e4', '#7b8a9c', '#e6ebf0'], sun: '#c0392b', prop: 'snowpine', snow: true,
     mobs: [
       F('빙궁 제자', { robe: '#f8fafc', trim: '#60a5fa', head: 'topknot', weapon: 'sword' }),
@@ -1988,7 +1988,7 @@ export const ZONES = [
       F('천산 검객', { robe: '#64748b', head: 'hat', weapon: 'sword' }),
       F('빙궁 호법', { robe: '#e0f2fe', trim: '#0284c7', head: 'band', band: '#0284c7', weapon: 'spear' }),
     ],
-    boss: F('빙백궁주', { robe: '#f0f9ff', trim: '#38bdf8', head: 'topknot', hair: '#e2e8f0', weapon: 'fan', aura: '#7dd3fc', scale: 1.4 }) },
+    boss: F('빙백궁 외당주', { robe: '#f0f9ff', trim: '#38bdf8', head: 'topknot', hair: '#e2e8f0', weapon: 'fan', aura: '#7dd3fc', scale: 1.4 }) },
   { name: '혈사곡', ink: ['#e8c3b0', '#b8644e', '#5b2a22', '#3b1a15'], sun: '#7f1d1d', prop: 'rock',
     mobs: [
       F('혈교 무사', { robe: '#991b1b', head: 'band', band: '#111', weapon: 'saber' }),
@@ -2012,7 +2012,7 @@ export const ZONES = [
       F('무당 장로', { robe: '#cbd5e1', trim: '#0f172a', head: 'topknot', hair: '#e5e7eb', beard: true, weapon: 'sword' }),
       F('태극 권사', { robe: '#1e293b', trim: '#f8fafc', head: 'band', band: '#f8fafc', weapon: 'fist' }),
     ],
-    boss: F('태극검선', { robe: '#f8fafc', trim: '#0f172a', head: 'topknot', hair: '#f1f5f9', beard: true, weapon: 'sword', aura: '#e2e8f0', scale: 1.45 }) },
+    boss: F('무당 태극검수', { robe: '#f8fafc', trim: '#0f172a', head: 'topknot', hair: '#f1f5f9', beard: true, weapon: 'sword', aura: '#e2e8f0', scale: 1.45 }) },
   { name: '십만대산 마교', ink: ['#3a2a35', '#1d1418', '#0d0a0c', '#0a0708'], sun: '#dc2626', prop: 'banner', night: true,
     mobs: [
       F('마교 교도', { robe: '#2e1065', trim: '#a21caf', head: 'band', band: '#a21caf', weapon: 'saber' }),
@@ -2020,7 +2020,7 @@ export const ZONES = [
       F('마교 사자', { robe: '#450a0a', head: 'hood', weapon: 'claw', eyes: '#ef4444' }),
       F('마교 장로', { robe: '#1c1917', trim: '#a855f7', head: 'topknot', hair: '#e5e7eb', beard: true, weapon: 'fan' }),
     ],
-    boss: F('천마', { robe: '#050505', trim: '#dc2626', head: 'topknot', hair: '#111', weapon: 'sword', aura: '#dc2626', eyes: '#ef4444', scale: 1.55 }) },
+    boss: F('마교 좌호법', { robe: '#050505', trim: '#dc2626', head: 'topknot', hair: '#111', weapon: 'sword', aura: '#dc2626', eyes: '#ef4444', scale: 1.55 }) },
   // ---- 여기부터 더한 여덟 자리 ----
   // 앞말과 빛깔만 돌리는 걸로는 바닥 그림 여덟 장이 계속 반복되는 게 보인다.
   // 자리를 열여섯으로 늘려 한 바퀴를 160관문으로 넓힌다.
@@ -2098,7 +2098,7 @@ export const ZONES = [
       F('도화 문지기', { robe: '#9d174d', trim: '#fce7f3', head: 'hat', weapon: 'spear' }),
       F('취선 시객', { robe: '#fdf2f8', trim: '#db2777', head: 'topknot', hair: '#e5e7eb', weapon: 'fan', beard: true }),
     ],
-    boss: F('도화도주', { robe: '#fce7f3', trim: '#db2777', head: 'topknot', hair: '#111', weapon: 'sword', aura: '#f9a8d4', beard: true, scale: 1.45 }) },
+    boss: F('도화진 수호자', { robe: '#fce7f3', trim: '#db2777', head: 'topknot', hair: '#111', weapon: 'sword', aura: '#f9a8d4', beard: true, scale: 1.45 }) },
   { name: '황궁 금위영', ink: ['#fef3c7', '#f6d58a', '#8a4b1a', '#6b4423'], sun: '#b91c1c', prop: 'pavilion',
     mobs: [
       F('금위군', { robe: '#b91c1c', trim: '#fde68a', head: 'hat', weapon: 'spear' }),
@@ -2106,7 +2106,7 @@ export const ZONES = [
       F('금의위', { robe: '#7c2d12', trim: '#fbbf24', head: 'band', band: '#111', weapon: 'saber' }),
       F('궁중 무관', { robe: '#991b1b', trim: '#fef3c7', head: 'topknot', weapon: 'sword', beard: true }),
     ],
-    boss: F('동창 제독', { robe: '#0f172a', trim: '#fbbf24', head: 'hat', weapon: 'claw', aura: '#fbbf24', eyes: '#fde68a', scale: 1.45 }) },
+    boss: F('동창 당두', { robe: '#0f172a', trim: '#fbbf24', head: 'hat', weapon: 'claw', aura: '#fbbf24', eyes: '#fde68a', scale: 1.45 }) },
   { name: '사천 당가', ink: ['#dfeadb', '#9cb894', '#3a5434', '#2a3826'], sun: '#15803d', prop: 'vine',
     mobs: [
       F('당가 암기수', { robe: '#14532d', trim: '#86efac', head: 'mask', weapon: 'dagger' }),

@@ -1473,15 +1473,15 @@ console.log('\n=== 증표 각인 세 칸 (v163) ===');
   while (g.s.level < 120) g.addExp(W.expToNext(g.s.level));
   g.s.jobTier = 3; g._stats = null;
   const w = g.s.equip.weapon;
-  const poison = W.bossKey(1), king1 = W.bossKey(W.NORMAL_ZONES + 12);   // 독수마군 · 검왕
-  ok(IM.themeOfZone(1) === 'poison' && IM.specialOfZone(1) === null && IM.specialOfZone(W.NORMAL_ZONES + 12)?.name === '무형신검', '독수마군은 독 테마 · 검왕은 고유 효과 무형신검');
+  const poison = W.bossKey(1), king1 = W.bossKey(W.NORMAL_ZONES + 12);   // 죽림채 채주 · 검왕
+  ok(IM.themeOfZone(1) === 'poison' && IM.specialOfZone(1) === null && IM.specialOfZone(W.NORMAL_ZONES + 12)?.name === '무형신검', '죽림채 채주은 독 테마 · 검왕은 고유 효과 무형신검');
   ok(IM.imprintOf(W.bossKey(10), 0).fx[Object.keys(IM.THEMES[IM.themeOfZone(10)].fx.reduce((o, [k]) => ({ ...o, [k]: 1 }), {}))[0]] > IM.imprintOf(W.bossKey(2), 0).fx[Object.keys(IM.THEMES[IM.themeOfZone(2)].fx.reduce((o, [k]) => ({ ...o, [k]: 1 }), {}))[0]] / 10, '각인 크기는 두목 레벨에 비례한다');
   g.s.mats[poison] = 1000; g.s.mats[king1] = 1000;
   g.rng = () => 0;
   g.infuse(w.uid, poison);
   ok(w.rar === 1 && w.imps.length === 1 && w.imps[0].k === poison, '유니크로 오르면 첫째 칸에 그 두목이 새겨진다');
   g._stats = null;
-  ok(g.stats().venom > 0, '독수마군 각인: 적중 피해 일부가 독으로', `${(g.stats().venom * 100).toFixed(2)}%`);
+  ok(g.stats().venom > 0, '죽림채 채주 각인: 적중 피해 일부가 독으로', `${(g.stats().venom * 100).toFixed(2)}%`);
   const v1 = g.stats().venom;
   g.infuse(w.uid, poison); g.infuse(w.uid, king1);
   g._stats = null;
@@ -1530,9 +1530,9 @@ console.log('\n=== 각인 v167: 스킬 변화 랜덤 · 고유 셋 중 고르기
   const r = seeded(7); const seen = { s: new Set(), k: new Set(), g: [0, 0, 0, 0] };
   for (let i = 0; i < 4000; i++) { const c = IM.rollSkillChange(r); seen.s.add(c.s); seen.k.add(c.sk); seen.g[c.g]++; }
   ok(seen.s.size === 3 && seen.k.size === 4 && seen.g.every((x) => x > 0) && seen.g[0] > seen.g[3] * 8, '스킬 변화: 1~3차 · 범위/피해/숨/한 번 더 · 레어~신화가 모두 랜덤으로 나온다', seen.g.join('/'));
-  // 사용자 예: 독수마군 레어 < 혈사도왕 레어 < 독수마군 레전드
+  // 사용자 예: 죽림채 채주 레어 < 마적 두령 혈사도 레어 < 죽림채 채주 레전드
   const v = (z, g) => IM.skillValue('range', g, W.markLv(W.bossKey(z)));
-  ok(v(1, 0) < v(2, 0) && v(2, 0) < v(1, 2), '독수마군 레어 2차 범위 < 혈사도왕 레어 < 독수마군 레전드', `${(v(1, 0) * 100).toFixed(1)}% < ${(v(2, 0) * 100).toFixed(1)}% < ${(v(1, 2) * 100).toFixed(1)}%`);
+  ok(v(1, 0) < v(2, 0) && v(2, 0) < v(1, 2), '죽림채 채주 레어 2차 범위 < 마적 두령 혈사도 레어 < 죽림채 채주 레전드', `${(v(1, 0) * 100).toFixed(1)}% < ${(v(2, 0) * 100).toFixed(1)}% < ${(v(1, 2) * 100).toFixed(1)}%`);
   const all = IM.ALL_SPECIALS();
   ok(all.length === 93 && new Set(all.map((x) => x.kind)).size === 16, '레벨 100 넘는 두목 31(+화무기·마귀 v238) × 고유 효과 셋 = 93 · 꼴 열여섯');
   // 고르기 · 다시 새기기
@@ -4784,6 +4784,20 @@ console.log('\n=== v459 R7 전투 — 범위 2칸 · 단추 셋 · 두목 초식
     g.bossCast(b, 1, 0.01, ['aim'], 'x'); for (const t of g.tells) { t.x = g.heroX; t.y = g.heroY; } for (let i = 0; i < 40; i++) g.tickTells(0.05, g.stats());
     ok(b.tellHits === 1, '피할 수 있는 초식에 맞으면 센다');
   }
+}
+
+console.log('\n=== v460 두목 이름을 레벨에 맞게 ===');
+{
+  const IM2 = await import('../js/world/wimprint.js');
+  const MSn = await import('../js/world/wmaster.js');
+  const want = { 1: ['죽림채 채주', 'poison'], 2: ['마적 두령 혈사도', 'blood'], 3: ['빙백궁 외당주', 'ice'], 31: ['도화진 수호자', 'petal'], 32: ['동창 당두', 'dark'], 6: ['무당 태극검수', 'sword'], 7: ['마교 좌호법', 'dark'] };
+  const bad = Object.entries(want).filter(([z, [n, t]]) => W.ZONES_W[z]?.boss?.name !== n || IM2.themeOfZone(+z) !== t);
+  ok(!bad.length, '일곱 두목 이름이 바뀌고 각인 테마는 그대로', bad.map(([z]) => `${z}:${W.ZONES_W[z]?.boss?.name}=${IM2.themeOfZone(+z)}`).join(' · '));
+  const titles = new Set(MSn.MASTERS.flatMap((m) => [m.title, `${m.title} ${m.name}`]));
+  const clash = Object.values(W.ZONES_W).filter((zn) => zn?.boss?.name && !zn.master && !zn.king && titles.has(zn.boss.name)).map((zn) => zn.boss.name);
+  ok(!clash.length, '지역 두목 이름이 고수의 칭호와 겹치지 않는다(천마 · 태극검선)', clash.join(','));
+  const early = Object.values(W.ZONES_W).filter((zn) => zn?.boss?.name && !zn.master && !zn.king && zn.lv && zn.lv[1] < 30 && /왕$|마군$|궁주$|도주$/.test(zn.boss.name)).map((zn) => `${zn.boss.name}(${zn.lv.join('-')})`);
+  ok(!early.length, 'Lv30 아래 두목에 왕·마군·궁주·도주 칭호가 없다', early.join(','));
 }
 
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
