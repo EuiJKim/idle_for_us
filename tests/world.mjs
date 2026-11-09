@@ -4570,7 +4570,31 @@ console.log('\n=== R3 방 안 자동 무공 (v455) — 센 과녁 하나에게�
   g.events.length = 0; for (let i = 0; i < 6; i++) { g.autoSkills(st); m.hp = m.maxHp; }
   ok(aoe && g.events.some(isAoe), '센 과녁 하나 — 범위 무공을 쓴다', aoe?.name);
   g.cd = {}; m.hp = st.atk * 2; g.events.length = 0; for (let i = 0; i < 6; i++) g.autoSkills(st);
-  ok(!g.events.some(isAoe), '평타 두어 대면 죽을 과녁에는 아낀다');
+  const mainId = g.mainSkill()?.id;
+  ok(g.events.some((e) => e.type === 'skill' && e.id === mainId), 'v458 주력 무공은 평타 두어 대면 죽을 과녁에도 숨이 차면 바로 쓴다', g.mainSkill()?.name);
+  // 주력이 아닌 범위 무공은 그대로 아낀다(셋이 모이거나 센 과녁에)
+  { const other = { ...aoe, id: 'zz_other' }; const sl = g.skillList.bind(g), sks = g.skills.bind(g); g.skills = () => [other]; g.skillList = () => [...sl(), other];
+    g.cd = {}; m.hp = st.atk * 2; g.events.length = 0; g.autoSkills(st); g.skills = sks; g.skillList = sl;
+    ok(!g.events.some((e) => e.type === 'skill' && e.id === 'zz_other'), '주력이 아닌 범위 무공은 평타 두어 대면 죽을 과녁에는 아낀다'); }
+}
+
+console.log('\n=== v458 주력 무공은 숨이 차면 바로 — 1차 한 대 무공(섭혼술 등) ===');
+{
+  for (const job of ['fan', 'sword', 'fist', 'poison', 'ring']) {
+    const g = fresh(job); g.rng = seeded(5); while (g.s.level < 15) g.addExp(W.expToNext(g.s.level)); g.s.gold = 1e9; while (g.s.jobTier < 1 && g.canAdvance()) g.advance();
+    g.s.autoSkill = true; g._stats = null; g.heroHp = g.stats().hp; g.enterMap(W.mapId(2, 1)); for (let i = 0; i < 10; i++) g.tick(0.05);
+    const st = g.stats(), main = g.mainSkill(); const m = g.mons.find((x) => x.alive && !x.npc);
+    for (const o of g.mons) if (o !== m) o.alive = false; g.mons = [m]; g.respawns = [];
+    m.x = g.heroX + 60; m.y = g.heroY; m.c = Math.round(m.x / W.TILE); m.r = Math.round(m.y / W.TILE); m.move = null; m.atk = 0; m.hp = st.atk * 1.2; g.mon = m; g.cd = {};
+    g.events.length = 0; g.autoSkills(st);
+    ok(g.events.some((e) => e.type === 'skill' && e.id === main.id), `${W.classOf(job).name} 1차 주력 ${main.name} — 약한 과녁에도 숨이 차면 바로`);
+  }
+  // 몽키 봇(v458): 강화 실패로 +가 내려가 최대 체력이 줄었는데 지금 체력은 그대로 — 최대치를 넘었다
+  { const g = fresh('fan'); g.s.level = 120; g.s.gold = 1e12; while (g.canAdvance()) g.advance(); g._stats = null;
+    const it = g.makeCrafted('armor', 10, 0, 2); it.plus = 12; g.s.equip.armor = it; g._stats = null; g.enterMap(W.mapId(9, 1)); g.heroHp = g.stats().hp;
+    const hp0 = g.heroHp; it.plus = 4; g._stats = null;
+    const hp1 = g.stats().hp; g.tick(0.05);
+    ok(hp1 < hp0 && g.heroHp <= g.stats().hp + 1e-6, '최대 체력이 줄면 다음 걸음에 지금 체력도 따라 준다', `${Math.round(hp0)} → 최대 ${Math.round(hp1)} · 지금 ${Math.round(g.heroHp)}`); }
 }
 
 

@@ -1271,6 +1271,7 @@ export class WorldGame {
       if (this.autoDgnT <= 0) { this.autoDgnT = AUTO_DGN_SEC; this.startRoutine(); }
     }
     const st = this.stats();
+    if (this.heroHp > st.hp) this.heroHp = st.hp;   // v458 최대 체력이 줄면(강화 실패로 +가 내려감 · 무공 초기화 · 장비 벗기) 지금 체력도 따라 준다 — 몽키 봇이 찾았다
     for (const k in this.cd) this.cd[k] = Math.max(0, this.cd[k] - dt);
     this.potionT = Math.max(0, this.potionT - dt);
     if (this.frenzyT > 0) this.frenzyT -= dt;
@@ -2378,8 +2379,8 @@ export class WorldGame {
       if (sk.autoAbove && this.heroHp < st.hp * sk.autoAbove && !sk.buff?.dmgRed) continue;
       if (sk.kind === 'single') {
         if (!this.mon?.alive) continue;
-        // 한 대에 죽을 놈에게는 아끼고, 두목·센 놈에게 쓴다
-        if (!this.mon.isBoss && this.mon.hp < st.atk * 1.5) continue;
+        // 한 대에 죽을 놈에게는 아끼고, 두목·센 놈에게 쓴다 — v458 주력 무공은 아끼지 않는다(하나뿐인 공격 무공 · 숨이 차면 바로)
+        if (sk.id !== mainId && !this.mon.isBoss && this.mon.hp < st.atk * 1.5) continue;
         if (!this._shReach && Math.hypot(this.mon.x - this.heroX, this.mon.y - this.heroY) > (sk.far ? 400 : Math.max(st.range, 160))) continue;
       } else {
         const c = this.ranged() && this.mon?.alive ? this.mon : { x: this.heroX, y: this.heroY };
@@ -2388,7 +2389,7 @@ export class WorldGame {
         const boss = this.mons.some((m) => m.alive && m.isBoss && (this._shReach || Math.hypot(m.x - c.x, m.y - c.y) <= rr));
         // v455 방은 몹이 드문드문 — 셋이 모이길 기다리면 무공을 거의 못 쓴다. 과녁이 범위 안에 있고 평타 몇 대로 안 죽을 만큼 세면 하나에게도 쓴다
         const solo = this.mon?.alive && !this.mon.npc && this.mon.hp > st.atk * W.AOE_SOLO_HITS && Math.hypot(this.mon.x - c.x, (this.mon.y - c.y) * 0.75) <= rr;
-        if (n < 3 && !boss && !solo) continue;
+        if (n < (sk.id === mainId ? 1 : 3) && !boss && !solo) continue;   // v458 주력은 닿는 적이 하나라도 있으면 바로
       }
       if (this.useSkill(sk.id)) return;
     }
