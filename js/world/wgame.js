@@ -864,8 +864,9 @@ export class WorldGame {
     for (const m of W.MAPS) if (!m.town && !m.bossRoom && !m.king && m.lv[0] <= this.s.level && m.lv[0] >= W.mapOf(best).lv[0]) best = m.id;
     return best;
   }
-  enterMap(id, quiet = false, from = null) {
+  enterMap(id, quiet = false, from = null, roam = false) {
     if (!this.canEnter(id)) return false;
+    this._roam = null;
     // v455 나가는 방을 기억한다(몹이 몇 남았나·언제) — 금방 돌아오면 그만큼만 있다
     if (this.map && !this.map.town && !this.inst && this.s.map !== id) (this._roomMem ||= {})[this.s.map] = { t: this.clock, alive: this.mons.filter((x) => x.alive && !x.npc && !x.isBoss).length };
     this.clones = [];
@@ -876,14 +877,14 @@ export class WorldGame {
     //   v436 이긴 판이 「이어 오르기」로 다음 판을 열면 안 된다 — 탑을 깬 결과 창이 뜬 틈에 지도를 누르면 다음 층이 열린 채 사냥터로 넘어가 몹을 못 깔고 멈췄다(몽키 봇)
     if (this.inst) { this.inst.noChain = true; this.leaveInst(); }
     this.sceneKey = null;
-    this._mapAt = this.wall || 0;        // v314 · v438 실제 시간 분당 경험치는 이 사냥터에 온 뒤의 벌이만
+    if (!roam || this._mapAt == null) this._mapAt = this.wall || 0;        // v314 · v438 실제 시간 분당 경험치는 이 사냥터에 온 뒤의 벌이만 (v455 방 돌기는 같은 사냥터로 본다)
     this.tells = [];
     const terr = L.terrainOf(id);
     this.blocked = terr?.grid || null;
     this.obstacles = terr?.list || [];
     const m = W.mapOf(id);
     this.s.map = id;
-    if (!m.town) { this.s.huntMap = id; this.s.bestMap = Math.max(this.s.bestMap || 1, id); }
+    if (!m.town) { this.s.huntMap = id; this.s.bestMap = Math.max(this.s.bestMap || 1, id); if (!roam) this._home = id; }   // v455 집 방 — 지도·알맞은 사냥터·문을 손으로 지난 방(방 돌기는 집 둘레만 돈다)
     // 그리는 쪽이 지역 그림을 고르는 값 (십이지왕은 옛 지역 그림을 빌린다)
     this.s.stage = m.art * 10 + 1;
     this.s.rank = W.lookTierOf(this.s.level);
@@ -900,8 +901,8 @@ export class WorldGame {
     this.freezeT = 0;
     if (!m.town) {
       const want = m.mobsAlive ?? (m.bossRoom ? W.BOSS_ROOM_MOBS : W.MOBS_ALIVE);
-      const mem = this._roomMem?.[id]; const rs = m.respawnSec ?? W.RESPAWN_SEC;
-      const n = mem && this.clock - mem.t < 90 ? Math.min(want, mem.alive + Math.floor((this.clock - mem.t) / rs)) : want;   // v455 금방 떠난 방은 그만큼만
+      const rs = m.respawnSec ?? W.RESPAWN_SEC;
+      const n = this.roomExpect(id);   // v455 금방 떠난 방은 그만큼만
       for (let i = 0; i < n; i++) this.spawnMob(false);
       for (let i = n; i < want; i++) this.respawns.push({ t: rs * (0.4 + this.rng() * 0.8) });
     }
@@ -915,13 +916,53 @@ export class WorldGame {
     const bk = this.s.bossKills || {};
     return Object.entries(bk).some(([k, n]) => n > 0 && (+k === m.zone || W.mapOf(+k)?.zone === m.zone));
   }
-  passDoor(d) {
+  doorOpen(m, d) { return m.doorLock?.[d] !== 'deep' || this.deepOpen(m); }
+  passDoor(d, roam = false) {
     const m = this.map, to = m.doors?.[d];
     if (!to || this.inst) return false;
-    if (m.doorLock?.[d] === 'deep' && !this.deepOpen(m)) { this.emit('doorLocked', { d, to, name: W.mapOf(to).name }); return false; }
-    if (!this.enterMap(to, true, W.OPP_DOOR[d])) return false;
+    if (!this.doorOpen(m, d)) { this.emit('doorLocked', { d, to, name: W.mapOf(to).name }); return false; }
+    if (!this.enterMap(to, true, W.OPP_DOOR[d], roam)) return false;
     this.emit('roomMove', { from: m.id, to, d, name: W.mapOf(to).name });
     return true;
+  }
+  // v455 이 방에 지금 들어가면 몇 마리가 있나 — 금방(90초 안) 떠난 방은 남긴 만큼 + 지난 시간만큼 · 아니면 가득
+  roomExpect(id) {
+    const m = W.mapOf(id); const want = m.mobsAlive ?? (m.bossRoom ? W.BOSS_ROOM_MOBS : W.MOBS_ALIVE);
+    const mem = this._roomMem?.[id]; const rs = m.respawnSec ?? W.RESPAWN_SEC;
+    return mem && this.clock - mem.t < 90 ? Math.min(want, mem.alive + Math.floor((this.clock - mem.t) / rs)) : want;
+  }
+  // v455 방 돌기 묶음 — 집 방과 그 옆 방 중 갈 만한 곳: 두목·고수 방이 아니고 · 닫힌 문 너머가 아니고 · 몹이 나보다 높지 않고 · 경험치가 깎이지 않는 곳
+  roamOk(id, home) {
+    const m = W.mapOf(id);
+    if (!m || m.id !== id || m.town || m.bossRoom || m.master || !this.canEnter(id)) return false;
+    return id === home || (m.lv[0] <= this.s.level && this.levelGapMult(m.lv[1]) >= 1);
+  }
+  roamSet() {
+    const home = this._home ?? this.s.huntMap, hm = W.mapOf(home);
+    const set = new Set([home]);
+    if (hm?.doors) for (const [d, to] of Object.entries(hm.doors)) if (this.doorOpen(hm, d) && this.roamOk(to, home)) set.add(to);
+    return set;
+  }
+  // 방이 비었다 — 다음 몹이 ROAM_WAIT 넘게 걸리면, 돌 방 중 몹이 가장 많을 옆 방의 문 칸 { d, to, c, r } · 아니면 null(기다린다)
+  roamPick() {
+    const m = this.map;
+    if (this.inst || !m || m.town || m.bossRoom || m.master || !this.s.autoHunt || this.manual || this.joy || !m.doors) return null;
+    if (this.mons.some((x) => x.alive && !x.npc && !(x.unreachUntil > this.clock))) return null;
+    const want = m.mobsAlive ?? W.MOBS_ALIVE;
+    const thin = this.mons.length < want / 2 ? 2 : 1;   // 몹이 적으면 두 배로 빨리 난다(tick과 같은 셈)
+    if (this.respawns.length && Math.min(...this.respawns.map((r) => r.t)) / thin <= W.ROAM_WAIT) return null;
+    const set = this.roamSet();
+    if (!set.has(m.id)) return null;
+    let best = null;
+    for (const [d, to] of Object.entries(m.doors)) {
+      if (!set.has(to) || !this.doorOpen(m, d)) continue;
+      const e = this.roomExpect(to);
+      if (e < (W.mapOf(to).mobsAlive || 1) * W.ROAM_MIN) continue;
+      if (!best || e > best.e) best = { d, to, e };
+    }
+    if (!best) return null;
+    const t = W.doorTile(m, best.d);
+    return { d: best.d, to: best.to, c: t.c, r: t.r };
   }
   // 마을로. 쓰러져서 온 것(auto)이면 쉬었다가 사냥터로 돌아가고, 스스로 온 것이면 머문다.
   // (전에는 스스로 와도 3초 뒤 사냥터로 끌려갔다)
@@ -1362,6 +1403,7 @@ export class WorldGame {
         this.hc = this.hmove.c; this.hr = this.hmove.r; this.hmove = null;
         // v455 문 칸에 닿았다(직접 찍었거나 방 돌기) → 옆 방으로
         if (this._wantDoor && this._wantDoor.c === this.hc && this._wantDoor.r === this.hr) { const d = this._wantDoor.d; this._wantDoor = null; this.manual = null; if (this.passDoor(d)) return; }
+        else if (this._roam && this._roam.c === this.hc && this._roam.r === this.hr && !this.mons.some((x) => x.alive && !x.npc)) { const d = this._roam.d; this._roam = null; if (this.passDoor(d, true)) return; }   // 걷는 사이 몹이 났으면 넘어가지 않는다
       }
       else { this.moveSkills(st); return; }
     }
@@ -1371,8 +1413,13 @@ export class WorldGame {
     else if (!this.inst && this.tells.length && this.huntOn()) { const d = this.dodgeStep(W.FIELD_REACT); if (d === 'moved') return; this.holdApproach = d === 'hold'; }
     // 조이스틱 — 누르고 있는 동안 그 방향으로 한 칸씩 (막히면 다른 축으로). 그동안은 치지 않는다.
     if (this.joy) {
-      this.manual = null;
+      this.manual = null; this._roam = null;
       const { dx, dy } = this.joy;
+      // v455 문 칸에 서서 바깥쪽으로 밀면 옆 방으로 (가장자리를 따라 걷다 문 칸을 밟는 것만으로는 안 넘어간다)
+      { const dd = !this.inst && W.doorAt(this.map, this.hc, this.hr);
+        if (dd) { const out = { n: [0, -1], s: [0, 1], w: [-1, 0], e: [1, 0] }[dd];
+          const push = out[0] ? Math.sign(dx) === out[0] && Math.abs(dx) >= Math.abs(dy) : Math.sign(dy) === out[1] && Math.abs(dy) >= Math.abs(dx);
+          if (push && this.passDoor(dd)) return; } }
       const sx = Math.sign(dx), sy = Math.sign(dy);
       const tries = Math.abs(dx) >= Math.abs(dy) ? [[sx, 0], [0, sy]] : [[0, sy], [sx, 0]];
       let moved = false;
@@ -1403,7 +1450,18 @@ export class WorldGame {
       if (b?.isBoss) this.mon = b;
     }
     const m = this.mon;
-    if (!m) { this.walking = false; return; }
+    if (!m) {
+      // v455 방 돌기 — 방이 비면 옆 방 문으로 걸어간다
+      if (!this._roam && !(this._roamAt > this.clock)) { this._roamAt = this.clock + 0.5; this._roam = this.roamPick(); }
+      if (this._roam) {
+        if (!this.s.autoHunt) this._roam = null;
+        else if (this.hc === this._roam.c && this.hr === this._roam.r) { const d = this._roam.d; this._roam = null; if (this.passDoor(d, true)) return; }
+        else if (this.stepHero(this._roam.c, this._roam.r)) { this.moveSkills(st); return; }
+        else this._roam = null;
+      }
+      this.walking = false; return;
+    }
+    if (this._roam) this._roam = null;   // 걷는 사이 몹이 났다 — 이 방에서 마저 잡는다
     const mt = this.mobTile(m);
     const dist = this.tileDist({ c: this.hc, r: this.hr }, mt);
     this.heroAngle = Math.atan2((m.y - this.heroY) * 0.6, m.x - this.heroX);
@@ -1505,7 +1563,7 @@ export class WorldGame {
   moveTo(x, y) {
     if (this.map.town) return;
     this.manual = { c: clamp(Math.floor(x / W.TILE), 0, this.cols - 1), r: clamp(Math.floor(y / W.TILE), 0, this.rows - 1) };
-    this.mon = null;
+    this.mon = null; this._roam = null;
     const d = W.doorAt(this.map, this.manual.c, this.manual.r);   // v455 문 칸을 찍으면 거기 닿았을 때 옆 방으로
     this._wantDoor = d ? { ...this.manual, d } : null;
   }

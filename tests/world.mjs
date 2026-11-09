@@ -4500,5 +4500,52 @@ console.log('\n=== R2 방 (v455) — 문 · 방 전환 · 방 리젠 기억 · �
   ok(c.passDoor('n'), `Lv${W.DEEP_LV}(승급)이면 두목을 안 잡아도 열린다`);
 }
 
+
+console.log('\n=== R3 방 돌기 (v455) — 방이 비면 옆 방으로 ===');
+{
+  const A = W.mapId(1, 2), Lo = W.mapId(1, 1), Hi = W.mapId(1, 3), Boss = W.mapId(1, W.BOSS_AREA);
+  const mk = (lv) => { const g = fresh(); g.rng = seeded(21); while (g.s.level < lv) g.addExp(W.expToNext(g.s.level)); g.s.autoHunt = true; g.s.autoSkill = false; g.heroHp = g.stats().hp; return g; };
+  const empty = (g, wait = 7.5) => { for (const m of g.mons) if (!m.npc) m.alive = false; g.mons = g.mons.filter((m) => m.alive); g.respawns = Array.from({ length: g.map.mobsAlive }, () => ({ t: wait })); g.mon = null; };
+  const run = (g, sec) => { const from = g.s.map; for (let i = 0; i < sec / 0.05 && g.s.map === from; i++) g.tick(0.05); return g.s.map; };
+  // 레벨 6 · 집 = 죽림 2 (옆: 죽림 1 · 죽림 3)
+  const g = mk(6); g.enterMap(A);
+  ok(g._home === A && [...g.roamSet()].sort().join() === [Lo, A, Hi].sort().join(), '집 방과 옆 방(두목 방 빼고) — 돌 방 묶음', [...g.roamSet()].join(','));
+  empty(g);
+  const to = run(g, 10);
+  ok(to !== A && g.roamSet().has(to) && g._home === A && g.s.huntMap === to, '방이 비고 다음 몹이 한참이면 옆 방으로 걸어간다 · 집은 그대로', `→ ${W.mapOf(to).name}`);
+  ok(g.mons.filter((m) => !m.npc && m.alive).length === W.ROOM_MOBS, '처음 가는 옆 방은 가득');
+  // 옆 방도 비면 — 금방 떠난 집은 비어 있어 기다린다 · 오래 지나면 돌아간다
+  empty(g);
+  ok(run(g, 4) === to, '돌아갈 방도 비어 있으면 그 자리에서 기다린다');
+  g._roomMem[A].t -= 200; empty(g);
+  ok(run(g, 10) === A, '집 방이 다시 차면 돌아간다');
+  // 곧 날 몹이 있으면 기다린다
+  empty(g, 1);
+  ok(run(g, 2) === A, '다음 몹이 곧 나면 옆 방으로 가지 않는다');
+  // 걷는 사이 몹이 나면 그만두고 잡는다
+  empty(g); g._roomMem = {};
+  for (let i = 0; i < 40 && !g._roam; i++) g.tick(0.05);
+  const was = !!g._roam; g.spawnMob(false); for (let i = 0; i < 10; i++) g.tick(0.05);   // 한 칸 걷던 것은 마저 걷고
+  ok(was && !g._roam && g.s.map === A, '문으로 걷다 몹이 나면 그 방에서 마저 잡는다');
+  // 자동 사냥이 꺼져 있으면 돌지 않는다
+  const off = mk(6); off.enterMap(A); off.s.autoHunt = false; empty(off);
+  ok(run(off, 8) === A, '자동 사냥을 끄면 방을 돌지 않는다');
+  // 레벨이 모자라면 높은 옆 방은 빼고 · 낮아 경험치가 깎이는 방도 뺀다
+  const low = mk(4); low.enterMap(A);
+  ok(!low.roamSet().has(Hi), '몹이 나보다 높은 옆 방은 돌지 않는다');
+  const high = mk(12); high.enterMap(A);
+  ok(!high.roamSet().has(Lo), '경험치가 깎이는 낮은 방은 돌지 않는다');
+  // 두목 방 옆에서도 두목 방으로는 돌지 않는다
+  const h3 = mk(8); h3.enterMap(Hi);
+  ok(!h3.roamSet().has(Boss) && h3.roamSet().has(W.mapId(2, 1)), '두목 방은 빼고 · 다음 지역 입구는 돌 수 있다', [...h3.roamSet()].join(','));
+  // 조이스틱 — 문 칸에서 바깥으로 밀면 옆 방 · 가장자리를 따라 걸으면 그대로
+  const j = mk(6); j.enterMap(A); j.s.autoHunt = false; empty(j); j.respawns = [];
+  const nt = W.doorTile(j.map, 'n'); j.placeHero(nt.c, nt.r);
+  j.joy = { dx: 1, dy: 0 }; j.tick(0.05);
+  ok(j.s.map === A, '문 칸에서 옆으로 밀면 넘어가지 않는다');
+  j.placeHero(nt.c, nt.r); j.joy = { dx: 0, dy: -1 }; j.tick(0.05);
+  ok(j.s.map === Hi && j._home === Hi, '문 칸에서 바깥으로 밀면 옆 방으로 · 손으로 간 방이 집');
+}
+
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);
