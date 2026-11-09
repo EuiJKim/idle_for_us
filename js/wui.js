@@ -299,7 +299,7 @@ function charTab(app) {
         h('button', { class: 'btn', style: 'padding:4px 10px;font-size:12px', disabled: game.canResetSkills() ? null : true, onclick: () => {
           if (!confirm(`무공 레벨과 심법을 모두 처음으로 되돌릴까요?\n쓴 점수 ${game.skillSpentAll()}점을 돌려받아요${rc ? ` · 은자 ${fmt(rc)}` : ''}.`)) return;
           const n = game.resetSkills();
-          if (n) { toast(`무공 초기화 — 점수 ${n}점을 돌려받았어요`); app.save(); skSig = ''; psSig = ''; upd(); app.refresh(); }
+          if (n) { game.s.autoSkillPts = false; toast(`무공 초기화 — 점수 ${n}점을 돌려받았어요 · 직접 찍도록 무공 점수 자동을 껐어요(설정에서 다시 켜요)`); app.save(); skSig = ''; psSig = ''; upd(); app.refresh(); }
         } }, '무공 초기화')) : null].filter(Boolean));   // v211: null이 'null' 글자로 찍히던 것
     const list = game.skills();
     if (!list.length) { skillCard.append(h('p', { class: 'muted' }, `1차 전직(${W.lvText(W.TIERS[1].level)})을 하면 스킬을 배워요.`)); return; }
@@ -492,50 +492,61 @@ function charTab(app) {
   }
   // v427 성장 지도 — 다섯 줄(성장·장비·무공·고수·던전·천계)에 지금 어디까지 왔는지와 「다음: ○○」 하나씩. 누르면 그 자리로
   const growCard = h('div', { class: 'card road-card' });
+  // v449 성장 지도 — 열다섯 갈래를 넷으로: 무인(레벨·전직·능력치·무공) · 장비 · 동료 · 무림. 갈래마다 전투력을 몇 % 올리나(powerBreakdown)와 다음 할 일 하나
   function growRows() {
     const s = game.s, rows = [];
     const row = (icon, title, now, next, go, hot = false, done = false) => rows.push({ icon, title, now, next, go, hot, done });
-    // ① 성장(레벨·전직)
+    const pb = game.powerBreakdown();
+    const pc = (v) => (v < 1 ? `전투력 +${Math.round(Math.max(0, v) * 100)}%` : `전투력 ×${(1 + v).toFixed(v < 9 ? 1 : 0)}`);   // 몫이 크면 곱으로
+    // ① 무인 — 레벨·수련·전직 · 능력치 · 무공·심법
     { const t = game.nextTier(), n = (s.jobTier || 0) + 1;
-      if (t) {
+      let next, go, hot = false;
+      if (s.statPts > 0 && !s.autoStat) { next = `능력치 점수 ${s.statPts}점 찍기`; go = ['char', 'stat']; hot = true; }
+      else if (game.canAdvance()) { next = `${W.tierLabel(n)} — 사부에게`; go = ['town', 'master']; hot = true; }
+      else if (s.skillPts > 0 && !s.autoSkillPts && game.skills().some((k) => game.canSkillUp(k.id))) { next = `무공 점수 ${s.skillPts}점 찍기`; go = ['char', 'skill']; hot = true; }
+      else if (t) {
         const nm = t.need ? (game.fifth?.()?.needName || t.need) : null;
-        const next = s.level < t.level ? `${W.lvText(t.level)}에 ${W.tierLabel(n)}` : t.need && !s.duel?.won?.[t.need] ? `${nm} 쓰러뜨리기(5차)` : s.gold < t.cost ? `${W.tierLabel(n)} 은자 ${fmt(t.cost)} 모으기` : `${W.tierLabel(n)} — 사부에게`;
-        row('成', `${W.lvShort(s.level)} · ${game.tierName()}`, `다음 전직 ${W.lvText(t.level)}`, next, game.canAdvance() ? ['town', 'master'] : t.need && s.level >= t.level ? ['map', 'masters'] : ['map'], game.canAdvance());
-      } else if (s.level < W.LEVEL_MAX) row('成', `${W.lvShort(s.level)} · ${game.tierName()}`, '전직은 끝', `${W.lvText(W.LEVEL_MAX)}까지 수련`, ['map']);
-      else row('成', `${W.lvShort(s.level)} · ${game.tierName()}`, '수련 끝', `깨달음 — 무공마다 단계(무공 창)`, ['char', 'skill'], (s.enl?.pts || 0) > 0); }
-    // ② 장비
+        next = s.level < t.level ? `${W.lvText(t.level)}에 ${W.tierLabel(n)}` : t.need && !s.duel?.won?.[t.need] ? `${nm} 쓰러뜨리기(5차)` : `${W.tierLabel(n)} 은자 ${fmt(t.cost)} 모으기`;
+        go = t.need && s.level >= t.level ? ['map', 'masters'] : ['map'];
+      } else if (s.level < W.LEVEL_MAX) { next = `${W.lvText(W.LEVEL_MAX)}까지 수련`; go = ['map']; }
+      else { next = '깨달음 — 무공마다 단계'; go = ['char', 'skill']; hot = (s.enl?.pts || 0) > 0; }
+      const auto = [s.autoStat ? '능력치' : null, s.autoSkillPts ? '무공 점수' : null].filter(Boolean);
+      row('武', `무인 · ${W.lvShort(s.level)} ${game.tierName()}`, `바탕 전투력 ${fmt(Math.round(pb.base))} · 레벨·전직·능력치·무공${auto.length ? ` · 자동: ${auto.join('·')}` : ''}`, next, go, hot); }
+    // ② 장비 — 강화·등급 각인·계열·세트·현철 단련
     { const worn = W.SLOTS.map((x) => s.equip[x.id]).filter(Boolean);
       const myth = worn.filter((it) => (it.rar || 0) >= 3).length, avg = worn.length ? Math.round(worn.reduce((a, it) => a + (it.plus || 0), 0) / worn.length) : 0, tr = worn.filter((it) => it.tr > 0).length;
       const t = game.upgradeTip?.();
       const next = t ? `${t.name} (전투력 +${(t.gain * 100).toFixed(1)}%)` : worn.length < W.SLOTS.length ? '빈 칸 채우기 — 대장장이' : myth < worn.length ? '각인으로 신화 등급 만들기' : avg < W.ENHANCE_MAX ? `+${W.ENHANCE_MAX}까지 강화` : tr < worn.length ? '초월' : '장비는 끝';
-      row('裝', `장비 신화 ${myth}/${W.SLOTS.length} · 평균 +${avg}${tr ? ` · 초월 ${tr}` : ''}`, `전투력 ${fmt(Math.round(game.power?.() || 0))}`, next, t && t.kind === 'imp' ? ['bag', 'imp'] : worn.length < W.SLOTS.length ? ['bag', 'smith'] : ['bag', 'gear'], !!t, !t && tr >= worn.length && worn.length >= W.SLOTS.length); }
-    // ③ 무공
-    { const sks = game.skillList().filter((k) => k.tier <= (s.jobTier || 0) || k.tier === 0), maxed = sks.filter((k) => game.skillLevel(k.id) >= W.SKILL_LV_MAX).length;
-      const can = s.skillPts > 0 && sks.some((k) => game.canSkillUp(k.id));
-      const next = can ? `무공 점수 ${s.skillPts}점 찍기` : maxed < sks.length ? '레벨이 오르면 무공 점수' : s.level >= W.LEVEL_MAX ? '깨달음 단계 올리기' : '무공은 다 올렸어요';
-      row('武', `무공 만렙 ${maxed}/${sks.length}`, s.skillPts > 0 ? `남은 점수 ${s.skillPts}` : '남은 점수 없음', next, ['char', 'skill'], can, maxed >= sks.length && !can); }
-    // ④ 고수(비무·각성)
+      row('裝', `장비 · ${pc(pb.gear)}`, `신화 ${myth}/${W.SLOTS.length} · 평균 +${avg}${tr ? ` · 초월 ${tr}` : ''}${s.autoEnh || s.autoInf ? ` · 자동: ${[s.autoEnh ? '강화' : null, s.autoInf ? '각인' : null].filter(Boolean).join('·')}` : ''}`, next, t && t.kind === 'imp' ? ['bag', 'imp'] : worn.length < W.SLOTS.length ? ['bag', 'smith'] : ['bag', 'gear'], !!t, !t && tr >= worn.length && worn.length >= W.SLOTS.length); }
+    // ③ 동료 — 애완동물 · 탈것 · 도감 · 칭호
+    { const slots = game.petSlots(), act = game.activePets().length, mt = game.mountNow();
+      const box = (s.petBox?.length || 0) > 0;
+      let next, hot = false;
+      if (act < slots && box) { next = `애완동물 데려가기 (${act}/${slots}칸)`; hot = true; }
+      else if (!mt && (s.mounts?.length || 0) > 0) { next = '탈것 타기'; hot = true; }
+      else if (game.canGacha?.('pet', 1) || game.canGacha?.('mount', 1)) { next = '뽑기 — 조각이 모였어요'; hot = true; }
+      else if (act < slots) next = '애완동물 얻기 — 두목·뽑기';
+      else if (!mt) next = '탈것 얻기 — 두목·소환';
+      else next = '별 올리기 · 도감 채우기';
+      row('獸', `동료 · ${pc(pb.comp)}`, `애완 ${act}/${slots} · 탈것 ${mt ? mt.name : '없음'} · 칭호 ${s.titles?.length || 0}개 · 애완·탈것·도감·칭호`, next, ['comp'], hot); }
+    // ④ 무림 — 문파 · 고수 비무 · 무한의 탑 · 천계 · 견문록·숙련
     { const all = ['murim', 'sapa', 'magyo', 'apex'].flatMap((f) => MS.mastersOf(f)).filter((m) => !m.hidden || s.duel.won.hwamugi);
-      const won = all.filter((m) => s.duel.won[m.id]).length, stars = all.reduce((a, m) => a + game.duelStars(m.id).n, 0);
+      const won = all.filter((m) => s.duel.won[m.id]).length;
       const nx = all.filter((m) => !s.duel.won[m.id]).sort((a, b) => a.lv - b.lv)[0];
-      const awk = W.AWAKEN_IDS.filter((id) => (s.awk?.kills?.[id] || 0) > 0).length;
-      const next = nx ? `${nx.title} ${nx.name} (Lv.${nx.lv})${s.level < nx.lv - 5 ? ' — 레벨을 더' : ''}` : awk < W.AWAKEN_IDS.length ? `각성 고수 ${awk}/${W.AWAKEN_IDS.length}` : '고수는 다 꺾었어요';
-      row('俠', `고수 ${won}/${all.length} · 별 ${stars}/${all.length * 3}`, awk ? `각성 ${awk}/${W.AWAKEN_IDS.length}` : '', next, ['map', 'masters'], !!nx && s.level >= nx.lv - 5, !nx && awk >= W.AWAKEN_IDS.length); }
-    // ⑤ 던전
-    { const tw = s.tower.floor || 0, top = Math.max(0, ...D.DAILY.map((d) => game.dailyBest(d.id)));
-      const next = tw < D.TOWER_MAX ? `무한의 탑 ${tw + 1}층` : `끝없는 회랑 · 극 ${s.tower.hard || 0}층`;
-      row('塔', `탑 ${tw}층 · 요일 던전 ${top}단계`, s.dgn?.auto || s.dgn?.routine ? '루틴 켜짐' : '루틴 꺼짐', next, ['dgn', 'tower'], false, tw >= D.TOWER_MAX); }
-    // ⑥ 천계
-    { if (s.level < D.WRAID_LV) row('天', '칠대성 — 아직', `${W.lvText(D.WRAID_LV)}부터`, `${W.lvText(D.WRAID_LV)} 되기`, ['map']);
-      else { const w = s.wraid, pr = game.palmaReady(), gates = game.gatesCleared();
-        const next = !pr.ok ? `대성신장 ${pr.n}/7 모으기 (칠대성 토벌)` : gates < D.HEAVEN_GATES.length ? `남천문 관문 ${gates + 1}` : !(w.ok >= 1) ? '옥황상제' : !(w.sk >= 1) ? '천외천 너머 — 석가여래' : '손바닥 밖은 없다 — 끝';
-        row('天', `칠대성 ${w.kills || 0}번 · 대성신장 ${pr.n}/7`, gates || w.ok ? `관문 ${gates}/4${w.ok ? ' · 옥황 ✓' : ''}${w.sk ? ' · 석가 ✓' : ''}` : '', next, ['dgn', 'wraid'], false, w.sk >= 1); } }
+      const tw = s.tower.floor || 0, pr = s.level >= D.WRAID_LV ? game.palmaReady() : null;
+      let next, go, hot = false;
+      if (nx && s.level >= nx.lv - 5) { next = `고수 ${nx.title} ${nx.name}`; go = ['map', 'masters']; hot = true; }
+      else if (!s.guildId && s.level >= 20) { next = '문파 들기 — 공격력 덤·함께 사냥'; go = ['social', 'guild']; }
+      else if (tw < D.TOWER_MAX) { next = `무한의 탑 ${tw + 1}층`; go = ['dgn', 'tower']; }
+      else if (pr && !pr.ok) { next = `대성신장 ${pr.n}/7 (칠대성)`; go = ['dgn', 'wraid']; }
+      else { next = nx ? `고수 ${nx.title} ${nx.name} (${W.lvShort(nx.lv)})` : '끝없는 회랑 · 극'; go = nx ? ['map', 'masters'] : ['dgn', 'tower']; }
+      row('俠', `무림 · ${pc(pb.murim)}`, `고수 ${won}/${all.length} · 탑 ${tw}층${s.guildId ? ' · 문파' : ''}${pr ? ` · 대성신장 ${pr.n}/7` : ''} · 문파·고수·탑·천계·견문록`, next, go, hot); }
     return rows;
   }
   function paintGrow() {
     const rows = growRows();
     let hotDone = false;
-    growCard.replaceChildren(h('h3', {}, '성장 지도', h('small', {}, ' 지금 어디까지 · 다음은 무엇')),
+    growCard.replaceChildren(h('h3', {}, '성장 지도', h('small', {}, ' 네 갈래 · 갈래마다 전투력 몫 · 다음 할 일')),
       ...rows.map((r) => { const hot = r.hot && !hotDone; if (hot) hotDone = true;
         return h('button', { class: `road-row${r.done ? ' done' : ''}${hot ? ' hot' : ''}`, onclick: () => app.showTab(...r.go) },
           h('i', {}, r.done ? '✓' : r.icon), h('div', { class: 'road-txt' }, h('b', {}, r.title), r.now ? h('small', {}, r.now) : null),

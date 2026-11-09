@@ -2558,6 +2558,7 @@ $('btn-settings').addEventListener('click', () => openModal((s) => {
       try { localStorage.setItem('ifu.clean', v ? '1' : '0'); } catch { /* 이번만 */ }
     }),
     toggleRow('자동 스킬', game.s.autoSkill, '체력을 쓰는 스킬은 체력이 넉넉할 때만 써요 · 걸으면서도 써요', (v) => { game.s.autoSkill = v; save(); }),
+    toggleRow('무공 점수 자동', game.s.autoSkillPts, '레벨업 무공 점수를 주력 무공 → 보조기 → 나머지 → 심법 순으로 알아서 찍어요 (끄면 무공 창에서 직접)', (v) => { game.s.autoSkillPts = v; if (v) game.autoSkillPoints(); save(); }),   // v449
     ]],
     ['view', '🖼 화면', [
     // v324 글자·화면 크기 — 폰에서도 키울 수 있고, 컴퓨터에서는 자동 확대에 곱한다

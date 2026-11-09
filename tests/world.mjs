@@ -25,6 +25,7 @@ const fresh = (job = 'sword') => {
   g.rng = seeded();
   g.setJob(job);
   g.s.autoMap = false;   // v260: 알맞은 사냥터 따라가기는 따로 본다(다른 검사가 사냥터를 옮기지 않게)
+  g.s.autoStat = false; g.s.autoEnh = false; g.s.autoInf = false; g.s.autoSkillPts = false;   // v449 새 무인 자동 기본값은 따로 본다(옛 검사는 손으로 찍는 무인 기준)
   g.events.length = 0;
   return g;
 };
@@ -4282,6 +4283,37 @@ console.log('\n=== v448 독마 손보기 ===');
     let dmg = 0; g.s.autoHunt = false; g.huntOn = () => false; for (let i = 0; i < 3; i++) { g.tick(0.05); for (const e of g.events) if (e.type === 'heroHit') dmg += e.amount; g.events.length = 0; } return dmg; };
   const a = hitBy('poison', false), b = hitBy('poison', true);
   ok(a > 0 && b > 0 && b < a * 0.8, '중독된 몹의 한 대가 줄어든다', `${Math.round(a)} → ${Math.round(b)}`);
+}
+
+console.log('\n=== v449 성장 축 정리 ===');
+{
+  const n = new WorldGame(newWorldSave(0), 0);
+  ok(n.s.autoStat && n.s.autoSkillPts && n.s.autoEnh && n.s.autoInf, '새 무인: 능력치·무공 점수·강화·각인 자동이 기본');
+  const o = migrateWorld({ level: 40, autoEnh: false, autoInf: false }, 0);
+  ok(!o.autoStat && !o.autoEnh && !o.autoInf && o.autoSkillPts, '옛 세이브: 고른 자동은 그대로 · 무공 점수 자동만 새로 켬');
+  ok(migrateWorld({ level: 40, autoSkillPts: false }, 0).autoSkillPts === false, '무공 점수 자동을 끈 세이브는 끈 채로');
+  // 무공 점수 자동 — 주력부터
+  const g = fresh('sword'); g.s.autoSkillPts = true;
+  while (g.s.level < W.TIERS[1].level) g.addExp(W.expToNext(g.s.level));
+  g.s.gold = 1e9; g.advance();
+  const main = g.mainSkill();
+  ok(main && g.s.skillPts === 0 || !g.skills().some((k) => g.canSkillUp(k.id)), '전직하면 무공 점수가 자동으로 다 찍힌다', `남은 ${g.s.skillPts}`);
+  const lv0 = g.skillLevel(main.id);
+  for (let i = 0; i < 5; i++) g.addExp(W.expToNext(g.s.level));
+  const lv1 = g.skillLevel(main.id);
+  ok(lv1 > lv0, '레벨이 오르면 주력 무공이 먼저 오른다', `${lv0} → ${lv1}`);
+  g.s.autoSkillPts = false; const before = g.s.skillPts; g.addExp(W.expToNext(g.s.level));
+  ok(g.s.skillPts > before, '끄면 점수가 쌓인다');
+  // 힘의 내역
+  const b = fresh('sword'); b.s.level = 90; b.s.equip = {}; b._stats = null;   // 처음 옷가지도 벗기고
+  const p0 = b.powerBreakdown();
+  ok(p0.gear < 0.001 && p0.comp < 0.001 && p0.murim < 0.001 && Math.abs(p0.base - p0.full) < 1, '아무것도 없으면 갈래 몫은 0 · 바탕 = 전체', JSON.stringify(p0));
+  b.s.equip.weapon = b.makeCrafted('weapon', 90, 10, 3); b._stats = null;
+  const p1 = b.powerBreakdown();
+  ok(p1.gear > 0.1 && p1.base < p1.full && Math.abs(p1.base - p0.base) < 1, '장비를 끼면 장비 몫만 오르고 바탕은 그대로', `장비 +${Math.round(p1.gear * 100)}%`);
+  ok(b.powerBreakdown() === p1 && b.stats().power === p1.full, '같은 상태면 다시 셈하지 않고 · 셈 뒤 전투력이 그대로');
+  b.s.tower.floor = 50; b._stats = null;
+  ok(b.powerBreakdown().murim > 0, '탑을 오르면 무림 몫이 생긴다', `무림 +${Math.round(b.powerBreakdown().murim * 100)}%`);
 }
 
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);

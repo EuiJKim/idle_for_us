@@ -31,7 +31,7 @@ export function newWorldSave(now = Date.now()) {
     exp: 0,
     statPts: 0,
     stats: { str: 0, dex: 0, vit: 0, int: 0 },   // 찍은 것 (캐릭터 기본치는 따로)
-    autoStat: false,          // 레벨업 점수는 직접 찍는다(켜면 알아서 나눈다)
+    autoStat: true,           // v449 새 무인은 레벨업 점수를 알아서 나눈다(능력치 창에서 끌 수 있다)
     skillLv: { s0: 1, s1: 1, s2: 1, s3: 1, s4: 1 },   // 스킬 레벨 (v110) · s3 보조기(v120)
     skillPts: 0,
     passLv: {},               // 심법(패시브) 레벨 (v119)
@@ -56,6 +56,8 @@ export function newWorldSave(now = Date.now()) {
     mapV: 2,
     autoHunt: true,
     autoSkill: true,
+    autoSkillPts: true,       // v449 무공 점수도 알아서(주력 → 보조기 → 필살기·자세 → 심법)
+    autoEnh: true, autoInf: true,   // v449 새 무인은 강화·등급 각인도 자동(옛 세이브는 그대로 — 장비 창에서 켜고 끈다)
     kingParty: false,        // 십이지왕 두목 구역: false 혼자 · true 문파원과 함께 (v145, 들어갈 때 고른다)
     lastSeen: now,
     titles: [],
@@ -117,6 +119,7 @@ export function migrateWorld(raw, now = Date.now()) {
       aura: one(W.CUSTOM_AURAS, c.aura), ring: one([...W.CUSTOM_RINGS, ...W.AWAKEN_RINGS], c.ring), glow: hex(c.glow) }; }   // v280 꾸미기 · v306 눈 · v323 쓰개·신발
   s.fragPts = Math.max(0, Math.floor(Number(raw.fragPts) || 0));  // 조각으로 얻은 무공 점수(보이기용)
   s.autoEnh = !!raw.autoEnh; s.autoInf = !!raw.autoInf;   // v262
+  s.autoSkillPts = raw.autoSkillPts !== false;   // v449 무공 점수 자동(옛 세이브도 켬 — 끄면 그대로)
   s.autoJunk = !!raw.autoJunk;   // v321 약한 장비 자동 정리
   { const j = raw.junkLog && typeof raw.junkLog === 'object' ? raw.junkLog : {}; s.junkLog = { n: Math.max(0, Math.floor(Number(j.n) || 0)), gold: Math.max(0, Number(j.gold) || 0) }; }
   // v305 칭호 — 아는 것만 · 끼는 것은 가진 것 가운데
@@ -648,7 +651,8 @@ export class WorldGame {
     const cls = W.CLASSES[s.job] || {};
     const gear = { atk: 0, hp: 0, def: 0, crit: 0, atkPct: 0, speed: 0, hpPct: 0, regenPct: 0, skill: 0, critDmg: 0, exp: 0,
       dodge: 0, move: 0, bossDmg: 0, drain: 0, dmgRed: 0, cdr: 0, range: 0, thorns: 0, stunHit: 0, gold: 0, venom: 0, burn: 0, chill: 0, shock: 0 };
-    for (const it of Object.values(s.equip)) {
+    const off = this._off || null;   // v449 힘의 내역 — 갈래 하나를 빼고 셈할 때만
+    for (const it of off?.gear ? [] : Object.values(s.equip)) {
       const st = this.itemStats(it);
       for (const k of Object.keys(st)) gear[k] = (gear[k] || 0) + st[k];
       const u = this.itemUnique(it);                       // v130 고유 옵션
@@ -656,42 +660,42 @@ export class WorldGame {
     }
     // v270 증표 각인 능력치는 종류마다 끝이 있다 — 넘친 몫만 뺀다
     // v297 공명: 같은 기운 칸을 모으면 그 기운 능력치가 커진다(이 몫도 각인 끝 안에서) · 공격력·체력 덤은 끝과 따로
-    { const tot = IM.impFxTotals(s.equip); const rs = this.resonance();
+    if (!off?.gear) { const tot = IM.impFxTotals(s.equip); const rs = this.resonance();
       for (const [k, v] of Object.entries(rs.extra)) if (k !== 'resAtk' && k !== 'resHp') { gear[k] = (gear[k] || 0) + v; tot[k] = (tot[k] || 0) + v; }
       for (const [k, cap] of Object.entries(IM.IMP_STAT_CAP)) if ((tot[k] || 0) > cap) gear[k] -= tot[k] - cap;
       // 각인 배율 — 각인력(칸마다) + 공명 덤. 다른 % 몫(탑·고수·펫…)과 섞지 않고 따로 곱한다(넣은 만큼 그대로 보이게)
       gear.impMul = IM.impCoreTotal(s.equip) + (rs.extra.resAtk || 0); }
     // 세트 효과 중 능력치 (무공 쪽은 setBonus()를 그 자리에서 읽는다)
-    for (const [k, v] of Object.entries(this.setBonus())) if (k in gear) gear[k] += v;
+    if (!off?.gear) for (const [k, v] of Object.entries(this.setBonus())) if (k in gear) gear[k] += v;
     // 애완동물 버프 · 탈것(공격력·체력 %) · 십이지왕 신화
     gear.mat = 0;
-    for (const p of this.activePets()) {
+    for (const p of off?.comp ? [] : this.activePets()) {
       const d = W.petOf(p.kind);
       gear[d.buff] = (gear[d.buff] || 0) + W.petBuff(p);
       for (const [k, v] of Object.entries(d.also || {})) gear[k] = (gear[k] || 0) + v * W.petBuffScale(p);   // 황룡: 둘 다 · v390 완만하게
     }
-    const mt = this.mountNow();
+    const mt = off?.comp ? null : this.mountNow();
     const mk = this.mountK(this.mountInst());
     if (mt) { gear.atkPct += mt.stat * mk; gear.hpPct += mt.stat * mk; }
     // v359 극의 신수 전용 — 야천흑표 회피 · 혼원금룡 두목 피해·은자 (불길·서리·벼락·물결은 tickMountFx)
     if (mt?.fx === 'void') gear.dodge += 0.08;
     if (mt?.fx === 'gold') { gear.gold += 0.15; gear.bossDmg += 0.1; }
     // v292 도감 — 모은 종만큼 영구히
-    const db = this.compDexBonus();
+    const db = off?.comp ? 0 : this.compDexBonus();
     gear.atkPct += db; gear.hpPct += db;
     // 무한의 탑: 오른 층마다 영구히
-    const tb = D.towerBonus(s.tower?.floor) + D.hardBonus(s.tower?.hard) + D.corridorBonus(s.tower?.cor?.all);   // v350 극의 층도 · v403 회랑 기록도
+    const tb = off?.murim ? 0 : D.towerBonus(s.tower?.floor) + D.hardBonus(s.tower?.hard) + D.corridorBonus(s.tower?.cor?.all);   // v350 극의 층도 · v403 회랑 기록도
     gear.atkPct += tb; gear.hpPct += tb;
     // v391 천마혼 — 5차 천마신공
     if (this.cheonmaOn()) for (const [k, v] of Object.entries(this.fifth().mods)) gear[k] = (gear[k] || 0) + v;
     // 고수 비무: 처음 이긴 고수마다 영구히 (v148)
-    const mb = this.masterBonus();
+    const mb = off?.murim ? 0 : this.masterBonus();
     gear.atkPct += mb; gear.hpPct += mb;
     // v377 천계의 가호 — 넘은 남천문 관문마다
-    const gb = this.gateBonus();
+    const gb = off?.murim ? 0 : this.gateBonus();
     gear.atkPct += gb; gear.hpPct += gb;
     // 현철 단련 (v274) · 숙련도·견문록 (v275)
-    const tp = (s.temper || 0) * W.TEMPER_STEP + this.huntBonus().total;
+    const tp = (off?.gear ? 0 : (s.temper || 0) * W.TEMPER_STEP) + (off?.murim ? 0 : this.huntBonus().total);   // 단련 = 장비 · 숙련·견문록 = 무림
     gear.atkPct += tp; gear.hpPct += tp;
     // 심법
     const pm = this.pmods();
@@ -713,10 +717,11 @@ export class WorldGame {
     // 레벨·스탯 몫은 작게, 장비 몫은 크게 (v108) — 강해지는 건 대부분 장비 덕
     // v110: 레벨·스탯 몫을 키웠다(장비보다는 작게).
     // 장비가 2/3 남짓, 레벨·스탯이 1/3 남짓(시뮬로 맞춤). 힘·체력은 1점에 0.3%씩도 올린다.
-    const tset = this.titleSet();   // v315 칭호 모음
+    const tset = off?.comp ? { atk: 0, hp: 0 } : this.titleSet();   // v315 칭호 모음
+    const tnow = off?.comp ? null : this.titleNow();
     const LB = W.baseLv(L);   // v447 수련은 레벨의 TRAIN_K만큼만
-    const atk = (5 + LB * 3 + str * 3 + gear.atk) * (1 + gear.atkPct + str * 0.003 + (s.guildId ? W.guildAtk(this.guildExp) : 0)) * (cls.atkK || 1) * (1 + gear.impMul) * (this.titleNow()?.atkMul || 1) * (1 + tset.atk) * (this.cheonmaOn() ? this.fifth().atkMul : 1) * (1 + W.tierAtk(s.jobTier || 0));   // v391 천마혼 · v447 승급 공격력 · atkK: 직업 맞춤(v239) · v297 각인 배율 · v305 칭호
-    const hp = (60 + LB * 25 + vit * 20 + gear.hp) * (1 + gear.hpPct + vit * 0.003) * (1 + gear.impMul) * (1 + tset.hp) * (this.cheonmaOn() ? this.fifth().hpMul : 1) * (1 + W.tierHp(s.jobTier || 0));   // v442 전직·승급 체력   // v315 칭호 모음
+    const atk = (5 + LB * 3 + str * 3 + gear.atk) * (1 + gear.atkPct + str * 0.003 + (s.guildId && !off?.murim ? W.guildAtk(this.guildExp) : 0)) * (cls.atkK || 1) * (1 + (gear.impMul || 0)) * (tnow?.atkMul || 1) * (1 + tset.atk) * (this.cheonmaOn() ? this.fifth().atkMul : 1) * (1 + W.tierAtk(s.jobTier || 0));   // v391 천마혼 · v447 승급 공격력 · atkK: 직업 맞춤(v239) · v297 각인 배율 · v305 칭호
+    const hp = (60 + LB * 25 + vit * 20 + gear.hp) * (1 + gear.hpPct + vit * 0.003) * (1 + (gear.impMul || 0)) * (1 + tset.hp) * (this.cheonmaOn() ? this.fifth().hpMul : 1) * (1 + W.tierHp(s.jobTier || 0));   // v442 전직·승급 체력   // v315 칭호 모음
     const st = {
       atk, hp,
       def: vit * 0.2 + gear.def,
@@ -2195,6 +2200,7 @@ export class WorldGame {
       this._followDue = true;
     }
     if (s.autoStat) this.autoStats();
+    this.autoSkillPoints();   // v449
     this.syncGrow();
     this.heroHp = Math.min(this.heroHp, this.stats().hp);
   }
@@ -2207,6 +2213,35 @@ export class WorldGame {
     return true;
   }
   // 자동 분배 — 캐릭터 기본치 비율대로 (힘·민첩·체력·내공)
+  // v449 힘의 내역 — 장비 · 동료 · 무림 갈래를 하나씩 빼고 셈해 「그 갈래가 전투력을 몇 % 올리나」. 무인(레벨·전직·능력치·무공)은 셋을 다 뺀 바탕
+  powerBreakdown() {
+    const sig = this.statSig();
+    if (this._pb?.sig === sig) return this._pb;
+    const full = this.stats();
+    const res = { sig, full: full.power };
+    const calc = (off) => { this._off = off; this._stats = null; const p = this.stats().power; this._off = null; return p; };
+    try {
+      for (const g of ['gear', 'comp', 'murim']) res[g] = full.power / Math.max(1, calc({ [g]: true })) - 1;
+      res.base = calc({ gear: true, comp: true, murim: true });
+    } finally { this._off = null; this._stats = full; }
+    this._pb = res;
+    return res;
+  }
+  // v449 무공 점수 자동 — 주력 무공 → 보조기 → 승급 필살기·길 자세 → 심법(싼 것부터). 하나도 못 찍으면 멈춘다
+  autoSkillPoints() {
+    if (!this.s.autoSkillPts || !(this.s.skillPts > 0) || !this.s.job || !(this.s.jobTier >= 1)) return 0;
+    let n = 0;
+    const main = this.mainSkill();
+    const order = [main, ...this.skills().filter((k) => k !== main && k.id !== main?.id).sort((a, b) => (a.kind === 'support' ? 0 : 1) - (b.kind === 'support' ? 0 : 1))].filter(Boolean);
+    for (let guard = 0; guard < 400 && this.s.skillPts > 0; guard++) {
+      const sk = order.find((k) => this.canSkillUp(k.id));
+      if (sk) { this.skillUp(sk.id); n++; continue; }
+      const p = this.passiveList().filter((x) => this.canPassUp(x.id)).sort((a, b) => W.passiveCost(a, this.passLevel(a.id)) - W.passiveCost(b, this.passLevel(b.id)))[0];
+      if (p) { this.passUp(p.id); n++; continue; }
+      break;
+    }
+    return n;
+  }
   autoStats() {
     const base = W.CLASSES[this.s.job]?.base || { str: 1, dex: 1, vit: 1, int: 1 };
     const sum = Object.values(base).reduce((a, b) => a + b, 0);
@@ -2277,6 +2312,7 @@ export class WorldGame {
     const sk = W.skillsOf(this.s.job).find((k) => k.tier === this.s.jobTier);
     this._stats = null;
     this.consolidateSkills();   // v444 새 주력이 옛 무공의 레벨을 이어받는다
+    this.autoSkillPoints();     // v449
     if (this.s.jobTier >= 5) { this.emit('advance', { tier: 5, skill: this.fifth().name, cheonma: true, job: this.s.job }); return true; }   // v391
     this.emit('advance', { tier: this.s.jobTier, skill: sk?.name });
     return true;
