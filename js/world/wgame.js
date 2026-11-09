@@ -716,19 +716,13 @@ export class WorldGame {
     // v292 도감 — 모은 종만큼 영구히
     const db = off?.comp ? 0 : this.compDexBonus();
     gear.atkPct += db; gear.hpPct += db;
-    // 무한의 탑: 오른 층마다 영구히
-    const tb = off?.murim ? 0 : D.towerBonus(s.tower?.floor) + D.hardBonus(s.tower?.hard) + D.corridorBonus(s.tower?.cor?.all);   // v350 극의 층도 · v403 회랑 기록도
-    gear.atkPct += tb; gear.hpPct += tb;
+    // v466 명성 — 무림 갈래의 영구 덤 여덟(탑 · 극 · 회랑 · 고수 · 관문 · 숙련 · 견문록 · 문파)을 점수 하나로. 값은 전과 같다(문파만 체력에도)
+    const fm = off?.murim ? 0 : this.fame().pct;
+    gear.atkPct += fm; gear.hpPct += fm;
     // v391 천마혼 — 5차 천마신공
     if (this.cheonmaOn()) for (const [k, v] of Object.entries(this.fifth().mods)) gear[k] = (gear[k] || 0) + v;
-    // 고수 비무: 처음 이긴 고수마다 영구히 (v148)
-    const mb = off?.murim ? 0 : this.masterBonus();
-    gear.atkPct += mb; gear.hpPct += mb;
-    // v377 천계의 가호 — 넘은 남천문 관문마다
-    const gb = off?.murim ? 0 : this.gateBonus();
-    gear.atkPct += gb; gear.hpPct += gb;
-    // 현철 단련 (v274) · 숙련도·견문록 (v275)
-    const tp = (off?.gear ? 0 : (s.temper || 0) * W.TEMPER_STEP) + (off?.murim ? 0 : this.huntBonus().total);   // 단련 = 장비 · 숙련·견문록 = 무림
+    // 현철 단련 (v274) — 장비
+    const tp = off?.gear ? 0 : (s.temper || 0) * W.TEMPER_STEP;
     gear.atkPct += tp; gear.hpPct += tp;
     // 심법
     const pm = this.pmods();
@@ -754,7 +748,7 @@ export class WorldGame {
     const tnow = off?.comp ? null : this.titleNow();
     const LB = W.baseLv(L);   // v447 수련은 레벨의 TRAIN_K만큼만
     const qk = this.qiMul();   // v456 내공(쓰는 내공) → 공격력·체력
-    const atk = qk * (5 + LB * 3 + str * 3 + gear.atk) * (1 + gear.atkPct + str * 0.003 + (s.guildId && !off?.murim ? W.guildAtk(this.guildExp) : 0)) * (cls.atkK || 1) * (1 + (gear.impMul || 0)) * (tnow?.atkMul || 1) * (1 + tset.atk) * (this.cheonmaOn() ? this.fifth().atkMul : 1) * (1 + W.tierAtk(s.jobTier || 0));   // v391 천마혼 · v447 승급 공격력 · atkK: 직업 맞춤(v239) · v297 각인 배율 · v305 칭호
+    const atk = qk * (5 + LB * 3 + str * 3 + gear.atk) * (1 + gear.atkPct + str * 0.003) * (cls.atkK || 1) * (1 + (gear.impMul || 0)) * (tnow?.atkMul || 1) * (1 + tset.atk) * (this.cheonmaOn() ? this.fifth().atkMul : 1) * (1 + W.tierAtk(s.jobTier || 0));   // v391 천마혼 · v447 승급 공격력 · atkK: 직업 맞춤(v239) · v297 각인 배율 · v305 칭호
     const hp = qk * (60 + LB * 25 + vit * 20 + gear.hp) * (1 + gear.hpPct + vit * 0.003) * (1 + (gear.impMul || 0)) * (1 + tset.hp) * (this.cheonmaOn() ? this.fifth().hpMul : 1) * (1 + W.tierHp(s.jobTier || 0));   // v442 전직·승급 체력   // v315 칭호 모음
     const st = {
       atk, hp,
@@ -1306,7 +1300,13 @@ export class WorldGame {
   pace() { return W.PACE; }   // v443 칠대성도 같은 빠르기(탄막이 없어졌다)
   // 게임 안 초 → 실제 초(남은 시간·제한 시간 보이기)
   realSec(sec) { return sec / this.pace(); }
+  // v466 한 걸음이 끝날 때도 체력 상한 — 걸음 가운데서 최대 체력이 줄면(걸음 첫머리의 v458 맞춤 뒤) 다음 걸음까지 넘쳐 있었다(몽키 봇 · 권마 Lv150 · 가끔)
   tick(dt) {
+    const r = this.tickStep(dt);
+    if (this.heroHp > 0) { const mx = this.stats().hp; if (this.heroHp > mx) this.heroHp = mx; }
+    return r;
+  }
+  tickStep(dt) {
     this.wall = (this.wall || 0) + dt;   // v438 실제 시간 — 벌이 장부(방치 보상)·분당 경험치는 이것으로
     dt *= this.pace();
     this.clock += dt;
@@ -3928,6 +3928,14 @@ export class WorldGame {
     return !!z && z.names.every((n) => (this.s.dex?.[n] || 0) >= W.DEX_NEED);
   }
   // v275 사냥으로 쌓은 영구 공격력·체력 — 숙련도 단계 합 · 견문록 낙관 수 · 다 채운 견문록 지역 수
+  // v466 명성 — { pts 점수 · pct 공격력·체력 % · by 갈래별 점수 · rank 이름 }. 그때그때 센다(세이브에 없다)
+  fame() {
+    const s = this.s, k = W.famePts, hb = this.huntBonus();
+    const by = { tower: k(D.towerBonus(s.tower?.floor)), hard: k(D.hardBonus(s.tower?.hard)), cor: k(D.corridorBonus(s.tower?.cor?.all)), master: k(this.masterBonus()),
+      gate: k(this.gateBonus()), mast: k(hb.m), dex: k(hb.d), guild: s.guildId ? k(W.guildAtk(this.guildExp)) : 0 };
+    const pts = Object.values(by).reduce((a, b) => a + b, 0);
+    return { pts, by, pct: pts * W.FAME_UNIT, rank: W.fameRank(pts), next: W.fameNext(pts) };
+  }
   huntBonus() {
     if (this._huntB) return this._huntB;
     const mast = Object.entries(this.s.mast || {}).reduce((a, [z, k]) => a + (W.zoneOfW(+z) ? L.masteryLv(k) : 0), 0);

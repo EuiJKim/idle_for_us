@@ -5008,5 +5008,43 @@ console.log('\n=== v465 밸런스 2차 — 동료 확률·효과 · 탑 덤 ==='
   ok(Math.abs(DG.towerBonus(120) - 0.3) < 1e-9 && Math.abs(DG.hardBonus(60) - 0.24) < 1e-9, '탑 120층 +30%(전엔 +60%) · 극 60층 +24%(전엔 +48%)');
   ok(/W\.RARITY\[W\.GACHA_PET_TEN\]\.name/.test(read('js/wui.js')) && !/10연차엔 적토마/.test(read('js/wui.js')), '확률 창 글이 상수를 따라간다(10연 보장 이름)');
 }
+console.log('\n=== v466 명성 — 무림 덤 여덟 갈래를 점수 하나로 ===');
+{
+  const DG = await import('../js/world/wdgn.js');
+  const g = fresh(); while (g.s.level < 99) g.addExp(W.expToNext(g.s.level));
+  ok(g.fame().pts === 0 && g.fame().pct === 0 && g.fame().rank === W.FAME_RANKS[0][1], '처음엔 명성 0 — 〈무명소졸〉');
+  const st0 = g.stats(), a0 = st0.atk, h0 = st0.hp;
+  // 갈래 하나씩 — 점수 = 옛 덤 ÷ 0.01%
+  g.s.tower.floor = 40; g._stats = null;
+  ok(g.fame().by.tower === 40 * 25 && W.famePts(DG.TOWER_BONUS) === 25, '탑 한 층 = 명성 25');
+  g.s.tower.hard = 10; g.s.tower.cor = { key: '', best: 0, all: 8 };
+  ok(g.fame().by.hard === 10 * W.famePts(DG.HARD_BONUS) && g.fame().by.cor === 8 * 25, '극 층 · 회랑 기록 층');
+  const ms = MS.MASTERS.filter((m) => !m.hidden), plain = ms.find((m) => !m.lord), lord = ms.find((m) => m.lord);
+  g.s.duel.won[plain.id] = 1; g.s.duel.stars = { [plain.id]: 3 }; g.s.duel.won[lord.id] = 1;
+  ok(g.fame().by.master === 100 + 25 * 2 + 300, '고수 첫 승 100 · 별 하나마다 +25 · 맹주·천마 300', `${g.fame().by.master}`);
+  g.s.wraid.gates = { [DG.HEAVEN_GATES[0].id]: 1 };
+  ok(g.fame().by.gate === 600, '천계 관문 하나 = 명성 600');
+  g._huntB = null; const z = W.dexZones()[0]; for (const n of z.names) g.s.dex[n] = W.DEX_NEED; g.s.mast = { 1: 1e9 };
+  const hb = g.huntBonus();
+  ok(g.fame().by.dex === hb.stamps * 2 + hb.zones * 50 && g.fame().by.mast === hb.mast * 5 && hb.zones >= 1 && hb.stamps >= z.names.length && hb.mast > 0, '낙관 2 · 견문록 지역 50 · 숙련 단계 5', `견문록 ${g.fame().by.dex} · 숙련 ${g.fame().by.mast}`);
+  g.s.guildId = 'x'; g.guildExp = W.GUILD_LV_EXP * 4;
+  ok(g.fame().by.guild === 4 * 200, '문파 레벨(1 위로) 하나 = 명성 200');
+  const f = g.fame();
+  ok(f.pts === Object.values(f.by).reduce((a, b) => a + b, 0) && Math.abs(f.pct - f.pts * 0.0001) < 1e-12 && f.rank === W.fameRank(f.pts) && f.next?.[0] > f.pts, '점수 = 갈래 합 · 1명성 = +0.01% · 이름과 다음 이름', `${f.pts} 〈${f.rank}〉`);
+  // 값은 전과 같다 — 옛 식(덤을 따로 더하던 것)으로 다시 셈해 견준다
+  g._stats = null; const st = g.stats();
+  const old = DG.towerBonus(40) + DG.hardBonus(10) + DG.corridorBonus(8) + g.masterBonus() + g.gateBonus() + hb.total + W.guildAtk(g.guildExp);
+  ok(Math.abs(f.pct - old) < 1e-9, '명성 % = 옛 덤의 합(탑·극·회랑·고수·관문·숙련·견문록·문파)', `${(f.pct * 100).toFixed(2)}%`);
+  g._off = { murim: true }; g._stats = null; const sm = g.stats(); g._off = null; g._stats = null;
+  ok(Math.abs(sm.atk - a0) < 1e-6 && Math.abs(sm.hp - h0) < 1e-6 && st.atk > a0 && st.hp > h0, '무림 갈래를 빼면 명성 없는 값 — 힘의 내역(무림 몫)이 명성 몫');
+  const g2 = fresh(); while (g2.s.level < 99) g2.addExp(W.expToNext(g2.s.level));
+  const b0 = g2.stats().hp; g2.s.guildId = 'x'; g2.guildExp = W.GUILD_LV_EXP * 4; g2._stats = null;
+  ok(g2.stats().hp > b0, '문파 명성은 체력에도 붙는다(전엔 공격력만)');
+  ok(JSON.stringify(g.toJSON()).indexOf('"fame"') < 0, '명성은 세이브에 넣지 않는다(그때그때 센다 · 이전 없음)');
+  const ui = read('js/wui.js'), mn = read('js/wmain.js');
+  ok(/fameCard/.test(ui) && /paintFame/.test(ui) && /id: 'fame-pts'/.test(ui) && /const fameT = /.test(ui) && /\.fame-grid/.test(read('css/style.css')), '캐릭터 창 명성 카드(점수 · 이름 · 갈래 여덟)');
+  ok(!/공격력·체력 \+\$\{\(D\.(tower|hard)Bonus/.test(ui) && !/전원 공격력 \+/.test(ui) && /function fameUp/.test(mn) && !/극의 덤 공격력·체력/.test(mn), '탑·극·회랑·고수·관문·견문록·문파 글과 알림이 「명성 +N」으로');
+  ok(W.FAME_RANKS.every((x, i, a) => i === 0 || x[0] > a[i - 1][0]) && W.fameRank(0) === '무명소졸' && W.fameRank(1e9) === W.FAME_RANKS[W.FAME_RANKS.length - 1][1] && W.fameNext(1e9) === null, '명성 이름 일곱 — 오름차순');
+}
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);

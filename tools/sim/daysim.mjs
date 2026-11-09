@@ -124,4 +124,5 @@ console.log('경험치 출처', Object.fromEntries(Object.entries(tally).map(([k
 console.log('동료', { pets: [...g.s.pets, ...g.s.petBox].map((p) => `${p.kind}${['R', 'U', 'L', 'M'][p.rar]}`).join(' '), mounts: g.s.mounts.map((m) => m.kind + (m.lv ? '+' + m.lv : '')).join(' ') });
 try { const pb = g.powerBreakdown?.(); if (pb) console.log('힘의 내역(갈래마다 빼 본 몫)', JSON.stringify(pb)); } catch (e) { console.log('powerBreakdown 실패', e.message); }
 console.log('장비', Object.values(g.s.equip).filter(Boolean).map((it) => `${it.slot}:ilv${it.ilv ?? it.lv ?? '?'}+${it.plus || 0}${it.set ? '·' + it.set : ''}${it.rar != null ? '·r' + it.rar : ''}`).join(' '));
+if (process.env.DUMP) { const fs = await import('node:fs'); fs.writeFileSync(process.env.DUMP, JSON.stringify(g.toJSON())); }   // 끝난 세이브(전후 비교용)
 console.log('영약 먹음', g.s.danEat, '내공', Math.round(g.s.qi), '기준', Math.round(W.qiFloor(g.s.level)), '최종 공격 배수 vs 기준 무인', +(g.stats().atk / make(g.s.level).stats().atk).toFixed(2));

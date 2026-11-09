@@ -1271,6 +1271,15 @@ export const WB_REWARD = [
   { soul: 10, shard: 25, goldK: 1 },     // 3위
 ];
 export const WB_TITLE_DAYS = 7;
+// ---------- v466 명성(名聲) — 「빼기」 첫 판(docs/근본_개편_계획.md §3 C) ----------
+// 무림 갈래의 영구 덤 여덟 — 무한의 탑 층 · 극 층 · 회랑 기록 · 고수 첫 승(별) · 천계 관문 · 지역 숙련 · 견문록 · 문파 레벨 — 을 점수 하나로 센다.
+//   1명성 = 공격력·체력 +0.01%(다른 % 덤과 더해지는 자리 — 전과 같은 값). 점수는 그때그때 셈하는 값이라 세이브에 넣지 않는다(이전·환산 없음).
+//   점수는 옛 상수에서 나온다(탑 층 0.25% → 25 · 극 층 40 · 회랑 25 · 고수 100(별 +25) · 맹주·천마 300(별 +75) · 관문 600 · 숙련 5 · 낙관 2 · 견문록 지역 50 · 문파 레벨 200).
+export const FAME_UNIT = 0.0001;
+export const famePts = (bonus) => Math.round((bonus || 0) / FAME_UNIT);
+export const FAME_RANKS = [[0, '무명소졸'], [300, '강호초출'], [1000, '이름난 협객'], [2500, '일방의 고수'], [5000, '강호의 명숙'], [10000, '무림의 거두'], [16000, '천하제일']];
+export const fameRank = (pts) => { let r = FAME_RANKS[0]; for (const x of FAME_RANKS) if (pts >= x[0]) r = x; return r[1]; };
+export const fameNext = (pts) => FAME_RANKS.find((x) => x[0] > pts) || null;
 export const TITLE_SET_BONUS = 0.01;   // v315 칭호 모음 — 가진 칭호 하나마다 공격력·체력 +1% (끼지 않아도)
 export const titleOf = (k) => (k === '개국공신' ? TITLES.founder : TITLES[k] || null);      // v303 과녁을 쓰러뜨리면 평타 쿨을 이만큼으로 줄인다 — 다음 몹까지 걸어가 또 한 박자 쉬지 않게
 export const HERO_SPEED = 200;      // 한 칸에 0.32초 (칸 길은 비스듬히 못 가서 자유 이동보다 조금 빠르게)

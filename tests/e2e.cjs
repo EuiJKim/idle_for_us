@@ -399,7 +399,7 @@ async function tab(page, name) {
     await Promise.all([p.waitForNavigation({ waitUntil: 'domcontentloaded' }), p.click('.char-card:not(.act):not(.empty)')]);
     await sleep(2000);
     const back = await G(p, () => ({ n: window.__game.s.nickname, lv: window.__game.s.level }));
-    assert(back.n === first.n && back.lv === first.lv, `첫째 무인으로 돌아오면 그대로 (${back.n} Lv ${back.lv})`);
+    assert(back.n === first.n && back.lv >= first.lv && back.lv <= first.lv + 2, `첫째 무인으로 돌아오면 그대로 — 레벨은 방치 보상만큼 오를 수 있다 (${back.n} Lv ${first.lv} → ${back.lv})`);   // v466 돌아올 때 방치 보상이 붙는다(v464부터 방치 벌이가 사냥 장부로 제대로 세진다)
     {
       const g0 = await G(p, () => window.__game.s.gold);
       await G(p, () => { window.__app.showTab('bag', 'vault'); window.prompt = (m, d) => d; });

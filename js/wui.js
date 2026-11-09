@@ -62,6 +62,7 @@ function afterAnim(sheet, sec, done) {
   const t = setTimeout(go, sec * 1000);
 }
 const pct = (v, d = 1) => `${(v * 100).toFixed(d).replace(/\.0$/, '')}%`;
+const fameT = (bonus) => `명성 +${fmt(W.famePts(bonus))}`;   // v466 영구 덤은 명성 점수로 적는다(1명성 = 공격력·체력 +0.01%)
 // v256 은자 값에 기대는 단추(만들기·합성·초기화·비급·보호부)를 위해 — 은자가 바뀌면 3초에 한 번까지 그 창을 다시 그린다.
 // 전엔 은자를 뭉텅이(로그 눈금)로만 보거나 아예 안 봐서, 은자가 모여도 단추가 잠긴 채였다.
 const goldTicks = {};
@@ -452,12 +453,12 @@ function charTab(app) {
     const all = zones.reduce((a, z) => a + z.names.length, 0);
     dexBox.replaceChildren(
       h('div', { class: 'card' }, h('h3', {}, '강호 견문록', h('small', {}, ` 낙관 ${stamps}/${all} · 다 찍은 지역 ${done}/${zones.length} · 경험치 +${pct(game.dexBonus(), 1)}`)),
-        h('p', { class: 'muted' }, `졸개 종마다 ${W.DEX_NEED}마리를 잡으면 낙관이 찍혀요. 낙관 하나에 공격력·체력 +${pct(W.DEX_STAMP_STAT, 2)}, 한 지역을 다 찍으면 경험치 +${pct(W.DEX_ZONE_EXP, 1)} · 공격력·체력 +${pct(W.DEX_ZONE_STAT, 1)} (영구).`),
+        h('p', { class: 'muted' }, `졸개 종마다 ${W.DEX_NEED}마리를 잡으면 낙관이 찍혀요. 낙관 하나에 ${fameT(W.DEX_STAMP_STAT)}, 한 지역을 다 찍으면 경험치 +${pct(W.DEX_ZONE_EXP, 1)} · ${fameT(W.DEX_ZONE_STAT)}.`),
         (() => { const hb = game.huntBonus(); return h('div', { class: 'hunt-bonus' },
-          h('div', {}, '견문록', h('b', {}, `+${pct(hb.d, 1)}`)),
-          h('div', {}, `숙련도 ${hb.mast}단계`, h('b', {}, `+${pct(hb.m, 1)}`)),
-          h('div', {}, '사냥으로 쌓은 공격력·체력', h('b', {}, `+${pct(hb.total, 1)}`))); })(),
-        h('p', { class: 'muted', style: 'font-size:11px' }, `숙련도: 한 지역에서 오래 사냥하면 오른다(지역마다 최대 10단계) — 단계 하나에 공격력·체력 +${pct(W.MAST_STAT, 2)}. 여러 사냥터를 돌수록 쌓여요.`)),
+          h('div', {}, '견문록', h('b', {}, `명성 ${fmt(W.famePts(hb.d))}`)),
+          h('div', {}, `숙련도 ${hb.mast}단계`, h('b', {}, `명성 ${fmt(W.famePts(hb.m))}`)),
+          h('div', {}, '사냥으로 쌓은 명성', h('b', {}, `${fmt(W.famePts(hb.total))}`))); })(),
+        h('p', { class: 'muted', style: 'font-size:11px' }, `숙련도: 한 지역에서 오래 사냥하면 오른다(지역마다 최대 10단계) — 단계 하나에 ${fameT(W.MAST_STAT)}. 여러 사냥터를 돌수록 쌓여요. 명성은 캐릭터 창 「명성」 카드에서 한눈에.`)),
       ...zones.map((z) => {
         const full = z.names.every((n) => (dx[n] || 0) >= W.DEX_NEED);
         return h('div', { class: `card dex-zone${full ? ' full' : ''}` },
@@ -495,6 +496,7 @@ function charTab(app) {
   }
   // v427 성장 지도 — 다섯 줄(성장·장비·무공·고수·던전·천계)에 지금 어디까지 왔는지와 「다음: ○○」 하나씩. 누르면 그 자리로
   const growCard = h('div', { class: 'card road-card' });
+  const fameCard = h('div', { class: 'card fame-card' });   // v466 명성
   // v456 내공 · 경지 — 쌓은 내공 × 경지 효율 = 쓰는 내공 → 공격력·체력 · 경지 → 무공 피해
   const qiCard = h('div', { class: 'card qi-card' });
   let qiSig = '';
@@ -572,14 +574,40 @@ function charTab(app) {
       const tw = s.tower.floor || 0, pr = s.level >= D.WRAID_LV ? game.palmaReady() : null;
       let next, go, hot = false;
       if (nx && s.level >= nx.lv - 5) { next = `고수 ${nx.title} ${nx.name}`; go = ['map', 'masters']; hot = true; }
-      else if (!s.guildId && s.level >= 20) { next = '문파 들기 — 공격력 덤·함께 사냥'; go = ['social', 'guild']; }
+      else if (!s.guildId && s.level >= 20) { next = '문파 들기 — 명성·함께 사냥'; go = ['social', 'guild']; }
       else if (tw < D.TOWER_MAX) { next = `무한의 탑 ${tw + 1}층`; go = ['dgn', 'tower']; }
       else if (pr && !pr.ok) { next = `대성신장 ${pr.n}/7 (칠대성)`; go = ['dgn', 'wraid']; }
       else { next = nx ? `고수 ${nx.title} ${nx.name} (${W.lvShort(nx.lv)})` : '끝없는 회랑 · 극'; go = nx ? ['map', 'masters'] : ['dgn', 'tower']; }
-      row('俠', `무림 · ${pc(pb.murim)}`, `고수 ${won}/${all.length} · 탑 ${tw}층${s.guildId ? ' · 문파' : ''}${pr ? ` · 대성신장 ${pr.n}/7` : ''} · 문파·고수·탑·천계·견문록`, next, go, hot); }
+      const fm = game.fame();   // v466 무림 갈래는 명성 하나
+      row('俠', `무림 · 명성 ${fmt(fm.pts)} · ${pc(pb.murim)}`, `〈${fm.rank}〉 · 고수 ${won}/${all.length} · 탑 ${tw}층${s.guildId ? ' · 문파' : ''}${pr ? ` · 대성신장 ${pr.n}/7` : ''} · 탑·고수·천계·견문록·문파`, next, go, hot); }
     return rows;
   }
+  // v466 명성 카드 — 점수 하나 · 갈래 여덟(누르면 그곳으로)
+  function paintFame() {
+    const s = game.s, f = game.fame(), hb = game.huntBonus();
+    const lords = ['murim', 'sapa', 'magyo', 'apex'].flatMap((x) => MS.mastersOf(x)).filter((m) => !m.hidden || s.duel.won.hwamugi);
+    const won = lords.filter((m) => s.duel.won[m.id]).length;
+    const tile = (name, now, pts, go, each) => h('button', { class: `fame-tile${pts > 0 ? ' on' : ''}`, onclick: () => app.showTab(...go) },
+      h('small', {}, name), h('b', {}, fmt(pts)), h('i', {}, now), h('em', {}, each));
+    const pb = game.powerBreakdown();
+    fameCard.replaceChildren(
+      h('h3', {}, '명성 ', h('i', {}, '名聲'), h('small', {}, ` 무림에서 쌓은 이름 — 점수 하나`)),
+      h('div', { class: 'fame-head' },
+        h('div', { class: 'fame-num' }, h('b', { id: 'fame-pts' }, fmt(f.pts)), h('span', {}, `〈${f.rank}〉`)),
+        h('div', { class: 'fame-fx' }, h('b', {}, `공격력·체력 +${pct(f.pct, 2)}`), h('small', {}, `전투력 ${pb.murim < 1 ? `+${Math.round(Math.max(0, pb.murim) * 100)}%` : `×${(1 + pb.murim).toFixed(1)}`} · 1명성 = +0.01%`),
+          f.next ? h('small', {}, `다음 〈${f.next[1]}〉까지 ${fmt(f.next[0] - f.pts)}`) : h('small', {}, '가장 높은 이름'))),
+      h('div', { class: 'fame-grid' },
+        tile('무한의 탑', `${s.tower.floor || 0}/${D.TOWER_MAX}층`, f.by.tower, ['dgn', 'tower'], `층마다 +${W.famePts(D.TOWER_BONUS)}`),
+        tile('탑 · 극', `${s.tower.hard || 0}/${D.HARD_MAX}층`, f.by.hard, ['dgn', 'tower'], `층마다 +${W.famePts(D.HARD_BONUS)}`),
+        tile('끝없는 회랑', `기록 ${s.tower.cor?.all || 0}층`, f.by.cor, ['dgn', 'tower'], `층마다 +${W.famePts(D.CORRIDOR_BONUS)}`),
+        tile('고수 비무', `${won}/${lords.length}명`, f.by.master, ['map', 'masters'], `첫 승 +${W.famePts(MS.MASTER_BONUS)} · 별 +${W.famePts(MS.MASTER_BONUS * MS.STAR_BONUS)}`),
+        tile('천계 관문', `${game.gatesCleared()}/${D.HEAVEN_GATES.length}`, f.by.gate, ['dgn', 'wraid'], `관문마다 +${W.famePts(D.GATE_BONUS)}`),
+        tile('지역 숙련', `${hb.mast}단계`, f.by.mast, ['map'], `단계마다 +${W.famePts(W.MAST_STAT)}`),
+        tile('견문록', `낙관 ${hb.stamps} · 지역 ${hb.zones}`, f.by.dex, ['char', 'dex'], `낙관 +${W.famePts(W.DEX_STAMP_STAT)} · 지역 +${W.famePts(W.DEX_ZONE_STAT)}`),
+        tile('문파', s.guildId ? `Lv.${W.guildLevel(game.guildExp)}` : '없음', f.by.guild, ['social', 'guild'], `레벨마다 +${W.famePts(W.guildAtk(W.GUILD_LV_EXP))}`)));
+  }
   function paintGrow() {
+    paintFame();
     const rows = growRows();
     let hotDone = false;
     growCard.replaceChildren(h('h3', {}, '성장 지도', h('small', {}, ' 네 갈래 · 갈래마다 전투력 몫 · 다음 할 일')),
@@ -588,7 +616,7 @@ function charTab(app) {
           h('i', {}, r.done ? '✓' : r.icon), h('div', { class: 'road-txt' }, h('b', {}, r.title), r.now ? h('small', {}, r.now) : null),
           h('span', { class: 'road-next' }, `${hot ? '👉 ' : ''}${r.done ? '' : '다음: '}${r.next} ›`)); }));
   }
-  const infoBox = h('div', {}, head, qiCard, growCard, attCard, todayCard, questCard, loreBox);
+  const infoBox = h('div', {}, head, qiCard, growCard, fameCard, attCard, todayCard, questCard, loreBox);
   const statBox = h('div', {}, loadRow, stats, h('div', { class: 'card' }, h('h3', {}, '능력치'), derived));
   // v291 앞으로 배울 무공 — 언제 무엇을 배우는지
   const roadCard = h('div', { class: 'card' });
@@ -2203,7 +2231,6 @@ function mapTab(app) {
     const here = s.map === room;
     const risky = game.danger(room) > W.DANGER_LV;
     const rw = MS.masterReward(m);
-    const bonus = Math.round(MS.masterBonusOf(m) * 100);
     return h('div', { class: `card master-card${m.lord ? ' lord' : ''}${won ? ' won' : ''}${here ? ' me' : ''}`, style: `--fc:${fac.col}` },
       h('div', { class: 'master-top' },
         masterPortrait(m.look),
@@ -2212,13 +2239,13 @@ function mapTab(app) {
           h('small', {}, `Lv.${m.lv}${risky ? ' ⚠위험' : ''} · 수하 ${m.mobs.map((x) => x.name).join('·')}`),
           h('div', { class: 'muted' }, `초식: ${m.skills.map((k) => k.name).join(' · ')}`))),
       h('details', { class: 'master-story' }, h('summary', {}, '이야기'), h('p', {}, m.story)),
-      h('div', { class: 'master-rw' }, won ? `✓ 쓰러뜨렸어요 · 공격력·체력 +${Math.round(bonus * (1 + MS.STAR_BONUS * game.duelStars(m.id).extra))}% 영구 — 눌러앉아 파밍하세요` : `처음 쓰러뜨리면 ${rewardText(rw)} · 공격력·체력 +${bonus}% 영구`),
+      h('div', { class: 'master-rw' }, won ? `✓ 쓰러뜨렸어요 · ${fameT(MS.masterBonusOf(m) * (1 + MS.STAR_BONUS * game.duelStars(m.id).extra))} — 눌러앉아 파밍하세요` : `처음 쓰러뜨리면 ${rewardText(rw)} · ${fameT(MS.masterBonusOf(m))}`),
       // v262 비무 별 셋
       (() => { const st = game.duelStars(m.id); return h('div', { class: 'duel-stars' },
         h('span', { class: st.won ? 'on' : '' }, '★', h('small', {}, '쓰러뜨림')),
         h('span', { class: st.fast ? 'on' : '' }, '★', h('small', {}, `${MS.starSec(m)}초 안에`)),
         h('span', { class: st.clean ? 'on' : '' }, '★', h('small', {}, '초식에 안 맞고')),
-        h('small', { class: 'muted' }, ` 별 하나마다 덤 +${MS.STAR_BONUS * 100}%`)); })(),
+        h('small', { class: 'muted' }, ` 별 하나마다 ${fameT(MS.masterBonusOf(m) * MS.STAR_BONUS)}`)); })(),
       h('div', { class: 'btn-row' },
         h('button', { class: `btn ${here ? '' : 'primary'}`, disabled: here ? true : null, onclick: () => go(room) }, here ? '여기서 사냥 중' : '두목 방으로 가기')));
   }
@@ -2302,19 +2329,19 @@ function mapTab(app) {
       masterPortrait(m.look),
       h('div', { class: 'master-name' },
         h('b', {}, `${m.title} `, h('span', {}, m.name)),
-        h('small', {}, `Lv.${m.lv}${risky ? ' ⚠위험' : ''}${won ? ` · 공격력·체력 +${Math.round(MS.masterBonusOf(m) * 100 * (1 + MS.STAR_BONUS * st.extra))}% 영구` : ' · 아직'}`)),
+        h('small', {}, `Lv.${m.lv}${risky ? ' ⚠위험' : ''}${won ? ` · ${fameT(MS.masterBonusOf(m) * (1 + MS.STAR_BONUS * st.extra))}` : ' · 아직'}`)),
       h('div', { class: 'mr-stars' }, ...[st.won, st.fast, st.clean].map((on) => h('span', { class: on ? 'on' : '' }, '★'))),
       h('button', { class: `btn mini ${here || won ? '' : 'primary'}`, disabled: here ? true : null, onclick: (e) => { e.stopPropagation(); go(room); } }, here ? '여기' : '가기'),
       h('i', { class: 'mr-arrow' }, open ? '▴' : '▾'));
     const body = open ? h('div', { class: 'mr-body' },
       h('div', { class: 'muted' }, `수하 ${m.mobs.map((x) => x.name).join('·')} · 초식: ${m.skills.map((k) => k.name).join(' · ')}`),
       h('p', { class: 'mr-story' }, m.story),
-      h('div', { class: 'master-rw' }, won ? '✓ 쓰러뜨렸어요 — 눌러앉아 파밍하세요(두목 방에서 세력 재료)' : `처음 쓰러뜨리면 ${rewardText(MS.masterReward(m))} · 공격력·체력 +${Math.round(MS.masterBonusOf(m) * 100)}% 영구`),
+      h('div', { class: 'master-rw' }, won ? '✓ 쓰러뜨렸어요 — 눌러앉아 파밍하세요(두목 방에서 세력 재료)' : `처음 쓰러뜨리면 ${rewardText(MS.masterReward(m))} · ${fameT(MS.masterBonusOf(m))}`),
       h('div', { class: 'duel-stars' },
         h('span', { class: st.won ? 'on' : '' }, '★', h('small', {}, '쓰러뜨림')),
         h('span', { class: st.fast ? 'on' : '' }, '★', h('small', {}, `${MS.starSec(m)}초 안에`)),
         h('span', { class: st.clean ? 'on' : '' }, '★', h('small', {}, '초식에 안 맞고')),
-        h('small', { class: 'muted' }, ` 별 하나마다 덤 +${MS.STAR_BONUS * 100}%`))) : null;
+        h('small', { class: 'muted' }, ` 별 하나마다 ${fameT(MS.masterBonusOf(m) * MS.STAR_BONUS)}`))) : null;
     return h('div', { class: `card master-row${m.lord ? ' lord' : ''}${won ? ' won' : ''}${here ? ' me' : ''}${open ? ' open' : ''}`, style: `--fc:${fac.col}` }, head, body);
   }
   let this_update = () => {};
@@ -2532,9 +2559,9 @@ function dgnTab(app, mode = null) {
       h('div', { class: 'dgn-top' },
         skinImg(h('div', { class: 'dgn-ico' }, '塔'), 'dg-tower'),
         h('div', { class: 'dgn-name' }, h('b', {}, '무한의 탑'), h('small', {}, ` 無限塔 · 영구 능력치`),
-          h('div', { class: 'muted' }, `오른 층 ${tw.floor} · 공격력·체력 +${(D.towerBonus(tw.floor) * 100).toFixed(1).replace(/\.0$/, '')}%`))),
+          h('div', { class: 'muted' }, `오른 층 ${tw.floor} · 명성 ${fmt(W.famePts(D.towerBonus(tw.floor)))}`))),
       foldBox('tower',
-      h('p', { class: 'muted dgn-desc' }, `${D.TOWER_MAX}층까지. 층마다 수문장 하나 — ${duration(D.TOWER_SEC)} 안에 쓰러뜨리면 다음 층. 오른 층마다 공격력·체력 +${D.TOWER_BONUS * 100}% 영구. 횟수 제한 없음.`),
+      h('p', { class: 'muted dgn-desc' }, `${D.TOWER_MAX}층까지. 층마다 수문장 하나 — ${duration(D.TOWER_SEC)} 안에 쓰러뜨리면 다음 층. 오른 층마다 ${fameT(D.TOWER_BONUS)}(공격력·체력 영구). 횟수 제한 없음.`),
       h('p', { class: 'dgn-warn' }, '⚠ 수문장은 바닥에 붉은 경고를 깔고 크게 쳐요(두 번 맞으면 거의 쓰러져요). 자동으로는 안 피해요 — 화면을 눌러 끌어서(조이스틱) 직접 피하세요. 탑에서는 물약을 못 써요.')),
       D.zodiacOf(nf) ? h('p', { class: 'dgn-zodiac' }, `${nf}층 ${D.zodiacOf(nf).god} — ${D.zodiacOf(nf).move}`) : null,
       h('div', { class: 'dgn-stage' },
@@ -2557,8 +2584,8 @@ function dgnTab(app, mode = null) {
         h('div', { class: 'hard-glow' }),
         h('div', { class: 'dgn-top' }, h('div', { class: 'dgn-ico hard-ico' }, '極'),
           h('div', { class: 'dgn-name' }, h('b', {}, '무한의 탑 · 극'), h('small', {}, ' 無限塔 極 · 하드 모드'),
-            h('div', { class: 'muted' }, open ? `극 ${hf}층 · 덤 공격력·체력 +${(D.hardBonus(hf) * 100).toFixed(1).replace(/\.0$/, '')}%` : `보통 탑 ${D.HARD_OPEN}층을 오르면 열려요 (지금 ${tw.floor}층)`))),
-        foldBox('hard', h('p', { class: 'muted dgn-desc' }, `${D.HARD_MAX}층. 수문장이 엄청나게 단단하고(같은 세기 보통 층의 체력 20배 넘게) 붙어 치는 것도 세 배, 경고가 짧고 잦고 아파요. 초식도 더 — 도는 칼날·천라지망·붕괴…. 층마다 공격력·체력 +${D.HARD_BONUS * 100}% 영구, 10층마다 신수가 몸소 지켜요 — 이기면 그 신수가 내 탈것으로.`)),
+            h('div', { class: 'muted' }, open ? `극 ${hf}층 · 명성 ${fmt(W.famePts(D.hardBonus(hf)))}` : `보통 탑 ${D.HARD_OPEN}층을 오르면 열려요 (지금 ${tw.floor}층)`))),
+        foldBox('hard', h('p', { class: 'muted dgn-desc' }, `${D.HARD_MAX}층. 수문장이 엄청나게 단단하고(같은 세기 보통 층의 체력 20배 넘게) 붙어 치는 것도 세 배, 경고가 짧고 잦고 아파요. 초식도 더 — 도는 칼날·천라지망·붕괴…. 층마다 ${fameT(D.HARD_BONUS)}, 10층마다 신수가 몸소 지켜요 — 이기면 그 신수가 내 탈것으로.`)),
         h('div', { class: 'hard-mounts' }, ...mounts),
         open && hf < D.HARD_MAX ? h('div', { class: 'dgn-stage' },
           h('div', { class: 'stg' }, h('b', {}, `극 ${nh}층`), h('small', {}, ` ${nb2.name.replace(/^극 \d+층 (수문장|신수) /, '')} · Lv.${D.hardLv(nh)} · ${duration(D.hardSec(nh))}`)),
@@ -2573,10 +2600,10 @@ function dgnTab(app, mode = null) {
       const cf = D.TOWER_MAX + c.best + 1;
       out.push(h('div', { class: 'card dgn-card dgn-tower corridor' },
         h('div', { class: 'dgn-top' }, h('div', { class: 'dgn-ico' }, '廊'),
-          h('div', { class: 'dgn-name' }, h('b', {}, '끝없는 회랑'), h('small', {}, ` 無盡回廊 · 이번 주 ${c.best}층 · 기록 ${Math.max(c.all || 0, c.best)}층 · 영구 +${(D.corridorBonus(c.all) * 100).toFixed(2).replace(/\.?0+$/, '')}%`),
+          h('div', { class: 'dgn-name' }, h('b', {}, '끝없는 회랑'), h('small', {}, ` 無盡回廊 · 이번 주 ${c.best}층 · 기록 ${Math.max(c.all || 0, c.best)}층 · 명성 ${fmt(W.famePts(D.corridorBonus(c.all)))}`),
             h('div', { class: 'muted' }, `이번 주 초식: ${D.corridorPats().map((p) => D.TELL_NAMES[p] || p).join(' · ')}`))),
-        foldBox('corridor', h('p', { class: 'muted dgn-desc' }, `${D.TOWER_MAX}층 위로 끝없이. 층마다 수문장이 ${Math.round((D.CORRIDOR_HP_UP - 1) * 100)}%씩 단단해지고 보상도 늘어요. 기록 층마다 공격력·체력 +${D.CORRIDOR_BONUS * 100}% 영구(상한 없음) · 새 기록이면 은자 세 배 + 조각(10층마다 더). 월요일 0시(한국 시간)마다 이번 주 층은 처음부터, 초식 조합이 바뀌어요(기록·덤은 남아요).`)),
-        h('div', { class: 'dgn-stage' }, h('div', { class: 'stg' }, h('b', {}, `${cf - D.TOWER_MAX}층`), h('small', {}, cf - D.TOWER_MAX > (c.all || 0) ? ` 새 기록 · 은자 ${fmt(D.corridorRecordReward(cf).gold)} + 조각 · 영구 +${D.CORRIDOR_BONUS * 100}%` : ` 이번 주 처음 오르면 은자 ${fmt(D.corridorGold(cf))}`))),
+        foldBox('corridor', h('p', { class: 'muted dgn-desc' }, `${D.TOWER_MAX}층 위로 끝없이. 층마다 수문장이 ${Math.round((D.CORRIDOR_HP_UP - 1) * 100)}%씩 단단해지고 보상도 늘어요. 기록 층마다 ${fameT(D.CORRIDOR_BONUS)}(상한 없음) · 새 기록이면 은자 세 배 + 조각(10층마다 더). 월요일 0시(한국 시간)마다 이번 주 층은 처음부터, 초식 조합이 바뀌어요(기록·덤은 남아요).`)),
+        h('div', { class: 'dgn-stage' }, h('div', { class: 'stg' }, h('b', {}, `${cf - D.TOWER_MAX}층`), h('small', {}, cf - D.TOWER_MAX > (c.all || 0) ? ` 새 기록 · 은자 ${fmt(D.corridorRecordReward(cf).gold)} + 조각 · ${fameT(D.CORRIDOR_BONUS)}` : ` 이번 주 처음 오르면 은자 ${fmt(D.corridorGold(cf))}`))),
         h('div', { class: 'btn-row' }, h('button', { class: 'btn primary', disabled: game.canCorridor() ? null : true, onclick: () => start(() => game.startCorridor()) }, `회랑 ${cf - D.TOWER_MAX}층 도전`))));
     }
     return out;
@@ -2708,7 +2735,7 @@ function dgnTab(app, mode = null) {
       const card = h('div', { class: `card wraid-card wraid-heaven${pr.ok ? '' : ' locked'}`, style: `--wb:${ok.col}` },
         h('div', { class: 'wraid-head' }, h('img', { class: 'wraid-banner', src: 'art/ui/wb-heaven.webp', alt: '' }), h('img', { class: 'wraid-boss', src: `art/boss/${ok.art}.png`, alt: ok.name }),
           h('div', { class: 'wraid-name' }, h('small', {}, '천외천(天外天) · 천궁'), h('b', {}, ok.name, h('i', {}, ` ${ok.hanja}`)))),
-        h('p', { class: 'muted dgn-desc' }, pr.ok ? `대성신장을 두른 자에게 남천문이 열렸어요. 관문 넷(사대천사 → 탁탑천왕 → 나타 → 이랑진군)을 차례로 넘으면 옥황상제 — 넘은 관문마다 천계의 가호 +${Math.round(D.GATE_BONUS * 100)}%(공격력·체력, 영구).`
+        h('p', { class: 'muted dgn-desc' }, pr.ok ? `대성신장을 두른 자에게 남천문이 열렸어요. 관문 넷(사대천사 → 탁탑천왕 → 나타 → 이랑진군)을 차례로 넘으면 옥황상제 — 넘은 관문마다 천계의 가호 ${fameT(D.GATE_BONUS)}.`
           : `대성신장 일곱 부위를 모두 끼면 열려요 — 지금 ${pr.n}/${G.PALMA_SLOTS.length}`),
         h('div', { class: 'wraid-slots' }, ...W.SLOTS.filter((x) => G.PALMA_SLOTS.includes(x.id)).map((x) => { const it = s.equip[x.id]; const good = it?.set === 'palma'; const by = D.WRAID_BOSSES.find((b) => b.slot === x.id); return h('span', { class: `chip${good ? ' on' : ''}`, title: `${by?.name || ''}이(가) 줘요`, style: good ? `--gc:${W.RARITY[it.rar || 0].color};border-color:var(--gc)` : '' }, `${x.name}${good ? ` ${W.RARITY[it.rar || 0].name} +${it.plus || 0}` : ` ← ${by?.name || '?'}`}`); })),
         h('p', { class: 'muted', style: 'font-size:11.5px;margin:2px 0 6px' }, '같은 부위를 더 높은 등급으로 받으면 바로 바꿔 끼고, 강화 수치는 그대로 이어받아요(대성신장끼리 바꿔 끼면 강화를 맞바꿔요).'),
@@ -3379,7 +3406,7 @@ function guildView(app) {
       root.append(
         h('div', { class: 'card guild-intro' }, h('h3', {}, '문파', h('small', {}, `최대 ${W.GUILD_MAX}명`)),
           h('ul', { class: 'perks' },
-            h('li', {}, h('b', {}, '공격력'), ` 문파 레벨마다 전원 +${pct(W.guildAtk(W.GUILD_LV_EXP))}`),
+            h('li', {}, h('b', {}, '명성'), ` 문파 레벨마다 전원 ${fameT(W.guildAtk(W.GUILD_LV_EXP))}(공격력·체력)`),
             h('li', {}, h('b', {}, '창고'), ' 남는 조합 재료를 넣고 꺼내 써요'),
             h('li', {}, h('b', {}, '채팅'), ' 문파원끼리 이야기'),
             h('li', {}, h('b', {}, '레벨'), ' 날마다 출석·은자 기부로 올라요'))),
@@ -3475,7 +3502,7 @@ function guildView(app) {
         btn.onclick = busy(btn, async () => { await net.joinGuild(g.id); toast(`${g.name}에 들어갔어요!`); });
         return h('div', { class: 'row guild-row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, g.name, g.minLv ? h('small', {}, ` Lv${g.minLv} 이상`) : null),
           g.intro ? h('div', { class: 'guild-intro-line' }, `“${g.intro}”`) : null,
-          h('div', { class: 'desc' }, `Lv.${W.guildLevel(g.exp)} · ${g.n}/${W.GUILD_MAX}명 · 전원 공격력 +${pct(W.guildAtk(g.exp))}`)), btn);
+          h('div', { class: 'desc' }, `Lv.${W.guildLevel(g.exp)} · ${g.n}/${W.GUILD_MAX}명 · 전원 ${fameT(W.guildAtk(g.exp))}`)), btn);
       }) : [h('p', { class: 'muted' }, '지금 모집 중인 문파가 없어요 — 새로 만들어 보세요')]));
     }).catch(() => list.replaceChildren(h('p', { class: 'muted' }, '문파 목록을 불러오지 못했어요 — 잠시 뒤 다시 열어 주세요')));
     load();
@@ -3600,7 +3627,7 @@ function guildView(app) {
     els.lvl.textContent = `Lv.${lv}${top ? ' (최대)' : ''}`;
     els.bar.firstChild.style.width = `${top ? 100 : (into / W.GUILD_LV_EXP) * 100}%`;
     els.bar.lastChild.textContent = top ? 'MAX' : `문파 경험치 ${into} / ${W.GUILD_LV_EXP}`;
-    els.buff.textContent = `전원 공격력 +${pct(W.guildAtk(gd.exp))} · ${gd.memberIds.length}/${W.GUILD_MAX}명`;
+    els.buff.textContent = `전원 ${fameT(W.guildAtk(gd.exp))} · ${gd.memberIds.length}/${W.GUILD_MAX}명`;
     els.code.textContent = gd.code;
     const checked = net.checkedInToday();
     els.checkBtn.textContent = checked ? '오늘 출석함' : `출석 +${W.GUILD_CHECKIN_EXP}`;

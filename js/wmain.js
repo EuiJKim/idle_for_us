@@ -953,6 +953,12 @@ function paintTabLocks() {
   });
 }
 // v325 사냥 단추 — 처음 하면 들판을 눌러야 사냥터로 가는 줄 몰랐다. 마을·던전이면 하던 사냥터로, 사냥 중이면 알맞은 사냥터로
+// v466 명성이 올랐다 — 「명성 +25(모두 1,475)」 · 이름이 바뀌었으면 그것도
+function fameUp(bonus) {
+  const n = W.famePts(bonus), f = game.fame();
+  const up = n > 0 && W.fameRank(f.pts - n) !== f.rank ? ` · 〈${f.rank}〉` : '';
+  return `명성 +${fmt(n)}(모두 ${fmt(f.pts)})${up}`;
+}
 // v463 R8 수련장으로 — 마을 밖 방 하나(문 셋이 요일 던전) · 던전 안이면 나와서
 function goTrainNow() {
   if (!game.s.job) return toast('캐릭터를 먼저 고르세요');
@@ -1444,12 +1450,12 @@ function showInstEnd(ev) {
   const name = d ? `${d.name} ${ev.stage}단계` : ev.hard ? `무한의 탑 · 극 ${ev.stage}층` : ev.stage > D.TOWER_MAX ? `주간 회랑 ${ev.stage - D.TOWER_MAX}층` : `무한의 탑 ${ev.stage}층`;
   // 탑을 이어 오르는 중이면 알림만 (창이 계속 뜨면 방치가 끊긴다)
   if (ev.kind === 'tower' && ev.ok && ev.hard) {
-    toast(`⚡ ${name} 돌파! 극의 덤 공격력·체력 +${(D.hardBonus(game.s.tower.hard) * 100).toFixed(1)}%${ev.reward ? ` · ${rewardText(ev.reward)}` : ''}`);
+    toast(`⚡ ${name} 돌파! ${fameUp(D.HARD_BONUS)}${ev.reward ? ` · ${rewardText(ev.reward)}` : ''}`);
     if (ev.newMount) { mountReveal(ev.newMount, ev.stage); return; }
     if (ev.chain) return;
   } else if (ev.kind === 'tower' && ev.ok) {
-    toast(ev.stage > D.TOWER_MAX ? `🏯 ${name} 돌파!${ev.record ? ` 새 기록 — 영구 +${(D.corridorBonus(game.s.tower.cor?.all) * 100).toFixed(2).replace(/\.?0+$/, '')}%` : ''}${ev.reward?.gold ? ` · ${rewardText(ev.reward)}` : ''}`
-      : `🏯 ${name} 돌파! 공격력·체력 +${(D.towerBonus(game.s.tower.floor) * 100).toFixed(1)}%${ev.reward?.mats ? ` · 보따리 ${rewardText(ev.reward)}` : ''}`);
+    toast(ev.stage > D.TOWER_MAX ? `🏯 ${name} 돌파!${ev.record ? ` 새 기록 — ${fameUp(D.CORRIDOR_BONUS)}` : ''}${ev.reward?.gold ? ` · ${rewardText(ev.reward)}` : ''}`
+      : `🏯 ${name} 돌파! ${fameUp(D.TOWER_BONUS)}${ev.reward?.mats ? ` · 보따리 ${rewardText(ev.reward)}` : ''}`);
     if (ev.chain) return;
   }
   if (ev.left) return;
@@ -1849,7 +1855,7 @@ function handleEvents() {
         if (!ev.inst) toast(`쓰러졌어요… 경험치 ${fmt(ev.loss)}(쌓은 것의 ${Math.round(W.DEATH_EXP_LOSS * 100)}%)를 잃고(레벨은 그대로) 마을로 돌아가요${ev.retreat ? ` — 너무 센 곳이라 다음엔 ${ev.retreat}(으)로 나가요` : ''}`);
         break;
       // v263: 견문록 낙관
-      case 'dexStamp': toast(`견문록 — ${ev.name} 낙관 · 공격력·체력 +${(W.DEX_STAMP_STAT * 100).toFixed(2)}%${ev.zoneDone ? ` · 지역 완성! 경험치 +0.5% · 공격력·체력 +${(W.DEX_ZONE_STAT * 100).toFixed(1)}%` : ''}`); break;
+      case 'dexStamp': toast(`견문록 — ${ev.name} 낙관 · ${fameUp(W.DEX_STAMP_STAT + (ev.zoneDone ? W.DEX_ZONE_STAT : 0))}${ev.zoneDone ? ' · 지역 완성! 경험치 +0.5%' : ''}`); break;
       case 'frag': if (ev.pts) toast(`📜 무공 비급 완성 — 무공 점수 +${ev.pts}`); else if (ev.at) tally('frag', `📜 비급 조각 ${ev.have}/${W.fragNeed(game.s.fragPts)} ·`, 1, '#c4b5fd');   // v321 조각마다 알림 → 모음
         if (ev.at) saverLoot(`📜 비급 조각 ${ev.have}/${W.fragNeed(game.s.fragPts)}`);
         break;   // v436 이 break가 주석 안에 들어가 있어 비급 조각을 주울 때마다 아래 단련 알림(「단련 undefined단계 · +NaN%」)으로 흘러내렸다
@@ -1892,7 +1898,7 @@ function handleEvents() {
       // 고수를 처음 쓰러뜨렸다 (v148)
       case 'masterDown':
         view.showBanner(`${ev.title} ${ev.name} 격파`, '#fde68a', 2.4, '고수');
-        toast(`⚔ ${ev.title} ${ev.name}을(를) 처음 쓰러뜨렸어요 — 공격력·체력 +${Math.round(ev.bonus * 100)}% 영구 · ${rewardText(ev.reward)}`);
+        toast(`⚔ ${ev.title} ${ev.name}을(를) 처음 쓰러뜨렸어요 — ${fameUp(ev.bonus)} · ${rewardText(ev.reward)}`);
         break;
       // 길잡이 선물 (v146) — 해 봐야 하는 것을 그 단계가 뜰 때 준다
       case 'questGift':
@@ -1950,7 +1956,7 @@ function handleEvents() {
         toast(`${ev.name} — 승급(Lv${W.DEEP_LV}) 뒤 또는 이 지역 두목을 잡은 뒤에 열린다`);
         break;
       case 'mastery':
-        toast(`${ev.name} 숙련 ${ev.level}! 경험치·재료가 늘고 · 공격력·체력 +${(W.MAST_STAT * 100).toFixed(2)}%(영구)`);
+        toast(`${ev.name} 숙련 ${ev.level}! 경험치·재료가 늘고 · ${fameUp(W.MAST_STAT)}`);
         break;
       case 'treasure':
         view.showBanner('황금 원숭이 출현!', '#fde047', 1.6, '보물');
@@ -1984,7 +1990,7 @@ function handleEvents() {
       // v377 남천문 관문을 처음 넘었다
       case 'gateClear':
         sfx('level');
-        toast(`☁ 남천문 — ${ev.boss}을(를) 넘었어요! 천계의 가호 공격력·체력 +${Math.round(ev.bonus * 100)}% (넘은 관문 ${ev.n}/${D.HEAVEN_GATES.length})`);
+        toast(`☁ 남천문 — ${ev.boss}을(를) 넘었어요! 천계의 가호 ${fameUp(ev.bonus)} (넘은 관문 ${ev.n}/${D.HEAVEN_GATES.length})`);
         break;
       // v375 대성신장 한 부위를 얻었다
       case 'palmaPiece':
