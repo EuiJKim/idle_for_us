@@ -3158,7 +3158,7 @@ function rankView(app) {
   let mode = 'lv';
   const seg = h('div', { class: 'seg rank-seg' });
   const head = h('h3', {});
-  const paintSeg = () => seg.replaceChildren(...[['lv', '서열'], ['wboss', '이번 주 두목']].map(([k, t]) => h('button', { class: `chip${mode === k ? ' on' : ''}`, onclick: () => { if (mode === k) return; mode = k; paintSeg(); load(); } }, t)));
+  const paintSeg = () => seg.replaceChildren(...[['lv', '서열'], ['pvp', '대결'], ['wboss', '이번 주 두목']].map(([k, t]) => h('button', { class: `chip${mode === k ? ' on' : ''}`, onclick: () => { if (mode === k) return; mode = k; paintSeg(); load(); } }, t)));
   paintSeg();
   root.append(h('div', { class: 'card' }, seg, head, status, list));
   let loaded = 0;
@@ -3194,11 +3194,24 @@ function rankView(app) {
         h('div', { class: 'desc' }, `${W.lvShort(p.level || 1)} · ${p.mapName || ''}${p.guildName ? ` · ${p.guildName}` : ''}`)),
       h('div', { style: 'font-weight:900;color:#fde68a' }, fmt(p.power || 0)))));
   }
+  // v452 대결 서열 — 비무첩 점수 순(대결을 한 번이라도 한 무인 · 대결 기록이 있는 사람)
+  async function loadPvp() {
+    head.replaceChildren('대결 서열', h('small', {}, ' 비무첩 점수 순'));
+    await net.pushProfile(true);
+    const rows = (await net.ranking()).filter((p) => p.pvp).sort((a, b) => (b.pvpScore ?? 1000) - (a.pvpScore ?? 1000) || (b.power || 0) - (a.power || 0));
+    status.textContent = rows.length ? '' : '아직 대결 기록이 없어요.';
+    list.replaceChildren(...rows.map((p, i) => h('div', { class: `row rank-row${p.uid === net.uid ? ' me' : ''}` },
+      medal(i),
+      h('div', { class: 'info' },
+        h('div', { class: 'name' }, ...nameOf(p), h('small', {}, `${p.tierName || ''}`)),
+        h('div', { class: 'desc' }, `${W.lvShort(p.level || 1)} · 전투력 ${fmt(p.power || 0)}`)),
+      h('div', { style: 'font-weight:900;color:#fda4af' }, `${fmt(p.pvpScore ?? 1000)}점`))));
+  }
   async function load() {
     loaded = Date.now();
     if (!net?.ready?.()) { status.textContent = ''; list.replaceChildren(offlineNote(net, '서열을 볼 수 있어요')); return; }   // v434
     status.textContent = '불러오는 중…';
-    try { await (mode === 'wboss' ? loadWeek() : loadLv()); }
+    try { await (mode === 'wboss' ? loadWeek() : mode === 'pvp' ? loadPvp() : loadLv()); }
     catch (err) {
       status.textContent = '불러오지 못했어요. 잠시 뒤에 다시 열어 주세요.';
       console.warn('[ranking]', err);

@@ -1118,6 +1118,10 @@ export const TITLES = {
   awk1: { id: 'awk1', name: '각성을 꺾은 자', desc: '공격력 +4%', how: '각성 고수 하나를 쓰러뜨리기', atkMul: 1.04, col: '#fca5a5' },
   awkMagwi: { id: 'awkMagwi', name: '각성 마귀 사냥꾼', desc: '공격력 +6% · 때릴 때마다 〈鬼〉', how: '각성 마귀를 쓰러뜨리기', atkMul: 1.06, hitFx: '鬼', col: '#f43f5e' },
   awkAll: { id: 'awkAll', name: '각성 천하', desc: '공격력 +10% · 때릴 때마다 〈覺〉', how: '각성 고수 여섯을 모두 쓰러뜨리기', atkMul: 1.1, hitFx: '覺', col: '#ef4444' },
+  // v452 비무첩 — 대결로 얻는 칭호
+  pvp10: { id: 'pvp10', name: '비무 신예', desc: '공격력 +2%', how: '대결 10승', atkMul: 1.02, col: '#fda4af' },
+  pvp50: { id: 'pvp50', name: '비무첩의 고수', desc: '공격력 +4% · 때릴 때마다 〈武〉', how: '대결 50승', atkMul: 1.04, hitFx: '武', col: '#fb7185' },
+  pvp1300: { id: 'pvp1300', name: '비무 명인', desc: '공격력 +5% · 때릴 때마다 〈鬪〉', how: '대결 점수 1300', atkMul: 1.05, hitFx: '鬪', col: '#f43f5e' },
   k1m: { id: 'k1m', name: '백만 처치', desc: '공격력 +4% · 때릴 때마다 〈萬〉', how: '몹 100만 마리', atkMul: 1.04, hitFx: '萬', col: '#e7e5e4' },
 };
 export const AUTO_TITLES = Object.values(TITLES).filter((t) => t.how);

@@ -4389,5 +4389,15 @@ console.log('\n=== v451 비동기 대결(직접 조작) ===');
   ok(read('js/world/wgame.js').includes("this.inst?.kind === 'pvp' && !this.autoDodge) this.holdApproach = true"), '직접 조작은 대결에서만');
 }
 
+console.log('\n=== v452 대결 서열 · 대결 칭호 ===');
+{
+  const g = fresh('sword');
+  ok(['pvp10', 'pvp50', 'pvp1300'].every((id) => W.TITLES[id]?.how) && !g.titleDone('pvp10'), '대결 칭호 셋 — 아직 없음');
+  g.s.pvp.win = 10; ok(g.titleDone('pvp10') && !g.titleDone('pvp50'), '대결 10승 → 비무 신예');
+  g.s.pvp.win = 50; g.s.pvp.best = 1300; ok(g.titleDone('pvp50') && g.titleDone('pvp1300'), '50승 · 점수 1300 → 비무첩의 고수 · 비무 명인');
+  g.checkTitles(); ok(g.hasTitle('pvp10') && g.hasTitle('pvp50') && g.hasTitle('pvp1300'), '저절로 받는다');
+  ok(/\['pvp', '대결'\]/.test(read('js/wui.js')) && /loadPvp\(\)/.test(read('js/wui.js')), '서열 창에 「대결」 갈래(점수 순)');
+}
+
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);

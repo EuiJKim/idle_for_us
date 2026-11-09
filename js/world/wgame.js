@@ -490,6 +490,9 @@ export class WorldGame {
       case 'titles15': return this.titleSet().n >= 15;
       case 'k100k': return (s.kills || 0) >= 100000;
       case 'k1m': return (s.kills || 0) >= 1000000;
+      case 'pvp10': return (s.pvp?.win || 0) >= 10;   // v452
+      case 'pvp50': return (s.pvp?.win || 0) >= 50;
+      case 'pvp1300': return (s.pvp?.best || 0) >= 1300;
       case 'wraid10': return (s.wraid?.kills || 0) >= 10;
       case 'wraid1': return (s.wraid?.top1 || 0) >= 1;
       case 'palma8': return this.palmaReady().ok;
