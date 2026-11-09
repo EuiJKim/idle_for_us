@@ -150,7 +150,7 @@ export const dailyMobAtk = (lv) => mobAtk(lv) * 1.5;
 export const TOWER_MAX = 120;
 export const TOWER_SEC = 300;   // v361 5분(전엔 35초)
 export const TOWER_ZODIAC_SEC = 300;   // v361 5분(전엔 50초)
-export const TOWER_BONUS = 0.005;        // 오른 층마다 공격력·체력 +0.5% (120층 +60%)
+export const TOWER_BONUS = 0.0025;       // 오른 층마다 공격력·체력 +0.25% (120층 +30%) — v465 0.5% → 0.25%(하루에 60층 = +30%가 기준 무인과의 차를 벌렸다)
 export const towerBonus = (floor) => Math.min(TOWER_MAX, floor || 0) * TOWER_BONUS;
 export const isZodiacFloor = (f) => f % 10 === 0;
 export const towerSec = (f) => (isZodiacFloor(f) ? TOWER_ZODIAC_SEC : TOWER_SEC);
@@ -254,7 +254,7 @@ export function towerMap(f) {
 //   극의 층마다 공격력·체력 +0.4% 영구(60층 +24%).
 export const HARD_OPEN = 60;
 export const HARD_MAX = 60;
-export const HARD_BONUS = 0.008;   // v359 열 배 어려워진 만큼 0.4% → 0.8% (60층 +48%)
+export const HARD_BONUS = 0.004;   // v359 열 배 어려워진 만큼 0.4% → 0.8% (60층 +48%) · v465 → 0.4%(60층 +24%)
 export const hardBonus = (h) => Math.min(HARD_MAX, h || 0) * HARD_BONUS;
 export const hardF = (h) => Math.min(TOWER_MAX, HARD_OPEN + h);   // 같은 세기의 보통 층
 export const isHardBossFloor = (h) => h % 10 === 0;

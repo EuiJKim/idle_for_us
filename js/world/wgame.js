@@ -705,7 +705,7 @@ export class WorldGame {
     for (const p of off?.comp ? [] : this.activePets()) {
       const d = W.petOf(p.kind);
       gear[d.buff] = (gear[d.buff] || 0) + W.petBuff(p);
-      for (const [k, v] of Object.entries(d.also || {})) gear[k] = (gear[k] || 0) + v * W.petBuffScale(p);   // 황룡: 둘 다 · v390 완만하게
+      for (const [k, v] of Object.entries(d.also || {})) gear[k] = (gear[k] || 0) + v * W.petBuffScale(p) * W.PET_BUFF_K;   // 황룡: 둘 다 · v390 완만하게 · v465 절반
     }
     const mt = off?.comp ? null : this.mountNow();
     const mk = this.mountK(this.mountInst());

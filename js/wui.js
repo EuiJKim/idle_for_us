@@ -3961,8 +3961,8 @@ function compTab(app) {
     `🧩 탈것 조각 ${W.MOUNT_SHARD_NEED}개 → 지금 지역의 탈것 하나`,
     `  · 졸개 가끔(정예 3배) · 두목 ${W.BOSS_SHARDS.mount[0]}~${W.BOSS_SHARDS.mount[1]}개(왕·고수 2배) · 일일 던전 몫 한 판 · 무한의 탑 처음 오른 층 · 보물 원숭이 · 주간 상자 · 방치 · 도감 이정표`,
     `🔮 합성 — 같은 순위 ${W.MOUNT_FUSE_N}마리 → 다음 순위 하나(길들인 레벨의 절반을 이어 간다)`,
-    '🐲 십이지 신수 — 무한의 탑 10층마다 뽑기권(던전 › 신수 뽑기) · 세력 상점 뽑기권 · 탈것 소환(하나에 0.1% · 300번 안에 신수 하나는 꼭)',   // v435 얻는 길 셋을 다 적는다
-    `⚡ 극의 신수 여섯 — 무한의 탑 · 극(하드) 10층마다 그 층의 신수를 이기면 꼭 · 탈것 소환에서도 드물게(0.05%) (이동 +90~120% · 공격·체력 크게 · 길들이기 최대 20)`,
+    `🐲 십이지 신수 — 무한의 탑 10층마다 뽑기권(던전 › 신수 뽑기) · 세력 상점 뽑기권 · 탈것 소환(하나에 ${W.GACHA_MOUNT.find(([k]) => k === 'z1')[1]}% · ${W.GACHA_MOUNT_PITY}번 안에 신수 하나는 꼭)`,   // v435 얻는 길 셋을 다 적는다
+    `⚡ 극의 신수 여섯 — 무한의 탑 · 극(하드) 10층마다 그 층의 신수를 이기면 꼭 · 탈것 소환에서도 드물게(${W.GACHA_MOUNT.find(([k]) => k === 'h1')[1]}%) (이동 +90~120% · 공격·체력 크게 · 길들이기 최대 20)`,
     `🪢 길들이기 — 탈것 조각과 은자로 레벨(최대 ${W.MOUNT_LV_MAX}) · 레벨마다 이동·공격·체력 +${Math.round(W.MOUNT_LV_K * 100)}% · 극의 신수는 최대 ${W.HARD_LV_MAX} · 레벨마다 이동 +${Math.round(W.HARD_SPD_LV_K * 100)}%·공격·체력 +${Math.round(W.HARD_LV_K * 100)}%`,
   ]);
   const dexCard = h('div', { class: 'card' });
@@ -4320,10 +4320,10 @@ function openGachaRates(kind) {
   const norm = (t, id) => { const w = W.withPickup(t, id); const sum = w.reduce((a, [, x]) => a + x, 0); return w.map(([k, x]) => [k, (x / sum) * 100]); };
   openModal((el) => {
     const rows = kind === 'pet'
-      ? [h('h3', {}, '영수 소환 확률'), h('p', { class: 'muted' }, `종과 등급을 따로 뽑아요 · 10연차엔 전설 이상 하나 · ${W.GACHA_PET_PITY}번 안에 신화가 안 나오면 ${W.GACHA_PET_PITY}번째 신화`),
+      ? [h('h3', {}, '영수 소환 확률'), h('p', { class: 'muted' }, `종과 등급을 따로 뽑아요 · 10연차엔 ${W.RARITY[W.GACHA_PET_TEN].name} 이상 하나 · ${W.GACHA_PET_PITY}번 안에 신화가 안 나오면 ${W.GACHA_PET_PITY}번째 신화`),
         h('div', { class: 'rate-grid' }, h('b', {}, '종'), h('b', {}, '확률'), ...norm(W.GACHA_PET_KIND, pk.pet).flatMap(([k, w]) => [h('span', {}, `${W.petOf(k).emoji} ${W.petOf(k).name}${k === pk.pet ? ' ✨픽업' : ''}`), h('span', {}, pct(w))])),
         h('div', { class: 'rate-grid' }, h('b', {}, '등급'), h('b', {}, '확률'), ...W.GACHA_PET_RAR.flatMap(([r, w]) => [h('span', { style: `color:${W.RARITY[r].color}` }, W.RARITY[r].name), h('span', {}, pct(w))]))]
-      : [h('h3', {}, '탈것 소환 확률'), h('p', { class: 'muted' }, `10연차엔 적토마(순위 ${W.GACHA_MOUNT_TEN}) 이상 하나 · ${W.GACHA_MOUNT_PITY}번 안에 신수(십이지·극)가 안 나오면 ${W.GACHA_MOUNT_PITY}번째 신수 · 가진 신수가 또 나오면 길들이기 +1`),
+      : [h('h3', {}, '탈것 소환 확률'), h('p', { class: 'muted' }, `10연차엔 ${W.MOUNTS.find((m) => m.tier === W.GACHA_MOUNT_TEN && !m.zodiac && !m.hard)?.name}(순위 ${W.GACHA_MOUNT_TEN}) 이상 하나 · ${W.GACHA_MOUNT_PITY}번 안에 신수(십이지·극)가 안 나오면 ${W.GACHA_MOUNT_PITY}번째 신수 · 가진 신수가 또 나오면 길들이기 +1`),
         h('div', { class: 'rate-grid' }, h('b', {}, '탈것'), h('b', {}, '확률'), ...norm(W.GACHA_MOUNT, pk.mount).flatMap(([k, w]) => { const d = W.mountOf(k); return [h('span', { style: d.hard ? 'color:#fde047' : d.zodiac ? 'color:#f472b6' : '' }, `${d.emoji} ${d.name}${d.hard ? ' (극)' : ''}${k === pk.mount ? ' ✨픽업' : ''}`), h('span', {}, pct(w))]; }))];
     el.append(...rows, h('div', { class: 'btn-row' }, h('button', { class: 'btn primary', onclick: closeModal }, '닫기')));
   });

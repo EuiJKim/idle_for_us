@@ -671,8 +671,8 @@ console.log('\n=== 십이지왕 신화 · 가락지·귀걸이 · 애완동물 �
       const q = new WorldGame(newWorldSave(0), 0); q.s.job = 'sword'; q.s.level = 60;
       q.s.petShard = 100 * 200; q.s.mountShard = 100 * 300;
       let rar3 = 0, worst = 0, n = 0;
-      for (let k = 0; k < 18; k++) { const r = q.gacha('pet', 10); if (!r) break; n += 10; if (!r.some((x) => x.rar >= 2)) worst++; rar3 += r.filter((x) => x.rar === 3).length; q.s.petBox = []; q.s.pets = []; }
-      ok(n === 180 && worst === 0, '애완동물 10연차마다 전설 이상', `신화 ${rar3}`);
+      for (let k = 0; k < 18; k++) { const r = q.gacha('pet', 10); if (!r) break; n += 10; if (!r.some((x) => x.rar >= W.GACHA_PET_TEN)) worst++; rar3 += r.filter((x) => x.rar === 3).length; q.s.petBox = []; q.s.pets = []; }
+      ok(n === 180 && worst === 0 && W.GACHA_PET_TEN === 1, '애완동물 10연차마다 유니크 이상 (v465 — 전엔 전설)', `신화 ${rar3}`);
       { const t = new WorldGame(newWorldSave(0), 0); t.s.petShard = 1e6; t.rng = () => 0.999; let got = 0; for (let k = 0; k < 30; k++) { got += t.gacha('pet', 10).filter((x) => x.rar === 3).length; t.s.petBox = []; t.s.pets = []; } ok(got === 1 && W.GACHA_PET_PITY === 300, 'v363 운이 없어도 300번째엔 신화(천장 300)', `신화 ${got}`); }
       let sacred = 0;
       for (let k = 0; k < 20; k++) { const r = q.gacha('mount', 10); sacred += r.filter((x) => x.grade >= 3).length; if (!r.some((x) => W.mountOf(x.id).tier >= 9)) worst++; }
@@ -681,7 +681,7 @@ console.log('\n=== 십이지왕 신화 · 가락지·귀걸이 · 애완동물 �
       ok(!z.canGacha('pet', 10) || z.gachaRoom('pet') >= 10, '우리가 가득이면 뽑기 막힘');
     }
     // v359 극 보상 · 칭호 · 신수 전용 효과
-    ok(DG.HARD_BONUS === 0.008 && DG.hardReward(10).gold > 1e6 && !!W.TITLES.hard60 && !!W.TITLES.hard30, '극 층 덤 0.8% · 보상 크게 · 칭호 둘', `극10 은자 ${DG.hardReward(10).gold}`);
+    ok(DG.HARD_BONUS === 0.004 && DG.hardReward(10).gold > 1e6 && !!W.TITLES.hard60 && !!W.TITLES.hard30, '극 층 덤 0.4%(v465 0.8 → 0.4) · 보상 크게 · 칭호 둘', `극10 은자 ${DG.hardReward(10).gold}`);
     {
       const t = new WorldGame(newWorldSave(0), 0); t.s.job = 'sword'; t.s.level = 120; t.enterMap(W.mapId(10, 1));
       t.gainMount('h4'); t._stats = null; const dg = t.stats().dodge;
@@ -3629,7 +3629,7 @@ console.log('\n=== v390 밸런스 점검 — 애완동물 칸·버프 · 우두�
   ok(g.petSlots() === W.PET_SLOT_MAX, '장비 옵션까지 합쳐 다섯까지', `${g.petSlots()}`);
   const maxed = { kind: 'tiger', rar: 3, lv: 30, star: 5, dan: 10, q: 0 };
   const lo = { kind: 'tiger', rar: 0, lv: 1, star: 0, dan: 0, q: 0 };
-  ok(W.petBuff(lo) === W.petOf('tiger').base * W.petScale(lo) && W.petBuff(maxed) < 1.2 && W.petBuff(maxed) > 0.9, '다 키운 백호 공격력 +100% 안팎(전엔 +275%) · 처음 것은 그대로', W.petBuff(maxed).toFixed(2));
+  ok(Math.abs(W.petBuff(lo) - W.petOf('tiger').base * W.petScale(lo) * W.PET_BUFF_K) < 1e-12 && W.petBuff(maxed) < 0.6 && W.petBuff(maxed) > 0.35, '다 키운 백호 공격력 +50% 안팎(v390 +275% → +100% · v465 절반) · 처음 것은 ×0.5 그대로', W.petBuff(maxed).toFixed(2));
   const at = (id) => { const m = W.MAPS.find((x) => x.master === id && x.bossRoom); return g.bossMinSec(m) * g.bossGapK(m); };
   while (g.s.level < 150) g.addExp(W.expToNext(g.s.level));
   ok(at('jinpaecheon') <= at('cheonma') && at('cheonma') < at('hwamugi') && at('hwamugi') < at('magwi'), '최소 싸움 시간 — 맹주 ≤ 천마 < 화무기 < 마귀(높을수록 짧던 것을 바로)', ['jinpaecheon', 'cheonma', 'hwamugi', 'magwi'].map(at).map((v) => v.toFixed(0)).join(' · '));
@@ -4992,6 +4992,21 @@ console.log('\n=== v464 밸런스 1차 — 조각 수입 ===');
   for (let t = 0; t < 1800; t += 0.1) { g.tick(0.1); g.events.length = 0; if (g.map.town) g.enterMap(id); }
   const per = ((g.s.petShard || 0) - p0) * 2, kills = (g.s.kills - k0) * 2;
   ok(kills > 600 && per > 10 && per < 160, `한 시간 사냥 포획 조각 ${per}개(처치 ${kills}) — 전엔 500개 남짓`);
+}
+console.log('\n=== v465 밸런스 2차 — 동료 확률·효과 · 탑 덤 ===');
+{
+  const DG = await import('../js/world/wdgn.js');
+  const sacred = W.GACHA_MOUNT.filter(([k]) => W.mountOf(k).zodiac || W.mountOf(k).hard).reduce((a, [, w]) => a + w, 0);
+  ok(Math.abs(sacred - 0.42) < 1e-9 && W.GACHA_MOUNT_TEN === 7 && W.GACHA_PET_RAR.find(([r]) => r === 2)[1] === 2.5, '신수 0.42%(전엔 1.5%) · 탈것 10연 백운마 이상 · 전설 2.5%(전엔 4.5%)', `${sacred.toFixed(2)}%`);
+  const p = (kind, rar, lv, star = 2) => ({ kind, rar, lv, star, q: 0, dan: 0 });
+  const yl = W.petBuff(p('yellow', 3, 30)), tg = W.petBuff(p('tiger', 2, 30));
+  ok(yl > 0.35 && yl < 0.55 && tg > 0.18 && tg < 0.32, '신화 황룡 30 공격·체력 +45% 안팎(전엔 +104%) · 전설 백호 30 +25%(전엔 +58%)', `${(yl * 100).toFixed(0)}% · ${(tg * 100).toFixed(0)}%`);
+  const g = fresh(); g.s.level = 60; g.s.pets = [{ uid: 9e9, ...p('yellow', 3, 30) }]; g._stats = null;
+  const st = g.stats(); g.s.pets = []; g._stats = null; const st0 = g.stats();
+  ok(Math.abs(st.atk / st0.atk - st.hp / st0.hp) < 0.02 && st.hp / st0.hp > 1.3 && st.hp / st0.hp < 1.6, '황룡은 공격·체력 둘 다 같은 몫(also도 절반)', `공격 ×${(st.atk / st0.atk).toFixed(2)} · 체력 ×${(st.hp / st0.hp).toFixed(2)}`);
+  ok(Math.abs(W.mountOf('h6').stat - 0.4) < 1e-9 && W.mountOf('z12').stat < 0.2 && W.mountOf('azure').stat < 0.18, '탈것 공격·체력 — 극 신수 +40%(전엔 +90%) · 십이지 흑저 +20% · 청룡마 +18%');
+  ok(Math.abs(DG.towerBonus(120) - 0.3) < 1e-9 && Math.abs(DG.hardBonus(60) - 0.24) < 1e-9, '탑 120층 +30%(전엔 +60%) · 극 60층 +24%(전엔 +48%)');
+  ok(/W\.RARITY\[W\.GACHA_PET_TEN\]\.name/.test(read('js/wui.js')) && !/10연차엔 적토마/.test(read('js/wui.js')), '확률 창 글이 상수를 따라간다(10연 보장 이름)');
 }
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);

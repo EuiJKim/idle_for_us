@@ -1424,14 +1424,16 @@ export const petDanChance = (d, fails = 0) => Math.min(1, (PET_DAN_P[d] ?? 0) + 
 export const petQualMult = (pet) => PET_QUAL[pet.q || 0]?.mult || 1;
 export const petDanMult = (pet) => 1 + (pet.dan || 0) * PET_DAN_K;
 // v364 뽑기 운이 곧 강함 — 애완동물 효과 1.3배 · 등급 차를 크게(레어 1 · 유니크 1.35 · 전설 1.8 · 신화 2.5)
-export const PET_POWER_K = 1.3;
+export const PET_POWER_K = 1.0;   // v465 1.3 → 1.0 — 애완동물이 치는 힘도 같이(신화 하나가 무인 평타보다 셌다)
+// v465 버프는 절반 — 신화 황룡 Lv30이 공격·체력 +104%(동료 하나가 힘을 두 배로) → +45% · 전설 백호 +58% → +25% · 레어 +16% → +6%
+export const PET_BUFF_K = 0.5;
 export const PET_RAR_MULT = [1, 1.35, 1.8, 2.5];
 export const petScale = (pet) => PET_POWER_K * PET_RAR_MULT[pet.rar] * (1 + (pet.lv - 1) * 0.05) * (1 + (pet.star || 0) * PET_STAR_K) * petQualMult(pet) * petDanMult(pet);   // v292 별 · v316 품·단
 // v390 다 키운 신화(별 5 · 단 10 · Lv30)는 ×23까지 커져 백호 하나가 공격력 +275%, 황룡이 공격·체력 +412%였다 — 칸 운(1~5마리)이 곧 강함(두 배)이었다.
 //   버프만 ×3 위로는 완만하게(×23 → ×9.2). 처음 몇 마리(×3 아래)는 그대로. 애완동물이 치는 힘(petAtkRatio)은 그대로.
 export const PET_BUFF_SOFT = 3;
 export const petBuffScale = (pet) => { const sc = petScale(pet); return sc <= PET_BUFF_SOFT ? sc : PET_BUFF_SOFT * (sc / PET_BUFF_SOFT) ** 0.55; };
-export const petBuff = (pet) => petOf(pet.kind).base * petBuffScale(pet);
+export const petBuff = (pet) => petOf(pet.kind).base * petBuffScale(pet) * PET_BUFF_K;
 export const petAtkRatio = (pet) => (0.1 + petOf(pet.kind).tier * 0.025 + (pet.lv - 1) * 0.012) * PET_POWER_K * PET_RAR_MULT[pet.rar] * (1 + (pet.star || 0) * PET_STAR_K) * petQualMult(pet) * petDanMult(pet);   // 무인 공격력 대비 한 대 · v292 별 · v316 품·단
 export const PET_ATK_SEC = 1.6;
 
@@ -1490,7 +1492,7 @@ export const MOUNTS = [
   { id: 'ochu', tier: 10, name: '오추마', emoji: '🐎', tint: '#111827', speed: 1.05, stat: 0.14 },
   { id: 'cloud', tier: 11, name: '천리운', emoji: '🦄', speed: 1.3, stat: 0.17 },
   { id: 'azure', tier: 12, name: '청룡마', emoji: '🐉', speed: 1.7, stat: 0.22 },
-  // 십이지 신수 (v126) — 무한의 탑 10층마다 십이지 뽑기권 · 세력 상점 뽑기권 · 탈것 소환(하나에 0.1% · 300번 보장)으로 (사냥터에서 떨구지 않는다). 뒤 신일수록 세다.
+  // 십이지 신수 (v126) — 무한의 탑 10층마다 십이지 뽑기권 · 세력 상점 뽑기권 · 탈것 소환(하나에 0.03% · 300번 보장)으로 (사냥터에서 떨구지 않는다). 뒤 신일수록 세다.
   ...[['z1', '금서', '🐀'], ['z2', '철우', '🐂'], ['z3', '백호', '🐅'], ['z4', '옥토', '🐇'], ['z5', '황룡', '🐉'], ['z6', '청사', '🐍'],
     ['z7', '천마', '🐎'], ['z8', '운양', '🐏'], ['z9', '금강원', '🐒'], ['z10', '금계', '🐓'], ['z11', '천구', '🐕'], ['z12', '흑저', '🐗']]
     .map(([id, nm, emoji], i) => ({ id, tier: 13, zodiac: i + 1, name: `십이지 ${nm}`, emoji, speed: +(0.45 + (i + 1) * 0.11).toFixed(2), stat: +(0.04 + (i + 1) * 0.017).toFixed(3) })),
@@ -1513,7 +1515,7 @@ for (const [i, m] of HARD_MOUNTS.entries()) MOUNTS.push({ ...m, tier: 14, hard: 
 //   보통 탈것·십이지는 신수 아래로 같은 비율(×0.85 — 청룡마 +72% · 적토마 +38% · 나귀 +6%)
 export const HARD_SPEED = [0.9, 0.96, 1.01, 1.06, 1.12, 1.2];
 // v364 탈것 공격·체력 1.8배 — 좋은 탈것을 뽑으면 그만큼 세게(청룡마 +40% · 십이지 흑저 +44% · 혼원금룡 +90%)
-export const MOUNT_STAT_K = 1.8;
+export const MOUNT_STAT_K = 0.8;   // v465 1.8 → 0.8 — 극 신수 공격·체력 +90% → +40% · 십이지 흑저 +44% → +20% · 청룡마 +40% → +18%
 export const MOUNT_SPEED_K2 = 0.85;
 for (const m of MOUNTS) { m.speed = m.hard ? HARD_SPEED[m.hard - 1] : +(m.speed * MOUNT_SPEED_K2).toFixed(4); m.stat = +(m.stat * MOUNT_STAT_K).toFixed(4); }
 for (const h of HARD_MOUNTS) { const m = MOUNTS.find((x) => x.id === h.id); h.stat = m.stat; h.speed = m.speed; }   // v437 이동도 — 없어서 극 카드에 「이동 +NaN%」(화면 몽키) · 극 카드·얻는 창 표시도 같은 값
@@ -1524,16 +1526,17 @@ export const mountSpeed = (d, k = 1, lv = 0) => (!d ? 0 : d.hard ? d.speed * (1 
 //   애완동물은 종과 등급을 따로 뽑는다. 10연차는 상위 하나 보장 · 천장(그 횟수 안에 맨 위가 안 나오면 꼭)
 export const GACHA_COST = 100;
 export const GACHA_PET_KIND = [['yellow', 0.5], ['tiger', 1], ['dragon', 2], ['monkey', 3.5], ['phoenix', 5], ['haetae', 8], ['turtle', 12], ['qilin', 18], ['fox', 22], ['crane', 28]];
-export const GACHA_PET_RAR = [[3, 0.5], [2, 4.5], [1, 20], [0, 75]];   // 신화 · 전설 · 유니크 · 레어
+export const GACHA_PET_RAR = [[3, 0.5], [2, 2.5], [1, 17], [0, 80]];   // 신화 · 전설 · 유니크 · 레어 — v465 전설 4.5 → 2.5 · 유니크 20 → 17
 export const GACHA_PET_PITY = 300;    // v363 300번 안에 신화가 안 나오면 300번째 신화(전엔 80)
-export const GACHA_PET_TEN = 2;       // 10연차엔 전설 이상 하나
+export const GACHA_PET_TEN = 1;       // 10연차엔 유니크 이상 하나 — v465 전설 → 유니크(하루 43연에 전설이 넷 보장이었다)
 export const GACHA_MOUNT = [
-  ...['h6', 'h5', 'h4', 'h3', 'h2', 'h1'].map((k) => [k, 0.05]),
-  ...['z12', 'z11', 'z10', 'z9', 'z8', 'z7', 'z6', 'z5', 'z4', 'z3', 'z2', 'z1'].map((k) => [k, 0.1]),
-  ['azure', 0.5], ['cloud', 1], ['ochu', 2], ['redhare', 3.5], ['tigerm', 5], ['white', 7], ['warhorse', 9], ['deer', 11], ['camel', 12.5], ['horse', 13.5], ['mule', 15.5], ['donkey', 18],
+  // v465 신수 1.5%(십이지 0.1·극 0.05씩) → 0.42%(십이지 0.03·극 0.01씩) — 하루 뽑기로 신수가 거의 확실했다. 천장 300은 그대로 · 줄인 몫은 나귀로
+  ...['h6', 'h5', 'h4', 'h3', 'h2', 'h1'].map((k) => [k, 0.01]),
+  ...['z12', 'z11', 'z10', 'z9', 'z8', 'z7', 'z6', 'z5', 'z4', 'z3', 'z2', 'z1'].map((k) => [k, 0.03]),
+  ['azure', 0.5], ['cloud', 1], ['ochu', 2], ['redhare', 3.5], ['tigerm', 5], ['white', 7], ['warhorse', 9], ['deer', 11], ['camel', 12.5], ['horse', 13.5], ['mule', 15.5], ['donkey', 19.08],
 ];
 export const GACHA_MOUNT_PITY = 300;  // v363 300번 안에 신수(십이지·극)가 안 나오면 300번째 신수(전엔 100)
-export const GACHA_MOUNT_TEN = 9;     // 10연차엔 적토마(순위 9) 이상 하나
+export const GACHA_MOUNT_TEN = 7;     // 10연차엔 백운마(순위 7) 이상 하나 — v465 적토마(9) → 백운마(7)
 export const GACHA_DUP_SHARD = 300;   // 가진 신수가 또 나오면 길들이기 +1 · 다 길들였으면 조각
 // v368 오늘의 무료 소환(하루 한 번 · 종류마다) · 이번 주 픽업(확률 두 배 — 월요일 0시 한국 시간마다 바뀐다)
 export const gachaDay = (now = Date.now()) => new Date(now + 9 * 3600e3).toISOString().slice(0, 10);
