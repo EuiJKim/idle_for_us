@@ -1,7 +1,10 @@
 // 증표 각인 효과 (v163) — 등급을 올릴 때 넣은 두목 증표가 그 두목의 성질을 장비에 남긴다.
 //
-//   테마   두목마다 성질 하나(죽림채 채주=독, 빙백궁 외당주=빙결, 혈교 장로=혈…). 효과 종류는 테마, 크기는
-//          (그 두목 레벨) × (장비 등급)에 비례한다 — 같은 테마라도 센 두목 증표일수록 크다.
+//   테마   두목마다 본래 성질 하나(죽림채 채주=독, 빙백궁 외당주=빙결, 혈교 장로=혈…). 효과 종류는 테마, 크기는
+//          (그 두목 세기) × (장비 등급)에 비례한다 — 같은 테마라도 센 두목 증표일수록 크다.
+//   v462   기운(테마)은 고르고, 세기는 두목에게서 — 어느 두목 증표로든 원하는 기운을 새긴다(본래 기운이면 +NATIVE_K).
+//          세기 = 레벨 곡선(가파르게) × 두목 종류(지역 · 왕 · 고수 · 맹주). 더 센 두목 증표가 생기면 「이어 새기기」로
+//          단·품질·대성·스킬 변화는 그대로 두목만 바꾼다 — 낮은 사냥터로 돌아가 옛 두목 증표를 모을 까닭이 없다.
 //   고유   레벨 100 넘는 특별 두목(십이지왕 · 100 넘는 고수 · 맹주 · 천마)은 테마에 더해 제 독문무공의
 //          고유 효과가 붙는다. 유니크 < 전설 < 신화로 갈수록 발동률·위력이 커진다.
 //
@@ -32,7 +35,18 @@ export const THEMES = {
 };
 export const STEPK = [1, 1.3, 1.6];                          // (옛) 첫째·둘째·셋째 칸 무게 — v307부터는 IMP_RAR_W
 export const IMP_RAR_W = [0, 1.5, 2.5, 4];                  // v307 장비 등급에 따른 그 한 칸의 무게 (레어 0 · 유니크 · 전설 · 신화)
-export const lvScale = (lv) => 0.4 + lv / 100;               // 레벨 9 ×0.49 · 99 ×1.39 · 175 ×2.15
+// v462 두목 세기 — 레벨을 가파르게((lv/99)^IMP_LV_P · Lv99에서 옛 값과 같다) × 두목 종류(CLASS_K)
+//   옛: 0.4 + lv/100 (Lv9 ×0.49 · Lv99 ×1.39 · Lv175 ×2.15 — 낮은 두목 각인도 꽤 세서 바꿀 까닭이 적었다)
+//   새: Lv9 ×0.08 · Lv45 ×0.54 · Lv99 ×1.39 · Lv150 ×2.29 · Lv175 ×2.75 — 그리고 왕 ×1.2 · 고수 ×1.3 · 맹주·천마 ×1.5
+export const IMP_LV_P = 1.2;
+export const lvScale = (lv) => 1.39 * Math.pow(Math.max(1, lv) / 99, IMP_LV_P);
+export const CLASS_K = { zone: 1, king: 1.2, master: 1.3, lord: 1.5 };
+export const CLASS_NAME = { zone: '지역 두목', king: '십이지왕', master: '고수', lord: '맹주·천마' };
+export function bossClassOf(z) { const zn = ZONES_W[z]; if (!zn) return 'zone'; if (zn.master) return zn.lord ? 'lord' : 'master'; return zn.king ? 'king' : 'zone'; }
+// 증표 하나의 세기 — 그 두목 레벨 곡선 × 종류
+export const markStr = (key) => (isMarkKey(key) ? lvScale(markLv(key)) * CLASS_K[bossClassOf(+String(key).slice(1))] : 0);
+export const NATIVE_K = 1.1;    // 그 두목 본래의 기운으로 새기면 +10%
+export const IMP_UP_MIN = 1.1;  // 이어 새기기는 지금보다 10% 넘게 센 두목일 때만(조금 센 증표로 자꾸 갈아 끼우지 않게)
 // 더해도 넘지 않는 끝 (여섯 칸을 한 테마로 맞춰도 게임이 깨지지 않게)
 // v297: 칸 단(段)·공명이 생겨 끝을 조금 올렸다 (전엔 거의 닿지 않던 끝이라 키워도 의미가 없었다)
 export const IMP_CAP = { venom: 0.8, burn: 0.8, chill: 0.4, shock: 0.4 };
@@ -148,7 +162,7 @@ export function rollSkillChange(rng) {
   for (; g < SK_GRADE.length - 1; g++) { r -= SK_GRADE[g].w; if (r <= 0) break; }
   return { s, sk: k, g };
 }
-export const skillValue = (k, g, lv) => SKILL_BASE[k] * SK_GRADE[g].mult * lvScale(lv);
+export const skillValue = (k, g, lv, cls = 'zone') => SKILL_BASE[k] * SK_GRADE[g].mult * lvScale(lv) * (CLASS_K[cls] || 1);   // v462 두목 종류도
 // v270: 상한을 실제로 건다(전엔 '한 번 더'에만 걸려 피해가 +770%까지 쌓였다) · 끝도 낮췄다
 export const SKILL_CAP = { range: 0.5, dmg: 0.8, cd: 0.25, echo: 0.4 };
 export const SKILL_NAME = ['1차', '2차', '3차'];
@@ -167,6 +181,8 @@ const THEME_BY_BOSS = {
   '금강불괴 혜공대사': 'holy', '마불 저라반': 'holy', '불패권마 단우강': 'fist', '동창 당두': 'dark', '무당 태극검수': 'sword', '죽림채 채주': 'poison',   // v460 두목 이름을 레벨에 맞게 바꾸며 테마는 그대로(옛 동창 제독 · 태극검선 · 독수마군)
   '사도맹 이인자 야율한': 'ice', '음왕 신류': 'ghost', '목왕 백천경': 'holy', '거력귀창 거력귀창': 'saber',
 };
+// v462 칸의 기운 — 고른 것(e.t) · 없으면 새긴 두목의 본래 기운
+export const entryTheme = (e) => (e?.t && THEMES[e.t] ? e.t : themeOfZone(+String(e?.k || '').slice(1)));
 export function themeOfZone(z) {
   const zn = ZONES_W[z];
   if (!zn) return 'sword';
@@ -267,20 +283,21 @@ export function imprintOf(entry, rar = 1) {
   const z = +String(e.k).slice(1);
   const zn = ZONES_W[z];
   if (!zn) return null;
-  const t = themeOfZone(z);
+  const t = entryTheme(e), native = t === themeOfZone(z), cls = bossClassOf(z);
   const w = IMP_RAR_W[Math.max(1, Math.min(3, rar | 0))];
   const lv = markLv(e.k);
   const d = danOf(e);
   const q = qualOf(e);
-  const k = w * lvScale(lv) * danFx(d);
+  const str = lvScale(lv) * CLASS_K[cls];   // v462 두목 세기(레벨 곡선 × 종류)
+  const k = w * str * danFx(d) * (native ? NATIVE_K : 1);
   const fx = {};
   for (const [kk, v] of THEMES[t].fx) fx[kk] = v * k * q.fx * gsMult(e, 'fx');   // v298 천품 · 대성
   const sps = specialsOfZone(z);
   const g = Math.max(0, Math.min(SK_GRADE.length - 1, e.g | 0));
   const core = IMP_CORE * k * q.core * gsMult(e, 'core');
   // wp: 고유 효과 위력에 쓰는 칸 무게(단이 깊을수록 무겁다 · 대성이면 더) · w는 칸 자리 무게 그대로
-  return { key: e.k, boss: zn.boss?.name || '', theme: t, fx, core, skill: { s: e.s | 0, k: e.sk, g, v: skillValue(e.sk, g, lv) * danSk(d) * gsMult(e, 'sk') },
-    special: sps ? sps[Math.max(0, Math.min(2, e.sp | 0))] : null, specials: sps, w, wp: w * danSp(d) * gsMult(e, 'sp'), d, lv, q, gs: gsOf(e) };
+  return { key: e.k, boss: zn.boss?.name || '', theme: t, native, cls, str, fx, core, skill: { s: e.s | 0, k: e.sk, g, v: skillValue(e.sk, g, lv, cls) * danSk(d) * gsMult(e, 'sk') },
+    special: sps ? sps[Math.max(0, Math.min(2, e.sp | 0))] : null, specials: sps, w, wp: w * danSp(d) * gsMult(e, 'sp') * Math.sqrt(str / lvScale(99)), d, lv, q, gs: gsOf(e) };   // v462 고유 효과도 센 두목일수록(제곱근)
 }
 export const imprintsOf = (it) => { const im = Array.isArray(it?.imps) && it.imps[0] ? imprintOf(it.imps[0], it.rar || 1) : null; return im ? [im] : []; };
 

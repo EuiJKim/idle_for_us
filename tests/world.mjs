@@ -1532,7 +1532,7 @@ console.log('\n=== 각인 v167: 스킬 변화 랜덤 · 고유 셋 중 고르기
   ok(seen.s.size === 3 && seen.k.size === 4 && seen.g.every((x) => x > 0) && seen.g[0] > seen.g[3] * 8, '스킬 변화: 1~3차 · 범위/피해/숨/한 번 더 · 레어~신화가 모두 랜덤으로 나온다', seen.g.join('/'));
   // 사용자 예: 죽림채 채주 레어 < 마적 두령 혈사도 레어 < 죽림채 채주 레전드
   const v = (z, g) => IM.skillValue('range', g, W.markLv(W.bossKey(z)));
-  ok(v(1, 0) < v(2, 0) && v(2, 0) < v(1, 2), '죽림채 채주 레어 2차 범위 < 마적 두령 혈사도 레어 < 죽림채 채주 레전드', `${(v(1, 0) * 100).toFixed(1)}% < ${(v(2, 0) * 100).toFixed(1)}% < ${(v(1, 2) * 100).toFixed(1)}%`);
+  ok(v(1, 0) < v(1, 2) && v(1, 2) < v(2, 2) && v(7, 0) > v(1, 3), '효과 등급이 높을수록 크고 · 센 두목일수록 크다(v462 — 마교 좌호법 레어가 죽림채 채주 신화보다 크다)', `${(v(1, 0) * 100).toFixed(1)}% < ${(v(2, 0) * 100).toFixed(1)}% < ${(v(1, 2) * 100).toFixed(1)}%`);
   const all = IM.ALL_SPECIALS();
   ok(all.length === 93 && new Set(all.map((x) => x.kind)).size === 16, '레벨 100 넘는 두목 31(+화무기·마귀 v238) × 고유 효과 셋 = 93 · 꼴 열여섯');
   // 고르기 · 다시 새기기
@@ -3488,7 +3488,7 @@ console.log('\n=== v384 간단 각인 — 기운 하나 · Lv 하나 · 올리�
   ok(w.imps[0].k === 'b10' && IMx.imprintsOf(w)[0].fx.bossDmg > 0, '마기 기운이 새겨졌다(두목 피해)');
   // 기운 바꾸기 — 다시 새기기로(단은 절반)
   g.s.mats.b6 = 500; g.setImpTheme('weapon', 'sword');
-  ok(g.impNext(w).kind === 'theme' && g.impUp(w.uid)?.ok && IMx.themeOfZone(+w.imps[0].k.slice(1)) === 'sword' && IMx.danOf(w.imps[0]) === 5, '기운을 바꾸면 「올리기」가 바꿔 준다(단 절반)');
+  ok(g.impNext(w).kind === 'theme' && g.impUp(w.uid)?.ok && IMx.entryTheme(w.imps[0]) === 'sword' && w.imps[0].k === 'b10' && IMx.danOf(w.imps[0]) === 5, '기운을 바꾸면 「올리기」가 바꿔 준다(단 절반 · v462 두목은 가장 센 그대로)');
   // 모두 올리기 · 최대로
   for (const x of W.SLOTS) if (g.s.equip[x.id] && g.canImprintItem(g.s.equip[x.id])) { g.s.equip[x.id].rar = 0; g.s.equip[x.id].imps = []; g.setImpTheme(x.id, 'dark'); }
   const r = g.impAll();
@@ -3949,18 +3949,19 @@ console.log('\n=== v404 5차 직업 순서(끝까지 올린 최종 상태 기준
 }
 console.log('\n=== v403 자동 각인이 막히면 알린다 ===');
 {
+  const IMx2 = await import('../js/world/wimprint.js');
   const g = fresh('sword');
   while (g.s.level < 80) g.addExp(W.expToNext(g.s.level));
   g.s.gold = 1e15; g.rng = () => 0;
   for (const k of Object.keys(g.s.mats)) if (W.isMarkKey(k)) g.s.mats[k] = 0;
   for (const x of W.SLOTS) if (g.s.equip[x.id] && g.canImprintItem(g.s.equip[x.id])) { g.s.equip[x.id].rar = 0; g.s.equip[x.id].imps = []; g.setImpTheme(x.id, 'dark'); }
   g.s.mats.b6 = 200;   // 검기 증표만 잔뜩 — 마기는 없다
-  const st = g.impStuck();
-  ok(st && st.theme === 'sword' && st.slots.length >= 1, '막힌 칸 — 가진 증표 많은 기운을 짚는다', st && `${st.theme} ${st.slots.length}칸`);
-  const evs = []; g.on?.('impStuck', (e) => evs.push(e)); const em = g.emit.bind(g); g.emit = (k, e) => { if (k === 'impStuck') evs.push(e); return em(k, e); };
+  ok(g.impStuck() === null, 'v462 막힌 칸이 없다 — 증표는 기운과 상관없이 쓴다');
+  const evs = []; const em = g.emit.bind(g); g.emit = (k, e) => { if (k === 'impStuck') evs.push(e); return em(k, e); };
   g.s.autoInf = true; g.s.autoInfCfg = { mode: 'theme', marks: {}, slots: {} };
   g.autoGear(); g.autoGear();
-  ok(evs.length >= 1 && evs.length <= 2 && evs[0].theme === 'sword', '자동 각인 — 막히면 한 번 알린다(같은 막힘은 되풀이 안 함)', `${evs.length}`);
+  const dk = W.SLOTS.map((x) => g.s.equip[x.id]).filter((it) => it && IMx2.imprintsOf(it)[0]);
+  ok(!evs.length && dk.length >= 1 && dk.every((it) => IMx2.imprintsOf(it)[0].theme === 'dark' && it.imps[0].k === 'b6'), 'v462 자동 각인 — 검기 두목 증표로 마기 기운을 새긴다(막히지 않는다)', `${dk.length}칸 ${dk.map((it) => IMx2.imprintsOf(it)[0].theme).join(',')}`);
   ok(/case 'impStuck'/.test(read('js/wmain.js')) && /showTab\('bag', 'imp'\)/.test(read('js/wmain.js')), '알림을 누르면 가방 › 각인');
 }
 
@@ -4862,6 +4863,61 @@ console.log('\n=== v461 영약 개편 — 품계 다섯 · 약재 · 뽑기 · �
   const mg = migrateWorld(sv, 0);
   ok(mg.danEat.jaso === 2 && !('nope' in mg.danEat) && !('seolsam' in mg.danEat) && mg.danGacha.n === 12 && mg.danGacha.pity === DN.GACHA_PITY && mg.danGacha.free === '2026-11-09', '세이브 — 먹은 영약 · 뽑기 기록을 거른다');
   ok(/DN\.DAN_HOWS/.test(read('js/wui.js')) && /'얻는 곳'/.test(read('js/wui.js')) && /case 'danGacha'/.test(read('js/wmain.js')) && /case 'danMat'/.test(read('js/battle.js')), '화면 — 주머니 · 뽑기 · 연단로 · 얻는 곳 네 칸 · 뽑기 알림 · 약재 글자');
+}
+
+console.log('\n=== v462 두목 각인 — 세기는 두목 레벨·종류 · 기운은 자유 · 이어 새기기 ===');
+{
+  const IM = await import('../js/world/wimprint.js');
+  // 세기 — 레벨을 가파르게 · 종류(왕·고수·맹주)
+  ok(Math.abs(IM.lvScale(99) - 1.39) < 1e-9 && IM.lvScale(9) < 0.1 && IM.lvScale(150) > 2.2 && IM.lvScale(175) / IM.lvScale(45) > 5, '레벨 곡선 — Lv99는 옛 값 그대로 · Lv9는 ×0.1 아래 · Lv175는 Lv45의 다섯 배 넘게', [9, 45, 99, 150, 175].map((l) => IM.lvScale(l).toFixed(2)).join(' · '));
+  const zk = (pred) => Object.keys(W.ZONES_W).map(Number).find((z) => W.ZONES_W[z] && pred(W.ZONES_W[z]));
+  const kingZ = zk((zn) => zn.king), lordZ = zk((zn) => zn.master && zn.lord), mastZ = zk((zn) => zn.master && !zn.lord);
+  ok(IM.bossClassOf(kingZ) === 'king' && IM.bossClassOf(lordZ) === 'lord' && IM.bossClassOf(mastZ) === 'master' && IM.bossClassOf(1) === 'zone', '두목 종류 — 지역 · 십이지왕 · 고수 · 맹주·천마');
+  ok(Math.abs(IM.markStr(W.bossKey(kingZ)) - IM.lvScale(W.markLv(W.bossKey(kingZ))) * IM.CLASS_K.king) < 1e-9 && IM.CLASS_K.lord > IM.CLASS_K.master && IM.CLASS_K.master > IM.CLASS_K.king && IM.CLASS_K.king > 1, '세기 = 레벨 곡선 × 종류(왕 < 고수 < 맹주)');
+  // 기운은 자유 — 어느 두목 증표로든 · 본래 기운이면 +10%
+  const g = fresh('sword'); while (g.s.level < 99) g.addExp(W.expToNext(g.s.level)); g.s.gold = 1e15; g.rng = () => 0.5;
+  for (const k of Object.keys(g.s.mats)) if (W.isMarkKey(k)) g.s.mats[k] = 0;
+  const w = g.s.equip.weapon; w.rar = 0; w.imps = []; w.pity = 0; g._stats = null;
+  const kA = W.bossKey(14);   // 동해 · 수류(Lv~92)
+  g.s.mats[kA] = 500; g.setImpTheme('weapon', 'thunder');
+  for (let i = 0; i < 6 && g.impNext(w).can; i++) g.impUp(w.uid);
+  const im = IM.imprintsOf(w)[0];
+  ok(im && im.theme === 'thunder' && im.fx.shock > 0 && !im.native && w.imps[0].k === kA, '뇌전 기운을 동해 두목 증표로 새긴다(뇌전 두목 없이)', im && `${im.theme} · ${im.boss}`);
+  const nat = IM.imprintOf({ k: kA, s: 0, sk: 'dmg', g: 0 }, 3), oth = IM.imprintOf({ k: kA, t: 'thunder', s: 0, sk: 'dmg', g: 0 }, 3);
+  ok(Math.abs(nat.core / oth.core - IM.NATIVE_K) < 1e-9 && nat.native && !oth.native, `본래 기운이면 +${Math.round((IM.NATIVE_K - 1) * 100)}%`);
+  // 이어 새기기 — 더 센 두목 증표로 · 단·품질·대성·스킬 변화·기운 그대로
+  const u = fresh('sword'); while (u.s.level < 140) u.addExp(W.expToNext(u.s.level)); u.s.gold = 1e15; u.rng = () => 0.5;
+  for (const k of Object.keys(u.s.mats)) if (W.isMarkKey(k)) u.s.mats[k] = 0;
+  const a = u.s.equip.armor; a.rar = 3; a.imps = [{ k: W.bossKey(3), t: 'fire', s: 1, sk: 'echo', g: 2, sp: 0, d: 7, q: 1, gs: ['core', 'fx'] }]; u._stats = null;
+  const old = IM.imprintsOf(a)[0], kB = W.bossKey(15);   // 천외천 두목(Lv~98)
+  u.s.mats[kB] = 100; u.setImpTheme('armor', 'fire');
+  const nx = u.impNext(a);
+  ok(nx.kind === 'up' && nx.key === kB && nx.can, '더 센 두목 증표가 있으면 「올리기」가 이어 새기기를 먼저', `${nx.kind} ${nx.label}`);
+  u.impUp(a.uid); const e2 = a.imps[0], neu = IM.imprintsOf(a)[0];
+  ok(e2.k === kB && e2.d === 7 && e2.q === 1 && e2.gs.join() === 'core,fx' && e2.s === 1 && e2.sk === 'echo' && e2.g === 2 && neu.theme === 'fire', '이어 새기면 두목만 바뀐다 — 기운 · 단 · 품질 · 대성 · 스킬 변화 그대로', JSON.stringify(e2));
+  ok(neu.core > old.core * 5 && u.s.mats[kB] === 100 - u.impMarksN(a), '세기가 크게 오른다(천산 설원 → 천외천) · 증표는 칸 등급 값만', `각인력 ${(old.core * 100).toFixed(1)}% → ${(neu.core * 100).toFixed(1)}%`);
+  // 조금만 센 두목으로는 갈아 끼우지 않는다
+  const kC = W.bossKey(15); u.s.mats[W.bossKey(13)] = 100;
+  ok(!u.upImpInfo(a, W.bossKey(13)) && u.impNext(a).kind !== 'up', `지금보다 ${Math.round((IM.IMP_UP_MIN - 1) * 100)}% 넘게 센 두목이 아니면 이어 새기지 않는다`);
+  // 단 · 다시 굴리기 — 새긴 두목이 없으면 더 센 두목 증표로(낮은 사냥터로 돌아가지 않게)
+  const dd = fresh('sword'); while (dd.s.level < 120) dd.addExp(W.expToNext(dd.s.level)); dd.s.gold = 1e15;
+  for (const k of Object.keys(dd.s.mats)) if (W.isMarkKey(k)) dd.s.mats[k] = 0;
+  const h = dd.s.equip.hat; h.rar = 3; h.imps = [{ k: W.bossKey(2), s: 0, sk: 'dmg', g: 0, sp: 0, d: 2 }]; dd._stats = null;
+  dd.s.mats[W.bossKey(1)] = 99; dd.s.mats[W.bossKey(8)] = 99; dd.s.mats[W.bossKey(15)] = 99;
+  const di = dd.danInfo(h, 0), rc = dd.reimpCost(h, 0);
+  ok(di.key === W.bossKey(8) && rc.key === W.bossKey(8), '단·다시 굴리기 — 새긴 두목 증표가 없으면 그보다 센 두목 가운데 가장 약한 것(약한 두목은 안 쓴다)', `${di.key} · ${rc.key}`);
+  ok(dd.danUp(h.uid, 0) && IM.danOf(h.imps[0]) === 3 && h.imps[0].k === W.bossKey(2) && dd.s.mats[W.bossKey(8)] === 99 - di.n, '장강 두목 증표로 혈사도 각인의 단을 올린다');
+  // 기운을 바꿀 때 약한 두목으로 내려가지 않는다
+  const r2 = fresh('sword'); while (r2.s.level < 120) r2.addExp(W.expToNext(r2.s.level)); r2.s.gold = 1e15;
+  for (const k of Object.keys(r2.s.mats)) if (W.isMarkKey(k)) r2.s.mats[k] = 0;
+  const b = r2.s.equip.weapon; b.rar = 3; b.imps = [{ k: W.bossKey(15), s: 0, sk: 'dmg', g: 0, sp: 0, d: 4 }]; r2._stats = null;
+  r2.s.mats[W.bossKey(1)] = 99; r2.setImpTheme('weapon', 'ice');
+  ok(r2.impNext(b).kind === 'theme' && !r2.impNext(b).can, '기운을 바꿀 증표가 약한 두목 것뿐이면 바꾸지 않는다(세기가 떨어지니까)');
+  // 옛 세이브 — 기운 없이 적힌 칸은 본래 기운 그대로 · 같은 Lv99 두목 값은 옛 값의 ×1.1(본래 기운)
+  const k99 = Object.keys(W.ZONES_W).map((z) => W.bossKey(+z)).find((k) => W.isMarkKey(k) && W.markLv(k) === 98) || W.bossKey(15);
+  const o = IM.imprintOf({ k: k99, s: 0, sk: 'dmg', g: 0 }, 1);
+  ok(o.native && o.theme === IM.themeOfZone(+k99.slice(1)), '옛 칸(기운 없이) — 본래 기운 그대로');
+  ok(/세기 ×/.test(read('js/wui.js')) && /이어 새기기/.test(read('js/wui.js')) && /bestMark\(1\)/.test(read('js/wui.js')), '화면 — 쓸 증표 · 세기 · 이어 새기기 안내');
 }
 
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);

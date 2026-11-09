@@ -2738,7 +2738,7 @@ export class WorldGame {
     const f = this.infuseInfo(it, key);
     return !!f && f.have >= f.n && this.s.gold >= f.gold;
   }
-  infuse(uid, key, spIdx = 0) {
+  infuse(uid, key, spIdx = 0, theme = null) {
     const it = this.findItem(uid);
     if (!this.canInfuse(it, key)) return null;
     const f = this.infuseInfo(it, key);
@@ -2762,7 +2762,7 @@ export class WorldGame {
       // v307 각인은 한 칸 — 비어 있으면 그 두목을 새기고, 이미 있으면 그대로(등급이 올라 칸이 세진다)
       // v167: 스킬 변화는 굴리고(몇 차 · 무엇 · 효과 등급), 고유 효과는 고른 것 · v298 극품·천품
       it.imps = (it.imps || []).slice(0, 1);
-      if (!IM.normEntry(it.imps[0])) it.imps[0] = { k: key, ...IM.rollSkillChange(this.rng), sp: Math.max(0, Math.min(2, spIdx | 0)), q: IM.rollQual(this.rng) };
+      if (!IM.normEntry(it.imps[0])) it.imps[0] = { k: key, ...this.impThemeField(key, theme), ...IM.rollSkillChange(this.rng), sp: Math.max(0, Math.min(2, spIdx | 0)), q: IM.rollQual(this.rng) };   // v462 고른 기운
       else kept = true;
       this._stats = null; this._mods = null; this._pass = null;
     } else it.pity = (it.pity || 0) + W.INFUSE_BASE[f.to] * W.INFUSE_PITY_K;
@@ -2783,7 +2783,7 @@ export class WorldGame {
     const f = this.fillImpInfo(it, slot, key);
     return !!f && f.have >= f.n && this.s.gold >= f.gold;
   }
-  fillImp(uid, slot, key, spIdx = 0) {
+  fillImp(uid, slot, key, spIdx = 0, theme = null) {
     const it = this.findItem(uid);
     if (!this.canFillImp(it, slot, key)) return null;
     const f = this.fillImpInfo(it, slot, key);
@@ -2792,7 +2792,7 @@ export class WorldGame {
     this.s.gold -= f.gold;
     it.imps = (it.imps || []).slice();
     while (it.imps.length <= slot) it.imps.push(null);
-    it.imps[slot] = { k: key, ...IM.rollSkillChange(this.rng), sp: Math.max(0, Math.min(2, spIdx | 0)), q: IM.rollQual(this.rng) };   // v298 극품·천품
+    it.imps[slot] = { k: key, ...this.impThemeField(key, theme), ...IM.rollSkillChange(this.rng), sp: Math.max(0, Math.min(2, spIdx | 0)), q: IM.rollQual(this.rng) };   // v298 극품·천품 · v462 고른 기운
     this._stats = null; this._mods = null; this._pass = null; this._isp = null;
     this.mark('infuse');
     this.emit('infuse', { item: it, ok: true, fill: true });
@@ -2804,7 +2804,8 @@ export class WorldGame {
   reimpCost(it, slot) {
     const e = IM.normEntry(it?.imps?.[slot]);
     if (!this.canImprintItem(it) || !e) return null;
-    return { key: e.k, n: this.impMarksN(it), gold: W.infuseGold(it.ilv, it.rar) };
+    const n = this.impMarksN(it);
+    return { key: this.markFor(e.k, n) || e.k, n, gold: W.infuseGold(it.ilv, it.rar) };   // v462 더 센 두목 증표도
   }
   canReimp(it, slot) {
     const c = this.reimpCost(it, slot);
@@ -2857,7 +2858,8 @@ export class WorldGame {
     if (!this.canImprintItem(it) || !e) return null;
     const d = IM.danOf(e);
     if (d >= IM.DAN_MAX) return { key: e.k, d, max: true };
-    return { key: e.k, d, to: d + 1, n: IM.danMarks(0, d), gold: Math.round(W.infuseGold(it.ilv, it.rar) * (0.3 + 0.15 * d)), have: this.s.mats[e.k] || 0 };
+    const n = IM.danMarks(0, d), key = this.markFor(e.k, n) || e.k;   // v462 새긴 두목이나 더 센 두목 증표로
+    return { key, d, to: d + 1, n, gold: Math.round(W.infuseGold(it.ilv, it.rar) * (0.3 + 0.15 * d)), have: this.s.mats[key] || 0 };
   }
   canDanUp(it, slot) {
     const f = this.danInfo(it, slot);
@@ -2903,6 +2905,42 @@ export class WorldGame {
     this.emit('infuse', { item: it, ok: true, dan: 1, slot, reset: true });
     return it.imps[slot];
   }
+  // ---------- v462 증표 고르기 · 이어 새기기 ----------
+  // 가진 증표 가운데 n개 넘게 있는 가장 센 두목(레벨 곡선 × 종류)
+  bestMark(n = 1) { let best = null; for (const [k, v] of Object.entries(this.s.mats)) if (W.isMarkKey(k) && v >= n && (!best || IM.markStr(k) > IM.markStr(best))) best = k; return best; }
+  // 새긴 두목(cur) 증표가 n개 있으면 그것 · 없으면 그보다 센 두목 가운데 가장 약한 것(더 센 것은 아껴 둔다)
+  markFor(cur, n = 1) {
+    if ((this.s.mats[cur] || 0) >= n) return cur;
+    const s0 = IM.markStr(cur); let best = null;
+    for (const [k, v] of Object.entries(this.s.mats)) if (W.isMarkKey(k) && v >= n && IM.markStr(k) >= s0 && (!best || IM.markStr(k) < IM.markStr(best))) best = k;
+    return best;
+  }
+  // 새 칸의 기운 — 그 두목 본래 기운이면 적지 않는다(옛 세이브와 같은 꼴)
+  impThemeField(key, theme) { return theme && theme in IM.THEMES && theme !== IM.themeOfZone(+String(key).slice(1)) ? { t: theme } : {}; }
+  // 이어 새기기 — 더 센 두목 증표로 두목만 바꾼다(기운 · 단 · 품질 · 대성 · 스킬 변화 그대로 · 고유 효과는 새 두목 것 첫째)
+  upImpInfo(it, key) {
+    const e = IM.normEntry(it?.imps?.[0]);
+    if (!this.canImprintItem(it) || !e || !W.isMarkKey(key) || key === e.k || !(IM.markStr(key) >= IM.markStr(e.k) * IM.IMP_UP_MIN)) return null;
+    return { n: this.impMarksN(it), gold: W.infuseGold(it.ilv, it.rar), have: this.s.mats[key] || 0, from: e.k, to: key };
+  }
+  canUpImp(it, key) { const f = this.upImpInfo(it, key); return !!f && f.have >= f.n && this.s.gold >= f.gold; }
+  upImp(uid, key) {
+    const it = this.findItem(uid);
+    if (!this.canUpImp(it, key)) return null;
+    const f = this.upImpInfo(it, key), e = IM.normEntry(it.imps[0]), t = IM.entryTheme(e);
+    const res0 = this.resonance();
+    this.s.mats[key] -= f.n;
+    this.s.gold -= f.gold;
+    it.imps = it.imps.slice();
+    const ne = { ...e, k: key, sp: IM.specialsOfZone(+key.slice(1)) ? Math.max(0, Math.min(2, e.sp | 0)) : 0 };
+    delete ne.t; delete ne.cand; Object.assign(ne, this.impThemeField(key, t));
+    it.imps[0] = ne;
+    this._stats = null; this._mods = null; this._isp = null;
+    this.mark('infuse');
+    this.emit('infuse', { item: it, ok: true, up: true, from: f.from, to: key });
+    this.resNote(res0);
+    return ne;
+  }
   // ---------- v297 다시 새기기 — 이미 새겨진 칸을 다른 두목으로 (스킬 변화는 그대로 · 단은 절반 이어받는다) ----------
   rewriteInfo(it, slot, key) {
     const e = IM.normEntry(it?.imps?.[slot]);
@@ -2910,11 +2948,27 @@ export class WorldGame {
     const d = IM.danOf(e);
     return { n: this.impMarksN(it), gold: W.infuseGold(it.ilv, it.rar), have: this.s.mats[key] || 0, d, keep: Math.max(1, Math.floor(d / 2)) };
   }
+  // v462 같은 두목으로 기운만 바꾸기 — 그 두목 증표(칸 등급 값) + 은자 · 단은 절반(다른 두목으로 바꾸는 것과 같다)
+  retheme(uid, theme) {
+    const it = this.findItem(uid), e = IM.normEntry(it?.imps?.[0]), n = this.impMarksN(it), gold = W.infuseGold(it?.ilv, it?.rar);
+    if (!e || !(theme in IM.THEMES) || IM.entryTheme(e) === theme || (this.s.mats[e.k] || 0) < n || this.s.gold < gold) return null;
+    const res0 = this.resonance();
+    this.s.mats[e.k] -= n; this.s.gold -= gold;
+    it.imps = it.imps.slice();
+    const ne = { ...e, d: Math.max(1, Math.floor(IM.danOf(e) / 2)), q: IM.rollQual(this.rng) };
+    delete ne.t; delete ne.gs; delete ne.cand; Object.assign(ne, this.impThemeField(e.k, theme));
+    it.imps[0] = ne;
+    this._stats = null; this._mods = null; this._isp = null;
+    this.mark('infuse');
+    this.emit('infuse', { item: it, ok: true, rewrite: true, slot: 0 });
+    this.resNote(res0);
+    return ne;
+  }
   canRewrite(it, slot, key) {
     const f = this.rewriteInfo(it, slot, key);
     return !!f && f.have >= f.n && this.s.gold >= f.gold;
   }
-  rewriteImp(uid, slot, key, spIdx = 0) {
+  rewriteImp(uid, slot, key, spIdx = 0, theme = null) {
     const it = this.findItem(uid);
     if (!this.canRewrite(it, slot, key)) return null;
     const f = this.rewriteInfo(it, slot, key);
@@ -2923,7 +2977,7 @@ export class WorldGame {
     this.s.mats[key] -= f.n;
     this.s.gold -= f.gold;
     it.imps = it.imps.slice();
-    it.imps[slot] = { k: key, s: e.s | 0, sk: e.sk, g: e.g | 0, sp: Math.max(0, Math.min(2, spIdx | 0)), d: f.keep, q: IM.rollQual(this.rng) };   // v298 품질은 새로 굴린다 · 대성은 사라진다
+    it.imps[slot] = { k: key, ...this.impThemeField(key, theme), s: e.s | 0, sk: e.sk, g: e.g | 0, sp: Math.max(0, Math.min(2, spIdx | 0)), d: f.keep, q: IM.rollQual(this.rng) };   // v298 품질은 새로 굴린다 · 대성은 사라진다 · v462 기운
     this._stats = null; this._mods = null; this._isp = null;
     this.mark('infuse');
     this.emit('infuse', { item: it, ok: true, rewrite: true, slot });
@@ -2989,6 +3043,7 @@ export class WorldGame {
   }
   // v403 고른 기운의 증표가 바닥나 막힌 칸 — 가진 증표가 가장 많은 기운(30개 이상)과 함께. 각인 칸 짚기(v402)·자동 각인 알림이 같이 쓴다
   impStuck() {
+    return null;   // v462 증표는 기운과 상관없이 쓴다 — 고른 기운의 증표가 없어 막힐 일이 없다
     const tot = {};
     for (const [k, v] of Object.entries(this.s.mats)) if (W.isMarkKey(k) && v > 0) { const t = IM.themeOfZone(+k.slice(1)); tot[t] = (tot[t] || 0) + v; }
     const best = Object.entries(tot).sort((a, b) => b[1] - a[1])[0];
@@ -2996,7 +3051,7 @@ export class WorldGame {
     const slots = W.SLOTS.map((x) => this.s.equip[x.id]).filter((it) => it && this.canImprintItem(it)).filter((it) => { const nx = this.impNext(it); return !nx.can && nx.kind !== 'max' && this.impThemeOf(it) !== best[0]; });
     return slots.length ? { theme: best[0], have: best[1], slots } : null;
   }
-  impThemeOf(it) { const e = IM.normEntry(it?.imps?.[0]); return this.s.impTheme?.[it?.slot] || (e ? IM.themeOfZone(+e.k.slice(1)) : null); }
+  impThemeOf(it) { const e = IM.normEntry(it?.imps?.[0]); return this.s.impTheme?.[it?.slot] || (e ? IM.entryTheme(e) : null); }
   setImpTheme(slot, theme) {
     if (!W.SLOTS.some((x) => x.id === slot)) return false;
     if (theme && !(theme in IM.THEMES)) return false;
@@ -3004,34 +3059,41 @@ export class WorldGame {
     if (theme) this.s.impTheme[slot] = theme; else delete this.s.impTheme[slot];
     return true;
   }
-  // 그 기운의 증표 가운데 n개 넘게 가진 가장 센 두목 증표(없으면 null)
+  // 그 기운의 증표 가운데 n개 넘게 가진 가장 센 두목 증표(없으면 null) — v462 기운과 상관없이 가장 센 두목(bestMark)
   themeMark(theme, n = 1) {
+    return this.bestMark(n);
     let best = null;
     for (const [k, v] of Object.entries(this.s.mats)) if (W.isMarkKey(k) && v >= n && IM.themeOfZone(+k.slice(1)) === theme && (!best || W.markLv(k) > W.markLv(best))) best = k;
     return best;
   }
-  // 다음에 할 일 — { kind: fill · rare · theme · dan · max · none, key, n, gold, chance, label, can }
+  // 다음에 할 일 — { kind: fill · rare · theme · up · dan · max · none, key, n, gold, chance, label, can, theme }
+  //   v462 증표는 기운과 상관없이 가장 센 두목 것 · 더 센 두목 증표가 생기면 「이어 새기기」(단 그대로)가 단 올리기보다 먼저
   impNext(it) {
     if (!this.canImprintItem(it)) return { kind: 'none', label: '각인할 수 없는 장비', can: false };
     const theme = this.impThemeOf(it);
     const e = IM.normEntry(it.imps?.[0]);
     const rar = it.rar || 0;
     const top = W.RARITY.length - 1;
-    const pick = (n) => (theme ? this.themeMark(theme, n) : null) || (e && (this.s.mats[e.k] || 0) >= n ? e.k : null);
+    const pick = (n) => this.bestMark(n);
     const tn = (k) => (k ? W.ZONES_W[+k.slice(1)]?.boss?.name || k : '');
     if (!theme && !e) return { kind: 'none', label: '기운을 먼저 골라요', can: false, need: 'theme' };
     // 레어 — 유니크로 올리며 새긴다
     if (rar === 0) { const n = W.INFUSE_MARKS[1]; const key = pick(n); const f = key ? this.infuseInfo(it, key) : null;
-      return { kind: 'rare', key, n, gold: f?.gold ?? W.infuseGold(it.ilv, 1), chance: f?.chance, label: `유니크로 새기기${key ? ` (${tn(key)})` : ''}`, can: !!key && this.canInfuse(it, key) }; }
+      return { kind: 'rare', key, n, theme, gold: f?.gold ?? W.infuseGold(it.ilv, 1), chance: f?.chance, label: `유니크로 새기기${key ? ` (${tn(key)})` : ''}`, can: !!key && this.canInfuse(it, key) }; }
     // 칸이 비었다 — 새기기
-    if (!e) { const n = this.impMarksN(it); const key = pick(n); return { kind: 'fill', key, n, gold: W.infuseGold(it.ilv, rar), label: `새기기${key ? ` (${tn(key)})` : ''}`, can: !!key && this.canFillImp(it, 0, key) }; }
-    // 고른 기운과 다르다 — 바꾸기(단은 절반 이어받는다)
-    if (theme && IM.themeOfZone(+e.k.slice(1)) !== theme) { const n = this.impMarksN(it); const key = this.themeMark(theme, n); return { kind: 'theme', key, n, gold: W.infuseGold(it.ilv, rar), label: `${IM.THEMES[theme].name} 기운으로 바꾸기`, can: !!key && this.canRewrite(it, 0, key) }; }
+    if (!e) { const n = this.impMarksN(it); const key = pick(n); return { kind: 'fill', key, n, theme, gold: W.infuseGold(it.ilv, rar), label: `새기기${key ? ` (${tn(key)})` : ''}`, can: !!key && this.canFillImp(it, 0, key) }; }
+    // 고른 기운과 다르다 — 바꾸기(단은 절반 이어받는다) · 증표는 가장 센 두목 것
+    if (theme && IM.entryTheme(e) !== theme) { const n = this.impMarksN(it), b0 = pick(n); const key = b0 && IM.markStr(b0) >= IM.markStr(e.k) ? b0 : null;   // 더 약한 두목으로 내려가지 않는다
+      const ok = !!key && (key === e.k ? this.s.gold >= W.infuseGold(it.ilv, rar) : this.canRewrite(it, 0, key));
+      return { kind: 'theme', key, n, theme, gold: W.infuseGold(it.ilv, rar), label: `${IM.THEMES[theme].name} 기운으로 바꾸기`, can: ok }; }
+    // 더 센 두목 증표가 있다 — 이어 새기기(단·품질·대성·스킬 변화 그대로)
+    { const n = this.impMarksN(it), key = pick(n);
+      if (key && this.upImpInfo(it, key)) return { kind: 'up', key, n, theme, gold: W.infuseGold(it.ilv, rar), label: `더 센 두목으로 (${tn(key)})`, can: this.canUpImp(it, key) }; }
     // 단 — 유니크 3단 · 전설 6단 · 신화 10단까지
     const cap = [0, 3, 6, IM.DAN_MAX][Math.min(3, rar)];
     const d = IM.danOf(e);
-    if (d < cap) { const f = this.danInfo(it, 0); return { kind: 'dan', key: e.k, n: f.n, gold: f.gold, label: `${d + 1}단으로`, can: this.canDanUp(it, 0) }; }
-    if (rar < top) { const n = W.INFUSE_MARKS[rar + 1]; const key = (this.s.mats[e.k] || 0) >= n ? e.k : pick(n); const f = key ? this.infuseInfo(it, key) : null;
+    if (d < cap) { const f = this.danInfo(it, 0); return { kind: 'dan', key: f.key, n: f.n, gold: f.gold, label: `${d + 1}단으로`, can: this.canDanUp(it, 0) }; }
+    if (rar < top) { const n = W.INFUSE_MARKS[rar + 1]; const key = pick(n) || ((this.s.mats[e.k] || 0) >= n ? e.k : null); const f = key ? this.infuseInfo(it, key) : null;
       return { kind: 'rare', key, n, gold: f?.gold ?? W.infuseGold(it.ilv, rar + 1), chance: f?.chance, label: `${W.RARITY[rar + 1].name}(으)로`, can: !!key && this.canInfuse(it, key) }; }
     return { kind: 'max', label: '각인 끝(Lv 12)', can: false };
   }
@@ -3041,9 +3103,10 @@ export class WorldGame {
     const nx = this.impNext(it);
     if (!nx.can) return null;
     let ok = false;
-    if (nx.kind === 'rare') ok = !!this.infuse(uid, nx.key, 0);
-    else if (nx.kind === 'fill') ok = !!this.fillImp(uid, 0, nx.key, 0);
-    else if (nx.kind === 'theme') ok = !!this.rewriteImp(uid, 0, nx.key, 0);
+    if (nx.kind === 'rare') ok = !!this.infuse(uid, nx.key, 0, nx.theme);
+    else if (nx.kind === 'fill') ok = !!this.fillImp(uid, 0, nx.key, 0, nx.theme);
+    else if (nx.kind === 'theme') ok = !!(nx.key === IM.normEntry(it.imps?.[0])?.k ? this.retheme(uid, nx.theme) : this.rewriteImp(uid, 0, nx.key, 0, nx.theme));
+    else if (nx.kind === 'up') ok = !!this.upImp(uid, nx.key);
     else if (nx.kind === 'dan') ok = !!this.danUp(uid, 0);
     return { ok, kind: nx.kind };
   }
@@ -4232,7 +4295,7 @@ export class WorldGame {
     const skill = (cfg.prefSk || []).includes(e.sk) && (!(cfg.prefSkSlot || []).length || cfg.prefSkSlot.includes(e.s));
     const sp = IM.specialsOfZone(z)?.[e.sp | 0];
     const special = !!sp && (cfg.prefSp || []).includes(sp.kind);
-    const fx = (IM.THEMES[IM.themeOfZone(z)]?.fx || []).map(([f]) => f).filter((f) => (cfg.prefFx || []).includes(f));
+    const fx = (IM.THEMES[IM.entryTheme(e)]?.fx || []).map(([f]) => f).filter((f) => (cfg.prefFx || []).includes(f));   // v462 칸의 기운
     return skill || special || fx.length ? { skill, special, fx } : null;
   }
   hasPrefs() { const c = this.s.autoInfCfg || {}; return !!((c.prefFx || []).length || (c.prefSp || []).length || (c.prefSk || []).length); }

@@ -1555,14 +1555,15 @@ function bagTab(app) {
         const im = IM.imprintsOf(it)[0];
         el.replaceChildren(
           h('h3', {}, `${W.SLOTS.find((x) => x.id === it.slot)?.name} — 기운 고르기`),
-          h('p', { class: 'muted', style: 'font-size:12px;margin:0 0 8px' }, '고른 기운의 두목 증표 가운데 가진 것으로 가장 센 것을 저절로 써요. 이미 새겨진 기운과 다르면 「올리기」가 바꿔 줘요(단은 절반 이어받아요).'),
+          h('p', { class: 'muted', style: 'font-size:12px;margin:0 0 8px' }, `기운은 어느 두목 증표로든 새길 수 있어요 — 세기는 두목 레벨과 종류로(왕 ×${IM.CLASS_K.king} · 고수 ×${IM.CLASS_K.master} · 맹주·천마 ×${IM.CLASS_K.lord}) · 그 두목 본래 기운이면 +${Math.round((IM.NATIVE_K - 1) * 100)}%. 가진 증표 가운데 가장 센 두목 것을 저절로 써요. 더 센 두목 증표가 생기면 「올리기」가 이어 새겨요(단 그대로) · 기운을 바꾸면 단은 절반.`),
+          (() => { const mk = game.bestMark(1); return mk ? h('p', { class: 'imp-now' }, `쓸 증표: ${markName(mk)} · Lv.${W.markLv(mk)} ${IM.CLASS_NAME[IM.bossClassOf(+mk.slice(1))]} · 세기 ×${IM.markStr(mk).toFixed(2)} · ${fmt(game.s.mats[mk])}개`) : null; })(),
           h('div', { class: 'imp-themes' }, ...THEME_ORDER.map((t) => {
             const th = IM.THEMES[t];
             const mk = game.themeMark(t, 1);
             return h('button', { class: `imp-theme${cur === t ? ' on' : ''}`, style: `--tc:${th.col}`, onclick: () => { game.setImpTheme(it.slot, t); app.save(); draw(); sigs.imp = ''; impView(); } },
-              h('b', {}, th.name), h('small', {}, themeStats(t)), h('em', {}, mk ? `증표 ${fmt(game.s.mats[mk])} · ${markName(mk)}` : '증표 없음'));
+              h('b', {}, th.name), h('small', {}, themeStats(t)), h('em', {}, mk && IM.themeOfZone(+mk.slice(1)) === t ? `본래 기운 +${Math.round((IM.NATIVE_K - 1) * 100)}%` : cur === t ? '지금' : ''));
           })),
-          im ? h('p', { class: 'imp-now' }, `지금: ${IM.THEMES[im.theme].name} · ${im.boss} ${IM.DAN_NAME(im.d)} · `, Object.entries(im.fx).map(([k, v]) => IM.FX_TEXT[k]?.(v) || k).join(' · ')) : '',
+          im ? h('p', { class: 'imp-now' }, `지금: ${IM.THEMES[im.theme].name} · ${im.boss}(Lv.${im.lv} ${IM.CLASS_NAME[im.cls]} · 세기 ×${im.str.toFixed(2)}${im.native ? ' · 본래 기운' : ''}) ${IM.DAN_NAME(im.d)} · `, Object.entries(im.fx).map(([k, v]) => IM.FX_TEXT[k]?.(v) || k).join(' · ')) : '',
           h('div', { class: 'btn-row' },
             h('button', { class: 'btn primary', disabled: nx.can ? null : true, onclick: () => { const r = game.impUp(it.uid); if (r) { toast(r.ok ? `각인 — ${nx.label} 성공!` : `${nx.label} 실패 — 다음 확률이 올라요`); app.save(); draw(); sigs.imp = ''; impView(); } } }, `⬆ ${nx.label}`),
             h('button', { class: 'btn', disabled: nx.can ? null : true, onclick: () => { const r = game.impMax(it.uid); toast(`각인 ${r.n}번 — 성공 ${r.ok}${r.fail ? ` · 실패 ${r.fail}` : ''} · Lv ${game.impLv(it)}`); app.save(); draw(); sigs.imp = ''; impView(); } }, '⏫ 최대로')),
@@ -1956,9 +1957,10 @@ export function openImprintGuide(app, back = null) {
       const st = GUIDE_STATS.find((x) => x[0] === guidePick) || GUIDE_STATS[0];
       const themes = Object.entries(IM.THEMES).filter(([, t]) => t.fx.some(([k]) => k === st[0])).map(([k]) => k);
       // 그 기운의 두목들 — 갈 수 있는(레벨 +10 안) 것부터 센 순, 그 다음 멀리 있는 것
-      const rows = zones.filter((z) => themes.includes(IM.themeOfZone(z))).map((z) => {
+      // v462 기운은 어느 두목으로든 — 갈 수 있는 가장 센 두목부터(본래 기운이면 +10%)
+      const rows = zones.map((z) => {
         const key = W.bossKey(z);
-        const im = IM.imprintOf({ k: key, s: 0, sk: 'dmg', g: 0, sp: 0 }, 3);
+        const im = IM.imprintOf({ k: key, t: themes[0], s: 0, sk: 'dmg', g: 0, sp: 0 }, 3);
         const lv = W.markLv(key);
         return { z, key, lv, v: im?.fx?.[st[0]] || 0, im, have: s.mats[key] || 0, near: lv <= s.level + 10, map: bossMap(z) };
       }).sort((a, b) => (b.near - a.near) || (a.near ? b.v - a.v : a.lv - b.lv)).slice(0, 8);
@@ -1973,19 +1975,19 @@ export function openImprintGuide(app, back = null) {
         h('h2', {}, '📖 각인 안내서'),
         h('div', { class: 'ig-steps' },
           h('div', {}, h('b', {}, '①'), ' 두목을 잡으면 그 두목의 ', h('b', {}, '증표'), '가 나와요'),
-          h('div', {}, h('b', {}, '②'), ' 장비 등급을 올릴 때(유니크·전설·신화) 넣은 증표 두목의 ', h('b', {}, '기운'), '이 장비에 새겨져요 — 기운마다 능력치 둘 + 스킬 변화'),
-          h('div', {}, h('b', {}, '③'), ' 같은 두목 증표를 더 넣으면 ', h('b', {}, '단'), '이 깊어지고(최대 10단), 장비 여덟에 같은 기운을 모으면 ', h('b', {}, '공명'))),
+          h('div', {}, h('b', {}, '②'), ' 칸마다 고른 ', h('b', {}, '기운'), '이 새겨져요(어느 두목 증표로든) — 세기는 ', h('b', {}, '두목 레벨과 종류'), '(왕·고수·맹주는 더) · 본래 기운이면 +10%'),
+          h('div', {}, h('b', {}, '③'), ' 더 센 두목 증표가 생기면 ', h('b', {}, '이어 새기기'), '(단 그대로) · 증표를 더 넣으면 ', h('b', {}, '단'), '이 깊어지고(최대 10단) · 장비 여덟에 같은 기운을 모으면 ', h('b', {}, '공명'))),
         h('h3', { class: 'ig-h' }, '원하는 능력을 골라요'),
         h('div', { class: 'ig-stats' }, ...GUIDE_STATS.map(([k, t, ic]) => h('button', { class: `chip${k === guidePick ? ' on' : ''}`, onclick: () => { guidePick = k; draw(); } }, `${ic} ${t}`))),
         h('p', { class: 'muted ig-note' }, `〈${st[1]}〉을(를) 주는 기운: `, ...themes.map((t) => h('b', { style: `color:${IM.THEMES[t].col}` }, `${IM.THEMES[t].name} `)),
-          ` — 같은 기운의 두목은 모두 같은 능력치를 줘요(센 두목일수록 크게). 아래는 지금 레벨(${s.level})에 맞는 순이에요.`),
+          ` — 어느 두목 증표로든 새길 수 있어요. 센 두목(레벨·종류)일수록 크고 본래 기운이면 +10%. 아래는 지금 레벨(${s.level})에 갈 수 있는 센 순이에요.`),
         h('div', { class: 'ig-list' }, ...rows.map((r) => {
           const zn = W.ZONES_W[r.z];
           const th = IM.THEMES[IM.themeOfZone(r.z)];
-          return h('div', { class: `ig-row${r.near ? '' : ' far'}`, style: `--tc:${th.col}` },
+          return h('div', { class: `ig-row${r.near ? '' : ' far'}`, style: `--tc:${th.col}` },   // v462 두목 본래 기운 빛깔
             h('div', { class: 'ig-ico' }, matIcon(r.key, 30)),
             h('div', { class: 'ig-info' },
-              h('b', {}, zn.boss.name, h('small', {}, ` · ${th.name} · Lv.${r.lv}${r.map ? ` · ${r.map.name}` : ''}`)),
+              h('b', {}, zn.boss.name, h('small', {}, ` · ${IM.CLASS_NAME[IM.bossClassOf(r.z)]} · 세기 ×${IM.markStr(r.key).toFixed(2)} · 본래 ${th.name} · Lv.${r.lv}${r.map ? ` · ${r.map.name}` : ''}`)),
               h('div', { class: 'ig-fx' }, `신화로 새기면 `, h('em', {}, Object.entries(r.im.fx).map(([k, v]) => IM.FX_TEXT[k]?.(v) || k).join(' · ')), IM.specialsOfZone(r.z) ? ` + 고유 효과 ${IM.specialsOfZone(r.z).map((x) => x.name).join('·')}` : ''),
               h('small', { class: 'muted' }, `증표 ${fmt(r.have)}개 가짐${r.near ? '' : ' · 아직 센 곳(레벨을 더 올려요)'}`)),
             r.map ? h('button', { class: 'btn ig-go', onclick: () => { closeModal(); openMatWhere(app, r.key, () => openImprintGuide(app, back)); } }, '어디서?') : null);
