@@ -576,8 +576,12 @@ export class WorldGame {
   // 그리는 쪽은 s.stage로 지역 그림을 고른다 — 사냥터 k = 옛 지역 k의 첫 관문
   get map() { return this.inst ? this.inst.map : W.mapOf(this.s.map); }
   // 칸 지도 크기 — 그리는 쪽이 이걸 보고 사냥터 한 장이 화면에 들어오게 카메라를 물린다
-  get mapW() { return W.MAP_W; }
-  get mapH() { return W.MAP_H; }
+  // v455 방 — 맵마다 크기(방 9×11 · 마을·던전은 옛 11×25). W.COLS/ROWS를 직접 읽지 않는다
+  get cols() { return this.map?.cols || W.COLS; }
+  get rows() { return this.map?.rows || W.ROWS; }
+  get mapW() { return this.cols * W.TILE; }
+  get mapH() { return this.rows * W.TILE; }
+  get roomView() { const m = this.map; return !!m && !m.town && !this.inst && (m.cols || W.COLS) <= W.ROOM_COLS; }   // 방 전체가 한눈에(카메라)
   get tile() { return W.TILE; }
 
   // ---------- 수치 ----------
@@ -860,8 +864,10 @@ export class WorldGame {
     for (const m of W.MAPS) if (!m.town && !m.bossRoom && !m.king && m.lv[0] <= this.s.level && m.lv[0] >= W.mapOf(best).lv[0]) best = m.id;
     return best;
   }
-  enterMap(id, quiet = false) {
+  enterMap(id, quiet = false, from = null) {
     if (!this.canEnter(id)) return false;
+    // v455 나가는 방을 기억한다(몹이 몇 남았나·언제) — 금방 돌아오면 그만큼만 있다
+    if (this.map && !this.map.town && !this.inst && this.s.map !== id) (this._roomMem ||= {})[this.s.map] = { t: this.clock, alive: this.mons.filter((x) => x.alive && !x.npc && !x.isBoss).length };
     this.clones = [];
     this.fields = [];                    // v255: 장판(화골산·독룡출동)을 두고 가면 다음 사냥터 같은 자리에서 계속 터졌다
     this.dmgLog = []; this.dmgAcc = 0;   // v255: 던전·다른 사냥터의 피해 기록이 두목 체력 셈에 섞이지 않게
@@ -882,7 +888,8 @@ export class WorldGame {
     this.s.stage = m.art * 10 + 1;
     this.s.rank = W.lookTierOf(this.s.level);
     // 사냥터는 아래쪽 가운데에서 들어선다. 마을은 한가운데(둘레에 사부·상인·대장장이·주모)
-    this.placeHero(Math.floor(W.COLS / 2), m.town ? Math.floor(W.ROWS * 0.55) : W.ROWS - 3);
+    if (from && m.doors?.[from] != null) { const t = W.doorTile(m, from); this.placeHero(t.c + (from === 'w' ? 1 : from === 'e' ? -1 : 0), t.r + (from === 'n' ? 1 : from === 's' ? -1 : 0)); }   // v455 문으로 들어오면 그 문 안쪽에
+    else this.placeHero(Math.floor(this.cols / 2), m.town ? Math.floor(this.rows * 0.55) : this.rows - 3);
     this.mons = [];
     this.mon = null;
     this.respawns = [];
@@ -891,9 +898,29 @@ export class WorldGame {
     this.bossT = 1.5;                // 두목 구역: 들어서고 잠깐 뒤 두목이 나선다
     this.bossSeen = false;
     this.freezeT = 0;
-    if (!m.town) for (let i = 0; i < (m.bossRoom ? W.BOSS_ROOM_MOBS : W.MOBS_ALIVE); i++) this.spawnMob(false);
+    if (!m.town) {
+      const want = m.mobsAlive ?? (m.bossRoom ? W.BOSS_ROOM_MOBS : W.MOBS_ALIVE);
+      const mem = this._roomMem?.[id]; const rs = m.respawnSec ?? W.RESPAWN_SEC;
+      const n = mem && this.clock - mem.t < 90 ? Math.min(want, mem.alive + Math.floor((this.clock - mem.t) / rs)) : want;   // v455 금방 떠난 방은 그만큼만
+      for (let i = 0; i < n; i++) this.spawnMob(false);
+      for (let i = n; i < want; i++) this.respawns.push({ t: rs * (0.4 + this.rng() * 0.8) });
+    }
     else this.placeNpcs();
     if (!quiet) this.emit('mapEnter', { id, name: m.name, town: m.town });
+    return true;
+  }
+  // v455 문을 지나 옆 방으로. 심처 문은 승급(DEEP_LV) 뒤 또는 그 지역 두목을 잡은 뒤에 열린다
+  deepOpen(m) {
+    if (this.s.level >= W.DEEP_LV) return true;
+    const bk = this.s.bossKills || {};
+    return Object.entries(bk).some(([k, n]) => n > 0 && (+k === m.zone || W.mapOf(+k)?.zone === m.zone));
+  }
+  passDoor(d) {
+    const m = this.map, to = m.doors?.[d];
+    if (!to || this.inst) return false;
+    if (m.doorLock?.[d] === 'deep' && !this.deepOpen(m)) { this.emit('doorLocked', { d, to, name: W.mapOf(to).name }); return false; }
+    if (!this.enterMap(to, true, W.OPP_DOOR[d])) return false;
+    this.emit('roomMove', { from: m.id, to, d, name: W.mapOf(to).name });
     return true;
   }
   // 마을로. 쓰러져서 온 것(auto)이면 쉬었다가 사냥터로 돌아가고, 스스로 온 것이면 머문다.
@@ -906,8 +933,8 @@ export class WorldGame {
   // 마을 사람 — 싸우지 않는다. 그리기만 한다(누르면 마을 창). 무인 둘레 칸에 선다.
   placeNpcs() {
     for (const n of W.NPCS) {
-      const c = clamp(this.hc + Math.round(n.dx / W.TILE), 0, W.COLS - 1);
-      const r = clamp(this.hr + Math.round(n.dy / W.TILE), 0, W.ROWS - 1);
+      const c = clamp(this.hc + Math.round(n.dx / W.TILE), 0, this.cols - 1);
+      const r = clamp(this.hr + Math.round(n.dy / W.TILE), 0, this.rows - 1);
       this.mons.push({ id: uidSeq++, npc: true, c, r, x: W.tileCenter(c), y: W.tileCenter(r), hp: 1, maxHp: 1, alive: true,
         isBoss: false, stun: 0, tab: n.tab || 'town', def: { name: n.name, look: n.look } });
     }
@@ -940,9 +967,10 @@ export class WorldGame {
   // 무인이 차지한 칸 (옮겨 가는 중이면 가는 칸)
   heroTile() { return this.hmove || { c: this.hc, r: this.hr }; }
   mobTile(m) { return m.move || { c: m.c, r: m.r }; }
-  inMap(c, r) { return c >= 0 && r >= 0 && c < W.COLS && r < W.ROWS; }
+  inMap(c, r) { return c >= 0 && r >= 0 && c < this.cols && r < this.rows; }
   occupied(c, r, self = null) {
-    if (this.blocked?.[r * W.COLS + c]) return true;     // 나무·바위·물 (v127)
+    if (this.blocked?.[r * this.cols + c]) return true;     // 나무·바위·물 (v127)
+    if (self !== 'hero' && W.doorAt(this.map, c, r)) return true;   // v455 문 칸은 무인만 지나간다
     if (self !== 'hero') {
       if (this.hc === c && this.hr === r) return true;
       if (this.hmove && this.hmove.c === c && this.hmove.r === r) return true;
@@ -976,7 +1004,7 @@ export class WorldGame {
   // (전에는 목표 쪽으로 한 칸씩만 봤다 — 몹이 벽처럼 서 있으면 앞에서 멈춰 버렸다)
   findStep(c, r, goal, self) {
     if (goal(c, r)) return 'here';
-    const C = W.COLS, R = W.ROWS;
+    const C = this.cols, R = this.rows;
     const prev = new Int16Array(C * R).fill(-1);
     const start = r * C + c;
     prev[start] = start;
@@ -1026,8 +1054,8 @@ export class WorldGame {
     let c = -1, r = -1;
     const h = this.heroTile();
     for (let t = 0; t < 40; t++) {
-      const cc = boss ? Math.floor(W.COLS / 2) + Math.floor((this.rng() - 0.5) * 4) : Math.floor(this.rng() * W.COLS);
-      const rr = boss ? Math.floor(W.ROWS * 0.3) + Math.floor((this.rng() - 0.5) * 4) : Math.floor(this.rng() * W.ROWS);
+      const cc = boss ? Math.floor(this.cols / 2) + Math.floor((this.rng() - 0.5) * 4) : Math.floor(this.rng() * this.cols);
+      const rr = boss ? Math.floor(this.rows * 0.3) + Math.floor((this.rng() - 0.5) * 4) : Math.floor(this.rng() * this.rows);
       if (!this.inMap(cc, rr) || this.occupied(cc, rr)) continue;
       c = cc; r = rr;
       if (Math.abs(cc - h.c) + Math.abs(rr - h.r) > 4) break;
@@ -1121,7 +1149,7 @@ export class WorldGame {
     if (this.map.town) { this.tickTown(dt); return; }
     // 죽은 몹 치우고 다시 낸다
     this.mons = this.mons.filter((m) => m.alive);
-    const thin = !this.inst && !this.map.bossRoom && this.mons.length < W.MOBS_ALIVE / 2 ? 2 : 1;
+    const thin = !this.inst && !this.map.bossRoom && this.mons.length < (this.map.mobsAlive ?? W.MOBS_ALIVE) / 2 ? 2 : 1;
     for (const r of this.respawns) r.t -= dt * thin;
     const due = this.respawns.filter((r) => r.t <= 0).length;
     this.respawns = this.respawns.filter((r) => r.t > 0);
@@ -1330,7 +1358,11 @@ export class WorldGame {
     // 칸 사이를 옮겨 가는 중이면 마저 간다 — 칸 가운데에 서야 다음 일을 정한다
     if (this.hmove) {
       this.walking = true;
-      if (this.slide(this, 'heroX', 'heroY', this.hmove, W.HERO_SPEED * (st.moveSpeed || 1) * (1 + (this.buffv.move || 0)) * Math.max(0.3, 1 + (this.envNow().move || 0)), dt)) { this.hc = this.hmove.c; this.hr = this.hmove.r; this.hmove = null; }
+      if (this.slide(this, 'heroX', 'heroY', this.hmove, W.HERO_SPEED * (st.moveSpeed || 1) * (1 + (this.buffv.move || 0)) * Math.max(0.3, 1 + (this.envNow().move || 0)), dt)) {
+        this.hc = this.hmove.c; this.hr = this.hmove.r; this.hmove = null;
+        // v455 문 칸에 닿았다(직접 찍었거나 방 돌기) → 옆 방으로
+        if (this._wantDoor && this._wantDoor.c === this.hc && this._wantDoor.r === this.hr) { const d = this._wantDoor.d; this._wantDoor = null; this.manual = null; if (this.passDoor(d)) return; }
+      }
       else { this.moveSkills(st); return; }
     }
     this.holdApproach = false;
@@ -1472,8 +1504,10 @@ export class WorldGame {
   // 손으로 들판을 찍으면 그 칸으로 간다 (들판 좌표)
   moveTo(x, y) {
     if (this.map.town) return;
-    this.manual = { c: clamp(Math.floor(x / W.TILE), 0, W.COLS - 1), r: clamp(Math.floor(y / W.TILE), 0, W.ROWS - 1) };
+    this.manual = { c: clamp(Math.floor(x / W.TILE), 0, this.cols - 1), r: clamp(Math.floor(y / W.TILE), 0, this.rows - 1) };
     this.mon = null;
+    const d = W.doorAt(this.map, this.manual.c, this.manual.r);   // v455 문 칸을 찍으면 거기 닿았을 때 옆 방으로
+    this._wantDoor = d ? { ...this.manual, d } : null;
   }
 
   // ---------- 싸움 ----------
@@ -1777,7 +1811,7 @@ export class WorldGame {
     if (m.isBoss && this.rng() < W.mountBossRate(this.map.mz)) {
       this.gainMount(W.rollMount(this.rng, this.map.mz, true), m);
     }
-    if (!m.isBoss) this.respawns.push({ t: W.RESPAWN_SEC });
+    if (!m.isBoss) this.respawns.push({ t: this.map.respawnSec ?? W.RESPAWN_SEC });   // v455 방은 8초
   }
 
   // v343 함께 잡은 두목을 못 친 문파원 몫 — 경험치·은자·현철만 k배(장비·탈것·조각·증표는 없음)
@@ -4082,7 +4116,7 @@ export class WorldGame {
     const h = this.heroTile();
     let c = -1, r = -1;
     for (let t = 0; t < 60; t++) {
-      const cc = Math.floor(this.rng() * W.COLS), rr = Math.floor(this.rng() * W.ROWS);
+      const cc = Math.floor(this.rng() * this.cols), rr = Math.floor(this.rng() * this.rows);
       if (this.occupied(cc, rr) || Math.abs(cc - h.c) + Math.abs(rr - h.r) < 5) continue;
       c = cc; r = rr; break;
     }
@@ -4616,7 +4650,7 @@ export class WorldGame {
     this.fields = [];
     this.sceneKey = o.map.scene || null;
     this.s.stage = o.map.art * 10 + 1;
-    this.placeHero(Math.floor(W.COLS / 2), Math.floor(W.ROWS * 0.62));
+    this.placeHero(Math.floor(this.cols / 2), Math.floor(this.rows * 0.62));
     this.mons = [];
     this.mon = null;
     this.respawns = [];
@@ -4643,7 +4677,7 @@ export class WorldGame {
         else if (b && I.kind === 'pvp') {   // v451 상대 무인 — 나를 기준으로 잰 체력·평타(wpvp.js)
           const st = this.stats(), o = I.opp;
           b.def = { ...b.def, opts: o.lk?.opts || null, job: o.j };
-          { const c = Math.max(0, Math.min(W.COLS - 1, this.hc + (this.rng() < 0.5 ? -2 : 2))), r = Math.max(0, this.hr - 5);   // 화면 안 — 내 앞 다섯 칸
+          { const c = Math.max(0, Math.min(this.cols - 1, this.hc + (this.rng() < 0.5 ? -2 : 2))), r = Math.max(0, this.hr - 5);   // 화면 안 — 내 앞 다섯 칸
             if (!this.occupied(c, r, b)) { b.c = b.hc = c; b.r = b.hr = r; b.x = W.tileCenter(c); b.y = W.tileCenter(r); b.move = null; } }
           b.lv = o.lv; b.maxHp = b.hp = PV.dpsEst(st, this.s.jobTier, this.s.job, this.s.level) * PV.PVP_HP_SEC * I.rHp; b.armor = 0; b.grade = 3; b.pvp = o.j; b.aggro = true;
           b.atk = st.hp * PV.PVP_BASIC * I.rDmg + st.def; I.boss = b; I.oppMax = b.maxHp; }
@@ -5354,9 +5388,9 @@ for (const [fn, key, always] of [
     return r;
   };
   const enter = WorldGame.prototype.enterMap;
-  // v255: quiet을 넘긴다 — 전엔 빠져서 불러오자마자·던전이 끝날 때마다 지도 진입 배너가 떴다
-  WorldGame.prototype.enterMap = function (id, quiet = false) {
-    const r = enter.call(this, id, quiet);
+  // v255: quiet을 넘긴다 — 전엔 빠져서 불러오자마자·던전이 끝날 때마다 지도 진입 배너가 떴다 · v455 들어온 문(from)도 그대로 넘긴다
+  WorldGame.prototype.enterMap = function (id, quiet = false, ...rest) {
+    const r = enter.call(this, id, quiet, ...rest);
     if (r && !this.map.town) {
       if (this.map.king) this.mark('kingRoom');
       if (W.ZONES_W[this.map.zone]?.pair) this.mark('alt');

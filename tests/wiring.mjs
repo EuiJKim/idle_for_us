@@ -417,5 +417,12 @@ console.log('=== 11. 큰 수를 보통 셈으로 다루는 곳 ===');
   ok(weps.every((k) => wf.includes(k)), '무기 그림마다 WEAPON_FIT', weps.filter((k) => !wf.includes(k)).join(','));
   for (const k of [...heads, ...weps, 'head-hat']) ok(fs.existsSync(path.join(R, 'art/hero', `${k}.png`)), `art/hero/${k}.png 있음`);
 }
+// v455 방 — 칸 지도 크기는 맵마다(방 9×11 · 마을·던전 11×25). 엔진은 W.COLS/W.ROWS/W.MAP_W/W.MAP_H를 직접 읽지 않고 this.cols/rows로
+{
+  const src = read('js/world/wgame.js').split('\n');
+  const bad = [];
+  src.forEach((ln, i) => { if (/\bW\.(COLS|ROWS|MAP_W|MAP_H)\b/.test(ln) && !/\|\| W\.(COLS|ROWS)\b/.test(ln) && !/^\s*\/\//.test(ln)) bad.push(i + 1); });
+  ok(bad.length === 0, '엔진은 칸 지도 크기를 맵에서 읽는다(W.COLS·ROWS 직접 읽기 없음)', bad.length ? `wgame.js:${bad.join(',')}` : '');
+}
 console.log(`\n${fail === 0 ? '짝이 전부 맞는다' : `짝이 안 맞는 것 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);

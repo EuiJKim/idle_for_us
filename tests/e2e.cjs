@@ -91,9 +91,9 @@ async function tab(page, name) {
   await sleep(300);
   assert(await G(p, () => window.__game.s.map) === 11, '지도에서 죽림 1구역으로');
   await p.waitForFunction(() => window.__game.s.kills > 0, null, { timeout: 20000 });
-  const s1 = await G(p, () => ({ kills: window.__game.s.kills, gold: window.__game.s.gold, mons: window.__game.mons.length }));
+  const s1 = await G(p, () => ({ kills: window.__game.s.kills, gold: window.__game.s.gold, mons: window.__game.mons.length, want: window.__game.map.mobsAlive }));
   assert(s1.kills > 0 && s1.gold > 0, `자동 사냥: 처치 ${s1.kills}, 은자 ${s1.gold}`);
-  assert(s1.mons >= 15, `몹이 깔려 있다 (${s1.mons})`);
+  assert(s1.mons >= s1.want - 2, `몹이 깔려 있다 (${s1.mons} · 방 ${s1.want})`);   // v455 방(9×11)은 10마리
   await shot(p, '02-hunt.png');
 
   console.log('# 들판을 눌러 움직이기');

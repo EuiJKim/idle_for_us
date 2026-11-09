@@ -724,10 +724,11 @@ export class BattleView {
   }
   // 게임이 칸 지도(mapW·mapH)를 주면 그 지도가 들판 자리(위 padTop · 아래 padBottom을 뺀 곳)에 꼭 맞게
   get overview() { return this.fieldMode && !!this.game?.mapW; }
+  get roomView() { return this.fieldMode && !!this.game?.roomView; }   // v455 방(9×11) — 통째로 화면에
   fitZoom(game) {
     // v287 지도가 화면을 **꽉 채우는** 가장 작은 배율 — 전체 화면·긴 폰에서 화면이 지도보다 커서 지도 밖 어둠이 보였다.
     //   가로: 화면 폭 ≤ 지도 폭 · 세로: 캔버스 맨 위(머리 몫 MAP_HEAD 포함)부터 아래 단추 줄까지 ≤ 지도 높이
-    const cover = Math.max(this.W / game.mapW, (this.H - (this.padBottom ?? 130)) / (game.mapH * this.squash + MAP_HEAD));
+    const cover = (this.roomView ? Math.min : Math.max)(this.W / game.mapW, (this.H - (this.padBottom ?? 130)) / (game.mapH * this.squash + MAP_HEAD));   // v455 방은 다 들어오게(min) · 들판은 꽉 차게(max)
     // 카메라 단계 (v115): 0 전체(지도가 화면에 꽉) · 1 보통(가로 일곱 칸 남짓) · 2 가까이(가로 다섯 칸) — 모두 무인을 따라간다
     const lv = this.camOverride ?? this.camLevel ?? 1;   // v378 탄막 판은 멀리(설정)
     if (lv <= 0) return cover;
@@ -1088,6 +1089,10 @@ export class BattleView {
       // 사냥터에 들어섰다 (v201) — 먹빛에서 밝아진다(0.45초). 툭 바뀌던 화면이 넘어가는 맛.
       case 'mapEnter':
         this.fadeIn = 0.45;
+        break;
+      // v455 문을 지나 옆 방으로 — 짧게 어두워졌다 밝아진다
+      case 'roomMove':
+        this.fadeIn = 0.4;
         break;
       // 장비가 떨어졌다 (v196) — 떨어진 자리에 등급 빛깔의 빛이 솟고 고리가 퍼진다 · 등급 이름이 뜬다. 신화는 띠까지.
       case 'drop': {

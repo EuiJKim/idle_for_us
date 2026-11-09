@@ -528,7 +528,7 @@ for (let z = 1; z <= NORMAL_ZONES; z++) {
 export const regionOfZone = (z) => REGIONS.find((r) => r && (r.main === z || r.pair === z || r.king === z || r.masters.includes(z))) || null;
 export const regionOfMap = (id) => regionOfZone(mapOf(id).zone);
 // 문 — n/s/e/w에 이웃 맵 번호. lock: 'deep'(심처 문)
-for (const m of MAPS) { if (!m.town) { m.cols = ROOM_COLS; m.rows = ROOM_ROWS; m.mobsAlive = m.bossRoom ? ROOM_BOSS_MOBS : ROOM_MOBS; } else { m.cols = COLS; m.rows = ROWS; m.mobsAlive = 0; } m.doors = {}; }
+for (const m of MAPS) { if (!m.town) { m.cols = ROOM_COLS; m.rows = ROOM_ROWS; m.mobsAlive = m.bossRoom ? ROOM_BOSS_MOBS : ROOM_MOBS; m.respawnSec = ROOM_RESPAWN; } else { m.cols = COLS; m.rows = ROWS; m.mobsAlive = 0; } m.doors = {}; }
 const link = (a, da, b, db, lock = null) => { const A = MAP_BY_ID[a], B = MAP_BY_ID[b]; if (!A || !B) return; A.doors[da] = b; B.doors[db] = a; if (lock) { A.doorLock = { ...(A.doorLock || {}), [da]: lock }; } };
 const chain = (z, lastArea = BOSS_AREA) => { for (let a = 1; a < lastArea; a++) link(mapId(z, a), 'n', mapId(z, a + 1), 's'); };
 for (const r of REGIONS) {

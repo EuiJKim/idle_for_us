@@ -1911,6 +1911,12 @@ function handleEvents() {
       case 'mapEnter':
         view.showBanner(ev.name, ev.inst ? '#fde68a' : '#fef3c7', 1.3);
         break;
+      case 'roomMove':   // v455 옆 방 — 이름만 짧게
+        view.showBanner(ev.name, '#fef3c7', 0.9);
+        break;
+      case 'doorLocked':
+        toast(`${ev.name} — 승급(Lv${W.DEEP_LV}) 뒤 또는 이 지역 두목을 잡은 뒤에 열린다`);
+        break;
       case 'mastery':
         toast(`${ev.name} 숙련 ${ev.level}! 경험치·재료가 늘고 · 공격력·체력 +${(W.MAST_STAT * 100).toFixed(2)}%(영구)`);
         break;

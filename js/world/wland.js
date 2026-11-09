@@ -1,6 +1,6 @@
 // 사냥터의 땅 (v127) — 지형(막힌 칸) · 기운(지역 고유 환경) · 숙련도 · 보물 원숭이.
 // 설계: docs/바람식_개편.md 'v127'
-import { COLS, ROWS, mapOf } from './wdata.js';
+import { COLS, ROWS, mapOf, doorTile } from './wdata.js';
 
 // ---------- 기운 (지역 고유 환경) ----------
 // 지역마다 하나. 나쁜 기운은 저항(숙련도 · 갑옷·모자의 저항 옵션)만큼 약해진다. 좋은 기운은 그대로.
@@ -99,30 +99,34 @@ const THEMES = {
   20: { style: 'river', kinds: ['lava'], deco: ['rock'], n: 3 },
   21: { style: 'pillars', kinds: ['pine', 'pillar'], n: 0 },
 };
-const ENTRY = { c: Math.floor(COLS / 2), r: ROWS - 3 };
+// v455 맵마다 크기 — terrainOf가 들어갈 때 CC/RR·ENTRY·문 자리를 그 맵 것으로 둔다(방 9×11 · 마을·던전 11×25)
+let CC = COLS, RR = ROWS;
+let ENTRY = { c: Math.floor(CC / 2), r: RR - 3 };
+let DOORS = [];
 function seeded(seed) {
   let x = (seed * 2654435761) >>> 0 || 1;
   return () => { x ^= x << 13; x >>>= 0; x ^= x >>> 17; x ^= x << 5; x >>>= 0; return x / 4294967296; };
 }
-const idx = (c, r) => r * COLS + c;
+const idx = (c, r) => r * CC + c;
 // 비워 둘 칸 — 들어서는 자리 둘레, 두목 자리 둘레, 맨 아래 줄
 function reserved(c, r, boss) {
-  if (Math.abs(c - ENTRY.c) <= 1 && r >= ROWS - 5) return true;
+  if (Math.abs(c - ENTRY.c) <= 1 && r >= RR - 5) return true;
+  for (const t of DOORS) if (Math.abs(c - t.c) <= 1 && Math.abs(r - t.r) <= 1) return true;   // v455 문 둘레
   if (boss && Math.abs(c - ENTRY.c) <= 2 && r >= 2 && r <= 8) return true;
   return false;
 }
 // 빈 칸이 모두 이어져 있나 (들어서는 자리에서 넓이 우선)
 function connected(grid) {
-  const seen = new Uint8Array(COLS * ROWS);
+  const seen = new Uint8Array(CC * RR);
   const q = [idx(ENTRY.c, ENTRY.r)];
   seen[q[0]] = 1;
   let n = 0;
   for (let i = 0; i < q.length; i++) {
     n++;
-    const k = q[i], c = k % COLS, r = (k - c) / COLS;
+    const k = q[i], c = k % CC, r = (k - c) / CC;
     for (const [dc, dr] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
       const nc = c + dc, nr = r + dr;
-      if (nc < 0 || nr < 0 || nc >= COLS || nr >= ROWS) continue;
+      if (nc < 0 || nr < 0 || nc >= CC || nr >= RR) continue;
       const j = idx(nc, nr);
       if (seen[j] || grid[j]) continue;
       seen[j] = 1;
@@ -139,16 +143,17 @@ const _cache = new Map();
 export function terrainOf(id) {
   if (_cache.has(id)) return _cache.get(id);
   const m = mapOf(id);
+  CC = m.cols || COLS; RR = m.rows || ROWS; ENTRY = { c: Math.floor(CC / 2), r: RR - 3 }; DOORS = Object.keys(m.doors || {}).map((d) => doorTile(m, d));   // v455
   let out = null;
   const th = !m.town && !m.inst && THEMES[m.art];
   if (th) {
     const rng = seeded(id * 7919 + 13);
-    const grid = new Uint8Array(COLS * ROWS);
+    const grid = new Uint8Array(CC * RR);
     const boss = m.bossRoom;
     const pick = (arr) => arr[Math.floor(rng() * arr.length)];
     // 놓아 보고, 길이 끊기면 거둔다
     const put = (c, r, kind) => {
-      if (c < 0 || r < 0 || c >= COLS || r >= ROWS || reserved(c, r, boss)) return false;
+      if (c < 0 || r < 0 || c >= CC || r >= RR || reserved(c, r, boss)) return false;
       const k = idx(c, r);
       if (grid[k]) return false;
       grid[k] = KIND_ID.indexOf(kind) + 1;
@@ -160,43 +165,43 @@ export function terrainOf(id) {
     if (th.style === 'clusters') {
       const n = Math.round((th.n + area - 1) * scale);
       for (let i = 0; i < n; i++) {
-        let c = Math.floor(rng() * COLS), r = 1 + Math.floor(rng() * (ROWS - 5));
+        let c = Math.floor(rng() * CC), r = 1 + Math.floor(rng() * (RR - 5));
         const kind = pick(th.kinds);
         const size = 1 + Math.floor(rng() * 3);
         for (let j = 0; j < size; j++) { put(c, r, kind); if (rng() < 0.5) c += rng() < 0.5 ? 1 : -1; else r += rng() < 0.5 ? 1 : -1; }
       }
     } else if (th.style === 'river') {
       // 가로 물줄기 하나(두목 구역은 위쪽 짧게) — 다리 둘
-      const r0 = boss ? Math.floor(ROWS * 0.5) : Math.floor(ROWS * 0.3) + Math.floor(rng() * Math.floor(ROWS * 0.25));
+      const r0 = boss ? Math.floor(RR * 0.5) : Math.floor(RR * 0.3) + Math.floor(rng() * Math.floor(RR * 0.25));
       const gaps = new Set([Math.floor(rng() * 3), 3 + Math.floor(rng() * 3), 6 + Math.floor(rng() * 3)].slice(0, boss ? 3 : 2 + Math.floor(rng() * 2)));
-      for (let c = 0; c < COLS; c++) if (!gaps.has(c)) { put(c, r0, th.kinds[0]); if (!boss && area >= 2) put(c, r0 + 1, th.kinds[0]); }
-      for (let i = 0; i < Math.round(th.n * scale); i++) put(Math.floor(rng() * COLS), 1 + Math.floor(rng() * (ROWS - 5)), pick(th.deco));
+      for (let c = 0; c < CC; c++) if (!gaps.has(c)) { put(c, r0, th.kinds[0]); if (!boss && area >= 2) put(c, r0 + 1, th.kinds[0]); }
+      for (let i = 0; i < Math.round(th.n * scale); i++) put(Math.floor(rng() * CC), 1 + Math.floor(rng() * (RR - 5)), pick(th.deco));
     } else if (th.style === 'pillars') {
-      const rowsP = (boss ? [3, 9, 15] : [3, 7, 11, 15, 19].concat(area >= 2 ? [5, 9, 13, 17] : [])).filter((r) => r < ROWS - 5);
+      const rowsP = (boss ? [3, 9, 15] : [3, 7, 11, 15, 19].concat(area >= 2 ? [5, 9, 13, 17] : [])).filter((r) => r < RR - 5);
       for (const r of rowsP) {
         const k = pick(th.kinds);
-        const cc = area === 3 || boss ? [1, COLS - 2] : rng() < 0.5 ? [1, COLS - 2] : [2, COLS - 3];
+        const cc = area === 3 || boss ? [1, CC - 2] : rng() < 0.5 ? [1, CC - 2] : [2, CC - 3];
         for (const c of cc) put(c, r, k);
       }
     } else if (th.style === 'grid') {
-      for (let r = 2; r < ROWS - 4; r += 3) for (let c = (r % 2) ? 1 : 2; c < COLS; c += 3) if (rng() < (boss ? 0.35 : 0.7)) put(c, r, pick(th.kinds));
+      for (let r = 2; r < RR - 4; r += 3) for (let c = (r % 2) ? 1 : 2; c < CC; c += 3) if (rng() < (boss ? 0.35 : 0.7)) put(c, r, pick(th.kinds));
     } else if (th.style === 'rows') {
-      for (const r of (boss ? [3, 10, 16] : [3, 7, 11, 15, 19]).filter((r) => r < ROWS - 5)) {
+      for (const r of (boss ? [3, 10, 16] : [3, 7, 11, 15, 19]).filter((r) => r < RR - 5)) {
         const len = 2 + Math.floor(rng() * 2);
-        const c0 = rng() < 0.5 ? 0 : COLS - len;
+        const c0 = rng() < 0.5 ? 0 : CC - len;
         for (let c = c0; c < c0 + len; c++) put(c, r, th.kinds[0]);
       }
     } else if (th.style === 'walls') {
       // 벼랑이 좌우에서 번갈아 튀어나온다 — 지그재그 길
-      const rowsW = (boss ? [4, 12] : [4, 8, 12, 16, 20].slice(0, th.n + 2)).filter((r) => r < ROWS - 5);
+      const rowsW = (boss ? [4, 12] : [4, 8, 12, 16, 20].slice(0, th.n + 2)).filter((r) => r < RR - 5);
       rowsW.forEach((r, i) => {
         const len = 3 + Math.floor(rng() * 2);
         const left = (i + area) % 2 === 0;
-        for (let k = 0; k < len; k++) put(left ? k : COLS - 1 - k, r, th.kinds[0]);
+        for (let k = 0; k < len; k++) put(left ? k : CC - 1 - k, r, th.kinds[0]);
       });
     }
     const list = [];
-    for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) if (grid[idx(c, r)]) { const kind = KIND_ID[grid[idx(c, r)] - 1]; list.push({ c, r, kind, low: !!OBSTACLES[kind].low, seed: (c * 31 + r * 17 + id) % 97 / 97 }); }
+    for (let r = 0; r < RR; r++) for (let c = 0; c < CC; c++) if (grid[idx(c, r)]) { const kind = KIND_ID[grid[idx(c, r)] - 1]; list.push({ c, r, kind, low: !!OBSTACLES[kind].low, seed: (c * 31 + r * 17 + id) % 97 / 97 }); }
     out = { grid, list };
   }
   _cache.set(id, out);

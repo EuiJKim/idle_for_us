@@ -38,7 +38,7 @@ console.log('=== 시작 ===');
   ok(g.mons.every((m) => m.npc) && g.mons.length === W.NPCS.length, '마을에는 싸우지 않는 사람만 있다', g.mons.map((m) => m.def.name).join(' '));
   ok(g.stats().atk > 0 && g.stats().hp > 0 && g.heroHp === g.stats().hp, '공격력·체력이 있고 체력이 가득');
   ok(g.canEnter(W.mapId(1, 3)) && g.canEnter(W.mapId(16, 1)) && g.danger(W.mapId(16, 1)) > W.DANGER_LV && g.danger(W.mapId(1, 1)) <= 0, '레벨과 상관없이 어디든 들어가고, 센 곳은 위험으로 안다 (v146)');
-  ok(g.enterMap(11) && g.mons.length === W.MOBS_ALIVE, '사냥터에 들어가면 몹이 깔린다', `${g.mons.length}마리`);
+  ok(g.enterMap(11) && g.mons.length === g.map.mobsAlive && g.map.mobsAlive === W.ROOM_MOBS, '사냥터(방)에 들어가면 몹이 깔린다 — 방 하나에 열', `${g.mons.length}마리`);
   ok(g.mons.every((m) => m.lv >= 1 && m.lv <= 6 && Number.isFinite(m.hp) && (m.def?.look || m.def?.beast)), '몹 레벨이 사냥터 범위 안이고 생김새가 있다');
   {
     // v117: 지역마다 몹 아홉(왕은 여섯) · 구역 셋이 서로 다른 셋을 갖고 · 들짐승은 그림이 있다
@@ -66,8 +66,8 @@ console.log('\n=== 싸움 ===');
   ok(g.s.gold > 0 && (g.s.exp > 0 || g.s.level > 1), '은자와 경험치가 들어온다', `은자 ${g.s.gold} · Lv.${g.s.level}`);
   // 사냥을 멈추고 다시 날 시간을 주면 자리가 다 찬다
   g.s.autoHunt = false; g.mon = null;
-  for (let i = 0; i < 20 * (W.RESPAWN_SEC + 1); i++) { g.tick(0.05); g.events.length = 0; }
-  ok(g.mons.filter((m) => m.alive && !m.treasure).length + g.respawns.length >= W.MOBS_ALIVE - 1, '잡힌 자리는 다시 채워진다', `${g.mons.filter((m) => m.alive).length}마리 + 곧 날 것 ${g.respawns.length}`);
+  for (let i = 0; i < 20 * ((g.map.respawnSec ?? W.RESPAWN_SEC) + 1); i++) { g.tick(0.05); g.events.length = 0; }
+  ok(g.mons.filter((m) => m.alive && !m.treasure).length + g.respawns.length >= g.map.mobsAlive - 1, '잡힌 자리는 다시 채워진다', `${g.mons.filter((m) => m.alive).length}마리 + 곧 날 것 ${g.respawns.length}`);
   ok(finite(g), '숫자가 전부 유한하다');
   // 사건: 평타·피해·처치가 그리는 쪽 모양으로 나간다
   const h = fresh();
@@ -190,9 +190,10 @@ console.log('\n=== 칸 이동 (바람식) ===');
   const b = fresh();
   b.enterMap(W.mapId(1, 1));
   for (const m of b.mons) m.alive = false; b.mons = [];
-  b.placeHero(4, 15);
-  wall(b, [[2, 13], [3, 13], [4, 13], [5, 13], [6, 13], [3, 14], [5, 14]]);
-  const [tgt] = wall(b, [[4, 10]]); tgt.hp = tgt.maxHp = 30; tgt.armor = 0; tgt.npc = false;
+  b.blocked = null; b.obstacles = [];   // v455 방(9×11) — 지형 없이 벽만
+  b.placeHero(4, 8);
+  wall(b, [[2, 6], [3, 6], [4, 6], [5, 6], [6, 6], [3, 7], [5, 7]]);
+  const [tgt] = wall(b, [[4, 3]]); tgt.hp = tgt.maxHp = 30; tgt.armor = 0; tgt.npc = false;
   b.respawns = [{ t: 1e9 }];
   for (let i = 0; i < 20 * 25 && tgt.alive; i++) { b.tick(0.05); b.events.length = 0; }
   ok(!tgt.alive, '몹이 벽처럼 막아도 돌아가서 잡는다', `무인 ${b.hc},${b.hr}`);
@@ -200,10 +201,11 @@ console.log('\n=== 칸 이동 (바람식) ===');
   const c2 = fresh();
   c2.enterMap(W.mapId(1, 1));
   for (const m of c2.mons) m.alive = false; c2.mons = [];
-  c2.placeHero(4, 16);
+  c2.blocked = null; c2.obstacles = [];
+  c2.placeHero(4, 9);
   wall(c2, [[4, 3], [3, 4], [5, 4], [4, 5], [3, 2], [5, 2]]);
   const [boxed] = wall(c2, [[4, 4]]); boxed.npc = false;
-  const [far] = wall(c2, [[0, 18]]); far.hp = far.maxHp = 30; far.armor = 0; far.npc = false;
+  const [far] = wall(c2, [[1, 8]]); far.hp = far.maxHp = 30; far.armor = 0; far.npc = false;
   c2.mon = boxed;
   c2.respawns = [{ t: 1e9 }];
   for (let i = 0; i < 20 * 25 && far.alive; i++) { c2.tick(0.05); c2.events.length = 0; }
@@ -374,7 +376,7 @@ console.log('\n=== 지역·구역·두목 구역 ===');
   const b = fresh();
   b.s.level = 30; b.s.gold = 1e9;
   b.s.stats.str = 200; b._stats = null; b.heroHp = b.stats().hp;
-  ok(b.enterMap(W.mapId(1, W.BOSS_AREA)) && b.mons.length === W.BOSS_ROOM_MOBS, '두목 구역에는 정예 몇이 있다');
+  ok(b.enterMap(W.mapId(1, W.BOSS_AREA)) && b.mons.length === b.map.mobsAlive && b.map.mobsAlive === W.ROOM_BOSS_MOBS, '두목 방에는 정예 몇(여섯)이 있다');
   for (let i = 0; i < 40; i++) b.tick(0.05);
   ok(b.mons.some((m) => m.isBoss && m.alive), '들어서면 곧 두목이 나선다', b.mons.find((m) => m.isBoss)?.name);
   for (let i = 0; i < 20 * 400; i++) { b.tick(0.05); b.events.length = 0; }
@@ -996,18 +998,20 @@ console.log('\n=== 사냥터 땅 (v127) ===');
     if (!t) continue;
     withObs++;
     const free = []; for (let i = 0; i < t.grid.length; i++) if (!t.grid[i]) free.push(i);
-    const seen = new Set([ (W.ROWS - 3) * W.COLS + Math.floor(W.COLS / 2) ]);
+    const CC = m.cols || W.COLS, RR = m.rows || W.ROWS;   // v455 방마다 크기
+    const seen = new Set([ (RR - 3) * CC + Math.floor(CC / 2) ]);
     const q = [...seen];
-    while (q.length) { const k = q.pop(); const c = k % W.COLS, r = (k - c) / W.COLS; for (const [dc, dr] of [[1,0],[-1,0],[0,1],[0,-1]]) { const nc = c + dc, nr = r + dr; if (nc < 0 || nr < 0 || nc >= W.COLS || nr >= W.ROWS) continue; const j = nr * W.COLS + nc; if (t.grid[j] || seen.has(j)) continue; seen.add(j); q.push(j); } }
-    if (seen.size !== free.length || t.grid[(W.ROWS - 3) * W.COLS + Math.floor(W.COLS / 2)]) bad.push(m.id);
+    while (q.length) { const k = q.pop(); const c = k % CC, r = (k - c) / CC; for (const [dc, dr] of [[1,0],[-1,0],[0,1],[0,-1]]) { const nc = c + dc, nr = r + dr; if (nc < 0 || nr < 0 || nc >= CC || nr >= RR) continue; const j = nr * CC + nc; if (t.grid[j] || seen.has(j)) continue; seen.add(j); q.push(j); } }
+    if (seen.size !== free.length || t.grid[(RR - 3) * CC + Math.floor(CC / 2)]) bad.push(m.id);
+    for (const d of Object.keys(m.doors || {})) { const dt = W.doorTile(m, d); if (t.grid[dt.r * CC + dt.c]) bad.push(`${m.id}:문${d}`); }   // 문 칸은 비어 있다
     if (t.list.length > 30) bad.push(`${m.id}:${t.list.length}`);
   }
-  ok(withObs >= 120 && !bad.length, '사냥터마다 지형 — 빈 칸은 다 이어지고 들어서는 자리는 비어 있다', `${withObs}구역 ${bad.join(',')}`);
+  ok(withObs >= 120 && !bad.length, '사냥터마다 지형 — 빈 칸은 다 이어지고 들어서는 자리·문 칸은 비어 있다', `${withObs}구역 ${bad.slice(0, 12).join(',')}`);
   const g = fresh(); g.setJob('sword'); g.enterMap(11);
-  ok(g.obstacles.length > 0 && g.mons.every((m) => !g.blocked[m.r * W.COLS + m.c]), '몹은 막힌 칸에 나지 않는다');
+  ok(g.obstacles.length > 0 && g.mons.every((m) => !g.blocked[m.r * g.cols + m.c]), '몹은 막힌 칸에 나지 않는다');
   const ob = g.obstacles[0];
   ok(g.occupied(ob.c, ob.r, 'hero') && !g.stepTo({ c: ob.c, r: ob.r }), '막힌 칸으로는 못 간다');
-  for (let i = 0; i < 20 * 30; i++) { g.tick(0.05); g.events.length = 0; if (g.map.town) g.enterMap(11); if (g.blocked?.[g.hr * W.COLS + g.hc]) { bad.push('hero-in-rock'); break; } }
+  for (let i = 0; i < 20 * 30; i++) { g.tick(0.05); g.events.length = 0; if (g.map.town) g.enterMap(11); if (g.blocked?.[g.hr * g.cols + g.hc]) { bad.push('hero-in-rock'); break; } }
   ok(!bad.length && g.s.kills > 3, '지형이 있어도 사냥은 굴러간다(바위 위에 서지 않는다)', `${g.s.kills}마리`);
   // 기운
   const snow = fresh(); snow.setJob('sword'); while (snow.s.level < 15) snow.addExp(W.expToNext(snow.s.level));
@@ -1593,6 +1597,12 @@ console.log('\n=== 고유 효과가 쓸모 있는가 (v167 · 꼴 열여섯을 �
     // 허수아비
     g.enterMap(W.mapId(15, 2));
     for (let i2 = 0; i2 < 20; i2++) g.tick(0.05);
+    // v455 방(9×11)은 좁다 — 무인을 방 가운데 둘레가 빈 칸에 세운다(가장자리에 서면 허수아비 둘레가 벽·문에 걸리고 무인이 비켜 서 판마다 크게 흔들렸다)
+    { const free = (c, r) => g.inMap(c, r) && !g.blocked?.[r * g.cols + c] && !W.doorAt(g.map, c, r);
+      const ring = (c, r) => [-2, -1, 0, 1, 2].every((a) => [-1, 0, 1].every((b) => free(c + a, r + b)));
+      let best = null;
+      for (let c = 0; c < g.cols; c++) for (let r = 0; r < g.rows; r++) if (ring(c, r)) { const d = Math.abs(c - (g.cols >> 1)) + Math.abs(r - (g.rows >> 1)); if (!best || d < best.d) best = { c, r, d }; }
+      if (best) g.placeHero(best.c, best.r); }
     const dummies = g.mons.filter((m) => m.alive && !m.npc).slice(0, scene === 'bane' ? 1 : 6);
     dummies.forEach((m, j) => {
       const a = (j / dummies.length) * Math.PI * 2;
@@ -1600,7 +1610,7 @@ console.log('\n=== 고유 효과가 쓸모 있는가 (v167 · 꼴 열여섯을 �
       m.atk = scene === 'counter' ? m.atk : 0; m.maxHp = 1e15; m.hp = scene === 'execute' ? 2e14 : 1e15; m.move = null;
       if (scene === 'bane') m.isBoss = true;
     });
-    g.mons = dummies; g.s.autoHunt = false;
+    g.mons = dummies; g.s.autoHunt = false; g.mon = null;   // v455 옛 과녁(목록에서 뺀 몹)을 쫓아 걸어가지 않게
     for (let t = 0; t < 60; t += 0.05) {
       g.respawns = [];
       g.mons = g.mons.filter((m) => dummies.includes(m));
@@ -1618,7 +1628,8 @@ console.log('\n=== 고유 효과가 쓸모 있는가 (v167 · 꼴 열여섯을 �
   for (const k of Object.keys(IM.SPECIAL_KIND)) {
     const sc = SCENE[k];
     // 버티기는 판마다 크게 흔들린다 — 난수 셋으로 세 판씩 더해 본다
-    const seeds = sc === 'pressure' ? [4242, 77, 31337] : [4242];
+    // v455 맞을 때 터지는 것(쾌속·되돌림)은 한 번 터지면 난수가 갈라져 치명이 달라진다 — 한 판은 ±10% 흔들려 여섯 판을 더한다
+    const seeds = sc === 'pressure' ? [4242, 77, 31337] : sc === 'counter' ? [4242, 77, 31337, 9, 1004, 2024] : [4242];
     const sum = (off) => seeds.map((sd) => run(k, sc, off, sd)).reduce((a, x) => ({ dealt: a.dealt + x.dealt, deaths: a.deaths + x.deaths, hp: a.hp + x.hp / seeds.length }), { dealt: 0, deaths: 0, hp: 0 });
     const r = sum(false), b = sum(true);
     const dmgUp = r.dealt / Math.max(1, b.dealt) - 1;
@@ -2577,7 +2588,7 @@ console.log('\n=== v296 걸어와서 바로 친다 ===');
   m.aggro = false; m.atkTimer = 99; m.stun = 999;   // 몹은 제자리 — 무인만 걸어간다
   m.hp = m.maxHp = 1e12;
   // 무인과 몹을 아홉 칸 떨어뜨려 놓고, 막 한 대 친 것처럼 평타 쿨을 가득 채운다
-  m.c = g.hc + 9 < W.COLS ? g.hc + 9 : Math.max(0, g.hc - 9); m.r = g.hr; m.x = (m.c + 0.5) * W.TILE; m.y = (m.r + 0.5) * W.TILE; m.move = null;
+  m.c = g.hc; m.r = Math.max(1, g.hr - 7); m.x = (m.c + 0.5) * W.TILE; m.y = (m.r + 0.5) * W.TILE; m.move = null; g.blocked = null; g.obstacles = [];   // v455 방(9×11) — 세로로 일곱 칸
   g.atkTimer = st.atkSec;
   let hits = 0, arrive = null, first = null, t = 0;
   const orig = g.basicAttack.bind(g);
@@ -3229,7 +3240,7 @@ console.log('\n=== v321 약한 장비 자동 정리 · 얻은 것 모음 · 신�
   b.events.length = 0;
   b.killMob(boss);
   const ke = b.events.find((e) => e.type === 'kill' && e.mat?.boss);
-  ok(ke && ke.mat.markN >= 1 && (b.s.mats[W.bossKey(1)] || 0) - mk0 === ke.mat.markN, '두목 처치 알림에 증표 수가 실려 온다', JSON.stringify(ke?.mat));
+  ok(ke && ke.mat.markN >= 1 && (b.s.mats[W.bossKey(1)] || 0) - mk0 >= ke.mat.markN, '두목 처치 알림에 증표 수가 실려 온다(추가 굴림이면 더)', JSON.stringify(ke?.mat));
   const mn = read('js/wmain.js'), ui = read('js/wui.js'), net = read('js/net.js'), rules = read('firestore.rules');
   ok(/function tally\(/.test(mn) && !/두목을 잡았어요 — /.test(mn) && /tally\('frag'/.test(mn) && /tally\('ps'/.test(mn), '두목·조각·비급 조각 알림 → 이름 ×수 모음');
   ok(/junk-toggle/.test(ui) && /autoJunk/.test(ui), '가방: 자동 정리 켜기');
@@ -4450,6 +4461,43 @@ console.log('\n=== R1 방 데이터 — 지역 15 · 문 ===');
   ok(W.mapOf(W.mapId(3, 2)).doors.w === W.mapId(31, 1) && W.mapOf(W.mapId(31, 3)).doors.n === W.mapId(31, 4), '천산 2번 방 ← 도화림 별채 → 도화도주');
   ok(W.MAPS.filter((m) => m.master).every((m) => Object.keys(m.doors).length === 0), '고수의 거처는 문 없이(지도 창에서)');
   const t = W.doorTile(z, 'n'); ok(t.c === 4 && t.r === 0 && W.doorAt(z, 4, 0) === 'n' && W.doorAt(z, 4, 10) === null, '문 칸은 가장자리 가운데');
+}
+
+
+console.log('\n=== R2 방 (v455) — 문 · 방 전환 · 방 리젠 기억 · 심처 문 ===');
+{
+  const g = fresh(); g.rng = seeded(11);
+  const A = W.mapId(1, 2), B = W.mapId(1, 3);
+  g.enterMap(A);
+  ok(g.cols === W.ROOM_COLS && g.rows === W.ROOM_ROWS && g.mapW === W.ROOM_COLS * W.TILE && g.roomView, '사냥터 방은 9×11 · 방 전체가 한눈에');
+  ok(g.mons.filter((m) => !m.npc).length === W.ROOM_MOBS, `방에 몹 ${W.ROOM_MOBS}`);
+  ok(Object.keys(g.map.doors).every((d) => { const t = W.doorTile(g.map, d); return g.occupied(t.c, t.r) && !g.occupied(t.c, t.r, 'hero') && !g.mons.some((m) => m.c === t.c && m.r === t.r); }), '문 칸 — 몹은 못 서고 무인은 지나간다');
+  for (const m of g.mons.slice(0, 3)) m.alive = false;   // 셋 잡았다 치고
+  const left = g.mons.filter((m) => m.alive && !m.npc).length;
+  ok(g.passDoor('n') && g.s.map === B && g.s.huntMap === B, '북쪽 문 → 죽림 3 · 돌아갈 사냥터도 그 방');
+  const st = W.doorTile(g.map, 's');
+  ok(g.hc === st.c && g.hr === st.r - 1, '들어온 문(남쪽) 바로 안쪽에 선다', `${g.hc},${g.hr} · 문 ${st.c},${st.r}`);
+  g.clock += 1;
+  ok(g.passDoor('s') && g.s.map === A, '남쪽 문 → 다시 죽림 2');
+  ok(g.mons.filter((m) => m.alive && !m.npc).length === left && g.respawns.length === W.ROOM_MOBS - left, `금방 돌아온 방은 남긴 몹(${left})만 · 나머지는 다시 나는 중`, `${g.mons.length} · 대기 ${g.respawns.length}`);
+  g.passDoor('n'); g.clock += 200; g.passDoor('s');
+  ok(g.mons.filter((m) => m.alive && !m.npc).length === W.ROOM_MOBS, '오래 비운 방은 가득');
+  // 문 칸을 찍으면 걸어가서 옆 방으로
+  g.s.autoHunt = false; for (const m of g.mons) m.alive = false; g.respawns = [];
+  const nt = W.doorTile(g.map, 'n');
+  g.moveTo(W.tileCenter(nt.c), W.tileCenter(nt.r));
+  for (let i = 0; i < 300 && g.s.map === A; i++) g.tick(0.05);
+  ok(g.s.map === B, '문 칸을 찍으면 걸어가서 옆 방으로');
+  // 없는 문 · 던전 안
+  ok(!g.passDoor('w') && g.s.map === B, '문이 없는 쪽으로는 못 간다');
+  // 심처 문 — 승급 전·지역 두목을 잡기 전에는 닫혀 있다
+  const b = fresh(); const boss = W.mapId(1, W.BOSS_AREA);
+  b.enterMap(boss); b.events.length = 0;
+  ok(b.map.doorLock?.n === 'deep' && !b.passDoor('n') && b.s.map === boss && b.events.some((e) => e.type === 'doorLocked'), '심처 문은 닫혀 있다(지역 두목 전 · 승급 전) · 알림');
+  b.s.bossKills = { ...(b.s.bossKills || {}), [boss]: 1 };
+  ok(b.passDoor('n') && b.map.king && b.map.zone === W.REGIONS[1].king, '지역 두목을 잡으면 심처(왕 지역)로 열린다', b.map.name);
+  const c = fresh(); while (c.s.level < W.DEEP_LV) c.addExp(W.expToNext(c.s.level)); c.enterMap(boss);
+  ok(c.passDoor('n'), `Lv${W.DEEP_LV}(승급)이면 두목을 안 잡아도 열린다`);
 }
 
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
