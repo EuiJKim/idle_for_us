@@ -69,6 +69,8 @@ export function newWorldSave(now = Date.now()) {
     qi: 0,                // v456 내공(쌓은 수련 — 얻은 경험치 × QI_PER_EXP · 잃지 않는다)
     dan: {},              // v457 영약 — 종류: 개수
     danPity: {},          // v457 연단 — 실패할 때마다 그 단약 성공률 덤
+    danEat: {},           // v461 먹은 영약 — 종류: 몇 알(두 번째부터 ¼)
+    danGacha: { n: 0, pity: 0, free: null },   // v461 영약 뽑기 — 뽑은 수 · 극품 천장 · 오늘 공짜를 쓴 날
     med: false,           // v457 운기조식 중(마을) — 켠 채 나가면 방치도 운기조식
     maki: 0,              // v457 마기 — 남은 실제 초(받는 피해 +)
     realm: 0,             // v456 경지 단계(0 삼류 초입 ~ 31 생사경 극의) — 돌파 알림을 한 번만
@@ -239,6 +241,8 @@ export function migrateWorld(raw, now = Date.now()) {
   s.realm = W.realmOf(s.level, s.qi);
   { const d = raw.dan && typeof raw.dan === 'object' ? raw.dan : {}; s.dan = {}; for (const id of DN.DAN_IDS) { const n = Math.floor(Number(d[id]) || 0); if (n > 0) s.dan[id] = Math.min(1e6, n); } }   // v457
   { const d = raw.danPity && typeof raw.danPity === 'object' ? raw.danPity : {}; s.danPity = {}; for (const id of Object.keys(DN.RECIPES)) { const v = Number(d[id]) || 0; if (v > 0) s.danPity[id] = Math.min(DN.PITY_MAX, v); } }
+  { const d = raw.danEat && typeof raw.danEat === 'object' ? raw.danEat : {}; s.danEat = {}; for (const id of DN.DAN_IDS) { const n = Math.floor(Number(d[id]) || 0); if (n > 0) s.danEat[id] = Math.min(1e6, n); } }   // v461
+  { const g = raw.danGacha && typeof raw.danGacha === 'object' ? raw.danGacha : {}; s.danGacha = { n: Math.max(0, Math.floor(Number(g.n) || 0)), pity: Math.max(0, Math.min(DN.GACHA_PITY, Math.floor(Number(g.pity) || 0))), free: typeof g.free === 'string' ? g.free : null }; }
   s.med = raw.med === true && W.mapOf(s.map)?.town === true;
   s.maki = Math.max(0, Math.min(86400, Number(raw.maki) || 0));
   s.jobTier = Math.min(W.CHEONMA_JOBS.includes(s.job) ? 5 : 4, Math.floor(s.jobTier));   // v391 검사는 5차까지
@@ -1014,21 +1018,50 @@ export class WorldGame {
   stopMed() { if (!this.s.med) return false; this.s.med = false; return true; }
   addQi(n) { if (!(n > 0)) return 0; this.s.qi = this.qiNow() + n; this._stats = null; this.checkRealm(); return n; }
   gainDan(id, n = 1, quiet = false) { if (!DN.danOf(id) || !(n > 0)) return 0; const d = this.s.dan || (this.s.dan = {}); d[id] = (d[id] || 0) + n; if (!quiet) this.emit('danGet', { id, n, name: DN.danOf(id).name }); return n; }
-  // 먹기 — 운기조식 몇 시간어치 내공(먹는 때의 레벨) · 독초는 못 먹는다 · 마기 · 씻기 · 대환단은 체력을 다 채운다
+  // 먹기 — 운기조식 몇 시간어치 내공(품계의 cap 레벨까지 먹는 때의 레벨) · 독초·약재는 못 먹는다 · 마기 · 씻기 · 대환단은 체력을 다 채운다
+  //   v461 같은 영약은 처음 한 알만 온전히 — 두 번째부터 ¼(DN.REPEAT_K)
+  danFirst(id) { return !(this.s.danEat?.[id] > 0); }
+  danNextQi(id) { return DN.danQi(id, this.s.level, this.danFirst(id)); }
   useDan(id, n = 1) {
     const d = this.s.dan || {}; const def = DN.danOf(id);
     n = Math.min(n, d[id] || 0);
     if (!def || !(n > 0) || !DN.canEat(id)) return 0;
     d[id] -= n; if (d[id] <= 0) delete d[id];
-    const q = this.addQi(DN.danQi(id, this.s.level) * n);
+    const first = this.danFirst(id), L = this.s.level;
+    const ate = this.s.danEat || (this.s.danEat = {});
+    ate[id] = (ate[id] || 0) + n;
+    const q = this.addQi((first ? DN.danQi(id, L, true) : 0) + DN.danQi(id, L, false) * (first ? n - 1 : n));
     if (def.cleanse && this.s.maki > 0) { this.s.maki = 0; this._stats = null; }
     if (def.maki) { this.s.maki = Math.max(this.s.maki || 0, def.maki); this._stats = null; }
     if (def.heal) this.heroHp = this.stats().hp;
-    this.emit('danUse', { id, n, qi: q, name: def.name, maki: !!def.maki, cleanse: !!def.cleanse });
+    this.emit('danUse', { id, n, qi: q, name: def.name, maki: !!def.maki, cleanse: !!def.cleanse, first, tier: def.tier });
     return q;
   }
-  // 다 먹기 — 먹을 수 있는 것만(독초는 연단 재료로 남는다) · 마교 단약은 빼고(마기는 골라서)
-  useAllDan() { let q = 0; for (const id of DN.DAN_IDS) if (DN.canEat(id) && !DN.danOf(id).maki) q += this.useDan(id, this.s.dan?.[id] || 0); return q; }
+  // v461 처음 먹는 것만 한 알씩 — 같은 영약은 두 번째부터 ¼이라 남은 것은 연단 재료로 둔다(마교 단약은 마기라 골라서)
+  useNewDan() { let q = 0; for (const id of DN.DAN_IDS) if (DN.canEat(id) && !DN.danOf(id).maki && (this.s.dan?.[id] || 0) > 0 && this.danFirst(id)) q += this.useDan(id, 1); return q; }
+  // v461 영약 뽑기 — 약초 GACHA_COST개 · 하루 한 번 공짜 · 극품 천장 · 10연엔 중품 이상 하나 · 신품은 없다
+  danGachaFree(now = Date.now()) { return !!this.s.job && this.s.danGacha?.free !== D.kstDay(now); }
+  canDanGacha(n = 1, free = false) { return !!this.s.job && (free ? this.danGachaFree() : (n === 1 || n === 10) && (this.s.dan?.yakcho || 0) >= DN.GACHA_COST * n); }
+  danGacha(n = 1, free = false) {
+    if (!this.canDanGacha(n, free)) return null;
+    const st = this.s.danGacha || (this.s.danGacha = { n: 0, pity: 0, free: null });
+    if (free) { n = 1; st.free = D.kstDay(Date.now()); }
+    else { this.s.dan.yakcho -= DN.GACHA_COST * n; if (this.s.dan.yakcho <= 0) delete this.s.dan.yakcho; }
+    const out = [];
+    for (let i = 0; i < n; i++) {
+      st.n++; st.pity++;
+      let t = W.pickW(DN.GACHA_RATES, this.rng);
+      if (st.pity >= DN.GACHA_PITY) t = 4;
+      if (n === 10 && i === 9 && t < DN.GACHA_TEN && !out.some((r) => r.tier >= DN.GACHA_TEN)) t = W.pickW(DN.GACHA_RATES, this.rng, ([k]) => k >= DN.GACHA_TEN);
+      if (t >= 4) st.pity = 0;
+      const pool = DN.gachaPool(t), d = pool[Math.floor(this.rng() * pool.length)];
+      out.push({ id: d.id, name: d.name, tier: t, fresh: this.danFirst(d.id) && !(this.s.dan?.[d.id] > 0) && !out.some((r) => r.id === d.id) });
+      this.gainDan(d.id, 1, true);
+    }
+    this.mark('danGacha');
+    this.emit('danGacha', { n, out, best: Math.max(...out.map((r) => r.tier)), free });
+    return out;
+  }
   // 연단 — { ok, need: [{ id, n, have }], gold, p } · 재료가 모자라거나 은자가 모자라면 ok:false
   danRecipe(id) {
     const r = DN.RECIPES[id]; if (!r) return null;
@@ -1049,9 +1082,15 @@ export class WorldGame {
     return { ok, p: rc.p };
   }
   // 운으로 — 그 지역 졸개·두목 · 왕 · 고수 (던전 몹은 던전 보상으로)
+  // v461 약재 — 졸개는 약초(DN.YAK_P) · 두목은 약초 + 내단(언제나 · 맹주·천마는 더) · 내 레벨보다 한참 낮으면 덜
+  gainMat(id, n, at) { if (!(n > 0)) return 0; this.gainDan(id, n, true); this.emit('danMat', { id, n, name: DN.danOf(id)?.name, at: at ? { x: at.x, y: at.y } : null }); return n; }
+  matDropOf(map) { if (!map) return null; if (map.master) return MS.masterOf(map.master)?.lord ? DN.MAT_DROP.lord : DN.MAT_DROP.master; return map.king ? DN.MAT_DROP.king : map.bossRoom ? DN.MAT_DROP.zone : null; }
   dropDan(m) {
     if (this.inst || m.npc) return;
     const map = this.map, rg = W.regionOfMap(map.id)?.id;
+    { const gk = DN.dropGapK(this.s.level, m.lv || this.s.level);
+      if (!m.isBoss) { if (this.rng() < DN.YAK_P * gk) this.gainMat('yakcho', 1, m); }
+      else { const md = this.matDropOf(map); if (md) for (const [k, n] of Object.entries(md)) this.gainMat(k, Math.floor(n * gk + this.rng()), m); } }
     for (const src of DN.DAN_SRC) {
       let hit = false;
       if (src.kind === 'mob') hit = !m.isBoss && src.region === rg;
@@ -5492,7 +5531,10 @@ export class WorldGame {
         const gk = DN.dropGapK(this.s.level, mm.lv?.[1] || this.s.level);
         const n0 = gk * (src.kind === 'mob' && src.region === rg ? kills * src.p : (src.kind === 'boss' && src.region === rg || src.kind === 'anyBoss') && mm.bossRoom && !mm.king && !mm.master ? marks * src.p : 0);
         const n = Math.floor(n0 + this.rng()); if (n0 > 0 && n > 0) dan[src.id] = (dan[src.id] || 0) + n;
-      } }
+      }
+      // v461 약재 — 졸개 약초 · 두목 약초·내단
+      const gk = DN.dropGapK(this.s.level, mm.lv?.[1] || this.s.level), md = this.matDropOf(mm);
+      for (const id of DN.MAT_IDS) { const n0 = gk * ((id === 'yakcho' ? kills * DN.YAK_P : 0) + (md ? marks * (md[id] || 0) : 0)); const n = Math.floor(n0 + this.rng()); if (n0 > 0 && n > 0) dan[id] = (dan[id] || 0) + n; } }
     return { sec, t, te, eff: t > 0 ? te / t : 1, kills, exp, gold: Math.floor(r.gold * te * ek), elix, frag, petShard, mountShard, dan,
       potions: Math.ceil(r.potions * t), mats, marks, stoppedByPotion: potionSec < sec, map: r.map };
   }

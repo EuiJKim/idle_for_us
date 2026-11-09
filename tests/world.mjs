@@ -4644,9 +4644,9 @@ console.log('\n=== v457 운기조식 · 영약 · 연단 — 내공을 따로 �
   const DN = await import('../js/world/wdan.js');
   const names = ['대환단', '소환단', '태청신단', '자소단', '백화단', '매화신단', '자하단', '태청단', '용호단', '적하단', '귀원단', '청운단', '천마단', '흑혈신단',
     '주과', '만년등과', '금령지과', '빙화과', '만년설삼', '만년하수오', '지옥화', '혈안초', '천년련', '설련', '공청석유', '종령석유', '만년빙정', '지열신수'];
-  ok(names.every((n) => DN.DANS.some((d) => d.name === n)) && DN.DANS.length === 28 && DN.DAN_CATS.every((c) => DN.DANS.some((d) => d.cat === c.id)), '영약 28가지 · 환단·신과·영초·석유 네 갈래', names.filter((n) => !DN.DANS.some((d) => d.name === n)).join(','));
-  ok(DN.DANS.filter((d) => d.cat !== 'pill').every((d) => DN.danWhere(d.id)) && DN.DANS.filter((d) => d.cat === 'pill').every((d) => DN.RECIPES[d.id]), '신과·영초·석유는 얻는 곳이 있고 · 환단은 모두 연단으로 만든다');
-  ok(Object.entries(DN.RECIPES).every(([id, r]) => Object.keys(r.need).every((k) => DN.danOf(k)) && r.p < 1 && DN.danOf(id).hours * r.p > DN.recipeHours(id)), '연단 — 재료가 다 있고 · 실패할 수 있고 · 기대 내공이 재료를 그냥 먹는 것보다 크다');
+  ok(names.every((n) => DN.DANS.some((d) => d.name === n)) && DN.DANS.filter((d) => d.cat !== 'mat').length === 28 && DN.DAN_CATS.every((c) => DN.DANS.some((d) => d.cat === c.id)), '영약 28가지 · 환단·신과·영초·석유 네 갈래 + 약재(v461)', names.filter((n) => !DN.DANS.some((d) => d.name === n)).join(','));
+  ok(DN.DANS.filter((d) => d.cat !== 'pill').every((d) => DN.danWhere(d.id)) && DN.DANS.filter((d) => d.cat === 'pill').every((d) => DN.RECIPES[d.id]), '신과·영초·석유·약재는 얻는 곳이 있고 · 환단은 모두 연단으로 만든다');
+  ok(Object.entries(DN.RECIPES).every(([id, r]) => Object.keys(r.need).every((k) => DN.danOf(k)) && r.p < 1 && DN.danOf(id).hours * r.p > DN.recipeHours(id) * 1.05), '연단 — 재료가 다 있고 · 실패할 수 있고 · 기대 내공이 재료를 처음 먹는 것보다도 크다');
   ok(!DN.canEat('jiokhwa') && !DN.canEat('hyeolan') && DN.canEat('seolsam'), '독초(지옥화·혈안초)는 그대로 못 먹는다');
   // 운기조식
   const g = fresh(); while (g.s.level < 30) g.addExp(W.expToNext(g.s.level));
@@ -4668,15 +4668,15 @@ console.log('\n=== v457 운기조식 · 영약 · 연단 — 내공을 따로 �
   const d = fresh(); d.rng = () => 0; while (d.s.level < 40) d.addExp(W.expToNext(d.s.level));
   d.enterMap(W.mapId(3, 1)); const mob = d.mons.find((m) => m.alive && !m.npc); d.killMob(mob);
   ok((d.s.dan.seollyeon || 0) >= 1, '천산 설원 졸개 — 설련(운으로)');
-  d.enterMap(W.mapId(3, W.BOSS_AREA)); const bm = { ...mob, isBoss: true, alive: true, hp: 0 }; d.dropDan(bm);
-  ok(d.s.dan.seolsam >= 1 && d.s.dan.bingjeong >= 1 && d.s.dan.sohwan >= 1, '천산 설원 두목 — 만년설삼 · 만년빙정 · 소환단(운으로)', JSON.stringify(d.s.dan));
+  d.enterMap(W.mapId(3, W.BOSS_AREA)); const bm = { ...mob, isBoss: true, alive: true, hp: 0, lv: d.s.level }; d.dropDan(bm);
+  ok(d.s.dan.seolsam >= 1 && d.s.dan.bingjeong >= 1 && !d.s.dan.sohwan && d.s.dan.yakcho >= 2, '천산 설원 두목 — 만년설삼 · 만년빙정(운으로) · 약초 · 환단은 안 떨군다(v461)', JSON.stringify(d.s.dan));
   const n0 = d.s.dan.seollyeon; d.enterMap(W.mapId(1, 1)); const m1 = d.mons.find((m) => m.alive && !m.npc); d.killMob(m1);
   ok(d.s.dan.seollyeon === n0, '다른 지역 졸개에게서는 설련이 안 나온다');
   ok(DG.towerReward(10).dan?.geumryeong === 1 && !DG.towerReward(11).dan && MS.masterReward(MS.mastersOf('murim')[0]).dan?.gongcheong === 1, '탑 십이지신 층 금령지과 · 고수 첫 승 공청석유');
   // 먹기
   const e = fresh(); while (e.s.level < 50) e.addExp(W.expToNext(e.s.level));
   e.gainDan('seolsam', 1); const eq = e.qiNow(); const got = e.useDan('seolsam', 1);
-  ok(Math.abs(got - DN.danQi('seolsam', 50)) < 1e-6 && Math.abs(e.qiNow() - eq - got) < 1e-6 && Math.abs(got - 72 * W.qiMedHour(50)) < 1e-6, '만년설삼 — 운기조식 72시간어치 내공(먹는 때의 레벨)');
+  ok(Math.abs(got - DN.danQi('seolsam', 50)) < 1e-6 && Math.abs(e.qiNow() - eq - got) < 1e-6 && Math.abs(got - 110 * W.qiMedHour(50)) < 1e-6, '만년설삼(상품) — 운기조식 110시간어치 내공(먹는 때의 레벨 · v461)');
   e.gainDan('jiokhwa', 1); ok(e.useDan('jiokhwa', 1) === 0 && e.s.dan.jiokhwa === 1, '독초는 먹기를 눌러도 그대로');
   const red0 = e.stats().dmgRed; e.gainDan('heukhyeol', 1); e.useDan('heukhyeol', 1);
   ok(e.s.maki > 0 && Math.abs(e.stats().dmgRed - (red0 - DN.MAKI_TAKE)) < 1e-9, '흑혈신단 — 마기(받는 피해 +20%)');
@@ -4689,12 +4689,12 @@ console.log('\n=== v457 운기조식 · 영약 · 연단 — 내공을 따로 �
   // 연단 — 재료 · 은자 · 실패하면 재료를 잃고 성공률이 오른다
   const c = fresh(); while (c.s.level < 30) c.addExp(W.expToNext(c.s.level)); c.s.gold = 1e12;
   ok(!c.danRecipe('sohwan').ok && c.craftDan('sohwan') === null, '재료가 없으면 연단할 수 없다');
-  c.gainDan('seollyeon', 4); c.gainDan('cheonnyeon', 2);
+  c.gainDan('yakcho', 40); c.gainDan('seollyeon', 2);
   c.rng = () => 0.99; const g0 = c.s.gold; const r1 = c.craftDan('sohwan');
-  ok(r1 && !r1.ok && c.s.dan.seollyeon === 2 && c.s.dan.cheonnyeon === 1 && !c.s.dan.sohwan && c.s.gold === g0 - DN.danGold('sohwan', 30) && Math.abs(c.s.danPity.sohwan - DN.PITY_STEP) < 1e-9, '연단 실패 — 재료와 은자를 잃고 다음 성공률 +5%');
+  ok(r1 && !r1.ok && c.s.dan.yakcho === 20 && c.s.dan.seollyeon === 1 && !c.s.dan.sohwan && c.s.gold === g0 - DN.danGold('sohwan', 30) && Math.abs(c.s.danPity.sohwan - DN.PITY_STEP) < 1e-9, '연단 실패 — 재료(약초·설련)와 은자를 잃고 다음 성공률 +5%');
   ok(Math.abs(c.danRecipe('sohwan').p - (DN.RECIPES.sohwan.p + DN.PITY_STEP)) < 1e-9, '실패 덤이 성공률에 붙는다');
   c.rng = () => 0; const r2 = c.craftDan('sohwan');
-  ok(r2?.ok && c.s.dan.sohwan === 1 && !c.s.danPity.sohwan && !c.s.dan.seollyeon && !c.s.dan.cheonnyeon, '연단 성공 — 소환단 · 덤은 처음으로');
+  ok(r2?.ok && c.s.dan.sohwan === 1 && !c.s.danPity.sohwan && !c.s.dan.seollyeon && !c.s.dan.yakcho, '연단 성공 — 소환단 · 덤은 처음으로');
   // 옛 세이브
   const old = newWorldSave(0); old.job = 'sword'; old.level = 40; old.dan = { seolsam: 2, nope: 5, sohwan: -1 }; old.med = true; old.map = W.mapId(2, 1); old.maki = 99;
   const mg = migrateWorld(old, 0);
@@ -4798,6 +4798,70 @@ console.log('\n=== v460 두목 이름을 레벨에 맞게 ===');
   ok(!clash.length, '지역 두목 이름이 고수의 칭호와 겹치지 않는다(천마 · 태극검선)', clash.join(','));
   const early = Object.values(W.ZONES_W).filter((zn) => zn?.boss?.name && !zn.master && !zn.king && zn.lv && zn.lv[1] < 30 && /왕$|마군$|궁주$|도주$/.test(zn.boss.name)).map((zn) => `${zn.boss.name}(${zn.lv.join('-')})`);
   ok(!early.length, 'Lv30 아래 두목에 왕·마군·궁주·도주 칭호가 없다', early.join(','));
+}
+
+console.log('\n=== v461 영약 개편 — 품계 다섯 · 약재 · 뽑기 · 연단 사다리 · 같은 영약 ¼ ===');
+{
+  const DN = await import('../js/world/wdan.js');
+  // 품계 — 위아래가 겹치지 않는다
+  const ed = DN.DANS.filter((d) => DN.canEat(d.id));
+  const hrs = DN.DAN_TIERS.map((T) => ed.filter((d) => d.tier === T.t).map((d) => d.hours));
+  ok(DN.DAN_TIERS.length === 5 && DN.DAN_TIERS.map((T) => T.name).join() === '하품,중품,상품,극품,신품' && hrs.every((h) => h.length) && hrs.every((h, i) => !i || Math.min(...h) > Math.max(...hrs[i - 1])), '품계 다섯 — 아래 품계의 가장 큰 것보다 위 품계의 가장 작은 것이 크다', hrs.map((h) => `${Math.min(...h)}~${Math.max(...h)}`).join(' < '));
+  ok(DN.DANS.filter((d) => d.cat === 'mat').map((d) => d.id).join() === 'yakcho,naedan' && !DN.canEat('yakcho') && !DN.canEat('naedan'), '약재 둘(약초 · 내단) — 먹지 못한다');
+  // 값이 멈추는 레벨 — 초반엔 작은 것도 쏠쏠, 나중엔 큰 것 하나
+  ok(DN.danQi('seollyeon', 40) === DN.danQi('seollyeon', 140) && DN.danQi('daehwan', 150) > DN.danQi('daehwan', 130), '하품은 레벨 40에서 멈추고 신품은 끝까지 큰다');
+  ok(DN.danQi('jugwa', 25) / W.qiFloor(25) > 0.05 && DN.danQi('jugwa', 140) / W.qiFloor(140) < 0.001, '하품 주과 — 레벨 25엔 내공 바닥의 5% 넘게 · 레벨 140엔 0.1%도 안 된다', `${(DN.danQi('jugwa', 25) / W.qiFloor(25) * 100).toFixed(1)}% → ${(DN.danQi('jugwa', 140) / W.qiFloor(140) * 100).toFixed(3)}%`);
+  ok(DN.danQi('daehwan', 140) / DN.danQi('jugwa', 140) > 100 * DN.danQi('daehwan', 125) / DN.danQi('jugwa', 125) / 100 && DN.danQi('daehwan', 140) > 50 * DN.danQi('yongho', 140) / 10, '나중엔 큰 영약 하나가 작은 것 여럿보다 낫다');
+  ok(Math.abs(DN.danQi('daehwan', 60) - 8000 * W.qiMedHour(60) * DN.EARLY_K) < 1e-6, `품계보다 한참 이르면(신품은 레벨 110 전) 몸이 다 못 받아들여 ×${DN.EARLY_K}`);
+  // 같은 영약은 두 번째부터 ¼
+  const g = fresh(); while (g.s.level < 60) g.addExp(W.expToNext(g.s.level));
+  g.gainDan('bingjeong', 3); const first = g.danNextQi('bingjeong');
+  const q1 = g.useDan('bingjeong', 1), nx = g.danNextQi('bingjeong'), q2 = g.useDan('bingjeong', 2);
+  ok(Math.abs(q1 - first) < 1e-6 && Math.abs(nx - first * DN.REPEAT_K) < 1e-6 && Math.abs(q2 - 2 * first * DN.REPEAT_K) < 1e-6 && g.s.danEat.bingjeong === 3, '만년빙정 — 처음 한 알은 온전히 · 두 번째부터 ¼', `${Math.round(q1)} · ${Math.round(nx)} · ${Math.round(q2)}`);
+  g.gainDan('jaso', 2); const qa = g.useDan('jaso', 2);
+  ok(Math.abs(qa - DN.danQi('jaso', 60) * (1 + DN.REPEAT_K)) < 1e-6, '한꺼번에 두 알 — 처음 것 하나만 온전히');
+  g.gainDan('seollyeon', 2); g.gainDan('jaha', 1); g.gainDan('bingjeong', 1); g.gainDan('heukhyeol', 1);
+  const qn = g.useNewDan();
+  ok(qn > 0 && g.s.dan.seollyeon === 1 && !g.s.dan.jaha && g.s.dan.bingjeong === 1 && g.s.dan.heukhyeol === 1, '처음 먹는 것만 한 알씩 — 먹어 본 것·마교 단약은 남긴다(연단 재료로)', JSON.stringify(g.s.dan));
+  // 약재 — 졸개 약초 · 두목 내단
+  const m = fresh(); m.rng = () => 0; while (m.s.level < 40) m.addExp(W.expToNext(m.s.level));
+  m.enterMap(W.mapId(4, 1)); const mob = m.mons.find((x) => x.alive && !x.npc); m.killMob(mob);
+  ok(m.s.dan.yakcho === 1, '사냥터 졸개 — 약초(운으로)');
+  m.s.dan = {}; m.enterMap(W.mapId(4, W.BOSS_AREA)); m.rng = () => 0.6; m.dropDan({ ...mob, isBoss: true, lv: 40 });
+  ok(m.s.dan.yakcho === DN.MAT_DROP.zone.yakcho && m.s.dan.naedan === 1, `지역 두목 — 약초 ${DN.MAT_DROP.zone.yakcho} · 내단(${DN.MAT_DROP.zone.naedan * 100}% 확률로 하나)`, JSON.stringify(m.s.dan));
+  m.s.dan = {}; m.rng = () => 0.4; m.dropDan({ ...mob, isBoss: true, lv: 40 }); ok(!m.s.dan.naedan, '반 확률 — 운이 없으면 내단 없이');
+  const km = W.MAPS.find((x) => x.king && x.bossRoom) || W.MAPS.find((x) => x.king); m.s.dan = {}; m.s.map = km.id; m.dropDan({ ...mob, isBoss: true, lv: 40 });
+  ok(m.s.dan.naedan === DN.MAT_DROP.king.naedan, `십이지왕 — 내단 ${DN.MAT_DROP.king.naedan}`);
+  const hi = fresh(); hi.rng = () => 0.5; while (hi.s.level < 120) hi.addExp(W.expToNext(hi.s.level)); hi.enterMap(W.mapId(4, W.BOSS_AREA)); hi.dropDan({ ...mob, isBoss: true, lv: 27 });
+  ok((hi.s.dan.naedan || 0) < DN.MAT_DROP.zone.naedan + 1 && (hi.s.dan.yakcho || 0) < DN.MAT_DROP.zone.yakcho, '내 레벨보다 한참 낮은 두목은 약재도 덜', JSON.stringify(hi.s.dan));
+  // 뽑기 — 약초 · 하루 한 번 공짜 · 10연엔 중품 이상 · 극품 천장 · 신품은 없다
+  const b = fresh(); b.rng = seeded(11);
+  ok(!b.canDanGacha(1) && b.danGacha(1) === null && b.danGachaFree(), '약초가 없으면 뽑지 못한다 · 오늘의 공짜는 있다');
+  const fr = b.danGacha(1, true); ok(fr?.length === 1 && !b.danGachaFree() && b.danGacha(1, true) === null, '공짜 한 번 — 하루 한 번');
+  b.gainDan('yakcho', DN.GACHA_COST * 10 + 5); const ten = b.danGacha(10);
+  ok(ten?.length === 10 && b.s.dan.yakcho === 5 && ten.some((r) => r.tier >= DN.GACHA_TEN), `열 번 — 약초 ${DN.GACHA_COST * 10} · ${DN.tierOf(DN.GACHA_TEN).name} 이상 하나`, ten?.map((r) => r.tier).join(''));
+  const cnt = [0, 0, 0, 0, 0, 0]; let maxGap = 0, gap = 0;
+  b.s.danGacha.pity = 0;
+  for (let i = 0; i < 300; i++) { b.gainDan('yakcho', DN.GACHA_COST * 10); for (const r of b.danGacha(10)) { cnt[r.tier]++; gap = r.tier >= 4 ? 0 : gap + 1; maxGap = Math.max(maxGap, gap); } }
+  ok(cnt[5] === 0 && cnt[4] > 0 && Math.abs(cnt[1] / 3000 - 0.72) < 0.05 && maxGap < DN.GACHA_PITY, `3000번 — 신품 0 · 하품 ${(cnt[1] / 30).toFixed(0)}% · 극품 ${cnt[4]} · 극품 없이 가장 길게 ${maxGap}번(천장 ${DN.GACHA_PITY})`, cnt.join('/'));
+  ok(DN.gachaPool(5).length === 0 && DN.DANS.filter((d) => d.tier === 5).every((d) => d.nogacha && DN.RECIPES[d.id]), '신품(대환단 · 천마단)은 연단으로만');
+  // 연단 사다리 — 중품부터는 한 품 아래 영약 + 내단
+  ok(Object.entries(DN.RECIPES).every(([id, r]) => { const t = DN.danOf(id).tier; return t === 1 ? r.need.yakcho > 0 : r.need.naedan > 0 && Object.keys(r.need).some((k) => DN.danOf(k).tier === t - 1 && DN.danOf(k).cat === 'pill'); }), '하품은 약초로 · 중품부터는 한 품 아래 환단 + 내단으로 빚는다');
+  const ladder = []; let cur = 'daehwan'; while (cur) { ladder.push(DN.danOf(cur).name); cur = Object.keys(DN.RECIPES[cur]?.need || {}).find((k) => DN.danOf(k).cat === 'pill' && DN.danOf(k).tier === DN.danOf(cur).tier - 1) || null; }
+  ok(ladder.length === 5, '대환단은 하품 환단부터 다섯 계단', ladder.join(' ← '));
+  // 얻는 곳 — 다섯 갈래 · 먹을 수 있는 것은 모두 하나 넘게
+  ok(DN.DAN_HOWS.map((x) => x.id).join() === 'hunt,boss,gacha,craft,reward' && ed.every((d) => DN.danSources(d.id).length) && DN.danSources('naedan').some((x) => x.how === 'boss') && DN.danSources('yakcho').some((x) => x.how === 'hunt'), '얻는 곳 — 사냥 · 두목 · 뽑기 · 연단 · 보상 갈래');
+  // 방치 — 약초·내단도
+  const o = fresh(); while (o.s.level < 40) o.addExp(W.expToNext(o.s.level));
+  o.s.rates = { kills: 1, exp: 100, gold: 10, potions: 0, map: W.mapId(4, 1) }; o.s.lastSeen = 0; o.s.clockMax = 0;
+  const rw = o.offlineReward(3600e3);
+  const wantY = rw.kills * DN.YAK_P * DN.dropGapK(o.s.level, W.mapOf(rw.map).lv[1]);
+  ok(rw && rw.kills > 0 && wantY > 1 && Math.abs((rw.dan?.yakcho || 0) - wantY) <= 1, '방치 사냥 — 졸개 약초를 기댓값으로(레벨 차 감쇠까지)', `${rw?.dan?.yakcho} / ${wantY.toFixed(1)}`);
+  // 세이브
+  const sv = newWorldSave(0); sv.job = 'sword'; sv.level = 40; sv.danEat = { jaso: 2, nope: 3, seolsam: -1 }; sv.danGacha = { n: 12, pity: 999, free: '2026-11-09' };
+  const mg = migrateWorld(sv, 0);
+  ok(mg.danEat.jaso === 2 && !('nope' in mg.danEat) && !('seolsam' in mg.danEat) && mg.danGacha.n === 12 && mg.danGacha.pity === DN.GACHA_PITY && mg.danGacha.free === '2026-11-09', '세이브 — 먹은 영약 · 뽑기 기록을 거른다');
+  ok(/DN\.DAN_HOWS/.test(read('js/wui.js')) && /'얻는 곳'/.test(read('js/wui.js')) && /case 'danGacha'/.test(read('js/wmain.js')) && /case 'danMat'/.test(read('js/battle.js')), '화면 — 주머니 · 뽑기 · 연단로 · 얻는 곳 네 칸 · 뽑기 알림 · 약재 글자');
 }
 
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);

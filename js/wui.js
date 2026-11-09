@@ -671,6 +671,7 @@ function charTab(app) {
     t.setDot('stat', s.statPts > 0 && !s.autoStat);
     t.setDot('skill', game.skills().some((k) => game.canSkillUp(k.id)) || game.passiveList().some((p) => game.canPassUp(p.id)));
     t.setDot('info', !!game.questNow()?.done);
+    t.setDot('dan', game.danGachaFree() || Object.keys(DN.RECIPES).some((id) => game.danRecipe(id)?.ok));   // v461 오늘의 공짜 뽑기 · 빚을 수 있는 단약
     upd0();
   };
   return t;
@@ -3773,57 +3774,104 @@ function pvpView(app) {
 
 // ---------- 인물록 (v148) ----------
 // 세력마다 고수들의 이야기 · 십이지왕 · 그 밖의 사람들. 쓰러뜨린 고수에는 ✓.
-// v457 영약 칸 — 운기조식 · 영약 주머니(환단·신과·영초·석유) · 연단로
+// v457 영약 칸 · v461 개편 — 네 칸(주머니 · 뽑기 · 연단로 · 얻는 곳) · 품계 다섯(하품 → 신품)으로 위아래 · 얻는 길 다섯 갈래
+let danTab = 'bag', danLast = null;
 function danView(app) {
   const { game } = app;
   const root = h('div', { class: 'dan-view' });
   let sig = '';
   const hr = (x) => `${fmt(Math.floor(x))}`;
+  const tierChip = (t) => { const T = DN.tierOf(t); return T ? h('span', { class: 'dan-tier', style: `--tc:${T.col}` }, T.name) : h('span', { class: 'dan-tier', style: '--tc:#86efac' }, '약재'); };
+  const tags = (d) => [d.maki ? `마기 ${d.maki / 3600}시간` : '', d.heal ? '체력을 다 채운다' : '', d.cleanse ? '마기를 씻는다' : '', d.raw === false && d.cat !== 'mat' ? '독초 — 연단에만' : ''].filter(Boolean).join(' · ');
   function update() {
-    const s = game.s;
-    const okStr = Object.keys(DN.RECIPES).map((id) => (game.danRecipe(id)?.ok ? 1 : 0)).join('');
-    const nsig = `${s.level}|${s.med}|${game.map.town}|${!!game.inst}|${JSON.stringify(s.dan || {})}|${JSON.stringify(s.danPity || {})}|${okStr}|${Math.ceil((s.maki || 0) / 60)}`;
+    const s = game.s, L = s.level;
+    const okIds = Object.keys(DN.RECIPES).filter((id) => game.danRecipe(id)?.ok);
+    const free = game.danGachaFree();
+    const nsig = `${danTab}|${L}|${s.med}|${game.map.town}|${!!game.inst}|${JSON.stringify(s.dan || {})}|${JSON.stringify(s.danPity || {})}|${JSON.stringify(s.danEat || {})}|${JSON.stringify(s.danGacha || {})}|${okIds.join(',')}|${free}|${Math.ceil((s.maki || 0) / 60)}`;
     if (nsig === sig) return;
     sig = nsig;
-    const L = s.level;
     const redo = () => { sig = ''; app.save(); app.refresh(); };
-    // ① 운기조식
-    const med = h('div', { class: `card dan-med${s.med ? ' on' : ''}` },
-      h('h3', {}, '🧘 운기조식', h('small', {}, ' 마을에서 쉬면 내공이 쌓인다')),
-      h('p', { class: 'muted' }, `마을에서 쉬기만 해도 한 시간에 내공 +${hr(W.qiMedHour(L))} · 운기조식을 하면 ×${W.MED_ACTIVE}(+${hr(W.qiMedHour(L) * W.MED_ACTIVE)}) — 그동안 사냥은 쉰다. 운기조식을 켠 채 나가면 방치 시간도 운기조식(방치 사냥 대신 · 상한·효율은 같다).`),
-      h('div', { class: 'btn-row' },
-        h('button', { class: `btn ${s.med ? '' : 'primary'}`, id: 'med-btn', style: 'flex:1', onclick: () => {
-          if (s.med) { game.stopMed(); toast('운기조식을 멈췄어요 — 마을에서 쉬는 몫(×1)은 그대로 쌓여요'); }
-          else if (game.inst) return toast('던전에서는 운기조식을 할 수 없어요');
-          else game.startMed();
-          redo(); } }, s.med ? '운기조식 그만' : (game.map.town ? '운기조식 시작' : '마을로 가서 운기조식')),
-        s.med || game.map.town ? h('button', { class: 'btn', onclick: () => { game.stopMed(); game.enterMap(s.huntMap); app.closePanel?.(); redo(); } }, '사냥하러 가기') : null),
-      s.maki > 0 ? h('p', { class: 'dan-maki' }, `마기 ${Math.ceil(s.maki / 60)}분 남음 — 받는 피해 +${Math.round(DN.MAKI_TAKE * 100)}% · 설련·천년련·백화단을 먹으면 씻긴다`) : null);
-    // ② 영약 주머니
-    const eatAll = Object.entries(s.dan || {}).some(([id, n]) => n > 0 && DN.canEat(id) && !DN.danOf(id).maki);
-    const bag = h('div', { class: 'card dan-bag' },
-      h('h3', {}, '영약 주머니', h('small', {}, ' 먹으면 운기조식 몇 시간어치 내공 — 먹는 때의 레벨로 셈해요')),
-      eatAll ? h('button', { class: 'btn primary', style: 'width:100%;margin-bottom:8px', onclick: () => { const q = game.useAllDan(); if (q) { toast(`영약을 모두 먹었어요 — 내공 +${hr(q)} (독초·마교 단약은 남겨 둬요)`); redo(); } } }, '모두 먹기 (독초·마교 단약 빼고)') : null,
-      ...DN.DAN_CATS.map((c) => h('div', { class: 'dan-cat' },
-        h('div', { class: 'dan-cat-head' }, h('b', {}, `${c.name} `, h('i', {}, c.hanja)), h('small', {}, c.desc)),
-        h('div', { class: 'dan-grid' }, ...DN.DANS.filter((d) => d.cat === c.id).map((d) => { const n = s.dan?.[d.id] || 0;
-          return h('div', { class: `dan-item${n ? '' : ' none'}`, style: `--dc:${d.col}`, title: d.desc },
-            h('i', { class: 'dan-hanja' }, d.hanja),
-            h('div', { class: 'dan-txt' }, h('b', {}, `${d.sect ? `${d.sect} · ` : ''}${d.name} ×${n}`),
-              h('small', {}, DN.canEat(d.id) ? `내공 +${hr(DN.danQi(d.id, L))} · 운기 ${d.hours}시간어치${d.maki ? ` · 마기 ${d.maki / 3600}시간` : ''}${d.heal ? ' · 체력을 다 채운다' : ''}${d.cleanse ? ' · 마기를 씻는다' : ''}` : '독초 — 그대로 못 먹는다(연단 재료)'),
-              h('small', { class: 'dan-where' }, `얻는 곳: ${DN.danWhere(d.id) || '—'}`)),
-            DN.canEat(d.id) ? h('button', { class: 'btn mini', disabled: n ? null : true, onclick: () => { if (game.useDan(d.id, 1)) redo(); } }, '먹기') : null); })))));
-    // ③ 연단로
-    const ids = Object.keys(DN.RECIPES).sort((a, b) => DN.danOf(a).hours - DN.danOf(b).hours);
-    const pot = h('div', { class: 'card dan-pot' },
-      h('h3', {}, '연단로 ', h('i', {}, '煉丹爐'), h('small', {}, ' 재료를 모아 환단을 빚는다 — 실패하면 재료를 잃고, 그 단약 성공률이 5%씩 오른다(30%까지)')),
-      ...ids.map((id) => { const d = DN.danOf(id), rc = game.danRecipe(id), pity = s.danPity?.[id] || 0;
-        return h('div', { class: `dan-rec${rc.ok ? ' ok' : ''}`, style: `--dc:${d.col}` },
-          h('div', { class: 'dan-rec-head' }, h('i', { class: 'dan-hanja' }, d.hanja), h('div', { class: 'dan-txt' },
-            h('b', {}, `${d.sect} · ${d.name}`), h('small', {}, `내공 +${hr(DN.danQi(id, L))}${d.maki ? ' · 마기' : ''}${d.heal ? ' · 체력 회복' : ''} · 성공 ${Math.round(rc.p * 100)}%${pity ? ` (실패 덤 +${Math.round(pity * 100)}%)` : ''} · 은자 ${fmt(rc.gold)}`))),
-          h('div', { class: 'dan-need' }, ...rc.need.map((x) => h('span', { class: x.have >= x.n ? 'have' : 'lack' }, `${DN.danOf(x.id).name} ${Math.min(x.have, x.n)}/${x.n}`))),
-          h('button', { class: `btn ${rc.ok ? 'primary' : ''}`, disabled: rc.ok ? null : true, onclick: () => { const r = game.craftDan(id); if (r) redo(); } }, '연단')); }));
-    root.replaceChildren(med, bag, pot);
+    const have = (id) => s.dan?.[id] || 0;
+    const owned = DN.DANS.filter((d) => d.cat !== 'mat' && have(d.id) > 0).length;
+    const edible = DN.DANS.filter((d) => DN.canEat(d.id)), eaten = edible.filter((d) => s.danEat?.[d.id] > 0).length;
+    const seg = h('div', { class: 'seg wide dan-seg' }, ...[['bag', `주머니 ${owned}`], ['gacha', free ? '뽑기 · 공짜' : '뽑기'], ['pot', okIds.length ? `연단로 · ${okIds.length}` : '연단로'], ['where', '얻는 곳']].map(([k, label]) =>
+      h('button', { class: `${danTab === k ? 'on' : ''}${(k === 'gacha' && free) || (k === 'pot' && okIds.length) ? ' dot' : ''}`, onclick: () => { danTab = k; sig = ''; update(); } }, label)));
+    const mats = h('div', { class: 'dan-mats' }, ...DN.MAT_IDS.map((id) => { const d = DN.danOf(id); return h('span', { style: `--dc:${d.col}` }, h('i', {}, d.hanja), h('b', {}, `${d.name} ${fmt(have(id))}`)); }),
+      h('small', {}, `먹어 본 영약 ${eaten}/${edible.length} · 같은 영약은 두 번째부터 ¼`));
+    const body = danTab === 'gacha' ? gachaTab() : danTab === 'pot' ? potTab() : danTab === 'where' ? whereTab() : bagTab();
+    root.replaceChildren(seg, mats, ...body.filter(Boolean));   // 빈 칸(null)은 글자로 찍히지 않게
+
+    // ① 주머니 — 운기조식 · 품계마다 가진 영약(먹기 · 처음/¼)
+    function bagTab() {
+      const med = h('div', { class: `card dan-med${s.med ? ' on' : ''}` },
+        h('h3', {}, '🧘 운기조식', h('small', {}, ` 마을에서 쉬면 한 시간에 +${hr(W.qiMedHour(L))} · 운기조식 ×${W.MED_ACTIVE}`)),
+        h('div', { class: 'btn-row' },
+          h('button', { class: `btn ${s.med ? '' : 'primary'}`, id: 'med-btn', style: 'flex:1', onclick: () => {
+            if (s.med) { game.stopMed(); toast('운기조식을 멈췄어요 — 마을에서 쉬는 몫(×1)은 그대로 쌓여요'); }
+            else if (game.inst) return toast('던전에서는 운기조식을 할 수 없어요');
+            else game.startMed();
+            redo(); } }, s.med ? '운기조식 그만' : (game.map.town ? '운기조식 시작' : '마을로 가서 운기조식')),
+          s.med || game.map.town ? h('button', { class: 'btn', onclick: () => { game.stopMed(); game.enterMap(s.huntMap); app.closePanel?.(); redo(); } }, '사냥하러 가기') : null),
+        h('p', { class: 'muted', style: 'font-size:11px;margin:6px 0 0' }, '운기조식을 켠 채 나가면 방치 시간도 운기조식(방치 사냥 대신 · 상한·효율은 같다)'),
+        s.maki > 0 ? h('p', { class: 'dan-maki' }, `마기 ${Math.ceil(s.maki / 60)}분 남음 — 받는 피해 +${Math.round(DN.MAKI_TAKE * 100)}% · 설련·천년련·백화단을 먹으면 씻긴다`) : null);
+      const newOnes = edible.filter((d) => have(d.id) > 0 && game.danFirst(d.id) && !d.maki);
+      const eatNew = newOnes.length ? h('button', { class: 'btn primary', style: 'width:100%;margin:8px 0', onclick: () => { const q = game.useNewDan(); if (q) { toast(`처음 먹는 영약 ${newOnes.length}가지 — 내공 +${hr(q)} · 남은 것은 연단 재료로`); redo(); } } }, `처음 먹는 영약 ${newOnes.length}가지 한 알씩 먹기`) : null;
+      const tiers = DN.DAN_TIERS.map((T) => {
+        const list = DN.DANS.filter((d) => d.tier === T.t);
+        const n = list.reduce((a, d) => a + have(d.id), 0);
+        return h('div', { class: 'dan-tier-sec', style: `--tc:${T.col}` },
+          h('div', { class: 'dan-tier-head' }, h('b', {}, `${T.name} `, h('i', {}, T.hanja)), h('small', {}, `${T.desc}${n ? ` · ${n}알` : ''}`)),
+          h('div', { class: 'dan-grid' }, ...list.map((d) => { const k = have(d.id), first = game.danFirst(d.id);
+            // 칸 하나 — 위: 한자 · 이름 · 개수 / 가운데: 처음·¼ 내공 / 아래: 문파·성질 · 먹기
+            return h('div', { class: `dan-item tile${k ? '' : ' none'}`, style: `--dc:${d.col}`, title: d.desc },
+              h('div', { class: 'dan-tile-top' }, h('i', { class: 'dan-hanja' }, d.hanja), h('b', {}, d.name), k ? h('span', { class: 'dan-cnt' }, `×${k}`) : null),
+              DN.canEat(d.id) ? h('small', {}, h('span', { class: `dan-first${first ? '' : ' rep'}` }, first ? '처음' : '¼'), ` 내공 +${hr(game.danNextQi(d.id))}`) : null,
+              d.sect || tags(d) ? h('small', { class: 'dan-tags' }, [d.sect, tags(d)].filter(Boolean).join(' · ')) : null,
+              DN.canEat(d.id) && k ? h('button', { class: 'btn mini', onclick: () => { if (game.useDan(d.id, 1)) redo(); } }, '먹기') : null); })));
+      });
+      return [med, eatNew, ...tiers];
+    }
+    // ② 뽑기 — 약초 · 하루 한 번 공짜 · 품계 확률 · 극품 천장 · 지난 뽑기
+    function gachaTab() {
+      const st = s.danGacha || { n: 0, pity: 0 }, yak = have('yakcho');
+      const btn = (n, label, isFree = false) => h('button', { class: `btn ${game.canDanGacha(n, isFree) ? 'primary' : ''}`, disabled: game.canDanGacha(n, isFree) ? null : true, onclick: () => {
+        const r = game.danGacha(n, isFree); if (r) { danLast = r; redo(); } } }, label);
+      const card = h('div', { class: 'card dan-gacha' },
+        h('h3', {}, '🎲 영약 뽑기 ', h('i', {}, '天地丹櫃'), h('small', {}, ` 약초 ${DN.GACHA_COST}개에 한 번 · 하루 한 번 공짜 · 신품은 연단으로만`)),
+        h('div', { class: 'btn-row' }, free ? btn(1, '오늘의 공짜 한 번', true) : null, btn(1, `한 번 · 약초 ${DN.GACHA_COST}`), btn(10, `열 번 · 약초 ${DN.GACHA_COST * 10}`)),
+        h('p', { class: 'muted', style: 'font-size:11px;margin:6px 0 0' }, `가진 약초 ${fmt(yak)} · 뽑은 수 ${fmt(st.n)} · 극품은 늦어도 ${DN.GACHA_PITY - (st.pity || 0)}번 안에 · 열 번엔 ${DN.tierOf(DN.GACHA_TEN).name} 이상 하나`),
+        h('div', { class: 'dan-rates' }, ...DN.GACHA_RATES.map(([t, p]) => h('div', { style: `--tc:${DN.tierOf(t).col}` }, tierChip(t), h('b', {}, `${p}%`), h('small', {}, DN.gachaPool(t).map((d) => d.name).join(' · '))))));
+      const last = danLast?.length ? h('div', { class: 'card dan-last' }, h('h3', {}, '방금 뽑은 것'),
+        h('div', { class: 'dan-last-grid' }, ...danLast.map((r) => { const d = DN.danOf(r.id); return h('div', { class: `dan-pull t${r.tier}`, style: `--dc:${d.col};--tc:${DN.tierOf(r.tier).col}` },
+          h('i', {}, d.hanja), h('b', {}, d.name), h('small', {}, `${DN.tierOf(r.tier).name}${r.fresh ? ' · 새로' : ''}`)); }))) : null;
+      return [card, last];
+    }
+    // ③ 연단로 — 품계마다 · 아래 품계 + 내단으로 위 품계
+    function potTab() {
+      const head = h('p', { class: 'muted', style: 'font-size:11.5px;margin:8px 0' }, `하품은 약초로 · 중품부터는 아래 품계 영약과 내단으로 빚는다 — 같은 영약이 남으면(두 번째부터 ¼) 먹지 말고 빚어 올리자. 실패하면 재료를 잃고 그 단약 성공률 +${Math.round(DN.PITY_STEP * 100)}%(${Math.round(DN.PITY_MAX * 100)}%까지).`);
+      const secs = DN.DAN_TIERS.map((T) => {
+        const ids = Object.keys(DN.RECIPES).filter((id) => DN.danOf(id).tier === T.t).sort((a, b) => DN.danOf(a).hours - DN.danOf(b).hours);
+        if (!ids.length) return null;
+        return h('div', { class: 'dan-tier-sec', style: `--tc:${T.col}` }, h('div', { class: 'dan-tier-head' }, h('b', {}, `${T.name} `, h('i', {}, T.hanja)), h('small', {}, T.desc)),
+          ...ids.map((id) => { const d = DN.danOf(id), rc = game.danRecipe(id), pity = s.danPity?.[id] || 0;
+            return h('div', { class: `dan-rec${rc.ok ? ' ok' : ''}`, style: `--dc:${d.col}` },
+              h('div', { class: 'dan-rec-head' }, h('i', { class: 'dan-hanja' }, d.hanja), h('div', { class: 'dan-txt' },
+                h('b', {}, `${d.sect} · ${d.name}${have(id) ? ` ×${have(id)}` : ''}`),
+                h('small', {}, `${game.danFirst(id) ? '처음' : '¼'} 내공 +${hr(game.danNextQi(id))}${tags(d) ? ` · ${tags(d)}` : ''} · 성공 ${Math.round(rc.p * 100)}%${pity ? `(실패 덤 +${Math.round(pity * 100)}%)` : ''} · 은자 ${fmt(rc.gold)}`))),
+              h('div', { class: 'dan-need' }, ...rc.need.map((x) => h('span', { class: x.have >= x.n ? 'have' : 'lack' }, `${DN.danOf(x.id).name} ${fmt(Math.min(x.have, x.n))}/${fmt(x.n)}`))),
+              h('button', { class: `btn ${rc.ok ? 'primary' : ''}`, disabled: rc.ok ? null : true, onclick: () => { if (game.craftDan(id)) redo(); } }, '연단')); }));
+      });
+      return [head, ...secs.filter(Boolean)];
+    }
+    // ④ 얻는 곳 — 사냥 · 두목 · 뽑기 · 연단 · 보상 갈래로
+    function whereTab() {
+      return DN.DAN_HOWS.map((H) => {
+        let rows;
+        if (H.id === 'gacha') rows = DN.GACHA_RATES.map(([t, p]) => h('div', { class: 'dan-src' }, tierChip(t), h('b', {}, `${p}%`), h('small', {}, DN.gachaPool(t).map((d) => d.name).join(' · '))));
+        else rows = DN.DANS.flatMap((d) => DN.danSources(d.id).filter((x) => x.how === H.id).map((x) => h('div', { class: 'dan-src', style: `--dc:${d.col}` }, tierChip(d.tier), h('b', {}, d.name), h('small', {}, H.id === 'craft' ? `← ${x.text}` : x.text))));
+        return h('div', { class: 'card dan-how' }, h('h3', {}, `${H.icon} ${H.name}`, h('small', {}, ` ${H.desc}`)), ...rows);
+      });
+    }
   }
   return { root, update };
 }

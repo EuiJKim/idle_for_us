@@ -1920,8 +1920,12 @@ function handleEvents() {
         toast(`✨ 영약 · ${ev.name}${ev.n > 1 ? ` ×${ev.n}` : ''}을(를) 얻었어요 — 캐릭터 창 「영약」`);
         break;
       case 'danUse':
-        toast(`${ev.name}${ev.n > 1 ? ` ×${ev.n}` : ''} — 내공 +${fmt(Math.floor(ev.qi))}${ev.maki ? ' · 마기가 돈다(받는 피해 +20%)' : ev.cleanse ? ' · 마기를 씻었다' : ''}`);
+        toast(`${ev.name}${ev.n > 1 ? ` ×${ev.n}` : ''} — 내공 +${fmt(Math.floor(ev.qi))}${ev.first ? '' : ' (먹어 본 영약이라 ¼)'}${ev.maki ? ' · 마기가 돈다(받는 피해 +20%)' : ev.cleanse ? ' · 마기를 씻었다' : ''}`);
         break;
+      case 'danGacha': {   // v461 영약 뽑기
+        const top = ev.out.filter((r) => r.tier === ev.best);
+        toast(`🎲 영약 뽑기 ${ev.n}번 — ${DN.tierOf(ev.best).name} ${top.map((r) => r.name).join(' · ')}${ev.out.length > top.length ? ` 외 ${ev.out.length - top.length}` : ''}`);
+        break; }
       case 'danCraft':   // v457 연단
         toast(ev.ok ? `🔥 연단 성공 — ${ev.name}` : `연단 실패 — ${ev.name} · 재료를 잃었어요 (다음 성공률 ${Math.round(ev.next * 100)}%)`);
         break;

@@ -1328,6 +1328,9 @@ export class BattleView {
       case 'medTick':
         if (ev.qi > 0) this.float(`내공 +${fmtQi(ev.qi)}`, this.heroX, this.groundY - 150, '#a7f3d0', 15, 1.4, false);
         break;
+      case 'danMat':   // v461 약재 — 몹 자리에 작게(내단은 금빛)
+        if (ev.at) this.float(`${ev.name}${ev.n > 1 ? ` ×${ev.n}` : ''}`, ev.at.x, ev.at.y - 60, ev.id === 'naedan' ? '#fbbf24' : '#86efac', ev.id === 'naedan' ? 15 : 12, 1.1);
+        break;
       case 'danUse':
         this.effects.push({ kind: 'pillar', life: 1.0, max: 1.0 });
         this.float(`${ev.name} · 내공 +${fmtQi(ev.qi)}`, this.heroX, this.groundY - 170, '#c4b5fd', 18, 1.6, true);
