@@ -16,6 +16,7 @@ import * as IM from './wimprint.js';
 import * as PT from './wpath.js';
 import * as TD from './wtoday.js';
 import * as SH from './wshmup.js';
+import * as PV from './wpvp.js';
 
 const rand = Math.random;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -74,7 +75,8 @@ export function newWorldSave(now = Date.now()) {
     zPity: {},                               // 신마다 신수 없이 뽑은 횟수 (셋째에 꼭)
     mast: {},                                // 지역 숙련도 (v127) — 지역 번호: 잡은 수
     raid: { day: '', n: 0, dps: 0 },         // 문파 토벌 (v128): 오늘 친 횟수 · 마지막 초당 피해
-    wraid: { day: '', n: 0, dps: 0, kills: 0, top1: 0 },   // v373 월드보스: 오늘 친 횟수 · 초당 피해 · 잡힌 것을 받은 수 · 1위 수
+    wraid: { day: '', n: 0, dps: 0, kills: 0, top1: 0 },
+    pvp: { score: PV.START, best: PV.START, day: '', used: 0, win: 0, lose: 0, log: [] },   // v451 비동기 대결   // v373 월드보스: 오늘 친 횟수 · 초당 피해 · 잡힌 것을 받은 수 · 1위 수
     prot: 0,                                 // 강화 보호부 (v150)
     duel: { won: {} },                       // 고수 (v148): 처음 쓰러뜨린 고수 — 영구 능력치
     quest: 0,                                // 길잡이 (v139): 받은 단계 수 — 지금 할 일은 QUESTS[quest]
@@ -282,6 +284,11 @@ export function migrateWorld(raw, now = Date.now()) {
   s.questGift = Number.isInteger(raw.questGift) ? raw.questGift : -1;
   const rd = raw.raid && typeof raw.raid === 'object' ? raw.raid : {};
   s.raid = { day: typeof rd.day === 'string' ? rd.day : '', n: clamp(Math.floor(Number(rd.n) || 0), 0, D.RAID_PER_DAY + 1), dps: Math.max(0, Number(rd.dps) || 0) };   // v428 길잡이 덤 한 번까지
+  { const p = raw.pvp && typeof raw.pvp === 'object' ? raw.pvp : {};   // v451 비동기 대결
+    const n0 = (v, hi) => clamp(Math.floor(Number(v) || 0), 0, hi);
+    s.pvp = { score: n0(p.score ?? PV.START, 99999), best: n0(p.best ?? PV.START, 99999), day: typeof p.day === 'string' ? p.day.slice(0, 10) : '', used: n0(p.used, 99), win: n0(p.win, 1e7), lose: n0(p.lose, 1e7),
+      log: (Array.isArray(p.log) ? p.log : []).slice(0, PV.LOG_MAX).filter((x) => x && typeof x === 'object').map((x) => ({ n: String(x.n || '').slice(0, 12), j: PV.JOB_PATS[x.j] ? x.j : null, w: !!x.w, d: clamp(Math.round(Number(x.d) || 0), -99, 99), at: Math.max(0, Number(x.at) || 0), npc: !!x.npc, why: String(x.why || '').slice(0, 8) })) };
+    if (p.score == null) s.pvp.score = PV.START; if (p.best == null) s.pvp.best = Math.max(PV.START, s.pvp.score); }
   { const w = raw.wraid && typeof raw.wraid === 'object' ? raw.wraid : {};   // v373 월드보스
     s.wraid = { day: typeof w.day === 'string' ? w.day.slice(0, 10) : '', n: clamp(Math.floor(Number(w.n) || 0), 0, 999), dps: Math.max(0, Number(w.dps) || 0),
       kills: Math.max(0, Math.floor(Number(w.kills) || 0)), top1: Math.max(0, Math.floor(Number(w.top1) || 0)), ok: Math.max(0, Math.floor(Number(w.ok) || 0)), sk: Math.max(0, Math.floor(Number(w.sk) || 0)),
@@ -1202,9 +1209,14 @@ export class WorldGame {
       if (m.introT > 0) { m.introT -= dt; continue; }
       if (m.wb) continue;   // v374 마왕은 움직이지도 때리지도 않는다 — v443 강타(tickInst)로만
       if (m.treasure) { this.tickTreasure(m, dt); continue; }
-      if (m.stun > 0) { m.stun -= dt; continue; }
+      if (m.pvp) {   // v451 대결 상대 — 기절은 빨리 풀리고, 풀린 뒤 잠깐은 다시 안 걸린다
+        if (m.stun > 0 && m.stunImm > this.clock) m.stun = 0;
+        else if (m.stun > 0) m._stunned = true;
+        else if (m._stunned) { m._stunned = false; m.stunImm = this.clock + PV.PVP_STUN_IMM; }
+      }
+      if (m.stun > 0) { m.stun -= dt * (m.pvp ? PV.PVP_STUN : 1); continue; }
       if (m.slow > 0) m.slow -= dt;
-      const spd = W.MOB_SPEED * (m.slow > 0 ? 0.45 : 1) * (m.isBoss ? 0.8 : 1);
+      const spd = W.MOB_SPEED * (m.slow > 0 ? 0.45 : 1) * (m.pvp ? 1.1 : m.isBoss ? 0.8 : 1);   // v451 대결 상대는 무인처럼 빠르게
       // 칸 사이를 옮겨 가는 중이면 마저 간다
       if (m.move) {
         if (this.slide(m, 'x', 'y', m.move, spd * (m.aggro ? 1 : 0.6), dt)) { m.c = m.move.c; m.r = m.move.r; m.move = null; }
@@ -1215,6 +1227,7 @@ export class WorldGame {
       // v439 바람식: 사냥터 졸개는 맞기 전엔 덤비지 않는다(정예·두목·던전 몹은 다가온다)
       const fierce = !W.PASSIVE_MOBS || this.inst || m.isBoss || m.elite || this.map.bossRoom;
       if ((fierce && dist < W.MOB_AGGRO) || m.aggro) m.aggro = dist < W.MOB_AGGRO * 2;
+      if (m.pvp) m.aggro = true;   // v451 대결 상대는 어디서든 쫓아온다
       if (m.aggro) {
         const reach = m.isBoss ? W.MOB_REACH * 1.5 : W.MOB_REACH;
         if (dist > reach) {
@@ -1241,7 +1254,7 @@ export class WorldGame {
             const env = this.envNow();
             if (env.dodge && this.rng() < env.dodge) { this.emit('passive', { id: 'dodge' }); continue; }                // 운무
             if (st.dodge && this.rng() < st.dodge) { this.emit('passive', { id: 'dodge' }); continue; }                  // 장비 회피 (v130)
-            if (cls.fear && this.rng() < cls.fear + (pm.fearUp || 0) + (this.buffv.fear || 0)) {                                     // 극악소마: 공포
+            if (cls.fear && this.rng() < Math.min(m.pvp ? PV.PVP_FEAR_MAX : 9, cls.fear + (pm.fearUp || 0) + (this.buffv.fear || 0))) {   // v451 대결은 공포 상한                                     // 극악소마: 공포
               this.emit('passive', { id: 'fear', at: m });
               const sbf = this.setBonus();
               if (sbf.fearVuln && !(m.vulnT > this.clock && m.vulnV > sbf.fearVuln)) { m.vulnT = this.clock + 3; m.vulnV = sbf.fearVuln; }   // 귀혼소음 3
@@ -1251,7 +1264,8 @@ export class WorldGame {
             }
             const red = (1 - (cls.dmgRed || 0)) * (1 - (this.buffv.guard || 0)) * (1 - Math.min(0.6, pm.dmgRed || 0)) * (1 - (st.dmgRed || 0));
             const weak = cls.venomWeak && m.poison > 0 ? 1 - cls.venomWeak : 1;   // v448 독마: 중독된 적은 힘이 빠진다
-            const dmg = Math.max(1, m.atk * (1 + (env.mobAtk || 0)) * (0.9 + this.rng() * 0.2) * red * this.gapIn(m) * weak - st.def);
+            const dmg = m.pvp ? st.hp * PV.PVP_BASIC * this.inst.rDmg * PV.takeK(this.s.job) * (0.9 + this.rng() * 0.2) * Math.max(PV.PVP_RED_MIN, red) * weak   // v451 대결 — 내 체력의 몫(방어 대신 받는 피해 감소, 50%까지)
+              : Math.max(1, m.atk * (1 + (env.mobAtk || 0)) * (0.9 + this.rng() * 0.2) * red * this.gapIn(m) * weak - st.def);
             let left = dmg;
             if (this.shield > 0 && this.buffs.shield > 0) { const a = Math.min(this.shield, left); this.shield -= a; left -= a; }   // 금종조
             this.heroHp -= left;
@@ -1291,10 +1305,12 @@ export class WorldGame {
     }
     if (noDrink || !this.s.autoPotion || this.potionT > 0 || this.s.potions <= 0) return;
     if (D.TOWER_NO_POTION && this.inst?.kind === 'tower') return;
+    if (this.inst?.kind === 'pvp') return;   // v451 대결은 물약 없이
     if (this.heroHp < st.hp * this.potionAt()) this.drinkPotion();
   }
   drinkPotion() {
     if (D.TOWER_NO_POTION && this.inst?.kind === 'tower') return false;
+    if (this.inst?.kind === 'pvp') return false;   // v451
     const st = this.stats();
     if (this.s.potions <= 0 || this.heroHp >= st.hp) return false;
     this.s.potions--;
@@ -1342,6 +1358,7 @@ export class WorldGame {
     }
     // v303: 손으로 움직인 직후(manualHold)에는 과녁을 쫓아가지만 않을 뿐, 닿는 적은 바로 친다 — 전엔 0.6~1.2초를 그냥 서 있었다(후딜)
     if (this.manualHold > 0) { this.manualHold -= dt; this.holdApproach = true; }
+    if (this.inst?.kind === 'pvp' && !this.autoDodge) this.holdApproach = true;   // v451 대결은 직접 — 다가가지 않고 닿으면 평타만(무공은 단추로)
     // 과녁: 나를 치고 있는 몹 → 가장 가까운 몹. 자동 사냥이 꺼져 있으면 붙어 있는 것만 친다.
     if (!this.mon?.alive) this.mon = this.pickTarget(st);
     // 두목 구역: 졸개를 치던 중에도 두목이 나서면 바로 두목에게 (손으로 찍어 움직이는 중은 빼고)
@@ -1357,7 +1374,7 @@ export class WorldGame {
     this.heroAngle = Math.atan2((m.y - this.heroY) * 0.6, m.x - this.heroX);
     // v426 사거리 안에 서 있을 때만 과녁 쪽으로 돈다 — 걷는 중엔 걷는 방향 그대로(전엔 칸마다 과녁 쪽으로 홱 돌아 무공을 쓰고 다시 걷는 쪽으로 돌았다)
     if (dist <= st.range && Math.abs(m.x - this.heroX) > 6) this.heroFacing = m.x >= this.heroX ? 1 : -1;
-    if (this.s.autoSkill) this.autoSkills(st);
+    if (this.s.autoSkill && (this.inst?.kind !== 'pvp' || this.autoDodge)) this.autoSkills(st);   // v451 대결은 무공도 손으로(시뮬 봇만 자동)
     if (!this.mon?.alive) return;
     if (dist > st.range) {
       if ((!this.huntOn() && !m.aggro) || this.holdApproach) { this.walking = false; return; }
@@ -1386,7 +1403,7 @@ export class WorldGame {
   // v157: 걸으면서도 무공을 펼친다 — 자동 무공이면 움직이는 동안에도 닿는 적에게 (평타는 서야 친다).
   // 과녁이 없으면(조이스틱으로 끌고 다닐 때) 가장 가까운 적을 잡는다.
   moveSkills(st) {
-    if (!this.s.autoSkill || this.map.town || !this.mons.length) return;
+    if (!this.s.autoSkill || this.map.town || !this.mons.length || (this.inst?.kind === 'pvp' && !this.autoDodge)) return;
     if (!this.mon?.alive || this.mon.npc) {
       let best = null, bd = W.MOVE_CAST_R;
       for (const m of this.mons) {
@@ -2053,7 +2070,7 @@ export class WorldGame {
     if (b.fear) set('fear', b.fear * pow);
     if (b.critDmg) set('critUp', b.critDmg * pow);
     if (b.triple) set('triple', b.triple);
-    if (sk.shield) { this.shield = st.hp * sk.shield * pow; this.buffs.shield = b.sec; this.buffv.shield = 1; }
+    if (sk.shield) { this.shield = st.hp * sk.shield * pow * (this.inst?.kind === 'pvp' ? PV.PVP_HEAL * 1.6 : 1); this.buffs.shield = b.sec; this.buffv.shield = 1; }   // v451 대결은 보호막도 작게
     if (sk.heal) {
       const add = (st.hp - this.heroHp) * Math.min(1, sk.heal * pow);
       this.heroHp = Math.min(st.hp, this.heroHp + add);
@@ -4529,6 +4546,30 @@ export class WorldGame {
     const fast = !!(f & 1), clean = !!(f & 2);
     return { won, fast, clean, n: (won ? 1 : 0) + (fast ? 1 : 0) + (clean ? 1 : 0), extra: (fast ? 1 : 0) + (clean ? 1 : 0) };
   }
+  // ---------- v451 비동기 대결 ----------
+  // 내 대결 기록 — 서열 문서에 올린다(생김새 lk는 그리는 쪽이 붙인다). 상대는 이 숫자로 나를 잰다
+  pvpSnap() {
+    const s = this.s, st = this.stats();
+    return { n: s.nickname || '무명', j: s.job, t: s.jobTier || 0, lv: s.level, tn: this.tierName(), sk: this.mainSkill()?.name || '', hp: Math.round(st.hp), dps: Math.round(PV.dpsEst(st, s.jobTier, s.job, s.level)), pw: Math.round(st.power) };
+  }
+  pvpToday(now = Date.now()) {
+    const P = this.s.pvp, d = D.kstDay(now);
+    if (P.day !== d) { P.day = d; P.used = 0; }
+    return P;
+  }
+  pvpLeft(now = Date.now()) { return Math.max(0, PV.PVP_PER_DAY - this.pvpToday(now).used); }
+  canPvp(now = Date.now()) { return !this.inst && !!this.s.job && this.s.level >= PV.PVP_LV && this.pvpLeft(now) > 0; }
+  // 겨룰 상대 하나와 대결을 시작한다 (opp: wpvp.oppOf 모양)
+  startPvp(opp, now = Date.now()) {
+    if (!opp || !this.canPvp(now)) return false;
+    const me = this.pvpSnap();
+    const rHp = PV.clampR(opp.hp / me.hp), rDmg = PV.clampR(opp.dps / me.dps);
+    this.pvpToday(now).used++;
+    const z = Math.max(1, Math.min(W.ZONES_W.length - 1, D.zoneForLv(this.s.level) || 1));
+    this.startInst({ kind: 'pvp', opp, rHp, rDmg, map: PV.pvpMap(z, W.ZONES_W[z].art, opp), t: PV.PVP_SEC, max: PV.PVP_SEC, wait: 1.6, castT: PV.PVP_CAST * 0.7, now });
+    this.bossSeen = true;   // 두목 등장처럼 화면을 멈추지 않는다 — 나서자마자 겨룬다
+    return true;
+  }
   // 무한의 탑 — 다음 층에 오른다. chain: 이긴 뒤 이어 오르는 것(등장 연출을 짧게)
   canTower() { return !this.inst && !!this.s.job && this.s.tower.floor < D.TOWER_MAX; }
   // v263 주간 회랑 — 120층을 넘으면. 이번 주 기록에서 한 층 위로.
@@ -4595,6 +4636,13 @@ export class WorldGame {
         if (b && I.kind === 'wraid') { b.lv = this.s.level + 8; b.maxHp = I.sharedMax; b.hp = I.hpLeft; b.baseAtk = b.atk = W.mobAtk(b.lv) * W.BOSS.atk; b.armor = 0; b.grade = 3; b.wb = I.boss0; I.rage = -1;
           // v374 거대한 마왕은 위 가운데에 버티고 선다 — 무인은 아래에서 탄을 피하며 친다
           b.c = b.hc = SH.BOSS_C; b.r = b.hr = SH.BOSS_R; b.x = W.tileCenter(SH.BOSS_C); b.y = W.tileCenter(SH.BOSS_R); b.move = null; b.aggro = true; }   // v443 무인이 걸어가 친다
+        else if (b && I.kind === 'pvp') {   // v451 상대 무인 — 나를 기준으로 잰 체력·평타(wpvp.js)
+          const st = this.stats(), o = I.opp;
+          b.def = { ...b.def, opts: o.lk?.opts || null, job: o.j };
+          { const c = Math.max(0, Math.min(W.COLS - 1, this.hc + (this.rng() < 0.5 ? -2 : 2))), r = Math.max(0, this.hr - 5);   // 화면 안 — 내 앞 다섯 칸
+            if (!this.occupied(c, r, b)) { b.c = b.hc = c; b.r = b.hr = r; b.x = W.tileCenter(c); b.y = W.tileCenter(r); b.move = null; } }
+          b.lv = o.lv; b.maxHp = b.hp = PV.dpsEst(st, this.s.jobTier, this.s.job, this.s.level) * PV.PVP_HP_SEC * I.rHp; b.armor = 0; b.grade = 3; b.pvp = o.j; b.aggro = true;
+          b.atk = st.hp * PV.PVP_BASIC * I.rDmg + st.def; I.boss = b; I.oppMax = b.maxHp; }
         else if (b && I.kind === 'raid') { b.lv = this.s.level + 5; b.maxHp = I.sharedMax; b.hp = I.hpLeft; b.atk = W.mobAtk(b.lv) * W.BOSS.atk; b.armor = 0; b.grade = 3; }
         else if (b && I.hard) { b.lv = D.hardLv(I.stage); b.maxHp = b.hp = D.hardHp(I.stage); b.atk = D.hardAtk(I.stage); b.armor = W.mobDef(b.lv); b.grade = 3; b.hardFx = D.hardMountOf(I.stage)?.fx || 'hard'; }
         else if (b) { b.lv = D.towerLv(I.stage); b.maxHp = b.hp = D.towerHp(I.stage); b.atk = D.towerAtk(I.stage); b.armor = W.mobDef(b.lv); if (D.isZodiacFloor(I.stage)) b.grade = 3; }
@@ -4629,6 +4677,25 @@ export class WorldGame {
         if (this.setBonus().wukong && (this.shWk || 0) < SH.WK_MAX && (this.shWkT = (this.shWkT || 0) + dt) >= SH.WK_SEC) { this.shWkT = 0; this.shWk = (this.shWk || 0) + 1; this.emit('wukongReady', { n: this.shWk }); }
       }
     }
+    if (I.kind === 'pvp') {   // v451 회복은 일부만(지난 틱 뒤 오른 몫을 줄인다)
+      if (this._pvHp != null && this.heroHp > this._pvHp && this.heroHp > 0) this.heroHp = this._pvHp + (this.heroHp - this._pvHp) * PV.PVP_HEAL;
+      this._pvHp = this.heroHp;
+    } else this._pvHp = null;
+    if (I.kind === 'pvp') {   // v451 상대 초식 — 직업마다 다른 바닥 경고(비켜 서면 안 맞는다) · 세 번째마다 오의
+      const b = this.mons.find((m) => m.isBoss && m.alive && !(m.introT > 0));
+      if (b && !(b.stun > 0)) {
+        I.castT -= dt;
+        if (I.castT <= 0) {
+          const jp = PV.JOB_PATS[I.opp.j] || PV.JOB_PATS.sword;
+          I.castN = (I.castN || 0) + 1;
+          const ult = I.castN % 3 === 0;
+          const pat = ult ? jp.ult : jp.list[Math.floor(this.rng() * jp.list.length)];
+          I.castT = PV.PVP_CAST * (0.85 + this.rng() * 0.3) * (ult ? 1.2 : 1);
+          const pct = PV.PVP_SKILL * I.rDmg * PV.takeK(this.s.job) * (ult ? PV.PVP_ULT : 1);
+          this.bossCast(b, 1, pct / D.tellDmg(1), [pat], I.opp.sk || null, { delay: PV.PVP_TELL * (ult ? 1.3 : 1), ult });
+        }
+      }
+    }
     if (I.kind === 'tower' || I.kind === 'raid') {
       const b = this.mons.find((m) => m.isBoss && m.alive && !(m.introT > 0));
       if (b && !(b.stun > 0)) {
@@ -4641,7 +4708,9 @@ export class WorldGame {
       }
     }
     I.t -= dt;
-    if (I.t <= 0) I.done = { ok: false, timeout: true };
+    // v451 대결은 시간이 끝나면 남은 체력(몫)으로 가른다 — 판정
+    if (I.t <= 0 && I.kind === 'pvp') { const b = I.boss, mine = this.heroHp / Math.max(1, this.stats().hp), his = b ? Math.max(0, b.hp) / Math.max(1, b.maxHp) : 1; I.done = { ok: mine > his, timeout: true }; }
+    else if (I.t <= 0) I.done = { ok: false, timeout: true };
   }
   instKill(m) {
     const I = this.inst;
@@ -4650,7 +4719,7 @@ export class WorldGame {
       I.kills++;
       this.respawns.push({ t: D.DAILY_RESPAWN });
       if (I.kills >= I.target) I.done = { ok: true };
-    } else if ((I.kind === 'tower' || I.kind === 'raid' || I.kind === 'wraid') && m.isBoss) I.done = { ok: true };
+    } else if ((I.kind === 'tower' || I.kind === 'raid' || I.kind === 'wraid' || I.kind === 'pvp') && m.isBoss) I.done = { ok: true };
   }
   // 수문장 초식: 그 층의 초식 가운데 하나를 골라 바닥에 경고를 깐다 (D.tellDelay초 뒤 터진다)
   // v439 바람식 두목 「강타」 — 이름을 외치고 STRIKE_WIND초 뒤 무인에게 그대로 내리꽂는다(피하는 바닥 경고 없이).
@@ -4763,7 +4832,7 @@ export class WorldGame {
       // v255: % 경고 피해에도 호신강기·장비 '받는 피해 감소'를 — 전엔 직업·금신만 곱해 고정 피해(patternHit)와 달랐다
       const pmr = this.pmods();
       const red = (1 - (W.CLASSES[this.s.job]?.dmgRed || 0)) * (1 - (this.buffv.guard || 0)) * (1 - Math.min(0.6, pmr.dmgRed || 0)) * (1 - (st.dmgRed || 0));
-      const dmg = tl.abs ? this.patternHit(tl.abs, boss) : st.hp * tl.dmg * red;
+      const dmg = tl.abs ? this.patternHit(tl.abs, boss) : st.hp * tl.dmg * (this.inst?.kind === 'pvp' ? Math.max(PV.PVP_RED_MIN, red) : red);
       let left = dmg;
       if (this.shield > 0 && this.buffs.shield > 0) { const a = Math.min(this.shield, left); this.shield -= a; left -= a; }
       this.heroHp -= left;
@@ -5034,6 +5103,18 @@ export class WorldGame {
         if (I.paid) { const jr = D.wraidJoinReward(this.s.level, I.dealt / Math.max(1, I.sharedMax)); reward = this.grant({ gold: Math.round(jr.gold * tk), petShard: Math.round(jr.petShard * tk), mountShard: Math.round(jr.mountShard * tk) }); }
       }
       this.bullets = []; this.emitters = [];
+    } else if (I.kind === 'pvp') {
+      const P = this.s.pvp, o = I.opp;
+      const win = ok;
+      I.delta = I.done?.left ? -Math.abs(PV.eloDelta(P.score, o.sc, false)) : PV.eloDelta(P.score, o.sc, win);
+      P.score = Math.max(0, P.score + I.delta);
+      P.best = Math.max(P.best || 0, P.score);
+      if (win) P.win++; else P.lose++;
+      P.log.unshift({ n: o.n, j: o.j, w: win, d: I.delta, at: Date.now(), npc: !!o.npc, why: I.done?.timeout ? '판정' : I.done?.left ? '기권' : '' });
+      P.log.length = Math.min(P.log.length, PV.LOG_MAX);
+      reward = I.done?.left ? null : this.grant(win ? PV.winReward(this.s.level) : PV.loseReward(this.s.level));
+      if (win) this.tday?.('pvp');
+      I.pvpRes = { win, delta: I.delta, score: P.score, opp: o.n, oppJob: o.j, npc: !!o.npc, oppHp: I.boss ? Math.max(0, I.boss.hp) / Math.max(1, I.boss.maxHp) : 1, uid: o.uid };
     } else if (I.kind === 'raid') {
       // 친 만큼 — 서버에 올리는 건 그리는 쪽(wmain → WNet)이 한다
       I.dealt = I.boss ? Math.max(0, Math.round(I.hpLeft - Math.max(0, I.boss.hp))) : 0;
@@ -5044,7 +5125,7 @@ export class WorldGame {
       }
     }
     const res = { kind: I.kind, id: I.id, stage: I.stage, ok, gotKey: !!I.gotKey, extra: !!I.extra, died: !!I.done?.died, timeout: !!I.done?.timeout, left: !!I.done?.left, key: I.key, dealt: I.dealt || 0,
-      kills: I.kills || 0, target: I.target || 0, reward, chain: false, unsent: I.unsent || 0, byOther: !!I.done?.byOther, paid: I.paid !== false, hard: !!I.hard, newMount: I.newMount || null, record: !!I.record };
+      kills: I.kills || 0, target: I.target || 0, reward, chain: false, unsent: I.unsent || 0, byOther: !!I.done?.byOther, paid: I.paid !== false, hard: !!I.hard, newMount: I.newMount || null, record: !!I.record, pvp: I.pvpRes || null };
     this.inst = null;
     // 탑: 이기고 '이어 오르기'면 다음 층으로
     if (I.kind === 'tower' && ok && I.hard && this.s.tower.auto && !I.done.left && !I.noChain && !I.newMount && this.canHard()) {

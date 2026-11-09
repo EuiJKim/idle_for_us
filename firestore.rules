@@ -39,7 +39,7 @@ service cloud.firestore {
     }
     function profileKeys() {
       return ['world', 'nickname', 'level', 'job', 'jobTier', 'tierName', 'map', 'mapName', 'power', 'atk', 'hp',
-        'weaponGrade', 'titles', 'title', 'raidDps', 'guildId', 'guildName', 'updatedAt'];
+        'weaponGrade', 'titles', 'title', 'raidDps', 'guildId', 'guildName', 'updatedAt', 'pvp', 'pvpScore'];   // v451 대결 기록
     }
     function strOk(d, k, n) { return !(k in d) || d[k] == null || (d[k] is string && d[k].size() <= n); }
     function numOk(d, k, lo, hi) { return !(k in d) || d[k] == null || (d[k] is number && d[k] >= lo && d[k] <= hi); }
@@ -51,6 +51,7 @@ service cloud.firestore {
         && (!('jobTier' in d) || (d.jobTier is int && d.jobTier >= 0 && d.jobTier <= 9))   // v415 5차(v391)가 막혀 온라인이 꺼졌다 — 여유 있게 9까지
         && strOk(d, 'job', 16) && strOk(d, 'tierName', 24) && strOk(d, 'mapName', 24) && strOk(d, 'guildName', 16) && strOk(d, 'title', 20)
         && numOk(d, 'map', 0, 1000) && numOk(d, 'weaponGrade', -1, 50)
+        && strOk(d, 'pvp', 3000) && numOk(d, 'pvpScore', 0, 99999)
         && numOk(d, 'power', 0, 1000000000000000000000000000000.0) && numOk(d, 'atk', 0, 1000000000000000000000000000000.0) && numOk(d, 'hp', 0, 1000000000000000000000000000000.0) && numOk(d, 'raidDps', 0, 1000000000000000000000000000000.0)
         && (!('titles' in d) || (d.titles is list && d.titles.size() <= 40))
         && (!('guildId' in d) || d.guildId == null || (d.guildId is string && d.guildId.size() <= 8))

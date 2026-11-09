@@ -191,6 +191,28 @@ const tryWrite = (page, fn, v = {}) => G(page, async ([src, v]) => {
     const odd = await tryWrite(C.page, async (net) => { await net.fs.addDoc(net.fs.collection(net.db, 'bugs'), { by: net.uid, kind: 'spam', text: 'x', build: '', ua: '', lv: 1, map: 1, save: '', notes: '', errs: '', shot: '', at: net.fs.serverTimestamp() }); });
     assert(odd === 'denied', `모르는 종류는 막힘 (${odd})`);
 
+    console.log('— v451 비동기 대결: 갑돌의 대결 기록을 을순이 상대로 고른다');
+    await G(A.page, async () => { const g = window.__game; g.s.gold = 1e10; while (g.s.level < 30) { g.addExp(1e9); while (g.canAdvance()) g.advance(); } await window.__net.pushProfile(true); });
+    const docA = await G(A.page, async (u) => { const n = window.__net; const s = await n.fs.getDoc(n.ref('players', u)); return s.data(); }, A.uid);
+    let snapA = null; try { snapA = JSON.parse(docA?.pvp || 'null'); } catch { /* */ }
+    assert(snapA && snapA.j === 'sword' && snapA.hp > 0 && snapA.dps > 0 && docA.pvpScore === 1000, `서열 문서에 대결 기록 (${String(docA?.pvp || '').length}자)`);
+    assert(!!snapA?.lk?.look, '대결 기록에 생김새도 실린다(상대 그림)');
+    await G(B.page, async () => { const g = window.__game; g.s.gold = 1e10; while (g.s.level < 30) { g.addExp(1e9); while (g.canAdvance()) g.advance(); } });
+    const opps = await G(B.page, async () => (await window.__net.pvpOpps(1)).map((o) => ({ uid: o.uid, n: o.n, npc: o.npc, j: o.j })));
+    const oa = opps.find((o) => o.uid === A.uid);
+    assert(opps.length === 3 && oa && oa.n === '갑돌' && oa.j === 'sword', `을순의 상대 셋에 갑돌 (${opps.map((o) => o.n).join(' · ')})`);
+    const fight = await G(B.page, async (u) => {
+      const g = window.__game; const o = (await window.__net.pvpOpps(1)).find((x) => x.uid === u);
+      if (!g.startPvp(o)) return null;
+      for (let i = 0; i < 80 && !g.inst.boss; i++) g.tick(0.05);
+      const b = g.inst.boss; return { name: b?.def?.name, job: b?.pvp, look: !!b?.def?.look?.robe || !!b?.def?.look?.head };
+    }, A.uid);
+    assert(fight && fight.name === '갑돌' && fight.job === 'sword' && fight.look, `대결 — 상대가 갑돌의 이름·직업·생김새로 나선다 (${JSON.stringify(fight)})`);
+    const big = await tryWrite(C.page, async (net) => { await net.fs.setDoc(net.ref('players', net.uid), { pvp: 'x'.repeat(4000) }, { merge: true }); });
+    assert(big === 'denied', `규칙: 너무 긴 대결 기록은 막힘 (${big})`);
+    const odd2 = await tryWrite(C.page, async (net) => { await net.fs.setDoc(net.ref('players', net.uid), { pvpScore: 1e9 }, { merge: true }); });
+    assert(odd2 === 'denied', `규칙: 말이 안 되는 대결 점수는 막힘 (${odd2})`);
+
     for (const P of [A, B, C]) assert(!P.errors.length, `${P.name} 화면 오류 없음${P.errors.length ? ' — ' + P.errors.slice(0, 3).join(' | ') : ''}`);
     await A.page.screenshot({ path: path.join(OUT, 'online2-a.png') });
   } catch (err) {

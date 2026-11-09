@@ -331,6 +331,7 @@ const coop = new Coop(game, net, {
 });
 game.coop = coop;
 app.coop = coop;
+net.pvpLook = () => coop.lookFn();   // v451 대결 기록에 내 생김새
 // v374 월드보스 함께 — 같은 날 마왕 판에 든 무림 사람들이 서로 보인다(체력은 Firestore가 나눈다)
 const wbCoop = new WbCoop(game, net, {
   look: () => {
@@ -1239,7 +1240,7 @@ function refreshUI(full = false) {
   setText($('stage-label'), m.town || m.inst ? m.name : `${m.king ? m.king.title : m.zoneName} ${m.bossRoom ? '두목' : m.area}`);
   const bossLeft = Math.max(0, Math.ceil(game.realSec(game.bossT)));   // v438 실제 초
   const boss = game.mons.find((x) => x.isBoss && x.alive);
-  setText($('zone-label'), m.inst ? (game.inst.kind === 'tower' ? `수문장 Lv.${m.lv[0]} · ${duration(game.realSec(game.inst.hard ? D.hardSec(game.inst.stage) : D.towerSec(game.inst.stage)))} 안에` : game.inst.kind === 'raid' ? `문파원과 함께 — ${Math.round(D.RAID_SEC / W.PACE)}초 동안 친 만큼` : game.inst.kind === 'wraid' ? `무림 전체와 함께 — ${D.WRAID_SEC}초 동안 친 만큼` : `몹 Lv.${m.lv[0]} · ${D.DAILY_KILLS}마리 잡으면 깬다`) : m.town ? (s.autoHunt ? `쉬는 중 → ${W.mapOf(s.huntMap).name}` : '쉬는 중')
+  setText($('zone-label'), m.inst ? (game.inst.kind === 'tower' ? `수문장 Lv.${m.lv[0]} · ${duration(game.realSec(game.inst.hard ? D.hardSec(game.inst.stage) : D.towerSec(game.inst.stage)))} 안에` : game.inst.kind === 'raid' ? `문파원과 함께 — ${Math.round(D.RAID_SEC / W.PACE)}초 동안 친 만큼` : game.inst.kind === 'wraid' ? `무림 전체와 함께 — ${D.WRAID_SEC}초 동안 친 만큼` : game.inst.kind === 'pvp' ? `대결 — 직접 조작 · 빨간 바닥은 비켜 서기` : `몹 Lv.${m.lv[0]} · ${D.DAILY_KILLS}마리 잡으면 깬다`) : m.town ? (s.autoHunt ? `쉬는 중 → ${W.mapOf(s.huntMap).name}` : '쉬는 중')
     : m.bossRoom ? (boss ? `두목 ${boss.name} Lv.${boss.lv}` : `두목 다시 나기까지 ${Math.floor(bossLeft / 60)}:${String(bossLeft % 60).padStart(2, '0')}`) + (coop.on ? ` · 🤝${coop.count + 1}명` : '')
       : document.body.classList.contains('hud-slim') ? `Lv.${m.lv[0]}~${m.lv[1]}` : `몹 Lv.${m.lv[0]}~${m.lv[1]} · 두목은 두목 구역에`);   // v434 폰 칩은 짧게(「두목…」에서 잘렸다)
   // v341 '사냥하러 가기' — 아래 창 줄의 사냥 단추를 빼고, 마을에 있을 때만 들판 가운데에 띄운다(창이 열려 있으면 숨김)
@@ -1327,7 +1328,7 @@ const hud = $('contest-hud');
 const leaveBtn = h('button', { class: 'inst-leave', onclick: () => {
   if (!game.inst) return;
   openModal((el) => el.append(h('h3', {}, '던전에서 나갈까요?'),
-    h('p', { class: 'muted' }, game.inst.kind === 'daily' ? '깬 것으로 치지 않아요 — 잡은 만큼 보상의 절반만 받아요. 쓴 횟수는 돌아오지 않아요.' : game.inst.kind === 'raid' || game.inst.kind === 'wraid' ? '지금까지 친 피해는 올라가요. 쓴 횟수는 돌아오지 않아요.' : '이번 층은 다시 도전할 수 있어요.'),
+    h('p', { class: 'muted' }, game.inst.kind === 'pvp' ? '기권 — 진 것으로 쳐서 점수가 내려가요. 오늘 쓴 도전은 돌아오지 않아요.' : game.inst.kind === 'daily' ? '깬 것으로 치지 않아요 — 잡은 만큼 보상의 절반만 받아요. 쓴 횟수는 돌아오지 않아요.' : game.inst.kind === 'raid' || game.inst.kind === 'wraid' ? '지금까지 친 피해는 올라가요. 쓴 횟수는 돌아오지 않아요.' : '이번 층은 다시 도전할 수 있어요.'),
     h('div', { class: 'btn-row' }, h('button', { class: 'btn', onclick: closeModal }, '계속하기'),
       h('button', { class: 'btn primary', onclick: () => { closeModal(); game.leaveInst(); handleEvents(); save(); refreshUI(true); } }, '나가기'))));
 } }, '나가기');
@@ -1353,6 +1354,9 @@ function instHud() {
     const rg = I.rage > 0 ? ` · ${D.WRAID_RAGE[I.rage].name}!` : '';
     const with_ = wbCoop.on && wbCoop.count ? ` · 🤝${wbCoop.count + 1}명` : '';
     $('contest-sub').textContent = I.wait > 0 ? '마왕이 강림한다…' : `내 피해 ${fmt(I.myDealt || 0)} · 남은 ${b ? ((Math.max(0, b.hp) / b.maxHp) * 100).toFixed(1) : 100}%${rg}${with_} · ${left}초`;
+  } else if (I.kind === 'pvp') {   // v451 대결 — 양쪽 체력 몫 · 남은 시간
+    const b = I.boss, me = Math.max(0, game.heroHp) / Math.max(1, game.stats().hp);
+    $('contest-sub').textContent = I.wait > 0 ? `${I.opp.n}이(가) 나선다… 끌어서 움직이고 무공은 단추로` : `나 ${Math.ceil(me * 100)}% · 상대 ${b ? Math.ceil((Math.max(0, b.hp) / b.maxHp) * 100) : 100}% · 남은 ${left}초`;
   } else if (I.kind === 'raid') {
     const b = I.boss;
     $('contest-sub').textContent = I.wait > 0 ? '두목이 나선다…' : `피해 ${fmt(b ? Math.max(0, I.hpLeft - Math.max(0, b.hp)) : 0)} · 남은 체력 ${b ? ((Math.max(0, b.hp) / b.maxHp) * 100).toFixed(1) : 100}% · ${left}초`;
@@ -1412,6 +1416,21 @@ function showInstEnd(ev) {
       toast(`🐲 토벌 피해 ${fmt(ev.dealt)}${ev.reward ? ` · 참여 보상 ${rewardText(ev.reward)}` : ''}${killed ? ' — 마무리 일격! 두목 처치' : ''}`);
       app.refresh();
     }).catch((err) => toast(`토벌 기록 실패: ${err.message || err}`));
+    return;
+  }
+  // v451 대결 — 승패·점수·보상
+  if (ev.kind === 'pvp' && ev.pvp) {
+    const r = ev.pvp;
+    net.pushProfile?.(true);   // 새 점수를 서열에
+    if (r.win) sfx('level');
+    const again = game.pvpLeft() > 0;
+    openModal((el) => el.append(...[
+      h('h3', {}, r.win ? `⚔ 승리 — ${r.opp}` : ev.left ? `기권 — ${r.opp}` : `패배 — ${r.opp}`),
+      h('p', {}, `${ev.timeout ? '시간 끝 · 남은 체력으로 판정 · ' : ''}점수 ${r.delta >= 0 ? '+' : ''}${r.delta} → ${fmt(r.score)}점`),
+      !r.win && !ev.left ? h('p', { class: 'muted' }, `상대 체력 ${Math.ceil(r.oppHp * 100)}% 남음 — 빨간 바닥이 깔리면 비켜 서고, 무공은 숨이 찰 때마다 눌러 보세요`) : null,
+      ev.reward && rewardText(ev.reward) !== '없음' ? h('p', {}, `받은 것: ${rewardText(ev.reward)}`) : null,
+      h('div', { class: 'btn-row' }, h('button', { class: 'btn', onclick: closeModal }, '확인'),
+        again ? h('button', { class: 'btn primary', onclick: () => { closeModal(); showTab('social', 'pvp'); } }, `다음 대결 (${game.pvpLeft()}번 남음)`) : null)].filter(Boolean)));
     return;
   }
   const d = ev.kind === 'daily' ? D.dailyOf(ev.id) : null;

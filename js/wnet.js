@@ -10,6 +10,7 @@
 import { Net, dayKey } from './net.js';
 import * as W from './world/wdata.js';
 import * as D from './world/wdgn.js';
+import * as PV from './world/wpvp.js';
 
 // v254 서버 답을 기다리되 끝없이는 아니게 — 끊겨 있으면 바로, 8초 넘게 답이 없으면 실패로 본다
 const ack = (p, ms = 8000) => {
@@ -39,8 +40,29 @@ export class WNet extends Net {
       raidDps: Math.round(g.raidDpsEst()),
       // v268 문파 코드는 올리지 않는다 — 코드가 곧 들어가는 열쇠인데 서열은 누구나 읽는다(예전 값은 지운다)
       guildId: this.fs.deleteField(), guildName: this.guild?.name || null,
+      pvp: this.pvpJson(), pvpScore: Math.round(s.pvp?.score ?? PV.START),   // v451 대결 기록(남이 나와 겨룰 때 쓴다)
       updatedAt: this.fs.serverTimestamp(),
     };
+  }
+  // v451 대결 기록 — 숫자 몇 개 + 생김새(lk, 그리는 쪽이 pvpLook으로 준다). 규칙 상한(3000자)을 넘으면 생김새를 뺀다
+  pvpJson() {
+    if (!this.game.s.job) return null;
+    const o = this.game.pvpSnap();
+    let lk = null;
+    try { lk = this.pvpLook?.() || null; } catch { lk = null; }
+    let j = JSON.stringify(lk ? { ...o, lk } : o);
+    if (j.length > 2800) j = JSON.stringify(o);
+    return j;
+  }
+  // v451 겨룰 상대 셋 — 서열에서 전투력이 가까운 무인(대결 기록이 있는 사람만). 못 읽으면 떠돌이 무인
+  async pvpOpps(seed = 0) {
+    const g = this.game;
+    const me = { ...g.pvpSnap(), sc: g.s.pvp.score };
+    let rows = [];
+    if (this.ready()) {
+      try { rows = (await this.ranking()).filter((p) => p.uid !== this.uid && p.pvp).map((p) => PV.oppOf(p.pvp, p.uid, p.pvpScore)).filter(Boolean); } catch { rows = []; }
+    }
+    return PV.pickOpps(me, rows, seed);
   }
 
   async ranking() {

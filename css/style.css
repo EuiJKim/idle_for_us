@@ -2847,3 +2847,11 @@ body:not(.pc-wide) #ptabs button span { font-size: 11.5px; }
 .bug-row small { color: var(--muted); font-size: 11px; }
 .bug-row p { margin: 4px 0; font-size: 13px; white-space: pre-wrap; word-break: break-word; }
 .bug-shot { display: block; max-width: 100%; border-radius: 8px; margin: 4px 0; }
+/* v451 비무첩 — 대결 */
+.pvp-score b { font-size: 20px; color: #fde68a; }
+.pvp-opp .name small { font-weight: 700; }
+.pvp-log { padding: 3px 0; border-bottom: 1px solid rgba(255,255,255,0.06); font-size: 13px; }
+.pvp-log b { display: inline-block; width: 22px; text-align: center; border-radius: 4px; margin-right: 4px; }
+.pvp-log.w b { background: #166534; color: #dcfce7; }
+.pvp-log.l b { background: #7f1d1d; color: #fee2e2; }
+.pvp-log small { color: #a8a29e; }

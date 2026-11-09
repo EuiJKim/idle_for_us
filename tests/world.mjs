@@ -1318,7 +1318,7 @@ console.log('\n=== 길잡이 (v146) ===');
   ok(new Set(ids).size === ids.length && Q.QUEST_COUNT >= 50, `단계가 쉰 남짓이고 이름이 겹치지 않는다`, `${Q.QUEST_COUNT}단계`);
   const TABS = new Set(['char', 'bag', 'map', 'town', 'social', 'comp', 'dgn', null]);
   ok(Q.QUESTS.every((q) => q.title && q.why && TABS.has(q.tab ? q.tab.split('/')[0] : null) && typeof q.goal === 'function'), '모든 단계에 제목·설명·열 화면·조건이 있다');
-  const SUBS = { char: ['info', 'stat', 'skill'], bag: ['gear', 'bag', 'imp', 'enh', 'smith', 'mats'], map: ['murim', 'sapa', 'magyo', 'king', 'masters'], dgn: ['daily', 'tower', 'zodiac', 'raid', 'wraid'], comp: ['pet', 'mount'], town: ['master', 'shop', 'smith', 'inn'], social: ['guild', 'rank', 'lore'] };
+  const SUBS = { char: ['info', 'stat', 'skill'], bag: ['gear', 'bag', 'imp', 'enh', 'smith', 'mats'], map: ['murim', 'sapa', 'magyo', 'king', 'masters'], dgn: ['daily', 'tower', 'zodiac', 'raid', 'wraid'], comp: ['pet', 'mount'], town: ['master', 'shop', 'smith', 'inn'], social: ['guild', 'rank', 'pvp', 'lore'] };
   const badSub = Q.QUESTS.filter((q) => q.tab?.includes('/') && !SUBS[q.tab.split('/')[0]]?.includes(q.tab.split('/')[1])).map((q) => q.id);
   ok(badSub.length === 0, '길잡이가 여는 칸(창/칸)이 실제로 있다', badSub.join(' '));
   const g0 = fresh();
@@ -4180,7 +4180,8 @@ console.log('\n=== v440 던전 수문장도 강타 ===');
   let strikes = 0, other = 0;
   for (let i = 0; i < 400 && g.inst; i++) { g.tick(0.1); for (const t of g.tells) { if (t.strike) strikes++; else other++; } g.events.length = 0; }
   ok(strikes > 0 && other === 0, '수문장 초식이 바닥 경고 대신 강타 한 방', `강타 ${strikes} · 경고 ${other}`);
-  ok(!/this\.bossCast\(/.test(read('js/world/wgame.js')), '바닥 경고 초식을 쓰는 곳이 없다(칠대성 탄막은 따로)');
+  { const src = read('js/world/wgame.js'), calls = src.match(/this\.bossCast\(/g) || [];
+    ok(calls.length === 1 && /I\.kind === 'pvp'[\s\S]{0,1200}this\.bossCast\(/.test(src), '바닥 경고 초식은 대결(v451, 피할 수 있게)에서만 — 사냥터·던전 두목은 강타', `${calls.length}곳`); }
 }
 
 console.log('\n=== v441 체력이 곧 힘 ===');
@@ -4324,6 +4325,68 @@ console.log('\n=== v450 차분한 연출 ===');
   ok(/if \(this\.calm\) this\.hitstop = 0/.test(bt) && /this\.calm \? 0 : this\.desatTo/.test(bt) && /this\.calm \? CALM_SHAKE : 1/.test(bt) && /this\.calm \? CALM_FLASH : 1/.test(bt), '멈칫·흑백 없음 · 흔들림·번쩍임은 작게');
   ok(/if \(v\.calm\) return;/.test(mj), '필살 여는 연출(ultimate)은 건너뛴다');
   ok(/toggleRow\('차분한 연출'/.test(mn), '설정에서 끌 수 있다');
+}
+
+console.log('\n=== v451 비동기 대결(직접 조작) ===');
+{
+  const PV = await import('../js/world/wpvp.js');
+  const mk = (job = 'sword', lv = 60) => { const g = fresh(job); g.s.gold = 1e12; while (g.s.level < lv) { g.addExp(W.expToNext(g.s.level)); while (g.canAdvance()) g.advance(); } g.enterMap(W.mapId(6, 1)); g._stats = null; g.heroHp = g.stats().hp; g.events.length = 0; return g; };
+  const n0 = new WorldGame(newWorldSave(0), 0);
+  ok(n0.s.pvp.score === PV.START && n0.pvpLeft() === PV.PVP_PER_DAY, '새 무인: 대결 점수 1000 · 하루 5번');
+  const low = fresh('sword'); ok(!low.canPvp(), `${PV.PVP_LV} 레벨 전에는 못 한다`);
+  const mg = migrateWorld({ level: 50, pvp: { score: 'x', used: 99, log: [{ n: 'a'.repeat(40), j: 'zz', w: 1, d: 500 }] } }, 0);
+  ok(mg.pvp.score === 0 && mg.pvp.log[0].n.length === 12 && mg.pvp.log[0].j === null && mg.pvp.log[0].d === 99, '옛·이상한 대결 기록은 고친다');
+  ok(PV.oppOf('{bad') === null && PV.oppOf({ j: 'sword', hp: 0, dps: 1 }) === null && PV.oppOf({ j: 'zz', hp: 1, dps: 1 }) === null, '이상한 대결 기록은 상대가 되지 않는다');
+  const g = mk();
+  const me = g.pvpSnap();
+  ok(me.hp > 0 && me.dps > 0 && me.j === 'sword' && JSON.stringify(me).length < 400, '내 대결 기록 — 숫자 몇 개', JSON.stringify(me));
+  const picks = PV.pickOpps({ ...me, sc: 1000 }, [PV.oppOf({ ...me, n: '을순' }, 'u1', 1100)], 3);
+  ok(picks.length === 3 && picks.some((o) => o.uid === 'u1') && picks.filter((o) => o.npc).length === 2, '상대 셋 — 서열에서 고르고 모자라면 떠돌이 무인', picks.map((o) => o.n).join(' · '));
+  const opp = PV.npcOpps({ ...me, sc: 1000 }, 0)[1];
+  ok(g.startPvp(opp) && g.inst.kind === 'pvp' && g.pvpLeft() === PV.PVP_PER_DAY - 1, '대결에 들어가면 오늘 횟수를 하나 쓴다');
+  ok(!g.drinkPotion(), '대결에서는 물약을 못 마신다');
+  // 상대가 나설 때까지
+  for (let i = 0; i < 80 && !g.inst.boss; i++) { g.tick(0.05); g.events.length = 0; }
+  const b = g.inst.boss;
+  ok(b && b.pvp === opp.j && b.def.name === opp.n && b.aggro && !(g.freezeT > 0), '상대 무인이 나선다(그 무인의 이름·직업 · 화면을 멈추지 않고)');
+  ok(Math.abs(b.maxHp / (PV.dpsEst(g.stats(), g.s.jobTier, 'sword', g.s.level) * PV.PVP_HP_SEC) - 1) < 0.01, '상대 체력 = 내 화력 추정 × 20초 (나와 같은 상대)');
+  // 직접 조작: 자동 무공을 쓰지 않고, 멀리 있는 상대에게 걸어가지 않는다
+  b.introT = 0; b.x = W.tileCenter(1); b.y = W.tileCenter(2); b.c = b.hc = 1; b.r = b.hr = 2; b.stun = 999;
+  const hc0 = g.hc, hr0 = g.hr; const cd0 = JSON.stringify(g.cd);
+  for (let i = 0; i < 30; i++) { g.tick(0.05); g.events.length = 0; }
+  ok(g.hc === hc0 && g.hr === hr0, '대결은 저절로 다가가지 않는다(직접 움직인다)');
+  ok(JSON.stringify(g.cd) === cd0, '대결은 무공을 저절로 쓰지 않는다(단추로)');
+  // 조이스틱으로 움직인다
+  g.joy = { dx: 40, dy: 0 }; for (let i = 0; i < 20; i++) { g.tick(0.05); g.events.length = 0; } g.joy = null;
+  ok(g.hc !== hc0 || g.hmove, '끌면(조이스틱) 움직인다');
+  // 상대 초식 — 피할 수 있는 바닥 경고
+  b.stun = 0; g.inst.castT = 0; g.tick(0.05); g.events.length = 0;
+  const tl = g.tells.filter((t) => !t.strike);
+  ok(tl.length > 0 && tl.every((t) => !t.strike), '상대 초식은 바닥 경고(비켜 서면 안 맞는다)', tl.map((t) => t.kind).join(','));
+  // 회복은 25%만
+  g.heroHp = g.stats().hp * 0.5; g._pvHp = g.heroHp; g.heroHp += 1000; g.tickInst(0.001);
+  ok(Math.abs(g.heroHp - (g._pvHp)) < 1 && g.heroHp < g.stats().hp * 0.5 + 300, '대결 중 회복은 일부만', `${Math.round(g.heroHp - g.stats().hp * 0.5)}`);
+  // 이기면 점수·보상·기록
+  const gold0 = g.s.gold;
+  b.hp = 1; g.hurt(b, 1e9, 'test', false); let res = null;
+  for (let i = 0; i < 10 && !res; i++) { g.tick(0.05); for (const e of g.events) if (e.type === 'instEnd') res = e; g.events.length = 0; }
+  ok(res?.pvp?.win && res.pvp.delta > 0 && g.s.pvp.score === PV.START + res.pvp.delta && g.s.gold > gold0 && g.s.pvp.win === 1 && g.s.pvp.log[0].w, '이기면 점수가 오르고 은자·조각을 받는다', JSON.stringify(res?.pvp));
+  ok(!g.inst && g.heroHp > 0, '대결이 끝나면 사냥터로');
+  // 기권은 진 것
+  ok(g.startPvp(opp), '다시 도전'); const sc1 = g.s.pvp.score;
+  const r2 = g.leaveInst();
+  ok(r2.pvp && !r2.pvp.win && g.s.pvp.score < sc1 && g.s.pvp.log[0].why === '기권' && !r2.reward, '기권은 진 것 — 점수가 내려가고 보상 없음');
+  // 시간 끝 — 남은 체력으로 판정
+  ok(g.startPvp(opp), '세 번째 도전');
+  for (let i = 0; i < 80 && !g.inst.boss; i++) { g.tick(0.05); g.events.length = 0; }
+  g.inst.boss.hp = g.inst.boss.maxHp * 0.9; g.heroHp = g.stats().hp * 0.95; g._pvHp = null; g.inst.t = 0.01; g.inst.boss.stun = 999;
+  let r3 = null; for (let i = 0; i < 10 && !r3; i++) { g.tick(0.05); for (const e of g.events) if (e.type === 'instEnd') r3 = e; g.events.length = 0; }
+  ok(r3?.timeout && r3.pvp.win, '시간이 끝나면 남은 체력 몫이 많은 쪽이 이긴다(판정)', JSON.stringify(r3 && { t: r3.timeout, d: r3.died, p: r3.pvp }));
+  while (g.pvpLeft() > 0) g.pvpToday().used++;
+  ok(!g.canPvp() && !g.startPvp(opp), '하루 다섯 번까지');
+  ok(g.pvpLeft(Date.now() + 86400e3) === PV.PVP_PER_DAY, '다음 날엔 다시 다섯 번');
+  // 사냥터에서는 바뀐 것이 없다 — 자동 무공·다가가기 그대로
+  ok(read('js/world/wgame.js').includes("this.inst?.kind === 'pvp' && !this.autoDodge) this.holdApproach = true"), '직접 조작은 대결에서만');
 }
 
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);

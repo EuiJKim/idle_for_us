@@ -16,6 +16,7 @@ import * as LN from './world/wline.js';
 import * as IM from './world/wimprint.js';
 import * as PT from './world/wpath.js';
 import * as TD from './world/wtoday.js';
+import * as PV from './world/wpvp.js';
 import { drawFighter } from './battle.js';
 import { JOBS as JOBS_LIST } from './data.js';
 import { VAULT_ITEMS as VAULT_MAX } from './vault.js';
@@ -3600,8 +3601,67 @@ function socialTab(app) {
     { key: 'world', label: '전체', make: () => worldChatView(app) },
     { key: 'guild', label: '문파', make: () => guildView(app) },
     { key: 'rank', label: '서열', make: () => rankView(app) },
+    { key: 'pvp', label: '대결', make: () => pvpView(app) },   // v451
     { key: 'lore', label: '인물록', make: () => loreView(app) },
   ], 'ifu.socialsub');
+}
+
+// ---------- v451 비무첩 — 비동기 대결(직접 조작) ----------
+// 다른 무인의 대결 기록(서열 문서)과 겨룬다. 상대는 그 기록대로 AI가 싸우고, 나는 조이스틱(방향키)·무공 단추(숫자키)로 직접.
+const jobNameOf = (j) => JOBS_LIST.find((x) => x.id === j)?.name || j;
+function pvpView(app) {
+  const { game, net } = app;
+  const root = h('div');
+  const head = h('div', { class: 'card pvp-head' });
+  const list = h('div', { class: 'card' });
+  const logCard = h('div', { class: 'card' });
+  root.append(head, list, logCard);
+  let opps = null, loading = false, seed = Math.floor(Math.random() * 97), sig = '';
+  const load = async () => {
+    if (loading) return;
+    loading = true; list.replaceChildren(h('h3', {}, '겨룰 상대'), h('p', { class: 'muted' }, '상대를 찾는 중…'));
+    try { await net?.pushProfile?.(true); opps = net?.pvpOpps ? await net.pvpOpps(seed) : PV.pickOpps({ ...game.pvpSnap(), sc: game.s.pvp.score }, [], seed); }
+    catch { opps = PV.pickOpps({ ...game.pvpSnap(), sc: game.s.pvp.score }, [], seed); }
+    loading = false; sig = ''; paint();
+  };
+  const go = (o) => {
+    if (!game.canPvp()) { toast(game.inst ? '던전·대결 중에는 못 해요' : game.pvpLeft() <= 0 ? '오늘 대결은 다 했어요 — 한국 시간 자정에 다시' : `${W.lvText(PV.PVP_LV)}부터 할 수 있어요`); return; }
+    if (!game.startPvp(o)) return;
+    app.save(); app.closePanel(); app.refresh();
+    toast(`⚔ ${o.n}와(과) 대결 — 끌어서(방향키) 움직이고 무공은 단추(숫자키)로 · 빨간 바닥이 깔리면 비켜 서요`);
+  };
+  function paint() {
+    const s = game.s, P = game.pvpToday();
+    const nsig = `${JSON.stringify(P)}|${s.level}|${!!game.inst}|${opps ? opps.map((o) => o.uid).join(',') : '-'}|${loading}`;
+    if (nsig === sig) return;
+    sig = nsig;
+    const left = game.pvpLeft();
+    head.replaceChildren(
+      h('h3', {}, '비무첩', h('small', {}, ' 무인 대결 — 직접 겨루기')),
+      h('div', { class: 'pvp-score' }, h('b', {}, `${fmt(P.score)}점`), h('small', {}, ` 최고 ${fmt(P.best)} · ${P.win}승 ${P.lose}패 · 오늘 남은 도전 ${left}/${PV.PVP_PER_DAY}`)),
+      h('p', { class: 'muted', style: 'font-size:12px;margin:6px 0 0' }, '상대는 그 무인의 기록(체력·화력·직업)대로 싸워요. 대결은 자동이 없어요 — 화면을 끌어서(컴퓨터는 방향키) 움직이고, 닿으면 평타는 저절로, 무공은 단추(숫자키)로. 상대 초식은 바닥이 빨갛게 깔린 뒤 터지니 비켜 서요. 물약은 못 쓰고 회복은 25%만 들어요. 시간이 끝나면 남은 체력으로 판정.'));
+    if (s.level < PV.PVP_LV) { list.replaceChildren(h('h3', {}, '겨룰 상대'), h('p', { class: 'muted' }, `${W.lvText(PV.PVP_LV)}부터 대결할 수 있어요.`)); }
+    else if (!opps) { if (!loading) load(); }
+    else {
+      const me = game.pvpSnap();
+      list.replaceChildren(h('h3', {}, '겨룰 상대', h('small', {}, net?.ready?.() ? ' 서열에서 전투력이 가까운 무인' : ' 오프라인 — 떠돌이 무인')),
+        ...opps.map((o) => {
+          const r = Math.sqrt(PV.clampR(o.hp / me.hp) * PV.clampR(o.dps / me.dps));
+          const tag = r < 0.9 ? ['약함', '#86efac'] : r > 1.12 ? ['셈', '#fca5a5'] : ['비슷', '#fde68a'];
+          const win = PV.eloDelta(s.pvp.score, o.sc, true), lose = PV.eloDelta(s.pvp.score, o.sc, false);
+          return h('div', { class: 'row pvp-opp' },
+            h('div', { class: 'info' },
+              h('div', { class: 'name' }, o.n, h('small', { style: `color:${tag[1]}` }, ` ${tag[0]} ×${r.toFixed(2)}`)),
+              h('div', { class: 'desc' }, `${jobNameOf(o.j)}${o.tn ? ` · ${o.tn}` : ''} · ${W.lvShort(o.lv)} · ${fmt(o.sc)}점${o.npc ? ' · 떠돌이' : ''} · 이기면 +${win} / 지면 ${lose}`)),
+            h('button', { class: 'btn primary', disabled: game.canPvp() ? null : true, onclick: () => go(o) }, '도전'));
+        }),
+        h('button', { class: 'btn', style: 'width:100%;margin-top:6px', onclick: () => { seed = (seed + 7) % 97; opps = null; load(); } }, '다른 상대 찾기'));
+    }
+    const L = s.pvp.log;
+    logCard.replaceChildren(h('h3', {}, '최근 대결'), ...(L.length ? L.map((x) => h('div', { class: `pvp-log ${x.w ? 'w' : 'l'}` },
+      h('b', {}, x.w ? '승' : '패'), ` ${x.n} (${jobNameOf(x.j)})${x.why ? ` · ${x.why}` : ''} `, h('small', {}, `${x.d >= 0 ? '+' : ''}${x.d}점`))) : [h('p', { class: 'muted' }, '아직 대결이 없어요.')]));
+  }
+  return { root, update: paint };
 }
 
 // ---------- 인물록 (v148) ----------

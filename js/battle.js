@@ -3354,6 +3354,12 @@ export class BattleView {
         drawCreature(ctx, def.beast, 0, 0, { t: time, moving: !!a.move, flip: face, scale: (def.bscale || 1.7) * this.crowdScale * persp * (a.grade === 1 ? 1.1 : 1) });
       }
       ctx.restore();
+    } else if (a.pvp) {
+      // v451 대결 상대 — 그 무인의 생김새(옷·머리·무기·칼빛) 그대로. 여협 머리는 이 기기에 있는 그림으로(문파원 그리기와 같게)
+      const look = { ...(def.look || {}) };
+      if (look.female && look.fstyle && !(look.fhead && hasArt(look.fhead))) look.fhead = femaleHeadKey(look.fstyle, look.hairK || 'black', look.band);
+      drawFighter(ctx, x + kx, y + ky, look, { t: time, run: !!a.move, hold: true, weapon: 'sword', blade: '#e5e7eb', ...(def.opts || {}),
+        flip: face, scale: sc * persp, lunge: swing, flash: hk > 0.5 ? hk : 0 });
     } else {
       const walking = !!a.move && !a.npc;
       const spr = fighterSprite(def.look || {}, time, def.look?.weapon, this.dpr || 1, walking);
