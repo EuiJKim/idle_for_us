@@ -731,7 +731,7 @@ export class BattleView {
     const cover = (this.roomView ? Math.min : Math.max)(this.W / game.mapW, (this.H - (this.padBottom ?? 130)) / (game.mapH * this.squash + MAP_HEAD));   // v455 방은 다 들어오게(min) · 들판은 꽉 차게(max)
     // 카메라 단계 (v115): 0 전체(지도가 화면에 꽉) · 1 보통(가로 일곱 칸 남짓) · 2 가까이(가로 다섯 칸) — 모두 무인을 따라간다
     const lv = this.camOverride ?? this.camLevel ?? 1;   // v378 탄막 판은 멀리(설정)
-    if (lv <= 0) return cover;
+    if (lv <= 0 || (this.roomView && lv <= 1)) return cover;   // v455 방은 「보통」도 방 전체가 한눈에(가까이만 따라간다)
     const T = game.tile || 64;
     // v336 컴퓨터(넓은 화면)에서는 지도(704px)보다 화면이 넓어 '전체'가 이미 1.3을 넘었고, 보통·가까이가 1.3에 막혀 셋이 똑같았다
     //   → 상한을 전체 배율의 1.35배·1.8배로(폰에서는 전처럼 1.3)
@@ -2121,6 +2121,7 @@ export class BattleView {
     this.drawBackground(scene);
     this.drawSky(scene);          // v261 구름 그림자 · 시간대 빛
     this.drawLowObstacles(game);  // 물·용암 (v127)
+    this.drawDoorPads(game);      // v455 방의 문 — 바닥 빛 · 화살 · 옆 방 이름
     this.drawQueue(game);
     this.drawFields(game);        // 바닥 장판은 사람보다 아래에
     this.drawTells(game);         // 탑 수문장의 바닥 경고 (v126)
@@ -3184,6 +3185,12 @@ export class BattleView {
       }
       list.sort((a, b) => a.y - b.y);
     }
+    // v455 문틀(기둥 둘 + 갓) — 사람과 앞뒤를 맞춘다
+    if (this.fieldMode && game.doorList) {
+      const T = game.tile || 64;
+      for (const dr of game.doorList()) list.push({ y: (dr.r + 0.5) * T + 2, go: () => this.drawGate(dr, T) });
+      list.sort((a, b) => a.y - b.y);
+    }
     for (const e of list) e.go();
     // 무인은 깊이와 상관없이 맨 위에 그린다. 적이 수십이면 파묻혀서 누가 나인지 모른다.
     // 흑백은 무인 바로 앞에서 건다 — 무인만 색이 남는다.
@@ -3192,6 +3199,77 @@ export class BattleView {
     this.drawHeroUnit(game, moving);
   }
 
+  // v455 방의 문 — 바닥에 빛 고리(열림 금빛 · 닫힘 붉은빛)와 바깥쪽으로 흐르는 화살, 옆 방 이름
+  drawDoorPads(game) {
+    if (!this.fieldMode || !game?.doorList) return;
+    const doors = game.doorList();
+    if (!doors.length) return;
+    const { ctx } = this; const T = game.tile || 64; const sq = this.squash;
+    const OUT = { n: [0, -1], s: [0, 1], w: [-1, 0], e: [1, 0] };
+    for (const dr of doors) {
+      const x = this.sx({ x: (dr.c + 0.5) * T }), y = this.sy({ y: (dr.r + 0.5) * T });
+      if (x < -120 || x > this.w + 120 || y < -120 || y > this.h + 120) continue;
+      const col = dr.open ? (dr.boss ? '248,113,113' : '253,224,140') : '220,38,38';
+      const pulse = 0.55 + 0.45 * Math.sin(this.t * 3 + dr.c);
+      ctx.save();
+      const g = ctx.createRadialGradient(x, y, 2, x, y, T * 0.75);
+      g.addColorStop(0, `rgba(${col},${0.5 * pulse + 0.2})`); g.addColorStop(1, `rgba(${col},0)`);
+      ctx.fillStyle = g; ctx.beginPath(); ctx.ellipse(x, y, T * 0.75, T * 0.75 * sq, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = `rgba(${col},${0.55 + 0.3 * pulse})`; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.ellipse(x, y, T * 0.42, T * 0.42 * sq, 0, 0, Math.PI * 2); ctx.stroke();
+      // 바깥쪽으로 흐르는 화살 둘 (닫힌 문은 멈춰 있다)
+      const [ox, oy] = OUT[dr.d] || [0, -1];
+      for (let i = 0; i < 2; i++) {
+        const k = dr.open ? ((this.t * 0.8 + i * 0.5) % 1) : 0.3 + i * 0.3;
+        const ax = x + ox * T * (k * 0.6 - 0.2), ay = y + oy * T * sq * (k * 0.6 - 0.2);
+        const a = dr.open ? Math.sin(Math.PI * k) : 0.6;
+        ctx.strokeStyle = `rgba(${col},${a})`; ctx.lineWidth = 3; ctx.lineCap = 'round';
+        const s = T * 0.16, px = -oy, py = ox;
+        ctx.beginPath();
+        ctx.moveTo(ax - ox * s + px * s, ay - oy * s * sq + py * s * sq);
+        ctx.lineTo(ax, ay);
+        ctx.lineTo(ax - ox * s - px * s, ay - oy * s * sq - py * s * sq);
+        ctx.stroke();
+      }
+      // 옆 방 이름 — 방 안쪽에(위 문은 아래에 · 아래 문은 위에 · 옆 문은 가운데 쪽에)
+      const label = dr.open ? dr.name : `${dr.name} · 닫힘`;
+      ctx.font = '800 12px system-ui, sans-serif'; ctx.textAlign = dr.d === 'e' ? 'right' : dr.d === 'w' ? 'left' : 'center'; ctx.textBaseline = 'middle';
+      const lx = x + (dr.d === 'e' ? -T * 0.55 : dr.d === 'w' ? T * 0.55 : 0);
+      const ly = y + (dr.d === 'n' ? T * 0.62 : dr.d === 's' ? -T * 0.62 : -T * 0.5);
+      ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(10,8,6,0.85)'; ctx.strokeText(label, lx, ly);
+      ctx.fillStyle = dr.open ? '#fde68a' : '#fca5a5'; ctx.fillText(label, lx, ly);
+      ctx.restore();
+    }
+  }
+  // 문틀 — 기둥 둘과 갓(일주문 꼴). 위·아래 문은 좌우에, 옆 문은 앞뒤에 기둥
+  drawGate(dr, T) {
+    const { ctx } = this; const sq = this.squash;
+    const x = this.sx({ x: (dr.c + 0.5) * T }), y = this.sy({ y: (dr.r + 0.5) * T });
+    if (x < -120 || x > this.w + 120 || y < -160 || y > this.h + 120) return;
+    const side = dr.d === 'e' || dr.d === 'w';
+    const H = T * (side ? 0.95 : 1.1);
+    const posts = side ? [[x, y - T * 0.5 * sq], [x, y + T * 0.5 * sq]] : [[x - T * 0.55, y], [x + T * 0.55, y]];
+    ctx.save();
+    const wood = dr.open ? '#5b3a22' : '#3f1d1d', trim = dr.open ? '#b45309' : '#991b1b';
+    for (const [px, py] of posts) {
+      ctx.fillStyle = 'rgba(0,0,0,0.28)'; ctx.beginPath(); ctx.ellipse(px, py, 7, 3, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = wood; ctx.fillRect(px - 4, py - H, 8, H);
+      ctx.fillStyle = trim; ctx.fillRect(px - 5, py - H * 0.18, 10, 4);
+    }
+    // 갓 — 두 기둥 꼭대기를 잇는 지붕
+    const [a, b] = posts; const top = Math.min(a[1], b[1]) - H;
+    const l = Math.min(a[0], b[0]) - 12, r = Math.max(a[0], b[0]) + 12;
+    ctx.fillStyle = '#1f2937';
+    ctx.beginPath(); ctx.moveTo(l - 6, top + 2); ctx.quadraticCurveTo((l + r) / 2, top - 12, r + 6, top + 2); ctx.lineTo(r, top + 9); ctx.lineTo(l, top + 9); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = trim; ctx.fillRect(l + 4, top + 9, r - l - 8, 4);
+    if (!dr.open) {   // 닫힌 문 — 가운데 붉은 봉인
+      ctx.fillStyle = '#b91c1c'; ctx.strokeStyle = '#fecaca'; ctx.lineWidth = 1.5;
+      const cx = (a[0] + b[0]) / 2, cy = (a[1] + b[1]) / 2 - H * 0.55;
+      ctx.beginPath(); ctx.arc(cx, cy, 9, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#fee2e2'; ctx.font = '900 11px serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('封', cx, cy + 1);
+    }
+    ctx.restore();
+  }
   drawObstacleAt(o, wx, wy) {
     const x = this.sx({ x: wx }), y = this.sy({ y: wy });
     if (x < -80 || x > this.w + 80 || y < -40 || y > this.h + 140) return;

@@ -2828,7 +2828,7 @@ console.log('\n=== v303 손으로 움직인 뒤 · 잡은 뒤 후딜 없음 ==='
   g4.atkTimer = 0; g4.tick(dt);
   ok(m4.alive && g4.atkTimer > W.KILL_RECOVER, '못 쓰러뜨리면 쿨은 그대로', `쿨 ${g4.atkTimer.toFixed(2)}`);
   // v304: 잡은 직후 빨리 나간 평타는 초당 피해 기록에 안 든다 — 두목 최소 싸움 시간이 부풀지 않게
-  const g5 = fresh(); g5.s.autoSkill = false; g5.enterMap(11);
+  const g5 = fresh(); g5.s.autoSkill = false; g5.spawnTreasure = () => {}; g5.enterMap(11); g5.mons = g5.mons.filter((x) => !x.treasure);   // v455 잡을 때 보물 원숭이가 나면 그쪽으로 달려간다 — 이 검사에서는 안 나게
   const mk = (c) => { const o = g5.mons.find((x) => x.alive && !x.npc && x !== g5.mon); o.stun = 999; o.hp = o.maxHp = 1; o.c = c; o.r = g5.hr; o.x = (c + 0.5) * W.TILE; o.y = (o.r + 0.5) * W.TILE; o.move = null; return o; };
   const a1 = mk(g5.hc + 1); g5.mon = a1; g5.atkTimer = 0; g5.dmgAcc = 0; g5.tick(dt);
   const acc1 = g5.dmgAcc;
@@ -3414,8 +3414,10 @@ console.log('\n=== v373~v375 칠대성(상시 최종 두목) · 탄막 · 대성
   ok(g.canWraid(1000, now) && g.startWraid({ id: 'umawang_1', hpLeft, maxHp }, now) && g.inst.paid === true, 'v408 언제든 들어간다 — 참여 보상은 제한 없음(500판째도)');
   g.leaveInst();
   // 쓰러진 마왕 — 그 마왕의 팔마신장 한 부위
+  g.s.wraid.pity = { sonogong: D3.PALMA_PITY, umawang: D3.PALMA_PITY };   // v455 부위는 확률 — 천장을 채워 두고 본다(앞 검사의 난수에 기대지 않게)
   ok(/손오공의 긴고환/.test(W.itemName(g.wraidClaim(5, 'sonogong').item, 'sword')), '손오공 → 가락지 〈긴고환〉');
   const bag0 = g.s.bag.length;
+  g.s.wraid.pity.umawang = D3.PALMA_PITY;
   const r1 = g.wraidClaim(1, 'umawang');
   const it = r1.item;
   ok(it && it.set === 'palma' && it.slot === 'weapon' && it.rar >= 2 && g.s.bag.length === bag0 + 1 && /우마왕의/.test(W.itemName(it, 'sword')), '우마왕 → 대성신장 무기(전설 이상)', W.itemName(it, 'sword'));
@@ -4452,7 +4454,7 @@ console.log('\n=== R1 방 데이터 — 지역 15 · 문 ===');
   ok(all.every((z) => covered.has(z)) && covered.size === all.length, '옛 지역 60개(보통 15 · 짝 6 · 왕 12 · 고수 27)가 빠짐없이 15지역 안에', `${covered.size}/${all.length}`);
   ok(W.REGIONS.slice(1).filter((r) => r.king).length === 12 && W.REGIONS.slice(1).filter((r) => r.pair).length === 6 && W.REGIONS.slice(1).reduce((a, r) => a + r.masters.length, 0) === 27, '왕 12 · 별채 6 · 거처 27');
   ok(W.regionOfZone(20).id === 1 && W.regionOfZone(16).id === 9 && W.regionOfZone(31).id === 3 && W.regionOfZone(55).id === 14 && W.regionOfZone(66).id === 15, '목왕은 죽림 심처 · 권왕은 소림 · 도화림은 천산 별채 · 검황은 동해 · 화무기는 천외천');
-  ok(W.roomCount() === 159 && W.MAPS.filter((m) => !m.town).every((m) => m.cols === 9 && m.rows === 11 && m.mobsAlive === (m.bossRoom ? 6 : 10)) && W.mapOf(0).cols === W.COLS, '방 159 · 9×11칸 · 몹 10(두목방 6) · 마을은 그대로');
+  ok(W.roomCount() === 159 && W.MAPS.filter((m) => !m.town).every((m) => m.cols === W.ROOM_COLS && m.rows === W.ROOM_ROWS && m.mobsAlive === (m.bossRoom ? W.ROOM_BOSS_MOBS : W.ROOM_MOBS)) && W.mapOf(0).cols === W.COLS, `방 159 · ${W.ROOM_COLS}×${W.ROOM_ROWS}칸 · 몹 ${W.ROOM_MOBS}(두목방 ${W.ROOM_BOSS_MOBS}) · 마을은 그대로`);   // v455 R4 9×11 → 9×19
   // 문은 양방향 · 앞마당 사슬 · 별채 · 심처 · 다음 지역
   let bad = 0; for (const m of W.MAPS) for (const [d, to] of Object.entries(m.doors)) { const B = W.mapOf(to); if (B.doors[W.OPP_DOOR[d]] !== m.id) bad++; }
   ok(bad === 0, '문은 모두 양방향');
@@ -4469,7 +4471,7 @@ console.log('\n=== R2 방 (v455) — 문 · 방 전환 · 방 리젠 기억 · �
   const g = fresh(); g.rng = seeded(11);
   const A = W.mapId(1, 2), B = W.mapId(1, 3);
   g.enterMap(A);
-  ok(g.cols === W.ROOM_COLS && g.rows === W.ROOM_ROWS && g.mapW === W.ROOM_COLS * W.TILE && g.roomView, '사냥터 방은 9×11 · 방 전체가 한눈에');
+  ok(g.cols === W.ROOM_COLS && g.rows === W.ROOM_ROWS && g.mapW === W.ROOM_COLS * W.TILE && g.roomView, `사냥터 방은 ${W.ROOM_COLS}×${W.ROOM_ROWS} · 방 전체가 한눈에`);
   ok(g.mons.filter((m) => !m.npc).length === W.ROOM_MOBS, `방에 몹 ${W.ROOM_MOBS}`);
   ok(Object.keys(g.map.doors).every((d) => { const t = W.doorTile(g.map, d); return g.occupied(t.c, t.r) && !g.occupied(t.c, t.r, 'hero') && !g.mons.some((m) => m.c === t.c && m.r === t.r); }), '문 칸 — 몹은 못 서고 무인은 지나간다');
   for (const m of g.mons.slice(0, 3)) m.alive = false;   // 셋 잡았다 치고

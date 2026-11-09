@@ -2093,6 +2093,61 @@ function mapTab(app) {
         who.length ? h('div', { class: 'zone-who' }, '🤝 ', ...who.map((o) => { const mm = W.mapOf(o.m); return h('button', { class: 'who-chip', onclick: () => go(o.m) }, `${o.n} · ${mm.bossRoom ? '두목' : `${mm.area}구역`}`); })) : null,
         h('div', { class: 'area-row' }, ...btns)));
   }
+  // v455 지역 하나 = 방 묶음 한 장 — 앞마당(1·2·3·두목) · 별채(짝 지역) · 심처(왕 지역, 두목을 잡거나 승급하면 문이 열림) · 거처(고수)
+  //   방 단추를 누르면 그 방으로 바로 · 이어진 길(3번 방 → 다음 지역)은 한 줄로
+  function roomBtn(m, label) {
+    const s = game.s;
+    const risky = game.danger(m.id) > W.DANGER_LV;
+    const n = app.where?.at(m.id).length || 0;
+    return h('button', {
+      class: `area-btn${m.bossRoom ? ' boss' : ''}${s.map === m.id ? ' here' : ''}${s.map !== m.id && game._home === m.id ? ' home' : ''}${risky ? ' danger' : ''}`,
+      disabled: !game.canEnter(m.id) ? true : null,
+      title: `${m.name} · Lv.${m.lv[0]}~${m.lv[1]}${risky ? ' · 위험 — 내 레벨보다 훨씬 세요' : ''}`,
+      onclick: () => go(m.id),
+    }, label, h('small', {}, `${risky ? '⚠' : ''}Lv${m.lv[0]}`), n > 0 ? h('i', { class: 'who-dot', title: app.where.at(m.id).map((o) => o.n).join(', ') }, `🤝${n}`) : null);
+  }
+  function roomRow(cls, lab, zid, sub = '') {
+    const ms = W.MAPS.filter((m) => m.zone === zid);
+    const king = !!W.zoneOfW(zid)?.king;
+    return h('div', { class: `room-row ${cls}` }, h('div', { class: 'room-lab' }, h('b', {}, lab), sub ? h('small', {}, sub) : null),
+      h('div', { class: 'area-row' }, ...ms.map((m) => roomBtn(m, m.bossRoom ? (king ? '왕' : '두목') : String(m.area)))));
+  }
+  function regionCard(box, rg, here) {
+    const s = game.s;
+    const zn = W.zoneOfW(rg.main);
+    const fronts = W.MAPS.filter((m) => m.zone === rg.main);
+    const fit = fronts.some((m) => !m.bossRoom && s.level >= m.lv[0] && s.level <= m.lv[1] + 2);
+    const inHere = here && !here.town && W.regionOfMap(here.id)?.id === rg.id;
+    const env = L.ENVS[zn.art];
+    const mk = s.mast?.[rg.main] || 0;
+    const ml = L.masteryLv(mk);
+    const next = L.MASTERY_KILLS[ml + 1];
+    const mBar = h('div', { class: 'mast-bar' }, h('i', { style: `width:${next ? Math.round(((mk - L.MASTERY_KILLS[ml]) / (next - L.MASTERY_KILLS[ml])) * 100) : 100}%` }));
+    const bossMap = W.MAPS.find((m) => m.zone === rg.main && m.bossRoom);
+    const deepOpen = bossMap ? game.deepOpen(bossMap) : false;
+    const pair = rg.pair ? W.zoneOfW(rg.pair) : null, king = rg.king ? W.zoneOfW(rg.king) : null;
+    const who = [rg.main, rg.pair, rg.king].filter(Boolean).flatMap((z) => app.where?.inZone(z) || []);
+    // 이어진 길 — 앞마당 3번 방의 옆 문(다음 지역 입구)
+    const third = W.MAPS.find((m) => m.zone === rg.main && m.area === 3);
+    const out = third ? Object.values(third.doors || {}).map((to) => W.mapOf(to)).filter((m) => W.regionOfMap(m.id)?.id !== rg.id) : [];
+    const masters = rg.masters.map((z) => W.MAPS.find((m) => m.zone === z && m.bossRoom)).filter(Boolean);
+    box.append(h('div', { class: `card zone-card region-card${inHere ? ' me' : ''}` },
+      h('div', { class: 'zone-head' },
+        h('b', {}, rg.name), fit ? h('i', { class: 'best-tag' }, '알맞음') : null,
+        h('small', {}, `Lv.${zn.lv[0]}~${zn.lv[1]} · 두목 ${zn.boss.name}`)),
+      env ? h('div', { class: `zone-env ${env.good ? 'good' : 'bad'}` }, h('b', {}, env.good ? `☀ ${env.name}` : `☁ ${env.name}`), ` ${env.desc}`,
+        !env.good ? h('small', {}, ` · ${L.RES_TYPES[env.type]} — 저항 ${Math.round(game.resistTo(env.type, rg.main) * 100)}%`) : null) : null,
+      h('div', { class: 'zone-mast' }, h('span', {}, `숙련 ${ml}${ml >= L.MASTERY_MAX ? ' (최고)' : ''}`), mBar,
+        h('small', {}, ml ? `경험치 +${ml * L.MASTERY.exp * 100}% · 재료 +${ml * L.MASTERY.mat * 100}%` : next ? `${next - mk}마리 더` : '')),
+      who.length ? h('div', { class: 'zone-who' }, '🤝 ', ...who.map((o) => { const mm = W.mapOf(o.m); return h('button', { class: 'who-chip', onclick: () => go(o.m) }, `${o.n} · ${mm.name}`); })) : null,
+      roomRow('front', '앞마당', rg.main),
+      pair ? roomRow('wing', '별채', rg.pair, pair.name) : null,
+      king ? roomRow(`deep${deepOpen ? '' : ' shut'}`, deepOpen ? '심처' : '🔒 심처', rg.king, king.name) : null,
+      masters.length ? h('div', { class: 'room-row lodge' }, h('div', { class: 'room-lab' }, h('b', {}, '거처'), h('small', {}, '고수의 방')),
+        h('div', { class: 'lodge-row' }, ...masters.map((m) => { const mm = MS.masterOf(m.master); const won = !!s.duel.won[m.master]; return h('button', { class: `lodge-btn${won ? ' won' : ''}${s.map === m.id ? ' here' : ''}`, onclick: () => go(m.id) }, mm ? `${mm.title} ${mm.name}` : m.name, h('small', {}, `Lv${m.lv[0]}${won ? ' ✓' : ''}`)); }))) : null,
+      h('p', { class: 'muted room-link' }, [pair ? '별채는 2번 방 옆 문' : '', king ? (deepOpen ? '심처는 두목 방 위 문(열림)' : `심처 문은 이 지역 두목을 잡거나 Lv${W.DEEP_LV}면 열려요`) : '',
+        out.length ? `3번 방 옆 문 → ${out.map((m) => m.name).join(' · ')}` : ''].filter(Boolean).join(' · '))));
+  }
   // 고수 한 명 — 두목 방 카드 (v148). 수하 졸개가 늘 있고 고수가 10초마다(화무기는 30초) 다시 나선다. 이야기는 접어 둔다.
   function masterCard(m, fac) {
     const s = game.s;
@@ -2134,7 +2189,7 @@ function mapTab(app) {
       root: box,
       update() {
         const s = game.s;
-        const nsig = `${s.level}|${s.map}|${s.huntMap}|${Object.values(s.mast || {}).map((k) => L.masteryLv(k)).join(',')}|${JSON.stringify(s.duel.won)}|${!!game.inst}|${s.autoMap}|${JSON.stringify(s.awk || {})}|${JSON.stringify(app.where?.list() || [])}`;
+        const nsig = `${s.level}|${s.map}|${s.huntMap}|${game._home}|${JSON.stringify(s.bossKills || {})}|${Object.values(s.mast || {}).map((k) => L.masteryLv(k)).join(',')}|${JSON.stringify(s.duel.won)}|${!!game.inst}|${s.autoMap}|${JSON.stringify(s.awk || {})}|${JSON.stringify(app.where?.list() || [])}`;
         if (nsig === sig) return;
         sig = nsig;
         const here = W.mapOf(s.map);
@@ -2160,7 +2215,8 @@ function mapTab(app) {
             h('input', { type: 'checkbox', checked: s.autoMap ? true : null, onchange: (e) => { game.s.autoMap = e.target.checked; if (game.s.autoMap) game.followMap(true); app.save(); sig = ''; this.update(); } }),
             h('div', { class: 'info' }, h('div', { class: 'name' }, '알맞은 사냥터 따라가기'),
               h('div', { class: 'desc' }, '레벨이 사냥터보다 3 넘게 높아지면 알맞은 구역으로 저절로 옮겨요. 두목·고수·왕 구역에 있을 땐 그대로 둬요.'))));
-        for (const z of MS.FAC_ZONES[fac]) { const zn = W.ZONE_ORDER.find((x) => x.id === z); if (zn) zoneCard(box, zn, here); }
+        // v455 지역 15 — 앞마당이 이 세력 것인 지역을 방 묶음 카드로(별채·심처·거처는 그 안에)
+        for (const rg of W.REGIONS) if (rg && MS.FAC_ZONES[fac].includes(rg.main)) regionCard(box, rg, here);
         // v204: 고수(두목)는 '무림고수' 칸으로 따로 모았다
         box.append(h('button', { class: 'card fac-masters-link', style: `--fc:${F.col}`, onclick: () => app.showTab('map', 'masters') },
           h('b', {}, `${fac === 'magyo' ? '팔마존 · 천마' : fac === 'murim' ? '정파 칠대고수 · 무림맹주' : '사도 칠대고수 · 사도맹주'} → 무림고수 칸`),

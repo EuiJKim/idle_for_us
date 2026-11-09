@@ -917,6 +917,12 @@ export class WorldGame {
     return Object.entries(bk).some(([k, n]) => n > 0 && (+k === m.zone || W.mapOf(+k)?.zone === m.zone));
   }
   doorOpen(m, d) { return m.doorLock?.[d] !== 'deep' || this.deepOpen(m); }
+  // v455 그리는 쪽이 문을 그린다 — [{ d, to, c, r, open, name, boss, deep }] (마을·던전은 빈 목록)
+  doorList() {
+    const m = this.map;
+    if (!m?.doors || this.inst || m.town) return [];
+    return Object.entries(m.doors).map(([d, to]) => { const t = W.doorTile(m, d), tm = W.mapOf(to); return { d, to, c: t.c, r: t.r, open: this.doorOpen(m, d), name: tm.name, boss: !!tm.bossRoom, deep: m.doorLock?.[d] === 'deep' }; });
+  }
   passDoor(d, roam = false) {
     const m = this.map, to = m.doors?.[d];
     if (!to || this.inst) return false;

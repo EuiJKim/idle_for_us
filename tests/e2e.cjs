@@ -83,11 +83,12 @@ async function tab(page, name) {
 
   console.log('# 사냥터');
   await tab(p, 'map/murim');
-  assert(await p.locator('#panel .zone-card:has-text("죽림") .area-btn').count() === 4, '지역 카드에 구역 1·2·3·두목');
+  assert(await p.locator('#panel .zone-card:has-text("죽림") .room-row.front .area-btn').count() === 4, '지역 카드 앞마당에 방 1·2·3·두목');   // v455 지역 = 방 묶음(앞마당·별채·심처·거처)
+  assert(await p.locator('#panel .zone-card:has-text("죽림") .room-row.deep .area-btn').count() === 4, '지역 카드 심처에 방 1·2·3·왕');
   // v146: 레벨과 상관없이 들어간다 — 센 곳은 잠그지 않고 '위험'을 붙인다
   const far = p.locator('#panel .zone-card .area-btn.danger').first();
   assert(await far.count() === 1 && !(await far.isDisabled()), '레벨이 모자란 곳도 열려 있고 위험 표시가 붙는다');
-  await p.locator('#panel .zone-card:has-text("죽림") .area-btn:has-text("1")').click();
+  await p.locator('#panel .zone-card:has-text("죽림") .room-row.front .area-btn').first().click();   // v455 앞마당 1번 방
   await sleep(300);
   assert(await G(p, () => window.__game.s.map) === 11, '지도에서 죽림 1구역으로');
   await p.waitForFunction(() => window.__game.s.kills > 0, null, { timeout: 20000 });

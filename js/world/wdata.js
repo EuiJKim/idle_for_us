@@ -509,9 +509,9 @@ export const mapOf = (id) => MAP_BY_ID[id] || MAPS[0];
 //   지역 R = 앞마당(보통 지역 z 구역 1·2·3) + 두목방(z·4) + 별채(짝 지역 p 1·2·3·4) + 심처(왕 지역 k 1·2·3 = 수련 방, k·4 = 왕방) + 거처(고수 방들)
 //   문: z1 ↑ z2 ↑ z3 ↑ z4(두목방) ↑ k1 ↑ k2 ↑ k3 ↑ k4 · z2 ← p1 ↑ p2 ↑ p3 ↑ p4(별채 두목) · z3 → 다음 지역 z'1. 심처 문은 승급(DEEP_LV) 뒤 또는 지역 두목을 잡은 뒤.
 export const ROOM_COLS = 9;
-export const ROOM_ROWS = 11;
-export const ROOM_MOBS = 10;          // 방 하나의 몹(들판·별채·심처)
-export const ROOM_BOSS_MOBS = 6;      // 두목방·왕방 졸개
+export const ROOM_ROWS = 19;   // v455 R4 — 바닥은 세로로 0.62배 눌려 그려서 9×11은 세로 폰 들판의 절반만 채웠다. 9×19면 폭 맞춤에서 꽉 찬다
+export const ROOM_MOBS = 14;          // 방 하나의 몹(들판·별채·심처) — 9×19에 14(9×11·10과 같은 촘촘함)
+export const ROOM_BOSS_MOBS = 8;      // 두목 방 졸개
 export const ROOM_RESPAWN = 8;        // 자리마다 다시 나기까지(게임 초)
 export const DEEP_LV = 99;
 // v455 방 돌기 — 방이 비고 다음 몹이 ROAM_WAIT(게임 초) 넘게 걸리면 옆 방으로. 옆 방에 몹이 방의 ROAM_MIN 몫은 있을 때만

@@ -959,6 +959,22 @@ button.mat-chip:disabled { opacity: 0.5; }
 .area-btn:disabled { opacity: 0.35; cursor: default; }
 .king-head { margin: 14px 2px 6px; font: 800 18px var(--brush); color: #fda4af; }
 .king-head small { margin-left: 8px; font: 600 11px system-ui, sans-serif; color: var(--muted); }
+/* v455 지역 카드 — 방 묶음 */
+.region-card .room-row { display: grid; grid-template-columns: 64px 1fr; gap: 6px; align-items: center; margin-top: 8px; }
+.region-card .room-row .area-row { margin-top: 0; }
+.region-card .room-lab { display: flex; flex-direction: column; line-height: 1.15; }
+.region-card .room-lab b { font-size: 12px; }
+.region-card .room-lab small { font: 600 9.5px system-ui, sans-serif; color: var(--muted); }
+.region-card .room-row.wing .room-lab b { color: #99f6e4; }
+.region-card .room-row.deep .room-lab b { color: #fda4af; }
+.region-card .room-row.deep.shut .area-btn { opacity: 0.6; }
+.region-card .area-btn.home { border-style: dashed; border-color: rgba(253, 230, 138, 0.6); }
+.region-card .lodge-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.region-card .lodge-btn { flex: 1 1 45%; min-height: 40px; padding: 4px 8px; border-radius: 8px; border: 1px solid rgba(250, 204, 21, 0.35); background: rgba(250, 204, 21, 0.06); color: inherit; font: 700 11.5px system-ui, sans-serif; display: flex; flex-direction: column; align-items: flex-start; }
+.region-card .lodge-btn small { font: 600 9.5px system-ui, sans-serif; color: var(--muted); }
+.region-card .lodge-btn.won { border-color: rgba(134, 239, 172, 0.45); }
+.region-card .lodge-btn.here { background: rgba(253, 230, 138, 0.16); border-color: #fde68a; }
+.region-card .room-link { margin: 8px 0 0; font-size: 11px; }
 .zone-card.king { border-color: rgba(244, 63, 94, 0.35); background: linear-gradient(180deg, rgba(76, 5, 25, 0.35), transparent); }
 .king-desc { font-size: 12px; margin: 4px 0 0; }
 .item-chip.g5 { animation: legend-glow 2.4s ease-in-out infinite; }
