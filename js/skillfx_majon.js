@@ -582,6 +582,7 @@ function shadows(d, col, n, poses, at = null, R = 60) {
 //   · 자동 시전은 처음 한 번(사냥터마다)만 풀 컷인 — 그다음부터는 띠·화신 없는 짧은 판(먹띠·빛살·인장·이름)
 function ultimate(d, col, text, dur, o = {}) {
   const v = d.v;
+  if (v.calm) return;   // v450 차분한 연출 — 필살도 무공 그림과 이름 띠만(먹띠·빛살·화신·컷인·큰 이름·흑백 없음)
   if (d.lvl <= 0) { d.hanja(d.name, 1); return; }
   const seen = v._ultSeen || (v._ultSeen = new Set());
   const key = `${d.id}|${v.game?.map?.id ?? ''}`;

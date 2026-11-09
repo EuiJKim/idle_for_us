@@ -610,7 +610,7 @@ async function tab(page, name) {
   }
 
   console.log('# 온라인: 문파');
-  await G(p, () => { const g = window.__game; g.s.mats = { hc: 100 }; g.s.gold = Math.max(g.s.gold, 1e5); });
+  await G(p, () => { const g = window.__game; g.s.mats = { hc: 100 }; g.s.autoEnh = false; g.s.autoInf = false; g.s.gold = Math.max(g.s.gold, 1e5); });   // v449 새 무인은 강화 자동 — 현철을 써 버리지 않게
   await tab(p, 'social');
   await p.click('#panel .subtabs button:has-text("문파")');   // v315 앞에서 '전체'를 봤다 — 칸은 마지막 것을 기억한다
   await p.fill('#panel input[placeholder^="문파 이름"]', '우리끼리');

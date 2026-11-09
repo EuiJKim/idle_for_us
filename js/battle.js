@@ -81,6 +81,10 @@ const CRIT_COL = ['#ffffff', '#ef4444', '#fb923c', '#c084fc', '#facc15'];
 // 맞은 자국 빛깔 (없으면 흰 칼자국)
 // v245 상한에 걸려도 지우지 않는 필살 화면층
 // v258: 4차 전용 화면층도(꽃잎 폭풍·검기 폭풍·여운·땅울림·독 물결·핏빛 달·깨짐·금빛 몸·금종)
+// v450 차분한 연출(기본) — 화면 전체를 덮는 필살 층은 그리지 않는다: 띠·빛살·큰 인장·화신·큰 이름·컷인·모이는 빛·화면 물결·핏빛 달·깨짐
+//   무공 자체의 그림(칼빛·장판·독 안개·번개)과 무공 이름 띠는 남는다 — 바람의나라처럼 「누가 무엇을 썼나」만 또렷하게
+export const CALM_DROP = new Set(['letterbox', 'rays', 'bigseal', 'avatar', 'bigname', 'cutin', 'converge', 'ultrays', 'screenwave', 'bloodmoon', 'shatter']);
+export const CALM_SHAKE = 0.3, CALM_FLASH = 0.35;
 const KEEP_FX = new Set(['letterbox', 'rays', 'bigseal', 'avatar', 'bigname', 'cutin', 'converge', 'ultrays', 'screenwave',
   'petalstorm', 'slashstorm', 'afterglow', 'quake', 'toxicwave', 'bloodmoon', 'shatter', 'goldbody', 'bell']);
 // v251 맞은 숫자가 뜨는 높이(몹 발밑에서) — 142는 몸통·얼굴 위에 떠서 몹을 가렸다
@@ -617,6 +621,7 @@ export class BattleView {
     this.rangeRings = [];             // v157: 펼친 무공의 범위 고리 (설정 '스킬 범위 보기')
     this.rangePreview = null;         // v157: 무공 단추를 길게 누르는 동안 보여 주는 범위 { center, r, reach }
     this.showRange = false;
+    this.calm = true;    // v450 차분한 연출(기본) — 흔들림·번쩍임 작게 · 히트스톱·흑백·카메라 끌기·화면 가르기·필살 화면층 없음 · 연출은 「보통」까지
     this.clean = true;   // v430 깔끔 모드(기본) — 줍기 글자는 모음으로 · 작은 피해 숫자는 작고 짧게 · 칭호 타격 글자·발밑 인장 없음 · 무공 띠
     this.skillBand = null;
     this.later = [];       // 조금 뒤에 그릴 사건 (날아가는 평타의 맞은 숫자)
@@ -764,7 +769,7 @@ export class BattleView {
   // anchor는 tick에서 부드럽게 옮긴다(툭 튀면 멀미 난다).
   get groundY() { const g = this.game; return this.h * (this.anchor ?? 0.47) + (g && this.camY != null ? (g.heroY - this.camY) * this.squash : 0); }
   get heroX() { const g = this.game; return this.w * 0.5 + (g && this.camX != null ? g.heroX - this.camX : 0); }
-  get fxLevel() { return this.wbLite ? 0 : this.light ? Math.min(1, this.fxPref) : this.fxPref; }   // v411 칠대성 판이 버거우면 그 판 동안만 가볍게
+  get fxLevel() { return this.wbLite ? 0 : this.light || this.calm ? Math.min(1, this.fxPref) : this.fxPref; }   // v450 차분하면 「보통」까지   // v411 칠대성 판이 버거우면 그 판 동안만 가볍게
   // 월드 Y는 화면에서 살짝 눌러 그린다 — 평면이 너무 넓어 보이지 않게
   get squash() { return FIELD_SQUASH; }
   sx(m) { const g = this.game; return this.heroX + (m.x - (g?.heroX || 0)); }
@@ -1756,6 +1761,7 @@ export class BattleView {
     if (jump > 900) { this.camX = game.heroX; this.camY = game.heroY; this.camPan = false; this.camFocus = null; return; }
     if (jump > 40) this.camPan = true;
     if (this.kingIntro?.cam && this.kingIntro.focus) { this.camFocus = this.kingIntro.focus; this.camHold = 0; }
+    if (this.calm && !this.kingIntro?.cam) { this.camHold = 0; if (this.camFocus) { this.camFocus = null; this.camPan = true; } }   // v450 차분하면 무공이 카메라를 끌지 않는다
     if (this.camHold > 0) { this.camHold -= dt; return; }
     const f = this.camFocus;
     // 늘 붙어 다니지 않고 살짝 늦게 따라온다(0.15초쯤) — 무인이 화면 안에서 조금씩 움직여 보여 걷는 맛이 난다
@@ -2030,11 +2036,13 @@ export class BattleView {
     this.setZoom(this.overview ? this.fitZoom(game) : 1);
     UIK = 1 / (this.zoom || 1);
     this.updateCamera(game, rawDt);
-    if (this.desat !== this.desatTo) {
+    { const to = this.calm ? 0 : this.desatTo;   // v450 차분하면 흑백 전환 없음
+    if (this.desat !== to) {
       const step = rawDt * this.desatRate;
-      this.desat = this.desat < this.desatTo ? Math.min(this.desatTo, this.desat + step) : Math.max(this.desatTo, this.desat - step);
-    }
+      this.desat = this.desat < to ? Math.min(to, this.desat + step) : Math.max(to, this.desat - step);
+    } }
     // 히트스톱: 맞은 직후 아주 짧게 연출만 느려진다(게임 진행은 그대로)
+    if (this.calm) this.hitstop = 0;   // v450 차분하면 멈칫 없음
     if (this.hitstop > 0) {
       this.hitstop = Math.max(0, this.hitstop - dt);
       dt *= 0.18;
@@ -2101,7 +2109,7 @@ export class BattleView {
       ctx.translate(this.w / 2, this.h / 2); ctx.rotate(Math.sin(this.t * 1.7) * 0.025 * hk); ctx.scale(1 + Math.sin(this.t * 2.3) * 0.015 * hk, 1); ctx.translate(-this.w / 2, -this.h / 2);
     }
     if (this.shake > 0) {
-      const a = 12 * this.shake * (1 - 0.5 * (this.shakeTire || 0)) * (this.shakePref ?? 1);
+      const a = 12 * this.shake * (1 - 0.5 * (this.shakeTire || 0)) * (this.shakePref ?? 1) * (this.calm ? CALM_SHAKE : 1);   // v450
       ctx.translate(Math.sin(this.t * 61) * a * 0.6 + Math.sin(this.t * 37) * a * 0.4, Math.cos(this.t * 53) * a * 0.6 + Math.sin(this.t * 29) * a * 0.3);
     }
     const scene = this.scene(game);
@@ -2148,7 +2156,7 @@ export class BattleView {
       }
     }
     if (this.flash > 0) {
-      ctx.fillStyle = `rgba(255,251,235,${this.lumTake(this.flash * 0.5)})`;
+      ctx.fillStyle = `rgba(255,251,235,${this.lumTake(this.flash * 0.5 * (this.calm ? CALM_FLASH : 1))})`;   // v450
       ctx.fillRect(-20, -20, this.w + 40, this.h + 40);
     }
     // 글자는 진짜 크기로 — 줄여 찍으면 숫자·띠가 깨알만 해진다
@@ -2170,6 +2178,7 @@ export class BattleView {
     } finally { this.w = vw; this.h = vh; }
     ctx.restore();
     ctx.restore();
+    if (this.slice && this.calm) this.slice = null;   // v450 화면 가르기 없음
     if (this.slice) this.drawSlice(rawDt);
     if (this.soft) {
       const o = this.outCtx;
@@ -3748,6 +3757,7 @@ export class BattleView {
     // 동시에 그리는 연출 상한 (v182) — 광역기가 수십 번 겹치면 한 프레임에 수백 개가 쌓였다. 오래된 것부터 뺀다.
     // v245: 오래된 것부터 빼되 4차 필살의 화면층(띠·빛살·큰 인장·화신·이름·컷인)은 남긴다 — 광역 적중이 많으면 필살 연출이 중간에 끊겼다
     const ecap = Math.round(90 * (this.budget ?? 1));
+    if (this.calm && this.effects.some((e) => CALM_DROP.has(e.kind))) this.effects = this.effects.filter((e) => !CALM_DROP.has(e.kind));   // v450
     if (this.effects.length > ecap) {
       let over = this.effects.length - ecap;
       this.effects = this.effects.filter((e) => over <= 0 || KEEP_FX.has(e.kind) || (over--, false));

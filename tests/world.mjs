@@ -4316,5 +4316,15 @@ console.log('\n=== v449 성장 축 정리 ===');
   ok(b.powerBreakdown().murim > 0, '탑을 오르면 무림 몫이 생긴다', `무림 +${Math.round(b.powerBreakdown().murim * 100)}%`);
 }
 
+console.log('\n=== v450 차분한 연출 ===');
+{
+  const bt = read('js/battle.js'), mj = read('js/skillfx_majon.js'), mn = read('js/wmain.js');
+  ok(/this\.calm = true;/.test(bt) && /localStorage\.getItem\('ifu\.calm'\) !== '0'/.test(mn), '차분한 연출이 기본으로 켜진다(끈 사람만 화려하게)');
+  ok(['cutin', 'bigname', 'avatar', 'letterbox', 'rays', 'screenwave'].every((k) => new RegExp(`CALM_DROP = new Set\\([^)]*'${k}'`).test(bt)), '컷인·큰 이름·화신·먹띠·빛살·화면 물결은 그리지 않는다');
+  ok(/if \(this\.calm\) this\.hitstop = 0/.test(bt) && /this\.calm \? 0 : this\.desatTo/.test(bt) && /this\.calm \? CALM_SHAKE : 1/.test(bt) && /this\.calm \? CALM_FLASH : 1/.test(bt), '멈칫·흑백 없음 · 흔들림·번쩍임은 작게');
+  ok(/if \(v\.calm\) return;/.test(mj), '필살 여는 연출(ultimate)은 건너뛴다');
+  ok(/toggleRow\('차분한 연출'/.test(mn), '설정에서 끌 수 있다');
+}
+
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);

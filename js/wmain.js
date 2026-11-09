@@ -292,6 +292,8 @@ function loadFxPref() { try { return localStorage.getItem('ifu.fx') || 'high'; }
 view.fxPref = Math.max(0, FX_PREF.indexOf(loadFxPref()));
 // v430 깔끔 모드 — 기본 켜짐(끄면 옛 그대로: 들판 줍기 글자 · 칭호 타격 글자 · 발밑 인장 · 큰 평타 숫자)
 try { view.clean = localStorage.getItem('ifu.clean') !== '0'; } catch { view.clean = true; }
+// v450 차분한 연출 — 기본 켜짐(바람의나라처럼 무공 그림만 또렷하게). 끄면 옛 화려한 연출(흔들림·번쩍임·멈칫·컷인·화신·흑백·카메라)
+try { view.calm = localStorage.getItem('ifu.calm') !== '0'; } catch { view.calm = true; }
 view.onLoot = (kind, n, name, color) => { if (kind === 'gold') tally('gold', '은자', n, '#fde68a'); else tally('mat:' + name, name, n, color || '#e5e7eb'); };
 try { const sp = Number(localStorage.getItem('ifu.shake')); if ([0, 0.5, 1].includes(sp) && localStorage.getItem('ifu.shake') !== null) view.shakePref = sp; } catch { /* 사생활 모드 */ }
 
@@ -2553,6 +2555,10 @@ $('btn-settings').addEventListener('click', () => openModal((s) => {
         e.target.textContent = `${Math.round(game.s.potionAt * 100)}%`;
         save();
       } }, `${Math.round(game.potionAt() * 100)}%`)),
+    toggleRow('차분한 연출', view.calm, '흔들림·번쩍임은 작게 · 멈칫·흑백·카메라 끌기·필살 컷인·화신 없이 · 무공 그림과 이름 띠만 또렷하게 (끄면 화려하게)', (v) => {   // v450
+      view.calm = v;
+      try { localStorage.setItem('ifu.calm', v ? '1' : '0'); } catch { /* 이번만 */ }
+    }),
     toggleRow('깔끔 모드', view.clean, '줍기 글자는 구석 모음으로 · 평타 숫자는 작게 · 칭호 글자·발밑 인장 없이 · 쓴 무공은 이름 띠와 범위 고리로 하나만 또렷하게 (끄면 화려하게)', (v) => {
       view.clean = v;
       try { localStorage.setItem('ifu.clean', v ? '1' : '0'); } catch { /* 이번만 */ }
@@ -2567,7 +2573,7 @@ $('btn-settings').addEventListener('click', () => openModal((s) => {
     // v414 컴퓨터 배치 — 넓은 화면에서 게임 옆에 창을 늘 열고 탭으로 넘긴다
     h('div', { class: 'row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, '컴퓨터 배치(옆 창 · 탭)'), h('div', { class: 'desc' }, '넓은 화면에서 게임 오른쪽에 창을 늘 열어 두고 탭으로 넘겨요(Tab · Shift+Tab). 자동은 가로가 넓고 마우스일 때')),
       (() => { const NAME = { auto: '자동', on: '켬', off: '끔' }; const b = h('button', { class: 'btn', id: 'pcwide-btn', style: 'padding:6px 12px' }, NAME[pcWidePref()]); b.onclick = () => { const ks = ['auto', 'on', 'off']; const nx = ks[(ks.indexOf(pcWidePref()) + 1) % 3]; try { localStorage.setItem('ifu.pcWide', nx); } catch { /* 이번만 */ } b.textContent = NAME[nx]; const was = pcWide(); applyUiScale(); if (was && !pcWide()) { const k = activeTab; activeTab = null; closePanel(); } else if (!was && pcWide()) pcEnsureOpen(); paintSheet(); }; return b; })()),
-    h('div', { class: 'row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, '연출'), h('div', { class: 'desc' }, '폰이 버거우면 낮춰요')), fxBtn),
+    h('div', { class: 'row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, '연출'), h('div', { class: 'desc' }, '폰이 버거우면 낮춰요 · 차분한 연출이 켜져 있으면 「높음」도 보통만큼')), fxBtn),
     // v233: 화면 흔들림 — 어지러우면 줄이거나 끈다
     (() => {
       const NAME = { 1: '보통', 0.5: '약하게', 0: '끔' };
