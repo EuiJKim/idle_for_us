@@ -1042,6 +1042,16 @@ export const BASE_ATK_SEC = 0.85;     // 평타 간격(초)
 //   느려진 만큼 한 마리 벌이(경험치·은자·재료·조각)를 1/PACE배로 — 실제 한 시간 벌이·방치 보상은 전과 같다.
 export const PACE = 0.75;
 export const PACE_REWARD = 1 / PACE;
+// v453 바람식 범위 — 사냥터 폭이 11칸인데 범위기 반지름이 5~9칸(화면 가로 전체)이었다. 바람의나라 범위기는 둘레 1~3칸.
+//   무공 반지름 = 표의 radius × SKILL_R_K × (각인·계열 덤) · 끝은 SKILL_R_MAX(3.5칸). 1차 범위기 ≈ 1.6칸 · 2·3차 ≈ 2칸 · 필살 ≈ 2.7~3.5칸
+export const SKILL_R_K = 0.45;
+export const SKILL_R_MAX = 224;
+export const TRIPLE_R = 135;          // 삼공합일(전엔 300)
+export const IMP_NOVA_R = 160;        // 증표 각인 파동·기절 파문(전엔 230)
+export const IMP_RAIN_R = 300;        // 증표 각인 낙뢰가 고르는 거리(전엔 420)
+// 한 번에 잡는 수가 줄어든 만큼 한 마리 벌이를 더 — 실제 한 시간 벌이는 전과 비슷하게(시뮬로 맞춤).
+//   높은 레벨은 몹이 질겨서 넓은 범위 몫이 더 컸다 → 80 위로 갈수록 더(Lv140 ×3.15)
+export const rangeReward = (lv) => 1 * (2 + Math.max(0, Math.min(70, (lv | 0) - 80)) / 60 * 1.15);
 // v438 평타는 민첩·장비·칭호로 빨라질수록 「더 빨리」 대신 「더 세게」 — 실제 휘두르는 간격은 빨라짐^SWING_K만, 남은 몫은 한 대 피해로(초당 피해는 같다).
 //   민첩을 많이 찍어 평타가 초에 너댓 번 나가던 것(정신없음)이 한 번 남짓으로 · 바람의나라처럼 한 대 한 대
 export const SWING_K = 0.35;

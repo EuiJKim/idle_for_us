@@ -1422,7 +1422,7 @@ export class WorldGame {
   // 무공이 닿는 곳 (v157 · 범위 보기) — center: 'me' 내 둘레 | 'target' 과녁 둘레, r: 반지름(px), reach: 과녁까지 닿는 거리(px)
   skillReach(sk) {
     if (sk.kind === 'support' || sk.kind === 'awaken' || sk.kind === 'clone') return null;
-    if (sk.kind === 'triple') return { center: 'me', r: 300, reach: 0 };
+    if (sk.kind === 'triple') return { center: 'me', r: W.TRIPLE_R, reach: 0 };
     if (sk.kind === 'single') return { center: 'target', r: this.skillMods(sk.id).splash > 0 ? 140 : 0, reach: sk.far ? 420 : Math.max(this.stats().range, 160) * 1.6 };
     return { center: this.ranged() ? 'target' : 'me', r: this.skillRadius(sk), reach: this.ranged() ? 9999 : 0 };
   }
@@ -1647,21 +1647,21 @@ export class WorldGame {
     if (isp.vigor && this.mon?.alive) this.heroHp = Math.min(st.hp, this.heroHp + st.hp * Math.min(0.05, 0.012 * isp.vigor.p) * dt);
     if (isp.stunwave && (T.stun -= dt) <= 0) {
       T.stun = Math.max(4, Math.round(8 - 1.5 * isp.stunwave.p));
-      const hit = this.mons.filter((m) => m.alive && !m.npc && Math.hypot(m.x - this.heroX, (m.y - this.heroY) * 0.75) <= 230);
+      const hit = this.mons.filter((m) => m.alive && !m.npc && Math.hypot(m.x - this.heroX, (m.y - this.heroY) * 0.75) <= W.IMP_NOVA_R);
       if (hit.length) {
         for (const m of hit) { m.stun = Math.max(m.stun || 0, m.isBoss ? 0.6 : 2); this.hurt(m, st.atk * 1.5 * isp.stunwave.p * (m.isBoss ? st.boss : 1), 'imp', false, true); }
-        this._impT = 0; this.impShow(isp.stunwave, null); this.emit('impNova', { r: 230, col: isp.stunwave.col });
+        this._impT = 0; this.impShow(isp.stunwave, null); this.emit('impNova', { r: W.IMP_NOVA_R, col: isp.stunwave.col });
       } else T.stun = 0.5;
     }
     if (isp.nova && (T.nova -= dt) <= 0) {
       T.nova = Math.max(4, 10 - Math.round(2 * isp.nova.p));
-      const hit = this.mons.filter((m) => m.alive && !m.npc && Math.hypot(m.x - this.heroX, (m.y - this.heroY) * 0.75) <= 230);
-      if (hit.length) { for (const m of hit) this.hurt(m, st.atk * 2.6 * isp.nova.p * (m.isBoss ? st.boss : 1), 'imp', false, true); this._impT = 0; this.impShow(isp.nova, null); this.emit('impNova', { r: 230, col: isp.nova.col }); }
+      const hit = this.mons.filter((m) => m.alive && !m.npc && Math.hypot(m.x - this.heroX, (m.y - this.heroY) * 0.75) <= W.IMP_NOVA_R);
+      if (hit.length) { for (const m of hit) this.hurt(m, st.atk * 2.6 * isp.nova.p * (m.isBoss ? st.boss : 1), 'imp', false, true); this._impT = 0; this.impShow(isp.nova, null); this.emit('impNova', { r: W.IMP_NOVA_R, col: isp.nova.col }); }
       else T.nova = 0.5;
     }
     if (isp.rain && (T.rain -= dt) <= 0) {
       T.rain = Math.max(5, 11 - Math.round(2 * isp.rain.p));
-      const near = this.mons.filter((m) => m.alive && !m.npc && Math.hypot(m.x - this.heroX, m.y - this.heroY) <= 420).slice(0, 5);
+      const near = this.mons.filter((m) => m.alive && !m.npc && Math.hypot(m.x - this.heroX, m.y - this.heroY) <= W.IMP_RAIN_R).slice(0, 5);
       if (near.length) { for (const m of near) { this.hurt(m, st.atk * 2.2 * isp.rain.p * (m.isBoss ? st.boss : 1), 'imp', false, true); this.emit('impRain', { at: { x: m.x, y: m.y }, col: isp.rain.col }); } this._impT = 0; this.impShow(isp.rain, null); }
       else T.rain = 0.5;
     }
@@ -1743,7 +1743,7 @@ export class WorldGame {
       sat = W.expSat(kt.length * 2);
     }
     const ck = m.isBoss && this.coopK ? this.coopK : 1;   // v343 함께 잡은 두목 — 인원만큼 더
-    const pk = W.PACE_REWARD * (W.PASSIVE_MOBS ? W.PASSIVE_REWARD : 1);   // v438 · v439 먼저 안 덤비는 졸개 몫 느려진 만큼 한 마리 벌이를 더(실제 한 시간 벌이는 그대로)
+    const pk = W.PACE_REWARD * (W.PASSIVE_MOBS ? W.PASSIVE_REWARD : 1) * (m.isBoss ? 1 : W.rangeReward(this.s.level));   // v453 범위가 좁아진 만큼(졸개만 — 두목은 한 마리 싸움이라 범위와 무관)   // v438 · v439 먼저 안 덤비는 졸개 몫 느려진 만큼 한 마리 벌이를 더(실제 한 시간 벌이는 그대로)
     const exp = W.mobExp(m.lv) * (m.isBoss ? W.BOSS.exp * (W.CLASSES[this.s.job]?.bossExp || 1) : m.elite ? W.ELITE.exp : 1) * this.levelGapMult(m.lv) * this.challengeMult(m.lv) * (st.expMult || 1) * (1 + (env.exp || 0) + mlv * L.MASTERY.exp) * ek * sat * ck * pk;   // v425 도전 경험치
     const blood = !this.inst && TD.bloodOn() ? 1 + TD.BLOOD_BONUS : 1;   // v262 혈겁
     const gold = Math.round(pk * W.mobGold(m.lv) * (m.isBoss ? W.BOSS.gold : m.elite ? W.ELITE.gold : 1) * (1 + (env.gold || 0) + (st.gold || 0)) * ek * blood * (st.goldMul || 1) * ck);   // v322 칭호
@@ -1764,8 +1764,8 @@ export class WorldGame {
     this.s.gold += gold;
     const mat = this.dropMats(m);
     if (m.elite) this.dropMats(m);
-    if (this.rng() < pk - 1) this.dropMats(m);   // v438 재료·증표·두목 떨굼도 한 번 더 굴릴 때가 있다(기대값 ×1/PACE)
-    this.addMastery(this.map.zone, 1 + (this.rng() < pk - 1 ? 1 : 0));
+    for (let x = pk - 1; x > 0; x -= 1) if (x >= 1 || this.rng() < x) this.dropMats(m);   // v438 재료·증표·두목 떨굼도 한 번 더(기대값 ×pk) · v453 pk가 2를 넘으면 그만큼 더
+    { const f = Math.floor(pk); this.addMastery(this.map.zone, f + (this.rng() < pk - f ? 1 : 0)); }   // 기대값 ×pk
     // 보물 원숭이 — 들판에서 가끔 (하나만)
     if (!this.map.bossRoom && this.rng() < L.TREASURE_RATE * (W.CLASSES[this.s.job]?.treasureK || 1) * pk && !this.mons.some((o) => o.alive && o.treasure)) this.spawnTreasure();
     this.emit('kill', { gold, isBoss: m.isBoss, add: true, at: m, mat });
@@ -1783,8 +1783,9 @@ export class WorldGame {
   // v343 함께 잡은 두목을 못 친 문파원 몫 — 경험치·은자·현철만 k배(장비·탈것·조각·증표는 없음)
   coopShare(m, k) {
     const st = this.stats();
-    const exp = W.mobExp(m.lv) * W.BOSS.exp * (W.CLASSES[this.s.job]?.bossExp || 1) * this.levelGapMult(m.lv) * this.challengeMult(m.lv) * (st.expMult || 1) * k * W.PACE_REWARD;   // v425 · v438
-    const gold = Math.round(W.mobGold(m.lv) * W.BOSS.gold * (1 + (st.gold || 0)) * (st.goldMul || 1) * k * W.PACE_REWARD);
+    const pk = W.PACE_REWARD * (W.PASSIVE_MOBS ? W.PASSIVE_REWARD : 1);   // v453 혼자 잡을 때(killMob 두목)와 같은 몫
+    const exp = W.mobExp(m.lv) * W.BOSS.exp * (W.CLASSES[this.s.job]?.bossExp || 1) * this.levelGapMult(m.lv) * this.challengeMult(m.lv) * (st.expMult || 1) * k * pk;   // v425 · v438
+    const gold = Math.round(W.mobGold(m.lv) * W.BOSS.gold * (1 + (st.gold || 0)) * (st.goldMul || 1) * k * pk);
     const id = this.map.mz;
     let mat = null;
     if (W.MATS[id]) { const n = Math.max(1, Math.round(W.BOSS_MATS * k)); this.addMats(id, n); mat = { id: W.ORE, n: n * W.matWeight(id), name: W.ORE_NAME, color: W.ORE_COL }; }
@@ -1907,7 +1908,7 @@ export class WorldGame {
   }
   skillDef(id) { return this.skillList().find((k) => k.id === id) || null; }
   hpCostOf(sk) { const st = this.stats(); return Math.round(st.hp * (sk.hpCost || 0) * (1 - this.skillMods(sk.id).cost) * (1 - (st.hpCostDown || 0)) * (this.inst?.kind === 'wraid' ? D.WB_TIER[D.wbTierOf(this.map?.wb)].heal : 1)); }   // v397 월드보스는 회복이 줄어드는 만큼 무공 체력 값도(극악소마가 제 무공에 쓰러졌다)
-  skillRadius(sk) { return (sk.radius || 0) * Math.max(0.3, 1 + this.skillMods(sk.id).range + (this.stats().skillRange || 0)); }
+  skillRadius(sk) { return Math.min(W.SKILL_R_MAX, (sk.radius || 0) * W.SKILL_R_K * Math.max(0.3, 1 + this.skillMods(sk.id).range + (this.stats().skillRange || 0))); }   // v453 바람식 — 둘레 1~3칸
   skillCd(sk) {
     const sb = this.setBonus();
     return sk.cd * this.inheritCd(sk.id) * (1 - this.skillMods(sk.id).cd) * Math.max(0.5, 1 + (this.envNow().cd || 0)) * (1 - (this.stats().cdr || 0)) * (sk.slot === 4 ? 1 - (sb.cd4 || 0) : 1);
@@ -2119,7 +2120,7 @@ export class WorldGame {
     this.heroHp -= cost;
     this.cd[id] = this.skillCd(sk);
     const at = { x: this.heroX, y: this.heroY };
-    this.emit('skill', { id, name: sk.name, fx: sk.fx, look: sk.role, job: this.s.job, cls: this.s.job, tier: 4, at, radius: sk.radius, motion: 'aoe', dur: sk.sec });
+    this.emit('skill', { id, name: sk.name, fx: sk.fx, look: sk.role, job: this.s.job, cls: this.s.job, tier: 4, at, radius: this.skillRadius(sk), motion: 'aoe', dur: sk.sec });
     if (cost) this.emit('hpCost', { amount: cost });
     const mult = st.skillMult * (1 + md.dmg) * W.SKILL_K;   // v439
     const sb = this.setBonus();
@@ -2127,7 +2128,7 @@ export class WorldGame {
     this.clones = Array.from({ length: cn }, (_, i) => ({ i, life: csec, max: csec, atkT: 0.3 + i * 0.15, mult: sk.mult * mult, crit: md.crit }));
     // 나오면서 한 번씩 — 분신마다 둘레를 친다
     for (let k = 0; k < cn; k++) {
-      for (const m of this.mons.slice()) if (m.alive && !m.npc && Math.hypot(m.x - at.x, (m.y - at.y) * 0.75) <= sk.radius) this.strike(m, st, sk.burst * mult, id, md.crit);
+      for (const m of this.mons.slice()) if (m.alive && !m.npc && Math.hypot(m.x - at.x, (m.y - at.y) * 0.75) <= this.skillRadius(sk)) this.strike(m, st, sk.burst * mult, id, md.crit);
     }
     return true;
   }
@@ -2172,7 +2173,7 @@ export class WorldGame {
       const sk = sk0.id === mainId && sk0.autoAbove > W.MAIN_AUTO_ABOVE ? { ...sk0, autoAbove: W.MAIN_AUTO_ABOVE } : sk0;
       if (this.cd[sk.id] > 0) continue;
       if (sk.kind === 'support' || sk.kind === 'awaken') { if (this.wantSupport(sk, st) && !(sk.autoAbove && this.heroHp < st.hp * sk.autoAbove)) this.useSkill(sk.id); continue; }
-      if (sk.kind === 'triple') { if (this.mon?.alive && (this.mon.isBoss || this.mons.filter((m) => m.alive && Math.hypot(m.x - this.heroX, m.y - this.heroY) <= 300).length >= 3)) this.useSkill(sk.id); continue; }
+      if (sk.kind === 'triple') { if (this.mon?.alive && (this.mon.isBoss || this.mons.filter((m) => m.alive && Math.hypot(m.x - this.heroX, m.y - this.heroY) <= W.TRIPLE_R).length >= 3)) this.useSkill(sk.id); continue; }
       if (sk.autoAbove && this.heroHp < st.hp * sk.autoAbove && !sk.buff?.dmgRed) continue;
       if (sk.kind === 'single') {
         if (!this.mon?.alive) continue;

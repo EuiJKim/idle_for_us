@@ -859,9 +859,9 @@ console.log('\n=== 4차 무공 넷 (v123) ===');
   f.events.length = 0; f.basicAttack(f.mon, f.stats(), 1);
   ok(f.events.filter((e) => e.type === 'dmg' && e.kind === 'hit').length >= 3, '투신강림 중 평타가 세 대', `${f.events.filter((e) => e.type === 'dmg' && e.kind === 'hit').length}대`);
   const p = mk('poison');
-  p.mons[5].x = p.heroX + 480;   // v425 8칸(512px) 안이면 — 전엔 22칸(화면 전체)
-  ok(p.useSkill('s4') && p.mons.every((m) => m.dot > 0), '독마 만독지옥: 8칸 안 모두에 독');
-  { const p2 = mk('poison'); p2.mons[5].x = p2.heroX + 900; ok(p2.useSkill('s4') && !(p2.mons[5].dot > 0), '8칸 밖은 안 닿는다'); }
+  { const r4 = p.skillRadius(p.skillDef('s4')); p.mons[5].x = p.heroX + r4 - 20;   // v453 반지름 안이면(3.5칸 상한 — 전엔 8칸 · 그 전엔 22칸)
+    ok(r4 <= W.SKILL_R_MAX && p.useSkill('s4') && p.mons.every((m) => m.dot > 0), '독마 만독지옥: 범위 안 모두에 독', `${(r4 / W.TILE).toFixed(1)}칸`); }
+  { const p2 = mk('poison'); p2.mons[5].x = p2.heroX + W.SKILL_R_MAX + 120; ok(p2.useSkill('s4') && !(p2.mons[5].dot > 0), '범위 밖은 안 닿는다'); }
   const r = mk('ring');
   ok(r.useSkill('s4') && ['s0', 's1', 's2'].every((k) => r.events.some((e) => e.type === 'dmg' && e.kind === k)) && r.buffv.might > 0 && r.cd.s0 === 0, '극악소마 삼공합일: 세 무공을 한꺼번에(숨은 안 쓴다) + 삼공조화');
 }
@@ -1025,7 +1025,7 @@ console.log('\n=== 사냥터 땅 (v127) ===');
   ok(mg.masteryLevel(1) === 1 && mevt === 1, '잡은 수가 차면 숙련 레벨이 오른다(알림)');
   const mk0 = mg.s.mast[1];
   mg.mons[0].hp = 1; mg.hurt(mg.mons[0], 999, 'hit', false);
-  ok(mg.s.mast[1] === mk0 + 1, '그 지역 몹을 잡으면 숙련도 +1');
+  ok(mg.s.mast[1] >= mk0 + 1 && mg.s.mast[1] <= mk0 + Math.ceil(W.PACE_REWARD * W.PASSIVE_REWARD * W.rangeReward(mg.s.level)), '그 지역 몹을 잡으면 숙련도가 오른다(v453 한 마리 몫만큼)', `+${mg.s.mast[1] - mk0}`);
   // 보물 원숭이
   const tg = fresh(); tg.setJob('fan'); tg.enterMap(11);
   const tm = tg.spawnTreasure();
@@ -2426,7 +2426,7 @@ console.log('\n=== v288 만독지옥 · 만독귀원 ===');
   const sup = W.JOB_SKILLS.poison.find((k) => k.name === '만독귀원');
   const sk = { ...sup, id: 's3' };
   g.skillMods = () => ({ dmg: 0, range: 0.5, cd: 0, splash: 0, crit: 0 });
-  ok(Math.abs(g.skillRadius(sk) - sup.radius * 1.5) < 1e-6, '만독귀원도 범위 보너스를 받는다(전엔 늘 320)');
+  ok(Math.abs(g.skillRadius(sk) - Math.min(W.SKILL_R_MAX, sup.radius * W.SKILL_R_K * 1.5)) < 1e-6, '만독귀원도 범위 보너스를 받는다(전엔 늘 320 · v453 바람식 배수·상한 안에서)');
 }
 console.log('\n=== v289 만독귀원 자동 ===');
 {
@@ -4187,7 +4187,8 @@ console.log('\n=== v440 던전 수문장도 강타 ===');
 console.log('\n=== v441 체력이 곧 힘 ===');
 {
   // 같은 무공을 체력 소모 있이/없이 — 소모한 만큼 더 세다 · 체력을 올리면 더 세진다
-  const dmgOf = (g, hpCost) => { const sk = g.skillDef('s1'); const save = sk.hpCost; sk.hpCost = hpCost; g.cd.s1 = 0; g.heroHp = g.stats().hp; const m = g.mons.find((x) => x.alive && !x.npc); m.hp = m.maxHp = 1e12; m.x = g.heroX + 40; m.y = g.heroY; g.mon = m; const h0 = m.hp; g.useSkill('s1'); sk.hpCost = save; return h0 - m.hp; };
+  // v453 바로잡음 — skillDef는 복사본을 돌려주므로 원본 정의(JOB_SKILLS)를 바꾼다 · 레벨업·취약이 끼어들지 않게 경험치를 막고 과녁의 취약을 지운다(전엔 넓은 범위가 졸개를 잡아 레벨이 올라 세진 것을 「체력 몫」으로 잘못 셌다)
+  const dmgOf = (g, hpCost) => { const def = W.JOB_SKILLS.sword.find((d) => d.slot === 1); const save = def.hpCost; def.hpCost = hpCost; const ax = g.addExp; g.addExp = () => {}; g.cd.s1 = 0; g.heroHp = g.stats().hp; const m = g.mons.find((x) => x.alive && !x.npc); m.hp = m.maxHp = 1e12; m.x = g.heroX + 40; m.y = g.heroY; m.vulnT = 0; m.vulnV = 0; m.stun = 0; g.mon = m; const h0 = m.hp; g.useSkill('s1'); def.hpCost = save; g.addExp = ax; return h0 - m.hp; };
   const g = fresh('sword'); g.s.level = 40; g.s.gold = 1e9; while (g.canAdvance()) g.advance(); g._stats = null; g.enterMap(11); g.rng = () => 0.5;
   const a = dmgOf(g, 0), b = dmgOf(g, 0.08);
   ok(b > a * 1.2, '체력을 쓰는 무공은 소모한 만큼 더 세다', `${Math.round(a)} → ${Math.round(b)}`);
@@ -4397,6 +4398,26 @@ console.log('\n=== v452 대결 서열 · 대결 칭호 ===');
   g.s.pvp.win = 50; g.s.pvp.best = 1300; ok(g.titleDone('pvp50') && g.titleDone('pvp1300'), '50승 · 점수 1300 → 비무첩의 고수 · 비무 명인');
   g.checkTitles(); ok(g.hasTitle('pvp10') && g.hasTitle('pvp50') && g.hasTitle('pvp1300'), '저절로 받는다');
   ok(/\['pvp', '대결'\]/.test(read('js/wui.js')) && /loadPvp\(\)/.test(read('js/wui.js')), '서열 창에 「대결」 갈래(점수 순)');
+}
+
+console.log('\n=== v453 무공 범위 줄이기(바람식) ===');
+{
+  const DG = await import('../js/world/wdgn.js');
+  ok(W.SKILL_R_K === 0.45 && W.SKILL_R_MAX === 224 && W.TRIPLE_R === 135, '반지름 0.45배 · 상한 3.5칸 · 삼공합일 135');
+  const g = fresh('sword'); g.s.level = 99; g.s.gold = 1e12; while (g.canAdvance()) g.advance(); g._stats = null;
+  const rs = g.skills().filter((k) => k.radius).map((k) => g.skillRadius(k) / W.TILE);
+  ok(rs.length && rs.every((r) => r <= 3.5), '검사 99: 모든 무공 반지름 3.5칸 아래', rs.map((r) => r.toFixed(1)).join('·'));
+  const pz = fresh('poison'); pz.s.level = 130; pz.s.gold = 1e12; while (pz.canAdvance()) pz.advance(); pz._stats = null;
+  const hell = pz.skills().find((k) => k.name === '만독지옥');
+  ok(hell && pz.skillRadius(hell) <= W.SKILL_R_MAX, '독마 만독지옥도 상한(전엔 9칸)', `${(pz.skillRadius(hell) / W.TILE).toFixed(1)}칸`);
+  ok(Math.abs(W.rangeReward(80) - 2) < 1e-9 && W.rangeReward(30) === W.rangeReward(80) && W.rangeReward(140) > 3 && W.rangeReward(999) === W.rangeReward(150), '한 마리 벌이 ×2(Lv80까지) → ×3.15(Lv140) · 그 위로 그대로');
+  // 졸개 벌이에는 들어가고 두목에는 안 들어간다
+  const k = fresh('sword'); k.s.level = 60; k._stats = null; k.enterMap(W.mapId(6, 1)); k.rng = () => 0.99;
+  const m = k.mons.find((x) => x.alive && !x.npc); const e0 = k.s.exp; k.killMob(m); const e1 = k.s.exp - e0;
+  const base = W.mobExp(m.lv) * k.levelGapMult(m.lv) * k.challengeMult(m.lv) * (k.stats().expMult || 1);
+  ok(e1 / base > W.rangeReward(60) * W.PACE_REWARD * 0.9, '졸개 경험치에 범위 몫이 들어간다', `×${(e1 / base).toFixed(2)}`);
+  ok(/m\.isBoss \? 1 : W\.rangeReward/.test(read('js/world/wgame.js')), '두목은 한 마리 싸움이라 범위 몫 없음');
+  ok(DG.DAILY_R_K === 0.12 && /dailyHpSec\(lv\)\) \* DAILY_R_K/.test(read('js/world/wdgn.js')), '요일 던전 몹 체력 12%(시뮬: 깨는 단계가 전과 같게)');
 }
 
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);

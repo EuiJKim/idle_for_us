@@ -124,7 +124,9 @@ export const fieldMobHp = (lv) => Math.round(Math.max(mobHp(lv), refDps(lv) * FI
 export const fieldMobAtk = (lv) => Math.round(Math.max(mobAtk(lv), refHp(lv) * FIELD_ATK_FRAC) * gearAtk(lv));
 // 던전 몹 하나 = 같은 레벨 무인이 1.2초 칠 체력 (초반은 광역 무공이 적어 덜 단단하게 — 레벨 5에 0.5초)
 export const dailyHpSec = (lv) => 0.45 + 0.75 * Math.min(1, lv / 60);
-export const dailyMobHp = (lv) => Math.max(mobHp(lv) * 0.7, refDps(lv) * dailyHpSec(lv));
+// v453 범위가 좁아져(바람식) 한꺼번에 깎던 몫이 사라졌다 — 요일 던전 몹 체력을 그만큼(시뮬: 깨는 단계·시간이 전과 같게)
+export const DAILY_R_K = 0.12;
+export const dailyMobHp = (lv) => Math.max(mobHp(lv) * 0.7, refDps(lv) * dailyHpSec(lv)) * DAILY_R_K;
 export const dailyMobAtk = (lv) => mobAtk(lv) * 1.5;
 
 // ---------- 무한의 탑 (v126: 120층 · 10층마다 십이지신) ----------
