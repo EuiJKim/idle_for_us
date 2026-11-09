@@ -2381,7 +2381,8 @@ function masterPortrait(look) {
 // ---------- 던전 창 (v147) ----------
 // 지도 창 한 칸에 일일 던전 셋 · 탑 · 십이지 · 토벌이 한 줄로 쌓여 있었다(중구난방).
 // 이제 따로 창 하나에 칸 넷: 일일 던전 | 무한의 탑 | 십이지 | 문파 토벌.
-function dgnTab(app) {
+// v463 R8 mode 'train' — 요일 던전(수련장) 칸 하나만 짓는다(마을 창 「수련장」 칸이 쓴다)
+function dgnTab(app, mode = null) {
   const { game } = app;
   const stagePick = {};
   let bump = 0;
@@ -2416,6 +2417,7 @@ function dgnTab(app) {
     views.push(v);
     return v;
   }
+  let t = null;
   const rerender = () => { bump++; t.update(); };
   function buildDaily() {
     const s = game.s;
@@ -2797,8 +2799,8 @@ function dgnTab(app) {
     }
     return [raidCard];
   }
-  const t = subTabs([
-    { key: 'daily', label: '일일 던전', make: () => view(buildDaily) },
+  if (mode === 'train') { const v = view(buildDaily); t = { root: v.root, update: () => v.update() }; return t; }
+  t = subTabs([   // v463 일일 던전 칸은 마을 › 수련장으로
     { key: 'tower', label: '무한의 탑', make: () => view(buildTower) },
     { key: 'zodiac', label: '신수 뽑기', make: () => view(buildZodiac) },   // v434 지도의 「십이지왕」(사냥 구역)과 헷갈리지 않게
     { key: 'wraid', label: '칠대성', make: () => view(buildWraid) },
@@ -2806,7 +2808,6 @@ function dgnTab(app) {
   ], 'ifu.dgnsub');
   const upd0 = t.update;
   t.update = () => {
-    t.setDot('daily', dailyWaiting(game));
     t.setDot('zodiac', Object.values(game.s.zTickets || {}).some((n) => n > 0));
     { const n = app.net; t.setDot('wraid', !!(n?.ready?.() && n.wraidClaims?.().length)); }
     upd0();
@@ -3028,12 +3029,22 @@ function townTab(app) {
     key: n.id, label: n.name,
     make: () => ({ root: root, update: () => { if (pick !== n.id) { pick = n.id; sig = ''; } upd(); } }),
   }));
+  // v463 R8 수련장 — 요일 던전 셋의 들어가는 곳(마을 밖 방 · 문 셋). 단계 고르기·소탕은 여기서
+  views.push({ key: 'train', label: '수련장', make: () => {
+    const inner = dgnTab(app, 'train');
+    const head = h('div', { class: 'card train-head' },
+      h('h3', {}, '🏯 수련장 ', h('i', {}, '修鍊場'), h('small', {}, ' 마을 밖 방 하나에 문 셋')),
+      h('p', { class: 'muted', style: 'font-size:12px;margin:0 0 8px' }, '서쪽 문 수련동(경험치) · 북쪽 문 금광굴(은자) · 동쪽 문 천공광맥(재료·증표) · 남쪽 문은 마을. 문으로 걸어 들어가면 고를 수 있는 가장 높은 단계로 들어가요. 낮은 단계·소탕은 아래에서.'),
+      h('button', { class: 'btn primary', id: 'go-train', style: 'width:100%', onclick: () => (game.map.train ? app.closePanel() : window.__goTrain?.()) }, '수련장으로 가기'));
+    const btn = head.querySelector('#go-train');
+    return { root: h('div', {}, head, inner.root), update: () => { btn.textContent = game.map.train ? '수련장에 있어요 — 창을 닫고 문으로 걸어가요' : '수련장으로 가기'; inner.update(); } };
+  } });
   root.replaceChildren(head, body);
   const t = subTabs(views, 'ifu.townsub');
   const upd0 = t.update;
   // v256: 길을 아직 안 골랐으면 사부 칸에도 점(마을 탭엔 점이 있는데 안에서 이유를 못 찾았다)
   const pathDue = () => game.canChoosePath() && !game.s.path;
-  t.update = () => { t.setDot('master', game.canAdvance() || pathDue()); upd0(); };
+  t.update = () => { t.setDot('master', game.canAdvance() || pathDue()); t.setDot('train', dailyWaiting(game)); upd0(); };   // v463 수련장
   // 전직할 수 있으면 사부 칸부터 (칸을 짚어 연 게 아니면)
   t.shown = (sub) => { if (!sub && (game.canAdvance() || pathDue())) t.select('master'); };
   return t;

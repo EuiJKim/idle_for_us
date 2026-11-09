@@ -1324,7 +1324,7 @@ console.log('\n=== 길잡이 (v146) ===');
   ok(new Set(ids).size === ids.length && Q.QUEST_COUNT >= 30 && Q.QUEST_COUNT <= 40, `단계가 서른 남짓(v454)이고 이름이 겹치지 않는다`, `${Q.QUEST_COUNT}단계`);
   const TABS = new Set(['char', 'bag', 'map', 'town', 'social', 'comp', 'dgn', null]);
   ok(Q.QUESTS.every((q) => q.title && q.why && TABS.has(q.tab ? q.tab.split('/')[0] : null) && typeof q.goal === 'function'), '모든 단계에 제목·설명·열 화면·조건이 있다');
-  const SUBS = { char: ['info', 'stat', 'skill'], bag: ['gear', 'bag', 'imp', 'enh', 'smith', 'mats'], map: ['murim', 'sapa', 'magyo', 'king', 'masters'], dgn: ['daily', 'tower', 'zodiac', 'raid', 'wraid'], comp: ['pet', 'mount'], town: ['master', 'shop', 'smith', 'inn'], social: ['guild', 'rank', 'pvp', 'lore'] };
+  const SUBS = { char: ['info', 'stat', 'skill'], bag: ['gear', 'bag', 'imp', 'enh', 'smith', 'mats'], map: ['murim', 'sapa', 'magyo', 'king', 'masters'], dgn: ['tower', 'zodiac', 'raid', 'wraid'], comp: ['pet', 'mount'], town: ['master', 'shop', 'smith', 'inn', 'train'], social: ['guild', 'rank', 'pvp', 'lore'] };
   const badSub = Q.QUESTS.filter((q) => q.tab?.includes('/') && !SUBS[q.tab.split('/')[0]]?.includes(q.tab.split('/')[1])).map((q) => q.id);
   ok(badSub.length === 0, '길잡이가 여는 칸(창/칸)이 실제로 있다', badSub.join(' '));
   const g0 = fresh();
@@ -4918,6 +4918,27 @@ console.log('\n=== v462 두목 각인 — 세기는 두목 레벨·종류 · 기
   const o = IM.imprintOf({ k: k99, s: 0, sk: 'dmg', g: 0 }, 1);
   ok(o.native && o.theme === IM.themeOfZone(+k99.slice(1)), '옛 칸(기운 없이) — 본래 기운 그대로');
   ok(/세기 ×/.test(read('js/wui.js')) && /이어 새기기/.test(read('js/wui.js')) && /bestMark\(1\)/.test(read('js/wui.js')), '화면 — 쓸 증표 · 세기 · 이어 새기기 안내');
+}
+
+console.log('\n=== v463 R8 수련장 — 마을 밖 방 하나에 문 셋(요일 던전) ===');
+{
+  const m = W.mapOf(W.TRAIN_MAP);
+  ok(m.train && m.name === '수련장' && W.hasMap(W.TRAIN_MAP) && !W.MAPS.some((x) => x.train) && m.mobsAlive === 0, '수련장 — 몹 없는 방 · 사냥터 목록(MAPS)에는 없다');
+  ok(Object.entries(W.TRAIN_DOORS).map(([d, k]) => `${d}:${k}`).join() === 'w:exp,n:gold,e:mat' && m.doors.s === 0, '문 셋 — 서 수련동 · 북 금광굴 · 동 천공광맥 · 남은 마을');
+  ok(W.NPCS.some((n) => n.name === '교두' && n.tab === 'go/train'), '마을 교두 — 누르면 수련장으로');
+  const g = fresh('sword'); while (g.s.level < 20) g.addExp(W.expToNext(g.s.level));
+  g.enterMap(W.mapId(2, 1)); const hm = g.s.huntMap;
+  ok(g.enterMap(W.TRAIN_MAP) && g.map.train && g.s.huntMap === hm && g.mons.length === 0, '수련장에 들어가도 사냥터(돌아갈 곳)는 그대로');
+  const dl = g.doorList();
+  ok(dl.length === 4 && dl.filter((x) => x.daily).map((x) => x.name).join() === '수련동,금광굴,천공광맥' && dl.find((x) => x.d === 's').name === '객잔 마을', '문 이름 — 그리는 쪽이 문 위에 쓴다');
+  g.s.autoHunt = true; for (let i = 0; i < 300; i++) { g.tick(0.1); g.events.length = 0; }
+  ok(g.map.train && !g.inst && g.roamPick() === null, '자동 사냥이 켜져 있어도 수련장에 머문다(방 돌기 없음)');
+  ok(g.passDoor('w') && g.inst?.kind === 'daily' && g.inst.id === 'exp' && g.inst.stage === g.dailyMaxStage('exp'), '서문 — 수련동(고를 수 있는 가장 높은 단계)');
+  g.leaveInst(); ok(g.map.train, '수련장에서 들어간 판은 수련장으로 돌아온다');
+  g.s.dgn.routine = true; g.passDoor('n'); g.leaveInst(); ok(g.map.id === hm, '던전 루틴이 켜져 있으면 전처럼 사냥터로');
+  g.s.dgn.routine = false; g.enterMap(W.TRAIN_MAP); ok(g.passDoor('s') && g.map.town, '남문 — 마을로');
+  ok(!/key: 'daily', label: '일일 던전'/.test(read('js/wui.js')) && /key: 'train', label: '수련장'/.test(read('js/wui.js')) && /dgnTab\(app, 'train'\)/.test(read('js/wui.js')), '던전 창의 「일일」 칸은 마을 창 「수련장」 칸으로');
+  ok(/tab: 'town\/train'/.test(read('js/world/wquest.js')) && /goTrainNow/.test(read('js/wmain.js')) && /m\.town \|\| m\.train/.test(read('js/wmain.js')), '길잡이·교두·사냥하러 가기 단추');
 }
 
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);

@@ -77,7 +77,7 @@ async function tab(page, name) {
   console.log('# 시작');
   await sleep(600);
   const s0 = await G(p, () => ({ job: window.__game.s.job, map: window.__game.s.map, npc: window.__game.mons.filter((m) => m.npc).length, pot: window.__game.s.potions }));
-  assert(s0.job === 'sword' && s0.map === 0 && s0.npc === 4, '검사로 마을에서 시작 · 마을 사람 넷');
+  assert(s0.job === 'sword' && s0.map === 0 && s0.npc === 5, '검사로 마을에서 시작 · 마을 사람 다섯(v463 교두)');
   assert(s0.pot >= 20, `시작 물약 ${s0.pot}개`);
   await shot(p, '01-town.png');
 
@@ -250,7 +250,7 @@ async function tab(page, name) {
   assert(await G(p, () => window.__game.map.town), '스스로 간 마을에서는 머문다');
   await tab(p, 'town');
   await sleep(400);   // 시트가 다시 열리는 중이면 누름이 빗나간다
-  // 마을 사람 넷 — 전직할 수 있으면 사부가 먼저 열린다
+  // 마을 사람 다섯 — 전직할 수 있으면 사부가 먼저 열린다
   assert(await p.isVisible('#panel .subtabs button.on[data-key="master"]'), '전직할 수 있으면 사부가 먼저');
   await p.click('#panel .subtabs button[data-key="shop"]');
   await sleep(200);

@@ -595,6 +595,16 @@ for (const r of REGIONS) {
 export const doorTile = (m, d) => { const mc = Math.floor(m.cols / 2), mr = Math.floor(m.rows / 2); return d === 'n' ? { c: mc, r: 0 } : d === 's' ? { c: mc, r: m.rows - 1 } : d === 'e' ? { c: m.cols - 1, r: mr } : { c: 0, r: mr }; };
 export const doorAt = (m, c, r) => { for (const d of Object.keys(m.doors || {})) { const t = doorTile(m, d); if (t.c === c && t.r === r) return d; } return null; };
 export const OPP_DOOR = { n: 's', s: 'n', e: 'w', w: 'e' };
+// ---------- v463 R8 수련장 — 마을 밖 방 하나에 문 셋(서 수련동 · 북 금광굴 · 동 천공광맥) · 남문은 마을 ----------
+//   요일 던전 셋의 들어가는 곳 — 안쪽은 요일 던전 그대로. 몹이 없는 방이라 사냥터가 아니다:
+//   사냥터 목록(MAPS)에는 넣지 않는다(알맞은 사냥터·지도·방 돌기에 섞이지 않게) — mapOf·hasMap으로만 찾는다
+export const TRAIN_MAP = 1;
+export const TRAIN_DOORS = { w: 'exp', n: 'gold', e: 'mat' };
+MAP_BY_ID[TRAIN_MAP] = { id: TRAIN_MAP, name: '수련장', train: true, zone: 0, area: 0, art: 0, lv: [0, 0], mobs: [], boss: null,
+  cols: ROOM_COLS, rows: ROOM_ROWS, mobsAlive: 0, respawnSec: ROOM_RESPAWN,
+  doors: { ...Object.fromEntries(Object.entries(TRAIN_DOORS).map(([d, k]) => [d, `d:${k}`])), s: 0 } };
+// 문이 가리키는 요일 던전(수련장 문) — 아니면 null
+export const trainDoorKind = (to) => (typeof to === 'string' && to.startsWith('d:') ? to.slice(2) : null);
 export const roomCount = () => MAPS.filter((m) => !m.town).length;
 export const hasMap = (id) => !!MAP_BY_ID[id];
 // 옛 세이브(사냥터 번호 1~15)를 새 구역 번호로
@@ -606,6 +616,8 @@ export const NPCS = [
   { name: '상인', dx: 150, dy: -90, tab: 'town/shop', look: { robe: '#92400e', head: 'hat', weapon: 'fan' } },
   { name: '대장장이', dx: -110, dy: 110, tab: 'bag/smith', look: { robe: '#44403c', trim: '#f59e0b', head: 'band', band: '#7c2d12', beard: true, weapon: 'axe' } },
   { name: '주모', dx: 40, dy: -260, tab: 'town/inn', look: { robe: '#be185d', trim: '#fbcfe8', head: 'topknot', weapon: 'fan' } },
+  // v463 R8 수련장 교두 — 누르면 수련장(요일 던전 문 셋)으로 간다
+  { name: '교두', dx: 160, dy: 120, tab: 'go/train', look: { robe: '#1e3a8a', trim: '#fbbf24', head: 'band', band: '#fbbf24', weapon: 'spear' } },
 ];
 
 // ---------- 몹 ----------

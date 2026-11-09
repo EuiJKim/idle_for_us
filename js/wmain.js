@@ -953,6 +953,14 @@ function paintTabLocks() {
   });
 }
 // v325 사냥 단추 — 처음 하면 들판을 눌러야 사냥터로 가는 줄 몰랐다. 마을·던전이면 하던 사냥터로, 사냥 중이면 알맞은 사냥터로
+// v463 R8 수련장으로 — 마을 밖 방 하나(문 셋이 요일 던전) · 던전 안이면 나와서
+function goTrainNow() {
+  if (!game.s.job) return toast('캐릭터를 먼저 고르세요');
+  if (!game.enterMap(W.TRAIN_MAP)) { toast('지금은 갈 수 없어요'); return; }
+  closePanel(); save(); refreshUI(true);
+  toast('수련장 — 서쪽 수련동(경험치) · 북쪽 금광굴(은자) · 동쪽 천공광맥(재료) · 남쪽은 마을');
+}
+window.__goTrain = goTrainNow;
 function goHuntNow() {
   const m = game.map;
   const last = game.s.huntMap && W.hasMap(game.s.huntMap) && !W.mapOf(game.s.huntMap).town ? game.s.huntMap : null;
@@ -1235,15 +1243,16 @@ function refreshUI(full = false) {
   const m = game.map;
   instHud();
   // 사냥터 줄은 짧게 — '천산 설원 · 두목'은 체력 막대에 닿았다
-  setText($('stage-label'), m.town || m.inst ? m.name : `${m.king ? m.king.title : m.zoneName} ${m.bossRoom ? '두목' : m.area}`);
+  setText($('stage-label'), m.town || m.inst || m.train ? m.name : `${m.king ? m.king.title : m.zoneName} ${m.bossRoom ? '두목' : m.area}`);   // v463 수련장
   const bossLeft = Math.max(0, Math.ceil(game.realSec(game.bossT)));   // v438 실제 초
   const boss = game.mons.find((x) => x.isBoss && x.alive);
   setText($('zone-label'), m.inst ? (game.inst.kind === 'tower' ? `수문장 Lv.${m.lv[0]} · ${duration(game.realSec(game.inst.hard ? D.hardSec(game.inst.stage) : D.towerSec(game.inst.stage)))} 안에` : game.inst.kind === 'raid' ? `문파원과 함께 — ${Math.round(D.RAID_SEC / W.PACE)}초 동안 친 만큼` : game.inst.kind === 'wraid' ? `무림 전체와 함께 — ${D.WRAID_SEC}초 동안 친 만큼` : game.inst.kind === 'pvp' ? `대결 — 직접 조작 · 빨간 바닥은 비켜 서기` : `몹 Lv.${m.lv[0]} · ${D.DAILY_KILLS}마리 잡으면 깬다`) : m.town ? (s.autoHunt ? `쉬는 중 → ${W.mapOf(s.huntMap).name}` : '쉬는 중')
     : m.bossRoom ? (boss ? `두목 ${boss.name} Lv.${boss.lv}` : `두목 다시 나기까지 ${Math.floor(bossLeft / 60)}:${String(bossLeft % 60).padStart(2, '0')}`) + (coop.on ? ` · 🤝${coop.count + 1}명` : '')
+      : m.train ? '문 셋 — 서 수련동 · 북 금광굴 · 동 천공광맥 · 남 마을'   // v463
       : document.body.classList.contains('hud-slim') ? `Lv.${m.lv[0]}~${m.lv[1]}` : `몹 Lv.${m.lv[0]}~${m.lv[1]} · 두목은 두목 구역에`);   // v434 폰 칩은 짧게(「두목…」에서 잘렸다)
   // v341 '사냥하러 가기' — 아래 창 줄의 사냥 단추를 빼고, 마을에 있을 때만 들판 가운데에 띄운다(창이 열려 있으면 숨김)
   if (guideQ != null && (guideQ !== s.quest || game.questNow()?.done)) hideGuide();   // v342 그 단계를 마치면 안내를 닫는다
-  const goHuntOn = !!(m.town && !game.inst && s.job && (!activeTab || pcWide()));   // v414 컴퓨터 배치는 창이 옆이라 늘
+  const goHuntOn = !!((m.town || m.train) && !game.inst && s.job && (!activeTab || pcWide()));   // v463 수련장에서도   // v414 컴퓨터 배치는 창이 옆이라 늘
   $('go-hunt').classList.toggle('hidden', !goHuntOn);
   document.body.classList.toggle('go-hunt-on', goHuntOn);   // 알림 글이 단추를 가리지 않게 위로
   // 혼자/함께 단추 — 두목 구역에서(v339 십이지왕만 → 모든 두목 구역) · 문파가 있고 온라인일 때
@@ -1311,9 +1320,9 @@ function refreshUI(full = false) {
       : `길잡이 ${game.s.quest + 1}/${QUEST_COUNT} · ${cur.q.title} (${fmt(cur.now)}/${fmt(cur.need)})`;
   }
   const t = game.nextTier();
-  dot('town', (!!t && game.canAdvance()) || (game.canChoosePath() && !s.path));   // v391 5차는 천마 격파도   // v237: 길을 아직 안 골랐으면
+  dot('town', (!!t && game.canAdvance()) || (game.canChoosePath() && !s.path) || dailyWaiting(game));   // v463 수련장   // v391 5차는 천마 격파도   // v237: 길을 아직 안 골랐으면
   dot('comp', s.petBox.length > 0 && s.pets.length < game.petSlots());
-  dot('dgn', dailyWaiting(game) || wraidWaiting() || Object.values(game.s.zTickets || {}).some((n) => n > 0));
+  dot('dgn', wraidWaiting() || Object.values(game.s.zTickets || {}).some((n) => n > 0));   // v463 요일 던전은 마을 › 수련장
   if (activeTab) { tabs[activeTab].update(); panelRes(); }
   paintGuidePtr();   // v424
   // v280 얼굴은 모습이 바뀌거나(경지·장비·꾸미기) 그림이 다 오면 다시 그린다 — 전엔 켤 때 한 번(그림이 오기 전 도형으로) 그리고 끝이었다
@@ -1936,6 +1945,7 @@ function handleEvents() {
         view.showBanner(ev.name, '#fef3c7', 0.9);
         break;
       case 'doorLocked':
+        if (ev.daily) { const dd = D.dailyOf(ev.daily); toast(`${ev.name} — 오늘은 닫혀 있어요 · ${dd ? D.dailyDaysText?.(dd) || '열리는 요일에' : ''}`); break; }   // v463 수련장 문
         toast(`${ev.name} — 승급(Lv${W.DEEP_LV}) 뒤 또는 이 지역 두목을 잡은 뒤에 열린다`);
         break;
       case 'mastery':
@@ -2113,6 +2123,7 @@ function tapAt(e) {
     let near = null;
     for (const m of game.mons) if (m.npc && (!near || Math.hypot(m.x - wx, m.y - 40 - wy) < Math.hypot(near.x - wx, near.y - 40 - wy))) near = m;
     const [t, sub] = (near && Math.hypot(near.x - wx, near.y - 40 - wy) < 70 && near.tab ? near.tab : 'town').split('/');
+    if (t === 'go' && sub === 'train') { goTrainNow(); return; }   // v463 교두 — 수련장으로
     showTab(t, sub);
     return;
   }
@@ -2399,7 +2410,7 @@ const noteKind = (t) => (/칭호|〈.+〉 얻|새 칭호/.test(t) ? 'title' : /�
   : /⚠|못 |실패|막혔|멈췄|모자라|버거|쓰러졌/.test(t) ? 'warn' : /보상|받았|🎁|은자|조각|검혼석|기록/.test(t) ? 'reward' : 'etc');
 // v424 어디로 가는지 이름까지 — 줄마다 「바로가기 ›」 단추
 const NOTE_GO = [[/각인/, '가방 › 각인', () => showTab('bag', 'imp')], [/칠대성|마왕|대성신장|옥황|석가|관문|🌋/, '던전 › 칠대성', () => showTab('dgn', 'wraid')], [/覺|각성/, '지도 › 무림고수', () => showTab('map', 'masters')],
-  [/회랑|탑/, '던전 › 무한의 탑', () => showTab('dgn', 'tower')], [/요일|일일 던전|소탕/, '던전 › 일일', () => showTab('dgn', 'daily')], [/소환|뽑기|🎊|신수|우리/, '동료', () => showTab('comp')], [/문파|토벌|채팅/, '무림', () => showTab('social')],
+  [/회랑|탑/, '던전 › 무한의 탑', () => showTab('dgn', 'tower')], [/요일|일일 던전|수련장|소탕/, '마을 › 수련장', () => showTab('town', 'train')], [/소환|뽑기|🎊|신수|우리/, '동료', () => showTab('comp')], [/문파|토벌|채팅/, '무림', () => showTab('social')],
   [/칭호/, '캐릭터', () => showTab('char')], [/강화|초월|돌파/, '가방 › 착용', () => showTab('bag', 'gear')], [/탈것/, '동료 › 탈것', () => showTab('comp', 'mount')], [/애완동물|영수/, '동료 › 애완동물', () => showTab('comp', 'pet')]];
 const noteGoRow = (t) => NOTE_GO.find(([re]) => re.test(t)) || null;
 const noteGo = (t) => noteGoRow(t)?.[2] || null;
@@ -2777,7 +2788,7 @@ function netChanged(what) {
   // v302 전체 채팅 — 무림 창이 닫혀 있으면 점
   if (what === 'wchat') dot('social', activeTab !== 'social' && net.worldUnread?.() > 0);
   if (what === 'wraid') {   // v373 · v374 함께 깎은 체력 · v375 마왕별 문서
-    dot('dgn', dailyWaiting(game) || wraidWaiting());
+    dot('dgn', wraidWaiting());
     const I = game.inst;
     if (I?.kind === 'wraid') { const r = net.wraidOf?.(I.boss0); if (r && r.id === I.key) game.wraidSync(net.wraidHpLeft(r)); else if (r && r.id !== I.key) game.wraidSync(0); }
   }

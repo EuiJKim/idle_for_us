@@ -7,6 +7,7 @@
 // 그래서 들판 그림·이펙트·초식 연출표를 손대지 않고 쓴다.
 import * as W from './wdata.js';
 import * as DN from './wdan.js';   // v457 영약
+const TRAIN_ROOM_ID = () => W.TRAIN_MAP;   // v463
 import * as D from './wdgn.js';
 import * as Q from './wquest.js';
 import * as MS from './wmaster.js';
@@ -851,7 +852,7 @@ export class WorldGame {
   // 두목·고수·왕 구역·마을·던전은 보지 않는다(거기는 일부러 가는 곳)
   huntGap() {
     const m = this.map;
-    if (!m || m.town || this.inst || m.bossRoom || m.king || m.master) return null;
+    if (!m || m.town || m.train || this.inst || m.bossRoom || m.king || m.master) return null;   // v463 수련장은 사냥터가 아니다
     const k = this.levelGapMult(m.lv[1]);
     if (k >= 1) return null;
     const to = this.fitMap(m.id);
@@ -905,7 +906,7 @@ export class WorldGame {
     this.obstacles = terr?.list || [];
     const m = W.mapOf(id);
     this.s.map = id;
-    if (!m.town) { this.s.huntMap = id; this.s.bestMap = Math.max(this.s.bestMap || 1, id); if (!roam) this._home = id; }   // v455 집 방 — 지도·알맞은 사냥터·문을 손으로 지난 방(방 돌기는 집 둘레만 돈다)
+    if (!m.town && !m.train) { this.s.huntMap = id; this.s.bestMap = Math.max(this.s.bestMap || 1, id); if (!roam) this._home = id; }   // v463 수련장은 사냥터가 아니다   // v455 집 방 — 지도·알맞은 사냥터·문을 손으로 지난 방(방 돌기는 집 둘레만 돈다)
     // 그리는 쪽이 지역 그림을 고르는 값 (십이지왕은 옛 지역 그림을 빌린다)
     this.s.stage = m.art * 10 + 1;
     this.s.rank = W.lookTierOf(this.s.level);
@@ -942,11 +943,25 @@ export class WorldGame {
   doorList() {
     const m = this.map;
     if (!m?.doors || this.inst || m.town) return [];
-    return Object.entries(m.doors).map(([d, to]) => { const t = W.doorTile(m, d), tm = W.mapOf(to); return { d, to, c: t.c, r: t.r, open: this.doorOpen(m, d), name: tm.name, boss: !!tm.bossRoom, deep: m.doorLock?.[d] === 'deep' }; });
+    return Object.entries(m.doors).map(([d, to]) => {
+      const t = W.doorTile(m, d), dk = W.trainDoorKind(to);
+      if (dk) { const dd = D.dailyOf(dk); return { d, to, c: t.c, r: t.r, open: D.dailyOpen(dd), name: dd.name, daily: dk, boss: false, deep: false }; }   // v463 수련장 문
+      const tm = W.mapOf(to); return { d, to, c: t.c, r: t.r, open: this.doorOpen(m, d), name: tm.name, boss: !!tm.bossRoom, deep: m.doorLock?.[d] === 'deep' };
+    });
+  }
+  // v463 수련장 문 — 그 요일 던전에 든다(고를 수 있는 가장 높은 단계 — 낮은 단계·소탕은 마을 창 「수련장」에서)
+  enterTrainDoor(kind, now = Date.now()) {
+    const dd = D.dailyOf(kind);
+    if (!dd || !D.dailyOpen(dd, now)) { this.emit('doorLocked', { name: dd?.name || '', daily: kind, closed: true }); return false; }
+    if (!this.startDaily(kind, this.dailyMaxStage(kind), now)) return false;
+    this.emit('roomMove', { from: TRAIN_ROOM_ID(), to: null, name: dd.name, daily: kind });
+    return true;
   }
   passDoor(d, roam = false) {
     const m = this.map, to = m.doors?.[d];
-    if (!to || this.inst) return false;
+    if (to == null || this.inst) return false;   // v463 마을(0)로 가는 문도 있다
+    if (W.trainDoorKind(to)) return this.enterTrainDoor(W.trainDoorKind(to));
+    if (W.mapOf(to).town) this.townReturn = false;   // 스스로 마을로 — 머문다
     if (!this.doorOpen(m, d)) { this.emit('doorLocked', { d, to, name: W.mapOf(to).name }); return false; }
     if (!this.enterMap(to, true, W.OPP_DOOR[d], roam)) return false;
     this.emit('roomMove', { from: m.id, to, d, name: W.mapOf(to).name });
@@ -973,7 +988,7 @@ export class WorldGame {
   // 방이 비었다 — 다음 몹이 ROAM_WAIT 넘게 걸리면, 돌 방 중 몹이 가장 많을 옆 방의 문 칸 { d, to, c, r } · 아니면 null(기다린다)
   roamPick() {
     const m = this.map;
-    if (this.inst || !m || m.town || m.bossRoom || m.master || !this.s.autoHunt || this.manual || this.joy || !m.doors) return null;
+    if (this.inst || !m || m.town || m.train || m.bossRoom || m.master || !this.s.autoHunt || this.manual || this.joy || !m.doors) return null;   // v463 수련장은 돌지 않는다
     if (this.mons.some((x) => x.alive && !x.npc && !(x.unreachUntil > this.clock))) return null;
     const want = m.mobsAlive ?? W.MOBS_ALIVE;
     const thin = this.mons.length < want / 2 ? 2 : 1;   // 몹이 적으면 두 배로 빨리 난다(tick과 같은 셈)
@@ -2049,7 +2064,7 @@ export class WorldGame {
   // v425 도전 경험치 — 나보다 높은 몹을 잡으면 레벨 차 1마다 +5%, 네 배까지(사냥터·두목만 · 던전·방치는 그대로).
   //   레벨 72가 150 사냥터에서 잡아도 몹 경험치가 3배뿐(lv^1.5)이라 「레벨업을 안 한다」고 느꼈다 — 체력은 3.4배라 더 느렸다
   challengeMult(mlv) { const d = mlv - this.s.level; return d <= 0 ? 1 : Math.min(W.CHALLENGE_MAX, 1 + d * W.CHALLENGE_K); }
-  challengeNow() { const m = this.map; if (!m || m.town || this.inst || !m.lv) return 1; return this.challengeMult(m.lv[1]); }
+  challengeNow() { const m = this.map; if (!m || m.town || m.train || this.inst || !m.lv) return 1; return this.challengeMult(m.lv[1]); }
 
   heroDied(by) {
     // 증표 고유 · 불사(v167): 60초에 한 번, 쓰러질 피해를 버틴다
@@ -4471,6 +4486,7 @@ export class WorldGame {
   dailyFull(kind, stage, now = Date.now()) { return this.dailyLeft(kind, now) > 0 || stage > this.dailyBest(kind); }
   startDaily(kind, stage, now = Date.now()) {
     if (!this.canDaily(kind, stage, now)) return false;
+    if (W.mapOf(this.s.map)?.train) this._backTo = W.TRAIN_MAP;   // v463 수련장에서 들어간 판
     const full = this.dailyLeft(kind, now) > 0;
     if (full) { const used = this.dgnToday(now).used; used[kind] = (used[kind] || 0) + 1; }
     this.startInst({ kind: 'daily', id: kind, stage, map: D.dailyMap(kind, stage), t: D.DAILY_SEC, max: D.DAILY_SEC, target: D.DAILY_KILLS, kills: 0, now, full });
@@ -5499,7 +5515,9 @@ export class WorldGame {
       return res;
     }
     this.emit('instEnd', res);
-    this.enterMap(this.canEnter(this.s.huntMap) ? this.s.huntMap : 0, true);
+    const back = this._backTo != null && !this.s.dgn.routine ? this._backTo : this.canEnter(this.s.huntMap) ? this.s.huntMap : 0;   // v463 수련장으로 돌아온다(루틴은 사냥터로)
+    this._backTo = null;
+    this.enterMap(back, true);
     // v258: 던전 출입이 공짜 회복이 되지 않게 — 나오면 들어갈 때의 체력으로(던전 안에서 쓴 물약·회복은 던전 몫)
     if (this._hpBeforeInst != null) { this.heroHp = Math.max(1, Math.min(this.stats().hp, this._hpBeforeInst)); this._hpBeforeInst = null; }
     return res;
