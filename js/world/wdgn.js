@@ -5,7 +5,10 @@
 //   깬 단계는 '소탕'으로 바로 보상을 받는다(들어가지 않고 한 번 쓴다) — 방치형이라 매일 누르기만 해도 된다.
 //   못 깨도 잡은 만큼 절반은 준다.
 // 무한의 탑: 층마다 수문장 하나, 30초. 이기면 다음 층(자동으로 이어 오른다), 오른 층마다 공격력·체력이 영구히 오른다.
-import { ZONES_W, ZONE_COUNT, MAPS, mapId, BOSS, KINGS, mobHp, mobAtk, mobGold, expToNext, dailyShards, TOWER_SHARDS, MOUNTS } from './wdata.js';
+import { ZONES_W, ZONE_COUNT, MAPS, mapId, BOSS, KINGS, mobHp as mobHp0, mobAtk as mobAtk0, mobGold, expToNext, dailyShards, TOWER_SHARDS, MOUNTS, qiRefHpK, qiRefDpsK } from './wdata.js';
+// v456 옛 몹 공식도 기준 무인의 내공·경지 몫만큼(체력은 화력 쪽 · 공격은 체력 쪽)
+const mobHp = (lv) => mobHp0(lv) * qiRefDpsK(lv);
+const mobAtk = (lv) => mobAtk0(lv) * qiRefHpK(lv);
 
 // 한국 시간 하루 — 'YYYY-MM-DD'와 요일(0 일요일)
 export const kstDay = (now = Date.now()) => new Date(now + 9 * 3600e3).toISOString().slice(0, 10);
@@ -81,7 +84,9 @@ export function dailyMap(kind, s) {
 // 심법·스킬 다 찍은 다섯 직업 평균(시뮬로 잼).
 // 몹 체력(mobHp)은 레벨에 곧게 오르지만 무인은 장비 사다리로 훨씬 빨리 세진다 — 던전 몹·탑 수문장은 이것에 맞춘다.
 const REF = [[1, 100], [5, 147], [15, 926], [25, 2050], [40, 7980], [55, 19495], [70, 60044], [85, 203535], [100, 617504], [115, 641550], [130, 794590], [145, 1167676]];   // v154: 다섯 직업 평균을 다시 잼(사다리 스무 칸 · 강화 · 등급 1.2/1.4/1.7 · 강화 +15%) — 예전 표는 v143 전 것이라 55~100에서 무인이 표보다 1.1~1.85배 셌다
-export function refDps(lv) {
+// v456 기준 무인도 내공(공격력·체력)·경지(무공 피해) 몫을 가진다 — 보통으로 크는 무인은 몹·던전·두목이 전과 같게
+export const refDps = (lv) => refDps0(lv) * qiRefDpsK(lv);
+function refDps0(lv) {
   if (lv >= 145) return REF[REF.length - 1][1] * 1.07 ** (lv - 145);
   let i = 0;
   while (REF[i + 1][0] < lv) i++;
@@ -90,7 +95,8 @@ export function refDps(lv) {
 }
 // 같은 레벨 기준 무인의 최대 체력 (refDps와 같은 장비로 잼, v149)
 const REF_HP = [[1, 356], [5, 514], [15, 1421], [25, 2520], [40, 4612], [55, 9686], [70, 16647], [85, 26776], [100, 40794], [115, 41100], [130, 43000], [145, 46025]];   // v154: 다시 잼 (115·130은 들쭉날쭉해 고르게)
-export function refHp(lv) {
+export const refHp = (lv) => refHp0(lv) * qiRefHpK(lv);
+function refHp0(lv) {
   if (lv >= 145) return REF_HP[REF_HP.length - 1][1] * 1.03 ** (lv - 145);
   let i = 0;
   while (REF_HP[i + 1][0] < lv) i++;
@@ -102,7 +108,8 @@ export function refHp(lv) {
 //   사냥터 몹은 REF_HP 그대로(진행 속도를 흔들지 않게) — 두목 공격·초식만 이것을 쓴다.
 const BOSS_REF_HP = [[1, 356], [5, 514], [15, 1421], [25, 2520], [30, 4000], [40, 7500], [50, 16500], [60, 25000], [70, 50000], [80, 80000],
   [90, 135000], [100, 190000], [110, 225000], [120, 235000], [130, 270000], [140, 306000], [150, 314000]];
-export function bossRefHp(lv) {
+export const bossRefHp = (lv) => bossRefHp0(lv) * qiRefHpK(Math.min(150, lv));
+function bossRefHp0(lv) {
   // 무인은 150이 끝 — 그 위 두목(맹주·천마·화무기·마귀)은 이 기준을 더 키우지 않는다(맹주 배수·레벨 차이로 이미 세다)
   if (lv >= 150) return BOSS_REF_HP[BOSS_REF_HP.length - 1][1];
   let i = 0;

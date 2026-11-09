@@ -1201,7 +1201,8 @@ function refreshUI(full = false) {
   if (s.pendingOffline && !modalOpen() && s.job) showPendingOffline();
   const st = game.stats();
   setText($('hero-name'), s.nickname || '무명');
-  setText($('hero-rank'), game.tierName() || '-');
+  setText($('hero-rank'), s.job ? W.realmName(game.realmNow()) : '-');   // v456 왼쪽 위는 경지(전직 이름은 캐릭터 창)
+  $('hero-rank').title = game.tierName() || '';
   setText($('hero-lv'), W.lvShort(s.level));   // v446
   // v185: 너비 대신 transform으로 — 너비를 바꾸면 배치를 다시 하고 화면 전체를 다시 칠했다(막대가 움직이는 동안 매 프레임)
   expBar(s.level, s.exp / game.expNeed());
@@ -1910,6 +1911,9 @@ function handleEvents() {
       }
       case 'mapEnter':
         view.showBanner(ev.name, ev.inst ? '#fde68a' : '#fef3c7', 1.3);
+        break;
+      case 'realmUp':   // v456 경지 돌파
+        toast(`경지 돌파 — ${ev.name} · 무공 피해 +${Math.round(ev.skill * 1000) / 10}% · 내공 효율 ×${ev.eff >= 10 ? ev.eff.toFixed(1) : ev.eff.toFixed(2)}`);
         break;
       case 'roomMove':   // v455 옆 방 — 이름만 짧게
         view.showBanner(ev.name, '#fef3c7', 0.9);

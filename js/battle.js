@@ -1322,6 +1322,11 @@ export class BattleView {
         }
         this.float(ev.level > 99 ? `수련 ${ev.level - 99}` : `레벨 ${ev.level}`, this.heroX, this.groundY - 155, '#fde68a', 24, 1.4, true);   // v446
         break;
+      // v456 경지 돌파 — 큰 경지(초입)는 기둥 빛과 큰 글, 소단계는 무인 위에 글
+      case 'realmUp':
+        if (ev.big) { this.showBanner(`경지 돌파 · ${ev.name}`, '#fde68a', 2.4, '경지'); this.effects.push({ kind: 'pillar', life: 1.6, max: 1.6 }); this.flash = Math.max(this.flash || 0, 0.6); }
+        else this.float(ev.name, this.heroX, this.groundY - 180, '#fde68a', 20, 1.3, true);
+        break;
       case 'rankUp':
         this.showBanner(`경지 돌파 · ${RANKS[ev.rank].name}`, '#fde68a', 2.4, '경지');
         this.effects.push({ kind: 'pillar', life: 1.6, max: 1.6 });

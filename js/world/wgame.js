@@ -66,6 +66,8 @@ export function newWorldSave(now = Date.now()) {
     chatMute: [],         // v315 전체 채팅에서 가린 무인 [{ uid, name }]
     kills: 0,
     deaths: 0,
+    qi: 0,                // v456 내공(쌓은 수련 — 얻은 경험치 × QI_PER_EXP · 잃지 않는다)
+    realm: 0,             // v456 경지 단계(0 삼류 초입 ~ 31 생사경 극의) — 돌파 알림을 한 번만
     bestMap: W.mapId(1, 1),
     // 요일 던전 (v126): 오늘 쓴 횟수 · 종류별 깬 단계 · 자동 도전(v139)
     dgn: { day: '', used: {}, best: {}, auto: false, routine: true, climb: true },   // v454 새 무인은 루틴(수련장 → 탑 → 사냥터) 켬   // climb(v283): 자동은 새 단계만 오르고, 막히면 멈춘다(소탕 안 함)   // routine(v230): 요일 던전 → 탑 → 사냥터
@@ -227,6 +229,10 @@ export function migrateWorld(raw, now = Date.now()) {
   s.bag = Array.isArray(raw.bag) ? raw.bag.filter((i) => i && W.SLOTS.some((x) => x.id === i.slot)) : [];
   s.level = clamp(Math.floor(Number(s.level) || 1), 1, W.LEVEL_MAX);
   for (const k of ['exp', 'gold', 'potions', 'statPts', 'jobTier', 'kills', 'deaths', 'books', 'prot']) s[k] = Math.max(0, Number(s[k]) || 0);
+  // v456 내공 — 옛 세이브는 그 레벨까지 쌓였을 몫 + 지금 경험치 몫 · 경지는 알림 없이 맞춘다
+  s.qi = Math.max(Number(raw.qi) || 0, W.qiFloor(s.level) + s.exp * W.QI_PER_EXP);
+  if (!Number.isFinite(s.qi)) s.qi = W.qiFloor(s.level);
+  s.realm = W.realmOf(s.level, s.qi);
   s.jobTier = Math.min(W.CHEONMA_JOBS.includes(s.job) ? 5 : 4, Math.floor(s.jobTier));   // v391 검사는 5차까지
   s.passLv = {};
   for (const [k, v] of Object.entries(raw.passLv || {})) if (/^p_[a-z]+$/.test(k) && v > 0) s.passLv[k] = Math.min(10, Math.floor(Number(v) || 0));
@@ -734,8 +740,9 @@ export class WorldGame {
     const tset = off?.comp ? { atk: 0, hp: 0 } : this.titleSet();   // v315 칭호 모음
     const tnow = off?.comp ? null : this.titleNow();
     const LB = W.baseLv(L);   // v447 수련은 레벨의 TRAIN_K만큼만
-    const atk = (5 + LB * 3 + str * 3 + gear.atk) * (1 + gear.atkPct + str * 0.003 + (s.guildId && !off?.murim ? W.guildAtk(this.guildExp) : 0)) * (cls.atkK || 1) * (1 + (gear.impMul || 0)) * (tnow?.atkMul || 1) * (1 + tset.atk) * (this.cheonmaOn() ? this.fifth().atkMul : 1) * (1 + W.tierAtk(s.jobTier || 0));   // v391 천마혼 · v447 승급 공격력 · atkK: 직업 맞춤(v239) · v297 각인 배율 · v305 칭호
-    const hp = (60 + LB * 25 + vit * 20 + gear.hp) * (1 + gear.hpPct + vit * 0.003) * (1 + (gear.impMul || 0)) * (1 + tset.hp) * (this.cheonmaOn() ? this.fifth().hpMul : 1) * (1 + W.tierHp(s.jobTier || 0));   // v442 전직·승급 체력   // v315 칭호 모음
+    const qk = this.qiMul();   // v456 내공(쓰는 내공) → 공격력·체력
+    const atk = qk * (5 + LB * 3 + str * 3 + gear.atk) * (1 + gear.atkPct + str * 0.003 + (s.guildId && !off?.murim ? W.guildAtk(this.guildExp) : 0)) * (cls.atkK || 1) * (1 + (gear.impMul || 0)) * (tnow?.atkMul || 1) * (1 + tset.atk) * (this.cheonmaOn() ? this.fifth().atkMul : 1) * (1 + W.tierAtk(s.jobTier || 0));   // v391 천마혼 · v447 승급 공격력 · atkK: 직업 맞춤(v239) · v297 각인 배율 · v305 칭호
+    const hp = qk * (60 + LB * 25 + vit * 20 + gear.hp) * (1 + gear.hpPct + vit * 0.003) * (1 + (gear.impMul || 0)) * (1 + tset.hp) * (this.cheonmaOn() ? this.fifth().hpMul : 1) * (1 + W.tierHp(s.jobTier || 0));   // v442 전직·승급 체력   // v315 칭호 모음
     const st = {
       atk, hp,
       def: vit * 0.2 + gear.def,
@@ -744,6 +751,7 @@ export class WorldGame {
       atkSec: W.BASE_ATK_SEC / ((1 + dex * 0.01 + gear.speed) * (cls.speed || 1) * (this.titleNow()?.spdMul || 1)),   // v322 칭호 공격 속도
       speed: (1 + dex * 0.01 + gear.speed) * (cls.speed || 1) * (this.titleNow()?.spdMul || 1),
       skillMult: 1 + int * 0.007 + gear.skill,
+      realmDmg: this.realmSkillMul(),   // v456 경지 → 무공 피해(평타·초식·장판·발동 — 무인이 치는 수 모두. strike에서 곱한다)
       // 자연 회복: 최대 체력의 0.6%/초 + 내공·레벨 몫 (물약만 바라보지 않게)
       regen: (1 + int * 0.12 + L * 0.08 + hp * (0.006 + gear.regenPct)) * (1 + (pm.regen || 0)),
       expMult: (1 + gear.exp + this.dexBonus()) * (this.titleNow()?.expMul || 1),   // v263 견문록 · v322 칭호 경험치
@@ -772,7 +780,7 @@ export class WorldGame {
     const e = s.equip;
     const g = (it) => (it ? `${it.uid}.${it.plus || 0}.${it.rar || 0}` : '-');
     const pets = this.activePets().map((p) => `${p.uid}.${p.lv}.${p.rar || 0}.${p.star || 0}.${p.q || 0}.${p.dan || 0}`).join(',') + `|d${Object.values(s.petDex || {}).reduce((a, v) => a + v + 1, 0)}.${Object.keys(s.mountDex || {}).length}|m${this.mountInst()?.lv || 0}`;
-    return `${s.level}|${JSON.stringify(s.passLv || {})}|${s.guildId ? W.guildLevel(this.guildExp) : 0}|${s.job}|${s.stats.str},${s.stats.dex},${s.stats.vit},${s.stats.int}|${W.SLOTS.map((x) => g(e[x.id])).join(',')}|${pets}|${s.mount || '-'}|${s.tower?.floor || 0}.${s.tower?.hard || 0}|${s.path || '-'}|${s.jobTier || 0}|${this.growItems().map((x) => x.plus || 0).join('.')}|t${s.temper || 0}|i${this.impSig()}|T${s.title || ''}.${s.titles.length}|G${this.gatesCleared()}`;   // v243 · v274 단련: 가방 속 성장 장비 강화도(공유)
+    return `${s.level}|q${Math.floor(Math.log10(1 + this.qiNow()) * 200)}.${this.realmNow()}|${JSON.stringify(s.passLv || {})}|${s.guildId ? W.guildLevel(this.guildExp) : 0}|${s.job}|${s.stats.str},${s.stats.dex},${s.stats.vit},${s.stats.int}|${W.SLOTS.map((x) => g(e[x.id])).join(',')}|${pets}|${s.mount || '-'}|${s.tower?.floor || 0}.${s.tower?.hard || 0}|${s.path || '-'}|${s.jobTier || 0}|${this.growItems().map((x) => x.plus || 0).join('.')}|t${s.temper || 0}|i${this.impSig()}|T${s.title || ''}.${s.titles.length}|G${this.gatesCleared()}`;   // v243 · v274 단련: 가방 속 성장 장비 강화도(공유)
   }
   power() { return this.stats().power; }
   // v297 각인 서명 — 칸(증표·단·고유)이 바뀌면 능력치를 다시 센다
@@ -969,6 +977,21 @@ export class WorldGame {
     if (!best) return null;
     const t = W.doorTile(m, best.d);
     return { d: best.d, to: best.to, c: t.c, r: t.r };
+  }
+  // ---------- v456 내공 · 경지 ----------
+  // 내공 — 그 레벨까지 쌓였을 몫보다 적을 수 없다(옛 세이브 · 레벨을 바로 넣은 검사·시뮬)
+  qiNow() { return Math.max(this.s.qi || 0, W.qiFloor(this.s.level)); }
+  realmNow() { return W.realmOf(this.s.level, this.qiNow()); }
+  qiUse() { return this.qiNow() * W.realmEff(this.realmNow()); }      // 쓰는 내공 = 내공 × 경지 효율
+  qiMul() { return 1 + W.qiBody(this.qiUse()); }                        // 공격력·체력
+  realmSkillMul() { return 1 + W.realmSkill(this.realmNow()); }         // 무공 피해
+  realmNext() { const i = this.realmNow() + 1; return i < W.REALM_N ? { i, name: W.realmName(i), lv: W.realmLv(i), qi: W.realmQi(i), eff: W.realmEff(i) } : null; }
+  checkRealm() {
+    const s = this.s, i = this.realmNow(), was = s.realm || 0;
+    if (i <= was) return false;
+    s.realm = i; this._stats = null;
+    this.emit('realmUp', { i, name: W.realmName(i), eff: W.realmEff(i), skill: W.realmSkill(i), big: (i >> 2) > (was >> 2) });
+    return true;
   }
   // 마을로. 쓰러져서 온 것(auto)이면 쉬었다가 사냥터로 돌아가고, 스스로 온 것이면 머문다.
   // (전에는 스스로 와도 3초 뒤 사냥터로 끌려갔다)
@@ -1350,7 +1373,7 @@ export class WorldGame {
             this.emit('heroHit', { amount: left, shielded: dmg - left, boss: !!m.isBoss, from: { x: m.x, y: m.y } });   // v217: 두목이 친 것은 그림이 다르다
             if (ps.has('reflect')) this.hurt(m, dmg * 0.4, 'reflect', false);                                 // 철왕
             { const isp = this.impSpecials();                                                                  // 증표 고유 (v163)
-              if (isp.mirror && m.alive) { this.hurt(m, st.atk * Math.min(5, 1.5 * isp.mirror.p) * (m.isBoss ? st.boss : 1), 'reflect', false); this.impShow(isp.mirror, m); }
+              if (isp.mirror && m.alive) { this.hurt(m, st.atk * (st.realmDmg || 1) * Math.min(5, 1.5 * isp.mirror.p) * (m.isBoss ? st.boss : 1), 'reflect', false); this.impShow(isp.mirror, m); }
               if (isp.frenzy && this.rng() < Math.min(0.6, 0.12 * isp.frenzy.p)) { this.buffs.gale = Math.max(this.buffs.gale || 0, 4); this.buffs.haste = Math.max(this.buffs.haste || 0, 4); this.buffv.haste = Math.max(this.buffv.haste || 0, 0.4);   /* v254: 값(haste)의 타이머도 — 전엔 gale만 걸어 +40%가 영원히 남았다 */ this._frenzyUntil = this.clock + 4; this.impShow(isp.frenzy, null); } }
             if (st.thorns && m.alive) this.hurt(m, dmg * st.thorns, 'reflect', false);                       // 되돌림 (v130)
             if (ps.has('revive') && this.heroHp > 0 && this.heroHp < st.hp * 0.3 && !(this.reviveCd > 0)) {   // 목왕
@@ -1628,7 +1651,7 @@ export class WorldGame {
 
   strike(m, st, mult, kind, extraCrit = 0, quiet = false) {
     const crit = this.rng() < st.crit + extraCrit + (this.envNow().crit || 0);
-    let dmg = st.atk * mult * (crit ? st.critDmg : 1) * (0.92 + this.rng() * 0.16);
+    let dmg = st.atk * mult * (crit ? st.critDmg : 1) * (0.92 + this.rng() * 0.16) * (st.realmDmg || 1);   // v456 경지
     if (m.isBoss) dmg *= st.boss;
     if (m.vulnT > this.clock) dmg *= 1 + m.vulnV;              // 섭혼: 받는 피해 +
     if (this.buffv.might) dmg *= 1 + this.buffv.might;          // 삼공조화
@@ -1747,20 +1770,20 @@ export class WorldGame {
       T.stun = Math.max(4, Math.round(8 - 1.5 * isp.stunwave.p));
       const hit = this.mons.filter((m) => m.alive && !m.npc && Math.hypot(m.x - this.heroX, (m.y - this.heroY) * 0.75) <= W.IMP_NOVA_R);
       if (hit.length) {
-        for (const m of hit) { m.stun = Math.max(m.stun || 0, m.isBoss ? 0.6 : 2); this.hurt(m, st.atk * 1.5 * isp.stunwave.p * (m.isBoss ? st.boss : 1), 'imp', false, true); }
+        for (const m of hit) { m.stun = Math.max(m.stun || 0, m.isBoss ? 0.6 : 2); this.hurt(m, st.atk * (st.realmDmg || 1) * 1.5 * isp.stunwave.p * (m.isBoss ? st.boss : 1), 'imp', false, true); }
         this._impT = 0; this.impShow(isp.stunwave, null); this.emit('impNova', { r: W.IMP_NOVA_R, col: isp.stunwave.col });
       } else T.stun = 0.5;
     }
     if (isp.nova && (T.nova -= dt) <= 0) {
       T.nova = Math.max(4, 10 - Math.round(2 * isp.nova.p));
       const hit = this.mons.filter((m) => m.alive && !m.npc && Math.hypot(m.x - this.heroX, (m.y - this.heroY) * 0.75) <= W.IMP_NOVA_R);
-      if (hit.length) { for (const m of hit) this.hurt(m, st.atk * 2.6 * isp.nova.p * (m.isBoss ? st.boss : 1), 'imp', false, true); this._impT = 0; this.impShow(isp.nova, null); this.emit('impNova', { r: W.IMP_NOVA_R, col: isp.nova.col }); }
+      if (hit.length) { for (const m of hit) this.hurt(m, st.atk * (st.realmDmg || 1) * 2.6 * isp.nova.p * (m.isBoss ? st.boss : 1), 'imp', false, true); this._impT = 0; this.impShow(isp.nova, null); this.emit('impNova', { r: W.IMP_NOVA_R, col: isp.nova.col }); }
       else T.nova = 0.5;
     }
     if (isp.rain && (T.rain -= dt) <= 0) {
       T.rain = Math.max(5, 11 - Math.round(2 * isp.rain.p));
       const near = this.mons.filter((m) => m.alive && !m.npc && Math.hypot(m.x - this.heroX, m.y - this.heroY) <= W.IMP_RAIN_R).slice(0, 5);
-      if (near.length) { for (const m of near) { this.hurt(m, st.atk * 2.2 * isp.rain.p * (m.isBoss ? st.boss : 1), 'imp', false, true); this.emit('impRain', { at: { x: m.x, y: m.y }, col: isp.rain.col }); } this._impT = 0; this.impShow(isp.rain, null); }
+      if (near.length) { for (const m of near) { this.hurt(m, st.atk * (st.realmDmg || 1) * 2.2 * isp.rain.p * (m.isBoss ? st.boss : 1), 'imp', false, true); this.emit('impRain', { at: { x: m.x, y: m.y }, col: isp.rain.col }); } this._impT = 0; this.impShow(isp.rain, null); }
       else T.rain = 0.5;
     }
     if (isp.guard && (T.guard -= dt) <= 0) {
@@ -2301,12 +2324,14 @@ export class WorldGame {
   }
   addExp(n) {
     const s = this.s;
+    if (n > 0) s.qi = this.qiNow() + n * W.QI_PER_EXP;   // v456 내공 — 얻은 경험치만큼 쌓인다(만렙 뒤에도)
     if (s.level >= W.LEVEL_MAX) {
       // v263 깨달음 — 만렙 뒤 경험치는 버리지 않고 깨달음 점수로
       const e = s.enl || (s.enl = { pts: 0, exp: 0, nodes: {} });
       e.exp += n;
       const per = W.enlExp();
       if (e.exp >= per) { const k = Math.floor(e.exp / per); e.pts += k; e.exp -= k * per; this.emit('enlight', { pts: e.pts, got: k }); }
+      this._stats = null;
       return;
     }
     s.exp += n;
@@ -2320,6 +2345,7 @@ export class WorldGame {
       if (look !== s.rank) s.rank = look;
       this._followDue = true;
     }
+    this.checkRealm();   // v456 경지 돌파
     if (s.autoStat) this.autoStats();
     this.autoSkillPoints();   // v449
     this.syncGrow();
@@ -4187,7 +4213,7 @@ export class WorldGame {
       c = cc; r = rr; break;
     }
     if (c < 0) return null;
-    const hp = W.mobHp(lv) * L.TREASURE_HP;
+    const hp = W.mobHp(lv) * W.qiRefDpsK(lv) * L.TREASURE_HP;   // v456 기준 무인 몫
     const mob = { id: uidSeq++, lv, c, r, hc: c, hr: r, move: null, x: W.tileCenter(c), y: W.tileCenter(r), hp, maxHp: hp, alive: true, isBoss: false,
       born: this.clock, atk: 0, armor: W.mobDef(lv), grade: 1, treasure: true, life: L.TREASURE_LIFE, atkTimer: 9, stun: 0, slow: 0, poison: 0, aggro: true, wanderT: 0,
       def: { ...L.TREASURE_DEF }, name: L.TREASURE_DEF.name };
@@ -4559,7 +4585,7 @@ export class WorldGame {
     // 지난 30초 실제 초당 피해(싸운 적이 있을 때) — 없으면 평타로 어림(무공 몫 ×2.5)
     const log = (this.dmgLog || []).filter((x) => x > 0);
     if (log.length >= 8) return log.reduce((a, b) => a + b, 0) / log.length;
-    const st = this.stats(); return (st.atk / st.atkSec) * (1 + st.crit * (st.critDmg - 1)) * (2.5 + (this.s.jobTier || 0) * 0.8) * st.skillMult;   // v242: 차수·무공 배수만큼 무공 몫
+    const st = this.stats(); return (st.realmDmg || 1) * (st.atk / st.atkSec) * (1 + st.crit * (st.critDmg - 1)) * (2.5 + (this.s.jobTier || 0) * 0.8) * st.skillMult;   // v242: 차수·무공 배수만큼 무공 몫
   }
   // v262: 처음 잡는 두목만 최소 싸움 시간을 다 지킨다 — 한 번 잡은 두목은 그 몫(BOSS_REPEAT_K)만. 강해질수록 반복 사냥이 빨라진다.
   bossMinSec(m) {
@@ -4737,7 +4763,7 @@ export class WorldGame {
       if (I.wait <= 0) {
         const b = this.spawnMob(true);
         I.boss = b;
-        if (b && I.kind === 'wraid') { b.lv = this.s.level + 8; b.maxHp = I.sharedMax; b.hp = I.hpLeft; b.baseAtk = b.atk = W.mobAtk(b.lv) * W.BOSS.atk; b.armor = 0; b.grade = 3; b.wb = I.boss0; I.rage = -1;
+        if (b && I.kind === 'wraid') { b.lv = this.s.level + 8; b.maxHp = I.sharedMax; b.hp = I.hpLeft; b.baseAtk = b.atk = W.mobAtk(b.lv) * W.qiRefHpK(b.lv) * W.BOSS.atk; b.armor = 0; b.grade = 3; b.wb = I.boss0; I.rage = -1;
           // v374 거대한 마왕은 위 가운데에 버티고 선다 — 무인은 아래에서 탄을 피하며 친다
           b.c = b.hc = SH.BOSS_C; b.r = b.hr = SH.BOSS_R; b.x = W.tileCenter(SH.BOSS_C); b.y = W.tileCenter(SH.BOSS_R); b.move = null; b.aggro = true; }   // v443 무인이 걸어가 친다
         else if (b && I.kind === 'pvp') {   // v451 상대 무인 — 나를 기준으로 잰 체력·평타(wpvp.js)
@@ -4747,7 +4773,7 @@ export class WorldGame {
             if (!this.occupied(c, r, b)) { b.c = b.hc = c; b.r = b.hr = r; b.x = W.tileCenter(c); b.y = W.tileCenter(r); b.move = null; } }
           b.lv = o.lv; b.maxHp = b.hp = PV.dpsEst(st, this.s.jobTier, this.s.job, this.s.level) * PV.PVP_HP_SEC * I.rHp; b.armor = 0; b.grade = 3; b.pvp = o.j; b.aggro = true;
           b.atk = st.hp * PV.PVP_BASIC * I.rDmg + st.def; I.boss = b; I.oppMax = b.maxHp; }
-        else if (b && I.kind === 'raid') { b.lv = this.s.level + 5; b.maxHp = I.sharedMax; b.hp = I.hpLeft; b.atk = W.mobAtk(b.lv) * W.BOSS.atk; b.armor = 0; b.grade = 3; }
+        else if (b && I.kind === 'raid') { b.lv = this.s.level + 5; b.maxHp = I.sharedMax; b.hp = I.hpLeft; b.atk = W.mobAtk(b.lv) * W.qiRefHpK(b.lv) * W.BOSS.atk; b.armor = 0; b.grade = 3; }
         else if (b && I.hard) { b.lv = D.hardLv(I.stage); b.maxHp = b.hp = D.hardHp(I.stage); b.atk = D.hardAtk(I.stage); b.armor = W.mobDef(b.lv); b.grade = 3; b.hardFx = D.hardMountOf(I.stage)?.fx || 'hard'; }
         else if (b) { b.lv = D.towerLv(I.stage); b.maxHp = b.hp = D.towerHp(I.stage); b.atk = D.towerAtk(I.stage); b.armor = W.mobDef(b.lv); if (D.isZodiacFloor(I.stage)) b.grade = 3; }
       }

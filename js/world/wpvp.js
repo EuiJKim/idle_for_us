@@ -67,7 +67,7 @@ export function dpsK(job, lv) {
   for (let i = 1; i < DPS_LV.length; i++) if (lv <= DPS_LV[i]) { const f = (lv - DPS_LV[i - 1]) / (DPS_LV[i] - DPS_LV[i - 1]); return k[i - 1] + (k[i] - k[i - 1]) * f; }
   return k[k.length - 1];
 }
-export const dpsEst = (st, tier = 0, job = null, lv = 0) => (st.atk / Math.max(0.3, st.atkSec || 1)) * (1 + (st.crit || 0) * ((st.critDmg || 1.5) - 1)) * (2.5 + (tier || 0) * 0.8) * (st.skillMult || 1) * (job ? dpsK(job, lv) : 1);
+export const dpsEst = (st, tier = 0, job = null, lv = 0) => (st.realmDmg || 1) * (st.atk / Math.max(0.3, st.atkSec || 1)) * (1 + (st.crit || 0) * ((st.critDmg || 1.5) - 1)) * (2.5 + (tier || 0) * 0.8) * (st.skillMult || 1) * (job ? dpsK(job, lv) : 1);
 export const eloWin = (a, b) => 1 / (1 + 10 ** ((b - a) / 400));
 export function eloDelta(me, opp, win) {
   const e = eloWin(me, opp);

@@ -493,6 +493,32 @@ function charTab(app) {
   }
   // v427 성장 지도 — 다섯 줄(성장·장비·무공·고수·던전·천계)에 지금 어디까지 왔는지와 「다음: ○○」 하나씩. 누르면 그 자리로
   const growCard = h('div', { class: 'card road-card' });
+  // v456 내공 · 경지 — 쌓은 내공 × 경지 효율 = 쓰는 내공 → 공격력·체력 · 경지 → 무공 피해
+  const qiCard = h('div', { class: 'card qi-card' });
+  let qiSig = '';
+  function paintQi() {
+    const qi = game.qiNow(), ri = game.realmNow(), eff = W.realmEff(ri), use = qi * eff, nx = game.realmNext();
+    const sig = `${Math.floor(Math.log10(1 + qi) * 100)}|${ri}|${game.s.level}`;
+    if (sig === qiSig) return;
+    qiSig = sig;
+    const ef = (e) => (e >= 10 ? e.toFixed(1) : e.toFixed(2));
+    const pct = (v) => `+${(v * 100).toFixed(v < 0.1 ? 1 : 0)}%`;
+    const q0 = W.realmQi(ri), prog = nx ? Math.max(0, Math.min(1, (qi - q0) / Math.max(1, nx.qi - q0))) : 1;
+    qiCard.replaceChildren(
+      h('h3', {}, '내공 · 경지', h('small', {}, ' 내공은 공격력·체력 · 경지는 무공 피해')),
+      h('div', { class: 'qi-realm' }, h('i', {}, W.REALM_HANJA[ri >> 2]), h('b', {}, W.realmName(ri)), h('span', {}, `무공 피해 ${pct(W.realmSkill(ri))} · 내공 효율 ×${ef(eff)}`)),
+      h('div', { class: 'qi-rows' },
+        h('div', {}, h('small', {}, '쌓은 내공'), h('b', {}, fmt(Math.floor(qi)))),
+        h('div', {}, h('small', {}, `쓰는 내공 ×${ef(eff)}`), h('b', {}, fmt(Math.floor(use)))),
+        h('div', {}, h('small', {}, '공격력·체력'), h('b', {}, pct(W.qiBody(use))))),
+      nx ? h('div', { class: 'bar qi-bar' }, h('div', { style: `width:${Math.round(prog * 100)}%` }),
+        h('span', {}, `다음 ${nx.name} — 내공 ${fmt(nx.qi)}${game.s.level < nx.lv ? ` · ${W.lvText(nx.lv)}` : ''}`))
+        : h('p', { class: 'muted' }, '생사경 극의 — 경지의 끝. 내공은 계속 쌓여 공격력·체력이 오른다.'),
+      h('details', { class: 'qi-ladder' }, h('summary', {}, '경지 서른두 단계'),
+        h('div', { class: 'qi-grid' }, ...Array.from({ length: W.REALM_N }, (_, i) => h('span', { class: i === ri ? 'on' : i < ri ? 'done' : '' },
+          h('b', {}, W.realmName(i)), h('small', {}, `${W.lvNum(W.realmLv(i))} · ×${ef(W.realmEff(i))} · 무공 ${pct(W.realmSkill(i))}`))))),
+      h('p', { class: 'muted qi-note' }, `내공은 얻은 경험치의 1/10만큼 쌓이고 잃지 않아요(만렙 뒤에도). 쓰는 내공이 10배가 될 때마다 공격력·체력 +${Math.round(W.QI_BODY_K * 100)}%. 경지는 단계마다 내공 효율 ×1.15 · 무공 피해 +3.1% — 큰 경지는 전직 레벨에 열려요.`));
+  }
   // v449 성장 지도 — 열다섯 갈래를 넷으로: 무인(레벨·전직·능력치·무공) · 장비 · 동료 · 무림. 갈래마다 전투력을 몇 % 올리나(powerBreakdown)와 다음 할 일 하나
   function growRows() {
     const s = game.s, rows = [];
@@ -512,7 +538,7 @@ function charTab(app) {
       } else if (s.level < W.LEVEL_MAX) { next = `${W.lvText(W.LEVEL_MAX)}까지 수련`; go = ['map']; }
       else { next = '깨달음 — 무공마다 단계'; go = ['char', 'skill']; hot = (s.enl?.pts || 0) > 0; }
       const auto = [s.autoStat ? '능력치' : null, s.autoSkillPts ? '무공 점수' : null].filter(Boolean);
-      row('武', `무인 · ${W.lvShort(s.level)} ${game.tierName()}`, `바탕 전투력 ${fmt(Math.round(pb.base))} · 레벨·전직·능력치·무공${auto.length ? ` · 자동: ${auto.join('·')}` : ''}`, next, go, hot); }
+      row('武', `무인 · ${W.lvShort(s.level)} ${game.tierName()}`, `바탕 전투력 ${fmt(Math.round(pb.base))} · ${W.realmName(game.realmNow())} · 레벨·전직·내공·경지·능력치·무공${auto.length ? ` · 자동: ${auto.join('·')}` : ''}`, next, go, hot); }
     // ② 장비 — 강화·등급 각인·계열·세트·현철 단련
     { const worn = W.SLOTS.map((x) => s.equip[x.id]).filter(Boolean);
       const myth = worn.filter((it) => (it.rar || 0) >= 3).length, avg = worn.length ? Math.round(worn.reduce((a, it) => a + (it.plus || 0), 0) / worn.length) : 0, tr = worn.filter((it) => it.tr > 0).length;
@@ -553,7 +579,7 @@ function charTab(app) {
           h('i', {}, r.done ? '✓' : r.icon), h('div', { class: 'road-txt' }, h('b', {}, r.title), r.now ? h('small', {}, r.now) : null),
           h('span', { class: 'road-next' }, `${hot ? '👉 ' : ''}${r.done ? '' : '다음: '}${r.next} ›`)); }));
   }
-  const infoBox = h('div', {}, head, growCard, attCard, todayCard, questCard, loreBox);
+  const infoBox = h('div', {}, head, qiCard, growCard, attCard, todayCard, questCard, loreBox);
   const statBox = h('div', {}, loadRow, stats, h('div', { class: 'card' }, h('h3', {}, '능력치'), derived));
   // v291 앞으로 배울 무공 — 언제 무엇을 배우는지
   const roadCard = h('div', { class: 'card' });
@@ -575,9 +601,10 @@ function charTab(app) {
     const cls = W.classOf(s.job);
     const tn = game.titleNow();
     try { paintGrow(); } catch (e) { console.warn('[road]', e); }   // v427
+    try { paintQi(); } catch (e) { console.warn('[qi]', e); }   // v456
     head.replaceChildren(
       h('h3', {}, tn ? h('span', { class: 'title-tag', style: `--tc:${tn.col}` }, `〈${tn.name}〉 `) : null, `${s.nickname || '무명'} `,
-        h('button', { class: 'btn rename-btn', id: 'rename-btn', title: '이름 바꾸기', onclick: () => app.askNickname?.() }, '✎ 이름'), h('small', {}, ` ${game.tierName()} · ${W.lvShort(s.level)}`)),   // v418 이름 바꾸기를 이름 옆에
+        h('button', { class: 'btn rename-btn', id: 'rename-btn', title: '이름 바꾸기', onclick: () => app.askNickname?.() }, '✎ 이름'), h('small', {}, ` ${game.tierName()} · ${W.lvShort(s.level)} · ${W.realmName(game.realmNow())}`)),   // v418 이름 바꾸기를 이름 옆에 · v456 경지
       h('p', { class: 'muted' }, cls ? `${cls.name} — ${W.CLASSES[s.job].trait}` : ''),
       // v325 1차 전직 전에는 직업을 공짜로 바꿔 본다(무공 점수는 돌려받는다)
       (s.jobTier || 0) === 0 && s.job ? h('div', { class: 'job-swap' }, h('small', {}, '1차 전직 전까지 직업을 공짜로 바꿔 볼 수 있어요'),

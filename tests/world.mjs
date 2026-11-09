@@ -4269,7 +4269,7 @@ console.log('\n=== v446 만렙 99 · 그 뒤는 수련 ===');
 
 console.log('\n=== v447 99 뒤 힘은 전직으로 ===');
 {
-  const at = (L, tier, job = 'sword') => { const g = fresh(job); while (g.s.level < L) g.addExp(W.expToNext(g.s.level)); g.s.gold = 1e15; while (g.s.jobTier < tier && g.canAdvance()) g.advance(); if (tier >= 5) { g.s.duel.won = { ...(g.s.duel.won || {}), [g.fifth().need]: 1 }; while (g.canAdvance()) g.advance(); } g._stats = null; return g.stats().power; };
+  const at = (L, tier, job = 'sword') => { const g = fresh(job); g.qiMul = () => 1;   /* v456 내공 몫은 몹 기준도 같이 오르니 빼고 잰다 */ while (g.s.level < L) g.addExp(W.expToNext(g.s.level)); g.s.gold = 1e15; while (g.s.jobTier < tier && g.canAdvance()) g.advance(); if (tier >= 5) { g.s.duel.won = { ...(g.s.duel.won || {}), [g.fifth().need]: 1 }; while (g.canAdvance()) g.advance(); } g._stats = null; return g.stats().power; };
   const p99a = at(99, 3), p99b = at(99, 4), p129 = at(129, 4), p130 = at(130, 5);
   ok(p99b / p99a > 1.12, '승급(4차) 한 번에 전투력 +12% 넘게', `${p99a} → ${p99b}`);
   ok(p129 / p99b < 1.08, '수련 30단계로는 +8% 아래(전직보다 작게)', `${p99b} → ${p129}`);
@@ -4571,6 +4571,50 @@ console.log('\n=== R3 방 안 자동 무공 (v455) — 센 과녁 하나에게�
   ok(aoe && g.events.some(isAoe), '센 과녁 하나 — 범위 무공을 쓴다', aoe?.name);
   g.cd = {}; m.hp = st.atk * 2; g.events.length = 0; for (let i = 0; i < 6; i++) g.autoSkills(st);
   ok(!g.events.some(isAoe), '평타 두어 대면 죽을 과녁에는 아낀다');
+}
+
+
+console.log('\n=== v456 내공 · 경지 — 내공은 공격력·체력 · 경지는 무공 피해 ===');
+{
+  ok(W.REALM_N === 32 && W.realmName(0) === '삼류 초입' && W.realmName(3) === '삼류 극의' && W.realmName(4) === '이류 초입' && W.realmName(16) === '초절정 초입' && W.realmName(31) === '생사경 극의', '경지 여덟 × 초입·중입·상입·극의 = 32단계');
+  ok(Math.abs(W.realmEff(0) - 1) < 1e-9 && Math.abs(W.realmEff(16) - 10) < 1e-9 && W.realmEff(31) > 86 && W.realmEff(31) < 87, '효율 — 삼류 초입 ×1 · 초절정 초입 ×10 · 생사경 극의 ×86.6');
+  ok(1e6 * W.realmEff(0) === 1e6 && Math.round(1e6 * W.realmEff(16)) === 1e7, '내공 100만 — 삼류 초입은 100만, 초절정 초입은 1000만을 쓴다');
+  ok(W.REALM_LV.every((l, i) => i === 0 || l > W.REALM_LV[i - 1]) && [[4, 1], [8, 2], [16, 3], [20, 4], [28, 5]].every(([i, t]) => W.realmLv(i) === W.TIERS[t].level), '큰 경지는 전직 레벨에 열린다(이류 10 · 일류 30 · 초절정 70 · 화경 99 · 생사경 130)', W.REALM_LV.join(','));
+  ok(Math.abs(W.realmSkill(16) - 0.5) < 1e-9 && Math.abs(W.realmSkill(31) - 31 / 32) < 1e-9 && W.realmSkill(0) === 0, '경지 → 무공 피해: 단계마다 +3.1% · 초절정 초입 +50% · 생사경 극의 +97%');
+  ok(W.realmOf(10, 1e12) === 4 && W.realmOf(150, 0) === 0 && W.realmOf(70, W.qiFloor(70)) === 16, '경지는 레벨과 내공이 둘 다 차야 오른다(내공만 많거나 레벨만 높으면 그대로)');
+  // 쌓기 · 돌파 알림
+  const g = fresh(); const ups = [];
+  while (g.s.level < 10) { g.addExp(W.expToNext(g.s.level)); for (const e of g.events) if (e.type === 'realmUp') ups.push(e); g.events.length = 0; }
+  ok(g.realmNow() === 4 && ups.length === 4 && ups[3].name === '이류 초입' && ups[3].big && !ups[0].big && g.s.realm === 4, '레벨 10 — 삼류 중입·상입·극의를 지나 이류 초입(큰 경지만 크게 알린다)', ups.map((e) => e.name).join('·'));
+  const q0 = g.s.qi; g.addExp(1000);
+  ok(Math.abs(g.s.qi - q0 - 1000 * W.QI_PER_EXP) < 1e-6, '경험치를 얻으면 그 1/10만큼 내공');
+  const q1 = g.s.qi; g.s.exp = 0; ok(g.s.qi === q1 && g.qiNow() === q1, '경험치를 잃어도 내공은 그대로');
+  // 내공 → 공격력·체력 · 경지 → 무공 피해
+  const a = fresh(); while (a.s.level < 70) a.addExp(W.expToNext(a.s.level)); a._stats = null;
+  const st = a.stats(), qi = a.s.qi;
+  ok(a.realmNow() === 16, '레벨 70 — 초절정 초입');
+  a.s.qi = qi * 10; a._stats = null; const st10 = a.stats();
+  ok(Math.abs(st10.atk / st.atk - (1 + W.qiBody(qi * 10 * 10)) / (1 + W.qiBody(qi * 10))) < 1e-9 && Math.abs(st10.hp / st.hp - st10.atk / st.atk) < 1e-9 && Math.abs(st10.realmDmg - st.realmDmg) < 1e-12,
+    '내공이 10배면 공격력·체력이 같이(+5%p) · 무공 피해(경지)는 그대로', `×${(st10.atk / st.atk).toFixed(3)}`);
+  a.s.qi = qi; a._stats = null;
+  const sm = a.stats().realmDmg;
+  ok(Math.abs(sm - 1.5) < 1e-9, '경지가 무공 피해를 곱한다(초절정 초입 ×1.5)', `${sm.toFixed(3)}`);
+  { const k = fresh(); while (k.s.level < 70) k.addExp(W.expToNext(k.s.level)); k.rng = () => 0.5; k.enterMap(W.mapId(7, 2)); const m = k.mons.find((x) => x.alive && !x.npc); m.hp = m.maxHp = 1e15; m.armor = 0; const st0 = k.stats();
+    const h0 = m.hp; k.strike(m, st0, 1, 'hit'); const d1 = h0 - m.hp; k.realmSkillMul = () => 1; k._stats = null; const h1 = m.hp; k.strike(m, k.stats(), 1, 'hit'); const d0 = h1 - m.hp; delete k.realmSkillMul; k._stats = null;
+    ok(Math.abs(d1 / d0 - 1.5) < 2e-3, '평타도 무공 — 내공을 실어 치는 수 모두에 경지 덤', `${(d1 / d0).toFixed(3)}`); }
+  // 기준 무인 — 보통으로 큰 무인은 몹·던전·두목이 전과 같게
+  ok(Math.abs(W.qiRefHpK(70) - (1 + W.qiBody(W.qiFloor(70) * 10))) < 1e-9 && Math.abs(W.qiRefDpsK(70) - W.qiRefHpK(70) * 1.5) < 1e-9, '기준 무인의 몫 — 체력 ×(1+내공) · 화력 ×(1+내공)×(1+경지)');
+  ok(a.qiMul() >= W.qiRefHpK(70) - 1e-9 && a.qiMul() < W.qiRefHpK(70) * 1.02, '레벨 70까지 사냥해 온 무인 = 기준 무인(+2% 안)', `${a.qiMul().toFixed(3)} / ${W.qiRefHpK(70).toFixed(3)}`);
+  ok(Math.abs(DG.refHp(70) - 16647 * W.qiRefHpK(70)) < 1e-6 && Math.abs(DG.refDps(70) - 60044 * W.qiRefDpsK(70)) < 1e-3, '몹·던전 기준(refHp·refDps 표의 Lv70)이 기준 무인 몫만큼 오른다');
+  // 옛 세이브 · 레벨을 바로 넣은 무인
+  const old = newWorldSave(0); old.job = 'sword'; old.level = 100; old.exp = 50; delete old.qi; delete old.realm;
+  const m = migrateWorld(old, 0);
+  ok(m.qi >= W.qiFloor(100) && m.realm === W.realmOf(100, m.qi) && W.realmName(m.realm) === '화경 초입', '옛 세이브 — 그 레벨까지 쌓였을 내공 · 경지(알림 없이)', W.realmName(m.realm));
+  const b = fresh(); b.s.level = 99; ok(b.qiNow() === W.qiFloor(99) && b.realmNow() === 20, '레벨을 바로 넣어도 그 레벨의 내공·경지로 센다');
+  // 만렙 뒤에도 쌓인다
+  const z = fresh(); z.s.level = W.LEVEL_MAX; const qz = z.qiNow(); z.addExp(1e9); z._stats = null;
+  ok(Math.abs(z.s.qi - (qz + 1e8)) < 1 && z.realmNow() === 31, '만렙 뒤 경험치(깨달음)도 내공으로 · 경지는 생사경 극의가 끝');
+  ok(W.STATS.find((x) => x.id === 'int').name === '기력', '능력치 「내공」은 「기력」으로(쌓는 내공과 헷갈리지 않게)');
 }
 
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);

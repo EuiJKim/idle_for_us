@@ -35,6 +35,45 @@ export function expSlow(L) {
 }
 export const expBase = (L) => 27 * L ** 2.3 * (1 + (L / 30) ** 2.2);   // v261 배율 없는 곡선(애완동물은 이것으로 — 무인 곡선을 늦춰도 애완동물까지 늦지 않게)
 export const expToNext = (L) => Math.round(expBase(L) * expSlow(L));   // v110: 스킬 레벨·옵션으로 사냥이 빨라져 ×1.35 · v261 구간 배율
+
+// ---------- 내공 · 경지 (v456) ----------
+// 내공 = 쌓은 수련의 양. 경험치를 얻을 때마다 그 QI_PER_EXP만큼 쌓이고 잃지 않는다(쓰러져도 · 만렙 뒤 깨달음 경험치도).
+// 경지 = 내공을 얼마나 잘 쓰나. 여덟 경지 × 넷(초입·중입·상입·극의) = 32단계.
+//   효율 = 10^(단계/16) — 단계마다 ×1.155 · 네 경지(16단계)마다 ×10: 삼류 초입 ×1 · 이류 ×1.78 · 일류 ×3.16 · 절정 ×5.62 · 초절정 초입 ×10 · 화경 ×17.8 · 현경 ×31.6 · 생사경 ×56.2 · 극의 ×86.6
+//   쓰는 내공 = 내공 × 효율 (보기: 내공 100만 — 삼류 초입은 100만, 초절정 초입은 1000만을 쓴다)
+// 내공 → 공격력·체력 ×(1 + QI_BODY_K × log10(쓰는 내공 / QI_BASE)) — 쓰는 내공이 10배가 될 때마다 +5%
+// 경지 → 무공 피해 ×(1 + 단계 × REALM_SKILL) — 단계마다 +3.1% · 초절정 초입 +50% · 생사경 극의 +97%
+//   무공 = 무인이 내공을 실어 치는 수 모두(초식·평타·장판·분신·각인 발동). 평타 비중이 큰 직업(권사 Lv110+ 무공 몫 0.62)이 손해 보지 않게
+// 경지는 레벨과 내공이 둘 다 차야 오른다 — 큰 경지는 전직 레벨에(이류 10 · 일류 30 · 초절정 70 · 화경 99 · 생사경 130)
+export const QI_PER_EXP = 0.1;
+export const QI_BASE = 1000;
+export const QI_BODY_K = 0.05;
+export const REALM_SKILL = 1 / 32;
+export const REALMS = ['삼류', '이류', '일류', '절정', '초절정', '화경', '현경', '생사경'];
+export const REALM_HANJA = ['三流', '二流', '一流', '絶頂', '超絶頂', '化境', '玄境', '生死境'];
+export const REALM_SUBS = ['초입', '중입', '상입', '극의'];
+export const REALM_START = [1, 10, 30, 50, 70, 99, 115, 130, 150];   // 경지마다 처음 열리는 레벨(끝은 150)
+export const REALM_N = REALMS.length * REALM_SUBS.length;
+export const REALM_LV = Array.from({ length: REALM_N }, (_, i) => { const r = i >> 2, j = i & 3; return Math.round(REALM_START[r] + (REALM_START[r + 1] - REALM_START[r]) * j / 4); });
+const CUM_EXP = [0, 0];
+for (let L = 1; L < LEVEL_MAX; L++) CUM_EXP[L + 1] = CUM_EXP[L] + expToNext(L);
+export const cumExp = (L) => CUM_EXP[Math.max(1, Math.min(LEVEL_MAX, L | 0))];   // 레벨 L 첫머리까지 쌓인 경험치
+export const qiFloor = (L) => QI_PER_EXP * cumExp(L);                              // 레벨 L이면 적어도 이만큼 쌓였다
+export const REALM_QI = REALM_LV.map((l) => Math.floor(qiFloor(l)));
+export const realmLv = (i) => REALM_LV[Math.max(0, Math.min(REALM_N - 1, i))];
+export const realmQi = (i) => REALM_QI[Math.max(0, Math.min(REALM_N - 1, i))];
+export const realmEff = (i) => 10 ** (Math.max(0, Math.min(REALM_N - 1, i)) / 16);
+export const realmName = (i) => { const k = Math.max(0, Math.min(REALM_N - 1, i | 0)); return `${REALMS[k >> 2]} ${REALM_SUBS[k & 3]}`; };
+export const realmSkill = (i) => Math.max(0, Math.min(REALM_N - 1, i | 0)) * REALM_SKILL;
+export const realmOf = (level, qi) => { let i = 0; while (i + 1 < REALM_N && level >= REALM_LV[i + 1] && qi >= REALM_QI[i + 1]) i++; return i; };
+export const qiBody = (use) => (use > QI_BASE ? QI_BODY_K * Math.log10(use / QI_BASE) : 0);
+// 기준 무인 — 그 레벨까지 보통으로 온 무인의 몫. 몹·던전·두목의 기준(refDps·refHp)이 이만큼 같이 세진다(보통으로 크는 무인은 전과 같게)
+//   화력 쪽은 경지 덤까지(무인이 치는 수 모두에 붙는다 — 애완동물·탈것 불길만 빠진다)
+export const QI_SKILL_SHARE = 1;
+const QI_REF = [null];
+for (let L = 1; L <= LEVEL_MAX; L++) { const q = qiFloor(L), i = realmOf(L, q); QI_REF.push({ hp: 1 + qiBody(q * realmEff(i)), dps: (1 + qiBody(q * realmEff(i))) * (1 + QI_SKILL_SHARE * realmSkill(i)) }); }
+export const qiRefHpK = (lv) => QI_REF[Math.max(1, Math.min(LEVEL_MAX, Math.round(lv) || 1))].hp;
+export const qiRefDpsK = (lv) => QI_REF[Math.max(1, Math.min(LEVEL_MAX, Math.round(lv) || 1))].dps;
 export const STAT_PER_LEVEL = 3;
 // v262 스탯의 제 몫 — 점당 · 상한
 export const STAT_ROLE = { strBoss: 0.0015, strBossMax: 0.6, dexMove: 0.0008, dexMoveMax: 0.3, vitRed: 0.0003, vitRedMax: 0.15, intCdr: 0.0004, intCdrMax: 0.15 };
@@ -42,7 +81,7 @@ export const STATS = [
   { id: 'str', name: '힘', desc: '공격력 +3 · 공격력 +0.3% · 두목 피해 +0.15%' },
   { id: 'dex', name: '민첩', desc: '치명 +0.4%p · 공격 속도 +1% · 걸음 +0.08%' },
   { id: 'vit', name: '체력', desc: '최대 체력 +20 · 최대 체력 +0.3% · 방어 +0.2 · 받는 피해 -0.03% · 체력을 쓰는 무공이 그만큼 세게' },   // v441
-  { id: 'int', name: '내공', desc: '스킬 피해 +0.7% · 체력 회복 +0.12/초 · 무공 숨 -0.04%' },
+  { id: 'int', name: '기력', desc: '스킬 피해 +0.7% · 체력 회복 +0.12/초 · 무공 숨 -0.04%' },   // v456 「내공」은 쌓는 내공(아래)으로 — 능력치는 기력
 ];
 // 레벨이 오르면 겉모습도 한 단계씩 (옛 경지 그림 스물을 레벨에 나눠 쓴다)
 export const lookTierOf = (level) => Math.min(RANKS.length - 1, Math.floor((level - 1) / 8));
