@@ -1284,7 +1284,7 @@ export const RATE_WINDOW_SEC = 300;
 // v261: 처치 포화 — 분당 처치가 이만큼을 넘으면 한 마리 경험치가 (기준/분당)^0.8로 준다.
 // 광역 직업(환마·독마)이 다시 나는 속도 상한(분당 2,100)에 닿아 다른 직업보다 세 배 빨리 올랐다(시뮬 7일 vs 16일). 은자는 그대로.
 export const EXP_SAT_KPM = 800;
-export const CHALLENGE_K = 0.05, CHALLENGE_MAX = 4;   // v425 도전 경험치 — 나보다 높은 몹 레벨 차 1마다 +5% · 네 배까지
+export const CHALLENGE_K = 0.05, CHALLENGE_MAX = 2;   // v425 도전 경험치 — 나보다 높은 몹 레벨 차 1마다 +5% · v464 네 배 → 두 배까지(+20) — 몹 경험치 lv^1.5와 겹쳐 센 무인이 한 마리에 11배를 벌었다
 export const expSat = (kpm) => (kpm > EXP_SAT_KPM ? (EXP_SAT_KPM / kpm) ** 0.8 : 1);
 export const FOLLOW_GAP = 3;   // v260: 알맞은 사냥터 따라가기 — 구역 최고 레벨보다 이만큼 넘게 높으면 옮긴다
 // v260: 방치 효율 — 오래 비울수록 덜 번다(앞 두 시간은 그대로). [이 시각(초)까지, 그 구간 효율]
@@ -1403,7 +1403,7 @@ export const enlCost = (lv) => 1 + Math.floor(lv / 5);
 export const enlExp = () => Math.round(expToNext(149) * 0.25);
 export const PET_LV_MAX = 30;
 // v262 애완동물 — 포획 조각(졸개가 가끔 떨군다 → 모으면 그 지역 애완동물 하나) · 혼(Lv30 뒤 경험치 → 등급 올리기)
-export const PET_SHARD_RATE = 1 / 150;   // v364 두 배
+export const PET_SHARD_RATE = 1 / 150;   // v364 두 배 · v464 한 마리 벌이 배수(pk 4.5~7)는 곱하지 않고 방 몫(ROOM_K)만
 export const PET_SHARD_NEED = 100;
 export const PET_SOUL_COST = [6, 18, 45];   // 레어→영웅 · 영웅→전설 · 전설→신화
 export const PET_BOX = 300;   // v362 우리 10 → 30칸 · v389 → 300칸
@@ -1440,10 +1440,12 @@ export const PET_ATK_SEC = 1.6;
 export const MOUNT_SHARD_RATE = 1 / 250;   // v364 두 배
 export const MOUNT_SHARD_NEED = 100;
 // 조각을 주는 곳 — 두목(왕·고수 ×2) · 일일 던전 한 판(소탕 포함) · 탑(처음 오른 층, 10층마다 ×5) · 보물 원숭이 · 주간 상자 · 방치(두목 처치만큼)
-export const BOSS_SHARDS = { pet: [6, 12], mount: [4, 8] };   // v364 두 배
-export const dailyShards = (stage) => 2 * (3 + Math.floor(stage / 3));   // v364 두 배
-export const TOWER_SHARDS = 8;   // v364 두 배
-export const TREASURE_SHARDS = 12;   // v364 두 배
+// v464 하루에 86연(조각 8,600)이 들어왔다(docs/밸런스_진단.md §3.2) — 들판 74%가 보물 원숭이(pk가 등장에도 곱해져 67마리에 하나 · 12개씩) ·
+//   두목 방은 한 시간에 두목 88마리 × 9개. 한 시간 사냥 ~50개 · 하루 몫(던전·주간·출석)이 큰 몫이 되게
+export const BOSS_SHARDS = { pet: [0, 2], mount: [0, 1] };   // v364 [6,12]·[4,8] → v464
+export const dailyShards = (stage) => 2 * (3 + Math.floor(stage / 3));   // v364 두 배 · v464 몫 판만(첫 깨기는 몫이 없어도)
+export const TOWER_SHARDS = 4;   // v464 8 → 4
+export const TREASURE_SHARDS = 4;   // v464 12 → 4 · 등장도 pk 대신 방 몫만
 export const WEEK_SHARDS = 80;   // v364 두 배
 // 별 — 같은 종을 먹이로 주면 별 하나(최대 다섯) · 별마다 버프·공격 +12%
 export const PET_STAR_MAX = 5;

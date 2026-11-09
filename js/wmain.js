@@ -1462,9 +1462,10 @@ function showInstEnd(ev) {
   openModal((el) => el.append(...[
     h('h3', {}, ev.ok ? `${name} 성공!` : `${name} — ${why}`),
     ev.kind === 'daily' ? h('p', { class: 'muted' }, `처치 ${ev.kills} / ${ev.target}${ev.ok ? ' — 다음부터 이 단계는 소탕할 수 있어요' : ' — 잡은 만큼 보상의 절반'}`) : null,
-    ev.kind === 'daily' && ev.gotKey ? h('p', { class: 'dgn-key' }, `🔑 새 단계라 보상 몫을 안 썼어요 — ${Math.min(D.DAILY_STAGES, ev.stage + 1)}단계에 또 들어가 보세요`) : null,
-    ev.kind === 'daily' && ev.extra ? h('p', { class: 'muted' }, `오늘 보상 몫을 다 써서 추가 도전 보상(${Math.round(D.DAILY_EXTRA * 100)}%)이에요 — 새 단계를 깨면 온전히 받아요`) : null,
-    ev.kind === 'daily' && !ev.ok && !ev.extra ? h('p', { class: 'muted' }, `깨지 못하면 몫을 하나 써요 — 남은 ${game.dailyLeft(ev.id)}번은 소탕으로도 받아요`) : null,
+    ev.kind === 'daily' && ev.firstOnly ? h('p', { class: 'dgn-key' }, `🔑 새 단계를 처음 깼어요 — 몫을 안 쓰고 조각을 받았어요 · 경험치·은자·재료는 이 단계에서 몫으로(들어가 깨기·소탕)`) : null,
+    ev.kind === 'daily' && ev.extra && !ev.firstOnly ? h('p', { class: 'muted' }, `오늘 보상 몫을 다 써서 연습이었어요(보상 없음) — 몫은 하루 ${D.DAILY_ENTRIES}번 · 남긴 것은 다음 날로`) : null,
+    ev.kind === 'daily' && !ev.ok && !ev.extra && game.dailyBest(ev.id) >= ev.stage ? h('p', { class: 'muted' }, `깨지 못하면 몫을 하나 써요(보상은 잡은 만큼의 절반) — 남은 ${game.dailyLeft(ev.id)}번은 소탕으로도 받아요`) : null,
+    ev.kind === 'daily' && !ev.ok && game.dailyBest(ev.id) < ev.stage ? h('p', { class: 'muted' }, `새 단계는 못 깨도 몫을 안 써요 — 더 세진 뒤 다시`) : null,
     ev.kind === 'tower' && !ev.ok ? h('p', { class: 'muted' }, ev.hard ? `극 ${game.s.tower.hard || 0}층까지 — 장비·스킬을 키워서 다시 도전하세요` : `오른 층 ${game.s.tower.floor} — 장비·스킬을 키워서 다시 도전하세요`) : null,
     ev.reward && rewardText(ev.reward) !== '없음' ? h('p', {}, `받은 것: ${rewardText(ev.reward)}`) : null,
     h('div', { class: 'btn-row' }, h('button', { class: 'btn primary', onclick: closeModal }, '확인'))].filter(Boolean)));

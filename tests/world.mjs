@@ -1073,11 +1073,11 @@ console.log('\n=== 던전 (v126) ===');
   for (const m of g.mons) m.atk = 0;
   let res = null;
   for (let i = 0; i < 2000 && !res; i++) { g.tick(0.05); for (const e of g.events) if (e.type === 'instEnd') res = e; g.events.length = 0; }
-  ok(res?.ok && g.dailyBest('exp') === 1 && res.chain && g.inst?.stage === 2 && res.reward.exp > 0, '40마리 잡으면 깨고 — 새 단계였으니 바로 2단계로 (v166)', JSON.stringify(res?.reward));
+  ok(res?.ok && g.dailyBest('exp') === 1 && res.chain && g.inst?.stage === 2 && res.reward.petShard > 0 && !res.reward.exp, '다 잡으면 깨고 — 새 단계였으니 바로 2단계로 (v166 · v464 새 단계는 조각만)', JSON.stringify(res?.reward));
   g.inst.done = { left: true }; g.tick(0.05); g.events.length = 0;
   ok(!g.inst && g.s.map === huntBefore, '그만두면 사냥터로 돌아온다');
   g.s.dgn.day = '';          // 이어 들어간 판(그만둔 것)은 셈에서 지운다 — 아래는 한 판만 깬 셈으로 본다
-  ok(g.dailyLeft('exp', mon) === 3 && res.gotKey && g.canSweep('exp', mon), '보상 몫 하루 셋 — 새 단계를 깨면 몫을 안 쓴다 · 깬 단계는 소탕');
+  ok(g.dailyLeft('exp', mon) === 3 && !res.gotKey && g.canSweep('exp', mon), '보상 몫 하루 셋 · 깬 단계는 소탕 (v464 새 단계는 몫을 안 쓴다)');
   const lv0 = g.s.level, e0 = g.s.exp;
   const sw = g.sweepAll(mon);
   ok(sw.length === 3 && g.dailyLeft('exp', mon) === 0 && (g.s.level > lv0 || g.s.exp > e0), '모두 소탕: 남은 셋을 한꺼번에');
@@ -1629,7 +1629,8 @@ console.log('\n=== 고유 효과가 쓸모 있는가 (v167 · 꼴 열여섯을 �
     const sc = SCENE[k];
     // 버티기는 판마다 크게 흔들린다 — 난수 셋으로 세 판씩 더해 본다
     // v455 맞을 때 터지는 것(쾌속·되돌림)은 한 번 터지면 난수가 갈라져 치명이 달라진다 — 한 판은 ±10% 흔들려 여섯 판을 더한다
-    const seeds = sc === 'pressure' ? [4242, 77, 31337] : sc === 'counter' ? [4242, 77, 31337, 9, 1004, 2024] : [4242];
+    // v464 버티기도 여섯 판 — 보물 원숭이가 덜 나와(난수 쓰임이 달라져) 세 판은 문턱 둘레에서 흔들렸다
+    const seeds = sc === 'pressure' || sc === 'counter' ? [4242, 77, 31337, 9, 1004, 2024] : [4242];
     const sum = (off) => seeds.map((sd) => run(k, sc, off, sd)).reduce((a, x) => ({ dealt: a.dealt + x.dealt, deaths: a.deaths + x.deaths, hp: a.hp + x.hp / seeds.length }), { dealt: 0, deaths: 0, hp: 0 });
     const r = sum(false), b = sum(true);
     const dmgUp = r.dealt / Math.max(1, b.dealt) - 1;
@@ -1895,11 +1896,12 @@ console.log('\n=== v263 각성 · 깨달음 · 견문록 · 회랑 · 길잡이 
   ok(Qg.questNow().done, '알아두기 단계는 바로 받을 수 있다');
 }
 
-console.log('\n=== 일일 던전 열쇠 (v156 · v260 하루 셋) ===');
+console.log('\n=== 일일 던전 몫 (v156 · v260 하루 셋 · v464 레벨 상한 · 새 단계도 몫 · 몫 없으면 연습) ===');
 {
   const DG = await import('../js/world/wdgn.js');
   const g = fresh();
   while (g.s.level < 30) g.addExp(W.expToNext(g.s.level));
+  g.s.dgn.routine = false;   // 이어 깨기만 본다(루틴은 아래에서 따로)
   let now = Date.UTC(2026, 9, 26, 3);
   const finish = (win = true) => {
     for (const m of g.mons) m.hp = 1;
@@ -1909,39 +1911,68 @@ console.log('\n=== 일일 던전 열쇠 (v156 · v260 하루 셋) ===');
   };
   const run = (st, win = true) => {
     if (g.inst) { g.inst.done = { left: true }; g.tick(0.05); }
+    g.events.length = 0;
     g.startDaily('exp', st, now);
     return finish(win);
   };
+  ok(g.dailyCap() === 7 && DG.dailyStageCap(30) === 7 && DG.dailyStageCap(144) === 29 && DG.dailyStageCap(145) === DG.DAILY_STAGES && DG.dailyCapLv(8) === 35,
+    '들어갈 수 있는 단계는 몹이 내 레벨+5까지 — Lv30은 7단계(몹 Lv35) · 8단계는 Lv35에 · Lv145부터 끝없이 (v464)');
   const r1 = run(1);
-  ok(r1.ok && r1.gotKey && g.dailyLeft('exp', now) === 2, '새 단계를 깨면 몫을 돌려받는다 — 이어 든 판 하나만 쓴 셈');
+  ok(r1.ok && r1.firstOnly && !r1.reward.exp && r1.reward.petShard > 0 && g.dailyLeft('exp', now) === 3, '새 단계(등반)는 몫을 안 쓰고 처음 깨면 조각만 (v464 — 전엔 온전한 보상까지 받아 등반 한 번에 수십 레벨)', JSON.stringify(r1.reward));
   ok(r1.chain && r1.next === 2 && g.inst?.kind === 'daily' && g.inst.stage === 2, '깨면 바로 윗단계로 들어간다 (v166, 누를 것 없이)');
-  const keys = [r1.gotKey];
-  let last = r1;
-  for (let i = 0; i < 12 && g.inst; i++) { last = finish(true); keys.push(last.gotKey); }
-  ok(keys.every(Boolean) && g.dailyBest('exp') >= 12 && g.dailyLeft('exp', now) === 2 && g.inst?.stage === g.dailyBest('exp') + 1, '새 단계는 끝없이 — 열두 단계를 이어 깨도 몫은 그대로 (v302, 열쇠 상한 없음)', `깬 ${g.dailyBest('exp')} 남은 ${g.dailyLeft('exp', now)}`);
-  g.inst.done = { left: true }; g.tick(0.05); g.events.length = 0;
-  ok(g.dailyLeft('exp', now) === 2, '이어 든 판을 그만두면 그 몫은 쓴 것(반 보상) — 23마리 잡고 나가기를 되풀이하지 못하게');
-  const bestNow = g.dailyBest('exp');
-  const r2 = run(3);
-  ok(r2.ok && !r2.gotKey && !r2.extra && g.dailyLeft('exp', now) === 1, '이미 깬 단계를 다시 깨면 몫 하나를 쓰고 온전한 보상');
-  ok(g.canSweep('exp', now), '남은 몫은 소탕');
-  g.sweepDaily('exp', now);
-  ok(g.dailyLeft('exp', now) === 0 && g.canDaily('exp', 3, now) && !g.canSweep('exp', now), '몫을 다 쓰면 소탕은 끝 · 도전은 된다 (v302)');
-  const r2b = run(3);
-  const fullRw = DG.dailyReward('exp', 3, g.levelGapMult(DG.dailyLv(3)), g.s.level).exp;
-  ok(r2b.ok && r2b.extra && !r2b.gotKey && Math.abs(r2b.reward.exp - Math.round(fullRw * DG.DAILY_EXTRA)) <= 1 && g.dailyLeft('exp', now) === 0, `몫이 없으면 추가 도전 — 보상 ${DG.DAILY_EXTRA * 100}%`, `${r2b.reward.exp} / ${fullRw}`);
-  const r2c = run(bestNow + 1);
-  ok(r2c.ok && !r2c.extra && !r2c.gotKey && r2c.reward.exp > r2b.reward.exp && g.dailyLeft('exp', now) === 0, '몫이 없어도 새 단계를 깨면 온전한 보상(돌려줄 몫은 없다)');
+  for (let i = 0; i < 12 && g.inst; i++) finish(true);
+  ok(g.dailyBest('exp') === 7 && !g.inst && g.dailyLeft('exp', now) === 3, '레벨 상한(7단계)에서 멈추고 몫은 그대로', `깬 ${g.dailyBest('exp')} · 남은 ${g.dailyLeft('exp', now)} · 안 ${!!g.inst}`);
+  ok(!g.canDaily('exp', 8, now) && g.dailyMaxStage('exp') === 7, '8단계(몹 Lv40)는 아직 못 들어간다');
+  const r2 = run(7);
+  ok(r2.ok && !r2.extra && !r2.firstOnly && r2.reward.exp === DG.dailyReward('exp', 7, g.levelGapMult(DG.dailyLv(7)), g.s.level).exp && g.dailyLeft('exp', now) === 2, '깬 단계 — 몫 하나를 쓰고 온전한 보상');
   if (g.inst) { g.inst.done = { left: true }; g.tick(0.05); g.events.length = 0; }
+  ok(g.canSweep('exp', now) && g.dailySweepStage('exp') === 7, '남은 몫은 깬 가장 높은 단계로 소탕');
+  g.sweepDaily('exp', now); g.sweepDaily('exp', now);
+  ok(g.dailyLeft('exp', now) === 0 && !g.canSweep('exp', now), '몫을 다 쓰면 소탕은 끝');
+  const r2b = run(3);
+  ok(r2b.ok && r2b.extra && !r2b.firstOnly && !r2b.reward.exp && !r2b.reward.petShard && !r2b.reward.gold, '몫이 없으면 연습 — 보상 없음 (v464 · 전엔 10% 무한 도전이 사냥과 맞먹었다)', JSON.stringify(r2b.reward));
   now += 86400e3;
   ok(g.dailyLeft('exp', now) === 3, '다음 날 — 몫이 다시 찬다');
-  const r3 = run(g.dailyMaxStage('exp'), false);
-  ok(!r3.ok && !r3.gotKey && g.dailyLeft('exp', now) === 2, '못 깨면 몫 하나를 쓴다');
+  g.s.dgn.best.exp = 20;
+  const sw = g.sweepDaily('exp', now);
+  ok(g.dailySweepStage('exp') === 7 && g.dailyMaxStage('exp') === 7 && sw.exp === DG.dailyReward('exp', 7, g.levelGapMult(DG.dailyLv(7)), g.s.level).exp && g.dailyLeft('exp', now) === 2,
+    '레벨보다 높이 깬 옛 세이브 — 소탕·도전은 레벨 상한(7단계)에서 (v464)');
+  g.s.dgn.best.exp = 6;
+  const r3 = run(7, false);
+  ok(!r3.ok && g.dailyLeft('exp', now) === 2 && !r3.reward?.exp, '새 단계는 못 깨도 몫을 안 쓴다(보상도 없다)');
+  const r3b = run(6, false);
+  ok(!r3b.ok && g.dailyLeft('exp', now) === 1, '깬 단계에서 지면 몫 하나를 쓴다(잡은 만큼 절반)');
+  if (g.inst) { g.inst.done = { left: true }; g.tick(0.05); g.events.length = 0; }
+  now += 86400e3;
   // v260: 진 단계는 자동이 다시 들어가지 않고 소탕한다
   g.s.dgn.auto = true; g.s.dgn.climb = false;   // (v283 등반 모드를 끈 옛 동작)
-  const lv0 = g.s.exp + g.s.level * 1e12;
-  ok(g.startAutoDaily(now) === true && !g.inst && g.dailyLeft('exp', now) === 1 && g.s.exp + g.s.level * 1e12 > lv0, '오늘 진 단계는 자동이 다시 안 들어가고 소탕한다 (v260)');
+  g.dgnToday(now).fail.exp = 7;
+  const lv0 = g.s.exp + g.s.level * 1e12, left1 = g.dailyLeft('exp', now);   // 어제 남긴 몫이 하루 넘어온다(v262)
+  ok(left1 >= 3 && g.startAutoDaily(now) === true && !g.inst && g.dailyLeft('exp', now) === left1 - 1 && g.s.exp + g.s.level * 1e12 > lv0, '오늘 진 단계는 자동이 다시 안 들어가고 소탕한다 (v260)');
+  // v464 등반 모드라도 레벨 상한까지 다 올랐으면 남은 몫은 소탕한다
+  g.s.dgn.climb = true; g.s.dgn.best.exp = 7; g.dgnToday(now).fail = {};
+  ok(g.startAutoDaily(now) === true && !g.inst && g.dailyLeft('exp', now) === left1 - 2, '등반 모드 — 상한까지 다 올랐으면 남은 몫은 소탕 (v464 · 몫이 그냥 쌓였다)');
   g.s.dgn.auto = false;
+}
+{
+  // v464 이어 돌기가 소탕으로 끝나면 사냥터로 돌아온다(던전 몹·자리에 남지 않는다) — 이어 돌기는 진짜 시계로 센다
+  const g = fresh(); while (g.s.level < 30) g.addExp(W.expToNext(g.s.level));
+  g.s.dgn.routine = false; g.s.dgn.auto = true; g.s.dgn.climb = true; g.s.dgn.best.exp = 6;
+  const now = Date.now(), hunt = g.s.huntMap, left0 = g.dailyLeft('exp', now);
+  g.startDaily('exp', 7, now);
+  for (const m of g.mons) m.hp = 1;
+  g.inst.kills = g.inst.target; g.inst.done = { ok: true }; g.tick(0.05);
+  const e = g.events.filter((x) => x.type === 'instEnd').pop();
+  ok(e?.firstOnly && !g.inst && g.s.map === hunt && !g.map.inst && g.dailyLeft('exp', now) < left0 && g.mons.every((m) => !m.alive || m.npc || m.lv <= W.mapOf(hunt).lv[1] + 2),
+    '등반 끝 → 소탕으로 이어지면 사냥터로 돌아온다 (v464 · 전엔 던전 몹·자리에 남았다)', `안 ${!!g.inst} · 몫 ${left0}→${g.dailyLeft('exp', now)}`);
+}
+{
+  // v464 30단계 위 보상 복리는 재료에만 — 경험치·은자는 레벨+5 캡
+  const DG = await import('../js/world/wdgn.js');
+  ok(DG.dailyReward('exp', 45, 1, 150).exp === DG.dailyReward('exp', 30, 1, 150).exp && DG.dailyReward('gold', 45, 1, 150).gold === DG.dailyReward('gold', 30, 1, 150).gold
+    && Object.values(DG.dailyReward('mat', 45, 1, 150).mats)[0] > Object.values(DG.dailyReward('mat', 30, 1, 150).mats)[0], '30단계 위 ×1.04는 재료에만 — 경험치·은자는 그대로 (v464)');
+  const g = fresh(); while (g.s.level < 40) g.addExp(W.expToNext(g.s.level));
+  ok(g.challengeMult(60) === 2 && g.challengeMult(100) === 2 && Math.abs(g.challengeMult(50) - 1.5) < 1e-9, '도전 경험치 — 레벨 차 1마다 +5% · 두 배까지(+20) (v464 · 전엔 네 배)');
 }
 {
   // v260: 일일 던전 보상은 '내 레벨 + 5'를 넘지 않는다
@@ -2415,9 +2446,10 @@ console.log('\n=== v283 등반 모드 ===');
   ok(!res.chain && !g.inst, '막히면(진 단계) 다시 들어가지도, 소탕하지도 않고 멈춘다');
   ok(g.dailyLeft(kind, now) === left0 && left0 > 0, `남은 횟수 ${left0}번은 그대로 남는다`);
   ok(g.autoDailyNext(now) === null && g.startAutoDaily(now) === false && g.dailyLeft(kind, now) === left0, '자동이 다시 돌아도 그대로');
-  // 다 깬 던전(맨 위)은 소탕하지 않는다
+  // v464 다 오른 던전(레벨 상한)은 남은 몫을 소탕한다 — 상한이 생겨 새 단계가 5레벨마다 하나라 몫이 그냥 쌓였다
   g.s.dgn.best[kind] = DG.DAILY_STAGES;
-  ok(g.autoDailyNext(now) === null && g.dailyLeft(kind, now) === left0, '더 오를 단계가 없으면 남은 횟수를 소탕하지 않는다');
+  ok(g.autoDailyNext(now)?.kind === kind && g.startAutoDaily(now) === true && !g.inst && g.dailyLeft(kind, now) === left0 - 1, '더 오를 단계가 없으면(상한까지 다 오르면) 남은 몫은 소탕한다 (v464)');
+  g.dgnToday(now).used[kind] = (g.dgnToday(now).used[kind] || 0) - 1;   // 아래 옛 동작 검사는 몫을 그대로 두고 본다
   // 끄면 옛 동작(막힌 곳은 소탕)
   g.s.dgn.climb = false; g.s.dgn.best[kind] = 4;
   ok(g.startAutoDaily(now) === true && !g.inst && g.dailyLeft(kind, now) === left0 - 1, '끄면 막힌 곳은 소탕한다(옛 동작)');
@@ -3713,7 +3745,8 @@ console.log('\n=== v401 일일 던전 — 30단계 위로 계속 ===');
   for (let t = 0; t < 3; t += 0.05) g.tick(0.05);
   const m = g.mons.find((x) => x.alive);
   ok(m && Math.abs(m.maxHp / (D1.dailyMobHp(150) * (m.elite ? W.ELITE.hp : 1)) - D1.dailyOverK(45)) < 0.01, '45단계 몹 체력 = 150레벨 몹 × 1.12^15');
-  ok(D1.dailyReward('gold', 50, 1, 150).gold > D1.dailyReward('gold', 30, 1, 150).gold * 2, '50단계 은자 = 30단계의 두 배 넘게');
+  ok(D1.dailyReward('gold', 50, 1, 150).gold === D1.dailyReward('gold', 30, 1, 150).gold && Object.values(D1.dailyReward('mat', 50, 1, 150).mats)[0] > Object.values(D1.dailyReward('mat', 30, 1, 150).mats)[0] * 2,
+    '50단계 — 은자는 30단계와 같고(v464 레벨+5 캡) 재료는 두 배 넘게');
 }
 console.log('\n=== v402 막힌 각인 칸 — 기운 바꾸기 제안 ===');
 ok(/imp-switch/.test(read('js/wui.js')) && /가진 증표가 가장 많은 기운/.test(read('js/wui.js')), '각인 칸 — 고른 기운 증표가 없으면 가진 증표 많은 기운으로 바꾸자고 짚는다');
@@ -4421,7 +4454,7 @@ console.log('\n=== v453 무공 범위 줄이기(바람식) ===');
   ok(e1 / base > W.rangeReward(60) * W.PACE_REWARD * 0.9, '졸개 경험치에 범위 몫이 들어간다', `×${(e1 / base).toFixed(2)}`);
   ok(/m\.isBoss \? \(W\.PASSIVE_MOBS \? W\.PASSIVE_REWARD : 1\) :/.test(read('js/world/wgame.js')), '두목은 한 마리 싸움이라 범위·방 몫 없음');
   ok(Math.abs(W.roomReward(60) - W.PASSIVE_REWARD * W.rangeReward(60) * W.ROOM_K) < 1e-9 && e1 / base > W.roomReward(60) * W.PACE_REWARD * 0.9, `v455 사냥터 졸개는 방 벌이(×${W.ROOM_K})까지`, `×${(e1 / base).toFixed(2)}`);
-  ok(DG.DAILY_R_K === 0.12 && /dailyHpSec\(lv\)\) \* DAILY_R_K/.test(read('js/world/wdgn.js')), '요일 던전 몹 체력 12%(시뮬: 깨는 단계가 전과 같게)');
+  ok(DG.DAILY_R_K === 0.45 && /dailyHpSec\(lv\)\) \* DAILY_R_K/.test(read('js/world/wdgn.js')), '요일 던전 몹 체력 45%(v464 — 12%면 두 배 레벨 몹 단계를 깼다 · tools/sim/dailytime.mjs)');
 }
 
 console.log('\n=== v454 첫 30분 점검 ===');
@@ -4941,5 +4974,24 @@ console.log('\n=== v463 R8 수련장 — 마을 밖 방 하나에 문 셋(요일
   ok(/tab: 'town\/train'/.test(read('js/world/wquest.js')) && /goTrainNow/.test(read('js/wmain.js')) && /m\.town \|\| m\.train/.test(read('js/wmain.js')), '길잡이·교두·사냥하러 가기 단추');
 }
 
+console.log('\n=== v464 밸런스 1차 — 조각 수입 ===');
+{
+  const LD = await import('../js/world/wland.js');
+  ok(W.TREASURE_SHARDS === 4 && W.TOWER_SHARDS === 4 && W.BOSS_SHARDS.pet[1] <= 2 && W.BOSS_SHARDS.mount[1] <= 1, '조각 — 보물 원숭이 4 · 탑 층 4 · 두목 0~2/0~1 (v464 · 하루 86연이 들어왔다)');
+  const src = read('js/world/wgame.js');
+  ok(/TREASURE_RATE \* \(W\.CLASSES\[this\.s\.job\]\?\.treasureK \|\| 1\) \* W\.ROOM_K/.test(src) && /PET_SHARD_RATE \* \(m\.elite \? 3 : 1\) \* this\.lootK\(\) \* W\.ROOM_K/.test(src), '원숭이 등장·졸개 조각은 방 몫(ROOM_K)만 — 한 마리 벌이 배수(pk 4.5~7)는 곱하지 않는다');
+  // 한 시간 사냥(Lv30 · 알맞은 방)의 조각 — 백 개 안쪽
+  const g = fresh(); g.rng = seeded(3); while (g.s.level < 30) g.addExp(W.expToNext(g.s.level));
+  g.s.gold = 1e9; while (g.canAdvance()) g.advance();
+  for (const sl of ['weapon', 'armor', 'hat', 'glove', 'shoe', 'acc']) { const it = g.makeCrafted(sl, W.stepOfLevel(30), 0, 1); it.plus = 6; g.s.equip[sl] = it; }   // 기준 무인(tools/mobsim.mjs)과 같은 차림
+  g._stats = null; g.heroHp = g.stats().hp; g.s.potions = 1e6;
+  g.s.autoMap = false; g.s.dgn.routine = false; g.addExp = () => {};
+  const id = W.MAPS.filter((m) => !m.town && !m.train && !m.bossRoom && !m.master && !m.king && m.lv[1] <= 31).sort((a, b) => b.lv[1] - a.lv[1])[0].id;
+  g.enterMap(id); g.s.huntMap = id;
+  const p0 = g.s.petShard || 0, k0 = g.s.kills;
+  for (let t = 0; t < 1800; t += 0.1) { g.tick(0.1); g.events.length = 0; if (g.map.town) g.enterMap(id); }
+  const per = ((g.s.petShard || 0) - p0) * 2, kills = (g.s.kills - k0) * 2;
+  ok(kills > 600 && per > 10 && per < 160, `한 시간 사냥 포획 조각 ${per}개(처치 ${kills}) — 전엔 500개 남짓`);
+}
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);

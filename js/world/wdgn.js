@@ -16,10 +16,13 @@ export const kstWeekday = (now = Date.now()) => new Date(now + 9 * 3600e3).getUT
 const DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토'];
 
 // v302: 들어가는 횟수 제한을 없앴다 — 언제든 도전한다. DAILY_ENTRIES는 '온전한 보상 몫'(하루 종류마다, 남긴 것은 다음 날로).
-//   몫이 있으면 도전·소탕에 온전한 보상. 새 단계를 깨면 몫을 안 쓴다(끝없이 오른다 · 경험치·은자는 내 레벨+5로 막혀 있다).
-//   몫이 없으면 도전은 되지만 보상 DAILY_EXTRA(10%) — 소탕은 몫이 있을 때만(눌러서 무한히 받을 수 없게).
+// v464 밸런스(docs/밸런스_진단.md §3.1) — 하루에 Lv140까지 오르던 가장 큰 구멍이었다:
+//   ① 들어갈 수 있는 단계는 몹 레벨이 내 레벨+DAILY_LV_OVER까지(dailyStageCap) — 전엔 깬 단계+1이면 어디든(전투력만 되면 두 배 레벨 몹)
+//   ② 새 단계를 깨도 몫을 쓴다(전엔 안 써서 등반 한 번에 3~30레벨) — 몫이 없으면 연습(보상 없음 · 새 단계 첫 깨기는 조각만)
+//   ③ 몫 없는 추가 도전은 보상 없음(전엔 10% · 무한이라 그것만 돌려도 사냥과 맞먹었다)
+//   ④ 30단계 위 보상 복리(dailyRwK)는 재료에만 — 경험치·은자는 레벨+5 캡 그대로
 export const DAILY_ENTRIES = 3;
-export const DAILY_EXTRA = 0.1;
+export const DAILY_EXTRA = 0;
 export const DAILY_SEC = 75;
 // 마흔 마리는 너무 많았다 — 한 판이 '잡는 일'이 되어 버린다.
 // 시간은 그대로 두고 수만 줄인다. 덜 조이는 대신 끝까지 안 끌린다.
@@ -49,6 +52,9 @@ export const dailyDaysText = () => '매일';
 
 // 단계 s의 몹 레벨 (1단계 5 … 30단계 150) · 들어갈 수 있는 레벨
 export const dailyLv = (s) => Math.min(150, 5 * s);
+// v464 들어갈 수 있는 가장 높은 단계 — 몹 레벨이 내 레벨+DAILY_LV_OVER까지(Lv145부터는 몹이 150이라 끝없이 · 세기만 오른다)
+export const dailyStageCap = (L) => ((L | 0) + DAILY_LV_OVER >= 150 ? DAILY_STAGES : Math.max(1, Math.floor(((L | 0) + DAILY_LV_OVER) / 5)));
+export const dailyCapLv = (s) => Math.max(1, dailyLv(s) - DAILY_LV_OVER);   // 그 단계가 열리는 레벨
 // 레벨 lv 몹이 사는 지역 (재료·몹 모습을 거기서 빌린다)
 export function zoneForLv(lv) {
   let best = 1;
@@ -65,9 +71,9 @@ export function dailyReward(kind, s, gapMult = 1, myLv = 999) {
   // 한 판 ≈ 들판 10분~한 시간어치 (경험치 그 레벨 0.2 · 은자 몹 1000마리 · 재료 300 · 증표 8)
   // v292 한 판마다 포획·탈것 조각도(단계가 높을수록 더)
   const sh = { petShard: dailyShards(s), mountShard: dailyShards(s) };
-  const rk = dailyRwK(s);   // v401 30단계 위로는 보상도 오른다
-  if (kind === 'exp') return { exp: Math.round(expToNext(lv) * 0.2 * gapMult * rk), ...sh };
-  if (kind === 'gold') return { gold: Math.round(mobGold(lv) * 1000 * rk), ...sh };
+  const rk = dailyRwK(s);   // v401 30단계 위로는 보상도 오른다 — v464 재료만(경험치·은자는 레벨+5 캡을 우회했다)
+  if (kind === 'exp') return { exp: Math.round(expToNext(lv) * 0.2 * gapMult), ...sh };
+  if (kind === 'gold') return { gold: Math.round(mobGold(lv) * 1000), ...sh };
   return { mats: { [z]: Math.round(300 * rk), [`b${z}`]: Math.round(8 * rk) }, ...sh };
 }
 // 던전 구역 — 그 단계 지역의 들판 몹을 빌린다
@@ -132,7 +138,8 @@ export const fieldMobAtk = (lv) => Math.round(Math.max(mobAtk(lv), refHp(lv) * F
 // 던전 몹 하나 = 같은 레벨 무인이 1.2초 칠 체력 (초반은 광역 무공이 적어 덜 단단하게 — 레벨 5에 0.5초)
 export const dailyHpSec = (lv) => 0.45 + 0.75 * Math.min(1, lv / 60);
 // v453 범위가 좁아져(바람식) 한꺼번에 깎던 몫이 사라졌다 — 요일 던전 몹 체력을 그만큼(시뮬: 깨는 단계·시간이 전과 같게)
-export const DAILY_R_K = 0.12;
+// v464 0.12 → 0.45 — 0.12면 기준 무인이 자기 레벨 두 배 몹 단계를 깼다(Lv30이 몹 Lv65). 이제 내 레벨 단계 40~60초 · 입장 상한(레벨+5) 60~75초(제한 100초) — tools/sim/dailytime.mjs
+export const DAILY_R_K = 0.45;
 export const dailyMobHp = (lv) => Math.max(mobHp(lv) * 0.7, refDps(lv) * dailyHpSec(lv)) * DAILY_R_K;
 export const dailyMobAtk = (lv) => mobAtk(lv) * 1.5;
 

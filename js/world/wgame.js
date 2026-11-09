@@ -2010,8 +2010,8 @@ export class WorldGame {
         if (n === W.DEX_NEED) { this._dexZ = null; this._huntB = null; this._stats = null; this.emit('dexStamp', { name: m.name, zoneDone: this.dexZoneDone(this.map.zone) }); }
       }
       this.tday('kill'); if (m.elite) this.tday('elite'); if (m.isBoss) this.tday('boss');
-      if (!m.isBoss && this.rng() < W.PET_SHARD_RATE * (m.elite ? 3 : 1) * this.lootK() * pk) this.s.petShard = (this.s.petShard || 0) + 1;   // v262 포획 조각
-      if (!m.isBoss && this.rng() < W.MOUNT_SHARD_RATE * (m.elite ? 3 : 1) * this.lootK() * pk) this.s.mountShard = (this.s.mountShard || 0) + 1;   // v292 탈것 조각
+      if (!m.isBoss && this.rng() < W.PET_SHARD_RATE * (m.elite ? 3 : 1) * this.lootK() * W.ROOM_K) this.s.petShard = (this.s.petShard || 0) + 1;   // v262 포획 조각 · v464 pk 대신 방 몫만
+      if (!m.isBoss && this.rng() < W.MOUNT_SHARD_RATE * (m.elite ? 3 : 1) * this.lootK() * W.ROOM_K) this.s.mountShard = (this.s.mountShard || 0) + 1;   // v292 탈것 조각
       if (m.isBoss) this.bossShards(m);   // v292 두목은 조각 한 움큼
       if (this.rng() < W.FRAG_RATE * (m.isBoss ? 20 : m.elite ? 5 : 1) * pk) this.gainFrag(1, { x: m.x, y: m.y });   // v275 무공 비급 조각
     }
@@ -2021,7 +2021,7 @@ export class WorldGame {
     for (let x = pk - 1; x > 0; x -= 1) if (x >= 1 || this.rng() < x) this.dropMats(m);   // v438 재료·증표·두목 떨굼도 한 번 더(기대값 ×pk) · v453 pk가 2를 넘으면 그만큼 더
     { const f = Math.floor(pk); this.addMastery(this.map.zone, f + (this.rng() < pk - f ? 1 : 0)); }   // 기대값 ×pk
     // 보물 원숭이 — 들판에서 가끔 (하나만)
-    if (!this.map.bossRoom && this.rng() < L.TREASURE_RATE * (W.CLASSES[this.s.job]?.treasureK || 1) * pk && !this.mons.some((o) => o.alive && o.treasure)) this.spawnTreasure();
+    if (!this.map.bossRoom && this.rng() < L.TREASURE_RATE * (W.CLASSES[this.s.job]?.treasureK || 1) * W.ROOM_K && !this.mons.some((o) => o.alive && o.treasure)) this.spawnTreasure();   // v464 pk(4.5~7) 대신 방 몫 — 67마리에 하나가 조각의 74%였다
     this.emit('kill', { gold, isBoss: m.isBoss, add: true, at: m, mat });
     this.addExp(exp);
     this.note(1, exp, gold, 0);
@@ -4473,23 +4473,30 @@ export class WorldGame {
   dailyBest(kind) { return this.s.dgn.best[kind] || 0; }
   // 고를 수 있는 가장 높은 단계: 깬 단계 + 1 (레벨이 닿는 데까지)
   // 깬 단계 다음까지 — 레벨은 안 본다(v146). 단계는 하나씩 깨며 오른다.
+  // v464 들어갈 수 있는 가장 높은 단계 = 깬 단계+1과 레벨 상한(몹 레벨 ≤ 내 레벨+5) 중 낮은 쪽
+  dailyCap() { return D.dailyStageCap(this.s.level); }
   dailyMaxStage(kind) {
-    return Math.min(D.DAILY_STAGES, this.dailyBest(kind) + 1);
+    return Math.max(1, Math.min(D.DAILY_STAGES, this.dailyBest(kind) + 1, this.dailyCap()));
   }
+  // v464 소탕하는 단계 — 깬 단계와 레벨 상한 중 낮은 쪽(옛 세이브가 레벨보다 높이 깬 단계를 소탕하지 않게)
+  dailySweepStage(kind) { return Math.min(this.dailyBest(kind), this.dailyCap()); }
   canDaily(kind, stage, now = Date.now()) {
     const d = D.dailyOf(kind);
     // v302 횟수 제한 없음 — 몫(dailyLeft)은 보상 크기만 정한다
     return !!d && !!this.s.job && !this.inst && D.dailyOpen(d, now)
       && stage >= 1 && stage <= this.dailyMaxStage(kind);
   }
-  // v302 이 판이 온전한 보상인가 — 몫이 남았거나(한 번 쓴다) 아직 못 깬 단계(몫을 안 쓴다)
-  dailyFull(kind, stage, now = Date.now()) { return this.dailyLeft(kind, now) > 0 || stage > this.dailyBest(kind); }
+  // v302 이 판이 온전한 보상인가 — v464 깬 단계이고 몫이 남았을 때만(새 단계는 몫을 안 쓰고 깨면 조각만)
+  dailyFull(kind, stage, now = Date.now()) { return stage <= this.dailyBest(kind) && this.dailyLeft(kind, now) > 0; }
   startDaily(kind, stage, now = Date.now()) {
     if (!this.canDaily(kind, stage, now)) return false;
     if (W.mapOf(this.s.map)?.train) this._backTo = W.TRAIN_MAP;   // v463 수련장에서 들어간 판
-    const full = this.dailyLeft(kind, now) > 0;
+    // v464 새 단계 도전(등반)은 몫을 쓰지 않는다 — 깨면 첫 깨기 조각만. 몫은 깬 단계에(들어가 깨기·소탕 — 온전한 보상)
+    //   (새 단계도 몫을 쓰게 했더니 등반이 1·2·3단계 — 보상이 가장 작은 곳 — 에서 몫을 다 써 버렸다)
+    const climb = stage > this.dailyBest(kind);
+    const full = !climb && this.dailyLeft(kind, now) > 0;
     if (full) { const used = this.dgnToday(now).used; used[kind] = (used[kind] || 0) + 1; }
-    this.startInst({ kind: 'daily', id: kind, stage, map: D.dailyMap(kind, stage), t: D.DAILY_SEC, max: D.DAILY_SEC, target: D.DAILY_KILLS, kills: 0, now, full });
+    this.startInst({ kind: 'daily', id: kind, stage, map: D.dailyMap(kind, stage), t: D.DAILY_SEC, max: D.DAILY_SEC, target: D.DAILY_KILLS, kills: 0, now, full, climb });
     for (let i = 0; i < D.DAILY_ALIVE; i++) this.spawnMob(false);
     return true;
   }
@@ -4683,8 +4690,10 @@ export class WorldGame {
       const fresh = stage > this.dailyBest(d.id) && (this.dgnToday(now).fail[d.id] || 0) < stage;   // 아직 못 깬 단계 · 오늘 안 진 곳
       // v283 등반 모드: 아직 못 깬 단계만 · 오늘 그 단계에서 졌으면(막혔으면) 그 던전은 멈춘다 — 남은 몫은 그대로 둔다
       // v398 길잡이가 '소탕을 한 번' 시키면 등반 모드라도 한 번은 소탕하러 간다(자동만 켠 무인이 그 단계에 영영 멈췄다). 그 밖에는 v283 그대로 — 남은 몫은 무인이 쓴다
-      if (this.s.dgn.climb && !fresh && !(Q.questAt(this.s.quest)?.id === 'sweep' && this.canSweep(d.id, now))) continue;
-      // v302 자동은 온전한 보상일 때만 — 몫이 없고 새 단계도 아니면(10% 보상 추가 도전) 돌지 않는다
+      // v464 레벨 상한까지 다 올랐으면(막힌 게 아니라 끝까지 오른 것) 등반 모드라도 남은 몫은 소탕한다 — 상한이 생겨 새 단계가 5레벨마다 하나라 몫이 그냥 쌓였다
+      const topped = this.dailyBest(d.id) >= this.dailyCap();
+      if (this.s.dgn.climb && !fresh && !(topped && this.canSweep(d.id, now)) && !(Q.questAt(this.s.quest)?.id === 'sweep' && this.canSweep(d.id, now))) continue;
+      // v302 자동은 온전한 보상일 때만 — 몫이 없고 새 단계도 아니면(보상 없는 연습) 돌지 않는다 · 몫이 없어도 새 단계는 오른다(첫 깨기 조각)
       if (!fresh && this.dailyLeft(d.id, now) <= 0) continue;
       if (this.canDaily(d.id, stage, now)) return { kind: d.id, stage };
     }
@@ -4741,27 +4750,28 @@ export class WorldGame {
     // v283 등반 모드는 소탕하지 않는다 — 막히면 그대로 멈추고 남은 횟수는 무인이 쓴다(다음 날로 넘어가기도 한다)
     // v398 등반 모드라도 길잡이가 소탕을 시키면 소탕한다 — 자동만 켜 둔 무인이 '소탕' 단계에 영영 멈췄다
     if (this.s.dgn.climb) {
+      if ((learnSweep || this.dailyBest(nx.kind) >= this.dailyCap()) && nx.stage <= this.dailyBest(nx.kind) && this.canSweep(nx.kind, now)) return !!this.sweepDaily(nx.kind, now);   // v464 끝까지 올랐으면 소탕
       if (learnSweep && this.canSweep(nx.kind, now)) return !!this.sweepDaily(nx.kind, now);
       return nx.stage > this.dailyBest(nx.kind) && !lost ? this.startDaily(nx.kind, nx.stage, now) : false;
     }
     if ((nx.stage <= this.dailyBest(nx.kind) || lost || learnSweep) && this.canSweep(nx.kind, now)) {
       return !!this.sweepDaily(nx.kind, now);
     }
-    if ((nx.stage <= this.dailyBest(nx.kind) || lost) && this.dailyLeft(nx.kind, now) <= 0) return false;   // v302 추가 도전(10%)은 자동이 안 한다
+    if ((nx.stage <= this.dailyBest(nx.kind) || lost) && this.dailyLeft(nx.kind, now) <= 0) return false;   // v302 추가 도전(v464 보상 없음)은 자동이 안 한다
     return this.startDaily(nx.kind, nx.stage, now);
   }
 
   // 소탕 — 깬 가장 높은 단계의 보상을 들어가지 않고 받는다 (한 번 쓴다)
   canSweep(kind, now = Date.now()) {
     const d = D.dailyOf(kind);
-    return !!d && D.dailyOpen(d, now) && this.dailyLeft(kind, now) > 0 && this.dailyBest(kind) > 0;
+    return !!d && D.dailyOpen(d, now) && this.dailyLeft(kind, now) > 0 && this.dailySweepStage(kind) > 0;
   }
   sweepDaily(kind, now = Date.now()) {
     if (!this.canSweep(kind, now)) return null;
     this.tday('daily');
     const used = this.dgnToday(now).used;
     used[kind] = (used[kind] || 0) + 1;
-    const stage = this.dailyBest(kind);
+    const stage = this.dailySweepStage(kind);
     const reward = this.grant(D.dailyReward(kind, stage, this.levelGapMult(D.dailyLv(stage)), this.s.level));
     this.dailyDan(kind);   // v457
     this.emit('sweep', { kind, stage, reward });
@@ -4769,7 +4779,7 @@ export class WorldGame {
   }
   sweepAll(now = Date.now()) {
     const out = [];
-    for (const d of D.DAILY) while (this.canSweep(d.id, now)) out.push({ kind: d.id, stage: this.dailyBest(d.id), reward: this.sweepDaily(d.id, now) });
+    for (const d of D.DAILY) while (this.canSweep(d.id, now)) out.push({ kind: d.id, stage: this.dailySweepStage(d.id), reward: this.sweepDaily(d.id, now) });
     return out;
   }
   // ---------- 고수 (v148) ----------
@@ -5395,14 +5405,14 @@ export class WorldGame {
       const base = D.dailyReward(I.id, I.stage, this.levelGapMult(D.dailyLv(I.stage)), this.s.level);
       // v302: 새 단계를 깨면 늘 온전히(몫을 썼으면 돌려준다 · 끝없이 오른다). 몫을 쓴 판도 온전히. 둘 다 아니면(추가 도전) 10%.
       // v260: 들어간 날로 센다(끝나는 순간의 시계가 아니라) — 자정을 넘긴 판도 그날 몫
-      const today = this.dgnToday(I.now);
       const fresh = ok && I.stage > this.dailyBest(I.id);
       fresh0 = fresh;
-      if (fresh && I.full) { today.used[I.id] = Math.max(0, (today.used[I.id] || 0) - 1); I.gotKey = true; }
-      const mult = fresh || I.full ? 1 : D.DAILY_EXTRA;
-      I.extra = !fresh && !I.full;
+      // v464 몫을 쓴 판만 온전한 보상 · 새 단계(등반)는 깨면 조각만 · 몫 없는 깬 단계는 연습(보상 없음)
+      const mult = I.full ? 1 : D.DAILY_EXTRA;
+      I.extra = !I.full && !I.climb;
+      I.firstOnly = fresh;
       const k = (ok ? 1 : D.DAILY_FAIL * Math.min(1, I.kills / I.target)) * mult;
-      reward = k > 0 ? this.grant(base, k) : {};   // v432 하나도 못 잡고 나오면 보상 없음
+      reward = I.firstOnly ? this.grant({ petShard: base.petShard, mountShard: base.mountShard }) : k > 0 ? this.grant(base, k) : {};   // v432 하나도 못 잡고 나오면 보상 없음
       if (ok) this.dailyDan(I.id);   // v457 영약 — 이긴 판만
       if (ok || I.kills > 0) this.tday('daily');   // v432 오늘의 강호 과제는 들어갈 때가 아니라 잡고 나올 때 센다
       if (ok) this.s.dgn.best[I.id] = Math.max(this.dailyBest(I.id), I.stage);
@@ -5470,7 +5480,7 @@ export class WorldGame {
         reward = this.grant(D.raidJoinReward(this.s.level, I.z));
       }
     }
-    const res = { kind: I.kind, id: I.id, stage: I.stage, ok, gotKey: !!I.gotKey, extra: !!I.extra, died: !!I.done?.died, timeout: !!I.done?.timeout, left: !!I.done?.left, key: I.key, dealt: I.dealt || 0,
+    const res = { kind: I.kind, id: I.id, stage: I.stage, ok, gotKey: !!I.gotKey, extra: !!I.extra, firstOnly: !!I.firstOnly, died: !!I.done?.died, timeout: !!I.done?.timeout, left: !!I.done?.left, key: I.key, dealt: I.dealt || 0,
       kills: I.kills || 0, target: I.target || 0, reward, chain: false, unsent: I.unsent || 0, byOther: !!I.done?.byOther, paid: I.paid !== false, hard: !!I.hard, newMount: I.newMount || null, record: !!I.record, pvp: I.pvpRes || null };
     this.inst = null;
     // 탑: 이기고 '이어 오르기'면 다음 층으로
@@ -5501,20 +5511,23 @@ export class WorldGame {
     }
     // 요일 던전: 자동이면 남은 횟수만큼 이어서. **그만두기로 나온 건 안 잇는다** —
     // 그만두려고 눌렀는데 바로 다시 들어가면 나올 길이 없다.
+    let told = false;
     if (I.kind === 'daily' && !I.done?.left && !I.noChain && this.autoDailyNext()) {
       res.chain = true;
-      this.emit('instEnd', res);
+      this.emit('instEnd', res); told = true;
       this.startAutoDaily();
-      return res;
+      if (this.inst) return res;
+      // v464 소탕으로 끝났으면(던전에 안 들어갔으면) 아래에서 탑이나 사냥터로 — 전엔 던전 몹·자리에 그대로 남았다
     }
     // v230: 루틴 — 요일 던전을 다 돌았으면 탑으로 (끝나면 아래에서 사냥터로)
     if (this.s.dgn.routine && I.kind === 'daily' && !I.done?.left && !I.noChain && this.routineNext()?.step === 'tower') {
       res.chain = true;
-      this.emit('instEnd', res);
+      if (!told) this.emit('instEnd', res);
       this.startTower(true);
-      return res;
+      if (this.inst) return res;
+      told = true;
     }
-    this.emit('instEnd', res);
+    if (!told) this.emit('instEnd', res);
     const back = this._backTo != null && !this.s.dgn.routine ? this._backTo : this.canEnter(this.s.huntMap) ? this.s.huntMap : 0;   // v463 수련장으로 돌아온다(루틴은 사냥터로)
     this._backTo = null;
     this.enterMap(back, true);

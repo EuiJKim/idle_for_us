@@ -2465,7 +2465,7 @@ function dgnTab(app, mode = null) {
         app.save(); app.refresh();
         toast(`소탕 ${got.length}번 — ${got.map((x) => rewardText(x.reward)).join(' / ')}`);
       } }, sweepN ? `모두 소탕 (${sweepN})` : '모두 소탕', h('small', { class: 'sweep-hint' }, '남은 몫 바로 받기'))),   // v434 소탕이 무엇인지
-      foldBox('daily', h('small', { class: 'muted' }, `도전은 언제든 · 온전한 보상은 하루 ${D.DAILY_ENTRIES}번(남긴 것은 다음 날로) · 새 단계 🔑는 몫을 안 써요 · 그 뒤는 ${Math.round(D.DAILY_EXTRA * 100)}%`)),
+      foldBox('daily', h('small', { class: 'muted' }, `보상은 깬 단계에서 하루 ${D.DAILY_ENTRIES}번(들어가 깨기·소탕 · 남긴 것은 다음 날로) · 새 단계 🔑는 몫을 안 쓰고 처음 깨면 조각 · 몫이 없으면 연습(보상 없음) · 들어갈 수 있는 단계는 몹이 내 레벨+${D.DAILY_LV_OVER}까지(지금 ${game.dailyCap() >= D.DAILY_STAGES ? '끝없이' : `${game.dailyCap()}단계`})`)),
         (() => {   // v403 높은 단계 첫 돌파 칭호 — 다음 목표
           const top = Math.max(0, ...D.DAILY.map((d) => game.dailyBest(d.id)));
           const nx = [50, 75, 100].find((n) => top < n);
@@ -2482,20 +2482,21 @@ function dgnTab(app, mode = null) {
       const best = game.dailyBest(d.id);
       const max = game.dailyMaxStage(d.id);
       const stg = Math.max(1, Math.min(max, stagePick[d.id] ?? max));
-      const rw = D.dailyReward(d.id, stg, game.levelGapMult(D.dailyLv(stg)), game.s.level);
+      const rw0 = D.dailyReward(d.id, stg, game.levelGapMult(D.dailyLv(stg)), game.s.level);
+      const rw = stg > best ? { petShard: rw0.petShard, mountShard: rw0.mountShard } : rw0;   // v464 새 단계는 처음 깨면 조각만
       const step = (k) => { stagePick[d.id] = Math.max(1, Math.min(max, stg + k)); rerender(); };
       return h('div', { class: `card dgn-card dgn-${d.id}${open ? '' : ' closed'}` },
         h('div', { class: 'dgn-top' },
           skinImg(h('div', { class: 'dgn-ico' }, d.ico), `dg-${d.id}`),
           h('div', { class: 'dgn-name' }, h('b', {}, d.name), h('small', {}, ` ${d.hanja} · ${d.what}`),
             open ? h('div', { class: 'dgn-pips' }, ...Array.from({ length: Math.max(D.DAILY_ENTRIES, left) }, (_, i) => h('i', { class: i < left ? 'on' : '' })),
-              h('small', {}, ` 보상 몫 ${left}번 · 깬 단계 ${best || '-'}${max > best ? ` · ${best + 1}단계 🔑` : ''}`))
+              h('small', {}, ` 보상 몫 ${left}번 · 깬 단계 ${best || '-'}${max > best ? ` · ${best + 1}단계 🔑` : best >= game.dailyCap() && game.dailyCap() < D.DAILY_STAGES ? ` · ${game.dailyCap() + 1}단계는 Lv.${D.dailyCapLv(game.dailyCap() + 1)}에` : ''}`))
               : h('div', { class: 'muted' }, `${D.dailyDaysText(d)}요일에 열려요`))),
         h('div', { class: 'dgn-stage' },
           h('button', { class: 'stp', disabled: stg <= 1 ? true : null, onclick: () => step(-1) }, '−'),
-          h('div', { class: 'stg' }, h('b', {}, `${stg}단계`), h('small', {}, ` 몹 Lv.${D.dailyLv(stg)}${stg > D.DAILY_BASE ? ` · 세기 ×${D.dailyOverK(stg).toFixed(1)} · 보상 ×${D.dailyRwK(stg).toFixed(2)}` : ''}${D.dailyLv(stg) - s.level > W.DANGER_LV ? ' ⚠위험' : ''}`)),
+          h('div', { class: 'stg' }, h('b', {}, `${stg}단계`), h('small', {}, ` 몹 Lv.${D.dailyLv(stg)}${stg > D.DAILY_BASE ? ` · 세기 ×${D.dailyOverK(stg).toFixed(1)}${d.id === 'mat' ? ` · 재료 ×${D.dailyRwK(stg).toFixed(2)}` : ''}` : ''}${D.dailyLv(stg) - s.level > W.DANGER_LV ? ' ⚠위험' : ''}`)),
           h('button', { class: 'stp', disabled: stg >= max ? true : null, onclick: () => step(1) }, '+'),
-          h('div', { class: 'rw' }, ...rewardNodes(app, rw, '보상 '))),
+          h('div', { class: 'rw' }, ...rewardNodes(app, rw, stg > best ? '첫 깨기 ' : '보상 '))),
         // 천공광맥은 단계마다 나오는 재료가 통째로 바뀐다 — 어느 지역인지 적는다
         d.id === 'mat'
           ? h('p', { class: 'muted dgn-where' },
@@ -2503,17 +2504,18 @@ function dgnTab(app, mode = null) {
           : null,
         // v258: 도전을 못 할 때 왜 못 하는지 한 줄
         !game.canDaily(d.id, stg, now) && game.s.job ? h('p', { class: 'inf-why' }, game.inst ? '던전 안에서는 다른 던전에 못 들어가요' : !D.dailyOpen(d, now) ? '오늘은 열리지 않는 던전이에요' : '아직 열리지 않은 단계예요') : null,
-        // v302 몫이 없고 이미 깬 단계면 — 도전은 되지만 보상 10%
-        game.canDaily(d.id, stg, now) && !game.dailyFull(d.id, stg, now) ? h('p', { class: 'inf-why' }, `오늘 보상 몫을 다 썼어요 — 도전은 할 수 있지만 보상 ${Math.round(D.DAILY_EXTRA * 100)}% (${best + 1}단계를 깨면 온전히)`) : null,
+        // v464 몫이 없으면 연습 — 보상 없음(새 단계를 처음 깨면 조각만)
+        game.canDaily(d.id, stg, now) && stg > best ? h('p', { class: 'inf-why' }, `🔑 새 단계 — 몫을 안 써요 · 깨면 이 단계에서 몫으로 ${d.what}(소탕도)`)
+          : game.canDaily(d.id, stg, now) && !game.dailyFull(d.id, stg, now) ? h('p', { class: 'inf-why' }, '오늘 보상 몫을 다 썼어요 — 들어가면 연습이에요(보상 없음)') : null,
         h('div', { class: 'btn-row' },
           h('button', { class: 'btn primary', disabled: game.canDaily(d.id, stg, now) ? null : true, onclick: () => start(() => game.startDaily(d.id, stg, now)) },
-            `도전 (${Math.round(D.DAILY_SEC / W.PACE)}초 · ${D.DAILY_KILLS}마리)${stg > best ? ' 🔑' : !game.dailyFull(d.id, stg, now) ? ` · 보상 ${Math.round(D.DAILY_EXTRA * 100)}%` : ''}`),
+            `도전 (${Math.round(D.DAILY_SEC / W.PACE)}초 · ${D.DAILY_KILLS}마리)${stg > best ? ' 🔑' : !game.dailyFull(d.id, stg, now) ? ' · 연습' : ''}`),
           h('button', { class: 'btn', disabled: game.canSweep(d.id, now) ? null : true, onclick: () => {
             const r = game.sweepDaily(d.id, now);
             if (!r) return;
             app.save(); app.refresh();
-            toast(`${d.name} ${best}단계 소탕 — ${rewardText(r)}`);
-          } }, best ? `소탕 ${best}단계` : '소탕')));
+            toast(`${d.name} ${game.dailySweepStage(d.id)}단계 소탕 — ${rewardText(r)}`);
+          } }, game.dailySweepStage(d.id) ? `소탕 ${game.dailySweepStage(d.id)}단계` : '소탕')));
     });
     return [routine, head, ...cards];
   }
@@ -3948,7 +3950,7 @@ function compTab(app) {
   const petWhere = where('애완동물 얻는 곳', [
     '🐉 두목 — 낮은 확률로 애완동물(높은 두목일수록 자주·위 순위까지)',
     `🧩 포획 조각 ${W.PET_SHARD_NEED}개 → 지금 지역의 애완동물 하나`,
-    `  · 졸개 가끔(정예 3배) · 두목 ${W.BOSS_SHARDS.pet[0]}~${W.BOSS_SHARDS.pet[1]}개(왕·고수 2배) · 일일 던전 한 판(소탕 포함) · 무한의 탑 처음 오른 층 · 보물 원숭이 ${W.TREASURE_SHARDS}개 · 주간 상자 ${W.WEEK_SHARDS}개 · 방치 · 도감 이정표`,
+    `  · 졸개 가끔(정예 3배) · 두목 ${W.BOSS_SHARDS.pet[0]}~${W.BOSS_SHARDS.pet[1]}개(왕·고수 2배) · 일일 던전 몫 한 판(소탕 포함 · 새 단계 첫 깨기) · 무한의 탑 처음 오른 층 · 보물 원숭이 ${W.TREASURE_SHARDS}개 · 주간 상자 ${W.WEEK_SHARDS}개 · 방치 · 도감 이정표`,
     `★ 별 — 우리에 있는 같은 종을 먹이로 주면 별 하나(최대 ${W.PET_STAR_MAX}) · 별마다 버프·공격 +${Math.round(W.PET_STAR_K * 100)}%`,
     `💠 혼 — 다 큰(Lv.${W.PET_LV_MAX}) 애완동물의 경험치 · 놓아준 애완동물(레어 1 · 유니크 2 · 전설 4 · 신화 8 + 레벨 10마다 1) · 도감 이정표 → 등급 올리기`,
     `◆ 품 — 얻을 때마다 ${Math.round(W.PET_QUAL_P[0] * 100)}%로 극품(×${W.PET_QUAL[1].mult}) · ${(W.PET_QUAL_P[1] * 100).toFixed(1)}%로 천품(×${W.PET_QUAL[2].mult}) · 먹이로 주면 더 높은 품을 물려받아요`,
@@ -3957,7 +3959,7 @@ function compTab(app) {
   const mountWhere = where('탈것 얻는 곳', [
     '🐉 두목 — 낮은 확률로 탈것(높은 두목일수록 자주·좋은 것까지)',
     `🧩 탈것 조각 ${W.MOUNT_SHARD_NEED}개 → 지금 지역의 탈것 하나`,
-    `  · 졸개 가끔(정예 3배) · 두목 ${W.BOSS_SHARDS.mount[0]}~${W.BOSS_SHARDS.mount[1]}개(왕·고수 2배) · 일일 던전 한 판 · 무한의 탑 처음 오른 층 · 보물 원숭이 · 주간 상자 · 방치 · 도감 이정표`,
+    `  · 졸개 가끔(정예 3배) · 두목 ${W.BOSS_SHARDS.mount[0]}~${W.BOSS_SHARDS.mount[1]}개(왕·고수 2배) · 일일 던전 몫 한 판 · 무한의 탑 처음 오른 층 · 보물 원숭이 · 주간 상자 · 방치 · 도감 이정표`,
     `🔮 합성 — 같은 순위 ${W.MOUNT_FUSE_N}마리 → 다음 순위 하나(길들인 레벨의 절반을 이어 간다)`,
     '🐲 십이지 신수 — 무한의 탑 10층마다 뽑기권(던전 › 신수 뽑기) · 세력 상점 뽑기권 · 탈것 소환(하나에 0.1% · 300번 안에 신수 하나는 꼭)',   // v435 얻는 길 셋을 다 적는다
     `⚡ 극의 신수 여섯 — 무한의 탑 · 극(하드) 10층마다 그 층의 신수를 이기면 꼭 · 탈것 소환에서도 드물게(0.05%) (이동 +90~120% · 공격·체력 크게 · 길들이기 최대 20)`,
