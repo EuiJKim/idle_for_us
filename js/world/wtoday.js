@@ -16,7 +16,7 @@ export const TASKS = [
   { id: 'daily', name: '일일 던전', counter: 'daily', need: () => 3, desc: (n) => `일일 던전을 ${n}번 돌자(소탕 포함)` },
   { id: 'enhance', name: '강화', counter: 'enhance', need: () => 5, desc: (n) => `장비를 ${n}번 강화하자` },
   { id: 'tower', name: '무한의 탑', counter: 'tower', need: () => 1, desc: () => '무한의 탑에 한 번 오르자' },
-  { id: 'potion', name: '영약', counter: 'elixir', need: () => 1, desc: () => '영약을 한 번 마시자' },
+  { id: 'potion', name: '보약', counter: 'elixir', need: () => 1, desc: () => '보약을 한 번 마시자' },
 ];
 export const TASKS_PER_DAY = 3;
 export const WEEK_NEED = 15;          // 하루 셋 × 닷새
@@ -65,7 +65,7 @@ export function attReward(day, level) {
     case 2: return { potions: 100, text: '물약 100' };
     case 3: return { prot: 1, text: '보호부 1' };
     case 4: return { petShard: 20, mountShard: 20, text: '조각 20씩' };
-    case 5: return { elixirSec: 1800, text: '영약 30분' };
+    case 5: return { elixirSec: 1800, text: '보약 30분' };
     case 6: return { gold: Math.round(g * 0.3), text: '은자' };
     default: return { gold: Math.round(g * 0.5), prot: 3, soul: 15, text: '은자·보호부 3·혼 15' };
   }

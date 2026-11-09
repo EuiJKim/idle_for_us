@@ -44,7 +44,8 @@ export const expToNext = (L) => Math.round(expBase(L) * expSlow(L));   // v110: 
 // 내공 → 공격력·체력 ×(1 + QI_BODY_K × log10(쓰는 내공 / QI_BASE)) — 쓰는 내공이 10배가 될 때마다 +5%
 // 경지 → 무공 피해 ×(1 + 단계 × REALM_SKILL) — 단계마다 +3.1% · 초절정 초입 +50% · 생사경 극의 +97%
 //   무공 = 무인이 내공을 실어 치는 수 모두(초식·평타·장판·분신·각인 발동). 평타 비중이 큰 직업(권사 Lv110+ 무공 몫 0.62)이 손해 보지 않게
-// 경지는 레벨과 내공이 둘 다 차야 오른다 — 큰 경지는 전직 레벨에(이류 10 · 일류 30 · 초절정 70 · 화경 99 · 생사경 130)
+// 경지 — 소단계(중입·상입·극의)는 내공만 차면 오른다 · 큰 경지(초입)는 레벨까지 차야(이류 10 · 일류 30 · 절정 50 · 초절정 70 · 화경 99 · 현경 115 · 생사경 130)
+//   v457 영약·운기조식으로 내공을 따로 쌓으면 그 경지의 극의까지 먼저 닿는다(다음 경지는 레벨이 차야)
 export const QI_PER_EXP = 0.1;
 export const QI_BASE = 1000;
 export const QI_BODY_K = 0.05;
@@ -65,7 +66,7 @@ export const realmQi = (i) => REALM_QI[Math.max(0, Math.min(REALM_N - 1, i))];
 export const realmEff = (i) => 10 ** (Math.max(0, Math.min(REALM_N - 1, i)) / 16);
 export const realmName = (i) => { const k = Math.max(0, Math.min(REALM_N - 1, i | 0)); return `${REALMS[k >> 2]} ${REALM_SUBS[k & 3]}`; };
 export const realmSkill = (i) => Math.max(0, Math.min(REALM_N - 1, i | 0)) * REALM_SKILL;
-export const realmOf = (level, qi) => { let i = 0; while (i + 1 < REALM_N && level >= REALM_LV[i + 1] && qi >= REALM_QI[i + 1]) i++; return i; };
+export const realmOf = (level, qi) => { let i = 0; while (i + 1 < REALM_N && qi >= REALM_QI[i + 1] && (((i + 1) & 3) !== 0 || level >= REALM_LV[i + 1])) i++; return i; };
 export const qiBody = (use) => (use > QI_BASE ? QI_BODY_K * Math.log10(use / QI_BASE) : 0);
 // 기준 무인 — 그 레벨까지 보통으로 온 무인의 몫. 몹·던전·두목의 기준(refDps·refHp)이 이만큼 같이 세진다(보통으로 크는 무인은 전과 같게)
 //   화력 쪽은 경지 덤까지(무인이 치는 수 모두에 붙는다 — 애완동물·탈것 불길만 빠진다)
@@ -74,6 +75,13 @@ const QI_REF = [null];
 for (let L = 1; L <= LEVEL_MAX; L++) { const q = qiFloor(L), i = realmOf(L, q); QI_REF.push({ hp: 1 + qiBody(q * realmEff(i)), dps: (1 + qiBody(q * realmEff(i))) * (1 + QI_SKILL_SHARE * realmSkill(i)) }); }
 export const qiRefHpK = (lv) => QI_REF[Math.max(1, Math.min(LEVEL_MAX, Math.round(lv) || 1))].hp;
 export const qiRefDpsK = (lv) => QI_REF[Math.max(1, Math.min(LEVEL_MAX, Math.round(lv) || 1))].dps;
+// ---------- v457 운기조식 — 내공을 따로 쌓는다(영약은 wdan.js) ----------
+// 마을에서 쉬면 한 시간에 「그 레벨까지 보통으로 쌓였을 내공」(qiFloor)의 QI_MED_H만큼 · 「운기조식」을 하면 MED_ACTIVE배.
+//   운기조식을 켠 채 나가면 방치 시간도 운기조식(그동안 방치 사냥은 없다 — 사냥이냐 운기냐를 고른다). 사냥 중에는 경험치로 쌓인다(전처럼).
+export const QI_MED_H = 0.03;
+export const MED_ACTIVE = 3;
+export const MED_TICK = 3;   // 운기조식 중 무인 위에 내공 숫자를 띄우는 간격(실제 초)
+export const qiMedHour = (L) => QI_MED_H * qiFloor(Math.max(10, L | 0));
 export const STAT_PER_LEVEL = 3;
 // v262 스탯의 제 몫 — 점당 · 상한
 export const STAT_ROLE = { strBoss: 0.0015, strBossMax: 0.6, dexMove: 0.0008, dexMoveMax: 0.3, vitRed: 0.0003, vitRedMax: 0.15, intCdr: 0.0004, intCdrMax: 0.15 };

@@ -179,6 +179,7 @@ async function openReports() {
 }
 // v320 저장 코드
 import * as W from './world/wdata.js';
+import * as DN from './world/wdan.js';   // v457 영약
 import { BUILD, RANKS, JOBS, jobOf } from './data.js';
 import { BattleView, drawFighter } from './battle.js';
 import { loadIcons, skinImg } from './icons.js';
@@ -1912,6 +1913,18 @@ function handleEvents() {
       case 'mapEnter':
         view.showBanner(ev.name, ev.inst ? '#fde68a' : '#fef3c7', 1.3);
         break;
+      case 'medStart':   // v457 운기조식
+        toast(`마을에서 운기조식 — 한 시간에 내공 +${fmt(Math.floor(ev.rate))} · 켠 채 나가면 방치 시간도 운기조식`);
+        break;
+      case 'danGet':   // v457 영약 — 운으로
+        toast(`✨ 영약 · ${ev.name}${ev.n > 1 ? ` ×${ev.n}` : ''}을(를) 얻었어요 — 캐릭터 창 「영약」`);
+        break;
+      case 'danUse':
+        toast(`${ev.name}${ev.n > 1 ? ` ×${ev.n}` : ''} — 내공 +${fmt(Math.floor(ev.qi))}${ev.maki ? ' · 마기가 돈다(받는 피해 +20%)' : ev.cleanse ? ' · 마기를 씻었다' : ''}`);
+        break;
+      case 'danCraft':   // v457 연단
+        toast(ev.ok ? `🔥 연단 성공 — ${ev.name}` : `연단 실패 — ${ev.name} · 재료를 잃었어요 (다음 성공률 ${Math.round(ev.next * 100)}%)`);
+        break;
       case 'realmUp':   // v456 경지 돌파
         toast(`경지 돌파 — ${ev.name} · 무공 피해 +${Math.round(ev.skill * 1000) / 10}% · 내공 효율 ×${ev.eff >= 10 ? ev.eff.toFixed(1) : ev.eff.toFixed(2)}`);
         break;
@@ -2246,7 +2259,9 @@ function showPendingOffline() {
     lvUp ? h('span', { class: 'ofs lv' }, `${W.lvShort(game.s.level)} → `, h('b', {}, W.lvShort(pj.lv)), h('small', {}, ` (+${pj.gained})`)) : h('span', { class: 'ofs lv' }, `Lv.${game.s.level} · 경험치 +${(Math.min(1, rw.exp / game.expNeed()) * 100).toFixed(1)}%`),
     rw.marks > 0 ? h('span', { class: 'ofs boss' }, `두목 ${fmt(rw.marks)}마리`) : null,
     rw.petShard > 0 || rw.mountShard > 0 ? h('span', { class: 'ofs shard' }, `조각 🐾${fmt(rw.petShard || 0)} 🐎${fmt(rw.mountShard || 0)}`) : null,
+    Object.keys(rw.dan || {}).length ? h('span', { class: 'ofs shard' }, `영약 ${Object.entries(rw.dan).map(([id, n]) => `${DN.danOf(id)?.name} ${n}`).join(' · ')}`) : null,   // v457
   ].filter(Boolean);
+  if (rw.med) sum.splice(0, sum.length, h('span', { class: 'ofs lv' }, '🧘 운기조식 · 내공 +', h('b', {}, fmt(rw.qiMed || 0))));   // v457
   const takeAnd = (then) => () => { closeModal(); then?.(); };
   // v372 받은 뒤 한눈에 — '모두 받기'를 누르면 받고, 그동안 밀린 자동 강화·각인을 한 번에 돌린 다음 같은 창에서 결과를 보인다
   let box = null;
@@ -2264,17 +2279,18 @@ function showPendingOffline() {
     box = s;
     s.append(h('h2', {}, '🌙 다녀오셨어요!'),
       h('div', { class: 'off-sum' }, ...sum),
-      h('p', { class: 'muted' }, `${duration(rw.t)} 동안 ${W.mapOf(rw.map).name}에서 사냥했어요.`
+      h('p', { class: 'muted' }, (rw.med ? `${duration(rw.t)} 동안 마을에서 운기조식했어요 — 방치 사냥 대신 내공을 쌓았어요.` : `${duration(rw.t)} 동안 ${W.mapOf(rw.map).name}에서 사냥했어요.`)
         + (rw.stoppedByPotion ? ` 물약이 떨어져서 거기서 멈췄어요 (${duration(rw.sec)} 중).` : '')
         // v260: 오래 비우면 효율이 준다 — 얼마나 줄었는지, 상한까지 몇 시간인지
         + (rw.eff != null && rw.eff < 0.995 ? ` 오래 비워서 효율 ${Math.round(rw.eff * 100)}% (앞 2시간 100% · 6시간까지 70% · 그 뒤 40%).` : '')
         + (rw.sec >= game.offlineCapSec() - 1 ? ` 방치는 ${Math.round(game.offlineCapSec() / 3600)}시간까지만 쳐요(마을 상인 → 무관 증축으로 늘려요).` : '')
-        + (rw.elix ? ` 영약 ${Math.round(rw.elix / 60)}분어치가 함께 들었어요.` : '')),
+        + (rw.elix ? ` 보약 ${Math.round(rw.elix / 60)}분어치가 함께 들었어요.` : '')),
       h('div', { class: 'stat-grid' },
-        h('div', {}, '처치', h('b', { 'data-count': rw.kills, 'data-suffix': '마리' }, `${fmt(rw.kills)}마리`)),
-        h('div', {}, '경험치', h('b', { 'data-count': rw.exp }, fmt(rw.exp))),
-        h('div', {}, '은자', h('b', { 'data-count': rw.gold }, fmt(rw.gold))),
-        h('div', {}, '먹은 물약', h('b', {}, `${rw.potions}개`)),
+        rw.qiMed > 0 ? h('div', {}, '내공', h('b', {}, `+${fmt(rw.qiMed)}`)) : null,   // v457 방치 운기조식
+        rw.med ? null : h('div', {}, '처치', h('b', { 'data-count': rw.kills, 'data-suffix': '마리' }, `${fmt(rw.kills)}마리`)),
+        rw.med ? null : h('div', {}, '경험치', h('b', { 'data-count': rw.exp }, fmt(rw.exp))),
+        rw.med ? null : h('div', {}, '은자', h('b', { 'data-count': rw.gold }, fmt(rw.gold))),
+        rw.med ? null : h('div', {}, '먹은 물약', h('b', {}, `${rw.potions}개`)),
         rw.frag > 0 ? h('div', {}, '비급 조각', h('b', {}, `${rw.frag}개`)) : null,
         rw.petShard > 0 ? h('div', {}, '포획 조각', h('b', {}, `${rw.petShard}개`)) : null,   // v292
         rw.mountShard > 0 ? h('div', {}, '탈것 조각', h('b', {}, `${rw.mountShard}개`)) : null),

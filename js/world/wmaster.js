@@ -54,5 +54,6 @@ export function masterReward(m) {
     gold: Math.round(mobGold(m.lv) * 600 * k),
     exp: Math.round(expToNext(Math.min(m.lv, LEVEL_MAX)) * 0.25 * k),
     mats: { [z]: 200 * k, [`b${z}`]: 10 * k },
+    dan: m.lord ? { daehwan: 1, gongcheong: 1 } : { gongcheong: 1 },   // v457 영약 — 고수 첫 승 공청석유 · 맹주·천마 대환단도
   };
 }

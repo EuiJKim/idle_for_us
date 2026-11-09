@@ -240,6 +240,8 @@ const PIXEL_BUDGET = 1.2e6;   // v181: 한 프레임에 칠하는 캔버스 화�
 const SPR = { w: 80, h: 160, ox: 44, oy: 146, phases: 8, cycle: Math.PI / 2, max: 192 };
 // v287 지도 맨 윗줄에 선 무인·몹의 머리가 들어갈 몫(화면 단위) — 이만큼은 지도 위로 더 비춘다
 const MAP_HEAD = 80;
+// v457 무인 위 내공 숫자 — 만·억·조로 짧게
+const fmtQi = (n) => (n >= 1e12 ? `${(n / 1e12).toFixed(1)}조` : n >= 1e8 ? `${(n / 1e8).toFixed(1)}억` : n >= 1e4 ? `${(n / 1e4).toFixed(1)}만` : `${Math.floor(n)}`);
 const sprCache = new Map();
 // 그림이 늦게 도착하면 벡터로 구워 둔 것을 버려야 한다
 loadArt(() => sprCache.clear());
@@ -1321,6 +1323,14 @@ export class BattleView {
           }
         }
         this.float(ev.level > 99 ? `수련 ${ev.level - 99}` : `레벨 ${ev.level}`, this.heroX, this.groundY - 155, '#fde68a', 24, 1.4, true);   // v446
+        break;
+      // v457 운기조식 — 무인 위에 쌓인 내공 · 영약을 먹으면 빛기둥
+      case 'medTick':
+        if (ev.qi > 0) this.float(`내공 +${fmtQi(ev.qi)}`, this.heroX, this.groundY - 150, '#a7f3d0', 15, 1.4, false);
+        break;
+      case 'danUse':
+        this.effects.push({ kind: 'pillar', life: 1.0, max: 1.0 });
+        this.float(`${ev.name} · 내공 +${fmtQi(ev.qi)}`, this.heroX, this.groundY - 170, '#c4b5fd', 18, 1.6, true);
         break;
       // v456 경지 돌파 — 큰 경지(초입)는 기둥 빛과 큰 글, 소단계는 무인 위에 글
       case 'realmUp':

@@ -6,6 +6,7 @@
 // stats().hp, heroHp, events(attack·dmg·kill·heroHit·heroDied·skill·levelUp …).
 // 그래서 들판 그림·이펙트·초식 연출표를 손대지 않고 쓴다.
 import * as W from './wdata.js';
+import * as DN from './wdan.js';   // v457 영약
 import * as D from './wdgn.js';
 import * as Q from './wquest.js';
 import * as MS from './wmaster.js';
@@ -67,6 +68,10 @@ export function newWorldSave(now = Date.now()) {
     kills: 0,
     deaths: 0,
     qi: 0,                // v456 내공(쌓은 수련 — 얻은 경험치 × QI_PER_EXP · 잃지 않는다)
+    dan: {},              // v457 영약 — 종류: 개수
+    danPity: {},          // v457 연단 — 실패할 때마다 그 단약 성공률 덤
+    med: false,           // v457 운기조식 중(마을) — 켠 채 나가면 방치도 운기조식
+    maki: 0,              // v457 마기 — 남은 실제 초(받는 피해 +)
     realm: 0,             // v456 경지 단계(0 삼류 초입 ~ 31 생사경 극의) — 돌파 알림을 한 번만
     bestMap: W.mapId(1, 1),
     // 요일 던전 (v126): 오늘 쓴 횟수 · 종류별 깬 단계 · 자동 도전(v139)
@@ -233,6 +238,10 @@ export function migrateWorld(raw, now = Date.now()) {
   s.qi = Math.max(Number(raw.qi) || 0, W.qiFloor(s.level) + s.exp * W.QI_PER_EXP);
   if (!Number.isFinite(s.qi)) s.qi = W.qiFloor(s.level);
   s.realm = W.realmOf(s.level, s.qi);
+  { const d = raw.dan && typeof raw.dan === 'object' ? raw.dan : {}; s.dan = {}; for (const id of DN.DAN_IDS) { const n = Math.floor(Number(d[id]) || 0); if (n > 0) s.dan[id] = Math.min(1e6, n); } }   // v457
+  { const d = raw.danPity && typeof raw.danPity === 'object' ? raw.danPity : {}; s.danPity = {}; for (const id of Object.keys(DN.RECIPES)) { const v = Number(d[id]) || 0; if (v > 0) s.danPity[id] = Math.min(DN.PITY_MAX, v); } }
+  s.med = raw.med === true && W.mapOf(s.map)?.town === true;
+  s.maki = Math.max(0, Math.min(86400, Number(raw.maki) || 0));
   s.jobTier = Math.min(W.CHEONMA_JOBS.includes(s.job) ? 5 : 4, Math.floor(s.jobTier));   // v391 검사는 5차까지
   s.passLv = {};
   for (const [k, v] of Object.entries(raw.passLv || {})) if (/^p_[a-z]+$/.test(k) && v > 0) s.passLv[k] = Math.min(10, Math.floor(Number(v) || 0));
@@ -760,7 +769,7 @@ export class WorldGame {
       // v262: 스탯마다 다른 축 — 힘=두목 피해 · 민첩=걸음 · 체력=받는 피해 감소 · 내공=무공 숨(어디에 찍든 사냥만 같던 것)
       moveSpeed: 1 + (mt ? W.mountSpeed(mt, mk, this.mountInst()?.lv || 0) : 0) + (cls.move || 0) + (pm.move || 0) + gear.move + Math.min(W.STAT_ROLE.dexMoveMax, dex * W.STAT_ROLE.dexMove),
       boss: (cls.boss || 1) * (1 + gear.bossDmg) * (1 + Math.min(W.STAT_ROLE.strBossMax, str * W.STAT_ROLE.strBoss)),
-      gold: gear.gold + (cls.goldUp || 0), dodge: Math.min(0.5, gear.dodge), drain: gear.drain, dmgRed: Math.min(0.5, gear.dmgRed + Math.min(W.STAT_ROLE.vitRedMax, vit * W.STAT_ROLE.vitRed)),
+      gold: gear.gold + (cls.goldUp || 0), dodge: Math.min(0.5, gear.dodge), drain: gear.drain, dmgRed: Math.min(0.5, gear.dmgRed + Math.min(W.STAT_ROLE.vitRedMax, vit * W.STAT_ROLE.vitRed)) - (s.maki > 0 ? DN.MAKI_TAKE : 0),   // v457 마기 — 받는 피해 +
       cdr: Math.min(0.4, gear.cdr + Math.min(W.STAT_ROLE.intCdrMax, int * W.STAT_ROLE.intCdr)), skillRange: gear.range, thorns: gear.thorns, stunHit: Math.min(0.3, gear.stunHit),
       venom: Math.min(IM.IMP_CAP.venom, gear.venom), burn: Math.min(IM.IMP_CAP.burn, gear.burn), chill: Math.min(IM.IMP_CAP.chill, gear.chill), shock: Math.min(IM.IMP_CAP.shock, gear.shock),
       range: W.classOf(s.job)?.range || W.MELEE_RANGE,
@@ -780,7 +789,7 @@ export class WorldGame {
     const e = s.equip;
     const g = (it) => (it ? `${it.uid}.${it.plus || 0}.${it.rar || 0}` : '-');
     const pets = this.activePets().map((p) => `${p.uid}.${p.lv}.${p.rar || 0}.${p.star || 0}.${p.q || 0}.${p.dan || 0}`).join(',') + `|d${Object.values(s.petDex || {}).reduce((a, v) => a + v + 1, 0)}.${Object.keys(s.mountDex || {}).length}|m${this.mountInst()?.lv || 0}`;
-    return `${s.level}|q${Math.floor(Math.log10(1 + this.qiNow()) * 200)}.${this.realmNow()}|${JSON.stringify(s.passLv || {})}|${s.guildId ? W.guildLevel(this.guildExp) : 0}|${s.job}|${s.stats.str},${s.stats.dex},${s.stats.vit},${s.stats.int}|${W.SLOTS.map((x) => g(e[x.id])).join(',')}|${pets}|${s.mount || '-'}|${s.tower?.floor || 0}.${s.tower?.hard || 0}|${s.path || '-'}|${s.jobTier || 0}|${this.growItems().map((x) => x.plus || 0).join('.')}|t${s.temper || 0}|i${this.impSig()}|T${s.title || ''}.${s.titles.length}|G${this.gatesCleared()}`;   // v243 · v274 단련: 가방 속 성장 장비 강화도(공유)
+    return `${s.level}|q${Math.floor(Math.log10(1 + this.qiNow()) * 200)}.${this.realmNow()}.${s.maki > 0 ? 1 : 0}|${JSON.stringify(s.passLv || {})}|${s.guildId ? W.guildLevel(this.guildExp) : 0}|${s.job}|${s.stats.str},${s.stats.dex},${s.stats.vit},${s.stats.int}|${W.SLOTS.map((x) => g(e[x.id])).join(',')}|${pets}|${s.mount || '-'}|${s.tower?.floor || 0}.${s.tower?.hard || 0}|${s.path || '-'}|${s.jobTier || 0}|${this.growItems().map((x) => x.plus || 0).join('.')}|t${s.temper || 0}|i${this.impSig()}|T${s.title || ''}.${s.titles.length}|G${this.gatesCleared()}`;   // v243 · v274 단련: 가방 속 성장 장비 강화도(공유)
   }
   power() { return this.stats().power; }
   // v297 각인 서명 — 칸(증표·단·고유)이 바뀌면 능력치를 다시 센다
@@ -875,6 +884,7 @@ export class WorldGame {
   enterMap(id, quiet = false, from = null, roam = false) {
     if (!this.canEnter(id)) return false;
     this._roam = null;
+    if (!W.mapOf(id).town) this.s.med = false;   // v457 사냥터로 나서면 운기조식은 끝
     // v455 나가는 방을 기억한다(몹이 몇 남았나·언제) — 금방 돌아오면 그만큼만 있다
     if (this.map && !this.map.town && !this.inst && this.s.map !== id) (this._roomMem ||= {})[this.s.map] = { t: this.clock, alive: this.mons.filter((x) => x.alive && !x.npc && !x.isBoss).length };
     this.clones = [];
@@ -993,6 +1003,67 @@ export class WorldGame {
     this.emit('realmUp', { i, name: W.realmName(i), eff: W.realmEff(i), skill: W.realmSkill(i), big: (i >> 2) > (was >> 2) });
     return true;
   }
+  // ---------- v457 운기조식 · 영약 · 연단 ----------
+  medRate() { return W.qiMedHour(this.s.level) * (this.s.med ? W.MED_ACTIVE : 1) / 3600; }   // 실제 1초에 쌓이는 내공(마을)
+  startMed() {
+    if (this.inst) return false;
+    if (!this.map.town) this.goTown(false);
+    this.s.med = true; this._medShow = 0; this._medT = 0;
+    this.emit('medStart', { rate: this.medRate() * 3600 });
+    return true;
+  }
+  stopMed() { if (!this.s.med) return false; this.s.med = false; return true; }
+  addQi(n) { if (!(n > 0)) return 0; this.s.qi = this.qiNow() + n; this._stats = null; this.checkRealm(); return n; }
+  gainDan(id, n = 1, quiet = false) { if (!DN.danOf(id) || !(n > 0)) return 0; const d = this.s.dan || (this.s.dan = {}); d[id] = (d[id] || 0) + n; if (!quiet) this.emit('danGet', { id, n, name: DN.danOf(id).name }); return n; }
+  // 먹기 — 운기조식 몇 시간어치 내공(먹는 때의 레벨) · 독초는 못 먹는다 · 마기 · 씻기 · 대환단은 체력을 다 채운다
+  useDan(id, n = 1) {
+    const d = this.s.dan || {}; const def = DN.danOf(id);
+    n = Math.min(n, d[id] || 0);
+    if (!def || !(n > 0) || !DN.canEat(id)) return 0;
+    d[id] -= n; if (d[id] <= 0) delete d[id];
+    const q = this.addQi(DN.danQi(id, this.s.level) * n);
+    if (def.cleanse && this.s.maki > 0) { this.s.maki = 0; this._stats = null; }
+    if (def.maki) { this.s.maki = Math.max(this.s.maki || 0, def.maki); this._stats = null; }
+    if (def.heal) this.heroHp = this.stats().hp;
+    this.emit('danUse', { id, n, qi: q, name: def.name, maki: !!def.maki, cleanse: !!def.cleanse });
+    return q;
+  }
+  // 다 먹기 — 먹을 수 있는 것만(독초는 연단 재료로 남는다) · 마교 단약은 빼고(마기는 골라서)
+  useAllDan() { let q = 0; for (const id of DN.DAN_IDS) if (DN.canEat(id) && !DN.danOf(id).maki) q += this.useDan(id, this.s.dan?.[id] || 0); return q; }
+  // 연단 — { ok, need: [{ id, n, have }], gold, p } · 재료가 모자라거나 은자가 모자라면 ok:false
+  danRecipe(id) {
+    const r = DN.RECIPES[id]; if (!r) return null;
+    const need = Object.entries(r.need).map(([k, n]) => ({ id: k, n, have: this.s.dan?.[k] || 0 }));
+    const gold = DN.danGold(id, this.s.level), p = Math.min(1, r.p + (this.s.danPity?.[id] || 0));
+    return { ok: need.every((x) => x.have >= x.n) && this.s.gold >= gold, need, gold, p };
+  }
+  craftDan(id) {
+    const rc = this.danRecipe(id);
+    if (!rc?.ok) return null;
+    this.s.gold -= rc.gold;
+    for (const x of rc.need) { this.s.dan[x.id] -= x.n; if (this.s.dan[x.id] <= 0) delete this.s.dan[x.id]; }
+    const pity = this.s.danPity || (this.s.danPity = {});
+    const ok = this.rng() < rc.p;
+    if (ok) { delete pity[id]; this.gainDan(id, 1, true); }
+    else pity[id] = Math.min(DN.PITY_MAX, (pity[id] || 0) + DN.PITY_STEP);
+    this.emit('danCraft', { id, ok, name: DN.danOf(id).name, p: rc.p, next: Math.min(1, DN.RECIPES[id].p + (pity[id] || 0)) });
+    return { ok, p: rc.p };
+  }
+  // 운으로 — 그 지역 졸개·두목 · 왕 · 고수 (던전 몹은 던전 보상으로)
+  dropDan(m) {
+    if (this.inst || m.npc) return;
+    const map = this.map, rg = W.regionOfMap(map.id)?.id;
+    for (const src of DN.DAN_SRC) {
+      let hit = false;
+      if (src.kind === 'mob') hit = !m.isBoss && src.region === rg;
+      else if (src.kind === 'boss') hit = m.isBoss && map.bossRoom && !map.king && !map.master && src.region === rg;
+      else if (src.kind === 'anyBoss') hit = m.isBoss && map.bossRoom && !map.king && !map.master;
+      else if (src.kind === 'king') hit = m.isBoss && !!map.king && (!src.region || src.region === rg);
+      else if (src.kind === 'master') hit = m.isBoss && !!map.master;
+      if (hit && this.rng() < src.p * DN.dropGapK(this.s.level, m.lv || this.s.level)) this.gainDan(src.id, 1);   // 한참 낮은 곳은 덜
+    }
+  }
+  dailyDan(kind) { for (const src of DN.DAN_SRC) if (src.kind === 'daily' && src.daily === kind && this.rng() < src.p) this.gainDan(src.id, 1); }
   // 마을로. 쓰러져서 온 것(auto)이면 쉬었다가 사냥터로 돌아가고, 스스로 온 것이면 머문다.
   // (전에는 스스로 와도 3초 뒤 사냥터로 끌려갔다)
   goTown(auto = false) {
@@ -1195,7 +1266,7 @@ export class WorldGame {
     if (this._followDue && !this.inst) { this._followDue = false; this.followMap(); }
     if ((this.s.autoEnh || this.s.autoInf) && !this.inst && (this._autoGearT = (this._autoGearT ?? 5) - dt) <= 0) { this._autoGearT = 5; this.autoGear(); }
     if ((this._titleT = (this._titleT ?? 3) - dt) <= 0) { this._titleT = 5; this.checkTitles(); }   // v307 자동 칭호
-    if ((this.s.dgn.auto || this.s.dgn.routine) && !this.inst && this.s.level >= W.DGN_LV && !(this.s.dgn.pauseUntil > Date.now())) {   // v417 나가기를 누른 뒤 30분은 쉰다 · v454 던전이 열리는 레벨부터(루틴이 기본 켬이라)
+    if ((this.s.dgn.auto || this.s.dgn.routine) && !this.inst && !this.s.med && this.s.level >= W.DGN_LV && !(this.s.dgn.pauseUntil > Date.now())) {   // v457 운기조식 중엔 쉬게   // v417 나가기를 누른 뒤 30분은 쉰다 · v454 던전이 열리는 레벨부터(루틴이 기본 켬이라)
       this.autoDgnT = (this.autoDgnT || 0) - dt;
       if (this.autoDgnT <= 0) { this.autoDgnT = AUTO_DGN_SEC; this.startRoutine(); }
     }
@@ -1243,7 +1314,8 @@ export class WorldGame {
     this.tickClones(dt, st);
     // v254: 쓰러져 마을로 막 돌아온 틱엔(체력 1) 물약을 먹지 않는다 — 마을은 곧 다 채워 주는데 쓰러질 때마다 물약이 하나씩 줄었다
     this.tickPotion(st, this.map.town);
-    if (this.s.elixir > 0 && !this.map.town) this.s.elixir = Math.max(0, this.s.elixir - dt);   // v262 영약은 사냥 중에만 닳는다
+    if (this.s.elixir > 0 && !this.map.town) this.s.elixir = Math.max(0, this.s.elixir - dt);   // v262 보약은 사냥 중에만 닳는다
+    if (this.s.maki > 0) { this.s.maki = Math.max(0, this.s.maki - dt / W.PACE); if (!this.s.maki) this._stats = null; }   // v457 마기
     this.tickImprint(dt, st);
     this.tickHero(dt, st);
     this.tickPets(dt, st);
@@ -1282,6 +1354,13 @@ export class WorldGame {
   tickTown(dt) {
     this.walking = false;
     this.mon = null;
+    // v457 마을에서 쉬면 운기조식(×1) · 운기조식을 켜면 ×MED_ACTIVE — 게임 시간은 실제의 PACE배로 흐르니 실제 초로 바꿔 센다
+    if (this.s.job) {
+      const q = this.medRate() * dt / W.PACE;
+      this.addQi(q);
+      if (this.s.med) { this._medShow = (this._medShow || 0) + q; this._medT = (this._medT || 0) + dt / W.PACE;
+        if (this._medT >= W.MED_TICK) { this.emit('medTick', { qi: this._medShow }); this._medT = 0; this._medShow = 0; } }
+    }
     // 쓰러져서 왔고 자동 사냥이면 잠깐 쉬었다가 돌아간다 (체력이 다 찰 때까지는 기다린다)
     if (this.townReturn && this.s.autoHunt && this.s.huntMap && this.canEnter(this.s.huntMap)) {
       this.returnT += dt;
@@ -1895,6 +1974,7 @@ export class WorldGame {
     this.petExp(exp * 0.5);
     // 탈것 — **두목만** 떨군다. 졸개 드랍(0.005%)은 없앴다: 2만 마리에 하나라
     // 사실상 없는 것인데 '어디서나 나온다'는 착각만 줬다.
+    this.dropDan(m);   // v457 영약 — 운으로
     if (m.isBoss && this.rng() < W.mountBossRate(this.map.mz)) {
       this.gainMount(W.rollMount(this.rng, this.map.mz, true), m);
     }
@@ -3994,7 +4074,8 @@ export class WorldGame {
     this.s.prot = (this.s.prot || 0) + c.prot;
     this.s.elixir = Math.min(W.ELIXIR_MAX, (this.s.elixir || 0) + c.elixirSec);
     this.addShards(W.WEEK_SHARDS, W.WEEK_SHARDS);   // v292
-    return { ...c, petShard: W.WEEK_SHARDS, mountShard: W.WEEK_SHARDS };
+    this.gainDan('gongcheong', 1);   // v457
+    return { ...c, petShard: W.WEEK_SHARDS, mountShard: W.WEEK_SHARDS, dan: { gongcheong: 1 } };
   }
   // ---------- v262 자동 강화 · 자동 등급 각인 ----------
   // 강화: 낀 성장 장비 여섯 칸을 가장 낮은 것부터 +10까지(은자는 물약 60개 값을 남긴다 · v324 돌파부터는 직접)
@@ -4569,6 +4650,7 @@ export class WorldGame {
     used[kind] = (used[kind] || 0) + 1;
     const stage = this.dailyBest(kind);
     const reward = this.grant(D.dailyReward(kind, stage, this.levelGapMult(D.dailyLv(stage)), this.s.level));
+    this.dailyDan(kind);   // v457
     this.emit('sweep', { kind, stage, reward });
     return reward;
   }
@@ -4734,6 +4816,7 @@ export class WorldGame {
     return true;
   }
   startInst(o) {
+    this.s.med = false;   // v457
     this.inst = { ...o, done: null };
     this.tells = [];
     this.blocked = null;
@@ -5127,6 +5210,7 @@ export class WorldGame {
     if (bossId === D.SEOKGA.id) { r.sk = (r.sk || 0) + 1; this.emit('palmReveal', { n: r.sk }); }   // v383 손바닥 안이었다
     if (D.isGate(bossId) && !r.gates?.[bossId]) { r.gates = { ...(r.gates || {}), [bossId]: 1 }; this._stats = null; this.emit('gateClear', { boss: b.name, n: this.gatesCleared(), bonus: D.GATE_BONUS }); }
     const out = this.grant(D.wraidKillReward(this.s.level, rank, bossId));
+    for (const src of DN.DAN_SRC) if (src.kind === 'wraid' && this.rng() < src.p) { this.gainDan(src.id, 1); (out.dan || (out.dan = {}))[src.id] = 1; }   // v457 빙화과
     // v409 대성신장 부위는 확률로 — 못 받은 만큼 천장이 쌓인다(그 마왕마다)
     const pity = r.pity || (r.pity = {});
     const drop = b?.slot && ((pity[b.id] || 0) >= D.PALMA_PITY || this.rng() < D.PALMA_DROP(rank));
@@ -5188,6 +5272,7 @@ export class WorldGame {
       I.extra = !fresh && !I.full;
       const k = (ok ? 1 : D.DAILY_FAIL * Math.min(1, I.kills / I.target)) * mult;
       reward = k > 0 ? this.grant(base, k) : {};   // v432 하나도 못 잡고 나오면 보상 없음
+      if (ok) this.dailyDan(I.id);   // v457 영약 — 이긴 판만
       if (ok || I.kills > 0) this.tday('daily');   // v432 오늘의 강호 과제는 들어갈 때가 아니라 잡고 나올 때 센다
       if (ok) this.s.dgn.best[I.id] = Math.max(this.dailyBest(I.id), I.stage);
       // v260: 오늘 이 단계에서 졌다(그만두기 빼고) — 자동은 남은 횟수를 같은 단계에 또 쓰지 않고 소탕한다
@@ -5321,6 +5406,7 @@ export class WorldGame {
     // v432 조각은 곱한 만큼만(내림) — 전엔 최소 1개라 일일 던전에 들어갔다 바로 나가도(k=0) 조각 1·1, 횟수 제한이 없어 무한이었다
     if (r.petShard) { const v = Math.floor(r.petShard * k); if (v > 0) { out.petShard = v; this.addShards(v, 0); } }
     if (r.mountShard) { const v = Math.floor(r.mountShard * k); if (v > 0) { out.mountShard = v; this.addShards(0, v); } }
+    if (r.dan) { out.dan = {}; for (const [id, n] of Object.entries(r.dan)) { const v = Math.floor(n * k); if (v > 0 && this.gainDan(id, v)) out.dan[id] = v; } }   // v457 영약
     return out;
   }
 
@@ -5352,6 +5438,13 @@ export class WorldGame {
     // v254: 시계를 앞으로 돌려 받고 되돌린 뒤 또 앞으로 돌리면 몇 번이고 받았다 — 지금까지 본 가장 늦은 시각(clockMax)부터만 센다
     const from = Math.max(this.s.lastSeen ?? now, this.s.clockMax || 0);
     const sec = Math.min(this.offlineCapSec(), Math.max(0, (now - from) / 1000));
+    // v457 운기조식을 켠 채 나갔으면 그동안 운기조식(×MED_ACTIVE) — 방치 사냥은 없다 · 효율 곡선·상한은 같다
+    if (this.s.med) {
+      if (sec < 60) return null;
+      const te = Math.min(sec, W.offlineEffSec(sec) * (1 + 0.05 * (this.s.hall?.eff || 0)));
+      return { sec, t: sec, te, eff: sec > 0 ? te / sec : 1, med: true, qiMed: Math.floor(W.qiMedHour(this.s.level) * W.MED_ACTIVE * te / 3600),
+        kills: 0, exp: 0, gold: 0, elix: 0, frag: 0, petShard: 0, mountShard: 0, potions: 0, mats: 0, marks: 0, stoppedByPotion: false, map: this.s.map };
+    }
     const r = this.s.rates;
     if (sec < 60 || !r || !(r.kills > 0)) return null;
     // 물약이 바닥나면 거기서 멈춘다
@@ -5379,7 +5472,15 @@ export class WorldGame {
     const big = m.king || m.master ? 2 : 1;
     const petShard = Math.floor(kills * W.PET_SHARD_RATE + marks * (W.BOSS_SHARDS.pet[0] + W.BOSS_SHARDS.pet[1]) / 2 * big);
     const mountShard = Math.floor(kills * W.MOUNT_SHARD_RATE + marks * (W.BOSS_SHARDS.mount[0] + W.BOSS_SHARDS.mount[1]) / 2 * big);
-    return { sec, t, te, eff: t > 0 ? te / t : 1, kills, exp, gold: Math.floor(r.gold * te * ek), elix, frag, petShard, mountShard,
+    // v457 영약 — 그 지역 졸개·두목 몫을 기댓값으로(남는 몫은 굴린다)
+    const dan = {};
+    { const rg = W.regionOfMap(r.map)?.id, mm = W.mapOf(r.map);
+      for (const src of DN.DAN_SRC) {
+        const gk = DN.dropGapK(this.s.level, mm.lv?.[1] || this.s.level);
+        const n0 = gk * (src.kind === 'mob' && src.region === rg ? kills * src.p : (src.kind === 'boss' && src.region === rg || src.kind === 'anyBoss') && mm.bossRoom && !mm.king && !mm.master ? marks * src.p : 0);
+        const n = Math.floor(n0 + this.rng()); if (n0 > 0 && n > 0) dan[src.id] = (dan[src.id] || 0) + n;
+      } }
+    return { sec, t, te, eff: t > 0 ? te / t : 1, kills, exp, gold: Math.floor(r.gold * te * ek), elix, frag, petShard, mountShard, dan,
       potions: Math.ceil(r.potions * t), mats, marks, stoppedByPotion: potionSec < sec, map: r.map };
   }
   // 효율 시간 te 동안의 경험치 — 스무 토막으로 나눠 토막마다 그때 레벨의 레벨 차 감쇠를 곱한다
@@ -5401,6 +5502,9 @@ export class WorldGame {
   offlineCapSec() { return W.OFFLINE_CAP_SEC + 3600 * (this.s.hall?.cap || 0); }
   claimOffline(rw) {
     if (!rw) return;
+    if (rw.qiMed > 0) this.addQi(rw.qiMed);   // v457 방치 운기조식
+    for (const [id, n] of Object.entries(rw.dan || {})) this.gainDan(id, n, true);   // v457 방치 영약
+    if (this.s.maki > 0) this.s.maki = Math.max(0, this.s.maki - (rw.sec || 0));   // 마기도 그만큼 빠졌다
     if (rw.elix) this.s.elixir = Math.max(0, (this.s.elixir || 0) - rw.elix);
     if (rw.frag > 0) this.gainFrag(rw.frag);
     this.addShards(rw.petShard || 0, rw.mountShard || 0);   // v292

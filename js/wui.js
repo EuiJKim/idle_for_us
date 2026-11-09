@@ -17,6 +17,7 @@ import * as IM from './world/wimprint.js';
 import * as PT from './world/wpath.js';
 import * as TD from './world/wtoday.js';
 import * as PV from './world/wpvp.js';
+import * as DN from './world/wdan.js';   // v457 영약
 import { drawFighter } from './battle.js';
 import { JOBS as JOBS_LIST } from './data.js';
 import { VAULT_ITEMS as VAULT_MAX } from './vault.js';
@@ -429,12 +430,12 @@ function charTab(app) {
         h('div', { class: 'week-bar' }, h('i', { style: `width:${Math.min(100, Math.round(wk.pts / TD.WEEK_NEED * 100))}%` })),
         h('small', {}, `주간 ${Math.min(wk.pts, TD.WEEK_NEED)}/${TD.WEEK_NEED}`),
         h('button', { class: 'buy', disabled: game.canOpenWeek() ? null : true, onclick: () => {
-          const c = game.openWeek(); if (c) { toast(`주간 상자 — 은자 ${fmt(c.gold)} · 보호부 ${c.prot}장 · 영약 ${c.elixirSec / 60}분 · 포획·탈것 조각 ${c.petShard}씩`); app.save(); tdSig = ''; today(); }
+          const c = game.openWeek(); if (c) { toast(`주간 상자 — 은자 ${fmt(c.gold)} · 보호부 ${c.prot}장 · 보약 ${c.elixirSec / 60}분 · 공청석유 1 · 포획·탈것 조각 ${c.petShard}씩`); app.save(); tdSig = ''; today(); }
         } }, wk.opened ? '열었음' : '주간 상자')),
       h('p', { class: `muted blood-line${bn < 0 ? ' on' : ''}` }, bn < 0
         ? `🩸 혈겁 진행 중 — 사냥터 은자·재료 +${TD.BLOOD_BONUS * 100}% · 정예 두 배 (${Math.ceil(-bn / 60)}분 남음)`
         : `🩸 다음 혈겁까지 ${bn >= 3600 ? `${Math.floor(bn / 3600)}시간 ` : ''}${Math.floor(bn / 60) % 60}분 · 매일 12~14시 · 20~22시`),
-      h('p', { class: 'muted', style: 'font-size:11px' }, `주간 상자: 은자 ${fmt(chest.gold)} · 보호부 ${chest.prot}장 · 영약 ${chest.elixirSec / 60}분 · 월요일 0시에 새로`));
+      h('p', { class: 'muted', style: 'font-size:11px' }, `주간 상자: 은자 ${fmt(chest.gold)} · 보호부 ${chest.prot}장 · 보약 ${chest.elixirSec / 60}분 · 공청석유 1 · 월요일 0시에 새로`));
   }
   // v263 강호 견문록 — 졸개 종마다 100마리 · 지역을 다 찍으면 경험치 +0.5%
   const dexBox = h('div');
@@ -497,8 +498,10 @@ function charTab(app) {
   const qiCard = h('div', { class: 'card qi-card' });
   let qiSig = '';
   function paintQi() {
+    const s = game.s;
     const qi = game.qiNow(), ri = game.realmNow(), eff = W.realmEff(ri), use = qi * eff, nx = game.realmNext();
-    const sig = `${Math.floor(Math.log10(1 + qi) * 100)}|${ri}|${game.s.level}`;
+    const danN = Object.values(s.dan || {}).reduce((a, n) => a + n, 0);
+    const sig = `${Math.floor(Math.log10(1 + qi) * 100)}|${ri}|${s.level}|${s.med}|${danN}|${s.maki > 0}`;
     if (sig === qiSig) return;
     qiSig = sig;
     const ef = (e) => (e >= 10 ? e.toFixed(1) : e.toFixed(2));
@@ -514,10 +517,15 @@ function charTab(app) {
       nx ? h('div', { class: 'bar qi-bar' }, h('div', { style: `width:${Math.round(prog * 100)}%` }),
         h('span', {}, `다음 ${nx.name} — 내공 ${fmt(nx.qi)}${game.s.level < nx.lv ? ` · ${W.lvText(nx.lv)}` : ''}`))
         : h('p', { class: 'muted' }, '생사경 극의 — 경지의 끝. 내공은 계속 쌓여 공격력·체력이 오른다.'),
+      // v457 운기조식 · 영약 — 영약 칸에서
+      h('button', { class: `qi-med${s.med ? ' on' : ''}`, id: 'qi-dan-link', onclick: () => app.showTab('char', 'dan') },
+        h('div', { class: 'qi-med-txt' }, h('b', {}, s.med ? '🧘 운기조식 중' : '운기조식 · 영약'),
+          h('small', {}, `${s.med ? `한 시간에 내공 +${fmt(Math.floor(W.qiMedHour(s.level) * W.MED_ACTIVE))}` : `마을에서 쉬면 한 시간에 +${fmt(Math.floor(W.qiMedHour(s.level)))} · 운기조식 ×${W.MED_ACTIVE}`} · 영약 ${danN}개${s.maki > 0 ? ' · 마기' : ''}`)),
+        h('span', { class: 'qi-go' }, '영약 칸 ›')),
       h('details', { class: 'qi-ladder' }, h('summary', {}, '경지 서른두 단계'),
         h('div', { class: 'qi-grid' }, ...Array.from({ length: W.REALM_N }, (_, i) => h('span', { class: i === ri ? 'on' : i < ri ? 'done' : '' },
           h('b', {}, W.realmName(i)), h('small', {}, `${W.lvNum(W.realmLv(i))} · ×${ef(W.realmEff(i))} · 무공 ${pct(W.realmSkill(i))}`))))),
-      h('p', { class: 'muted qi-note' }, `내공은 얻은 경험치의 1/10만큼 쌓이고 잃지 않아요(만렙 뒤에도). 쓰는 내공이 10배가 될 때마다 공격력·체력 +${Math.round(W.QI_BODY_K * 100)}%. 경지는 단계마다 내공 효율 ×1.15 · 무공 피해 +3.1% — 큰 경지는 전직 레벨에 열려요.`));
+      h('p', { class: 'muted qi-note' }, `내공은 얻은 경험치의 1/10만큼 쌓이고 잃지 않아요(만렙 뒤에도) · 운기조식·영약으로 따로 쌓으면 그 경지의 극의까지 먼저 올라요(다음 경지는 레벨이 차야). 쓰는 내공이 10배가 될 때마다 공격력·체력 +${Math.round(W.QI_BODY_K * 100)}%. 경지는 단계마다 내공 효율 ×1.15 · 무공 피해 +3.1% — 큰 경지는 전직 레벨에 열려요.`));
   }
   // v449 성장 지도 — 열다섯 갈래를 넷으로: 무인(레벨·전직·능력치·무공) · 장비 · 동료 · 무림. 갈래마다 전투력을 몇 % 올리나(powerBreakdown)와 다음 할 일 하나
   function growRows() {
@@ -654,6 +662,7 @@ function charTab(app) {
     { key: 'stat', label: '능력치', make: () => ({ root: statBox, update: upd }) },
     { key: 'skill', label: '무공', make: () => ({ root: skillBox, update: upd }) },
     { key: 'dex', label: '견문록', make: () => ({ root: dexBox, update: dexView }) },
+    { key: 'dan', label: '영약', make: () => danView(app) },   // v457
   ], 'ifu.charsub');
   const upd0 = t.update;
   t.update = () => {
@@ -2052,6 +2061,7 @@ export function rewardText(r) {
   for (const [k, n] of Object.entries(r.mats || {})) { const o = W.oreOf(k, n); out.push(`${W.matName(o.key)} ${fmt(o.n)}`); }   // v273 지역 재료는 현철로 보인다
   if (r.petShard) out.push(`포획 조각 ${fmt(r.petShard)}`);   // v292
   if (r.mountShard) out.push(`탈것 조각 ${fmt(r.mountShard)}`);
+  for (const [id, n] of Object.entries(r.dan || {})) if (DN.danOf(id)) out.push(`${DN.danOf(id).name} ${n}`);   // v457 영약
   return out.join(' · ') || '없음';
 }
 
@@ -2934,15 +2944,15 @@ function townTab(app) {
         h('button', { class: 'btn primary', style: 'width:100%', disabled: s.gold < game.statBookCost() ? true : null, onclick: () => {
           if (game.buyStatBook()) { toast('스탯 점수 +1 — 캐릭터 창에서 찍어요'); app.save(); app.refresh(); }
         } }, `비급 읽기 · 은자 ${fmt(game.statBookCost())}`)),
-      // v262 영약 — 30분 동안 경험치·은자 +25%(사냥 중에만 닳는다 · 3시간까지 쌓인다)
+      // v262 보약(v457 전엔 영약) — 30분 동안 경험치·은자 +25%(사냥 중에만 닳는다 · 3시간까지 쌓인다)
       h('div', { class: 'card shop-card' },
         h('div', { class: 'shop-item' },
           h('span', { class: 'book-ico' }, '丹'),
-          h('div', { class: 'info' }, h('b', {}, '영약', h('small', {}, (s.elixir || 0) > 0 ? ` 남은 시간 ${Math.ceil(s.elixir / 60)}분` : ' 없음')),
+          h('div', { class: 'info' }, h('b', {}, '보약', h('small', {}, (s.elixir || 0) > 0 ? ` 남은 시간 ${Math.ceil(s.elixir / 60)}분` : ' 없음')),
             h('div', { class: 'desc' }, `${W.ELIXIR_SEC / 60}분 동안 경험치·은자 +${pct(W.ELIXIR_BONUS, 0)} · 사냥 중(방치 포함)에만 닳아요 · ${W.ELIXIR_MAX / 3600}시간까지 쌓여요`))),
         h('button', { class: 'btn primary', style: 'width:100%', disabled: s.gold < game.elixirPrice() || (s.elixir || 0) + W.ELIXIR_SEC > W.ELIXIR_MAX ? true : null, onclick: () => {
-          if (game.buyElixir()) { toast(`영약을 마셨어요 — ${Math.ceil(game.s.elixir / 60)}분 남음`); app.save(); app.refresh(); }
-        } }, `영약 마시기 · 은자 ${fmt(game.elixirPrice())}`)),
+          if (game.buyElixir()) { toast(`보약을 마셨어요 — ${Math.ceil(game.s.elixir / 60)}분 남음`); app.save(); app.refresh(); }
+        } }, `보약 마시기 · 은자 ${fmt(game.elixirPrice())}`)),
       // v262 무관 증축 — 방치 상한·효율을 은자로
       h('div', { class: 'card shop-card' },
         h('div', { class: 'shop-item' },
@@ -3762,6 +3772,61 @@ function pvpView(app) {
 
 // ---------- 인물록 (v148) ----------
 // 세력마다 고수들의 이야기 · 십이지왕 · 그 밖의 사람들. 쓰러뜨린 고수에는 ✓.
+// v457 영약 칸 — 운기조식 · 영약 주머니(환단·신과·영초·석유) · 연단로
+function danView(app) {
+  const { game } = app;
+  const root = h('div', { class: 'dan-view' });
+  let sig = '';
+  const hr = (x) => `${fmt(Math.floor(x))}`;
+  function update() {
+    const s = game.s;
+    const okStr = Object.keys(DN.RECIPES).map((id) => (game.danRecipe(id)?.ok ? 1 : 0)).join('');
+    const nsig = `${s.level}|${s.med}|${game.map.town}|${!!game.inst}|${JSON.stringify(s.dan || {})}|${JSON.stringify(s.danPity || {})}|${okStr}|${Math.ceil((s.maki || 0) / 60)}`;
+    if (nsig === sig) return;
+    sig = nsig;
+    const L = s.level;
+    const redo = () => { sig = ''; app.save(); app.refresh(); };
+    // ① 운기조식
+    const med = h('div', { class: `card dan-med${s.med ? ' on' : ''}` },
+      h('h3', {}, '🧘 운기조식', h('small', {}, ' 마을에서 쉬면 내공이 쌓인다')),
+      h('p', { class: 'muted' }, `마을에서 쉬기만 해도 한 시간에 내공 +${hr(W.qiMedHour(L))} · 운기조식을 하면 ×${W.MED_ACTIVE}(+${hr(W.qiMedHour(L) * W.MED_ACTIVE)}) — 그동안 사냥은 쉰다. 운기조식을 켠 채 나가면 방치 시간도 운기조식(방치 사냥 대신 · 상한·효율은 같다).`),
+      h('div', { class: 'btn-row' },
+        h('button', { class: `btn ${s.med ? '' : 'primary'}`, id: 'med-btn', style: 'flex:1', onclick: () => {
+          if (s.med) { game.stopMed(); toast('운기조식을 멈췄어요 — 마을에서 쉬는 몫(×1)은 그대로 쌓여요'); }
+          else if (game.inst) return toast('던전에서는 운기조식을 할 수 없어요');
+          else game.startMed();
+          redo(); } }, s.med ? '운기조식 그만' : (game.map.town ? '운기조식 시작' : '마을로 가서 운기조식')),
+        s.med || game.map.town ? h('button', { class: 'btn', onclick: () => { game.stopMed(); game.enterMap(s.huntMap); app.closePanel?.(); redo(); } }, '사냥하러 가기') : null),
+      s.maki > 0 ? h('p', { class: 'dan-maki' }, `마기 ${Math.ceil(s.maki / 60)}분 남음 — 받는 피해 +${Math.round(DN.MAKI_TAKE * 100)}% · 설련·천년련·백화단을 먹으면 씻긴다`) : null);
+    // ② 영약 주머니
+    const eatAll = Object.entries(s.dan || {}).some(([id, n]) => n > 0 && DN.canEat(id) && !DN.danOf(id).maki);
+    const bag = h('div', { class: 'card dan-bag' },
+      h('h3', {}, '영약 주머니', h('small', {}, ' 먹으면 운기조식 몇 시간어치 내공 — 먹는 때의 레벨로 셈해요')),
+      eatAll ? h('button', { class: 'btn primary', style: 'width:100%;margin-bottom:8px', onclick: () => { const q = game.useAllDan(); if (q) { toast(`영약을 모두 먹었어요 — 내공 +${hr(q)} (독초·마교 단약은 남겨 둬요)`); redo(); } } }, '모두 먹기 (독초·마교 단약 빼고)') : null,
+      ...DN.DAN_CATS.map((c) => h('div', { class: 'dan-cat' },
+        h('div', { class: 'dan-cat-head' }, h('b', {}, `${c.name} `, h('i', {}, c.hanja)), h('small', {}, c.desc)),
+        h('div', { class: 'dan-grid' }, ...DN.DANS.filter((d) => d.cat === c.id).map((d) => { const n = s.dan?.[d.id] || 0;
+          return h('div', { class: `dan-item${n ? '' : ' none'}`, style: `--dc:${d.col}`, title: d.desc },
+            h('i', { class: 'dan-hanja' }, d.hanja),
+            h('div', { class: 'dan-txt' }, h('b', {}, `${d.sect ? `${d.sect} · ` : ''}${d.name} ×${n}`),
+              h('small', {}, DN.canEat(d.id) ? `내공 +${hr(DN.danQi(d.id, L))} · 운기 ${d.hours}시간어치${d.maki ? ` · 마기 ${d.maki / 3600}시간` : ''}${d.heal ? ' · 체력을 다 채운다' : ''}${d.cleanse ? ' · 마기를 씻는다' : ''}` : '독초 — 그대로 못 먹는다(연단 재료)'),
+              h('small', { class: 'dan-where' }, `얻는 곳: ${DN.danWhere(d.id) || '—'}`)),
+            DN.canEat(d.id) ? h('button', { class: 'btn mini', disabled: n ? null : true, onclick: () => { if (game.useDan(d.id, 1)) redo(); } }, '먹기') : null); })))));
+    // ③ 연단로
+    const ids = Object.keys(DN.RECIPES).sort((a, b) => DN.danOf(a).hours - DN.danOf(b).hours);
+    const pot = h('div', { class: 'card dan-pot' },
+      h('h3', {}, '연단로 ', h('i', {}, '煉丹爐'), h('small', {}, ' 재료를 모아 환단을 빚는다 — 실패하면 재료를 잃고, 그 단약 성공률이 5%씩 오른다(30%까지)')),
+      ...ids.map((id) => { const d = DN.danOf(id), rc = game.danRecipe(id), pity = s.danPity?.[id] || 0;
+        return h('div', { class: `dan-rec${rc.ok ? ' ok' : ''}`, style: `--dc:${d.col}` },
+          h('div', { class: 'dan-rec-head' }, h('i', { class: 'dan-hanja' }, d.hanja), h('div', { class: 'dan-txt' },
+            h('b', {}, `${d.sect} · ${d.name}`), h('small', {}, `내공 +${hr(DN.danQi(id, L))}${d.maki ? ' · 마기' : ''}${d.heal ? ' · 체력 회복' : ''} · 성공 ${Math.round(rc.p * 100)}%${pity ? ` (실패 덤 +${Math.round(pity * 100)}%)` : ''} · 은자 ${fmt(rc.gold)}`))),
+          h('div', { class: 'dan-need' }, ...rc.need.map((x) => h('span', { class: x.have >= x.n ? 'have' : 'lack' }, `${DN.danOf(x.id).name} ${Math.min(x.have, x.n)}/${x.n}`))),
+          h('button', { class: `btn ${rc.ok ? 'primary' : ''}`, disabled: rc.ok ? null : true, onclick: () => { const r = game.craftDan(id); if (r) redo(); } }, '연단')); }));
+    root.replaceChildren(med, bag, pot);
+  }
+  return { root, update };
+}
+
 function loreView(app) {
   app.game?.mark?.('lore');
   const { game } = app;

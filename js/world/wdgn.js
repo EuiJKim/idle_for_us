@@ -232,6 +232,7 @@ export function towerReward(f) {
     out.gold += Math.round(mobGold(lv) * 300);
     out.mats = { [z]: 150, [`b${z}`]: 5 };
     out.tickets = { [f / 10]: ZODIAC_TICKETS };
+    out.dan = { geumryeong: 1 };   // v457 영약 — 십이지신 층마다 금령지과
   }
   return out;
 }

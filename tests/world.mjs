@@ -4581,7 +4581,7 @@ console.log('\n=== v456 내공 · 경지 — 내공은 공격력·체력 · 경�
   ok(1e6 * W.realmEff(0) === 1e6 && Math.round(1e6 * W.realmEff(16)) === 1e7, '내공 100만 — 삼류 초입은 100만, 초절정 초입은 1000만을 쓴다');
   ok(W.REALM_LV.every((l, i) => i === 0 || l > W.REALM_LV[i - 1]) && [[4, 1], [8, 2], [16, 3], [20, 4], [28, 5]].every(([i, t]) => W.realmLv(i) === W.TIERS[t].level), '큰 경지는 전직 레벨에 열린다(이류 10 · 일류 30 · 초절정 70 · 화경 99 · 생사경 130)', W.REALM_LV.join(','));
   ok(Math.abs(W.realmSkill(16) - 0.5) < 1e-9 && Math.abs(W.realmSkill(31) - 31 / 32) < 1e-9 && W.realmSkill(0) === 0, '경지 → 무공 피해: 단계마다 +3.1% · 초절정 초입 +50% · 생사경 극의 +97%');
-  ok(W.realmOf(10, 1e12) === 4 && W.realmOf(150, 0) === 0 && W.realmOf(70, W.qiFloor(70)) === 16, '경지는 레벨과 내공이 둘 다 차야 오른다(내공만 많거나 레벨만 높으면 그대로)');
+  ok(W.realmOf(10, 1e12) === 7 && W.realmOf(29, 1e12) === 7 && W.realmOf(30, 1e12) === 11 && W.realmOf(150, 0) === 0 && W.realmOf(70, W.qiFloor(70)) === 16, '소단계는 내공만 차면 · 큰 경지는 레벨까지 차야(v457 — 내공이 넘쳐도 그 경지의 극의까지)');
   // 쌓기 · 돌파 알림
   const g = fresh(); const ups = [];
   while (g.s.level < 10) { g.addExp(W.expToNext(g.s.level)); for (const e of g.events) if (e.type === 'realmUp') ups.push(e); g.events.length = 0; }
@@ -4593,9 +4593,9 @@ console.log('\n=== v456 내공 · 경지 — 내공은 공격력·체력 · 경�
   const a = fresh(); while (a.s.level < 70) a.addExp(W.expToNext(a.s.level)); a._stats = null;
   const st = a.stats(), qi = a.s.qi;
   ok(a.realmNow() === 16, '레벨 70 — 초절정 초입');
-  a.s.qi = qi * 10; a._stats = null; const st10 = a.stats();
-  ok(Math.abs(st10.atk / st.atk - (1 + W.qiBody(qi * 10 * 10)) / (1 + W.qiBody(qi * 10))) < 1e-9 && Math.abs(st10.hp / st.hp - st10.atk / st.atk) < 1e-9 && Math.abs(st10.realmDmg - st.realmDmg) < 1e-12,
-    '내공이 10배면 공격력·체력이 같이(+5%p) · 무공 피해(경지)는 그대로', `×${(st10.atk / st.atk).toFixed(3)}`);
+  a.s.qi = qi * 1.3; a._stats = null; const st10 = a.stats();
+  ok(a.realmNow() === 16 && Math.abs(st10.atk / st.atk - (1 + W.qiBody(qi * 1.3 * 10)) / (1 + W.qiBody(qi * 10))) < 1e-9 && Math.abs(st10.hp / st.hp - st10.atk / st.atk) < 1e-9 && Math.abs(st10.realmDmg - st.realmDmg) < 1e-12,
+    '내공이 늘면 공격력·체력이 같이 · 경지가 그대로면 무공 피해도 그대로', `×${(st10.atk / st.atk).toFixed(4)}`);
   a.s.qi = qi; a._stats = null;
   const sm = a.stats().realmDmg;
   ok(Math.abs(sm - 1.5) < 1e-9, '경지가 무공 피해를 곱한다(초절정 초입 ×1.5)', `${sm.toFixed(3)}`);
@@ -4615,6 +4615,70 @@ console.log('\n=== v456 내공 · 경지 — 내공은 공격력·체력 · 경�
   const z = fresh(); z.s.level = W.LEVEL_MAX; const qz = z.qiNow(); z.addExp(1e9); z._stats = null;
   ok(Math.abs(z.s.qi - (qz + 1e8)) < 1 && z.realmNow() === 31, '만렙 뒤 경험치(깨달음)도 내공으로 · 경지는 생사경 극의가 끝');
   ok(W.STATS.find((x) => x.id === 'int').name === '기력', '능력치 「내공」은 「기력」으로(쌓는 내공과 헷갈리지 않게)');
+}
+
+
+console.log('\n=== v457 운기조식 · 영약 · 연단 — 내공을 따로 쌓는다 ===');
+{
+  const DN = await import('../js/world/wdan.js');
+  const names = ['대환단', '소환단', '태청신단', '자소단', '백화단', '매화신단', '자하단', '태청단', '용호단', '적하단', '귀원단', '청운단', '천마단', '흑혈신단',
+    '주과', '만년등과', '금령지과', '빙화과', '만년설삼', '만년하수오', '지옥화', '혈안초', '천년련', '설련', '공청석유', '종령석유', '만년빙정', '지열신수'];
+  ok(names.every((n) => DN.DANS.some((d) => d.name === n)) && DN.DANS.length === 28 && DN.DAN_CATS.every((c) => DN.DANS.some((d) => d.cat === c.id)), '영약 28가지 · 환단·신과·영초·석유 네 갈래', names.filter((n) => !DN.DANS.some((d) => d.name === n)).join(','));
+  ok(DN.DANS.filter((d) => d.cat !== 'pill').every((d) => DN.danWhere(d.id)) && DN.DANS.filter((d) => d.cat === 'pill').every((d) => DN.RECIPES[d.id]), '신과·영초·석유는 얻는 곳이 있고 · 환단은 모두 연단으로 만든다');
+  ok(Object.entries(DN.RECIPES).every(([id, r]) => Object.keys(r.need).every((k) => DN.danOf(k)) && r.p < 1 && DN.danOf(id).hours * r.p > DN.recipeHours(id)), '연단 — 재료가 다 있고 · 실패할 수 있고 · 기대 내공이 재료를 그냥 먹는 것보다 크다');
+  ok(!DN.canEat('jiokhwa') && !DN.canEat('hyeolan') && DN.canEat('seolsam'), '독초(지옥화·혈안초)는 그대로 못 먹는다');
+  // 운기조식
+  const g = fresh(); while (g.s.level < 30) g.addExp(W.expToNext(g.s.level));
+  g.goTown(false); const q0 = g.qiNow(); for (let i = 0; i < 100; i++) g.tick(0.1);   // 실제 10초(tick은 실제 초를 받아 PACE배로 흘린다)
+  const rest = g.qiNow() - q0;
+  ok(Math.abs(rest - W.qiMedHour(30) * 10 / 3600) / rest < 0.02, '마을에서 쉬면 운기조식 ×1', `${rest.toFixed(1)} / ${(W.qiMedHour(30) * 10 / 3600).toFixed(1)}`);
+  g.enterMap(W.mapId(2, 1)); ok(g.startMed() && g.map.town && g.s.med, '운기조식 — 사냥터에서 누르면 마을로 가서 시작');
+  const q1 = g.qiNow(); for (let i = 0; i < 100; i++) g.tick(0.1);
+  ok(Math.abs((g.qiNow() - q1) / rest - W.MED_ACTIVE) < 0.05, `운기조식은 ×${W.MED_ACTIVE}`, `${((g.qiNow() - q1) / rest).toFixed(2)}`);
+  g.enterMap(W.mapId(2, 1)); ok(!g.s.med, '사냥터로 나서면 운기조식은 끝');
+  // 방치 — 운기조식을 켠 채 나가면 운기조식만
+  const o = fresh(); while (o.s.level < 30) o.addExp(W.expToNext(o.s.level)); o.startMed();
+  o.s.rates = { kills: 1, exp: 100, gold: 10, potions: 0, map: W.mapId(2, 1) }; o.s.lastSeen = 0; o.s.clockMax = 0;
+  const rw = o.offlineReward(3600e3);
+  ok(rw?.med && rw.kills === 0 && rw.exp === 0 && Math.abs(rw.qiMed - W.qiMedHour(30) * W.MED_ACTIVE * rw.te / 3600) < 2, '운기조식을 켠 채 나가면 방치 시간도 운기조식(사냥 대신)', `${rw?.qiMed}`);
+  const oq = o.qiNow(); o.claimOffline(rw); ok(Math.abs(o.qiNow() - oq - rw.qiMed) < 1, '받으면 내공으로');
+  o.stopMed(); const rw2 = o.offlineReward(7200e3); ok(rw2 && !rw2.med && rw2.kills > 0 && !rw2.qiMed, '운기조식을 끄고 나가면 전처럼 방치 사냥');
+  // 운으로 — 그 지역 졸개·두목
+  const d = fresh(); d.rng = () => 0; while (d.s.level < 40) d.addExp(W.expToNext(d.s.level));
+  d.enterMap(W.mapId(3, 1)); const mob = d.mons.find((m) => m.alive && !m.npc); d.killMob(mob);
+  ok((d.s.dan.seollyeon || 0) >= 1, '천산 설원 졸개 — 설련(운으로)');
+  d.enterMap(W.mapId(3, W.BOSS_AREA)); const bm = { ...mob, isBoss: true, alive: true, hp: 0 }; d.dropDan(bm);
+  ok(d.s.dan.seolsam >= 1 && d.s.dan.bingjeong >= 1 && d.s.dan.sohwan >= 1, '천산 설원 두목 — 만년설삼 · 만년빙정 · 소환단(운으로)', JSON.stringify(d.s.dan));
+  const n0 = d.s.dan.seollyeon; d.enterMap(W.mapId(1, 1)); const m1 = d.mons.find((m) => m.alive && !m.npc); d.killMob(m1);
+  ok(d.s.dan.seollyeon === n0, '다른 지역 졸개에게서는 설련이 안 나온다');
+  ok(DG.towerReward(10).dan?.geumryeong === 1 && !DG.towerReward(11).dan && MS.masterReward(MS.mastersOf('murim')[0]).dan?.gongcheong === 1, '탑 십이지신 층 금령지과 · 고수 첫 승 공청석유');
+  // 먹기
+  const e = fresh(); while (e.s.level < 50) e.addExp(W.expToNext(e.s.level));
+  e.gainDan('seolsam', 1); const eq = e.qiNow(); const got = e.useDan('seolsam', 1);
+  ok(Math.abs(got - DN.danQi('seolsam', 50)) < 1e-6 && Math.abs(e.qiNow() - eq - got) < 1e-6 && Math.abs(got - 72 * W.qiMedHour(50)) < 1e-6, '만년설삼 — 운기조식 72시간어치 내공(먹는 때의 레벨)');
+  e.gainDan('jiokhwa', 1); ok(e.useDan('jiokhwa', 1) === 0 && e.s.dan.jiokhwa === 1, '독초는 먹기를 눌러도 그대로');
+  const red0 = e.stats().dmgRed; e.gainDan('heukhyeol', 1); e.useDan('heukhyeol', 1);
+  ok(e.s.maki > 0 && Math.abs(e.stats().dmgRed - (red0 - DN.MAKI_TAKE)) < 1e-9, '흑혈신단 — 마기(받는 피해 +20%)');
+  e.gainDan('seollyeon', 1); e.useDan('seollyeon', 1); ok(e.s.maki === 0 && Math.abs(e.stats().dmgRed - red0) < 1e-9, '설련 — 마기를 씻는다');
+  e.heroHp = 1; e.gainDan('daehwan', 1); e.useDan('daehwan', 1); ok(e.heroHp === e.stats().hp, '대환단 — 체력을 다 채운다');
+  // 내공을 따로 쌓으면 경지가 앞선다(그 경지의 극의까지)
+  const f = fresh(); while (f.s.level < 70) f.addExp(W.expToNext(f.s.level)); const r0 = f.realmNow();
+  f.gainDan('cheonma', 3); f.useDan('cheonma', 3);
+  ok(r0 === 16 && f.realmNow() > r0 && f.realmNow() <= 19, '영약으로 내공을 쌓으면 초절정 중입·상입·극의가 먼저 · 화경은 레벨 99에', `${W.realmName(r0)} → ${W.realmName(f.realmNow())}`);
+  // 연단 — 재료 · 은자 · 실패하면 재료를 잃고 성공률이 오른다
+  const c = fresh(); while (c.s.level < 30) c.addExp(W.expToNext(c.s.level)); c.s.gold = 1e12;
+  ok(!c.danRecipe('sohwan').ok && c.craftDan('sohwan') === null, '재료가 없으면 연단할 수 없다');
+  c.gainDan('seollyeon', 4); c.gainDan('cheonnyeon', 2);
+  c.rng = () => 0.99; const g0 = c.s.gold; const r1 = c.craftDan('sohwan');
+  ok(r1 && !r1.ok && c.s.dan.seollyeon === 2 && c.s.dan.cheonnyeon === 1 && !c.s.dan.sohwan && c.s.gold === g0 - DN.danGold('sohwan', 30) && Math.abs(c.s.danPity.sohwan - DN.PITY_STEP) < 1e-9, '연단 실패 — 재료와 은자를 잃고 다음 성공률 +5%');
+  ok(Math.abs(c.danRecipe('sohwan').p - (DN.RECIPES.sohwan.p + DN.PITY_STEP)) < 1e-9, '실패 덤이 성공률에 붙는다');
+  c.rng = () => 0; const r2 = c.craftDan('sohwan');
+  ok(r2?.ok && c.s.dan.sohwan === 1 && !c.s.danPity.sohwan && !c.s.dan.seollyeon && !c.s.dan.cheonnyeon, '연단 성공 — 소환단 · 덤은 처음으로');
+  // 옛 세이브
+  const old = newWorldSave(0); old.job = 'sword'; old.level = 40; old.dan = { seolsam: 2, nope: 5, sohwan: -1 }; old.med = true; old.map = W.mapId(2, 1); old.maki = 99;
+  const mg = migrateWorld(old, 0);
+  ok(mg.dan.seolsam === 2 && !('nope' in mg.dan) && !('sohwan' in mg.dan) && mg.med === false && mg.maki === 99, '세이브 — 모르는 영약·음수는 거르고 · 사냥터에 있으면 운기조식은 꺼진다');
+  ok(W.STATS.find((x) => x.id === 'int').name === '기력' && TD.TASKS.find((t) => t.id === 'potion')?.name === '보약', '은자로 사는 「영약」(벌이 +25%)은 「보약」으로 — 영약은 내공');
 }
 
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
