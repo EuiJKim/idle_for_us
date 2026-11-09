@@ -4212,7 +4212,7 @@ console.log('\n=== v442 99 승급 · 전직마다 체력 ===');
   const hp1 = g.stats().hp;
   ok(Math.abs(hp1 / hp0 - (1 + W.tierHp(4)) / (1 + W.tierHp(t0))) < 0.01, '승급하면 최대 체력이 오른다', `${Math.round(hp0)} → ${Math.round(hp1)} (+${Math.round(W.tierHp(4) * 100)}%)`);
   ok(W.TIER_HP.every((v, i) => i === 0 || v > W.TIER_HP[i - 1]), '전직마다 체력 보너스가 커진다', W.TIER_HP.join(' '));
-  ok(/레벨 \$\{W\.TIERS\[4\]\.level\}에 승급/.test(read('js/world/wquest.js')) && /tierLabel/.test(read('js/wui.js')) && /tierLabel/.test(read('js/wmain.js')), '길잡이·사부 창·알림이 「승급」이라 부른다');
+  ok(/W\.lvText\(W\.TIERS\[4\]\.level\)\}에 승급/.test(read('js/world/wquest.js')) && /tierLabel/.test(read('js/wui.js')) && /tierLabel/.test(read('js/wmain.js')), '길잡이·사부 창·알림이 「승급」이라 부른다');
 }
 
 console.log('\n=== v444 주력 무공 하나 · 계승 ===');
@@ -4247,6 +4247,16 @@ console.log('\n=== v445 환마 손보기 ===');
 {
   const sk = (id) => W.skillsOf('fan').find((k) => k.id === id);
   ok(sk('s1').radius === 288 && sk('s2').radius === 320 && sk('s2').cd === 8, '환마 혈루미혼 범위 288 · 천외혈마공 범위 320 · 숨 8', `${sk('s1').radius} · ${sk('s2').radius} · ${sk('s2').cd}`);
+}
+
+console.log('\n=== v446 만렙 99 · 그 뒤는 수련 ===');
+{
+  ok(W.LEVEL_SHOW === 99 && W.lvShort(99) === 'Lv.99' && W.lvShort(130) === 'Lv.99·수련31' && W.lvText(120) === '수련 21' && W.lvText(70) === '레벨 70', '99까지는 레벨 · 그 뒤는 수련 n', `${W.lvShort(130)} · ${W.lvText(120)}`);
+  const g = fresh('sword'); while (g.s.level < 131) g.addExp(W.expToNext(g.s.level));
+  ok(/Lv\.99·수련32/.test(g.heroLabel()), '이름표도 수련으로', g.heroLabel());
+  ok(W.lvText(W.TIERS[5].level) === '수련 31' && W.lvText(W.TIERS[4].level) === '레벨 99', '승급은 레벨 99 · 5차는 수련 31');
+  const src = read('js/wmain.js'), ui = read('js/wui.js');
+  ok(/만렙 99 — 이제 수련/.test(src) && /setText\(\$\('hero-lv'\), W\.lvShort/.test(src) && !/`레벨 \$\{(?!.*join)[^}]*\}/.test(ui.replace(/W\.lvText\([^)]*\)/g, '')), '머리 줄·띠·창 글이 99 뒤를 수련으로 적는다');
 }
 
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);

@@ -435,7 +435,7 @@ export class WorldGame {
     if (this.events.length > 300) this.events.splice(0, this.events.length - 300);
   }
   jobTier() { return this.s.jobTier; }
-  heroLabel() { const t = this.titleNow(); return `${t ? `〈${t.name}〉 ` : ''}Lv.${this.s.level} ${this.s.nickname || ''}`; }
+  heroLabel() { const t = this.titleNow(); return `${t ? `〈${t.name}〉 ` : ''}${W.lvShort(this.s.level)} ${this.s.nickname || ''}`; }   // v446 99 뒤는 수련
   // ---------- v305 칭호 ----------
   titleNow() { return this.s.title ? W.titleOf(this.s.title) : null; }
   hasTitle(k) { return this.s.titles.includes(k); }

@@ -291,8 +291,8 @@ function charTab(app) {
     if (nsig === skSig) return;
     skSig = nsig;
     const rc = game.skillResetCost();
-    skillCard.replaceChildren(...[(s.jobTier || 0) < 1 && s.skillPts > 0 ? h('p', { class: 'muted', style: 'margin:0 0 6px;color:#fde68a' }, `무공 점수 ${s.skillPts}점은 모아 두었다가 레벨 ${W.TIERS[1].level} 1차 전직 뒤 첫 무공에 써요(점수는 그대로 남아요)`) : null,   // v435 레벨 5~10 사이 쓸 곳 없는 점수
-      h('h3', {}, '스킬', h('small', {}, `스킬 점수 ${s.skillPts} · 레벨 ${W.SKILL_PT_FROM}부터 레벨마다 1점 · 📜 비급 조각 ${s.frag || 0}/${W.fragNeed(s.fragPts)}(모으면 1점${s.fragPts ? ` · 지금까지 +${s.fragPts}` : ''}) · 만렙 ${W.SKILL_LV_MAX}`)),
+    skillCard.replaceChildren(...[(s.jobTier || 0) < 1 && s.skillPts > 0 ? h('p', { class: 'muted', style: 'margin:0 0 6px;color:#fde68a' }, `무공 점수 ${s.skillPts}점은 모아 두었다가 ${W.lvText(W.TIERS[1].level)} 1차 전직 뒤 첫 무공에 써요(점수는 그대로 남아요)`) : null,   // v435 레벨 5~10 사이 쓸 곳 없는 점수
+      h('h3', {}, '스킬', h('small', {}, `스킬 점수 ${s.skillPts} · ${W.lvText(W.SKILL_PT_FROM)}부터 레벨마다 1점 · 📜 비급 조각 ${s.frag || 0}/${W.fragNeed(s.fragPts)}(모으면 1점${s.fragPts ? ` · 지금까지 +${s.fragPts}` : ''}) · 만렙 ${W.SKILL_LV_MAX}`)),
       // 무공 초기화 (v205)
       game.skillSpentAll() > 0 ? h('div', { class: 'sk-reset' },
         h('small', {}, `무공·심법을 처음으로 — 쓴 점수 ${game.skillSpentAll()}점을 다 돌려받아요 · ${rc ? `은자 ${fmt(rc)}` : '처음 한 번은 공짜'}`),
@@ -302,7 +302,7 @@ function charTab(app) {
           if (n) { toast(`무공 초기화 — 점수 ${n}점을 돌려받았어요`); app.save(); skSig = ''; psSig = ''; upd(); app.refresh(); }
         } }, '무공 초기화')) : null].filter(Boolean));   // v211: null이 'null' 글자로 찍히던 것
     const list = game.skills();
-    if (!list.length) { skillCard.append(h('p', { class: 'muted' }, `1차 전직(레벨 ${W.TIERS[1].level})을 하면 스킬을 배워요.`)); return; }
+    if (!list.length) { skillCard.append(h('p', { class: 'muted' }, `1차 전직(${W.lvText(W.TIERS[1].level)})을 하면 스킬을 배워요.`)); return; }
     skillCard.append(h('p', { class: 'muted', style: 'font-size:12px;margin:0 0 6px' }, '공격 무공은 하나(주력)만 써요 — 전직하면 새 무공이 주력이 되고, 옛 무공은 레벨·힘을 물려주고 물러나요.'));   // v444
     for (const sk of list) {
       const lv = game.skillLevel(sk.id);
@@ -397,7 +397,7 @@ function charTab(app) {
       passCard.append(h('div', { class: `row${locked ? ' locked' : ''}${own ? ' own' : ''}` },
         h('div', { class: 'ico' }, p.name.slice(0, 2)),
         h('div', { class: 'info' },
-          h('div', { class: 'name' }, p.name, h('small', {}, `${p.hanja}${own ? ' · 독문' : ''} · ${locked ? `레벨 ${p.from}부터` : `Lv.${lv}${max ? ' (최대)' : ''}`}`)),
+          h('div', { class: 'name' }, p.name, h('small', {}, `${p.hanja}${own ? ' · 독문' : ''} · ${locked ? `${W.lvText(p.from)}부터` : `Lv.${lv}${max ? ' (최대)' : ''}`}`)),
           h('div', { class: 'desc' }, lv ? p.text(lv) : `1레벨: ${p.text(1)}`)),
         h('button', { class: 'buy', disabled: game.canPassUp(p.id) ? null : true, onclick: () => {
           if (game.passUp(p.id)) { popUp(passCard, `${p.name} Lv.${game.passLevel(p.id)}`); app.save(); psSig = ''; skSig = ''; upd(); }
@@ -499,10 +499,10 @@ function charTab(app) {
     { const t = game.nextTier(), n = (s.jobTier || 0) + 1;
       if (t) {
         const nm = t.need ? (game.fifth?.()?.needName || t.need) : null;
-        const next = s.level < t.level ? `레벨 ${t.level}에 ${W.tierLabel(n)}` : t.need && !s.duel?.won?.[t.need] ? `${nm} 쓰러뜨리기(5차)` : s.gold < t.cost ? `${W.tierLabel(n)} 은자 ${fmt(t.cost)} 모으기` : `${W.tierLabel(n)} — 사부에게`;
-        row('成', `Lv.${s.level} · ${game.tierName()}`, `다음 전직 레벨 ${t.level}`, next, game.canAdvance() ? ['town', 'master'] : t.need && s.level >= t.level ? ['map', 'masters'] : ['map'], game.canAdvance());
-      } else if (s.level < W.LEVEL_MAX) row('成', `Lv.${s.level} · ${game.tierName()}`, '전직은 끝', `레벨 ${W.LEVEL_MAX} 만렙`, ['map']);
-      else row('成', `Lv.${s.level} · ${game.tierName()}`, '만렙', `깨달음 — 무공마다 단계(무공 창)`, ['char', 'skill'], (s.enl?.pts || 0) > 0); }
+        const next = s.level < t.level ? `${W.lvText(t.level)}에 ${W.tierLabel(n)}` : t.need && !s.duel?.won?.[t.need] ? `${nm} 쓰러뜨리기(5차)` : s.gold < t.cost ? `${W.tierLabel(n)} 은자 ${fmt(t.cost)} 모으기` : `${W.tierLabel(n)} — 사부에게`;
+        row('成', `${W.lvShort(s.level)} · ${game.tierName()}`, `다음 전직 ${W.lvText(t.level)}`, next, game.canAdvance() ? ['town', 'master'] : t.need && s.level >= t.level ? ['map', 'masters'] : ['map'], game.canAdvance());
+      } else if (s.level < W.LEVEL_MAX) row('成', `${W.lvShort(s.level)} · ${game.tierName()}`, '전직은 끝', `${W.lvText(W.LEVEL_MAX)}까지 수련`, ['map']);
+      else row('成', `${W.lvShort(s.level)} · ${game.tierName()}`, '수련 끝', `깨달음 — 무공마다 단계(무공 창)`, ['char', 'skill'], (s.enl?.pts || 0) > 0); }
     // ② 장비
     { const worn = W.SLOTS.map((x) => s.equip[x.id]).filter(Boolean);
       const myth = worn.filter((it) => (it.rar || 0) >= 3).length, avg = worn.length ? Math.round(worn.reduce((a, it) => a + (it.plus || 0), 0) / worn.length) : 0, tr = worn.filter((it) => it.tr > 0).length;
@@ -526,7 +526,7 @@ function charTab(app) {
       const next = tw < D.TOWER_MAX ? `무한의 탑 ${tw + 1}층` : `끝없는 회랑 · 극 ${s.tower.hard || 0}층`;
       row('塔', `탑 ${tw}층 · 요일 던전 ${top}단계`, s.dgn?.auto || s.dgn?.routine ? '루틴 켜짐' : '루틴 꺼짐', next, ['dgn', 'tower'], false, tw >= D.TOWER_MAX); }
     // ⑥ 천계
-    { if (s.level < D.WRAID_LV) row('天', '칠대성 — 아직', `레벨 ${D.WRAID_LV}부터`, `레벨 ${D.WRAID_LV} 되기`, ['map']);
+    { if (s.level < D.WRAID_LV) row('天', '칠대성 — 아직', `${W.lvText(D.WRAID_LV)}부터`, `${W.lvText(D.WRAID_LV)} 되기`, ['map']);
       else { const w = s.wraid, pr = game.palmaReady(), gates = game.gatesCleared();
         const next = !pr.ok ? `대성신장 ${pr.n}/7 모으기 (칠대성 토벌)` : gates < D.HEAVEN_GATES.length ? `남천문 관문 ${gates + 1}` : !(w.ok >= 1) ? '옥황상제' : !(w.sk >= 1) ? '천외천 너머 — 석가여래' : '손바닥 밖은 없다 — 끝';
         row('天', `칠대성 ${w.kills || 0}번 · 대성신장 ${pr.n}/7`, gates || w.ok ? `관문 ${gates}/4${w.ok ? ' · 옥황 ✓' : ''}${w.sk ? ' · 석가 ✓' : ''}` : '', next, ['dgn', 'wraid'], false, w.sk >= 1); } }
@@ -565,7 +565,7 @@ function charTab(app) {
     try { paintGrow(); } catch (e) { console.warn('[road]', e); }   // v427
     head.replaceChildren(
       h('h3', {}, tn ? h('span', { class: 'title-tag', style: `--tc:${tn.col}` }, `〈${tn.name}〉 `) : null, `${s.nickname || '무명'} `,
-        h('button', { class: 'btn rename-btn', id: 'rename-btn', title: '이름 바꾸기', onclick: () => app.askNickname?.() }, '✎ 이름'), h('small', {}, ` ${game.tierName()} · Lv.${s.level}`)),   // v418 이름 바꾸기를 이름 옆에
+        h('button', { class: 'btn rename-btn', id: 'rename-btn', title: '이름 바꾸기', onclick: () => app.askNickname?.() }, '✎ 이름'), h('small', {}, ` ${game.tierName()} · ${W.lvShort(s.level)}`)),   // v418 이름 바꾸기를 이름 옆에
       h('p', { class: 'muted' }, cls ? `${cls.name} — ${W.CLASSES[s.job].trait}` : ''),
       // v325 1차 전직 전에는 직업을 공짜로 바꿔 본다(무공 점수는 돌려받는다)
       (s.jobTier || 0) === 0 && s.job ? h('div', { class: 'job-swap' }, h('small', {}, '1차 전직 전까지 직업을 공짜로 바꿔 볼 수 있어요'),
@@ -763,7 +763,7 @@ function bagTab(app) {
           })),
           h('div', { class: 'road-legend' },
             h('span', { class: 'safe' }, '+1~6 실패해도 그대로'), h('span', { class: 'warn' }, '+7~9 실패 -1'), h('span', { class: 'brk' }, '+10부터 돌파 · 실패 -2 · 증표'),
-            cap < capItem ? h('span', { class: 'lock' }, `🔒 +${cap + 1}부터는 ${nx ? `레벨 ${nx[0]}에` : '나중에'}`) : null));
+            cap < capItem ? h('span', { class: 'lock' }, `🔒 +${cap + 1}부터는 ${nx ? `${W.lvText(nx[0])}에` : '나중에'}`) : null));
       };
       // ▶ 다음 할 일 — 할 수 있으면 금빛, 아니면 왜 안 되는지와 어디서 구하는지
       const enhNext = () => {
@@ -771,7 +771,7 @@ function bagTab(app) {
         const cap = game.enhanceMax(it);
         let txt, hot = false, go = null, act = '';
         if (lv >= game.enhanceMaxItem(it)) { txt = '끝까지 강화했어요 — 이제 각인으로 세져요'; go = () => { itemTab = 'imp'; paint(); }; act = '각인'; }
-        else if (lv >= cap) { const nx = W.enhanceCapNext(game.s.level); txt = nx ? `레벨 ${nx[0]}이 되면 +${nx[1]}까지 열려요 (지금 Lv.${game.s.level})` : '끝까지 강화했어요'; }
+        else if (lv >= cap) { const nx = W.enhanceCapNext(game.s.level); txt = nx ? `${W.lvText(nx[0])}이 되면 +${nx[1]}까지 열려요 (지금 ${W.lvShort(game.s.level)})` : '끝까지 강화했어요'; }
         else if (game.canEnhance(it)) { const f = W.enhanceFail(lv); txt = `${lv >= W.ENHANCE_NORMAL ? '돌파' : '강화'}할 수 있어요 — 성공 ${pct(game.enhanceRateOf(it), 0)} · ${f ? `실패하면 +${Math.max(0, lv + f)}` : '실패해도 그대로'}`; hot = true; go = () => askEnhance(); }
         else {
           const em = game.enhanceMats(it), bm = game.breakMarksOf(it);
@@ -1454,9 +1454,9 @@ function bagTab(app) {
           } }, `↩ 되돌리기 ${fmt(game.stoneRefundable(+z))}`) : ''));
     });
     smithRoot.replaceChildren(modes,
-      h('div', { class: 'card' }, h('h3', {}, '세트 장비', h('small', {}, `레벨 ${G.KING_LV}부터 · 레벨 100 · 무기·옷·모자·장갑·신발`)),
+      h('div', { class: 'card' }, h('h3', {}, '세트 장비', h('small', {}, `${W.lvText(G.KING_LV)}부터 · 레벨 100 · 무기·옷·모자·장갑·신발`)),
         h('p', { class: 'muted', style: 'font-size:12px;margin:2px 0 4px' },
-          s.level < G.KING_LV ? `레벨 ${G.KING_LV}이 되면 만들 수 있어요.` : '세트 부위는 전반 다섯 왕이 하나씩 맡아요 — 그 왕의 재료·증표로 만들고, 그 왕은 내 직업 세트의 그 부위를 떨궈요.'),
+          s.level < G.KING_LV ? `${W.lvText(G.KING_LV)}이 되면 만들 수 있어요.` : '세트 부위는 전반 다섯 왕이 하나씩 맡아요 — 그 왕의 재료·증표로 만들고, 그 왕은 내 직업 세트의 그 부위를 떨궈요.'),
         h('div', { class: 'slot-kings' }, ...G.SET_SLOTS.map((sl) => h('span', {}, h('b', {}, SLOT_SHORT[sl]), ` ${W.kingOf(G.SLOT_KING[sl]).title}`)))),
       ...cards,
       h('div', { class: 'card' }, h('h3', {}, '강화석', h('small', {}, '후반 일곱 왕 — 부위마다 그 강화석으로만')),
@@ -1632,7 +1632,7 @@ function bagTab(app) {
         h('div', { class: 'name' }, `🔨 단련 ${tLv}단계`, h('small', {}, ` 공격력·체력 +${(tLv * W.TEMPER_STEP * 100).toFixed(1)}% (영구)`)),
         h('div', { class: 'desc' }, tOpen
           ? `한 단계 +${(W.TEMPER_STEP * 100).toFixed(1)}% · 다음 단계 ${W.ORE_NAME} ${fmt(tCost)}개 — 단계마다 조금씩 비싸져요. 강화가 막혀도 현철을 여기에 쓰세요`
-          : `레벨 ${W.TEMPER_FROM}부터 현철로 공격력·체력을 끝없이 올릴 수 있어요`)),
+          : `${W.lvText(W.TEMPER_FROM)}부터 현철로 공격력·체력을 끝없이 올릴 수 있어요`)),
       tOpen ? h('div', { class: 'temper-btns' },
         h('button', { class: 'buy', disabled: tMax ? null : true, onclick: () => { if (game.temper(1)) done(); } }, '단련', h('small', {}, ` ${fmt(tCost)}`)),
         h('button', { class: 'buy', disabled: tMax > 1 ? null : true, onclick: () => { if (game.temper(tMax)) done(); } }, tMax > 1 ? `${tMax}번` : '여러 번', h('small', {}, ' 되는 만큼'))) : null);
@@ -1968,7 +1968,7 @@ export function openMatWhere(app, key, back = null) {
       h('p', {}, w.from),
       use ? h('p', { class: 'mat-use' }, `쓰는 곳: ${use}`) : null,
       h('p', { class: 'muted' }, `지금 가진 것 ${fmt(w.have)}개 · ${w.map ? `${w.map.name} (몹 Lv.${w.map.lv[0]}~${w.map.lv[1]})` : ''}`),
-      w.can ? null : h('p', { class: 'dgn-warn' }, `레벨 ${w.need}부터 들어갈 수 있어요 — 지금 ${game.s.level}.`),
+      w.can ? null : h('p', { class: 'dgn-warn' }, `${W.lvText(w.need)}부터 들어갈 수 있어요 — 지금 ${game.s.level}.`),
       h('div', { class: 'btn-row' },
         h('button', { class: 'btn', onclick: () => (back ? back() : closeModal()) }, back ? '← 돌아가기' : '안 갈래요'),
         h('button', { class: 'btn primary', disabled: w.can ? null : true, onclick: () => {
@@ -2526,18 +2526,18 @@ function dgnTab(app) {
       h('div', { class: 'wraid-head', style: '--wb:#f97316' }, h('img', { class: 'wraid-banner', src: 'art/ui/wb-banner.webp', alt: '' }),
         h('div', { class: 'wraid-name' }, h('small', {}, '화무기 그 너머 · 무림 전체가 함께'), h('b', {}, '칠대성(七大聖)'))),
       // v434 한 줄 요약 + 자세한 설명은 처음부터 접어 둔다(일곱 항목이 기본으로 펼쳐져 핵심이 묻혔다)
-      h('p', { class: 'wraid-sum' }, `레벨 ${D.WRAID_LV}부터 · 온라인 · 마왕의 강타를 버티며 ${Math.round(D.WRAID_SEC / W.PACE)}초 친다 · 쓰러지면 친 사람 모두 순위 보상 + 확률로 대성신장`),
+      h('p', { class: 'wraid-sum' }, `${W.lvText(D.WRAID_LV)}부터 · 온라인 · 마왕의 강타를 버티며 ${Math.round(D.WRAID_SEC / W.PACE)}초 친다 · 쓰러지면 친 사람 모두 순위 보상 + 확률로 대성신장`),
       foldBox('-wraid2|자세한 규칙', h('ul', { class: 'wraid-how' },
         h('li', {}, `👹 화과산의 의형제 칠대성(우마왕~손오공)이 늘 서 있어요 — 체력은 화무기의 ${D.WRAID_HP_K}배, 무림 사람 모두가 함께 깎아요(혼자서는 한참)`),
         h('li', {}, '🎯 마왕이 초식 이름을 외치고 강타를 내리꽂아요 — 피할 수 없어요. 체력·방어·물약·회복 무공으로 버티며 쳐요(세 번째마다 오의 · 체력이 반·1/5 아래면 더 잦고 아파요)'),
         h('li', {}, `🛡 쓰러지면 한 대라도 친 사람 모두 순위 보상(1위 ×3 · 2~3위 ×2 · 10위까지 ×1.5) + 확률로 그 마왕의 대성신장 한 부위(1위 ${Math.round(D.PALMA_DROP(1) * 100)}% · 3위까지 ${Math.round(D.PALMA_DROP(3) * 100)}% · 10위까지 ${Math.round(D.PALMA_DROP(10) * 100)}% · 그 밖 ${Math.round(D.PALMA_DROP(99) * 100)}% · ${D.PALMA_PITY}번 못 받으면 다음엔 꼭) · 쓰러지면 곧 다음 마왕이 일어나요`),
         h('li', {}, '☁ 대성신장 일곱 부위를 모두 끼면 천외천 천궁 — 옥황상제에게 갈 수 있어요'),
         h('li', {}, `⚠ 단계가 오를수록 강타가 아파요(체력의 ${D.WB_TIER.map((t) => Math.round(t.hit * D.WRAID_STRIKE_K * 100)).join('→')}%) · 싸우는 동안 회복(흡혈·물약)이 잘 안 들고 물약 숨이 길어요 — 직접 피하세요`),
-        h('li', {}, `⏱ 한 판 ${Math.round(D.WRAID_SEC / W.PACE)}초 · 언제든 · 참여 보상은 판마다(제한 없음) · 레벨 ${D.WRAID_LV}부터`)))));
+        h('li', {}, `⏱ 한 판 ${Math.round(D.WRAID_SEC / W.PACE)}초 · 언제든 · 참여 보상은 판마다(제한 없음) · ${W.lvText(D.WRAID_LV)}부터`)))));
     // v413 자동 반복 — 판이 끝나면 같은 마왕(쓰러졌으면 다음 마왕)에 다시
     if (on && s.level >= D.WRAID_LV) out.push(h('label', { class: 'chk wraid-auto' }, h('input', { type: 'checkbox', id: 'wraid-auto', checked: s.wraid.auto ? true : null, onchange: (e) => { game.s.wraid.auto = e.target.checked; app.save(); toast(e.target.checked ? '🔁 칠대성 자동 반복 — 판이 끝나면 2초 뒤 같은 마왕에 다시 들어가요(나가기를 누르면 멈춰요)' : '자동 반복을 껐어요'); } }), ' 🔁 자동 반복(판이 끝나면 다시 들어가기)'));
     if (!on) out.push(offlineNote(net, '칠대성에 들어갈 수 있어요'));   // v434
-    else if (s.level < D.WRAID_LV) out.push(h('p', { class: 'muted dgn-desc' }, `레벨 ${D.WRAID_LV}부터 마왕에게 갈 수 있어요.`));
+    else if (s.level < D.WRAID_LV) out.push(h('p', { class: 'muted dgn-desc' }, `${W.lvText(D.WRAID_LV)}부터 마왕에게 갈 수 있어요.`));
     // 받을 것
     const claims = on ? net.wraidClaims() : [];
     if (claims.length) out.push(h('div', { class: 'card wraid-claims' }, h('b', {}, '🎁 쓰러진 마왕 — 보상 받기'),
@@ -2749,7 +2749,7 @@ function townTab(app) {
         h('p', { class: 'muted', style: 'font-size:12.5px' }, `${F5.needName}을(를) 꺾은 자만이 잇는다 — 모든 무공이 ${F5.form}(${F5.formHanja}) 일곱 초식으로 바뀌고 ${F5.soul}이 깃든다. 마지막 초식을 펼치면 등 뒤로 ${F5.soul}의 형상이 선다.`),
         h('div', { class: 'checks' },
           h('span', { class: `need${won ? ' ok' : ''}` }, `${F5.needName} 격파`, ' ', h('b', {}, won ? '✓' : '✗')),
-          h('span', { class: `need${lvOk ? ' ok' : ''}` }, `레벨 ${t.level}`, ' ', h('b', {}, lvOk ? '✓' : `${s.level}/${t.level}`)),
+          h('span', { class: `need${lvOk ? ' ok' : ''}` }, `${W.lvText(t.level)}`, ' ', h('b', {}, lvOk ? '✓' : `${s.level}/${t.level}`)),
           h('span', { class: `need${goldOk ? ' ok' : ''}` }, '은자', ' ', h('b', {}, goldOk ? '✓' : `${fmt(s.gold)}/${fmt(t.cost)}`))),
         h('p', { class: 'cm-soul' }, F5.trait),
         h('div', { class: 'cm-list' }, ...cm.map((k) => h('div', {}, h('b', { style: `color:${F5.col}` }, k.name), h('small', {}, ` ${k.desc}`)))),
@@ -2757,7 +2757,7 @@ function townTab(app) {
           if (!confirm(`5차 전직 — ${F5.name}\n모든 무공이 ${F5.form}으로 바뀌어요(무공 레벨·변초는 그대로). 은자 ${fmt(t.cost)}.`)) return;
           if (!game.advance()) return;
           app.save(); app.refresh();
-        } }, !won ? `${F5.needName}을(를) 먼저 쓰러뜨려요` : !lvOk ? `레벨 ${t.level}이 되면` : !goldOk ? '은자가 모자라요' : `${F5.name}을 잇는다`)));
+        } }, !won ? `${F5.needName}을(를) 먼저 쓰러뜨려요` : !lvOk ? `${W.lvText(t.level)}이 되면` : !goldOk ? '은자가 모자라요' : `${F5.name}을 잇는다`)));
     } else {
       const sk = W.skillsOf(s.job).find((k) => k.tier === s.jobTier + 1);
       const lvOk = s.level >= t.level, goldOk = s.gold >= t.cost;
@@ -2765,7 +2765,7 @@ function townTab(app) {
         h('div', { class: 'advance-box' },
           h('div', { class: 'adv-title' }, `${W.tierLabel(s.jobTier + 1)} → `, h('b', {}, game.tierName(s.jobTier + 1))),
           h('div', { class: 'checks' },
-            h('span', { class: `need${lvOk ? ' ok' : ''}` }, `레벨 ${t.level}`, ' ', h('b', {}, lvOk ? '✓' : `${s.level}/${t.level}`)),
+            h('span', { class: `need${lvOk ? ' ok' : ''}` }, `${W.lvText(t.level)}`, ' ', h('b', {}, lvOk ? '✓' : `${s.level}/${t.level}`)),
             h('span', { class: `need${goldOk ? ' ok' : ''}` }, '은자', ' ', h('b', {}, goldOk ? '✓' : `${fmt(s.gold)}/${fmt(t.cost)}`))),
           h('p', { class: 'muted' }, '배우는 무공: ', h('b', {}, sk.name), ` — ${skillText(game, sk)}`),
           h('p', { class: 'muted' }, `최대 체력 +${Math.round(W.tierHp(s.jobTier + 1) * 100)}% (지금 +${Math.round(W.tierHp(s.jobTier) * 100)}%) — 체력을 쓰는 무공이 그만큼 세져요`),   // v442
@@ -2773,7 +2773,7 @@ function townTab(app) {
             if (!game.advance()) return;
             toast(`${game.tierName()}(으)로 전직했어요 — 〈${sk.name}〉`);
             app.save(); app.refresh();
-          } }, !lvOk ? `레벨 ${t.level}이 되면` : !goldOk ? '은자가 모자라요' : '전직하기')));
+          } }, !lvOk ? `${W.lvText(t.level)}이 되면` : !goldOk ? '은자가 모자라요' : '전직하기')));
     }
     // 무공의 길 — 무엇을 언제 배우는지 한눈에 (v291 누르면 설명 · 다음 무공 표시)
     return [card, pathCard(), h('div', { class: 'card' }, h('h3', {}, '배우는 무공', h('small', {}, `${W.LORE[s.job]?.title || ''} · 누르면 설명`)), skillRoadmap(game, s.job),
@@ -2809,7 +2809,7 @@ function townTab(app) {
           } }, !can ? '2차 전직부터' : s.path ? `바꾸기 · ${fmt(game.pathSwitchCost())}` : '이 길로'));
     };
     return h('div', { class: 'card path-card' },
-      h('h3', {}, '직업의 길', h('small', {}, mg ? '두 길을 다 걷는다' : `레벨 ${PT.PATH_NODE_LV.join('·')}에 경지가 열린다 · 레벨 ${PT.MERGE_LV}·4차에 합일`)),
+      h('h3', {}, '직업의 길', h('small', {}, mg ? '두 길을 다 걷는다' : `레벨 ${PT.PATH_NODE_LV.map(W.lvNum).join('·')}에 경지가 열린다 · ${W.lvText(PT.MERGE_LV)}·4차에 합일`)),
       !s.path && can ? h('p', { class: 'muted', style: 'font-size:12px;margin:0 0 6px' }, '둘 중 하나를 골라요 — 나중에 은자를 내고 바꿀 수 있고, 끝에는 둘 다 걷게 돼요.') : null,
       h('div', { class: 'path-cols' }, col('a'), col('b')));
   }
@@ -3080,7 +3080,7 @@ export function skillRoadmap(game, job) {
     const L = lvOf(k);
     const known = mine && game.knows(k);
     const pathName = k.path ? PT.PATHS[job]?.[k.path]?.name || '' : '';
-    const when = k.path ? `레벨 ${L} · 2차 전직 뒤 '${pathName}'을 고르면` : k.kind === 'support' ? `레벨 ${L}이 되면` : `${W.tierLabel(k.tier)} · 레벨 ${L}`;
+    const when = k.path ? `${W.lvText(L)} · 2차 전직 뒤 '${pathName}'을 고르면` : k.kind === 'support' ? `${W.lvText(L)}이 되면` : `${W.tierLabel(k.tier)} · ${W.lvText(L)}`;
     const otherPath = mine && k.path && s.path && s.path !== k.path && !known;
     let st;
     if (known) st = '✓ 배움';
@@ -3179,7 +3179,7 @@ function rankView(app) {
       medal(i),
       h('div', { class: 'info' },
         h('div', { class: 'name' }, ...nameOf(p), h('small', {}, `${p.tierName || ''}`)),
-        h('div', { class: 'desc' }, `Lv.${p.level || 1} · ${p.mapName || ''}${p.guildName ? ` · ${p.guildName}` : ''}`)),
+        h('div', { class: 'desc' }, `${W.lvShort(p.level || 1)} · ${p.mapName || ''}${p.guildName ? ` · ${p.guildName}` : ''}`)),
       h('div', { style: 'font-weight:900;color:#fde68a' }, fmt(p.power || 0)))));
   }
   async function load() {
@@ -3390,8 +3390,8 @@ function guildView(app) {
         h('div', { class: 'name' }, `${p.uid === gd?.owner ? '👑 ' : ''}${p.nickname || '이름없음'}`, h('small', {}, p.tierName || '')),
         h('div', { class: 'desc' }, ...(() => {
           const w = p.uid === net.uid ? { m: app.where?.here?.() ?? game.s.map } : app.where?.of(p.uid);
-          return w ? [h('b', { class: 'who-on' }, '● 접속 중 '), `Lv.${p.level || 1} · ${app.where.placeName(w.m)}${w.m > 0 && !W.mapOf(w.m)?.town ? '에서 사냥 중' : ''}`]
-            : [`Lv.${p.level || 1} · ${p.mapName || ''} · ${ago(p.updatedAt?.toMillis?.())} (접속 안 함)`];
+          return w ? [h('b', { class: 'who-on' }, '● 접속 중 '), `${W.lvShort(p.level || 1)} · ${app.where.placeName(w.m)}${w.m > 0 && !W.mapOf(w.m)?.town ? '에서 사냥 중' : ''}`]
+            : [`${W.lvShort(p.level || 1)} · ${p.mapName || ''} · ${ago(p.updatedAt?.toMillis?.())} (접속 안 함)`];
         })())),
       // v345 따라가기 — 접속 중인 문파원이 있는 구역으로(두목 구역이면 '함께'로)
       (() => { const w = p.uid !== net.uid ? app.where?.of(p.uid) : null; return w && w.m !== -1 && w.m !== game.s.map ? h('button', { class: 'btn mini primary follow-btn', onclick: () => follow(w.m, p.nickname || '문파원') }, '따라가기') : null; })(),

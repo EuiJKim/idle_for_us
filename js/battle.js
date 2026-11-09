@@ -5,7 +5,7 @@ import { artReady, putArt, putArtBand, putArtEdge, putArtTint, loadArt, FIT, ART
 import { drawFemaleHead, drawBackHair, FHEAD_W, FHEAD_H, FHEAD_FIT } from './femhead.js';
 import { drawCreature, saddleY, mountTilt, mountGait, CREATURES } from './creatures.js';
 import { drawMountAura } from './mountfx.js';
-import { ZONES_W, itemZone, weaponSkinOf, CUSTOM_HAIRS, petArt, fifthOf } from './world/wdata.js';
+import { ZONES_W, itemZone, weaponSkinOf, CUSTOM_HAIRS, petArt, fifthOf, lvText, lvShort } from './world/wdata.js';
 import { setOf } from './world/wgear.js';
 import { THEMES as IMP_THEMES } from './world/wimprint.js';
 import { tellCovers } from './world/wdgn.js';
@@ -1310,7 +1310,7 @@ export class BattleView {
             this.shake = Math.max(this.shake, 0.12);
           }
         }
-        this.float(`레벨 ${ev.level}`, this.heroX, this.groundY - 155, '#fde68a', 24, 1.4, true);
+        this.float(ev.level > 99 ? `수련 ${ev.level - 99}` : `레벨 ${ev.level}`, this.heroX, this.groundY - 155, '#fde68a', 24, 1.4, true);   // v446
         break;
       case 'rankUp':
         this.showBanner(`경지 돌파 · ${RANKS[ev.rank].name}`, '#fde68a', 2.4, '경지');
@@ -1471,7 +1471,7 @@ export class BattleView {
     const ty = fy - 104;
     ctx.font = `800 12px system-ui, sans-serif`;
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    const label = `🤝 ${o.n || '문파원'}${o.lv ? ` Lv.${o.lv}` : ''}`;
+    const label = `🤝 ${o.n || '문파원'}${o.lv ? ` ${lvShort(o.lv)}` : ''}`;
     ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(10,8,6,0.85)'; ctx.strokeText(label, x, ty);
     ctx.fillStyle = '#c7d2fe'; ctx.fillText(label, x, ty);
     ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(x - 22, ty + 8, 44, 4);

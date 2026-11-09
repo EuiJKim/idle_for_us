@@ -10,6 +10,13 @@ import { TRANSFORMS, setOf, SET_PIECE, STONES, isStoneKey, LORD_MATS, isLordMat 
 
 export const SAVE_KEY = 'ifu-world-v1';
 export const LEVEL_MAX = 150;
+// v446 만렙은 99(바람의나라) — 99 뒤의 경험치는 「수련」 단계로 쌓인다(수련 1 = 옛 레벨 100 … 수련 51 = 150).
+//   수련마다 레벨처럼 능력치·무공 점수가 오르고, 수련 31에 5차 전직. 속셈(전투·사냥터·두목 비교)은 그대로 레벨 99+수련으로 센다.
+export const LEVEL_SHOW = 99;
+export const trainOf = (L) => Math.max(0, (L | 0) - LEVEL_SHOW);
+export const lvShort = (L) => ((L | 0) <= LEVEL_SHOW ? `Lv.${L | 0}` : `Lv.99·수련${(L | 0) - LEVEL_SHOW}`);
+export const lvText = (L) => ((L | 0) <= LEVEL_SHOW ? `레벨 ${L | 0}` : `수련 ${(L | 0) - LEVEL_SHOW}`);
+export const lvNum = (L) => ((L | 0) <= LEVEL_SHOW ? `${L | 0}` : `수련${(L | 0) - LEVEL_SHOW}`);
 
 // ---------- 레벨 ----------
 // 뒤로 갈수록 가파르다: 첫 시간 Lv15~20(1차 전직) · 하루 Lv50 남짓 · 일주일 Lv85 안팎 · 150은 몇 달.

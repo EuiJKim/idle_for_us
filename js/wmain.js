@@ -525,7 +525,7 @@ function askCloud(c) {
     m.append(h('h2', {}, '다른 기기의 진행이 있어요'),
       h('p', { class: 'muted' }, `${net.googleEmail() || 'Google 계정'}에 다른 기기에서 올린 진행이 있어요. 어느 쪽으로 이어 할까요?`),
       h('div', { class: 'row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, `서버 · Lv ${cloudLv(c)}`), h('div', { class: 'desc' }, `${whenStr(c.at)}에 저장${newer ? ' · 더 최근' : ''}`))),
-      h('div', { class: 'row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, `이 기기 · Lv ${game.s.level}`), h('div', { class: 'desc' }, `${whenStr(bootSeen)}에 저장${newer ? '' : ' · 더 최근'}`))),
+      h('div', { class: 'row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, `이 기기 · ${W.lvShort(game.s.level)}`), h('div', { class: 'desc' }, `${whenStr(bootSeen)}에 저장${newer ? '' : ' · 더 최근'}`))),
       h('div', { class: 'btn-row', style: 'margin-top:10px' },
         h('button', { class: `btn${newer ? ' primary' : ''}`, onclick: () => { closeModal(); loadCloud(c); } }, '서버 진행 불러오기'),
         h('button', { class: `btn${newer ? '' : ' primary'}`, onclick: () => {
@@ -580,7 +580,7 @@ function askSwitch(r) {
   openModal((m) => {
     m.append(h('h2', {}, '이미 다른 진행에 이어진 계정이에요'),
       h('p', { class: 'muted' }, `${r.email || '이 Google 계정'}은(는) 다른 기기에서 하던 진행과 이어져 있어요. 그 진행으로 바꿀까요?`),
-      h('p', { class: 'muted' }, `이 기기의 지금 진행(Lv ${game.s.level})은 이 기기 안에 백업으로만 남고, 서열에서도 내려가요.`),
+      h('p', { class: 'muted' }, `이 기기의 지금 진행(${W.lvShort(game.s.level)})은 이 기기 안에 백업으로만 남고, 서열에서도 내려가요.`),
       h('div', { class: 'btn-row', style: 'margin-top:10px' },
         h('button', { class: 'btn primary', onclick: async (e) => {
           e.target.disabled = true;
@@ -652,7 +652,7 @@ async function loginGoogle(testCred) {
   // 이 기기에도 진행이 있다 — 어느 쪽으로 할지 고른다
   loginUI?.pick(
     h('div', { class: 'login-pick' }, h('b', {}, r.email || '이 Google 계정'), '은(는) 다른 기기에서 하던 진행과 이어져 있어요.', h('br'),
-      `그 진행으로 바꾸면 이 기기의 지금 진행(Lv ${game.s.level})은 이 기기 안에 백업으로만 남아요.`),
+      `그 진행으로 바꾸면 이 기기의 지금 진행(${W.lvShort(game.s.level)})은 이 기기 안에 백업으로만 남아요.`),
     h('button', { class: 'login-google', onclick: async (e) => {
       e.currentTarget.disabled = true;
       try { await switchAndLoad(r); } catch (err) { console.warn('[login] switch', err); loginUI?.reset(); loginUI?.error(googleErr(err), googleHelp(err), err?.code || ''); }
@@ -748,7 +748,7 @@ function charSelect(boot) {
           const data = cl ? cl.data : CH.slotJSON(i);
           if (!data) { toast('그 캐릭터의 세이브를 찾지 못했어요'); return; }
           go(i, data);
-        } }, del, cv, h('b', {}, e.n || '이름 없음'), h('small', {}, `Lv ${e.lv} · ${job}`),
+        } }, del, cv, h('b', {}, e.n || '이름 없음'), h('small', {}, `${W.lvShort(e.lv)} · ${job}`),
           h('span', { class: 'cc-go' }, isAct ? (boot ? '▶ 이어 하기' : '지금 하는 무인') : cl ? '☁ 접속(서버)' : '▶ 접속')));
       }
     };
@@ -849,7 +849,7 @@ function paintSheet() {
 // v429 차례를 아래 창 단추(왼쪽 줄 지도·던전·마을·무림 → 오른쪽 줄 캐릭터·가방·동료)와 같게 — 창 줄과 아래 단추 차례가 달라 헷갈렸다
 const PC_TABS = [['map', '지도', '지'], ['dgn', '던전', '전'], ['town', '마을', '촌'], ['social', '무림', '무'], ['char', '캐릭터', '인'], ['bag', '가방', '낭'], ['comp', '동료', '수']];
 {
-  const nav = h('nav', { id: 'ptabs' }, ...PC_TABS.map(([k, name, ic]) => h('button', { 'data-tab': k, onclick: () => { if (tabLocked(k)) { toast(`${TAB_NAME[k] || name} 창은 레벨 ${TAB_LV[k]}부터 열려요`); return; } showTab(k); } }, h('span', {}, name))));   // v430 한 글자 그림은 뺐다(글자만)
+  const nav = h('nav', { id: 'ptabs' }, ...PC_TABS.map(([k, name, ic]) => h('button', { 'data-tab': k, onclick: () => { if (tabLocked(k)) { toast(`${TAB_NAME[k] || name} 창은 ${W.lvText(TAB_LV[k])}부터 열려요`); return; } showTab(k); } }, h('span', {}, name))));   // v430 한 글자 그림은 뺐다(글자만)
   $('panel').insertBefore(nav, $('panel-body'));
 }
 function pcEnsureOpen() {
@@ -979,7 +979,7 @@ function goTownNow() {
 }
 document.querySelectorAll('#tabs button[data-tab]').forEach((b) => b.addEventListener('click', () => {
   if (b.dataset.tab === 'town' && !tabLocked('town')) { goTownNow(); return; }
-  if (tabLocked(b.dataset.tab)) { toast(`${TAB_NAME[b.dataset.tab]} 창은 레벨 ${TAB_LV[b.dataset.tab]}에 열려요`); return; }
+  if (tabLocked(b.dataset.tab)) { toast(`${TAB_NAME[b.dataset.tab]} 창은 ${W.lvText(TAB_LV[b.dataset.tab])}에 열려요`); return; }
   showTab(b.dataset.tab);
 }));
 $('panel-dim').addEventListener('click', closePanel);
@@ -1203,7 +1203,7 @@ function refreshUI(full = false) {
   const st = game.stats();
   setText($('hero-name'), s.nickname || '무명');
   setText($('hero-rank'), game.tierName() || '-');
-  setText($('hero-lv'), `Lv.${s.level}`);
+  setText($('hero-lv'), W.lvShort(s.level));   // v446
   // v185: 너비 대신 transform으로 — 너비를 바꾸면 배치를 다시 하고 화면 전체를 다시 칠했다(막대가 움직이는 동안 매 프레임)
   expBar(s.level, s.exp / game.expNeed());
   setText($('exp-pct'), `${Math.min(99.9, (s.exp / game.expNeed()) * 100).toFixed(1)}%`);
@@ -1639,7 +1639,8 @@ function handleEvents() {
         // 새 지역(1구역)이 열릴 때만 알린다 — 구역마다 알리면 두 레벨마다 뜬다
         const opened = W.MAPS.find((m) => m.area === 1 && m.lv[0] === ev.level);
         if (opened) parts.push(opened.king ? `십이지왕 ${opened.zoneName}의 영역이 열렸어요` : `새 사냥터 ${opened.zoneName}`);
-        if (parts.length || ev.level % 5 === 0 || ev.level <= 5) toast([`레벨 ${ev.level}!`, ...parts].join(' · '));
+        if (ev.level === W.LEVEL_SHOW) { view.showBanner('만렙 99 — 이제 수련', '#fde68a', 2.6, '만렙'); parts.push('이제부터 경험치는 수련으로 쌓여요 — 수련마다 능력치·무공 점수가 오르고, 승급(4차)·5차 전직으로 더 강해져요'); }   // v446
+        if (parts.length || ev.level % 5 === 0 || ev.level <= 5) toast([`${W.lvText(ev.level)}!`, ...parts].join(' · '));
         // v263 창이 열리는 레벨 — 띠와 단추 반짝임
         for (const [k, lv] of Object.entries(TAB_LV)) if (ev.level === lv) {
           view.showBanner(`${TAB_NAME[k]} 창이 열렸어요`, '#fde68a', 1.8, '열림');
@@ -2193,7 +2194,7 @@ if (game.s.gearNote) {
 // ---------- 방치 보상 ----------
 function checkReturn(now = Date.now()) {
   // v205: 무공 값이 싸져서 돌려준 점수가 있으면 한 번 알린다
-  if (game.s.skillGift > 0) { toast(`무공 점수가 이제 레벨 ${W.SKILL_PT_FROM}부터 쌓여요 — 지나온 레벨 몫 ${game.s.skillGift}점을 드렸어요`); game.s.skillGift = 0; save(); }
+  if (game.s.skillGift > 0) { toast(`무공 점수가 이제 ${W.lvText(W.SKILL_PT_FROM)}부터 쌓여요 — 지나온 레벨 몫 ${game.s.skillGift}점을 드렸어요`); game.s.skillGift = 0; save(); }
   if (game.s.skillRefund > 0) { toast(`무공 값이 싸졌어요 — 더 쓴 점수 ${game.s.skillRefund}점을 돌려드렸어요 (만렙 ${W.SKILL_LV_MAX})`); game.s.skillRefund = 0; save(); }
   // v254: 받을 보상은 먼저 세이브에 적어 둔다(pendingOffline). 전엔 창이 열려 있으면 lastSeen만 갱신하고 버려서,
   //   설정 창을 연 채 돌아오거나 '받기' 전에 앱이 꺼지면 방치 보상이 영영 사라졌다.
@@ -2215,7 +2216,7 @@ function showPendingOffline() {
   const lvUp = pj.gained > 0;
   const statAfter = game.s.statPts + pj.gained * W.STAT_PER_LEVEL;
   const sum = [
-    lvUp ? h('span', { class: 'ofs lv' }, `Lv.${game.s.level} → `, h('b', {}, `Lv.${pj.lv}`), h('small', {}, ` (+${pj.gained})`)) : h('span', { class: 'ofs lv' }, `Lv.${game.s.level} · 경험치 +${(Math.min(1, rw.exp / game.expNeed()) * 100).toFixed(1)}%`),
+    lvUp ? h('span', { class: 'ofs lv' }, `${W.lvShort(game.s.level)} → `, h('b', {}, W.lvShort(pj.lv)), h('small', {}, ` (+${pj.gained})`)) : h('span', { class: 'ofs lv' }, `Lv.${game.s.level} · 경험치 +${(Math.min(1, rw.exp / game.expNeed()) * 100).toFixed(1)}%`),
     rw.marks > 0 ? h('span', { class: 'ofs boss' }, `두목 ${fmt(rw.marks)}마리`) : null,
     rw.petShard > 0 || rw.mountShard > 0 ? h('span', { class: 'ofs shard' }, `조각 🐾${fmt(rw.petShard || 0)} 🐎${fmt(rw.mountShard || 0)}`) : null,
   ].filter(Boolean);
@@ -2327,7 +2328,7 @@ const saver = new AM.Saver($('app'), () => {
   return {
     clock: `${p2(d.getHours())}:${p2(d.getMinutes())}`,
     date: `${d.getMonth() + 1}월 ${d.getDate()}일 ${'일월화수목금토'[d.getDay()]}요일`,
-    who: `Lv.${s.level} ${s.nickname || ''}`,
+    who: `${W.lvShort(s.level)} ${s.nickname || ''}`,
     where: game.inst ? '던전' : W.mapOf(s.huntMap)?.name || '',
     bars: [['체력', hpR, `${Math.round(hpR * 100)}%`, hpR < 0.35 ? '#7f1d1d' : '#14532d'],
       ['경험치', exR, `${(exR * 100).toFixed(1)}%`, '#4c1d95']],
@@ -2449,7 +2450,7 @@ async function openGiftAdmin() {
   const rows = await net.topPlayers(80);
   list.replaceChildren(...(rows.length ? rows.map((p) => {
     const b = h('button', { class: 'chip gift-who', onclick: () => { pick = p; for (const x of list.children) x.classList.toggle('on', x === b); } },
-      h('b', {}, p.nickname || '이름없음'), h('small', {}, ` Lv.${p.level || 1}${p.uid === net.uid ? ' · 나' : ''}`));
+      h('b', {}, p.nickname || '이름없음'), h('small', {}, ` ${W.lvShort(p.level || 1)}${p.uid === net.uid ? ' · 나' : ''}`));
     return b;
   }) : [h('p', { class: 'muted' }, '무인 목록을 못 불러왔어요')]));
 }
@@ -2490,7 +2491,7 @@ async function openPlayerAdmin() {
       const ago = !Number.isFinite(p.days) ? '접속 기록 없음' : p.days < 1 ? '오늘' : `${Math.floor(p.days)}일 전`;
       return h('label', { class: `pa-row${p.pick ? ' pick' : ''}${p.hidden ? ' hidden' : ''}` }, cb,
         h('span', { class: 'pa-name' }, h('b', {}, p.nickname || (p.gone ? '(서열 기록 없음)' : '이름없음'), me ? h('em', {}, ' · 나') : '', p.hidden ? h('em', {}, ' · 숨김') : ''),
-          h('small', {}, p.gone ? '지운 뒤 아직 안 들어옴' : `Lv.${p.level || 1}${p.tierName ? ` · ${p.tierName}` : ''}${p.guildName ? ` · 문파 ${p.guildName}` : ''} · ${ago}`)),
+          h('small', {}, p.gone ? '지운 뒤 아직 안 들어옴' : `${W.lvShort(p.level || 1)}${p.tierName ? ` · ${p.tierName}` : ''}${p.guildName ? ` · 문파 ${p.guildName}` : ''} · ${ago}`)),
         p.hidden ? h('button', { class: 'btn', style: 'padding:3px 8px;font-size:11.5px', onclick: async (e) => { e.preventDefault(); if (await net.setHidden(p.uid, false)) { toast('되살렸어요 — 다음에 들어오면 서열에 올라와요'); net.changed('rank'); load(); } else toast('되살리지 못했어요'); } }, '되살리기') : h('code', { class: 'pa-uid' }, p.uid.slice(0, 6)));
     }));
     sync();
@@ -2767,7 +2768,7 @@ function showEnding() {
       h('h2', {}, '손바닥 위의 강호'),
       ...ENDING.map(([t, d]) => h('div', { class: 'ending-row' }, h('b', {}, t), h('span', {}, d))),
       h('div', { class: 'ending-stats' },
-        h('span', {}, `${s.nickname || '무인'} · Lv.${s.level}`),
+        h('span', {}, `${s.nickname || '무인'} · ${W.lvShort(s.level)}`),
         h('span', {}, `칠대성 토벌 ${w.kills || 0}번 · 관문 ${Object.keys(w.gates || {}).length}/4 · 옥황상제 ${w.ok || 0}번 · 석가여래 ${w.sk || 0}번`)),
       h('p', { class: 'ending-last' }, '「다시 오너라. 손바닥은 언제나 여기 있으니.」'),
       h('p', { class: 'muted', style: 'font-size:12px' }, '이야기는 여기서 끝나지만 강호는 계속돼요 — 후일담은 천계 이야기에서.'));
