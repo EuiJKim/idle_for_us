@@ -392,7 +392,7 @@ export const isGate = (id) => HEAVEN_GATES.some((b) => b.id === id);
 export const wraidDocId = (boss, seq) => `${boss}_${seq}`;
 export const wraidBossOfId = (id) => WRAID_BOSS[String(id).split('_')[0]] || WRAID_BOSSES[0];
 // v374 옛 이름 — 날짜로 고르던 것(이제는 문서 이름에서)
-export const wraidBossOf = (id) => WRAID_BOSS[String(id).split('_')[0]] || WRAID_BOSSES[((Math.floor(Date.parse(id) / 86400e3) % 8) + 8) % 8] || WRAID_BOSSES[0];
+export const wraidBossOf = (id) => WRAID_BOSS[String(id).split('_')[0]] || WRAID_BOSSES[((Math.floor(Date.parse(id) / 86400e3) % WRAID_BOSSES.length) + WRAID_BOSSES.length) % WRAID_BOSSES.length] || WRAID_BOSSES[0];
 // 체력 — hwamugiHp: 화무기 두목의 기본 체력(wgame.hwamugiHp)
 export const wraidMaxHp = (hwamugiHp, boss) => Math.round(Math.max(1e6, hwamugiHp) * WRAID_HP_K * (boss === SEOKGA.id ? OK_HP_K * SK_HP_K : boss === OKHWANG.id ? OK_HP_K : isGate(boss) ? GATE_HP_K : 1));
 // 광폭 — 남은 체력 몫(0~1)으로. 0: 보통 · 1: 분노(50%↓) · 2: 광폭(20%↓)

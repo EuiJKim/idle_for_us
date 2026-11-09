@@ -382,6 +382,8 @@ export const KING_INTRO_SEC = 3.2;   // 십이지왕 등장 연출 길이
 export const BOSS_INTRO_SEC = 2.2;   // 보통 두목 등장 연출 길이
 export const BOSS_ROOM_MOBS = 14;   // v241: 8 → 12 · v242: 14
 export const NORMAL_ZONES = 15;
+// v454 던전(수련장·탑)이 열리는 레벨 — 창 잠금(wmain TAB_LV)과 자동 루틴이 같은 값을 본다
+export const DGN_LV = 18;
 // 십이지왕 — 약한 순(제12왕 → 제1왕). art: 그림을 빌려 올 옛 지역. desc는 줄거리 한두 줄.
 export const KINGS = [
   { no: 12, title: '권왕', real: '강후', art: 9, mat: '유혼석', prefix: '유혼', hanja: '拳王', skill: '유혼절명권',
@@ -1087,9 +1089,8 @@ export const MANUAL_HOLD = 0.3;       // v305 손으로 움직인 직후 과녁�
 //   atkMul: 공격력 배수 · hitFx: 때릴 때마다 과녁 위에 뜨는 글자 · col: 빛깔 · (v322) spdMul 공격 속도 · goldMul 은자 · expMul 경험치 배수
 export const TITLES = {
   founder: { id: 'founder', name: '개국공신', desc: '옛 판에서 온 무인', col: '#fde68a' },
-  okheir: { id: 'okheir', name: '이미옥의 후예', desc: '공격력 ×2 · 때릴 때마다 〈옥〉', atkMul: 2, hitFx: '옥', col: '#6ee7b7' },
-  // v322 운영자만 보낼 수 있다(얻는 길 없음 — how가 없다) · spdMul 공격 속도 · goldMul 은자 · expMul 경험치 · fxSize 글자 크기
-  yoon: { id: 'yoon', name: '윤석열의 가호', desc: '공격력 ×3 · 공격 속도 ×1.5 · 은자 ×2 · 경험치 ×2 · 때릴 때마다 〈Yoon Again〉', atkMul: 3, spdMul: 1.5, goldMul: 2, expMul: 2, hitFx: 'Yoon Again', fxSize: 22, col: '#f87171' },
+  // v322 운영자만 보낼 수 있는 칭호(얻는 길 없음 — how가 없다) · spdMul 공격 속도 · goldMul 은자 · expMul 경험치 · fxSize 글자 크기
+  // v454 실존 인물 이름을 쓴 칭호 둘은 지웠다(세이브에서도 저절로 빠진다 — 모르는 칭호는 읽을 때 거른다)
   // v307 저절로 얻는 칭호 — how: 이루는 길(글). 조건은 wgame.titleDone
   lv100: { id: 'lv100', name: '초절정', desc: '공격력 +2%', how: '레벨 100', atkMul: 1.02, col: '#a5b4fc' },
   lv150: { id: 'lv150', name: '천하제일', desc: '공격력 +5% · 때릴 때마다 〈天〉', how: '레벨 150', atkMul: 1.05, hitFx: '天', col: '#fde68a' },

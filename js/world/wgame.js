@@ -41,7 +41,7 @@ export function newWorldSave(now = Date.now()) {
     gold: 0,
     potions: 5,
     autoPotion: true,
-    autoRefill: false,        // 물약이 10개 아래면 알아서 50개까지 산다 (v121)
+    autoRefill: true,         // 물약이 10개 아래면 알아서 50개까지 산다 (v121) · v454 새 무인은 켬(방치의 기본 — 물약이 떨어지면 방치 보상이 멈춘다)
     equip: { weapon: null, armor: null, hat: null, glove: null, shoe: null, acc: null, finger: null, ear: null },
     gearV: 3,                // v143 사다리 스무 칸 (레벨 5마다 · 100까지)
     pets: [],                // 키우는 애완동물 (장착 칸만큼 함께 싸운다)
@@ -68,7 +68,7 @@ export function newWorldSave(now = Date.now()) {
     deaths: 0,
     bestMap: W.mapId(1, 1),
     // 요일 던전 (v126): 오늘 쓴 횟수 · 종류별 깬 단계 · 자동 도전(v139)
-    dgn: { day: '', used: {}, best: {}, auto: false, routine: false, climb: true },   // climb(v283): 자동은 새 단계만 오르고, 막히면 멈춘다(소탕 안 함)   // routine(v230): 요일 던전 → 탑 → 사냥터
+    dgn: { day: '', used: {}, best: {}, auto: false, routine: true, climb: true },   // v454 새 무인은 루틴(수련장 → 탑 → 사냥터) 켬   // climb(v283): 자동은 새 단계만 오르고, 막히면 멈춘다(소탕 안 함)   // routine(v230): 요일 던전 → 탑 → 사냥터
     tower: { floor: 0, auto: true },         // 무한의 탑: 오른 층 · 이기면 이어 오르기
     path: null,                              // 직업의 길 (v237) — 'a' 무공 · 'b' 평타, 2차 전직에 고른다
     zTickets: {},                            // 십이지 뽑기권 — 신 번호(1~12): 장수
@@ -1097,7 +1097,7 @@ export class WorldGame {
     if (this._followDue && !this.inst) { this._followDue = false; this.followMap(); }
     if ((this.s.autoEnh || this.s.autoInf) && !this.inst && (this._autoGearT = (this._autoGearT ?? 5) - dt) <= 0) { this._autoGearT = 5; this.autoGear(); }
     if ((this._titleT = (this._titleT ?? 3) - dt) <= 0) { this._titleT = 5; this.checkTitles(); }   // v307 자동 칭호
-    if ((this.s.dgn.auto || this.s.dgn.routine) && !this.inst && !(this.s.dgn.pauseUntil > Date.now())) {   // v417 나가기를 누른 뒤 30분은 쉰다
+    if ((this.s.dgn.auto || this.s.dgn.routine) && !this.inst && this.s.level >= W.DGN_LV && !(this.s.dgn.pauseUntil > Date.now())) {   // v417 나가기를 누른 뒤 30분은 쉰다 · v454 던전이 열리는 레벨부터(루틴이 기본 켬이라)
       this.autoDgnT = (this.autoDgnT || 0) - dt;
       if (this.autoDgnT <= 0) { this.autoDgnT = AUTO_DGN_SEC; this.startRoutine(); }
     }
@@ -4395,7 +4395,7 @@ export class WorldGame {
   // 탑에서 막히면 그때 전투력을 적어 두고, 전투력이 5% 넘게 오를 때까지는 다시 안 간다(같은 층에서 헛돌지 않게).
   towerRetryOk() { return this.stats().power >= (this.s.tower.failPow || 0) * 1.05; }
   routineNext(now = Date.now()) {
-    if (!this.s.dgn.routine || this.inst || !this.s.job) return null;
+    if (!this.s.dgn.routine || this.inst || !this.s.job || this.s.level < W.DGN_LV) return null;   // v454
     const d = this.autoDailyNext(now);
     if (d) return { step: 'daily', ...d };
     if (this.canTower() && this.towerRetryOk()) return { step: 'tower' };
@@ -4889,7 +4889,7 @@ export class WorldGame {
   }
   // ---------- 문파 토벌 (v128) ----------
   // v428 길잡이 「문파 토벌에 한 번 참여하자」 단계인데 오늘 몫을 다 썼으면 한 번 더 — 단계를 못 끝내고 다음 날까지 막혔다
-  raidBonus() { const c = this.questNow?.(); return c && !c.done && c.q?.id === 'raid' && !this.s.did?.raid ? 1 : 0; }
+  raidBonus() { const c = this.questNow?.(); return c && !c.done && c.q?.id === 'raid' && !this.s.did?.raid ? 1 : 0; }   // v454 길잡이에 토벌 단계가 없어 늘 0(옛 판 세이브가 그 단계에 있을 때만)
   raidLeft(now = Date.now()) {
     const r = this.s.raid;
     const cap = D.RAID_PER_DAY + this.raidBonus();

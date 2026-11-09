@@ -48,7 +48,8 @@ async function newPlayer(browser, name, cls = '검사') {
   await page.waitForSelector('#modal .cust-go', { timeout: 5000 });
   await page.click('#modal .cust-go');
   // v320 출석부 창이 시험 중간에 뜨지 않게 오늘 것은 먼저 받아 둔다(출석은 아래에서 따로 본다)
-  await page.evaluate(() => window.__game.attend());
+  // v454 새 무인은 던전 루틴이 기본 켬 — 이 시험은 레벨을 손으로 올렸다 내리므로(70 → 10) 루틴이 던전에 끌고 가지 않게 끈다
+  await page.evaluate(() => { window.__game.attend(); window.__game.s.dgn.routine = false; });
   return { ctx, page, errors, name };
 }
 // 'map/king'처럼 창/칸 (v147 — 창마다 칸이 나뉘었다)
@@ -239,7 +240,7 @@ async function tab(page, name) {
   assert(await G(p, () => !window.__game.map.town && window.__game.canAdvance()), '사냥터에서도 전직할 수 있다');
   if (await p.isVisible('#panel-close')) { await p.click('#panel-close'); await sleep(250); }
   await p.click('#tabs button[data-tab="town"]');
-  await p.waitForSelector('#town-go', { timeout: 5000 });
+  try { await p.waitForSelector('#town-go', { timeout: 5000 }); } catch (e) { console.log('DEBUG town', JSON.stringify(await G(p, () => ({ modal: document.querySelector('#modal')?.className, text: (document.querySelector('#modal')?.innerText || '').slice(0, 200), panel: document.querySelector('#panel')?.className, tab: document.querySelector('#tabs button.on')?.dataset.tab, town: window.__game.map.town, inst: !!window.__game.inst })))); throw e; }
   assert(await G(p, () => !window.__game.map.town), '마을 단추 → 먼저 묻는다 (v338)');
   await p.click('#town-go');
   await sleep(300);
@@ -255,8 +256,11 @@ async function tab(page, name) {
   const pot0 = await G(p, () => window.__game.s.potions);
   await p.locator('#panel .buy-grid .buy:has-text("50개")').click();
   assert(await G(p, () => window.__game.s.potions) === pot0 + 50, '물약 50개');
+  // v454 새 무인은 자동 보충이 기본 켬 — 단추가 끄고 켜는지 본다
+  const ar0 = await G(p, () => window.__game.s.autoRefill);
   await p.click('#panel button:has-text("자동 보충")');
-  assert(await G(p, () => window.__game.s.autoRefill === true), '물약 자동 보충을 켠다');
+  assert(await G(p, (a) => window.__game.s.autoRefill === !a, ar0), `물약 자동 보충 단추 — ${ar0 ? '켬 → 끔' : '끔 → 켬'}`);
+  if (ar0) { await p.click('#panel button:has-text("자동 보충")'); assert(await G(p, () => window.__game.s.autoRefill === true), '다시 켠다'); }
   await p.click('#panel .subtabs button[data-key="master"]');
   await sleep(200);
   await p.click('#panel button:has-text("전직하기")');
@@ -327,10 +331,10 @@ async function tab(page, name) {
     // 그날 처음 들어온 것처럼 — 출석 창이 저절로 뜨고, 받으면 캐릭터 창 출석부에 ✓
     const n0 = await G(p, () => window.__game.s.att.n);
     await G(p, () => { window.__game.s.att.day = '2000-01-01'; });
-    await p.waitForSelector('#modal h2:has-text("오늘의 출석")', { timeout: 10000 });
+    // v454 출석은 창 없이 저절로(알림 한 줄) — 몇 초 안에 받아진다
+    await p.waitForFunction((n) => window.__game.s.att.n === n, (n0 % 7) + 1, { timeout: 15000 });
     await shot(p, '07b-attend.png');
-    await p.click('#modal .btn.primary');
-    assert(await G(p, () => window.__game.s.att.n) === (n0 % 7) + 1, '출석 창 — 하루 한 칸 받기');
+    assert(!(await p.isVisible('#modal h2:has-text("오늘의 출석")')), '출석은 창 없이 저절로 — 하루 한 칸 (v454)');
     await tab(p, 'char/info');
     assert(await p.isVisible('#panel .att-card .btn.primary[disabled]'), '캐릭터 창 출석부 — 오늘은 받았어요');
     await p.click('#panel-close'); await sleep(250);

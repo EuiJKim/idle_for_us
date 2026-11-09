@@ -941,7 +941,7 @@ function showTab(name, sub) {
   panelRes();
 }
 // v263: 창은 레벨에 따라 열린다 — Lv1부터 일곱 개가 다 열려 있어 첫 10분이 어지러웠다(옛 세이브는 이미 높아 그대로)
-const TAB_LV = { comp: 12, dgn: 18, social: 5 };   // v345 문파·채팅(무림 창)은 레벨 5부터 — 25까지 잠겨 문파·함께 사냥을 늦게 알았다
+const TAB_LV = { comp: 12, dgn: W.DGN_LV, social: 5 };   // v345 문파·채팅(무림 창)은 레벨 5부터 — 25까지 잠겨 문파·함께 사냥을 늦게 알았다
 const TAB_NAME = { comp: '동료', dgn: '던전', social: '무림·문파' };
 const tabLocked = (k) => (game.s.level || 1) < (TAB_LV[k] || 0);
 function paintTabLocks() {
@@ -1144,12 +1144,8 @@ function askSaveCode() {
 }
 // v320 출석부 — 그날 처음 들어오면 한 번 띄운다(닫으면 받는다)
 let attAsked = false;
-function showAttend() {
-  const day = game.attNext();
-  openModal((s) => s.append(h('h2', {}, '📅 오늘의 출석'), h('p', { class: 'muted' }, `${day}일째 — 7일째가 커요 · 빠져도 끊기지 않아요`), attGrid(game),
-    h('button', { class: 'btn primary', style: 'width:100%;margin-top:8px', onclick: closeModal }, `${day}일째 받기`)),
-  { dismissable: false, onClose: () => { game.attend(); save(); refreshUI(true); } });
-}
+// v454 출석은 창 없이 저절로 받는다(알림 한 줄) — 접속하자마자 닫을 수 없는 창이 떴다. 출석부 그림은 캐릭터 창 맨 위 카드에 그대로
+function showAttend() { game.attend(); save(); refreshUI(true); }
 // v318 지난주 두목 순위 보상 — 접속마다 한 번 본다. 3위 안이면 창, 아니면 조용히 '본 것'으로
 let wbChecked = false;
 async function checkWeekReward() {
@@ -2025,7 +2021,7 @@ function showGuide(q) {
 }
 function hideGuide() { $('guide-tip')?.classList.add('hidden'); guideQ = null; }
 // v424 길잡이 말풍선 — 지금 단계가 가리키는 창·칸 단추 위에 「여기 ▾」. 첫 길잡이 GUIDE_PTR_N단계까지만 · 이미 그 칸에 있으면 안 뜬다
-const GUIDE_PTR_N = 30;
+const GUIDE_PTR_N = 14;   // v454 35단계 가운데 첫 30분(대결까지)
 let guidePtr = null, guidePtrOff = false;
 try { guidePtrOff = localStorage.getItem('ifu.guidePtr') === 'off'; } catch { /* 처음 */ }
 function guideTarget(q) {
@@ -2047,7 +2043,7 @@ function paintGuidePtr() {
   const tg = q ? guideTarget(q) : null;
   if (!tg) { guidePtr?.classList.add('hidden'); return; }
   if (!guidePtr) {
-    guidePtr = h('button', { id: 'guide-ptr', class: 'hidden', onclick: () => { const c = game.questNow(); if (!c) return; if (c.q.tab) { const [t, sub] = c.q.tab.split('/'); showTab(t, sub); } showGuide(c.q); } },
+    guidePtr = h('button', { id: 'guide-ptr', class: 'hidden', onclick: () => { const c = game.questNow(); if (!c) return; if (c.q.tab) { const [t, sub] = c.q.tab.split('/'); if (t === 'town' && !game.map.town && !game.inst) { goTownNow(); return; } showTab(t, sub); } showGuide(c.q); } },   // v454 마을을 가리킬 땐 탭 단추처럼 「마을로 갈까요」를 먼저 묻는다(말풍선이 탭을 덮어 바로 창을 열었다)
       h('span', { class: 'gp-txt' }), h('i', { class: 'gp-caret' }));
     document.body.append(guidePtr);
   }
@@ -2582,6 +2578,8 @@ $('btn-settings').addEventListener('click', () => openModal((s) => {
       view.clean = v;
       try { localStorage.setItem('ifu.clean', v ? '1' : '0'); } catch { /* 이번만 */ }
     }),
+    h('div', { class: 'row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, '전부 자동'), h('div', { class: 'desc' }, '사냥 · 무공 · 물약 · 물약 보충 · 능력치 · 무공 점수 · 강화 · 각인 · 알맞은 사냥터 · 던전 루틴(수련장 → 탑)을 한 번에 켜요 — 켜 두기만 하면 돼요')),
+      h('button', { class: 'btn primary', style: 'padding:6px 12px', onclick: () => { const s = game.s; s.autoHunt = true; s.autoSkill = true; s.autoPotion = true; s.autoRefill = true; s.autoStat = true; s.autoSkillPts = true; s.autoEnh = true; s.autoInf = true; s.autoMap = true; s.dgn.auto = true; s.dgn.routine = true; s.tower.auto = true; game.autoStats?.(); game.autoSkillPoints?.(); save(); refreshUI(true); toast('전부 자동 — 이제 켜 두기만 하면 돼요'); closeModal(); } }, '모두 켜기')),   // v454
     toggleRow('자동 스킬', game.s.autoSkill, '체력을 쓰는 스킬은 체력이 넉넉할 때만 써요 · 걸으면서도 써요', (v) => { game.s.autoSkill = v; save(); }),
     toggleRow('무공 점수 자동', game.s.autoSkillPts, '레벨업 무공 점수를 주력 무공 → 보조기 → 나머지 → 심법 순으로 알아서 찍어요 (끄면 무공 창에서 직접)', (v) => { game.s.autoSkillPts = v; if (v) game.autoSkillPoints(); save(); }),   // v449
     ]],

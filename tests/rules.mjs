@@ -80,10 +80,10 @@ const profile = (extra = {}) => ({ world: 1, nickname: '무인', level: 10, job:
     ok(await allowed(F.setDoc(F.doc(adb, 'config', 'hidden'), { uids: F.arrayRemove(victim.uid) }, { merge: true })), '운영자가 되살린다');
 
     console.log('# 칭호 우편 (v305)');
-    ok(await allowed(F.setDoc(F.doc(adb, 'gifts', friend.uid, 'box', 'gt1'), { title: 'okheir', memo: '이미옥의 후예', at: Date.now() })), '운영자가 칭호 우편');
+    ok(await allowed(F.setDoc(F.doc(adb, 'gifts', friend.uid, 'box', 'gt1'), { title: 'founder', memo: '개국공신', at: Date.now() })), '운영자가 칭호 우편');
     ok(await denied(F.setDoc(F.doc(adb, 'gifts', friend.uid, 'box', 'gt2'), { title: 'x'.repeat(21), at: Date.now() })), '긴 칭호 열쇠 거부');
-    ok(await denied(F.setDoc(friend.ref('gifts', friend.uid, 'box', 'gt3'), { title: 'okheir', at: Date.now() })), '스스로 칭호 우편 넣기 거부');
-    ok(await allowed(F.setDoc(friend.ref('players', friend.uid), profile({ title: 'okheir' }), { merge: true })), '서열에 낀 칭호 올리기');
+    ok(await denied(F.setDoc(friend.ref('gifts', friend.uid, 'box', 'gt3'), { title: 'founder', at: Date.now() })), '스스로 칭호 우편 넣기 거부');
+    ok(await allowed(F.setDoc(friend.ref('players', friend.uid), profile({ title: 'founder' }), { merge: true })), '서열에 낀 칭호 올리기');
     ok(await denied(F.setDoc(friend.ref('players', friend.uid), profile({ title: 'x'.repeat(21) }), { merge: true })), '긴 칭호 거부');
 
     console.log('# 전체 채팅 (v302 · v315 2초 막이 · 100자 · 칭호)');
@@ -108,7 +108,7 @@ const profile = (extra = {}) => ({ world: 1, nickname: '무인', level: 10, job:
     ok(await denied(F.setDoc(bad.ref('chatlimit', friend.uid), { at: F.serverTimestamp() })), '남의 빠르기 막이 거부');
     ok(await denied(F.deleteDoc(bad.ref('chatlimit', bad.uid))), '빠르기 막이 지우기 거부');
     ok(await allowed(say(bad, { text: '가'.repeat(100) })), '100자는 된다');
-    const mine = await say(friend, { title: 'okheir' });
+    const mine = await say(friend, { title: 'founder' });
     ok(!!mine, '칭호를 실어 보낸다');
     ok(await denied(F.updateDoc(friend.ref('chat', mine.id), { text: '고침' })), '자기 말도 고치기 거부');
     ok(await denied(F.deleteDoc(friend.ref('chat', mine.id))), '자기 말도 지우기 거부(운영자만)');
@@ -138,7 +138,7 @@ const profile = (extra = {}) => ({ world: 1, nickname: '무인', level: 10, job:
     const WK = '2026-11-02';
     const wb = (o = {}) => ({ name: '무인', kills: 5, lv: 120, at: F.serverTimestamp(), ...o });
     const mineRef = friend.ref('wboss', WK, 'p', friend.uid);
-    ok(await allowed(F.setDoc(mineRef, wb({ hwamugi: 95.3, title: 'okheir' }), { merge: true })), '내 주간 기록 올리기');
+    ok(await allowed(F.setDoc(mineRef, wb({ hwamugi: 95.3, title: 'founder' }), { merge: true })), '내 주간 기록 올리기');
     ok(await allowed(F.setDoc(mineRef, wb({ kills: 9, hwamugi: 80.1 }), { merge: true })), '더 많이 · 더 빨리는 된다');
     ok(await denied(F.setDoc(mineRef, wb({ kills: 3 }), { merge: true })), '처치 수를 줄이면 거부');
     ok(await denied(F.setDoc(mineRef, wb({ kills: 9, hwamugi: 120 }), { merge: true })), '최단 기록을 늘리면 거부');

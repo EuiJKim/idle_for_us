@@ -52,7 +52,7 @@ async function newPlayer(browser, name, cls = '검사') {
   await page.click(`.class-card:has-text("${cls}")`);
   await page.waitForSelector('#modal .cust-go', { timeout: 5000 });
   await page.click('#modal .cust-go');
-  await page.evaluate(() => window.__game.attend());
+  await page.evaluate(() => { window.__game.attend(); window.__game.s.dgn.routine = false; });   // v454 루틴이 기본 켬 — 레벨을 손으로 올리는 시험이라 끈다
   // 온라인이 될 때까지
   for (let i = 0; i < 60; i++) { if (await G(page, () => !!window.__net?.ready?.() && !!window.__net.uid)) break; await sleep(250); }
   const uid = await G(page, () => window.__net.uid);
