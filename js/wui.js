@@ -2768,7 +2768,7 @@ function townTab(app) {
             h('span', { class: `need${lvOk ? ' ok' : ''}` }, `${W.lvText(t.level)}`, ' ', h('b', {}, lvOk ? '✓' : `${s.level}/${t.level}`)),
             h('span', { class: `need${goldOk ? ' ok' : ''}` }, '은자', ' ', h('b', {}, goldOk ? '✓' : `${fmt(s.gold)}/${fmt(t.cost)}`))),
           h('p', { class: 'muted' }, '배우는 무공: ', h('b', {}, sk.name), ` — ${skillText(game, sk)}`),
-          h('p', { class: 'muted' }, `최대 체력 +${Math.round(W.tierHp(s.jobTier + 1) * 100)}% (지금 +${Math.round(W.tierHp(s.jobTier) * 100)}%) — 체력을 쓰는 무공이 그만큼 세져요`),   // v442
+          h('p', { class: 'muted' }, `최대 체력 +${Math.round(W.tierHp(s.jobTier + 1) * 100)}% (지금 +${Math.round(W.tierHp(s.jobTier) * 100)}%)${W.tierAtk(s.jobTier + 1) > W.tierAtk(s.jobTier) ? ` · 공격력 +${Math.round(W.tierAtk(s.jobTier + 1) * 100)}%` : ''} — 체력을 쓰는 무공이 그만큼 세져요${s.jobTier + 1 === 4 ? ' · 99 뒤 힘은 수련보다 전직에서 나와요' : ''}`),   // v442 · v447
           h('button', { class: 'btn primary', style: 'width:100%', disabled: game.canAdvance() ? null : true, onclick: () => {
             if (!game.advance()) return;
             toast(`${game.tierName()}(으)로 전직했어요 — 〈${sk.name}〉`);

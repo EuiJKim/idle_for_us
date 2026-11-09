@@ -4259,5 +4259,16 @@ console.log('\n=== v446 만렙 99 · 그 뒤는 수련 ===');
   ok(/만렙 99 — 이제 수련/.test(src) && /setText\(\$\('hero-lv'\), W\.lvShort/.test(src) && !/`레벨 \$\{(?!.*join)[^}]*\}/.test(ui.replace(/W\.lvText\([^)]*\)/g, '')), '머리 줄·띠·창 글이 99 뒤를 수련으로 적는다');
 }
 
+console.log('\n=== v447 99 뒤 힘은 전직으로 ===');
+{
+  const at = (L, tier, job = 'sword') => { const g = fresh(job); while (g.s.level < L) g.addExp(W.expToNext(g.s.level)); g.s.gold = 1e15; while (g.s.jobTier < tier && g.canAdvance()) g.advance(); if (tier >= 5) { g.s.duel.won = { ...(g.s.duel.won || {}), [g.fifth().need]: 1 }; while (g.canAdvance()) g.advance(); } g._stats = null; return g.stats().power; };
+  const p99a = at(99, 3), p99b = at(99, 4), p129 = at(129, 4), p130 = at(130, 5);
+  ok(p99b / p99a > 1.12, '승급(4차) 한 번에 전투력 +12% 넘게', `${p99a} → ${p99b}`);
+  ok(p129 / p99b < 1.08, '수련 30단계로는 +8% 아래(전직보다 작게)', `${p99b} → ${p129}`);
+  ok(p130 / p129 > 1.5, '5차 전직 한 번에 +50% 넘게', `${p129} → ${p130}`);
+  const g = fresh('sword'); while (g.s.level < 99) g.addExp(W.expToNext(g.s.level)); const sp = g.s.statPts; g.addExp(W.expToNext(99));
+  ok(g.s.level === 100 && g.s.statPts - sp === W.STAT_PER_TRAIN, '수련 한 단계 능력치 점수 1');
+}
+
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);

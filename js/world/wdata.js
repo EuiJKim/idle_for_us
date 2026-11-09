@@ -1061,8 +1061,14 @@ export const BASIC_K = 0.6, SKILL_K = 1.2;
 //   한 번 맞을 때 더해지는 몫 = 소모 체력 × K ÷ 공격력 ÷ (맞는 횟수). 최대 체력이 오를수록 소모도·피해도 같이 오른다.
 export const HP_DMG_K = 2;
 // v442 전직·승급마다 최대 체력 보너스 — 체력이 곧 힘(v441)이라 전직이 곧 화력이다. 4차(99)는 「승급」이라 부른다
-export const TIER_HP = [0, 0.03, 0.06, 0.10, 0.18, 0.25];
+export const TIER_HP = [0, 0.03, 0.06, 0.10, 0.25, 0.32];   // v447 승급 18 → 25% · 5차 25 → 32%(수련 몫을 전직으로)
 export const tierHp = (t) => TIER_HP[Math.max(0, Math.min(TIER_HP.length - 1, t | 0))];
+// v447 99 뒤 힘은 전직으로 — 승급(4차)부터 공격력 +TIER_ATK(5차는 천마신공 배수가 따로 크다) · 수련 한 단계의 몫은 레벨의 TRAIN_K만큼(기본 공격력·체력) · 능력치 점수 STAT_PER_TRAIN
+export const TIER_ATK = [0, 0, 0, 0, 0.15, 0.15];
+export const tierAtk = (t) => TIER_ATK[Math.max(0, Math.min(TIER_ATK.length - 1, t | 0))];
+export const TRAIN_K = 0.4;
+export const STAT_PER_TRAIN = 1;
+export const baseLv = (L) => Math.min(L, 99) + Math.max(0, L - 99) * TRAIN_K;   // 기본 공격력·체력에 쓰는 레벨
 export const tierLabel = (t) => (t === 4 ? '승급(4차)' : `${t}차 전직`);
 export const swingSec = (atkSec) => BASE_ATK_SEC * Math.pow(atkSec / BASE_ATK_SEC, SWING_K);
 export const KILL_RECOVER = 0.15;     // v303 과녁을 쓰러뜨리면 평타 쿨을 이만큼으로 — 다음 몹까지 걸어가 또 한 박자 쉬지 않게 (v305 0.3 → 0.15)
