@@ -503,6 +503,46 @@ for (const zn of ZONE_ORDER) {
 }
 const MAP_BY_ID = Object.fromEntries(MAPS.map((m) => [m.id, m]));
 export const mapOf = (id) => MAP_BY_ID[id] || MAPS[0];
+
+// ---------- v455 방(房) — 지역 15 · 방 159 (docs/방_단위_사냥터_기획.md) ----------
+// 지역·맵 번호는 그대로 두고 **묶음(REGIONS)** 한 겹과 **문(doors)** 을 더한다. 방은 작다(9×11칸 · 몹 10) — 바람의나라처럼 한눈에.
+//   지역 R = 앞마당(보통 지역 z 구역 1·2·3) + 두목방(z·4) + 별채(짝 지역 p 1·2·3·4) + 심처(왕 지역 k 1·2·3 = 수련 방, k·4 = 왕방) + 거처(고수 방들)
+//   문: z1 ↑ z2 ↑ z3 ↑ z4(두목방) ↑ k1 ↑ k2 ↑ k3 ↑ k4 · z2 ← p1 ↑ p2 ↑ p3 ↑ p4(별채 두목) · z3 → 다음 지역 z'1. 심처 문은 승급(DEEP_LV) 뒤 또는 지역 두목을 잡은 뒤.
+export const ROOM_COLS = 9;
+export const ROOM_ROWS = 11;
+export const ROOM_MOBS = 10;          // 방 하나의 몹(들판·별채·심처)
+export const ROOM_BOSS_MOBS = 6;      // 두목방·왕방 졸개
+export const ROOM_RESPAWN = 8;        // 자리마다 다시 나기까지(게임 초)
+export const DEEP_LV = 99;            // 심처 문이 열리는 레벨(또는 지역 두목 처치)
+// 고수의 거처는 바닥 그림이 같은 지역에(규칙) — 몇은 손으로 (기획표)
+const MASTER_REGION = { baekmanggi: 14 };
+const regionOfArt = (art) => { if (art >= 1 && art <= NORMAL_ZONES) return art; const alt = ALT_ZONES.find((a) => a.art === art); return alt ? alt.pair : NORMAL_ZONES; };
+export const REGIONS = [null];
+for (let z = 1; z <= NORMAL_ZONES; z++) {
+  const pair = ALT_ZONES.find((a) => a.pair === z)?.id || null;
+  const king = ZONES_W.find((zn) => zn && zn.king && zn.art === z)?.id || null;
+  const masters = ZONES_W.filter((zn) => zn && zn.master && (MASTER_REGION[zn.master] ?? regionOfArt(zn.art)) === z).map((zn) => zn.id);
+  REGIONS.push({ id: z, name: ZONES_W[z].name, art: z, lv: ZONES_W[z].lv, main: z, pair, king, masters,
+    deepLv: king ? ZONES_W[king].lv : null });
+}
+export const regionOfZone = (z) => REGIONS.find((r) => r && (r.main === z || r.pair === z || r.king === z || r.masters.includes(z))) || null;
+export const regionOfMap = (id) => regionOfZone(mapOf(id).zone);
+// 문 — n/s/e/w에 이웃 맵 번호. lock: 'deep'(심처 문)
+for (const m of MAPS) { if (!m.town) { m.cols = ROOM_COLS; m.rows = ROOM_ROWS; m.mobsAlive = m.bossRoom ? ROOM_BOSS_MOBS : ROOM_MOBS; } else { m.cols = COLS; m.rows = ROWS; m.mobsAlive = 0; } m.doors = {}; }
+const link = (a, da, b, db, lock = null) => { const A = MAP_BY_ID[a], B = MAP_BY_ID[b]; if (!A || !B) return; A.doors[da] = b; B.doors[db] = a; if (lock) { A.doorLock = { ...(A.doorLock || {}), [da]: lock }; } };
+const chain = (z, lastArea = BOSS_AREA) => { for (let a = 1; a < lastArea; a++) link(mapId(z, a), 'n', mapId(z, a + 1), 's'); };
+for (const r of REGIONS) {
+  if (!r) continue;
+  chain(r.main);                                              // z1 ↑ z2 ↑ z3 ↑ z4
+  if (r.pair) { chain(r.pair); link(mapId(r.main, 2), 'w', mapId(r.pair, 1), 'e'); }   // z2 ← p1 ↑ p2 ↑ p3 ↑ p4
+  if (r.king) { chain(r.king); link(mapId(r.main, BOSS_AREA), 'n', mapId(r.king, 1), 's', 'deep'); }   // z4 ⇑ k1 ↑ k2 ↑ k3 ↑ k4
+  if (r.id < NORMAL_ZONES) link(mapId(r.main, 3), 'e', mapId(r.id + 1, 1), 'w');   // z3 → 다음 지역 z'1
+}
+// 문 칸 — 방 가장자리 가운데
+export const doorTile = (m, d) => { const mc = Math.floor(m.cols / 2), mr = Math.floor(m.rows / 2); return d === 'n' ? { c: mc, r: 0 } : d === 's' ? { c: mc, r: m.rows - 1 } : d === 'e' ? { c: m.cols - 1, r: mr } : { c: 0, r: mr }; };
+export const doorAt = (m, c, r) => { for (const d of Object.keys(m.doors || {})) { const t = doorTile(m, d); if (t.c === c && t.r === r) return d; } return null; };
+export const OPP_DOOR = { n: 's', s: 'n', e: 'w', w: 'e' };
+export const roomCount = () => MAPS.filter((m) => !m.town).length;
 export const hasMap = (id) => !!MAP_BY_ID[id];
 // 옛 세이브(사냥터 번호 1~15)를 새 구역 번호로
 export const oldMapToNew = (k) => (k >= 1 && k <= NORMAL_ZONES ? mapId(k, 1) : 0);

@@ -4433,5 +4433,24 @@ console.log('\n=== v454 첫 30분 점검 ===');
   ok(/function showAttend\(\) \{ game\.attend\(\);/.test(mn) && /'전부 자동'/.test(mn) && /GUIDE_PTR_N = 14/.test(mn), '출석은 창 없이 저절로 · 설정에 「전부 자동」 · 말풍선은 첫 14단계');
 }
 
+console.log('\n=== R1 방 데이터 — 지역 15 · 문 ===');
+{
+  ok(W.REGIONS.length === 16 && W.REGIONS.slice(1).every((r) => r.main === r.id && r.name), '지역 15');
+  const all = W.ZONES_W.filter(Boolean).map((z) => z.id);
+  const covered = new Set(); for (const r of W.REGIONS.slice(1)) for (const z of [r.main, r.pair, r.king, ...r.masters]) if (z) { ok(!covered.has(z), `지역 ${z}은 한 묶음에만`); covered.add(z); }
+  ok(all.every((z) => covered.has(z)) && covered.size === all.length, '옛 지역 60개(보통 15 · 짝 6 · 왕 12 · 고수 27)가 빠짐없이 15지역 안에', `${covered.size}/${all.length}`);
+  ok(W.REGIONS.slice(1).filter((r) => r.king).length === 12 && W.REGIONS.slice(1).filter((r) => r.pair).length === 6 && W.REGIONS.slice(1).reduce((a, r) => a + r.masters.length, 0) === 27, '왕 12 · 별채 6 · 거처 27');
+  ok(W.regionOfZone(20).id === 1 && W.regionOfZone(16).id === 9 && W.regionOfZone(31).id === 3 && W.regionOfZone(55).id === 14 && W.regionOfZone(66).id === 15, '목왕은 죽림 심처 · 권왕은 소림 · 도화림은 천산 별채 · 검황은 동해 · 화무기는 천외천');
+  ok(W.roomCount() === 159 && W.MAPS.filter((m) => !m.town).every((m) => m.cols === 9 && m.rows === 11 && m.mobsAlive === (m.bossRoom ? 6 : 10)) && W.mapOf(0).cols === W.COLS, '방 159 · 9×11칸 · 몹 10(두목방 6) · 마을은 그대로');
+  // 문은 양방향 · 앞마당 사슬 · 별채 · 심처 · 다음 지역
+  let bad = 0; for (const m of W.MAPS) for (const [d, to] of Object.entries(m.doors)) { const B = W.mapOf(to); if (B.doors[W.OPP_DOOR[d]] !== m.id) bad++; }
+  ok(bad === 0, '문은 모두 양방향');
+  const z = W.mapOf(W.mapId(1, 1));
+  ok(z.doors.n === W.mapId(1, 2) && W.mapOf(W.mapId(1, 3)).doors.n === W.mapId(1, 4) && W.mapOf(W.mapId(1, 3)).doors.e === W.mapId(2, 1) && W.mapOf(W.mapId(1, 4)).doors.n === W.mapId(20, 1) && W.mapOf(W.mapId(1, 4)).doorLock?.n === 'deep', '죽림: 1→2→3→두목방→(심처 문)목왕의 땅 · 3번 방 → 황사 서역 입구');
+  ok(W.mapOf(W.mapId(3, 2)).doors.w === W.mapId(31, 1) && W.mapOf(W.mapId(31, 3)).doors.n === W.mapId(31, 4), '천산 2번 방 ← 도화림 별채 → 도화도주');
+  ok(W.MAPS.filter((m) => m.master).every((m) => Object.keys(m.doors).length === 0), '고수의 거처는 문 없이(지도 창에서)');
+  const t = W.doorTile(z, 'n'); ok(t.c === 4 && t.r === 0 && W.doorAt(z, 4, 0) === 'n' && W.doorAt(z, 4, 10) === null, '문 칸은 가장자리 가운데');
+}
+
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);
