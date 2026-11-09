@@ -4547,5 +4547,27 @@ console.log('\n=== R3 방 돌기 (v455) — 방이 비면 옆 방으로 ===');
   ok(j.s.map === Hi && j._home === Hi, '문 칸에서 바깥으로 밀면 옆 방으로 · 손으로 간 방이 집');
 }
 
+
+console.log('\n=== R3 방 안 자동 무공 (v455) — 센 과녁 하나에게도 범위 무공 ===');
+{
+  const g = fresh(); g.rng = seeded(31);
+  while (g.s.level < 60) g.addExp(W.expToNext(g.s.level));
+  g.s.jobTier = 2; g.s.autoSkill = true; g._stats = null; g.heroHp = g.stats().hp;
+  g.enterMap(W.mapId(7, 2)); for (let i = 0; i < 10; i++) g.tick(0.05);
+  const st = g.stats();
+  const aoe = g.skills().find((sk) => sk.kind === 'aoe' && !(sk.autoAbove > 0.95));
+  const m = g.mons.find((x) => x.alive && !x.npc);
+  for (const o of g.mons) if (o !== m) o.alive = false;
+  g.mons = [m]; g.respawns = [];
+  m.x = g.heroX + 50; m.y = g.heroY; m.c = Math.round(m.x / W.TILE); m.r = Math.round(m.y / W.TILE); m.move = null; m.atk = 0;
+  g.mon = m; g.cd = {};
+  m.hp = m.maxHp = st.atk * 50;
+  const isAoe = (e) => e.type === 'skill' && g.skills().find((sk) => sk.id === e.id)?.kind === 'aoe';
+  g.events.length = 0; for (let i = 0; i < 6; i++) { g.autoSkills(st); m.hp = m.maxHp; }
+  ok(aoe && g.events.some(isAoe), '센 과녁 하나 — 범위 무공을 쓴다', aoe?.name);
+  g.cd = {}; m.hp = st.atk * 2; g.events.length = 0; for (let i = 0; i < 6; i++) g.autoSkills(st);
+  ok(!g.events.some(isAoe), '평타 두어 대면 죽을 과녁에는 아낀다');
+}
+
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);

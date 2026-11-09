@@ -2277,7 +2277,9 @@ export class WorldGame {
         const rr = this.skillRadius(sk);
         const n = this.mons.filter((m) => m.alive && Math.hypot(m.x - c.x, (m.y - c.y) * 0.75) <= rr).length;
         const boss = this.mons.some((m) => m.alive && m.isBoss && (this._shReach || Math.hypot(m.x - c.x, m.y - c.y) <= rr));
-        if (n < 3 && !boss) continue;
+        // v455 방은 몹이 드문드문 — 셋이 모이길 기다리면 무공을 거의 못 쓴다. 과녁이 범위 안에 있고 평타 몇 대로 안 죽을 만큼 세면 하나에게도 쓴다
+        const solo = this.mon?.alive && !this.mon.npc && this.mon.hp > st.atk * W.AOE_SOLO_HITS && Math.hypot(this.mon.x - c.x, (this.mon.y - c.y) * 0.75) <= rr;
+        if (n < 3 && !boss && !solo) continue;
       }
       if (this.useSkill(sk.id)) return;
     }

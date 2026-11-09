@@ -517,6 +517,8 @@ export const DEEP_LV = 99;
 // v455 방 돌기 — 방이 비고 다음 몹이 ROAM_WAIT(게임 초) 넘게 걸리면 옆 방으로. 옆 방에 몹이 방의 ROAM_MIN 몫은 있을 때만
 //   (몹이 반 아래면 두 배로 빨리 나서 빈 틈은 대개 1~2초 — 3초로 두면 10분 사냥에 한 번도 안 돌았다 · 시뮬 pace/roam2.mjs)
 export const ROAM_WAIT = 1.5;
+// v455 범위 무공을 하나에게도 쓰는 문턱 — 과녁이 범위 안에 있고 평타 이만큼으로 안 죽으면(셋이 모이길 기다리면 방에서는 무공을 거의 못 썼다 · Lv140 처치 0)
+export const AOE_SOLO_HITS = 3;
 export const ROAM_MIN = 0.5;            // 심처 문이 열리는 레벨(또는 지역 두목 처치)
 // 고수의 거처는 바닥 그림이 같은 지역에(규칙) — 몇은 손으로 (기획표)
 const MASTER_REGION = { baekmanggi: 14 };
