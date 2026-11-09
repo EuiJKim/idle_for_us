@@ -58,7 +58,6 @@ export function newWorldSave(now = Date.now()) {
     mapV: 2,
     autoHunt: true,
     autoSkill: true,
-    autoSkillPts: true,       // v449 무공 점수도 알아서(주력 → 보조기 → 필살기·자세 → 심법)
     autoEnh: true, autoInf: true,   // v449 새 무인은 강화·등급 각인도 자동(옛 세이브는 그대로 — 장비 창에서 켜고 끈다)
     kingParty: false,        // 십이지왕 두목 구역: false 혼자 · true 문파원과 함께 (v145, 들어갈 때 고른다)
     lastSeen: now,
@@ -128,7 +127,7 @@ export function migrateWorld(raw, now = Date.now()) {
       aura: one(W.CUSTOM_AURAS, c.aura), ring: one([...W.CUSTOM_RINGS, ...W.AWAKEN_RINGS], c.ring), glow: hex(c.glow) }; }   // v280 꾸미기 · v306 눈 · v323 쓰개·신발
   s.fragPts = Math.max(0, Math.floor(Number(raw.fragPts) || 0));  // 조각으로 얻은 무공 점수(보이기용)
   s.autoEnh = !!raw.autoEnh; s.autoInf = !!raw.autoInf;   // v262
-  s.autoSkillPts = raw.autoSkillPts !== false;   // v449 무공 점수 자동(옛 세이브도 켬 — 끄면 그대로)
+  delete s.autoSkillPts;   // v459 무공 점수 자동(v449)은 없앴다 — 점수는 무공 창에서 직접 찍는다(옛 세이브의 켬도 버린다)
   s.autoJunk = !!raw.autoJunk;   // v321 약한 장비 자동 정리
   { const j = raw.junkLog && typeof raw.junkLog === 'object' ? raw.junkLog : {}; s.junkLog = { n: Math.max(0, Math.floor(Number(j.n) || 0)), gold: Math.max(0, Number(j.gold) || 0) }; }
   // v305 칭호 — 아는 것만 · 끼는 것은 가진 것 가운데
@@ -2061,6 +2060,10 @@ export class WorldGame {
   fifth() { return W.fifthOf(this.s.job); }   // v393 직업마다 5차(검사 천마신공 · 권마 투신 · 환마 혈마 · 독마 독존 · 극악소마 악존)
   skillList() { return this.s.job ? W.skillsOf(this.s.job, this.cheonmaOn()) : []; }
   skills() { return this.skillList().filter((k) => this.knows(k) && !this.retired(k)); }
+  // v459 R7 단추 셋(주력·보조·필살) — 길b 각성(awaken)은 단추를 두지 않고 주력 무공을 펼칠 때 숨이 찼으면 함께 걸린다
+  isRider(sk) { return !!sk && !!sk.path && sk.kind === 'awaken'; }
+  barSkills() { return this.skills().filter((k) => !this.isRider(k)); }
+  riderSkill() { return this.skills().find((k) => this.isRider(k)) || null; }
   // v444 주력 무공 — 배운 공격 무공(1·2·3차 · 승급의 공격 무공) 가운데 가장 높은 차수 하나. 길 무공은 주력이 되지 않고 힘만 물려준다
   mainSkill() {
     const key = `${this.s.job}|${this.s.jobTier}|${this.s.path}|${PT.merged(this.s) ? 1 : 0}|${this.cheonmaOn() ? 1 : 0}`;
@@ -2110,7 +2113,7 @@ export class WorldGame {
   }
   skillDef(id) { return this.skillList().find((k) => k.id === id) || null; }
   hpCostOf(sk) { const st = this.stats(); return Math.round(st.hp * (sk.hpCost || 0) * (1 - this.skillMods(sk.id).cost) * (1 - (st.hpCostDown || 0)) * (this.inst?.kind === 'wraid' ? D.WB_TIER[D.wbTierOf(this.map?.wb)].heal : 1)); }   // v397 월드보스는 회복이 줄어드는 만큼 무공 체력 값도(극악소마가 제 무공에 쓰러졌다)
-  skillRadius(sk) { return Math.min(W.SKILL_R_MAX, (sk.radius || 0) * W.SKILL_R_K * Math.max(0.3, 1 + this.skillMods(sk.id).range + (this.stats().skillRange || 0))); }   // v453 바람식 — 둘레 1~3칸
+  skillRadius(sk) { return Math.min(W.SKILL_R_MAX, Math.min(W.SKILL_R_BASE, (sk.radius || 0) * W.SKILL_R_K) * Math.max(0.3, 1 + this.skillMods(sk.id).range + (this.stats().skillRange || 0))); }   // v453 바람식 — 둘레 1~3칸 · v459 바탕 2칸 · 덤 얹어 3칸
   skillCd(sk) {
     const sb = this.setBonus();
     return sk.cd * this.inheritCd(sk.id) * (1 - this.skillMods(sk.id).cd) * Math.max(0.5, 1 + (this.envNow().cd || 0)) * (1 - (this.stats().cdr || 0)) * (sk.slot === 4 ? 1 - (sb.cd4 || 0) : 1);
@@ -2124,6 +2127,12 @@ export class WorldGame {
     if (this.cd[id] > 0) { this.skillFail = 'cd'; return false; }
     if (this.heroHp <= this.hpCostOf(sk) + 1) { this.skillFail = 'hp'; return false; }      // 대가로 죽지는 않는다
     return true;
+  }
+  // v459 길b 각성 — 주력을 펼칠 때 숨이 찼고 체력이 넉넉하면(autoAbove) 함께 건다. 자동·손 모두
+  castRider(st) {
+    const rd = this.riderSkill();
+    if (!rd || this.cd[rd.id] > 0 || (rd.autoAbove && this.heroHp < st.hp * rd.autoAbove)) return false;
+    return this.useSkill(rd.id);
   }
   // o.free: 삼공합일이 대신 펼칠 때 — 숨·체력을 따지지 않고, 연출·삼공조화 셈도 건너뛴다. o.boost: 배수
   useSkill(id, o = {}) {
@@ -2163,6 +2172,7 @@ export class WorldGame {
     if (!o.free && this.impSpecials().surge) { this._surgeUntil = this.clock + 3; this.impShow(this.impSpecials().surge, null); }
     if (!o.free) this.emit('skill', { id, name: sk.name, fx: sk.fx, look: sk.role, job: this.s.job, cls: this.s.job, tier: sk.tier,
       at: center, radius: r, motion: sk.kind === 'single' ? 'single' : 'aoe', dur: 0 });
+    if (!o.free && id === this.mainSkill()?.id) this.castRider(st);   // v459 길b 각성이 주력에 실린다
     if (cost) this.emit('hpCost', { amount: cost });
     // 스킬 레벨·장비 옵션: 피해 · 범위 · 치명 · (1차) 주변 적 · (신화) 한 번 더 · 숨 되돌리기
     // v441 체력이 곧 힘 — 소모한 체력 × HP_DMG_K 만큼 더(한 번 맞을 때, 여러 번·여러 자루면 나눠서). 공짜로 펼친(삼공합일) 것도 제 소모분으로 센다
@@ -2374,6 +2384,7 @@ export class WorldGame {
       // v444 주력은 하나뿐이라 체력이 W.MAIN_AUTO_ABOVE 넘으면 쓴다(전엔 0.6 — 반쯤 다치면 평타만 쳤다)
       const sk = sk0.id === mainId && sk0.autoAbove > W.MAIN_AUTO_ABOVE ? { ...sk0, autoAbove: W.MAIN_AUTO_ABOVE } : sk0;
       if (this.cd[sk.id] > 0) continue;
+      if (this.isRider(sk)) continue;   // v459 주력과 함께 걸린다
       if (sk.kind === 'support' || sk.kind === 'awaken') { if (this.wantSupport(sk, st) && !(sk.autoAbove && this.heroHp < st.hp * sk.autoAbove)) this.useSkill(sk.id); continue; }
       if (sk.kind === 'triple') { if (this.mon?.alive && (this.mon.isBoss || this.mons.filter((m) => m.alive && Math.hypot(m.x - this.heroX, m.y - this.heroY) <= W.TRIPLE_R).length >= 3)) this.useSkill(sk.id); continue; }
       if (sk.autoAbove && this.heroHp < st.hp * sk.autoAbove && !sk.buff?.dmgRed) continue;
@@ -2428,7 +2439,6 @@ export class WorldGame {
     }
     this.checkRealm();   // v456 경지 돌파
     if (s.autoStat) this.autoStats();
-    this.autoSkillPoints();   // v449
     this.syncGrow();
     this.heroHp = Math.min(this.heroHp, this.stats().hp);
   }
@@ -2454,21 +2464,6 @@ export class WorldGame {
     } finally { this._off = null; this._stats = full; }
     this._pb = res;
     return res;
-  }
-  // v449 무공 점수 자동 — 주력 무공 → 보조기 → 승급 필살기·길 자세 → 심법(싼 것부터). 하나도 못 찍으면 멈춘다
-  autoSkillPoints() {
-    if (!this.s.autoSkillPts || !(this.s.skillPts > 0) || !this.s.job || !(this.s.jobTier >= 1)) return 0;
-    let n = 0;
-    const main = this.mainSkill();
-    const order = [main, ...this.skills().filter((k) => k !== main && k.id !== main?.id).sort((a, b) => (a.kind === 'support' ? 0 : 1) - (b.kind === 'support' ? 0 : 1))].filter(Boolean);
-    for (let guard = 0; guard < 400 && this.s.skillPts > 0; guard++) {
-      const sk = order.find((k) => this.canSkillUp(k.id));
-      if (sk) { this.skillUp(sk.id); n++; continue; }
-      const p = this.passiveList().filter((x) => this.canPassUp(x.id)).sort((a, b) => W.passiveCost(a, this.passLevel(a.id)) - W.passiveCost(b, this.passLevel(b.id)))[0];
-      if (p) { this.passUp(p.id); n++; continue; }
-      break;
-    }
-    return n;
   }
   autoStats() {
     const base = W.CLASSES[this.s.job]?.base || { str: 1, dex: 1, vit: 1, int: 1 };
@@ -2540,7 +2535,6 @@ export class WorldGame {
     const sk = W.skillsOf(this.s.job).find((k) => k.tier === this.s.jobTier);
     this._stats = null;
     this.consolidateSkills();   // v444 새 주력이 옛 무공의 레벨을 이어받는다
-    this.autoSkillPoints();     // v449
     if (this.s.jobTier >= 5) { this.emit('advance', { tier: 5, skill: this.fifth().name, cheonma: true, job: this.s.job }); return true; }   // v391
     this.emit('advance', { tier: this.s.jobTier, skill: sk?.name });
     return true;
@@ -4715,13 +4709,17 @@ export class WorldGame {
     const sk = this.bossSkills();
     const b = this.mons.find((x) => x.isBoss && x.alive && !(x.introT > 0));
     if (!b || b.stun > 0) return;
-    // v241: 지역 두목(레벨 30부터)도 단순한 바닥 경고를 쓴다 — 서서 맞기만 하면 안 된다
+    // v241: 지역 두목(레벨 30부터)도 초식을 쓴다 — 서서 맞기만 하면 안 된다
+    // v459 R7 — 방이 작아 「어디로 비킬지」가 보인다: 두목마다 피할 수 있는 바닥 경고 초식 둘(W.zoneBossPats) + 세 번째마다 오의(강타, 못 피한다)
     if (!sk) {
       if (this.inst || !this.map.bossRoom || b.lv < W.ZONE_BOSS_FROM) return;
       b.castT = (b.castT ?? 4) - dt;
       if (b.castT > 0) return;
       b.castT = W.FIELD_CAST * 1.25 * (0.85 + this.rng() * 0.3);
-      this.bossStrike(b, { pct: W.FIELD_TELL * 0.9 * D.tellDmg(MS.floorOf(b.lv)) * W.STRIKE_K, name: '강타' });   // v439 바닥 경고 → 한 방
+      b.castN = (b.castN || 0) + 1;
+      const f = MS.floorOf(b.lv), full = W.FIELD_TELL * 0.9 * D.tellDmg(f);
+      if (b.castN % W.FIELD_ULT_EVERY === 0) this.bossStrike(b, { pct: full * W.FIELD_ULT_K, name: '강타', ult: true });
+      else { const ps = W.zoneBossPats(this.map.id), p = ps[Math.floor(this.rng() * ps.length)]; this.bossCast(b, f, full * W.FIELD_DODGE_K / D.tellDmg(f), [p.pat], p.name, { k: W.FIELD_TELL_K }); }
       return;
     }
     b.castT = (b.castT ?? 3) - dt;
@@ -4738,14 +4736,28 @@ export class WorldGame {
       const s1 = ult ? pb.ult : pb.list[Math.floor(this.rng() * pb.list.length)];
       const abs = D.bossRefHp(b.lv) * MS.PAT_K * (ult ? MS.PAT_ULT : 1) * (lord ? MS.PAT_LORD : 1) * (mm?.absK || 1);
       const delay = (ult ? 1.9 : 1.3) * (mm?.tellK || 1);
-      // v439 테마 초식(여러 갈래 바닥 경고) → 이름을 외치고 한 방. 오의는 조금 더 길게 모았다가 세게
-      const n = (s1.pats || [s1.pat]).length;
-      this.bossStrike(b, { abs: abs * (ult ? W.STRIKE_ULT_K : W.STRIKE_K) * Math.sqrt(n), name: s1.name, ult, wind: delay * 0.8 });
-      if (ult) b.castT += 1.5;
+      // v439 테마 초식 → 이름을 외치고 한 방. 오의는 조금 더 길게 모았다가 세게
+      // v459 R7 오의만 강타로 남기고, 보통 초식은 앞의 둘(W.FIELD_PATS_N)만 피할 수 있는 바닥 경고로 되살린다
+      if (ult) {
+        const n = (s1.pats || [s1.pat]).length;
+        this.bossStrike(b, { abs: abs * W.STRIKE_ULT_K * Math.sqrt(n), name: s1.name, ult, wind: delay * 0.8 });
+        b.castT += 1.5;
+        return;
+      }
+      const s2 = pb.list[Math.floor(this.rng() * Math.min(W.FIELD_PATS_N, pb.list.length))];
+      this.bossCast(b, MS.floorOf(b.lv), 0, [s2.pat || s2.pats[0]], s2.name, { abs: abs * W.FIELD_DODGE_K, delay, k: W.FIELD_TELL_K });
       return;
     }
-    const s1 = sk[Math.floor(this.rng() * sk.length)];
-    this.bossStrike(b, { pct: (lord ? W.FIELD_TELL_LORD : W.FIELD_TELL) * D.tellDmg(MS.floorOf(b.lv)) * W.STRIKE_K, name: s1.name });   // v439
+    // v459 R7 — 고수(레벨 100 아래)·왕: 앞의 초식 둘은 바닥 경고(피한다) · 세 번째마다 남은 초식으로 오의 강타
+    b.castN = (b.castN || 0) + 1;
+    const full = (lord ? W.FIELD_TELL_LORD : W.FIELD_TELL) * D.tellDmg(MS.floorOf(b.lv));
+    if (b.castN % W.FIELD_ULT_EVERY === 0) {
+      const s3 = sk[Math.min(sk.length - 1, W.FIELD_PATS_N)];
+      this.bossStrike(b, { pct: full * W.FIELD_ULT_K, name: s3.name, ult: true });
+      return;
+    }
+    const s1 = sk[Math.floor(this.rng() * Math.min(W.FIELD_PATS_N, sk.length))];
+    this.bossCast(b, MS.floorOf(b.lv), full * W.FIELD_DODGE_K / D.tellDmg(MS.floorOf(b.lv)), [s1.pat || 'aim'], s1.name, { k: W.FIELD_TELL_K });
   }
   masterBonus() {
     let b = 0;
@@ -5040,7 +5052,7 @@ export class WorldGame {
       // v443 칠십이변 — 칠대성 강타는 분신이 대신 맞는다
       if (tl.strike && this.inst?.kind === 'wraid' && this.shWk > 0) { this.shWk--; this.emit('wukongBlock', { x: this.heroX, y: this.heroY, left: this.shWk }); this.emit('tellBoom', { tell: tl, hit: false }); continue; }
       const hit = tl.strike || D.tellCovers(tl, this.heroX, this.heroY);
-      if (hit && boss) boss.tellHits = (boss.tellHits || 0) + 1;
+      if (hit && boss && !tl.strike) boss.tellHits = (boss.tellHits || 0) + 1;   // v459 비무 별은 피할 수 있는 초식만 센다(강타는 못 피한다)
       this.emit('tellBoom', { tell: tl, hit });
       if (!hit || this.heroHp <= 0 || this._invulnUntil > this.clock) continue;
       // v255: % 경고 피해에도 호신강기·장비 '받는 피해 감소'를 — 전엔 직업·금신만 곱해 고정 피해(patternHit)와 달랐다

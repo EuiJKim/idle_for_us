@@ -25,7 +25,7 @@ const fresh = (job = 'sword') => {
   g.rng = seeded();
   g.setJob(job);
   g.s.autoMap = false;   // v260: 알맞은 사냥터 따라가기는 따로 본다(다른 검사가 사냥터를 옮기지 않게)
-  g.s.autoStat = false; g.s.autoEnh = false; g.s.autoInf = false; g.s.autoSkillPts = false; g.s.autoRefill = false; g.s.dgn.routine = false;   // v449 · v454 새 무인 자동 기본값은 따로 본다(옛 검사는 손으로 찍는 무인 기준)
+  g.s.autoStat = false; g.s.autoEnh = false; g.s.autoInf = false; g.s.autoRefill = false; g.s.dgn.routine = false;   // v449 · v454 새 무인 자동 기본값은 따로 본다(옛 검사는 손으로 찍는 무인 기준)
   g.events.length = 0;
   return g;
 };
@@ -4185,7 +4185,8 @@ console.log('\n=== v440 던전 수문장도 강타 ===');
   for (let i = 0; i < 400 && g.inst; i++) { g.tick(0.1); for (const t of g.tells) { if (t.strike) strikes++; else other++; } g.events.length = 0; }
   ok(strikes > 0 && other === 0, '수문장 초식이 바닥 경고 대신 강타 한 방', `강타 ${strikes} · 경고 ${other}`);
   { const src = read('js/world/wgame.js'), calls = src.match(/this\.bossCast\(/g) || [];
-    ok(calls.length === 1 && /I\.kind === 'pvp'[\s\S]{0,1200}this\.bossCast\(/.test(src), '바닥 경고 초식은 대결(v451, 피할 수 있게)에서만 — 사냥터·던전 두목은 강타', `${calls.length}곳`); }
+    const tb = src.slice(src.indexOf('  tickBossSkill(dt) {'), src.indexOf('  masterBonus() {'));
+    ok(calls.length === 4 && /I\.kind === 'pvp'[\s\S]{0,1200}this\.bossCast\(/.test(src) && (tb.match(/this\.bossCast\(/g) || []).length === 3, '바닥 경고 초식은 대결(v451)과 사냥터 두목(v459 R7)에서만 — 던전 수문장은 강타', `${calls.length}곳`); }
 }
 
 console.log('\n=== v441 체력이 곧 힘 ===');
@@ -4295,22 +4296,18 @@ console.log('\n=== v448 독마 손보기 ===');
 console.log('\n=== v449 성장 축 정리 ===');
 {
   const n = new WorldGame(newWorldSave(0), 0);
-  ok(n.s.autoStat && n.s.autoSkillPts && n.s.autoEnh && n.s.autoInf, '새 무인: 능력치·무공 점수·강화·각인 자동이 기본');
-  const o = migrateWorld({ level: 40, autoEnh: false, autoInf: false }, 0);
-  ok(!o.autoStat && !o.autoEnh && !o.autoInf && o.autoSkillPts, '옛 세이브: 고른 자동은 그대로 · 무공 점수 자동만 새로 켬');
-  ok(migrateWorld({ level: 40, autoSkillPts: false }, 0).autoSkillPts === false, '무공 점수 자동을 끈 세이브는 끈 채로');
-  // 무공 점수 자동 — 주력부터
-  const g = fresh('sword'); g.s.autoSkillPts = true;
+  ok(n.s.autoStat && n.s.autoEnh && n.s.autoInf && !('autoSkillPts' in n.s), '새 무인: 능력치·강화·각인 자동이 기본 · 무공 점수는 직접(v459)');
+  const o = migrateWorld({ level: 40, autoEnh: false, autoInf: false, autoSkillPts: true }, 0);
+  ok(!o.autoStat && !o.autoEnh && !o.autoInf && !('autoSkillPts' in o), '옛 세이브: 고른 자동은 그대로 · 무공 점수 자동(켬)은 버린다(v459)');
+  // v459 무공 점수는 직접 — 전직해도 · 레벨이 올라도 저절로 안 찍힌다
+  const g = new WorldGame(newWorldSave(0), 0); g.rng = seeded(); g.setJob('sword'); g.s.dgn.routine = false;
   while (g.s.level < W.TIERS[1].level) g.addExp(W.expToNext(g.s.level));
-  g.s.gold = 1e9; g.advance();
+  g.s.gold = 1e9; const pts0 = g.s.skillPts; g.advance();
   const main = g.mainSkill();
-  ok(main && g.s.skillPts === 0 || !g.skills().some((k) => g.canSkillUp(k.id)), '전직하면 무공 점수가 자동으로 다 찍힌다', `남은 ${g.s.skillPts}`);
-  const lv0 = g.skillLevel(main.id);
-  for (let i = 0; i < 5; i++) g.addExp(W.expToNext(g.s.level));
-  const lv1 = g.skillLevel(main.id);
-  ok(lv1 > lv0, '레벨이 오르면 주력 무공이 먼저 오른다', `${lv0} → ${lv1}`);
-  g.s.autoSkillPts = false; const before = g.s.skillPts; g.addExp(W.expToNext(g.s.level));
-  ok(g.s.skillPts > before, '끄면 점수가 쌓인다');
+  ok(main && g.s.skillPts === pts0 && g.skillSpentAll() === 0, '전직해도 무공 점수가 저절로 안 찍힌다(v459)', `점수 ${pts0} → ${g.s.skillPts}`);
+  const before = g.s.skillPts; for (let i = 0; i < 5; i++) g.addExp(W.expToNext(g.s.level));
+  ok(g.s.skillPts > before && g.skillLevel(main.id) === 1, '레벨이 오르면 점수가 쌓인다 — 무공 창에서 직접', `${before} → ${g.s.skillPts}`);
+  ok(typeof g.autoSkillPoints !== 'function' && !/autoSkillPts/.test(read('js/wmain.js')) && !/autoSkillPts/.test(read('js/wui.js')), '무공 점수 자동 — 엔진·설정·창에서 모두 뺐다');
   // 힘의 내역
   const b = fresh('sword'); b.s.level = 90; b.s.equip = {}; b._stats = null;   // 처음 옷가지도 벗기고
   const p0 = b.powerBreakdown();
@@ -4408,7 +4405,7 @@ console.log('\n=== v452 대결 서열 · 대결 칭호 ===');
 console.log('\n=== v453 무공 범위 줄이기(바람식) ===');
 {
   const DG = await import('../js/world/wdgn.js');
-  ok(W.SKILL_R_K === 0.45 && W.SKILL_R_MAX === 224 && W.TRIPLE_R === 135, '반지름 0.45배 · 상한 3.5칸 · 삼공합일 135');
+  ok(W.SKILL_R_K === 0.45 && W.SKILL_R_MAX === 192 && W.SKILL_R_BASE === 128 && W.TRIPLE_R === 135, '반지름 0.45배 · 바탕 2칸 · 덤 얹어 3칸(v459 R7) · 삼공합일 135');
   const g = fresh('sword'); g.s.level = 99; g.s.gold = 1e12; while (g.canAdvance()) g.advance(); g._stats = null;
   const rs = g.skills().filter((k) => k.radius).map((k) => g.skillRadius(k) / W.TILE);
   ok(rs.length && rs.every((r) => r <= 3.5), '검사 99: 모든 무공 반지름 3.5칸 아래', rs.map((r) => r.toFixed(1)).join('·'));
@@ -4703,6 +4700,90 @@ console.log('\n=== v457 운기조식 · 영약 · 연단 — 내공을 따로 �
   const mg = migrateWorld(old, 0);
   ok(mg.dan.seolsam === 2 && !('nope' in mg.dan) && !('sohwan' in mg.dan) && mg.med === false && mg.maki === 99, '세이브 — 모르는 영약·음수는 거르고 · 사냥터에 있으면 운기조식은 꺼진다');
   ok(W.STATS.find((x) => x.id === 'int').name === '기력' && TD.TASKS.find((t) => t.id === 'potion')?.name === '보약', '은자로 사는 「영약」(벌이 +25%)은 「보약」으로 — 영약은 내공');
+}
+
+console.log('\n=== v459 R7 전투 — 범위 2칸 · 단추 셋 · 두목 초식 둘 + 오의 ===');
+{
+  const DG = await import('../js/world/wdgn.js');
+  const MSm = await import('../js/world/wmaster.js');
+  // 범위 — 바탕은 2칸에서 멈추고, 범위 덤은 그 위로 2.5칸까지
+  for (const job of ['sword', 'poison']) {
+    const g = fresh(job); g.s.level = 130; g.s.gold = 1e12; while (g.canAdvance()) g.advance(); g._stats = null; g._mods = null;
+    const rs = g.skills().filter((k) => k.radius).map((k) => g.skillRadius(k));
+    ok(rs.length && rs.every((r) => r <= W.SKILL_R_BASE + 1e-9), `${job} 130: 범위 덤 없이 모든 무공 반지름 2칸 아래`, rs.map((r) => (r / W.TILE).toFixed(1)).join('·'));
+    g.stats().skillRange = 9; g.skillMods = () => ({ range: 9, dmg: 0, cd: 0, cost: 0 });
+    ok(g.skills().filter((k) => k.radius).every((k) => g.skillRadius(k) <= W.SKILL_R_MAX + 1e-9), '범위 덤을 아무리 얹어도 3칸');
+  }
+  ok(W.roomRangeK(50) === 1 && Math.abs(W.roomRangeK(80) - 1.1) < 1e-9 && Math.abs(W.roomRangeK(150) - 1.04) < 1e-9 && Math.abs(W.roomReward(80) - W.PASSIVE_REWARD * W.rangeReward(80) * W.ROOM_K * 1.1) < 1e-9, '줄어든 범위만큼 방 졸개 벌이 — Lv60까지 그대로 · 80 ×1.1 · 150 ×1.04');
+  // 단추 셋 — 길b 각성은 단추가 없고 주력에 실린다
+  for (const job of ['sword', 'fist', 'fan', 'poison', 'ring']) {
+    const g = fresh(job); g.s.level = 120; g.s.gold = 1e12; while (g.canAdvance()) g.advance(); g.choosePath('b'); g._stats = null; g._main = null;
+    const bar = g.barSkills(), rd = g.riderSkill();
+    ok(bar.length <= 3 && rd && !bar.some((k) => k.id === rd.id) && g.skills().some((k) => k.id === rd.id), `${job} 4차 길b: 단추 ${bar.length}개(주력·보조·필살) · 각성 ${rd?.name}은 단추 없이`, bar.map((k) => k.name).join(','));
+    g.enterMap(W.mapId(9, 1)); g.heroHp = g.stats().hp; g.cd = {};
+    const m = g.mons.find((x) => x.alive && !x.npc); m.hp = m.maxHp = 1e12; g.heroX = m.x - 40; g.heroY = m.y; g.mon = m;
+    const main = g.mainSkill();
+    ok(g.useSkill(main.id) && g.cd[rd.id] > 0, `${job}: 주력 ${main.name}을 펼치면 ${rd.name}도 함께 걸린다`);
+    g.cd[main.id] = 0; const c1 = g.cd[rd.id];
+    g.useSkill(main.id);
+    ok(g.cd[rd.id] <= c1, '각성 숨이 안 찼으면 주력만');
+  }
+  ok(/game\.barSkills\(\)/.test(read('js/wmain.js')), '무공 단추는 barSkills로 짠다');
+  // 지역 두목 — 피할 수 있는 초식 둘(맵마다 늘 같은 둘) + 세 번째마다 오의 강타
+  const ps = W.zoneBossPats(W.mapId(9, W.BOSS_AREA));
+  ok(ps.length === 2 && ps[0].pat !== ps[1].pat && JSON.stringify(ps) === JSON.stringify(W.zoneBossPats(W.mapId(9, W.BOSS_AREA))) && ps.every((p) => W.ZONE_BOSS_PATS.includes(p.pat) && p.name), '지역 두목 초식 둘 — 맵마다 늘 같은 둘', ps.map((p) => `${p.name}(${p.pat})`).join(' · '));
+  const bossUp = (g) => { for (let i = 0; i < 200 && !g.mons.some((x) => x.isBoss && x.alive); i++) { g.tick(0.05); g.events.length = 0; } const b = g.mons.find((x) => x.isBoss && x.alive); b.introT = 0; b.stun = 0; b.hp = b.maxHp = 1e15; g.freezeT = 0; return b; };   // 등장 연출(들판이 멈춤)은 건너뛴다
+  const casts = (g, n) => {
+    const b = bossUp(g);
+    const seq = [];
+    for (let i = 0; i < n; i++) { g.tells = []; b.castT = 0; g.tickBossSkill(0.01); seq.push(g.tells.length ? (g.tells.every((t) => t.strike) ? 'S' : 'T') : '-'); }
+    return { b, seq: seq.join('') };
+  };
+  {
+    const g = fresh('sword'); g.s.level = 70; g._stats = null; g.enterMap(W.mapId(9, W.BOSS_AREA)); g.heroHp = g.stats().hp;
+    const { seq } = casts(g, 6);
+    ok(seq === 'TTSTTS', '지역 두목: 초식 · 초식 · 오의 강타 차례', seq);
+    g.events.length = 0; g.tells = []; const b = g.mons.find((x) => x.isBoss && x.alive); b.castT = 0; b.castN = 0; g.tickBossSkill(0.01);
+    const ev = g.events.find((e) => e.type === 'bossCast');
+    ok(ev && ps.some((p) => p.name === ev.name), '초식 이름을 외친다', ev?.name);
+  }
+  // 고수(레벨 100 아래) — 앞의 초식 둘 + 오의
+  {
+    const mp = W.MAPS.find((m) => m.master === 'namgung' && m.bossRoom);
+    const mm = MSm.masterOf('namgung');
+    const g = fresh('sword'); g.s.level = mm.lv + 5; g._stats = null; g.enterMap(mp.id); g.heroHp = g.stats().hp;
+    const { seq } = casts(g, 6);
+    ok(seq === 'TTSTTS', `고수 ${mm.name}: 초식 둘(바닥 경고) · 오의 강타`, seq);
+  }
+  // 십이지왕 — 테마 초식 앞의 둘(고정 피해) + 오의 강타
+  {
+    const mp = W.MAPS.find((m) => m.king?.no === 12 && m.bossRoom) || W.MAPS.find((m) => m.king?.no === 12);
+    const g = fresh('sword'); g.s.level = Math.max(30, mp.lv[1] + 2); g._stats = null; g.enterMap(mp.id); g.heroHp = g.stats().hp;
+    const { seq } = casts(g, 6);
+    const pb = MSm.bossPatterns(g.map);
+    g.tells = []; const b = g.mons.find((x) => x.isBoss && x.alive); b.castN = 0; b.castT = 0; g.tickBossSkill(0.01);
+    ok(seq === 'TTSTTS' && g.tells.length && g.tells.every((t) => t.abs > 0 && !t.strike), `십이지왕 ${g.map.king.title}: 테마 초식(고정 피해) 둘 · 오의 강타`, `${seq} · ${pb.list.slice(0, 2).map((p) => p.name).join('·')}`);
+  }
+  // 자동 사냥은 늦게라도 비킨다 · 비무 별(안 맞고)은 피할 수 있는 초식만 센다
+  {
+    let dodged = 0, n = 0;
+    for (let k = 0; k < 6; k++) {
+      const g = fresh('sword'); g.s.level = 70; g._stats = null; g.enterMap(W.mapId(9, W.BOSS_AREA)); g.heroHp = g.stats().hp;
+      const b = bossUp(g); b.castT = 99;
+      // 졸개에 둘러싸이면 비킬 칸이 없다 — 방 가운데에 두목만
+      g.mons = [b]; g.respawns = []; g.hmove = null; g.hc = 4; g.hr = 10; g.heroX = W.tileCenter(4); g.heroY = W.tileCenter(10);
+      b.c = 4; b.r = 7 + (k % 2); b.x = W.tileCenter(b.c); b.y = W.tileCenter(b.r); b.move = null; b.atk = 0;
+      g.bossCast(b, MSm.floorOf(b.lv), 0.01, ['aim'], '천근추');
+      for (let i = 0; i < 40 && g.tells.length; i++) { g.tick(0.05); for (const e of g.events) if (e.type === 'tellBoom' && !e.tell.strike) { n++; if (!e.hit) dodged++; } g.events.length = 0; }
+    }
+    ok(n >= 4 && dodged >= Math.ceil(n * 0.6), '자동 사냥은 바닥 경고를 늦게라도 비킨다(FIELD_REACT)', `${dodged}/${n}`);
+    const g = fresh('sword'); g.s.level = 70; g._stats = null; g.enterMap(W.mapId(9, W.BOSS_AREA)); g.heroHp = g.stats().hp;
+    const b = bossUp(g); b.tellHits = 0;
+    g.bossStrike(b, { pct: 0.01, name: '강타' }); for (let i = 0; i < 40; i++) g.tickTells(0.05, g.stats());
+    ok(!(b.tellHits > 0), '오의 강타는 비무 별 「안 맞고」에 안 센다(못 피하니까)');
+    g.bossCast(b, 1, 0.01, ['aim'], 'x'); for (const t of g.tells) { t.x = g.heroX; t.y = g.heroY; } for (let i = 0; i < 40; i++) g.tickTells(0.05, g.stats());
+    ok(b.tellHits === 1, '피할 수 있는 초식에 맞으면 센다');
+  }
 }
 
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);

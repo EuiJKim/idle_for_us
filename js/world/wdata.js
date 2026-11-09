@@ -620,6 +620,19 @@ export const BOSS = { hp: 15, atk: 2.8, exp: 25, gold: 30 };   // v241: 14·2.5 
 // v241: 지역 두목도 레벨 30부터 바닥 경고 초식을 쓴다(단순한 넷) — 전엔 왕·고수만 썼다
 export const ZONE_BOSS_PATS = ['aim', 'line', 'cone', 'nova'];
 export const ZONE_BOSS_FROM = 30;
+// v459 R7 두목 초식 되살리기 — 지역 두목·왕·고수는 피할 수 있는 바닥 경고 초식 둘(FIELD_PATS_N) + FIELD_ULT_EVERY번째마다 오의(강타)
+//   맞으면 옛 초식의 FIELD_DODGE_K배 · 오의 강타는 FIELD_ULT_K배(못 피한다). 자동 사냥은 FIELD_REACT만큼 늦게 피하고, 직접 끌면 다 피한다.
+export const FIELD_PATS_N = 2, FIELD_ULT_EVERY = 3, FIELD_DODGE_K = 1, FIELD_ULT_K = 0.6;
+//   방은 9칸 폭이라 바닥 경고의 둘레·폭을 FIELD_TELL_K배로(옛 넓은 들판 크기 그대로면 근접 무인이 두목 곁을 한참 떠난다)
+export const FIELD_TELL_K = 0.75;
+// 지역 두목 초식 이름 — 이름이 없는 두목은 맵마다 넷 가운데 둘(늘 같은 둘)
+export const ZONE_BOSS_PAT_NAMES = { aim: '천근추', line: '일자참', cone: '횡소천군', nova: '진각' };
+export function zoneBossPats(id) {
+  let h = 0;
+  for (const ch of String(id)) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  const n = ZONE_BOSS_PATS.length, a = h % n, b = (a + 1 + ((h >>> 4) % (n - 1))) % n;
+  return [a, b].map((i) => ({ pat: ZONE_BOSS_PATS[i], name: ZONE_BOSS_PAT_NAMES[ZONE_BOSS_PATS[i]] }));
+}
 // v241: 두목은 최소 이만큼은 버틴다 — 무인의 초당 피해(무공 몫 ×1.5)로 셈한 체력이 기본보다 크면 그만큼(최대 3배). 함께 사냥(문파원과 왕)·던전은 그대로
 export const BOSS_MIN_SEC = { zone: 45, king: 100, lord: 150 };
 export const BOSS_REPEAT_K = 0.4;   // v262 한 번 잡은 두목은 최소 싸움 시간의 이만큼만
@@ -1140,7 +1153,8 @@ export const PACE_REWARD = 1 / PACE;
 // v453 바람식 범위 — 사냥터 폭이 11칸인데 범위기 반지름이 5~9칸(화면 가로 전체)이었다. 바람의나라 범위기는 둘레 1~3칸.
 //   무공 반지름 = 표의 radius × SKILL_R_K × (각인·계열 덤) · 끝은 SKILL_R_MAX(3.5칸). 1차 범위기 ≈ 1.6칸 · 2·3차 ≈ 2칸 · 필살 ≈ 2.7~3.5칸
 export const SKILL_R_K = 0.45;
-export const SKILL_R_MAX = 224;
+export const SKILL_R_MAX = 192;   // v459 R7 방 폭 9칸 — 바탕 반지름은 SKILL_R_BASE(2칸, 둘레 셋)에서 멈추고 범위 덤(옷·각인·무공 레벨)은 그 위로 3칸까지
+export const SKILL_R_BASE = 128;
 export const TRIPLE_R = 135;          // 삼공합일(전엔 300)
 export const IMP_NOVA_R = 160;        // 증표 각인 파동·기절 파문(전엔 230)
 export const IMP_RAIN_R = 300;        // 증표 각인 낙뢰가 고르는 거리(전엔 420)
@@ -1157,7 +1171,9 @@ export const PASSIVE_REWARD = 1.05;   // v444 1.15 → 1.05 — 주력 무공(�
 // v455 방 벌이 — 방(9×19 · 몹 14)은 옛 들판(11×25 · 48마리)보다 처치가 0.6배 남짓(시뮬 pace/r5.mjs · 직업 5 × 레벨 6 · 15분).
 //   사냥터 졸개 한 마리 벌이(경험치·은자·재료·조각·숙련)를 ROOM_K배 — 실제 한 시간 벌이·방치 보상(실측 rates)이 전과 같게. 던전·두목은 그대로
 export const ROOM_K = 1.6;
-export const roomReward = (lv) => PASSIVE_REWARD * rangeReward(lv) * ROOM_K;
+// v459 R7 무공 바탕 반지름 2칸(덤 얹어 3칸) — 한 번에 맞는 몹이 줄어든 만큼 방 졸개 한 마리 벌이를 레벨 60부터 올린다(시뮬 씨앗 셋: Lv80 0.91 · 110 0.90 · 140 0.96)
+export const roomRangeK = (lv) => 1 + 0.1 * Math.min(1, Math.max(0, (lv - 60) / 20)) - 0.06 * Math.min(1, Math.max(0, (lv - 110) / 30));
+export const roomReward = (lv) => PASSIVE_REWARD * rangeReward(lv) * ROOM_K * roomRangeK(lv);
 // v439 사냥터 두목·왕·고수의 초식은 바닥 경고(피하기) 대신 이름을 외치고 STRIKE_WIND초 뒤 무인에게 바로 내리꽂는 「강타」 하나 —
 //   피할 수 없으니 세기는 옛 초식이 실제로 맞던 몫(방치 자동 피하기로 10~30%)에 맞춰 STRIKE_K배. 버티는 건 체력·방어·물약·회복 무공.
 export const STRIKE_WIND = 1.2, STRIKE_K = 0.25, STRIKE_ULT_K = 0.4;

@@ -301,7 +301,7 @@ function charTab(app) {
         h('button', { class: 'btn', style: 'padding:4px 10px;font-size:12px', disabled: game.canResetSkills() ? null : true, onclick: () => {
           if (!confirm(`무공 레벨과 심법을 모두 처음으로 되돌릴까요?\n쓴 점수 ${game.skillSpentAll()}점을 돌려받아요${rc ? ` · 은자 ${fmt(rc)}` : ''}.`)) return;
           const n = game.resetSkills();
-          if (n) { game.s.autoSkillPts = false; toast(`무공 초기화 — 점수 ${n}점을 돌려받았어요 · 직접 찍도록 무공 점수 자동을 껐어요(설정에서 다시 켜요)`); app.save(); skSig = ''; psSig = ''; upd(); app.refresh(); }
+          if (n) { toast(`무공 초기화 — 점수 ${n}점을 돌려받았어요 · 무공 창에서 다시 찍어요`); app.save(); skSig = ''; psSig = ''; upd(); app.refresh(); }
         } }, '무공 초기화')) : null].filter(Boolean));   // v211: null이 'null' 글자로 찍히던 것
     const list = game.skills();
     if (!list.length) { skillCard.append(h('p', { class: 'muted' }, `1차 전직(${W.lvText(W.TIERS[1].level)})을 하면 스킬을 배워요.`)); return; }
@@ -326,6 +326,7 @@ function charTab(app) {
           h('div', { class: 'name' }, sk.name, h('small', {}, `${game.mainSkill()?.id === sk.id ? '주력 무공' : W.SKILL_ORDINAL[sk.slot]} · Lv.${lv}`), max ? h('span', { class: 'sk-max' }, '極 만렙') : null),
           game.mainSkill()?.id === sk.id && game.retiredSkills().length ? h('div', { class: 'desc', style: 'color:#93c5fd' }, `계승 — 피해 ×${game.inheritDmg(sk.id).toFixed(2)}(두목 ×${game.inheritDmg(sk.id, true).toFixed(2)}) · 숨 ×${game.inheritCd(sk.id).toFixed(2)} — ${game.retiredSkills().map((k) => k.name).join(' · ')}의 힘을 이어받았다(레벨·장비 옵션·변초도)`) : null,   // v444
           h('div', { class: 'desc' }, skillText(game, sk)),
+          game.isRider?.(sk) ? h('div', { class: 'desc', style: 'color:#a7f3d0' }, '단추 없음 — 주력 무공을 펼칠 때 숨이 찼으면 함께 걸려요(자동·손 모두)') : null,   // v459 R7
           bits.length ? h('div', { class: 'desc', style: 'color:#fde68a' }, `레벨·장비: ${bits.join(' · ')}`) : null),
         h('button', { class: 'buy', disabled: game.canSkillUp(sk.id) ? null : true, onclick: () => {
           if (game.skillUp(sk.id)) { popUp(skillCard, `Lv.${game.skillLevel(sk.id)}`); app.save(); skSig = ''; upd(); }
@@ -538,14 +539,14 @@ function charTab(app) {
       let next, go, hot = false;
       if (s.statPts > 0 && !s.autoStat) { next = `능력치 점수 ${s.statPts}점 찍기`; go = ['char', 'stat']; hot = true; }
       else if (game.canAdvance()) { next = `${W.tierLabel(n)} — 사부에게`; go = ['town', 'master']; hot = true; }
-      else if (s.skillPts > 0 && !s.autoSkillPts && game.skills().some((k) => game.canSkillUp(k.id))) { next = `무공 점수 ${s.skillPts}점 찍기`; go = ['char', 'skill']; hot = true; }
+      else if (s.skillPts > 0 && game.skills().some((k) => game.canSkillUp(k.id))) { next = `무공 점수 ${s.skillPts}점 찍기`; go = ['char', 'skill']; hot = true; }
       else if (t) {
         const nm = t.need ? (game.fifth?.()?.needName || t.need) : null;
         next = s.level < t.level ? `${W.lvText(t.level)}에 ${W.tierLabel(n)}` : t.need && !s.duel?.won?.[t.need] ? `${nm} 쓰러뜨리기(5차)` : `${W.tierLabel(n)} 은자 ${fmt(t.cost)} 모으기`;
         go = t.need && s.level >= t.level ? ['map', 'masters'] : ['map'];
       } else if (s.level < W.LEVEL_MAX) { next = `${W.lvText(W.LEVEL_MAX)}까지 수련`; go = ['map']; }
       else { next = '깨달음 — 무공마다 단계'; go = ['char', 'skill']; hot = (s.enl?.pts || 0) > 0; }
-      const auto = [s.autoStat ? '능력치' : null, s.autoSkillPts ? '무공 점수' : null].filter(Boolean);
+      const auto = [s.autoStat ? '능력치' : null].filter(Boolean);   // v459 무공 점수 자동은 없앴다
       row('武', `무인 · ${W.lvShort(s.level)} ${game.tierName()}`, `바탕 전투력 ${fmt(Math.round(pb.base))} · ${W.realmName(game.realmNow())} · 레벨·전직·내공·경지·능력치·무공${auto.length ? ` · 자동: ${auto.join('·')}` : ''}`, next, go, hot); }
     // ② 장비 — 강화·등급 각인·계열·세트·현철 단련
     { const worn = W.SLOTS.map((x) => s.equip[x.id]).filter(Boolean);

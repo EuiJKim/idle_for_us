@@ -1003,7 +1003,7 @@ let autoEl = null;
 // 전직할 수 있게 되면 그 자리에 'N차 전직' 단추가 반짝인다(누르면 마을 창의 사부).
 let advEl = null;
 function buildSkillbar() {
-  const all = game.skills();
+  const all = game.barSkills();   // v459 R7 단추 셋(주력·보조·필살) — 길b 각성은 주력에 실린다
   advEl = null;
   if (game.canAdvance()) {
     advEl = h('button', { class: 'skill-btn adv-btn', onclick: () => showTab('town', 'master') },
@@ -2604,10 +2604,9 @@ $('btn-settings').addEventListener('click', () => openModal((s) => {
       view.clean = v;
       try { localStorage.setItem('ifu.clean', v ? '1' : '0'); } catch { /* 이번만 */ }
     }),
-    h('div', { class: 'row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, '전부 자동'), h('div', { class: 'desc' }, '사냥 · 무공 · 물약 · 물약 보충 · 능력치 · 무공 점수 · 강화 · 각인 · 알맞은 사냥터 · 던전 루틴(수련장 → 탑)을 한 번에 켜요 — 켜 두기만 하면 돼요')),
-      h('button', { class: 'btn primary', style: 'padding:6px 12px', onclick: () => { const s = game.s; s.autoHunt = true; s.autoSkill = true; s.autoPotion = true; s.autoRefill = true; s.autoStat = true; s.autoSkillPts = true; s.autoEnh = true; s.autoInf = true; s.autoMap = true; s.dgn.auto = true; s.dgn.routine = true; s.tower.auto = true; game.autoStats?.(); game.autoSkillPoints?.(); save(); refreshUI(true); toast('전부 자동 — 이제 켜 두기만 하면 돼요'); closeModal(); } }, '모두 켜기')),   // v454
+    h('div', { class: 'row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, '전부 자동'), h('div', { class: 'desc' }, '사냥 · 무공 · 물약 · 물약 보충 · 능력치 · 강화 · 각인 · 알맞은 사냥터 · 던전 루틴(수련장 → 탑)을 한 번에 켜요 — 무공 점수는 무공 창에서 직접 찍어요')),
+      h('button', { class: 'btn primary', style: 'padding:6px 12px', onclick: () => { const s = game.s; s.autoHunt = true; s.autoSkill = true; s.autoPotion = true; s.autoRefill = true; s.autoStat = true; s.autoEnh = true; s.autoInf = true; s.autoMap = true; s.dgn.auto = true; s.dgn.routine = true; s.tower.auto = true; game.autoStats?.(); save(); refreshUI(true); toast('전부 자동 — 이제 켜 두기만 하면 돼요'); closeModal(); } }, '모두 켜기')),   // v454
     toggleRow('자동 스킬', game.s.autoSkill, '체력을 쓰는 스킬은 체력이 넉넉할 때만 써요 · 걸으면서도 써요', (v) => { game.s.autoSkill = v; save(); }),
-    toggleRow('무공 점수 자동', game.s.autoSkillPts, '레벨업 무공 점수를 주력 무공 → 보조기 → 나머지 → 심법 순으로 알아서 찍어요 (끄면 무공 창에서 직접)', (v) => { game.s.autoSkillPts = v; if (v) game.autoSkillPoints(); save(); }),   // v449
     ]],
     ['view', '🖼 화면', [
     // v324 글자·화면 크기 — 폰에서도 키울 수 있고, 컴퓨터에서는 자동 확대에 곱한다
