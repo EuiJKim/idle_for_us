@@ -2122,6 +2122,7 @@ function mapTab(app) {
   const { game } = app;
   const go = (id) => {
     const m = W.mapOf(id);
+    { const mm = m.master ? MS.masterOf(m.master) : null; if (mm?.needLv && game.s.level < mm.needLv) return toast(`🔒 ${mm.name}은(는) ${W.lvText(mm.needLv)}부터 — 만렙에 열려요`); }   // v467
     if (m.bossRoom) return enterKingRoom(app, id, (ok) => { if (ok) { app.save(); app.closePanel(); app.refresh(); } });
     if (!game.enterMap(id)) return; app.save(); app.closePanel(); app.refresh();
   };
@@ -3116,7 +3117,7 @@ export function openAutoEnhCfg(app, onClose) {
       h('h2', {}, '자동 강화 설정'),
       h('div', { class: 'ainf-sec' }, h('label', { class: 'chk' }, h('input', { type: 'checkbox', id: 'aenh-on', checked: on ? true : null, onchange: (e) => { game.s.autoEnh = !!e.target.checked; done(); } }), ' 자동 강화 켜기'),
         h('small', { class: 'muted' }, ' 5초마다 가장 낮은 칸부터 한 강씩 올려요')),
-      h('div', { class: 'ainf-sec' }, h('b', {}, '몇 강까지'), h('small', { class: 'muted' }, ` 돌파(+${W.AUTO_ENH_MAX + 1}~)는 언제나 직접`),
+      h('div', { class: 'ainf-sec' }, h('b', {}, '몇 강까지'), h('small', { class: 'muted' }, ` +${W.AUTO_ENH_MAX + 1}부터는 언제나 직접(하나씩 · 값이 단계마다 두 배)`),
         h('div', { class: 'ainf-slots' }, ...Array.from({ length: W.AUTO_ENH_MAX }, (_, i) => i + 1).map((n) => h('button', { class: `chip${(cfg.max || W.AUTO_ENH_MAX) === n ? ' on' : ''}`, onclick: () => { cfg.max = n; done(); } }, `+${n}`)))),
       h('div', { class: 'ainf-sec' }, h('b', {}, '어느 칸에'), h('small', { class: 'muted' }, ' 끈 칸은 자동이 건드리지 않아요'),
         h('div', { class: 'ainf-slots' }, ...W.GROW_SLOTS.map((k) => h('button', { class: `chip${cfg.slots[k] === false ? '' : ' on'}`, onclick: () => { if (cfg.slots[k] === false) delete cfg.slots[k]; else cfg.slots[k] = false; done(); } }, SLOT_NAME[k] || k)))),

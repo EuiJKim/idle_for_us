@@ -923,7 +923,8 @@ const STEP_PREFIX = [null, '청죽', '사철', '빙정', '혈석', '귀화', '�
 // 강화 +1~+10, 그 위로 **돌파** +11~+15(조합 장비만). 돌파는 두목 증표가 더 들고, 한 단계가 더 크다.
 export const ENHANCE_MAX = 15;
 export const ENHANCE_NORMAL = 10;
-export const AUTO_ENH_MAX = 10;   // v324 자동 강화 상한 — 여기까지만 저절로, 돌파는 직접
+// v467 +10 → +7 — 실패해도 안 떨어지는 데(+7)까지만 저절로. +8부터는 직접(하나씩) · 값도 단계마다 두 배(아래 enhanceCost)
+export const AUTO_ENH_MAX = 7;   // v324 자동 강화 상한 — 여기까지만 저절로, 돌파는 직접
 // v261: 강화 상한을 레벨에 묶는다 — 6칸 +10이 2.8시간(Lv32)에 끝나 중반에 이정표가 없었다. [이 레벨부터, 여기까지]
 // v408 레벨 제한을 풀었다 — 어느 레벨이든 장비가 갈 수 있는 끝(+10 · 돌파 +15)까지. (옛 표: Lv1 +5 · 12 +7 · 30 +9 · 45 +10 · 65 +11 · 80 +12 · 95 +13 · 110 +14 · 125 +15)
 export const ENHANCE_LV_CAP = [[1, ENHANCE_MAX]];
@@ -969,7 +970,9 @@ export const enhanceFailText = (lv) => { const f = enhanceFail(lv); return f ===
 // v204: 너무 싸서 늘 쌓아 두고 썼다 — 네 배(그 레벨 사냥 한 시간 남짓어치)
 export const protPrice = (level) => Math.round(mobGold(level) * 8000);
 // 은자가 쌓이기만 하지 않게 — 사냥터를 옮겨 새 장비를 낄 때마다 다시 강화하는 데 쓰인다(시뮬로 맞춤)
-export const enhanceCost = (ilv, lv) => Math.round((50 + ilv * 15) * (lv + 1) ** 1.6);
+// v467 +7→8부터 은자가 단계마다 두 배(+9→10 ×8 · +10 위 ×16) — +10까지 은자가 하루 벌이의 5%뿐이라 강화가 그냥 지나가는 일이었다
+export const ENH_COST_STEP = (lv) => 2 ** Math.max(0, Math.min(lv, 10) - 6);
+export const enhanceCost = (ilv, lv) => Math.round((50 + ilv * 15) * (lv + 1) ** 1.6 * ENH_COST_STEP(lv));
 // v153: 조합 장비를 팔면 만들 때 든 재료·은자의 1/4을 돌려받는다(it.cost, 옛 장비는 그 칸 레어 조합값으로 셈)
 export const SELL_BACK = 0.25;
 export function sellBack(item) {

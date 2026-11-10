@@ -332,7 +332,9 @@ export function tellCovers(tl, x, y) {
 export const WRAID_SEC = 120;
 export const WRAID_PAID = Infinity;   // v408 참여 보상 제한 없음(옛 5판)
 export const WRAID_PER_DAY = WRAID_PAID;     // 옛 이름(저장 다듬기) — 참여 보상 몫
-export const WRAID_HP_K = 1500;              // 화무기 기본 체력의 몇 배 · v387 4 → 300(만렙 전설+12 혼자 한 판에 ~5%, 여럿이 여러 판) · v388에 1000으로 올렸다가 v389 다시 300 · v403 1500(5차 천마가 한 판에 거의 혼자 잡았다 — 이제 한 판 ~15~35%)
+// v467 1500 → 220 — 동료·탑·명성 덤을 줄인 뒤(v465·v466) 끝판 무인이 한 판에 0.6%(혼자 170판)였다. 이제 ~4%(혼자 25판 남짓 · 여럿이면 몇 판) — 화무기 다음 계단.
+//   220은 서버 규칙(firestore.rules 마왕 체력 3조 이상)을 지키는 가장 낮은 값 근처(화무기 기본 1.42e10 × 220 = 3.12조) — 규칙을 다시 게시하지 않아도 된다
+export const WRAID_HP_K = 220;              // 화무기 기본 체력의 몇 배 · v387 4 → 300(만렙 전설+12 혼자 한 판에 ~5%, 여럿이 여러 판) · v388에 1000으로 올렸다가 v389 다시 300 · v403 1500(5차 천마가 한 판에 거의 혼자 잡았다 — 이제 한 판 ~15~35%)
 export const WRAID_PARTS = 7;                // 칠대성 — 대성신장 일곱 부위(귀걸이는 없다)
 export const OK_HP_K = 8;                    // 옥황상제 = 마왕 × 이것
 export const WRAID_LV = 120;                 // 이 레벨부터

@@ -812,6 +812,7 @@ export class WorldGame {
     // v238: 히든 두목(마귀)은 화무기를 쓰러뜨려야 길이 열린다
     const mm = W.mapOf(id).master ? MS.masterOf(W.mapOf(id).master) : null;
     if (mm?.hidden && !this.s.duel?.won?.hwamugi) return false;
+    if (mm?.needLv && (this.s.level || 1) < mm.needLv) return false;   // v467 화무기·마귀는 만렙부터(하루 만에 잡히던 것)
     return true;
   }
   // 몹 레벨이 내 레벨보다 이만큼 위면 위험 (0 이하면 안전)

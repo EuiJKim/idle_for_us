@@ -2172,7 +2172,10 @@ console.log('\n=== 화무기 · 히든 마귀 (v238) ===');
   const room = W.mapId(W.masterZoneOf('magwi'), W.BOSS_AREA);
   ok(!g.canEnter(room), '마귀 방은 화무기를 쓰러뜨리기 전엔 닫혀 있다');
   g.s.duel.won.hwamugi = true;
-  ok(g.canEnter(room), '화무기를 쓰러뜨리면 마귀 방이 열린다');
+  ok(!g.canEnter(room), '화무기를 쓰러뜨려도 만렙 전엔 닫혀 있다 (v467)');
+  g.s.level = W.LEVEL_MAX;
+  ok(g.canEnter(room), '화무기를 쓰러뜨리고 만렙이면 마귀 방이 열린다');
+  { const hwr = W.mapId(W.masterZoneOf('hwamugi'), W.BOSS_AREA), g2 = fresh(); g2.s.level = 149; ok(!g2.canEnter(hwr) && (g2.s.level = 150, g2.canEnter(hwr)), '화무기 방은 만렙(Lv150 = 수련 51)부터 (v467 — 하루 만에 잡혔다)'); }
   // 새 초식은 늘 피할 자리가 있다 — 무인 둘레를 훑어 안 맞는 자리가 하나라도
   const DG = await import('../js/world/wdgn.js');
   const b = { x: 900, y: 600, hp: 1e9, maxHp: 1e9, lv: 190, isBoss: true, alive: true };
@@ -3070,7 +3073,9 @@ console.log('\n=== v316 애완동물 품·단 수련 · 주간 두목 ===');
   b.noteWeekBoss(mob, t0);
   ok(b.s.wboss.kills === 1 && !b.s.wboss.best.hwamugi, '두목을 잡으면 한 마리 · 일반 두목은 시간 기록 없음');
   const hw = W.MAPS.find((m) => m.master === 'hwamugi' && m.bossRoom);
+  const lv0 = b.s.level; b.s.level = W.LEVEL_MAX;   // v467 화무기 방은 만렙부터
   ok(b.enterMap(hw.id) && b.map.master === 'hwamugi', '화무기 방');
+  b.s.level = lv0;
   b.events.length = 0;
   b.noteWeekBoss({ isBoss: true, bornAt: b.clock - 95.34 }, t0);
   ok(b.s.wboss.best.hwamugi === 95.3 && b.events.some((e) => e.type === 'wbossBest'), '화무기 시간 기록(0.1초)', `${b.s.wboss.best.hwamugi}`);
@@ -3315,7 +3320,7 @@ console.log('\n=== v324 자동 강화는 +10까지 ===');
   const g = fresh();
   while (g.s.level < 120) g.addExp(W.expToNext(g.s.level));
   g.s.gold = 1e15; g.s.prot = 999; g.s.autoEnh = true;
-  for (const k of W.GROW_SLOTS) if (g.s.equip[k]) g.s.equip[k].plus = 9;
+  for (const k of W.GROW_SLOTS) if (g.s.equip[k]) g.s.equip[k].plus = W.AUTO_ENH_MAX - 2;
   for (const z of Object.keys(W.MATS)) { g.addMats(z, 1e9); g.addMats(W.bossKey(z), 1e6); }
   g.addMats(W.ORE, 1e12);
   g.rng = () => 0;   // 강화는 늘 성공
@@ -3323,7 +3328,8 @@ console.log('\n=== v324 자동 강화는 +10까지 ===');
   const plus = W.GROW_SLOTS.map((k) => g.s.equip[k]?.plus || 0);
   ok(plus.every((p) => p === W.AUTO_ENH_MAX), `자동 강화는 +${W.AUTO_ENH_MAX}에서 멈춘다(돌파는 직접)`, plus.join(','));
   const it = g.s.equip.weapon;
-  ok(g.canEnhance(it) && g.enhance(it.uid) && it.plus === W.AUTO_ENH_MAX + 1, '직접은 +11로 올라간다');
+  ok(g.canEnhance(it) && g.enhance(it.uid) && it.plus === W.AUTO_ENH_MAX + 1 && W.AUTO_ENH_MAX === 7, '자동은 +7까지 · 그 위는 직접 하나씩 (v467 — 전엔 +10까지 저절로)');
+  ok(W.ENH_COST_STEP(6) === 1 && W.ENH_COST_STEP(7) === 2 && W.ENH_COST_STEP(9) === 8 && W.ENH_COST_STEP(14) === 16, '+7→8부터 강화 값이 단계마다 두 배(+10 위는 ×16) (v467)');
   ok(/AUTO_ENH_MAX/.test(read('js/wui.js')), '가방 창 글에 상한이 적혀 있다');
 }
 
@@ -3603,7 +3609,7 @@ console.log('\n=== v387 칠대성·천계 어렵게 ===');
 {
   const Dx = await import('../js/world/wdgn.js');
   const hw = 5e9;
-  ok(Dx.wraidMaxHp(hw, 'umawang') >= hw * 1500 && Dx.wraidMaxHp(hw, 'seokga') / Dx.wraidMaxHp(hw, 'umawang') >= 20, '체력 크게 — 칠대성 화무기 ×1500 · 석가여래는 그 ×24');
+  ok(Dx.wraidMaxHp(hw, 'umawang') >= hw * 200 && Dx.wraidMaxHp(hw, 'seokga') / Dx.wraidMaxHp(hw, 'umawang') >= 20, '체력 크게 — 칠대성 화무기 ×220(v467 · 전엔 ×1500) · 석가여래는 그 ×24');
   ok([0, 1, 2, 3].every((i) => i === 0 || (Dx.WB_TIER[i].hit > Dx.WB_TIER[i - 1].hit && Dx.WB_TIER[i].heal < Dx.WB_TIER[i - 1].heal && Dx.WB_TIER[i].dens > Dx.WB_TIER[i - 1].dens && Dx.WB_TIER[i].pot > Dx.WB_TIER[i - 1].pot)), '단계마다 — 아프게 · 회복 덜 · 빽빽하게 · 물약 숨 길게');
   ok(Dx.wbTierOf('umawang') === 0 && Dx.wbTierOf('nata') === 1 && Dx.wbTierOf('okhwang') === 2 && Dx.wbTierOf('seokga') === 3, '단계 나누기');
   // 회복이 줄어든다 — 흡혈·물약이 끝없이 들지 않는다
@@ -3753,7 +3759,7 @@ ok(/imp-switch/.test(read('js/wui.js')) && /가진 증표가 가장 많은 기�
 console.log('\n=== v403 칠대성·천계 더 세게 · 저사양 탄막 ===');
 {
   const Dx = await import('../js/world/wdgn.js');
-  ok(Dx.WRAID_HP_K >= 1500 && Dx.OK_HP_K >= 8 && Dx.GATE_HP_K >= 3 && Dx.SK_HP_K >= 3 && Dx.WB_TIER[0].hit >= 0.12, '칠대성 ×1500 · 관문 ×3 · 옥황 ×8 · 석가 ×3 · 탄 더 아프게');
+  ok(Dx.WRAID_HP_K >= 200 && Dx.OK_HP_K >= 8 && Dx.GATE_HP_K >= 3 && Dx.SK_HP_K >= 3 && Dx.WB_TIER[0].hit >= 0.12, '칠대성 ×220(v467) · 관문 ×3 · 옥황 ×8 · 석가 ×3 · 탄 더 아프게');
   const B = read('js/battle.js');
   ok(/function bulletSpr/.test(B) && /bulletSpr\(u\.kind, c, r\)/.test(B) && /lite && !u\.big/.test(B), '탄 몸통은 구워 둔 그림으로 · 가벼운 그리기면 작은 탄 빛 생략');
 }
