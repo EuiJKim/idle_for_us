@@ -713,9 +713,7 @@ export class WorldGame {
     // v359 극의 신수 전용 — 야천흑표 회피 · 혼원금룡 두목 피해·은자 (불길·서리·벼락·물결은 tickMountFx)
     if (mt?.fx === 'void') gear.dodge += 0.08;
     if (mt?.fx === 'gold') { gear.gold += 0.15; gear.bossDmg += 0.1; }
-    // v292 도감 — 모은 종만큼 영구히
-    const db = off?.comp ? 0 : this.compDexBonus();
-    gear.atkPct += db; gear.hpPct += db;
+    // v292 도감 — v468부터 명성(fame)의 한 갈래
     // v466 명성 — 무림 갈래의 영구 덤 여덟(탑 · 극 · 회랑 · 고수 · 관문 · 숙련 · 견문록 · 문파)을 점수 하나로. 값은 전과 같다(문파만 체력에도)
     const fm = off?.murim ? 0 : this.fame().pct;
     gear.atkPct += fm; gear.hpPct += fm;
@@ -744,8 +742,8 @@ export class WorldGame {
     // 레벨·스탯 몫은 작게, 장비 몫은 크게 (v108) — 강해지는 건 대부분 장비 덕
     // v110: 레벨·스탯 몫을 키웠다(장비보다는 작게).
     // 장비가 2/3 남짓, 레벨·스탯이 1/3 남짓(시뮬로 맞춤). 힘·체력은 1점에 0.3%씩도 올린다.
-    const tset = off?.comp ? { atk: 0, hp: 0 } : this.titleSet();   // v315 칭호 모음
     const tnow = off?.comp ? null : this.titleNow();
+    const tset = off?.comp ? { atk: 0, hp: 0 } : this.titleSet();   // v315 칭호 모음(따로 곱한다)
     const LB = W.baseLv(L);   // v447 수련은 레벨의 TRAIN_K만큼만
     const qk = this.qiMul();   // v456 내공(쓰는 내공) → 공격력·체력
     const atk = qk * (5 + LB * 3 + str * 3 + gear.atk) * (1 + gear.atkPct + str * 0.003) * (cls.atkK || 1) * (1 + (gear.impMul || 0)) * (tnow?.atkMul || 1) * (1 + tset.atk) * (this.cheonmaOn() ? this.fifth().atkMul : 1) * (1 + W.tierAtk(s.jobTier || 0));   // v391 천마혼 · v447 승급 공격력 · atkK: 직업 맞춤(v239) · v297 각인 배율 · v305 칭호
@@ -3933,7 +3931,8 @@ export class WorldGame {
   fame() {
     const s = this.s, k = W.famePts, hb = this.huntBonus();
     const by = { tower: k(D.towerBonus(s.tower?.floor)), hard: k(D.hardBonus(s.tower?.hard)), cor: k(D.corridorBonus(s.tower?.cor?.all)), master: k(this.masterBonus()),
-      gate: k(this.gateBonus()), mast: k(hb.m), dex: k(hb.d), guild: s.guildId ? k(W.guildAtk(this.guildExp)) : 0 };
+      gate: k(this.gateBonus()), mast: k(hb.m), dex: k(hb.d), guild: s.guildId ? k(W.guildAtk(this.guildExp)) : 0,
+      comp: k(this.compDexBonus()) };   // v468 동료 도감(애완 종·탈것 종)도 명성으로
     const pts = Object.values(by).reduce((a, b) => a + b, 0);
     return { pts, by, pct: pts * W.FAME_UNIT, rank: W.fameRank(pts), next: W.fameNext(pts) };
   }

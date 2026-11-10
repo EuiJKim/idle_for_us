@@ -591,7 +591,7 @@ function charTab(app) {
       h('small', {}, name), h('b', {}, fmt(pts)), h('i', {}, now), h('em', {}, each));
     const pb = game.powerBreakdown();
     fameCard.replaceChildren(
-      h('h3', {}, '명성 ', h('i', {}, '名聲'), h('small', {}, ` 무림에서 쌓은 이름 — 점수 하나`)),
+      h('h3', {}, '명성 ', h('i', {}, '名聲'), h('small', {}, ` 무림·동료에서 쌓은 이름 — 점수 하나`)),
       h('div', { class: 'fame-head' },
         h('div', { class: 'fame-num' }, h('b', { id: 'fame-pts' }, fmt(f.pts)), h('span', {}, `〈${f.rank}〉`)),
         h('div', { class: 'fame-fx' }, h('b', {}, `공격력·체력 +${pct(f.pct, 2)}`), h('small', {}, `전투력 ${pb.murim < 1 ? `+${Math.round(Math.max(0, pb.murim) * 100)}%` : `×${(1 + pb.murim).toFixed(1)}`} · 1명성 = +0.01%`),
@@ -604,7 +604,8 @@ function charTab(app) {
         tile('천계 관문', `${game.gatesCleared()}/${D.HEAVEN_GATES.length}`, f.by.gate, ['dgn', 'wraid'], `관문마다 +${W.famePts(D.GATE_BONUS)}`),
         tile('지역 숙련', `${hb.mast}단계`, f.by.mast, ['map'], `단계마다 +${W.famePts(W.MAST_STAT)}`),
         tile('견문록', `낙관 ${hb.stamps} · 지역 ${hb.zones}`, f.by.dex, ['char', 'dex'], `낙관 +${W.famePts(W.DEX_STAMP_STAT)} · 지역 +${W.famePts(W.DEX_ZONE_STAT)}`),
-        tile('문파', s.guildId ? `Lv.${W.guildLevel(game.guildExp)}` : '없음', f.by.guild, ['social', 'guild'], `레벨마다 +${W.famePts(W.guildAtk(W.GUILD_LV_EXP))}`)));
+        tile('문파', s.guildId ? `Lv.${W.guildLevel(game.guildExp)}` : '없음', f.by.guild, ['social', 'guild'], `레벨마다 +${W.famePts(W.guildAtk(W.GUILD_LV_EXP))}`),
+        (() => { const c = game.dexCounts(); return tile('동료 도감', `애완 ${c.pet} · 탈것 ${c.mount}`, f.by.comp, ['comp', 'dex'], `종마다 +${W.famePts(W.MOUNT_DEX_K)}~${W.famePts(4 * W.PET_DEX_K)}`); })()));   // v468
   }
   function paintGrow() {
     paintFame();
@@ -4278,7 +4279,7 @@ function compTab(app) {
       const r = s.petDex[d.id];
       const own = r != null;
       return h('div', { class: `dex-tile${own ? ' own' : ''}`, style: own ? `--rc:${W.RARITY[r].color}` : '' },
-        h('div', { class: 'ico pet-ico' }, own ? creatureIcon(d.id) : '?'), h('b', {}, own ? d.name : '???'), h('small', {}, own ? `${W.RARITY[r].name} · +${((r + 1) * W.PET_DEX_K * 100).toFixed(1)}%` : `순위 ${d.tier}`));
+        h('div', { class: 'ico pet-ico' }, own ? creatureIcon(d.id) : '?'), h('b', {}, own ? d.name : '???'), h('small', {}, own ? `${W.RARITY[r].name} · 명성 ${W.famePts((r + 1) * W.PET_DEX_K)}` : `순위 ${d.tier}`));
     }));
     const mountGrid = h('div', { class: 'dex-grid' }, ...W.MOUNTS.map((d) => {
       const own = !!s.mountDex[d.id];
@@ -4286,11 +4287,11 @@ function compTab(app) {
         h('div', { class: 'ico pet-ico' }, own ? creatureIcon(d.id) : '?'), h('b', {}, own ? d.name.replace('십이지 ', '') : '???'), h('small', {}, d.zodiac ? `십이지 ${d.zodiac}` : `순위 ${d.tier}`));
     }));
     const pb = Object.values(s.petDex).reduce((a, v) => a + (v + 1) * W.PET_DEX_K, 0), mb = c.mount * W.MOUNT_DEX_K;
-    dexCard.replaceChildren(h('h3', {}, '도감', h('small', {}, `영구히 공격력·최대 체력 +${((pb + mb) * 100).toFixed(1)}%`)),
-      h('p', { class: 'muted', style: 'font-size:12.5px;margin:0 0 8px' }, `한 번이라도 가진 종이 남아요(놓아줘도 그대로). 애완동물은 종마다 가장 높았던 등급만큼(레어 ${(W.PET_DEX_K * 100).toFixed(1)}% … 신화 ${(4 * W.PET_DEX_K * 100).toFixed(1)}%), 탈것은 종마다 ${(W.MOUNT_DEX_K * 100).toFixed(1)}%.`),
-      h('div', { class: 'dex-head' }, h('b', {}, `애완동물 ${c.pet}/${W.PETS.length}`), h('small', {}, ` · 신화 ${c.myth} · +${(pb * 100).toFixed(1)}%`)), petGrid,
+    dexCard.replaceChildren(h('h3', {}, '도감', h('small', {}, `명성 ${fmt(W.famePts(pb + mb))}(공격력·최대 체력 +${((pb + mb) * 100).toFixed(1)}%)`)),
+      h('p', { class: 'muted', style: 'font-size:12.5px;margin:0 0 8px' }, `한 번이라도 가진 종이 남아요(놓아줘도 그대로). 애완동물은 종마다 가장 높았던 등급만큼 명성(레어 ${W.famePts(W.PET_DEX_K)} … 신화 ${W.famePts(4 * W.PET_DEX_K)}), 탈것은 종마다 ${W.famePts(W.MOUNT_DEX_K)} — 캐릭터 창 명성 카드에 합쳐져요.`),
+      h('div', { class: 'dex-head' }, h('b', {}, `애완동물 ${c.pet}/${W.PETS.length}`), h('small', {}, ` · 신화 ${c.myth} · 명성 ${fmt(W.famePts(pb))}`)), petGrid,
       ...goalRows('pet', '애완동물'), ...goalRows('myth', '애완동물'),
-      h('div', { class: 'dex-head' }, h('b', {}, `탈것 ${c.mount}/${W.MOUNTS.length}`), h('small', {}, ` · +${(mb * 100).toFixed(1)}%`)), mountGrid,
+      h('div', { class: 'dex-head' }, h('b', {}, `탈것 ${c.mount}/${W.MOUNTS.length}`), h('small', {}, ` · 명성 ${fmt(W.famePts(mb))}`)), mountGrid,
       ...goalRows('mount', '탈것'));
   }
   const t = subTabs([

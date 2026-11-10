@@ -5052,5 +5052,19 @@ console.log('\n=== v466 명성 — 무림 덤 여덟 갈래를 점수 하나로 
   ok(!/공격력·체력 \+\$\{\(D\.(tower|hard)Bonus/.test(ui) && !/전원 공격력 \+/.test(ui) && /function fameUp/.test(mn) && !/극의 덤 공격력·체력/.test(mn), '탑·극·회랑·고수·관문·견문록·문파 글과 알림이 「명성 +N」으로');
   ok(W.FAME_RANKS.every((x, i, a) => i === 0 || x[0] > a[i - 1][0]) && W.fameRank(0) === '무명소졸' && W.fameRank(1e9) === W.FAME_RANKS[W.FAME_RANKS.length - 1][1] && W.fameNext(1e9) === null, '명성 이름 일곱 — 오름차순');
 }
+console.log('\n=== v468 동료 도감도 명성으로 ===');
+{
+  const g = fresh(); while (g.s.level < 60) g.addExp(W.expToNext(g.s.level));
+  const a0 = g.stats().atk, h0 = g.stats().hp;
+  g.s.petDex = { tiger: 2, qilin: 0 }; g.s.mountDex = { horse: 1, redhare: 1 }; g._stats = null;
+  const db = g.compDexBonus(), f = g.fame();
+  ok(f.by.comp === W.famePts(db) && f.by.comp === W.famePts(3 * W.PET_DEX_K + 1 * W.PET_DEX_K + 2 * W.MOUNT_DEX_K), '도감 명성 = 옛 도감 덤 ÷ 0.01%', `${f.by.comp}`);
+  const st = g.stats();
+  ok(Math.abs(st.atk / a0 - (1 + 0) * (st.atk / a0)) < 1 && st.atk > a0 && st.hp > h0, '도감을 모으면 공격력·체력이 오른다(명성으로)');
+  g._off = { murim: true }; g._stats = null; const sm = g.stats(); g._off = null; g._stats = null;
+  ok(Math.abs(sm.atk - a0) < 1e-6, '힘의 내역에서 도감 몫은 무림(명성) 갈래로 — 동료 갈래는 애완·탈것 그 자체');
+  ok(/tile\('동료 도감'/.test(read('js/wui.js')) && /명성 \$\{fmt\(W\.famePts\(pb \+ mb\)\)\}/.test(read('js/wui.js')), '명성 카드에 동료 도감 칸 · 도감 창은 명성으로 적는다');
+  ok(g.titleSet().atk === g.titleSet().n * W.TITLE_SET_BONUS, '칭호 모음은 따로 곱하는 덤 그대로(명성으로 옮기면 ±5%에 못 맞췄다)');
+}
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);
