@@ -2151,6 +2151,9 @@ button.next-step { cursor: pointer; }
 .road-pips i.safe.on { background: #3f7d5a; color: #fff; }
 .road-pips i.warn.on { background: #a16207; color: #fff; }
 .road-pips i.brk.on { background: #a3242a; color: #fff; }
+.road-pips.long { grid-template-columns: repeat(25, 1fr); gap: 2px; }   /* v471 신화는 +25(초월 +16~) */
+.road-pips i.trs.on { background: #6d28d9; color: #fff; }
+.road-legend .trs { color: #c4b5fd; }
 .road-pips i.next { border-color: var(--gold); color: var(--gold); font-weight: 700; box-shadow: 0 0 8px rgba(232, 200, 122, .45); }
 .road-pips i.lock { opacity: .3; }
 .road-legend { display: flex; flex-wrap: wrap; gap: 3px 10px; margin-top: 4px; font-size: 10.5px; color: var(--muted); }
@@ -2643,15 +2646,6 @@ body.hunt-noui #gather, body.in-inst #gather { display: none !important; }
 .cm-list { display: grid; gap: 4px; margin: 6px 0 8px; font-size: 12px; }
 .cm-list b { color: #f87171; }
 
-/* v393 초월 */
-.tr-box { border: 1px solid #a78bfa; background: linear-gradient(180deg, rgba(167,139,250,.14), rgba(0,0,0,.2)); margin-top: 8px; }
-.tr-head b { color: #c4b5fd; }
-.tr-cost { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; font-size: 12.5px; }
-.tr-cost span { padding: 2px 8px; border-radius: 8px; background: rgba(0,0,0,.3); }
-.tr-cost span.lack { color: #fca5a5; }
-.tr-rate { font-size: 12px; color: var(--muted); margin-bottom: 6px; }
-.tr-badge { display: block; font-style: normal; color: #c4b5fd; font-size: 13px; }
-.tr-hint { font-size: 12px; margin-top: 6px; }
 
 /* v398 골라 팔기 단추를 위에도 */
 .pick-top { width: 100%; margin: 6px 0; }

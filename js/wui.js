@@ -552,10 +552,10 @@ function charTab(app) {
       row('武', `무인 · ${W.lvShort(s.level)} ${game.tierName()}`, `바탕 전투력 ${fmt(Math.round(pb.base))} · ${W.realmName(game.realmNow())} · 레벨·전직·내공·경지·능력치·무공${auto.length ? ` · 자동: ${auto.join('·')}` : ''}`, next, go, hot); }
     // ② 장비 — 강화·등급 각인·계열·세트·현철 단련
     { const worn = W.SLOTS.map((x) => s.equip[x.id]).filter(Boolean);
-      const myth = worn.filter((it) => (it.rar || 0) >= 3).length, avg = worn.length ? Math.round(worn.reduce((a, it) => a + (it.plus || 0), 0) / worn.length) : 0, tr = worn.filter((it) => it.tr > 0).length;
+      const myth = worn.filter((it) => (it.rar || 0) >= 3).length, avg = worn.length ? Math.round(worn.reduce((a, it) => a + (it.plus || 0), 0) / worn.length) : 0, tr = worn.filter((it) => (it.plus || 0) >= W.ENHANCE_TOP).length;   // v471 초월 = +16~+25
       const t = game.upgradeTip?.();
-      const next = t ? `${t.name} (전투력 +${(t.gain * 100).toFixed(1)}%)` : worn.length < W.SLOTS.length ? '빈 칸 채우기 — 대장장이' : myth < worn.length ? '각인으로 신화 등급 만들기' : avg < W.ENHANCE_MAX ? `+${W.ENHANCE_MAX}까지 강화` : tr < worn.length ? '초월' : '장비는 끝';
-      row('裝', `장비 · ${pc(pb.gear)}`, `신화 ${myth}/${W.SLOTS.length} · 평균 +${avg}${tr ? ` · 초월 ${tr}` : ''}${s.autoEnh || s.autoInf ? ` · 자동: ${[s.autoEnh ? '강화' : null, s.autoInf ? '각인' : null].filter(Boolean).join('·')}` : ''}`, next, t && t.kind === 'imp' ? ['bag', 'imp'] : worn.length < W.SLOTS.length ? ['bag', 'smith'] : ['bag', 'gear'], !!t, !t && tr >= worn.length && worn.length >= W.SLOTS.length); }
+      const next = t ? `${t.name} (전투력 +${(t.gain * 100).toFixed(1)}%)` : worn.length < W.SLOTS.length ? '빈 칸 채우기 — 대장장이' : myth < worn.length ? '각인으로 신화 등급 만들기' : avg < W.ENHANCE_MAX ? `+${W.ENHANCE_MAX}까지 강화` : tr < worn.length ? `+${W.ENHANCE_TOP}까지 강화(초월)` : '장비는 끝';
+      row('裝', `장비 · ${pc(pb.gear)}`, `신화 ${myth}/${W.SLOTS.length} · 평균 +${avg}${tr ? ` · +${W.ENHANCE_TOP} ${tr}` : ''}${s.autoEnh || s.autoInf ? ` · 자동: ${[s.autoEnh ? '강화' : null, s.autoInf ? '각인' : null].filter(Boolean).join('·')}` : ''}`, next, t && t.kind === 'imp' ? ['bag', 'imp'] : worn.length < W.SLOTS.length ? ['bag', 'smith'] : ['bag', 'gear'], !!t, !t && tr >= worn.length && worn.length >= W.SLOTS.length); }
     // ③ 동료 — 애완동물 · 탈것 · 도감 · 칭호
     { const slots = game.petSlots(), act = game.activePets().length, mt = game.mountNow();
       const box = (s.petBox?.length || 0) > 0;
@@ -794,7 +794,7 @@ function bagTab(app) {
         const g = gradeOf(it);
         const cur = game.s.equip[it.slot];
         const breaking = (it.plus || 0) >= W.ENHANCE_NORMAL;
-        const tabsAll = [['enh', breaking ? '돌파' : '강화'], game.canImprintItem(it) ? ['imp', '각인'] : null, ['info', '정보']].filter(Boolean);
+        const tabsAll = [['enh', (it.plus || 0) >= W.ENHANCE_MAX ? '초월' : breaking ? '돌파' : '강화'], game.canImprintItem(it) ? ['imp', '각인'] : null, ['info', '정보']].filter(Boolean);
         if (!tabsAll.some(([k]) => k === itemTab)) itemTab = 'enh';
         const tabRow = h('div', { class: 'item-tabs' }, ...tabsAll.map(([k, name]) => h('button', { class: `item-tab${k === itemTab ? ' on' : ''}`, onclick: () => { itemTab = k; try { localStorage.setItem('ifu.itemTab', k); } catch { /* 이번만 */ } paint(); } }, name)));
         const sp = game.sharedPlus ? game.sharedPlus(it) : 0;
@@ -828,21 +828,22 @@ function bagTab(app) {
         const a = game.itemStats(it), b = game.itemStats({ ...it, plus: lv + 1 });
         const k = mainStat(a);
         const flat = ['atk', 'hp', 'def'].includes(k); const show = (v) => (flat ? fmt(Math.round(v || 0)) : `${((v || 0) * 100).toFixed(1)}%`);
-        return k ? h('div', { class: 'enh-gain' }, h('span', {}, STAT_KO[k] || k), h('b', {}, show(a[k])), h('i', {}, '→'), h('b', { class: 'up' }, show(b[k])), h('small', {}, ` +${pct(lv >= W.ENHANCE_NORMAL ? W.BREAK_STEP : W.ENHANCE_STEP, 0)}`)) : null;
+        return k ? h('div', { class: 'enh-gain' }, h('span', {}, STAT_KO[k] || k), h('b', {}, show(a[k])), h('i', {}, '→'), h('b', { class: 'up' }, show(b[k])), h('small', {}, lv >= W.ENHANCE_MAX ? ` 기본 +${pct(W.TRANS_STEP, 0)}` : ` +${pct(lv >= W.ENHANCE_NORMAL ? W.BREAK_STEP : W.ENHANCE_STEP, 0)}`)) : null;
       };
-      // 여정 — 15칸. 1~6 그대로 · 7~9 실패 -1 · 10~ 돌파(-2 · 증표 · 보호부). 레벨 상한 너머는 잠김
+      // 여정 — 15칸(신화는 25칸). 1~6 그대로 · 7~9 실패 -1 · 10~ 돌파(-2 · 증표 · 보호부) · v471 16~25 초월(그대로 · 현철 · 가장 센 증표). 레벨 상한 너머는 잠김
       const enhRoad = () => {
         const lv = it.plus || 0;
         const cap = game.enhanceMax(it), capItem = game.enhanceMaxItem(it);
         const nx = W.enhanceCapNext(game.s.level);
         return h('div', { class: 'enh-road' },
-          h('div', { class: 'road-pips' }, ...Array.from({ length: W.ENHANCE_MAX }, (_, j) => {
+          h('div', { class: `road-pips${capItem > W.ENHANCE_MAX ? ' long' : ''}` }, ...Array.from({ length: Math.max(W.ENHANCE_MAX, capItem) }, (_, j) => {
             const n = j + 1;
-            const zone = n <= 6 ? 'safe' : n <= W.ENHANCE_NORMAL - 1 ? 'warn' : 'brk';
-            return h('i', { class: `${zone}${n <= lv ? ' on' : ''}${n === lv + 1 && lv < cap ? ' next' : ''}${n > cap ? ' lock' : ''}`, title: `+${n}` }, n === lv + 1 && lv < cap ? `+${n}` : (n === 1 || n === 7 || n === 10 || n === 15) ? `${n}` : '');
+            const zone = n <= 6 ? 'safe' : n <= W.ENHANCE_NORMAL - 1 ? 'warn' : n <= W.ENHANCE_MAX ? 'brk' : 'trs';
+            return h('i', { class: `${zone}${n <= lv ? ' on' : ''}${n === lv + 1 && lv < cap ? ' next' : ''}${n > cap ? ' lock' : ''}`, title: `+${n}` }, n === lv + 1 && lv < cap ? `+${n}` : (n === 1 || n === 7 || n === 10 || n === 15 || n === W.ENHANCE_TOP) ? `${n}` : '');
           })),
           h('div', { class: 'road-legend' },
             h('span', { class: 'safe' }, '+1~6 실패해도 그대로'), h('span', { class: 'warn' }, '+7~9 실패 -1'), h('span', { class: 'brk' }, '+10부터 돌파 · 실패 -2 · 증표'),
+            capItem > W.ENHANCE_MAX ? h('span', { class: 'trs' }, `+16~${W.ENHANCE_TOP} 초월 · 그대로 · 가장 센 증표`) : null,
             cap < capItem ? h('span', { class: 'lock' }, `🔒 +${cap + 1}부터는 ${nx ? `${W.lvText(nx[0])}에` : '나중에'}`) : null));
       };
       // ▶ 다음 할 일 — 할 수 있으면 금빛, 아니면 왜 안 되는지와 어디서 구하는지
@@ -852,56 +853,37 @@ function bagTab(app) {
         let txt, hot = false, go = null, act = '';
         if (lv >= game.enhanceMaxItem(it)) { txt = '끝까지 강화했어요 — 이제 각인으로 세져요'; go = () => { itemTab = 'imp'; paint(); }; act = '각인'; }
         else if (lv >= cap) { const nx = W.enhanceCapNext(game.s.level); txt = nx ? `${W.lvText(nx[0])}이 되면 +${nx[1]}까지 열려요 (지금 ${W.lvShort(game.s.level)})` : '끝까지 강화했어요'; }
-        else if (game.canEnhance(it)) { const f = W.enhanceFail(lv); txt = `${lv >= W.ENHANCE_NORMAL ? '돌파' : '강화'}할 수 있어요 — 성공 ${pct(game.enhanceRateOf(it), 0)} · ${f ? `실패하면 +${Math.max(0, lv + f)}` : '실패해도 그대로'}`; hot = true; go = () => askEnhance(); }
+        else if (game.canEnhance(it)) { const f = W.enhanceFail(lv); txt = `${lv >= W.ENHANCE_MAX ? '초월' : lv >= W.ENHANCE_NORMAL ? '돌파' : '강화'}할 수 있어요 — 성공 ${pct(game.enhanceRateOf(it), 0)} · ${f ? `실패하면 +${Math.max(0, lv + f)}` : '실패해도 그대로'}`; hot = true; go = () => askEnhance(); }
         else {
           const em = game.enhanceMats(it), bm = game.breakMarksOf(it);
           const gold = game.enhanceCost(it) - game.s.gold;
           if (gold > 0) { txt = `은자 ${fmt(gold)} 모자라요 — 사냥하면 모여요`; go = goHunt; act = '사냥터로'; }
           else if (em && game.enhanceMatHave(em) < em.n) { txt = `${W.matName(em.key)} ${fmt(em.n - game.enhanceMatHave(em))} 모자라요 — 몹·두목이 떨궈요(높은 사냥터일수록 많이)`; go = () => goWhere(em.key); act = '어디서?'; }
+          else if (bm && !game.breakMarkKey(it, bm) && game.isTransStep(it)) txt = `초월에 두목 증표 ${bm}개(한 종류) 필요 — 높은 두목일수록 좋아요`;
           else if (bm && !game.breakMarkKey(it, bm)) { const own = W.bossKey(W.itemZone(it)); txt = `돌파 증표 ${bm}개 필요 — ${W.zoneOfW(W.itemZone(it))?.name || ''} 두목 구역의 ${short(own)}${game.s.level >= 99 ? ' (십이지왕 증표도 돼요)' : ''}`; go = () => goWhere(own); act = '가기'; }
           else txt = '지금은 강화할 수 없어요';
         }
         return h(go ? 'button' : 'div', { class: `next-step${hot ? ' hot' : ''}`, onclick: go || undefined }, h('i', {}, '▶'), h('span', {}, txt), go ? h('em', {}, act ? `${act} ›` : '›') : null);
       };
-      // v424 초월까지의 길 — 무엇이 모자란지 · 어디로 가면 되는지(각인 칸·강화 칸으로 바로)
+      // v424 초월까지의 길 — 무엇이 모자란지 · 어디로 가면 되는지(각인 칸·강화 칸으로 바로) · v471 초월 = 강화 +16~+25
       const transRoad = () => {
         const maxP = game.enhanceMaxItem(it), rarOk = (it.rar || 0) >= 3, pOk = (it.plus || 0) >= W.ENHANCE_MAX;
         const rows = [];
         rows.push([rarOk, `① 신화 등급 — ${rarOk ? '됐어요' : `지금 ${W.RARITY[it.rar || 0].name}${game.canImprintItem(it) ? ' · 각인 칸에서 두목 증표로 레어 → 유니크 → 전설 → 신화' : ' · 이 장비는 각인이 안 돼요(성장·두목·왕 장비만)'}`}`,
           !rarOk && game.canImprintItem(it) ? ['각인 칸 ›', () => { itemTab = 'imp'; try { localStorage.setItem('ifu.itemTab', 'imp'); } catch { /* 이번만 */ } paint(); }] : null]);
-        if (maxP < W.ENHANCE_MAX) rows.push([false, `② +${W.ENHANCE_MAX} — 이 장비는 +${maxP}까지만이라 초월이 안 돼요(돌파가 되는 성장·두목·왕 장비로)`, null]);
+        if (maxP < W.ENHANCE_MAX) rows.push([false, `② +${W.ENHANCE_MAX} — 이 장비는 +${maxP}까지만이라 초월(+16~)이 안 돼요(돌파가 되는 성장·두목·왕 장비로)`, null]);
         else rows.push([pOk, `② +${W.ENHANCE_MAX}까지 강화 — ${pOk ? '됐어요' : `지금 +${it.plus || 0}${(it.plus || 0) >= W.ENHANCE_NORMAL ? ' · 돌파는 두목 증표·보호부로' : ''}`}`, !pOk ? ['강화 칸 ›', () => { itemTab = 'enh'; paint(); }] : null]);
-        rows.push([false, `③ 재료 — 은자 ${fmt(W.transGold(it.ilv, 0))} · ${W.ORE_NAME} ${fmt(W.transOre(0))} · 두목 증표 한 종류 ${W.transMarks(0)}개 · 성공 ${pct(W.TRANS_RATE[0], 0)}(실패해도 떨어지지 않고 다음 확률 ↑)`, null]);
-        return h('div', { class: 'card tr-road' }, h('b', {}, `✦ 초월까지 — 단계마다 공격력·체력·방어 +${Math.round(W.TRANS_STEP * 100)}% (${W.TRANS_MAX}단계)`),
+        rows.push([false, `③ +16부터 — 은자 ${fmt(W.transGold(it.ilv, 0))} · ${W.ORE_NAME} ${fmt(W.transOre(0))} · 두목 증표 한 종류 ${W.transMarks(0)}개 · 성공 ${pct(W.TRANS_RATE[0], 0)}(실패해도 떨어지지 않고 다음 확률 ↑)`, null]);
+        return h('div', { class: 'card tr-road' }, h('b', {}, `✦ 초월(+16~+${W.ENHANCE_TOP})까지 — 단계마다 공격력·체력·방어 +${Math.round(W.TRANS_STEP * 100)}%`),
           ...rows.map(([ok, txt, go]) => h('div', { class: `tr-step${ok ? ' ok' : ''}` }, h('i', {}, ok ? '✓' : '○'), h('span', {}, txt), go ? h('button', { class: 'btn mini', onclick: go[1] }, go[0]) : null)));
-      };
-      // v393 초월 — +15까지 다 한 신화 장비
-      const transBox = () => {
-        const tr = it.tr || 0;
-        if ((it.rar || 0) < 3 || (it.plus || 0) < game.enhanceMaxItem(it) || game.enhanceMaxItem(it) < W.ENHANCE_MAX) return transRoad();
-        if (tr >= W.TRANS_MAX) return h('div', { class: 'card tr-box' }, h('b', {}, `✦ ${W.TRANS_NAME[tr]} — 끝`), h('small', { class: 'muted' }, ` 공격력·체력 +${Math.round(tr * W.TRANS_STEP * 100)}%`));
-        const f = game.transInfo(it);
-        const can = game.canTranscend(it);
-        return h('div', { class: 'card tr-box' },
-          h('div', { class: 'tr-head' }, h('b', {}, `✦ 초월 ${tr} → ${tr + 1}`), h('small', {}, ` 공격력·체력 +${Math.round(tr * W.TRANS_STEP * 100)}% → +${Math.round((tr + 1) * W.TRANS_STEP * 100)}%`)),
-          h('div', { class: 'tr-cost' },
-            h('span', { class: game.s.gold >= f.gold ? '' : 'lack' }, `은자 ${fmt(f.gold)}`),
-            h('span', { class: (game.s.mats[W.ORE] || 0) >= f.ore ? '' : 'lack' }, `${W.ORE_NAME} ${fmt(f.ore)}`),
-            h('span', { class: f.mark ? '' : 'lack' }, f.mark ? `${W.matName(f.mark)} ${f.markN}` : `두목 증표 ${f.markN}개(한 종류)`)),
-          h('div', { class: 'tr-rate' }, `성공 ${pct(f.rate, 0)} · 실패해도 떨어지지 않고 다음 확률 ↑`),
-          h('button', { class: 'btn primary', id: 'trans-go', style: 'width:100%', disabled: can ? null : true, onclick: () => {
-            const ok = game.transcend(it.uid);
-            if (ok == null) return;
-            toast(ok ? `✦ ${W.TRANS_NAME[it.tr]}! 공격력·체력 +${Math.round(it.tr * W.TRANS_STEP * 100)}%` : '초월 실패 — 다음 확률이 올라요');
-            app.save(); paint(); app.refresh();
-          } }, can ? '✦ 초월하기' : '재료가 모자라요'));
       };
       const enhView = () => {
         const lv = it.plus || 0;
         const breaking = lv >= W.ENHANCE_NORMAL;
         if (lv >= game.enhanceMax(it)) {
-          return [enhRoad(), enhNext(), h('div', { class: 'enh-box enh-max' }, h('div', { class: 'enh-hero' }, h('b', {}, `+${lv}`), it.tr ? h('em', { class: 'tr-badge' }, W.TRANS_NAME[it.tr]) : ''),
-            h('div', { class: 'enh-actions' }, h('button', { class: 'btn itm-info', onclick: () => enhHelp() }, 'ⓘ 강화란?'))), transBox()];
+          return [enhRoad(), enhNext(), h('div', { class: 'enh-box enh-max' }, h('div', { class: 'enh-hero' }, h('b', {}, `+${lv}`)),
+            h('div', { class: 'enh-actions' }, h('button', { class: 'btn itm-info', onclick: () => enhHelp() }, 'ⓘ 강화란?'))),
+            lv < W.ENHANCE_TOP && game.enhanceMaxItem(it) >= W.ENHANCE_MAX && lv >= game.enhanceMaxItem(it) ? transRoad() : null];
         }
         const rate = game.enhanceRateOf(it);
         const risky = W.enhanceRisky(lv);
@@ -925,8 +907,8 @@ function bagTab(app) {
             : h('button', { class: 'prot-none', onclick: goShop }, '보호부가 없어요 — 마을 상인에서 사면 실패해도 그대로예요 ', h('b', {}, '상인에게 ›'))) : null,
           h('div', { class: 'enh-actions' },
             h('button', { class: 'btn itm-info', onclick: () => enhHelp() }, 'ⓘ 강화란?'),
-            h('button', { class: 'btn good enh-go', disabled: game.canEnhance(it) ? null : true, onclick: () => askEnhance() }, breaking ? '돌파' : '강화'))),
-          game.enhanceMaxItem(it) >= W.ENHANCE_MAX ? foldBox('-trroad|초월까지의 길', transRoad()) : null];   // v424 +15 전에도 초월까지의 길(접힌 채)
+            h('button', { class: 'btn good enh-go', disabled: game.canEnhance(it) ? null : true, onclick: () => askEnhance() }, lv >= W.ENHANCE_MAX ? '초월' : breaking ? '돌파' : '강화'))),
+          game.enhanceMaxItem(it) >= W.ENHANCE_MAX && lv < W.ENHANCE_MAX ? foldBox('-trroad|초월까지의 길', transRoad()) : null];   // v424 +15 전에도 초월까지의 길(접힌 채)
       };
       const enhHelp = () => {
         const lv = it.plus || 0;
@@ -937,6 +919,7 @@ function bagTab(app) {
             h('div', { class: 'help-step' }, h('b', {}, '① 은자와 현철로 한 단계씩'), h('p', {}, `한 단계마다 장비 기본 수치 +${pct(W.ENHANCE_STEP, 0)}(돌파는 +${pct(W.BREAK_STEP, 0)}). ${W.ORE_NAME}은 모든 몹·두목이 떨궈요 — 높은 사냥터일수록 많이.`)),
             h('div', { class: 'help-step' }, h('b', {}, '② +1~+6은 안전 · +7~+9는 실패하면 -1'), h('p', {}, '실패해도 장비는 안 사라져요. 실패할 때마다 다음 확률이 쌓여서(천장) 운이 나빠도 끝없이 막히지 않아요. 성공하면 쌓인 건 비워져요.')),
             h('div', { class: 'help-step' }, h('b', {}, '③ +10부터 돌파 — 증표와 보호부'), h('p', {}, `두목 증표가 더 들어요(+11에 1개 … +15에 5개). 이 장비는 ${W.zoneOfW(W.itemZone(it))?.name || ''} 두목 구역의 ${short(own)} 증표${game.s.level >= 99 ? ', 99부터는 십이지왕 증표도' : ''}.`), h('p', { class: 'hl' }, '실패하면 -2. 보호부(마을 상인)가 있으면 한 장을 쓰고 그대로예요.')),
+            game.enhanceMaxItem(it) > W.ENHANCE_MAX ? h('div', { class: 'help-step' }, h('b', {}, `⑤ +16~+${W.ENHANCE_TOP} 초월(신화)`), h('p', {}, `한 단계마다 공격력·체력·방어 +${pct(W.TRANS_STEP, 0)}. ${W.ORE_NAME}과 가진 것 가운데 가장 센 두목 증표 한 종류가 들어요. 실패해도 떨어지지 않고 다음 확률이 올라요.`)) : null,
             h('div', { class: 'help-step' }, h('b', {}, '④ 레벨 제한 없음'), h('p', {}, `어느 레벨이든 이 장비가 갈 수 있는 끝(+${game.enhanceMaxItem(it)})까지 올릴 수 있어요.`)),
             it.grow ? h('div', { class: 'help-step' }, h('b', {}, '⑤ 성장 장비'), h('p', {}, `레벨을 따라 저절로 자라요(지금 Lv.${it.ilv}). 강화는 그대로 이어지니 바꿔 낄 걱정 없이 올리면 돼요.`)) : null,
             h('div', { class: 'help-step' }, h('b', {}, '⚙ 자동'), h('p', {}, '설정의 \'자동 강화\'를 켜면 낮은 칸부터 알아서 올려요(레벨 상한까지 · +11부터는 보호부를 써요).'))));
@@ -1625,7 +1608,7 @@ function bagTab(app) {
       return h('div', { class: 'enh-tile', style: `--gc:${gradeOf(it).color}` },
         h('button', { class: 'enh-top', onclick: () => openItem(it, true) }, h('span', { class: 'imp-slot' }, x.name), h('b', {}, `+${p}`), h('small', {}, itemTitle(game, it))),
         h('div', { class: 'imp-lv' }, h('i', { style: `width:${(p / mxi) * 100}%` }), h('span', {}, `+${p} / ${mxi}${mx < mxi ? ` (레벨 상한 +${mx})` : ''}`)),
-        p >= mx ? (game.canTransItem(it) ? h('button', { class: `btn imp-up${game.canTranscend(it) ? ' primary' : ' lack'}`, onclick: () => openItem(it, true) }, `✦ 초월 ${it.tr || 0}/${W.TRANS_MAX}`, h('small', {}, ' 눌러서')) : h('div', { class: 'imp-done' }, p >= mxi ? (it.tr ? `✓ ${W.TRANS_NAME[it.tr]}` : '✓ 끝') : `레벨이 오르면 +${mx + 1}`))
+        p >= mx ? (h('div', { class: 'imp-done' }, p >= mxi ? '✓ 끝' : `레벨이 오르면 +${mx + 1}`))
           : h('button', { class: `btn imp-up${can ? ' primary' : ' lack'}`, disabled: can ? null : true, onclick: () => {
             const r = game.enhance(it.uid, true);
             if (r != null) { const L = game.lastEnhance; toast(r ? `${x.name} +${it.plus} 성공!` : `${x.name} 실패${L?.drop ? ` (${L.drop})` : L?.prot ? ' · 보호부로 그대로' : ' · 그대로'} · 다음 확률 ↑`); done(); }

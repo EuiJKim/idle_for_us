@@ -1730,7 +1730,7 @@ console.log('\n=== v261 강화 상한 · 경험치 구간 ===');
   g.s.mats[W.ORE] = 1e9;
   const w = g.s.equip.weapon;
   for (let i = 0; i < 50; i++) g.enhance(w.uid);
-  ok(w.plus >= W.ENHANCE_NORMAL && g.enhanceMax(w) === g.enhanceMaxItem(w) && W.enhanceLvCap(1) === W.ENHANCE_MAX && !W.enhanceCapNext(1), 'v408 레벨 제한 없음 — Lv1도 +10(돌파는 증표가 있어야)', `+${w.plus}`);
+  ok(w.plus >= W.ENHANCE_NORMAL && g.enhanceMax(w) === g.enhanceMaxItem(w) && W.enhanceLvCap(1) === W.ENHANCE_TOP && !W.enhanceCapNext(1), 'v408 레벨 제한 없음 — Lv1도 +10(돌파는 증표가 있어야)', `+${w.plus}`);
   g.s.level = 45;
   ok(g.enhanceMax(w) === g.enhanceMaxItem(w), 'Lv45도 장비 끝까지', `${g.enhanceMax(w)}`);
   ok(W.expSlow(5) === 1 && W.expSlow(40) === 2.6 && W.expToNext(10) === Math.round(27 * 10 ** 2.3 * (1 + (10 / 30) ** 2.2)), '첫 시간(~Lv12)의 경험치는 그대로 · 뒤로 갈수록 배율');
@@ -3418,7 +3418,7 @@ console.log('\n=== v373~v375 칠대성(상시 최종 두목) · 탄막 · 대성
   ok(g.s.wraid.top1 === 1 && r1.gold === D3.wraidKillReward(g.s.level, 1, 'umawang').gold, '처치 보상 — 1위 ×3');
   // 팔마신장 — 여덟 부위 세트 · 가락지·귀걸이도 돌파까지
   const ring = g.makeKing('finger', G3.PALMA_ZONE, 3, 'palma');
-  ok(g.enhanceMaxItem(ring) === W.ENHANCE_MAX && g.enhanceBaseRate(ring) === W.enhanceRate(0), '대성신장 가락지(손오공의 긴고환)는 반 확률·+10 끝이 아니다');
+  ok(g.enhanceMaxItem(ring) >= W.ENHANCE_MAX && g.enhanceBaseRate(ring) === W.enhanceRate(0), '대성신장 가락지(손오공의 긴고환)는 반 확률·+10 끝이 아니다');
   const p0 = g.stats().power;
   for (const sl of G3.PALMA_SLOTS) { const p = g.makeKing(sl, G3.PALMA_ZONE, 3, 'palma', 12); p.opts = []; g.s.equip[sl] = p; }
   g._stats = null; g._setb = null;
@@ -3637,14 +3637,14 @@ console.log('\n=== v393 다섯 직업 5차 · 초월 ===');
   const it = g.s.equip.weapon; it.rar = 3; it.plus = 15; g._stats = null;
   g.s.gold = 1e13; g.s.mats[W.ORE] = 1e6; g.s.mats.b27 = 500; g.rng = () => 0;
   const a0 = g.itemStats(it).atk;
-  ok(g.canTransItem(it) && g.canTranscend(it), '신화 +15 — 초월할 수 있다');
-  for (let i = 0; i < 12; i++) g.transcend(it.uid);
-  ok(it.tr === W.TRANS_MAX && Math.abs(g.itemStats(it).atk / a0 - (1 + W.TRANS_MAX * W.TRANS_STEP)) < 0.01 && !g.canTransItem(it), '초월 十까지 — 기본 능력치 +80%', `${it.tr}`);
-  const it2 = g.s.equip.armor; it2.rar = 3; it2.plus = 15; g.rng = () => 0.99; const b0 = g.s.mats.b27;
-  ok(g.transcend(it2.uid) === false && (it2.tr || 0) === 0 && it2.tpity > 0 && g.s.mats.b27 < b0, '실패해도 떨어지지 않고 천장');
+  ok(g.canEnhance(it) && g.enhanceMaxItem(it) === W.ENHANCE_TOP, '신화 +15 — 초월(+16)로 강화할 수 있다(v471 강화 하나)');
+  for (let i = 0; i < 12; i++) g.enhance(it.uid);
+  ok(it.plus === W.ENHANCE_TOP && Math.abs(g.itemStats(it).atk / a0 - (1 + W.TRANS_MAX * W.TRANS_STEP)) < 0.01 && !g.canEnhance(it), '+25(초월 十)까지 — 기본 능력치 +80%', `+${it.plus}`);
+  const it2 = g.s.equip.armor; it2.rar = 3; it2.plus = 15; g.rng = () => 0.99; const b0 = g.s.mats.b27, p0 = g.s.prot = 3;
+  ok(g.enhance(it2.uid) === false && it2.plus === 15 && it2.epity > 0 && g.s.mats.b27 < b0 && g.s.prot === p0, '실패해도 떨어지지 않고 천장(보호부도 안 쓴다)');
   const it3 = g.s.equip.hat; it3.rar = 2; it3.plus = 15;
-  ok(!g.canTransItem(it3), '전설은 초월 못 한다');
-  ok(/trans-go/.test(read('js/wui.js')) && /'w5'/.test(read('js/wmain.js')) && /art\/soul\//.test(read('js/battle.js')), '초월 창 · 5차 무공 그림 · 혼 그림');
+  ok(!g.canEnhance(it3) && g.enhanceMaxItem(it3) === W.ENHANCE_MAX, '전설은 +15 끝(초월 못 한다)');
+  ok(/'w5'/.test(read('js/wmain.js')) && /art\/soul\//.test(read('js/battle.js')), '5차 무공 그림 · 혼 그림');
 }
 console.log('\n=== v394 길잡이 점검 — 못 깨던 각인 단계 · 새 단계 ===');
 {
@@ -3862,7 +3862,7 @@ console.log('\n=== v411 지난 알림 · 다녀오셨어요 요약 ===');
 console.log('\n=== v410 초월은 기본 수치만 ===');
 {
   const g = fresh('sword'); while (g.s.level < 100) g.addExp(W.expToNext(g.s.level));
-  const it = g.makeKing('glove', 27, 3, 'palma', 15); const a = g.itemStats(it); it.tr = 10; const b = g.itemStats(it);
+  const it = g.makeKing('glove', 27, 3, 'palma', 15); const a = g.itemStats(it); it.plus = W.ENHANCE_TOP; const b = g.itemStats(it);
   ok(Math.abs(b.atk / a.atk - (1 + 10 * W.TRANS_STEP)) < 1e-9 && b.critDmg === a.critDmg, '초월 10 — 공격력은 +80% · 치명 피해(%)는 그대로', `${(b.atk / a.atk).toFixed(2)} · ${a.critDmg?.toFixed(2)}`);
 }
 console.log('\n=== v409 대성신장 부위는 확률 · 천장 ===');
@@ -3900,7 +3900,7 @@ console.log('\n=== v409 각성 고수 여섯 · 칭호 · 기록 ===');
 }
 console.log('\n=== v408 강화 레벨 제한 없음 · 참여 보상 제한 없음 · 다시 합류 ===');
 {
-  ok(W.enhanceLvCap(1) === W.ENHANCE_MAX && W.enhanceLvCap(150) === W.ENHANCE_MAX, '강화 — 어느 레벨이든 +15까지');
+  ok(W.enhanceLvCap(1) === W.ENHANCE_TOP && W.enhanceLvCap(150) === W.ENHANCE_TOP, '강화 — 어느 레벨이든 그 장비의 끝까지(v471 신화 +25)');
   const Dx = await import('../js/world/wdgn.js');
   ok(!Number.isFinite(Dx.WRAID_PAID), '칠대성 참여 보상 — 판 제한 없음');
   const M = read('js/wmain.js');
@@ -4033,7 +4033,7 @@ console.log('\n=== v433 2판 — 온라인·상태 안정 ===');
   const raw = { ...newWorldSave(), equip: { weapon: { uid: 'w', slot: 'weapon', ilv: 50, rar: 9, plus: 99, tr: -3, step: 1 } }, bag: [null, 7, { uid: 'b', slot: 'hat', ilv: 'x', rar: 2 }],
     pets: [{ uid: 'p', kind: W.PETS[0].id, rar: 1 }], clockMax: Date.now() + 5 * 365 * 86400e3, lastSeen: Date.now() + 86400e3 * 900 };
   const m = migrateWorld(JSON.parse(JSON.stringify(raw)));
-  ok(m.equip.weapon.rar === W.RARITY.length - 1 && m.equip.weapon.plus === W.ENHANCE_MAX && m.equip.weapon.tr === 0, '장비 등급·강화·초월이 범위 안으로');
+  ok(m.equip.weapon.rar === W.RARITY.length - 1 && m.equip.weapon.plus === W.ENHANCE_TOP && !('tr' in m.equip.weapon), '장비 등급·강화가 범위 안으로(v471 초월 칸은 지운다)');
   ok(m.bag.length === 1 && m.bag[0].ilv === 1, '가방의 빈 값은 빼고 레벨은 숫자로');
   ok(m.pets[0].lv >= 1 && Number.isFinite(m.pets[0].exp), '애완동물 레벨·경험치가 숫자로');
   ok(m.clockMax <= Date.now() + 86400e3 + 1000 && m.lastSeen <= Date.now() + 86400e3 + 1000, '미래 시계는 지금 + 하루까지만');
@@ -5070,6 +5070,35 @@ console.log('\n=== v470 「빼기」 셋째 판 — 애완동물 별·품·단 �
   ok(t.hasTitle('petdan') && t.hasTitle('petq') && W.titleOf('petdan').how.includes('Lv.60') && W.titleOf('petq').how.includes('신화'), '〈영수의 주인〉 Lv.60 · 〈신화 영수〉 신화 Lv.45');
   const ui = read('js/wui.js'), mn = read('js/wmain.js');
   ok(!/PET_QUAL|PET_DAN|PET_STAR|petDan|starUp|qualTag|danTag/.test(ui + mn) && /feedPet\(p\.uid\)/.test(ui) && /case 'petFeed'/.test(mn), '화면: 별·품·단이 없고 먹이 단추 · 먹이 알림');
+}
+console.log('\n=== v471 「빼기」 넷째 판 — 장비 초월 → 강화 +16~+25 ===');
+{
+  const G2 = await import('../js/world/wgear.js');
+  const g = fresh('sword');
+  while (g.s.level < 150) g.addExp(W.expToNext(g.s.level));
+  const w = g.s.equip.weapon; w.rar = 3; w.plus = 15; w.tr = 6; w.tpity = 0.2; g._stats = null;
+  // 옛 계산(초월 6 = 기본 수치 ×1.48)
+  const old = { ...w }; delete old.tr;
+  const st0 = g.itemStats({ ...w, plus: 15 });
+  const m = migrateWorld(JSON.parse(JSON.stringify(g.s)));
+  ok(m.equip.weapon.plus === 21 && !('tr' in m.equip.weapon) && !('tpity' in m.equip.weapon) && Math.abs(m.equip.weapon.epity - 0.2) < 1e-9, '초월 6 → +21 · 초월 천장은 강화 천장으로');
+  const g2 = new WorldGame(m, Date.now());
+  const st1 = g2.itemStats(g2.s.equip.weapon);
+  ok(Math.abs(st1.atk / st0.atk - (1 + 6 * W.TRANS_STEP)) < 1e-9 && Object.keys(st0).filter((k) => !W.TRANS_FLAT.includes(k)).every((k) => Math.abs((st1[k] || 0) - (st0[k] || 0)) < 1e-12), '값은 전과 같다 — 기본 수치만 ×1.48 · % 능력치는 그대로');
+  const m2 = migrateWorld(JSON.parse(JSON.stringify(m)));
+  ok(m2.equip.weapon.plus === 21, '두 번 불러와도 같다');
+  const leg = migrateWorld({ ...JSON.parse(JSON.stringify(g.s)), equip: { ...g.s.equip, weapon: { ...w, plus: 12, tr: 3 } } });
+  ok(leg.equip.weapon.plus === 12 && !('tr' in leg.equip.weapon), '+15가 아닌데 초월이 적힌 것은 강화 그대로(초월은 지운다)');
+  // 값·재료·확률이 초월 그대로
+  const x = g2.s.equip.weapon;
+  ok(g2.enhanceCost(x) === W.transGold(x.ilv, 6) && g2.enhanceMats(x).key === W.ORE && g2.enhanceMats(x).n === W.transOre(6) && g2.breakMarksOf(x) === W.transMarks(6) && Math.abs(g2.enhanceBaseRate(x) - W.TRANS_RATE[6]) < 1e-12 && W.enhanceFail(21) === 0 && !W.enhanceRisky(21), '+21→22 = 초월 7의 은자·현철·증표·확률 · 떨어지지 않는다');
+  // 성장 장비의 강화 나눔은 +15까지
+  ok(W.enhanceMult(25) === W.enhanceMult(15) && W.transMult(15) === 1 && Math.abs(W.transMult(25) - 1.8) < 1e-9, '+15 위는 강화 배수 대신 초월 배수');
+  // 대성신장 바꿔 끼기 — +16 위는 신화 조각만 받는다
+  { const p = fresh('sword'); p.s.level = 150; const a = p.makeKing('glove', 27, 3, 'palma', 21), b = p.makeKing('glove', 27, 2, 'palma', 3);
+    if (a && b && G2.isPalma(a)) { p.s.equip.glove = a; p.s.bag.push(b); p.equipFromBag(b.uid); ok(b.plus === 3 && a.plus === 21, '+21 대성신장을 전설 조각으로 바꾸면 강화를 맞바꾸지 않는다(+15 끝 장비가 +21이 되지 않게)', `${a.plus} · ${b.plus}`); } }
+  const ui = read('js/wui.js');
+  ok(!/transcend\(|canTransItem|TRANS_NAME|transBox/.test(ui + read('js/world/wgame.js')) && /road-pips\$\{capItem > W\.ENHANCE_MAX/.test(ui), '화면: 초월 칸 없이 강화 여정 25칸');
 }
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);

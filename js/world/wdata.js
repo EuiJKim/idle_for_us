@@ -929,26 +929,29 @@ export const ENHANCE_NORMAL = 10;
 export const AUTO_ENH_MAX = 7;   // v324 자동 강화 상한 — 여기까지만 저절로, 돌파는 직접
 // v261: 강화 상한을 레벨에 묶는다 — 6칸 +10이 2.8시간(Lv32)에 끝나 중반에 이정표가 없었다. [이 레벨부터, 여기까지]
 // v408 레벨 제한을 풀었다 — 어느 레벨이든 장비가 갈 수 있는 끝(+10 · 돌파 +15)까지. (옛 표: Lv1 +5 · 12 +7 · 30 +9 · 45 +10 · 65 +11 · 80 +12 · 95 +13 · 110 +14 · 125 +15)
-export const ENHANCE_LV_CAP = [[1, ENHANCE_MAX]];
+export const ENHANCE_LV_CAP = [[1, 25]];   // v471 초월이 +16~+25로(ENHANCE_TOP)
 export function enhanceLvCap(level) { let c = ENHANCE_LV_CAP[0][1]; for (const [lv, m] of ENHANCE_LV_CAP) if (level >= lv) c = m; return c; }
 export function enhanceCapNext(level) { return ENHANCE_LV_CAP.find(([lv]) => lv > level) || null; }
 export const ENHANCE_STEP = 0.15;                // +1~+10: 한 단계에 기본 수치 +15% (v153: 12%에서 — 강화가 어려워진 만큼 크게)
 export const BREAK_STEP = 0.3;                   // 돌파 +11~+15: 한 단계에 +30% (+10 2.5배 · +15 4배, v153)
-export const enhanceMult = (plus) => 1 + Math.min(plus, ENHANCE_NORMAL) * ENHANCE_STEP + Math.max(0, plus - ENHANCE_NORMAL) * BREAK_STEP;
+export const enhanceMult = (plus) => 1 + Math.min(plus, ENHANCE_NORMAL) * ENHANCE_STEP + Math.max(0, Math.min(plus, ENHANCE_MAX) - ENHANCE_NORMAL) * BREAK_STEP;   // v471 +15 위(초월 자리)는 transMult
 export const breakMarks = (plus) => (plus >= ENHANCE_NORMAL ? plus - ENHANCE_NORMAL + 1 : 0);   // +10→11 증표 1 … +14→15 증표 5
 // 강화에는 은자와 함께 그 장비 지역의 재료가 든다 — 재료를 넣을수록 장비가 세진다
 export const enhanceMatsN = (plus) => 4 + plus * 3;
 // ---------- v393 초월(超越) — +15까지 다 한 신화 장비를 그 너머로(만렙 뒤 장비 목표) ----------
 // 열 단계 · 단계마다 기본 능력치 +TRANS_STEP(곱) · 은자·현철·가장 센 두목 증표 · 실패해도 떨어지지 않고 천장이 쌓인다
+// v471 「빼기」 — 따로 있던 초월 1~10을 강화 단계 +16~+25로(강화 하나). 값·확률·재료는 그대로
 export const TRANS_MAX = 10;
+export const ENHANCE_TOP = 15 + TRANS_MAX;   // 신화 조합·왕 장비의 끝
+export const transOf = (plus) => Math.max(0, Math.min(TRANS_MAX, (plus || 0) - 15));   // +16 = 초월 1
+export const transMult = (plus) => 1 + transOf(plus) * TRANS_STEP;   // 기본 수치(공격력·체력·방어)만
 export const TRANS_STEP = 0.08;
 export const TRANS_FLAT = ['atk', 'hp', 'def'];   // v410 초월이 키우는 기본 수치(% 능력치는 그대로)
 export const TRANS_RATE = [0.9, 0.8, 0.7, 0.6, 0.5, 0.42, 0.35, 0.3, 0.25, 0.2];
 export const TRANS_PITY_K = 0.5;
-export const transGold = (ilv, tr) => Math.round(enhanceCost(ilv, 15) * 4 * (tr + 1) ** 1.5);
+export const transGold = (ilv, tr) => Math.round(enhCostBase(ilv, 15) * 4 * (tr + 1) ** 1.5);
 export const transOre = (tr) => (4 + 15 * 3) * 3 * (tr + 1);
 export const transMarks = (tr) => 3 + tr * 2;
-export const TRANS_NAME = ['', '초월 一', '초월 二', '초월 三', '초월 四', '초월 五', '초월 六', '초월 七', '초월 八', '초월 九', '초월 十'];
 export const BOSS_ITEM_RATE = 0.12;              // 두목이 그 지역 하급 장비를 떨굴 확률
 export const KING_ITEM_RATE = 0.3;               // 십이지왕은 더 자주
 // 가락지·귀걸이: 강화가 어렵다 — 성공률 절반, 은자 ×3, 돌파 없음
@@ -959,13 +962,13 @@ export const acc2DropRate = (z) => (z > NORMAL_ZONES ? 0.12 + (z - NORMAL_ZONES 
 // v150 던전앤파이터식 강화 — 지금 강화 수치(lv)에서 한 단계 올릴 성공률. 전에는 +9→10이 40%, 실패해도 잃는 게 없어 너무 빨리 셌다.
 //   +1~3 100% · +4 95 · +5 90 · +6 80 · +7 75 · +8 62 · +9 53 · +10 41 · +11 32 · +12 24 · +13 18 · +14 12 · +15 8%
 export const ENH_RATE = [1, 1, 1, 0.95, 0.9, 0.8, 0.75, 0.62, 0.53, 0.41, 0.32, 0.24, 0.18, 0.12, 0.08];
-export const enhanceRate = (lv) => ENH_RATE[lv] ?? 0.05;
+export const enhanceRate = (lv) => (lv >= ENHANCE_MAX ? TRANS_RATE[lv - ENHANCE_MAX] ?? 0 : ENH_RATE[lv] ?? 0.05);   // v471 +15 위는 초월 확률
 // 실패하면: +4~7을 노리다 실패 -1 · +8~10은 -3 · +11부터는 장비가 부서진다(강화 보호부를 쓰면 대신 -1)
 // v192: 덜 괴롭게 — 전에는 +4~7 -1 · +8~10 -3 · +11부터 부서짐(성장 장비는 +0). 이제 +7까지 그대로 · +8~10 -1 ·
 // +11부터 -2(보호부를 쓰면 그대로). 장비는 사라지지 않는다. 대신 **천장**: 실패할 때마다 그 장비의 다음 확률이
 // 그 칸 확률의 절반만큼 쌓이고(성공하면 비운다) — 운이 아주 나빠도 끝없이 막히지 않는다.
-export const enhanceFail = (lv) => (lv < 7 ? 0 : lv < ENHANCE_NORMAL ? -1 : -2);
-export const enhanceRisky = (lv) => lv >= ENHANCE_NORMAL;      // 보호부를 쓸 수 있는 자리
+export const enhanceFail = (lv) => (lv < 7 || lv >= ENHANCE_MAX ? 0 : lv < ENHANCE_NORMAL ? -1 : -2);   // v471 +15 위(초월)는 떨어지지 않는다
+export const enhanceRisky = (lv) => lv >= ENHANCE_NORMAL && lv < ENHANCE_MAX;      // 보호부를 쓸 수 있는 자리
 export const ENH_PITY_K = 0.5;
 export const enhanceFailText = (lv) => { const f = enhanceFail(lv); return f === 0 ? '실패해도 그대로' : `실패하면 ${f}`; };
 // 강화 보호부 — 상인이 판다. +11부터 실패할 때 하나를 써서 -2 대신 그대로 (v192: 전에는 부서지는 대신 -1). 값은 그 레벨 사냥 20분어치 은자쯤.
@@ -974,7 +977,8 @@ export const protPrice = (level) => Math.round(mobGold(level) * 8000);
 // 은자가 쌓이기만 하지 않게 — 사냥터를 옮겨 새 장비를 낄 때마다 다시 강화하는 데 쓰인다(시뮬로 맞춤)
 // v467 +7→8부터 은자가 단계마다 두 배(+9→10 ×8 · +10 위 ×16) — +10까지 은자가 하루 벌이의 5%뿐이라 강화가 그냥 지나가는 일이었다
 export const ENH_COST_STEP = (lv) => 2 ** Math.max(0, Math.min(lv, 10) - 6);
-export const enhanceCost = (ilv, lv) => Math.round((50 + ilv * 15) * (lv + 1) ** 1.6 * ENH_COST_STEP(lv));
+export const enhCostBase = (ilv, lv) => Math.round((50 + ilv * 15) * (lv + 1) ** 1.6 * ENH_COST_STEP(lv));
+export const enhanceCost = (ilv, lv) => (lv >= ENHANCE_MAX ? transGold(ilv, lv - ENHANCE_MAX) : enhCostBase(ilv, lv));   // v471 +15 위는 초월 값
 // v153: 조합 장비를 팔면 만들 때 든 재료·은자의 1/4을 돌려받는다(it.cost, 옛 장비는 그 칸 레어 조합값으로 셈)
 export const SELL_BACK = 0.25;
 export function sellBack(item) {

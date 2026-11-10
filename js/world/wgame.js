@@ -392,8 +392,9 @@ export function migrateWorld(raw, now = Date.now()) {
       if (!it || typeof it !== 'object') return null;
       if (it.rar != null) it.rar = Math.floor(num(it.rar, 0, W.RARITY.length - 1));
       if (it.grade != null) it.grade = Math.floor(num(it.grade, 0, W.GRADES.length - 1));
-      if (it.plus != null) it.plus = Math.floor(num(it.plus, 0, W.ENHANCE_MAX));
-      if (it.tr != null) it.tr = Math.floor(num(it.tr, 0, W.TRANS_MAX));
+      // v471 초월 → 강화 +16~+25(+15 위에 이어 붙인다 · 초월 천장은 강화 천장으로) · 다시 불러와도 같다
+      if (it.tr != null) { const tr = Math.floor(num(it.tr, 0, W.TRANS_MAX)); if (tr > 0 && Number(it.plus) >= W.ENHANCE_MAX) { it.plus = W.ENHANCE_MAX + tr; it.epity = it.tpity || 0; } delete it.tr; delete it.tpity; }
+      if (it.plus != null) it.plus = Math.floor(num(it.plus, 0, W.ENHANCE_TOP));
       if (it.ilv != null) it.ilv = Math.floor(num(it.ilv, 1, 300, 1));
       for (const k of ['epity', 'tpity']) if (it[k] != null) it[k] = num(it[k], 0, 1, 0);
       return it;
@@ -612,7 +613,7 @@ export class WorldGame {
   sharedPlus(it) {
     if (!it || it.grow || it.king == null || !W.GROW_SLOTS.includes(it.slot)) return 0;
     const g = this.growOf?.(it.slot);
-    return g ? g.plus || 0 : 0;
+    return g ? Math.min(W.ENHANCE_MAX, g.plus || 0) : 0;   // v471 초월 자리(+16~)는 나누지 않는다(전엔 초월이 따로였다)
   }
   effPlus(it) { return Math.max(it?.plus || 0, this.sharedPlus(it)); }
   // v253: 세트·왕의 장비가 공유 강화를 '제 강화'로 이어받는다. 전엔 성장 무기가 +5면 세트 무기를 +1~+5로
@@ -636,7 +637,8 @@ export class WorldGame {
     const ln = it.line ? LN.lineOf(it.line) : null;
     const m = q * W.enhanceMult(this.effPlus(it)) * (ln ? ln.mult : 1);
     // v393 초월 · v410 초월은 기본 수치(공격력·체력·방어)만 키운다 — % 능력치(치명 피해·공격력%…)까지 키우면 공격력 × 치명 피해가 제곱처럼 불었다(끝까지 올리면 중반의 30배)
-    const tk = 1 + (it.tr || 0) * W.TRANS_STEP;
+    // v471 초월은 이제 강화 +16~+25
+    const tk = W.transMult(it.plus);
     const out = {};
     for (const [k, v] of Object.entries(b)) out[k] = v * m * (W.TRANS_FLAT.includes(k) ? tk : 1);
     // 계열(v151)의 덤 능력 — 칸·등급만큼 (강화와는 따로)
@@ -3036,7 +3038,6 @@ export class WorldGame {
       if (!it) continue;
       if (this.canEnhance(it) && this.s.gold > this.enhanceCost(it)) tries.push({ kind: 'enh', slot: x.id, uid: it.uid, name: `${x.name} 강화`, p: this.enhanceRateOf(it) });
       if (this.canImprintItem(it)) { const nx = this.impNext(it); if (nx.can) tries.push({ kind: 'imp', slot: x.id, uid: it.uid, name: `${x.name} 각인`, p: nx.chance != null ? Math.min(1, nx.chance) : 1 }); }
-      if (this.canTransItem(it) && this.canTranscend(it)) tries.push({ kind: 'trans', slot: x.id, uid: it.uid, name: `${x.name} 초월`, p: this.transInfo(it)?.rate ?? 1 });
     }
 
     for (const t of tries) {
@@ -3044,7 +3045,7 @@ export class WorldGame {
         const c = new WorldGame(JSON.parse(raw), now);
         c.rng = () => 0; c.emit = () => {};
         const g0 = c.s.gold;
-        const r = t.kind === 'enh' ? c.enhance(t.uid, true) : t.kind === 'imp' ? c.impUp(t.uid) : c.transcend(t.uid);   // v421 무공은 따로(wui 한 줄) — 죽은 가지 정리
+        const r = t.kind === 'enh' ? c.enhance(t.uid, true) : c.impUp(t.uid);   // v471 초월은 강화로   // v421 무공은 따로(wui 한 줄) — 죽은 가지 정리
         if (!r) continue;
         c._stats = null; c._mods = null;
         const gain = c.power() / base - 1, cost = Math.max(1, g0 - c.s.gold);
@@ -3337,7 +3338,8 @@ export class WorldGame {
     const it = this.s.bag.splice(i, 1)[0];
     const cur = this.s.equip[it.slot];
     // v386 대성신장끼리 바꿔 끼면 강화를 맞바꾼다(더 높은 강화가 새 조각으로) — 같은 부위를 더 좋은 등급으로 받아도 강화가 날아가지 않게
-    if (G.isPalma(it) && G.isPalma(cur) && (cur.plus || 0) > (it.plus || 0)) { const t = it.plus || 0; it.plus = cur.plus; cur.plus = t; const te = it.epity || 0; it.epity = cur.epity || 0; cur.epity = te; this.emit('palmaCarry', { item: it, plus: it.plus }); }
+    // v471 새 조각이 그 강화를 다 받을 수 있을 때만(+16~ 초월 자리는 신화만) — 못 받으면 맞바꾸지 않는다
+    if (G.isPalma(it) && G.isPalma(cur) && (cur.plus || 0) > (it.plus || 0) && (cur.plus || 0) <= this.enhanceMaxItem(it)) { const t = it.plus || 0; it.plus = cur.plus; cur.plus = t; const te = it.epity || 0; it.epity = cur.epity || 0; cur.epity = te; this.emit('palmaCarry', { item: it, plus: it.plus }); }
     this.s.equip[it.slot] = it;
     if (cur) this.s.bag.push(cur);
     this._stats = null;
@@ -3364,8 +3366,10 @@ export class WorldGame {
   // v375 대성신장의 가락지·귀걸이는 다른 부위처럼(반 확률·세 배 값·+10 끝이 아니다)
   hardAcc(it) { return W.isDropOnly(it?.slot) && !G.isPalma(it); }
   enhanceCost(it) { return W.enhanceCost(it.ilv, it.plus || 0) * (this.hardAcc(it) ? W.ACC2_COST : 1); }
+  isTransStep(it) { return (it?.plus || 0) >= W.ENHANCE_MAX; }   // v471 +15 위 = 옛 초월(현철 · 가장 센 두목 증표 · 떨어지지 않는다)
   // 강화 재료: 조합 장비는 그 지역 재료 (옛 장비·수련용은 은자만)
   enhanceMats(it) {
+    if (this.isTransStep(it)) return { key: W.ORE, n: W.transOre(W.transOf(it.plus)) };   // v471 초월 자리
     if (it.king != null) {                                                                // 왕의 장비: 후반 왕의 부위별 강화석 (v132)
       const key = G.stoneFor(it), n = G.stoneN(it.plus || 0);
       // v173: 검왕의 검혼석은 만능 — 그 부위 강화석이 모자라면 대신 든다 (승급이 없어져 쓸 데가 없어진 돌)
@@ -3376,10 +3380,10 @@ export class WorldGame {
     return { key: W.ORE, n: W.enhanceMatsN(it.plus || 0) * W.matWeight(W.itemZone(it)) };   // v273 현철 — 장비 지역 가중치만큼
   }
   // 조합·왕의 장비는 +10 위로 돌파(+15까지) — 두목 증표가 더 든다. 옛 장비·가락지·귀걸이는 +10까지.
-  enhanceMaxItem(it) { return (it?.step != null || it?.king != null) && !this.hardAcc(it) ? W.ENHANCE_MAX : W.ENHANCE_NORMAL; }
+  enhanceMaxItem(it) { return (it?.step != null || it?.king != null) && !this.hardAcc(it) ? ((it.rar || 0) >= 3 ? W.ENHANCE_TOP : W.ENHANCE_MAX) : W.ENHANCE_NORMAL; }   // v471 신화는 +25까지(초월)
   // v261: 장비가 갈 수 있는 끝과 레벨 상한 중 낮은 쪽
   enhanceMax(it) { return Math.min(this.enhanceMaxItem(it), W.enhanceLvCap(this.s.level)); }
-  breakMarksOf(it) { return it?.step != null && !W.isDropOnly(it.slot) ? W.breakMarks(it.plus || 0) : 0; }   // 왕의 장비는 강화석 수에 들어 있다
+  breakMarksOf(it) { if (this.isTransStep(it)) return W.transMarks(W.transOf(it.plus)); return it?.step != null && !W.isDropOnly(it.slot) ? W.breakMarks(it.plus || 0) : 0; }   // 왕의 장비는 강화석 수에 들어 있다 · v471 초월 자리는 가장 센 두목 증표
   enhanceBaseRate(it) { return W.enhanceRate(it.plus || 0) * (this.hardAcc(it) ? W.ACC2_RATE : 1); }
   // v192 천장: 실패가 쌓인 만큼 더한다
   enhanceRateOf(it) { return Math.min(1, this.enhanceBaseRate(it) + (it.epity || 0)); }
@@ -3398,6 +3402,7 @@ export class WorldGame {
   // v262: 돌파에 드는 두목 증표 — 그 지역 증표가 모자라면 십이지왕 증표(가진 것이 가장 많은 것)로 대신한다.
   //   99 뒤 성장 장비는 천외천 증표(b15)만 받는데, 왕 구역에서 사냥하면 b15가 안 나와 +12에서 막혔다.
   breakMarkKey(it, bm = this.breakMarksOf(it)) {
+    if (this.isTransStep(it)) return bm ? this.transMarkKey(bm) : null;
     const m = this.enhanceMats(it);
     if (!m || !bm) return null;
     const iz = W.itemZone(it);
@@ -3458,27 +3463,8 @@ export class WorldGame {
     this.mark('enhAll');   // v394 길잡이 — 눌러 보면 된다(이미 다 올라 있어도 막히지 않게)
     return out;
   }
-  // ---------- v393 초월 — +15(그 장비의 끝)까지 다 한 신화 장비 ----------
-  canTransItem(it) { return !!it && (it.rar || 0) >= 3 && (it.plus || 0) >= this.enhanceMaxItem(it) && this.enhanceMaxItem(it) >= W.ENHANCE_MAX && (it.tr || 0) < W.TRANS_MAX; }
+  // ---------- v393 초월 → v471 강화 +16~+25 ----------
   transMarkKey(n) { let best = null; for (const [k, v] of Object.entries(this.s.mats)) if (W.isMarkKey(k) && v >= n && (!best || W.markLv(k) > W.markLv(best))) best = k; return best; }
-  transInfo(it) {
-    if (!this.canTransItem(it)) return null;
-    const tr = it.tr || 0;
-    const markN = W.transMarks(tr);
-    return { tr, gold: W.transGold(it.ilv, tr), ore: W.transOre(tr), markN, mark: this.transMarkKey(markN), rate: Math.min(1, W.TRANS_RATE[tr] + (it.tpity || 0)) };
-  }
-  canTranscend(it) { const f = this.transInfo(it); return !!f && this.s.gold >= f.gold && (this.s.mats[W.ORE] || 0) >= f.ore && !!f.mark; }
-  transcend(uid) {
-    const it = this.findItem(uid);
-    if (!this.canTranscend(it)) return null;
-    const f = this.transInfo(it);
-    this.s.gold -= f.gold; this.s.mats[W.ORE] -= f.ore; this.s.mats[f.mark] -= f.markN;
-    const ok = this.rng() < f.rate;
-    if (ok) { it.tr = f.tr + 1; it.tpity = 0; } else it.tpity = Math.min(1, (it.tpity || 0) + W.TRANS_RATE[f.tr] * W.TRANS_PITY_K);
-    this._stats = null;
-    this.emit('transcend', { item: it, ok, tr: it.tr || 0 });
-    return ok;
-  }
   // 강화에 실패해 부서진 장비를 없앤다 (낀 것이면 칸이 빈다)
   destroyItem(it) {
     for (const [k, v] of Object.entries(this.s.equip)) if (v === it) this.s.equip[k] = null;
