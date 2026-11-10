@@ -48,6 +48,7 @@ function dress(g, o) {
   if (o.guild) { s.guildId = 'g'; g.guildExp = (o.guild - 1) * W.GUILD_LV_EXP; }
   g.petSlots = () => (o.pets || []).length || 1;
   s.pets = (o.pets || []).map(([kind, rar, lv], i) => ({ uid: 1e9 + i, kind, rar, lv, exp: 0, q: 0, dan: 0, star: 2 }));
+  if (W.petFromOld) for (const p of s.pets) { p.lv = W.petFromOld(p).lv; delete p.star; delete p.q; delete p.dan; }   // v470 별 → 레벨(같은 몫)
   if (o.mount) { g.gainMount(o.mount); s.mount = s.mounts.find((m) => m.kind === o.mount).uid; }
 }
 const PROF = {

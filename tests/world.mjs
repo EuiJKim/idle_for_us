@@ -654,11 +654,11 @@ console.log('\n=== 십이지왕 신화 · 가락지·귀걸이 · 애완동물 �
     // v366 우리 정리 · 기록
     {
       const g = new WorldGame(newWorldSave(0), 0); g.s.job = 'sword';
-      const P = (kind, rar, lock) => ({ uid: Math.floor(Math.random() * 1e9), kind, rar, lv: 1, exp: 0, q: 0, dan: 0, star: 0, lock: lock || undefined });
+      const P = (kind, rar, lock) => ({ uid: Math.floor(Math.random() * 1e9), kind, rar, lv: 1, exp: 0, lock: lock || undefined });
       g.s.pets = [P('tiger', 2)];
       g.s.petBox = [P('tiger', 0), P('tiger', 1), P('tiger', 3), P('fox', 0), P('fox', 0), P('fox', 1, true), P('crane', 0)];
-      const n = g.autoStarAll();
-      ok(n === 4 && g.s.pets[0].star === 2 && g.s.petBox.some((p) => p.kind === 'tiger' && p.rar === 3), '모두 별 올리기 — 더 좋은 것(신화)은 먹이로 안 쓴다', `별 ${n}`);
+      const n = g.autoFeedAll();
+      ok(n === 4 && g.s.pets[0].lv > 1 && g.s.petBox.some((p) => p.kind === 'tiger' && p.rar === 3), '모두 먹이기 — 더 좋은 것(신화)은 먹이로 안 쓴다', `${n}마리 · Lv.${g.s.pets[0].lv}`);
       const pre = g.bulkReleasePreview(0);
       ok(pre.every((p) => !p.lock && p.rar === 0) && !pre.some((p) => p.kind === 'crane'), '일괄 놓아주기 — 잠근 것 · 종마다 가장 좋은 하나는 남긴다');
       g.s.petShard = 1000; g.gacha('pet', 10);
@@ -1808,7 +1808,7 @@ console.log('\n=== v262 경제 · 복귀 · 선택 ===');
   const pet = P.shardPet();
   ok(pet && P.s.petShard === 0, '포획 조각 100 → 애완동물 하나');
   pet.lv = W.PET_LV_MAX; P.s.pets = [pet];
-  P.petExp(W.petExpToNext(W.PET_LV_MAX) * 7);
+  P.petExp(W.PET_SOUL_EXP * 7);
   ok(P.s.petSoul === 7, '다 큰 애완동물의 경험치는 혼으로', `${P.s.petSoul}`);
   ok(P.soulUp(pet.uid) && pet.rar === 1 && P.s.petSoul === 1, '혼 6 → 등급 하나 위');
   // 비무 별
@@ -2493,14 +2493,14 @@ console.log('\n=== v292 동료 — 얻는 곳 · 별 · 도감 · 길들이기 =
   ok(DG.towerReward(10).petShard === W.TOWER_SHARDS * 5 && DG.towerReward(7).mountShard === W.TOWER_SHARDS, '탑 처음 오른 층 — 조각(10층마다 다섯 배)');
   const r = g.grant({ petShard: 7, mountShard: 3 });
   ok(g.s.petShard === 7 && g.s.mountShard === 3 && r.petShard === 7, 'grant가 조각을 준다');
-  // 별
+  // 먹이(v470 전엔 별)
   g.s.pets = []; g.s.petBox = [];
   const a = g.gainPet(0, null, 'fox'), b = g.gainPet(1, null, 'fox'), c2 = g.gainPet(0, null, 'crane');
   ok(g.s.pets.length === 1 && g.s.petBox.length === 2, '(키우는 칸 하나 · 우리 둘)');
-  ok(g.canStar(a.uid) && !g.canStar(c2.uid), '같은 종이 우리에 있으면 별을 올린다(다른 종은 못)');
+  ok(g.canFeed(a.uid) && !g.canFeed(c2.uid), '같은 종이 우리에 있으면 먹인다(다른 종은 못)');
   const atk0 = W.petAtkRatio(a);
-  g.starUp(a.uid);
-  ok(a.star === 1 && !g.s.petBox.includes(b) && Math.abs(W.petAtkRatio(a) / atk0 - (1 + W.PET_STAR_K)) < 1e-9, `별 하나 — 먹이는 사라지고 공격·버프 +${W.PET_STAR_K * 100}%`);
+  g.feedPet(a.uid);
+  ok(a.lv >= 2 && a.exp > 0 && !g.s.petBox.includes(b) && W.petAtkRatio(a) > atk0, `먹이 하나 — 먹이는 사라지고 경험치(유니크면 지금 레벨 ${W.PET_FEED_LV[1]}개 몫)`, `Lv.${a.lv}`);
   // 놓아주기 → 혼
   const soul0 = g.s.petSoul || 0;
   const got = g.releasePet(c2.uid);
@@ -2514,7 +2514,7 @@ console.log('\n=== v292 동료 — 얻는 곳 · 별 · 도감 · 길들이기 =
   const sp = g.s.petSoul; g.claimDexGoal('pet', 0);
   ok(g.s.petSoul === sp + W.PET_DEX_GOALS[0].soul && !g.canDexGoal('pet', 0), '이정표 상은 한 번만');
   const m = migrateWorld(JSON.parse(JSON.stringify(g.s)));
-  ok(m.petDex.fox === 1 && m.dexGoals.pet.includes(0) && m.pets[0].star === 1, '별·도감·받은 상이 저장된다');
+  ok(m.petDex.fox === 1 && m.dexGoals.pet.includes(0) && m.pets[0].lv === a.lv, '레벨·도감·받은 상이 저장된다');
   // 탈것 조각 · 길들이기
   g.s.mounts = []; g.s.mount = null;
   const mt = g.gainMount('horse', null);
@@ -3013,55 +3013,12 @@ console.log('\n=== v315 칭호 모음 보너스 · 전체 채팅 가리기 ===')
   ok(/titleSet\(\)/.test(ui) && /TITLE_SET_BONUS/.test(ui), '칭호 모음 창에 보너스');
 }
 
-console.log('\n=== v316 애완동물 품·단 수련 · 주간 두목 ===');
+console.log('\n=== v316 주간 두목 (품·단은 v470에 레벨로) ===');
 {
-  // 품 — 굴림 비율
-  let n1 = 0, n2 = 0; const r = (() => { let a = 0x9e3779b9; return () => { a |= 0; a = (a + 0x6d2b79f5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; })();   // mulberry32 — LCG는 아래 자리가 치우쳤다
-  for (let i = 0; i < 200000; i++) { const q = W.rollPetQual(r); if (q === 1) n1++; else if (q === 2) n2++; }
-  ok(Math.abs(n1 / 200000 - W.PET_QUAL_P[0]) < 0.004 && Math.abs(n2 / 200000 - W.PET_QUAL_P[1]) < 0.0012, '극품 5% · 천품 0.5%', `${(n1 / 2000).toFixed(2)}% · ${(n2 / 2000).toFixed(2)}%`);
   const g = fresh();
   g.s.pets = []; g.s.petBox = [];
   const p = g.gainPet(1, null, 'tiger');
-  ok([0, 1, 2].includes(p.q) && p.dan === 0, '얻을 때 품을 굴린다', `q${p.q}`);
-  p.q = 0; g._stats = null;
-  const base = W.petBuff(p), baseA = W.petAtkRatio(p);
-  p.q = 2;
-  ok(Math.abs(W.petBuff(p) / base - W.PET_QUAL[2].mult) < 1e-9 && Math.abs(W.petAtkRatio(p) / baseA - W.PET_QUAL[2].mult) < 1e-9, '천품은 버프·공격 ×1.6');
-  p.q = 0;
-  const a0 = g.stats().atk; p.q = 2; const a1 = g.stats().atk;
-  ok(a1 > a0, '품이 바뀌면 능력치를 다시 센다(statSig)', `${a0.toFixed(0)} → ${a1.toFixed(0)}`);
-  p.q = 0;
-  // 먹이의 품을 물려받는다
-  const f = g.gainPet(0, null, 'tiger'); f.q = 2;
-  ok(g.starUp(p.uid) && p.star === 1 && p.q === 2 && !g.s.petBox.includes(f), '먹이의 품이 더 높으면 물려받는다');
-  // 단 수련
-  ok(g.petDanCost(p) === null && !g.petDan(p.uid), 'Lv.30 전에는 수련 못 한다');
-  p.lv = W.PET_LV_MAX; g.s.petSoul = 0;
-  ok(g.petDanCost(p) === W.petDanSoul(0) && !g.canPetDan(p.uid), '혼이 모자라면 못 한다');
-  g.s.petSoul = 10000;
-  g.rng = () => 0.99;   // 실패
-  p.dan = 3;
-  const before = g.s.petSoul;
-  const rf = g.petDan(p.uid);
-  ok(rf && !rf.ok && p.dan === 3 && p.danFail === 1 && g.s.petSoul === before - W.petDanSoul(3) && Math.abs(rf.next - (W.PET_DAN_P[3] + W.PET_DAN_PITY)) < 1e-9, '실패: 혼은 쓰고 단은 그대로 · 다음 확률 +10%p');
-  g.rng = (() => { const seq = [0.0, 0.5]; let i = 0; return () => seq[i++ % seq.length]; })();   // 성공 · 大成 아님
-  const rs = g.petDan(p.uid);
-  ok(rs.ok && !rs.great && p.dan === 4 && p.danFail === 0, '성공: 한 단 · 쌓인 확률은 0으로');
-  g.rng = () => 0.0;   // 성공 + 大成
-  const rg = g.petDan(p.uid);
-  ok(rg.ok && rg.great && p.dan === 6, '大成: 한 번에 두 단');
-  ok(Math.abs(W.petDanMult(p) - (1 + 6 * W.PET_DAN_K)) < 1e-9, '단마다 +8%');
-  p.dan = 9; g.rng = () => 0.0;
-  const r9 = g.petDan(p.uid);
-  ok(r9.ok && !r9.great && p.dan === W.PET_DAN_MAX && g.petDanCost(p) === null, '10단 끝(大成이 넘치지 않는다)');
-  g.checkTitles();
-  ok(g.hasTitle('petdan') && g.hasTitle('petq'), '칭호 〈영수의 주인〉 · 〈천품 영수〉');
-  ok(W.petDanChance(9, 50) === 1, '확률은 100%를 넘지 않는다');
-  // 저장·불러오기
-  const raw = JSON.parse(JSON.stringify(g.toJSON()));
-  raw.pets[0].q = 7; raw.pets[0].dan = 99; raw.pets[0].danFail = -3;
-  const g2 = new WorldGame(raw, 0);
-  ok(g2.s.pets[0].q === 2 && g2.s.pets[0].dan === W.PET_DAN_MAX && g2.s.pets[0].danFail === 0, '불러올 때 품·단을 범위 안으로');
+  ok(!('q' in p) && !('dan' in p) && !('star' in p), 'v470 얻을 때 품·단·별이 없다');
 
   // 주간 두목
   const b = fresh();
@@ -3098,7 +3055,7 @@ console.log('\n=== v316 애완동물 품·단 수련 · 주간 두목 ===');
   ok(c.wbossState().kills === 1, '두목을 쓰러뜨리면 주간 처치 +1');
   const ui = read('js/wui.js'), net = read('js/net.js'), rules = read('firestore.rules');
   ok(/weekBossBoard/.test(ui) && /이번 주 두목/.test(ui) && /pushWeekBoss/.test(net) && /match \/wboss\/\{wk\}\/p\/\{uid\}/.test(rules), '서열 › 이번 주 두목 · 올리기 · 규칙');
-  ok(/petDan\(p\.uid\)/.test(ui) && /qualTag/.test(ui), '동료 창: 단 수련 · 품 표시');
+  ok(!/petDan\(|qualTag|starUp/.test(ui), 'v470 동료 창: 단 수련 · 품 · 별 단추가 없다');
 }
 
 console.log('\n=== v317 끼면 견주기 · 방치 보상 한눈에 ===');
@@ -3184,18 +3141,17 @@ console.log('\n=== v319 우리에서도 키우기 · 모두 먹이기 · 새 칭
   ok(g.s.petBox.includes(boxed), '둘째는 우리에');
   g.s.petSoul = 1000;
   ok(g.soulUp(boxed.uid) && boxed.rar === 2, '우리에 있어도 등급 올리기');
-  boxed.lv = W.PET_LV_MAX; g.rng = () => 0;
-  ok(g.petDan(boxed.uid)?.ok && boxed.dan >= 1, '우리에 있어도 단 수련(Lv.30이면)');
   for (let i = 0; i < 4; i++) g.gainPet(0, null, 'tiger');
-  const n = g.starUpAll(host.uid);
-  ok(n === 4 && host.star === 4 && !g.s.petBox.some((x) => x.kind === 'tiger'), '모두 먹이기 — 먹이 넷을 한 번에', `${n} · ★${host.star}`);
+  const n = g.feedPetAll(host.uid);
+  ok(n === 4 && host.lv === 1 + 4 * W.PET_FEED_LV[0] && !g.s.petBox.some((x) => x.kind === 'tiger'), '모두 먹이기 — 먹이 넷을 한 번에', `${n} · Lv.${host.lv}`);
+  host.lv = W.PET_LV_MAX - 1; host.exp = 0;
   for (let i = 0; i < 3; i++) g.gainPet(0, null, 'tiger');
-  ok(g.starUpAll(host.uid) === 1 && host.star === W.PET_STAR_MAX && g.s.petBox.filter((x) => x.kind === 'tiger').length === 2, '별이 다 차면 멈춘다(남은 먹이는 그대로)');
+  ok(g.feedPetAll(host.uid) === 1 && host.lv === W.PET_LV_MAX && g.s.petBox.filter((x) => x.kind === 'tiger').length === 2 && !g.canFeed(host.uid), '다 크면 멈춘다(남은 먹이는 그대로)');
   // 새 칭호
   const t = fresh();
   t.s.wboss = { key: TD.weekKey(), kills: 100, best: { hwamugi: 58.2 } };
   t.s.pets = []; t.s.petBox = [];
-  for (let i = 0; i < 5; i++) { const p = t.gainPet(0, null, 'crane'); if (p) p.q = 1; }
+  for (let i = 0; i < 5; i++) { const p = t.gainPet(0, null, 'crane'); if (p) p.lv = 41; }
   t.checkTitles();
   ok(t.hasTitle('wb100') && t.hasTitle('wbfast') && t.hasTitle('pet5q'), '〈두목 사냥꾼〉 · 〈일각〉 · 〈영수 수집가〉');
   ok(!t.hasTitle('titles15'), '칭호 열다섯은 아직');
@@ -3203,7 +3159,7 @@ console.log('\n=== v319 우리에서도 키우기 · 모두 먹이기 · 새 칭
   t.checkTitles();
   ok(t.titleSet().n >= 15 && t.hasTitle('titles15'), '〈천하의 이름〉 — 칭호 열다섯', `${t.titleSet().n}`);
   const ui = read('js/wui.js');
-  ok(/pen-train/.test(ui) && /starUpAll/.test(ui), '동료 창: 우리에서 키우기 · 모두 먹이기');
+  ok(/pen-train/.test(ui) && /feedPetAll/.test(ui), '동료 창: 우리에서 키우기 · 모두 먹이기');
 }
 
 console.log('\n=== v320 출석부 · 저장 코드 ===');
@@ -3633,9 +3589,9 @@ console.log('\n=== v390 밸런스 점검 — 애완동물 칸·버프 · 우두�
   ok(g.petSlots() === 3, '레벨 50 · 100에 한 칸씩');
   g.s.equip.finger = { ...(g.s.equip.finger || g.makeCrafted('finger', 0)), opts: [{ pet: 3 }] };
   ok(g.petSlots() === W.PET_SLOT_MAX, '장비 옵션까지 합쳐 다섯까지', `${g.petSlots()}`);
-  const maxed = { kind: 'tiger', rar: 3, lv: 30, star: 5, dan: 10, q: 0 };
-  const lo = { kind: 'tiger', rar: 0, lv: 1, star: 0, dan: 0, q: 0 };
-  ok(Math.abs(W.petBuff(lo) - W.petOf('tiger').base * W.petScale(lo) * W.PET_BUFF_K) < 1e-12 && W.petBuff(maxed) < 0.6 && W.petBuff(maxed) > 0.35, '다 키운 백호 공격력 +50% 안팎(v390 +275% → +100% · v465 절반) · 처음 것은 ×0.5 그대로', W.petBuff(maxed).toFixed(2));
+  const maxed = { kind: 'tiger', rar: 3, lv: W.PET_LV_MAX };
+  const lo = { kind: 'tiger', rar: 0, lv: 1 };
+  ok(Math.abs(W.petBuff(lo) - W.petOf('tiger').base * W.petScale(lo) * W.PET_BUFF_K) < 1e-12 && W.petBuff(maxed) < 0.45 && W.petBuff(maxed) > 0.25, '다 키운 신화 백호(Lv.60) 공격력 +35% 안팎(v390 +275% → +100% · v465 절반 · v470 별·단 없음) · 처음 것은 ×0.5 그대로', W.petBuff(maxed).toFixed(2));
   const at = (id) => { const m = W.MAPS.find((x) => x.master === id && x.bossRoom); return g.bossMinSec(m) * g.bossGapK(m); };
   while (g.s.level < 150) g.addExp(W.expToNext(g.s.level));
   ok(at('jinpaecheon') <= at('cheonma') && at('cheonma') < at('hwamugi') && at('hwamugi') < at('magwi'), '최소 싸움 시간 — 맹주 ≤ 천마 < 화무기 < 마귀(높을수록 짧던 것을 바로)', ['jinpaecheon', 'cheonma', 'hwamugi', 'magwi'].map(at).map((v) => v.toFixed(0)).join(' · '));
@@ -5004,7 +4960,7 @@ console.log('\n=== v465 밸런스 2차 — 동료 확률·효과 · 탑 덤 ==='
   const DG = await import('../js/world/wdgn.js');
   const sacred = W.GACHA_MOUNT.filter(([k]) => W.mountOf(k).zodiac || W.mountOf(k).hard).reduce((a, [, w]) => a + w, 0);
   ok(Math.abs(sacred - 0.42) < 1e-9 && W.GACHA_MOUNT_TEN === 7 && W.GACHA_PET_RAR.find(([r]) => r === 2)[1] === 2.5, '신수 0.42%(전엔 1.5%) · 탈것 10연 백운마 이상 · 전설 2.5%(전엔 4.5%)', `${sacred.toFixed(2)}%`);
-  const p = (kind, rar, lv, star = 2) => ({ kind, rar, lv, star, q: 0, dan: 0 });
+  const p = (kind, rar, lv) => ({ kind, rar, lv: lv === 30 ? 42 : lv });   // v470 옛 별 둘 = Lv.42
   const yl = W.petBuff(p('yellow', 3, 30)), tg = W.petBuff(p('tiger', 2, 30));
   ok(yl > 0.35 && yl < 0.55 && tg > 0.18 && tg < 0.32, '신화 황룡 30 공격·체력 +45% 안팎(전엔 +104%) · 전설 백호 30 +25%(전엔 +58%)', `${(yl * 100).toFixed(0)}% · ${(tg * 100).toFixed(0)}%`);
   const g = fresh(); g.s.level = 60; g.s.pets = [{ uid: 9e9, ...p('yellow', 3, 30) }]; g._stats = null;
@@ -5078,6 +5034,42 @@ console.log('\n=== v469 내공·경지 몫 줄이기 ===');
   const hw = new WorldGame(newWorldSave(), Date.now()).hwamugiHp();
   ok(DG.wraidMaxHp(hw, 'umawang') >= 3e12 && DG.WRAID_HP_K === 330, '칠대성 체력은 서버 규칙(3조) 위 — 내공 몫을 줄여 화무기 기본 체력이 준 만큼 배수 220 → 330', DG.wraidMaxHp(hw, 'umawang').toExponential(2));
   ok(/CHALLENGE_MAX\}배까지\). 몹도 그만큼 세요/.test(read('js/wmain.js')), '높은 몹 설명이 도전 경험치 두 배(v464)를 따라간다');
+}
+console.log('\n=== v470 「빼기」 셋째 판 — 애완동물 별·품·단 → 레벨 하나 ===');
+{
+  ok(W.PET_LV_MAX === 60 && Math.abs(W.petLvF(30) - 2.45) < 1e-9 && Math.abs(W.petLvF(60) / W.petLvF(30) - 1.6) < 1e-9, 'Lv.30까지 레벨마다 +5% · 그 위 서른 레벨이 옛 별 다섯(×1.6)');
+  ok(W.petExpToNext(29) === Math.round(W.expBase(126) * 0.6) && W.petExpToNext(30) === W.PET_SOUL_EXP && W.petExpToNext(40) === Math.round(W.PET_SOUL_EXP * 2), 'Lv.30 위 경험치는 완만하게(Lv.40에 Lv.30 값의 두 배)');
+  // 옛 세이브 → 레벨
+  const cv = (o) => W.petFromOld({ kind: 'tiger', rar: 2, ...o });
+  ok(cv({ lv: 30, star: 2 }).lv === 42 && cv({ lv: 30, star: 5 }).lv === 60 && cv({ lv: 12 }).lv === 12 && cv({ lv: 30 }).soul === 0, '별 하나 = 여섯 레벨 · 별 없으면 그대로');
+  const low = cv({ lv: 22, star: 2 }); const want = W.petLvF(22) * 1.24;
+  ok(low.lv > 30 && Math.abs(W.petLvF(low.lv) / want - 1) < 0.01, 'Lv.30 전에 별을 단 것도 같은 몫의 레벨로', `Lv.${low.lv}`);
+  const big = cv({ lv: 30, star: 5, dan: 10, q: 2 });
+  ok(big.lv === 60 && big.soul === 120 + 30, 'Lv.60을 넘친 몫 — 단에 쓴 혼(120)과 품 몫(30)을 돌려준다', JSON.stringify(big));
+  const raw = { ...newWorldSave(0), job: 'sword', level: 80, petSoul: 5, pets: [{ uid: 1, kind: 'tiger', rar: 2, lv: 30, exp: 99, star: 5, q: 1, dan: 4, danFail: 2 }], petBox: [{ uid: 2, kind: 'fox', rar: 0, lv: 9, exp: 3, star: 1 }] };
+  const m = migrateWorld(JSON.parse(JSON.stringify(raw)));
+  ok(m.pets[0].lv === 60 && !('star' in m.pets[0]) && !('q' in m.pets[0]) && !('dan' in m.pets[0]) && !('danFail' in m.pets[0]) && m.petSoul > 5, '불러오면 레벨로 바꾸고 별·품·단은 지운다 · 넘친 혼은 더한다', `혼 ${m.petSoul}`);
+  const m2 = migrateWorld(JSON.parse(JSON.stringify(m)));
+  ok(m2.pets[0].lv === 60 && m2.petBox[0].lv === m.petBox[0].lv && m2.petSoul === m.petSoul, '두 번 불러와도 같다(혼을 두 번 주지 않는다)');
+  // 전투력 같은 몫
+  const g = fresh(); g.s.level = 99; g.s.pets = [{ uid: 9e9, kind: 'yellow', rar: 3, lv: 30, exp: 0, star: 2 }]; g._stats = null;
+  const g2 = new WorldGame(migrateWorld(JSON.parse(JSON.stringify(g.s))), 0);
+  ok(g2.s.pets[0].lv === 42, '(황룡 별 둘 → Lv.42)');
+  // 다 큰 뒤 경험치 → 혼 · 먹이는 다 크면 멈춘다
+  const h = fresh(); h.s.pets = []; h.s.petBox = [];
+  const p = h.gainPet(1, null, 'crane'); p.lv = W.PET_LV_MAX; h.s.petSoul = 0; h.s.petSoulExp = 0;
+  h.petExp(W.PET_SOUL_EXP * 3);
+  ok(h.s.petSoul === 3 && p.lv === W.PET_LV_MAX, '다 큰(Lv.60) 애완동물의 경험치는 혼으로');
+  h.gainPet(0, null, 'crane');
+  ok(!h.canFeed(p.uid) && h.feedPet(p.uid) === null, '다 크면 먹이지 않는다');
+  p.lv = 30; p.exp = 0;
+  ok(h.feedPet(p.uid) && p.lv === 31, '레어 먹이 하나 = 한 레벨');
+  // 칭호 셋 — 레벨로
+  const t = fresh(); t.s.pets = []; t.s.petBox = [];
+  const y = t.gainPet(3, null, 'yellow'); y.lv = W.PET_LV_MAX; t.checkTitles();
+  ok(t.hasTitle('petdan') && t.hasTitle('petq') && W.titleOf('petdan').how.includes('Lv.60') && W.titleOf('petq').how.includes('신화'), '〈영수의 주인〉 Lv.60 · 〈신화 영수〉 신화 Lv.45');
+  const ui = read('js/wui.js'), mn = read('js/wmain.js');
+  ok(!/PET_QUAL|PET_DAN|PET_STAR|petDan|starUp|qualTag|danTag/.test(ui + mn) && /feedPet\(p\.uid\)/.test(ui) && /case 'petFeed'/.test(mn), '화면: 별·품·단이 없고 먹이 단추 · 먹이 알림');
 }
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);

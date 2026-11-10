@@ -1237,13 +1237,13 @@ export const TITLES = {
   res4: { id: 'res4', name: '공명의 주인', desc: '공격력 +4% · 때릴 때마다 〈鳴〉', how: '공명 Ⅳ(장비 여덟 모두 같은 기운)', atkMul: 1.04, hitFx: '鳴', col: '#7dd3fc' },
   okq: { id: 'okq', name: '옥안(玉眼)', desc: '공격력 +3%', how: '천품(天品) 각인을 끼기', atkMul: 1.03, col: '#fcd34d' },
   k100k: { id: 'k100k', name: '십만 처치', desc: '공격력 +2%', how: '몹 10만 마리', atkMul: 1.02, col: '#d6d3d1' },
-  petdan: { id: 'petdan', name: '영수의 주인', desc: '공격력 +3% · 때릴 때마다 〈獸〉', how: '애완동물 하나를 10단까지', atkMul: 1.03, hitFx: '獸', col: '#fb923c' },
-  petq: { id: 'petq', name: '천품 영수', desc: '공격력 +3%', how: '천품(天品) 애완동물을 얻기', atkMul: 1.03, col: '#fcd34d' },
+  petdan: { id: 'petdan', name: '영수의 주인', desc: '공격력 +3% · 때릴 때마다 〈獸〉', how: '애완동물 하나를 Lv.60까지', atkMul: 1.03, hitFx: '獸', col: '#fb923c' },
+  petq: { id: 'petq', name: '신화 영수', desc: '공격력 +3%', how: '신화 애완동물을 Lv.45까지', atkMul: 1.03, col: '#fcd34d' },
   wking: { id: 'wking', name: '주간 패왕', desc: '공격력 +6% · 때릴 때마다 〈霸〉 · 한 주 동안', how: '이번 주 두목 순위 1위 → 다음 주 내내', atkMul: 1.06, hitFx: '霸', col: '#f87171', timed: true },
   // v319 새 칭호
   wb100: { id: 'wb100', name: '두목 사냥꾼', desc: '공격력 +3%', how: '한 주에 두목 100마리', atkMul: 1.03, col: '#fca5a5' },
   wbfast: { id: 'wbfast', name: '일각(一刻)', desc: '공격력 +4% · 때릴 때마다 〈刻〉', how: '화무기를 1분 안에 쓰러뜨리기', atkMul: 1.04, hitFx: '刻', col: '#fb7185' },
-  pet5q: { id: 'pet5q', name: '영수 수집가', desc: '공격력 +3%', how: '극품 이상 애완동물 다섯', atkMul: 1.03, col: '#c4b5fd' },
+  pet5q: { id: 'pet5q', name: '영수 수집가', desc: '공격력 +3%', how: 'Lv.40 넘은 애완동물 다섯', atkMul: 1.03, col: '#c4b5fd' },
   titles15: { id: 'titles15', name: '천하의 이름', desc: '공격력 +5% · 때릴 때마다 〈名〉', how: '칭호 열다섯 모으기', atkMul: 1.05, hitFx: '名', col: '#fef08a' },
   // v373 월드보스
   wraid10: { id: 'wraid10', name: '강호의 방패', desc: '공격력 +3%', how: '월드보스 처치에 열 번 함께하기', atkMul: 1.03, col: '#f472b6' },
@@ -1415,40 +1415,48 @@ export const ENL_STEP = { dmg: 0.03, cd: 0.01 };
 export const ENL_MAX = 50;
 export const enlCost = (lv) => 1 + Math.floor(lv / 5);
 export const enlExp = () => Math.round(expToNext(149) * 0.25);
-export const PET_LV_MAX = 30;
+// v470 「빼기」 셋째 판 — 별 5 · 품 3 · 단 10을 없애고 레벨 하나로. Lv.30 위로 서른 레벨을 더 둔다(레벨마다 +2% · 옛 별 하나 = 여섯 레벨)
+export const PET_LV_MAX = 60;
+export const PET_LV_SOFT = 30;   // 여기까지는 레벨마다 +5%(전과 같다)
+export const PET_HI_K = 0.02;
+export const petHi = (lv) => 1 + Math.max(0, (lv || 1) - PET_LV_SOFT) * PET_HI_K;
+export const petLvF = (lv) => (1 + (Math.min(lv || 1, PET_LV_SOFT) - 1) * 0.05) * petHi(lv);
 // v262 애완동물 — 포획 조각(졸개가 가끔 떨군다 → 모으면 그 지역 애완동물 하나) · 혼(Lv30 뒤 경험치 → 등급 올리기)
 export const PET_SHARD_RATE = 1 / 150;   // v364 두 배 · v464 한 마리 벌이 배수(pk 4.5~7)는 곱하지 않고 방 몫(ROOM_K)만
 export const PET_SHARD_NEED = 100;
 export const PET_SOUL_COST = [6, 18, 45];   // 레어→영웅 · 영웅→전설 · 전설→신화
 export const PET_BOX = 300;   // v362 우리 10 → 30칸 · v389 → 300칸
 // 무인 경험치의 절반을 받는다. 무인 레벨 10+4×(애완 레벨)의 60% — 무인과 함께 오래 자란다
-export const petExpToNext = (lv) => Math.round(expBase(10 + lv * 4) * 0.6);
-// 순위·등급(레어~신화)·레벨로 버프·공격이 커진다
-// v316 품(品) — 얻을 때 굴린다(극품 5% · 천품 0.5%) · 단(段) — 다 큰 뒤 혼으로 수련(성공 확률 · 실패하면 다음 확률 +10% · 大成은 두 단)
-export const PET_QUAL = [{ id: 0, name: '', mark: '', mult: 1 }, { id: 1, name: '극품', mark: '◆', mult: 1.25, col: '#c4b5fd' }, { id: 2, name: '천품', mark: '✦', mult: 1.6, col: '#fcd34d' }];
-export const PET_QUAL_P = [0.05, 0.005];   // 극품 · 천품
-export const rollPetQual = (rng) => { const r = rng(); return r < PET_QUAL_P[1] ? 2 : r < PET_QUAL_P[0] + PET_QUAL_P[1] ? 1 : 0; };
-export const PET_DAN_MAX = 10;
-export const PET_DAN_K = 0.08;                // 단마다 버프·공격 +8% → 10단 +80%
-export const petDanSoul = (d) => 3 + 2 * d;   // 0→1단 혼 3 … 9→10단 혼 21
-export const PET_DAN_P = [1, 0.9, 0.8, 0.7, 0.6, 0.5, 0.45, 0.4, 0.35, 0.3];
-export const PET_DAN_PITY = 0.1;              // 실패할 때마다 다음 확률 +10%p (성공하면 0)
-export const PET_DAN_GREAT = 0.12;            // 성공하면 12%로 大成 — 한 번에 두 단
-export const petDanChance = (d, fails = 0) => Math.min(1, (PET_DAN_P[d] ?? 0) + fails * PET_DAN_PITY);
-export const petQualMult = (pet) => PET_QUAL[pet.q || 0]?.mult || 1;
-export const petDanMult = (pet) => 1 + (pet.dan || 0) * PET_DAN_K;
+export const petExpToNext = (lv) => (lv < PET_LV_SOFT ? Math.round(expBase(10 + lv * 4) * 0.6) : Math.round(expBase(10 + PET_LV_SOFT * 4) * 0.6 * (1 + (lv - PET_LV_SOFT) * 0.1)));   // v470 30 위로는 완만하게(한 레벨에 Lv.30 값의 1.1~4배)
+export const PET_SOUL_EXP = Math.round(expBase(10 + PET_LV_SOFT * 4) * 0.6);   // 다 큰(Lv.60) 애완동물의 경험치 이만큼 = 혼 하나(전엔 Lv.30에서 같은 값)
+// v470 먹이 — 우리에 있는 같은 종을 먹이면 경험치(먹이 등급마다 지금 레벨 몇 개 몫). 별(먹이 하나 = 여섯 레벨)보다 느리다
+export const PET_FEED_LV = [1, 2, 3, 5];
+// v470 옛 별·품·단 → 레벨(불러올 때 한 번). 버프·공격 배수가 같아지는 가장 가까운 레벨 · 넘친 몫(Lv.60 위)은 혼으로 돌려준다
+export const petFromOld = (p) => {
+  const lv0 = Math.max(1, Math.min(PET_LV_SOFT, Math.floor(Number(p.lv) || 1)));
+  const star = Math.max(0, Math.min(5, Math.floor(Number(p.star) || 0))), q = Math.max(0, Math.min(2, Math.floor(Number(p.q) || 0))), dan = Math.max(0, Math.min(10, Math.floor(Number(p.dan) || 0)));
+  if (!star && !q && !dan) return { lv: Math.max(1, Math.min(PET_LV_MAX, Math.floor(Number(p.lv) || 1))), soul: 0 };
+  const want = petLvF(lv0) * (1 + star * 0.12) * [1, 1.25, 1.6][q] * (1 + dan * 0.08);
+  let L = lv0;
+  while (L < PET_LV_MAX && petLvF(L + 1) <= want) L++;
+  if (L < PET_LV_MAX && petLvF(L + 1) - want < want - petLvF(L)) L++;
+  let soul = 0;
+  if (L >= PET_LV_MAX && want > petLvF(PET_LV_MAX) * 1.005) { for (let d = 0; d < dan; d++) soul += 3 + 2 * d; soul += [0, 10, 30][q]; }   // 단에 쓴 혼 · 품 몫
+  return { lv: L, soul };
+};
+// 순위·등급(레어~신화)·레벨로 버프·공격이 커진다(v470 품·단·별 없앰 — 레벨 하나)
 // v364 뽑기 운이 곧 강함 — 애완동물 효과 1.3배 · 등급 차를 크게(레어 1 · 유니크 1.35 · 전설 1.8 · 신화 2.5)
 export const PET_POWER_K = 1.0;   // v465 1.3 → 1.0 — 애완동물이 치는 힘도 같이(신화 하나가 무인 평타보다 셌다)
 // v465 버프는 절반 — 신화 황룡 Lv30이 공격·체력 +104%(동료 하나가 힘을 두 배로) → +45% · 전설 백호 +58% → +25% · 레어 +16% → +6%
 export const PET_BUFF_K = 0.5;
 export const PET_RAR_MULT = [1, 1.35, 1.8, 2.5];
-export const petScale = (pet) => PET_POWER_K * PET_RAR_MULT[pet.rar] * (1 + (pet.lv - 1) * 0.05) * (1 + (pet.star || 0) * PET_STAR_K) * petQualMult(pet) * petDanMult(pet);   // v292 별 · v316 품·단
+export const petScale = (pet) => PET_POWER_K * PET_RAR_MULT[pet.rar] * petLvF(pet.lv);   // v470 레벨 하나(별·품·단 → 레벨)
 // v390 다 키운 신화(별 5 · 단 10 · Lv30)는 ×23까지 커져 백호 하나가 공격력 +275%, 황룡이 공격·체력 +412%였다 — 칸 운(1~5마리)이 곧 강함(두 배)이었다.
 //   버프만 ×3 위로는 완만하게(×23 → ×9.2). 처음 몇 마리(×3 아래)는 그대로. 애완동물이 치는 힘(petAtkRatio)은 그대로.
 export const PET_BUFF_SOFT = 3;
 export const petBuffScale = (pet) => { const sc = petScale(pet); return sc <= PET_BUFF_SOFT ? sc : PET_BUFF_SOFT * (sc / PET_BUFF_SOFT) ** 0.55; };
 export const petBuff = (pet) => petOf(pet.kind).base * petBuffScale(pet) * PET_BUFF_K;
-export const petAtkRatio = (pet) => (0.1 + petOf(pet.kind).tier * 0.025 + (pet.lv - 1) * 0.012) * PET_POWER_K * PET_RAR_MULT[pet.rar] * (1 + (pet.star || 0) * PET_STAR_K) * petQualMult(pet) * petDanMult(pet);   // 무인 공격력 대비 한 대 · v292 별 · v316 품·단
+export const petAtkRatio = (pet) => (0.1 + petOf(pet.kind).tier * 0.025 + (Math.min(pet.lv || 1, PET_LV_SOFT) - 1) * 0.012) * PET_POWER_K * PET_RAR_MULT[pet.rar] * petHi(pet.lv);   // 무인 공격력 대비 한 대 · v470 Lv.30 위는 레벨마다 +2%
 export const PET_ATK_SEC = 1.6;
 
 // ---------- v292 동료 키우기 — 얻는 곳 늘리기 · 별 · 도감 · 길들이기 ----------
@@ -1463,9 +1471,6 @@ export const dailyShards = (stage) => 2 * (3 + Math.floor(stage / 3));   // v364
 export const TOWER_SHARDS = 4;   // v464 8 → 4
 export const TREASURE_SHARDS = 4;   // v464 12 → 4 · 등장도 pk 대신 방 몫만
 export const WEEK_SHARDS = 80;   // v364 두 배
-// 별 — 같은 종을 먹이로 주면 별 하나(최대 다섯) · 별마다 버프·공격 +12%
-export const PET_STAR_MAX = 5;
-export const PET_STAR_K = 0.12;
 // 놓아주면 혼이 남는다(등급별 + 레벨 10마다 1) — 전엔 그냥 사라졌다
 export const petReleaseSoul = (p) => [1, 2, 4, 8][p.rar || 0] + Math.floor((p.lv || 1) / 10);
 // 도감 — 한 번이라도 가진 종(애완은 그 종의 가장 높은 등급까지)만큼 공격력·최대 체력이 영구히 오른다

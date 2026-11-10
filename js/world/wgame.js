@@ -206,9 +206,11 @@ export function migrateWorld(raw, now = Date.now()) {
   for (const k of Object.keys(s.stats)) s.stats[k] = Math.max(0, Math.floor(Number(s.stats[k]) || 0));
   s.equip = { ...base.equip, ...(raw.equip || {}) };
   const okPet = (p) => p && W.PETS.some((x) => x.id === p.kind) && W.RARITY[p.rar];
-  const fixPet = (p) => { p.star = Math.max(0, Math.min(W.PET_STAR_MAX, Math.floor(Number(p.star) || 0))); p.q = Math.max(0, Math.min(2, Math.floor(Number(p.q) || 0))); p.dan = Math.max(0, Math.min(W.PET_DAN_MAX, Math.floor(Number(p.dan) || 0))); p.danFail = Math.max(0, Math.min(20, Math.floor(Number(p.danFail) || 0))); p.lock = !!p.lock || undefined; return p; };   // v292 별 · v316 품·단
+  let petRefund = 0;   // v470 별·품·단 → 레벨 — Lv.60을 넘친 몫은 혼으로
+  const fixPet = (p) => { const o = W.petFromOld(p); if (o.lv !== p.lv) p.exp = 0; p.lv = o.lv; petRefund += o.soul; delete p.star; delete p.q; delete p.dan; delete p.danFail; p.lock = !!p.lock || undefined; return p; };
   s.pets = Array.isArray(raw.pets) ? raw.pets.filter(okPet).map(fixPet) : [];
   s.petBox = Array.isArray(raw.petBox) ? raw.petBox.filter(okPet).map(fixPet).slice(0, W.PET_BOX) : [];
+  if (petRefund > 0) s.petSoul += petRefund;
   s.mounts = Array.isArray(raw.mounts) ? raw.mounts.filter((m) => m && W.mountOf(m.kind)).map((m) => ({ ...m, lv: Math.max(0, Math.min(W.mountLvMax(W.mountOf(m.kind)), Math.floor(Number(m.lv) || 0))) })) : [];   // v292 길들이기
   // v292 도감 — 한 번이라도 가진 종(애완은 가장 높은 등급) · 이정표 받은 것
   { const pd = raw.petDex && typeof raw.petDex === 'object' ? raw.petDex : {}; s.petDex = {}; for (const pp of W.PETS) if (pd[pp.id] != null && W.RARITY[pd[pp.id]]) s.petDex[pp.id] = Math.floor(pd[pp.id]); }
@@ -501,11 +503,11 @@ export class WorldGame {
       case 'dan10': return W.SLOTS.some((x) => IM.imprintsOf(s.equip[x.id]).some((im) => im.d >= IM.DAN_MAX));
       case 'res4': return (this.resonance().top?.tier ?? -1) >= 3;
       case 'okq': return W.SLOTS.some((x) => IM.imprintsOf(s.equip[x.id]).some((im) => im.q.id === 2));
-      case 'petdan': return [...s.pets, ...s.petBox].some((p) => (p.dan || 0) >= W.PET_DAN_MAX);
-      case 'petq': return [...s.pets, ...s.petBox].some((p) => (p.q || 0) >= 2);
+      case 'petdan': return [...s.pets, ...s.petBox].some((p) => p.lv >= W.PET_LV_MAX);   // v470 단·품 → 레벨
+      case 'petq': return [...s.pets, ...s.petBox].some((p) => (p.rar || 0) >= 3 && p.lv >= 45);
       case 'wb100': return (s.wboss?.kills || 0) >= 100;
       case 'wbfast': return s.wboss?.best?.hwamugi > 0 && s.wboss.best.hwamugi <= 60;
-      case 'pet5q': return [...s.pets, ...s.petBox].filter((p) => (p.q || 0) >= 1).length >= 5;
+      case 'pet5q': return [...s.pets, ...s.petBox].filter((p) => p.lv > 40).length >= 5;
       case 'titles15': return this.titleSet().n >= 15;
       case 'k100k': return (s.kills || 0) >= 100000;
       case 'k1m': return (s.kills || 0) >= 1000000;
@@ -784,7 +786,7 @@ export class WorldGame {
     const s = this.s;
     const e = s.equip;
     const g = (it) => (it ? `${it.uid}.${it.plus || 0}.${it.rar || 0}` : '-');
-    const pets = this.activePets().map((p) => `${p.uid}.${p.lv}.${p.rar || 0}.${p.star || 0}.${p.q || 0}.${p.dan || 0}`).join(',') + `|d${Object.values(s.petDex || {}).reduce((a, v) => a + v + 1, 0)}.${Object.keys(s.mountDex || {}).length}|m${this.mountInst()?.lv || 0}`;
+    const pets = this.activePets().map((p) => `${p.uid}.${p.lv}.${p.rar || 0}`).join(',') + `|d${Object.values(s.petDex || {}).reduce((a, v) => a + v + 1, 0)}.${Object.keys(s.mountDex || {}).length}|m${this.mountInst()?.lv || 0}`;
     return `${s.level}|q${Math.floor(Math.log10(1 + this.qiNow()) * 200)}.${this.realmNow()}.${s.maki > 0 ? 1 : 0}|${JSON.stringify(s.passLv || {})}|${s.guildId ? W.guildLevel(this.guildExp) : 0}|${s.job}|${s.stats.str},${s.stats.dex},${s.stats.vit},${s.stats.int}|${W.SLOTS.map((x) => g(e[x.id])).join(',')}|${pets}|${s.mount || '-'}|${s.tower?.floor || 0}.${s.tower?.hard || 0}|${s.path || '-'}|${s.jobTier || 0}|${this.growItems().map((x) => x.plus || 0).join('.')}|t${s.temper || 0}|i${this.impSig()}|T${s.title || ''}.${s.titles.length}|G${this.gatesCleared()}`;   // v243 · v274 단련: 가방 속 성장 장비 강화도(공유)
   }
   power() { return this.stats().power; }
@@ -3509,7 +3511,7 @@ export class WorldGame {
   }
   activePets() { return (this.s.pets || []).slice(0, this.petSlots()); }
   gainPet(rar, at, kind) {
-    const pet = { uid: uidSeq++, kind: kind || W.PETS[Math.floor(this.rng() * W.PETS.length)].id, rar, lv: 1, exp: 0, q: W.rollPetQual(this.rng), dan: 0 };   // v316 품
+    const pet = { uid: uidSeq++, kind: kind || W.PETS[Math.floor(this.rng() * W.PETS.length)].id, rar, lv: 1, exp: 0 };   // v470 품·단 없음
     // 키우는 칸이 비었으면 바로 데려가고, 아니면 우리에서 기다린다(바꾸려면 키우던 것을 놓아줘야 한다)
     if (this.s.pets.length < this.petSlots()) this.s.pets.push(pet);
     else if (this.s.petBox.length < W.PET_BOX) this.s.petBox.push(pet);
@@ -3606,27 +3608,6 @@ export class WorldGame {
     this.noteDex();
     return p;
   }
-  // v316 단(段) 수련 — 다 큰(Lv.30) 애완동물을 혼으로. 확률이 있고, 실패하면 혼은 들고 다음 확률이 오른다. 성공하면 가끔 大成(두 단)
-  petDanCost(p) { return p && p.lv >= W.PET_LV_MAX && (p.dan || 0) < W.PET_DAN_MAX ? W.petDanSoul(p.dan || 0) : null; }
-  canPetDan(uid) { const p = [...this.s.pets, ...this.s.petBox].find((x) => x.uid === uid); const c = this.petDanCost(p); return c != null && (this.s.petSoul || 0) >= c; }
-  petDan(uid) {
-    if (!this.canPetDan(uid)) return null;
-    const p = [...this.s.pets, ...this.s.petBox].find((x) => x.uid === uid);
-    this.s.petSoul -= this.petDanCost(p);
-    const chance = W.petDanChance(p.dan || 0, p.danFail || 0);
-    if (this.rng() >= chance) {
-      p.danFail = (p.danFail || 0) + 1;
-      this.emit('petDan', { pet: p, ok: false, chance });
-      return { ok: false, pet: p, next: W.petDanChance(p.dan || 0, p.danFail) };
-    }
-    const great = (p.dan || 0) + 2 <= W.PET_DAN_MAX && this.rng() < W.PET_DAN_GREAT;
-    p.dan = (p.dan || 0) + (great ? 2 : 1);
-    p.danFail = 0;
-    this._stats = null;
-    this.mark('petDan');
-    this.emit('petDan', { pet: p, ok: true, great });
-    return { ok: true, great, pet: p };
-  }
   adoptPet(uid) {
     if (this.s.pets.length >= this.petSlots()) return false;
     const i = this.s.petBox.findIndex((p) => p.uid === uid);
@@ -3666,42 +3647,42 @@ export class WorldGame {
     this._stats = null;
     return soul;
   }
-  // v292 별 — 우리에 있는 같은 종을 먹이로 주면 별 하나(최대 다섯). 먹이는 사라진다(혼은 안 남는다)
-  starFodder(uid) {
+  // v470 먹이 — 우리에 있는 같은 종을 먹이로 주면 경험치(먹이 등급마다 지금 레벨 몇 개 몫 · 전엔 별 하나). 먹이는 사라진다(혼은 안 남는다)
+  feedFodder(uid) {
     const p = [...this.s.pets, ...this.s.petBox].find((x) => x.uid === uid);
     if (!p) return [];
-    // v366 잠근 것은 먹이로 쓰지 않는다 · 모두 별 올리기(_safeFeed)에선 이것보다 등급이 높은 것도
-    return this.s.petBox.filter((x) => x.uid !== uid && x.kind === p.kind && !x.lock && (!this._safeFeed || (x.rar || 0) <= (p.rar || 0))).sort((a, b) => (a.rar || 0) - (b.rar || 0) || (a.star || 0) - (b.star || 0) || a.lv - b.lv);
+    // v366 잠근 것은 먹이로 쓰지 않는다 · 모두 먹이기(_safeFeed)에선 이것보다 등급이 높은 것도
+    return this.s.petBox.filter((x) => x.uid !== uid && x.kind === p.kind && !x.lock && (!this._safeFeed || (x.rar || 0) <= (p.rar || 0))).sort((a, b) => (a.rar || 0) - (b.rar || 0) || a.lv - b.lv);
   }
-  canStar(uid) { const p = [...this.s.pets, ...this.s.petBox].find((x) => x.uid === uid); return !!p && (p.star || 0) < W.PET_STAR_MAX && this.starFodder(uid).length > 0; }
-  starUp(uid) {
-    if (!this.canStar(uid)) return null;
+  canFeed(uid) { const p = [...this.s.pets, ...this.s.petBox].find((x) => x.uid === uid); return !!p && p.lv < W.PET_LV_MAX && this.feedFodder(uid).length > 0; }
+  feedPet(uid, quiet = false) {
+    if (!this.canFeed(uid)) return null;
     const p = [...this.s.pets, ...this.s.petBox].find((x) => x.uid === uid);
-    const f = this.starFodder(uid)[0];
+    const f = this.feedFodder(uid)[0];
     this.s.petBox = this.s.petBox.filter((x) => x.uid !== f.uid);
-    p.star = (p.star || 0) + 1;
-    if ((f.q || 0) > (p.q || 0)) { p.q = f.q; this.emit('petQualUp', { pet: p }); }   // v316 먹이의 품이 더 높으면 물려받는다
-    this._stats = null;
-    this.mark('petStar');
-    this.emit('petStar', { pet: p });
+    this.growPet(p, W.petExpToNext(p.lv) * W.PET_FEED_LV[f.rar || 0], true);
+    this.mark('petFeed');
+    if (!quiet) this.emit('petFeed', { pet: p, n: 1 });
     return p;
   }
-  // v319 모두 먹이기 — 우리의 같은 종을 못한 것부터, 별이 다 찰 때까지
-  starUpAll(uid) {
+  // v319 모두 먹이기 — 우리의 같은 종을 못한 것부터, 다 클 때까지
+  feedPetAll(uid) {
     let n = 0;
-    while (this.canStar(uid) && n < W.PET_STAR_MAX) { if (!this.starUp(uid)) break; n++; }
+    const p = [...this.s.pets, ...this.s.petBox].find((x) => x.uid === uid);
+    while (n < W.PET_BOX && this.canFeed(uid)) { if (!this.feedPet(uid, true)) break; n++; }
+    if (n && p) this.emit('petFeed', { pet: p, n });
     return n;
   }
   // ---------- v366 우리 정리 ----------
   togglePetLock(uid) { const p = [...this.s.pets, ...this.s.petBox].find((x) => x.uid === uid); if (!p) return null; p.lock = !p.lock || undefined; return !!p.lock; }
-  // 모두 별 올리기 — 종마다 가장 좋은 것(키우는 것 먼저)에게 우리의 같은 종을 못한 것부터 먹인다
-  autoStarAll() {
+  // 모두 먹이기 — 종마다 가장 좋은 것(키우는 것 먼저)에게 우리의 같은 종을 못한 것부터 먹인다
+  autoFeedAll() {
     const all = [...this.s.pets, ...this.s.petBox];
-    const score = (p) => (this.s.pets.includes(p) ? 1e6 : 0) + (p.rar || 0) * 1e4 + (p.star || 0) * 1e3 + (p.dan || 0) * 100 + p.lv;
+    const score = (p) => (this.s.pets.includes(p) ? 1e6 : 0) + (p.rar || 0) * 1e4 + p.lv;
     let n = 0;
     for (const kind of new Set(all.map((p) => p.kind))) {
       const host = all.filter((p) => p.kind === kind).sort((a, b) => score(b) - score(a))[0];
-      if (host) { this._safeFeed = true; try { n += this.starUpAll(host.uid); } finally { this._safeFeed = false; } }
+      if (host) { this._safeFeed = true; try { n += this.feedPetAll(host.uid); } finally { this._safeFeed = false; } }
     }
     return n;
   }
@@ -3710,7 +3691,7 @@ export class WorldGame {
     const keep = new Set();
     for (const kind of new Set([...this.s.pets, ...this.s.petBox].map((p) => p.kind))) {
       if (this.s.pets.some((p) => p.kind === kind)) continue;
-      const best = this.s.petBox.filter((p) => p.kind === kind).sort((a, b) => (b.rar || 0) - (a.rar || 0) || (b.star || 0) - (a.star || 0) || b.lv - a.lv)[0];
+      const best = this.s.petBox.filter((p) => p.kind === kind).sort((a, b) => (b.rar || 0) - (a.rar || 0) || b.lv - a.lv)[0];
       if (best) keep.add(best.uid);
     }
     return this.s.petBox.filter((p) => !p.lock && (p.rar || 0) <= maxRar && !keep.has(p.uid));
@@ -3769,23 +3750,24 @@ export class WorldGame {
     this.mark('tame');
     return m;
   }
-  petExp(n) {
-    for (const p of this.activePets()) {
-      if (p.lv >= W.PET_LV_MAX) {
-        // v262: 다 큰 애완동물이 받던 경험치는 버려졌다 — 혼으로 모은다
-        this.s.petSoulExp = (this.s.petSoulExp || 0) + n;
-        const per = W.petExpToNext(W.PET_LV_MAX);
-        if (this.s.petSoulExp >= per) { const k = Math.floor(this.s.petSoulExp / per); this.s.petSoul = (this.s.petSoul || 0) + k; this.s.petSoulExp -= k * per; }
-        continue;
-      }
-      p.exp += n;
-      while (p.lv < W.PET_LV_MAX && p.exp >= W.petExpToNext(p.lv)) {
-        p.exp -= W.petExpToNext(p.lv);
-        p.lv++;
-        this._stats = null;
-        this.emit('petLevel', { pet: p });
-      }
+  petExp(n) { for (const p of this.activePets()) this.growPet(p, n); }
+  // 한 애완동물에게 경험치 — 다 크면(Lv.60) 혼으로 모은다(v262 · v470 먹이도 여기로 · 먹이로 넘친 것은 버린다)
+  growPet(p, n, feed = false) {
+    if (p.lv >= W.PET_LV_MAX) {
+      if (feed) return;
+      this.s.petSoulExp = (this.s.petSoulExp || 0) + n;
+      const per = W.PET_SOUL_EXP;
+      if (this.s.petSoulExp >= per) { const k = Math.floor(this.s.petSoulExp / per); this.s.petSoul = (this.s.petSoul || 0) + k; this.s.petSoulExp -= k * per; }
+      return;
     }
+    p.exp += n;
+    while (p.lv < W.PET_LV_MAX && p.exp >= W.petExpToNext(p.lv)) {
+      p.exp -= W.petExpToNext(p.lv);
+      p.lv++;
+      this._stats = null;
+      this.emit('petLevel', { pet: p });
+    }
+    if (p.lv >= W.PET_LV_MAX) p.exp = 0;
   }
   // 애완동물이 싸운다 — 무인 곁의 적(무인의 과녁이 먼저)을 무인 공격력에 비례해 때린다
   tickPets(dt, st) {

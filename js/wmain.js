@@ -1711,11 +1711,8 @@ function handleEvents() {
       case 'petDrop': {
         const d = W.petOf(ev.pet.kind);
         saverLoot(`pet:${ev.pet.rar}:${d.name}`, `🐾 ${W.RARITY[ev.pet.rar].name} ${d.name}`);
-        const pq = W.PET_QUAL[ev.pet.q || 0];   // v316 품
-        toast(`${pq.id ? `${pq.mark} ${pq.name} ` : ''}${W.RARITY[ev.pet.rar].name} 애완동물 ${d.name}(순위 ${d.tier})! ${ev.joined ? '데려갔어요' : '우리에서 기다려요(동료 창)'}`);
-        view.showBanner(pq.id ? `${pq.name} ${d.name}` : d.name, pq.id ? pq.col : W.RARITY[ev.pet.rar].color, pq.id ? 2.4 : 1.6, '동료');
-        if (pq.id) view.float(pq.id === 2 ? '天品!' : '極品!', view.heroX, view.groundY - 200, pq.col, pq.id === 2 ? 28 : 22, 2);
-        if (pq.id === 2) net.announce(`✦ ${game.s.nickname}님이 천품(天品) ${d.name}을(를) 얻었어요!`);
+        toast(`${W.RARITY[ev.pet.rar].name} 애완동물 ${d.name}(순위 ${d.tier})! ${ev.joined ? '데려갔어요' : '우리에서 기다려요(동료 창)'}`);
+        view.showBanner(d.name, W.RARITY[ev.pet.rar].color, 1.6, '동료');   // v470 품 없음
         sfx('loot');
         break;
       }
@@ -1724,15 +1721,6 @@ function handleEvents() {
         if (ev.pet) tally('ps', '🐾 포획 조각', ev.pet, '#fcd34d');   // v321 들판 글자 대신 모음
         if (ev.mount) tally('ms', '🐎 탈것 조각', ev.mount, '#fcd34d');
         break;
-      // v316 단 수련 · 품 물려받기
-      case 'petDan': {
-        const d = W.petOf(ev.pet.kind);
-        if (!ev.ok) { toast(`${d.name} 수련 실패 — 혼은 썼지만 다음 확률이 올라요(${Math.round(W.petDanChance(ev.pet.dan || 0, ev.pet.danFail) * 100)}%)`); sfx('down'); break; }
-        if (ev.great) { view.float('大成!', view.heroX, view.groundY - 200, '#fcd34d', 28, 2); sfx('level'); }
-        toast(`${ev.great ? '大成! ' : ''}${d.name} ${ev.pet.dan}단 — 버프·공격 +${Math.round(ev.pet.dan * W.PET_DAN_K * 100)}%`);
-        if (ev.pet.dan >= W.PET_DAN_MAX) net.announce(`🐾 ${game.s.nickname}님의 ${d.name}이(가) ${W.PET_DAN_MAX}단에 올랐어요!`);
-        break;
-      }
       // v316 주간 두목 — 화무기·마귀 이번 주 최단
       case 'wbossBest': {
         const nm = ev.id === 'magwi' ? '마귀' : '화무기';
@@ -1746,9 +1734,8 @@ function handleEvents() {
       case 'attend': toast(`📅 출석 ${ev.day}일째 — ${ev.reward.gold ? `은자 ${fmt(ev.reward.gold)}` : ''}${ev.reward.gold && ev.reward.text !== '은자' ? ' · ' : ''}${ev.reward.text !== '은자' ? ev.reward.text : ''}`); sfx('loot'); break;
       case 'autoJunk': tally('junk', '🧹 자동 정리', 1, '#a8a29e'); break;   // v321
       case 'jobChange': toast(`${W.classOf(ev.job)?.name || ev.job}(으)로 바꿨어요${ev.back ? ` — 무공 점수 ${ev.back}점을 돌려받았어요` : ''}`); lastSig = ''; drawPortrait(); break;
-      case 'petQualUp': toast(`${W.PET_QUAL[ev.pet.q].mark} ${W.petOf(ev.pet.kind).name} — 먹이의 품을 물려받아 ${W.PET_QUAL[ev.pet.q].name}이 됐어요`); break;
-      case 'petStar':
-        toast(`★ ${W.petOf(ev.pet.kind).name} 별 ${ev.pet.star} — 버프·공격 +${Math.round(ev.pet.star * W.PET_STAR_K * 100)}%`);
+      case 'petFeed':   // v470 먹이(전엔 별)
+        toast(`🍖 ${W.petOf(ev.pet.kind).name}${ev.n > 1 ? ` — 먹이 ${ev.n}마리` : ''} · Lv.${ev.pet.lv}${ev.pet.lv >= W.PET_LV_MAX ? '(다 컸어요)' : ''}`);
         break;
       case 'dexGoal':
         toast(`📖 도감 ${ev.goal.text} 달성 — ${[ev.goal.soul ? `혼 ${ev.goal.soul}` : '', ev.goal.petShard ? `포획 조각 ${ev.goal.petShard}` : '', ev.goal.mountShard ? `탈것 조각 ${ev.goal.mountShard}` : ''].filter(Boolean).join(' · ')}`);

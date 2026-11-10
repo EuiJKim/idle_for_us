@@ -45,7 +45,7 @@ function spendSkills() {
 }
 function companions() {
   for (const kind of ['pet', 'mount']) { while (g.canGacha(kind, 10)) g.gacha(kind, 10); while (g.canGacha(kind, 1)) g.gacha(kind, 1); if (g.canGacha(kind, 1, true)) g.gacha(kind, 1, true); }
-  g.autoStarAll?.();
+  g.autoFeedAll?.();
   const all = [...g.s.pets, ...g.s.petBox].sort((a, b) => petScore(b) - petScore(a));
   const n = g.petSlots();
   g.s.pets = all.slice(0, n); g.s.petBox = all.slice(n, n + 40);

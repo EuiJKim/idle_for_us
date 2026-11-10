@@ -32,7 +32,7 @@ const ACTIONS = [
   ['전직', (g) => { if (g.canAdvance()) g.advance(); }, 2],
   ['영약', (g) => g.buyElixir(), 1],
   ['비급', (g) => g.buyStatBook(), 1],
-  ['자동 별', (g) => g.autoStarAll(), 1],
+  ['모두 먹이기', (g) => g.autoFeedAll(), 1],
   ['한꺼번에 강화', (g) => g.enhAll(), 1],
   ['약한 것 팔기', (g, r) => g.sellBagBelow(pick(r, ['common', 'rare', 'unique'])), 1],
   ['장비 끼기', (g, r) => { const it = pick(r, g.s.bag); if (it) g.equipFromBag(it.uid); }, 1],

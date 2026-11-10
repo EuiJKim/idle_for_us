@@ -12,6 +12,7 @@ function dressDay(g) {   // 하루 동안 자동이 닿는 차림
   for (const it of Object.values(g.s.equip)) if (it) it.plus = Math.max(it.plus || 0, 10);
   g.petSlots = () => 2;
   g.s.pets = [{ uid: 1e9, kind: 'turtle', rar: 2, lv: 30, exp: 0, q: 0, dan: 0, star: 2 }, { uid: 1e9 + 1, kind: 'tiger', rar: 2, lv: 30, exp: 0, q: 0, dan: 0, star: 2 }];
+  if (W.petFromOld) for (const p of g.s.pets) { p.lv = W.petFromOld(p).lv; delete p.star; delete p.q; delete p.dan; }   // v470
   g.gainMount('redhare'); g.s.mount = g.s.mounts.find((m) => m.kind === 'redhare').uid;
   g.s.tower.floor = 60; g._stats = null;
 }

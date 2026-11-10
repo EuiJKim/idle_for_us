@@ -565,7 +565,8 @@ function charTab(app) {
       else if (game.canGacha?.('pet', 1) || game.canGacha?.('mount', 1)) { next = '뽑기 — 조각이 모였어요'; hot = true; }
       else if (act < slots) next = '애완동물 얻기 — 두목·뽑기';
       else if (!mt) next = '탈것 얻기 — 두목·소환';
-      else next = '별 올리기 · 도감 채우기';
+      else if (game.s.pets.some((p) => game.canFeed(p.uid))) { next = '먹이 주기 — 우리에 같은 종이 있어요'; hot = true; }   // v470 별 → 먹이(경험치)
+      else next = '애완동물 키우기 · 도감 채우기';
       row('獸', `동료 · ${pc(pb.comp)}`, `애완 ${act}/${slots} · 탈것 ${mt ? mt.name : '없음'} · 칭호 ${s.titles?.length || 0}개 · 애완·탈것·도감·칭호`, next, ['comp'], hot); }
     // ④ 무림 — 문파 · 고수 비무 · 무한의 탑 · 천계 · 견문록·숙련
     { const all = ['murim', 'sapa', 'magyo', 'apex'].flatMap((f) => MS.mastersOf(f)).filter((m) => !m.hidden || s.duel.won.hwamugi);
@@ -722,11 +723,11 @@ function sureSell(it) {
 }
 function surePetFeed(host, n) {
   const g = surePetFeed.game;
-  const f = g ? g.starFodder(host.uid).slice(0, n) : [];
+  const f = g ? g.feedFodder(host.uid).slice(0, n) : [];
   if (!f.length) return true;
-  const good = f.filter((x) => (x.rar || 0) >= 2 || (x.star || 0) > 0 || (x.lv || 1) >= 30);
-  const names = f.slice(0, 4).map((x) => `${W.RARITY[x.rar || 0].name}${x.star ? `★${x.star}` : ''} Lv.${x.lv || 1}`).join(', ');
-  return confirm(`같은 종 ${f.length}마리를 먹이로 써요 (${names}${f.length > 4 ? ' …' : ''}).${good.length ? `\n그 가운데 ${good.length}마리는 전설 이상·별·높은 레벨이에요.` : ''}\n먹인 것은 사라져요. 먹일까요?`);
+  const good = f.filter((x) => (x.rar || 0) >= 2 || (x.lv || 1) >= 30);
+  const names = f.slice(0, 4).map((x) => `${W.RARITY[x.rar || 0].name} Lv.${x.lv || 1}`).join(', ');
+  return confirm(`같은 종 ${f.length > n ? n : f.length}마리까지 먹이로 써요 (${names}${f.length > 4 ? ' …' : ''}).${good.length ? `\n그 가운데 ${good.length}마리는 전설 이상·높은 레벨이에요.` : ''}\n먹인 것은 사라져요(레벨이 다 차면 멈춰요). 먹일까요?`);
 }
 function bagTab(app) {
   surePetFeed.game = app.game;
@@ -3980,10 +3981,9 @@ function compTab(app) {
     '🐉 두목 — 낮은 확률로 애완동물(높은 두목일수록 자주·위 순위까지)',
     `🧩 포획 조각 ${W.PET_SHARD_NEED}개 → 지금 지역의 애완동물 하나`,
     `  · 졸개 가끔(정예 3배) · 두목 ${W.BOSS_SHARDS.pet[0]}~${W.BOSS_SHARDS.pet[1]}개(왕·고수 2배) · 일일 던전 몫 한 판(소탕 포함 · 새 단계 첫 깨기) · 무한의 탑 처음 오른 층 · 보물 원숭이 ${W.TREASURE_SHARDS}개 · 주간 상자 ${W.WEEK_SHARDS}개 · 방치 · 도감 이정표`,
-    `★ 별 — 우리에 있는 같은 종을 먹이로 주면 별 하나(최대 ${W.PET_STAR_MAX}) · 별마다 버프·공격 +${Math.round(W.PET_STAR_K * 100)}%`,
+    `📈 레벨 — 무인 경험치의 절반을 받아 최대 Lv.${W.PET_LV_MAX} · Lv.${W.PET_LV_SOFT}까지 레벨마다 버프·공격 +5% · 그 위로 +${Math.round(W.PET_HI_K * 100)}%씩`,
+    `🍖 먹이 — 우리에 있는 같은 종을 먹이로 주면 경험치(레어 ${W.PET_FEED_LV[0]} · 유니크 ${W.PET_FEED_LV[1]} · 전설 ${W.PET_FEED_LV[2]} · 신화 ${W.PET_FEED_LV[3]}레벨 몫)`,
     `💠 혼 — 다 큰(Lv.${W.PET_LV_MAX}) 애완동물의 경험치 · 놓아준 애완동물(레어 1 · 유니크 2 · 전설 4 · 신화 8 + 레벨 10마다 1) · 도감 이정표 → 등급 올리기`,
-    `◆ 품 — 얻을 때마다 ${Math.round(W.PET_QUAL_P[0] * 100)}%로 극품(×${W.PET_QUAL[1].mult}) · ${(W.PET_QUAL_P[1] * 100).toFixed(1)}%로 천품(×${W.PET_QUAL[2].mult}) · 먹이로 주면 더 높은 품을 물려받아요`,
-    `🥋 단 수련 — 다 큰(Lv.${W.PET_LV_MAX}) 애완동물을 혼으로 1~${W.PET_DAN_MAX}단 · 단마다 버프·공격 +${Math.round(W.PET_DAN_K * 100)}% · 확률이 있고 실패하면 다음 확률 +${Math.round(W.PET_DAN_PITY * 100)}%p · 성공하면 ${Math.round(W.PET_DAN_GREAT * 100)}%로 大成(두 단)`,
   ]);
   const mountWhere = where('탈것 얻는 곳', [
     '🐉 두목 — 낮은 확률로 탈것(높은 두목일수록 자주·좋은 것까지)',
@@ -4002,10 +4002,6 @@ function compTab(app) {
   let mountFlt = (() => { try { return localStorage.getItem('ifu.mflt') || 'all'; } catch { return 'all'; } })();   // v380 탈것 걸러 보기
   let sig = '';
   const rarTag = (r) => h('b', { style: `color:${W.RARITY[r].color}` }, W.RARITY[r].name);
-  const starTag = (p) => ((p.star || 0) ? h('span', { class: 'pet-star' }, ` ${'★'.repeat(p.star)}`) : '');   // v292
-  // v316 품 · 단
-  const qualTag = (p) => ((p.q || 0) ? h('span', { class: `pet-q q${p.q}`, title: `${W.PET_QUAL[p.q].name} — 버프·공격 ×${W.PET_QUAL[p.q].mult}` }, `${W.PET_QUAL[p.q].mark}${W.PET_QUAL[p.q].name} `) : '');
-  const danTag = (p) => ((p.dan || 0) ? h('span', { class: 'pet-dan' }, ` ${p.dan}단`) : '');
   const petInfo = (p) => {
     const d = W.petOf(p.kind);
     const v = W.petBuff(p);
@@ -4014,14 +4010,14 @@ function compTab(app) {
   };
   const confirmRelease = (p, then) => openModal((m) => {
     m.append(h('h2', {}, `${W.petOf(p.kind).name}을(를) 놓아줄까요?`),
-      h('p', { class: 'muted' }, `Lv.${p.lv}까지 키운 것이 사라지고 혼 ${W.petReleaseSoul(p)}이 남아요. 되돌릴 수 없어요.${game.starFodder(p.uid).length || s0().pets.some((x) => x.kind === p.kind && x.uid !== p.uid) ? ' (같은 종에게 먹이로 주면 별이 하나 올라요)' : ''}`),
+      h('p', { class: 'muted' }, `Lv.${p.lv}까지 키운 것이 사라지고 혼 ${W.petReleaseSoul(p)}이 남아요. 되돌릴 수 없어요.${game.feedFodder(p.uid).length || s0().pets.some((x) => x.kind === p.kind && x.uid !== p.uid) ? ' (같은 종에게 먹이로 주면 경험치가 돼요)' : ''}`),
       h('div', { class: 'btn-row' }, h('button', { class: 'btn', onclick: closeModal }, '그만두기'),
         h('button', { class: 'btn danger', onclick: () => { const soul = game.releasePet(p.uid); closeModal(); if (soul) toast(`놓아주었어요 — 혼 +${soul}`); then(); } }, '놓아주기')));
   });
   const s0 = () => game.s;
   function upd() {
     const s = game.s;
-    const nsig = `${s.pets.map((p) => `${p.uid}.${p.lv}.${p.rar}.${p.star || 0}.${p.q || 0}.${p.dan || 0}.${p.danFail || 0}.${Math.floor(p.exp / 50)}`)}|${s.petBox.map((p) => `${p.uid}.${p.rar}.${p.star || 0}.${p.q || 0}`)}|${s.mounts.map((m) => `${m.uid}.${m.lv || 0}`)}|${s.mount}|${game.petSlots()}|${goldSig(game, 'comp')}|${s.petShard || 0}|${s.mountShard || 0}|${s.petSoul || 0}|${JSON.stringify(s.dexGoals)}|${JSON.stringify(s.petDex)}|${Object.keys(s.mountDex || {}).length}`;
+    const nsig = `${s.pets.map((p) => `${p.uid}.${p.lv}.${p.rar}.${Math.floor(p.exp / 50)}`)}|${s.petBox.map((p) => `${p.uid}.${p.rar}.${p.lv}`)}|${s.mounts.map((m) => `${m.uid}.${m.lv || 0}`)}|${s.mount}|${game.petSlots()}|${goldSig(game, 'comp')}|${s.petShard || 0}|${s.mountShard || 0}|${s.petSoul || 0}|${JSON.stringify(s.dexGoals)}|${JSON.stringify(s.petDex)}|${Object.keys(s.mountDex || {}).length}`;
     if (nsig === sig) return;
     sig = nsig;
     const done = () => { app.save(); sig = ''; app.refresh(); };
@@ -4098,7 +4094,7 @@ function compTab(app) {
       // v262 포획 조각 · 혼
       h('div', { class: 'pet-extra' },
         gachaRow('pet', `포획 조각 ${fmt(s.petShard || 0)}`, `우리 ${s.petBox.length}/${W.PET_BOX}`),
-        h('div', {}, h('b', {}, `혼 ${fmt(s.petSoul || 0)}`), h('small', {}, ` 다 큰(Lv.${W.PET_LV_MAX}) 애완동물이 받는 경험치가 혼이 돼요 · 등급 올리기 · 단 수련에 써요`))),
+        h('div', {}, h('b', {}, `혼 ${fmt(s.petSoul || 0)}`), h('small', {}, ` 다 큰(Lv.${W.PET_LV_MAX}) 애완동물이 받는 경험치가 혼이 돼요 · 등급 올리기에 써요`))),
       ...(slots === 1 ? [h('p', { class: 'muted', style: 'font-size:12px;margin:0 0 6px' }, "가락지·귀걸이에 '애완동물 +N'이 붙으면 함께 키우는 칸이 늘어요.")] : []));   // v292 null이 글자로 찍혔다
     if (!s.pets.length) petCard.append(h('p', { class: 'muted' }, '두목이 아주 가끔 애완동물을 떨궈요 — 초반 두목은 아주 드물게 아래 순위만, 높은 두목일수록 자주·위 순위까지. 데려가면 곁에서 무인 공격력에 비례해 싸우고 버프를 걸어 줘요. 무인과 함께 자라요.'));
     s.pets.forEach((p, i) => {
@@ -4108,25 +4104,23 @@ function compTab(app) {
       petCard.append(h('div', { class: `row pet-row${active ? '' : ' locked'}` },
         h('div', { class: 'ico pet-ico' }, creatureIcon(W.petArt(p))),
         h('div', { class: 'info' },
-          h('div', { class: 'name' }, qualTag(p), d.name, ' ', rarTag(p.rar), starTag(p), danTag(p), h('small', {}, `순위 ${d.tier} · Lv.${p.lv}${p.lv >= W.PET_LV_MAX ? ' (최대)' : ''}${active ? '' : ' · 칸이 모자라 쉬는 중'}`)),
+          h('div', { class: 'name' }, d.name, ' ', rarTag(p.rar), h('small', {}, `순위 ${d.tier} · Lv.${p.lv}${p.lv >= W.PET_LV_MAX ? ' (최대)' : ''}${active ? '' : ' · 칸이 모자라 쉬는 중'}`)),
           h('div', { class: 'desc' }, petInfo(p)),
           p.lv < W.PET_LV_MAX ? h('div', { class: 'bar thin' }, h('div', { style: `width:${Math.min(100, (p.exp / need) * 100)}%` })) : null),
         h('div', { class: 'pet-btns' },
           game.petSoulCost(p) != null ? h('button', { class: 'buy', disabled: game.canSoulUp(p.uid) ? null : true, onclick: () => { if (game.soulUp(p.uid)) { toast(`${d.name} — ${W.RARITY[p.rar].name}(으)로!`); done(); } } }, `등급 ↑`, h('small', {}, `혼 ${game.petSoulCost(p)}`)) : null,
-          // v316 단 수련 — 다 큰 뒤
-          game.petDanCost(p) != null ? h('button', { class: 'buy dan-btn', disabled: game.canPetDan(p.uid) ? null : true, title: `성공하면 ${(p.dan || 0) + 1}단(가끔 大成으로 두 단) · 실패해도 다음 확률이 올라요`, onclick: () => { if (game.petDan(p.uid)) done(); } },
-            '단 수련', h('small', {}, `혼 ${game.petDanCost(p)} · ${Math.round(W.petDanChance(p.dan || 0, p.danFail || 0) * 100)}%`)) : null,
-          (p.star || 0) < W.PET_STAR_MAX ? h('button', { class: 'buy', disabled: game.canStar(p.uid) ? null : true, title: '우리에 있는 같은 종을 먹이로', onclick: () => { if (!surePetFeed(p, 1)) return; if (game.starUp(p.uid)) done(); } }, '별 ↑', h('small', {}, `먹이 ${game.starFodder(p.uid).length}`)) : null,
+          // v470 먹이 — 같은 종을 경험치로(전엔 별)
+          p.lv < W.PET_LV_MAX ? h('button', { class: 'buy', disabled: game.canFeed(p.uid) ? null : true, title: '우리에 있는 같은 종을 먹이로(경험치)', onclick: () => { if (!surePetFeed(p, 1)) return; if (game.feedPet(p.uid)) done(); } }, '먹이', h('small', {}, `${game.feedFodder(p.uid).length}마리`)) : null,
           // v319 모두 먹이기 — 먹이가 둘 이상이면 한 번에
-          (p.star || 0) < W.PET_STAR_MAX - 1 && game.starFodder(p.uid).length >= 2 ? h('button', { class: 'buy', title: '같은 종을 못한 것부터, 별이 찰 때까지', onclick: () => { if (!surePetFeed(p, 99)) return; const n = game.starUpAll(p.uid); if (n) { toast(`★ ${d.name} 별 ${p.star} — 먹이 ${n}마리`); done(); } } }, '모두 먹이기', h('small', {}, `★${Math.min(W.PET_STAR_MAX, (p.star || 0) + game.starFodder(p.uid).length)}까지`)) : null,
+          p.lv < W.PET_LV_MAX && game.feedFodder(p.uid).length >= 2 ? h('button', { class: 'buy', title: '같은 종을 못한 것부터, 다 클 때까지', onclick: () => { if (!surePetFeed(p, W.PET_BOX)) return; game.feedPetAll(p.uid); done(); } }, '모두 먹이기', h('small', {}, `Lv.${W.PET_LV_MAX}까지`)) : null,
           // v312 장착 해제 — 우리로(사라지지 않는다)
           h('button', { class: 'btn', style: 'padding:6px 10px', disabled: game.canUnequipPet(p.uid) ? null : true, title: s.petBox.length >= W.PET_BOX ? '우리가 가득 찼어요' : '', onclick: () => { if (game.unequipPet(p.uid)) { toast(`${d.name}을(를) 우리로 보냈어요`); done(); } } }, '해제'),
           h('button', { class: 'btn danger', style: 'padding:6px 10px', onclick: () => confirmRelease(p, done) }, '놓아주기'))));
     });
     boxCard.replaceChildren(h('h3', {}, '우리', h('small', {}, `${s.petBox.length}/${W.PET_BOX} · 누르면 데려가기 · 칸이 꽉 차면 키우던 것과 바꿔요`)),
-      // v366 우리 정리 — 모두 별 올리기 · 일괄 놓아주기(잠근 것 · 종마다 가장 좋은 하나는 남긴다)
+      // v366 우리 정리 — 모두 먹이기(v470 전엔 별) · 일괄 놓아주기(잠근 것 · 종마다 가장 좋은 하나는 남긴다)
       ...(s.petBox.length ? [h('div', { class: 'pen-tools' },
-        h('button', { class: 'btn mini', id: 'pen-star-all', onclick: () => { const n = game.autoStarAll(); toast(n ? `★ 종마다 가장 좋은 것에게 먹여 별 ${n}개를 올렸어요` : '먹일 같은 종이 없어요(잠근 것 · 더 좋은 것은 먹이로 안 써요)'); if (n) done(); } }, '★ 모두 별 올리기'),
+        h('button', { class: 'btn mini', id: 'pen-star-all', onclick: () => { const n = game.autoFeedAll(); toast(n ? `🍖 종마다 가장 좋은 것에게 ${n}마리를 먹였어요` : '먹일 같은 종이 없어요(잠근 것 · 더 좋은 것 · 다 큰 것은 빼요)'); if (n) done(); } }, '🍖 모두 먹이기'),
         ...[[0, '레어'], [1, '유니크까지'], [2, '전설까지']].map(([r, nm]) => h('button', { class: 'btn mini danger', onclick: () => {
           const list = game.bulkReleasePreview(r);
           if (!list.length) return toast('놓아줄 것이 없어요(잠근 것 · 종마다 가장 좋은 하나는 남겨요)');
@@ -4140,27 +4134,26 @@ function compTab(app) {
       const d = W.petOf(p.kind);
       const full = s.pets.length >= slots;
       m.append(h('div', { class: 'pen-head' }, h('div', { class: 'ico pet-ico big' }, creatureIcon(W.petArt(p))),
-        h('div', {}, h('h2', {}, qualTag(p), d.name, ' ', rarTag(p.rar), danTag(p)), h('small', { class: 'muted' }, `순위 ${d.tier} · Lv.${p.lv}`))),
+        h('div', {}, h('h2', {}, d.name, ' ', rarTag(p.rar)), h('small', { class: 'muted' }, `순위 ${d.tier} · Lv.${p.lv}`))),
         h('p', { class: 'muted' }, petInfo(p)),
         // v254: 칸이 남으면 null을 넘겨 창에 'null' 글자가 찍혔다(DOM append는 null을 글자로 넣는다)
         // v312 꽉 찼으면 키우던 것과 바꿔 데려간다(바뀐 것은 우리로)
         ...(full ? [h('p', { class: 'muted', style: 'font-size:12px' }, `키우는 칸이 꽉 찼어요(${s.pets.length}/${slots}) — 아래에서 하나와 바꿔 데려가요(그 아이는 우리로).`),
           h('div', { class: 'pet-swap' }, ...s.pets.slice(0, slots).map((q) => h('button', { class: 'btn', onclick: () => { if (game.swapPet(p.uid, q.uid)) { closeModal(); toast(`${d.name}을(를) 데려가고 ${W.petOf(q.kind).name}은(는) 우리로`); done(); } } },
             h('span', { class: 'ico pet-ico' }, creatureIcon(W.petArt(q))), ` ${W.petOf(q.kind).name} 대신`)))] : []),
-        // v319 우리에서도 키운다 — 등급 올리기 · 단 수련 · 별(우리의 같은 종을 먹이로)
+        // v319 우리에서도 키운다 — 등급 올리기 · 먹이(우리의 같은 종)
         h('div', { class: 'pen-train' },
           game.petSoulCost(p) != null ? h('button', { class: 'buy', disabled: game.canSoulUp(p.uid) ? null : true, onclick: () => { if (game.soulUp(p.uid)) { toast(`${d.name} — ${W.RARITY[p.rar].name}(으)로!`); closeModal(); done(); openPen(p); } } }, '등급 ↑', h('small', {}, `혼 ${game.petSoulCost(p)}`)) : null,
-          game.petDanCost(p) != null ? h('button', { class: 'buy dan-btn', disabled: game.canPetDan(p.uid) ? null : true, onclick: () => { if (game.petDan(p.uid)) { closeModal(); done(); openPen(p); } } }, '단 수련', h('small', {}, `혼 ${game.petDanCost(p)} · ${Math.round(W.petDanChance(p.dan || 0, p.danFail || 0) * 100)}%`)) : null,
-          (p.star || 0) < W.PET_STAR_MAX && game.starFodder(p.uid).length ? h('button', { class: 'buy', onclick: () => { if (!surePetFeed(p, 99)) return; const n = game.starUpAll(p.uid); if (n) { toast(`★ ${d.name} 별 ${p.star} — 먹이 ${n}마리`); closeModal(); done(); openPen(p); } } }, '모두 먹이기', h('small', {}, `먹이 ${game.starFodder(p.uid).length}`)) : null),
-        ...(p.lv < W.PET_LV_MAX ? [h('p', { class: 'muted', style: 'font-size:11.5px;margin:2px 0 6px' }, `단 수련은 Lv.${W.PET_LV_MAX}부터 — 우리에 있는 동안은 자라지 않아요(데려가면 자라요)`)] : []),   // m.append는 null을 글자로 넣는다
-        // v292 같은 종 키우는 것에게 먹이로(별 하나)
-        ...(() => { const host = s.pets.find((x) => x.kind === p.kind && (x.star || 0) < W.PET_STAR_MAX); return host ? [h('button', { class: 'btn', style: 'width:100%;margin-bottom:6px', onclick: () => {
+          p.lv < W.PET_LV_MAX && game.feedFodder(p.uid).length ? h('button', { class: 'buy', onclick: () => { if (!surePetFeed(p, W.PET_BOX)) return; if (game.feedPetAll(p.uid)) { closeModal(); done(); openPen(p); } } }, '모두 먹이기', h('small', {}, `먹이 ${game.feedFodder(p.uid).length}`)) : null),
+        ...(p.lv < W.PET_LV_MAX ? [h('p', { class: 'muted', style: 'font-size:11.5px;margin:2px 0 6px' }, '우리에 있는 동안은 자라지 않아요(데려가면 자라요 · 먹이는 돼요)')] : []),   // m.append는 null을 글자로 넣는다
+        // v292 같은 종 키우는 것에게 먹이로(v470 경험치)
+        ...(() => { const host = s.pets.find((x) => x.kind === p.kind && x.lv < W.PET_LV_MAX); return host ? [h('button', { class: 'btn', style: 'width:100%;margin-bottom:6px', onclick: () => {
           // 먹이는 가장 못한 것부터 — 이것을 먹이로 쓰려면 이것보다 못한 같은 종이 없어야 한다
-          const f = game.starFodder(host.uid)[0];
+          const f = game.feedFodder(host.uid)[0];
           if (f && f.uid !== p.uid) { toast('같은 종 가운데 더 못한 것부터 먹이로 써요'); }
           if (!surePetFeed(host, 1)) return;
-          if (game.starUp(host.uid)) { closeModal(); done(); }
-        } }, `★ ${d.name}(키우는 중)에게 먹이로 — 별 ${(host.star || 0) + 1}`)] : []; })(),
+          if (game.feedPet(host.uid)) { closeModal(); done(); }
+        } }, `🍖 ${d.name}(키우는 중 · Lv.${host.lv})에게 먹이로`)] : []; })(),
         h('div', { class: 'btn-row' },
           h('button', { class: 'btn', id: 'pet-lock', onclick: () => { const on = game.togglePetLock(p.uid); toast(on ? '🔒 잠갔어요 — 먹이·일괄 놓아주기에서 빠져요' : '잠금을 풀었어요'); closeModal(); done(); openPen(p); } }, p.lock ? '🔓 풀기' : '🔒 잠금'),
           h('button', { class: 'btn danger', disabled: p.lock ? true : null, onclick: () => { closeModal(); confirmRelease(p, done); } }, '놓아주기'),
@@ -4171,7 +4164,7 @@ function compTab(app) {
       const d = W.petOf(p.kind);
       return h('button', { class: 'pen-tile', style: `--rc:${W.RARITY[p.rar || 0].color}`, onclick: () => openPen(p) },
         h('div', { class: 'ico pet-ico' }, creatureIcon(W.petArt(p))),
-        h('b', {}, p.lock ? '🔒' : '', (p.q || 0) ? h('span', { class: `pet-q q${p.q}` }, W.PET_QUAL[p.q].mark) : '', d.name, (p.star || 0) ? h('span', { class: 'pet-star' }, ` ${'★'.repeat(p.star)}`) : ''), h('small', {}, `${W.RARITY[p.rar || 0].name} · 순위 ${d.tier}${(p.dan || 0) ? ` · ${p.dan}단` : ''}`));
+        h('b', {}, p.lock ? '🔒' : '', d.name), h('small', {}, `${W.RARITY[p.rar || 0].name} · Lv.${p.lv}`));
     })));
     const cur = game.mountNow();
     mountCard.replaceChildren(h('h3', {}, '탈것', h('small', {}, cur ? `${cur.name}을(를) 타는 중` : '걸어 다니는 중')),
@@ -4301,7 +4294,7 @@ function compTab(app) {
   ], 'ifu.compsub');
   const upd0 = t.update;
   t.update = () => {
-    t.setDot('pet', (game.s.petBox.length > 0 && game.s.pets.length < game.petSlots()) || game.canGacha('pet', 1) || game.canGacha('pet', 1, true) || game.s.pets.some((p) => game.canStar(p.uid)));
+    t.setDot('pet', (game.s.petBox.length > 0 && game.s.pets.length < game.petSlots()) || game.canGacha('pet', 1) || game.canGacha('pet', 1, true) || game.s.pets.some((p) => game.canFeed(p.uid)));
     t.setDot('mount', (game.s.mounts.length > 0 && game.s.mount == null) || game.canGacha('mount', 1) || game.canGacha('mount', 1, true));
     t.setDot('dex', game.dexGoalsReady() > 0);
     upd0();
