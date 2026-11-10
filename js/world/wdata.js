@@ -1419,6 +1419,18 @@ export const ENL_STEP = { dmg: 0.03, cd: 0.01 };
 export const ENL_MAX = 50;
 export const enlCost = (lv) => 1 + Math.floor(lv / 5);
 export const enlExp = () => Math.round(expToNext(149) * 0.25);
+// v472 「빼기」 — 깨달음은 무공마다 찍지 않고 하나(모든 무공에 함께). 한 단계 값은 무공 하나에 찍던 값의 ENL_K배
+export const ENL_K = 3;
+export const enlNeed = (lv) => enlExp() * ENL_K * enlCost(lv);
+// 옛 세이브(무공마다 nodes · 남은 pts) → 하나의 단계. 가장 높았던 무공 단계와 쓴 점수 몫 가운데 큰 쪽 · 남은 점수는 경험치로
+export const enlFromOld = (e) => {
+  const nodes = e && typeof e.nodes === 'object' && e.nodes ? Object.values(e.nodes).map((v) => Math.max(0, Math.min(ENL_MAX, Math.floor(Number(v) || 0)))) : [];
+  let spent = 0; for (const n of nodes) for (let l = 0; l < n; l++) spent += enlCost(l);
+  let L = 0, acc = 0; while (L < ENL_MAX && acc + ENL_K * enlCost(L) <= spent) { acc += ENL_K * enlCost(L); L++; }
+  const lv = Math.max(L, nodes.length ? Math.max(...nodes) : 0);
+  const exp = Math.max(0, Number(e?.exp) || 0) + Math.max(0, Math.floor(Number(e?.pts) || 0)) * enlExp();
+  return { lv, exp };
+};
 // v470 「빼기」 셋째 판 — 별 5 · 품 3 · 단 10을 없애고 레벨 하나로. Lv.30 위로 서른 레벨을 더 둔다(레벨마다 +2% · 옛 별 하나 = 여섯 레벨)
 export const PET_LV_MAX = 60;
 export const PET_LV_SOFT = 30;   // 여기까지는 레벨마다 +5%(전과 같다)

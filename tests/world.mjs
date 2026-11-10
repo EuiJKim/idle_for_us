@@ -1855,10 +1855,9 @@ console.log('\n=== v263 각성 · 깨달음 · 견문록 · 회랑 · 길잡이 
   ok(/askAwaken/.test(read('js/wui.js')) && /첫 변초는 공짜/.test(read('js/wui.js')), '누르기 전에 드는 것 · 누르면 무엇인지 설명');
   // 깨달음
   while (g.s.level < W.LEVEL_MAX) g.addExp(W.expToNext(g.s.level));
-  g.addExp(W.enlExp() * 3);
-  ok(g.s.enl.pts === 3, '만렙 뒤 경험치 → 깨달음 점수', `${g.s.enl.pts}`);
   const mid = g.mainSkill().id, dm = g.skillMods(mid).dmg;
-  ok(g.enlUp(mid) && Math.abs(g.skillMods(mid).dmg - dm - W.ENL_STEP.dmg) < 1e-9 && g.s.enl.pts === 2, '깨달음 한 단계 — 피해 +3%(주력)');
+  g.addExp(W.enlNeed(0) + 5);
+  ok(g.s.enl.lv === 1 && g.s.enl.exp === 5 && Math.abs(g.skillMods(mid).dmg - dm - W.ENL_STEP.dmg) < 1e-9, '만렙 뒤 경험치 → 깨달음 한 단계(저절로) — 피해 +3%(주력)', JSON.stringify(g.s.enl));
   // 견문록
   const X = fresh();
   const z = W.dexZones()[0];
@@ -5099,6 +5098,28 @@ console.log('\n=== v471 「빼기」 넷째 판 — 장비 초월 → 강화 +16
     if (a && b && G2.isPalma(a)) { p.s.equip.glove = a; p.s.bag.push(b); p.equipFromBag(b.uid); ok(b.plus === 3 && a.plus === 21, '+21 대성신장을 전설 조각으로 바꾸면 강화를 맞바꾸지 않는다(+15 끝 장비가 +21이 되지 않게)', `${a.plus} · ${b.plus}`); } }
   const ui = read('js/wui.js');
   ok(!/transcend\(|canTransItem|TRANS_NAME|transBox/.test(ui + read('js/world/wgame.js')) && /road-pips\$\{capItem > W\.ENHANCE_MAX/.test(ui), '화면: 초월 칸 없이 강화 여정 25칸');
+}
+console.log('\n=== v472 「빼기」 다섯째 판 — 깨달음 하나(저절로 · 모든 무공) ===');
+{
+  const g = fresh('sword');
+  while (g.s.level < W.LEVEL_MAX) g.addExp(W.expToNext(g.s.level));
+  const ids = g.skills().filter((k) => k.kind !== 'support').map((k) => k.id).slice(0, 3);
+  const d0 = ids.map((x) => g.skillMods(x).dmg);
+  g.addExp(W.enlNeed(0) + W.enlNeed(1) + W.enlNeed(2));
+  ok(g.enlLevel() === 3 && ids.every((x, i) => Math.abs(g.skillMods(x).dmg - d0[i] - 3 * W.ENL_STEP.dmg) < 1e-9), '경험치로 세 단계 — 모든 무공에 같은 몫', `${g.enlLevel()}`);
+  ok(W.enlNeed(0) === W.enlExp() * W.ENL_K && W.enlNeed(5) === W.enlExp() * W.ENL_K * 2, '한 단계 값 = 옛 무공 하나 값 × 3');
+  g.s.enl = { lv: W.ENL_MAX - 1, exp: 0 }; g.addExp(W.enlNeed(W.ENL_MAX - 1) * 5);
+  ok(g.enlLevel() === W.ENL_MAX && g.s.enl.exp === 0, '50단계 끝 — 넘친 경험치는 버린다');
+  // 옛 세이브
+  const a = W.enlFromOld({ pts: 4, exp: 7, nodes: { s0: 12, s1: 3 } });
+  ok(a.lv === 12 && a.exp === 7 + 4 * W.enlExp(), '옛 무공마다 → 가장 높은 단계(12) · 남은 점수는 경험치로', JSON.stringify(a));
+  const b = W.enlFromOld({ pts: 0, exp: 0, nodes: { s0: 10, s1: 10, s2: 10, s3: 10, s4: 10, s5: 10 } });
+  ok(b.lv > 10, '여럿에 고루 찍었으면 쓴 점수 몫이 더 크다', JSON.stringify(b));
+  const raw = { ...newWorldSave(0), level: 150, enl: { pts: 2, exp: 1, nodes: { s0: 5 } } };
+  const m = migrateWorld(JSON.parse(JSON.stringify(raw)));
+  const m2 = migrateWorld(JSON.parse(JSON.stringify(m)));
+  ok(m.enl.lv === 5 && !('nodes' in m.enl) && !('pts' in m.enl) && m2.enl.lv === 5 && m2.enl.exp === m.enl.exp, '불러오면 하나로 · 다시 불러와도 같다', JSON.stringify(m.enl));
+  ok(!/enlUp|canEnlUp/.test(read('js/wui.js') + read('js/world/wgame.js')) && /id: 'enl-row'/.test(read('js/wui.js')), '화면: 무공마다 깨달음 단추가 없고 한 줄');
 }
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);

@@ -175,7 +175,9 @@ export function migrateWorld(raw, now = Date.now()) {
     if (raw.awakens && typeof raw.awakens === 'object') for (const [sl, k] of Object.entries(raw.awakens)) if (ok(sl, k)) s.awakens[sl] = k;
     if (raw.awaken && typeof raw.awaken === 'object' && ok(raw.awaken.slot, raw.awaken.kind) && !s.awakens[raw.awaken.slot]) s.awakens[raw.awaken.slot] = raw.awaken.kind;
     delete s.awaken; }
-  { const e = raw.enl && typeof raw.enl === 'object' ? raw.enl : {}; s.enl = { pts: Math.max(0, Math.floor(Number(e.pts) || 0)), exp: Math.max(0, Number(e.exp) || 0), nodes: {} }; for (const [k, v] of Object.entries(e.nodes || {})) { const n = Math.min(W.ENL_MAX, Math.floor(Number(v) || 0)); if (n > 0) s.enl.nodes[k] = n; } }
+  { const e = raw.enl && typeof raw.enl === 'object' ? raw.enl : {};   // v472 깨달음 하나 — 옛 무공마다(nodes·pts)는 한 번 바꾼다
+    if (e.lv != null) s.enl = { lv: Math.max(0, Math.min(W.ENL_MAX, Math.floor(Number(e.lv) || 0))), exp: Math.max(0, Number(e.exp) || 0) };
+    else s.enl = W.enlFromOld(e); }
   s.loadouts = Array.isArray(raw.loadouts) ? [0, 1].map((i) => { const lo = raw.loadouts[i]; return lo && typeof lo === 'object' ? { stats: { ...(lo.stats || {}) }, skillLv: { ...(lo.skillLv || {}) }, passLv: { ...(lo.passLv || {}) } } : null; }) : [null, null];
   s.petShard = Math.max(0, Math.floor(Number(raw.petShard) || 0)); s.petSoul = Math.max(0, Math.floor(Number(raw.petSoul) || 0)); s.petSoulExp = Math.max(0, Number(raw.petSoulExp) || 0);
   if (raw.today && typeof raw.today === 'object' && typeof raw.today.day === 'string') s.today = { day: raw.today.day, cnt: { ...(raw.today.cnt || {}) }, claimed: { ...(raw.today.claimed || {}) } }; else s.today = null;
@@ -2476,11 +2478,14 @@ export class WorldGame {
     if (n > 0) s.qi = this.qiNow() + n * W.QI_PER_EXP;   // v456 내공 — 얻은 경험치만큼 쌓인다(만렙 뒤에도)
     if (s.level >= W.LEVEL_MAX) {
       // v263 깨달음 — 만렙 뒤 경험치는 버리지 않고 깨달음 점수로
-      const e = s.enl || (s.enl = { pts: 0, exp: 0, nodes: {} });
+      // v472 점수를 무공마다 찍지 않고 깨달음 단계 하나가 저절로 오른다(모든 무공에 함께)
+      const e = s.enl || (s.enl = { lv: 0, exp: 0 });
+      if (e.lv >= W.ENL_MAX) return;
       e.exp += n;
-      const per = W.enlExp();
-      if (e.exp >= per) { const k = Math.floor(e.exp / per); e.pts += k; e.exp -= k * per; this.emit('enlight', { pts: e.pts, got: k }); }
-      this._stats = null;
+      let got = 0;
+      while (e.lv < W.ENL_MAX && e.exp >= W.enlNeed(e.lv)) { e.exp -= W.enlNeed(e.lv); e.lv++; got++; }
+      if (e.lv >= W.ENL_MAX) e.exp = 0;
+      if (got) { this._mods = null; this._stats = null; this.emit('enlight', { lv: e.lv, got }); }
       return;
     }
     s.exp += n;
@@ -3941,16 +3946,7 @@ export class WorldGame {
     this._mods = null;
     return true;
   }
-  enlLevel(id) { return this.s.enl?.nodes?.[id] || 0; }
-  canEnlUp(id) { const lv = this.enlLevel(id); return lv < W.ENL_MAX && (this.s.enl?.pts || 0) >= W.enlCost(lv) && this.skills().some((k) => k.id === id); }
-  enlUp(id) {
-    if (!this.canEnlUp(id)) return false;
-    const lv = this.enlLevel(id);
-    this.s.enl.pts -= W.enlCost(lv);
-    this.s.enl.nodes[id] = lv + 1;
-    this._mods = null;
-    return true;
-  }
+  enlLevel() { return this.s.enl?.lv || 0; }   // v472 깨달음 하나(모든 무공)
   // v262 차림 두 벌 — 능력치 분배·무공·심법 레벨을 두 벌 적어 두고 갈아 낀다(사냥용·두목용). 바꾸는 값은 없다.
   //   벌을 바꿀 때 지금 것을 지금 벌에 적고, 다른 벌을 낀다. 그 벌이 쓴 점수보다 지금 가진 점수가 많으면 남는 것은 찍을 점수로.
   loadoutSpent(lo) {
@@ -4043,7 +4039,7 @@ export class WorldGame {
 
   // 스킬 하나에 걸린 것: 스킬 레벨 + 끼고 있는 장비의 옵션
   skillMods(id) {
-    const key = `${this.statSig()}|${JSON.stringify(this.s.skillLv)}|${JSON.stringify(this.s.enl?.nodes || {})}|${JSON.stringify(this.s.awakens || {})}|${this.s.jobTier}|${this.s.path}`;
+    const key = `${this.statSig()}|${JSON.stringify(this.s.skillLv)}|e${this.s.enl?.lv || 0}|${JSON.stringify(this.s.awakens || {})}|${this.s.jobTier}|${this.s.path}`;
     if (!this._mods || this._mods.key !== key) this._mods = { key };
     if (this._mods[id]) return this._mods[id];
     // v256: 길 무공(pa·pb)은 칸 5 — 전엔 +'a'가 NaN이라 장비 스킬 옵션·각인 스킬 변화가 길 무공에 붙지 못했다
@@ -4075,8 +4071,8 @@ export class WorldGame {
     // v263 각성 — 고른 무공 하나에 변형 하나
     const awk = this.awakenOf(id) || oIds.map((x) => this.awakenOf(x)).find(Boolean) || null;   // v311 무공마다 · v444 주력은 물러난 무공의 변초도
     if (awk && this.s.level >= W.AWAKEN_LV) { const k = W.AWAKEN_KINDS.find((x) => x.id === awk); if (k) for (const [kk, v] of Object.entries(k.mods)) m[kk] = (m[kk] || 0) + v; }
-    // v263 깨달음 — 무공 칸마다 단계
-    const en = [id, ...oIds].reduce((t, x) => t + (this.s.enl?.nodes?.[x] || 0), 0);   // v444 물러난 무공의 깨달음도
+    // v263 깨달음 — v472 무공마다가 아니라 하나(모든 무공에 같은 단계)
+    const en = this.s.enl?.lv || 0;
     if (en) { m.dmg += en * W.ENL_STEP.dmg; m.cd += en * W.ENL_STEP.cd; }
     m.echoP = Math.min(IM.SKILL_CAP.echo + (awk === 'twin' ? 0.3 : 0), m.echoP);
     m.cd = Math.min(0.7, m.cd);

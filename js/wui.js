@@ -290,7 +290,7 @@ function charTab(app) {
   let skSig = '';
   function skills() {
     const s = game.s;
-    const nsig = `${s.skillPts}|${JSON.stringify(s.skillLv)}|${s.jobTier}|${game.statSig()}|${goldSig(game, 'skills')}|${JSON.stringify(s.enl || {})}|${JSON.stringify(s.awakens || {})}`;
+    const nsig = `${s.skillPts}|${JSON.stringify(s.skillLv)}|${s.jobTier}|${game.statSig()}|${goldSig(game, 'skills')}|${s.enl?.lv || 0}.${Math.floor((s.enl?.exp || 0) / Math.max(1, W.enlNeed(s.enl?.lv || 0)) * 100)}|${JSON.stringify(s.awakens || {})}`;
     if (nsig === skSig) return;
     skSig = nsig;
     const rc = game.skillResetCost();
@@ -331,11 +331,7 @@ function charTab(app) {
           bits.length ? h('div', { class: 'desc', style: 'color:#fde68a' }, `레벨·장비: ${bits.join(' · ')}`) : null),
         h('button', { class: 'buy', disabled: game.canSkillUp(sk.id) ? null : true, onclick: () => {
           if (game.skillUp(sk.id)) { popUp(skillCard, `Lv.${game.skillLevel(sk.id)}`); app.save(); skSig = ''; upd(); }
-        } }, max ? '최대' : `+1 · ${W.skillLvCost(lv)}점`)),
-        // v263 깨달음 — 만렙 뒤 경험치로 무공마다 단계를 올린다
-        ...(game.s.level >= W.LEVEL_MAX || game.enlLevel(sk.id) ? [h('div', { class: 'enl-row' },
-          h('small', {}, `깨달음 ${game.enlLevel(sk.id)}/${W.ENL_MAX} · 피해 +${pct(game.enlLevel(sk.id) * W.ENL_STEP.dmg, 0)} · 숨 -${pct(game.enlLevel(sk.id) * W.ENL_STEP.cd, 0)}`),
-          h('button', { class: 'buy', disabled: game.canEnlUp(sk.id) ? null : true, onclick: () => { if (game.enlUp(sk.id)) { app.save(); skSig = ''; upd(); } } }, `깨달음 +1 · ${W.enlCost(game.enlLevel(sk.id))}점`))] : []));
+        } }, max ? '최대' : `+1 · ${W.skillLvCost(lv)}점`)));
     }
     // v263 각성 — 레벨 55부터 1~3차 무공 하나에 변형 하나
     if (game.s.level >= W.AWAKEN_LV) {
@@ -359,7 +355,11 @@ function charTab(app) {
       }
       skillCard.append(card);
     }
-    if (game.s.level >= W.LEVEL_MAX) skillCard.append(h('p', { class: 'muted' }, `깨달음 점수 ${fmt(game.s.enl?.pts || 0)} · 다음까지 ${Math.min(99, Math.floor((game.s.enl?.exp || 0) / W.enlExp() * 100))}% — 만렙 뒤 경험치가 깨달음이 돼요`));
+    // v472 깨달음 하나 — 만렙 뒤 경험치로 저절로 · 모든 무공에(전엔 무공마다 점수를 찍었다)
+    if (game.s.level >= W.LEVEL_MAX || game.enlLevel()) { const el = game.enlLevel(), need = W.enlNeed(el);
+      skillCard.append(h('div', { class: 'enl-row', id: 'enl-row' },
+        h('small', {}, `깨달음 ${el}/${W.ENL_MAX} — 모든 무공 피해 +${pct(el * W.ENL_STEP.dmg, 0)} · 숨 -${pct(el * W.ENL_STEP.cd, 0)}`),
+        h('small', { class: 'muted' }, el >= W.ENL_MAX ? '끝' : `다음까지 ${Math.min(99, Math.floor((game.s.enl?.exp || 0) / need * 100))}% · 만렙 뒤 경험치로 저절로`))); }
   }
   // v311 각성 묻기 — 무엇이 되는지 · 드는 것 · 바뀌는 것을 보여 주고 붙인다
   function askAwaken(sl, sk, k, curK) {
@@ -547,7 +547,7 @@ function charTab(app) {
         next = s.level < t.level ? `${W.lvText(t.level)}에 ${W.tierLabel(n)}` : t.need && !s.duel?.won?.[t.need] ? `${nm} 쓰러뜨리기(5차)` : `${W.tierLabel(n)} 은자 ${fmt(t.cost)} 모으기`;
         go = t.need && s.level >= t.level ? ['map', 'masters'] : ['map'];
       } else if (s.level < W.LEVEL_MAX) { next = `${W.lvText(W.LEVEL_MAX)}까지 수련`; go = ['map']; }
-      else { next = '깨달음 — 무공마다 단계'; go = ['char', 'skill']; hot = (s.enl?.pts || 0) > 0; }
+      else { next = `깨달음 ${s.enl?.lv || 0}/${W.ENL_MAX} — 만렙 뒤 경험치로 저절로`; go = ['char', 'skill']; }   // v472
       const auto = [s.autoStat ? '능력치' : null].filter(Boolean);   // v459 무공 점수 자동은 없앴다
       row('武', `무인 · ${W.lvShort(s.level)} ${game.tierName()}`, `바탕 전투력 ${fmt(Math.round(pb.base))} · ${W.realmName(game.realmNow())} · 레벨·전직·내공·경지·능력치·무공${auto.length ? ` · 자동: ${auto.join('·')}` : ''}`, next, go, hot); }
     // ② 장비 — 강화·등급 각인·계열·세트·현철 단련

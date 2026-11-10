@@ -1848,7 +1848,7 @@ function handleEvents() {
         break;   // v436 이 break가 주석 안에 들어가 있어 비급 조각을 주울 때마다 아래 단련 알림(「단련 undefined단계 · +NaN%」)으로 흘러내렸다
       // v263: 깨달음 점수
       case 'temper': toast(`🔨 단련 ${ev.lv}단계${ev.n > 1 ? ` (+${ev.n})` : ''} — 공격력·체력 +${(ev.lv * W.TEMPER_STEP * 100).toFixed(1)}%`); break;
-      case 'enlight': toast(`깨달음 +${ev.got} — 무공 창에서 올려요 (가진 것 ${ev.pts})`); break;
+      case 'enlight': toast(`깨달음 ${ev.lv}단계 — 모든 무공 피해 +${Math.round(ev.lv * W.ENL_STEP.dmg * 100)}% · 숨 -${Math.round(ev.lv * W.ENL_STEP.cd * 100)}%`); break;   // v472
       // v262: 비무 별
       case 'duelStar':
         toast(`★ ${ev.title} ${ev.name} — ${[ev.fast ? '빠르게 이김' : '', ev.clean ? '초식에 안 맞고 이김' : ''].filter(Boolean).join(' · ')} · 영구 덤이 늘었어요`);
