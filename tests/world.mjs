@@ -5128,5 +5128,20 @@ console.log('\n=== v473 검은 화면 막이 ===');
   ok(/if \(loopErr === 1\) bugNote/.test(mn), '그리기 오류는 처음 한 번 저절로 보고');
   ok(/'확인'\)\)\]\.filter\(Boolean\)\);/.test(mn), '받았어요 창에 null 글자가 찍히지 않는다');
 }
+console.log('\n=== v474 화무기 방 문턱 뒤 세이브 — 검은 화면 ===');
+{
+  const MSx = await import('../js/world/wmaster.js');
+  const room = W.mapId(W.masterZoneOf('hwamugi'), W.BOSS_AREA);
+  const mk = (won) => { const raw = newWorldSave(0); raw.job = 'fan'; raw.level = 143; raw.map = room; raw.duel = { won: won ? { hwamugi: 1 } : {}, stars: {} }; return new WorldGame(migrateWorld(JSON.parse(JSON.stringify(raw)), Date.now()), Date.now()); };
+  const a = mk(false);
+  ok(a.s.map !== room && Number.isFinite(a.heroX) && Number.isFinite(a.heroY) && a.map && !a.map.bossRoom, 'Lv143 · 화무기를 안 이긴 무인이 그 방에 저장돼 있으면 알맞은 사냥터로(전엔 어디에도 안 서서 좌표가 NaN — 그림이 매번 멈춤)', `${a.s.map} · ${a.heroX},${a.heroY}`);
+  const b = mk(true);
+  ok(b.s.map === room && Number.isFinite(b.heroX) && b.canEnter(room), 'v467 전에 이미 화무기를 이긴 무인은 문턱에 안 막힌다(각성 화무기도 이 방)');
+  const c = mk(false);
+  ok(!c.canEnter(room) && MSx.masterOf('hwamugi').needLv === 150, '처음 가는 무인은 그대로 Lv150부터');
+  const raw = newWorldSave(0); raw.job = 'sword'; raw.map = 99999;
+  const d = new WorldGame(migrateWorld(JSON.parse(JSON.stringify(raw)), Date.now()), Date.now());
+  ok(Number.isFinite(d.heroX) && Number.isFinite(d.heroY), '없는 맵에 저장돼 있어도 무인이 어딘가에 선다');
+}
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);

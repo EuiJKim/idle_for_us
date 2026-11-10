@@ -457,7 +457,9 @@ export class WorldGame {
     this.ledger = [];
     this._stats = null;
     this.growInit();
-    this.enterMap(this.s.map, true);
+    // v473 세이브의 자리에 못 들어가면(새로 생긴 문턱 등) 알맞은 사냥터 → 처음 자리로. 전엔 어디에도 서지 않아
+    //   무인 좌표가 비어(NaN) 사냥터 그림이 매 프레임 멈췄다(모바일 검은 화면 — 화무기 방 Lv150 문턱 뒤 Lv143 세이브)
+    if (!this.enterMap(this.s.map, true) && !this.enterMap(this.safeMap(), true)) this.enterMap(W.MAPS.find((m) => !m.town && !m.bossRoom && this.canEnter(m.id))?.id ?? 1, true);
     this.heroHp = this.stats().hp;
   }
 
@@ -816,7 +818,7 @@ export class WorldGame {
     // v238: 히든 두목(마귀)은 화무기를 쓰러뜨려야 길이 열린다
     const mm = W.mapOf(id).master ? MS.masterOf(W.mapOf(id).master) : null;
     if (mm?.hidden && !this.s.duel?.won?.hwamugi) return false;
-    if (mm?.needLv && (this.s.level || 1) < mm.needLv) return false;   // v467 화무기·마귀는 만렙부터(하루 만에 잡히던 것)
+    if (mm?.needLv && (this.s.level || 1) < mm.needLv && !this.s.duel?.won?.[mm.id]) return false;   // v467 화무기·마귀는 만렙부터(하루 만에 잡히던 것) · v473 그 전에 이미 이긴 무인은 그대로(각성 두목도 이 방)
     return true;
   }
   // 몹 레벨이 내 레벨보다 이만큼 위면 위험 (0 이하면 안전)
