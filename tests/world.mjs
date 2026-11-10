@@ -5121,5 +5121,12 @@ console.log('\n=== v472 「빼기」 다섯째 판 — 깨달음 하나(저절�
   ok(m.enl.lv === 5 && !('nodes' in m.enl) && !('pts' in m.enl) && m2.enl.lv === 5 && m2.enl.exp === m.enl.exp, '불러오면 하나로 · 다시 불러와도 같다', JSON.stringify(m.enl));
   ok(!/enlUp|canEnlUp/.test(read('js/wui.js') + read('js/world/wgame.js')) && /id: 'enl-row'/.test(read('js/wui.js')), '화면: 무공마다 깨달음 단추가 없고 한 줄');
 }
+console.log('\n=== v473 검은 화면 막이 ===');
+{
+  const html = read('index.html'), mn = read('js/wmain.js');
+  ok(/__bootFail/.test(html) && /__bootFresh/.test(html) && /caches\.delete/.test(html) && /unregister\(\)/.test(html) && html.indexOf('__bootFail') < html.indexOf('js/wmain.js'), '불러오다 멈추면 까닭과 「새로 받기」(캐시·서비스 워커 비우고 다시) — 모듈보다 먼저');
+  ok(/if \(loopErr === 1\) bugNote/.test(mn), '그리기 오류는 처음 한 번 저절로 보고');
+  ok(/'확인'\)\)\]\.filter\(Boolean\)\);/.test(mn), '받았어요 창에 null 글자가 찍히지 않는다');
+}
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);

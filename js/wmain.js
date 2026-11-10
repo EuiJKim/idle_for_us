@@ -2341,12 +2341,12 @@ function showOfflineResult(s, rw, b, a, auto) {
   if (wc) todo.push(h('button', { class: 'btn', onclick: () => { closeModal(); showTab('dgn'); } }, `🎁 칠대성 보상 ${wc}`));
   const tip = game.upgradeTip?.();
   if (tip) todo.push(h('button', { class: 'btn', onclick: () => { closeModal(); showTab('bag', 'gear'); } }, `💡 ${tip.name} +${(tip.gain * 100).toFixed(1)}%`));
-  s.replaceChildren(
+  s.replaceChildren(...[
     h('h2', {}, '✨ 받았어요'),
     h('div', { class: 'ofr' }, ...rows),
     potLow ? h('p', { class: 'muted', style: 'color:#fca5a5' }, rw.stoppedByPotion ? '물약이 떨어져 방치가 일찍 멈췄어요 — 채워 두면 다음엔 끝까지 사냥해요.' : '물약이 다음 방치에 모자랄 수 있어요.') : null,
     todo.length ? h('div', { class: 'ofr-todo' }, h('small', { class: 'muted' }, '이어서 하면 좋은 것'), h('div', { class: 'btn-row' }, ...todo)) : null,
-    h('div', { class: 'btn-row' }, h('button', { class: 'btn primary', id: 'ofr-ok', style: 'flex:1', onclick: closeModal }, '확인')));
+    h('div', { class: 'btn-row' }, h('button', { class: 'btn primary', id: 'ofr-ok', style: 'flex:1', onclick: closeModal }, '확인'))].filter(Boolean));   // v473 replaceChildren은 null을 'null' 글자로 찍는다
 }
 
 // ---------- 앱처럼 (v159): 설치 · 전체 화면 · 절전 ----------
@@ -3111,6 +3111,9 @@ function frame(now) {
   if (!saver.on && !hunt && (perf.cap30 || modalOpen()) && perf.odd) { requestAnimationFrame(frame); return; }
   try { step(now ?? performance.now()); } catch (e) {
     if (loopErr++ < 5) console.error('[프레임]', e);
+    // v473 그리기가 매번 멈추면 화면이 검게 남는다 — 처음 한 번은 저절로 보고하고, 계속되면 화면에 한 번 알린다
+    if (loopErr === 1) bugNote(`[프레임] ${e?.message || e}`, e?.stack);
+    if (loopErr === 60) toast(`화면을 그리다 멈췄어요(${String(e?.message || e).slice(0, 60)}) — 설정 › 🐞 버그 신고로 알려 주세요`);
     // 그리다 멈추면 캔버스 상태(변환·투명도·합성)가 어긋난 채로 남아 다음 프레임부터 화면이 깨진다 — 되돌린다
     try { view.ctx.reset?.(); view.ctx.globalAlpha = 1; view.ctx.globalCompositeOperation = 'source-over'; view.ctx.shadowBlur = 0; view.applyZoom(); } catch { /* 무시 */ }
   }

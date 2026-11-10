@@ -150,11 +150,31 @@
         if (f && !window.__bootTaken) f.style.width = (8 + 30 * k) + '%';
         if (Date.now() - t0 > 20000 && !window.__bootTaken) {
           clearInterval(window.__bootCreep);
-          var m = document.getElementById('boot-msg');
-          if (m) m.innerHTML = '불러오는 데 오래 걸려요 — <a href="" style="color:#e8c87a">다시 열기</a>';
+          window.__bootFail('불러오는 데 오래 걸려요');
         }
       }, 120);
     })();
+    // v473 불러오다 멈추면(옛 파일과 새 파일이 섞이거나 오류) 검은 화면 대신 까닭과 「새로 받기」 — 캐시·서비스 워커를 비우고 다시 연다
+    window.__bootFresh = function () {
+      var go = function () { location.replace(location.pathname + '?fresh=' + Date.now()); };
+      try {
+        var jobs = [];
+        if (window.caches) jobs.push(caches.keys().then(function (ks) { return Promise.all(ks.map(function (k) { return caches.delete(k); })); }));
+        if (navigator.serviceWorker) jobs.push(navigator.serviceWorker.getRegistrations().then(function (rs) { return Promise.all(rs.map(function (r) { return r.unregister(); })); }));
+        Promise.all(jobs).then(go, go);
+      } catch (e) { go(); }
+    };
+    window.__bootFail = function (why) {
+      var b = document.getElementById('boot'), m = document.getElementById('boot-msg');
+      if (!b || !m || /\bout\b/.test(b.className)) return;
+      m.innerHTML = '';
+      m.appendChild(document.createTextNode(why + ' — '));
+      var a = document.createElement('a'); a.href = 'javascript:void 0'; a.style.color = '#e8c87a'; a.textContent = '새로 받기';
+      a.onclick = function () { window.__bootFresh(); };
+      m.appendChild(a);
+    };
+    window.addEventListener('error', function (e) { var t = (e && (e.message || (e.error && e.error.message))) || ''; if (t && !/ResizeObserver|Script error/i.test(t)) window.__bootFail('불러오다 멈췄어요(' + String(t).slice(0, 80) + ')'); });
+    window.addEventListener('unhandledrejection', function (e) { var r = e && e.reason; var t = (r && r.message) || String(r || ''); if (t && !/firebase|Failed to fetch|NetworkError|Load failed/i.test(t)) window.__bootFail('불러오다 멈췄어요(' + t.slice(0, 80) + ')'); });
   </script>
 
   <div id="modal" class="hidden"><div class="sheet"></div></div>
