@@ -48,8 +48,10 @@ export const expToNext = (L) => Math.round(expBase(L) * expSlow(L));   // v110: 
 //   v457 영약·운기조식으로 내공을 따로 쌓으면 그 경지의 극의까지 먼저 닿는다(다음 경지는 레벨이 차야)
 export const QI_PER_EXP = 0.1;
 export const QI_BASE = 1000;
-export const QI_BODY_K = 0.05;
-export const REALM_SKILL = 1 / 32;
+// v469 내공 몫 줄이기 — 0.05 → 0.03(쓰는 내공 10배마다 +3% · Lv150 +41% → +25%) · 경지 1/32 → 1/64(단계마다 +1.6% · 생사경 극의 +97% → +48%).
+//   몹·던전·두목의 기준 무인(QI_REF)도 같은 식이라 보통 무인은 그대로 — 영약으로 앞선 몫(기준보다 피해 +7~12%)이 절반쯤으로
+export const QI_BODY_K = 0.03;
+export const REALM_SKILL = 1 / 64;
 export const REALMS = ['삼류', '이류', '일류', '절정', '초절정', '화경', '현경', '생사경'];
 export const REALM_HANJA = ['三流', '二流', '一流', '絶頂', '超絶頂', '化境', '玄境', '生死境'];
 export const REALM_SUBS = ['초입', '중입', '상입', '극의'];

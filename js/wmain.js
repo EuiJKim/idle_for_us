@@ -1238,7 +1238,7 @@ function refreshUI(full = false) {
     ew._to = gap.to;
   } else if (chk > 1.001) {
     setText(ew, `⚔ 도전 경험치 +${Math.round((chk - 1) * 100)}%`);
-    ew.title = '나보다 높은 몹 — 레벨 차 1마다 경험치 +5%(네 배까지). 몹도 그만큼 세요';
+    ew.title = `나보다 높은 몹 — 레벨 차 1마다 경험치 +${Math.round(W.CHALLENGE_K * 100)}%(${W.CHALLENGE_MAX}배까지). 몹도 그만큼 세요`;   // v469 v464(두 배)에 맞춤
     ew._to = null;
   }
   bossWaitHud();

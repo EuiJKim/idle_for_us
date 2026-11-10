@@ -4641,7 +4641,7 @@ console.log('\n=== v456 내공 · 경지 — 내공은 공격력·체력 · 경�
   ok(Math.abs(W.realmEff(0) - 1) < 1e-9 && Math.abs(W.realmEff(16) - 10) < 1e-9 && W.realmEff(31) > 86 && W.realmEff(31) < 87, '효율 — 삼류 초입 ×1 · 초절정 초입 ×10 · 생사경 극의 ×86.6');
   ok(1e6 * W.realmEff(0) === 1e6 && Math.round(1e6 * W.realmEff(16)) === 1e7, '내공 100만 — 삼류 초입은 100만, 초절정 초입은 1000만을 쓴다');
   ok(W.REALM_LV.every((l, i) => i === 0 || l > W.REALM_LV[i - 1]) && [[4, 1], [8, 2], [16, 3], [20, 4], [28, 5]].every(([i, t]) => W.realmLv(i) === W.TIERS[t].level), '큰 경지는 전직 레벨에 열린다(이류 10 · 일류 30 · 초절정 70 · 화경 99 · 생사경 130)', W.REALM_LV.join(','));
-  ok(Math.abs(W.realmSkill(16) - 0.5) < 1e-9 && Math.abs(W.realmSkill(31) - 31 / 32) < 1e-9 && W.realmSkill(0) === 0, '경지 → 무공 피해: 단계마다 +3.1% · 초절정 초입 +50% · 생사경 극의 +97%');
+  ok(Math.abs(W.realmSkill(16) - 16 * W.REALM_SKILL) < 1e-9 && Math.abs(W.realmSkill(31) - 31 / 64) < 1e-9 && W.realmSkill(0) === 0 && W.REALM_SKILL === 1 / 64, '경지 → 무공 피해: 단계마다 +1.6% · 초절정 초입 +25% · 생사경 극의 +48% (v469 — 전엔 +3.1%)');
   ok(W.realmOf(10, 1e12) === 7 && W.realmOf(29, 1e12) === 7 && W.realmOf(30, 1e12) === 11 && W.realmOf(150, 0) === 0 && W.realmOf(70, W.qiFloor(70)) === 16, '소단계는 내공만 차면 · 큰 경지는 레벨까지 차야(v457 — 내공이 넘쳐도 그 경지의 극의까지)');
   // 쌓기 · 돌파 알림
   const g = fresh(); const ups = [];
@@ -4659,12 +4659,12 @@ console.log('\n=== v456 내공 · 경지 — 내공은 공격력·체력 · 경�
     '내공이 늘면 공격력·체력이 같이 · 경지가 그대로면 무공 피해도 그대로', `×${(st10.atk / st.atk).toFixed(4)}`);
   a.s.qi = qi; a._stats = null;
   const sm = a.stats().realmDmg;
-  ok(Math.abs(sm - 1.5) < 1e-9, '경지가 무공 피해를 곱한다(초절정 초입 ×1.5)', `${sm.toFixed(3)}`);
+  ok(Math.abs(sm - (1 + 16 * W.REALM_SKILL)) < 1e-9, '경지가 무공 피해를 곱한다(초절정 초입 ×1.25)', `${sm.toFixed(3)}`);
   { const k = fresh(); while (k.s.level < 70) k.addExp(W.expToNext(k.s.level)); k.rng = () => 0.5; k.enterMap(W.mapId(7, 2)); const m = k.mons.find((x) => x.alive && !x.npc); m.hp = m.maxHp = 1e15; m.armor = 0; const st0 = k.stats();
     const h0 = m.hp; k.strike(m, st0, 1, 'hit'); const d1 = h0 - m.hp; k.realmSkillMul = () => 1; k._stats = null; const h1 = m.hp; k.strike(m, k.stats(), 1, 'hit'); const d0 = h1 - m.hp; delete k.realmSkillMul; k._stats = null;
-    ok(Math.abs(d1 / d0 - 1.5) < 2e-3, '평타도 무공 — 내공을 실어 치는 수 모두에 경지 덤', `${(d1 / d0).toFixed(3)}`); }
+    ok(Math.abs(d1 / d0 - (1 + 16 * W.REALM_SKILL)) < 2e-3, '평타도 무공 — 내공을 실어 치는 수 모두에 경지 덤', `${(d1 / d0).toFixed(3)}`); }
   // 기준 무인 — 보통으로 큰 무인은 몹·던전·두목이 전과 같게
-  ok(Math.abs(W.qiRefHpK(70) - (1 + W.qiBody(W.qiFloor(70) * 10))) < 1e-9 && Math.abs(W.qiRefDpsK(70) - W.qiRefHpK(70) * 1.5) < 1e-9, '기준 무인의 몫 — 체력 ×(1+내공) · 화력 ×(1+내공)×(1+경지)');
+  ok(Math.abs(W.qiRefHpK(70) - (1 + W.qiBody(W.qiFloor(70) * 10))) < 1e-9 && Math.abs(W.qiRefDpsK(70) - W.qiRefHpK(70) * (1 + 16 * W.REALM_SKILL)) < 1e-9, '기준 무인의 몫 — 체력 ×(1+내공) · 화력 ×(1+내공)×(1+경지)');
   ok(a.qiMul() >= W.qiRefHpK(70) - 1e-9 && a.qiMul() < W.qiRefHpK(70) * 1.02, '레벨 70까지 사냥해 온 무인 = 기준 무인(+2% 안)', `${a.qiMul().toFixed(3)} / ${W.qiRefHpK(70).toFixed(3)}`);
   ok(Math.abs(DG.refHp(70) - 16647 * W.qiRefHpK(70)) < 1e-6 && Math.abs(DG.refDps(70) - 60044 * W.qiRefDpsK(70)) < 1e-3, '몹·던전 기준(refHp·refDps 표의 Lv70)이 기준 무인 몫만큼 오른다');
   // 옛 세이브 · 레벨을 바로 넣은 무인
@@ -5065,6 +5065,19 @@ console.log('\n=== v468 동료 도감도 명성으로 ===');
   ok(Math.abs(sm.atk - a0) < 1e-6, '힘의 내역에서 도감 몫은 무림(명성) 갈래로 — 동료 갈래는 애완·탈것 그 자체');
   ok(/tile\('동료 도감'/.test(read('js/wui.js')) && /명성 \$\{fmt\(W\.famePts\(pb \+ mb\)\)\}/.test(read('js/wui.js')), '명성 카드에 동료 도감 칸 · 도감 창은 명성으로 적는다');
   ok(g.titleSet().atk === g.titleSet().n * W.TITLE_SET_BONUS, '칭호 모음은 따로 곱하는 덤 그대로(명성으로 옮기면 ±5%에 못 맞췄다)');
+}
+console.log('\n=== v469 내공·경지 몫 줄이기 ===');
+{
+  ok(W.QI_BODY_K === 0.03 && Math.abs(W.qiRefHpK(150) - 1.25) < 0.02 && Math.abs(W.realmSkill(31) - 0.484) < 0.01, '내공 → 공격력·체력 Lv150 +41% → +25% · 경지 → 무공 피해 끝 +97% → +48%', `${W.qiRefHpK(150).toFixed(3)} · ${W.realmSkill(31).toFixed(3)}`);
+  // 영약으로 기준보다 내공이 40배 앞선 무인 — 기준보다 피해가 +7% 안쪽(전엔 +11%)
+  const g = fresh(); while (g.s.level < 106) g.addExp(W.expToNext(g.s.level));
+  g.s.qi = W.qiFloor(106) * 45; g._stats = null;
+  const edge = g.qiMul() * g.realmSkillMul() / W.qiRefDpsK(106);
+  ok(edge > 1.03 && edge < 1.09, '영약으로 내공이 기준의 45배인 무인 — 피해 덤 기준보다 +7% 안팎(전엔 +11%)', edge.toFixed(3));
+  const DG = await import('../js/world/wdgn.js');
+  const hw = new WorldGame(newWorldSave(), Date.now()).hwamugiHp();
+  ok(DG.wraidMaxHp(hw, 'umawang') >= 3e12 && DG.WRAID_HP_K === 330, '칠대성 체력은 서버 규칙(3조) 위 — 내공 몫을 줄여 화무기 기본 체력이 준 만큼 배수 220 → 330', DG.wraidMaxHp(hw, 'umawang').toExponential(2));
+  ok(/CHALLENGE_MAX\}배까지\). 몹도 그만큼 세요/.test(read('js/wmain.js')), '높은 몹 설명이 도전 경험치 두 배(v464)를 따라간다');
 }
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);
