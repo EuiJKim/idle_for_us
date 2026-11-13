@@ -22,7 +22,7 @@ service cloud.firestore {
     // v309 규칙 판 표 — 앱이 rulesv/{판}을 읽어 본다. 지금 판만 읽히고 옛 판은 거부된다(없는 문서라 읽혀도 비어 있다).
     //   규칙을 고치면 여기 숫자와 js/net.js의 RULES_VER를 같이 올린다 → 게시를 잊으면 운영자에게 '다시 게시' 알림.
     match /rulesv/{v} {
-      allow get: if signedIn() && v == '436';
+      allow get: if signedIn() && v == '476';
     }
 
     // 플레이어 프로필: 누구나 읽기(랭킹·구경), 본인만 쓰기
@@ -148,6 +148,8 @@ service cloud.firestore {
         && request.resource.data.at == request.time
         && (resource == null || (
           request.resource.data.kills >= resource.data.kills
+          // v476 처치 수는 지난번 올린 때부터 흐른 시간만큼만(두목 하나 3초 · 여유 5) — 한 번에 큰 수를 올리지 못하게
+          && request.resource.data.kills <= resource.data.kills + 5 + (request.time.toMillis() - resource.data.at.toMillis()) / 3000
           && (!('hwamugi' in resource.data) || request.resource.data.hwamugi <= resource.data.hwamugi)
           && (!('magwi' in resource.data) || request.resource.data.magwi <= resource.data.magwi)
           && (!('awk' in resource.data) || request.resource.data.awk <= resource.data.awk)));
@@ -304,6 +306,11 @@ service cloud.firestore {
           || get(/databases/$(database)/documents/mutes/$(request.auth.uid)).data.until < request.time);
       allow update: if false;
       allow delete: if isAdmin();
+    }
+
+    // v476 서열 점검 결과 — 서버 점검(tools/rankcheck.mjs, 서비스 계정)이 적고 운영자만 읽고 고친다(되살리기 = ok)
+    match /flags/{uid} {
+      allow read, write: if isAdmin();
     }
 
     match /config/{doc} {

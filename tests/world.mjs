@@ -5176,5 +5176,36 @@ console.log('\n=== v475 시계 — 서버 시각 · 날짜는 앞으로만 · �
   ok(/ifu\.clockRep/.test(wm) && /kind: 'auto', text: `\[시계\]/.test(wm), 'wmain: 시계 차이는 하루 한 번 자동 기록(막지 않는다)');
   ok(/'js\/clock\.js'/.test(read('sw.js')), 'sw: clock.js를 미리 받아 둔다');
 }
+console.log('\n=== v476 서열 점검(서버) — 기준표 · 엔진으로 다시 세기 · 이어짐 ===');
+{
+  const K = await import('../tools/rankrules.mjs');
+  const { make } = await import('../tools/mobsim.mjs');
+  const ref = (L) => make(L).stats().power;
+  // 정직한 무인: 기준 무인 그대로(같은 레벨) · 오래된 계정 · 세이브와 같은 값
+  const g = make(80); const st = g.stats();
+  const honest = { level: 80, power: st.power };
+  ok(K.judgePlayer({ p: honest, ageH: 200, ref: ref(80), save: { lv: 80, power: st.power, at: 1000 }, profAt: 1000 }).length === 0, '기준 무인은 걸리지 않는다');
+  // 옛 판에 하루 만에 Lv140 — 넉넉히 둔다
+  ok(K.judgePlayer({ p: { level: 140, power: ref(140) * 2.3 }, ageH: 23, ref: ref(140) }).length === 0, '옛 판 빠른 성장(하루 Lv140 · 신화 동료 2.3배)도 걸리지 않는다');
+  ok(K.judgePlayer({ p: { level: 130, power: 1 }, ageH: 2 }).some((w) => w.startsWith('age')), '두 시간 된 계정이 Lv130이면 걸린다');
+  ok(K.judgePlayer({ p: { level: W.LEVEL_MAX + 1, power: 1 }, ageH: 9999, lvMax: W.LEVEL_MAX }).some((w) => w.startsWith('lv>max')), '만렙을 넘으면 걸린다');
+  ok(/Math\.min\(W\.LEVEL_MAX/.test(read('tools/rankcheck.mjs')), '점검기: 기준 무인은 만렙까지만 만든다(넘으면 끝없이 돈다)');
+  ok(K.judgePlayer({ p: { level: 80, power: ref(80) * 20 }, ageH: 500, ref: ref(80) }).some((w) => w.startsWith('power')), '같은 레벨 기준의 20배 전투력이면 걸린다');
+  ok(K.judgePlayer({ p: { level: 90, power: st.power }, ageH: 500, save: { lv: 80, power: st.power, at: 0 }, profAt: 60e3 }).some((w) => w.startsWith('save-lv')), '서버 세이브보다 레벨이 크게 높으면 걸린다');
+  ok(K.judgePlayer({ p: { level: 90, power: st.power }, ageH: 500, save: { lv: 80, power: st.power, at: 0 }, profAt: 3 * 3600e3 }).length === 0, '세이브가 오래됐으면(30분 넘게 차이) 견주지 않는다');
+  ok(K.judgeWeekBoss({ r: { kills: 5000 }, weekSec: 3600 }).length > 0 && K.judgeWeekBoss({ r: { kills: 40, hwamugi: 30 }, weekSec: 3600 }).length === 0, '주간 두목: 한 시간에 5000마리는 걸리고 40마리는 괜찮다');
+  ok(K.WB_MIN_SEC === W.WBOSS_MIN_SEC, '주간 두목 가장 짧은 초가 게임과 같다');
+  // 서버가 세이브 글자로 엔진을 돌려 다시 센다 — 지금 세이브가 그대로 돌아야 한다
+  const json = JSON.stringify(g.toJSON());
+  const g2 = new WorldGame(migrateWorld(JSON.parse(json)));
+  ok(g2.s.level === 80 && Math.abs(g2.stats().power - st.power) / st.power < 0.05, '세이브 글자로 다시 센 레벨·전투력이 같다', `${g2.stats().power} vs ${st.power}`);
+  // 이어짐
+  const rc = read('tools/rankcheck.mjs'), wf = read('.github/workflows/rank-check.yml'), rules = read('firestore.rules');
+  ok(/process\.env\.REPO/.test(rc) && !/console\.log\([^)]*(nickname|uid\b|why)/.test(rc), '점검기: 저장소 경로로 엔진을 부르고 로그에 별호·계정·까닭을 찍지 않는다');
+  ok(/schedule:/.test(wf) && /FIREBASE_SERVICE_ACCOUNT/.test(wf) && /REPO: \$\{\{ github\.workspace \}\}/.test(wf), '작업: 여섯 시간마다 · 서비스 계정 · 저장소 경로');
+  ok(/match \/flags\/\{uid\} \{\s*allow read, write: if isAdmin\(\);/.test(rules) && /resource\.data\.kills \+ 5 \+/.test(rules), '규칙: 점검 결과는 운영자만 · 주간 두목 처치 수 상한');
+  ok(/flags', uid\), \{ ok: true \}/.test(read('js/net.js')), '되살리면 점검이 다시 숨기지 않는다');
+  ok(!/\/home\/user/.test(read('tools/mobsim.mjs')), '기준 무인 만드는 곳이 고정 경로를 쓰지 않는다(서버에서 돈다)');
+}
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);

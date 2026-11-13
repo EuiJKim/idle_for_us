@@ -1,5 +1,5 @@
 // 레벨별 기준 무인(그 레벨 사다리 레어 +6 여섯 칸, 99부터 세트) — 체력·공격·초당 피해와 사냥터 생존
-const root = '/home/user/idle_for_us';
+const root = new URL('..', import.meta.url).href.replace(/\/$/, '');   // 저장소 뿌리(v476 어디서 돌려도)
 const { WorldGame, newWorldSave } = await import(`${root}/js/world/wgame.js`);
 const W = await import(`${root}/js/world/wdata.js`);
 const D = await import(`${root}/js/world/wdgn.js`);

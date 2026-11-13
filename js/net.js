@@ -3,7 +3,7 @@
 import { firebaseConfig, FIREBASE_SDK_VERSION, ADMIN_UID } from './firebase-config.js';
 import * as CLK from './clock.js';   // v475 서버 시각
 // v309 이 앱이 바라는 규칙 판 — firestore.rules의 rulesv 숫자와 같아야 한다(규칙을 고치면 둘 다 올린다)
-export const RULES_VER = '436';   // v436 버그 신고(bugs) · 그 앞 v421~v432 규칙도 이 판에 든다
+export const RULES_VER = '476';   // v476 서열 점검(flags) · 주간 두목 처치 수 상한 · v436 버그 신고(bugs) · 그 앞 v421~v432 규칙도 이 판에 든다
 export const WORLD_MAX = 100;   // v315 전체 채팅 한 마디 길이
 import { big } from './big.js';
 import { Big } from './big.js';
@@ -307,11 +307,23 @@ export class Net {
     } catch (err) { if (!this.denied(err, '숨김 목록(config/hidden)')) console.warn('[net] hidden', err); }
   }
   isHidden(uid) { return this.hidden.includes(uid); }
+  // v476 서열 점검이 숨긴 까닭(운영자만) — { uid: { why[], ok } }
+  async loadFlags() {
+    if (!this.isAdmin()) return {};
+    try {
+      const snap = await this.fs.getDocs(this.fs.collection(this.db, 'flags'));
+      const out = {};
+      snap.forEach((d) => { out[d.id] = d.data(); });
+      return out;
+    } catch (err) { console.warn('[net] flags', err); return {}; }
+  }
   async setHidden(uid, on) {
     if (!this.isAdmin() || !uid) return false;
     try {
       const { setDoc, arrayUnion, arrayRemove } = this.fs;
       await setDoc(this.ref('config', 'hidden'), { uids: on ? arrayUnion(uid) : arrayRemove(uid) }, { merge: true });
+      // v476 되살리면 서열 점검이 다시 숨기지 않게(점검에 걸린 적 없는 계정도 적어 두면 된다)
+      if (!on) await setDoc(this.ref('flags', uid), { ok: true }, { merge: true }).catch((err) => console.warn('[net] flag ok', err));
       this.hidden = on ? [...new Set([...this.hidden, uid])] : this.hidden.filter((u) => u !== uid);
       return true;
     } catch (err) { console.warn('[net] setHidden', err); return false; }

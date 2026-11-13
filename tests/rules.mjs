@@ -141,11 +141,13 @@ const profile = (extra = {}) => ({ world: 1, nickname: '무인', level: 10, job:
     ok(await allowed(F.setDoc(mineRef, wb({ hwamugi: 95.3, title: 'founder' }), { merge: true })), '내 주간 기록 올리기');
     ok(await allowed(F.setDoc(mineRef, wb({ kills: 9, hwamugi: 80.1 }), { merge: true })), '더 많이 · 더 빨리는 된다');
     ok(await denied(F.setDoc(mineRef, wb({ kills: 3 }), { merge: true })), '처치 수를 줄이면 거부');
-    ok(await denied(F.setDoc(mineRef, wb({ kills: 9, hwamugi: 120 }), { merge: true })), '최단 기록을 늘리면 거부');
-    ok(await denied(F.setDoc(mineRef, wb({ kills: 9, magwi: 1 }), { merge: true })), '3초보다 짧은 기록 거부');
+    ok(await denied(F.setDoc(mineRef, wb({ kills: 500 }), { merge: true })), 'v476 흐른 시간보다 많은 처치 수를 한 번에 올리면 거부');
+    ok(await allowed(F.setDoc(mineRef, wb({ kills: 12 }), { merge: true })), 'v476 조금씩 늘리는 건 된다');
+    ok(await denied(F.setDoc(mineRef, wb({ kills: 12, hwamugi: 120 }), { merge: true })), '최단 기록을 늘리면 거부');
+    ok(await denied(F.setDoc(mineRef, wb({ kills: 12, magwi: 1 }), { merge: true })), '3초보다 짧은 기록 거부');
     ok(await denied(F.setDoc(mineRef, wb({ kills: 200000 }), { merge: true })), '말이 안 되는 처치 수 거부');
-    ok(await denied(F.setDoc(mineRef, wb({ kills: 9, extra: 1 }), { merge: true })), '다른 칸 거부');
-    ok(await denied(F.setDoc(mineRef, wb({ kills: 9, at: new Date(0) }), { merge: true })), '시각을 꾸미면 거부');
+    ok(await denied(F.setDoc(mineRef, wb({ kills: 12, extra: 1 }), { merge: true })), '다른 칸 거부');
+    ok(await denied(F.setDoc(mineRef, wb({ kills: 12, at: new Date(0) }), { merge: true })), '시각을 꾸미면 거부');
     ok(await denied(F.setDoc(bad.ref('wboss', WK, 'p', friend.uid), wb({ kills: 99 }), { merge: true })), '남의 기록 거부');
     ok(await denied(F.setDoc(bad.ref('wboss', '2026-11', 'p', bad.uid), wb(), { merge: true })), '이상한 주 열쇠 거부');
     ok(await allowed(F.getDocs(F.query(F.collection(bad.db, 'wboss', WK, 'p'), F.orderBy('kills', 'desc'), F.limit(20)))), '누구나 순위를 읽는다');
@@ -270,6 +272,10 @@ const profile = (extra = {}) => ({ world: 1, nickname: '무인', level: 10, job:
     ok(await allowed(F.getDoc(boss_.ref('wraid', `${boss}_2`))), '누구나 읽는다');
     ok(await denied(F.deleteDoc(friend.ref('wraid', `${boss}_2`))), '지우기 거부');
   }
+
+  console.log('# 서열 점검 결과 (v476)');
+  ok(await denied(F.getDoc(bad.ref('flags', bad.uid))), '점검 결과는 운영자만 읽는다');
+  ok(await denied(F.setDoc(bad.ref('flags', bad.uid), { ok: true })), '스스로 되살리기 거부');
 
   console.log('# 창고');
   ok(await denied(F.addDoc(F.collection(friend.db, 'guilds', gid, 'stash'), { kind: 'equip', type: 'weapon', grade: 99, uid: friend.uid })), '없는 등급 장비 넣기 거부');

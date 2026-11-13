@@ -1,0 +1,55 @@
+# v476 서열 점검 — 여섯 시간마다(손으로도) 서열 값을 서버 쪽 사실과 견줘 이상한 무인을 서열에서 숨긴다.
+# 무엇을 보는지·어떻게 푸는지는 tools/rankcheck.mjs 머리말. 로그에는 건수만 찍는다(저장소가 공개).
+name: 서열 점검
+
+on:
+  schedule:
+    - cron: '17 */6 * * *'
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: 'yes(숨기기까지) · no(건수만 세기)'
+        default: 'yes'
+      top:
+        description: '전투력 서열 위에서 몇 명(최대 300)'
+        default: '100'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rank-check
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: 비밀 키가 있나
+        id: key
+        env:
+          SA: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          if [ -z "$SA" ]; then echo "has=no" >> "$GITHUB_OUTPUT"; echo "::warning::FIREBASE_SERVICE_ACCOUNT 비밀이 없어 건너뜁니다"; else echo "has=yes" >> "$GITHUB_OUTPUT"; fi
+      - uses: actions/checkout@v4
+        if: steps.key.outputs.has == 'yes'
+      - uses: actions/setup-node@v4
+        if: steps.key.outputs.has == 'yes'
+        with:
+          node-version: 20
+      - name: 서비스 계정으로 로그인
+        if: steps.key.outputs.has == 'yes'
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+      - name: firebase-admin
+        if: steps.key.outputs.has == 'yes'
+        run: mkdir -p /tmp/rc && cd /tmp/rc && npm init -y >/dev/null && npm i firebase-admin@12 --no-audit --no-fund >/dev/null
+      - name: 점검
+        if: steps.key.outputs.has == 'yes'
+        env:
+          REPO: ${{ github.workspace }}
+          APPLY: ${{ inputs.apply || 'yes' }}
+          TOP: ${{ inputs.top || '100' }}
+        run: cp tools/rankcheck.mjs /tmp/rc/rankcheck.mjs && node /tmp/rc/rankcheck.mjs
