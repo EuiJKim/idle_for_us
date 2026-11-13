@@ -405,7 +405,9 @@ export function migrateWorld(raw, now = Date.now()) {
     s.bag = (s.bag || []).map(fixItem).filter(Boolean);
     for (const p of [...(s.pets || []), ...(s.petBox || [])]) { p.lv = Math.floor(num(p.lv, 1, W.PET_LV_MAX, 1)); p.exp = num(p.exp, 0, 1e18, 0); }
     // 시계 — 한 번 미래로 맞춰졌던 기기는 clockMax가 줄지 않아 방치 보상이 영영 0이었다(지금 + 하루까지만)
-    for (const k of ['clockMax', 'lastSeen']) if (s[k] != null) { const v = Number(s[k]); s[k] = Number.isFinite(v) ? Math.min(v, now + 86400e3) : now; }
+    // v475 시각이 서버 기준(js/clock.js)이 되어 기기 시계가 틀려도 미래로 적히지 않는다 — 미래로 적힌 만큼은
+    //   시계를 돌려 미리 받은 몫이라 갚게 둔다(30일까지 · 그보다 먼 값은 이상한 값으로 보고 깎는다)
+    for (const k of ['clockMax', 'lastSeen']) if (s[k] != null) { const v = Number(s[k]); s[k] = Number.isFinite(v) ? Math.min(v, now + 30 * 86400e3) : now; }
   }
   return s;
 }
@@ -1056,7 +1058,7 @@ export class WorldGame {
   // v461 처음 먹는 것만 한 알씩 — 같은 영약은 두 번째부터 ¼이라 남은 것은 연단 재료로 둔다(마교 단약은 마기라 골라서)
   useNewDan() { let q = 0; for (const id of DN.DAN_IDS) if (DN.canEat(id) && !DN.danOf(id).maki && (this.s.dan?.[id] || 0) > 0 && this.danFirst(id)) q += this.useDan(id, 1); return q; }
   // v461 영약 뽑기 — 약초 GACHA_COST개 · 하루 한 번 공짜 · 극품 천장 · 10연엔 중품 이상 하나 · 신품은 없다
-  danGachaFree(now = Date.now()) { return !!this.s.job && this.s.danGacha?.free !== D.kstDay(now); }
+  danGachaFree(now = Date.now()) { return !!this.s.job && D.dayNew(this.s.danGacha?.free, now); }
   canDanGacha(n = 1, free = false) { return !!this.s.job && (free ? this.danGachaFree() : (n === 1 || n === 10) && (this.s.dan?.yakcho || 0) >= DN.GACHA_COST * n); }
   danGacha(n = 1, free = false) {
     if (!this.canDanGacha(n, free)) return null;
@@ -3535,7 +3537,7 @@ export class WorldGame {
   addShards(pet, mount) { if (pet) this.s.petShard = (this.s.petShard || 0) + pet; if (mount) this.s.mountShard = (this.s.mountShard || 0) + mount; }
   // ---------- v362 뽑기 ----------
   gachaRoom(kind) { return kind === 'pet' ? Math.max(0, this.petSlots() - this.s.pets.length) + Math.max(0, W.PET_BOX - this.s.petBox.length) : 999; }
-  freeGacha(kind, now = Date.now()) { return this.s.gacha[kind].free !== W.gachaDay(now); }   // v368 오늘 무료 한 번
+  freeGacha(kind, now = Date.now()) { return D.dayNew(this.s.gacha[kind].free, now); }   // v368 오늘 무료 한 번
   canGacha(kind, n = 1, free = false) {
     if (free) return this.freeGacha(kind) && this.gachaRoom(kind) >= 1;
     const have = kind === 'pet' ? this.s.petShard || 0 : this.s.mountShard || 0;
@@ -4113,7 +4115,7 @@ export class WorldGame {
   }
   // ---------- v320 출석부 ----------
   attNext() { return ((this.s.att?.n || 0) % TD.ATT_DAYS) + 1; }
-  canAttend(now = Date.now()) { return this.s.att?.day !== D.kstDay(now); }
+  canAttend(now = Date.now()) { return D.dayNew(this.s.att?.day, now); }
   attend(now = Date.now()) {
     if (!this.canAttend(now)) return null;
     const day = this.attNext();
@@ -4131,7 +4133,7 @@ export class WorldGame {
   // ---------- v262 오늘의 강호 · 주간 상자 ----------
   todayState(now = Date.now()) {
     const day = D.kstDay(now);
-    if (!this.s.today || this.s.today.day !== day) this.s.today = { day, cnt: {}, claimed: {} };
+    if (!this.s.today || D.dayNew(this.s.today.day, now)) this.s.today = { day, cnt: {}, claimed: {} };
     const wk = TD.weekKey(now);
     if (!this.s.week || this.s.week.key !== wk) this.s.week = { key: wk, pts: 0, opened: false };
     return this.s.today;
@@ -4431,7 +4433,7 @@ export class WorldGame {
     // v432 지난 날로는 되돌아가지 않는다 — 자정 전에 들어간 판이 자정 뒤에 끝나면(I.now가 어제) 오늘 칸을 어제로 되돌렸다가
     //   다음 읽기에서 다시 넘어오며 하루치를 통째로 더 줬다(3번 → 6번). 지난 날 몫은 버리는 칸에 적는다
     if (d.day && day < d.day) return { used: {}, fail: {}, left: {}, keys: {}, extra: {} };
-    if (d.day !== day) {
+    if (D.dayNew(d.day, now)) {
       // v262: 어제 남긴 횟수는 하루만 넘어온다(최대 하루치) — 못 들어온 날의 횟수가 그냥 사라졌다
       const yest = D.kstDay(now - 86400e3);
       const carry = {};
@@ -4881,7 +4883,7 @@ export class WorldGame {
   }
   pvpToday(now = Date.now()) {
     const P = this.s.pvp, d = D.kstDay(now);
-    if (P.day !== d) { P.day = d; P.used = 0; }
+    if (D.dayNew(P.day, now)) { P.day = d; P.used = 0; }
     return P;
   }
   pvpLeft(now = Date.now()) { return Math.max(0, PV.PVP_PER_DAY - this.pvpToday(now).used); }
@@ -5217,14 +5219,14 @@ export class WorldGame {
   raidLeft(now = Date.now()) {
     const r = this.s.raid;
     const cap = D.RAID_PER_DAY + this.raidBonus();
-    return r.day === D.kstDay(now) ? Math.max(0, cap - r.n) : cap;
+    return !D.dayNew(r.day, now) ? Math.max(0, cap - r.n) : cap;
   }
   canRaid(hpLeft, now = Date.now()) { return !this.inst && !!this.s.job && !!this.s.guildId && this.raidLeft(now) > 0 && hpLeft > 0; }
   // o: { key 주 이름, hpLeft 남은 체력, maxHp } — 문파 문서에서
   startRaid(o, now = Date.now()) {
     if (!this.canRaid(o.hpLeft, now)) return false;
     const r = this.s.raid;
-    if (r.day !== D.kstDay(now)) { r.day = D.kstDay(now); r.n = 0; }
+    if (D.dayNew(r.day, now)) { r.day = D.kstDay(now); r.n = 0; }
     r.n++;
     const z = W.mapOf(this.s.huntMap).mz || 1;
     const boss = D.raidBossOf(o.key);
@@ -5235,7 +5237,7 @@ export class WorldGame {
   // ---------- v373 월드보스 ----------
   wraidLeft(now = Date.now()) {
     const r = this.s.wraid;
-    return r.day === D.kstDay(now) ? Math.max(0, D.WRAID_PER_DAY - r.n) : D.WRAID_PER_DAY;
+    return !D.dayNew(r.day, now) ? Math.max(0, D.WRAID_PER_DAY - r.n) : D.WRAID_PER_DAY;
   }
   // v374 언제든 들어간다 — 참여 보상만 하루 WRAID_PAID판 · v375 옥황상제는 대성신장 일곱을 모두 끼면
   canWraid(hpLeft, now = Date.now(), boss = null) {
@@ -5301,7 +5303,7 @@ export class WorldGame {
     this._shHp = null;   // v387 회복 줄이기 기준을 새 판마다
     if (!this.canWraid(o.hpLeft, now, boss.id)) return false;
     const r = this.s.wraid;
-    if (r.day !== D.kstDay(now)) { r.day = D.kstDay(now); r.n = 0; }
+    if (D.dayNew(r.day, now)) { r.day = D.kstDay(now); r.n = 0; }
     r.n = Math.min(999, r.n + 1);
     // v420 이 캐릭터가 친 판 — 보상은 계정(uid) 단위라 다른 캐릭터가 받아 가던 것(저절로 받기 v418)
     r.part = { ...(r.part || {}), [o.id || o.day]: now };

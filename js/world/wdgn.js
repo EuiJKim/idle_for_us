@@ -12,6 +12,11 @@ const mobAtk = (lv) => mobAtk0(lv) * qiRefHpK(lv);
 
 // 한국 시간 하루 — 'YYYY-MM-DD'와 요일(0 일요일)
 export const kstDay = (now = Date.now()) => new Date(now + 9 * 3600e3).toISOString().slice(0, 10);
+// v475 날짜는 앞으로만 넘어간다 — 시계를 미래로 돌려 「내일」 몫을 받은 뒤 되돌리면 「오늘」 몫을 또 받던 것을 막는다.
+//   적어 둔 날짜가 오늘보다 앞이면(또는 비었으면) 새 날. 오늘이거나 그 뒤면 아직 같은 날로 본다.
+//   다만 이레보다 더 먼 미래로 적힌 날짜는 이상한 값으로 보고 새 날로 친다(오래전 시계가 틀렸던 기기가 영영 막히지 않게).
+export const DAY_FUTURE_MAX = 7;
+export const dayNew = (stored, now = Date.now()) => !stored || stored < kstDay(now) || stored > kstDay(now + DAY_FUTURE_MAX * 86400e3);
 export const kstWeekday = (now = Date.now()) => new Date(now + 9 * 3600e3).getUTCDay();
 const DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토'];
 

@@ -4035,7 +4035,7 @@ console.log('\n=== v433 2판 — 온라인·상태 안정 ===');
   ok(m.equip.weapon.rar === W.RARITY.length - 1 && m.equip.weapon.plus === W.ENHANCE_TOP && !('tr' in m.equip.weapon), '장비 등급·강화가 범위 안으로(v471 초월 칸은 지운다)');
   ok(m.bag.length === 1 && m.bag[0].ilv === 1, '가방의 빈 값은 빼고 레벨은 숫자로');
   ok(m.pets[0].lv >= 1 && Number.isFinite(m.pets[0].exp), '애완동물 레벨·경험치가 숫자로');
-  ok(m.clockMax <= Date.now() + 86400e3 + 1000 && m.lastSeen <= Date.now() + 86400e3 + 1000, '미래 시계는 지금 + 하루까지만');
+  ok(m.clockMax <= Date.now() + 30 * 86400e3 + 1000 && m.lastSeen <= Date.now() + 30 * 86400e3 + 1000, '미래 시계는 지금 + 30일까지만(v475 · 미리 받은 몫은 갚게)');
   let opened = true; try { const gg = new WorldGame(m, Date.now()); gg.stats(); } catch { opened = false; }
   ok(opened, '망가진 값이 있어도 캐릭터가 열린다');
   // 회랑 — 판 도중 주가 바뀌면 새 주 기록을 옛 층으로 올리지 않는다
@@ -5142,6 +5142,39 @@ console.log('\n=== v474 화무기 방 문턱 뒤 세이브 — 검은 화면 ===
   const raw = newWorldSave(0); raw.job = 'sword'; raw.map = 99999;
   const d = new WorldGame(migrateWorld(JSON.parse(JSON.stringify(raw)), Date.now()), Date.now());
   ok(Number.isFinite(d.heroX) && Number.isFinite(d.heroY), '없는 맵에 저장돼 있어도 무인이 어딘가에 선다');
+}
+console.log('\n=== v475 시계 — 서버 시각 · 날짜는 앞으로만 · 기록 ===');
+{
+  const T = Date.parse('2026-11-13T03:00:00Z');   // 한국 12:00
+  ok(DG.dayNew('', T) && DG.dayNew('2026-11-12', T) && !DG.dayNew('2026-11-13', T) && !DG.dayNew('2026-11-15', T), '어제면 새 날 · 오늘이나 내일로 적혔으면 아직 같은 날');
+  ok(DG.dayNew('2026-12-30', T), '이레보다 먼 미래로 적힌 날짜는 이상한 값 → 새 날');
+  // 시계를 내일로 돌려 출석하고 되돌리면 오늘은 다시 못 한다
+  const g = new WorldGame(newWorldSave(0));
+  g.s.att = { ...(g.s.att || {}), day: DG.kstDay(T + 86400e3) };
+  ok(!g.canAttend(T) && g.canAttend(T + 2 * 86400e3), '내일 몫을 미리 받은 뒤 되돌려도 오늘 출석은 막힌다 · 모레엔 된다');
+  g.s.raid = { day: DG.kstDay(T + 86400e3), n: 99 };
+  ok(g.raidLeft(T) === 0 || g.raidLeft(T) < 1, '토벌 횟수도 미래 날짜면 비우지 않는다', g.raidLeft(T));
+  // 미래 clockMax(미리 받은 몫)는 30일까지 남아 그만큼 방치가 쌓이지 않는다
+  const raw = { ...newWorldSave(0), clockMax: Date.now() + 20 * 3600e3, lastSeen: Date.now() + 20 * 3600e3 };
+  const m = migrateWorld(JSON.parse(JSON.stringify(raw)));
+  ok(m.clockMax > Date.now() + 19 * 3600e3, '20시간 앞당긴 clockMax는 깎지 않는다(갚게)');
+  // clock.js — Date.now에 서버 차이를 더한다
+  const real = Date.now;
+  globalThis.localStorage ??= { getItem: () => null, setItem: () => {} };
+  const CLK = await import('../js/clock.js?t=' + Math.random());
+  let heard = null; CLK.onClock((o, p, first) => { heard = { o, first }; });
+  const a = CLK.deviceNow(); CLK.setServerOffset(-3600e3);
+  ok(Math.abs(Date.now() - (a - 3600e3)) < 2000 && CLK.clockSource() === 'server' && heard?.first && heard.o === -3600e3, '서버 차이를 받으면 Date.now가 서버 시각 · 알림', JSON.stringify(heard));
+  CLK.setServerOffset(1e15);
+  ok(CLK.clockOffset() === -3600e3, '말도 안 되는 차이(30일 넘음)는 믿지 않는다');
+  CLK.setServerOffset(0);
+  Date.now = real;
+  // 이어짐 — wmain이 맨 먼저 불러오고, net이 연결되면 실시간 DB 서버 시각을 본다 · 하루 한 번 기록
+  const wm = read('js/wmain.js'), nt = read('js/net.js');
+  ok(/^import \* as CLK from '\.\/clock\.js'/m.test(wm) && wm.indexOf("./clock.js") < wm.indexOf("./rendermode.js"), 'wmain: clock.js를 맨 먼저');
+  ok(/\.info\/serverTimeOffset/.test(nt) && /this\.watchClock\(\)/.test(nt), 'net: 연결되면 서버 시각을 본다');
+  ok(/ifu\.clockRep/.test(wm) && /kind: 'auto', text: `\[시계\]/.test(wm), 'wmain: 시계 차이는 하루 한 번 자동 기록(막지 않는다)');
+  ok(/'js\/clock\.js'/.test(read('sw.js')), 'sw: clock.js를 미리 받아 둔다');
 }
 console.log(`\n${fail === 0 ? '전부 통과' : `문제 ${fail}건`}\n`);
 process.exit(fail === 0 ? 0 : 1);

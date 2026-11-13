@@ -1,6 +1,7 @@
 // 바람식 개편 — 시작점. 설계: docs/바람식_개편.md
 //
 // 옛 main.js(관문·수련·무공 여덟 …)를 대신한다. 들판 그림(BattleView)·초식 연출·창틀·서버는 그대로 쓴다.
+import * as CLK from './clock.js';      // v475 맨 먼저 — 세이브를 읽고 방치 보상을 세기 전에 시계를 서버 기준으로
 import * as RM from './rendermode.js';   // 맨 먼저 — 캔버스를 만들기 전에 그리기 방식을 정한다 (v188)
 import { WorldGame, newWorldSave } from './world/wgame.js';
 import { encodeSave, decodeSave } from './savecode.js';   // v324 화면 크기 — 컴퓨터(넓은 화면)에서는 세로 높이에 맞춰 키우고(폰 크기 설계 그대로 확대), 설정의 '글자·화면 크기'를 곱한다
@@ -2239,6 +2240,23 @@ if (game.s.gearNote) {
   delete game.s.gearNote;
   setTimeout(() => toast(`장비 제작이 바뀌었어요: 레벨 99까지는 사다리(고유 옵션), 99부터는 세트·왕의 장신구. 옛 십이지왕 장비 ${n}개를 바꾸고 재료를 돌려드렸어요 — 가방 → 대장장이`), 2500);
 }
+
+// ---------- v475 시계 — 서버 시각이 오면 맞춰 보고, 기기 시계가 크게 다르면 알리고 기록한다 ----------
+// 미래로 적힌 clockMax(시계를 돌려 미리 받은 몫)는 그대로 둬서 그만큼 다음 방치가 쌓이지 않는다 — 여기선 알리기만.
+const CLOCK_WARN = 10 * 60e3, DEBT_WARN = 30 * 60e3;
+const hm = (ms) => { const m = Math.round(Math.abs(ms) / 60e3); return m >= 90 ? `${Math.round(m / 60)}시간` : `${m}분`; };
+CLK.onClock((off) => {
+  const debt = (game.s.clockMax || 0) - Date.now();
+  if (debt > DEBT_WARN) setTimeout(() => toast(`기기 시계가 실제 시각과 ${hm(off)} 달라요 — 방치 보상은 이제 서버 시각으로 세서, 앞서 받은 ${hm(debt)}만큼은 이번엔 쌓이지 않아요`), 1500);
+  if (Math.abs(off) < CLOCK_WARN && debt < DEBT_WARN) return;
+  // L6 기록 — 하루 한 번(차단하지 않는다 · 운영자가 신고함에서 본다)
+  let seen = ''; try { seen = localStorage.getItem('ifu.clockRep') || ''; } catch { /* 없음 */ }
+  const day = D.kstDay();
+  if (seen === day) return;
+  try { localStorage.setItem('ifu.clockRep', day); } catch { /* 이번만 */ }
+  net.bugReport({ ...bugBase(), kind: 'auto', text: `[시계] 기기 시계가 서버보다 ${hm(off)} ${off < 0 ? '빠름' : '느림'}${debt > 0 ? ` · 미리 받은 방치 ${hm(debt)}` : ''}`, save: '', notes: '', errs: '', shot: '' })
+    .catch((err) => console.warn('[clock] report', err?.message || err));
+});
 
 // ---------- 방치 보상 ----------
 function checkReturn(now = Date.now()) {

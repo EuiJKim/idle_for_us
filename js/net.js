@@ -1,6 +1,7 @@
 // Firebase 연동: 익명 로그인, 프로필·서열, 문파·채팅, 문파 토벌.
 // SDK를 동적으로 불러오므로 실패해도 혼자 하기는 그대로 동작한다.
 import { firebaseConfig, FIREBASE_SDK_VERSION, ADMIN_UID } from './firebase-config.js';
+import * as CLK from './clock.js';   // v475 서버 시각
 // v309 이 앱이 바라는 규칙 판 — firestore.rules의 rulesv 숫자와 같아야 한다(규칙을 고치면 둘 다 올린다)
 export const RULES_VER = '436';   // v436 버그 신고(bugs) · 그 앞 v421~v432 규칙도 이 판에 든다
 export const WORLD_MAX = 100;   // v315 전체 채팅 한 마디 길이
@@ -93,6 +94,7 @@ export class Net {
       this.uid = user.uid;
       this.status = 'online';
       this.changed('status');
+      this.watchClock();   // v475 서버 시각(기다리지 않는다)
       await this.pushProfile(true);
       await this.syncEntitlement();
       await this.loadShop();
@@ -240,6 +242,15 @@ export class Net {
       this._rt = null;
     }
     return this._rt;
+  }
+
+  // v475 서버 시각 — 실시간 DB가 아는 「서버 − 기기」 차이를 js/clock.js에 넘긴다(연결이 바뀌면 다시)
+  async watchClock() {
+    try {
+      const rt = await this.rtdb();
+      if (!rt) return;
+      rt.m.onValue(rt.m.ref(rt.db, '.info/serverTimeOffset'), (snap) => { const v = Number(snap.val()); if (Number.isFinite(v)) CLK.setServerOffset(v); });
+    } catch (err) { console.warn('[net] clock', err?.message || err); }
   }
 
   // ---------- 광고 제거 ----------
