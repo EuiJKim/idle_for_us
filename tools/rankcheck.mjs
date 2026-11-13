@@ -7,7 +7,7 @@
 // 걸리면 flags/{uid}에 까닭을 적고 config/hidden에 올려 서열에서만 숨긴다(게임은 그대로).
 //   운영자가 「무인 정리 → 되살리기」로 풀면 flags/{uid}.ok = true — 다시 숨기지 않는다.
 // 저장소가 공개라 로그는 누구나 본다 — 로그에는 건수만 찍는다(별호·계정 번호·까닭은 찍지 않는다).
-//   APPLY=no 이면 적지도 숨기지도 않고 건수만 센다.
+//   APPLY: note(기본 · flags에 까닭만 적는다 — 운영자가 「무인 정리」에서 보고 고른다) · yes(적고 숨긴다) · no(건수만 센다).
 import { pathToFileURL } from 'node:url';
 import { initializeApp, applicationDefault } from 'firebase-admin/app';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
@@ -22,7 +22,7 @@ const W = await import(R('js/world/wdata.js'));
 const K = await import(R('tools/rankrules.mjs'));
 
 const TOP = Math.max(10, Math.min(300, Number(process.env.TOP) || 100));
-const APPLY = (process.env.APPLY || 'yes') !== 'no';
+const MODE = ['no', 'note', 'yes'].includes(process.env.APPLY) ? process.env.APPLY : 'note';
 
 initializeApp({ credential: applicationDefault(), projectId: 'idle-69772' });
 const db = getFirestore();
@@ -78,13 +78,13 @@ for (const q of [col.orderBy('kills', 'desc').limit(30), col.orderBy('hwamugi', 
 }
 for (const [uid, r] of wbDocs) { if (skip(uid)) continue; seen++; note(uid, K.judgeWeekBoss({ r, weekSec }), { lv: r.lv ?? null }); }
 
-console.log(`점검 ${seen}건 · 걸림 ${found.size}명 · 이미 숨김/되살림 ${hidden.size + [...flags.values()].filter((f) => f.ok).length}명${APPLY ? '' : ' (기록만 · 적지 않음)'}`);
-if (!APPLY || !found.size) process.exit(0);
+console.log(`점검 ${seen}건 · 걸림 ${found.size}명 · 이미 숨김/되살림 ${hidden.size + [...flags.values()].filter((f) => f.ok).length}명${{ no: ' (건수만 · 적지 않음)', note: ' (까닭만 적음 · 숨기지 않음)', yes: '' }[MODE]}`);
+if (MODE === 'no' || !found.size) process.exit(0);
 
 const batch = db.batch();
 for (const [uid, o] of found) {
-  batch.set(db.doc(`flags/${uid}`), { why: o.why.slice(0, 10), lv: o.lv ?? null, power: o.power ?? null, wk, auto: true, ok: false, at: FieldValue.serverTimestamp() }, { merge: true });
+  batch.set(db.doc(`flags/${uid}`), { why: o.why.slice(0, 10), lv: o.lv ?? null, power: o.power ?? null, wk, auto: true, ok: false, hid: MODE === 'yes', at: FieldValue.serverTimestamp() }, { merge: true });
 }
-batch.set(db.doc('config/hidden'), { uids: FieldValue.arrayUnion(...found.keys()) }, { merge: true });
+if (MODE === 'yes') batch.set(db.doc('config/hidden'), { uids: FieldValue.arrayUnion(...found.keys()) }, { merge: true });
 await batch.commit();
-console.log(`숨김 ${found.size}명 적음`);
+console.log(`${MODE === 'yes' ? '숨김' : '까닭'} ${found.size}명 적음`);

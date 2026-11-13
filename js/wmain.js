@@ -2549,7 +2549,8 @@ async function openPlayerAdmin() {
     await net.loadHidden();
     const flags = await net.loadFlags();   // v476 서열 점검이 숨긴 까닭
     const rows = (await net.allPlayers(400)).map((p) => ({ ...p, ...staleGuess(p, now, net.uid) })).map((p) => (p.hidden ? { ...p, pick: false } : p));
-    rows.sort((a, b) => (a.hidden - b.hidden) || (b.pick - a.pick) || (b.days - a.days));
+    const fl = (p) => (flags[p.uid]?.auto && !flags[p.uid]?.ok ? 1 : 0);   // v476 점검에 걸린 무인을 위로
+    rows.sort((a, b) => (a.hidden - b.hidden) || (fl(b) - fl(a)) || (b.pick - a.pick) || (b.days - a.days));
     if (!rows.length && !net.hidden.length) { list.replaceChildren(h('p', { class: 'muted' }, '무인 목록을 못 불러왔어요 (규칙 게시를 확인하세요)')); return; }
     // v308 서열 문서가 없어도 숨김 목록에만 있는 계정(지운 뒤 아직 안 들어온 것)
     for (const u of net.hidden) if (!rows.some((p) => p.uid === u)) rows.push({ uid: u, hidden: true, days: Infinity, pick: false, gone: true });
@@ -2561,8 +2562,8 @@ async function openPlayerAdmin() {
       cb.onchange = () => { if (cb.checked) picked.add(p.uid); else picked.delete(p.uid); sync(); };
       const ago = !Number.isFinite(p.days) ? '접속 기록 없음' : p.days < 1 ? '오늘' : `${Math.floor(p.days)}일 전`;
       return h('label', { class: `pa-row${p.pick ? ' pick' : ''}${p.hidden ? ' hidden' : ''}` }, cb,
-        h('span', { class: 'pa-name' }, h('b', {}, p.nickname || (p.gone ? '(서열 기록 없음)' : '이름없음'), me ? h('em', {}, ' · 나') : '', p.hidden ? h('em', {}, flags[p.uid]?.auto && !flags[p.uid]?.ok ? ' · 점검으로 숨김' : ' · 숨김') : ''),
-          p.hidden && flags[p.uid]?.auto && !flags[p.uid]?.ok ? h('small', { class: 'pa-flag' }, `걸린 까닭: ${(flags[p.uid].why || []).join(' · ')}`) : '',
+        h('span', { class: 'pa-name' }, h('b', {}, p.nickname || (p.gone ? '(서열 기록 없음)' : '이름없음'), me ? h('em', {}, ' · 나') : '', p.hidden ? h('em', {}, flags[p.uid]?.auto && !flags[p.uid]?.ok ? ' · 점검으로 숨김' : ' · 숨김') : (flags[p.uid]?.auto && !flags[p.uid]?.ok ? h('em', { class: 'pa-flag' }, ' · 점검에 걸림') : '')),
+          flags[p.uid]?.auto && !flags[p.uid]?.ok ? h('small', { class: 'pa-flag' }, `걸린 까닭: ${(flags[p.uid].why || []).join(' · ')}`) : '',
           h('small', {}, p.gone ? '지운 뒤 아직 안 들어옴' : `${W.lvShort(p.level || 1)}${p.tierName ? ` · ${p.tierName}` : ''}${p.guildName ? ` · 문파 ${p.guildName}` : ''} · ${ago}`)),
         p.hidden ? h('button', { class: 'btn', style: 'padding:3px 8px;font-size:11.5px', onclick: async (e) => { e.preventDefault(); if (await net.setHidden(p.uid, false)) { toast('되살렸어요 — 다음에 들어오면 서열에 올라와요'); net.changed('rank'); load(); } else toast('되살리지 못했어요'); } }, '되살리기') : h('code', { class: 'pa-uid' }, p.uid.slice(0, 6)));
     }));
