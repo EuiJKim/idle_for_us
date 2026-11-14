@@ -151,3 +151,26 @@ export function fxImg(job, shape) {
   if (!(key in fxArt)) { fxArt[key] = null; if (typeof Image !== 'undefined') { const im = new Image(); im.onload = () => { fxArt[key] = im; }; im.src = `art/s2/fx/${key}.webp`; } }
   return fxArt[key];
 }
+
+// ── 지금 게임 이펙트 다시 쓰기(v495) ── 궁극기(bfx · 검은 바탕) · 발밑 진(jfx 인장) · 컷인 배경(jfx cut) · 흰 이펙트(fx — 빛깔로 물들임)
+const oldArt = {};
+export function oldImg(path) {
+  if (!(path in oldArt)) { oldArt[path] = null; if (typeof Image !== 'undefined') { const im = new Image(); im.onload = () => { oldArt[path] = im; }; im.src = path; } }
+  return oldArt[path];
+}
+export const ULT_ART = { sword: 'art/bfx/sword-rain.jpg', spear: 'art/bfx/fire-pillar.jpg', fist: 'art/bfx/palm-wave.jpg', bow: 'art/bfx/ice-burst.jpg', mage: 'art/bfx/thunder.jpg' };
+export const SEAL_ART = { sword: 'art/jfx/seal-sword.png', spear: 'art/jfx/seal-ring.png', fist: 'art/jfx/seal-fist.png', bow: 'art/jfx/seal-fan.png', mage: 'art/fx/fx-field.png' };
+export const CUT_ART = { sword: 'art/jfx/cut-sword.jpg', spear: 'art/jfx/cut-ring.jpg', fist: 'art/jfx/cut-fist.jpg', bow: 'art/jfx/cut-fan.jpg', mage: 'art/jfx/cut-poison.jpg' };
+export const BUFF_ART = { fist: 'art/jfx/gold-bell.png' };
+// 흰 이펙트를 빛깔로 물들인 판(빛깔마다 한 번만 굽는다)
+const tinted = {};
+export function tintImg(path, col) {
+  const key = `${path}|${col}`;
+  if (tinted[key]) return tinted[key];
+  const im = oldImg(path);
+  if (!im || typeof document === 'undefined') return null;
+  const c = document.createElement('canvas'); c.width = im.width; c.height = im.height;
+  const x = c.getContext('2d'); x.drawImage(im, 0, 0); x.globalCompositeOperation = 'source-in'; x.fillStyle = col; x.fillRect(0, 0, c.width, c.height);
+  x.globalCompositeOperation = 'lighter'; x.globalAlpha = 0.5; x.drawImage(im, 0, 0);
+  return (tinted[key] = c);
+}

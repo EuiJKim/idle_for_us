@@ -13,7 +13,7 @@ import { expToNext } from '../tables/exp.js';
 import { staminaNow } from '../content/idle.js';
 import { buildQueue } from '../content/offline.js';
 import { kindGrade } from '../grow/collect.js';
-import { loadLooks, zoneFor, drawHero, drawMob, mobName, drawPaintedBack, drawPaintedLedge, preloadChapter, fxImg } from './look.js';
+import { loadLooks, zoneFor, drawHero, drawMob, mobName, drawPaintedBack, drawPaintedLedge, preloadChapter, fxImg, oldImg, tintImg, ULT_ART, SEAL_ART, CUT_ART, BUFF_ART } from './look.js';
 import { chapterOf, chapterName } from '../tables/chapters.js';
 import { KIT, SLOT_N, kitCap, kitCost, kitCoef, skillById, treeOf, TREE_GATE, treeResetCost } from '../tables/kit.js';
 import { STATS } from '../core/stats.js';
@@ -311,7 +311,7 @@ const goWin = (go) => ({ gear: ['gear', 0], gacha: ['gear', 1], skill: ['hero', 
 // ── 옆보기 사냥 화면 ──
 const cv = $('cv'), cx = cv.getContext('2d');
 const floats = [];
-let lastHitAt = 0, heroRun = 0, lastHx = 0, skillFx = [], camSm = null, camSy = null;
+let lastHitAt = 0, heroRun = 0, lastHx = 0, skillFx = [], camSm = null, camSy = null, cutIn = null, shakeUntil = 0;
 const mobPrev = new Map();
 // 그린 무공 효과 — 모양마다 놓는 자리 · 크기 · 움직임
 function drawFxImage(cx, im, f, a, ease, fade, x, y, Rpx, k, big) {
@@ -345,7 +345,22 @@ function drawFxImage(cx, im, f, a, ease, fade, x, y, Rpx, k, big) {
 }
 function drawSkillFx(cx, f, a, [x, y], Rpx, k, col, tier) {
   const ease = 1 - Math.pow(1 - a, 3), fade = a < 0.7 ? 1 : (1 - a) / 0.3, big = 1 + tier * 0.12;
-  const im = fxImg(f.job || g.S.hero.job, f.shape);
+  const job = f.job || g.S.hero.job;
+  // 발밑 진(2차 이상 무공 · 버프) — 납작하게 돌며 사라진다
+  if ((tier >= 2 || f.shape === 'buff') && f.shape !== 'hit' && f.shape !== 'ring' && a < 0.85) {
+    const seal = oldImg(SEAL_ART[job]);
+    if (seal) { const w = (110 + tier * 14) * k * (0.7 + 0.3 * ease), hx = f.hx ?? x, hy = f.hy ?? y; cx.save(); cx.globalAlpha = (1 - a / 0.85) * 0.8; cx.translate(hx, hy); cx.scale(1, 0.32); cx.rotate(a * 2.4); cx.drawImage(seal, -w / 2, -w / 2, w, w); cx.restore(); }
+  }
+  // 5차 궁극기 — 지금 게임의 큰 이펙트를 앞쪽에 크게(검비 · 화염 기둥 · 장풍 · 얼음 · 벼락)
+  if (tier === 5 && f.shape !== 'hit' && f.shape !== 'buff') {
+    const u = oldImg(ULT_ART[job]);
+    if (u) { const w = Rpx * 1.3 * (0.6 + 0.4 * ease); cx.save(); cx.globalCompositeOperation = 'lighter'; cx.globalAlpha = Math.max(0, fade) * 0.95; cx.drawImage(u, x + f.face * Rpx * 0.45 - w / 2, y - w * 0.82, w, w); cx.restore(); }
+  }
+  // 처치 고리(흰 고리를 직업 빛깔로)
+  if (f.shape === 'ring') { const r = tintImg('art/fx/fx-ring.png', col); if (r) { const w = 90 * k * (0.4 + ease); cx.save(); cx.globalCompositeOperation = 'lighter'; cx.globalAlpha = 1 - a; cx.translate(x, y - 20 * k); cx.scale(1, 0.45); cx.drawImage(r, -w / 2, -w / 2, w, w); cx.restore(); } return; }
+  // 권사 버프는 금종(金鐘)이 씌워진다
+  if (f.shape === 'buff' && BUFF_ART[job]) { const b = oldImg(BUFF_ART[job]); if (b) { const w = 120 * k, h = w * b.height / b.width; cx.save(); cx.globalAlpha = (1 - a) * 0.75; cx.drawImage(b, x - w / 2, y - h * (0.9 + 0.1 * ease), w, h); cx.restore(); } }
+  const im = fxImg(job, f.shape);
   if (im) { drawFxImage(cx, im, f, a, ease, fade, x, y, Rpx, k, big); return; }
   cx.save(); cx.globalCompositeOperation = 'lighter';
   if (f.shape === 'line') {
@@ -403,6 +418,7 @@ function draw() {
   const camX = camSm, camY = camSy;
   const P = (x, y) => [(x - camX) * s, baseY - (y - camY) * s];
   cx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  if (t < shakeUntil) { const q = (shakeUntil - t) / 450 * 6; cx.translate((Math.random() - 0.5) * q, (Math.random() - 0.5) * q); }
   const ch = chapterOf(g.zoneLv()); preloadChapter(ch);
   drawPaintedBack(cx, W, Hh, ch, camX * s, z, camY * s);
   // 바닥 아래는 어둡게 채우고, 발판은 장마다 그린 그림
@@ -423,7 +439,7 @@ function draw() {
   const [hx, hy] = P(lx(H), ly(H));
   for (let i = skillFx.length - 1; i >= 0; i--) {
     const f = skillFx[i], sk = skillById(f.id), col = sk?.col || '#ffe9a8';
-    const life = f.shape === 'rain' ? 800 : f.shape === 'circle' ? 560 : f.shape === 'buff' ? 900 : f.shape === 'hit' ? 240 : 440, a = (t - f.at) / life;
+    const life = f.shape === 'rain' ? 800 : f.shape === 'circle' ? 560 : f.shape === 'buff' ? 900 : f.shape === 'hit' ? 240 : f.shape === 'ring' ? 380 : 440, a = (t - f.at) / life;
     if (a > 1) { skillFx.splice(i, 1); continue; }
     if (a < 0) continue;
     if (f.shape === 'hit' && !fxImg(g.S.hero.job, 'hit')) continue;
@@ -448,6 +464,22 @@ function draw() {
     cx.fillStyle = gr; cx.fillText(txt, x, yy);
     cx.globalAlpha = 1;
   }
+  // 궁극기 컷인 — 수묵 배경 띠가 비스듬히 지나가며 무공 이름(0.9초)
+  if (cutIn) {
+    const a = (t - cutIn.at) / 900;
+    if (a > 1) cutIn = null;
+    else {
+      const sk = skillById(cutIn.id), job = cutIn.id.split('_')[0], bg = oldImg(CUT_ART[job]);
+      const slide = a < 0.2 ? 1 - a / 0.2 : a > 0.8 ? -(a - 0.8) / 0.2 : 0, bh = Hh * 0.26, by = Hh * 0.3;
+      cx.save(); cx.setTransform(dpr, 0, 0, dpr, 0, 0); cx.globalAlpha = a > 0.8 ? (1 - a) / 0.2 : 1;
+      cx.translate(slide * W, 0); cx.beginPath(); cx.moveTo(0, by + 18); cx.lineTo(W, by); cx.lineTo(W, by + bh - 18); cx.lineTo(0, by + bh); cx.closePath(); cx.clip();
+      if (bg) cx.drawImage(bg, 0, by - bh * 0.6, W, W * bg.height / bg.width); else { cx.fillStyle = '#000c'; cx.fillRect(0, by, W, bh); }
+      cx.fillStyle = 'rgba(0,0,0,.35)'; cx.fillRect(0, by, W, bh);
+      cx.font = `900 ${bh * 0.42}px "Nanum Brush Script", "Gowun Batang", serif`; cx.textAlign = 'center'; cx.lineWidth = 6; cx.strokeStyle = '#000';
+      cx.strokeText(sk?.name || '', W * 0.5, by + bh * 0.66); cx.fillStyle = sk?.col || '#fff'; cx.fillText(sk?.name || '', W * 0.5, by + bh * 0.66);
+      cx.restore();
+    }
+  }
   if (mobPrev.size > 300) mobPrev.clear();
 }
 
@@ -467,6 +499,8 @@ function frame() {
       if (e[0] === 'hit') { const m = mobs.get(e[2]); if (!m) continue; lastHitAt = t; if (e[5] && skillFx.length < 80) skillFx.push({ at: t + (e[6] || 0) * 70, shape: 'hit', x: m.x, y: m.y + 900, crit: e[4], rot: (m.id * 1.7 + (e[6] || 0)) % 6.28 }); const n = rows.get(m.id) || 0; rows.set(m.id, n + 1); if (floats.length < 60) floats.push({ x: m.x, y: m.y, d: e[3], crit: e[4], at: t, row: (n + floats.filter((f) => f.mid === m.id && t - f.at < 500).length) % 6, mid: m.id }); }
       else if (e[0] === 'cast') skillFx.push({ at: t, id: e[2], face: e[3], x: e[4], y: e[5], shape: e[6], R: e[7] });
       else if (e[0] === 'buff') skillFx.push({ at: t, id: e[2], shape: 'buff' });
+      else if (e[0] === 'kill') { const m = mobs.get(e[2]); if (m && skillFx.length < 90) skillFx.push({ at: t, shape: 'ring', x: m.x, y: m.y }); }
+      if (e[0] === 'cast' && skillById(e[2])?.tier === 5) { cutIn = { at: t, id: e[2] }; shakeUntil = t + 450; }
     }
   }
   if (t - lastMin >= 60000) { lastMin = t; g.minute(); }
