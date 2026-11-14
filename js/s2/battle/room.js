@@ -43,20 +43,33 @@ export class RoomFight {
     const H = this.hero, J = JOBS[H.job];
     // 재현 중이면 기록된 조작을 넣는다
     if (this.replay) while (this.replay.length && this.replay[0].t === this.t - TICK_MS) this.queued = this.replay.shift().a;
-    // 표적: 가까운 몹
-    let tgt = this.mobs.find((m) => m.id === H.target);
-    if (!tgt) {
-      let best = null, bd = Infinity;
-      for (const m of this.mobs) { const d = dist(H, m); if (d < bd) { bd = d; best = m; } }
-      tgt = best; H.target = best ? best.id : -1;
+    // 수동 조작: { move:[x,y] } 그 자리로 걷기 · { auto:true|false } 자동 사냥 켜고 끄기 · 'skill' 무공
+    const q = this.queued;
+    if (q && typeof q === 'object') {
+      if (q.move) { this.moveTo = { x: Math.max(0, Math.min(this.def.w, q.move[0] | 0)), y: Math.max(0, Math.min(this.def.h, q.move[1] | 0)) }; H.target = -1; }
+      if (q.auto !== undefined) this.auto = !!q.auto;
+      this.queued = null;
     }
-    if (tgt) {
-      const d = dist(H, tgt);
-      if (d > J.range) { const s = Math.min(d - J.range + 1, (MOVE_HERO * TICK_MS) / 1000); H.x += Math.round(((tgt.x - H.x) / d) * s); H.y += Math.round(((tgt.y - H.y) / d) * s); }
-      else {
-        const useSkill = (this.auto || this.queued === 'skill') && this.t >= H.nextSkill;
-        if (useSkill) { this.strike(tgt, SKILL_MAIN); H.nextSkill = this.t + SKILL_MAIN.cdMs; this.queued = null; }
-        else if (this.t >= H.nextAtk) { this.strike(tgt, SKILL_BASE); H.nextAtk = this.t + J.baseMs; }
+    if (this.moveTo) {
+      const d = dist(H, this.moveTo), st = Math.min(d, (MOVE_HERO * TICK_MS) / 1000);
+      if (d > 0) { H.x += Math.round(((this.moveTo.x - H.x) / d) * st); H.y += Math.round(((this.moveTo.y - H.y) / d) * st); }
+      if (dist(H, this.moveTo) < 40) this.moveTo = null;
+    } else {
+      // 표적: 자동이면 가까운 몹을 쫓아가고, 수동이면 사거리 안의 몹만 친다
+      let tgt = this.mobs.find((m) => m.id === H.target);
+      if (!tgt || (!this.auto && dist(H, tgt) > J.range)) {
+        let best = null, bd = Infinity;
+        for (const m of this.mobs) { const d = dist(H, m); if (d < bd && (this.auto || d <= J.range)) { bd = d; best = m; } }
+        tgt = best; H.target = best ? best.id : -1;
+      }
+      if (tgt) {
+        const d = dist(H, tgt);
+        if (d > J.range) { const s = Math.min(d - J.range + 1, (MOVE_HERO * TICK_MS) / 1000); H.x += Math.round(((tgt.x - H.x) / d) * s); H.y += Math.round(((tgt.y - H.y) / d) * s); }
+        else {
+          const useSkill = (this.auto || this.queued === 'skill') && this.t >= H.nextSkill;
+          if (useSkill) { this.strike(tgt, SKILL_MAIN); H.nextSkill = this.t + SKILL_MAIN.cdMs; this.queued = null; }
+          else if (this.t >= H.nextAtk) { this.strike(tgt, SKILL_BASE); H.nextAtk = this.t + J.baseMs; }
+        }
       }
     }
     // 몹: 맞으면 쫓아와 친다(비선공)

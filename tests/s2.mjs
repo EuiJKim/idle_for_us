@@ -268,11 +268,13 @@ console.log('\n=== S2 결정론 · 입력 기록 재현(§L3) ===');
 {
   const def = simpleRoom(80, { n: 6 });
   const a = new RoomFight(def, refPlayer(80, 'spear'), 99, { auto: false });
-  for (let i = 0; i < 1200; i++) { if (i % 140 === 0) a.press('skill'); a.step(); }
+  const near = (F) => F.mobs.reduce((b, m) => (!b || Math.hypot(m.x - F.hero.x, m.y - F.hero.y) < Math.hypot(b.x - F.hero.x, b.y - F.hero.y) ? m : b), null);
+  for (let i = 0; i < 1200; i++) { if (i % 140 === 0) a.press('skill'); if (i % 40 === 0) { const m = near(a); if (m) a.press({ move: [m.x, m.y + 300] }); } a.step(); }
   const b = replay(def, refPlayer(80, 'spear'), a.log, a.t, { auto: false });
   ok(a.log.actions.length > 5 && a.digest() === b.digest(), '수동 조작을 기록해 두면 같은 결과로 재현', `${a.digest()} / ${b.digest()}`);
-  const c = new RoomFight(def, refPlayer(80, 'spear'), 100, { auto: false }).run(a.t);
+  const c = replay(def, refPlayer(80, 'spear'), { ...a.log, seed: 100 }, a.t, { auto: false });
   ok(c.digest() !== a.digest(), '씨앗이 다르면 결과도 다름');
+  ok(a.kills > 0, '수동: 눌러 걸어가 싸운다', a.kills);
   const x = new RoomFight(def, refPlayer(80, 'bow'), 5).run(60000), y = new RoomFight(def, refPlayer(80, 'bow'), 5).run(60000);
   ok(x.digest() === y.digest() && Number.isInteger(x.hero.x) && Number.isInteger(x.t), '자동 사냥도 결정론(위치·시간 정수)');
 }

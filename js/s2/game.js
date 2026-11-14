@@ -139,7 +139,7 @@ export class Game {
   ensureFight() {
     const L = this.zoneLv();
     if (!this.fight || this.fight.def.lv !== L) {
-      this.fight = new RoomFight(this.room(), this.fighter(), this.rng.u32(), { auto: true });
+      this.fight = new RoomFight(this.room(), this.fighter(), this.rng.u32(), { auto: this.S.auto !== false });
       this.fight.mobs = this.fight.mobs.filter((m) => m.fam === 'a');   // 정예·두목은 때가 되어야 나온다
       this.dirtyStats = false;
     } else if (this.dirtyStats) {
@@ -149,6 +149,9 @@ export class Game {
     }
     return this.fight;
   }
+  // 손 조작 — 눌러서 걷기 · 자동 사냥 켜고 끄기(세이브에 남음)
+  move(x, y) { this.ensureFight().press({ move: [Math.round(x), Math.round(y)] }); }
+  setAuto(on) { this.S.auto = !!on; this.ensureFight().press({ auto: !!on }); }
   // ms만큼 사냥(50ms 틱) — 처치마다 경험치 · 은자 · 사건
   hunt(ms) {
     const F = this.ensureFight(), S = this.S;

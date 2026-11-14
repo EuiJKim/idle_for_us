@@ -25,6 +25,16 @@ const ok = (c, m, x = '') => { console.log(`  ${c ? '✓' : '✗ !!'} ${m}${x !=
     ok(g0.kills > 0, '저절로 사냥한다', `처치 ${g0.kills}`);
     ok(/Lv \d+/.test(await page.textContent('#tl')), '왼쪽 위: 레벨 · 전투력');
     ok(/길잡이 1/.test(await page.textContent('#bl')), '왼쪽 아래: 길잡이 1');
+    // 손 조작: 수동으로 바꾸고 바닥을 누르면 그쪽으로 걷는다
+    await page.click('#au');
+    ok(await page.evaluate(() => window.__s2.g.S.auto === false), '자동/수동 단추 — 수동으로');
+    const h0 = await page.evaluate(() => ({ x: window.__s2.g.fight.hero.x, y: window.__s2.g.fight.hero.y }));
+    await page.mouse.click(W * 0.1, H * 0.75);
+    await page.waitForTimeout(1500);
+    const h1 = await page.evaluate(() => ({ x: window.__s2.g.fight.hero.x, y: window.__s2.g.fight.hero.y }));
+    ok(Math.hypot(h1.x - h0.x, h1.y - h0.y) > 1500 && h1.x < h0.x, '바닥을 누르면 그쪽으로 걸어간다', `${h0.x},${h0.y} → ${h1.x},${h1.y}`);
+    await page.click('#au');
+    ok(await page.evaluate(() => window.__s2.g.S.auto !== false), '다시 자동으로');
     const navs = await page.$$('nav button');
     ok(navs.length === 6, '아래 메뉴 여섯');
     let tabsSeen = 0; const empty = [], outside = [];
