@@ -1,27 +1,17 @@
-// 새 시즌(S2) 기준 무인 · 몹 만들기 — 「그 레벨에 보통으로 큰 무인」과, 그 무인에 맞춘 몹(계획서 §J3).
-// 기준 무인의 성장 배율(refGrowth)은 S3~S5에서 실제 시스템(장비·경지·병기…)이 생기면 시뮬로 다시 맞춘다.
-import { baseAtk, baseHp, baseDef, statPointsAt, MAIN_TO_ATK, MAIN_TO_HP, JOBS } from '../tables/char.js';
+// 새 시즌 기준 무인 · 몹 만들기 — 「그 레벨에 보통으로 큰 무인」과, 그 무인에 맞춘 몹(계획서 §J3).
+// v483(S5): 기준 무인 = 표준 무인 표(tables/std.js) — 기준 플레이어가 그 레벨에 닿은 날 실제 시스템(무인·장비·S5)으로 가진 스탯.
+import { baseDef, JOBS } from '../tables/char.js';
+import { STD } from '../tables/std.js';
 import { KILL_SEC, SURVIVE_HITS, TIER_HP_X, HP_FIT } from '../tables/economy.js';
 import { expected } from './damage.js';
 
-// 성장 배율(맨몸 대비) — 장비·성장 시스템 몫의 자리표시. 레벨이 오를수록 커진다.
-export const refGrowth = (L) => ({ atk: 1 + 0.02 * L + 0.00012 * L * L, hp: 1 + 0.015 * L + 0.0001 * L * L });
 
 export const SKILL_BASE = { coef: 1000, base: true };
 export const SKILL_MAIN = { coef: 2600, cdMs: 6000, base: false };
 
 export function refPlayer(L, job = 'sword') {
-  const g = refGrowth(L);
-  const pts = statPointsAt(L);
-  return {
-    lv: L, job, kind: 'hero',
-    st: {
-      atk: Math.round((baseAtk(L) + pts * MAIN_TO_ATK) * g.atk),
-      hp: Math.round((baseHp(L) + pts * MAIN_TO_HP) * g.hp),
-      def: Math.round(baseDef(L) * g.hp),
-      crit: 100, critDmg: 300,
-    },
-  };
+  const Lc = Math.max(1, Math.min(STD.length - 1, Math.round(L) || 1));
+  return { lv: L, job, kind: 'hero', st: { ...STD[Lc] } };
 }
 // 기준 무인이 몹(방어 def)을 칠 때의 기대 DPS(초당) — 평타 + 주력 무공(쿨마다 한 번)
 export function refDps(p, mob) {

@@ -10,7 +10,7 @@ import { newGearState, obtain, enhance, starForce, restoreSlot } from '../gear/g
 import { newGacha, pull, canLevelUp, startLevelUp, tickGacha, eliteDrop } from '../gear/gacha.js';
 
 // 하루치를 돌린다. 정책: 은자의 50%는 뽑기, 30%는 성혼·강화(가장 낮은 칸부터), 나머지는 다른 성장(무공·경지 — 여기선 버림)
-export function simGear(days, { seed = 1, policy = 'base', protect = true } = {}) {
+export function simGear(days, { seed = 1, policy = 'base', protect = true, onDay = null } = {}) {
   const rng = new Rng(seed);
   const G = newGearState(); G.autoDis = 1;
   const GA = newGacha();
@@ -46,6 +46,7 @@ export function simGear(days, { seed = 1, policy = 'base', protect = true } = {}
     }
     star += w.gold; w.gold = 0;   // 남은 은자는 다음 날 성혼 몫으로
     const grades = SLOTS.map((s) => (G.eq[s] ? G.eq[s].g * 2 + G.eq[s].up : -1)).sort((a, b) => a - b);
+    if (onDay) onDay(d, L, G);
     log.push({ day: d, lv: L, gachaLv: GA.lv, tierMedian: grades[5], tierMin: grades[0], starAvg: SLOTS.reduce((a, s) => a + G.slots[s].star, 0) / SLOTS.length, enhAvg: SLOTS.reduce((a, s) => a + G.slots[s].enh, 0) / SLOTS.length, pulls: GA.pulls });
   }
   return { log, G, GA };

@@ -30,6 +30,12 @@ import * as GC from '../js/s2/gear/gacha.js';
 import * as GS from '../js/s2/tables/gearstat.js';
 import * as RL from '../js/s2/core/roller.js';
 import { simGear } from '../js/s2/sim/econ.js';
+import { simS5 } from '../js/s2/sim/s5.js';
+import { heroAt, buildStd } from '../js/s2/sim/std.js';
+import { STD } from '../js/s2/tables/std.js';
+import * as CL from '../js/s2/grow/collect.js';
+import * as RM from '../js/s2/grow/realm.js';
+import * as S5T from '../js/s2/tables/s5.js';
 
 let fail = 0;
 const ok = (c, m, d = '') => { console.log(`  ${c ? 'OK ' : '✗✗ '} ${m}${d ? `  — ${d}` : ''}`); if (!c) fail++; };
@@ -197,7 +203,7 @@ console.log('\n=== S1 세이브 서명 · 표 판 · 차단 깃발 ===');
   ok(forged !== txt && SV.unpack(forged).ok === false, '손으로 은자를 고치면 서명이 안 맞음');
   ok(SV.canon({ b: 1, a: [2, { d: 1, c: 2 }] }) === SV.canon({ a: [2, { c: 2, d: 1 }], b: 1 }), '키 순서가 달라도 같은 글자(기기마다 같음)');
   ok(SV.unpack('나쁜 글자').ok === false && SV.SAVE_KEY.startsWith('ifu.s2.'), '깨진 글자 · 새 시즌 열쇠는 옛 세이브와 다름');
-  ok(/^[0-9a-f]{8}$/.test(tableHash()) && TABLE_VER === 's2-0.3', '표 해시 · 판 번호', tableHash());
+  ok(/^[0-9a-f]{8}$/.test(tableHash()) && TABLE_VER === 's2-0.4', '표 해시 · 판 번호', tableHash());
   FL.setFlags({ off: ['pvp', 'gacha', 'nope'], msg: '점검 중' });
   ok(FL.blocked('pvp') && FL.blocked('gacha') && !FL.blocked('nope') && !FL.blocked('guild') && FL.blockedMsg() === '점검 중', '차단 깃발(모르는 이름은 무시)');
   FL.setFlags(null); ok(FL.blockedList().length === 0, '서버를 못 읽으면 모두 열림');
@@ -394,17 +400,55 @@ console.log('\n=== S4 경제 시뮬 합격선(§J1 장비·성혼) ===');
     }
   }
   ok(bad.length === 0, '씨앗 셋 × 진행 목표: 장비 등급(가운데 칸) ±1단 · 평균 별 ±2', bad.slice(0, 4).join(' '));
-  // 장비 몫 — 기준 무인의 0.6~0.9배(나머지는 S5 시스템 몫)
-  const share = [];
-  for (const d of [1, 7, 30, 90]) {
-    const { G, log } = simGear(d, { seed: 3 });
-    const L = log[d - 1].lv;
-    const h = new Hero(newHero('sword')); h.addExp(EX.cumExp(L));
-    for (let n = 1; n < PR.JOB_LV.length; n++) if (L >= PR.JOB_LV[n]) { h.clearDungeon(`job${n}`); h.advance(); }
-    const g = h.stats(GR.gearSources(G, L)), ref = refPlayer(L, 'sword').st;
-    share.push([g.atk * (1 + (g.atkL1 || 0) / 1000) / ref.atk, g.hp / ref.hp]);
+}
+
+console.log('\n=== S5 수집형(병기·동료·영물) ===');
+{
+  const C = CL.newCollect('pal'), w = { 'ticket:pal': 400 }, r = new Rng(12);
+  const got = CL.pullCollect(C, 200, r, w);
+  ok(got.length === 200 && w['ticket:pal'] === 200 && got.some((x) => x.g === 4), '뽑기권 200장 — 천장(200번 안에 보 하나)');
+  const ten = Array.from({ length: 300 }, (_, i) => { const c = CL.newCollect('relic'); return CL.pullCollect(c, 10, new Rng(i), { 'ticket:relic': 10 }); });
+  ok(ten.every((g) => g.some((x) => x.g >= 2)), '10연이면 정품 이상 하나 보장');
+  const aw = CL.autoAwaken(C); CL.autoEquip(C);
+  ok(aw > 0 && C.eq.every((k) => k != null) && CL.kindGrade('pal', C.eq[0]) >= CL.kindGrade('pal', C.eq[4]), '겹친 것으로 각성 · 좋은 것부터 장착');
+  const before = CL.collectSources(C)[0].stats.final4;
+  const k = C.eq[0]; const ew = { 'item:essence': 1e6 }; for (let i = 0; i < 10; i++) CL.levelUp(C, k, ew);
+  ok(C.own[k].lv === 11 && CL.collectSources(C)[0].stats.final4 > before, '정수로 레벨업 → 장착 값 ↑(동료 → 최종 피해④)');
+  ok(CL.collectSources(CL.newCollect('weapon'))[0].stats.mainDmg === 0, '없으면 0');
+}
+
+console.log('\n=== S5 경지 · 강호행 · 꾸미기 ===');
+{
+  const R = RM.newRealm(), w = { gold: 1e15, 'item:heart': 100 };
+  ok(RM.realmStart(R, 0, w, 100) && !RM.realmStart(R, 0, w, 100), '경지 레벨업 시작(하나씩)');
+  ok(!RM.realmTick(R, 1000) && RM.realmTick(R, 20 * 60000) && R.lv === 1, '대기 시간이 지나야 오름');
+  ok(!RM.heartRoll(R, new Rng(1), w), '심법은 경지 10부터');
+  R.lv = 25; ok(RM.heartRoll(R, new Rng(2), w) && R.heart.lines.slice(0, 2).every(Boolean) && !R.heart.lines[2], '경지 25 → 심법 2줄만 굴림');
+  const st = RM.realmSources(R)[0].stats; ok(st.atkL2 >= 25 * S5T.REALM_ATK_P && st.hpP >= 25 * S5T.REALM_HP_P, '경지 → 공격%② · 체력%');
+  const J = RM.newJourney(); const jw = { gold: 1e15 };
+  ok(!RM.journeyStart(J, 0, jw, new Rng(1)), '강호행: 두목을 이기기 전엔 못 엶');
+  J.cleared = 2; ok(RM.journeyStart(J, 0, jw, new Rng(1)) && RM.journeyTick(J, 6 * 3600e3, new Rng(2)) && J.step === 1 && J.opts[0].length === 2, '두목 이김 → 열기(대기 시간) → 단계 옵션 2줄');
+  ok(RM.journeySources(J)[0].stats.final3 >= S5T.JOURNEY_STEP_P && [1000, 1300, 1700, 2500].includes(RM.blessX(J, 0)), '강호행 → 최종 피해③ · 축복 상자 배율');
+  ok(RM.cosmeticSources(9).length === 0 && RM.cosmeticSources(25)[0].stats.hpP === 10, '꾸미기 10개마다 합계 보너스');
+}
+
+console.log('\n=== S5 표준 무인 · 시스템 몫 ===');
+{
+  ok(JSON.stringify(buildStd()) === JSON.stringify(STD), '표준 무인 표가 시뮬과 같다(숫자를 바꾸면 node tools/s2sim/std.mjs로 다시 만든다)');
+  ok(STD.slice(2).every((r, i) => r.atk >= STD[i + 1].atk && r.hp >= STD[i + 1].hp), '표준 무인: 레벨이 오를수록 공격·체력이 줄지 않음');
+  const bad = [];
+  for (const d of [7, 30, 90, 365]) {
+    let G, S, L;
+    simGear(d, { seed: 3, onDay: (dd, l, g) => { if (dd === d) { G = g; L = l; } } });
+    simS5(d, { seed: 3, onDay: (dd, l, f) => { if (dd === d) S = f(); } });
+    const h = heroAt(L), mob = makeMob(L);
+    const P = (ex) => { const st = h.stats(ex); return Math.log(DM.expected({ lv: L, st }, mob, SKILL_BASE) * Math.sqrt(st.hp)); };
+    const gs = GR.gearSources(G, L), naked = P([]), gear = P(gs), all = P([...gs, ...S]), tot = all - naked;
+    const gShare = (gear - naked) / tot;
+    if (gShare < 0.35 || gShare > 0.65) bad.push(`${d}일 장비 ${(gShare * 100).toFixed(0)}%`);
+    for (const s of S.filter((x) => x.src !== '꾸미기')) { const sh = (P([...gs, s]) - gear) / tot; if (sh < 0.05 || sh > 0.2) bad.push(`${d}일 ${s.src} ${(sh * 100).toFixed(0)}%`); }
   }
-  ok(share.every(([a, h]) => a >= 0.6 && a <= 0.9 && h >= 0.6 && h <= 0.9), '무인 + 장비 = 기준 무인의 0.6~0.9배(1·7·30·90일)', share.map(([a, h]) => `${a.toFixed(2)}/${h.toFixed(2)}`).join(' '));
+  ok(bad.length === 0, '성장 몫: 장비 35~65% · 병기·동료·영물·경지·강호행 각 5~20%(7·30·90·365일)', bad.join(' '));
 }
 
 console.log('\n=== S0 규칙 ===');
