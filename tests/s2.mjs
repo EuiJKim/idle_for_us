@@ -36,6 +36,9 @@ import { STD } from '../js/s2/tables/std.js';
 import * as CL from '../js/s2/grow/collect.js';
 import * as RM from '../js/s2/grow/realm.js';
 import * as S5T from '../js/s2/tables/s5.js';
+import * as CT from '../js/s2/tables/content.js';
+import { runDungeon, canSweep } from '../js/s2/content/dungeon.js';
+import * as ID from '../js/s2/content/idle.js';
 
 let fail = 0;
 const ok = (c, m, d = '') => { console.log(`  ${c ? 'OK ' : '✗✗ '} ${m}${d ? `  — ${d}` : ''}`); if (!c) fail++; };
@@ -449,6 +452,55 @@ console.log('\n=== S5 표준 무인 · 시스템 몫 ===');
     for (const s of S.filter((x) => x.src !== '꾸미기')) { const sh = (P([...gs, s]) - gear) / tot; if (sh < 0.05 || sh > 0.2) bad.push(`${d}일 ${s.src} ${(sh * 100).toFixed(0)}%`); }
   }
   ok(bad.length === 0, '성장 몫: 장비 35~65% · 병기·동료·영물·경지·강호행 각 5~20%(7·30·90·365일)', bad.join(' '));
+}
+
+
+console.log('\n=== S6 던전 · 클리어 조건 8종 · 깃발 ===');
+{
+  const hero = refPlayer(80, 'bow');
+  const res = {};
+  for (const [clear, need, kind, timeMs] of [['kills', 20, 'mob', 120000], ['boss', 0, 'boss', 120000], ['wipe', 0, 'mob', 120000], ['survive', 0, 'mob', 30000], ['collect', 15, 'mob', 120000], ['reach', 0, 'mob', 120000], ['score', 150, 'mob', 120000], ['timeoutWin', 0, 'mob', 20000]]) {
+    res[clear] = runDungeon({ clear, need, kind, mobLv: 80, timeMs }, hero, 4);
+  }
+  const bad = Object.entries(res).filter(([, r]) => !r.cleared).map(([k]) => k);
+  ok(bad.length === 0, '클리어 조건 8종 모두 깰 수 있음(처치 수 · 두목 · 전멸 · 버티기 · 모으기 · 도착 · 점수 · 시간 끝 승리)', bad.join(','));
+  ok(res.kills.kills >= 20 && res.wipe.kills === 8 && res.boss.kills === 1, '조건에 맞춰 끝남(20마리 · 8마리 전멸 · 두목 하나)');
+  const strong = runDungeon({ clear: 'boss', mobLv: 120, timeMs: 30000 }, refPlayer(40, 'sword'), 4);
+  ok(!strong.cleared, '너무 센 두목은 시간 안에 못 깸');
+  const nd = runDungeon({ clear: 'kills', need: 999, mobLv: 140, timeMs: 120000, flags: ['noDie'] }, refPlayer(60, 'sword'), 4);
+  ok(!nd.cleared && nd.deaths >= 1, '깃발 「죽지 않음」: 한 번 죽으면 실패');
+  ok(runDungeon({ clear: 'boss', mobLv: 80, timeMs: 120000, flags: ['bossMeter'] }, hero, 4).meter > 0, '깃발 「보스 피해 측정기」');
+  const a = runDungeon({ clear: 'kills', need: 30, mobLv: 70, timeMs: 120000 }, hero, 9), b = runDungeon({ clear: 'kills', need: 30, mobLv: 70, timeMs: 120000 }, hero, 9);
+  ok(a.digest === b.digest, '던전도 결정론');
+  ok(canSweep({ best: 5 }, 5) && !canSweep({ best: 5 }, 6) && !canSweep(null, 1), '소탕은 깬 단계까지');
+}
+
+console.log('\n=== S6 스태미나 · 원정 · 돌발 미션 · 탑 · 성혼 필드 ===');
+{
+  const S = ID.newStamina('daily', 0);
+  for (let i = 0; i < 12; i++) ID.useStamina(S, 0);
+  ok(!ID.useStamina(S, 0) && ID.staminaNow(S, 0) === 0, '입장권 12장 다 쓰면 못 들어감');
+  ok(ID.staminaNow(S, 2 * 3600e3) === 1 && ID.staminaNow(S, 30 * 3600e3) === 12, '2시간마다 1장 · 최대 12에서 멈춤');
+  ok(ID.nextRegenMs(S, 3600e3) === 3600e3, '다음 1장까지 남은 시간');
+  const S2 = ID.newStamina('daily', 0);
+  ok(ID.recharge(S2, 0, 1, 12) && ID.staminaNow(S2, 0) === 24, '충전은 최대를 넘어 24까지');
+  ok(ID.recharge(S2, 0, 1, 1) && ID.recharge(S2, 0, 1, 1) && !ID.recharge(S2, 0, 1, 1) && ID.recharge(S2, 0, 2, 1), '충전 하루 3번 · 다음 날 다시');
+  const E = {}, w = { 'ticket:exped': 1 };
+  ok(ID.startExpedition(E, 8, 0, w) && !ID.claimExpedition(E, 7 * 3600e3) && ID.claimExpedition(E, 8 * 3600e3).huntMin === 72, '원정 8시간 → 사냥 72분 상당');
+  const M = { cur: null, done: 0, failed: 0 }, r = new Rng(3);
+  let t = 0; while (!M.cur && t < 1e9) { t += 60000; ID.suddenTick(M, r, t); }
+  ok(!!M.cur && ID.suddenExtend(M) && !ID.suddenExtend(M), '돌발 미션이 뜸 · 연장은 한 번');
+  ok(ID.suddenProgress(M, 999, t + 60000)?.huntMin === CT.SUDDEN.rewardMin && M.done === 1, '돌발 미션 완료 → 보상');
+  ok(Math.abs(ID.towerX(11) - Math.pow(1.06, 10)) < 1e-9 && ID.towerSources(50)[0].stats.atkL1 === 50, '무한 탑: 층마다 ×1.06 · 깬 층만큼 영구 보너스');
+  const G = GR.newGearState(); for (const s of GE.SLOTS) G.slots[s].star = 13;
+  ok(ID.starSum(G) === 130 && ID.bestStarField(130, 110).need === 120 && ID.bestStarField(130, 95).need === 50 && ID.bestStarField(10, 150) === null, '성혼 필드: 별 합 · 레벨 둘 다 맞아야');
+}
+
+console.log('\n=== S6 콘텐츠 보상 = 경험치 곡선 가정 ===');
+{
+  const m = CT.dailyContentMin();
+  ok(Math.abs(m - (EX.DAY_MIN - EX.DAY1_MIN)) <= 5, '수련장 + 원정 + 돌발 미션 + 일일 미션 = 하루 +138 사냥분(±5) — 곡선 가정과 같다', m.toFixed(1));
+  ok(Object.values(CT.DAILY_DUNGEONS).every((d) => CT.CLEAR.includes(d.clear)) && CT.JOB_DUNGEON.length === PR.JOB_LV.length, '수련동 4종 · 전직 던전 차수마다');
 }
 
 console.log('\n=== S0 규칙 ===');
