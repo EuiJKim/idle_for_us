@@ -84,7 +84,9 @@ export class Game {
       ...ID.towerSources(S.tower.best),
     ];
   }
-  fighter() { return this.hero.fighter(this.sources()); }
+  // 장착한 동료(등급) — 전투에서 따로 친다(v497)
+  palList() { const C = this.S.colls.pal; return C.eq.filter((k) => k !== null && k !== undefined).map((k) => ({ g: CL.kindGrade('pal', k), k })); }
+  fighter() { return this.hero.fighter(this.sources(), this.palList()); }
   power(mode = 'pve') { return power(this.fighter(), mode); }
   // ── 사건 → 미션 · 길잡이 · 업적 ──
   emit(ev, v = {}) {
@@ -150,6 +152,7 @@ export class Game {
     } else if (this.dirtyStats) {
       const st = this.fighter().st, H = this.fight.hero;
       H.hp = Math.min(st.hp, Math.round(H.hp * st.hp / Math.max(1, (H.st0 || H.st).hp))); H.st0 = st; H.st = st; H.lv = this.S.hero.lv;
+      H.pals = this.palList(); H.palCd = undefined;
       const kit = this.hero.battleKit(); if (!H.kit || kit.length !== H.kit.length || kit.some((k, i) => k.id !== H.kit[i].id)) H.cds = undefined; H.kit = kit;
       this.fight.restat?.();
       this.dirtyStats = false;

@@ -61,6 +61,12 @@ const ok = (c, m, x = '') => { console.log(`  ${c ? '✓' : '✗ !!'} ${m}${x !=
     await page.click('#wb .row:nth-child(4) .btn');
     const t1 = await page.evaluate(() => window.__s2.g.S.wallet['ticket:gear']);
     ok(t0 - t1 === 10, '장비 10번 뽑기 — 뽑기권 10장', `${t0} → ${t1}`);
+    await page.waitForSelector('.gx');
+    ok((await page.$$('.gx .gc')).length === 10, '뽑기 연출: 카드 10장');
+    await page.click('.gx .skip');
+    ok((await page.$$('.gx .gc.open')).length === 10, '건너뛰기 → 전부 뒤집힘');
+    await page.click('.gx .skip');
+    ok(!(await page.$('.gx')), '닫기 → 연출 사라짐');
     await page.click('#wx');
     ok(!(await page.isVisible('#win')), '창 닫기');
     await page.screenshot({ path: path.join(OUT, `s2ui-${W}.png`) });

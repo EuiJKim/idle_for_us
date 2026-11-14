@@ -180,6 +180,6 @@ export class Hero {
   }
   stats(extra = []) { return finalize(sumStats([...this.sources(), ...extra])); }
   // 전투에 넘길 모양
-  fighter(extra = []) { return { lv: this.s.lv, job: this.s.job, kind: 'hero', st: this.stats(extra), kit: this.battleKit() }; }
+  fighter(extra = [], pals = []) { return { lv: this.s.lv, job: this.s.job, kind: 'hero', st: this.stats(extra), kit: this.battleKit(), pals }; }
   skillCoef(k) { return SKILLS[k].coef(this.s.skills[k] || 1); }
 }

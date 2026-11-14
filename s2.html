@@ -108,6 +108,26 @@
     #res .out { background: linear-gradient(#5ad0f0, #1e9fd0); } #res .again { background: linear-gradient(#d8f05a, #9cc81e); color: #223; }
     .note { color: var(--mute); font-size: 12px; }
     /* v496 장비 창 */
+    /* 장비 뽑기 연출(v497) */
+    .gx { position: fixed; inset: 0; z-index: 60; background: radial-gradient(#1a1410ee, #050302f5); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 16px; }
+    .gx.flash::after { content: ''; position: absolute; inset: 0; pointer-events: none; background: radial-gradient(circle, var(--gc, #fff) 0%, transparent 70%); animation: gxf .7s ease-out forwards; }
+    @keyframes gxf { from { opacity: .85 } to { opacity: 0 } }
+    .gxt { font-weight: 800; color: var(--gold); font-size: 16px; text-align: center; }
+    .gxg { display: grid; grid-template-columns: repeat(5, 64px); gap: 8px; max-height: 70vh; overflow: auto; }
+    .gxg.many { grid-template-columns: repeat(10, 52px); gap: 5px; }
+    .gc { position: relative; width: 64px; height: 84px; perspective: 400px; }
+    .gxg.many .gc { width: 52px; height: 70px; }
+    .gc > div { position: absolute; inset: 0; border-radius: 9px; backface-visibility: hidden; transition: transform .32s ease; }
+    .gc .back { background: repeating-linear-gradient(45deg, #3a2a18, #3a2a18 6px, #2a1e10 6px, #2a1e10 12px); border: 2px solid #6b5230; }
+    .gc .face { transform: rotateY(180deg); background: radial-gradient(#3a2e22, #17120d); border: 2px solid var(--gc); display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 11px; }
+    .gc .face img { width: 60%; } .gc .face small { color: var(--mute); font-size: 10px; }
+    .gc .face i { position: absolute; top: 2px; right: 3px; font-style: normal; font-size: 9px; background: var(--gold); color: #000; border-radius: 4px; padding: 0 3px; }
+    .gc.open .back { transform: rotateY(180deg); } .gc.open .face { transform: rotateY(360deg); }
+    .gc.open.g4 .face, .gc.open.g5 .face, .gc.open.g6 .face { animation: gcp 1.2s ease-in-out infinite alternate; }
+    @keyframes gcp { from { box-shadow: 0 0 8px 1px var(--gc) } to { box-shadow: 0 0 20px 6px var(--gc) } }
+    .gc.tense .back { animation: gct .12s linear infinite; box-shadow: 0 0 18px 6px var(--gc); border-color: var(--gc); }
+    @keyframes gct { 0% { transform: translate(0, 0) } 25% { transform: translate(-2px, 1px) } 50% { transform: translate(2px, -1px) } 75% { transform: translate(-1px, -1px) } 100% { transform: translate(1px, 1px) } }
+    .gxb .btn { min-width: 120px; min-height: 44px; }
     .eqpage { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; }
     @media (min-width: 640px) { .eqpage { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); align-items: start; } }
     .eqwrap { display: grid; grid-template-columns: 64px 1fr 64px; gap: 6px; align-items: center; max-width: 460px; margin: 0 auto; }

@@ -253,7 +253,7 @@ console.log('\n=== S2 데미지 본체(§E) ===');
 console.log('\n=== S2 방 사냥 · 처치 시간 합격선(§J3) ===');
 {
   // v493 일반 몹은 무공이 여러 마리를 함께 쳐서(맞기 시작해 죽기까지가 길어진다) 처치 수(분당)가 기준 — 한 마리 시간은 0.9~3.2초(높은 차수일수록 넓게 쳐서 길어짐)
-  const band = { mob: [0.9, 3.2], elite: [6, 10], boss: [36, 54] };
+  const band = { mob: [0.9, 3.2], elite: [5.5, 10], boss: [36, 54] };
   const bad = [];
   for (const kind of ['mob', 'elite', 'boss']) for (const L of [5, 60, 120, 150]) for (const job of Object.keys(CH.JOBS)) {
     const f = new RoomFight(simpleRoom(L, { n: kind === 'mob' ? 8 : 1, kind, coolMs: 3000 }), refPlayer(L, job), 11).run(kind === 'boss' ? 300000 : 90000);
@@ -262,7 +262,7 @@ console.log('\n=== S2 방 사냥 · 처치 시간 합격선(§J3) ===');
     const avg = ttk.reduce((a, b) => a + b, 0) / Math.max(1, ttk.length);
     if (!(avg >= band[kind][0] && avg <= band[kind][1]) || (kind === 'boss' && f.deaths > 2)) bad.push(`${kind}/${L}/${job}:${avg.toFixed(2)}s 사망${f.deaths}`);
   }
-  ok(bad.length === 0, '다섯 직업 × 레벨 4 × 몹 셋: 일반 0.9~3.2초(무공이 여러 마리) · 정예 6~10초 · 두목 36~54초(두목전 사망 2번 이하)', bad.slice(0, 4).join(' '));
+  ok(bad.length === 0, '다섯 직업 × 레벨 4 × 몹 셋: 일반 0.9~3.2초(무공이 여러 마리) · 정예 5.5~10초(동료 몫 포함) · 두목 36~54초(두목전 사망 2번 이하)', bad.slice(0, 4).join(' '));
   const m1 = makeMob(100, 'mob', 0), m3 = makeMob(100, 'mob', 2);
   ok(m3.st.hp / m1.st.hp > 2.4 && m3.st.hp / m1.st.hp < 2.6 && m3.st.atk > m1.st.atk, '몹 티어: 3티어 체력 2.5배 · 공격도 셈');
 }
@@ -757,6 +757,31 @@ console.log('\n=== S9 무공 세트(직업마다 공격 6 · 상시 3 · 버프 
   M.hero.x = M.mobs[0].x - 800; M.hero.y = M.mobs[0].y; M.hero.plat = M.mobs[0].plat; M.hero.target = -1;
   M.press({ slot: 0 }); for (let i = 0; i < 4; i++) { M.step(); for (const e of M.events) if (e[0] === 'cast') mc++; M.events = []; }
   ok(mc === 1, '누른 칸 무공을 쓴다');
+}
+
+console.log('\n=== S9 동료 공격 · 두목 패턴(v497) ===');
+{
+  // 동료: 장착한 만큼 따로 친다(피해 숫자 종류 2)
+  const F = new SideFight(sideRoom(60, 4), { ...refPlayer(60), pals: [{ g: 0 }, { g: 2 }] }, 5); let ph = 0, pe = 0;
+  for (let i = 0; i < 1200; i++) { F.step(); for (const e of F.events) { if (e[0] === 'hit' && e[5] === 2) ph++; if (e[0] === 'pal') pe++; } F.events = []; }
+  ok(ph >= 20 && pe >= 20, '동료 둘이 60초에 여러 번 친다', `동료 타격 ${ph} · 시전 ${pe}`);
+  const N = new SideFight(sideRoom(60, 4), { ...refPlayer(60), pals: [] }, 5); let nh = 0;
+  for (let i = 0; i < 600; i++) { N.step(); for (const e of N.events) if (e[0] === 'hit' && e[5] === 2) nh++; N.events = []; }
+  ok(nh === 0, '동료가 없으면 동료 타격도 없다');
+  ok(KT.stdPals(10).length === 1 && KT.stdPals(150).length === 5 && KT.stdPals(150)[0].g === 3, '표준 동료: Lv10 1마리 · Lv150 5마리(등급 3)');
+  // 두목 패턴: 예고 → 터짐. 수동으로 범위 밖으로 나가면 안 맞는다
+  const B = new SideFight(sideRoom(60, 4), refPlayer(60), 9, { auto: false });
+  B.mobs = []; B.spawn('b', B.def.map.spots[0]); const boss = B.mobs[0]; boss.angry = true;
+  B.hero.x = boss.x; B.hero.y = boss.y; B.hero.plat = boss.plat;
+  let tell = null, burst = null;
+  for (let i = 0; i < 200 && !tell; i++) { B.step(); for (const e of B.events) if (e[0] === 'tell') tell = e; B.events = []; }
+  B.hero.x = tell[4] + (tell[6] / 2 + 2500) * (B.hero.x > tell[4] ? 1 : -1); B.hero.y = boss.y - 2300 * 3; B.hero.plat = -1;
+  for (let i = 0; i < 100 && !burst; i++) { B.step(); for (const e of B.events) if (e[0] === 'burst') burst = e; B.events = []; }
+  ok(tell && burst && burst[7] === 0 && burst[1] - tell[1] === tell[7], '두목: 예고 뒤 정해진 시간에 터짐 · 피하면 안 맞음', tell && tell[3]);
+  const C = new SideFight(sideRoom(60, 4), refPlayer(60), 9, { auto: false });
+  C.mobs = []; C.spawn('b', C.def.map.spots[0]); const b2 = C.mobs[0]; b2.angry = true; let hit2 = null;
+  for (let i = 0; i < 400 && !hit2; i++) { C.hero.x = b2.x; C.hero.y = b2.y; C.hero.plat = b2.plat; C.hero.vy = 0; C.step(); for (const e of C.events) if (e[0] === 'burst') hit2 = e; C.events = []; }
+  ok(hit2 && hit2[7] === 1, '두목: 가만히 있으면 맞는다', hit2 && hit2[3]);
 }
 
 console.log('\n=== S9 무공 강화 트리(무공마다 3단 · 점수 · 배우는 시간 · 초기화) ===');

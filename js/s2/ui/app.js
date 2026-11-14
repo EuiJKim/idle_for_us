@@ -15,7 +15,8 @@ import { expToNext } from '../tables/exp.js';
 import { staminaNow } from '../content/idle.js';
 import { buildQueue } from '../content/offline.js';
 import { kindGrade } from '../grow/collect.js';
-import { loadLooks, zoneFor, drawHero, drawMob, mobName, drawPaintedBack, drawPaintedLedge, preloadChapter, fxImg, oldImg, tintImg, ULT_ART, SEAL_ART, CUT_ART, BUFF_ART } from './look.js';
+import { loadLooks, zoneFor, drawHero, drawMob, mobName, drawPaintedBack, drawPaintedLedge, preloadChapter, fxImg, oldImg, tintImg, ULT_ART, SEAL_ART, CUT_ART, BUFF_ART, BOSS_ART } from './look.js';
+import { BOSS_PATS } from '../tables/kit.js';
 import { chapterOf, chapterName } from '../tables/chapters.js';
 import { KIT, SLOT_N, kitCap, kitCost, kitCoef, skillById, treeOf, TREE_GATE, treeResetCost } from '../tables/kit.js';
 import { STATS } from '../core/stats.js';
@@ -74,6 +75,43 @@ function eqCell(sl) {
   b.innerHTML = `<img src="${eqIcon(sl, it)}" alt="${SLOT_NAME[sl]}" style="${it ? '' : 'opacity:.25'}"><span class="en">${S2.enh ? '+' + S2.enh : ''}</span><span class="sr">${S2.star ? '★' + S2.star : ''}</span><span class="nm">${SLOT_NAME[sl]}</span>`;
   b.onclick = () => { eqSel = eqSel === sl ? null : sl; paintWin(); };
   return b;
+}
+// ── 장비 뽑기 연출(v497) ── 카드가 차례로 뒤집힌다. 보(4)↑는 뒤집기 전에 두근(떨림 · 빛) · 신(5)↑는 화면이 번쩍 · 건너뛰기
+const GX_COL = ['#9ca3af', '#7cc47a', '#6aa8e0', '#b27ae0', '#e8c26a', '#e06a5a', '#ffffff'];
+function showGacha(r) {
+  const prev = document.querySelector('.gx'); if (prev) prev.parentNode.removeChild(prev);
+  const ov = document.createElement('div'); ov.className = 'gx';
+  const close = () => { if (ov.parentNode) ov.parentNode.removeChild(ov); };
+  const best = Math.max(...r.items.map((i) => i.g));
+  ov.innerHTML = `<div class="gxt">장비 뽑기 ${r.items.length}번</div><div class="gxg ${r.items.length > 10 ? 'many' : ''}"></div><div class="gxb"><button class="btn skip">건너뛰기</button></div>`;
+  const grid = ov.querySelector('.gxg'), eqd = new Set(r.got.filter((x) => x.equipped).map((x) => x.it?.uid));
+  const cards = r.items.map((it) => {
+    const c = document.createElement('div'); c.className = `gc g${it.g}`; c.style.setProperty('--gc', GX_COL[it.g] || '#fff');
+    c.innerHTML = `<div class="back"></div><div class="face"><img src="${eqIcon(it.slot, it)}" alt="${SLOT_NAME[it.slot]}"><b class="g${it.g}t">${GRADES[it.g]}</b><small>${SLOT_NAME[it.slot]}</small>${eqd.has(it.uid) ? '<i>장착</i>' : ''}</div>`;
+    grid.append(c); return c;
+  });
+  document.body.append(ov);
+  let i = 0, timer = null, done = false;
+  const step = r.items.length > 10 ? 70 : 150;
+  const flash = (gr) => { ov.classList.remove('flash'); void ov.offsetWidth; ov.style.setProperty('--gc', GX_COL[gr]); ov.classList.add('flash'); };
+  const finish = () => {
+    if (done) return; done = true; clearTimeout(timer);
+    cards.forEach((c) => { c.classList.remove('tense'); c.classList.add('open'); });
+    if (best >= 5) flash(best);
+    ov.querySelector('.skip').textContent = '닫기';
+    ov.querySelector('.gxt').textContent = r.got.some((x) => x.equipped) ? '더 좋은 것은 바로 장착했어요' : `가장 좋은 것: ${GRADES[best]}`;
+  };
+  const next = () => {
+    if (done) return;
+    if (i >= cards.length) { finish(); return; }
+    const c = cards[i], it = r.items[i];
+    if (it.g >= 4 && !c.classList.contains('tense')) { c.classList.add('tense'); timer = setTimeout(next, it.g >= 5 ? 900 : 550); return; }   // 두근
+    c.classList.remove('tense'); c.classList.add('open'); if (it.g >= 5) flash(it.g);
+    i++; timer = setTimeout(next, step);
+  };
+  timer = setTimeout(next, 250);
+  ov.querySelector('.skip').onclick = (e) => { e.stopPropagation(); if (done) close(); else finish(); };
+  ov.onclick = () => { if (done) close(); };
 }
 function openWin(id, t = 0) { open = id; tab = t; $('win').classList.add('open'); paintWin(); paintNav(); }
 function closeWin() { open = null; $('win').classList.remove('open'); paintNav(); }
@@ -182,7 +220,7 @@ function paintWin() {
     const GA = g.S.gacha;
     add(rowEl(`뽑기 레벨 ${GA.lv}`, GA.wait ? `오르는 중 ${left(GA.wait.endMs)}` : `경험치 ${GA.exp}/${gachaExpNeed(GA.lv)}`, GA.wait ? [['시간 티켓', act(() => g.timeTicket('gacha', 15)), !(W['ticket:time'] > 0)]] : []));
     add(rowEl(`뽑기권 ${W['ticket:gear'] || 0}장 · 정예 대기 ${GA.eliteQ}`, '10번마다 사냥터에 정예'));
-    for (const n of [1, 10, 30]) add(rowEl(`${n}번 뽑기`, (W['ticket:gear'] || 0) >= n ? '뽑기권' : '은자', [['뽑기', act(() => { const r = g.pullGear(n); if (r) toast(`${r.items.map((i) => GRADES[i.g]).join(' ')}${r.got.some((x) => x.equipped) ? ' · 더 좋은 것 장착' : ''}`); return r; })]]));
+    for (const n of [1, 10, 30]) add(rowEl(`${n}번 뽑기`, (W['ticket:gear'] || 0) >= n ? '뽑기권' : '은자', [['뽑기', act(() => { const r = g.pullGear(n); if (r) showGacha(r); return r; })]]));
   } else if (key === 'gear:2') {
     for (const s of SLOTS) {
       const sl = g.S.gear.slots[s];
@@ -347,9 +385,12 @@ const floats = [];
 const mobHit = new Map();   // 몹 id → 맞은 때(번쩍 · 밀림)
 let freezeUntil = 0;       // 큰 무공 적중 멈칫
 const pals = [];           // 화면 위 동료(무인 뒤를 따라감)
+const PAL_COL = ['#7dd3fc', '#86efac', '#fde68a', '#f9a8d4', '#c4b5fd'];
 const PAL_KINDS = ['fox', 'crane', 'monkey', 'tiger', 'turtle', 'deer', 'haetae', 'qilin', 'phoenix', 'dragon'];
 let lastCastAt = 0;
-let lastHitAt = 0, heroRun = 0, lastHx = 0, skillFx = [], camSm = null, camSy = null, cutIn = null, shakeUntil = 0;
+const palAtk = [];          // 동료 i → { at, mid } 마지막 공격
+const tells = new Map();    // 두목 id → 예고 { pat, x, y, w, at, dur }
+let hurtFlash = -1e9, lastHitAt = 0, heroRun = 0, lastHx = 0, skillFx = [], camSm = null, camSy = null, cutIn = null, shakeUntil = 0;
 const mobPrev = new Map();
 // 그린 무공 효과 — 모양마다 놓는 자리 · 크기 · 움직임
 function drawFxImage(cx, im, f, a, ease, fade, x, y, Rpx, k, big) {
@@ -464,6 +505,21 @@ function draw() {
   const gg = cx.createLinearGradient(0, gy, 0, Hh); gg.addColorStop(0, 'rgba(20,14,8,.15)'); gg.addColorStop(1, 'rgba(20,14,8,.85)');
   cx.fillStyle = gg; cx.fillRect(0, gy + 10, W, Hh - gy);
   map.plats.forEach((p, i) => { const [x0, y] = P(p.x0, p.y), [x1] = P(p.x1, p.y); if (x1 < -20 || x0 > W + 20) return; drawPaintedLedge(cx, Math.max(-40, x0), Math.min(W + 40, x1), y, ch, z, (i === 0 ? 46 : 34) * k, i === 0); });
+  // 두목 예고 — 땅에 붉은 범위가 차오르고(다 차면 터짐) 패턴 그림이 희미하게 · 이름
+  for (const [id, q] of tells) {
+    if (!F.mobs.some((m) => m.id === id) || t - q.at > q.dur + 200) { tells.delete(id); continue; }
+    const A = BOSS_ART[q.pat] || BOSS_ART.orb, pr = Math.min(1, (t - q.at) / q.dur);
+    const [x0, y0] = P(q.x - q.w / 2, q.y), [x1] = P(q.x + q.w / 2, q.y), hh = 150 * k;
+    cx.save();
+    cx.globalAlpha = 0.32 + 0.14 * Math.sin(ts * 18); cx.fillStyle = '#ef4444'; cx.fillRect(x0, y0 - hh, x1 - x0, hh);
+    cx.globalAlpha = 0.5; cx.fillStyle = A.col; const cw = (x1 - x0) * pr; cx.fillRect((x0 + x1) / 2 - cw / 2, y0 - 8 * k, cw, 8 * k);
+    cx.globalAlpha = 0.9; cx.strokeStyle = '#fca5a5'; cx.lineWidth = 2; cx.setLineDash([8, 6]); cx.strokeRect(x0, y0 - hh, x1 - x0, hh); cx.setLineDash([]);
+    const im = oldImg(A.tell); if (im) { const w = Math.min(x1 - x0, 220 * k); cx.globalCompositeOperation = 'lighter'; cx.globalAlpha = 0.35 + 0.4 * pr; cx.translate((x0 + x1) / 2, y0); cx.scale(1, 0.4); cx.rotate(pr * 3); cx.drawImage(im, -w / 2, -w / 2, w, w); }
+    cx.restore();
+    const nm = BOSS_PATS.find((b) => b.id === q.pat)?.name || '';
+    cx.font = `900 ${16 * k}px system-ui`; cx.textAlign = 'center'; cx.lineWidth = 4; cx.strokeStyle = '#3b0000'; cx.fillStyle = '#fecaca';
+    cx.strokeText(`${nm}!`, (x0 + x1) / 2, y0 - hh - 6); cx.fillText(`${nm}!`, (x0 + x1) / 2, y0 - hh - 6);
+  }
   const H = F.hero, sc = 0.8 * k;
   heroRun = H.act === 'run' || (H.px !== undefined && H.px !== H.x && H.plat >= 0) ? 6 : Math.max(0, heroRun - 1);
   for (const m of F.mobs) {
@@ -481,9 +537,15 @@ function draw() {
   const [hx, hy] = P(lx(H), ly(H));
   for (let i = skillFx.length - 1; i >= 0; i--) {
     const f = skillFx[i], sk = skillById(f.id), col = sk?.col || '#ffe9a8';
-    const life = f.shape === 'rain' ? 800 : f.shape === 'circle' ? 560 : f.shape === 'buff' ? 900 : f.shape === 'hit' ? 240 : f.shape === 'ring' ? 380 : 440, a = (t - f.at) / life;
+    const life = f.shape === 'rain' ? 800 : f.shape === 'circle' ? 560 : f.shape === 'buff' ? 900 : f.shape === 'hit' ? 240 : f.shape === 'ring' ? 380 : f.shape === 'boss' ? 700 : 440, a = (t - f.at) / life;
     if (a > 1) { skillFx.splice(i, 1); continue; }
     if (a < 0) continue;
+    if (f.shape === 'boss') {   // 두목 패턴 터짐 — 지금 게임의 큰 그림(태극 · 꽃잎 폭풍 · 핏빛 · 흑구)을 범위 위에
+      const A = BOSS_ART[f.pat] || BOSS_ART.orb, im = oldImg(A.burst), [bx, by] = P(f.x, f.y), w = Math.max(160 * k, f.w * s) * (0.7 + 0.4 * (1 - Math.pow(1 - a, 3)));
+      cx.save(); cx.globalCompositeOperation = 'lighter'; cx.globalAlpha = a < 0.6 ? 1 : (1 - a) / 0.4;
+      if (im) cx.drawImage(im, bx - w / 2, by - w * 0.75, w, w); else { cx.fillStyle = A.col; cx.beginPath(); cx.arc(bx, by - w * 0.3, w / 2, 0, 7); cx.fill(); }
+      cx.restore(); continue;
+    }
     if (f.shape === 'hit' && !fxImg(g.S.hero.job, 'hit')) continue;
     drawSkillFx(cx, f, a, f.shape === 'buff' ? [hx, hy] : P(f.x, f.y), (f.R || 2000) * s, k, col, sk?.tier || 0);
   }
@@ -496,7 +558,13 @@ function draw() {
     const wantX = lx(H) - H.face * (900 + i * 700), wantY = ly(H);
     const p = (pals[i] ??= { x: wantX, y: wantY, kind: PAL_KINDS[kd % PAL_KINDS.length] }); p.kind = PAL_KINDS[kd % PAL_KINDS.length];
     const dx = wantX - p.x; p.mv = Math.abs(dx) > 60; p.x += dx * 0.08; p.y += (wantY - p.y) * 0.15; p.face = Math.abs(dx) > 60 ? Math.sign(dx) : H.face;
-    const [px, py] = P(p.x, p.y);
+    // 동료 공격: 표적 쪽으로 튀어 나갔다 돌아옴(0.35초) + 표적에 빛 고리
+    const pa = palAtk[i], pt = pa && t - pa.at < 350 ? F.mobs.find((m) => m.id === pa.mid) : null;
+    let ox = 0;
+    if (pt) { const q = (t - pa.at) / 350, lg = Math.sin(q * Math.PI); ox = (lx(pt) - p.x) * 0.55 * lg; p.face = Math.sign(lx(pt) - p.x) || p.face;
+      const ring = tintImg('art/fx/fx-burst.png', PAL_COL[i % PAL_COL.length]); const [tx, ty] = P(lx(pt), ly(pt) + 700);
+      if (ring) { const w = 90 * k * (0.6 + q); cx.save(); cx.globalCompositeOperation = 'lighter'; cx.globalAlpha = 1 - q; cx.drawImage(ring, tx - w / 2, ty - w / 2, w, w); cx.restore(); } }
+    const [px, py] = P(p.x + ox, p.y);
     cx.save(); cx.globalAlpha = 0.95; drawCreature(cx, p.kind, px, py, { t: ts + i, moving: p.mv, flip: p.face < 0, scale: 0.55 * k }); cx.restore();
     if (t - lastCastAt < 300) { cx.save(); cx.globalCompositeOperation = 'lighter'; cx.globalAlpha = 0.5 * (1 - (t - lastCastAt) / 300); cx.fillStyle = '#ffe9a8'; cx.beginPath(); cx.arc(px, py - 20 * k, 26 * k, 0, 7); cx.fill(); cx.restore(); }
   });
@@ -508,15 +576,17 @@ function draw() {
     const f = floats[i], a = (t - f.at) / 1000;
     if (a > 1) { floats.splice(i, 1); continue; }
     const [x, y] = P(f.x, f.y), yy = y - 95 * sc - f.row * 22 * k - a * 18;
-    const fs = (f.crit ? 24 : 18) * k * (a < 0.08 ? 1.3 - a * 3.75 : 1);
+    const fs = (f.pal ? 14 : f.crit ? 24 : 18) * k * (a < 0.08 ? 1.3 - a * 3.75 : 1);
     cx.globalAlpha = a > 0.75 ? (1 - a) * 4 : 1; cx.textAlign = 'center';
-    cx.font = `900 ${fs}px system-ui`; cx.lineWidth = 5; cx.strokeStyle = f.crit ? '#5a0a2a' : '#3a2200';
+    cx.font = `900 ${fs}px system-ui`; cx.lineWidth = 5; cx.strokeStyle = f.pal ? '#06323f' : f.crit ? '#5a0a2a' : '#3a2200';
     const txt = unit(f.d);
     cx.strokeText(txt, x, yy);
-    const gr = cx.createLinearGradient(0, yy - fs, 0, yy); if (f.crit) { gr.addColorStop(0, '#ffd0e8'); gr.addColorStop(1, '#ff3d8b'); } else { gr.addColorStop(0, '#fff6c4'); gr.addColorStop(1, '#ffa31a'); }
+    const gr = cx.createLinearGradient(0, yy - fs, 0, yy); if (f.pal) { gr.addColorStop(0, '#e0fbff'); gr.addColorStop(1, '#38bdf8'); } else if (f.crit) { gr.addColorStop(0, '#ffd0e8'); gr.addColorStop(1, '#ff3d8b'); } else { gr.addColorStop(0, '#fff6c4'); gr.addColorStop(1, '#ffa31a'); }
     cx.fillStyle = gr; cx.fillText(txt, x, yy);
     cx.globalAlpha = 1;
   }
+  // 두목 패턴에 맞음 — 화면 가장자리 붉게(0.4초)
+  if (t - hurtFlash < 400) { const v = cx.createRadialGradient(W / 2, Hh / 2, Math.min(W, Hh) * 0.3, W / 2, Hh / 2, Math.max(W, Hh) * 0.7); v.addColorStop(0, 'rgba(220,20,20,0)'); v.addColorStop(1, `rgba(220,20,20,${0.45 * (1 - (t - hurtFlash) / 400)})`); cx.fillStyle = v; cx.fillRect(0, 0, W, Hh); }
   // 궁극기 컷인 — 수묵 배경 띠가 비스듬히 지나가며 무공 이름(0.9초)
   if (cutIn) {
     const a = (t - cutIn.at) / 900;
@@ -550,9 +620,12 @@ function frame() {
     g.hunt(dt);
     const rows = new Map();
     for (const e of g.lastEvents || []) {
-      if (e[0] === 'hit') { const m = mobs.get(e[2]); if (!m) continue; lastHitAt = t; mobHit.set(m.id, t + (e[6] || 0) * 70); if (e[5] && skillFx.length < 80) skillFx.push({ at: t + (e[6] || 0) * 70, shape: 'hit', x: m.x, y: m.y + 900, crit: e[4], rot: (m.id * 1.7 + (e[6] || 0)) % 6.28 }); const n = rows.get(m.id) || 0; rows.set(m.id, n + 1); if (floats.length < 60) floats.push({ x: m.x, y: m.y, d: e[3], crit: e[4], at: t, row: (n + floats.filter((f) => f.mid === m.id && t - f.at < 500).length) % 6, mid: m.id }); }
+      if (e[0] === 'hit') { const m = mobs.get(e[2]); if (!m) continue; lastHitAt = t; mobHit.set(m.id, t + (e[6] || 0) * 70); if (e[5] && skillFx.length < 80) skillFx.push({ at: t + (e[6] || 0) * 70, shape: 'hit', x: m.x, y: m.y + 900, crit: e[4], rot: (m.id * 1.7 + (e[6] || 0)) % 6.28 }); const n = rows.get(m.id) || 0; rows.set(m.id, n + 1); if (floats.length < 60) floats.push({ x: m.x, y: m.y, d: e[3], crit: e[4], pal: e[5] === 2, at: t, row: (n + floats.filter((f) => f.mid === m.id && t - f.at < 500).length) % 6, mid: m.id }); }
       else if (e[0] === 'cast') skillFx.push({ at: t, id: e[2], face: e[3], x: e[4], y: e[5], shape: e[6], R: e[7] });
       else if (e[0] === 'buff') skillFx.push({ at: t, id: e[2], shape: 'buff' });
+      else if (e[0] === 'pal') palAtk[e[2]] = { at: t, mid: e[3] };
+      else if (e[0] === 'tell') tells.set(e[2], { pat: e[3], x: e[4], y: e[5], w: e[6], at: t, dur: e[7] });
+      else if (e[0] === 'burst') { tells.delete(e[2]); skillFx.push({ at: t, shape: 'boss', pat: e[3], x: e[4], y: e[5], w: e[6] }); shakeUntil = t + (e[7] ? 420 : 220); if (e[7]) hurtFlash = t; }
       else if (e[0] === 'kill') { const m = mobs.get(e[2]); if (m && skillFx.length < 90) skillFx.push({ at: t, shape: 'ring', x: m.x, y: m.y }); }
       if (e[0] === 'cast') { lastCastAt = t; if ((skillById(e[2])?.tier || 0) >= 2) freezeUntil = t + 60; }   // 큰 무공은 맞는 순간 0.06초 멈칫
       if (e[0] === 'cast' && skillById(e[2])?.tier === 5) { cutIn = { at: t, id: e[2] }; shakeUntil = t + 450; }

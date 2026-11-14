@@ -162,6 +162,13 @@ export const ULT_ART = { sword: 'art/bfx/sword-rain.jpg', spear: 'art/bfx/fire-p
 export const SEAL_ART = { sword: 'art/jfx/seal-sword.png', spear: 'art/jfx/seal-ring.png', fist: 'art/jfx/seal-fist.png', bow: 'art/jfx/seal-fan.png', mage: 'art/fx/fx-field.png' };
 export const CUT_ART = { sword: 'art/jfx/cut-sword.jpg', spear: 'art/jfx/cut-ring.jpg', fist: 'art/jfx/cut-fist.jpg', bow: 'art/jfx/cut-fan.jpg', mage: 'art/jfx/cut-poison.jpg' };
 export const BUFF_ART = { fist: 'art/jfx/gold-bell.png' };
+// 두목 패턴(v497) — 예고 땅 위 그림 · 터질 때 큰 그림(검은 바탕 → lighter)
+export const BOSS_ART = {
+  taiji: { tell: 'art/bfx/taiji.jpg', burst: 'art/bfx/taiji.jpg', col: '#a5b4fc' },
+  petal: { tell: 'art/jfx/plum-petal.png', burst: 'art/bfx/petal-storm.jpg', col: '#f9a8d4' },
+  eye: { tell: 'art/jfx/blood-eye.png', burst: 'art/bfx/blood-burst.jpg', col: '#f87171' },
+  orb: { tell: 'art/jfx/soul-orb.png', burst: 'art/bfx/dark-orb.jpg', col: '#c084fc' },
+};
 // 흰 이펙트를 빛깔로 물들인 판(빛깔마다 한 번만 굽는다)
 const tinted = {};
 export function tintImg(path, col) {

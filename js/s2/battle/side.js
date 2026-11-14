@@ -7,6 +7,7 @@ import { hit } from './damage.js';
 import { makeMob, SKILL_BASE, SKILL_MAIN } from './ref.js';
 import { JOBS } from '../tables/char.js';
 import { BASE_REGEN_P } from '../tables/economy.js';
+import { PAL_ATK, BOSS_PATS, BOSS_PAT_EVERY } from '../tables/kit.js';
 
 export const RUN = 4200, MOB_RUN = 1600, GRAV = 22000, JUMP_V = 11000, SAME_Y = 500;   // mm/s · mm/s² · mm
 export const MAIN_HITS = 4;          // 주력 무공은 앞쪽 여러 마리(장르 공통 — 한 번에 쓸어 담는 맛)
@@ -157,6 +158,37 @@ export class SideFight {
     }
     // 버프가 끝나면 원래 스탯으로
     if (H.buffs?.length && H.buffs.some((b) => b.until <= this.t)) { H.buffs = H.buffs.filter((b) => b.until > this.t); this.restat(); }
+    // ── 동료(v497) ── 무인이 싸우는 중이면 쿨마다 무인의 표적 쪽 가까운 몹을 친다
+    if (H.pals?.length && tgt && Math.abs(tgt.y - H.y) <= SAME_Y && Math.abs(tgt.x - H.x) <= J.range * 1.5) {
+      H.palCd ??= H.pals.map((_, i) => 600 + i * 500);
+      H.pals.forEach((pl, i) => {
+        if (this.t < H.palCd[i]) return;
+        H.palCd[i] = this.t + PAL_ATK.cdMs;
+        const ts = this.mobs.filter((m) => Math.abs(m.y - H.y) <= SAME_Y && Math.abs(m.x - tgt.x) <= J.range * PAL_ATK.range).sort((a, b) => Math.abs(a.x - tgt.x) - Math.abs(b.x - tgt.x)).slice(0, PAL_ATK.maxT);
+        this.events.push(['pal', this.t, i, ts[0]?.id ?? -1]);
+        for (const m of ts) this.strike(m, { coef: PAL_ATK.coef[pl.g] || PAL_ATK.coef[0], base: false, pal: 1 }, 0);
+      });
+    }
+    // ── 두목 패턴(v497) ── 예고 → 잠시 뒤 범위 안이면 맞음(수동이면 피할 수 있다)
+    for (const m of this.mobs) {
+      if (m.kind !== 'boss' || !m.angry) continue;
+      if (!m.pat && this.t >= (m.nextPat ??= this.t + 3000)) {
+        const P = BOSS_PATS[this.rng.int(BOSS_PATS.length)];
+        const cx2 = P.shape === 'target' ? H.x : P.shape === 'line' ? m.x + Math.sign(H.x - m.x || 1) * P.w / 2 : m.x;
+        m.pat = { id: P.id, at: this.t, end: this.t + P.tellMs, x: cx2, y: m.y, w: P.w, dmgX: P.x, shape: P.shape };
+        this.events.push(['tell', this.t, m.id, P.id, cx2, m.y, P.w, P.tellMs]);
+      }
+      if (m.pat && this.t >= m.pat.end) {
+        const q = m.pat; m.pat = null; m.nextPat = this.t + BOSS_PAT_EVERY;
+        const inside = Math.abs(H.x - q.x) <= q.w / 2 && Math.abs(H.y - q.y) <= SAME_Y + 600;
+        this.events.push(['burst', this.t, m.id, q.id, q.x, q.y, q.w, inside ? 1 : 0]);
+        if (inside) {
+          const r = hit({ ...m, st: { ...m.st, atk: Math.round(m.st.atk * q.dmgX) } }, H, SKILL_BASE, this.rng);
+          H.hp -= r.dmg; this.dmgIn += r.dmg; this.events.push(['hurt', this.t, r.dmg]);
+          if (H.hp <= 0) { this.deaths++; H.hp = H.st.hp; this.events.push(['die', this.t]); }
+        }
+      }
+    }
     // ── 몹 ── 맞으면 같은 층에서 무인 쪽으로 와서 친다 · 아니면 발판 위를 서성
     for (const m of this.mobs) {
       const p = map.plats[m.plat];
@@ -245,7 +277,7 @@ export class SideFight {
   strike(m, skill, hitNo = 0, att = null) {
     const r = hit(att || this.hero, m, skill, this.rng);
     m.hp -= r.dmg; m.angry = true; this.dmgOut += r.dmg; if (r.crit) this.crits++;
-    this.events.push(['hit', this.t, m.id, r.dmg, r.crit ? 1 : 0, skill.base ? 0 : 1, hitNo]);
+    this.events.push(['hit', this.t, m.id, r.dmg, r.crit ? 1 : 0, skill.pal ? 2 : skill.base ? 0 : 1, hitNo]);
     if (m.hp <= 0) {
       this.kills++; this.killsBy[m.kind] = (this.killsBy[m.kind] || 0) + 1;
       this.events.push(['kill', this.t, m.id, m.kind, this.t - m.bornAt]);

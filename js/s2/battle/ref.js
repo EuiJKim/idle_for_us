@@ -4,7 +4,7 @@ import { baseDef, JOBS } from '../tables/char.js';
 import { STD } from '../tables/std.js';
 import { KILL_SEC, SURVIVE_HITS, TIER_HP_X, HP_FIT } from '../tables/economy.js';
 import { expected } from './damage.js';
-import { stdKit, battleKit } from '../tables/kit.js';
+import { stdKit, battleKit, PAL_ATK, stdPals } from '../tables/kit.js';
 import { JOB_LV } from '../tables/progress.js';
 
 
@@ -15,7 +15,7 @@ export const advAt = (L) => JOB_LV.filter((lv, n) => n > 0 && L >= lv).length;
 export function refPlayer(L, job = 'sword') {
   const Lc = Math.max(1, Math.min(STD.length - 1, Math.round(L) || 1));
   // v493 표준 무공 세트: 그 레벨까지 열린 공격 무공 · 버프(6칸) — 몹 체력 기준이 된다
-  return { lv: L, job, kind: 'hero', st: { ...STD[Lc] }, kit: battleKit(stdKit(Lc, job, advAt(Lc))) };
+  return { lv: L, job, kind: 'hero', st: { ...STD[Lc] }, kit: battleKit(stdKit(Lc, job, advAt(Lc))), pals: stdPals(Lc) };
 }
 // 무공 세트로 한 대상에게 넣는 초당 기대 피해(연타 합 · 쿨마다 한 번). 세트가 없으면 옛 주력 무공 하나
 // aoe: 한 번에 맞는 몹 수 가정(일반 몹 사냥터는 FARM_AOE — 여러 마리를 쓸어 담는 무공이 그만큼 몹 하나를 빨리 잡는 셈)
@@ -24,6 +24,8 @@ export function kitDps(p, mob, aoe = 1) {
   if (!p.kit) return expected(p, mob, SKILL_MAIN) * (1000 / SKILL_MAIN.cdMs);
   let d = 0;
   for (const k of p.kit) if (k.kind === 'active') d += expected(p, mob, { coef: k.coef * k.hits }) * (1000 / k.cdMs) * Math.min(k.maxT, aoe);
+  // 동료 공격(v497) — 무인 공격력으로 계수만큼
+  for (const pl of p.pals || []) d += expected(p, mob, { coef: PAL_ATK.coef[pl.g] || PAL_ATK.coef[0] }) * (1000 / PAL_ATK.cdMs) * Math.min(PAL_ATK.maxT, aoe);
   return d;
 }
 // 기준 무인이 몹(방어 def)을 칠 때의 기대 DPS(초당) — 평타 + 무공 세트

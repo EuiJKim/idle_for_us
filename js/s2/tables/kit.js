@@ -80,3 +80,16 @@ export function treeEff(sk, nodes = {}) {
   for (const nd of treeOf(sk)) { const lv = nodes[nd.n] || 0; if (lv) for (const [k, v] of Object.entries(nd.eff)) e[k] = (e[k] || 0) + v * lv; }
   return e;
 }
+
+// ── 동료 공격(v497) ── 장착한 동료(등급 0~4)가 쿨마다 무인의 표적(가까운 2마리)을 친다. 계수는 무인 공격력 기준(퍼밀)
+export const PAL_ATK = { cdMs: 3200, maxT: 2, range: 2.4, coef: [260, 340, 450, 600, 800] };
+// 표준 동료(기준 무인): Lv 1~29 한 마리 · 30마다 한 마리 더(최대 5) · 등급은 40레벨마다 하나씩
+export const stdPals = (L) => Array.from({ length: Math.min(5, 1 + Math.floor(L / 30)) }, () => ({ g: Math.min(4, Math.floor(L / 40)) }));
+// 두목 패턴(v497) — 예고(tellMs) 뒤 범위 안이면 맞는다. 피해 = 두목 공격 × x
+export const BOSS_PATS = [
+  { id: 'taiji', name: '태극진', shape: 'circle', w: 3200, tellMs: 1300, x: 2.2 },
+  { id: 'petal', name: '낙화풍', shape: 'line', w: 6000, tellMs: 1100, x: 1.8 },
+  { id: 'eye', name: '혈안', shape: 'target', w: 1800, tellMs: 1500, x: 2.6 },
+  { id: 'orb', name: '흑뢰구', shape: 'circle', w: 2400, tellMs: 900, x: 1.6 },
+];
+export const BOSS_PAT_EVERY = 6500;

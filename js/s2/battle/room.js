@@ -6,6 +6,7 @@ import { hit } from './damage.js';
 import { makeMob, SKILL_BASE, SKILL_MAIN } from './ref.js';
 import { JOBS } from '../tables/char.js';
 import { BASE_REGEN_P } from '../tables/economy.js';
+import { PAL_ATK } from '../tables/kit.js';
 
 const MOVE_HERO = 4000, MOVE_MOB = 2200, MOB_RANGE = 1200;   // mm/초 · mm
 const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
@@ -67,6 +68,16 @@ export class RoomFight {
         if (d > J.range) { const s = Math.min(d - J.range + 1, (MOVE_HERO * TICK_MS) / 1000); H.x += Math.round(((tgt.x - H.x) / d) * s); H.y += Math.round(((tgt.y - H.y) / d) * s); }
         else {
           if (!this.castKit(tgt, J) && this.t >= H.nextAtk) { this.strike(tgt, SKILL_BASE); H.nextAtk = this.t + J.baseMs; }
+          // 동료(v497) — 표적 둘레 가까운 몹을 친다
+          if (H.pals?.length) {
+            H.palCd ??= H.pals.map((_, i) => 600 + i * 500);
+            H.pals.forEach((pl, i) => {
+              if (this.t < H.palCd[i]) return;
+              H.palCd[i] = this.t + PAL_ATK.cdMs;
+              const ts = this.mobs.filter((m) => dist(m, tgt) <= J.range * PAL_ATK.range).sort((a, b) => dist(a, tgt) - dist(b, tgt)).slice(0, PAL_ATK.maxT);
+              for (const m of ts) if (this.mobs.includes(m)) this.strike(m, { coef: PAL_ATK.coef[pl.g] || PAL_ATK.coef[0], base: false });
+            });
+          }
         }
       }
     }
