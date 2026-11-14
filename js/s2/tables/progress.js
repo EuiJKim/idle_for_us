@@ -1,6 +1,6 @@
 // 새 시즌 숫자 초안 — 진행 목표(계획서 §J1). 시뮬(tools/s2sim)이 이 표를 합격선으로 쓴다.
 // 기준 플레이어: 하루 접속 2시간 + 나머지 방치, 광고 안 봄.
-export const TABLE_VER = 's2-0.1';
+export const TABLE_VER = 's2-0.2';   // S3: 경험치 곡선 확정
 
 // day: 시작부터 지난 날 · lv: [아래, 위] · job: 전직 차수 · star: 성혼 목표
 export const PROGRESS = [

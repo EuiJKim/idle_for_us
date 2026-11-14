@@ -22,6 +22,9 @@ import * as DM from '../js/s2/battle/damage.js';
 import * as CH from '../js/s2/tables/char.js';
 import { refPlayer, makeMob, SKILL_BASE, SKILL_MAIN } from '../js/s2/battle/ref.js';
 import { RoomFight, simpleRoom, replay } from '../js/s2/battle/room.js';
+import * as PS from '../js/s2/sim/progress.js';
+import { Hero, newHero } from '../js/s2/hero/hero.js';
+import * as SK from '../js/s2/tables/skills.js';
 
 let fail = 0;
 const ok = (c, m, d = '') => { console.log(`  ${c ? 'OK ' : '✗✗ '} ${m}${d ? `  — ${d}` : ''}`); if (!c) fail++; };
@@ -72,9 +75,9 @@ console.log('\n=== S0 숫자 초안 표 ===');
   // 경험치
   const e = (L) => EX.expToNext(L);
   ok(Array.from({ length: PR.LEVEL_MAX - 2 }, (_, i) => i + 2).every((L) => e(L) > e(L - 1)), '경험치: 레벨마다 늘어남');
-  ok(e(100) / e(99) < 3.5 && e(104) / e(103) < 1.4 && e(105) / e(104) < 1.15, '100에서 벽이 갑자기 서지 않음(100~104 서서히)', `${(e(100) / e(99)).toFixed(2)} · ${(e(104) / e(103)).toFixed(2)}`);
+  ok(e(100) / e(99) < 1.8 && e(104) / e(103) < 1.6 && e(105) / e(104) < 1.15, '100에서 벽이 갑자기 서지 않음(100~104 서서히)', `${(e(100) / e(99)).toFixed(2)} · ${(e(104) / e(103)).toFixed(2)}`);
   const pre = EX.cumExp(100) - EX.cumExp(1), post = EX.cumExp(150) - EX.cumExp(100);
-  ok(post > pre * 30, '100 이후가 그 전보다 훨씬 무거움(1~100의 30배 넘게)', `${(post / pre).toFixed(0)}배`);
+  ok(post > pre * 15, '100 이후가 그 전보다 훨씬 무거움(1~100의 15배 넘게)', `${(post / pre).toFixed(0)}배`);
   // 장비 뽑기
   const ws = Array.from({ length: GE.GACHA_LV_MAX }, (_, i) => GE.gachaWeights(i + 1));
   ok(ws.every((w) => w.reduce((a, b) => a + b, 0) === 1000 && w.every((x) => x >= 0)), '장비 뽑기: 모든 레벨 확률 합 100%');
@@ -189,7 +192,7 @@ console.log('\n=== S1 세이브 서명 · 표 판 · 차단 깃발 ===');
   ok(forged !== txt && SV.unpack(forged).ok === false, '손으로 은자를 고치면 서명이 안 맞음');
   ok(SV.canon({ b: 1, a: [2, { d: 1, c: 2 }] }) === SV.canon({ a: [2, { c: 2, d: 1 }], b: 1 }), '키 순서가 달라도 같은 글자(기기마다 같음)');
   ok(SV.unpack('나쁜 글자').ok === false && SV.SAVE_KEY.startsWith('ifu.s2.'), '깨진 글자 · 새 시즌 열쇠는 옛 세이브와 다름');
-  ok(/^[0-9a-f]{8}$/.test(tableHash()) && TABLE_VER === 's2-0.1', '표 해시 · 판 번호', tableHash());
+  ok(/^[0-9a-f]{8}$/.test(tableHash()) && TABLE_VER === 's2-0.2', '표 해시 · 판 번호', tableHash());
   FL.setFlags({ off: ['pvp', 'gacha', 'nope'], msg: '점검 중' });
   ok(FL.blocked('pvp') && FL.blocked('gacha') && !FL.blocked('nope') && !FL.blocked('guild') && FL.blockedMsg() === '점검 중', '차단 깃발(모르는 이름은 무시)');
   FL.setFlags(null); ok(FL.blockedList().length === 0, '서버를 못 읽으면 모두 열림');
@@ -249,6 +252,51 @@ console.log('\n=== S2 결정론 · 입력 기록 재현(§L3) ===');
   ok(c.digest() !== a.digest(), '씨앗이 다르면 결과도 다름');
   const x = new RoomFight(def, refPlayer(80, 'bow'), 5).run(60000), y = new RoomFight(def, refPlayer(80, 'bow'), 5).run(60000);
   ok(x.digest() === y.digest() && Number.isInteger(x.hero.x) && Number.isInteger(x.t), '자동 사냥도 결정론(위치·시간 정수)');
+}
+
+
+console.log('\n=== S3 진행 시뮬 합격선(§J1) ===');
+{
+  const l30 = PS.levelAt30min();
+  ok(l30 >= 13 && l30 <= 17, '30분 Lv13~17', l30.toFixed(1));
+  const bad = [];
+  for (const r of PR.PROGRESS.filter((x) => x.day >= 1)) {
+    const b = PS.levelAtDay(r.day), f = PS.levelAtDay(r.day, 'full'), i = PS.levelAtDay(r.day, 'idle');
+    if (b < r.lv[0] - 0.5 || b > r.lv[1] + 0.5) bad.push(`기준 ${r.day}일 Lv${b.toFixed(1)}`);
+    if (f > b * PR.POLICY_BAND.full.max) bad.push(`꽉 채움 ${r.day}일 ${(f / b).toFixed(2)}배`);
+    if (i < b * PR.POLICY_BAND.idle.min) bad.push(`방치만 ${r.day}일 ${(i / b).toFixed(2)}배`);
+  }
+  ok(bad.length === 0, '기준: 1일 55~65 · 7일 100 · 30일 112~115 · 90일 125~128 · 180일 137~140 · 1년 150 / 꽉 채움 1.3배 이내 · 방치만 0.6배 이상', bad.join(' '));
+  // 표준 방에서 실제로 분당 몇 마리 잡나 — 곡선이 기대는 값(27)과 맞는지
+  const kpm = Object.keys(CH.JOBS).map((job) => new RoomFight(simpleRoom(60, EX.STD_ROOM), refPlayer(60, job), 3).run(300000).kills / 5);
+  ok(kpm.every((k) => Math.abs(k / EX.KILLS_PER_MIN - 1) < 0.15), '표준 방 분당 처치 ≈ 27(±15%) — 다섯 직업', kpm.map((k) => k.toFixed(1)).join(' '));
+}
+
+console.log('\n=== S3 무인 ===');
+{
+  const h = new Hero(newHero('bow'));
+  ok(h.addExp(EX.cumExp(30)) === 29 && h.s.lv === 30, '경험치로 레벨업(1 → 30)');
+  ok(h.s.pts.agi === 145 && h.ptsUsed() === h.ptsTotal(), '자동 찍기: 주 스탯(궁사=신법)에 전부');
+  ok(h.s.skills.main === 1 && h.s.skills.inner === 1 && h.s.skills.guard === 1, '무공은 레벨이 되면 열림');
+  ok(h.uniqTotal() === 2 && h.uniqUsed() === 2 && h.s.uniq.crit === 1, '고유 스탯 50점마다 1점 · 자동으로 고르게');
+  const w = { gold: 1e6 };
+  let ups = 0; while (h.skillUp('main', w)) ups++;
+  ok(h.s.skills.main === SK.skillCap(30) && ups === SK.skillCap(30) - 1 && w.gold < 1e6, '무공 레벨업 — 무인 레벨에 따른 상한까지 · 은자 소모');
+  ok(!h.canAdvance(), '전직: 던전을 안 깨면 못 함');
+  h.clearDungeon('job1'); ok(h.advance() && h.s.adv === 1, '레벨 + 전직 던전 → 1차 전직');
+  h.clearDungeon('job2'); ok(!h.advance(), '2차는 레벨 50부터');
+  // 마스터리 대기 시간
+  ok(h.learn('m1', 0, w) && !h.learn('m2', 0, w), '마스터리 하나씩 배움(배우는 중엔 다른 것 못 함)');
+  ok(h.tickMastery(5 * 60000 - 50) === null && h.tickMastery(5 * 60000) === 'm1', '5분 지나야 끝남(ms 정수)');
+  ok(h.learn('m2', 0, { gold: 1e6 }) && (h.rushMastery(10 * 60000), h.tickMastery(1) === 'm2'), '시간 티켓으로 당기기');
+  ok(!h.canLearn('m4'), '선행 노드·레벨이 모자라면 못 배움');
+  const st = h.stats();
+  ok(st.final1 === 30 && st.atk > 0 && st.crit === 4, '스탯: 마스터리 → 최종 피해① · 고유 스탯 → 치명');
+  // 맨몸 무인은 기준 무인(장비 몫 자리표시 포함)보다 약하고, 기본보다는 강하다
+  const H = new Hero(newHero('sword')); H.addExp(EX.cumExp(100));
+  for (let n = 1; n <= 3; n++) { H.clearDungeon(`job${n}`); H.advance(); }
+  const ref = refPlayer(100, 'sword'), hs = H.stats();
+  ok(hs.atk < ref.st.atk && hs.atk > CH.baseAtk(100) && hs.hp < ref.st.hp * 1.2, 'Lv100 맨몸 무인: 기본 < 맨몸 < 기준 무인(장비·성장 몫은 S4~)', `${hs.atk} / ${ref.st.atk}`);
 }
 
 console.log('\n=== S0 규칙 ===');
