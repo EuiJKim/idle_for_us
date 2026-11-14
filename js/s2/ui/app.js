@@ -13,6 +13,7 @@ import { expToNext } from '../tables/exp.js';
 import { staminaNow } from '../content/idle.js';
 import { buildQueue } from '../content/offline.js';
 import { kindGrade } from '../grow/collect.js';
+import { loadLooks, zoneFor, drawGround, drawHero, drawMob, mobName } from './look.js';
 
 const $ = (id) => document.getElementById(id);
 const now = () => Date.now();
@@ -173,7 +174,7 @@ function paintWin() {
 // ── 네 귀퉁이(HUD) ──
 function paintHud() {
   const S = g.S, H = S.hero, F = g.fight;
-  $('tl').innerHTML = `<div class="lv">Lv ${H.lv} · ${JOBS[H.job].name} ${H.adv ? H.adv + '차' : ''}</div><div class="bar"><i style="width:${Math.min(100, (H.exp / expToNext(H.lv)) * 100)}%"></i></div><div class="bar hp"><i style="width:${F ? Math.max(0, (F.hero.hp / F.hero.st.hp) * 100) : 100}%"></i></div><div class="pw">전투력 ${fmt(g.power())} · 사냥터 Lv ${g.zoneLv()}</div>`;
+  $('tl').innerHTML = `<div class="lv">Lv ${H.lv} · ${JOBS[H.job].name} ${H.adv ? H.adv + '차' : ''}</div><div class="bar"><i style="width:${Math.min(100, (H.exp / expToNext(H.lv)) * 100)}%"></i></div><div class="bar hp"><i style="width:${F ? Math.max(0, (F.hero.hp / F.hero.st.hp) * 100) : 100}%"></i></div><div class="pw">전투력 ${fmt(g.power())} · ${zoneFor(g.zoneLv()).name} (Lv ${g.zoneLv()})</div>`;
   $('tr').innerHTML = `<span class="cur">은자 ${fmt(S.wallet.gold)}</span><br><span class="cur">뽑기권 ${S.wallet['ticket:gear'] || 0}</span><br><span class="cur">시간 티켓 ${S.wallet['ticket:time'] || 0}</span>`;
   const cur = guideCurrent(S.q.guide), cs = cur && S.q.guide[cur.id];
   $('bl').innerHTML = cur ? `<div class="guide ${cs?.done ? 'done' : ''}" id="gd" role="button" tabindex="0"><b>길잡이 ${cur.id.slice(1)}</b> ${esc(guideLabel(cur))} ${cs?.done ? '— <b>받기</b>' : `(${cs?.p || 0}/${cur.need})`}</div>` : '';
@@ -187,33 +188,55 @@ const goWin = (go) => ({ gear: ['gear', 0], gacha: ['gear', 1], skill: ['hero', 
 // ── 사냥 화면(임시 그림: 도형) ──
 const cv = $('cv'), cx = cv.getContext('2d');
 const floats = [];
+let lastHx = 0, lastHy = 0, heroRun = 0, lastHitAt = 0;
+const mobPrev = new Map();
 function draw() {
   const r = cv.getBoundingClientRect(), dpr = Math.min(2, window.devicePixelRatio || 1);
   if (cv.width !== Math.round(r.width * dpr)) { cv.width = Math.round(r.width * dpr); cv.height = Math.round(r.height * dpr); }
   const F = g.fight; if (!F) return;
-  const W = cv.width, Hh = cv.height, sx = W / F.def.w, sy = Hh / F.def.h, s = Math.min(sx, sy);
-  const ox = (W - F.def.w * s) / 2, oy = (Hh - F.def.h * s) / 2;
-  const P = (x, y) => [ox + x * s, oy + y * s];
-  cx.fillStyle = '#26301f'; cx.fillRect(0, 0, W, Hh);
-  cx.fillStyle = '#2d3a24'; for (let i = 0; i < 40; i++) { const [x, y] = P((i * 7919) % F.def.w, (i * 104729) % F.def.h); cx.fillRect(x, y, 6 * dpr, 3 * dpr); }
+  const W = r.width, Hh = r.height, t = now(), ts = t / 1000;
+  const z = zoneFor(g.zoneLv());
+  // 카메라: 방 너비 9미터를 화면 너비로 · 무인을 가운데(방 밖은 안 보이게)
+  const s = W / 9000;
+  const camX = Math.max(0, Math.min(F.def.w - W / s, F.hero.x - W / s / 2));
+  const camY = Math.max(0, Math.min(Math.max(0, F.def.h - Hh / s), F.hero.y - Hh / s / 2));
+  const P = (x, y) => [(x - camX) * s, (y - camY) * s + 30];
+  cx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  drawGround(cx, W, Hh, z, 1);
+  // 앞뒤(아래쪽이 앞) 순서로 그린다
+  const H = F.hero, list = [];
+  const moved = Math.hypot(H.x - lastHx, H.y - lastHy) > 1; lastHx = H.x; lastHy = H.y;
+  heroRun = moved ? 6 : Math.max(0, heroRun - 1);
+  const tgt = F.mobs.find((m) => m.id === H.target);
   for (const m of F.mobs) {
-    const [x, y] = P(m.x, m.y), rad = (m.kind === 'boss' ? 26 : m.kind === 'elite' ? 17 : 11) * dpr;
-    cx.fillStyle = m.kind === 'boss' ? '#8b2a2a' : m.kind === 'elite' ? '#6a3a8b' : '#6b5a3a';
-    cx.beginPath(); cx.arc(x, y, rad, 0, 7); cx.fill();
-    cx.fillStyle = '#000a'; cx.fillRect(x - rad, y - rad - 7 * dpr, rad * 2, 4 * dpr);
-    cx.fillStyle = '#e06a5a'; cx.fillRect(x - rad, y - rad - 7 * dpr, rad * 2 * Math.max(0, m.hp / m.st.hp), 4 * dpr);
+    const pv = mobPrev.get(m.id), mv = pv ? Math.hypot(m.x - pv[0], m.y - pv[1]) > 1 : false; mobPrev.set(m.id, [m.x, m.y]);
+    list.push({ y: m.y, go: () => {
+      const [x, y] = P(m.x, m.y);
+      cx.fillStyle = 'rgba(0,0,0,.3)'; cx.beginPath(); cx.ellipse(x, y + 2, m.kind === 'boss' ? 34 : 20, m.kind === 'boss' ? 12 : 7, 0, 0, 7); cx.fill();
+      drawMob(cx, x, y, m, z, { t: ts + m.id, flip: m.x > H.x, moving: mv });
+      const top = m.kind === 'boss' ? 138 : m.kind === 'elite' ? 120 : 96, bw = m.kind === 'boss' ? 70 : 36;
+      cx.fillStyle = '#000a'; cx.fillRect(x - bw / 2, y - top, bw, 4);
+      cx.fillStyle = m.kind === 'boss' ? '#f59e0b' : '#e06a5a'; cx.fillRect(x - bw / 2, y - top, bw * Math.max(0, m.hp / m.st.hp), 4);
+      if (m.kind !== 'mob') { cx.font = '11px system-ui'; cx.textAlign = 'center'; cx.fillStyle = m.kind === 'boss' ? '#fde68a' : '#e9d5ff'; cx.fillText(mobName(m, z), x, y - top - 4); }
+    } });
   }
-  const [hx, hy] = P(F.hero.x, F.hero.y);
-  cx.fillStyle = '#e8c26a'; cx.beginPath(); cx.arc(hx, hy, 13 * dpr, 0, 7); cx.fill();
-  cx.strokeStyle = '#fff6'; cx.lineWidth = 2 * dpr; cx.stroke();
-  const t = now();
+  list.push({ y: H.y, go: () => {
+    const [x, y] = P(H.x, H.y);
+    cx.fillStyle = 'rgba(0,0,0,.35)'; cx.beginPath(); cx.ellipse(x, y + 2, 20, 7, 0, 0, 7); cx.fill();
+    const lunge = Math.max(0, 1 - (t - lastHitAt) / 180);
+    drawHero(cx, x, y, g.S.hero.job, g.S.hero.lv, { t: ts, run: heroRun > 0, flip: tgt ? tgt.x < H.x : false, lunge });
+  } });
+  list.sort((a, b) => a.y - b.y).forEach((e) => e.go());
   for (let i = floats.length - 1; i >= 0; i--) {
     const f = floats[i], a = (t - f.at) / 900;
     if (a > 1) { floats.splice(i, 1); continue; }
     const [x, y] = P(f.x, f.y);
-    cx.globalAlpha = 1 - a; cx.fillStyle = f.crit ? '#ffb347' : '#fff'; cx.font = `${(f.crit ? 16 : 12) * dpr}px system-ui`; cx.textAlign = 'center';
-    cx.fillText(fmt(f.d), x, y - 20 * dpr - a * 24 * dpr); cx.globalAlpha = 1;
+    cx.globalAlpha = 1 - a; cx.textAlign = 'center';
+    cx.font = `bold ${f.crit ? 18 : 13}px system-ui`; cx.lineWidth = 3; cx.strokeStyle = '#000';
+    cx.strokeText(fmt(f.d), x, y - 104 - a * 26); cx.fillStyle = f.crit ? '#ffb347' : '#fff'; cx.fillText(fmt(f.d), x, y - 104 - a * 26);
+    cx.globalAlpha = 1;
   }
+  if (mobPrev.size > 200) mobPrev.clear();
 }
 
 // ── 돌리기 ──
@@ -226,7 +249,8 @@ function frame() {
   if (dt > 0) {
     const mobs = new Map(g.ensureFight().mobs.map((m) => [m.id, m]));
     g.hunt(dt);
-    for (const e of g.lastEvents || []) if (e[0] === 'hit') { const m = mobs.get(e[2]) || g.fight.mobs.find((x) => x.id === e[2]); if (m && floats.length < 40) floats.push({ x: m.x, y: m.y, d: e[3], crit: e[4], at: t }); }
+    for (const e of g.lastEvents || []) if (e[0] === 'hit') { const m = mobs.get(e[2]) || g.fight.mobs.find((x) => x.id === e[2]); if (m) lastHitAt = t;
+      if (m && floats.length < 40) floats.push({ x: m.x, y: m.y, d: e[3], crit: e[4], at: t }); }
   }
   if (t - lastMin >= 60000) { lastMin = t; g.minute(); }
   for (const f of g.feed.splice(0)) {
@@ -265,6 +289,7 @@ $('wx').onclick = closeWin;
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { if ($('pop').classList.contains('open')) $('pop').classList.remove('open'); else closeWin(); } });
 $('stage').addEventListener('click', (e) => { if (e.target.id === 'sk' || e.target.closest?.('#sk')) g.fight?.press('skill'); });
 
+loadLooks();
 load();
 if (g) boot();
 else pop('새 시즌 — 무인 고르기', '<p class="note">미리보기예요. 지금 게임 세이브와 섞이지 않아요.</p>', Object.entries(JOBS).map(([k, j]) => [j.name, () => start(k)]));
