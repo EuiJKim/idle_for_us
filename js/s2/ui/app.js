@@ -15,7 +15,7 @@ import { expToNext } from '../tables/exp.js';
 import { staminaNow } from '../content/idle.js';
 import { buildQueue } from '../content/offline.js';
 import { kindGrade } from '../grow/collect.js';
-import { loadLooks, zoneFor, drawHero, drawMob, mobName, drawPaintedBack, drawPaintedLedge, preloadChapter, fxImg, oldImg, tintImg, ULT_ART, SEAL_ART, CUT_ART, BUFF_ART, BOSS_ART } from './look.js';
+import { loadLooks, zoneFor, drawHero, drawMob, mobName, drawPaintedBack, drawPaintedLedge, drawEarth, preloadChapter, fxImg, oldImg, tintImg, ULT_ART, SEAL_ART, CUT_ART, BUFF_ART, BOSS_ART } from './look.js';
 import { BOSS_PATS } from '../tables/kit.js';
 import { chapterOf, chapterName } from '../tables/chapters.js';
 import { KIT, SLOT_N, kitCap, kitCost, kitCoef, skillById, treeOf, TREE_GATE, treeResetCost } from '../tables/kit.js';
@@ -117,7 +117,21 @@ function openWin(id, t = 0) { open = id; tab = t; $('win').classList.add('open')
 function closeWin() { open = null; $('win').classList.remove('open'); paintNav(); }
 function paintNav() {
   $('nav').innerHTML = '';
-  for (const [id, name] of MENUS) { const b = document.createElement('button'); b.textContent = name; b.className = open === id ? 'on' : ''; b.onclick = () => (open === id ? closeWin() : openWin(id)); $('nav').append(b); }
+  for (const [id, name] of MENUS) { const b = document.createElement('button'); b.dataset.id = id; b.innerHTML = `${name}<i class="dot"></i>`; b.className = open === id ? 'on' : ''; b.onclick = () => (open === id ? closeWin() : openWin(id)); $('nav').append(b); }
+  navDots();
+}
+// 아래 메뉴 빨간 점 — 지금 누를 게 있는 곳(전직 · 무공 점수 · 올릴 수 있는 무공 / 뽑기권 / 길잡이 받기)
+function navDots() {
+  const S = g.S, h = g.hero, W = S.wallet;
+  let kitUp = false;
+  try { const K = h.kitState(); for (const id of Object.keys(K.lv)) { const sk = skillById(id); if (sk && h.canKitUp(id) && (W.gold || 0) >= kitCost(K.lv[id], sk.tier)[0].n) { kitUp = true; break; } } } catch { /* 없음 */ }
+  const cur = guideCurrent(S.q.guide);
+  const on = {
+    hero: !!(h.canAdvance?.() || g.treePts?.().left > 0 || kitUp),
+    gear: (W['ticket:gear'] || 0) >= 10,
+    mission: !!(cur && S.q.guide[cur.id]?.done),
+  };
+  for (const b of $('nav').children) b.classList.toggle('dot-on', !!on[b.dataset.id]);
 }
 function act(fn) { return () => { const r = fn(); if (r === null || r === false) toast('할 수 없어요(재료·조건)'); save(); paintWin(); paintHud(); return r; }; }
 function rowEl(k, v, btns = []) {
@@ -327,7 +341,8 @@ function paintHud() {
     $('chal').style.display = 'none';
   } else {
     sb.className = 'sbar'; sb.firstChild.style.width = `${(T.kills / STAGE_KILLS) * 100}%`; tb.style.display = 'none';
-    $('sl').textContent = `Stage ${st}/10`; $('chal').style.display = ''; $('chal').disabled = !g.canChallenge();
+    const ready = g.canChallenge();
+    $('sl').textContent = `Stage ${st}/10 · ${ready ? '두목 준비' : `${T.kills}/${STAGE_KILLS}`}`; $('chal').style.display = ''; $('chal').disabled = !ready; $('chal').classList.toggle('ready', ready);
   }
   // 오른쪽 위: 알림 줄 · 두목전 보상
   $('chat').textContent = `[알림] ${logLines[0] || '새 시즌 미리보기 — 그림은 지금 게임 것을 빌려 써요'}`;
@@ -342,7 +357,7 @@ function paintHud() {
   // 왼쪽 아래: 얻은 것 · 경험치
   $('log').innerHTML = logLines.slice(0, 3).map((l) => `<div>${esc(l)}</div>`).join('');
   const xp = Math.min(100, (H.exp / expToNext(H.lv)) * 100);
-  $('exp').textContent = `EXP ${xp.toFixed(3)}%`; $('xpbar').firstChild.style.width = `${xp}%`;
+  $('exp').textContent = `EXP ${xp.toFixed(2)}%`; navDots(); $('xpbar').firstChild.style.width = `${xp}%`;
   // 오른쪽 아래: 자동 · 무공 칸
   $('au').className = `auto ${S.auto === false ? 'off' : ''}`; $('au').innerHTML = S.auto === false ? '수동' : '자동<br>사냥';
   const sl = $('slots'), kit = Hh.kit || [];
@@ -350,7 +365,7 @@ function paintHud() {
     sl.innerHTML = '';
     for (let i = 0; i < SLOT_N; i++) {
       const b = document.createElement('button'); b.className = 'slot'; b.dataset.i = i;
-      b.onpointerdown = (e) => { e.preventDefault(); g.ensureFight().press({ slot: i }); };
+      b.onpointerdown = (e) => { e.preventDefault(); if (!(g.ensureFight().hero.kit || [])[i]) { openWin('hero', 1); return; } g.ensureFight().press({ slot: i }); };   // 빈 칸은 무공 창으로
       sl.append(b);
     }
   }
@@ -358,11 +373,13 @@ function paintHud() {
     const i = +b.dataset.i, k = kit[i], sk = k && skillById(k.id);
     b.classList.toggle('on', !!sk);
     b.style.borderColor = sk ? sk.col : '';
-    const name = sk ? sk.name.slice(0, 2) : '';
-    if (b.dataset.n !== name) { b.dataset.n = name; b.innerHTML = `<span style="font-weight:800;color:${sk ? sk.col : '#888'}">${name}</span>${sk && k.auto ? '<i class="ad"></i>' : ''}`; }
+    const name = sk ? sk.name.slice(0, 2) : '+';
+    b.classList.toggle('empty', !sk); b.title = sk ? sk.name : '무공 끼우기';
+    if (b.dataset.n !== name) { b.dataset.n = name; b.innerHTML = `<span class="nm" style="color:${sk ? sk.col : '#776'}">${name}</span><span class="t">${sk ? 'ⅠⅡⅢⅣⅤⅥ'[sk.tier] || '' : ''}</span>${sk && k.auto ? '<i class="ad"></i>' : ''}`; }
+    // 쿨: 이름은 그대로 두고 위에 시계 방향으로 걷히는 그늘 + 남은 초(작게)
     let cd = b.querySelector('.cd');
-    const left = sk && Hh.cds ? Math.ceil((Hh.cds[i] - F.t) / 1000) : 0;
-    if (left > 0) { if (!cd) { cd = document.createElement('div'); cd.className = 'cd'; b.append(cd); } cd.textContent = left; } else cd?.remove();
+    const remain = sk && Hh.cds ? Hh.cds[i] - F.t : 0, left = Math.ceil(remain / 1000);
+    if (left > 0) { if (!cd) { cd = document.createElement('div'); cd.className = 'cd'; b.append(cd); } cd.style.setProperty('--p', `${Math.min(100, (remain / (k.cdMs || 1)) * 100)}%`); cd.textContent = left; } else cd?.remove();
   }
 }
 function padHold(id, dir) {
@@ -390,7 +407,8 @@ const PAL_KINDS = ['fox', 'crane', 'monkey', 'tiger', 'turtle', 'deer', 'haetae'
 let lastCastAt = 0;
 const palAtk = [];          // 동료 i → { at, mid } 마지막 공격
 const tells = new Map();    // 두목 id → 예고 { pat, x, y, w, at, dur }
-let hurtFlash = -1e9, lastHitAt = 0, heroRun = 0, lastHx = 0, skillFx = [], camSm = null, camSy = null, cutIn = null, shakeUntil = 0;
+const dust = [];   // 발밑 흙먼지
+let lastDust = 0, wasAir = false, hurtFlash = -1e9, lastHitAt = 0, heroRun = 0, lastHx = 0, skillFx = [], camSm = null, camSy = null, cutIn = null, shakeUntil = 0;
 const mobPrev = new Map();
 // 그린 무공 효과 — 모양마다 놓는 자리 · 크기 · 움직임
 function drawFxImage(cx, im, f, a, ease, fade, x, y, Rpx, k, big) {
@@ -485,12 +503,14 @@ function draw() {
   const W = r.width, Hh = r.height, t = now(), ts = t / 1000, map = F.def.map;
   const z = zoneFor(g.zoneLv());
   // 가까이 당겨 본다: 화면 너비에 약 15미터 — 무인을 가로 · 세로로 따라감(맵은 화면보다 넓고 높다)
-  const s = Math.max(W / 15000, Hh / 9000), k = Math.min(1.25, Math.max(0.7, s / 0.05));
+  // 세로 화면이면 아래 조작 받침(168px)을 빼고, 가로로 너무 당겨지지 않게 넓게 본다
+  const port = Hh > W * 1.1, dock = port ? 168 : 0;
+  const s = port ? Math.max(W / 8500, (Hh - dock) / 13000) : Math.max(W / 15000, Hh / 9000), k = Math.min(1.25, Math.max(0.7, s / 0.05));
   const viewW = W / s, viewH = Hh / s;
   const al = Math.max(0, Math.min(1, acc / 50));
   const lx = (o) => (o.px === undefined ? o.x : o.px + (o.x - o.px) * al), ly = (o) => (o.py === undefined ? o.y : o.py + (o.y - o.py) * al);
   const wantX = Math.max(0, Math.min(map.w - viewW, lx(F.hero) - viewW / 2));
-  const baseY = Hh * 0.74;   // 바닥(높이 0)이 그려질 화면 높이 — 아래 패널 위
+  const baseY = port ? Hh - dock - 36 : Hh * 0.74;   // 바닥(높이 0)이 그려질 화면 높이 — 아래 패널 위
   const wantY = Math.max(0, Math.min(Math.max(0, map.h - baseY / s), ly(F.hero) - viewH * 0.3));
   if (camSm === null || Math.abs(camSm - wantX) > viewW) camSm = wantX; else camSm += (wantX - camSm) * 0.16;   // 살짝 늦게 따라감
   if (camSy === null || Math.abs(camSy - wantY) > viewH) camSy = wantY; else camSy += (wantY - camSy) * 0.1;
@@ -502,8 +522,7 @@ function draw() {
   drawPaintedBack(cx, W, Hh, ch, camX * s, z, camY * s);
   // 바닥 아래는 어둡게 채우고, 발판은 장마다 그린 그림
   const [, gy] = P(0, 0);
-  const gg = cx.createLinearGradient(0, gy, 0, Hh); gg.addColorStop(0, 'rgba(20,14,8,.15)'); gg.addColorStop(1, 'rgba(20,14,8,.85)');
-  cx.fillStyle = gg; cx.fillRect(0, gy + 10, W, Hh - gy);
+  drawEarth(cx, W, gy, Hh, ch, 62 * k);
   map.plats.forEach((p, i) => { const [x0, y] = P(p.x0, p.y), [x1] = P(p.x1, p.y); if (x1 < -20 || x0 > W + 20) return; drawPaintedLedge(cx, Math.max(-40, x0), Math.min(W + 40, x1), y, ch, z, (i === 0 ? 62 : 46) * k, i === 0); });
   // 두목 예고 — 땅에 붉은 범위가 차오르고(다 차면 터짐) 패턴 그림이 희미하게 · 이름
   for (const [id, q] of tells) {
@@ -527,7 +546,11 @@ function draw() {
     // 맞은 몹: 0.07초 하얗게 번쩍 · 무인 반대쪽으로 살짝 밀림
     const ha = t - (mobHit.get(m.id) || -1e9), kx = ha < 140 ? Math.sign(m.x - H.x || 1) * 7 * k * (1 - ha / 140) : 0;
     if (ha < 70) cx.filter = 'brightness(2.4) saturate(0.4)';
+    const mw = m.moving && m.plat >= 0 && !(m.vy);
+    if (mw) { cx.save(); cx.translate(x + kx, y); cx.rotate(Math.sin((ts + m.id) * 11) * 0.06); cx.translate(-(x + kx), -y); }   // 걸음마다 발을 축으로 몸이 좌우로 실린다(미끄러지지 않게)
     drawMob(cx, x + kx, y, m, z, { t: ts + m.id, flip: m.dir < 0, moving: !!m.moving, scale: sc * (m.kind === 'boss' ? 1.3 : 1) });
+    if (mw) cx.restore();
+    if (mw && m.kind !== 'mob' && t - (m.dustAt || 0) > 260) { m.dustAt = t; dust.push({ x: lx(m) - (m.dir || 1) * 250, y: ly(m), at: t }); }
     cx.filter = 'none';
     const top = (m.kind === 'boss' ? 160 : m.kind === 'elite' ? 116 : 92) * sc, bw = (m.kind === 'boss' ? 90 : 34) * k;
     if (m.hp < m.st.hp || m.kind !== 'mob') { cx.fillStyle = '#000a'; cx.fillRect(x - bw / 2, y - top, bw, 4); cx.fillStyle = m.kind === 'boss' ? '#f59e0b' : '#e0436a'; cx.fillRect(x - bw / 2, y - top, bw * Math.max(0, m.hp / m.st.hp), 4); }
@@ -547,7 +570,9 @@ function draw() {
       cx.restore(); continue;
     }
     if (f.shape === 'hit' && !fxImg(g.S.hero.job, 'hit')) continue;
-    drawSkillFx(cx, f, a, f.shape === 'buff' ? [hx, hy] : P(f.x, f.y), (f.R || 2000) * s, k, col, sk?.tier || 0);
+    // 무인이 쓴 베기 · 부채꼴 · 주변 폭발 · 버프는 무인을 따라간다(쓴 자리에 남아 허공에 떠 보이지 않게). 하늘에서 쏟아지는 것과 맞은 불꽃은 땅 · 몹 자리에
+    const follow = f.hero && (f.shape === 'line' || f.shape === 'arc' || f.shape === 'circle' || f.shape === 'buff');
+    drawSkillFx(cx, follow ? { ...f, hx: undefined, hy: undefined } : f, a, follow ? [hx, hy] : P(f.x, f.y), (f.R || 2000) * s, k, col, sk?.tier || 0);
   }
   // 버프 중이면 발밑 기운
   if (H.buffs?.length) { cx.save(); cx.globalAlpha = 0.35 + 0.15 * Math.sin(ts * 6); cx.strokeStyle = skillById(H.buffs[0].id)?.col || '#ffe9a8'; cx.lineWidth = 3 * k; cx.beginPath(); cx.ellipse(hx, hy, 34 * k, 10 * k, 0, 0, 7); cx.stroke(); cx.restore(); }
@@ -568,7 +593,20 @@ function draw() {
     cx.save(); cx.globalAlpha = 0.95; drawCreature(cx, p.kind, px, py, { t: ts + i, moving: p.mv, flip: p.face < 0, scale: 0.55 * k }); cx.restore();
     if (t - lastCastAt < 300) { cx.save(); cx.globalCompositeOperation = 'lighter'; cx.globalAlpha = 0.5 * (1 - (t - lastCastAt) / 300); cx.fillStyle = '#ffe9a8'; cx.beginPath(); cx.arc(px, py - 20 * k, 26 * k, 0, 7); cx.fill(); cx.restore(); }
   });
+  const hw = heroRun > 0 && H.plat >= 0;
+  if (hw && t - lastDust > 230) { lastDust = t; dust.push({ x: lx(H) - H.face * 250, y: ly(H), at: t }); }
+  if (H.plat >= 0 && wasAir) dust.push({ x: lx(H), y: ly(H), at: t, land: 1 });   // 내려앉으면 흙먼지
+  wasAir = H.plat < 0;
+  // 흙먼지 — 발 뒤에서 피어 퍼지며 사라진다
+  for (let i = dust.length - 1; i >= 0; i--) {
+    const d = dust[i], a = (t - d.at) / (d.land ? 420 : 360); if (a > 1) { dust.splice(i, 1); continue; }
+    const [dx, dy] = P(d.x, d.y), r = (d.land ? 16 : 7) * k * (0.5 + a);
+    cx.save(); cx.globalAlpha = 0.35 * (1 - a); cx.fillStyle = '#d8cbb0';
+    cx.beginPath(); cx.ellipse(dx, dy - r * 0.4 - a * 6 * k, r * (d.land ? 2.2 : 1.3), r * 0.6, 0, 0, 7); cx.fill(); cx.restore();
+  }
+  if (hw) { cx.save(); cx.translate(hx, hy); cx.rotate(Math.sin(ts * 14) * 0.06); cx.translate(-hx, -hy); }
   drawHero(cx, hx, hy, g.S.hero.job, g.S.hero.lv, { t: ts, run: heroRun > 0, flip: H.face < 0, lunge: Math.max(0, 1 - (t - lastHitAt) / 160), scale: sc });
+  if (hw) cx.restore();
   cx.font = '11px system-ui'; cx.textAlign = 'center'; cx.fillStyle = '#fff'; cx.strokeStyle = '#000'; cx.lineWidth = 3;
   cx.strokeText(JOBS[g.S.hero.job].name, hx, hy + 14); cx.fillText(JOBS[g.S.hero.job].name, hx, hy + 14);
   // 큰 피해 숫자 — 위로 쌓이며 떠오름
@@ -621,8 +659,8 @@ function frame() {
     const rows = new Map();
     for (const e of g.lastEvents || []) {
       if (e[0] === 'hit') { const m = mobs.get(e[2]); if (!m) continue; lastHitAt = t; mobHit.set(m.id, t + (e[6] || 0) * 70); if (e[5] && skillFx.length < 80) skillFx.push({ at: t + (e[6] || 0) * 70, shape: 'hit', x: m.x, y: m.y + 650, crit: e[4], rot: (m.id * 1.7 + (e[6] || 0)) % 6.28 }); const n = rows.get(m.id) || 0; rows.set(m.id, n + 1); if (floats.length < 60) floats.push({ x: m.x, y: m.y, d: e[3], crit: e[4], pal: e[5] === 2, at: t, row: (n + floats.filter((f) => f.mid === m.id && t - f.at < 500).length) % 6, mid: m.id }); }
-      else if (e[0] === 'cast') skillFx.push({ at: t, id: e[2], face: e[3], x: e[4], y: e[5], shape: e[6], R: e[7] });
-      else if (e[0] === 'buff') skillFx.push({ at: t, id: e[2], shape: 'buff' });
+      else if (e[0] === 'cast') skillFx.push({ at: t, id: e[2], face: e[3], x: e[4], y: e[5], shape: e[6], R: e[7], hero: 1 });
+      else if (e[0] === 'buff') skillFx.push({ at: t, id: e[2], shape: 'buff', hero: 1 });
       else if (e[0] === 'pal') palAtk[e[2]] = { at: t, mid: e[3] };
       else if (e[0] === 'tell') tells.set(e[2], { pat: e[3], x: e[4], y: e[5], w: e[6], at: t, dur: e[7] });
       else if (e[0] === 'burst') { tells.delete(e[2]); skillFx.push({ at: t, shape: 'boss', pat: e[3], x: e[4], y: e[5], w: e[6] }); shakeUntil = t + (e[7] ? 420 : 220); if (e[7]) hurtFlash = t; }

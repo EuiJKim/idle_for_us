@@ -113,11 +113,33 @@ function grassLine(im) {
     tops.sort((a, b) => a - b); return tops.length ? tops[Math.floor(tops.length * 0.65)] : 0.1;
   } catch { return 0.1; }
 }
+// 발판 그림 아래쪽(바위 · 흙) 평균 빛깔 — 바닥 아래를 같은 흙으로 채운다
+function earthColor(im) {
+  try {
+    const c = document.createElement('canvas'); c.width = 64; c.height = 32; const x = c.getContext('2d'); x.drawImage(im, 0, 0, 64, 32);
+    const d = x.getImageData(0, 16, 64, 12).data; let r = 0, g = 0, b = 0, n = 0;
+    for (let i = 0; i < d.length; i += 4) if (d[i + 3] > 200) { r += d[i]; g += d[i + 1]; b += d[i + 2]; n++; }
+    return n ? [r / n, g / n, b / n] : [70, 55, 40];
+  } catch { return [70, 55, 40]; }
+}
+// 바닥(맨 아래 발판) 밑 흙 — 허공이 아니라 땅이 화면 아래까지 이어지게. 발판 그림을 어둡게 겹쳐 바위 결도 깐다
+export function drawEarth(cx, W, y, Hb, ch, h) {
+  const im = sideImg('ledge', ch), [r, g, b] = im?.earth || [70, 55, 40];
+  const top = y + h * 0.25, col = (m, a = 1) => `rgba(${Math.round(r * m)},${Math.round(g * m)},${Math.round(b * m)},${a})`;
+  const gr = cx.createLinearGradient(0, top, 0, Hb); gr.addColorStop(0, col(0.7)); gr.addColorStop(0.35, col(0.45)); gr.addColorStop(1, col(0.22));
+  cx.fillStyle = gr; cx.fillRect(0, top, W, Hb - top);
+  if (im) {   // 바위 결: 발판 그림 몸통을 어둡게 몇 줄
+    cx.save(); cx.globalAlpha = 0.35; cx.filter = 'brightness(0.45)';
+    const k = h / im.height, sy = im.height * Math.min(0.8, (im.surf ?? 0.1) + 0.25), sh = im.height * 0.35, tw = im.width * k, th = sh * k;
+    for (let yy = top + h * 0.35, row = 0; yy < Hb && row < 6; yy += th * 0.9, row++) for (let xx = -((row * tw) / 3) % tw; xx < W; xx += tw - 1) cx.drawImage(im, 0, sy, im.width, sh, xx, yy, tw, th);
+    cx.restore();
+  }
+}
 function sideImg(kind, ch) {
   const key = `${kind}${ch}`;
   if (!(key in sideArt)) {
     sideArt[key] = null;
-    if (typeof Image !== 'undefined') { const im = new Image(); im.onload = () => { if (kind === 'ledge') im.surf = grassLine(im); sideArt[key] = im; }; im.src = `art/s2/${kind}/c${ch}.webp`; }
+    if (typeof Image !== 'undefined') { const im = new Image(); im.onload = () => { if (kind === 'ledge') { im.surf = grassLine(im); im.earth = earthColor(im); } sideArt[key] = im; }; im.src = `art/s2/${kind}/c${ch}.webp`; }
   }
   return sideArt[key];
 }

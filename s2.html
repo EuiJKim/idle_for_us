@@ -55,7 +55,11 @@
     .slot { width: 44px; height: 44px; border-radius: 8px; border: 1px solid #ffffff44; background: var(--glass); position: relative; font-size: 11px; display: grid; place-items: center; }
     .slot.on { border-color: var(--gold); background: radial-gradient(#e8c26a55, #2a1d0f); }
     .slot .ad { position: absolute; top: 3px; right: 3px; width: 6px; height: 6px; border-radius: 50%; background: #7cf06a; box-shadow: 0 0 4px #7cf06a; }
-    .slot .cd { position: absolute; inset: 0; display: grid; place-items: center; background: #000a; border-radius: 8px; font-weight: 800; font-size: 14px; }
+    .slot .nm { font-weight: 800; font-size: 12px; text-shadow: 0 1px 2px #000; } .slot .t { position: absolute; left: 3px; bottom: 1px; font-size: 8px; color: #fff9; }
+    .slot.empty { border-style: dashed; } .slot.empty .nm { font-size: 18px; font-weight: 400; }
+    .slot .cd { position: absolute; inset: 0; display: flex; align-items: flex-end; justify-content: flex-end; padding: 0 4px 2px 0; border-radius: 8px; font-weight: 800; font-size: 11px; color: #fff; text-shadow: 0 1px 2px #000;
+      background: conic-gradient(#000b var(--p, 0%), #0000 0); }
+    #chal.ready { animation: chp 1s ease-in-out infinite alternate; } @keyframes chp { from { box-shadow: 0 2px 0 #7a3a0a, 0 0 0 #ffb547 } to { box-shadow: 0 2px 0 #7a3a0a, 0 0 14px #ffb547 } }
     .jump { width: 78px; height: 78px; border-radius: 50%; border: 3px solid #ffffffaa; background: radial-gradient(#ffffff22, #0007); font-size: 28px; font-weight: 800; }
     .auto { position: absolute; bottom: calc(100% + 6px); right: 10px; width: 54px; height: 54px; border-radius: 50%; border: 2px solid var(--green); background: var(--glass); font-size: 11px; font-weight: 800; color: #c8f7c5; }
     .auto.off { border-color: var(--mute); color: var(--mute); }
@@ -72,6 +76,8 @@
     nav { display: flex; background: linear-gradient(#2a2119, #1a140f); border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom); }
     nav button { flex: 1; min-height: 44px; background: none; border: 0; font-size: 13px; }
     nav button.on { color: var(--gold); }
+    nav button { position: relative; } nav button .dot { display: none; position: absolute; top: 8px; right: calc(50% - 26px); width: 7px; height: 7px; border-radius: 50%; background: #ff4d4d; box-shadow: 0 0 4px #ff4d4d; }
+    nav button.dot-on .dot { display: block; }
     /* 창 · 팝업 · 결과 */
     #win { position: absolute; inset: 0; background: var(--panel); display: none; flex-direction: column; z-index: 5; }
     #win.open { display: flex; }
@@ -146,10 +152,23 @@
     img.mini { width: 22px; height: 22px; vertical-align: middle; }
     .g0t { color: #ccc } .g1t { color: #7cc47a } .g2t { color: #6aa8e0 } .g3t { color: #b27ae0 } .g4t { color: #e8c26a } .g5t { color: #e06a5a } .g6t { color: #fff }
     :focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+    /* 세로 화면(v499) — 아래는 조작 받침(체력 줄 → ◀▼▶ · 무공 6칸 · 점프), 위는 얼굴 · 알림, 스테이지 막대는 얼굴 아래 가운데. 겹치지 않게 */
     @media (orientation: portrait) {
-      #tl { width: 58%; } #tc { top: auto; bottom: 150px; width: 70%; } #tr { width: 38%; } #bc { width: 56%; bottom: 66px; } #bl { width: 40%; }
-      .slots { grid-template-columns: repeat(2, 42px); } .jump { width: 64px; height: 64px; }
+      #stage::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: var(--dock, 168px); background: linear-gradient(#0000, #0b0806cc 22%, #0b0806f2); pointer-events: none; }
+      .hud { z-index: 2; }
+      #tl { width: 56%; } #tr { width: 40%; }
+      #tc { top: 128px; width: 74%; }
+      #bc { left: max(8px, env(safe-area-inset-left)); right: max(8px, env(safe-area-inset-right)); transform: none; width: auto; bottom: 108px; }
+      #bl { width: auto; bottom: 8px; }
+      #bl .log { position: absolute; bottom: calc(100% + 120px); left: 0; width: 60vw; }
+      #bl .exp { position: absolute; bottom: calc(100% + 106px); left: 0; margin: 0; }
+      .pad { gap: 6px; margin: 0; } .pad button { width: 50px; height: 50px; }
+      #br { bottom: 8px; gap: 6px; }
+      .slots { grid-template-columns: repeat(3, 42px); gap: 4px; } .slot { width: 42px; height: 42px; }
+      .jump { width: 62px; height: 62px; font-size: 24px; }
+      .auto { bottom: auto; top: -196px; right: 0; }
     }
+    @media (orientation: portrait) and (max-width: 360px) { .pad button { width: 44px; } .slots { grid-template-columns: repeat(3, 38px); } .slot { width: 38px; height: 38px; } .jump { width: 54px; height: 54px; } }
   </style>
 </head>
 <body>
