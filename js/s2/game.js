@@ -23,6 +23,10 @@ import * as ID from './content/idle.js';
 import * as OF from './content/offline.js';
 import { runDungeon } from './content/dungeon.js';
 import { power } from './online/power.js';
+import * as WB from './online/wboss.js';
+import * as PV from './online/pvp.js';
+import { refPlayer } from './battle/ref.js';
+import { PVP } from './tables/online.js';
 
 export const COLLECTS = ['weapon', 'pal', 'relic'];
 const DAY = 24 * 3600e3, KST = 9 * 3600e3;
@@ -254,6 +258,40 @@ export class Game {
   }
   startExped(h) { return ID.startExpedition(this.S.exped, h, this.now, this.S.wallet); }
   claimExped() { const r = ID.claimExpedition(this.S.exped, this.now); if (r) this.giveHuntMin(r.huntMin); return r; }
+  // ── 경쟁(미리보기: 서버 없이 같은 엔진으로) ──
+  // 월드보스 한 번(90초) — 넣은 피해 → 보스 점수 · 하루 3번 · 주간 합계
+  wbossFight() {
+    const S = this.S, W = (S.wb ??= { day: '', used: 0, best: 0, week: 0, total: 0 });
+    if (W.week !== S.qWeek) { W.week = S.qWeek; W.total = 0; W.best = 0; }
+    if (!WB.useTry(W, String(dayKey(this.now)))) return null;
+    const L = S.hero.lv;
+    const r = runDungeon({ clear: 'timeoutWin', timeMs: 90000, mobLv: L, kind: 'boss', n: 1, hpX: 1e6, flags: ['bossMeter'] }, this.fighter(), this.rng.u32());
+    const score = WB.bossScore(r.meter, L);
+    W.total += score; W.best = Math.max(W.best, score);
+    this.emit('wboss');
+    return { dmg: r.meter, score, deaths: r.deaths };
+  }
+  // 대결 상대 셋(미리보기: 내 레벨 근처 기준 무인 — 서버가 붙으면 다른 무인의 방어 덱)
+  pvpOpponents() {
+    const S = this.S, P = (S.pvp ??= { score: PVP.start, day: '', used: 0, log: [] });
+    const L = S.hero.lv, seed = dayKey(this.now) * 7 + P.used;
+    return [0.85, 1, 1.2].map((x, i) => {
+      const f = refPlayer(Math.max(1, Math.min(150, Math.round(L * (0.95 + 0.05 * i)))), ['sword', 'spear', 'fist', 'bow', 'mage'][(seed + i) % 5] || 'sword');
+      f.st = { ...f.st, atk: Math.round(f.st.atk * x), hp: Math.round(f.st.hp * x) };
+      return { name: ['낭인', '협객', '고수'][i], f, pw: power(f, 'pvp'), score: P.score + (i - 1) * 40 };
+    });
+  }
+  pvpFight(i) {
+    const S = this.S, P = (S.pvp ??= { score: PVP.start, day: '', used: 0, log: [] });
+    const opp = this.pvpOpponents()[i];
+    if (!opp || !PV.useTry(P, String(dayKey(this.now)))) return null;
+    const me = this.fighter(), r = PV.duel(me, opp.f, this.rng.u32());
+    const d = PV.scoreDelta(r.win, power(me, 'pvp'), opp.pw).atk;
+    P.score = Math.max(0, P.score + d);
+    P.log = [{ name: opp.name, win: r.win, d }, ...P.log].slice(0, 10);
+    this.emit('pvp');
+    return { ...r, d, score: P.score, tier: PV.tierOf(P.score).name };
+  }
   // ── 방치 ──
   returnCheck(nowMs) {
     const p = OF.checkReturn(this.S.offline, nowMs, String(weekKey(nowMs)), this.S.hero.lv);

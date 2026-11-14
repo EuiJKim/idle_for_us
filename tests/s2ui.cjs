@@ -26,7 +26,7 @@ const ok = (c, m, x = '') => { console.log(`  ${c ? '✓' : '✗ !!'} ${m}${x !=
     ok(/Lv \d+/.test(await page.textContent('#tl')), '왼쪽 위: 레벨 · 전투력');
     ok(/길잡이 1/.test(await page.textContent('#bl')), '왼쪽 아래: 길잡이 1');
     const navs = await page.$$('nav button');
-    ok(navs.length === 5, '아래 메뉴 다섯');
+    ok(navs.length === 6, '아래 메뉴 여섯');
     let tabsSeen = 0; const empty = [], outside = [];
     for (let i = 0; i < navs.length; i++) {
       await page.click(`nav button >> nth=${i}`);
@@ -40,7 +40,7 @@ const ok = (c, m, x = '') => { console.log(`  ${c ? '✓' : '✗ !!'} ${m}${x !=
         for (const bt of await page.$$('#wb button')) { const r = await bt.boundingBox(); if (r && (r.x < 0 || r.x + r.width > W + 1)) outside.push(name); }
       }
     }
-    ok(tabsSeen >= 20, '창 탭 전부 열어 봄', tabsSeen);
+    ok(tabsSeen >= 24, '창 탭 전부 열어 봄', tabsSeen);
     ok(empty.length === 0, '빈 창 · 이상한 글자 없음', empty.join(' '));
     ok(outside.length === 0, '단추가 화면 안', [...new Set(outside)].join(' '));
     await page.click('nav button >> nth=1'); await page.click('#wtabs button >> nth=1');

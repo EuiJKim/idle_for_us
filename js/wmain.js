@@ -2723,6 +2723,10 @@ $('btn-settings').addEventListener('click', () => openModal((s) => {
       h('div', { class: 'btn-row', style: 'gap:6px' },
         h('button', { class: 'btn primary', style: 'padding:6px 10px', onclick: () => { closeModal(); showSaveCode(); } }, '복사'),
         h('button', { class: 'btn', style: 'padding:6px 10px', onclick: () => { closeModal(); askSaveCode(); } }, '불러오기'))),
+    // v488 새 시즌 미리보기 — 설치한 앱에도 주소창이 없으니 여기서 연다(세이브는 따로 · 지금 진행은 그대로)
+    h('div', { class: 'row' }, h('div', { class: 'info' }, h('div', { class: 'name' }, '새 시즌 미리보기'),
+      h('div', { class: 'desc' }, '다음 시즌을 먼저 해 봐요 — 세이브는 따로라 지금 진행은 그대로예요')),
+      h('button', { class: 'btn primary', style: 'padding:6px 10px', onclick: () => { save(); location.href = 's2.html'; } }, '열기')),
     ...accountRows(),
     h('div', { class: 'btn-row', style: 'margin-top:8px' },
       h('button', { class: 'btn', onclick: () => { closeModal(); askNickname(false); } }, '이름 바꾸기'),

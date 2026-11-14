@@ -193,16 +193,18 @@ console.log('\n=== 4. 아이콘 개수 ↔ 데이터 개수 ===');
 
 console.log('\n=== 5. index.html의 id ↔ 코드가 찾는 id ===');
 {
-  const html = read('index.html');
-  const have = new Set([...html.matchAll(/\bid="([a-zA-Z0-9_-]+)"/g)].map((m) => m[1]));
-  const wanted = new Set();
-  for (const f of JS_FILES) {
-    for (const m of read(f).matchAll(/(?:\$\(|getElementById\(\s*)'([a-zA-Z0-9_-]+)'/g)) wanted.add(m[1]);
-  }
+  // v488 새 시즌 화면(js/s2/ui)은 s2.html의 id를 찾는다 — 따로 맞춘다
+  const idsOf = (html) => new Set([...html.matchAll(/\bid="([a-zA-Z0-9_-]+)"/g)].map((m) => m[1]));
+  const want = (files) => { const w = new Set(); for (const f of files) for (const m of read(f).matchAll(/(?:\$\(|getElementById\(\s*)'([a-zA-Z0-9_-]+)'/g)) w.add(m[1]); return w; };
+  const isS2ui = (f) => f.startsWith('js/s2/ui/');
   // 코드가 만들어 붙이는 것은 뺀다
   const made = new Set([...ALL.matchAll(/\{\s*id:\s*'([a-zA-Z0-9_-]+)'/g)].map((m) => m[1]));
-  const miss = [...wanted].filter((i) => !have.has(i) && !made.has(i)).sort();
-  ok(miss.length === 0, '코드가 찾는 id가 화면에 전부 있다',
+  const have = idsOf(read('index.html')), wanted = want(JS_FILES.filter((f) => !isS2ui(f)));
+  const have2 = idsOf(read('s2.html')), wanted2 = want(JS_FILES.filter(isS2ui));
+  // 새 시즌 화면이 innerHTML로 만들어 붙이는 id(길잡이 카드 · 무공 단추)
+  for (const m of JS_FILES.filter(isS2ui).map(read).join('\n').matchAll(/\bid="([a-zA-Z0-9_-]+)"/g)) have2.add(m[1]);
+  const miss = [...[...wanted].filter((i) => !have.has(i) && !made.has(i)), ...[...wanted2].filter((i) => !have2.has(i) && !made.has(i)).map((i) => `s2:${i}`)].sort();
+  ok(miss.length === 0, '코드가 찾는 id가 화면에 전부 있다(지금 게임 index.html · 새 시즌 s2.html)',
     miss.length ? `없음: ${miss.join(', ')}` : `${wanted.size}개`);
 }
 

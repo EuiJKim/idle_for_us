@@ -54,6 +54,7 @@ const MENUS = [
   ['gear', '장비', ['장착', '뽑기', '강화·성혼', '가방']],
   ['grow', '성장', ['병기', '동료', '영물', '경지', '강호행']],
   ['content', '콘텐츠', ['수련동', '무한 탑', '원정', '사냥터']],
+  ['rival', '경쟁', ['월드보스', '대결', '문파']],
   ['mission', '미션', ['길잡이', '일일', '주간', '설정']],
 ];
 let open = null, tab = 0;
@@ -141,6 +142,21 @@ function paintWin() {
     else for (const h of EXPEDITION.hours) add(rowEl(`${h}시간 원정`, `원정권 ${W['ticket:exped'] || 0}`, [['출발', act(() => g.startExped(h))]]));
   } else if (key === 'content:3') {
     add(rowEl('사냥터', g.S.autoZone ? `자동(Lv ${g.zoneLv()})` : `Lv ${g.S.zone}`, [['−5', act(() => { g.S.autoZone = false; g.S.zone = Math.max(1, g.zoneLv() - 5); return true; })], ['+5', act(() => { g.S.autoZone = false; g.S.zone = Math.min(g.S.hero.lv + 10, g.zoneLv() + 5); return true; })], ['자동', act(() => { g.S.autoZone = true; return true; })]]));
+  } else if (key === 'rival:0') {
+    const Wb = g.S.wb || { used: 0, best: 0, total: 0, day: '' };
+    const used = Wb.day === String(dayKey(now())) ? Wb.used : 0;
+    add(rowEl('월드보스 — 90초 동안 넣은 피해가 점수', `오늘 ${used}/3번`, [['도전', act(() => { const r = g.wbossFight(); if (r) pop('월드보스', `<p>피해 ${fmt(r.dmg)}</p><p>점수 <b>${fmt(r.score)}</b></p><p class="note">큰 피해일수록 점수가 덜 올라요(구간표).</p>`); return r; }), used >= 3]]));
+    add(rowEl('이번 주 점수 합', fmt(Wb.total)), rowEl('이번 주 한 번 최고', fmt(Wb.best)));
+    add(Object.assign(document.createElement('p'), { className: 'note', textContent: '미리보기: 서버 공동 체력·순위는 교체 때 붙어요. 점수 계산은 실제와 같아요.' }));
+  } else if (key === 'rival:1') {
+    const P = g.S.pvp || { score: 1000, used: 0, day: '', log: [] };
+    const used = P.day === String(dayKey(now())) ? P.used : 0;
+    add(rowEl(`대결 점수 ${P.score}`, `오늘 ${used}/5번`));
+    g.pvpOpponents().forEach((o, i) => add(rowEl(`${o.name} · ${JOBS[o.f.job].name} Lv ${o.f.lv}`, `대결 전투력 ${fmt(o.pw)}`, [['도전', act(() => { const r = g.pvpFight(i); if (r) pop(r.win ? '승리' : '패배', `<p>점수 ${r.d >= 0 ? '+' : ''}${r.d} → ${r.score} (${r.tier})</p>`); return r; }), used >= 5]])));
+    for (const l of (g.S.pvp?.log || [])) add(rowEl(`${l.win ? '승' : '패'} · ${l.name}`, `${l.d >= 0 ? '+' : ''}${l.d}`));
+  } else if (key === 'rival:2') {
+    add(rowEl('문파', '교체 때 서버와 함께 열려요'));
+    for (const [n, d] of [['문파 토벌', '문파원 피해를 모아 주간 두목 단계를 깸'], ['문파 대항', '문파끼리 한 주 점수 겨루기'], ['문파 수련', '문파원 기여로 막대를 채우면 모두 보상'], ['연구 · 도움', '연구는 대기 시간, 문파원이 도와주면 줄어듦']]) add(rowEl(n, d));
   } else if (key === 'mission:0') {
     for (const q of GUIDE) { const s = g.S.q.guide[q.id]; add(rowEl(`${q.id} ${guideLabel(q)}`, s?.got ? '받음' : s?.done ? '끝' : s ? `${s.p}/${q.need}` : '')); }
   } else if (key === 'mission:1' || key === 'mission:2') {

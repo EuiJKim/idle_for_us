@@ -673,6 +673,11 @@ console.log('\n=== S9 게임 층 — 첫 30분을 실제로 해 보기 ===');
   const txt = g.save(), g2 = Game.load(txt, t);
   ok(g2.signed && g2.tableOk && g2.S.hero.lv === lv && g2.power() === g.power(), '저장 → 불러오기: 서명 · 표 판 · 같은 전투력');
   ok(!Game.load(txt.replace(/"gold":\d+/, '"gold":999999999'), t).signed, '은자를 손으로 고친 세이브는 서명이 안 맞음');
+  // 경쟁(미리보기): 월드보스 하루 3번 · 점수 = 구간표 · 대결 하루 5번 · 점수 오르내림
+  { const w = [1, 2, 3].map(() => g2.wbossFight());
+    ok(w.every((x) => x && x.score === WB.bossScore(x.dmg, g2.S.hero.lv)) && g2.wbossFight() === null && g2.S.wb.total === w.reduce((a, x) => a + x.score, 0), '월드보스 한 번 = 구간표 점수 · 하루 3번', w.map((x) => x.score).join(' '));
+    const r = [0, 1, 2, 0, 1].map((i) => g2.pvpFight(i));
+    ok(r.every(Boolean) && g2.pvpFight(0) === null && g2.S.pvp.score === ON.PVP.start + r.reduce((a, x) => a + x.d, 0), '대결 하루 5번 · 점수 = 시작 + 변화 합', `${g2.S.pvp.score} ${PV.tierOf(g2.S.pvp.score).name}`); }
   // 돌아오기: 3시간 자리 비움 → 방치 몫
   const p = g2.returnCheck(t + 3 * 3600e3);
   const lv0 = g2.S.hero.lv; g2.claimOffline(true);
