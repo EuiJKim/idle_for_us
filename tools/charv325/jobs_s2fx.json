@@ -1,0 +1,212 @@
+[
+ {
+  "name": "sword_line",
+  "prompt": "A single 2D game skill visual effect sprite, hand-painted anime mobile game VFX style, luminous glowing energy, vivid colors, soft bloom, motion streaks and small sparkles, centered, isolated on a PURE BLACK background (#000000) so it can be blended additively. No characters, no weapons held by anyone, no text, no frame, no border. A long horizontal sword qi blast traveling from left to right across the whole image, wide at the right tip, thin at the left, golden white colors.",
+  "size": "1536x1024",
+  "bg": "opaque",
+  "q": "high"
+ },
+ {
+  "name": "sword_arc",
+  "prompt": "A single 2D game skill visual effect sprite, hand-painted anime mobile game VFX style, luminous glowing energy, vivid colors, soft bloom, motion streaks and small sparkles, centered, isolated on a PURE BLACK background (#000000) so it can be blended additively. No characters, no weapons held by anyone, no text, no frame, no border. A large crescent-shaped slash arc (half moon shape) opening to the right, sweeping golden white energy trail, wuxia martial arts sword qi.",
+  "size": "1536x1024",
+  "bg": "opaque",
+  "q": "high"
+ },
+ {
+  "name": "sword_circle",
+  "prompt": "A single 2D game skill visual effect sprite, hand-painted anime mobile game VFX style, luminous glowing energy, vivid colors, soft bloom, motion streaks and small sparkles, centered, isolated on a PURE BLACK background (#000000) so it can be blended additively. No characters, no text, no frame, no border. A round radiant ring of light expanding outward, glowing core in the center, flat oval ground ring, small light shards around, golden white colors, wuxia sword qi.",
+  "size": "1536x1024",
+  "bg": "opaque",
+  "q": "medium"
+ },
+ {
+  "name": "sword_rain",
+  "prompt": "A single 2D game skill visual effect sprite, hand-painted anime mobile game VFX style, luminous glowing energy, vivid colors, soft bloom, motion streaks and small sparkles, centered, isolated on a PURE BLACK background (#000000) so it can be blended additively. No characters, no weapons held by anyone, no text, no frame, no border. A vertical column of flying spectral swords falling from top to bottom with glowing trails, impact flash at the bottom, golden white colors.",
+  "size": "1024x1024",
+  "bg": "opaque",
+  "q": "high"
+ },
+ {
+  "name": "sword_buff",
+  "prompt": "A single 2D game skill visual effect sprite, hand-painted anime mobile game VFX style, luminous glowing energy, vivid colors, soft bloom, motion streaks and small sparkles, centered, isolated on a PURE BLACK background (#000000) so it can be blended additively. No characters, no text, no frame, no border. A glowing magic circle on the ground seen at an angle with upward streams of light particles rising from it, golden white colors.",
+  "size": "1536x1024",
+  "bg": "opaque",
+  "q": "medium"
+ },
+ {
+  "name": "sword_hit",
+  "prompt": "A single 2D game skill visual effect sprite, hand-painted anime mobile game VFX style, luminous glowing energy, vivid colors, soft bloom, motion streaks and small sparkles, centered, isolated on a PURE BLACK background (#000000) so it can be blended additively. No characters, no weapons held by anyone, no text, no frame, no border. A small sharp hit impact spark: star-shaped flash with radiating streaks, golden white colors.",
+  "size": "1024x1024",
+  "bg": "opaque",
+  "q": "high"
+ },
+ {
+  "name": "spear_line",
+  "prompt": "A single 2D game skill visual effect sprite, hand-painted anime mobile game VFX style, luminous glowing energy, vivid colors, soft bloom, motion streaks and small sparkles, centered, isolated on a PURE BLACK background (#000000) so it can be blended additively. No characters, no weapons held by anyone, no text, no frame, no border. A long horizontal spear thrust flames blast traveling from left to right across the whole image, wide at the right tip, thin at the left, fiery orange and red colors.",
+  "size": "1536x1024",
+  "bg": "opaque",
+  "q": "high"
+ },
+ {
+  "name": "spear_arc",
+  "prompt": "A single 2D game skill visual effect sprite, hand-painted anime mobile game VFX style, luminous glowing energy, vivid colors, soft bloom, motion streaks and small sparkles, centered, isolated on a PURE BLACK background (#000000) so it can be blended additively. No characters, no weapons held by anyone, no text, no frame, no border. A large crescent-shaped slash arc (half moon shape) opening to the right, sweeping fiery orange and red energy trail, wuxia martial arts spear thrust flames.",
+  "size": "1536x1024",
+  "bg": "opaque",
+  "q": "high"
+ },
+ {
+  "name": "spear_circle",
+  "prompt": "A single 2D game skill visual effect sprite, hand-painted anime mobile game VFX style, luminous glowing energy, vivid colors, soft bloom, motion streaks and small sparkles, centered, isolated on a PURE BLACK background (#000000) so it can be blended additively. No characters, no text, no frame, no border. A round radiant ring of light expanding outward, glowing core in the center, flat oval ground ring, small light shards around, fiery orange and red colors, wuxia spear thrust flames.",
+  "size": "1536x1024",
+  "bg": "opaque",
+  "q": "medium"
+ },
+ {
+  "name": "spear_rain",
+  "prompt": "A single 2D game skill visual effect sprite, hand-painted anime mobile game VFX style, luminous glowing energy, vivid colors, soft bloom, motion streaks and small sparkles, centered, isolated on a PURE BLACK background (#000000) so it can be blended additively. No characters, no weapons held by anyone, no text, no frame, no border. A vertical column of falling flaming spears falling from top to bottom with glowing trails, impact flash at the bottom, fiery orange and red colors.",
+  "size": "1024x1024",
+  "bg": "opaque",
+  "q": "high"
+ },
+ {
+  "name": "spear_buff",
+  "prompt": "A single 2D game skill visual effect sprite, hand-painted anime mobile game VFX style, luminous glowing energy, vivid colors, soft bloom, motion streaks and small sparkles, centered, isolated on a PURE BLACK background (#000000) so it can be blended additively. No characters, no text, no frame, no border. A glowing magic circle on the ground seen at an angle with upward streams of light particles rising from it, fiery orange and red colors.",
+  "size": "1536x1024",
+  "bg": "opaque",
+  "q": "medium"
+ },
+ {
+  "name": "spear_hit",
+  "prompt": "A single 2D game skill visual effect sprite, hand-painted anime mobile game VFX style, luminous glowing energy, vivid colors, soft bloom, motion streaks and small sparkles, centered, isolated on a PURE BLACK background (#000000) so it can be blended additively. No characters, no weapons held by anyone, no text, no frame, no border. A small sharp hit impact spark: star-shaped flash with radiating streaks, fiery orange and red colors.",
+  "size": "1024x1024",
+  "bg": "opaque",
+  "q": "high"
+ },
+ {
+  "name": "fist_line",
+  "prompt": "A single 2D game skill visual effect sprite, hand-painted anime mobile game VFX style, luminous glowing energy, vivid colors, soft bloom, motion streaks and small sparkles, centered, isolated on a PURE BLACK background (#000000) so it can be blended additively. No characters, no weapons held by anyone, no text, no frame, no border. A long horizontal palm shockwave of chi blast traveling from left to right across the whole image, wide at the right tip, thin at the left, bright yellow gold colors.",
+  "size": "1536x1024",
+  "bg": "opaque",
+  "q": "high"
+ },
+ {
+  "name": "fist_arc",
+  "prompt": "A single 2D game skill visual effect sprite, hand-painted anime mobile game VFX style, luminous glowing energy, vivid colors, soft bloom, motion streaks and small sparkles, centered, isolated on a PURE BLACK background (#000000) so it can be blended additively. No characters, no weapons held by anyone, no text, no frame, no border. A large crescent-shaped slash arc (half moon shape) opening to the right, sweeping bright yellow gold energy trail, wuxia martial arts palm shockwave of chi.",
+  "size": "1536x1024",
+  "bg": "opaque",
+  "q": "high"
+ },
+ {
+  "name": "fist_circle",
+  "prompt": "A single 2D game skill visual effect sprite, hand-painted anime mobile game VFX style, luminous glowing energy, vivid colors, soft bloom, motion streaks and small sparkles, centered, isolated on a PURE BLACK background (#000000) so it can be blended additively. No characters, no text, no frame, no border. A round radiant ring of light expanding outward, glowing core in the center, flat oval ground ring, small light shards around, bright yellow gold colors, wuxia palm shockwave of chi.",
+  "size": "1536x1024",
+  "bg": "opaque",
+  "q": "medium"
+ },
+ {
+  "name": "fist_rain",
+  "prompt": "A single 2D game skill visual effect sprite, hand-painted anime mobile game VFX style, luminous glowing energy, vivid colors, soft bloom, motion streaks and small sparkles, centered, isolated on a PURE BLACK background (#000000) so it can be blended additively. No characters, no weapons held by anyone, no text, no frame, no border. A vertical column of giant glowing fist imprints falling from top to bottom with glowing trails, impact flash at the bottom, bright yellow gold colors.",
+  "size": "1024x1024",
+  "bg": "opaque",
+  "q": "high"
+ },
+ {
+  "name": "fist_buff",
+  "prompt": "A single 2D game skill visual effect sprite, hand-painted anime mobile game VFX style, luminous glowing energy, vivid colors, soft bloom, motion streaks and small sparkles, centered, isolated on a PURE BLACK background (#000000) so it can be blended additively. No characters, no text, no frame, no border. A glowing magic circle on the ground seen at an angle with upward streams of light particles rising from it, bright yellow gold colors.",
+  "size": "1536x1024",
+  "bg": "opaque",
+  "q": "medium"
+ },
+ {
+  "name": "fist_hit",
+  "prompt": "A single 2D game skill visual effect sprite, hand-painted anime mobile game VFX style, luminous glowing energy, vivid colors, soft bloom, motion streaks and small sparkles, centered, isolated on a PURE BLACK background (#000000) so it can be blended additively. No characters, no weapons held by anyone, no text, no frame, no border. A small sharp hit impact spark: star-shaped flash with radiating streaks, bright yellow gold colors.",
+  "size": "1024x1024",
+  "bg": "opaque",
+  "q": "high"
+ },
+ {
+  "name": "bow_line",
+  "prompt": "A single 2D game skill visual effect sprite, hand-painted anime mobile game VFX style, luminous glowing energy, vivid colors, soft bloom, motion streaks and small sparkles, centered, isolated on a PURE BLACK background (#000000) so it can be blended additively. No characters, no weapons held by anyone, no text, no frame, no border. A long horizontal arrow streak with frost trail blast traveling from left to right across the whole image, wide at the right tip, thin at the left, icy cyan and white colors.",
+  "size": "1536x1024",
+  "bg": "opaque",
+  "q": "high"
+ },
+ {
+  "name": "bow_arc",
+  "prompt": "A single 2D game skill visual effect sprite, hand-painted anime mobile game VFX style, luminous glowing energy, vivid colors, soft bloom, motion streaks and small sparkles, centered, isolated on a PURE BLACK background (#000000) so it can be blended additively. No characters, no weapons held by anyone, no text, no frame, no border. A large crescent-shaped slash arc (half moon shape) opening to the right, sweeping icy cyan and white energy trail, wuxia martial arts arrow streak with frost trail.",
+  "size": "1536x1024",
+  "bg": "opaque",
+  "q": "high"
+ },
+ {
+  "name": "bow_circle",
+  "prompt": "A single 2D game skill visual effect sprite, hand-painted anime mobile game VFX style, luminous glowing energy, vivid colors, soft bloom, motion streaks and small sparkles, centered, isolated on a PURE BLACK background (#000000) so it can be blended additively. No characters, no text, no frame, no border. A round radiant ring of light expanding outward, glowing core in the center, flat oval ground ring, small light shards around, icy cyan and white colors, wuxia arrow streak with frost trail.",
+  "size": "1536x1024",
+  "bg": "opaque",
+  "q": "medium"
+ },
+ {
+  "name": "bow_rain",
+  "prompt": "A single 2D game skill visual effect sprite, hand-painted anime mobile game VFX style, luminous glowing energy, vivid colors, soft bloom, motion streaks and small sparkles, centered, isolated on a PURE BLACK background (#000000) so it can be blended additively. No characters, no weapons held by anyone, no text, no frame, no border. A vertical column of raining glowing arrows falling from top to bottom with glowing trails, impact flash at the bottom, icy cyan and white colors.",
+  "size": "1024x1024",
+  "bg": "opaque",
+  "q": "high"
+ },
+ {
+  "name": "bow_buff",
+  "prompt": "A single 2D game skill visual effect sprite, hand-painted anime mobile game VFX style, luminous glowing energy, vivid colors, soft bloom, motion streaks and small sparkles, centered, isolated on a PURE BLACK background (#000000) so it can be blended additively. No characters, no text, no frame, no border. A glowing magic circle on the ground seen at an angle with upward streams of light particles rising from it, icy cyan and white colors.",
+  "size": "1536x1024",
+  "bg": "opaque",
+  "q": "medium"
+ },
+ {
+  "name": "bow_hit",
+  "prompt": "A single 2D game skill visual effect sprite, hand-painted anime mobile game VFX style, luminous glowing energy, vivid colors, soft bloom, motion streaks and small sparkles, centered, isolated on a PURE BLACK background (#000000) so it can be blended additively. No characters, no weapons held by anyone, no text, no frame, no border. A small sharp hit impact spark: star-shaped flash with radiating streaks, icy cyan and white colors.",
+  "size": "1024x1024",
+  "bg": "opaque",
+  "q": "high"
+ },
+ {
+  "name": "mage_line",
+  "prompt": "A single 2D game skill visual effect sprite, hand-painted anime mobile game VFX style, luminous glowing energy, vivid colors, soft bloom, motion streaks and small sparkles, centered, isolated on a PURE BLACK background (#000000) so it can be blended additively. No characters, no weapons held by anyone, no text, no frame, no border. A long horizontal lightning bolt blast traveling from left to right across the whole image, wide at the right tip, thin at the left, violet and electric blue colors.",
+  "size": "1536x1024",
+  "bg": "opaque",
+  "q": "high"
+ },
+ {
+  "name": "mage_arc",
+  "prompt": "A single 2D game skill visual effect sprite, hand-painted anime mobile game VFX style, luminous glowing energy, vivid colors, soft bloom, motion streaks and small sparkles, centered, isolated on a PURE BLACK background (#000000) so it can be blended additively. No characters, no weapons held by anyone, no text, no frame, no border. A large crescent-shaped slash arc (half moon shape) opening to the right, sweeping violet and electric blue energy trail, wuxia martial arts lightning bolt.",
+  "size": "1536x1024",
+  "bg": "opaque",
+  "q": "high"
+ },
+ {
+  "name": "mage_circle",
+  "prompt": "A single 2D game skill visual effect sprite, hand-painted anime mobile game VFX style, luminous glowing energy, vivid colors, soft bloom, motion streaks and small sparkles, centered, isolated on a PURE BLACK background (#000000) so it can be blended additively. No characters, no text, no frame, no border. A round radiant ring of light expanding outward, glowing core in the center, flat oval ground ring, small light shards around, violet and electric blue colors, wuxia lightning bolt.",
+  "size": "1536x1024",
+  "bg": "opaque",
+  "q": "medium"
+ },
+ {
+  "name": "mage_rain",
+  "prompt": "A single 2D game skill visual effect sprite, hand-painted anime mobile game VFX style, luminous glowing energy, vivid colors, soft bloom, motion streaks and small sparkles, centered, isolated on a PURE BLACK background (#000000) so it can be blended additively. No characters, no weapons held by anyone, no text, no frame, no border. A vertical column of thunderbolts falling from top to bottom with glowing trails, impact flash at the bottom, violet and electric blue colors.",
+  "size": "1024x1024",
+  "bg": "opaque",
+  "q": "high"
+ },
+ {
+  "name": "mage_buff",
+  "prompt": "A single 2D game skill visual effect sprite, hand-painted anime mobile game VFX style, luminous glowing energy, vivid colors, soft bloom, motion streaks and small sparkles, centered, isolated on a PURE BLACK background (#000000) so it can be blended additively. No characters, no text, no frame, no border. A glowing magic circle on the ground seen at an angle with upward streams of light particles rising from it, violet and electric blue colors.",
+  "size": "1536x1024",
+  "bg": "opaque",
+  "q": "medium"
+ },
+ {
+  "name": "mage_hit",
+  "prompt": "A single 2D game skill visual effect sprite, hand-painted anime mobile game VFX style, luminous glowing energy, vivid colors, soft bloom, motion streaks and small sparkles, centered, isolated on a PURE BLACK background (#000000) so it can be blended additively. No characters, no weapons held by anyone, no text, no frame, no border. A small sharp hit impact spark: star-shaped flash with radiating streaks, violet and electric blue colors.",
+  "size": "1024x1024",
+  "bg": "opaque",
+  "q": "high"
+ }
+]

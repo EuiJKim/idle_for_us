@@ -759,6 +759,28 @@ console.log('\n=== S9 무공 세트(직업마다 공격 6 · 상시 3 · 버프 
   ok(mc === 1, '누른 칸 무공을 쓴다');
 }
 
+console.log('\n=== S9 무공 강화 트리(무공마다 3단 · 점수 · 배우는 시간 · 초기화) ===');
+{
+  const h = new Hero(newHero('sword')); h.addExp(EX.cumExp(61)); h.clearDungeon('job1'); h.advance(); h.clearDungeon('job2'); h.advance();
+  const P0 = h.treePts(31);
+  ok(P0.total === 60 + 9 && P0.left === P0.total, '무공 점수 = 레벨마다 1 · 10칸마다 3(Lv61 · 31칸 → 69)', P0.total);
+  ok(!h.canTreeUp('sword_1', 'rng', 31), '2단(범위)은 그 무공에 5점 쓰기 전엔 잠김');
+  for (let i = 0; i < 5; i++) h.treeUp('sword_1', 'pow', 0, 31);
+  const k1 = h.battleKit().find((k) => k.id === 'sword_1'), base = KT.battleKit([{ ...KT.skillById('sword_1'), lv: 1 }])[0];
+  ok(k1.coef === Math.round(base.coef * 1.25) && h.canTreeUp('sword_1', 'rng', 31), '위력 5 → 계수 +25% · 2단 열림');
+  for (let i = 0; i < 3; i++) h.treeUp('sword_1', 'tgt', 0, 31);
+  for (let i = 0; i < 2; i++) h.treeUp('sword_1', 'rng', 0, 31);
+  ok(h.battleKit().find((k) => k.id === 'sword_1').maxT === 7, '대상 수 +3 → 4마리가 7마리');
+  ok(h.treeSpent('sword_1') === 15 && h.treeUp('sword_1', 'hit', 1000, 31) === 'wait' && !h.canTreeUp('sword_1', 'cri', 31), '3단 연타: 배우는 데 시간(다른 3단은 그동안 못 배움)');
+  ok(h.treeTick(1000 + 59 * 60000) === null && h.treeTick(1000 + 60 * 60000) && h.battleKit().find((k) => k.id === 'sword_1').hits === 3, '60분 뒤 연타 +1(2연타 → 3연타)');
+  const bf = h.s.kit.slots.find((id) => KT.skillById(id).kind === 'buff');
+  h.treeUp(bf, 'amp', 0, 31) || true; for (let i = 0; i < 5; i++) h.treeUp(bf, 'dur', 0, 31); h.treeUp(bf, 'amp', 0, 31);
+  const b1 = h.battleKit().find((k) => k.id === bf);
+  ok(b1.durMs === 30000 && b1.buff.crit > KT.skillById(bf).stats(1).crit, '버프 트리: 지속 +50% · 효과 ↑', `${b1.durMs}ms`);
+  const used = h.treePts(31).used, w = { gold: 1e9 };
+  ok(used > 0 && h.treeReset(w, 31) && h.treePts(31).used === 0 && w.gold < 1e9, '초기화 — 점수 돌려받음 · 은자');
+}
+
 console.log('\n=== S0 규칙 ===');
 {
   const files = [];

@@ -13,9 +13,9 @@ import { expToNext } from '../tables/exp.js';
 import { staminaNow } from '../content/idle.js';
 import { buildQueue } from '../content/offline.js';
 import { kindGrade } from '../grow/collect.js';
-import { loadLooks, zoneFor, drawHero, drawMob, mobName, drawPaintedBack, drawPaintedLedge, preloadChapter } from './look.js';
+import { loadLooks, zoneFor, drawHero, drawMob, mobName, drawPaintedBack, drawPaintedLedge, preloadChapter, fxImg } from './look.js';
 import { chapterOf, chapterName } from '../tables/chapters.js';
-import { KIT, SLOT_N, kitCap, kitCost, kitCoef, skillById } from '../tables/kit.js';
+import { KIT, SLOT_N, kitCap, kitCost, kitCoef, skillById, treeOf, TREE_GATE, treeResetCost } from '../tables/kit.js';
 import { STATS } from '../core/stats.js';
 const statTxt = (o) => Object.entries(o).map(([k2, v]) => `${STATS[k2]?.name || k2} +${STATS[k2]?.kind === 'rate' ? `${(v / 10).toFixed(1)}%` : v}`).join(' · ');
 import { goldPerMob } from '../tables/gearstat.js';
@@ -56,14 +56,14 @@ function pop(title, html, acts = [['확인', null]]) {
 
 // ── 창 ──
 const MENUS = [
-  ['hero', '무인', ['스탯', '무공', '마스터리', '전직']],
+  ['hero', '무인', ['스탯', '무공', '마스터리', '전직', '무공 강화']],
   ['gear', '장비', ['장착', '뽑기', '강화·성혼', '가방']],
   ['grow', '성장', ['병기', '동료', '영물', '경지', '강호행']],
   ['content', '콘텐츠', ['수련동', '무한 탑', '원정', '스테이지']],
   ['rival', '경쟁', ['월드보스', '대결', '문파']],
   ['mission', '미션', ['길잡이', '일일', '주간', '설정']],
 ];
-let open = null, tab = 0;
+let open = null, tab = 0, treeSel = null;
 function openWin(id, t = 0) { open = id; tab = t; $('win').classList.add('open'); paintWin(); paintNav(); }
 function closeWin() { open = null; $('win').classList.remove('open'); paintNav(); }
 function paintNav() {
@@ -106,6 +106,29 @@ function paintWin() {
         if (slot >= 0) btns.push([on ? '자동' : '수동', act(() => { Hs.kitAuto(sk.id, !on); g.dirtyStats = true; return true; })]);
       }
       add(rowEl(`<b style="color:${sk.col}">${sk.name}</b> <small>${sk.tier}차 · ${KIND[sk.kind]}${lv ? ` · Lv ${lv}` : ''}</small><br><span class="note">${desc}</span>`, lv ? (lv < cap ? `${unit(kitCost(lv, sk.tier)[0].n)} 은자` : '상한') : `${sk.tier}차 전직 때 열림`, btns));
+    }
+  } else if (key === 'hero:4') {
+    // v494 무공 강화 트리 — 무공마다 3단(1단 → 5점 → 2단 → 12점 → 3단 · 배우는 시간)
+    const Hs = g.hero, K = Hs.kitState(), pts = g.treePts();
+    const owned = KIT[g.S.hero.job].filter((sk) => K.lv[sk.id] && sk.kind !== 'passive');
+    if (!owned.some((sk) => sk.id === treeSel)) treeSel = owned[0]?.id;
+    add(rowEl(`무공 점수 <b>${pts.left}</b> / ${pts.total}`, '레벨마다 1점 · 10칸마다 3점', [['초기화', () => pop('트리를 초기화할까요?', `<p>쓴 점수 ${pts.used}점을 돌려받아요.</p><p class="note">은자 ${unit(treeResetCost(pts.used)[0].n)}</p>`, [['아니요', null], ['예', act(() => g.treeReset())]]), !pts.used || !!K.learning]]));
+    if (K.learning) { const sk = skillById(K.learning.id), nd = treeOf(sk).find((x) => x.n === K.learning.n); add(rowEl(`배우는 중: ${sk.name} · ${nd.name}`, left(K.learning.endMs), [['시간 티켓', act(() => g.timeTicket('tree', 15)), !(g.S.wallet['ticket:time'] > 0)]])); }
+    const chips = document.createElement('div'); chips.className = 'tabs'; chips.style.border = '0'; chips.style.padding = '6px 0';
+    for (const sk of owned) { const b = document.createElement('button'); b.textContent = `${sk.name} ${Hs.treeSpent(sk.id) ? `(${Hs.treeSpent(sk.id)})` : ''}`; b.className = sk.id === treeSel ? 'on' : ''; b.style.color = sk.col; b.onclick = () => { treeSel = sk.id; paintWin(); }; chips.append(b); }
+    add(chips);
+    const sk = skillById(treeSel);
+    if (sk) {
+      const spent = Hs.treeSpent(sk.id), nodes = K.tree?.[sk.id] || {};
+      for (let tier = 0; tier < 3; tier++) {
+        const list = treeOf(sk).filter((nd) => nd.tier === tier); if (!list.length) continue;
+        const open = spent >= TREE_GATE[tier];
+        add(Object.assign(document.createElement('p'), { className: 'note', textContent: `${tier + 1}단 ${open ? '' : `— 이 무공에 ${TREE_GATE[tier]}점 쓰면 열림(지금 ${spent}점)`}` }));
+        for (const nd of list) {
+          const lv = nodes[nd.n] || 0, eff = Object.entries(nd.eff).map(([k2, v]) => ({ pow: `위력 +${v / 10}%`, cdr: `쿨 −${v / 10}%`, rng: `범위 +${v / 10}%`, tgt: `대상 +${v}`, hit: `연타 +${v}`, cri: `이 무공 치명 +${v / 10}%`, dur: `지속 +${v / 10}%`, amp: `효과 +${v / 10}%` }[k2])).join(' · ');
+          add(rowEl(`<b>${nd.name}</b> <small>${lv}/${nd.max}</small><br><span class="note">레벨마다 ${eff}${nd.waitMin ? ` · 배우는 데 ${nd.waitMin}분` : ''}</span>`, `${nd.pts}점`, [[lv >= nd.max ? '끝' : '올리기', act(() => { const r = g.treeUp(sk.id, nd.n); if (r === 'wait') toast(`${nd.name} 배우기 시작 — ${nd.waitMin}분`); return r; }), !Hs.canTreeUp(sk.id, nd.n, g.stage().top)]]));
+        }
+      }
     }
   } else if (key === 'hero:2') {
     const L = g.S.hero.mastery.learning;
@@ -290,8 +313,40 @@ const cv = $('cv'), cx = cv.getContext('2d');
 const floats = [];
 let lastHitAt = 0, heroRun = 0, lastHx = 0, skillFx = [], camSm = null, camSy = null;
 const mobPrev = new Map();
+// 그린 무공 효과 — 모양마다 놓는 자리 · 크기 · 움직임
+function drawFxImage(cx, im, f, a, ease, fade, x, y, Rpx, k, big) {
+  const ar = im.height / im.width;
+  cx.save(); cx.globalCompositeOperation = 'lighter'; cx.globalAlpha = Math.max(0, fade);
+  if (f.shape === 'line') {
+    const w = Rpx * (0.35 + 0.75 * ease), h = Math.max(70 * k, w * ar * 0.55) * big;
+    cx.translate(x, y - 34 * k); cx.scale(f.face, 1); cx.drawImage(im, -w * 0.08, -h / 2, w * 1.08, h);
+  } else if (f.shape === 'arc') {
+    const w = Rpx * 1.15 * (0.75 + 0.25 * ease) * big, h = w * ar;
+    cx.translate(x, y - 34 * k); cx.scale(f.face, 1); cx.rotate(-0.35 + ease * 0.5); cx.drawImage(im, -w * 0.25, -h / 2, w, h);
+  } else if (f.shape === 'circle') {
+    const w = Rpx * 2.2 * (0.4 + 0.6 * ease) * big, h = w * ar;
+    cx.translate(x, y); cx.drawImage(im, -w / 2, -h * 0.72, w, h);   // 바닥 고리가 발 높이에
+  } else if (f.shape === 'rain') {
+    const n = 5, colW = 150 * k * big;
+    for (let j = 0; j < n; j++) {
+      const ph = Math.min(1, Math.max(0, (a * 1.6 - j * 0.12))); if (ph <= 0) continue;
+      const sx = x + f.face * ((j + 0.6) / n) * Rpx, hh = colW * 1.7;
+      cx.globalAlpha = Math.max(0, fade) * (ph < 0.85 ? 1 : (1 - ph) / 0.15);
+      cx.drawImage(im, sx - colW / 2, y - hh * (0.25 + 0.75 * ph) - 10 * k, colW, hh);
+    }
+  } else if (f.shape === 'buff') {
+    const w = 230 * k * (0.8 + 0.3 * ease), h = w * ar;
+    cx.globalAlpha = (1 - a) * 0.95; cx.drawImage(im, x - w / 2, y - h * 0.72, w, h);
+  } else if (f.shape === 'hit') {
+    const w = (f.crit ? 110 : 70) * k * (0.6 + 0.6 * ease);
+    cx.translate(x, y); cx.rotate(f.rot || 0); cx.drawImage(im, -w / 2, -w / 2, w, w);
+  }
+  cx.restore();
+}
 function drawSkillFx(cx, f, a, [x, y], Rpx, k, col, tier) {
   const ease = 1 - Math.pow(1 - a, 3), fade = a < 0.7 ? 1 : (1 - a) / 0.3, big = 1 + tier * 0.12;
+  const im = fxImg(f.job || g.S.hero.job, f.shape);
+  if (im) { drawFxImage(cx, im, f, a, ease, fade, x, y, Rpx, k, big); return; }
   cx.save(); cx.globalCompositeOperation = 'lighter';
   if (f.shape === 'line') {
     const len = Rpx * ease, h = (18 + tier * 6) * k;
@@ -368,8 +423,10 @@ function draw() {
   const [hx, hy] = P(lx(H), ly(H));
   for (let i = skillFx.length - 1; i >= 0; i--) {
     const f = skillFx[i], sk = skillById(f.id), col = sk?.col || '#ffe9a8';
-    const life = f.shape === 'rain' ? 700 : f.shape === 'circle' ? 520 : f.shape === 'buff' ? 900 : 420, a = (t - f.at) / life;
+    const life = f.shape === 'rain' ? 800 : f.shape === 'circle' ? 560 : f.shape === 'buff' ? 900 : f.shape === 'hit' ? 240 : 440, a = (t - f.at) / life;
     if (a > 1) { skillFx.splice(i, 1); continue; }
+    if (a < 0) continue;
+    if (f.shape === 'hit' && !fxImg(g.S.hero.job, 'hit')) continue;
     drawSkillFx(cx, f, a, f.shape === 'buff' ? [hx, hy] : P(f.x, f.y), (f.R || 2000) * s, k, col, sk?.tier || 0);
   }
   // 버프 중이면 발밑 기운
@@ -407,7 +464,7 @@ function frame() {
     g.hunt(dt);
     const rows = new Map();
     for (const e of g.lastEvents || []) {
-      if (e[0] === 'hit') { const m = mobs.get(e[2]); if (!m) continue; lastHitAt = t; const n = rows.get(m.id) || 0; rows.set(m.id, n + 1); if (floats.length < 60) floats.push({ x: m.x, y: m.y, d: e[3], crit: e[4], at: t, row: (n + floats.filter((f) => f.mid === m.id && t - f.at < 500).length) % 6, mid: m.id }); }
+      if (e[0] === 'hit') { const m = mobs.get(e[2]); if (!m) continue; lastHitAt = t; if (e[5] && skillFx.length < 80) skillFx.push({ at: t + (e[6] || 0) * 70, shape: 'hit', x: m.x, y: m.y + 900, crit: e[4], rot: (m.id * 1.7 + (e[6] || 0)) % 6.28 }); const n = rows.get(m.id) || 0; rows.set(m.id, n + 1); if (floats.length < 60) floats.push({ x: m.x, y: m.y, d: e[3], crit: e[4], at: t, row: (n + floats.filter((f) => f.mid === m.id && t - f.at < 500).length) % 6, mid: m.id }); }
       else if (e[0] === 'cast') skillFx.push({ at: t, id: e[2], face: e[3], x: e[4], y: e[5], shape: e[6], R: e[7] });
       else if (e[0] === 'buff') skillFx.push({ at: t, id: e[2], shape: 'buff' });
     }
@@ -421,6 +478,7 @@ function frame() {
     else if (f.k === 'sudden') toast(`돌발 미션: 10분 안에 ${f.need}마리`);
     else if (f.k === 'realm') addLog(`경지 ${f.lv}`);
     else if (f.k === 'gacha-lv') addLog(`뽑기 레벨 ${f.lv}`);
+    else if (f.k === 'tree') { const sk = skillById(f.id); toast(`${sk?.name} 강화 완료`); }
     else if (f.k === 'challenge') addLog(`${Math.ceil(f.idx / 10)}장 ${((f.idx - 1) % 10) + 1}칸 두목 도전`);
     else if (f.k === 'stage-clear' || f.k === 'stage-fail') showResult(f);
   }

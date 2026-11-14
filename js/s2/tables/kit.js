@@ -30,7 +30,7 @@ const NAMES = {
   mage: { col: '#d4b8ff', n: ['장풍', '빙백장', '내공심법', '뇌전진', '호신강기', '오뢰정법', '현문결', '태을신뢰', '선천각성', '천뢰강림', '도선지경'] },
 };
 export const KIT = Object.fromEntries(Object.entries(NAMES).map(([job, d]) => [job, FRAME.map((f, i) => ({ ...f, id: `${job}_${i}`, name: d.n[i], col: d.col }))]));
-export const skillById = (id) => { const j = id.split('_')[0]; return KIT[j]?.find((s) => s.id === id) || null; };
+export const skillById = (id) => { if (!id) return null; const j = id.split('_')[0]; return KIT[j]?.find((s) => s.id === id) || null; };
 // 그 차수 · 레벨이면 열린 무공
 export const kitOpen = (job, adv) => (KIT[job] || KIT.sword).filter((s) => s.tier <= adv);
 // 표준 무공 세트(기준 무인): 열린 공격 무공 · 버프 전부(6칸 안) · 레벨 = 상한
@@ -40,6 +40,43 @@ export function stdKit(L, job, adv) {
   return acts.map((s) => ({ ...s, lv }));
 }
 // 전투에 넘길 모양 — { id, kind, shape, range, maxT, hits, coef(레벨 반영), cdMs, durMs, buff:{…} }
+// s.tree: 그 무공 강화 트리 노드 레벨(있으면 반영)
 export function battleKit(list) {
-  return list.map((s) => ({ id: s.id, kind: s.kind, shape: s.shape, range: s.range, maxT: s.maxT, hits: s.hits, coef: s.coef ? kitCoef(s, s.lv) : 0, cdMs: s.cdMs, durMs: s.durMs, buff: s.kind === 'buff' ? s.stats(s.lv) : null, auto: s.auto !== false }));
+  return list.map((s) => {
+    const e = treeEff(s, s.tree);
+    const buff = s.kind === 'buff' ? Object.fromEntries(Object.entries(s.stats(s.lv)).map(([k, v]) => [k, Math.round(v * (1000 + (e.amp || 0)) / 1000)])) : null;
+    return { id: s.id, kind: s.kind, shape: s.shape, range: s.range ? s.range * (1000 + (e.rng || 0)) / 1000 : s.range, maxT: (s.maxT || 0) + (e.tgt || 0), hits: (s.hits || 0) + (e.hit || 0),
+      coef: s.coef ? Math.round(kitCoef(s, s.lv) * (1000 + (e.pow || 0)) / 1000) : 0, cdMs: Math.round(s.cdMs * (1000 - Math.min(400, e.cdr || 0)) / 1000),
+      durMs: s.durMs ? Math.round(s.durMs * (1000 + (e.dur || 0)) / 1000) : s.durMs, buff, crit: e.cri || 0, auto: s.auto !== false };
+  });
+}
+
+// ── 무공 강화 트리(v494) ── 무공마다 3단. 노드: 단계(tier) · 최대 레벨 · 점수(레벨마다) · 효과(레벨당) · 배우는 시간(분, 3단만)
+// 2단은 그 무공에 5점, 3단은 12점 넘게 써야 열린다.
+export const TREE_GATE = [0, 5, 12];
+export const TREE = {
+  active: [
+    { n: 'pow', name: '위력', tier: 0, max: 5, pts: 1, eff: { pow: 50 } },          // 계수 +5%/레벨(퍼밀)
+    { n: 'cdr', name: '쿨 감소', tier: 0, max: 5, pts: 1, eff: { cdr: 30 } },      // 쿨 −3%/레벨
+    { n: 'rng', name: '범위', tier: 1, max: 3, pts: 2, eff: { rng: 80 } },          // 사거리 +8%/레벨
+    { n: 'tgt', name: '대상 수', tier: 1, max: 3, pts: 2, eff: { tgt: 1 } },        // 최대 대상 +1/레벨
+    { n: 'hit', name: '연타', tier: 2, max: 1, pts: 4, eff: { hit: 1 }, waitMin: 60 },
+    { n: 'cri', name: '극의', tier: 2, max: 3, pts: 3, eff: { cri: 80 }, waitMin: 40 }, // 이 무공 치명 확률 +8%/레벨
+  ],
+  buff: [
+    { n: 'dur', name: '지속', tier: 0, max: 5, pts: 1, eff: { dur: 100 } },        // 지속 +10%/레벨
+    { n: 'cdr', name: '쿨 감소', tier: 0, max: 5, pts: 1, eff: { cdr: 40 } },
+    { n: 'amp', name: '효과', tier: 1, max: 3, pts: 2, eff: { amp: 120 } },         // 효과 +12%/레벨
+    { n: 'all', name: '여운', tier: 2, max: 1, pts: 4, eff: { dur: 300 }, waitMin: 90 },
+  ],
+};
+export const treeOf = (sk) => (sk && TREE[sk.kind]) || [];
+// 무공 점수: 무인 레벨마다 1점 · 10칸 깰 때마다 3점
+export const kitPoints = (heroLv, stageTop = 1) => Math.max(0, heroLv - 1) + Math.floor(Math.max(0, stageTop - 1) / 10) * 3;
+export const treeResetCost = (used) => [{ k: 'gold', n: 2000 + used * 800 }];
+// 트리 효과 합(그 무공 하나) — { pow, cdr, rng, tgt, hit, cri, dur, amp }
+export function treeEff(sk, nodes = {}) {
+  const e = {};
+  for (const nd of treeOf(sk)) { const lv = nodes[nd.n] || 0; if (lv) for (const [k, v] of Object.entries(nd.eff)) e[k] = (e[k] || 0) + v * lv; }
+  return e;
 }

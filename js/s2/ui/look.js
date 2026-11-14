@@ -143,3 +143,11 @@ export function drawPaintedLedge(cx, x0, x1, y, ch, z, h = 34, ground = false) {
     cx.drawImage(im, midSrcX, 0, midSrcW * (w / midW), im.height, x, top, w, h);
   }
 }
+
+// ── 무공 효과 그림(직업 × 모양) — art/s2/fx/{직업}_{모양}.webp · 검은 바탕이라 'lighter'로 빛만 더한다 ──
+const fxArt = {};
+export function fxImg(job, shape) {
+  const key = `${job}_${shape}`;
+  if (!(key in fxArt)) { fxArt[key] = null; if (typeof Image !== 'undefined') { const im = new Image(); im.onload = () => { fxArt[key] = im; }; im.src = `art/s2/fx/${key}.webp`; } }
+  return fxArt[key];
+}

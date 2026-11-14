@@ -224,6 +224,7 @@ export class Game {
     const S = this.S;
     this.now = nowMs;
     if (this.hero.tickMastery(nowMs)) { this.dirtyStats = true; this.feed.push({ k: 'mastery' }); }
+    const tl = this.hero.treeTick(nowMs); if (tl) { this.dirtyStats = true; this.feed.push({ k: 'tree', id: tl.id, n: tl.n }); }
     if (GC.tickGacha(S.gacha, nowMs)) this.feed.push({ k: 'gacha-lv', lv: S.gacha.lv });
     if (RM.realmTick(S.realm, nowMs)) { this.dirtyStats = true; this.emit('realm', { lv: S.realm.lv }); this.feed.push({ k: 'realm', lv: S.realm.lv }); }
     if (RM.journeyTick(S.journey, nowMs, this.rng)) { this.dirtyStats = true; this.feed.push({ k: 'journey', step: S.journey.step }); }
@@ -258,6 +259,10 @@ export class Game {
     this.emit('pull', { sys: COLLECTS.indexOf(sys) + 1, n });
     return got;
   }
+  // ── 무공 강화 트리 ── 점수는 레벨 · 가장 멀리 간 칸에서
+  treeUp(id, n) { const r = this.hero.treeUp(id, n, this.now, this.stage().top); if (r) { this.dirtyStats = true; this.emit('skill'); } return r; }
+  treeReset() { const r = this.hero.treeReset(this.S.wallet, this.stage().top); if (r) this.dirtyStats = true; return r; }
+  treePts() { return this.hero.treePts(this.stage().top); }
   // ── 경지 · 강호행 ──
   realmUp() { return RM.realmStart(this.S.realm, this.now, this.S.wallet, goldPerMob(this.S.hero.lv)); }
   journeyFight() {
@@ -351,7 +356,7 @@ export class Game {
   }
   timeTicket(which, minutes) {
     const S = this.S;
-    const T = { realm: S.realm.wait, mastery: S.hero.mastery.learning, gacha: S.gacha.wait, journey: S.journey.wait, exped: S.exped.run }[which];
+    const T = { realm: S.realm.wait, mastery: S.hero.mastery.learning, tree: S.hero.kit?.learning, gacha: S.gacha.wait, journey: S.journey.wait, exped: S.exped.run }[which];
     return OF.useTimeTicket(T, S.wallet, minutes);
   }
   // ── 저장 ──

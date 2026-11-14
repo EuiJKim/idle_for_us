@@ -230,7 +230,8 @@ export class SideFight {
     const ts = this.mobs.filter(inShape).sort((a, b) => Math.abs(a.x - H.x) - Math.abs(b.x - H.x)).slice(0, k.maxT);
     this.events.push(['cast', this.t, k.id, face, H.x, H.y, k.shape, R]);
     const sk = { coef: k.coef, base: false };
-    for (let h = 0; h < k.hits; h++) for (const m of ts) if (m.hp > 0) this.strike(m, sk, h);
+    const att = k.crit ? { ...H, st: { ...H.st, crit: (H.st.crit || 0) + k.crit } } : null;   // 트리 극의: 이 무공만 치명 ↑
+    for (let h = 0; h < k.hits; h++) for (const m of ts) if (m.hp > 0) this.strike(m, sk, h, att);
     return true;
   }
   // 버프를 스탯에 얹는다(기본 스탯은 H.st0에 남겨 둠)
@@ -241,8 +242,8 @@ export class SideFight {
     for (const b of H.buffs || []) for (const [key, v] of Object.entries(b.stats)) st[key] = (st[key] || 0) + v;
     H.st = st;
   }
-  strike(m, skill, hitNo = 0) {
-    const r = hit(this.hero, m, skill, this.rng);
+  strike(m, skill, hitNo = 0, att = null) {
+    const r = hit(att || this.hero, m, skill, this.rng);
     m.hp -= r.dmg; m.angry = true; this.dmgOut += r.dmg; if (r.crit) this.crits++;
     this.events.push(['hit', this.t, m.id, r.dmg, r.crit ? 1 : 0, skill.base ? 0 : 1, hitNo]);
     if (m.hp <= 0) {

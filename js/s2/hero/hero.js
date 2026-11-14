@@ -6,7 +6,7 @@ import { JOBS, baseAtk, baseHp, baseDef, MAIN_TO_ATK, MAIN_TO_HP, SUB_TO_HP } fr
 import { SKILLS, skillCap, skillCost, MASTERY, masteryCost, JOB_ADV, UNIQUE_EVERY, UNIQUE_STATS } from '../tables/skills.js';
 import { sumStats, finalize } from '../core/stats.js';
 import { pay } from '../core/cost.js';
-import { KIT, SLOT_N, kitCap, kitCost, skillById, battleKit } from '../tables/kit.js';
+import { KIT, SLOT_N, kitCap, kitCost, skillById, battleKit, treeOf, TREE_GATE, kitPoints, treeResetCost } from '../tables/kit.js';
 
 const MAINS = ['str', 'agi', 'ene', 'wis'];
 
@@ -88,7 +88,43 @@ export class Hero {
   kitAuto(id, on) { const K = this.kitState(); K.off = K.off.filter((x) => x !== id); if (!on) K.off.push(id); }
   battleKit() {
     const K = this.kitState();
-    return battleKit(K.slots.map((id) => ({ ...skillById(id), lv: K.lv[id] || 1, auto: !K.off.includes(id) })));
+    return battleKit(K.slots.map((id) => ({ ...skillById(id), lv: K.lv[id] || 1, auto: !K.off.includes(id), tree: K.tree?.[id] })));
+  }
+  // ── v494 무공 강화 트리 ── 점수(레벨 · 칸 진행) · 노드 올리기 · 3단은 배우는 시간 · 초기화
+  treePts(stageTop = 1) {
+    const K = this.kitState();
+    let used = 0;
+    for (const [id, nodes] of Object.entries(K.tree || {})) for (const nd of treeOf(skillById(id))) used += (nodes[nd.n] || 0) * nd.pts;
+    if (K.learning) used += treeOf(skillById(K.learning.id)).find((x) => x.n === K.learning.n)?.pts || 0;
+    return { total: kitPoints(this.s.lv, stageTop), used, left: kitPoints(this.s.lv, stageTop) - used };
+  }
+  treeSpent(id) { const K = this.kitState(), nodes = K.tree?.[id] || {}; return treeOf(skillById(id)).reduce((a, nd) => a + (nodes[nd.n] || 0) * nd.pts, 0); }
+  canTreeUp(id, n, stageTop = 1) {
+    const K = this.kitState(), sk = skillById(id), nd = treeOf(sk).find((x) => x.n === n);
+    if (!sk || !nd || !K.lv[id]) return false;
+    if ((K.tree?.[id]?.[n] || 0) >= nd.max) return false;
+    if (this.treeSpent(id) < TREE_GATE[nd.tier]) return false;
+    if (nd.waitMin && K.learning) return false;
+    return this.treePts(stageTop).left >= nd.pts;
+  }
+  treeUp(id, n, nowMs, stageTop = 1) {
+    if (!this.canTreeUp(id, n, stageTop)) return false;
+    const K = this.kitState(), nd = treeOf(skillById(id)).find((x) => x.n === n);
+    if (nd.waitMin) { K.learning = { id, n, endMs: nowMs + nd.waitMin * 60000 }; return 'wait'; }
+    ((K.tree ??= {})[id] ??= {})[n] = (K.tree[id][n] || 0) + 1;
+    return true;
+  }
+  treeTick(nowMs) {
+    const K = this.kitState(), L = K.learning;
+    if (!L || nowMs < L.endMs) return null;
+    ((K.tree ??= {})[L.id] ??= {})[L.n] = (K.tree[L.id][L.n] || 0) + 1; K.learning = null;
+    return L;
+  }
+  treeReset(wallet, stageTop = 1) {
+    const K = this.kitState(), used = this.treePts(stageTop).used;
+    if (!used || K.learning || !pay(wallet, treeResetCost(used))) return false;
+    K.tree = {};
+    return true;
   }
   // 무공 레벨업(은자)
   canSkillUp(k) { return this.s.skills[k] > 0 && this.s.skills[k] < skillCap(this.s.lv); }
