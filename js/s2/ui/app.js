@@ -404,14 +404,14 @@ function drawFxImage(cx, im, f, a, ease, fade, x, y, Rpx, k, big) {
     cx.translate(x, y - 34 * k); cx.scale(f.face, 1); cx.rotate(-0.35 + ease * 0.5); cx.drawImage(im, -w * 0.25, -h / 2, w, h);
   } else if (f.shape === 'circle') {
     const w = Rpx * 2.2 * (0.4 + 0.6 * ease) * big, h = w * ar;
-    cx.translate(x, y); cx.drawImage(im, -w / 2, -h * 0.72, w, h);   // 바닥 고리가 발 높이에
+    cx.translate(x, y); cx.drawImage(im, -w / 2, -h * 0.78, w, h);   // 바닥 고리가 발 높이에(살짝 묻힘)
   } else if (f.shape === 'rain') {
     const n = 5, colW = 150 * k * big;
     for (let j = 0; j < n; j++) {
       const ph = Math.min(1, Math.max(0, (a * 1.6 - j * 0.12))); if (ph <= 0) continue;
       const sx = x + f.face * ((j + 0.6) / n) * Rpx, hh = colW * 1.7;
       cx.globalAlpha = Math.max(0, fade) * (ph < 0.85 ? 1 : (1 - ph) / 0.15);
-      cx.drawImage(im, sx - colW / 2, y - hh * (0.25 + 0.75 * ph) - 10 * k, colW, hh);
+      cx.drawImage(im, sx - colW / 2, y - hh * (0.25 + 0.75 * ph) + 6 * k, colW, hh);   // 끝은 땅에 꽂힌다
     }
   } else if (f.shape === 'buff') {
     const w = 230 * k * (0.8 + 0.3 * ease), h = w * ar;
@@ -436,7 +436,7 @@ function drawSkillFx(cx, f, a, [x, y], Rpx, k, col, tier) {
     if (u) { const w = Rpx * 1.3 * (0.6 + 0.4 * ease); cx.save(); cx.globalCompositeOperation = 'lighter'; cx.globalAlpha = Math.max(0, fade) * 0.95; cx.drawImage(u, x + f.face * Rpx * 0.45 - w / 2, y - w * 0.82, w, w); cx.restore(); }
   }
   // 처치 고리(흰 고리를 직업 빛깔로)
-  if (f.shape === 'ring') { const r = tintImg('art/fx/fx-ring.png', col); if (r) { const w = 90 * k * (0.4 + ease); cx.save(); cx.globalCompositeOperation = 'lighter'; cx.globalAlpha = 1 - a; cx.translate(x, y - 20 * k); cx.scale(1, 0.45); cx.drawImage(r, -w / 2, -w / 2, w, w); cx.restore(); } return; }
+  if (f.shape === 'ring') { const r = tintImg('art/fx/fx-ring.png', col); if (r) { const w = 90 * k * (0.4 + ease); cx.save(); cx.globalCompositeOperation = 'lighter'; cx.globalAlpha = 1 - a; cx.translate(x, y - 2 * k); cx.scale(1, 0.4); cx.drawImage(r, -w / 2, -w / 2, w, w); cx.restore(); } return; }
   // 권사 버프는 금종(金鐘)이 씌워진다
   if (f.shape === 'buff' && BUFF_ART[job]) { const b = oldImg(BUFF_ART[job]); if (b) { const w = 120 * k, h = w * b.height / b.width; cx.save(); cx.globalAlpha = (1 - a) * 0.75; cx.drawImage(b, x - w / 2, y - h * (0.9 + 0.1 * ease), w, h); cx.restore(); } }
   const im = fxImg(job, f.shape);
@@ -504,7 +504,7 @@ function draw() {
   const [, gy] = P(0, 0);
   const gg = cx.createLinearGradient(0, gy, 0, Hh); gg.addColorStop(0, 'rgba(20,14,8,.15)'); gg.addColorStop(1, 'rgba(20,14,8,.85)');
   cx.fillStyle = gg; cx.fillRect(0, gy + 10, W, Hh - gy);
-  map.plats.forEach((p, i) => { const [x0, y] = P(p.x0, p.y), [x1] = P(p.x1, p.y); if (x1 < -20 || x0 > W + 20) return; drawPaintedLedge(cx, Math.max(-40, x0), Math.min(W + 40, x1), y, ch, z, (i === 0 ? 46 : 34) * k, i === 0); });
+  map.plats.forEach((p, i) => { const [x0, y] = P(p.x0, p.y), [x1] = P(p.x1, p.y); if (x1 < -20 || x0 > W + 20) return; drawPaintedLedge(cx, Math.max(-40, x0), Math.min(W + 40, x1), y, ch, z, (i === 0 ? 62 : 46) * k, i === 0); });
   // 두목 예고 — 땅에 붉은 범위가 차오르고(다 차면 터짐) 패턴 그림이 희미하게 · 이름
   for (const [id, q] of tells) {
     if (!F.mobs.some((m) => m.id === id) || t - q.at > q.dur + 200) { tells.delete(id); continue; }
@@ -620,7 +620,7 @@ function frame() {
     g.hunt(dt);
     const rows = new Map();
     for (const e of g.lastEvents || []) {
-      if (e[0] === 'hit') { const m = mobs.get(e[2]); if (!m) continue; lastHitAt = t; mobHit.set(m.id, t + (e[6] || 0) * 70); if (e[5] && skillFx.length < 80) skillFx.push({ at: t + (e[6] || 0) * 70, shape: 'hit', x: m.x, y: m.y + 900, crit: e[4], rot: (m.id * 1.7 + (e[6] || 0)) % 6.28 }); const n = rows.get(m.id) || 0; rows.set(m.id, n + 1); if (floats.length < 60) floats.push({ x: m.x, y: m.y, d: e[3], crit: e[4], pal: e[5] === 2, at: t, row: (n + floats.filter((f) => f.mid === m.id && t - f.at < 500).length) % 6, mid: m.id }); }
+      if (e[0] === 'hit') { const m = mobs.get(e[2]); if (!m) continue; lastHitAt = t; mobHit.set(m.id, t + (e[6] || 0) * 70); if (e[5] && skillFx.length < 80) skillFx.push({ at: t + (e[6] || 0) * 70, shape: 'hit', x: m.x, y: m.y + 650, crit: e[4], rot: (m.id * 1.7 + (e[6] || 0)) % 6.28 }); const n = rows.get(m.id) || 0; rows.set(m.id, n + 1); if (floats.length < 60) floats.push({ x: m.x, y: m.y, d: e[3], crit: e[4], pal: e[5] === 2, at: t, row: (n + floats.filter((f) => f.mid === m.id && t - f.at < 500).length) % 6, mid: m.id }); }
       else if (e[0] === 'cast') skillFx.push({ at: t, id: e[2], face: e[3], x: e[4], y: e[5], shape: e[6], R: e[7] });
       else if (e[0] === 'buff') skillFx.push({ at: t, id: e[2], shape: 'buff' });
       else if (e[0] === 'pal') palAtk[e[2]] = { at: t, mid: e[3] };

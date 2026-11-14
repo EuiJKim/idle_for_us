@@ -104,11 +104,20 @@ export function drawLedge(cx, x0, x1, y, th, z, ground = false) {
 
 // ── 그린 배경 · 발판(장마다 한 벌) ── 없거나 아직 안 왔으면 위의 그린 도형으로
 const sideArt = {};
+// 발판 그림에서 「밟는 면」(풀 · 눈 · 돌 윗면)이 그림 위에서 몇 할 아래인지 — 열마다 처음 불투명한 줄의 65번째 백분위(대나무 · 풀포기처럼 솟은 것은 빼고)
+function grassLine(im) {
+  try {
+    const W = 256, H = Math.max(8, Math.round((im.height / im.width) * W)), c = document.createElement('canvas'); c.width = W; c.height = H;
+    const x = c.getContext('2d'); x.drawImage(im, 0, 0, W, H); const d = x.getImageData(0, 0, W, H).data, tops = [];
+    for (let col = Math.round(W * 0.1); col < W * 0.9; col++) for (let row = 0; row < H; row++) if (d[(row * W + col) * 4 + 3] > 128) { tops.push(row / H); break; }
+    tops.sort((a, b) => a - b); return tops.length ? tops[Math.floor(tops.length * 0.65)] : 0.1;
+  } catch { return 0.1; }
+}
 function sideImg(kind, ch) {
   const key = `${kind}${ch}`;
   if (!(key in sideArt)) {
     sideArt[key] = null;
-    if (typeof Image !== 'undefined') { const im = new Image(); im.onload = () => { sideArt[key] = im; }; im.src = `art/s2/${kind}/c${ch}.webp`; }
+    if (typeof Image !== 'undefined') { const im = new Image(); im.onload = () => { if (kind === 'ledge') im.surf = grassLine(im); sideArt[key] = im; }; im.src = `art/s2/${kind}/c${ch}.webp`; }
   }
   return sideArt[key];
 }
@@ -134,7 +143,7 @@ export function drawPaintedLedge(cx, x0, x1, y, ch, z, h = 34, ground = false) {
   const im = sideImg('ledge', ch);
   if (!im) { drawLedge(cx, x0, x1, y, ground ? 200 : 26, z, ground); return; }
   const k = h / im.height, capW = Math.min((x1 - x0) / 2, im.width * 0.22 * k), sw = im.width * 0.22;
-  const top = y - h * 0.12;   // 이끼 · 눈이 발보다 조금 위로
+  const top = y - h * (im.surf ?? 0.1) - h * 0.03;   // 밟는 면이 발 높이(발이 풀에 살짝 묻히게)
   cx.drawImage(im, 0, 0, sw, im.height, x0, top, capW, h);
   cx.drawImage(im, im.width - sw, 0, sw, im.height, x1 - capW, top, capW, h);
   const midSrcX = im.width * 0.3, midSrcW = im.width * 0.4, midW = midSrcW * k;
