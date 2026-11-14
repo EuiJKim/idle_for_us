@@ -107,6 +107,24 @@
     #res .acts button { min-width: 140px; min-height: 46px; border-radius: 8px; border: 0; font-weight: 800; font-size: 15px; }
     #res .out { background: linear-gradient(#5ad0f0, #1e9fd0); } #res .again { background: linear-gradient(#d8f05a, #9cc81e); color: #223; }
     .note { color: var(--mute); font-size: 12px; }
+    /* v496 장비 창 */
+    .eqpage { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; }
+    @media (min-width: 640px) { .eqpage { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); align-items: start; } }
+    .eqwrap { display: grid; grid-template-columns: 64px 1fr 64px; gap: 6px; align-items: center; max-width: 460px; margin: 0 auto; }
+    .eqcol { display: flex; flex-direction: column; gap: 6px; }
+    .eqcell { position: relative; width: 64px; height: 50px; border-radius: 10px; border: 2px solid var(--line); background: radial-gradient(#3a2e22, #17120d); padding: 0; }
+    .eqcell img { width: 34px; height: 34px; object-fit: contain; margin-top: 2px; }
+    .eqcell .nm { position: absolute; left: 0; right: 0; bottom: 1px; font-size: 10px; color: var(--mute); }
+    .eqcell .en { position: absolute; top: 2px; left: 4px; font-size: 10px; font-weight: 800; color: #9be36b; }
+    .eqcell .sr { position: absolute; top: 2px; right: 4px; font-size: 10px; font-weight: 800; color: #ffd54a; }
+    .eqcell.sel { box-shadow: 0 0 0 2px var(--gold), 0 0 12px #e8c26a88; }
+    .eqmid { text-align: center; } .eqmid canvas { width: 100%; max-width: 200px; max-height: 230px; height: auto; object-fit: contain; }
+    .eqpw { font-weight: 800; font-size: 18px; color: var(--gold); } .eqpw small { display: block; font-size: 11px; color: var(--mute); font-weight: 400; }
+    .eqinfo { background: #0004; border: 1px solid var(--line); border-radius: 10px; padding: 8px; margin: 6px 0; }
+    .eqh { display: flex; gap: 8px; align-items: center; } .eqh img { width: 48px; height: 48px; }
+    .eqst { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; } .eqst span { background: #ffffff10; border-radius: 6px; padding: 2px 6px; font-size: 12px; }
+    img.mini { width: 22px; height: 22px; vertical-align: middle; }
+    .g0t { color: #ccc } .g1t { color: #7cc47a } .g2t { color: #6aa8e0 } .g3t { color: #b27ae0 } .g4t { color: #e8c26a } .g5t { color: #e06a5a } .g6t { color: #fff }
     :focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
     @media (orientation: portrait) {
       #tl { width: 58%; } #tc { top: auto; bottom: 150px; width: 70%; } #tr { width: 38%; } #bc { width: 56%; bottom: 66px; } #bl { width: 40%; }
