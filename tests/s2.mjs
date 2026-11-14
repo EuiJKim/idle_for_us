@@ -9,6 +9,15 @@ import * as GE from '../js/s2/tables/gear.js';
 import * as ST from '../js/s2/tables/star.js';
 import * as OP from '../js/s2/tables/option.js';
 import * as EC from '../js/s2/tables/economy.js';
+import { calc, toRpn } from '../js/s2/core/expr.js';
+import * as CO from '../js/s2/core/cost.js';
+import { defineReward, rollReward, pityLeft } from '../js/s2/core/reward.js';
+import { defineContent, isOpen, whyLocked } from '../js/s2/core/unlock.js';
+import { QuestBook } from '../js/s2/core/quest.js';
+import * as SS from '../js/s2/core/stats.js';
+import * as SV from '../js/s2/core/save.js';
+import * as FL from '../js/s2/core/flags.js';
+import { tableHash, TABLE_VER } from '../js/s2/tables/version.js';
 
 let fail = 0;
 const ok = (c, m, d = '') => { console.log(`  ${c ? 'OK ' : '✗✗ '} ${m}${d ? `  — ${d}` : ''}`); if (!c) fail++; };
@@ -86,6 +95,100 @@ console.log('\n=== S0 숫자 초안 표 ===');
   // 경제
   ok(Math.abs(Object.values(EC.GOLD_SINK_SHARE).reduce((a, b) => a + b, 0) - 1) < 1e-9, '은자 소비 몫 합 100%');
   ok(EC.OFFLINE_CAP_H === 12 && EC.OFFLINE_WEEK_CAP_H === 84, '오프라인 12시간 · 주간 84시간');
+}
+
+
+console.log('\n=== S1 계산식 ===');
+{
+  const v = { lv: 30, kills: 7, job: 2, boss: 1 };
+  const c = (e) => calc(e, (n) => v[n] ?? 0);
+  ok(c('1 + 2 * 3') === 7 && c('(1 + 2) * 3') === 9 && c('2 ^ 3 ^ 2') === 512, '우선순위 · 괄호 · 거듭제곱은 오른쪽부터');
+  ok(c('7 / 2') === 3 && c('7 % 4') === 3 && c('5 / 0') === 0, '정수 나눗셈 · 나머지 · 0으로 나누면 0');
+  ok(c('lv >= 30 && kills > 5') === 1 && c('lv < 10 || job == 3') === 0, '비교 · 그리고 · 또는 · 이름(변수)');
+  ok(c('job in [1, 2, 3]') === 1 && c('job in [4, 5]') === 0, '포함(in) 목록');
+  ok(c('-kills + 10') === 3 && c('!boss') === 0, '단항 빼기 · 아님');
+  ok(c('kills * (1 + boss)') === 14, '사건 값으로 진행 수 계산(두목이면 두 배)');
+  let threw = 0; for (const bad of ['(1 + 2', '1 +', '1 $ 2']) { try { calc(bad, () => 0); } catch { threw++; } }
+  ok(threw === 3, '틀린 식은 오류(괄호 · 덜 쓴 식 · 모르는 글자)');
+  ok(toRpn('a + b').length === 3, '역폴란드 표기로 바꿈');
+}
+
+console.log('\n=== S1 비용 ===');
+{
+  const w = { gold: 1000, 'item:stone': 3 };
+  ok(CO.canPay(w, [{ k: 'gold', n: 500 }, { k: 'item:stone', n: 3 }]), '낼 수 있음');
+  const sf = CO.shortfall(w, [{ k: 'gold', n: 1500 }, { k: 'item:scroll', n: 1 }]);
+  ok(sf.length === 2 && sf[0].need === 1500 && sf[0].have === 1000, '모자란 것 목록(얻는 곳 바로가기용)');
+  ok(!CO.pay(w, [{ k: 'gold', n: 2000 }]) && w.gold === 1000, '모자라면 아무것도 안 뺌');
+  ok(CO.pay(w, [{ k: 'gold', n: 300 }, { k: 'gold', n: 200 }]) && w.gold === 500, '같은 종류는 합쳐서 냄');
+  ok(CO.merge([{ k: 'gold', n: 1 }], { k: 'gold', n: 2 }, null)[0].n === 3 && CO.scale([{ k: 'gold', n: 10 }], 1.5)[0].n === 15, '합치기 · 배율');
+}
+
+console.log('\n=== S1 보상 ===');
+{
+  defineReward('t_all', { roll: 'all', items: [{ k: 'gold', n: 100 }, { k: 'item:a', n: 1, p: 500 }] });
+  defineReward('t_one', { roll: 'one', items: [{ k: 'g:low', n: 1, p: 9 }, { k: 'g:high', n: 1, p: 1 }], pity: { need: 50, item: { k: 'g:high', n: 1 } } });
+  defineReward('t_dupe', { roll: 'all', items: [{ k: 'costume:x', n: 1 }], dupe: { 'costume:x': { max: 1, to: { k: 'gold', n: 77 } } } });
+  const r = new Rng(9);
+  let a = 0; for (let i = 0; i < 2000; i++) { const g = rollReward('t_all', r); a += g.find((x) => x.k === 'item:a')?.n || 0; if (!g.find((x) => x.k === 'gold')) a = -1e9; }
+  ok(Math.abs(a - 1000) < 100, "'all': 확정 줄은 늘 · 확률 줄은 그만큼", a);
+  const st = {}; let maxGap = 0, gap = 0;
+  for (let i = 0; i < 3000; i++) { const g = rollReward('t_one', r, st); gap++; if (g.some((x) => x.k === 'g:high')) { maxGap = Math.max(maxGap, gap); gap = 0; } }
+  ok(maxGap <= 50, '천장: 50번 안에 반드시 한 번', maxGap);
+  ok(pityLeft('t_one', st) <= 50, '천장 남은 횟수(게이지)');
+  const d1 = rollReward('t_dupe', r, {}, () => 0), d2 = rollReward('t_dupe', r, {}, () => 1);
+  ok(d1[0].k === 'costume:x' && d2[0].k === 'gold' && d2[0].n === 77, '중복 대체: 이미 가진 건 다른 보상으로');
+  const r1 = new Rng(5), r2 = new Rng(5);
+  ok(JSON.stringify(Array.from({ length: 30 }, () => rollReward('t_one', r1))) === JSON.stringify(Array.from({ length: 30 }, () => rollReward('t_one', r2))), '같은 씨앗이면 같은 보상(결정론)');
+}
+
+console.log('\n=== S1 열림 조건 · 진행 조건 ===');
+{
+  defineContent('t_gacha', { lv: 10, clear: 'r1-3' });
+  defineContent('t_pvp', { lv: 50, job: 2, seasonDay: 3, expr: 'power >= 1000' });
+  const ctx = { lv: 12, job: 1, cleared: new Set(['r1-3']), seasonDay: 1, vars: (n) => ({ power: 500 })[n] };
+  ok(isOpen('t_gacha', ctx) && !isOpen('t_pvp', ctx), '조건 모두 맞아야 열림');
+  ok(whyLocked('t_pvp', ctx).map((w) => w.k).join() === 'lv,job,seasonDay,expr', '잠긴 까닭을 모두 알려 줌(화면 안내용)');
+  const qb = new QuestBook([
+    { id: 'kill100', ev: 'kill', add: 'n', need: 100, reward: 'r_k' },
+    { id: 'boss3', ev: 'kill', cond: 'boss', need: 3, reward: 'r_b' },
+    { id: 'lv20', ev: 'level', cond: 'lv >= 20', need: 1 },
+  ]);
+  for (let i = 0; i < 9; i++) qb.on('kill', { n: 10, boss: 0 });
+  ok(qb.get('kill100').p === 90 && !qb.get('kill100').done, '진행 수 = 식(n)으로 올림');
+  qb.on('kill', { n: 10, boss: 1 }); qb.on('kill', { n: 1, boss: 1 }); const fin = qb.on('kill', { n: 1, boss: 1 });
+  ok(qb.get('kill100').done && fin.includes('boss3'), '조건 식(boss)으로 거르기 · 끝나면 알림');
+  ok(qb.on('level', { lv: 19 }).length === 0 && qb.on('level', { lv: 20 })[0] === 'lv20', '레벨 조건');
+  ok(qb.claim('kill100') === 'r_k' && qb.claim('kill100') === null, '받기는 한 번만');
+  qb.reset(['kill100']); ok(qb.get('kill100').p === 0 && !qb.get('kill100').got, '일일 초기화');
+}
+
+console.log('\n=== S1 스탯 체계 ===');
+{
+  ok(Object.keys(SS.STATS).length >= 40, '스탯 40개 넘음(오행 약점·강인 포함)', Object.keys(SS.STATS).length);
+  const t = SS.sumStats([{ src: '기본', stats: { atk: 1000, hp: 5000 } }, { src: '장비', stats: { atk: 200, atkP: 100, atkL1: 100 } }, { src: '경지', stats: { atkL2: 100 } }]);
+  const f = SS.finalize(t);
+  ok(f.atk === 1320, '최종 공격 = (1000+200) × (1+10%)', f.atk);
+  ok(Math.abs(SS.layerMul(t, ['atkL1', 'atkL2']) - 1.21) < 1e-9, '공격%① 10% × 공격%② 10% = 1.21배(층끼리 곱)');
+  ok(SS.LAYERS.every((l) => SS.LAYER_OWNER[l]), '층마다 주인 시스템이 정해져 있다(§D3)');
+  let threw = false; try { SS.sumStats([{ stats: { nope: 1 } }]); } catch { threw = true; }
+  ok(threw, '없는 스탯 이름은 오류');
+}
+
+console.log('\n=== S1 세이브 서명 · 표 판 · 차단 깃발 ===');
+{
+  const body = { lv: 12, gold: 3400, gear: [{ g: 2, s: 'weapon' }] };
+  const txt = SV.pack(body, 1700000000000);
+  const u = SV.unpack(txt);
+  ok(u.ok && u.tableOk && u.body.gold === 3400, '쓰고 읽으면 서명 맞음 · 표 판 같음');
+  const forged = txt.replace('"gold":3400', '"gold":9999999');
+  ok(forged !== txt && SV.unpack(forged).ok === false, '손으로 은자를 고치면 서명이 안 맞음');
+  ok(SV.canon({ b: 1, a: [2, { d: 1, c: 2 }] }) === SV.canon({ a: [2, { c: 2, d: 1 }], b: 1 }), '키 순서가 달라도 같은 글자(기기마다 같음)');
+  ok(SV.unpack('나쁜 글자').ok === false && SV.SAVE_KEY.startsWith('ifu.s2.'), '깨진 글자 · 새 시즌 열쇠는 옛 세이브와 다름');
+  ok(/^[0-9a-f]{8}$/.test(tableHash()) && TABLE_VER === 's2-0.1', '표 해시 · 판 번호', tableHash());
+  FL.setFlags({ off: ['pvp', 'gacha', 'nope'], msg: '점검 중' });
+  ok(FL.blocked('pvp') && FL.blocked('gacha') && !FL.blocked('nope') && !FL.blocked('guild') && FL.blockedMsg() === '점검 중', '차단 깃발(모르는 이름은 무시)');
+  FL.setFlags(null); ok(FL.blockedList().length === 0, '서버를 못 읽으면 모두 열림');
 }
 
 console.log('\n=== S0 규칙 ===');
