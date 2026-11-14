@@ -23,6 +23,10 @@ const walk = (d, out = []) => {
   return out;
 };
 const JS_FILES = walk('js').filter((f) => f.endsWith('.js'));
+// v478 새 시즌 코드(js/s2)는 교체 전까지 게임이 부르지 않는다 — 서비스워커가 미리 받지 않아도 된다.
+//   index.html이나 wmain.js가 s2를 부르기 시작하면(교체 날) 자동으로 다시 검사에 들어간다.
+const S2_LIVE = /s2\//.test(fs.readFileSync(path.join(R, 'index.html'), 'utf8') + fs.readFileSync(path.join(R, 'js/wmain.js'), 'utf8'));
+const SHIPPED = (f) => S2_LIVE || !f.startsWith('js/s2/');
 const ALL = JS_FILES.map(read).join('\n') + read('index.html') + read('sw.js');
 
 let fail = 0;
@@ -119,7 +123,7 @@ console.log('\n=== 3. 서비스워커가 받아 두는 것 ↔ 실제 파일 ===
   // 게임이 통째로 안 뜬다. icons.js가 실제로 빠져 있었다 — 그림 검사는
   // 있었는데 코드 파일 검사가 없었다.
   const jsFiles = walk('js').filter((f) => f.endsWith('.js'));
-  const noSw = jsFiles.filter((f) => !sw.includes(`'${f}'`));
+  const noSw = jsFiles.filter(SHIPPED).filter((f) => !sw.includes(`'${f}'`));
   ok(noSw.length === 0, 'js 파일을 sw.js가 전부 알고 있다',
     noSw.length ? `모름: ${noSw.join(', ')}` : `${jsFiles.length}개`);
   const cssFiles = walk('css');
@@ -387,7 +391,7 @@ console.log('=== 11. 큰 수를 보통 셈으로 다루는 곳 ===');
 // v254: 서비스워커가 미리 받아 두는 목록에 모든 js가 있어야 오프라인으로 열린다(v237 wpath.js가 빠져 빈 화면이었다)
 {
   const sw = read('sw.js');
-  const miss = JS_FILES.filter((f) => !sw.includes(`'${f}'`));
+  const miss = JS_FILES.filter(SHIPPED).filter((f) => !sw.includes(`'${f}'`));
   ok(miss.length === 0, '서비스워커 SHELL에 모든 js가 있다', miss.join(', '));
   const cache = /const CACHE = '([^']+)'/.exec(sw)?.[1];
   const build = /export const BUILD = '([^']+)'/.exec(read('js/data.js'))?.[1];

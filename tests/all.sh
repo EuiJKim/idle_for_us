@@ -18,6 +18,7 @@ FAIL=()
 run() { local name="$1"; shift; echo; echo "━━ $name"; if "$@"; then echo "━━ $name ✓"; else echo "━━ $name ✗"; FAIL+=("$name"); fi; }
 run "배선"        node tests/wiring.mjs
 run "엔진"        node tests/world.mjs
+run "새 시즌"     node tests/s2.mjs
 run "몽키 봇"     env HOURS="${HOURS:-2}" node tests/soak.mjs
 run "늦은 세이브 모든 창" env SECS=3 node tests/replay.cjs tests/shots/soak-end-sword-late.json
 run "브라우저"    env -u FIREBASE_PKG node tests/e2e.cjs
