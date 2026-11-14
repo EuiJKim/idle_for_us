@@ -9,11 +9,11 @@ export const UPPER_P = 250;   // 같은 등급 안에서 「上」이 나올 확
 
 // 장비 뽑기 레벨별 등급 확률(퍼밀) — 사이 레벨은 직선 보간
 export const GACHA_ROWS = [
-  { at: 1, g0: 700, g1: 250, g2: 50, g3: 0, g4: 0, g5: 0, g6: 0 },
-  { at: 5, g0: 400, g1: 380, g2: 180, g3: 40, g4: 0, g5: 0, g6: 0 },
-  { at: 10, g0: 150, g1: 350, g2: 330, g3: 140, g4: 30, g5: 0, g6: 0 },
-  { at: 15, g0: 0, g1: 200, g2: 380, g3: 300, g4: 110, g5: 10, g6: 0 },
-  { at: 20, g0: 0, g1: 0, g2: 300, g3: 420, g4: 230, g5: 47, g6: 3 },
+  { at: 1, g0: 550, g1: 330, g2: 120, g3: 0, g4: 0, g5: 0, g6: 0 },
+  { at: 5, g0: 350, g1: 400, g2: 220, g3: 30, g4: 0, g5: 0, g6: 0 },
+  { at: 10, g0: 220, g1: 380, g2: 300, g3: 96, g4: 4, g5: 0, g6: 0 },
+  { at: 15, g0: 60, g1: 260, g2: 380, g3: 262, g4: 37, g5: 1, g6: 0 },
+  { at: 20, g0: 0, g1: 100, g2: 350, g3: 380, g4: 150, g5: 19, g6: 1 },
 ];
 export const GACHA_LV_MAX = 20;
 // 뽑기 레벨의 등급 가중치(합 1000 — 보간 반올림 오차는 가장 흔한 등급에 몰아준다)
@@ -25,7 +25,9 @@ export function gachaWeights(lv) {
   return w;
 }
 // 뽑기 경험치: 1회 = 1 · 레벨 n → n+1 필요 · 레벨업 대기(분, 최대 24시간)
-export const gachaExpNeed = (n) => Math.round(40 * Math.pow(1.35, n));
+export const gachaExpNeed = (n) => Math.round(30 * Math.pow(1.42, n));
+// 시즌 시작 선물(길잡이 보상) — 장비 뽑기권. 첫날 정품 장비를 맞춰 주려고
+export const START_PULL_TICKETS = 150;
 export const gachaWaitMin = (n) => Math.min(24 * 60, n * n * 10);
 // 정예: 뽑기 10회마다 1마리 · 행운 3%면 3마리
 export const ELITE_EVERY = 10;

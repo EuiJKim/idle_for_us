@@ -25,6 +25,11 @@ import { RoomFight, simpleRoom, replay } from '../js/s2/battle/room.js';
 import * as PS from '../js/s2/sim/progress.js';
 import { Hero, newHero } from '../js/s2/hero/hero.js';
 import * as SK from '../js/s2/tables/skills.js';
+import * as GR from '../js/s2/gear/gear.js';
+import * as GC from '../js/s2/gear/gacha.js';
+import * as GS from '../js/s2/tables/gearstat.js';
+import * as RL from '../js/s2/core/roller.js';
+import { simGear } from '../js/s2/sim/econ.js';
 
 let fail = 0;
 const ok = (c, m, d = '') => { console.log(`  ${c ? 'OK ' : '✗✗ '} ${m}${d ? `  — ${d}` : ''}`); if (!c) fail++; };
@@ -82,7 +87,7 @@ console.log('\n=== S0 숫자 초안 표 ===');
   const ws = Array.from({ length: GE.GACHA_LV_MAX }, (_, i) => GE.gachaWeights(i + 1));
   ok(ws.every((w) => w.reduce((a, b) => a + b, 0) === 1000 && w.every((x) => x >= 0)), '장비 뽑기: 모든 레벨 확률 합 100%');
   ok(ws.every((w, i) => i === 0 || w.slice(3).reduce((a, b) => a + b, 0) >= ws[i - 1].slice(3).reduce((a, b) => a + b, 0)), '뽑기 레벨이 오르면 진품 이상 확률이 줄지 않음');
-  ok(ws[19][6] === 3 && ws[0][6] === 0, '천품은 20레벨에서만 0.3%');
+  ok(ws[19][6] === 1 && ws[0][6] === 0, '천품은 20레벨에서만 0.1%');
   ok(GE.SUBOPT_COUNT_P.reduce((a, b) => a + b, 0) === 1000, '부옵션 줄 수 확률 합 100%');
   ok(GE.gachaWaitMin(GE.GACHA_LV_MAX) <= 24 * 60 && GE.SLOTS.length === 10 && GE.GRADES.length === 7, '뽑기 대기 최대 24시간 · 10부위 · 등급 7');
   // 성혼
@@ -192,7 +197,7 @@ console.log('\n=== S1 세이브 서명 · 표 판 · 차단 깃발 ===');
   ok(forged !== txt && SV.unpack(forged).ok === false, '손으로 은자를 고치면 서명이 안 맞음');
   ok(SV.canon({ b: 1, a: [2, { d: 1, c: 2 }] }) === SV.canon({ a: [2, { c: 2, d: 1 }], b: 1 }), '키 순서가 달라도 같은 글자(기기마다 같음)');
   ok(SV.unpack('나쁜 글자').ok === false && SV.SAVE_KEY.startsWith('ifu.s2.'), '깨진 글자 · 새 시즌 열쇠는 옛 세이브와 다름');
-  ok(/^[0-9a-f]{8}$/.test(tableHash()) && TABLE_VER === 's2-0.2', '표 해시 · 판 번호', tableHash());
+  ok(/^[0-9a-f]{8}$/.test(tableHash()) && TABLE_VER === 's2-0.3', '표 해시 · 판 번호', tableHash());
   FL.setFlags({ off: ['pvp', 'gacha', 'nope'], msg: '점검 중' });
   ok(FL.blocked('pvp') && FL.blocked('gacha') && !FL.blocked('nope') && !FL.blocked('guild') && FL.blockedMsg() === '점검 중', '차단 깃발(모르는 이름은 무시)');
   FL.setFlags(null); ok(FL.blockedList().length === 0, '서버를 못 읽으면 모두 열림');
@@ -297,6 +302,109 @@ console.log('\n=== S3 무인 ===');
   for (let n = 1; n <= 3; n++) { H.clearDungeon(`job${n}`); H.advance(); }
   const ref = refPlayer(100, 'sword'), hs = H.stats();
   ok(hs.atk < ref.st.atk && hs.atk > CH.baseAtk(100) && hs.hp < ref.st.hp * 1.2, 'Lv100 맨몸 무인: 기본 < 맨몸 < 기준 무인(장비·성장 몫은 S4~)', `${hs.atk} / ${ref.st.atk}`);
+}
+
+
+console.log('\n=== S4 장비 · 칸 ===');
+{
+  const r = new Rng(21);
+  const items = Array.from({ length: 20000 }, () => GR.makeGear(r, 'weapon', 3));
+  const cnt = [0, 0, 0, 0, 0]; let up = 0;
+  for (const it of items) { cnt[it.subs.length]++; up += it.up; }
+  ok(cnt.every((c, i) => Math.abs(c / 20000 * 1000 - GE.SUBOPT_COUNT_P[i]) < 15) && Math.abs(up / 20000 - 0.25) < 0.015, '부옵션 줄 수 · 上 확률이 표대로', cnt.join(','));
+  const S0 = GR.newSlot();
+  const lo = GR.itemStats({ slot: 'weapon', g: 1, up: 0, subs: [] }, S0, 100), hi = GR.itemStats({ slot: 'weapon', g: 4, up: 1, subs: [] }, S0, 100);
+  ok(hi.atk > lo.atk * 2, '등급이 높을수록 주옵션이 큼', `${lo.atk} → ${hi.atk}`);
+  ok(GR.itemStats({ slot: 'weapon', g: 0, up: 0, subs: [] }, S0, 150).atk === GR.itemStats({ slot: 'weapon', g: 0, up: 0, subs: [] }, S0, 30).atk, '범품은 Lv30에서 멈춤(레벨 따라감 상한)');
+  const S1 = { ...GR.newSlot(), enh: 10, star: 10 };
+  ok(GR.itemStats({ slot: 'weapon', g: 2, up: 0, subs: [] }, S1, 80).atk > GR.itemStats({ slot: 'weapon', g: 2, up: 0, subs: [] }, S0, 80).atk * 1.5, '칸의 강화·별이 주옵션을 키움');
+  const G = GR.newGearState(); const w = { gold: 0 };
+  GR.obtain(G, ['weapon', 'hat', 'top', 'bottom'].map((sl) => ({ uid: 9000 + sl.length, slot: sl, g: 3, up: 0, subs: [] })), 80, w);
+  ok(GR.gearSources(G, 80).some((x) => x.src.startsWith('세트:')), '같은 등급 이상 4부위 → 세트 효과');
+  const better = { uid: 9100, slot: 'weapon', g: 4, up: 0, subs: [] }, worse = { uid: 9101, slot: 'weapon', g: 0, up: 0, subs: [] };
+  GR.obtain(G, [worse, better], 80, w);
+  ok(G.eq.weapon.uid === 9100 && G.bag.some((x) => x.uid === 9101), '더 좋은 건 자동 장착 · 나쁜 건 가방으로');
+  GR.savePreset(G, 0); GR.unequip(G, 'weapon'); GR.equip(G, 9101);
+  ok(G.eq.weapon.uid === 9101 && GR.loadPreset(G, 0) && G.eq.weapon?.uid === 9100 && G.bag.some((x) => x.uid === 9101), '장착 해제·손으로 장착 · 프리셋 저장·불러오기');
+  G.autoDis = 1; const w2 = {}; GR.obtain(G, [{ uid: 9200, slot: 'ring', g: 0, up: 0, subs: [] }, { uid: 9201, slot: 'ring', g: 0, up: 0, subs: [], lock: true }], 80, w2);
+  ok(!G.bag.some((x) => x.uid === 9200) && G.bag.some((x) => x.uid === 9201) && w2['item:stone'] >= 1, '자동 분해(잠근 건 남김) → 강화석');
+}
+
+console.log('\n=== S4 강화 · 성혼 ===');
+{
+  const r = new Rng(5), G = GR.newGearState(), w = { gold: 1e12, 'item:restore': 5 };
+  for (let i = 0; i < 200; i++) GR.enhance(G, 'weapon', r, w, 100);
+  ok(G.slots.weapon.enh === GE.ENH_MAX && GR.enhance(G, 'weapon', r, w, 100) === null, '강화 +20까지 · 실패해도 안 깨짐');
+  let downEarly = 0, brkEarly = 0, ok15 = true;
+  for (let t = 0; t < 400; t++) {
+    const g = GR.newGearState(); const rr = new Rng(t);
+    for (let k = 0; k < 60 && g.slots.hat.star < 15 && !g.slots.hat.broken; k++) {
+      const before = g.slots.hat.star, res = GR.starForce(g, 'hat', rr, w, 100);
+      if (res === 'down' && before < ST.DOWN_FROM) downEarly++;
+      if (res === 'break' && before < ST.BREAK_FROM) brkEarly++;
+    }
+  }
+  ok(downEarly === 0 && brkEarly === 0, '성혼: 11성 전엔 하락 없음 · 15성 전엔 파괴 없음');
+  const P = GR.newGearState(); P.slots.cape.star = 16; const rp = new Rng(77); let broke = 0;
+  for (let i = 0; i < 300; i++) { if (GR.starForce(P, 'cape', rp, w, 100, { noBreak: true }) === 'break') broke++; if (P.slots.cape.star > 18) P.slots.cape.star = 16; }
+  ok(broke === 0, '파괴 방지를 켜면 15~19성에서 깨지지 않음');
+  const Q = GR.newGearState(); Q.slots.belt.star = 22; Q.slots.belt.pity = ST.PITY_POINTS;
+  ok(GR.starForce(Q, 'belt', new Rng(1), w, 100) === 'ok' && Q.slots.belt.star === 23 && Q.slots.belt.pity === 0, '실패 포인트가 차면 다음 한 번 성공 확정');
+  const B = GR.newGearState(); B.slots.ring.broken = 18; B.slots.ring.star = 0;
+  ok(GR.starForce(B, 'ring', new Rng(1), w, 100) === null && GR.restoreSlot(B, 'ring', w) && B.slots.ring.star === 15 && !B.slots.ring.broken, '파괴된 칸은 성혼 불가 · 복구 주문서로 되살림(−3성)');
+  const it = GR.makeGear(new Rng(3), 'neck', 3); while (it.subs.length < 2) it.subs.push({ k: 'crit', v: 5 });
+  const keep = JSON.stringify(it.subs[0]), sw = { 'item:stone': 1000 };
+  ok(GR.rerollSubs(it, new Rng(4), sw, [0]) && JSON.stringify(it.subs[0]) === keep && it.rr === 1 && sw['item:stone'] === 995, '부옵션 다시 굴리기 — 잠근 줄 유지 · 강화석');
+}
+
+console.log('\n=== S4 장비 뽑기 레벨 · 무작위 옵션 틀 ===');
+{
+  ok(GS.gachaCost(100, 10)[0].n > GS.gachaCost(100, 1)[0].n, '뽑기 레벨이 오를수록 비쌈');
+  const GA = GC.newGacha(), w = { gold: 1e12, 'ticket:gear': 30 };
+  const got = GC.pull(GA, 30, new Rng(2), w, 50, { ticket: true });
+  ok(got.length === 30 && w['ticket:gear'] === 0 && w.gold === 1e12 && GA.eliteQ >= 3, '뽑기권으로 30번 · 10번마다 정예');
+  while (!GC.canLevelUp(GA)) GC.pull(GA, 10, new Rng(3), w, 50);
+  ok(GC.startLevelUp(GA, 0) && !GC.tickGacha(GA, 1000) && GC.tickGacha(GA, GE.gachaWaitMin(1) * 60000) && GA.lv === 2, '뽑기 레벨업은 대기 시간 뒤');
+  ok(GC.eliteDrop(GA, new Rng(9)).length === 3, '정예 처치 → 장비 셋');
+  const pool = [{ k: 'atkL1', v: [10, 20, 40, 80], w: 1 }, { k: 'crit', v: [5, 10, 20, 40], w: 1 }];
+  const R = RL.newRoller(3), rw = { gold: 1e9 };
+  RL.reroll(R, pool, new Rng(1), rw, [{ k: 'gold', n: 100 }]);
+  ok(rw.gold === 1e9 - 100 && R.lines.every(Boolean), '다시 굴리기(잠금 0 → 기본 비용)');
+  RL.toggleLock(R, 0); const l0 = JSON.stringify(R.lines[0]);
+  RL.reroll(R, pool, new Rng(2), rw, [{ k: 'gold', n: 100 }]);
+  ok(rw.gold === 1e9 - 300 && JSON.stringify(R.lines[0]) === l0, '잠금 1줄 → 비용 ×2 · 잠근 줄 유지');
+  const R2 = RL.newRoller(3); const rr = new Rng(8);
+  for (let i = 0; i < 3000; i++) RL.reroll(R2, pool, rr, rw, [{ k: 'gold', n: 1 }]);
+  ok(R2.mastery >= 3, '굴릴수록 숙련이 오름', R2.mastery);
+  const R3 = RL.newRoller(2); const n = RL.autoRoll(R3, pool, new Rng(4), rw, [{ k: 'gold', n: 1 }], (ls) => ls.some((l) => l && l.g >= 2), 500);
+  ok(R3.lines.some((l) => l.g >= 2) && n > 0, '자동 굴리기 — 목표 등급이 나오면 멈춤', n);
+}
+
+console.log('\n=== S4 경제 시뮬 합격선(§J1 장비·성혼) ===');
+{
+  const TIER = { 범: 0, 양: 2, 정: 4, 진: 6, 보: 8, 신: 10, 천: 12 };
+  const tierOfName = (nm) => TIER[nm[0]] + (nm.endsWith('上') ? 1 : 0);
+  const bad = [];
+  for (const seed of [3, 7, 11]) {
+    const { log } = simGear(365, { seed });
+    for (const r of PR.PROGRESS.filter((x) => x.day >= 1)) {
+      const g = log[r.day - 1];
+      if (Math.abs(g.tierMedian - tierOfName(r.gear)) > 1) bad.push(`씨앗${seed} ${r.day}일 등급 ${g.tierMedian}/${tierOfName(r.gear)}`);
+      if (Math.abs(g.starAvg - r.star) > 2) bad.push(`씨앗${seed} ${r.day}일 별 ${g.starAvg.toFixed(1)}/${r.star}`);
+    }
+  }
+  ok(bad.length === 0, '씨앗 셋 × 진행 목표: 장비 등급(가운데 칸) ±1단 · 평균 별 ±2', bad.slice(0, 4).join(' '));
+  // 장비 몫 — 기준 무인의 0.6~0.9배(나머지는 S5 시스템 몫)
+  const share = [];
+  for (const d of [1, 7, 30, 90]) {
+    const { G, log } = simGear(d, { seed: 3 });
+    const L = log[d - 1].lv;
+    const h = new Hero(newHero('sword')); h.addExp(EX.cumExp(L));
+    for (let n = 1; n < PR.JOB_LV.length; n++) if (L >= PR.JOB_LV[n]) { h.clearDungeon(`job${n}`); h.advance(); }
+    const g = h.stats(GR.gearSources(G, L)), ref = refPlayer(L, 'sword').st;
+    share.push([g.atk * (1 + (g.atkL1 || 0) / 1000) / ref.atk, g.hp / ref.hp]);
+  }
+  ok(share.every(([a, h]) => a >= 0.6 && a <= 0.9 && h >= 0.6 && h <= 0.9), '무인 + 장비 = 기준 무인의 0.6~0.9배(1·7·30·90일)', share.map(([a, h]) => `${a.toFixed(2)}/${h.toFixed(2)}`).join(' '));
 }
 
 console.log('\n=== S0 규칙 ===');
