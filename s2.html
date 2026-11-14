@@ -54,6 +54,9 @@
     .slots { display: grid; grid-template-columns: repeat(3, 44px); gap: 5px; }
     .slot { width: 44px; height: 44px; border-radius: 8px; border: 1px solid #ffffff44; background: var(--glass); position: relative; font-size: 11px; display: grid; place-items: center; }
     .slot.on { border-color: var(--gold); background: radial-gradient(#e8c26a55, #2a1d0f); }
+    .slot { transition: transform .08s ease; } .slot:active { transform: scale(.9); }
+    .slot.fire { animation: sf .32s ease-out; } @keyframes sf { 0% { box-shadow: 0 0 0 0 #ffe9a8, inset 0 0 18px #ffe9a8; transform: scale(1.08) } 100% { box-shadow: 0 0 14px 4px #0000, inset 0 0 0 #0000; transform: scale(1) } }
+    .pad button { transition: transform .08s ease; } .pad button:active { transform: scale(.92); } .jump:active { transform: scale(.93); }
     .slot .ad { position: absolute; top: 3px; right: 3px; width: 6px; height: 6px; border-radius: 50%; background: #7cf06a; box-shadow: 0 0 4px #7cf06a; }
     .slot .nm { font-weight: 800; font-size: 12px; text-shadow: 0 1px 2px #000; } .slot .t { position: absolute; left: 3px; bottom: 1px; font-size: 8px; color: #fff9; }
     .slot.empty { border-style: dashed; } .slot.empty .nm { font-size: 18px; font-weight: 400; }

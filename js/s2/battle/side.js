@@ -193,9 +193,11 @@ export class SideFight {
     for (const m of this.mobs) {
       const p = map.plats[m.plat];
       const same = Math.abs(m.y - H.y) <= SAME_Y, adx = Math.abs(H.x - m.x);
-      // 화난 몹: 같은 층이면 700mm까지 붙어 친다(1000mm 넘게 벌어져야 다시 쫓음 — 경계 떨림 없음)
+      // 화난 몹: 같은 층이면 붙어 친다 — 서는 거리는 몹마다 조금씩 달라(450~930mm) 한 자리에 겹쳐 서지 않는다(v501)
+      //   (서는 거리 + 300 넘게 벌어져야 다시 쫓음 — 경계 떨림 없음)
+      const reach = 450 + (m.id % 4) * 160;
       if (m.angry && same) {
-        if (adx > 1000) m.chase = true; else if (adx <= 700) m.chase = false;
+        if (adx > reach + 300) m.chase = true; else if (adx <= reach) m.chase = false;
         m.dir = Math.sign(H.x - m.x) || m.dir;
       }
       let walk;
@@ -209,7 +211,7 @@ export class SideFight {
       if (walk) {
         m.x += Math.round(m.dir * MOB_RUN * DT * (m.kind === 'boss' ? 0.6 : 1));
         if (m.x < p.x0 + 200) { m.x = p.x0 + 200; m.dir = 1; } else if (m.x > p.x1 - 200) { m.x = p.x1 - 200; m.dir = -1; }
-      } else if (m.angry && same && adx <= 700 && this.t >= m.nextAtk && H.plat >= 0) {
+      } else if (m.angry && same && adx <= reach + 100 && this.t >= m.nextAtk && H.plat >= 0) {
         const r = hit(m, H, SKILL_BASE, this.rng);
         H.hp -= r.dmg; this.dmgIn += r.dmg; m.nextAtk = this.t + m.atkMs;
         this.events.push(['hurt', this.t, r.dmg]);

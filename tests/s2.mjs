@@ -759,6 +759,17 @@ console.log('\n=== S9 무공 세트(직업마다 공격 6 · 상시 3 · 버프 
   ok(mc === 1, '누른 칸 무공을 쓴다');
 }
 
+console.log('\n=== S9 장마다 몹 모습(v501) ===');
+{
+  const { ROSTER, mobLook } = await import('../js/s2/tables/mobs.js');
+  const fs = await import('node:fs');
+  const miss = [];
+  for (const R of ROSTER) for (const [, a] of [...R.mobs, R.elite, R.boss]) { const [src, key] = a.split(':'); const f = src === 'cr' ? (fs.existsSync(`art/cr/${key}.png`) ? `art/cr/${key}.png` : `art/cr/${key}.webp`) : src === 's2' ? `art/s2/mob/${key}.webp` : `art/boss/${key}.png`; if (!fs.existsSync(f)) miss.push(a); }
+  ok(ROSTER.length === 15 && ROSTER.every((R) => R.mobs.length === 4 && R.elite && R.boss) && miss.length === 0, '장 15 × 일반 넷 · 정예 · 두목 — 그림 파일 전부 있음', miss.join(' '));
+  const seen = new Set(Array.from({ length: 40 }, (_, i) => mobLook(3, { id: i + 1, kind: 'mob' })[0]));
+  ok(seen.size === 4 && mobLook(11, { id: 1, kind: 'boss' })[0] === '천마', '한 장 안에서 넷이 고루 나온다 · 11장 두목 천마', [...seen].join(','));
+}
+
 console.log('\n=== S9 동료 공격 · 두목 패턴(v497) ===');
 {
   // 동료: 장착한 만큼 따로 친다(피해 숫자 종류 2)

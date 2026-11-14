@@ -6,6 +6,7 @@ import { drawCreature } from '../../creatures.js';
 import { bossImg } from '../../bossfx.js';
 import { ZONES_W } from '../../world/wdata.js';
 import { ZONES, RANKS } from '../../data.js';
+import { ROSTER, mobLook } from '../tables/mobs.js';
 
 let ready = false;
 export function loadLooks(onDone) { try { loadArt(() => { ready = true; onDone?.(); }); } catch { /* 그림 없이도 돈다 */ } }
@@ -43,28 +44,56 @@ function shade(hex, k) {
 
 // 무인 — 발끝 가운데 (x, y) · 화면 px
 export function drawHero(cx, x, y, job, lv, o = {}) {
-  drawFighter(cx, x, y, heroLook(lv), { t: o.t || 0, weapon: WEAPON[job] || 'sword', run: !!o.run, flip: !!o.flip, lunge: o.lunge || 0, scale: o.scale || 1 });
+  drawFighter(cx, x, y, heroLook(lv), { t: o.t || 0, weapon: WEAPON[job] || 'sword', run: !!o.run, flip: !!o.flip, turn: o.turn, lunge: o.lunge || 0, scale: o.scale || 1 });
 }
 // 몹 — 엔진 몹 하나 → 그 지역 몹 그림 하나(id로 고정)
-export function drawMob(cx, x, y, m, z, o = {}) {
-  const t = o.t || 0, flip = !!o.flip;
-  if (m.kind === 'boss') {
-    const im = z.boss?.art && bossImg(z.boss.art);
-    if (im && im.complete && im.naturalWidth) {
-      const h = 120 * (o.scale || 1), w = h * im.naturalWidth / im.naturalHeight;
-      cx.save(); cx.translate(x, y); if (flip) cx.scale(-1, 1); cx.drawImage(im, -w / 2, -h, w, h); cx.restore();
-      return;
-    }
-    drawFighter(cx, x, y, z.boss.look, { t, weapon: z.boss.look?.weapon, scale: (z.boss.look?.scale || 1.4) * (o.scale || 1), flip });
-    return;
-  }
-  const def = z.mobs[m.id % z.mobs.length];
-  const sc = (m.kind === 'elite' ? 1.3 : 1) * (o.scale || 1);
-  if (m.kind === 'elite') { cx.save(); cx.globalAlpha = 0.35; cx.fillStyle = '#a855f7'; cx.beginPath(); cx.ellipse(x, y, 30 * sc, 10 * sc, 0, 0, 7); cx.fill(); cx.restore(); }
-  if (def.beast) drawCreature(cx, def.beast, x, y, { t, moving: !!o.moving, flip, scale: (def.bscale || 1) * 0.6 * sc });
-  else drawFighter(cx, x, y, def.look, { t, weapon: def.look?.weapon, scale: (def.look?.scale || 1) * sc, flip, run: !!o.moving });
+// ── 몹 그리기(v501) — 장마다 몹 표(tables/mobs.js)의 그림. 한 장짜리 그림을 몸짓으로 살린다
+//   o.atk: 공격 몸짓 0→1(뒤로 젖혔다가 앞으로 내지름) · o.hurt: 맞은 직후 1→0(뒤로 젖혀짐) · o.moving: 걷기 · o.t: 시각(초) · o.ch: 장
+const mobArt = {};
+function artImg(path) {
+  if (!(path in mobArt)) { mobArt[path] = null; if (typeof Image !== 'undefined') { const im = new Image(); im.onload = () => { mobArt[path] = im; }; im.src = path; } }
+  return mobArt[path];
 }
-export const mobName = (m, z) => (m.kind === 'boss' ? z.boss?.name : z.mobs[m.id % z.mobs.length]?.name) || '';
+const artPath = (src, key) => (src === 's2' ? `art/s2/mob/${key}.webp` : `art/boss/${key}.png`);
+export function preloadMobs(ch) { const R = ROSTER[ch - 1]; if (!R) return; for (const [, a] of [...R.mobs, R.elite, R.boss]) { const [src, key] = a.split(':'); if (src !== 'cr') artImg(artPath(src, key)); } }
+// 짐승 그림 크기 맞춤(작은 것 · 큰 것)
+const CR_SIZE = { crab: 0.8, crow: 0.75, eagle: 0.9, vbat: 0.85, bat: 0.85, scorpion: 0.85, bscorp: 0.9, pspider: 0.85, ispider: 0.9, isnake: 0.9, python: 1.1, bear: 1.15, panda: 1.1, sape: 1.1, ape: 1.0, gape: 1.0, cloud: 1.1, h3: 1.1 };
+export function drawMob(cx, x, y, m, z, o = {}) {
+  const t = o.t || 0, flip = !!o.flip, ch = o.ch || 1;
+  const [, art] = mobLook(ch, m), [src, key] = art.split(':');
+  const sc = (m.kind === 'elite' ? 1.25 : 1) * (o.scale || 1);
+  const atk = o.atk || 0, hurt = o.hurt || 0, dir = flip ? -1 : 1;
+  // 공격: 0~0.35 뒤로 젖힘(예비 동작) → 0.35~0.6 앞으로 내지름 → 돌아옴
+  const wind = atk < 0.35 ? -Math.sin((atk / 0.35) * Math.PI / 2) * 0.5 : atk < 0.6 ? -0.5 + 1.5 * Math.sin(((atk - 0.35) / 0.25) * Math.PI / 2) : (1 - (atk - 0.6) / 0.4);
+  const lunge = atk > 0 ? wind * 10 * sc : 0;
+  const lean = (atk > 0 ? wind * 0.12 : 0) - hurt * 0.18;   // 앞으로 기울기(+) · 맞으면 뒤로(-)
+  // 정예: 발밑 보랏빛 기운이 숨 쉬듯
+  if (m.kind === 'elite') { cx.save(); cx.globalAlpha = 0.28 + 0.12 * Math.sin(t * 4); cx.fillStyle = '#a855f7'; cx.beginPath(); cx.ellipse(x, y, 34 * sc, 10 * sc, 0, 0, 7); cx.fill(); cx.restore(); }
+  if (src === 'cr') {
+    cx.save(); cx.translate(x + dir * lunge, y); cx.rotate(dir * lean * 0.6); cx.translate(-x, -y);
+    drawCreature(cx, key, x, y, { t, moving: !!o.moving, flip, scale: 0.62 * (CR_SIZE[key] || 1) * sc });
+    cx.restore(); return;
+  }
+  const im = artImg(artPath(src, key));
+  const H0 = src === 'boss' ? (m.kind === 'boss' ? 118 : 100) : 100;   // 화면 키(배율 1일 때)
+  const h = H0 * sc;
+  // 발밑 그림자
+  cx.save(); cx.fillStyle = 'rgba(0,0,0,0.26)'; cx.beginPath(); cx.ellipse(x + dir * lunge * 0.5, y + 1, h * 0.2, h * 0.05, 0, 0, 7); cx.fill(); cx.restore();
+  if (!im) { drawFighter(cx, x, y, {}, { t, scale: sc, flip, run: !!o.moving }); return; }
+  const w = h * im.width / im.height;
+  const breathe = o.moving ? 0 : Math.sin(t * 2.3) * 0.018, bob = o.moving ? -Math.abs(Math.sin(t * 11)) * 3 * sc : 0;
+  // 두목 그림은 앞을 보고 서 있어 뒤집지 않는다(옆으로 뒤집으면 칼 든 손이 바뀌어 어색) — 사람 몹 그림은 오른쪽을 본다
+  const fl = src === 's2' ? flip : false;
+  cx.save();
+  cx.translate(x + dir * lunge, y + bob);
+  cx.rotate(dir * lean);
+  cx.scale(fl ? -1 : 1, 1 + breathe);
+  cx.drawImage(im, -w / 2, -h, w, h);
+  if (o.flash) { cx.globalCompositeOperation = 'source-atop'; }
+  cx.restore();
+}
+export const mobName = (m, z, ch = 1) => mobLook(ch, m)[0] || '';
+export const mobHeight = (m, ch = 1) => { const [, a] = mobLook(ch, m); const src = a.split(':')[0]; return (src === 'cr' ? 62 : m.kind === 'boss' ? 118 : 100) * (m.kind === 'elite' ? 1.25 : 1); };
 
 // ── 옆보기 사냥터(S9 재설계) ── 하늘 · 먼 산(수묵) · 나무 그림자 · 층층 발판(이끼 돌 · 나무 난간)
 export function drawSideBack(cx, W, H, z, camX, t) {

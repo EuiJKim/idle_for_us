@@ -6,7 +6,7 @@
 import sys, os
 from PIL import Image
 src = sys.argv[1]; out = os.path.join(os.path.dirname(__file__), '..', '..', 'art', 's2')
-for kind in ('bg', 'ledge', 'fx'):
+for kind in ('bg', 'ledge', 'fx', 'mob'):
     if not os.path.isdir(f'{src}/{kind}'): continue
     os.makedirs(f'{out}/{kind}', exist_ok=True)
     for f in sorted(os.listdir(f'{src}/{kind}')):
@@ -16,6 +16,12 @@ for kind in ('bg', 'ledge', 'fx'):
             # 무공 효과: 검은 바탕 그대로(화면에서 빛을 더하는 방식으로 겹친다) · 가로 768
             im = im.convert('RGB'); im = im.resize((768, round(im.height * 768 / im.width)), Image.LANCZOS)
             im.save(f'{out}/{kind}/{f[:-4]}.webp', 'WEBP', quality=80, method=6)
+        elif kind == 'mob':
+            # 몹 전신(v501): 투명 여백을 잘라 내고 키 360 → WebP(투명) 품질 86
+            im = im.convert('RGBA'); bb = im.getchannel('A').point(lambda a: 255 if a > 24 else 0).getbbox()
+            if bb: im = im.crop(bb)
+            im = im.resize((round(im.width * 360 / im.height), 360), Image.LANCZOS)
+            im.save(f'{out}/{kind}/{f[:-4]}.webp', 'WEBP', quality=86, method=6)
         elif kind == 'bg':
             im = im.convert('RGB')
             im.save(f'{out}/{kind}/{f[:-4]}.webp', 'WEBP', quality=78, method=6)
