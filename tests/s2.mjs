@@ -18,6 +18,10 @@ import * as SS from '../js/s2/core/stats.js';
 import * as SV from '../js/s2/core/save.js';
 import * as FL from '../js/s2/core/flags.js';
 import { tableHash, TABLE_VER } from '../js/s2/tables/version.js';
+import * as DM from '../js/s2/battle/damage.js';
+import * as CH from '../js/s2/tables/char.js';
+import { refPlayer, makeMob, SKILL_BASE, SKILL_MAIN } from '../js/s2/battle/ref.js';
+import { RoomFight, simpleRoom, replay } from '../js/s2/battle/room.js';
 
 let fail = 0;
 const ok = (c, m, d = '') => { console.log(`  ${c ? 'OK ' : '✗✗ '} ${m}${d ? `  — ${d}` : ''}`); if (!c) fail++; };
@@ -189,6 +193,62 @@ console.log('\n=== S1 세이브 서명 · 표 판 · 차단 깃발 ===');
   FL.setFlags({ off: ['pvp', 'gacha', 'nope'], msg: '점검 중' });
   ok(FL.blocked('pvp') && FL.blocked('gacha') && !FL.blocked('nope') && !FL.blocked('guild') && FL.blockedMsg() === '점검 중', '차단 깃발(모르는 이름은 무시)');
   FL.setFlags(null); ok(FL.blockedList().length === 0, '서버를 못 읽으면 모두 열림');
+}
+
+
+console.log('\n=== S2 데미지 본체(§E) ===');
+{
+  const A = { lv: 50, st: { atk: 10000 } }, D = { lv: 50, st: { def: 0 } };
+  const base = DM.expected(A, D, { coef: 1000, base: true });
+  const two = DM.expected({ lv: 50, st: { atk: 10000, atkL1: 100, atkL2: 100 } }, D, { coef: 1000, base: true });
+  const one = DM.expected({ lv: 50, st: { atk: 10000, atkL1: 200 } }, D, { coef: 1000, base: true });
+  ok(Math.abs(two / base - 1.21) < 1e-6 && Math.abs(one / base - 1.2) < 1e-6, '층: 공격%① 10% + 공격%② 10% = 1.21배 · 한 층 20% = 1.2배');
+  const fin = DM.expected({ lv: 50, st: { atk: 10000, final1: 100, final2: 100, final3: 100, final4: 100, final5: 100 } }, D, { coef: 1000, base: true });
+  ok(Math.abs(fin / base - Math.pow(1.1, 5)) < 1e-6, '최종 피해 다섯 층은 서로 곱(1.1⁵)');
+  ok(Math.abs(DM.defMul(A, { lv: 50, st: { def: CH.defK(50) } }) - 0.5) < 1e-9, '방어 = 레벨 계수만큼이면 절반');
+  ok(DM.defMul({ lv: 50, st: { pierce: 1000 } }, { lv: 50, st: { def: 99999 } }) === 1, '관통 100%면 방어 무시');
+  ok(DM.elemP({ st: { weak_fire: 100 } }, { elem: 'fire', st: { tough_fire: 900 } }) === -500, '오행 하한 −50%');
+  ok(DM.takenDownP([300, 300, 300, 300]) === 700 && DM.takenDownP([100, 50]) === 150, '받는 피해 감소: 앞의 3개 · 상한 70%');
+  ok(CH.levelGapP(50, 60) === -200 && CH.levelGapP(50, 200) === -600 && CH.levelGapP(60, 50) === 0, '레벨 차: 1당 −2% · 최대 −60% · 낮은 몹엔 보너스 없음');
+  ok(DM.hit({ lv: 1, st: { atk: 1 } }, { lv: 150, st: { def: 1e9, takenDownF: 1e9 } }, SKILL_BASE, new Rng(1)).dmg === 1, '최소 1');
+  const sh = { lv: 50, st: { def: 0 }, shield: 1e9 };
+  const hs = DM.hit(A, sh, SKILL_BASE, new Rng(1)); ok(hs.dmg === 0 && hs.absorbed > 0, '보호막이 먼저 막음');
+  // 기대값 ≈ 실제 평균
+  const r = new Rng(3); let sum = 0; const N = 20000;
+  const A2 = { lv: 50, st: { atk: 10000, crit: 200, critDmg: 500 } }, D2 = { lv: 50, st: { def: 500 } };
+  for (let i = 0; i < N; i++) sum += DM.hit(A2, D2, SKILL_BASE, r).dmg;
+  const ex = DM.expected(A2, D2, SKILL_BASE);
+  ok(Math.abs(sum / N / ex - 1) < 0.01, '기대 데미지 = 실제 평균(±1%)', `${(sum / N).toFixed(0)} vs ${ex.toFixed(0)}`);
+  ok(CH.gapP(CH.GAP_EVADE, -50) === 0 && CH.gapP(CH.GAP_EVADE, 200) === 150 && CH.gapP(CH.GAP_CC, 1000) === 900, '격차표(회피 · 상태이상)');
+}
+
+console.log('\n=== S2 방 사냥 · 처치 시간 합격선(§J3) ===');
+{
+  const band = { mob: [0.9, 1.5], elite: [6, 10], boss: [36, 54] };
+  const bad = [];
+  for (const kind of ['mob', 'elite', 'boss']) for (const L of [5, 60, 120, 150]) for (const job of Object.keys(CH.JOBS)) {
+    const f = new RoomFight(simpleRoom(L, { n: kind === 'mob' ? 8 : 1, kind, coolMs: 3000 }), refPlayer(L, job), 11).run(kind === 'boss' ? 300000 : 90000);
+    const first = {}, ttk = [];
+    for (const e of f.events) { if (e[0] === 'hit' && first[e[2]] == null) first[e[2]] = e[1]; if (e[0] === 'kill') ttk.push((e[1] - first[e[2]]) / 1000); }
+    const avg = ttk.reduce((a, b) => a + b, 0) / Math.max(1, ttk.length);
+    if (!(avg >= band[kind][0] && avg <= band[kind][1]) || (kind === 'boss' && f.deaths > 2)) bad.push(`${kind}/${L}/${job}:${avg.toFixed(2)}s 사망${f.deaths}`);
+  }
+  ok(bad.length === 0, '다섯 직업 × 레벨 4 × 몹 셋: 일반 0.9~1.5초 · 정예 6~10초 · 두목 36~54초(두목전 사망 2번 이하)', bad.slice(0, 4).join(' '));
+  const m1 = makeMob(100, 'mob', 0), m3 = makeMob(100, 'mob', 2);
+  ok(m3.st.hp / m1.st.hp > 2.4 && m3.st.hp / m1.st.hp < 2.6 && m3.st.atk > m1.st.atk, '몹 티어: 3티어 체력 2.5배 · 공격도 셈');
+}
+
+console.log('\n=== S2 결정론 · 입력 기록 재현(§L3) ===');
+{
+  const def = simpleRoom(80, { n: 6 });
+  const a = new RoomFight(def, refPlayer(80, 'spear'), 99, { auto: false });
+  for (let i = 0; i < 1200; i++) { if (i % 140 === 0) a.press('skill'); a.step(); }
+  const b = replay(def, refPlayer(80, 'spear'), a.log, a.t, { auto: false });
+  ok(a.log.actions.length > 5 && a.digest() === b.digest(), '수동 조작을 기록해 두면 같은 결과로 재현', `${a.digest()} / ${b.digest()}`);
+  const c = new RoomFight(def, refPlayer(80, 'spear'), 100, { auto: false }).run(a.t);
+  ok(c.digest() !== a.digest(), '씨앗이 다르면 결과도 다름');
+  const x = new RoomFight(def, refPlayer(80, 'bow'), 5).run(60000), y = new RoomFight(def, refPlayer(80, 'bow'), 5).run(60000);
+  ok(x.digest() === y.digest() && Number.isInteger(x.hero.x) && Number.isInteger(x.t), '자동 사냥도 결정론(위치·시간 정수)');
 }
 
 console.log('\n=== S0 규칙 ===');

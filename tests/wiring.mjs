@@ -361,6 +361,8 @@ console.log('=== 11. 큰 수를 보통 셈으로 다루는 곳 ===');
     if (f.endsWith('big.js')) continue;
     // 바람식 개편의 새 엔진·화면은 보통 숫자만 쓴다(Big이 없다) — 여기 연산은 맞는 셈이다
     if (f.startsWith('js/world/') || /js\/w(main|ui|net)\.js$/.test(f)) continue;
+    // v480 새 시즌 엔진(js/s2)도 정수 Number만 쓴다(결정론 · 안전 정수 범위는 tests/s2.mjs가 본다)
+    if (f.startsWith('js/s2/')) continue;
     read(f).split('\n').forEach((ln, i) => {
       const code = ln.replace(/\/\/.*$/, '');
       for (const fld of FIELDS) {

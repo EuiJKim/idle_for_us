@@ -27,5 +27,10 @@ export const TIME_TICKET_DAILY_MIN = 60, TIME_TICKET_AD_MIN = 15, TIME_TICKET_AD
 
 // 처치 시간 목표(초) — 몹 체력 = 기준 무인 기대 DPS × 목표 초 (§J3)
 export const KILL_SEC = { mob: 1.2, elite: 8, boss: 45, worldBossStage: 180 };
-export const SURVIVE_HITS = { mob: 40, boss: 8 };
+// 기준 무인이 몇 대를 버티나(회복 없이) — 두목은 45초 싸움(공격 1.6초마다 28대)을 회복과 함께 버틸 만큼
+export const SURVIVE_HITS = { mob: 40, elite: 15, boss: 36 };
+// 체력 보정 — 짧은 싸움은 주력 무공이 첫 타에 터져 기대 DPS보다 빨리 끝난다(시뮬로 맞춘 값)
+export const HP_FIT = { mob: 1.35, elite: 1, boss: 1 };
+// 기본 체력 회복(초당 최대 체력의 퍼밀)
+export const BASE_REGEN_P = 15;
 export const TIER_HP_X = [1, 1.6, 2.5];      // 공격은 이 배율의 절반만 더한다
