@@ -4,7 +4,7 @@ import { expToNext, mobExp, KILLS_PER_MIN, DAY1_MIN, DAY_MIN } from '../tables/e
 import { LEVEL_MAX } from '../tables/progress.js';
 import { OFFLINE_CAP_H, OFFLINE_AD_X } from '../tables/economy.js';
 
-const OFF_RATE = 0.7;
+import { OFF_RATE } from '../content/offline.js';   // 방치 몫 비율 — 실제 방치 계산과 한 곳
 export const POLICIES = {
   base: { day1: DAY1_MIN, day: DAY_MIN },
   full: { day1: 360 + OFFLINE_CAP_H * 60 * OFF_RATE * OFFLINE_AD_X, day: 360 + OFFLINE_CAP_H * 60 * OFF_RATE * OFFLINE_AD_X + 138 },

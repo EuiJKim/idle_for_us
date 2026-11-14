@@ -38,6 +38,8 @@ import * as RM from '../js/s2/grow/realm.js';
 import * as S5T from '../js/s2/tables/s5.js';
 import * as CT from '../js/s2/tables/content.js';
 import { runDungeon, canSweep } from '../js/s2/content/dungeon.js';
+import * as OF from '../js/s2/content/offline.js';
+import * as MS from '../js/s2/tables/missions.js';
 import * as ID from '../js/s2/content/idle.js';
 
 let fail = 0;
@@ -501,6 +503,69 @@ console.log('\n=== S6 콘텐츠 보상 = 경험치 곡선 가정 ===');
   const m = CT.dailyContentMin();
   ok(Math.abs(m - (EX.DAY_MIN - EX.DAY1_MIN)) <= 5, '수련장 + 원정 + 돌발 미션 + 일일 미션 = 하루 +138 사냥분(±5) — 곡선 가정과 같다', m.toFixed(1));
   ok(Object.values(CT.DAILY_DUNGEONS).every((d) => CT.CLEAR.includes(d.clear)) && CT.JOB_DUNGEON.length === PR.JOB_LV.length, '수련동 4종 · 전직 던전 차수마다');
+}
+
+console.log('\n=== S7 방치 · 대기열 · 시간 티켓 · 길잡이 · 미션 ===');
+{
+  const H = 3600e3, O = OF.newOffline();
+  ok(OF.checkReturn(O, 1000, 'w1', 30) === null, '처음 접속은 받을 몫 없음');
+  ok(OF.checkReturn(O, 1000 + 30000, 'w1', 30) === null, '1분 안 된 자리 비움은 없음');
+  const p = OF.checkReturn(O, 31000 + 20 * H, 'w1', 30);
+  ok(p && p.ms === 12 * H && p.capped && Math.abs(p.huntMin - 12 * 60 * 0.7) < 1e-9, '12시간에서 멈춤 · ×70%', p?.huntMin);
+  ok(p.kills === Math.floor(p.huntMin * EX.KILLS_PER_MIN) && p.exp === p.kills * EX.mobExp(30) && p.gold === p.kills * GS.goldPerMob(30), '그 레벨 사냥 벌이로');
+  const c1 = OF.claimOffline(O, 'd1', true);
+  ok(c1.x === 2 && c1.exp === 2 * p.exp && OF.claimOffline(O, 'd1') === null, '광고 ×2 · 두 번 받기 없음');
+  let t = 31000 + 20 * H;
+  for (let i = 0; i < 2; i++) { t += 2 * H; OF.checkReturn(O, t, 'w1', 30); OF.claimOffline(O, 'd1', true); }
+  t += 2 * H; OF.checkReturn(O, t, 'w1', 30);
+  ok(OF.claimOffline(O, 'd1', true).x === 1, '광고 ×2는 하루 3번');
+  t += 2 * H; OF.checkReturn(O, t, 'w1', 30);
+  ok(OF.claimOffline(O, 'd2', true).x === 2, '다음 날 다시 ×2');
+  // 시계를 뒤로 돌렸다가 다시 앞으로 — 본 가장 늦은 시각부터만
+  const O2 = OF.newOffline(); OF.checkReturn(O2, 100 * H, 'w1', 30);
+  ok(OF.checkReturn(O2, 50 * H, 'w1', 30) === null, '시계를 뒤로 돌리면 받을 몫 없음');
+  ok(OF.checkReturn(O2, 102 * H, 'w1', 30).ms === 2 * H, '다시 앞으로 와도 본 가장 늦은 시각부터만(미래 몫 두 번 없음)');
+  // 주간 84시간
+  const O3 = OF.newOffline(); let u = 1; OF.checkReturn(O3, u, 'w1', 30); let sum = 0;
+  for (let i = 0; i < 10; i++) { u += 12 * H; const q = OF.checkReturn(O3, u, 'w1', 30); sum += q ? q.ms : 0; OF.claimOffline(O3, 'd'); }
+  ok(sum === EC.OFFLINE_WEEK_CAP_H * H, '일주일 84시간까지', sum / H);
+  u += 12 * H; ok(OF.checkReturn(O3, u, 'w2', 30).ms === 12 * H, '다음 주는 다시');
+  // 대기열
+  const q = OF.buildQueue([{ kind: 'sudden', at: 1 }, { kind: 'timer', at: 5 }, { kind: 'offline' }, { kind: 'timer', at: 2 }, { kind: 'attendance' }]);
+  ok(q.map((x) => x.kind + (x.at ?? '')).join(',') === 'offline,attendance,timer2,timer5,sudden1', '돌아왔을 때 대기열 순서');
+  // 시간 티켓
+  const tm = { endMs: 10 * H }, wl = { 'ticket:time': 3 };
+  ok(OF.useTimeTicket(tm, wl, 40) && tm.endMs === 10 * H - 45 * 60000 && wl['ticket:time'] === 0, '시간 티켓: 15분 단위로 당김');
+  ok(!OF.useTimeTicket(tm, wl, 15) && !OF.useTimeTicket(null, { 'ticket:time': 9 }, 15), '티켓 없거나 타이머 없으면 못 씀');
+  // 방치만 하면(12시간) 접속 사냥 2시간의 몇 배 — 계획서 「방치만은 덜」
+  ok(12 * 60 * OF.OFF_RATE < EX.DAY1_MIN, '하루 방치 몫은 접속 하루 몫보다 작다');
+  // 길잡이 — 한 줄 · 레벨 조건이 오름차순 · 첫 30분(Lv15)에 g11까지
+  const lvs = MS.GUIDE.filter((g) => g.ev === 'level').map((g) => +g.cond.split('>=')[1]);
+  ok(lvs.every((v, i) => i === 0 || v > lvs[i - 1]) && new Set(MS.GUIDE.map((g) => g.id)).size === MS.GUIDE.length, '길잡이 레벨 단계 오름차순 · id 겹침 없음');
+  const st = {}; let lv = 1;
+  const evs = (cur) => ({ kill: [['kill', { n: 5 }]], level: [['level', { lv }]], equip: [['equip', {}]], gacha: [['gacha', { n: 10 }]], skill: [['skill', {}]], enhance: [['enhance', {}], ['enhance', {}], ['enhance', {}]], dungeon: [['dungeon', { job: 1, kind: 1 }]], pull: [['pull', { sys: cur.ev === 'pull' ? +cur.cond.split('==')[1] : 0, n: 10 }]] })[cur.ev];
+  const elite = [['kill', { elite: 1 }]];
+  // 첫 30분: 레벨은 15까지만 오른다
+  for (let step = 0; step < 40; step++) {
+    const cur = MS.guideCurrent(st); if (!cur) break;
+    const b = new QuestBook([cur], st);
+    lv = Math.min(15, lv + 2);
+    for (const [e, v] of (cur.cond === 'elite' ? elite : evs(cur) || [])) b.on(e, v);
+    if (!st[cur.id]?.done) break;
+    b.claim(cur.id);
+  }
+  ok(MS.guideCurrent(st)?.id === 'g12', 'Lv15·첫 30분 할 일로 길잡이 g11까지 · g12(두목)에서 기다림', MS.guideCurrent(st)?.id);
+  ok(MS.GUIDE.slice(0, 11).reduce((a, g) => a + g.huntMin, 0) <= 30, '첫 30분 길잡이 보상 ≤ 사냥 30분 상당');
+  // 미션
+  ok(MS.dailyMissionMin() === CT.DAILY_MISSION_MIN, '일일 미션 합 = 콘텐츠 표의 15분', MS.dailyMissionMin());
+  const D = new QuestBook(MS.DAILY_MISSIONS, {});
+  D.on('login'); D.on('kill', { n: 300 }); D.on('kill', { n: 300, boss: 1 }); D.on('kill', { n: 1, boss: 1 });
+  ok(D.claimable().sort().join() === 'd_boss,d_kill,d_login', '일일 미션 진행 · 끝남');
+  D.reset(MS.DAILY_MISSIONS.map((m) => m.id)); ok(D.claimable().length === 0, '일일 초기화');
+  const A = MS.achievements();
+  ok(A.length === Object.values(MS.ACHIEVE_STEPS).flat().length && new Set(A.map((a) => a.id)).size === A.length, '업적 단계 전부 · id 겹침 없음');
+  const AB = new QuestBook(A, {}); AB.on('level', { lv: 120 });
+  ok(AB.claimable().sort().join() === 'a_level_0,a_level_1,a_level_2', '레벨 업적은 그 레벨까지 한꺼번에');
 }
 
 console.log('\n=== S0 규칙 ===');
