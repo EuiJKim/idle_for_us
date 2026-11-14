@@ -15,6 +15,9 @@ import { buildQueue } from '../content/offline.js';
 import { kindGrade } from '../grow/collect.js';
 import { loadLooks, zoneFor, drawHero, drawMob, mobName, drawPaintedBack, drawPaintedLedge, preloadChapter } from './look.js';
 import { chapterOf, chapterName } from '../tables/chapters.js';
+import { KIT, SLOT_N, kitCap, kitCost, kitCoef, skillById } from '../tables/kit.js';
+import { STATS } from '../core/stats.js';
+const statTxt = (o) => Object.entries(o).map(([k2, v]) => `${STATS[k2]?.name || k2} +${STATS[k2]?.kind === 'rate' ? `${(v / 10).toFixed(1)}%` : v}`).join(' · ');
 import { goldPerMob } from '../tables/gearstat.js';
 
 const $ = (id) => document.getElementById(id);
@@ -88,9 +91,21 @@ function paintWin() {
     add(rowEl('전투력(사냥)', fmt(g.power())), rowEl('전투력(대결)', fmt(g.power('pvp'))));
     for (const [k, n] of [['atk', '공격'], ['hp', '체력'], ['def', '방어'], ['crit', '치명 확률(‰)'], ['critDmg', '치명 피해(‰)'], ['bossDmg', '보스 피해(‰)'], ['final1', '최종 피해①'], ['final2', '최종 피해②'], ['final3', '최종 피해③'], ['final4', '최종 피해④'], ['expP', '경험치(‰)']]) add(rowEl(n, fmt(st[k] || 0)));
   } else if (key === 'hero:1') {
-    for (const [k, s] of Object.entries(SKILLS)) {
-      const lv = g.S.hero.skills[k] || 0;
-      add(rowEl(`${s.name} Lv ${lv}`, lv ? '' : `Lv ${s.unlockLv ?? 1}에 열림`, [['올리기', act(() => g.skillUp(k)), !g.hero.canSkillUp(k)]]));
+    // v493 무공 세트 — 차수별 목록 · 레벨 · 칸 · 자동
+    const Hs = g.hero, K = Hs.kitState(), cap = kitCap(g.S.hero.lv);
+    const KIND = { active: '공격', passive: '상시', buff: '버프' }, SHAPE = { line: '앞 일직선', arc: '앞 부채꼴', circle: '주변', rain: '앞쪽 하늘에서' };
+    add(Object.assign(document.createElement('p'), { className: 'note', textContent: `칸 ${K.slots.length}/${SLOT_N} — 자동 사냥이면 칸 순서대로 준비된 무공을 저절로 써요. 무공 레벨 상한 ${cap}(무인 레벨 5마다 1).` }));
+    for (const sk of KIT[g.S.hero.job]) {
+      const lv = K.lv[sk.id] || 0, slot = K.slots.indexOf(sk.id), on = !K.off.includes(sk.id);
+      const desc = sk.kind === 'active' ? `${SHAPE[sk.shape]} · 최대 ${sk.maxT}마리 · ${sk.hits}연타 · 한 대 ${(kitCoef(sk, Math.max(1, lv)) / 10).toFixed(0)}% · 쿨 ${sk.cdMs / 1000}초`
+        : sk.kind === 'buff' ? `${sk.durMs / 1000}초 동안 ${statTxt(sk.stats(Math.max(1, lv)))} · 쿨 ${sk.cdMs / 1000}초`
+          : statTxt(sk.stats(Math.max(1, lv)));
+      const btns = lv ? [['올리기', act(() => Hs.kitUp(sk.id, g.S.wallet) && (g.dirtyStats = true, g.emit('skill'), true)), !Hs.canKitUp(sk.id)]] : [];
+      if (lv && sk.kind !== 'passive') {
+        btns.push([slot >= 0 ? `${slot + 1}칸 ▶` : '칸에 넣기', act(() => { const i = slot >= 0 ? (slot + 1) % K.slots.length : Math.min(K.slots.length, SLOT_N - 1); const r = Hs.kitSlot(i, sk.id); g.dirtyStats = true; return r; })]);
+        if (slot >= 0) btns.push([on ? '자동' : '수동', act(() => { Hs.kitAuto(sk.id, !on); g.dirtyStats = true; return true; })]);
+      }
+      add(rowEl(`<b style="color:${sk.col}">${sk.name}</b> <small>${sk.tier}차 · ${KIND[sk.kind]}${lv ? ` · Lv ${lv}` : ''}</small><br><span class="note">${desc}</span>`, lv ? (lv < cap ? `${unit(kitCost(lv, sk.tier)[0].n)} 은자` : '상한') : `${sk.tier}차 전직 때 열림`, btns));
     }
   } else if (key === 'hero:2') {
     const L = g.S.hero.mastery.learning;
@@ -236,20 +251,23 @@ function paintHud() {
   $('exp').textContent = `EXP ${xp.toFixed(3)}%`; $('xpbar').firstChild.style.width = `${xp}%`;
   // 오른쪽 아래: 자동 · 무공 칸
   $('au').className = `auto ${S.auto === false ? 'off' : ''}`; $('au').innerHTML = S.auto === false ? '수동' : '자동<br>사냥';
-  const sl = $('slots');
-  if (!sl.children.length) {
-    for (const [k, name] of [['main', '주력'], ['inner', '심법'], ['guard', '호신'], ['x1', ''], ['x2', ''], ['x3', '']]) {
-      const b = document.createElement('button'); b.className = 'slot'; b.dataset.k = k; b.innerHTML = `<span>${name}</span>`;
-      if (k === 'main') b.onpointerdown = (e) => { e.preventDefault(); g.ensureFight().press('skill'); };
+  const sl = $('slots'), kit = Hh.kit || [];
+  if (sl.children.length !== SLOT_N) {
+    sl.innerHTML = '';
+    for (let i = 0; i < SLOT_N; i++) {
+      const b = document.createElement('button'); b.className = 'slot'; b.dataset.i = i;
+      b.onpointerdown = (e) => { e.preventDefault(); g.ensureFight().press({ slot: i }); };
       sl.append(b);
     }
   }
   for (const b of sl.children) {
-    const k = b.dataset.k, lv = H.skills[k] || 0;
-    b.classList.toggle('on', lv > 0);
-    b.title = lv ? `${k} Lv ${lv}` : '잠김';
+    const i = +b.dataset.i, k = kit[i], sk = k && skillById(k.id);
+    b.classList.toggle('on', !!sk);
+    b.style.borderColor = sk ? sk.col : '';
+    const name = sk ? sk.name.slice(0, 2) : '';
+    if (b.dataset.n !== name) { b.dataset.n = name; b.innerHTML = `<span style="font-weight:800;color:${sk ? sk.col : '#888'}">${name}</span>${sk && k.auto ? '<i class="ad"></i>' : ''}`; }
     let cd = b.querySelector('.cd');
-    const left = k === 'main' && lv ? Math.ceil((Hh.nextSkill - F.t) / 1000) : 0;
+    const left = sk && Hh.cds ? Math.ceil((Hh.cds[i] - F.t) / 1000) : 0;
     if (left > 0) { if (!cd) { cd = document.createElement('div'); cd.className = 'cd'; b.append(cd); } cd.textContent = left; } else cd?.remove();
   }
 }
@@ -272,6 +290,45 @@ const cv = $('cv'), cx = cv.getContext('2d');
 const floats = [];
 let lastHitAt = 0, heroRun = 0, lastHx = 0, skillFx = [], camSm = null, camSy = null;
 const mobPrev = new Map();
+function drawSkillFx(cx, f, a, [x, y], Rpx, k, col, tier) {
+  const ease = 1 - Math.pow(1 - a, 3), fade = a < 0.7 ? 1 : (1 - a) / 0.3, big = 1 + tier * 0.12;
+  cx.save(); cx.globalCompositeOperation = 'lighter';
+  if (f.shape === 'line') {
+    const len = Rpx * ease, h = (18 + tier * 6) * k;
+    cx.translate(x, y - 34 * k); cx.scale(f.face, 1);
+    const g2 = cx.createLinearGradient(0, 0, len, 0); g2.addColorStop(0, 'rgba(255,255,255,0)'); g2.addColorStop(0.2, col); g2.addColorStop(1, 'rgba(255,255,255,.95)');
+    cx.globalAlpha = 0.9 * fade; cx.fillStyle = g2; cx.beginPath(); cx.moveTo(0, -h / 2); cx.lineTo(len, -h * 0.15); cx.lineTo(len + h, 0); cx.lineTo(len, h * 0.15); cx.lineTo(0, h / 2); cx.fill();
+    cx.globalAlpha = 0.5 * fade; cx.fillStyle = '#fff'; cx.fillRect(0, -2 * k, len, 4 * k);
+  } else if (f.shape === 'arc') {
+    cx.translate(x, y - 34 * k); cx.scale(f.face, 1);
+    for (let j = 0; j < 2; j++) {
+      const rr = (Rpx * 0.55 + j * 18 * k) * (0.6 + 0.4 * ease), rot = (j ? 0.5 : -0.4) + ease * 0.6;
+      cx.save(); cx.rotate(rot); cx.globalAlpha = 0.85 * fade;
+      const g2 = cx.createRadialGradient(0, 0, rr * 0.5, 0, 0, rr); g2.addColorStop(0, 'rgba(255,255,255,0)'); g2.addColorStop(0.8, col); g2.addColorStop(1, 'rgba(255,255,255,0)');
+      cx.fillStyle = g2; cx.beginPath(); cx.arc(0, 0, rr, -1.3, 1.3); cx.arc(rr * 0.15, 0, rr * 0.72, 1.2, -1.2, true); cx.fill(); cx.restore();
+    }
+  } else if (f.shape === 'circle') {
+    cx.translate(x, y - 20 * k);
+    const rr = Rpx * (0.3 + 0.7 * ease);
+    cx.globalAlpha = 0.8 * fade; cx.strokeStyle = col; cx.lineWidth = (10 - 7 * a) * k * big; cx.beginPath(); cx.ellipse(0, 0, rr, rr * 0.38, 0, 0, 7); cx.stroke();
+    const g2 = cx.createRadialGradient(0, -10 * k, 0, 0, -10 * k, rr * 0.6); g2.addColorStop(0, 'rgba(255,255,255,.9)'); g2.addColorStop(0.4, col); g2.addColorStop(1, 'rgba(0,0,0,0)');
+    cx.globalAlpha = 0.6 * (1 - a); cx.fillStyle = g2; cx.beginPath(); cx.arc(0, -10 * k, rr * 0.6, 0, 7); cx.fill();
+    for (let j = 0; j < 10; j++) { const an = j * 0.628 + a * 2; cx.globalAlpha = fade; cx.fillStyle = '#fff'; cx.fillRect(Math.cos(an) * rr, Math.sin(an) * rr * 0.38 - 4 * k, 4 * k, 4 * k); }
+  } else if (f.shape === 'rain') {
+    cx.translate(x, y);
+    for (let j = 0; j < 14; j++) {
+      const sx = f.face * ((j * 0.071 + 0.05) % 1) * Rpx, ph = ((a * 2.2 + j * 0.13) % 1), yy = -260 * k + ph * 260 * k;
+      cx.globalAlpha = fade * 0.9; cx.strokeStyle = col; cx.lineWidth = 4 * k; cx.beginPath(); cx.moveTo(sx - 18 * k, yy - 46 * k); cx.lineTo(sx, yy); cx.stroke();
+      if (ph > 0.85) { cx.fillStyle = '#fff'; cx.beginPath(); cx.arc(sx, -6 * k, 9 * k * (1 - (ph - 0.85) * 6), 0, 7); cx.fill(); }
+    }
+  } else if (f.shape === 'buff') {
+    cx.translate(x, y - 40 * k);
+    cx.globalAlpha = (1 - a) * 0.9; cx.strokeStyle = col; cx.lineWidth = 4 * k;
+    for (let j = 0; j < 3; j++) { cx.beginPath(); cx.arc(0, 0, (20 + j * 16 + ease * 30) * k, 0, 7); cx.stroke(); }
+    for (let j = 0; j < 12; j++) { cx.fillStyle = col; cx.fillRect(Math.cos(j) * 30 * k, 40 * k - ease * 90 * k - (j % 4) * 10 * k, 3 * k, 10 * k); }
+  }
+  cx.restore();
+}
 function draw() {
   const r = cv.getBoundingClientRect(), dpr = Math.min(2, window.devicePixelRatio || 1);
   if (cv.width !== Math.round(r.width * dpr)) { cv.width = Math.round(r.width * dpr); cv.height = Math.round(r.height * dpr); }
@@ -307,15 +364,16 @@ function draw() {
     if (m.hp < m.st.hp || m.kind !== 'mob') { cx.fillStyle = '#000a'; cx.fillRect(x - bw / 2, y - top, bw, 4); cx.fillStyle = m.kind === 'boss' ? '#f59e0b' : '#e0436a'; cx.fillRect(x - bw / 2, y - top, bw * Math.max(0, m.hp / m.st.hp), 4); }
     if (m.kind !== 'mob') { cx.font = 'bold 11px system-ui'; cx.textAlign = 'center'; cx.fillStyle = m.kind === 'boss' ? '#fde68a' : '#e9d5ff'; cx.strokeStyle = '#000'; cx.lineWidth = 3; cx.strokeText(mobName(m, z), x, y - top - 4); cx.fillText(mobName(m, z), x, y - top - 4); }
   }
-  // 무공 쓸기 연출(반달 빛)
+  // 무공 연출 — 모양마다(일직선 검기 · 부채꼴 베기 · 주변 폭발 · 하늘에서 쏟아짐 · 버프 기운)
   const [hx, hy] = P(lx(H), ly(H));
   for (let i = skillFx.length - 1; i >= 0; i--) {
-    const f = skillFx[i], a = (t - f.at) / 380; if (a > 1) { skillFx.splice(i, 1); continue; }
-    const rr = (60 + a * 80) * k;
-    cx.save(); cx.globalAlpha = (1 - a) * 0.85; cx.translate(hx, hy - 30 * k); cx.scale(f.face, 1);
-    const gr = cx.createRadialGradient(0, 0, rr * 0.4, 0, 0, rr); gr.addColorStop(0, 'rgba(255,255,220,0)'); gr.addColorStop(0.75, 'rgba(255,236,150,.9)'); gr.addColorStop(1, 'rgba(255,200,60,0)');
-    cx.fillStyle = gr; cx.beginPath(); cx.arc(0, 0, rr, -1.2, 1.2); cx.arc(0, 0, rr * 0.55, 1.2, -1.2, true); cx.fill(); cx.restore();
+    const f = skillFx[i], sk = skillById(f.id), col = sk?.col || '#ffe9a8';
+    const life = f.shape === 'rain' ? 700 : f.shape === 'circle' ? 520 : f.shape === 'buff' ? 900 : 420, a = (t - f.at) / life;
+    if (a > 1) { skillFx.splice(i, 1); continue; }
+    drawSkillFx(cx, f, a, f.shape === 'buff' ? [hx, hy] : P(f.x, f.y), (f.R || 2000) * s, k, col, sk?.tier || 0);
   }
+  // 버프 중이면 발밑 기운
+  if (H.buffs?.length) { cx.save(); cx.globalAlpha = 0.35 + 0.15 * Math.sin(ts * 6); cx.strokeStyle = skillById(H.buffs[0].id)?.col || '#ffe9a8'; cx.lineWidth = 3 * k; cx.beginPath(); cx.ellipse(hx, hy, 34 * k, 10 * k, 0, 0, 7); cx.stroke(); cx.restore(); }
   drawHero(cx, hx, hy, g.S.hero.job, g.S.hero.lv, { t: ts, run: heroRun > 0, flip: H.face < 0, lunge: Math.max(0, 1 - (t - lastHitAt) / 160), scale: sc });
   cx.font = '11px system-ui'; cx.textAlign = 'center'; cx.fillStyle = '#fff'; cx.strokeStyle = '#000'; cx.lineWidth = 3;
   cx.strokeText(JOBS[g.S.hero.job].name, hx, hy + 14); cx.fillText(JOBS[g.S.hero.job].name, hx, hy + 14);
@@ -350,7 +408,8 @@ function frame() {
     const rows = new Map();
     for (const e of g.lastEvents || []) {
       if (e[0] === 'hit') { const m = mobs.get(e[2]); if (!m) continue; lastHitAt = t; const n = rows.get(m.id) || 0; rows.set(m.id, n + 1); if (floats.length < 60) floats.push({ x: m.x, y: m.y, d: e[3], crit: e[4], at: t, row: (n + floats.filter((f) => f.mid === m.id && t - f.at < 500).length) % 6, mid: m.id }); }
-      else if (e[0] === 'skill') skillFx.push({ at: t, face: e[2] });
+      else if (e[0] === 'cast') skillFx.push({ at: t, id: e[2], face: e[3], x: e[4], y: e[5], shape: e[6], R: e[7] });
+      else if (e[0] === 'buff') skillFx.push({ at: t, id: e[2], shape: 'buff' });
     }
   }
   if (t - lastMin >= 60000) { lastMin = t; g.minute(); }

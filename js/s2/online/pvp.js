@@ -20,15 +20,17 @@ export function duel(A, D, seed) {
   const side = (f) => ({ f: { lv: f.lv, job: f.job, kind: 'hero', st: f.st }, hp: f.st.hp, nb: 0, nm: SKILL_MAIN.cdMs / 2, ms: (JOBS[f.job] || JOBS.sword).baseMs });
   const a = side(A), d = side(D);
   let t = 0;
+  // 같은 순간의 공격은 함께 계산한 뒤 한꺼번에 깎는다(먼저 치는 쪽이 유리하지 않게)
   for (; t < PVP.fightMs && a.hp > 0 && d.hp > 0; t += 50) {
-    for (const [me, op] of [[a, d], [d, a]]) {
-      if (me.hp <= 0) continue;
-      if (t >= me.nb) { op.hp -= hit(me.f, op.f, SKILL_BASE, rng).dmg; me.nb = t + me.ms; }
-      if (t >= me.nm) { op.hp -= hit(me.f, op.f, SKILL_MAIN, rng).dmg; me.nm = t + SKILL_MAIN.cdMs; }
-    }
+    const dmg = [0, 0];
+    [[a, d, 1], [d, a, 0]].forEach(([me, op, k]) => {
+      if (t >= me.nb) { dmg[k] += hit(me.f, op.f, SKILL_BASE, rng).dmg; me.nb = t + me.ms; }
+      if (t >= me.nm) { dmg[k] += hit(me.f, op.f, SKILL_MAIN, rng).dmg; me.nm = t + SKILL_MAIN.cdMs; }
+    });
+    d.hp -= dmg[1]; a.hp -= dmg[0];
   }
   const ra = Math.max(0, a.hp) / A.st.hp, rd = Math.max(0, d.hp) / D.st.hp;
-  return { win: ra > rd, ms: t, ra, rd };
+  return { win: ra > rd || (ra === rd && rng.int(2) === 1), ms: t, ra, rd };
 }
 // 점수식: 이기면 +win, 지면 −lose. 전투력 차(상대/나)가 크면 더 주고 덜 뺌(±gapMax)
 export function scoreDelta(win, myPw, opPw) {

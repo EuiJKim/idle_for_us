@@ -1,4 +1,5 @@
 // 새 시즌 표준 무인 계산 — 기준 플레이어가 레벨 L에 닿은 날의 스탯(장비 + S5 + 무인). tools/s2sim/std.mjs가 표로 굳힌다.
+import { kitCap } from '../tables/kit.js';
 import { simGear } from './econ.js';
 import { simS5 } from './s5.js';
 import { gearSources } from '../gear/gear.js';
@@ -8,7 +9,7 @@ import { JOB_LV, LEVEL_MAX } from '../tables/progress.js';
 import { MASTERY } from '../tables/skills.js';
 import { levelAtDay } from './progress.js';
 
-const KEEP = ['atk', 'hp', 'def', 'atkL1', 'atkL2', 'mainDmg', 'final1', 'final2', 'final3', 'final4', 'final5', 'crit', 'critDmg', 'bossDmg', 'mobDmg', 'pierce', 'takenDownP'];
+const KEEP = ['atk', 'hp', 'def', 'skillP', 'atkL1', 'atkL2', 'mainDmg', 'final1', 'final2', 'final3', 'final4', 'final5', 'crit', 'critDmg', 'bossDmg', 'mobDmg', 'pierce', 'takenDownP'];
 export const DAYS = 365;
 
 export function heroAt(L) {
@@ -16,6 +17,8 @@ export function heroAt(L) {
   h.addExp(cumExp(L));
   for (let n = 1; n < JOB_LV.length; n++) if (L >= JOB_LV[n]) { h.clearDungeon(`job${n}`); h.advance(); }
   for (const m of MASTERY) if (L >= m.lv) h.s.mastery.done.push(m.id);
+  // v493 무공 세트 — 열린 무공은 그 레벨 상한까지 올렸다고 본다
+  h.kitUnlock(); for (const id of Object.keys(h.s.kit.lv)) h.s.kit.lv[id] = kitCap(L);
   return h;
 }
 export function buildStd(seed = 3) {

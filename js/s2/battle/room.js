@@ -66,9 +66,7 @@ export class RoomFight {
         const d = dist(H, tgt);
         if (d > J.range) { const s = Math.min(d - J.range + 1, (MOVE_HERO * TICK_MS) / 1000); H.x += Math.round(((tgt.x - H.x) / d) * s); H.y += Math.round(((tgt.y - H.y) / d) * s); }
         else {
-          const useSkill = (this.auto || this.queued === 'skill') && this.t >= H.nextSkill;
-          if (useSkill) { this.strike(tgt, SKILL_MAIN); H.nextSkill = this.t + SKILL_MAIN.cdMs; this.queued = null; }
-          else if (this.t >= H.nextAtk) { this.strike(tgt, SKILL_BASE); H.nextAtk = this.t + J.baseMs; }
+          if (!this.castKit(tgt, J) && this.t >= H.nextAtk) { this.strike(tgt, SKILL_BASE); H.nextAtk = this.t + J.baseMs; }
         }
       }
     }
@@ -97,6 +95,25 @@ export class RoomFight {
         this.spawn(camps[this.rng.int(camps.length)]);
       }
     }
+  }
+  // v493 무공 세트 — 무공이 없는 옛 무인(시험)은 주력 무공 하나(쿨 6초)
+  castKit(tgt, J) {
+    const H = this.hero;
+    const kit = H.kit || [{ kind: 'active', shape: 'line', range: 1, maxT: 1, hits: 1, coef: SKILL_MAIN.coef, cdMs: SKILL_MAIN.cdMs, auto: true }];
+    if (this.t < (H.gcd || 0)) return false;
+    H.cds ??= kit.map(() => 0);
+    let i = -1;
+    if (this.queued === 'skill') { i = kit.findIndex((k, j) => k.kind === 'active' && this.t >= H.cds[j]); this.queued = null; }
+    if (i < 0 && this.auto) i = kit.findIndex((k, j) => k.auto && k.kind === 'active' && this.t >= H.cds[j]);
+    if (i < 0) return false;
+    const k = kit[i];
+    H.cds[i] = this.t + k.cdMs; H.gcd = this.t + 350;
+    const R = J.range * k.range;
+    const ts = this.mobs.filter((m) => dist(H, m) <= R).sort((a, b) => dist(H, a) - dist(H, b)).slice(0, k.maxT);
+    if (!ts.includes(tgt)) { ts.pop(); ts.unshift(tgt); }
+    const sk = { coef: k.coef, base: false };
+    for (let h = 0; h < k.hits; h++) for (const m of ts.filter(Boolean)) if (m.hp > 0 && this.mobs.includes(m)) this.strike(m, sk);
+    return true;
   }
   strike(m, skill) {
     const r = hit(this.hero, m, skill, this.rng);

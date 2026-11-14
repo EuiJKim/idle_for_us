@@ -1,13 +1,13 @@
 // 새 시즌(S8) 전투력(§F1) — 버프는 빼고, 같은 레벨 기준 상대에게 기대 DPS × 유효 체력의 가중 곱.
 import { expected } from '../battle/damage.js';
-import { makeMob, refPlayer, SKILL_BASE, SKILL_MAIN } from '../battle/ref.js';
+import { makeMob, refPlayer, SKILL_BASE, kitDps } from '../battle/ref.js';
 import { JOBS } from '../tables/char.js';
 import { POWER_W, POWER_K } from '../tables/online.js';
 
 // f가 상대 d를 칠 때 초당 기대 피해(평타 + 주력 무공)
 export function dpsVs(f, d) {
   const J = JOBS[f.job] || JOBS.sword;
-  return expected(f, d, SKILL_BASE) * (1000 / J.baseMs) + expected(f, d, SKILL_MAIN) * (1000 / SKILL_MAIN.cdMs);
+  return expected(f, d, SKILL_BASE) * (1000 / J.baseMs) + kitDps(f, d);
 }
 // 유효 체력: 같은 공격을 받을 때 기준 무인보다 몇 배 버티나 × 기준 체력
 export function ehpVs(f, attacker) {

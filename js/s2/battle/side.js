@@ -66,7 +66,8 @@ export class SideFight {
   // 조작: { dir:-1|0|1 } 누르고 있는 방향 · { jump:1 } · { down:1 } · 'skill' · { auto:bool }
   press(a) { this.log.actions.push({ t: this.t, a }); this.apply(a); }
   apply(a) {
-    if (a === 'skill') { this.wantSkill = true; return; }
+    if (a === 'skill') { this.wantSlot = -1; return; }          // 아무 준비된 무공
+    if (a.slot !== undefined) { this.wantSlot = a.slot | 0; return; }   // 그 칸 무공
     if (a.dir !== undefined) this.input.dir = Math.sign(a.dir);
     if (a.jump) this.wantJump = true;
     if (a.down) this.wantDown = true;
@@ -150,16 +151,12 @@ export class SideFight {
     if (tgt && Math.abs(tgt.y - H.y) <= SAME_Y && Math.abs(tgt.x - H.x) <= J.range && H.plat >= 0) {
       H.chaseAt = this.t;
       H.face = Math.sign(tgt.x - H.x) || H.face;
-      const useSkill = (this.auto || this.wantSkill) && this.t >= H.nextSkill;
-      if (useSkill) {
-        // 앞쪽 같은 층 여러 마리
-        const front = this.mobs.filter((m) => Math.abs(m.y - H.y) <= SAME_Y && (m.x - H.x) * H.face >= -300 && Math.abs(m.x - H.x) <= J.range * 1.6)
-          .sort((a, b) => Math.abs(a.x - H.x) - Math.abs(b.x - H.x)).slice(0, MAIN_HITS);
-        this.events.push(['skill', this.t, H.face]);
-        for (const m of front) this.strike(m, SKILL_MAIN);
-        H.nextSkill = this.t + SKILL_MAIN.cdMs; this.wantSkill = false; H.act = 'skill';
-      } else if (this.t >= H.nextAtk) { this.strike(tgt, SKILL_BASE); H.nextAtk = this.t + J.baseMs; H.act = 'atk'; }
+      if (!this.castKit(tgt, J)) {
+        if (this.t >= H.nextAtk) { this.strike(tgt, SKILL_BASE); H.nextAtk = this.t + J.baseMs; H.act = 'atk'; }
+      }
     }
+    // 버프가 끝나면 원래 스탯으로
+    if (H.buffs?.length && H.buffs.some((b) => b.until <= this.t)) { H.buffs = H.buffs.filter((b) => b.until > this.t); this.restat(); }
     // ── 몹 ── 맞으면 같은 층에서 무인 쪽으로 와서 친다 · 아니면 발판 위를 서성
     for (const m of this.mobs) {
       const p = map.plats[m.plat];
@@ -202,10 +199,52 @@ export class SideFight {
       }
     }
   }
-  strike(m, skill) {
+  // ── 무공 세트(v493) ── 자동이면 칸 순서대로(자동 켠 것만) 준비된 것 하나 · 수동이면 누른 칸 · 무공 사이 0.35초
+  castKit(tgt, J) {
+    const H = this.hero, kit = H.kit || [];
+    if (!kit.length || this.t < (H.gcd || 0)) return false;
+    H.cds ??= kit.map(() => 0);
+    let i = -1;
+    const want = this.wantSlot;
+    if (want !== undefined) {
+      i = want >= 0 ? (this.t >= H.cds[want] && kit[want] ? want : -1) : kit.findIndex((k, j) => k.kind === 'active' && this.t >= H.cds[j]);
+      this.wantSlot = undefined;
+    }
+    if (i < 0 && this.auto) i = kit.findIndex((k, j) => k.auto && this.t >= H.cds[j] && (k.kind === 'buff' || k.kind === 'active'));
+    if (i < 0) return false;
+    const k = kit[i];
+    H.cds[i] = this.t + k.cdMs; H.gcd = this.t + 350; H.act = 'skill';
+    if (k.kind === 'buff') {
+      (H.buffs ??= []).push({ until: this.t + k.durMs, stats: k.buff, id: k.id });
+      this.restat();
+      this.events.push(['buff', this.t, k.id]);
+      return true;
+    }
+    const R = J.range * k.range, face = H.face;
+    const inShape = (m) => {
+      if (Math.abs(m.y - H.y) > SAME_Y + (k.shape === 'circle' ? 600 : 0)) return false;
+      const dx = m.x - H.x;
+      if (k.shape === 'circle') return Math.abs(dx) <= R;
+      return dx * face >= -300 && Math.abs(dx) <= R;
+    };
+    const ts = this.mobs.filter(inShape).sort((a, b) => Math.abs(a.x - H.x) - Math.abs(b.x - H.x)).slice(0, k.maxT);
+    this.events.push(['cast', this.t, k.id, face, H.x, H.y, k.shape, R]);
+    const sk = { coef: k.coef, base: false };
+    for (let h = 0; h < k.hits; h++) for (const m of ts) if (m.hp > 0) this.strike(m, sk, h);
+    return true;
+  }
+  // 버프를 스탯에 얹는다(기본 스탯은 H.st0에 남겨 둠)
+  restat() {
+    const H = this.hero;
+    H.st0 ??= H.st;
+    const st = { ...H.st0 };
+    for (const b of H.buffs || []) for (const [key, v] of Object.entries(b.stats)) st[key] = (st[key] || 0) + v;
+    H.st = st;
+  }
+  strike(m, skill, hitNo = 0) {
     const r = hit(this.hero, m, skill, this.rng);
     m.hp -= r.dmg; m.angry = true; this.dmgOut += r.dmg; if (r.crit) this.crits++;
-    this.events.push(['hit', this.t, m.id, r.dmg, r.crit ? 1 : 0, skill === SKILL_MAIN ? 1 : 0]);
+    this.events.push(['hit', this.t, m.id, r.dmg, r.crit ? 1 : 0, skill.base ? 0 : 1, hitNo]);
     if (m.hp <= 0) {
       this.kills++; this.killsBy[m.kind] = (this.killsBy[m.kind] || 0) + 1;
       this.events.push(['kill', this.t, m.id, m.kind, this.t - m.bornAt]);

@@ -64,6 +64,7 @@ export class Game {
     this.now = nowMs;
     this.rng = new Rng(S.rng || S.seed);
     this.hero = new Hero(S.hero);
+    this.hero.kitUnlock();   // v493 옛 세이브도 무공 세트를 받는다
     this.books = {
       daily: new QuestBook(DAILY_MISSIONS, S.q.daily),
       weekly: new QuestBook(WEEKLY_MISSIONS, S.q.weekly),
@@ -148,7 +149,9 @@ export class Game {
       this.dirtyStats = false;
     } else if (this.dirtyStats) {
       const st = this.fighter().st, H = this.fight.hero;
-      H.hp = Math.min(st.hp, Math.round(H.hp * st.hp / Math.max(1, H.st.hp))); H.st = st; H.lv = this.S.hero.lv;
+      H.hp = Math.min(st.hp, Math.round(H.hp * st.hp / Math.max(1, (H.st0 || H.st).hp))); H.st0 = st; H.st = st; H.lv = this.S.hero.lv;
+      const kit = this.hero.battleKit(); if (!H.kit || kit.length !== H.kit.length || kit.some((k, i) => k.id !== H.kit[i].id)) H.cds = undefined; H.kit = kit;
+      this.fight.restat?.();
       this.dirtyStats = false;
     }
     return this.fight;
