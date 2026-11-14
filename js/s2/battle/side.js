@@ -92,6 +92,9 @@ export class SideFight {
   step() {
     this.t += TICK_MS;
     const H = this.hero, J = JOBS[H.job], map = this.def.map;
+    // 화면이 틱 사이를 이어 그리도록 직전 자리를 남긴다(엔진 결과에는 영향 없음)
+    H.px = H.x; H.py = H.y;
+    for (const m of this.mobs) { m.px = m.x; m.py = m.y; }
     if (this.replay) while (this.replay.length && this.replay[0].t === this.t - TICK_MS) this.apply(this.replay.shift().a);
     // ── 무인 움직임 ──
     let dir = this.input.dir, jump = this.wantJump, down = this.wantDown;
@@ -103,7 +106,12 @@ export class SideFight {
       if (!tgt) { tgt = this.pickTarget(); if (!tgt) { for (const m of this.mobs) m.skipUntil = 0; tgt = this.pickTarget(); } H.target = tgt ? tgt.id : -1; H.chaseAt = this.t; }
       if (tgt) {
         const dy = tgt.y - H.y, dx = tgt.x - H.x;
-        if (Math.abs(dy) <= SAME_Y) { if (Math.abs(dx) > J.range * 0.8) dir = Math.sign(dx); else H.face = Math.sign(dx) || H.face; }
+        // 같은 층: 사거리 90% 밖이면 다가가기 시작해 60% 안까지 들어가서 선다(경계에서 가다 서다 떨지 않게)
+        if (Math.abs(dy) <= SAME_Y) {
+          if (Math.abs(dx) > J.range * 0.9) H.closing = true;
+          if (H.closing && Math.abs(dx) <= J.range * 0.6) H.closing = false;
+          if (H.closing) dir = Math.sign(dx);
+        }
         else if (dy > 0 && H.plat >= 0) {
           // 위로: 지금 자리 위에 오를 발판이 있으면 뛰고, 없으면 표적 쪽으로 걸어간다
           // 위로: 뛰어 닿는 발판(한 층 위) 중 표적에 가장 가까운 것 아래로 가서 뛴다
@@ -155,13 +163,24 @@ export class SideFight {
     // ── 몹 ── 맞으면 같은 층에서 무인 쪽으로 와서 친다 · 아니면 발판 위를 서성
     for (const m of this.mobs) {
       const p = map.plats[m.plat];
-      const same = Math.abs(m.y - H.y) <= SAME_Y;
-      if (m.angry && same && Math.abs(H.x - m.x) > 700) m.dir = Math.sign(H.x - m.x);
-      if (!(m.angry && same && Math.abs(H.x - m.x) <= 700)) {
+      const same = Math.abs(m.y - H.y) <= SAME_Y, adx = Math.abs(H.x - m.x);
+      // 화난 몹: 같은 층이면 700mm까지 붙어 친다(1000mm 넘게 벌어져야 다시 쫓음 — 경계 떨림 없음)
+      if (m.angry && same) {
+        if (adx > 1000) m.chase = true; else if (adx <= 700) m.chase = false;
+        m.dir = Math.sign(H.x - m.x) || m.dir;
+      }
+      let walk;
+      if (m.angry && same) walk = !!m.chase;
+      else {
+        // 서성임: 몇 초 걷고 잠깐 섰다가 방향을 고른다(매 순간 무작위로 뒤돌지 않게)
+        if (this.t >= (m.nextTurn || 0)) { m.idle = !m.idle; m.nextTurn = this.t + (m.idle ? 800 + this.rng.int(1400) : 1600 + this.rng.int(2600)); if (!m.idle && this.rng.int(2)) m.dir = -m.dir; }
+        walk = !m.idle;
+      }
+      m.moving = walk;
+      if (walk) {
         m.x += Math.round(m.dir * MOB_RUN * DT * (m.kind === 'boss' ? 0.6 : 1));
         if (m.x < p.x0 + 200) { m.x = p.x0 + 200; m.dir = 1; } else if (m.x > p.x1 - 200) { m.x = p.x1 - 200; m.dir = -1; }
-        if (!m.angry && this.rng.roll(8)) m.dir = -m.dir;
-      } else if (this.t >= m.nextAtk && H.plat >= 0) {
+      } else if (m.angry && same && adx <= 700 && this.t >= m.nextAtk && H.plat >= 0) {
         const r = hit(m, H, SKILL_BASE, this.rng);
         H.hp -= r.dmg; this.dmgIn += r.dmg; m.nextAtk = this.t + m.atkMs;
         this.events.push(['hurt', this.t, r.dmg]);

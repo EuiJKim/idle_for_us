@@ -101,3 +101,45 @@ export function drawLedge(cx, x0, x1, y, th, z, ground = false) {
   cx.lineTo(x1 + 3, y + 6); cx.closePath(); cx.fill();
   cx.restore();
 }
+
+// ── 그린 배경 · 발판(장마다 한 벌) ── 없거나 아직 안 왔으면 위의 그린 도형으로
+const sideArt = {};
+function sideImg(kind, ch) {
+  const key = `${kind}${ch}`;
+  if (!(key in sideArt)) {
+    sideArt[key] = null;
+    if (typeof Image !== 'undefined') { const im = new Image(); im.onload = () => { sideArt[key] = im; }; im.src = `art/s2/${kind}/c${ch}.webp`; }
+  }
+  return sideArt[key];
+}
+export function preloadChapter(ch) { sideImg('bg', ch); sideImg('ledge', ch); if (ch < 15) { sideImg('bg', ch + 1); sideImg('ledge', ch + 1); } }
+// 배경: 화면 높이에 맞추고 천천히 흐른다(넘어가면 좌우를 뒤집어 이어 붙여 이음매가 없다)
+export function drawPaintedBack(cx, W, H, ch, camPx, z, camPy = 0) {
+  const im = sideImg('bg', ch);
+  if (!im) { drawSideBack(cx, W, H, z, camPx, 0); return; }
+  // 화면보다 조금 크게 깔고 위아래로도 아주 조금 흐른다(층을 오르면 배경이 살짝 내려감)
+  const h = H * 1.12, w = h * im.width / im.height, oy = -H * 0.12 + Math.min(H * 0.12, camPy * 0.08);
+  let x = -((camPx * 0.25) % (w * 2));
+  for (let i = 0; x + i * w < W; i++) {
+    const dx = x + i * w;
+    if (dx + w < 0) continue;
+    cx.save();
+    if (i % 2) { cx.translate(dx + w, oy); cx.scale(-1, 1); cx.drawImage(im, 0, 0, w, h); }
+    else cx.drawImage(im, dx, oy, w, h);
+    cx.restore();
+  }
+}
+// 발판: 그림의 왼쪽 끝 · 가운데(되풀이) · 오른쪽 끝 세 조각으로 길이를 맞춘다. 그림 위 가장자리 = 발 딛는 면
+export function drawPaintedLedge(cx, x0, x1, y, ch, z, h = 34, ground = false) {
+  const im = sideImg('ledge', ch);
+  if (!im) { drawLedge(cx, x0, x1, y, ground ? 200 : 26, z, ground); return; }
+  const k = h / im.height, capW = Math.min((x1 - x0) / 2, im.width * 0.22 * k), sw = im.width * 0.22;
+  const top = y - h * 0.12;   // 이끼 · 눈이 발보다 조금 위로
+  cx.drawImage(im, 0, 0, sw, im.height, x0, top, capW, h);
+  cx.drawImage(im, im.width - sw, 0, sw, im.height, x1 - capW, top, capW, h);
+  const midSrcX = im.width * 0.3, midSrcW = im.width * 0.4, midW = midSrcW * k;
+  for (let x = x0 + capW; x < x1 - capW; x += midW - 1) {
+    const w = Math.min(midW, x1 - capW - x);
+    cx.drawImage(im, midSrcX, 0, midSrcW * (w / midW), im.height, x, top, w, h);
+  }
+}

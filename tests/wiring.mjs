@@ -135,7 +135,8 @@ console.log('\n=== 3. 서비스워커가 받아 두는 것 ↔ 실제 파일 ===
   // 반대 — art에 있는데 sw가 모르는 것 (받아 두지 않으면 오프라인에서 빠진다)
   const artFiles = walk('art');
   // v355 art/hero3(머리+옷 한 장 242장 · 11MB)는 미리 받지 않는다 — 고른 조합만 그때 받고 sw가 받은 것을 담아 둔다(없으면 옛 조각으로 그린다)
-  const unlisted = artFiles.filter((f) => !f.startsWith('art/hero3/') && !sw.includes(`'${f}'`));
+  // v492 새 시즌 그림(art/s2)은 교체 전까지 지금 게임이 쓰지 않는다 — 미리 받지 않는다(교체 때 SHIPPED로 들어감)
+  const unlisted = artFiles.filter((f) => !f.startsWith('art/hero3/') && (S2_LIVE || !f.startsWith('art/s2/')) && !sw.includes(`'${f}'`));
   ok(unlisted.length === 0, '구워 둔 그림을 sw.js가 전부 알고 있다',
     unlisted.length ? `모름: ${unlisted.slice(0, 6).join(', ')}${unlisted.length > 6 ? ` 외 ${unlisted.length - 6}` : ''}` : `${artFiles.length}장`);
   // 판 번호가 둘 다 같아야 한다

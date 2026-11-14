@@ -13,7 +13,8 @@ import { expToNext } from '../tables/exp.js';
 import { staminaNow } from '../content/idle.js';
 import { buildQueue } from '../content/offline.js';
 import { kindGrade } from '../grow/collect.js';
-import { loadLooks, zoneFor, drawHero, drawMob, mobName, drawSideBack, drawLedge } from './look.js';
+import { loadLooks, zoneFor, drawHero, drawMob, mobName, drawPaintedBack, drawPaintedLedge, preloadChapter } from './look.js';
+import { chapterOf, chapterName } from '../tables/chapters.js';
 import { goldPerMob } from '../tables/gearstat.js';
 
 const $ = (id) => document.getElementById(id);
@@ -207,7 +208,7 @@ function paintHud() {
   if (cur) { gd.className = `guide ${cs?.done ? 'done' : ''}`; gd.innerHTML = `<b>길잡이 ${cur.id.slice(1)}</b>${esc(guideLabel(cur))}: ${cs?.done ? '<b style="display:inline">받기</b>' : `${cs?.p || 0}/${cur.need}`}`; }
   // 위 가운데: 지역 · 칸
   const ch = Math.ceil(T.idx / 10), st = ((T.idx - 1) % 10) + 1, boss = !!g.bossFight;
-  $('zn').textContent = boss ? `${ch}. ${z.name} — 두목` : `${ch}. ${z.name}`;
+  $('zn').textContent = boss ? `${ch}. ${chapterName(T.idx)} — 두목` : `${ch}. ${chapterName(T.idx)}`;
   const sb = $('sb'), tb = $('tb');
   if (boss) {
     const B = g.bossFight, bm = B.mobs.find((m) => m.kind === 'boss');
@@ -269,7 +270,7 @@ const goWin = (go) => ({ gear: ['gear', 0], gacha: ['gear', 1], skill: ['hero', 
 // ── 옆보기 사냥 화면 ──
 const cv = $('cv'), cx = cv.getContext('2d');
 const floats = [];
-let lastHitAt = 0, heroRun = 0, lastHx = 0, skillFx = [];
+let lastHitAt = 0, heroRun = 0, lastHx = 0, skillFx = [], camSm = null, camSy = null;
 const mobPrev = new Map();
 function draw() {
   const r = cv.getBoundingClientRect(), dpr = Math.min(2, window.devicePixelRatio || 1);
@@ -277,28 +278,37 @@ function draw() {
   const F = g.ensureFight(); if (!F) return;
   const W = r.width, Hh = r.height, t = now(), ts = t / 1000, map = F.def.map;
   const z = zoneFor(g.zoneLv());
-  // 맵 높이를 화면 높이 82%에 맞추고, 가로는 무인을 따라감
-  const s = (Hh * 0.66) / map.h, k = Math.min(1.1, Math.max(0.55, (map.h / 11200) * (Hh / 400)));
-  const viewW = W / s;
-  const camX = Math.max(0, Math.min(map.w - viewW, F.hero.x - viewW / 2));
-  const baseY = Hh * 0.74;   // 아래 패널(체력·무공 칸) 위에 바닥
-  const P = (x, y) => [(x - camX) * s, baseY - y * s];
+  // 가까이 당겨 본다: 화면 너비에 약 15미터 — 무인을 가로 · 세로로 따라감(맵은 화면보다 넓고 높다)
+  const s = Math.max(W / 15000, Hh / 9000), k = Math.min(1.25, Math.max(0.7, s / 0.05));
+  const viewW = W / s, viewH = Hh / s;
+  const al = Math.max(0, Math.min(1, acc / 50));
+  const lx = (o) => (o.px === undefined ? o.x : o.px + (o.x - o.px) * al), ly = (o) => (o.py === undefined ? o.y : o.py + (o.y - o.py) * al);
+  const wantX = Math.max(0, Math.min(map.w - viewW, lx(F.hero) - viewW / 2));
+  const baseY = Hh * 0.74;   // 바닥(높이 0)이 그려질 화면 높이 — 아래 패널 위
+  const wantY = Math.max(0, Math.min(Math.max(0, map.h - baseY / s), ly(F.hero) - viewH * 0.3));
+  if (camSm === null || Math.abs(camSm - wantX) > viewW) camSm = wantX; else camSm += (wantX - camSm) * 0.16;   // 살짝 늦게 따라감
+  if (camSy === null || Math.abs(camSy - wantY) > viewH) camSy = wantY; else camSy += (wantY - camSy) * 0.1;
+  const camX = camSm, camY = camSy;
+  const P = (x, y) => [(x - camX) * s, baseY - (y - camY) * s];
   cx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  drawSideBack(cx, W, Hh, z, camX, ts);
-  // 발판
-  map.plats.forEach((p, i) => { const [x0, y] = P(p.x0, p.y), [x1] = P(p.x1, p.y); if (x1 < -20 || x0 > W + 20) return; drawLedge(cx, x0, x1, y, i === 0 ? Hh - y : 26, z, i === 0); });
-  const H = F.hero, sc = 0.62 * k;
-  heroRun = Math.abs(H.x - lastHx) > 1 ? 5 : Math.max(0, heroRun - 1); lastHx = H.x;
+  const ch = chapterOf(g.zoneLv()); preloadChapter(ch);
+  drawPaintedBack(cx, W, Hh, ch, camX * s, z, camY * s);
+  // 바닥 아래는 어둡게 채우고, 발판은 장마다 그린 그림
+  const [, gy] = P(0, 0);
+  const gg = cx.createLinearGradient(0, gy, 0, Hh); gg.addColorStop(0, 'rgba(20,14,8,.15)'); gg.addColorStop(1, 'rgba(20,14,8,.85)');
+  cx.fillStyle = gg; cx.fillRect(0, gy + 10, W, Hh - gy);
+  map.plats.forEach((p, i) => { const [x0, y] = P(p.x0, p.y), [x1] = P(p.x1, p.y); if (x1 < -20 || x0 > W + 20) return; drawPaintedLedge(cx, Math.max(-40, x0), Math.min(W + 40, x1), y, ch, z, (i === 0 ? 46 : 34) * k, i === 0); });
+  const H = F.hero, sc = 0.8 * k;
+  heroRun = H.act === 'run' || (H.px !== undefined && H.px !== H.x && H.plat >= 0) ? 6 : Math.max(0, heroRun - 1);
   for (const m of F.mobs) {
-    const [x, y] = P(m.x, m.y); if (x < -80 || x > W + 80) continue;
-    const pv = mobPrev.get(m.id), mv = pv !== undefined && pv !== m.x; mobPrev.set(m.id, m.x);
-    drawMob(cx, x, y, m, z, { t: ts + m.id, flip: m.dir < 0, moving: mv, scale: sc * (m.kind === 'boss' ? 1.3 : 1) });
+    const [x, y] = P(lx(m), ly(m)); if (x < -80 || x > W + 80) continue;
+    drawMob(cx, x, y, m, z, { t: ts + m.id, flip: m.dir < 0, moving: !!m.moving, scale: sc * (m.kind === 'boss' ? 1.3 : 1) });
     const top = (m.kind === 'boss' ? 160 : m.kind === 'elite' ? 116 : 92) * sc, bw = (m.kind === 'boss' ? 90 : 34) * k;
     if (m.hp < m.st.hp || m.kind !== 'mob') { cx.fillStyle = '#000a'; cx.fillRect(x - bw / 2, y - top, bw, 4); cx.fillStyle = m.kind === 'boss' ? '#f59e0b' : '#e0436a'; cx.fillRect(x - bw / 2, y - top, bw * Math.max(0, m.hp / m.st.hp), 4); }
     if (m.kind !== 'mob') { cx.font = 'bold 11px system-ui'; cx.textAlign = 'center'; cx.fillStyle = m.kind === 'boss' ? '#fde68a' : '#e9d5ff'; cx.strokeStyle = '#000'; cx.lineWidth = 3; cx.strokeText(mobName(m, z), x, y - top - 4); cx.fillText(mobName(m, z), x, y - top - 4); }
   }
   // 무공 쓸기 연출(반달 빛)
-  const [hx, hy] = P(H.x, H.y);
+  const [hx, hy] = P(lx(H), ly(H));
   for (let i = skillFx.length - 1; i >= 0; i--) {
     const f = skillFx[i], a = (t - f.at) / 380; if (a > 1) { skillFx.splice(i, 1); continue; }
     const rr = (60 + a * 80) * k;
@@ -306,7 +316,7 @@ function draw() {
     const gr = cx.createRadialGradient(0, 0, rr * 0.4, 0, 0, rr); gr.addColorStop(0, 'rgba(255,255,220,0)'); gr.addColorStop(0.75, 'rgba(255,236,150,.9)'); gr.addColorStop(1, 'rgba(255,200,60,0)');
     cx.fillStyle = gr; cx.beginPath(); cx.arc(0, 0, rr, -1.2, 1.2); cx.arc(0, 0, rr * 0.55, 1.2, -1.2, true); cx.fill(); cx.restore();
   }
-  drawHero(cx, hx, hy, g.S.hero.job, g.S.hero.lv, { t: ts, run: heroRun > 0 && H.plat >= 0, flip: H.face < 0, lunge: Math.max(0, 1 - (t - lastHitAt) / 160), scale: sc });
+  drawHero(cx, hx, hy, g.S.hero.job, g.S.hero.lv, { t: ts, run: heroRun > 0, flip: H.face < 0, lunge: Math.max(0, 1 - (t - lastHitAt) / 160), scale: sc });
   cx.font = '11px system-ui'; cx.textAlign = 'center'; cx.fillStyle = '#fff'; cx.strokeStyle = '#000'; cx.lineWidth = 3;
   cx.strokeText(JOBS[g.S.hero.job].name, hx, hy + 14); cx.fillText(JOBS[g.S.hero.job].name, hx, hy + 14);
   // 큰 피해 숫자 — 위로 쌓이며 떠오름

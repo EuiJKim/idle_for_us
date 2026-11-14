@@ -1,0 +1,107 @@
+[
+ {
+  "name": "c1",
+  "prompt": "A single long horizontal floating platform for a 2D side-scrolling game, seen exactly from the side, wide and short (about 6:1), hand-painted vibrant anime game asset style, clean edges, slight rounded rocky underside, transparent background, no characters, no text. Material: earthy rock with bright green moss and small bamboo shoots on top.",
+  "size": "1536x1024",
+  "bg": "transparent",
+  "q": "high"
+ },
+ {
+  "name": "c2",
+  "prompt": "A single long horizontal floating platform for a 2D side-scrolling game, seen exactly from the side, wide and short (about 6:1), hand-painted vibrant anime game asset style, clean edges, slight rounded rocky underside, transparent background, no characters, no text. Material: sandstone with dry grass tufts on top.",
+  "size": "1536x1024",
+  "bg": "transparent",
+  "q": "high"
+ },
+ {
+  "name": "c3",
+  "prompt": "A single long horizontal floating platform for a 2D side-scrolling game, seen exactly from the side, wide and short (about 6:1), hand-painted vibrant anime game asset style, clean edges, slight rounded rocky underside, transparent background, no characters, no text. Material: icy blue stone with fresh snow on top.",
+  "size": "1536x1024",
+  "bg": "transparent",
+  "q": "high"
+ },
+ {
+  "name": "c4",
+  "prompt": "A single long horizontal floating platform for a 2D side-scrolling game, seen exactly from the side, wide and short (about 6:1), hand-painted vibrant anime game asset style, clean edges, slight rounded rocky underside, transparent background, no characters, no text. Material: red rock with cracks and dry roots.",
+  "size": "1536x1024",
+  "bg": "transparent",
+  "q": "high"
+ },
+ {
+  "name": "c5",
+  "prompt": "A single long horizontal floating platform for a 2D side-scrolling game, seen exactly from the side, wide and short (about 6:1), hand-painted vibrant anime game asset style, clean edges, slight rounded rocky underside, transparent background, no characters, no text. Material: carved white marble balustrade ledge with red lacquered wood trim.",
+  "size": "1536x1024",
+  "bg": "transparent",
+  "q": "high"
+ },
+ {
+  "name": "c6",
+  "prompt": "A single long horizontal floating platform for a 2D side-scrolling game, seen exactly from the side, wide and short (about 6:1), hand-painted vibrant anime game asset style, clean edges, slight rounded rocky underside, transparent background, no characters, no text. Material: wooden dock planks on posts with rope.",
+  "size": "1536x1024",
+  "bg": "transparent",
+  "q": "high"
+ },
+ {
+  "name": "c7",
+  "prompt": "A single long horizontal floating platform for a 2D side-scrolling game, seen exactly from the side, wide and short (about 6:1), hand-painted vibrant anime game asset style, clean edges, slight rounded rocky underside, transparent background, no characters, no text. Material: dark wooden walkway with small red lanterns hanging under it.",
+  "size": "1536x1024",
+  "bg": "transparent",
+  "q": "high"
+ },
+ {
+  "name": "c8",
+  "prompt": "A single long horizontal floating platform for a 2D side-scrolling game, seen exactly from the side, wide and short (about 6:1), hand-painted vibrant anime game asset style, clean edges, slight rounded rocky underside, transparent background, no characters, no text. Material: mossy jungle rock with vines and leaves.",
+  "size": "1536x1024",
+  "bg": "transparent",
+  "q": "high"
+ },
+ {
+  "name": "c9",
+  "prompt": "A single long horizontal floating platform for a 2D side-scrolling game, seen exactly from the side, wide and short (about 6:1), hand-painted vibrant anime game asset style, clean edges, slight rounded rocky underside, transparent background, no characters, no text. Material: white cloud-like jade stone with small flowers.",
+  "size": "1536x1024",
+  "bg": "transparent",
+  "q": "high"
+ },
+ {
+  "name": "c10",
+  "prompt": "A single long horizontal floating platform for a 2D side-scrolling game, seen exactly from the side, wide and short (about 6:1), hand-painted vibrant anime game asset style, clean edges, slight rounded rocky underside, transparent background, no characters, no text. Material: grey cliff rock with wooden plank top and pine twig.",
+  "size": "1536x1024",
+  "bg": "transparent",
+  "q": "high"
+ },
+ {
+  "name": "c11",
+  "prompt": "A single long horizontal floating platform for a 2D side-scrolling game, seen exactly from the side, wide and short (about 6:1), hand-painted vibrant anime game asset style, clean edges, slight rounded rocky underside, transparent background, no characters, no text. Material: black stone with red runes glowing faintly.",
+  "size": "1536x1024",
+  "bg": "transparent",
+  "q": "high"
+ },
+ {
+  "name": "c12",
+  "prompt": "A single long horizontal floating platform for a 2D side-scrolling game, seen exactly from the side, wide and short (about 6:1), hand-painted vibrant anime game asset style, clean edges, slight rounded rocky underside, transparent background, no characters, no text. Material: purple rock with glowing mushrooms.",
+  "size": "1536x1024",
+  "bg": "transparent",
+  "q": "high"
+ },
+ {
+  "name": "c13",
+  "prompt": "A single long horizontal floating platform for a 2D side-scrolling game, seen exactly from the side, wide and short (about 6:1), hand-painted vibrant anime game asset style, clean edges, slight rounded rocky underside, transparent background, no characters, no text. Material: granite rock with a small pine and stone steps texture.",
+  "size": "1536x1024",
+  "bg": "transparent",
+  "q": "high"
+ },
+ {
+  "name": "c14",
+  "prompt": "A single long horizontal floating platform for a 2D side-scrolling game, seen exactly from the side, wide and short (about 6:1), hand-painted vibrant anime game asset style, clean edges, slight rounded rocky underside, transparent background, no characters, no text. Material: dark volcanic rock with glowing orange cracks.",
+  "size": "1536x1024",
+  "bg": "transparent",
+  "q": "high"
+ },
+ {
+  "name": "c15",
+  "prompt": "A single long horizontal floating platform for a 2D side-scrolling game, seen exactly from the side, wide and short (about 6:1), hand-painted vibrant anime game asset style, clean edges, slight rounded rocky underside, transparent background, no characters, no text. Material: white jade with golden ornaments and soft clouds underneath.",
+  "size": "1536x1024",
+  "bg": "transparent",
+  "q": "high"
+ }
+]
