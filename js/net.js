@@ -3,7 +3,7 @@
 import { firebaseConfig, FIREBASE_SDK_VERSION, ADMIN_UID } from './firebase-config.js';
 import * as CLK from './clock.js';   // v475 서버 시각
 // v309 이 앱이 바라는 규칙 판 — firestore.rules의 rulesv 숫자와 같아야 한다(규칙을 고치면 둘 다 올린다)
-export const RULES_VER = '476';   // v476 서열 점검(flags) · 주간 두목 처치 수 상한 · v436 버그 신고(bugs) · 그 앞 v421~v432 규칙도 이 판에 든다
+export const RULES_VER = '486';   // v486 새 시즌 서열·월드보스·대결·문파 콘텐츠·명예의 전당 · v476 서열 점검(flags) · 주간 두목 처치 수 상한 · v436 버그 신고(bugs) · 그 앞 v421~v432 규칙도 이 판에 든다
 export const WORLD_MAX = 100;   // v315 전체 채팅 한 마디 길이
 import { big } from './big.js';
 import { Big } from './big.js';

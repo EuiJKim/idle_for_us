@@ -22,7 +22,7 @@ service cloud.firestore {
     // v309 규칙 판 표 — 앱이 rulesv/{판}을 읽어 본다. 지금 판만 읽히고 옛 판은 거부된다(없는 문서라 읽혀도 비어 있다).
     //   규칙을 고치면 여기 숫자와 js/net.js의 RULES_VER를 같이 올린다 → 게시를 잊으면 운영자에게 '다시 게시' 알림.
     match /rulesv/{v} {
-      allow get: if signedIn() && v == '476';
+      allow get: if signedIn() && v == '486';
     }
 
     // 플레이어 프로필: 누구나 읽기(랭킹·구경), 본인만 쓰기
@@ -306,6 +306,87 @@ service cloud.firestore {
           || get(/databases/$(database)/documents/mutes/$(request.auth.uid)).data.until < request.time);
       allow update: if false;
       allow delete: if isAdmin();
+    }
+
+    // ── v486 새 시즌(s2) — 옛 시즌 문서와 따로 쓴다(교체 뒤 옛 서열은 명예의 전당으로) ──
+    // 서열 문서: 칸을 못박고(js/s2/online/rank.js PROFILE_KEYS와 같다 — 시험이 맞춰 본다), 값은 있을 수 있는 범위만.
+    function s2Keys() {
+      return ['season', 'nickname', 'lv', 'job', 'power', 'pvpPower', 'pvpScore', 'wbScore', 'guildId', 'tv', 'signed', 'updatedAt'];
+    }
+    function s2Ok() {
+      let d = request.resource.data;
+      return d.season == 's2' && d.nickname is string && d.nickname.size() >= 1 && d.nickname.size() <= 12
+        && d.lv is int && d.lv >= 1 && d.lv <= 150
+        && strOk(d, 'job', 16) && strOk(d, 'tv', 16)
+        && numOk(d, 'power', 0, 1000000000000000000000000000000.0) && numOk(d, 'pvpPower', 0, 1000000000000000000000000000000.0)
+        && (!('pvpScore' in d) || (d.pvpScore is int && d.pvpScore >= 0 && d.pvpScore <= 99999))
+        && numOk(d, 'wbScore', 0, 1000000000000.0)
+        && (!('guildId' in d) || d.guildId == null || (d.guildId is string && d.guildId.size() <= 8))
+        && (!('signed' in d) || d.signed is bool)
+        && d.updatedAt == request.time;
+    }
+    match /s2_players/{uid} {
+      allow read: if signedIn();
+      allow create: if signedIn() && request.auth.uid == uid && request.resource.data.keys().hasOnly(s2Keys()) && s2Ok();
+      // 레벨은 줄지 않는다
+      allow update: if signedIn() && request.auth.uid == uid && request.resource.data.keys().hasOnly(s2Keys()) && s2Ok()
+        && request.resource.data.lv >= resource.data.lv;
+      allow delete: if isAdmin();
+    }
+    // 월드보스 주간 점수 — 한 번 칠 때마다 횟수 +1 · 점수는 그만큼만(한 번 상한) · 하루 3번 × 7일
+    match /s2_wboss/{wk}/p/{uid} {
+      allow read: if signedIn();
+      allow create, update: if signedIn() && request.auth.uid == uid && wk.size() == 10
+        && request.resource.data.keys().hasOnly(['name', 'score', 'tries', 'best', 'at'])
+        && request.resource.data.name is string && request.resource.data.name.size() <= 12
+        && request.resource.data.tries is int && request.resource.data.tries >= 1 && request.resource.data.tries <= 21
+        && request.resource.data.score is int && request.resource.data.best is int
+        && request.resource.data.best >= 0 && request.resource.data.best <= 5000000
+        && request.resource.data.at == request.time
+        && (resource == null
+          ? (request.resource.data.tries == 1 && request.resource.data.score == request.resource.data.best)
+          : (request.resource.data.tries == resource.data.tries + 1
+            && request.resource.data.score - resource.data.score >= 0
+            && request.resource.data.score - resource.data.score <= 5000000
+            && request.resource.data.best >= resource.data.best
+            // 한 번 칠 때 90초 — 지난번 올린 때부터 적어도 60초
+            && request.time.toMillis() - resource.data.at.toMillis() >= 60000));
+      allow delete: if isAdmin();
+    }
+    // 대결 방어 덱 — 본인만 · 덱 글자 3000자 · 점수 범위
+    match /s2_pvp/{uid} {
+      allow read: if signedIn();
+      allow create, update: if signedIn() && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['name', 'deck', 'score', 'lv', 'at'])
+        && request.resource.data.deck is string && request.resource.data.deck.size() <= 3000
+        && request.resource.data.score is int && request.resource.data.score >= 0 && request.resource.data.score <= 99999
+        && request.resource.data.lv is int && request.resource.data.lv >= 1 && request.resource.data.lv <= 150
+        && request.resource.data.at == request.time;
+      allow delete: if isAdmin();
+      // 공격 기록 — 공격한 사람이 상대 우편함에 남김(상대가 들어오면 점수에 반영). 남의 이름으로는 못 씀 · 점수 변화 범위
+      match /log/{lid} {
+        allow read, delete: if signedIn() && request.auth.uid == uid;
+        allow create: if signedIn() && request.auth.uid != uid
+          && request.resource.data.keys().hasOnly(['by', 'name', 'win', 'd', 'seed', 'at'])
+          && request.resource.data.by == request.auth.uid
+          && request.resource.data.win is bool
+          && request.resource.data.d is int && request.resource.data.d >= -20 && request.resource.data.d <= 3
+          && request.resource.data.seed is int
+          && request.resource.data.at == request.time;
+      }
+    }
+    // 문파 새 시즌 콘텐츠(토벌·대항·수련·연구·도움) — 문파원만 읽고 쓴다(값 검사는 점검 작업이)
+    match /guilds/{gid}/s2/{doc} {
+      allow read: if isMember(gid);
+      allow create, update: if isMember(gid) && doc in ['raid', 'war', 'train', 'research', 'help']
+        && request.resource.data.keys().hasOnly(['data', 'at'])
+        && request.resource.data.data is string && request.resource.data.data.size() <= 20000
+        && request.resource.data.at == request.time;
+    }
+    // 명예의 전당 — 운영자(교체 작업)만 쓴다 · 누구나 읽는다
+    match /fame/{doc} {
+      allow read: if signedIn();
+      allow write: if isAdmin();
     }
 
     // v476 서열 점검 결과 — 서버 점검(tools/rankcheck.mjs, 서비스 계정)이 적고 운영자만 읽고 고친다(되살리기 = ok)

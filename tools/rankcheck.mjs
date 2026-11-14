@@ -4,6 +4,7 @@
 //   · 같은 레벨 기준 무인(tools/mobsim.mjs make) — 그 몇 배를 넘는 전투력
 //   · 서버 세이브(saves/{uid}) — 게임 엔진으로 다시 센 레벨·전투력과 크게 다른 서열 값
 //   · 주간 두목(wboss/{주}/p) — 이번 주에 잡을 수 없는 수
+//   · v486 새 시즌(s2_players · s2_wboss) — 같은 엔진(js/s2)으로 표준 무인 대비 · 서버 세이브 다시 계산 · 월드보스 한 번 상한
 // 걸리면 flags/{uid}에 까닭을 적고 config/hidden에 올려 서열에서만 숨긴다(게임은 그대로).
 //   운영자가 「무인 정리 → 되살리기」로 풀면 flags/{uid}.ok = true — 다시 숨기지 않는다.
 // 저장소가 공개라 로그는 누구나 본다 — 로그에는 건수만 찍는다(별호·계정 번호·까닭은 찍지 않는다).
@@ -77,6 +78,34 @@ for (const q of [col.orderBy('kills', 'desc').limit(30), col.orderBy('hwamugi', 
   try { for (const d of (await q.get()).docs) wbDocs.set(d.id, d.data()); } catch { /* 색인 없음 */ }
 }
 for (const [uid, r] of wbDocs) { if (skip(uid)) continue; seen++; note(uid, K.judgeWeekBoss({ r, weekSec }), { lv: r.lv ?? null }); }
+
+// 3) v486 새 시즌 — 서열(전투력 위쪽) · 서버 세이브로 다시 계산 · 월드보스 한 번 점수
+const RK = await import(R('js/s2/online/rank.js'));
+const WB2 = await import(R('js/s2/online/wboss.js'));
+const ON = await import(R('js/s2/tables/online.js'));
+try {
+  const s2top = await db.collection(ON.COLL.players).orderBy('power', 'desc').limit(TOP).get();
+  const s2lv = new Map();
+  for (const d of s2top.docs) {
+    const p = d.data(); s2lv.set(d.id, p.lv);
+    if (skip(d.id)) continue;
+    seen++;
+    const why = RK.checkProfile(p).map((x) => `새 시즌: ${x}`);
+    try {
+      const sv = await db.doc(`saves/${d.id}`).get();
+      if (sv.exists && typeof sv.data().s2 === 'string') why.push(...RK.verifySave(sv.data().s2, p, RK.fighterOfBody).map((x) => `새 시즌 세이브: ${x}`));
+    } catch { /* 세이브 없음 */ }
+    note(d.id, why, { lv: p.lv ?? null, power: p.power ?? null });
+  }
+  const wb2 = await db.collection(ON.COLL.wboss).doc(wk).collection('p').orderBy('best', 'desc').limit(30).get();
+  for (const d of wb2.docs) {
+    if (skip(d.id)) continue;
+    seen++;
+    const L = s2lv.get(d.id) || (await db.doc(`${ON.COLL.players}/${d.id}`).get()).data()?.lv || 1;
+    const cap = WB2.bossScore(WB2.refTryDmg(L) * ON.POWER_SLACK * 1.5, L);
+    if (d.data().best > cap) note(d.id, [`새 시즌 월드보스: 한 번 ${d.data().best} > 상한 ${cap}`], { lv: L });
+  }
+} catch { /* 새 시즌 전 — 문서·색인 없음 */ }
 
 console.log(`점검 ${seen}건 · 걸림 ${found.size}명 · 이미 숨김/되살림 ${hidden.size + [...flags.values()].filter((f) => f.ok).length}명${{ no: ' (건수만 · 적지 않음)', note: ' (까닭만 적음 · 숨기지 않음)', yes: '' }[MODE]}`);
 if (MODE === 'no' || !found.size) process.exit(0);

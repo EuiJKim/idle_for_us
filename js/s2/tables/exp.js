@@ -26,7 +26,7 @@ const CUM = [0, 0];
 for (let L = 1; L < LEVEL_MAX; L++) CUM[L + 1] = CUM[L] + expToNext(L);
 export const cumExp = (L) => CUM[Math.max(1, Math.min(LEVEL_MAX, L | 0))];
 // 몹 한 마리 경험치 — 몹 레벨^1.6 (정예 ×8 · 두목 ×40)
-export const mobExp = (mobLv, kind = 'mob') => Math.max(1, Math.round(Math.pow(mobLv, 1.6) * (kind === 'elite' ? 8 : kind === 'boss' ? 40 : 1)));
+export const mobExp = (mobLv, kind = 'mob') => Math.max(1, Math.round(Math.pow(mobLv, 1.6) * (kind === 'elite' ? 3 : kind === 'boss' ? 10 : 1)));
 // 표준 방(캠프 12 · 재등장 2초)에서 기준 무인의 분당 처치 — 시험이 실제 방 사냥으로 다시 잰다
 export const KILLS_PER_MIN = 27;
 export const STD_ROOM = { n: 12, coolMs: 2000 };

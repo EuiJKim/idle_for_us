@@ -10,6 +10,8 @@
   <meta property="og:description" content="무협방치 RPG">
   <meta property="og:image" content="https://euijkim.github.io/idle_for_us/icons/icon-512.png">
   <script>
+    // v487 새 시즌 미리보기 — ?s2=1 이면 s2.html로(지금 게임과 세이브가 섞이지 않는다)
+    try { if (/[?&]s2=1\b/.test(location.search)) location.replace('s2.html'); } catch (e) { /* 그대로 */ }
     // v281 카카오톡 안 브라우저로 열리면 설치 안내로 보내 바깥 브라우저(크롬·사파리)로 넘긴다.
     // 카카오톡 안에선 설치·Google 로그인이 안 되고, 저장도 카카오톡 안에만 남는다. ?stay=1 이면 그대로 둔다.
     try { if (/KAKAOTALK/i.test(navigator.userAgent || '') && !/[?&]stay=1\b/.test(location.search)) location.replace('install.html?to=game'); } catch (e) { /* 그대로 */ }

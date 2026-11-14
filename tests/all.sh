@@ -25,9 +25,11 @@ run "브라우저"    env -u FIREBASE_PKG node tests/e2e.cjs
 run "화면 몽키"   env SECS="${MONKEY_SECS:-45}" node tests/monkey.cjs
 run "화면 훑기"   node tests/sweep.cjs
 run "컴퓨터 화면" node tests/desktop.cjs
+run "새 시즌 화면" node tests/s2ui.cjs
 if [ "${EMU:-}" = 1 ]; then
   run "온라인(에뮬레이터)" node tests/e2e.cjs
   run "둘이 함께(에뮬레이터)" node tests/online2.cjs
+  run "규칙 공격(에뮬레이터)" env NO_PROXY=127.0.0.1,localhost node tests/rules.mjs
 fi
 echo
 if [ ${#FAIL[@]} -eq 0 ]; then echo "✓ 전부 통과"; else echo "✗ 실패: ${FAIL[*]}"; exit 1; fi

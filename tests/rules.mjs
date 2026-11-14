@@ -241,7 +241,8 @@ const profile = (extra = {}) => ({ world: 1, nickname: '무인', level: 10, job:
   console.log('# 칠대성 (v375)');
   {
     const boss = 'umawang';
-    const gen = (seq, o = {}) => ({ boss, seq, maxHp: 2000000, total: 0, damage: {}, names: {}, claimed: {}, killedAt: null, killer: null, createdAt: F.serverTimestamp(), ...o });
+    const H = 5000000000000;   // v432 마왕 체력은 3조~30조만 받는다
+    const gen = (seq, o = {}) => ({ boss, seq, maxHp: H, total: 0, damage: {}, names: {}, claimed: {}, killedAt: null, killer: null, createdAt: F.serverTimestamp(), ...o });
     const open = async (u, seq, o = {}, first = seq === 1) => {
       const b = F.writeBatch(u.db);
       if (first) b.set(u.ref('wbp', boss), { seq }); else b.update(u.ref('wbp', boss), { seq });
@@ -250,7 +251,7 @@ const profile = (extra = {}) => ({ world: 1, nickname: '무인', level: 10, job:
     };
     ok(await denied(F.setDoc(bad.ref('wraid', `${boss}_1`), gen(1))), '자리표(wbp) 없이 마왕 세우기 거부');
     ok(await denied(F.setDoc(bad.ref('wbp', boss), { seq: 1 })), '마왕 문서 없이 자리표만 거부');
-    ok(await denied(open(bad, 1, { total: 2000000 })), '처음부터 쓰러진 마왕 거부');
+    ok(await denied(open(bad, 1, { total: H })), '처음부터 쓰러진 마왕 거부');
     ok(await denied(open(bad, 1, { maxHp: 5 })), '체력 5짜리 마왕 거부');
     ok(await denied((async () => { const b = F.writeBatch(bad.db); b.set(bad.ref('wbp', 'hacker'), { seq: 1 }); b.set(bad.ref('wraid', 'hacker_1'), { ...gen(1), boss: 'hacker' }); return b.commit(); })()), '없는 마왕 거부');
     ok(await allowed(open(friend, 1)), '첫 마왕 세우기(문파 없이도)');
@@ -261,9 +262,9 @@ const profile = (extra = {}) => ({ world: 1, nickname: '무인', level: 10, job:
     ok(await denied(F.updateDoc(bad.ref('wraid', id), { total: 500000, [`damage.${bad.uid}`]: 10, [`names.${bad.uid}`]: '나쁜' })), '친 것보다 체력 더 깎기 거부');
     ok(await denied(F.updateDoc(bad.ref('wraid', id), { total: 10, [`damage.${friend.uid}`]: 10 })), '남의 피해 고치기 거부');
     ok(await allowed(F.updateDoc(bad.ref('wraid', id), { total: 100, [`damage.${bad.uid}`]: 100, [`names.${bad.uid}`]: '나쁜' })), '정상 일격');
-    ok(await denied(F.updateDoc(friend.ref('wraid', id), { total: 2000000, [`damage.${friend.uid}`]: 1999900, [`names.${friend.uid}`]: '친구' })), '마무리인데 killedAt·killer 없으면 거부');
-    ok(await allowed(F.updateDoc(friend.ref('wraid', id), { total: 2000000, [`damage.${friend.uid}`]: 1999900, [`names.${friend.uid}`]: '친구', killedAt: F.serverTimestamp(), killer: friend.uid })), '마무리 일격');
-    ok(await denied(F.updateDoc(bad.ref('wraid', id), { total: 2000000, [`damage.${bad.uid}`]: 200 })), '쓰러진 뒤 더 치기 거부');
+    ok(await denied(F.updateDoc(friend.ref('wraid', id), { total: H, [`damage.${friend.uid}`]: H - 100, [`names.${friend.uid}`]: '친구' })), '마무리인데 killedAt·killer 없으면 거부');
+    ok(await allowed(F.updateDoc(friend.ref('wraid', id), { total: H, [`damage.${friend.uid}`]: H - 100, [`names.${friend.uid}`]: '친구', killedAt: F.serverTimestamp(), killer: friend.uid })), '마무리 일격');
+    ok(await denied(F.updateDoc(bad.ref('wraid', id), { total: H, [`damage.${bad.uid}`]: 200 })), '쓰러진 뒤 더 치기 거부');
     ok(await allowed(F.updateDoc(friend.ref('wraid', id), { [`claimed.${friend.uid}`]: true })), '쓰러진 뒤 내 보상 표시');
     ok(await denied(F.updateDoc(bad.ref('wraid', id), { [`claimed.${friend.uid}`]: false })), '남의 보상 표시 거부');
     ok(await denied(F.updateDoc(boss_.ref('wraid', id), { [`claimed.${boss_.uid}`]: true })), '안 친 사람은 보상 표시 거부');
@@ -276,6 +277,38 @@ const profile = (extra = {}) => ({ world: 1, nickname: '무인', level: 10, job:
   console.log('# 서열 점검 결과 (v476)');
   ok(await denied(F.getDoc(bad.ref('flags', bad.uid))), '점검 결과는 운영자만 읽는다');
   ok(await denied(F.setDoc(bad.ref('flags', bad.uid), { ok: true })), '스스로 되살리기 거부');
+
+  console.log('# 새 시즌 서열 · 월드보스 · 대결 · 문파 (v486)');
+  {
+    const sp = (extra = {}) => ({ season: 's2', nickname: '새무인', lv: 30, job: 'sword', power: 5000, pvpPower: 4000, pvpScore: 1000, wbScore: 0, guildId: null, tv: 's2-0.4', signed: true, updatedAt: F.serverTimestamp(), ...extra });
+    ok(await allowed(F.setDoc(friend.ref('s2_players', friend.uid), sp())), '새 시즌 서열 문서 만들기');
+    ok(await denied(F.setDoc(bad.ref('s2_players', friend.uid), sp())), '남의 서열 문서 거부');
+    ok(await denied(F.setDoc(bad.ref('s2_players', bad.uid), sp({ lv: 151 }))), '없는 레벨 거부');
+    ok(await denied(F.setDoc(bad.ref('s2_players', bad.uid), sp({ season: 's1' }))), '다른 시즌 표시 거부');
+    ok(await denied(F.setDoc(bad.ref('s2_players', bad.uid), sp({ gold: 1 }))), '모르는 칸 거부');
+    ok(await denied(F.setDoc(bad.ref('s2_players', bad.uid), sp({ updatedAt: 5 }))), '서버 시각 아니면 거부');
+    ok(await denied(F.setDoc(friend.ref('s2_players', friend.uid), sp({ lv: 20 }))), '레벨 줄이기 거부');
+    const wk = '2026-11-16', wb = (u, o = {}) => F.setDoc(u.ref('s2_wboss', wk, 'p', u.uid), { name: '새무인', score: 10000, tries: 1, best: 10000, at: F.serverTimestamp(), ...o });
+    ok(await allowed(wb(friend)), '월드보스 첫 점수');
+    ok(await denied(wb(friend, { score: 20000, tries: 2 })), '월드보스 너무 빨리 다시 치기 거부(60초)');
+    ok(await denied(wb(bad, { score: 9e6, best: 9e6 })), '한 번 상한 넘는 점수 거부');
+    ok(await denied(wb(bad, { tries: 2 })), '처음부터 2번째 거부');
+    ok(await denied(F.setDoc(bad.ref('s2_wboss', wk, 'p', friend.uid), { name: 'x', score: 1, tries: 1, best: 1, at: F.serverTimestamp() })), '남의 월드보스 점수 거부');
+    const pv = (u, o = {}) => F.setDoc(u.ref('s2_pvp', u.uid), { name: '새무인', deck: '{}', score: 1000, lv: 30, at: F.serverTimestamp(), ...o });
+    ok(await allowed(pv(friend)), '대결 방어 덱 올리기');
+    ok(await denied(pv(bad, { deck: 'x'.repeat(3001) })), '너무 긴 덱 거부');
+    ok(await denied(pv(bad, { score: 100000 })), '말이 안 되는 대결 점수 거부');
+    const lg = (o = {}) => F.addDoc(F.collection(bad.db, 's2_pvp', friend.uid, 'log'), { by: bad.uid, name: '나쁜', win: true, d: -8, seed: 3, at: F.serverTimestamp(), ...o });
+    ok(await allowed(lg()), '공격 기록 남기기');
+    ok(await denied(lg({ by: boss.uid })), '남의 이름으로 공격 기록 거부');
+    ok(await denied(lg({ d: -500 })), '큰 점수 깎기 거부');
+    ok(await denied(F.getDocs(F.collection(bad.db, 's2_pvp', friend.uid, 'log'))), '남의 공격 기록 읽기 거부');
+    ok(await allowed(F.setDoc(friend.ref('guilds', gid, 's2', 'train'), { data: '{}', at: F.serverTimestamp() })), '문파원은 새 시즌 문파 콘텐츠를 쓴다');
+    ok(await denied(F.setDoc(bad.ref('guilds', gid, 's2', 'train'), { data: '{}', at: F.serverTimestamp() })), '문파원 아니면 거부');
+    ok(await denied(F.setDoc(friend.ref('guilds', gid, 's2', 'hack'), { data: '{}', at: F.serverTimestamp() })), '모르는 콘텐츠 거부');
+    ok(await denied(F.setDoc(bad.ref('fame', 'level'), { rows: [] })), '명예의 전당은 운영자만 쓴다');
+    ok(await allowed(F.getDoc(bad.ref('fame', 'level'))), '명예의 전당은 누구나 읽는다');
+  }
 
   console.log('# 창고');
   ok(await denied(F.addDoc(F.collection(friend.db, 'guilds', gid, 'stash'), { kind: 'equip', type: 'weapon', grade: 99, uid: friend.uid })), '없는 등급 장비 넣기 거부');

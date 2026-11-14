@@ -40,6 +40,13 @@ import * as CT from '../js/s2/tables/content.js';
 import { runDungeon, canSweep } from '../js/s2/content/dungeon.js';
 import * as OF from '../js/s2/content/offline.js';
 import * as MS from '../js/s2/tables/missions.js';
+import * as ON from '../js/s2/tables/online.js';
+import * as PW from '../js/s2/online/power.js';
+import * as WB from '../js/s2/online/wboss.js';
+import * as PV from '../js/s2/online/pvp.js';
+import * as GU from '../js/s2/online/guild.js';
+import * as RK from '../js/s2/online/rank.js';
+import { Game, newGame, dayKey, weekKey } from '../js/s2/game.js';
 import * as ID from '../js/s2/content/idle.js';
 
 let fail = 0;
@@ -555,7 +562,7 @@ console.log('\n=== S7 방치 · 대기열 · 시간 티켓 · 길잡이 · 미�
     b.claim(cur.id);
   }
   ok(MS.guideCurrent(st)?.id === 'g12', 'Lv15·첫 30분 할 일로 길잡이 g11까지 · g12(두목)에서 기다림', MS.guideCurrent(st)?.id);
-  ok(MS.GUIDE.slice(0, 11).reduce((a, g) => a + g.huntMin, 0) <= 30, '첫 30분 길잡이 보상 ≤ 사냥 30분 상당');
+  ok(MS.GUIDE.slice(0, 11).reduce((a, g) => a + g.huntMin, 0) <= 6, '첫 30분 길잡이 경험치 몫 ≤ 사냥 6분 상당(레벨은 사냥이 정한다)');
   // 미션
   ok(MS.dailyMissionMin() === CT.DAILY_MISSION_MIN, '일일 미션 합 = 콘텐츠 표의 15분', MS.dailyMissionMin());
   const D = new QuestBook(MS.DAILY_MISSIONS, {});
@@ -568,16 +575,128 @@ console.log('\n=== S7 방치 · 대기열 · 시간 티켓 · 길잡이 · 미�
   ok(AB.claimable().sort().join() === 'a_level_0,a_level_1,a_level_2', '레벨 업적은 그 레벨까지 한꺼번에');
 }
 
+console.log('\n=== S8 전투력 · 월드보스 · 대결 · 문파 · 서열 ===');
+{
+  // 전투력: 레벨이 오를수록 표준 전투력이 오름 · 10% 오르면 처치 시간 약 9% 줄어듦
+  const sp = [1, 15, 60, 100, 127, 150].map((L) => PW.stdPower(L));
+  ok(sp.every((v, i) => i === 0 || v > sp[i - 1]), '표준 전투력이 레벨 따라 오른다', sp.join(' '));
+  const f = refPlayer(100), mob = makeMob(100, 'mob');
+  const up = { ...f, st: { ...f.st, atk: Math.round(f.st.atk * 1.1) } };
+  const pr = PW.power(up) / PW.power(f), tr = PW.dpsVs(f, mob) / PW.dpsVs(up, mob);
+  const per10 = (1 - Math.pow(tr, Math.log(1.1) / Math.log(pr)));
+  ok(per10 > 0.07 && per10 < 0.11, '전투력 10% ↑ → 처치 시간 약 9% ↓', (per10 * 100).toFixed(1) + '%');
+  const tank = { ...f, st: { ...f.st, hp: f.st.hp * 2 } };
+  ok(PW.power(tank, 'pvp') / PW.power(f, 'pvp') > PW.power(tank) / PW.power(f) + 0.2, '대결 전투력은 체력을 더 친다');
+  // 월드보스 점수
+  const L = 100, R = WB.refTryDmg(L), sc = [0.5, 1, 2, 4, 9, 16, 50].map((r) => WB.bossScore(R * r, L));
+  ok(sc.every((v, i) => i === 0 || v > sc[i - 1]) && sc[1] === ON.WB_SCORE_UNIT, '보스 점수는 피해 따라 오르고 기준 피해 = 1만 점', sc.join(' '));
+  ok((sc[3] - sc[2]) / 2 < (sc[2] - sc[1]) && (sc[6] - sc[5]) / 34 < (sc[5] - sc[4]) / 7, '큰 피해일수록 덜 오른다(제곱근 구간)');
+  const e = R * 1e-6; ok(Math.abs(WB.bossScore(R + e, L) - WB.bossScore(R, L)) <= 1 && Math.abs(WB.bossScore(4 * R + e, L) - WB.bossScore(4 * R, L)) <= 1, '구간 이음매에서 끊기지 않음');
+  const h0 = WB.phaseHp(L, 0);
+  ok(Math.abs(WB.phaseHp(L, 1) / h0 - 1.5) < 0.001 && WB.phaseOf(h0 * 1.2, L).phase === 1 && WB.phaseOf(0, L).phase === 0, '단계 체력 ×1.5 · 누적 피해로 단계');
+  const W = {}; ok([1, 2, 3].every(() => WB.useTry(W, 'd1')) && !WB.useTry(W, 'd1') && WB.useTry(W, 'd2'), '월드보스 하루 3번');
+  ok(WB.maxTryDmg(f, L) > R && WB.maxTryDmg(f, L) < R * 2, '한 번 피해 상한 = 기준 × 여유');
+  // 대결
+  const A = refPlayer(100), B = refPlayer(100), strong = { ...A, st: { ...A.st, atk: A.st.atk * 3, hp: A.st.hp * 3 } };
+  const d1 = PV.duel(A, B, 7), d2 = PV.duel(A, B, 7);
+  ok(JSON.stringify(d1) === JSON.stringify(d2), '대결은 결정론(같은 씨앗 = 같은 결과)');
+  let wins = 0; for (let s = 1; s <= 20; s++) wins += PV.duel(strong, B, s).win ? 1 : 0;
+  ok(wins === 20, '훨씬 센 쪽은 이긴다', wins);
+  let ew = 0; for (let s = 1; s <= 40; s++) ew += PV.duel(A, B, s).win ? 1 : 0;
+  ok(ew > 8 && ew < 32, '같은 힘이면 반쯤', ew);
+  const deck = PV.makeDeck(A); ok(PV.deckOk(deck) && !PV.deckOk({ ...deck, st: { ...deck.st, atk: deck.st.atk * 9 } }), '방어 덱 지문 — 손대면 들킴');
+  const up1 = PV.scoreDelta(true, 1000, 1500), up0 = PV.scoreDelta(true, 1000, 1000), dn = PV.scoreDelta(false, 1000, 500);
+  ok(up1.atk > up0.atk && up0.atk === ON.PVP.win && dn.atk < -ON.PVP.lose + 1 && up0.def < 0 && PV.scoreDelta(false, 1, 1).def > 0, '점수식: 센 상대를 이기면 더 · 약한 상대에게 지면 더 깎임');
+  ok(PV.tierOf(1000).name === '하수' && PV.tierOf(1450).name === '절정' && PV.tierOf(9999).name === '현경', '티어');
+  const pool = [{ uid: 'a', score: 1000 }, { uid: 'b', score: 1500 }, { uid: 'me', score: 1010 }];
+  ok(PV.findOpp(pool, { uid: 'me', score: 1010 }, new Rng(1)).uid === 'a' && PV.findOpp([{ uid: 'x', score: 3000 }], { uid: 'me', score: 1000 }, new Rng(1)) === null, '짝 찾기: 점수 가까운 상대 · 넓혀도 없으면 없음');
+  // 문파
+  const G = GU.newGuild('g1', 'u0');
+  for (let i = 1; i < 30; i++) GU.join(G, `u${i}`);
+  ok(G.members.length === GU.maxMembers(1) && GU.maxMembers(99) === 40, '회관 레벨 따라 인원', G.members.length);
+  ok(GU.startResearch(G, 'atk', 0) && !GU.startResearch(G, 'atk', 0) && GU.tickResearch(G, 3 * 3600e3 - 1).length === 0 && GU.tickResearch(G, 3 * 3600e3)[0] === 'atk' && G.research.atk.lv === 1, '연구: 대기 시간 뒤 레벨 +1');
+  const tm = { endMs: 10 * 3600e3 }; GU.askHelp(G, 'r1', 'u0', tm);
+  ok(GU.giveHelp(G, 'r1', 'u1', 0, 'd') && tm.endMs === 10 * 3600e3 - 360000 && !GU.giveHelp(G, 'r1', 'u1', 0, 'd') && !GU.giveHelp(G, 'r1', 'u0', 0, 'd'), '도움: 남은 1%(또는 3분) · 같은 사람 한 번 · 자기 것은 못 도움');
+  for (let i = 2; i <= 12; i++) GU.giveHelp(G, 'r1', `u${i}`, 0, 'd');
+  ok(G.helps.r1.by.length === 10, '한 요청에 도움 10번까지');
+  GU.raidHit(G, 'w1', 'u1', 150); GU.raidHit(G, 'w1', 'u2', 100);
+  ok(GU.raidTotal(G) === 250 && GU.raidPhase(250, 100).phase === 2 && GU.raidHit(G, 'w2', 'u1', 5) === 5, '토벌: 문파원 피해 합 · 주가 바뀌면 새로');
+  ok(GU.warResult(5, 3).join() === '3,0' && GU.warResult(2, 2).join() === '1,1', '대항 승점');
+  for (const u of G.members) GU.trainAdd(G, 'w1', u, ON.GUILD.train.goalPerMember);
+  ok(GU.trainProgress(G).full, '수련 막대가 차면 모두 보상');
+  ok(GU.CONTENTS.every((c) => GU.windowsOf(c).length === 7), '문파 콘텐츠 셋 다 같은 7창 세트');
+  // 서열 · 재현 검증 · 명예의 전당
+  const p = RK.buildProfile(refPlayer(100), { nickname: '무인' });
+  ok(RK.checkProfile(p).length === 0 && RK.checkProfile({ ...p, power: p.power * 10 }).length === 1 && RK.checkProfile({ ...p, lv: 151 }).length === 1, '서열 값 점검: 표준의 3배 넘는 전투력 · 없는 레벨은 걸림');
+  const body = { lv: 100, job: 'sword' }, text = SV.pack(body, 1);
+  const fo = (b) => refPlayer(b.lv, b.job);
+  ok(RK.verifySave(text, p, fo).length === 0, '세이브로 다시 계산 = 올린 값');
+  ok(RK.verifySave(text, { ...p, power: p.power * 2 }, fo).length === 1 && RK.verifySave(text.replace('"lv":100', '"lv":120'), p, fo).includes('서명'), '부풀린 전투력 · 고친 세이브는 걸림');
+  { const h = heroAt(60), G = GR.newGearState(); const b2 = { hero: h.s, gear: G }, t2 = SV.pack(b2, 1), f2 = RK.fighterOfBody(JSON.parse(t2).body);
+    ok(RK.verifySave(t2, RK.buildProfile(f2), RK.fighterOfBody).length === 0 && f2.lv === 60, '세이브 몸통(무인 + 장비)에서 서버가 같은 전투력을 다시 센다'); }
+  const room = simpleRoom(30), hero = refPlayer(30), F = new RoomFight(room, hero, 9); F.run(20000);
+  ok(RK.verifyFight(room, hero, F.log, 20000, F.digest()) && !RK.verifyFight(room, hero, { ...F.log, seed: 10 }, 20000, F.digest()), '전투 기록 재현 — 같으면 통과 · 씨앗 바꾸면 걸림');
+  const fame = RK.fameRows([{ nickname: 'a', level: 99, power: 5 }, { nickname: 'b', level: 120, power: 3 }, null]);
+  ok(fame.level[0].nickname === 'b' && fame.power[0].nickname === 'a' && fame.level.length === 2, '명예의 전당: 레벨·전투력 위');
+  const rules = fs.readFileSync(new URL('../firestore.rules', import.meta.url), 'utf8');
+  const m = rules.match(/function s2Keys\(\) \{\s*return \[([^\]]*)\]/);
+  ok(m && m[1].split(',').map((x) => x.trim().replace(/'/g, '')).sort().join() === [...RK.PROFILE_KEYS].sort().join(), '서버 규칙의 새 시즌 서열 칸 = 엔진 목록');
+}
+
+console.log('\n=== S9 게임 층 — 첫 30분을 실제로 해 보기 ===');
+{
+  const play = (seed, min = 30) => {
+    const T0 = 1.8e12, g = new Game(newGame('sword', T0, seed), T0);
+    let t = T0;
+    for (let s = 0; s < min * 60; s++) {
+      t += 1000; g.tick(t); g.hunt(1000);
+      if (s % 60 === 0) g.minute();
+      while (g.claimGuide());
+      const cur = MS.guideCurrent(g.S.q.guide);
+      if (g.S.wallet['ticket:gear'] >= 10 && (cur?.ev === 'gacha' || cur?.ev === 'equip' || s > 600)) g.pullGear(10);
+      if (cur?.ev === 'pull') { const sys = ['weapon', 'pal', 'relic'][+cur.cond.split('==')[1] - 1]; if (g.S.wallet[`ticket:${sys}`] >= 10) g.pullCollect(sys, 10); }
+      if (cur?.cond === 'elite' && g.S.gacha.eliteQ === 0) g.pullGear(10);   // 정예가 필요하면 은자로 뽑기
+      if (cur?.ev === 'enhance' || s % 30 === 0) g.enhance(GE.SLOTS[s % 10]);
+      if (cur?.ev === 'skill') g.skillUp('main') || g.skillUp('base');
+      if (cur?.ev === 'star') g.star('weapon');
+      if (cur?.ev === 'dungeon' && cur.cond === 'job == 1') g.jobDungeon();
+    }
+    return { g, t };
+  };
+  const { g, t } = play(5), b = play(5).g;
+  const lv = g.S.hero.lv, gi = +(MS.guideCurrent(g.S.q.guide)?.id || 'g99').slice(1);
+  ok(lv >= 14 && lv <= 17, '30분 플레이 → Lv 14~17(목표 15)', `Lv ${lv} · 처치 ${g.S.kills}`);
+  ok(Math.abs(g.S.kills / 30 - EX.KILLS_PER_MIN) <= 4, '분당 처치 ≈ 곡선 가정(27)', (g.S.kills / 30).toFixed(1));
+  ok(gi >= 11, '길잡이 11단계 이상', `g${gi}`);
+  ok(g.S.hero.adv === 1 && g.fight.deaths === 0, '1차 전직 · 사냥 중 죽지 않음');
+  ok(b.S.hero.lv === lv && b.S.kills === g.S.kills && b.S.wallet.gold === g.S.wallet.gold, '같은 씨앗 = 같은 30분(결정론)');
+  const txt = g.save(), g2 = Game.load(txt, t);
+  ok(g2.signed && g2.tableOk && g2.S.hero.lv === lv && g2.power() === g.power(), '저장 → 불러오기: 서명 · 표 판 · 같은 전투력');
+  ok(!Game.load(txt.replace(/"gold":\d+/, '"gold":999999999'), t).signed, '은자를 손으로 고친 세이브는 서명이 안 맞음');
+  // 돌아오기: 3시간 자리 비움 → 방치 몫
+  const p = g2.returnCheck(t + 3 * 3600e3);
+  const lv0 = g2.S.hero.lv; g2.claimOffline(true);
+  ok(p && p.ms === 3 * 3600e3 && g2.S.hero.lv > lv0, '3시간 뒤 돌아오면 방치 보상(광고 ×2)', `Lv ${lv0} → ${g2.S.hero.lv}`);
+  ok(dayKey(Date.UTC(2026, 10, 14, 15, 0)) === dayKey(Date.UTC(2026, 10, 15, 14, 59)) && dayKey(Date.UTC(2026, 10, 14, 14, 59)) !== dayKey(Date.UTC(2026, 10, 14, 15, 0)), '날 바뀜은 한국 시각 자정');
+  ok(new Date((weekKey(Date.UTC(2026, 10, 18)) * 864e5)).getUTCDay() === 1, '주 키는 월요일');
+  const src = fs.readFileSync(new URL('../js/s2/game.js', import.meta.url), 'utf8');
+  const sent = new Set([...src.matchAll(/\bemit\(\s*['"]([a-z]+)['"]/g)].map((m) => m[1]));
+  const heard = new Set([...MS.GUIDE, ...MS.DAILY_MISSIONS, ...MS.WEEKLY_MISSIONS, ...MS.achievements()].map((q) => q.ev));
+  const tableEv = [...heard].filter((e) => !sent.has(e) && !['wboss', 'pvp', 'sweep'].includes(e));
+  ok([...sent].every((e) => heard.has(e)) && tableEv.length === 0, '게임이 보내는 사건 = 길잡이·미션이 받는 사건(온라인 셋 빼고)', `보냄 ${[...sent].join(',')} · 받기만 ${tableEv.join(',')}`);
+}
+
 console.log('\n=== S0 규칙 ===');
 {
   const files = [];
   const walk = (d) => { for (const f of fs.readdirSync(d)) { const p = `${d}/${f}`; if (fs.statSync(p).isDirectory()) walk(p); else if (p.endsWith('.js')) files.push(p); } };
   walk(new URL('../js/s2', import.meta.url).pathname);
   const code = (p) => fs.readFileSync(p, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');   // 주석은 빼고
-  const bad = files.filter((p) => /Math\.random|Date\.now|performance\.now/.test(code(p)));
-  ok(bad.length === 0, 'js/s2 엔진은 Math.random·Date.now·performance.now를 쓰지 않는다(결정론)', bad.join(' '));
+  const bad = files.filter((p) => !p.includes('/js/s2/ui/')).filter((p) => /Math\.random|Date\.now|performance\.now/.test(code(p)));
+  ok(bad.length === 0, 'js/s2 엔진(화면 js/s2/ui 빼고)은 Math.random·Date.now·performance.now를 쓰지 않는다(결정론)', bad.join(' '));
   const shipped = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8') + fs.readFileSync(new URL('../js/wmain.js', import.meta.url), 'utf8');
   ok(!/s2\//.test(shipped), '지금 게임은 아직 새 시즌 코드를 부르지 않는다(교체 전)');
+  ok(/s2=1[\s\S]*s2\.html/.test(fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8')), 'index.html?s2=1 → 새 시즌 미리보기(s2.html)');
   ok(/정한 것 \(2026-11-14\)/.test(fs.readFileSync(new URL('../docs/새시즌_계획.md', import.meta.url), 'utf8')), '계획서가 있다');
 }
 

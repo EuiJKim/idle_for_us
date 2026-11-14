@@ -38,7 +38,8 @@ const ok = (c, name, info = '') => {
 console.log('=== 1. 보내는 사건 ↔ 받는 쪽 ===');
 {
   const sent = new Set();
-  for (const f of JS_FILES) {
+  // v487 새 시즌(js/s2)은 사건을 표(길잡이·미션의 ev)로 받는다 — 그쪽 짝은 tests/s2.mjs가 본다
+  for (const f of JS_FILES.filter((x) => !x.startsWith('js/s2/'))) {
     for (const m of read(f).matchAll(/\bemit\(\s*'([a-zA-Z]+)'/g)) sent.add(m[1]);
   }
   // 받는 쪽: case 'x': / ev.type === 'x' / on('x'
