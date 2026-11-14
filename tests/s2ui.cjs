@@ -23,16 +23,19 @@ const ok = (c, m, x = '') => { console.log(`  ${c ? '✓' : '✗ !!'} ${m}${x !=
     await page.waitForTimeout(7000);
     const g0 = await page.evaluate(() => ({ kills: window.__s2.g.S.kills, lv: window.__s2.g.S.hero.lv }));
     ok(g0.kills > 0, '저절로 사냥한다', `처치 ${g0.kills}`);
-    ok(/Lv \d+/.test(await page.textContent('#tl')), '왼쪽 위: 레벨 · 전투력');
-    ok(/길잡이 1/.test(await page.textContent('#bl')), '왼쪽 아래: 길잡이 1');
-    // 손 조작: 수동으로 바꾸고 바닥을 누르면 그쪽으로 걷는다
+    ok(/Lv.\d+/.test(await page.textContent('#bc')) && /⚔/.test(await page.textContent('#tl')), '아래 가운데 Lv·체력 · 왼쪽 위 전투력');
+    ok(/길잡이 1/.test(await page.textContent('#tl')), '왼쪽 위: 길잡이 1');
+    // 손 조작: 수동으로 바꾸고 ◀ 를 누르고 있으면 왼쪽으로 달린다 · 점프 단추
     await page.click('#au');
     ok(await page.evaluate(() => window.__s2.g.S.auto === false), '자동/수동 단추 — 수동으로');
-    const h0 = await page.evaluate(() => ({ x: window.__s2.g.fight.hero.x, y: window.__s2.g.fight.hero.y }));
-    await page.mouse.click(W * 0.1, H * 0.75);
-    await page.waitForTimeout(1500);
-    const h1 = await page.evaluate(() => ({ x: window.__s2.g.fight.hero.x, y: window.__s2.g.fight.hero.y }));
-    ok(Math.hypot(h1.x - h0.x, h1.y - h0.y) > 1500 && h1.x < h0.x, '바닥을 누르면 그쪽으로 걸어간다', `${h0.x},${h0.y} → ${h1.x},${h1.y}`);
+    const h0 = await page.evaluate(() => window.__s2.g.ensureFight().hero.x);
+    const pl = await page.$('#pl'); const bb = await pl.boundingBox();
+    await page.mouse.move(bb.x + bb.width / 2, bb.y + bb.height / 2); await page.mouse.down(); await page.waitForTimeout(1000); await page.mouse.up();
+    const h1 = await page.evaluate(() => window.__s2.g.ensureFight().hero.x);
+    ok(h0 - h1 > 1500, '◀ 누르고 있으면 왼쪽으로 달린다', `${h0} → ${h1}`);
+    await page.click('#jp'); await page.waitForTimeout(150);
+    ok(await page.evaluate(() => window.__s2.g.ensureFight().hero.vy !== 0 || window.__s2.g.ensureFight().hero.plat !== 0), '점프 단추');
+    ok(/Stage \d+\/10/.test(await page.textContent('#tc')), '위 가운데: 지역 · Stage n/10 · 도전');
     await page.click('#au');
     ok(await page.evaluate(() => window.__s2.g.S.auto !== false), '다시 자동으로');
     const navs = await page.$$('nav button');

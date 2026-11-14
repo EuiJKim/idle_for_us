@@ -5,7 +5,7 @@ import { pack, unpack } from './core/save.js';
 import { pay, gain } from './core/cost.js';
 import { QuestBook } from './core/quest.js';
 import { Hero, newHero } from './hero/hero.js';
-import { RoomFight } from './battle/room.js';
+import { SideFight, makeSideMap } from './battle/side.js';
 import { makeMob } from './battle/ref.js';
 import { mobExp, KILLS_PER_MIN, STD_ROOM } from './tables/exp.js';
 import { goldPerMob } from './tables/gearstat.js';
@@ -35,6 +35,10 @@ export const dayKey = (ms) => Math.floor((ms + KST) / DAY);
 export const weekKey = (ms) => { const d = dayKey(ms); return d - ((d + 3) % 7); };
 // 사냥터 두목: 이만큼 잡으면 하나 나온다
 export const BOSS_EVERY = 300;
+// 스테이지: 칸마다 잡을 수 · 칸 두목 제한 시간 · 옆보기 사냥터 몹 수
+export const STAGE_KILLS = 20, STAGE_BOSS_MS = 60000;
+export const SIDE_ROOM = { n: 18, coolMs: 1000 };
+export const STAGE_BOSS_HP_X = 0.5;   // 칸 두목은 기준 무인으로 20초 남짓(사냥터 두목의 절반)
 
 export function newGame(job = 'sword', nowMs = 0, seed = 1) {
   return {
@@ -124,23 +128,23 @@ export class Game {
       this.dirtyStats = true;
     }
   }
-  // ── 사냥 ──
-  zoneLv() { const S = this.S; return S.autoZone ? Math.max(1, S.hero.lv) : Math.max(1, Math.min(LEVEL_MAX, S.zone)); }
+  // ── 사냥(옆보기 · 스테이지) ──
+  // 지역(장) 15 × 스테이지 10 = 150칸. 칸 번호 = 몹 레벨. 칸마다 STAGE_KILLS마리 잡으면 「도전」 → 칸 두목을 시간 안에 잡으면 다음 칸
+  stage() { return (this.S.stage ??= { idx: 1, kills: 0, top: 1, auto: true, failIdx: 0 }); }
+  zoneLv() { return Math.max(1, Math.min(LEVEL_MAX, this.stage().idx)); }
   room() {
-    const L = this.zoneLv(), camps = [];
-    for (let i = 0; i < STD_ROOM.n; i++) camps.push({ x: 2000 + (i % 4) * 4000, y: 2500 + Math.floor(i / 4) * 4500, fam: 'a' });
-    camps.push({ x: 9000, y: 7000, fam: 'e' }, { x: 9000, y: 7000, fam: 'b' });
-    return { lv: L, w: 18000, h: 14000, camps, fams: {
-      a: { mobs: [{ lv: L, kind: 'mob', w: 1 }], keep: STD_ROOM.n, coolMs: STD_ROOM.coolMs },
+    const L = this.zoneLv();
+    return { lv: L, map: makeSideMap(1000 + L), fams: {
+      a: { mobs: [{ lv: L, kind: 'mob', w: 1 }], keep: SIDE_ROOM.n, coolMs: SIDE_ROOM.coolMs },
       e: { mobs: [{ lv: L, kind: 'elite', w: 1 }], keep: 0, coolMs: 500 },
       b: { mobs: [{ lv: L, kind: 'boss', w: 1 }], keep: 0, coolMs: 500 },
     } };
   }
   ensureFight() {
+    if (this.bossFight) return this.bossFight;
     const L = this.zoneLv();
     if (!this.fight || this.fight.def.lv !== L) {
-      this.fight = new RoomFight(this.room(), this.fighter(), this.rng.u32(), { auto: this.S.auto !== false });
-      this.fight.mobs = this.fight.mobs.filter((m) => m.fam === 'a');   // 정예·두목은 때가 되어야 나온다
+      this.fight = new SideFight(this.room(), this.fighter(), this.rng.u32(), { auto: this.S.auto !== false });
       this.dirtyStats = false;
     } else if (this.dirtyStats) {
       const st = this.fighter().st, H = this.fight.hero;
@@ -149,17 +153,49 @@ export class Game {
     }
     return this.fight;
   }
-  // 손 조작 — 눌러서 걷기 · 자동 사냥 켜고 끄기(세이브에 남음)
-  move(x, y) { this.ensureFight().press({ move: [Math.round(x), Math.round(y)] }); }
-  setAuto(on) { this.S.auto = !!on; this.ensureFight().press({ auto: !!on }); }
+  canChallenge() { const T = this.stage(); return !this.bossFight && T.kills >= STAGE_KILLS && T.idx < LEVEL_MAX; }
+  // 칸 두목 도전 — 두목 하나 · 제한 시간 · 이기면 다음 칸
+  challenge() {
+    if (!this.canChallenge()) return false;
+    const L = this.zoneLv();
+    const def = { lv: L, boss: true, map: makeSideMap(5000 + L, { w: 14000, tiers: 1 }), fams: { b: { mobs: [{ lv: L, kind: 'boss', w: 1 }], keep: 0, coolMs: 1e12 } } };
+    const F = new SideFight(def, this.fighter(), this.rng.u32(), { auto: this.S.auto !== false });
+    F.spawn('b', { p: 0, x: 9000 });
+    for (const m of F.mobs) { m.hp = Math.round(m.hp * STAGE_BOSS_HP_X); m.st = { ...m.st, hp: m.hp }; }
+    F.limitMs = STAGE_BOSS_MS;
+    this.bossFight = F;
+    this.feed.push({ k: 'challenge', idx: L });
+    return true;
+  }
+  endChallenge(win) {
+    const T = this.stage(), L = T.idx;
+    this.bossFight = null;
+    if (win) { T.idx = Math.min(LEVEL_MAX, L + 1); T.top = Math.max(T.top, T.idx); T.kills = 0; T.failIdx = 0; this.emit('dungeon', { stage: L }); }
+    else T.kills = 0;   // 지면 그 칸 몹을 다시 채운 뒤 재도전(자동이면 저절로)
+    this.feed.push({ k: win ? 'stage-clear' : 'stage-fail', idx: L, rewardMin: win ? 2 : 0 });
+    // 칸 보상: 은자 · 뽑기권(경험치는 사냥이 정한다 — 곡선 J1)
+    if (win) { this.S.wallet.gold += Math.round(2 * KILLS_PER_MIN * goldPerMob(L)); this.S.wallet['ticket:gear'] = (this.S.wallet['ticket:gear'] || 0) + (L % 10 === 0 ? 10 : 1); }
+  }
+  // 손 조작 — 방향(누르는 동안) · 점프 · 내려가기 · 무공 · 자동 켜고 끄기(세이브에 남음)
+  hold(dir) { this.ensureFight().press({ dir }); }
+  jump() { this.ensureFight().press({ jump: 1 }); }
+  down() { this.ensureFight().press({ down: 1 }); }
+  setAuto(on) { this.S.auto = !!on; this.ensureFight().press({ auto: !!on }); if (this.fight && this.bossFight) this.fight.press({ auto: !!on }); }
   // ms만큼 사냥(50ms 틱) — 처치마다 경험치 · 은자 · 사건
   hunt(ms) {
-    const F = this.ensureFight(), S = this.S;
-    const fs = F.famState;
-    fs.e.keep = S.gacha.eliteQ > 0 ? 1 : 0;
-    fs.b.keep = S.killsSinceBoss >= BOSS_EVERY ? 1 : 0;
+    const S = this.S, T = this.stage();
+    if (!this.bossFight && T.auto && this.canChallenge()) this.challenge();
+    const F = this.ensureFight();
+    if (!F.def.boss) {
+      const fs = F.famState;
+      fs.e.keep = S.gacha.eliteQ > 0 ? 1 : 0;
+      fs.b.keep = S.killsSinceBoss >= BOSS_EVERY ? 1 : 0;
+    }
     const end = F.t + ms;
-    while (F.t < end) F.step();
+    while (F.t < end) {
+      F.step();
+      if (F.def.boss && (F.killsBy.boss || F.t >= F.limitMs)) break;
+    }
     let n = 0;
     for (const e of F.events) {
       if (e[0] !== 'kill') continue;
@@ -169,13 +205,15 @@ export class Game {
       const gp = this.fighter().st.goldP || 0;
       S.wallet.gold += Math.round(goldPerMob(L) * (kind === 'boss' ? 20 : kind === 'elite' ? 5 : 1) * (1000 + gp) / 1000);
       if (kind === 'elite') { S.gacha.eliteQ = Math.max(0, S.gacha.eliteQ - 1); this.obtain(GC.eliteDrop(S.gacha, this.rng)); this.emit('kill', { n: 1, elite: 1 }); }
-      else if (kind === 'boss') { S.killsSinceBoss = 0; this.emit('kill', { n: 1, boss: 1 }); this.feed.push({ k: 'boss' }); }
-      else { S.killsSinceBoss++; this.emit('kill', { n: 1 }); }
+      else if (kind === 'boss') { if (!F.def.boss) S.killsSinceBoss = 0; this.emit('kill', { n: 1, boss: 1 }); if (!F.def.boss) this.feed.push({ k: 'boss' }); }
+      else { S.killsSinceBoss++; T.kills = Math.min(STAGE_KILLS, T.kills + 1); this.emit('kill', { n: 1 }); }
       const r = ID.suddenProgress(S.sudden, 1, this.now);
       if (r) { this.giveHuntMin(r.huntMin); this.feed.push({ k: 'sudden-done' }); }
     }
     this.lastEvents = F.events;
+    this.lastFight = F;
     F.events = [];
+    if (F.def.boss && (F.killsBy.boss || F.t >= F.limitMs)) this.endChallenge(!!F.killsBy.boss);
     return n;
   }
   // ── 시간이 흐름(타이머 · 날 바뀜) ──

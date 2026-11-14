@@ -46,7 +46,8 @@ import * as WB from '../js/s2/online/wboss.js';
 import * as PV from '../js/s2/online/pvp.js';
 import * as GU from '../js/s2/online/guild.js';
 import * as RK from '../js/s2/online/rank.js';
-import { Game, newGame, dayKey, weekKey } from '../js/s2/game.js';
+import { Game, newGame, dayKey, weekKey, STAGE_KILLS } from '../js/s2/game.js';
+import { SideFight, sideRoom, makeSideMap, replaySide } from '../js/s2/battle/side.js';
 import * as ID from '../js/s2/content/idle.js';
 
 let fail = 0;
@@ -668,7 +669,7 @@ console.log('\n=== S9 게임 층 — 첫 30분을 실제로 해 보기 ===');
   const { g, t } = play(5), b = play(5).g;
   const lv = g.S.hero.lv, gi = +(MS.guideCurrent(g.S.q.guide)?.id || 'g99').slice(1);
   ok(lv >= 14 && lv <= 17, '30분 플레이 → Lv 14~17(목표 15)', `Lv ${lv} · 처치 ${g.S.kills}`);
-  ok(Math.abs(g.S.kills / 30 - EX.KILLS_PER_MIN) <= 4, '분당 처치 ≈ 곡선 가정(27)', (g.S.kills / 30).toFixed(1));
+  ok(g.S.kills / 30 >= 12 && g.S.kills / 30 <= 32 && g.stage().idx >= 10, '30분: 분당 처치 12~32(칸 두목전 시간 포함) · 10칸 넘게 전진', `${(g.S.kills / 30).toFixed(1)}/분 · ${g.stage().idx}칸`);
   ok(gi >= 11, '길잡이 11단계 이상', `g${gi}`);
   ok(g.S.hero.adv === 1 && g.fight.deaths === 0, '1차 전직 · 사냥 중 죽지 않음');
   ok(b.S.hero.lv === lv && b.S.kills === g.S.kills && b.S.wallet.gold === g.S.wallet.gold, '같은 씨앗 = 같은 30분(결정론)');
@@ -691,6 +692,40 @@ console.log('\n=== S9 게임 층 — 첫 30분을 실제로 해 보기 ===');
   const heard = new Set([...MS.GUIDE, ...MS.DAILY_MISSIONS, ...MS.WEEKLY_MISSIONS, ...MS.achievements()].map((q) => q.ev));
   const tableEv = [...heard].filter((e) => !sent.has(e) && !['wboss', 'pvp', 'sweep'].includes(e));
   ok([...sent].every((e) => heard.has(e)) && tableEv.length === 0, '게임이 보내는 사건 = 길잡이·미션이 받는 사건(온라인 셋 빼고)', `보냄 ${[...sent].join(',')} · 받기만 ${tableEv.join(',')}`);
+}
+
+console.log('\n=== S9 옆보기 사냥(층층 발판 · 점프 · 스테이지) ===');
+{
+  // 맵: 위층 발판은 늘 바로 아래층과 1.5미터 넘게 겹친다(어디든 뛰어 오를 수 있음)
+  let bad = 0;
+  for (let sd = 1; sd <= 60; sd++) { const m = makeSideMap(sd); for (const p of m.plats) if (p.y > 0 && !m.plats.some((b) => b.y === p.y - 2300 && Math.min(b.x1, p.x1) - Math.max(b.x0, p.x0) >= 1500)) bad++; }
+  ok(bad === 0, '맵 60개: 모든 위층 발판 아래에 디딤 발판', bad);
+  const rates = ['sword', 'spear', 'fist', 'bow', 'mage'].map((job) => { const F = new SideFight(sideRoom(60, 3, { n: 18, coolMs: 1000 }), refPlayer(60, job), 7).run(120000); return F.kills / 2; });
+  ok(rates.every((r) => r >= 22 && r <= 45), '자동 사냥(기준 무인, 2분): 분당 처치 22~45 — 다섯 직업', rates.join(' '));
+  // 손 조작: 오른쪽으로 달리기 · 점프해서 위층 · 내려가기
+  const F = new SideFight(sideRoom(30, 5), refPlayer(30), 3, { auto: false });
+  F.mobs = [];  F.famState.a.keep = 0;
+  const x0 = F.hero.x; F.press({ dir: 1 }); F.run(1000);
+  ok(F.hero.x - x0 > 3500 && F.hero.plat === 0, '수동: ▶ 누르면 오른쪽으로 달린다', F.hero.x - x0);
+  F.press({ dir: 0 });
+  const up = F.def.map.plats.findIndex((p) => p.y === 2300);
+  F.hero.x = F.def.map.plats[up].x0 + 800; F.press({ jump: 1 }); F.run(1500);
+  ok(F.hero.plat === up && F.hero.y === 2300, '점프로 위층 발판에 올라선다');
+  F.press({ down: 1 }); F.run(1500);
+  ok(F.hero.plat === 0 && F.hero.y === 0, '▼ 로 아래층으로 내려간다');
+  // 재현: 같은 입력 기록 = 같은 결과
+  const a = new SideFight(sideRoom(40, 9), refPlayer(40), 11, { auto: false });
+  for (let i = 0; i < 1200; i++) { if (i % 100 === 0) a.press({ dir: i % 200 ? -1 : 1 }); if (i % 70 === 0) a.press({ jump: 1 }); if (i % 130 === 0) a.press('skill'); a.step(); }
+  const b = replaySide(sideRoom(40, 9), refPlayer(40), a.log, a.t, { auto: false });
+  ok(a.digest() === b.digest() && a.log.actions.length > 20, '옆보기 손 조작 기록 → 같은 결과로 재현', a.digest());
+  // 스테이지: 20마리 → 도전 → 이기면 다음 칸 · 지면 다시 채운 뒤
+  const T0 = 1.9e12, gg = new Game(newGame('sword', T0, 3), T0); gg.addExp(5e6);
+  gg.stage().auto = false;
+  ok(!gg.canChallenge() && !gg.challenge(), `칸 몹 ${STAGE_KILLS}마리 전엔 도전 못 함`);
+  let t = T0; while (gg.stage().kills < STAGE_KILLS && t < T0 + 600e3) { t += 1000; gg.tick(t); gg.hunt(1000); }
+  ok(gg.canChallenge() && gg.challenge() && !!gg.bossFight, '20마리 잡으면 도전 → 두목전');
+  let res = null; while (!res && t < T0 + 900e3) { t += 1000; gg.tick(t); gg.hunt(1000); res = gg.feed.find((f) => f.k === 'stage-clear' || f.k === 'stage-fail'); }
+  ok(res?.k === 'stage-clear' && gg.stage().idx === 2 && gg.stage().kills === 0 && !gg.bossFight, '센 무인은 이기고 다음 칸으로', res?.k);
 }
 
 console.log('\n=== S0 규칙 ===');

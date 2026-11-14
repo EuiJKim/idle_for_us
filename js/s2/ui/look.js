@@ -65,3 +65,39 @@ export function drawMob(cx, x, y, m, z, o = {}) {
   else drawFighter(cx, x, y, def.look, { t, weapon: def.look?.weapon, scale: (def.look?.scale || 1) * sc, flip, run: !!o.moving });
 }
 export const mobName = (m, z) => (m.kind === 'boss' ? z.boss?.name : z.mobs[m.id % z.mobs.length]?.name) || '';
+
+// ── 옆보기 사냥터(S9 재설계) ── 하늘 · 먼 산(수묵) · 나무 그림자 · 층층 발판(이끼 돌 · 나무 난간)
+export function drawSideBack(cx, W, H, z, camX, t) {
+  const ink = zoneInk(z);
+  const g = cx.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, ink[0]); g.addColorStop(0.55, ink[1]); g.addColorStop(1, shade(ink[3], 0.1));
+  cx.fillStyle = g; cx.fillRect(0, 0, W, H);
+  // 먼 산 두 겹(천천히 흐름)
+  for (const [k, col, base, amp] of [[0.08, ink[2], 0.58, 0.16], [0.18, shade(ink[2], -0.25), 0.7, 0.12]]) {
+    cx.fillStyle = col; cx.globalAlpha = 0.55; cx.beginPath(); cx.moveTo(0, H);
+    for (let x = 0; x <= W + 20; x += 20) { const u = (x + camX * k) / 180; cx.lineTo(x, H * (base - amp * (0.55 * Math.sin(u) + 0.3 * Math.sin(u * 2.3 + 1) + 0.15 * Math.sin(u * 5.1)))); }
+    cx.lineTo(W, H); cx.fill(); cx.globalAlpha = 1;
+  }
+  // 해·달
+  cx.fillStyle = ZONES[z.art]?.sun || '#c0392b'; cx.globalAlpha = 0.5; cx.beginPath(); cx.arc(W * 0.82, H * 0.2, Math.min(W, H) * 0.06, 0, 7); cx.fill(); cx.globalAlpha = 1;
+}
+// 발판 하나 — 화면 좌표(x0~x1, 윗면 y) · 두께 th
+export function drawLedge(cx, x0, x1, y, th, z, ground = false) {
+  const ink = zoneInk(z), top = shade(ink[3], 0.35), body = shade(ink[3], -0.05), dark = shade(ink[3], -0.45);
+  cx.save();
+  if (ground) {
+    cx.fillStyle = body; cx.fillRect(x0, y, x1 - x0, th);
+    cx.fillStyle = dark; for (let x = x0 - (x0 % 46); x < x1; x += 46) { cx.fillRect(x, y + th * 0.45, 28, 3); cx.fillRect(x + 20, y + th * 0.75, 24, 3); }
+  } else {
+    // 바위 몸통(아래로 둥글게) + 나무 받침
+    cx.fillStyle = body; cx.beginPath(); cx.moveTo(x0, y);
+    cx.lineTo(x1, y); cx.lineTo(x1 - 8, y + th * 0.7); cx.quadraticCurveTo((x0 + x1) / 2, y + th * 1.35, x0 + 8, y + th * 0.7); cx.closePath(); cx.fill();
+    cx.fillStyle = dark; for (let x = x0 + 14; x < x1 - 14; x += 34) { cx.beginPath(); cx.arc(x, y + th * 0.55, 4, 0, 7); cx.fill(); }
+    cx.strokeStyle = shade(ink[3], -0.6); cx.lineWidth = 2; cx.beginPath(); cx.moveTo(x0 + 10, y + th * 0.25); cx.lineTo(x1 - 10, y + th * 0.25); cx.stroke();
+  }
+  // 이끼 윗면(물결)
+  cx.fillStyle = top; cx.beginPath(); cx.moveTo(x0 - 3, y + 6);
+  for (let x = x0; x <= x1; x += 10) cx.lineTo(x, y - 3 + ((x * 7) % 5));
+  cx.lineTo(x1 + 3, y + 6); cx.closePath(); cx.fill();
+  cx.restore();
+}
