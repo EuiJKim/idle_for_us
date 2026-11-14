@@ -402,12 +402,16 @@ const floats = [];
 const mobHit = new Map();   // 몹 id → 맞은 때(번쩍 · 밀림)
 let freezeUntil = 0;       // 큰 무공 적중 멈칫
 const pals = [];           // 화면 위 동료(무인 뒤를 따라감)
+const JOB_COL = { sword: '#ffe9a8', spear: '#ffb27a', fist: '#ffd56a', bow: '#b6f0ff', mage: '#d4b8ff' };
 const PAL_COL = ['#7dd3fc', '#86efac', '#fde68a', '#f9a8d4', '#c4b5fd'];
 const PAL_KINDS = ['fox', 'crane', 'monkey', 'tiger', 'turtle', 'deer', 'haetae', 'qilin', 'phoenix', 'dragon'];
 let lastCastAt = 0;
 const palAtk = [];          // 동료 i → { at, mid } 마지막 공격
 const tells = new Map();    // 두목 id → 예고 { pat, x, y, w, at, dur }
 const dust = [];   // 발밑 흙먼지
+const shots = [];  // 날아가는 화살 · 기탄
+let lastSwing = 0;
+const hexAlpha = (c, a) => { const n = parseInt((c || '#ffffff').slice(1, 7), 16); return `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${a})`; };
 let lastDust = 0, wasAir = false, hurtFlash = -1e9, lastHitAt = 0, heroRun = 0, lastHx = 0, skillFx = [], camSm = null, camSy = null, cutIn = null, shakeUntil = 0;
 const mobPrev = new Map();
 // 그린 무공 효과 — 모양마다 놓는 자리 · 크기 · 움직임
@@ -560,9 +564,28 @@ function draw() {
   const [hx, hy] = P(lx(H), ly(H));
   for (let i = skillFx.length - 1; i >= 0; i--) {
     const f = skillFx[i], sk = skillById(f.id), col = sk?.col || '#ffe9a8';
-    const life = f.shape === 'rain' ? 800 : f.shape === 'circle' ? 560 : f.shape === 'buff' ? 900 : f.shape === 'hit' ? 240 : f.shape === 'ring' ? 380 : f.shape === 'boss' ? 700 : 440, a = (t - f.at) / life;
+    const life = f.shape === 'rain' ? 800 : f.shape === 'circle' ? 560 : f.shape === 'buff' ? 900 : f.shape === 'hit' ? 240 : f.shape === 'ring' ? 380 : f.shape === 'boss' ? 700 : f.shape === 'swing' ? 220 : 440, a = (t - f.at) / life;
     if (a > 1) { skillFx.splice(i, 1); continue; }
     if (a < 0) continue;
+    if (f.shape === 'swing') {
+      const [sx, sy] = P(f.x, f.y), [tx, ty] = P(f.tx, f.ty), jc = JOB_COL[f.job] || '#fff', ease = 1 - Math.pow(1 - a, 3);
+      cx.save(); cx.globalCompositeOperation = 'lighter'; cx.globalAlpha = 1 - a;
+      if (f.job === 'sword') {   // 앞으로 크게 긋는 호
+        const im = tintImg('art/fx/fx-slash.png', jc), w = 120 * k;
+        cx.translate(sx + f.face * 34 * k, sy - 40 * k); cx.scale(f.face, 1); cx.rotate(-0.9 + ease * 1.3);
+        if (im) cx.drawImage(im, -w * 0.2, -w / 2, w, w); else { cx.strokeStyle = jc; cx.lineWidth = 5 * k; cx.beginPath(); cx.arc(0, 0, 40 * k, -1, 1); cx.stroke(); }
+      } else if (f.job === 'spear') {   // 창끝에서 표적까지 곧게 뻗는 찌르기
+        const len = Math.max(60 * k, Math.abs(tx - sx)) * (0.4 + 0.6 * ease), y0 = sy - 42 * k;
+        const gr = cx.createLinearGradient(sx, 0, sx + f.face * len, 0); gr.addColorStop(0, 'rgba(255,255,255,0)'); gr.addColorStop(0.7, hexAlpha(jc, 0.8)); gr.addColorStop(1, '#fff');
+        cx.fillStyle = gr; cx.beginPath(); cx.moveTo(sx, y0 - 4.5 * k); cx.lineTo(sx + f.face * len, y0); cx.lineTo(sx, y0 + 4.5 * k); cx.fill();
+        cx.beginPath(); cx.moveTo(sx + f.face * len * 0.45, y0 - 11 * k); cx.lineTo(sx + f.face * (len + 16 * k), y0); cx.lineTo(sx + f.face * len * 0.45, y0 + 11 * k); cx.globalAlpha = (1 - a) * 0.6; cx.fill();
+        const ring = tintImg('art/fx/fx-ring.png', jc); if (ring) { const rw = 46 * k * (0.5 + ease); cx.globalAlpha = 1 - a; cx.drawImage(ring, tx - rw / 2, y0 - rw / 2, rw, rw); }   // 창끝이 닿는 자리
+      } else {   // 권: 맞는 자리에 동그랗게 터지는 충격
+        const im = tintImg('art/fx/fx-burst.png', jc), w = 110 * k * (0.5 + ease);
+        if (im) cx.drawImage(im, tx - w / 2, ty - 50 * k - w / 2, w, w); else { cx.fillStyle = jc; cx.beginPath(); cx.arc(tx, ty - 50 * k, w / 3, 0, 7); cx.fill(); }
+      }
+      cx.restore(); continue;
+    }
     if (f.shape === 'boss') {   // 두목 패턴 터짐 — 지금 게임의 큰 그림(태극 · 꽃잎 폭풍 · 핏빛 · 흑구)을 범위 위에
       const A = BOSS_ART[f.pat] || BOSS_ART.orb, im = oldImg(A.burst), [bx, by] = P(f.x, f.y), w = Math.max(160 * k, f.w * s) * (0.7 + 0.4 * (1 - Math.pow(1 - a, 3)));
       cx.save(); cx.globalCompositeOperation = 'lighter'; cx.globalAlpha = a < 0.6 ? 1 : (1 - a) / 0.4;
@@ -609,10 +632,35 @@ function draw() {
   if (hw) cx.restore();
   cx.font = '11px system-ui'; cx.textAlign = 'center'; cx.fillStyle = '#fff'; cx.strokeStyle = '#000'; cx.lineWidth = 3;
   cx.strokeText(JOBS[g.S.hero.job].name, hx, hy + 14); cx.fillText(JOBS[g.S.hero.job].name, hx, hy + 14);
+  // 화살 · 기탄 — 무인 손에서 표적까지(살짝 포물선) · 빛 꼬리
+  for (let i = shots.length - 1; i >= 0; i--) {
+    const q = shots[i], a = (t - q.at) / q.dur;
+    if (a > 1) { shots.splice(i, 1); continue; }
+    if (a < 0) continue;
+    const arc = q.kind === 'arrow' ? 260 : 0, px = (u) => q.x0 + (q.x1 - q.x0) * u, py = (u) => q.y0 + (q.y1 - q.y0) * u + arc * 4 * u * (1 - u);
+    const [x, y] = P(px(a), py(a)), [bx, by] = P(px(Math.max(0, a - 0.18)), py(Math.max(0, a - 0.18))), ang = Math.atan2(y - by, x - bx);
+    cx.save(); cx.globalCompositeOperation = 'lighter';
+    const tr = cx.createLinearGradient(bx, by, x, y); tr.addColorStop(0, 'rgba(255,255,255,0)'); tr.addColorStop(1, q.kind === 'arrow' ? hexAlpha(q.col, 0.7) : 'rgba(110,231,183,0.8)');
+    cx.strokeStyle = tr; cx.lineWidth = (q.kind === 'arrow' ? 3 : 7) * k; cx.lineCap = 'round'; cx.beginPath(); cx.moveTo(bx, by); cx.lineTo(x, y); cx.stroke();
+    cx.restore();
+    cx.save(); cx.translate(x, y); cx.rotate(ang);
+    if (q.kind === 'arrow') {
+      const L = 42 * k;
+      cx.strokeStyle = '#8b6a3a'; cx.lineWidth = 2.6 * k; cx.beginPath(); cx.moveTo(-L, 0); cx.lineTo(0, 0); cx.stroke();          // 살대
+      cx.fillStyle = '#f3f4f6'; cx.beginPath(); cx.moveTo(7 * k, 0); cx.lineTo(-4 * k, -4.5 * k); cx.lineTo(-4 * k, 4.5 * k); cx.fill();   // 촉
+      cx.fillStyle = q.crit ? '#ff6b9a' : '#f5f0e1'; cx.beginPath(); cx.moveTo(-L, 0); cx.lineTo(-L - 6 * k, -4 * k); cx.lineTo(-L + 5 * k, 0); cx.lineTo(-L - 6 * k, 4 * k); cx.fill();   // 깃
+    } else {
+      const r = 9 * k, og = cx.createRadialGradient(0, 0, 1, 0, 0, r * 2);
+      og.addColorStop(0, '#ecfdf5'); og.addColorStop(0.35, 'rgba(52,211,153,0.9)'); og.addColorStop(1, 'rgba(52,211,153,0)');
+      cx.globalCompositeOperation = 'lighter'; cx.fillStyle = og; cx.beginPath(); cx.arc(0, 0, r * 2, 0, 7); cx.fill();
+    }
+    cx.restore();
+  }
   // 큰 피해 숫자 — 위로 쌓이며 떠오름
   for (let i = floats.length - 1; i >= 0; i--) {
     const f = floats[i], a = (t - f.at) / 1000;
     if (a > 1) { floats.splice(i, 1); continue; }
+    if (a < 0) continue;   // 화살 · 기탄이 아직 날아가는 중
     const [x, y] = P(f.x, f.y), yy = y - 95 * sc - f.row * 22 * k - a * 18;
     const fs = (f.pal ? 14 : f.crit ? 24 : 18) * k * (a < 0.08 ? 1.3 - a * 3.75 : 1);
     cx.globalAlpha = a > 0.75 ? (1 - a) * 4 : 1; cx.textAlign = 'center';
@@ -657,9 +705,29 @@ function frame() {
     const mobs = new Map(F0.mobs.map((m) => [m.id, m]));
     g.hunt(dt);
     const rows = new Map();
+    let castShape = null, castCol = null;
     for (const e of g.lastEvents || []) {
-      if (e[0] === 'hit') { const m = mobs.get(e[2]); if (!m) continue; lastHitAt = t; mobHit.set(m.id, t + (e[6] || 0) * 70); if (e[5] && skillFx.length < 80) skillFx.push({ at: t + (e[6] || 0) * 70, shape: 'hit', x: m.x, y: m.y + 650, crit: e[4], rot: (m.id * 1.7 + (e[6] || 0)) % 6.28 }); const n = rows.get(m.id) || 0; rows.set(m.id, n + 1); if (floats.length < 60) floats.push({ x: m.x, y: m.y, d: e[3], crit: e[4], pal: e[5] === 2, at: t, row: (n + floats.filter((f) => f.mid === m.id && t - f.at < 500).length) % 6, mid: m.id }); }
-      else if (e[0] === 'cast') skillFx.push({ at: t, id: e[2], face: e[3], x: e[4], y: e[5], shape: e[6], R: e[7], hero: 1 });
+      if (e[0] === 'hit') {
+        const m = mobs.get(e[2]); if (!m) continue; lastHitAt = t;
+        // 궁사는 화살(평타 · 일직선 · 부채꼴 무공), 술사 평타는 옥빛 기탄 — 날아가 닿을 때 맞는다(번쩍 · 숫자도 그때)
+        const job = g.S.hero.job, H0 = F0.hero;
+        const shot = e[5] !== 2 && ((job === 'bow' && (e[5] === 0 || castShape === 'line' || castShape === 'arc')) || (job === 'mage' && e[5] === 0));
+        let fly = 0;
+        if (shot && shots.length < 40) {
+          const x0 = H0.x + (H0.face || 1) * 350, y0 = H0.y + 950, x1 = m.x, y1 = m.y + 750;
+          fly = Math.min(260, Math.max(80, Math.hypot(x1 - x0, y1 - y0) / (job === 'bow' ? 30 : 20)));
+          const lag = (e[6] || 0) * 70 + (e[5] ? (shots.length % 3) * 30 : 0);
+          shots.push({ x0, y0, x1, y1, at: t + lag, dur: fly, kind: job === 'bow' ? 'arrow' : 'orb', crit: e[4], col: castCol || '#ffe9a8' });
+          fly += lag;
+        } else fly = (e[6] || 0) * 70;
+        mobHit.set(m.id, t + fly);
+        // 근접 평타 — 검은 베기 호, 창은 찌르기 줄기, 권사는 맞는 자리에 충격(무기마다 다르게). 한 번 휘두를 때 한 번만
+        if (e[5] === 0 && !shot && t - lastSwing > 120 && skillFx.length < 90) { lastSwing = t; skillFx.push({ at: t, shape: 'swing', job, x: H0.x, y: H0.y, tx: m.x, ty: m.y, face: Math.sign(m.x - H0.x) || H0.face || 1 }); }
+        if ((e[5] || shot) && skillFx.length < 80) skillFx.push({ at: t + fly, shape: 'hit', x: m.x, y: m.y + 650, crit: e[4], rot: (m.id * 1.7 + (e[6] || 0)) % 6.28 });
+        const n = rows.get(m.id) || 0; rows.set(m.id, n + 1);
+        if (floats.length < 60) floats.push({ x: m.x, y: m.y, d: e[3], crit: e[4], pal: e[5] === 2, at: t + (shot ? fly : 0), row: (n + floats.filter((f) => f.mid === m.id && t - f.at < 500).length) % 6, mid: m.id });
+      }
+      else if (e[0] === 'cast') { castShape = e[6]; castCol = skillById(e[2])?.col; skillFx.push({ at: t, id: e[2], face: e[3], x: e[4], y: e[5], shape: e[6], R: e[7], hero: 1 }); }
       else if (e[0] === 'buff') skillFx.push({ at: t, id: e[2], shape: 'buff', hero: 1 });
       else if (e[0] === 'pal') palAtk[e[2]] = { at: t, mid: e[3] };
       else if (e[0] === 'tell') tells.set(e[2], { pat: e[3], x: e[4], y: e[5], w: e[6], at: t, dur: e[7] });

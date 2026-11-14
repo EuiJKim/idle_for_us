@@ -12,7 +12,7 @@ export function loadLooks(onDone) { try { loadArt(() => { ready = true; onDone?.
 export const looksReady = () => ready;
 
 // 새 직업 → 지금 게임의 무기 그림
-const WEAPON = { sword: 'sword', spear: 'spear', fist: 'fist', bow: 'fan', mage: 'fan' };
+const WEAPON = { sword: 'sword', spear: 'spear', fist: 'fist', bow: 'bow', mage: 'staff' };   // v500 궁사는 활 · 술사는 지팡이(전엔 둘 다 부채)
 const ZLIST = ZONES_W.filter((z) => z && Array.isArray(z.lv) && z.mobs?.length).sort((a, b) => a.lv[0] - b.lv[0]);
 export function zoneFor(L) {
   let z = ZLIST[0];

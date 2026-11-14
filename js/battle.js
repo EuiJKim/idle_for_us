@@ -5445,6 +5445,43 @@ function drawWeapon(ctx, weapon, o, t, lunge) {
       ctx.fillStyle = '#9ca3af';
       ctx.beginPath(); ctx.moveTo(0, -38); ctx.quadraticCurveTo(18, -44, 16, -24); ctx.lineTo(0, -28); ctx.fill();
       break;
+    case 'bow': {
+      // v500 궁사의 활 — 손이 줌통을 쥐고, 위아래 오금이 앞으로 휜 각궁(뿔 · 대나무 · 붉은 끝). 시위는 활 뒤로 곧게
+      ctx.save(); ctx.scale(0.72, 0.72);
+      // 손의 '앞'(-y)이 겨누는 쪽 — 활대는 그와 직각(x축)으로 서고 오금은 앞으로, 시위는 몸 쪽(+y)
+      const lim = (dir) => { ctx.beginPath(); ctx.moveTo(0, 0); ctx.bezierCurveTo(dir * 10, -9, dir * 22, -10, dir * 32, -3); ctx.stroke(); };
+      ctx.lineCap = 'round';
+      ctx.strokeStyle = '#2a1a0e'; ctx.lineWidth = 5.2; lim(-1); lim(1);
+      ctx.strokeStyle = '#8b5a2b'; ctx.lineWidth = 3.4; lim(-1); lim(1);
+      ctx.strokeStyle = '#d6a45a'; ctx.lineWidth = 1.2; lim(-1); lim(1);
+      ctx.fillStyle = '#b91c1c'; circle(ctx, -32, -3, 2.2); circle(ctx, 32, -3, 2.2);   // 고자(끝)
+      const pull = Math.min(1, (lunge || 0) * 1.4);
+      ctx.strokeStyle = 'rgba(245,240,225,0.9)'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(-32, -3); ctx.lineTo(0, 7 + pull * 12); ctx.lineTo(32, -3); ctx.stroke();   // 시위(쏠 때 당겨짐)
+      if (pull > 0.2) { ctx.strokeStyle = '#e7d3a8'; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.moveTo(0, 7 + pull * 12); ctx.lineTo(0, -30); ctx.stroke(); }   // 메긴 화살
+      ctx.fillStyle = '#3b2a1a'; roundRect(ctx, -5, -2.5, 10, 5, 2); ctx.fill();   // 줌통
+      ctx.restore();
+      break;
+    }
+    case 'staff': {
+      // v500 술사의 지팡이 — 굽은 나무 지팡이 끝에 옥구슬(숨 쉬듯 빛남) · 붉은 술
+      ctx.save(); ctx.scale(0.72, 0.72); ctx.translate(0, 8);
+      ctx.lineCap = 'round';
+      ctx.strokeStyle = '#2a1a0e'; ctx.lineWidth = 4.6;
+      ctx.beginPath(); ctx.moveTo(0, 26); ctx.quadraticCurveTo(-3, -20, 2, -58); ctx.stroke();
+      ctx.strokeStyle = '#7a5230'; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.moveTo(0, 26); ctx.quadraticCurveTo(-3, -20, 2, -58); ctx.stroke();
+      ctx.strokeStyle = '#5b3a1e'; ctx.lineWidth = 2.2; ctx.beginPath(); ctx.arc(2, -64, 7, Math.PI * 0.6, Math.PI * 2.4); ctx.stroke();   // 끝 갈고리
+      const gl = 0.55 + 0.3 * Math.sin(t * 4) + (lunge || 0) * 0.4;
+      const og = ctx.createRadialGradient(2, -64, 1, 2, -64, 13);
+      og.addColorStop(0, `rgba(220,255,240,${Math.min(1, gl)})`); og.addColorStop(0.4, `rgba(110,231,183,${Math.min(0.9, gl * 0.8)})`); og.addColorStop(1, 'rgba(110,231,183,0)');
+      ctx.fillStyle = og; circle(ctx, 2, -64, 13);
+      ctx.fillStyle = '#34d399'; circle(ctx, 2, -64, 4.2); ctx.fillStyle = '#ecfdf5'; circle(ctx, 0.8, -65.4, 1.3);
+      ctx.strokeStyle = '#b91c1c'; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.moveTo(-1, -54); ctx.quadraticCurveTo(-5 + Math.sin(t * 5) * 2, -46, -3, -40); ctx.stroke();
+      ctx.restore();
+      break;
+    }
     case 'fan': {
       // v323 그림 몸에 맞춘 부채 — 종이에 명암, 살은 어두운 대나무, 테두리, 손잡이 끝에 붉은 수술
       const pg = ctx.createRadialGradient(0, -4, 2, 0, -4, 24);
