@@ -104,19 +104,18 @@ export class Hero {
     if (!sk || !nd || !K.lv[id]) return false;
     if ((K.tree?.[id]?.[n] || 0) >= nd.max) return false;
     if (this.treeSpent(id) < TREE_GATE[nd.tier]) return false;
-    if (nd.waitMin && K.learning) return false;
     return this.treePts(stageTop).left >= nd.pts;
   }
   treeUp(id, n, nowMs, stageTop = 1) {
     if (!this.canTreeUp(id, n, stageTop)) return false;
     const K = this.kitState(), nd = treeOf(skillById(id)).find((x) => x.n === n);
-    if (nd.waitMin) { K.learning = { id, n, endMs: nowMs + nd.waitMin * 60000 }; return 'wait'; }
     ((K.tree ??= {})[id] ??= {})[n] = (K.tree[id][n] || 0) + 1;
     return true;
   }
-  treeTick(nowMs) {
+  // 예전 세이브에 남은 「배우는 중」은 바로 끝낸다(v505 — 기다리는 시간 없음)
+  treeTick() {
     const K = this.kitState(), L = K.learning;
-    if (!L || nowMs < L.endMs) return null;
+    if (!L) return null;
     ((K.tree ??= {})[L.id] ??= {})[L.n] = (K.tree[L.id][L.n] || 0) + 1; K.learning = null;
     return L;
   }
@@ -150,13 +149,13 @@ export class Hero {
     if (!this.canLearn(id)) return false;
     const n = MASTERY.find((x) => x.id === id);
     if (!pay(wallet, masteryCost(n))) return false;
-    this.s.mastery.learning = { id, endMs: nowMs + n.waitMin * 60000 };
+    this.s.mastery.done.push(id);   // v505 바로 배운다
     return true;
   }
   // 시간이 흐르면 끝난 마스터리를 거둔다(시간 티켓은 endMs를 당긴다)
   tickMastery(nowMs) {
     const L = this.s.mastery.learning;
-    if (L && nowMs >= L.endMs) { this.s.mastery.done.push(L.id); this.s.mastery.learning = null; return L.id; }
+    if (L) { this.s.mastery.done.push(L.id); this.s.mastery.learning = null; return L.id; }
     return null;
   }
   rushMastery(ms) { const L = this.s.mastery.learning; if (L) L.endMs -= Math.max(0, ms); }

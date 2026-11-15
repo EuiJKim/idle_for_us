@@ -127,6 +127,14 @@ export class SideFight {
           down = true;
         } else dir = Math.sign(dx) || 1;
       }
+      // v505 자동이면 두목 패턴의 붉은 범위 안에서 가까운 쪽 밖으로 비킨다(수동은 직접 피해야 한다)
+      for (const m of this.mobs) {
+        const q = m.pat; if (!q || Math.abs(H.y - q.y) > SAME_Y + 600 || Math.abs(H.x - q.x) > q.w / 2 + 250) continue;
+        const out = Math.sign(H.x - q.x) || -(H.face || 1), edge = q.x + out * (q.w / 2 + 300);
+        if ((out > 0 && edge > map.w - 200) || (out < 0 && edge < 200)) dir = -out; else dir = out;
+        H.closing = false; jump = false; down = false;
+        break;
+      }
     } else if (!this.auto && (!tgt || Math.abs(tgt.y - H.y) > SAME_Y || Math.abs(tgt.x - H.x) > J.range)) {
       // 수동: 사거리 안 같은 층 몹만 표적
       tgt = this.mobs.filter((m) => Math.abs(m.y - H.y) <= SAME_Y && Math.abs(m.x - H.x) <= J.range).sort((a, b) => Math.abs(a.x - H.x) - Math.abs(b.x - H.x))[0] || null;

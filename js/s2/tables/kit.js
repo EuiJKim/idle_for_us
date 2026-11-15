@@ -60,14 +60,14 @@ export const TREE = {
     { n: 'cdr', name: '쿨 감소', tier: 0, max: 5, pts: 1, eff: { cdr: 30 } },      // 쿨 −3%/레벨
     { n: 'rng', name: '범위', tier: 1, max: 3, pts: 2, eff: { rng: 80 } },          // 사거리 +8%/레벨
     { n: 'tgt', name: '대상 수', tier: 1, max: 3, pts: 2, eff: { tgt: 1 } },        // 최대 대상 +1/레벨
-    { n: 'hit', name: '연타', tier: 2, max: 1, pts: 4, eff: { hit: 1 }, waitMin: 60 },
-    { n: 'cri', name: '극의', tier: 2, max: 3, pts: 3, eff: { cri: 80 }, waitMin: 40 }, // 이 무공 치명 확률 +8%/레벨
+    { n: 'hit', name: '연타', tier: 2, max: 1, pts: 4, eff: { hit: 1 } },
+    { n: 'cri', name: '극의', tier: 2, max: 3, pts: 3, eff: { cri: 80 } }, // 이 무공 치명 확률 +8%/레벨
   ],
   buff: [
     { n: 'dur', name: '지속', tier: 0, max: 5, pts: 1, eff: { dur: 100 } },        // 지속 +10%/레벨
     { n: 'cdr', name: '쿨 감소', tier: 0, max: 5, pts: 1, eff: { cdr: 40 } },
     { n: 'amp', name: '효과', tier: 1, max: 3, pts: 2, eff: { amp: 120 } },         // 효과 +12%/레벨
-    { n: 'all', name: '여운', tier: 2, max: 1, pts: 4, eff: { dur: 300 }, waitMin: 90 },
+    { n: 'all', name: '여운', tier: 2, max: 1, pts: 4, eff: { dur: 300 } },
   ],
 };
 export const treeOf = (sk) => (sk && TREE[sk.kind]) || [];

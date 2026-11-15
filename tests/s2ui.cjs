@@ -17,14 +17,14 @@ const ok = (c, m, x = '') => { console.log(`  ${c ? '✓' : '✗ !!'} ${m}${x !=
     page.on('console', (m) => { if (m.type() === 'error') errs.push(m.text()); });
     console.log(`— ${W}×${H}`);
     await page.goto(BASE, { waitUntil: 'domcontentloaded' });
-    await page.waitForSelector('#pop.open');
-    ok((await page.$$('#pop .btn')).length === 5, '무인 고르기 — 직업 다섯');
-    await page.click('#pop .btn >> nth=0');
+    await page.waitForSelector('#modal:not(.hidden)');
+    ok((await page.$$('#modal .btn')).length === 5, '무인 고르기 — 직업 다섯');
+    await page.click('#modal .btn >> nth=0');
     await page.waitForTimeout(7000);
     const g0 = await page.evaluate(() => ({ kills: window.__s2.g.S.kills, lv: window.__s2.g.S.hero.lv }));
     ok(g0.kills > 0, '저절로 사냥한다', `처치 ${g0.kills}`);
-    ok(/Lv.\d+/.test(await page.textContent('#bc')) && /⚔/.test(await page.textContent('#tl')), '아래 가운데 Lv·체력 · 왼쪽 위 전투력');
-    ok(/길잡이 1/.test(await page.textContent('#tl')), '왼쪽 위: 길잡이 1');
+    ok(/Lv.\d+/.test(await page.textContent('#hero-lv')) && /전투력/.test(await page.textContent('#power-label')) && /체력/.test(await page.textContent('#progress-text')), 'v505 지금 게임 틀: 위 상태 줄 Lv · 들판 전투력 · 체력 줄');
+    ok(/길잡이 1/.test(await page.textContent('#quest')), '들판 위 길잡이 1');
     // 손 조작: 수동으로 바꾸고 ◀ 를 누르고 있으면 왼쪽으로 달린다 · 점프 단추
     await page.click('#au');
     ok(await page.evaluate(() => window.__s2.g.S.auto === false), '자동/수동 단추 — 수동으로');
@@ -35,19 +35,21 @@ const ok = (c, m, x = '') => { console.log(`  ${c ? '✓' : '✗ !!'} ${m}${x !=
     ok(h0 - h1 > 1500, '◀ 누르고 있으면 왼쪽으로 달린다', `${h0} → ${h1}`);
     await page.click('#jp'); await page.waitForTimeout(150);
     ok(await page.evaluate(() => window.__s2.g.ensureFight().hero.vy !== 0 || window.__s2.g.ensureFight().hero.plat !== 0), '점프 단추');
-    ok(/Stage \d+\/10/.test(await page.textContent('#tc')), '위 가운데: 지역 · Stage n/10 · 도전');
+    ok(/Stage \d+\/10/.test(await page.textContent('#zone-label')) && /\d+\. /.test(await page.textContent('#stage-label')), '사냥터 줄: 장 이름 · Stage n/10');
     await page.click('#au');
     ok(await page.evaluate(() => window.__s2.g.S.auto !== false), '다시 자동으로');
-    const navs = await page.$$('nav button');
-    ok(navs.length === 6, '아래 메뉴 여섯');
+    const navs = await page.$$('#tabs button[data-tab]');
+    ok(navs.length === 7, '들판 창 단추 일곱(지도 · 던전 · 마을 · 무림 · 캐릭터 · 가방 · 동료)');
     let tabsSeen = 0; const empty = [], outside = [];
-    for (let i = 0; i < navs.length; i++) {
-      await page.click(`nav button >> nth=${i}`);
-      const n = (await page.$$('#wtabs button')).length;
+    await page.click('#tabs button[data-tab] >> nth=0');
+    ok((await page.$$('#ptabs button')).length === 7 && await page.evaluate(() => document.getElementById('panel').classList.contains('open')), '아래에서 창이 올라오고 창 머리에 창 줄 일곱');
+    for (let i = 0; i < 7; i++) {
+      await page.click(`#ptabs button >> nth=${i}`);
+      const n = Math.max(1, (await page.$$('#panel-body .subtabs button')).length);
       for (let t = 0; t < n; t++) {
-        await page.click(`#wtabs button >> nth=${t}`);
+        if (n > 1) await page.click(`#panel-body .subtabs button >> nth=${t}`);
         tabsSeen++;
-        const name = `${await page.textContent('#wt')}/${await page.textContent(`#wtabs button >> nth=${t}`)}`;
+        const name = `${await page.textContent('#panel-title')}/${n > 1 ? await page.textContent(`#panel-body .subtabs button >> nth=${t}`) : '-'}`;
         if (!(await page.$$('#wb > *')).length) empty.push(name);
         if (/undefined|NaN|null/.test(await page.textContent('#wb'))) empty.push(`${name}:글자`);
         for (const bt of await page.$$('#wb button')) { const r = await bt.boundingBox(); if (r && (r.x < 0 || r.x + r.width > W + 1)) outside.push(name); }
@@ -56,7 +58,7 @@ const ok = (c, m, x = '') => { console.log(`  ${c ? '✓' : '✗ !!'} ${m}${x !=
     ok(tabsSeen >= 24, '창 탭 전부 열어 봄', tabsSeen);
     ok(empty.length === 0, '빈 창 · 이상한 글자 없음', empty.join(' '));
     ok(outside.length === 0, '단추가 화면 안', [...new Set(outside)].join(' '));
-    await page.click('nav button >> nth=1'); await page.click('#wtabs button >> nth=1');
+    await page.click('#ptabs button[data-tab="bag"]'); await page.click('#panel-body .subtabs button >> nth=1');
     const t0 = await page.evaluate(() => window.__s2.g.S.wallet['ticket:gear']);
     await page.click('#wb .row:nth-child(4) .btn');
     const t1 = await page.evaluate(() => window.__s2.g.S.wallet['ticket:gear']);
@@ -67,8 +69,9 @@ const ok = (c, m, x = '') => { console.log(`  ${c ? '✓' : '✗ !!'} ${m}${x !=
     ok((await page.$$('.gx .gc.open')).length === 10, '건너뛰기 → 전부 뒤집힘');
     await page.click('.gx .skip');
     ok(!(await page.$('.gx')), '닫기 → 연출 사라짐');
-    await page.click('#wx');
-    ok(!(await page.isVisible('#win')), '창 닫기');
+    await page.click('#panel-close');
+    ok(!(await page.evaluate(() => document.getElementById('panel').classList.contains('open'))), '창 닫기');
+    await page.click('#btn-settings'); ok(/설정/.test(await page.textContent('#panel-title')) && /효과음/.test(await page.textContent('#wb')), '⚙ → 설정 창'); await page.click('#panel-close');
     await page.screenshot({ path: path.join(OUT, `s2ui-${W}.png`) });
     // 방치: 마지막 접속을 3시간 전으로 돌려 저장 → 다시 열면 방치 보상 창
     await page.evaluate(() => { const g = window.__s2.g; g.S.offline.lastSeen -= 3 * 3600e3; g.S.offline.clockMax -= 3 * 3600e3; localStorage.setItem('ifu.s2.save', g.save()); window.__s2.freeze(); });
@@ -76,10 +79,10 @@ const ok = (c, m, x = '') => { console.log(`  ${c ? '✓' : '✗ !!'} ${m}${x !=
     const p2 = await ctx.newPage();
     p2.on('pageerror', (e) => errs.push(e.message));
     await p2.goto(BASE, { waitUntil: 'domcontentloaded' });
-    await p2.waitForSelector('#pop.open');
-    ok(/방치 보상/.test(await p2.textContent('#pc')), '3시간 뒤 다시 열면 방치 보상 창');
+    await p2.waitForSelector('#modal:not(.hidden)');
+    ok(/방치 보상/.test(await p2.textContent('#modal .sheet')), '3시간 뒤 다시 열면 방치 보상 창');
     const lv0 = await p2.evaluate(() => window.__s2.g.S.hero.lv);
-    await p2.click('#pop .btn >> nth=1');
+    await p2.click('#modal .btn >> nth=1');
     const lv1 = await p2.evaluate(() => window.__s2.g.S.hero.lv);
     ok(lv1 > lv0, '광고 ×2로 받기 → 레벨이 오른다', `${lv0} → ${lv1}`);
     ok(errs.length === 0, '콘솔 오류 없음', errs.slice(0, 3).join(' | '));

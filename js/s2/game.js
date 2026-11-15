@@ -249,7 +249,7 @@ export class Game {
     const items = GC.pull(this.S.gacha, n, this.rng, this.S.wallet, this.S.hero.lv, { ticket });
     if (!items) return null;
     this.emit('gacha', { n });
-    if (GC.canLevelUp(this.S.gacha)) GC.startLevelUp(this.S.gacha, this.now);
+    if (GC.canLevelUp(this.S.gacha) && GC.startLevelUp(this.S.gacha, this.now)) this.feed.push({ k: 'gacha-lv', lv: this.S.gacha.lv });   // v505 바로 오른다
     return { items, got: this.obtain(items) };
   }
   enhance(slot) { const r = GR.enhance(this.S.gear, slot, this.rng, this.S.wallet, this.S.hero.lv); if (r !== null) this.emit("enhance"); if (r) this.dirtyStats = true; return r; }
@@ -267,16 +267,16 @@ export class Game {
   treeReset() { const r = this.hero.treeReset(this.S.wallet, this.stage().top); if (r) this.dirtyStats = true; return r; }
   treePts() { return this.hero.treePts(this.stage().top); }
   // ── 경지 · 강호행 ──
-  realmUp() { return RM.realmStart(this.S.realm, this.now, this.S.wallet, goldPerMob(this.S.hero.lv)); }
+  realmUp() { const ok = RM.realmStart(this.S.realm, this.now, this.S.wallet, goldPerMob(this.S.hero.lv)); if (ok) { this.dirtyStats = true; this.emit('realm', { lv: this.S.realm.lv }); this.feed.push({ k: 'realm', lv: this.S.realm.lv }); } return ok; }
   journeyFight() {
     const J = this.S.journey, step = J.cleared;
     const r = runDungeon({ clear: 'boss', timeMs: 60000, mobLv: Math.max(1, Math.round(40 + step * 1.8)), kind: 'boss', n: 1 }, this.fighter(), this.rng.u32());
     if (r.cleared) J.cleared++;
     return r;
   }
-  journeyOpen() { const ok = RM.journeyStart(this.S.journey, this.now, this.S.wallet, this.rng); return ok; }
+  journeyOpen() { const ok = RM.journeyStart(this.S.journey, this.now, this.S.wallet, this.rng); if (ok) { this.dirtyStats = true; this.feed.push({ k: 'journey', step: this.S.journey.step }); } return ok; }
   // ── 무인 ──
-  learn(id) { const ok = this.hero.learn(id, this.now, this.S.wallet); if (ok) this.emit('skill'); return ok; }
+  learn(id) { const ok = this.hero.learn(id, this.now, this.S.wallet); if (ok) { this.dirtyStats = true; this.emit('skill'); this.feed.push({ k: 'mastery' }); } return ok; }
   skillUp(k) { const ok = this.hero.skillUp(k, this.S.wallet); if (ok) { this.dirtyStats = true; this.emit('skill'); } return ok; }
   jobDungeon() {
     const n = this.S.hero.adv + 1;

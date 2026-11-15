@@ -14,18 +14,18 @@ export const skillCap = (heroLv) => Math.min(SKILL_LV_MAX, 1 + Math.floor(heroLv
 
 // 마스터리 트리 — 깊이 1~4, 노드 12개(직업 공통 모양). 배우는 데 대기 시간(분) · 필요 무인 레벨
 export const MASTERY = [
-  { id: 'm1', depth: 1, need: null, lv: 20, final1: 15, waitMin: 5 },
-  { id: 'm2', depth: 1, need: null, lv: 25, final1: 15, waitMin: 10 },
-  { id: 'm3', depth: 1, need: null, lv: 30, final1: 15, waitMin: 15 },
-  { id: 'm4', depth: 2, need: 'm1', lv: 45, final1: 20, waitMin: 30 },
-  { id: 'm5', depth: 2, need: 'm2', lv: 55, final1: 20, waitMin: 45 },
-  { id: 'm6', depth: 2, need: 'm3', lv: 65, final1: 20, waitMin: 60 },
-  { id: 'm7', depth: 3, need: 'm4', lv: 80, final1: 25, waitMin: 120 },
-  { id: 'm8', depth: 3, need: 'm5', lv: 95, final1: 25, waitMin: 180 },
-  { id: 'm9', depth: 3, need: 'm6', lv: 105, final1: 25, waitMin: 240 },
-  { id: 'm10', depth: 4, need: 'm7', lv: 120, final1: 30, waitMin: 360 },
-  { id: 'm11', depth: 4, need: 'm8', lv: 135, final1: 30, waitMin: 420 },
-  { id: 'm12', depth: 4, need: 'm9', lv: 145, final1: 30, waitMin: 480 },
+  { id: 'm1', depth: 1, need: null, lv: 20, final1: 15 },
+  { id: 'm2', depth: 1, need: null, lv: 25, final1: 15 },
+  { id: 'm3', depth: 1, need: null, lv: 30, final1: 15 },
+  { id: 'm4', depth: 2, need: 'm1', lv: 45, final1: 20 },
+  { id: 'm5', depth: 2, need: 'm2', lv: 55, final1: 20 },
+  { id: 'm6', depth: 2, need: 'm3', lv: 65, final1: 20 },
+  { id: 'm7', depth: 3, need: 'm4', lv: 80, final1: 25 },
+  { id: 'm8', depth: 3, need: 'm5', lv: 95, final1: 25 },
+  { id: 'm9', depth: 3, need: 'm6', lv: 105, final1: 25 },
+  { id: 'm10', depth: 4, need: 'm7', lv: 120, final1: 30 },
+  { id: 'm11', depth: 4, need: 'm8', lv: 135, final1: 30 },
+  { id: 'm12', depth: 4, need: 'm9', lv: 145, final1: 30 },
 ];
 export const masteryCost = (node) => [{ k: 'gold', n: 500 * node.depth * node.depth * Math.round(node.lv / 10 + 1) }];
 

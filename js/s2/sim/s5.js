@@ -35,33 +35,21 @@ export function simS5(days, { seed = 1, policy = 'base', onDay = null } = {}) {
       for (const sys of Object.keys(C)) for (const k of C[sys].eq) if (k != null && C[sys].own[k].lv < COLLECT_LV_MAX && (!best || C[sys].own[k].lv < best[0].own[best[1]].lv)) best = [C[sys], k];
       if (!best || !levelUp(best[0], best[1], w)) break;
     }
-    // 경지: 은자 10% 몫 · 하루에 대기 시간만큼 오른다(24시간 안에 끝나는 것은 여러 번)
+    // 경지: 은자 10% 몫 — v505 기다림 없음, 은자가 되는 만큼 바로 오른다
     const income = (minutesAtDay(d, policy) - minutesAtDay(d - 1, policy)) * KILLS_PER_MIN * goldPerMob(L);
     realmGold += income * GOLD_SINK_SHARE.realm;
-    let t = (d - 1) * DAY;
-    for (let k = 0; k < 50 && R.lv < REALM_MAX; k++) {
+    for (let k = 0; k < 200 && R.lv < REALM_MAX; k++) {
       w.gold = Math.floor(realmGold);
-      if (!realmStart(R, t, w, goldPerMob(L))) { realmGold = w.gold; break; }
+      const ok = realmStart(R, now, w, goldPerMob(L));
       realmGold = w.gold;
-      t = R.wait.endMs;
-      if (t > now) { realmTick(R, now); break; }
-      realmTick(R, t);
+      if (!ok) break;
     }
-    if (R.wait && now >= R.wait.endMs) realmTick(R, now);
     // 심법: 재료만큼 굴리되 더 좋은 줄이 나오면 남긴다(간단히: 굴린 결과 중 합이 큰 쪽)
     w['item:heart'] += DAILY.heart;
     while (w['item:heart'] > 0 && heartRoll(R, rng, w)) { /* 굴림 */ }
     // 강호행
     J.cleared = journeyClearable(L);
-    let tj = (d - 1) * DAY;
-    for (let k = 0; k < 10; k++) {
-      w.gold = 1e15;
-      if (!journeyStart(J, tj, w, rng)) break;
-      tj = J.wait.endMs;
-      if (tj > now) break;
-      journeyTick(J, tj, rng);
-    }
-    if (J.wait && now >= J.wait.endMs) journeyTick(J, now, rng);
+    for (let k = 0; k < 10; k++) { w.gold = 1e15; if (!journeyStart(J, now, w, rng)) break; }   // v505 바로 열린다
     cos += DAILY.cosmetic;
     if (onDay) onDay(d, L, () => [...collectSources(C.weapon), ...collectSources(C.pal), ...collectSources(C.relic), ...realmSources(R), ...journeySources(J), ...cosmeticSources(Math.floor(cos))]);
   }

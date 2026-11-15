@@ -1,17 +1,17 @@
 // 새 시즌(S5) 경지(계정 공용 성장) · 강호행(두목 도장 깨기 판) · 꾸미기 합계 보너스(계획서 §G 7·10·11).
 import { REALM_MAX, REALM_ATK_P, REALM_HP_P, realmCost, HEART_POOL, heartLines, heartCost, JOURNEY_MAX, JOURNEY_STEP_P, journeyCost, JOURNEY_POOL, BLESS_P, BLESS_X, COSMETIC_STEP, COSMETIC_HP_P, COSMETIC_EXP_P, COSMETIC_MAX_STEPS } from '../tables/s5.js';
-import { realmWaitMin, JOURNEY_STEP_WAIT_MIN } from '../tables/economy.js';
 import { newRoller, reroll, rollerStats } from '../core/roller.js';
 import { pay } from '../core/cost.js';
 
 // ── 경지 ──
 export const newRealm = () => ({ lv: 0, wait: null, heart: newRoller(3) });
+// v505 기다리는 시간 없음 — 값을 내면 바로 오른다(예전 세이브에 남은 대기도 다음 틱에 바로 끝난다)
 export function realmStart(R, nowMs, wallet, goldPerMob) {
   if (R.wait || R.lv >= REALM_MAX || !pay(wallet, realmCost(R.lv, goldPerMob))) return false;
-  R.wait = { endMs: nowMs + realmWaitMin(R.lv + 1) * 60000 };
+  R.lv++;
   return true;
 }
-export function realmTick(R, nowMs) { if (R.wait && nowMs >= R.wait.endMs) { R.wait = null; R.lv++; return true; } return false; }
+export function realmTick(R) { if (R.wait) { R.wait = null; R.lv++; return true; } return false; }
 export const realmRush = (R, ms) => { if (R.wait) R.wait.endMs -= Math.max(0, ms); };
 // 심법 굴리기 — 열린 줄만(경지 10레벨마다 하나). 잠금은 열린 줄 안에서만 센다
 export function heartRoll(R, rng, wallet) {
@@ -34,13 +34,12 @@ export function realmSources(R) {
 export const newJourney = () => ({ step: 0, cleared: 0, wait: null, opts: [], bless: [] });
 export function journeyStart(J, nowMs, wallet, rng) {
   if (J.wait || J.step >= JOURNEY_MAX || J.cleared <= J.step || !pay(wallet, journeyCost(J.step))) return false;
-  const [a, b] = JOURNEY_STEP_WAIT_MIN;
-  J.wait = { endMs: nowMs + Math.round(a + ((b - a) * J.step) / JOURNEY_MAX) * 60000 };
   J.bless.push(rng.pick(BLESS_P));
-  return true;
+  J.wait = { endMs: nowMs };   // v505 바로 열린다
+  return journeyTick(J, nowMs, rng);
 }
 export function journeyTick(J, nowMs, rng) {
-  if (!(J.wait && nowMs >= J.wait.endMs)) return false;
+  if (!J.wait) return false;
   J.wait = null; J.step++;
   const R = newRoller(2);
   reroll(R, JOURNEY_POOL, rng, { 'item:free': 1 }, [{ k: 'item:free', n: 0 }]);

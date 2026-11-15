@@ -314,12 +314,12 @@ console.log('\n=== S3 무인 ===');
   h.clearDungeon('job1'); ok(h.advance() && h.s.adv === 1, '레벨 + 전직 던전 → 1차 전직');
   h.clearDungeon('job2'); ok(!h.advance(), '2차는 레벨 50부터');
   // 마스터리 대기 시간
-  ok(h.learn('m1', 0, w) && !h.learn('m2', 0, w), '마스터리 하나씩 배움(배우는 중엔 다른 것 못 함)');
-  ok(h.tickMastery(5 * 60000 - 50) === null && h.tickMastery(5 * 60000) === 'm1', '5분 지나야 끝남(ms 정수)');
-  ok(h.learn('m2', 0, { gold: 1e6 }) && (h.rushMastery(10 * 60000), h.tickMastery(1) === 'm2'), '시간 티켓으로 당기기');
+  ok(h.learn('m1', 0, w) && h.s.mastery.done.includes('m1') && !h.s.mastery.learning, 'v505 마스터리는 값을 내면 바로 배운다(기다림 없음)');
+  ok(h.learn('m2', 0, { gold: 1e6 }) && h.s.mastery.done.includes('m2'), '다음 것도 바로');
+  h.s.mastery.learning = { id: 'm3', endMs: 9e15 }; ok(h.tickMastery(0) === 'm3', '예전 세이브의 「배우는 중」도 바로 끝남');
   ok(!h.canLearn('m4'), '선행 노드·레벨이 모자라면 못 배움');
   const st = h.stats();
-  ok(st.final1 === 30 && st.atk > 0 && st.crit === 4, '스탯: 마스터리 → 최종 피해① · 고유 스탯 → 치명');
+  ok(st.final1 === 45 && st.atk > 0 && st.crit === 4, '스탯: 마스터리(셋) → 최종 피해① · 고유 스탯 → 치명');
   // 맨몸 무인은 기준 무인(장비 몫 자리표시 포함)보다 약하고, 기본보다는 강하다
   const H = new Hero(newHero('sword')); H.addExp(EX.cumExp(100));
   for (let n = 1; n <= 3; n++) { H.clearDungeon(`job${n}`); H.advance(); }
@@ -387,7 +387,7 @@ console.log('\n=== S4 장비 뽑기 레벨 · 무작위 옵션 틀 ===');
   const got = GC.pull(GA, 30, new Rng(2), w, 50, { ticket: true });
   ok(got.length === 30 && w['ticket:gear'] === 0 && w.gold === 1e12 && GA.eliteQ >= 3, '뽑기권으로 30번 · 10번마다 정예');
   while (!GC.canLevelUp(GA)) GC.pull(GA, 10, new Rng(3), w, 50);
-  ok(GC.startLevelUp(GA, 0) && !GC.tickGacha(GA, 1000) && GC.tickGacha(GA, GE.gachaWaitMin(1) * 60000) && GA.lv === 2, '뽑기 레벨업은 대기 시간 뒤');
+  ok(GC.startLevelUp(GA, 0) && GA.lv === 2 && !GA.wait, 'v505 뽑기 레벨업은 바로(기다림 없음)');
   ok(GC.eliteDrop(GA, new Rng(9)).length === 3, '정예 처치 → 장비 셋');
   const pool = [{ k: 'atkL1', v: [10, 20, 40, 80], w: 1 }, { k: 'crit', v: [5, 10, 20, 40], w: 1 }];
   const R = RL.newRoller(3), rw = { gold: 1e9 };
@@ -437,14 +437,14 @@ console.log('\n=== S5 수집형(병기·동료·영물) ===');
 console.log('\n=== S5 경지 · 강호행 · 꾸미기 ===');
 {
   const R = RM.newRealm(), w = { gold: 1e15, 'item:heart': 100 };
-  ok(RM.realmStart(R, 0, w, 100) && !RM.realmStart(R, 0, w, 100), '경지 레벨업 시작(하나씩)');
-  ok(!RM.realmTick(R, 1000) && RM.realmTick(R, 20 * 60000) && R.lv === 1, '대기 시간이 지나야 오름');
+  ok(RM.realmStart(R, 0, w, 100) && R.lv === 1 && !R.wait, 'v505 경지는 값을 내면 바로 오른다');
+  R.wait = { endMs: 9e15 }; ok(RM.realmTick(R) && R.lv === 2, '예전 세이브의 대기도 바로 끝남');
   ok(!RM.heartRoll(R, new Rng(1), w), '심법은 경지 10부터');
   R.lv = 25; ok(RM.heartRoll(R, new Rng(2), w) && R.heart.lines.slice(0, 2).every(Boolean) && !R.heart.lines[2], '경지 25 → 심법 2줄만 굴림');
   const st = RM.realmSources(R)[0].stats; ok(st.atkL2 >= 25 * S5T.REALM_ATK_P && st.hpP >= 25 * S5T.REALM_HP_P, '경지 → 공격%② · 체력%');
   const J = RM.newJourney(); const jw = { gold: 1e15 };
   ok(!RM.journeyStart(J, 0, jw, new Rng(1)), '강호행: 두목을 이기기 전엔 못 엶');
-  J.cleared = 2; ok(RM.journeyStart(J, 0, jw, new Rng(1)) && RM.journeyTick(J, 6 * 3600e3, new Rng(2)) && J.step === 1 && J.opts[0].length === 2, '두목 이김 → 열기(대기 시간) → 단계 옵션 2줄');
+  J.cleared = 2; ok(RM.journeyStart(J, 0, jw, new Rng(1)) && J.step === 1 && !J.wait && J.opts[0].length === 2, 'v505 두목 이김 → 열기(바로) → 단계 옵션 2줄');
   ok(RM.journeySources(J)[0].stats.final3 >= S5T.JOURNEY_STEP_P && [1000, 1300, 1700, 2500].includes(RM.blessX(J, 0)), '강호행 → 최종 피해③ · 축복 상자 배율');
   ok(RM.cosmeticSources(9).length === 0 && RM.cosmeticSources(25)[0].stats.hpP === 10, '꾸미기 10개마다 합계 보너스');
 }
@@ -673,7 +673,7 @@ console.log('\n=== S9 게임 층 — 첫 30분을 실제로 해 보기 ===');
   ok(lv >= 14 && lv <= 17, '30분 플레이 → Lv 14~17(목표 15)', `Lv ${lv} · 처치 ${g.S.kills}`);
   ok(g.S.kills / 30 >= 12 && g.S.kills / 30 <= 32 && g.stage().idx >= 10, '30분: 분당 처치 12~32(칸 두목전 시간 포함) · 10칸 넘게 전진', `${(g.S.kills / 30).toFixed(1)}/분 · ${g.stage().idx}칸`);
   ok(gi >= 11, '길잡이 11단계 이상', `g${gi}`);
-  ok(g.S.hero.adv === 1 && g.fight.deaths === 0, '1차 전직 · 사냥 중 죽지 않음');
+  ok(g.S.hero.adv === 1 && g.fight.deaths === 0, '1차 전직 · 사냥 중 죽지 않음', `전직 ${g.S.hero.adv} · 죽음 ${g.fight.deaths}`);
   ok(b.S.hero.lv === lv && b.S.kills === g.S.kills && b.S.wallet.gold === g.S.wallet.gold, '같은 씨앗 = 같은 30분(결정론)');
   const txt = g.save(), g2 = Game.load(txt, t);
   ok(g2.signed && g2.tableOk && g2.S.hero.lv === lv && g2.power() === g.power(), '저장 → 불러오기: 서명 · 표 판 · 같은 전투력');
@@ -793,6 +793,11 @@ console.log('\n=== S9 동료 공격 · 두목 패턴(v497) ===');
   C.mobs = []; C.spawn('b', C.def.map.spots[0]); const b2 = C.mobs[0]; b2.angry = true; let hit2 = null;
   for (let i = 0; i < 400 && !hit2; i++) { C.hero.x = b2.x; C.hero.y = b2.y; C.hero.plat = b2.plat; C.hero.vy = 0; C.step(); for (const e of C.events) if (e[0] === 'burst') hit2 = e; C.events = []; }
   ok(hit2 && hit2[7] === 1, '두목: 가만히 있으면 맞는다', hit2 && hit2[3]);
+  // v505 자동이면 예고 범위 밖으로 비킨다
+  const A = new SideFight(sideRoom(60, 4), refPlayer(60), 9); let dodged = 0, burstN = 0;
+  A.mobs = []; A.spawn('b', A.def.map.spots[0]); const b3 = A.mobs[0]; b3.angry = true; A.hero.x = b3.x + 300; A.hero.y = b3.y; A.hero.plat = b3.plat;
+  for (let i = 0; i < 1200 && burstN < 4; i++) { A.step(); for (const e of A.events) if (e[0] === 'burst') { burstN++; if (!e[7]) dodged++; } A.events = []; }
+  ok(burstN >= 3 && dodged >= burstN - 1, 'v505 자동: 두목 패턴 범위 밖으로 비킨다', `${dodged}/${burstN}`);
 }
 
 console.log('\n=== S9 무공 강화 트리(무공마다 3단 · 점수 · 배우는 시간 · 초기화) ===');
@@ -807,8 +812,8 @@ console.log('\n=== S9 무공 강화 트리(무공마다 3단 · 점수 · 배우
   for (let i = 0; i < 3; i++) h.treeUp('sword_1', 'tgt', 0, 31);
   for (let i = 0; i < 2; i++) h.treeUp('sword_1', 'rng', 0, 31);
   ok(h.battleKit().find((k) => k.id === 'sword_1').maxT === 7, '대상 수 +3 → 4마리가 7마리');
-  ok(h.treeSpent('sword_1') === 15 && h.treeUp('sword_1', 'hit', 1000, 31) === 'wait' && !h.canTreeUp('sword_1', 'cri', 31), '3단 연타: 배우는 데 시간(다른 3단은 그동안 못 배움)');
-  ok(h.treeTick(1000 + 59 * 60000) === null && h.treeTick(1000 + 60 * 60000) && h.battleKit().find((k) => k.id === 'sword_1').hits === 3, '60분 뒤 연타 +1(2연타 → 3연타)');
+  ok(h.treeSpent('sword_1') === 15 && h.treeUp('sword_1', 'hit', 1000, 31) === true && h.canTreeUp('sword_1', 'cri', 31), 'v505 3단 연타도 바로 배운다(기다림 없음) · 다른 3단도 곧장');
+  ok(h.battleKit().find((k) => k.id === 'sword_1').hits === 3, '연타 +1(2연타 → 3연타)');
   const bf = h.s.kit.slots.find((id) => KT.skillById(id).kind === 'buff');
   h.treeUp(bf, 'amp', 0, 31) || true; for (let i = 0; i < 5; i++) h.treeUp(bf, 'dur', 0, 31); h.treeUp(bf, 'amp', 0, 31);
   const b1 = h.battleKit().find((k) => k.id === bf);

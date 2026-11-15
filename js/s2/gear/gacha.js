@@ -22,13 +22,14 @@ export function pull(GA, n, rng, wallet, heroLv, { ticket = false } = {}) {
 }
 // 레벨업 시작(경험치가 차면) — 대기 시간이 지나야 오른다
 export function canLevelUp(GA) { return GA.lv < GACHA_LV_MAX && !GA.wait && GA.exp >= gachaExpNeed(GA.lv); }
+// v505 기다리는 시간 없음 — 경험치가 차면 바로 오른다
 export function startLevelUp(GA, nowMs) {
   if (!canLevelUp(GA)) return false;
-  GA.wait = { endMs: nowMs + gachaWaitMin(GA.lv) * 60000 };
-  return true;
+  GA.wait = { endMs: nowMs };
+  return tickGacha(GA, nowMs);
 }
-export function tickGacha(GA, nowMs) {
-  if (GA.wait && nowMs >= GA.wait.endMs) { GA.exp -= gachaExpNeed(GA.lv); GA.lv++; GA.wait = null; return true; }
+export function tickGacha(GA) {
+  if (GA.wait) { GA.exp -= gachaExpNeed(GA.lv); GA.lv++; GA.wait = null; return true; }
   return false;
 }
 // 정예 처치 → 장비 셋(뽑기 레벨 확률, 한 단계 위 쪽으로 기울임)

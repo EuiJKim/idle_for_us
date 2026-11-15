@@ -58,24 +58,32 @@ let frozen = false;   // 시험용: 저장 멈춤
 function save() { if (frozen) return; try { localStorage.setItem(SAVE_KEY, g.save()); } catch { /* 저장 공간 없음 */ } }
 function start(job) { g = new Game(newGame(job, now(), (now() & 0x7fffffff) || 1), now()); g.emit('login'); save(); boot(); }
 
-// ── 토스트 · 팝업(4틀: 확인 / 예·아니요 / 확인+확인 / 다시 보지 않기 — 여기선 앞의 둘) ──
-function toast(t) { const d = document.createElement('div'); d.textContent = t; $('toast').append(d); setTimeout(() => d.remove(), 2700); }
+// ── 토스트 · 팝업 — 지금 게임과 같은 틀(#toast .toast · #modal .sheet h2 · .btn-row) ──
+function toast(t) { const d = document.createElement('div'); d.className = 'toast'; d.textContent = t; $('toast').append(d); setTimeout(() => d.remove(), 2700); }
+function closeModal() { $('modal').classList.add('hidden'); }
 function pop(title, html, acts = [['확인', null]]) {
-  $('pc').innerHTML = `<h3>${esc(title)}</h3><div>${html}</div><div class="acts"></div>`;
-  const a = $('pc').querySelector('.acts');
-  for (const [label, fn] of acts) { const b = document.createElement('button'); b.className = 'btn'; b.textContent = label; b.onclick = () => { $('pop').classList.remove('open'); fn?.(); paintHud(); paintWin(); }; a.append(b); }
-  $('pop').classList.add('open');
+  const sh = $('modal').querySelector('.sheet');
+  sh.innerHTML = `<h2>${esc(title)}</h2><div>${html}</div><div class="btn-row" style="margin-top:12px${acts.length > 3 ? ';display:grid;grid-template-columns:repeat(3,1fr)' : ''}"></div>`;
+  const a = sh.querySelector('.btn-row');
+  acts.forEach(([label, fn], i) => { const b = document.createElement('button'); b.className = `btn${i === acts.length - 1 ? ' primary' : ''}`; b.textContent = label; b.onclick = () => { closeModal(); fn?.(); paintHud(); paintWin(); }; a.append(b); });
+  $('modal').classList.remove('hidden');
 }
 
-// ── 창 ──
-const MENUS = [
-  ['hero', '무인', ['스탯', '무공', '마스터리', '전직', '무공 강화']],
-  ['gear', '장비', ['장착', '뽑기', '강화·성혼', '가방']],
-  ['grow', '성장', ['병기', '동료', '영물', '경지', '강호행']],
-  ['content', '콘텐츠', ['수련동', '무한 탑', '원정', '스테이지']],
-  ['rival', '경쟁', ['월드보스', '대결', '문파']],
-  ['mission', '미션', ['길잡이', '일일', '주간', '설정']],
+// ── 창 — 지금 게임과 같은 일곱 창(들판 양옆 단추 · 창 머리 줄) + 설정(⚙). 칸은 붉은 알약(.subtabs .seg.wide) ──
+const TABS = [
+  ['map', '지도', [['스테이지', 'content:3']]],
+  ['dgn', '던전', [['수련동', 'content:0'], ['무한 탑', 'content:1'], ['원정', 'content:2']]],
+  ['town', '마을', [['길잡이', 'mission:0'], ['일일', 'mission:1'], ['주간', 'mission:2'], ['경지', 'grow:3'], ['강호행', 'grow:4']]],
+  ['social', '무림', [['월드보스', 'rival:0'], ['대결', 'rival:1'], ['문파', 'rival:2']]],
+  ['char', '캐릭터', [['스탯', 'hero:0'], ['무공', 'hero:1'], ['무공 강화', 'hero:4'], ['마스터리', 'hero:2'], ['전직', 'hero:3']]],
+  ['bag', '가방', [['장착', 'gear:0'], ['뽑기', 'gear:1'], ['강화·성혼', 'gear:2'], ['가방', 'gear:3']]],
+  ['comp', '동료', [['병기', 'grow:0'], ['동료', 'grow:1'], ['영물', 'grow:2']]],
+  ['opt', '설정', [['설정', 'mission:3']]],
 ];
+const MAIN_TABS = TABS.filter((t) => t[0] !== 'opt');
+const keyOf = () => TABS.find((t) => t[0] === open)?.[2][tab]?.[1];
+// 내용 열쇠(예: 'hero:1')로 그 창 · 그 칸 열기
+function openKey(key) { for (const [id, , subs] of TABS) { const i = subs.findIndex((x) => x[1] === key); if (i >= 0) { openWin(id, i); return; } } }
 let open = null, tab = 0, treeSel = null, eqSel = null;
 // 장비 아이콘: 지금 게임 그림(무기 · 방어구 · 장신구 × 등급 6)
 const eqIcon = (sl, it) => `art/icon/${sl === 'weapon' ? 'eqweapon' : (sl === 'neck' || sl === 'ring') ? 'eqring' : 'eqarmor'}-${it ? Math.min(5, it.g) : 0}.png`;
@@ -123,42 +131,45 @@ function showGacha(r) {
   ov.querySelector('.skip').onclick = (e) => { e.stopPropagation(); if (done) close(); else finish(); };
   ov.onclick = () => { if (done) close(); };
 }
-function openWin(id, t = 0) { open = id; tab = t; $('win').classList.add('open'); paintWin(); paintNav(); }
-function closeWin() { open = null; $('win').classList.remove('open'); paintNav(); }
+function openWin(id, t = 0) { open = id; tab = t; $('panel').classList.add('open'); $('panel-dim').classList.add('open'); paintWin(); paintNav(); }
+function closeWin() { open = null; $('panel').classList.remove('open'); $('panel-dim').classList.remove('open'); paintNav(); }
 function paintNav() {
-  $('nav').innerHTML = '';
-  for (const [id, name] of MENUS) { const b = document.createElement('button'); b.dataset.id = id; b.innerHTML = `${name}<i class="dot"></i>`; b.className = open === id ? 'on' : ''; b.onclick = () => (open === id ? closeWin() : openWin(id)); $('nav').append(b); }
+  if (!$('ptabs').children.length) for (const [id, name] of MAIN_TABS) { const b = document.createElement('button'); b.dataset.tab = id; b.innerHTML = `<span>${name}</span>`; b.onclick = () => { play('click'); openWin(id); }; $('ptabs').append(b); }
+  for (const b of document.querySelectorAll('#tabs button[data-tab], #ptabs button[data-tab]')) b.classList.toggle('active', b.dataset.tab === open);
   navDots();
 }
-// 아래 메뉴 빨간 점 — 지금 누를 게 있는 곳(전직 · 무공 점수 · 올릴 수 있는 무공 / 뽑기권 / 길잡이 받기)
+// 빨간 점 — 지금 누를 게 있는 창(캐릭터: 전직 · 무공 점수 · 올릴 수 있는 무공 / 가방: 뽑기권 10장↑ / 마을: 길잡이 받기)
 function navDots() {
   const S = g.S, h = g.hero, W = S.wallet;
   let kitUp = false;
   try { const K = h.kitState(); for (const id of Object.keys(K.lv)) { const sk = skillById(id); if (sk && h.canKitUp(id) && (W.gold || 0) >= kitCost(K.lv[id], sk.tier)[0].n) { kitUp = true; break; } } } catch { /* 없음 */ }
   const cur = guideCurrent(S.q.guide);
-  const on = {
-    hero: !!(h.canAdvance?.() || g.treePts?.().left > 0 || kitUp),
-    gear: (W['ticket:gear'] || 0) >= 10,
-    mission: !!(cur && S.q.guide[cur.id]?.done),
-  };
-  for (const b of $('nav').children) b.classList.toggle('dot-on', !!on[b.dataset.id]);
+  const on = { char: !!(h.canAdvance?.() || g.treePts?.().left > 0 || kitUp), bag: (W['ticket:gear'] || 0) >= 10, town: !!(cur && S.q.guide[cur.id]?.done) };
+  for (const b of document.querySelectorAll('#tabs button[data-tab], #ptabs button[data-tab]')) b.classList.toggle('dot-on', !!on[b.dataset.tab]);
 }
 function act(fn) { return () => { play('click'); const r = fn(); if (r === null || r === false) toast('할 수 없어요(재료·조건)'); save(); paintWin(); paintHud(); return r; }; }
+// 한 줄 — 지금 게임의 .row(.info .name · .desc · 단추). 첫 단추는 붉은 주 단추
 function rowEl(k, v, btns = []) {
   const r = document.createElement('div'); r.className = 'row';
-  r.innerHTML = `<div class="k">${k}</div><div class="v">${v ?? ''}</div>`;
-  for (const [label, fn, dis] of btns) { const b = document.createElement('button'); b.className = 'btn'; b.textContent = label; b.disabled = !!dis; b.onclick = fn; r.append(b); }
+  r.innerHTML = `<div class="info"><div class="name">${k}</div>${v !== undefined && v !== '' && v !== null ? `<div class="desc">${v}</div>` : ''}</div>`;
+  btns.forEach(([label, fn, dis], i) => { const b = document.createElement('button'); b.className = `btn${i === 0 ? ' primary' : ''}`; b.textContent = label; b.disabled = !!dis; b.onclick = fn; r.append(b); });
   return r;
 }
 function paintWin() {
   if (!open) return;
-  const M = MENUS.find((m) => m[0] === open);
-  $('wt').textContent = M[1];
-  $('wtabs').innerHTML = '';
-  M[2].forEach((n, i) => { const b = document.createElement('button'); b.textContent = n; b.className = i === tab ? 'on' : ''; b.onclick = () => { tab = i; paintWin(); }; $('wtabs').append(b); });
-  const B = $('wb'); B.innerHTML = '';
+  const M = TABS.find((m) => m[0] === open);
+  $('panel-title').textContent = M[1];
+  $('panel-head').querySelector('.res-row').innerHTML = `<div class="res res-silver"><span class="cur silver">은</span><b>${unit(g.S.wallet.gold)}</b></div><div class="res res-potion"><span class="cur potion">권</span><b>${g.S.wallet['ticket:gear'] || 0}</b></div>`;
+  const PB = $('panel-body'), keepScroll = PB.dataset.key === `${open}:${tab}` ? PB.scrollTop : 0; PB.innerHTML = ''; PB.dataset.key = `${open}:${tab}`;
+  if (M[2].length > 1) {
+    const st = document.createElement('div'); st.className = 'subtabs'; const seg = document.createElement('div'); seg.className = 'seg wide';
+    M[2].forEach(([n], i) => { const b = document.createElement('button'); b.dataset.key = String(i); b.textContent = n; b.className = i === tab ? 'on' : ''; b.onclick = () => { play('click'); tab = i; paintWin(); paintNav(); }; seg.append(b); });
+    st.append(seg); PB.append(st);
+  }
+  const B = document.createElement('div'); B.id = 'wb'; PB.append(B);
+  requestAnimationFrame(() => { PB.scrollTop = keepScroll; });
   const W = g.S.wallet, add = (...e) => B.append(...e);
-  const key = `${open}:${tab}`;
+  const key = keyOf();
   const st = g.fighter().st;
   if (key === 'hero:0') {
     add(rowEl('전투력(사냥)', fmt(g.power())), rowEl('전투력(대결)', fmt(g.power('pvp'))));
@@ -185,8 +196,7 @@ function paintWin() {
     const Hs = g.hero, K = Hs.kitState(), pts = g.treePts();
     const owned = KIT[g.S.hero.job].filter((sk) => K.lv[sk.id] && sk.kind !== 'passive');
     if (!owned.some((sk) => sk.id === treeSel)) treeSel = owned[0]?.id;
-    add(rowEl(`무공 점수 <b>${pts.left}</b> / ${pts.total}`, '레벨마다 1점 · 10칸마다 3점', [['초기화', () => pop('트리를 초기화할까요?', `<p>쓴 점수 ${pts.used}점을 돌려받아요.</p><p class="note">은자 ${unit(treeResetCost(pts.used)[0].n)}</p>`, [['아니요', null], ['예', act(() => g.treeReset())]]), !pts.used || !!K.learning]]));
-    if (K.learning) { const sk = skillById(K.learning.id), nd = treeOf(sk).find((x) => x.n === K.learning.n); add(rowEl(`배우는 중: ${sk.name} · ${nd.name}`, left(K.learning.endMs), [['시간 티켓', act(() => g.timeTicket('tree', 15)), !(g.S.wallet['ticket:time'] > 0)]])); }
+    add(rowEl(`무공 점수 <b>${pts.left}</b> / ${pts.total}`, '레벨마다 1점 · 10칸마다 3점', [['초기화', () => pop('트리를 초기화할까요?', `<p>쓴 점수 ${pts.used}점을 돌려받아요.</p><p class="note">은자 ${unit(treeResetCost(pts.used)[0].n)}</p>`, [['아니요', null], ['예', act(() => g.treeReset())]]), !pts.used]]));
     const chips = document.createElement('div'); chips.className = 'tabs'; chips.style.border = '0'; chips.style.padding = '6px 0';
     for (const sk of owned) { const b = document.createElement('button'); b.textContent = `${sk.name} ${Hs.treeSpent(sk.id) ? `(${Hs.treeSpent(sk.id)})` : ''}`; b.className = sk.id === treeSel ? 'on' : ''; b.style.color = sk.col; b.onclick = () => { treeSel = sk.id; paintWin(); }; chips.append(b); }
     add(chips);
@@ -199,16 +209,15 @@ function paintWin() {
         add(Object.assign(document.createElement('p'), { className: 'note', textContent: `${tier + 1}단 ${open ? '' : `— 이 무공에 ${TREE_GATE[tier]}점 쓰면 열림(지금 ${spent}점)`}` }));
         for (const nd of list) {
           const lv = nodes[nd.n] || 0, eff = Object.entries(nd.eff).map(([k2, v]) => ({ pow: `위력 +${v / 10}%`, cdr: `쿨 −${v / 10}%`, rng: `범위 +${v / 10}%`, tgt: `대상 +${v}`, hit: `연타 +${v}`, cri: `이 무공 치명 +${v / 10}%`, dur: `지속 +${v / 10}%`, amp: `효과 +${v / 10}%` }[k2])).join(' · ');
-          add(rowEl(`<b>${nd.name}</b> <small>${lv}/${nd.max}</small><br><span class="note">레벨마다 ${eff}${nd.waitMin ? ` · 배우는 데 ${nd.waitMin}분` : ''}</span>`, `${nd.pts}점`, [[lv >= nd.max ? '끝' : '올리기', act(() => { const r = g.treeUp(sk.id, nd.n); if (r === 'wait') toast(`${nd.name} 배우기 시작 — ${nd.waitMin}분`); return r; }), !Hs.canTreeUp(sk.id, nd.n, g.stage().top)]]));
+          add(rowEl(`<b>${nd.name}</b> <small>${lv}/${nd.max}</small><br><span class="note">레벨마다 ${eff}</span>`, `${nd.pts}점`, [[lv >= nd.max ? '끝' : '올리기', act(() => g.treeUp(sk.id, nd.n)), !Hs.canTreeUp(sk.id, nd.n, g.stage().top)]]));
         }
       }
     }
   } else if (key === 'hero:2') {
     const L = g.S.hero.mastery.learning;
-    if (L) add(rowEl(`배우는 중: ${L.id}`, left(L.endMs), [['시간 티켓', act(() => g.timeTicket('mastery', 15)), !(W['ticket:time'] > 0)]]));
     for (const m of MASTERY) {
       const done = g.S.hero.mastery.done.includes(m.id);
-      add(rowEl(`${m.id} · 최종 피해① +${m.final1}‰`, done ? '익힘' : `Lv ${m.lv} · ${m.waitMin}분`, done ? [] : [['배우기', act(() => g.learn(m.id)), !g.hero.canLearn(m.id)]]));
+      add(rowEl(`${m.id} · 최종 피해① +${m.final1}‰`, done ? '익힘' : `Lv ${m.lv}`, done ? [] : [['배우기', act(() => g.learn(m.id)), !g.hero.canLearn(m.id)]]));
     }
   } else if (key === 'hero:3') {
     const n = g.S.hero.adv + 1;
@@ -242,7 +251,7 @@ function paintWin() {
     } else addR(Object.assign(document.createElement('p'), { className: 'note', textContent: '칸을 누르면 옵션 · 강화 · 성혼 · 가방의 다른 장비를 볼 수 있어요.' }));
   } else if (key === 'gear:1') {
     const GA = g.S.gacha;
-    add(rowEl(`뽑기 레벨 ${GA.lv}`, GA.wait ? `오르는 중 ${left(GA.wait.endMs)}` : `경험치 ${GA.exp}/${gachaExpNeed(GA.lv)}`, GA.wait ? [['시간 티켓', act(() => g.timeTicket('gacha', 15)), !(W['ticket:time'] > 0)]] : []));
+    add(rowEl(`뽑기 레벨 ${GA.lv}`, `경험치 ${GA.exp}/${gachaExpNeed(GA.lv)} · 차면 바로 오름`, []));
     add(rowEl(`뽑기권 ${W['ticket:gear'] || 0}장 · 정예 대기 ${GA.eliteQ}`, '10번마다 사냥터에 정예'));
     for (const n of [1, 10, 30]) add(rowEl(`${n}번 뽑기`, (W['ticket:gear'] || 0) >= n ? '뽑기권' : '은자', [['뽑기', act(() => { const r = g.pullGear(n); if (r) showGacha(r); return r; })]]));
   } else if (key === 'gear:2') {
@@ -253,20 +262,20 @@ function paintWin() {
   } else if (key === 'gear:3') {
     add(rowEl(`가방 ${g.S.gear.bag.length}개`, ''));
     add(rowEl('자동 분해', g.S.gear.autoDis < 0 ? '끔' : `${GRADES[g.S.gear.autoDis]} 이하`, [['바꾸기', act(() => { g.S.gear.autoDis = g.S.gear.autoDis >= 3 ? -1 : g.S.gear.autoDis + 1; return true; })]]));
-  } else if (open === 'grow' && tab <= 2) {
-    const sys = COLLECTS[tab], C = g.S.colls[sys], D = COLLECT[sys];
+  } else if (key === 'grow:0' || key === 'grow:1' || key === 'grow:2') {
+    const sys = COLLECTS[+key.slice(5)], C = g.S.colls[sys], D = COLLECT[sys];
     add(rowEl(`${D.name} 뽑기권 ${W[`ticket:${sys}`] || 0}장`, `천장 ${C.pity}/200`, [['1번', act(() => g.pullCollect(sys, 1))], ['10번', act(() => { const r = g.pullCollect(sys, 10); if (r) toast(r.map((x) => GRADES[x.g]).join(' ')); return r; })]]));
     const grid = document.createElement('div'); grid.className = 'grid';
     for (const [k, o] of Object.entries(C.own).sort((a, b) => kindGrade(sys, +b[0]) - kindGrade(sys, +a[0]))) { const gr = kindGrade(sys, +k); grid.innerHTML += `<div class="cell g${gr}"><b>${GRADES[gr]}</b>#${k}${C.eq.includes(+k) ? ' 장착' : ''}<br>각성 ${o.awk} · ×${o.n}</div>`; }
     add(grid);
   } else if (key === 'grow:3') {
     const R = g.S.realm;
-    add(rowEl(`경지 ${R.lv}`, R.wait ? `오르는 중 ${left(R.wait.endMs)}` : '', R.wait ? [['시간 티켓', act(() => g.timeTicket('realm', 15)), !(W['ticket:time'] > 0)]] : [['올리기', act(() => g.realmUp())]]));
+    add(rowEl(`경지 ${R.lv}`, '값을 내면 바로 오름', [['올리기', act(() => g.realmUp())]]));
   } else if (key === 'grow:4') {
     const J = g.S.journey;
-    add(rowEl(`강호행 ${J.step}단계 · 이긴 두목 ${J.cleared}`, J.wait ? `여는 중 ${left(J.wait.endMs)}` : ''));
+    add(rowEl(`강호행 ${J.step}단계 · 이긴 두목 ${J.cleared}`, '이기면 바로 열 수 있음'));
     add(rowEl(`${J.cleared + 1}단계 두목`, '', [['도전', act(() => { const r = g.journeyFight(); toast(r.cleared ? '이겼다' : '졌다'); return r; })]]));
-    add(rowEl('다음 단계 열기', '', [['열기', act(() => g.journeyOpen()), !!J.wait || J.cleared <= J.step]]));
+    add(rowEl('다음 단계 열기', '', [['열기', act(() => g.journeyOpen()), J.cleared <= J.step]]));
   } else if (key === 'content:0') {
     add(rowEl(`입장권 ${staminaNow(g.S.stamina.daily, now())}`, '2시간마다 1'));
     for (const [k, D] of Object.entries(DAILY_DUNGEONS)) add(rowEl(`${D.name}`, `Lv ${D.unlockLv} · 오늘 ${g.S.dungeons.runs[k] || 0}/${DAILY_RUNS}`, [['입장', act(() => { const r = g.dailyDungeon(k); if (r) toast(r.cleared ? '클리어' : '실패'); return r; }), g.S.hero.lv < D.unlockLv]]));
@@ -294,11 +303,11 @@ function paintWin() {
     for (const l of (g.S.pvp?.log || [])) add(rowEl(`${l.win ? '승' : '패'} · ${l.name}`, `${l.d >= 0 ? '+' : ''}${l.d}`));
   } else if (key === 'rival:2') {
     add(rowEl('문파', '교체 때 서버와 함께 열려요'));
-    for (const [n, d] of [['문파 토벌', '문파원 피해를 모아 주간 두목 단계를 깸'], ['문파 대항', '문파끼리 한 주 점수 겨루기'], ['문파 수련', '문파원 기여로 막대를 채우면 모두 보상'], ['연구 · 도움', '연구는 대기 시간, 문파원이 도와주면 줄어듦']]) add(rowEl(n, d));
+    for (const [n, d] of [['문파 토벌', '문파원 피해를 모아 주간 두목 단계를 깸'], ['문파 대항', '문파끼리 한 주 점수 겨루기'], ['문파 수련', '문파원 기여로 막대를 채우면 모두 보상'], ['연구 · 도움', '문파원 기여로 연구를 올림']]) add(rowEl(n, d));
   } else if (key === 'mission:0') {
     for (const q of GUIDE) { const s = g.S.q.guide[q.id]; add(rowEl(`${q.id} ${guideLabel(q)}`, s?.got ? '받음' : s?.done ? '끝' : s ? `${s.p}/${q.need}` : '')); }
   } else if (key === 'mission:1' || key === 'mission:2') {
-    const book = tab === 1 ? 'daily' : 'weekly', list = tab === 1 ? DAILY_MISSIONS : WEEKLY_MISSIONS;
+    const book = key === 'mission:1' ? 'daily' : 'weekly', list = key === 'mission:1' ? DAILY_MISSIONS : WEEKLY_MISSIONS;
     for (const q of list) { const s = g.books[book].get(q.id); add(rowEl(`${guideLabel(q)}`, s.got ? '받음' : `${s.p}/${q.need}`, [['받기', act(() => g.claimMission(book, q.id)), !s.done || s.got]])); }
   } else if (key === 'mission:3') {
     const tg = (label, k, desc) => rowEl(label, desc, [[opt[k] ? '켜짐' : '꺼짐', () => { opt[k] = !opt[k]; saveOpt(); play('click'); if (k === 'bgm') bgm(chapterOf(g.zoneLv())); paintWin(); paintHud(); }]]);
@@ -325,82 +334,92 @@ const unit = (n) => {   // 큰 수: 만 · 억 · 조 · 경 두 자리까지(�
 };
 const logLines = [];
 function addLog(t) { logLines.unshift(t); logLines.length = Math.min(logLines.length, 4); }
+let portraitKey = '';
+function paintPortrait(H) {
+  const key = `${H.job}:${H.lv}`; if (key === portraitKey) return; portraitKey = key;
+  const c = $('portrait'), x = c.getContext('2d'); x.clearRect(0, 0, c.width, c.height);
+  x.save(); x.beginPath(); x.arc(52, 52, 50, 0, 7); x.clip();
+  const gr = x.createRadialGradient(52, 40, 6, 52, 52, 60); gr.addColorStop(0, '#3a2e22'); gr.addColorStop(1, '#120f0b'); x.fillStyle = gr; x.fillRect(0, 0, 104, 104);
+  drawHero(x, 52, 196, H.job, H.lv, { t: 0, scale: 1.75 });   // 얼굴 · 어깨만 보이게 크게
+  x.restore();
+}
 function paintHud() {
   const S = g.S, H = S.hero, F = g.ensureFight(), T = g.stage(), z = zoneFor(g.zoneLv());
-  if (!$('gd')) {
-    $('tl').innerHTML = '<div class="prof"><div class="face" id="face"></div><div class="pw" id="pw"></div></div><div class="curs" id="curs"></div><div class="guide" id="gd" role="button" tabindex="0"></div>';
-    $('gd').onclick = onGuide;
-    $('tc').innerHTML = '<div class="zname" id="zn"></div><div class="sbar" id="sb"><i></i></div><div class="sbar time" id="tb" style="display:none"><i></i></div><div class="srow"><span id="sl"></span><button id="chal">도전</button></div>';
-    $('chal').onclick = () => { if (g.challenge()) toast('칸 두목 도전!'); else toast(`몹을 ${STAGE_KILLS}마리 잡으면 도전할 수 있어요`); };
-    $('tr').innerHTML = '<div class="chat" id="chat"></div><div class="rw" id="rw"></div><div class="dpsm" id="dpsm"></div>';
-    $('bc').innerHTML = '<div class="me"><div class="top"><span id="mlv"></span><span id="mnm"></span></div><div class="bar hp"><i id="hpi"></i><b>HP</b><span id="hpt"></span></div><div class="bar mp"><i id="mpi"></i><b>MP</b><span id="mpt"></span></div></div>';
-    $('bl').innerHTML = '<div class="log" id="log"></div><div class="exp" id="exp"></div><div class="pad"><button id="pl" aria-label="왼쪽">◀</button><button id="pd" aria-label="내려가기">▼</button><button id="pr" aria-label="오른쪽">▶</button></div>';
-    $('br').innerHTML = '<button class="auto" id="au"></button><div class="slots" id="slots"></div><button class="jump" id="jp" aria-label="점프">⤒</button>';
+  if (!$('quest').onclick) {
+    $('quest').onclick = onGuide;
+    $('btn-boss').onclick = () => { play('click'); if (g.challenge()) toast('칸 두목 도전!'); else toast(`몹을 ${STAGE_KILLS}마리 잡으면 도전할 수 있어요`); };
+    $('btn-settings').onclick = () => { play('click'); openWin('opt', 0); };
+    $('btn-sound').onclick = () => { opt.sfx = !(opt.sfx || opt.bgm); opt.bgm = opt.sfx; saveOpt(); bgm(chapterOf(g.zoneLv())); toast(opt.sfx ? '소리 켬' : '소리 끔'); paintHud(); };
+    for (const b of document.querySelectorAll('#tabs button[data-tab]')) b.onclick = () => { play('click'); if (open === b.dataset.tab) closeWin(); else openWin(b.dataset.tab); };
+    $('panel-close').onclick = closeWin; $('panel-dim').onclick = closeWin; $('panel-grip').onclick = closeWin;
     padHold('pl', -1); padHold('pr', 1);
     $('pd').onpointerdown = (e) => { e.preventDefault(); g.down(); };
     $('jp').onpointerdown = (e) => { e.preventDefault(); g.jump(); };
-    $('au').onclick = () => { g.setAuto(S.auto === false); toast(g.S.auto === false ? '수동 — ◀ ▶ 로 움직이고 점프 · 무공은 칸을 눌러요' : '자동 사냥'); save(); paintHud(); };
+    $('au').onclick = () => { play('click'); g.setAuto(S.auto === false); toast(g.S.auto === false ? '수동 — ◀ ▶ 로 움직이고 점프 · 무공은 칸을 눌러요' : '자동 사냥'); save(); paintHud(); };
   }
-  $('face').textContent = JOBS[H.job].name[0];
-  $('pw').innerHTML = `⚔ ${unit(g.power())}<small>${JOBS[H.job].name}${H.adv ? ` ${H.adv}차` : ''}</small>`;
-  $('curs').innerHTML = `<span><i>●</i> ${unit(S.wallet.gold)}</span><span><i>◆</i> ${S.wallet['ticket:gear'] || 0}</span><span><i>⌛</i> ${S.wallet['ticket:time'] || 0}</span>`;
-  const cur = guideCurrent(S.q.guide), cs = cur && S.q.guide[cur.id], gd = $('gd');
-  gd.style.display = cur ? '' : 'none';
-  if (cur) { gd.className = `guide ${cs?.done ? 'done' : ''}`; gd.innerHTML = `<b>길잡이 ${cur.id.slice(1)}</b>${esc(guideLabel(cur))}: ${cs?.done ? '<b style="display:inline">받기</b>' : `${cs?.p || 0}/${cur.need}`}`; }
-  // 위 가운데: 지역 · 칸
-  const ch = Math.ceil(T.idx / 10), st = ((T.idx - 1) % 10) + 1, boss = !!g.bossFight;
-  $('zn').textContent = boss ? `${ch}. ${chapterName(T.idx)} — 두목` : `${ch}. ${chapterName(T.idx)}`;
-  const sb = $('sb'), tb = $('tb');
+  // 위 상태 줄: 얼굴 · 이름 · 전직 · Lv · 경험치 · 은자 · 뽑기권
+  paintPortrait(H);
+  $('hero-name').textContent = JOBS[H.job].name;
+  $('hero-rank').textContent = H.adv ? `${H.adv}차 전직` : '입문';
+  $('hero-lv').textContent = `Lv.${H.lv}`;
+  const xp = Math.min(100, (H.exp / expToNext(H.lv)) * 100);
+  $('exp-pct').textContent = `${xp.toFixed(2)}%`; $('exp-bar').firstChild.style.width = `${xp}%`;
+  $('gold').textContent = unit(S.wallet.gold); $('tickets').textContent = S.wallet['ticket:gear'] || 0;
+  $('btn-sound').textContent = opt.sfx || opt.bgm ? '🔊' : '🔇';
+  // 사냥터 줄: 장 이름 · 칸 · 무인 체력
+  const ch = Math.ceil(T.idx / 10), st = ((T.idx - 1) % 10) + 1, boss = !!g.bossFight, Hh = F.hero;
+  $('stage-label').textContent = `${ch}. ${chapterName(T.idx)}`;
+  $('zone-label').textContent = boss ? '칸 두목전' : `Stage ${st}/10`;
+  const hpR = Math.max(0, Hh.hp / Hh.st.hp);
+  $('progress-fill').style.width = `${hpR * 100}%`; $('progress-trail').style.width = `${hpR * 100}%`;
+  $('progress-text').textContent = `체력 ${unit(Math.max(0, Hh.hp))} / ${unit(Hh.st.hp)}`;
+  // 들판: 전투력 · 길잡이 · 칸 진행(두목전이면 두목 체력 · 남은 시간) · 두목 도전
+  $('power-label').textContent = `전투력 ${unit(g.power())}`;
+  const cur = guideCurrent(S.q.guide), cs = cur && S.q.guide[cur.id], qb = $('quest');
+  qb.classList.toggle('hidden', !cur);
+  if (cur) { qb.classList.toggle('ready', !!cs?.done); qb.textContent = cs?.done ? `길잡이 ${cur.id.slice(1)} — 받기!` : `길잡이 ${cur.id.slice(1)} · ${guideLabel(cur)} ${cs?.p || 0}/${cur.need}`; }
+  const ready = !boss && g.canChallenge();
+  $('btn-boss').classList.toggle('hidden', !ready); $('btn-boss').classList.toggle('ready', ready);
+  const ch2 = $('contest-hud');
   if (boss) {
     const B = g.bossFight, bm = B.mobs.find((m) => m.kind === 'boss');
-    sb.className = 'sbar boss'; sb.firstChild.style.width = `${bm ? Math.max(0, bm.hp / bm.st.hp) * 100 : 0}%`;
-    tb.style.display = ''; tb.firstChild.style.width = `${Math.max(0, 1 - B.t / B.limitMs) * 100}%`;
-    $('sl').textContent = `${bm ? mobName(bm, z, chapterOf(T.idx)) : ''} ${bm ? Math.ceil(bm.hp / bm.st.hp * 100) : 0}% · ${Math.max(0, Math.ceil((B.limitMs - B.t) / 1000))}초`;
-    $('chal').style.display = 'none';
+    $('contest-title').textContent = `${bm ? mobName(bm, z, chapterOf(T.idx)) : '두목'} ${bm ? Math.ceil((bm.hp / bm.st.hp) * 100) : 0}%`;
+    $('contest-sub').textContent = `남은 ${Math.max(0, Math.ceil((B.limitMs - B.t) / 1000))}초 · 클리어 보상 은자 ${unit(2 * 27 * goldPerMob(T.idx))} · 뽑기권 ${T.idx % 10 === 0 ? 10 : 1}`;
+    ch2.style.top = '40px';
   } else {
-    sb.className = 'sbar'; sb.firstChild.style.width = `${(T.kills / STAGE_KILLS) * 100}%`; tb.style.display = 'none';
-    const ready = g.canChallenge();
-    $('sl').textContent = `Stage ${st}/10 · ${ready ? '두목 준비' : `${T.kills}/${STAGE_KILLS}`}`; $('chal').style.display = ''; $('chal').disabled = !ready; $('chal').classList.toggle('ready', ready);
+    $('contest-title').textContent = `Stage ${st}/10`;
+    $('contest-sub').textContent = ready ? '두목 준비 — 「두목 도전」' : `처치 ${T.kills} / ${STAGE_KILLS}`;
+    ch2.style.top = '40px';
   }
-  // 오른쪽 위: 알림 줄 · 두목전 보상
-  $('chat').textContent = `[알림] ${logLines[0] || '새 시즌 미리보기 — 그림은 지금 게임 것을 빌려 써요'}`;
-  const rw = $('rw'); rw.style.display = boss ? 'block' : 'none';
-  if (boss) rw.innerHTML = `<b>클리어 보상</b><br>은자 ${unit(2 * 27 * goldPerMob(T.idx))} · 뽑기권 ${T.idx % 10 === 0 ? 10 : 1}`;
+  $('btn-boss').style.top = '92px';
   // 피해 측정기(설정에서 켬): 최근 10초 초당 피해 · 분당 처치
   const dm = $('dpsm'); dm.style.display = opt.dps ? 'block' : 'none';
-  if (opt.dps) { const nowT = now(); while (dmgLog.length && dmgLog[0][0] < nowT - 10000) dmgLog.shift(); const sum = dmgLog.reduce((a, d) => a + d[1], 0); dm.innerHTML = `<b>초당 피해</b> ${unit(sum / 10)}<br><b>분당 처치</b> ${killRate()}`; }
-  // 아래 가운데: 나
-  const Hh = F.hero;
-  $('mlv').textContent = `Lv.${H.lv}`; $('mnm').textContent = JOBS[H.job].name;
-  $('hpi').style.width = `${Math.max(0, Hh.hp / Hh.st.hp) * 100}%`; $('hpt').textContent = `${unit(Math.max(0, Hh.hp))}/${unit(Hh.st.hp)}`;
-  const mpMax = 100 + H.lv * 20, mp = Math.round(mpMax * Math.min(1, Math.max(0, (Hh.nextSkill - F.t) <= 0 ? 1 : 1 - (Hh.nextSkill - F.t) / 6000)));
-  $('mpi').style.width = `${(mp / mpMax) * 100}%`; $('mpt').textContent = `${mp}/${mpMax}`;
-  // 왼쪽 아래: 얻은 것 · 경험치
-  $('log').innerHTML = logLines.slice(0, 3).map((l) => `<div>${esc(l)}</div>`).join('');
-  const xp = Math.min(100, (H.exp / expToNext(H.lv)) * 100);
-  $('exp').textContent = `EXP ${xp.toFixed(2)}%`; navDots(); $('xpbar').firstChild.style.width = `${xp}%`;
-  // 오른쪽 아래: 자동 · 무공 칸
-  $('au').className = `auto ${S.auto === false ? 'off' : ''}`; $('au').innerHTML = S.auto === false ? '수동' : '자동<br>사냥';
+  if (opt.dps) { const nowT = now(); while (dmgLog.length && dmgLog[0][0] < nowT - 10000) dmgLog.shift(); const sum = dmgLog.reduce((a, d) => a + d[1], 0); dm.innerHTML = `<b>초당 피해</b>${unit(sum / 10)}<br><b>분당 처치</b>${killRate()}`; }
+  $('loglines').innerHTML = logLines.slice(0, 3).map((l) => `<div>${esc(l)}</div>`).join('');
+  navDots();
+  // 무공 줄: 자동 · 여섯 칸 · 점프 (수동이면 ◀▼▶)
+  const au = $('au'); au.classList.toggle('on', S.auto !== false); au.textContent = S.auto === false ? '수동' : '자동';
+  $('pad').classList.toggle('hidden', S.auto !== false);
   const sl = $('slots'), kit = Hh.kit || [];
   if (sl.children.length !== SLOT_N) {
     sl.innerHTML = '';
     for (let i = 0; i < SLOT_N; i++) {
-      const b = document.createElement('button'); b.className = 'slot'; b.dataset.i = i;
-      b.onpointerdown = (e) => { e.preventDefault(); if (!(g.ensureFight().hero.kit || [])[i]) { openWin('hero', 1); return; } g.ensureFight().press({ slot: i }); };   // 빈 칸은 무공 창으로
+      const b = document.createElement('button'); b.className = 'skill-btn'; b.dataset.i = i;
+      b.onpointerdown = (e) => { e.preventDefault(); if (!(g.ensureFight().hero.kit || [])[i]) { openKey('hero:1'); return; } g.ensureFight().press({ slot: i }); };   // 빈 칸은 무공 창으로
       sl.append(b);
     }
   }
   for (const b of sl.children) {
     const i = +b.dataset.i, k = kit[i], sk = k && skillById(k.id);
-    b.classList.toggle('on', !!sk);
+    b.classList.toggle('ready', !!sk && !(Hh.cds && Hh.cds[i] > F.t));
     b.style.borderColor = sk ? sk.col : '';
     const name = sk ? sk.name.slice(0, 2) : '+';
     b.classList.toggle('empty', !sk); b.title = sk ? sk.name : '무공 끼우기';
-    if (b.dataset.n !== name) { b.dataset.n = name; b.innerHTML = `<span class="nm" style="color:${sk ? sk.col : '#776'}">${name}</span><span class="t">${sk ? 'ⅠⅡⅢⅣⅤⅥ'[sk.tier] || '' : ''}</span>${sk && k.auto ? '<i class="ad"></i>' : ''}`; }
-    // 쿨: 이름은 그대로 두고 위에 시계 방향으로 걷히는 그늘 + 남은 초(작게)
-    let cd = b.querySelector('.cd');
+    if (b.dataset.n !== name) { b.dataset.n = name; b.innerHTML = `<span class="nm" style="color:${sk ? sk.col : ''}">${name}</span><span class="t">${sk ? 'ⅠⅡⅢⅣⅤⅥ'[sk.tier] || '' : ''}</span>${sk && k.auto ? '<i class="ad"></i>' : ''}`; }
+    // 쿨: 이름은 그대로 두고 위에 시계 방향으로 걷히는 그늘 + 남은 초
+    let cd = b.querySelector('.cdw');
     const remain = sk && Hh.cds ? Hh.cds[i] - F.t : 0, left = Math.ceil(remain / 1000);
-    if (left > 0) { if (!cd) { cd = document.createElement('div'); cd.className = 'cd'; b.append(cd); } cd.style.setProperty('--p', `${Math.min(100, (remain / (k.cdMs || 1)) * 100)}%`); cd.textContent = left; } else cd?.remove();
+    if (left > 0) { if (!cd) { cd = document.createElement('div'); cd.className = 'cdw'; b.append(cd); } cd.style.setProperty('--p', `${Math.min(100, (remain / (k.cdMs || 1)) * 100)}%`); cd.textContent = left; } else cd?.remove();
   }
 }
 function padHold(id, dir) {
@@ -413,9 +432,9 @@ function onGuide() {
   const cur = guideCurrent(g.S.q.guide), cs = cur && g.S.q.guide[cur.id];
   if (!cur) return;
   if (cs?.done) { const r = g.claimGuide(); if (r) toast(`길잡이 ${r.id.slice(1)} 보상`); save(); paintHud(); }
-  else if (cur.go) openWin(goWin(cur.go)[0], goWin(cur.go)[1]);
+  else if (cur.go) openKey(goKey(cur.go));
 }
-const goWin = (go) => ({ gear: ['gear', 0], gacha: ['gear', 1], skill: ['hero', 1], slot: ['gear', 2], job: ['hero', 3], pal: ['grow', 1], weapon: ['grow', 0], relic: ['grow', 2], daily: ['content', 0], realm: ['grow', 3], hunt: ['content', 3] }[go] || ['mission', 0]);
+const goKey = (go) => ({ gear: 'gear:0', gacha: 'gear:1', skill: 'hero:1', slot: 'gear:2', job: 'hero:3', pal: 'grow:1', weapon: 'grow:0', relic: 'grow:2', daily: 'content:0', realm: 'grow:3', hunt: 'content:3' }[go] || 'mission:0');
 
 // ── 옆보기 사냥 화면 ──
 const cv = $('cv'), cx = cv.getContext('2d');
@@ -539,7 +558,7 @@ function draw() {
   const z = zoneFor(g.zoneLv());
   // 가까이 당겨 본다: 화면 너비에 약 15미터 — 무인을 가로 · 세로로 따라감(맵은 화면보다 넓고 높다)
   // 세로 화면이면 아래 조작 받침(168px)을 빼고, 가로로 너무 당겨지지 않게 넓게 본다
-  const port = Hh > W * 1.1, dock = port ? 168 : 0;
+  const port = Hh > W * 1.1, dock = port ? 118 : 0;   // 아래 창 단추 줄 · 무공 줄
   const s = port ? Math.max(W / 8500, (Hh - dock) / 13000) : Math.max(W / 15000, Hh / 9000), k = Math.min(1.25, Math.max(0.7, s / 0.05));
   const viewW = W / s, viewH = Hh / s;
   const al = Math.max(0, Math.min(1, acc / 50));
@@ -858,7 +877,7 @@ function frame() {
 function showResult(f) {
   const ch = Math.ceil(f.idx / 10), st = ((f.idx - 1) % 10) + 1, win = f.k === 'stage-clear';
   play(win ? 'clear' : 'fail'); bgm(chapterOf(g.zoneLv()));
-  $('res').innerHTML = `<div class="st">CHAPTER ${ch} <em>STAGE ${st}</em></div><div class="big ${win ? 'win' : ''}">${win ? 'CLEAR' : 'FAILED'}</div>${win ? `<div>보상: 은자 · 뽑기권</div>` : '<div class="note">이 칸 몹을 다시 잡으면 또 도전해요</div>'}<div class="acts"><button class="out" id="rout">나가기</button>${win ? '' : '<button class="again" id="ragain">다시하기</button>'}</div><div class="note" id="rcd">3초 뒤 자동 닫힘</div>`;
+  $('res').innerHTML = `<div class="st">CHAPTER ${ch} <em>STAGE ${st}</em></div><div class="big ${win ? 'win' : ''}">${win ? 'CLEAR' : 'FAILED'}</div>${win ? `<div>보상: 은자 · 뽑기권</div>` : '<div class="note">이 칸 몹을 다시 잡으면 또 도전해요</div>'}<div class="acts"><button class="btn" id="rout">나가기</button>${win ? '' : '<button class="btn primary" id="ragain">다시하기</button>'}</div><div class="note" id="rcd">3초 뒤 자동 닫힘</div>`;
   $('res').classList.add('open'); resTimer = now() + 3000;
   $('rout').onclick = closeResult;
   if (!win) $('ragain').onclick = () => { closeResult(); g.stage().kills = STAGE_KILLS; g.challenge(); };
@@ -875,7 +894,7 @@ function returnQueue() {
   }
 }
 function boot() {
-  $('pop').classList.remove('open');
+  closeModal();
   paintNav(); paintHud();
   returnQueue();
   last = now(); lastMin = now();
@@ -883,11 +902,10 @@ function boot() {
 }
 document.addEventListener('visibilitychange', () => { if (!g) return; if (document.hidden) save(); else { returnQueue(); last = now(); } });
 window.addEventListener('pagehide', () => g && save());
-$('wx').onclick = closeWin;
 // 컴퓨터: ← → 움직이기 · Space/↑ 점프 · ↓ 내려가기 · Q 무공 · Del 자동
 const keyDir = { ArrowLeft: -1, ArrowRight: 1 };
 document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape') { if ($('pop').classList.contains('open')) $('pop').classList.remove('open'); else closeWin(); return; }
+  if (e.key === 'Escape') { if (!$('modal').classList.contains('hidden')) closeModal(); else closeWin(); return; }
   if (!g || open) return;
   if (keyDir[e.key] && !e.repeat) g.hold(keyDir[e.key]);
   else if ((e.key === ' ' || e.key === 'ArrowUp') && !e.repeat) { e.preventDefault(); g.jump(); }
