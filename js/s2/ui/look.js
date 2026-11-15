@@ -1,7 +1,8 @@
 // 새 시즌 미리보기 그림 — 지금 게임의 실제 그림(무인 · 몹 · 동물 · 지역 두목)을 그대로 빌려 쓴다.
 // 새 시즌 전용 그림(계획서 §M)이 나오기 전까지의 다리. 사냥터 레벨 → 지금 게임의 같은 레벨대 지역 모습.
 import { drawFighter } from '../../battle.js';
-import { loadArt } from '../../art.js';
+import { loadArt, registerArt, OUTFIT_BODY, OUTFIT_WEAPON, WEAPON_FIT, HEAD_FIT } from '../../art.js';
+import { HEAD_ANCHOR } from '../../headanchor.js';
 import { drawCreature } from '../../creatures.js';
 import { bossImg } from '../../bossfx.js';
 import { ZONES_W } from '../../world/wdata.js';
@@ -47,6 +48,37 @@ function shade(hex, k) {
 //   상의: 도포 그림(등급마다 다른 도포) + 둘레 빛 테 · 하의: 바지 빛깔 · 모자: 머리띠 빛깔(신 · 천은 금관) · 장갑: 손목 보호대 빛깔
 //   신발: 장화 빛깔 · 망토: 등 뒤 망토 · 허리띠: 띠와 옥 노리개 · 목걸이: 몸 둘레 기운 낟알 · 반지: 발밑 문양 · 무기: 칼빛(진부터 빛남)
 //   가장 높은 등급이 신(5)↑이면 몸 기운
+// v517 장비 모양 조각(art/s2/wear) — 상의는 도포 그림, 모자는 머리(같은 얼굴 + 쓰개), 무기는 손에 쥔 그림. 받기 전에는 v516 빛깔로 그린다
+const WEAR_PAD = 60, WEAR_HC = 140;   // 머리 조각: 위 여유 · 상투 머리(잘라 낸 뒤) 높이 — tools/s2art/wear_fit.py와 같다
+const wear = {};
+let wearN = 0;
+export const wearCount = () => wearN;
+function wearImg(name, reg) {
+  if (!(name in wear)) { wear[name] = null; if (typeof Image !== 'undefined') { const im = new Image(); im.onload = () => { reg(im); wear[name] = im; wearN++; }; im.src = `art/s2/wear/${name}.webp`; } }
+  return wear[name];
+}
+function wearBody(g) {
+  const key = `body-s2-${g}`;
+  if (!wearImg(`body-${g}`, (im) => { registerArt(key, im); if (!OUTFIT_BODY.includes(key)) OUTFIT_BODY.push(key); })) return null;
+  return OUTFIT_BODY.indexOf(key);
+}
+function wearHead(g) {
+  const key = `head-s2-${g}`;
+  return wearImg(`head-${g}`, (im) => {
+    // 상투 머리의 자리 값을 위 여유만큼 옮겨 그대로 — 얼굴 · 이마 · 턱이 같은 자리에 온다
+    const f = (v) => (WEAR_PAD + v * WEAR_HC) / (WEAR_PAD + WEAR_HC), A = HEAD_ANCHOR['head-topknot'], T = HEAD_FIT['head-topknot'];
+    HEAD_ANCHOR[key] = { ...A, eyeY: f(A.eyeY), browY: f(A.browY), topY: f(A.topY), jawY: f(A.jawY) };
+    registerArt(key, im, { ...T, crop: 1, brow: f(T.brow), eye: f(T.eye) });
+  }) ? key : null;
+}
+const WEAR_W = { sword: 'sword', spear: 'spear', fist: 'fist', mage: 'staff' };   // 궁사 활은 그려 넣는 모양 그대로(빛만)
+const WEAR_FIT = { sword: { grip: 0.82, h: 48 }, spear: { grip: 0.6, h: 84, flip: true }, fist: { grip: 0.5, h: 19, bare: true }, staff: { grip: 0.6, h: 84 } };   // 지팡이는 머리(구슬)가 위 — 창처럼 뒤집지 않는다
+function wearWeapon(job, g) {
+  const kind = WEAR_W[job]; if (!kind) return null;
+  const key = `wp-s2-${kind}-${g}`;
+  if (!wearImg(`wp-${kind}-${g}`, (im) => { registerArt(key, im); WEAPON_FIT[key] = { ...WEAR_FIT[kind] }; if (!OUTFIT_WEAPON.includes(key)) OUTFIT_WEAPON.push(key); })) return null;
+  return OUTFIT_WEAPON.indexOf(key);
+}
 export const GEAR_COL = ['#9ca3af', '#7cc47a', '#6aa8e0', '#b27ae0', '#e8c26a', '#e06a5a', '#f8fafc'];
 const TOP_BODY = [{ robe: '#6b5640' }, { robe: '#3f3a36' }, { outfitBody: 0 }, { robe: '#4c1d5f' }, { robe: '#fffbeb' }, { outfitBody: 4 }, { robe: '#f8f4ea' }];
 const NECK_AURA = [null, null, 'firefly', 'spark', 'gold', 'ember', 'snow'];
@@ -56,16 +88,18 @@ export function gearLook(lv, eq, job) {
   const look = { ...heroLook(lv) }, o = {};
   if (!eq) return { look, o };
   const G = (s) => (eq[s] ? eq[s].g : -1);
-  const top = G('top'); if (top >= 0) { Object.assign(look, TOP_BODY[top]); delete look.robeTint; if (top >= 1) { look.edge = GEAR_COL[top]; look.edgeW = [1, 1, 1.2, 1.5, 1.8, 2.1, 2.4][top]; look.edgeGlow = top >= 3; look.edgePulse = top >= 5; look.edgeTint = top >= 4 ? 0.1 : 0; } }
+  const top = G('top'); if (top >= 0) { const wb = wearBody(top); Object.assign(look, wb != null ? { outfitBody: wb } : TOP_BODY[top]); delete look.robeTint; if (top >= 1) { look.edge = GEAR_COL[top]; look.edgeW = [1, 1, 1.2, 1.5, 1.8, 2.1, 2.4][top]; look.edgeGlow = top >= 3; look.edgePulse = top >= 5; look.edgeTint = top >= 4 ? 0.1 : 0; } }
   const bot = G('bottom'); if (bot >= 0) look.pantsCol = shadeHex(bot === 0 ? '#6b5640' : GEAR_COL[bot], bot >= 4 ? -0.25 : -0.4);
-  const hat = G('hat'); if (hat >= 1) { look.band = GEAR_COL[hat]; look.head = look.head || 'topknot'; } if (hat >= 5) look.crown = true;
+  const hat = G('hat'); const wh = hat >= 0 ? wearHead(hat) : null;
+  if (wh) { look.head = 'topknot'; look.fhead = wh; }   // 쓰개를 그린 머리(금관 · 깃털관은 그림 안에)
+  else { if (hat >= 1) { look.band = GEAR_COL[hat]; look.head = look.head || 'topknot'; } if (hat >= 5) look.crown = true; }
   const glv = G('glove'); if (glv >= 0) look.cuff = glv === 0 ? '#8a7a66' : GEAR_COL[glv];
   const sh = G('shoes'); if (sh >= 0) look.boot = sh === 0 ? '#2a1f18' : shadeHex(GEAR_COL[sh], -0.45);
   const cp = G('cape'); if (cp >= 0) look.cape = { col: cp === 0 ? '#6b5a48' : GEAR_COL[cp], g: cp };
   const bl = G('belt'); if (bl >= 0) look.belt = { col: bl === 0 ? '#5a4a38' : GEAR_COL[bl], g: bl };
   const nk = G('neck'); if (NECK_AURA[nk]) look.gAura = NECK_AURA[nk];
   const rg = G('ring'); if (RING_FOOT[rg]) look.gRing = RING_FOOT[rg];
-  const wp = G('weapon'); if (wp >= 0) { o.blade = wp === 0 ? '#cbd5e1' : GEAR_COL[wp]; if (wp >= 2) { o.glow = true; o.glowCol = GEAR_COL[wp]; } if (job === 'sword') look.outfitWeapon = [0, 1, 2, 3, 4, 5, 5][wp]; }   // 검객은 등급마다 다른 검 그림
+  const wp = G('weapon'); if (wp >= 0) { o.blade = wp === 0 ? '#cbd5e1' : GEAR_COL[wp]; if (wp >= 2) { o.glow = true; o.glowCol = GEAR_COL[wp]; } const ww = wearWeapon(job, wp); if (ww != null) look.outfitWeapon = ww; else if (job === 'sword') look.outfitWeapon = [0, 1, 2, 3, 4, 5, 5][wp]; }   // 검객은 등급마다 다른 검 그림
   const best = Math.max(...['weapon', 'hat', 'top', 'bottom', 'glove', 'shoes', 'cape', 'belt', 'neck', 'ring'].map(G));
   if (best >= 5) look.aura = GEAR_COL[best];
   return { look, o };

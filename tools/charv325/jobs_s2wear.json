@@ -1,0 +1,387 @@
+[
+ {
+  "name": "body-0",
+  "refs": [
+   "/home/user/idle_for_us/art/hero/body-r0.png",
+   "/home/user/idle_for_us/art/hero/head-topknot.png"
+  ],
+  "size": "1024x1536",
+  "q": "medium",
+  "prompt": "Use EXACTLY the same hand-painted Korean wuxia (murim) manhwa illustration style as the references: crisp clean dark outlines, rich soft cel shading. The FIRST reference is a robe/torso piece seen from a 3/4 PROFILE VIEW FACING RIGHT, with a short bare neck at the top. Draw a NEW outfit in EXACTLY the same pose, same 3/4 view facing right, same scale and same framing: the outfit fills the canvas from the neck at the very top to the hem at the very bottom, a short bare NECK (skin colored, cut cleanly at the top where a head would sit) rising out of the collar. NO head, NO hands, NO feet — sleeves end at the wrists with nothing beyond, the hem covers the legs. Transparent background, nothing else, no text. The new outfit: a plain, worn, patched hemp robe of a poor wanderer with a simple rope belt and a frayed hem, muted grey-brown, very simple shape."
+ },
+ {
+  "name": "body-1",
+  "refs": [
+   "/home/user/idle_for_us/art/hero/body-r0.png",
+   "/home/user/idle_for_us/art/hero/head-topknot.png"
+  ],
+  "size": "1024x1536",
+  "q": "medium",
+  "prompt": "Use EXACTLY the same hand-painted Korean wuxia (murim) manhwa illustration style as the references: crisp clean dark outlines, rich soft cel shading. The FIRST reference is a robe/torso piece seen from a 3/4 PROFILE VIEW FACING RIGHT, with a short bare neck at the top. Draw a NEW outfit in EXACTLY the same pose, same 3/4 view facing right, same scale and same framing: the outfit fills the canvas from the neck at the very top to the hem at the very bottom, a short bare NECK (skin colored, cut cleanly at the top where a head would sit) rising out of the collar. NO head, NO hands, NO feet — sleeves end at the wrists with nothing beyond, the hem covers the legs. Transparent background, nothing else, no text. The new outfit: a neat practical martial-artist outfit: a short belted jacket over a long robe skirt, forest-green cloth with bronze toggles, a cloth sash belt with a small jade token, fitted sleeves."
+ },
+ {
+  "name": "body-2",
+  "refs": [
+   "/home/user/idle_for_us/art/hero/body-r0.png",
+   "/home/user/idle_for_us/art/hero/head-topknot.png"
+  ],
+  "size": "1024x1536",
+  "q": "medium",
+  "prompt": "Use EXACTLY the same hand-painted Korean wuxia (murim) manhwa illustration style as the references: crisp clean dark outlines, rich soft cel shading. The FIRST reference is a robe/torso piece seen from a 3/4 PROFILE VIEW FACING RIGHT, with a short bare neck at the top. Draw a NEW outfit in EXACTLY the same pose, same 3/4 view facing right, same scale and same framing: the outfit fills the canvas from the neck at the very top to the hem at the very bottom, a short bare NECK (skin colored, cut cleanly at the top where a head would sit) rising out of the collar. NO head, NO hands, NO feet — sleeves end at the wrists with nothing beyond, the hem covers the legs. Transparent background, nothing else, no text. The new outfit: a refined sect disciple's uniform: layered blue and white silk robes with silver cloud-embroidered trims, a structured high collar, a wide dark-blue belt with a silver buckle, wide sleeves."
+ },
+ {
+  "name": "body-3",
+  "refs": [
+   "/home/user/idle_for_us/art/hero/body-r0.png",
+   "/home/user/idle_for_us/art/hero/head-topknot.png"
+  ],
+  "size": "1024x1536",
+  "q": "medium",
+  "prompt": "Use EXACTLY the same hand-painted Korean wuxia (murim) manhwa illustration style as the references: crisp clean dark outlines, rich soft cel shading. The FIRST reference is a robe/torso piece seen from a 3/4 PROFILE VIEW FACING RIGHT, with a short bare neck at the top. Draw a NEW outfit in EXACTLY the same pose, same 3/4 view facing right, same scale and same framing: the outfit fills the canvas from the neck at the very top to the hem at the very bottom, a short bare NECK (skin colored, cut cleanly at the top where a head would sit) rising out of the collar. NO head, NO hands, NO feet — sleeves end at the wrists with nothing beyond, the hem covers the legs. Transparent background, nothing else, no text. The new outfit: an elite outfit with armor: black lacquered leather armor plates over a deep purple robe, one articulated pauldron on the near shoulder, amethyst studs and gilded edges, a plated waist guard."
+ },
+ {
+  "name": "body-4",
+  "refs": [
+   "/home/user/idle_for_us/art/hero/body-r0.png",
+   "/home/user/idle_for_us/art/hero/head-topknot.png"
+  ],
+  "size": "1024x1536",
+  "q": "medium",
+  "prompt": "Use EXACTLY the same hand-painted Korean wuxia (murim) manhwa illustration style as the references: crisp clean dark outlines, rich soft cel shading. The FIRST reference is a robe/torso piece seen from a 3/4 PROFILE VIEW FACING RIGHT, with a short bare neck at the top. Draw a NEW outfit in EXACTLY the same pose, same 3/4 view facing right, same scale and same framing: the outfit fills the canvas from the neck at the very top to the hem at the very bottom, a short bare NECK (skin colored, cut cleanly at the top where a head would sit) rising out of the collar. NO head, NO hands, NO feet — sleeves end at the wrists with nothing beyond, the hem covers the legs. Transparent background, nothing else, no text. The new outfit: a legendary sect master's regalia: a white and gold dragon-brocade robe with golden dragon-head shoulder guards, carved jade belt plaques, long flowing gold-trimmed sleeves."
+ },
+ {
+  "name": "body-5",
+  "refs": [
+   "/home/user/idle_for_us/art/hero/body-r0.png",
+   "/home/user/idle_for_us/art/hero/head-topknot.png"
+  ],
+  "size": "1024x1536",
+  "q": "medium",
+  "prompt": "Use EXACTLY the same hand-painted Korean wuxia (murim) manhwa illustration style as the references: crisp clean dark outlines, rich soft cel shading. The FIRST reference is a robe/torso piece seen from a 3/4 PROFILE VIEW FACING RIGHT, with a short bare neck at the top. Draw a NEW outfit in EXACTLY the same pose, same 3/4 view facing right, same scale and same framing: the outfit fills the canvas from the neck at the very top to the hem at the very bottom, a short bare NECK (skin colored, cut cleanly at the top where a head would sit) rising out of the collar. NO head, NO hands, NO feet — sleeves end at the wrists with nothing beyond, the hem covers the legs. Transparent background, nothing else, no text. The new outfit: a mythic phoenix war armor: crimson and gold scale armor over red robes, phoenix-feather shaped shoulder plates and layered skirt tassets, flame motifs on the trims."
+ },
+ {
+  "name": "body-6",
+  "refs": [
+   "/home/user/idle_for_us/art/hero/body-r0.png",
+   "/home/user/idle_for_us/art/hero/head-topknot.png"
+  ],
+  "size": "1024x1536",
+  "q": "medium",
+  "prompt": "Use EXACTLY the same hand-painted Korean wuxia (murim) manhwa illustration style as the references: crisp clean dark outlines, rich soft cel shading. The FIRST reference is a robe/torso piece seen from a 3/4 PROFILE VIEW FACING RIGHT, with a short bare neck at the top. Draw a NEW outfit in EXACTLY the same pose, same 3/4 view facing right, same scale and same framing: the outfit fills the canvas from the neck at the very top to the hem at the very bottom, a short bare NECK (skin colored, cut cleanly at the top where a head would sit) rising out of the collar. NO head, NO hands, NO feet — sleeves end at the wrists with nothing beyond, the hem covers the legs. Transparent background, nothing else, no text. The new outfit: a celestial immortal's raiment: layered white jade-silk robes with platinum cloud and star ornaments, an ornate high collar, short floating ribbons kept inside the canvas."
+ },
+ {
+  "name": "head-0",
+  "refs": [
+   "/home/user/idle_for_us/art/hero/head-topknot.png"
+  ],
+  "size": "1024x1024",
+  "q": "medium",
+  "prompt": "Use EXACTLY the same hand-painted Korean wuxia (murim) manhwa illustration style as the references: crisp clean dark outlines, rich soft cel shading. The reference is a character's HEAD (same 3/4 view facing right). Redraw EXACTLY the same head — same face, same eyes, same expression, same hair and topknot bun, same skin, same size, same position and same framing on the canvas — and only ADD the following headwear on the head. Nothing else changes. No body, no neck below the chin line of the reference. Transparent background, no text. Headwear: a plain wooden hairpin pushed through the topknot bun and a thin undyed cloth band around the bun."
+ },
+ {
+  "name": "head-1",
+  "refs": [
+   "/home/user/idle_for_us/art/hero/head-topknot.png"
+  ],
+  "size": "1024x1024",
+  "q": "medium",
+  "prompt": "Use EXACTLY the same hand-painted Korean wuxia (murim) manhwa illustration style as the references: crisp clean dark outlines, rich soft cel shading. The reference is a character's HEAD (same 3/4 view facing right). Redraw EXACTLY the same head — same face, same eyes, same expression, same hair and topknot bun, same skin, same size, same position and same framing on the canvas — and only ADD the following headwear on the head. Nothing else changes. No body, no neck below the chin line of the reference. Transparent background, no text. Headwear: a small bronze topknot crown (guan) wrapping the bun, with a bronze hairpin and two short green ribbons."
+ },
+ {
+  "name": "head-2",
+  "refs": [
+   "/home/user/idle_for_us/art/hero/head-topknot.png"
+  ],
+  "size": "1024x1024",
+  "q": "medium",
+  "prompt": "Use EXACTLY the same hand-painted Korean wuxia (murim) manhwa illustration style as the references: crisp clean dark outlines, rich soft cel shading. The reference is a character's HEAD (same 3/4 view facing right). Redraw EXACTLY the same head — same face, same eyes, same expression, same hair and topknot bun, same skin, same size, same position and same framing on the canvas — and only ADD the following headwear on the head. Nothing else changes. No body, no neck below the chin line of the reference. Transparent background, no text. Headwear: a silver topknot crown with cloud engravings, a long silver hairpin, and two flowing light-blue silk ribbons behind the head."
+ },
+ {
+  "name": "head-3",
+  "refs": [
+   "/home/user/idle_for_us/art/hero/head-topknot.png"
+  ],
+  "size": "1024x1024",
+  "q": "medium",
+  "prompt": "Use EXACTLY the same hand-painted Korean wuxia (murim) manhwa illustration style as the references: crisp clean dark outlines, rich soft cel shading. The reference is a character's HEAD (same 3/4 view facing right). Redraw EXACTLY the same head — same face, same eyes, same expression, same hair and topknot bun, same skin, same size, same position and same framing on the canvas — and only ADD the following headwear on the head. Nothing else changes. No body, no neck below the chin line of the reference. Transparent background, no text. Headwear: a black lacquered tall guan with amethyst inlays and gold edges, a gold hairpin, and purple tassels hanging behind."
+ },
+ {
+  "name": "head-4",
+  "refs": [
+   "/home/user/idle_for_us/art/hero/head-topknot.png"
+  ],
+  "size": "1024x1024",
+  "q": "medium",
+  "prompt": "Use EXACTLY the same hand-painted Korean wuxia (murim) manhwa illustration style as the references: crisp clean dark outlines, rich soft cel shading. The reference is a character's HEAD (same 3/4 view facing right). Redraw EXACTLY the same head — same face, same eyes, same expression, same hair and topknot bun, same skin, same size, same position and same framing on the canvas — and only ADD the following headwear on the head. Nothing else changes. No body, no neck below the chin line of the reference. Transparent background, no text. Headwear: an ornate golden crown with a coiled dragon motif and white jade, a long gold hairpin with pearl ends."
+ },
+ {
+  "name": "head-5",
+  "refs": [
+   "/home/user/idle_for_us/art/hero/head-topknot.png"
+  ],
+  "size": "1024x1024",
+  "q": "medium",
+  "prompt": "Use EXACTLY the same hand-painted Korean wuxia (murim) manhwa illustration style as the references: crisp clean dark outlines, rich soft cel shading. The reference is a character's HEAD (same 3/4 view facing right). Redraw EXACTLY the same head — same face, same eyes, same expression, same hair and topknot bun, same skin, same size, same position and same framing on the canvas — and only ADD the following headwear on the head. Nothing else changes. No body, no neck below the chin line of the reference. Transparent background, no text. Headwear: a crimson-gold phoenix crown with upswept phoenix tail feathers rising behind the head, small flame ornaments."
+ },
+ {
+  "name": "head-6",
+  "refs": [
+   "/home/user/idle_for_us/art/hero/head-topknot.png"
+  ],
+  "size": "1024x1024",
+  "q": "medium",
+  "prompt": "Use EXACTLY the same hand-painted Korean wuxia (murim) manhwa illustration style as the references: crisp clean dark outlines, rich soft cel shading. The reference is a character's HEAD (same 3/4 view facing right). Redraw EXACTLY the same head — same face, same eyes, same expression, same hair and topknot bun, same skin, same size, same position and same framing on the canvas — and only ADD the following headwear on the head. Nothing else changes. No body, no neck below the chin line of the reference. Transparent background, no text. Headwear: a white-jade and platinum celestial crown with star and cloud ornaments and a faint halo of light motes around it."
+ },
+ {
+  "name": "wp-sword-0",
+  "refs": [
+   "/home/user/idle_for_us/art/hero/wp-sword.png"
+  ],
+  "size": "1024x1536",
+  "q": "medium",
+  "prompt": "Use EXACTLY the same hand-painted Korean wuxia (murim) manhwa illustration style as the references: crisp clean dark outlines, rich soft cel shading. The reference is a weapon piece for a character rig: ONE object drawn vertically, centered, filling the canvas from top to bottom. Draw a NEW weapon in EXACTLY the same orientation (vertical, upright), same framing and similar proportions, transparent background, nothing else, no text, no hand. The weapon: a single straight double-edged jian sword, blade pointing straight up, handle and pommel at the bottom, a tassel hanging from the pommel. Materials: plain dark iron and worn wood, simple shape, no glow."
+ },
+ {
+  "name": "wp-sword-1",
+  "refs": [
+   "/home/user/idle_for_us/art/hero/wp-sword.png"
+  ],
+  "size": "1024x1536",
+  "q": "medium",
+  "prompt": "Use EXACTLY the same hand-painted Korean wuxia (murim) manhwa illustration style as the references: crisp clean dark outlines, rich soft cel shading. The reference is a weapon piece for a character rig: ONE object drawn vertically, centered, filling the canvas from top to bottom. Draw a NEW weapon in EXACTLY the same orientation (vertical, upright), same framing and similar proportions, transparent background, nothing else, no text, no hand. The weapon: a single straight double-edged jian sword, blade pointing straight up, handle and pommel at the bottom, a tassel hanging from the pommel. Materials: polished bronze fittings with green jade accents and dark green wraps, a faint green shimmer."
+ },
+ {
+  "name": "wp-sword-2",
+  "refs": [
+   "/home/user/idle_for_us/art/hero/wp-sword.png"
+  ],
+  "size": "1024x1536",
+  "q": "medium",
+  "prompt": "Use EXACTLY the same hand-painted Korean wuxia (murim) manhwa illustration style as the references: crisp clean dark outlines, rich soft cel shading. The reference is a weapon piece for a character rig: ONE object drawn vertically, centered, filling the canvas from top to bottom. Draw a NEW weapon in EXACTLY the same orientation (vertical, upright), same framing and similar proportions, transparent background, nothing else, no text, no hand. The weapon: a single straight double-edged jian sword, blade pointing straight up, handle and pommel at the bottom, a tassel hanging from the pommel. Materials: blue-tempered steel with silver cloud engravings and blue silk wraps, a soft blue glow."
+ },
+ {
+  "name": "wp-sword-3",
+  "refs": [
+   "/home/user/idle_for_us/art/hero/wp-sword.png"
+  ],
+  "size": "1024x1536",
+  "q": "medium",
+  "prompt": "Use EXACTLY the same hand-painted Korean wuxia (murim) manhwa illustration style as the references: crisp clean dark outlines, rich soft cel shading. The reference is a weapon piece for a character rig: ONE object drawn vertically, centered, filling the canvas from top to bottom. Draw a NEW weapon in EXACTLY the same orientation (vertical, upright), same framing and similar proportions, transparent background, nothing else, no text, no hand. The weapon: a single straight double-edged jian sword, blade pointing straight up, handle and pommel at the bottom, a tassel hanging from the pommel. Materials: black lacquer with amethyst inlays and gold edges, swirling violet glow."
+ },
+ {
+  "name": "wp-sword-4",
+  "refs": [
+   "/home/user/idle_for_us/art/hero/wp-sword.png"
+  ],
+  "size": "1024x1536",
+  "q": "medium",
+  "prompt": "Use EXACTLY the same hand-painted Korean wuxia (murim) manhwa illustration style as the references: crisp clean dark outlines, rich soft cel shading. The reference is a weapon piece for a character rig: ONE object drawn vertically, centered, filling the canvas from top to bottom. Draw a NEW weapon in EXACTLY the same orientation (vertical, upright), same framing and similar proportions, transparent background, nothing else, no text, no hand. The weapon: a single straight double-edged jian sword, blade pointing straight up, handle and pommel at the bottom, a tassel hanging from the pommel. Materials: gold filigree and carved white jade with a coiled dragon motif, radiant golden glow."
+ },
+ {
+  "name": "wp-sword-5",
+  "refs": [
+   "/home/user/idle_for_us/art/hero/wp-sword.png"
+  ],
+  "size": "1024x1536",
+  "q": "medium",
+  "prompt": "Use EXACTLY the same hand-painted Korean wuxia (murim) manhwa illustration style as the references: crisp clean dark outlines, rich soft cel shading. The reference is a weapon piece for a character rig: ONE object drawn vertically, centered, filling the canvas from top to bottom. Draw a NEW weapon in EXACTLY the same orientation (vertical, upright), same framing and similar proportions, transparent background, nothing else, no text, no hand. The weapon: a single straight double-edged jian sword, blade pointing straight up, handle and pommel at the bottom, a tassel hanging from the pommel. Materials: crimson and gold with phoenix feather motifs, wrapped in red-orange spirit flames."
+ },
+ {
+  "name": "wp-sword-6",
+  "refs": [
+   "/home/user/idle_for_us/art/hero/wp-sword.png"
+  ],
+  "size": "1024x1536",
+  "q": "medium",
+  "prompt": "Use EXACTLY the same hand-painted Korean wuxia (murim) manhwa illustration style as the references: crisp clean dark outlines, rich soft cel shading. The reference is a weapon piece for a character rig: ONE object drawn vertically, centered, filling the canvas from top to bottom. Draw a NEW weapon in EXACTLY the same orientation (vertical, upright), same framing and similar proportions, transparent background, nothing else, no text, no hand. The weapon: a single straight double-edged jian sword, blade pointing straight up, handle and pommel at the bottom, a tassel hanging from the pommel. Materials: white jade and platinum with cloud and star motifs, brilliant white-gold light."
+ },
+ {
+  "name": "wp-spear-0",
+  "refs": [
+   "/home/user/idle_for_us/art/hero/wp-spear.png"
+  ],
+  "size": "1024x1536",
+  "q": "medium",
+  "prompt": "Use EXACTLY the same hand-painted Korean wuxia (murim) manhwa illustration style as the references: crisp clean dark outlines, rich soft cel shading. The reference is a weapon piece for a character rig: ONE object drawn vertically, centered, filling the canvas from top to bottom. Draw a NEW weapon in EXACTLY the same orientation (vertical, upright), same framing and similar proportions, transparent background, nothing else, no text, no hand. The weapon: a single long spear held vertically, the leaf-shaped spearhead at the top with a horsehair tassel under it, the long shaft running to the bottom. Materials: plain dark iron and worn wood, simple shape, no glow."
+ },
+ {
+  "name": "wp-spear-1",
+  "refs": [
+   "/home/user/idle_for_us/art/hero/wp-spear.png"
+  ],
+  "size": "1024x1536",
+  "q": "medium",
+  "prompt": "Use EXACTLY the same hand-painted Korean wuxia (murim) manhwa illustration style as the references: crisp clean dark outlines, rich soft cel shading. The reference is a weapon piece for a character rig: ONE object drawn vertically, centered, filling the canvas from top to bottom. Draw a NEW weapon in EXACTLY the same orientation (vertical, upright), same framing and similar proportions, transparent background, nothing else, no text, no hand. The weapon: a single long spear held vertically, the leaf-shaped spearhead at the top with a horsehair tassel under it, the long shaft running to the bottom. Materials: polished bronze fittings with green jade accents and dark green wraps, a faint green shimmer."
+ },
+ {
+  "name": "wp-spear-2",
+  "refs": [
+   "/home/user/idle_for_us/art/hero/wp-spear.png"
+  ],
+  "size": "1024x1536",
+  "q": "medium",
+  "prompt": "Use EXACTLY the same hand-painted Korean wuxia (murim) manhwa illustration style as the references: crisp clean dark outlines, rich soft cel shading. The reference is a weapon piece for a character rig: ONE object drawn vertically, centered, filling the canvas from top to bottom. Draw a NEW weapon in EXACTLY the same orientation (vertical, upright), same framing and similar proportions, transparent background, nothing else, no text, no hand. The weapon: a single long spear held vertically, the leaf-shaped spearhead at the top with a horsehair tassel under it, the long shaft running to the bottom. Materials: blue-tempered steel with silver cloud engravings and blue silk wraps, a soft blue glow."
+ },
+ {
+  "name": "wp-spear-3",
+  "refs": [
+   "/home/user/idle_for_us/art/hero/wp-spear.png"
+  ],
+  "size": "1024x1536",
+  "q": "medium",
+  "prompt": "Use EXACTLY the same hand-painted Korean wuxia (murim) manhwa illustration style as the references: crisp clean dark outlines, rich soft cel shading. The reference is a weapon piece for a character rig: ONE object drawn vertically, centered, filling the canvas from top to bottom. Draw a NEW weapon in EXACTLY the same orientation (vertical, upright), same framing and similar proportions, transparent background, nothing else, no text, no hand. The weapon: a single long spear held vertically, the leaf-shaped spearhead at the top with a horsehair tassel under it, the long shaft running to the bottom. Materials: black lacquer with amethyst inlays and gold edges, swirling violet glow."
+ },
+ {
+  "name": "wp-spear-4",
+  "refs": [
+   "/home/user/idle_for_us/art/hero/wp-spear.png"
+  ],
+  "size": "1024x1536",
+  "q": "medium",
+  "prompt": "Use EXACTLY the same hand-painted Korean wuxia (murim) manhwa illustration style as the references: crisp clean dark outlines, rich soft cel shading. The reference is a weapon piece for a character rig: ONE object drawn vertically, centered, filling the canvas from top to bottom. Draw a NEW weapon in EXACTLY the same orientation (vertical, upright), same framing and similar proportions, transparent background, nothing else, no text, no hand. The weapon: a single long spear held vertically, the leaf-shaped spearhead at the top with a horsehair tassel under it, the long shaft running to the bottom. Materials: gold filigree and carved white jade with a coiled dragon motif, radiant golden glow."
+ },
+ {
+  "name": "wp-spear-5",
+  "refs": [
+   "/home/user/idle_for_us/art/hero/wp-spear.png"
+  ],
+  "size": "1024x1536",
+  "q": "medium",
+  "prompt": "Use EXACTLY the same hand-painted Korean wuxia (murim) manhwa illustration style as the references: crisp clean dark outlines, rich soft cel shading. The reference is a weapon piece for a character rig: ONE object drawn vertically, centered, filling the canvas from top to bottom. Draw a NEW weapon in EXACTLY the same orientation (vertical, upright), same framing and similar proportions, transparent background, nothing else, no text, no hand. The weapon: a single long spear held vertically, the leaf-shaped spearhead at the top with a horsehair tassel under it, the long shaft running to the bottom. Materials: crimson and gold with phoenix feather motifs, wrapped in red-orange spirit flames."
+ },
+ {
+  "name": "wp-spear-6",
+  "refs": [
+   "/home/user/idle_for_us/art/hero/wp-spear.png"
+  ],
+  "size": "1024x1536",
+  "q": "medium",
+  "prompt": "Use EXACTLY the same hand-painted Korean wuxia (murim) manhwa illustration style as the references: crisp clean dark outlines, rich soft cel shading. The reference is a weapon piece for a character rig: ONE object drawn vertically, centered, filling the canvas from top to bottom. Draw a NEW weapon in EXACTLY the same orientation (vertical, upright), same framing and similar proportions, transparent background, nothing else, no text, no hand. The weapon: a single long spear held vertically, the leaf-shaped spearhead at the top with a horsehair tassel under it, the long shaft running to the bottom. Materials: white jade and platinum with cloud and star motifs, brilliant white-gold light."
+ },
+ {
+  "name": "wp-fist-0",
+  "refs": [
+   "/home/user/idle_for_us/art/hero/wp-fist.png"
+  ],
+  "size": "1024x1536",
+  "q": "medium",
+  "prompt": "Use EXACTLY the same hand-painted Korean wuxia (murim) manhwa illustration style as the references: crisp clean dark outlines, rich soft cel shading. The reference is a weapon piece for a character rig: ONE object drawn vertically, centered, filling the canvas from top to bottom. Draw a NEW weapon in EXACTLY the same orientation (vertical, upright), same framing and similar proportions, transparent background, nothing else, no text, no hand. The weapon: a single martial-arts gauntlet (a fist weapon worn on the hand) seen upright, metal knuckle plates on top, the cuff at the bottom, NO blade. Materials: plain dark iron and worn wood, simple shape, no glow."
+ },
+ {
+  "name": "wp-fist-1",
+  "refs": [
+   "/home/user/idle_for_us/art/hero/wp-fist.png"
+  ],
+  "size": "1024x1536",
+  "q": "medium",
+  "prompt": "Use EXACTLY the same hand-painted Korean wuxia (murim) manhwa illustration style as the references: crisp clean dark outlines, rich soft cel shading. The reference is a weapon piece for a character rig: ONE object drawn vertically, centered, filling the canvas from top to bottom. Draw a NEW weapon in EXACTLY the same orientation (vertical, upright), same framing and similar proportions, transparent background, nothing else, no text, no hand. The weapon: a single martial-arts gauntlet (a fist weapon worn on the hand) seen upright, metal knuckle plates on top, the cuff at the bottom, NO blade. Materials: polished bronze fittings with green jade accents and dark green wraps, a faint green shimmer."
+ },
+ {
+  "name": "wp-fist-2",
+  "refs": [
+   "/home/user/idle_for_us/art/hero/wp-fist.png"
+  ],
+  "size": "1024x1536",
+  "q": "medium",
+  "prompt": "Use EXACTLY the same hand-painted Korean wuxia (murim) manhwa illustration style as the references: crisp clean dark outlines, rich soft cel shading. The reference is a weapon piece for a character rig: ONE object drawn vertically, centered, filling the canvas from top to bottom. Draw a NEW weapon in EXACTLY the same orientation (vertical, upright), same framing and similar proportions, transparent background, nothing else, no text, no hand. The weapon: a single martial-arts gauntlet (a fist weapon worn on the hand) seen upright, metal knuckle plates on top, the cuff at the bottom, NO blade. Materials: blue-tempered steel with silver cloud engravings and blue silk wraps, a soft blue glow."
+ },
+ {
+  "name": "wp-fist-3",
+  "refs": [
+   "/home/user/idle_for_us/art/hero/wp-fist.png"
+  ],
+  "size": "1024x1536",
+  "q": "medium",
+  "prompt": "Use EXACTLY the same hand-painted Korean wuxia (murim) manhwa illustration style as the references: crisp clean dark outlines, rich soft cel shading. The reference is a weapon piece for a character rig: ONE object drawn vertically, centered, filling the canvas from top to bottom. Draw a NEW weapon in EXACTLY the same orientation (vertical, upright), same framing and similar proportions, transparent background, nothing else, no text, no hand. The weapon: a single martial-arts gauntlet (a fist weapon worn on the hand) seen upright, metal knuckle plates on top, the cuff at the bottom, NO blade. Materials: black lacquer with amethyst inlays and gold edges, swirling violet glow."
+ },
+ {
+  "name": "wp-fist-4",
+  "refs": [
+   "/home/user/idle_for_us/art/hero/wp-fist.png"
+  ],
+  "size": "1024x1536",
+  "q": "medium",
+  "prompt": "Use EXACTLY the same hand-painted Korean wuxia (murim) manhwa illustration style as the references: crisp clean dark outlines, rich soft cel shading. The reference is a weapon piece for a character rig: ONE object drawn vertically, centered, filling the canvas from top to bottom. Draw a NEW weapon in EXACTLY the same orientation (vertical, upright), same framing and similar proportions, transparent background, nothing else, no text, no hand. The weapon: a single martial-arts gauntlet (a fist weapon worn on the hand) seen upright, metal knuckle plates on top, the cuff at the bottom, NO blade. Materials: gold filigree and carved white jade with a coiled dragon motif, radiant golden glow."
+ },
+ {
+  "name": "wp-fist-5",
+  "refs": [
+   "/home/user/idle_for_us/art/hero/wp-fist.png"
+  ],
+  "size": "1024x1536",
+  "q": "medium",
+  "prompt": "Use EXACTLY the same hand-painted Korean wuxia (murim) manhwa illustration style as the references: crisp clean dark outlines, rich soft cel shading. The reference is a weapon piece for a character rig: ONE object drawn vertically, centered, filling the canvas from top to bottom. Draw a NEW weapon in EXACTLY the same orientation (vertical, upright), same framing and similar proportions, transparent background, nothing else, no text, no hand. The weapon: a single martial-arts gauntlet (a fist weapon worn on the hand) seen upright, metal knuckle plates on top, the cuff at the bottom, NO blade. Materials: crimson and gold with phoenix feather motifs, wrapped in red-orange spirit flames."
+ },
+ {
+  "name": "wp-fist-6",
+  "refs": [
+   "/home/user/idle_for_us/art/hero/wp-fist.png"
+  ],
+  "size": "1024x1536",
+  "q": "medium",
+  "prompt": "Use EXACTLY the same hand-painted Korean wuxia (murim) manhwa illustration style as the references: crisp clean dark outlines, rich soft cel shading. The reference is a weapon piece for a character rig: ONE object drawn vertically, centered, filling the canvas from top to bottom. Draw a NEW weapon in EXACTLY the same orientation (vertical, upright), same framing and similar proportions, transparent background, nothing else, no text, no hand. The weapon: a single martial-arts gauntlet (a fist weapon worn on the hand) seen upright, metal knuckle plates on top, the cuff at the bottom, NO blade. Materials: white jade and platinum with cloud and star motifs, brilliant white-gold light."
+ },
+ {
+  "name": "wp-staff-0",
+  "refs": [
+   "/home/user/idle_for_us/art/hero/wp-spear.png"
+  ],
+  "size": "1024x1536",
+  "q": "medium",
+  "prompt": "Use EXACTLY the same hand-painted Korean wuxia (murim) manhwa illustration style as the references: crisp clean dark outlines, rich soft cel shading. The reference is a weapon piece for a character rig: ONE object drawn vertically, centered, filling the canvas from top to bottom. Draw a NEW weapon in EXACTLY the same orientation (vertical, upright), same framing and similar proportions, transparent background, nothing else, no text, no hand. The weapon: a single long taoist staff held vertically, an ornamented head at the top holding a glowing orb, the long shaft running to the bottom. Materials: plain dark iron and worn wood, simple shape, no glow."
+ },
+ {
+  "name": "wp-staff-1",
+  "refs": [
+   "/home/user/idle_for_us/art/hero/wp-spear.png"
+  ],
+  "size": "1024x1536",
+  "q": "medium",
+  "prompt": "Use EXACTLY the same hand-painted Korean wuxia (murim) manhwa illustration style as the references: crisp clean dark outlines, rich soft cel shading. The reference is a weapon piece for a character rig: ONE object drawn vertically, centered, filling the canvas from top to bottom. Draw a NEW weapon in EXACTLY the same orientation (vertical, upright), same framing and similar proportions, transparent background, nothing else, no text, no hand. The weapon: a single long taoist staff held vertically, an ornamented head at the top holding a glowing orb, the long shaft running to the bottom. Materials: polished bronze fittings with green jade accents and dark green wraps, a faint green shimmer."
+ },
+ {
+  "name": "wp-staff-2",
+  "refs": [
+   "/home/user/idle_for_us/art/hero/wp-spear.png"
+  ],
+  "size": "1024x1536",
+  "q": "medium",
+  "prompt": "Use EXACTLY the same hand-painted Korean wuxia (murim) manhwa illustration style as the references: crisp clean dark outlines, rich soft cel shading. The reference is a weapon piece for a character rig: ONE object drawn vertically, centered, filling the canvas from top to bottom. Draw a NEW weapon in EXACTLY the same orientation (vertical, upright), same framing and similar proportions, transparent background, nothing else, no text, no hand. The weapon: a single long taoist staff held vertically, an ornamented head at the top holding a glowing orb, the long shaft running to the bottom. Materials: blue-tempered steel with silver cloud engravings and blue silk wraps, a soft blue glow."
+ },
+ {
+  "name": "wp-staff-3",
+  "refs": [
+   "/home/user/idle_for_us/art/hero/wp-spear.png"
+  ],
+  "size": "1024x1536",
+  "q": "medium",
+  "prompt": "Use EXACTLY the same hand-painted Korean wuxia (murim) manhwa illustration style as the references: crisp clean dark outlines, rich soft cel shading. The reference is a weapon piece for a character rig: ONE object drawn vertically, centered, filling the canvas from top to bottom. Draw a NEW weapon in EXACTLY the same orientation (vertical, upright), same framing and similar proportions, transparent background, nothing else, no text, no hand. The weapon: a single long taoist staff held vertically, an ornamented head at the top holding a glowing orb, the long shaft running to the bottom. Materials: black lacquer with amethyst inlays and gold edges, swirling violet glow."
+ },
+ {
+  "name": "wp-staff-4",
+  "refs": [
+   "/home/user/idle_for_us/art/hero/wp-spear.png"
+  ],
+  "size": "1024x1536",
+  "q": "medium",
+  "prompt": "Use EXACTLY the same hand-painted Korean wuxia (murim) manhwa illustration style as the references: crisp clean dark outlines, rich soft cel shading. The reference is a weapon piece for a character rig: ONE object drawn vertically, centered, filling the canvas from top to bottom. Draw a NEW weapon in EXACTLY the same orientation (vertical, upright), same framing and similar proportions, transparent background, nothing else, no text, no hand. The weapon: a single long taoist staff held vertically, an ornamented head at the top holding a glowing orb, the long shaft running to the bottom. Materials: gold filigree and carved white jade with a coiled dragon motif, radiant golden glow."
+ },
+ {
+  "name": "wp-staff-5",
+  "refs": [
+   "/home/user/idle_for_us/art/hero/wp-spear.png"
+  ],
+  "size": "1024x1536",
+  "q": "medium",
+  "prompt": "Use EXACTLY the same hand-painted Korean wuxia (murim) manhwa illustration style as the references: crisp clean dark outlines, rich soft cel shading. The reference is a weapon piece for a character rig: ONE object drawn vertically, centered, filling the canvas from top to bottom. Draw a NEW weapon in EXACTLY the same orientation (vertical, upright), same framing and similar proportions, transparent background, nothing else, no text, no hand. The weapon: a single long taoist staff held vertically, an ornamented head at the top holding a glowing orb, the long shaft running to the bottom. Materials: crimson and gold with phoenix feather motifs, wrapped in red-orange spirit flames."
+ },
+ {
+  "name": "wp-staff-6",
+  "refs": [
+   "/home/user/idle_for_us/art/hero/wp-spear.png"
+  ],
+  "size": "1024x1536",
+  "q": "medium",
+  "prompt": "Use EXACTLY the same hand-painted Korean wuxia (murim) manhwa illustration style as the references: crisp clean dark outlines, rich soft cel shading. The reference is a weapon piece for a character rig: ONE object drawn vertically, centered, filling the canvas from top to bottom. Draw a NEW weapon in EXACTLY the same orientation (vertical, upright), same framing and similar proportions, transparent background, nothing else, no text, no hand. The weapon: a single long taoist staff held vertically, an ornamented head at the top holding a glowing orb, the long shaft running to the bottom. Materials: white jade and platinum with cloud and star motifs, brilliant white-gold light."
+ }
+]
