@@ -60,7 +60,7 @@ const ok = (c, m, x = '') => { console.log(`  ${c ? '✓' : '✗ !!'} ${m}${x !=
     ok(outside.length === 0, '단추가 화면 안', [...new Set(outside)].join(' '));
     await page.click('#ptabs button[data-tab="bag"]'); await page.click('#panel-body .subtabs button >> nth=1');
     const t0 = await page.evaluate(() => window.__s2.g.S.wallet['ticket:gear']);
-    await page.click('#wb .row:nth-child(4) .btn');
+    await page.click('#wb .row:has-text("10번 뽑기") .btn');
     const t1 = await page.evaluate(() => window.__s2.g.S.wallet['ticket:gear']);
     ok(t0 - t1 === 10, '장비 10번 뽑기 — 뽑기권 10장', `${t0} → ${t1}`);
     await page.waitForSelector('.gx');
