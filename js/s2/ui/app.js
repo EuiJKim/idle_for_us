@@ -17,6 +17,16 @@ import { buildQueue } from '../content/offline.js';
 import { kindGrade } from '../grow/collect.js';
 import { loadLooks, zoneFor, drawHero, drawMob, mobName, mobHeight, preloadMobs, drawPaintedBack, drawPaintedLedge, drawEarth, preloadChapter, fxImg, oldImg, tintImg, ULT_ART, SEAL_ART, CUT_ART, BUFF_ART, BOSS_ART } from './look.js';
 import { BOSS_PATS } from '../tables/kit.js';
+import { play, unlock, setOpt, bgm } from './sound.js';
+// 설정(v504) — 이 기기에만(ifu.s2.opt). 소리 · 배경 가락 · 흔들림 · 피해 숫자 · 진동 · 그래픽 · 피해 측정기
+const OPT_KEY = 'ifu.s2.opt';
+const opt = Object.assign({ sfx: true, bgm: true, shake: true, nums: 'all', vib: true, gfx: 'high', dps: false }, (() => { try { return JSON.parse(localStorage.getItem(OPT_KEY) || '{}'); } catch { return {}; } })());
+const saveOpt = () => { try { localStorage.setItem(OPT_KEY, JSON.stringify(opt)); } catch { /* 저장 못 함 */ } setOpt({ sfx: opt.sfx, bgm: opt.bgm }); };
+setOpt({ sfx: opt.sfx, bgm: opt.bgm });
+const buzz = (ms) => { if (opt.vib && navigator.vibrate) try { navigator.vibrate(ms); } catch { /* 진동 없음 */ } };
+const dmgLog = [];   // 피해 측정기: [시각, 피해] 최근 10초
+const killLog = [];
+const killRate = () => { const t0 = now() - 60000; while (killLog.length && killLog[0] < t0) killLog.shift(); return killLog.length; };
 import { chapterOf, chapterName } from '../tables/chapters.js';
 import { KIT, SLOT_N, kitCap, kitCost, kitCoef, skillById, treeOf, TREE_GATE, treeResetCost } from '../tables/kit.js';
 import { STATS } from '../core/stats.js';
@@ -105,8 +115,8 @@ function showGacha(r) {
     if (done) return;
     if (i >= cards.length) { finish(); return; }
     const c = cards[i], it = r.items[i];
-    if (it.g >= 4 && !c.classList.contains('tense')) { c.classList.add('tense'); timer = setTimeout(next, it.g >= 5 ? 900 : 550); return; }   // 두근
-    c.classList.remove('tense'); c.classList.add('open'); if (it.g >= 5) flash(it.g);
+    if (it.g >= 4 && !c.classList.contains('tense')) { c.classList.add('tense'); play('tense'); timer = setTimeout(next, it.g >= 5 ? 900 : 550); return; }   // 두근
+    c.classList.remove('tense'); c.classList.add('open'); if (it.g >= 5) flash(it.g); play(it.g >= 4 ? 'rare' : 'flip', it.g);
     i++; timer = setTimeout(next, step);
   };
   timer = setTimeout(next, 250);
@@ -133,7 +143,7 @@ function navDots() {
   };
   for (const b of $('nav').children) b.classList.toggle('dot-on', !!on[b.dataset.id]);
 }
-function act(fn) { return () => { const r = fn(); if (r === null || r === false) toast('할 수 없어요(재료·조건)'); save(); paintWin(); paintHud(); return r; }; }
+function act(fn) { return () => { play('click'); const r = fn(); if (r === null || r === false) toast('할 수 없어요(재료·조건)'); save(); paintWin(); paintHud(); return r; }; }
 function rowEl(k, v, btns = []) {
   const r = document.createElement('div'); r.className = 'row';
   r.innerHTML = `<div class="k">${k}</div><div class="v">${v ?? ''}</div>`;
@@ -291,6 +301,14 @@ function paintWin() {
     const book = tab === 1 ? 'daily' : 'weekly', list = tab === 1 ? DAILY_MISSIONS : WEEKLY_MISSIONS;
     for (const q of list) { const s = g.books[book].get(q.id); add(rowEl(`${guideLabel(q)}`, s.got ? '받음' : `${s.p}/${q.need}`, [['받기', act(() => g.claimMission(book, q.id)), !s.done || s.got]])); }
   } else if (key === 'mission:3') {
+    const tg = (label, k, desc) => rowEl(label, desc, [[opt[k] ? '켜짐' : '꺼짐', () => { opt[k] = !opt[k]; saveOpt(); play('click'); if (k === 'bgm') bgm(chapterOf(g.zoneLv())); paintWin(); paintHud(); }]]);
+    add(tg('효과음', 'sfx', '타격 · 무공 · 처치 · 뽑기 소리'));
+    add(tg('배경 가락', 'bgm', '장마다 다른 오음계 가락'));
+    add(tg('화면 흔들림', 'shake', '큰 무공 · 두목 패턴 · 당겨짐'));
+    add(tg('진동', 'vib', '두목 패턴에 맞을 때 · 쓰러질 때(휴대폰)'));
+    add(tg('피해 측정기', 'dps', '오른쪽 위에 초당 피해 · 분당 처치'));
+    add(rowEl('피해 숫자', { all: '전부', crit: '치명만', off: '끄기' }[opt.nums], [['바꾸기', () => { opt.nums = { all: 'crit', crit: 'off', off: 'all' }[opt.nums]; saveOpt(); paintWin(); }]]));
+    add(rowEl('그래픽', opt.gfx === 'low' ? '낮음(배터리 아낌 · 흙먼지 · 은자 연출 끔)' : '높음', [['바꾸기', () => { opt.gfx = opt.gfx === 'low' ? 'high' : 'low'; saveOpt(); paintWin(); }]]));
     add(rowEl(`시간 티켓 ${W['ticket:time'] || 0}장`, '1장 = 15분'));
     add(rowEl('새로 시작', '이 미리보기 세이브만 지움', [['처음부터', () => pop('새로 시작할까요?', '<p class="note">새 시즌 미리보기 세이브만 지워요. 지금 게임 세이브는 그대로예요.</p>', [['아니요', null], ['예', () => { localStorage.removeItem(SAVE_KEY); location.reload(); }]])]]));
     add(rowEl('지금 게임으로', '', [['돌아가기', () => { location.href = 'index.html'; }]]));
@@ -314,7 +332,7 @@ function paintHud() {
     $('gd').onclick = onGuide;
     $('tc').innerHTML = '<div class="zname" id="zn"></div><div class="sbar" id="sb"><i></i></div><div class="sbar time" id="tb" style="display:none"><i></i></div><div class="srow"><span id="sl"></span><button id="chal">도전</button></div>';
     $('chal').onclick = () => { if (g.challenge()) toast('칸 두목 도전!'); else toast(`몹을 ${STAGE_KILLS}마리 잡으면 도전할 수 있어요`); };
-    $('tr').innerHTML = '<div class="chat" id="chat"></div><div class="rw" id="rw"></div>';
+    $('tr').innerHTML = '<div class="chat" id="chat"></div><div class="rw" id="rw"></div><div class="dpsm" id="dpsm"></div>';
     $('bc').innerHTML = '<div class="me"><div class="top"><span id="mlv"></span><span id="mnm"></span></div><div class="bar hp"><i id="hpi"></i><b>HP</b><span id="hpt"></span></div><div class="bar mp"><i id="mpi"></i><b>MP</b><span id="mpt"></span></div></div>';
     $('bl').innerHTML = '<div class="log" id="log"></div><div class="exp" id="exp"></div><div class="pad"><button id="pl" aria-label="왼쪽">◀</button><button id="pd" aria-label="내려가기">▼</button><button id="pr" aria-label="오른쪽">▶</button></div>';
     $('br').innerHTML = '<button class="auto" id="au"></button><div class="slots" id="slots"></div><button class="jump" id="jp" aria-label="점프">⤒</button>';
@@ -348,6 +366,9 @@ function paintHud() {
   $('chat').textContent = `[알림] ${logLines[0] || '새 시즌 미리보기 — 그림은 지금 게임 것을 빌려 써요'}`;
   const rw = $('rw'); rw.style.display = boss ? 'block' : 'none';
   if (boss) rw.innerHTML = `<b>클리어 보상</b><br>은자 ${unit(2 * 27 * goldPerMob(T.idx))} · 뽑기권 ${T.idx % 10 === 0 ? 10 : 1}`;
+  // 피해 측정기(설정에서 켬): 최근 10초 초당 피해 · 분당 처치
+  const dm = $('dpsm'); dm.style.display = opt.dps ? 'block' : 'none';
+  if (opt.dps) { const nowT = now(); while (dmgLog.length && dmgLog[0][0] < nowT - 10000) dmgLog.shift(); const sum = dmgLog.reduce((a, d) => a + d[1], 0); dm.innerHTML = `<b>초당 피해</b> ${unit(sum / 10)}<br><b>분당 처치</b> ${killRate()}`; }
   // 아래 가운데: 나
   const Hh = F.hero;
   $('mlv').textContent = `Lv.${H.lv}`; $('mnm').textContent = JOBS[H.job].name;
@@ -509,7 +530,8 @@ function drawSkillFx(cx, f, a, [x, y], Rpx, k, col, tier) {
   cx.restore();
 }
 function draw() {
-  const r = cv.getBoundingClientRect(), dpr = Math.min(2, window.devicePixelRatio || 1);
+  const r = cv.getBoundingClientRect(), dpr = opt.gfx === 'low' ? 1 : Math.min(2, window.devicePixelRatio || 1);
+  if (opt.gfx === 'low') { dust.length = 0; coins.length = 0; }
   if (cv.width !== Math.round(r.width * dpr)) { cv.width = Math.round(r.width * dpr); cv.height = Math.round(r.height * dpr); }
   const F = g.ensureFight(); if (!F) return;
   const W = r.width, Hh = r.height, t = now(), ts = t / 1000, map = F.def.map;
@@ -534,10 +556,10 @@ function draw() {
   const P = (x, y) => [(x - camX) * s, baseY - (y - camY) * s];
   cx.setTransform(dpr, 0, 0, dpr, 0, 0);
   // 흔들림: 마구잡이가 아니라 잦아드는 물결(눈이 덜 피곤하다)
-  if (t < shakeUntil) { const q = ((shakeUntil - t) / 450) * 6; cx.translate(Math.sin(t * 0.09) * q, Math.cos(t * 0.113) * q * 0.7); }
+  if (opt.shake && t < shakeUntil) { const q = ((shakeUntil - t) / 450) * 6; cx.translate(Math.sin(t * 0.09) * q, Math.cos(t * 0.113) * q * 0.7); }
   // 큰 무공(4 · 5차)이 터지면 무인 쪽으로 살짝 당겨졌다 돌아온다
   const zp = Math.max(0, 1 - (t - zoomAt) / 420);
-  if (zp > 0) { const [zx, zy] = P(lx(F.hero), ly(F.hero) + 900), zz = 1 + 0.06 * Math.sin(zp * Math.PI / 2); cx.translate(zx, zy); cx.scale(zz, zz); cx.translate(-zx, -zy); }
+  if (opt.shake && zp > 0) { const [zx, zy] = P(lx(F.hero), ly(F.hero) + 900), zz = 1 + 0.06 * Math.sin(zp * Math.PI / 2); cx.translate(zx, zy); cx.scale(zz, zz); cx.translate(-zx, -zy); }
   const ch = chapterOf(g.zoneLv()); preloadChapter(ch); preloadMobs(ch);
   drawPaintedBack(cx, W, Hh, ch, camX * s, z, camY * s);
   // 바닥 아래는 어둡게 채우고, 발판은 장마다 그린 그림
@@ -715,7 +737,7 @@ function draw() {
   }
   // 은자: 튀어 올랐다 떨어진 뒤(0.35초) 무인에게 빨려 든다(0.3초)
   for (let i = coins.length - 1; i >= 0; i--) {
-    const c = coins[i], a = (t - c.at) / 1000; if (a > 0.7) { coins.splice(i, 1); continue; }
+    const c = coins[i], a = (t - c.at) / 1000; if (a > 0.7) { coins.splice(i, 1); if (c.j === 0) play('coin'); continue; }
     let wx, wy;
     if (a < 0.35) { wx = c.x + c.vx * a; wy = Math.max(c.y - 600, c.y + c.vy * a - 22000 * a * a); }
     else { const q = (a - 0.35) / 0.35, e = q * q, bx = c.x + c.vx * 0.35, by = Math.max(c.y - 600, c.y + c.vy * 0.35 - 22000 * 0.1225); wx = bx + (lx(H) - bx) * e; wy = by + (ly(H) + 900 - by) * e; }
@@ -728,6 +750,7 @@ function draw() {
     const f = floats[i], a = (t - f.at) / 1000;
     if (a > 1) { floats.splice(i, 1); continue; }
     if (a < 0) continue;   // 화살 · 기탄이 아직 날아가는 중
+    if (opt.nums === 'off' || (opt.nums === 'crit' && !f.crit)) continue;
     // 튀어나오듯 커졌다 줄고(과하게 한 번 넘침) · 옆으로 살짝 흘러가며 · 치명은 처음에 떨린다
     const [x0, y] = P(f.x, f.y), yy = y - 95 * sc - f.row * 22 * k - a * 22 * k;
     const pop = a < 0.12 ? 0.6 + (a / 0.12) * 0.75 : a < 0.22 ? 1.35 - ((a - 0.12) / 0.1) * 0.35 : 1;
@@ -778,6 +801,7 @@ function frame() {
     for (const e of g.lastEvents || []) {
       if (e[0] === 'hit') {
         const m = mobs.get(e[2]); if (!m) continue; lastHitAt = t;
+        if (dmgLog.length < 600) dmgLog.push([t, e[3]]);
         // 궁사는 화살(평타 · 일직선 · 부채꼴 무공), 술사 평타는 옥빛 기탄 — 날아가 닿을 때 맞는다(번쩍 · 숫자도 그때)
         const job = g.S.hero.job, H0 = F0.hero;
         const shot = e[5] !== 2 && ((job === 'bow' && (e[5] === 0 || castShape === 'line' || castShape === 'arc')) || (job === 'mage' && e[5] === 0));
@@ -787,9 +811,11 @@ function frame() {
           fly = Math.min(260, Math.max(80, Math.hypot(x1 - x0, y1 - y0) / (job === 'bow' ? 30 : 20)));
           const lag = (e[6] || 0) * 70 + (e[5] ? (shots.length % 3) * 30 : 0);
           shots.push({ x0, y0, x1, y1, at: t + lag, dur: fly, kind: job === 'bow' ? 'arrow' : 'orb', crit: e[4], col: castCol || '#ffe9a8' });
+          play(job === 'bow' ? 'arrow' : 'orb');
           fly += lag;
         } else fly = (e[6] || 0) * 70;
         mobHit.set(m.id, t + fly);
+        if (e[5] !== 2) { if (e[5] === 0 && !shot) play('swish'); setTimeout(() => play('hit', e[4]), fly); }
         // 근접 평타 — 검은 베기 호, 창은 찌르기 줄기, 권사는 맞는 자리에 충격(무기마다 다르게). 한 번 휘두를 때 한 번만
         if (e[5] === 0 && !shot && t - lastSwing > 120 && skillFx.length < 90) { lastSwing = t; skillFx.push({ at: t, shape: 'swing', job, x: H0.x, y: H0.y, tx: m.x, ty: m.y, face: Math.sign(m.x - H0.x) || H0.face || 1 }); }
         if ((e[5] || shot) && skillFx.length < 80) skillFx.push({ at: t + fly, shape: 'hit', x: m.x, y: m.y + 650, crit: e[4], rot: (m.x >= H0.x ? 0 : Math.PI) + (((m.id * 13 + (e[6] || 0) * 7) % 10) - 5) * 0.09 });
@@ -797,18 +823,20 @@ function frame() {
         if (floats.length < 60) floats.push({ x: m.x, y: m.y, d: e[3], crit: e[4], pal: e[5] === 2, at: t + (shot ? fly : 0), row: (n + (recentRows.get(m.id)?.t > t - 500 ? recentRows.get(m.id).n : 0)) % 6, mid: m.id, drift: ((m.id + n) % 3) - 1 }); const rr = recentRows.get(m.id); recentRows.set(m.id, { t, n: (rr && rr.t > t - 500 ? rr.n : 0) + 1 });
       }
       else if (e[0] === 'cast') { castShape = e[6]; castCol = skillById(e[2])?.col; skillFx.push({ at: t, id: e[2], face: e[3], x: e[4], y: e[5], shape: e[6], R: e[7], hero: 1 }); }
-      else if (e[0] === 'buff') skillFx.push({ at: t, id: e[2], shape: 'buff', hero: 1 });
+      else if (e[0] === 'buff') { skillFx.push({ at: t, id: e[2], shape: 'buff', hero: 1 }); play('loot'); }
       else if (e[0] === 'pal') palAtk[e[2]] = { at: t, mid: e[3] };
-      else if (e[0] === 'tell') tells.set(e[2], { pat: e[3], x: e[4], y: e[5], w: e[6], at: t, dur: e[7] });
-      else if (e[0] === 'burst') { tells.delete(e[2]); skillFx.push({ at: t, shape: 'boss', pat: e[3], x: e[4], y: e[5], w: e[6] }); shakeUntil = t + (e[7] ? 420 : 220); if (e[7]) hurtFlash = t; }
-      else if (e[0] === 'kill') { const m = mobs.get(e[2]); if (m && coins.length < 40) for (let j = 0; j < (m.kind === 'mob' ? 2 : 6); j++) coins.push({ x: m.x, y: m.y + 600, vx: ((j % 3) - 1) * 900 + ((m.id * 7 + j * 13) % 9 - 4) * 120, vy: 5200 + (j % 2) * 1500, at: t, j }); if (m && corpses.length < 30) corpses.push({ m: { id: m.id, kind: m.kind }, x: m.x, y: m.y, dir: m.dir || 1, at: t + 40 }); firstSeen.delete(e[2]); lastNext.delete(e[2]); atkAt.delete(e[2]); hpLag.delete(e[2]); if (m && skillFx.length < 90) skillFx.push({ at: t, shape: 'ring', x: m.x, y: m.y }); }
-      if (e[0] === 'cast') { lastCastAt = t; const tr = skillById(e[2])?.tier || 0; if (tr >= 2) freezeUntil = t + 60; if (tr >= 4) zoomAt = t; flashSlot(e[2]); }   // 큰 무공은 맞는 순간 0.06초 멈칫
+      else if (e[0] === 'tell') { tells.set(e[2], { pat: e[3], x: e[4], y: e[5], w: e[6], at: t, dur: e[7] }); play('tell'); }
+      else if (e[0] === 'hurt') play('hurt');
+      else if (e[0] === 'die') { play('down'); buzz(200); }
+      else if (e[0] === 'burst') { tells.delete(e[2]); skillFx.push({ at: t, shape: 'boss', pat: e[3], x: e[4], y: e[5], w: e[6] }); shakeUntil = t + (e[7] ? 420 : 220); if (e[7]) { hurtFlash = t; buzz(60); } play('burst'); }
+      else if (e[0] === 'kill') { play('kill'); if (killLog.length < 500) killLog.push(t); const m = mobs.get(e[2]); if (m && coins.length < 40) for (let j = 0; j < (m.kind === 'mob' ? 2 : 6); j++) coins.push({ x: m.x, y: m.y + 600, vx: ((j % 3) - 1) * 900 + ((m.id * 7 + j * 13) % 9 - 4) * 120, vy: 5200 + (j % 2) * 1500, at: t, j }); if (m && corpses.length < 30) corpses.push({ m: { id: m.id, kind: m.kind }, x: m.x, y: m.y, dir: m.dir || 1, at: t + 40 }); firstSeen.delete(e[2]); lastNext.delete(e[2]); atkAt.delete(e[2]); hpLag.delete(e[2]); if (m && skillFx.length < 90) skillFx.push({ at: t, shape: 'ring', x: m.x, y: m.y }); }
+      if (e[0] === 'cast') { play('skill'); lastCastAt = t; const tr = skillById(e[2])?.tier || 0; if (tr >= 2) freezeUntil = t + 60; if (tr >= 4) zoomAt = t; flashSlot(e[2]); }   // 큰 무공은 맞는 순간 0.06초 멈칫
       if (e[0] === 'cast' && skillById(e[2])?.tier === 5) { cutIn = { at: t, id: e[2] }; shakeUntil = t + 450; }
     }
   }
   if (t - lastMin >= 60000) { lastMin = t; g.minute(); }
   for (const f of g.feed.splice(0)) {
-    if (f.k === 'level') { levelAt = now(); toast(`레벨 업! Lv ${f.lv}`); addLog(`레벨 업 — Lv ${f.lv}`); }
+    if (f.k === 'level') { play('level'); levelAt = now(); toast(`레벨 업! Lv ${f.lv}`); addLog(`레벨 업 — Lv ${f.lv}`); }
     else if (f.k === 'guide') addLog('길잡이 완료 — 왼쪽 위에서 받기');
     else if (f.k === 'advance') toast(`${f.n}차 전직!`);
     else if (f.k === 'boss') addLog('사냥터 두목 처치!');
@@ -816,7 +844,7 @@ function frame() {
     else if (f.k === 'realm') addLog(`경지 ${f.lv}`);
     else if (f.k === 'gacha-lv') addLog(`뽑기 레벨 ${f.lv}`);
     else if (f.k === 'tree') { const sk = skillById(f.id); toast(`${sk?.name} 강화 완료`); }
-    else if (f.k === 'challenge') addLog(`${Math.ceil(f.idx / 10)}장 ${((f.idx - 1) % 10) + 1}칸 두목 도전`);
+    else if (f.k === 'challenge') play('boss'), addLog(`${Math.ceil(f.idx / 10)}장 ${((f.idx - 1) % 10) + 1}칸 두목 도전`);
     else if (f.k === 'stage-clear' || f.k === 'stage-fail') showResult(f);
   }
   if (!document.hidden) draw();   // 안 보이는 동안은 그리지 않는다(엔진은 돈다)
@@ -829,6 +857,7 @@ function frame() {
 // 두목전 결과 — 3초 뒤 저절로 닫힘 · 나가기 / 다시하기(진 때)
 function showResult(f) {
   const ch = Math.ceil(f.idx / 10), st = ((f.idx - 1) % 10) + 1, win = f.k === 'stage-clear';
+  play(win ? 'clear' : 'fail'); bgm(chapterOf(g.zoneLv()));
   $('res').innerHTML = `<div class="st">CHAPTER ${ch} <em>STAGE ${st}</em></div><div class="big ${win ? 'win' : ''}">${win ? 'CLEAR' : 'FAILED'}</div>${win ? `<div>보상: 은자 · 뽑기권</div>` : '<div class="note">이 칸 몹을 다시 잡으면 또 도전해요</div>'}<div class="acts"><button class="out" id="rout">나가기</button>${win ? '' : '<button class="again" id="ragain">다시하기</button>'}</div><div class="note" id="rcd">3초 뒤 자동 닫힘</div>`;
   $('res').classList.add('open'); resTimer = now() + 3000;
   $('rout').onclick = closeResult;
@@ -866,6 +895,7 @@ document.addEventListener('keydown', (e) => {
   else if (e.key === 'q' || e.key === 'Q') g.ensureFight().press('skill');
   else if (e.key === 'Delete') { g.setAuto(g.S.auto === false); paintHud(); }
 });
+document.addEventListener('pointerdown', () => { unlock(); bgm(chapterOf(g?.zoneLv?.() || 1)); }, { once: false, passive: true });
 document.addEventListener('keyup', (e) => { if (g && keyDir[e.key]) g.hold(0); });
 
 loadLooks();

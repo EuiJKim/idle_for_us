@@ -45,7 +45,8 @@ export class SideFight {
     this.seed = seed;
     this.t = 0;
     const m = def.map;
-    this.hero = { ...hero, x: 1500, y: 0, vy: 0, plat: 0, face: 1, hp: hero.st.hp, nextAtk: 0, nextSkill: 0, target: -1, drop: -1, act: '', chaseAt: 0 };
+    this.hero = { ...hero, x: Math.round(m.w * 0.4), y: 0,   // v504 맵 가운데쯤에서 시작(왼쪽 끝에 붙어 싸우지 않게)
+      vy: 0, plat: 0, face: 1, hp: hero.st.hp, nextAtk: 0, nextSkill: 0, target: -1, drop: -1, act: '', chaseAt: 0 };
     this.mobs = []; this.uid = 0;
     this.kills = 0; this.killsBy = {}; this.dmgOut = 0; this.dmgIn = 0; this.crits = 0; this.deaths = 0;
     this.auto = opts.auto !== false;
