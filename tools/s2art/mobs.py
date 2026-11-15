@@ -43,6 +43,27 @@ MOBS = {
 }
 
 jobs = [{'name': k, 'prompt': STYLE + v + '.', 'size': '1024x1536', 'bg': 'transparent', 'q': 'high'} for k, v in MOBS.items()]
+
+# 칸 두목(v502) — 장마다 하나, 옆보기 전신 · 크고 위엄 있게
+BOSS_STYLE = STYLE.replace('enemy character sprite', 'BOSS enemy character sprite (imposing, powerful, ornate, larger-than-life presence, dramatic aura effects around the body)')
+BOSSES = {
+  'b1': 'the Twin Swords of the Bamboo Forest, a tall lean master swordsman in layered dark green robes with bamboo leaf patterns, holding two long swords crossed, green sword qi swirling',
+  'b2': 'the Mad Demon of the Western Desert, a huge bearded warrior in brown and gold desert armor with a wide fur cape, wielding a giant crescent glaive, sand whirling around',
+  'b3': 'the Ice Palace Mistress, a regal queen in white and pale blue silk robes with a crystal crown, long silver hair, holding a frost sword, snowflakes and ice shards floating',
+  'b4': 'the Lord of Blood Valley, a grim veteran warlord in crimson and black armor with a torn red cape, holding a massive blood-red broadsword, red mist',
+  'b5': 'the Imperial Guard Commander, a towering general in ornate golden lacquered armor with lion-head pauldrons and red cape, holding a long guandao halberd',
+  'b6': 'the Dragon King of the Yangtze, a powerful river lord in deep blue scaled armor with dragon horns on the helmet, holding a trident, water swirling around',
+  'b7': 'the Night Market Mastermind, an elegant sinister crime lord in black and dark gold robes with a fan and hidden blades, lantern light, smug expression',
+  'b8': 'the High Priest of the Southern Jungle, a huge tribal chieftain with a carved beast mask crown, feathered cloak, bone ornaments, holding a giant totem staff, green spirit flames',
+  'b9': 'the Immortal of Kunlun, an ancient taoist sage with long white beard and hair, flowing white and jade robes, floating flying sword beside him, holding a horsehair whisk, glowing clouds',
+  'b10': 'the Master of the Tang Clan, a stern Sichuan clan leader in dark green and black robes, mechanical gauntlet, fanned out throwing knives and darts hovering around him',
+  'b11': 'the Heavenly Demon, the supreme leader of the dark sect, black and crimson imperial robes with flame patterns, long black hair, intense red glowing eyes, dark purple and red demonic aura, holding a black sword',
+  'b12': 'the Poison King, a gaunt master in green and black robes with a centipede and snake coiled on his arms, a large venom gourd, toxic green mist around',
+  'b13': 'the Sword Empress of Mount Hua, a graceful swordswoman in pink and white robes with plum blossom embroidery, holding a long sword, a storm of plum petals around her',
+  'b14': 'the Fire God, a colossal fire demon warlord with molten rock armor, flaming hair and beard, wielding a burning spear, embers and flames',
+  'b15': 'the Jade Emperor, a majestic celestial emperor in gold and white imperial robes with a jeweled crown with hanging beads, holding a golden jade scepter, radiant halo and clouds',
+}
+jobs += [{'name': k, 'prompt': BOSS_STYLE + v + '.', 'size': '1024x1536', 'bg': 'transparent', 'q': 'high'} for k, v in BOSSES.items()]
 only = sys.argv[1:]
 if only: jobs = [j for j in jobs if j['name'] in only]
 print(json.dumps(jobs, ensure_ascii=False, indent=1))

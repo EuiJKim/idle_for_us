@@ -75,7 +75,7 @@ export function drawMob(cx, x, y, m, z, o = {}) {
     cx.restore(); return;
   }
   const im = artImg(artPath(src, key));
-  const H0 = src === 'boss' ? (m.kind === 'boss' ? 118 : 100) : 100;   // 화면 키(배율 1일 때)
+  const H0 = m.kind === 'boss' ? 118 : 100;   // 화면 키(배율 1일 때)
   const h = H0 * sc;
   // 발밑 그림자
   cx.save(); cx.fillStyle = 'rgba(0,0,0,0.26)'; cx.beginPath(); cx.ellipse(x + dir * lunge * 0.5, y + 1, h * 0.2, h * 0.05, 0, 0, 7); cx.fill(); cx.restore();
