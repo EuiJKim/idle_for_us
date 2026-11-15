@@ -99,10 +99,12 @@ const keyOf = () => TABS.find((t) => t[0] === open)?.[2][tab]?.[1];
 function openKey(key) { for (const [id, , subs] of TABS) { const i = subs.findIndex((x) => x[1] === key); if (i >= 0) { openWin(id, i); return; } } }
 let open = null, tab = 0, treeSel = null, eqSel = null;
 // 장비 아이콘: 지금 게임 그림(무기 · 방어구 · 장신구 × 등급 6)
-const eqIcon = (sl, it) => `art/icon/${sl === 'weapon' ? 'eqweapon' : (sl === 'neck' || sl === 'ring') ? 'eqring' : 'eqarmor'}-${it ? Math.min(5, it.g) : 0}.png`;
+// v515 장비 그림 — 부위 열 × 등급 일곱(무기는 지금 무인 직업 다섯), 빈 칸은 그 부위 범급을 흐리게
+const eqIcon = (sl, it) => `art/s2/eq/${sl === 'weapon' ? `w-${g?.S?.hero?.job || 'sword'}` : sl}-${it ? Math.min(6, it.g) : 0}.webp`;
 function eqCell(sl) {
   const it = g.S.gear.eq[sl], S2 = g.S.gear.slots[sl], b = document.createElement('button');
   b.className = `eqcell ${it ? 'g' + it.g : 'empty'} ${eqSel === sl ? 'sel' : ''}`;
+  if (it) b.style.setProperty('--gc', GX_COL[it.g]);
   b.innerHTML = `<img src="${eqIcon(sl, it)}" alt="${SLOT_NAME[sl]}" style="${it ? '' : 'opacity:.25'}"><span class="en">${S2.enh ? '+' + S2.enh : ''}</span><span class="sr">${S2.star ? '★' + S2.star : ''}</span><span class="nm">${SLOT_NAME[sl]}</span>`;
   b.onclick = () => { eqSel = eqSel === sl ? null : sl; paintWin(); };
   return b;
@@ -293,7 +295,7 @@ function paintWin() {
     for (const s of SLOTS) {
       const sl = g.S.gear.slots[s], it = g.S.gear.eq[s];
       const r = rowEl(`${SLOT_NAME[s]} <small>+${sl.enh} · ★${sl.star}</small>`, sl.broken ? '파괴됨 — 성혼 불가' : (it ? `${GRADES[it.g]}품` : '비어 있음'), [['강화', act(() => { const r2 = g.enhance(s); if (r2 !== null) toast(r2 ? '강화 성공' : '강화 실패'); return r2; })], ['성혼', act(() => { const r2 = g.star(s); if (r2) toast({ ok: '성혼 성공', fail: '실패', down: '하락', break: '파괴!' }[r2]); return r2; }), !!sl.broken]]);
-      const ic = document.createElement('img'); ic.className = 'ico'; ic.src = eqIcon(s, it); ic.alt = ''; ic.style.cssText = 'width:34px;height:34px;object-fit:contain'; r.prepend(ic);
+      const ic = document.createElement('img'); ic.className = 'ico'; ic.src = eqIcon(s, it); ic.alt = ''; ic.style.cssText = 'width:40px;height:40px;object-fit:contain;background:none'; r.prepend(ic);
       c(r);
     }
   } else if (key === 'gear:3') {
@@ -388,7 +390,7 @@ function invGrid(items, cur, L) {
   for (const c of items) {
     const now2 = cur !== undefined && cur !== null ? cur : G.eq[c.slot], better = !now2 || gearScore(c, L) > gearScore(now2, L);
     const b = document.createElement('button'); b.className = `inv-tile${better ? ' up' : ''}`; b.style.setProperty('--gc', GC2[c.g] || '#fff');
-    b.innerHTML = `<img src="${eqIcon(c.slot, c)}" alt="${SLOT_NAME[c.slot]}" style="width:34px;height:34px;object-fit:contain"><b>${GRADES[c.g]}품${c.up ? '上' : ''}</b><small>${SLOT_NAME[c.slot]}${better ? ' ▲' : ''}</small>`;
+    b.innerHTML = `<img src="${eqIcon(c.slot, c)}" alt="${SLOT_NAME[c.slot]}" style="width:46px;height:46px;object-fit:contain;filter:drop-shadow(0 2px 2px rgba(0,0,0,.6))"><b>${GRADES[c.g]}품${c.up ? '上' : ''}</b><small>${SLOT_NAME[c.slot]}${better ? ' ▲' : ''}</small>`;
     b.onclick = act(() => { const r = equip(G, c.uid); g.dirtyStats = true; g.emit('equip'); if (r) toast(`${SLOT_NAME[c.slot]} 낌`); return r; });
     grid.append(b);
   }

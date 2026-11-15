@@ -81,7 +81,7 @@
     .gc > div { position: absolute; inset: 0; border-radius: 9px; backface-visibility: hidden; transition: transform .32s ease; }
     .gc .back { background: repeating-linear-gradient(45deg, #3a2a18, #3a2a18 6px, #2a1e10 6px, #2a1e10 12px); border: 2px solid #6b5230; }
     .gc .face { transform: rotateY(180deg); background: radial-gradient(#3a2e22, #17120d); border: 2px solid var(--gc); display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 11px; }
-    .gc .face img { width: 60%; } .gc .face small { color: var(--mute); font-size: 10px; }
+    .gc .face img { width: 78%; filter: drop-shadow(0 2px 3px rgba(0,0,0,.6)); } .gc .face small { color: var(--mute); font-size: 10px; }
     .gc .face i { position: absolute; top: 2px; right: 3px; font-style: normal; font-size: 9px; background: var(--gold); color: #000; border-radius: 4px; padding: 0 3px; }
     .gc.open .back { transform: rotateY(180deg); } .gc.open .face { transform: rotateY(360deg); }
     .gc.open.g4 .face, .gc.open.g5 .face, .gc.open.g6 .face { animation: gcp 1.2s ease-in-out infinite alternate; }
@@ -91,18 +91,18 @@
     .gxb .btn { min-width: 120px; min-height: 44px; }
     .eqpage { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; }
     /* (w640up: JS가 돌린 뒤의 실제 가로 · 세로로 붙인다) */ html.w640up .eqpage { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); align-items: start; }
-    .eqwrap { display: grid; grid-template-columns: 64px 1fr 64px; gap: 6px; align-items: center; max-width: 460px; margin: 0 auto; }
+    .eqwrap { display: grid; grid-template-columns: 66px 1fr 66px; gap: 6px; align-items: center; max-width: 460px; margin: 0 auto; }
     .eqcol { display: flex; flex-direction: column; gap: 6px; }
-    .eqcell { position: relative; width: 64px; height: 50px; border-radius: 10px; border: 2px solid var(--line); background: radial-gradient(#3a2e22, #17120d); padding: 0; }
-    .eqcell img { width: 34px; height: 34px; object-fit: contain; margin-top: 2px; }
-    .eqcell .nm { position: absolute; left: 0; right: 0; bottom: 1px; font-size: 10px; color: var(--mute); }
+    .eqcell { position: relative; width: 66px; height: 66px; border-radius: 12px; border: 2px solid var(--line); background: radial-gradient(circle at 50% 45%, color-mix(in srgb, var(--gc, #3a2e22) 38%, #1b1510) 0%, #120e0a 72%); padding: 0; overflow: hidden; }
+    .eqcell img { width: 52px; height: 52px; object-fit: contain; margin-top: 0; filter: drop-shadow(0 2px 3px rgba(0,0,0,.6)); }
+    .eqcell .nm { position: absolute; left: 0; right: 0; bottom: 0; font-size: 10px; color: #fff; background: linear-gradient(transparent, rgba(0,0,0,.75)); padding-top: 6px; }
     .eqcell .en { position: absolute; top: 2px; left: 4px; font-size: 10px; font-weight: 800; color: #9be36b; }
     .eqcell .sr { position: absolute; top: 2px; right: 4px; font-size: 10px; font-weight: 800; color: #ffd54a; }
     .eqcell.sel { box-shadow: 0 0 0 2px var(--gold), 0 0 12px #e8c26a88; }
     .eqmid { text-align: center; } .eqmid canvas { width: 100%; max-width: 200px; max-height: 230px; height: auto; object-fit: contain; }
     .eqpw { font-weight: 800; font-size: 18px; color: var(--gold); } .eqpw small { display: block; font-size: 11px; color: var(--mute); font-weight: 400; }
     .eqinfo { background: #0004; border: 1px solid var(--line); border-radius: 10px; padding: 8px; margin: 6px 0; }
-    .eqh { display: flex; gap: 8px; align-items: center; } .eqh img { width: 48px; height: 48px; }
+    .eqh { display: flex; gap: 8px; align-items: center; } .eqh img { width: 64px; height: 64px; object-fit: contain; border-radius: 12px; background: radial-gradient(circle at 50% 45%, color-mix(in srgb, var(--gc, #3a2e22) 38%, #1b1510) 0%, #120e0a 72%); }
     .eqst { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; } .eqst span { background: #ffffff10; border-radius: 6px; padding: 2px 6px; font-size: 12px; }
     #battle canvas#cv { width: 100%; height: 100%; display: block; touch-action: none; }
     /* ── v510 들판 HUD — 옆보기 방치 RPG 배치: 위 왼쪽 나 · 위 가운데 사냥터 · 위 오른쪽 작은 아이콘 · 아래 가운데 메뉴 다섯 · 왼쪽 아래 Lv/HP · 오른쪽 아래 무공 · 맨 아래 EXP ── */
@@ -206,6 +206,8 @@
     body.land #wb { column-count: 2; column-gap: 10px; }
     body.land #wb > * { break-inside: avoid; }
     body.land #wb > .card, body.land #wb > .row { display: inline-block; width: 100%; box-sizing: border-box; }
+    #panel .inv-grid { grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); }
+    body.land #wb > .card:has(.inv-grid), body.land #wb > .card:has(.eqwrap) { column-span: all; display: block; }
     body.land #wb > .eqpage, body.land #wb > .gxb, body.land #wb > .grid, body.land #wb > .inv-grid, body.land #wb > .gear-grid { column-span: all; }
     body.land #modal .sheet { max-width: 520px; max-height: 88vh; overflow: auto; }
     /* ── v511 창 — 들판 HUD와 같은 결: 아래 메뉴 바로 위까지 덮는 큰 창 · 왼쪽 아이콘 레일 · 밑줄 칸 · 평평한 카드 · 금빛 주 단추 ── */
