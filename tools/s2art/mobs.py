@@ -64,6 +64,27 @@ BOSSES = {
   'b15': 'the Jade Emperor, a majestic celestial emperor in gold and white imperial robes with a jeweled crown with hanging beads, holding a golden jade scepter, radiant halo and clouds',
 }
 jobs += [{'name': k, 'prompt': BOSS_STYLE + v + '.', 'size': '1024x1536', 'bg': 'transparent', 'q': 'high'} for k, v in BOSSES.items()]
+
+# 정예(v503) — 장마다 하나, 옆보기 전신 · 일반보다 강해 보이게(두목보다는 덜 화려)
+ELITE_STYLE = STYLE.replace('enemy character sprite', 'ELITE enemy character sprite (a seasoned veteran fighter, stronger and more ornate than common enemies, subtle aura)')
+ELITES = {
+  'e1': 'the Sword Ghost of the Bamboo Forest, a gaunt swordsman in tattered dark green robes, pale face, long loose hair, a thin long sword, faint green mist',
+  'e2': 'a desert blade master, red and sand colored layered robes, head wrap, two curved scimitars, scarred face',
+  'e3': 'an Ice Palace elder, a stern older woman in white and silver robes, ice crystal hairpin, holding a frost whip-sword, cold mist',
+  'e4': 'a blood demon swordsman, dark red robes splattered with crimson, wild hair, a long red-tinted sword, red aura',
+  'e5': 'an Eastern Depot commander eunuch, black and gold official robe, tall black hat, holding a slim needle-sword, cold smirk',
+  'e6': 'a river fort chieftain, muscular pirate captain with blue headscarf and leather vest, a huge broad sabre on the shoulder',
+  'e7': 'a veteran escort agency guard, sturdy man in brown escort uniform with a red sash, holding a big axe',
+  'e8': 'a southern beast king, huge muscular tribal warrior wearing a tiger pelt, clawed gauntlets, war paint',
+  'e9': 'a Kunlun sect elder, middle-aged taoist with grey beard, blue and white robes, sword behind back, holding a talisman, calm',
+  'e10': 'a Tang clan poison hand, slim figure in dark green with a mask over the mouth, poisoned needles between fingers, green mist',
+  'e11': 'a dark sect elder sorceress, purple and black robes, long black hair, violet flames on her hands',
+  'e12': 'a poison valley elder, old hunched master in moss green robes, a staff with a venom gourd, snakes coiled on the arm',
+  'e13': 'a Plum Blossom Sword Master, a confident man in white robes with pink plum embroidery, sword drawn, petals around',
+  'e14': 'a flame demon general, armored demon with fiery hair and burning chain whip, molten armor plates',
+  'e15': 'a heavenly general, celestial warrior in silver and gold armor with flowing red cape, holding a pagoda-tipped spear, light rays',
+}
+jobs += [{'name': k, 'prompt': ELITE_STYLE + v + '.', 'size': '1024x1536', 'bg': 'transparent', 'q': 'high'} for k, v in ELITES.items()]
 only = sys.argv[1:]
 if only: jobs = [j for j in jobs if j['name'] in only]
 print(json.dumps(jobs, ensure_ascii=False, indent=1))

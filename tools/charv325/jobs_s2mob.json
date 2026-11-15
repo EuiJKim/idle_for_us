@@ -320,5 +320,110 @@
   "size": "1024x1536",
   "bg": "transparent",
   "q": "high"
+ },
+ {
+  "name": "e1",
+  "prompt": "2D side-view ELITE enemy character sprite (a seasoned veteran fighter, stronger and more ornate than common enemies, subtle aura) for a wuxia (Chinese martial arts fantasy) side-scrolling action RPG. Full body from head to feet, standing in a ready combat stance, body and face turned toward the RIGHT side of the image (right-facing three-quarter profile), feet flat at the bottom edge, whole figure inside the frame with a small margin. Hand-painted semi-realistic anime mobile game art, clean dark outline, soft cel shading, rich saturated colors, readable silhouette. Isolated on a fully transparent background: no ground, no cast shadow, no scenery, no text, no frame, no border, only ONE character. Character: the Sword Ghost of the Bamboo Forest, a gaunt swordsman in tattered dark green robes, pale face, long loose hair, a thin long sword, faint green mist.",
+  "size": "1024x1536",
+  "bg": "transparent",
+  "q": "high"
+ },
+ {
+  "name": "e2",
+  "prompt": "2D side-view ELITE enemy character sprite (a seasoned veteran fighter, stronger and more ornate than common enemies, subtle aura) for a wuxia (Chinese martial arts fantasy) side-scrolling action RPG. Full body from head to feet, standing in a ready combat stance, body and face turned toward the RIGHT side of the image (right-facing three-quarter profile), feet flat at the bottom edge, whole figure inside the frame with a small margin. Hand-painted semi-realistic anime mobile game art, clean dark outline, soft cel shading, rich saturated colors, readable silhouette. Isolated on a fully transparent background: no ground, no cast shadow, no scenery, no text, no frame, no border, only ONE character. Character: a desert blade master, red and sand colored layered robes, head wrap, two curved scimitars, scarred face.",
+  "size": "1024x1536",
+  "bg": "transparent",
+  "q": "high"
+ },
+ {
+  "name": "e3",
+  "prompt": "2D side-view ELITE enemy character sprite (a seasoned veteran fighter, stronger and more ornate than common enemies, subtle aura) for a wuxia (Chinese martial arts fantasy) side-scrolling action RPG. Full body from head to feet, standing in a ready combat stance, body and face turned toward the RIGHT side of the image (right-facing three-quarter profile), feet flat at the bottom edge, whole figure inside the frame with a small margin. Hand-painted semi-realistic anime mobile game art, clean dark outline, soft cel shading, rich saturated colors, readable silhouette. Isolated on a fully transparent background: no ground, no cast shadow, no scenery, no text, no frame, no border, only ONE character. Character: an Ice Palace elder, a stern older woman in white and silver robes, ice crystal hairpin, holding a frost whip-sword, cold mist.",
+  "size": "1024x1536",
+  "bg": "transparent",
+  "q": "high"
+ },
+ {
+  "name": "e4",
+  "prompt": "2D side-view ELITE enemy character sprite (a seasoned veteran fighter, stronger and more ornate than common enemies, subtle aura) for a wuxia (Chinese martial arts fantasy) side-scrolling action RPG. Full body from head to feet, standing in a ready combat stance, body and face turned toward the RIGHT side of the image (right-facing three-quarter profile), feet flat at the bottom edge, whole figure inside the frame with a small margin. Hand-painted semi-realistic anime mobile game art, clean dark outline, soft cel shading, rich saturated colors, readable silhouette. Isolated on a fully transparent background: no ground, no cast shadow, no scenery, no text, no frame, no border, only ONE character. Character: a blood demon swordsman, dark red robes splattered with crimson, wild hair, a long red-tinted sword, red aura.",
+  "size": "1024x1536",
+  "bg": "transparent",
+  "q": "high"
+ },
+ {
+  "name": "e5",
+  "prompt": "2D side-view ELITE enemy character sprite (a seasoned veteran fighter, stronger and more ornate than common enemies, subtle aura) for a wuxia (Chinese martial arts fantasy) side-scrolling action RPG. Full body from head to feet, standing in a ready combat stance, body and face turned toward the RIGHT side of the image (right-facing three-quarter profile), feet flat at the bottom edge, whole figure inside the frame with a small margin. Hand-painted semi-realistic anime mobile game art, clean dark outline, soft cel shading, rich saturated colors, readable silhouette. Isolated on a fully transparent background: no ground, no cast shadow, no scenery, no text, no frame, no border, only ONE character. Character: an Eastern Depot commander eunuch, black and gold official robe, tall black hat, holding a slim needle-sword, cold smirk.",
+  "size": "1024x1536",
+  "bg": "transparent",
+  "q": "high"
+ },
+ {
+  "name": "e6",
+  "prompt": "2D side-view ELITE enemy character sprite (a seasoned veteran fighter, stronger and more ornate than common enemies, subtle aura) for a wuxia (Chinese martial arts fantasy) side-scrolling action RPG. Full body from head to feet, standing in a ready combat stance, body and face turned toward the RIGHT side of the image (right-facing three-quarter profile), feet flat at the bottom edge, whole figure inside the frame with a small margin. Hand-painted semi-realistic anime mobile game art, clean dark outline, soft cel shading, rich saturated colors, readable silhouette. Isolated on a fully transparent background: no ground, no cast shadow, no scenery, no text, no frame, no border, only ONE character. Character: a river fort chieftain, muscular pirate captain with blue headscarf and leather vest, a huge broad sabre on the shoulder.",
+  "size": "1024x1536",
+  "bg": "transparent",
+  "q": "high"
+ },
+ {
+  "name": "e7",
+  "prompt": "2D side-view ELITE enemy character sprite (a seasoned veteran fighter, stronger and more ornate than common enemies, subtle aura) for a wuxia (Chinese martial arts fantasy) side-scrolling action RPG. Full body from head to feet, standing in a ready combat stance, body and face turned toward the RIGHT side of the image (right-facing three-quarter profile), feet flat at the bottom edge, whole figure inside the frame with a small margin. Hand-painted semi-realistic anime mobile game art, clean dark outline, soft cel shading, rich saturated colors, readable silhouette. Isolated on a fully transparent background: no ground, no cast shadow, no scenery, no text, no frame, no border, only ONE character. Character: a veteran escort agency guard, sturdy man in brown escort uniform with a red sash, holding a big axe.",
+  "size": "1024x1536",
+  "bg": "transparent",
+  "q": "high"
+ },
+ {
+  "name": "e8",
+  "prompt": "2D side-view ELITE enemy character sprite (a seasoned veteran fighter, stronger and more ornate than common enemies, subtle aura) for a wuxia (Chinese martial arts fantasy) side-scrolling action RPG. Full body from head to feet, standing in a ready combat stance, body and face turned toward the RIGHT side of the image (right-facing three-quarter profile), feet flat at the bottom edge, whole figure inside the frame with a small margin. Hand-painted semi-realistic anime mobile game art, clean dark outline, soft cel shading, rich saturated colors, readable silhouette. Isolated on a fully transparent background: no ground, no cast shadow, no scenery, no text, no frame, no border, only ONE character. Character: a southern beast king, huge muscular tribal warrior wearing a tiger pelt, clawed gauntlets, war paint.",
+  "size": "1024x1536",
+  "bg": "transparent",
+  "q": "high"
+ },
+ {
+  "name": "e9",
+  "prompt": "2D side-view ELITE enemy character sprite (a seasoned veteran fighter, stronger and more ornate than common enemies, subtle aura) for a wuxia (Chinese martial arts fantasy) side-scrolling action RPG. Full body from head to feet, standing in a ready combat stance, body and face turned toward the RIGHT side of the image (right-facing three-quarter profile), feet flat at the bottom edge, whole figure inside the frame with a small margin. Hand-painted semi-realistic anime mobile game art, clean dark outline, soft cel shading, rich saturated colors, readable silhouette. Isolated on a fully transparent background: no ground, no cast shadow, no scenery, no text, no frame, no border, only ONE character. Character: a Kunlun sect elder, middle-aged taoist with grey beard, blue and white robes, sword behind back, holding a talisman, calm.",
+  "size": "1024x1536",
+  "bg": "transparent",
+  "q": "high"
+ },
+ {
+  "name": "e10",
+  "prompt": "2D side-view ELITE enemy character sprite (a seasoned veteran fighter, stronger and more ornate than common enemies, subtle aura) for a wuxia (Chinese martial arts fantasy) side-scrolling action RPG. Full body from head to feet, standing in a ready combat stance, body and face turned toward the RIGHT side of the image (right-facing three-quarter profile), feet flat at the bottom edge, whole figure inside the frame with a small margin. Hand-painted semi-realistic anime mobile game art, clean dark outline, soft cel shading, rich saturated colors, readable silhouette. Isolated on a fully transparent background: no ground, no cast shadow, no scenery, no text, no frame, no border, only ONE character. Character: a Tang clan poison hand, slim figure in dark green with a mask over the mouth, poisoned needles between fingers, green mist.",
+  "size": "1024x1536",
+  "bg": "transparent",
+  "q": "high"
+ },
+ {
+  "name": "e11",
+  "prompt": "2D side-view ELITE enemy character sprite (a seasoned veteran fighter, stronger and more ornate than common enemies, subtle aura) for a wuxia (Chinese martial arts fantasy) side-scrolling action RPG. Full body from head to feet, standing in a ready combat stance, body and face turned toward the RIGHT side of the image (right-facing three-quarter profile), feet flat at the bottom edge, whole figure inside the frame with a small margin. Hand-painted semi-realistic anime mobile game art, clean dark outline, soft cel shading, rich saturated colors, readable silhouette. Isolated on a fully transparent background: no ground, no cast shadow, no scenery, no text, no frame, no border, only ONE character. Character: a dark sect elder sorceress, purple and black robes, long black hair, violet flames on her hands.",
+  "size": "1024x1536",
+  "bg": "transparent",
+  "q": "high"
+ },
+ {
+  "name": "e12",
+  "prompt": "2D side-view ELITE enemy character sprite (a seasoned veteran fighter, stronger and more ornate than common enemies, subtle aura) for a wuxia (Chinese martial arts fantasy) side-scrolling action RPG. Full body from head to feet, standing in a ready combat stance, body and face turned toward the RIGHT side of the image (right-facing three-quarter profile), feet flat at the bottom edge, whole figure inside the frame with a small margin. Hand-painted semi-realistic anime mobile game art, clean dark outline, soft cel shading, rich saturated colors, readable silhouette. Isolated on a fully transparent background: no ground, no cast shadow, no scenery, no text, no frame, no border, only ONE character. Character: a poison valley elder, old hunched master in moss green robes, a staff with a venom gourd, snakes coiled on the arm.",
+  "size": "1024x1536",
+  "bg": "transparent",
+  "q": "high"
+ },
+ {
+  "name": "e13",
+  "prompt": "2D side-view ELITE enemy character sprite (a seasoned veteran fighter, stronger and more ornate than common enemies, subtle aura) for a wuxia (Chinese martial arts fantasy) side-scrolling action RPG. Full body from head to feet, standing in a ready combat stance, body and face turned toward the RIGHT side of the image (right-facing three-quarter profile), feet flat at the bottom edge, whole figure inside the frame with a small margin. Hand-painted semi-realistic anime mobile game art, clean dark outline, soft cel shading, rich saturated colors, readable silhouette. Isolated on a fully transparent background: no ground, no cast shadow, no scenery, no text, no frame, no border, only ONE character. Character: a Plum Blossom Sword Master, a confident man in white robes with pink plum embroidery, sword drawn, petals around.",
+  "size": "1024x1536",
+  "bg": "transparent",
+  "q": "high"
+ },
+ {
+  "name": "e14",
+  "prompt": "2D side-view ELITE enemy character sprite (a seasoned veteran fighter, stronger and more ornate than common enemies, subtle aura) for a wuxia (Chinese martial arts fantasy) side-scrolling action RPG. Full body from head to feet, standing in a ready combat stance, body and face turned toward the RIGHT side of the image (right-facing three-quarter profile), feet flat at the bottom edge, whole figure inside the frame with a small margin. Hand-painted semi-realistic anime mobile game art, clean dark outline, soft cel shading, rich saturated colors, readable silhouette. Isolated on a fully transparent background: no ground, no cast shadow, no scenery, no text, no frame, no border, only ONE character. Character: a flame demon general, armored demon with fiery hair and burning chain whip, molten armor plates.",
+  "size": "1024x1536",
+  "bg": "transparent",
+  "q": "high"
+ },
+ {
+  "name": "e15",
+  "prompt": "2D side-view ELITE enemy character sprite (a seasoned veteran fighter, stronger and more ornate than common enemies, subtle aura) for a wuxia (Chinese martial arts fantasy) side-scrolling action RPG. Full body from head to feet, standing in a ready combat stance, body and face turned toward the RIGHT side of the image (right-facing three-quarter profile), feet flat at the bottom edge, whole figure inside the frame with a small margin. Hand-painted semi-realistic anime mobile game art, clean dark outline, soft cel shading, rich saturated colors, readable silhouette. Isolated on a fully transparent background: no ground, no cast shadow, no scenery, no text, no frame, no border, only ONE character. Character: a heavenly general, celestial warrior in silver and gold armor with flowing red cape, holding a pagoda-tipped spear, light rays.",
+  "size": "1024x1536",
+  "bg": "transparent",
+  "q": "high"
  }
 ]
