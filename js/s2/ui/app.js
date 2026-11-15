@@ -443,13 +443,10 @@ function paintHud() {
     const B = g.bossFight, bm = B.mobs.find((m) => m.kind === 'boss');
     $('contest-title').textContent = `${bm ? mobName(bm, z, chapterOf(T.idx)) : '두목'} ${bm ? Math.ceil((bm.hp / bm.st.hp) * 100) : 0}%`;
     $('contest-sub').textContent = `남은 ${Math.max(0, Math.ceil((B.limitMs - B.t) / 1000))}초 · 클리어 보상 은자 ${unit(2 * 27 * goldPerMob(T.idx))} · 뽑기권 ${T.idx % 10 === 0 ? 10 : 1}`;
-    ch2.style.top = '40px';
   } else {
-    $('contest-title').textContent = `Stage ${st}/10`;
+    $('contest-title').textContent = document.body.classList.contains('land') ? `${$('stage-label').textContent} · Stage ${st}/10` : `Stage ${st}/10`;
     $('contest-sub').textContent = ready ? '두목 준비 — 「두목 도전」' : `처치 ${T.kills} / ${STAGE_KILLS}`;
-    ch2.style.top = '40px';
   }
-  $('btn-boss').style.top = '92px';
   // 피해 측정기(설정에서 켬): 최근 10초 초당 피해 · 분당 처치
   const dm = $('dpsm'); dm.style.display = opt.dps ? 'block' : 'none';
   if (opt.dps) { const nowT = now(); while (dmgLog.length && dmgLog[0][0] < nowT - 10000) dmgLog.shift(); const sum = dmgLog.reduce((a, d) => a + d[1], 0); dm.innerHTML = `<b>초당 피해</b>${unit(sum / 10)}<br><b>분당 처치</b>${killRate()}`; }
@@ -649,7 +646,7 @@ function draw() {
   if (Math.abs(hvx) > 20) lookDir = Math.sign(hvx);
   lookAhead += (lookDir * viewW * 0.1 - lookAhead) * (1 - Math.exp(-fdt / 1000));
   const wantX = Math.max(0, Math.min(map.w - viewW, lx(F.hero) - viewW / 2 + lookAhead));
-  const baseY = port ? Hh - dock - 36 : Hh * 0.74;   // 바닥(높이 0)이 그려질 화면 높이 — 아래 패널 위
+  const baseY = port ? Hh - dock - 36 : Hh * 0.8;   // 가로: 아래 20%는 무공 덩어리 · 조작 자리   // 바닥(높이 0)이 그려질 화면 높이 — 아래 패널 위
   const wantY = Math.max(0, Math.min(Math.max(0, map.h - baseY / s), ly(F.hero) - viewH * 0.3));
   // 살짝 늦게 따라감 — 프레임 수와 상관없이 같은 빠르기(60·120Hz 모두)
   if (camSm === null || Math.abs(camSm - wantX) > viewW) camSm = wantX; else camSm += (wantX - camSm) * (1 - Math.exp(-fdt / 95));
@@ -1010,6 +1007,19 @@ document.addEventListener('keydown', (e) => {
 document.addEventListener('pointerdown', () => { unlock(); bgm(chapterOf(g?.zoneLv?.() || 1)); }, { once: false, passive: true });
 document.addEventListener('keyup', (e) => { if (g && keyDir[e.key]) g.hold(0); });
 
+// v509 가로 화면 — 넓으면 body.land(들판 전체 · 모서리에 단추). 세로로 든 손전화에는 돌려 달라는 알림(세로로 계속 가능)
+let rotSkip = false;
+function fitLand() {
+  const land = innerWidth > innerHeight;
+  document.body.classList.toggle('land', land);
+  const touch = matchMedia('(pointer: coarse)').matches;
+  $('rot').classList.toggle('open', !land && touch && !rotSkip);
+  if (land) requestAnimationFrame(() => document.body.style.setProperty('--tw', `${$('tabs').offsetWidth}px`));   // 가운데 진행 줄이 오른쪽 창 단추에 닿지 않게
+}
+$('rot-go').onclick = () => { rotSkip = true; fitLand(); };
+addEventListener('resize', fitLand); addEventListener('orientationchange', fitLand);
+fitLand();
+document.addEventListener('pointerdown', () => { try { if (matchMedia('(pointer: coarse)').matches) screen.orientation?.lock?.('landscape')?.catch(() => {}); } catch { /* 잠글 수 없는 브라우저 */ } }, { once: true });
 loadLooks();
 load();
 if (g) boot();

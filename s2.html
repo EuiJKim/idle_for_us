@@ -18,7 +18,8 @@
     #battle canvas#cv { width: 100%; height: 100%; display: block; touch-action: none; }
     #hud { z-index: 10; }
     #quest { top: 10px; }
-    #btn-boss { position: absolute; left: 50%; transform: translateX(-50%); top: 44px; z-index: 11; }
+    #btn-boss { position: absolute; left: 50%; transform: translateX(-50%); top: 92px; z-index: 11; }
+    #contest-hud { top: 40px; }
     #btn-boss.ready { animation: pts-glow 1.4s ease-in-out infinite; }
     #side-btns { position: absolute; right: 8px; top: 44px; z-index: 11; display: flex; flex-direction: column; gap: 6px; }
     #side-btns .icon-btn { width: 38px; height: 38px; }
@@ -94,6 +95,59 @@
     .eqinfo { background: #0004; border: 1px solid var(--line); border-radius: 10px; padding: 8px; margin: 6px 0; }
     .eqh { display: flex; gap: 8px; align-items: center; } .eqh img { width: 48px; height: 48px; }
     .eqst { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; } .eqst span { background: #ffffff10; border-radius: 6px; padding: 2px 6px; font-size: 12px; }
+    /* ── v509 가로 화면 — 들판이 화면 전체. 위: 왼쪽 무인 · 가운데 사냥터 진행 · 오른쪽 창 단추. 아래: 왼쪽 조작 · 오른쪽 무공. 창은 가운데에 크게(카드 두 줄) ── */
+    body.land { --sl: max(10px, env(safe-area-inset-left)); --sr: max(10px, env(safe-area-inset-right)); --st: max(6px, env(safe-area-inset-top)); --sb: max(8px, env(safe-area-inset-bottom)); }
+    body.land #app { max-width: none; position: relative; display: block; padding-top: 0; height: 100%; }
+    body.land #battle { position: absolute; inset: 0; }
+    body.land #topbar { position: absolute; left: var(--sl); top: var(--st); z-index: 20; width: 236px; padding: 0; gap: 6px; background: none; border: 0; align-items: center; }
+    body.land #topbar .hero-box { flex: 1; background: rgba(20,17,12,.84); padding: 4px 8px 4px 4px; }
+    body.land #topbar .res-col { display: none; }
+    body.land #btn-settings { width: 34px; height: 34px; flex: none; }
+    body.land #stagebar { position: absolute; z-index: 20; top: var(--st); left: calc(var(--sl) + 248px); right: calc(var(--sr) + var(--tw, 322px) + 8px); max-width: 440px; margin: 0 auto; padding: 5px 10px; border: 1px solid var(--line); border-radius: 12px; background: rgba(18,15,11,.84); }
+    body.land #stagebar .stage-box { display: none; }   /* 장 이름은 아래 도전 표시에 함께 */
+    @media (max-width: 800px) {
+      body.land #topbar { width: 196px; } body.land #stagebar { left: calc(var(--sl) + 204px); padding: 4px 8px; }
+      body.land #tabs { gap: 3px; } body.land #tabs button { width: 36px; height: 38px; flex-basis: 36px; } body.land #tabs button i { font-size: 15px; }
+    }
+    body.land #tabs { inset: auto; position: absolute; top: var(--st); right: var(--sr); display: flex; gap: 4px; pointer-events: auto; }
+    body.land .tabcol { display: contents; }
+    body.land #tabs button { width: 42px; height: 42px; flex: 0 0 42px; min-width: 0; padding: 0; }
+    body.land #tabs button i { font-size: 17px; } body.land #tabs button span { font-size: 8px; }
+    body.land #side-btns { right: var(--sr); top: calc(var(--st) + 48px); flex-direction: row; }
+    body.land #hud { left: var(--sl); right: auto; top: calc(var(--st) + 72px); }
+    body.land #quest { left: var(--sl); top: calc(var(--st) + 100px); transform: none; max-width: 300px; }
+    body.land .dpsm { left: var(--sl); top: calc(var(--st) + 130px); }
+    body.land #btn-boss { top: calc(var(--st) + 48px); }
+    body.land #contest-hud { top: calc(var(--st) + 48px); padding: 3px 12px; font-size: 11px; line-height: 1.35; }
+    body.land #loglines { left: var(--sl); bottom: calc(var(--sb) + 64px); max-width: 34%; }
+    body.land #pad { left: var(--sl); transform: none; bottom: var(--sb); }
+    body.land #pad button { width: 62px; height: 52px; }
+    /* 무공: 오른쪽 아래 덩어리 — 자동(왼쪽 아래) · 여섯 칸(3×2) · 점프(크게, 두 줄) */
+    body.land #skillbar { left: auto; right: var(--sr); bottom: var(--sb); padding: 0; display: grid; gap: 5px; grid-template-columns: 46px repeat(3, 50px) 64px; grid-template-rows: 48px 48px; }
+    body.land #skillbar .skill-btn, body.land #skillbar .auto-btn { width: auto; height: auto; min-width: 0; }
+    body.land #au { grid-area: 2 / 1; font-size: 11px; }
+    body.land #slots > :nth-child(1) { grid-area: 1 / 2; } body.land #slots > :nth-child(2) { grid-area: 1 / 3; } body.land #slots > :nth-child(3) { grid-area: 1 / 4; }
+    body.land #slots > :nth-child(4) { grid-area: 2 / 2; } body.land #slots > :nth-child(5) { grid-area: 2 / 3; } body.land #slots > :nth-child(6) { grid-area: 2 / 4; }
+    body.land #jp { grid-area: 1 / 5 / 3 / 6; font-size: 28px; border-radius: 18px; }
+    body.land #toast { bottom: calc(var(--sb) + 112px); }
+    /* 창: 가운데에 크게 뜬다 */
+    body.land #panel, body.land #panel.full { left: 50%; right: auto; top: 4%; bottom: 4%; height: auto; width: min(94vw, 1040px); max-width: none; margin: 0; border-radius: 16px; border: 1px solid rgba(212,166,74,.35); transform: translate(-50%, 110vh); }
+    body.land #panel.open { transform: translate(-50%, 0); }
+    body.land #panel-head, body.land #panel.full #panel-head { padding: 9px 12px; border-radius: 16px 16px 0 0; }
+    body.land #panel-grip { display: none; }
+    body.land #panel-dim.open { background: rgba(0,0,0,.45); }
+    body.land #wb { column-count: 2; column-gap: 10px; }
+    body.land #wb > * { break-inside: avoid; }
+    body.land #wb > .card, body.land #wb > .row { display: inline-block; width: 100%; box-sizing: border-box; }
+    body.land #wb > .eqpage, body.land #wb > .gxb, body.land #wb > .grid, body.land #wb > .inv-grid, body.land #wb > .gear-grid { column-span: all; }
+    body.land #modal .sheet { max-width: 520px; max-height: 88vh; overflow: auto; }
+    /* 세로로 든 손전화: 돌려 달라는 알림 */
+    #rot { position: fixed; inset: 0; z-index: 90; display: none; flex-direction: column; align-items: center; justify-content: center; gap: 14px; background: radial-gradient(#1d1712, #0b0907 75%); color: #f5e9cf; text-align: center; padding: 24px; }
+    #rot.open { display: flex; }
+    #rot .ph { width: 54px; height: 90px; border: 3px solid var(--accent-2); border-radius: 10px; animation: rotp 2.2s ease-in-out infinite; }
+    @keyframes rotp { 0%, 25% { transform: rotate(0) } 55%, 100% { transform: rotate(-90deg) } }
+    #rot b { font-family: var(--brush); font-size: 28px; font-weight: 400; }
+    @media (prefers-reduced-motion: reduce) { #rot .ph { animation: none; transform: rotate(-90deg); } }
   </style>
 </head>
 <body>
@@ -168,6 +222,7 @@
 
   <div id="modal" class="hidden"><div class="sheet"></div></div>
   <div id="toast"></div>
+  <div id="rot"><div class="ph"></div><b>가로로 돌려 주세요</b><p class="note">이 판은 가로 화면으로 만들었어요.</p><button class="btn" id="rot-go">세로로 계속</button></div>
   <script type="module" src="js/s2/ui/app.js"></script>
 </body>
 </html>

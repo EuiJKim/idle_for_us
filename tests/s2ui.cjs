@@ -8,7 +8,7 @@ let fails = 0;
 const ok = (c, m, x = '') => { console.log(`  ${c ? '✓' : '✗ !!'} ${m}${x !== '' ? ` (${x})` : ''}`); if (!c) fails++; };
 (async () => {
   const b = await chromium.launch(process.env.CHROMIUM ? { executablePath: process.env.CHROMIUM } : {});
-  for (const [W, H] of [[360, 740], [430, 932]]) {
+  for (const [W, H] of [[844, 390], [740, 360], [1280, 720], [430, 932]]) {
     const ctx = await b.newContext({ viewport: { width: W, height: H } });
     const page = await ctx.newPage();
     page.setDefaultTimeout(8000);
@@ -25,6 +25,16 @@ const ok = (c, m, x = '') => { console.log(`  ${c ? '✓' : '✗ !!'} ${m}${x !=
     ok(g0.kills > 0, '저절로 사냥한다', `처치 ${g0.kills}`);
     ok(/Lv.\d+/.test(await page.textContent('#hero-lv')) && /전투력/.test(await page.textContent('#power-label')) && /체력/.test(await page.textContent('#progress-text')), 'v505 지금 게임 틀: 위 상태 줄 Lv · 들판 전투력 · 체력 줄');
     ok(/길잡이 1/.test(await page.textContent('#quest')), '들판 위 길잡이 1');
+    if (W > H) {
+      // v509 가로 화면: 위 세 덩어리(무인 · 진행 줄 · 창 단추)와 아래 무공 덩어리가 서로 겹치지 않고 화면 안
+      const L = await page.evaluate(() => {
+        const r = (s) => { const b = document.querySelector(s).getBoundingClientRect(); return [b.left, b.top, b.right, b.bottom]; };
+        return { land: document.body.classList.contains('land'), top: r('#topbar'), bar: r('#stagebar'), tabs: r('#tabs'), skill: r('#skillbar'), quest: r('#quest'), W: innerWidth, H: innerHeight };
+      });
+      const hit = (a, c) => a[0] < c[2] - 1 && c[0] < a[2] - 1 && a[1] < c[3] - 1 && c[1] < a[3] - 1;
+      const inside = (a) => a[0] >= 0 && a[1] >= 0 && a[2] <= L.W && a[3] <= L.H;
+      ok(L.land && !hit(L.top, L.bar) && !hit(L.bar, L.tabs) && !hit(L.top, L.tabs) && !hit(L.quest, L.top) && [L.top, L.bar, L.tabs, L.skill].every(inside), '가로 화면 — 위: 무인 · 진행 · 창 단추 / 오른쪽 아래: 무공 (겹침 없음)', JSON.stringify([L.top, L.bar, L.tabs].map((a) => a.map(Math.round))));
+    }
     // 손 조작: 수동으로 바꾸고 ◀ 를 누르고 있으면 왼쪽으로 달린다 · 점프 단추
     await page.click('#au');
     ok(await page.evaluate(() => window.__s2.g.S.auto === false), '자동/수동 단추 — 수동으로');
