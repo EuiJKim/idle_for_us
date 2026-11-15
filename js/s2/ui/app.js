@@ -21,7 +21,7 @@ import { play, unlock, setOpt, bgm } from './sound.js';
 import { PoseAnim, POSES, IDLE, mixPose } from '../../pose.js';
 // 설정(v504) — 이 기기에만(ifu.s2.opt). 소리 · 배경 가락 · 흔들림 · 피해 숫자 · 진동 · 그래픽 · 피해 측정기
 const OPT_KEY = 'ifu.s2.opt';
-const opt = Object.assign({ sfx: true, bgm: true, shake: true, nums: 'all', vib: true, gfx: 'high', dps: false }, (() => { try { return JSON.parse(localStorage.getItem(OPT_KEY) || '{}'); } catch { return {}; } })());
+const opt = Object.assign({ sfx: true, bgm: true, shake: true, nums: 'all', vib: true, gfx: 'high', dps: false, autoNext: true }, (() => { try { return JSON.parse(localStorage.getItem(OPT_KEY) || '{}'); } catch { return {}; } })());
 const saveOpt = () => { try { localStorage.setItem(OPT_KEY, JSON.stringify(opt)); } catch { /* 저장 못 함 */ } setOpt({ sfx: opt.sfx, bgm: opt.bgm }); };
 setOpt({ sfx: opt.sfx, bgm: opt.bgm });
 const buzz = (ms) => { if (opt.vib && navigator.vibrate) try { navigator.vibrate(ms); } catch { /* 진동 없음 */ } };
@@ -371,7 +371,7 @@ function paintWin() {
     const c0 = card('소리 · 진동');
     c0(tg('효과음', 'sfx', '타격 · 무공 · 처치 · 뽑기 소리', '音'), tg('배경 가락', 'bgm', '장마다 다른 오음계 가락', '樂'), tg('진동', 'vib', '두목 패턴에 맞을 때 · 쓰러질 때(휴대폰)', '震'));
     const c1 = card('화면');
-    c1(tg('화면 흔들림', 'shake', '큰 무공 · 두목 패턴 · 당겨짐', '搖'), tg('피해 측정기', 'dps', '들판 왼쪽 위에 초당 피해 · 분당 처치', '測'));
+    c1(tg('화면 흔들림', 'shake', '큰 무공 · 두목 패턴 · 당겨짐', '搖'), tg('피해 측정기', 'dps', '들판 왼쪽 위에 초당 피해 · 분당 처치', '測'), tg('두목전 결과 자동 진행', 'autoNext', '결과 창이 3초 뒤 저절로 닫히고 다음으로', '進'));
     c1(R('피해 숫자', { all: '전부', crit: '치명만', off: '끄기' }[opt.nums], [['바꾸기', () => { opt.nums = { all: 'crit', crit: 'off', off: 'all' }[opt.nums]; saveOpt(); paintWin(); }]], '數'));
     c1(R('그래픽', opt.gfx === 'low' ? '낮음(배터리 아낌 · 흙먼지 · 은자 연출 끔)' : '높음', [['바꾸기', () => { opt.gfx = opt.gfx === 'low' ? 'high' : 'low'; saveOpt(); paintWin(); }]], '畵'));
     const c2 = card('계정');
@@ -999,17 +999,46 @@ function frame() {
   if (resTimer && t > resTimer) closeResult();
   requestAnimationFrame(frame);
 }
-// 두목전 결과 — 3초 뒤 저절로 닫힘 · 나가기 / 다시하기(진 때)
+// v513 두목전 결과 — 이기면 「STAGE CLEAR」 + 실제 보상 · 걸린 시간 · 다음 칸, 3초 막대가 차면 저절로 다음으로(설정에서 끔)
+//   지면 까닭(시간 초과 · 두목 남은 체력 · 쓰러짐) + 강해지기 · 다시 도전 · 사냥 계속(3초)
+const RES_MS = 3000;
 function showResult(f) {
-  const ch = Math.ceil(f.idx / 10), st = ((f.idx - 1) % 10) + 1, win = f.k === 'stage-clear';
+  const ch = Math.ceil(f.idx / 10), st = ((f.idx - 1) % 10) + 1, win = f.k === 'stage-clear', auto = opt.autoNext;
   play(win ? 'clear' : 'fail'); bgm(chapterOf(g.zoneLv()));
-  $('res').innerHTML = `<div class="st">CHAPTER ${ch} <em>STAGE ${st}</em></div><div class="big ${win ? 'win' : ''}">${win ? 'CLEAR' : 'FAILED'}</div>${win ? `<div>보상: 은자 · 뽑기권</div>` : '<div class="note">이 칸 몹을 다시 잡으면 또 도전해요</div>'}<div class="acts"><button class="btn" id="rout">나가기</button>${win ? '' : '<button class="btn primary" id="ragain">다시하기</button>'}</div><div class="note" id="rcd">3초 뒤 자동 닫힘</div>`;
-  $('res').classList.add('open'); resTimer = now() + 3000;
-  $('rout').onclick = closeResult;
-  if (!win) $('ragain').onclick = () => { closeResult(); g.stage().kills = STAGE_KILLS; g.challenge(); };
-  addLog(win ? `${ch}장 ${st}칸 클리어` : `${ch}장 ${st}칸 두목에게 졌어요`);
+  const sec = (f.ms / 1000).toFixed(1), nch = Math.ceil(f.next / 10), nst = ((f.next - 1) % 10) + 1, newCh = win && nch !== ch;
+  const tile = (cls, n, label, i) => `<div class="rt" style="--d:${0.35 + i * 0.12}s"><i class="coin ${cls}"></i><b data-n="${n}">0</b><small>${label}</small></div>`;
+  const R = $('res');
+  R.className = `open ${win ? 'win' : 'lose'}`;
+  R.innerHTML = win
+    ? `<div class="rp"><div class="rays"></div>
+        <div class="rsub">${ch}장 ${esc(chapterName(f.idx))} · Stage ${st}/10</div>
+        <div class="rtitle">STAGE CLEAR</div>
+        <div class="rmeta"><span>걸린 시간 <b>${sec}초</b></span>${f.deaths ? `<span>쓰러짐 <b>${f.deaths}</b></span>` : ''}</div>
+        <div class="rtiles">${tile('s', f.gold, '은자', 0)}${tile('t', f.tix, '뽑기권', 1)}</div>
+        <div class="rnext">${newCh ? `<em>새 장</em> ${nch}장 ${esc(chapterName(f.next))}` : `다음 · Stage ${nst}/10`}</div>
+        <div class="racts"><button class="btn primary rgo" id="rout"><span>다음 스테이지 ▶</span><i class="rbar"></i></button></div>
+        <label class="rauto"><input type="checkbox" id="rautochk" ${auto ? 'checked' : ''}> 3초 뒤 자동 진행</label></div>`
+    : `<div class="rp">
+        <div class="rsub">${ch}장 ${esc(chapterName(f.idx))} · Stage ${st}/10</div>
+        <div class="rtitle">도전 실패</div>
+        <div class="rmeta"><span>시간 초과 <b>${Math.round((f.limitMs || 0) / 1000)}초</b></span><span>두목 남은 체력 <b>${f.bossLeft}%</b></span>${f.deaths ? `<span>쓰러짐 <b>${f.deaths}</b></span>` : ''}</div>
+        <div class="rtip">전투력을 올려 보세요 — 장비 뽑기 · 무공 강화 · 동료</div>
+        <div class="racts"><button class="btn" id="rgrow">강해지기</button><button class="btn" id="ragain">다시 도전</button><button class="btn primary rgo" id="rout"><span>사냥 계속</span><i class="rbar"></i></button></div>
+        <label class="rauto"><input type="checkbox" id="rautochk" ${auto ? 'checked' : ''}> 3초 뒤 자동 진행</label></div>`;
+  // 보상 숫자가 0에서 차오른다
+  const t0 = now();
+  for (const b of R.querySelectorAll('.rt b')) { const n = +b.dataset.n, d = parseFloat(b.parentNode.style.getPropertyValue('--d')) * 1000; const tick = () => { const a = Math.min(1, Math.max(0, (now() - t0 - d) / 500)); b.textContent = unit(Math.round(n * (1 - (1 - a) ** 3))); if (a < 1 && R.classList.contains('open')) requestAnimationFrame(tick); }; tick(); }
+  const arm = (on) => { resTimer = on ? now() + RES_MS : 0; R.classList.toggle('timed', on); const bar = R.querySelector('.rbar'); if (bar) { bar.style.animation = 'none'; void bar.offsetWidth; bar.style.animation = ''; } };
+  arm(auto);
+  $('rautochk').onchange = (e) => { opt.autoNext = e.target.checked; saveOpt(); arm(opt.autoNext); };
+  $('rout').onclick = () => { play('click'); closeResult(); };
+  if (!win) {
+    $('ragain').onclick = () => { play('click'); closeResult(); g.stage().kills = STAGE_KILLS; g.challenge(); };
+    $('rgrow').onclick = () => { play('click'); closeResult(); openWin('char', 0); };
+  }
+  addLog(win ? `${ch}장 ${st}칸 클리어 · ${sec}초` : `${ch}장 ${st}칸 두목에게 졌어요(${f.bossLeft}% 남음)`);
 }
-function closeResult() { resTimer = 0; $('res').classList.remove('open'); }
+function closeResult() { resTimer = 0; $('res').className = ''; }
 // 돌아왔을 때 대기열 — 방치 보상부터 하나씩
 function returnQueue() {
   const p = g.returnCheck(now());

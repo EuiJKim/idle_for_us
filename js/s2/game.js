@@ -174,13 +174,14 @@ export class Game {
     return true;
   }
   endChallenge(win) {
-    const T = this.stage(), L = T.idx;
+    const T = this.stage(), L = T.idx, BF = this.bossFight, ms = BF ? BF.t : 0, deaths = BF ? BF.deaths : 0, bm = BF?.mobs.find((m) => m.kind === 'boss'), bossLeft = !win && bm ? Math.ceil((bm.hp / bm.st.hp) * 100) : 0;
     this.bossFight = null;
     if (win) { T.idx = Math.min(LEVEL_MAX, L + 1); T.top = Math.max(T.top, T.idx); T.kills = 0; T.failIdx = 0; this.emit('dungeon', { stage: L }); }
     else T.kills = 0;   // 지면 그 칸 몹을 다시 채운 뒤 재도전(자동이면 저절로)
-    this.feed.push({ k: win ? 'stage-clear' : 'stage-fail', idx: L, rewardMin: win ? 2 : 0 });
-    // 칸 보상: 은자 · 뽑기권(경험치는 사냥이 정한다 — 곡선 J1)
-    if (win) { this.S.wallet.gold += Math.round(2 * KILLS_PER_MIN * goldPerMob(L)); this.S.wallet['ticket:gear'] = (this.S.wallet['ticket:gear'] || 0) + (L % 10 === 0 ? 10 : 1); }
+    // 칸 보상: 은자 · 뽑기권(경험치는 사냥이 정한다 — 곡선 J1). 결과 창이 실제 숫자 · 걸린 시간 · 진 까닭을 보여 준다(v513)
+    const gold = win ? Math.round(2 * KILLS_PER_MIN * goldPerMob(L)) : 0, tix = win ? (L % 10 === 0 ? 10 : 1) : 0;
+    if (win) { this.S.wallet.gold += gold; this.S.wallet['ticket:gear'] = (this.S.wallet['ticket:gear'] || 0) + tix; }
+    this.feed.push({ k: win ? 'stage-clear' : 'stage-fail', idx: L, rewardMin: win ? 2 : 0, gold, tix, ms, deaths, bossLeft, next: T.idx, limitMs: BF?.limitMs || 0 });
   }
   // 손 조작 — 방향(누르는 동안) · 점프 · 내려가기 · 무공 · 자동 켜고 끄기(세이브에 남음)
   hold(dir) { this.ensureFight().press({ dir }); }
