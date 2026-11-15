@@ -43,8 +43,36 @@ function shade(hex, k) {
 }
 
 // 무인 — 발끝 가운데 (x, y) · 화면 px
+// v516 낀 장비가 무인에게 보인다 — 부위마다 등급(범 0 … 천 6)에 따라
+//   상의: 도포 그림(등급마다 다른 도포) + 둘레 빛 테 · 하의: 바지 빛깔 · 모자: 머리띠 빛깔(신 · 천은 금관) · 장갑: 손목 보호대 빛깔
+//   신발: 장화 빛깔 · 망토: 등 뒤 망토 · 허리띠: 띠와 옥 노리개 · 목걸이: 몸 둘레 기운 낟알 · 반지: 발밑 문양 · 무기: 칼빛(진부터 빛남)
+//   가장 높은 등급이 신(5)↑이면 몸 기운
+export const GEAR_COL = ['#9ca3af', '#7cc47a', '#6aa8e0', '#b27ae0', '#e8c26a', '#e06a5a', '#f8fafc'];
+const TOP_BODY = [{ robe: '#6b5640' }, { robe: '#3f3a36' }, { outfitBody: 0 }, { robe: '#4c1d5f' }, { robe: '#fffbeb' }, { outfitBody: 4 }, { robe: '#f8f4ea' }];
+const NECK_AURA = [null, null, 'firefly', 'spark', 'gold', 'ember', 'snow'];
+const RING_FOOT = [null, null, 'frost', 'bagua', 'taiji', 'flame', 'lotus'];
+const shadeHex = (h, k) => { const v = [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16)); return `#${v.map((c) => Math.max(0, Math.min(255, Math.round(k < 0 ? c * (1 + k) : c + (255 - c) * k))).toString(16).padStart(2, '0')).join('')}`; };
+export function gearLook(lv, eq, job) {
+  const look = { ...heroLook(lv) }, o = {};
+  if (!eq) return { look, o };
+  const G = (s) => (eq[s] ? eq[s].g : -1);
+  const top = G('top'); if (top >= 0) { Object.assign(look, TOP_BODY[top]); delete look.robeTint; if (top >= 1) { look.edge = GEAR_COL[top]; look.edgeW = [1, 1, 1.2, 1.5, 1.8, 2.1, 2.4][top]; look.edgeGlow = top >= 3; look.edgePulse = top >= 5; look.edgeTint = top >= 4 ? 0.1 : 0; } }
+  const bot = G('bottom'); if (bot >= 0) look.pantsCol = shadeHex(bot === 0 ? '#6b5640' : GEAR_COL[bot], bot >= 4 ? -0.25 : -0.4);
+  const hat = G('hat'); if (hat >= 1) { look.band = GEAR_COL[hat]; look.head = look.head || 'topknot'; } if (hat >= 5) look.crown = true;
+  const glv = G('glove'); if (glv >= 0) look.cuff = glv === 0 ? '#8a7a66' : GEAR_COL[glv];
+  const sh = G('shoes'); if (sh >= 0) look.boot = sh === 0 ? '#2a1f18' : shadeHex(GEAR_COL[sh], -0.45);
+  const cp = G('cape'); if (cp >= 0) look.cape = { col: cp === 0 ? '#6b5a48' : GEAR_COL[cp], g: cp };
+  const bl = G('belt'); if (bl >= 0) look.belt = { col: bl === 0 ? '#5a4a38' : GEAR_COL[bl], g: bl };
+  const nk = G('neck'); if (NECK_AURA[nk]) look.gAura = NECK_AURA[nk];
+  const rg = G('ring'); if (RING_FOOT[rg]) look.gRing = RING_FOOT[rg];
+  const wp = G('weapon'); if (wp >= 0) { o.blade = wp === 0 ? '#cbd5e1' : GEAR_COL[wp]; if (wp >= 2) { o.glow = true; o.glowCol = GEAR_COL[wp]; } if (job === 'sword') look.outfitWeapon = [0, 1, 2, 3, 4, 5, 5][wp]; }   // 검객은 등급마다 다른 검 그림
+  const best = Math.max(...['weapon', 'hat', 'top', 'bottom', 'glove', 'shoes', 'cape', 'belt', 'neck', 'ring'].map(G));
+  if (best >= 5) look.aura = GEAR_COL[best];
+  return { look, o };
+}
 export function drawHero(cx, x, y, job, lv, o = {}) {
-  drawFighter(cx, x, y, heroLook(lv), { t: o.t || 0, weapon: WEAPON[job] || 'sword', run: !!o.run && !o.pose, flip: !!o.flip, turn: o.turn, lunge: o.lunge || 0, scale: o.scale || 1, pose: o.pose || null });
+  const GL = gearLook(lv, o.eq, job);
+  drawFighter(cx, x, y, GL.look, { ...GL.o,  t: o.t || 0, weapon: WEAPON[job] || 'sword', run: !!o.run && !o.pose, flip: !!o.flip, turn: o.turn, lunge: o.lunge || 0, scale: o.scale || 1, pose: o.pose || null });
 }
 // 몹 — 엔진 몹 하나 → 그 지역 몹 그림 하나(id로 고정)
 // ── 몹 그리기(v501) — 장마다 몹 표(tables/mobs.js)의 그림. 한 장짜리 그림을 몸짓으로 살린다

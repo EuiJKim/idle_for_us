@@ -207,7 +207,9 @@
     body.land #wb > * { break-inside: avoid; }
     body.land #wb > .card, body.land #wb > .row { display: inline-block; width: 100%; box-sizing: border-box; }
     #panel .inv-grid { grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); }
-    body.land #wb > .card:has(.inv-grid), body.land #wb > .card:has(.eqwrap) { column-span: all; display: block; }
+    .eqmid { align-self: start; }
+    html.h500 .eqwrap { grid-template-columns: 58px 1fr 58px; } html.h500 .eqcell { width: 58px; height: 58px; } html.h500 .eqcell img { width: 46px; height: 46px; } html.h500 .eqmid canvas { max-height: 200px; }
+    body.land #wb > .card:has(.inv-grid) { column-span: all; display: block; }
     body.land #wb > .eqpage, body.land #wb > .gxb, body.land #wb > .grid, body.land #wb > .inv-grid, body.land #wb > .gear-grid { column-span: all; }
     body.land #modal .sheet { max-width: 520px; max-height: 88vh; overflow: auto; }
     /* ── v511 창 — 들판 HUD와 같은 결: 아래 메뉴 바로 위까지 덮는 큰 창 · 왼쪽 아이콘 레일 · 밑줄 칸 · 평평한 카드 · 금빛 주 단추 ── */

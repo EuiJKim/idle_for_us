@@ -271,7 +271,7 @@ function paintWin() {
     const pw = document.createElement('div'); pw.className = 'eqpw'; pw.innerHTML = `전투력 ${unit(g.power())}<small>${JOBS[g.S.hero.job].name} · Lv.${L}</small>`; mid.append(pw);
     wrap.append(col(SLOTS.slice(0, 5)), mid, col(SLOTS.slice(5)));
     const c0 = card('끼고 있는 것', `전투력 ${unit(g.power())}`); c0(wrap);
-    requestAnimationFrame(() => { const x = cvs.getContext('2d'); x.clearRect(0, 0, 240, 300); x.save(); x.translate(0, 10); const gr = x.createRadialGradient(120, 190, 10, 120, 190, 130); gr.addColorStop(0, '#e8c26a44'); gr.addColorStop(1, 'rgba(0,0,0,0)'); x.fillStyle = gr; x.fillRect(0, 0, 240, 300); drawHero(x, 120, 270, g.S.hero.job, g.S.hero.lv, { t: now() / 1000, scale: 2.2 }); x.restore(); });
+    requestAnimationFrame(() => { const x = cvs.getContext('2d'); x.clearRect(0, 0, 240, 300); x.save(); x.translate(0, 10); const gr = x.createRadialGradient(120, 190, 10, 120, 190, 130); gr.addColorStop(0, '#e8c26a44'); gr.addColorStop(1, 'rgba(0,0,0,0)'); x.fillStyle = gr; x.fillRect(0, 0, 240, 300); drawHero(x, 120, 270, g.S.hero.job, g.S.hero.lv, { t: now() / 1000, scale: 2.2, eq: g.S.gear.eq }); x.restore(); });
     const sl = eqSel && SLOTS.includes(eqSel) ? eqSel : null;
     if (sl) {
       const it = G.eq[sl], S2 = G.slots[sl], stt = it ? itemStats(it, S2, L) : {};
@@ -408,11 +408,11 @@ const logLines = [];
 function addLog(t) { logLines.unshift(t); logLines.length = Math.min(logLines.length, 4); }
 let portraitKey = '';
 function paintPortrait(H) {
-  const key = `${H.job}:${H.lv}`; if (key === portraitKey) return; portraitKey = key;
+  const E = g.S.gear.eq, key = `${H.job}:${H.lv}:${Object.values(E).map((it) => (it ? it.g : '-')).join('')}`; if (key === portraitKey) return; portraitKey = key;   // v516 장비가 바뀌면 얼굴도 새로
   const c = $('face'), x = c.getContext('2d'); x.clearRect(0, 0, c.width, c.height);
   x.save(); x.beginPath(); x.arc(52, 52, 50, 0, 7); x.clip();
   const gr = x.createRadialGradient(52, 40, 6, 52, 52, 60); gr.addColorStop(0, '#3a2e22'); gr.addColorStop(1, '#120f0b'); x.fillStyle = gr; x.fillRect(0, 0, 104, 104);
-  drawHero(x, 52, 196, H.job, H.lv, { t: 0, scale: 1.75 });   // 얼굴 · 어깨만 보이게 크게
+  drawHero(x, 52, 196, H.job, H.lv, { t: 0, scale: 1.75, eq: g.S.gear.eq });   // 얼굴 · 어깨만 보이게 크게
   x.restore();
 }
 function paintHud() {
@@ -830,7 +830,7 @@ function draw() {
   if (!pose && stanceMix > 0 && H.plat >= 0 && !hw) { const st = STANCE[g.S.hero.job] || STANCE.sword; pose = mixPose(IDLE, { ...st, crouch: st.crouch + Math.sin(ts * 3) * 0.025 }, stanceMix * stanceMix * (3 - 2 * stanceMix)); }
   if (!pose && H.plat < 0) pose = (H.vy || 0) > 0 ? { ...POSES.기모으기, crouch: 0, lift: 2, hand: [-1.1, 22], blade: -1.2, lean: -0.08, wscale: 1 } : { ...POSES.착지, crouch: 0.15, lift: 0, wscale: 1 };   // 오를 때 · 떨어질 때 자세가 다르다
   else if (!pose && hw) { const ph = Math.sin(ts * 14); pose = { lean: 0.16, crouch: 0.1 + Math.abs(ph) * 0.12, lift: 0, dx: ph * 2, hand: [2.5 - ph * 0.4, 22], blade: -0.6, stretch: 0, alpha: 1, wscale: 1 }; }   // 달리기: 걸음마다 다리 벌어짐 · 팔 흔들기
-  drawHero(cx, hx, hy, g.S.hero.job, g.S.hero.lv, { t: ts, run: heroRun > 0, turn, pose, lunge: pose ? 0 : Math.max(0, 1 - (t - lastHitAt) / 160), scale: sc });
+  drawHero(cx, hx, hy, g.S.hero.job, g.S.hero.lv, { t: ts, run: heroRun > 0, turn, pose, lunge: pose ? 0 : Math.max(0, 1 - (t - lastHitAt) / 160), scale: sc, eq: g.S.gear.eq });
   cx.restore();
   // 레벨 업: 무인 위로 빛기둥과 고리(0.9초)
   const lu = (t - levelAt) / 900;

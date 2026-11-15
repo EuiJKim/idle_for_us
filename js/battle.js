@@ -4817,12 +4817,15 @@ export function drawFighter(ctx, x, y, look = {}, o = {}) {
     }
   }
 
+  // v516 새 시즌 망토 — 어깨에서 등 뒤로 흘러내리고 달리면 뒤로 날린다(다리 · 몸보다 뒤)
+  if (look.cape) drawS2Cape(ctx, look.cape, t, !!o.run);
   // 다리
   const swing = (o.run ? Math.sin(t * 14) * 8 : 0) + (P ? P.crouch * 9 : 0);
   // v323 그림 몸이면 팔·다리도 그림 도포에서 잰 빛깔로 칠한 조각(명암·테두리) — 벡터 막대가 그림 위에 따로 놀던 것
   const artLimb = artReady() && !jiang && !look.ghost;
   const bKey0 = look.robeTint ? (look.female && artImg('f-body-white') ? 'f-body-white' : 'body-white') : bodyKey(look);
-  const LC = artLimb ? bodyColors(bKey0, look.robeTint) : null;
+  // v516 새 시즌 하의 — 다리(바지) 빛깔을 장비 등급 빛깔로(옛 게임은 look.pantsCol이 없어 그대로)
+  const LC = artLimb ? (look.pantsCol ? { main: look.pantsCol, dark: shade(look.pantsCol, -0.38), light: shade(look.pantsCol, 0.22) } : bodyColors(bKey0, look.robeTint)) : null;
   ctx.strokeStyle = pants;
   ctx.lineWidth = 9;
   ctx.lineCap = 'round';
@@ -4928,6 +4931,8 @@ export function drawFighter(ctx, x, y, look = {}, o = {}) {
   ctx.beginPath(); ctx.moveTo(-9, -46); ctx.quadraticCurveTo(-14 - flap, -36, -12 - flap, -26); ctx.stroke();
   }
 
+  // v516 새 시즌 허리띠 — 허리에 띠 · 앞에 옥 노리개(술이 흔들린다)
+  if (look.belt) drawS2Belt(ctx, look.belt, t, !!o.run);
   // 머리
   const hk = artReady() && !jiang ? headKey(look) : null;   // v323 복면도 그림(두건)
   // v280 띠가 그려진 머리(상투·머리띠)는 띠를 무인이 고른 색으로
@@ -5200,6 +5205,33 @@ function drawFaceAcc(ctx, kind, hk, HF, t) {
   ctx.restore();
 }
 const RING_COL = { taiji: '#fde68a', lotus: '#f9a8d4', bagua: '#67e8f9', flame: '#fb923c', frost: '#bfdbfe' };
+// v516 새 시즌 장비 겉모습 — 망토 · 허리띠(등급 빛깔 c.col · 등급 c.g). 오른쪽을 보는 몸 기준(등 = -x)
+function drawS2Cape(ctx, c, t, run) {
+  const sway = Math.sin(t * 2.2) * 2.5 + (run ? -7 - Math.sin(t * 14) * 2 : 0), top = -62, bot = run ? -16 : -8;
+  ctx.save();
+  const g = ctx.createLinearGradient(0, top, 0, bot); g.addColorStop(0, shade(c.col, -0.15)); g.addColorStop(1, shade(c.col, -0.45));
+  if (c.g >= 4) { ctx.shadowColor = c.col; ctx.shadowBlur = 8 + Math.sin(t * 3) * 2; }
+  ctx.fillStyle = g; ctx.beginPath();
+  ctx.moveTo(4, top); ctx.quadraticCurveTo(-6, top - 2, -10, top + 4);
+  ctx.quadraticCurveTo(-18 + sway * 0.6, (top + bot) / 2, -22 + sway, bot);
+  ctx.quadraticCurveTo(-12 + sway * 0.5, bot + 3, -3, bot - 2);
+  ctx.quadraticCurveTo(-4, (top + bot) / 2, 4, top); ctx.closePath(); ctx.fill();
+  ctx.shadowBlur = 0; ctx.strokeStyle = c.g >= 2 ? shade(c.col, 0.35) : shade(c.col, -0.6); ctx.lineWidth = c.g >= 4 ? 1.6 : 1; ctx.stroke();
+  ctx.restore();
+}
+function drawS2Belt(ctx, c, t, run) {
+  ctx.save();
+  ctx.fillStyle = shade(c.col, -0.2); ctx.strokeStyle = shade(c.col, -0.55); ctx.lineWidth = 0.8;
+  ctx.beginPath(); ctx.moveTo(-11, -43); ctx.quadraticCurveTo(0, -41, 12, -43.5); ctx.lineTo(12, -39); ctx.quadraticCurveTo(0, -36.5, -11, -38.5); ctx.closePath(); ctx.fill(); ctx.stroke();
+  if (c.g >= 1) { ctx.fillStyle = c.g >= 4 ? '#fde68a' : shade(c.col, 0.3); ctx.fillRect(6, -43, 3.5, 4.5); }   // 띠고리
+  const sw = Math.sin(t * 3) * 1.2 + (run ? -2.5 : 0);
+  ctx.strokeStyle = shade(c.col, -0.3); ctx.lineWidth = 0.9; ctx.beginPath(); ctx.moveTo(8, -38.5); ctx.lineTo(8 + sw * 0.5, -31); ctx.stroke();
+  if (c.g >= 4) { ctx.shadowColor = c.col; ctx.shadowBlur = 6; }
+  ctx.fillStyle = c.g >= 2 ? c.col : '#9ca3af'; ctx.beginPath(); ctx.arc(8 + sw * 0.5, -29, 2.6, 0, Math.PI * 2); ctx.fill();   // 옥 노리개
+  ctx.shadowBlur = 0; ctx.strokeStyle = shade(c.col, 0.1); ctx.lineWidth = 1;
+  for (const d of [-0.8, 0, 0.8]) { ctx.beginPath(); ctx.moveTo(8 + sw * 0.5 + d, -26.5); ctx.lineTo(8 + sw + d * 1.6, -20); ctx.stroke(); }   // 술
+  ctx.restore();
+}
 function drawFootRing(ctx, kind, t) {
   const im = artImg(`ring-${kind}`);
   ctx.save();
