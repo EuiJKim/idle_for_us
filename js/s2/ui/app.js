@@ -18,7 +18,7 @@ import { kindGrade } from '../grow/collect.js';
 import { loadLooks, zoneFor, drawHero, drawMob, mobName, mobHeight, preloadMobs, drawPaintedBack, drawPaintedLedge, drawEarth, preloadChapter, fxImg, oldImg, tintImg, ULT_ART, SEAL_ART, CUT_ART, BUFF_ART, BOSS_ART } from './look.js';
 import { BOSS_PATS } from '../tables/kit.js';
 import { play, unlock, setOpt, bgm } from './sound.js';
-import { PoseAnim, POSES } from '../../pose.js';
+import { PoseAnim, POSES, IDLE, mixPose } from '../../pose.js';
 // 설정(v504) — 이 기기에만(ifu.s2.opt). 소리 · 배경 가락 · 흔들림 · 피해 숫자 · 진동 · 그래픽 · 피해 측정기
 const OPT_KEY = 'ifu.s2.opt';
 const opt = Object.assign({ sfx: true, bgm: true, shake: true, nums: 'all', vib: true, gfx: 'high', dps: false }, (() => { try { return JSON.parse(localStorage.getItem(OPT_KEY) || '{}'); } catch { return {}; } })());
@@ -451,7 +451,15 @@ const palAtk = [];          // 동료 i → { at, mid } 마지막 공격
 const tells = new Map();    // 두목 id → 예고 { pat, x, y, w, at, dur }
 const dust = [];   // 발밑 흙먼지
 const heroAnim = new PoseAnim();
-let lastAtkPose = 0, lastFreeze = 0;
+let lastAtkPose = 0, lastFreeze = 0, stanceMix = 0;
+// v507 싸우는 중 겨눔 자세(평타 사이에 차렷으로 서 있지 않게) — 직업마다 무기를 겨눈 채 낮게
+const STANCE = {
+  sword: { lean: 0.1, crouch: 0.24, lift: 0, dx: 0, hand: [1.15, 19], blade: -0.3, stretch: 0, alpha: 1, wscale: 1.15 },
+  spear: { lean: 0.08, crouch: 0.22, lift: 0, dx: 0, hand: [0.45, 24], blade: -0.12, stretch: 0, alpha: 1, wscale: 1.1 },
+  fist: { lean: 0.14, crouch: 0.32, lift: 0, dx: 0, hand: [-0.25, 20], blade: -0.6, stretch: 0, alpha: 1, wscale: 1.1 },
+  bow: { lean: 0.04, crouch: 0.12, lift: 0, dx: 0, hand: [-0.08, 26], blade: 0, stretch: 0, alpha: 1, wscale: 1 },
+  mage: { lean: 0.02, crouch: 0.1, lift: 0, dx: 0, hand: [-0.55, 22], blade: -1.0, stretch: 0, alpha: 1, wscale: 1 },
+};
 // 무인 공격 자세(지금 게임 자세 도감) — 평타는 짧게, 무공은 크게. 권사 평타는 정권 · 훅 · 올려치기를 번갈아
 function heroAttackPose(job, big) {
   const K = {
@@ -738,7 +746,11 @@ function draw() {
   if (hw) cx.rotate(Math.sin(ts * 14) * 0.06);
   cx.scale(sqx, sqy); cx.translate(-hx, -hy);
   heroAnim.tick(Math.max(0, (t - (lastPoseT || t)) / 1000)); lastPoseT = t;
+  // 겨눔: 표적이 사거리 안이면 0.25초에 걸쳐 자세를 낮춘다 · 숨 쉬듯 살짝 오르내림
+  const tgM = F.mobs.find((m) => m.id === H.target), inFight = !!tgM && Math.abs(tgM.y - H.y) <= 500 && Math.abs(tgM.x - H.x) <= (JOBS[g.S.hero.job].range || 1400) * 1.1 && H.plat >= 0 && !hw;
+  stanceMix = Math.max(0, Math.min(1, stanceMix + (inFight ? 1 : -1) * fdt / 250));
   let pose = heroAnim.sample();
+  if (!pose && stanceMix > 0 && H.plat >= 0 && !hw) { const st = STANCE[g.S.hero.job] || STANCE.sword; pose = mixPose(IDLE, { ...st, crouch: st.crouch + Math.sin(ts * 3) * 0.025 }, stanceMix * stanceMix * (3 - 2 * stanceMix)); }
   if (!pose && H.plat < 0) pose = (H.vy || 0) > 0 ? { ...POSES.기모으기, crouch: 0, lift: 2, hand: [-1.1, 22], blade: -1.2, lean: -0.08, wscale: 1 } : { ...POSES.착지, crouch: 0.15, lift: 0, wscale: 1 };   // 오를 때 · 떨어질 때 자세가 다르다
   else if (!pose && hw) { const ph = Math.sin(ts * 14); pose = { lean: 0.16, crouch: 0.1 + Math.abs(ph) * 0.12, lift: 0, dx: ph * 2, hand: [2.5 - ph * 0.4, 22], blade: -0.6, stretch: 0, alpha: 1, wscale: 1 }; }   // 달리기: 걸음마다 다리 벌어짐 · 팔 흔들기
   drawHero(cx, hx, hy, g.S.hero.job, g.S.hero.lv, { t: ts, run: heroRun > 0, turn, pose, lunge: pose ? 0 : Math.max(0, 1 - (t - lastHitAt) / 160), scale: sc });
@@ -856,7 +868,7 @@ function frame() {
           shots.push({ x0, y0, x1, y1, at: t + lag, dur: fly, kind: job === 'bow' ? 'arrow' : 'orb', crit: e[4], col: castCol || '#ffe9a8' });
           play(job === 'bow' ? 'arrow' : 'orb');
           fly += lag;
-        } else fly = (e[6] || 0) * 70;
+        } else fly = (e[6] || 0) * 70 + (e[5] === 1 ? 90 : 0);   // 무공 타격은 이펙트가 터지는 때에 맞춰
         mobHit.set(m.id, t + fly);
         if (e[5] === 0 && t - lastAtkPose > 260) { lastAtkPose = t; heroAttackPose(job, false); }
         if (e[5] !== 2) { if (e[5] === 0 && !shot) play('swish'); setTimeout(() => play('hit', e[4]), fly); }
@@ -864,9 +876,9 @@ function frame() {
         if (e[5] === 0 && !shot && t - lastSwing > 120 && skillFx.length < 90) { lastSwing = t; skillFx.push({ at: t, shape: 'swing', job, x: H0.x, y: H0.y, tx: m.x, ty: m.y, face: Math.sign(m.x - H0.x) || H0.face || 1 }); }
         if ((e[5] || shot) && skillFx.length < 80) skillFx.push({ at: t + fly, shape: 'hit', x: m.x, y: m.y + 650, crit: e[4], rot: (m.x >= H0.x ? 0 : Math.PI) + (((m.id * 13 + (e[6] || 0) * 7) % 10) - 5) * 0.09 });
         const n = rows.get(m.id) || 0; rows.set(m.id, n + 1);
-        if (floats.length < 60) floats.push({ x: m.x, y: m.y, d: e[3], crit: e[4], pal: e[5] === 2, at: t + (shot ? fly : 0), row: (n + (recentRows.get(m.id)?.t > t - 500 ? recentRows.get(m.id).n : 0)) % 6, mid: m.id, drift: ((m.id + n) % 3) - 1 }); const rr = recentRows.get(m.id); recentRows.set(m.id, { t, n: (rr && rr.t > t - 500 ? rr.n : 0) + 1 });
+        if (floats.length < 60) floats.push({ x: m.x, y: m.y, d: e[3], crit: e[4], pal: e[5] === 2, at: t + fly, row: (n + (recentRows.get(m.id)?.t > t - 500 ? recentRows.get(m.id).n : 0)) % 6, mid: m.id, drift: ((m.id + n) % 3) - 1 }); const rr = recentRows.get(m.id); recentRows.set(m.id, { t, n: (rr && rr.t > t - 500 ? rr.n : 0) + 1 });
       }
-      else if (e[0] === 'cast') { castShape = e[6]; castCol = skillById(e[2])?.col; skillFx.push({ at: t, id: e[2], face: e[3], x: e[4], y: e[5], shape: e[6], R: e[7], hero: 1 }); }
+      else if (e[0] === 'cast') { castShape = e[6]; castCol = skillById(e[2])?.col; skillFx.push({ at: t + 90, id: e[2], face: e[3], x: e[4], y: e[5], shape: e[6], R: e[7], hero: 1 }); }   // v507 휘두르는 순간(자세가 끝까지 가는 때)에 맞춰 터진다
       else if (e[0] === 'buff') { skillFx.push({ at: t, id: e[2], shape: 'buff', hero: 1 }); play('loot'); }
       else if (e[0] === 'pal') palAtk[e[2]] = { at: t, mid: e[3] };
       else if (e[0] === 'tell') { tells.set(e[2], { pat: e[3], x: e[4], y: e[5], w: e[6], at: t, dur: e[7] }); play('tell'); }

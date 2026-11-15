@@ -7,7 +7,7 @@ import { hit } from './damage.js';
 import { makeMob, SKILL_BASE, SKILL_MAIN } from './ref.js';
 import { JOBS } from '../tables/char.js';
 import { BASE_REGEN_P } from '../tables/economy.js';
-import { PAL_ATK, BOSS_PATS, BOSS_PAT_EVERY } from '../tables/kit.js';
+import { PAL_ATK, BOSS_PATS, BOSS_PAT_EVERY, skillById } from '../tables/kit.js';
 
 export const RUN = 4200, MOB_RUN = 1600, GRAV = 22000, JUMP_V = 11000, SAME_Y = 500;   // mm/s · mm/s² · mm
 export const MAIN_HITS = 4;          // 주력 무공은 앞쪽 여러 마리(장르 공통 — 한 번에 쓸어 담는 맛)
@@ -100,7 +100,7 @@ export class SideFight {
     for (const m of this.mobs) { m.px = m.x; m.py = m.y; }
     if (this.replay) while (this.replay.length && this.replay[0].t === this.t - TICK_MS) this.apply(this.replay.shift().a);
     // ── 무인 움직임 ──
-    let dir = this.input.dir, jump = this.wantJump, down = this.wantDown;
+    let dir = this.input.dir, jump = this.wantJump, down = this.wantDown, dodge = false;
     this.wantJump = this.wantDown = false;
     let tgt = this.mobs.find((m) => m.id === H.target);
     if (this.auto && dir === 0) {
@@ -130,6 +130,7 @@ export class SideFight {
       // v505 자동이면 두목 패턴의 붉은 범위 안에서 가까운 쪽 밖으로 비킨다(수동은 직접 피해야 한다)
       for (const m of this.mobs) {
         const q = m.pat; if (!q || Math.abs(H.y - q.y) > SAME_Y + 600 || Math.abs(H.x - q.x) > q.w / 2 + 250) continue;
+        dodge = true;
         const out = Math.sign(H.x - q.x) || -(H.face || 1), edge = q.x + out * (q.w / 2 + 300);
         if ((out > 0 && edge > map.w - 200) || (out < 0 && edge < 200)) dir = -out; else dir = out;
         H.closing = false; jump = false; down = false;
@@ -141,7 +142,12 @@ export class SideFight {
       H.target = tgt ? tgt.id : -1;
     }
     H.act = '';
-    if (dir) { H.x = Math.max(200, Math.min(map.w - 200, H.x + Math.round(dir * RUN * DT))); H.face = dir; H.act = 'run'; }
+    // v507 치는 동안은 제자리(무공 0.26~0.51초 · 평타 0.14초) — 이펙트가 터지는데 몸이 딴 데로 달려가지 않게. 두목 패턴 피하기 · 점프는 예외
+    if (this.t < (H.lockUntil || 0) && !dodge) { dir = 0; if (this.auto) jump = false; }
+    // v507 달리기는 0.14초에 걸쳐 빨라지고 0.1초에 걸쳐 멈춘다(뚝 떠나고 뚝 서지 않게)
+    if (dir) { if (H.mdir !== dir) { H.spd = H.mdir === -dir ? 200 : (H.spd || 0); H.mdir = dir; } H.spd = Math.min(1000, (H.spd || 0) + 360); H.face = dir; }
+    else H.spd = Math.max(0, (H.spd || 0) - 500);
+    if (H.spd > 0 && H.mdir) { H.x = Math.max(200, Math.min(map.w - 200, H.x + Math.round((H.mdir * RUN * DT * H.spd) / 1000))); H.act = 'run'; }
     if (H.plat >= 0) {
       const p = map.plats[H.plat];
       if (jump) { H.vy = JUMP_V; H.drop = H.plat; H.plat = -1; H.act = 'jump'; }
@@ -160,9 +166,10 @@ export class SideFight {
     // ── 공격 ── 같은 층 · 바라보는 쪽 · 사거리 안
     if (tgt && Math.abs(tgt.y - H.y) <= SAME_Y && Math.abs(tgt.x - H.x) <= J.range && H.plat >= 0) {
       H.chaseAt = this.t;
-      H.face = Math.sign(tgt.x - H.x) || H.face;
+      // v507 표적이 거의 겹쳐 있으면(0.2m 안) 돌아서지 않는다 — 1분에 40번 넘게 좌우로 뒤집히던 것
+      if (Math.abs(tgt.x - H.x) > 200) H.face = Math.sign(tgt.x - H.x) || H.face;
       if (!this.castKit(tgt, J)) {
-        if (this.t >= H.nextAtk) { this.strike(tgt, SKILL_BASE); H.nextAtk = this.t + J.baseMs; H.act = 'atk'; }
+        if (this.t >= H.nextAtk) { this.strike(tgt, SKILL_BASE); H.nextAtk = this.t + J.baseMs; H.act = 'atk'; H.lockUntil = this.t + 140; }
       }
     }
     // 버프가 끝나면 원래 스탯으로
@@ -264,6 +271,7 @@ export class SideFight {
     if (i < 0) return false;
     const k = kit[i];
     H.cds[i] = this.t + k.cdMs; H.gcd = this.t + 350; H.act = 'skill';
+    H.lockUntil = this.t + 260 + (skillById(k.id)?.tier || 0) * 50;   // v507 무공 쓰는 동안 제자리
     if (k.kind === 'buff') {
       (H.buffs ??= []).push({ until: this.t + k.durMs, stats: k.buff, id: k.id });
       this.restat();
