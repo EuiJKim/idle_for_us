@@ -553,6 +553,7 @@ const corpses = [], firstSeen = new Map(), lastNext = new Map(), atkAt = new Map
 const shots = [];  // 날아가는 화살 · 기탄
 let lastSwing = 0;
 const hexAlpha = (c, a) => { const n = parseInt((c || '#ffffff').slice(1, 7), 16); return `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${a})`; };
+let footY = 0, stageFadeAt = -1e9, stageBanner = '';
 let lastDust = 0, wasAir = false, hurtFlash = -1e9, lastHitAt = 0, heroRun = 0, lastHx = 0, skillFx = [], camSm = null, camSy = null, cutIn = null, shakeUntil = 0;
 const mobPrev = new Map();
 // 그린 무공 효과 — 모양마다 놓는 자리 · 크기 · 움직임
@@ -663,12 +664,15 @@ function draw() {
   lookAhead += (lookDir * viewW * 0.1 - lookAhead) * (1 - Math.exp(-fdt / 1000));
   const wantX = Math.max(0, Math.min(map.w - viewW, lx(F.hero) - viewW / 2 + lookAhead));
   const baseY = port ? Hh - dock - 36 : Hh * 0.8;   // 가로: 아래 20%는 무공 덩어리 · 조작 자리   // 바닥(높이 0)이 그려질 화면 높이 — 아래 패널 위
-  const wantY = Math.max(0, Math.min(Math.max(0, map.h - baseY / s), ly(F.hero) - viewH * 0.3));
+  // v512 위아래는 「서 있는 발판」만 따라간다 — 뛰는 동안엔 그대로, 내려선 뒤 천천히(0.35초). 무인이 화면 위 15% 밖으로 나가면 그때만 바로 따라감
+  if (F.hero.plat >= 0) footY = map.plats[F.hero.plat]?.y ?? F.hero.y;
+  const hyS = baseY - (ly(F.hero) - (camSy ?? 0)) * s, outTop = hyS < Hh * 0.15;
+  const wantY = Math.max(0, Math.min(Math.max(0, map.h - baseY / s), (outTop ? ly(F.hero) : footY) - viewH * 0.3));
   // 살짝 늦게 따라감 — 프레임 수와 상관없이 같은 빠르기(60·120Hz 모두)
   if (camSm === null || Math.abs(camSm - wantX) > viewW) camSm = wantX; else camSm += (wantX - camSm) * (1 - Math.exp(-fdt / 95));
   // 무인은 늘 화면 가로 20~80% 안(달리면 끝으로 밀려나던 것)
   { const hxw = lx(F.hero), lo = hxw - viewW * 0.8, hi = hxw - viewW * 0.2; camSm = Math.max(Math.max(0, lo), Math.min(Math.min(map.w - viewW, hi), camSm)); }
-  if (camSy === null || Math.abs(camSy - wantY) > viewH) camSy = wantY; else camSy += (wantY - camSy) * (1 - Math.exp(-fdt / 160));
+  if (camSy === null || Math.abs(camSy - wantY) > viewH) camSy = wantY; else camSy += (wantY - camSy) * (1 - Math.exp(-fdt / (outTop ? 140 : 350)));
   const camX = camSm, camY = camSy;
   const P = (x, y) => [(x - camX) * s, baseY - (y - camY) * s];
   cx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -700,7 +704,7 @@ function draw() {
   }
   const H = F.hero, sc = 0.8 * k;
   heroRun = H.act === 'run' || (H.px !== undefined && H.px !== H.x && H.plat >= 0) ? 6 : Math.max(0, heroRun - 1);
-  if (F !== lastFight) { lastFight = F; firstSeen.clear(); lastNext.clear(); atkAt.clear(); hpLag.clear(); corpses.length = 0; mobHit.clear(); }   // 싸움이 바뀌면(두목전 · 칸 이동) 몹 번호가 새로 시작
+  if (F !== lastFight) { if (lastFight) { stageFadeAt = t; const T2 = g.stage(); stageBanner = g.bossFight ? '두목전' : `Stage ${((T2.idx - 1) % 10) + 1}/10`; } lastFight = F; firstSeen.clear(); lastNext.clear(); atkAt.clear(); hpLag.clear(); corpses.length = 0; mobHit.clear(); }   // 싸움이 바뀌면(두목전 · 칸 이동) 몹 번호가 새로 시작
   // 쓰러지는 몹(처치된 뒤 0.5초) — 뒤로 넘어가며 흐려지고 가라앉는다
   for (let i = corpses.length - 1; i >= 0; i--) {
     const c = corpses[i], a = (t - c.at) / 520; if (a > 1) { corpses.splice(i, 1); continue; }
@@ -740,6 +744,7 @@ function draw() {
   }
   // 무공 연출 — 모양마다(일직선 검기 · 부채꼴 베기 · 주변 폭발 · 하늘에서 쏟아짐 · 버프 기운)
   const [hx, hy] = P(lx(H), ly(H));
+  window.__cam = [camX, camY, hx, hy, t, s, H.plat, H.face || 1];   // 시험용(모션 측정)
   for (let i = skillFx.length - 1; i >= 0; i--) {
     const f = skillFx[i], sk = skillById(f.id), col = sk?.col || '#ffe9a8';
     const life = f.shape === 'rain' ? 800 : f.shape === 'circle' ? 560 : f.shape === 'buff' ? 900 : f.shape === 'hit' ? 240 : f.shape === 'ring' ? 380 : f.shape === 'boss' ? 700 : f.shape === 'swing' ? 220 : 440, a = (t - f.at) / life;
@@ -903,6 +908,20 @@ function draw() {
       cx.fillStyle = 'rgba(0,0,0,.35)'; cx.fillRect(0, by, W, bh);
       cx.font = `900 ${bh * 0.42}px "Nanum Brush Script", "Gowun Batang", serif`; cx.textAlign = 'center'; cx.lineWidth = 6; cx.strokeStyle = '#000';
       cx.strokeText(sk?.name || '', W * 0.5, by + bh * 0.66); cx.fillStyle = sk?.col || '#fff'; cx.fillText(sk?.name || '', W * 0.5, by + bh * 0.66);
+      cx.restore();
+    }
+  }
+  // v512 칸이 바뀌면(20마리 · 두목전 · 장 이동) 화면이 툭 끊기지 않게 — 0.35초 검게 걷히며 가운데에 「Stage n/10」
+  { const fa = (t - stageFadeAt) / 1200;
+    if (fa >= 0 && fa < 1) {
+      cx.save(); cx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      const dk = Math.max(0, 1 - (t - stageFadeAt) / 350); if (dk > 0) { cx.fillStyle = `rgba(0,0,0,${0.85 * dk})`; cx.fillRect(0, 0, W, Hh); }
+      const ba = fa < 0.15 ? fa / 0.15 : fa > 0.75 ? (1 - fa) / 0.25 : 1, by = Hh * 0.36 - (1 - Math.min(1, fa / 0.15)) * 10;
+      cx.globalAlpha = ba; cx.textAlign = 'center';
+      const gr = cx.createLinearGradient(W * 0.2, 0, W * 0.8, 0); gr.addColorStop(0, 'rgba(0,0,0,0)'); gr.addColorStop(0.5, 'rgba(0,0,0,.55)'); gr.addColorStop(1, 'rgba(0,0,0,0)');
+      cx.fillStyle = gr; cx.fillRect(W * 0.2, by - 34, W * 0.6, 52);
+      cx.font = '800 15px system-ui, sans-serif'; cx.fillStyle = '#e8c26a'; cx.fillText(document.getElementById('chap')?.textContent || '', W / 2, by - 12);
+      cx.font = '900 26px system-ui, sans-serif'; cx.lineWidth = 4; cx.strokeStyle = '#000'; cx.strokeText(stageBanner, W / 2, by + 14); cx.fillStyle = '#fff'; cx.fillText(stageBanner, W / 2, by + 14);
       cx.restore();
     }
   }

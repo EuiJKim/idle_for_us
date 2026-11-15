@@ -87,7 +87,8 @@ export class SideFight {
     let best = null, bc = Infinity;
     for (const m of this.mobs) {
       if (m.skipUntil > this.t) continue;
-      const c = Math.abs(m.x - H.x) + Math.abs(m.y - H.y) * 3 + (m.kind === 'boss' ? -100000 : 0);
+      // v512 다른 층 몹은 9미터만큼 더 멀게 친다 — 같은 발판에 몹이 있으면 거기부터(1초마다 층을 오르내리던 것)
+      const dyc = Math.abs(m.y - H.y), c = Math.abs(m.x - H.x) + (dyc > 300 ? dyc * 3 + 9000 : 0) + (m.kind === 'boss' ? -100000 : 0);
       if (c < bc) { bc = c; best = m; }
     }
     return best;
@@ -251,7 +252,9 @@ export class SideFight {
         fs.cool = 0;
         // 무인 화면에서 조금 떨어진 자리(바로 옆에서 솟지 않게)
         const far = map.spots.filter((s) => Math.abs(s.x - H.x) > 3000);
-        const pool = far.length ? far : map.spots;
+        // v512 열에 일곱은 무인이 서 있는 층에(옆으로 걸어가 잡게) — 층마다 흩어져 1초마다 오르내리던 것
+        const hy = H.plat >= 0 ? map.plats[H.plat].y : H.y, mine = far.filter((s) => Math.abs(map.plats[s.p].y - hy) < 300);
+        const pool = mine.length && this.rng.int(10) < 7 ? mine : far.length ? far : map.spots;
         this.spawn(f, pool[this.rng.int(pool.length)]);
       }
     }
