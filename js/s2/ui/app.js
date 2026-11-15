@@ -643,7 +643,7 @@ function drawSkillFx(cx, f, a, [x, y], Rpx, k, col, tier) {
   cx.restore();
 }
 function draw() {
-  const r = cv.getBoundingClientRect(), dpr = opt.gfx === 'low' ? 1 : Math.min(2, window.devicePixelRatio || 1);
+  const r = { width: cv.clientWidth, height: cv.clientHeight }, dpr = opt.gfx === 'low' ? 1 : Math.min(2, window.devicePixelRatio || 1);
   if (opt.gfx === 'low') { dust.length = 0; coins.length = 0; }
   if (cv.width !== Math.round(r.width * dpr)) { cv.width = Math.round(r.width * dpr); cv.height = Math.round(r.height * dpr); }
   const F = g.ensureFight(); if (!F) return;
@@ -1071,16 +1071,17 @@ document.addEventListener('keydown', (e) => {
 document.addEventListener('pointerdown', () => { unlock(); bgm(chapterOf(g?.zoneLv?.() || 1)); }, { once: false, passive: true });
 document.addEventListener('keyup', (e) => { if (g && keyDir[e.key]) g.hold(0); });
 
-// v509 가로 화면 — 넓으면 body.land(들판 전체 · 모서리에 단추). 세로로 든 손전화에는 돌려 달라는 알림(세로로 계속 가능)
-let rotSkip = false;
+// v514 가로 전용 — 늘 가로 배치(body.land). 손전화를 세로로 들면 body를 90° 돌려 가로로 보이게(세로 배치는 없앴다)
 function fitLand() {
-  const land = innerWidth > innerHeight;
-  document.body.classList.toggle('land', land);
-  const touch = matchMedia('(pointer: coarse)').matches;
-  $('rot').classList.toggle('open', !land && touch && !rotSkip);
+  const W = innerWidth, H = innerHeight, rot = H > W && matchMedia('(pointer: coarse)').matches, B = document.body;
+  B.classList.add('land');
+  B.classList.toggle('rot', rot); document.documentElement.classList.toggle('rot', rot);
+  B.style.width = rot ? `${H}px` : ''; B.style.height = rot ? `${W}px` : '';
+  // 돌린 뒤의 실제 가로 · 세로로 크기 반(media query는 기기 기준이라 돌린 화면에서 뒤바뀐다)
+  const ew = rot ? H : W, eh = rot ? W : H, D = document.documentElement.classList;
+  D.toggle('w800', ew <= 800); D.toggle('w720', ew <= 720); D.toggle('w640up', ew >= 640); D.toggle('h500', eh <= 500); D.toggle('h420', eh <= 420);
 }
-$('rot-go').onclick = () => { rotSkip = true; fitLand(); };
-addEventListener('resize', fitLand); addEventListener('orientationchange', fitLand);
+addEventListener('resize', fitLand); addEventListener('orientationchange', () => setTimeout(fitLand, 120));
 fitLand();
 document.addEventListener('pointerdown', () => { try { if (matchMedia('(pointer: coarse)').matches) screen.orientation?.lock?.('landscape')?.catch(() => {}); } catch { /* 잠글 수 없는 브라우저 */ } }, { once: true });
 loadLooks();

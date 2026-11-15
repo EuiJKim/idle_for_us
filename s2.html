@@ -59,11 +59,16 @@
     #res .rauto { position: relative; display: inline-flex; align-items: center; gap: 5px; margin-top: 10px; font-size: 11.5px; color: rgba(255,255,255,.55); cursor: pointer; }
     #res .rauto input { accent-color: #e0a53a; width: 15px; height: 15px; }
     @media (prefers-reduced-motion: reduce) { #res .rays, #res .rp, #res .rt { animation: none; opacity: 1; } #res.timed .rbar { animation-duration: 3s; } }
-    @media (max-height: 420px) {
-      #res .rp { padding: 10px 16px 8px; } #res .rtitle { font-size: 26px; margin: 0 0 4px; } #res .rtiles { margin: 8px 0 6px; }
-      #res .rt { width: auto; min-width: 104px; flex-direction: row; gap: 6px; padding: 6px 10px; } #res .rt .coin { width: 20px; height: 20px; } #res .rt small { order: 3; }
-      #res .rnext { margin-bottom: 8px; } #res .rtip { margin: 8px 0; } #res .racts .btn { min-height: 38px; } #res .rauto { margin-top: 6px; }
-    }
+    /* (h420: JS가 돌린 뒤의 실제 가로 · 세로로 붙인다) */ html.h420 #res .rp { padding: 10px 16px 8px; }
+    html.h420 #res .rtitle { font-size: 26px; margin: 0 0 4px; }
+    html.h420 #res .rtiles { margin: 8px 0 6px; }
+    html.h420 #res .rt { width: auto; min-width: 104px; flex-direction: row; gap: 6px; padding: 6px 10px; }
+    html.h420 #res .rt .coin { width: 20px; height: 20px; }
+    html.h420 #res .rt small { order: 3; }
+    html.h420 #res .rnext { margin-bottom: 8px; }
+    html.h420 #res .rtip { margin: 8px 0; }
+    html.h420 #res .racts .btn { min-height: 38px; }
+    html.h420 #res .rauto { margin-top: 6px; }
     /* 장비 뽑기 연출(v497) */
     .gx { position: fixed; inset: 0; z-index: 60; background: radial-gradient(#1a1410ee, #050302f5); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 16px; }
     .gx.flash::after { content: ''; position: absolute; inset: 0; pointer-events: none; background: radial-gradient(circle, var(--gc, #fff) 0%, transparent 70%); animation: gxf .7s ease-out forwards; }
@@ -85,7 +90,7 @@
     @keyframes gct { 0% { transform: translate(0, 0) } 25% { transform: translate(-2px, 1px) } 50% { transform: translate(2px, -1px) } 75% { transform: translate(-1px, -1px) } 100% { transform: translate(1px, 1px) } }
     .gxb .btn { min-width: 120px; min-height: 44px; }
     .eqpage { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; }
-    @media (min-width: 640px) { .eqpage { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); align-items: start; } }
+    /* (w640up: JS가 돌린 뒤의 실제 가로 · 세로로 붙인다) */ html.w640up .eqpage { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); align-items: start; }
     .eqwrap { display: grid; grid-template-columns: 64px 1fr 64px; gap: 6px; align-items: center; max-width: 460px; margin: 0 auto; }
     .eqcol { display: flex; flex-direction: column; gap: 6px; }
     .eqcell { position: relative; width: 64px; height: 50px; border-radius: 10px; border: 2px solid var(--line); background: radial-gradient(#3a2e22, #17120d); padding: 0; }
@@ -99,13 +104,6 @@
     .eqinfo { background: #0004; border: 1px solid var(--line); border-radius: 10px; padding: 8px; margin: 6px 0; }
     .eqh { display: flex; gap: 8px; align-items: center; } .eqh img { width: 48px; height: 48px; }
     .eqst { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; } .eqst span { background: #ffffff10; border-radius: 6px; padding: 2px 6px; font-size: 12px; }
-    /* 세로로 든 손전화: 돌려 달라는 알림 */
-    #rot { position: fixed; inset: 0; z-index: 90; display: none; flex-direction: column; align-items: center; justify-content: center; gap: 14px; background: radial-gradient(#1d1712, #0b0907 75%); color: #f5e9cf; text-align: center; padding: 24px; }
-    #rot.open { display: flex; }
-    #rot .ph { width: 54px; height: 90px; border: 3px solid var(--accent-2); border-radius: 10px; animation: rotp 2.2s ease-in-out infinite; }
-    @keyframes rotp { 0%, 25% { transform: rotate(0) } 55%, 100% { transform: rotate(-90deg) } }
-    #rot b { font-family: var(--brush); font-size: 28px; font-weight: 400; }
-    @media (prefers-reduced-motion: reduce) { #rot .ph { animation: none; transform: rotate(-90deg); } }
     #battle canvas#cv { width: 100%; height: 100%; display: block; touch-action: none; }
     /* ── v510 들판 HUD — 옆보기 방치 RPG 배치: 위 왼쪽 나 · 위 가운데 사냥터 · 위 오른쪽 작은 아이콘 · 아래 가운데 메뉴 다섯 · 왼쪽 아래 Lv/HP · 오른쪽 아래 무공 · 맨 아래 EXP ── */
     body { --sl: max(10px, env(safe-area-inset-left)); --sr: max(10px, env(safe-area-inset-right)); --st: max(8px, env(safe-area-inset-top)); --sb: max(8px, env(safe-area-inset-bottom)); }
@@ -196,21 +194,14 @@
     #xp-txt { position: absolute; left: calc(var(--sl) + 4px); bottom: 5px; font-size: 10px; font-weight: 800; color: #d9f99d; text-shadow: 0 1px 2px #000; font-variant-numeric: tabular-nums; }
     #toast { bottom: calc(var(--sb) + 112px); }
     /* 좁은 가로(작은 폰) */
-    @media (max-width: 800px) and (orientation: landscape) {
-      #mb .nb { width: 44px; height: 44px; } #mb .nb span { font-size: 9.5px; }
-      #sk { grid-template-columns: repeat(4, 38px) 62px; grid-template-rows: 38px 38px; gap: 4px; } #jp { width: 62px !important; height: 62px !important; } #jp .ic { width: 28px; height: 28px; }
-      #me { width: 190px; } #qc { width: 196px; } .ib { width: 38px; }
-    }
-    /* 세로(돌리지 않고 계속): 아래 메뉴는 화면 너비 · 무공은 그 위 오른쪽 · Lv/HP는 그 위 왼쪽 */
-    body:not(.land) #mb { left: 0; right: 0; transform: none; bottom: 4px; border-radius: 0; justify-content: space-around; }
-    body:not(.land) #sk { bottom: 62px; grid-template-columns: repeat(4, 40px) 64px; grid-template-rows: 40px 40px; gap: 4px; } body:not(.land) #jp { width: 64px !important; height: 64px !important; }
-    body:not(.land) #me { bottom: 62px; width: calc(100% - 300px); min-width: 100px; }
-    body:not(.land) #tc { top: calc(var(--st) + 66px); width: 60vw; }
-    body:not(.land) #qc { top: calc(var(--st) + 120px); }
-    body:not(.land) #btn-boss, body:not(.land) #contest-hud { top: calc(var(--st) + 112px); }
-    body:not(.land) #xp-txt { left: var(--sl); bottom: 60px; }
-    body:not(.land) #loglines { bottom: 160px; }
-    body:not(.land) #toast { bottom: 170px; }
+    /* (w800: JS가 돌린 뒤의 실제 가로 · 세로로 붙인다) */ html.w800 #mb .nb { width: 44px; height: 44px; }
+    html.w800 #mb .nb span { font-size: 9.5px; }
+    html.w800 #sk { grid-template-columns: repeat(4, 38px) 62px; grid-template-rows: 38px 38px; gap: 4px; }
+    html.w800 #jp { width: 62px !important; height: 62px !important; }
+    html.w800 #jp .ic { width: 28px; height: 28px; }
+    html.w800 #me { width: 190px; }
+    html.w800 #qc { width: 196px; }
+    html.w800 .ib { width: 38px; }
     /* 창: 가로면 가운데에 크게 뜬다 · 카드 두 줄 */
     body.land #wb { column-count: 2; column-gap: 10px; }
     body.land #wb > * { break-inside: avoid; }
@@ -267,24 +258,29 @@
     #panel .stat-grid div { background: rgba(255,255,255,.04); border-radius: 9px; color: rgba(255,255,255,.6); }
     #panel .stat-grid b { color: #fff; }
     #panel .note { color: rgba(255,255,255,.5); }
-    /* 세로: 레일이 창 머리 밑 가로 줄로 */
-    body:not(.land) #panel { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto minmax(0, 1fr); grid-template-areas: "head" "rail" "body"; bottom: 66px; }
-    body:not(.land) #ptabs { flex-direction: row; overflow-x: auto; border-right: 0; border-bottom: 1px solid rgba(255,255,255,.06); border-radius: 0; padding: 6px; }
-    body:not(.land) #ptabs button { width: 58px; }
-    body:not(.land) #ptabs button.active::before { display: none; }
     @media (prefers-reduced-motion: reduce) { #panel, #panel.open { transition: none; transform: none; } }
     /* 키 낮은 가로 폰: 창 머리 · 레일 · 칸을 낮게(레일 일곱이 다 보이게) */
-    @media (max-height: 500px) {
-      #panel-head, #panel.full #panel-head, body.land #panel-head { padding: 5px 10px 5px 14px; }
-      #panel-title { font-size: 16px; } #panel-close { width: 30px; height: 30px; font-size: 14px; }
-      #ptabs, body:not(.pc-wide) #ptabs { gap: 1px; padding: 4px 5px; }
-      #ptabs button, body:not(.pc-wide) #ptabs button { height: 35px; padding: 0; justify-content: center; gap: 2px; font-size: 9.5px; }
-      #ptabs button .ic { width: 18px; height: 18px; }
-      #ptabs button.active::before { left: -5px; top: 6px; bottom: 6px; }
-      #panel-body .seg.wide button { padding: 7px 12px 6px; font-size: 12.5px; }
-      #panel, #panel.full, body.land #panel, body.land #panel.full { bottom: var(--sb); }   /* 아래 메뉴는 창 위에 떠 있다 — 본문 끝에 그만큼 여백 */
+    /* (h500: JS가 돌린 뒤의 실제 가로 · 세로로 붙인다) */ html.h500 #panel-head, html.h500 #panel.full #panel-head, html.h500 body.land #panel-head { padding: 5px 10px 5px 14px; }
+    html.h500 #panel-title { font-size: 16px; }
+    html.h500 #panel-close { width: 30px; height: 30px; font-size: 14px; }
+    html.h500 #ptabs, html.h500 body:not(.pc-wide) #ptabs { gap: 1px; padding: 4px 5px; }
+    html.h500 #ptabs button, html.h500 body:not(.pc-wide) #ptabs button { height: 35px; padding: 0; justify-content: center; gap: 2px; font-size: 9.5px; }
+    html.h500 #ptabs button .ic { width: 18px; height: 18px; }
+    html.h500 #ptabs button.active::before { left: -5px; top: 6px; bottom: 6px; }
+    html.h500 #panel-body .seg.wide button { padding: 7px 12px 6px; font-size: 12.5px; }
+    html.h500 #panel, html.h500 #panel.full, html.h500 body.land #panel, html.h500 body.land #panel.full { bottom: var(--sb); }
+    html.h500 /* 아래 메뉴는 창 위에 떠 있다 — 본문 끝에 그만큼 여백 */
       #panel-body { padding-bottom: 76px; }
-    }
+    /* 아주 좁은 가로(720 아래 — 세로로 든 폰을 돌린 화면 등): 메뉴는 왼쪽 아래, Lv/HP는 그 위 */
+    /* (w720: JS가 돌린 뒤의 실제 가로 · 세로로 붙인다) */ html.w720 #mb { left: var(--sl); transform: none; }
+    html.w720 #me { bottom: calc(var(--sb) + 64px); width: 200px; }
+    html.w720 #loglines { bottom: calc(var(--sb) + 116px); }
+    html.w720 #pad { bottom: calc(var(--sb) + 116px); }
+    /* v514 가로 전용 — 손전화를 세로로 들면 화면 전체를 90° 돌려 가로로 보인다(JS가 크기를 넣음) */
+    html.rot, html.rot body { overflow: hidden; }
+    body.rot { position: fixed; top: 0; left: 0; transform-origin: 0 0; transform: rotate(90deg) translateY(-100%); }
+    /* 돌린 화면에선 vw · vh가 바뀐다(가로 = 기기 세로) */
+    html.rot #res .rp { width: min(420px, 86vh); } html.rot .gxg { max-height: 70vw; } html.rot #tc { width: min(300px, 34vh); } html.rot body.land #modal .sheet { max-width: min(520px, 92vh); max-height: 88vw; }
   </style>
 </head>
 <body>
@@ -348,7 +344,6 @@
 
   <div id="modal" class="hidden"><div class="sheet"></div></div>
   <div id="toast"></div>
-  <div id="rot"><div class="ph"></div><b>가로로 돌려 주세요</b><p class="note">이 판은 가로 화면으로 만들었어요.</p><button class="btn" id="rot-go">세로로 계속</button></div>
   <script type="module" src="js/s2/ui/app.js"></script>
 </body>
 </html>
