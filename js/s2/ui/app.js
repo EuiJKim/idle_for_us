@@ -136,7 +136,7 @@ function openWin(id, t = 0) { open = id; tab = t; $('panel').classList.add('open
 function closeWin() { open = null; $('panel').classList.remove('open'); $('panel-dim').classList.remove('open'); paintNav(); }
 function paintNav() {
   if (!$('ptabs').children.length) for (const [id, name] of MAIN_TABS) { const b = document.createElement('button'); b.dataset.tab = id; b.innerHTML = `<span>${name}</span>`; b.onclick = () => { play('click'); openWin(id); }; $('ptabs').append(b); }
-  for (const b of document.querySelectorAll('#tabs button[data-tab], #ptabs button[data-tab]')) b.classList.toggle('active', b.dataset.tab === open);
+  for (const b of document.querySelectorAll('.nb[data-tab], #ptabs button[data-tab]')) b.classList.toggle('active', b.dataset.tab === open);
   navDots();
 }
 // 빨간 점 — 지금 누를 게 있는 창(캐릭터: 전직 · 무공 점수 · 올릴 수 있는 무공 / 가방: 뽑기권 10장↑ / 마을: 길잡이 받기)
@@ -146,7 +146,7 @@ function navDots() {
   try { const K = h.kitState(); for (const id of Object.keys(K.lv)) { const sk = skillById(id); if (sk && h.canKitUp(id) && (W.gold || 0) >= kitCost(K.lv[id], sk.tier)[0].n) { kitUp = true; break; } } } catch { /* 없음 */ }
   const cur = guideCurrent(S.q.guide);
   const on = { char: !!(h.canAdvance?.() || g.treePts?.().left > 0 || kitUp), bag: (W['ticket:gear'] || 0) >= 10, town: !!(cur && S.q.guide[cur.id]?.done) };
-  for (const b of document.querySelectorAll('#tabs button[data-tab], #ptabs button[data-tab]')) b.classList.toggle('dot-on', !!on[b.dataset.tab]);
+  for (const b of document.querySelectorAll('.nb[data-tab], #ptabs button[data-tab]')) b.classList.toggle('dot-on', !!on[b.dataset.tab]);
 }
 function act(fn) { return () => { play('click'); const r = fn(); if (r === null || r === false) toast('할 수 없어요(재료·조건)'); save(); paintWin(); paintHud(); return r; }; }
 // 한 줄 — 지금 게임의 .row(.info .name · .desc · 단추). 첫 단추는 붉은 주 단추
@@ -395,7 +395,7 @@ function addLog(t) { logLines.unshift(t); logLines.length = Math.min(logLines.le
 let portraitKey = '';
 function paintPortrait(H) {
   const key = `${H.job}:${H.lv}`; if (key === portraitKey) return; portraitKey = key;
-  const c = $('portrait'), x = c.getContext('2d'); x.clearRect(0, 0, c.width, c.height);
+  const c = $('face'), x = c.getContext('2d'); x.clearRect(0, 0, c.width, c.height);
   x.save(); x.beginPath(); x.arc(52, 52, 50, 0, 7); x.clip();
   const gr = x.createRadialGradient(52, 40, 6, 52, 52, 60); gr.addColorStop(0, '#3a2e22'); gr.addColorStop(1, '#120f0b'); x.fillStyle = gr; x.fillRect(0, 0, 104, 104);
   drawHero(x, 52, 196, H.job, H.lv, { t: 0, scale: 1.75 });   // 얼굴 · 어깨만 보이게 크게
@@ -403,12 +403,13 @@ function paintPortrait(H) {
 }
 function paintHud() {
   const S = g.S, H = S.hero, F = g.ensureFight(), T = g.stage(), z = zoneFor(g.zoneLv());
-  if (!$('quest').onclick) {
-    $('quest').onclick = onGuide;
+  if (!$('qc').onclick) {
+    $('qc').onclick = onGuide;
     $('btn-boss').onclick = () => { play('click'); if (g.challenge()) toast('칸 두목 도전!'); else toast(`몹을 ${STAGE_KILLS}마리 잡으면 도전할 수 있어요`); };
-    $('btn-settings').onclick = () => { play('click'); openWin('opt', 0); };
+    $('b-opt').onclick = () => { play('click'); openWin('opt', 0); };
     $('btn-sound').onclick = () => { opt.sfx = !(opt.sfx || opt.bgm); opt.bgm = opt.sfx; saveOpt(); bgm(chapterOf(g.zoneLv())); toast(opt.sfx ? '소리 켬' : '소리 끔'); paintHud(); };
-    for (const b of document.querySelectorAll('#tabs button[data-tab]')) b.onclick = () => { play('click'); if (open === b.dataset.tab) closeWin(); else openWin(b.dataset.tab); };
+    for (const b of document.querySelectorAll('.nb[data-tab]')) b.onclick = () => { play('click'); if (open === b.dataset.tab) closeWin(); else openWin(b.dataset.tab); };
+    for (const b of document.querySelectorAll('.nb[data-key]')) b.onclick = () => { play('click'); openKey(b.dataset.key); };
     $('panel-close').onclick = closeWin; $('panel-dim').onclick = closeWin; $('panel-grip').onclick = closeWin;
     padHold('pl', -1); padHold('pr', 1);
     $('pd').onpointerdown = (e) => { e.preventDefault(); g.down(); };
@@ -417,34 +418,37 @@ function paintHud() {
   }
   // 위 상태 줄: 얼굴 · 이름 · 전직 · Lv · 경험치 · 은자 · 뽑기권
   paintPortrait(H);
-  $('hero-name').textContent = JOBS[H.job].name;
-  $('hero-rank').textContent = H.adv ? `${H.adv}차 전직` : '입문';
-  $('hero-lv').textContent = `Lv.${H.lv}`;
-  const xp = Math.min(100, (H.exp / expToNext(H.lv)) * 100);
-  $('exp-pct').textContent = `${xp.toFixed(2)}%`; $('exp-bar').firstChild.style.width = `${xp}%`;
-  $('gold').textContent = unit(S.wallet.gold); $('tickets').textContent = S.wallet['ticket:gear'] || 0;
-  $('btn-sound').textContent = opt.sfx || opt.bgm ? '🔊' : '🔇';
-  // 사냥터 줄: 장 이름 · 칸 · 무인 체력
+  const xp = Math.min(100, (H.exp / expToNext(H.lv)) * 100), jn = JOBS[H.job].name, rk = H.adv ? `${H.adv}차 전직` : '입문';
+  $('me-job').textContent = jn; $('me-rank').textContent = rk; $('me-nm').textContent = `${jn} · ${rk}`;
+  $('me-lv').textContent = `Lv.${H.lv}`;
+  $('xp-txt').textContent = `EXP ${xp.toFixed(2)}%`; $('xp-fill').style.width = `${xp}%`;
+  $('g-gold').textContent = unit(S.wallet.gold); $('g-tix').textContent = S.wallet['ticket:gear'] || 0;
+  $('btn-sound').classList.toggle('off', !(opt.sfx || opt.bgm));
+  // 위 가운데: 장 이름 · 칸 진행(처치 n/20 → 두목 도전) · 두목전이면 두목 체력
   const ch = Math.ceil(T.idx / 10), st = ((T.idx - 1) % 10) + 1, boss = !!g.bossFight, Hh = F.hero;
-  $('stage-label').textContent = `${ch}. ${chapterName(T.idx)}`;
-  $('zone-label').textContent = boss ? '칸 두목전' : `Stage ${st}/10`;
+  $('chap').textContent = `${ch}. ${chapterName(T.idx)}`;
+  const bm0 = boss ? g.bossFight.mobs.find((m) => m.kind === 'boss') : null, spR = boss ? (bm0 ? Math.max(0, bm0.hp / bm0.st.hp) : 0) : Math.min(1, T.kills / STAGE_KILLS);
+  $('sp').classList.toggle('boss', boss); $('sp-fill').style.width = `${spR * 100}%`;
+  $('sp-txt').textContent = boss ? `Stage ${st}/10 · 두목 ${Math.ceil(spR * 100)}%` : `Stage ${st}/10 · ${Math.min(T.kills, STAGE_KILLS)}/${STAGE_KILLS}`;
+  // 왼쪽 아래: 무인 체력
   const hpR = Math.max(0, Hh.hp / Hh.st.hp);
-  $('progress-fill').style.width = `${hpR * 100}%`; $('progress-trail').style.width = `${hpR * 100}%`;
-  $('progress-text').textContent = `체력 ${unit(Math.max(0, Hh.hp))} / ${unit(Hh.st.hp)}`;
+  $('hp-fill').style.width = `${hpR * 100}%`; $('hp-trail').style.width = `${hpR * 100}%`; $('hp-fill').parentNode.classList.toggle('low', hpR < 0.3);
+  $('hp-txt').textContent = `HP ${unit(Math.max(0, Hh.hp))} / ${unit(Hh.st.hp)}`;
   // 들판: 전투력 · 길잡이 · 칸 진행(두목전이면 두목 체력 · 남은 시간) · 두목 도전
-  $('power-label').textContent = `전투력 ${unit(g.power())}`;
-  const cur = guideCurrent(S.q.guide), cs = cur && S.q.guide[cur.id], qb = $('quest');
+  $('pw').textContent = unit(g.power());
+  const cur = guideCurrent(S.q.guide), cs = cur && S.q.guide[cur.id], qb = $('qc');
   qb.classList.toggle('hidden', !cur);
-  if (cur) { qb.classList.toggle('ready', !!cs?.done); qb.textContent = cs?.done ? `길잡이 ${cur.id.slice(1)} — 받기!` : `길잡이 ${cur.id.slice(1)} · ${guideLabel(cur)} ${cs?.p || 0}/${cur.need}`; }
+  if (cur) { qb.classList.toggle('ready', !!cs?.done); const qk = `${cur.id}:${cs?.p || 0}:${cs?.done ? 1 : 0}`; if (qb.dataset.k !== qk) { qb.dataset.k = qk; qb.innerHTML = `<div class="qh"><em>${cs?.done ? '완료' : '진행'}</em>길잡이 ${cur.id.slice(1)}</div><div class="qb">${esc(guideLabel(cur))}<small>${cs?.done ? '받기 ▶' : `${cs?.p || 0}/${cur.need}`}</small></div>`; } }   // 왼쪽 길잡이 카드: 상태 · 할 일 · 진행
   const ready = !boss && g.canChallenge();
   $('btn-boss').classList.toggle('hidden', !ready); $('btn-boss').classList.toggle('ready', ready);
   const ch2 = $('contest-hud');
+  ch2.classList.toggle('hidden', !boss);   // 두목전일 때만(평소 진행은 위 가운데 막대)
   if (boss) {
     const B = g.bossFight, bm = B.mobs.find((m) => m.kind === 'boss');
     $('contest-title').textContent = `${bm ? mobName(bm, z, chapterOf(T.idx)) : '두목'} ${bm ? Math.ceil((bm.hp / bm.st.hp) * 100) : 0}%`;
     $('contest-sub').textContent = `남은 ${Math.max(0, Math.ceil((B.limitMs - B.t) / 1000))}초 · 클리어 보상 은자 ${unit(2 * 27 * goldPerMob(T.idx))} · 뽑기권 ${T.idx % 10 === 0 ? 10 : 1}`;
   } else {
-    $('contest-title').textContent = document.body.classList.contains('land') ? `${$('stage-label').textContent} · Stage ${st}/10` : `Stage ${st}/10`;
+    $('contest-title').textContent = `Stage ${st}/10`;
     $('contest-sub').textContent = ready ? '두목 준비 — 「두목 도전」' : `처치 ${T.kills} / ${STAGE_KILLS}`;
   }
   // 피해 측정기(설정에서 켬): 최근 10초 초당 피해 · 분당 처치
@@ -459,7 +463,7 @@ function paintHud() {
   if (sl.children.length !== SLOT_N) {
     sl.innerHTML = '';
     for (let i = 0; i < SLOT_N; i++) {
-      const b = document.createElement('button'); b.className = 'skill-btn'; b.dataset.i = i;
+      const b = document.createElement('button'); b.className = 'sk'; b.dataset.i = i;
       b.onpointerdown = (e) => { e.preventDefault(); if (!(g.ensureFight().hero.kit || [])[i]) { openKey('hero:1'); return; } g.ensureFight().press({ slot: i }); };   // 빈 칸은 무공 창으로
       sl.append(b);
     }
@@ -635,7 +639,7 @@ function draw() {
   const z = zoneFor(g.zoneLv());
   // 가까이 당겨 본다: 화면 너비에 약 15미터 — 무인을 가로 · 세로로 따라감(맵은 화면보다 넓고 높다)
   // 세로 화면이면 아래 조작 받침(168px)을 빼고, 가로로 너무 당겨지지 않게 넓게 본다
-  const port = Hh > W * 1.1, dock = port ? 118 : 0;   // 아래 창 단추 줄 · 무공 줄
+  const port = Hh > W * 1.1, dock = port ? 150 : 0;   // 아래 창 단추 줄 · 무공 줄
   const s = port ? Math.max(W / 8500, (Hh - dock) / 13000) : Math.max(W / 15000, Hh / 9000), k = Math.min(1.25, Math.max(0.7, s / 0.05));
   const viewW = W / s, viewH = Hh / s;
   const al = Math.max(0, Math.min(1, acc / 50));
@@ -1014,7 +1018,6 @@ function fitLand() {
   document.body.classList.toggle('land', land);
   const touch = matchMedia('(pointer: coarse)').matches;
   $('rot').classList.toggle('open', !land && touch && !rotSkip);
-  if (land) requestAnimationFrame(() => document.body.style.setProperty('--tw', `${$('tabs').offsetWidth}px`));   // 가운데 진행 줄이 오른쪽 창 단추에 닿지 않게
 }
 $('rot-go').onclick = () => { rotSkip = true; fitLand(); };
 addEventListener('resize', fitLand); addEventListener('orientationchange', fitLand);

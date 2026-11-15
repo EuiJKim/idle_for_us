@@ -15,32 +15,6 @@
   <style>
     :root { --mute: var(--muted); --ink: var(--text); --red: #e06a5a; --blue: #6aa8e0; --green: #7cc47a; }
     /* 새 시즌만의 것 — 옆보기 조작(◀▼▶ · 점프) · 두목 도전 · 길잡이 자리 · 피해 측정기 · 결과 · 장비 창 · 뽑기 연출 */
-    #battle canvas#cv { width: 100%; height: 100%; display: block; touch-action: none; }
-    #hud { z-index: 10; }
-    #quest { top: 10px; }
-    #btn-boss { position: absolute; left: 50%; transform: translateX(-50%); top: 92px; z-index: 11; }
-    #contest-hud { top: 40px; }
-    #btn-boss.ready { animation: pts-glow 1.4s ease-in-out infinite; }
-    #side-btns { position: absolute; right: 8px; top: 44px; z-index: 11; display: flex; flex-direction: column; gap: 6px; }
-    #side-btns .icon-btn { width: 38px; height: 38px; }
-    .dpsm { position: absolute; left: 8px; top: 40px; z-index: 10; display: none; background: rgba(10,8,6,.65); border: 1px solid var(--line); border-radius: 8px; padding: 4px 8px; font-size: 11px; line-height: 1.45; }
-    .dpsm b { color: var(--accent-2); font-weight: 700; margin-right: 4px; }
-    #loglines { position: absolute; left: 8px; bottom: calc(132px + var(--safe-bottom, 0px)); z-index: 9; font-size: 11px; color: #f5e9cf; text-shadow: 0 1px 2px #000; pointer-events: none; max-width: 50%; }
-    #loglines div { opacity: .9; }
-    #skillbar .auto-btn { flex: none; }
-    #skillbar .skill-btn { font-family: var(--serif); font-size: 13px; font-weight: 800; line-height: 1.1; padding: 0 2px; }
-    #skillbar .skill-btn .t { position: absolute; left: 4px; top: 2px; font-size: 9px; color: var(--muted); font-family: inherit; }
-    #skillbar .skill-btn .ad { position: absolute; top: 4px; right: 4px; width: 6px; height: 6px; border-radius: 50%; background: #86efac; box-shadow: 0 0 4px #86efac; }
-    #skillbar .skill-btn.empty { border-style: dashed; color: var(--muted); font-size: 18px; font-weight: 400; }
-    #skillbar .skill-btn .cdw { position: absolute; inset: 0; display: flex; align-items: flex-end; justify-content: flex-end; padding: 0 4px 2px 0; font-size: 11px; color: #fff; background: conic-gradient(rgba(0,0,0,.7) var(--p, 0%), transparent 0); }
-    #skillbar .skill-btn.fire { animation: sf .32s ease-out; } @keyframes sf { 0% { box-shadow: inset 0 0 18px #ffe9a8; transform: scale(1.06) } 100% { box-shadow: none; transform: none } }
-    #skillbar .jump-btn { flex: none; width: 54px; font-family: var(--brush); font-size: 22px; }
-    #pad { position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(74px + var(--safe-bottom, 0px)); z-index: 13; display: flex; gap: 8px; }
-    #pad button { width: 56px; height: 44px; border-radius: 11px; background: rgba(18,15,11,.78); border: 1px solid rgba(212,166,74,.35); color: #f5e9cf; font-size: 18px; }
-    #pad button.on, #pad button:active { background: rgba(212,166,74,.3); }
-    #tabs button.dot-on::after { content: ''; position: absolute; top: -3px; right: -3px; width: 9px; height: 9px; border-radius: 50%; background: var(--bad); }
-    #ptabs button.dot-on::after { content: ''; position: absolute; top: -2px; right: -2px; width: 8px; height: 8px; border-radius: 50%; background: var(--bad); }
-    #progress.boss #progress-fill { background: linear-gradient(90deg, #7c1a1f, #c0392b); }
     #panel-body .card .row:last-child { margin-bottom: 0; }
     #panel-body .row .btn { flex: none; padding: 8px 12px; min-width: 56px; }
     #panel-body .row .btn + .btn { margin-left: -4px; }
@@ -95,42 +69,119 @@
     .eqinfo { background: #0004; border: 1px solid var(--line); border-radius: 10px; padding: 8px; margin: 6px 0; }
     .eqh { display: flex; gap: 8px; align-items: center; } .eqh img { width: 48px; height: 48px; }
     .eqst { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; } .eqst span { background: #ffffff10; border-radius: 6px; padding: 2px 6px; font-size: 12px; }
-    /* ── v509 가로 화면 — 들판이 화면 전체. 위: 왼쪽 무인 · 가운데 사냥터 진행 · 오른쪽 창 단추. 아래: 왼쪽 조작 · 오른쪽 무공. 창은 가운데에 크게(카드 두 줄) ── */
-    body.land { --sl: max(10px, env(safe-area-inset-left)); --sr: max(10px, env(safe-area-inset-right)); --st: max(6px, env(safe-area-inset-top)); --sb: max(8px, env(safe-area-inset-bottom)); }
-    body.land #app { max-width: none; position: relative; display: block; padding-top: 0; height: 100%; }
-    body.land #battle { position: absolute; inset: 0; }
-    body.land #topbar { position: absolute; left: var(--sl); top: var(--st); z-index: 20; width: 236px; padding: 0; gap: 6px; background: none; border: 0; align-items: center; }
-    body.land #topbar .hero-box { flex: 1; background: rgba(20,17,12,.84); padding: 4px 8px 4px 4px; }
-    body.land #topbar .res-col { display: none; }
-    body.land #btn-settings { width: 34px; height: 34px; flex: none; }
-    body.land #stagebar { position: absolute; z-index: 20; top: var(--st); left: calc(var(--sl) + 248px); right: calc(var(--sr) + var(--tw, 322px) + 8px); max-width: 440px; margin: 0 auto; padding: 5px 10px; border: 1px solid var(--line); border-radius: 12px; background: rgba(18,15,11,.84); }
-    body.land #stagebar .stage-box { display: none; }   /* 장 이름은 아래 도전 표시에 함께 */
-    @media (max-width: 800px) {
-      body.land #topbar { width: 196px; } body.land #stagebar { left: calc(var(--sl) + 204px); padding: 4px 8px; }
-      body.land #tabs { gap: 3px; } body.land #tabs button { width: 36px; height: 38px; flex-basis: 36px; } body.land #tabs button i { font-size: 15px; }
+    /* 세로로 든 손전화: 돌려 달라는 알림 */
+    #rot { position: fixed; inset: 0; z-index: 90; display: none; flex-direction: column; align-items: center; justify-content: center; gap: 14px; background: radial-gradient(#1d1712, #0b0907 75%); color: #f5e9cf; text-align: center; padding: 24px; }
+    #rot.open { display: flex; }
+    #rot .ph { width: 54px; height: 90px; border: 3px solid var(--accent-2); border-radius: 10px; animation: rotp 2.2s ease-in-out infinite; }
+    @keyframes rotp { 0%, 25% { transform: rotate(0) } 55%, 100% { transform: rotate(-90deg) } }
+    #rot b { font-family: var(--brush); font-size: 28px; font-weight: 400; }
+    @media (prefers-reduced-motion: reduce) { #rot .ph { animation: none; transform: rotate(-90deg); } }
+    #battle canvas#cv { width: 100%; height: 100%; display: block; touch-action: none; }
+    /* ── v510 들판 HUD — 옆보기 방치 RPG 배치: 위 왼쪽 나 · 위 가운데 사냥터 · 위 오른쪽 작은 아이콘 · 아래 가운데 메뉴 다섯 · 왼쪽 아래 Lv/HP · 오른쪽 아래 무공 · 맨 아래 EXP ── */
+    body { --sl: max(10px, env(safe-area-inset-left)); --sr: max(10px, env(safe-area-inset-right)); --st: max(8px, env(safe-area-inset-top)); --sb: max(8px, env(safe-area-inset-bottom)); }
+    #app { max-width: none; position: relative; display: block; padding-top: 0; height: 100%; }
+    #battle { position: absolute; inset: 0; }
+    .ic { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+    #battle .sh { text-shadow: 0 1px 2px #000, 0 0 4px rgba(0,0,0,.6); }
+    /* 위 왼쪽: 얼굴 · 전투력 · 이름 · 재화 */
+    #tl { position: absolute; z-index: 20; left: var(--sl); top: var(--st); display: flex; gap: 8px; align-items: flex-start; pointer-events: none; }
+    #face { width: 52px; height: 52px; border-radius: 12px; border: 2px solid rgba(232,200,122,.8); background: #120f0b; box-shadow: 0 2px 6px rgba(0,0,0,.5); }
+    .tl-txt { display: flex; flex-direction: column; gap: 2px; color: #fff; text-shadow: 0 1px 2px #000, 0 0 4px rgba(0,0,0,.7); }
+    #pw { font-size: 15px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.15; }
+    #pw::before { content: '⚔ '; color: var(--gold); }
+    #nm { font-size: 11px; display: flex; gap: 6px; } #nm b { font-weight: 700; } #nm span { color: var(--gold); }
+    .cur-row { display: flex; gap: 6px; margin-top: 2px; }
+    .cur-pill { display: inline-flex; align-items: center; gap: 4px; padding: 1px 8px 1px 2px; border-radius: 999px; background: rgba(0,0,0,.45); font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .coin { width: 15px; height: 15px; border-radius: 50%; display: inline-block; } .coin.s { background: radial-gradient(circle at 35% 35%, #fff7d6, #e8c26a 55%, #9a6b1f); } .coin.t { background: radial-gradient(circle at 35% 35%, #ffd2c8, #e06a5a 55%, #7c1d14); border-radius: 4px; }
+    /* 위 가운데: 장 이름 · Stage 진행 */
+    #tc { position: absolute; z-index: 20; left: 50%; transform: translateX(-50%); top: var(--st); width: min(300px, 34vw); text-align: center; pointer-events: none; }
+    #chap-row { display: inline-flex; align-items: center; gap: 3px; color: #fff; font-size: 13px; font-weight: 700; text-shadow: 0 1px 2px #000, 0 0 4px rgba(0,0,0,.7); }
+    #chap-row .ic { width: 15px; height: 15px; color: var(--gold); }
+    #sp { position: relative; margin-top: 3px; height: 16px; border-radius: 999px; background: rgba(0,0,0,.55); border: 1px solid rgba(255,255,255,.35); overflow: hidden; }
+    #sp-fill { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: linear-gradient(90deg, #d49a2a, #ffd56a); transition: width .25s; }
+    #sp.boss #sp-fill { background: linear-gradient(90deg, #7f1d1d, #ef4444); transition: none; }
+    #sp-txt { position: absolute; inset: 0; font-size: 11px; font-weight: 800; line-height: 15px; color: #fff; text-shadow: 0 1px 2px #000; font-variant-numeric: tabular-nums; }
+    #btn-boss { position: absolute; z-index: 21; left: 50%; transform: translateX(-50%); top: calc(var(--st) + 46px); padding: 6px 16px; border-radius: 999px; font-weight: 800; font-size: 13px; color: #fff; background: linear-gradient(180deg, #c0392b, #7c1a1f); border: 1px solid #ffb4a8; box-shadow: 0 2px 8px rgba(0,0,0,.5); }
+    #btn-boss.ready { animation: pts-glow 1.4s ease-in-out infinite; }
+    #contest-hud { top: calc(var(--st) + 46px); z-index: 20; padding: 3px 12px; font-size: 11px; line-height: 1.35; }
+    #contest-hud.hidden { display: none; }
+    /* 위 오른쪽: 작은 아이콘 줄 */
+    #tr { position: absolute; z-index: 20; right: var(--sr); top: var(--st); display: flex; gap: 4px; }
+    .ib { position: relative; width: 42px; height: 44px; padding: 3px 0 0; border-radius: 10px; border: 0; background: rgba(0,0,0,.42); color: #fff; display: flex; flex-direction: column; align-items: center; gap: 1px; }
+    .ib span { font-size: 9px; font-weight: 700; line-height: 1; opacity: .9; }
+    .ib.active { background: rgba(212,166,74,.45); }
+    #btn-sound .x { display: none; } #btn-sound.off .x { display: inline; } #btn-sound.off .w { display: none; }
+    /* 왼쪽: 길잡이 카드 · 알림 글 */
+    #qc { position: absolute; z-index: 20; left: var(--sl); top: calc(var(--st) + 82px); width: 220px; text-align: left; padding: 6px 9px; border-radius: 10px; background: rgba(10,8,6,.62); border: 1px solid rgba(255,255,255,.12); color: #fff; font-size: 12px; line-height: 1.35; }
+    #qc.hidden { display: none; }
+    #qc .qh { display: flex; align-items: center; gap: 6px; font-size: 11px; color: #cbb98f; }
+    #qc .qh em { font-style: normal; font-size: 10px; font-weight: 800; padding: 0 6px; border-radius: 4px; background: #3f6b3a; color: #e6ffd8; }
+    #qc.ready .qh em { background: #d49a2a; color: #2a1a05; }
+    #qc .qb { font-weight: 700; margin-top: 2px; } #qc .qb small { color: var(--gold); margin-left: 4px; }
+    #qc.ready { border-color: rgba(255,213,106,.7); animation: pts-glow 1.4s ease-in-out infinite; }
+    .dpsm { position: absolute; left: var(--sl); top: calc(var(--st) + 140px); z-index: 10; display: none; background: rgba(10,8,6,.65); border: 1px solid var(--line); border-radius: 8px; padding: 4px 8px; font-size: 11px; line-height: 1.45; }
+    .dpsm b { color: var(--accent-2); font-weight: 700; margin-right: 4px; }
+    #loglines { position: absolute; z-index: 9; left: var(--sl); bottom: calc(var(--sb) + 64px); font-size: 11px; line-height: 1.4; color: #ffe9a8; text-shadow: 0 1px 2px #000; pointer-events: none; max-width: 36%; }
+    /* 왼쪽 아래: Lv · 이름 · HP */
+    #me { position: absolute; z-index: 20; left: var(--sl); bottom: calc(var(--sb) + 8px); width: 220px; padding: 4px 8px 6px; border-radius: 10px; background: rgba(10,8,6,.66); border: 1px solid rgba(255,255,255,.12); }
+    .me-h { display: flex; gap: 6px; align-items: baseline; color: #fff; font-size: 12px; } .me-h b { color: var(--gold); font-weight: 800; }
+    .bar { position: relative; height: 14px; margin-top: 3px; border-radius: 4px; background: #1a1410; overflow: hidden; border: 1px solid rgba(255,255,255,.18); }
+    .bar i { position: absolute; left: 0; top: 0; bottom: 0; width: 0; }
+    .bar.hp #hp-fill { background: linear-gradient(180deg, #ff7aa0, #d6345f); transition: width .15s; }
+    .bar.hp #hp-trail { background: rgba(255,240,200,.7); transition: width .6s ease-out .3s; }
+    .bar.hp.low #hp-fill { background: linear-gradient(180deg, #ff6a5a, #9b1c1c); }
+    .bar span { position: absolute; inset: 0; text-align: center; font-size: 10px; font-weight: 800; line-height: 12px; color: #fff; text-shadow: 0 1px 2px #000; font-variant-numeric: tabular-nums; }
+    /* 아래 가운데: 메뉴 다섯 */
+    #mb { position: absolute; z-index: 20; left: 50%; transform: translateX(-50%); bottom: calc(var(--sb) + 6px); display: flex; gap: 2px; padding: 3px; border-radius: 14px; background: rgba(10,8,6,.6); border: 1px solid rgba(255,255,255,.1); }
+    .nb { position: relative; }
+    #mb .nb { width: 52px; height: 48px; border: 0; border-radius: 11px; background: transparent; color: #f3ead6; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; padding: 0; }
+    #mb .nb span { font-size: 10.5px; font-weight: 700; line-height: 1; }
+    #mb .nb.active { background: rgba(212,166,74,.35); color: #fff; }
+    .nb.dot-on::after { content: ''; position: absolute; top: 3px; right: 7px; width: 8px; height: 8px; border-radius: 50%; background: #ef4444; box-shadow: 0 0 0 1.5px rgba(0,0,0,.5); }
+    #ptabs button.dot-on::after { content: ''; position: absolute; top: -2px; right: -2px; width: 8px; height: 8px; border-radius: 50%; background: var(--bad); }
+    /* 오른쪽 아래: 자동 · 무공 여섯 · 점프 */
+    #sk { position: absolute; z-index: 20; right: var(--sr); bottom: calc(var(--sb) + 8px); display: grid; gap: 5px; grid-template-columns: repeat(4, 44px) 74px; grid-template-rows: 44px 44px; align-items: center; justify-items: center; }
+    #sk > button, #slots > button { width: 100%; height: 100%; padding: 0; position: relative; overflow: hidden; color: #fff; }
+    #au { grid-area: 2 / 1; border-radius: 50%; border: 2px solid rgba(255,255,255,.35); background: rgba(10,8,6,.6); font-size: 11px; font-weight: 800; color: #cbd5e1; }
+    #au.on { border-color: #86efac; color: #bbf7d0; box-shadow: 0 0 8px rgba(134,239,172,.45); }
+    #slots > :nth-child(1) { grid-area: 1 / 2; } #slots > :nth-child(2) { grid-area: 1 / 3; } #slots > :nth-child(3) { grid-area: 1 / 4; }
+    #slots > :nth-child(4) { grid-area: 2 / 2; } #slots > :nth-child(5) { grid-area: 2 / 3; } #slots > :nth-child(6) { grid-area: 2 / 4; }
+    .sk { border-radius: 11px; border: 2px solid rgba(255,255,255,.25); background: rgba(16,12,8,.78); font-size: 13px; font-weight: 800; line-height: 1.05; }
+    .sk.ready { box-shadow: inset 0 0 10px rgba(255,213,106,.25); }
+    .sk.empty { border-style: dashed; color: rgba(255,255,255,.5); font-size: 18px; font-weight: 400; }
+    .sk .t { position: absolute; left: 4px; top: 2px; font-size: 9px; color: #cbb98f; }
+    .sk .ad { position: absolute; top: 4px; right: 4px; width: 6px; height: 6px; border-radius: 50%; background: #86efac; box-shadow: 0 0 4px #86efac; }
+    .sk .cdw { position: absolute; inset: 0; display: flex; align-items: flex-end; justify-content: flex-end; padding: 0 4px 2px 0; font-size: 10px; color: #fff; background: conic-gradient(rgba(0,0,0,.72) var(--p, 0%), transparent 0); }
+    .sk.fire { animation: sf .32s ease-out; } @keyframes sf { 0% { box-shadow: inset 0 0 18px #ffe9a8; transform: scale(1.08) } 100% { box-shadow: none; transform: none } }
+    #jp { grid-area: 1 / 5 / 3 / 6; width: 74px !important; height: 74px !important; border-radius: 50%; border: 3px solid rgba(255,255,255,.75); background: radial-gradient(circle at 50% 35%, rgba(60,50,40,.85), rgba(10,8,6,.85)); box-shadow: 0 3px 10px rgba(0,0,0,.5); }
+    #jp .ic { width: 34px; height: 34px; stroke-width: 2.6; }
+    #jp:active, .sk:active, #au:active, .nb:active, .ib:active { transform: scale(.94); }
+    #pad { position: absolute; z-index: 21; left: var(--sl); bottom: calc(var(--sb) + 70px); display: flex; gap: 8px; }
+    #pad.hidden { display: none; }
+    #pad button { width: 58px; height: 48px; border-radius: 12px; background: rgba(10,8,6,.66); border: 1px solid rgba(255,255,255,.25); color: #fff; font-size: 18px; }
+    #pad button.on, #pad button:active { background: rgba(212,166,74,.35); }
+    /* 맨 아래: 화면 너비 EXP 줄 */
+    #xpl { position: absolute; z-index: 19; left: 0; right: 0; bottom: 0; height: 4px; pointer-events: none; }
+    #xp-bar { position: absolute; inset: 0; background: rgba(0,0,0,.55); } #xp-fill { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: linear-gradient(90deg, #8de36b, #e8f78a); transition: width .3s; }
+    #xp-txt { position: absolute; left: calc(var(--sl) + 228px); bottom: 5px; font-size: 10px; font-weight: 800; color: #d9f99d; text-shadow: 0 1px 2px #000; font-variant-numeric: tabular-nums; }
+    #toast { bottom: calc(var(--sb) + 112px); }
+    /* 좁은 가로(작은 폰) */
+    @media (max-width: 800px) and (orientation: landscape) {
+      #mb .nb { width: 44px; height: 44px; } #mb .nb span { font-size: 9.5px; }
+      #sk { grid-template-columns: repeat(4, 38px) 62px; grid-template-rows: 38px 38px; gap: 4px; } #jp { width: 62px !important; height: 62px !important; } #jp .ic { width: 28px; height: 28px; }
+      #me { width: 190px; } #xp-txt { left: calc(var(--sl) + 196px); } #qc { width: 196px; } .ib { width: 38px; }
     }
-    body.land #tabs { inset: auto; position: absolute; top: var(--st); right: var(--sr); display: flex; gap: 4px; pointer-events: auto; }
-    body.land .tabcol { display: contents; }
-    body.land #tabs button { width: 42px; height: 42px; flex: 0 0 42px; min-width: 0; padding: 0; }
-    body.land #tabs button i { font-size: 17px; } body.land #tabs button span { font-size: 8px; }
-    body.land #side-btns { right: var(--sr); top: calc(var(--st) + 48px); flex-direction: row; }
-    body.land #hud { left: var(--sl); right: auto; top: calc(var(--st) + 72px); }
-    body.land #quest { left: var(--sl); top: calc(var(--st) + 100px); transform: none; max-width: 300px; }
-    body.land .dpsm { left: var(--sl); top: calc(var(--st) + 130px); }
-    body.land #btn-boss { top: calc(var(--st) + 48px); }
-    body.land #contest-hud { top: calc(var(--st) + 48px); padding: 3px 12px; font-size: 11px; line-height: 1.35; }
-    body.land #loglines { left: var(--sl); bottom: calc(var(--sb) + 64px); max-width: 34%; }
-    body.land #pad { left: var(--sl); transform: none; bottom: var(--sb); }
-    body.land #pad button { width: 62px; height: 52px; }
-    /* 무공: 오른쪽 아래 덩어리 — 자동(왼쪽 아래) · 여섯 칸(3×2) · 점프(크게, 두 줄) */
-    body.land #skillbar { left: auto; right: var(--sr); bottom: var(--sb); padding: 0; display: grid; gap: 5px; grid-template-columns: 46px repeat(3, 50px) 64px; grid-template-rows: 48px 48px; }
-    body.land #skillbar .skill-btn, body.land #skillbar .auto-btn { width: auto; height: auto; min-width: 0; }
-    body.land #au { grid-area: 2 / 1; font-size: 11px; }
-    body.land #slots > :nth-child(1) { grid-area: 1 / 2; } body.land #slots > :nth-child(2) { grid-area: 1 / 3; } body.land #slots > :nth-child(3) { grid-area: 1 / 4; }
-    body.land #slots > :nth-child(4) { grid-area: 2 / 2; } body.land #slots > :nth-child(5) { grid-area: 2 / 3; } body.land #slots > :nth-child(6) { grid-area: 2 / 4; }
-    body.land #jp { grid-area: 1 / 5 / 3 / 6; font-size: 28px; border-radius: 18px; }
-    body.land #toast { bottom: calc(var(--sb) + 112px); }
-    /* 창: 가운데에 크게 뜬다 */
+    /* 세로(돌리지 않고 계속): 아래 메뉴는 화면 너비 · 무공은 그 위 오른쪽 · Lv/HP는 그 위 왼쪽 */
+    body:not(.land) #mb { left: 0; right: 0; transform: none; bottom: 4px; border-radius: 0; justify-content: space-around; }
+    body:not(.land) #sk { bottom: 62px; grid-template-columns: repeat(4, 40px) 64px; grid-template-rows: 40px 40px; gap: 4px; } body:not(.land) #jp { width: 64px !important; height: 64px !important; }
+    body:not(.land) #me { bottom: 62px; width: calc(100% - 300px); min-width: 100px; }
+    body:not(.land) #tc { top: calc(var(--st) + 66px); width: 60vw; }
+    body:not(.land) #qc { top: calc(var(--st) + 120px); }
+    body:not(.land) #btn-boss, body:not(.land) #contest-hud { top: calc(var(--st) + 112px); }
+    body:not(.land) #xp-txt { left: var(--sl); bottom: 60px; }
+    body:not(.land) #loglines { bottom: 160px; }
+    body:not(.land) #toast { bottom: 170px; }
+    /* 창: 가로면 가운데에 크게 뜬다 · 카드 두 줄 */
     body.land #panel, body.land #panel.full { left: 50%; right: auto; top: 4%; bottom: 4%; height: auto; width: min(94vw, 1040px); max-width: none; margin: 0; border-radius: 16px; border: 1px solid rgba(212,166,74,.35); transform: translate(-50%, 110vh); }
     body.land #panel.open { transform: translate(-50%, 0); }
     body.land #panel-head, body.land #panel.full #panel-head { padding: 9px 12px; border-radius: 16px 16px 0 0; }
@@ -141,69 +192,51 @@
     body.land #wb > .card, body.land #wb > .row { display: inline-block; width: 100%; box-sizing: border-box; }
     body.land #wb > .eqpage, body.land #wb > .gxb, body.land #wb > .grid, body.land #wb > .inv-grid, body.land #wb > .gear-grid { column-span: all; }
     body.land #modal .sheet { max-width: 520px; max-height: 88vh; overflow: auto; }
-    /* 세로로 든 손전화: 돌려 달라는 알림 */
-    #rot { position: fixed; inset: 0; z-index: 90; display: none; flex-direction: column; align-items: center; justify-content: center; gap: 14px; background: radial-gradient(#1d1712, #0b0907 75%); color: #f5e9cf; text-align: center; padding: 24px; }
-    #rot.open { display: flex; }
-    #rot .ph { width: 54px; height: 90px; border: 3px solid var(--accent-2); border-radius: 10px; animation: rotp 2.2s ease-in-out infinite; }
-    @keyframes rotp { 0%, 25% { transform: rotate(0) } 55%, 100% { transform: rotate(-90deg) } }
-    #rot b { font-family: var(--brush); font-size: 28px; font-weight: 400; }
-    @media (prefers-reduced-motion: reduce) { #rot .ph { animation: none; transform: rotate(-90deg); } }
   </style>
 </head>
 <body>
   <div id="app">
-    <header id="topbar">
-      <div class="hero-box">
-        <canvas id="portrait" width="104" height="104" aria-hidden="true"></canvas>
-        <div class="hero-txt">
-          <div class="hero-line"><b id="hero-name">무명</b></div>
-          <div class="hero-sub"><span id="hero-rank">-</span><span id="hero-lv">Lv.1</span><span id="exp-pct"></span></div>
-          <div id="exp-bar"><div></div></div>
-        </div>
-      </div>
-      <div class="res-col">
-        <div class="res res-silver"><span class="cur silver" aria-label="은자">은</span><b id="gold">0</b></div>
-        <div class="res res-potion"><span class="cur potion" aria-label="뽑기권">권</span><b id="tickets">0</b></div>
-      </div>
-      <button id="btn-settings" class="icon-btn" aria-label="설정">⚙</button>
-    </header>
-
-    <div id="stagebar">
-      <div class="stage-box">
-        <div id="stage-label">죽림</div>
-        <div id="zone-label">Stage 1/10</div>
-      </div>
-      <div id="progress" class="hp">
-        <div id="progress-trail"></div>
-        <div id="progress-fill"></div>
-        <span id="progress-text">0 / 20</span>
-      </div>
-    </div>
-
     <section id="battle">
       <canvas id="cv"></canvas>
-      <div id="hud"><div id="power-label">전투력 0</div></div>
-      <button id="quest" class="hidden"></button>
-      <button id="btn-boss" class="hidden">두목 도전</button>
-      <div id="contest-hud"><div id="contest-title"></div><div id="contest-sub"></div></div>
+      <!-- v510 들판 위 HUD — 모서리마다 한 덩어리, 아이콘 + 짧은 글 -->
+      <header id="tl">
+        <canvas id="face" width="104" height="104" aria-hidden="true"></canvas>
+        <div class="tl-txt">
+          <div id="pw">0</div>
+          <div id="nm"><b id="me-job">무명</b><span id="me-rank">입문</span></div>
+          <div class="cur-row"><span class="cur-pill"><i class="coin s"></i><b id="g-gold">0</b></span><span class="cur-pill"><i class="coin t"></i><b id="g-tix">0</b></span></div>
+        </div>
+      </header>
+      <div id="tc">
+        <div id="chap-row"><svg class="ic" viewBox="0 0 24 24"><path d="M12 21s-6-6-6-11a6 6 0 0 1 12 0c0 5-6 11-6 11z"/><circle cx="12" cy="10" r="2"/></svg><span id="chap">1. 죽림</span></div>
+        <div id="sp"><div id="sp-fill"></div><span id="sp-txt">Stage 1/10</span></div>
+      </div>
+      <div id="tr">
+        <button class="ib nb" data-tab="map"><svg class="ic" viewBox="0 0 24 24"><path d="M3 6l6-3 6 3 6-3v15l-6 3-6-3-6 3z"/><path d="M9 3v15M15 6v15"/></svg><span>지도</span></button>
+        <button class="ib nb" data-tab="town"><svg class="ic" viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h4"/></svg><span>임무</span></button>
+        <button class="ib nb" data-tab="social"><svg class="ic" viewBox="0 0 24 24"><path d="M5 21V3"/><path d="M5 4h12l-2.5 4L17 12H5"/></svg><span>무림</span></button>
+        <button class="ib" id="btn-sound" aria-label="소리"><svg class="ic" viewBox="0 0 24 24"><path d="M4 9h4l5-4v14l-5-4H4z"/><path class="w" d="M16.5 9a4 4 0 0 1 0 6"/><path class="x" d="M16 9l5 6M21 9l-5 6"/></svg><span>소리</span></button>
+        <button class="ib" id="b-opt" aria-label="설정"><svg class="ic" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg><span>설정</span></button>
+      </div>
+      <button id="qc" class="hidden"></button>
       <div class="dpsm" id="dpsm"></div>
-      <div id="side-btns"><button id="btn-sound" class="icon-btn" aria-label="소리">🔊</button></div>
       <div id="loglines"></div>
-      <nav id="tabs">
-        <div class="tabcol left">
-          <button data-tab="map"><i>지</i><span>지도</span></button>
-          <button data-tab="dgn"><i>전</i><span>던전</span></button>
-          <button data-tab="town"><i>촌</i><span>마을</span></button>
-          <button data-tab="social"><i>무</i><span>무림<em class="tab-sub">문파</em></span></button>
-        </div>
-        <div class="tabcol right">
-          <button data-tab="char"><i>인</i><span>캐릭터</span></button>
-          <button data-tab="bag"><i>낭</i><span>가방</span></button>
-          <button data-tab="comp"><i>수</i><span>동료</span></button>
-        </div>
+      <button id="btn-boss" class="hidden">두목 도전</button>
+      <div id="contest-hud" class="hidden"><div id="contest-title"></div><div id="contest-sub"></div></div>
+      <div id="me">
+        <div class="me-h"><b id="me-lv">Lv.1</b><span id="me-nm">무명</span></div>
+        <div class="bar hp"><i id="hp-trail"></i><i id="hp-fill"></i><span id="hp-txt">HP 0 / 0</span></div>
+      </div>
+      <nav id="mb">
+        <button class="nb" data-tab="char"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7"/></svg><span>캐릭터</span></button>
+        <button class="nb" data-tab="bag"><svg class="ic" viewBox="0 0 24 24"><path d="M8 3L3 6l2 5 3-1v11h8V10l3 1 2-5-5-3c-.6 1.8-2.1 3-4 3S8.6 4.8 8 3z"/></svg><span>장비</span></button>
+        <button class="nb" data-key="hero:1"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3c.5 3.5 6 5.5 6 10.5a6 6 0 0 1-12 0c0-2.8 1.6-4.3 2.3-6 .9 1.2 1.6 2.5 1.7 4 1.4-2.2 2.2-5.3 2-8.5z"/></svg><span>무공</span></button>
+        <button class="nb" data-tab="comp"><svg class="ic" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.6 2.7-6 6-6s6 2.4 6 6"/><circle cx="17" cy="9" r="2.5"/><path d="M15.6 14.2c3 .2 5.4 2.3 5.4 5.8"/></svg><span>동료</span></button>
+        <button class="nb" data-tab="dgn"><svg class="ic" viewBox="0 0 24 24"><path d="M4 21V9l8-6 8 6v12"/><path d="M9 21v-6a3 3 0 0 1 6 0v6"/></svg><span>던전</span></button>
       </nav>
       <div id="pad" class="hidden"><button id="pl" aria-label="왼쪽">◀</button><button id="pd" aria-label="내려가기">▼</button><button id="pr" aria-label="오른쪽">▶</button></div>
-      <div id="skillbar"><button class="auto-btn on" id="au">자동</button><div id="slots" style="display:contents"></div><button class="skill-btn jump-btn" id="jp" aria-label="점프">⤒</button></div>
+      <div id="sk"><button id="au" class="on">자동</button><div id="slots" style="display:contents"></div><button id="jp" aria-label="점프"><svg class="ic" viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button></div>
+      <div id="xpl"><span id="xp-txt">EXP 0.00%</span><div id="xp-bar"><i id="xp-fill"></i></div></div>
       <div id="res"></div>
     </section>
 

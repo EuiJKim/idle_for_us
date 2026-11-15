@@ -23,17 +23,18 @@ const ok = (c, m, x = '') => { console.log(`  ${c ? '✓' : '✗ !!'} ${m}${x !=
     await page.waitForTimeout(7000);
     const g0 = await page.evaluate(() => ({ kills: window.__s2.g.S.kills, lv: window.__s2.g.S.hero.lv }));
     ok(g0.kills > 0, '저절로 사냥한다', `처치 ${g0.kills}`);
-    ok(/Lv.\d+/.test(await page.textContent('#hero-lv')) && /전투력/.test(await page.textContent('#power-label')) && /체력/.test(await page.textContent('#progress-text')), 'v505 지금 게임 틀: 위 상태 줄 Lv · 들판 전투력 · 체력 줄');
-    ok(/길잡이 1/.test(await page.textContent('#quest')), '들판 위 길잡이 1');
+    ok(/Lv.\d+/.test(await page.textContent('#me-lv')) && /^[\d.,]+[만억]?$/.test(await page.textContent('#pw')) && /HP \S+ \/ \S+/.test(await page.textContent('#hp-txt')) && /EXP [\d.]+%/.test(await page.textContent('#xp-txt')), 'v510 HUD: 위 왼쪽 전투력 · 왼쪽 아래 Lv · HP · 맨 아래 EXP');
+    ok(/길잡이 1/.test(await page.textContent('#qc')) && /진행|완료/.test(await page.textContent('#qc .qh')), '왼쪽 길잡이 카드(상태 · 할 일)');
+    ok(!(await page.$$eval('.nb i, .ib i', (a) => a.length)) && (await page.$$('.nb .ic')).length === 5 + 3, '메뉴는 그림 아이콘 + 글(한 글자 한자 없음)');
     if (W > H) {
       // v509 가로 화면: 위 세 덩어리(무인 · 진행 줄 · 창 단추)와 아래 무공 덩어리가 서로 겹치지 않고 화면 안
       const L = await page.evaluate(() => {
         const r = (s) => { const b = document.querySelector(s).getBoundingClientRect(); return [b.left, b.top, b.right, b.bottom]; };
-        return { land: document.body.classList.contains('land'), top: r('#topbar'), bar: r('#stagebar'), tabs: r('#tabs'), skill: r('#skillbar'), quest: r('#quest'), W: innerWidth, H: innerHeight };
+        return { land: document.body.classList.contains('land'), top: r('#tl'), bar: r('#tc'), tabs: r('#tr'), skill: r('#sk'), quest: r('#qc'), me: r('#me'), mb: r('#mb'), W: innerWidth, H: innerHeight };
       });
       const hit = (a, c) => a[0] < c[2] - 1 && c[0] < a[2] - 1 && a[1] < c[3] - 1 && c[1] < a[3] - 1;
       const inside = (a) => a[0] >= 0 && a[1] >= 0 && a[2] <= L.W && a[3] <= L.H;
-      ok(L.land && !hit(L.top, L.bar) && !hit(L.bar, L.tabs) && !hit(L.top, L.tabs) && !hit(L.quest, L.top) && [L.top, L.bar, L.tabs, L.skill].every(inside), '가로 화면 — 위: 무인 · 진행 · 창 단추 / 오른쪽 아래: 무공 (겹침 없음)', JSON.stringify([L.top, L.bar, L.tabs].map((a) => a.map(Math.round))));
+      ok(L.land && !hit(L.top, L.bar) && !hit(L.bar, L.tabs) && !hit(L.top, L.tabs) && !hit(L.quest, L.top) && !hit(L.me, L.mb) && !hit(L.mb, L.skill) && [L.top, L.bar, L.tabs, L.skill, L.me, L.mb].every(inside), '가로 화면 — 위: 나 · 사냥터 · 아이콘 / 아래: Lv·HP · 메뉴 · 무공 (겹침 없음)', JSON.stringify([L.me, L.mb, L.skill].map((a) => a.map(Math.round))));
     }
     // 손 조작: 수동으로 바꾸고 ◀ 를 누르고 있으면 왼쪽으로 달린다 · 점프 단추
     await page.click('#au');
@@ -45,13 +46,14 @@ const ok = (c, m, x = '') => { console.log(`  ${c ? '✓' : '✗ !!'} ${m}${x !=
     ok(h0 - h1 > 1500, '◀ 누르고 있으면 왼쪽으로 달린다', `${h0} → ${h1}`);
     await page.click('#jp'); await page.waitForTimeout(150);
     ok(await page.evaluate(() => window.__s2.g.ensureFight().hero.vy !== 0 || window.__s2.g.ensureFight().hero.plat !== 0), '점프 단추');
-    ok(/Stage \d+\/10/.test(await page.textContent('#zone-label')) && /\d+\. /.test(await page.textContent('#stage-label')), '사냥터 줄: 장 이름 · Stage n/10');
+    ok(/Stage \d+\/10/.test(await page.textContent('#sp-txt')) && /\d+\. /.test(await page.textContent('#chap')), '위 가운데: 장 이름 · Stage n/10 진행 막대');
     await page.click('#au');
     ok(await page.evaluate(() => window.__s2.g.S.auto !== false), '다시 자동으로');
-    const navs = await page.$$('#tabs button[data-tab]');
-    ok(navs.length === 7, '들판 창 단추 일곱(지도 · 던전 · 마을 · 무림 · 캐릭터 · 가방 · 동료)');
+    const navs = await page.$$('.nb[data-tab]');
+    ok(navs.length === 7 && (await page.$$('#mb .nb')).length === 5, '아래 메뉴 다섯(캐릭터 · 장비 · 무공 · 동료 · 던전) + 위 아이콘(지도 · 임무 · 무림)');
+    await page.click('#mb .nb[data-key]'); ok(/캐릭터/.test(await page.textContent('#panel-title')) && /on/.test(await page.getAttribute('#panel-body .subtabs button >> nth=1', 'class')), '「무공」 → 캐릭터 창 무공 칸'); await page.click('#panel-close');
     let tabsSeen = 0; const empty = [], outside = [];
-    await page.click('#tabs button[data-tab] >> nth=0');
+    await page.click('.nb[data-tab] >> nth=0');
     ok((await page.$$('#ptabs button')).length === 7 && await page.evaluate(() => document.getElementById('panel').classList.contains('open')), '아래에서 창이 올라오고 창 머리에 창 줄 일곱');
     for (let i = 0; i < 7; i++) {
       await page.click(`#ptabs button >> nth=${i}`);
@@ -81,7 +83,7 @@ const ok = (c, m, x = '') => { console.log(`  ${c ? '✓' : '✗ !!'} ${m}${x !=
     ok(!(await page.$('.gx')), '닫기 → 연출 사라짐');
     await page.click('#panel-close');
     ok(!(await page.evaluate(() => document.getElementById('panel').classList.contains('open'))), '창 닫기');
-    await page.click('#btn-settings'); ok(/설정/.test(await page.textContent('#panel-title')) && /효과음/.test(await page.textContent('#wb')), '⚙ → 설정 창'); await page.click('#panel-close');
+    await page.click('#b-opt'); ok(/설정/.test(await page.textContent('#panel-title')) && /효과음/.test(await page.textContent('#wb')), '⚙ → 설정 창'); await page.click('#panel-close');
     await page.screenshot({ path: path.join(OUT, `s2ui-${W}.png`) });
     // 방치: 마지막 접속을 3시간 전으로 돌려 저장 → 다시 열면 방치 보상 창
     await page.evaluate(() => { const g = window.__s2.g; g.S.offline.lastSeen -= 3 * 3600e3; g.S.offline.clockMax -= 3 * 3600e3; localStorage.setItem('ifu.s2.save', g.save()); window.__s2.freeze(); });
