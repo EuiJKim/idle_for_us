@@ -18,6 +18,7 @@ import { kindGrade } from '../grow/collect.js';
 import { loadLooks, zoneFor, drawHero, drawMob, mobName, mobHeight, preloadMobs, drawPaintedBack, drawPaintedLedge, drawEarth, preloadChapter, fxImg, oldImg, tintImg, ULT_ART, SEAL_ART, CUT_ART, BUFF_ART, BOSS_ART } from './look.js';
 import { BOSS_PATS } from '../tables/kit.js';
 import { play, unlock, setOpt, bgm } from './sound.js';
+import { PoseAnim, POSES } from '../../pose.js';
 // 설정(v504) — 이 기기에만(ifu.s2.opt). 소리 · 배경 가락 · 흔들림 · 피해 숫자 · 진동 · 그래픽 · 피해 측정기
 const OPT_KEY = 'ifu.s2.opt';
 const opt = Object.assign({ sfx: true, bgm: true, shake: true, nums: 'all', vib: true, gfx: 'high', dps: false }, (() => { try { return JSON.parse(localStorage.getItem(OPT_KEY) || '{}'); } catch { return {}; } })());
@@ -449,6 +450,20 @@ let lastCastAt = 0;
 const palAtk = [];          // 동료 i → { at, mid } 마지막 공격
 const tells = new Map();    // 두목 id → 예고 { pat, x, y, w, at, dur }
 const dust = [];   // 발밑 흙먼지
+const heroAnim = new PoseAnim();
+let lastAtkPose = 0, lastFreeze = 0;
+// 무인 공격 자세(지금 게임 자세 도감) — 평타는 짧게, 무공은 크게. 권사 평타는 정권 · 훅 · 올려치기를 번갈아
+function heroAttackPose(job, big) {
+  const K = {
+    sword: big ? [[0, '검거양'], [0.12, '내려베기', 'snap']] : [[0, '발도준비'], [0.07, '일섬', 'snap']],
+    spear: big ? [[0, '찌르기준비'], [0.12, '찌르기', 'snap']] : [[0, '찌르기준비'], [0.06, '찌르기', 'snap']],
+    fist: big ? [[0, '마보'], [0.12, '쌍장', 'snap']] : [[0.05, ['정권', '훅', '올려치기'][fistN++ % 3], 'snap']],
+    bow: [[0, '투척준비'], [big ? 0.14 : 0.08, '투척', 'snap']],
+    mage: big ? [[0, '펼치기'], [0.14, '장타', 'snap']] : [[0, '펼치기'], [0.08, '휘두르기', 'snap']],
+  }[job] || [[0, '발도준비'], [0.07, '일섬', 'snap']];
+  heroAnim.play(K, big ? 0.28 : 0.18);
+}
+let lookDir = 1, lastPoseT = 0, fistN = 0;
 let lastFight = null, lastDraw = 0, lookAhead = 0, zoomAt = -1e9, levelAt = -1e9, heroAirAt = 0, heroLandAt = -1e9, heroFace = 1, heroTurnFrom = 1, heroTurnAt = -1e9;
 const coins = [];
 // 피해 숫자 빛깔(위→아래) — 크기마다 한 번만 만든다(매 프레임 새로 만들지 않게)
@@ -564,12 +579,17 @@ function draw() {
   const al = Math.max(0, Math.min(1, acc / 50));
   const lx = (o) => (o.px === undefined ? o.x : o.px + (o.x - o.px) * al), ly = (o) => (o.py === undefined ? o.y : o.py + (o.y - o.py) * al);
   // 보는 쪽을 조금 더 넓게(앞을 내다봄) — 돌아서면 천천히 넘어간다
-  lookAhead += ((F.hero.face || 1) * viewW * 0.12 - lookAhead) * (1 - Math.exp(-fdt / 450));
+  // v506 앞을 내다보는 몫은 「걸어가는 쪽」으로만, 천천히(1초) — 제자리에서 몹 따라 돌아설 때마다 화면이 출렁이지 않게
+  const hvx = F.hero.px === undefined ? 0 : F.hero.x - F.hero.px;
+  if (Math.abs(hvx) > 20) lookDir = Math.sign(hvx);
+  lookAhead += (lookDir * viewW * 0.1 - lookAhead) * (1 - Math.exp(-fdt / 1000));
   const wantX = Math.max(0, Math.min(map.w - viewW, lx(F.hero) - viewW / 2 + lookAhead));
   const baseY = port ? Hh - dock - 36 : Hh * 0.74;   // 바닥(높이 0)이 그려질 화면 높이 — 아래 패널 위
   const wantY = Math.max(0, Math.min(Math.max(0, map.h - baseY / s), ly(F.hero) - viewH * 0.3));
   // 살짝 늦게 따라감 — 프레임 수와 상관없이 같은 빠르기(60·120Hz 모두)
   if (camSm === null || Math.abs(camSm - wantX) > viewW) camSm = wantX; else camSm += (wantX - camSm) * (1 - Math.exp(-fdt / 95));
+  // 무인은 늘 화면 가로 20~80% 안(달리면 끝으로 밀려나던 것)
+  { const hxw = lx(F.hero), lo = hxw - viewW * 0.8, hi = hxw - viewW * 0.2; camSm = Math.max(Math.max(0, lo), Math.min(Math.min(map.w - viewW, hi), camSm)); }
   if (camSy === null || Math.abs(camSy - wantY) > viewH) camSy = wantY; else camSy += (wantY - camSy) * (1 - Math.exp(-fdt / 160));
   const camX = camSm, camY = camSy;
   const P = (x, y) => [(x - camX) * s, baseY - (y - camY) * s];
@@ -620,7 +640,7 @@ function draw() {
     const pn = lastNext.get(m.id); if (pn !== undefined && m.nextAtk > pn) atkAt.set(m.id, t); lastNext.set(m.id, m.nextAtk);
     const aa = (t - (atkAt.get(m.id) ?? -1e9)) / 380, atk = aa >= 0 && aa < 1 ? aa : 0;
     // 맞음: 번쩍(0.07초) · 뒤로 젖혀짐 · 반대쪽으로 밀림
-    const ha = t - (mobHit.get(m.id) || -1e9), hurt = ha >= 0 && ha < 200 ? 1 - ha / 200 : 0, kx = ha >= 0 && ha < 140 ? Math.sign(m.x - H.x || 1) * 7 * k * (1 - ha / 140) : 0;
+    const ha = t - (mobHit.get(m.id) || -1e9), hurt = ha >= 0 && ha < 200 ? 1 - ha / 200 : 0, kx = ha >= 0 && ha < 140 ? Math.sign(m.x - H.x || 1) * (m.kind === 'boss' ? 2 : m.kind === 'elite' ? 4 : 7) * k * (1 - ha / 140) : 0;   // 두목 · 정예는 덜 밀린다
     const mw = m.moving && m.plat >= 0 && !(m.vy);
     cx.save();
     if (sa < 1) { cx.globalAlpha = sa; cx.translate(0, -(1 - sa) * 14 * k); }
@@ -685,7 +705,7 @@ function draw() {
   eqPal.forEach((kd, i) => {
     const wantX = lx(H) - H.face * (900 + i * 700), wantY = ly(H);
     const p = (pals[i] ??= { x: wantX, y: wantY, kind: PAL_KINDS[kd % PAL_KINDS.length] }); p.kind = PAL_KINDS[kd % PAL_KINDS.length];
-    const dx = wantX - p.x; p.mv = Math.abs(dx) > 60; p.x += dx * 0.08; p.y += (wantY - p.y) * 0.15; p.face = Math.abs(dx) > 60 ? Math.sign(dx) : H.face;
+    const dx = wantX - p.x; p.mv = Math.abs(dx) > 60; p.v = (p.v || 0) + ((Math.abs(dx) > 120 ? Math.sign(dx) * 4800 : dx * 8) - (p.v || 0)) * Math.min(1, fdt / 160); p.x += p.v * fdt / 1000; p.y += (wantY - p.y) * Math.min(1, fdt / 90);   // 고무줄처럼 늘었다 붙지 않고 달리듯(최고 속도 · 서서히 섬) p.face = Math.abs(dx) > 60 ? Math.sign(dx) : H.face;
     // 동료 공격: 표적 쪽으로 튀어 나갔다 돌아옴(0.35초) + 표적에 빛 고리
     const pa = palAtk[i], pt = pa && t - pa.at < 350 ? F.mobs.find((m) => m.id === pa.mid) : null;
     let ox = 0;
@@ -713,11 +733,15 @@ function draw() {
   const land = Math.max(0, 1 - (t - heroLandAt) / 170), air = H.plat < 0 ? Math.min(1, Math.abs(H.vy || 0) / 11000) : 0;
   const sqx = 1 + land * 0.12 - air * 0.06, sqy = 1 - land * 0.12 + air * 0.08;
   if ((H.face || 1) !== heroFace) { heroTurnFrom = heroFace; heroFace = H.face || 1; heroTurnAt = t; }
-  const tp = Math.min(1, (t - heroTurnAt) / 130), turn = heroTurnFrom + (heroFace - heroTurnFrom) * (tp * tp * (3 - 2 * tp));
+  const tp = Math.min(1, (t - heroTurnAt) / 90), tv = heroTurnFrom + (heroFace - heroTurnFrom) * (tp * tp * (3 - 2 * tp)), turn = Math.sign(tv || heroFace) * Math.max(0.55, Math.abs(tv));   // v506 돌아설 때 종잇장처럼 얇아지지 않게(최소 55%)
   cx.save(); cx.translate(hx, hy);
   if (hw) cx.rotate(Math.sin(ts * 14) * 0.06);
   cx.scale(sqx, sqy); cx.translate(-hx, -hy);
-  drawHero(cx, hx, hy, g.S.hero.job, g.S.hero.lv, { t: ts, run: heroRun > 0, turn: Math.abs(turn) < 0.08 ? 0.08 * Math.sign(turn || 1) : turn, lunge: Math.max(0, 1 - (t - lastHitAt) / 160), scale: sc });
+  heroAnim.tick(Math.max(0, (t - (lastPoseT || t)) / 1000)); lastPoseT = t;
+  let pose = heroAnim.sample();
+  if (!pose && H.plat < 0) pose = (H.vy || 0) > 0 ? { ...POSES.기모으기, crouch: 0, lift: 2, hand: [-1.1, 22], blade: -1.2, lean: -0.08, wscale: 1 } : { ...POSES.착지, crouch: 0.15, lift: 0, wscale: 1 };   // 오를 때 · 떨어질 때 자세가 다르다
+  else if (!pose && hw) { const ph = Math.sin(ts * 14); pose = { lean: 0.16, crouch: 0.1 + Math.abs(ph) * 0.12, lift: 0, dx: ph * 2, hand: [2.5 - ph * 0.4, 22], blade: -0.6, stretch: 0, alpha: 1, wscale: 1 }; }   // 달리기: 걸음마다 다리 벌어짐 · 팔 흔들기
+  drawHero(cx, hx, hy, g.S.hero.job, g.S.hero.lv, { t: ts, run: heroRun > 0, turn, pose, lunge: pose ? 0 : Math.max(0, 1 - (t - lastHitAt) / 160), scale: sc });
   cx.restore();
   // 레벨 업: 무인 위로 빛기둥과 고리(0.9초)
   const lu = (t - levelAt) / 900;
@@ -771,7 +795,7 @@ function draw() {
     if (a < 0) continue;   // 화살 · 기탄이 아직 날아가는 중
     if (opt.nums === 'off' || (opt.nums === 'crit' && !f.crit)) continue;
     // 튀어나오듯 커졌다 줄고(과하게 한 번 넘침) · 옆으로 살짝 흘러가며 · 치명은 처음에 떨린다
-    const [x0, y] = P(f.x, f.y), yy = y - 95 * sc - f.row * 22 * k - a * 22 * k;
+    const [x0r, y] = P(f.x, f.y), x0 = x0r + (f.row % 2 ? 14 : -14) * k * Math.min(1, f.row), yy = y - 95 * sc - f.row * 26 * k - a * 22 * k;   // 줄마다 좌우로 엇갈려 덜 가린다
     const pop = a < 0.12 ? 0.6 + (a / 0.12) * 0.75 : a < 0.22 ? 1.35 - ((a - 0.12) / 0.1) * 0.35 : 1;
     const x = x0 + (f.drift || 0) * a * 18 * k + (f.crit && a < 0.18 ? Math.sin(a * 220) * 2.5 * k : 0);
     const fs = Math.round((f.pal ? 14 : f.crit ? 24 : 18) * k * pop);
@@ -834,6 +858,7 @@ function frame() {
           fly += lag;
         } else fly = (e[6] || 0) * 70;
         mobHit.set(m.id, t + fly);
+        if (e[5] === 0 && t - lastAtkPose > 260) { lastAtkPose = t; heroAttackPose(job, false); }
         if (e[5] !== 2) { if (e[5] === 0 && !shot) play('swish'); setTimeout(() => play('hit', e[4]), fly); }
         // 근접 평타 — 검은 베기 호, 창은 찌르기 줄기, 권사는 맞는 자리에 충격(무기마다 다르게). 한 번 휘두를 때 한 번만
         if (e[5] === 0 && !shot && t - lastSwing > 120 && skillFx.length < 90) { lastSwing = t; skillFx.push({ at: t, shape: 'swing', job, x: H0.x, y: H0.y, tx: m.x, ty: m.y, face: Math.sign(m.x - H0.x) || H0.face || 1 }); }
@@ -849,7 +874,7 @@ function frame() {
       else if (e[0] === 'die') { play('down'); buzz(200); }
       else if (e[0] === 'burst') { tells.delete(e[2]); skillFx.push({ at: t, shape: 'boss', pat: e[3], x: e[4], y: e[5], w: e[6] }); shakeUntil = t + (e[7] ? 420 : 220); if (e[7]) { hurtFlash = t; buzz(60); } play('burst'); }
       else if (e[0] === 'kill') { play('kill'); if (killLog.length < 500) killLog.push(t); const m = mobs.get(e[2]); if (m && coins.length < 40) for (let j = 0; j < (m.kind === 'mob' ? 2 : 6); j++) coins.push({ x: m.x, y: m.y + 600, vx: ((j % 3) - 1) * 900 + ((m.id * 7 + j * 13) % 9 - 4) * 120, vy: 5200 + (j % 2) * 1500, at: t, j }); if (m && corpses.length < 30) corpses.push({ m: { id: m.id, kind: m.kind }, x: m.x, y: m.y, dir: m.dir || 1, at: t + 40 }); firstSeen.delete(e[2]); lastNext.delete(e[2]); atkAt.delete(e[2]); hpLag.delete(e[2]); if (m && skillFx.length < 90) skillFx.push({ at: t, shape: 'ring', x: m.x, y: m.y }); }
-      if (e[0] === 'cast') { play('skill'); lastCastAt = t; const tr = skillById(e[2])?.tier || 0; if (tr >= 2) freezeUntil = t + 60; if (tr >= 4) zoomAt = t; flashSlot(e[2]); }   // 큰 무공은 맞는 순간 0.06초 멈칫
+      if (e[0] === 'cast') { heroAttackPose(g.S.hero.job, true); lastAtkPose = t; play('skill'); lastCastAt = t; const tr = skillById(e[2])?.tier || 0; if (tr >= 3 && t - lastFreeze > 700) { freezeUntil = t + 45; lastFreeze = t; } if (tr >= 4) zoomAt = t; flashSlot(e[2]); }   // 큰 무공은 맞는 순간 0.06초 멈칫
       if (e[0] === 'cast' && skillById(e[2])?.tier === 5) { cutIn = { at: t, id: e[2] }; shakeUntil = t + 450; }
     }
   }

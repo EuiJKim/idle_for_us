@@ -44,7 +44,7 @@ function shade(hex, k) {
 
 // 무인 — 발끝 가운데 (x, y) · 화면 px
 export function drawHero(cx, x, y, job, lv, o = {}) {
-  drawFighter(cx, x, y, heroLook(lv), { t: o.t || 0, weapon: WEAPON[job] || 'sword', run: !!o.run, flip: !!o.flip, turn: o.turn, lunge: o.lunge || 0, scale: o.scale || 1 });
+  drawFighter(cx, x, y, heroLook(lv), { t: o.t || 0, weapon: WEAPON[job] || 'sword', run: !!o.run && !o.pose, flip: !!o.flip, turn: o.turn, lunge: o.lunge || 0, scale: o.scale || 1, pose: o.pose || null });
 }
 // 몹 — 엔진 몹 하나 → 그 지역 몹 그림 하나(id로 고정)
 // ── 몹 그리기(v501) — 장마다 몹 표(tables/mobs.js)의 그림. 한 장짜리 그림을 몸짓으로 살린다
@@ -71,7 +71,7 @@ export function drawMob(cx, x, y, m, z, o = {}) {
   if (m.kind === 'elite') { cx.save(); cx.globalAlpha = 0.28 + 0.12 * Math.sin(t * 4); cx.fillStyle = '#a855f7'; cx.beginPath(); cx.ellipse(x, y, 34 * sc, 10 * sc, 0, 0, 7); cx.fill(); cx.restore(); }
   if (src === 'cr') {
     cx.save(); cx.translate(x + dir * lunge, y); cx.rotate(dir * lean * 0.6); cx.translate(-x, -y);
-    drawCreature(cx, key, x, y, { t, moving: !!o.moving, flip, scale: 0.62 * (CR_SIZE[key] || 1) * sc });
+    drawCreature(cx, key, x, y, { t, moving: !!o.moving, flip, scale: 0.86 * (CR_SIZE[key] || 1) * sc });   // v506 사람 몹 옆에서 너무 작았다(0.62)
     cx.restore(); return;
   }
   const im = artImg(artPath(src, key));
@@ -84,16 +84,25 @@ export function drawMob(cx, x, y, m, z, o = {}) {
   const breathe = o.moving ? 0 : Math.sin(t * 2.3) * 0.018, bob = o.moving ? -Math.abs(Math.sin(t * 11)) * 3 * sc : 0;
   // 두목 그림은 앞을 보고 서 있어 뒤집지 않는다(옆으로 뒤집으면 칼 든 손이 바뀌어 어색) — 사람 몹 그림은 오른쪽을 본다
   const fl = src === 's2' ? flip : false;
+  // v506 한 장 그림을 허리(위 46%)에서 둘로 — 아래(다리)는 걸음마다 앞뒤로 엇갈려 기울고, 위(몸통 · 무기)는 치거나 맞을 때 허리를 축으로 돈다
+  const iw = im.width, ih = im.height, wy = 0.46, cut = ih * wy;
+  const step = o.moving ? Math.sin(t * 11) : 0, legShear = step * 0.2, upRot = (atk > 0 ? wind * 0.32 : 0) - hurt * 0.22;
   cx.save();
   cx.translate(x + dir * lunge, y + bob);
-  cx.rotate(dir * lean);
+  cx.rotate(dir * lean * 0.5);
   cx.scale(fl ? -1 : 1, 1 + breathe);
-  cx.drawImage(im, -w / 2, -h, w, h);
-  if (o.flash) { cx.globalCompositeOperation = 'source-atop'; }
+  // 아래: 허리를 축으로 발이 앞뒤로 쓸린다(밀어 기울이기)
+  cx.save(); cx.translate(0, -h * (1 - wy)); cx.transform(1, 0, legShear, 1, 0, 0);
+  cx.drawImage(im, 0, cut - 2, iw, ih - cut + 2, -w / 2, -2 * (h / ih), w, h * (1 - wy) + 2 * (h / ih));
+  cx.restore();
+  // 위: 허리를 축으로 돈다 · 걸을 때 반 박자씩 오르내림
+  cx.save(); cx.translate(0, -h * (1 - wy) - Math.abs(step) * 1.5 * sc); cx.rotate((fl ? -1 : 1) * dir * upRot);
+  cx.drawImage(im, 0, 0, iw, cut + 3, -w / 2, -h * wy, w, h * wy + 3 * (h / ih));
+  cx.restore();
   cx.restore();
 }
 export const mobName = (m, z, ch = 1) => mobLook(ch, m)[0] || '';
-export const mobHeight = (m, ch = 1) => { const [, a] = mobLook(ch, m); const src = a.split(':')[0]; return (src === 'cr' ? 62 : m.kind === 'boss' ? 118 : 100) * (m.kind === 'elite' ? 1.25 : 1); };
+export const mobHeight = (m, ch = 1) => { const [, a] = mobLook(ch, m); const src = a.split(':')[0]; return (src === 'cr' ? 66 * (CR_SIZE[a.split(':')[1]] || 1) : m.kind === 'boss' ? 118 : 100) * (m.kind === 'elite' ? 1.25 : 1); };
 
 // ── 옆보기 사냥터(S9 재설계) ── 하늘 · 먼 산(수묵) · 나무 그림자 · 층층 발판(이끼 돌 · 나무 난간)
 export function drawSideBack(cx, W, H, z, camX, t) {

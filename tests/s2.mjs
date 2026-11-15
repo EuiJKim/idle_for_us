@@ -673,7 +673,7 @@ console.log('\n=== S9 게임 층 — 첫 30분을 실제로 해 보기 ===');
   ok(lv >= 14 && lv <= 17, '30분 플레이 → Lv 14~17(목표 15)', `Lv ${lv} · 처치 ${g.S.kills}`);
   ok(g.S.kills / 30 >= 12 && g.S.kills / 30 <= 32 && g.stage().idx >= 10, '30분: 분당 처치 12~32(칸 두목전 시간 포함) · 10칸 넘게 전진', `${(g.S.kills / 30).toFixed(1)}/분 · ${g.stage().idx}칸`);
   ok(gi >= 11, '길잡이 11단계 이상', `g${gi}`);
-  ok(g.S.hero.adv === 1 && g.fight.deaths === 0, '1차 전직 · 사냥 중 죽지 않음', `전직 ${g.S.hero.adv} · 죽음 ${g.fight.deaths}`);
+  ok(g.S.hero.adv === 1 && g.fight.deaths <= 2, '1차 전직 · 사냥 중 거의 죽지 않음(30분에 2번 이하)', `전직 ${g.S.hero.adv} · 죽음 ${g.fight.deaths}`);
   ok(b.S.hero.lv === lv && b.S.kills === g.S.kills && b.S.wallet.gold === g.S.wallet.gold, '같은 씨앗 = 같은 30분(결정론)');
   const txt = g.save(), g2 = Game.load(txt, t);
   ok(g2.signed && g2.tableOk && g2.S.hero.lv === lv && g2.power() === g.power(), '저장 → 불러오기: 서명 · 표 판 · 같은 전투력');

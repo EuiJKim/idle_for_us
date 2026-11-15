@@ -210,17 +210,24 @@ export class SideFight {
         m.dir = Math.sign(H.x - m.x) || m.dir;
       }
       let walk;
-      if (m.angry && same) walk = !!m.chase;
+      if (m.angry && same) {
+        walk = !!m.chase;
+        // v506 줄 서기: 같은 쪽에서 무인에게 더 가까운 몹이 바로 앞(380mm 안)에 있으면 겹치지 않게 멈춘다
+        if (walk) for (const o of this.mobs) if (o !== m && o.plat === m.plat && Math.sign(o.x - H.x) === Math.sign(m.x - H.x) && Math.abs(o.x - H.x) < adx && adx - Math.abs(o.x - H.x) < 380) { walk = false; break; }
+      }
       else {
         // 서성임: 몇 초 걷고 잠깐 섰다가 방향을 고른다(매 순간 무작위로 뒤돌지 않게)
         if (this.t >= (m.nextTurn || 0)) { m.idle = !m.idle; m.nextTurn = this.t + (m.idle ? 800 + this.rng.int(1400) : 1600 + this.rng.int(2600)); if (!m.idle && this.rng.int(2)) m.dir = -m.dir; }
         walk = !m.idle;
       }
-      m.moving = walk;
-      if (walk) {
-        m.x += Math.round(m.dir * MOB_RUN * DT * (m.kind === 'boss' ? 0.6 : 1));
+      // v506 걸음은 0.2초에 걸쳐 빨라지고 0.15초에 걸쳐 멈춘다(뚝 서고 뚝 떠나지 않게)
+      m.spd = Math.max(0, Math.min(1000, (m.spd || 0) + (walk ? 250 : -340)));
+      m.moving = m.spd > 0;
+      if (m.spd > 0) {
+        m.x += Math.round((m.dir * MOB_RUN * DT * (m.kind === 'boss' ? 0.6 : 1) * m.spd) / 1000);
         if (m.x < p.x0 + 200) { m.x = p.x0 + 200; m.dir = 1; } else if (m.x > p.x1 - 200) { m.x = p.x1 - 200; m.dir = -1; }
-      } else if (m.angry && same && adx <= reach + 100 && this.t >= m.nextAtk && H.plat >= 0) {
+      }
+      if (walk) { /* 걷는 중 */ } else if (m.angry && same && adx <= reach + 100 && this.t >= m.nextAtk && H.plat >= 0) {
         const r = hit(m, H, SKILL_BASE, this.rng);
         H.hp -= r.dmg; this.dmgIn += r.dmg; m.nextAtk = this.t + m.atkMs;
         this.events.push(['hurt', this.t, r.dmg]);
