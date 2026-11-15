@@ -182,16 +182,79 @@
     body:not(.land) #loglines { bottom: 160px; }
     body:not(.land) #toast { bottom: 170px; }
     /* 창: 가로면 가운데에 크게 뜬다 · 카드 두 줄 */
-    body.land #panel, body.land #panel.full { left: 50%; right: auto; top: 4%; bottom: 4%; height: auto; width: min(94vw, 1040px); max-width: none; margin: 0; border-radius: 16px; border: 1px solid rgba(212,166,74,.35); transform: translate(-50%, 110vh); }
-    body.land #panel.open { transform: translate(-50%, 0); }
-    body.land #panel-head, body.land #panel.full #panel-head { padding: 9px 12px; border-radius: 16px 16px 0 0; }
-    body.land #panel-grip { display: none; }
-    body.land #panel-dim.open { background: rgba(0,0,0,.45); }
     body.land #wb { column-count: 2; column-gap: 10px; }
     body.land #wb > * { break-inside: avoid; }
     body.land #wb > .card, body.land #wb > .row { display: inline-block; width: 100%; box-sizing: border-box; }
     body.land #wb > .eqpage, body.land #wb > .gxb, body.land #wb > .grid, body.land #wb > .inv-grid, body.land #wb > .gear-grid { column-span: all; }
     body.land #modal .sheet { max-width: 520px; max-height: 88vh; overflow: auto; }
+    /* ── v511 창 — 들판 HUD와 같은 결: 아래 메뉴 바로 위까지 덮는 큰 창 · 왼쪽 아이콘 레일 · 밑줄 칸 · 평평한 카드 · 금빛 주 단추 ── */
+    #panel, #panel.full, body.land #panel, body.land #panel.full {
+      position: fixed; z-index: 48; left: var(--sl); right: var(--sr); top: var(--st); bottom: calc(var(--sb) + 66px); height: auto; width: auto; max-width: 1120px; margin: 0 auto;
+      display: grid; grid-template-columns: 74px minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); grid-template-areas: "head head" "rail body";
+      padding: 0; border-radius: 16px; border: 1px solid rgba(255,255,255,.12); background: rgba(18,15,12,.97); box-shadow: 0 12px 40px rgba(0,0,0,.6);
+      opacity: 0; transform: scale(.97); visibility: hidden; transition: opacity .16s ease, transform .16s ease, visibility 0s linear .16s;
+    }
+    #panel.open, body.land #panel.open { opacity: 1; transform: none; visibility: visible; transition: opacity .16s ease, transform .16s ease; }
+    #panel::before { display: none; }
+    #panel-dim, #panel-dim.open, body.land #panel-dim.open { background: rgba(0,0,0,.5); }
+    #mb { z-index: 49; }   /* 창이 열려도 아래 메뉴는 그대로 — 눌러서 다른 창으로 */
+    #panel-grip { display: none; }
+    #panel-head, #panel.full #panel-head, body.land #panel-head { grid-area: head; display: flex; align-items: center; gap: 10px; padding: 10px 12px 10px 16px; border: 0; border-bottom: 1px solid rgba(255,255,255,.08); border-radius: 16px 16px 0 0; background: rgba(255,255,255,.03); }
+    #panel-title { display: flex; align-items: center; gap: 8px; font-family: inherit; font-size: 18px; font-weight: 800; color: #fff; letter-spacing: 0; }
+    #panel-title .ic { width: 22px; height: 22px; color: var(--gold); }
+    #panel-head .res-row { flex: 1; display: flex; justify-content: flex-end; gap: 6px; margin: 0; }
+    #panel-head .cur-pill { color: #fff; }
+    #panel-close { width: 36px; height: 36px; border-radius: 50%; border: 0; background: rgba(255,255,255,.1); color: #fff; font-size: 16px; }
+    /* 왼쪽 레일: 창 일곱 */
+    #ptabs, body:not(.pc-wide) #ptabs { grid-area: rail; display: flex; flex-direction: column; gap: 4px; padding: 8px 6px; overflow-y: auto; background: rgba(0,0,0,.25); border-right: 1px solid rgba(255,255,255,.06); border-radius: 0 0 0 16px; scrollbar-width: none; }
+    #ptabs button, body:not(.pc-wide) #ptabs button { position: relative; flex: none; min-width: 0; width: 100%; padding: 7px 0 6px; border-radius: 10px; border: 0; background: transparent; color: rgba(255,255,255,.62); display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: 11px; font-weight: 700; }
+    #ptabs button .ic { width: 22px; height: 22px; }
+    #ptabs button span { line-height: 1; white-space: nowrap; }
+    #ptabs button.active, body:not(.pc-wide) #ptabs button.active { background: rgba(212,166,74,.18); color: #fff; border: 0; }
+    #ptabs button.active .ic { color: var(--gold); }
+    #ptabs button.active::before { content: ''; position: absolute; left: -6px; top: 10px; bottom: 10px; width: 3px; border-radius: 0 3px 3px 0; background: var(--gold); }
+    #ptabs button.dot-on::after { top: 4px; right: 10px; }
+    /* 본문 */
+    #panel-body { grid-area: body; min-height: 0; overflow-y: auto; padding: 0 14px 16px; }
+    #panel-body .subtabs { position: sticky; top: 0; z-index: 3; margin: 0 -14px 10px; padding: 0 14px; background: rgba(22,18,14,.98); border-bottom: 1px solid rgba(255,255,255,.08); }
+    #panel-body .seg.wide { display: flex; gap: 2px; background: none; border-radius: 0; padding: 0; overflow-x: auto; scrollbar-width: none; }
+    #panel-body .seg.wide button { flex: 0 0 auto; padding: 11px 14px 9px; border-radius: 0; background: none; color: rgba(255,255,255,.55); font-size: 13.5px; font-weight: 700; border-bottom: 2px solid transparent; }
+    #panel-body .seg.wide button.on { background: none; color: #fff; border-bottom-color: var(--gold); }
+    #panel-body > #wb { padding-top: 2px; }
+    #panel-body:not(:has(.subtabs)) > #wb { padding-top: 12px; }
+    /* 카드 · 줄 · 단추 — 평평하게 */
+    #panel .card { background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.08); border-radius: 12px; box-shadow: none; padding: 11px 12px; margin-bottom: 10px; }
+    #panel .card::before { display: none; }
+    #panel .card h3 { font-family: inherit; font-size: 13.5px; font-weight: 800; color: #fff; margin: 0 0 8px; }
+    #panel .card h3 small { color: rgba(255,255,255,.5); font-weight: 600; }
+    #panel .row, #panel .card .row { background: rgba(255,255,255,.045); border: 0; border-radius: 10px; padding: 9px 10px; margin-bottom: 6px; }
+    #panel .row .name { font-family: inherit; font-size: 13.5px; color: #fff; }
+    #panel .row .desc { color: rgba(255,255,255,.55); }
+    #panel .row .ico { font-family: inherit; font-size: 15px; width: 34px; height: 34px; line-height: 34px; border-radius: 9px; background: rgba(212,166,74,.14); color: var(--gold); }
+    #panel .btn { border-radius: 9px; border: 0; background: rgba(255,255,255,.1); color: #fff; font-weight: 800; box-shadow: none; }
+    #panel .btn.primary { background: linear-gradient(180deg, #f6cf62, #e0a53a); color: #2a1a05; box-shadow: 0 2px 0 #9a6a16; }
+    #panel .btn:disabled { opacity: .4; box-shadow: none; }
+    #panel .stat-grid div { background: rgba(255,255,255,.04); border-radius: 9px; color: rgba(255,255,255,.6); }
+    #panel .stat-grid b { color: #fff; }
+    #panel .note { color: rgba(255,255,255,.5); }
+    /* 세로: 레일이 창 머리 밑 가로 줄로 */
+    body:not(.land) #panel { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto minmax(0, 1fr); grid-template-areas: "head" "rail" "body"; bottom: 66px; }
+    body:not(.land) #ptabs { flex-direction: row; overflow-x: auto; border-right: 0; border-bottom: 1px solid rgba(255,255,255,.06); border-radius: 0; padding: 6px; }
+    body:not(.land) #ptabs button { width: 58px; }
+    body:not(.land) #ptabs button.active::before { display: none; }
+    @media (prefers-reduced-motion: reduce) { #panel, #panel.open { transition: none; transform: none; } }
+    /* 키 낮은 가로 폰: 창 머리 · 레일 · 칸을 낮게(레일 일곱이 다 보이게) */
+    @media (max-height: 500px) {
+      #panel-head, #panel.full #panel-head, body.land #panel-head { padding: 5px 10px 5px 14px; }
+      #panel-title { font-size: 16px; } #panel-close { width: 30px; height: 30px; font-size: 14px; }
+      #ptabs, body:not(.pc-wide) #ptabs { gap: 1px; padding: 4px 5px; }
+      #ptabs button, body:not(.pc-wide) #ptabs button { height: 35px; padding: 0; justify-content: center; gap: 2px; font-size: 9.5px; }
+      #ptabs button .ic { width: 18px; height: 18px; }
+      #ptabs button.active::before { left: -5px; top: 6px; bottom: 6px; }
+      #panel-body .seg.wide button { padding: 7px 12px 6px; font-size: 12.5px; }
+      #panel, #panel.full, body.land #panel, body.land #panel.full { bottom: var(--sb); }   /* 아래 메뉴는 창 위에 떠 있다 — 본문 끝에 그만큼 여백 */
+      #panel-body { padding-bottom: 76px; }
+    }
   </style>
 </head>
 <body>

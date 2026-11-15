@@ -72,16 +72,28 @@ function pop(title, html, acts = [['확인', null]]) {
 
 // ── 창 — 지금 게임과 같은 일곱 창(들판 양옆 단추 · 창 머리 줄) + 설정(⚙). 칸은 붉은 알약(.subtabs .seg.wide) ──
 const TABS = [
-  ['map', '지도', [['스테이지', 'content:3']]],
-  ['dgn', '던전', [['수련동', 'content:0'], ['무한 탑', 'content:1'], ['원정', 'content:2']]],
-  ['town', '마을', [['길잡이', 'mission:0'], ['일일', 'mission:1'], ['주간', 'mission:2'], ['경지', 'grow:3'], ['강호행', 'grow:4']]],
-  ['social', '무림', [['월드보스', 'rival:0'], ['대결', 'rival:1'], ['문파', 'rival:2']]],
   ['char', '캐릭터', [['스탯', 'hero:0'], ['무공', 'hero:1'], ['무공 강화', 'hero:4'], ['마스터리', 'hero:2'], ['전직', 'hero:3']]],
-  ['bag', '가방', [['장착', 'gear:0'], ['뽑기', 'gear:1'], ['강화·성혼', 'gear:2'], ['가방', 'gear:3']]],
+  ['bag', '장비', [['장착', 'gear:0'], ['뽑기', 'gear:1'], ['강화·성혼', 'gear:2'], ['가방', 'gear:3']]],
   ['comp', '동료', [['병기', 'grow:0'], ['동료', 'grow:1'], ['영물', 'grow:2']]],
+  ['dgn', '던전', [['수련동', 'content:0'], ['무한 탑', 'content:1'], ['원정', 'content:2']]],
+  ['map', '지도', [['스테이지', 'content:3']]],
+  ['town', '임무', [['길잡이', 'mission:0'], ['일일', 'mission:1'], ['주간', 'mission:2'], ['경지', 'grow:3'], ['강호행', 'grow:4']]],
+  ['social', '무림', [['월드보스', 'rival:0'], ['대결', 'rival:1'], ['문파', 'rival:2']]],
   ['opt', '설정', [['설정', 'mission:3']]],
 ];
 const MAIN_TABS = TABS.filter((t) => t[0] !== 'opt');
+// v511 창 아이콘 — 들판 HUD와 같은 선 그림(s2.html의 .ic)
+const ICON = {
+  char: '<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7"/>',
+  bag: '<path d="M8 3L3 6l2 5 3-1v11h8V10l3 1 2-5-5-3c-.6 1.8-2.1 3-4 3S8.6 4.8 8 3z"/>',
+  comp: '<circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.6 2.7-6 6-6s6 2.4 6 6"/><circle cx="17" cy="9" r="2.5"/><path d="M15.6 14.2c3 .2 5.4 2.3 5.4 5.8"/>',
+  dgn: '<path d="M4 21V9l8-6 8 6v12"/><path d="M9 21v-6a3 3 0 0 1 6 0v6"/>',
+  map: '<path d="M3 6l6-3 6 3 6-3v15l-6 3-6-3-6 3z"/><path d="M9 3v15M15 6v15"/>',
+  town: '<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h4"/>',
+  social: '<path d="M5 21V3"/><path d="M5 4h12l-2.5 4L17 12H5"/>',
+  opt: '<path d="M4 7h16M4 12h16M4 17h16"/>',
+};
+const ico = (k) => `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true">${ICON[k] || ''}</svg>`;
 const keyOf = () => TABS.find((t) => t[0] === open)?.[2][tab]?.[1];
 // 내용 열쇠(예: 'hero:1')로 그 창 · 그 칸 열기
 function openKey(key) { for (const [id, , subs] of TABS) { const i = subs.findIndex((x) => x[1] === key); if (i >= 0) { openWin(id, i); return; } } }
@@ -135,7 +147,7 @@ function showGacha(r) {
 function openWin(id, t = 0) { open = id; tab = t; $('panel').classList.add('open'); $('panel-dim').classList.add('open'); paintWin(); paintNav(); }
 function closeWin() { open = null; $('panel').classList.remove('open'); $('panel-dim').classList.remove('open'); paintNav(); }
 function paintNav() {
-  if (!$('ptabs').children.length) for (const [id, name] of MAIN_TABS) { const b = document.createElement('button'); b.dataset.tab = id; b.innerHTML = `<span>${name}</span>`; b.onclick = () => { play('click'); openWin(id); }; $('ptabs').append(b); }
+  if (!$('ptabs').children.length) for (const [id, name] of MAIN_TABS) { const b = document.createElement('button'); b.dataset.tab = id; b.innerHTML = `${ico(id)}<span>${name}</span>`; b.onclick = () => { play('click'); openWin(id); }; $('ptabs').append(b); }
   for (const b of document.querySelectorAll('.nb[data-tab], #ptabs button[data-tab]')) b.classList.toggle('active', b.dataset.tab === open);
   navDots();
 }
@@ -159,8 +171,8 @@ function rowEl(k, v, btns = []) {
 function paintWin() {
   if (!open) return;
   const M = TABS.find((m) => m[0] === open);
-  $('panel-title').textContent = M[1];
-  $('panel-head').querySelector('.res-row').innerHTML = `<div class="res res-silver"><span class="cur silver">은</span><b>${unit(g.S.wallet.gold)}</b></div><div class="res res-potion"><span class="cur potion">권</span><b>${g.S.wallet['ticket:gear'] || 0}</b></div>`;
+  $('panel-title').innerHTML = `${ico(M[0])}<span>${M[1]}</span>`;
+  $('panel-head').querySelector('.res-row').innerHTML = `<span class="cur-pill"><i class="coin s"></i><b>${unit(g.S.wallet.gold)}</b></span><span class="cur-pill"><i class="coin t"></i><b>${g.S.wallet['ticket:gear'] || 0}</b></span>`;
   const PB = $('panel-body'), keepScroll = PB.dataset.key === `${open}:${tab}` ? PB.scrollTop : 0; PB.innerHTML = ''; PB.dataset.key = `${open}:${tab}`;
   if (M[2].length > 1) {
     const st = document.createElement('div'); st.className = 'subtabs'; const seg = document.createElement('div'); seg.className = 'seg wide';
