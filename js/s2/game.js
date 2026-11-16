@@ -10,11 +10,12 @@ import { makeMob } from './battle/ref.js';
 import { mobExp, KILLS_PER_MIN, STD_ROOM } from './tables/exp.js';
 import { goldPerMob } from './tables/gearstat.js';
 import { LEVEL_MAX, JOB_LV } from './tables/progress.js';
-import { START_PULL_TICKETS } from './tables/gear.js';
+import { START_PULL_TICKETS, SLOTS } from './tables/gear.js';
 import { START_PULLS } from './tables/s5.js';
 import { DAILY_DUNGEONS, DAILY_RUNS, JOB_DUNGEON } from './tables/content.js';
 import { GUIDE, DAILY_MISSIONS, WEEKLY_MISSIONS, achievements, guideCurrent } from './tables/missions.js';
 import { JOB_ADV } from './tables/skills.js';
+import { CHBOSS, CB, cbGearGrade, CB_REPEAT } from './tables/chboss.js';
 import * as GR from './gear/gear.js';
 import * as GC from './gear/gacha.js';
 import * as CL from './grow/collect.js';
@@ -178,16 +179,23 @@ export class Game {
     return this.S.hero.lv > (T.failLv || 0) || this.power() * 1000 >= (T.failPw || 0) * (1000 + AUTO_RETRY_PW);
   }
   // 칸 두목 도전 — 두목 하나 · 제한 시간 · 이기면 다음 칸
+  isChapterBoss(idx = this.stage().idx) { return idx % 10 === 0; }
   challenge() {
     if (!this.canChallenge()) return false;
-    const L = this.zoneLv();
-    const def = { lv: L, boss: true, map: makeSideMap(5000 + L, { w: 14000, tiers: 1 }), fams: { b: { mobs: [{ lv: L, kind: 'boss', w: 1 }], keep: 0, coolMs: 1e12 } } };
+    const L = this.zoneLv(), chb = this.isChapterBoss(L), ch = Math.ceil(L / 10);
+    // v532 장 두목(10칸마다): 전용 무대(좁고 한 층) · 체력 ×1.5(막대 세 줄) · 150초 · 국면 · 무력화 · 졸개
+    const def = chb
+      ? { lv: L, boss: true, chb: ch, map: makeSideMap(9000 + ch, CB.arena), fams: { b: { mobs: [{ lv: L, kind: 'boss', w: 1 }], keep: 0, coolMs: 1e12 }, a: { mobs: [{ lv: L, kind: 'mob', w: 1 }], keep: 0, coolMs: 1e12 } } }
+      : { lv: L, boss: true, map: makeSideMap(5000 + L, { w: 14000, tiers: 1 }), fams: { b: { mobs: [{ lv: L, kind: 'boss', w: 1 }], keep: 0, coolMs: 1e12 } } };
     const F = new SideFight(def, this.fighter(), this.rng.u32(), { auto: this.S.auto !== false });
-    F.spawn('b', { p: 0, x: 9000 });
-    for (const m of F.mobs) { m.hp = Math.round(m.hp * STAGE_BOSS_HP_X); m.st = { ...m.st, hp: m.hp }; }
-    F.limitMs = STAGE_BOSS_MS;
+    F.spawn('b', { p: 0, x: chb ? Math.round(CB.arena.w * 0.72) : 9000 });
+    for (const m of F.mobs) {
+      m.hp = Math.round(m.hp * (chb ? CB.hpX : STAGE_BOSS_HP_X)); m.st = { ...m.st, hp: m.hp };
+      if (chb) { const D = CHBOSS[ch]; m.cb = { ch, pats: D.pats, phase: 0, gg: 0 }; m.name = D.name; }
+    }
+    F.limitMs = chb ? CB.limitMs : STAGE_BOSS_MS;
     this.bossFight = F;
-    this.feed.push({ k: 'challenge', idx: L });
+    this.feed.push({ k: 'challenge', idx: L, chb: chb ? ch : 0 });
     return true;
   }
   endChallenge(win) {
@@ -198,7 +206,18 @@ export class Game {
     // 칸 보상: 은자 · 뽑기권(경험치는 사냥이 정한다 — 곡선 J1). 결과 창이 실제 숫자 · 걸린 시간 · 진 까닭을 보여 준다(v513)
     const gold = win ? Math.round(2 * KILLS_PER_MIN * goldPerMob(L)) : 0, tix = win ? (L % 10 === 0 ? 10 : 1) : 0;
     if (win) { this.S.wallet.gold += gold; this.S.wallet['ticket:gear'] = (this.S.wallet['ticket:gear'] || 0) + tix; }
-    this.feed.push({ k: win ? 'stage-clear' : 'stage-fail', idx: L, rewardMin: win ? 2 : 0, gold, tix, ms, deaths, bossLeft, next: T.idx, limitMs: BF?.limitMs || 0 });
+    // v532 장 두목 — 첫 처치: 그 장 확정 장비 + 칭호 · 다시: 강화석 · 뽑기권
+    let chb = null;
+    if (BF?.def.chb) {
+      const ch = BF.def.chb, rec = (this.S.chb ??= {}), first = win && !rec[ch];
+      chb = { ch, name: CHBOSS[ch].name, title: CHBOSS[ch].title, first, gear: null, stones: 0, tix2: 0 };
+      if (win) {
+        rec[ch] = (rec[ch] || 0) + 1;
+        if (first) { const it = GR.makeGear(this.rng, SLOTS[this.rng.int(SLOTS.length)], cbGearGrade(ch)); chb.gear = { g: it.g, slot: it.slot, up: it.up }; this.obtain([it]); (this.S.titles ??= []).push(`${CHBOSS[ch].name} 격파`); }
+        else { const dd = (this.S.chbDay ??= {}), dk = dayKey(this.now); if (dd[ch] !== dk) { dd[ch] = dk; chb.stones = CB_REPEAT.stones; chb.tix2 = CB_REPEAT.tix; this.S.wallet['item:stone'] = (this.S.wallet['item:stone'] || 0) + chb.stones; this.S.wallet['ticket:gear'] = (this.S.wallet['ticket:gear'] || 0) + chb.tix2; } }   // 다시 깬 보상은 장마다 하루 한 번
+      }
+    }
+    this.feed.push({ k: win ? 'stage-clear' : 'stage-fail', idx: L, rewardMin: win ? 2 : 0, gold, tix, ms, deaths, bossLeft, next: T.idx, limitMs: BF?.limitMs || 0, chb });
   }
   // 손 조작 — 방향(누르는 동안) · 점프 · 내려가기 · 무공 · 자동 켜고 끄기(세이브에 남음)
   hold(dir) { this.ensureFight().press({ dir }); }

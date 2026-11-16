@@ -8,6 +8,7 @@ import { makeMob, SKILL_BASE, SKILL_MAIN } from './ref.js';
 import { JOBS } from '../tables/char.js';
 import { BASE_REGEN_P } from '../tables/economy.js';
 import { PAL_ATK, BOSS_PATS, BOSS_PAT_EVERY, skillById } from '../tables/kit.js';
+import { CB_PATS, CB } from '../tables/chboss.js';
 
 export const RUN = 4200, MOB_RUN = 1600, GRAV = 22000, JUMP_V = 11000, SAME_Y = 500;   // mm/s · mm/s² · mm
 export const MAIN_HITS = 4;          // 주력 무공은 앞쪽 여러 마리(장르 공통 — 한 번에 쓸어 담는 맛)
@@ -50,6 +51,7 @@ export class SideFight {
     this.mobs = []; this.uid = 0;
     this.kills = 0; this.killsBy = {}; this.dmgOut = 0; this.dmgIn = 0; this.crits = 0; this.deaths = 0;
     this.auto = opts.auto !== false;
+    this.autoDodge = opts.autoDodge !== false;   // v532 자동이면 두목 패턴을 피한다(나중에 「수동만 피함」으로 바꿀 손잡이)
     this.input = { dir: 0 };
     this.log = { seed, actions: [] };
     this.events = [];
@@ -129,8 +131,10 @@ export class SideFight {
         } else dir = Math.sign(dx) || 1;
       }
       // v505 자동이면 두목 패턴의 붉은 범위 안에서 가까운 쪽 밖으로 비킨다(수동은 직접 피해야 한다)
-      for (const m of this.mobs) {
-        const q = m.pat; if (!q || this.t > q.end || Math.abs(H.y - q.y) > SAME_Y + 600 || Math.abs(H.x - q.x) > q.w / 2 + 250) continue;
+      if (this.autoDodge) for (const m of this.mobs) {
+        const q = m.pat; if (!q || this.t > q.end || q.shape === 'summon') continue;
+        if (q.shape === 'ult') { if (H.x >= q.safe[0] + 300 && H.x <= q.safe[1] - 300) continue; dodge = true; dir = Math.sign((q.safe[0] + q.safe[1]) / 2 - H.x) || 1; H.closing = false; jump = false; down = false; break; }
+        if (Math.abs(H.y - q.y) > SAME_Y + 600 || Math.abs(H.x - q.x) > q.w / 2 + 250) continue;
         dodge = true;
         const out = Math.sign(H.x - q.x) || -(H.face || 1), edge = q.x + out * (q.w / 2 + 300);
         if ((out > 0 && edge > map.w - 200) || (out < 0 && edge < 200)) dir = -out; else dir = out;
@@ -189,15 +193,31 @@ export class SideFight {
     // ── 두목 패턴(v497) ── 예고 → 잠시 뒤 범위 안이면 맞음(수동이면 피할 수 있다)
     for (const m of this.mobs) {
       if (m.kind !== 'boss' || !m.angry) continue;
+      const cb = m.cb;
+      if (cb && m.stunUntil > this.t) { m.pat = null; continue; }   // v532 기절 중엔 패턴 없음
       if (!m.pat && this.t >= (m.nextPat ??= this.t + 3000)) {
-        const P = BOSS_PATS[this.rng.int(BOSS_PATS.length)];
-        const cx2 = P.shape === 'target' ? H.x : P.shape === 'line' ? m.x + Math.sign(H.x - m.x || 1) * P.w / 2 : m.x;
-        m.pat = { id: P.id, at: this.t, end: this.t + P.tellMs, x: cx2, y: m.y, w: P.w, dmgX: P.x, shape: P.shape };
-        this.events.push(['tell', this.t, m.id, P.id, cx2, m.y, P.w, P.tellMs]);
+        let P;
+        if (cb && cb.phase >= 2 && this.t >= (m.nextUlt || 0)) { P = CB_PATS.ult; m.nextUlt = this.t + CB.ultEveryMs; }
+        else { const list = cb ? cb.pats.map((id) => CB_PATS[id]) : BOSS_PATS; P = list[this.rng.int(list.length)]; }
+        let cx2 = P.shape === 'target' ? H.x : P.shape === 'line' ? m.x + Math.sign(H.x - m.x || 1) * P.w / 2 : m.x, w = P.w, safe = null;
+        if (P.shape === 'ult') {   // 화면 전체 — 무인에게서 3~6미터 떨어진 안전 지대 하나
+          const side = this.rng.int(2) ? 1 : -1, d = 3000 + this.rng.int(3000);
+          let sc = H.x + side * d; if (sc < 1600 || sc > map.w - 1600) sc = H.x - side * d;
+          sc = Math.max(1600, Math.min(map.w - 1600, sc));
+          safe = [sc - P.safe / 2, sc + P.safe / 2]; cx2 = map.w / 2; w = map.w;
+        }
+        m.pat = { id: P.id, at: this.t, end: this.t + P.tellMs, x: cx2, y: m.y, w, dmgX: P.x, shape: P.shape, safe, move: P.move, n: P.n, dir: Math.sign(H.x - m.x) || 1 };
+        this.events.push(['tell', this.t, m.id, P.id, cx2, m.y, w, P.tellMs, safe ? safe[0] : null, safe ? safe[1] : null]);
       }
       if (m.pat && this.t >= m.pat.end) {
-        const q = m.pat; m.pat = null; m.nextPat = this.t + BOSS_PAT_EVERY;
-        const inside = Math.abs(H.x - q.x) <= q.w / 2 && Math.abs(H.y - q.y) <= SAME_Y + 600;
+        const q = m.pat; m.pat = null; m.nextPat = this.t + Math.round(BOSS_PAT_EVERY * (cb ? CB.patEveryX[cb.phase] : 1));
+        if (q.shape === 'summon') {   // 졸개 — 두목 양옆에
+          if (this.def.fams.a) for (let i = 0; i < q.n; i++) this.spawn('a', { p: m.plat, x: m.x + (i - 1) * 1300 });
+          this.events.push(['summon', this.t, m.id, q.n]);
+          continue;
+        }
+        if (q.move) { const p2 = map.plats[m.plat]; m.x = Math.max(p2.x0 + 300, Math.min(p2.x1 - 300, q.x + q.dir * q.w / 2 - q.dir * 600)); }   // 돌진: 범위 끝까지
+        const inside = q.shape === 'ult' ? !(H.x >= q.safe[0] && H.x <= q.safe[1]) : Math.abs(H.x - q.x) <= q.w / 2 && Math.abs(H.y - q.y) <= SAME_Y + 600;
         this.events.push(['burst', this.t, m.id, q.id, q.x, q.y, q.w, inside ? 1 : 0]);
         if (inside) {
           const r = hit({ ...m, st: { ...m.st, atk: Math.round(m.st.atk * q.dmgX) } }, H, SKILL_BASE, this.rng);
@@ -209,6 +229,7 @@ export class SideFight {
     // ── 몹 ── 맞으면 같은 층에서 무인 쪽으로 와서 친다 · 아니면 발판 위를 서성
     for (const m of this.mobs) {
       const p = map.plats[m.plat];
+      if (m.stunUntil > this.t) { m.spd = 0; m.moving = false; continue; }   // v532 기절
       const same = Math.abs(m.y - H.y) <= SAME_Y, adx = Math.abs(H.x - m.x);
       // 화난 몹: 같은 층이면 붙어 친다 — 서는 거리는 몹마다 조금씩 달라(450~930mm) 한 자리에 겹쳐 서지 않는다(v501)
       //   (서는 거리 + 300 넘게 벌어져야 다시 쫓음 — 경계 떨림 없음)
@@ -232,12 +253,12 @@ export class SideFight {
       m.spd = Math.max(0, Math.min(1000, (m.spd || 0) + (walk ? 250 : -340)));
       m.moving = m.spd > 0;
       if (m.spd > 0) {
-        m.x += Math.round((m.dir * MOB_RUN * DT * (m.kind === 'boss' ? 0.6 : 1) * m.spd) / 1000);
+        m.x += Math.round((m.dir * MOB_RUN * DT * (m.kind === 'boss' ? (m.cb?.phase ? 0.9 : 0.6) : 1) * m.spd) / 1000);
         if (m.x < p.x0 + 200) { m.x = p.x0 + 200; m.dir = 1; } else if (m.x > p.x1 - 200) { m.x = p.x1 - 200; m.dir = -1; }
       }
       if (walk) { /* 걷는 중 */ } else if (m.angry && same && adx <= reach + 100 && this.t >= m.nextAtk && H.plat >= 0) {
         const r = hit(m, H, SKILL_BASE, this.rng);
-        H.hp -= r.dmg; this.dmgIn += r.dmg; m.nextAtk = this.t + m.atkMs;
+        H.hp -= r.dmg; this.dmgIn += r.dmg; m.nextAtk = this.t + Math.round(m.atkMs * (m.cb?.phase ? 0.75 : 1));
         this.events.push(['hurt', this.t, r.dmg]);
         if (H.hp <= 0) { this.deaths++; H.hp = H.st.hp; this.events.push(['die', this.t]); for (const k of this.mobs) { k.angry = false; k.pat = null; } }   // v527 쓰러지면 두목 예고도 거둔다(남은 붉은 범위를 영원히 피하며 제자리에서 흔들리던 것)
       }
@@ -305,7 +326,14 @@ export class SideFight {
   }
   strike(m, skill, hitNo = 0, att = null) {
     const r = hit(att || this.hero, m, skill, this.rng);
+    if (m.stunUntil > this.t) r.dmg = Math.round(r.dmg * CB.stunDmgX);   // v532 기절한 두목은 피해 ×2
     m.hp -= r.dmg; m.angry = true; this.dmgOut += r.dmg; if (r.crit) this.crits++;
+    const cb = m.cb;
+    if (cb && m.hp > 0) {
+      if (!skill.base && !skill.pal && !(m.stunUntil > this.t)) { cb.gg += CB.ggPerHit; if (cb.gg >= 1000) { cb.gg = 0; m.stunUntil = this.t + CB.stunMs; m.pat = null; this.events.push(['stun', this.t, m.id, CB.stunMs]); } }
+      const ratio = m.hp / m.st.hp, ph = ratio <= CB.phase[1] ? 2 : ratio <= CB.phase[0] ? 1 : 0;
+      if (ph > cb.phase) { cb.phase = ph; m.nextPat = Math.min(m.nextPat ?? this.t, this.t + 900); if (ph === 2) m.nextUlt = this.t + 1200; this.events.push(['phase', this.t, m.id, ph]); }
+    }
     this.events.push(['hit', this.t, m.id, r.dmg, r.crit ? 1 : 0, skill.pal ? 2 : skill.base ? 0 : 1, hitNo]);
     if (m.hp <= 0) {
       this.kills++; this.killsBy[m.kind] = (this.killsBy[m.kind] || 0) + 1;

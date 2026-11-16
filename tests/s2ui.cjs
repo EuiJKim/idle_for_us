@@ -79,6 +79,14 @@ const ok = (c, m, x = '') => { console.log(`  ${c ? '✓' : '✗ !!'} ${m}${x !=
     await page.click('#dg-leave'); await page.waitForTimeout(400);
     ok(await page.evaluate(() => !window.__s2.g.dg) && await page.isVisible('#res.open'), 'v531 나가기 → 결과 창');
     await page.click('#rout'); await page.waitForTimeout(200);
+    // v532 장 두목 — 10칸 두목 도전: 등장 컷(그림 · 이름 · 칭호) · 위 막대 세 줄(×3) · 무력화 게이지
+    await page.evaluate(() => { const g = window.__s2.g, T = g.stage(); T.idx = 10; T.top = Math.max(T.top, 10); T.kills = 20; T.auto = false; g.challenge(); });
+    await page.waitForTimeout(400);
+    ok(await page.isVisible('.chbin') && /장 두목/.test(await page.textContent('.chbin')), 'v532 장 두목 등장 컷');
+    await page.waitForTimeout(1900);
+    ok(await page.isVisible('#contest-hud.chb') && /×3/.test(await page.textContent('#contest-pct')) && await page.isVisible('#cb-ggb'), 'v532 장 두목 막대 세 줄 · 무력화 게이지', await page.textContent('#contest-pct'));
+    await page.evaluate(() => { const g = window.__s2.g; g.endChallenge(false); g.stage().auto = true; });
+    await page.waitForTimeout(500); if (await page.isVisible('#res.open')) await page.click('#rout');
     const navs = await page.$$('.nb[data-tab]');
     ok(navs.length === 7 && (await page.$$('#mb .nb')).length === 5, '아래 메뉴 다섯(캐릭터 · 장비 · 무공 · 동료 · 던전) + 위 아이콘(지도 · 임무 · 무림)');
     await page.click('#mb .nb[data-key]'); ok(/캐릭터/.test(await page.textContent('#panel-title')) && /on/.test(await page.getAttribute('#panel-body .subtabs button >> nth=1', 'class')), '「무공」 → 캐릭터 창 무공 칸'); await page.click('#panel-close');

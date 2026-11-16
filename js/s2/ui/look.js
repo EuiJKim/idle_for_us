@@ -128,7 +128,8 @@ function artImg(path) {
   if (!(path in mobArt)) { mobArt[path] = null; if (typeof Image !== 'undefined') { const im = new Image(); im.onload = () => { mobArt[path] = im; }; im.src = path; } }
   return mobArt[path];
 }
-const artPath = (src, key) => (src === 's2' ? `art/s2/mob/${key}.webp` : `art/boss/${key}.png`);
+const artPath = (src, key) => (src === 's2' ? `art/s2/mob/${key}.webp` : src === 'chb' ? `art/s2/chb/${key}.webp` : `art/boss/${key}.png`);
+export const chbImg = (ch) => artImg(`art/s2/chb/chb${ch}.webp`);   // v532 장 두목 그림(등장 컷에도)
 export function preloadMobs(ch) { const R = ROSTER[ch - 1]; if (!R) return; for (const [, a] of [...R.mobs, R.elite, R.boss]) { const [src, key] = a.split(':'); if (src !== 'cr') artImg(artPath(src, key)); } }
 // 짐승 그림 크기 맞춤(작은 것 · 큰 것)
 const CR_SIZE = { crab: 0.8, crow: 0.75, eagle: 0.9, vbat: 0.85, bat: 0.85, scorpion: 0.85, bscorp: 0.9, pspider: 0.85, ispider: 0.9, isnake: 0.9, python: 1.1, bear: 1.15, panda: 1.1, sape: 1.1, ape: 1.0, gape: 1.0, cloud: 1.1, h3: 1.1 };
@@ -149,7 +150,7 @@ export function drawMob(cx, x, y, m, z, o = {}) {
     cx.restore(); return;
   }
   const im = artImg(artPath(src, key));
-  const H0 = m.kind === 'boss' ? 118 : 100;   // 화면 키(배율 1일 때)
+  const H0 = src === 'chb' ? 165 : m.kind === 'boss' ? 118 : 100;   // 화면 키(배율 1일 때) · v532 장 두목은 크게
   const h = H0 * sc;
   // 발밑 그림자
   cx.save(); cx.fillStyle = 'rgba(0,0,0,0.26)'; cx.beginPath(); cx.ellipse(x + dir * lunge * 0.5, y + 1, h * 0.2, h * 0.05, 0, 0, 7); cx.fill(); cx.restore();
@@ -157,7 +158,7 @@ export function drawMob(cx, x, y, m, z, o = {}) {
   const w = h * im.width / im.height;
   const breathe = o.moving ? 0 : Math.sin(t * 2.3) * 0.018, bob = o.moving ? -Math.abs(Math.sin(t * 11)) * 3 * sc : 0;
   // 두목 그림은 앞을 보고 서 있어 뒤집지 않는다(옆으로 뒤집으면 칼 든 손이 바뀌어 어색) — 사람 몹 그림은 오른쪽을 본다
-  const fl = src === 's2' ? flip : false;
+  const fl = src === 's2' || src === 'chb' ? flip : false;
   // v506 한 장 그림을 허리(위 46%)에서 둘로 — 아래(다리)는 걸음마다 앞뒤로 엇갈려 기울고, 위(몸통 · 무기)는 치거나 맞을 때 허리를 축으로 돈다
   const iw = im.width, ih = im.height, wy = 0.46, cut = ih * wy;
   const step = o.moving ? Math.sin(t * 11) : 0, legShear = step * 0.2, upRot = (atk > 0 ? wind * 0.32 : 0) - hurt * 0.22;
@@ -176,7 +177,7 @@ export function drawMob(cx, x, y, m, z, o = {}) {
   cx.restore();
 }
 export const mobName = (m, z, ch = 1) => mobLook(ch, m)[0] || '';
-export const mobHeight = (m, ch = 1) => { const [, a] = mobLook(ch, m); const src = a.split(':')[0]; return (src === 'cr' ? 66 * (CR_SIZE[a.split(':')[1]] || 1) : m.kind === 'boss' ? 118 : 100) * (m.kind === 'elite' ? 1.25 : 1); };
+export const mobHeight = (m, ch = 1) => { const [, a] = mobLook(ch, m); const src = a.split(':')[0]; return (src === 'cr' ? 66 * (CR_SIZE[a.split(':')[1]] || 1) : src === 'chb' ? 165 : m.kind === 'boss' ? 118 : 100) * (m.kind === 'elite' ? 1.25 : 1); };
 
 // ── 옆보기 사냥터(S9 재설계) ── 하늘 · 먼 산(수묵) · 나무 그림자 · 층층 발판(이끼 돌 · 나무 난간)
 export function drawSideBack(cx, W, H, z, camX, t) {

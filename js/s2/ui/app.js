@@ -20,8 +20,9 @@ import { expToNext } from '../tables/exp.js';
 import { staminaNow } from '../content/idle.js';
 import { buildQueue } from '../content/offline.js';
 import { kindGrade } from '../grow/collect.js';
-import { loadLooks, zoneFor, drawHero, drawMob, mobName, mobHeight, preloadMobs, drawPaintedBack, drawPaintedLedge, drawEarth, preloadChapter, fxImg, oldImg, tintImg, ULT_ART, SEAL_ART, CUT_ART, BUFF_ART, BOSS_ART, wearCount } from './look.js';
+import { loadLooks, zoneFor, drawHero, drawMob, mobName, mobHeight, preloadMobs, drawPaintedBack, drawPaintedLedge, drawEarth, chbImg, preloadChapter, fxImg, oldImg, tintImg, ULT_ART, SEAL_ART, CUT_ART, BUFF_ART, BOSS_ART, wearCount } from './look.js';
 import { BOSS_PATS } from '../tables/kit.js';
+import { CHBOSS, CB_PATS, CB } from '../tables/chboss.js';
 import { play, unlock, setOpt, bgm } from './sound.js';
 import { PoseAnim, POSES, IDLE, mixPose } from '../../pose.js';
 // 설정(v504) — 이 기기에만(ifu.s2.opt). 소리 · 배경 가락 · 흔들림 · 피해 숫자 · 진동 · 그래픽 · 피해 측정기
@@ -686,7 +687,7 @@ function paintHud() {
   $('btn-boss').classList.toggle('hidden', !ready); $('btn-boss').classList.toggle('ready', ready);
   const ch2 = $('contest-hud');
   document.body.classList.toggle('indg', !!dgs);
-  ch2.classList.toggle('hidden', !boss && !dgs); document.body.classList.toggle('bossing', boss || !!dgs); ch2.classList.toggle('dg', !!dgs); $('dg-leave').classList.toggle('hidden', !dgs);   // 두목전엔 길잡이 카드를 숨겨 두목 막대에 눈이 가게   // 두목전일 때만(평소 진행은 위 가운데 막대)
+  ch2.classList.toggle('hidden', !boss && !dgs); if (!boss) ch2.classList.remove('chb'); document.body.classList.toggle('bossing', boss || !!dgs); ch2.classList.toggle('dg', !!dgs); $('dg-leave').classList.toggle('hidden', !dgs);   // 두목전엔 길잡이 카드를 숨겨 두목 막대에 눈이 가게   // 두목전일 때만(평소 진행은 위 가운데 막대)
   if (dgs) {
     $('contest-title').textContent = dgs.title;
     $('contest-fill').style.width = `${dgs.p * 100}%`; $('contest-pct').textContent = `${Math.floor(dgs.p * 100)}%`;
@@ -696,7 +697,17 @@ function paintHud() {
     const bp = bm ? Math.max(0, bm.hp / bm.st.hp) : 0;
     $('contest-title').textContent = `${bm ? mobName(bm, z, chapterOf(T.idx)) : '두목'}`;
     $('contest-fill').style.width = `${bp * 100}%`; $('contest-pct').textContent = `${Math.ceil(bp * 100)}%`;   // v519 두목 체력 막대
-    $('contest-sub').textContent = `남은 ${Math.max(0, Math.ceil((B.limitMs - B.t) / 1000))}초 · 클리어 보상 은자 ${unit(2 * 27 * goldPerMob(T.idx))} · 뽑기권 ${T.idx % 10 === 0 ? 10 : 1}`;
+    const cb = bm?.cb; ch2.classList.toggle('chb', !!cb);
+    if (cb) {   // v532 장 두목: 막대 세 줄(줄마다 빛깔) · ×남은 줄 · 무력화 게이지 · 국면
+      const bars = CB.bars, left = bp * bars, cur = Math.max(1, Math.ceil(left - 1e-9)), part = left - (cur - 1);
+      $('contest-fill').style.width = `${Math.max(0, Math.min(1, part)) * 100}%`; ch2.dataset.bar = String(cur);
+      $('contest-pct').textContent = `×${cur} · ${Math.ceil(bp * 100)}%`;
+      $('contest-title').textContent = `${CHBOSS[cb.ch].name} — ${CHBOSS[cb.ch].title}`;
+      const stun = bm.stunUntil > B.t;
+      $('cb-gg').style.width = `${stun ? 100 : cb.gg / 10}%`; $('cb-gg').parentNode.classList.toggle('stun', stun);
+      $('cb-ph').textContent = stun ? '기절!' : ['', '분노', '필살'][cb.phase];
+    }
+    $('contest-sub').textContent = bm?.cb ? `남은 ${Math.max(0, Math.ceil((B.limitMs - B.t) / 1000))}초 · ${(g.S.chb?.[bm.cb.ch] ? (g.S.chbDay?.[bm.cb.ch] === dayKey(now()) ? '오늘 보상은 받았어요' : '다시 깨면 강화석 · 뽑기권(하루 한 번)') : '첫 처치 — 확정 장비 · 칭호')}` : `남은 ${Math.max(0, Math.ceil((B.limitMs - B.t) / 1000))}초 · 클리어 보상 은자 ${unit(2 * 27 * goldPerMob(T.idx))} · 뽑기권 ${T.idx % 10 === 0 ? 10 : 1}`;
   } else {
     $('contest-title').textContent = `Stage ${st}/10`;
     $('contest-sub').textContent = ready ? '두목 준비 — 「두목 도전」' : `처치 ${T.kills} / ${STAGE_KILLS}`;
@@ -769,6 +780,7 @@ const cv = $('cv'), cx = cv.getContext('2d');
 const floats = [];
 const mobHit = new Map();   // 몹 id → 맞은 때(번쩍 · 밀림)
 let freezeUntil = 0;       // 큰 무공 적중 멈칫
+let slowUntil = 0;         // v532 느린 화면
 const pals = [];           // 화면 위 동료(무인 뒤를 따라감)
 const JOB_COL = { sword: '#ffe9a8', spear: '#ffb27a', fist: '#ffd56a', bow: '#b6f0ff', mage: '#d4b8ff' };
 const PAL_COL = ['#7dd3fc', '#86efac', '#fde68a', '#f9a8d4', '#c4b5fd'];
@@ -947,7 +959,18 @@ function draw() {
   // 두목 예고 — 땅에 붉은 범위가 차오르고(다 차면 터짐) 패턴 그림이 희미하게 · 이름
   for (const [id, q] of tells) {
     if (!F.mobs.some((m) => m.id === id) || t - q.at > q.dur + 200) { tells.delete(id); continue; }
-    const A = BOSS_ART[q.pat] || BOSS_ART.orb, pr = Math.min(1, (t - q.at) / q.dur);
+    const A = BOSS_ART[q.pat] || BOSS_ART[CB_PATS[q.pat]?.art] || BOSS_ART.orb, pr = Math.min(1, (t - q.at) / q.dur);
+    if (q.pat === 'summon') continue;
+    if (q.safe) {   // v532 필살: 화면 전체가 붉게 차오르고 안전 지대만 빛난다
+      const [s0] = P(q.safe[0], 0), [s1] = P(q.safe[1], 0);
+      cx.save(); cx.globalAlpha = 0.18 + 0.22 * pr + 0.08 * Math.sin(ts * 20); cx.fillStyle = '#b91c1c'; cx.fillRect(0, 0, s0, Hh); cx.fillRect(s1, 0, W - s1, Hh);
+      cx.globalAlpha = 0.35 + 0.2 * Math.sin(ts * 9); const sg = cx.createLinearGradient(0, Hh * 0.2, 0, Hh); sg.addColorStop(0, 'rgba(253,224,71,0)'); sg.addColorStop(1, 'rgba(253,224,71,.75)'); cx.fillStyle = sg; cx.fillRect(s0, 0, s1 - s0, Hh);
+      cx.globalAlpha = 1; cx.strokeStyle = '#fde68a'; cx.lineWidth = 3; cx.setLineDash([10, 6]); cx.strokeRect(s0, 4, s1 - s0, Hh - 8); cx.setLineDash([]);
+      cx.font = `900 ${22 * k}px system-ui`; cx.textAlign = 'center'; cx.lineWidth = 5; cx.strokeStyle = '#3b0000'; cx.fillStyle = '#fff';
+      const lbl = `필살! ${Math.max(0, Math.ceil((q.dur - (t - q.at)) / 1000))}`; cx.strokeText(lbl, W / 2, Hh * 0.5); cx.fillText(lbl, W / 2, Hh * 0.5);
+      cx.font = `800 ${14 * k}px system-ui`; cx.fillStyle = '#fde68a'; cx.strokeText('안전', (s0 + s1) / 2, Hh * 0.6); cx.fillText('안전', (s0 + s1) / 2, Hh * 0.6);
+      cx.restore(); continue;
+    }
     const [x0, y0] = P(q.x - q.w / 2, q.y), [x1] = P(q.x + q.w / 2, q.y), hh = 150 * k;
     cx.save();
     cx.globalAlpha = 0.32 + 0.14 * Math.sin(ts * 18); cx.fillStyle = '#ef4444'; cx.fillRect(x0, y0 - hh, x1 - x0, hh);
@@ -955,7 +978,7 @@ function draw() {
     cx.globalAlpha = 0.9; cx.strokeStyle = '#fca5a5'; cx.lineWidth = 2; cx.setLineDash([8, 6]); cx.strokeRect(x0, y0 - hh, x1 - x0, hh); cx.setLineDash([]);
     const im = oldImg(A.tell); if (im) { const w = Math.min(x1 - x0, 220 * k); cx.globalCompositeOperation = 'lighter'; cx.globalAlpha = 0.35 + 0.4 * pr; cx.translate((x0 + x1) / 2, y0); cx.scale(1, 0.4); cx.rotate(pr * 3); cx.drawImage(im, -w / 2, -w / 2, w, w); }
     cx.restore();
-    const nm = BOSS_PATS.find((b) => b.id === q.pat)?.name || '';
+    const nm = BOSS_PATS.find((b) => b.id === q.pat)?.name || CB_PATS[q.pat]?.name || '';
     cx.font = `900 ${16 * k}px system-ui`; cx.textAlign = 'center'; cx.lineWidth = 4; cx.strokeStyle = '#3b0000'; cx.fillStyle = '#fecaca';
     cx.strokeText(`${nm}!`, (x0 + x1) / 2, y0 - hh - 6); cx.fillText(`${nm}!`, (x0 + x1) / 2, y0 - hh - 6);
   }
@@ -1190,7 +1213,7 @@ function draw() {
 let last = 0, lastMin = 0, lastSave = 0, lastHud = 0, acc = 0, resTimer = 0;
 function frame() {
   const t = now();
-  if (t < freezeUntil) { last = t; } else acc = Math.min(1000, acc + (t - last)); last = t;   // 멈칫 동안은 엔진 시간을 쌓지 않는다
+  if (t < freezeUntil) { last = t; } else acc = Math.min(1000, acc + (t - last) * (t < slowUntil ? 0.22 : 1)); last = t;   // v532 장 두목 마지막 일격은 느린 화면   // 멈칫 동안은 엔진 시간을 쌓지 않는다
   const dt = acc - (acc % 50); acc -= dt;   // 엔진은 50ms 틱 — 남는 몫은 다음 프레임으로
   g.tick(t);
   if (dt > 0) {
@@ -1230,11 +1253,14 @@ function frame() {
       else if (e[0] === 'cast') { castShape = e[6]; castCol = skillById(e[2])?.col; skillFx.push({ at: t + 90, id: e[2], face: e[3], x: e[4], y: e[5], shape: e[6], R: e[7], hero: 1 }); }   // v507 휘두르는 순간(자세가 끝까지 가는 때)에 맞춰 터진다
       else if (e[0] === 'buff') { skillFx.push({ at: t, id: e[2], shape: 'buff', hero: 1 }); play('loot'); }
       else if (e[0] === 'pal') palAtk[e[2]] = { at: t, mid: e[3] };
-      else if (e[0] === 'tell') { tells.set(e[2], { pat: e[3], x: e[4], y: e[5], w: e[6], at: t, dur: e[7] }); play('tell'); }
+      else if (e[0] === 'tell') { tells.set(e[2], { pat: e[3], x: e[4], y: e[5], w: e[6], at: t, dur: e[7], safe: e[8] != null ? [e[8], e[9]] : null }); play('tell'); }
+      else if (e[0] === 'phase') { shakeUntil = t + 500; play('tense'); chbBanner(e[3] === 2 ? '필살 국면' : '분노', e[3] === 2 ? '붉은 땅 밖 — 빛나는 자리로 피하라!' : '두목이 빨라졌다', e[3] === 2 ? 'ult' : 'rage'); buzz(80); }
+      else if (e[0] === 'stun') { play('rare', 4); chbBanner('무력화!', `${Math.round(e[3] / 1000)}초 기절 · 받는 피해 ×${CB.stunDmgX}`, 'stun'); }
+      else if (e[0] === 'summon') addLog('두목이 졸개를 불렀다');
       else if (e[0] === 'hurt') play('hurt');
       else if (e[0] === 'die') { play('down'); buzz(200); }
       else if (e[0] === 'burst') { tells.delete(e[2]); skillFx.push({ at: t, shape: 'boss', pat: e[3], x: e[4], y: e[5], w: e[6] }); shakeUntil = t + (e[7] ? 420 : 220); if (e[7]) { hurtFlash = t; buzz(60); } play('burst'); }
-      else if (e[0] === 'kill') { play('kill'); if (killLog.length < 500) killLog.push(t); const m = mobs.get(e[2]); if (m && coins.length < 40) for (let j = 0; j < (m.kind === 'mob' ? 2 : 6); j++) coins.push({ x: m.x, y: m.y + 600, vx: ((j % 3) - 1) * 900 + ((m.id * 7 + j * 13) % 9 - 4) * 120, vy: 5200 + (j % 2) * 1500, at: t, j }); if (m && corpses.length < 30) corpses.push({ m: { id: m.id, kind: m.kind }, x: m.x, y: m.y, dir: m.dir || 1, at: t + 40 }); firstSeen.delete(e[2]); lastNext.delete(e[2]); atkAt.delete(e[2]); hpLag.delete(e[2]); if (m && skillFx.length < 90) skillFx.push({ at: t, shape: 'ring', x: m.x, y: m.y }); }
+      else if (e[0] === 'kill') { if (e[3] === 'boss' && g.lastFight?.def?.chb) { slowUntil = t + 900; shakeUntil = t + 700; chbBanner('BOSS DEFEATED', '', 'win'); } play('kill'); if (killLog.length < 500) killLog.push(t); const m = mobs.get(e[2]); if (m && coins.length < 40) for (let j = 0; j < (m.kind === 'mob' ? 2 : 6); j++) coins.push({ x: m.x, y: m.y + 600, vx: ((j % 3) - 1) * 900 + ((m.id * 7 + j * 13) % 9 - 4) * 120, vy: 5200 + (j % 2) * 1500, at: t, j }); if (m && corpses.length < 30) corpses.push({ m: { id: m.id, kind: m.kind }, x: m.x, y: m.y, dir: m.dir || 1, at: t + 40 }); firstSeen.delete(e[2]); lastNext.delete(e[2]); atkAt.delete(e[2]); hpLag.delete(e[2]); if (m && skillFx.length < 90) skillFx.push({ at: t, shape: 'ring', x: m.x, y: m.y }); }
       if (e[0] === 'cast') { heroAttackPose(g.S.hero.job, true); lastAtkPose = t; play('skill'); lastCastAt = t; const tr = skillById(e[2])?.tier || 0; if (tr >= 3 && t - lastFreeze > 700) { freezeUntil = t + 45; lastFreeze = t; } if (tr >= 4) zoomAt = t; flashSlot(e[2]); }   // 큰 무공은 맞는 순간 0.06초 멈칫
       if (e[0] === 'cast' && skillById(e[2])?.tier === 5) { cutIn = { at: t, id: e[2] }; shakeUntil = t + 450; }
     }
@@ -1250,7 +1276,7 @@ function frame() {
     else if (f.k === 'realm') addLog(`경지 ${f.lv}`);
     else if (f.k === 'gacha-lv') addLog(`뽑기 레벨 ${f.lv}`);
     else if (f.k === 'tree') { const sk = skillById(f.id); toast(`${sk?.name} 강화 완료`); }
-    else if (f.k === 'challenge') play('boss'), addLog(`${Math.ceil(f.idx / 10)}장 ${((f.idx - 1) % 10) + 1}칸 두목 도전`);
+    else if (f.k === 'challenge') { play('boss'); addLog(`${Math.ceil(f.idx / 10)}장 ${((f.idx - 1) % 10) + 1}칸 ${f.chb ? '장 두목' : '두목'} 도전`); if (f.chb) chbIntro(f.chb); }
     else if (f.k === 'stage-clear' || f.k === 'stage-fail') showResult(f);
     else if (f.k === 'dungeon-start') { closeWin(); play('tense'); dgBanner(f.title, g.dgStatus()); addLog(`${f.title} 입장`); }
     else if (f.k === 'dungeon-end') showDgResult(f);
@@ -1275,9 +1301,10 @@ function showResult(f) {
   R.innerHTML = win
     ? `<div class="rp"><div class="rays"></div>
         <div class="rsub">${ch}장 ${esc(chapterName(f.idx))} · Stage ${st}/10</div>
-        <div class="rtitle">STAGE CLEAR</div>
+        <div class="rtitle">${f.chb ? 'BOSS DEFEATED' : 'STAGE CLEAR'}</div>
         <div class="rmeta"><span>걸린 시간 <b>${sec}초</b></span>${f.deaths ? `<span>쓰러짐 <b>${f.deaths}</b></span>` : ''}</div>
-        <div class="rtiles">${tile('s', f.gold, '은자', 0)}${tile('t', f.tix, '뽑기권', 1)}</div>
+        ${f.chb?.first ? `<div class="rnew cbfirst"><img src="art/s2/chb/chb${f.chb.ch}.webp" alt=""><div><small>첫 처치 · 칭호</small><b>「${esc(f.chb.name)} 격파」</b><span class="g${f.chb.gear?.g}t">확정 장비 — ${GRADES[f.chb.gear?.g] || ''}품${f.chb.gear?.up ? '上' : ''} ${SLOT_NAME[f.chb.gear?.slot] || ''}</span></div></div>` : ''}
+        <div class="rtiles">${tile('s', f.gold, '은자', 0)}${tile('t', f.tix + (f.chb?.tix2 || 0), '뽑기권', 1)}${f.chb?.stones ? tile('st', f.chb.stones, '강화석', 2) : ''}</div>
         <div class="rnext">${newCh ? `<em>새 장</em> ${nch}장 ${esc(chapterName(f.next))}` : `다음 · Stage ${nst}/10`}</div>
         <div class="racts"><button class="btn primary rgo" id="rout"><span>다음 스테이지 ▶</span><i class="rbar"></i></button></div>
         <label class="rauto"><input type="checkbox" id="rautochk" ${auto ? 'checked' : ''}> 3초 뒤 자동 진행</label></div>`
@@ -1300,6 +1327,20 @@ function showResult(f) {
     $('rgrow').onclick = () => { play('click'); closeResult(); openWin('char', 0); };
   }
   addLog(win ? `${ch}장 ${st}칸 클리어 · ${sec}초` : `${ch}장 ${st}칸 두목에게 졌어요(${f.bossLeft}% 남음)`);
+}
+// v532 장 두목 등장 컷 — 그림이 밀려 들어오고 이름 · 칭호(1.8초)
+function chbIntro(ch) {
+  const D = CHBOSS[ch]; if (!D) return;
+  for (const o of document.querySelectorAll('.chbin')) o.remove();
+  const d = document.createElement('div'); d.className = 'chbin'; d.style.setProperty('--c', D.col);
+  const im = chbImg(ch);
+  d.innerHTML = `<div class="cb-bg"></div>${im ? `<img src="${im.src}" alt="${esc(D.name)}">` : ''}<div class="cb-t"><small>${ch}장 · 장 두목</small><b>${esc(D.name)}</b><span>${esc(D.title)}</span></div>`;
+  $('battle').append(d); freezeUntil = now() + 1500; setTimeout(() => d.remove(), 2000); play('rare', 5); buzz(120);
+}
+function chbBanner(big, small, kind) {
+  for (const o of document.querySelectorAll('.cbban')) o.remove();
+  const d = document.createElement('div'); d.className = `cbban ${kind}`; d.innerHTML = `<b>${esc(big)}</b>${small ? `<span>${esc(small)}</span>` : ''}`;
+  $('battle').append(d); setTimeout(() => d.remove(), kind === 'win' ? 1600 : 1300);
 }
 function dgBanner(title, st) {
   for (const o of document.querySelectorAll('.dgban')) o.remove();

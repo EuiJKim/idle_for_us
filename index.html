@@ -166,6 +166,26 @@
     .cmp { max-height: 46vh; overflow-y: auto; } html.rot .cmp { max-height: 46vw; }
     html.h500 .cmp-h img { width: 44px; height: 44px; } html.h500 .cmp-h { margin-bottom: 4px; } html.h500 .cmp-r { padding: 2px 8px; font-size: 12px; } html.h500 #modal .sheet { padding: 12px 14px; } html.h500 #modal h2 { margin-bottom: 4px; font-size: 16px; }
     .cmp .up, .cmp-h .up { color: #86efac; } .cmp .dn, .cmp-h .dn { color: #fca5a5; }
+    /* v532 장 두목 */
+    #cb-row { display: none; align-items: center; gap: 6px; margin-top: 3px; } #contest-hud.chb #cb-row { display: flex; }
+    #cb-ph { font-weight: 900; color: #fca5a5; min-width: 30px; font-size: 11px; } #cb-ggb { flex: 1; height: 5px; border-radius: 999px; background: rgba(0,0,0,.5); overflow: hidden; } #cb-gg { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #a5b4fc, #e0e7ff); transition: width .2s; }
+    #cb-ggb.stun #cb-gg { background: linear-gradient(90deg, #fde68a, #fff); animation: fgthrob .2s infinite alternate; }
+    #contest-hud.chb { width: min(520px, 60vw); border-color: rgba(250,204,21,.7); background: rgba(30,10,4,.88); } html.rot #contest-hud.chb { width: min(520px, 60vh); }
+    #contest-hud.chb #contest-bar { height: 10px; background: #3f1d1d; }
+    #contest-hud.chb[data-bar="3"] #contest-fill { background: linear-gradient(90deg, #dc2626, #f87171); } #contest-hud.chb[data-bar="2"] #contest-fill { background: linear-gradient(90deg, #ea580c, #fb923c); } #contest-hud.chb[data-bar="1"] #contest-fill { background: linear-gradient(90deg, #ca8a04, #fde047); }
+    #contest-hud.chb[data-bar="3"] #contest-bar { background: #7c2d12; } #contest-hud.chb[data-bar="2"] #contest-bar { background: #713f12; }
+    .chbin { position: absolute; inset: 0; z-index: 40; pointer-events: none; overflow: hidden; animation: cbfade 2s ease forwards; }
+    .chbin .cb-bg { position: absolute; inset: 0; background: linear-gradient(100deg, rgba(0,0,0,.85) 35%, transparent 36%), linear-gradient(100deg, transparent 34%, var(--c) 35%, transparent 37%); opacity: .9; animation: cbwipe .5s ease-out; }
+    .chbin img { position: absolute; right: 6%; bottom: 0; height: 96%; filter: drop-shadow(0 0 24px var(--c)); animation: cbslide .55s cubic-bezier(.2,1.3,.4,1); }
+    .chbin .cb-t { position: absolute; left: 6%; top: 50%; transform: translateY(-50%); color: #fff; text-shadow: 0 3px 12px #000; animation: cbtxt .6s .15s ease-out both; }
+    .chbin small { display: block; letter-spacing: .3em; font-size: 13px; color: var(--c); font-weight: 800; } .chbin b { display: block; font-size: 52px; font-weight: 900; letter-spacing: .06em; line-height: 1.1; } .chbin span { font-size: 16px; color: rgba(255,255,255,.85); }
+    html.h500 .chbin b { font-size: 38px; }
+    @keyframes cbslide { from { transform: translateX(60%) scale(1.15); opacity: 0; } to { transform: none; opacity: 1; } } @keyframes cbwipe { from { transform: translateX(-100%); } to { transform: none; } }
+    @keyframes cbtxt { from { transform: translate(-40px, -50%); opacity: 0; } to { transform: translateY(-50%); opacity: 1; } } @keyframes cbfade { 0%, 80% { opacity: 1; } 100% { opacity: 0; } }
+    .cbban { position: absolute; left: 50%; top: 30%; transform: translate(-50%, -50%); z-index: 35; pointer-events: none; text-align: center; animation: dgban 1.3s ease forwards; text-shadow: 0 3px 10px #000; }
+    .cbban b { display: block; font-size: 34px; font-weight: 900; color: #fca5a5; letter-spacing: .08em; } .cbban span { font-size: 13px; color: #fff; }
+    .cbban.ult b { color: #f87171; font-size: 40px; } .cbban.stun b { color: #fde68a; } .cbban.win { animation-duration: 1.6s; } .cbban.win b { color: #fff; font-size: 46px; text-shadow: 0 0 18px #facc15, 0 0 36px #f59e0b; }
+    .cbfirst { display: flex; gap: 10px; align-items: center; justify-content: center; margin: 4px 0; } .cbfirst img { height: 64px; filter: drop-shadow(0 0 8px #facc15); } .cbfirst small { display: block; font-size: 11px; color: var(--gold); } .cbfirst b { display: block; font-size: 16px; } .cbfirst span { font-size: 12px; }
     /* v531 실제 던전 · 대장간 연출 */
     body.indg #cv { filter: saturate(.72) brightness(.82) hue-rotate(-12deg); }
     body.indg #battle::after { content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 5; background: radial-gradient(ellipse at 50% 55%, transparent 45%, rgba(10,6,20,.6) 100%); }
@@ -421,7 +441,7 @@
       <div class="dpsm" id="dpsm"></div>
       <div id="loglines"></div>
       <button id="btn-boss" class="hidden">두목 도전</button>
-      <div id="contest-hud" class="hidden"><div class="ch-h"><svg class="ic" viewBox="0 0 24 24"><path d="M4 8l4 3 4-6 4 6 4-3-2 11H6z"/></svg><b id="contest-title"></b><span id="contest-pct"></span><button id="dg-leave" class="hidden">나가기</button></div><div id="contest-bar"><i id="contest-fill"></i></div><div id="contest-sub"></div></div>
+      <div id="contest-hud" class="hidden"><div class="ch-h"><svg class="ic" viewBox="0 0 24 24"><path d="M4 8l4 3 4-6 4 6 4-3-2 11H6z"/></svg><b id="contest-title"></b><span id="contest-pct"></span><button id="dg-leave" class="hidden">나가기</button></div><div id="contest-bar"><i id="contest-fill"></i></div><div id="cb-row"><span id="cb-ph"></span><div id="cb-ggb"><i id="cb-gg"></i></div></div><div id="contest-sub"></div></div>
       <div id="me">
         <div class="me-h"><b id="me-lv">Lv.1</b><span id="me-nm">무명</span></div>
         <div class="bar hp"><i id="hp-trail"></i><i id="hp-fill"></i><span id="hp-txt">HP 0 / 0</span></div>

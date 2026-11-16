@@ -679,7 +679,7 @@ console.log('\n=== S9 게임 층 — 첫 30분을 실제로 해 보기 ===');
   const { g, t } = play(5), b = play(5).g;
   const lv = g.S.hero.lv, gc = MS.guideCurrent(g.S.q.guide), gi = gc ? MS.GUIDE.indexOf(gc) : MS.GUIDE.length;   // v527 몇 번째 단계(id 순서와 다름)
   ok(lv >= 8 && lv <= 12, 'v527 30분 플레이 → Lv 8~12(목표 10)', `Lv ${lv} · 처치 ${g.S.kills}`);
-  ok(g.S.kills / 30 >= 12 && g.S.kills / 30 <= 32 && g.stage().idx >= 8, '30분: 분당 처치 12~32(칸 두목전 시간 포함) · 8칸 넘게 전진(v527 느린 곡선)', `${(g.S.kills / 30).toFixed(1)}/분 · ${g.stage().idx}칸`);
+  ok(g.S.kills / 30 >= 10 && g.S.kills / 30 <= 32 && g.stage().idx >= 8, '30분: 분당 처치 10~32(칸 두목 · v532 장 두목전 시간 포함) · 8칸 넘게 전진(v527 느린 곡선)', `${(g.S.kills / 30).toFixed(1)}/분 · ${g.stage().idx}칸`);
   ok(gi >= 6, 'v527 길잡이 6단계 이상(Lv10 단계 앞까지)', `${gi}단계 · ${gc?.id}`);
   ok(g.S.hero.adv === 0 && g.fight.deaths <= 2, 'v527 1차 전직 전(Lv20에) · 사냥 중 거의 죽지 않음(30분에 2번 이하)', `전직 ${g.S.hero.adv} · 죽음 ${g.fight.deaths}`);
   ok(b.S.hero.lv === lv && b.S.kills === g.S.kills && b.S.wallet.gold === g.S.wallet.gold, '같은 씨앗 = 같은 30분(결정론)');
@@ -879,6 +879,36 @@ console.log('\n=== v531 실제 던전(옆보기 엔진) ===');
   ok(a.S.dungeons.best?.growth === true && !a.dg && !a.feed.some((f) => f.k === 'dungeon-end'), '한 번 깨면 소탕 가능 표시 · 소탕은 결과 창을 띄우지 않음');
   const t = mk(), f0 = t.S.tower.best, rt = t.towerFight();
   ok(rt && (rt.cleared ? t.S.tower.best === f0 + 1 : t.S.tower.best === f0), '무한의 탑도 같은 엔진', `${f0} → ${t.S.tower.best}`);
+}
+
+console.log('\n=== v532 장 두목(10칸마다) ===');
+{
+  const CBT = await import('../js/s2/tables/chboss.js');
+  ok(CBT.CHBOSS.length === 16 && CBT.CHBOSS.slice(1).every((d) => d.name && d.title && d.pats.length >= 2 && d.pats.every((p) => CBT.CB_PATS[p])), '장 두목 15 — 이름 · 칭호 · 패턴 둘 이상');
+  ok(CBT.CHBOSS.slice(1).every((_, i) => fs.existsSync(new URL(`../art/s2/chb/chb${i + 1}.webp`, import.meta.url))), '장 두목 그림 15장');
+  const T0 = 1.8e12, mk = (lv) => { const g = new Game(newGame('sword', T0, 4), T0); g.addExp(EX.cumExp(lv)); g.tick(T0); g.S.wallet['ticket:gear'] = 600; g.S.wallet.gold = 1e12; g.S.wallet['item:stone'] = 1e6; for (let i = 0; i < 60; i++) g.pullGear(10); GR.equipBest(g.S.gear, lv); for (const s of GE.SLOTS) for (let i = 0; i < 14; i++) g.enhance(s); g.dirtyStats = true; return g; };
+  const fight = (g, idx) => { const T = g.stage(); T.idx = idx; T.top = idx; T.kills = STAGE_KILLS; g.challenge(); const ev = {}; let t = T0; while (g.bossFight) { t += 1000; g.tick(t); g.hunt(1000); for (const e of g.lastEvents || []) { const k = e[0] === 'tell' ? e[3] : e[0]; ev[k] = (ev[k] || 0) + 1; } } return { ev, f: g.feed.filter((x) => x.k === 'stage-clear' || x.k === 'stage-fail').at(-1) }; };
+  const g = mk(18), T = g.stage(); T.idx = 10; T.top = 10; T.kills = STAGE_KILLS; g.challenge();
+  const bm = g.bossFight.mobs.find((m) => m.cb);
+  ok(g.isChapterBoss(10) && !g.isChapterBoss(9) && bm && bm.cb.ch === 1 && g.bossFight.limitMs === CBT.CB.limitMs && g.bossFight.def.chb === 1, '10칸 = 장 두목(전용 무대 · 150초) · 9칸은 보통 두목');
+  g.bossFight = null;
+  const r = fight(mk(18), 10);
+  ok(r.f.k === 'stage-clear' && r.ev.phase >= 2 && r.ev.ult >= 1, '1장 두목: 국면 두 번(분노 · 필살) · 필살이 나오고 이긴다', JSON.stringify(r.ev));
+  ok(r.f.chb?.first && r.f.chb.gear && r.f.chb.gear.g === CBT.cbGearGrade(1), '첫 처치: 확정 장비(그 장 등급) · 칭호', JSON.stringify(r.f.chb));
+  const g2 = mk(18); fight(g2, 10); const r2 = fight(g2, 10), r3 = fight(g2, 10);
+  ok(g2.S.titles?.length === 1 && !r2.f.chb.first && r2.f.chb.stones === CBT.CB_REPEAT.stones && r3.f.chb.stones === 0, '다시 깨면 강화석 · 뽑기권 — 장마다 하루 한 번', `${r2.f.chb.stones} / ${r3.f.chb.stones}`);
+  // 무력화: 무공을 맞히면 게이지 → 기절(피해 ×2 · 패턴 없음)
+  const g3 = mk(18), T3 = g3.stage(); T3.idx = 10; T3.top = 10; T3.kills = STAGE_KILLS; g3.challenge();
+  const F3 = g3.bossFight, m3 = F3.mobs.find((m) => m.cb); m3.cb.gg = 990; F3.strike(m3, { coef: 100, base: false });
+  ok(m3.stunUntil > F3.t && m3.cb.gg === 0 && !m3.pat, '무력화 게이지가 차면 기절');
+  m3.hp = m3.st.hp = 1e12; const su = m3.stunUntil; let h0 = m3.hp; for (let i = 0; i < 30; i++) F3.strike(m3, { coef: 100, base: true }); const d2 = h0 - m3.hp; m3.stunUntil = 0; h0 = m3.hp; for (let i = 0; i < 30; i++) F3.strike(m3, { coef: 100, base: true }); const d1 = h0 - m3.hp; void su;   // 30번씩 평균(치명 · 흔들림)
+  ok(d2 > d1 * 1.5, '기절한 두목은 피해 ×2', `${d2} / ${d1}`);
+  // 필살: 안전 지대 밖이면 맞고, 자동이면 안전 지대로 피한다
+  const g4 = mk(18), T4 = g4.stage(); T4.idx = 10; T4.top = 10; T4.kills = STAGE_KILLS; g4.challenge();
+  const F4 = g4.bossFight, m4 = F4.mobs.find((m) => m.cb); m4.cb.phase = 2; m4.nextUlt = 0; m4.nextPat = 0; m4.angry = true;
+  let safe = null; for (let i = 0; i < 40 && !safe; i++) { F4.step(); safe = m4.pat?.safe; }
+  for (let i = 0; i < 60 && m4.pat; i++) F4.step();
+  ok(safe && F4.hero.x >= safe[0] && F4.hero.x <= safe[1], '필살: 자동이면 안전 지대로 피한다', `${F4.hero.x} in ${safe}`);
 }
 
 console.log('\n=== S0 규칙 ===');
