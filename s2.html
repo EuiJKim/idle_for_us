@@ -131,12 +131,29 @@
     #sp-txt { position: absolute; inset: 0; font-size: 11px; font-weight: 800; line-height: 15px; color: #fff; text-shadow: 0 1px 2px #000; font-variant-numeric: tabular-nums; }
     #btn-boss { position: absolute; z-index: 21; left: 50%; transform: translateX(-50%); top: calc(var(--st) + 46px); padding: 6px 16px; border-radius: 999px; font-weight: 800; font-size: 13px; color: #fff; background: linear-gradient(180deg, #c0392b, #7c1a1f); border: 1px solid #ffb4a8; box-shadow: 0 2px 8px rgba(0,0,0,.5); }
     #btn-boss.ready { animation: pts-glow 1.4s ease-in-out infinite; }
-    #contest-hud { top: calc(var(--st) + 46px); z-index: 20; padding: 3px 12px; font-size: 11px; line-height: 1.35; }
+    /* v519 두목전 — 위 가운데에 큰 두목 막대(이름 · 체력 % · 남은 초) */
+    #contest-hud { top: calc(var(--st) + 46px); z-index: 20; width: min(440px, 52vw); padding: 5px 12px 6px; border-radius: 12px; background: rgba(30,6,6,.82); border: 1px solid rgba(248,113,113,.55); text-align: left; font-size: 11.5px; line-height: 1.35; min-width: 0; white-space: normal; }
+    #contest-hud .ch-h { display: flex; align-items: center; gap: 6px; } #contest-hud .ch-h .ic { width: 16px; height: 16px; color: #fca5a5; }
+    #contest-title { flex: 1; font-size: 13px; font-weight: 800; color: #fff; } #contest-pct { font-weight: 800; color: #fecaca; font-variant-numeric: tabular-nums; }
+    #contest-bar { position: relative; height: 10px; margin: 4px 0 3px; border-radius: 999px; background: rgba(0,0,0,.6); overflow: hidden; border: 1px solid rgba(255,255,255,.15); }
+    #contest-fill { position: absolute; left: 0; top: 0; bottom: 0; width: 100%; background: linear-gradient(180deg, #ff6b6b, #b91c1c); transition: width .2s; }
+    #contest-sub { color: rgba(255,255,255,.7); font-size: 11px; }
+    body.bossing #qc { display: none; }
+    html.rot #contest-hud { width: min(440px, 52vh); }
+    /* v519 잠긴 무공 칸 · 레벨업 */
+    .sk.locked { border-style: solid; border-color: rgba(255,255,255,.12); background: rgba(0,0,0,.55); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; }
+    .sk.locked .lk { width: 16px; height: 16px; color: rgba(255,255,255,.5); } .sk .lt { font-size: 10px; font-weight: 800; color: rgba(255,255,255,.6); line-height: 1; }
+    #me.lvup { animation: lvbox 1.2s ease-out; } @keyframes lvbox { 0% { box-shadow: 0 0 0 0 rgba(255,213,106,.9); border-color: #ffd56a; } 100% { box-shadow: 0 0 0 14px rgba(255,213,106,0); } }
+    .lvfx { position: absolute; z-index: 25; left: 50%; top: 34%; transform: translateX(-50%); text-align: center; pointer-events: none; animation: lvfx 1.6s ease-out forwards; }
+    .lvfx b { display: block; font-size: 30px; font-weight: 900; letter-spacing: 2px; background: linear-gradient(180deg, #fff7d6, #f2c14e 55%, #c9821f); -webkit-background-clip: text; background-clip: text; color: transparent; filter: drop-shadow(0 2px 4px rgba(0,0,0,.8)); }
+    .lvfx span { font-size: 15px; font-weight: 800; color: #fff; text-shadow: 0 1px 3px #000; }
+    @keyframes lvfx { 0% { opacity: 0; transform: translate(-50%, 14px) scale(.8); } 15% { opacity: 1; transform: translate(-50%, 0) scale(1.06); } 25% { transform: translate(-50%, 0) scale(1); } 75% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%, -18px); } }
+    @media (prefers-reduced-motion: reduce) { .lvfx, #me.lvup { animation-duration: .01s; } }
     #contest-hud.hidden { display: none; }
     /* 위 오른쪽: 작은 아이콘 줄 */
     #tr { position: absolute; z-index: 20; right: var(--sr); top: var(--st); display: flex; gap: 4px; }
-    .ib { position: relative; width: 42px; height: 44px; padding: 3px 0 0; border-radius: 10px; border: 0; background: rgba(0,0,0,.42); color: #fff; display: flex; flex-direction: column; align-items: center; gap: 1px; }
-    .ib span { font-size: 9px; font-weight: 700; line-height: 1; opacity: .9; }
+    .ib { position: relative; width: 44px; height: 44px; padding: 3px 0 0; border-radius: 10px; border: 0; background: rgba(0,0,0,.42); color: #fff; display: flex; flex-direction: column; align-items: center; gap: 1px; }
+    .ib span { font-size: 10.5px; font-weight: 700; line-height: 1; opacity: .9; }
     .ib.active { background: rgba(212,166,74,.45); }
     #btn-sound .x { display: none; } #btn-sound.off .x { display: inline; } #btn-sound.off .w { display: none; }
     /* 왼쪽: 길잡이 카드 · 알림 글 */
@@ -158,7 +175,7 @@
     .bar.hp #hp-fill { background: linear-gradient(180deg, #ff7aa0, #d6345f); transition: width .15s; }
     .bar.hp #hp-trail { background: rgba(255,240,200,.7); transition: width .6s ease-out .3s; }
     .bar.hp.low #hp-fill { background: linear-gradient(180deg, #ff6a5a, #9b1c1c); }
-    .bar span { position: absolute; inset: 0; text-align: center; font-size: 10px; font-weight: 800; line-height: 12px; color: #fff; text-shadow: 0 1px 2px #000; font-variant-numeric: tabular-nums; }
+    .bar span { position: absolute; inset: 0; text-align: center; font-size: 11px; font-weight: 800; line-height: 12px; color: #fff; text-shadow: 0 1px 2px #000; font-variant-numeric: tabular-nums; }
     /* 아래 가운데: 메뉴 다섯 */
     #mb { position: absolute; z-index: 20; left: 50%; transform: translateX(-50%); bottom: calc(var(--sb) + 6px); display: flex; gap: 2px; padding: 3px; border-radius: 14px; background: rgba(10,8,6,.6); border: 1px solid rgba(255,255,255,.1); }
     .nb { position: relative; }
@@ -177,9 +194,9 @@
     .sk { border-radius: 11px; border: 2px solid rgba(255,255,255,.25); background: rgba(16,12,8,.78); font-size: 13px; font-weight: 800; line-height: 1.05; }
     .sk.ready { box-shadow: inset 0 0 10px rgba(255,213,106,.25); }
     .sk.empty { border-style: dashed; color: rgba(255,255,255,.5); font-size: 18px; font-weight: 400; }
-    .sk .t { position: absolute; left: 4px; top: 2px; font-size: 9px; color: #cbb98f; }
+    .sk .t { position: absolute; left: 4px; top: 2px; font-size: 10px; color: #cbb98f; }
     .sk .ad { position: absolute; top: 4px; right: 4px; width: 6px; height: 6px; border-radius: 50%; background: #86efac; box-shadow: 0 0 4px #86efac; }
-    .sk .cdw { position: absolute; inset: 0; display: flex; align-items: flex-end; justify-content: flex-end; padding: 0 4px 2px 0; font-size: 10px; color: #fff; background: conic-gradient(rgba(0,0,0,.72) var(--p, 0%), transparent 0); }
+    .sk .cdw { position: absolute; inset: 0; display: flex; align-items: flex-end; justify-content: flex-end; padding: 0 4px 2px 0; font-size: 11px; color: #fff; background: conic-gradient(rgba(0,0,0,.72) var(--p, 0%), transparent 0); }
     .sk.fire { animation: sf .32s ease-out; } @keyframes sf { 0% { box-shadow: inset 0 0 18px #ffe9a8; transform: scale(1.08) } 100% { box-shadow: none; transform: none } }
     #jp { grid-area: 1 / 5 / 3 / 6; width: 74px !important; height: 74px !important; border-radius: 50%; border: 3px solid rgba(255,255,255,.75); background: radial-gradient(circle at 50% 35%, rgba(60,50,40,.85), rgba(10,8,6,.85)); box-shadow: 0 3px 10px rgba(0,0,0,.5); }
     #jp .ic { width: 34px; height: 34px; stroke-width: 2.6; }
@@ -191,17 +208,20 @@
     /* 맨 아래: 화면 너비 EXP 줄 */
     #xpl { position: absolute; z-index: 19; left: 0; right: 0; bottom: 0; height: 4px; pointer-events: none; }
     #xp-bar { position: absolute; inset: 0; background: rgba(0,0,0,.55); } #xp-fill { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: linear-gradient(90deg, #8de36b, #e8f78a); transition: width .3s; }
-    #xp-txt { position: absolute; left: calc(var(--sl) + 4px); bottom: 5px; font-size: 10px; font-weight: 800; color: #d9f99d; text-shadow: 0 1px 2px #000; font-variant-numeric: tabular-nums; }
+    #xp-txt { position: absolute; left: calc(var(--sl) + 4px); bottom: 5px; font-size: 11px; font-weight: 800; color: #d9f99d; text-shadow: 0 1px 2px #000; font-variant-numeric: tabular-nums; }
     #toast { bottom: calc(var(--sb) + 112px); }
     /* 좁은 가로(작은 폰) */
     /* (w800: JS가 돌린 뒤의 실제 가로 · 세로로 붙인다) */ html.w800 #mb .nb { width: 44px; height: 44px; }
-    html.w800 #mb .nb span { font-size: 9.5px; }
-    html.w800 #sk { grid-template-columns: repeat(4, 38px) 62px; grid-template-rows: 38px 38px; gap: 4px; }
-    html.w800 #jp { width: 62px !important; height: 62px !important; }
+    html.w800 #mb .nb span { font-size: 10.5px; }
+    html.w800 #sk { grid-template-columns: repeat(4, 44px) 64px; grid-template-rows: 44px 44px; gap: 4px; }
+    html.w800 #mb { left: calc(var(--sl) + 200px); transform: none; }
+    html.w800 #tc { width: min(240px, 32vw); }
+    html.w720 #tc { left: calc(var(--sl) + 168px); transform: none; width: min(230px, calc(100% - var(--sl) - var(--sr) - 420px)); }   /* 아주 좁으면 진행 줄을 얼굴 상자 옆에 붙인다 */   /* v519 무공 칸을 44px로 키운 만큼 메뉴는 Lv 상자 옆에 붙인다 */
+    html.w800 #jp { width: 64px !important; height: 64px !important; }
     html.w800 #jp .ic { width: 28px; height: 28px; }
     html.w800 #me { width: 190px; }
     html.w800 #qc { width: 196px; }
-    html.w800 .ib { width: 38px; }
+    html.w800 .ib { width: 44px; }
     /* 창: 가로면 가운데에 크게 뜬다 · 카드 두 줄 */
     body.land #wb { column-count: 2; column-gap: 10px; }
     body.land #wb > * { break-inside: avoid; }
@@ -315,7 +335,7 @@
       <div class="dpsm" id="dpsm"></div>
       <div id="loglines"></div>
       <button id="btn-boss" class="hidden">두목 도전</button>
-      <div id="contest-hud" class="hidden"><div id="contest-title"></div><div id="contest-sub"></div></div>
+      <div id="contest-hud" class="hidden"><div class="ch-h"><svg class="ic" viewBox="0 0 24 24"><path d="M4 8l4 3 4-6 4 6 4-3-2 11H6z"/></svg><b id="contest-title"></b><span id="contest-pct"></span></div><div id="contest-bar"><i id="contest-fill"></i></div><div id="contest-sub"></div></div>
       <div id="me">
         <div class="me-h"><b id="me-lv">Lv.1</b><span id="me-nm">무명</span></div>
         <div class="bar hp"><i id="hp-trail"></i><i id="hp-fill"></i><span id="hp-txt">HP 0 / 0</span></div>

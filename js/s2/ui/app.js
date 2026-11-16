@@ -374,6 +374,7 @@ function paintWin() {
     c0(tg('효과음', 'sfx', '타격 · 무공 · 처치 · 뽑기 소리', '音'), tg('배경 가락', 'bgm', '장마다 다른 오음계 가락', '樂'), tg('진동', 'vib', '두목 패턴에 맞을 때 · 쓰러질 때(휴대폰)', '震'));
     const c1 = card('화면');
     c1(tg('화면 흔들림', 'shake', '큰 무공 · 두목 패턴 · 당겨짐', '搖'), tg('피해 측정기', 'dps', '들판 왼쪽 위에 초당 피해 · 분당 처치', '測'), tg('두목전 결과 자동 진행', 'autoNext', '결과 창이 3초 뒤 저절로 닫히고 다음으로', '進'));
+    if (document.documentElement.requestFullscreen) c1(R('전체 화면', document.fullscreenElement ? '켜짐' : '주소창 없이 화면을 다 쓴다(안드로이드 · 컴퓨터)', [[document.fullscreenElement ? '끄기' : '켜기', () => { play('click'); goFull(!document.fullscreenElement); setTimeout(paintWin, 300); }]], '全'));
     c1(R('피해 숫자', { all: '전부', crit: '치명만', off: '끄기' }[opt.nums], [['바꾸기', () => { opt.nums = { all: 'crit', crit: 'off', off: 'all' }[opt.nums]; saveOpt(); paintWin(); }]], '數'));
     c1(R('그래픽', opt.gfx === 'low' ? '낮음(배터리 아낌 · 흙먼지 · 은자 연출 끔)' : '높음', [['바꾸기', () => { opt.gfx = opt.gfx === 'low' ? 'high' : 'low'; saveOpt(); paintWin(); }]], '畵'));
     const c2 = card('계정');
@@ -415,6 +416,14 @@ function paintPortrait(H) {
   drawHero(x, 52, 196, H.job, H.lv, { t: 0, scale: 1.75, eq: g.S.gear.eq });   // 얼굴 · 어깨만 보이게 크게
   x.restore();
 }
+// v519 레벨업 — 무인 위에 「LEVEL UP」 · 왼쪽 아래 Lv 상자가 번쩍
+let lastLv = 0;
+function levelUpFx(lv) {
+  play('clear');
+  const me = $('me'); me.classList.remove('lvup'); void me.offsetWidth; me.classList.add('lvup');
+  for (const o of document.querySelectorAll('.lvfx')) o.remove();   // 잇따라 오르면 마지막 것만
+  const d = document.createElement('div'); d.className = 'lvfx'; d.innerHTML = `<b>LEVEL UP</b><span>Lv.${lv}</span>`; $('battle').append(d); setTimeout(() => d.remove(), 1700);
+}
 function paintHud() {
   const S = g.S, H = S.hero, F = g.ensureFight(), T = g.stage(), z = zoneFor(g.zoneLv());
   if (!$('qc').onclick) {
@@ -435,6 +444,7 @@ function paintHud() {
   const xp = Math.min(100, (H.exp / expToNext(H.lv)) * 100), jn = JOBS[H.job].name, rk = H.adv ? `${H.adv}차 전직` : '입문';
   $('me-job').textContent = jn; $('me-rank').textContent = rk; $('me-nm').textContent = `${jn} · ${rk}`;
   $('me-lv').textContent = `Lv.${H.lv}`;
+  if (lastLv && H.lv > lastLv) levelUpFx(H.lv); lastLv = H.lv;
   $('xp-txt').textContent = `EXP ${xp.toFixed(2)}%`; $('xp-fill').style.width = `${xp}%`;
   $('g-gold').textContent = unit(S.wallet.gold); $('g-tix').textContent = S.wallet['ticket:gear'] || 0;
   $('btn-sound').classList.toggle('off', !(opt.sfx || opt.bgm));
@@ -456,10 +466,12 @@ function paintHud() {
   const ready = !boss && g.canChallenge();
   $('btn-boss').classList.toggle('hidden', !ready); $('btn-boss').classList.toggle('ready', ready);
   const ch2 = $('contest-hud');
-  ch2.classList.toggle('hidden', !boss);   // 두목전일 때만(평소 진행은 위 가운데 막대)
+  ch2.classList.toggle('hidden', !boss); document.body.classList.toggle('bossing', boss);   // 두목전엔 길잡이 카드를 숨겨 두목 막대에 눈이 가게   // 두목전일 때만(평소 진행은 위 가운데 막대)
   if (boss) {
     const B = g.bossFight, bm = B.mobs.find((m) => m.kind === 'boss');
-    $('contest-title').textContent = `${bm ? mobName(bm, z, chapterOf(T.idx)) : '두목'} ${bm ? Math.ceil((bm.hp / bm.st.hp) * 100) : 0}%`;
+    const bp = bm ? Math.max(0, bm.hp / bm.st.hp) : 0;
+    $('contest-title').textContent = `${bm ? mobName(bm, z, chapterOf(T.idx)) : '두목'}`;
+    $('contest-fill').style.width = `${bp * 100}%`; $('contest-pct').textContent = `${Math.ceil(bp * 100)}%`;   // v519 두목 체력 막대
     $('contest-sub').textContent = `남은 ${Math.max(0, Math.ceil((B.limitMs - B.t) / 1000))}초 · 클리어 보상 은자 ${unit(2 * 27 * goldPerMob(T.idx))} · 뽑기권 ${T.idx % 10 === 0 ? 10 : 1}`;
   } else {
     $('contest-title').textContent = `Stage ${st}/10`;
@@ -478,17 +490,22 @@ function paintHud() {
     sl.innerHTML = '';
     for (let i = 0; i < SLOT_N; i++) {
       const b = document.createElement('button'); b.className = 'sk'; b.dataset.i = i;
-      b.onpointerdown = (e) => { e.preventDefault(); if (!(g.ensureFight().hero.kit || [])[i]) { openKey('hero:1'); return; } g.ensureFight().press({ slot: i }); };   // 빈 칸은 무공 창으로
+      b.onpointerdown = (e) => { e.preventDefault(); if (!(g.ensureFight().hero.kit || [])[i]) { openKey(b.classList.contains('locked') ? 'hero:3' : 'hero:1'); return; } g.ensureFight().press({ slot: i }); };   // 빈 칸은 무공 창으로 · 잠긴 칸은 전직 창으로
       sl.append(b);
     }
   }
+  // v519 아직 안 열린 칸 — 다음 전직에 열리는 무공의 차수(자물쇠 + n차)
+  const lockedT = (KIT[H.job] || []).filter((x) => x.kind !== 'passive' && x.tier > (H.adv || 0)).map((x) => x.tier).sort((a, b) => a - b);
+  let emptyN = 0;
   for (const b of sl.children) {
     const i = +b.dataset.i, k = kit[i], sk = k && skillById(k.id);
+    const lt = sk ? null : lockedT[emptyN++] ?? null;
+    b.classList.toggle('locked', lt != null);
     b.classList.toggle('ready', !!sk && !(Hh.cds && Hh.cds[i] > F.t));
     b.style.borderColor = sk ? sk.col : '';
-    const name = sk ? sk.name.slice(0, 2) : '+';
-    b.classList.toggle('empty', !sk); b.title = sk ? sk.name : '무공 끼우기';
-    if (b.dataset.n !== name) { b.dataset.n = name; b.innerHTML = `<span class="nm" style="color:${sk ? sk.col : ''}">${name}</span><span class="t">${sk ? 'ⅠⅡⅢⅣⅤⅥ'[sk.tier] || '' : ''}</span>${sk && k.auto ? '<i class="ad"></i>' : ''}`; }
+    const name = sk ? sk.name.slice(0, 2) : lt != null ? `L${lt}` : '+';
+    b.classList.toggle('empty', !sk); b.title = sk ? sk.name : lt != null ? `${lt}차 전직(Lv ${JOB_LV[lt]})에 열려요` : '무공 끼우기';
+    if (b.dataset.n !== name) { b.dataset.n = name; b.innerHTML = lt != null ? `<svg class="ic lk" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg><span class="lt">${lt}차</span>` : `<span class="nm" style="color:${sk ? sk.col : ''}">${name}</span><span class="t">${sk ? 'ⅠⅡⅢⅣⅤⅥ'[sk.tier] || '' : ''}</span>${sk && k.auto ? '<i class="ad"></i>' : ''}`; }
     // 쿨: 이름은 그대로 두고 위에 시계 방향으로 걷히는 그늘 + 남은 초
     let cd = b.querySelector('.cdw');
     const remain = sk && Hh.cds ? Hh.cds[i] - F.t : 0, left = Math.ceil(remain / 1000);
@@ -1085,7 +1102,15 @@ function fitLand() {
 }
 addEventListener('resize', fitLand); addEventListener('orientationchange', () => setTimeout(fitLand, 120));
 fitLand();
-document.addEventListener('pointerdown', () => { try { if (matchMedia('(pointer: coarse)').matches) screen.orientation?.lock?.('landscape')?.catch(() => {}); } catch { /* 잠글 수 없는 브라우저 */ } }, { once: true });
+// v519 전체 화면 — 손전화는 첫 터치에 저절로(주소창이 사라져 가로 화면이 더 넓다) · 가로 잠금은 전체 화면이어야 되는 브라우저가 많다
+function goFull(on) {
+  try {
+    if (!on) { document.exitFullscreen?.(); return; }
+    const p = document.documentElement.requestFullscreen?.({ navigationUI: 'hide' });
+    (p || Promise.resolve()).then(() => screen.orientation?.lock?.('landscape')).catch(() => {});
+  } catch { /* 안 되는 브라우저 */ }
+}
+document.addEventListener('pointerdown', () => { if (matchMedia('(pointer: coarse)').matches && !matchMedia('(display-mode: standalone)').matches) goFull(true); }, { once: true });
 loadLooks();
 load();
 if (g) boot();
