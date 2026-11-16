@@ -63,9 +63,22 @@ const ok = (c, m, x = '') => { console.log(`  ${c ? '✓' : '✗ !!'} ${m}${x !=
       await page.click('#ep-e5'); await page.waitForTimeout(200);
       const e1 = await page.evaluate(() => { const g = window.__s2.g; return Object.values(g.S.gear.slots).reduce((a, s) => a + s.enh, 0); });
       ok(e1 > e0 && await page.isVisible('#modal .enh2'), 'v528 5번 강화 → 단계가 오르고 창은 그대로', `${e0} → ${e1}`);
+      ok(await page.isVisible('#modal .forge'), 'v531 강화 연출(대장간)이 뜬다');
+      const skipFx = () => page.evaluate(() => document.querySelector('#modal .forge')?.click());   // 움직이는 연출이라 바로 누른다
+      await skipFx(); await page.waitForTimeout(150); await skipFx(); await page.waitForTimeout(100);
+      ok(!(await page.isVisible('#modal .forge')) && await page.isVisible('#modal .enh2'), 'v531 연출은 눌러 건너뛰고 강화 창으로');
       await page.click('#ep-close'); ok(await page.isHidden('#modal'), '닫기');
       await page.click('#panel-close');
     }
+    // v531 실제 던전 — 수련동 「입장」 → 사냥터 대신 던전(위에 목표 · 남은 시간 · 나가기) → 나가기 → 결과 창
+    await page.evaluate(() => { const g = window.__s2.g; for (let i = 0; i < 400 && g.S.hero.lv < 35; i++) g.addExp(Math.max(2e4, (window.__s2.need?.(g.S.hero.lv)) || 2e5)); if (g.bossFight) g.endChallenge(false); g.dirtyStats = true; });
+    await page.click('#mb .nb[data-tab="dgn"]'); await page.waitForTimeout(200);
+    await page.click('#wb .row:has-text("수련장") .btn:has-text("입장")'); await page.waitForTimeout(600);
+    ok(await page.evaluate(() => !!window.__s2.g.dg) && await page.isVisible('#contest-hud.dg') && /남은 \d+초/.test(await page.textContent('#contest-sub')) && /던전/.test(await page.textContent('#sp-txt')), 'v531 던전 입장: 위에 목표 · 남은 시간', await page.textContent('#contest-sub'));
+    page.once('dialog', (d) => d.accept());
+    await page.click('#dg-leave'); await page.waitForTimeout(400);
+    ok(await page.evaluate(() => !window.__s2.g.dg) && await page.isVisible('#res.open'), 'v531 나가기 → 결과 창');
+    await page.click('#rout'); await page.waitForTimeout(200);
     const navs = await page.$$('.nb[data-tab]');
     ok(navs.length === 7 && (await page.$$('#mb .nb')).length === 5, '아래 메뉴 다섯(캐릭터 · 장비 · 무공 · 동료 · 던전) + 위 아이콘(지도 · 임무 · 무림)');
     await page.click('#mb .nb[data-key]'); ok(/캐릭터/.test(await page.textContent('#panel-title')) && /on/.test(await page.getAttribute('#panel-body .subtabs button >> nth=1', 'class')), '「무공」 → 캐릭터 창 무공 칸'); await page.click('#panel-close');

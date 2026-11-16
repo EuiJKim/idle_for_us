@@ -39,6 +39,13 @@ export const BOSS_EVERY = 300;
 export const STAGE_KILLS = 20, STAGE_BOSS_MS = 60000;
 export const SIDE_ROOM = { n: 18, coolMs: 1000 };
 export const STAGE_BOSS_HP_X = 0.5;
+// v531 수련동을 옆보기로 — 던전마다 몹 수 · 다시 나오는 빠르기 · 목표(tools/s2sim/play.mjs 봇이 그 레벨에 대부분 깨게)
+export const DG_SIDE = {
+  gold: { need: 50, keep: 22, coolMs: 400 },           // 은자굴: 90초에 50마리
+  gear: { hpX: 1, adds: 4 },                            // 병장고: 두목 하나(+ 졸개) · 120초
+  stone: { keep: 12, coolMs: 900, lvUp: -5, eliteW: 1, mobW: 8 },   // 단련동: 몹 몰려옴 · 가끔 정예 · 60초 쓰러지지 않기
+  growth: { n: 16 },                                    // 수련장: 16마리 다 잡기 · 90초
+};
 export const AUTO_RETRY_PW = 50;
 export const RETREAT_DEATHS = 3;   // v527 자동 사냥 중 한 칸에서 이만큼 쓰러지면 앞 칸으로 물러난다(다시 나아가기는 더 강해진 뒤)   // 자동 재도전: 진 때보다 전투력 +5%(또는 레벨업)   // 칸 두목은 기준 무인으로 20초 남짓(사냥터 두목의 절반)
 
@@ -146,6 +153,7 @@ export class Game {
     } };
   }
   ensureFight() {
+    if (this.dg) return this.dg.F;   // v531 실제 던전 안
     if (this.bossFight) return this.bossFight;
     const L = this.zoneLv();
     if (!this.fight || this.fight.def.lv !== L) {
@@ -161,7 +169,7 @@ export class Game {
     }
     return this.fight;
   }
-  canChallenge() { const T = this.stage(); return !this.bossFight && T.kills >= STAGE_KILLS && T.idx < LEVEL_MAX; }
+  canChallenge() { const T = this.stage(); return !this.bossFight && !this.dg && T.kills >= STAGE_KILLS && T.idx < LEVEL_MAX; }
   // v526 칸 두목에 지면 자동 재도전은 더 강해진 뒤(레벨업 · 전투력 +AUTO_RETRY_PW‰) — 같은 두목에 계속 지며 접속 시간을 버리지 않게.
   //   그 사이는 그 칸 사냥(반복 사냥). 손으로 누르는 「도전」은 언제든.
   autoReady() {
@@ -199,6 +207,7 @@ export class Game {
   setAuto(on) { this.S.auto = !!on; this.ensureFight().press({ auto: !!on }); if (this.fight && this.bossFight) this.fight.press({ auto: !!on }); }
   // ms만큼 사냥(50ms 틱) — 처치마다 경험치 · 은자 · 사건
   hunt(ms) {
+    if (this.dg) return this.huntDungeon(ms);
     const S = this.S, T = this.stage();
     if (!this.bossFight && T.auto && this.canChallenge() && this.autoReady()) this.challenge();
     const F = this.ensureFight();
@@ -301,35 +310,113 @@ export class Game {
   // ── 무인 ──
   learn(id) { const ok = this.hero.learn(id, this.now, this.S.wallet); if (ok) { this.dirtyStats = true; this.emit('skill'); this.feed.push({ k: 'mastery' }); } return ok; }
   skillUp(k) { const ok = this.hero.skillUp(k, this.S.wallet); if (ok) { this.dirtyStats = true; this.emit('skill'); } return ok; }
-  jobDungeon() {
-    const n = this.S.hero.adv + 1;
-    if (n >= JOB_LV.length || this.S.hero.lv < JOB_LV[n]) return null;
-    const r = runDungeon({ clear: 'boss', timeMs: 90000, mobLv: JOB_LV[n], kind: 'boss', n: 1, hpX: JOB_DUNGEON[n].hpX }, this.fighter(), this.rng.u32());
-    if (r.cleared) { this.hero.clearDungeon(JOB_ADV[n].dungeon); this.hero.advance(); this.dirtyStats = true; this.emit('dungeon', { job: n }); this.feed.push({ k: 'advance', n }); }
-    return r;
-  }
+  jobDungeon() { return this.runNow('job'); }
   // ── 콘텐츠 ──
-  dailyDungeon(kind) {
-    const D = DAILY_DUNGEONS[kind], S = this.S;
-    if (!D || S.hero.lv < D.unlockLv || (S.dungeons.runs[kind] || 0) >= DAILY_RUNS) return null;
-    if (!ID.useStamina(S.stamina.daily, this.now)) return null;
-    const r = runDungeon({ clear: D.clear, need: D.need, timeMs: D.timeMs, mobLv: S.hero.lv, kind: D.clear === 'boss' ? 'boss' : 'mob' }, this.fighter(), this.rng.u32());
-    S.dungeons.runs[kind] = (S.dungeons.runs[kind] || 0) + 1;
-    if (r.cleared) {
-      const R = D.reward;
-      if (R.expMin) this.addExp(Math.round(R.expMin * KILLS_PER_MIN * mobExp(S.hero.lv)));
-      if (R.goldMin) S.wallet.gold += Math.round(R.goldMin * KILLS_PER_MIN * goldPerMob(S.hero.lv));
-      if (R.gearTickets) S.wallet['ticket:gear'] = (S.wallet['ticket:gear'] || 0) + R.gearTickets;
-      if (R.stones) S.wallet['item:stone'] = (S.wallet['item:stone'] || 0) + R.stones;
-      this.emit('dungeon', { kind: 1 });
-    }
-    return r;
+  dailyDungeon(kind) { return this.runNow('daily', kind); }
+  towerFight() { return this.runNow('tower'); }
+  // ── v531 실제 던전 ── 옆보기 사냥 엔진(SideFight) 위에서 직접 싸운다. 입장 → 목표(처치 · 두목 · 다 잡기 · 버티기) · 제한 시간 → 결과
+  //   enterDungeon: 화면에서 직접(사냥터 대신 던전이 그려진다) · runNow: 같은 던전을 바로 끝까지(소탕 · 봇)
+  canDungeon(type, kind) {
+    const S = this.S;
+    if (this.dg || this.bossFight) return '다른 싸움 중이에요';
+    if (type === 'daily') {
+      const D = DAILY_DUNGEONS[kind];
+      if (!D) return '없는 던전이에요';
+      if (S.hero.lv < D.unlockLv) return `Lv ${D.unlockLv}부터`;
+      if ((S.dungeons.runs[kind] || 0) >= DAILY_RUNS) return '오늘은 다 했어요';
+      if (ID.staminaNow(S.stamina.daily, this.now) < 1) return '입장권이 없어요';
+    } else if (type === 'job') {
+      const n = S.hero.adv + 1;
+      if (n >= JOB_LV.length) return '전직을 다 했어요';
+      if (S.hero.lv < JOB_LV[n]) return `Lv ${JOB_LV[n]}부터`;
+    } else if (type !== 'tower') return '없는 던전이에요';
+    return '';
   }
-  towerFight() {
-    const f = this.S.tower.best + 1;
-    const r = runDungeon({ clear: 'wipe', timeMs: 60000, mobLv: this.S.hero.lv, n: 4, hpX: ID.towerX(f) }, this.fighter(), this.rng.u32());
-    if (r.cleared) { this.S.tower.best = f; this.dirtyStats = true; }
-    return r;
+  enterDungeon(type, kind) {
+    if (this.canDungeon(type, kind)) return false;
+    const S = this.S, L = S.hero.lv, D = type === 'daily' ? DAILY_DUNGEONS[kind] : null;
+    if (type === 'daily') { ID.useStamina(S.stamina.daily, this.now); S.dungeons.runs[kind] = (S.dungeons.runs[kind] || 0) + 1; }
+    const mob = (lv, kind2 = 'mob', w = 1) => ({ lv, kind: kind2, w });
+    let title, clear, need = 0, limitMs, map, fams, hpX = 1, wipeN = 0, boss = false, extra = {};
+    if (type === 'daily') {
+      title = D.name; clear = D.clear; limitMs = D.timeMs;
+      const X = DG_SIDE[kind];
+      if (clear === 'kills') { need = X.need; map = makeSideMap(7000 + L, { w: 16000, tiers: 2 }); fams = { a: { mobs: [mob(L)], keep: X.keep, coolMs: X.coolMs } }; }
+      else if (clear === 'boss') { need = 1; boss = true; hpX = X.hpX; map = makeSideMap(7100 + L, { w: 14000, tiers: 1 }); fams = { a: { mobs: [mob(L)], keep: X.adds, coolMs: 4000 }, b: { mobs: [mob(L, 'boss')], keep: 0, coolMs: 1e12 } }; }
+      else if (clear === 'survive') { map = makeSideMap(7200 + L, { w: 12000, tiers: 2 }); fams = { a: { mobs: [mob(L + X.lvUp, 'mob', X.mobW), mob(L, 'elite', X.eliteW)], keep: X.keep, coolMs: X.coolMs } }; }
+      else { wipeN = need = X.n; map = makeSideMap(7300 + L, { w: 18000, tiers: 2 }); fams = { a: { mobs: [mob(L)], keep: X.n, coolMs: 1e12 } }; }
+    } else if (type === 'tower') {
+      const f = S.tower.best + 1;
+      title = `무한의 탑 ${f}층`; clear = 'wipe'; limitMs = 60000; wipeN = need = 4; hpX = ID.towerX(f); extra.floor = f;
+      map = makeSideMap(7400 + f, { w: 10000, tiers: 1 }); fams = { a: { mobs: [mob(L)], keep: 4, coolMs: 1e12 } };
+    } else {
+      const n = S.hero.adv + 1;
+      title = `${n}차 전직 던전`; clear = 'boss'; need = 1; boss = true; limitMs = 90000; hpX = JOB_DUNGEON[n].hpX; extra.n = n;
+      map = makeSideMap(7500 + n, { w: 14000, tiers: 1 }); fams = { b: { mobs: [mob(JOB_LV[n], 'boss')], keep: 0, coolMs: 1e12 } };
+    }
+    const F = new SideFight({ lv: L, dungeon: type, map, fams }, this.fighter(), this.rng.u32(), { auto: S.auto !== false });
+    if (boss) F.spawn('b', { p: 0, x: Math.round(map.w * 0.75) });
+    if (wipeN) F.famState.a.keep = 0;   // 다 잡기: 처음 자리 몹만 · 다시 나오지 않음
+    if (hpX !== 1) for (const m of F.mobs) { m.hp = Math.round(m.hp * hpX); m.st = { ...m.st, hp: m.hp }; }
+    F.limitMs = limitMs;
+    this.dg = { type, kind, title, clear, need, limitMs, F, ...extra };
+    this.feed.push({ k: 'dungeon-start', type, kind, title });
+    return true;
+  }
+  dgStatus() {
+    const d = this.dg; if (!d) return null;
+    const F = d.F, left = Math.max(0, d.limitMs - F.t);
+    let p = 0, label = '';
+    if (d.clear === 'kills') { p = F.kills / d.need; label = `처치 ${Math.min(F.kills, d.need)} / ${d.need}`; }
+    else if (d.clear === 'boss') { const b = F.mobs.find((m) => m.kind === 'boss'); const r = b ? b.hp / b.st.hp : 0; p = 1 - r; label = `두목 체력 ${Math.ceil(r * 100)}%`; }
+    else if (d.clear === 'wipe') { p = 1 - F.mobs.length / d.need; label = `남은 적 ${F.mobs.length} / ${d.need}`; }
+    else { p = F.t / d.limitMs; label = F.deaths ? '쓰러짐 — 실패' : `쓰러지지 말고 버티기 · ${Math.ceil(left / 1000)}초`; }
+    return { title: d.title, type: d.type, kind: d.kind, clear: d.clear, p: Math.max(0, Math.min(1, p)), label, leftMs: left };
+  }
+  dgCheck() {
+    const d = this.dg, F = d.F;
+    if (d.clear === 'kills' && F.kills >= d.need) return true;
+    if (d.clear === 'boss' && F.killsBy.boss) return true;
+    if (d.clear === 'wipe' && F.mobs.length === 0) return true;
+    if (d.clear === 'survive' && F.deaths > 0) return false;
+    if (F.t >= d.limitMs) return d.clear === 'survive';
+    return null;
+  }
+  huntDungeon(ms) {
+    const F = this.dg.F, end = F.t + ms;
+    let r = null;
+    while (F.t < end) { F.step(); r = this.dgCheck(); if (r !== null) break; }
+    this.lastEvents = F.events; this.lastFight = F; F.events = [];
+    if (r !== null) this.endDungeon(r);
+    return 0;
+  }
+  // 포기(나가기) — 실패로 끝(입장권은 이미 씀)
+  leaveDungeon() { if (!this.dg) return false; this.endDungeon(false, true); return true; }
+  endDungeon(cleared, gaveUp = false) {
+    const d = this.dg, S = this.S, F = d.F, L = S.hero.lv, out = { gold: 0, exp: 0, tix: 0, stones: 0 };
+    this.dg = null; this.dirtyStats = true;
+    if (cleared && d.type === 'daily') {
+      const R = DAILY_DUNGEONS[d.kind].reward;
+      if (R.expMin) { out.exp = Math.round(R.expMin * KILLS_PER_MIN * mobExp(L, 'mob', L)); this.addExp(out.exp); }
+      if (R.goldMin) { out.gold = Math.round(R.goldMin * KILLS_PER_MIN * goldPerMob(L)); S.wallet.gold += out.gold; }
+      if (R.gearTickets) { out.tix = R.gearTickets; S.wallet['ticket:gear'] = (S.wallet['ticket:gear'] || 0) + out.tix; }
+      if (R.stones) { out.stones = R.stones; S.wallet['item:stone'] = (S.wallet['item:stone'] || 0) + out.stones; }
+      (S.dungeons.best ??= {})[d.kind] = true;
+      this.emit('dungeon', { kind: 1 });
+    } else if (cleared && d.type === 'tower') { S.tower.best = d.floor; }
+    else if (cleared && d.type === 'job') { this.hero.clearDungeon(JOB_ADV[d.n].dungeon); this.hero.advance(); this.emit('dungeon', { job: d.n }); this.feed.push({ k: 'advance', n: d.n }); }
+    const res = { k: 'dungeon-end', type: d.type, kind: d.kind, title: d.title, cleared, gaveUp, ms: F.t, kills: F.kills, deaths: F.deaths, floor: d.floor, n: d.n, ...out };
+    this.feed.push(res); this.lastDg = res;
+    return res;
+  }
+  // 같은 던전을 화면 없이 끝까지(소탕 · 봇)
+  runNow(type, kind) {
+    if (!this.enterDungeon(type, kind)) return null;
+    for (let i = 0; i < 4000 && this.dg; i++) this.huntDungeon(1000);
+    if (this.dg) this.endDungeon(false);
+    const r = this.lastDg;
+    this.feed = this.feed.filter((f) => f.k !== 'dungeon-start' && f !== r);
+    return { cleared: r.cleared, ...r };
   }
   startExped(h) { return ID.startExpedition(this.S.exped, h, this.now, this.S.wallet); }
   claimExped() { const r = ID.claimExpedition(this.S.exped, this.now); if (r) this.giveHuntMin(r.huntMin); return r; }

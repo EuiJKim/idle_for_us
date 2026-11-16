@@ -861,6 +861,26 @@ console.log('\n=== v527 성장 곡선 — 실제 엔진 2일(봇: 접속 20시�
   ok((g2.books.daily.get('d_dungeon').p || 0) === 0 && (g2.books.weekly.get('w_dungeon').p || 0) === 0, 'v526 칸 클리어는 일일 · 주간 「던전」 미션에 세지 않음');
 }
 
+console.log('\n=== v531 실제 던전(옆보기 엔진) ===');
+{
+  const T0 = 1.8e12, mk = () => { const g = new Game(newGame('sword', T0, 9), T0); g.addExp(EX.cumExp(40)); g.tick(T0); g.S.wallet['ticket:gear'] = 300; g.S.wallet.gold = 1e9; g.S.wallet['item:stone'] = 1e5; for (let i = 0; i < 30; i++) g.pullGear(10); GR.equipBest(g.S.gear, 40); for (const s of GE.SLOTS) for (let i = 0; i < 12; i++) g.enhance(s); g.dirtyStats = true; return g; };   // 장비를 갖춘 Lv40
+  const g = mk();
+  ok(new Game(newGame('sword', T0, 9), T0).canDungeon('daily', 'gold').includes('Lv 20'), '레벨이 모자라면 못 들어감(이유를 알려 줌)');
+  const st0 = g.S.dungeons.runs.gold || 0;
+  ok(g.enterDungeon('daily', 'gold') && g.dg && g.ensureFight() === g.dg.F && (g.S.dungeons.runs.gold || 0) === st0 + 1 && !g.canChallenge(), '입장: 입장권 · 횟수를 쓰고 사냥터 대신 던전이 싸움판(칸 두목 도전은 멈춤)');
+  ok(!g.enterDungeon('daily', 'gear') && g.canDungeon('daily', 'gear') === '다른 싸움 중이에요', '던전 안에서 또 못 들어감');
+  for (let i = 0; i < 20; i++) g.hunt(1000);
+  const s1 = g.dgStatus();
+  ok(s1 && s1.p > 0 && s1.leftMs < 90000 && /처치 \d+ \/ 50/.test(s1.label), '진행 상황: 목표 · 남은 시간', s1?.label);
+  ok(g.leaveDungeon() && !g.dg && g.feed.some((f) => f.k === 'dungeon-end' && f.gaveUp && !f.cleared), '나가기 → 실패로 끝 · 사냥터로');
+  const a = mk(), b = mk();
+  const ra = a.runNow('daily', 'growth'), rb = b.runNow('daily', 'growth');
+  ok(ra && ra.cleared && ra.ms === rb.ms && ra.kills === rb.kills && ra.exp > 0, '소탕(바로 끝까지) — 같은 씨앗 = 같은 결과 · 깨면 보상', `${ra?.ms}ms · 처치 ${ra?.kills}`);
+  ok(a.S.dungeons.best?.growth === true && !a.dg && !a.feed.some((f) => f.k === 'dungeon-end'), '한 번 깨면 소탕 가능 표시 · 소탕은 결과 창을 띄우지 않음');
+  const t = mk(), f0 = t.S.tower.best, rt = t.towerFight();
+  ok(rt && (rt.cleared ? t.S.tower.best === f0 + 1 : t.S.tower.best === f0), '무한의 탑도 같은 엔진', `${f0} → ${t.S.tower.best}`);
+}
+
 console.log('\n=== S0 규칙 ===');
 {
   const files = [];

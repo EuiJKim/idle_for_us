@@ -43,7 +43,7 @@ export function play({ days = 7, job = 'sword', seed = 1, active = 120, ad = fal
     g.journeyOpen();
     g.jobDungeon();
     for (const k of Object.keys(DAILY_DUNGEONS)) for (let i = 0; i < 3; i++) g.dailyDungeon(k);
-    for (let i = 0; i < 3 && g.towerFight()?.cleared; i++);
+    g.towerFight();   // v531 한 번씩(실제 던전 엔진이라 오래 걸린다)
     if (S.exped.run && now >= S.exped.run.endMs) g.claimExped();
     if (!S.exped.run) g.startExped(12);
     g.wbossFight(); for (let i = 0; i < 5; i++) g.pvpFight(0);

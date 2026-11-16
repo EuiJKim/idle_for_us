@@ -324,7 +324,7 @@ function paintWin() {
     const c = card(`${JOBS[g.S.hero.job].name} ${g.S.hero.adv}차`, '전직마다 무공이 열리고 체력이 오른다');
     for (let i = 1; i < JOB_LV.length; i++) {
       const done = g.S.hero.adv >= i;
-      c(R(`${i}차 전직`, done ? '마침' : `Lv ${JOB_LV[i]} · 전직 던전을 깨면`, i === n ? [['도전', act(() => { const r = g.jobDungeon(); if (r) toast(r.cleared ? `${n}차 전직!` : '실패 — 더 강해져서'); return r; }), g.S.hero.lv < JOB_LV[i]]] : [], done ? '轉' : String(i)));
+      c(R(`${i}차 전직`, done ? '마침' : `Lv ${JOB_LV[i]} · 전직 던전을 깨면`, i === n ? [['도전', () => { play('click'); if (!g.enterDungeon('job')) toast(g.canDungeon('job') || '들어갈 수 없어요'); }, g.S.hero.lv < JOB_LV[i]]] : [], done ? '轉' : String(i)));
     }
   } else if (key === 'gear:0') {
     // 장착 — 가운데 무인 · 양옆 다섯 칸씩 · 칸을 누르면 아래에 자세히
@@ -412,11 +412,17 @@ function paintWin() {
     c(R(`${J.cleared + 1}단계 두목`, '이기면 다음 단계를 열 수 있음', [['도전', act(() => { const r = g.journeyFight(); toast(r.cleared ? '이겼다' : '졌다'); return r; })]], '鬪'));
     c(R('다음 단계 열기', '최종 피해③ · 축복 · 옵션 2줄 — 바로 열림', [['열기', act(() => g.journeyOpen()), J.cleared <= J.step]], '開'));
   } else if (key === 'content:0') {
+    // v531 실제 던전 — 「입장」은 직접 싸움(사냥터 대신 던전) · 한 번 깬 던전은 「소탕」(바로 결과)
     const c = card('수련동', `입장권 ${staminaNow(g.S.stamina.daily, now())} · 2시간마다 1`);
-    for (const [k, D] of Object.entries(DAILY_DUNGEONS)) { const r = R(D.name, `Lv ${D.unlockLv} · 오늘 ${g.S.dungeons.runs[k] || 0}/${DAILY_RUNS}`, [['입장', act(() => { const r2 = g.dailyDungeon(k); if (r2) toast(r2.cleared ? '클리어' : '실패'); return r2; }), g.S.hero.lv < D.unlockLv]], D.name[0]); if (g.S.hero.lv < D.unlockLv) r.style.opacity = '.55'; c(r); }
+    const RW = { gold: '은자', gear: '뽑기권', stone: '강화석', growth: '경험치' };
+    for (const [k, D] of Object.entries(DAILY_DUNGEONS)) {
+      const why = g.canDungeon('daily', k), swept = !!g.S.dungeons.best?.[k];
+      c(R(D.name, `${DG_GOAL[D.clear]} · ${Math.round(D.timeMs / 1000)}초 · 보상 ${RW[k] || ''} · 오늘 ${g.S.dungeons.runs[k] || 0}/${DAILY_RUNS}${why && g.S.hero.lv < D.unlockLv ? ` · ${why}` : ''}`,
+        [['입장', () => { play('click'); if (!g.enterDungeon('daily', k)) toast(g.canDungeon('daily', k) || '들어갈 수 없어요'); }, !!why], ...(swept ? [['소탕', act(() => { const r2 = g.dailyDungeon(k); if (r2) toast(r2.cleared ? `소탕 — ${D.name} 클리어` : '소탕 실패'); return r2; }), !!why]] : [])], '洞'));
+    }
   } else if (key === 'content:1') {
     const c = card(`무한의 탑 ${g.S.tower.best}층`, '깬 층만큼 영구 보너스');
-    c(R(`${g.S.tower.best + 1}층`, '이기면 한 층 위로', [['도전', act(() => { const r = g.towerFight(); toast(r.cleared ? `${g.S.tower.best}층!` : '실패'); return r; })]], '塔'));
+    c(R(`${g.S.tower.best + 1}층`, '적 넷을 60초 안에 모두 · 이기면 한 층 위로', [['도전', () => { play('click'); if (!g.enterDungeon('tower')) toast(g.canDungeon('tower') || '들어갈 수 없어요'); }, !!g.canDungeon('tower')]], '塔'));
   } else if (key === 'content:2') {
     const E = g.S.exped, c = card('원정', `원정권 ${W['ticket:exped'] || 0}장`);
     if (E.run) c(R(`원정 ${E.run.hours}시간`, now() >= E.run.endMs ? '끝남 — 받기' : `남은 ${left(E.run.endMs)}`, [['받기', act(() => g.claimExped()), now() < E.run.endMs], ['시간 티켓', act(() => g.timeTicket('exped', 15)), !(W['ticket:time'] > 0)]], '征'));
@@ -490,6 +496,44 @@ function needRows(cost) {
   return `<div class="need">${cost.map((c2) => { const h = g.S.wallet[c2.k] || 0; return `<div class="need-r ${h >= c2.n ? 'ok' : 'no'}"><span>${COST_NAME[c2.k] || c2.k}</span><b>${unit(c2.n)}</b><small>가진 것 ${unit(h)}</small></div>`; }).join('')}</div>`;
 }
 let enhProt = false;
+// v531 대장간 연출 — 결과는 먼저 정해 두고(엔진), 화면은 망치질 · 숨 고르기 · 터짐으로 보여 준다. 누르면 건너뜀.
+//   kind 'enh' | 'star' · rs: 결과 목록(여러 번이면 차례로) · after: 끝나고
+function forgeFx(kind, sl, rs, before, after, done) {
+  const sh = $('modal').querySelector('.sheet'), G = g.S.gear, it = G.eq[sl];
+  const ov = document.createElement('div'); ov.className = `forge ${kind}`;
+  const many = rs.length > 1;
+  ov.innerHTML = `<div class="fg-stage"><div class="fg-ring"></div><div class="fg-glow"></div><img class="fg-item" src="${eqIcon(sl, it)}" alt=""><svg class="fg-ham" viewBox="0 0 64 64"><path d="M6 20l14-14 10 10-14 14z" fill="#cbd5e1" stroke="#1f2937" stroke-width="2"/><path d="M22 26l30 30" stroke="#8b5a2b" stroke-width="7" stroke-linecap="round"/></svg><div class="fg-sparks"></div></div>
+    <div class="fg-txt"><small>${kind === 'enh' ? `+${before.enh} → +${before.enh + 1}` : `★${before.star} → ★${before.star + 1}`}</small><b>${kind === 'enh' ? '강화 중…' : '성혼 중…'}</b><em></em></div>
+    <div class="fg-tally">${many ? rs.map(() => '<i></i>').join('') : ''}</div><div class="fg-skip">누르면 건너뛰기</div>`;
+  sh.append(ov);
+  const st = ov.querySelector('.fg-stage'), txt = ov.querySelector('.fg-txt b'), sub = ov.querySelector('.fg-txt small'), em = ov.querySelector('.fg-txt em'), sparks = ov.querySelector('.fg-sparks');
+  const timers = []; let skipped = false;
+  const later = (ms, fn) => timers.push(setTimeout(fn, ms));
+  const spark = (n, col) => { for (let i = 0; i < n; i++) { const p = document.createElement('i'); const a = Math.random() * Math.PI * 2, d = 40 + Math.random() * 90; p.style.cssText = `--x:${Math.cos(a) * d}px;--y:${Math.sin(a) * d}px;--c:${col};--t:${0.4 + Math.random() * 0.5}s`; sparks.append(p); setTimeout(() => p.remove(), 1000); } };
+  const finish = () => { for (const t of timers) clearTimeout(t); ov.remove(); done(); };
+  ov.onclick = () => { if (skipped) return finish(); skipped = true; for (const t of timers) clearTimeout(t); show(rs.length - 1, true); later(900, finish); };
+  const per = many ? 520 : 1250;
+  let lvl = kind === 'enh' ? before.enh : before.star;
+  const show = (i, last) => {
+    const r = rs[i], ok = kind === 'enh' ? r === true : r === 'ok';
+    if (kind === 'enh') { if (ok) lvl++; } else if (r === 'ok') lvl++; else if (r === 'down') lvl--; else if (r === 'break') lvl = 0;
+    ov.classList.remove('ok', 'no', 'down', 'brk', 'big'); void ov.offsetWidth;
+    const big = ok && (kind === 'enh' ? lvl >= 10 && lvl % 5 === 0 : lvl >= 15);
+    ov.classList.add(ok ? 'ok' : r === 'break' ? 'brk' : r === 'down' ? 'down' : 'no'); if (big) ov.classList.add('big');
+    txt.textContent = ok ? (big ? '대성공!' : '성공!') : r === 'break' ? '파괴!' : r === 'down' ? '하락…' : '실패';
+    sub.textContent = kind === 'enh' ? `+${lvl}` : r === 'break' ? '★ 파괴됨' : `★${lvl}`;
+    if (ok) { spark(big ? 46 : 26, big ? '#fde68a' : '#facc15'); play(big ? 'rare' : 'clear', 5); } else if (r === 'break') { spark(30, '#f87171'); play('burst'); } else play('fail');
+    const tl = ov.querySelectorAll('.fg-tally i'); if (tl[i]) tl[i].className = ok ? 'o' : 'x';
+    if (last || i === rs.length - 1) { const okN = rs.filter((x) => x === true || x === 'ok').length; em.innerHTML = many ? `${rs.length}번 중 <b>${okN}</b>번 성공` : ok ? after() : ''; }
+  };
+  const strike = (i) => { st.classList.remove('hit'); void st.offsetWidth; st.classList.add('hit'); spark(6, '#fbbf24'); play('hit'); };
+  rs.forEach((_, i) => {
+    const t0 = i * per;
+    if (!many) { later(t0 + 120, () => strike(i)); later(t0 + 420, () => strike(i)); later(t0 + 720, () => { strike(i); play('tense'); ov.classList.add('hold'); }); later(t0 + 1050, () => { ov.classList.remove('hold'); show(i); }); }
+    else { later(t0 + 120, () => strike(i)); later(t0 + 360, () => show(i)); }
+  });
+  later(rs.length * per + (many ? 900 : 1400), () => { if (!skipped) { ov.classList.add('done'); later(1300, finish); } });   // 결과를 잠깐 보여 주고 강화 창으로
+}
 function enhPop(sl) {
   const G = g.S.gear, L = g.S.hero.lv, it = G.eq[sl], S2 = G.slots[sl], sh = $('modal').querySelector('.sheet');
   if (!it) { closeModal(); eqSel = sl; openWin('bag', 0); return; }
@@ -519,10 +563,22 @@ function enhPop(sl) {
     </div>
     <div class="btn-row" style="margin-top:10px"><button class="btn" id="ep-swap">장비 바꾸기</button><button class="btn" id="ep-off">해제</button><button class="btn primary" id="ep-close">닫기</button></div>`;
   const again = () => { save(); paintHud(); if (open) paintWin(); enhPop(sl); };
-  const doEnh = (n) => { let ok = 0, tried = 0; for (let i = 0; i < n; i++) { const r = g.enhance(sl); if (r === null) break; tried++; if (r) ok++; if (G.slots[sl].enh >= ENH_MAX) break; } if (tried) { play(ok ? 'clear' : 'click'); toast(n === 1 ? (ok ? `강화 성공 · +${G.slots[sl].enh}` : '강화 실패 — 단계는 그대로') : `${tried}번 중 ${ok}번 성공 · +${G.slots[sl].enh}`); } else toast('재료가 모자라요'); again(); };
+  const doEnh = (n) => {
+    const before = { ...G.slots[sl] }, p0 = itemStats(it, G.slots[sl], L), rs = [];
+    for (let i = 0; i < n; i++) { const r = g.enhance(sl); if (r === null) break; rs.push(r); if (G.slots[sl].enh >= ENH_MAX) break; }
+    if (!rs.length) { toast('재료가 모자라요'); return; }
+    save(); paintHud();
+    forgeFx('enh', sl, rs, before, () => diffTxt(p0, itemStats(it, G.slots[sl], L)) || '', again);
+  };
   $('ep-e1').onclick = () => doEnh(1);
   $('ep-e5').onclick = () => doEnh(5);
-  $('ep-s1').onclick = () => { const r = g.star(sl, { noBreak: prot }); if (r) { play(r === 'ok' ? 'clear' : 'click'); toast({ ok: `성혼 성공 · ★${G.slots[sl].star}`, fail: '성혼 실패', down: '성혼 실패 — 별 하나 내려감', break: '파괴! 복구 주문서로 되살릴 수 있어요' }[r]); } else toast('재료가 모자라요'); again(); };
+  $('ep-s1').onclick = () => {
+    const before = { ...G.slots[sl] }, p0 = itemStats(it, G.slots[sl], L), r = g.star(sl, { noBreak: prot });
+    if (!r) { toast('재료가 모자라요'); return; }
+    save(); paintHud();
+    forgeFx('star', sl, [r], before, () => diffTxt(p0, itemStats(it, G.slots[sl], L)) || '', again);
+    if (r === 'break') setTimeout(() => toast('파괴! 복구 주문서로 되살릴 수 있어요'), 1300);
+  };
   const pr = $('ep-prot'); if (pr) pr.onchange = (e) => { enhProt = e.target.checked; enhPop(sl); };
   $('ep-swap').onclick = () => { play('click'); closeModal(); sh.classList.remove('wide', 'enhs'); eqSel = sl; openWin('bag', 0); };
   $('ep-off').onclick = () => { play('click'); unequip(G, sl); g.dirtyStats = true; g.emit('equip'); closeModal(); sh.classList.remove('wide', 'enhs'); save(); paintHud(); if (open) paintWin(); };
@@ -587,6 +643,7 @@ function paintHud() {
   const S = g.S, H = S.hero, F = g.ensureFight(), T = g.stage(), z = zoneFor(g.zoneLv());
   if (!$('qc').onclick) {
     $('qc').onclick = onGuide;
+    $('dg-leave').onclick = () => { play('click'); if (g.dg && confirm('던전에서 나갈까요? 입장권은 돌려받지 못해요.')) g.leaveDungeon(); };
     $('btn-boss').onclick = () => { play('click'); if (g.challenge()) toast('칸 두목 도전!'); else toast(`몹을 ${STAGE_KILLS}마리 잡으면 도전할 수 있어요`); };
     $('b-opt').onclick = () => { play('click'); openWin('opt', 0); };
     $('btn-sound').onclick = () => { opt.sfx = !(opt.sfx || opt.bgm); opt.bgm = opt.sfx; saveOpt(); bgm(chapterOf(g.zoneLv())); toast(opt.sfx ? '소리 켬' : '소리 끔'); paintHud(); };
@@ -613,7 +670,9 @@ function paintHud() {
   const bm0 = boss ? g.bossFight.mobs.find((m) => m.kind === 'boss') : null, spR = boss ? (bm0 ? Math.max(0, bm0.hp / bm0.st.hp) : 0) : Math.min(1, T.kills / STAGE_KILLS);
   $('sp').classList.toggle('boss', boss); $('sp-fill').style.width = `${spR * 100}%`;
   const waiting = !boss && T.auto && T.failIdx === T.idx && g.canChallenge() && !g.autoReady();   // v526 진 칸: 더 강해질 때까지 반복 사냥
-  $('sp-txt').textContent = boss ? `Stage ${st}/10 · 두목 ${Math.ceil(spR * 100)}%` : waiting ? `Stage ${st}/10 · 반복 사냥` : `Stage ${st}/10 · ${Math.min(T.kills, STAGE_KILLS)}/${STAGE_KILLS}`;
+  const dgs = g.dgStatus();   // v531 실제 던전 안
+  if (dgs) { $('sp').classList.add('boss'); $('sp-fill').style.width = `${dgs.p * 100}%`; }
+  $('sp-txt').textContent = dgs ? `던전 · ${dgs.title}` : boss ? `Stage ${st}/10 · 두목 ${Math.ceil(spR * 100)}%` : waiting ? `Stage ${st}/10 · 반복 사냥` : `Stage ${st}/10 · ${Math.min(T.kills, STAGE_KILLS)}/${STAGE_KILLS}`;
   // 왼쪽 아래: 무인 체력
   const hpR = Math.max(0, Hh.hp / Hh.st.hp);
   $('hp-fill').style.width = `${hpR * 100}%`; $('hp-trail').style.width = `${hpR * 100}%`; $('hp-fill').parentNode.classList.toggle('low', hpR < 0.3);
@@ -623,11 +682,16 @@ function paintHud() {
   const cur = guideCurrent(S.q.guide), cs = cur && S.q.guide[cur.id], qb = $('qc');
   qb.classList.toggle('hidden', !cur);
   if (cur) { qb.classList.toggle('ready', !!cs?.done); const qk = `${cur.id}:${cs?.p || 0}:${cs?.done ? 1 : 0}`; if (qb.dataset.k !== qk) { qb.dataset.k = qk; qb.innerHTML = `<div class="qh"><em>${cs?.done ? '완료' : '진행'}</em>길잡이 ${cur.id.slice(1)}</div><div class="qb">${esc(guideLabel(cur))}<small>${cs?.done ? '받기 ▶' : `${cs?.p || 0}/${cur.need}`}</small></div>`; } }   // 왼쪽 길잡이 카드: 상태 · 할 일 · 진행
-  const ready = !boss && g.canChallenge();
+  const ready = !boss && !dgs && g.canChallenge();
   $('btn-boss').classList.toggle('hidden', !ready); $('btn-boss').classList.toggle('ready', ready);
   const ch2 = $('contest-hud');
-  ch2.classList.toggle('hidden', !boss); document.body.classList.toggle('bossing', boss);   // 두목전엔 길잡이 카드를 숨겨 두목 막대에 눈이 가게   // 두목전일 때만(평소 진행은 위 가운데 막대)
-  if (boss) {
+  document.body.classList.toggle('indg', !!dgs);
+  ch2.classList.toggle('hidden', !boss && !dgs); document.body.classList.toggle('bossing', boss || !!dgs); ch2.classList.toggle('dg', !!dgs); $('dg-leave').classList.toggle('hidden', !dgs);   // 두목전엔 길잡이 카드를 숨겨 두목 막대에 눈이 가게   // 두목전일 때만(평소 진행은 위 가운데 막대)
+  if (dgs) {
+    $('contest-title').textContent = dgs.title;
+    $('contest-fill').style.width = `${dgs.p * 100}%`; $('contest-pct').textContent = `${Math.floor(dgs.p * 100)}%`;
+    $('contest-sub').textContent = `${dgs.label} · 남은 ${Math.ceil(dgs.leftMs / 1000)}초`;
+  } else if (boss) {
     const B = g.bossFight, bm = B.mobs.find((m) => m.kind === 'boss');
     const bp = bm ? Math.max(0, bm.hp / bm.st.hp) : 0;
     $('contest-title').textContent = `${bm ? mobName(bm, z, chapterOf(T.idx)) : '두목'}`;
@@ -1188,6 +1252,8 @@ function frame() {
     else if (f.k === 'tree') { const sk = skillById(f.id); toast(`${sk?.name} 강화 완료`); }
     else if (f.k === 'challenge') play('boss'), addLog(`${Math.ceil(f.idx / 10)}장 ${((f.idx - 1) % 10) + 1}칸 두목 도전`);
     else if (f.k === 'stage-clear' || f.k === 'stage-fail') showResult(f);
+    else if (f.k === 'dungeon-start') { closeWin(); play('tense'); dgBanner(f.title, g.dgStatus()); addLog(`${f.title} 입장`); }
+    else if (f.k === 'dungeon-end') showDgResult(f);
   }
   if (!document.hidden) draw();   // 안 보이는 동안은 그리지 않는다(엔진은 돈다)
   if (dust.length > 60) dust.splice(0, dust.length - 60);
@@ -1234,6 +1300,37 @@ function showResult(f) {
     $('rgrow').onclick = () => { play('click'); closeResult(); openWin('char', 0); };
   }
   addLog(win ? `${ch}장 ${st}칸 클리어 · ${sec}초` : `${ch}장 ${st}칸 두목에게 졌어요(${f.bossLeft}% 남음)`);
+}
+function dgBanner(title, st) {
+  for (const o of document.querySelectorAll('.dgban')) o.remove();
+  const d = document.createElement('div'); d.className = 'dgban';
+  d.innerHTML = `<small>DUNGEON</small><b>${esc(title)}</b><span>${st ? `${DG_GOAL[st.clear]} · ${Math.round(st.leftMs / 1000)}초` : ''}</span>`;
+  $('battle').append(d); setTimeout(() => d.remove(), 2200);
+}
+// v531 던전 결과 — 단계 결과 창과 같은 틀(#res)
+const DG_GOAL = { kills: '몰려오는 적을 정해진 수만큼', boss: '두목 처치', wipe: '모든 적 처치', survive: '쓰러지지 않고 버티기' };
+function showDgResult(f) {
+  const win = f.cleared, auto = opt.autoNext, R = $('res');
+  play(win ? 'clear' : 'fail');
+  const tile = (cls, n, label, i) => `<div class="rt" style="--d:${0.35 + i * 0.12}s"><i class="coin ${cls}"></i><b data-n="${n}">0</b><small>${label}</small></div>`;
+  const tiles = [f.gold && tile('s', f.gold, '은자', 0), f.exp && tile('x', f.exp, '경험치', 1), f.tix && tile('t', f.tix, '뽑기권', 2), f.stones && tile('st', f.stones, '강화석', 3)].filter(Boolean).join('');
+  const extra = f.type === 'tower' && win ? `<div class="rnew">무한의 탑 ${f.floor}층 돌파 — 영구 보너스</div>` : f.type === 'job' && win ? `<div class="rnew">${f.n}차 전직!</div>` : '';
+  R.className = `open ${win ? 'win' : 'lose'}`;
+  R.innerHTML = `<div class="rp">${win ? '<div class="rays"></div>' : ''}
+      <div class="rsub">${esc(f.title)}</div>
+      <div class="rtitle">${win ? 'DUNGEON CLEAR' : f.gaveUp ? '나왔어요' : '던전 실패'}</div>
+      <div class="rmeta"><span>걸린 시간 <b>${(f.ms / 1000).toFixed(1)}초</b></span><span>처치 <b>${f.kills}</b></span>${f.deaths ? `<span>쓰러짐 <b>${f.deaths}</b></span>` : ''}</div>
+      ${win ? `${extra}<div class="rtiles">${tiles}</div>` : `<div class="rtip">${f.gaveUp ? '입장권은 이미 썼어요.' : '전투력을 올리고 다시 — 장비 강화 · 무공 · 동료'}</div>`}
+      <div class="racts">${win ? '' : '<button class="btn" id="rgrow">강해지기</button>'}<button class="btn primary rgo" id="rout"><span>사냥터로</span><i class="rbar"></i></button></div>
+      <label class="rauto"><input type="checkbox" id="rautochk" ${auto ? 'checked' : ''}> 3초 뒤 자동 진행</label></div>`;
+  const t0 = now();
+  for (const b of R.querySelectorAll('.rt b')) { const n = +b.dataset.n, d = parseFloat(b.parentNode.style.getPropertyValue('--d')) * 1000; const tick = () => { const a = Math.min(1, Math.max(0, (now() - t0 - d) / 500)); b.textContent = unit(Math.round(n * (1 - (1 - a) ** 3))); if (a < 1 && R.classList.contains('open')) requestAnimationFrame(tick); }; tick(); }
+  const arm = (on) => { resTimer = on ? now() + RES_MS : 0; R.classList.toggle('timed', on); };
+  arm(auto);
+  $('rautochk').onchange = (e) => { opt.autoNext = e.target.checked; saveOpt(); arm(opt.autoNext); };
+  $('rout').onclick = () => { play('click'); closeResult(); };
+  if (!win) $('rgrow').onclick = () => { play('click'); closeResult(); openWin('char', 0); };
+  addLog(`${f.title} ${win ? '클리어' : '실패'} · ${(f.ms / 1000).toFixed(0)}초`);
 }
 function closeResult() { resTimer = 0; $('res').className = ''; }
 // 돌아왔을 때 대기열 — 방치 보상부터 하나씩
