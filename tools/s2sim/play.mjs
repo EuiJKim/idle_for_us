@@ -10,6 +10,7 @@ const { SLOTS } = await import(root + 'tables/gear.js');
 const { treeOf, skillById } = await import(root + 'tables/kit.js');
 const { MASTERY } = await import(root + 'tables/skills.js');
 const { DAILY_DUNGEONS } = await import(root + 'tables/content.js');
+const STAR_CAP = Number(process.env.STAR_CAP || 25);   // v529 성혼은 끝(25)까지 · 15성부터 파괴 방지
 
 export function play({ days = 7, job = 'sword', seed = 1, active = 120, ad = false, marks = [], onMark } = {}) {
   const T0 = Date.UTC(2026, 0, 5, 1, 0, 0);   // 월요일 오전(한국 10시)
@@ -30,7 +31,7 @@ export function play({ days = 7, job = 'sword', seed = 1, active = 120, ad = fal
     for (const sys of COLLECTS) while ((S.wallet[`ticket:${sys}`] || 0) >= 1) g.pullCollect(sys, 1);
     // 강화 · 성혼: 가장 낮은 칸부터, 돈이 되는 만큼
     for (let k = 0; k < 200; k++) { const s = SLOTS.reduce((a, b) => (S.gear.slots[b].enh < S.gear.slots[a].enh ? b : a)); if (g.enhance(s) === null) break; }
-    for (let k = 0; k < 60; k++) { const s = SLOTS.filter((x) => !S.gear.slots[x].broken).reduce((a, b) => (S.gear.slots[b].star < S.gear.slots[a].star ? b : a), SLOTS[0]); if (S.gear.slots[s].star >= 12 || g.star(s, { noBreak: true }) === null) break; }
+    for (let k = 0; k < 60; k++) { const s = SLOTS.filter((x) => !S.gear.slots[x].broken).reduce((a, b) => (S.gear.slots[b].star < S.gear.slots[a].star ? b : a), SLOTS[0]); if (S.gear.slots[s].star >= STAR_CAP || g.star(s, { noBreak: S.gear.slots[s].star >= 15 }) === null) break; }
     // 무공 · 마스터리 · 트리 · 경지 · 강호행 · 전직 · 던전 · 원정 · 경쟁
     for (const k of Object.keys(S.hero.skills || {})) for (let i = 0; i < 30 && g.skillUp(k); i++);
     const K = g.hero.kitState();
