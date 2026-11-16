@@ -139,6 +139,21 @@
     #contest-fill { position: absolute; left: 0; top: 0; bottom: 0; width: 100%; background: linear-gradient(180deg, #ff6b6b, #b91c1c); transition: width .2s; }
     #contest-sub { color: rgba(255,255,255,.7); font-size: 11px; }
     body.bossing #qc { display: none; }
+    /* v523 무인 고르기 · 방치 보상 */
+    #modal .sheet.wide { width: min(760px, 94vw); max-width: none; } html.rot #modal .sheet.wide { width: min(760px, 94vh); }
+    .jobgrid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; margin-top: 8px; }
+    .jobcard { display: flex !important; flex-direction: column; align-items: center; gap: 2px; padding: 6px 4px 8px !important; min-height: 0; border-radius: 12px !important; background: radial-gradient(circle at 50% 40%, rgba(232,194,106,.18), rgba(0,0,0,.3) 70%) !important; border: 1px solid rgba(232,194,106,.35) !important; color: #fff !important; text-align: center; }
+    .jobcard:hover, .jobcard:active { border-color: var(--gold) !important; transform: translateY(-2px); }
+    .jobcard canvas { width: 100%; max-width: 120px; height: auto; aspect-ratio: 4 / 5; }
+    .jobcard b { font-size: 16px; } .jobcard small { font-size: 11px; color: rgba(255,255,255,.75); line-height: 1.3; } .jobcard em { font-style: normal; font-size: 10.5px; color: var(--gold); line-height: 1.3; }
+    html.h500 .jobcard canvas { max-width: 70px; } html.h500 .jobgrid { gap: 6px; margin-top: 4px; } html.h500 .jobcard small { display: none; } html.h500 .jobcard b { font-size: 14px; } html.h500 .jobcard em { font-size: 10px; }
+    html.h500 #modal .sheet.wide > div > .note { margin: 0; font-size: 11px; }
+    html.h500 .offl-t b { font-size: 22px; } html.h500 .offl-bar { margin: 5px auto 2px; } html.h500 .offl-r { margin: 6px 0 2px; } html.h500 .offl-r .rt { padding: 5px 4px; gap: 1px; } html.h500 .offl .note { margin: 2px 0; }
+    html.h500 #modal .btn-row { margin-top: 6px !important; } html.h500 #modal .btn-row .btn { min-height: 40px; padding: 6px 10px; }
+    .offl { text-align: center; } .offl-t b { display: block; font-size: 28px; font-weight: 900; color: var(--gold); } .offl-t span { font-size: 12.5px; color: rgba(255,255,255,.75); }
+    .offl-bar { height: 6px; margin: 8px auto 4px; width: 80%; border-radius: 999px; background: rgba(0,0,0,.5); overflow: hidden; } .offl-bar i { display: block; height: 100%; background: linear-gradient(90deg, #d49a2a, #ffd56a); }
+    .offl-r { display: flex; justify-content: center; gap: 10px; margin: 10px 0 4px; } .offl-r .rt { width: 110px; padding: 8px 4px; border-radius: 12px; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.1); display: flex; flex-direction: column; align-items: center; gap: 3px; } .offl-r .rt b { font-size: 17px; font-weight: 900; } .offl-r .rt small { font-size: 11px; color: rgba(255,255,255,.55); } .offl-r .coin { width: 24px; height: 24px; }
+    .xpico { font-style: normal; font-size: 10px; font-weight: 900; color: #1a2e05; background: linear-gradient(180deg, #d9f99d, #84cc16); border-radius: 6px; padding: 4px 5px; }
     /* v521 가방 필터 · 비교 창 */
     .bagf { display: flex; flex-wrap: wrap; gap: 5px; margin: 2px 0 8px; } .bagf .chip { padding: 5px 10px; border-radius: 999px; border: 1px solid rgba(255,255,255,.14); background: rgba(255,255,255,.05); color: rgba(255,255,255,.75); font-size: 12px; font-weight: 700; min-height: 32px; }
     .bagf .chip.on { background: rgba(212,166,74,.25); border-color: var(--gold); color: #fff; } .bagf .sortb { margin-left: auto; }
@@ -228,6 +243,7 @@
     html.w800 #sk { grid-template-columns: repeat(4, 44px) 64px; grid-template-rows: 44px 44px; gap: 4px; }
     html.w800 #mb { left: calc(var(--sl) + 200px); transform: none; }
     html.w800 #tc { width: min(240px, 32vw); }
+    html.w720.w800 #mb { left: var(--sl); }   /* v523 아주 좁으면(돌린 폰 등) 메뉴는 왼쪽 아래 — 위 w800 규칙이 덮어써 무공 · 자동 단추를 가렸다 */
     html.w720 #tc { left: calc(var(--sl) + 168px); transform: none; width: min(230px, calc(100% - var(--sl) - var(--sr) - 420px)); }   /* 아주 좁으면 진행 줄을 얼굴 상자 옆에 붙인다 */   /* v519 무공 칸을 44px로 키운 만큼 메뉴는 Lv 상자 옆에 붙인다 */
     html.w800 #jp { width: 64px !important; height: 64px !important; }
     html.w800 #jp .ic { width: 28px; height: 28px; }

@@ -69,7 +69,7 @@ function toast(t) { const d = document.createElement('div'); d.className = 'toas
 function closeModal() { $('modal').classList.add('hidden'); }
 function pop(title, html, acts = [['확인', null]]) {
   const sh = $('modal').querySelector('.sheet');
-  sh.innerHTML = `<h2>${esc(title)}</h2><div>${html}</div><div class="btn-row" style="margin-top:12px${acts.length > 3 ? ';display:grid;grid-template-columns:repeat(3,1fr)' : ''}"></div>`;
+  sh.classList.toggle('wide', false); sh.innerHTML = `<h2>${esc(title)}</h2><div>${html}</div><div class="btn-row" style="margin-top:12px${acts.length > 3 ? ';display:grid;grid-template-columns:repeat(3,1fr)' : ''}"></div>`;
   const a = sh.querySelector('.btn-row');
   acts.forEach(([label, fn], i) => { const b = document.createElement('button'); b.className = `btn${i === acts.length - 1 ? ' primary' : ''}`; b.textContent = label; b.onclick = () => { closeModal(); fn?.(); paintHud(); paintWin(); }; a.append(b); });
   $('modal').classList.remove('hidden');
@@ -1117,12 +1117,35 @@ function showResult(f) {
 }
 function closeResult() { resTimer = 0; $('res').className = ''; }
 // 돌아왔을 때 대기열 — 방치 보상부터 하나씩
+// v523 무인 고르기 — 직업마다 카드(무기 든 전신 · 이름 · 싸움 방식 · 거리 · 주 능력치). 누르면 시작
+const JOB_INFO = {
+  sword: ['곧은 검으로 앞의 적을 벤다', '근접 · 고르게 센 기본형'],
+  spear: ['긴 창으로 멀찍이 찌르고 쓸어낸다', '근접 · 사거리 길고 여럿을 친다'],
+  fist: ['맨주먹 연타로 몰아친다', '근접 · 가장 빠른 연타'],
+  bow: ['멀리서 화살을 쏜다', '원거리 · 안전하게 먼저 친다'],
+  mage: ['지팡이로 기운을 날린다', '원거리 · 넓은 무공'],
+};
+const STAT_KO = { str: '힘', agi: '민첩', ene: '기운' };
+function pickJob() {
+  const cards = Object.entries(JOBS).map(([k, j]) => `<button class="btn jobcard" data-job="${k}"><canvas width="160" height="200"></canvas><b>${j.name}</b><small>${JOB_INFO[k]?.[0] || ''}</small><em>${JOB_INFO[k]?.[1] || ''} · 주 능력치 ${STAT_KO[j.main] || j.main}</em></button>`).join('');
+  pop('무인 고르기', `<p class="note">새 시즌 미리보기예요 — 지금 게임 세이브와 섞이지 않아요. 직업은 나중에 「설정 → 새로 시작」으로 바꿀 수 있어요.</p><div class="jobgrid">${cards}</div>`, []);
+  const sh = $('modal').querySelector('.sheet'); sh.classList.add('wide');
+  for (const b of sh.querySelectorAll('.jobcard')) b.onclick = () => { play('click'); closeModal(); sh.classList.remove('wide'); start(b.dataset.job); };
+  const t0 = now();
+  const paint = () => {
+    if (!sh.querySelector('.jobcard')) return;
+    for (const b of sh.querySelectorAll('.jobcard')) { const c = b.querySelector('canvas'), x = c.getContext('2d'); x.clearRect(0, 0, 160, 200); drawHero(x, 80, 186, b.dataset.job, 1, { t: (now() - t0) / 1000, scale: 1.55 }); }
+    if (now() - t0 < 60000) requestAnimationFrame(paint);   // 그림이 늦게 오면 받는 대로 · 숨 쉬는 움직임
+  };
+  paint();
+}
 function returnQueue() {
   const p = g.returnCheck(now());
   const q = buildQueue([...(p ? [{ kind: 'offline', p }] : [])]);
   for (const it of q) if (it.kind === 'offline') {
     const p2 = it.p;
-    pop('방치 보상', `<p>${Math.floor(p2.ms / 60000)}분 동안 사냥했어요${p2.capped ? '(최대 12시간)' : ''}.</p><p>경험치 ${unit(p2.exp)} · 은자 ${unit(p2.gold)}</p>`, [['받기', () => { g.claimOffline(false); save(); }], ['광고 보고 ×2', () => { const r = g.claimOffline(true); toast(r?.x === 2 ? '×2 받음' : '오늘 광고 ×2는 다 썼어요'); save(); }]]);
+    const mins = Math.floor(p2.ms / 60000), hh = Math.floor(mins / 60), mm = mins % 60;
+    pop('방치 보상', `<div class="offl"><div class="offl-t"><b>${hh ? `${hh}시간 ` : ''}${mm}분</b><span>동안 무인이 홀로 사냥했어요${p2.capped ? ' · 최대 12시간까지 쌓여요' : ''}</span></div><div class="offl-bar"><i style="width:${Math.min(100, (p2.ms / (12 * 3600000)) * 100)}%"></i></div><div class="rtiles offl-r"><div class="rt"><i class="xpico">EXP</i><b>${unit(p2.exp)}</b><small>경험치</small></div><div class="rt"><i class="coin s"></i><b>${unit(p2.gold)}</b><small>은자</small></div></div><p class="note">광고를 보면 두 배(하루 정해진 횟수)</p></div>`, [['받기', () => { g.claimOffline(false); save(); }], ['광고 보고 ×2', () => { const r = g.claimOffline(true); toast(r?.x === 2 ? '×2 받음' : '오늘 광고 ×2는 다 썼어요'); save(); }]]);
   }
 }
 function boot() {
@@ -1172,6 +1195,6 @@ document.addEventListener('pointerdown', () => { if (matchMedia('(pointer: coars
 loadLooks();
 load();
 if (g) boot();
-else pop('새 시즌 — 무인 고르기', '<p class="note">미리보기예요. 지금 게임 세이브와 섞이지 않아요.</p>', Object.entries(JOBS).map(([k, j]) => [j.name, () => start(k)]));
+else pickJob();
 // 시험용 손잡이
 window.__s2 = { get g() { return g; }, save, dayKey, freeze: () => { frozen = true; } };
