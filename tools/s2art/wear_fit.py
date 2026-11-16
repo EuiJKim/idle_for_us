@@ -60,3 +60,12 @@ for f in sorted(glob.glob(f'{SRC}/wp-*.png')):
     im = trim(Image.open(f).convert('RGBA'))
     im = im.resize((max(1, round(im.width * th / im.height)), th), Image.LANCZOS)
     save(im, os.path.basename(f)[:-4])
+
+# v518 나머지 부위(그대로 쓰는 그림) — 투명 둘레를 잘라 긴 변을 맞춘다(게임이 크기를 정한다)
+SIDE = {'boot': 160, 'leg': 320, 'arm': 200, 'cape': 360, 'belt': 240, 'neck': 120, 'ring': 256, 'bow': 360}
+for f in sorted(glob.glob(f'{SRC}/*.png')):
+    kind = os.path.basename(f).split('-')[0]
+    if kind not in SIDE: continue
+    im = trim(Image.open(f).convert('RGBA'))
+    k = SIDE[kind] / max(im.size)
+    save(im.resize((max(1, round(im.width * k)), max(1, round(im.height * k))), Image.LANCZOS), os.path.basename(f)[:-4])

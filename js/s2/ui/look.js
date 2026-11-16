@@ -79,6 +79,9 @@ function wearWeapon(job, g) {
   if (!wearImg(`wp-${kind}-${g}`, (im) => { registerArt(key, im); WEAPON_FIT[key] = { ...WEAR_FIT[kind] }; if (!OUTFIT_WEAPON.includes(key)) OUTFIT_WEAPON.push(key); })) return null;
   return OUTFIT_WEAPON.indexOf(key);
 }
+// v518 나머지 부위 그림 — 그대로 쓰는 그림(장화 · 다리 · 보호대 · 망토 · 허리띠 · 목걸이 · 활) · 발밑 문양은 그림 조각으로 등록
+const wearRaw = (name) => wearImg(name, () => {});
+function wearRing(g) { const key = `ring-s2-${g}`; return wearImg(`ring-${g}`, (im) => registerArt(key, im)) ? `s2-${g}` : null; }
 export const GEAR_COL = ['#9ca3af', '#7cc47a', '#6aa8e0', '#b27ae0', '#e8c26a', '#e06a5a', '#f8fafc'];
 const TOP_BODY = [{ robe: '#6b5640' }, { robe: '#3f3a36' }, { outfitBody: 0 }, { robe: '#4c1d5f' }, { robe: '#fffbeb' }, { outfitBody: 4 }, { robe: '#f8f4ea' }];
 const NECK_AURA = [null, null, 'firefly', 'spark', 'gold', 'ember', 'snow'];
@@ -100,6 +103,15 @@ export function gearLook(lv, eq, job) {
   const nk = G('neck'); if (NECK_AURA[nk]) look.gAura = NECK_AURA[nk];
   const rg = G('ring'); if (RING_FOOT[rg]) look.gRing = RING_FOOT[rg];
   const wp = G('weapon'); if (wp >= 0) { o.blade = wp === 0 ? '#cbd5e1' : GEAR_COL[wp]; if (wp >= 2) { o.glow = true; o.glowCol = GEAR_COL[wp]; } const ww = wearWeapon(job, wp); if (ww != null) look.outfitWeapon = ww; else if (job === 'sword') look.outfitWeapon = [0, 1, 2, 3, 4, 5, 5][wp]; }   // 검객은 등급마다 다른 검 그림
+  // v518 그림이 있으면 그림으로(받기 전엔 위 빛깔 그대로)
+  if (sh >= 0) look.s2boot = wearRaw(`boot-${sh}`);
+  if (bot >= 0) look.s2leg = wearRaw(`leg-${bot}`);
+  if (glv >= 0) look.s2arm = wearRaw(`arm-${glv}`);
+  if (look.cape) look.cape.img = wearRaw(`cape-${cp}`);
+  if (look.belt) look.belt.img = wearRaw(`belt-${bl}`);
+  if (nk >= 0) look.s2neck = wearRaw(`neck-${nk}`);
+  if (rg >= 0) { const wr = wearRing(rg); if (wr) look.gRing = wr; }
+  if (wp >= 0 && job === 'bow') o.bowArt = wearRaw(`bow-${wp}`);
   const best = Math.max(...['weapon', 'hat', 'top', 'bottom', 'glove', 'shoes', 'cape', 'belt', 'neck', 'ring'].map(G));
   if (best >= 5) look.aura = GEAR_COL[best];
   return { look, o };

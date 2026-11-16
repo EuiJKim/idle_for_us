@@ -4830,7 +4830,7 @@ export function drawFighter(ctx, x, y, look = {}, o = {}) {
   ctx.lineWidth = 9;
   ctx.lineCap = 'round';
   // v346 3/4 도포(v334)는 폭이 좁아 정면 도포 때의 다리 벌림(-13~15)이면 장화가 아랫단 밖으로 벌어졌다 — 간격만 좁힌다(장화 크기는 그대로)
-  if (artLimb) { ctx.save(); ctx.translate(1, 0); ctx.scale(0.72, 1); drawLegsArt(ctx, swing, LC, look.boot || '#2a1f18', o.flash); ctx.restore(); }
+  if (artLimb) { ctx.save(); ctx.translate(1, 0); ctx.scale(0.72, 1); drawLegsArt(ctx, swing, LC, look.boot || '#2a1f18', o.flash, look.s2leg, look.s2boot); ctx.restore(); }
   else if (!look.ghost) {
     ctx.beginPath(); ctx.moveTo(-4, -36); ctx.lineTo(-13 - swing, -3); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(4, -36); ctx.lineTo(13 + swing, -3); ctx.stroke();
@@ -4933,6 +4933,7 @@ export function drawFighter(ctx, x, y, look = {}, o = {}) {
 
   // v516 새 시즌 허리띠 — 허리에 띠 · 앞에 옥 노리개(술이 흔들린다)
   if (look.belt) drawS2Belt(ctx, look.belt, t, !!o.run);
+  if (look.s2neck) { const w = 10, h = w * look.s2neck.height / look.s2neck.width; ctx.drawImage(look.s2neck, 4 - w / 2, -66, w, h); }   // v518 목걸이 — 깃 아래 가슴에
   // 머리
   const hk = artReady() && !jiang ? headKey(look) : null;   // v323 복면도 그림(두건)
   // v280 띠가 그려진 머리(상투·머리띠)는 띠를 무인이 고른 색으로
@@ -5008,7 +5009,7 @@ export function drawFighter(ctx, x, y, look = {}, o = {}) {
     // 처져 있으니, 손이 어깨를 떠나면 팔 하나를 그어 이어 준다.
     const hx = Math.cos(P.hand[0]) * P.hand[1];
     const hy = Math.sin(P.hand[0]) * P.hand[1];
-    if (artLimb) drawForearmArt(ctx, hx, hy, LC, look.cuff || look.band, o.flash);
+    if (artLimb) drawForearmArt(ctx, hx, hy, LC, look.cuff || look.band, o.flash, look.s2arm);
     else {
       ctx.lineCap = 'round';
       ctx.strokeStyle = '#1a1410';
@@ -5053,7 +5054,7 @@ export function drawFighter(ctx, x, y, look = {}, o = {}) {
     const useArt3 = !!(wk3 && hasArt(wk3));
     // 그림 무기는 제 길이(WEAPON_FIT.h)로 — HOLD.scale은 벡터 무기 몫
     const sc = useArt3 ? 1 : H.scale < 1.2 ? H.scale : H.scale * (1 - w) + Math.max(1, H.scale * 0.9) * w;   // v244: 휘두르는 순간 칼이 줄어 보이던 것
-    if (artLimb) drawForearmArt(ctx, hx, hy, LC, look.cuff || look.band, o.flash);
+    if (artLimb) drawForearmArt(ctx, hx, hy, LC, look.cuff || look.band, o.flash, look.s2arm);
     else {
       ctx.lineCap = 'round';
       ctx.strokeStyle = '#1a1410';
@@ -5088,7 +5089,7 @@ export function drawFighter(ctx, x, y, look = {}, o = {}) {
     ctx.fillStyle = shade(robeNow, -0.05);
     ctx.beginPath(); ctx.moveTo(-5, -2); ctx.lineTo(7, -2); ctx.lineTo(9, 18); ctx.lineTo(-7, 18); ctx.fill(); // 소매
   }
-  if (artLimb) drawForearmArt(ctx, 1, 22, LC, look.cuff || look.band, o.flash);   // v323 몹도 그림 팔
+  if (artLimb) drawForearmArt(ctx, 1, 22, LC, look.cuff || look.band, o.flash, look.s2arm);   // v323 몹도 그림 팔
   else if (!(artReady() && !jiang)) {
     ctx.fillStyle = skin;
     circle(ctx, 1, 22, 4.5);
@@ -5207,6 +5208,8 @@ function drawFaceAcc(ctx, kind, hk, HF, t) {
 const RING_COL = { taiji: '#fde68a', lotus: '#f9a8d4', bagua: '#67e8f9', flame: '#fb923c', frost: '#bfdbfe' };
 // v516 새 시즌 장비 겉모습 — 망토 · 허리띠(등급 빛깔 c.col · 등급 c.g). 오른쪽을 보는 몸 기준(등 = -x)
 function drawS2Cape(ctx, c, t, run) {
+  // v518 그림 망토 — 어깨(오른쪽 위)를 축으로 늘어뜨리고, 숨 · 달리기에 따라 뒤로 젖혀진다
+  if (c.img) { const h = 56, w = h * c.img.width / c.img.height; ctx.save(); ctx.translate(7, -63); ctx.rotate(Math.sin(t * 2.2) * 0.025 + (run ? 0.16 + Math.sin(t * 14) * 0.03 : 0)); if (c.g >= 4) { ctx.shadowColor = c.col; ctx.shadowBlur = 8; } ctx.drawImage(c.img, -w * 0.9, -2, w, h); ctx.restore(); return; }
   const sway = Math.sin(t * 2.2) * 2.5 + (run ? -7 - Math.sin(t * 14) * 2 : 0), top = -62, bot = run ? -16 : -8;
   ctx.save();
   const g = ctx.createLinearGradient(0, top, 0, bot); g.addColorStop(0, shade(c.col, -0.15)); g.addColorStop(1, shade(c.col, -0.45));
@@ -5220,6 +5223,8 @@ function drawS2Cape(ctx, c, t, run) {
   ctx.restore();
 }
 function drawS2Belt(ctx, c, t, run) {
+  // v518 그림 허리띠 — 띠 · 띠고리 · 노리개 한 장
+  if (c.img) { const w = 28, h = w * c.img.height / c.img.width; ctx.save(); if (c.g >= 4) { ctx.shadowColor = c.col; ctx.shadowBlur = 5; } ctx.drawImage(c.img, -w / 2 + 1, -45, w, h); ctx.restore(); return; }
   ctx.save();
   ctx.fillStyle = shade(c.col, -0.2); ctx.strokeStyle = shade(c.col, -0.55); ctx.lineWidth = 0.8;
   ctx.beginPath(); ctx.moveTo(-11, -43); ctx.quadraticCurveTo(0, -41, 12, -43.5); ctx.lineTo(12, -39); ctx.quadraticCurveTo(0, -36.5, -11, -38.5); ctx.closePath(); ctx.fill(); ctx.stroke();
@@ -5273,11 +5278,13 @@ function drawAuraFx(ctx, kind, t, front) {
 
 // ---------- v323 그림 몸에 맞춘 팔·손·다리 — 도포 그림에서 잰 빛깔로 명암·테두리까지 ----------
 const LINE = 'rgba(22,15,10,0.88)';
-function drawForearmArt(ctx, hx, hy, C, cuff, flash) {
+function drawForearmArt(ctx, hx, hy, C, cuff, flash, armArt) {
   const len = Math.hypot(hx, hy), ang = Math.atan2(hy, hx);
   const main = flash > 0 ? mix(C.main, '#ffffff', 0.45 * flash) : C.main;
   ctx.save();
   ctx.rotate(ang);
+  // v518 새 시즌 장갑 그림 — 소매 끝부터 손목까지 보호대
+  if (armArt) { const s0 = len * 0.4, L = len * 0.92 - s0, h = Math.min(11, L * armArt.height / armArt.width * 1.1); ctx.drawImage(armArt, s0, -h / 2, L, h); ctx.restore(); return; }
   // 소매 안에서 나오는 앞팔 — 어깨 쪽이 굵고 손목으로 가늘어진다
   const g = ctx.createLinearGradient(0, -4.6, 0, 4.8);
   g.addColorStop(0, C.light); g.addColorStop(0.45, main); g.addColorStop(1, C.dark);
@@ -5363,10 +5370,12 @@ export function drawRideRing(ctx, x, y, look, t, k = 1) {
   if (!look?.gRing) return;
   ctx.save(); ctx.translate(x, y); ctx.scale(k, k); drawFootRing(ctx, look.gRing, t); ctx.restore();
 }
-function drawLegsArt(ctx, swing, C, boot, flash) {
+function drawLegsArt(ctx, swing, C, boot, flash, legArt, bootArt) {
   const pantsC = flash > 0 ? mix(C.dark, '#ffffff', 0.4 * flash) : C.dark;
   ctx.lineCap = 'round';
   for (const [x0, y0, x1, y1] of [[-4, -36, -13 - swing, -3], [4, -36, 13 + swing, -3]]) {
+    // v518 새 시즌 하의 그림 — 다리 줄을 따라 바지 · 각반 · 정강이받이 그림을 세운다
+    if (legArt) { const L = Math.hypot(x1 - x0, y1 - y0) + 3, w = Math.min(13, L * legArt.width / legArt.height * 1.15); ctx.save(); ctx.translate(x0, y0); ctx.rotate(Math.atan2(x1 - x0, -(y1 - y0)) + Math.PI); ctx.drawImage(legArt, -w / 2, -1.5, w, L); ctx.restore(); continue; }
     ctx.strokeStyle = LINE; ctx.lineWidth = 10.6;
     ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
     ctx.strokeStyle = pantsC; ctx.lineWidth = 8;
@@ -5378,6 +5387,8 @@ function drawLegsArt(ctx, swing, C, boot, flash) {
   ctx.strokeStyle = shade(boot, 0.25); ctx.lineWidth = 2;
   ctx.beginPath(); ctx.moveTo(-14 - swing, -9); ctx.lineTo(-9 - swing, -8); ctx.stroke();
   ctx.beginPath(); ctx.moveTo(9 + swing, -8); ctx.lineTo(16 + swing, -9); ctx.stroke();
+  // v518 새 시즌 신발 그림 — 두 발 모두 앞(오른쪽)을 본다
+  if (bootArt) { for (const fx of [-12 - swing, 15 + swing]) { const w = 17, h = w * bootArt.height / bootArt.width; ctx.drawImage(bootArt, fx - w * 0.42, 1.2 - h, w, h); } return; }
   // 장화 — 둥근 앞코, 테두리, 윗면 빛
   for (const [fx, dir] of [[-12 - swing, -1], [15 + swing, 1]]) {
     const bg = ctx.createLinearGradient(0, -6, 0, 0);
@@ -5480,6 +5491,8 @@ function drawWeapon(ctx, weapon, o, t, lunge) {
     case 'bow': {
       // v500 궁사의 활 — 손이 줌통을 쥐고, 위아래 오금이 앞으로 휜 각궁(뿔 · 대나무 · 붉은 끝). 시위는 활 뒤로 곧게
       ctx.save(); ctx.scale(0.72, 0.72);
+      // v518 새 시즌 활 그림 — 그림의 양 끝(오금)에 시위를 건다
+      if (o.bowArt) { const im = o.bowArt, w = 72, h = Math.max(14, w * im.height / im.width * 1.6), tipY = 3 - h * 0.85; ctx.drawImage(im, -w / 2, 3 - h, w, h); const pull = Math.min(1, (lunge || 0) * 1.4); ctx.strokeStyle = 'rgba(245,240,225,0.55)'; ctx.lineWidth = 0.8; ctx.beginPath(); ctx.moveTo(-w * 0.47, tipY); ctx.lineTo(0, 7 + pull * 12); ctx.lineTo(w * 0.47, tipY); ctx.stroke(); if (pull > 0.2) { ctx.strokeStyle = '#e7d3a8'; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.moveTo(0, 7 + pull * 12); ctx.lineTo(0, -30); ctx.stroke(); } ctx.restore(); break; }
       // 손의 '앞'(-y)이 겨누는 쪽 — 활대는 그와 직각(x축)으로 서고 오금은 앞으로, 시위는 몸 쪽(+y)
       const lim = (dir) => { ctx.beginPath(); ctx.moveTo(0, 0); ctx.bezierCurveTo(dir * 10, -9, dir * 22, -10, dir * 32, -3); ctx.stroke(); };
       ctx.lineCap = 'round';

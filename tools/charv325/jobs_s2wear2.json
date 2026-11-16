@@ -1,0 +1,408 @@
+[
+ {
+  "name": "boot-0",
+  "size": "1024x1024",
+  "q": "medium",
+  "bg": "transparent",
+  "prompt": "Hand-painted Korean wuxia (murim) manhwa illustration style: crisp clean dark outlines, rich soft cel shading, game-ready 2D character rig piece. Transparent background, only the object, no text, no character, no hands, no body unless stated. Object: ONE single martial-arts boot seen exactly from the SIDE, the toe pointing to the RIGHT, the flat sole at the bottom, the boot shaft rising to just above the ankle (cut cleanly at the top). Compact, chunky proportions for a small game character. Grade common: plain worn materials, rough undyed hemp and dark leather, muted grey-brown, simple shape, no glow."
+ },
+ {
+  "name": "boot-1",
+  "size": "1024x1024",
+  "q": "medium",
+  "bg": "transparent",
+  "prompt": "Hand-painted Korean wuxia (murim) manhwa illustration style: crisp clean dark outlines, rich soft cel shading, game-ready 2D character rig piece. Transparent background, only the object, no text, no character, no hands, no body unless stated. Object: ONE single martial-arts boot seen exactly from the SIDE, the toe pointing to the RIGHT, the flat sole at the bottom, the boot shaft rising to just above the ankle (cut cleanly at the top). Compact, chunky proportions for a small game character. Grade uncommon: neat dyed forest-green cloth with bronze fittings and small green jade accents."
+ },
+ {
+  "name": "boot-2",
+  "size": "1024x1024",
+  "q": "medium",
+  "bg": "transparent",
+  "prompt": "Hand-painted Korean wuxia (murim) manhwa illustration style: crisp clean dark outlines, rich soft cel shading, game-ready 2D character rig piece. Transparent background, only the object, no text, no character, no hands, no body unless stated. Object: ONE single martial-arts boot seen exactly from the SIDE, the toe pointing to the RIGHT, the flat sole at the bottom, the boot shaft rising to just above the ankle (cut cleanly at the top). Compact, chunky proportions for a small game character. Grade rare: refined blue silk and blue-tempered steel with silver cloud trims."
+ },
+ {
+  "name": "boot-3",
+  "size": "1024x1024",
+  "q": "medium",
+  "bg": "transparent",
+  "prompt": "Hand-painted Korean wuxia (murim) manhwa illustration style: crisp clean dark outlines, rich soft cel shading, game-ready 2D character rig piece. Transparent background, only the object, no text, no character, no hands, no body unless stated. Object: ONE single martial-arts boot seen exactly from the SIDE, the toe pointing to the RIGHT, the flat sole at the bottom, the boot shaft rising to just above the ankle (cut cleanly at the top). Compact, chunky proportions for a small game character. Grade epic: black lacquered plates with amethyst studs and gold edges, faint violet glow."
+ },
+ {
+  "name": "boot-4",
+  "size": "1024x1024",
+  "q": "medium",
+  "bg": "transparent",
+  "prompt": "Hand-painted Korean wuxia (murim) manhwa illustration style: crisp clean dark outlines, rich soft cel shading, game-ready 2D character rig piece. Transparent background, only the object, no text, no character, no hands, no body unless stated. Object: ONE single martial-arts boot seen exactly from the SIDE, the toe pointing to the RIGHT, the flat sole at the bottom, the boot shaft rising to just above the ankle (cut cleanly at the top). Compact, chunky proportions for a small game character. Grade legendary: white brocade and gold filigree with dragon motifs and white jade, golden glow."
+ },
+ {
+  "name": "boot-5",
+  "size": "1024x1024",
+  "q": "medium",
+  "bg": "transparent",
+  "prompt": "Hand-painted Korean wuxia (murim) manhwa illustration style: crisp clean dark outlines, rich soft cel shading, game-ready 2D character rig piece. Transparent background, only the object, no text, no character, no hands, no body unless stated. Object: ONE single martial-arts boot seen exactly from the SIDE, the toe pointing to the RIGHT, the flat sole at the bottom, the boot shaft rising to just above the ankle (cut cleanly at the top). Compact, chunky proportions for a small game character. Grade mythic: crimson and gold with phoenix feather and flame motifs, red-orange glow."
+ },
+ {
+  "name": "boot-6",
+  "size": "1024x1024",
+  "q": "medium",
+  "bg": "transparent",
+  "prompt": "Hand-painted Korean wuxia (murim) manhwa illustration style: crisp clean dark outlines, rich soft cel shading, game-ready 2D character rig piece. Transparent background, only the object, no text, no character, no hands, no body unless stated. Object: ONE single martial-arts boot seen exactly from the SIDE, the toe pointing to the RIGHT, the flat sole at the bottom, the boot shaft rising to just above the ankle (cut cleanly at the top). Compact, chunky proportions for a small game character. Grade celestial: white jade and platinum with cloud and star motifs, soft white-gold light."
+ },
+ {
+  "name": "leg-0",
+  "size": "1024x1536",
+  "q": "medium",
+  "bg": "transparent",
+  "prompt": "Hand-painted Korean wuxia (murim) manhwa illustration style: crisp clean dark outlines, rich soft cel shading, game-ready 2D character rig piece. Transparent background, only the object, no text, no character, no hands, no body unless stated. Object: ONE single trouser leg piece for a 2D rig, drawn perfectly VERTICAL: from the thigh (top edge, cut straight) down to the ankle (bottom edge, cut straight), slightly tapered, as seen from the side. No foot, no body. It shows the trouser cloth and any wraps, bindings or armored greave on the shin. Grade common: plain worn materials, rough undyed hemp and dark leather, muted grey-brown, simple shape, no glow."
+ },
+ {
+  "name": "leg-1",
+  "size": "1024x1536",
+  "q": "medium",
+  "bg": "transparent",
+  "prompt": "Hand-painted Korean wuxia (murim) manhwa illustration style: crisp clean dark outlines, rich soft cel shading, game-ready 2D character rig piece. Transparent background, only the object, no text, no character, no hands, no body unless stated. Object: ONE single trouser leg piece for a 2D rig, drawn perfectly VERTICAL: from the thigh (top edge, cut straight) down to the ankle (bottom edge, cut straight), slightly tapered, as seen from the side. No foot, no body. It shows the trouser cloth and any wraps, bindings or armored greave on the shin. Grade uncommon: neat dyed forest-green cloth with bronze fittings and small green jade accents."
+ },
+ {
+  "name": "leg-2",
+  "size": "1024x1536",
+  "q": "medium",
+  "bg": "transparent",
+  "prompt": "Hand-painted Korean wuxia (murim) manhwa illustration style: crisp clean dark outlines, rich soft cel shading, game-ready 2D character rig piece. Transparent background, only the object, no text, no character, no hands, no body unless stated. Object: ONE single trouser leg piece for a 2D rig, drawn perfectly VERTICAL: from the thigh (top edge, cut straight) down to the ankle (bottom edge, cut straight), slightly tapered, as seen from the side. No foot, no body. It shows the trouser cloth and any wraps, bindings or armored greave on the shin. Grade rare: refined blue silk and blue-tempered steel with silver cloud trims."
+ },
+ {
+  "name": "leg-3",
+  "size": "1024x1536",
+  "q": "medium",
+  "bg": "transparent",
+  "prompt": "Hand-painted Korean wuxia (murim) manhwa illustration style: crisp clean dark outlines, rich soft cel shading, game-ready 2D character rig piece. Transparent background, only the object, no text, no character, no hands, no body unless stated. Object: ONE single trouser leg piece for a 2D rig, drawn perfectly VERTICAL: from the thigh (top edge, cut straight) down to the ankle (bottom edge, cut straight), slightly tapered, as seen from the side. No foot, no body. It shows the trouser cloth and any wraps, bindings or armored greave on the shin. Grade epic: black lacquered plates with amethyst studs and gold edges, faint violet glow."
+ },
+ {
+  "name": "leg-4",
+  "size": "1024x1536",
+  "q": "medium",
+  "bg": "transparent",
+  "prompt": "Hand-painted Korean wuxia (murim) manhwa illustration style: crisp clean dark outlines, rich soft cel shading, game-ready 2D character rig piece. Transparent background, only the object, no text, no character, no hands, no body unless stated. Object: ONE single trouser leg piece for a 2D rig, drawn perfectly VERTICAL: from the thigh (top edge, cut straight) down to the ankle (bottom edge, cut straight), slightly tapered, as seen from the side. No foot, no body. It shows the trouser cloth and any wraps, bindings or armored greave on the shin. Grade legendary: white brocade and gold filigree with dragon motifs and white jade, golden glow."
+ },
+ {
+  "name": "leg-5",
+  "size": "1024x1536",
+  "q": "medium",
+  "bg": "transparent",
+  "prompt": "Hand-painted Korean wuxia (murim) manhwa illustration style: crisp clean dark outlines, rich soft cel shading, game-ready 2D character rig piece. Transparent background, only the object, no text, no character, no hands, no body unless stated. Object: ONE single trouser leg piece for a 2D rig, drawn perfectly VERTICAL: from the thigh (top edge, cut straight) down to the ankle (bottom edge, cut straight), slightly tapered, as seen from the side. No foot, no body. It shows the trouser cloth and any wraps, bindings or armored greave on the shin. Grade mythic: crimson and gold with phoenix feather and flame motifs, red-orange glow."
+ },
+ {
+  "name": "leg-6",
+  "size": "1024x1536",
+  "q": "medium",
+  "bg": "transparent",
+  "prompt": "Hand-painted Korean wuxia (murim) manhwa illustration style: crisp clean dark outlines, rich soft cel shading, game-ready 2D character rig piece. Transparent background, only the object, no text, no character, no hands, no body unless stated. Object: ONE single trouser leg piece for a 2D rig, drawn perfectly VERTICAL: from the thigh (top edge, cut straight) down to the ankle (bottom edge, cut straight), slightly tapered, as seen from the side. No foot, no body. It shows the trouser cloth and any wraps, bindings or armored greave on the shin. Grade celestial: white jade and platinum with cloud and star motifs, soft white-gold light."
+ },
+ {
+  "name": "arm-0",
+  "size": "1536x1024",
+  "q": "medium",
+  "bg": "transparent",
+  "prompt": "Hand-painted Korean wuxia (murim) manhwa illustration style: crisp clean dark outlines, rich soft cel shading, game-ready 2D character rig piece. Transparent background, only the object, no text, no character, no hands, no body unless stated. Object: ONE single forearm piece for a 2D rig, drawn perfectly HORIZONTAL: from the elbow (left edge, cut straight) to the wrist (right edge, cut straight), wearing a vambrace / bracer over the sleeve. No hand, no upper arm. Grade common: plain worn materials, rough undyed hemp and dark leather, muted grey-brown, simple shape, no glow."
+ },
+ {
+  "name": "arm-1",
+  "size": "1536x1024",
+  "q": "medium",
+  "bg": "transparent",
+  "prompt": "Hand-painted Korean wuxia (murim) manhwa illustration style: crisp clean dark outlines, rich soft cel shading, game-ready 2D character rig piece. Transparent background, only the object, no text, no character, no hands, no body unless stated. Object: ONE single forearm piece for a 2D rig, drawn perfectly HORIZONTAL: from the elbow (left edge, cut straight) to the wrist (right edge, cut straight), wearing a vambrace / bracer over the sleeve. No hand, no upper arm. Grade uncommon: neat dyed forest-green cloth with bronze fittings and small green jade accents."
+ },
+ {
+  "name": "arm-2",
+  "size": "1536x1024",
+  "q": "medium",
+  "bg": "transparent",
+  "prompt": "Hand-painted Korean wuxia (murim) manhwa illustration style: crisp clean dark outlines, rich soft cel shading, game-ready 2D character rig piece. Transparent background, only the object, no text, no character, no hands, no body unless stated. Object: ONE single forearm piece for a 2D rig, drawn perfectly HORIZONTAL: from the elbow (left edge, cut straight) to the wrist (right edge, cut straight), wearing a vambrace / bracer over the sleeve. No hand, no upper arm. Grade rare: refined blue silk and blue-tempered steel with silver cloud trims."
+ },
+ {
+  "name": "arm-3",
+  "size": "1536x1024",
+  "q": "medium",
+  "bg": "transparent",
+  "prompt": "Hand-painted Korean wuxia (murim) manhwa illustration style: crisp clean dark outlines, rich soft cel shading, game-ready 2D character rig piece. Transparent background, only the object, no text, no character, no hands, no body unless stated. Object: ONE single forearm piece for a 2D rig, drawn perfectly HORIZONTAL: from the elbow (left edge, cut straight) to the wrist (right edge, cut straight), wearing a vambrace / bracer over the sleeve. No hand, no upper arm. Grade epic: black lacquered plates with amethyst studs and gold edges, faint violet glow."
+ },
+ {
+  "name": "arm-4",
+  "size": "1536x1024",
+  "q": "medium",
+  "bg": "transparent",
+  "prompt": "Hand-painted Korean wuxia (murim) manhwa illustration style: crisp clean dark outlines, rich soft cel shading, game-ready 2D character rig piece. Transparent background, only the object, no text, no character, no hands, no body unless stated. Object: ONE single forearm piece for a 2D rig, drawn perfectly HORIZONTAL: from the elbow (left edge, cut straight) to the wrist (right edge, cut straight), wearing a vambrace / bracer over the sleeve. No hand, no upper arm. Grade legendary: white brocade and gold filigree with dragon motifs and white jade, golden glow."
+ },
+ {
+  "name": "arm-5",
+  "size": "1536x1024",
+  "q": "medium",
+  "bg": "transparent",
+  "prompt": "Hand-painted Korean wuxia (murim) manhwa illustration style: crisp clean dark outlines, rich soft cel shading, game-ready 2D character rig piece. Transparent background, only the object, no text, no character, no hands, no body unless stated. Object: ONE single forearm piece for a 2D rig, drawn perfectly HORIZONTAL: from the elbow (left edge, cut straight) to the wrist (right edge, cut straight), wearing a vambrace / bracer over the sleeve. No hand, no upper arm. Grade mythic: crimson and gold with phoenix feather and flame motifs, red-orange glow."
+ },
+ {
+  "name": "arm-6",
+  "size": "1536x1024",
+  "q": "medium",
+  "bg": "transparent",
+  "prompt": "Hand-painted Korean wuxia (murim) manhwa illustration style: crisp clean dark outlines, rich soft cel shading, game-ready 2D character rig piece. Transparent background, only the object, no text, no character, no hands, no body unless stated. Object: ONE single forearm piece for a 2D rig, drawn perfectly HORIZONTAL: from the elbow (left edge, cut straight) to the wrist (right edge, cut straight), wearing a vambrace / bracer over the sleeve. No hand, no upper arm. Grade celestial: white jade and platinum with cloud and star motifs, soft white-gold light."
+ },
+ {
+  "name": "belt-0",
+  "size": "1536x1024",
+  "q": "medium",
+  "bg": "transparent",
+  "prompt": "Hand-painted Korean wuxia (murim) manhwa illustration style: crisp clean dark outlines, rich soft cel shading, game-ready 2D character rig piece. Transparent background, only the object, no text, no character, no hands, no body unless stated. Object: ONE waist sash belt seen from the front at a slight 3/4 angle, laid HORIZONTALLY as a wide band (slightly curved), a decorated buckle right of center, and a hanging pendant with a short tassel dangling below the buckle. Grade common: plain worn materials, rough undyed hemp and dark leather, muted grey-brown, simple shape, no glow."
+ },
+ {
+  "name": "belt-1",
+  "size": "1536x1024",
+  "q": "medium",
+  "bg": "transparent",
+  "prompt": "Hand-painted Korean wuxia (murim) manhwa illustration style: crisp clean dark outlines, rich soft cel shading, game-ready 2D character rig piece. Transparent background, only the object, no text, no character, no hands, no body unless stated. Object: ONE waist sash belt seen from the front at a slight 3/4 angle, laid HORIZONTALLY as a wide band (slightly curved), a decorated buckle right of center, and a hanging pendant with a short tassel dangling below the buckle. Grade uncommon: neat dyed forest-green cloth with bronze fittings and small green jade accents."
+ },
+ {
+  "name": "belt-2",
+  "size": "1536x1024",
+  "q": "medium",
+  "bg": "transparent",
+  "prompt": "Hand-painted Korean wuxia (murim) manhwa illustration style: crisp clean dark outlines, rich soft cel shading, game-ready 2D character rig piece. Transparent background, only the object, no text, no character, no hands, no body unless stated. Object: ONE waist sash belt seen from the front at a slight 3/4 angle, laid HORIZONTALLY as a wide band (slightly curved), a decorated buckle right of center, and a hanging pendant with a short tassel dangling below the buckle. Grade rare: refined blue silk and blue-tempered steel with silver cloud trims."
+ },
+ {
+  "name": "belt-3",
+  "size": "1536x1024",
+  "q": "medium",
+  "bg": "transparent",
+  "prompt": "Hand-painted Korean wuxia (murim) manhwa illustration style: crisp clean dark outlines, rich soft cel shading, game-ready 2D character rig piece. Transparent background, only the object, no text, no character, no hands, no body unless stated. Object: ONE waist sash belt seen from the front at a slight 3/4 angle, laid HORIZONTALLY as a wide band (slightly curved), a decorated buckle right of center, and a hanging pendant with a short tassel dangling below the buckle. Grade epic: black lacquered plates with amethyst studs and gold edges, faint violet glow."
+ },
+ {
+  "name": "belt-4",
+  "size": "1536x1024",
+  "q": "medium",
+  "bg": "transparent",
+  "prompt": "Hand-painted Korean wuxia (murim) manhwa illustration style: crisp clean dark outlines, rich soft cel shading, game-ready 2D character rig piece. Transparent background, only the object, no text, no character, no hands, no body unless stated. Object: ONE waist sash belt seen from the front at a slight 3/4 angle, laid HORIZONTALLY as a wide band (slightly curved), a decorated buckle right of center, and a hanging pendant with a short tassel dangling below the buckle. Grade legendary: white brocade and gold filigree with dragon motifs and white jade, golden glow."
+ },
+ {
+  "name": "belt-5",
+  "size": "1536x1024",
+  "q": "medium",
+  "bg": "transparent",
+  "prompt": "Hand-painted Korean wuxia (murim) manhwa illustration style: crisp clean dark outlines, rich soft cel shading, game-ready 2D character rig piece. Transparent background, only the object, no text, no character, no hands, no body unless stated. Object: ONE waist sash belt seen from the front at a slight 3/4 angle, laid HORIZONTALLY as a wide band (slightly curved), a decorated buckle right of center, and a hanging pendant with a short tassel dangling below the buckle. Grade mythic: crimson and gold with phoenix feather and flame motifs, red-orange glow."
+ },
+ {
+  "name": "belt-6",
+  "size": "1536x1024",
+  "q": "medium",
+  "bg": "transparent",
+  "prompt": "Hand-painted Korean wuxia (murim) manhwa illustration style: crisp clean dark outlines, rich soft cel shading, game-ready 2D character rig piece. Transparent background, only the object, no text, no character, no hands, no body unless stated. Object: ONE waist sash belt seen from the front at a slight 3/4 angle, laid HORIZONTALLY as a wide band (slightly curved), a decorated buckle right of center, and a hanging pendant with a short tassel dangling below the buckle. Grade celestial: white jade and platinum with cloud and star motifs, soft white-gold light."
+ },
+ {
+  "name": "neck-0",
+  "size": "1024x1024",
+  "q": "medium",
+  "bg": "transparent",
+  "prompt": "Hand-painted Korean wuxia (murim) manhwa illustration style: crisp clean dark outlines, rich soft cel shading, game-ready 2D character rig piece. Transparent background, only the object, no text, no character, no hands, no body unless stated. Object: ONE necklace seen from the front: a short cord forming a U at the top and a carved pendant hanging at the bottom center. Small and compact. Grade common: plain worn materials, rough undyed hemp and dark leather, muted grey-brown, simple shape, no glow."
+ },
+ {
+  "name": "neck-1",
+  "size": "1024x1024",
+  "q": "medium",
+  "bg": "transparent",
+  "prompt": "Hand-painted Korean wuxia (murim) manhwa illustration style: crisp clean dark outlines, rich soft cel shading, game-ready 2D character rig piece. Transparent background, only the object, no text, no character, no hands, no body unless stated. Object: ONE necklace seen from the front: a short cord forming a U at the top and a carved pendant hanging at the bottom center. Small and compact. Grade uncommon: neat dyed forest-green cloth with bronze fittings and small green jade accents."
+ },
+ {
+  "name": "neck-2",
+  "size": "1024x1024",
+  "q": "medium",
+  "bg": "transparent",
+  "prompt": "Hand-painted Korean wuxia (murim) manhwa illustration style: crisp clean dark outlines, rich soft cel shading, game-ready 2D character rig piece. Transparent background, only the object, no text, no character, no hands, no body unless stated. Object: ONE necklace seen from the front: a short cord forming a U at the top and a carved pendant hanging at the bottom center. Small and compact. Grade rare: refined blue silk and blue-tempered steel with silver cloud trims."
+ },
+ {
+  "name": "neck-3",
+  "size": "1024x1024",
+  "q": "medium",
+  "bg": "transparent",
+  "prompt": "Hand-painted Korean wuxia (murim) manhwa illustration style: crisp clean dark outlines, rich soft cel shading, game-ready 2D character rig piece. Transparent background, only the object, no text, no character, no hands, no body unless stated. Object: ONE necklace seen from the front: a short cord forming a U at the top and a carved pendant hanging at the bottom center. Small and compact. Grade epic: black lacquered plates with amethyst studs and gold edges, faint violet glow."
+ },
+ {
+  "name": "neck-4",
+  "size": "1024x1024",
+  "q": "medium",
+  "bg": "transparent",
+  "prompt": "Hand-painted Korean wuxia (murim) manhwa illustration style: crisp clean dark outlines, rich soft cel shading, game-ready 2D character rig piece. Transparent background, only the object, no text, no character, no hands, no body unless stated. Object: ONE necklace seen from the front: a short cord forming a U at the top and a carved pendant hanging at the bottom center. Small and compact. Grade legendary: white brocade and gold filigree with dragon motifs and white jade, golden glow."
+ },
+ {
+  "name": "neck-5",
+  "size": "1024x1024",
+  "q": "medium",
+  "bg": "transparent",
+  "prompt": "Hand-painted Korean wuxia (murim) manhwa illustration style: crisp clean dark outlines, rich soft cel shading, game-ready 2D character rig piece. Transparent background, only the object, no text, no character, no hands, no body unless stated. Object: ONE necklace seen from the front: a short cord forming a U at the top and a carved pendant hanging at the bottom center. Small and compact. Grade mythic: crimson and gold with phoenix feather and flame motifs, red-orange glow."
+ },
+ {
+  "name": "neck-6",
+  "size": "1024x1024",
+  "q": "medium",
+  "bg": "transparent",
+  "prompt": "Hand-painted Korean wuxia (murim) manhwa illustration style: crisp clean dark outlines, rich soft cel shading, game-ready 2D character rig piece. Transparent background, only the object, no text, no character, no hands, no body unless stated. Object: ONE necklace seen from the front: a short cord forming a U at the top and a carved pendant hanging at the bottom center. Small and compact. Grade celestial: white jade and platinum with cloud and star motifs, soft white-gold light."
+ },
+ {
+  "name": "ring-0",
+  "size": "1024x1024",
+  "q": "medium",
+  "bg": "transparent",
+  "prompt": "Hand-painted Korean wuxia (murim) manhwa illustration style: crisp clean dark outlines, rich soft cel shading, game-ready 2D character rig piece. Transparent background, only the object, no text, no character, no hands, no body unless stated. Object: ONE glowing magic circle (a martial sect rune seal) seen from DIRECTLY ABOVE, perfectly round, intricate concentric rings of runes and symbols, glowing lines on transparent background, no ground. Grade common: plain worn materials, rough undyed hemp and dark leather, muted grey-brown, simple shape, no glow."
+ },
+ {
+  "name": "ring-1",
+  "size": "1024x1024",
+  "q": "medium",
+  "bg": "transparent",
+  "prompt": "Hand-painted Korean wuxia (murim) manhwa illustration style: crisp clean dark outlines, rich soft cel shading, game-ready 2D character rig piece. Transparent background, only the object, no text, no character, no hands, no body unless stated. Object: ONE glowing magic circle (a martial sect rune seal) seen from DIRECTLY ABOVE, perfectly round, intricate concentric rings of runes and symbols, glowing lines on transparent background, no ground. Grade uncommon: neat dyed forest-green cloth with bronze fittings and small green jade accents."
+ },
+ {
+  "name": "ring-2",
+  "size": "1024x1024",
+  "q": "medium",
+  "bg": "transparent",
+  "prompt": "Hand-painted Korean wuxia (murim) manhwa illustration style: crisp clean dark outlines, rich soft cel shading, game-ready 2D character rig piece. Transparent background, only the object, no text, no character, no hands, no body unless stated. Object: ONE glowing magic circle (a martial sect rune seal) seen from DIRECTLY ABOVE, perfectly round, intricate concentric rings of runes and symbols, glowing lines on transparent background, no ground. Grade rare: refined blue silk and blue-tempered steel with silver cloud trims."
+ },
+ {
+  "name": "ring-3",
+  "size": "1024x1024",
+  "q": "medium",
+  "bg": "transparent",
+  "prompt": "Hand-painted Korean wuxia (murim) manhwa illustration style: crisp clean dark outlines, rich soft cel shading, game-ready 2D character rig piece. Transparent background, only the object, no text, no character, no hands, no body unless stated. Object: ONE glowing magic circle (a martial sect rune seal) seen from DIRECTLY ABOVE, perfectly round, intricate concentric rings of runes and symbols, glowing lines on transparent background, no ground. Grade epic: black lacquered plates with amethyst studs and gold edges, faint violet glow."
+ },
+ {
+  "name": "ring-4",
+  "size": "1024x1024",
+  "q": "medium",
+  "bg": "transparent",
+  "prompt": "Hand-painted Korean wuxia (murim) manhwa illustration style: crisp clean dark outlines, rich soft cel shading, game-ready 2D character rig piece. Transparent background, only the object, no text, no character, no hands, no body unless stated. Object: ONE glowing magic circle (a martial sect rune seal) seen from DIRECTLY ABOVE, perfectly round, intricate concentric rings of runes and symbols, glowing lines on transparent background, no ground. Grade legendary: white brocade and gold filigree with dragon motifs and white jade, golden glow."
+ },
+ {
+  "name": "ring-5",
+  "size": "1024x1024",
+  "q": "medium",
+  "bg": "transparent",
+  "prompt": "Hand-painted Korean wuxia (murim) manhwa illustration style: crisp clean dark outlines, rich soft cel shading, game-ready 2D character rig piece. Transparent background, only the object, no text, no character, no hands, no body unless stated. Object: ONE glowing magic circle (a martial sect rune seal) seen from DIRECTLY ABOVE, perfectly round, intricate concentric rings of runes and symbols, glowing lines on transparent background, no ground. Grade mythic: crimson and gold with phoenix feather and flame motifs, red-orange glow."
+ },
+ {
+  "name": "ring-6",
+  "size": "1024x1024",
+  "q": "medium",
+  "bg": "transparent",
+  "prompt": "Hand-painted Korean wuxia (murim) manhwa illustration style: crisp clean dark outlines, rich soft cel shading, game-ready 2D character rig piece. Transparent background, only the object, no text, no character, no hands, no body unless stated. Object: ONE glowing magic circle (a martial sect rune seal) seen from DIRECTLY ABOVE, perfectly round, intricate concentric rings of runes and symbols, glowing lines on transparent background, no ground. Grade celestial: white jade and platinum with cloud and star motifs, soft white-gold light."
+ },
+ {
+  "name": "bow-0",
+  "size": "1536x1024",
+  "q": "medium",
+  "bg": "transparent",
+  "prompt": "Hand-painted Korean fantasy manhwa game item art: crisp clean dark outlines, soft cel shading. Transparent background, only the object, no text. Object: a simple traditional wooden recurve bow as a decorative game item, laid horizontally, grip at the center, both ends curving upward like a shallow U, no string. Plain natural wood and dark leather grip, muted brown colors."
+ },
+ {
+  "name": "bow-1",
+  "size": "1536x1024",
+  "q": "medium",
+  "bg": "transparent",
+  "prompt": "Hand-painted Korean wuxia (murim) manhwa illustration style: crisp clean dark outlines, rich soft cel shading, game-ready 2D character rig piece. Transparent background, only the object, no text, no character, no hands, no body unless stated. Object: ONE recurve composite bow laid HORIZONTALLY, the grip at the center, both limbs curving UPWARD toward the ends like a shallow U, NO bowstring, no arrow. Grade uncommon: neat dyed forest-green cloth with bronze fittings and small green jade accents."
+ },
+ {
+  "name": "bow-2",
+  "size": "1536x1024",
+  "q": "medium",
+  "bg": "transparent",
+  "prompt": "Hand-painted Korean wuxia (murim) manhwa illustration style: crisp clean dark outlines, rich soft cel shading, game-ready 2D character rig piece. Transparent background, only the object, no text, no character, no hands, no body unless stated. Object: ONE recurve composite bow laid HORIZONTALLY, the grip at the center, both limbs curving UPWARD toward the ends like a shallow U, NO bowstring, no arrow. Grade rare: refined blue silk and blue-tempered steel with silver cloud trims."
+ },
+ {
+  "name": "bow-3",
+  "size": "1536x1024",
+  "q": "medium",
+  "bg": "transparent",
+  "prompt": "Hand-painted Korean wuxia (murim) manhwa illustration style: crisp clean dark outlines, rich soft cel shading, game-ready 2D character rig piece. Transparent background, only the object, no text, no character, no hands, no body unless stated. Object: ONE recurve composite bow laid HORIZONTALLY, the grip at the center, both limbs curving UPWARD toward the ends like a shallow U, NO bowstring, no arrow. Grade epic: black lacquered plates with amethyst studs and gold edges, faint violet glow."
+ },
+ {
+  "name": "bow-4",
+  "size": "1536x1024",
+  "q": "medium",
+  "bg": "transparent",
+  "prompt": "Hand-painted Korean wuxia (murim) manhwa illustration style: crisp clean dark outlines, rich soft cel shading, game-ready 2D character rig piece. Transparent background, only the object, no text, no character, no hands, no body unless stated. Object: ONE recurve composite bow laid HORIZONTALLY, the grip at the center, both limbs curving UPWARD toward the ends like a shallow U, NO bowstring, no arrow. Grade legendary: white brocade and gold filigree with dragon motifs and white jade, golden glow."
+ },
+ {
+  "name": "bow-5",
+  "size": "1536x1024",
+  "q": "medium",
+  "bg": "transparent",
+  "prompt": "Hand-painted Korean wuxia (murim) manhwa illustration style: crisp clean dark outlines, rich soft cel shading, game-ready 2D character rig piece. Transparent background, only the object, no text, no character, no hands, no body unless stated. Object: ONE recurve composite bow laid HORIZONTALLY, the grip at the center, both limbs curving UPWARD toward the ends like a shallow U, NO bowstring, no arrow. Grade mythic: crimson and gold with phoenix feather and flame motifs, red-orange glow."
+ },
+ {
+  "name": "bow-6",
+  "size": "1536x1024",
+  "q": "medium",
+  "bg": "transparent",
+  "prompt": "Hand-painted Korean wuxia (murim) manhwa illustration style: crisp clean dark outlines, rich soft cel shading, game-ready 2D character rig piece. Transparent background, only the object, no text, no character, no hands, no body unless stated. Object: ONE recurve composite bow laid HORIZONTALLY, the grip at the center, both limbs curving UPWARD toward the ends like a shallow U, NO bowstring, no arrow. Grade celestial: white jade and platinum with cloud and star motifs, soft white-gold light."
+ },
+ {
+  "name": "cape-0",
+  "refs": [
+   "/home/user/idle_for_us/art/hero/body-r0.png"
+  ],
+  "size": "1024x1536",
+  "q": "medium",
+  "prompt": "Use EXACTLY the same hand-painted Korean wuxia manhwa illustration style as the reference: crisp clean dark outlines, rich soft cel shading. The reference is a robe/torso piece of a character seen from a 3/4 PROFILE VIEW FACING RIGHT. Draw ONLY a CAPE (cloak) as it would hang BEHIND this character from the shoulders, in EXACTLY the same view, scale and framing as the reference (shoulders at the same height, the cape falling down behind to about knee-to-ankle height and flaring out to the LEFT, the back side). Do NOT draw the robe, body, neck or head — only the parts of the cape, as one piece, transparent everywhere else. Grade common: plain worn materials, rough undyed hemp and dark leather, muted grey-brown, simple shape, no glow."
+ },
+ {
+  "name": "cape-1",
+  "refs": [
+   "/home/user/idle_for_us/art/hero/body-r0.png"
+  ],
+  "size": "1024x1536",
+  "q": "medium",
+  "prompt": "Use EXACTLY the same hand-painted Korean wuxia manhwa illustration style as the reference: crisp clean dark outlines, rich soft cel shading. The reference is a robe/torso piece of a character seen from a 3/4 PROFILE VIEW FACING RIGHT. Draw ONLY a CAPE (cloak) as it would hang BEHIND this character from the shoulders, in EXACTLY the same view, scale and framing as the reference (shoulders at the same height, the cape falling down behind to about knee-to-ankle height and flaring out to the LEFT, the back side). Do NOT draw the robe, body, neck or head — only the parts of the cape, as one piece, transparent everywhere else. Grade uncommon: neat dyed forest-green cloth with bronze fittings and small green jade accents."
+ },
+ {
+  "name": "cape-2",
+  "refs": [
+   "/home/user/idle_for_us/art/hero/body-r0.png"
+  ],
+  "size": "1024x1536",
+  "q": "medium",
+  "prompt": "Use EXACTLY the same hand-painted Korean wuxia manhwa illustration style as the reference: crisp clean dark outlines, rich soft cel shading. The reference is a robe/torso piece of a character seen from a 3/4 PROFILE VIEW FACING RIGHT. Draw ONLY a CAPE (cloak) as it would hang BEHIND this character from the shoulders, in EXACTLY the same view, scale and framing as the reference (shoulders at the same height, the cape falling down behind to about knee-to-ankle height and flaring out to the LEFT, the back side). Do NOT draw the robe, body, neck or head — only the parts of the cape, as one piece, transparent everywhere else. Grade rare: refined blue silk and blue-tempered steel with silver cloud trims."
+ },
+ {
+  "name": "cape-3",
+  "refs": [
+   "/home/user/idle_for_us/art/hero/body-r0.png"
+  ],
+  "size": "1024x1536",
+  "q": "medium",
+  "prompt": "Use EXACTLY the same hand-painted Korean wuxia manhwa illustration style as the reference: crisp clean dark outlines, rich soft cel shading. The reference is a robe/torso piece of a character seen from a 3/4 PROFILE VIEW FACING RIGHT. Draw ONLY a CAPE (cloak) as it would hang BEHIND this character from the shoulders, in EXACTLY the same view, scale and framing as the reference (shoulders at the same height, the cape falling down behind to about knee-to-ankle height and flaring out to the LEFT, the back side). Do NOT draw the robe, body, neck or head — only the parts of the cape, as one piece, transparent everywhere else. Grade epic: black lacquered plates with amethyst studs and gold edges, faint violet glow."
+ },
+ {
+  "name": "cape-4",
+  "refs": [
+   "/home/user/idle_for_us/art/hero/body-r0.png"
+  ],
+  "size": "1024x1536",
+  "q": "medium",
+  "prompt": "Use EXACTLY the same hand-painted Korean wuxia manhwa illustration style as the reference: crisp clean dark outlines, rich soft cel shading. The reference is a robe/torso piece of a character seen from a 3/4 PROFILE VIEW FACING RIGHT. Draw ONLY a CAPE (cloak) as it would hang BEHIND this character from the shoulders, in EXACTLY the same view, scale and framing as the reference (shoulders at the same height, the cape falling down behind to about knee-to-ankle height and flaring out to the LEFT, the back side). Do NOT draw the robe, body, neck or head — only the parts of the cape, as one piece, transparent everywhere else. Grade legendary: white brocade and gold filigree with dragon motifs and white jade, golden glow."
+ },
+ {
+  "name": "cape-5",
+  "refs": [
+   "/home/user/idle_for_us/art/hero/body-r0.png"
+  ],
+  "size": "1024x1536",
+  "q": "medium",
+  "prompt": "Use EXACTLY the same hand-painted Korean wuxia manhwa illustration style as the reference: crisp clean dark outlines, rich soft cel shading. The reference is a robe/torso piece of a character seen from a 3/4 PROFILE VIEW FACING RIGHT. Draw ONLY a CAPE (cloak) as it would hang BEHIND this character from the shoulders, in EXACTLY the same view, scale and framing as the reference (shoulders at the same height, the cape falling down behind to about knee-to-ankle height and flaring out to the LEFT, the back side). Do NOT draw the robe, body, neck or head — only the parts of the cape, as one piece, transparent everywhere else. Grade mythic: crimson and gold with phoenix feather and flame motifs, red-orange glow."
+ },
+ {
+  "name": "cape-6",
+  "refs": [
+   "/home/user/idle_for_us/art/hero/body-r0.png"
+  ],
+  "size": "1024x1536",
+  "q": "medium",
+  "prompt": "Use EXACTLY the same hand-painted Korean wuxia manhwa illustration style as the reference: crisp clean dark outlines, rich soft cel shading. The reference is a robe/torso piece of a character seen from a 3/4 PROFILE VIEW FACING RIGHT. Draw ONLY a CAPE (cloak) as it would hang BEHIND this character from the shoulders, in EXACTLY the same view, scale and framing as the reference (shoulders at the same height, the cape falling down behind to about knee-to-ankle height and flaring out to the LEFT, the back side). Do NOT draw the robe, body, neck or head — only the parts of the cape, as one piece, transparent everywhere else. Grade celestial: white jade and platinum with cloud and star motifs, soft white-gold light."
+ }
+]
