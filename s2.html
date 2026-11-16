@@ -139,6 +139,15 @@
     #contest-fill { position: absolute; left: 0; top: 0; bottom: 0; width: 100%; background: linear-gradient(180deg, #ff6b6b, #b91c1c); transition: width .2s; }
     #contest-sub { color: rgba(255,255,255,.7); font-size: 11px; }
     body.bossing #qc { display: none; }
+    /* v521 가방 필터 · 비교 창 */
+    .bagf { display: flex; flex-wrap: wrap; gap: 5px; margin: 2px 0 8px; } .bagf .chip { padding: 5px 10px; border-radius: 999px; border: 1px solid rgba(255,255,255,.14); background: rgba(255,255,255,.05); color: rgba(255,255,255,.75); font-size: 12px; font-weight: 700; min-height: 32px; }
+    .bagf .chip.on { background: rgba(212,166,74,.25); border-color: var(--gold); color: #fff; } .bagf .sortb { margin-left: auto; }
+    .inv-tile.locked::after { content: '🔒'; position: absolute; top: 3px; left: 4px; font-size: 11px; }
+    .cmp-h { display: flex; gap: 10px; align-items: center; margin-bottom: 8px; } .cmp-h img { width: 64px; height: 64px; object-fit: contain; } .cmp-h b { display: block; font-size: 15px; } .cmp-h small { color: rgba(255,255,255,.6); font-size: 12px; }
+    .cmp { display: grid; gap: 3px; } .cmp-r { display: grid; grid-template-columns: 1fr auto 92px; gap: 8px; align-items: center; padding: 4px 8px; border-radius: 7px; background: rgba(255,255,255,.04); font-size: 13px; } .cmp-r b { font-variant-numeric: tabular-nums; } .cmp-r em { font-style: normal; text-align: right; font-size: 12px; color: rgba(255,255,255,.45); font-variant-numeric: tabular-nums; }
+    .cmp { max-height: 46vh; overflow-y: auto; } html.rot .cmp { max-height: 46vw; }
+    html.h500 .cmp-h img { width: 44px; height: 44px; } html.h500 .cmp-h { margin-bottom: 4px; } html.h500 .cmp-r { padding: 2px 8px; font-size: 12px; } html.h500 #modal .sheet { padding: 12px 14px; } html.h500 #modal h2 { margin-bottom: 4px; font-size: 16px; }
+    .cmp .up, .cmp-h .up { color: #86efac; } .cmp .dn, .cmp-h .dn { color: #fca5a5; }
     /* v520 보상 은자 알 · 은자 칸 톡 */
     .coinfly { position: absolute; z-index: 40; width: 16px; height: 16px; pointer-events: none; }
     .cur-pill.bump { animation: bump .35s ease-out; } @keyframes bump { 40% { transform: scale(1.18); } }

@@ -3,7 +3,8 @@
 import { Game, newGame, COLLECTS, dayKey, STAGE_KILLS } from '../game.js';
 import { SAVE_KEY } from '../core/save.js';
 import { SLOTS, SLOT_NAME, GRADES, gachaExpNeed } from '../tables/gear.js';
-import { itemStats, gearScore, unequip, equip } from '../gear/gear.js';
+import { itemStats, gearScore, unequip, equip, equipBest, junkOf, dismantleMany, dismantleItem, newSlot } from '../gear/gear.js';
+import { dismantle as dismantleYield } from '../tables/gearstat.js';
 import { drawCreature } from '../../creatures.js';
 import { JOBS } from '../tables/char.js';
 import { SKILLS, MASTERY } from '../tables/skills.js';
@@ -98,6 +99,7 @@ const keyOf = () => TABS.find((t) => t[0] === open)?.[2][tab]?.[1];
 // 내용 열쇠(예: 'hero:1')로 그 창 · 그 칸 열기
 function openKey(key) { for (const [id, , subs] of TABS) { const i = subs.findIndex((x) => x[1] === key); if (i >= 0) { openWin(id, i); return; } } }
 let open = null, tab = 0, treeSel = null, eqSel = null;
+let bagF = 'all', bagSort = 'g', bagJunkG = 3, bagMore = false;   // v521 가방 보기
 // 장비 아이콘: 지금 게임 그림(무기 · 방어구 · 장신구 × 등급 6)
 // v515 장비 그림 — 부위 열 × 등급 일곱(무기는 지금 무인 직업 다섯), 빈 칸은 그 부위 범급을 흐리게
 const eqIcon = (sl, it) => `art/s2/eq/${sl === 'weapon' ? `w-${g?.S?.hero?.job || 'sword'}` : sl}-${it ? Math.min(6, it.g) : 0}.webp`;
@@ -277,6 +279,8 @@ function paintWin() {
     const pw = document.createElement('div'); pw.className = 'eqpw'; pw.innerHTML = `전투력 ${unit(g.power())}<small>${JOBS[g.S.hero.job].name} · Lv.${L}</small>`; mid.append(pw);
     wrap.append(col(SLOTS.slice(0, 5)), mid, col(SLOTS.slice(5)));
     const c0 = card('끼고 있는 것', `전투력 ${unit(g.power())}`); c0(wrap);
+    const nb = SLOTS.filter((s) => G.bag.some((x) => x.slot === s && (!G.eq[s] || gearScore(x, L) > gearScore(G.eq[s], L)))).length;
+    c0(R('최고 장비 모두 끼기', nb ? `${nb}칸을 더 좋은 것으로` : '모두 가장 좋은 것을 끼고 있어요', [['모두 끼기', act(() => { const p0 = g.power(), n = equipBest(G, L); g.dirtyStats = true; g.emit('equip'); if (n) setTimeout(() => toast(`${n}칸 바꿈 · 전투력 ${unit(p0)} → ${unit(g.power())}`), 0); return n > 0; }), !nb]], '裝'));
     requestAnimationFrame(() => { const x = cvs.getContext('2d'); x.clearRect(0, 0, 240, 300); x.save(); x.translate(0, 10); const gr = x.createRadialGradient(120, 190, 10, 120, 190, 130); gr.addColorStop(0, '#e8c26a44'); gr.addColorStop(1, 'rgba(0,0,0,0)'); x.fillStyle = gr; x.fillRect(0, 0, 240, 300); drawHero(x, 120, 270, g.S.hero.job, g.S.hero.lv, { t: now() / 1000, scale: 2.2, eq: g.S.gear.eq }); x.restore(); });
     const sl = eqSel && SLOTS.includes(eqSel) ? eqSel : null;
     if (sl) {
@@ -306,9 +310,19 @@ function paintWin() {
     }
   } else if (key === 'gear:3') {
     const G = g.S.gear, L = g.S.hero.lv;
-    const c0 = card(`가방 ${G.bag.length}개`, '누르면 그 칸에 낌 · ▲ 지금보다 좋음');
+    const c0 = card(`가방 ${G.bag.length}개`, '누르면 비교 · 장착 · 잠금 · 분해 · ▲ 지금보다 좋음');
     c0(R('자동 분해', G.autoDis < 0 ? '끔' : `${GRADES[G.autoDis]}품 이하는 주우면 바로 분해`, [['바꾸기', act(() => { G.autoDis = G.autoDis >= 3 ? -1 : G.autoDis + 1; return true; })]], '分'));
-    if (G.bag.length) c0(invGrid([...G.bag].sort((a2, b2) => b2.g - a2.g || gearScore(b2, L) - gearScore(a2, L)).slice(0, 60), null, L));
+    // v521 부위 고르기 · 정렬 · 일괄 분해
+    const chips = document.createElement('div'); chips.className = 'chip-row bagf';
+    for (const [k, nm] of [['all', '전부'], ...SLOTS.map((s) => [s, SLOT_NAME[s]])]) { const n = k === 'all' ? G.bag.length : G.bag.filter((x) => x.slot === k).length; if (k !== 'all' && !n) continue; const b = document.createElement('button'); b.className = `chip${bagF === k ? ' on' : ''}`; b.textContent = `${nm} ${n}`; b.onclick = () => { play('click'); bagF = k; paintWin(); }; chips.append(b); }
+    const so = document.createElement('button'); so.className = 'chip sortb'; so.textContent = bagSort === 'g' ? '등급순' : bagSort === 'p' ? '좋은순' : '부위순'; so.onclick = () => { play('click'); bagSort = { g: 'p', p: 's', s: 'g' }[bagSort]; paintWin(); }; chips.append(so);
+    c0(chips);
+    const junk = junkOf(G, L, bagJunkG);
+    const yld = {}; for (const it of junk) for (const c of dismantleYield(it.g)) yld[c.k] = (yld[c.k] || 0) + c.n;
+    c0(R('일괄 분해', junk.length ? `낀 것보다 나쁜 ${junk.length}개(${GRADES[bagJunkG]}품 이하 · 잠금 빼고) → 강화석 ${yld['item:stone'] || 0}` : `낀 것보다 나쁜 장비가 없어요(${GRADES[bagJunkG]}품 이하)`,
+      [['분해', act(() => { const r = dismantleMany(G, junk.map((x) => x.uid), W); if (r.n) setTimeout(() => toast(`${r.n}개 분해 · 강화석 +${r.out['item:stone'] || 0}`), 0); return r.n > 0; }), !junk.length], [`${GRADES[bagJunkG]}품↓`, () => { play('click'); bagJunkG = (bagJunkG + 1) % 7; paintWin(); }]], '分'));
+    const list = G.bag.filter((x) => bagF === 'all' || x.slot === bagF).sort(bagSort === 'p' ? (a2, b2) => gearScore(b2, L) - gearScore(a2, L) : bagSort === 's' ? (a2, b2) => SLOTS.indexOf(a2.slot) - SLOTS.indexOf(b2.slot) || b2.g - a2.g : (a2, b2) => b2.g - a2.g || gearScore(b2, L) - gearScore(a2, L));
+    if (list.length) { c0(invGrid(list.slice(0, bagMore ? 400 : 60), null, L)); if (list.length > 60 && !bagMore) c0(R(`${list.length - 60}개 더 있어요`, '', [['전부 보기', () => { play('click'); bagMore = true; paintWin(); }]], '…')); }
     else c0(note('가방이 비었어요. 뽑기에서 더 좋은 것은 바로 껴요.'));
   } else if (key === 'grow:0' || key === 'grow:1' || key === 'grow:2') {
     const sys = COLLECTS[+key.slice(5)], C = g.S.colls[sys], D = COLLECT[sys];
@@ -391,6 +405,21 @@ function paintWin() {
   }
 }
 // 가방 그림 칸 — 누르면 그 칸에 낌(지금 게임의 .inv-grid · .inv-tile)
+// v521 장비 비교 창 — 이 장비 능력치와 지금 낀 것과의 차이(+초록 · −빨강) · 장착 · 잠금 · 분해
+function itemPop(c, L) {
+  const G = g.S.gear, cur = G.eq[c.slot], a = itemStats(c, newSlot(), L), b = cur ? itemStats(cur, newSlot(), L) : {};
+  const keys = [...new Set([...Object.keys(a), ...Object.keys(b)])];
+  const fmt = (k, v) => (STATS[k]?.kind === 'rate' ? `${(v / 10).toFixed(1)}%` : unit(v));
+  const rows = keys.map((k) => { const d = (a[k] || 0) - (b[k] || 0); return `<div class="cmp-r"><span>${STATS[k]?.name || k}</span><b>${fmt(k, a[k] || 0)}</b><em class="${d > 0 ? 'up' : d < 0 ? 'dn' : ''}">${d ? (d > 0 ? '▲ ' : '▼ ') + fmt(k, Math.abs(d)) : '–'}</em></div>`; }).join('');
+  const sc = gearScore(c, L), sc0 = cur ? gearScore(cur, L) : 0;
+  const head = `<div class="cmp-h"><img src="${eqIcon(c.slot, c)}" alt=""><div><b class="g${c.g}t">${GRADES[c.g]}품${c.up ? '上' : ''} ${SLOT_NAME[c.slot]}</b><small>${cur ? `지금: ${GRADES[cur.g]}품${cur.up ? '上' : ''}` : '지금 비어 있음'} · ${sc >= sc0 ? '<span class="up">더 좋음</span>' : '<span class="dn">지금 것이 더 좋음</span>'}</small></div></div>`;
+  const yl = dismantleYield(c.g)[0];
+  pop('장비 비교', head + `<div class="cmp">${rows}</div>`, [
+    [c.lock ? '잠금 풀기' : '잠그기', () => { c.lock = !c.lock; save(); }],
+    ...(c.lock ? [] : [[`분해(강화석 ${yl.n})`, () => { if (dismantleItem(G, c.uid, g.S.wallet)) { toast(`분해 · 강화석 +${yl.n}`); save(); } }]]),
+    ['장착', () => { if (equip(G, c.uid)) { g.dirtyStats = true; g.emit('equip'); toast(`${SLOT_NAME[c.slot]} 낌`); save(); } }],
+  ]);
+}
 function invGrid(items, cur, L) {
   const G = g.S.gear, GC2 = ['#a8a29e', '#7cc47a', '#6aa8e0', '#b27ae0', '#e8c26a', '#e06a5a', '#ffffff'];
   const grid = document.createElement('div'); grid.className = 'inv-grid';
@@ -398,7 +427,8 @@ function invGrid(items, cur, L) {
     const now2 = cur !== undefined && cur !== null ? cur : G.eq[c.slot], better = !now2 || gearScore(c, L) > gearScore(now2, L);
     const b = document.createElement('button'); b.className = `inv-tile${better ? ' up' : ''}`; b.style.setProperty('--gc', GC2[c.g] || '#fff');
     b.innerHTML = `<img src="${eqIcon(c.slot, c)}" alt="${SLOT_NAME[c.slot]}" style="width:46px;height:46px;object-fit:contain;filter:drop-shadow(0 2px 2px rgba(0,0,0,.6))"><b>${GRADES[c.g]}품${c.up ? '上' : ''}</b><small>${SLOT_NAME[c.slot]}${better ? ' ▲' : ''}</small>`;
-    b.onclick = act(() => { const r = equip(G, c.uid); g.dirtyStats = true; g.emit('equip'); if (r) toast(`${SLOT_NAME[c.slot]} 낌`); return r; });
+    if (c.lock) b.classList.add('locked');
+    b.onclick = () => { play('click'); itemPop(c, L); };   // v521 바로 끼지 않고 비교 창부터
     grid.append(b);
   }
   return grid;

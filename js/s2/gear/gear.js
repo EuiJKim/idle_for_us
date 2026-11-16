@@ -87,6 +87,24 @@ export function dismantleItem(G, uid, wallet) {
   for (const c of dismantle(it.g)) wallet[c.k] = (wallet[c.k] || 0) + c.n;
   return true;
 }
+// v521 일괄 장착 — 부위마다 가방에서 지금보다 점수 높은 것으로(바뀐 칸 수)
+export function equipBest(G, heroLv) {
+  let n = 0;
+  for (const it of [...G.bag].sort((a, b) => gearScore(b, heroLv) - gearScore(a, heroLv))) {
+    const cur = G.eq[it.slot];
+    if (!cur || gearScore(it, heroLv) > gearScore(cur, heroLv)) { if (equip(G, it.uid)) n++; }
+  }
+  return n;
+}
+// v521 일괄 분해 대상 — 잠금 아님 · 낀 것보다 점수가 낮음 · (maxG가 있으면) 그 등급 이하
+export function junkOf(G, heroLv, maxG = 6) {
+  return G.bag.filter((it) => !it.lock && it.g <= maxG && G.eq[it.slot] && gearScore(it, heroLv) <= gearScore(G.eq[it.slot], heroLv));
+}
+export function dismantleMany(G, uids, wallet) {
+  const set = new Set(uids), out = {}; let n = 0;
+  G.bag = G.bag.filter((it) => { if (!set.has(it.uid) || it.lock) return true; for (const c of dismantle(it.g)) { wallet[c.k] = (wallet[c.k] || 0) + c.n; out[c.k] = (out[c.k] || 0) + c.n; } n++; return false; });
+  return { n, out };
+}
 // 장착 해제 — 가방으로
 export function unequip(G, slot) { const it = G.eq[slot]; if (!it) return false; G.bag.push(it); G.eq[slot] = null; return true; }
 // 손으로 장착 — 가방에서 꺼내고, 끼고 있던 건 가방으로
