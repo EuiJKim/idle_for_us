@@ -5,7 +5,7 @@ export const DOWN_FROM = 11;
 export const BREAK_FROM = 15;
 export const PROTECT_FROM = 15, PROTECT_TO = 19;    // 파괴 방지는 15~19성만
 export const PROTECT_DOWN_COST_X = 1;               // 하락 방지 = 기본 비용의 ×1 추가
-export const PROTECT_BREAK_COST_X = 2;              // 파괴 방지 = 기본 비용의 ×2 추가
+export const PROTECT_BREAK_COST_X = 1;              // 파괴 방지 = 기본 비용의 ×1 추가(v530 ×2 → ×1)
 export const PITY_POINTS = 100;                     // 실패 누적 포인트가 차면 다음 1회 성공 확정
 
 // 성(현재) → { ok: 성공, down: 하락, brk: 파괴 } 퍼밀. 나머지(1000 - 합)는 그대로.
@@ -14,8 +14,8 @@ export function starOdds(s) {
   if (s < 5) ok = 950 - s * 50;              // 95% → 75%
   else if (s < 10) ok = 700 - (s - 5) * 50;  // 70% → 50%
   else if (s < 15) ok = 450 - (s - 10) * 25; // 45% → 35%
-  else if (s < 20) ok = 300;                 // 30%
-  else ok = 300 - (s - 20) * 25;             // 30% → 20%
+  else if (s < 20) ok = 350;                 // 35%(v529 30% → v530 35% — 15성부터 막히던 것)
+  else ok = 300 - (s - 20) * 25;             // 30% → 20%(20성부터)
   const fail = 1000 - ok;
   const brk = s < BREAK_FROM ? 0 : s < 20 ? 20 + (s - 15) * 10 : 80 + (s - 20) * 18;   // 2%→6% · 8%→15%
   const downShare = s < DOWN_FROM ? 0 : s < 15 ? 500 : s < 20 ? 600 : 700;
