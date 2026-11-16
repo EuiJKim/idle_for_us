@@ -185,11 +185,14 @@ async function tab(page, name) {
   // v386 가방 › 강화 칸
   await p.click('#panel .subtabs button[data-key="enh"]');
   await p.waitForSelector('#panel #enh-all', { timeout: 5000 });
+  // v520 앞 단계(자동 강화 · 방치)에서 이미 한계까지 올라 있으면 「모두 강화」가 할 일이 없어 가끔 실패했다 — 강화를 0으로 · 재료를 넉넉히
+  await G(p, () => { const g = window.__game; for (const it of Object.values(g.s.equip)) if (it) it.plus = 0; for (const k of Object.keys(g.s.mats)) g.s.mats[k] = Math.max(g.s.mats[k] || 0, 500); g.s.gold += 1e9; window.__app.refresh(); });
   const ep0 = await G(p, () => Object.values(window.__game.s.equip).filter(Boolean).reduce((a, it) => a + (it.plus || 0), 0));
   await p.locator('#panel .subtabs').scrollIntoViewIfNeeded();
   await shot(p, '05f-enh.png');
   await p.click('#panel #enh-all');
-  await sleep(300);
+  // v520 0.3초만 기다리면 느린 실행에서 가끔 강화가 아직 반영되기 전이었다 — 최대 3초 기다린다
+  await p.waitForFunction((e0) => Object.values(window.__game.s.equip).filter(Boolean).reduce((a, it) => a + (it.plus || 0), 0) > e0, ep0, { timeout: 3000 }).catch(() => {});
   assert(await G(p, () => Object.values(window.__game.s.equip).filter(Boolean).reduce((a, it) => a + (it.plus || 0), 0)) > ep0, '강화 칸 — 모두 +N까지');
   // v386 엔딩 화면
   await G(p, () => window.__app.showEnding());

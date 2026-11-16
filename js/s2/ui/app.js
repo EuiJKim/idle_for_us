@@ -154,13 +154,19 @@ function paintNav() {
   navDots();
 }
 // 빨간 점 — 지금 누를 게 있는 창(캐릭터: 전직 · 무공 점수 · 올릴 수 있는 무공 / 가방: 뽑기권 10장↑ / 마을: 길잡이 받기)
+const dotSeen = (() => { try { return JSON.parse(localStorage.getItem('ifu.s2.dots') || '{}'); } catch { return {}; } })();
+let dotSaved = '';
 function navDots() {
   const S = g.S, h = g.hero, W = S.wallet;
-  let kitUp = false;
-  try { const K = h.kitState(); for (const id of Object.keys(K.lv)) { const sk = skillById(id); if (sk && h.canKitUp(id) && (W.gold || 0) >= kitCost(K.lv[id], sk.tier)[0].n) { kitUp = true; break; } } } catch { /* 없음 */ }
-  const cur = guideCurrent(S.q.guide);
-  const on = { char: !!(h.canAdvance?.() || g.treePts?.().left > 0 || kitUp), bag: (W['ticket:gear'] || 0) >= 10, town: !!(cur && S.q.guide[cur.id]?.done) };
+  let kitUp = 0;
+  try { const K = h.kitState(); for (const id of Object.keys(K.lv)) { const sk = skillById(id); if (sk && h.canKitUp(id) && (W.gold || 0) >= kitCost(K.lv[id], sk.tier)[0].n) kitUp++; } } catch { /* 없음 */ }
+  const cur = guideCurrent(S.q.guide), canAdv = !!h.canAdvance?.(), tree = g.treePts?.().left || 0, tix = W['ticket:gear'] || 0;
+  // v520 빨간 점은 「새로 생긴 할 일」만 — 늘 켜져 있던 것(올릴 무공이 거의 늘 있다)을, 그 창을 한 번 열면 다음 새 일까지 끈다
+  const sig = { char: canAdv || tree > 0 || kitUp ? `${canAdv ? 1 : 0}|${tree}|${kitUp}|${S.hero.adv || 0}` : '', bag: tix >= 10 ? `${Math.floor(tix / 10)}` : '', town: cur && S.q.guide[cur.id]?.done ? cur.id : '' };
+  if (open && sig[open] !== undefined) dotSeen[open] = sig[open];
+  const on = { char: !!sig.char && sig.char !== dotSeen.char, bag: !!sig.bag && sig.bag !== dotSeen.bag, town: !!sig.town };
   for (const b of document.querySelectorAll('.nb[data-tab], #ptabs button[data-tab]')) b.classList.toggle('dot-on', !!on[b.dataset.tab]);
+  const ds = JSON.stringify(dotSeen); if (ds !== dotSaved) { dotSaved = ds; try { localStorage.setItem('ifu.s2.dots', ds); } catch { /* 저장 못 해도 */ } }
 }
 function act(fn) { return () => { play('click'); const r = fn(); if (r === null || r === false) toast('할 수 없어요(재료·조건)'); save(); paintWin(); paintHud(); return r; }; }
 // 한 줄 — 지금 게임의 .row(.info .name · .desc · 단추). 첫 단추는 붉은 주 단추
@@ -406,7 +412,7 @@ const unit = (n) => {   // 큰 수: 만 · 억 · 조 · 경 두 자리까지(�
   return String(n);
 };
 const logLines = [];
-function addLog(t) { logLines.unshift(t); logLines.length = Math.min(logLines.length, 4); }
+function addLog(t) { if (logLines[0] === t) return; logLines.unshift(t); logLines.length = Math.min(logLines.length, 4); }   // v520 같은 줄이 잇따라 쌓이지 않게
 let portraitKey = '';
 function paintPortrait(H) {
   const E = g.S.gear.eq, key = `${H.job}:${H.lv}:${Object.values(E).map((it) => (it ? it.g : '-')).join('')}:${wearCount()}`; if (key === portraitKey) return; portraitKey = key;   // v516 장비가 바뀌면 얼굴도 새로
@@ -518,10 +524,24 @@ function padHold(id, dir) {
   const off = () => { if (!b.classList.contains('on')) return; b.classList.remove('on'); g.hold(0); };
   b.onpointerdown = on; b.onpointerup = off; b.onpointerleave = off; b.onpointercancel = off;
 }
+// v520 보상 연출 — 받은 곳에서 은자 알이 튀어 올라 왼쪽 위 은자 칸으로 빨려 든다
+function coinFly(from, to, n) {
+  if (!from || !to || opt.gfx === 'low') return;
+  const a = from.getBoundingClientRect(), b = to.getBoundingClientRect(), host = $('battle'), H = host.getBoundingClientRect();
+  const rot = document.body.classList.contains('rot');
+  const loc = (r) => rot ? [r.top + r.height / 2 - H.top, H.right - (r.left + r.width / 2)] : [r.left + r.width / 2 - H.left, r.top + r.height / 2 - H.top];   // 돌린 화면이면 기기 좌표를 게임 좌표로
+  const [ax, ay] = loc(a), [bx, by] = loc(b);
+  for (let i = 0; i < n; i++) {
+    const c = document.createElement('i'); c.className = 'coin s coinfly'; c.style.cssText = `left:${ax}px;top:${ay}px`; host.append(c);
+    const sx = (Math.random() - 0.5) * 90, sy = -30 - Math.random() * 50, d = 650 + i * 45;
+    c.animate([{ transform: 'translate(-50%,-50%) scale(.6)', opacity: 0 }, { transform: `translate(calc(-50% + ${sx}px), calc(-50% + ${sy}px)) scale(1.1)`, opacity: 1, offset: 0.3 }, { transform: `translate(calc(-50% + ${bx - ax}px), calc(-50% + ${by - ay}px)) scale(.5)`, opacity: 0.9 }], { duration: d, easing: 'cubic-bezier(.3,.7,.4,1)' }).onfinish = () => c.remove();
+  }
+  setTimeout(() => { to.parentNode?.classList.remove('bump'); void to.offsetWidth; to.parentNode?.classList.add('bump'); }, 640);
+}
 function onGuide() {
   const cur = guideCurrent(g.S.q.guide), cs = cur && g.S.q.guide[cur.id];
   if (!cur) return;
-  if (cs?.done) { const r = g.claimGuide(); if (r) toast(`길잡이 ${r.id.slice(1)} 보상`); save(); paintHud(); }
+  if (cs?.done) { const g0 = g.S.wallet.gold, r = g.claimGuide(); if (r) { const dg = g.S.wallet.gold - g0; toast(`길잡이 ${r.id.slice(1)} 보상${dg > 0 ? ` · 은자 +${unit(dg)}` : ''}${r.items ? ' · 물건' : ''}`); play('loot'); coinFly($('qc'), $('g-gold'), 8); } save(); paintHud(); }
   else if (cur.go) openKey(goKey(cur.go));
 }
 const goKey = (go) => ({ gear: 'gear:0', gacha: 'gear:1', skill: 'hero:1', slot: 'gear:2', job: 'hero:3', pal: 'grow:1', weapon: 'grow:0', relic: 'grow:2', daily: 'content:0', realm: 'grow:3', hunt: 'content:3' }[go] || 'mission:0');
@@ -907,7 +927,7 @@ function draw() {
     const fs = Math.round((f.pal ? 14 : f.crit ? 24 : 18) * k * pop);
     cx.globalAlpha = a > 0.75 ? (1 - a) * 4 : 1; cx.textAlign = 'center';
     cx.font = `900 ${fs}px system-ui`; cx.lineWidth = 5; cx.strokeStyle = f.pal ? '#06323f' : f.crit ? '#5a0a2a' : '#3a2200';
-    const txt = f.txt ??= unit(f.d);
+    const txt = f.txt ??= unit(f.d) + (f.hits > 1 ? ` ×${f.hits}` : '');
     cx.save(); cx.translate(x, yy); cx.strokeText(txt, 0, 0);
     cx.fillStyle = numGrad(f.pal ? 2 : f.crit ? 1 : 0, fs); cx.fillText(txt, 0, 0); cx.restore();
     cx.globalAlpha = 1;
@@ -984,6 +1004,9 @@ function frame() {
         if (e[5] === 0 && !shot && t - lastSwing > 120 && skillFx.length < 90) { lastSwing = t; skillFx.push({ at: t, shape: 'swing', job, x: H0.x, y: H0.y, tx: m.x, ty: m.y, face: Math.sign(m.x - H0.x) || H0.face || 1 }); }
         if ((e[5] || shot) && skillFx.length < 80) skillFx.push({ at: t + fly, shape: 'hit', x: m.x, y: m.y + 650, crit: e[4], rot: (m.x >= H0.x ? 0 : Math.PI) + (((m.id * 13 + (e[6] || 0) * 7) % 10) - 5) * 0.09 });
         const n = rows.get(m.id) || 0; rows.set(m.id, n + 1);
+        // v520 같은 몹에 0.35초 안에 이어진 보통(치명 아님) 타격은 숫자 하나로 합쳐 올라간다(×n) — 여러 대가 한 자리에 겹쳐 읽히지 않던 것
+        const mf = !e[4] && e[5] !== 2 ? floats.find((f) => f.mid === m.id && !f.crit && !f.pal && Math.abs(t + fly - f.at) < 350) : null;
+        if (mf) { mf.d += e[3]; mf.hits = (mf.hits || 1) + 1; mf.txt = null; mf.at = Math.max(mf.at, t + fly - 60); continue; }
         if (floats.length < 60) floats.push({ x: m.x, y: m.y, d: e[3], crit: e[4], pal: e[5] === 2, at: t + fly, row: (n + (recentRows.get(m.id)?.t > t - 500 ? recentRows.get(m.id).n : 0)) % 6, mid: m.id, drift: ((m.id + n) % 3) - 1 }); const rr = recentRows.get(m.id); recentRows.set(m.id, { t, n: (rr && rr.t > t - 500 ? rr.n : 0) + 1 });
       }
       else if (e[0] === 'cast') { castShape = e[6]; castCol = skillById(e[2])?.col; skillFx.push({ at: t + 90, id: e[2], face: e[3], x: e[4], y: e[5], shape: e[6], R: e[7], hero: 1 }); }   // v507 휘두르는 순간(자세가 끝까지 가는 때)에 맞춰 터진다
@@ -1000,7 +1023,7 @@ function frame() {
   }
   if (t - lastMin >= 60000) { lastMin = t; g.minute(); }
   for (const f of g.feed.splice(0)) {
-    if (f.k === 'level') { play('level'); levelAt = now(); toast(`레벨 업! Lv ${f.lv}`); addLog(`레벨 업 — Lv ${f.lv}`); }
+    if (f.k === 'level') { play('level'); levelAt = now(); addLog(`레벨 업 — Lv ${f.lv}`); }   // v520 알림 대신 무인 위 LEVEL UP(v519)
     else if (f.k === 'guide') addLog('길잡이 완료 — 왼쪽 위에서 받기');
     else if (f.k === 'advance') toast(`${f.n}차 전직!`);
     else if (f.k === 'boss') addLog('사냥터 두목 처치!');

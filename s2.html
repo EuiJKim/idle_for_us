@@ -139,6 +139,9 @@
     #contest-fill { position: absolute; left: 0; top: 0; bottom: 0; width: 100%; background: linear-gradient(180deg, #ff6b6b, #b91c1c); transition: width .2s; }
     #contest-sub { color: rgba(255,255,255,.7); font-size: 11px; }
     body.bossing #qc { display: none; }
+    /* v520 보상 은자 알 · 은자 칸 톡 */
+    .coinfly { position: absolute; z-index: 40; width: 16px; height: 16px; pointer-events: none; }
+    .cur-pill.bump { animation: bump .35s ease-out; } @keyframes bump { 40% { transform: scale(1.18); } }
     html.rot #contest-hud { width: min(440px, 52vh); }
     /* v519 잠긴 무공 칸 · 레벨업 */
     .sk.locked { border-style: solid; border-color: rgba(255,255,255,.12); background: rgba(0,0,0,.55); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; }
