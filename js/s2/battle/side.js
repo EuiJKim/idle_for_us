@@ -130,7 +130,7 @@ export class SideFight {
       }
       // v505 자동이면 두목 패턴의 붉은 범위 안에서 가까운 쪽 밖으로 비킨다(수동은 직접 피해야 한다)
       for (const m of this.mobs) {
-        const q = m.pat; if (!q || Math.abs(H.y - q.y) > SAME_Y + 600 || Math.abs(H.x - q.x) > q.w / 2 + 250) continue;
+        const q = m.pat; if (!q || this.t > q.end || Math.abs(H.y - q.y) > SAME_Y + 600 || Math.abs(H.x - q.x) > q.w / 2 + 250) continue;
         dodge = true;
         const out = Math.sign(H.x - q.x) || -(H.face || 1), edge = q.x + out * (q.w / 2 + 300);
         if ((out > 0 && edge > map.w - 200) || (out < 0 && edge < 200)) dir = -out; else dir = out;
@@ -239,7 +239,7 @@ export class SideFight {
         const r = hit(m, H, SKILL_BASE, this.rng);
         H.hp -= r.dmg; this.dmgIn += r.dmg; m.nextAtk = this.t + m.atkMs;
         this.events.push(['hurt', this.t, r.dmg]);
-        if (H.hp <= 0) { this.deaths++; H.hp = H.st.hp; this.events.push(['die', this.t]); for (const k of this.mobs) k.angry = false; }
+        if (H.hp <= 0) { this.deaths++; H.hp = H.st.hp; this.events.push(['die', this.t]); for (const k of this.mobs) { k.angry = false; k.pat = null; } }   // v527 쓰러지면 두목 예고도 거둔다(남은 붉은 범위를 영원히 피하며 제자리에서 흔들리던 것)
       }
     }
     if (this.t % 1000 === 0 && H.hp < H.st.hp) H.hp = Math.min(H.st.hp, H.hp + Math.floor((H.st.hp * BASE_REGEN_P) / 1000) + (H.st.regen || 0));

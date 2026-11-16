@@ -39,7 +39,8 @@ export const BOSS_EVERY = 300;
 export const STAGE_KILLS = 20, STAGE_BOSS_MS = 60000;
 export const SIDE_ROOM = { n: 18, coolMs: 1000 };
 export const STAGE_BOSS_HP_X = 0.5;
-export const AUTO_RETRY_PW = 50;   // 자동 재도전: 진 때보다 전투력 +5%(또는 레벨업)   // 칸 두목은 기준 무인으로 20초 남짓(사냥터 두목의 절반)
+export const AUTO_RETRY_PW = 50;
+export const RETREAT_DEATHS = 3;   // v527 자동 사냥 중 한 칸에서 이만큼 쓰러지면 앞 칸으로 물러난다(다시 나아가기는 더 강해진 뒤)   // 자동 재도전: 진 때보다 전투력 +5%(또는 레벨업)   // 칸 두목은 기준 무인으로 20초 남짓(사냥터 두목의 절반)
 
 export function newGame(job = 'sword', nowMs = 0, seed = 1) {
   return {
@@ -216,7 +217,7 @@ export class Game {
       if (e[0] !== 'kill') continue;
       const kind = e[3], L = F.def.lv;
       n++; S.kills++;
-      this.addExp(mobExp(L, kind));
+      this.addExp(mobExp(L, kind, S.hero.lv));
       const gp = this.fighter().st.goldP || 0;
       S.wallet.gold += Math.round(goldPerMob(L) * (kind === 'boss' ? 20 : kind === 'elite' ? 5 : 1) * (1000 + gp) / 1000);
       if (kind === 'elite') { S.gacha.eliteQ = Math.max(0, S.gacha.eliteQ - 1); this.obtain(GC.eliteDrop(S.gacha, this.rng)); this.emit('kill', { n: 1, elite: 1 }); }
@@ -224,6 +225,19 @@ export class Game {
       else { S.killsSinceBoss++; T.kills = Math.min(STAGE_KILLS, T.kills + 1); this.emit('kill', { n: 1 }); }
       const r = ID.suddenProgress(S.sudden, 1, this.now);
       if (r) { this.giveHuntMin(r.huntMin); this.feed.push({ k: 'sudden-done' }); }
+    }
+    // v527 물러나기 — 칸이 레벨보다 앞서 몹에게 계속 쓰러지면 앞 칸에서 사냥. 다시 그 칸으로(앞 칸 두목 도전)는 더 강해진 뒤
+    if (!F.def.boss) {
+      if (T.dnIdx !== T.idx) { T.dnIdx = T.idx; T.dn = 0; }
+      const d = F.deaths - (F.dSeen ?? 0); F.dSeen = F.deaths;
+      if (d > 0 && S.auto !== false && T.auto) {
+        T.dn = (T.dn || 0) + d;
+        if (T.dn >= RETREAT_DEATHS && T.idx > 1) {
+          const from = T.idx; T.idx--; T.kills = 0; T.dn = 0; T.dnIdx = T.idx;
+          T.failIdx = T.idx; T.failLv = S.hero.lv; T.failPw = this.power();
+          this.feed.push({ k: 'retreat', from, idx: T.idx });
+        }
+      }
     }
     this.lastEvents = F.events;
     this.lastFight = F;

@@ -96,13 +96,14 @@ console.log('\n=== S0 숫자 초안 표 ===');
   // 진행 목표
   const pr = PR.PROGRESS;
   ok(pr.every((r, i) => i === 0 || (r.day > pr[i - 1].day && r.lv[0] >= pr[i - 1].lv[1])), '진행 목표: 날짜·레벨이 앞으로만');
-  ok(pr.find((r) => r.day === 1).lv.join('~') === '55~65' && pr.find((r) => r.day === 7).lv[0] === 100 && pr.at(-1).lv[0] === PR.LEVEL_MAX, '1일 55~65 · 7일 100 · 1년 만렙');
+  ok(pr.find((r) => r.day === 1).lv.join('~') === '29~31' && pr.find((r) => r.day === 7).lv[0] === 69 && pr.find((r) => r.day === 30).lv[0] === 99 && pr.at(-1).day === 60 && pr.at(-1).lv[0] === PR.LEVEL_MAX, 'v527 1일 30 · 7일 70 · 30일 100 · 60일 만렙');
+  ok(PR.JOB_LV.join() === '1,20,50,80,100,120', 'v527 전직 20 · 50 · 80 · 100 · 120');
   // 경험치
   const e = (L) => EX.expToNext(L);
   ok(Array.from({ length: PR.LEVEL_MAX - 2 }, (_, i) => i + 2).every((L) => e(L) > e(L - 1)), '경험치: 레벨마다 늘어남');
   ok(e(100) / e(99) < 1.8 && e(104) / e(103) < 1.6 && e(105) / e(104) < 1.15, '100에서 벽이 갑자기 서지 않음(100~104 서서히)', `${(e(100) / e(99)).toFixed(2)} · ${(e(104) / e(103)).toFixed(2)}`);
   const pre = EX.cumExp(100) - EX.cumExp(1), post = EX.cumExp(150) - EX.cumExp(100);
-  ok(post > pre * 15, '100 이후가 그 전보다 훨씬 무거움(1~100의 15배 넘게)', `${(post / pre).toFixed(0)}배`);
+  ok(post > pre * 3, 'v527 100 이후(30일)가 1~100(30일)보다 무거움 — 사냥 경험치 ×3(Lv100~)을 넣고도', `${(post / pre).toFixed(1)}배`);
   // 장비 뽑기
   const ws = Array.from({ length: GE.GACHA_LV_MAX }, (_, i) => GE.gachaWeights(i + 1));
   ok(ws.every((w) => w.reduce((a, b) => a + b, 0) === 1000 && w.every((x) => x >= 0)), '장비 뽑기: 모든 레벨 확률 합 100%');
@@ -217,7 +218,7 @@ console.log('\n=== S1 세이브 서명 · 표 판 · 차단 깃발 ===');
   ok(forged !== txt && SV.unpack(forged).ok === false, '손으로 은자를 고치면 서명이 안 맞음');
   ok(SV.canon({ b: 1, a: [2, { d: 1, c: 2 }] }) === SV.canon({ a: [2, { c: 2, d: 1 }], b: 1 }), '키 순서가 달라도 같은 글자(기기마다 같음)');
   ok(SV.unpack('나쁜 글자').ok === false && SV.SAVE_KEY.startsWith('ifu.s2.'), '깨진 글자 · 새 시즌 열쇠는 옛 세이브와 다름');
-  ok(/^[0-9a-f]{8}$/.test(tableHash()) && TABLE_VER === 's2-0.4', '표 해시 · 판 번호', tableHash());
+  ok(/^[0-9a-f]{8}$/.test(tableHash()) && TABLE_VER === 's2-0.5', '표 해시 · 판 번호(v527 s2-0.5)', tableHash());
   FL.setFlags({ off: ['pvp', 'gacha', 'nope'], msg: '점검 중' });
   ok(FL.blocked('pvp') && FL.blocked('gacha') && !FL.blocked('nope') && !FL.blocked('guild') && FL.blockedMsg() === '점검 중', '차단 깃발(모르는 이름은 무시)');
   FL.setFlags(null); ok(FL.blockedList().length === 0, '서버를 못 읽으면 모두 열림');
@@ -253,7 +254,7 @@ console.log('\n=== S2 데미지 본체(§E) ===');
 console.log('\n=== S2 방 사냥 · 처치 시간 합격선(§J3) ===');
 {
   // v493 일반 몹은 무공이 여러 마리를 함께 쳐서(맞기 시작해 죽기까지가 길어진다) 처치 수(분당)가 기준 — 한 마리 시간은 0.9~3.2초(높은 차수일수록 넓게 쳐서 길어짐)
-  const band = { mob: [0.9, 3.2], elite: [5.5, 10], boss: [36, 54] };
+  const band = { mob: [0.9, 3.3], elite: [5.5, 10], boss: [36, 54] };   // v527 표준 무인 표를 다시 만들어 일반 위끝 3.2 → 3.3
   const bad = [];
   for (const kind of ['mob', 'elite', 'boss']) for (const L of [5, 60, 120, 150]) for (const job of Object.keys(CH.JOBS)) {
     const f = new RoomFight(simpleRoom(L, { n: kind === 'mob' ? 8 : 1, kind, coolMs: 3000 }), refPlayer(L, job), 11).run(kind === 'boss' ? 300000 : 90000);
@@ -262,7 +263,7 @@ console.log('\n=== S2 방 사냥 · 처치 시간 합격선(§J3) ===');
     const avg = ttk.reduce((a, b) => a + b, 0) / Math.max(1, ttk.length);
     if (!(avg >= band[kind][0] && avg <= band[kind][1]) || (kind === 'boss' && f.deaths > 2)) bad.push(`${kind}/${L}/${job}:${avg.toFixed(2)}s 사망${f.deaths}`);
   }
-  ok(bad.length === 0, '다섯 직업 × 레벨 4 × 몹 셋: 일반 0.9~3.2초(무공이 여러 마리) · 정예 5.5~10초(동료 몫 포함) · 두목 36~54초(두목전 사망 2번 이하)', bad.slice(0, 4).join(' '));
+  ok(bad.length === 0, '다섯 직업 × 레벨 4 × 몹 셋: 일반 0.9~3.3초(무공이 여러 마리) · 정예 5.5~10초(동료 몫 포함) · 두목 36~54초(두목전 사망 2번 이하)', bad.slice(0, 4).join(' '));
   const m1 = makeMob(100, 'mob', 0), m3 = makeMob(100, 'mob', 2);
   ok(m3.st.hp / m1.st.hp > 2.4 && m3.st.hp / m1.st.hp < 2.6 && m3.st.atk > m1.st.atk, '몹 티어: 3티어 체력 2.5배 · 공격도 셈');
 }
@@ -286,7 +287,7 @@ console.log('\n=== S2 결정론 · 입력 기록 재현(§L3) ===');
 console.log('\n=== S3 진행 시뮬 합격선(§J1) ===');
 {
   const l30 = PS.levelAt30min();
-  ok(l30 >= 13 && l30 <= 17, '30분 Lv13~17', l30.toFixed(1));
+  const r30 = PR.PROGRESS[0].lv; ok(l30 >= r30[0] && l30 <= r30[1] + 1, `30분 Lv${r30[0]}~${r30[1]}`, l30.toFixed(1));
   const bad = [];
   for (const r of PR.PROGRESS.filter((x) => x.day >= 1)) {
     const b = PS.levelAtDay(r.day), f = PS.levelAtDay(r.day, 'full'), i = PS.levelAtDay(r.day, 'idle');
@@ -294,7 +295,7 @@ console.log('\n=== S3 진행 시뮬 합격선(§J1) ===');
     if (f > b * PR.POLICY_BAND.full.max) bad.push(`꽉 채움 ${r.day}일 ${(f / b).toFixed(2)}배`);
     if (i < b * PR.POLICY_BAND.idle.min) bad.push(`방치만 ${r.day}일 ${(i / b).toFixed(2)}배`);
   }
-  ok(bad.length === 0, '기준: 1일 55~65 · 7일 100 · 30일 112~115 · 90일 125~128 · 180일 137~140 · 1년 150 / 꽉 채움 1.3배 이내 · 방치만 0.6배 이상', bad.join(' '));
+  ok(bad.length === 0, '기준(접속 20시간 + 방치 4시간): 1일 30 · 7일 70 · 30일 100 · 60일 150 / 꽉 채움 1.3배 이내 · 방치만 0.6배 이상', bad.join(' '));
   // 표준 방에서 실제로 분당 몇 마리 잡나 — 곡선이 기대는 값(27)과 맞는지
   const kpm = Object.keys(CH.JOBS).map((job) => new RoomFight(simpleRoom(60, EX.STD_ROOM), refPlayer(60, job), 3).run(300000).kills / 5);
   ok(kpm.every((k) => Math.abs(k / EX.KILLS_PER_MIN - 1) < 0.2), '표준 방 분당 처치 ≈ 27(±20%) — 다섯 직업', kpm.map((k) => k.toFixed(1)).join(' '));
@@ -452,6 +453,8 @@ console.log('\n=== S5 경지 · 강호행 · 꾸미기 ===');
 console.log('\n=== S5 표준 무인 · 시스템 몫 ===');
 {
   ok(JSON.stringify(buildStd()) === JSON.stringify(STD), '표준 무인 표가 시뮬과 같다(숫자를 바꾸면 node tools/s2sim/std.mjs로 다시 만든다)');
+  { const { buildNext } = await import('../tools/s2sim/fit_exp.mjs'), { EXP_NEXT } = await import('../js/s2/tables/exp_next.js');
+    ok(JSON.stringify(buildNext()) === JSON.stringify(EXP_NEXT), 'v527 경험치 표가 목표 점 · 보정으로 만든 것과 같다(바꾸면 node tools/s2sim/fit_exp.mjs)'); }
   ok(STD.slice(2).every((r, i) => r.atk >= STD[i + 1].atk && r.hp >= STD[i + 1].hp), '표준 무인: 레벨이 오를수록 공격·체력이 줄지 않음');
   const bad = [];
   for (const d of [7, 30, 90, 365]) {
@@ -555,22 +558,22 @@ console.log('\n=== S7 방치 · 대기열 · 시간 티켓 · 길잡이 · 미�
   ok(!OF.useTimeTicket(tm, wl, 15) && !OF.useTimeTicket(null, { 'ticket:time': 9 }, 15), '티켓 없거나 타이머 없으면 못 씀');
   // 방치만 하면(12시간) 접속 사냥 2시간의 몇 배 — 계획서 「방치만은 덜」
   ok(12 * 60 * OF.OFF_RATE < EX.DAY1_MIN, '하루 방치 몫은 접속 하루 몫보다 작다');
-  // 길잡이 — 한 줄 · 레벨 조건이 오름차순 · 첫 30분(Lv15)에 g11까지
+  // 길잡이 — 한 줄 · 레벨 조건이 오름차순 · 첫 30분(Lv10)에 g12 앞까지
   const lvs = MS.GUIDE.filter((g) => g.ev === 'level').map((g) => +g.cond.split('>=')[1]);
   ok(lvs.every((v, i) => i === 0 || v > lvs[i - 1]) && new Set(MS.GUIDE.map((g) => g.id)).size === MS.GUIDE.length, '길잡이 레벨 단계 오름차순 · id 겹침 없음');
   const st = {}; let lv = 1;
   const evs = (cur) => ({ kill: [['kill', { n: 5 }]], level: [['level', { lv }]], equip: [['equip', {}]], gacha: [['gacha', { n: 10 }]], skill: [['skill', {}]], enhance: [['enhance', {}], ['enhance', {}], ['enhance', {}]], dungeon: [['dungeon', { job: 1, kind: 1 }]], pull: [['pull', { sys: cur.ev === 'pull' ? +cur.cond.split('==')[1] : 0, n: 10 }]] })[cur.ev];
   const elite = [['kill', { elite: 1 }]];
-  // 첫 30분: 레벨은 15까지만 오른다
+  // 첫 30분: 레벨은 10까지만 오른다(v527)
   for (let step = 0; step < 40; step++) {
     const cur = MS.guideCurrent(st); if (!cur) break;
     const b = new QuestBook([cur], st);
-    lv = Math.min(15, lv + 2);
+    lv = Math.min(10, lv + 2);
     for (const [e, v] of (cur.cond === 'elite' ? elite : evs(cur) || [])) b.on(e, v);
     if (!st[cur.id]?.done) break;
     b.claim(cur.id);
   }
-  ok(MS.guideCurrent(st)?.id === 'g12', 'Lv15·첫 30분 할 일로 길잡이 g11까지 · g12(두목)에서 기다림', MS.guideCurrent(st)?.id);
+  ok(MS.guideCurrent(st)?.id === 'g12', 'Lv10 · 첫 30분 할 일로 길잡이 g10까지 · g12(두목)에서 기다림', MS.guideCurrent(st)?.id);
   ok(MS.GUIDE.slice(0, 11).reduce((a, g) => a + g.huntMin, 0) <= 6, '첫 30분 길잡이 경험치 몫 ≤ 사냥 6분 상당(레벨은 사냥이 정한다)');
   // 미션
   ok(MS.dailyMissionMin() === CT.DAILY_MISSION_MIN, '일일 미션 합 = 콘텐츠 표의 15분', MS.dailyMissionMin());
@@ -673,11 +676,11 @@ console.log('\n=== S9 게임 층 — 첫 30분을 실제로 해 보기 ===');
     return { g, t };
   };
   const { g, t } = play(5), b = play(5).g;
-  const lv = g.S.hero.lv, gi = +(MS.guideCurrent(g.S.q.guide)?.id || 'g99').slice(1);
-  ok(lv >= 14 && lv <= 17, '30분 플레이 → Lv 14~17(목표 15)', `Lv ${lv} · 처치 ${g.S.kills}`);
-  ok(g.S.kills / 30 >= 12 && g.S.kills / 30 <= 32 && g.stage().idx >= 10, '30분: 분당 처치 12~32(칸 두목전 시간 포함) · 10칸 넘게 전진', `${(g.S.kills / 30).toFixed(1)}/분 · ${g.stage().idx}칸`);
-  ok(gi >= 11, '길잡이 11단계 이상', `g${gi}`);
-  ok(g.S.hero.adv === 1 && g.fight.deaths <= 2, '1차 전직 · 사냥 중 거의 죽지 않음(30분에 2번 이하)', `전직 ${g.S.hero.adv} · 죽음 ${g.fight.deaths}`);
+  const lv = g.S.hero.lv, gc = MS.guideCurrent(g.S.q.guide), gi = gc ? MS.GUIDE.indexOf(gc) : MS.GUIDE.length;   // v527 몇 번째 단계(id 순서와 다름)
+  ok(lv >= 8 && lv <= 12, 'v527 30분 플레이 → Lv 8~12(목표 10)', `Lv ${lv} · 처치 ${g.S.kills}`);
+  ok(g.S.kills / 30 >= 12 && g.S.kills / 30 <= 32 && g.stage().idx >= 8, '30분: 분당 처치 12~32(칸 두목전 시간 포함) · 8칸 넘게 전진(v527 느린 곡선)', `${(g.S.kills / 30).toFixed(1)}/분 · ${g.stage().idx}칸`);
+  ok(gi >= 6, 'v527 길잡이 6단계 이상(Lv10 단계 앞까지)', `${gi}단계 · ${gc?.id}`);
+  ok(g.S.hero.adv === 0 && g.fight.deaths <= 2, 'v527 1차 전직 전(Lv20에) · 사냥 중 거의 죽지 않음(30분에 2번 이하)', `전직 ${g.S.hero.adv} · 죽음 ${g.fight.deaths}`);
   ok(b.S.hero.lv === lv && b.S.kills === g.S.kills && b.S.wallet.gold === g.S.wallet.gold, '같은 씨앗 = 같은 30분(결정론)');
   const txt = g.save(), g2 = Game.load(txt, t);
   ok(g2.signed && g2.tableOk && g2.S.hero.lv === lv && g2.power() === g.power(), '저장 → 불러오기: 서명 · 표 판 · 같은 전투력');
@@ -746,8 +749,8 @@ console.log('\n=== S9 무공 세트(직업마다 공격 6 · 상시 3 · 버프 
   ok(h.kitSlot(0, 'spear_0') && h.s.kit.slots[0] === 'spear_0', '칸 바꾸기(맞바꿈)');
   h.kitAuto('spear_4', false); ok(h.battleKit().find((k) => k.id === 'spear_4').auto === false, '칸마다 자동 끄기');
   // 표준 세트: 레벨이 오를수록 무공 몫이 커짐 · 몹 체력은 그에 맞춰
-  const dp = [10, 60, 120, 150].map((L) => { const p = refPlayer(L); return p.kit.length; });
-  ok(dp.join() === '2,4,6,6', '기준 무인 무공 칸 수: Lv10(1차) 2 · 60 4 · 120 6 · 150 6', dp.join());
+  const dp = [20, 60, 120, 150].map((L) => { const p = refPlayer(L); return p.kit.length; });
+  ok(dp.join() === '2,4,6,6', '기준 무인 무공 칸 수: Lv20(1차) 2 · 60 4 · 120 6 · 150 6(v527 전직 레벨)', dp.join());
   // 전투: 자동이면 칸 무공을 쓰고 · 버프가 스탯을 올리고 · 수동이면 누른 칸만
   const F = new SideFight(sideRoom(60, 4), refPlayer(60), 5); F.run(20000);
   const casts = F.digest() && F.events.length;
@@ -826,22 +829,32 @@ console.log('\n=== S9 무공 강화 트리(무공마다 3단 · 점수 · 배우
   ok(used > 0 && h.treeReset(w, 31) && h.treePts(31).used === 0 && w.gold < 1e9, '초기화 — 점수 돌려받음 · 은자');
 }
 
-console.log('\n=== v526 성장 곡선 — 실제 엔진 7일(봇: 접속 2시간 + 방치) ===');
+console.log('\n=== v527 성장 곡선 — 실제 엔진 2일(봇: 접속 20시간 + 방치 4시간) ===');
 {
   const { play } = await import('../tools/s2sim/play.mjs');
-  const days = [1, 2, 3, 7], r = play({ days: 7, job: 'sword', seed: 3, marks: days.map((d) => d * 1440) }).out;
+  const days = [1, 2], r = play({ days: 2, active: 1200, job: 'sword', seed: 3, marks: days.map((d) => d * 1440) }).out;
   const at = (d) => r[days.indexOf(d)];
-  ok(at(1).lv >= 55 && at(1).lv <= 67, '1일 Lv55~65(+2) — 진행 목표 J1', at(1).lv);
-  ok(Math.abs(at(2).lv - PS.levelAtDay(2)) <= 5 && Math.abs(at(3).lv - PS.levelAtDay(3)) <= 5, '2·3일: 곡선 시뮬 ±5', `${at(2).lv} ${at(3).lv}`);
-  ok(at(7).lv >= 98 && at(7).adv >= 2, '7일 Lv98 이상(목표 100)', `Lv${at(7).lv} · ${at(7).adv}차`);
-  ok(at(7).bossFail <= 60, 'v526 칸 두목 자동 재도전은 더 강해진 뒤 — 7일에 진 횟수 60번 아래(예전 230번)', `${at(7).bossWin}승 ${at(7).bossFail}패`);
-  ok(at(7).idx >= at(7).lv, '칸 진행이 레벨을 따라간다', `칸 ${at(7).idx}`);
+  ok(Math.abs(at(1).lv - 30) <= 3, 'v527 1일 Lv30(±3) — 진행 목표 J1', at(1).lv);
+  ok(Math.abs(at(2).lv - PS.levelAtDay(2)) <= 4, '2일: 곡선 모델 ±4', `${at(2).lv} / ${PS.levelAtDay(2).toFixed(1)}`);
+  ok(at(2).adv >= 1, '1차 전직(Lv20)을 했다', `${at(2).adv}차`);
+  ok(at(2).bossFail <= 60, '칸 두목 자동 재도전은 더 강해진 뒤 — 이틀에 진 횟수 60번 아래', `${at(2).bossWin}승 ${at(2).bossFail}패`);
+}
+{
   // 자동 재도전 조건
   const T0 = 1.8e12, g = new Game(newGame('sword', T0, 1), T0), T = g.stage();
   T.idx = 80; T.kills = STAGE_KILLS; g.challenge(); g.endChallenge(false); T.kills = STAGE_KILLS;
   ok(T.failIdx === 80 && !g.autoReady() && g.canChallenge(), '진 칸: 자동 도전은 기다림(손 「도전」은 됨)');
   g.S.hero.lv++; ok(g.autoReady(), '레벨이 오르면 다시 자동 도전');
   g.S.hero.lv--; T.failPw = Math.floor(g.power() / 1.06); ok(g.autoReady(), '전투력 +5% 넘으면 다시 자동 도전');
+  // v527 남은 두목 예고(붉은 범위)에 묶여 제자리에서 흔들리지 않는다 — 쓰러지면 예고를 거두고, 끝난 예고는 피하지 않는다
+  { const g3 = new Game(newGame('sword', T0, 2), T0); g3.S.hero.lv = 30; g3.stage().idx = 20; const F = g3.ensureFight(), H = F.hero;
+    F.mobs[0].pat = { id: 'eye', at: 0, end: F.t - 1, x: H.x, y: H.y, w: 1800, dmgX: 1, shape: 'target' };
+    let k = 0; for (let i = 0; i < 60; i++) { g3.tick(T0 + i * 1000); k += g3.hunt(1000); }
+    ok(k > 0, 'v527 끝난 두목 예고가 남아 있어도 사냥을 이어 간다', `처치 ${k}`); }
+  // v527 물러나기: 한 칸에서 3번 쓰러지면 앞 칸 · 다시 나아가기는 더 강해진 뒤
+  { const g4 = new Game(newGame('sword', T0, 1), T0), T4 = g4.stage(); T4.idx = 60; T4.top = 60;
+    for (let i = 0; i < 300; i++) { g4.tick(T0 + i * 1000); g4.hunt(1000); }
+    ok(T4.idx < 60 && T4.top === 60 && T4.failIdx === T4.idx && !g4.autoReady(), 'v527 Lv1이 60칸에서 계속 쓰러지면 앞 칸으로 물러남(가장 멀리 간 칸은 그대로)', `칸 ${T4.idx}`); }
   // 칸 클리어는 「던전 n번」 미션이 아니다
   const g2 = new Game(newGame('sword', T0, 1), T0); g2.endChallenge(true);
   ok((g2.books.daily.get('d_dungeon').p || 0) === 0 && (g2.books.weekly.get('w_dungeon').p || 0) === 0, 'v526 칸 클리어는 일일 · 주간 「던전」 미션에 세지 않음');

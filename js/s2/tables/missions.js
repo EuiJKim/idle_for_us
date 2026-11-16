@@ -2,7 +2,7 @@
 // 사건 종류: kill(n, boss, elite) · level(lv) · gacha(n) · enhance · star(s) · dungeon(kind) · equip · skill · realm(lv) · pull(sys, n) · login · offline · sweep · pvp · wboss
 // 보상은 보상 번호(core/reward.js) — 여기선 사냥 분 상당(huntMin)과 물건 몇 개로 적는다.
 
-// 길잡이 — 한 줄로 이어짐(지금 단계만 진행). 첫 30분(Lv15)에 1~11, 첫날 안에 전부. 정예 잡기는 뽑기 바로 다음(뽑기 10번마다 정예가 나오니까).
+// 길잡이 — 한 줄로 이어짐(지금 단계만 진행). v527: 첫 30분(Lv10)에 1~8쯤 · 1차 전직(g9)은 Lv20 다음 · 첫날(Lv30) 안에 g19까지. 정예 잡기는 뽑기 바로 다음(뽑기 10번마다 정예가 나오니까).
 // 길잡이 보상은 은자(huntMin = 사냥 n분 상당 은자) · 물건 — 경험치는 주지 않는다: 첫 30분 레벨은 사냥이 정한다(곡선 J1) 강조할 화면(ui)과 바로가기(go)를 같이 적는다
 export const GUIDE = [
   { id: 'g1', ev: 'kill', add: 'n', need: 5, ui: 'hunt', go: 'hunt', huntMin: 0.3 },
@@ -13,14 +13,14 @@ export const GUIDE = [
   { id: 'g6', ev: 'skill', need: 1, ui: 'skill', go: 'skill', huntMin: 0.5 },
   { id: 'g7', ev: 'level', cond: 'lv >= 10', need: 1, huntMin: 0.5 },
   { id: 'g8', ev: 'enhance', need: 3, ui: 'enhance', go: 'slot', huntMin: 0.5 },
-  { id: 'g9', ev: 'dungeon', cond: 'job == 1', need: 1, ui: 'jobDungeon', go: 'job', huntMin: 0.5 },
   { id: 'g10', ev: 'pull', cond: "sys == 2", add: 'n', need: 10, ui: 'pal', go: 'pal', huntMin: 0.5 },
-  { id: 'g11', ev: 'level', cond: 'lv >= 15', need: 1, huntMin: 0.5 },
   { id: 'g12', ev: 'kill', cond: 'boss', need: 1, ui: 'boss', huntMin: 1 },
   { id: 'g13', ev: 'pull', cond: "sys == 1", add: 'n', need: 10, ui: 'weapon', go: 'weapon', huntMin: 1 },
   { id: 'g14', ev: 'star', need: 1, ui: 'star', go: 'slot', huntMin: 1 },
+  { id: 'g11', ev: 'level', cond: 'lv >= 15', need: 1, huntMin: 0.5 },
   { id: 'g15', ev: 'offline', need: 1, ui: 'offline', huntMin: 1 },
   { id: 'g16', ev: 'level', cond: 'lv >= 20', need: 1, huntMin: 2 },
+  { id: 'g9', ev: 'dungeon', cond: 'job == 1', need: 1, ui: 'jobDungeon', go: 'job', huntMin: 0.5 },
   { id: 'g17', ev: 'dungeon', cond: 'kind == 1', need: 1, ui: 'daily', go: 'daily', huntMin: 3 },
   { id: 'g18', ev: 'realm', cond: 'lv >= 1', need: 1, ui: 'realm', go: 'realm', huntMin: 3 },
   { id: 'g19', ev: 'level', cond: 'lv >= 30', need: 1, huntMin: 4 },

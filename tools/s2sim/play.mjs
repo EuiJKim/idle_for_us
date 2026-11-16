@@ -53,7 +53,7 @@ export function play({ days = 7, job = 'sword', seed = 1, active = 120, ad = fal
     min, lv: g.S.hero.lv, idx: g.stage().idx, adv: g.S.hero.adv, pw: g.power(),
     enh: Math.round(SLOTS.reduce((a, s) => a + g.S.gear.slots[s].enh, 0) / SLOTS.length),
     star: Math.round(SLOTS.reduce((a, s) => a + g.S.gear.slots[s].star, 0) / SLOTS.length),
-    kpm: stats.huntMs ? (stats.kills / (stats.huntMs / 60000)) : 0, exp: { ...exp }, ...stats,
+    kpm: stats.huntMs ? (stats.kills / (stats.huntMs / 60000)) : 0, exp: { ...exp }, ...stats, deaths: g.fight?.deaths || 0,
   });
   const mark = (t) => { while (mi < marks.length && t >= marks[mi] * 60000) { const r = row(marks[mi]); out.push(r); onMark?.(r); stats.kills = 0; stats.huntMs = 0; mi++; } };
   for (let d = 0; d <= days; d++) {

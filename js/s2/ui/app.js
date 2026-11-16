@@ -1116,6 +1116,7 @@ function frame() {
     else if (f.k === 'guide') addLog('길잡이 완료 — 왼쪽 위에서 받기');
     else if (f.k === 'advance') toast(`${f.n}차 전직!`);
     else if (f.k === 'boss') addLog('사냥터 두목 처치!');
+    else if (f.k === 'retreat') { addLog(`몹이 세서 ${Math.ceil(f.idx / 10)}장 ${((f.idx - 1) % 10) + 1}칸으로 물러났어요 — 더 강해지면 다시 나아가요`); toast('앞 칸으로 물러났어요 — 강해지면 다시 나아가요'); }
     else if (f.k === 'sudden') toast(`돌발 미션: 10분 안에 ${f.need}마리`);
     else if (f.k === 'realm') addLog(`경지 ${f.lv}`);
     else if (f.k === 'gacha-lv') addLog(`뽑기 레벨 ${f.lv}`);
