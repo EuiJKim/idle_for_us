@@ -24,7 +24,12 @@ export async function encodeSave(obj) {
   if (typeof CompressionStream === 'function') return CODE_PREFIX + b64(await pipe(json, new CompressionStream('gzip')));
   return 'IFU0.' + b64(json);
 }
-export async function decodeSave(code) {
+export async function decodeSave(code) { const obj = await decodeAny(code);
+  if (!obj || typeof obj !== 'object' || typeof obj.job !== 'string' || !(Number(obj.level) >= 1)) throw new Error('캐릭터가 들어 있지 않은 코드예요');
+  return obj;
+}
+// v525 새 시즌도 쓰는 풀기 — 캐릭터 검사는 부르는 쪽이
+export async function decodeAny(code) {
   const c = String(code || '').replace(/\s+/g, '');
   let bytes;
   try {
@@ -40,6 +45,5 @@ export async function decodeSave(code) {
   }
   let obj;
   try { obj = JSON.parse(new TextDecoder().decode(bytes)); } catch { throw new Error('코드가 망가져 있어요'); }
-  if (!obj || typeof obj !== 'object' || typeof obj.job !== 'string' || !(Number(obj.level) >= 1)) throw new Error('캐릭터가 들어 있지 않은 코드예요');
   return obj;
 }

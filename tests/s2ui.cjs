@@ -11,11 +11,12 @@ const ok = (c, m, x = '') => { console.log(`  ${c ? '✓' : '✗ !!'} ${m}${x !=
   for (const [W, H] of [[844, 390], [740, 360], [1280, 720], [390, 664]]) {
     // v514 가로 전용 — 세로(390×664)는 손전화(터치)로 열어 화면이 90° 돌아가는지 본다
     const ctx = await b.newContext({ viewport: { width: W, height: H }, ...(W < H ? { isMobile: true, hasTouch: true } : {}) });
+    await ctx.route(/gstatic\.com\/firebasejs/, (r) => r.abort());   // v525 계정 연결은 오프라인으로(실제 서버에 손대지 않는다)
     const page = await ctx.newPage();
     page.setDefaultTimeout(8000);
     const errs = [];
     page.on('pageerror', (e) => errs.push(e.message));
-    page.on('console', (m) => { if (m.type() === 'error') errs.push(m.text()); });
+    page.on('console', (m) => { if (m.type() === 'error' && !/Failed to load|ERR_FAILED/.test(m.text())) errs.push(m.text()); });
     console.log(`— ${W}×${H}`);
     await page.goto(BASE, { waitUntil: 'domcontentloaded' });
     await page.waitForSelector('#modal:not(.hidden)');

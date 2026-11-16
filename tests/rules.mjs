@@ -175,6 +175,13 @@ const profile = (extra = {}) => ({ world: 1, nickname: '무인', level: 10, job:
   ok(await denied(F.getDoc(bad.ref('saves', boss.uid, 'vault', 'main'))), '남의 창고 읽기 거부');
   ok(await denied(F.setDoc(bad.ref('saves', boss.uid, 'vault', 'main'), { data: '{}', at: 1 })), '남의 창고 덮기 거부');
   ok(await denied(F.setDoc(boss.ref('saves', boss.uid, 'vault', 'two'), { data: '{}', at: 1 })), 'main 말고 다른 창고 거부');
+  // v525 새 시즌 진행
+  ok(await allowed(F.setDoc(boss.ref('saves', boss.uid, 's2', 'main'), { data: '{"v":1}', at: Date.now(), lv: 12, job: 'sword' })), '새 시즌 진행 올리기');
+  ok(await allowed(F.getDoc(boss.ref('saves', boss.uid, 's2', 'main'))), '새 시즌 진행 읽기');
+  ok(await denied(F.getDoc(bad.ref('saves', boss.uid, 's2', 'main'))), '남의 새 시즌 진행 읽기 거부');
+  ok(await denied(F.setDoc(bad.ref('saves', boss.uid, 's2', 'main'), { data: '{}', at: 1, lv: 1, job: 'x' })), '남의 새 시즌 진행 덮기 거부');
+  ok(await denied(F.setDoc(boss.ref('saves', boss.uid, 's2', 'main'), { data: '{}', at: 1, lv: 1, job: 'x', hack: 1 })), '새 시즌 진행에 정해지지 않은 칸 거부');
+  ok(await denied(F.setDoc(boss.ref('saves', boss.uid, 's2', 'two'), { data: '{}', at: 1, lv: 1, job: 'x' })), '새 시즌 main 말고 거부');
   ok(await denied(F.setDoc(boss.ref('saves', boss.uid, 'vault', 'main'), { data: '{}', at: 1, gold: 9e9 })), '다른 칸 끼우기 거부');
   ok(await denied(F.getDocs(F.collection(bad.db, 'saves', boss.uid, 'chars'))), '남의 캐릭터 목록 거부');
   ok(await denied(F.setDoc(bad.ref('saves', boss.uid, 'chars', '1'), { data: '{}', at: Date.now(), lv: 3, n: 'x', job: 'sword' })), '남의 캐릭터 덮기 거부');

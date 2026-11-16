@@ -2,6 +2,8 @@
 // 화면은 엔진(js/s2/game.js)만 본다. 시계는 화면 쪽에서만 읽어 엔진에 넘긴다(엔진은 결정론).
 import { Game, newGame, COLLECTS, dayKey, STAGE_KILLS } from '../game.js';
 import { SAVE_KEY } from '../core/save.js';
+import { S2Net } from './net.js';
+import { encodeSave, decodeAny } from '../../savecode.js';
 import { SLOTS, SLOT_NAME, GRADES, gachaExpNeed } from '../tables/gear.js';
 import { itemStats, gearScore, unequip, equip, equipBest, junkOf, dismantleMany, dismantleItem, newSlot } from '../gear/gear.js';
 import { dismantle as dismantleYield } from '../tables/gearstat.js';
@@ -61,7 +63,54 @@ function load() {
   try { const t = localStorage.getItem(SAVE_KEY); if (t) g = Game.load(t, now()); } catch { g = null; }
 }
 let frozen = false;   // 시험용: 저장 멈춤
-function save() { if (frozen) return; try { localStorage.setItem(SAVE_KEY, g.save()); } catch { /* 저장 공간 없음 */ } }
+function save() { if (frozen) return; try { localStorage.setItem(SAVE_KEY, g.save()); localStorage.setItem(SAVE_KEY + '.at', String(Date.now())); } catch { /* 저장 공간 없음 */ } }
+// v525 계정 · 서버 저장 — 3분마다 · 화면을 떠날 때 올린다(기기를 잃거나 지워도 Google로 되살린다)
+const net = new S2Net((w) => { if (w === 'status' && net.online) cloudCheck(); if (open === 'opt') paintWin(); });
+let cloudBusy = null;   // 올리는 중인 약속 — 꼭 올려야 할 때(force)는 그것을 기다렸다 다시 올린다
+async function cloudPush(force) {
+  if (!g || frozen || !net.online) return false;
+  if (cloudBusy) { if (!force) return false; await cloudBusy.catch(() => {}); if (cloudBusy) await cloudBusy.catch(() => {}); }
+  if (!force && Date.now() - net.lastPush < 170000) return false;
+  const p = net.push(g.save(), g.S.hero.lv, g.S.hero.job);
+  cloudBusy = p;
+  try { await p; return true; } catch (err) { console.warn('[s2net] push', err?.code || err); return false; } finally { if (cloudBusy === p) cloudBusy = null; }
+}
+// 처음 연결될 때 — 서버 진행이 이 기기보다 새로우면 고르게 한다(기기가 비었으면 그냥 받는다)
+async function cloudCheck() {
+  try {
+    const d = await net.fetch(), localAt = Number(localStorage.getItem(SAVE_KEY + '.at') || 0);
+    if (!d) { cloudPush(true); return; }
+    if (!g) { applyCloud(d); return; }
+    if (d.at > localAt + 60000) pop('서버에 더 새 진행이 있어요', `<p class="note">서버: Lv.${d.lv} · ${new Date(d.at).toLocaleString()}<br>이 기기: Lv.${g.S.hero.lv} · ${localAt ? new Date(localAt).toLocaleString() : '모름'}</p>`, [['이 기기 것 쓰기', () => cloudPush(true)], ['서버 것 받기', () => applyCloud(d)]]);
+    else cloudPush(true);
+  } catch (err) { console.warn('[s2net] check', err?.code || err); }
+}
+function applyCloud(d) {
+  try { Game.load(d.data, now()); } catch { toast('서버 진행을 열 수 없어요'); return; }
+  localStorage.setItem(SAVE_KEY, d.data); localStorage.setItem(SAVE_KEY + '.at', String(d.at)); frozen = true; location.reload();
+}
+// 저장 코드 — 글자 한 줄로 옮기기(계정 없이도)
+async function exportCode() {
+  save();
+  const code = await encodeSave({ s2: 1, data: g.save() });
+  try { await navigator.clipboard.writeText(code); toast('저장 코드를 복사했어요 — 메모장 · 카톡 나에게에 붙여 두세요'); }
+  catch { pop('저장 코드', `<textarea class="gift-memo" style="height:120px" readonly>${esc(code)}</textarea><p class="note">길게 눌러 전부 복사해 두세요.</p>`); }
+}
+function importCode() {
+  pop('저장 코드 불러오기', '<textarea id="codein" class="gift-memo" style="height:120px" placeholder="IFU1. 로 시작하는 글 전부"></textarea><p class="note">지금 이 기기의 새 시즌 진행이 코드의 진행으로 바뀌어요.</p>', [['닫기', null], ['불러오기', async () => {
+    const v = document.getElementById('codein')?.value || '';
+    try { const o = await decodeAny(v); if (!o || o.s2 !== 1 || typeof o.data !== 'string') throw new Error('새 시즌 저장 코드가 아니에요'); Game.load(o.data, now()); localStorage.setItem(SAVE_KEY, o.data); localStorage.setItem(SAVE_KEY + '.at', String(Date.now())); frozen = true; location.reload(); }
+    catch (err) { toast(err?.message || '코드를 열 수 없어요'); }
+  }]]);
+  setTimeout(() => document.getElementById('codein')?.focus(), 50);
+}
+async function linkGoogle() {
+  try {
+    const r = await net.linkGoogle();
+    if (r.linked) { toast(`Google 연결 · ${net.email()}`); cloudPush(true); }
+    else if (r.conflict) pop('이미 쓰던 Google 계정이에요', `<p class="note">${esc(r.email)} 계정에 다른 진행이 이어져 있어요. 그 계정으로 바꾸면 그쪽 새 시즌 진행을 받아 와요(이 기기 진행은 저장 코드로 남겨 두세요).</p>`, [['그대로', null], ['그 계정으로', async () => { try { const d = await net.switchTo(r.cred); if (d) applyCloud(d); else { toast('그 계정에는 새 시즌 진행이 없어요 — 지금 진행을 올려요'); cloudPush(true); } } catch (err) { toast(err?.message || '바꾸지 못했어요'); } }]]);
+  } catch (err) { toast(err?.code === 'auth/popup-blocked' ? '팝업이 막혔어요 — 다시 눌러 주세요' : err?.code === 'auth/popup-closed-by-user' ? '취소했어요' : (err?.message || '연결하지 못했어요')); }
+}
 function start(job) { g = new Game(newGame(job, now(), (now() & 0x7fffffff) || 1), now()); g.emit('login'); save(); boot(); }
 
 // ── 토스트 · 팝업 — 지금 게임과 같은 틀(#toast .toast · #modal .sheet h2 · .btn-row) ──
@@ -402,11 +451,15 @@ function paintWin() {
     if (document.documentElement.requestFullscreen) c1(R('전체 화면', document.fullscreenElement ? '켜짐' : '주소창 없이 화면을 다 쓴다(안드로이드 · 컴퓨터)', [[document.fullscreenElement ? '끄기' : '켜기', () => { play('click'); goFull(!document.fullscreenElement); setTimeout(paintWin, 300); }]], '全'));
     c1(R('피해 숫자', { all: '전부', crit: '치명만', off: '끄기' }[opt.nums], [['바꾸기', () => { opt.nums = { all: 'crit', crit: 'off', off: 'all' }[opt.nums]; saveOpt(); paintWin(); }]], '數'));
     c1(R('그래픽', opt.gfx === 'low' ? '낮음(배터리 아낌 · 흙먼지 · 은자 연출 끔)' : '높음', [['바꾸기', () => { opt.gfx = opt.gfx === 'low' ? 'high' : 'low'; saveOpt(); paintWin(); }]], '畵'));
+    const c3 = card('계정 · 저장', net.online ? (net.isGoogle() ? `Google · ${esc(net.email())}` : '이 기기만(Google 미연결)') : net.status === 'connecting' ? '연결 중…' : '오프라인 — 이 기기에만 저장');
+    c3(R('Google 연결', net.isGoogle() ? '연결됨 — 다른 기기에서도 Google로 들어오면 이어서 해요' : '연결해 두면 기기를 바꾸거나 지워도 되살려요', [[net.isGoogle() ? '다른 계정' : '연결', () => { play('click'); if (net.isGoogle()) net.switchTo(null).then((d) => (d ? applyCloud(d) : toast('그 계정에는 새 시즌 진행이 없어요'))).catch((e) => toast(e?.message || '바꾸지 못했어요')); else linkGoogle(); }, !net.online]], 'G'));
+    c3(R('서버에 저장', net.cloudAt ? `마지막 ${new Date(net.cloudAt).toLocaleString()} · 3분마다 저절로` : '3분마다 저절로 올려요', [['지금 저장', act(() => { cloudPush(true).then((ok) => toast(ok ? '서버에 저장했어요' : '저장하지 못했어요(오프라인?)')); return true; }), !net.online]], '雲'));
+    c3(R('저장 코드', '계정 없이 글자 한 줄로 옮기기', [['복사', () => { play('click'); exportCode(); }], ['붙여넣기', () => { play('click'); importCode(); }]], '碼'));
     const c2 = card('계정');
     c2(R(`시간 티켓 ${W['ticket:time'] || 0}장`, '1장 = 15분 · 원정 · 방치에 씀', [], '時'));
-    c2(R('새로 시작', '이 미리보기 세이브만 지움', [['처음부터', () => pop('새로 시작할까요?', '<p class="note">새 시즌 미리보기 세이브만 지워요. 지금 게임 세이브는 그대로예요.</p>', [['아니요', null], ['예', () => { localStorage.removeItem(SAVE_KEY); location.reload(); }]])]], '新'));
+    c2(R('새로 시작', '새 시즌 진행을 지우고 처음부터', [['처음부터', () => pop('새로 시작할까요?', '<p class="note">새 시즌 진행을 지워요(서버 저장도 새 진행으로 덮여요). 옛 게임 진행은 그대로예요. 남겨 두려면 먼저 「저장 코드 → 복사」.</p>', [['아니요', null], ['예', () => { localStorage.removeItem(SAVE_KEY); location.reload(); }]])]], '新'));
     c2(R('옛 게임(무림방치)', '예전 진행은 그대로 — 따로 열 수 있어요', [['열기', () => { save(); location.href = 'classic.html'; }]], '舊'));
-    B.append(note('새 시즌 미리보기예요. 숫자 · 화면은 계속 바뀌어요.'));
+    B.append(note('새 시즌은 계속 고쳐 가요 — 숫자 · 화면이 바뀔 수 있어요.'));
   }
 }
 // 가방 그림 칸 — 누르면 그 칸에 낌(지금 게임의 .inv-grid · .inv-tile)
@@ -1072,7 +1125,7 @@ function frame() {
   if (!document.hidden) draw();   // 안 보이는 동안은 그리지 않는다(엔진은 돈다)
   if (dust.length > 60) dust.splice(0, dust.length - 60);
   if (t - lastHud > 200) { lastHud = t; paintHud(); }
-  if (t - lastSave > 10000) { lastSave = t; save(); }
+  if (t - lastSave > 10000) { lastSave = t; save(); cloudPush(false); }
   if (resTimer && t > resTimer) closeResult();
   requestAnimationFrame(frame);
 }
@@ -1128,9 +1181,11 @@ const JOB_INFO = {
 const STAT_KO = { str: '힘', agi: '민첩', ene: '기운' };
 function pickJob() {
   const cards = Object.entries(JOBS).map(([k, j]) => `<button class="btn jobcard" data-job="${k}"><canvas width="160" height="200"></canvas><b>${j.name}</b><small>${JOB_INFO[k]?.[0] || ''}</small><em>${JOB_INFO[k]?.[1] || ''} · 주 능력치 ${STAT_KO[j.main] || j.main}</em></button>`).join('');
-  pop('무인 고르기', `<p class="note">새 시즌 미리보기예요 — 지금 게임 세이브와 섞이지 않아요. 직업은 나중에 「설정 → 새로 시작」으로 바꿀 수 있어요.</p><div class="jobgrid">${cards}</div>`, []);
+  pop('무인 고르기', `<p class="note">직업은 나중에 「설정 → 새로 시작」으로 바꿀 수 있어요. 다른 기기에서 하던 진행이 있으면 <a href="#" id="pj-g" class="pj-g">Google로 이어하기</a></p><div class="jobgrid">${cards}</div>`, []);
   const sh = $('modal').querySelector('.sheet'); sh.classList.add('wide');
   for (const b of sh.querySelectorAll('.jobcard')) b.onclick = () => { play('click'); closeModal(); sh.classList.remove('wide'); start(b.dataset.job); };
+  const pg = sh.querySelector('#pj-g');
+  if (pg) pg.onclick = async (e) => { e.preventDefault(); play('click'); try { await net.init(); if (!net.online) { toast('인터넷에 연결되면 다시 눌러 주세요'); return; } const d = await net.switchTo(null); if (d) applyCloud(d); else toast('그 계정에는 새 시즌 진행이 없어요 — 무인을 골라 시작하세요(그 계정에 저장돼요)'); } catch (err) { toast(err?.code === 'auth/popup-closed-by-user' ? '취소했어요' : (err?.message || '이어하지 못했어요')); } };
   const t0 = now();
   const paint = () => {
     if (!sh.querySelector('.jobcard')) return;
@@ -1150,12 +1205,13 @@ function returnQueue() {
 }
 function boot() {
   closeModal();
+  setTimeout(() => net.init(), 1500);   // v525 계정 연결은 화면이 뜬 뒤
   paintNav(); paintHud();
   returnQueue();
   last = now(); lastMin = now();
   requestAnimationFrame(frame);
 }
-document.addEventListener('visibilitychange', () => { if (!g) return; if (document.hidden) save(); else { returnQueue(); last = now(); } });
+document.addEventListener('visibilitychange', () => { if (!g) return; if (document.hidden) { save(); cloudPush(true); } else { returnQueue(); last = now(); } });
 window.addEventListener('pagehide', () => g && save());
 // 컴퓨터: ← → 움직이기 · Space/↑ 점프 · ↓ 내려가기 · Q 무공 · Del 자동
 const keyDir = { ArrowLeft: -1, ArrowRight: 1 };
@@ -1199,4 +1255,6 @@ load();
 if (g) boot();
 else pickJob();
 // 시험용 손잡이
-window.__s2 = { get g() { return g; }, save, dayKey, freeze: () => { frozen = true; } };
+window.__s2 = { get g() { return g; }, save, dayKey, freeze: () => { frozen = true; }, net, cloudPush,
+  // v525 팝업 대신 에뮬레이터용 가짜 Google 토큰으로 잇기 · 겹치면 그 계정으로
+  linkTest: async (tok) => { const r = await net.linkGoogle(tok); if (r.conflict) { const d = await net.switchTo(r.cred); if (d) applyCloud(d); return 'switched'; } await cloudPush(true); return 'linked'; } };
