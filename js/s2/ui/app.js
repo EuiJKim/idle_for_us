@@ -40,14 +40,18 @@ const now = () => Date.now();
 const fmt = (n) => { n = Math.floor(n || 0); if (n >= 1e12) return (n / 1e12).toFixed(1) + '조'; if (n >= 1e8) return (n / 1e8).toFixed(1) + '억'; if (n >= 1e4) return (n / 1e4).toFixed(1) + '만'; return String(n); };
 const left = (endMs) => { const s = Math.max(0, Math.ceil((endMs - now()) / 1000)); return s >= 3600 ? `${Math.floor(s / 3600)}시간 ${Math.floor(s % 3600 / 60)}분` : s >= 60 ? `${Math.floor(s / 60)}분 ${s % 60}초` : `${s}초`; };
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-const GUIDE_TEXT = { kill: '몹 잡기', level: '레벨 올리기', equip: '장비 끼기', gacha: '장비 뽑기', skill: '무공 올리기', enhance: '장비 강화', dungeon: '던전 깨기', pull: '뽑기', star: '성혼', offline: '방치 보상 받기', realm: '경지 올리기' };
+const GUIDE_TEXT = { kill: '몹 잡기', level: '레벨 올리기', equip: '장비 끼기', gacha: '장비 뽑기', skill: '무공 올리기', enhance: '장비 강화', dungeon: '던전 깨기', pull: '뽑기', star: '성혼', offline: '방치 보상 받기', realm: '경지 올리기', login: '접속하기', wboss: '월드보스 도전', pvp: '대결 하기' };   // v522 일일 · 주간 임무에 영문 id가 보이던 것
+const MASTERY_NAME = ['기본기', '호흡법', '보법', '연환', '내공 순환', '신법', '절초', '심법 대성', '신행', '화경', '검기 성강', '등봉조극'];
 const guideLabel = (q) => {
   if (q.ev === 'level') return `Lv ${q.cond.split('>=')[1].trim()} 달성`;
   if (q.ev === 'kill' && q.cond === 'elite') return '정예 잡기(뽑기 10번마다 나옴)';
   if (q.ev === 'kill' && q.cond === 'boss') return '사냥터 두목 잡기';
   if (q.ev === 'pull') return `${COLLECT[COLLECTS[+q.cond.split('==')[1] - 1]].name} 뽑기 ${q.need}번`;
   if (q.ev === 'dungeon' && q.cond === 'job == 1') return '1차 전직 던전 깨기';
-  if (q.ev === 'dungeon') return '수련동 깨기';
+  if (q.ev === 'dungeon') return q.need > 1 ? `수련동 깨기 ${q.need}번` : '수련동 깨기';
+  if (q.ev === 'login') return q.need > 1 ? `${q.need}일 접속` : '오늘 접속';
+  if (q.ev === 'kill' && !q.cond) return `몹 ${q.need}마리 잡기`;
+  if (q.ev === 'gacha') return `장비 뽑기 ${q.need}번`;
   return `${GUIDE_TEXT[q.ev] || q.ev}${q.need > 1 ? ` ${q.need}번` : ''}`;
 };
 
@@ -148,8 +152,8 @@ function showGacha(r) {
   ov.querySelector('.skip').onclick = (e) => { e.stopPropagation(); if (done) close(); else finish(); };
   ov.onclick = () => { if (done) close(); };
 }
-function openWin(id, t = 0) { open = id; tab = t; $('panel').classList.add('open'); $('panel-dim').classList.add('open'); paintWin(); paintNav(); }
-function closeWin() { open = null; $('panel').classList.remove('open'); $('panel-dim').classList.remove('open'); paintNav(); }
+function openWin(id, t = 0) { open = id; tab = t; document.body.classList.add('winopen'); $('panel').classList.add('open'); $('panel-dim').classList.add('open'); paintWin(); paintNav(); }
+function closeWin() { open = null; document.body.classList.remove('winopen'); $('panel').classList.remove('open'); $('panel-dim').classList.remove('open'); paintNav(); }
 function paintNav() {
   if (!$('ptabs').children.length) for (const [id, name] of MAIN_TABS) { const b = document.createElement('button'); b.dataset.tab = id; b.innerHTML = `${ico(id)}<span>${name}</span>`; b.onclick = () => { play('click'); openWin(id); }; $('ptabs').append(b); }
   for (const b of document.querySelectorAll('.nb[data-tab], #ptabs button[data-tab]')) b.classList.toggle('active', b.dataset.tab === open);
@@ -173,7 +177,7 @@ function navDots() {
 function act(fn) { return () => { play('click'); const r = fn(); if (r === null || r === false) toast('할 수 없어요(재료·조건)'); save(); paintWin(); paintHud(); return r; }; }
 // 한 줄 — 지금 게임의 .row(.info .name · .desc · 단추). 첫 단추는 붉은 주 단추
 function rowEl(k, v, btns = []) {
-  const r = document.createElement('div'); r.className = btns.length >= 3 ? 'row wide' : 'row';   // 단추가 셋 이상이면 글을 한 줄 다 쓰고 단추는 아래 줄
+  const r = document.createElement('div'); r.className = btns.length >= 3 || (btns.length === 2 && btns.reduce((n, x) => n + String(x[0]).length, 0) > 8) ? 'row wide' : 'row';   // v522 글이 긴 단추 둘도 아래 줄로(지도 「◀ 앞 칸 · 다음 칸 ▶」)   // 단추가 셋 이상이면 글을 한 줄 다 쓰고 단추는 아래 줄
   r.innerHTML = `<div class="info"><div class="name">${k}</div>${v !== undefined && v !== '' && v !== null ? `<div class="desc">${v}</div>` : ''}</div>`;
   btns.forEach(([label, fn, dis], i) => { const b = document.createElement('button'); b.className = `btn${i === 0 ? ' primary' : ''}`; b.textContent = label; b.disabled = !!dis; b.onclick = fn; r.append(b); });
   return r;
@@ -259,7 +263,8 @@ function paintWin() {
     const c = card('마스터리', '최종 피해① · 값을 내면 바로 익힘');
     for (const m of MASTERY) {
       const done = g.S.hero.mastery.done.includes(m.id), can = g.hero.canLearn(m.id);
-      const r = R(`${m.depth}단 · ${m.id} <small>Lv ${m.lv}${m.need ? ` · ${m.need} 먼저` : ''}</small>`, `최종 피해① +${m.final1 / 10}%`, done ? [] : [['배우기', act(() => g.learn(m.id)), !can]], done ? '得' : '學');
+      const mn = (id) => MASTERY_NAME[+id.slice(1) - 1] || id;   // v522 m1 같은 id 대신 이름
+      const r = R(`${m.depth}단 · ${mn(m.id)} <small>Lv ${m.lv}${m.need ? ` · ${mn(m.need)} 먼저` : ''}</small>`, `최종 피해① +${m.final1 / 10}%`, done ? [] : [['배우기', act(() => g.learn(m.id)), !can]], done ? '得' : '學');
       if (!done && !can) r.style.opacity = '.55';
       c(r);
     }

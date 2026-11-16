@@ -235,7 +235,7 @@
     html.w800 #qc { width: 196px; }
     html.w800 .ib { width: 44px; }
     /* 창: 가로면 가운데에 크게 뜬다 · 카드 두 줄 */
-    body.land #wb { column-count: 2; column-gap: 10px; }
+    body.land #wb:has(> .card:nth-of-type(2)) { column-count: 2; column-gap: 10px; }   /* v522 카드가 하나뿐이면 한 줄 전체 */
     body.land #wb > * { break-inside: avoid; }
     body.land #wb > .card, body.land #wb > .row { display: inline-block; width: 100%; box-sizing: border-box; }
     #panel .inv-grid { grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); }
@@ -254,7 +254,10 @@
     #panel.open, body.land #panel.open { opacity: 1; transform: none; visibility: visible; transition: opacity .16s ease, transform .16s ease; }
     #panel::before { display: none; }
     #panel-dim, #panel-dim.open, body.land #panel-dim.open { background: rgba(0,0,0,.5); }
-    #mb { z-index: 49; }   /* 창이 열려도 아래 메뉴는 그대로 — 눌러서 다른 창으로 */
+    #mb { z-index: 49; }
+    body.winopen #mb { display: none; }   /* v522 창이 열리면 아래 메뉴는 숨긴다 — 창 왼쪽 목록이 같은 일을 하고, 키 낮은 화면에서 창 내용을 가렸다 */
+    #panel, #panel.full, body.land #panel, body.land #panel.full { bottom: var(--sb); }
+    #panel-body { padding-bottom: 16px; }
     #panel-grip { display: none; }
     #panel-head, #panel.full #panel-head, body.land #panel-head { grid-area: head; display: flex; align-items: center; gap: 10px; padding: 10px 12px 10px 16px; border: 0; border-bottom: 1px solid rgba(255,255,255,.08); border-radius: 16px 16px 0 0; background: rgba(255,255,255,.03); }
     #panel-title { display: flex; align-items: center; gap: 8px; font-family: inherit; font-size: 18px; font-weight: 800; color: #fff; letter-spacing: 0; }
@@ -306,7 +309,6 @@
     html.h500 #panel-body .seg.wide button { padding: 7px 12px 6px; font-size: 12.5px; }
     html.h500 #panel, html.h500 #panel.full, html.h500 body.land #panel, html.h500 body.land #panel.full { bottom: var(--sb); }
     html.h500 /* 아래 메뉴는 창 위에 떠 있다 — 본문 끝에 그만큼 여백 */
-      #panel-body { padding-bottom: 76px; }
     /* 아주 좁은 가로(720 아래 — 세로로 든 폰을 돌린 화면 등): 메뉴는 왼쪽 아래, Lv/HP는 그 위 */
     /* (w720: JS가 돌린 뒤의 실제 가로 · 세로로 붙인다) */ html.w720 #mb { left: var(--sl); transform: none; }
     html.w720 #me { bottom: calc(var(--sb) + 64px); width: 200px; }
