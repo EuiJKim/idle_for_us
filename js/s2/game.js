@@ -38,7 +38,8 @@ export const BOSS_EVERY = 300;
 // 스테이지: 칸마다 잡을 수 · 칸 두목 제한 시간 · 옆보기 사냥터 몹 수
 export const STAGE_KILLS = 20, STAGE_BOSS_MS = 60000;
 export const SIDE_ROOM = { n: 18, coolMs: 1000 };
-export const STAGE_BOSS_HP_X = 0.5;   // 칸 두목은 기준 무인으로 20초 남짓(사냥터 두목의 절반)
+export const STAGE_BOSS_HP_X = 0.5;
+export const AUTO_RETRY_PW = 50;   // 자동 재도전: 진 때보다 전투력 +5%(또는 레벨업)   // 칸 두목은 기준 무인으로 20초 남짓(사냥터 두목의 절반)
 
 export function newGame(job = 'sword', nowMs = 0, seed = 1) {
   return {
@@ -160,6 +161,13 @@ export class Game {
     return this.fight;
   }
   canChallenge() { const T = this.stage(); return !this.bossFight && T.kills >= STAGE_KILLS && T.idx < LEVEL_MAX; }
+  // v526 칸 두목에 지면 자동 재도전은 더 강해진 뒤(레벨업 · 전투력 +AUTO_RETRY_PW‰) — 같은 두목에 계속 지며 접속 시간을 버리지 않게.
+  //   그 사이는 그 칸 사냥(반복 사냥). 손으로 누르는 「도전」은 언제든.
+  autoReady() {
+    const T = this.stage();
+    if (T.failIdx !== T.idx) return true;
+    return this.S.hero.lv > (T.failLv || 0) || this.power() * 1000 >= (T.failPw || 0) * (1000 + AUTO_RETRY_PW);
+  }
   // 칸 두목 도전 — 두목 하나 · 제한 시간 · 이기면 다음 칸
   challenge() {
     if (!this.canChallenge()) return false;
@@ -177,7 +185,7 @@ export class Game {
     const T = this.stage(), L = T.idx, BF = this.bossFight, ms = BF ? BF.t : 0, deaths = BF ? BF.deaths : 0, bm = BF?.mobs.find((m) => m.kind === 'boss'), bossLeft = !win && bm ? Math.ceil((bm.hp / bm.st.hp) * 100) : 0;
     this.bossFight = null;
     if (win) { T.idx = Math.min(LEVEL_MAX, L + 1); T.top = Math.max(T.top, T.idx); T.kills = 0; T.failIdx = 0; this.emit('dungeon', { stage: L }); }
-    else T.kills = 0;   // 지면 그 칸 몹을 다시 채운 뒤 재도전(자동이면 저절로)
+    else { T.kills = 0; T.failIdx = L; T.failLv = this.S.hero.lv; T.failPw = this.power(); }   // 지면 그 칸 몹을 다시 채운 뒤 재도전(자동이면 더 강해진 뒤)
     // 칸 보상: 은자 · 뽑기권(경험치는 사냥이 정한다 — 곡선 J1). 결과 창이 실제 숫자 · 걸린 시간 · 진 까닭을 보여 준다(v513)
     const gold = win ? Math.round(2 * KILLS_PER_MIN * goldPerMob(L)) : 0, tix = win ? (L % 10 === 0 ? 10 : 1) : 0;
     if (win) { this.S.wallet.gold += gold; this.S.wallet['ticket:gear'] = (this.S.wallet['ticket:gear'] || 0) + tix; }
@@ -191,7 +199,7 @@ export class Game {
   // ms만큼 사냥(50ms 틱) — 처치마다 경험치 · 은자 · 사건
   hunt(ms) {
     const S = this.S, T = this.stage();
-    if (!this.bossFight && T.auto && this.canChallenge()) this.challenge();
+    if (!this.bossFight && T.auto && this.canChallenge() && this.autoReady()) this.challenge();
     const F = this.ensureFight();
     if (!F.def.boss) {
       const fs = F.famState;
@@ -347,7 +355,7 @@ export class Game {
   }
   // ── 방치 ──
   returnCheck(nowMs) {
-    const p = OF.checkReturn(this.S.offline, nowMs, String(weekKey(nowMs)), this.S.hero.lv);
+    const p = OF.checkReturn(this.S.offline, nowMs, String(weekKey(nowMs)), this.S.hero.lv, this.S.hero.exp);
     this.now = nowMs;
     return p;
   }

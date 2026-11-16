@@ -547,7 +547,8 @@ function paintHud() {
   $('chap').textContent = `${ch}. ${chapterName(T.idx)}`;
   const bm0 = boss ? g.bossFight.mobs.find((m) => m.kind === 'boss') : null, spR = boss ? (bm0 ? Math.max(0, bm0.hp / bm0.st.hp) : 0) : Math.min(1, T.kills / STAGE_KILLS);
   $('sp').classList.toggle('boss', boss); $('sp-fill').style.width = `${spR * 100}%`;
-  $('sp-txt').textContent = boss ? `Stage ${st}/10 · 두목 ${Math.ceil(spR * 100)}%` : `Stage ${st}/10 · ${Math.min(T.kills, STAGE_KILLS)}/${STAGE_KILLS}`;
+  const waiting = !boss && T.auto && T.failIdx === T.idx && g.canChallenge() && !g.autoReady();   // v526 진 칸: 더 강해질 때까지 반복 사냥
+  $('sp-txt').textContent = boss ? `Stage ${st}/10 · 두목 ${Math.ceil(spR * 100)}%` : waiting ? `Stage ${st}/10 · 반복 사냥` : `Stage ${st}/10 · ${Math.min(T.kills, STAGE_KILLS)}/${STAGE_KILLS}`;
   // 왼쪽 아래: 무인 체력
   const hpR = Math.max(0, Hh.hp / Hh.st.hp);
   $('hp-fill').style.width = `${hpR * 100}%`; $('hp-trail').style.width = `${hpR * 100}%`; $('hp-fill').parentNode.classList.toggle('low', hpR < 0.3);
@@ -1152,7 +1153,7 @@ function showResult(f) {
         <div class="rsub">${ch}장 ${esc(chapterName(f.idx))} · Stage ${st}/10</div>
         <div class="rtitle">도전 실패</div>
         <div class="rmeta"><span>시간 초과 <b>${Math.round((f.limitMs || 0) / 1000)}초</b></span><span>두목 남은 체력 <b>${f.bossLeft}%</b></span>${f.deaths ? `<span>쓰러짐 <b>${f.deaths}</b></span>` : ''}</div>
-        <div class="rtip">전투력을 올려 보세요 — 장비 뽑기 · 무공 강화 · 동료</div>
+        <div class="rtip">전투력을 올려 보세요 — 장비 뽑기 · 무공 강화 · 동료${g.stage().auto ? '<br>자동 도전은 더 강해지면(레벨업 · 전투력 +5%) 다시 해요 — 그동안은 이 칸에서 사냥' : ''}</div>
         <div class="racts"><button class="btn" id="rgrow">강해지기</button><button class="btn" id="ragain">다시 도전</button><button class="btn primary rgo" id="rout"><span>사냥 계속</span><i class="rbar"></i></button></div>
         <label class="rauto"><input type="checkbox" id="rautochk" ${auto ? 'checked' : ''}> 3초 뒤 자동 진행</label></div>`;
   // 보상 숫자가 0에서 차오른다

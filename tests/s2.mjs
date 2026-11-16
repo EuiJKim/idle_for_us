@@ -524,7 +524,11 @@ console.log('\n=== S7 방치 · 대기열 · 시간 티켓 · 길잡이 · 미�
   ok(OF.checkReturn(O, 1000 + 30000, 'w1', 30) === null, '1분 안 된 자리 비움은 없음');
   const p = OF.checkReturn(O, 31000 + 20 * H, 'w1', 30);
   ok(p && p.ms === 12 * H && p.capped && Math.abs(p.huntMin - 12 * 60 * 0.7) < 1e-9, '12시간에서 멈춤 · ×70%', p?.huntMin);
-  ok(p.kills === Math.floor(p.huntMin * EX.KILLS_PER_MIN) && p.exp === p.kills * EX.mobExp(30) && p.gold === p.kills * GS.goldPerMob(30), '그 레벨 사냥 벌이로');
+  ok(p.kills === Math.floor(p.huntMin * EX.KILLS_PER_MIN) && p.exp > p.kills * EX.mobExp(30) && p.gold > p.kills * GS.goldPerMob(30), 'v526 레벨을 오르며 센 사냥 벌이(떠날 때 레벨로만 센 것보다 많다)');
+  { const w = OF.walk(p.kills, 30);
+    const h = new Hero(newHero('sword')); h.addExp(EX.cumExp(30)); h.addExp(w.exp);
+    ok(Math.abs(h.s.lv - w.lv) <= 1 && w.exp === p.exp, '방치 몫 = 오른 레벨까지(무인에 넣으면 같은 레벨)', `${h.s.lv} / ${w.lv}`); }
+  ok(OF.walk(100, 150).exp === 100 * EX.mobExp(150), '만렙에서는 그 레벨 그대로');
   const c1 = OF.claimOffline(O, 'd1', true);
   ok(c1.x === 2 && c1.exp === 2 * p.exp && OF.claimOffline(O, 'd1') === null, '광고 ×2 · 두 번 받기 없음');
   let t = 31000 + 20 * H;
@@ -820,6 +824,27 @@ console.log('\n=== S9 무공 강화 트리(무공마다 3단 · 점수 · 배우
   ok(b1.durMs === 30000 && b1.buff.crit > KT.skillById(bf).stats(1).crit, '버프 트리: 지속 +50% · 효과 ↑', `${b1.durMs}ms`);
   const used = h.treePts(31).used, w = { gold: 1e9 };
   ok(used > 0 && h.treeReset(w, 31) && h.treePts(31).used === 0 && w.gold < 1e9, '초기화 — 점수 돌려받음 · 은자');
+}
+
+console.log('\n=== v526 성장 곡선 — 실제 엔진 7일(봇: 접속 2시간 + 방치) ===');
+{
+  const { play } = await import('../tools/s2sim/play.mjs');
+  const days = [1, 2, 3, 7], r = play({ days: 7, job: 'sword', seed: 3, marks: days.map((d) => d * 1440) }).out;
+  const at = (d) => r[days.indexOf(d)];
+  ok(at(1).lv >= 55 && at(1).lv <= 67, '1일 Lv55~65(+2) — 진행 목표 J1', at(1).lv);
+  ok(Math.abs(at(2).lv - PS.levelAtDay(2)) <= 5 && Math.abs(at(3).lv - PS.levelAtDay(3)) <= 5, '2·3일: 곡선 시뮬 ±5', `${at(2).lv} ${at(3).lv}`);
+  ok(at(7).lv >= 98 && at(7).adv >= 2, '7일 Lv98 이상(목표 100)', `Lv${at(7).lv} · ${at(7).adv}차`);
+  ok(at(7).bossFail <= 60, 'v526 칸 두목 자동 재도전은 더 강해진 뒤 — 7일에 진 횟수 60번 아래(예전 230번)', `${at(7).bossWin}승 ${at(7).bossFail}패`);
+  ok(at(7).idx >= at(7).lv, '칸 진행이 레벨을 따라간다', `칸 ${at(7).idx}`);
+  // 자동 재도전 조건
+  const T0 = 1.8e12, g = new Game(newGame('sword', T0, 1), T0), T = g.stage();
+  T.idx = 80; T.kills = STAGE_KILLS; g.challenge(); g.endChallenge(false); T.kills = STAGE_KILLS;
+  ok(T.failIdx === 80 && !g.autoReady() && g.canChallenge(), '진 칸: 자동 도전은 기다림(손 「도전」은 됨)');
+  g.S.hero.lv++; ok(g.autoReady(), '레벨이 오르면 다시 자동 도전');
+  g.S.hero.lv--; T.failPw = Math.floor(g.power() / 1.06); ok(g.autoReady(), '전투력 +5% 넘으면 다시 자동 도전');
+  // 칸 클리어는 「던전 n번」 미션이 아니다
+  const g2 = new Game(newGame('sword', T0, 1), T0); g2.endChallenge(true);
+  ok((g2.books.daily.get('d_dungeon').p || 0) === 0 && (g2.books.weekly.get('w_dungeon').p || 0) === 0, 'v526 칸 클리어는 일일 · 주간 「던전」 미션에 세지 않음');
 }
 
 console.log('\n=== S0 규칙 ===');

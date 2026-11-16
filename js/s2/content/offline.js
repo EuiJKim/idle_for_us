@@ -2,7 +2,8 @@
 // 오프라인: 흐른 시간(최대 12시간) × 70% = 사냥 분 상당 → 그 레벨 사냥 벌이로. 일주일 84시간까지 · 광고 보면 ×2(하루 3번).
 // 시계: 「지금까지 본 가장 늦은 시각」(clockMax)부터만 센다(v475 — 시계를 돌려도 미래 몫을 두 번 못 받음).
 import { OFFLINE_CAP_H, OFFLINE_WEEK_CAP_H, OFFLINE_AD_X, OFFLINE_AD_PER_DAY } from '../tables/economy.js';
-import { KILLS_PER_MIN, mobExp } from '../tables/exp.js';
+import { KILLS_PER_MIN, mobExp, expToNext } from '../tables/exp.js';
+import { LEVEL_MAX } from '../tables/progress.js';
 import { goldPerMob } from '../tables/gearstat.js';
 
 export const OFF_RATE = 0.7;
@@ -10,7 +11,7 @@ export const MIN_OFFLINE_MS = 60000;   // 1분 안 된 자리 비움은 보상 �
 export const newOffline = () => ({ lastSeen: 0, clockMax: 0, week: '', weekUsedMs: 0, adDay: '', adUsed: 0, pending: null });
 
 // 돌아왔을 때 — 받을 몫을 계산해 pending에 둔다(받기 단추로 확정)
-export function checkReturn(O, nowMs, weekKey, heroLv) {
+export function checkReturn(O, nowMs, weekKey, heroLv, heroExp = 0) {
   const from = Math.max(O.lastSeen, O.clockMax);
   O.clockMax = Math.max(O.clockMax, nowMs);
   O.lastSeen = nowMs;
@@ -21,9 +22,21 @@ export function checkReturn(O, nowMs, weekKey, heroLv) {
   if (ms <= 0) return null;
   O.weekUsedMs += ms;
   const huntMin = (ms / 60000) * OFF_RATE;
-  const kills = Math.floor(huntMin * KILLS_PER_MIN);
-  O.pending = { ms, huntMin, kills, exp: kills * mobExp(heroLv), gold: kills * goldPerMob(heroLv), capped: nowMs - from > ms };
+  const kills = Math.floor(huntMin * KILLS_PER_MIN), w = walk(kills, heroLv, heroExp);
+  O.pending = { ms, huntMin, kills, exp: w.exp, gold: w.gold, capped: nowMs - from > ms };
   return O.pending;
+}
+// v526 방치 몫은 레벨을 오르며 센다 — 처치를 그 레벨 몹으로 하나씩 쌓다가 레벨이 오르면 다음 레벨 몹으로(곡선 시뮬 sim/progress와 같은 셈).
+//   예전엔 떠날 때 레벨로만 세서, 낮은 레벨에 오래 비우면(방치만 하는 사람) 곡선보다 크게 뒤졌다.
+export function walk(kills, L, cur = 0) {
+  let exp = 0, gold = 0, left = kills;
+  L = Math.max(1, L | 0); cur = Math.max(0, cur);
+  while (left > 0) {
+    const per = mobExp(L), need = L >= LEVEL_MAX ? Infinity : Math.max(0, expToNext(L) - cur), k = Math.min(left, Math.max(1, Math.ceil(need / per)));
+    exp += k * per; gold += k * goldPerMob(L); left -= k;
+    if (k * per >= need) { L++; cur = 0; } else cur += k * per;
+  }
+  return { exp, gold, lv: L };
 }
 // 받기 — 광고 보면 ×2(하루 3번)
 export function claimOffline(O, dayKey, withAd = false) {

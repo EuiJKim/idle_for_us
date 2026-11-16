@@ -31,7 +31,7 @@ export const GUIDE = [
 export const DAILY_MISSIONS = [
   { id: 'd_login', ev: 'login', need: 1, huntMin: 1 },
   { id: 'd_kill', ev: 'kill', add: 'n', need: 500, huntMin: 3 },
-  { id: 'd_dungeon', ev: 'dungeon', need: 3, huntMin: 3, items: { 'ticket:time': 4 } },
+  { id: 'd_dungeon', ev: 'dungeon', cond: 'stage == 0', need: 3, huntMin: 3, items: { 'ticket:time': 4 } },
   { id: 'd_gacha', ev: 'gacha', add: 'n', need: 30, huntMin: 2, items: { 'ticket:pal': 2 } },
   { id: 'd_star', ev: 'star', need: 3, huntMin: 2, items: { 'item:restore': 1 } },
   { id: 'd_boss', ev: 'kill', cond: 'boss', need: 2, huntMin: 2, items: { 'item:heart': 2 } },
@@ -39,7 +39,7 @@ export const DAILY_MISSIONS = [
 ];
 export const WEEKLY_MISSIONS = [
   { id: 'w_login', ev: 'login', need: 5, huntMin: 20, items: { 'ticket:weapon': 5 } },
-  { id: 'w_dungeon', ev: 'dungeon', need: 15, huntMin: 20, items: { 'ticket:relic': 5 } },
+  { id: 'w_dungeon', ev: 'dungeon', cond: 'stage == 0', need: 15, huntMin: 20, items: { 'ticket:relic': 5 } },
   { id: 'w_wboss', ev: 'wboss', need: 5, huntMin: 20 },
   { id: 'w_pvp', ev: 'pvp', need: 10, huntMin: 20 },
 ];
