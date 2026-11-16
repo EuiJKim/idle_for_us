@@ -164,6 +164,23 @@
     .cmp { max-height: 46vh; overflow-y: auto; } html.rot .cmp { max-height: 46vw; }
     html.h500 .cmp-h img { width: 44px; height: 44px; } html.h500 .cmp-h { margin-bottom: 4px; } html.h500 .cmp-r { padding: 2px 8px; font-size: 12px; } html.h500 #modal .sheet { padding: 12px 14px; } html.h500 #modal h2 { margin-bottom: 4px; font-size: 16px; }
     .cmp .up, .cmp-h .up { color: #86efac; } .cmp .dn, .cmp-h .dn { color: #fca5a5; }
+    /* v528 강화 창 · 강화 탭 */
+    .enh2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; } .enh2 section { background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.08); border-radius: 12px; padding: 8px 10px; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+    .enh2 h3 { margin: 0; font-size: 15px; display: flex; flex-wrap: wrap; gap: 6px; align-items: baseline; } .enh2 h3 span { font-size: 12px; font-weight: 600; color: var(--gold); }
+    .enh2 .cmp { max-height: 24vh; } html.rot .enh2 .cmp { max-height: 24vw; } .enh2 .cmp-r { grid-template-columns: 1fr auto auto; }
+    .enh2 .note { margin: 0; font-size: 11.5px; } .enh2 .btn-row { margin-top: auto; display: flex; gap: 6px; } .enh2 .btn-row .btn { flex: 1; min-height: 44px; }
+    .need-h { font-size: 11.5px; color: rgba(255,255,255,.5); } .need { display: grid; gap: 4px; }
+    .need-r { display: grid; grid-template-columns: 1fr auto; grid-template-rows: auto auto; column-gap: 8px; padding: 5px 8px; border-radius: 8px; background: rgba(0,0,0,.25); border: 1px solid rgba(255,255,255,.08); font-size: 13px; }
+    .need-r b { text-align: right; font-variant-numeric: tabular-nums; } .need-r small { grid-column: 1 / -1; text-align: right; font-size: 11px; font-variant-numeric: tabular-nums; }
+    .need-r.ok small { color: #86efac; } .need-r.no { border-color: rgba(252,165,165,.45); } .need-r.no small { color: #fca5a5; }
+    #modal .sheet.enhs { max-height: 94vh; overflow-y: auto; } html.rot #modal .sheet.enhs { max-height: 94vw; }
+    .enhs .cmp-h small .hl { font-style: normal; font-weight: 800; color: var(--gold); }
+    .need-r span, .need-r b { color: #fff; } .need-r.no b { color: #fca5a5; }
+    html.h500 .need-r { grid-template-columns: 1fr auto auto; grid-template-rows: auto; } html.h500 .need-r small { grid-column: auto; } html.h500 .enh2 .cmp { max-height: 15vh; } html.rot.h500 .enh2 .cmp { max-height: 15vw; } html.h500 .need-h { display: none; }
+    html.h500 .enhs .cmp-h img { width: 40px; height: 40px; } html.h500 .enhs h2 { display: none; } html.h500 .enh2 .note { display: none; } html.h500 .enh2 .btn-row .btn { min-height: 40px; }
+    .prot { display: inline-flex; gap: 4px; align-items: center; color: #fff; }
+    .row .dn { color: #fca5a5; } .row .up { color: #86efac; } .row.can { box-shadow: inset 3px 0 0 #86efac; }
+    html.h500 .enh2 { gap: 6px; } html.h500 .enh2 section { padding: 6px 8px; gap: 4px; } html.h500 .enh2 .cmp { max-height: 20vh; } html.h500 .need-r { padding: 3px 8px; font-size: 12px; }
     /* v520 보상 은자 알 · 은자 칸 톡 */
     .coinfly { position: absolute; z-index: 40; width: 16px; height: 16px; pointer-events: none; }
     .cur-pill.bump { animation: bump .35s ease-out; } @keyframes bump { 40% { transform: scale(1.18); } }

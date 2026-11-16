@@ -6,6 +6,7 @@ import { goldPerMob, gachaCost } from '../tables/gearstat.js';
 import { KILLS_PER_MIN } from '../tables/exp.js';
 import { GOLD_SINK_SHARE } from '../tables/economy.js';
 import { levelAtDay, minutesAtDay } from './progress.js';
+import { DAILY_DUNGEONS, DAILY_RUNS } from '../tables/content.js';
 import { newGearState, obtain, enhance, starForce, restoreSlot } from '../gear/gear.js';
 import { newGacha, pull, canLevelUp, startLevelUp, tickGacha, eliteDrop } from '../gear/gacha.js';
 
@@ -23,6 +24,8 @@ export function simGear(days, { seed = 1, policy = 'base', protect = true, onDay
     const income = Math.round(min * KILLS_PER_MIN * goldPerMob(L));
     gacha += income * GOLD_SINK_SHARE.gearGacha;
     star += income * GOLD_SINK_SHARE.starEnhance;
+    // v528 단련동 강화석(하루 3번) — 강화에 강화석이 든다
+    if (L >= DAILY_DUNGEONS.stone.unlockLv) w['item:stone'] += DAILY_DUNGEONS.stone.reward.stones * DAILY_RUNS;
     // 첫날 길잡이 선물 뽑기권
     if (d === 1) { w['ticket:gear'] = START_PULL_TICKETS; obtain(G, pull(GA, START_PULL_TICKETS, rng, w, L, { ticket: true }) || [], L, w); }
     // 뽑기(하루 동안 대기 시간은 지나간 것으로 본다 — 하루에 레벨 하나까지)
@@ -41,7 +44,9 @@ export function simGear(days, { seed = 1, policy = 'base', protect = true, onDay
       const s = SLOTS.reduce((a, b) => (G.slots[a].star + G.slots[a].enh / 2 <= G.slots[b].star + G.slots[b].enh / 2 ? a : b));
       const S = G.slots[s];
       if (S.broken) { w['item:restore']++; restoreSlot(G, s, w); continue; }   // 복구 주문서는 미션·상점에서 얻는다고 보고
-      const r = S.enh < Math.min(20, S.star + 2) ? enhance(G, s, rng, w, L) : starForce(G, s, rng, w, L, { noBreak: protect });
+      // v528 강화에 강화석이 들어 강화가 막히면 성혼으로(성혼까지 멈추지 않게)
+      let r = S.enh < Math.min(20, S.star + 2) ? enhance(G, s, rng, w, L) : null;
+      if (r === null) r = starForce(G, s, rng, w, L, { noBreak: protect });
       if (r === null) break;
     }
     star += w.gold; w.gold = 0;   // 남은 은자는 다음 날 성혼 몫으로

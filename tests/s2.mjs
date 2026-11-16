@@ -218,7 +218,7 @@ console.log('\n=== S1 세이브 서명 · 표 판 · 차단 깃발 ===');
   ok(forged !== txt && SV.unpack(forged).ok === false, '손으로 은자를 고치면 서명이 안 맞음');
   ok(SV.canon({ b: 1, a: [2, { d: 1, c: 2 }] }) === SV.canon({ a: [2, { c: 2, d: 1 }], b: 1 }), '키 순서가 달라도 같은 글자(기기마다 같음)');
   ok(SV.unpack('나쁜 글자').ok === false && SV.SAVE_KEY.startsWith('ifu.s2.'), '깨진 글자 · 새 시즌 열쇠는 옛 세이브와 다름');
-  ok(/^[0-9a-f]{8}$/.test(tableHash()) && TABLE_VER === 's2-0.5', '표 해시 · 판 번호(v527 s2-0.5)', tableHash());
+  ok(/^[0-9a-f]{8}$/.test(tableHash()) && TABLE_VER === 's2-0.6', '표 해시 · 판 번호(v528 s2-0.6)', tableHash());
   FL.setFlags({ off: ['pvp', 'gacha', 'nope'], msg: '점검 중' });
   ok(FL.blocked('pvp') && FL.blocked('gacha') && !FL.blocked('nope') && !FL.blocked('guild') && FL.blockedMsg() === '점검 중', '차단 깃발(모르는 이름은 무시)');
   FL.setFlags(null); ok(FL.blockedList().length === 0, '서버를 못 읽으면 모두 열림');
@@ -356,9 +356,10 @@ console.log('\n=== S4 장비 · 칸 ===');
 
 console.log('\n=== S4 강화 · 성혼 ===');
 {
-  const r = new Rng(5), G = GR.newGearState(), w = { gold: 1e12, 'item:restore': 5 };
+  const r = new Rng(5), G = GR.newGearState(), w = { gold: 1e12, 'item:stone': 1e9, 'item:restore': 5 };   // v528 강화에 강화석
   for (let i = 0; i < 200; i++) GR.enhance(G, 'weapon', r, w, 100);
   ok(G.slots.weapon.enh === GE.ENH_MAX && GR.enhance(G, 'weapon', r, w, 100) === null, '강화 +20까지 · 실패해도 안 깨짐');
+  { const G2 = GR.newGearState(), w2 = { gold: 1e12 }; ok(GR.enhance(G2, 'weapon', new Rng(1), w2, 50) === null && w2.gold === 1e12, 'v528 강화석이 없으면 강화 안 됨(은자도 안 듦)'); }
   let downEarly = 0, brkEarly = 0, ok15 = true;
   for (let t = 0; t < 400; t++) {
     const g = GR.newGearState(); const rr = new Rng(t);

@@ -45,7 +45,11 @@ export const goldPerMob = (L) => Math.round(4 * Math.pow(L, 1.25) + 6);
 export const gachaCostMobs = (glv) => 50 + 12 * glv;
 export const gachaCost = (L, glv = 1) => [{ k: 'gold', n: goldPerMob(L) * gachaCostMobs(glv) }];
 // 강화 비용(칸 강화 단계 e) · 성혼 비용(별 s)
-export const enhCost = (e, L) => [{ k: 'gold', n: Math.round(goldPerMob(L) * 20 * Math.pow(1.25, e)) }];
+// v528 강화는 은자 + 강화석 — 60일 만렙(하루 접속 20시간) 기준으로 평균 1일 +5 · 7일 +10 · 30일 +16 · 55일쯤 +20.
+//   강화석은 분해 · 단련동에서 나와 하루에 얻는 양이 접속 시간만큼 늘지 않는다(앞에 많고 뒤로 줄어듦) → 한 번에 드는 강화석은 앞에서 빨리 오르고 뒤는 완만하게.
+export const ENH_STONE = { base: 20, add: 60, k: 4 };
+export const enhStones = (e) => Math.round(ENH_STONE.base + ENH_STONE.add * (1 - Math.exp(-e / ENH_STONE.k)));
+export const enhCost = (e, L) => [{ k: 'gold', n: Math.round(goldPerMob(L) * 20 * Math.pow(1.25, e)) }, { k: 'item:stone', n: enhStones(e) }];
 export const starCost = (s, L) => [{ k: 'gold', n: Math.round(goldPerMob(L) * 25 * Math.pow(1.22, s)) }];
 // 분해: 등급마다 강화석
 export const dismantle = (g) => [{ k: 'item:stone', n: [1, 2, 4, 8, 16, 32, 64][g] }];

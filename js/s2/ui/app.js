@@ -6,7 +6,9 @@ import { S2Net } from './net.js';
 import { encodeSave, decodeAny } from '../../savecode.js';
 import { SLOTS, SLOT_NAME, GRADES, gachaExpNeed } from '../tables/gear.js';
 import { itemStats, gearScore, unequip, equip, equipBest, junkOf, dismantleMany, dismantleItem, newSlot } from '../gear/gear.js';
-import { dismantle as dismantleYield } from '../tables/gearstat.js';
+import { dismantle as dismantleYield, enhCost, enhOk, starCost } from '../tables/gearstat.js';
+import { starOdds, STAR_MAX, PITY_POINTS, BREAK_FROM, PROTECT_FROM, PROTECT_TO, PROTECT_BREAK_COST_X } from '../tables/star.js';
+import { ENH_MAX } from '../tables/gear.js';
 import { drawCreature } from '../../creatures.js';
 import { JOBS } from '../tables/char.js';
 import { SKILLS, MASTERY } from '../tables/skills.js';
@@ -118,7 +120,7 @@ function toast(t) { const d = document.createElement('div'); d.className = 'toas
 function closeModal() { $('modal').classList.add('hidden'); }
 function pop(title, html, acts = [['확인', null]]) {
   const sh = $('modal').querySelector('.sheet');
-  sh.classList.toggle('wide', false); sh.innerHTML = `<h2>${esc(title)}</h2><div>${html}</div><div class="btn-row" style="margin-top:12px${acts.length > 3 ? ';display:grid;grid-template-columns:repeat(3,1fr)' : ''}"></div>`;
+  sh.classList.toggle('wide', false); sh.classList.remove('enhs'); sh.innerHTML = `<h2>${esc(title)}</h2><div>${html}</div><div class="btn-row" style="margin-top:12px${acts.length > 3 ? ';display:grid;grid-template-columns:repeat(3,1fr)' : ''}"></div>`;
   const a = sh.querySelector('.btn-row');
   acts.forEach(([label, fn], i) => { const b = document.createElement('button'); b.className = `btn${i === acts.length - 1 ? ' primary' : ''}`; b.textContent = label; b.onclick = () => { closeModal(); fn?.(); paintHud(); paintWin(); }; a.append(b); });
   $('modal').classList.remove('hidden');
@@ -161,7 +163,7 @@ function eqCell(sl) {
   b.className = `eqcell ${it ? 'g' + it.g : 'empty'} ${eqSel === sl ? 'sel' : ''}`;
   if (it) b.style.setProperty('--gc', GX_COL[it.g]);
   b.innerHTML = `<img src="${eqIcon(sl, it)}" alt="${SLOT_NAME[sl]}" style="${it ? '' : 'opacity:.25'}"><span class="en">${S2.enh ? '+' + S2.enh : ''}</span><span class="sr">${S2.star ? '★' + S2.star : ''}</span><span class="nm">${SLOT_NAME[sl]}</span>`;
-  b.onclick = () => { eqSel = eqSel === sl ? null : sl; paintWin(); };
+  b.onclick = () => { play('click'); if (it) enhPop(sl); else { eqSel = eqSel === sl ? null : sl; paintWin(); } };   // v528 낀 장비를 누르면 바로 강화 창
   return b;
 }
 // ── 장비 뽑기 연출(v497) ── 카드가 차례로 뒤집힌다. 보(4)↑는 뒤집기 전에 두근(떨림 · 빛) · 신(5)↑는 화면이 번쩍 · 건너뛰기
@@ -355,11 +357,22 @@ function paintWin() {
     const c1 = card('뽑기', '10번마다 사냥터에 정예');
     for (const n of [1, 10, 30]) c1(R(`${n}번 뽑기`, (W['ticket:gear'] || 0) >= n ? `뽑기권 ${n}장` : '은자', [['뽑기', act(() => { const r = g.pullGear(n); if (r) showGacha(r); return r; })]], '抽'));
   } else if (key === 'gear:2') {
-    const c = card('칸 강화 · 성혼', '칸에 붙는다 — 장비를 바꿔도 남음');
-    for (const s of SLOTS) {
-      const sl = g.S.gear.slots[s], it = g.S.gear.eq[s];
-      const r = rowEl(`${SLOT_NAME[s]} <small>+${sl.enh} · ★${sl.star}</small>`, sl.broken ? '파괴됨 — 성혼 불가' : (it ? `${GRADES[it.g]}품` : '비어 있음'), [['강화', act(() => { const r2 = g.enhance(s); if (r2 !== null) toast(r2 ? '강화 성공' : '강화 실패'); return r2; })], ['성혼', act(() => { const r2 = g.star(s); if (r2) toast({ ok: '성혼 성공', fail: '실패', down: '하락', break: '파괴!' }[r2]); return r2; }), !!sl.broken]]);
-      const ic = document.createElement('img'); ic.className = 'ico'; ic.src = eqIcon(s, it); ic.alt = ''; ic.style.cssText = 'width:40px;height:40px;object-fit:contain;background:none'; r.prepend(ic);
+    // v528 가진 재료를 맨 위에 · 칸마다 다음 강화로 무엇이 얼마나 오르는지 · 누르면 강화 창
+    const L = g.S.hero.lv, G = g.S.gear;
+    const c0 = card('가진 재료', '강화 = 은자 + 강화석 · 성혼 = 은자');
+    c0(statGrid([['은자', unit(W.gold || 0)], ['강화석', unit(W['item:stone'] || 0)], ['복구 주문서', `${W['item:restore'] || 0}장`]]));
+    c0(note('강화석은 장비 분해(가방 · 일괄 분해)와 수련동 「단련동」에서 얻어요.'));
+    const c = card('칸 강화 · 성혼', '칸에 붙는다 — 장비를 바꿔도 남음 · 누르면 강화 창');
+    for (const sl of SLOTS) {
+      const S2 = G.slots[sl], it = G.eq[sl];
+      const gain = it && S2.enh < ENH_MAX ? diffTxt(itemStats(it, S2, L), itemStats(it, { ...S2, enh: S2.enh + 1 }, L)) : '';
+      const cost = S2.enh < ENH_MAX ? enhCost(S2.enh, L) : [], can = cost.length && have(cost);
+      const r = rowEl(`${SLOT_NAME[sl]} <small>+${S2.enh} · ★${S2.star}${S2.broken ? ' 파괴' : ''}</small>`,
+        S2.enh >= ENH_MAX ? '강화 끝(+20)' : `${gain ? `<span class="up">+${S2.enh + 1}: ${gain}</span><br>` : ''}${costTxt(cost)}`,
+        [['열기', () => { play('click'); enhPop(sl); }]]);
+      if (can) r.classList.add('can');
+      const ic = document.createElement('img'); ic.className = 'ico'; ic.src = eqIcon(sl, it); ic.alt = ''; ic.style.cssText = 'width:40px;height:40px;object-fit:contain;background:none'; r.prepend(ic);
+      r.style.cursor = 'pointer'; r.onclick = (e) => { if (e.target.closest('button')) return; play('click'); enhPop(sl); };
       c(r);
     }
   } else if (key === 'gear:3') {
@@ -464,6 +477,58 @@ function paintWin() {
 }
 // 가방 그림 칸 — 누르면 그 칸에 낌(지금 게임의 .inv-grid · .inv-tile)
 // v521 장비 비교 창 — 이 장비 능력치와 지금 낀 것과의 차이(+초록 · −빨강) · 장착 · 잠금 · 분해
+// ── v528 강화 창 ── 낀 장비 하나: 오르는 스탯(지금 → 성공하면) · 필요한 것 / 가진 것 · 강화 · 성혼 — 눌러도 창이 닫히지 않는다
+const COST_NAME = { gold: '은자', 'item:stone': '강화석', 'item:restore': '복구 주문서' };
+const have = (cost) => cost.every((c2) => (g.S.wallet[c2.k] || 0) >= c2.n);
+const costTxt = (cost) => cost.map((c2) => { const h = g.S.wallet[c2.k] || 0; return `<span class="${h >= c2.n ? '' : 'dn'}">${COST_NAME[c2.k] || c2.k} ${unit(c2.n)}</span>`; }).join(' · ');
+const fmtStat = (k, v) => (STATS[k]?.kind === 'rate' ? `${(v / 10).toFixed(1)}%` : unit(v));
+function diffTxt(a, b) { return Object.keys(b).filter((k) => (b[k] || 0) !== (a[k] || 0)).map((k) => `${STATS[k]?.name || k} +${fmtStat(k, (b[k] || 0) - (a[k] || 0))}`).join(' · '); }
+function statRows(a, b) {
+  return Object.keys({ ...a, ...b }).map((k) => { const d = (b[k] || 0) - (a[k] || 0); return `<div class="cmp-r"><span>${STATS[k]?.name || k}</span><b>${fmtStat(k, a[k] || 0)}</b><em class="${d > 0 ? 'up' : ''}">${d > 0 ? `→ ${fmtStat(k, b[k])}` : '–'}</em></div>`; }).join('');
+}
+function needRows(cost) {
+  return `<div class="need">${cost.map((c2) => { const h = g.S.wallet[c2.k] || 0; return `<div class="need-r ${h >= c2.n ? 'ok' : 'no'}"><span>${COST_NAME[c2.k] || c2.k}</span><b>${unit(c2.n)}</b><small>가진 것 ${unit(h)}</small></div>`; }).join('')}</div>`;
+}
+let enhProt = false;
+function enhPop(sl) {
+  const G = g.S.gear, L = g.S.hero.lv, it = G.eq[sl], S2 = G.slots[sl], sh = $('modal').querySelector('.sheet');
+  if (!it) { closeModal(); eqSel = sl; openWin('bag', 0); return; }
+  sh.classList.add('wide', 'enhs');
+  const now0 = itemStats(it, S2, L);
+  // 강화
+  const eMax = S2.enh >= ENH_MAX, eCost = eMax ? [] : enhCost(S2.enh, L), eOk = eMax ? 0 : enhOk(S2.enh);
+  const eAfter = eMax ? now0 : itemStats(it, { ...S2, enh: S2.enh + 1 }, L);
+  // 성혼
+  const sMax = S2.star >= STAR_MAX || S2.broken, prot = enhProt && S2.star >= PROTECT_FROM && S2.star <= PROTECT_TO;
+  const sBase = sMax ? [] : starCost(S2.star, L), sCost = prot ? sBase.map((c2) => ({ k: c2.k, n: c2.n * (1 + PROTECT_BREAK_COST_X) })) : sBase;
+  const od = sMax ? null : starOdds(S2.star), sAfter = sMax ? now0 : itemStats(it, { ...S2, star: S2.star + 1 }, L);
+  const pct = (pm) => `${(pm / 10).toFixed(pm % 10 ? 1 : 0)}%`;
+  sh.innerHTML = `<h2>장비 강화</h2>
+    <div class="cmp-h"><img src="${eqIcon(sl, it)}" alt="${SLOT_NAME[sl]}"><div><b class="g${it.g}t">${GRADES[it.g]}품${it.up ? '上' : ''} ${SLOT_NAME[sl]}</b><small>칸 강화 <i class="hl">+${S2.enh}</i>/${ENH_MAX} · 성혼 <i class="hl">★${S2.star}</i>${S2.broken ? ' (파괴 — 복구 필요)' : ''} · 전투력 ${unit(g.power())}</small></div></div>
+    <div class="enh2">
+      <section><h3>강화 <span>${eMax ? '끝' : `+${S2.enh} → +${S2.enh + 1} · 성공 ${pct(eOk)}`}</span></h3>
+        <div class="cmp">${statRows(now0, eAfter)}</div>
+        ${eMax ? '<p class="note">강화를 끝까지 했어요.</p>' : `<div class="need-h">필요한 것 / 가진 것</div>${needRows(eCost)}<p class="note">실패해도 단계는 그대로 · 재료만 들어요.</p>`}
+        <div class="btn-row"><button class="btn primary" id="ep-e1" ${eMax || !have(eCost) ? 'disabled' : ''}>강화</button><button class="btn" id="ep-e5" ${eMax || !have(eCost) ? 'disabled' : ''}>5번 강화</button></div>
+      </section>
+      <section><h3>성혼 <span>${sMax ? (S2.broken ? '파괴됨' : '끝') : `★${S2.star} → ★${S2.star + 1} · 성공 ${pct(od.ok)}${od.down ? ` · 하락 ${pct(od.down)}` : ''}${od.brk ? ` · 파괴 ${pct(od.brk)}` : ''}`}</span></h3>
+        <div class="cmp">${statRows(now0, sAfter)}</div>
+        ${sMax ? '' : `<div class="need-h">필요한 것 / 가진 것</div>${needRows(sCost)}<p class="note">실패가 쌓이면 다음 한 번은 성공(${S2.pity || 0}/${PITY_POINTS}).${S2.star >= PROTECT_FROM && S2.star <= PROTECT_TO ? ` <label class="prot"><input type="checkbox" id="ep-prot" ${enhProt ? 'checked' : ''}> 파괴 방지(은자 ×${1 + PROTECT_BREAK_COST_X})</label>` : S2.star < BREAK_FROM ? ' 15성부터 파괴될 수 있어요.' : ''}</p>`}
+        <div class="btn-row"><button class="btn primary" id="ep-s1" ${sMax || !have(sCost) ? 'disabled' : ''}>성혼</button></div>
+      </section>
+    </div>
+    <div class="btn-row" style="margin-top:10px"><button class="btn" id="ep-swap">장비 바꾸기</button><button class="btn" id="ep-off">해제</button><button class="btn primary" id="ep-close">닫기</button></div>`;
+  const again = () => { save(); paintHud(); if (open) paintWin(); enhPop(sl); };
+  const doEnh = (n) => { let ok = 0, tried = 0; for (let i = 0; i < n; i++) { const r = g.enhance(sl); if (r === null) break; tried++; if (r) ok++; if (G.slots[sl].enh >= ENH_MAX) break; } if (tried) { play(ok ? 'clear' : 'click'); toast(n === 1 ? (ok ? `강화 성공 · +${G.slots[sl].enh}` : '강화 실패 — 단계는 그대로') : `${tried}번 중 ${ok}번 성공 · +${G.slots[sl].enh}`); } else toast('재료가 모자라요'); again(); };
+  $('ep-e1').onclick = () => doEnh(1);
+  $('ep-e5').onclick = () => doEnh(5);
+  $('ep-s1').onclick = () => { const r = g.star(sl, { noBreak: prot }); if (r) { play(r === 'ok' ? 'clear' : 'click'); toast({ ok: `성혼 성공 · ★${G.slots[sl].star}`, fail: '성혼 실패', down: '성혼 실패 — 별 하나 내려감', break: '파괴! 복구 주문서로 되살릴 수 있어요' }[r]); } else toast('재료가 모자라요'); again(); };
+  const pr = $('ep-prot'); if (pr) pr.onchange = (e) => { enhProt = e.target.checked; enhPop(sl); };
+  $('ep-swap').onclick = () => { play('click'); closeModal(); sh.classList.remove('wide', 'enhs'); eqSel = sl; openWin('bag', 0); };
+  $('ep-off').onclick = () => { play('click'); unequip(G, sl); g.dirtyStats = true; g.emit('equip'); closeModal(); sh.classList.remove('wide', 'enhs'); save(); paintHud(); if (open) paintWin(); };
+  $('ep-close').onclick = () => { play('click'); closeModal(); sh.classList.remove('wide', 'enhs'); if (open) paintWin(); };
+  $('modal').classList.remove('hidden');
+}
 function itemPop(c, L) {
   const G = g.S.gear, cur = G.eq[c.slot], a = itemStats(c, newSlot(), L), b = cur ? itemStats(cur, newSlot(), L) : {};
   const keys = [...new Set([...Object.keys(a), ...Object.keys(b)])];
@@ -1185,7 +1250,7 @@ function pickJob() {
   const cards = Object.entries(JOBS).map(([k, j]) => `<button class="btn jobcard" data-job="${k}"><canvas width="160" height="200"></canvas><b>${j.name}</b><small>${JOB_INFO[k]?.[0] || ''}</small><em>${JOB_INFO[k]?.[1] || ''} · 주 능력치 ${STAT_KO[j.main] || j.main}</em></button>`).join('');
   pop('무인 고르기', `<p class="note">직업은 나중에 「설정 → 새로 시작」으로 바꿀 수 있어요. 다른 기기에서 하던 진행이 있으면 <a href="#" id="pj-g" class="pj-g">Google로 이어하기</a></p><div class="jobgrid">${cards}</div>`, []);
   const sh = $('modal').querySelector('.sheet'); sh.classList.add('wide');
-  for (const b of sh.querySelectorAll('.jobcard')) b.onclick = () => { play('click'); closeModal(); sh.classList.remove('wide'); start(b.dataset.job); };
+  for (const b of sh.querySelectorAll('.jobcard')) b.onclick = () => { play('click'); closeModal(); sh.classList.remove('wide', 'enhs'); start(b.dataset.job); };
   const pg = sh.querySelector('#pj-g');
   if (pg) pg.onclick = async (e) => { e.preventDefault(); play('click'); try { await net.init(); if (!net.online) { toast('인터넷에 연결되면 다시 눌러 주세요'); return; } const d = await net.switchTo(null); if (d) applyCloud(d); else toast('그 계정에는 새 시즌 진행이 없어요 — 무인을 골라 시작하세요(그 계정에 저장돼요)'); } catch (err) { toast(err?.code === 'auth/popup-closed-by-user' ? '취소했어요' : (err?.message || '이어하지 못했어요')); } };
   const t0 = now();

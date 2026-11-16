@@ -52,6 +52,20 @@ const ok = (c, m, x = '') => { console.log(`  ${c ? '✓' : '✗ !!'} ${m}${x !=
     ok(/Stage \d+\/10/.test(await page.textContent('#sp-txt')) && /\d+\. /.test(await page.textContent('#chap')), '위 가운데: 장 이름 · Stage n/10 진행 막대');
     await page.click('#au');
     ok(await page.evaluate(() => window.__s2.g.S.auto !== false), '다시 자동으로');
+    // v528 낀 장비를 누르면 강화 창 — 오르는 스탯(지금 → 성공하면) · 필요한 것 / 가진 것 · 눌러도 창이 남는다
+    await page.evaluate(() => { const g = window.__s2.g; g.S.wallet.gold += 1e8; g.S.wallet['item:stone'] = 5000; if (!g.S.gear.eq.weapon) { g.pullGear(10); } });
+    await page.click('#mb .nb[data-tab="bag"]'); await page.waitForTimeout(300);
+    const cell = await page.$('.eqcell:not(.empty)');
+    if (cell) {
+      await cell.click(); await page.waitForSelector('#modal:not(.hidden) .enh2');
+      ok((await page.$$('#modal .enh2 .need-r')).length >= 2 && /가진 것/.test(await page.textContent('#modal .enh2')) && (await page.$$('#modal .enh2 .cmp-r')).length > 0, 'v528 낀 장비 누르면 강화 창: 오르는 스탯 · 필요한 것/가진 것(은자 · 강화석)');
+      const e0 = await page.evaluate(() => { const g = window.__s2.g; return Object.values(g.S.gear.slots).reduce((a, s) => a + s.enh, 0); });
+      await page.click('#ep-e5'); await page.waitForTimeout(200);
+      const e1 = await page.evaluate(() => { const g = window.__s2.g; return Object.values(g.S.gear.slots).reduce((a, s) => a + s.enh, 0); });
+      ok(e1 > e0 && await page.isVisible('#modal .enh2'), 'v528 5번 강화 → 단계가 오르고 창은 그대로', `${e0} → ${e1}`);
+      await page.click('#ep-close'); ok(await page.isHidden('#modal'), '닫기');
+      await page.click('#panel-close');
+    }
     const navs = await page.$$('.nb[data-tab]');
     ok(navs.length === 7 && (await page.$$('#mb .nb')).length === 5, '아래 메뉴 다섯(캐릭터 · 장비 · 무공 · 동료 · 던전) + 위 아이콘(지도 · 임무 · 무림)');
     await page.click('#mb .nb[data-key]'); ok(/캐릭터/.test(await page.textContent('#panel-title')) && /on/.test(await page.getAttribute('#panel-body .subtabs button >> nth=1', 'class')), '「무공」 → 캐릭터 창 무공 칸'); await page.click('#panel-close');
