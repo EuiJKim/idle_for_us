@@ -5004,7 +5004,7 @@ export function drawFighter(ctx, x, y, look = {}, o = {}) {
   ctx.save();
   const sh0 = artReady() && !jiang ? ART_SHOULDER : { x: 7, y: -70 };
   ctx.translate(sh0.x, sh0.y);
-  if (P) {
+  if (P && weapon !== 'bow') {   // v533 활은 자세(던지기 등)의 손 자리를 따르지 않는다 — 늘 앞손에 세워 들고, 자세 중엔 시위를 당긴다
     // 자세가 손 자리와 칼끝을 따로 정한다. 그림 몸통의 소매는 늘 아래로
     // 처져 있으니, 손이 어깨를 떠나면 팔 하나를 그어 이어 준다.
     const hx = Math.cos(P.hand[0]) * P.hand[1];
@@ -5022,13 +5022,14 @@ export function drawFighter(ctx, x, y, look = {}, o = {}) {
       circle(ctx, hx, hy, 3.8);
     }
     ctx.translate(hx, hy);
-    ctx.rotate(P.blade + Math.PI / 2);
+    const pRot = weapon === 'bow' ? BOW_ROT : P.blade + Math.PI / 2;   // v533 활은 자세와 상관없이 세워 앞으로(오금 앞 · 시위 몸 쪽)
+    ctx.rotate(pRot);
     const wk2 = artReady() && !o.noWeapon ? weaponKey(weapon, look) : null;
     const useArt2 = !!(wk2 && hasArt(wk2));
     // 초식 자세의 칼 키우기(wscale)는 벡터 몫 — 그림 무기는 제 길이가 있다(살짝만)
     if (P.wscale && P.wscale !== 1) { const k = useArt2 ? 1 + (P.wscale - 1) * 0.25 : P.wscale; ctx.scale(k, k); }
     if (!o.noWeapon && !(useArt2 && putWeapon(ctx, wk2))) drawWeapon(ctx, weapon, o, t, 0);
-    if (artLimb && !(useArt2 && weaponBare(wk2))) { ctx.rotate(-(P.blade + Math.PI / 2)); drawHandArt(ctx, 0, 0, 1); }
+    if (artLimb && !(useArt2 && weaponBare(wk2))) { ctx.rotate(-pRot); drawHandArt(ctx, 0, 0, 1); }
     ctx.restore();
     drawOrbit(true);
     ctx.restore();
@@ -5044,7 +5045,7 @@ export function drawFighter(ctx, x, y, look = {}, o = {}) {
   // 키워 몸 밖으로 내민다. 평타가 나가면(lunge) 원래 휘두름으로 섞여 간다.
   if (o.hold && !jiang && (weapon !== 'spear' || artLimb)) {
     const th = ang + Math.PI / 2;
-    const w = Math.min(1, lunge * 2.5);
+    const w = weapon === 'bow' ? 0 : Math.min(1, lunge * 2.5);   // v533 활은 휘두르지 않는다(시위만 당김)
     const H = HOLD[weapon] || HOLD.sword;
     const sway = Math.sin(t * 2.2) * 0.04 + (o.run ? Math.sin(t * 14) * 0.08 : 0);
     const hx = H.hand[0] * (1 - w) + (-Math.sin(th) * 22 + 1) * w;
@@ -5079,6 +5080,23 @@ export function drawFighter(ctx, x, y, look = {}, o = {}) {
       if (artLimb) { ctx.rotate(-blade); drawHandArt(ctx, 0, 0, 1 / sc); }
       else { ctx.fillStyle = skin; circle(ctx, 0, 0, 3.6 / sc); }
     }
+    ctx.restore();
+    drawOrbit(true);
+    ctx.restore();
+    return;
+  }
+  if (weapon === 'bow' && !jiang) {
+    // v533 궁사 — 앞손을 가슴 앞으로 내밀어 활을 세워 든다(전엔 칼 자세 그대로라 활이 허리에 눕고 줌손이 몸 뒤에 있었다)
+    const bl = P ? 0.7 : (lunge || 0), pull = Math.min(1, bl * 1.4);   // 쏘는 자세면 시위를 당긴 채
+    const hx = 16 + pull * 2, hy = 19 + Math.sin(t * 2.2) * 0.6 + (o.run ? Math.sin(t * 14) * 0.8 : 0);
+    if (artLimb) drawForearmArt(ctx, hx, hy, LC, look.cuff || look.band, o.flash, look.s2arm);
+    else { ctx.lineCap = 'round'; ctx.strokeStyle = '#1a1410'; ctx.lineWidth = 9; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(hx * 0.86, hy * 0.86); ctx.stroke(); ctx.strokeStyle = shade(robeNow, -0.08); ctx.lineWidth = 6.5; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(hx * 0.86, hy * 0.86); ctx.stroke(); }
+    ctx.translate(hx, hy); ctx.rotate(BOW_ROT);
+    if (o.glow) { ctx.shadowColor = o.glowCol || o.blade || '#fde68a'; ctx.shadowBlur = o.glowCol ? 14 : 10; }
+    if (!o.noWeapon) drawWeapon(ctx, 'bow', o, t, bl);
+    ctx.shadowBlur = 0;
+    ctx.rotate(-BOW_ROT);
+    if (artLimb) drawHandArt(ctx, 0, 0, 1); else { ctx.fillStyle = skin; circle(ctx, 0, 0, 3.6); }
     ctx.restore();
     drawOrbit(true);
     ctx.restore();
@@ -5455,7 +5473,9 @@ function drawHead(ctx, look, t) {
 }
 
 // 들고 선 자세 — 어깨 기준 손 자리, 무기 각(0이면 날이 위, +면 앞으로 눕는다), 크기
+const BOW_ROT = Math.PI / 2 - 0.06;   // v533 활: 손의 '앞'(-y)이 겨누는 쪽(몸 앞) — 활대는 세로, 오금은 앞 · 시위는 몸 쪽
 const HOLD = {
+  bow: { hand: [16, 19], blade: BOW_ROT, scale: 1 },   // v533 궁사: 활을 세워 앞으로
   sword: { hand: [7, 19], blade: 0.95, scale: 1.6 },   // 검사: 칼끝을 앞으로 겨눈다
   fist: { hand: [11, 14], blade: 0.3, scale: 1.5, off: 8, bare: true }, // 권마: 권갑 낀 주먹을 앞에 쥔다(주먹이 손 자리)
   fan: { hand: [9, 14], blade: 0.55, scale: 1.25 },    // 환마: 부채를 펴 든다
@@ -5492,18 +5512,19 @@ function drawWeapon(ctx, weapon, o, t, lunge) {
       // v500 궁사의 활 — 손이 줌통을 쥐고, 위아래 오금이 앞으로 휜 각궁(뿔 · 대나무 · 붉은 끝). 시위는 활 뒤로 곧게
       ctx.save(); ctx.scale(0.72, 0.72);
       // v518 새 시즌 활 그림 — 그림의 양 끝(오금)에 시위를 건다
-      if (o.bowArt) { const im = o.bowArt, w = 72, h = Math.max(14, w * im.height / im.width * 1.6), tipY = 3 - h * 0.85; ctx.drawImage(im, -w / 2, 3 - h, w, h); const pull = Math.min(1, (lunge || 0) * 1.4); ctx.strokeStyle = 'rgba(245,240,225,0.55)'; ctx.lineWidth = 0.8; ctx.beginPath(); ctx.moveTo(-w * 0.47, tipY); ctx.lineTo(0, 7 + pull * 12); ctx.lineTo(w * 0.47, tipY); ctx.stroke(); if (pull > 0.2) { ctx.strokeStyle = '#e7d3a8'; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.moveTo(0, 7 + pull * 12); ctx.lineTo(0, -30); ctx.stroke(); } ctx.restore(); break; }
+      // v533 활 그림은 「U」(가운데 줌통이 아래 · 양 끝이 위) — 위아래를 뒤집어 줌통이 앞(-y)으로 볼록, 양 끝(고자)과 시위는 몸 쪽(+y). 시위는 고자를 곧게 잇고, 쏠 때 몸 쪽으로 당겨진다 · 화살은 앞으로
+      if (o.bowArt) { const im = o.bowArt, w = 60, h = Math.max(12, w * im.height / im.width), tipY = h * 0.85 - 2; ctx.save(); ctx.scale(1, -1); ctx.drawImage(im, -w / 2, 2 - h, w, h); ctx.restore(); const pull = Math.min(1, (lunge || 0) * 1.4), ny = tipY + pull * 14; ctx.strokeStyle = 'rgba(245,240,225,0.7)'; ctx.lineWidth = 0.9; ctx.beginPath(); ctx.moveTo(-w * 0.47, tipY); ctx.lineTo(0, ny); ctx.lineTo(w * 0.47, tipY); ctx.stroke(); if (pull > 0.2) { ctx.strokeStyle = '#e7d3a8'; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.moveTo(0, ny); ctx.lineTo(0, -16); ctx.stroke(); ctx.fillStyle = '#cbd5e1'; ctx.beginPath(); ctx.moveTo(-2.2, -14); ctx.lineTo(0, -19); ctx.lineTo(2.2, -14); ctx.fill(); } ctx.restore(); break; }
       // 손의 '앞'(-y)이 겨누는 쪽 — 활대는 그와 직각(x축)으로 서고 오금은 앞으로, 시위는 몸 쪽(+y)
-      const lim = (dir) => { ctx.beginPath(); ctx.moveTo(0, 0); ctx.bezierCurveTo(dir * 10, -9, dir * 22, -10, dir * 32, -3); ctx.stroke(); };
+      const lim = (dir) => { ctx.beginPath(); ctx.moveTo(0, 0); ctx.bezierCurveTo(dir * 10, -5, dir * 24, -3, dir * 32, 8); ctx.stroke(); };   // v533 줌통이 앞(-y)으로 볼록 · 고자는 몸 쪽
       ctx.lineCap = 'round';
       ctx.strokeStyle = '#2a1a0e'; ctx.lineWidth = 5.2; lim(-1); lim(1);
       ctx.strokeStyle = '#8b5a2b'; ctx.lineWidth = 3.4; lim(-1); lim(1);
       ctx.strokeStyle = '#d6a45a'; ctx.lineWidth = 1.2; lim(-1); lim(1);
-      ctx.fillStyle = '#b91c1c'; circle(ctx, -32, -3, 2.2); circle(ctx, 32, -3, 2.2);   // 고자(끝)
+      ctx.fillStyle = '#b91c1c'; circle(ctx, -32, 8, 2.2); circle(ctx, 32, 8, 2.2);   // 고자(끝)
       const pull = Math.min(1, (lunge || 0) * 1.4);
       ctx.strokeStyle = 'rgba(245,240,225,0.9)'; ctx.lineWidth = 1;
-      ctx.beginPath(); ctx.moveTo(-32, -3); ctx.lineTo(0, 7 + pull * 12); ctx.lineTo(32, -3); ctx.stroke();   // 시위(쏠 때 당겨짐)
-      if (pull > 0.2) { ctx.strokeStyle = '#e7d3a8'; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.moveTo(0, 7 + pull * 12); ctx.lineTo(0, -30); ctx.stroke(); }   // 메긴 화살
+      ctx.beginPath(); ctx.moveTo(-32, 8); ctx.lineTo(0, 8 + pull * 14); ctx.lineTo(32, 8); ctx.stroke();   // 시위 — 고자를 곧게 잇고 쏠 때 몸 쪽으로 당겨짐
+      if (pull > 0.2) { ctx.strokeStyle = '#e7d3a8'; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.moveTo(0, 8 + pull * 14); ctx.lineTo(0, -16); ctx.stroke(); }   // 메긴 화살 — 촉은 앞으로
       ctx.fillStyle = '#3b2a1a'; roundRect(ctx, -5, -2.5, 10, 5, 2); ctx.fill();   // 줌통
       ctx.restore();
       break;

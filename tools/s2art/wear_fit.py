@@ -39,17 +39,31 @@ for f in sorted(glob.glob(f'{SRC}/body-*.png')):
     cv = Image.new('RGBA', (CW, CH), (0, 0, 0, 0)); cv.paste(im, (ox, 0), im)
     save(cv, os.path.basename(f)[:-4])
 
-# 머리
+# 머리 — v533: 얼굴 폭(살빛 가로)으로 크기를, 턱(그림 아래 끝)과 코끝(오른쪽 끝)으로 자리를 상투 머리에 맞춘다.
+#   전엔 살빛 상자의 아래 끝을 턱으로 잡았는데, 수염이 있으면 살빛이 콧수염에서 끊겨 턱 · 입이 잘려 나갔다.
+def band_y(im):
+    # 머리 높이의 가운데 35~75%에서만(붉은 관 · 깃털이 위에 있어도) · 가장 붉은 줄들의 가운데
+    px = im.load(); w, h = im.size; bb = im.getchannel('A').point(lambda v: 255 if v > 40 else 0).getbbox()
+    rows = []
+    for y in range(bb[1] + int((bb[3] - bb[1]) * 0.35), bb[1] + int((bb[3] - bb[1]) * 0.75), 1):
+        n = sum(1 for x in range(0, w, 2) if px[x, y][3] > 200 and px[x, y][0] > 110 and px[x, y][0] > 2 * px[x, y][1] and px[x, y][0] > 2 * px[x, y][2])
+        rows.append((n, y))
+    m = max(n for n, _ in rows); ys = [y for n, y in rows if n >= m * 0.6]
+    return sum(ys) / len(ys)
+def nose_x(im, y0, y1):
+    px = im.load(); w = im.size[0]
+    return max(x for y in range(int(y0), int(y1), 2) for x in range(w) if px[x, y][3] > 200)
 ref = Image.open(f'{HERO}/head-topknot.png').convert('RGBA'); RW, RH = ref.size
-rb = skin_box(ref)
+CHIN = round(RH * 0.93)                     # 게임이 상투 머리 아래 7%를 잘라 낸 자리 = 턱
+rB = band_y(ref); rN = nose_x(ref, rB, CHIN); rb = skin_box(ref)
 for f in sorted(glob.glob(f'{SRC}/head-*.png')):
-    im = Image.open(f).convert('RGBA'); gb = skin_box(im)
-    k = ((rb[2] - rb[0]) / (gb[2] - gb[0]) + (rb[3] - rb[1]) / (gb[3] - gb[1])) / 2
+    im = Image.open(f).convert('RGBA')
+    bb = im.getchannel('A').point(lambda v: 255 if v > 40 else 0).getbbox()
+    gC = bb[3]; gb = skin_box(im); gN = nose_x(im, bb[1] + (gC - bb[1]) * 0.4, gC)
+    k = (rb[2] - rb[0]) / (gb[2] - gb[0])   # 얼굴 폭(귀 ~ 코끝 살빛) — 쓰개 · 수염과 상관없다
     im = im.resize((round(im.width * k), round(im.height * k)), Image.LANCZOS)
-    gx, gy = gb[2] * k, gb[3] * k   # 코끝(오른쪽) · 턱(아래)을 맞춘다
-    cv = Image.new('RGBA', (RW, RH + PAD), (0, 0, 0, 0))
-    cv.paste(im, (round(rb[2] - gx), round(rb[3] - gy) + PAD), im)
-    cv = cv.crop((0, 0, RW, PAD + round(RH * 0.93)))
+    cv = Image.new('RGBA', (RW, PAD + CHIN), (0, 0, 0, 0))
+    cv.paste(im, (round(rN - gN * k), round(PAD + CHIN - gC * k)), im)
     save(cv, os.path.basename(f)[:-4])
 
 # 무기
