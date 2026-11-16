@@ -2,7 +2,7 @@
 //   폰에서 되는데 컴퓨터(html zoom · 마우스)에서 안 되는 것을 잡는다.
 //   NO_PROXY=127.0.0.1,localhost PLAYWRIGHT=$(npm root -g)/playwright CHROMIUM=/opt/pw-browsers/chromium node tests/desktop.cjs
 const { chromium } = require(process.env.PLAYWRIGHT || 'playwright');
-const BASE = process.env.BASE || 'http://127.0.0.1:8123/';
+const BASE = process.env.BASE || 'http://127.0.0.1:8123/classic.html';
 let fails = 0;
 const ok = (c, m) => { if (!c) fails++; console.log(c ? '  ✓' : '  ✗', m); };
 (async () => {

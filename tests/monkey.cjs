@@ -8,7 +8,7 @@ const path = require('path');
 const fs = require('fs');
 const { chromium } = require(process.env.PLAYWRIGHT || 'playwright');
 
-const BASE = process.env.BASE || 'http://localhost:8123/';
+const BASE = process.env.BASE || 'http://localhost:8123/classic.html';
 const SECS = Number(process.env.SECS) || 90;
 const SEED = Number(process.env.SEED) || 20261107;
 const OUT = process.env.OUT || path.join(__dirname, 'shots', 'monkey');

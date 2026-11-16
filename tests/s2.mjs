@@ -830,9 +830,9 @@ console.log('\n=== S0 규칙 ===');
   const code = (p) => fs.readFileSync(p, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');   // 주석은 빼고
   const bad = files.filter((p) => !p.includes('/js/s2/ui/')).filter((p) => /Math\.random|Date\.now|performance\.now/.test(code(p)));
   ok(bad.length === 0, 'js/s2 엔진(화면 js/s2/ui 빼고)은 Math.random·Date.now·performance.now를 쓰지 않는다(결정론)', bad.join(' '));
-  const shipped = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8') + fs.readFileSync(new URL('../js/wmain.js', import.meta.url), 'utf8');
-  ok(!/s2\//.test(shipped), '지금 게임은 아직 새 시즌 코드를 부르지 않는다(교체 전)');
-  ok(/s2=1[\s\S]*s2\.html/.test(fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8')), 'index.html?s2=1 → 새 시즌 미리보기(s2.html)');
+  const idx = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8'), old = fs.readFileSync(new URL('../classic.html', import.meta.url), 'utf8');
+  ok(/js\/s2\/ui\/app\.js/.test(idx) && /js\/wmain\.js|js\/boot\.js/.test(old) && !/js\/s2\//.test(old), 'v524 교체: 첫 화면(index.html)은 새 시즌 · 옛 게임은 classic.html');
+  ok(/location\.replace\('\.\/'/.test(fs.readFileSync(new URL('../s2.html', import.meta.url), 'utf8')), '옛 주소 s2.html(?s2=1)은 첫 화면으로 이어 준다');
   ok(/정한 것 \(2026-11-14\)/.test(fs.readFileSync(new URL('../docs/새시즌_계획.md', import.meta.url), 'utf8')), '계획서가 있다');
 }
 

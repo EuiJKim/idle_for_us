@@ -3,7 +3,7 @@
 //   NO_PROXY=127.0.0.1,localhost PLAYWRIGHT=$(npm root -g)/playwright CHROMIUM=/opt/pw-browsers/chromium node tests/sweep.cjs
 const { chromium } = require(process.env.PLAYWRIGHT || 'playwright');
 const path = require('path'); const fs = require('fs');
-const BASE = process.env.BASE || 'http://127.0.0.1:8123/';
+const BASE = process.env.BASE || 'http://127.0.0.1:8123/classic.html';
 const OUT = path.join(__dirname, 'shots', 'sweep'); fs.mkdirSync(OUT, { recursive: true });
 const SIZES = process.env.SIZE ? [process.env.SIZE.split('x').map(Number)] : [[360, 740], [390, 844], [430, 932], [1366, 768], [1920, 1080]];
 let fails = 0;

@@ -1,4 +1,4 @@
-// 새 시즌 미리보기 화면(S9) — s2.html(또는 index.html?s2=1)에서만 뜬다. 지금 게임과 세이브가 섞이지 않는다(ifu.s2.*).
+// 새 시즌 화면 — v524부터 첫 화면(index.html). 옛 게임은 classic.html(세이브는 따로 · ifu.s2.*가 새 시즌).
 // 화면은 엔진(js/s2/game.js)만 본다. 시계는 화면 쪽에서만 읽어 엔진에 넘긴다(엔진은 결정론).
 import { Game, newGame, COLLECTS, dayKey, STAGE_KILLS } from '../game.js';
 import { SAVE_KEY } from '../core/save.js';
@@ -405,7 +405,7 @@ function paintWin() {
     const c2 = card('계정');
     c2(R(`시간 티켓 ${W['ticket:time'] || 0}장`, '1장 = 15분 · 원정 · 방치에 씀', [], '時'));
     c2(R('새로 시작', '이 미리보기 세이브만 지움', [['처음부터', () => pop('새로 시작할까요?', '<p class="note">새 시즌 미리보기 세이브만 지워요. 지금 게임 세이브는 그대로예요.</p>', [['아니요', null], ['예', () => { localStorage.removeItem(SAVE_KEY); location.reload(); }]])]], '新'));
-    c2(R('지금 게임으로', '', [['돌아가기', () => { location.href = 'index.html'; }]], '歸'));
+    c2(R('옛 게임(무림방치)', '예전 진행은 그대로 — 따로 열 수 있어요', [['열기', () => { save(); location.href = 'classic.html'; }]], '舊'));
     B.append(note('새 시즌 미리보기예요. 숫자 · 화면은 계속 바뀌어요.'));
   }
 }
@@ -1192,6 +1192,8 @@ function goFull(on) {
   } catch { /* 안 되는 브라우저 */ }
 }
 document.addEventListener('pointerdown', () => { if (matchMedia('(pointer: coarse)').matches && !matchMedia('(display-mode: standalone)').matches) goFull(true); }, { once: true });
+// v524 첫 화면이 되었으니 서비스워커(새 판 받기 · 오프라인)
+try { if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {}); } catch { /* 없음 */ }
 loadLooks();
 load();
 if (g) boot();

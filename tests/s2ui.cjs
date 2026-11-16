@@ -2,7 +2,7 @@
 //   NO_PROXY=127.0.0.1,localhost node tests/s2ui.cjs   (tests/all.sh가 http 서버를 띄운다)
 const { chromium } = require(process.env.PLAYWRIGHT || 'playwright');
 const path = require('path'); const fs = require('fs');
-const BASE = (process.env.BASE || 'http://127.0.0.1:8123/') + 's2.html';
+const BASE = (process.env.BASE || 'http://127.0.0.1:8123/') + 'index.html';   // v524 새 시즌이 첫 화면
 const OUT = path.join(__dirname, 'shots'); fs.mkdirSync(OUT, { recursive: true });
 let fails = 0;
 const ok = (c, m, x = '') => { console.log(`  ${c ? '✓' : '✗ !!'} ${m}${x !== '' ? ` (${x})` : ''}`); if (!c) fails++; };

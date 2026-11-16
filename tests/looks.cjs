@@ -3,7 +3,7 @@
 //   (v358: 두목 옷만 옛 조각이라 머리·몸 테두리가 깨져 보였다 — 이런 빈칸을 배포 전에 잡는다)
 //   NO_PROXY=127.0.0.1,localhost PLAYWRIGHT=$(npm root -g)/playwright CHROMIUM=/opt/pw-browsers/chromium node tests/looks.cjs
 const { chromium } = require(process.env.PLAYWRIGHT || 'playwright');
-const BASE = process.env.BASE || 'http://127.0.0.1:8123/';
+const BASE = process.env.BASE || 'http://127.0.0.1:8123/classic.html';
 (async () => {
   const b = await chromium.launch(process.env.CHROMIUM ? { executablePath: process.env.CHROMIUM } : {});
   const page = await b.newPage({ viewport: { width: 390, height: 844 } });

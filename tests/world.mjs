@@ -2979,7 +2979,7 @@ console.log('\n=== v314 분당 경험치 · 낮은 사냥터 알림 · 두목까
   const hwRoom = W.MAPS.find((m) => m.zone === hw.id && m.bossRoom);
   b.s.duel.won = { ...b.s.duel.won };
   if (b.enterMap(hwRoom.id)) { const bb = b.mons.find((m) => m.isBoss); if (bb) { bb.alive = false; b.mons = b.mons.filter((m) => !m.isBoss); } b.bossT = 30; ok(b.bossWait()?.total === 30, '화무기 방은 30초 고리', JSON.stringify(b.bossWait())); }
-  const ui = read('js/wmain.js'), html = read('index.html');
+  const ui = read('js/wmain.js'), html = read('classic.html');
   ok(/expPerMin\(\)/.test(ui) && /huntGap\(\)/.test(ui) && /bossWait\(\)/.test(ui), '화면이 셋 다 쓴다');
   ok(/id="exp-rate"/.test(html) && /id="exp-warn"/.test(html) && /id="boss-wait"/.test(html), '자리(분당 경험치 · 알림 · 고리)');
 }
@@ -3317,7 +3317,7 @@ console.log('\n=== v325 성별·무기 모양·기믹 · 1차 전직 전 직업 
   const heads = W.CUSTOM_FHEADS.flatMap(([h]) => W.CUSTOM_HAIRS.map(([c]) => `fh-${h}-${c}`));
   ok(heads.every((k) => art2.includes(`"${k}"`)), '여협 머리 × 머리 빛깔 그림이 다 있다', heads.filter((k) => !art2.includes(`"${k}"`)).join(','));
   ok([...W.CUSTOM_AURAS.map(([k]) => `pt-${k}`), ...W.CUSTOM_RINGS.map(([k]) => `ring-${k}`), 'face-patch', 'face-veil', 'face-scar'].every((k) => art2.includes(`"${k}"`)), '기믹·얼굴 덧그림 그림');
-  ok(!read('index.html').includes('data-tab="hunt"') && read('index.html').includes('id="go-hunt"') && read('js/wmain.js').includes('function goHuntNow'), 'v341 사냥 단추는 아래 줄에서 빼고 마을에서만 들판에 \'사냥하러 가기\'');
+  ok(!read('classic.html').includes('data-tab="hunt"') && read('classic.html').includes('id="go-hunt"') && read('js/wmain.js').includes('function goHuntNow'), 'v341 사냥 단추는 아래 줄에서 빼고 마을에서만 들판에 \'사냥하러 가기\'');
 }
 
 console.log('\n=== v371 자동 강화 설정 ===');
@@ -3853,7 +3853,7 @@ console.log('\n=== v413 칠대성 자동 반복 · 판 보상은 싸운 시간�
 console.log('\n=== v411 지난 알림 · 다녀오셨어요 요약 ===');
 {
   const C = read('js/ui/common.js'), M = read('js/wmain.js');
-  ok(/function notePush/.test(C) && /notePush\(text\)/.test(C) && /btn-notes/.test(read('index.html')) && /지난 알림/.test(M), '토스트는 지난 알림(60개)에 남고 🔔로 다시 본다');
+  ok(/function notePush/.test(C) && /notePush\(text\)/.test(C) && /btn-notes/.test(read('classic.html')) && /지난 알림/.test(M), '토스트는 지난 알림(60개)에 남고 🔔로 다시 본다');
   ok(/새 칭호/.test(M) && /각인 막힘/.test(M) && /칠대성 보상/.test(M), '받은 뒤 요약 — 새 칭호 · 막힌 곳 · 받을 것 · 추천');
   ok(/function wbLiteTick/.test(M) && /perf\.step = AUTO_STEPS\.length - 1/.test(M) && /this\.wbLite \? 0/.test(read('js/battle.js')), '칠대성 판이 버거우면 바로 가장 가벼운 화질 · 그 판 동안 연출 가볍게');
   ok(/workflow_dispatch/.test(read('.github/workflows/pages.yml')) && /cp -r index\.html/.test(read('.github/workflows/pages.yml')), '배포(Actions) — 게임 파일만 · 손으로만 돈다');
@@ -5123,7 +5123,7 @@ console.log('\n=== v472 「빼기」 다섯째 판 — 깨달음 하나(저절�
 }
 console.log('\n=== v473 검은 화면 막이 ===');
 {
-  const html = read('index.html'), mn = read('js/wmain.js');
+  const html = read('classic.html'), mn = read('js/wmain.js');
   ok(/__bootFail/.test(html) && /__bootFresh/.test(html) && /caches\.delete/.test(html) && /unregister\(\)/.test(html) && html.indexOf('__bootFail') < html.indexOf('js/wmain.js'), '불러오다 멈추면 까닭과 「새로 받기」(캐시·서비스 워커 비우고 다시) — 모듈보다 먼저');
   ok(/if \(loopErr === 1\) bugNote/.test(mn), '그리기 오류는 처음 한 번 저절로 보고');
   ok(/'확인'\)\)\]\.filter\(Boolean\)\);/.test(mn), '받았어요 창에 null 글자가 찍히지 않는다');

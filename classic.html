@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <title>방치형키우기</title>
+  <meta name="description" content="무협방치 RPG">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="방치형키우기">
+  <meta property="og:description" content="무협방치 RPG">
+  <meta property="og:image" content="https://euijkim.github.io/idle_for_us/icons/icon-512.png">
+  <script>
+    // v487 새 시즌 미리보기 — ?s2=1 이면 s2.html로(지금 게임과 세이브가 섞이지 않는다)
+    try { if (/[?&]s2=1\b/.test(location.search)) location.replace('./'); } catch (e) { /* 그대로 */ }
+    // v281 카카오톡 안 브라우저로 열리면 설치 안내로 보내 바깥 브라우저(크롬·사파리)로 넘긴다.
+    // 카카오톡 안에선 설치·Google 로그인이 안 되고, 저장도 카카오톡 안에만 남는다. ?stay=1 이면 그대로 둔다.
+    try { if (/KAKAOTALK/i.test(navigator.userAgent || '') && !/[?&]stay=1\b/.test(location.search)) location.replace('install.html?to=game'); } catch (e) { /* 그대로 */ }
+  </script>
+  <meta name="theme-color" content="#14110e">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="방치형키우기">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Yuji+Syuku&family=Nanum+Brush+Script&family=Gowun+Batang:wght@400;700&display=swap">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div id="app">
+    <!-- 상단: 내 정보 한 덩어리.
+         근거: Blade Idle의 Status(720x136)가 초상화·이름·경지·경험치를 한 블록으로 묶는다.
+         (docs/BladeIdle_화면구조.md 4절) -->
+    <header id="topbar">
+      <div class="hero-box">
+        <canvas id="portrait" width="104" height="104" aria-hidden="true"></canvas>
+        <div class="hero-txt">
+          <div class="hero-line"><b id="hero-name">무명</b></div>
+          <div class="hero-sub"><span id="hero-rank">-</span><span id="hero-lv">Lv.1</span><span id="exp-pct"></span><span id="exp-rate"></span></div>
+          <div id="exp-bar"><div></div></div>
+        </div>
+      </div>
+      <div class="res-col">
+        <div class="res res-silver"><span class="cur silver" aria-label="은자">은</span><b id="gold">0</b></div>
+        <div class="res res-potion"><span class="cur potion" aria-label="물약">약</span><b id="potions">0</b></div>
+      </div>
+      <button id="btn-settings" class="icon-btn" aria-label="설정">⚙</button>
+    </header>
+
+    <!-- 사냥터 줄: 이름(누르면 지도) · 레벨대 · 두목까지 · 체력 -->
+    <div id="stagebar">
+      <div class="stage-box">
+        <div id="stage-label">객잔 마을</div>
+        <div id="zone-label">쉬는 중</div>
+      </div>
+      <div id="progress" class="hp">
+        <div id="progress-trail"></div>
+        <div id="progress-fill"></div>
+        <span id="progress-text">0 / 0</span>
+      </div>
+    </div>
+
+    <section id="battle">
+      <canvas id="cv"></canvas>
+      <div id="hud">
+        <div id="power-label">전투력 0</div>
+        <div id="net-badge" class="net connecting">연결 중</div>
+      </div>
+      <div id="gate-hint" class="hidden"></div>
+      <div id="loot-tally" class="hidden" aria-live="polite"></div>
+      <div id="boss-wait" class="hidden" aria-live="polite"><div class="bw-ring"><b id="bw-sec">10</b></div><small id="bw-txt">두목까지</small></div>
+      <button id="btn-zoom" aria-label="화면 거리">보통</button>
+      <button id="btn-saver" aria-label="절전 화면">🌙</button>
+      <button id="btn-mail" class="hidden" aria-label="우편함">📮<b id="mail-n"></b></button>
+      <button id="btn-fs" class="hidden" aria-label="전체 화면">⛶</button>
+      <button id="btn-notes" aria-label="지난 알림">🔔</button>
+      <button id="btn-party" class="hidden" aria-label="혼자·함께 바꾸기">혼자</button>
+      <button id="advice" class="hidden"></button>
+      <button id="quest" class="hidden"></button>
+      <button id="exp-warn" class="hidden"></button>
+      <div id="gather" class="hidden"><button class="g-go"></button><button class="g-x" aria-label="닫기">✕</button></div>
+      <button id="btn-boss" class="hidden">두목 도전</button>
+      <button id="go-hunt" class="hidden" aria-label="사냥하러 가기">⚔ 사냥하러 가기</button>
+      <div id="contest-hud" class="hidden">
+        <div id="contest-title"></div>
+        <div id="contest-sub"></div>
+      </div>
+
+      <!-- 창 버튼은 들판 위에 떠 있다. 누르면 아래에서 창이 올라온다. -->
+      <nav id="tabs">
+        <div class="tabcol left">
+          <button data-tab="map"><i>지</i><span>지도</span></button>
+          <button data-tab="dgn"><i>전</i><span>던전</span></button>
+          <button data-tab="town"><i>촌</i><span>마을</span></button>
+          <button data-tab="social"><i>무</i><span>무림<em class="tab-sub">문파</em></span></button>
+        </div>
+        <div class="tabcol right">
+          <button data-tab="char"><i>인</i><span>캐릭터</span></button>
+          <button data-tab="bag"><i>낭</i><span>가방</span></button>
+          <button data-tab="comp"><i>수</i><span>동료</span></button>
+        </div>
+      </nav>
+
+      <div id="skillbar"></div>
+    </section>
+
+    <div id="panel-dim"></div>
+    <main id="panel">
+      <div id="panel-head">
+        <button id="panel-grip" aria-label="창 펼치기"></button>
+        <b id="panel-title"></b>
+        <!-- 자원칸은 비워 둔다. 지금 보는 화면이 쓰는 자원을 main.js panelRes()가 채운다 -->
+        <div class="res-row"></div>
+        <button id="panel-close" aria-label="닫기">✕</button>
+      </div>
+      <div id="panel-body"></div>
+    </main>
+  </div>
+
+  <!-- v266 로딩 · 로그인 화면. 모듈이 다 오기 전부터 보여야 해서 여기(정적)에 둔다 — js/boot.js가 움직인다 -->
+  <div id="boot" aria-live="polite">
+    <div class="boot-moon" aria-hidden="true"></div>
+    <svg class="boot-ink" viewBox="0 0 400 200" preserveAspectRatio="none" aria-hidden="true">
+      <defs><linearGradient id="bootMist" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#14110e" stop-opacity="0"/><stop offset="0.85" stop-color="#0b0907" stop-opacity="1"/></linearGradient></defs>
+      <path class="boot-m3" d="M-20 120 Q20 90 45 104 Q75 60 110 92 Q140 70 165 96 Q205 40 245 88 Q280 66 305 92 Q340 58 372 90 Q400 80 420 96 L420 200 L-20 200Z" fill="#2a241d"/>
+      <path class="boot-m2" d="M-20 150 Q30 118 70 140 Q115 100 160 138 Q200 116 235 142 Q285 104 330 140 Q370 122 420 140 L420 200 L-20 200Z" fill="#1d1915"/>
+      <path class="boot-m1" d="M-20 178 Q50 154 110 172 Q170 150 230 174 Q300 152 360 172 Q395 162 420 168 L420 200 L-20 200Z" fill="#110f0c"/>
+      <rect x="-20" y="110" width="440" height="90" fill="url(#bootMist)"/>
+    </svg>
+    <div class="boot-box">
+      <div class="boot-seal">武</div>
+      <h1 class="boot-title">방치형키우기</h1>
+      <p class="boot-sub">무협방치</p>
+      <div class="boot-stage" id="boot-load">
+        <div class="boot-bar"><i id="boot-fill"></i></div>
+        <p class="boot-msg" id="boot-msg">강호로 가는 길을 여는 중…</p>
+      </div>
+      <div class="boot-stage hidden" id="boot-login"></div>
+      <p class="boot-tip" id="boot-tip"></p>
+    </div>
+    <p class="boot-ver" id="boot-ver"></p>
+  </div>
+  <script>
+    // 모듈이 오기 전 — 막대를 조금씩 채우고, 오래 걸리면 다시 열기를 권한다(js/boot.js가 넘겨받는다)
+    (function () {
+      var f = document.getElementById('boot-fill'), t0 = Date.now();
+      window.__bootCreep = setInterval(function () {
+        var k = Math.min(1, (Date.now() - t0) / 6000);
+        if (f && !window.__bootTaken) f.style.width = (8 + 30 * k) + '%';
+        if (Date.now() - t0 > 20000 && !window.__bootTaken) {
+          clearInterval(window.__bootCreep);
+          window.__bootFail('불러오는 데 오래 걸려요');
+        }
+      }, 120);
+    })();
+    // v473 불러오다 멈추면(옛 파일과 새 파일이 섞이거나 오류) 검은 화면 대신 까닭과 「새로 받기」 — 캐시·서비스 워커를 비우고 다시 연다
+    window.__bootFresh = function () {
+      var go = function () { location.replace(location.pathname + '?fresh=' + Date.now()); };
+      try {
+        var jobs = [];
+        if (window.caches) jobs.push(caches.keys().then(function (ks) { return Promise.all(ks.map(function (k) { return caches.delete(k); })); }));
+        if (navigator.serviceWorker) jobs.push(navigator.serviceWorker.getRegistrations().then(function (rs) { return Promise.all(rs.map(function (r) { return r.unregister(); })); }));
+        Promise.all(jobs).then(go, go);
+      } catch (e) { go(); }
+    };
+    window.__bootFail = function (why) {
+      var b = document.getElementById('boot'), m = document.getElementById('boot-msg');
+      if (!b || !m || /\bout\b/.test(b.className)) return;
+      m.innerHTML = '';
+      m.appendChild(document.createTextNode(why + ' — '));
+      var a = document.createElement('a'); a.href = 'javascript:void 0'; a.style.color = '#e8c87a'; a.textContent = '새로 받기';
+      a.onclick = function () { window.__bootFresh(); };
+      m.appendChild(a);
+    };
+    window.addEventListener('error', function (e) { var t = (e && (e.message || (e.error && e.error.message))) || ''; if (t && !/ResizeObserver|Script error/i.test(t)) window.__bootFail('불러오다 멈췄어요(' + String(t).slice(0, 80) + ')'); });
+    window.addEventListener('unhandledrejection', function (e) { var r = e && e.reason; var t = (r && r.message) || String(r || ''); if (t && !/firebase|Failed to fetch|NetworkError|Load failed/i.test(t)) window.__bootFail('불러오다 멈췄어요(' + t.slice(0, 80) + ')'); });
+  </script>
+
+  <div id="modal" class="hidden"><div class="sheet"></div></div>
+  <div id="toast"></div>
+
+  <script type="module" src="js/wmain.js"></script>
+</body>
+</html>

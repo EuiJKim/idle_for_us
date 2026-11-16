@@ -5,7 +5,7 @@
 // 팝업 대신 에뮬레이터가 받아 주는 가짜 Google id 토큰(JSON 글자)으로 잇는다(window.__test_linkGoogle).
 const path = require('path'); const fs = require('fs');
 const { chromium } = require(process.env.PLAYWRIGHT || 'playwright');
-const PKG = process.env.FIREBASE_PKG; const BASE = process.env.BASE || 'http://localhost:8123/';
+const PKG = process.env.FIREBASE_PKG; const BASE = process.env.BASE || 'http://localhost:8123/classic.html';
 const OUT = process.env.OUT || path.join(__dirname, 'shots'); fs.mkdirSync(OUT, { recursive: true });
 const assert = (c, m) => { if (!c) throw new Error('ASSERT: ' + m); console.log('  ✓', m); };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));

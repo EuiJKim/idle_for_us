@@ -7,7 +7,7 @@ const path = require('path');
 const fs = require('fs');
 const { chromium } = require(process.env.PLAYWRIGHT || 'playwright');
 
-const BASE = process.env.BASE || 'http://localhost:8123/';
+const BASE = process.env.BASE || 'http://localhost:8123/classic.html';
 const PKG = process.env.FIREBASE_PKG;
 const FS_EMU = process.env.FS_EMU || 'http://127.0.0.1:8080';
 const PROJECT = 'idle-69772';

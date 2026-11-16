@@ -25,9 +25,9 @@ const walk = (d, out = []) => {
 const JS_FILES = walk('js').filter((f) => f.endsWith('.js'));
 // v478 새 시즌 코드(js/s2)는 교체 전까지 게임이 부르지 않는다 — 서비스워커가 미리 받지 않아도 된다.
 //   index.html이나 wmain.js가 s2를 부르기 시작하면(교체 날) 자동으로 다시 검사에 들어간다.
-const S2_LIVE = /s2\//.test(fs.readFileSync(path.join(R, 'index.html'), 'utf8') + fs.readFileSync(path.join(R, 'js/wmain.js'), 'utf8'));
+const S2_LIVE = /s2\//.test(fs.readFileSync(path.join(R, 'index.html'), 'utf8') + fs.readFileSync(path.join(R, 'js/wmain.js'), 'utf8'));   // v524 새 시즌이 첫 화면이라 참
 const SHIPPED = (f) => S2_LIVE || !f.startsWith('js/s2/');
-const ALL = JS_FILES.map(read).join('\n') + read('index.html') + read('sw.js');
+const ALL = JS_FILES.map(read).join('\n') + read('classic.html') + read('index.html') + read('sw.js');
 
 let fail = 0;
 const ok = (c, name, info = '') => {
@@ -136,7 +136,7 @@ console.log('\n=== 3. 서비스워커가 받아 두는 것 ↔ 실제 파일 ===
   const artFiles = walk('art');
   // v355 art/hero3(머리+옷 한 장 242장 · 11MB)는 미리 받지 않는다 — 고른 조합만 그때 받고 sw가 받은 것을 담아 둔다(없으면 옛 조각으로 그린다)
   // v492 새 시즌 그림(art/s2)은 교체 전까지 지금 게임이 쓰지 않는다 — 미리 받지 않는다(교체 때 SHIPPED로 들어감)
-  const unlisted = artFiles.filter((f) => !f.startsWith('art/hero3/') && (S2_LIVE || !f.startsWith('art/s2/')) && !sw.includes(`'${f}'`));
+  const unlisted = artFiles.filter((f) => !f.startsWith('art/hero3/') && !f.startsWith('art/s2/') && !sw.includes(`'${f}'`));
   ok(unlisted.length === 0, '구워 둔 그림을 sw.js가 전부 알고 있다',
     unlisted.length ? `모름: ${unlisted.slice(0, 6).join(', ')}${unlisted.length > 6 ? ` 외 ${unlisted.length - 6}` : ''}` : `${artFiles.length}장`);
   // 판 번호가 둘 다 같아야 한다
@@ -200,12 +200,12 @@ console.log('\n=== 5. index.html의 id ↔ 코드가 찾는 id ===');
   const isS2ui = (f) => f.startsWith('js/s2/ui/');
   // 코드가 만들어 붙이는 것은 뺀다
   const made = new Set([...ALL.matchAll(/\{\s*id:\s*'([a-zA-Z0-9_-]+)'/g)].map((m) => m[1]));
-  const have = idsOf(read('index.html')), wanted = want(JS_FILES.filter((f) => !isS2ui(f)));
-  const have2 = idsOf(read('s2.html')), wanted2 = want(JS_FILES.filter(isS2ui));
+  const have = idsOf(read('classic.html')), wanted = want(JS_FILES.filter((f) => !isS2ui(f)));
+  const have2 = idsOf(read('index.html')), wanted2 = want(JS_FILES.filter(isS2ui));
   // 새 시즌 화면이 innerHTML로 만들어 붙이는 id(길잡이 카드 · 무공 단추)
   for (const m of JS_FILES.filter(isS2ui).map(read).join('\n').matchAll(/\bid="([a-zA-Z0-9_-]+)"/g)) have2.add(m[1]);
   const miss = [...[...wanted].filter((i) => !have.has(i) && !made.has(i)), ...[...wanted2].filter((i) => !have2.has(i) && !made.has(i)).map((i) => `s2:${i}`)].sort();
-  ok(miss.length === 0, '코드가 찾는 id가 화면에 전부 있다(지금 게임 index.html · 새 시즌 s2.html)',
+  ok(miss.length === 0, '코드가 찾는 id가 화면에 전부 있다(옛 게임 classic.html · 새 시즌 index.html)',
     miss.length ? `없음: ${miss.join(', ')}` : `${wanted.size}개`);
 }
 
