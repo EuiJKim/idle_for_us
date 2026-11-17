@@ -91,6 +91,8 @@ const ok = (c, m, x = '') => { console.log(`  ${c ? '✓' : '✗ !!'} ${m}${x !=
     ok(await page.isVisible('.chbin') && /장 두목/.test(await page.textContent('.chbin')), 'v532 장 두목 등장 컷');
     await page.waitForTimeout(1900);
     ok(await page.isVisible('#contest-hud.chb') && /×3/.test(await page.textContent('#contest-pct')) && await page.isVisible('#cb-ggb'), 'v532 장 두목 막대 세 줄 · 무력화 게이지', await page.textContent('#contest-pct'));
+    { const vis = await page.isVisible('#ds'), d = await page.evaluate(() => { const F = window.__s2.g.bossFight, H = F.hero; F.press({ auto: false }); H.x = 6000; const x0 = H.x; window.__s2.g.dash(); for (let i = 0; i < 8; i++) F.step(); F.press({ auto: true }); return Math.abs(H.x - x0); });
+      ok(vis && d >= 2500, 'v546 두목전: 회피 단추 · 누르면 3미터', `보임 ${vis} · ${d}mm`); }
     await page.evaluate(() => { const g = window.__s2.g; g.endChallenge(false); g.stage().auto = true; });
     await page.waitForTimeout(500); if (await page.isVisible('#res.open')) await page.click('#rout');
     // v541 장 두목 토벌 — 던전 → 토벌 「토벌」 → 장 두목 싸움(칸 진행 그대로) → 이기면 별 결과

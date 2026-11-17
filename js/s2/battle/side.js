@@ -13,6 +13,8 @@ import { CB_PATS, CB, WBF } from '../tables/chboss.js';
 export const RUN = 4200, MOB_RUN = 1600, GRAV = 22000, JUMP_V = 11000, SAME_Y = 500;   // mm/s · mm/s² · mm
 export const MAIN_HITS = 4;          // 주력 무공은 앞쪽 여러 마리(장르 공통 — 한 번에 쓸어 담는 맛)
 const DT = TICK_MS / 1000;
+// v546 회피(대시) — 누르면 0.25초에 3미터 · 0.4초 무적 · 1.8초마다. 붉은 범위가 터지기 0.45초 안에 범위 안에서 빠져나가면 「완벽 회피」 → 4초 동안 주는 피해 ×1.3
+export const DASH = { ms: 250, dist: 3000, invMs: 400, cdMs: 1800, perfectMs: 450, buffMs: 4000, buffX: 1.3 };
 
 // 맵 하나: 너비 w · 발판 줄(바닥 + 위층 2~3단) · 몹 자리(발판마다)
 export function makeSideMap(seed, { w = 26000, tiers = 3, gap = 2300 } = {}) {
@@ -75,6 +77,7 @@ export class SideFight {
     if (a.dir !== undefined) this.input.dir = Math.sign(a.dir);
     if (a.jump) this.wantJump = true;
     if (a.down) this.wantDown = true;
+    if (a.dash) this.wantDash = true;
     if (a.auto !== undefined) this.auto = !!a.auto;
   }
   platAt(x, yTop, yBot, skip = -1) {
@@ -106,6 +109,14 @@ export class SideFight {
     // ── 무인 움직임 ──
     let dir = this.input.dir, jump = this.wantJump, down = this.wantDown, dodge = false;
     this.wantJump = this.wantDown = false;
+    if (this.wantDash) {
+      this.wantDash = false;
+      if (this.t >= (H.dashReady || 0)) {
+        H.dashDir = Math.sign(this.input.dir) || H.face || 1; H.face = H.dashDir;
+        H.dashAt = this.t; H.dashX0 = H.x; H.dashUntil = this.t + DASH.ms; H.invUntil = this.t + DASH.invMs; H.dashReady = this.t + DASH.cdMs;
+        this.events.push(['dash', this.t, H.dashDir]);
+      }
+    }
     let tgt = this.mobs.find((m) => m.id === H.target);
     if (this.auto && dir === 0) {
       // 4초 안에 닿지 못하면(다른 층 · 길 없음) 잠깐 제쳐 두고 다른 몹
@@ -154,6 +165,7 @@ export class SideFight {
     if (dir) { if (H.mdir !== dir) { H.spd = H.mdir === -dir ? 200 : (H.spd || 0); H.mdir = dir; } H.spd = Math.min(1000, (H.spd || 0) + 360); H.face = dir; }
     else H.spd = Math.max(0, (H.spd || 0) - 500);
     if (H.spd > 0 && H.mdir) { H.x = Math.max(200, Math.min(map.w - 200, H.x + Math.round((H.mdir * RUN * DT * H.spd) / 1000))); H.act = 'run'; }
+    if (this.t < (H.dashUntil || 0) + TICK_MS && this.t > (H.dashAt ?? -1)) { H.x = Math.max(200, Math.min(map.w - 200, H.x + H.dashDir * Math.round((DASH.dist * TICK_MS) / DASH.ms))); H.act = 'dash'; }   // v546
     if (H.plat >= 0) {
       const p = map.plats[H.plat];
       if (jump) { H.vy = JUMP_V; H.drop = H.plat; H.plat = -1; H.act = 'jump'; }
@@ -218,9 +230,12 @@ export class SideFight {
           continue;
         }
         if (q.move) { const p2 = map.plats[m.plat]; m.x = Math.max(p2.x0 + 300, Math.min(p2.x1 - 300, q.x + q.dir * q.w / 2 - q.dir * 600)); }   // 돌진: 범위 끝까지
-        const inside = q.shape === 'ult' ? !(H.x >= q.safe[0] && H.x <= q.safe[1]) : Math.abs(H.x - q.x) <= q.w / 2 && Math.abs(H.y - q.y) <= SAME_Y + 600;
-        this.events.push(['burst', this.t, m.id, q.id, q.x, q.y, q.w, inside ? 1 : 0]);
-        if (inside) {
+        const inZ = (x) => (q.shape === 'ult' ? !(x >= q.safe[0] && x <= q.safe[1]) : Math.abs(x - q.x) <= q.w / 2 && Math.abs(H.y - q.y) <= SAME_Y + 600);
+        const inside = inZ(H.x), inv = this.t < (H.invUntil || 0);
+        this.events.push(['burst', this.t, m.id, q.id, q.x, q.y, q.w, inside && !inv ? 1 : 0]);
+        // v546 완벽 회피 — 범위 안에서 터지기 직전(0.45초 안)에 회피를 눌러 맞지 않음
+        if (H.dashAt != null && this.t - H.dashAt <= DASH.perfectMs && inZ(H.dashX0) && (!inside || inv)) { H.perfUntil = this.t + DASH.buffMs; this.perfects = (this.perfects || 0) + 1; this.events.push(['perfect', this.t, m.id]); }
+        if (inside && !inv) {
           const r = hit({ ...m, st: { ...m.st, atk: Math.round(m.st.atk * q.dmgX) } }, H, SKILL_BASE, this.rng);
           H.hp -= r.dmg; this.dmgIn += r.dmg; this.events.push(['hurt', this.t, r.dmg]);
           if (H.hp <= 0) { this.deaths++; H.hp = H.st.hp; this.events.push(['die', this.t]); }
@@ -328,7 +343,8 @@ export class SideFight {
   strike(m, skill, hitNo = 0, att = null) {
     const r = hit(att || this.hero, m, skill, this.rng);
     if (m.stunUntil > this.t) r.dmg = Math.round(r.dmg * CB.stunDmgX);   // v532 기절한 두목은 피해 ×2
-    if (m.cb?.wb) r.dmg = Math.round(r.dmg * (this.wbWeak() ? WBF.weakX : WBF.guardX));   // v535 월드보스: 방어 자세 ×0.6 · 약점 ×1.8
+    if (m.cb?.wb) r.dmg = Math.round(r.dmg * (this.wbWeak() ? WBF.weakX : WBF.guardX));
+    if (!att && !skill.pal && this.t < (this.hero.perfUntil || 0)) r.dmg = Math.round(r.dmg * DASH.buffX);   // v546 완벽 회피 뒤 4초   // v535 월드보스: 방어 자세 ×0.6 · 약점 ×1.8
     m.hp -= r.dmg; m.angry = true; this.dmgOut += r.dmg; if (r.crit) this.crits++;
     const cb = m.cb;
     if (cb && m.hp > 0) {

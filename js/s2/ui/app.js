@@ -24,6 +24,7 @@ import { kindGrade } from '../grow/collect.js';
 import { loadLooks, zoneFor, drawHero, drawMob, mobName, mobHeight, preloadMobs, drawPaintedBack, drawPaintedLedge, drawEarth, chbImg, preloadChapter, fxImg, oldImg, tintImg, ULT_ART, SEAL_ART, CUT_ART, BUFF_ART, BOSS_ART, wearCount } from './look.js';
 import { BOSS_PATS } from '../tables/kit.js';
 import { CHBOSS, CB_PATS, CB, WBF, CB_RAID } from '../tables/chboss.js';
+import { DASH } from '../battle/side.js';   // v546 회피
 import { ATTEND, ATTEND_DAYS, ATTEND_NAME } from '../tables/attend.js';
 import { TITLES, TITLE_EACH, titleByName } from '../tables/titles.js';
 import { play, unlock, setOpt, bgm } from './sound.js';
@@ -542,7 +543,7 @@ function paintWin() {
     c1(R('피해 숫자', { all: '전부', crit: '치명만', off: '끄기' }[opt.nums], [['바꾸기', () => { opt.nums = { all: 'crit', crit: 'off', off: 'all' }[opt.nums]; saveOpt(); paintWin(); }]], '數'));
     c1(R('그래픽', opt.gfx === 'low' ? '낮음(배터리 아낌 · 흙먼지 · 은자 연출 끔)' : '높음', [['바꾸기', () => { opt.gfx = opt.gfx === 'low' ? 'high' : 'low'; saveOpt(); paintWin(); }]], '畵'));
     const c4 = card('전투');   // v540
-    c4(R('두목 패턴 자동 피하기', g.S.dodge !== false ? '켜짐 — 자동 전투 때 붉은 범위 밖으로 비켜요' : '꺼짐 — 붉은 범위는 직접 피해야 해요(맞으면 크게 아파요)', [[g.S.dodge !== false ? '켜짐' : '꺼짐', () => { g.setDodge(g.S.dodge === false); play('click'); save(); paintWin(); }]], '避'));
+    c4(R('두목 패턴 자동 피하기', g.S.dodge !== false ? '켜짐 — 자동 전투 때 붉은 범위 밖으로 비켜요' : '꺼짐 — 붉은 범위는 회피 단추(점프 위 · Shift)로 직접 · 터지기 직전에 피하면 완벽 회피(피해 ×1.3) · 장 두목을 처음 깨면 강화석 +50', [[g.S.dodge !== false ? '켜짐' : '꺼짐', () => { g.setDodge(g.S.dodge === false); play('click'); save(); paintWin(); }]], '避'));
     const c3 = card('계정 · 저장', net.online ? (net.isGoogle() ? `Google · ${esc(net.email())}` : '이 기기만(Google 미연결)') : net.status === 'connecting' ? '연결 중…' : '오프라인 — 이 기기에만 저장');
     c3(R('Google 연결', net.isGoogle() ? '연결됨 — 다른 기기에서도 Google로 들어오면 이어서 해요' : '연결해 두면 기기를 바꾸거나 지워도 되살려요', [[net.isGoogle() ? '다른 계정' : '연결', () => { play('click'); if (net.isGoogle()) net.switchTo(null).then((d) => (d ? applyCloud(d) : toast('그 계정에는 새 시즌 진행이 없어요'))).catch((e) => toast(e?.message || '바꾸지 못했어요')); else linkGoogle(); }, !net.online]], 'G'));
     c3(R('서버에 저장', net.cloudAt ? `마지막 ${new Date(net.cloudAt).toLocaleString()} · 3분마다 저절로` : '3분마다 저절로 올려요', [['지금 저장', act(() => { cloudPush(true).then((ok) => toast(ok ? '서버에 저장했어요' : '저장하지 못했어요(오프라인?)')); return true; }), !net.online]], '雲'));
@@ -735,6 +736,7 @@ function paintHud() {
     padHold('pl', -1); padHold('pr', 1);
     $('pd').onpointerdown = (e) => { e.preventDefault(); g.down(); };
     $('jp').onpointerdown = (e) => { e.preventDefault(); g.jump(); };
+    $('ds').onpointerdown = (e) => { e.preventDefault(); g.dash(); };   // v546 회피
     $('au').onclick = () => { play('click'); g.setAuto(S.auto === false); toast(g.S.auto === false ? '수동 — ◀ ▶ 로 움직이고 점프 · 무공은 칸을 눌러요' : '자동 사냥'); save(); paintHud(); };
   }
   // 위 상태 줄: 얼굴 · 이름 · 전직 · Lv · 경험치 · 은자 · 뽑기권
@@ -862,6 +864,7 @@ const floats = [];
 const mobHit = new Map();   // 몹 id → 맞은 때(번쩍 · 밀림)
 let freezeUntil = 0;       // 큰 무공 적중 멈칫
 let slowUntil = 0;         // v532 느린 화면
+let dashAt = -1e9, dashTrail = [], perfAt = -1e9;   // v546 회피 잔상 · 완벽 회피
 const pals = [];           // 화면 위 동료(무인 뒤를 따라감)
 const JOB_COL = { sword: '#ffe9a8', spear: '#ffb27a', fist: '#ffd56a', bow: '#b6f0ff', mage: '#d4b8ff' };
 const PAL_COL = ['#7dd3fc', '#86efac', '#fde68a', '#f9a8d4', '#c4b5fd'];
@@ -1064,6 +1067,8 @@ function draw() {
     cx.strokeText(`${nm}!`, (x0 + x1) / 2, y0 - hh - 6); cx.fillText(`${nm}!`, (x0 + x1) / 2, y0 - hh - 6);
   }
   const H = F.hero, sc = 0.8 * k;
+  { const ds = $('ds'); if (ds) { const on = !!(g.bossFight || g.dg); if (ds.classList.contains('hidden') === on) ds.classList.toggle('hidden', !on); if (on) ds.style.setProperty('--cd', Math.max(0, ((H.dashReady || 0) - F.t) / DASH.cdMs).toFixed(3)); }
+    const pb = $('pbuf'), left2 = (H.perfUntil || 0) - F.t; if (pb) { const v = left2 > 0 && (g.bossFight || g.dg); pb.classList.toggle('hidden', !v); if (v) pb.textContent = `피해 ×${DASH.buffX} · ${(left2 / 1000).toFixed(1)}초`; } }   // v546 회피 단추 — 두목 · 던전 싸움에서만 · 쿨타임 그늘
   heroRun = H.act === 'run' || (H.px !== undefined && H.px !== H.x && H.plat >= 0) ? 6 : Math.max(0, heroRun - 1);
   if (F !== lastFight) { if (lastFight) { stageFadeAt = t; const T2 = g.stage(); stageBanner = g.bossFight ? '두목전' : `Stage ${((T2.idx - 1) % 10) + 1}/10`; } lastFight = F; firstSeen.clear(); lastNext.clear(); atkAt.clear(); hpLag.clear(); corpses.length = 0; mobHit.clear(); }   // 싸움이 바뀌면(두목전 · 칸 이동) 몹 번호가 새로 시작
   // 쓰러지는 몹(처치된 뒤 0.5초) — 뒤로 넘어가며 흐려지고 가라앉는다
@@ -1197,6 +1202,10 @@ function draw() {
     cx.globalAlpha = 0.5 * al; cx.fillStyle = '#fff'; cx.fillRect(hx - bw * 0.12, 0, bw * 0.24, hy);
     cx.restore();
   }
+  // v546 회피 잔상 — 대시하는 0.3초 동안 지나온 자리에 옅은 그림자
+  if (t - dashAt < 300) dashTrail.push({ x: hx, y: hy, at: t });
+  dashTrail = dashTrail.filter((d) => t - d.at < 240);
+  for (const d of dashTrail) { cx.save(); cx.globalAlpha = 0.35 * (1 - (t - d.at) / 240); cx.filter = 'brightness(1.8) saturate(0.3)'; drawHero(cx, d.x, d.y, g.S.hero.job, g.S.hero.lv, { t: ts, run: true, turn, pose, scale: sc, eq: g.S.gear.eq }); cx.restore(); }
   drawHero(cx, hx, hy, g.S.hero.job, g.S.hero.lv, { t: ts, run: heroRun > 0, turn, pose, lunge: pose ? 0 : Math.max(0, 1 - (t - lastHitAt) / 160), scale: sc, eq: g.S.gear.eq });
   cx.restore();
   // 레벨 업: 무인 위로 빛기둥과 고리(0.9초)
@@ -1355,6 +1364,8 @@ function frame() {
       else if (e[0] === 'summon') addLog('두목이 졸개를 불렀다');
       else if (e[0] === 'wbw') { if (e[2]) { chbBanner('약점 노출!', `10초 · 받는 피해 ×${WBF.weakX} — 무공을 몰아 쓰세요`, 'stun'); play('rare', 4); shakeUntil = t + 300; } else chbBanner('방어 자세', `받는 피해 ×${WBF.guardX}`, 'rage'); }
       else if (e[0] === 'hurt') play('hurt');
+      else if (e[0] === 'dash') { dashAt = t; play('swish'); }
+      else if (e[0] === 'perfect') { perfAt = t; slowUntil = t + 650; shakeUntil = t + 160; play('rare', 5); buzz([30, 40, 30]); chbBanner('완벽 회피!', `${DASH.buffMs / 1000}초 동안 주는 피해 ×${DASH.buffX}`, 'stun'); addLog('완벽 회피!'); }
       else if (e[0] === 'die') { play('down'); buzz(200); }
       else if (e[0] === 'burst') { tells.delete(e[2]); skillFx.push({ at: t, shape: 'boss', pat: e[3], x: e[4], y: e[5], w: e[6] }); shakeUntil = t + (e[7] ? 420 : 220); if (e[7]) { hurtFlash = t; buzz(60); } play('burst'); }
       else if (e[0] === 'kill') { if (e[3] === 'boss' && g.lastFight?.def?.chb) { slowUntil = t + 900; shakeUntil = t + 700; chbBanner('BOSS DEFEATED', '', 'win'); } play('kill'); if (killLog.length < 500) killLog.push(t); const m = mobs.get(e[2]); if (m && coins.length < 40) for (let j = 0; j < (m.kind === 'mob' ? 2 : 6); j++) coins.push({ x: m.x, y: m.y + 600, vx: ((j % 3) - 1) * 900 + ((m.id * 7 + j * 13) % 9 - 4) * 120, vy: 5200 + (j % 2) * 1500, at: t, j }); if (m && corpses.length < 30) corpses.push({ m: { id: m.id, kind: m.kind }, x: m.x, y: m.y, dir: m.dir || 1, at: t + 40 }); firstSeen.delete(e[2]); lastNext.delete(e[2]); atkAt.delete(e[2]); hpLag.delete(e[2]); if (m && skillFx.length < 90) skillFx.push({ at: t, shape: 'ring', x: m.x, y: m.y }); }
@@ -1404,7 +1415,7 @@ function showResult(f) {
         <div class="rtitle">${f.chb ? 'BOSS DEFEATED' : 'STAGE CLEAR'}</div>
         <div class="rmeta"><span>걸린 시간 <b>${sec}초</b></span>${f.deaths ? `<span>쓰러짐 <b>${f.deaths}</b></span>` : ''}</div>
         ${f.chb?.first ? `<div class="rnew cbfirst"><img src="art/s2/chb/chb${f.chb.ch}.webp" alt=""><div><small>첫 처치 · 칭호</small><b>「${esc(f.chb.name)} 격파」</b><span class="g${f.chb.gear?.g}t">확정 장비 — ${GRADES[f.chb.gear?.g] || ''}품${f.chb.gear?.up ? '上' : ''} ${SLOT_NAME[f.chb.gear?.slot] || ''}</span></div></div>` : ''}
-        <div class="rtiles">${tile('s', f.gold, '은자', 0)}${tile('t', f.tix + (f.chb?.tix2 || 0), '뽑기권', 1)}${f.chb?.stones ? tile('st', f.chb.stones, '강화석', 2) : ''}</div>
+        <div class="rtiles">${tile('s', f.gold, '은자', 0)}${tile('t', f.tix + (f.chb?.tix2 || 0), '뽑기권', 1)}${f.chb?.stones || f.chb?.manual ? tile('st', (f.chb.stones || 0) + (f.chb.manual || 0), '강화석', 2) : ''}</div>${f.chb?.manual ? `<div class="rnew">자동 피하기 없이 첫 처치 — 강화석 +${f.chb.manual}</div>` : ''}
         <div class="rnext">${newCh ? `<em>새 장</em> ${nch}장 ${esc(chapterName(f.next))}` : `다음 · Stage ${nst}/10`}</div>
         <div class="racts"><button class="btn primary rgo" id="rout"><span>다음 스테이지 ▶</span><i class="rbar"></i></button></div>
         <label class="rauto"><input type="checkbox" id="rautochk" ${auto ? 'checked' : ''}> 3초 뒤 자동 진행</label></div>`
@@ -1703,7 +1714,7 @@ function boot() {
 }
 document.addEventListener('visibilitychange', () => { if (!g) return; if (document.hidden) { save(); cloudPush(true); } else { returnQueue(); last = now(); } });
 window.addEventListener('pagehide', () => g && save());
-// 컴퓨터: ← → 움직이기 · Space/↑ 점프 · ↓ 내려가기 · Q 무공 · Del 자동
+// 컴퓨터: ← → 움직이기 · Space/↑ 점프 · ↓ 내려가기 · Shift/E 회피 · Q 무공 · Del 자동
 const keyDir = { ArrowLeft: -1, ArrowRight: 1 };
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') { if (!$('modal').classList.contains('hidden')) closeModal(); else closeWin(); return; }
@@ -1711,6 +1722,7 @@ document.addEventListener('keydown', (e) => {
   if (keyDir[e.key] && !e.repeat) g.hold(keyDir[e.key]);
   else if ((e.key === ' ' || e.key === 'ArrowUp') && !e.repeat) { e.preventDefault(); g.jump(); }
   else if (e.key === 'ArrowDown' && !e.repeat) g.down();
+  else if ((e.key === 'Shift' || e.key === 'e' || e.key === 'E') && !e.repeat) g.dash();   // v546 회피
   else if (e.key === 'q' || e.key === 'Q') g.ensureFight().press('skill');
   else if (e.key === 'Delete') { g.setAuto(g.S.auto === false); paintHud(); }
 });

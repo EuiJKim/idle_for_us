@@ -16,6 +16,7 @@ import { DAILY_DUNGEONS, DAILY_RUNS, JOB_DUNGEON } from './tables/content.js';
 import { GUIDE, DAILY_MISSIONS, WEEKLY_MISSIONS, achievements, guideCurrent } from './tables/missions.js';
 import { JOB_ADV } from './tables/skills.js';
 import { CHBOSS, CB, cbGearGrade, CB_REPEAT, WBF, CB_RAID, raidStars } from './tables/chboss.js';
+const CB_MANUAL_STONES = 50;   // v546
 const TODAY_CHEST = { tix: 3, goldMin: 30, dungeonRuns: 3 };   // v545 하루 상자
 import { ATTEND, ATTEND_DAYS } from './tables/attend.js';
 import { TITLE_EACH, titleByName } from './tables/titles.js';
@@ -257,6 +258,8 @@ export class Game {
       chb = { ch, name: CHBOSS[ch].name, title: CHBOSS[ch].title, first, gear: null, stones: 0, tix2: 0 };
       if (win) {
         rec[ch] = (rec[ch] || 0) + 1;
+        // v546 「두목 패턴 자동 피하기」를 끄고 처음 깨면(장마다 한 번) 강화석 더
+        if (BF.autoDodge === false && !(this.S.chbMan ??= {})[ch]) { this.S.chbMan[ch] = 1; chb.manual = CB_MANUAL_STONES; this.S.wallet['item:stone'] = (this.S.wallet['item:stone'] || 0) + CB_MANUAL_STONES; }
         if (first) { this.emit('chboss'); const it = GR.makeGear(this.rng, SLOTS[this.rng.int(SLOTS.length)], cbGearGrade(ch)); chb.gear = { g: it.g, slot: it.slot, up: it.up }; this.obtain([it]); (this.S.titles ??= []).push(`${CHBOSS[ch].name} 격파`); }
         else { const dd = (this.S.chbDay ??= {}), dk = dayKey(this.now); if (dd[ch] !== dk) { dd[ch] = dk; chb.stones = CB_REPEAT.stones; chb.tix2 = CB_REPEAT.tix; this.S.wallet['item:stone'] = (this.S.wallet['item:stone'] || 0) + chb.stones; this.S.wallet['ticket:gear'] = (this.S.wallet['ticket:gear'] || 0) + chb.tix2; } }   // 다시 깬 보상은 장마다 하루 한 번
       }
@@ -267,6 +270,7 @@ export class Game {
   hold(dir) { this.ensureFight().press({ dir }); }
   jump() { this.ensureFight().press({ jump: 1 }); }
   down() { this.ensureFight().press({ down: 1 }); }
+  dash() { this.ensureFight().press({ dash: 1 }); }   // v546 회피
   // v540 자동 전투 때 두목 패턴 피하기(켜 두면 붉은 범위 밖으로 비킨다 · 끄면 직접 피해야 한다) — 지금 싸움에도 바로
   setDodge(on) { this.S.dodge = !!on; for (const F of [this.fight, this.bossFight, this.dg?.F]) if (F) F.autoDodge = !!on; }
   setAuto(on) { this.S.auto = !!on; this.ensureFight().press({ auto: !!on }); if (this.fight && this.bossFight) this.fight.press({ auto: !!on }); }

@@ -166,6 +166,12 @@
     .cmp { max-height: 46vh; overflow-y: auto; } html.rot .cmp { max-height: 46vw; }
     html.h500 .cmp-h img { width: 44px; height: 44px; } html.h500 .cmp-h { margin-bottom: 4px; } html.h500 .cmp-r { padding: 2px 8px; font-size: 12px; } html.h500 #modal .sheet { padding: 12px 14px; } html.h500 #modal h2 { margin-bottom: 4px; font-size: 16px; }
     .cmp .up, .cmp-h .up { color: #86efac; } .cmp .dn, .cmp-h .dn { color: #fca5a5; }
+    /* v546 회피 — 두목 · 던전 싸움에서만 점프 위에 */
+    #sk > #ds { position: absolute; right: 8px; bottom: calc(100% + 10px); width: 58px; height: 58px; border-radius: 50%; border: 3px solid rgba(125,211,252,.85); background: radial-gradient(circle at 50% 35%, rgba(20,60,90,.9), rgba(5,15,25,.9)); box-shadow: 0 0 14px rgba(56,189,248,.45); }
+    #sk > #ds.hidden { display: none; } #ds .ic { width: 28px; height: 28px; stroke: #e0f2fe; stroke-width: 2.6; }
+    #ds i { position: absolute; inset: 0; border-radius: 50%; background: conic-gradient(rgba(0,0,0,.65) calc(var(--cd, 0) * 1turn), transparent 0); pointer-events: none; }
+    html.w800 #sk > #ds { width: 52px; height: 52px; }
+    #sk > #pbuf { position: absolute; right: 0; bottom: calc(100% + 76px); white-space: nowrap; padding: 3px 9px; border-radius: 999px; font-size: 12px; font-weight: 900; color: #e0f2fe; background: rgba(8,47,73,.85); border: 1px solid #7dd3fc; box-shadow: 0 0 10px rgba(56,189,248,.5); pointer-events: none; } #sk > #pbuf.hidden { display: none; }
     /* v544 오늘 할 일 */
     .td-row.td-done { opacity: .6; } .td-row.td-done .ico { color: #86efac; }
     .td-chest { display: flex; gap: 12px; align-items: center; padding: 10px 14px; margin: 2px 0 8px; border-radius: 12px; background: rgba(0,0,0,.3); border: 1px dashed rgba(255,255,255,.2); }
@@ -526,7 +532,7 @@
         <button class="nb" data-tab="dgn"><svg class="ic" viewBox="0 0 24 24"><path d="M4 21V9l8-6 8 6v12"/><path d="M9 21v-6a3 3 0 0 1 6 0v6"/></svg><span>던전</span></button>
       </nav>
       <div id="pad" class="hidden"><button id="pl" aria-label="왼쪽">◀</button><button id="pd" aria-label="내려가기">▼</button><button id="pr" aria-label="오른쪽">▶</button></div>
-      <div id="sk"><button id="au" class="on">자동</button><div id="slots" style="display:contents"></div><button id="jp" aria-label="점프"><svg class="ic" viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button></div>
+      <div id="sk"><button id="au" class="on">자동</button><div id="slots" style="display:contents"></div><div id="pbuf" class="hidden"></div><button id="ds" class="hidden" aria-label="회피"><svg class="ic" viewBox="0 0 24 24"><path d="M4 12h11M11 6l6 6-6 6M19 5v14"/></svg><i></i></button><button id="jp" aria-label="점프"><svg class="ic" viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button></div>
       <div id="xpl"><span id="xp-txt">EXP 0.00%</span><div id="xp-bar"><i id="xp-fill"></i></div></div>
       <div id="res"></div>
     </section>

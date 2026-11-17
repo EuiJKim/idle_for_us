@@ -1058,6 +1058,33 @@ console.log('\n=== v545 하루 상자 ===');
   ok(g.claimToday() === null && g.todayChest().got, '하루 한 번');
 }
 
+console.log('\n=== v546 회피(대시) · 완벽 회피 ===');
+{
+  const SD = await import('../js/s2/battle/side.js');
+  const T0 = 1.8e12, mk = () => { const g = new Game(newGame('sword', T0, 4), T0); g.addExp(EX.cumExp(18)); g.tick(T0); g.S.dodge = false; const T = g.stage(); T.idx = 10; T.top = 10; T.kills = STAGE_KILLS; g.challenge(); return g; };
+  // 회피: 3미터 · 쿨타임
+  { const g = mk(), F = g.bossFight, H = F.hero; F.press({ auto: false }); const x0 = H.x; g.dash(); for (let i = 0; i < 8; i++) F.step();
+    const d1 = Math.abs(H.x - x0); g.dash(); F.step(); F.step();
+    ok(d1 >= SD.DASH.dist * 0.9 && F.events.filter((e) => e[0] === 'dash').length === 1, '회피: 3미터 · 쿨타임 동안 다시 못 함', `${d1}mm`); }
+  // 붉은 범위가 터지기 직전 회피 → 안 맞고 완벽 회피(피해 ×1.3)
+  const setPat = (F, m, H, ms) => { m.angry = true; m.pat = { id: 'slam', at: F.t, end: F.t + ms, x: H.x, y: H.y, w: 3000, dmgX: 3, shape: 'circle', safe: null, dir: 1 }; m.nextPat = 1e12; };
+  { const g = mk(), F = g.bossFight, H = F.hero, m = F.mobs.find((x) => x.cb); F.press({ auto: false }); m.x = H.x + 8000; setPat(F, m, H, 300);
+    const hp0 = H.hp; g.dash(); for (let i = 0; i < 8; i++) F.step();
+    const per = F.events.some((e) => e[0] === 'perfect'), hurt = F.events.some((e) => e[0] === 'burst' && e[7] === 1);
+    ok(per && !hurt && H.perfUntil > F.t, '터지기 직전 회피 → 안 맞음 · 완벽 회피', `hp ${hp0} → ${H.hp}`);
+    m.hp = m.st.hp = 1e13; m.stunUntil = 0; const h0 = m.hp; F.strike(m, { coef: 100, base: true }); const dBuff = h0 - m.hp;
+    H.perfUntil = 0; const h1 = m.hp; F.strike(m, { coef: 100, base: true }); const dN = h1 - m.hp;
+    ok(dBuff > dN * 1.15, '완벽 회피 뒤 주는 피해 ×1.3', `${dBuff} / ${dN}`); }
+  // 안 피하면 맞는다(자동 피하기 끔)
+  { const g = mk(), F = g.bossFight, H = F.hero, m = F.mobs.find((x) => x.cb); F.press({ auto: false }); m.x = H.x + 8000; setPat(F, m, H, 300);
+    for (let i = 0; i < 8; i++) F.step();
+    ok(F.events.some((e) => e[0] === 'burst' && e[7] === 1) && !F.events.some((e) => e[0] === 'perfect'), '안 피하면 맞는다'); }
+  // 자동 피하기를 끄고 처음 깬 장 두목 → 강화석 50(장마다 한 번)
+  { const g = mk(), F = g.bossFight, m = F.mobs.find((x) => x.cb); m.hp = 0; F.killsBy.boss = 1; const s0 = g.S.wallet['item:stone'] || 0; g.endChallenge(true);
+    const f = g.feed.filter((x) => x.k === 'stage-clear').at(-1);
+    ok(f.chb.manual === 50 && g.S.wallet['item:stone'] - s0 >= 50 && g.S.chbMan[1] === 1, '자동 피하기 끄고 처음 깨면 강화석 50'); }
+}
+
 console.log('\n=== S0 규칙 ===');
 {
   const files = [];
