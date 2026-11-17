@@ -631,7 +631,7 @@ function paintWin() {
     const c0 = card(`대결 점수 ${P.score}`, `오늘 ${used}/5번`);
     pvpFetch(); pvpInbox();
     g.pvpOpponents().forEach((o, i) => c0(R(`${esc(o.name)} <small>${JOBS[o.f.job].name} Lv ${o.f.lv}</small> ${o.real ? '<span class="pill pv-real">무인</span>' : '<span class="pill">연습</span>'}`, `대결 전투력 ${fmt(o.pw)}${o.real ? ` · 점수 ${o.score}` : ''}`,
-      [['도전', act(() => { const r = g.pvpFight(i); if (r) { if (r.oppUid) net.pvpLog(r.oppUid, { name: g.S.nick, win: r.win, d: r.defD, seed: r.d }).catch(() => {}); rankPush(); closeWin(); duelShow(r); } return r; }), used >= 5]], JOBS[o.f.job].name[0])));
+      [['도전', act(() => { const r = g.pvpFight(i); if (r) { if (r.oppUid) net.pvpLog(r.oppUid, { name: g.S.nick, win: r.win, d: r.defD, seed: r.d }).catch(() => {}); rankPush(); closeWin(); duelShow(r); } return r; }), used >= 5], ...(o.real ? [['정보', () => { play('click'); playerCard(o.uid); }]] : [])], JOBS[o.f.job].name[0])));   // v568 진짜 상대 정보
     if (!g.pvpOpponents().some((o) => o.real)) c0(note(net.online ? '점수가 가까운 무인을 찾는 중 — 없으면 연습 상대와 겨뤄요' : '오프라인 — 연습 상대와 겨뤄요'));
     const log = g.S.pvp?.log || [];
     if (log.length) {
@@ -669,7 +669,7 @@ function paintWin() {
       const can = ph.phase - GS2.claimed;
       cR(R('단계 보상', can > 0 ? `${can}단계 받을 수 있어요` : `받은 단계 ${GS2.claimed}`, [['받기', act(() => { const r = g.graidClaim(tot, lvR); if (r) { play('coin'); toast(`문파 토벌 ${r.n}단계 — 뽑기권 ${r.tix} · 은자 ${unit(r.gold)}`); } return r; }), can <= 0]], '賞'));
       const rk = Object.entries(RD.dmg || {}).sort((a, b) => b[1] - a[1]);
-      if (rk.length) { const box = document.createElement('div'); box.className = 'rk-list'; box.innerHTML = rk.map(([id, v], i) => `<div class="rk-r ${id === net.uid ? 'me' : ''} ${i < 3 ? `top${i + 1}` : ''}"><b>${i + 1}</b><span>${esc(RD.names?.[id] || '무인')}</span><em>${unit(v)}</em></div>`).join(''); cR(box); }
+      if (rk.length) { const box = document.createElement('div'); box.className = 'rk-list'; box.innerHTML = rk.map(([id, v], i) => `<div class="rk-r ${id === net.uid ? 'me' : ''} ${i < 3 ? `top${i + 1}` : ''}" data-uid="${esc(id)}"><b>${i + 1}</b><span>${esc(RD.names?.[id] || '무인')}</span><em>${unit(v)}</em></div>`).join(''); box.onclick = (e) => { const row = e.target.closest('.rk-r[data-uid]'); if (row) { play('click'); playerCard(row.dataset.uid); } }; cR(box); }   // v568
     }
     c0(R('코드 알려 주기', `문파원을 부를 때 — ${G.id}`, [['복사', () => { play('click'); navigator.clipboard?.writeText(G.id).then(() => toast('코드를 복사했어요'), () => toast(G.id)); }]], '碼'));
     // v552 문파 수련 — 오늘 할 일을 끝낼수록 막대가 찬다 · 다 차면 모두 보상
@@ -691,7 +691,7 @@ function paintWin() {
     for (const id of G.memberIds) {
       const p2 = guildState.prof?.[id] || {}, nm = p2.nickname || G.members?.[id] || '무인';
       const r = R(`${esc(nm)}${id === G.owner ? ' <span class="pill pv-real">문주</span>' : ''}${id === net.uid ? ' <small>(나)</small>' : ''}`, p2.lv ? `${esc(JOBS[p2.job]?.name || '')} Lv ${p2.lv} · 전투력 ${unit(p2.power || 0)}` : '새 시즌 기록 없음(옛 게임만)', [], G.checkins?.[id] === dk ? '✓' : '·');
-      if (id === net.uid) r.classList.add('gd-me'); c1(r);
+      if (id === net.uid) r.classList.add('gd-me'); r.classList.add('pc-open'); r.onclick = (e) => { if (e.target.closest('button')) return; play('click'); playerCard(id); }; c1(r);   // v568 누르면 무인 정보
     }
     c1(R('문파 나가기', '나가면 다시 코드로 들어와야 해요', [['나가기', () => { play('click'); if (!confirm(`「${G.name}」에서 나갈까요?`)) return; guildDo(() => net.guildLeave(G.id).then(() => null), '문파에서 나왔어요'); }]], '出'));
     }

@@ -111,6 +111,9 @@ async function device(b) {
   assert(gd.n === 2 && gd.exp === 20 && gd.chk && gd.ok && gd.r, 'D: 코드로 들어가 출석 → 문파 경험치 +20 · 보상');
   await D.page.click('[data-tab="social"] >> nth=0'); await D.page.click('#panel-body .subtabs button:has-text("문파")'); await sleep(2000);
   { const tx = await D.page.textContent('#panel-body'); assert(/시험문파/.test(tx) && (await D.page.$$('#wb .row:has-text("전투력")')).length === 2, 'D: 무림 → 문파 화면(이름 · 문파원 둘) ' + tx.slice(0, 120)); }
+  await D.page.click('#wb .row.pc-open >> nth=0'); await sleep(1500);   // v568 문파원을 누르면 무인 정보
+  assert(/무인 정보/.test(await D.page.textContent('#modal')) && await D.page.isVisible('#modal .pc canvas'), 'D: 문파원 줄 → 무인 정보');
+  await D.page.click('#modal .btn:has-text("확인")'); await sleep(200);
   await D.page.click('#panel-close');
   // v550 문파 토벌 — 둘이 피해를 보태면 합 · 이름이 문파 문서에
   const gr = await D.page.evaluate(async (c) => { const n = window.__s2.net, wk = window.__s2.wkStr(Date.now()); await n.graidHit(c, wk, 'D무인', 1000, 37); return n.graidGet(c, wk); }, gcode);
