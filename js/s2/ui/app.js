@@ -86,7 +86,9 @@ async function cloudPush(force) {
 // v547 서열 — 저장할 때 프로필도(바뀐 때만) · 월드보스는 칠 때마다 주간 점수
 const wkStr = (ms) => new Date(weekKey(ms) * 86400000).toISOString().slice(0, 10);   // 그 주 월요일(한국 날) — 10자
 function ensureNick() { if (!g.S.nick) g.setNick(`${JOBS[g.S.hero.job]?.name || '무인'}${(net.uid || '0000').slice(-4)}`); }
+let socialPre = false;
 function rankPush() {
+  if (!socialPre && net.online && g) { socialPre = true; guildLoad(true); if (guildState.wbLast === undefined) { guildState.wbLast = null; net.top('wb', wkStr(Date.now() - 7 * 86400000), 1).then((r) => { guildState.wbLast = r || { me: 0 }; navDots(); }).catch(() => { guildState.wbLast = { me: 0 }; }); } }
   if (!net.online || !g) return; ensureNick();
   net.pushProfile(g.rankProfile()).catch((e) => console.warn('[s2net] rank', e?.code || e));
   net.pushDeck(g.S.nick, g.pvpDeck(), g.S.pvp?.score ?? 1000, g.S.hero.lv).catch((e) => console.warn('[s2net] deck', e?.code || e));   // v548 방어 덱
@@ -127,8 +129,8 @@ function chatSend() {
   net.guildSay(g.S.guildId, g.S.nick, t).catch((e) => toast(e?.code === 'permission-denied' ? '보낼 수 없어요(문파원만)' : '보내지 못했어요'));
 }
 function guildLoad(force) {
-  if (!net.online || !g || guildState.busy || (!force && Date.now() - guildState.at < 30000)) return;
-  guildState.busy = true; guildState.at = Date.now();
+  if (!net.online || !g || guildState.busy || (!force && Date.now() - guildState.at < 30000 && guildState.for === (g.S.guildId || null))) return;
+  guildState.busy = true; guildState.at = Date.now(); guildState.for = g.S.guildId || null;   // v554 문파가 바뀌면 바로 다시
   (async () => {
     const G = g.S.guildId ? await net.guildGet(g.S.guildId).catch(() => null) : null;
     if (G && G.memberIds.includes(net.uid)) {
@@ -291,6 +293,21 @@ function paintNav() {
 // 빨간 점 — 지금 누를 게 있는 창(캐릭터: 전직 · 무공 점수 · 올릴 수 있는 무공 / 가방: 뽑기권 10장↑ / 마을: 길잡이 받기)
 const dotSeen = (() => { try { return JSON.parse(localStorage.getItem('ifu.s2.dots') || '{}'); } catch { return {}; } })();
 let dotSaved = '';
+// v554 무림에 받을 것이 있으면 이름표(빨간 점) — 서버에서 불러 둔 것만 본다(없으면 조용히)
+function socialTodo() {
+  if (!g) return '';
+  const out = [];
+  if (g.pvpWeekReward()) out.push('pvp');
+  const lastWk = wkStr(Date.now() - 7 * 86400000), wr = guildState.wbLast;
+  if (wr?.me && !g.S.wbGot?.[lastWk]) out.push('wb');
+  const G = guildState.g;
+  if (g.S.guildId && G) {
+    if (g.S.gChk !== dayKey(now())) out.push('gchk');
+    const RD = guildState.raid; if (RD) { const tot = Object.values(RD.dmg || {}).reduce((a, b) => a + b, 0), lvR = RD.lv || Math.max(10, Math.floor(g.S.hero.lv / 10) * 10); if (raidPhase(tot, graidHp0(lvR)).phase > g.graidState().claimed) out.push('raid'); }
+    const TR = guildState.train; if (TR && !g.gtrainState().got && Object.values(TR.pts || {}).reduce((a, b) => a + b, 0) >= GTRAIN.perMember * G.memberIds.length) out.push('train');
+  }
+  return out.join(',');
+}
 function navDots() {
   const S = g.S, h = g.hero, W = S.wallet;
   let kitUp = 0;
@@ -299,7 +316,8 @@ function navDots() {
   // v520 빨간 점은 「새로 생긴 할 일」만 — 늘 켜져 있던 것(올릴 무공이 거의 늘 있다)을, 그 창을 한 번 열면 다음 새 일까지 끈다
   const sig = { char: canAdv || tree > 0 || kitUp ? `${canAdv ? 1 : 0}|${tree}|${kitUp}|${S.hero.adv || 0}` : '', bag: tix >= 10 ? `${Math.floor(tix / 10)}` : '', town: (g.todayChest().can ? 'today' : '') || (cur && S.q.guide[cur.id]?.done ? cur.id : '') || (g.books.ach.claimable().length ? `ach${g.books.ach.claimable().length}` : '') };
   if (open && sig[open] !== undefined) dotSeen[open] = sig[open];
-  const on = { char: !!sig.char && sig.char !== dotSeen.char, bag: !!sig.bag && sig.bag !== dotSeen.bag, town: !!sig.town };
+  sig.social = socialTodo();   // v554 무림: 받을 것(주간 보상 · 문파 출석 · 토벌 단계 · 수련)
+  const on = { char: !!sig.char && sig.char !== dotSeen.char, bag: !!sig.bag && sig.bag !== dotSeen.bag, town: !!sig.town, social: !!sig.social };
   for (const b of document.querySelectorAll('.nb[data-tab], #ptabs button[data-tab]')) b.classList.toggle('dot-on', !!on[b.dataset.tab]);
   const ds = JSON.stringify(dotSeen); if (ds !== dotSaved) { dotSaved = ds; try { localStorage.setItem('ifu.s2.dots', ds); } catch { /* 저장 못 해도 */ } }
 }

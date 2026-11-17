@@ -93,6 +93,9 @@ async function device(b) {
   // v549 문파 — A가 만들고 D가 코드로 들어와 출석 · 명단에 둘 · 찾기 목록에 보임 · D 나가기
   const gcode = await A.page.evaluate(async () => { const c = await window.__s2.net.guildCreate('시험문파', '시험무인'); window.__s2.g.setGuild(c); return c; });
   assert(/^[A-Z2-9]{6}$/.test(gcode), `A: 문파 만들기 → 코드 ${gcode}`);
+  // v554 무림 빨간 점 — 문파에 들었는데 오늘 문파 출석 전
+  await A.page.evaluate(() => window.__s2.guildLoad(true)); await sleep(1500);
+  assert(await A.page.evaluate(() => document.querySelector('.nb[data-tab="social"]').classList.contains('dot-on')), 'A: 문파 출석 전 → 무림에 빨간 점');
   const listed = await D.page.evaluate(async (c) => (await window.__s2.net.guildList()).some((x) => x.id === c), gcode);
   assert(listed, 'D: 문파 찾기 목록에 보임');
   const gd = await D.page.evaluate(async (c) => { const n = window.__s2.net; await n.guildJoin(c, 'D무인'); window.__s2.g.setGuild(c); const G = await n.guildGet(c); const ok = await n.guildCheckin(G); const r = window.__s2.g.guildCheckin(); const G2 = await n.guildGet(c); return { n: G2.memberIds.length, exp: G2.exp, chk: G2.checkins[n.uid], ok, r: !!r }; }, gcode);
