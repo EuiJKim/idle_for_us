@@ -107,6 +107,7 @@ export class S2Net {
     const fs = this.fs, dk = S2Net.kstDay();
     if (g.checkins?.[this.uid] === dk) return false;   // 오늘 이미(옛 게임에서 했어도)
     await fs.updateDoc(fs.doc(this.db, 'guilds', g.id), { exp: fs.increment(20), [`checkins.${this.uid}`]: dk });
+    await this.guildPublish({ ...g, exp: (g.exp || 0) + 20 }).catch(() => {});   // v561 찾기 목록 · 문파 서열에도
     return true;
   }
   async guildRename(g, nick) {   // 문파 명단의 내 이름표
@@ -116,6 +117,15 @@ export class S2Net {
   async guildPublish(g) {
     if (!g) return;
     await this.fs.setDoc(this.fs.doc(this.db, 'guildlist', g.id), { name: g.name, n: g.memberIds.length, exp: g.exp || 0, at: this.fs.serverTimestamp() }, { merge: true });
+  }
+  // v561 문파 서열 — 찾기 목록(guildlist)을 경험치 순으로 · 내 문파 등수
+  async guildTop(myGid, n = 50) {
+    const fs = this.fs, col = fs.collection(this.db, 'guildlist');
+    const snap = await fs.getDocs(fs.query(col, fs.orderBy('exp', 'desc'), fs.limit(n)));
+    const rows = snap.docs.map((d) => ({ id: d.id, ...d.data() })).filter((x) => (x.n || 0) > 0);
+    let me = myGid ? rows.findIndex((x) => x.id === myGid) + 1 : 0, mine = null;
+    if (myGid && !me) { const d = await fs.getDoc(fs.doc(col, myGid)); if (d.exists()) { mine = d.data().exp || 0; me = (await fs.getCountFromServer(fs.query(col, fs.where('exp', '>', mine)))).data().count + 1; } }
+    return { rows, me, mine };
   }
   async guildList() {
     const fs = this.fs, snap = await fs.getDocs(fs.query(fs.collection(this.db, 'guildlist'), fs.orderBy('at', 'desc'), fs.limit(60)));

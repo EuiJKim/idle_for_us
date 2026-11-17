@@ -578,7 +578,7 @@ function paintWin() {
         [['받기', act(() => { const r = g.claimWbWeek(lastWk, wr?.me); if (r) { play('rare', 4); toast(`지난주 월드보스 ${r.rank}위 — 뽑기권 ${r.tix}`); } return r; }), !!wbGot || !wr?.me]], '龍'));
       if (net.online && wr === undefined && !wbGot) { guildState.wbLast = null; net.top('wb', lastWk, 1).then((r) => { guildState.wbLast = r || { me: 0 }; if (open === 'social') paintWin(); }).catch(() => { guildState.wbLast = { me: 0 }; }); }
     }
-    const MODES = [['power', '전투력'], ['lv', '레벨'], ['wb', '이번 주 월드보스']];
+    const MODES = [['power', '전투력'], ['lv', '레벨'], ['wb', '이번 주 월드보스'], ['guild', '문파']];   // v561 문파 서열
     const c0 = card('서열', net.online ? `이름 「${esc(g.S.nick || '(아직 없음)')}」 · 설정에서 바꿔요` : '오프라인 — 인터넷에 연결되면 보여요');
     const seg = document.createElement('div'); seg.className = 'seg rk-seg';
     for (const [m, nm] of MODES) { const b = document.createElement('button'); b.textContent = nm; b.className = m === rankMode ? 'on' : ''; b.onclick = () => { play('click'); rankMode = m; paintWin(); }; seg.append(b); }
@@ -587,7 +587,14 @@ function paintWin() {
     if (net.online) {
       rankPush();
       const mode = rankMode, fmtV = (v) => (mode === 'lv' ? `Lv ${v}` : unit(v || 0));
-      rankLoad(mode).then((r) => {
+      if (mode === 'guild') {   // v561 문파 서열 — 문파 경험치(출석 · 기부) 순
+        net.guildTop(g.S.guildId).then((r) => {
+          if (!box.isConnected || rankMode !== 'guild') return;
+          if (!r.rows.length) { box.innerHTML = '<p class="note">아직 문파가 없어요</p>'; return; }
+          box.innerHTML = r.rows.map((x, i) => `<div class="rk-r ${x.id === g.S.guildId ? 'me' : ''} ${i < 3 ? `top${i + 1}` : ''}"><b>${i + 1}</b><span>${esc(x.name || '문파')} <small>${x.n}/10명 · Lv ${1 + Math.floor((x.exp || 0) / 500)}</small></span><em>${unit(x.exp || 0)}</em></div>`).join('')
+            + `<div class="rk-me">${g.S.guildId ? (r.me ? `내 문파 <b>${r.me}위</b>` : '내 문파는 아직 목록에 없어요') : '문파에 들면 함께 올라가요'}</div>`;
+        }).catch((e) => { if (box.isConnected) box.innerHTML = `<p class="note">불러오지 못했어요(${esc(e?.code || '연결')})</p>`; });
+      } else rankLoad(mode).then((r) => {
         if (!box.isConnected || mode !== rankMode) return;
         if (!r || !r.rows.length) { box.innerHTML = '<p class="note">아직 아무도 없어요 — 처음이 되어 보세요</p>'; return; }
         box.innerHTML = r.rows.map((x, i) => `<div class="rk-r ${x.uid === net.uid ? 'me' : ''} ${i < 3 ? `top${i + 1}` : ''}"><b>${i + 1}</b><span>${esc(x.nickname || x.name || '무인')}${x.job ? ` <small>${esc(JOBS[x.job]?.name || '')}${mode !== 'lv' && x.lv ? ` · Lv ${x.lv}` : ''}</small>` : ''}</span><em>${fmtV(x.v)}</em></div>`).join('')

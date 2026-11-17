@@ -107,6 +107,9 @@ async function device(b) {
   const gr = await D.page.evaluate(async (c) => { const n = window.__s2.net, wk = window.__s2.wkStr(Date.now()); await n.graidHit(c, wk, 'D무인', 1000, 37); return n.graidGet(c, wk); }, gcode);
   const gr2 = await A.page.evaluate(async (c) => { const n = window.__s2.net, wk = window.__s2.wkStr(Date.now()); await n.graidHit(c, wk, '시험무인', 500, 40); return n.graidGet(c, wk); }, gcode);
   assert(Object.values(gr2.dmg).reduce((a, b) => a + b, 0) === 1500 && gr2.names && Object.keys(gr2.dmg).length === 2 && gr2.lv === 30 && gr.lv === 30, '문파 토벌: 둘의 피해가 모임(그 주 토벌 레벨은 첫 사람)');
+  // v561 문파 서열 — 출석으로 경험치가 오른 문파가 경험치 순 목록에 · 내 문파 등수
+  const gt = await D.page.evaluate(async (c) => { const r = await window.__s2.net.guildTop(c); return { has: r.rows.some((x) => x.id === c && x.exp >= 20), me: r.me }; }, gcode);
+  assert(gt.has && gt.me >= 1, `문파 서열: 출석한 문파가 경험치 순 목록에(${gt.me}위)`);
   // v552 문파 수련 — 둘의 점수가 모이고 내 점수는 내려가지 않음
   const tr = await A.page.evaluate(async (c) => { const n = window.__s2.net, wk = window.__s2.wkStr(Date.now()); await n.gtrainSet(c, wk, '시험무인', 5); await n.gtrainSet(c, wk, '시험무인', 3); return n.gtrainGet(c, wk); }, gcode);
   const tr2 = await D.page.evaluate(async (c) => { const n = window.__s2.net, wk = window.__s2.wkStr(Date.now()); await n.gtrainSet(c, wk, 'D무인', 4); return n.gtrainGet(c, wk); }, gcode);
