@@ -449,7 +449,7 @@ function paintWin() {
     const P = g.S.pvp || { score: 1000, used: 0, day: '', log: [] };
     const used = P.day === String(dayKey(now())) ? P.used : 0;
     const c0 = card(`대결 점수 ${P.score}`, `오늘 ${used}/5번`);
-    g.pvpOpponents().forEach((o, i) => c0(R(`${o.name} <small>${JOBS[o.f.job].name} Lv ${o.f.lv}</small>`, `대결 전투력 ${fmt(o.pw)}`, [['도전', act(() => { const r = g.pvpFight(i); if (r) pop(r.win ? '승리' : '패배', `<p>점수 ${r.d >= 0 ? '+' : ''}${r.d} → ${r.score} (${r.tier})</p>`); return r; }), used >= 5]], JOBS[o.f.job].name[0])));
+    g.pvpOpponents().forEach((o, i) => c0(R(`${o.name} <small>${JOBS[o.f.job].name} Lv ${o.f.lv}</small>`, `대결 전투력 ${fmt(o.pw)}`, [['도전', act(() => { const r = g.pvpFight(i); if (r) { closeWin(); duelShow(r); } return r; }), used >= 5]], JOBS[o.f.job].name[0])));
     const log = g.S.pvp?.log || [];
     if (log.length) { const c1 = card('지난 대결'); for (const l of log) c1(R(`${l.win ? '승' : '패'} · ${l.name}`, `${l.d >= 0 ? '+' : ''}${l.d}`, [], l.win ? '勝' : '敗')); }
   } else if (key === 'rival:2') {
@@ -1400,6 +1400,65 @@ function pwWatch(pw) {
     if (up && pct >= 0.03) play('coin');
     pwAcc = 0;
   }
+}
+// v539 대결 화면 — 대결은 능력치로 공정하게 정해지고(엔진) 화면은 그 기록을 그대로 다시 보여 준다.
+//   내 무인(왼쪽) · 상대(오른쪽)가 마주 서서 기록대로 친다 · 위에 두 체력 막대 · 피해 숫자 · 3·2·1 대결! → WIN / LOSE · 누르면 건너뛰기
+function duelShow(r) {
+  for (const o of document.querySelectorAll('.duel')) o.remove();
+  const ov = document.createElement('div'); ov.className = 'duel';
+  ov.innerHTML = `<canvas></canvas><div class="dl-top"><div class="dl-side me"><b>${esc(JOBS[g.S.hero.job].name)} · 나</b><div class="dl-bar"><i></i></div><small></small></div><div class="dl-vs">VS</div><div class="dl-side op"><b>${esc(r.opp.name)} · ${esc(JOBS[r.opp.job]?.name || '')} Lv ${r.opp.lv}</b><div class="dl-bar"><i></i></div><small></small></div></div><div class="dl-mid"></div><div class="dl-skip">누르면 건너뛰기</div>`;
+  $('battle').append(ov);
+  const cv = ov.querySelector('canvas'), cx = cv.getContext('2d'), mid = ov.querySelector('.dl-mid');
+  const bars = ov.querySelectorAll('.dl-bar i'), txt = ov.querySelectorAll('.dl-side small');
+  const speed = Math.max(1, r.ms / 9000), lead = 1800, t0 = now();
+  const hp = [r.myHp, r.opp.hp], left = [r.myHp, r.opp.hp], floats = [], atk = [0, 0];
+  const opEq = Object.fromEntries(['weapon', 'hat', 'top', 'bottom', 'glove', 'shoes', 'cape', 'belt', 'neck', 'ring'].map((sl) => [sl, { slot: sl, g: Math.min(6, Math.floor(r.opp.lv / 25)), up: 0, subs: [] }]));
+  let i = 0, done = false, endAt = 0;
+  const say = (h, cls) => { mid.className = `dl-mid ${cls || ''}`; mid.innerHTML = h; };
+  say('<b>3</b>'); play('tense');
+  setTimeout(() => !done && say('<b>2</b>'), 600); setTimeout(() => !done && say('<b>1</b>'), 1200); setTimeout(() => { if (!done) { say('<b>대결!</b>', 'go'); play('boss'); } }, 1700); setTimeout(() => { if (!done) say(''); }, 2300);
+  const finish = () => {
+    if (done) return; done = true;
+    while (i < r.log.length) { const e = r.log[i++]; left[e[1]] -= e[2]; }
+    endAt = now(); say(`<b>${r.win ? 'WIN' : 'LOSE'}</b><span>점수 ${r.d >= 0 ? '+' : ''}${r.d} → ${r.score} · ${esc(r.tier)}</span><em>누르면 닫기</em>`, r.win ? 'win' : 'lose');
+    play(r.win ? 'clear' : 'fail'); if (r.win) buzz(80);
+    addLog(`대결 ${r.win ? '승리' : '패배'} — ${r.opp.name} · 점수 ${r.d >= 0 ? '+' : ''}${r.d}`);
+  };
+  ov.onclick = () => { if (!done) finish(); else { ov.remove(); paintHud(); } };
+  const tick = () => {
+    if (!ov.isConnected) return;
+    const W = ov.clientWidth, H = ov.clientHeight; if (cv.width !== W * 2) { cv.width = W * 2; cv.height = H * 2; }
+    cx.setTransform(2, 0, 0, 2, 0, 0); cx.clearRect(0, 0, W, H);
+    const tt = (now() - t0 - lead) * speed;
+    while (!done && i < r.log.length && r.log[i][0] <= tt) {
+      const e = r.log[i++], who = e[1];   // who = 맞는 쪽(0 나 · 1 상대)
+      left[who] -= e[2]; atk[1 - who] = now();
+      floats.push({ who, d: e[2], crit: e[3], big: e[4], at: now() });
+      play(e[4] ? 'skill' : 'hit'); if (e[3] || e[4]) shakeUntil = now() + 120;
+    }
+    if (!done && tt > r.ms + 300) finish();
+    // 바닥 · 두 무인
+    const gy = H * 0.78, k = Math.min(1.5, H / 330);
+    const grd = cx.createLinearGradient(0, gy - 40, 0, H); grd.addColorStop(0, 'rgba(30,20,10,0)'); grd.addColorStop(1, 'rgba(30,20,10,.85)'); cx.fillStyle = grd; cx.fillRect(0, gy - 40, W, H);
+    const pos = [W * 0.36, W * 0.64];
+    for (const side of [0, 1]) {
+      const a = Math.max(0, 1 - (now() - atk[side]) / 260), lunge = a > 0 ? Math.sin((1 - a) * Math.PI) : 0;
+      const x = pos[side] + (side ? -1 : 1) * lunge * 26 * k, dead = done && ((side === 0 && !r.win) || (side === 1 && r.win));
+      cx.save(); if (dead) { cx.globalAlpha = 0.45; }
+      drawHero(cx, x, gy, side ? r.opp.job : g.S.hero.job, side ? r.opp.lv : g.S.hero.lv, { t: now() / 1000, scale: 1.25 * k, eq: side ? opEq : g.S.gear.eq, flip: side === 1, lunge: lunge * 0.8 });
+      cx.restore();
+    }
+    // 피해 숫자
+    for (let j = floats.length - 1; j >= 0; j--) {
+      const f = floats[j], a = (now() - f.at) / 900; if (a > 1) { floats.splice(j, 1); continue; }
+      const x = pos[f.who] + (f.who ? 1 : -1) * 6, y = gy - 120 * k - a * 40 * k;
+      cx.save(); cx.globalAlpha = 1 - a * a; cx.font = `900 ${(f.big ? 22 : 16) * k * (f.crit ? 1.2 : 1)}px system-ui`; cx.textAlign = 'center'; cx.lineWidth = 4; cx.strokeStyle = '#000';
+      cx.fillStyle = f.who ? (f.crit ? '#fde047' : '#fff') : '#fca5a5'; const s2 = unit(f.d); cx.strokeText(s2, x, y); cx.fillText(s2, x, y); cx.restore();
+    }
+    for (const side of [0, 1]) { const rr = Math.max(0, left[side] / hp[side]); bars[side].style.width = `${rr * 100}%`; txt[side].textContent = `${unit(Math.max(0, left[side]))} / ${unit(hp[side])}`; }
+    if (!done || now() - endAt < 60000) requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
 }
 // v538 업적 달성 — 위 가운데 금빛 띠(트로피 · 이름) · 소리
 function achFx(a) {

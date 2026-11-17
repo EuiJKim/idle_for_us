@@ -969,6 +969,20 @@ console.log('\n=== v537 칭호 ===');
   void st;
 }
 
+console.log('\n=== v539 대결 화면(기록 다시 보기) ===');
+{
+  const T0 = 1.8e12, g = new Game(newGame('bow', T0, 4), T0); g.addExp(EX.cumExp(40)); g.tick(T0);
+  let okAll = true, wins = 0;
+  for (let i = 0; i < 3; i++) {
+    const r = g.pvpFight(i); if (!r) { okAll = false; break; }
+    const left = [r.myHp, r.opp.hp]; for (const e of r.log) left[e[1]] -= e[2];
+    const ra = Math.max(0, left[0]) / r.myHp, rd = Math.max(0, left[1]) / r.opp.hp;
+    if (Math.abs(ra - r.ra) > 1e-9 || Math.abs(rd - r.rd) > 1e-9 || r.log.some((e) => e[0] > r.ms)) okAll = false;
+    if (r.win) wins++;
+  }
+  ok(okAll, '기록을 그대로 다시 깎으면 엔진의 남은 체력과 같다(화면 = 결과)');
+}
+
 console.log('\n=== S0 규칙 ===');
 {
   const files = [];

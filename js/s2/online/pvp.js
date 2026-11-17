@@ -15,7 +15,7 @@ export function makeDeck(f, skills = ['main']) {
 export const deckOk = (d) => d && d.h === hash64(canon({ lv: d.lv, job: d.job, st: d.st, skills: d.skills }));
 
 // 대결 한 판(결정론): 둘 다 평타 + 주력 무공(쿨마다). 시간 끝나면 남은 체력 비율이 큰 쪽
-export function duel(A, D, seed) {
+export function duel(A, D, seed, log = null) {   // v539 log(배열)를 주면 주고받은 공격을 적는다 — 화면이 그대로 다시 보여 준다(결과는 같다)
   const rng = new Rng(seed);
   const side = (f) => ({ f: { lv: f.lv, job: f.job, kind: 'hero', st: f.st }, hp: f.st.hp, nb: 0, nm: SKILL_MAIN.cdMs / 2, ms: (JOBS[f.job] || JOBS.sword).baseMs });
   const a = side(A), d = side(D);
@@ -24,8 +24,8 @@ export function duel(A, D, seed) {
   for (; t < PVP.fightMs && a.hp > 0 && d.hp > 0; t += 50) {
     const dmg = [0, 0];
     [[a, d, 1], [d, a, 0]].forEach(([me, op, k]) => {
-      if (t >= me.nb) { dmg[k] += hit(me.f, op.f, SKILL_BASE, rng).dmg; me.nb = t + me.ms; }
-      if (t >= me.nm) { dmg[k] += hit(me.f, op.f, SKILL_MAIN, rng).dmg; me.nm = t + SKILL_MAIN.cdMs; }
+      if (t >= me.nb) { const r = hit(me.f, op.f, SKILL_BASE, rng); dmg[k] += r.dmg; me.nb = t + me.ms; if (log) log.push([t, k ? 1 : 0, r.dmg, r.crit ? 1 : 0, 0]); }
+      if (t >= me.nm) { const r = hit(me.f, op.f, SKILL_MAIN, rng); dmg[k] += r.dmg; me.nm = t + SKILL_MAIN.cdMs; if (log) log.push([t, k ? 1 : 0, r.dmg, r.crit ? 1 : 0, 1]); }
     });
     d.hp -= dmg[1]; a.hp -= dmg[0];
   }

@@ -477,12 +477,12 @@ export class Game {
     const S = this.S, P = (S.pvp ??= { score: PVP.start, day: '', used: 0, log: [] });
     const opp = this.pvpOpponents()[i];
     if (!opp || !PV.useTry(P, String(dayKey(this.now)))) return null;
-    const me = this.fighter(), r = PV.duel(me, opp.f, this.rng.u32());
+    const me = this.fighter(), log = [], r = PV.duel(me, opp.f, this.rng.u32(), log);   // v539 화면이 다시 보여 줄 기록
     const d = PV.scoreDelta(r.win, power(me, 'pvp'), opp.pw).atk;
     P.score = Math.max(0, P.score + d);
     P.log = [{ name: opp.name, win: r.win, d }, ...P.log].slice(0, 10);
     this.emit('pvp');
-    return { ...r, d, score: P.score, tier: PV.tierOf(P.score).name };
+    return { ...r, d, score: P.score, tier: PV.tierOf(P.score).name, log, opp: { name: opp.name, job: opp.f.job, lv: opp.f.lv, hp: opp.f.st.hp }, myHp: me.st.hp };
   }
   // ── v536 출석 ── 하루 한 번(한국 시각 자정에 바뀜) · 28칸 · 다 채우면 처음부터
   attendState() { return (this.S.att ??= { n: 0, last: -1, cycle: 0 }); }
