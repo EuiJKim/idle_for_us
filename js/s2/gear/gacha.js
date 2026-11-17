@@ -1,6 +1,6 @@
 // 새 시즌(S4) 장비 뽑기 레벨 — 은자로 뽑기 → 뽑기 경험치 → 레벨업(대기 시간) → 높은 등급 확률 ↑.
 // 뽑기 10회마다 사냥터에 정예 하나(행운이면 셋) — 정예를 잡으면 장비가 더 떨어진다(계획서 §G2).
-import { SLOTS, GACHA_LV_MAX, gachaWeights, gachaExpNeed, gachaWaitMin, ELITE_EVERY, LUCKY_P, LUCKY_COUNT } from '../tables/gear.js';
+import { SLOTS, GACHA_LV_MAX, gachaWeights, gachaExpNeed, gachaWaitMin, ELITE_EVERY, LUCKY_P, LUCKY_COUNT, PITY_N, pityGrade } from '../tables/gear.js';
 import { gachaCost } from '../tables/gearstat.js';
 import { makeGear } from './gear.js';
 import { pay, scale } from '../core/cost.js';
@@ -13,7 +13,11 @@ export function pull(GA, n, rng, wallet, heroLv, { ticket = false } = {}) {
   const w = gachaWeights(GA.lv);
   const out = [];
   for (let i = 0; i < n; i++) {
-    out.push(makeGear(rng, SLOTS[rng.int(SLOTS.length)], rng.pick(w)));
+    // v557 천장: 목표 등급(지금 레벨에서 1% 넘는 가장 높은 등급) 이상이 PITY_N번 안 나오면 확정
+    const pg = pityGrade(GA.lv); let gr = rng.pick(w);
+    if (gr < pg && (GA.pity || 0) + 1 >= PITY_N) { gr = pg; GA.pityHits = (GA.pityHits || 0) + 1; }
+    GA.pity = gr >= pg ? 0 : (GA.pity || 0) + 1;
+    out.push(makeGear(rng, SLOTS[rng.int(SLOTS.length)], gr));
     GA.pulls++;
     if (GA.lv < GACHA_LV_MAX && !GA.wait) GA.exp++;
     if (GA.pulls % ELITE_EVERY === 0) GA.eliteQ += rng.roll(LUCKY_P) ? LUCKY_COUNT : 1;

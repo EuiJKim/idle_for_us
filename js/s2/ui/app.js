@@ -5,7 +5,7 @@ import { raidPhase } from '../online/guild.js';
 import { SAVE_KEY } from '../core/save.js';
 import { S2Net } from './net.js';
 import { encodeSave, decodeAny } from '../../savecode.js';
-import { SLOTS, SLOT_NAME, GRADES, gachaExpNeed } from '../tables/gear.js';
+import { SLOTS, SLOT_NAME, GRADES, gachaExpNeed, gachaWeights, PITY_N, pityGrade } from '../tables/gear.js';
 import { itemStats, gearScore, unequip, equip, equipBest, junkOf, dismantleMany, dismantleItem, newSlot } from '../gear/gear.js';
 import { dismantle as dismantleYield, enhCost, enhOk, starCost } from '../tables/gearstat.js';
 import { starOdds, STAR_MAX, PITY_POINTS, BREAK_FROM, PROTECT_FROM, PROTECT_TO, PROTECT_BREAK_COST_X } from '../tables/star.js';
@@ -450,6 +450,10 @@ function paintWin() {
     const c0 = card(`장비 뽑기 Lv ${GA.lv}`, `경험치 ${GA.exp}/${gachaExpNeed(GA.lv)} · 차면 바로 오름`);
     const bar = document.createElement('div'); bar.className = 'bar'; bar.innerHTML = `<div style="width:${Math.min(100, (GA.exp / gachaExpNeed(GA.lv)) * 100)}%"></div><span>${GA.exp} / ${gachaExpNeed(GA.lv)}</span>`; c0(bar);
     c0(statGrid([['뽑기권', `${W['ticket:gear'] || 0}장`], ['정예 대기', `${GA.eliteQ}마리`]]));
+    // v557 천장 · 확률표
+    { const pg = pityGrade(GA.lv), pt = GA.pity || 0, wt = gachaWeights(GA.lv);
+      const pb = document.createElement('div'); pb.className = 'achbar'; pb.innerHTML = `<i style="width:${(pt / PITY_N) * 100}%"></i><span>천장 ${pt} / ${PITY_N} — ${GRADES[pg]}품 이상 확정</span>`; c0(pb);
+      c0(note(`확률(뽑기 Lv ${GA.lv}): ${wt.map((x, i) => (x ? `${GRADES[i]} ${(x / 10).toFixed(1)}%` : '')).filter(Boolean).join(' · ')} · 각 등급 안에서 上 25%`)); }
     const c1 = card('뽑기', '10번마다 사냥터에 정예');
     for (const n of [1, 10, 30]) c1(R(`${n}번 뽑기`, (W['ticket:gear'] || 0) >= n ? `뽑기권 ${n}장` : '은자', [['뽑기', act(() => { const r = g.pullGear(n); if (r) showGacha(r); return r; })]], '抽'));
   } else if (key === 'gear:2') {

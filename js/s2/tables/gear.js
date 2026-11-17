@@ -16,6 +16,9 @@ export const GACHA_ROWS = [
   { at: 20, g0: 0, g1: 100, g2: 350, g3: 380, g4: 150, g5: 19, g6: 1 },
 ];
 export const GACHA_LV_MAX = 20;
+// v557 천장 — 지금 뽑기 레벨에서 1% 넘게 나오는 가장 높은 등급(목표)이 PITY_N번 안 나오면 다음 하나는 그 등급 확정
+export const PITY_N = 150;
+export const pityGrade = (lv) => { const w = gachaWeights(lv); let g = 0; w.forEach((x, i) => { if (x >= 10) g = i; }); return g; };
 // 뽑기 레벨의 등급 가중치(합 1000 — 보간 반올림 오차는 가장 흔한 등급에 몰아준다)
 export function gachaWeights(lv) {
   const w = GRADES.map((_, i) => lerpTable(GACHA_ROWS, lv, `g${i}`));

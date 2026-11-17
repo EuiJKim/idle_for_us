@@ -1179,6 +1179,19 @@ console.log('\n=== v555 두목 도감 ===');
   ok(r3 && r3.title === '두목 도감 완성' && g.S.titles.includes('두목 도감 완성') && g.dex().next === null, '15명 → 칭호까지 · 끝');
 }
 
+console.log('\n=== v557 장비 뽑기 천장 ===');
+{
+  const GT = await import('../js/s2/tables/gear.js'), GCm = await import('../js/s2/gear/gacha.js');
+  ok(GT.pityGrade(1) === 2 && GT.pityGrade(10) === 3 && GT.pityGrade(20) === 5, '천장 목표: Lv1 정 · Lv10 진 · Lv20 신(1% 넘는 가장 높은 등급)');
+  const GA = GCm.newGacha(); GA.lv = 20; const W = { 'ticket:gear': 5000 }, rng = new Rng(77);
+  let maxGap = 0, gap = 0, hits = 0;
+  for (let k = 0; k < 40; k++) { const out = GCm.pull(GA, 100, rng, W, 100, { ticket: true }); for (const it of out) { if (it.g >= 5) { maxGap = Math.max(maxGap, gap); gap = 0; } else gap++; } }
+  hits = GA.pityHits || 0;
+  ok(maxGap < GT.PITY_N && GA.pity < GT.PITY_N, `150번 안에 반드시 신품 이상(가장 긴 틈 ${maxGap})`);
+  GA.pity = GT.PITY_N - 1; const one = GCm.pull(GA, 1, new Rng(1), W, 100, { ticket: true })[0];
+  ok(one.g >= 5 && GA.pity === 0, '149번 안 나왔으면 다음은 확정 · 천장 0으로');
+}
+
 console.log('\n=== S0 규칙 ===');
 {
   const files = [];
