@@ -1137,6 +1137,20 @@ console.log('\n=== v550 문파 토벌 ===');
   g.tick(T0 + 7 * 86400000); ok(g.graidState().used === 0 && g.graidState().claimed === 0 && !g.canDungeon('graid'), '다음 주 새로');
 }
 
+console.log('\n=== v552 문파 수련 ===');
+{
+  const GM = await import('../js/s2/game.js');
+  const T0 = 1.8e12, g = new Game(newGame('sword', T0, 10), T0); g.addExp(EX.cumExp(40)); g.tick(T0); g.setGuild('ABC234');
+  const p0 = g.gtrainPts(); g.attend(); g.startExped(12); const p1 = g.gtrainPts();
+  ok(p1 === p0 + 2, '오늘 할 일을 끝내면 수련 점수가 오른다', `${p0} → ${p1}`);
+  g.attend(); ok(g.gtrainPts() === p1, '같은 날 다시 세도 그대로(하루 최대)');
+  g.tick(T0 + 86400000); ok(g.gtrainPts() >= p1, '다음 날은 더해 간다(이번 주 합)');
+  ok(g.gtrainClaim(10, 3) === null, '목표(문파원 × 25)를 못 채우면 못 받음');
+  const t0 = g.S.wallet['ticket:gear'] || 0, r = g.gtrainClaim(75, 3);
+  ok(r && g.S.wallet['ticket:gear'] === t0 + GM.GTRAIN.rew.tix && g.gtrainClaim(75, 3) === null, '다 차면 보상 한 번(한 주)');
+  g.tick(T0 + 8 * 86400000); ok(!g.gtrainState().got && Object.keys(g.gtrainState().days).length === 0, '다음 주 새로');
+}
+
 console.log('\n=== S0 규칙 ===');
 {
   const files = [];

@@ -104,6 +104,10 @@ async function device(b) {
   const gr = await D.page.evaluate(async (c) => { const n = window.__s2.net, wk = window.__s2.wkStr(Date.now()); await n.graidHit(c, wk, 'D무인', 1000, 37); return n.graidGet(c, wk); }, gcode);
   const gr2 = await A.page.evaluate(async (c) => { const n = window.__s2.net, wk = window.__s2.wkStr(Date.now()); await n.graidHit(c, wk, '시험무인', 500, 40); return n.graidGet(c, wk); }, gcode);
   assert(Object.values(gr2.dmg).reduce((a, b) => a + b, 0) === 1500 && gr2.names && Object.keys(gr2.dmg).length === 2 && gr2.lv === 30 && gr.lv === 30, '문파 토벌: 둘의 피해가 모임(그 주 토벌 레벨은 첫 사람)');
+  // v552 문파 수련 — 둘의 점수가 모이고 내 점수는 내려가지 않음
+  const tr = await A.page.evaluate(async (c) => { const n = window.__s2.net, wk = window.__s2.wkStr(Date.now()); await n.gtrainSet(c, wk, '시험무인', 5); await n.gtrainSet(c, wk, '시험무인', 3); return n.gtrainGet(c, wk); }, gcode);
+  const tr2 = await D.page.evaluate(async (c) => { const n = window.__s2.net, wk = window.__s2.wkStr(Date.now()); await n.gtrainSet(c, wk, 'D무인', 4); return n.gtrainGet(c, wk); }, gcode);
+  assert(Object.values(tr2.pts).reduce((a, b) => a + b, 0) === 9 && Object.values(tr.pts).includes(5), '문파 수련: 둘의 점수가 모임 · 내 점수는 줄지 않음');
   // v551 문파 대화 — D가 화면에서 보내면 A가 받는다 · 문파원 아니면 못 씀(규칙)
   await D.page.click('[data-tab="social"] >> nth=0'); await D.page.click('#panel-body .subtabs button:has-text("문파")'); await sleep(1500);
   await D.page.fill('#gchat-in', '안녕하세요 <b>반가워요</b>'); await D.page.press('#gchat-in', 'Enter'); await sleep(1200);

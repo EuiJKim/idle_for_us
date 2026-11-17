@@ -133,6 +133,23 @@ export class S2Net {
   guildChatWatch(gid, cb) {
     return this.fs.onSnapshot(this.guildChatQ(gid), (s) => cb(s.docs.map((d) => ({ id: d.id, ...d.data() })).reverse()), (e) => console.warn('[s2net] chat', e?.code || e));
   }
+  // v552 문파 수련 — guilds/{코드}/s2/train { data: JSON{ week, pts{uid}, names{uid} }, at } · 내 점수만 고친다
+  async gtrainGet(gid, wk) {
+    const s = await this.fs.getDoc(this.fs.doc(this.db, 'guilds', gid, 's2', 'train'));
+    let T = null; try { T = s.exists() ? JSON.parse(s.data().data) : null; } catch { T = null; }
+    return T && T.week === wk ? T : { week: wk, pts: {}, names: {} };
+  }
+  async gtrainSet(gid, wk, nick, pts) {
+    const fs = this.fs, ref = fs.doc(this.db, 'guilds', gid, 's2', 'train');
+    return fs.runTransaction(this.db, async (tx) => {
+      const s = await tx.get(ref); let T = null; try { T = s.exists() ? JSON.parse(s.data().data) : null; } catch { T = null; }
+      if (!T || T.week !== wk) T = { week: wk, pts: {}, names: {} };
+      if ((T.pts[this.uid] || 0) >= pts && T.names[this.uid] === nick) return T;   // 바뀐 것 없음
+      T.pts[this.uid] = Math.max(T.pts[this.uid] || 0, Math.max(0, Math.min(56, pts | 0))); T.names[this.uid] = String(nick || '무인').slice(0, 12);
+      tx.set(ref, { data: JSON.stringify(T), at: fs.serverTimestamp() });
+      return T;
+    });
+  }
   // v550 문파 토벌 — guilds/{코드}/s2/raid { data: JSON{ week, lv, dmg{uid}, names{uid} }, at } · 주가 바뀌면 새로(그 주 첫 사람의 레벨로)
   async graidGet(gid, wk) {
     const s = await this.fs.getDoc(this.fs.doc(this.db, 'guilds', gid, 's2', 'raid'));

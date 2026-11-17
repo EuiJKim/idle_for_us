@@ -1,6 +1,6 @@
 // 새 시즌 화면 — v524부터 첫 화면(index.html). 옛 게임은 classic.html(세이브는 따로 · ifu.s2.*가 새 시즌).
 // 화면은 엔진(js/s2/game.js)만 본다. 시계는 화면 쪽에서만 읽어 엔진에 넘긴다(엔진은 결정론).
-import { Game, newGame, COLLECTS, dayKey, weekKey, STAGE_KILLS, GRAID, graidHp0 } from '../game.js';
+import { Game, newGame, COLLECTS, dayKey, weekKey, STAGE_KILLS, GRAID, graidHp0, GTRAIN } from '../game.js';
 import { raidPhase } from '../online/guild.js';
 import { SAVE_KEY } from '../core/save.js';
 import { S2Net } from './net.js';
@@ -135,6 +135,7 @@ function guildLoad(force) {
       guildState.g = G; guildState.list = null;
       guildState.raid = await net.graidGet(G.id, wkStr(Date.now())).catch(() => null);   // v550
       chatWatch(G.id);   // v551
+      ensureNick(); guildState.train = await net.gtrainSet(G.id, wkStr(Date.now()), g.S.nick, g.gtrainPts()).catch(() => null);   // v552 내 수련 점수 올리고 받기
       if (G.members?.[net.uid] !== g.S.nick && g.S.nick) net.guildRename(G, g.S.nick).catch(() => {});
       net.guildProfiles(G.memberIds).then((ps) => { guildState.prof = Object.fromEntries(ps.map((x) => [x.uid, x])); if (open === 'social') paintWin(); });
     } else {
@@ -593,6 +594,15 @@ function paintWin() {
       if (rk.length) { const box = document.createElement('div'); box.className = 'rk-list'; box.innerHTML = rk.map(([id, v], i) => `<div class="rk-r ${id === net.uid ? 'me' : ''} ${i < 3 ? `top${i + 1}` : ''}"><b>${i + 1}</b><span>${esc(RD.names?.[id] || '무인')}</span><em>${unit(v)}</em></div>`).join(''); cR(box); }
     }
     c0(R('코드 알려 주기', `문파원을 부를 때 — ${G.id}`, [['복사', () => { play('click'); navigator.clipboard?.writeText(G.id).then(() => toast('코드를 복사했어요'), () => toast(G.id)); }]], '碼'));
+    // v552 문파 수련 — 오늘 할 일을 끝낼수록 막대가 찬다 · 다 차면 모두 보상
+    { const TR = guildState.train || { pts: {}, names: {} }, tot = Object.values(TR.pts || {}).reduce((a, b) => a + b, 0), goal = GTRAIN.perMember * G.memberIds.length, GT = g.gtrainState(), mineP = g.gtrainPts();
+      const cT = card('문파 수련', `이번 주 ${unit(tot)} / ${goal} · 내 몫 ${mineP} · 월요일에 새로`);
+      const bar = document.createElement('div'); bar.className = 'achbar'; bar.innerHTML = `<i style="width:${Math.min(100, (tot / goal) * 100)}%"></i><span>${tot} / ${goal}</span>`; cT(bar);
+      cT(R('수련 보상', GT.got ? '이번 주는 받았어요' : tot >= goal ? '다 찼어요 — 받기!' : `오늘 할 일을 끝낼 때마다 1점(문파원 모두의 합) · 다 차면 뽑기권 ${GTRAIN.rew.tix} · 은자`,
+        [['받기', act(() => { const r = g.gtrainClaim(tot, G.memberIds.length); if (r) { play('rare', 4); toast(`문파 수련 — 뽑기권 ${r.tix} · 은자 ${unit(r.gold)}`); } return r; }), GT.got || tot < goal]], '修'));
+      const rk = Object.entries(TR.pts || {}).sort((a, b) => b[1] - a[1]);
+      if (rk.length) cT(note(rk.map(([id, v]) => `${esc(TR.names?.[id] || '무인')} ${v}`).join(' · ')));
+    }
     const cc = card('문파 대화', '옛 게임 문파와 같은 방 · 최근 30개');
     { const box = document.createElement('div'); box.id = 'gchat'; box.className = 'gchat'; box.innerHTML = chatHtml(); cc(box);
       const fm = document.createElement('div'); fm.className = 'gchat-f'; fm.innerHTML = '<input id="gchat-in" maxlength="200" placeholder="문파원에게 한마디(200자)" autocomplete="off"><button class="btn primary" id="gchat-go">보내기</button>'; cc(fm);

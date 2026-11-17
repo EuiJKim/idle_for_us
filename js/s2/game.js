@@ -21,6 +21,8 @@ const GUILD_CHECKIN = { tix: 2, goldMin: 15 };   // v549 문파 출석
 // v550 문파 토벌 — 주마다 장 두목 하나(15명 차례로) · 90초 · 쓰러지지 않음 · 문파원 피해 합으로 단계(체력 ×1.4씩)
 //   1단계 체력 = 그 주 토벌 레벨 기준 무인이 한 번 넣는 피해 × hpX · 단계마다 문파원 각자 보상 한 번(뽑기권 · 은자)
 export const GRAID = { weekTries: 7, fightMs: 90000, hpX: 3, rew: { tix: 2, goldMin: 10 } };
+// v552 문파 수련 — 오늘 할 일을 끝낸 개수(문파 출석 빼고 · 하루 최대 8)가 내 수련 점수 · 문파원 합이 목표(문파원 수 × perMember)를 채우면 각자 한 번 보상
+export const GTRAIN = { perMember: 25, rew: { tix: 5, goldMin: 30 } };
 export const graidHp0 = (lv) => Math.round(WB.refTryDmg(Math.max(10, lv)) * GRAID.hpX);
 const TODAY_CHEST = { tix: 3, goldMin: 30, dungeonRuns: 3 };   // v545 하루 상자
 import { ATTEND, ATTEND_DAYS } from './tables/attend.js';
@@ -129,6 +131,21 @@ export class Game {
   // v550 문파 토벌 — 이번 주 내 도전 수 · 받은 단계 · 이번 주 두목(장 두목 15명 차례)
   graidState() { const S = this.S, wk = weekKey(this.now), R = (S.graid ??= { week: wk, used: 0, claimed: 0 }); if (R.week !== wk) Object.assign(R, { week: wk, used: 0, claimed: 0 }); return R; }
   graidBoss() { return 1 + (weekKey(this.now) % 15); }
+  // v552 문파 수련 — 이번 주 내 점수(날마다 끝낸 오늘 할 일 개수의 합) · 목표를 채운 주에 보상 한 번
+  gtrainState() { const S = this.S, wk = weekKey(this.now), T = (S.gtrain ??= { week: wk, days: {}, got: false }); if (T.week !== wk) Object.assign(T, { week: wk, days: {}, got: false }); return T; }
+  gtrainPts() {
+    const T = this.gtrainState(), dk = dayKey(this.now), n = this.today().filter((x) => x.id !== 'guild' && x.open && x.done).length;
+    T.days[dk] = Math.max(T.days[dk] || 0, n);
+    return Object.values(T.days).reduce((a, b) => a + b, 0);
+  }
+  gtrainClaim(total, members) {
+    const T = this.gtrainState();
+    if (!this.S.guildId || T.got || total < GTRAIN.perMember * Math.max(1, members)) return null;
+    T.got = true;
+    const gold = Math.round(GTRAIN.rew.goldMin * KILLS_PER_MIN * goldPerMob(this.S.hero.lv)), tix = GTRAIN.rew.tix;
+    this.S.wallet.gold += gold; this.S.wallet['ticket:gear'] = (this.S.wallet['ticket:gear'] || 0) + tix;
+    return { gold, tix };
+  }
   // 문파 피해 합(서버) → 단계 · 받은 것보다 높은 단계마다 보상
   graidClaim(total, lv) {
     if (!this.S.guildId) return null;
