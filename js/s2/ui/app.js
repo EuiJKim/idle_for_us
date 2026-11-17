@@ -209,7 +209,7 @@ function pop(title, html, acts = [['확인', null]]) {
 
 // ── 창 — 지금 게임과 같은 일곱 창(들판 양옆 단추 · 창 머리 줄) + 설정(⚙). 칸은 붉은 알약(.subtabs .seg.wide) ──
 const TABS = [
-  ['char', '캐릭터', [['스탯', 'hero:0'], ['무공', 'hero:1'], ['무공 강화', 'hero:4'], ['마스터리', 'hero:2'], ['전직', 'hero:3'], ['칭호', 'title:0']]],
+  ['char', '캐릭터', [['스탯', 'hero:0'], ['무공', 'hero:1'], ['무공 강화', 'hero:4'], ['마스터리', 'hero:2'], ['전직', 'hero:3'], ['칭호', 'title:0'], ['기록', 'rec:0']]],
   ['bag', '장비', [['장착', 'gear:0'], ['뽑기', 'gear:1'], ['강화·성혼', 'gear:2'], ['가방', 'gear:3'], ['외형', 'look:0']]],
   ['comp', '동료', [['병기', 'grow:0'], ['동료', 'grow:1'], ['영물', 'grow:2']]],
   ['dgn', '던전', [['수련동', 'content:0'], ['토벌', 'raid:0'], ['무한 탑', 'content:1'], ['원정', 'content:2']]],
@@ -557,6 +557,24 @@ function paintWin() {
     c(R('두목 자동 도전', T.auto ? '켬 — 칸 몹을 다 잡으면 저절로' : '끔 — 들판의 「두목 도전」으로', [['바꾸기', act(() => { T.auto = !T.auto; return true; })]], '自'));
     const c2 = card('장 목록', '15장 · 장마다 10칸');
     for (let ch = 1; ch <= 15; ch++) { const first = (ch - 1) * 10 + 1, opened = T.top >= first; const r = R(`${ch}. ${chapterName(first)}`, opened ? (Math.ceil(T.top / 10) > ch ? '다 깸' : `${((T.top - 1) % 10) + 1}/10칸`) : '잠김', opened ? [['가기', act(() => { if (g.bossFight) return false; T.idx = Math.min(T.top, ch * 10); T.kills = 0; return true; })]] : [], String(ch)); if (!opened) r.style.opacity = '.45'; c2(r); }
+  } else if (key === 'rec:0') {
+    // v572 무인 기록 — 이제까지 한 것(업적 마지막 단계의 진행 수 = 처음부터 센 수) · 최고 기록 · 지금 상태
+    const S = g.S, B = g.books.ach, cnt = (ev) => { const st = ACHIEVE[ev]?.steps; if (!st) return 0; const s2 = B.get(`a_${ev}_${st.length - 1}`); return s2.done ? st.at(-1) : s2.p || 0; };
+    const plus = (ev) => { const st = ACHIEVE[ev]?.steps; return st && B.get(`a_${ev}_${st.length - 1}`).done ? '+' : ''; };
+    const T = g.stage(), P = S.pvp || {}, wins = (P.log || []).filter((l) => !l.def && l.win).length;
+    const items = [
+      ['무인', `${esc(JOBS[S.hero.job].name)} · Lv ${S.hero.lv} · ${S.hero.adv ? `${S.hero.adv}차 전직` : '입문'}`],
+      ['전투력', unit(g.power())], ['가장 멀리', `${Math.ceil(T.top / 10)}장 ${((T.top - 1) % 10) + 1}칸`],
+      ['잡은 몹', unit(S.kills || 0)], ['최고 연속 처치', `${S.comboBest || 0}`],
+      ['장 두목 처치', `${Object.keys(S.chb || {}).length} / 15`], ['토벌 ★3', `${g.dex().three} / 15`],
+      ['장비 뽑기', `${unit(S.gacha?.pulls || 0)}번`], ['강화', `${unit(cnt('enhance'))}${plus('enhance')}번`], ['성혼', `${unit(cnt('star'))}${plus('star')}번`],
+      ['던전 클리어', `${unit(cnt('dungeon'))}${plus('dungeon')}번`], ['월드보스', `${unit(cnt('wboss'))}${plus('wboss')}번`], ['장 두목 토벌', `${unit(cnt('raid'))}${plus('raid')}번`],
+      ['대결 점수', `${P.score ?? 1000}`], ['오늘 할 일 다 함', `${unit(cnt('today'))}${plus('today')}번`], ['문파 토벌', `${unit(cnt('graid'))}${plus('graid')}번`],
+      ['칭호', `${(S.titles || []).length}개`], ['업적', `${ACH.filter((a) => B.get(a.id).got).length} / ${ACH.length}`],
+    ];
+    const c0 = card('무인 기록', '처음부터 이제까지');
+    c0(statGrid(items));
+    c0(note(`가장 최근 대결 열 판 중 이긴 공격 ${wins}번 · 큰 숫자는 업적 마지막 단계까지 세어 「+」면 그 넘어`));
   } else if (key === 'look:0') {
     // v565 외형 — 부위마다 보일 등급(얻어 본 등급까지) · 「장비대로」면 낀 것 그대로. 사냥터 · 얼굴 · 대결에서 보이는 모습만(능력치 그대로)
     const sn = g.lookSeen(), L = g.S.look || {};
