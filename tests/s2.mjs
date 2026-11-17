@@ -1214,6 +1214,17 @@ console.log('\n=== v563 대결 복수 ===');
   const li = A.S.pvp.log.findIndex((l) => l.by === 'uidB'); ok(A.pvpRevenge(li, deckB) === null, '한 번만');
 }
 
+console.log('\n=== v565 외형 ===');
+{
+  const T0 = 1.8e12, g = new Game(newGame('sword', T0, 16), T0); g.addExp(EX.cumExp(30)); g.tick(T0);
+  const seen = g.lookSeen().hat ?? -1;
+  ok(!g.setLook('hat', seen + 1) && !g.setLook('nope', 0), '얻어 본 등급보다 높은 외형 · 없는 부위는 못 고름');
+  g.obtain([GR.makeGear(new Rng(3), 'hat', 5)]);
+  ok(g.lookSeen().hat === 5 && g.setLook('hat', 5) && g.lookEq().hat.g === 5, '얻으면 그 등급까지 고를 수 있다 · 보이는 모습만 바뀜');
+  const pw = g.power(), hat2 = g.S.gear.eq.hat; g.dirtyStats = true; g.setLook('hat', 0); g.dirtyStats = true; ok(g.power() === pw && g.S.gear.eq.hat === hat2 && hat2 !== undefined, '능력치 · 낀 장비는 그대로');
+  g.setLook('hat', null); ok(g.lookEq() === g.S.gear.eq, '장비대로 되돌리기');
+}
+
 console.log('\n=== S0 규칙 ===');
 {
   const files = [];

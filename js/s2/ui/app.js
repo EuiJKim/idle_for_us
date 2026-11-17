@@ -210,7 +210,7 @@ function pop(title, html, acts = [['확인', null]]) {
 // ── 창 — 지금 게임과 같은 일곱 창(들판 양옆 단추 · 창 머리 줄) + 설정(⚙). 칸은 붉은 알약(.subtabs .seg.wide) ──
 const TABS = [
   ['char', '캐릭터', [['스탯', 'hero:0'], ['무공', 'hero:1'], ['무공 강화', 'hero:4'], ['마스터리', 'hero:2'], ['전직', 'hero:3'], ['칭호', 'title:0']]],
-  ['bag', '장비', [['장착', 'gear:0'], ['뽑기', 'gear:1'], ['강화·성혼', 'gear:2'], ['가방', 'gear:3']]],
+  ['bag', '장비', [['장착', 'gear:0'], ['뽑기', 'gear:1'], ['강화·성혼', 'gear:2'], ['가방', 'gear:3'], ['외형', 'look:0']]],
   ['comp', '동료', [['병기', 'grow:0'], ['동료', 'grow:1'], ['영물', 'grow:2']]],
   ['dgn', '던전', [['수련동', 'content:0'], ['토벌', 'raid:0'], ['무한 탑', 'content:1'], ['원정', 'content:2']]],
   ['map', '지도', [['스테이지', 'content:3'], ['두목 도감', 'dex:0']]],
@@ -557,6 +557,21 @@ function paintWin() {
     c(R('두목 자동 도전', T.auto ? '켬 — 칸 몹을 다 잡으면 저절로' : '끔 — 들판의 「두목 도전」으로', [['바꾸기', act(() => { T.auto = !T.auto; return true; })]], '自'));
     const c2 = card('장 목록', '15장 · 장마다 10칸');
     for (let ch = 1; ch <= 15; ch++) { const first = (ch - 1) * 10 + 1, opened = T.top >= first; const r = R(`${ch}. ${chapterName(first)}`, opened ? (Math.ceil(T.top / 10) > ch ? '다 깸' : `${((T.top - 1) % 10) + 1}/10칸`) : '잠김', opened ? [['가기', act(() => { if (g.bossFight) return false; T.idx = Math.min(T.top, ch * 10); T.kills = 0; return true; })]] : [], String(ch)); if (!opened) r.style.opacity = '.45'; c2(r); }
+  } else if (key === 'look:0') {
+    // v565 외형 — 부위마다 보일 등급(얻어 본 등급까지) · 「장비대로」면 낀 것 그대로. 사냥터 · 얼굴 · 대결에서 보이는 모습만(능력치 그대로)
+    const sn = g.lookSeen(), L = g.S.look || {};
+    const c0 = card('외형', '사냥터 · 얼굴 · 대결에서 보이는 모습만 바뀌어요(능력치는 낀 장비대로)');
+    if (Object.keys(L).length) c0(R('모두 장비대로', '고른 외형을 모두 풀어요', [['되돌리기', act(() => { for (const sl of Object.keys(L)) g.setLook(sl, null); portraitKey = ''; return true; })]], '原'));
+    for (const sl of SLOTS) {
+      const max = sn[sl] ?? -1, cur = L[sl], row = document.createElement('div'); row.className = 'lk-row';
+      row.innerHTML = `<img src="${eqIcon(sl, cur != null ? { g: cur } : g.S.gear.eq[sl])}" alt=""><b>${SLOT_NAME[sl]}</b>`;
+      const seg = document.createElement('div'); seg.className = 'seg lk-seg';
+      const add = (label, val, on, cls = '') => { const b = document.createElement('button'); b.textContent = label; b.className = `${on ? 'on' : ''} ${cls}`; b.onclick = () => { play('click'); g.setLook(sl, val); portraitKey = ''; save(); paintWin(); }; seg.append(b); };
+      add('장비대로', null, cur == null);
+      for (let gr = 0; gr <= max; gr++) add(GRADES[gr], gr, cur === gr, `g${gr}t`);
+      if (max < 0) { const sp = document.createElement('small'); sp.textContent = '아직 얻은 것이 없어요'; seg.append(sp); }
+      row.append(seg); c0(row);
+    }
   } else if (key === 'dex:0') {
     // v555 두목 도감 — 장 두목 15명: 그림 · 칭호 · 패턴 · 깸 · 토벌 별 · 최고 기록 · 손으로 깸 / ★3 수 보상
     const D = g.dex();
@@ -921,11 +936,11 @@ const logLines = [];
 function addLog(t) { if (logLines[0] === t) return; logLines.unshift(t); logLines.length = Math.min(logLines.length, 4); }   // v520 같은 줄이 잇따라 쌓이지 않게
 let portraitKey = '';
 function paintPortrait(H) {
-  const E = g.S.gear.eq, key = `${H.job}:${H.lv}:${Object.values(E).map((it) => (it ? it.g : '-')).join('')}:${wearCount()}`; if (key === portraitKey) return; portraitKey = key;   // v516 장비가 바뀌면 얼굴도 새로
+  const E = g.lookEq(), key = `${H.job}:${H.lv}:${Object.values(E).map((it) => (it ? it.g : '-')).join('')}:${wearCount()}`; if (key === portraitKey) return; portraitKey = key;   // v516 장비가 바뀌면 얼굴도 새로
   const c = $('face'), x = c.getContext('2d'); x.clearRect(0, 0, c.width, c.height);
   x.save(); x.beginPath(); x.arc(52, 52, 50, 0, 7); x.clip();
   const gr = x.createRadialGradient(52, 40, 6, 52, 52, 60); gr.addColorStop(0, '#3a2e22'); gr.addColorStop(1, '#120f0b'); x.fillStyle = gr; x.fillRect(0, 0, 104, 104);
-  drawHero(x, 52, 196, H.job, H.lv, { t: 0, scale: 1.75, eq: g.S.gear.eq });   // 얼굴 · 어깨만 보이게 크게
+  drawHero(x, 52, 196, H.job, H.lv, { t: 0, scale: 1.75, eq: g.lookEq() });   // 얼굴 · 어깨만 보이게 크게
   x.restore();
 }
 // v519 레벨업 — 무인 위에 「LEVEL UP」 · 왼쪽 아래 Lv 상자가 번쩍
@@ -1444,8 +1459,8 @@ function draw() {
   // v546 회피 잔상 — 대시하는 0.3초 동안 지나온 자리에 옅은 그림자
   if (t - dashAt < 300) dashTrail.push({ x: hx, y: hy, at: t });
   dashTrail = dashTrail.filter((d) => t - d.at < 240);
-  for (const d of dashTrail) { cx.save(); cx.globalAlpha = 0.35 * (1 - (t - d.at) / 240); cx.filter = 'brightness(1.8) saturate(0.3)'; drawHero(cx, d.x, d.y, g.S.hero.job, g.S.hero.lv, { t: ts, run: true, turn, pose, scale: sc, eq: g.S.gear.eq }); cx.restore(); }
-  drawHero(cx, hx, hy, g.S.hero.job, g.S.hero.lv, { t: ts, run: heroRun > 0, turn, pose, lunge: pose ? 0 : Math.max(0, 1 - (t - lastHitAt) / 160), scale: sc, eq: g.S.gear.eq });
+  for (const d of dashTrail) { cx.save(); cx.globalAlpha = 0.35 * (1 - (t - d.at) / 240); cx.filter = 'brightness(1.8) saturate(0.3)'; drawHero(cx, d.x, d.y, g.S.hero.job, g.S.hero.lv, { t: ts, run: true, turn, pose, scale: sc, eq: g.lookEq() }); cx.restore(); }
+  drawHero(cx, hx, hy, g.S.hero.job, g.S.hero.lv, { t: ts, run: heroRun > 0, turn, pose, lunge: pose ? 0 : Math.max(0, 1 - (t - lastHitAt) / 160), scale: sc, eq: g.lookEq() });
   cx.restore();
   // 레벨 업: 무인 위로 빛기둥과 고리(0.9초)
   const lu = (t - levelAt) / 900;
@@ -1744,7 +1759,7 @@ function duelShow(r) {
       const a = Math.max(0, 1 - (now() - atk[side]) / 260), lunge = a > 0 ? Math.sin((1 - a) * Math.PI) : 0;
       const x = pos[side] + (side ? -1 : 1) * lunge * 26 * k, dead = done && ((side === 0 && !r.win) || (side === 1 && r.win));
       cx.save(); if (dead) { cx.globalAlpha = 0.45; }
-      drawHero(cx, x, gy, side ? r.opp.job : g.S.hero.job, side ? r.opp.lv : g.S.hero.lv, { t: now() / 1000, scale: 1.25 * k, eq: side ? opEq : g.S.gear.eq, flip: side === 1, lunge: lunge * 0.8 });
+      drawHero(cx, x, gy, side ? r.opp.job : g.S.hero.job, side ? r.opp.lv : g.S.hero.lv, { t: now() / 1000, scale: 1.25 * k, eq: side ? opEq : g.lookEq(), flip: side === 1, lunge: lunge * 0.8 });
       cx.restore();
     }
     // 피해 숫자

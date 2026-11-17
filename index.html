@@ -171,6 +171,9 @@
     .gc-m { display: grid; grid-template-columns: auto 1fr auto; gap: 6px; align-items: baseline; font-size: 13px; } .gc-m b { color: #fde68a; font-size: 12px; } .gc-m.me b { color: #7dd3fc; } .gc-m span { word-break: break-all; } .gc-m small { font-size: 10px; color: rgba(255,255,255,.4); }
     .gc-sys { font-size: 11.5px; color: rgba(255,255,255,.55); text-align: center; }
     .gchat-f { display: flex; gap: 6px; } .gchat-f input { flex: 1; min-width: 0; padding: 8px 10px; border-radius: 9px; border: 1px solid rgba(255,255,255,.25); background: rgba(0,0,0,.45); color: #fff; font: inherit; font-size: 14px; } .gchat-f .btn { min-height: 38px; }
+    /* v565 외형 */
+    .lk-row { display: grid; grid-template-columns: 34px 52px 1fr; gap: 8px; align-items: center; padding: 5px 6px; border-radius: 9px; background: rgba(0,0,0,.25); margin-bottom: 4px; }
+    .lk-row img { width: 32px; height: 32px; } .lk-row b { font-size: 13px; } .lk-seg { flex-wrap: wrap; justify-content: flex-start; } .lk-seg button { min-width: 34px; padding: 4px 8px; font-size: 12px; } .lk-seg small { font-size: 11px; color: rgba(255,255,255,.5); padding: 0 6px; }
     /* v564 연속 처치 */
     #combo { position: absolute; right: calc(var(--sr, 12px) + 4px); top: 34%; z-index: 19; pointer-events: none; text-align: right; opacity: 0; transform: translateX(14px); transition: opacity .2s, transform .2s; }
     #combo.on { opacity: 1; transform: none; } #combo b { display: block; font-size: 34px; font-weight: 900; font-style: italic; color: #fff; text-shadow: 0 2px 0 #000, 0 0 14px rgba(253,230,138,.6); line-height: 1; animation: cmpop .18s ease-out; }

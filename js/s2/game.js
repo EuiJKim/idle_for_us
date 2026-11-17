@@ -443,7 +443,26 @@ export class Game {
   minute() { const s = ID.suddenTick(this.S.sudden, this.rng, this.now); if (s) this.feed.push({ k: 'sudden', need: s.need }); return s; }
 
   // ── 장비 ──
+  // v565 외형 — 부위마다 보일 등급(얻어 본 등급까지) · 비워 두면 낀 장비대로. 능력치와 상관없음
+  lookSeen() {
+    const S = this.S, sn = (S.lookSeen ??= {}), up = (sl, gr) => { if (gr > (sn[sl] ?? -1)) sn[sl] = gr; };
+    for (const sl of SLOTS) if (S.gear.eq[sl]) up(sl, S.gear.eq[sl].g);
+    for (const it of S.gear.bag) up(it.slot, it.g);
+    return sn;
+  }
+  setLook(slot, gr) {
+    const L = (this.S.look ??= {});
+    if (gr == null) { delete L[slot]; return true; }
+    if (!SLOTS.includes(slot) || !Number.isInteger(gr) || gr < 0 || gr > (this.lookSeen()[slot] ?? -1)) return false;
+    L[slot] = gr; return true;
+  }
+  lookEq() {
+    const E = this.S.gear.eq, L = this.S.look; if (!L || !Object.keys(L).length) return E;
+    const o = { ...E }; for (const [sl, gr] of Object.entries(L)) o[sl] = { ...(E[sl] || { slot: sl, up: 0, subs: [] }), g: gr };
+    return o;
+  }
   obtain(items, src = 'drop') {
+    { const sn = (this.S.lookSeen ??= {}); for (const it of items) if (it && it.slot && it.g > (sn[it.slot] ?? -1)) sn[it.slot] = it.g; }   // v565
     const got = GR.obtain(this.S.gear, items, this.S.hero.lv, this.S.wallet);
     if (got.some((g) => g.equipped)) { this.dirtyStats = true; this.emit('equip'); }
     // v534 좋은 장비를 주우면 알림(뽑기는 제 연출이 있다) — 진품(3) 이상 · 낀 것인지
