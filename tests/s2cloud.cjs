@@ -100,6 +100,10 @@ async function device(b) {
   await D.page.click('[data-tab="social"] >> nth=0'); await D.page.click('#panel-body .subtabs button:has-text("문파")'); await sleep(2000);
   { const tx = await D.page.textContent('#panel-body'); assert(/시험문파/.test(tx) && (await D.page.$$('#wb .row:has-text("전투력")')).length === 2, 'D: 무림 → 문파 화면(이름 · 문파원 둘) ' + tx.slice(0, 120)); }
   await D.page.click('#panel-close');
+  // v550 문파 토벌 — 둘이 피해를 보태면 합 · 이름이 문파 문서에
+  const gr = await D.page.evaluate(async (c) => { const n = window.__s2.net, wk = window.__s2.wkStr(Date.now()); await n.graidHit(c, wk, 'D무인', 1000, 37); return n.graidGet(c, wk); }, gcode);
+  const gr2 = await A.page.evaluate(async (c) => { const n = window.__s2.net, wk = window.__s2.wkStr(Date.now()); await n.graidHit(c, wk, '시험무인', 500, 40); return n.graidGet(c, wk); }, gcode);
+  assert(Object.values(gr2.dmg).reduce((a, b) => a + b, 0) === 1500 && gr2.names && Object.keys(gr2.dmg).length === 2 && gr2.lv === 30 && gr.lv === 30, '문파 토벌: 둘의 피해가 모임(그 주 토벌 레벨은 첫 사람)');
   const after = await D.page.evaluate(async (c) => { await window.__s2.net.guildLeave(c); return (await window.__s2.net.guildGet(c)).memberIds.length; }, gcode);
   assert(after === 1, 'D: 문파 나가기');
   const errs = [...A.errs, ...B.errs, ...errC, ...D.errs];

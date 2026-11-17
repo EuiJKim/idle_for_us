@@ -1119,6 +1119,24 @@ console.log('\n=== v549 문파 출석 ===');
   g.tick(T0 + 86400000); ok(!!g.guildCheckin(), '다음 날 다시');
 }
 
+console.log('\n=== v550 문파 토벌 ===');
+{
+  const GM = await import('../js/s2/game.js'), GDm = await import('../js/s2/online/guild.js');
+  const T0 = 1.8e12, g = new Game(newGame('mage', T0, 9), T0); g.addExp(EX.cumExp(40)); g.tick(T0);
+  ok(g.canDungeon('graid') === '문파에 들면' && !g.enterDungeon('graid'), '문파가 없으면 토벌 못 함');
+  g.setGuild('ABC234');
+  ok(g.enterDungeon('graid') && g.dg.type === 'graid' && g.dg.F.mobs.find((m) => m.cb)?.cb.ch === g.graidBoss() && g.graidState().used === 1, '토벌: 이번 주 장 두목 · 쓰러지지 않음 · 도전 1');
+  let t = T0; while (g.dg) { t += 1000; g.tick(t); g.hunt(1000); }
+  const f = g.feed.filter((x) => x.k === 'dungeon-end').at(-1);
+  ok(f.type === 'graid' && f.cleared && f.dmg > 0 && f.ms >= GM.GRAID.fightMs, '90초 → 넣은 피해', `${f.dmg}`);
+  const hp0 = GM.graidHp0(40), tot = hp0 * 2.5, ph = GDm.raidPhase(tot, hp0).phase, t0 = g.S.wallet['ticket:gear'] || 0;
+  const r = g.graidClaim(tot, 40);
+  ok(ph === 2 && r.n === 2 && g.S.wallet['ticket:gear'] === t0 + 4 && g.graidClaim(tot, 40) === null, '단계 보상: 깬 단계만큼 한 번씩(1단계 체력 ×1.4씩)');
+  for (let i = 1; i < GM.GRAID.weekTries; i++) { g.enterDungeon('graid'); g.leaveDungeon(); }
+  ok(g.canDungeon('graid') === '이번 주는 다 했어요', '한 주 7번');
+  g.tick(T0 + 7 * 86400000); ok(g.graidState().used === 0 && g.graidState().claimed === 0 && !g.canDungeon('graid'), '다음 주 새로');
+}
+
 console.log('\n=== S0 규칙 ===');
 {
   const files = [];

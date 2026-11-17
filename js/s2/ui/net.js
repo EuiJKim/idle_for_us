@@ -121,6 +121,22 @@ export class S2Net {
     const fs = this.fs, snap = await fs.getDocs(fs.query(fs.collection(this.db, 'guildlist'), fs.orderBy('at', 'desc'), fs.limit(60)));
     return snap.docs.map((d) => ({ id: d.id, ...d.data() })).filter((x) => x.open !== false && (x.n || 0) > 0 && (x.n || 0) < 10);
   }
+  // v550 문파 토벌 — guilds/{코드}/s2/raid { data: JSON{ week, lv, dmg{uid}, names{uid} }, at } · 주가 바뀌면 새로(그 주 첫 사람의 레벨로)
+  async graidGet(gid, wk) {
+    const s = await this.fs.getDoc(this.fs.doc(this.db, 'guilds', gid, 's2', 'raid'));
+    let R = null; try { R = s.exists() ? JSON.parse(s.data().data) : null; } catch { R = null; }
+    return R && R.week === wk ? R : { week: wk, lv: 0, dmg: {}, names: {} };
+  }
+  async graidHit(gid, wk, nick, dmg, lv) {
+    const fs = this.fs, ref = fs.doc(this.db, 'guilds', gid, 's2', 'raid');
+    return fs.runTransaction(this.db, async (tx) => {
+      const s = await tx.get(ref); let R = null; try { R = s.exists() ? JSON.parse(s.data().data) : null; } catch { R = null; }
+      if (!R || R.week !== wk) R = { week: wk, lv: Math.max(10, Math.floor(lv / 10) * 10), dmg: {}, names: {} };
+      R.dmg[this.uid] = (R.dmg[this.uid] || 0) + Math.max(0, Math.round(dmg)); R.names[this.uid] = String(nick || '무인').slice(0, 12);
+      tx.set(ref, { data: JSON.stringify(R), at: fs.serverTimestamp() });
+      return R;
+    });
+  }
   async guildProfiles(ids) {
     const fs = this.fs;
     return Promise.all(ids.map((id) => fs.getDoc(fs.doc(this.db, 's2_players', id)).then((s) => (s.exists() ? { uid: id, ...s.data() } : { uid: id })).catch(() => ({ uid: id }))));

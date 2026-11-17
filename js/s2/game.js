@@ -18,6 +18,10 @@ import { JOB_ADV } from './tables/skills.js';
 import { CHBOSS, CB, cbGearGrade, CB_REPEAT, WBF, CB_RAID, raidStars } from './tables/chboss.js';
 const CB_MANUAL_STONES = 50;   // v546
 const GUILD_CHECKIN = { tix: 2, goldMin: 15 };   // v549 문파 출석
+// v550 문파 토벌 — 주마다 장 두목 하나(15명 차례로) · 90초 · 쓰러지지 않음 · 문파원 피해 합으로 단계(체력 ×1.4씩)
+//   1단계 체력 = 그 주 토벌 레벨 기준 무인이 한 번 넣는 피해 × hpX · 단계마다 문파원 각자 보상 한 번(뽑기권 · 은자)
+export const GRAID = { weekTries: 7, fightMs: 90000, hpX: 3, rew: { tix: 2, goldMin: 10 } };
+export const graidHp0 = (lv) => Math.round(WB.refTryDmg(Math.max(10, lv)) * GRAID.hpX);
 const TODAY_CHEST = { tix: 3, goldMin: 30, dungeonRuns: 3 };   // v545 하루 상자
 import { ATTEND, ATTEND_DAYS } from './tables/attend.js';
 import { TITLE_EACH, titleByName } from './tables/titles.js';
@@ -31,6 +35,7 @@ import { runDungeon } from './content/dungeon.js';
 import { power, stdPower } from './online/power.js';
 import { TABLE_VER } from './tables/version.js';
 import * as WB from './online/wboss.js';
+import * as GD from './online/guild.js';
 import * as PV from './online/pvp.js';
 import { refPlayer } from './battle/ref.js';
 import { PVP, WBOSS, POWER_SLACK } from './tables/online.js';
@@ -120,6 +125,19 @@ export class Game {
     S.wallet.gold += gold; S.wallet['ticket:gear'] = (S.wallet['ticket:gear'] || 0) + GUILD_CHECKIN.tix;
     this.emit('guild');
     return { gold, tix: GUILD_CHECKIN.tix };
+  }
+  // v550 문파 토벌 — 이번 주 내 도전 수 · 받은 단계 · 이번 주 두목(장 두목 15명 차례)
+  graidState() { const S = this.S, wk = weekKey(this.now), R = (S.graid ??= { week: wk, used: 0, claimed: 0 }); if (R.week !== wk) Object.assign(R, { week: wk, used: 0, claimed: 0 }); return R; }
+  graidBoss() { return 1 + (weekKey(this.now) % 15); }
+  // 문파 피해 합(서버) → 단계 · 받은 것보다 높은 단계마다 보상
+  graidClaim(total, lv) {
+    if (!this.S.guildId) return null;
+    const R = this.graidState(), ph = GD.raidPhase(Math.max(0, total || 0), graidHp0(lv)).phase, n = ph - R.claimed;
+    if (n <= 0) return null;
+    R.claimed = ph;
+    const gold = Math.round(n * GRAID.rew.goldMin * KILLS_PER_MIN * goldPerMob(this.S.hero.lv)), tix = n * GRAID.rew.tix;
+    this.S.wallet.gold += gold; this.S.wallet['ticket:gear'] = (this.S.wallet['ticket:gear'] || 0) + tix;
+    return { n, phase: ph, gold, tix };
   }
   setNick(name) { const n = String(name || '').replace(/[\u0000-\u001f<>]/g, '').trim().slice(0, 12); if (!n) return false; this.S.nick = n; return true; }
   rankProfile() {
@@ -475,6 +493,9 @@ export class Game {
       if (S.hero.lv < JOB_LV[n]) return `Lv ${JOB_LV[n]}부터`;
     } else if (type === 'wboss') {
       const W = S.wb; if (W && W.day === String(dayKey(this.now)) && W.used >= WBOSS.tries) return '오늘은 다 했어요';
+    } else if (type === 'graid') {
+      if (!S.guildId) return '문파에 들면';
+      if (this.graidState().used >= GRAID.weekTries) return '이번 주는 다 했어요';
     } else if (type !== 'tower') return '없는 던전이에요';
     return '';
   }
@@ -482,6 +503,7 @@ export class Game {
     if (this.canDungeon(type, kind)) return false;
     const S = this.S, L = S.hero.lv, D = type === 'daily' ? DAILY_DUNGEONS[kind] : null;
     if (type === 'daily') { ID.useStamina(S.stamina.daily, this.now); S.dungeons.runs[kind] = (S.dungeons.runs[kind] || 0) + 1; }
+    if (type === 'graid') this.graidState().used++;
     if (type === 'wboss') { const W = (S.wb ??= { day: '', used: 0, best: 0, week: 0, total: 0 }); if (W.week !== S.qWeek) { W.week = S.qWeek; W.total = 0; W.best = 0; } WB.useTry(W, String(dayKey(this.now))); }
     const mob = (lv, kind2 = 'mob', w = 1) => ({ lv, kind: kind2, w });
     let title, clear, need = 0, limitMs, map, fams, hpX = 1, wipeN = 0, boss = false, extra = {};
@@ -495,6 +517,9 @@ export class Game {
     } else if (type === 'wboss') {   // v535 월드보스 — 쓰러지지 않는 거대 두목 · 90초 동안 넣은 피해 = 점수
       title = `월드보스 · ${WBF.name}`; clear = 'timeoutWin'; limitMs = WBOSS.fightMs; boss = true;
       map = makeSideMap(9100, CB.arena); fams = { b: { mobs: [mob(L, 'boss')], keep: 0, coolMs: 1e12 }, a: { mobs: [mob(L)], keep: 0, coolMs: 1e12 } };
+    } else if (type === 'graid') {   // v550 문파 토벌
+      const ch = this.graidBoss(); title = `문파 토벌 · ${CHBOSS[ch].name}`; clear = 'timeoutWin'; limitMs = GRAID.fightMs; boss = true; extra.ch = ch;
+      map = makeSideMap(9200 + ch, CB.arena); fams = { b: { mobs: [mob(L, 'boss')], keep: 0, coolMs: 1e12 }, a: { mobs: [mob(L)], keep: 0, coolMs: 1e12 } };
     } else if (type === 'tower') {
       const f = S.tower.best + 1;
       title = `무한의 탑 ${f}층`; clear = 'wipe'; limitMs = 60000; wipeN = need = 4; hpX = ID.towerX(f); extra.floor = f;
@@ -508,6 +533,7 @@ export class Game {
     if (boss) F.spawn('b', { p: 0, x: Math.round(map.w * 0.75) });
     if (wipeN) F.famState.a.keep = 0;   // 다 잡기: 처음 자리 몹만 · 다시 나오지 않음
     if (hpX !== 1) for (const m of F.mobs) { m.hp = Math.round(m.hp * hpX); m.st = { ...m.st, hp: m.hp }; }
+    if (type === 'graid') for (const m of F.mobs) { m.hp = 1e15; m.st = { ...m.st, hp: 1e15 }; const D = CHBOSS[extra.ch]; m.cb = { ch: extra.ch, pats: D.pats, phase: 1, gg: 0 }; m.name = D.name; }
     if (type === 'wboss') for (const m of F.mobs) { m.hp = 1e15; m.st = { ...m.st, hp: 1e15 }; m.cb = { ch: 0, wb: true, pats: WBF.pats, phase: 1, gg: 0 }; m.name = WBF.name; }
     F.limitMs = limitMs;
     this.dg = { type, kind, title, clear, need, limitMs, F, ...extra };
@@ -521,7 +547,7 @@ export class Game {
     if (d.clear === 'kills') { p = F.kills / d.need; label = `처치 ${Math.min(F.kills, d.need)} / ${d.need}`; }
     else if (d.clear === 'boss') { const b = F.mobs.find((m) => m.kind === 'boss'); const r = b ? b.hp / b.st.hp : 0; p = 1 - r; label = `두목 체력 ${Math.ceil(r * 100)}%`; }
     else if (d.clear === 'wipe') { p = 1 - F.mobs.length / d.need; label = `남은 적 ${F.mobs.length} / ${d.need}`; }
-    else if (d.clear === 'timeoutWin') { p = F.t / d.limitMs; const dmg = Math.round(F.dmgOut * WBF.sideX); label = `피해 ${dmg} · 점수 ${WB.bossScore(dmg, this.S.hero.lv)}`; }
+    else if (d.clear === 'timeoutWin') { p = F.t / d.limitMs; const dmg = Math.round(F.dmgOut * WBF.sideX); label = d.type === 'graid' ? `피해 ${dmg}` : `피해 ${dmg} · 점수 ${WB.bossScore(dmg, this.S.hero.lv)}`; }
     else { p = F.t / d.limitMs; label = F.deaths ? '쓰러짐 — 실패' : `쓰러지지 말고 버티기 · ${Math.ceil(left / 1000)}초`; }
     return { title: d.title, type: d.type, kind: d.kind, clear: d.clear, p: Math.max(0, Math.min(1, p)), label, leftMs: left };
   }
@@ -561,6 +587,7 @@ export class Game {
       W.total += score; W.best = Math.max(W.best, score); out.dmg = dmg; out.score = score; out.best = W.best; out.total = W.total;
       this.emit('wboss');
     }
+    else if (d.type === 'graid') { out.dmg = Math.round(F.dmgOut * WBF.sideX); out.ch = d.ch; this.emit('graid'); }   // v550 나가도 넣은 만큼
     else if (cleared && d.type === 'job') { this.hero.clearDungeon(JOB_ADV[d.n].dungeon); this.hero.advance(); this.emit('dungeon', { job: d.n }); this.feed.push({ k: 'advance', n: d.n }); }
     const res = { k: 'dungeon-end', type: d.type, kind: d.kind, title: d.title, cleared, gaveUp, ms: F.t, kills: F.kills, deaths: F.deaths, floor: d.floor, n: d.n, ...out };
     this.feed.push(res); this.lastDg = res;

@@ -1,6 +1,7 @@
 // 새 시즌 화면 — v524부터 첫 화면(index.html). 옛 게임은 classic.html(세이브는 따로 · ifu.s2.*가 새 시즌).
 // 화면은 엔진(js/s2/game.js)만 본다. 시계는 화면 쪽에서만 읽어 엔진에 넘긴다(엔진은 결정론).
-import { Game, newGame, COLLECTS, dayKey, weekKey, STAGE_KILLS } from '../game.js';
+import { Game, newGame, COLLECTS, dayKey, weekKey, STAGE_KILLS, GRAID, graidHp0 } from '../game.js';
+import { raidPhase } from '../online/guild.js';
 import { SAVE_KEY } from '../core/save.js';
 import { S2Net } from './net.js';
 import { encodeSave, decodeAny } from '../../savecode.js';
@@ -112,6 +113,7 @@ function guildLoad(force) {
     const G = g.S.guildId ? await net.guildGet(g.S.guildId).catch(() => null) : null;
     if (G && G.memberIds.includes(net.uid)) {
       guildState.g = G; guildState.list = null;
+      guildState.raid = await net.graidGet(G.id, wkStr(Date.now())).catch(() => null);   // v550
       if (G.members?.[net.uid] !== g.S.nick && g.S.nick) net.guildRename(G, g.S.nick).catch(() => {});
       net.guildProfiles(G.memberIds).then((ps) => { guildState.prof = Object.fromEntries(ps.map((x) => [x.uid, x])); if (open === 'social') paintWin(); });
     } else {
@@ -556,6 +558,17 @@ function paintWin() {
     const c0 = card(`${esc(G.name)} <small>문파 Lv ${glv}</small>`, `코드 ${G.id} · ${G.memberIds.length}/10명 · 경험치 ${unit(G.exp || 0)}${G.owner === net.uid ? ' · 문주' : ''}`);
     c0(R('문파 출석', g.S.gChk === dayKey(now()) ? '오늘은 했어요 · 자정에 새로' : `하루 한 번 — 장비 뽑기권 2 · 은자 · 문파 경험치 +20${mine ? '(문파 쪽은 오늘 이미)' : ''}`,
       [['출석', () => { play('click'); const r = g.guildCheckin(); if (!r) return; save(); play('coin'); toast(`문파 출석 — 뽑기권 ${r.tix} · 은자 ${unit(r.gold)}`); net.guildCheckin(G).then(() => { guildState.at = 0; guildLoad(); }).catch(() => {}); paintWin(); paintHud(); }, g.S.gChk === dayKey(now())]], '印'));
+    // v550 문파 토벌 — 이번 주 두목 · 단계 막대 · 내 도전 · 단계 보상 · 문파원 피해
+    { const ch = g.graidBoss(), D = CHBOSS[ch], RD = guildState.raid || { dmg: {}, names: {}, lv: 0 }, tot = Object.values(RD.dmg || {}).reduce((a, b) => a + b, 0);
+      const lvR = RD.lv || Math.max(10, Math.floor(g.S.hero.lv / 10) * 10), ph = raidPhase(tot, graidHp0(lvR)), GS2 = g.graidState(), why = g.canDungeon('graid');
+      const cR = card(`문파 토벌 <small>${ch}장 · ${esc(D.name)}</small>`, `이번 주 ${ph.phase}단계 깸 · 토벌 Lv ${lvR} · 월요일에 새 두목`);
+      const top = document.createElement('div'); top.className = 'gr-top'; top.innerHTML = `<img src="art/s2/chb/chb${ch}.webp" alt="${esc(D.name)}"><div><div class="achbar"><i style="width:${Math.min(100, (ph.done / ph.hp) * 100)}%"></i><span>${ph.phase + 1}단계 ${unit(ph.done)} / ${unit(ph.hp)}</span></div><small>문파원이 넣은 피해를 모아 깎아요 · 단계마다 체력 ×1.4 · 단계마다 뽑기권 ${GRAID.rew.tix} · 은자</small></div>`; cR(top);
+      cR(R('도전', `90초 · 쓰러지지 않는 두목에 피해를 넣어요 · 이번 주 ${GS2.used}/${GRAID.weekTries}번`, [['도전', () => { play('click'); if (!g.enterDungeon('graid')) toast(g.canDungeon('graid') || '들어갈 수 없어요'); }, !!why]], '討'));
+      const can = ph.phase - GS2.claimed;
+      cR(R('단계 보상', can > 0 ? `${can}단계 받을 수 있어요` : `받은 단계 ${GS2.claimed}`, [['받기', act(() => { const r = g.graidClaim(tot, lvR); if (r) { play('coin'); toast(`문파 토벌 ${r.n}단계 — 뽑기권 ${r.tix} · 은자 ${unit(r.gold)}`); } return r; }), can <= 0]], '賞'));
+      const rk = Object.entries(RD.dmg || {}).sort((a, b) => b[1] - a[1]);
+      if (rk.length) { const box = document.createElement('div'); box.className = 'rk-list'; box.innerHTML = rk.map(([id, v], i) => `<div class="rk-r ${id === net.uid ? 'me' : ''} ${i < 3 ? `top${i + 1}` : ''}"><b>${i + 1}</b><span>${esc(RD.names?.[id] || '무인')}</span><em>${unit(v)}</em></div>`).join(''); cR(box); }
+    }
     c0(R('코드 알려 주기', `문파원을 부를 때 — ${G.id}`, [['복사', () => { play('click'); navigator.clipboard?.writeText(G.id).then(() => toast('코드를 복사했어요'), () => toast(G.id)); }]], '碼'));
     const c1 = card('문파원', `오늘 출석 ${G.memberIds.filter((id) => G.checkins?.[id] === dk).length}/${G.memberIds.length}`);
     for (const id of G.memberIds) {
@@ -1480,8 +1493,11 @@ function frame() {
     else if (f.k === 'challenge') { play('boss'); addLog(f.raid ? `토벌 — ${CHBOSS[f.chb].name} · Lv ${f.idx}` : `${Math.ceil(f.idx / 10)}장 ${((f.idx - 1) % 10) + 1}칸 ${f.chb ? '장 두목' : '두목'} 도전`); if (f.chb) chbIntro(f.chb); }
     else if (f.k === 'raid-end') showRaidResult(f);
     else if (f.k === 'stage-clear' || f.k === 'stage-fail') showResult(f);
-    else if (f.k === 'dungeon-start') { closeWin(); play('tense'); if (f.type === 'wboss') wbIntro(); else dgBanner(f.title, g.dgStatus()); addLog(`${f.title} 입장`); }
-    else if (f.k === 'dungeon-end') { showDgResult(f); if (f.type === 'wboss') wbPush(f.score); }
+    else if (f.k === 'dungeon-start') { closeWin(); play('tense'); if (f.type === 'wboss') wbIntro(); else if (f.type === 'graid') chbIntro(g.graidBoss()); else dgBanner(f.title, g.dgStatus()); addLog(`${f.title} 입장`); }
+    else if (f.k === 'dungeon-end') {
+      showDgResult(f); if (f.type === 'wboss') wbPush(f.score);
+      if (f.type === 'graid' && net.online && g.S.guildId && f.dmg > 0) { ensureNick(); net.graidHit(g.S.guildId, wkStr(Date.now()), g.S.nick, f.dmg, g.S.hero.lv).then((RD) => { guildState.raid = RD; toast(`문파 토벌 — 피해 ${unit(f.dmg)} 보탬`); if (open === 'social') paintWin(); }).catch((e) => { console.warn('[s2net] graid', e?.code || e); toast('문파 토벌 기록을 올리지 못했어요'); }); }   // v550
+    }
     else if (f.k === 'loot') lootFx(f);
     else if (f.k === 'ach') achFx(achById.get(f.id));
   }
