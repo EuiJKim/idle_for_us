@@ -28,6 +28,7 @@ import * as ID from './content/idle.js';
 import * as OF from './content/offline.js';
 import { runDungeon } from './content/dungeon.js';
 import { power } from './online/power.js';
+import { TABLE_VER } from './tables/version.js';
 import * as WB from './online/wboss.js';
 import * as PV from './online/pvp.js';
 import { refPlayer } from './battle/ref.js';
@@ -106,6 +107,13 @@ export class Game {
   palList() { const C = this.S.colls.pal; return C.eq.filter((k) => k !== null && k !== undefined).map((k) => ({ g: CL.kindGrade('pal', k), k })); }
   fighter() { return this.hero.fighter(this.sources(), this.palList()); }
   power(mode = 'pve') { return power(this.fighter(), mode); }
+  // v547 서열에 올리는 한 줄(규칙 s2_players 칸과 같다 — rank.js PROFILE_KEYS) · 이름은 1~12자
+  setNick(name) { const n = String(name || '').replace(/[\u0000-\u001f<>]/g, '').trim().slice(0, 12); if (!n) return false; this.S.nick = n; return true; }
+  rankProfile() {
+    const S = this.S, f = this.fighter();
+    return { season: 's2', nickname: S.nick || '무인', lv: S.hero.lv, job: String(S.hero.job).slice(0, 16), power: Math.round(power(f, 'pve')), pvpPower: Math.round(power(f, 'pvp')),
+      pvpScore: Math.max(0, Math.min(99999, Math.round(S.pvp?.score ?? 1000))), wbScore: Math.max(0, Math.round(S.wb?.week === S.qWeek ? S.wb.total || 0 : 0)), tv: String(TABLE_VER).slice(0, 16), signed: true };
+  }
   // ── 사건 → 미션 · 길잡이 · 업적 ──
   emit(ev, v = {}) {
     const S = this.S;

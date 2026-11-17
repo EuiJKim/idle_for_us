@@ -127,6 +127,7 @@ const ok = (c, m, x = '') => { console.log(`  ${c ? '✓' : '✗ !!'} ${m}${x !=
     await page.click('#panel-close').catch(() => {});
     // v535 월드보스 — 무림 → 월드보스 「도전」 → 실제 싸움(위에 피해 · 점수 · 남은 시간) → 나가기 → WORLD BOSS 결과
     await page.click('.nb[data-tab="social"]'); await page.waitForTimeout(250);
+    await page.click('#panel-body .subtabs button:has-text("월드보스")'); await page.waitForTimeout(200);   // v547 무림 첫 칸은 서열
     await page.click('#wb .row .btn:has-text("도전")'); await page.waitForTimeout(600);
     ok(await page.evaluate(() => window.__s2.g.dg?.type === 'wboss') && /점수 \d+/.test(await page.textContent('#contest-sub')) && await page.isVisible('.chbin.wb'), 'v535 월드보스 실제 싸움: 등장 컷 · 피해 · 점수', await page.textContent('#contest-sub'));
     await page.waitForTimeout(1600);

@@ -38,6 +38,35 @@ export class S2Net {
     this.lastPush = at; this.cloudAt = at; this.onChange('push');
     return at;
   }
+  // v547 서열 — 프로필(s2_players/{uid}) · 월드보스 주간 점수(s2_wboss/{주}/p/{uid}) · 위 몇 명 · 내 등수
+  async pushProfile(p) {
+    if (!this.online) return false;
+    const key = JSON.stringify(p); if (key === this.lastProfile) return false;
+    await this.fs.setDoc(this.fs.doc(this.db, 's2_players', this.uid), { ...p, updatedAt: this.fs.serverTimestamp() });
+    this.lastProfile = key; return true;
+  }
+  async pushWboss(wk, name, score) {
+    if (!this.online || !(score > 0)) return false;
+    const fs = this.fs, ref = fs.doc(this.db, 's2_wboss', wk, 'p', this.uid), sc = Math.min(5000000, Math.round(score));
+    await fs.runTransaction(this.db, async (tx) => {
+      const s = await tx.get(ref), d = s.exists() ? s.data() : null;
+      tx.set(ref, d ? { name, score: d.score + sc, tries: d.tries + 1, best: Math.max(d.best, sc), at: fs.serverTimestamp() } : { name, score: sc, tries: 1, best: sc, at: fs.serverTimestamp() });
+    });
+    return true;
+  }
+  async top(kind, wk, n = 50) {
+    if (!this.online) return null;
+    const fs = this.fs, col = kind === 'wb' ? fs.collection(this.db, 's2_wboss', wk, 'p') : fs.collection(this.db, 's2_players');
+    const field = kind === 'wb' ? 'score' : kind;
+    const snap = await fs.getDocs(fs.query(col, fs.orderBy(field, 'desc'), fs.limit(n)));
+    const rows = snap.docs.map((d) => ({ uid: d.id, ...d.data(), v: d.data()[field] }));
+    let me = rows.findIndex((r) => r.uid === this.uid) + 1, mine = null;
+    if (!me) {
+      const ms = await fs.getDoc(fs.doc(col, this.uid));
+      if (ms.exists()) { mine = ms.data()[field]; const c = await fs.getCountFromServer(fs.query(col, fs.where(field, '>', mine))); me = c.data().count + 1; }
+    }
+    return { rows, me, mine };
+  }
   // Google 잇기 — uid가 그대로라 지금 진행이 그 계정에 붙는다. 그 Google이 이미 다른 진행에 이어져 있으면 conflict
   async linkGoogle(testCred) {
     const A = this.A;

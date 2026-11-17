@@ -33,6 +33,15 @@ async function device(b) {
   assert(await A.page.evaluate((t) => window.__s2.linkTest(t), TOKEN) === 'linked', 'A: Google 잇기 → 서버에 올림');
   const at = await A.page.evaluate(() => window.__s2.net.cloudAt);
   assert(at > 0, 'A: 서버 저장 시각');
+  // v547 서열 — 프로필 · 월드보스 주간 점수가 서버에 올라가고 위 몇 명에 보인다 · 화면
+  await A.page.evaluate(() => { window.__s2.g.setNick('시험무인'); window.__s2.net.lastProfile = null; window.__s2.rankPush(); window.__s2.wbPush(12345); });
+  await sleep(1500);
+  const rk = await A.page.evaluate(async () => { const n = window.__s2.net, wk = window.__s2.wkStr(Date.now()); const p = await n.top('power', wk, 50), w = await n.top('wb', wk, 50); return { p: p.rows.find((r) => r.uid === n.uid), w: w.rows.find((r) => r.uid === n.uid), me: p.me }; });
+  assert(rk.p && rk.p.nickname === '시험무인' && rk.p.lv === 37 && rk.me >= 1, 'A: 서열 프로필이 올라가 위 목록에 보임');
+  assert(rk.w && rk.w.score === 12345 && rk.w.tries === 1, 'A: 월드보스 주간 점수 올라감');
+  await A.page.click('[data-tab="social"] >> nth=0'); await A.page.click('#panel-body .subtabs button:has-text("서열")'); await sleep(1500);
+  assert(await A.page.isVisible('#wb .rk-r.me') && /내 등수|시험무인/.test(await A.page.textContent('#wb')), 'A: 무림 → 서열 화면(내 줄)');
+  await A.page.click('#panel-close');
   await A.page.click('#b-opt');
   assert(/Google · s2t\d+@example\.com/.test(await A.page.textContent('#wb')), 'A: 설정 「계정 · 저장」에 Google 표시');
   await A.page.click('#panel-close');

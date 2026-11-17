@@ -1,6 +1,6 @@
 // 새 시즌 화면 — v524부터 첫 화면(index.html). 옛 게임은 classic.html(세이브는 따로 · ifu.s2.*가 새 시즌).
 // 화면은 엔진(js/s2/game.js)만 본다. 시계는 화면 쪽에서만 읽어 엔진에 넘긴다(엔진은 결정론).
-import { Game, newGame, COLLECTS, dayKey, STAGE_KILLS } from '../game.js';
+import { Game, newGame, COLLECTS, dayKey, weekKey, STAGE_KILLS } from '../game.js';
 import { SAVE_KEY } from '../core/save.js';
 import { S2Net } from './net.js';
 import { encodeSave, decodeAny } from '../../savecode.js';
@@ -80,7 +80,18 @@ async function cloudPush(force) {
   if (!force && Date.now() - net.lastPush < 170000) return false;
   const p = net.push(g.save(), g.S.hero.lv, g.S.hero.job);
   cloudBusy = p;
-  try { await p; return true; } catch (err) { console.warn('[s2net] push', err?.code || err); return false; } finally { if (cloudBusy === p) cloudBusy = null; }
+  try { await p; rankPush(); return true; } catch (err) { console.warn('[s2net] push', err?.code || err); return false; } finally { if (cloudBusy === p) cloudBusy = null; }
+}
+// v547 서열 — 저장할 때 프로필도(바뀐 때만) · 월드보스는 칠 때마다 주간 점수
+const wkStr = (ms) => new Date(weekKey(ms) * 86400000).toISOString().slice(0, 10);   // 그 주 월요일(한국 날) — 10자
+function ensureNick() { if (!g.S.nick) g.setNick(`${JOBS[g.S.hero.job]?.name || '무인'}${(net.uid || '0000').slice(-4)}`); }
+function rankPush() { if (!net.online || !g) return; ensureNick(); net.pushProfile(g.rankProfile()).catch((e) => console.warn('[s2net] rank', e?.code || e)); }
+function wbPush(score) { if (!net.online || !g || !(score > 0)) return; ensureNick(); net.pushWboss(wkStr(Date.now()), g.S.nick, score).catch((e) => console.warn('[s2net] wboss', e?.code || e)); }
+let rankMode = 'power', rankCache = {};
+async function rankLoad(mode) {
+  const k = `${mode}:${wkStr(Date.now())}`, c = rankCache[k];
+  if (c && Date.now() - c.at < 30000) return c.r;
+  const r = await net.top(mode, wkStr(Date.now()), 50); rankCache[k] = { at: Date.now(), r }; return r;
 }
 // 처음 연결될 때 — 서버 진행이 이 기기보다 새로우면 고르게 한다(기기가 비었으면 그냥 받는다)
 async function cloudCheck() {
@@ -139,7 +150,7 @@ const TABS = [
   ['dgn', '던전', [['수련동', 'content:0'], ['토벌', 'raid:0'], ['무한 탑', 'content:1'], ['원정', 'content:2']]],
   ['map', '지도', [['스테이지', 'content:3']]],
   ['town', '임무', [['오늘', 'today:0'], ['출석', 'attend:0'], ['길잡이', 'mission:0'], ['일일', 'mission:1'], ['주간', 'mission:2'], ['업적', 'ach:0'], ['경지', 'grow:3'], ['강호행', 'grow:4']]],
-  ['social', '무림', [['월드보스', 'rival:0'], ['대결', 'rival:1'], ['문파', 'rival:2']]],
+  ['social', '무림', [['서열', 'rank:0'], ['월드보스', 'rival:0'], ['대결', 'rival:1'], ['문파', 'rival:2']]],
   ['opt', '설정', [['설정', 'mission:3']]],
 ];
 const MAIN_TABS = TABS.filter((t) => t[0] !== 'opt');
@@ -455,6 +466,24 @@ function paintWin() {
     c(R('두목 자동 도전', T.auto ? '켬 — 칸 몹을 다 잡으면 저절로' : '끔 — 들판의 「두목 도전」으로', [['바꾸기', act(() => { T.auto = !T.auto; return true; })]], '自'));
     const c2 = card('장 목록', '15장 · 장마다 10칸');
     for (let ch = 1; ch <= 15; ch++) { const first = (ch - 1) * 10 + 1, opened = T.top >= first; const r = R(`${ch}. ${chapterName(first)}`, opened ? (Math.ceil(T.top / 10) > ch ? '다 깸' : `${((T.top - 1) % 10) + 1}/10칸`) : '잠김', opened ? [['가기', act(() => { if (g.bossFight) return false; T.idx = Math.min(T.top, ch * 10); T.kills = 0; return true; })]] : [], String(ch)); if (!opened) r.style.opacity = '.45'; c2(r); }
+  } else if (key === 'rank:0') {
+    // v547 서열 — 전투력 · 레벨 · 이번 주 월드보스 위 50명 · 내 등수(서버 · 30초마다 새로)
+    const MODES = [['power', '전투력'], ['lv', '레벨'], ['wb', '이번 주 월드보스']];
+    const c0 = card('서열', net.online ? `이름 「${esc(g.S.nick || '(아직 없음)')}」 · 설정에서 바꿔요` : '오프라인 — 인터넷에 연결되면 보여요');
+    const seg = document.createElement('div'); seg.className = 'seg rk-seg';
+    for (const [m, nm] of MODES) { const b = document.createElement('button'); b.textContent = nm; b.className = m === rankMode ? 'on' : ''; b.onclick = () => { play('click'); rankMode = m; paintWin(); }; seg.append(b); }
+    c0(seg);
+    const box = document.createElement('div'); box.className = 'rk-list'; box.innerHTML = '<p class="note">불러오는 중…</p>'; c0(box);
+    if (net.online) {
+      rankPush();
+      const mode = rankMode, fmtV = (v) => (mode === 'lv' ? `Lv ${v}` : unit(v || 0));
+      rankLoad(mode).then((r) => {
+        if (!box.isConnected || mode !== rankMode) return;
+        if (!r || !r.rows.length) { box.innerHTML = '<p class="note">아직 아무도 없어요 — 처음이 되어 보세요</p>'; return; }
+        box.innerHTML = r.rows.map((x, i) => `<div class="rk-r ${x.uid === net.uid ? 'me' : ''} ${i < 3 ? `top${i + 1}` : ''}"><b>${i + 1}</b><span>${esc(x.nickname || x.name || '무인')}${x.job ? ` <small>${esc(JOBS[x.job]?.name || '')}${mode !== 'lv' && x.lv ? ` · Lv ${x.lv}` : ''}</small>` : ''}</span><em>${fmtV(x.v)}</em></div>`).join('')
+          + `<div class="rk-me">${r.me ? `내 등수 <b>${r.me}위</b>${r.mine != null ? ` · ${fmtV(r.mine)}` : ''}` : mode === 'wb' ? '이번 주 월드보스를 치면 올라가요' : '곧 올라가요(저장할 때)'}</div>`;
+      }).catch((e) => { if (box.isConnected) box.innerHTML = `<p class="note">불러오지 못했어요(${esc(e?.code || '연결')})</p>`; });
+    } else box.innerHTML = '<p class="note">오프라인이에요.</p>';
   } else if (key === 'rival:0') {
     const Wb = g.S.wb || { used: 0, best: 0, total: 0, day: '' };
     const used = Wb.day === String(dayKey(now())) ? Wb.used : 0;
@@ -462,7 +491,7 @@ function paintWin() {
     // v535 실제 싸움 — 90초 · 방어 자세(20초 · 피해 ×0.6) ↔ 약점 노출(10초 · ×1.8) · 무력화하면 피해 ×2
     c(R(`${WBF.name} <small>${WBF.title}</small>`, `오늘 ${used}/3번 · 90초 동안 넣은 피해가 점수 · 약점이 드러난 10초에 무공을 몰아 쓰세요`, [['도전', () => { play('click'); if (!g.enterDungeon('wboss')) toast(g.canDungeon('wboss') || '들어갈 수 없어요'); }, used >= 3 || !!g.canDungeon('wboss')]], '魔'));
     c(statGrid([['이번 주 점수 합', fmt(Wb.total)], ['한 번 최고', fmt(Wb.best)]]));
-    B.append(note('미리보기: 서버 공동 체력 · 순위는 교체 때 붙어요. 점수 계산은 실제와 같아요.'));
+    B.append(note('주간 점수는 칠 때마다 서버 서열(무림 → 서열 → 이번 주 월드보스)에 올라가요.'));
   } else if (key === 'rival:1') {
     const P = g.S.pvp || { score: 1000, used: 0, day: '', log: [] };
     const used = P.day === String(dayKey(now())) ? P.used : 0;
@@ -547,6 +576,7 @@ function paintWin() {
     const c3 = card('계정 · 저장', net.online ? (net.isGoogle() ? `Google · ${esc(net.email())}` : '이 기기만(Google 미연결)') : net.status === 'connecting' ? '연결 중…' : '오프라인 — 이 기기에만 저장');
     c3(R('Google 연결', net.isGoogle() ? '연결됨 — 다른 기기에서도 Google로 들어오면 이어서 해요' : '연결해 두면 기기를 바꾸거나 지워도 되살려요', [[net.isGoogle() ? '다른 계정' : '연결', () => { play('click'); if (net.isGoogle()) net.switchTo(null).then((d) => (d ? applyCloud(d) : toast('그 계정에는 새 시즌 진행이 없어요'))).catch((e) => toast(e?.message || '바꾸지 못했어요')); else linkGoogle(); }, !net.online]], 'G'));
     c3(R('서버에 저장', net.cloudAt ? `마지막 ${new Date(net.cloudAt).toLocaleString()} · 3분마다 저절로` : '3분마다 저절로 올려요', [['지금 저장', act(() => { cloudPush(true).then((ok) => toast(ok ? '서버에 저장했어요' : '저장하지 못했어요(오프라인?)')); return true; }), !net.online]], '雲'));
+    c3(R('서열 이름', g.S.nick ? esc(g.S.nick) : '아직 없음 — 서버에 올릴 때 정해져요', [['바꾸기', () => { play('click'); const n = prompt('서열에 보일 이름(1~12자)', g.S.nick || ''); if (n == null) return; if (g.setNick(n)) { save(); rankPush(); toast('이름을 바꿨어요'); } else toast('1~12자로 적어 주세요'); paintWin(); }]], '名'));   // v547
     c3(R('저장 코드', '계정 없이 글자 한 줄로 옮기기', [['복사', () => { play('click'); exportCode(); }], ['붙여넣기', () => { play('click'); importCode(); }]], '碼'));
     const c2 = card('계정');
     c2(R(`시간 티켓 ${W['ticket:time'] || 0}장`, '1장 = 15분 · 원정 · 방치에 씀', [], '時'));
@@ -1388,7 +1418,7 @@ function frame() {
     else if (f.k === 'raid-end') showRaidResult(f);
     else if (f.k === 'stage-clear' || f.k === 'stage-fail') showResult(f);
     else if (f.k === 'dungeon-start') { closeWin(); play('tense'); if (f.type === 'wboss') wbIntro(); else dgBanner(f.title, g.dgStatus()); addLog(`${f.title} 입장`); }
-    else if (f.k === 'dungeon-end') showDgResult(f);
+    else if (f.k === 'dungeon-end') { showDgResult(f); if (f.type === 'wboss') wbPush(f.score); }
     else if (f.k === 'loot') lootFx(f);
     else if (f.k === 'ach') achFx(achById.get(f.id));
   }
@@ -1757,6 +1787,6 @@ load();
 if (g) boot();
 else pickJob();
 // 시험용 손잡이
-window.__s2 = { get g() { return g; }, save, dayKey, attendPop, freeze: () => { frozen = true; }, net, cloudPush,
+window.__s2 = { get g() { return g; }, save, dayKey, attendPop, freeze: () => { frozen = true; }, net, cloudPush, rankPush, wbPush, wkStr,
   // v525 팝업 대신 에뮬레이터용 가짜 Google 토큰으로 잇기 · 겹치면 그 계정으로
   linkTest: async (tok) => { const r = await net.linkGoogle(tok); if (r.conflict) { const d = await net.switchTo(r.cred); if (d) applyCloud(d); return 'switched'; } await cloudPush(true); return 'linked'; } };

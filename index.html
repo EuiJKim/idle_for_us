@@ -166,6 +166,13 @@
     .cmp { max-height: 46vh; overflow-y: auto; } html.rot .cmp { max-height: 46vw; }
     html.h500 .cmp-h img { width: 44px; height: 44px; } html.h500 .cmp-h { margin-bottom: 4px; } html.h500 .cmp-r { padding: 2px 8px; font-size: 12px; } html.h500 #modal .sheet { padding: 12px 14px; } html.h500 #modal h2 { margin-bottom: 4px; font-size: 16px; }
     .cmp .up, .cmp-h .up { color: #86efac; } .cmp .dn, .cmp-h .dn { color: #fca5a5; }
+    /* v547 서열 */
+    .rk-seg { margin: 2px 0 8px; } .rk-list { display: grid; gap: 3px; }
+    .rk-r { display: grid; grid-template-columns: 34px 1fr auto; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 9px; background: rgba(0,0,0,.25); font-size: 13px; }
+    .rk-r b { text-align: center; font-variant-numeric: tabular-nums; color: rgba(255,255,255,.7); } .rk-r small { color: rgba(255,255,255,.55); font-size: 11px; } .rk-r em { font-style: normal; font-weight: 800; font-variant-numeric: tabular-nums; }
+    .rk-r.top1 b { color: #fde047; font-size: 16px; } .rk-r.top2 b { color: #e5e7eb; font-size: 15px; } .rk-r.top3 b { color: #f0abfc; font-size: 15px; } .rk-r.top1 { background: linear-gradient(90deg, rgba(120,90,10,.45), rgba(0,0,0,.25)); }
+    .rk-r.me { outline: 1px solid #7dd3fc; background: rgba(8,47,73,.6); }
+    .rk-me { margin-top: 6px; text-align: center; font-size: 13px; color: rgba(255,255,255,.75); } .rk-me b { color: #7dd3fc; }
     /* v546 회피 — 두목 · 던전 싸움에서만 점프 위에 */
     #sk > #ds { position: absolute; right: 8px; bottom: calc(100% + 10px); width: 58px; height: 58px; border-radius: 50%; border: 3px solid rgba(125,211,252,.85); background: radial-gradient(circle at 50% 35%, rgba(20,60,90,.9), rgba(5,15,25,.9)); box-shadow: 0 0 14px rgba(56,189,248,.45); }
     #sk > #ds.hidden { display: none; } #ds .ic { width: 28px; height: 28px; stroke: #e0f2fe; stroke-width: 2.6; }

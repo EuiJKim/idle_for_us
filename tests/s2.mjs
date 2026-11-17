@@ -1085,6 +1085,15 @@ console.log('\n=== v546 회피(대시) · 완벽 회피 ===');
     ok(f.chb.manual === 50 && g.S.wallet['item:stone'] - s0 >= 50 && g.S.chbMan[1] === 1, '자동 피하기 끄고 처음 깨면 강화석 50'); }
 }
 
+console.log('\n=== v547 서열 프로필 ===');
+{
+  const RK = await import('../js/s2/online/rank.js');
+  const T0 = 1.8e12, g = new Game(newGame('bow', T0, 5), T0); g.addExp(EX.cumExp(30)); g.tick(T0);
+  ok(!g.setNick('   ') && g.setNick('  <b>검은바람</b>의 궁수입니다  ') && g.S.nick.length <= 12 && !/[<>]/.test(g.S.nick), '이름: 빈 칸 거부 · 12자 · 꺾쇠 빼기', g.S.nick);
+  const P = g.rankProfile();
+  ok(Object.keys(P).every((k) => RK.PROFILE_KEYS.includes(k)) && P.season === 's2' && P.lv === g.S.hero.lv && P.power === Math.round(g.power()) && RK.checkProfile(P).length === 0, '프로필 칸 = 규칙 칸 · 값 범위 · 점검 통과', JSON.stringify(P));
+}
+
 console.log('\n=== S0 규칙 ===');
 {
   const files = [];
