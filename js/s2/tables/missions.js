@@ -59,12 +59,16 @@ export const ACHIEVE = {
   today: { steps: [7, 30, 60], name: (n) => `오늘 할 일 다 하기 ${n}번` },   // v545
   guild: { steps: [7, 30, 100], name: (n) => `문파 출석 ${n}번` },   // v549
   graid: { steps: [5, 30, 100], name: (n) => `문파 토벌 ${n}번` },   // v550
+  // v571 — best: 한 번에 그만큼(최고 기록형 · 조건만 보고 한 번에 끝)
+  combo: { steps: [30, 100, 300], best: true, name: (n) => `${n} 연속 처치` },
+  revenge: { steps: [1, 10, 30], name: (n) => `대결 복수 ${n}번` },
+  friendly: { steps: [5, 30, 100], name: (n) => `친선 대결 ${n}번` },
 };
 export const ACHIEVE_STEPS = Object.fromEntries(Object.entries(ACHIEVE).map(([k, v]) => [k, v.steps]));
 export function achievements() {
   const out = [];
   for (const [ev, A] of Object.entries(ACHIEVE)) A.steps.forEach((need, i) => out.push({ id: `a_${ev}_${i}`, ev, step: i, name: A.name(need),
-    add: ev === 'level' ? null : A.add || null, cond: ev === 'level' ? `lv >= ${need}` : A.cond || null, need: ev === 'level' ? 1 : need,
+    add: ev === 'level' || A.best ? null : A.add || null, cond: ev === 'level' ? `lv >= ${need}` : A.best ? `n >= ${need}` : A.cond || null, need: ev === 'level' || A.best ? 1 : need, best: !!A.best,
     huntMin: 10 * (i + 1), items: { 'ticket:gear': 5 * (i + 1), 'item:stone': 30 * (i + 1) } }));
   return out;
 }

@@ -732,8 +732,8 @@ function paintWin() {
     const c1 = card('목록', '단계를 깨면 다음 단계가 열려요');
     for (const ev of Object.keys(ACHIEVE)) {
       const list = ACH.filter((a) => a.ev === ev), cur = list.find((a) => !B.get(a.id).got) || list.at(-1), st = B.get(cur.id), all = list.every((a) => B.get(a.id).got);
-      const pr = ev === 'level' ? Math.min(1, g.S.hero.lv / +cur.cond.split('>=')[1]) : Math.min(1, (st.p || 0) / cur.need);
-      const progTxt = ev === 'level' ? `Lv ${g.S.hero.lv} / ${cur.cond.split('>=')[1].trim()}` : `${unit(st.p || 0)} / ${unit(cur.need)}`;
+      const pr = ev === 'level' ? Math.min(1, g.S.hero.lv / +cur.cond.split('>=')[1]) : cur.best ? (st.done ? 1 : Math.min(1, (g.S.comboBest || 0) / +cur.cond.split('>=')[1])) : Math.min(1, (st.p || 0) / cur.need);
+      const progTxt = ev === 'level' ? `Lv ${g.S.hero.lv} / ${cur.cond.split('>=')[1].trim()}` : cur.best ? (st.done ? '달성' : `최고 ${unit(g.S.comboBest || 0)} / ${cur.cond.split('>=')[1].trim()}`) : `${unit(st.p || 0)} / ${unit(cur.need)}`;   // v571 최고형
       const r = R(`${esc(cur.name)} <small>${list.filter((a) => B.get(a.id).got).length}/${list.length}단계</small>`,
         all ? '모두 끝냄' : `<div class="achbar"><i style="width:${pr * 100}%"></i><span>${progTxt}</span></div>보상 장비 뽑기권 ${cur.items['ticket:gear']} · 강화석 ${cur.items['item:stone']} · 사냥 ${cur.huntMin}분`,
         all ? [] : [['받기', act(() => g.claimMission('ach', cur.id)), !(st.done && !st.got)]], st.done && !st.got ? '★' : '功');
@@ -1124,9 +1124,10 @@ function comboHit(t) {
   combo = t - comboAt <= COMBO_MS ? combo + 1 : 1; comboAt = t; comboBest = Math.max(comboBest, combo);
   const el = $('combo'); if (!el) return;
   if (combo >= 3) { el.className = `on${combo >= 50 ? ' hot' : combo >= 10 ? ' warm' : ''}`; el.innerHTML = `<b>${combo}</b><span>연속 처치</span><i></i>`; el.style.setProperty('--cm', COMBO_MS + 'ms'); }
+  if (combo === 30 || combo === 100 || combo === 300) g.comboMark(combo);   // v571 업적 · 최고 기록
   if (COMBO_MILES.includes(combo)) { chbBanner(`${combo} 연속!`, combo >= 100 ? '멈출 수 없다' : combo >= 50 ? '무아지경' : '기세가 오른다', combo >= 50 ? 'win' : 'stun'); play(combo >= 50 ? 'rare' : 'loot', 4); buzz(30); }
 }
-function comboTick(t) { const el = $('combo'); if (el && el.classList.contains('on') && t - comboAt > COMBO_MS) { el.className = ''; if (combo >= 10) addLog(`${combo} 연속 처치`); combo = 0; } }
+function comboTick(t) { const el = $('combo'); if (el && el.classList.contains('on') && t - comboAt > COMBO_MS) { el.className = ''; if (combo >= 10) { addLog(`${combo} 연속 처치`); if (combo > (g.S.comboBest || 0)) g.S.comboBest = combo; } combo = 0; } }
 const pals = [];           // 화면 위 동료(무인 뒤를 따라감)
 const JOB_COL = { sword: '#ffe9a8', spear: '#ffb27a', fist: '#ffd56a', bow: '#b6f0ff', mage: '#d4b8ff' };
 const PAL_COL = ['#7dd3fc', '#86efac', '#fde68a', '#f9a8d4', '#c4b5fd'];

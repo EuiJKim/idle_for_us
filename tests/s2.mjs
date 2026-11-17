@@ -1249,6 +1249,17 @@ console.log('\n=== v569 즐겨찾기 · 친선 대결 ===');
   ok(A.pvpFriendly({ uid: 'X', f: { lv: 999, job: 'sword', st: {} } }) === null, '있을 수 없는 덱은 못 겨룸');
 }
 
+console.log('\n=== v571 업적: 연속 처치 · 복수 · 친선 ===');
+{
+  const T0 = 1.8e12, g = new Game(newGame('sword', T0, 21), T0); g.addExp(EX.cumExp(30)); g.tick(T0);
+  const B = g.books.ach;
+  g.comboMark(30); ok(B.get('a_combo_0').done && !B.get('a_combo_1').done && g.S.comboBest === 30, '30 연속 → 첫 단계 · 최고 기록');
+  g.comboMark(100); ok(B.get('a_combo_1').done && !B.get('a_combo_2').done, '100 연속 → 둘째 단계');
+  const Bg = new Game(newGame('fist', T0, 22), T0); Bg.addExp(EX.cumExp(30)); Bg.tick(T0);
+  for (let i = 0; i < 5; i++) g.pvpFriendly({ uid: 'B', name: 'b', score: 1000, f: JSON.parse(Bg.pvpDeck()) });
+  ok(B.get('a_friendly_0').done, '친선 대결 5번 → 업적');
+}
+
 console.log('\n=== S0 규칙 ===');
 {
   const files = [];

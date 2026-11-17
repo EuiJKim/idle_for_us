@@ -723,10 +723,12 @@ export class Game {
     if (F.length >= 20) return null;
     F.push({ uid: String(uid).slice(0, 64), name: String(name || '무인').slice(0, 12) }); return true;
   }
+  // v571 연속 처치 최고(화면이 센다) — 최고 기록 · 업적
+  comboMark(n) { const S = this.S; if (n > (S.comboBest || 0)) S.comboBest = n; this.emit('combo', { n }); }
   isFav(uid) { return (this.S.favs || []).some((x) => x.uid === uid); }
   pvpFriendly(opp) {
     const save = this.pvpReal; if (!this.setPvpReal([opp])) { this.pvpReal = save; return null; }
-    const o = this.pvpReal[0]; this.pvpReal = save;
+    const o = this.pvpReal[0]; this.pvpReal = save; this.emit('friendly');   // v571
     const me = this.fighter(), log = [], r = PV.duel(me, o.f, this.rng.u32(), log);
     return { ...r, d: 0, friendly: true, score: this.S.pvp?.score ?? PVP.start, tier: PV.tierOf(this.S.pvp?.score ?? PVP.start).name, log, opp: { name: o.name, job: o.f.job, lv: o.f.lv, hp: o.f.st.hp, real: true, lk: o.lk || null }, myHp: me.st.hp };
   }
@@ -736,7 +738,7 @@ export class Game {
     if (!L || !L.def || L.win || L.rev || !L.by || !opp || opp.uid !== L.by) return null;
     if (!this.setPvpReal([opp])) return null;
     const r = this.pvpFight(0);
-    if (r) { const L2 = P.log.find((x) => x === L) || L; L2.rev = r.win ? 1 : 2; r.revenge = true; }
+    if (r) { const L2 = P.log.find((x) => x === L) || L; L2.rev = r.win ? 1 : 2; r.revenge = true; if (r.win) this.emit('revenge'); }   // v571
     return r;
   }
   // 내 방어 덱 — 대결이 쓰는 것만(레벨 · 직업 · 능력치)
