@@ -124,14 +124,17 @@ export class Game {
   // v547 서열에 올리는 한 줄(규칙 s2_players 칸과 같다 — rank.js PROFILE_KEYS) · 이름은 1~12자
   // v549 문파 — 들어간 문파(코드) · 문파 출석 보상(하루 한 번 · 뽑기권 · 은자). 문파 문서는 서버(옛 게임과 같은 문파 — 계정에 하나)
   setGuild(id) { this.S.guildId = id ? String(id).slice(0, 8) : null; return true; }
-  guildCheckin() {
+  // v575 문파 Lv(경험치 500마다) — 출석 뽑기권 +1(2 Lv마다 · 최대 +3)
+  static guildLvOf(exp) { return 1 + Math.floor(Math.max(0, exp || 0) / 500); }
+  static guildBonus(glv) { return Math.min(3, Math.floor((Math.max(1, glv) - 1) / 2)); }
+  guildCheckin(glv = 1) {
     const S = this.S, dk = dayKey(this.now);
     if (!S.guildId || S.gChk === dk) return null;
     S.gChk = dk;
-    const gold = Math.round(GUILD_CHECKIN.goldMin * KILLS_PER_MIN * goldPerMob(S.hero.lv));
-    S.wallet.gold += gold; S.wallet['ticket:gear'] = (S.wallet['ticket:gear'] || 0) + GUILD_CHECKIN.tix;
+    const gold = Math.round(GUILD_CHECKIN.goldMin * KILLS_PER_MIN * goldPerMob(S.hero.lv)), tix = GUILD_CHECKIN.tix + Game.guildBonus(glv);
+    S.wallet.gold += gold; S.wallet['ticket:gear'] = (S.wallet['ticket:gear'] || 0) + tix;
     this.emit('guild');
-    return { gold, tix: GUILD_CHECKIN.tix };
+    return { gold, tix };
   }
   // v550 문파 토벌 — 이번 주 내 도전 수 · 받은 단계 · 이번 주 두목(장 두목 15명 차례)
   graidState() { const S = this.S, wk = weekKey(this.now), R = (S.graid ??= { week: wk, used: 0, claimed: 0 }); if (R.week !== wk) Object.assign(R, { week: wk, used: 0, claimed: 0 }); return R; }

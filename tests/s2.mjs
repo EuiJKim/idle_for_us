@@ -1260,6 +1260,13 @@ console.log('\n=== v571 업적: 연속 처치 · 복수 · 친선 ===');
   ok(B.get('a_friendly_0').done, '친선 대결 5번 → 업적');
 }
 
+console.log('\n=== v575 문파 Lv 출석 보너스 ===');
+{
+  ok(Game.guildLvOf(0) === 1 && Game.guildLvOf(1000) === 3 && Game.guildBonus(1) === 0 && Game.guildBonus(3) === 1 && Game.guildBonus(5) === 2 && Game.guildBonus(20) === 3, '문파 Lv(500마다) · 보너스(2 Lv마다 +1 · 최대 3)');
+  const T0 = 1.8e12, g = new Game(newGame('sword', T0, 23), T0); g.addExp(EX.cumExp(30)); g.tick(T0); g.setGuild('ABC234');
+  const t0 = g.S.wallet['ticket:gear'] || 0, r = g.guildCheckin(7); ok(r.tix === 5 && g.S.wallet['ticket:gear'] === t0 + 5, '문파 Lv 7 출석 → 뽑기권 2 + 3');
+}
+
 console.log('\n=== S0 규칙 ===');
 {
   const files = [];

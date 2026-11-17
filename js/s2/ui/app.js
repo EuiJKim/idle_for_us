@@ -681,10 +681,10 @@ function paintWin() {
       else if (!guildState.list.length) c1(note('지금 모집 중인 문파가 없어요 — 만들어 보세요'));
       else for (const x of guildState.list.slice(0, 20)) c1(R(`${esc(x.name)} <small>${x.n}/10명</small>`, `${esc(x.intro || '')}${x.minLv ? ` · Lv ${x.minLv}부터` : ''} · 경험치 ${unit(x.exp || 0)}`, [['들어가기', () => { play('click'); ensureNick(); guildDo(() => net.guildJoin(x.id, g.S.nick), '문파에 들어갔어요'); }, g.S.hero.lv < (x.minLv || 0)]], '派'));
     } else {
-    const dk = S2NetDay(), mine = G.checkins?.[net.uid] === dk, glv = 1 + Math.floor((G.exp || 0) / 500);
+    const dk = S2NetDay(), mine = G.checkins?.[net.uid] === dk, glv = Game.guildLvOf(G.exp), gb = Game.guildBonus(glv);
     const c0 = card(`${esc(G.name)} <small>문파 Lv ${glv}</small>`, `코드 ${G.id} · ${G.memberIds.length}/10명 · 경험치 ${unit(G.exp || 0)}${G.owner === net.uid ? ' · 문주' : ''}`);
-    c0(R('문파 출석', g.S.gChk === dayKey(now()) ? '오늘은 했어요 · 자정에 새로' : `하루 한 번 — 장비 뽑기권 2 · 은자 · 문파 경험치 +20${mine ? '(문파 쪽은 오늘 이미)' : ''}`,
-      [['출석', () => { play('click'); const r = g.guildCheckin(); if (!r) return; save(); play('coin'); toast(`문파 출석 — 뽑기권 ${r.tix} · 은자 ${unit(r.gold)}`); net.guildCheckin(G).then(() => { guildState.at = 0; guildLoad(); }).catch(() => {}); paintWin(); paintHud(); }, g.S.gChk === dayKey(now())]], '印'));
+    c0(R('문파 출석', g.S.gChk === dayKey(now()) ? '오늘은 했어요 · 자정에 새로' : `하루 한 번 — 장비 뽑기권 ${2 + gb}${gb ? `(문파 Lv ${glv} +${gb})` : ''} · 은자 · 문파 경험치 +20${mine ? '(문파 쪽은 오늘 이미)' : ''}`,
+      [['출석', () => { play('click'); const r = g.guildCheckin(glv); if (!r) return; save(); play('coin'); toast(`문파 출석 — 뽑기권 ${r.tix} · 은자 ${unit(r.gold)}`); net.guildCheckin(G).then(() => { guildState.at = 0; guildLoad(); }).catch(() => {}); paintWin(); paintHud(); }, g.S.gChk === dayKey(now())]], '印'));
     // v550 문파 토벌 — 이번 주 두목 · 단계 막대 · 내 도전 · 단계 보상 · 문파원 피해
     { const ch = g.graidBoss(), D = CHBOSS[ch], RD = guildState.raid || { dmg: {}, names: {}, lv: 0 }, tot = Object.values(RD.dmg || {}).reduce((a, b) => a + b, 0);
       const lvR = RD.lv || Math.max(10, Math.floor(g.S.hero.lv / 10) * 10), ph = raidPhase(tot, graidHp0(lvR)), GS2 = g.graidState(), why = g.canDungeon('graid');
