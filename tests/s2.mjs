@@ -983,6 +983,18 @@ console.log('\n=== v539 대결 화면(기록 다시 보기) ===');
   ok(okAll, '기록을 그대로 다시 깎으면 엔진의 남은 체력과 같다(화면 = 결과)');
 }
 
+console.log('\n=== v540 두목 패턴 자동 피하기 설정 ===');
+{
+  const T0 = 1.8e12, g = new Game(newGame('sword', T0, 1), T0); g.tick(T0);
+  ok(g.ensureFight().autoDodge === true, '처음엔 켜짐(자동 전투 때 피한다)');
+  const T = g.stage(); T.idx = 9; T.kills = STAGE_KILLS; g.challenge();
+  g.setDodge(false);
+  ok(g.fight.autoDodge === false && g.bossFight.autoDodge === false, '끄면 지금 들판 · 두목전에도 바로');
+  const g2 = Game.load(g.save(), T0); g2.endChallenge?.(false);
+  ok(g2.S.dodge === false && g2.ensureFight().autoDodge === false, '저장했다 불러도 꺼진 채');
+  g2.setDodge(true); ok(g2.ensureFight().autoDodge === true, '다시 켜면 피한다');
+}
+
 console.log('\n=== S0 규칙 ===');
 {
   const files = [];

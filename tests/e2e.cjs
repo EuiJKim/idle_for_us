@@ -200,7 +200,7 @@ async function tab(page, name) {
   await sleep(2600);
   await shot(p, '05g-ending.png');
   await p.click('#modal .btn:has-text("강호로 돌아가기")');
-  await G(p, () => { for (const it of Object.values(window.__game.s.equip)) if (it) it.plus = 0; window.__game._stats = null; window.__app.refresh(); });   // 아래 강화 시험은 +0부터
+  await G(p, () => { for (const it of Object.values(window.__game.s.equip)) if (it) { it.plus = 0; it.epity = 1; } window.__game._stats = null; window.__app.refresh(); });   // 아래 강화 시험은 +0부터 · v540 천장을 채워 성공 확정(옛 게임 강화는 확률이라 가끔 실패해 시험이 흔들렸다)
 
   await p.click('#panel .subtabs button[data-key="gear"]');
   await p.locator('#panel .gear-tile:has-text("무기")').click();

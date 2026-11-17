@@ -164,7 +164,7 @@ export class Game {
     if (this.bossFight) return this.bossFight;
     const L = this.zoneLv();
     if (!this.fight || this.fight.def.lv !== L) {
-      this.fight = new SideFight(this.room(), this.fighter(), this.rng.u32(), { auto: this.S.auto !== false });
+      this.fight = new SideFight(this.room(), this.fighter(), this.rng.u32(), { auto: this.S.auto !== false, autoDodge: this.S.dodge !== false });
       this.dirtyStats = false;
     } else if (this.dirtyStats) {
       const st = this.fighter().st, H = this.fight.hero;
@@ -193,7 +193,7 @@ export class Game {
     const def = chb
       ? { lv: L, boss: true, chb: ch, map: makeSideMap(9000 + ch, CB.arena), fams: { b: { mobs: [{ lv: L, kind: 'boss', w: 1 }], keep: 0, coolMs: 1e12 }, a: { mobs: [{ lv: L, kind: 'mob', w: 1 }], keep: 0, coolMs: 1e12 } } }
       : { lv: L, boss: true, map: makeSideMap(5000 + L, { w: 14000, tiers: 1 }), fams: { b: { mobs: [{ lv: L, kind: 'boss', w: 1 }], keep: 0, coolMs: 1e12 } } };
-    const F = new SideFight(def, this.fighter(), this.rng.u32(), { auto: this.S.auto !== false });
+    const F = new SideFight(def, this.fighter(), this.rng.u32(), { auto: this.S.auto !== false, autoDodge: this.S.dodge !== false });
     F.spawn('b', { p: 0, x: chb ? Math.round(CB.arena.w * 0.72) : 9000 });
     for (const m of F.mobs) {
       m.hp = Math.round(m.hp * (chb ? CB.hpX : STAGE_BOSS_HP_X)); m.st = { ...m.st, hp: m.hp };
@@ -229,6 +229,8 @@ export class Game {
   hold(dir) { this.ensureFight().press({ dir }); }
   jump() { this.ensureFight().press({ jump: 1 }); }
   down() { this.ensureFight().press({ down: 1 }); }
+  // v540 자동 전투 때 두목 패턴 피하기(켜 두면 붉은 범위 밖으로 비킨다 · 끄면 직접 피해야 한다) — 지금 싸움에도 바로
+  setDodge(on) { this.S.dodge = !!on; for (const F of [this.fight, this.bossFight, this.dg?.F]) if (F) F.autoDodge = !!on; }
   setAuto(on) { this.S.auto = !!on; this.ensureFight().press({ auto: !!on }); if (this.fight && this.bossFight) this.fight.press({ auto: !!on }); }
   // ms만큼 사냥(50ms 틱) — 처치마다 경험치 · 은자 · 사건
   hunt(ms) {
@@ -387,7 +389,7 @@ export class Game {
       title = `${n}차 전직 던전`; clear = 'boss'; need = 1; boss = true; limitMs = 90000; hpX = JOB_DUNGEON[n].hpX; extra.n = n;
       map = makeSideMap(7500 + n, { w: 14000, tiers: 1 }); fams = { b: { mobs: [mob(JOB_LV[n], 'boss')], keep: 0, coolMs: 1e12 } };
     }
-    const F = new SideFight({ lv: L, dungeon: type, map, fams, wb: type === 'wboss' }, this.fighter(), this.rng.u32(), { auto: S.auto !== false });
+    const F = new SideFight({ lv: L, dungeon: type, map, fams, wb: type === 'wboss' }, this.fighter(), this.rng.u32(), { auto: S.auto !== false, autoDodge: S.dodge !== false });
     if (boss) F.spawn('b', { p: 0, x: Math.round(map.w * 0.75) });
     if (wipeN) F.famState.a.keep = 0;   // 다 잡기: 처음 자리 몹만 · 다시 나오지 않음
     if (hpX !== 1) for (const m of F.mobs) { m.hp = Math.round(m.hp * hpX); m.st = { ...m.st, hp: m.hp }; }
