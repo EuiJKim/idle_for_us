@@ -123,7 +123,11 @@ function chatHtml() {
   return L.map((m) => { const t = m.createdAt?.toDate ? m.createdAt.toDate() : null, hm = t ? `${t.getHours()}:${String(t.getMinutes()).padStart(2, '0')}` : '';
     return m.type === 'system' ? `<div class="gc-sys">${esc(m.text)}</div>` : `<div class="gc-m ${m.uid === net.uid ? 'me' : ''}"><b>${esc(m.name || '무인')}</b><span>${esc(m.text)}</span><small>${hm}</small></div>`; }).join('');
 }
-function chatPaint() { const el = document.querySelector('#gchat'); if (!el) return; const atEnd = el.scrollHeight - el.scrollTop - el.clientHeight < 40; el.innerHTML = chatHtml(); if (atEnd || !el.dataset.init) { el.scrollTop = el.scrollHeight; el.dataset.init = 1; } guildState.seen = guildState.msgs.length ? (guildState.msgs.at(-1).createdAt?.toMillis?.() || 0) : 0; }
+const chatReadKey = () => `ifu.s2.chatRead.${g?.S?.guildId || ''}`;
+const chatRead = () => { try { return +localStorage.getItem(chatReadKey()) || 0; } catch { return 0; } };
+const chatLast = () => { const m = [...guildState.msgs].reverse().find((x) => x.uid !== net.uid); return m?.createdAt?.toMillis?.() || 0; };
+function chatMarkRead() { const t = chatLast(); if (t > chatRead()) { try { localStorage.setItem(chatReadKey(), String(t)); } catch { /* 저장 못 함 */ } navDots(); } }   // v574
+function chatPaint() { const el = document.querySelector('#gchat'); if (!el) return; if (el.isConnected) setTimeout(chatMarkRead, 0); const atEnd = el.scrollHeight - el.scrollTop - el.clientHeight < 40; el.innerHTML = chatHtml(); if (atEnd || !el.dataset.init) { el.scrollTop = el.scrollHeight; el.dataset.init = 1; } guildState.seen = guildState.msgs.length ? (guildState.msgs.at(-1).createdAt?.toMillis?.() || 0) : 0; }
 function chatSend() {
   const inp = document.querySelector('#gchat-in'); if (!inp || !g.S.guildId) return;
   const t = inp.value.trim(); if (!t) return; inp.value = ''; ensureNick();
@@ -305,6 +309,7 @@ function socialTodo() {
   const G = guildState.g;
   if (g.S.guildId && G) {
     if (g.S.gChk !== dayKey(now())) out.push('gchk');
+    if (chatLast() > chatRead()) out.push('chat');   // v574 안 읽은 문파 대화
     const RD = guildState.raid; if (RD) { const tot = Object.values(RD.dmg || {}).reduce((a, b) => a + b, 0), lvR = RD.lv || Math.max(10, Math.floor(g.S.hero.lv / 10) * 10); if (raidPhase(tot, graidHp0(lvR)).phase > g.graidState().claimed) out.push('raid'); }
     const TR = guildState.train; if (TR && !g.gtrainState().got && Object.values(TR.pts || {}).reduce((a, b) => a + b, 0) >= GTRAIN.perMember * G.memberIds.length) out.push('train');
   }
@@ -716,7 +721,7 @@ function paintWin() {
       const fm = document.createElement('div'); fm.className = 'gchat-f'; fm.innerHTML = '<input id="gchat-in" maxlength="200" placeholder="문파원에게 한마디(200자)" autocomplete="off"><button class="btn primary" id="gchat-go">보내기</button>'; cc(fm);
       fm.querySelector('#gchat-go').onclick = () => { play('click'); chatSend(); };
       fm.querySelector('#gchat-in').onkeydown = (e) => { e.stopPropagation(); if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); chatSend(); } };
-      requestAnimationFrame(() => { box.scrollTop = box.scrollHeight; box.dataset.init = 1; }); }
+      requestAnimationFrame(() => { box.scrollTop = box.scrollHeight; box.dataset.init = 1; chatMarkRead(); }); }
     const c1 = card('문파원', `오늘 출석 ${G.memberIds.filter((id) => G.checkins?.[id] === dk).length}/${G.memberIds.length}`);
     for (const id of G.memberIds) {
       const p2 = guildState.prof?.[id] || {}, nm = p2.nickname || G.members?.[id] || '무인';

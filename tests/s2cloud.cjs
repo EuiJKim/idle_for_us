@@ -145,6 +145,13 @@ async function device(b) {
   await D.page.fill('#gchat-in', '안녕하세요 <b>반가워요</b>'); await D.page.press('#gchat-in', 'Enter'); await sleep(1200);
   const msgs = await A.page.evaluate(async (c) => (await window.__s2.net.guildChatGet(c)).map((m) => `${m.type}:${m.name}:${m.text}`), gcode);
   assert(msgs.some((m) => /^chat:[^:]+:안녕하세요 <b>반가워요<\/b>$/.test(m)), 'D: 문파 대화 보내기 → A가 받음 ' + msgs.slice(-3).join(' / '));
+  // v574 A: 안 읽은 문파 대화 → 무림 빨간 점 · 문파 창을 열면 꺼짐
+  await A.page.evaluate(() => { window.__s2.g.S.gChk = window.__s2.dayKey(Date.now()); window.__s2.guildLoad(true); }); await sleep(2000);
+  const dot1 = await A.page.evaluate(() => document.querySelector('.nb[data-tab="social"]').classList.contains('dot-on'));
+  await A.page.evaluate(() => { if (document.getElementById('res').classList.contains('open')) document.getElementById('rout')?.click(); if (document.getElementById('panel').classList.contains('open')) document.getElementById('panel-close').click(); }); await sleep(300);   // 결과 창 · 열린 창 닫고
+  await A.page.click('[data-tab="social"] >> nth=0'); await A.page.click('#panel-body .subtabs button:has-text("문파")'); await sleep(1500); await A.page.click('#panel-close'); await sleep(400);
+  const dot2 = await A.page.evaluate(() => document.querySelector('.nb[data-tab="social"]').classList.contains('dot-on'));
+  assert(dot1 && !dot2, `A: 안 읽은 문파 대화 → 빨간 점 · 열면 꺼짐 (${dot1} → ${dot2})`);
   assert(await D.page.evaluate(() => /안녕하세요/.test(document.getElementById('gchat')?.textContent || '') && !document.querySelector('#gchat b b')), 'D: 대화 목록에 실시간 · 글은 글자 그대로(꺾쇠 안 먹힘)');
   await D.page.click('#panel-close');
   const E = await device(b);
