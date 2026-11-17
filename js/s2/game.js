@@ -107,7 +107,7 @@ export class Game {
   // ── 사건 → 미션 · 길잡이 · 업적 ──
   emit(ev, v = {}) {
     const S = this.S;
-    for (const b of Object.values(this.books)) b.on(ev, v);
+    for (const [k, b] of Object.entries(this.books)) { const fin = b.on(ev, v); if (k === 'ach') for (const id of fin) this.feed.push({ k: 'ach', id }); }   // v538 업적 달성 알림
     const cur = guideCurrent(S.q.guide);
     if (cur) { const fin = new QuestBook([cur], S.q.guide).on(ev, { lv: S.hero.lv, job: S.hero.adv, ...v }); if (fin.length) this.feed.push({ k: 'guide', id: cur.id }); }
   }
@@ -219,7 +219,7 @@ export class Game {
       chb = { ch, name: CHBOSS[ch].name, title: CHBOSS[ch].title, first, gear: null, stones: 0, tix2: 0 };
       if (win) {
         rec[ch] = (rec[ch] || 0) + 1;
-        if (first) { const it = GR.makeGear(this.rng, SLOTS[this.rng.int(SLOTS.length)], cbGearGrade(ch)); chb.gear = { g: it.g, slot: it.slot, up: it.up }; this.obtain([it]); (this.S.titles ??= []).push(`${CHBOSS[ch].name} 격파`); }
+        if (first) { this.emit('chboss'); const it = GR.makeGear(this.rng, SLOTS[this.rng.int(SLOTS.length)], cbGearGrade(ch)); chb.gear = { g: it.g, slot: it.slot, up: it.up }; this.obtain([it]); (this.S.titles ??= []).push(`${CHBOSS[ch].name} 격파`); }
         else { const dd = (this.S.chbDay ??= {}), dk = dayKey(this.now); if (dd[ch] !== dk) { dd[ch] = dk; chb.stones = CB_REPEAT.stones; chb.tix2 = CB_REPEAT.tix; this.S.wallet['item:stone'] = (this.S.wallet['item:stone'] || 0) + chb.stones; this.S.wallet['ticket:gear'] = (this.S.wallet['ticket:gear'] || 0) + chb.tix2; } }   // 다시 깬 보상은 장마다 하루 한 번
       }
     }

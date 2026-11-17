@@ -15,7 +15,8 @@ import { SKILLS, MASTERY } from '../tables/skills.js';
 import { JOB_LV } from '../tables/progress.js';
 import { COLLECT } from '../tables/s5.js';
 import { DAILY_DUNGEONS, DAILY_RUNS, EXPEDITION } from '../tables/content.js';
-import { GUIDE, DAILY_MISSIONS, WEEKLY_MISSIONS, guideCurrent } from '../tables/missions.js';
+import { GUIDE, DAILY_MISSIONS, WEEKLY_MISSIONS, guideCurrent, achievements, ACHIEVE } from '../tables/missions.js';
+const ACH = achievements(), achById = new Map(ACH.map((a) => [a.id, a]));
 import { expToNext } from '../tables/exp.js';
 import { staminaNow } from '../content/idle.js';
 import { buildQueue } from '../content/offline.js';
@@ -136,7 +137,7 @@ const TABS = [
   ['comp', '동료', [['병기', 'grow:0'], ['동료', 'grow:1'], ['영물', 'grow:2']]],
   ['dgn', '던전', [['수련동', 'content:0'], ['무한 탑', 'content:1'], ['원정', 'content:2']]],
   ['map', '지도', [['스테이지', 'content:3']]],
-  ['town', '임무', [['출석', 'attend:0'], ['길잡이', 'mission:0'], ['일일', 'mission:1'], ['주간', 'mission:2'], ['경지', 'grow:3'], ['강호행', 'grow:4']]],
+  ['town', '임무', [['출석', 'attend:0'], ['길잡이', 'mission:0'], ['일일', 'mission:1'], ['주간', 'mission:2'], ['업적', 'ach:0'], ['경지', 'grow:3'], ['강호행', 'grow:4']]],
   ['social', '무림', [['월드보스', 'rival:0'], ['대결', 'rival:1'], ['문파', 'rival:2']]],
   ['opt', '설정', [['설정', 'mission:3']]],
 ];
@@ -222,7 +223,7 @@ function navDots() {
   try { const K = h.kitState(); for (const id of Object.keys(K.lv)) { const sk = skillById(id); if (sk && h.canKitUp(id) && (W.gold || 0) >= kitCost(K.lv[id], sk.tier)[0].n) kitUp++; } } catch { /* 없음 */ }
   const cur = guideCurrent(S.q.guide), canAdv = !!h.canAdvance?.(), tree = g.treePts?.().left || 0, tix = W['ticket:gear'] || 0;
   // v520 빨간 점은 「새로 생긴 할 일」만 — 늘 켜져 있던 것(올릴 무공이 거의 늘 있다)을, 그 창을 한 번 열면 다음 새 일까지 끈다
-  const sig = { char: canAdv || tree > 0 || kitUp ? `${canAdv ? 1 : 0}|${tree}|${kitUp}|${S.hero.adv || 0}` : '', bag: tix >= 10 ? `${Math.floor(tix / 10)}` : '', town: cur && S.q.guide[cur.id]?.done ? cur.id : '' };
+  const sig = { char: canAdv || tree > 0 || kitUp ? `${canAdv ? 1 : 0}|${tree}|${kitUp}|${S.hero.adv || 0}` : '', bag: tix >= 10 ? `${Math.floor(tix / 10)}` : '', town: (cur && S.q.guide[cur.id]?.done ? cur.id : '') || (g.books.ach.claimable().length ? `ach${g.books.ach.claimable().length}` : '') };
   if (open && sig[open] !== undefined) dotSeen[open] = sig[open];
   const on = { char: !!sig.char && sig.char !== dotSeen.char, bag: !!sig.bag && sig.bag !== dotSeen.bag, town: !!sig.town };
   for (const b of document.querySelectorAll('.nb[data-tab], #ptabs button[data-tab]')) b.classList.toggle('dot-on', !!on[b.dataset.tab]);
@@ -465,6 +466,22 @@ function paintWin() {
       const has = own.has(t.name), on = g.S.titleOn === t.name;
       const r = R(`<span style="color:${has ? t.col : 'inherit'}">${esc(t.name)}</span>`, has ? (on ? '달고 있음' : '얻음') : `잠김 — ${t.how}`, has ? [[on ? '달고 있음' : '달기', act(() => g.setTitle(t.name)), on]] : [], has ? '稱' : '鎖');
       if (!has) r.style.opacity = '.5'; c1(r);
+    }
+  } else if (key === 'ach:0') {
+    // v538 업적 — 종류마다 지금 단계(진행 막대 · 보상) · 끝난 단계 수 · 모두 받기
+    const B = g.books.ach, can = B.claimable();
+    const c0 = card('업적', `${ACH.filter((a) => B.get(a.id).got).length} / ${ACH.length} 받음`);
+    c0(R('받을 업적', can.length ? `${can.length}개 — 뽑기권 · 강화석 · 사냥 보상` : '아직 없어요', [['모두 받기', act(() => { let n = 0; for (const id of B.claimable()) if (g.claimMission('ach', id)) n++; if (n) { play('coin'); setTimeout(() => toast(`업적 ${n}개 받음`), 0); } return n > 0; }), !can.length]], '功'));
+    const c1 = card('목록', '단계를 깨면 다음 단계가 열려요');
+    for (const ev of Object.keys(ACHIEVE)) {
+      const list = ACH.filter((a) => a.ev === ev), cur = list.find((a) => !B.get(a.id).got) || list.at(-1), st = B.get(cur.id), all = list.every((a) => B.get(a.id).got);
+      const pr = ev === 'level' ? Math.min(1, g.S.hero.lv / +cur.cond.split('>=')[1]) : Math.min(1, (st.p || 0) / cur.need);
+      const progTxt = ev === 'level' ? `Lv ${g.S.hero.lv} / ${cur.cond.split('>=')[1].trim()}` : `${unit(st.p || 0)} / ${unit(cur.need)}`;
+      const r = R(`${esc(cur.name)} <small>${list.filter((a) => B.get(a.id).got).length}/${list.length}단계</small>`,
+        all ? '모두 끝냄' : `<div class="achbar"><i style="width:${pr * 100}%"></i><span>${progTxt}</span></div>보상 장비 뽑기권 ${cur.items['ticket:gear']} · 강화석 ${cur.items['item:stone']} · 사냥 ${cur.huntMin}분`,
+        all ? [] : [['받기', act(() => g.claimMission('ach', cur.id)), !(st.done && !st.got)]], st.done && !st.got ? '★' : '功');
+      if (st.done && !st.got) r.classList.add('can'); if (all) r.style.opacity = '.6';
+      c1(r);
     }
   } else if (key === 'attend:0') {
     const A = g.attendState(), can = g.canAttend();
@@ -1317,6 +1334,7 @@ function frame() {
     else if (f.k === 'dungeon-start') { closeWin(); play('tense'); if (f.type === 'wboss') wbIntro(); else dgBanner(f.title, g.dgStatus()); addLog(`${f.title} 입장`); }
     else if (f.k === 'dungeon-end') showDgResult(f);
     else if (f.k === 'loot') lootFx(f);
+    else if (f.k === 'ach') achFx(achById.get(f.id));
   }
   if (!document.hidden) draw();   // 안 보이는 동안은 그리지 않는다(엔진은 돈다)
   if (dust.length > 60) dust.splice(0, dust.length - 60);
@@ -1382,6 +1400,15 @@ function pwWatch(pw) {
     if (up && pct >= 0.03) play('coin');
     pwAcc = 0;
   }
+}
+// v538 업적 달성 — 위 가운데 금빛 띠(트로피 · 이름) · 소리
+function achFx(a) {
+  if (!a) return;
+  for (const o of document.querySelectorAll('.achpop')) o.remove();
+  const d = document.createElement('div'); d.className = 'achpop';
+  d.innerHTML = `<i>🏆</i><div><small>업적 달성!</small><b>${esc(a.name)}</b><span>임무 → 업적에서 받기</span></div>`;
+  document.body.append(d); setTimeout(() => d.remove(), 2600); play('rare', 4);
+  addLog(`업적 달성 — ${a.name}`);
 }
 // v534 좋은 장비 줍기 — 오른쪽에 카드가 미끄러져 들어오고, 보품(4) 이상은 무인 자리에 빛기둥 · 소리
 const LOOT_COL = ['#a8a29e', '#7cc47a', '#6aa8e0', '#b27ae0', '#e8c26a', '#e06a5a', '#ffffff'];

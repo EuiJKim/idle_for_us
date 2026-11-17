@@ -585,7 +585,10 @@ console.log('\n=== S7 방치 · 대기열 · 시간 티켓 · 길잡이 · 미�
   const A = MS.achievements();
   ok(A.length === Object.values(MS.ACHIEVE_STEPS).flat().length && new Set(A.map((a) => a.id)).size === A.length, '업적 단계 전부 · id 겹침 없음');
   const AB = new QuestBook(A, {}); AB.on('level', { lv: 120 });
-  ok(AB.claimable().sort().join() === 'a_level_0,a_level_1,a_level_2', '레벨 업적은 그 레벨까지 한꺼번에');
+  ok(AB.claimable().sort().join() === 'a_level_0,a_level_1,a_level_2,a_level_3,a_level_4', '레벨 업적은 그 레벨까지 한꺼번에(v538 30 · 50 · 70 · 100 · 120)');
+  const SB = new QuestBook(A, {}); for (let i = 0; i < 100; i++) SB.on('star', { s: 3 }); SB.on('enhance'); SB.on('dungeon', { stage: 12 }); SB.on('dungeon', { kind: 1 });
+  ok(SB.claimable().includes('a_star_0') && SB.get('a_enhance_0').p === 1 && SB.get('a_dungeon_0').p === 1, 'v538 수가 없는 사건(성혼 · 강화 · 던전)도 한 번에 1 · 칸 클리어는 던전이 아님(전엔 성혼 업적이 오르지 않았다)');
+  { const T0 = 1.8e12, g = new Game(newGame('sword', T0, 2), T0); g.feed.length = 0; g.emit('kill', { n: 1000 }); ok(g.feed.some((f) => f.k === 'ach' && f.id === 'a_kill_0'), 'v538 업적을 깨면 알림'); }
 }
 
 console.log('\n=== S8 전투력 · 월드보스 · 대결 · 문파 · 서열 ===');

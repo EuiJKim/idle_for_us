@@ -43,11 +43,25 @@ export const WEEKLY_MISSIONS = [
   { id: 'w_wboss', ev: 'wboss', need: 5, huntMin: 20 },
   { id: 'w_pvp', ev: 'pvp', need: 10, huntMin: 20 },
 ];
-// 업적 — 단계형(같은 사건, 목표만 커짐)
-export const ACHIEVE_STEPS = { kill: [1e3, 1e4, 1e5, 1e6], level: [50, 100, 120, 140, 150], star: [100, 500, 2000], pull: [100, 1000, 5000] };
+// 업적 — 단계형(같은 사건, 목표만 커짐) · v538 화면(임무 → 업적) · 늘림
+//   add: 사건에 실린 수(n)를 더한다 — 수가 없는 사건(성혼 · 강화 · 던전 …)은 한 번에 1(전엔 성혼 업적이 n이 없어 오르지 않았다)
+export const ACHIEVE = {
+  kill: { steps: [1e3, 1e4, 1e5, 1e6], add: 'n', name: (n) => `몹 ${n.toLocaleString()}마리 처치` },
+  level: { steps: [30, 50, 70, 100, 120, 150], name: (n) => `Lv ${n} 달성` },
+  enhance: { steps: [100, 1000, 5000], name: (n) => `강화 ${n.toLocaleString()}번` },
+  star: { steps: [100, 500, 2000], name: (n) => `성혼 ${n.toLocaleString()}번` },
+  gacha: { steps: [100, 1000, 5000], add: 'n', name: (n) => `장비 뽑기 ${n.toLocaleString()}번` },
+  pull: { steps: [100, 1000, 5000], add: 'n', name: (n) => `병기 · 동료 · 영물 뽑기 ${n.toLocaleString()}번` },
+  dungeon: { steps: [10, 100, 500], cond: 'stage == 0', name: (n) => `던전 ${n}번 클리어` },
+  chboss: { steps: [1, 5, 10, 15], name: (n) => `장 두목 ${n}명 처치` },
+  wboss: { steps: [10, 50, 200], name: (n) => `월드보스 ${n}번` },
+};
+export const ACHIEVE_STEPS = Object.fromEntries(Object.entries(ACHIEVE).map(([k, v]) => [k, v.steps]));
 export function achievements() {
   const out = [];
-  for (const [ev, steps] of Object.entries(ACHIEVE_STEPS)) steps.forEach((need, i) => out.push({ id: `a_${ev}_${i}`, ev, add: ev === 'level' ? null : 'n', cond: ev === 'level' ? `lv >= ${need}` : null, need: ev === 'level' ? 1 : need, huntMin: 10 * (i + 1) }));
+  for (const [ev, A] of Object.entries(ACHIEVE)) A.steps.forEach((need, i) => out.push({ id: `a_${ev}_${i}`, ev, step: i, name: A.name(need),
+    add: ev === 'level' ? null : A.add || null, cond: ev === 'level' ? `lv >= ${need}` : A.cond || null, need: ev === 'level' ? 1 : need,
+    huntMin: 10 * (i + 1), items: { 'ticket:gear': 5 * (i + 1), 'item:stone': 30 * (i + 1) } }));
   return out;
 }
 export const dailyMissionMin = () => DAILY_MISSIONS.reduce((a, m) => a + m.huntMin, 0);

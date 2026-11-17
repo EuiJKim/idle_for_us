@@ -166,6 +166,12 @@
     .cmp { max-height: 46vh; overflow-y: auto; } html.rot .cmp { max-height: 46vw; }
     html.h500 .cmp-h img { width: 44px; height: 44px; } html.h500 .cmp-h { margin-bottom: 4px; } html.h500 .cmp-r { padding: 2px 8px; font-size: 12px; } html.h500 #modal .sheet { padding: 12px 14px; } html.h500 #modal h2 { margin-bottom: 4px; font-size: 16px; }
     .cmp .up, .cmp-h .up { color: #86efac; } .cmp .dn, .cmp-h .dn { color: #fca5a5; }
+    /* v538 업적 */
+    .achbar { position: relative; height: 14px; margin: 3px 0 2px; border-radius: 999px; background: rgba(0,0,0,.45); overflow: hidden; } .achbar i { display: block; height: 100%; background: linear-gradient(90deg, #b45309, #fde68a); }
+    .achbar span { position: absolute; inset: 0; display: grid; place-items: center; font-size: 10px; font-weight: 800; color: #fff; text-shadow: 0 1px 2px #000; font-variant-numeric: tabular-nums; }
+    .achpop { position: fixed; left: 50%; top: calc(var(--st, 0px) + 98px); transform: translateX(-50%); z-index: 70; pointer-events: none; display: flex; gap: 10px; align-items: center; padding: 8px 16px 8px 12px; border-radius: 14px; background: linear-gradient(90deg, rgba(60,40,8,.95), rgba(20,14,4,.95)); border: 1px solid #fde68a; box-shadow: 0 0 20px rgba(253,230,138,.5); animation: achpop 2.6s ease forwards; }
+    .achpop i { font-style: normal; font-size: 26px; } .achpop small { display: block; font-size: 11px; color: #fde68a; font-weight: 800; letter-spacing: .1em; } .achpop b { display: block; font-size: 15px; } .achpop span { font-size: 10.5px; color: rgba(255,255,255,.65); }
+    @keyframes achpop { 0% { opacity: 0; transform: translate(-50%, -20px) scale(.9); } 10% { opacity: 1; transform: translate(-50%, 0) scale(1.04); } 18% { transform: translate(-50%, 0) scale(1); } 85% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%, -10px); } }
     /* v536 출석 */
     #modal .sheet.attw { width: min(780px, 96vw); } html.rot #modal .sheet.attw { width: min(780px, 96vh); }
     .attg { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 5px; margin-top: 6px; }
