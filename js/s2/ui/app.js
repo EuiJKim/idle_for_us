@@ -105,7 +105,27 @@ function wbPush(score) { if (!net.online || !g || !(score > 0)) return; ensureNi
 let rankMode = 'power', rankCache = {};
 // v549 문파 — 내 문파(서버) · 찾기 목록 · 문파원 프로필. 30초마다 새로 · 바꾸면 바로
 const S2NetDay = () => new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10);
-const guildState = { g: null, list: null, prof: null, at: 0, busy: false };
+const guildState = { g: null, list: null, prof: null, at: 0, busy: false, msgs: [], chatGid: null, unsub: null, seen: 0 };
+// v551 문파 대화 — 문파에 있는 동안 실시간 구독 · 창을 다시 그리지 않고 목록만 고친다(쓰던 글이 지워지지 않게)
+function chatWatch(gid) {
+  if (guildState.chatGid === gid) return;
+  if (guildState.unsub) { guildState.unsub(); guildState.unsub = null; }
+  guildState.chatGid = gid; guildState.msgs = [];
+  if (!gid || !net.online) return;
+  guildState.unsub = net.guildChatWatch(gid, (list) => { guildState.msgs = list; chatPaint(); navDots(); });
+}
+function chatHtml() {
+  const L = guildState.msgs;
+  if (!L.length) return '<p class="note">아직 대화가 없어요 — 첫 인사를 남겨 보세요</p>';
+  return L.map((m) => { const t = m.createdAt?.toDate ? m.createdAt.toDate() : null, hm = t ? `${t.getHours()}:${String(t.getMinutes()).padStart(2, '0')}` : '';
+    return m.type === 'system' ? `<div class="gc-sys">${esc(m.text)}</div>` : `<div class="gc-m ${m.uid === net.uid ? 'me' : ''}"><b>${esc(m.name || '무인')}</b><span>${esc(m.text)}</span><small>${hm}</small></div>`; }).join('');
+}
+function chatPaint() { const el = document.querySelector('#gchat'); if (!el) return; const atEnd = el.scrollHeight - el.scrollTop - el.clientHeight < 40; el.innerHTML = chatHtml(); if (atEnd || !el.dataset.init) { el.scrollTop = el.scrollHeight; el.dataset.init = 1; } guildState.seen = guildState.msgs.length ? (guildState.msgs.at(-1).createdAt?.toMillis?.() || 0) : 0; }
+function chatSend() {
+  const inp = document.querySelector('#gchat-in'); if (!inp || !g.S.guildId) return;
+  const t = inp.value.trim(); if (!t) return; inp.value = ''; ensureNick();
+  net.guildSay(g.S.guildId, g.S.nick, t).catch((e) => toast(e?.code === 'permission-denied' ? '보낼 수 없어요(문파원만)' : '보내지 못했어요'));
+}
 function guildLoad(force) {
   if (!net.online || !g || guildState.busy || (!force && Date.now() - guildState.at < 30000)) return;
   guildState.busy = true; guildState.at = Date.now();
@@ -114,17 +134,20 @@ function guildLoad(force) {
     if (G && G.memberIds.includes(net.uid)) {
       guildState.g = G; guildState.list = null;
       guildState.raid = await net.graidGet(G.id, wkStr(Date.now())).catch(() => null);   // v550
+      chatWatch(G.id);   // v551
       if (G.members?.[net.uid] !== g.S.nick && g.S.nick) net.guildRename(G, g.S.nick).catch(() => {});
       net.guildProfiles(G.memberIds).then((ps) => { guildState.prof = Object.fromEntries(ps.map((x) => [x.uid, x])); if (open === 'social') paintWin(); });
     } else {
       if (g.S.guildId) { g.setGuild(null); save(); }   // 내보내졌거나 사라진 문파
+      chatWatch(null);
       guildState.g = null; guildState.list = await net.guildList().catch(() => []);
     }
   })().finally(() => { guildState.busy = false; if (open === 'social') paintWin(); });
 }
 function guildDo(fn, msg) {
   guildState.busy = true; paintWin();
-  fn().then((code) => { g.setGuild(code || null); save(); rankPush(); toast(msg); }).catch((e) => toast(e?.message || '할 수 없어요')).finally(() => { guildState.busy = false; guildState.at = 0; guildLoad(true); });
+  const was = g.S.guildId;
+  fn().then((code) => { g.setGuild(code || null); save(); rankPush(); toast(msg); if (code && code !== was) net.guildSay(code, g.S.nick, `${g.S.nick} 님이 문파에 들어왔어요`, 'system').catch(() => {}); }).catch((e) => toast(e?.message || '할 수 없어요')).finally(() => { guildState.busy = false; guildState.at = 0; guildLoad(true); });
 }
 async function rankLoad(mode) {
   const k = `${mode}:${wkStr(Date.now())}`, c = rankCache[k];
@@ -570,6 +593,12 @@ function paintWin() {
       if (rk.length) { const box = document.createElement('div'); box.className = 'rk-list'; box.innerHTML = rk.map(([id, v], i) => `<div class="rk-r ${id === net.uid ? 'me' : ''} ${i < 3 ? `top${i + 1}` : ''}"><b>${i + 1}</b><span>${esc(RD.names?.[id] || '무인')}</span><em>${unit(v)}</em></div>`).join(''); cR(box); }
     }
     c0(R('코드 알려 주기', `문파원을 부를 때 — ${G.id}`, [['복사', () => { play('click'); navigator.clipboard?.writeText(G.id).then(() => toast('코드를 복사했어요'), () => toast(G.id)); }]], '碼'));
+    const cc = card('문파 대화', '옛 게임 문파와 같은 방 · 최근 30개');
+    { const box = document.createElement('div'); box.id = 'gchat'; box.className = 'gchat'; box.innerHTML = chatHtml(); cc(box);
+      const fm = document.createElement('div'); fm.className = 'gchat-f'; fm.innerHTML = '<input id="gchat-in" maxlength="200" placeholder="문파원에게 한마디(200자)" autocomplete="off"><button class="btn primary" id="gchat-go">보내기</button>'; cc(fm);
+      fm.querySelector('#gchat-go').onclick = () => { play('click'); chatSend(); };
+      fm.querySelector('#gchat-in').onkeydown = (e) => { e.stopPropagation(); if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); chatSend(); } };
+      requestAnimationFrame(() => { box.scrollTop = box.scrollHeight; box.dataset.init = 1; }); }
     const c1 = card('문파원', `오늘 출석 ${G.memberIds.filter((id) => G.checkins?.[id] === dk).length}/${G.memberIds.length}`);
     for (const id of G.memberIds) {
       const p2 = guildState.prof?.[id] || {}, nm = p2.nickname || G.members?.[id] || '무인';
@@ -1496,7 +1525,7 @@ function frame() {
     else if (f.k === 'dungeon-start') { closeWin(); play('tense'); if (f.type === 'wboss') wbIntro(); else if (f.type === 'graid') chbIntro(g.graidBoss()); else dgBanner(f.title, g.dgStatus()); addLog(`${f.title} 입장`); }
     else if (f.k === 'dungeon-end') {
       showDgResult(f); if (f.type === 'wboss') wbPush(f.score);
-      if (f.type === 'graid' && net.online && g.S.guildId && f.dmg > 0) { ensureNick(); net.graidHit(g.S.guildId, wkStr(Date.now()), g.S.nick, f.dmg, g.S.hero.lv).then((RD) => { guildState.raid = RD; toast(`문파 토벌 — 피해 ${unit(f.dmg)} 보탬`); if (open === 'social') paintWin(); }).catch((e) => { console.warn('[s2net] graid', e?.code || e); toast('문파 토벌 기록을 올리지 못했어요'); }); }   // v550
+      if (f.type === 'graid' && net.online && g.S.guildId && f.dmg > 0) { ensureNick(); net.graidHit(g.S.guildId, wkStr(Date.now()), g.S.nick, f.dmg, g.S.hero.lv).then((RD) => { guildState.raid = RD; net.guildSay(g.S.guildId, g.S.nick, `${g.S.nick} — 문파 토벌에 피해 ${unit(f.dmg)}를 보탰어요`, 'system').catch(() => {}); toast(`문파 토벌 — 피해 ${unit(f.dmg)} 보탬`); if (open === 'social') paintWin(); }).catch((e) => { console.warn('[s2net] graid', e?.code || e); toast('문파 토벌 기록을 올리지 못했어요'); }); }   // v550
     }
     else if (f.k === 'loot') lootFx(f);
     else if (f.k === 'ach') achFx(achById.get(f.id));
@@ -1866,6 +1895,6 @@ load();
 if (g) boot();
 else pickJob();
 // 시험용 손잡이
-window.__s2 = { get g() { return g; }, guildState, guildLoad, save, dayKey, attendPop, freeze: () => { frozen = true; }, net, cloudPush, rankPush, wbPush, wkStr, pvpInbox, pvpFetch, resetNetTimers: () => { pvpAt = 0; inboxAt = 0; },
+window.__s2 = { get g() { return g; }, guildState, guildLoad, chatSend, save, dayKey, attendPop, freeze: () => { frozen = true; }, net, cloudPush, rankPush, wbPush, wkStr, pvpInbox, pvpFetch, resetNetTimers: () => { pvpAt = 0; inboxAt = 0; },
   // v525 팝업 대신 에뮬레이터용 가짜 Google 토큰으로 잇기 · 겹치면 그 계정으로
   linkTest: async (tok) => { const r = await net.linkGoogle(tok); if (r.conflict) { const d = await net.switchTo(r.cred); if (d) applyCloud(d); return 'switched'; } await cloudPush(true); return 'linked'; } };

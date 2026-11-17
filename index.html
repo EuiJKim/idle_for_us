@@ -166,6 +166,11 @@
     .cmp { max-height: 46vh; overflow-y: auto; } html.rot .cmp { max-height: 46vw; }
     html.h500 .cmp-h img { width: 44px; height: 44px; } html.h500 .cmp-h { margin-bottom: 4px; } html.h500 .cmp-r { padding: 2px 8px; font-size: 12px; } html.h500 #modal .sheet { padding: 12px 14px; } html.h500 #modal h2 { margin-bottom: 4px; font-size: 16px; }
     .cmp .up, .cmp-h .up { color: #86efac; } .cmp .dn, .cmp-h .dn { color: #fca5a5; }
+    /* v551 문파 대화 */
+    .gchat { max-height: 210px; overflow-y: auto; display: grid; gap: 4px; padding: 6px; border-radius: 10px; background: rgba(0,0,0,.3); margin-bottom: 6px; overscroll-behavior: contain; }
+    .gc-m { display: grid; grid-template-columns: auto 1fr auto; gap: 6px; align-items: baseline; font-size: 13px; } .gc-m b { color: #fde68a; font-size: 12px; } .gc-m.me b { color: #7dd3fc; } .gc-m span { word-break: break-all; } .gc-m small { font-size: 10px; color: rgba(255,255,255,.4); }
+    .gc-sys { font-size: 11.5px; color: rgba(255,255,255,.55); text-align: center; }
+    .gchat-f { display: flex; gap: 6px; } .gchat-f input { flex: 1; min-width: 0; padding: 8px 10px; border-radius: 9px; border: 1px solid rgba(255,255,255,.25); background: rgba(0,0,0,.45); color: #fff; font: inherit; font-size: 14px; } .gchat-f .btn { min-height: 38px; }
     /* v550 문파 토벌 */
     .gr-top { display: flex; gap: 10px; align-items: center; margin: 2px 0 6px; } .gr-top img { width: 64px; height: 64px; object-fit: cover; object-position: 50% 20%; border-radius: 10px; border: 1px solid rgba(255,255,255,.2); } .gr-top > div { flex: 1; } .gr-top small { font-size: 10.5px; color: rgba(255,255,255,.6); }
     /* v549 문파 */

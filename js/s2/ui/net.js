@@ -121,6 +121,18 @@ export class S2Net {
     const fs = this.fs, snap = await fs.getDocs(fs.query(fs.collection(this.db, 'guildlist'), fs.orderBy('at', 'desc'), fs.limit(60)));
     return snap.docs.map((d) => ({ id: d.id, ...d.data() })).filter((x) => x.open !== false && (x.n || 0) > 0 && (x.n || 0) < 10);
   }
+  // v551 문파 대화 — guilds/{코드}/messages(옛 게임과 같은 대화방) · 최근 30개를 실시간으로
+  static cleanText(t) { return String(t || '').replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, 200); }
+  async guildSay(gid, nick, text, type = 'chat') {
+    const t = S2Net.cleanText(text); if (!t || !this.online) return false;
+    await this.fs.addDoc(this.fs.collection(this.db, 'guilds', gid, 'messages'), { uid: this.uid, name: String(nick || '무인').slice(0, 12), text: t, type, createdAt: this.fs.serverTimestamp() });
+    return true;
+  }
+  guildChatQ(gid) { const fs = this.fs; return fs.query(fs.collection(this.db, 'guilds', gid, 'messages'), fs.orderBy('createdAt', 'desc'), fs.limit(30)); }
+  async guildChatGet(gid) { const s = await this.fs.getDocs(this.guildChatQ(gid)); return s.docs.map((d) => ({ id: d.id, ...d.data() })).reverse(); }
+  guildChatWatch(gid, cb) {
+    return this.fs.onSnapshot(this.guildChatQ(gid), (s) => cb(s.docs.map((d) => ({ id: d.id, ...d.data() })).reverse()), (e) => console.warn('[s2net] chat', e?.code || e));
+  }
   // v550 문파 토벌 — guilds/{코드}/s2/raid { data: JSON{ week, lv, dmg{uid}, names{uid} }, at } · 주가 바뀌면 새로(그 주 첫 사람의 레벨로)
   async graidGet(gid, wk) {
     const s = await this.fs.getDoc(this.fs.doc(this.db, 'guilds', gid, 's2', 'raid'));

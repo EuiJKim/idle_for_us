@@ -104,9 +104,19 @@ async function device(b) {
   const gr = await D.page.evaluate(async (c) => { const n = window.__s2.net, wk = window.__s2.wkStr(Date.now()); await n.graidHit(c, wk, 'D무인', 1000, 37); return n.graidGet(c, wk); }, gcode);
   const gr2 = await A.page.evaluate(async (c) => { const n = window.__s2.net, wk = window.__s2.wkStr(Date.now()); await n.graidHit(c, wk, '시험무인', 500, 40); return n.graidGet(c, wk); }, gcode);
   assert(Object.values(gr2.dmg).reduce((a, b) => a + b, 0) === 1500 && gr2.names && Object.keys(gr2.dmg).length === 2 && gr2.lv === 30 && gr.lv === 30, '문파 토벌: 둘의 피해가 모임(그 주 토벌 레벨은 첫 사람)');
+  // v551 문파 대화 — D가 화면에서 보내면 A가 받는다 · 문파원 아니면 못 씀(규칙)
+  await D.page.click('[data-tab="social"] >> nth=0'); await D.page.click('#panel-body .subtabs button:has-text("문파")'); await sleep(1500);
+  await D.page.fill('#gchat-in', '안녕하세요 <b>반가워요</b>'); await D.page.press('#gchat-in', 'Enter'); await sleep(1200);
+  const msgs = await A.page.evaluate(async (c) => (await window.__s2.net.guildChatGet(c)).map((m) => `${m.type}:${m.name}:${m.text}`), gcode);
+  assert(msgs.some((m) => /^chat:[^:]+:안녕하세요 <b>반가워요<\/b>$/.test(m)), 'D: 문파 대화 보내기 → A가 받음 ' + msgs.slice(-3).join(' / '));
+  assert(await D.page.evaluate(() => /안녕하세요/.test(document.getElementById('gchat')?.textContent || '') && !document.querySelector('#gchat b b')), 'D: 대화 목록에 실시간 · 글은 글자 그대로(꺾쇠 안 먹힘)');
+  await D.page.click('#panel-close');
+  const E = await device(b);
+  const denied = await E.page.evaluate(async (c) => { try { await window.__s2.net.guildSay(c, 'E', '몰래'); return false; } catch (e) { return e?.code === 'permission-denied'; } }, gcode);
+  assert(denied, 'E(문파원 아님): 문파 대화 못 씀');
   const after = await D.page.evaluate(async (c) => { await window.__s2.net.guildLeave(c); return (await window.__s2.net.guildGet(c)).memberIds.length; }, gcode);
   assert(after === 1, 'D: 문파 나가기');
-  const errs = [...A.errs, ...B.errs, ...errC, ...D.errs];
+  const errs = [...A.errs, ...B.errs, ...errC, ...D.errs, ...E.errs];
   assert(errs.length === 0, '페이지 오류 없음 ' + errs.join(' | '));
   await b.close();
   console.log('✓ 새 시즌 서버 저장');
