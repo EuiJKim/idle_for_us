@@ -1033,7 +1033,7 @@ console.log('\n=== v544 오늘 할 일 ===');
 {
   const T0 = 1.8e12, g = new Game(newGame('sword', T0, 3), T0); g.addExp(EX.cumExp(40)); g.tick(T0);
   const by = (id) => g.today().find((x) => x.id === id);
-  ok(g.today().length === 8 && g.today().every((x) => x.go && /^[a-z]+:\d$/.test(x.go)), '여덟 가지 · 가는 곳(창 키)');
+  ok(g.today().length === 9 && g.today().every((x) => x.go && /^[a-z]+:\d$/.test(x.go)), '아홉 가지(v549 문파 출석) · 가는 곳(창 키)');
   ok(!by('attend').done && (g.attend(), by('attend').done), '출석하면 끝');
   ok(!by('raid').open && (g.S.chb = { 1: 1 }, by('raid').open && by('raid').n === 0), '토벌은 장 두목을 깬 뒤 열림');
   const p0 = by('pvp').n; g.pvpFight(0); ok(by('pvp').n === p0 + 1 && by('pvp').of === 5, '대결 한 번 → 1/5');
@@ -1106,6 +1106,17 @@ console.log('\n=== v548 진짜 대결 상대 ===');
   ok(r && r.oppUid === 'A' && r.opp.real && r.defD === (r.win ? -8 : 3), '진짜 상대와 겨루면 상대 우편함에 남길 점수(이기면 -8 · 지면 +3)', JSON.stringify({ win: r.win, defD: r.defD }));
   const s0 = A.S.pvp?.score ?? 1000, d = A.pvpDefend([{ name: '창객', win: r.win, d: r.defD }, { name: '해킹', win: true, d: -999 }]);
   ok(A.S.pvp.score === Math.max(0, s0 + d) && d === r.defD - 20 && A.S.pvp.log[0].def === 1 && A.S.pvp.log.length === 2, '받은 기록을 점수에 · 범위 밖(-999)은 -20으로 · 지난 대결에 방어로');
+}
+
+console.log('\n=== v549 문파 출석 ===');
+{
+  const T0 = 1.8e12, g = new Game(newGame('fist', T0, 8), T0); g.addExp(EX.cumExp(30)); g.tick(T0);
+  const by = (id) => g.today().find((x) => x.id === id);
+  ok(g.guildCheckin() === null && !by('guild').open, '문파가 없으면 출석 없음 · 오늘 할 일에서 잠김');
+  g.setGuild('ABC234'); const t0 = g.S.wallet['ticket:gear'] || 0, r = g.guildCheckin();
+  ok(r && g.S.wallet['ticket:gear'] === t0 + 2 && r.gold > 0 && by('guild').done && g.guildCheckin() === null, '문파 출석: 뽑기권 2 · 은자 · 하루 한 번');
+  ok(g.rankProfile().guildId === 'ABC234', '서열 프로필에 문파 코드');
+  g.tick(T0 + 86400000); ok(!!g.guildCheckin(), '다음 날 다시');
 }
 
 console.log('\n=== S0 규칙 ===');

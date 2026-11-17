@@ -57,6 +57,7 @@ export const ACHIEVE = {
   wboss: { steps: [10, 50, 200], name: (n) => `월드보스 ${n}번` },
   raid: { steps: [10, 50, 200], name: (n) => `장 두목 토벌 ${n}번` },   // v541
   today: { steps: [7, 30, 60], name: (n) => `오늘 할 일 다 하기 ${n}번` },   // v545
+  guild: { steps: [7, 30, 100], name: (n) => `문파 출석 ${n}번` },   // v549
 };
 export const ACHIEVE_STEPS = Object.fromEntries(Object.entries(ACHIEVE).map(([k, v]) => [k, v.steps]));
 export function achievements() {

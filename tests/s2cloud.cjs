@@ -75,11 +75,12 @@ async function device(b) {
   assert(await C.evaluate(() => window.__s2.g.S.hero.lv) === 37, 'C: 망가진 코드는 받지 않음');
 
   // v548 진짜 대결 — A가 방어 덱을 올리고, 새 기기 D가 점수가 가까운 무인으로 A를 찾아 겨룬다 → A 우편함 → A 점수에
-  await A.page.evaluate(() => { window.__s2.net.lastDeck = null; window.__s2.rankPush(); });
+  const PS = 20000 + (RUN % 50000);   // 이 시험만의 점수대(에뮬레이터에 지난 시험 덱이 쌓여 있다)
+  await A.page.evaluate((ps) => { const g = window.__s2.g; (g.S.pvp ??= { score: 1000, day: '', used: 0, log: [] }).score = ps; window.__s2.net.lastDeck = null; window.__s2.rankPush(); }, PS);
   await sleep(1200);
   const D = await device(b);
   const uidA = await A.page.evaluate(() => window.__s2.net.uid);
-  const fr = await D.page.evaluate(async (ua) => { window.__s2.resetNetTimers(); window.__s2.pvpFetch(); for (let i = 0; i < 40 && !(window.__s2.g.pvpReal || []).length; i++) await new Promise((r) => setTimeout(r, 200)); const os = window.__s2.g.pvpOpponents(); return { found: os.some((o) => o.uid === ua), i: os.findIndex((o) => o.uid === ua) }; }, uidA);
+  const fr = await D.page.evaluate(async ([ua, ps]) => { (window.__s2.g.S.pvp ??= { score: 1000, day: '', used: 0, log: [] }).score = ps; window.__s2.resetNetTimers(); window.__s2.pvpFetch(); for (let i = 0; i < 40 && !(window.__s2.g.pvpReal || []).length; i++) await new Promise((r) => setTimeout(r, 200)); const os = window.__s2.g.pvpOpponents(); return { found: os.some((o) => o.uid === ua), i: os.findIndex((o) => o.uid === ua) }; }, [uidA, PS]);
   assert(fr.found, 'D: 점수가 가까운 진짜 무인(A)을 찾음');
   const fight = await D.page.evaluate(async (i) => { const r = window.__s2.g.pvpFight(i); await window.__s2.net.pvpLog(r.oppUid, { name: 'D무인', win: r.win, d: r.defD, seed: 1 }); return { win: r.win, defD: r.defD }; }, fr.i);
   const sA0 = await A.page.evaluate(() => window.__s2.g.S.pvp?.score ?? 1000);
@@ -89,6 +90,18 @@ async function device(b) {
   assert(sA1.s === Math.max(0, sA0 + fight.defD) && sA1.l?.def === 1 && sA1.l?.name === 'D무인', `A: 받은 공격이 점수에(${sA0} → ${sA1.s}) · 지난 대결에 방어`);
   const left = await A.page.evaluate(async () => (await window.__s2.net.pvpInbox()).length);
   assert(left === 0, 'A: 우편함은 받으면 비움');
+  // v549 문파 — A가 만들고 D가 코드로 들어와 출석 · 명단에 둘 · 찾기 목록에 보임 · D 나가기
+  const gcode = await A.page.evaluate(async () => { const c = await window.__s2.net.guildCreate('시험문파', '시험무인'); window.__s2.g.setGuild(c); return c; });
+  assert(/^[A-Z2-9]{6}$/.test(gcode), `A: 문파 만들기 → 코드 ${gcode}`);
+  const listed = await D.page.evaluate(async (c) => (await window.__s2.net.guildList()).some((x) => x.id === c), gcode);
+  assert(listed, 'D: 문파 찾기 목록에 보임');
+  const gd = await D.page.evaluate(async (c) => { const n = window.__s2.net; await n.guildJoin(c, 'D무인'); window.__s2.g.setGuild(c); const G = await n.guildGet(c); const ok = await n.guildCheckin(G); const r = window.__s2.g.guildCheckin(); const G2 = await n.guildGet(c); return { n: G2.memberIds.length, exp: G2.exp, chk: G2.checkins[n.uid], ok, r: !!r }; }, gcode);
+  assert(gd.n === 2 && gd.exp === 20 && gd.chk && gd.ok && gd.r, 'D: 코드로 들어가 출석 → 문파 경험치 +20 · 보상');
+  await D.page.click('[data-tab="social"] >> nth=0'); await D.page.click('#panel-body .subtabs button:has-text("문파")'); await sleep(2000);
+  { const tx = await D.page.textContent('#panel-body'); assert(/시험문파/.test(tx) && (await D.page.$$('#wb .row:has-text("전투력")')).length === 2, 'D: 무림 → 문파 화면(이름 · 문파원 둘) ' + tx.slice(0, 120)); }
+  await D.page.click('#panel-close');
+  const after = await D.page.evaluate(async (c) => { await window.__s2.net.guildLeave(c); return (await window.__s2.net.guildGet(c)).memberIds.length; }, gcode);
+  assert(after === 1, 'D: 문파 나가기');
   const errs = [...A.errs, ...B.errs, ...errC, ...D.errs];
   assert(errs.length === 0, '페이지 오류 없음 ' + errs.join(' | '));
   await b.close();

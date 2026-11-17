@@ -67,6 +67,64 @@ export class S2Net {
     }
     return { rows, me, mine };
   }
+  // v549 문파 — guilds/{코드}(코드를 알아야 읽힘) · guildlist/{코드}(찾기 목록) · 출석(checkins.{uid} = 한국 날짜, 옛 게임과 같은 칸)
+  static kstDay(t = Date.now()) { return new Date(t + 9 * 3600 * 1000).toISOString().slice(0, 10); }
+  async guildGet(gid) {
+    if (!this.online || !gid) return null;
+    const s = await this.fs.getDoc(this.fs.doc(this.db, 'guilds', gid));
+    return s.exists() ? { id: gid, ...s.data() } : null;
+  }
+  async guildCreate(name, nick) {
+    const fs = this.fs, CH = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    for (let k = 0; k < 5; k++) {
+      const code = Array.from({ length: 6 }, () => CH[Math.floor(Math.random() * CH.length)]).join(''), ref = fs.doc(this.db, 'guilds', code);
+      const ok = await fs.runTransaction(this.db, async (tx) => {
+        if ((await tx.get(ref)).exists()) return false;
+        tx.set(ref, { name: String(name).slice(0, 16), code, owner: this.uid, memberIds: [this.uid], members: { [this.uid]: nick }, exp: 0, checkins: {}, createdAt: fs.serverTimestamp() });
+        return true;
+      });
+      if (ok) { await this.guildPublish(await this.guildGet(code)); return code; }
+    }
+    throw new Error('문파 코드를 만들지 못했어요');
+  }
+  async guildJoin(raw, nick) {
+    const fs = this.fs, code = String(raw || '').trim().toUpperCase(), ref = fs.doc(this.db, 'guilds', code);
+    await fs.runTransaction(this.db, async (tx) => {
+      const s = await tx.get(ref); if (!s.exists()) throw new Error('그런 문파 코드가 없어요');
+      const g = s.data(); if (g.memberIds.includes(this.uid)) return;
+      if (g.memberIds.length >= 10) throw new Error('문파가 가득 찼어요(10명)');
+      tx.update(ref, { memberIds: [...g.memberIds, this.uid], members: { ...g.members, [this.uid]: nick } });
+    });
+    await this.guildPublish(await this.guildGet(code));
+    return code;
+  }
+  async guildLeave(gid) {
+    const fs = this.fs;
+    await fs.updateDoc(fs.doc(this.db, 'guilds', gid), { memberIds: fs.arrayRemove(this.uid), [`members.${this.uid}`]: fs.deleteField() });
+    const g = await this.guildGet(gid).catch(() => null); if (g && g.memberIds.length) await this.guildPublish(g).catch(() => {});
+  }
+  async guildCheckin(g) {
+    const fs = this.fs, dk = S2Net.kstDay();
+    if (g.checkins?.[this.uid] === dk) return false;   // 오늘 이미(옛 게임에서 했어도)
+    await fs.updateDoc(fs.doc(this.db, 'guilds', g.id), { exp: fs.increment(20), [`checkins.${this.uid}`]: dk });
+    return true;
+  }
+  async guildRename(g, nick) {   // 문파 명단의 내 이름표
+    if (g.members?.[this.uid] === nick) return;
+    await this.fs.updateDoc(this.fs.doc(this.db, 'guilds', g.id), { [`members.${this.uid}`]: nick });
+  }
+  async guildPublish(g) {
+    if (!g) return;
+    await this.fs.setDoc(this.fs.doc(this.db, 'guildlist', g.id), { name: g.name, n: g.memberIds.length, exp: g.exp || 0, at: this.fs.serverTimestamp() }, { merge: true });
+  }
+  async guildList() {
+    const fs = this.fs, snap = await fs.getDocs(fs.query(fs.collection(this.db, 'guildlist'), fs.orderBy('at', 'desc'), fs.limit(60)));
+    return snap.docs.map((d) => ({ id: d.id, ...d.data() })).filter((x) => x.open !== false && (x.n || 0) > 0 && (x.n || 0) < 10);
+  }
+  async guildProfiles(ids) {
+    const fs = this.fs;
+    return Promise.all(ids.map((id) => fs.getDoc(fs.doc(this.db, 's2_players', id)).then((s) => (s.exists() ? { uid: id, ...s.data() } : { uid: id })).catch(() => ({ uid: id }))));
+  }
   // v548 대결 — 내 방어 덱(s2_pvp/{uid}) · 점수가 가까운 무인 찾기 · 공격 기록(상대 우편함) · 내 우편함 받기
   async pushDeck(name, deck, score, lv) {
     if (!this.online) return false;

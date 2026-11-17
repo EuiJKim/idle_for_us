@@ -17,6 +17,7 @@ import { GUIDE, DAILY_MISSIONS, WEEKLY_MISSIONS, achievements, guideCurrent } fr
 import { JOB_ADV } from './tables/skills.js';
 import { CHBOSS, CB, cbGearGrade, CB_REPEAT, WBF, CB_RAID, raidStars } from './tables/chboss.js';
 const CB_MANUAL_STONES = 50;   // v546
+const GUILD_CHECKIN = { tix: 2, goldMin: 15 };   // v549 문파 출석
 const TODAY_CHEST = { tix: 3, goldMin: 30, dungeonRuns: 3 };   // v545 하루 상자
 import { ATTEND, ATTEND_DAYS } from './tables/attend.js';
 import { TITLE_EACH, titleByName } from './tables/titles.js';
@@ -109,11 +110,22 @@ export class Game {
   fighter() { return this.hero.fighter(this.sources(), this.palList()); }
   power(mode = 'pve') { return power(this.fighter(), mode); }
   // v547 서열에 올리는 한 줄(규칙 s2_players 칸과 같다 — rank.js PROFILE_KEYS) · 이름은 1~12자
+  // v549 문파 — 들어간 문파(코드) · 문파 출석 보상(하루 한 번 · 뽑기권 · 은자). 문파 문서는 서버(옛 게임과 같은 문파 — 계정에 하나)
+  setGuild(id) { this.S.guildId = id ? String(id).slice(0, 8) : null; return true; }
+  guildCheckin() {
+    const S = this.S, dk = dayKey(this.now);
+    if (!S.guildId || S.gChk === dk) return null;
+    S.gChk = dk;
+    const gold = Math.round(GUILD_CHECKIN.goldMin * KILLS_PER_MIN * goldPerMob(S.hero.lv));
+    S.wallet.gold += gold; S.wallet['ticket:gear'] = (S.wallet['ticket:gear'] || 0) + GUILD_CHECKIN.tix;
+    this.emit('guild');
+    return { gold, tix: GUILD_CHECKIN.tix };
+  }
   setNick(name) { const n = String(name || '').replace(/[\u0000-\u001f<>]/g, '').trim().slice(0, 12); if (!n) return false; this.S.nick = n; return true; }
   rankProfile() {
     const S = this.S, f = this.fighter();
     return { season: 's2', nickname: S.nick || '무인', lv: S.hero.lv, job: String(S.hero.job).slice(0, 16), power: Math.round(power(f, 'pve')), pvpPower: Math.round(power(f, 'pvp')),
-      pvpScore: Math.max(0, Math.min(99999, Math.round(S.pvp?.score ?? 1000))), wbScore: Math.max(0, Math.round(S.wb?.week === S.qWeek ? S.wb.total || 0 : 0)), tv: String(TABLE_VER).slice(0, 16), signed: true };
+      ...(S.guildId ? { guildId: S.guildId } : {}), pvpScore: Math.max(0, Math.min(99999, Math.round(S.pvp?.score ?? 1000))), wbScore: Math.max(0, Math.round(S.wb?.week === S.qWeek ? S.wb.total || 0 : 0)), tv: String(TABLE_VER).slice(0, 16), signed: true };
   }
   // ── 사건 → 미션 · 길잡이 · 업적 ──
   emit(ev, v = {}) {
@@ -431,6 +443,7 @@ export class Game {
     const P = S.pvp || {}; add('pvp', '대결', P.day === dk ? P.used || 0 : 0, 5, 'rival:1');
     const E = S.exped; add('exped', '원정 보내기', E.run && this.now < E.run.endMs ? 1 : 0, 1, 'content:2');
     const ach = this.books.ach.claimable().length; add('ach', '업적 보상 받기', ach, 0, 'ach:0', true);
+    add('guild', '문파 출석', S.gChk === dayKey(this.now) ? 1 : 0, 1, 'rival:2', !!S.guildId, '문파에 들면');   // v549
     return out;
   }
   // v545 하루 상자 — 열린 오늘 할 일을 다 하면 하루 한 번: 장비 뽑기권 · 은자(사냥 TODAY_CHEST.goldMin분 몫). 경험치는 주지 않는다(레벨 곡선 그대로)

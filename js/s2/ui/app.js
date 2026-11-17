@@ -102,6 +102,28 @@ function pvpFetch() {
 }
 function wbPush(score) { if (!net.online || !g || !(score > 0)) return; ensureNick(); net.pushWboss(wkStr(Date.now()), g.S.nick, score).catch((e) => console.warn('[s2net] wboss', e?.code || e)); }
 let rankMode = 'power', rankCache = {};
+// v549 문파 — 내 문파(서버) · 찾기 목록 · 문파원 프로필. 30초마다 새로 · 바꾸면 바로
+const S2NetDay = () => new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10);
+const guildState = { g: null, list: null, prof: null, at: 0, busy: false };
+function guildLoad(force) {
+  if (!net.online || !g || guildState.busy || (!force && Date.now() - guildState.at < 30000)) return;
+  guildState.busy = true; guildState.at = Date.now();
+  (async () => {
+    const G = g.S.guildId ? await net.guildGet(g.S.guildId).catch(() => null) : null;
+    if (G && G.memberIds.includes(net.uid)) {
+      guildState.g = G; guildState.list = null;
+      if (G.members?.[net.uid] !== g.S.nick && g.S.nick) net.guildRename(G, g.S.nick).catch(() => {});
+      net.guildProfiles(G.memberIds).then((ps) => { guildState.prof = Object.fromEntries(ps.map((x) => [x.uid, x])); if (open === 'social') paintWin(); });
+    } else {
+      if (g.S.guildId) { g.setGuild(null); save(); }   // 내보내졌거나 사라진 문파
+      guildState.g = null; guildState.list = await net.guildList().catch(() => []);
+    }
+  })().finally(() => { guildState.busy = false; if (open === 'social') paintWin(); });
+}
+function guildDo(fn, msg) {
+  guildState.busy = true; paintWin();
+  fn().then((code) => { g.setGuild(code || null); save(); rankPush(); toast(msg); }).catch((e) => toast(e?.message || '할 수 없어요')).finally(() => { guildState.busy = false; guildState.at = 0; guildLoad(true); });
+}
 async function rankLoad(mode) {
   const k = `${mode}:${wkStr(Date.now())}`, c = rankCache[k];
   if (c && Date.now() - c.at < 30000) return c.r;
@@ -517,8 +539,32 @@ function paintWin() {
     const log = g.S.pvp?.log || [];
     if (log.length) { const c1 = card('지난 대결', '방어 = 남이 내 덱에 도전한 것'); for (const l of log) c1(R(`${l.def ? '방어 ' : ''}${l.win ? '승' : '패'} · ${esc(l.name)}`, `${l.d >= 0 ? '+' : ''}${l.d}`, [], l.def ? '防' : l.win ? '勝' : '敗')); }
   } else if (key === 'rival:2') {
-    const c = card('문파', '교체 때 서버와 함께 열려요');
-    for (const [n, d, ic] of [['문파 토벌', '문파원 피해를 모아 주간 두목 단계를 깸', '伐'], ['문파 대항', '문파끼리 한 주 점수 겨루기', '爭'], ['문파 수련', '문파원 기여로 막대를 채우면 모두 보상', '修'], ['연구 · 도움', '문파원 기여로 연구를 올림', '硏']]) c(R(n, d, [], ic));
+    // v549 문파 — 옛 게임과 같은 문파(계정에 하나 · 최대 10명). 만들기 · 코드로 들어가기 · 찾기 · 출석(뽑기권 2 · 은자) · 문파원(서열 프로필)
+    if (net.online) guildLoad();
+    const G = net.online ? guildState.g : null;
+    if (!net.online) card('문파', '오프라인 — 인터넷에 연결되면 열려요')(note('문파는 서버에 있어요.'));
+    else if (!G) {
+      const c0 = card('문파', guildState.busy ? '불러오는 중…' : '아직 문파가 없어요 — 계정에 하나(옛 게임 문파도 같아요)');
+      c0(R('문파 만들기', '이름 1~16자 · 문주가 돼요', [['만들기', () => { play('click'); const n = (prompt('문파 이름(1~16자)') || '').trim(); if (!n) return; ensureNick(); guildDo(() => net.guildCreate(n.slice(0, 16), g.S.nick), '문파를 만들었어요'); }]], '創'));
+      c0(R('코드로 들어가기', '문파원에게 받은 여섯 자 코드', [['들어가기', () => { play('click'); const c = (prompt('문파 코드(6자)') || '').trim(); if (!c) return; ensureNick(); guildDo(() => net.guildJoin(c, g.S.nick), '문파에 들어갔어요'); }]], '入'));
+      const c1 = card('문파 찾기', '모집 중 · 자리 남은 문파');
+      if (!guildState.list) c1(note('불러오는 중…'));
+      else if (!guildState.list.length) c1(note('지금 모집 중인 문파가 없어요 — 만들어 보세요'));
+      else for (const x of guildState.list.slice(0, 20)) c1(R(`${esc(x.name)} <small>${x.n}/10명</small>`, `${esc(x.intro || '')}${x.minLv ? ` · Lv ${x.minLv}부터` : ''} · 경험치 ${unit(x.exp || 0)}`, [['들어가기', () => { play('click'); ensureNick(); guildDo(() => net.guildJoin(x.id, g.S.nick), '문파에 들어갔어요'); }, g.S.hero.lv < (x.minLv || 0)]], '派'));
+    } else {
+    const dk = S2NetDay(), mine = G.checkins?.[net.uid] === dk, glv = 1 + Math.floor((G.exp || 0) / 500);
+    const c0 = card(`${esc(G.name)} <small>문파 Lv ${glv}</small>`, `코드 ${G.id} · ${G.memberIds.length}/10명 · 경험치 ${unit(G.exp || 0)}${G.owner === net.uid ? ' · 문주' : ''}`);
+    c0(R('문파 출석', g.S.gChk === dayKey(now()) ? '오늘은 했어요 · 자정에 새로' : `하루 한 번 — 장비 뽑기권 2 · 은자 · 문파 경험치 +20${mine ? '(문파 쪽은 오늘 이미)' : ''}`,
+      [['출석', () => { play('click'); const r = g.guildCheckin(); if (!r) return; save(); play('coin'); toast(`문파 출석 — 뽑기권 ${r.tix} · 은자 ${unit(r.gold)}`); net.guildCheckin(G).then(() => { guildState.at = 0; guildLoad(); }).catch(() => {}); paintWin(); paintHud(); }, g.S.gChk === dayKey(now())]], '印'));
+    c0(R('코드 알려 주기', `문파원을 부를 때 — ${G.id}`, [['복사', () => { play('click'); navigator.clipboard?.writeText(G.id).then(() => toast('코드를 복사했어요'), () => toast(G.id)); }]], '碼'));
+    const c1 = card('문파원', `오늘 출석 ${G.memberIds.filter((id) => G.checkins?.[id] === dk).length}/${G.memberIds.length}`);
+    for (const id of G.memberIds) {
+      const p2 = guildState.prof?.[id] || {}, nm = p2.nickname || G.members?.[id] || '무인';
+      const r = R(`${esc(nm)}${id === G.owner ? ' <span class="pill pv-real">문주</span>' : ''}${id === net.uid ? ' <small>(나)</small>' : ''}`, p2.lv ? `${esc(JOBS[p2.job]?.name || '')} Lv ${p2.lv} · 전투력 ${unit(p2.power || 0)}` : '새 시즌 기록 없음(옛 게임만)', [], G.checkins?.[id] === dk ? '✓' : '·');
+      if (id === net.uid) r.classList.add('gd-me'); c1(r);
+    }
+    c1(R('문파 나가기', '나가면 다시 코드로 들어와야 해요', [['나가기', () => { play('click'); if (!confirm(`「${G.name}」에서 나갈까요?`)) return; guildDo(() => net.guildLeave(G.id).then(() => null), '문파에서 나왔어요'); }]], '出'));
+    }
   } else if (key === 'title:0') {
     // v537 칭호 — 얻은 것 · 못 얻은 것(얻는 법) · 수집 효과 · 하나 달기
     const own = new Set(g.S.titles || []), n = TITLES.filter((t) => own.has(t.name)).length;
@@ -1804,6 +1850,6 @@ load();
 if (g) boot();
 else pickJob();
 // 시험용 손잡이
-window.__s2 = { get g() { return g; }, save, dayKey, attendPop, freeze: () => { frozen = true; }, net, cloudPush, rankPush, wbPush, wkStr, pvpInbox, pvpFetch, resetNetTimers: () => { pvpAt = 0; inboxAt = 0; },
+window.__s2 = { get g() { return g; }, guildState, guildLoad, save, dayKey, attendPop, freeze: () => { frozen = true; }, net, cloudPush, rankPush, wbPush, wkStr, pvpInbox, pvpFetch, resetNetTimers: () => { pvpAt = 0; inboxAt = 0; },
   // v525 팝업 대신 에뮬레이터용 가짜 Google 토큰으로 잇기 · 겹치면 그 계정으로
   linkTest: async (tok) => { const r = await net.linkGoogle(tok); if (r.conflict) { const d = await net.switchTo(r.cred); if (d) applyCloud(d); return 'switched'; } await cloudPush(true); return 'linked'; } };
