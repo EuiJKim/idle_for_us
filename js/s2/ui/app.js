@@ -1409,6 +1409,21 @@ function draw() {
     cx.globalAlpha = 0.5 * al; cx.fillStyle = '#fff'; cx.fillRect(hx - bw * 0.12, 0, bw * 0.24, hy);
     cx.restore();
   }
+  // v562 칭호 오라 — 단 칭호의 빛깔로 발밑에 은은한 빛 · 위로 오르는 불티 여섯(그래픽 낮음이면 끔)
+  if (g.S.titleOn && opt.gfx !== 'low') {
+    const col = titleByName(g.S.titleOn)?.col || '#fde68a';
+    cx.save(); cx.globalCompositeOperation = 'lighter';
+    const pulse = 0.75 + 0.25 * Math.sin(ts * 2.4);
+    const gr = cx.createRadialGradient(hx, hy, 2, hx, hy, 60 * k); gr.addColorStop(0, col); gr.addColorStop(1, 'rgba(0,0,0,0)');
+    cx.globalAlpha = 0.6 * pulse; cx.fillStyle = gr; cx.beginPath(); cx.ellipse(hx, hy, 60 * k, 16 * k, 0, 0, 7); cx.fill();
+    { const cg = cx.createLinearGradient(0, hy - 120 * k, 0, hy); cg.addColorStop(0, 'rgba(0,0,0,0)'); cg.addColorStop(1, col); cx.globalAlpha = 0.16 * pulse; cx.fillStyle = cg; cx.fillRect(hx - 26 * k, hy - 120 * k, 52 * k, 120 * k); }
+    cx.fillStyle = col;
+    for (let i = 0; i < 10; i++) {
+      const ph = (ts * 0.55 + i / 10) % 1, px = hx + Math.sin(i * 2.1 + ts * 1.7) * 26 * k * (1 - ph * 0.4), py = hy - ph * 125 * k;
+      cx.globalAlpha = (1 - ph) * 0.95 * pulse; cx.beginPath(); cx.arc(px, py, (3.6 - ph * 1.8) * k, 0, 7); cx.fill();
+    }
+    cx.restore();
+  }
   // v546 회피 잔상 — 대시하는 0.3초 동안 지나온 자리에 옅은 그림자
   if (t - dashAt < 300) dashTrail.push({ x: hx, y: hy, at: t });
   dashTrail = dashTrail.filter((d) => t - d.at < 240);
