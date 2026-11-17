@@ -1726,7 +1726,7 @@ function duelShow(r) {
   const bars = ov.querySelectorAll('.dl-bar i'), txt = ov.querySelectorAll('.dl-side small');
   const speed = Math.max(1, r.ms / 9000), lead = 1800, t0 = now();
   const hp = [r.myHp, r.opp.hp], left = [r.myHp, r.opp.hp], floats = [], atk = [0, 0];
-  const opEq = Object.fromEntries(['weapon', 'hat', 'top', 'bottom', 'glove', 'shoes', 'cape', 'belt', 'neck', 'ring'].map((sl) => [sl, { slot: sl, g: Math.min(6, Math.floor(r.opp.lv / 25)), up: 0, subs: [] }]));
+  const opEq = Object.fromEntries(['weapon', 'hat', 'top', 'bottom', 'glove', 'shoes', 'cape', 'belt', 'neck', 'ring'].map((sl) => [sl, { slot: sl, g: r.opp.lk && r.opp.lk[sl] != null ? r.opp.lk[sl] : Math.min(6, Math.floor(r.opp.lv / 25)), up: 0, subs: [] }]));   // v566 진짜 상대는 그 무인의 외형
   let i = 0, done = false, endAt = 0;
   const say = (h, cls) => { mid.className = `dl-mid ${cls || ''}`; mid.innerHTML = h; };
   say('<b>3</b>'); play('tense');

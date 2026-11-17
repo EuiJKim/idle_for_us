@@ -1225,6 +1225,18 @@ console.log('\n=== v565 외형 ===');
   g.setLook('hat', null); ok(g.lookEq() === g.S.gear.eq, '장비대로 되돌리기');
 }
 
+console.log('\n=== v566 대결 상대 외형 ===');
+{
+  const T0 = 1.8e12, A = new Game(newGame('sword', T0, 17), T0); A.addExp(EX.cumExp(40)); A.tick(T0);
+  const B = new Game(newGame('bow', T0, 18), T0); B.addExp(EX.cumExp(40)); B.tick(T0);
+  B.obtain([GR.makeGear(new Rng(5), 'hat', 6)]); B.setLook('hat', 6);
+  const deck = JSON.parse(B.pvpDeck());
+  ok(deck.lk && deck.lk.hat === 6 && B.pvpDeck().length <= 3000, '방어 덱에 외형(고른 모습)');
+  A.setPvpReal([{ uid: 'B', name: '궁', score: 1000, f: { ...deck, lk: { ...deck.lk, ring: 99, nope: 1 } } }]);
+  const r = A.pvpFight(0);
+  ok(r.opp.lk && r.opp.lk.hat === 6 && !('ring' in r.opp.lk && r.opp.lk.ring === 99) && !('nope' in r.opp.lk), '받은 외형은 있는 칸 · 0~6만 · 대결 화면으로');
+}
+
 console.log('\n=== S0 규칙 ===');
 {
   const files = [];

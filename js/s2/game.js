@@ -712,7 +712,8 @@ export class Game {
       const f = x && x.f, st = f && f.st;
       if (!f || !JOBS[f.job] || !Number.isInteger(f.lv) || f.lv < 1 || f.lv > LEVEL_MAX || !st || !(st.atk > 0) || !(st.hp > 0) || !Object.values(st).every((v) => typeof v === 'number' && Number.isFinite(v))) return false;
       return power(f, 'pvp') <= stdPower(f.lv, 'pvp', f.job) * POWER_SLACK * 2;
-    }).slice(0, 3).map((x) => ({ uid: String(x.uid), name: String(x.name || '무인').slice(0, 12), f: { lv: x.f.lv, job: x.f.job, kind: 'hero', st: x.f.st }, score: x.score | 0 }));
+    }).slice(0, 3).map((x) => ({ uid: String(x.uid), name: String(x.name || '무인').slice(0, 12), f: { lv: x.f.lv, job: x.f.job, kind: 'hero', st: x.f.st }, score: x.score | 0,
+      lk: Object.fromEntries(Object.entries(x.f.lk || {}).filter(([sl, gr]) => SLOTS.includes(sl) && Number.isInteger(gr) && gr >= 0 && gr <= 6)) }));   // v566 외형(있는 칸 · 0~6만)
     return this.pvpReal.length;
   }
   // v563 복수 — 방어에서 진 상대(그 덱)와 바로 겨룬다(오늘 횟수 하나). 이기면 그 기록에 「복수함」
@@ -725,7 +726,10 @@ export class Game {
     return r;
   }
   // 내 방어 덱 — 대결이 쓰는 것만(레벨 · 직업 · 능력치)
-  pvpDeck() { const f = this.fighter(); return JSON.stringify({ lv: f.lv, job: f.job, st: f.st }); }
+  pvpDeck() {   // v566 외형(부위마다 보이는 등급)도 — 상대 화면에 내 모습으로
+    const f = this.fighter(), E = this.lookEq(), lk = {}; for (const sl of SLOTS) if (E[sl]) lk[sl] = E[sl].g;
+    return JSON.stringify({ lv: f.lv, job: f.job, st: f.st, lk });
+  }
   // 받은 공격 기록 — 내 점수에 더하고 「지난 대결」에 방어로
   pvpDefend(list) {
     const P = (this.S.pvp ??= { score: PVP.start, day: '', used: 0, log: [] });
@@ -753,7 +757,7 @@ export class Game {
     P.score = Math.max(0, P.score + d); this.pvpMark();
     P.log = [{ name: opp.name, win: r.win, d }, ...P.log].slice(0, 10);
     this.emit('pvp');
-    return { ...r, d, score: P.score, tier: PV.tierOf(P.score).name, log, opp: { name: opp.name, job: opp.f.job, lv: opp.f.lv, hp: opp.f.st.hp, real: !!opp.real }, myHp: me.st.hp, oppUid: opp.uid || null, defD: sd.def };
+    return { ...r, d, score: P.score, tier: PV.tierOf(P.score).name, log, opp: { name: opp.name, job: opp.f.job, lv: opp.f.lv, hp: opp.f.st.hp, real: !!opp.real, lk: opp.lk || null }, myHp: me.st.hp, oppUid: opp.uid || null, defD: sd.def };
   }
   // ── v536 출석 ── 하루 한 번(한국 시각 자정에 바뀜) · 28칸 · 다 채우면 처음부터
   attendState() { return (this.S.att ??= { n: 0, last: -1, cycle: 0 }); }
