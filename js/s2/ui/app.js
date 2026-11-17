@@ -223,7 +223,7 @@ function navDots() {
   try { const K = h.kitState(); for (const id of Object.keys(K.lv)) { const sk = skillById(id); if (sk && h.canKitUp(id) && (W.gold || 0) >= kitCost(K.lv[id], sk.tier)[0].n) kitUp++; } } catch { /* 없음 */ }
   const cur = guideCurrent(S.q.guide), canAdv = !!h.canAdvance?.(), tree = g.treePts?.().left || 0, tix = W['ticket:gear'] || 0;
   // v520 빨간 점은 「새로 생긴 할 일」만 — 늘 켜져 있던 것(올릴 무공이 거의 늘 있다)을, 그 창을 한 번 열면 다음 새 일까지 끈다
-  const sig = { char: canAdv || tree > 0 || kitUp ? `${canAdv ? 1 : 0}|${tree}|${kitUp}|${S.hero.adv || 0}` : '', bag: tix >= 10 ? `${Math.floor(tix / 10)}` : '', town: (cur && S.q.guide[cur.id]?.done ? cur.id : '') || (g.books.ach.claimable().length ? `ach${g.books.ach.claimable().length}` : '') };
+  const sig = { char: canAdv || tree > 0 || kitUp ? `${canAdv ? 1 : 0}|${tree}|${kitUp}|${S.hero.adv || 0}` : '', bag: tix >= 10 ? `${Math.floor(tix / 10)}` : '', town: (g.todayChest().can ? 'today' : '') || (cur && S.q.guide[cur.id]?.done ? cur.id : '') || (g.books.ach.claimable().length ? `ach${g.books.ach.claimable().length}` : '') };
   if (open && sig[open] !== undefined) dotSeen[open] = sig[open];
   const on = { char: !!sig.char && sig.char !== dotSeen.char, bag: !!sig.bag && sig.bag !== dotSeen.bag, town: !!sig.town };
   for (const b of document.querySelectorAll('.nb[data-tab], #ptabs button[data-tab]')) b.classList.toggle('dot-on', !!on[b.dataset.tab]);
@@ -488,6 +488,11 @@ function paintWin() {
     // v544 오늘 할 일 — 하루마다 도는 것을 한곳에서: 진행 막대 · 끝남 ✓ · 「가기」로 그 창
     const T = g.today(), open2 = T.filter((x) => x.open), left = open2.filter((x) => !x.done).length;
     const c0 = card('오늘 할 일', left ? `${left}개 남음 · 자정에 새로` : '오늘 할 일을 다 했어요!');
+    // v545 하루 상자 — 다 하면 받기(뽑기권 · 은자)
+    const TC = g.todayChest(), box = document.createElement('div'); box.className = `td-chest ${TC.can ? 'can' : TC.got ? 'got' : ''}`;
+    box.innerHTML = `<i>${TC.got ? '📭' : '🎁'}</i><div><b>하루 상자</b><small>${TC.got ? '오늘은 받았어요 · 자정에 새로' : TC.can ? '다 했어요 — 눌러서 열기!' : `${TC.left}개 더 하면 열려요`}</small><span>장비 뽑기권 3 · 은자(사냥 30분 몫)</span></div>`;
+    if (TC.can) box.onclick = () => { const r = g.claimToday(); if (!r) return; save(); play('rare', 5); buzz(60); box.classList.add('open'); setTimeout(() => { pop('하루 상자', `<div class="td-got"><span><i class="coin t"></i>장비 뽑기권 <b>${r.tix}</b></span><span><i class="coin s"></i>은자 <b>${unit(r.gold)}</b></span></div><p class="note">내일 또 — 자정에 새로</p>`); paintWin(); paintHud(); }, 650); };
+    c0(box);
     const ic = { attend: '印', daily: '日', dungeon: '洞', raid: '討', wboss: '龍', pvp: '鬪', exped: '征', ach: '功' };
     for (const x of T) {
       const prog = x.of ? `<div class="achbar"><i style="width:${(x.n / x.of) * 100}%"></i><span>${x.n} / ${x.of}</span></div>` : x.n ? `받을 것 ${x.n}개` : '받을 것 없음';

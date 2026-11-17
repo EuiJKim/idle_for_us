@@ -109,6 +109,7 @@ const ok = (c, m, x = '') => { console.log(`  ${c ? '✓' : '✗ !!'} ${m}${x !=
     await page.click('#mb .nb[data-tab="town"], .ib[data-tab="town"], [data-tab="town"] >> nth=0'); await page.waitForTimeout(200);
     await page.click('#panel-body .subtabs button:has-text("오늘")'); await page.waitForTimeout(200);
     ok((await page.$$('#wb .td-row')).length === 8 && /오늘 할 일/.test(await page.textContent('#panel-body')), 'v544 오늘 할 일 — 여덟 줄');
+    ok(await page.isVisible('#wb .td-chest') && /개 더 하면 열려요/.test(await page.textContent('#wb .td-chest')), 'v545 하루 상자(아직 잠김)');
     await page.click('#wb .td-row:has-text("대결") .btn:has-text("가기")'); await page.waitForTimeout(200);
     ok(/대결 점수/.test(await page.textContent('#panel-body')), 'v544 「가기」 → 대결 창');
     await page.click('#panel-close').catch(() => {}); await page.waitForTimeout(200);

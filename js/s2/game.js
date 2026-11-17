@@ -16,6 +16,7 @@ import { DAILY_DUNGEONS, DAILY_RUNS, JOB_DUNGEON } from './tables/content.js';
 import { GUIDE, DAILY_MISSIONS, WEEKLY_MISSIONS, achievements, guideCurrent } from './tables/missions.js';
 import { JOB_ADV } from './tables/skills.js';
 import { CHBOSS, CB, cbGearGrade, CB_REPEAT, WBF, CB_RAID, raidStars } from './tables/chboss.js';
+const TODAY_CHEST = { tix: 3, goldMin: 30, dungeonRuns: 3 };   // v545 하루 상자
 import { ATTEND, ATTEND_DAYS } from './tables/attend.js';
 import { TITLE_EACH, titleByName } from './tables/titles.js';
 import * as GR from './gear/gear.js';
@@ -409,7 +410,8 @@ export class Game {
     add('daily', '일일 임무 받기', ids.filter((id) => dm.get(id).got).length, ids.length, 'mission:1');
     const dks = Object.entries(DAILY_DUNGEONS).filter(([, D]) => S.hero.lv >= D.unlockLv).map(([k]) => k);
     const lockLv = Math.min(...Object.values(DAILY_DUNGEONS).map((D) => D.unlockLv));
-    add('dungeon', '수련동', dks.reduce((a, k) => a + Math.min(DAILY_RUNS, S.dungeons.runs[k] || 0), 0), dks.length * DAILY_RUNS, 'content:0', dks.length > 0, `Lv ${lockLv}부터`);
+    // v545 수련동은 아무 던전이나 3번(입장권이 2시간마다 1이라 던전마다 3번은 하루에 다 못 한다)
+    add('dungeon', '수련동 3번', Object.values(S.dungeons.runs).reduce((a, n) => a + (n || 0), 0), TODAY_CHEST.dungeonRuns, 'content:0', dks.length > 0, `Lv ${lockLv}부터`);
     const anyChb = Object.keys(S.chb || {}).length > 0;
     add('raid', '장 두목 토벌', anyChb ? CB_RAID.perDay - this.raidLeft() : 0, CB_RAID.perDay, 'raid:0', anyChb, '장 두목을 깨면');
     const Wb = S.wb || {}; add('wboss', '월드보스', Wb.day === dk ? Wb.used || 0 : 0, 3, 'rival:0');
@@ -417,6 +419,20 @@ export class Game {
     const E = S.exped; add('exped', '원정 보내기', E.run && this.now < E.run.endMs ? 1 : 0, 1, 'content:2');
     const ach = this.books.ach.claimable().length; add('ach', '업적 보상 받기', ach, 0, 'ach:0', true);
     return out;
+  }
+  // v545 하루 상자 — 열린 오늘 할 일을 다 하면 하루 한 번: 장비 뽑기권 · 은자(사냥 TODAY_CHEST.goldMin분 몫). 경험치는 주지 않는다(레벨 곡선 그대로)
+  todayChest() {
+    const S = this.S, dk = dayKey(this.now), T = this.today();
+    const can = S.todayGot !== dk && T.every((x) => !x.open || x.done);
+    return { can, got: S.todayGot === dk, left: T.filter((x) => x.open && !x.done).length };
+  }
+  claimToday() {
+    if (!this.todayChest().can) return null;
+    const S = this.S, L = S.hero.lv, gold = Math.round(TODAY_CHEST.goldMin * KILLS_PER_MIN * goldPerMob(L));
+    S.todayGot = dayKey(this.now);
+    S.wallet.gold += gold; S.wallet['ticket:gear'] = (S.wallet['ticket:gear'] || 0) + TODAY_CHEST.tix;
+    this.emit('today');
+    return { gold, tix: TODAY_CHEST.tix };
   }
   canDungeon(type, kind) {
     const S = this.S;

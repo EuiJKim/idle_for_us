@@ -1042,6 +1042,22 @@ console.log('\n=== v544 오늘 할 일 ===');
   g.tick(T0 + 86400000); ok(!by('attend').done && by('pvp').n === 0, '다음 날 다시');
 }
 
+console.log('\n=== v545 하루 상자 ===');
+{
+  const T0 = 1.8e12, g = new Game(newGame('sword', T0, 3), T0); g.addExp(EX.cumExp(40)); g.tick(T0);
+  ok(!g.todayChest().can && g.claimToday() === null, '다 하기 전엔 못 엶');
+  // 다 한 것처럼: 출석 · 임무 받음 · 던전 3 · 월드보스 3 · 대결 5 · 원정
+  g.attend(); const dm = g.books.daily; for (const id of dm.defs.keys()) { const st = dm.get(id); st.done = true; st.got = true; }
+  const dk = String(Math.floor((g.now + 9 * 3600e3) / 86400e3));   // 한국 날
+  g.S.dungeons.runs = { gold: 3 }; g.S.wb = { ...(g.S.wb || {}), day: dk, used: 3 }; for (let i = 0; i < 5; i++) g.pvpFight(0); g.startExped(12);
+  for (const id of g.books.ach.claimable()) g.claimMission('ach', id);
+  const T = g.todayChest(); ok(T.can, '열린 것을 다 하면 열 수 있음', JSON.stringify(g.today().filter((x) => x.open && !x.done).map((x) => x.id)));
+  const t0 = g.S.wallet['ticket:gear'] || 0, l0 = g.S.hero.lv, e0 = g.S.hero.exp;
+  const r = g.claimToday();
+  ok(r && g.S.wallet['ticket:gear'] === t0 + 3 && r.gold > 0 && g.S.hero.exp === e0 && g.S.hero.lv === l0, '뽑기권 3 · 은자 · 경험치는 그대로');
+  ok(g.claimToday() === null && g.todayChest().got, '하루 한 번');
+}
+
 console.log('\n=== S0 규칙 ===');
 {
   const files = [];
