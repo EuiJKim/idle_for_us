@@ -89,7 +89,7 @@ const wkStr = (ms) => new Date(weekKey(ms) * 86400000).toISOString().slice(0, 10
 function ensureNick() { if (!g.S.nick) g.setNick(`${JOBS[g.S.hero.job]?.name || '무인'}${(net.uid || '0000').slice(-4)}`); }
 let socialPre = false;
 function rankPush() {
-  if (!socialPre && net.online && g) { socialPre = true; guildLoad(true); if (guildState.wbLast === undefined) { guildState.wbLast = null; net.top('wb', wkStr(Date.now() - 7 * 86400000), 1).then((r) => { guildState.wbLast = r || { me: 0 }; navDots(); }).catch(() => { guildState.wbLast = { me: 0 }; }); } }
+  if (!socialPre && net.online && g) { socialPre = true; guildLoad(true); net.wbTotal(wkStr(Date.now())).then((r) => { wbComState = { ...r, at: Date.now() }; navDots(); }).catch(() => {}); if (guildState.wbLast === undefined) { guildState.wbLast = null; net.top('wb', wkStr(Date.now() - 7 * 86400000), 1).then((r) => { guildState.wbLast = r || { me: 0 }; navDots(); }).catch(() => { guildState.wbLast = { me: 0 }; }); } }
   if (!net.online || !g) return; ensureNick();
   net.pushProfile(g.rankProfile()).catch((e) => console.warn('[s2net] rank', e?.code || e));
   net.pushDeck(g.S.nick, g.pvpDeck(), g.S.pvp?.score ?? 1000, g.S.hero.lv).catch((e) => console.warn('[s2net] deck', e?.code || e));   // v548 방어 덱
@@ -306,6 +306,7 @@ function socialTodo() {
   if (g.pvpWeekReward()) out.push('pvp');
   const lastWk = wkStr(Date.now() - 7 * 86400000), wr = guildState.wbLast;
   if (wr?.me && !g.S.wbGot?.[lastWk]) out.push('wb');
+  if (wbComState && WB_COMMUNITY.filter((x) => (wbComState.sum || 0) >= x.at).length > g.wbCommunityGot()) out.push('wbcom');   // v577 공동 토벌 단계 보상
   const G = guildState.g;
   if (g.S.guildId && G) {
     if (g.S.gChk !== dayKey(now())) out.push('gchk');
