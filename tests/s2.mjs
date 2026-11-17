@@ -1192,6 +1192,16 @@ console.log('\n=== v557 장비 뽑기 천장 ===');
   ok(one.g >= 5 && GA.pity === 0, '149번 안 나왔으면 다음은 확정 · 천장 0으로');
 }
 
+console.log('\n=== v559 무공 모두 올리기 ===');
+{
+  const T0 = 1.8e12, g = new Game(newGame('spear', T0, 13), T0); g.addExp(EX.cumExp(60)); g.tick(T0);
+  const K = g.hero.kitState(); for (const id of Object.keys(K.lv)) if (!K.lv[id]) delete K.lv[id];
+  g.S.wallet.gold = 0; ok(g.kitUpAll() === null, '은자가 없으면 아무것도 안 함');
+  g.S.wallet.gold = 3e6; const r = g.kitUpAll(), L = Object.values(g.hero.kitState().lv).filter((v) => v > 0);
+  ok(r && r.n > 0 && r.gold > 0 && r.gold <= 3e6 && Math.max(...L) - Math.min(...L) <= 2 && r.pw1 >= r.pw0, '낮은 무공부터 고르게(차이 2 안) · 은자 · 전투력', JSON.stringify(L));
+  g.S.wallet.gold = 1e15; g.kitUpAll(); ok(Object.keys(g.hero.kitState().lv).every((id) => !g.hero.canKitUp(id) || g.hero.kitState().lv[id] === 0), '은자가 넉넉하면 상한까지');
+}
+
 console.log('\n=== S0 규칙 ===');
 {
   const files = [];

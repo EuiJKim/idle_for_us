@@ -364,6 +364,9 @@ function paintWin() {
     const Hs = g.hero, K = Hs.kitState(), cap = kitCap(g.S.hero.lv);
     const KIND = { active: '공격', passive: '상시', buff: '버프' }, SHAPE = { line: '앞 일직선', arc: '앞 부채꼴', circle: '주변', rain: '앞쪽 하늘에서' };
     B.append(note(`칸 ${K.slots.length}/${SLOT_N} — 자동 사냥이면 칸 순서대로 준비된 무공을 저절로 써요. 무공 레벨 상한 ${cap}(무인 레벨 5마다 1).`));
+    // v559 모두 올리기 — 가장 낮은 무공부터 고르게 · 은자가 되는 만큼
+    { const any = Object.keys(K.lv).some((id) => K.lv[id] > 0 && Hs.canKitUp(id)); const c0 = card('무공 모두 올리기', `은자 ${unit(g.S.wallet.gold || 0)}`);
+      c0(R('모두 올리기', any ? '배운 무공을 가장 낮은 것부터 고르게 — 은자가 되는 만큼 · 상한까지' : '올릴 수 있는 무공이 없어요(은자 · 상한)', [['모두 올리기', act(() => { const r = g.kitUpAll(); if (r) kitAllPop(r); return r; }), !any]], '功')); }
     for (let tier = 0; tier <= 5; tier++) {
       const list = KIT[g.S.hero.job].filter((sk) => sk.tier === tier); if (!list.length) continue;
       const c = card(`${tier}차 무공`, tier > g.S.hero.adv ? `${tier}차 전직 때 열림` : '');
@@ -796,6 +799,12 @@ function forgeFx(kind, sl, rs, before, after, done) {
     else { later(t0 + 120, () => strike(i)); later(t0 + 360, () => show(i)); }
   });
   later(rs.length * per + (many ? 900 : 1400), () => { if (!skipped) { ov.classList.add('done'); later(1300, finish); } });   // 결과를 잠깐 보여 주고 강화 창으로
+}
+// v559 무공 모두 올리기 결과 — 무공마다 Lv 전 → 후 · 쓴 은자 · 전투력
+function kitAllPop(r) {
+  const rows = r.per.map((x, i) => { const sk = skillById(x.id); return `<div class="ea-r" style="--d:${0.1 + i * 0.06}s"><span style="color:${sk?.col || '#fff'}">${esc(sk?.name || x.id)}</span><b>Lv ${x.from}</b><i>→</i><b class="up">Lv ${x.to}</b></div>`; }).join('');
+  pop('무공 모두 올리기', `<div class="ea-sum"><span>올림 <b>${r.n}</b>번</span><span>은자 <b>${unit(r.gold)}</b></span></div><div class="ea-list">${rows}</div><div class="ea-pw">전투력 ${unit(r.pw0)} → <b>${unit(r.pw1)}</b>${r.pw1 > r.pw0 ? ` <em>▲ ${unit(r.pw1 - r.pw0)}</em>` : ''}</div>`);
+  play('rare', 3); addLog(`무공 모두 올리기 — ${r.n}번 · 은자 ${unit(r.gold)}`);
 }
 // v543 모두 강화 결과 — 칸마다 +전 → +후가 하나씩 오르고 · 전투력 · 쓴 재료
 function enhAllPop(r) {

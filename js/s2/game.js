@@ -458,6 +458,22 @@ export class Game {
     return { items, got: this.obtain(items, 'gacha') };
   }
   enhance(slot) { const r = GR.enhance(this.S.gear, slot, this.rng, this.S.wallet, this.S.hero.lv); if (r !== null) this.emit("enhance"); if (r) this.dirtyStats = true; return r; }
+  // v559 무공 모두 올리기 — 배운 무공 중 가장 낮은 것부터 고르게, 은자가 되는 만큼(상한까지). 무공마다 전 → 후 · 쓴 은자 · 전투력
+  kitUpAll(max = 600) {
+    const H = this.hero, K = H.kitState(), W = this.S.wallet, ids = Object.keys(K.lv).filter((id) => K.lv[id] > 0);
+    const before = Object.fromEntries(ids.map((id) => [id, K.lv[id]])), g0 = W.gold || 0, pw0 = this.power(), stuck = new Set();
+    let n = 0;
+    for (let i = 0; i < max; i++) {
+      const open = ids.filter((id) => !stuck.has(id) && H.canKitUp(id));
+      if (!open.length) break;
+      const id = open.reduce((a, b) => (K.lv[b] < K.lv[a] ? b : a));
+      if (H.kitUp(id, W)) n++; else stuck.add(id);
+    }
+    if (!n) return null;
+    this.dirtyStats = true; this.emit('skill');
+    const per = ids.filter((id) => K.lv[id] !== before[id]).map((id) => ({ id, from: before[id], to: K.lv[id] }));
+    return { n, per, gold: g0 - (W.gold || 0), pw0, pw1: this.power() };
+  }
   // v543 모두 강화 — 가장 낮은 칸부터 고르게, 재료(은자 · 강화석)가 되는 만큼. 칸마다 전/후 · 성공/실패 · 쓴 재료 · 전투력
   enhanceAll(max = 300) {
     const G = this.S.gear, W = this.S.wallet, before = Object.fromEntries(SLOTS.map((s) => [s, G.slots[s].enh]));
