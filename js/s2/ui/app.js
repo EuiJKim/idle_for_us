@@ -1079,6 +1079,16 @@ const mobHit = new Map();   // 몹 id → 맞은 때(번쩍 · 밀림)
 let freezeUntil = 0;       // 큰 무공 적중 멈칫
 let slowUntil = 0;         // v532 느린 화면
 let dashAt = -1e9, dashTrail = [], perfAt = -1e9;   // v546 회피 잔상 · 완벽 회피
+// v564 연속 처치 — 2.5초 안에 이어 잡으면 콤보 · 오른쪽에 「N 연속」 · 10 · 30 · 50 · 100 · 200마다 큰 글자(능력치와 상관없는 연출)
+const COMBO_MS = 2500, COMBO_MILES = [10, 30, 50, 100, 200, 500];
+let combo = 0, comboAt = -1e9, comboBest = 0;
+function comboHit(t) {
+  combo = t - comboAt <= COMBO_MS ? combo + 1 : 1; comboAt = t; comboBest = Math.max(comboBest, combo);
+  const el = $('combo'); if (!el) return;
+  if (combo >= 3) { el.className = `on${combo >= 50 ? ' hot' : combo >= 10 ? ' warm' : ''}`; el.innerHTML = `<b>${combo}</b><span>연속 처치</span><i></i>`; el.style.setProperty('--cm', COMBO_MS + 'ms'); }
+  if (COMBO_MILES.includes(combo)) { chbBanner(`${combo} 연속!`, combo >= 100 ? '멈출 수 없다' : combo >= 50 ? '무아지경' : '기세가 오른다', combo >= 50 ? 'win' : 'stun'); play(combo >= 50 ? 'rare' : 'loot', 4); buzz(30); }
+}
+function comboTick(t) { const el = $('combo'); if (el && el.classList.contains('on') && t - comboAt > COMBO_MS) { el.className = ''; if (combo >= 10) addLog(`${combo} 연속 처치`); combo = 0; } }
 const pals = [];           // 화면 위 동료(무인 뒤를 따라감)
 const JOB_COL = { sword: '#ffe9a8', spear: '#ffb27a', fist: '#ffd56a', bow: '#b6f0ff', mage: '#d4b8ff' };
 const PAL_COL = ['#7dd3fc', '#86efac', '#fde68a', '#f9a8d4', '#c4b5fd'];
@@ -1597,7 +1607,7 @@ function frame() {
       else if (e[0] === 'perfect') { perfAt = t; slowUntil = t + 650; shakeUntil = t + 160; play('rare', 5); buzz([30, 40, 30]); chbBanner('완벽 회피!', `${DASH.buffMs / 1000}초 동안 주는 피해 ×${DASH.buffX}`, 'stun'); addLog('완벽 회피!'); }
       else if (e[0] === 'die') { play('down'); buzz(200); }
       else if (e[0] === 'burst') { tells.delete(e[2]); skillFx.push({ at: t, shape: 'boss', pat: e[3], x: e[4], y: e[5], w: e[6] }); shakeUntil = t + (e[7] ? 420 : 220); if (e[7]) { hurtFlash = t; buzz(60); } play('burst'); }
-      else if (e[0] === 'kill') { if (e[3] === 'boss' && g.lastFight?.def?.chb) { slowUntil = t + 900; shakeUntil = t + 700; chbBanner('BOSS DEFEATED', '', 'win'); } play('kill'); if (killLog.length < 500) killLog.push(t); const m = mobs.get(e[2]); if (m && coins.length < 40) for (let j = 0; j < (m.kind === 'mob' ? 2 : 6); j++) coins.push({ x: m.x, y: m.y + 600, vx: ((j % 3) - 1) * 900 + ((m.id * 7 + j * 13) % 9 - 4) * 120, vy: 5200 + (j % 2) * 1500, at: t, j }); if (m && corpses.length < 30) corpses.push({ m: { id: m.id, kind: m.kind }, x: m.x, y: m.y, dir: m.dir || 1, at: t + 40 }); firstSeen.delete(e[2]); lastNext.delete(e[2]); atkAt.delete(e[2]); hpLag.delete(e[2]); if (m && skillFx.length < 90) skillFx.push({ at: t, shape: 'ring', x: m.x, y: m.y }); }
+      else if (e[0] === 'kill') { comboHit(t); if (e[3] === 'boss' && g.lastFight?.def?.chb) { slowUntil = t + 900; shakeUntil = t + 700; chbBanner('BOSS DEFEATED', '', 'win'); } play('kill'); if (killLog.length < 500) killLog.push(t); const m = mobs.get(e[2]); if (m && coins.length < 40) for (let j = 0; j < (m.kind === 'mob' ? 2 : 6); j++) coins.push({ x: m.x, y: m.y + 600, vx: ((j % 3) - 1) * 900 + ((m.id * 7 + j * 13) % 9 - 4) * 120, vy: 5200 + (j % 2) * 1500, at: t, j }); if (m && corpses.length < 30) corpses.push({ m: { id: m.id, kind: m.kind }, x: m.x, y: m.y, dir: m.dir || 1, at: t + 40 }); firstSeen.delete(e[2]); lastNext.delete(e[2]); atkAt.delete(e[2]); hpLag.delete(e[2]); if (m && skillFx.length < 90) skillFx.push({ at: t, shape: 'ring', x: m.x, y: m.y }); }
       if (e[0] === 'cast') { heroAttackPose(g.S.hero.job, true); lastAtkPose = t; play('skill'); lastCastAt = t; const tr = skillById(e[2])?.tier || 0; if (tr >= 3 && t - lastFreeze > 700) { freezeUntil = t + 45; lastFreeze = t; } if (tr >= 4) zoomAt = t; flashSlot(e[2]); }   // 큰 무공은 맞는 순간 0.06초 멈칫
       if (e[0] === 'cast' && skillById(e[2])?.tier === 5) { cutIn = { at: t, id: e[2] }; shakeUntil = t + 450; }
     }
@@ -1629,6 +1639,7 @@ function frame() {
   if (t - lastHud > 200) { lastHud = t; paintHud(); }
   if (t - lastSave > 10000) { lastSave = t; save(); cloudPush(false); }
   if (resTimer && t > resTimer) closeResult();
+  comboTick(t);   // v564
   requestAnimationFrame(frame);
 }
 // v513 두목전 결과 — 이기면 「STAGE CLEAR」 + 실제 보상 · 걸린 시간 · 다음 칸, 3초 막대가 차면 저절로 다음으로(설정에서 끔)

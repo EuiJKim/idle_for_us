@@ -171,6 +171,13 @@
     .gc-m { display: grid; grid-template-columns: auto 1fr auto; gap: 6px; align-items: baseline; font-size: 13px; } .gc-m b { color: #fde68a; font-size: 12px; } .gc-m.me b { color: #7dd3fc; } .gc-m span { word-break: break-all; } .gc-m small { font-size: 10px; color: rgba(255,255,255,.4); }
     .gc-sys { font-size: 11.5px; color: rgba(255,255,255,.55); text-align: center; }
     .gchat-f { display: flex; gap: 6px; } .gchat-f input { flex: 1; min-width: 0; padding: 8px 10px; border-radius: 9px; border: 1px solid rgba(255,255,255,.25); background: rgba(0,0,0,.45); color: #fff; font: inherit; font-size: 14px; } .gchat-f .btn { min-height: 38px; }
+    /* v564 연속 처치 */
+    #combo { position: absolute; right: calc(var(--sr, 12px) + 4px); top: 34%; z-index: 19; pointer-events: none; text-align: right; opacity: 0; transform: translateX(14px); transition: opacity .2s, transform .2s; }
+    #combo.on { opacity: 1; transform: none; } #combo b { display: block; font-size: 34px; font-weight: 900; font-style: italic; color: #fff; text-shadow: 0 2px 0 #000, 0 0 14px rgba(253,230,138,.6); line-height: 1; animation: cmpop .18s ease-out; }
+    #combo span { font-size: 11px; font-weight: 800; color: #fde68a; text-shadow: 0 1px 2px #000; letter-spacing: .08em; }
+    #combo i { display: block; height: 3px; margin-top: 3px; border-radius: 2px; background: #fde68a; transform-origin: right; animation: cmbar var(--cm, 2500ms) linear forwards; }
+    #combo.warm b { color: #fde68a; } #combo.hot b { color: #fb923c; text-shadow: 0 2px 0 #000, 0 0 18px #f97316; font-size: 40px; }
+    @keyframes cmpop { from { transform: scale(1.35); } to { transform: none; } } @keyframes cmbar { from { transform: scaleX(1); } to { transform: scaleX(0); } }
     /* v560 업데이트 소식 */
     .news { display: grid; gap: 6px; max-height: 52vh; overflow-y: auto; } .news-i { padding: 6px 10px; border-radius: 9px; background: rgba(0,0,0,.3); } .news-i b { display: block; color: #fde68a; font-size: 13.5px; } .news-i span { display: block; font-size: 12px; color: rgba(255,255,255,.75); }
     /* v558 병기 · 동료 · 영물 뽑기 카드 */
@@ -563,7 +570,7 @@
       <div id="pad" class="hidden"><button id="pl" aria-label="왼쪽">◀</button><button id="pd" aria-label="내려가기">▼</button><button id="pr" aria-label="오른쪽">▶</button></div>
       <div id="sk"><button id="au" class="on">자동</button><div id="slots" style="display:contents"></div><div id="pbuf" class="hidden"></div><button id="ds" class="hidden" aria-label="회피"><svg class="ic" viewBox="0 0 24 24"><path d="M4 12h11M11 6l6 6-6 6M19 5v14"/></svg><i></i></button><button id="jp" aria-label="점프"><svg class="ic" viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button></div>
       <div id="xpl"><span id="xp-txt">EXP 0.00%</span><div id="xp-bar"><i id="xp-fill"></i></div></div>
-      <div id="res"></div>
+      <div id="combo"></div><div id="res"></div>
     </section>
 
     <div id="panel-dim"></div>
