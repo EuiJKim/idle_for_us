@@ -1202,6 +1202,18 @@ console.log('\n=== v559 무공 모두 올리기 ===');
   g.S.wallet.gold = 1e15; g.kitUpAll(); ok(Object.keys(g.hero.kitState().lv).every((id) => !g.hero.canKitUp(id) || g.hero.kitState().lv[id] === 0), '은자가 넉넉하면 상한까지');
 }
 
+console.log('\n=== v563 대결 복수 ===');
+{
+  const T0 = 1.8e12, A = new Game(newGame('sword', T0, 14), T0); A.addExp(EX.cumExp(40)); A.tick(T0);
+  const B = new Game(newGame('fist', T0, 15), T0); B.addExp(EX.cumExp(30)); B.tick(T0);
+  A.pvpDefend([{ name: '권객', win: true, d: -8, by: 'uidB' }]);
+  const deckB = { uid: 'uidB', name: '권객', score: 1000, f: JSON.parse(B.pvpDeck()) };
+  ok(A.pvpRevenge(0, { ...deckB, uid: 'other' }) === null, '다른 무인 덱으로는 복수 못 함');
+  const r = A.pvpRevenge(0, deckB);
+  ok(r && r.revenge && r.oppUid === 'uidB' && A.S.pvp.log.some((l) => l.def && l.by === 'uidB' && l.rev), '진 방어 → 그 덱과 겨룸 · 복수 표시', JSON.stringify({ win: r?.win }));
+  const li = A.S.pvp.log.findIndex((l) => l.by === 'uidB'); ok(A.pvpRevenge(li, deckB) === null, '한 번만');
+}
+
 console.log('\n=== S0 규칙 ===');
 {
   const files = [];

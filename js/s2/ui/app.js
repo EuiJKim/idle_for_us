@@ -618,7 +618,14 @@ function paintWin() {
       [['도전', act(() => { const r = g.pvpFight(i); if (r) { if (r.oppUid) net.pvpLog(r.oppUid, { name: g.S.nick, win: r.win, d: r.defD, seed: r.d }).catch(() => {}); rankPush(); closeWin(); duelShow(r); } return r; }), used >= 5]], JOBS[o.f.job].name[0])));
     if (!g.pvpOpponents().some((o) => o.real)) c0(note(net.online ? '점수가 가까운 무인을 찾는 중 — 없으면 연습 상대와 겨뤄요' : '오프라인 — 연습 상대와 겨뤄요'));
     const log = g.S.pvp?.log || [];
-    if (log.length) { const c1 = card('지난 대결', '방어 = 남이 내 덱에 도전한 것'); for (const l of log) c1(R(`${l.def ? '방어 ' : ''}${l.win ? '승' : '패'} · ${esc(l.name)}`, `${l.d >= 0 ? '+' : ''}${l.d}`, [], l.def ? '防' : l.win ? '勝' : '敗')); }
+    if (log.length) {
+      const c1 = card('지난 대결', '방어 = 남이 내 덱에 도전한 것 · 진 방어는 「복수」');
+      log.forEach((l, li) => {
+        const canRev = l.def && !l.win && l.by && !l.rev && net.online;
+        c1(R(`${l.def ? '방어 ' : ''}${l.win ? '승' : '패'} · ${esc(l.name)}${l.rev === 1 ? ' <span class="pill pv-real">복수함</span>' : l.rev === 2 ? ' <span class="pill">복수 실패</span>' : ''}`, `${l.d >= 0 ? '+' : ''}${l.d}`,
+          canRev ? [['복수', () => { play('click'); if (used >= 5) { toast('오늘 대결을 다 했어요'); return; } net.pvpDeckOf(l.by).then((opp) => { const r = opp && g.pvpRevenge(li, opp); if (!r) { toast('복수할 수 없어요(상대 덱 없음)'); return; } net.pvpLog(r.oppUid, { name: g.S.nick, win: r.win, d: r.defD, seed: r.d }).catch(() => {}); save(); rankPush(); pvpAt = 0; closeWin(); duelShow(r); }).catch(() => toast('불러오지 못했어요')); }, used >= 5]] : [], l.def ? '防' : l.win ? '勝' : '敗'));
+      });
+    }
   } else if (key === 'rival:2') {
     // v549 문파 — 옛 게임과 같은 문파(계정에 하나 · 최대 10명). 만들기 · 코드로 들어가기 · 찾기 · 출석(뽑기권 2 · 은자) · 문파원(서열 프로필)
     if (net.online) guildLoad();

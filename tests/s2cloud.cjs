@@ -82,12 +82,18 @@ async function device(b) {
   const uidA = await A.page.evaluate(() => window.__s2.net.uid);
   const fr = await D.page.evaluate(async ([ua, ps]) => { (window.__s2.g.S.pvp ??= { score: 1000, day: '', used: 0, log: [] }).score = ps; window.__s2.resetNetTimers(); window.__s2.pvpFetch(); for (let i = 0; i < 40 && !(window.__s2.g.pvpReal || []).length; i++) await new Promise((r) => setTimeout(r, 200)); const os = window.__s2.g.pvpOpponents(); return { found: os.some((o) => o.uid === ua), i: os.findIndex((o) => o.uid === ua) }; }, [uidA, PS]);
   assert(fr.found, 'D: 점수가 가까운 진짜 무인(A)을 찾음');
+  await D.page.evaluate(async () => { const g = window.__s2.g; for (let i = 0; i < 60; i++) g.addExp(1e9); g.dirtyStats = true; window.__s2.net.lastDeck = null; window.__s2.rankPush(); await new Promise((r) => setTimeout(r, 800)); });   // v563 D를 세게(이겨야 A가 복수할 기록이 생긴다) · 덱 올림
   const fight = await D.page.evaluate(async (i) => { const r = window.__s2.g.pvpFight(i); await window.__s2.net.pvpLog(r.oppUid, { name: 'D무인', win: r.win, d: r.defD, seed: 1 }); return { win: r.win, defD: r.defD }; }, fr.i);
   const sA0 = await A.page.evaluate(() => window.__s2.g.S.pvp?.score ?? 1000);
   await A.page.evaluate(() => { window.__s2.resetNetTimers(); window.__s2.pvpInbox(); });
   await sleep(1500);
   const sA1 = await A.page.evaluate(() => ({ s: window.__s2.g.S.pvp?.score, l: window.__s2.g.S.pvp?.log?.[0] }));
   assert(sA1.s === Math.max(0, sA0 + fight.defD) && sA1.l?.def === 1 && sA1.l?.name === 'D무인', `A: 받은 공격이 점수에(${sA0} → ${sA1.s}) · 지난 대결에 방어`);
+  // v563 복수 — A의 방어 기록(D가 이겼다면)에서 D 덱을 받아 겨룸
+  if (fight.win) {
+    const rv = await A.page.evaluate(async () => { const g = window.__s2.g, li = g.S.pvp.log.findIndex((l) => l.def && !l.win && l.by); const L = g.S.pvp.log[li]; const opp = await window.__s2.net.pvpDeckOf(L.by); const r = g.pvpRevenge(li, opp); return { ok: !!r, rev: L.rev }; });
+    assert(rv.ok && rv.rev, 'A: 진 방어 → D 덱을 받아 복수');
+  } else assert(false, 'D가 져서 복수 시험을 못 함(D를 더 세게)');
   const left = await A.page.evaluate(async () => (await window.__s2.net.pvpInbox()).length);
   assert(left === 0, 'A: 우편함은 받으면 비움');
   // v549 문파 — A가 만들고 D가 코드로 들어와 출석 · 명단에 둘 · 찾기 목록에 보임 · D 나가기

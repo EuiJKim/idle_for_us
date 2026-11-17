@@ -199,6 +199,10 @@ export class S2Net {
     }
     return [];
   }
+  async pvpDeckOf(uid) {   // v563 복수 — 그 무인의 방어 덱
+    const d = await this.fs.getDoc(this.fs.doc(this.db, 's2_pvp', uid)); if (!d.exists()) return null;
+    const x = d.data(); try { return { uid, name: x.name, score: x.score, f: JSON.parse(x.deck) }; } catch { return null; }
+  }
   async pvpLog(oppUid, rec) {
     if (!this.online || !oppUid || oppUid === this.uid) return false;
     await this.fs.addDoc(this.fs.collection(this.db, 's2_pvp', oppUid, 'log'), { by: this.uid, name: String(rec.name || '무인').slice(0, 12), win: !!rec.win, d: rec.d | 0, seed: rec.seed | 0, at: this.fs.serverTimestamp() });

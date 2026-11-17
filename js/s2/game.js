@@ -696,13 +696,22 @@ export class Game {
     }).slice(0, 3).map((x) => ({ uid: String(x.uid), name: String(x.name || '무인').slice(0, 12), f: { lv: x.f.lv, job: x.f.job, kind: 'hero', st: x.f.st }, score: x.score | 0 }));
     return this.pvpReal.length;
   }
+  // v563 복수 — 방어에서 진 상대(그 덱)와 바로 겨룬다(오늘 횟수 하나). 이기면 그 기록에 「복수함」
+  pvpRevenge(logIdx, opp) {
+    const P = this.S.pvp, L = P?.log?.[logIdx];
+    if (!L || !L.def || L.win || L.rev || !L.by || !opp || opp.uid !== L.by) return null;
+    if (!this.setPvpReal([opp])) return null;
+    const r = this.pvpFight(0);
+    if (r) { const L2 = P.log.find((x) => x === L) || L; L2.rev = r.win ? 1 : 2; r.revenge = true; }
+    return r;
+  }
   // 내 방어 덱 — 대결이 쓰는 것만(레벨 · 직업 · 능력치)
   pvpDeck() { const f = this.fighter(); return JSON.stringify({ lv: f.lv, job: f.job, st: f.st }); }
   // 받은 공격 기록 — 내 점수에 더하고 「지난 대결」에 방어로
   pvpDefend(list) {
     const P = (this.S.pvp ??= { score: PVP.start, day: '', used: 0, log: [] });
     let sum = 0;
-    for (const x of list || []) { const d = Math.max(-20, Math.min(3, x.d | 0)); sum += d; P.log = [{ name: String(x.name || '무인').slice(0, 12), win: !x.win, d, def: 1 }, ...P.log].slice(0, 10); }
+    for (const x of list || []) { const d = Math.max(-20, Math.min(3, x.d | 0)); sum += d; P.log = [{ name: String(x.name || '무인').slice(0, 12), win: !x.win, d, def: 1, by: x.by ? String(x.by).slice(0, 64) : undefined }, ...P.log].slice(0, 10); }
     P.score = Math.max(0, P.score + sum); this.pvpMark();
     return sum;
   }
