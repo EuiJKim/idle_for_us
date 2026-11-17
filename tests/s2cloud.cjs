@@ -9,6 +9,8 @@ const assert = (c, m) => { if (!c) throw new Error('ASSERT: ' + m); console.log(
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const RUN = Date.now();
 const TOKEN = JSON.stringify({ sub: 'g-s2-' + RUN, email: `s2t${RUN}@example.com`, email_verified: true });
+// v536 처음 들어오면 출석 창이 뜬다 — 「나중에」로 닫는다
+async function skipAttend(pg) { try { await pg.waitForSelector('#modal:not(.hidden) .attg', { timeout: 3000 }); await pg.click('#modal .btn:has-text("나중에")'); } catch { /* 안 뜸 */ } }
 async function device(b) {
   const ctx = await b.newContext({ viewport: { width: 844, height: 390 }, serviceWorkers: 'block', permissions: ['clipboard-read', 'clipboard-write'] });
   await ctx.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
@@ -18,6 +20,7 @@ async function device(b) {
   await page.goto(BASE, { waitUntil: 'domcontentloaded' });
   await page.waitForSelector('#modal .jobcard');
   await page.click('#modal .jobcard >> nth=0');
+  await skipAttend(page);
   await page.waitForFunction(() => window.__s2?.net?.online, null, { timeout: 20000 });
   return { ctx, page, errs };
 }
@@ -51,11 +54,11 @@ async function device(b) {
   const ctxC = await b.newContext({ viewport: { width: 844, height: 390 }, serviceWorkers: 'block' });
   await ctxC.route(/gstatic\.com/, (r) => r.abort());
   const C = await ctxC.newPage(); const errC = []; C.on('pageerror', (e) => errC.push(e.message));
-  await C.goto(BASE.replace('?emu=1', ''), { waitUntil: 'domcontentloaded' }); await C.waitForSelector('#modal .jobcard'); await C.click('#modal .jobcard >> nth=1');
+  await C.goto(BASE.replace('?emu=1', ''), { waitUntil: 'domcontentloaded' }); await C.waitForSelector('#modal .jobcard'); await C.click('#modal .jobcard >> nth=1'); await skipAttend(C);
   await C.click('#b-opt'); await C.click('#wb .row:has-text("저장 코드") .btn:has-text("붙여넣기")');
   await C.fill('#codein', code);
   const navC = C.waitForNavigation({ timeout: 10000 });
-  await C.click('#modal .btn:has-text("불러오기")'); await navC; await C.waitForFunction(() => window.__s2?.g);
+  await C.click('#modal .btn:has-text("불러오기")'); await navC; await C.waitForFunction(() => window.__s2?.g); await skipAttend(C);
   assert(await C.evaluate(() => window.__s2.g.S.hero.lv) === 37, 'C: 저장 코드 붙여넣기 → 같은 진행');
   // 망가진 코드는 그대로
   await C.click('#b-opt'); await C.click('#wb .row:has-text("저장 코드") .btn:has-text("붙여넣기")');

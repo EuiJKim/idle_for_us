@@ -16,6 +16,7 @@ import { DAILY_DUNGEONS, DAILY_RUNS, JOB_DUNGEON } from './tables/content.js';
 import { GUIDE, DAILY_MISSIONS, WEEKLY_MISSIONS, achievements, guideCurrent } from './tables/missions.js';
 import { JOB_ADV } from './tables/skills.js';
 import { CHBOSS, CB, cbGearGrade, CB_REPEAT, WBF } from './tables/chboss.js';
+import { ATTEND, ATTEND_DAYS } from './tables/attend.js';
 import * as GR from './gear/gear.js';
 import * as GC from './gear/gacha.js';
 import * as CL from './grow/collect.js';
@@ -477,6 +478,22 @@ export class Game {
     P.log = [{ name: opp.name, win: r.win, d }, ...P.log].slice(0, 10);
     this.emit('pvp');
     return { ...r, d, score: P.score, tier: PV.tierOf(P.score).name };
+  }
+  // ── v536 출석 ── 하루 한 번(한국 시각 자정에 바뀜) · 28칸 · 다 채우면 처음부터
+  attendState() { return (this.S.att ??= { n: 0, last: -1, cycle: 0 }); }
+  canAttend() { return this.attendState().last !== dayKey(this.now); }
+  attendNext() { return (this.attendState().n % ATTEND_DAYS) + 1; }
+  attend() {
+    if (!this.canAttend()) return null;
+    const A = this.attendState(), day = this.attendNext(), R = ATTEND[day], S = this.S, got = { day, gold: 0, items: {}, gear: null, title: null };
+    A.last = dayKey(this.now); A.n++; if (day === ATTEND_DAYS) A.cycle++;
+    if (R.goldMin) { got.gold = Math.round(R.goldMin * KILLS_PER_MIN * goldPerMob(S.hero.lv)); S.wallet.gold += got.gold; }
+    for (const [k, n] of Object.entries(R)) if (k.includes(':')) { S.wallet[k] = (S.wallet[k] || 0) + n; got.items[k] = n; }
+    if (R.gear) { const it = GR.makeGear(this.rng, SLOTS[this.rng.int(SLOTS.length)], R.gear.g); if (R.gear.up) it.up = 1; got.gear = { g: it.g, up: it.up, slot: it.slot }; this.obtain([it], 'attend'); }
+    if (R.title && !(S.titles ??= []).includes(R.title)) { S.titles.push(R.title); got.title = R.title; }
+    this.emit('login');
+    this.feed.push({ k: 'attend', ...got });
+    return got;
   }
   // ── 방치 ──
   returnCheck(nowMs) {

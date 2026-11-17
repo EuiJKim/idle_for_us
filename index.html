@@ -166,6 +166,21 @@
     .cmp { max-height: 46vh; overflow-y: auto; } html.rot .cmp { max-height: 46vw; }
     html.h500 .cmp-h img { width: 44px; height: 44px; } html.h500 .cmp-h { margin-bottom: 4px; } html.h500 .cmp-r { padding: 2px 8px; font-size: 12px; } html.h500 #modal .sheet { padding: 12px 14px; } html.h500 #modal h2 { margin-bottom: 4px; font-size: 16px; }
     .cmp .up, .cmp-h .up { color: #86efac; } .cmp .dn, .cmp-h .dn { color: #fca5a5; }
+    /* v536 출석 */
+    #modal .sheet.attw { width: min(780px, 96vw); } html.rot #modal .sheet.attw { width: min(780px, 96vh); }
+    .attg { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 5px; margin-top: 6px; }
+    .att { position: relative; display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 4px 2px 5px; border-radius: 9px; background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.1); min-height: 64px; overflow: hidden; }
+    .att small { font-size: 10px; color: rgba(255,255,255,.55); } .att b { font-size: 10px; font-weight: 700; text-align: center; line-height: 1.2; color: rgba(255,255,255,.85); }
+    .att img { width: 26px; height: 26px; object-fit: contain; } .att .coin { width: 22px; height: 22px; } .att .ai { font-style: normal; font-size: 16px; line-height: 24px; color: var(--gold); }
+    .att.big { background: radial-gradient(circle at 50% 30%, rgba(232,194,106,.28), rgba(0,0,0,.2)); border-color: rgba(232,194,106,.6); }
+    .att.today { border-color: #fde68a; box-shadow: 0 0 12px rgba(253,230,138,.6); animation: atttoday 1s ease-in-out infinite alternate; }
+    @keyframes atttoday { to { box-shadow: 0 0 20px rgba(253,230,138,.9); transform: scale(1.04); } }
+    .att.got { opacity: .62; } .att .seal { position: absolute; inset: 0; display: grid; place-items: center; font-size: 30px; font-weight: 900; color: rgba(220,38,38,.85); text-shadow: 0 0 2px #7f1d1d; transform: rotate(-14deg); font-family: serif; }
+    .att.stamp { opacity: 1; animation: none; } .att.stamp .seal { animation: attstamp .45s cubic-bezier(.3,1.6,.5,1); }
+    @keyframes attstamp { 0% { transform: rotate(-14deg) scale(3); opacity: 0; } 60% { transform: rotate(-14deg) scale(.9); opacity: 1; } 100% { transform: rotate(-14deg) scale(1); } }
+    .att .coin.st { background: radial-gradient(circle at 35% 30%, #e0f2fe, #60a5fa 55%, #1e3a8a); border-radius: 30% 60% 40% 55%; transform: rotate(-12deg); }
+    html.h500 .attw h2 { font-size: 14px; margin: 0 0 2px; } html.h500 .attw .note { display: none; } html.h500 #modal .sheet.attw { padding-top: 10px; padding-bottom: 10px; }
+    html.h500 .att { min-height: 44px; padding: 1px 1px 2px; } html.h500 .att b { font-size: 9.5px; } html.h500 .att img, html.h500 .att .coin { width: 18px; height: 18px; } html.h500 .attg { gap: 3px; }
     /* v534 전투력 오름 · 장비 줍기 */
     .pwpop { position: fixed; left: calc(var(--sl, 0px) + 150px); top: calc(var(--st, 0px) + 6px); z-index: 60; pointer-events: none; display: flex; align-items: baseline; gap: 6px; padding: 4px 12px; border-radius: 999px; background: rgba(0,0,0,.6); animation: pwpop 1.8s ease forwards; font-variant-numeric: tabular-nums; }
     .pwpop small { font-size: 11px; color: rgba(255,255,255,.7); } .pwpop b { font-size: 18px; font-weight: 900; } .pwpop em { font-style: normal; font-size: 12px; font-weight: 800; }

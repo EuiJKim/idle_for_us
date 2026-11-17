@@ -939,6 +939,21 @@ console.log('\n=== v535 월드보스 실제 싸움 ===');
   ok(g.canDungeon('wboss') === '오늘은 다 했어요' && !g.enterDungeon('wboss'), '하루 3번');
 }
 
+console.log('\n=== v536 출석 ===');
+{
+  const AT = await import('../js/s2/tables/attend.js');
+  ok(AT.ATTEND.length === AT.ATTEND_DAYS + 1 && [7, 14, 21, 28].every((d) => AT.ATTEND[d].big), '28칸 · 7 · 14 · 21 · 28일은 큰 보상');
+  const DAY = 86400e3, T0 = Date.UTC(2026, 0, 5, 3), g = new Game(newGame('sword', T0, 2), T0); g.tick(T0);
+  const t0 = g.S.wallet['ticket:gear'] || 0;
+  ok(g.canAttend() && g.attend()?.day === 1 && !g.canAttend() && g.attend() === null, '하루 한 번');
+  for (let d = 1; d < 7; d++) { g.tick(T0 + d * DAY); g.attend(); }
+  ok(g.attendState().n === 7 && (g.S.wallet['ticket:gear'] || 0) >= t0 + 5 + 20, '7일째 — 장비 뽑기권 20(큰 보상)', g.S.wallet['ticket:gear']);
+  for (let d = 7; d < 28; d++) { g.tick(T0 + d * DAY); g.attend(); }
+  ok(g.attendState().cycle === 1 && g.S.titles?.includes('28일 개근') && g.attendNext() === 1, '28일을 채우면 칭호 · 다시 1일부터');
+  g.tick(T0 + 40 * DAY); const r = g.attend();
+  ok(r?.day === 1, '빠진 날이 있어도 다음 칸(건너뛰지 않음)');
+}
+
 console.log('\n=== S0 규칙 ===');
 {
   const files = [];

@@ -23,6 +23,7 @@ import { kindGrade } from '../grow/collect.js';
 import { loadLooks, zoneFor, drawHero, drawMob, mobName, mobHeight, preloadMobs, drawPaintedBack, drawPaintedLedge, drawEarth, chbImg, preloadChapter, fxImg, oldImg, tintImg, ULT_ART, SEAL_ART, CUT_ART, BUFF_ART, BOSS_ART, wearCount } from './look.js';
 import { BOSS_PATS } from '../tables/kit.js';
 import { CHBOSS, CB_PATS, CB, WBF } from '../tables/chboss.js';
+import { ATTEND, ATTEND_DAYS, ATTEND_NAME } from '../tables/attend.js';
 import { play, unlock, setOpt, bgm } from './sound.js';
 import { PoseAnim, POSES, IDLE, mixPose } from '../../pose.js';
 // 설정(v504) — 이 기기에만(ifu.s2.opt). 소리 · 배경 가락 · 흔들림 · 피해 숫자 · 진동 · 그래픽 · 피해 측정기
@@ -134,7 +135,7 @@ const TABS = [
   ['comp', '동료', [['병기', 'grow:0'], ['동료', 'grow:1'], ['영물', 'grow:2']]],
   ['dgn', '던전', [['수련동', 'content:0'], ['무한 탑', 'content:1'], ['원정', 'content:2']]],
   ['map', '지도', [['스테이지', 'content:3']]],
-  ['town', '임무', [['길잡이', 'mission:0'], ['일일', 'mission:1'], ['주간', 'mission:2'], ['경지', 'grow:3'], ['강호행', 'grow:4']]],
+  ['town', '임무', [['출석', 'attend:0'], ['길잡이', 'mission:0'], ['일일', 'mission:1'], ['주간', 'mission:2'], ['경지', 'grow:3'], ['강호행', 'grow:4']]],
   ['social', '무림', [['월드보스', 'rival:0'], ['대결', 'rival:1'], ['문파', 'rival:2']]],
   ['opt', '설정', [['설정', 'mission:3']]],
 ];
@@ -452,6 +453,11 @@ function paintWin() {
   } else if (key === 'rival:2') {
     const c = card('문파', '교체 때 서버와 함께 열려요');
     for (const [n, d, ic] of [['문파 토벌', '문파원 피해를 모아 주간 두목 단계를 깸', '伐'], ['문파 대항', '문파끼리 한 주 점수 겨루기', '爭'], ['문파 수련', '문파원 기여로 막대를 채우면 모두 보상', '修'], ['연구 · 도움', '문파원 기여로 연구를 올림', '硏']]) c(R(n, d, [], ic));
+  } else if (key === 'attend:0') {
+    const A = g.attendState(), can = g.canAttend();
+    const c = card('출석', `${A.n % ATTEND_DAYS || (A.n ? ATTEND_DAYS : 0)}/${ATTEND_DAYS}일${A.cycle ? ` · ${A.cycle}바퀴 끝` : ''}`);
+    c(R(can ? `오늘 출석 — ${g.attendNext()}일째` : '오늘은 출석했어요', can ? attendLabel(ATTEND[g.attendNext()]) : '내일 다시(한국 시각 자정)', [['출석', () => { play('click'); attendPop(); }, !can]], '出'));
+    const box = document.createElement('div'); box.innerHTML = attendGrid(); c(box.firstChild);
   } else if (key === 'mission:0') {
     const cur = guideCurrent(g.S.q.guide), c = card('길잡이', cur ? `지금 ${cur.id.slice(1)}번` : '다 끝냄');
     for (const q of GUIDE) {
@@ -1466,13 +1472,48 @@ function pickJob() {
   };
   paint();
 }
+// v536 출석 — 28칸 달력. 오늘 칸이 두근거리고 「출석」을 누르면 붉은 도장이 쾅 · 보상이 날아오른다
+const attendLabel = (R) => {
+  if (R.gear) return `${GRADES[R.gear.g]}품${R.gear.up ? '上' : ''} 장비`;
+  if (R.goldMin) return `은자 ${unit(R.goldMin * 27 * goldPerMob(g.S.hero.lv))}`;
+  const k = Object.keys(R).find((x) => x.includes(':'));
+  return k ? `${(ATTEND_NAME[k] || k).replace(' 뽑기권', '권')} ${R[k]}` : '';
+};
+const attendIcon = (R) => R.gear ? `<img src="${eqIcon(['weapon', 'top', 'neck'][R.gear.g % 3], { g: R.gear.g })}" alt="">` : R.goldMin ? '<i class="coin s"></i>' : R['item:stone'] ? '<i class="coin st"></i>' : R['ticket:time'] ? '<i class="ai">⏳</i>' : R['item:restore'] ? '<i class="ai">卷</i>' : '<i class="coin t"></i>';
+function attendGrid(stampDay) {
+  const A = g.attendState(), done = A.n % ATTEND_DAYS, today = g.canAttend() ? done + 1 : 0;
+  let h = '<div class="attg">';
+  for (let d = 1; d <= ATTEND_DAYS; d++) {
+    const R = ATTEND[d], got = d <= done && d !== stampDay, isT = d === today;
+    h += `<div class="att${R.big ? ' big' : ''}${got ? ' got' : ''}${isT ? ' today' : ''}" data-d="${d}"><small>${d}일</small>${attendIcon(R)}<b>${attendLabel(R)}</b>${got ? '<span class="seal">出</span>' : ''}</div>`;
+  }
+  return h + '</div>';
+}
+function attendPop() {
+  if (!g || !g.canAttend()) return;
+  const A = g.attendState(), day = g.attendNext(), sh = $('modal').querySelector('.sheet');
+  pop('출석', `<p class="note">하루 한 번 · ${A.cycle ? `${A.cycle + 1}바퀴째 · ` : ''}오늘은 <b>${day}일째</b> — 7 · 14 · 21 · 28일은 큰 보상</p>${attendGrid()}`, [['나중에', null], ['출석', () => doAttend()]]);
+  sh.classList.add('wide', 'attw');
+}
+function doAttend() {
+  const r = g.attend(); if (!r) return;
+  save(); paintHud();
+  const sh = $('modal').querySelector('.sheet');
+  sh.innerHTML = `<h2>출석 ${r.day}일째</h2>${attendGrid(r.day)}<div class="btn-row" style="margin-top:10px"><button class="btn primary" id="att-ok">받기 완료</button></div>`;
+  sh.classList.add('wide', 'attw'); $('modal').classList.remove('hidden');
+  const cell = sh.querySelector(`.att[data-d="${r.day}"]`);
+  setTimeout(() => { cell.classList.add('got', 'stamp'); cell.insertAdjacentHTML('beforeend', '<span class="seal">出</span>'); play('burst'); buzz(80); shakeUntil = now() + 250; }, 250);
+  setTimeout(() => { play(ATTEND[r.day].big ? 'rare' : 'coin', 5); const parts = [r.gold ? `은자 ${unit(r.gold)}` : '', ...Object.entries(r.items).map(([k, n]) => `${ATTEND_NAME[k] || k} ${n}`), r.gear ? `${GRADES[r.gear.g]}품${r.gear.up ? '上' : ''} ${SLOT_NAME[r.gear.slot]}` : '', r.title ? `칭호 「${r.title}」` : ''].filter(Boolean); toast(`출석 보상 — ${parts.join(' · ')}`); }, 700);
+  $('att-ok').onclick = () => { play('click'); closeModal(); sh.classList.remove('wide', 'attw'); if (open) paintWin(); };
+}
 function returnQueue() {
   const p = g.returnCheck(now());
   const q = buildQueue([...(p ? [{ kind: 'offline', p }] : [])]);
+  if (!q.length && g.canAttend()) setTimeout(() => attendPop(), 600);   // v536 방치 보상이 없으면 바로 출석
   for (const it of q) if (it.kind === 'offline') {
     const p2 = it.p;
     const mins = Math.floor(p2.ms / 60000), hh = Math.floor(mins / 60), mm = mins % 60;
-    pop('방치 보상', `<div class="offl"><div class="offl-t"><b>${hh ? `${hh}시간 ` : ''}${mm}분</b><span>동안 무인이 홀로 사냥했어요${p2.capped ? ' · 최대 12시간까지 쌓여요' : ''}</span></div><div class="offl-bar"><i style="width:${Math.min(100, (p2.ms / (12 * 3600000)) * 100)}%"></i></div><div class="rtiles offl-r"><div class="rt"><i class="xpico">EXP</i><b>${unit(p2.exp)}</b><small>경험치</small></div><div class="rt"><i class="coin s"></i><b>${unit(p2.gold)}</b><small>은자</small></div></div><p class="note">광고를 보면 두 배(하루 정해진 횟수)</p></div>`, [['받기', () => { g.claimOffline(false); save(); }], ['광고 보고 ×2', () => { const r = g.claimOffline(true); toast(r?.x === 2 ? '×2 받음' : '오늘 광고 ×2는 다 썼어요'); save(); }]]);
+    pop('방치 보상', `<div class="offl"><div class="offl-t"><b>${hh ? `${hh}시간 ` : ''}${mm}분</b><span>동안 무인이 홀로 사냥했어요${p2.capped ? ' · 최대 12시간까지 쌓여요' : ''}</span></div><div class="offl-bar"><i style="width:${Math.min(100, (p2.ms / (12 * 3600000)) * 100)}%"></i></div><div class="rtiles offl-r"><div class="rt"><i class="xpico">EXP</i><b>${unit(p2.exp)}</b><small>경험치</small></div><div class="rt"><i class="coin s"></i><b>${unit(p2.gold)}</b><small>은자</small></div></div><p class="note">광고를 보면 두 배(하루 정해진 횟수)</p></div>`, [['받기', () => { g.claimOffline(false); save(); if (g.canAttend()) setTimeout(() => attendPop(), 350); }], ['광고 보고 ×2', () => { const r = g.claimOffline(true); toast(r?.x === 2 ? '×2 받음' : '오늘 광고 ×2는 다 썼어요'); save(); if (g.canAttend()) setTimeout(() => attendPop(), 350); }]]);
   }
 }
 function boot() {
@@ -1527,6 +1568,6 @@ load();
 if (g) boot();
 else pickJob();
 // 시험용 손잡이
-window.__s2 = { get g() { return g; }, save, dayKey, freeze: () => { frozen = true; }, net, cloudPush,
+window.__s2 = { get g() { return g; }, save, dayKey, attendPop, freeze: () => { frozen = true; }, net, cloudPush,
   // v525 팝업 대신 에뮬레이터용 가짜 Google 토큰으로 잇기 · 겹치면 그 계정으로
   linkTest: async (tok) => { const r = await net.linkGoogle(tok); if (r.conflict) { const d = await net.switchTo(r.cred); if (d) applyCloud(d); return 'switched'; } await cloudPush(true); return 'linked'; } };

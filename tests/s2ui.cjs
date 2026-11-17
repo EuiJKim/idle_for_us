@@ -22,7 +22,13 @@ const ok = (c, m, x = '') => { console.log(`  ${c ? '✓' : '✗ !!'} ${m}${x !=
     await page.waitForSelector('#modal:not(.hidden)');
     ok((await page.$$('#modal .btn')).length === 5, '무인 고르기 — 직업 다섯');
     await page.click('#modal .btn >> nth=0');
-    await page.waitForTimeout(7000);
+    // v536 처음 들어오면 출석 창 — 출석 → 도장 → 받기 완료
+    await page.waitForSelector('#modal:not(.hidden) .attg', { timeout: 4000 });
+    ok((await page.$$('#modal .att')).length === 28 && await page.isVisible('#modal .att.today'), 'v536 출석 창: 28칸 · 오늘 칸');
+    await page.click('#modal .btn:has-text("출석")'); await page.waitForTimeout(500);
+    ok(await page.isVisible('#modal .att.stamp .seal') && await page.evaluate(() => !window.__s2.g.canAttend()), 'v536 출석 → 도장 · 오늘은 끝');
+    await page.click('#att-ok');
+    await page.waitForTimeout(6000);
     const g0 = await page.evaluate(() => ({ kills: window.__s2.g.S.kills, lv: window.__s2.g.S.hero.lv }));
     ok(g0.kills > 0, '저절로 사냥한다', `처치 ${g0.kills}`);
     ok(/Lv.\d+/.test(await page.textContent('#me-lv')) && /^[\d.,]+[만억]?$/.test(await page.textContent('#pw')) && /HP \S+ \/ \S+/.test(await page.textContent('#hp-txt')) && /EXP [\d.]+%/.test(await page.textContent('#xp-txt')), 'v510 HUD: 위 왼쪽 전투력 · 왼쪽 아래 Lv · HP · 맨 아래 EXP');
