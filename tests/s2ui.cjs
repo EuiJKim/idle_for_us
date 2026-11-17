@@ -115,6 +115,11 @@ const ok = (c, m, x = '') => { console.log(`  ${c ? '✓' : '✗ !!'} ${m}${x !=
     ok(await page.isVisible('.gx') && (await page.$$('.gx .gc')).length === 10 && /동료 뽑기 10번/.test(await page.textContent('.gx .gxt')), 'v558 동료 뽑기 10번 → 카드 뒤집기 창');
     await page.click('.gx .skip'); await page.waitForTimeout(200); await page.click('.gx .skip'); await page.waitForTimeout(200);
     await page.click('#panel-close').catch(() => {});
+    // v560 업데이트 소식 — 새로 시작한 무인은 볼 것 없음 · 옛 판 세이브면 들어올 때 한 번
+    ok(await page.evaluate(() => window.__s2.g.S.newsV >= 560), 'v560 새로 시작하면 소식 없음(지금 판)');
+    await page.evaluate(() => { window.__s2.g.S.newsV = 540; window.__s2.newsCheck(); }); await page.waitForTimeout(1500);
+    ok(/새로 생긴 것/.test(await page.textContent('#modal')) && (await page.$$('#modal .news-i')).length >= 5 && await page.evaluate(() => window.__s2.g.S.newsV >= 560), 'v560 옛 판이면 새로 생긴 것 창 · 본 뒤 지금 판으로');
+    await page.click('#modal .btn:has-text("확인")'); await page.waitForTimeout(200);
     // v544 오늘 할 일 — 임무 → 오늘: 줄 여덟 · 「가기」→ 그 창
     await page.click('#mb .nb[data-tab="town"], .ib[data-tab="town"], [data-tab="town"] >> nth=0'); await page.waitForTimeout(200);
     await page.click('#panel-body .subtabs button:has-text("오늘")'); await page.waitForTimeout(200);

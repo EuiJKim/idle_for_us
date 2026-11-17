@@ -26,6 +26,7 @@ import { loadLooks, zoneFor, drawHero, drawMob, mobName, mobHeight, preloadMobs,
 import { BOSS_PATS } from '../tables/kit.js';
 import { CHBOSS, CB_PATS, CB, WBF, CB_RAID, DEX_REW } from '../tables/chboss.js';
 import { DASH } from '../battle/side.js';   // v546 회피
+import { NEWS, NEWS_V, newsSince } from '../tables/news.js';   // v560 업데이트 소식
 import { ATTEND, ATTEND_DAYS, ATTEND_NAME } from '../tables/attend.js';
 import { TITLES, TITLE_EACH, titleByName } from '../tables/titles.js';
 import { play, unlock, setOpt, bgm } from './sound.js';
@@ -193,7 +194,7 @@ async function linkGoogle() {
     else if (r.conflict) pop('이미 쓰던 Google 계정이에요', `<p class="note">${esc(r.email)} 계정에 다른 진행이 이어져 있어요. 그 계정으로 바꾸면 그쪽 새 시즌 진행을 받아 와요(이 기기 진행은 저장 코드로 남겨 두세요).</p>`, [['그대로', null], ['그 계정으로', async () => { try { const d = await net.switchTo(r.cred); if (d) applyCloud(d); else { toast('그 계정에는 새 시즌 진행이 없어요 — 지금 진행을 올려요'); cloudPush(true); } } catch (err) { toast(err?.message || '바꾸지 못했어요'); } }]]);
   } catch (err) { toast(err?.code === 'auth/popup-blocked' ? '팝업이 막혔어요 — 다시 눌러 주세요' : err?.code === 'auth/popup-closed-by-user' ? '취소했어요' : (err?.message || '연결하지 못했어요')); }
 }
-function start(job) { g = new Game(newGame(job, now(), (now() & 0x7fffffff) || 1), now()); g.emit('login'); save(); boot(); }
+function start(job) { g = new Game(newGame(job, now(), (now() & 0x7fffffff) || 1), now()); g.S.newsV = NEWS_V; g.emit('login'); save(); boot(); }   // v560 새로 시작하면 볼 소식 없음
 
 // ── 토스트 · 팝업 — 지금 게임과 같은 틀(#toast .toast · #modal .sheet h2 · .btn-row) ──
 function toast(t) { const d = document.createElement('div'); d.className = 'toast'; d.textContent = t; $('toast').append(d); setTimeout(() => d.remove(), 2700); }
@@ -738,6 +739,7 @@ function paintWin() {
     const c3 = card('계정 · 저장', net.online ? (net.isGoogle() ? `Google · ${esc(net.email())}` : '이 기기만(Google 미연결)') : net.status === 'connecting' ? '연결 중…' : '오프라인 — 이 기기에만 저장');
     c3(R('Google 연결', net.isGoogle() ? '연결됨 — 다른 기기에서도 Google로 들어오면 이어서 해요' : '연결해 두면 기기를 바꾸거나 지워도 되살려요', [[net.isGoogle() ? '다른 계정' : '연결', () => { play('click'); if (net.isGoogle()) net.switchTo(null).then((d) => (d ? applyCloud(d) : toast('그 계정에는 새 시즌 진행이 없어요'))).catch((e) => toast(e?.message || '바꾸지 못했어요')); else linkGoogle(); }, !net.online]], 'G'));
     c3(R('서버에 저장', net.cloudAt ? `마지막 ${new Date(net.cloudAt).toLocaleString()} · 3분마다 저절로` : '3분마다 저절로 올려요', [['지금 저장', act(() => { cloudPush(true).then((ok) => toast(ok ? '서버에 저장했어요' : '저장하지 못했어요(오프라인?)')); return true; }), !net.online]], '雲'));
+    c3(R('업데이트 소식', `새로 생긴 것 — 지금 판 v${NEWS_V}`, [['보기', () => { play('click'); newsPop(NEWS, true); }]], '新'));   // v560
     c3(R('서열 이름', g.S.nick ? esc(g.S.nick) : '아직 없음 — 서버에 올릴 때 정해져요', [['바꾸기', () => { play('click'); const n = prompt('서열에 보일 이름(1~12자)', g.S.nick || ''); if (n == null) return; if (g.setNick(n)) { save(); rankPush(); toast('이름을 바꿨어요'); } else toast('1~12자로 적어 주세요'); paintWin(); }]], '名'));   // v547
     c3(R('저장 코드', '계정 없이 글자 한 줄로 옮기기', [['복사', () => { play('click'); exportCode(); }], ['붙여넣기', () => { play('click'); importCode(); }]], '碼'));
     const c2 = card('계정');
@@ -1905,11 +1907,28 @@ function returnQueue() {
     pop('방치 보상', `<div class="offl"><div class="offl-t"><b>${hh ? `${hh}시간 ` : ''}${mm}분</b><span>동안 무인이 홀로 사냥했어요${p2.capped ? ' · 최대 12시간까지 쌓여요' : ''}</span></div><div class="offl-bar"><i style="width:${Math.min(100, (p2.ms / (12 * 3600000)) * 100)}%"></i></div><div class="rtiles offl-r"><div class="rt"><i class="xpico">EXP</i><b>${unit(p2.exp)}</b><small>경험치</small></div><div class="rt"><i class="coin s"></i><b>${unit(p2.gold)}</b><small>은자</small></div></div><p class="note">광고를 보면 두 배(하루 정해진 횟수)</p></div>`, [['받기', () => { g.claimOffline(false); save(); if (g.canAttend()) setTimeout(() => attendPop(), 350); }], ['광고 보고 ×2', () => { const r = g.claimOffline(true); toast(r?.x === 2 ? '×2 받음' : '오늘 광고 ×2는 다 썼어요'); save(); if (g.canAttend()) setTimeout(() => attendPop(), 350); }]]);
   }
 }
+// v560 업데이트 소식 — 들어올 때 다른 창(방치 보상 · 출석)이 다 닫힌 뒤 한 번 · 설정에서 다시
+function newsPop(list = NEWS.slice(0, 8), all = false) {
+  if (!list.length) return;
+  pop(all ? '업데이트 소식' : '새로 생긴 것', `<div class="news">${list.map((n) => `<div class="news-i"><b>${esc(n.title)}</b>${n.lines.map((l) => `<span>${esc(l)}</span>`).join('')}</div>`).join('')}</div>`);
+}
+function newsCheck() {
+  if (!g) return;
+  const list = newsSince(g.S.newsV ?? 0);
+  if (!list.length) { g.S.newsV = NEWS_V; return; }
+  const t0 = now(), iv = setInterval(() => {
+    const busy = !$('modal').classList.contains('hidden') || document.querySelector('.gx, .duel') || $('res').classList.contains('open');
+    if (busy && now() - t0 < 120000) return;
+    clearInterval(iv); if (busy) return;
+    g.S.newsV = NEWS_V; save(); newsPop(list.slice(0, 8));
+  }, 800);
+}
 function boot() {
   closeModal();
   setTimeout(() => net.init(), 1500);   // v525 계정 연결은 화면이 뜬 뒤
   paintNav(); paintHud();
   returnQueue();
+  setTimeout(newsCheck, 1500);   // v560
   last = now(); lastMin = now();
   requestAnimationFrame(frame);
 }
@@ -1958,6 +1977,6 @@ load();
 if (g) boot();
 else pickJob();
 // 시험용 손잡이
-window.__s2 = { get g() { return g; }, guildState, guildLoad, chatSend, save, dayKey, attendPop, freeze: () => { frozen = true; }, net, cloudPush, rankPush, wbPush, wkStr, pvpInbox, pvpFetch, resetNetTimers: () => { pvpAt = 0; inboxAt = 0; },
+window.__s2 = { get g() { return g; }, newsCheck, guildState, guildLoad, chatSend, save, dayKey, attendPop, freeze: () => { frozen = true; }, net, cloudPush, rankPush, wbPush, wkStr, pvpInbox, pvpFetch, resetNetTimers: () => { pvpAt = 0; inboxAt = 0; },
   // v525 팝업 대신 에뮬레이터용 가짜 Google 토큰으로 잇기 · 겹치면 그 계정으로
   linkTest: async (tok) => { const r = await net.linkGoogle(tok); if (r.conflict) { const d = await net.switchTo(r.cred); if (d) applyCloud(d); return 'switched'; } await cloudPush(true); return 'linked'; } };
