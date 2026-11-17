@@ -248,16 +248,16 @@ function eqCell(sl) {
 }
 // ── 장비 뽑기 연출(v497) ── 카드가 차례로 뒤집힌다. 보(4)↑는 뒤집기 전에 두근(떨림 · 빛) · 신(5)↑는 화면이 번쩍 · 건너뛰기
 const GX_COL = ['#9ca3af', '#7cc47a', '#6aa8e0', '#b27ae0', '#e8c26a', '#e06a5a', '#ffffff'];
-function showGacha(r) {
+function showGacha(r, opt = {}) {   // v558 opt: { title, face(it) } — 병기 · 동료 · 영물 뽑기도 같은 카드 뒤집기
   const prev = document.querySelector('.gx'); if (prev) prev.parentNode.removeChild(prev);
   const ov = document.createElement('div'); ov.className = 'gx';
   const close = () => { if (ov.parentNode) ov.parentNode.removeChild(ov); };
   const best = Math.max(...r.items.map((i) => i.g));
-  ov.innerHTML = `<div class="gxt">장비 뽑기 ${r.items.length}번</div><div class="gxg ${r.items.length > 10 ? 'many' : ''}"></div><div class="gxb"><button class="btn skip">건너뛰기</button></div>`;
+  ov.innerHTML = `<div class="gxt">${opt.title || '장비 뽑기'} ${r.items.length}번</div><div class="gxg ${r.items.length > 10 ? 'many' : ''}"></div><div class="gxb"><button class="btn skip">건너뛰기</button></div>`;
   const grid = ov.querySelector('.gxg'), eqd = new Set(r.got.filter((x) => x.equipped).map((x) => x.it?.uid));
   const cards = r.items.map((it) => {
     const c = document.createElement('div'); c.className = `gc g${it.g}`; c.style.setProperty('--gc', GX_COL[it.g] || '#fff');
-    c.innerHTML = `<div class="back"></div><div class="face"><img src="${eqIcon(it.slot, it)}" alt="${SLOT_NAME[it.slot]}"><b class="g${it.g}t">${GRADES[it.g]}</b><small>${SLOT_NAME[it.slot]}</small>${eqd.has(it.uid) ? '<i>장착</i>' : ''}</div>`;
+    c.innerHTML = `<div class="back"></div><div class="face">${opt.face ? opt.face(it) : `<img src="${eqIcon(it.slot, it)}" alt="${SLOT_NAME[it.slot]}"><b class="g${it.g}t">${GRADES[it.g]}</b><small>${SLOT_NAME[it.slot]}</small>${eqd.has(it.uid) ? '<i>장착</i>' : ''}`}</div>`;
     grid.append(c); return c;
   });
   document.body.append(ov);
@@ -269,7 +269,7 @@ function showGacha(r) {
     cards.forEach((c) => { c.classList.remove('tense'); c.classList.add('open'); });
     if (best >= 5) flash(best);
     ov.querySelector('.skip').textContent = '닫기';
-    ov.querySelector('.gxt').textContent = r.got.some((x) => x.equipped) ? '더 좋은 것은 바로 장착했어요' : `가장 좋은 것: ${GRADES[best]}`;
+    ov.querySelector('.gxt').textContent = opt.done ? opt.done(best) : r.got.some((x) => x.equipped) ? '더 좋은 것은 바로 장착했어요' : `가장 좋은 것: ${GRADES[best]}`;
   };
   const next = () => {
     if (done) return;
@@ -498,7 +498,10 @@ function paintWin() {
   } else if (key === 'grow:0' || key === 'grow:1' || key === 'grow:2') {
     const sys = COLLECTS[+key.slice(5)], C = g.S.colls[sys], D = COLLECT[sys];
     const c0 = card(`${D.name} 뽑기`, `천장 ${C.pity}/200`);
-    c0(R(`뽑기권 ${W[`ticket:${sys}`] || 0}장`, '많이 가지면 모은 효과 · 낀 것은 장착 효과', [['1번', act(() => g.pullCollect(sys, 1))], ['10번', act(() => { const r = g.pullCollect(sys, 10); if (r) toast(r.map((x) => GRADES[x.g]).join(' ')); return r; })]], '抽'));
+    // v558 병기 · 동료 · 영물 뽑기도 카드 뒤집기(높은 등급은 두근 · 번쩍) — 처음 얻은 것은 「새로」
+    const GLY = { weapon: '兵', pal: '伴', relic: '靈' }[sys] || '抽';
+    const pullFx = (n) => { const before = new Set(Object.keys(C.own)); const r = g.pullCollect(sys, n); if (r) showGacha({ items: r, got: [] }, { title: `${D.name} 뽑기`, done: (b) => `가장 좋은 것: ${GRADES[b]} · 새로 ${new Set(r.filter((x) => !before.has(String(x.k))).map((x) => x.k)).size}종`, face: (it) => `<div class="gx-gly g${it.g}t">${GLY}</div><b class="g${it.g}t">${GRADES[it.g]}</b><small>${esc(D.name)} ${it.k}</small>${before.has(String(it.k)) ? '' : '<i>새로</i>'}` }); return r; };
+    c0(R(`뽑기권 ${W[`ticket:${sys}`] || 0}장`, '많이 가지면 모은 효과 · 낀 것은 장착 효과', [['1번', act(() => pullFx(1))], ['10번', act(() => pullFx(10))]], '抽'));
     const c1 = card(`가진 ${D.name} ${Object.keys(C.own).length}`, `장착 ${C.eq.filter((x) => x !== null && x !== undefined).length}/${C.eq.length}`);
     const grid = document.createElement('div'); grid.className = 'gear-grid';
     for (const [k, o] of Object.entries(C.own).sort((a, b) => kindGrade(sys, +b[0]) - kindGrade(sys, +a[0]))) {

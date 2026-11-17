@@ -107,6 +107,14 @@ const ok = (c, m, x = '') => { console.log(`  ${c ? '✓' : '✗ !!'} ${m}${x !=
     ok(await page.isVisible('#res.open .rdstars') && (await page.$$('#res .rdstars i.on')).length === 3, 'v541 토벌 결과 — 별 셋');
     await page.click('#rout'); await page.waitForTimeout(200);
     await page.evaluate(() => { window.__s2.g.stage().auto = true; });
+    // v558 동료 뽑기 — 카드 뒤집기 창
+    await page.evaluate(() => { window.__s2.g.S.wallet['ticket:pal'] = 20; });
+    await page.click('#mb .nb[data-tab="comp"]'); await page.waitForTimeout(200);
+    await page.click('#panel-body .subtabs button:has-text("동료")'); await page.waitForTimeout(200);
+    await page.click('#wb .row .btn:has-text("10번")'); await page.waitForTimeout(400);
+    ok(await page.isVisible('.gx') && (await page.$$('.gx .gc')).length === 10 && /동료 뽑기 10번/.test(await page.textContent('.gx .gxt')), 'v558 동료 뽑기 10번 → 카드 뒤집기 창');
+    await page.click('.gx .skip'); await page.waitForTimeout(200); await page.click('.gx .skip'); await page.waitForTimeout(200);
+    await page.click('#panel-close').catch(() => {});
     // v544 오늘 할 일 — 임무 → 오늘: 줄 여덟 · 「가기」→ 그 창
     await page.click('#mb .nb[data-tab="town"], .ib[data-tab="town"], [data-tab="town"] >> nth=0'); await page.waitForTimeout(200);
     await page.click('#panel-body .subtabs button:has-text("오늘")'); await page.waitForTimeout(200);
@@ -127,6 +135,8 @@ const ok = (c, m, x = '') => { console.log(`  ${c ? '✓' : '✗ !!'} ${m}${x !=
     await page.click('#panel-close').catch(() => {});
     // v535 월드보스 — 무림 → 월드보스 「도전」 → 실제 싸움(위에 피해 · 점수 · 남은 시간) → 나가기 → WORLD BOSS 결과
     await page.click('.nb[data-tab="social"]'); await page.waitForTimeout(250);
+    await page.evaluate(() => { const g = window.__s2.g; if (g.bossFight) g.endChallenge(false); g.stage().auto = false; window.__s2.g.dirtyStats = true; });   // v558 시험이 길어져 칸 두목 자동 도전이 끼면 「다른 싸움 중」
+    await page.waitForTimeout(300); if (await page.isVisible('#res.open')) await page.click('#rout');
     await page.click('#panel-body .subtabs button:has-text("월드보스")'); await page.waitForTimeout(200);   // v547 무림 첫 칸은 서열
     await page.click('#wb .row .btn:has-text("도전")'); await page.waitForTimeout(600);
     ok(await page.evaluate(() => window.__s2.g.dg?.type === 'wboss') && /점수 \d+/.test(await page.textContent('#contest-sub')) && await page.isVisible('.chbin.wb'), 'v535 월드보스 실제 싸움: 등장 컷 · 피해 · 점수', await page.textContent('#contest-sub'));
