@@ -24,7 +24,7 @@ import { buildQueue } from '../content/offline.js';
 import { kindGrade } from '../grow/collect.js';
 import { loadLooks, zoneFor, drawHero, drawMob, mobName, mobHeight, preloadMobs, drawPaintedBack, drawPaintedLedge, drawEarth, chbImg, preloadChapter, fxImg, oldImg, tintImg, ULT_ART, SEAL_ART, CUT_ART, BUFF_ART, BOSS_ART, wearCount } from './look.js';
 import { BOSS_PATS } from '../tables/kit.js';
-import { CHBOSS, CB_PATS, CB, WBF, CB_RAID } from '../tables/chboss.js';
+import { CHBOSS, CB_PATS, CB, WBF, CB_RAID, DEX_REW } from '../tables/chboss.js';
 import { DASH } from '../battle/side.js';   // v546 회피
 import { ATTEND, ATTEND_DAYS, ATTEND_NAME } from '../tables/attend.js';
 import { TITLES, TITLE_EACH, titleByName } from '../tables/titles.js';
@@ -212,7 +212,7 @@ const TABS = [
   ['bag', '장비', [['장착', 'gear:0'], ['뽑기', 'gear:1'], ['강화·성혼', 'gear:2'], ['가방', 'gear:3']]],
   ['comp', '동료', [['병기', 'grow:0'], ['동료', 'grow:1'], ['영물', 'grow:2']]],
   ['dgn', '던전', [['수련동', 'content:0'], ['토벌', 'raid:0'], ['무한 탑', 'content:1'], ['원정', 'content:2']]],
-  ['map', '지도', [['스테이지', 'content:3']]],
+  ['map', '지도', [['스테이지', 'content:3'], ['두목 도감', 'dex:0']]],
   ['town', '임무', [['오늘', 'today:0'], ['출석', 'attend:0'], ['길잡이', 'mission:0'], ['일일', 'mission:1'], ['주간', 'mission:2'], ['업적', 'ach:0'], ['경지', 'grow:3'], ['강호행', 'grow:4']]],
   ['social', '무림', [['서열', 'rank:0'], ['월드보스', 'rival:0'], ['대결', 'rival:1'], ['문파', 'rival:2']]],
   ['opt', '설정', [['설정', 'mission:3']]],
@@ -546,6 +546,16 @@ function paintWin() {
     c(R('두목 자동 도전', T.auto ? '켬 — 칸 몹을 다 잡으면 저절로' : '끔 — 들판의 「두목 도전」으로', [['바꾸기', act(() => { T.auto = !T.auto; return true; })]], '自'));
     const c2 = card('장 목록', '15장 · 장마다 10칸');
     for (let ch = 1; ch <= 15; ch++) { const first = (ch - 1) * 10 + 1, opened = T.top >= first; const r = R(`${ch}. ${chapterName(first)}`, opened ? (Math.ceil(T.top / 10) > ch ? '다 깸' : `${((T.top - 1) % 10) + 1}/10칸`) : '잠김', opened ? [['가기', act(() => { if (g.bossFight) return false; T.idx = Math.min(T.top, ch * 10); T.kills = 0; return true; })]] : [], String(ch)); if (!opened) r.style.opacity = '.45'; c2(r); }
+  } else if (key === 'dex:0') {
+    // v555 두목 도감 — 장 두목 15명: 그림 · 칭호 · 패턴 · 깸 · 토벌 별 · 최고 기록 · 손으로 깸 / ★3 수 보상
+    const D = g.dex();
+    const c0 = card('두목 도감', `토벌 ★3 ${D.three} / 15 · 깬 두목 ${D.list.filter((x) => x.beat).length} / 15`);
+    c0(R('도감 보상', D.next ? `★3 두목 ${D.next.n}명 — 장비 뽑기권 ${D.next.tix}${D.next.title ? ` · 칭호 「${D.next.title}」` : ''} (지금 ${D.three})` : '모두 받았어요', [['받기', act(() => { const r = g.claimDex(); if (r) { play('rare', 5); toast(`두목 도감 — 뽑기권 ${r.tix}${r.title ? ` · 칭호 「${r.title}」` : ''}`); } return r; }), !D.can]], '鑑'));
+    const grid = document.createElement('div'); grid.className = 'dex-grid';
+    grid.innerHTML = D.list.map((x) => x.seen || x.beat
+      ? `<div class="dex-c ${x.beat ? 'beat' : ''}"><img src="art/s2/chb/chb${x.ch}.webp" alt="${esc(x.name)}" loading="lazy"><div><b>${x.ch}장 · ${esc(x.name)}</b><small>${esc(x.title)}</small><span class="rdstar">${'★'.repeat(x.star)}<i>${'★'.repeat(3 - x.star)}</i></span><em>${x.pats.map((p2) => CB_PATS[p2]?.name).join(' · ')} · 필살</em><small>${x.beat ? `깸${x.manual ? ' · 손으로 피함' : ''}${x.best ? ` · 최고 ${(x.best / 1000).toFixed(1)}초` : ''}` : '아직 못 깸'}</small></div></div>`
+      : `<div class="dex-c unk"><div class="dex-q">?</div><div><b>${x.ch}장 · ???</b><small>${x.ch * 10}칸에서 만나요</small></div></div>`).join('');
+    c0(grid);
   } else if (key === 'rank:0') {
     // v547 서열 — 전투력 · 레벨 · 이번 주 월드보스 위 50명 · 내 등수(서버 · 30초마다 새로)
     // v553 주간 보상 — 지난주 월드보스 순위(서버) · 지난주 대결 최고 등급

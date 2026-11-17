@@ -15,7 +15,7 @@ import { START_PULLS } from './tables/s5.js';
 import { DAILY_DUNGEONS, DAILY_RUNS, JOB_DUNGEON } from './tables/content.js';
 import { GUIDE, DAILY_MISSIONS, WEEKLY_MISSIONS, achievements, guideCurrent } from './tables/missions.js';
 import { JOB_ADV } from './tables/skills.js';
-import { CHBOSS, CB, cbGearGrade, CB_REPEAT, WBF, CB_RAID, raidStars } from './tables/chboss.js';
+import { CHBOSS, CB, cbGearGrade, CB_REPEAT, WBF, CB_RAID, raidStars, DEX_REW } from './tables/chboss.js';
 const CB_MANUAL_STONES = 50;   // v546
 const GUILD_CHECKIN = { tix: 2, goldMin: 15 };   // v549 문파 출석
 // v550 문파 토벌 — 주마다 장 두목 하나(15명 차례로) · 90초 · 쓰러지지 않음 · 문파원 피해 합으로 단계(체력 ×1.4씩)
@@ -136,6 +136,20 @@ export class Game {
   // v550 문파 토벌 — 이번 주 내 도전 수 · 받은 단계 · 이번 주 두목(장 두목 15명 차례)
   graidState() { const S = this.S, wk = weekKey(this.now), R = (S.graid ??= { week: wk, used: 0, claimed: 0 }); if (R.week !== wk) Object.assign(R, { week: wk, used: 0, claimed: 0 }); return R; }
   graidBoss() { return 1 + (weekKey(this.now) % 15); }
+  // v555 두목 도감 — 두목마다 깸 · 토벌 별 · 최고 기록 · 손으로 깸 / ★3 수 단계 보상
+  dex() {
+    const S = this.S, R = S.raid || { star: {}, best: {} };
+    const list = CHBOSS.slice(1).map((D, i) => { const ch = i + 1; return { ch, name: D.name, title: D.title, pats: D.pats, seen: this.stage().top >= ch * 10, beat: !!S.chb?.[ch], star: R.star?.[ch] || 0, best: R.best?.[ch] || 0, manual: !!S.chbMan?.[ch] }; });
+    const three = list.filter((x) => x.star >= 3).length, got = S.dexGot || 0;
+    return { list, three, got, next: DEX_REW[got] || null, can: !!DEX_REW[got] && three >= DEX_REW[got].n };
+  }
+  claimDex() {
+    const d = this.dex(); if (!d.can) return null;
+    const r = d.next; this.S.dexGot = d.got + 1;
+    this.S.wallet['ticket:gear'] = (this.S.wallet['ticket:gear'] || 0) + r.tix;
+    if (r.title) (this.S.titles ??= []).includes(r.title) || this.S.titles.push(r.title);
+    return r;
+  }
   // v553 대결 주간 최고 — 점수가 바뀔 때마다 이번 주 최고를 적어 두고, 주가 바뀌면 지난주 것으로 넘긴다
   pvpMark() {
     const P = (this.S.pvp ??= { score: PVP.start, day: '', used: 0, log: [] }), wk = weekKey(this.now);

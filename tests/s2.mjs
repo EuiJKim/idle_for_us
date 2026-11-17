@@ -960,7 +960,7 @@ console.log('\n=== v536 출석 ===');
 console.log('\n=== v537 칭호 ===');
 {
   const TT = await import('../js/s2/tables/titles.js');
-  ok(TT.TITLES.length === 16 && new Set(TT.TITLES.map((t) => t.name)).size === 16, '칭호 16(장 두목 15 · 28일 개근)');
+  ok(TT.TITLES.length === 17 && new Set(TT.TITLES.map((t) => t.name)).size === 17, '칭호 17(장 두목 15 · 28일 개근 · v555 두목 도감 완성)');
   const T0 = 1.8e12, g = new Game(newGame('sword', T0, 3), T0); g.addExp(EX.cumExp(60)); const p0 = g.power();   // Lv1은 공격이 작아 2%가 반올림에 묻힌다
   g.S.titles = ['녹림대왕 격파', '28일 개근', '없는 칭호']; g.dirtyStats = true;
   const st = g.fighter().st;
@@ -1164,6 +1164,19 @@ console.log('\n=== v553 주간 보상 ===');
   ok(g.S.wallet['ticket:gear'] === t0 + r.tix && g.claimPvpWeek() === null, '한 번만');
   ok(g.wbRankReward(1) === 30 && g.wbRankReward(7) === 15 && g.wbRankReward(500) === 3 && g.wbRankReward(0) === 0, '월드보스 순위 → 뽑기권(1위 30 · 10위 안 15 · 친 사람 3)');
   const w = g.claimWbWeek('2026-11-09', 2); ok(w && w.tix === 20 && g.claimWbWeek('2026-11-09', 1) === null, '지난주 월드보스 보상 한 번');
+}
+
+console.log('\n=== v555 두목 도감 ===');
+{
+  const T0 = 1.8e12, g = new Game(newGame('sword', T0, 12), T0); g.addExp(EX.cumExp(40)); g.tick(T0);
+  const d0 = g.dex();
+  ok(d0.list.length === 15 && d0.three === 0 && !d0.can && g.claimDex() === null, '15명 · 처음엔 보상 없음');
+  g.S.raid = { day: 0, n: 0, star: { 1: 3, 2: 3, 3: 3, 4: 3, 5: 3, 6: 2 }, best: {} }; g.S.chb = { 1: 1, 2: 1, 3: 1, 4: 1, 5: 1, 6: 1 };
+  const t0 = g.S.wallet['ticket:gear'] || 0, r = g.claimDex();
+  ok(r && r.n === 5 && g.S.wallet['ticket:gear'] === t0 + 10 && g.claimDex() === null && g.dex().next.n === 10, '★3 다섯 → 뽑기권 10 · 다음은 10명');
+  for (let c = 1; c <= 15; c++) { g.S.raid.star[c] = 3; g.S.chb[c] = 1; }
+  g.claimDex(); const r3 = g.claimDex();
+  ok(r3 && r3.title === '두목 도감 완성' && g.S.titles.includes('두목 도감 완성') && g.dex().next === null, '15명 → 칭호까지 · 끝');
 }
 
 console.log('\n=== S0 규칙 ===');
