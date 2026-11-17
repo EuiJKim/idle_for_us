@@ -351,6 +351,23 @@ export class Game {
     return { items, got: this.obtain(items, 'gacha') };
   }
   enhance(slot) { const r = GR.enhance(this.S.gear, slot, this.rng, this.S.wallet, this.S.hero.lv); if (r !== null) this.emit("enhance"); if (r) this.dirtyStats = true; return r; }
+  // v543 모두 강화 — 가장 낮은 칸부터 고르게, 재료(은자 · 강화석)가 되는 만큼. 칸마다 전/후 · 성공/실패 · 쓴 재료 · 전투력
+  enhanceAll(max = 300) {
+    const G = this.S.gear, W = this.S.wallet, before = Object.fromEntries(SLOTS.map((s) => [s, G.slots[s].enh]));
+    const g0 = W.gold || 0, s0 = W['item:stone'] || 0, pw0 = this.power(), stuck = new Set();
+    let ok = 0, fail = 0;
+    for (let i = 0; i < max; i++) {
+      const open = SLOTS.filter((s) => !stuck.has(s));
+      if (!open.length) break;
+      const sl = open.reduce((a, b) => (G.slots[b].enh < G.slots[a].enh ? b : a));
+      const r = this.enhance(sl);
+      if (r === null) { stuck.add(sl); continue; }
+      if (r) ok++; else fail++;
+    }
+    if (!ok && !fail) return null;
+    const per = SLOTS.filter((s) => G.slots[s].enh !== before[s]).map((s) => ({ slot: s, from: before[s], to: G.slots[s].enh }));
+    return { ok, fail, per, gold: g0 - (W.gold || 0), stones: s0 - (W['item:stone'] || 0), pw0, pw1: this.power() };
+  }
   star(slot, opts) { const r = GR.starForce(this.S.gear, slot, this.rng, this.S.wallet, this.S.hero.lv, opts); if (r) { this.dirtyStats = true; this.emit('star', { s: this.S.gear.slots[slot].star }); } return r; }
   // ── 병기 · 동료 · 영물 ──
   pullCollect(sys, n) {

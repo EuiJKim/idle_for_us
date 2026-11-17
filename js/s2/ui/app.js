@@ -366,6 +366,10 @@ function paintWin() {
     const c0 = card('가진 재료', '강화 = 은자 + 강화석 · 성혼 = 은자');
     c0(statGrid([['은자', unit(W.gold || 0)], ['강화석', unit(W['item:stone'] || 0)], ['복구 주문서', `${W['item:restore'] || 0}장`]]));
     c0(note('강화석은 장비 분해(가방 · 일괄 분해)와 수련동 「단련동」에서 얻어요.'));
+    // v543 모두 강화 — 낮은 칸부터 고르게 · 재료가 되는 만큼 · 결과 창(칸마다 전 → 후 · 성공/실패 · 쓴 재료 · 전투력)
+    const lo = SLOTS.reduce((a, b) => (G.slots[b].enh < G.slots[a].enh ? b : a)), loCost = enhCost(G.slots[lo].enh, L);
+    c0(R('모두 강화', have(loCost) ? `가장 낮은 칸부터 고르게 · 재료가 되는 만큼<br>다음: ${SLOT_NAME[lo]} +${G.slots[lo].enh} — ${costTxt(loCost)}` : `재료가 모자라요 — ${SLOT_NAME[lo]} +${G.slots[lo].enh}에 ${costTxt(loCost)}`,
+      [['모두 강화', act(() => { const r = g.enhanceAll(); if (r) enhAllPop(r); return r; }), !have(loCost)]], '鍊'));
     const c = card('칸 강화 · 성혼', '칸에 붙는다 — 장비를 바꿔도 남음 · 누르면 강화 창');
     for (const sl of SLOTS) {
       const S2 = G.slots[sl], it = G.eq[sl];
@@ -586,6 +590,15 @@ function forgeFx(kind, sl, rs, before, after, done) {
     else { later(t0 + 120, () => strike(i)); later(t0 + 360, () => show(i)); }
   });
   later(rs.length * per + (many ? 900 : 1400), () => { if (!skipped) { ov.classList.add('done'); later(1300, finish); } });   // 결과를 잠깐 보여 주고 강화 창으로
+}
+// v543 모두 강화 결과 — 칸마다 +전 → +후가 하나씩 오르고 · 전투력 · 쓴 재료
+function enhAllPop(r) {
+  const rows = r.per.map((x, i) => `<div class="ea-r" style="--d:${0.1 + i * 0.08}s"><img src="${eqIcon(x.slot, g.S.gear.eq[x.slot])}" alt=""><span>${SLOT_NAME[x.slot]}</span><b>+${x.from}</b><i>→</i><b class="up">+${x.to}</b></div>`).join('');
+  pop('모두 강화', `<div class="ea-sum"><span>성공 <b>${r.ok}</b></span><span>실패 <b>${r.fail}</b></span><span>은자 <b>${unit(r.gold)}</b></span><span>강화석 <b>${unit(r.stones)}</b></span></div>
+    <div class="ea-list">${rows || '<p class="note">오른 칸이 없어요(모두 실패)</p>'}</div>
+    <div class="ea-pw">전투력 ${unit(r.pw0)} → <b>${unit(r.pw1)}</b>${r.pw1 > r.pw0 ? ` <em>▲ ${unit(r.pw1 - r.pw0)}</em>` : ''}</div>`);
+  play(r.per.length ? 'rare' : 'fail', 3); if (r.per.length) buzz(40);
+  addLog(`모두 강화 — 성공 ${r.ok} · 실패 ${r.fail} · 강화석 ${unit(r.stones)}`);
 }
 function enhPop(sl) {
   const G = g.S.gear, L = g.S.hero.lv, it = G.eq[sl], S2 = G.slots[sl], sh = $('modal').querySelector('.sheet');

@@ -105,6 +105,16 @@ const ok = (c, m, x = '') => { console.log(`  ${c ? '✓' : '✗ !!'} ${m}${x !=
     ok(await page.isVisible('#res.open .rdstars') && (await page.$$('#res .rdstars i.on')).length === 3, 'v541 토벌 결과 — 별 셋');
     await page.click('#rout'); await page.waitForTimeout(200);
     await page.evaluate(() => { window.__s2.g.stage().auto = true; });
+    // v543 모두 강화 — 장비 → 강화·성혼 「모두 강화」 → 결과 창(칸마다 전 → 후)
+    await page.evaluate(() => { const W = window.__s2.g.S.wallet; W.gold = 1e9; W['item:stone'] = 2000; });
+    await page.click('#mb .nb[data-tab="bag"]'); await page.waitForTimeout(200);
+    await page.click('#panel-body .subtabs button:has-text("강화")'); await page.waitForTimeout(200);
+    const e0 = await page.evaluate(() => Object.values(window.__s2.g.S.gear.slots).reduce((a, x) => a + x.enh, 0));
+    await page.click('#wb .row:has-text("모두 강화") .btn:has-text("모두 강화")'); await page.waitForTimeout(500);
+    const e1 = await page.evaluate(() => Object.values(window.__s2.g.S.gear.slots).reduce((a, x) => a + x.enh, 0));
+    ok(e1 > e0 && await page.isVisible('#modal .ea-list') && (await page.$$('#modal .ea-r')).length > 0, 'v543 모두 강화 → 결과 창', `${e0} → ${e1}`);
+    await page.click('#modal .btn:has-text("확인")'); await page.waitForTimeout(200);
+    await page.click('#panel-close').catch(() => {});
     // v535 월드보스 — 무림 → 월드보스 「도전」 → 실제 싸움(위에 피해 · 점수 · 남은 시간) → 나가기 → WORLD BOSS 결과
     await page.click('.nb[data-tab="social"]'); await page.waitForTimeout(250);
     await page.click('#wb .row .btn:has-text("도전")'); await page.waitForTimeout(600);

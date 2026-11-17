@@ -1016,6 +1016,19 @@ console.log('\n=== v541 장 두목 토벌(다시 치기 · 별) ===');
   const g2 = Game.load(g.save(), g.now); ok(g2.S.raid?.star[1] === g.S.raid.star[1], '토벌 기록은 저장된다');
 }
 
+console.log('\n=== v543 모두 강화 ===');
+{
+  const T0 = 1.8e12, g = new Game(newGame('sword', T0, 2), T0); g.addExp(EX.cumExp(40)); g.tick(T0);
+  const W = g.S.wallet; W.gold = 0; W['item:stone'] = 0;
+  ok(g.enhanceAll() === null, '재료가 없으면 아무것도 안 함');
+  W.gold = 1e9; W['item:stone'] = 3000;
+  const r = g.enhanceAll(), E = GE.SLOTS.map((s) => g.S.gear.slots[s].enh);
+  ok(r && r.ok > 0 && r.stones > 0 && r.stones <= 3000 && Math.max(...E) - Math.min(...E) <= 2, '낮은 칸부터 고르게 — 칸 차이 2 안', JSON.stringify(E));
+  ok(r.per.every((x) => g.S.gear.slots[x.slot].enh === x.to && x.to > x.from) && r.pw1 >= r.pw0, '결과: 칸마다 전 → 후 · 전투력');
+  const lo = Math.min(...E), cost = GS.enhCost(lo, g.S.hero.lv);
+  ok(cost.some((c) => (W[c.k] || 0) < c.n), '멈춘 때는 가장 낮은 칸 재료가 모자랄 때', `${W['item:stone']} 남음`);
+}
+
 console.log('\n=== S0 규칙 ===');
 {
   const files = [];
