@@ -44,6 +44,12 @@ export const CB = {
 // 첫 처치 보상 — 그 장 확정 장비 하나(등급: 1~3장 정 · 4~6 진 · 7~9 보 · 10~15 신) + 칭호 · 다시 깨면 강화석 · 뽑기권(장마다 하루 한 번)
 export const cbGearGrade = (ch) => Math.min(5, 2 + Math.floor((ch - 1) / 3));
 export const CB_REPEAT = { stones: 60, tix: 5 };
+// v541 장 두목 토벌 — 깬 장 두목을 다시 친다(지금 칸 강함으로 · 하루 2번 함께 씀). 빨리 깨면 별(★1 깸 · ★2 100초 안 · ★3 60초 안 · 안 쓰러짐)
+//   보상: 처치 은자 · 경험치(사냥과 같은 셈) + 뽑기권 · 강화석 조금(60일 곡선을 흔들지 않게 — 하루 강화석 +20 정도)
+//   별 보상(두목마다 단계마다 한 번): ★1 뽑기권 5 · ★2 강화석 30 · ★3 뽑기권 10
+export const CB_RAID = { perDay: 2, tix: 2, stones: 10, starMs: [100000, 60000],
+  starRew: [{ 'ticket:gear': 5 }, { 'item:stone': 30 }, { 'ticket:gear': 10 }] };
+export const raidStars = (win, ms, deaths) => !win ? 0 : 1 + (ms <= CB_RAID.starMs[0] ? 1 : 0) + (ms <= CB_RAID.starMs[1] && !deaths ? 1 : 0);
 // v535 월드보스(실제 싸움) — 쓰러지지 않는 거대 두목 · 90초. 30초마다 방어 자세(20초 · 받는 피해 ×0.6) → 약점 노출(10초 · ×1.8) — 평균 ×1이라 점수표(구간표)는 그대로.
 //   sideX: 옆보기 싸움(움직이고 피함)에서 넣은 피해를 점수표가 기대는 기준 피해(방 사냥 계산)에 맞추는 배율(tools/s2sim 봇으로 맞춤)
 export const WBF = { name: '혈해마룡왕', title: '피바다에서 깨어난 마룡', col: '#f87171', pats: ['slam', 'barrage', 'mark', 'dash', 'summon'], cycleMs: 30000, guardMs: 20000, guardX: 0.6, weakX: 1.8, sideX: 1 };

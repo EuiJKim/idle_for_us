@@ -23,7 +23,7 @@ import { buildQueue } from '../content/offline.js';
 import { kindGrade } from '../grow/collect.js';
 import { loadLooks, zoneFor, drawHero, drawMob, mobName, mobHeight, preloadMobs, drawPaintedBack, drawPaintedLedge, drawEarth, chbImg, preloadChapter, fxImg, oldImg, tintImg, ULT_ART, SEAL_ART, CUT_ART, BUFF_ART, BOSS_ART, wearCount } from './look.js';
 import { BOSS_PATS } from '../tables/kit.js';
-import { CHBOSS, CB_PATS, CB, WBF } from '../tables/chboss.js';
+import { CHBOSS, CB_PATS, CB, WBF, CB_RAID } from '../tables/chboss.js';
 import { ATTEND, ATTEND_DAYS, ATTEND_NAME } from '../tables/attend.js';
 import { TITLES, TITLE_EACH, titleByName } from '../tables/titles.js';
 import { play, unlock, setOpt, bgm } from './sound.js';
@@ -135,7 +135,7 @@ const TABS = [
   ['char', '캐릭터', [['스탯', 'hero:0'], ['무공', 'hero:1'], ['무공 강화', 'hero:4'], ['마스터리', 'hero:2'], ['전직', 'hero:3'], ['칭호', 'title:0']]],
   ['bag', '장비', [['장착', 'gear:0'], ['뽑기', 'gear:1'], ['강화·성혼', 'gear:2'], ['가방', 'gear:3']]],
   ['comp', '동료', [['병기', 'grow:0'], ['동료', 'grow:1'], ['영물', 'grow:2']]],
-  ['dgn', '던전', [['수련동', 'content:0'], ['무한 탑', 'content:1'], ['원정', 'content:2']]],
+  ['dgn', '던전', [['수련동', 'content:0'], ['토벌', 'raid:0'], ['무한 탑', 'content:1'], ['원정', 'content:2']]],
   ['map', '지도', [['스테이지', 'content:3']]],
   ['town', '임무', [['출석', 'attend:0'], ['길잡이', 'mission:0'], ['일일', 'mission:1'], ['주간', 'mission:2'], ['업적', 'ach:0'], ['경지', 'grow:3'], ['강호행', 'grow:4']]],
   ['social', '무림', [['월드보스', 'rival:0'], ['대결', 'rival:1'], ['문파', 'rival:2']]],
@@ -415,6 +415,19 @@ function paintWin() {
     const c = card(`강호행 ${J.step}단계`, `이긴 두목 ${J.cleared}`);
     c(R(`${J.cleared + 1}단계 두목`, '이기면 다음 단계를 열 수 있음', [['도전', act(() => { const r = g.journeyFight(); toast(r.cleared ? '이겼다' : '졌다'); return r; })]], '鬪'));
     c(R('다음 단계 열기', '최종 피해③ · 축복 · 옵션 2줄 — 바로 열림', [['열기', act(() => g.journeyOpen()), J.cleared <= J.step]], '開'));
+  } else if (key === 'raid:0') {
+    // v541 장 두목 토벌 — 깬 장 두목을 지금 칸 강함으로 다시(하루 2번 함께) · 빨리 깨면 별 · 별마다 처음 한 번 보상
+    const left = g.raidLeft(), done = Object.keys(g.S.chb || {}).map(Number).filter((c) => CHBOSS[c]).sort((a, b) => b - a), Rd = g.S.raid || { star: {}, best: {} };
+    const c0 = card('장 두목 토벌', `오늘 ${left} / ${CB_RAID.perDay}번 남음 · 자정에 다시`);
+    c0(R('별 받기', `★1 깸 · ★2 ${CB_RAID.starMs[0] / 1000}초 안 · ★3 ${CB_RAID.starMs[1] / 1000}초 안 · 안 쓰러짐<br>별 보상(두목마다 처음 한 번): ★1 뽑기권 5 · ★2 강화석 30 · ★3 뽑기권 10<br>깰 때마다: 뽑기권 ${CB_RAID.tix} · 강화석 ${CB_RAID.stones} · 처치 은자 · 경험치`, [], '討'));
+    if (!done.length) c0(R('아직 깬 장 두목이 없어요', '10칸마다 나오는 장 두목을 깨면 여기서 다시 칠 수 있어요', [], '·'));
+    for (const ch of done) {
+      const D = CHBOSS[ch], st = Rd.star?.[ch] || 0, best = Rd.best?.[ch];
+      const r = R(`<img class="rdimg" src="art/s2/chb/chb${ch}.webp" alt="${esc(D.name)}">${ch}장 · ${esc(D.name)} <span class="rdstar">${'★'.repeat(st)}<i>${'★'.repeat(3 - st)}</i></span>`,
+        `Lv ${g.raidLv(ch)} · ${best ? `최고 ${(best / 1000).toFixed(1)}초` : '아직 기록 없음'}${st < 3 ? ` · 다음 별 보상 ${esc(Object.entries(CB_RAID.starRew[st]).map(([k, n]) => `${k === 'item:stone' ? '강화석' : '뽑기권'} ${n}`).join(''))}` : ' · 별 다 받음'}`,
+        [['토벌', act(() => { const ok2 = g.raid(ch); if (ok2) closeWin(); return ok2; }), !g.canRaid(ch)]], '');
+      r.classList.add('rdrow'); c0(r);
+    }
   } else if (key === 'content:0') {
     // v531 실제 던전 — 「입장」은 직접 싸움(사냥터 대신 던전) · 한 번 깬 던전은 「소탕」(바로 결과)
     const c = card('수련동', `입장권 ${staminaNow(g.S.stamina.daily, now())} · 2시간마다 1`);
@@ -1331,7 +1344,8 @@ function frame() {
     else if (f.k === 'realm') addLog(`경지 ${f.lv}`);
     else if (f.k === 'gacha-lv') addLog(`뽑기 레벨 ${f.lv}`);
     else if (f.k === 'tree') { const sk = skillById(f.id); toast(`${sk?.name} 강화 완료`); }
-    else if (f.k === 'challenge') { play('boss'); addLog(`${Math.ceil(f.idx / 10)}장 ${((f.idx - 1) % 10) + 1}칸 ${f.chb ? '장 두목' : '두목'} 도전`); if (f.chb) chbIntro(f.chb); }
+    else if (f.k === 'challenge') { play('boss'); addLog(f.raid ? `토벌 — ${CHBOSS[f.chb].name} · Lv ${f.idx}` : `${Math.ceil(f.idx / 10)}장 ${((f.idx - 1) % 10) + 1}칸 ${f.chb ? '장 두목' : '두목'} 도전`); if (f.chb) chbIntro(f.chb); }
+    else if (f.k === 'raid-end') showRaidResult(f);
     else if (f.k === 'stage-clear' || f.k === 'stage-fail') showResult(f);
     else if (f.k === 'dungeon-start') { closeWin(); play('tense'); if (f.type === 'wboss') wbIntro(); else dgBanner(f.title, g.dgStatus()); addLog(`${f.title} 입장`); }
     else if (f.k === 'dungeon-end') showDgResult(f);
@@ -1553,6 +1567,32 @@ function showDgResult(f) {
   $('rout').onclick = () => { play('click'); closeResult(); };
   if (!win) $('rgrow').onclick = () => { play('click'); closeResult(); openWin('char', 0); };
   addLog(`${f.title} ${win ? '클리어' : '실패'} · ${(f.ms / 1000).toFixed(0)}초`);
+}
+// v541 토벌 결과 — 별이 하나씩 박힌다(새로 딴 별은 번쩍) · 최고 기록 · 보상
+function showRaidResult(f) {
+  const win = f.win, auto = opt.autoNext, R = $('res');
+  play(win ? 'clear' : 'fail');
+  const NM = { 'ticket:gear': ['t', '뽑기권'], 'item:stone': ['st', '강화석'] };
+  const tiles = Object.entries(f.rew).map(([k, n], i) => `<div class="rt" style="--d:${1.2 + i * 0.12}s"><i class="coin ${NM[k]?.[0] || 's'}"></i><b data-n="${n}">0</b><small>${NM[k]?.[1] || k}</small></div>`).join('');
+  const stars = [0, 1, 2].map((i) => `<i class="${i < f.stars ? 'on' : ''} ${i >= f.stars - f.newStars && i < f.stars ? 'new' : ''}" style="--d:${0.3 + i * 0.25}s">★</i>`).join('');
+  R.className = `open ${win ? 'win' : 'lose'}`;
+  R.innerHTML = `<div class="rp">${win ? '<div class="rays"></div>' : ''}
+      <div class="rsub">장 두목 토벌 · ${f.ch}장 ${esc(f.name)} · Lv ${f.lv}</div>
+      <div class="rtitle">${win ? 'BOSS DEFEATED' : '토벌 실패'}</div>
+      ${win ? `<div class="rdstars">${stars}</div>` : ''}
+      <div class="rmeta"><span>걸린 시간 <b>${(f.ms / 1000).toFixed(1)}초</b></span>${win ? `<span>최고 <b>${(f.best / 1000).toFixed(1)}초</b>${f.best === f.ms ? ' <em class="rdnew">새 기록</em>' : ''}</span>` : `<span>두목 남은 체력 <b>${f.bossLeft}%</b></span>`}${f.deaths ? `<span>쓰러짐 <b>${f.deaths}</b></span>` : ''}</div>
+      ${win ? `${f.newStars ? `<div class="rnew">새 별 ${f.newStars}개 — 별 보상</div>` : ''}<div class="rtiles">${tiles}</div>` : '<div class="rtip">토벌은 지금 칸 강함으로 나와요 — 전투력을 올리고 다시</div>'}
+      <div class="racts"><button class="btn" id="rmore">토벌 목록 (${f.left}번 남음)</button><button class="btn primary rgo" id="rout"><span>사냥터로</span><i class="rbar"></i></button></div>
+      <label class="rauto"><input type="checkbox" id="rautochk" ${auto ? 'checked' : ''}> 3초 뒤 자동 진행</label></div>`;
+  const t0 = now();
+  for (const b of R.querySelectorAll('.rt b')) { const n = +b.dataset.n, d = parseFloat(b.parentNode.style.getPropertyValue('--d')) * 1000; const tick = () => { const a = Math.min(1, Math.max(0, (now() - t0 - d) / 500)); b.textContent = unit(Math.round(n * (1 - (1 - a) ** 3))); if (a < 1 && R.classList.contains('open')) requestAnimationFrame(tick); }; tick(); }
+  if (win) for (let i = 0; i < f.stars; i++) setTimeout(() => { if (R.classList.contains('open')) { play(i >= f.stars - f.newStars ? 'rare' : 'coin', 4); if (i >= f.stars - f.newStars) buzz(40); } }, 300 + i * 250 + 200);
+  const arm = (on) => { resTimer = on ? now() + RES_MS + 1000 : 0; R.classList.toggle('timed', on); };
+  arm(auto);
+  $('rautochk').onchange = (e) => { opt.autoNext = e.target.checked; saveOpt(); arm(opt.autoNext); };
+  $('rout').onclick = () => { play('click'); closeResult(); };
+  $('rmore').onclick = () => { play('click'); closeResult(); openWin('dgn', 1); };
+  addLog(`토벌 ${win ? `★${f.stars}` : '실패'} — ${f.name} · ${(f.ms / 1000).toFixed(0)}초`);
 }
 function closeResult() { resTimer = 0; $('res').className = ''; }
 // 돌아왔을 때 대기열 — 방치 보상부터 하나씩

@@ -995,6 +995,27 @@ console.log('\n=== v540 두목 패턴 자동 피하기 설정 ===');
   g2.setDodge(true); ok(g2.ensureFight().autoDodge === true, '다시 켜면 피한다');
 }
 
+console.log('\n=== v541 장 두목 토벌(다시 치기 · 별) ===');
+{
+  const CBT = await import('../js/s2/tables/chboss.js');
+  const T0 = 1.8e12, mk = (lv) => { const g = new Game(newGame('sword', T0, 4), T0); g.addExp(EX.cumExp(lv)); g.tick(T0); g.S.wallet['ticket:gear'] = 600; g.S.wallet.gold = 1e12; g.S.wallet['item:stone'] = 1e6; for (let i = 0; i < 60; i++) g.pullGear(10); GR.equipBest(g.S.gear, lv); for (const s of GE.SLOTS) for (let i = 0; i < 14; i++) g.enhance(s); g.dirtyStats = true; return g; };
+  const run = (g) => { let t = g.now; while (g.bossFight) { t += 1000; g.tick(t); g.hunt(1000); } return g.feed.filter((x) => x.k === 'raid-end').at(-1); };
+  const g = mk(18), T = g.stage(); T.idx = 12; T.top = 12;
+  ok(!g.canRaid(1), '깨지 않은 두목은 토벌 못 함');
+  g.S.chb = { 1: 1 };
+  const w0 = { ...g.S.wallet }, k0 = T.kills;
+  ok(g.raidLv(1) === 12 && g.raid(1) && g.bossFight.def.raid && g.bossFight.def.lv === 12, '토벌: 지금 칸 강함(12)으로 — 장 두목 무대');
+  const f = run(g);
+  ok(f && f.win && f.stars >= 1 && T.idx === 12 && T.kills === k0, '이기면 별 · 칸 진행은 그대로', JSON.stringify({ stars: f?.stars, ms: f?.ms }));
+  const gotT = g.S.wallet['ticket:gear'] - w0['ticket:gear'], want = CBT.CB_RAID.tix + CBT.CB_RAID.starRew.slice(0, f.stars).reduce((a, r) => a + (r['ticket:gear'] || 0), 0);
+  ok(gotT === want && g.S.raid.star[1] === f.stars && g.S.raid.best[1] === f.ms, '보상: 뽑기권 · 강화석 + 처음 딴 별 보상', `${gotT} / ${want}`);
+  g.raid(1); const f2 = run(g);
+  ok(f2.newStars === Math.max(0, f2.stars - f.stars) && f2.left === 0 && !g.canRaid(1), '별 보상은 처음만 · 하루 2번(다 쓰면 못 함)');
+  g.tick(T0 + 86400000); ok(g.raidLeft() === CBT.CB_RAID.perDay && g.canRaid(1), '다음 날 다시 2번');
+  ok(CBT.raidStars(true, 50000, 0) === 3 && CBT.raidStars(true, 50000, 1) === 2 && CBT.raidStars(true, 90000, 0) === 2 && CBT.raidStars(true, 140000, 0) === 1 && CBT.raidStars(false, 1, 0) === 0, '별: ★3 60초 안 · 안 쓰러짐 · ★2 100초 안 · ★1 깸');
+  const g2 = Game.load(g.save(), g.now); ok(g2.S.raid?.star[1] === g.S.raid.star[1], '토벌 기록은 저장된다');
+}
+
 console.log('\n=== S0 규칙 ===');
 {
   const files = [];

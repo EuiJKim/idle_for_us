@@ -351,8 +351,8 @@ async function tab(page, name) {
     assert(/^IFU[01]\./.test(code) && code.length > 100, `저장 코드를 만든다 (${code.length}자)`);
     await p.click('#modal .btn:has-text("닫기")');
     const lv0 = await G(p, () => window.__game.s.level);
-    await G(p, () => { const g = window.__game; g.addExp(g.expNeed() * 1.01); window.__save(); });
-    assert(await G(p, () => window.__game.s.level) === lv0 + 1, '레벨을 하나 올려 둔다');
+    await G(p, () => { const g = window.__game; for (let i = 0; i < 3; i++) g.addExp(g.expNeed() * 1.01); window.__save(); });   // v541 셋 올린다 — 되살린 뒤 1.5초 사냥으로 한 레벨 오를 수 있어(가끔 실패) 「그때 레벨」은 범위로 본다
+    assert(await G(p, () => window.__game.s.level) === lv0 + 3, '레벨을 셋 올려 둔다');
     await p.click('#btn-settings');
     await p.click('#modal .set-tabs .chip:has-text("앱·계정")');
     await p.click('#modal .row:has-text("저장 코드") button:has-text("불러오기")');
@@ -360,7 +360,7 @@ async function tab(page, name) {
     // (확인 창은 newPlayer의 '예'가 받는다 — v348)
     await Promise.all([p.waitForNavigation({ waitUntil: 'domcontentloaded' }), p.click('#modal .btn.primary:has-text("되살리기")')]);
     await sleep(1500);
-    assert(await G(p, () => window.__game.s.level) === lv0, '코드로 되살리면 그때 레벨로');
+    { const lv1 = await G(p, () => window.__game.s.level); assert(lv1 >= lv0 && lv1 <= lv0 + 1, `코드로 되살리면 그때 레벨로 (${lv0} → ${lv1})`); }
     assert(await G(p, () => !!localStorage.getItem('ifu.world.v1.beforeCode') || Object.keys(localStorage).some((k) => k.endsWith('.beforeCode'))), '되살리기 전 진행은 따로 남는다');
   }
 

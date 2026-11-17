@@ -55,6 +55,7 @@ export const ACHIEVE = {
   dungeon: { steps: [10, 100, 500], cond: 'stage == 0', name: (n) => `던전 ${n}번 클리어` },
   chboss: { steps: [1, 5, 10, 15], name: (n) => `장 두목 ${n}명 처치` },
   wboss: { steps: [10, 50, 200], name: (n) => `월드보스 ${n}번` },
+  raid: { steps: [10, 50, 200], name: (n) => `장 두목 토벌 ${n}번` },   // v541
 };
 export const ACHIEVE_STEPS = Object.fromEntries(Object.entries(ACHIEVE).map(([k, v]) => [k, v.steps]));
 export function achievements() {

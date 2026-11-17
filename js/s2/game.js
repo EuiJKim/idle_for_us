@@ -15,7 +15,7 @@ import { START_PULLS } from './tables/s5.js';
 import { DAILY_DUNGEONS, DAILY_RUNS, JOB_DUNGEON } from './tables/content.js';
 import { GUIDE, DAILY_MISSIONS, WEEKLY_MISSIONS, achievements, guideCurrent } from './tables/missions.js';
 import { JOB_ADV } from './tables/skills.js';
-import { CHBOSS, CB, cbGearGrade, CB_REPEAT, WBF } from './tables/chboss.js';
+import { CHBOSS, CB, cbGearGrade, CB_REPEAT, WBF, CB_RAID, raidStars } from './tables/chboss.js';
 import { ATTEND, ATTEND_DAYS } from './tables/attend.js';
 import { TITLE_EACH, titleByName } from './tables/titles.js';
 import * as GR from './gear/gear.js';
@@ -189,10 +189,33 @@ export class Game {
   challenge() {
     if (!this.canChallenge()) return false;
     const L = this.zoneLv(), chb = this.isChapterBoss(L), ch = Math.ceil(L / 10);
+    this.bossFight = this.makeBoss(L, chb, ch);
+    this.feed.push({ k: 'challenge', idx: L, chb: chb ? ch : 0 });
+    return true;
+  }
+  // v541 장 두목 토벌 — 깬 장 두목을 지금 칸 강함으로(그 장보다 낮아지진 않음) 다시 · 하루 CB_RAID.perDay번(모든 두목이 함께 씀)
+  raidState() {
+    const S = this.S, dk = dayKey(this.now), R = (S.raid ??= { day: dk, n: 0, star: {}, best: {} });
+    if (R.day !== dk) { R.day = dk; R.n = 0; }
+    return R;
+  }
+  raidLeft() { return Math.max(0, CB_RAID.perDay - this.raidState().n); }
+  raidLv(ch) { return Math.min(LEVEL_MAX, Math.max(ch * 10, this.zoneLv())); }
+  canRaid(ch) { return !!this.S.chb?.[ch] && this.raidLeft() > 0 && !this.bossFight && !this.dg; }
+  raid(ch) {
+    if (!this.canRaid(ch)) return false;
+    this.raidState().n++;
+    const L = this.raidLv(ch);
+    this.bossFight = this.makeBoss(L, true, ch, { raid: 1 });
+    this.feed.push({ k: 'challenge', idx: L, chb: ch, raid: 1 });
+    return true;
+  }
+  makeBoss(L, chb, ch, extra = {}) {
     // v532 장 두목(10칸마다): 전용 무대(좁고 한 층) · 체력 ×1.5(막대 세 줄) · 150초 · 국면 · 무력화 · 졸개
     const def = chb
       ? { lv: L, boss: true, chb: ch, map: makeSideMap(9000 + ch, CB.arena), fams: { b: { mobs: [{ lv: L, kind: 'boss', w: 1 }], keep: 0, coolMs: 1e12 }, a: { mobs: [{ lv: L, kind: 'mob', w: 1 }], keep: 0, coolMs: 1e12 } } }
       : { lv: L, boss: true, map: makeSideMap(5000 + L, { w: 14000, tiers: 1 }), fams: { b: { mobs: [{ lv: L, kind: 'boss', w: 1 }], keep: 0, coolMs: 1e12 } } };
+    Object.assign(def, extra);
     const F = new SideFight(def, this.fighter(), this.rng.u32(), { auto: this.S.auto !== false, autoDodge: this.S.dodge !== false });
     F.spawn('b', { p: 0, x: chb ? Math.round(CB.arena.w * 0.72) : 9000 });
     for (const m of F.mobs) {
@@ -200,11 +223,25 @@ export class Game {
       if (chb) { const D = CHBOSS[ch]; m.cb = { ch, pats: D.pats, phase: 0, gg: 0 }; m.name = D.name; }
     }
     F.limitMs = chb ? CB.limitMs : STAGE_BOSS_MS;
-    this.bossFight = F;
-    this.feed.push({ k: 'challenge', idx: L, chb: chb ? ch : 0 });
-    return true;
+    return F;
+  }
+  endRaid(win) {
+    const BF = this.bossFight, ch = BF.def.chb, ms = BF.t, deaths = BF.deaths, R = this.raidState(), W = this.S.wallet;
+    this.bossFight = null;
+    const bm = BF.mobs.find((m) => m.kind === 'boss'), bossLeft = !win && bm ? Math.ceil((bm.hp / bm.st.hp) * 100) : 0;
+    const stars = raidStars(win, ms, deaths), had = R.star[ch] || 0, rew = {};
+    const add = (o) => { for (const [k, n] of Object.entries(o)) { W[k] = (W[k] || 0) + n; rew[k] = (rew[k] || 0) + n; } };
+    if (win) {
+      add({ 'ticket:gear': CB_RAID.tix, 'item:stone': CB_RAID.stones });
+      for (let s = had; s < stars; s++) add(CB_RAID.starRew[s]);
+      R.star[ch] = Math.max(had, stars);
+      if (!R.best[ch] || ms < R.best[ch]) R.best[ch] = ms;
+      this.emit('raid');
+    }
+    this.feed.push({ k: 'raid-end', win, ch, lv: BF.def.lv, name: CHBOSS[ch].name, ms, deaths, bossLeft, stars, newStars: Math.max(0, stars - had), best: R.best[ch] || 0, rew, left: this.raidLeft() });
   }
   endChallenge(win) {
+    if (this.bossFight?.def.raid) return this.endRaid(win);
     const T = this.stage(), L = T.idx, BF = this.bossFight, ms = BF ? BF.t : 0, deaths = BF ? BF.deaths : 0, bm = BF?.mobs.find((m) => m.kind === 'boss'), bossLeft = !win && bm ? Math.ceil((bm.hp / bm.st.hp) * 100) : 0;
     this.bossFight = null;
     if (win) { T.idx = Math.min(LEVEL_MAX, L + 1); T.top = Math.max(T.top, T.idx); T.kills = 0; T.failIdx = 0; this.emit('dungeon', { stage: L }); }
@@ -258,7 +295,7 @@ export class Game {
       S.wallet.gold += Math.round(goldPerMob(L) * (kind === 'boss' ? 20 : kind === 'elite' ? 5 : 1) * (1000 + gp) / 1000);
       if (kind === 'elite') { S.gacha.eliteQ = Math.max(0, S.gacha.eliteQ - 1); this.obtain(GC.eliteDrop(S.gacha, this.rng)); this.emit('kill', { n: 1, elite: 1 }); }
       else if (kind === 'boss') { if (!F.def.boss) S.killsSinceBoss = 0; this.emit('kill', { n: 1, boss: 1 }); if (!F.def.boss) this.feed.push({ k: 'boss' }); }
-      else { S.killsSinceBoss++; T.kills = Math.min(STAGE_KILLS, T.kills + 1); this.emit('kill', { n: 1 }); }
+      else { S.killsSinceBoss++; if (!F.def.raid) T.kills = Math.min(STAGE_KILLS, T.kills + 1); this.emit('kill', { n: 1 }); }
       const r = ID.suddenProgress(S.sudden, 1, this.now);
       if (r) { this.giveHuntMin(r.huntMin); this.feed.push({ k: 'sudden-done' }); }
     }

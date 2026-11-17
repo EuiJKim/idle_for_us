@@ -93,6 +93,18 @@ const ok = (c, m, x = '') => { console.log(`  ${c ? '✓' : '✗ !!'} ${m}${x !=
     ok(await page.isVisible('#contest-hud.chb') && /×3/.test(await page.textContent('#contest-pct')) && await page.isVisible('#cb-ggb'), 'v532 장 두목 막대 세 줄 · 무력화 게이지', await page.textContent('#contest-pct'));
     await page.evaluate(() => { const g = window.__s2.g; g.endChallenge(false); g.stage().auto = true; });
     await page.waitForTimeout(500); if (await page.isVisible('#res.open')) await page.click('#rout');
+    // v541 장 두목 토벌 — 던전 → 토벌 「토벌」 → 장 두목 싸움(칸 진행 그대로) → 이기면 별 결과
+    await page.evaluate(() => { const g = window.__s2.g; g.S.chb = { ...(g.S.chb || {}), 1: 1 }; g.stage().auto = false; });
+    await page.click('#mb .nb[data-tab="dgn"]'); await page.waitForTimeout(200);
+    await page.click('#panel-body .subtabs button:has-text("토벌")'); await page.waitForTimeout(200);
+    ok(/오늘 2 \/ 2번/.test(await page.textContent('#panel-body')) && await page.isVisible('#wb .rdrow'), 'v541 토벌 목록(남은 횟수 · 깬 두목)');
+    await page.click('#wb .rdrow .btn:has-text("토벌")'); await page.waitForTimeout(400);
+    ok(await page.evaluate(() => !!window.__s2.g.bossFight?.def.raid) && await page.isVisible('.chbin'), 'v541 토벌 시작 — 등장 컷');
+    await page.evaluate(() => { window.__s2.g.endChallenge(true); });
+    await page.waitForTimeout(1600);
+    ok(await page.isVisible('#res.open .rdstars') && (await page.$$('#res .rdstars i.on')).length === 3, 'v541 토벌 결과 — 별 셋');
+    await page.click('#rout'); await page.waitForTimeout(200);
+    await page.evaluate(() => { window.__s2.g.stage().auto = true; });
     // v535 월드보스 — 무림 → 월드보스 「도전」 → 실제 싸움(위에 피해 · 점수 · 남은 시간) → 나가기 → WORLD BOSS 결과
     await page.click('.nb[data-tab="social"]'); await page.waitForTimeout(250);
     await page.click('#wb .row .btn:has-text("도전")'); await page.waitForTimeout(600);
