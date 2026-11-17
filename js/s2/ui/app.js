@@ -137,6 +137,7 @@ function guildLoad(force) {
     if (G && G.memberIds.includes(net.uid)) {
       guildState.g = G; guildState.list = null;
       guildState.raid = await net.graidGet(G.id, wkStr(Date.now())).catch(() => null);   // v550
+      guildState.info = await net.guildInfoGet(G.id).catch(() => ({}));   // v573
       chatWatch(G.id);   // v551
       ensureNick(); guildState.train = await net.gtrainSet(G.id, wkStr(Date.now()), g.S.nick, g.gtrainPts()).catch(() => null);   // v552 내 수련 점수 올리고 받기
       if (G.members?.[net.uid] !== g.S.nick && g.S.nick) net.guildRename(G, g.S.nick).catch(() => {});
@@ -689,6 +690,16 @@ function paintWin() {
       cR(R('단계 보상', can > 0 ? `${can}단계 받을 수 있어요` : `받은 단계 ${GS2.claimed}`, [['받기', act(() => { const r = g.graidClaim(tot, lvR); if (r) { play('coin'); toast(`문파 토벌 ${r.n}단계 — 뽑기권 ${r.tix} · 은자 ${unit(r.gold)}`); } return r; }), can <= 0]], '賞'));
       const rk = Object.entries(RD.dmg || {}).sort((a, b) => b[1] - a[1]);
       if (rk.length) { const box = document.createElement('div'); box.className = 'rk-list'; box.innerHTML = rk.map(([id, v], i) => `<div class="rk-r ${id === net.uid ? 'me' : ''} ${i < 3 ? `top${i + 1}` : ''}" data-uid="${esc(id)}"><b>${i + 1}</b><span>${esc(RD.names?.[id] || '무인')}</span><em>${unit(v)}</em></div>`).join(''); box.onclick = (e) => { const row = e.target.closest('.rk-r[data-uid]'); if (row) { play('click'); playerCard(row.dataset.uid); } }; cR(box); }   // v568
+    }
+    // v573 문주 설정 — 소개 · 가입 레벨 · 모집
+    { const I = guildState.info || {};
+      if (I.intro) c0(note(`소개: ${I.intro}`));
+      if (G.owner === net.uid) {
+        const set = (o, msg) => { net.guildInfoSet(G, o).then(() => { toast(msg); guildState.at = 0; guildLoad(true); }).catch((e) => toast(e?.code === 'permission-denied' ? '문주만 바꿀 수 있어요' : '바꾸지 못했어요')); };
+        c0(R('문파 소개', I.intro ? esc(I.intro) : '찾기 목록에 보일 한 줄(40자)', [['바꾸기', () => { play('click'); const t = prompt('문파 소개(40자)', I.intro || ''); if (t != null) set({ intro: t.trim().slice(0, 40) }, '소개를 바꿨어요'); }]], '介'));
+        c0(R('가입 레벨', I.minLv ? `Lv ${I.minLv}부터 들어올 수 있어요` : '누구나', [['바꾸기', () => { play('click'); const t = prompt('가입 레벨(0이면 누구나)', String(I.minLv || 0)); if (t != null) set({ minLv: +t || 0 }, '가입 레벨을 바꿨어요'); }]], '級'));
+        c0(R('모집', I.open === false ? '닫힘 — 찾기 목록에 안 보여요(코드로는 들어와요)' : '열림 — 찾기 목록에 보여요', [[I.open === false ? '열기' : '닫기', () => { play('click'); set({ open: I.open === false }, I.open === false ? '모집을 열었어요' : '모집을 닫았어요'); }]], '募'));
+      }
     }
     c0(R('코드 알려 주기', `문파원을 부를 때 — ${G.id}`, [['복사', () => { play('click'); navigator.clipboard?.writeText(G.id).then(() => toast('코드를 복사했어요'), () => toast(G.id)); }]], '碼'));
     // v552 문파 수련 — 오늘 할 일을 끝낼수록 막대가 찬다 · 다 차면 모두 보상

@@ -127,6 +127,12 @@ export class S2Net {
     if (myGid && !me) { const d = await fs.getDoc(fs.doc(col, myGid)); if (d.exists()) { mine = d.data().exp || 0; me = (await fs.getCountFromServer(fs.query(col, fs.where('exp', '>', mine)))).data().count + 1; } }
     return { rows, me, mine };
   }
+  // v573 문주 설정 — 찾기 목록의 소개(40자) · 가입 레벨 · 모집 여닫기(규칙: 문주만)
+  async guildInfoGet(gid) { const d = await this.fs.getDoc(this.fs.doc(this.db, 'guildlist', gid)); return d.exists() ? d.data() : {}; }
+  async guildInfoSet(g, { intro, minLv, open }) {
+    const cur = await this.guildInfoGet(g.id);
+    await this.fs.setDoc(this.fs.doc(this.db, 'guildlist', g.id), { name: g.name, n: g.memberIds.length, exp: g.exp || 0, intro: String(intro ?? cur.intro ?? '').slice(0, 40), minLv: Math.max(0, Math.min(200, Math.floor(Number(minLv ?? cur.minLv ?? 0)) || 0)), open: open ?? cur.open ?? true, at: this.fs.serverTimestamp() }, { merge: true });
+  }
   async guildList() {
     const fs = this.fs, snap = await fs.getDocs(fs.query(fs.collection(this.db, 'guildlist'), fs.orderBy('at', 'desc'), fs.limit(60)));
     return snap.docs.map((d) => ({ id: d.id, ...d.data() })).filter((x) => x.open !== false && (x.n || 0) > 0 && (x.n || 0) < 10);

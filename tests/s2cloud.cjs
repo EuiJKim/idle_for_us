@@ -108,6 +108,11 @@ async function device(b) {
   await A.page.evaluate(() => window.__s2.guildLoad(true)); await sleep(1500);
   assert(await A.page.evaluate(() => document.querySelector('.nb[data-tab="social"]').classList.contains('dot-on')), 'A: 문파 출석 전 → 무림에 빨간 점');
   const listed = await D.page.evaluate(async (c) => (await window.__s2.net.guildList()).some((x) => x.id === c), gcode);
+  // v573 문주 설정 — 소개 · 가입 레벨(문주만) · 모집 닫으면 찾기 목록에서 빠짐
+  const inf = await A.page.evaluate(async (c) => { const n = window.__s2.net, G = await n.guildGet(c); await n.guildInfoSet(G, { intro: '함께 강해져요', minLv: 5 }); const i1 = await n.guildInfoGet(c); await n.guildInfoSet(G, { open: false }); const hidden = !(await n.guildList()).some((x) => x.id === c); await n.guildInfoSet(G, { open: true }); return { intro: i1.intro, minLv: i1.minLv, hidden }; }, gcode);
+  assert(inf.intro === '함께 강해져요' && inf.minLv === 5 && inf.hidden, '문주 설정: 소개 · 가입 레벨 · 모집 닫으면 목록에서 빠짐');
+  const notOwner = await D.page.evaluate(async (c) => { const n = window.__s2.net, G = await n.guildGet(c); try { await n.guildInfoSet(G, { intro: '몰래' }); return false; } catch (e) { return e?.code === 'permission-denied'; } }, gcode);
+  assert(notOwner, '문주가 아니면 소개를 못 바꿈(규칙)');
   assert(listed, 'D: 문파 찾기 목록에 보임');
   const gd = await D.page.evaluate(async (c) => { const n = window.__s2.net; await n.guildJoin(c, 'D무인'); window.__s2.g.setGuild(c); const G = await n.guildGet(c); const ok = await n.guildCheckin(G); const r = window.__s2.g.guildCheckin(); const G2 = await n.guildGet(c); return { n: G2.memberIds.length, exp: G2.exp, chk: G2.checkins[n.uid], ok, r: !!r }; }, gcode);
   assert(gd.n === 2 && gd.exp === 20 && gd.chk && gd.ok && gd.r, 'D: 코드로 들어가 출석 → 문파 경험치 +20 · 보상');
