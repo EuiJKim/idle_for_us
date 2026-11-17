@@ -10,8 +10,12 @@ const { SLOTS } = await import(root + 'tables/gear.js');
 const { treeOf, skillById } = await import(root + 'tables/kit.js');
 const { MASTERY } = await import(root + 'tables/skills.js');
 const { DAILY_DUNGEONS } = await import(root + 'tables/content.js');
+const { KILLS_PER_MIN: KPM } = await import(root + 'tables/exp.js');
+const { goldPerMob: GPM } = await import(root + 'tables/gearstat.js');
 const STAR_CAP = Number(process.env.STAR_CAP || 25);
 const OLD = !!process.env.OLD;
+// v556 봇이 못 하는 보상(하루 상자 · 문파 출석 · 문파 토벌 · 수련 · 주간 보상)을 하루에 한 번 더해 본다 — EXTRA_TIX=9 EXTRA_GOLDMIN=65
+const EXTRA_TIX = Number(process.env.EXTRA_TIX || 0), EXTRA_GOLDMIN = Number(process.env.EXTRA_GOLDMIN || 0);
 // 강화석 비용 맞추기(봇만) — ENHX=1.5 면 ENH_STONE base · add를 1.5배로 해 보고 곡선을 본다
 if (process.env.ENHX) { const GS = await import(root + 'tables/gearstat.js'); const x = Number(process.env.ENHX); GS.ENH_STONE.base = Math.round(GS.ENH_STONE.base * x); GS.ENH_STONE.add = Math.round(GS.ENH_STONE.add * x); }   // v529 성혼은 끝(25)까지 · 15성부터 파괴 방지
 
@@ -73,6 +77,7 @@ export function play({ days = 7, job = 'sword', seed = 1, active = 120, ad = fal
   });
   const mark = (t) => { while (mi < marks.length && t >= marks[mi] * 60000) { const r = row(marks[mi]); out.push(r); onMark?.(r); stats.kills = 0; stats.huntMs = 0; mi++; } };
   for (let d = 0; d <= days; d++) {
+    if (d > 0 && (EXTRA_TIX || EXTRA_GOLDMIN)) { const W = g.S.wallet; W['ticket:gear'] = (W['ticket:gear'] || 0) + EXTRA_TIX; W.gold += Math.round(EXTRA_GOLDMIN * KPM * GPM(g.S.hero.lv)); }
     if (d > 0) { now = T0 + d * 86400e3; src = 'offline'; const p = g.returnCheck(now); g.tick(now); if (p) g.claimOffline(ad); src = 'etc'; upkeep(); mark(now - T0); }
     if (d === days) break;
     for (let m = 0; m < active; m++) {
