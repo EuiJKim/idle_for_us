@@ -1151,6 +1151,21 @@ console.log('\n=== v552 문파 수련 ===');
   g.tick(T0 + 8 * 86400000); ok(!g.gtrainState().got && Object.keys(g.gtrainState().days).length === 0, '다음 주 새로');
 }
 
+console.log('\n=== v553 주간 보상 ===');
+{
+  const GM = await import('../js/s2/game.js');
+  const T0 = 1.8e12, g = new Game(newGame('sword', T0, 11), T0); g.addExp(EX.cumExp(40)); g.tick(T0);
+  ok(g.pvpWeekReward() === null, '대결 기록이 없으면 주간 보상 없음');
+  g.S.pvp = { score: 1300, day: '', used: 0, log: [] }; g.pvpMark();
+  g.tick(T0 + 7 * 86400000);
+  const r = g.pvpWeekReward();
+  ok(r && r.tier === '고수' && r.tix === GM.WEEK_REW.pvp[2], '다음 주: 지난주 최고 등급(고수) → 뽑기권', JSON.stringify(r));
+  const t0 = g.S.wallet['ticket:gear'] || 0; g.claimPvpWeek();
+  ok(g.S.wallet['ticket:gear'] === t0 + r.tix && g.claimPvpWeek() === null, '한 번만');
+  ok(g.wbRankReward(1) === 30 && g.wbRankReward(7) === 15 && g.wbRankReward(500) === 3 && g.wbRankReward(0) === 0, '월드보스 순위 → 뽑기권(1위 30 · 10위 안 15 · 친 사람 3)');
+  const w = g.claimWbWeek('2026-11-09', 2); ok(w && w.tix === 20 && g.claimWbWeek('2026-11-09', 1) === null, '지난주 월드보스 보상 한 번');
+}
+
 console.log('\n=== S0 규칙 ===');
 {
   const files = [];

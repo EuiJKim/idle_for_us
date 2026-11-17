@@ -23,6 +23,11 @@ const GUILD_CHECKIN = { tix: 2, goldMin: 15 };   // v549 문파 출석
 export const GRAID = { weekTries: 7, fightMs: 90000, hpX: 3, rew: { tix: 2, goldMin: 10 } };
 // v552 문파 수련 — 오늘 할 일을 끝낸 개수(문파 출석 빼고 · 하루 최대 8)가 내 수련 점수 · 문파원 합이 목표(문파원 수 × perMember)를 채우면 각자 한 번 보상
 export const GTRAIN = { perMember: 25, rew: { tix: 5, goldMin: 30 } };
+// v553 주간 보상 — 지난주 대결 최고 등급 · 지난주 월드보스 순위(서버). 월요일부터 한 번씩
+export const WEEK_REW = {
+  pvp: [2, 4, 6, 9, 12, 16, 20],                       // 등급(하수 → 현경)마다 장비 뽑기권
+  wb: [[1, 30], [3, 20], [10, 15], [50, 10], [100, 6], [Infinity, 3]],   // 순위 이하 → 뽑기권(친 사람은 적어도 3)
+};
 export const graidHp0 = (lv) => Math.round(WB.refTryDmg(Math.max(10, lv)) * GRAID.hpX);
 const TODAY_CHEST = { tix: 3, goldMin: 30, dungeonRuns: 3 };   // v545 하루 상자
 import { ATTEND, ATTEND_DAYS } from './tables/attend.js';
@@ -40,7 +45,7 @@ import * as WB from './online/wboss.js';
 import * as GD from './online/guild.js';
 import * as PV from './online/pvp.js';
 import { refPlayer } from './battle/ref.js';
-import { PVP, WBOSS, POWER_SLACK } from './tables/online.js';
+import { PVP, WBOSS, POWER_SLACK, PVP_TIERS } from './tables/online.js';
 import { JOBS } from './tables/char.js';
 
 export const COLLECTS = ['weapon', 'pal', 'relic'];
@@ -131,6 +136,33 @@ export class Game {
   // v550 문파 토벌 — 이번 주 내 도전 수 · 받은 단계 · 이번 주 두목(장 두목 15명 차례)
   graidState() { const S = this.S, wk = weekKey(this.now), R = (S.graid ??= { week: wk, used: 0, claimed: 0 }); if (R.week !== wk) Object.assign(R, { week: wk, used: 0, claimed: 0 }); return R; }
   graidBoss() { return 1 + (weekKey(this.now) % 15); }
+  // v553 대결 주간 최고 — 점수가 바뀔 때마다 이번 주 최고를 적어 두고, 주가 바뀌면 지난주 것으로 넘긴다
+  pvpMark() {
+    const P = (this.S.pvp ??= { score: PVP.start, day: '', used: 0, log: [] }), wk = weekKey(this.now);
+    if (P.wk !== wk) { if (P.wk != null && P.wkBest != null) { P.lastWk = P.wk; P.lastBest = P.wkBest; } P.wk = wk; P.wkBest = P.score; }
+    P.wkBest = Math.max(P.wkBest, P.score);
+  }
+  pvpWeekReward() {
+    const P = this.S.pvp; this.pvpMark();
+    if (!P || P.lastWk == null || P.lastGot === P.lastWk) return null;
+    const ti = PVP_TIERS.filter((t) => P.lastBest >= t.min).length - 1, tix = WEEK_REW.pvp[Math.max(0, ti)];
+    return { wk: P.lastWk, tier: PVP_TIERS[Math.max(0, ti)].name, best: P.lastBest, tix };
+  }
+  claimPvpWeek() {
+    const r = this.pvpWeekReward(); if (!r) return null;
+    this.S.pvp.lastGot = r.wk; this.S.wallet['ticket:gear'] = (this.S.wallet['ticket:gear'] || 0) + r.tix;
+    return r;
+  }
+  // 지난주 월드보스 순위(서버가 센 것) → 뽑기권 · 그 주에 한 번
+  wbRankReward(rank) { return rank > 0 ? WEEK_REW.wb.find(([n]) => rank <= n)[1] : 0; }
+  claimWbWeek(wk, rank) {
+    const S = this.S, got = (S.wbGot ??= {});
+    if (!(rank > 0) || got[wk]) return null;
+    const tix = this.wbRankReward(rank); got[wk] = rank;
+    for (const k of Object.keys(got)) if (Object.keys(got).length > 8 && k !== String(wk)) delete got[k];   // 오래된 것 정리
+    S.wallet['ticket:gear'] = (S.wallet['ticket:gear'] || 0) + tix;
+    return { wk, rank, tix };
+  }
   // v552 문파 수련 — 이번 주 내 점수(날마다 끝낸 오늘 할 일 개수의 합) · 목표를 채운 주에 보상 한 번
   gtrainState() { const S = this.S, wk = weekKey(this.now), T = (S.gtrain ??= { week: wk, days: {}, got: false }); if (T.week !== wk) Object.assign(T, { week: wk, days: {}, got: false }); return T; }
   gtrainPts() {
@@ -641,7 +673,7 @@ export class Game {
     const P = (this.S.pvp ??= { score: PVP.start, day: '', used: 0, log: [] });
     let sum = 0;
     for (const x of list || []) { const d = Math.max(-20, Math.min(3, x.d | 0)); sum += d; P.log = [{ name: String(x.name || '무인').slice(0, 12), win: !x.win, d, def: 1 }, ...P.log].slice(0, 10); }
-    P.score = Math.max(0, P.score + sum);
+    P.score = Math.max(0, P.score + sum); this.pvpMark();
     return sum;
   }
   pvpOpponents() {
@@ -660,7 +692,7 @@ export class Game {
     if (!opp || !PV.useTry(P, String(dayKey(this.now)))) return null;
     const me = this.fighter(), log = [], r = PV.duel(me, opp.f, this.rng.u32(), log);   // v539 화면이 다시 보여 줄 기록
     const sd = PV.scoreDelta(r.win, power(me, 'pvp'), opp.pw), d = sd.atk;
-    P.score = Math.max(0, P.score + d);
+    P.score = Math.max(0, P.score + d); this.pvpMark();
     P.log = [{ name: opp.name, win: r.win, d }, ...P.log].slice(0, 10);
     this.emit('pvp');
     return { ...r, d, score: P.score, tier: PV.tierOf(P.score).name, log, opp: { name: opp.name, job: opp.f.job, lv: opp.f.lv, hp: opp.f.st.hp, real: !!opp.real }, myHp: me.st.hp, oppUid: opp.uid || null, defD: sd.def };

@@ -1,6 +1,6 @@
 // 새 시즌 화면 — v524부터 첫 화면(index.html). 옛 게임은 classic.html(세이브는 따로 · ifu.s2.*가 새 시즌).
 // 화면은 엔진(js/s2/game.js)만 본다. 시계는 화면 쪽에서만 읽어 엔진에 넘긴다(엔진은 결정론).
-import { Game, newGame, COLLECTS, dayKey, weekKey, STAGE_KILLS, GRAID, graidHp0, GTRAIN } from '../game.js';
+import { Game, newGame, COLLECTS, dayKey, weekKey, STAGE_KILLS, GRAID, graidHp0, GTRAIN, WEEK_REW } from '../game.js';
 import { raidPhase } from '../online/guild.js';
 import { SAVE_KEY } from '../core/save.js';
 import { S2Net } from './net.js';
@@ -105,7 +105,7 @@ function wbPush(score) { if (!net.online || !g || !(score > 0)) return; ensureNi
 let rankMode = 'power', rankCache = {};
 // v549 문파 — 내 문파(서버) · 찾기 목록 · 문파원 프로필. 30초마다 새로 · 바꾸면 바로
 const S2NetDay = () => new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10);
-const guildState = { g: null, list: null, prof: null, at: 0, busy: false, msgs: [], chatGid: null, unsub: null, seen: 0 };
+const guildState = { wbLast: undefined, g: null, list: null, prof: null, at: 0, busy: false, msgs: [], chatGid: null, unsub: null, seen: 0 };
 // v551 문파 대화 — 문파에 있는 동안 실시간 구독 · 창을 다시 그리지 않고 목록만 고친다(쓰던 글이 지워지지 않게)
 function chatWatch(gid) {
   if (guildState.chatGid === gid) return;
@@ -530,6 +530,15 @@ function paintWin() {
     for (let ch = 1; ch <= 15; ch++) { const first = (ch - 1) * 10 + 1, opened = T.top >= first; const r = R(`${ch}. ${chapterName(first)}`, opened ? (Math.ceil(T.top / 10) > ch ? '다 깸' : `${((T.top - 1) % 10) + 1}/10칸`) : '잠김', opened ? [['가기', act(() => { if (g.bossFight) return false; T.idx = Math.min(T.top, ch * 10); T.kills = 0; return true; })]] : [], String(ch)); if (!opened) r.style.opacity = '.45'; c2(r); }
   } else if (key === 'rank:0') {
     // v547 서열 — 전투력 · 레벨 · 이번 주 월드보스 위 50명 · 내 등수(서버 · 30초마다 새로)
+    // v553 주간 보상 — 지난주 월드보스 순위(서버) · 지난주 대결 최고 등급
+    { const pr = g.pvpWeekReward(), lastWk = wkStr(Date.now() - 7 * 86400000), wbGot = g.S.wbGot?.[lastWk];
+      const cw = card('주간 보상', '월요일마다 — 지난주 기록으로');
+      cw(R('지난주 대결', pr ? `최고 ${pr.best}점 · ${esc(pr.tier)} — 장비 뽑기권 ${pr.tix}` : '받을 것 없음(지난주 대결 기록이 없거나 받음)', [['받기', act(() => { const r = g.claimPvpWeek(); if (r) { play('rare', 4); toast(`지난주 대결 ${r.tier} — 뽑기권 ${r.tix}`); } return r; }), !pr]], '鬪'));
+      const wr = guildState.wbLast;
+      cw(R('지난주 월드보스', wbGot ? `${wbGot}위 — 받았어요` : !net.online ? '오프라인' : wr === undefined ? '순위 불러오는 중…' : wr?.me ? `${wr.me}위 — 장비 뽑기권 ${g.wbRankReward(wr.me)}` : '지난주에 치지 않았어요',
+        [['받기', act(() => { const r = g.claimWbWeek(lastWk, wr?.me); if (r) { play('rare', 4); toast(`지난주 월드보스 ${r.rank}위 — 뽑기권 ${r.tix}`); } return r; }), !!wbGot || !wr?.me]], '龍'));
+      if (net.online && wr === undefined && !wbGot) { guildState.wbLast = null; net.top('wb', lastWk, 1).then((r) => { guildState.wbLast = r || { me: 0 }; if (open === 'social') paintWin(); }).catch(() => { guildState.wbLast = { me: 0 }; }); }
+    }
     const MODES = [['power', '전투력'], ['lv', '레벨'], ['wb', '이번 주 월드보스']];
     const c0 = card('서열', net.online ? `이름 「${esc(g.S.nick || '(아직 없음)')}」 · 설정에서 바꿔요` : '오프라인 — 인터넷에 연결되면 보여요');
     const seg = document.createElement('div'); seg.className = 'seg rk-seg';
