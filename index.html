@@ -204,7 +204,7 @@
     .pill { display: inline-block; padding: 0 7px; border-radius: 999px; font-size: 10.5px; font-weight: 800; vertical-align: 1px; background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.25); color: rgba(255,255,255,.75); }
     .pill.pv-real { background: rgba(8,47,73,.8); border-color: #7dd3fc; color: #e0f2fe; }
     /* v547 서열 */
-    .rk-seg { margin: 2px 0 8px; } .rk-list { display: grid; gap: 3px; }
+    .rk-seg { margin: 2px 0 8px; flex-wrap: wrap; } .rk-seg button { white-space: nowrap; } .rk-list { display: grid; gap: 3px; }
     .rk-r { display: grid; grid-template-columns: 34px 1fr auto; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 9px; background: rgba(0,0,0,.25); font-size: 13px; }
     .rk-r b { text-align: center; font-variant-numeric: tabular-nums; color: rgba(255,255,255,.7); } .rk-r small { color: rgba(255,255,255,.55); font-size: 11px; } .rk-r em { font-style: normal; font-weight: 800; font-variant-numeric: tabular-nums; }
     .rk-r.top1 b { color: #fde047; font-size: 16px; } .rk-r.top2 b { color: #e5e7eb; font-size: 15px; } .rk-r.top3 b { color: #f0abfc; font-size: 15px; } .rk-r.top1 { background: linear-gradient(90deg, rgba(120,90,10,.45), rgba(0,0,0,.25)); }
@@ -448,7 +448,7 @@
     html.w800 #qc { width: 196px; }
     html.w800 .ib { width: 44px; }
     /* 창: 가로면 가운데에 크게 뜬다 · 카드 두 줄 */
-    body.land #wb:has(> .card:nth-of-type(2)) { column-count: 2; column-gap: 10px; }   /* v522 카드가 하나뿐이면 한 줄 전체 */
+    html.w640up body.land #wb:has(> .card:nth-of-type(2)) { column-count: 2; column-gap: 10px; }   /* v522 카드가 하나뿐이면 한 줄 전체 · v570 실제 가로 640 넘을 때만(좁은 세로 폰에서 두 줄이면 글이 한 자씩 꺾였다) */
     body.land #wb > * { break-inside: avoid; }
     body.land #wb > .card, body.land #wb > .row { display: inline-block; width: 100%; box-sizing: border-box; }
     #panel .inv-grid { grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); }
