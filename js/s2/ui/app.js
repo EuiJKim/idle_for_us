@@ -679,7 +679,7 @@ function paintHud() {
   $('hp-fill').style.width = `${hpR * 100}%`; $('hp-trail').style.width = `${hpR * 100}%`; $('hp-fill').parentNode.classList.toggle('low', hpR < 0.3);
   $('hp-txt').textContent = `HP ${unit(Math.max(0, Hh.hp))} / ${unit(Hh.st.hp)}`;
   // 들판: 전투력 · 길잡이 · 칸 진행(두목전이면 두목 체력 · 남은 시간) · 두목 도전
-  $('pw').textContent = unit(g.power());
+  { const pw = g.power(); $('pw').textContent = unit(pw); pwWatch(pw); }   // v534 전투력이 바뀌면 튀어 오름
   const cur = guideCurrent(S.q.guide), cs = cur && S.q.guide[cur.id], qb = $('qc');
   qb.classList.toggle('hidden', !cur);
   if (cur) { qb.classList.toggle('ready', !!cs?.done); const qk = `${cur.id}:${cs?.p || 0}:${cs?.done ? 1 : 0}`; if (qb.dataset.k !== qk) { qb.dataset.k = qk; qb.innerHTML = `<div class="qh"><em>${cs?.done ? '완료' : '진행'}</em>길잡이 ${cur.id.slice(1)}</div><div class="qb">${esc(guideLabel(cur))}<small>${cs?.done ? '받기 ▶' : `${cs?.p || 0}/${cur.need}`}</small></div>`; } }   // 왼쪽 길잡이 카드: 상태 · 할 일 · 진행
@@ -1108,6 +1108,14 @@ function draw() {
   if (!pose && stanceMix > 0 && H.plat >= 0 && !hw) { const st = STANCE[g.S.hero.job] || STANCE.sword; pose = mixPose(IDLE, { ...st, crouch: st.crouch + Math.sin(ts * 3) * 0.025 }, stanceMix * stanceMix * (3 - 2 * stanceMix)); }
   if (!pose && H.plat < 0) pose = (H.vy || 0) > 0 ? { ...POSES.기모으기, crouch: 0, lift: 2, hand: [-1.1, 22], blade: -1.2, lean: -0.08, wscale: 1 } : { ...POSES.착지, crouch: 0.15, lift: 0, wscale: 1 };   // 오를 때 · 떨어질 때 자세가 다르다
   else if (!pose && hw) { const ph = Math.sin(ts * 14); pose = { lean: 0.16, crouch: 0.1 + Math.abs(ph) * 0.12, lift: 0, dx: ph * 2, hand: [2.5 - ph * 0.4, 22], blade: -0.6, stretch: 0, alpha: 1, wscale: 1 }; }   // 달리기: 걸음마다 다리 벌어짐 · 팔 흔들기
+  if (t - pillarAt < 1500) {   // v534 좋은 장비를 주웠을 때 무인 자리에 빛기둥
+    const a2 = (t - pillarAt) / 1500, al = a2 < 0.15 ? a2 / 0.15 : 1 - (a2 - 0.15) / 0.85, bw = 46 * k * (1 + a2 * 0.4);
+    cx.save(); cx.globalCompositeOperation = 'lighter'; cx.globalAlpha = 0.75 * al;
+    const gr = cx.createLinearGradient(hx - bw, 0, hx + bw, 0); gr.addColorStop(0, 'rgba(0,0,0,0)'); gr.addColorStop(0.5, pillarCol); gr.addColorStop(1, 'rgba(0,0,0,0)');
+    cx.fillStyle = gr; cx.fillRect(hx - bw, 0, bw * 2, hy + 6 * k);
+    cx.globalAlpha = 0.5 * al; cx.fillStyle = '#fff'; cx.fillRect(hx - bw * 0.12, 0, bw * 0.24, hy);
+    cx.restore();
+  }
   drawHero(cx, hx, hy, g.S.hero.job, g.S.hero.lv, { t: ts, run: heroRun > 0, turn, pose, lunge: pose ? 0 : Math.max(0, 1 - (t - lastHitAt) / 160), scale: sc, eq: g.S.gear.eq });
   cx.restore();
   // 레벨 업: 무인 위로 빛기둥과 고리(0.9초)
@@ -1280,6 +1288,7 @@ function frame() {
     else if (f.k === 'stage-clear' || f.k === 'stage-fail') showResult(f);
     else if (f.k === 'dungeon-start') { closeWin(); play('tense'); dgBanner(f.title, g.dgStatus()); addLog(`${f.title} 입장`); }
     else if (f.k === 'dungeon-end') showDgResult(f);
+    else if (f.k === 'loot') lootFx(f);
   }
   if (!document.hidden) draw();   // 안 보이는 동안은 그리지 않는다(엔진은 돈다)
   if (dust.length > 60) dust.splice(0, dust.length - 60);
@@ -1328,6 +1337,36 @@ function showResult(f) {
   }
   addLog(win ? `${ch}장 ${st}칸 클리어 · ${sec}초` : `${ch}장 ${st}칸 두목에게 졌어요(${f.bossLeft}% 남음)`);
 }
+// v534 전투력 오름 — 0.5초 안에 바뀐 만큼 모아 「전투력 ▲ +N」 · 위 전투력 숫자가 번쩍(내려가면 붉게)
+let pwLast = 0, pwAcc = 0, pwAt = 0, pwStart = 0;
+function pwWatch(pw) {
+  const t = now();
+  if (!pwLast) { pwLast = pw; return; }
+  if (pw !== pwLast) { if (!pwAcc) pwStart = pwLast; pwAcc += pw - pwLast; pwAt = t; pwLast = pw; }
+  if (pwAcc && t - pwAt > 450 && pwStart && Math.abs(pwAcc) / pwStart < 0.01) pwAcc = 0;   // 1% 안 되는 오르내림(레벨업 등)은 조용히
+  if (pwAcc && t - pwAt > 450) {
+    const up = pwAcc > 0, d = document.createElement('div'); d.className = `pwpop ${up ? 'up' : 'dn'}`;
+    const pct = pwStart ? Math.abs(pwAcc) / pwStart : 0;
+    d.innerHTML = `<small>전투력</small><b>${up ? '▲' : '▼'} ${unit(Math.abs(pwAcc))}</b>${pct >= 0.002 ? `<em>${up ? '+' : '-'}${(pct * 100).toFixed(pct >= 0.1 ? 0 : 1)}%</em>` : ''}`;
+    for (const o of document.querySelectorAll('.pwpop')) o.remove();
+    document.body.append(d); setTimeout(() => d.remove(), 1800);
+    const el = $('pw'); el.classList.remove('pwup', 'pwdn'); void el.offsetWidth; el.classList.add(up ? 'pwup' : 'pwdn');
+    if (up && pct >= 0.03) play('coin');
+    pwAcc = 0;
+  }
+}
+// v534 좋은 장비 줍기 — 오른쪽에 카드가 미끄러져 들어오고, 보품(4) 이상은 무인 자리에 빛기둥 · 소리
+const LOOT_COL = ['#a8a29e', '#7cc47a', '#6aa8e0', '#b27ae0', '#e8c26a', '#e06a5a', '#ffffff'];
+function lootFx(f) {
+  const box = $('lootbox');
+  const d = document.createElement('div'); d.className = `loot g${f.g}`; d.style.setProperty('--c', LOOT_COL[f.g] || '#fff');
+  d.innerHTML = `<img src="${eqIcon(f.slot, { g: f.g, up: f.up, slot: f.slot })}" alt=""><div><b>${GRADES[f.g]}품${f.up ? '上' : ''} ${SLOT_NAME[f.slot]}</b><small>${f.equipped ? '획득 · 바로 낌!' : '획득 · 가방으로'}</small></div>`;
+  box.prepend(d); while (box.children.length > 3) box.lastChild.remove();
+  setTimeout(() => d.classList.add('out'), 2600); setTimeout(() => d.remove(), 3100);
+  if (f.g >= 4) { pillarAt = now(); pillarCol = LOOT_COL[f.g]; play('rare', f.g); buzz(60); }
+  addLog(`${GRADES[f.g]}품${f.up ? '上' : ''} ${SLOT_NAME[f.slot]} 획득${f.equipped ? ' — 바로 낌' : ''}`);
+}
+let pillarAt = 0, pillarCol = '#e8c26a';
 // v532 장 두목 등장 컷 — 그림이 밀려 들어오고 이름 · 칭호(1.8초)
 function chbIntro(ch) {
   const D = CHBOSS[ch]; if (!D) return;

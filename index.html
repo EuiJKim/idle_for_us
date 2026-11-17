@@ -166,6 +166,20 @@
     .cmp { max-height: 46vh; overflow-y: auto; } html.rot .cmp { max-height: 46vw; }
     html.h500 .cmp-h img { width: 44px; height: 44px; } html.h500 .cmp-h { margin-bottom: 4px; } html.h500 .cmp-r { padding: 2px 8px; font-size: 12px; } html.h500 #modal .sheet { padding: 12px 14px; } html.h500 #modal h2 { margin-bottom: 4px; font-size: 16px; }
     .cmp .up, .cmp-h .up { color: #86efac; } .cmp .dn, .cmp-h .dn { color: #fca5a5; }
+    /* v534 전투력 오름 · 장비 줍기 */
+    .pwpop { position: fixed; left: calc(var(--sl, 0px) + 150px); top: calc(var(--st, 0px) + 6px); z-index: 60; pointer-events: none; display: flex; align-items: baseline; gap: 6px; padding: 4px 12px; border-radius: 999px; background: rgba(0,0,0,.6); animation: pwpop 1.8s ease forwards; font-variant-numeric: tabular-nums; }
+    .pwpop small { font-size: 11px; color: rgba(255,255,255,.7); } .pwpop b { font-size: 18px; font-weight: 900; } .pwpop em { font-style: normal; font-size: 12px; font-weight: 800; }
+    .pwpop.up b, .pwpop.up em { color: #86efac; text-shadow: 0 0 10px rgba(134,239,172,.6); } .pwpop.dn b, .pwpop.dn em { color: #fca5a5; }
+    html.rot .pwpop { left: 150px; }
+    @keyframes pwpop { 0% { opacity: 0; transform: translateY(10px) scale(.8); } 12% { opacity: 1; transform: translateY(0) scale(1.08); } 22% { transform: scale(1); } 80% { opacity: 1; } 100% { opacity: 0; transform: translateY(-14px); } }
+    #pw.pwup { animation: pwflash .7s ease; } #pw.pwdn { animation: pwflashdn .7s ease; }
+    @keyframes pwflash { 30% { color: #86efac; text-shadow: 0 0 12px #86efac; transform: scale(1.15); } } @keyframes pwflashdn { 30% { color: #fca5a5; } }
+    #lootbox { position: fixed; right: calc(var(--sr, 0px) + 12px); top: calc(var(--st, 0px) + 96px); z-index: 55; display: flex; flex-direction: column; gap: 6px; pointer-events: none; }
+    .loot { display: flex; gap: 8px; align-items: center; min-width: 190px; padding: 6px 12px 6px 6px; border-radius: 12px; background: linear-gradient(90deg, rgba(0,0,0,.82), rgba(0,0,0,.6)); border: 1px solid var(--c); box-shadow: 0 0 14px color-mix(in srgb, var(--c) 45%, transparent); animation: lootin .45s cubic-bezier(.2,1.4,.4,1); transition: opacity .4s, transform .4s; }
+    .loot.out { opacity: 0; transform: translateX(30px); } .loot img { width: 40px; height: 40px; object-fit: contain; filter: drop-shadow(0 0 6px var(--c)); } .loot b { display: block; font-size: 13px; color: var(--c); } .loot small { font-size: 11px; color: rgba(255,255,255,.75); }
+    .loot.g4, .loot.g5, .loot.g6 { animation: lootin .45s cubic-bezier(.2,1.4,.4,1), lootglow 1.2s ease-in-out .45s 2; }
+    @keyframes lootin { from { opacity: 0; transform: translateX(60px) scale(.9); } to { opacity: 1; transform: none; } } @keyframes lootglow { 50% { box-shadow: 0 0 26px var(--c); } }
+    html.rot #lootbox { right: 12px; }
     /* v532 장 두목 */
     #cb-row { display: none; align-items: center; gap: 6px; margin-top: 3px; } #contest-hud.chb #cb-row { display: flex; }
     #cb-ph { font-weight: 900; color: #fca5a5; min-width: 30px; font-size: 11px; } #cb-ggb { flex: 1; height: 5px; border-radius: 999px; background: rgba(0,0,0,.5); overflow: hidden; } #cb-gg { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #a5b4fc, #e0e7ff); transition: width .2s; }
@@ -441,6 +455,7 @@
       <div class="dpsm" id="dpsm"></div>
       <div id="loglines"></div>
       <button id="btn-boss" class="hidden">두목 도전</button>
+      <div id="lootbox"></div>
       <div id="contest-hud" class="hidden"><div class="ch-h"><svg class="ic" viewBox="0 0 24 24"><path d="M4 8l4 3 4-6 4 6 4-3-2 11H6z"/></svg><b id="contest-title"></b><span id="contest-pct"></span><button id="dg-leave" class="hidden">나가기</button></div><div id="contest-bar"><i id="contest-fill"></i></div><div id="cb-row"><span id="cb-ph"></span><div id="cb-ggb"><i id="cb-gg"></i></div></div><div id="contest-sub"></div></div>
       <div id="me">
         <div class="me-h"><b id="me-lv">Lv.1</b><span id="me-nm">무명</span></div>

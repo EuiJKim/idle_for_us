@@ -911,6 +911,16 @@ console.log('\n=== v532 장 두목(10칸마다) ===');
   ok(safe && F4.hero.x >= safe[0] && F4.hero.x <= safe[1], '필살: 자동이면 안전 지대로 피한다', `${F4.hero.x} in ${safe}`);
 }
 
+console.log('\n=== v534 장비 줍기 알림 ===');
+{
+  const T0 = 1.8e12, g = new Game(newGame('sword', T0, 6), T0);
+  g.feed.length = 0; g.obtain([GR.makeGear(g.rng, 'weapon', 4), GR.makeGear(g.rng, 'ring', 1)]);
+  const L = g.feed.filter((f) => f.k === 'loot');
+  ok(L.length === 1 && L[0].g === 4 && L[0].slot === 'weapon' && L[0].equipped, '진품 이상을 주우면 알림(낀 것인지) · 낮은 등급은 조용히');
+  g.feed.length = 0; g.S.wallet['ticket:gear'] = 10; g.pullGear(10);
+  ok(!g.feed.some((f) => f.k === 'loot'), '뽑기는 제 연출이 있어 줍기 알림 없음');
+}
+
 console.log('\n=== S0 규칙 ===');
 {
   const files = [];

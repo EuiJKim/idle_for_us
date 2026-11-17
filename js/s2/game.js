@@ -291,9 +291,11 @@ export class Game {
   minute() { const s = ID.suddenTick(this.S.sudden, this.rng, this.now); if (s) this.feed.push({ k: 'sudden', need: s.need }); return s; }
 
   // ── 장비 ──
-  obtain(items) {
+  obtain(items, src = 'drop') {
     const got = GR.obtain(this.S.gear, items, this.S.hero.lv, this.S.wallet);
     if (got.some((g) => g.equipped)) { this.dirtyStats = true; this.emit('equip'); }
+    // v534 좋은 장비를 주우면 알림(뽑기는 제 연출이 있다) — 진품(3) 이상 · 낀 것인지
+    if (src !== 'gacha') for (const it of items) if (it.g >= 3) this.feed.push({ k: 'loot', g: it.g, up: it.up, slot: it.slot, equipped: got.some((x) => x.it === it && x.equipped) });
     return got;
   }
   pullGear(n, ticket = (this.S.wallet['ticket:gear'] || 0) >= n) {
@@ -301,7 +303,7 @@ export class Game {
     if (!items) return null;
     this.emit('gacha', { n });
     if (GC.canLevelUp(this.S.gacha) && GC.startLevelUp(this.S.gacha, this.now)) this.feed.push({ k: 'gacha-lv', lv: this.S.gacha.lv });   // v505 바로 오른다
-    return { items, got: this.obtain(items) };
+    return { items, got: this.obtain(items, 'gacha') };
   }
   enhance(slot) { const r = GR.enhance(this.S.gear, slot, this.rng, this.S.wallet, this.S.hero.lv); if (r !== null) this.emit("enhance"); if (r) this.dirtyStats = true; return r; }
   star(slot, opts) { const r = GR.starForce(this.S.gear, slot, this.rng, this.S.wallet, this.S.hero.lv, opts); if (r) { this.dirtyStats = true; this.emit('star', { s: this.S.gear.slots[slot].star }); } return r; }
