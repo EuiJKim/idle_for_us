@@ -41,6 +41,9 @@ async function device(b) {
   assert(rk.w && rk.w.score === 12345 && rk.w.tries === 1, 'A: 월드보스 주간 점수 올라감');
   await A.page.click('[data-tab="social"] >> nth=0'); await A.page.click('#panel-body .subtabs button:has-text("서열")'); await sleep(1500);
   assert(await A.page.isVisible('#wb .rk-r.me') && /내 등수|시험무인/.test(await A.page.textContent('#wb')), 'A: 무림 → 서열 화면(내 줄)');
+  await A.page.click('#wb .rk-r.me'); await sleep(1500);   // v567 줄을 누르면 무인 정보
+  assert(/무인 정보/.test(await A.page.textContent('#modal')) && /전투력/.test(await A.page.textContent('#modal')) && await A.page.isVisible('#modal .pc canvas'), 'A: 서열 줄 → 무인 정보(모습 · 전투력)');
+  await A.page.click('#modal .btn:has-text("확인")'); await sleep(200);
   await A.page.click('#panel-close');
   await A.page.click('#b-opt');
   assert(/Google · s2t\d+@example\.com/.test(await A.page.textContent('#wb')), 'A: 설정 「계정 · 저장」에 Google 표시');

@@ -612,9 +612,10 @@ function paintWin() {
       } else rankLoad(mode).then((r) => {
         if (!box.isConnected || mode !== rankMode) return;
         if (!r || !r.rows.length) { box.innerHTML = '<p class="note">아직 아무도 없어요 — 처음이 되어 보세요</p>'; return; }
-        box.innerHTML = r.rows.map((x, i) => `<div class="rk-r ${x.uid === net.uid ? 'me' : ''} ${i < 3 ? `top${i + 1}` : ''}"><b>${i + 1}</b><span>${esc(x.nickname || x.name || '무인')}${x.job ? ` <small>${esc(JOBS[x.job]?.name || '')}${mode !== 'lv' && x.lv ? ` · Lv ${x.lv}` : ''}</small>` : ''}</span><em>${fmtV(x.v)}</em></div>`).join('')
-          + `<div class="rk-me">${r.me ? `내 등수 <b>${r.me}위</b>${r.mine != null ? ` · ${fmtV(r.mine)}` : ''}` : mode === 'wb' ? '이번 주 월드보스를 치면 올라가요' : '곧 올라가요(저장할 때)'}</div>`;
+        box.innerHTML = r.rows.map((x, i) => `<div class="rk-r ${x.uid === net.uid ? 'me' : ''} ${i < 3 ? `top${i + 1}` : ''}" data-uid="${esc(x.uid)}"><b>${i + 1}</b><span>${esc(x.nickname || x.name || '무인')}${x.job ? ` <small>${esc(JOBS[x.job]?.name || '')}${mode !== 'lv' && x.lv ? ` · Lv ${x.lv}` : ''}</small>` : ''}</span><em>${fmtV(x.v)}</em></div>`).join('')
+          + `<div class="rk-me">${r.me ? `<small>줄을 누르면 무인 정보</small> 내 등수 <b>${r.me}위</b>${r.mine != null ? ` · ${fmtV(r.mine)}` : ''}` : mode === 'wb' ? '이번 주 월드보스를 치면 올라가요' : '곧 올라가요(저장할 때)'}</div>`;
       }).catch((e) => { if (box.isConnected) box.innerHTML = `<p class="note">불러오지 못했어요(${esc(e?.code || '연결')})</p>`; });
+      box.onclick = (e) => { const row = e.target.closest('.rk-r[data-uid]'); if (row) { play('click'); playerCard(row.dataset.uid); } };   // v567
     } else box.innerHTML = '<p class="note">오프라인이에요.</p>';
   } else if (key === 'rival:0') {
     const Wb = g.S.wb || { used: 0, best: 0, total: 0, day: '' };
@@ -831,6 +832,21 @@ function forgeFx(kind, sl, rs, before, after, done) {
   });
   later(rs.length * per + (many ? 900 : 1400), () => { if (!skipped) { ov.classList.add('done'); later(1300, finish); } });   // 결과를 잠깐 보여 주고 강화 창으로
 }
+// v567 무인 정보 — 서열에서 줄을 누르면: 그 무인의 모습(고른 외형) · 직업 · 레벨 · 전투력 · 대결 점수 · 이번 주 월드보스 · 문파
+function playerCard(uid) {
+  pop('무인 정보', '<p class="note">불러오는 중…</p>');
+  net.playerCard(uid).then((p) => {
+    const M = $('modal'); if (!M || M.classList.contains('hidden')) return;
+    const body = M.querySelector('.mbody, .body, #modal-body') || M.querySelector('div:last-child');
+    if (!p) { toast('기록이 없어요'); closeModal(); return; }
+    const eq = Object.fromEntries(SLOTS.map((sl) => [sl, { slot: sl, g: p.lk?.[sl] ?? Math.min(6, Math.floor((p.lv || 1) / 25)), up: 0, subs: [] }]));
+    const html = `<div class="pc"><canvas width="240" height="260"></canvas><div class="pc-i"><b>${esc(p.nickname || '무인')}${uid === net.uid ? ' <small>(나)</small>' : ''}</b><span>${esc(JOBS[p.job]?.name || '')} · Lv ${p.lv}</span>
+      <div class="pc-g"><span>전투력</span><em>${unit(p.power || 0)}</em><span>대결</span><em>${p.pvpScore ?? p.pvp ?? '-'}${p.pvpScore != null ? ` · ${esc(tierName(p.pvpScore))}` : ''}</em><span>월드보스(주)</span><em>${unit(p.wbScore || 0)}</em><span>문파</span><em>${p.guildId ? esc(p.guildId) : '없음'}</em></div></div></div>`;
+    closeModal(); pop('무인 정보', html);
+    const cv = $('modal').querySelector('.pc canvas'); if (cv && JOBS[p.job]) { const x = cv.getContext('2d'); let t0 = now(); const tick = () => { if (!cv.isConnected) return; x.clearRect(0, 0, 240, 260); drawHero(x, 120, 245, p.job, p.lv || 1, { t: (now() - t0) / 1000, scale: 2.5, eq }); requestAnimationFrame(tick); }; tick(); }
+  }).catch(() => { toast('불러오지 못했어요'); closeModal(); });
+}
+const tierName = (sc) => { const T = [[2150, '현경'], [1850, '화경'], [1600, '초절정'], [1400, '절정'], [1250, '고수'], [1100, '중수'], [0, '하수']]; return (T.find(([m]) => sc >= m) || T.at(-1))[1]; };
 // v559 무공 모두 올리기 결과 — 무공마다 Lv 전 → 후 · 쓴 은자 · 전투력
 function kitAllPop(r) {
   const rows = r.per.map((x, i) => { const sk = skillById(x.id); return `<div class="ea-r" style="--d:${0.1 + i * 0.06}s"><span style="color:${sk?.col || '#fff'}">${esc(sk?.name || x.id)}</span><b>Lv ${x.from}</b><i>→</i><b class="up">Lv ${x.to}</b></div>`; }).join('');

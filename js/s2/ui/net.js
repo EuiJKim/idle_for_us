@@ -199,6 +199,12 @@ export class S2Net {
     }
     return [];
   }
+  async playerCard(uid) {   // v567 무인 정보 — 서열 프로필 + 방어 덱(외형)
+    const fs = this.fs, [p, d] = await Promise.all([fs.getDoc(fs.doc(this.db, 's2_players', uid)), fs.getDoc(fs.doc(this.db, 's2_pvp', uid))]);
+    if (!p.exists()) return null;
+    let lk = null; try { lk = d.exists() ? JSON.parse(d.data().deck).lk || null : null; } catch { lk = null; }
+    return { uid, ...p.data(), lk, pvp: d.exists() ? d.data().score : null };
+  }
   async pvpDeckOf(uid) {   // v563 복수 — 그 무인의 방어 덱
     const d = await this.fs.getDoc(this.fs.doc(this.db, 's2_pvp', uid)); if (!d.exists()) return null;
     const x = d.data(); try { return { uid, name: x.name, score: x.score, f: JSON.parse(x.deck) }; } catch { return null; }
