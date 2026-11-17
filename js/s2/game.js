@@ -17,6 +17,7 @@ import { GUIDE, DAILY_MISSIONS, WEEKLY_MISSIONS, achievements, guideCurrent } fr
 import { JOB_ADV } from './tables/skills.js';
 import { CHBOSS, CB, cbGearGrade, CB_REPEAT, WBF } from './tables/chboss.js';
 import { ATTEND, ATTEND_DAYS } from './tables/attend.js';
+import { TITLE_EACH, titleByName } from './tables/titles.js';
 import * as GR from './gear/gear.js';
 import * as GC from './gear/gacha.js';
 import * as CL from './grow/collect.js';
@@ -93,8 +94,12 @@ export class Game {
       ...COLLECTS.flatMap((s) => CL.collectSources(S.colls[s])),
       ...RM.realmSources(S.realm), ...RM.journeySources(S.journey), ...RM.cosmeticSources(S.cosmetics),
       ...ID.towerSources(S.tower.best),
+      ...this.titleSources(),
     ];
   }
+  // v537 칭호 수집 효과 — 얻은 칭호 수만큼
+  titleSources() { const n = (this.S.titles || []).filter((t) => titleByName(t)).length; return n ? [{ src: 'title', stats: Object.fromEntries(Object.entries(TITLE_EACH).map(([k, v]) => [k, v * n])) }] : []; }
+  setTitle(nm) { if (nm && !(this.S.titles || []).includes(nm)) return false; this.S.titleOn = nm || null; return true; }
   // 장착한 동료(등급) — 전투에서 따로 친다(v497)
   palList() { const C = this.S.colls.pal; return C.eq.filter((k) => k !== null && k !== undefined).map((k) => ({ g: CL.kindGrade('pal', k), k })); }
   fighter() { return this.hero.fighter(this.sources(), this.palList()); }

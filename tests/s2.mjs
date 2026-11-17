@@ -954,6 +954,18 @@ console.log('\n=== v536 출석 ===');
   ok(r?.day === 1, '빠진 날이 있어도 다음 칸(건너뛰지 않음)');
 }
 
+console.log('\n=== v537 칭호 ===');
+{
+  const TT = await import('../js/s2/tables/titles.js');
+  ok(TT.TITLES.length === 16 && new Set(TT.TITLES.map((t) => t.name)).size === 16, '칭호 16(장 두목 15 · 28일 개근)');
+  const T0 = 1.8e12, g = new Game(newGame('sword', T0, 3), T0); g.addExp(EX.cumExp(60)); const p0 = g.power();   // Lv1은 공격이 작아 2%가 반올림에 묻힌다
+  g.S.titles = ['녹림대왕 격파', '28일 개근', '없는 칭호']; g.dirtyStats = true;
+  const st = g.fighter().st;
+  ok(g.titleSources()[0]?.stats.atkP === 20 && g.power() > p0, '얻은 칭호마다 수집 효과(모르는 이름은 빼고) · 전투력이 오른다', `${p0} → ${g.power()}`);
+  ok(g.setTitle('28일 개근') && g.S.titleOn === '28일 개근' && !g.setTitle('사왕 격파') && g.setTitle(null) && g.S.titleOn === null, '얻은 칭호만 달 수 있음 · 떼기');
+  void st;
+}
+
 console.log('\n=== S0 규칙 ===');
 {
   const files = [];

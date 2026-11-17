@@ -24,6 +24,7 @@ import { loadLooks, zoneFor, drawHero, drawMob, mobName, mobHeight, preloadMobs,
 import { BOSS_PATS } from '../tables/kit.js';
 import { CHBOSS, CB_PATS, CB, WBF } from '../tables/chboss.js';
 import { ATTEND, ATTEND_DAYS, ATTEND_NAME } from '../tables/attend.js';
+import { TITLES, TITLE_EACH, titleByName } from '../tables/titles.js';
 import { play, unlock, setOpt, bgm } from './sound.js';
 import { PoseAnim, POSES, IDLE, mixPose } from '../../pose.js';
 // 설정(v504) — 이 기기에만(ifu.s2.opt). 소리 · 배경 가락 · 흔들림 · 피해 숫자 · 진동 · 그래픽 · 피해 측정기
@@ -130,7 +131,7 @@ function pop(title, html, acts = [['확인', null]]) {
 
 // ── 창 — 지금 게임과 같은 일곱 창(들판 양옆 단추 · 창 머리 줄) + 설정(⚙). 칸은 붉은 알약(.subtabs .seg.wide) ──
 const TABS = [
-  ['char', '캐릭터', [['스탯', 'hero:0'], ['무공', 'hero:1'], ['무공 강화', 'hero:4'], ['마스터리', 'hero:2'], ['전직', 'hero:3']]],
+  ['char', '캐릭터', [['스탯', 'hero:0'], ['무공', 'hero:1'], ['무공 강화', 'hero:4'], ['마스터리', 'hero:2'], ['전직', 'hero:3'], ['칭호', 'title:0']]],
   ['bag', '장비', [['장착', 'gear:0'], ['뽑기', 'gear:1'], ['강화·성혼', 'gear:2'], ['가방', 'gear:3']]],
   ['comp', '동료', [['병기', 'grow:0'], ['동료', 'grow:1'], ['영물', 'grow:2']]],
   ['dgn', '던전', [['수련동', 'content:0'], ['무한 탑', 'content:1'], ['원정', 'content:2']]],
@@ -453,6 +454,18 @@ function paintWin() {
   } else if (key === 'rival:2') {
     const c = card('문파', '교체 때 서버와 함께 열려요');
     for (const [n, d, ic] of [['문파 토벌', '문파원 피해를 모아 주간 두목 단계를 깸', '伐'], ['문파 대항', '문파끼리 한 주 점수 겨루기', '爭'], ['문파 수련', '문파원 기여로 막대를 채우면 모두 보상', '修'], ['연구 · 도움', '문파원 기여로 연구를 올림', '硏']]) c(R(n, d, [], ic));
+  } else if (key === 'title:0') {
+    // v537 칭호 — 얻은 것 · 못 얻은 것(얻는 법) · 수집 효과 · 하나 달기
+    const own = new Set(g.S.titles || []), n = TITLES.filter((t) => own.has(t.name)).length;
+    const c0 = card('칭호 수집 효과', `${n} / ${TITLES.length}개`);
+    c0(statGrid(Object.entries(TITLE_EACH).map(([k, v]) => [STATS[k]?.name || k, `+${(v * n / 10).toFixed(0)}% (하나마다 +${v / 10}%)`])));
+    c0(R('다는 칭호', g.S.titleOn ? `「${esc(g.S.titleOn)}」 — 사냥터에서 이름 위에` : '없음', g.S.titleOn ? [['떼기', act(() => g.setTitle(null))]] : [], '稱'));
+    const c1 = card('칭호', '장 두목 첫 처치 · 출석 28일');
+    for (const t of TITLES) {
+      const has = own.has(t.name), on = g.S.titleOn === t.name;
+      const r = R(`<span style="color:${has ? t.col : 'inherit'}">${esc(t.name)}</span>`, has ? (on ? '달고 있음' : '얻음') : `잠김 — ${t.how}`, has ? [[on ? '달고 있음' : '달기', act(() => g.setTitle(t.name)), on]] : [], has ? '稱' : '鎖');
+      if (!has) r.style.opacity = '.5'; c1(r);
+    }
   } else if (key === 'attend:0') {
     const A = g.attendState(), can = g.canAttend();
     const c = card('출석', `${A.n % ATTEND_DAYS || (A.n ? ATTEND_DAYS : 0)}/${ATTEND_DAYS}일${A.cycle ? ` · ${A.cycle}바퀴 끝` : ''}`);
@@ -1136,6 +1149,13 @@ function draw() {
   }
   cx.font = '11px system-ui'; cx.textAlign = 'center'; cx.fillStyle = '#fff'; cx.strokeStyle = '#000'; cx.lineWidth = 3;
   cx.strokeText(JOBS[g.S.hero.job].name, hx, hy + 14); cx.fillText(JOBS[g.S.hero.job].name, hx, hy + 14);
+  if (g.S.titleOn) {   // v537 단 칭호 — 머리 위에 빛깔 글
+    const T = titleByName(g.S.titleOn), tx = `「${g.S.titleOn}」`;
+    cx.font = `800 ${10.5}px system-ui`; const tw = cx.measureText(tx).width + 10;
+    const ty = hy - 86 * sc;   // 머리 위(아래 메뉴에 가리지 않게)
+    cx.save(); cx.globalAlpha = 0.85; cx.fillStyle = 'rgba(0,0,0,.6)'; cx.fillRect(hx - tw / 2, ty - 11, tw, 14); cx.restore();
+    cx.fillStyle = T?.col || '#fde68a'; cx.strokeStyle = '#000'; cx.lineWidth = 3; cx.strokeText(tx, hx, ty); cx.fillText(tx, hx, ty);
+  }
   // 화살 · 기탄 — 무인 손에서 표적까지(살짝 포물선) · 빛 꼬리
   for (let i = shots.length - 1; i >= 0; i--) {
     const q = shots[i], a = (t - q.at) / q.dur;
