@@ -22,6 +22,7 @@ export const S2_MOB_ART = ROSTER.flatMap((r) => r.mobs.map((m) => m[1])).filter(
 // 장(1~15) · 몹 하나 → 그 몹의 [이름, 그림]. 같은 몹은 늘 같은 모습(번호로 고른다)
 import { CHBOSS } from './chboss.js';
 export function mobLook(ch, m) {
+  if (m.cb?.wb) return ['혈해마룡왕', 'chb:wb1'];   // v535 월드보스
   if (m.cb) return [CHBOSS[m.cb.ch]?.name || '장 두목', `chb:chb${m.cb.ch}`];   // v532 장 두목 — 새 그림
   const R = ROSTER[Math.max(0, Math.min(ROSTER.length - 1, ch - 1))];
   if (m.kind === 'boss') return R.boss;

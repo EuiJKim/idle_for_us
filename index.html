@@ -191,12 +191,13 @@
     .chbin { position: absolute; inset: 0; z-index: 40; pointer-events: none; overflow: hidden; animation: cbfade 2s ease forwards; }
     .chbin .cb-bg { position: absolute; inset: 0; background: linear-gradient(100deg, rgba(0,0,0,.85) 35%, transparent 36%), linear-gradient(100deg, transparent 34%, var(--c) 35%, transparent 37%); opacity: .9; animation: cbwipe .5s ease-out; }
     .chbin img { position: absolute; right: 6%; bottom: 0; height: 96%; filter: drop-shadow(0 0 24px var(--c)); animation: cbslide .55s cubic-bezier(.2,1.3,.4,1); }
+    .chbin.wb img { height: 100%; right: 2%; } .chbin.wb small { letter-spacing: .5em; color: #fca5a5; }
     .chbin .cb-t { position: absolute; left: 6%; top: 50%; transform: translateY(-50%); color: #fff; text-shadow: 0 3px 12px #000; animation: cbtxt .6s .15s ease-out both; }
     .chbin small { display: block; letter-spacing: .3em; font-size: 13px; color: var(--c); font-weight: 800; } .chbin b { display: block; font-size: 52px; font-weight: 900; letter-spacing: .06em; line-height: 1.1; } .chbin span { font-size: 16px; color: rgba(255,255,255,.85); }
     html.h500 .chbin b { font-size: 38px; }
     @keyframes cbslide { from { transform: translateX(60%) scale(1.15); opacity: 0; } to { transform: none; opacity: 1; } } @keyframes cbwipe { from { transform: translateX(-100%); } to { transform: none; } }
     @keyframes cbtxt { from { transform: translate(-40px, -50%); opacity: 0; } to { transform: translateY(-50%); opacity: 1; } } @keyframes cbfade { 0%, 80% { opacity: 1; } 100% { opacity: 0; } }
-    .cbban { position: absolute; left: 50%; top: 30%; transform: translate(-50%, -50%); z-index: 35; pointer-events: none; text-align: center; animation: dgban 1.3s ease forwards; text-shadow: 0 3px 10px #000; }
+    .cbban { position: absolute; left: 50%; top: 46%; transform: translate(-50%, -50%); z-index: 35; pointer-events: none; text-align: center; animation: dgban 1.3s ease forwards; text-shadow: 0 3px 10px #000; }
     .cbban b { display: block; font-size: 34px; font-weight: 900; color: #fca5a5; letter-spacing: .08em; } .cbban span { font-size: 13px; color: #fff; }
     .cbban.ult b { color: #f87171; font-size: 40px; } .cbban.stun b { color: #fde68a; } .cbban.win { animation-duration: 1.6s; } .cbban.win b { color: #fff; font-size: 46px; text-shadow: 0 0 18px #facc15, 0 0 36px #f59e0b; }
     .cbfirst { display: flex; gap: 10px; align-items: center; justify-content: center; margin: 4px 0; } .cbfirst img { height: 64px; filter: drop-shadow(0 0 8px #facc15); } .cbfirst small { display: block; font-size: 11px; color: var(--gold); } .cbfirst b { display: block; font-size: 16px; } .cbfirst span { font-size: 12px; }

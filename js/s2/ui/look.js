@@ -150,7 +150,7 @@ export function drawMob(cx, x, y, m, z, o = {}) {
     cx.restore(); return;
   }
   const im = artImg(artPath(src, key));
-  const H0 = src === 'chb' ? 165 : m.kind === 'boss' ? 118 : 100;   // 화면 키(배율 1일 때) · v532 장 두목은 크게
+  const H0 = src === 'chb' ? (key === 'wb1' ? 230 : 165) : m.kind === 'boss' ? 118 : 100;   // v535 월드보스는 더 크게   // 화면 키(배율 1일 때) · v532 장 두목은 크게
   const h = H0 * sc;
   // 발밑 그림자
   cx.save(); cx.fillStyle = 'rgba(0,0,0,0.26)'; cx.beginPath(); cx.ellipse(x + dir * lunge * 0.5, y + 1, h * 0.2, h * 0.05, 0, 0, 7); cx.fill(); cx.restore();

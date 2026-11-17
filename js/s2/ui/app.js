@@ -22,7 +22,7 @@ import { buildQueue } from '../content/offline.js';
 import { kindGrade } from '../grow/collect.js';
 import { loadLooks, zoneFor, drawHero, drawMob, mobName, mobHeight, preloadMobs, drawPaintedBack, drawPaintedLedge, drawEarth, chbImg, preloadChapter, fxImg, oldImg, tintImg, ULT_ART, SEAL_ART, CUT_ART, BUFF_ART, BOSS_ART, wearCount } from './look.js';
 import { BOSS_PATS } from '../tables/kit.js';
-import { CHBOSS, CB_PATS, CB } from '../tables/chboss.js';
+import { CHBOSS, CB_PATS, CB, WBF } from '../tables/chboss.js';
 import { play, unlock, setOpt, bgm } from './sound.js';
 import { PoseAnim, POSES, IDLE, mixPose } from '../../pose.js';
 // 설정(v504) — 이 기기에만(ifu.s2.opt). 소리 · 배경 가락 · 흔들림 · 피해 숫자 · 진동 · 그래픽 · 피해 측정기
@@ -438,7 +438,8 @@ function paintWin() {
     const Wb = g.S.wb || { used: 0, best: 0, total: 0, day: '' };
     const used = Wb.day === String(dayKey(now())) ? Wb.used : 0;
     const c = card('월드보스', '90초 동안 넣은 피해가 점수');
-    c(R('도전', `오늘 ${used}/3번`, [['도전', act(() => { const r = g.wbossFight(); if (r) pop('월드보스', `<p>피해 ${fmt(r.dmg)}</p><p>점수 <b>${fmt(r.score)}</b></p><p class="note">큰 피해일수록 점수가 덜 올라요(구간표).</p>`); return r; }), used >= 3]], '魔'));
+    // v535 실제 싸움 — 90초 · 방어 자세(20초 · 피해 ×0.6) ↔ 약점 노출(10초 · ×1.8) · 무력화하면 피해 ×2
+    c(R(`${WBF.name} <small>${WBF.title}</small>`, `오늘 ${used}/3번 · 90초 동안 넣은 피해가 점수 · 약점이 드러난 10초에 무공을 몰아 쓰세요`, [['도전', () => { play('click'); if (!g.enterDungeon('wboss')) toast(g.canDungeon('wboss') || '들어갈 수 없어요'); }, used >= 3 || !!g.canDungeon('wboss')]], '魔'));
     c(statGrid([['이번 주 점수 합', fmt(Wb.total)], ['한 번 최고', fmt(Wb.best)]]));
     B.append(note('미리보기: 서버 공동 체력 · 순위는 교체 때 붙어요. 점수 계산은 실제와 같아요.'));
   } else if (key === 'rival:1') {
@@ -1265,6 +1266,7 @@ function frame() {
       else if (e[0] === 'phase') { shakeUntil = t + 500; play('tense'); chbBanner(e[3] === 2 ? '필살 국면' : '분노', e[3] === 2 ? '붉은 땅 밖 — 빛나는 자리로 피하라!' : '두목이 빨라졌다', e[3] === 2 ? 'ult' : 'rage'); buzz(80); }
       else if (e[0] === 'stun') { play('rare', 4); chbBanner('무력화!', `${Math.round(e[3] / 1000)}초 기절 · 받는 피해 ×${CB.stunDmgX}`, 'stun'); }
       else if (e[0] === 'summon') addLog('두목이 졸개를 불렀다');
+      else if (e[0] === 'wbw') { if (e[2]) { chbBanner('약점 노출!', `10초 · 받는 피해 ×${WBF.weakX} — 무공을 몰아 쓰세요`, 'stun'); play('rare', 4); shakeUntil = t + 300; } else chbBanner('방어 자세', `받는 피해 ×${WBF.guardX}`, 'rage'); }
       else if (e[0] === 'hurt') play('hurt');
       else if (e[0] === 'die') { play('down'); buzz(200); }
       else if (e[0] === 'burst') { tells.delete(e[2]); skillFx.push({ at: t, shape: 'boss', pat: e[3], x: e[4], y: e[5], w: e[6] }); shakeUntil = t + (e[7] ? 420 : 220); if (e[7]) { hurtFlash = t; buzz(60); } play('burst'); }
@@ -1286,7 +1288,7 @@ function frame() {
     else if (f.k === 'tree') { const sk = skillById(f.id); toast(`${sk?.name} 강화 완료`); }
     else if (f.k === 'challenge') { play('boss'); addLog(`${Math.ceil(f.idx / 10)}장 ${((f.idx - 1) % 10) + 1}칸 ${f.chb ? '장 두목' : '두목'} 도전`); if (f.chb) chbIntro(f.chb); }
     else if (f.k === 'stage-clear' || f.k === 'stage-fail') showResult(f);
-    else if (f.k === 'dungeon-start') { closeWin(); play('tense'); dgBanner(f.title, g.dgStatus()); addLog(`${f.title} 입장`); }
+    else if (f.k === 'dungeon-start') { closeWin(); play('tense'); if (f.type === 'wboss') wbIntro(); else dgBanner(f.title, g.dgStatus()); addLog(`${f.title} 입장`); }
     else if (f.k === 'dungeon-end') showDgResult(f);
     else if (f.k === 'loot') lootFx(f);
   }
@@ -1376,6 +1378,12 @@ function chbIntro(ch) {
   d.innerHTML = `<div class="cb-bg"></div>${im ? `<img src="${im.src}" alt="${esc(D.name)}">` : ''}<div class="cb-t"><small>${ch}장 · 장 두목</small><b>${esc(D.name)}</b><span>${esc(D.title)}</span></div>`;
   $('battle').append(d); freezeUntil = now() + 1500; setTimeout(() => d.remove(), 2000); play('rare', 5); buzz(120);
 }
+function wbIntro() {
+  for (const o of document.querySelectorAll('.chbin')) o.remove();
+  const d = document.createElement('div'); d.className = 'chbin wb'; d.style.setProperty('--c', WBF.col);
+  d.innerHTML = `<div class="cb-bg"></div><img src="art/s2/chb/wb1.webp" alt="${esc(WBF.name)}"><div class="cb-t"><small>WORLD BOSS</small><b>${esc(WBF.name)}</b><span>${esc(WBF.title)} · 90초</span></div>`;
+  $('battle').append(d); freezeUntil = now() + 1500; setTimeout(() => d.remove(), 2000); play('rare', 6); buzz(160);
+}
 function chbBanner(big, small, kind) {
   for (const o of document.querySelectorAll('.cbban')) o.remove();
   const d = document.createElement('div'); d.className = `cbban ${kind}`; d.innerHTML = `<b>${esc(big)}</b>${small ? `<span>${esc(small)}</span>` : ''}`;
@@ -1389,11 +1397,31 @@ function dgBanner(title, st) {
 }
 // v531 던전 결과 — 단계 결과 창과 같은 틀(#res)
 const DG_GOAL = { kills: '몰려오는 적을 정해진 수만큼', boss: '두목 처치', wipe: '모든 적 처치', survive: '쓰러지지 않고 버티기' };
+function showWbResult(f) {
+  const R = $('res'), auto = opt.autoNext; play('clear');
+  const tile = (cls, n, label, i) => `<div class="rt" style="--d:${0.35 + i * 0.12}s"><i class="coin ${cls}"></i><b data-n="${n}">0</b><small>${label}</small></div>`;
+  R.className = 'open win';
+  R.innerHTML = `<div class="rp"><div class="rays"></div>
+      <div class="rsub">월드보스 · ${esc(WBF.name)}</div>
+      <div class="rtitle">${f.gaveUp ? '물러났어요' : 'WORLD BOSS'}</div>
+      <div class="rmeta"><span>싸운 시간 <b>${(f.ms / 1000).toFixed(0)}초</b></span>${f.deaths ? `<span>쓰러짐 <b>${f.deaths}</b></span>` : ''}<span>한 번 최고 <b>${unit(f.best)}</b></span><span>이번 주 합 <b>${unit(f.total)}</b></span></div>
+      <div class="rtiles">${tile('x', f.dmg, '넣은 피해', 0)}${tile('s', f.score, '보스 점수', 1)}</div>
+      ${f.score >= f.best && f.score > 0 ? '<div class="rnew">오늘의 최고 기록!</div>' : ''}
+      <div class="racts"><button class="btn primary rgo" id="rout"><span>사냥터로</span><i class="rbar"></i></button></div>
+      <label class="rauto"><input type="checkbox" id="rautochk" ${auto ? 'checked' : ''}> 3초 뒤 자동 진행</label></div>`;
+  const t0 = now();
+  for (const b of R.querySelectorAll('.rt b')) { const n = +b.dataset.n, d = parseFloat(b.parentNode.style.getPropertyValue('--d')) * 1000; const tick = () => { const a = Math.min(1, Math.max(0, (now() - t0 - d) / 900)); b.textContent = unit(Math.round(n * (1 - (1 - a) ** 3))); if (a < 1 && R.classList.contains('open')) requestAnimationFrame(tick); }; tick(); }
+  resTimer = auto ? now() + RES_MS + 1500 : 0; R.classList.toggle('timed', auto);
+  $('rautochk').onchange = (e) => { opt.autoNext = e.target.checked; saveOpt(); resTimer = opt.autoNext ? now() + RES_MS : 0; };
+  $('rout').onclick = () => { play('click'); closeResult(); };
+  addLog(`월드보스 — 피해 ${unit(f.dmg)} · 점수 ${unit(f.score)}`);
+}
 function showDgResult(f) {
   const win = f.cleared, auto = opt.autoNext, R = $('res');
   play(win ? 'clear' : 'fail');
   const tile = (cls, n, label, i) => `<div class="rt" style="--d:${0.35 + i * 0.12}s"><i class="coin ${cls}"></i><b data-n="${n}">0</b><small>${label}</small></div>`;
   const tiles = [f.gold && tile('s', f.gold, '은자', 0), f.exp && tile('x', f.exp, '경험치', 1), f.tix && tile('t', f.tix, '뽑기권', 2), f.stones && tile('st', f.stones, '강화석', 3)].filter(Boolean).join('');
+  if (f.type === 'wboss') return showWbResult(f);
   const extra = f.type === 'tower' && win ? `<div class="rnew">무한의 탑 ${f.floor}층 돌파 — 영구 보너스</div>` : f.type === 'job' && win ? `<div class="rnew">${f.n}차 전직!</div>` : '';
   R.className = `open ${win ? 'win' : 'lose'}`;
   R.innerHTML = `<div class="rp">${win ? '<div class="rays"></div>' : ''}

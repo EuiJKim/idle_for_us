@@ -15,7 +15,7 @@ import { START_PULLS } from './tables/s5.js';
 import { DAILY_DUNGEONS, DAILY_RUNS, JOB_DUNGEON } from './tables/content.js';
 import { GUIDE, DAILY_MISSIONS, WEEKLY_MISSIONS, achievements, guideCurrent } from './tables/missions.js';
 import { JOB_ADV } from './tables/skills.js';
-import { CHBOSS, CB, cbGearGrade, CB_REPEAT } from './tables/chboss.js';
+import { CHBOSS, CB, cbGearGrade, CB_REPEAT, WBF } from './tables/chboss.js';
 import * as GR from './gear/gear.js';
 import * as GC from './gear/gacha.js';
 import * as CL from './grow/collect.js';
@@ -27,7 +27,7 @@ import { power } from './online/power.js';
 import * as WB from './online/wboss.js';
 import * as PV from './online/pvp.js';
 import { refPlayer } from './battle/ref.js';
-import { PVP } from './tables/online.js';
+import { PVP, WBOSS } from './tables/online.js';
 
 export const COLLECTS = ['weapon', 'pal', 'relic'];
 const DAY = 24 * 3600e3, KST = 9 * 3600e3;
@@ -350,6 +350,8 @@ export class Game {
       const n = S.hero.adv + 1;
       if (n >= JOB_LV.length) return '전직을 다 했어요';
       if (S.hero.lv < JOB_LV[n]) return `Lv ${JOB_LV[n]}부터`;
+    } else if (type === 'wboss') {
+      const W = S.wb; if (W && W.day === String(dayKey(this.now)) && W.used >= WBOSS.tries) return '오늘은 다 했어요';
     } else if (type !== 'tower') return '없는 던전이에요';
     return '';
   }
@@ -357,6 +359,7 @@ export class Game {
     if (this.canDungeon(type, kind)) return false;
     const S = this.S, L = S.hero.lv, D = type === 'daily' ? DAILY_DUNGEONS[kind] : null;
     if (type === 'daily') { ID.useStamina(S.stamina.daily, this.now); S.dungeons.runs[kind] = (S.dungeons.runs[kind] || 0) + 1; }
+    if (type === 'wboss') { const W = (S.wb ??= { day: '', used: 0, best: 0, week: 0, total: 0 }); if (W.week !== S.qWeek) { W.week = S.qWeek; W.total = 0; W.best = 0; } WB.useTry(W, String(dayKey(this.now))); }
     const mob = (lv, kind2 = 'mob', w = 1) => ({ lv, kind: kind2, w });
     let title, clear, need = 0, limitMs, map, fams, hpX = 1, wipeN = 0, boss = false, extra = {};
     if (type === 'daily') {
@@ -366,6 +369,9 @@ export class Game {
       else if (clear === 'boss') { need = 1; boss = true; hpX = X.hpX; map = makeSideMap(7100 + L, { w: 14000, tiers: 1 }); fams = { a: { mobs: [mob(L)], keep: X.adds, coolMs: 4000 }, b: { mobs: [mob(L, 'boss')], keep: 0, coolMs: 1e12 } }; }
       else if (clear === 'survive') { map = makeSideMap(7200 + L, { w: 12000, tiers: 2 }); fams = { a: { mobs: [mob(L + X.lvUp, 'mob', X.mobW), mob(L, 'elite', X.eliteW)], keep: X.keep, coolMs: X.coolMs } }; }
       else { wipeN = need = X.n; map = makeSideMap(7300 + L, { w: 18000, tiers: 2 }); fams = { a: { mobs: [mob(L)], keep: X.n, coolMs: 1e12 } }; }
+    } else if (type === 'wboss') {   // v535 월드보스 — 쓰러지지 않는 거대 두목 · 90초 동안 넣은 피해 = 점수
+      title = `월드보스 · ${WBF.name}`; clear = 'timeoutWin'; limitMs = WBOSS.fightMs; boss = true;
+      map = makeSideMap(9100, CB.arena); fams = { b: { mobs: [mob(L, 'boss')], keep: 0, coolMs: 1e12 }, a: { mobs: [mob(L)], keep: 0, coolMs: 1e12 } };
     } else if (type === 'tower') {
       const f = S.tower.best + 1;
       title = `무한의 탑 ${f}층`; clear = 'wipe'; limitMs = 60000; wipeN = need = 4; hpX = ID.towerX(f); extra.floor = f;
@@ -375,10 +381,11 @@ export class Game {
       title = `${n}차 전직 던전`; clear = 'boss'; need = 1; boss = true; limitMs = 90000; hpX = JOB_DUNGEON[n].hpX; extra.n = n;
       map = makeSideMap(7500 + n, { w: 14000, tiers: 1 }); fams = { b: { mobs: [mob(JOB_LV[n], 'boss')], keep: 0, coolMs: 1e12 } };
     }
-    const F = new SideFight({ lv: L, dungeon: type, map, fams }, this.fighter(), this.rng.u32(), { auto: S.auto !== false });
+    const F = new SideFight({ lv: L, dungeon: type, map, fams, wb: type === 'wboss' }, this.fighter(), this.rng.u32(), { auto: S.auto !== false });
     if (boss) F.spawn('b', { p: 0, x: Math.round(map.w * 0.75) });
     if (wipeN) F.famState.a.keep = 0;   // 다 잡기: 처음 자리 몹만 · 다시 나오지 않음
     if (hpX !== 1) for (const m of F.mobs) { m.hp = Math.round(m.hp * hpX); m.st = { ...m.st, hp: m.hp }; }
+    if (type === 'wboss') for (const m of F.mobs) { m.hp = 1e15; m.st = { ...m.st, hp: 1e15 }; m.cb = { ch: 0, wb: true, pats: WBF.pats, phase: 1, gg: 0 }; m.name = WBF.name; }
     F.limitMs = limitMs;
     this.dg = { type, kind, title, clear, need, limitMs, F, ...extra };
     this.feed.push({ k: 'dungeon-start', type, kind, title });
@@ -391,6 +398,7 @@ export class Game {
     if (d.clear === 'kills') { p = F.kills / d.need; label = `처치 ${Math.min(F.kills, d.need)} / ${d.need}`; }
     else if (d.clear === 'boss') { const b = F.mobs.find((m) => m.kind === 'boss'); const r = b ? b.hp / b.st.hp : 0; p = 1 - r; label = `두목 체력 ${Math.ceil(r * 100)}%`; }
     else if (d.clear === 'wipe') { p = 1 - F.mobs.length / d.need; label = `남은 적 ${F.mobs.length} / ${d.need}`; }
+    else if (d.clear === 'timeoutWin') { p = F.t / d.limitMs; const dmg = Math.round(F.dmgOut * WBF.sideX); label = `피해 ${dmg} · 점수 ${WB.bossScore(dmg, this.S.hero.lv)}`; }
     else { p = F.t / d.limitMs; label = F.deaths ? '쓰러짐 — 실패' : `쓰러지지 말고 버티기 · ${Math.ceil(left / 1000)}초`; }
     return { title: d.title, type: d.type, kind: d.kind, clear: d.clear, p: Math.max(0, Math.min(1, p)), label, leftMs: left };
   }
@@ -400,7 +408,7 @@ export class Game {
     if (d.clear === 'boss' && F.killsBy.boss) return true;
     if (d.clear === 'wipe' && F.mobs.length === 0) return true;
     if (d.clear === 'survive' && F.deaths > 0) return false;
-    if (F.t >= d.limitMs) return d.clear === 'survive';
+    if (F.t >= d.limitMs) return d.clear === 'survive' || d.clear === 'timeoutWin';
     return null;
   }
   huntDungeon(ms) {
@@ -425,6 +433,11 @@ export class Game {
       (S.dungeons.best ??= {})[d.kind] = true;
       this.emit('dungeon', { kind: 1 });
     } else if (cleared && d.type === 'tower') { S.tower.best = d.floor; }
+    else if (d.type === 'wboss') {   // 나가도 넣은 만큼은 점수
+      const W = S.wb, dmg = Math.round(F.dmgOut * WBF.sideX), score = WB.bossScore(dmg, L);
+      W.total += score; W.best = Math.max(W.best, score); out.dmg = dmg; out.score = score; out.best = W.best; out.total = W.total;
+      this.emit('wboss');
+    }
     else if (cleared && d.type === 'job') { this.hero.clearDungeon(JOB_ADV[d.n].dungeon); this.hero.advance(); this.emit('dungeon', { job: d.n }); this.feed.push({ k: 'advance', n: d.n }); }
     const res = { k: 'dungeon-end', type: d.type, kind: d.kind, title: d.title, cleared, gaveUp, ms: F.t, kills: F.kills, deaths: F.deaths, floor: d.floor, n: d.n, ...out };
     this.feed.push(res); this.lastDg = res;
@@ -443,17 +456,7 @@ export class Game {
   claimExped() { const r = ID.claimExpedition(this.S.exped, this.now); if (r) this.giveHuntMin(r.huntMin); return r; }
   // ── 경쟁(미리보기: 서버 없이 같은 엔진으로) ──
   // 월드보스 한 번(90초) — 넣은 피해 → 보스 점수 · 하루 3번 · 주간 합계
-  wbossFight() {
-    const S = this.S, W = (S.wb ??= { day: '', used: 0, best: 0, week: 0, total: 0 });
-    if (W.week !== S.qWeek) { W.week = S.qWeek; W.total = 0; W.best = 0; }
-    if (!WB.useTry(W, String(dayKey(this.now)))) return null;
-    const L = S.hero.lv;
-    const r = runDungeon({ clear: 'timeoutWin', timeMs: 90000, mobLv: L, kind: 'boss', n: 1, hpX: 1e6, flags: ['bossMeter'] }, this.fighter(), this.rng.u32());
-    const score = WB.bossScore(r.meter, L);
-    W.total += score; W.best = Math.max(W.best, score);
-    this.emit('wboss');
-    return { dmg: r.meter, score, deaths: r.deaths };
-  }
+  wbossFight() { const r = this.runNow('wboss'); return r ? { dmg: r.dmg, score: r.score, deaths: r.deaths } : null; }
   // 대결 상대 셋(미리보기: 내 레벨 근처 기준 무인 — 서버가 붙으면 다른 무인의 방어 덱)
   pvpOpponents() {
     const S = this.S, P = (S.pvp ??= { score: PVP.start, day: '', used: 0, log: [] });

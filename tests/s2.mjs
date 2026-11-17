@@ -921,6 +921,24 @@ console.log('\n=== v534 장비 줍기 알림 ===');
   ok(!g.feed.some((f) => f.k === 'loot'), '뽑기는 제 연출이 있어 줍기 알림 없음');
 }
 
+console.log('\n=== v535 월드보스 실제 싸움 ===');
+{
+  const WBT = await import('../js/s2/online/wboss.js'), CBT = await import('../js/s2/tables/chboss.js');
+  ok(fs.existsSync(new URL('../art/s2/chb/wb1.webp', import.meta.url)), '월드보스 그림');
+  const T0 = 1.8e12, g = new Game(newGame('sword', T0, 8), T0); g.addExp(EX.cumExp(40)); g.tick(T0);
+  ok(g.enterDungeon('wboss') && g.dg.type === 'wboss' && g.dg.limitMs === 90000 && g.ensureFight().mobs.some((m) => m.cb?.wb), '도전 → 실제 싸움(쓰러지지 않는 거대 두목 · 90초)');
+  const F = g.dg.F, m = F.mobs.find((x) => x.cb?.wb);
+  F.t = 1000; m.hp = 1e15; let h = m.hp; for (let i = 0; i < 30; i++) F.strike(m, { coef: 100, base: true }); const dGuard = h - m.hp;
+  F.t = 25000; h = m.hp; for (let i = 0; i < 30; i++) F.strike(m, { coef: 100, base: true }); const dWeak = h - m.hp;
+  ok(dWeak > dGuard * 2.4, '약점 노출(20~30초) 피해가 방어 자세의 세 배', `${dWeak} / ${dGuard}`);
+  F.t = 0; F.dmgOut = 0;
+  for (let i = 0; i < 200 && g.dg; i++) g.hunt(1000);
+  const r = g.feed.find((f) => f.k === 'dungeon-end' && f.type === 'wboss');
+  ok(r && r.cleared && r.dmg > 0 && r.score === WBT.bossScore(r.dmg, 40) && g.S.wb.used === 1 && g.S.wb.total === r.score, '90초 뒤 끝 — 넣은 피해 → 보스 점수(구간표) · 하루 횟수 · 주간 합', `피해 ${r?.dmg} · 점수 ${r?.score}`);
+  g.runNow('wboss'); g.runNow('wboss');
+  ok(g.canDungeon('wboss') === '오늘은 다 했어요' && !g.enterDungeon('wboss'), '하루 3번');
+}
+
 console.log('\n=== S0 규칙 ===');
 {
   const files = [];

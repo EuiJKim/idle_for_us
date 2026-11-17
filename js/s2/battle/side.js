@@ -8,7 +8,7 @@ import { makeMob, SKILL_BASE, SKILL_MAIN } from './ref.js';
 import { JOBS } from '../tables/char.js';
 import { BASE_REGEN_P } from '../tables/economy.js';
 import { PAL_ATK, BOSS_PATS, BOSS_PAT_EVERY, skillById } from '../tables/kit.js';
-import { CB_PATS, CB } from '../tables/chboss.js';
+import { CB_PATS, CB, WBF } from '../tables/chboss.js';
 
 export const RUN = 4200, MOB_RUN = 1600, GRAV = 22000, JUMP_V = 11000, SAME_Y = 500;   // mm/s · mm/s² · mm
 export const MAIN_HITS = 4;          // 주력 무공은 앞쪽 여러 마리(장르 공통 — 한 번에 쓸어 담는 맛)
@@ -98,6 +98,7 @@ export class SideFight {
   step() {
     this.t += TICK_MS;
     const H = this.hero, J = JOBS[H.job], map = this.def.map;
+    if (this.def.wb) { const w = this.wbWeak(); if (w !== !!this.wbW) { this.wbW = w; this.events.push(['wbw', this.t, w ? 1 : 0]); } }   // v535 월드보스 자세가 바뀜
     // 화면이 틱 사이를 이어 그리도록 직전 자리를 남긴다(엔진 결과에는 영향 없음)
     H.px = H.x; H.py = H.y;
     for (const m of this.mobs) { m.px = m.x; m.py = m.y; }
@@ -327,6 +328,7 @@ export class SideFight {
   strike(m, skill, hitNo = 0, att = null) {
     const r = hit(att || this.hero, m, skill, this.rng);
     if (m.stunUntil > this.t) r.dmg = Math.round(r.dmg * CB.stunDmgX);   // v532 기절한 두목은 피해 ×2
+    if (m.cb?.wb) r.dmg = Math.round(r.dmg * (this.wbWeak() ? WBF.weakX : WBF.guardX));   // v535 월드보스: 방어 자세 ×0.6 · 약점 ×1.8
     m.hp -= r.dmg; m.angry = true; this.dmgOut += r.dmg; if (r.crit) this.crits++;
     const cb = m.cb;
     if (cb && m.hp > 0) {
@@ -342,6 +344,7 @@ export class SideFight {
       if (this.hero.target === m.id) this.hero.target = -1;
     }
   }
+  wbWeak() { return this.t % WBF.cycleMs >= WBF.guardMs; }
   run(ms) { const end = this.t + ms; while (this.t < end) this.step(); return this; }
   digest() {
     let h = 0x811c9dc5;
