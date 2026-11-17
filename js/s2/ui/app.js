@@ -630,6 +630,7 @@ function paintWin() {
     const used = P.day === String(dayKey(now())) ? P.used : 0;
     const c0 = card(`대결 점수 ${P.score}`, `오늘 ${used}/5번`);
     pvpFetch(); pvpInbox();
+    if ((g.S.favs || []).length) { const cf = card('즐겨찾기 무인', '정보 · 친선 대결(점수와 상관없이)'); for (const f of g.S.favs) cf(R(esc(f.name), '', [['친선', () => { play('click'); friendly(f.uid); }, !net.online], ['정보', () => { play('click'); playerCard(f.uid); }, !net.online]], '友')); }   // v569
     g.pvpOpponents().forEach((o, i) => c0(R(`${esc(o.name)} <small>${JOBS[o.f.job].name} Lv ${o.f.lv}</small> ${o.real ? '<span class="pill pv-real">무인</span>' : '<span class="pill">연습</span>'}`, `대결 전투력 ${fmt(o.pw)}${o.real ? ` · 점수 ${o.score}` : ''}`,
       [['도전', act(() => { const r = g.pvpFight(i); if (r) { if (r.oppUid) net.pvpLog(r.oppUid, { name: g.S.nick, win: r.win, d: r.defD, seed: r.d }).catch(() => {}); rankPush(); closeWin(); duelShow(r); } return r; }), used >= 5], ...(o.real ? [['정보', () => { play('click'); playerCard(o.uid); }]] : [])], JOBS[o.f.job].name[0])));   // v568 진짜 상대 정보
     if (!g.pvpOpponents().some((o) => o.real)) c0(note(net.online ? '점수가 가까운 무인을 찾는 중 — 없으면 연습 상대와 겨뤄요' : '오프라인 — 연습 상대와 겨뤄요'));
@@ -842,11 +843,17 @@ function playerCard(uid) {
     const eq = Object.fromEntries(SLOTS.map((sl) => [sl, { slot: sl, g: p.lk?.[sl] ?? Math.min(6, Math.floor((p.lv || 1) / 25)), up: 0, subs: [] }]));
     const html = `<div class="pc"><canvas width="240" height="260"></canvas><div class="pc-i"><b>${esc(p.nickname || '무인')}${uid === net.uid ? ' <small>(나)</small>' : ''}</b><span>${esc(JOBS[p.job]?.name || '')} · Lv ${p.lv}</span>
       <div class="pc-g"><span>전투력</span><em>${unit(p.power || 0)}</em><span>대결</span><em>${p.pvpScore ?? p.pvp ?? '-'}${p.pvpScore != null ? ` · ${esc(tierName(p.pvpScore))}` : ''}</em><span>월드보스(주)</span><em>${unit(p.wbScore || 0)}</em><span>문파</span><em>${p.guildId ? esc(p.guildId) : '없음'}</em></div></div></div>`;
-    closeModal(); pop('무인 정보', html);
+    closeModal();
+    const acts = uid === net.uid ? [['확인', null]] : [[g.isFav(uid) ? '즐겨찾기 빼기' : '즐겨찾기', () => { const r2 = g.toggleFav(uid, p.nickname); save(); toast(r2 === null ? '즐겨찾기는 20명까지' : r2 ? '즐겨찾기에 넣었어요' : '즐겨찾기에서 뺐어요'); }], ['친선 대결', () => friendly(uid)], ['확인', null]];   // v569
+    pop('무인 정보', html, acts);
     const cv = $('modal').querySelector('.pc canvas'); if (cv && JOBS[p.job]) { const x = cv.getContext('2d'); let t0 = now(); const tick = () => { if (!cv.isConnected) return; x.clearRect(0, 0, 240, 260); drawHero(x, 120, 245, p.job, p.lv || 1, { t: (now() - t0) / 1000, scale: 2.5, eq }); requestAnimationFrame(tick); }; tick(); }
   }).catch(() => { toast('불러오지 못했어요'); closeModal(); });
 }
 const tierName = (sc) => { const T = [[2150, '현경'], [1850, '화경'], [1600, '초절정'], [1400, '절정'], [1250, '고수'], [1100, '중수'], [0, '하수']]; return (T.find(([m]) => sc >= m) || T.at(-1))[1]; };
+// v569 친선 대결 — 그 무인의 방어 덱과(점수 · 횟수 그대로 · 기록 남지 않음)
+function friendly(uid) {
+  net.pvpDeckOf(uid).then((opp) => { const r = opp && g.pvpFriendly(opp); if (!r) { toast('겨룰 수 없어요(방어 덱 없음)'); return; } closeModal(); closeWin(); duelShow(r); }).catch(() => toast('불러오지 못했어요'));
+}
 // v559 무공 모두 올리기 결과 — 무공마다 Lv 전 → 후 · 쓴 은자 · 전투력
 function kitAllPop(r) {
   const rows = r.per.map((x, i) => { const sk = skillById(x.id); return `<div class="ea-r" style="--d:${0.1 + i * 0.06}s"><span style="color:${sk?.col || '#fff'}">${esc(sk?.name || x.id)}</span><b>Lv ${x.from}</b><i>→</i><b class="up">Lv ${x.to}</b></div>`; }).join('');
@@ -1750,9 +1757,9 @@ function duelShow(r) {
   const finish = () => {
     if (done) return; done = true;
     while (i < r.log.length) { const e = r.log[i++]; left[e[1]] -= e[2]; }
-    endAt = now(); say(`<b>${r.win ? 'WIN' : 'LOSE'}</b><span>점수 ${r.d >= 0 ? '+' : ''}${r.d} → ${r.score} · ${esc(r.tier)}</span><em>누르면 닫기</em>`, r.win ? 'win' : 'lose');
+    endAt = now(); say(`<b>${r.win ? 'WIN' : 'LOSE'}</b><span>${r.friendly ? '친선 대결 — 점수는 그대로' : `점수 ${r.d >= 0 ? '+' : ''}${r.d} → ${r.score} · ${esc(r.tier)}`}</span><em>누르면 닫기</em>`, r.win ? 'win' : 'lose');
     play(r.win ? 'clear' : 'fail'); if (r.win) buzz(80);
-    addLog(`대결 ${r.win ? '승리' : '패배'} — ${r.opp.name} · 점수 ${r.d >= 0 ? '+' : ''}${r.d}`);
+    addLog(r.friendly ? `친선 대결 ${r.win ? '승리' : '패배'} — ${r.opp.name}` : `대결 ${r.win ? '승리' : '패배'} — ${r.opp.name} · 점수 ${r.d >= 0 ? '+' : ''}${r.d}`);
   };
   ov.onclick = () => { if (!done) finish(); else { ov.remove(); paintHud(); } };
   const tick = () => {

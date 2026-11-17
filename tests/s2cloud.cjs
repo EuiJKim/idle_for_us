@@ -43,6 +43,8 @@ async function device(b) {
   assert(await A.page.isVisible('#wb .rk-r.me') && /내 등수|시험무인/.test(await A.page.textContent('#wb')), 'A: 무림 → 서열 화면(내 줄)');
   await A.page.click('#wb .rk-r.me'); await sleep(1500);   // v567 줄을 누르면 무인 정보
   assert(/무인 정보/.test(await A.page.textContent('#modal')) && /전투력/.test(await A.page.textContent('#modal')) && await A.page.isVisible('#modal .pc canvas'), 'A: 서열 줄 → 무인 정보(모습 · 전투력)');
+  // v569 내 줄이라 즐겨찾기 · 친선 단추는 없다
+  assert(!(await A.page.isVisible('#modal .btn:has-text("친선 대결")')), 'A: 내 정보에는 친선 대결 없음');
   await A.page.click('#modal .btn:has-text("확인")'); await sleep(200);
   await A.page.click('#panel-close');
   await A.page.click('#b-opt');
@@ -113,7 +115,14 @@ async function device(b) {
   { const tx = await D.page.textContent('#panel-body'); assert(/시험문파/.test(tx) && (await D.page.$$('#wb .row:has-text("전투력")')).length === 2, 'D: 무림 → 문파 화면(이름 · 문파원 둘) ' + tx.slice(0, 120)); }
   await D.page.click('#wb .row.pc-open >> nth=0'); await sleep(1500);   // v568 문파원을 누르면 무인 정보
   assert(/무인 정보/.test(await D.page.textContent('#modal')) && await D.page.isVisible('#modal .pc canvas'), 'D: 문파원 줄 → 무인 정보');
-  await D.page.click('#modal .btn:has-text("확인")'); await sleep(200);
+  if (await D.page.isVisible('#modal .btn:has-text("친선 대결")')) {   // v569 남의 정보면 친선 대결 → 대결 화면(점수 그대로)
+    const sc0 = await D.page.evaluate(() => window.__s2.g.S.pvp?.score);
+    await D.page.click('#modal .btn:has-text("친선 대결")'); await sleep(1500);
+    assert(await D.page.isVisible('.duel') && await D.page.evaluate(() => window.__s2.g.S.pvp?.score) === sc0, 'D: 친선 대결 → 대결 화면 · 점수 그대로');
+    await D.page.click('.duel'); await sleep(200); await D.page.click('.duel').catch(() => {}); await sleep(200);
+    await D.page.evaluate(() => document.querySelectorAll('.duel').forEach((o) => o.remove()));
+    await D.page.click('[data-tab="social"] >> nth=0'); await D.page.click('#panel-body .subtabs button:has-text("문파")'); await sleep(800);
+  } else { await D.page.click('#modal .btn:has-text("확인")'); await sleep(200); }
   await D.page.click('#panel-close');
   // v550 문파 토벌 — 둘이 피해를 보태면 합 · 이름이 문파 문서에
   const gr = await D.page.evaluate(async (c) => { const n = window.__s2.net, wk = window.__s2.wkStr(Date.now()); await n.graidHit(c, wk, 'D무인', 1000, 37); return n.graidGet(c, wk); }, gcode);

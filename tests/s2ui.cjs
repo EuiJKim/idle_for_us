@@ -48,7 +48,7 @@ const ok = (c, m, x = '') => { console.log(`  ${c ? '✓' : '✗ !!'} ${m}${x !=
     // 손 조작: 수동으로 바꾸고 ◀ 를 누르고 있으면 왼쪽으로 달린다 · 점프 단추
     await page.click('#au');
     ok(await page.evaluate(() => window.__s2.g.S.auto === false), '자동/수동 단추 — 수동으로');
-    const h0 = await page.evaluate(() => window.__s2.g.ensureFight().hero.x);
+    const h0 = await page.evaluate(() => { const F = window.__s2.g.ensureFight(); F.hero.x = Math.max(F.hero.x, Math.round(F.def.map.w / 2)); return F.hero.x; });   // v569 왼쪽 벽 가까이서 시작하면 덜 달려 흔들렸다 → 가운데 넘어서 시작
     const pl = await page.$('#pl'); const bb = await pl.boundingBox();
     await page.mouse.move(bb.x + bb.width / 2, bb.y + bb.height / 2); await page.mouse.down(); await page.waitForTimeout(1000); await page.mouse.up();
     const h1 = await page.evaluate(() => window.__s2.g.ensureFight().hero.x);

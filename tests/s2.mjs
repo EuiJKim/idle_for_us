@@ -1237,6 +1237,18 @@ console.log('\n=== v566 대결 상대 외형 ===');
   ok(r.opp.lk && r.opp.lk.hat === 6 && !('ring' in r.opp.lk && r.opp.lk.ring === 99) && !('nope' in r.opp.lk), '받은 외형은 있는 칸 · 0~6만 · 대결 화면으로');
 }
 
+console.log('\n=== v569 즐겨찾기 · 친선 대결 ===');
+{
+  const T0 = 1.8e12, A = new Game(newGame('sword', T0, 19), T0); A.addExp(EX.cumExp(40)); A.tick(T0);
+  const B = new Game(newGame('mage', T0, 20), T0); B.addExp(EX.cumExp(40)); B.tick(T0);
+  ok(A.toggleFav('B', '법사') === true && A.isFav('B') && A.toggleFav('B') === false && !A.isFav('B'), '즐겨찾기 넣기 · 빼기');
+  for (let i = 0; i < 20; i++) A.toggleFav(`u${i}`, 'x'); ok(A.toggleFav('u99', 'x') === null, '20명까지');
+  const s0 = A.S.pvp?.score ?? 1000, used0 = A.S.pvp?.used ?? 0;
+  const r = A.pvpFriendly({ uid: 'B', name: '법사', score: 1000, f: JSON.parse(B.pvpDeck()) });
+  ok(r && r.friendly && r.d === 0 && (A.S.pvp?.score ?? 1000) === s0 && (A.S.pvp?.used ?? 0) === used0 && r.log.length > 0, '친선 대결: 점수 · 횟수 그대로 · 화면 기록 있음');
+  ok(A.pvpFriendly({ uid: 'X', f: { lv: 999, job: 'sword', st: {} } }) === null, '있을 수 없는 덱은 못 겨룸');
+}
+
 console.log('\n=== S0 규칙 ===');
 {
   const files = [];

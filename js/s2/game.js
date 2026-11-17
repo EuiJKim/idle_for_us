@@ -716,6 +716,20 @@ export class Game {
       lk: Object.fromEntries(Object.entries(x.f.lk || {}).filter(([sl, gr]) => SLOTS.includes(sl) && Number.isInteger(gr) && gr >= 0 && gr <= 6)) }));   // v566 외형(있는 칸 · 0~6만)
     return this.pvpReal.length;
   }
+  // v569 즐겨찾기 무인(최대 20) · 친선 대결(점수 · 횟수와 상관없이 그 덱과 겨뤄 보기 — 기록 남지 않음)
+  toggleFav(uid, name) {
+    const F = (this.S.favs ??= []), i = F.findIndex((x) => x.uid === uid);
+    if (i >= 0) { F.splice(i, 1); return false; }
+    if (F.length >= 20) return null;
+    F.push({ uid: String(uid).slice(0, 64), name: String(name || '무인').slice(0, 12) }); return true;
+  }
+  isFav(uid) { return (this.S.favs || []).some((x) => x.uid === uid); }
+  pvpFriendly(opp) {
+    const save = this.pvpReal; if (!this.setPvpReal([opp])) { this.pvpReal = save; return null; }
+    const o = this.pvpReal[0]; this.pvpReal = save;
+    const me = this.fighter(), log = [], r = PV.duel(me, o.f, this.rng.u32(), log);
+    return { ...r, d: 0, friendly: true, score: this.S.pvp?.score ?? PVP.start, tier: PV.tierOf(this.S.pvp?.score ?? PVP.start).name, log, opp: { name: o.name, job: o.f.job, lv: o.f.lv, hp: o.f.st.hp, real: true, lk: o.lk || null }, myHp: me.st.hp };
+  }
   // v563 복수 — 방어에서 진 상대(그 덱)와 바로 겨룬다(오늘 횟수 하나). 이기면 그 기록에 「복수함」
   pvpRevenge(logIdx, opp) {
     const P = this.S.pvp, L = P?.log?.[logIdx];
