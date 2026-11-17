@@ -47,8 +47,9 @@ export const gachaCost = (L, glv = 1) => [{ k: 'gold', n: goldPerMob(L) * gachaC
 // 강화 비용(칸 강화 단계 e) · 성혼 비용(별 s)
 // v528 강화는 은자 + 강화석 — 60일 만렙(하루 접속 20시간) 기준으로 평균 1일 +5 · 7일 +10 · 30일 +16 · 55일쯤 +20.
 //   강화석은 분해 · 단련동에서 나와 하루에 얻는 양이 접속 시간만큼 늘지 않는다(앞에 많고 뒤로 줄어듦) → 한 번에 드는 강화석은 앞에서 빨리 오르고 뒤는 완만하게.
-export const ENH_STONE = { base: 23, add: 69, k: 4 };
-export const enhStones = (e) => Math.round(ENH_STONE.base + ENH_STONE.add * (1 - Math.exp(-e / ENH_STONE.k)));
+export const ENH_STONE = { base: 37, add: 110, k: 4, late: 15 };   // v542 ×1.6 + 「+16부터 15씩 더」 — v532~v541 보상으로 30일 +20이 되던 것을 다시 30일 +16 · 55일쯤 +20으로
+//   v542 +16부터(e ≥ 16)는 한 단계마다 late씩 더 — 뒤로 갈수록 강화석이 잘 모여(높은 등급 분해 · 토벌 · 업적) 마지막 넷이 너무 빨리 끝나던 것
+export const enhStones = (e) => Math.round(ENH_STONE.base + ENH_STONE.add * (1 - Math.exp(-e / ENH_STONE.k)) + ENH_STONE.late * Math.max(0, e - 15));
 export const enhCost = (e, L) => [{ k: 'gold', n: Math.round(goldPerMob(L) * 20 * Math.pow(1.25, e)) }, { k: 'item:stone', n: enhStones(e) }];
 // v529 성혼도 60일 만렙(하루 접속 20시간) 기준 — 평균 1일 ★5 · 7일 ★10 · 30일 ★16 · 60일 ★20쯤. 은자만 든다(강화석은 강화 몫).
 export const STAR_GOLD = { base: 500, r: 1.15 };

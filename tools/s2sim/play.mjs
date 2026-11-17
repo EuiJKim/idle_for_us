@@ -10,7 +10,10 @@ const { SLOTS } = await import(root + 'tables/gear.js');
 const { treeOf, skillById } = await import(root + 'tables/kit.js');
 const { MASTERY } = await import(root + 'tables/skills.js');
 const { DAILY_DUNGEONS } = await import(root + 'tables/content.js');
-const STAR_CAP = Number(process.env.STAR_CAP || 25);   // v529 성혼은 끝(25)까지 · 15성부터 파괴 방지
+const STAR_CAP = Number(process.env.STAR_CAP || 25);
+const OLD = !!process.env.OLD;
+// 강화석 비용 맞추기(봇만) — ENHX=1.5 면 ENH_STONE base · add를 1.5배로 해 보고 곡선을 본다
+if (process.env.ENHX) { const GS = await import(root + 'tables/gearstat.js'); const x = Number(process.env.ENHX); GS.ENH_STONE.base = Math.round(GS.ENH_STONE.base * x); GS.ENH_STONE.add = Math.round(GS.ENH_STONE.add * x); }   // v529 성혼은 끝(25)까지 · 15성부터 파괴 방지
 
 export function play({ days = 7, job = 'sword', seed = 1, active = 120, ad = false, marks = [], onMark } = {}) {
   const T0 = Date.UTC(2026, 0, 5, 1, 0, 0);   // 월요일 오전(한국 10시)
@@ -47,6 +50,18 @@ export function play({ days = 7, job = 'sword', seed = 1, active = 120, ad = fal
     if (S.exped.run && now >= S.exped.run.endMs) g.claimExped();
     if (!S.exped.run) g.startExped(12);
     g.wbossFight(); for (let i = 0; i < 5; i++) g.pvpFight(0);
+    // v542 v536~v541 보상 — 출석 · 장 두목 토벌(가장 높은 깬 장부터 하루 2번 · 실제 싸움). OLD=1 이면 예전 봇(비교용)
+    if (!OLD) {
+      if (g.canAttend()) g.attend();
+      const chs = Object.keys(S.chb || {}).map(Number).sort((a, b) => b - a);
+      for (const ch of chs) {
+        if (!g.canRaid(ch)) continue;
+        g.raid(ch); let n = 0; while (g.bossFight && n++ < 400) g.hunt(1000);
+        for (const f of g.feed) if (f.k === 'raid-end') { stats.raid = (stats.raid || 0) + 1; stats.raidStar = (stats.raidStar || 0) + f.stars; }
+        if (!g.raidLeft()) break;
+      }
+      for (const [b, B] of Object.entries(g.books)) for (const id of B.defs.keys()) g.claimMission(b, id);
+    }
   };
   const out = [];
   let mi = 0;
