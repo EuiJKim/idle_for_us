@@ -1267,6 +1267,16 @@ console.log('\n=== v575 문파 Lv 출석 보너스 ===');
   const t0 = g.S.wallet['ticket:gear'] || 0, r = g.guildCheckin(7); ok(r.tix === 5 && g.S.wallet['ticket:gear'] === t0 + 5, '문파 Lv 7 출석 → 뽑기권 2 + 3');
 }
 
+console.log('\n=== v576 무림 공동 토벌 ===');
+{
+  const T0 = 1.8e12, g = new Game(newGame('sword', T0, 24), T0); g.tick(T0);
+  ok(g.wbCommunityClaim(1000) === null, '첫 단계 전엔 없음');
+  const t0 = g.S.wallet['ticket:gear'] || 0, r = g.wbCommunityClaim(300000);
+  ok(r && r.n === 2 && g.S.wallet['ticket:gear'] === t0 + 8 && g.wbCommunityClaim(300000) === null, '두 단계 넘으면 3 + 5 한 번에 · 다시는 없음');
+  ok(g.wbCommunityClaim(2e6).tix === 10, '다음 단계만 더');
+  g.tick(T0 + 7 * 86400000); ok(g.wbCommunityGot() === 0, '다음 주 새로');
+}
+
 console.log('\n=== S0 규칙 ===');
 {
   const files = [];

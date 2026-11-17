@@ -1,6 +1,6 @@
 // 새 시즌 화면 — v524부터 첫 화면(index.html). 옛 게임은 classic.html(세이브는 따로 · ifu.s2.*가 새 시즌).
 // 화면은 엔진(js/s2/game.js)만 본다. 시계는 화면 쪽에서만 읽어 엔진에 넘긴다(엔진은 결정론).
-import { Game, newGame, COLLECTS, dayKey, weekKey, STAGE_KILLS, GRAID, graidHp0, GTRAIN, WEEK_REW } from '../game.js';
+import { Game, newGame, COLLECTS, dayKey, weekKey, STAGE_KILLS, GRAID, graidHp0, GTRAIN, WEEK_REW, WB_COMMUNITY } from '../game.js';
 import { raidPhase } from '../online/guild.js';
 import { SAVE_KEY } from '../core/save.js';
 import { S2Net } from './net.js';
@@ -105,7 +105,7 @@ function pvpFetch() {
   net.pvpFind(g.S.pvp?.score ?? 1000).then((list) => { g.setPvpReal(list); if (open === 'social') paintWin(); }).catch((e) => console.warn('[s2net] pvp', e?.code || e));
 }
 function wbPush(score) { if (!net.online || !g || !(score > 0)) return; ensureNick(); net.pushWboss(wkStr(Date.now()), g.S.nick, score).catch((e) => console.warn('[s2net] wboss', e?.code || e)); }
-let rankMode = 'power', rankCache = {};
+let rankMode = 'power', rankCache = {}, wbComState = null;   // v576
 // v549 문파 — 내 문파(서버) · 찾기 목록 · 문파원 프로필. 30초마다 새로 · 바꾸면 바로
 const S2NetDay = () => new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10);
 const guildState = { wbLast: undefined, g: null, list: null, prof: null, at: 0, busy: false, msgs: [], chatGid: null, unsub: null, seen: 0 };
@@ -648,6 +648,15 @@ function paintWin() {
     // v535 실제 싸움 — 90초 · 방어 자세(20초 · 피해 ×0.6) ↔ 약점 노출(10초 · ×1.8) · 무력화하면 피해 ×2
     c(R(`${WBF.name} <small>${WBF.title}</small>`, `오늘 ${used}/3번 · 90초 동안 넣은 피해가 점수 · 약점이 드러난 10초에 무공을 몰아 쓰세요`, [['도전', () => { play('click'); if (!g.enterDungeon('wboss')) toast(g.canDungeon('wboss') || '들어갈 수 없어요'); }, used >= 3 || !!g.canDungeon('wboss')]], '魔'));
     c(statGrid([['이번 주 점수 합', fmt(Wb.total)], ['한 번 최고', fmt(Wb.best)]]));
+    // v576 무림 공동 토벌 — 이번 주 모든 무인의 점수 합 · 단계 보상
+    { const cc = card('무림 공동 토벌', '이번 주 모든 무인의 점수를 모아요 · 단계마다 각자 한 번');
+      const T = wbComState, got = g.wbCommunityGot(), tot = T?.sum || 0, nextS = WB_COMMUNITY.find((x) => tot < x.at);
+      const bar = document.createElement('div'); bar.className = 'achbar'; const top = nextS ? nextS.at : WB_COMMUNITY.at(-1).at;
+      bar.innerHTML = `<i style="width:${Math.min(100, (tot / top) * 100)}%"></i><span>${T ? `${unit(tot)} / ${unit(top)} · ${T.n}명` : net.online ? '불러오는 중…' : '오프라인'}</span>`; cc(bar);
+      const reach = WB_COMMUNITY.filter((x) => tot >= x.at).length;
+      cc(R('단계 보상', WB_COMMUNITY.map((x, i) => `${unit(x.at)} → 뽑기권 ${x.tix}${i < got ? ' ✓' : ''}`).join(' · '), [['받기', act(() => { const r = g.wbCommunityClaim(tot); if (r) { play('rare', 4); toast(`공동 토벌 ${r.n}단계 — 뽑기권 ${r.tix}`); } return r; }), reach <= got]], '衆'));
+      if (net.online && (!T || Date.now() - T.at > 30000)) net.wbTotal(wkStr(Date.now())).then((r) => { wbComState = { ...r, at: Date.now() }; if (open === 'social') paintWin(); }).catch(() => { wbComState = { sum: 0, n: 0, at: Date.now() }; });
+    }
     B.append(note('주간 점수는 칠 때마다 서버 서열(무림 → 서열 → 이번 주 월드보스)에 올라가요.'));
   } else if (key === 'rival:1') {
     const P = g.S.pvp || { score: 1000, used: 0, day: '', log: [] };

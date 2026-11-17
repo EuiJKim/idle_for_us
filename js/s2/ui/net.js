@@ -54,6 +54,11 @@ export class S2Net {
     });
     return true;
   }
+  async wbTotal(wk) {   // v576 이번 주 모든 무인 월드보스 점수 합 · 참가 수
+    const fs = this.fs, col = fs.collection(this.db, 's2_wboss', wk, 'p');
+    const a = await fs.getAggregateFromServer(col, { sum: fs.sum('score'), n: fs.count() });
+    return { sum: a.data().sum || 0, n: a.data().n || 0 };
+  }
   async top(kind, wk, n = 50) {
     if (!this.online) return null;
     const fs = this.fs, col = kind === 'wb' ? fs.collection(this.db, 's2_wboss', wk, 'p') : fs.collection(this.db, 's2_players');

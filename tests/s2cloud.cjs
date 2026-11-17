@@ -39,6 +39,8 @@ async function device(b) {
   const rk = await A.page.evaluate(async () => { const n = window.__s2.net, wk = window.__s2.wkStr(Date.now()); const p = await n.top('power', wk, 50), w = await n.top('wb', wk, 50); return { p: p.rows.find((r) => r.uid === n.uid), w: w.rows.find((r) => r.uid === n.uid), me: p.me }; });
   assert(rk.p && rk.p.nickname === '시험무인' && rk.p.lv === 37 && rk.me >= 1, 'A: 서열 프로필이 올라가 위 목록에 보임');
   assert(rk.w && rk.w.score === 12345 && rk.w.tries === 1, 'A: 월드보스 주간 점수 올라감');
+  const wt = await A.page.evaluate(async () => window.__s2.net.wbTotal(window.__s2.wkStr(Date.now())));
+  assert(wt.sum >= 12345 && wt.n >= 1, `v576 이번 주 모든 무인 점수 합(${wt.sum} · ${wt.n}명)`);
   await A.page.click('[data-tab="social"] >> nth=0'); await A.page.click('#panel-body .subtabs button:has-text("서열")'); await sleep(1500);
   assert(await A.page.isVisible('#wb .rk-r.me') && /내 등수|시험무인/.test(await A.page.textContent('#wb')), 'A: 무림 → 서열 화면(내 줄)');
   await A.page.click('#wb .rk-r.me'); await sleep(1500);   // v567 줄을 누르면 무인 정보

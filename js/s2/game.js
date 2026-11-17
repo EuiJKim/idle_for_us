@@ -28,6 +28,8 @@ export const WEEK_REW = {
   pvp: [2, 4, 6, 9, 12, 16, 20],                       // 등급(하수 → 현경)마다 장비 뽑기권
   wb: [[1, 30], [3, 20], [10, 15], [50, 10], [100, 6], [Infinity, 3]],   // 순위 이하 → 뽑기권(친 사람은 적어도 3)
 };
+// v576 무림 공동 토벌 — 이번 주 모든 무인의 월드보스 점수 합이 단계를 넘으면 각자 한 번씩(장비 뽑기권)
+export const WB_COMMUNITY = [{ at: 50000, tix: 3 }, { at: 250000, tix: 5 }, { at: 1000000, tix: 10 }];
 export const graidHp0 = (lv) => Math.round(WB.refTryDmg(Math.max(10, lv)) * GRAID.hpX);
 const TODAY_CHEST = { tix: 3, goldMin: 30, dungeonRuns: 3 };   // v545 하루 상자
 import { ATTEND, ATTEND_DAYS } from './tables/attend.js';
@@ -170,6 +172,15 @@ export class Game {
     this.S.pvp.lastGot = r.wk; this.S.wallet['ticket:gear'] = (this.S.wallet['ticket:gear'] || 0) + r.tix;
     return r;
   }
+  // v576 공동 토벌 보상 — 이번 주 합(서버) · 단계마다 한 번
+  wbCommunityClaim(total) {
+    const S = this.S, wk = weekKey(this.now), C = (S.wbCom ??= { wk, got: 0 }); if (C.wk !== wk) Object.assign(C, { wk, got: 0 });
+    const reach = WB_COMMUNITY.filter((x) => total >= x.at).length; if (reach <= C.got) return null;
+    const tix = WB_COMMUNITY.slice(C.got, reach).reduce((a, x) => a + x.tix, 0); C.got = reach;
+    S.wallet['ticket:gear'] = (S.wallet['ticket:gear'] || 0) + tix;
+    return { n: reach, tix };
+  }
+  wbCommunityGot() { const C = this.S.wbCom; return C && C.wk === weekKey(this.now) ? C.got : 0; }
   // 지난주 월드보스 순위(서버가 센 것) → 뽑기권 · 그 주에 한 번
   wbRankReward(rank) { return rank > 0 ? WEEK_REW.wb.find(([n]) => rank <= n)[1] : 0; }
   claimWbWeek(wk, rank) {
