@@ -399,6 +399,25 @@ export class Game {
   towerFight() { return this.runNow('tower'); }
   // ── v531 실제 던전 ── 옆보기 사냥 엔진(SideFight) 위에서 직접 싸운다. 입장 → 목표(처치 · 두목 · 다 잡기 · 버티기) · 제한 시간 → 결과
   //   enterDungeon: 화면에서 직접(사냥터 대신 던전이 그려진다) · runNow: 같은 던전을 바로 끝까지(소탕 · 봇)
+  // v544 오늘 할 일 — 하루마다 도는 것들의 오늘 진행(n / of) · 열렸는지 · 어디로 갈지(go: 창 키)
+  //   출석 · 일일 임무 · 수련동 · 장 두목 토벌 · 월드보스 · 대결 · 원정 · 받을 업적(of 0이면 받을 것 n개)
+  today() {
+    const S = this.S, dk = String(dayKey(this.now)), out = [];
+    const add = (id, name, n, of, go, open = true, why = '') => out.push({ id, name, n: Math.min(n, of || n), of, go, open, why, done: open && (of ? n >= of : n === 0) });
+    add('attend', '출석', this.canAttend() ? 0 : 1, 1, 'attend:0');
+    const dm = this.books.daily, ids = [...dm.defs.keys()];
+    add('daily', '일일 임무 받기', ids.filter((id) => dm.get(id).got).length, ids.length, 'mission:1');
+    const dks = Object.entries(DAILY_DUNGEONS).filter(([, D]) => S.hero.lv >= D.unlockLv).map(([k]) => k);
+    const lockLv = Math.min(...Object.values(DAILY_DUNGEONS).map((D) => D.unlockLv));
+    add('dungeon', '수련동', dks.reduce((a, k) => a + Math.min(DAILY_RUNS, S.dungeons.runs[k] || 0), 0), dks.length * DAILY_RUNS, 'content:0', dks.length > 0, `Lv ${lockLv}부터`);
+    const anyChb = Object.keys(S.chb || {}).length > 0;
+    add('raid', '장 두목 토벌', anyChb ? CB_RAID.perDay - this.raidLeft() : 0, CB_RAID.perDay, 'raid:0', anyChb, '장 두목을 깨면');
+    const Wb = S.wb || {}; add('wboss', '월드보스', Wb.day === dk ? Wb.used || 0 : 0, 3, 'rival:0');
+    const P = S.pvp || {}; add('pvp', '대결', P.day === dk ? P.used || 0 : 0, 5, 'rival:1');
+    const E = S.exped; add('exped', '원정 보내기', E.run && this.now < E.run.endMs ? 1 : 0, 1, 'content:2');
+    const ach = this.books.ach.claimable().length; add('ach', '업적 보상 받기', ach, 0, 'ach:0', true);
+    return out;
+  }
   canDungeon(type, kind) {
     const S = this.S;
     if (this.dg || this.bossFight) return '다른 싸움 중이에요';

@@ -137,7 +137,7 @@ const TABS = [
   ['comp', '동료', [['병기', 'grow:0'], ['동료', 'grow:1'], ['영물', 'grow:2']]],
   ['dgn', '던전', [['수련동', 'content:0'], ['토벌', 'raid:0'], ['무한 탑', 'content:1'], ['원정', 'content:2']]],
   ['map', '지도', [['스테이지', 'content:3']]],
-  ['town', '임무', [['출석', 'attend:0'], ['길잡이', 'mission:0'], ['일일', 'mission:1'], ['주간', 'mission:2'], ['업적', 'ach:0'], ['경지', 'grow:3'], ['강호행', 'grow:4']]],
+  ['town', '임무', [['오늘', 'today:0'], ['출석', 'attend:0'], ['길잡이', 'mission:0'], ['일일', 'mission:1'], ['주간', 'mission:2'], ['업적', 'ach:0'], ['경지', 'grow:3'], ['강호행', 'grow:4']]],
   ['social', '무림', [['월드보스', 'rival:0'], ['대결', 'rival:1'], ['문파', 'rival:2']]],
   ['opt', '설정', [['설정', 'mission:3']]],
 ];
@@ -483,6 +483,17 @@ function paintWin() {
       const has = own.has(t.name), on = g.S.titleOn === t.name;
       const r = R(`<span style="color:${has ? t.col : 'inherit'}">${esc(t.name)}</span>`, has ? (on ? '달고 있음' : '얻음') : `잠김 — ${t.how}`, has ? [[on ? '달고 있음' : '달기', act(() => g.setTitle(t.name)), on]] : [], has ? '稱' : '鎖');
       if (!has) r.style.opacity = '.5'; c1(r);
+    }
+  } else if (key === 'today:0') {
+    // v544 오늘 할 일 — 하루마다 도는 것을 한곳에서: 진행 막대 · 끝남 ✓ · 「가기」로 그 창
+    const T = g.today(), open2 = T.filter((x) => x.open), left = open2.filter((x) => !x.done).length;
+    const c0 = card('오늘 할 일', left ? `${left}개 남음 · 자정에 새로` : '오늘 할 일을 다 했어요!');
+    const ic = { attend: '印', daily: '日', dungeon: '洞', raid: '討', wboss: '龍', pvp: '鬪', exped: '征', ach: '功' };
+    for (const x of T) {
+      const prog = x.of ? `<div class="achbar"><i style="width:${(x.n / x.of) * 100}%"></i><span>${x.n} / ${x.of}</span></div>` : x.n ? `받을 것 ${x.n}개` : '받을 것 없음';
+      const r = R(x.name, x.open ? prog : `<span class="dn">${esc(x.why)} 열려요</span>`, x.open && !x.done ? [['가기', () => { play('click'); openKey(x.go); }]] : [], x.done ? '✓' : ic[x.id] || '·');
+      r.classList.add('td-row'); if (x.done) r.classList.add('td-done'); if (!x.open) r.style.opacity = '.5';
+      c0(r);
     }
   } else if (key === 'ach:0') {
     // v538 업적 — 종류마다 지금 단계(진행 막대 · 보상) · 끝난 단계 수 · 모두 받기

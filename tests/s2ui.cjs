@@ -105,6 +105,13 @@ const ok = (c, m, x = '') => { console.log(`  ${c ? '✓' : '✗ !!'} ${m}${x !=
     ok(await page.isVisible('#res.open .rdstars') && (await page.$$('#res .rdstars i.on')).length === 3, 'v541 토벌 결과 — 별 셋');
     await page.click('#rout'); await page.waitForTimeout(200);
     await page.evaluate(() => { window.__s2.g.stage().auto = true; });
+    // v544 오늘 할 일 — 임무 → 오늘: 줄 여덟 · 「가기」→ 그 창
+    await page.click('#mb .nb[data-tab="town"], .ib[data-tab="town"], [data-tab="town"] >> nth=0'); await page.waitForTimeout(200);
+    await page.click('#panel-body .subtabs button:has-text("오늘")'); await page.waitForTimeout(200);
+    ok((await page.$$('#wb .td-row')).length === 8 && /오늘 할 일/.test(await page.textContent('#panel-body')), 'v544 오늘 할 일 — 여덟 줄');
+    await page.click('#wb .td-row:has-text("대결") .btn:has-text("가기")'); await page.waitForTimeout(200);
+    ok(/대결 점수/.test(await page.textContent('#panel-body')), 'v544 「가기」 → 대결 창');
+    await page.click('#panel-close').catch(() => {}); await page.waitForTimeout(200);
     // v543 모두 강화 — 장비 → 강화·성혼 「모두 강화」 → 결과 창(칸마다 전 → 후)
     await page.evaluate(() => { const W = window.__s2.g.S.wallet; W.gold = 1e9; W['item:stone'] = 2000; });
     await page.click('#mb .nb[data-tab="bag"]'); await page.waitForTimeout(200);

@@ -1029,6 +1029,19 @@ console.log('\n=== v543 모두 강화 ===');
   ok(cost.some((c) => (W[c.k] || 0) < c.n), '멈춘 때는 가장 낮은 칸 재료가 모자랄 때', `${W['item:stone']} 남음`);
 }
 
+console.log('\n=== v544 오늘 할 일 ===');
+{
+  const T0 = 1.8e12, g = new Game(newGame('sword', T0, 3), T0); g.addExp(EX.cumExp(40)); g.tick(T0);
+  const by = (id) => g.today().find((x) => x.id === id);
+  ok(g.today().length === 8 && g.today().every((x) => x.go && /^[a-z]+:\d$/.test(x.go)), '여덟 가지 · 가는 곳(창 키)');
+  ok(!by('attend').done && (g.attend(), by('attend').done), '출석하면 끝');
+  ok(!by('raid').open && (g.S.chb = { 1: 1 }, by('raid').open && by('raid').n === 0), '토벌은 장 두목을 깬 뒤 열림');
+  const p0 = by('pvp').n; g.pvpFight(0); ok(by('pvp').n === p0 + 1 && by('pvp').of === 5, '대결 한 번 → 1/5');
+  ok(!by('exped').done && (g.startExped(12), by('exped').done), '원정 보내면 끝');
+  const dg = by('dungeon'); ok(dg.open && dg.of > 0, '수련동: 열린 던전 × 하루 횟수', `${dg.n}/${dg.of}`);
+  g.tick(T0 + 86400000); ok(!by('attend').done && by('pvp').n === 0, '다음 날 다시');
+}
+
 console.log('\n=== S0 규칙 ===');
 {
   const files = [];
