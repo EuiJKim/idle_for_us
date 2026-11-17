@@ -27,12 +27,13 @@ import * as RM from './grow/realm.js';
 import * as ID from './content/idle.js';
 import * as OF from './content/offline.js';
 import { runDungeon } from './content/dungeon.js';
-import { power } from './online/power.js';
+import { power, stdPower } from './online/power.js';
 import { TABLE_VER } from './tables/version.js';
 import * as WB from './online/wboss.js';
 import * as PV from './online/pvp.js';
 import { refPlayer } from './battle/ref.js';
-import { PVP, WBOSS } from './tables/online.js';
+import { PVP, WBOSS, POWER_SLACK } from './tables/online.js';
+import { JOBS } from './tables/char.js';
 
 export const COLLECTS = ['weapon', 'pal', 'relic'];
 const DAY = 24 * 3600e3, KST = 9 * 3600e3;
@@ -567,25 +568,45 @@ export class Game {
   // 월드보스 한 번(90초) — 넣은 피해 → 보스 점수 · 하루 3번 · 주간 합계
   wbossFight() { const r = this.runNow('wboss'); return r ? { dmg: r.dmg, score: r.score, deaths: r.deaths } : null; }
   // 대결 상대 셋(미리보기: 내 레벨 근처 기준 무인 — 서버가 붙으면 다른 무인의 방어 덱)
+  // v548 진짜 상대 — 서버에서 받은 방어 덱(점수가 가까운 무인) · 있을 수 없는 덱(레벨 · 직업 · 전투력이 표준의 6배 넘음)은 뺀다
+  setPvpReal(list) {
+    this.pvpReal = (list || []).filter((x) => {
+      const f = x && x.f, st = f && f.st;
+      if (!f || !JOBS[f.job] || !Number.isInteger(f.lv) || f.lv < 1 || f.lv > LEVEL_MAX || !st || !(st.atk > 0) || !(st.hp > 0) || !Object.values(st).every((v) => typeof v === 'number' && Number.isFinite(v))) return false;
+      return power(f, 'pvp') <= stdPower(f.lv, 'pvp', f.job) * POWER_SLACK * 2;
+    }).slice(0, 3).map((x) => ({ uid: String(x.uid), name: String(x.name || '무인').slice(0, 12), f: { lv: x.f.lv, job: x.f.job, kind: 'hero', st: x.f.st }, score: x.score | 0 }));
+    return this.pvpReal.length;
+  }
+  // 내 방어 덱 — 대결이 쓰는 것만(레벨 · 직업 · 능력치)
+  pvpDeck() { const f = this.fighter(); return JSON.stringify({ lv: f.lv, job: f.job, st: f.st }); }
+  // 받은 공격 기록 — 내 점수에 더하고 「지난 대결」에 방어로
+  pvpDefend(list) {
+    const P = (this.S.pvp ??= { score: PVP.start, day: '', used: 0, log: [] });
+    let sum = 0;
+    for (const x of list || []) { const d = Math.max(-20, Math.min(3, x.d | 0)); sum += d; P.log = [{ name: String(x.name || '무인').slice(0, 12), win: !x.win, d, def: 1 }, ...P.log].slice(0, 10); }
+    P.score = Math.max(0, P.score + sum);
+    return sum;
+  }
   pvpOpponents() {
     const S = this.S, P = (S.pvp ??= { score: PVP.start, day: '', used: 0, log: [] });
     const L = S.hero.lv, seed = dayKey(this.now) * 7 + P.used;
-    return [0.85, 1, 1.2].map((x, i) => {
+    const real = (this.pvpReal || []).map((o) => ({ ...o, pw: power(o.f, 'pvp'), real: true }));
+    return [...real, ...[0.85, 1, 1.2].map((x, i) => {
       const f = refPlayer(Math.max(1, Math.min(150, Math.round(L * (0.95 + 0.05 * i)))), ['sword', 'spear', 'fist', 'bow', 'mage'][(seed + i) % 5] || 'sword');
       f.st = { ...f.st, atk: Math.round(f.st.atk * x), hp: Math.round(f.st.hp * x) };
       return { name: ['낭인', '협객', '고수'][i], f, pw: power(f, 'pvp'), score: P.score + (i - 1) * 40 };
-    });
+    })].slice(0, 3);
   }
   pvpFight(i) {
     const S = this.S, P = (S.pvp ??= { score: PVP.start, day: '', used: 0, log: [] });
     const opp = this.pvpOpponents()[i];
     if (!opp || !PV.useTry(P, String(dayKey(this.now)))) return null;
     const me = this.fighter(), log = [], r = PV.duel(me, opp.f, this.rng.u32(), log);   // v539 화면이 다시 보여 줄 기록
-    const d = PV.scoreDelta(r.win, power(me, 'pvp'), opp.pw).atk;
+    const sd = PV.scoreDelta(r.win, power(me, 'pvp'), opp.pw), d = sd.atk;
     P.score = Math.max(0, P.score + d);
     P.log = [{ name: opp.name, win: r.win, d }, ...P.log].slice(0, 10);
     this.emit('pvp');
-    return { ...r, d, score: P.score, tier: PV.tierOf(P.score).name, log, opp: { name: opp.name, job: opp.f.job, lv: opp.f.lv, hp: opp.f.st.hp }, myHp: me.st.hp };
+    return { ...r, d, score: P.score, tier: PV.tierOf(P.score).name, log, opp: { name: opp.name, job: opp.f.job, lv: opp.f.lv, hp: opp.f.st.hp, real: !!opp.real }, myHp: me.st.hp, oppUid: opp.uid || null, defD: sd.def };
   }
   // ── v536 출석 ── 하루 한 번(한국 시각 자정에 바뀜) · 28칸 · 다 채우면 처음부터
   attendState() { return (this.S.att ??= { n: 0, last: -1, cycle: 0 }); }

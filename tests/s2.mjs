@@ -1094,6 +1094,20 @@ console.log('\n=== v547 서열 프로필 ===');
   ok(Object.keys(P).every((k) => RK.PROFILE_KEYS.includes(k)) && P.season === 's2' && P.lv === g.S.hero.lv && P.power === Math.round(g.power()) && RK.checkProfile(P).length === 0, '프로필 칸 = 규칙 칸 · 값 범위 · 점검 통과', JSON.stringify(P));
 }
 
+console.log('\n=== v548 진짜 대결 상대 ===');
+{
+  const T0 = 1.8e12, A = new Game(newGame('sword', T0, 6), T0); A.addExp(EX.cumExp(40)); A.tick(T0);
+  const B = new Game(newGame('spear', T0, 7), T0); B.addExp(EX.cumExp(42)); B.tick(T0);
+  const deck = JSON.parse(A.pvpDeck());
+  ok(A.pvpDeck().length <= 3000 && deck.lv === A.S.hero.lv && deck.job === 'sword' && deck.st.hp > 0, '방어 덱: 레벨 · 직업 · 능력치(3000자 안)', `${A.pvpDeck().length}자`);
+  const bad = [{ uid: 'x1', name: 'h', f: { lv: 40, job: 'sword', st: { ...deck.st, atk: deck.st.atk * 1000 } } }, { uid: 'x2', f: { lv: 999, job: 'sword', st: deck.st } }, { uid: 'x3', f: { lv: 40, job: 'nope', st: deck.st } }, { uid: 'x4', f: { lv: 40, job: 'sword', st: { ...deck.st, hp: 'a' } } }];
+  ok(B.setPvpReal([...bad, { uid: 'A', name: '검은바람', score: 1000, f: deck }]) === 1 && B.pvpOpponents()[0].real && B.pvpOpponents()[0].uid === 'A' && B.pvpOpponents().length === 3, '있을 수 없는 덱은 빼고 진짜 상대가 맨 앞 · 나머지는 연습 상대');
+  const r = B.pvpFight(0);
+  ok(r && r.oppUid === 'A' && r.opp.real && r.defD === (r.win ? -8 : 3), '진짜 상대와 겨루면 상대 우편함에 남길 점수(이기면 -8 · 지면 +3)', JSON.stringify({ win: r.win, defD: r.defD }));
+  const s0 = A.S.pvp?.score ?? 1000, d = A.pvpDefend([{ name: '창객', win: r.win, d: r.defD }, { name: '해킹', win: true, d: -999 }]);
+  ok(A.S.pvp.score === Math.max(0, s0 + d) && d === r.defD - 20 && A.S.pvp.log[0].def === 1 && A.S.pvp.log.length === 2, '받은 기록을 점수에 · 범위 밖(-999)은 -20으로 · 지난 대결에 방어로');
+}
+
 console.log('\n=== S0 규칙 ===');
 {
   const files = [];

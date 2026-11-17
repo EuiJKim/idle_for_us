@@ -67,6 +67,37 @@ export class S2Net {
     }
     return { rows, me, mine };
   }
+  // v548 대결 — 내 방어 덱(s2_pvp/{uid}) · 점수가 가까운 무인 찾기 · 공격 기록(상대 우편함) · 내 우편함 받기
+  async pushDeck(name, deck, score, lv) {
+    if (!this.online) return false;
+    const key = `${name}|${deck}|${score}|${lv}`; if (key === this.lastDeck) return false;
+    await this.fs.setDoc(this.fs.doc(this.db, 's2_pvp', this.uid), { name, deck, score: Math.max(0, Math.min(99999, score | 0)), lv: Math.max(1, Math.min(150, lv | 0)), at: this.fs.serverTimestamp() });
+    this.lastDeck = key; return true;
+  }
+  async pvpFind(score, M = { range: 120, widen: 80, maxTries: 4 }) {
+    if (!this.online) return [];
+    const fs = this.fs, col = fs.collection(this.db, 's2_pvp');
+    for (let k = 0; k < M.maxTries; k++) {
+      const r = M.range + M.widen * k;
+      const snap = await fs.getDocs(fs.query(col, fs.where('score', '>=', score - r), fs.where('score', '<=', score + r), fs.limit(20)));
+      const list = [];
+      for (const d of snap.docs) { if (d.id === this.uid) continue; try { const x = d.data(); list.push({ uid: d.id, name: x.name, score: x.score, f: JSON.parse(x.deck) }); } catch { /* 망가진 덱 */ } }
+      if (list.length) { for (let i = list.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [list[i], list[j]] = [list[j], list[i]]; } return list.slice(0, 3); }
+    }
+    return [];
+  }
+  async pvpLog(oppUid, rec) {
+    if (!this.online || !oppUid || oppUid === this.uid) return false;
+    await this.fs.addDoc(this.fs.collection(this.db, 's2_pvp', oppUid, 'log'), { by: this.uid, name: String(rec.name || '무인').slice(0, 12), win: !!rec.win, d: rec.d | 0, seed: rec.seed | 0, at: this.fs.serverTimestamp() });
+    return true;
+  }
+  async pvpInbox() {
+    if (!this.online) return [];
+    const fs = this.fs, snap = await fs.getDocs(fs.collection(this.db, 's2_pvp', this.uid, 'log'));
+    const list = snap.docs.map((d) => d.data());
+    await Promise.all(snap.docs.map((d) => fs.deleteDoc(d.ref)));
+    return list;
+  }
   // Google 잇기 — uid가 그대로라 지금 진행이 그 계정에 붙는다. 그 Google이 이미 다른 진행에 이어져 있으면 conflict
   async linkGoogle(testCred) {
     const A = this.A;

@@ -74,7 +74,22 @@ async function device(b) {
   await C.fill('#codein', 'IFU1.garbage'); await C.click('#modal .btn:has-text("불러오기")'); await sleep(300);
   assert(await C.evaluate(() => window.__s2.g.S.hero.lv) === 37, 'C: 망가진 코드는 받지 않음');
 
-  const errs = [...A.errs, ...B.errs, ...errC];
+  // v548 진짜 대결 — A가 방어 덱을 올리고, 새 기기 D가 점수가 가까운 무인으로 A를 찾아 겨룬다 → A 우편함 → A 점수에
+  await A.page.evaluate(() => { window.__s2.net.lastDeck = null; window.__s2.rankPush(); });
+  await sleep(1200);
+  const D = await device(b);
+  const uidA = await A.page.evaluate(() => window.__s2.net.uid);
+  const fr = await D.page.evaluate(async (ua) => { window.__s2.resetNetTimers(); window.__s2.pvpFetch(); for (let i = 0; i < 40 && !(window.__s2.g.pvpReal || []).length; i++) await new Promise((r) => setTimeout(r, 200)); const os = window.__s2.g.pvpOpponents(); return { found: os.some((o) => o.uid === ua), i: os.findIndex((o) => o.uid === ua) }; }, uidA);
+  assert(fr.found, 'D: 점수가 가까운 진짜 무인(A)을 찾음');
+  const fight = await D.page.evaluate(async (i) => { const r = window.__s2.g.pvpFight(i); await window.__s2.net.pvpLog(r.oppUid, { name: 'D무인', win: r.win, d: r.defD, seed: 1 }); return { win: r.win, defD: r.defD }; }, fr.i);
+  const sA0 = await A.page.evaluate(() => window.__s2.g.S.pvp?.score ?? 1000);
+  await A.page.evaluate(() => { window.__s2.resetNetTimers(); window.__s2.pvpInbox(); });
+  await sleep(1500);
+  const sA1 = await A.page.evaluate(() => ({ s: window.__s2.g.S.pvp?.score, l: window.__s2.g.S.pvp?.log?.[0] }));
+  assert(sA1.s === Math.max(0, sA0 + fight.defD) && sA1.l?.def === 1 && sA1.l?.name === 'D무인', `A: 받은 공격이 점수에(${sA0} → ${sA1.s}) · 지난 대결에 방어`);
+  const left = await A.page.evaluate(async () => (await window.__s2.net.pvpInbox()).length);
+  assert(left === 0, 'A: 우편함은 받으면 비움');
+  const errs = [...A.errs, ...B.errs, ...errC, ...D.errs];
   assert(errs.length === 0, '페이지 오류 없음 ' + errs.join(' | '));
   await b.close();
   console.log('✓ 새 시즌 서버 저장');

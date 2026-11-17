@@ -80,12 +80,26 @@ async function cloudPush(force) {
   if (!force && Date.now() - net.lastPush < 170000) return false;
   const p = net.push(g.save(), g.S.hero.lv, g.S.hero.job);
   cloudBusy = p;
-  try { await p; rankPush(); return true; } catch (err) { console.warn('[s2net] push', err?.code || err); return false; } finally { if (cloudBusy === p) cloudBusy = null; }
+  try { await p; rankPush(); pvpInbox(); return true; } catch (err) { console.warn('[s2net] push', err?.code || err); return false; } finally { if (cloudBusy === p) cloudBusy = null; }
 }
 // v547 서열 — 저장할 때 프로필도(바뀐 때만) · 월드보스는 칠 때마다 주간 점수
 const wkStr = (ms) => new Date(weekKey(ms) * 86400000).toISOString().slice(0, 10);   // 그 주 월요일(한국 날) — 10자
 function ensureNick() { if (!g.S.nick) g.setNick(`${JOBS[g.S.hero.job]?.name || '무인'}${(net.uid || '0000').slice(-4)}`); }
-function rankPush() { if (!net.online || !g) return; ensureNick(); net.pushProfile(g.rankProfile()).catch((e) => console.warn('[s2net] rank', e?.code || e)); }
+function rankPush() {
+  if (!net.online || !g) return; ensureNick();
+  net.pushProfile(g.rankProfile()).catch((e) => console.warn('[s2net] rank', e?.code || e));
+  net.pushDeck(g.S.nick, g.pvpDeck(), g.S.pvp?.score ?? 1000, g.S.hero.lv).catch((e) => console.warn('[s2net] deck', e?.code || e));   // v548 방어 덱
+}
+// v548 대결 — 우편함(받은 공격)을 점수에 · 진짜 상대 찾기(1분마다 새로)
+let pvpAt = 0, inboxAt = 0;
+function pvpInbox() {
+  if (!net.online || !g || Date.now() - inboxAt < 30000) return; inboxAt = Date.now();
+  net.pvpInbox().then((list) => { if (!list.length) return; const d = g.pvpDefend(list); save(); toast(`방어 기록 ${list.length}건 · 대결 점수 ${d >= 0 ? '+' : ''}${d}`); addLog(`대결 방어 ${list.length}건 (${d >= 0 ? '+' : ''}${d})`); if (open === 'social') paintWin(); }).catch((e) => console.warn('[s2net] inbox', e?.code || e));
+}
+function pvpFetch() {
+  if (!net.online || !g || Date.now() - pvpAt < 60000) return; pvpAt = Date.now();
+  net.pvpFind(g.S.pvp?.score ?? 1000).then((list) => { g.setPvpReal(list); if (open === 'social') paintWin(); }).catch((e) => console.warn('[s2net] pvp', e?.code || e));
+}
 function wbPush(score) { if (!net.online || !g || !(score > 0)) return; ensureNick(); net.pushWboss(wkStr(Date.now()), g.S.nick, score).catch((e) => console.warn('[s2net] wboss', e?.code || e)); }
 let rankMode = 'power', rankCache = {};
 async function rankLoad(mode) {
@@ -496,9 +510,12 @@ function paintWin() {
     const P = g.S.pvp || { score: 1000, used: 0, day: '', log: [] };
     const used = P.day === String(dayKey(now())) ? P.used : 0;
     const c0 = card(`대결 점수 ${P.score}`, `오늘 ${used}/5번`);
-    g.pvpOpponents().forEach((o, i) => c0(R(`${o.name} <small>${JOBS[o.f.job].name} Lv ${o.f.lv}</small>`, `대결 전투력 ${fmt(o.pw)}`, [['도전', act(() => { const r = g.pvpFight(i); if (r) { closeWin(); duelShow(r); } return r; }), used >= 5]], JOBS[o.f.job].name[0])));
+    pvpFetch(); pvpInbox();
+    g.pvpOpponents().forEach((o, i) => c0(R(`${esc(o.name)} <small>${JOBS[o.f.job].name} Lv ${o.f.lv}</small> ${o.real ? '<span class="pill pv-real">무인</span>' : '<span class="pill">연습</span>'}`, `대결 전투력 ${fmt(o.pw)}${o.real ? ` · 점수 ${o.score}` : ''}`,
+      [['도전', act(() => { const r = g.pvpFight(i); if (r) { if (r.oppUid) net.pvpLog(r.oppUid, { name: g.S.nick, win: r.win, d: r.defD, seed: r.d }).catch(() => {}); rankPush(); closeWin(); duelShow(r); } return r; }), used >= 5]], JOBS[o.f.job].name[0])));
+    if (!g.pvpOpponents().some((o) => o.real)) c0(note(net.online ? '점수가 가까운 무인을 찾는 중 — 없으면 연습 상대와 겨뤄요' : '오프라인 — 연습 상대와 겨뤄요'));
     const log = g.S.pvp?.log || [];
-    if (log.length) { const c1 = card('지난 대결'); for (const l of log) c1(R(`${l.win ? '승' : '패'} · ${l.name}`, `${l.d >= 0 ? '+' : ''}${l.d}`, [], l.win ? '勝' : '敗')); }
+    if (log.length) { const c1 = card('지난 대결', '방어 = 남이 내 덱에 도전한 것'); for (const l of log) c1(R(`${l.def ? '방어 ' : ''}${l.win ? '승' : '패'} · ${esc(l.name)}`, `${l.d >= 0 ? '+' : ''}${l.d}`, [], l.def ? '防' : l.win ? '勝' : '敗')); }
   } else if (key === 'rival:2') {
     const c = card('문파', '교체 때 서버와 함께 열려요');
     for (const [n, d, ic] of [['문파 토벌', '문파원 피해를 모아 주간 두목 단계를 깸', '伐'], ['문파 대항', '문파끼리 한 주 점수 겨루기', '爭'], ['문파 수련', '문파원 기여로 막대를 채우면 모두 보상', '修'], ['연구 · 도움', '문파원 기여로 연구를 올림', '硏']]) c(R(n, d, [], ic));
@@ -1787,6 +1804,6 @@ load();
 if (g) boot();
 else pickJob();
 // 시험용 손잡이
-window.__s2 = { get g() { return g; }, save, dayKey, attendPop, freeze: () => { frozen = true; }, net, cloudPush, rankPush, wbPush, wkStr,
+window.__s2 = { get g() { return g; }, save, dayKey, attendPop, freeze: () => { frozen = true; }, net, cloudPush, rankPush, wbPush, wkStr, pvpInbox, pvpFetch, resetNetTimers: () => { pvpAt = 0; inboxAt = 0; },
   // v525 팝업 대신 에뮬레이터용 가짜 Google 토큰으로 잇기 · 겹치면 그 계정으로
   linkTest: async (tok) => { const r = await net.linkGoogle(tok); if (r.conflict) { const d = await net.switchTo(r.cred); if (d) applyCloud(d); return 'switched'; } await cloudPush(true); return 'linked'; } };
