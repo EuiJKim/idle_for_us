@@ -126,6 +126,18 @@ const ok = (c, m, x = '') => { console.log(`  ${c ? '✓' : '✗ !!'} ${m}${x !=
         await window.__s2.wakeSync(); const a = window.__s2.wake(); await window.__s2.wakeOpt(false); const b = window.__s2.wake(); await window.__s2.wakeOpt(true);
         return { a, b, rel, c: window.__s2.wake() }; });
       ok(w.a.lock && w.a.want && !w.b.lock && w.rel === 1 && w.c.lock, 'v586 화면 켜 두기 — 잡고 · 설정에서 끄면 놓고 · 켜면 다시', JSON.stringify(w)); }
+    // v587 위 「절전」 단추 → 바로 절전 · 절전 중에도 처치 · 은자 · 경험치가 오른다(초당 4번 · 안 그림)
+    { await page.evaluate(() => { const g = window.__s2.g; if (g.bossFight) g.endChallenge(false); });
+      const b0 = await page.evaluate(() => { const g = window.__s2.g; return { k: g.S.kills, gold: g.S.wallet.gold, x: g.S.hero.exp + g.S.hero.lv * 1e15 }; });
+      await page.click('#b-saver'); await page.waitForTimeout(500);
+      ok(await page.isVisible('#saver') && await page.evaluate(() => window.__s2.saverOn()), 'v587 위 절전 단추 → 바로 절전');
+      await page.waitForTimeout(6000);
+      const b1 = await page.evaluate(() => { const g = window.__s2.g; return { k: g.S.kills, gold: g.S.wallet.gold, x: g.S.hero.exp + g.S.hero.lv * 1e15, txt: document.querySelector('#saver span')?.textContent }; });
+      ok(b1.k > b0.k && b1.gold > b0.gold && b1.x > b0.x && /처치 \+/.test(b1.txt || ''), 'v587 절전 중에도 처치 · 은자 · 경험치', JSON.stringify({ b0, b1 }));
+      await page.evaluate(() => window.__s2.saverAutoTest(true));   // 진짜 손전화처럼(저절로 켜지기 살림) — 깨운 뒤 바로 다시 절전되던 고장(v586)
+      await page.mouse.click(5, 200); await page.waitForTimeout(1800);
+      ok(!(await page.isVisible('#saver')) && !(await page.evaluate(() => window.__s2.saverOn())), 'v587 누르면 돌아옴 · 다시 바로 절전되지 않음');
+      await page.evaluate(() => window.__s2.saverAutoTest(false)); }
     // v578 절전 — 오래 손대지 않으면 어둡게 · 누르면 돌아옴(사냥은 그대로)
     await page.evaluate(() => { const g = window.__s2.g; if (g.bossFight) g.endChallenge(false); window.__s2.saverTest(); }); await page.waitForTimeout(600);
     const k0 = await page.evaluate(() => window.__s2.g.S.kills);

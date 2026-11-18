@@ -1041,6 +1041,7 @@ function paintHud() {
     $('dg-leave').onclick = () => { play('click'); if (g.dg && confirm('던전에서 나갈까요? 입장권은 돌려받지 못해요.')) g.leaveDungeon(); };
     $('btn-boss').onclick = () => { play('click'); if (g.challenge()) toast('칸 두목 도전!'); else toast(`몹을 ${STAGE_KILLS}마리 잡으면 도전할 수 있어요`); };
     $('b-opt').onclick = () => { play('click'); openWin('opt', 0); };
+    $('b-saver').onclick = (e) => { e.stopPropagation(); play('click'); setTimeout(() => saverStart(), 120); };   // v587 절전 단추(누른 손이 바로 깨우지 않게 조금 뒤)
     $('btn-sound').onclick = () => { opt.sfx = !(opt.sfx || opt.bgm); opt.bgm = opt.sfx; saveOpt(); bgm(chapterOf(g.zoneLv())); toast(opt.sfx ? '소리 켬' : '소리 끔'); paintHud(); };
     for (const b of document.querySelectorAll('.nb[data-tab]')) b.onclick = () => { play('click'); if (open === b.dataset.tab) closeWin(); else openWin(b.dataset.tab); };
     for (const b of document.querySelectorAll('.nb[data-key]')) b.onclick = () => { play('click'); openKey(b.dataset.key); };
@@ -1188,18 +1189,23 @@ const mobHit = new Map();   // 몹 id → 맞은 때(번쩍 · 밀림)
 let freezeUntil = 0;       // 큰 무공 적중 멈칫
 let slowUntil = 0;         // v532 느린 화면
 // v578 절전
-const SAVER_MS = 120000;
-let lastInput = performance.now(), saverOn = false, saverFrame = 0, saverFrom = null, saverForce = false;   // 자동 시험(webdriver)에서는 저절로 켜지지 않게(시험이 부를 때만)
-const wake = () => { lastInput = performance.now(); if (saverOn) saverOff(); };
+const SAVER_MS = 120000, SAVER_TICK = 250;
+let lastInput = Date.now(), saverOn = false, saverFrame = 0, saverFrom = null, saverForce = false, saverAuto = false;   // saverAuto: 시험에서 진짜 손전화처럼 저절로 켜지기를 살림   // 자동 시험(webdriver)에서는 저절로 켜지지 않게(시험이 부를 때만)
+const wake = () => { lastInput = Date.now(); if (saverOn) saverOff(); };   // v587 고침: 프레임 시각(now = Date.now)과 같은 시계로 — 전엔 performance.now라 깨우자마자 「2분 지남」으로 다시 절전
 for (const ev of ['pointerdown', 'keydown', 'wheel', 'touchstart']) addEventListener(ev, wake, { capture: true, passive: true });
 function saverTick(t) {
   if (!g) return;
-  if (!saverOn && opt.saver && (!navigator.webdriver || saverForce) && t - lastInput > SAVER_MS && !open && $('modal').classList.contains('hidden') && !g.bossFight && !g.dg) {
-    saverOn = true; saverFrom = { kills: g.S.kills || 0, gold: g.S.wallet.gold || 0, lv: g.S.hero.lv, at: t };
-    const o = document.createElement('div'); o.id = 'saver'; o.innerHTML = `<div><b>절전 중</b><span></span><em>누르면 돌아와요${opt.wake && wakeOK() ? ' · 화면은 켜 둔 채 홀로 사냥' : ''}</em></div>`; document.body.append(o);
-  }
-  if (saverOn && (t | 0) % 20000 < 20) { const d = document.querySelector('#saver > div'); if (d) d.style.transform = `translate(${Math.round(Math.sin(t / 37000) * 60)}px, ${Math.round(Math.cos(t / 29000) * 80)}px)`; }   // v586 글자가 천천히 옮겨 다님(화면 자국)
-  if (saverOn && (t | 0) % 1000 < 20) { const sp = document.querySelector('#saver span'); if (sp) { const m = Math.floor((t - saverFrom.at) / 60000); sp.innerHTML = `Lv ${g.S.hero.lv}${g.S.hero.lv > saverFrom.lv ? ` (+${g.S.hero.lv - saverFrom.lv})` : ''} · 처치 +${unit((g.S.kills || 0) - saverFrom.kills)} · 은자 +${unit(Math.max(0, (g.S.wallet.gold || 0) - saverFrom.gold))}<br><small>${m}분째 홀로 사냥 중</small>`; } }
+  if (!saverOn && opt.saver && (!navigator.webdriver || saverForce || saverAuto) && t - lastInput > SAVER_MS && !open && $('modal').classList.contains('hidden') && !g.bossFight && !g.dg) saverStart(t);
+  if (saverOn && t - (saverTick.mv || 0) >= 20000) { saverTick.mv = t; const d = document.querySelector('#saver > div'); if (d) d.style.transform = `translate(${Math.round(Math.sin(t / 37000) * 60)}px, ${Math.round(Math.cos(t / 29000) * 80)}px)`; }   // v586 글자가 천천히 옮겨 다님(화면 자국)
+  if (saverOn && t - (saverTick.at || 0) >= 1000) { saverTick.at = t; const sp = document.querySelector('#saver span'); if (sp) { const m = Math.floor((t - saverFrom.at) / 60000); sp.innerHTML = `Lv ${g.S.hero.lv}${g.S.hero.lv > saverFrom.lv ? ` (+${g.S.hero.lv - saverFrom.lv})` : ''} · 처치 +${unit((g.S.kills || 0) - saverFrom.kills)} · 은자 +${unit(Math.max(0, (g.S.wallet.gold || 0) - saverFrom.gold))}<br><small>${m}분째 홀로 사냥 중</small>`; } }
+}
+// v587 절전 들어가기 — 저절로(2분) 또는 위 「절전」 단추. 사냥 · 두목 도전 · 레벨업 · 은자는 그대로(엔진은 계속), 화면만 덜 쓴다
+function saverStart(t = now()) {
+  if (saverOn || !g) return;
+  if (open) closeWin(); if (!$('modal').classList.contains('hidden')) closeModal();
+  saverOn = true; saverFrom = { kills: g.S.kills || 0, gold: g.S.wallet.gold || 0, lv: g.S.hero.lv, exp: g.S.hero.exp, at: t };
+  const o = document.createElement('div'); o.id = 'saver'; o.innerHTML = `<div><b>절전 중</b><span>홀로 사냥하는 중…</span><em>누르면 돌아와요${opt.wake && wakeOK() ? ' · 화면은 켜 둔 채 홀로 사냥' : ''}</em></div>`; document.body.append(o);
+  save();
 }
 function saverOff() { saverOn = false; saverForce = false; document.querySelector('#saver')?.remove(); }
 // v586 화면 켜 두기(방치) — 손전화가 저절로 화면을 끄면 브라우저가 게임을 멈춘다 → 화면 꺼짐 막기(Screen Wake Lock).
@@ -1704,7 +1710,7 @@ function frame() {
     g.hunt(dt);
     const rows = new Map();
     let castShape = null, castCol = null;
-    for (const e of g.lastEvents || []) {
+    for (const e of (saverOn ? [] : g.lastEvents || [])) {   // v587 절전 중엔 타격 연출 · 소리 건너뜀
       if (e[0] === 'hit') {
         const m = mobs.get(e[2]); if (!m) continue; lastHitAt = t;
         if (dmgLog.length < 600) dmgLog.push([t, e[3]]);
@@ -1774,13 +1780,13 @@ function frame() {
   }
   // v578 절전 — 2분 동안 손대지 않으면 어둡게 · 다섯 번에 한 번만 그림(엔진은 그대로) · 누르면 돌아옴
   saverTick(t);
-  if (!document.hidden && (!saverOn || (saverFrame = (saverFrame + 1) % 6) === 0)) draw();   // 안 보이는 동안은 그리지 않는다(엔진은 돈다)
+  if (!document.hidden && !saverOn) draw();   // 안 보이는 동안 · 절전 중엔 그리지 않는다(엔진은 돈다) — v587 절전은 아예 안 그림(발열)
   if (dust.length > 60) dust.splice(0, dust.length - 60);
-  if (t - lastHud > 200) { lastHud = t; paintHud(); }
+  if (!saverOn && t - lastHud > 200) { lastHud = t; paintHud(); }
   if (t - lastSave > 10000) { lastSave = t; save(); cloudPush(false); }
   if (resTimer && t > resTimer) closeResult();
   comboTick(t);   // v564
-  requestAnimationFrame(frame);
+  if (saverOn) setTimeout(frame, SAVER_TICK); else requestAnimationFrame(frame);   // v587 절전: 초당 4번만(엔진은 50ms 틱으로 따라잡는다 — 한 번에 최대 1초)
 }
 // v513 두목전 결과 — 이기면 「STAGE CLEAR」 + 실제 보상 · 걸린 시간 · 다음 칸, 3초 막대가 차면 저절로 다음으로(설정에서 끔)
 //   지면 까닭(시간 초과 · 두목 남은 체력 · 쓰러짐) + 강해지기 · 다시 도전 · 사냥 계속(3초)
@@ -2158,6 +2164,6 @@ load();
 if (g) boot();
 else pickJob();
 // 시험용 손잡이
-window.__s2 = { get g() { return g; }, wake: () => ({ lock: !!wakeLock, want: wakeWant, ok: wakeOK() }), wakeSync, wakeOpt: (on) => { opt.wake = !!on; return wakeSync(); }, saverTest: () => { saverForce = true; lastInput = -1e9; }, newsCheck, guildState, guildLoad, chatSend, save, dayKey, attendPop, freeze: () => { frozen = true; }, net, cloudPush, rankPush, wbPush, wkStr, pvpInbox, pvpFetch, resetNetTimers: () => { pvpAt = 0; inboxAt = 0; },
+window.__s2 = { get g() { return g; }, saverStart, saverOff, saverOn: () => saverOn, saverAutoTest: (on) => { saverAuto = !!on; }, wake: () => ({ lock: !!wakeLock, want: wakeWant, ok: wakeOK() }), wakeSync, wakeOpt: (on) => { opt.wake = !!on; return wakeSync(); }, saverTest: () => { saverForce = true; lastInput = -1e9; }, newsCheck, guildState, guildLoad, chatSend, save, dayKey, attendPop, freeze: () => { frozen = true; }, net, cloudPush, rankPush, wbPush, wkStr, pvpInbox, pvpFetch, resetNetTimers: () => { pvpAt = 0; inboxAt = 0; },
   // v525 팝업 대신 에뮬레이터용 가짜 Google 토큰으로 잇기 · 겹치면 그 계정으로
   linkTest: async (tok) => { const r = await net.linkGoogle(tok); if (r.conflict) { const d = await net.switchTo(r.cred); if (d) applyCloud(d); return 'switched'; } await cloudPush(true); return 'linked'; } };

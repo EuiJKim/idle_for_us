@@ -177,7 +177,7 @@
     .pc-i b { display: block; font-size: 17px; } .pc-i > span { display: block; font-size: 12px; color: rgba(255,255,255,.65); margin-bottom: 6px; }
     .pc-g { display: grid; grid-template-columns: auto 1fr; gap: 3px 10px; font-size: 12.5px; } .pc-g span { color: rgba(255,255,255,.55); } .pc-g em { font-style: normal; font-weight: 800; }
     /* v578 절전 */
-    #saver { position: fixed; inset: 0; z-index: 90; background: rgba(0,0,0,.94); display: grid; place-items: center; cursor: pointer; animation: svin .8s ease; }   /* v586 거의 검정(OLED 배터리) */
+    #saver { position: fixed; inset: 0; z-index: 90; background: #000; display: grid; place-items: center; cursor: pointer; animation: svin .8s ease; }   /* v586 거의 검정(OLED 배터리) */
     #saver > div { transition: transform 3s ease; }
     #saver > div { text-align: center; } #saver b { display: block; font-size: 22px; color: #fde68a; letter-spacing: .2em; } #saver span { display: block; margin-top: 8px; font-size: 14px; color: rgba(255,255,255,.8); line-height: 1.6; } #saver small { color: rgba(255,255,255,.5); }
     #saver em { display: block; margin-top: 14px; font-style: normal; font-size: 12px; color: rgba(255,255,255,.45); animation: svblink 2.4s ease-in-out infinite; }
@@ -382,7 +382,7 @@
     #contest-hud.hidden { display: none; }
     /* 위 오른쪽: 작은 아이콘 줄 */
     #tr { position: absolute; z-index: 20; right: var(--sr); top: var(--st); display: flex; gap: 4px; }
-    .ib { position: relative; width: 44px; height: 44px; padding: 3px 0 0; border-radius: 10px; border: 0; background: rgba(0,0,0,.42); color: #fff; display: flex; flex-direction: column; align-items: center; gap: 1px; }
+    .ib { position: relative; width: 41px; height: 44px; padding: 3px 0 0; border-radius: 10px; border: 0; background: rgba(0,0,0,.42); color: #fff; display: flex; flex-direction: column; align-items: center; gap: 1px; }
     .ib span { font-size: 10.5px; font-weight: 700; line-height: 1; opacity: .9; }
     .ib.active { background: rgba(212,166,74,.45); }
     #btn-sound .x { display: none; } #btn-sound.off .x { display: inline; } #btn-sound.off .w { display: none; }
@@ -445,14 +445,14 @@
     html.w800 #mb .nb span { font-size: 10.5px; }
     html.w800 #sk { grid-template-columns: repeat(4, 44px) 64px; grid-template-rows: 44px 44px; gap: 4px; }
     html.w800 #mb { left: calc(var(--sl) + 200px); transform: none; }
-    html.w800 #tc { width: min(240px, 32vw); }
+    html.w800 #tc { width: min(220px, 30vw); }
     html.w720.w800 #mb { left: var(--sl); }   /* v523 아주 좁으면(돌린 폰 등) 메뉴는 왼쪽 아래 — 위 w800 규칙이 덮어써 무공 · 자동 단추를 가렸다 */
     html.w720 #tc { left: calc(var(--sl) + 168px); transform: none; width: min(230px, calc(100% - var(--sl) - var(--sr) - 420px)); }   /* 아주 좁으면 진행 줄을 얼굴 상자 옆에 붙인다 */   /* v519 무공 칸을 44px로 키운 만큼 메뉴는 Lv 상자 옆에 붙인다 */
     html.w800 #jp { width: 64px !important; height: 64px !important; }
     html.w800 #jp .ic { width: 28px; height: 28px; }
     html.w800 #me { width: 190px; }
     html.w800 #qc { width: 196px; }
-    html.w800 .ib { width: 44px; }
+    html.w800 .ib { width: 38px; } html.w720 .ib { width: 37px; } html.w800 #tr { gap: 3px; } html.w720 .ib span { font-size: 9.5px; }   /* v587 위 아이콘 여섯(절전) — 진행 줄과 겹치지 않게 */
     /* 창: 가로면 가운데에 크게 뜬다 · 카드 두 줄 */
     html.w640up body.land #wb:has(> .card:nth-of-type(2)) { column-count: 2; column-gap: 10px; }   /* v522 카드가 하나뿐이면 한 줄 전체 · v570 실제 가로 640 넘을 때만(좁은 세로 폰에서 두 줄이면 글이 한 자씩 꺾였다) */
     body.land #wb > * { break-inside: avoid; }
@@ -562,6 +562,7 @@
         <button class="ib nb" data-tab="town"><svg class="ic" viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h4"/></svg><span>임무</span></button>
         <button class="ib nb" data-tab="social"><svg class="ic" viewBox="0 0 24 24"><path d="M5 21V3"/><path d="M5 4h12l-2.5 4L17 12H5"/></svg><span>무림</span></button>
         <button class="ib" id="btn-sound" aria-label="소리"><svg class="ic" viewBox="0 0 24 24"><path d="M4 9h4l5-4v14l-5-4H4z"/><path class="w" d="M16.5 9a4 4 0 0 1 0 6"/><path class="x" d="M16 9l5 6M21 9l-5 6"/></svg><span>소리</span></button>
+        <button class="ib" id="b-saver" aria-label="절전"><svg class="ic" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/></svg><span>절전</span></button>
         <button class="ib" id="b-opt" aria-label="설정"><svg class="ic" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg><span>설정</span></button>
       </div>
       <button id="qc" class="hidden"></button>
