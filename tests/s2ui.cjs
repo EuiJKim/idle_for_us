@@ -127,6 +127,13 @@ const ok = (c, m, x = '') => { console.log(`  ${c ? '✓' : '✗ !!'} ${m}${x !=
     await page.waitForTimeout(2500); const k1 = await page.evaluate(() => window.__s2.g.S.kills);
     await page.mouse.click(5, 200); await page.waitForTimeout(300);
     ok(!(await page.isVisible('#saver')) && k1 >= k0, 'v578 누르면 돌아옴 · 절전 중에도 사냥', `${k0} → ${k1}`);
+    // v584 길잡이를 다 끝내면 왼쪽 칸에 오늘 할 일 다음 것 · 누르면 그 창
+    { const saved = await page.evaluate(() => JSON.stringify(window.__s2.g.S.q.guide));
+      await page.evaluate(() => { const G = window.__s2.g.S.q.guide; for (const k of Object.keys(G)) { G[k].done = true; G[k].got = true; } for (let i = 1; i <= 40; i++) G[`g${i}`] = { p: 99, done: true, got: true }; window.__s2.g.S.gChk = -1; });
+      await page.waitForTimeout(500);
+      ok(/오늘 할 일/.test(await page.textContent('#qc')) && !(await page.getAttribute('#qc', 'class') || '').includes('hidden'), 'v584 길잡이 끝 → 오늘 할 일 다음 것', await page.textContent('#qc'));
+      if (await page.isVisible('#qc')) { await page.click('#qc'); await page.waitForTimeout(300); ok(await page.isVisible('#panel.open'), 'v584 누르면 그 창'); await page.click('#panel-close').catch(() => {}); }
+      await page.evaluate((sv) => { window.__s2.g.S.q.guide = JSON.parse(sv); }, saved); await page.waitForTimeout(300); }
     // v544 오늘 할 일 — 임무 → 오늘: 줄 여덟 · 「가기」→ 그 창
     await page.click('#mb .nb[data-tab="town"], .ib[data-tab="town"], [data-tab="town"] >> nth=0'); await page.waitForTimeout(200);
     await page.click('#panel-body .subtabs button:has-text("오늘")'); await page.waitForTimeout(200);

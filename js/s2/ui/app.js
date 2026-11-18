@@ -1071,7 +1071,10 @@ function paintHud() {
   // 들판: 전투력 · 길잡이 · 칸 진행(두목전이면 두목 체력 · 남은 시간) · 두목 도전
   { const pw = g.power(); $('pw').textContent = unit(pw); pwWatch(pw); }   // v534 전투력이 바뀌면 튀어 오름
   const cur = guideCurrent(S.q.guide), cs = cur && S.q.guide[cur.id], qb = $('qc');
-  qb.classList.toggle('hidden', !cur);
+  // v584 길잡이를 다 끝내면 같은 칸에 「오늘 할 일」 다음 것(또는 하루 상자) — 누르면 그 창
+  const td = cur ? null : todayNext();
+  qb.classList.toggle('hidden', !cur && !td);
+  if (!cur && td) { qb.classList.toggle('ready', !!td.ready); const qk = `td:${td.key}`; if (qb.dataset.k !== qk) { qb.dataset.k = qk; qb.innerHTML = `<div class="qh"><em>${td.ready ? '받기' : '오늘'}</em>오늘 할 일</div><div class="qb">${esc(td.label)}<small>${esc(td.sub)}</small></div>`; } }
   if (cur) { qb.classList.toggle('ready', !!cs?.done); const qk = `${cur.id}:${cs?.p || 0}:${cs?.done ? 1 : 0}`; if (qb.dataset.k !== qk) { qb.dataset.k = qk; qb.innerHTML = `<div class="qh"><em>${cs?.done ? '완료' : '진행'}</em>길잡이 ${cur.id.slice(1)}</div><div class="qb">${esc(guideLabel(cur))}<small>${cs?.done ? '받기 ▶' : `${cs?.p || 0}/${cur.need}`}</small></div>`; } }   // 왼쪽 길잡이 카드: 상태 · 할 일 · 진행
   const ready = !boss && !dgs && g.canChallenge();
   $('btn-boss').classList.toggle('hidden', !ready); $('btn-boss').classList.toggle('ready', ready);
@@ -1157,9 +1160,17 @@ function coinFly(from, to, n) {
   }
   setTimeout(() => { to.parentNode?.classList.remove('bump'); void to.offsetWidth; to.parentNode?.classList.add('bump'); }, 640);
 }
+// v584 오늘 할 일 다음 것 — 열렸고 덜 한 것 중 첫째 · 다 했으면 하루 상자 · 그것도 받았으면 없음
+function todayNext() {
+  if (!g) return null;
+  const TC = g.todayChest();
+  if (TC.can) return { key: 'chest', label: '하루 상자 열기', sub: '다 했어요 — 받기 ▶', go: 'today:0', ready: true };
+  const x = g.today().find((t) => t.open && !t.done);
+  return x ? { key: `${x.id}:${x.n}`, label: x.name, sub: x.of ? `${x.n}/${x.of} ▶` : `받을 것 ${x.n} ▶`, go: x.go } : null;
+}
 function onGuide() {
   const cur = guideCurrent(g.S.q.guide), cs = cur && g.S.q.guide[cur.id];
-  if (!cur) return;
+  if (!cur) { const td = todayNext(); if (td) { play('click'); openKey(td.go); } return; }
   if (cs?.done) { const g0 = g.S.wallet.gold, r = g.claimGuide(); if (r) { const dg = g.S.wallet.gold - g0; toast(`길잡이 ${r.id.slice(1)} 보상${dg > 0 ? ` · 은자 +${unit(dg)}` : ''}${r.items ? ' · 물건' : ''}`); play('loot'); coinFly($('qc'), $('g-gold'), 8); } save(); paintHud(); }
   else if (cur.go) openKey(goKey(cur.go));
 }
