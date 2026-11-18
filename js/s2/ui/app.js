@@ -558,6 +558,10 @@ function paintWin() {
     const c = card(`무한의 탑 ${g.S.tower.best}층`, '깬 층만큼 영구 보너스');
     c(R(`${g.S.tower.best + 1}층`, '적 넷을 60초 안에 모두 · 이기면 한 층 위로', [['도전', () => { play('click'); if (!g.enterDungeon('tower')) toast(g.canDungeon('tower') || '들어갈 수 없어요'); }, !!g.canDungeon('tower')]], '塔'));
   } else if (key === 'content:2') {
+    // v580 시간 티켓 바로 쓰기
+    { const nT = W['ticket:time'] || 0, ct = card('시간 티켓', `${nT}장 · 1장 = 사냥 15분 몫`);
+      const use = (n) => act(() => { const r = g.timeHunt(n); if (r) { play('coin'); toast(`시간 티켓 ${r.n}장 — 사냥 ${r.min}분 몫 · 은자 +${unit(r.gold)}${r.lv ? ` · Lv +${r.lv}` : ''}`); } return r; });
+      ct(R('바로 사냥 보상', '경험치 · 은자를 사냥한 만큼 바로 받아요(원정 · 배우기 시간 줄이기에도 써요)', [['1장', use(1), nT < 1], ['모두', use(nT), nT < 1]], '時')); }
     const E = g.S.exped, c = card('원정', `원정권 ${W['ticket:exped'] || 0}장`);
     if (E.run) c(R(`원정 ${E.run.hours}시간`, now() >= E.run.endMs ? '끝남 — 받기' : `남은 ${left(E.run.endMs)}`, [['받기', act(() => g.claimExped()), now() < E.run.endMs], ['시간 티켓', act(() => g.timeTicket('exped', 15)), !(W['ticket:time'] > 0)]], '征'));
     else for (const h of EXPEDITION.hours) c(R(`${h}시간 원정`, '보내 두면 시간만큼 보상', [['출발', act(() => g.startExped(h))]], '征'));

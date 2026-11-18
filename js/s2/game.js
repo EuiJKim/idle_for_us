@@ -827,6 +827,13 @@ export class Game {
     this.emit('offline');
     return r;
   }
+  // v580 시간 티켓 바로 쓰기 — 1장 = 사냥 15분 몫(경험치 · 은자) · 쓸 곳(원정 · 배우기)이 없어 쌓이던 것
+  timeHunt(n = 1) {
+    const W = this.S.wallet, k = Math.max(0, Math.min(n | 0, W['ticket:time'] || 0)); if (!k) return null;
+    W['ticket:time'] -= k; const lv0 = this.S.hero.lv, g0 = W.gold || 0, x0 = this.S.hero.exp;
+    this.giveHuntMin(15 * k);
+    return { n: k, min: 15 * k, gold: (W.gold || 0) - g0, lv: this.S.hero.lv - lv0 };
+  }
   timeTicket(which, minutes) {
     const S = this.S;
     const T = { realm: S.realm.wait, mastery: S.hero.mastery.learning, tree: S.hero.kit?.learning, gacha: S.gacha.wait, journey: S.journey.wait, exped: S.exped.run }[which];

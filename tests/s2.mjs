@@ -1286,6 +1286,14 @@ console.log('\n=== v579 무공 칸 묶음 ===');
   ok(g.kitPresetLoad(1) && K.off.length === K.slots.length && g.kitPresetLoad(0) && K.off.length === 0 && K.slots.join() === s0.join(), '적은 순서 · 자동/수동을 불러온다');
 }
 
+console.log('\n=== v580 시간 티켓 바로 쓰기 ===');
+{
+  const T0 = 1.8e12, g = new Game(newGame('sword', T0, 26), T0); g.addExp(EX.cumExp(20)); g.tick(T0);
+  g.S.wallet['ticket:time'] = 0; ok(g.timeHunt(1) === null, '없으면 못 씀');
+  g.S.wallet['ticket:time'] = 3; const e0 = EX.cumExp(g.S.hero.lv) + g.S.hero.exp, r = g.timeHunt(5);
+  ok(r && r.n === 3 && r.min === 45 && r.gold > 0 && g.S.wallet['ticket:time'] === 0 && EX.cumExp(g.S.hero.lv) + g.S.hero.exp > e0, '있는 만큼만(3장) · 45분 몫 경험치 · 은자');
+}
+
 console.log('\n=== S0 규칙 ===');
 {
   const files = [];
