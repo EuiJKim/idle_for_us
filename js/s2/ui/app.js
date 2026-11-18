@@ -33,7 +33,7 @@ import { play, unlock, setOpt, bgm } from './sound.js';
 import { PoseAnim, POSES, IDLE, mixPose } from '../../pose.js';
 // 설정(v504) — 이 기기에만(ifu.s2.opt). 소리 · 배경 가락 · 흔들림 · 피해 숫자 · 진동 · 그래픽 · 피해 측정기
 const OPT_KEY = 'ifu.s2.opt';
-const opt = Object.assign({ sfx: true, bgm: true, shake: true, nums: 'all', vib: true, gfx: 'high', dps: false, autoNext: true, saver: true, wake: true, autoGrow: false }, (() => { try { return JSON.parse(localStorage.getItem(OPT_KEY) || '{}'); } catch { return {}; } })());
+const opt = Object.assign({ sfx: true, bgm: true, shake: true, nums: 'all', vib: true, gfx: 'high', dps: false, autoNext: true, saver: true, wake: true, autoGrow: false, agGold: true }, (() => { try { return JSON.parse(localStorage.getItem(OPT_KEY) || '{}'); } catch { return {}; } })());
 const saveOpt = () => { try { localStorage.setItem(OPT_KEY, JSON.stringify(opt)); } catch { /* 저장 못 함 */ } setOpt({ sfx: opt.sfx, bgm: opt.bgm }); if (typeof wakeSync === 'function') wakeSync(); };
 setOpt({ sfx: opt.sfx, bgm: opt.bgm });
 const buzz = (ms) => { if (opt.vib && navigator.vibrate) try { navigator.vibrate(ms); } catch { /* 진동 없음 */ } };
@@ -821,7 +821,7 @@ function paintWin() {
     const c0 = card('소리 · 진동');
     c0(tg('효과음', 'sfx', '타격 · 무공 · 처치 · 뽑기 소리', '音'), tg('배경 가락', 'bgm', '장마다 다른 오음계 가락', '樂'), tg('진동', 'vib', '두목 패턴에 맞을 때 · 쓰러질 때(휴대폰)', '震'));
     const c1 = card('화면');
-    c1(tg('화면 흔들림', 'shake', '큰 무공 · 두목 패턴 · 당겨짐', '搖'), tg('피해 측정기', 'dps', '들판 왼쪽 위에 초당 피해 · 분당 처치', '測'), tg('두목전 결과 자동 진행', 'autoNext', '결과 창이 3초 뒤 저절로 닫히고 다음으로', '進'), tg('절전', 'saver', '2분 동안 손대지 않으면 화면을 어둡게 · 덜 그림(사냥은 그대로)', '眠'), tg('자동 성장(방치)', 'autoGrow', '1분마다 출석 · 수련동 소탕 · 원정 · 하루 상자 · 문파 출석 · 보상 받기 · 뽑기권 쓰기(장비 · 병기 · 동료 · 영물) · 최고 장비 · 무공 · 강화 · 마스터리 · 경지(은자로 뽑지는 않아요)', '育'), tg('화면 켜 두기(방치)', 'wake', wakeOK() ? '손전화가 저절로 화면을 끄지 않게 — 켜 두면 계속 사냥(절전과 같이 쓰면 배터리 덜 씀)' : '이 브라우저는 지원하지 않아요 — 꺼져도 돌아오면 방치 보상', '燈'));   // v578 · v586
+    c1(tg('화면 흔들림', 'shake', '큰 무공 · 두목 패턴 · 당겨짐', '搖'), tg('피해 측정기', 'dps', '들판 왼쪽 위에 초당 피해 · 분당 처치', '測'), tg('두목전 결과 자동 진행', 'autoNext', '결과 창이 3초 뒤 저절로 닫히고 다음으로', '進'), tg('절전', 'saver', '2분 동안 손대지 않으면 화면을 어둡게 · 덜 그림(사냥은 그대로)', '眠'), tg('자동 성장(방치)', 'autoGrow', '1분마다 출석 · 수련동 소탕 · 원정 · 하루 상자 · 문파 출석 · 보상 받기 · 뽑기권 쓰기(장비 · 병기 · 동료 · 영물) · 최고 장비 · 무공 · 강화 · 마스터리 · 경지(은자로 뽑지는 않아요)', '育'), ...(opt.autoGrow ? [tg('자동 성장 — 은자 쓰기', 'agGold', '끄면 은자가 드는 무공 올리기 · 강화 · 마스터리 · 경지는 건너뛰어요(보상 · 뽑기권 · 하루 일만)', '銀')] : []), tg('화면 켜 두기(방치)', 'wake', wakeOK() ? '손전화가 저절로 화면을 끄지 않게 — 켜 두면 계속 사냥(절전과 같이 쓰면 배터리 덜 씀)' : '이 브라우저는 지원하지 않아요 — 꺼져도 돌아오면 방치 보상', '燈'));   // v578 · v586
     if (document.documentElement.requestFullscreen) c1(R('전체 화면', document.fullscreenElement ? '켜짐' : '주소창 없이 화면을 다 쓴다(안드로이드 · 컴퓨터)', [[document.fullscreenElement ? '끄기' : '켜기', () => { play('click'); goFull(!document.fullscreenElement); setTimeout(paintWin, 300); }]], '全'));
     c1(R('피해 숫자', { all: '전부', crit: '치명만', off: '끄기' }[opt.nums], [['바꾸기', () => { opt.nums = { all: 'crit', crit: 'off', off: 'all' }[opt.nums]; saveOpt(); paintWin(); }]], '數'));
     c1(R('그래픽', opt.gfx === 'low' ? '낮음(배터리 아낌 · 흙먼지 · 은자 연출 끔)' : '높음', [['바꾸기', () => { opt.gfx = opt.gfx === 'low' ? 'high' : 'low'; saveOpt(); paintWin(); }]], '畵'));
@@ -1798,7 +1798,7 @@ function frame() {
   comboTick(t);   // v564
   // v588 자동 성장 — 켜 두면 1분마다(두목전 · 던전 · 창이 열려 있을 땐 쉼)
   if (opt.autoGrow && g && t - (frame.ag || 0) > 60000 && !g.bossFight && !g.dg && !open) {
-    frame.ag = t; const r = g.autoGrow();
+    frame.ag = t; const r = g.autoGrow(opt.agGold ? {} : { kit: false, enh: false, train: false });   // v593 은자 아끼기
     // v589 문파 출석(서버) — 문파에 들었고 오늘 안 했으면
     if (net.online && g.S.guildId && guildState.g && g.S.gChk !== dayKey(now())) { const G = guildState.g, gr = g.guildCheckin(Game.guildLvOf(G.exp)); if (gr) { r.daily.push('문파 출석'); net.guildCheckin(G).catch(() => {}); } }
     if (r.daily.length) agSum.daily += r.daily.length;

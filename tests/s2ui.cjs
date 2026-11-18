@@ -138,6 +138,23 @@ const ok = (c, m, x = '') => { console.log(`  ${c ? '✓' : '✗ !!'} ${m}${x !=
       await page.mouse.click(5, 200); await page.waitForTimeout(1800);
       ok(!(await page.isVisible('#saver')) && !(await page.evaluate(() => window.__s2.saverOn())), 'v587 누르면 돌아옴 · 다시 바로 절전되지 않음');
       await page.evaluate(() => window.__s2.saverAutoTest(false)); }
+    // v593 자동 성장 — 은자 쓰기를 끄면 강화를 건너뛴다
+    { const enhSum = () => page.evaluate(() => Object.values(window.__s2.g.S.gear.slots).reduce((a, x) => a + (x.enh || 0), 0));
+      await page.evaluate(() => { const g = window.__s2.g; if (g.bossFight) g.endChallenge(false); });
+      const w0 = await page.evaluate(() => { const W = window.__s2.g.S.wallet, o = { gold: W.gold, stone: W['item:stone'], tk: {} }; for (const k of Object.keys(W)) if (k.startsWith('ticket:')) { o.tk[k] = W[k]; W[k] = 0; } W.gold = 1e12; W['item:stone'] = 5000; return o; });
+      await page.click('#b-opt'); await page.waitForTimeout(200);
+      ok(!(await page.$('#wb .row:has-text("은자 쓰기")')), 'v593 자동 성장이 꺼져 있으면 은자 쓰기 줄이 없다');
+      await page.click('#wb .row:has-text("자동 성장(방치)") .btn'); await page.waitForTimeout(200);
+      await page.click('#wb .row:has-text("은자 쓰기") .btn'); await page.waitForTimeout(200); await page.click('#panel-close');
+      const e0 = await enhSum();
+      await page.evaluate(() => window.__s2.agTest()); await page.waitForTimeout(800);
+      ok((await enhSum()) === e0, 'v593 은자 쓰기를 끄면 강화하지 않는다');
+      await page.evaluate((w) => { const W = window.__s2.g.S.wallet; W.gold = w.gold; W['item:stone'] = w.stone; Object.assign(W, w.tk); }, w0);
+      await page.click('#b-opt'); await page.waitForTimeout(200);
+      if ((await page.textContent('#wb .row:has-text("은자 쓰기") .btn')).includes('꺼짐')) { await page.click('#wb .row:has-text("은자 쓰기") .btn'); await page.waitForTimeout(300); }
+      if ((await page.textContent('#wb .row:has-text("자동 성장(방치)") .btn')).includes('켜짐')) { await page.click('#wb .row:has-text("자동 성장(방치)") .btn'); await page.waitForTimeout(300); }
+      ok((await page.textContent('#wb .row:has-text("자동 성장(방치)") .btn')).includes('꺼짐'), 'v593 시험 뒤 자동 성장 끔');
+      await page.click('#panel-close'); await page.waitForTimeout(200); }
     // v590 절전에서 돌아오면 그동안 얻은 것을 한 줄로
     { await page.evaluate(() => { window.__s2.saverStart(); window.__s2.saverAge(3 * 60000); }); await page.waitForTimeout(300);
       await page.mouse.click(5, 200); await page.waitForTimeout(400);
@@ -150,8 +167,8 @@ const ok = (c, m, x = '') => { console.log(`  ${c ? '✓' : '✗ !!'} ${m}${x !=
       const t0 = await page.evaluate(() => { const g = window.__s2.g; if (g.bossFight) g.endChallenge(false); g.S.wallet['ticket:gear'] = 12; return g.S.gacha.pulls; });
       await page.click('#b-opt'); await page.waitForTimeout(200);
       await page.click('#wb .row:has-text("자동 성장") .btn'); await page.waitForTimeout(200); await page.click('#panel-close');
-      await page.evaluate(() => window.__s2.agTest()); await page.waitForTimeout(800);
-      const t1 = await page.evaluate(() => ({ p: window.__s2.g.S.gacha.pulls, w: window.__s2.g.S.wallet['ticket:gear'] }));
+      for (let k = 0; k < 6; k++) { await page.evaluate(() => { const g = window.__s2.g; if (g.bossFight) g.endChallenge(false); window.__s2.agTest(); }); await page.waitForTimeout(800); if ((await page.evaluate(() => window.__s2.g.S.gacha.pulls)) > t0) break; }   // 두목전과 겹치면 다시
+      const t1 = await page.evaluate(() => ({ p: window.__s2.g.S.gacha.pulls, w: window.__s2.g.S.wallet['ticket:gear'], b: !!window.__s2.g.bossFight, d: !!window.__s2.g.dg, m: !document.querySelector('#modal').classList.contains('hidden'), o: JSON.parse(localStorage.getItem(Object.keys(localStorage).find((k) => /opt/i.test(k))) || '{}').autoGrow }));
       ok(t1.p >= t0 + 12 && t1.w === 0, 'v588 자동 성장 켜면 뽑기권을 쓴다(받은 보상 몫까지)', JSON.stringify({ t0, t1 }));
       await page.click('#b-opt'); await page.waitForTimeout(200); await page.click('#wb .row:has-text("자동 성장") .btn'); await page.waitForTimeout(200); await page.click('#panel-close');
       await page.evaluate((k) => { window.__s2.g.S.wallet['ticket:gear'] = k; }, keep); }   // 뒤 시험(뽑기권 10장)이 쓰게 되돌림
