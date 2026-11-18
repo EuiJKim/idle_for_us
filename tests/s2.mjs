@@ -1335,6 +1335,16 @@ console.log('\n=== v588 자동 성장 ===');
   W['ticket:gear'] = 5; const r3 = g.autoGrow({ pull: false, enh: false, kit: false }); ok(r3.pull === 0 && W['ticket:gear'] === 5, '끈 것은 하지 않음');
 }
 
+console.log('\n=== v589 자동 성장 — 하루 일 ===');
+{
+  const T0 = 1.8e12, g = new Game(newGame('sword', T0, 32), T0); g.addExp(EX.cumExp(60)); g.tick(T0);
+  g.S.dungeons.best = { gold: true };
+  const r = g.autoGrow();
+  ok(r.daily.includes('출석') && !g.canAttend() && r.daily.some((x) => /^소탕/.test(x)) && r.daily.includes('원정 보냄') && g.S.exped.run, '출석 · 소탕 · 원정 보내기', JSON.stringify(r.daily));
+  g.tick(T0 + 13 * 3600e3); const r2 = g.autoGrow(); ok(r2.daily.includes('원정 받음') && r2.daily.includes('원정 보냄'), '원정이 끝나면 받고 다시 보냄', JSON.stringify(r2.daily));
+  const r3 = g.autoGrow({ daily: false }); ok(r3.daily.length === 0, '하루 일을 끄면 안 함');
+}
+
 console.log('\n=== S0 규칙 ===');
 {
   const files = [];

@@ -516,7 +516,14 @@ export class Game {
   }
   // v588 자동 성장(방치) — 받을 보상 받기 · 장비 뽑기권 쓰기 · 최고 장비 끼기 · 무공 모두 올리기 · 모두 강화. 은자로 뽑지는 않는다(뽑기권만)
   autoGrow(o = {}) {
-    const S = this.S, out = { claim: 0, pull: 0, equip: 0, kit: 0, enh: 0 };
+    const S = this.S, out = { claim: 0, pull: 0, equip: 0, kit: 0, enh: 0, daily: [] };
+    // v589 하루 일도 — 출석 · 수련동 모두 소탕 · 원정 받고 다시 보내기(12시간) · 하루 상자(다 했으면)
+    if (o.daily !== false) {
+      if (this.canAttend() && this.attend()) out.daily.push('출석');
+      const sw = this.sweepAll(); if (sw) out.daily.push(`소탕 ${sw.n}`);
+      const E = S.exped; if (E.run && this.now >= E.run.endMs && this.claimExped()) out.daily.push('원정 받음');
+      if (!E.run && this.startExped(12)) out.daily.push('원정 보냄');
+    }
     if (o.claim !== false) {
       for (let i = 0; i < 30 && this.claimGuide(); i++) out.claim++;
       for (const [b, B] of Object.entries(this.books)) for (const id of B.claimable()) if (this.claimMission(b, id)) out.claim++;
@@ -528,6 +535,7 @@ export class Game {
     if (GR.equipBest(S.gear, S.hero.lv)) { this.dirtyStats = true; this.emit('equip'); out.equip = 1; }
     if (o.kit !== false) { const k = this.kitUpAll(); if (k) out.kit = k.n; }
     if (o.enh !== false) { const e = this.enhanceAll(); if (e) out.enh = e.ok; }
+    if (o.daily !== false && this.todayChest().can && this.claimToday()) out.daily.push('하루 상자');   // 받을 것을 다 받은 뒤
     return out;
   }
   // v559 무공 모두 올리기 — 배운 무공 중 가장 낮은 것부터 고르게, 은자가 되는 만큼(상한까지). 무공마다 전 → 후 · 쓴 은자 · 전투력
