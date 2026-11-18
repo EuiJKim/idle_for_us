@@ -138,6 +138,15 @@ const ok = (c, m, x = '') => { console.log(`  ${c ? '✓' : '✗ !!'} ${m}${x !=
       await page.mouse.click(5, 200); await page.waitForTimeout(1800);
       ok(!(await page.isVisible('#saver')) && !(await page.evaluate(() => window.__s2.saverOn())), 'v587 누르면 돌아옴 · 다시 바로 절전되지 않음');
       await page.evaluate(() => window.__s2.saverAutoTest(false)); }
+    // v595 친구에게 알리기 — 설정에서 누르면 게임 주소(폴더까지)를 공유 · 복사
+    { await page.evaluate(() => { const g = window.__s2.g; if (g.bossFight) g.endChallenge(false); });
+      await page.click('#b-opt'); await page.waitForTimeout(300);
+      const row = await page.$('#wb .row:has-text("친구에게 알리기") .btn');
+      if (row) { await row.click(); await page.waitForTimeout(400); }
+      const u = await page.evaluate(() => window.__s2.shareLast());
+      ok(!!row && /^https?:\/\/[^?#]+\/$/.test(u), 'v595 친구에게 알리기 → 게임 주소', u);
+      if (await page.isVisible('#modal .sheet')) { await page.click('#modal .btn'); await page.waitForTimeout(200); }
+      await page.click('#panel-close'); await page.waitForTimeout(200); }
     // v594 알림 창 바깥을 누르면 닫힌다
     { await page.evaluate(() => { const g = window.__s2.g; if (g.bossFight) g.endChallenge(false); });
       await page.evaluate(() => { window.__s2.g.S.newsV = 540; window.__s2.newsCheck(); }); await page.waitForSelector('#modal:not(.hidden) .news-i', { timeout: 15000 }).catch(() => {}); await page.waitForTimeout(500);   // 결과 창이 떠 있으면 닫힌 뒤에 뜬다

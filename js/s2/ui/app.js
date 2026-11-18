@@ -203,6 +203,15 @@ function start(job) { g = new Game(newGame(job, now(), (now() & 0x7fffffff) || 1
 
 // ── 토스트 · 팝업 — 지금 게임과 같은 틀(#toast .toast · #modal .sheet h2 · .btn-row) ──
 function toast(t) { const d = document.createElement('div'); d.className = 'toast'; d.textContent = t; $('toast').append(d); setTimeout(() => d.remove(), 2700); }
+// v595 친구에게 알리기 — 손전화면 공유 창(카톡 · 문자 …), 없으면 주소 복사, 그것도 안 되면 주소를 보여 줌
+const shareUrl = () => location.origin + location.pathname.replace(/[^/]*$/, '');
+let shareLast = '';
+async function shareGame() {
+  const url = shareUrl(), title = document.title; shareLast = url;
+  if (navigator.share && !navigator.webdriver) { try { await navigator.share({ title, text: `${title} — 같이 해요`, url }); return; } catch (e) { if (e?.name === 'AbortError') return; } }
+  try { await navigator.clipboard.writeText(url); toast('게임 주소를 복사했어요 — 친구에게 붙여 보내세요'); }
+  catch (e) { pop('친구에게 알리기', `<p class="note">아래 주소를 길게 눌러 복사하세요</p><p style="word-break:break-all;user-select:all">${esc(url)}</p>`); }
+}
 function closeModal() { $('modal').classList.add('hidden'); modalOne = null; }
 // v594 알림 창 바깥(어두운 곳)을 누르면 닫힌다 — 단추가 「확인」 하나뿐이면 그 단추를 누른 것과 같게, 여럿이면 그냥 닫기(고르지 않음).
 //   창이 뜨자마자(0.3초) 누른 것은 잘못 누름으로 보고 넘긴다
@@ -839,6 +848,7 @@ function paintWin() {
     const c3 = card('계정 · 저장', net.online ? (net.isGoogle() ? `Google · ${esc(net.email())}` : '이 기기만(Google 미연결)') : net.status === 'connecting' ? '연결 중…' : '오프라인 — 이 기기에만 저장');
     c3(R('Google 연결', net.isGoogle() ? '연결됨 — 다른 기기에서도 Google로 들어오면 이어서 해요' : '연결해 두면 기기를 바꾸거나 지워도 되살려요', [[net.isGoogle() ? '다른 계정' : '연결', () => { play('click'); if (net.isGoogle()) net.switchTo(null).then((d) => (d ? applyCloud(d) : toast('그 계정에는 새 시즌 진행이 없어요'))).catch((e) => toast(e?.message || '바꾸지 못했어요')); else linkGoogle(); }, !net.online]], 'G'));
     c3(R('서버에 저장', net.cloudAt ? `마지막 ${new Date(net.cloudAt).toLocaleString()} · 3분마다 저절로` : '3분마다 저절로 올려요', [['지금 저장', act(() => { cloudPush(true).then((ok) => toast(ok ? '서버에 저장했어요' : '저장하지 못했어요(오프라인?)')); return true; }), !net.online]], '雲'));
+    c3(R('친구에게 알리기', '게임 주소를 보내요 — 공유 창이 없으면 주소를 복사', [['공유', () => { play('click'); shareGame(); }]], '友'));   // v595
     c3(R('업데이트 소식', `새로 생긴 것 — 지금 판 v${NEWS_V}`, [['보기', () => { play('click'); newsPop(NEWS, true); }]], '新'));   // v560
     c3(R('서열 이름', g.S.nick ? esc(g.S.nick) : '아직 없음 — 서버에 올릴 때 정해져요', [['바꾸기', () => { play('click'); const n = prompt('서열에 보일 이름(1~12자)', g.S.nick || ''); if (n == null) return; if (g.setNick(n)) { save(); rankPush(); toast('이름을 바꿨어요'); } else toast('1~12자로 적어 주세요'); paintWin(); }]], '名'));   // v547
     c3(R('저장 코드', '계정 없이 글자 한 줄로 옮기기', [['복사', () => { play('click'); exportCode(); }], ['붙여넣기', () => { play('click'); importCode(); }]], '碼'));
@@ -2194,6 +2204,6 @@ load();
 if (g) boot();
 else pickJob();
 // 시험용 손잡이
-window.__s2 = { get g() { return g; }, agTest: () => { frame.ag = 0; }, saverStart, saverOff, saverOn: () => saverOn, saverAge: (ms) => { if (saverFrom) saverFrom.at -= ms; }, saverSum: () => saverSum, saverAutoTest: (on) => { saverAuto = !!on; }, wake: () => ({ lock: !!wakeLock, want: wakeWant, ok: wakeOK() }), wakeSync, wakeOpt: (on) => { opt.wake = !!on; return wakeSync(); }, saverTest: () => { saverForce = true; lastInput = -1e9; }, newsCheck, guildState, guildLoad, chatSend, save, dayKey, attendPop, freeze: () => { frozen = true; }, net, cloudPush, rankPush, wbPush, wkStr, pvpInbox, pvpFetch, resetNetTimers: () => { pvpAt = 0; inboxAt = 0; },
+window.__s2 = { get g() { return g; }, agTest: () => { frame.ag = 0; }, saverStart, saverOff, saverOn: () => saverOn, saverAge: (ms) => { if (saverFrom) saverFrom.at -= ms; }, saverSum: () => saverSum, shareLast: () => shareLast, saverAutoTest: (on) => { saverAuto = !!on; }, wake: () => ({ lock: !!wakeLock, want: wakeWant, ok: wakeOK() }), wakeSync, wakeOpt: (on) => { opt.wake = !!on; return wakeSync(); }, saverTest: () => { saverForce = true; lastInput = -1e9; }, newsCheck, guildState, guildLoad, chatSend, save, dayKey, attendPop, freeze: () => { frozen = true; }, net, cloudPush, rankPush, wbPush, wkStr, pvpInbox, pvpFetch, resetNetTimers: () => { pvpAt = 0; inboxAt = 0; },
   // v525 팝업 대신 에뮬레이터용 가짜 Google 토큰으로 잇기 · 겹치면 그 계정으로
   linkTest: async (tok) => { const r = await net.linkGoogle(tok); if (r.conflict) { const d = await net.switchTo(r.cred); if (d) applyCloud(d); return 'switched'; } await cloudPush(true); return 'linked'; } };
