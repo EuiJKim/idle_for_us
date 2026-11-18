@@ -138,6 +138,16 @@ const ok = (c, m, x = '') => { console.log(`  ${c ? '✓' : '✗ !!'} ${m}${x !=
       await page.mouse.click(5, 200); await page.waitForTimeout(1800);
       ok(!(await page.isVisible('#saver')) && !(await page.evaluate(() => window.__s2.saverOn())), 'v587 누르면 돌아옴 · 다시 바로 절전되지 않음');
       await page.evaluate(() => window.__s2.saverAutoTest(false)); }
+    // v588 자동 성장 — 설정에서 켜면 1분마다(시험은 바로) 뽑기권을 쓰고 기록에 남긴다
+    { const keep = await page.evaluate(() => window.__s2.g.S.wallet['ticket:gear'] || 0);
+      const t0 = await page.evaluate(() => { const g = window.__s2.g; if (g.bossFight) g.endChallenge(false); g.S.wallet['ticket:gear'] = 12; return g.S.gacha.pulls; });
+      await page.click('#b-opt'); await page.waitForTimeout(200);
+      await page.click('#wb .row:has-text("자동 성장") .btn'); await page.waitForTimeout(200); await page.click('#panel-close');
+      await page.evaluate(() => window.__s2.agTest()); await page.waitForTimeout(800);
+      const t1 = await page.evaluate(() => ({ p: window.__s2.g.S.gacha.pulls, w: window.__s2.g.S.wallet['ticket:gear'] }));
+      ok(t1.p >= t0 + 12 && t1.w === 0, 'v588 자동 성장 켜면 뽑기권을 쓴다(받은 보상 몫까지)', JSON.stringify({ t0, t1 }));
+      await page.click('#b-opt'); await page.waitForTimeout(200); await page.click('#wb .row:has-text("자동 성장") .btn'); await page.waitForTimeout(200); await page.click('#panel-close');
+      await page.evaluate((k) => { window.__s2.g.S.wallet['ticket:gear'] = k; }, keep); }   // 뒤 시험(뽑기권 10장)이 쓰게 되돌림
     // v578 절전 — 오래 손대지 않으면 어둡게 · 누르면 돌아옴(사냥은 그대로)
     await page.evaluate(() => { const g = window.__s2.g; if (g.bossFight) g.endChallenge(false); window.__s2.saverTest(); }); await page.waitForTimeout(600);
     const k0 = await page.evaluate(() => window.__s2.g.S.kills);

@@ -514,6 +514,22 @@ export class Game {
     this.dirtyStats = true; if (this.fight) this.fight.hero.kit = this.hero.battleKit?.() ?? this.fight.hero.kit;
     return true;
   }
+  // v588 자동 성장(방치) — 받을 보상 받기 · 장비 뽑기권 쓰기 · 최고 장비 끼기 · 무공 모두 올리기 · 모두 강화. 은자로 뽑지는 않는다(뽑기권만)
+  autoGrow(o = {}) {
+    const S = this.S, out = { claim: 0, pull: 0, equip: 0, kit: 0, enh: 0 };
+    if (o.claim !== false) {
+      for (let i = 0; i < 30 && this.claimGuide(); i++) out.claim++;
+      for (const [b, B] of Object.entries(this.books)) for (const id of B.claimable()) if (this.claimMission(b, id)) out.claim++;
+    }
+    if (o.pull !== false) {
+      for (let i = 0; i < 100 && (S.wallet['ticket:gear'] || 0) >= 10; i++) if (this.pullGear(10, true)) out.pull += 10; else break;
+      for (let i = 0; i < 10 && (S.wallet['ticket:gear'] || 0) >= 1; i++) if (this.pullGear(1, true)) out.pull++; else break;
+    }
+    if (GR.equipBest(S.gear, S.hero.lv)) { this.dirtyStats = true; this.emit('equip'); out.equip = 1; }
+    if (o.kit !== false) { const k = this.kitUpAll(); if (k) out.kit = k.n; }
+    if (o.enh !== false) { const e = this.enhanceAll(); if (e) out.enh = e.ok; }
+    return out;
+  }
   // v559 무공 모두 올리기 — 배운 무공 중 가장 낮은 것부터 고르게, 은자가 되는 만큼(상한까지). 무공마다 전 → 후 · 쓴 은자 · 전투력
   kitUpAll(max = 600) {
     const H = this.hero, K = H.kitState(), W = this.S.wallet, ids = Object.keys(K.lv).filter((id) => K.lv[id] > 0);

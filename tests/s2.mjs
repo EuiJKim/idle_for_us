@@ -1324,6 +1324,17 @@ console.log('\n=== v583 두목 연습 ===');
   ok(f && f.practice && Object.keys(f.rew).length === 0 && g.raidLeft() === left0 && !g.S.raid?.star?.[1] && T.idx === idx0, '보상 · 토벌 횟수 · 별 · 칸 그대로', JSON.stringify({ win: f?.win }));
 }
 
+console.log('\n=== v588 자동 성장 ===');
+{
+  const T0 = 1.8e12, g = new Game(newGame('sword', T0, 31), T0); g.addExp(EX.cumExp(40)); g.tick(T0);
+  const W = g.S.wallet; W['ticket:gear'] = 25; W.gold = 1e9; W['item:stone'] = 2000; const gold0 = W.gold, pw0 = g.power(), pulls0 = g.S.gacha.pulls;
+  const r = g.autoGrow();
+  ok(r.pull >= 25 && W['ticket:gear'] === 0 && g.S.gacha.pulls === pulls0 + r.pull, '뽑기권을 모두 쓴다(받은 보상의 뽑기권까지 · 은자로는 안 뽑음)', JSON.stringify(r));
+  ok(r.enh > 0 && r.kit >= 0 && g.power() > pw0, '최고 장비 · 무공 · 강화로 전투력이 오른다');
+  const r2 = g.autoGrow(); ok(r2.pull === 0 && W['ticket:gear'] === 0, '뽑기권이 없으면 뽑지 않음(은자 그대로 쓰지 않음)');
+  W['ticket:gear'] = 5; const r3 = g.autoGrow({ pull: false, enh: false, kit: false }); ok(r3.pull === 0 && W['ticket:gear'] === 5, '끈 것은 하지 않음');
+}
+
 console.log('\n=== S0 규칙 ===');
 {
   const files = [];
