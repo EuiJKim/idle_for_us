@@ -1345,6 +1345,17 @@ console.log('\n=== v589 자동 성장 — 하루 일 ===');
   const r3 = g.autoGrow({ daily: false }); ok(r3.daily.length === 0, '하루 일을 끄면 안 함');
 }
 
+console.log('\n=== v591 자동 성장 — 병기 · 동료 · 영물 뽑기권 ===');
+{
+  const T0 = 1.8e12, g = new Game(newGame('sword', T0, 33), T0); g.addExp(EX.cumExp(30)); g.tick(T0);
+  const W = g.S.wallet; W['ticket:weapon'] = 13; W['ticket:pal'] = 2; W['ticket:relic'] = 0;
+  const own0 = Object.values(g.S.colls.weapon.own).reduce((a, o) => a + o.n, 0);
+  const r = g.autoGrow({ claim: false, daily: false });
+  const own1 = Object.values(g.S.colls.weapon.own).reduce((a, o) => a + o.n, 0);
+  ok(W['ticket:weapon'] === 0 && W['ticket:pal'] === 0 && own1 > own0 && r.coll === 15, '병기 · 동료 뽑기권을 모두 쓴다', JSON.stringify({ coll: r.coll, own0, own1 }));
+  W['ticket:pal'] = 4; const r2 = g.autoGrow({ coll: false, claim: false, daily: false }); ok(r2.coll === 0 && W['ticket:pal'] === 4, '끄면 쓰지 않음');
+}
+
 console.log('\n=== S0 규칙 ===');
 {
   const files = [];

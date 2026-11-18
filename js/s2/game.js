@@ -516,7 +516,7 @@ export class Game {
   }
   // v588 자동 성장(방치) — 받을 보상 받기 · 장비 뽑기권 쓰기 · 최고 장비 끼기 · 무공 모두 올리기 · 모두 강화. 은자로 뽑지는 않는다(뽑기권만)
   autoGrow(o = {}) {
-    const S = this.S, out = { claim: 0, pull: 0, equip: 0, kit: 0, enh: 0, daily: [] };
+    const S = this.S, out = { claim: 0, pull: 0, coll: 0, equip: 0, kit: 0, enh: 0, daily: [] };
     // v589 하루 일도 — 출석 · 수련동 모두 소탕 · 원정 받고 다시 보내기(12시간) · 하루 상자(다 했으면)
     if (o.daily !== false) {
       if (this.canAttend() && this.attend()) out.daily.push('출석');
@@ -531,6 +531,11 @@ export class Game {
     if (o.pull !== false) {
       for (let i = 0; i < 100 && (S.wallet['ticket:gear'] || 0) >= 10; i++) if (this.pullGear(10, true)) out.pull += 10; else break;
       for (let i = 0; i < 10 && (S.wallet['ticket:gear'] || 0) >= 1; i++) if (this.pullGear(1, true)) out.pull++; else break;
+    }
+    // v591 병기 · 동료 · 영물 뽑기권도(뽑기권만 — 각성 · 끼기는 뽑기가 알아서)
+    if (o.coll !== false) for (const sys of COLLECTS) {
+      for (let i = 0; i < 100 && (S.wallet[`ticket:${sys}`] || 0) >= 10; i++) if (this.pullCollect(sys, 10)) out.coll += 10; else break;
+      for (let i = 0; i < 10 && (S.wallet[`ticket:${sys}`] || 0) >= 1; i++) if (this.pullCollect(sys, 1)) out.coll++; else break;
     }
     if (GR.equipBest(S.gear, S.hero.lv)) { this.dirtyStats = true; this.emit('equip'); out.equip = 1; }
     if (o.kit !== false) { const k = this.kitUpAll(); if (k) out.kit = k.n; }
