@@ -372,6 +372,9 @@ function paintWin() {
     const Hs = g.hero, K = Hs.kitState(), cap = kitCap(g.S.hero.lv);
     const KIND = { active: '공격', passive: '상시', buff: '버프' }, SHAPE = { line: '앞 일직선', arc: '앞 부채꼴', circle: '주변', rain: '앞쪽 하늘에서' };
     B.append(note(`칸 ${K.slots.length}/${SLOT_N} — 자동 사냥이면 칸 순서대로 준비된 무공을 저절로 써요. 무공 레벨 상한 ${cap}(무인 레벨 5마다 1).`));
+    // v579 칸 묶음 — 사냥용 · 두목용처럼 둘을 적어 두고 한 번에
+    { const PR = g.S.kitPre || [null, null], cp = card('무공 칸 묶음', '지금 칸 순서 · 자동/수동을 적어 두고 불러와요');
+      ['가', '나'].forEach((nm, i) => cp(R(`묶음 ${nm}`, PR[i] ? PR[i].slots.map((id) => esc(skillById(id)?.name || id)).join(' · ') || '(빈 칸)' : '비어 있음', [['불러오기', act(() => g.kitPresetLoad(i)), !PR[i]], ['적기', act(() => g.kitPresetSave(i))]], nm))); }
     // v559 모두 올리기 — 가장 낮은 무공부터 고르게 · 은자가 되는 만큼
     { const any = Object.keys(K.lv).some((id) => K.lv[id] > 0 && Hs.canKitUp(id)); const c0 = card('무공 모두 올리기', `은자 ${unit(g.S.wallet.gold || 0)}`);
       c0(R('모두 올리기', any ? '배운 무공을 가장 낮은 것부터 고르게 — 은자가 되는 만큼 · 상한까지' : '올릴 수 있는 무공이 없어요(은자 · 상한)', [['모두 올리기', act(() => { const r = g.kitUpAll(); if (r) kitAllPop(r); return r; }), !any]], '功')); }

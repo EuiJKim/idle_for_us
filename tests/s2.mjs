@@ -1277,6 +1277,15 @@ console.log('\n=== v576 무림 공동 토벌 ===');
   g.tick(T0 + 7 * 86400000); ok(g.wbCommunityGot() === 0, '다음 주 새로');
 }
 
+console.log('\n=== v579 무공 칸 묶음 ===');
+{
+  const T0 = 1.8e12, g = new Game(newGame('sword', T0, 25), T0); g.addExp(EX.cumExp(60)); g.tick(T0);
+  const K = g.hero.kitState(), s0 = [...K.slots];
+  ok(!g.kitPresetLoad(0) && g.kitPresetSave(0) && !g.kitPresetSave(2), '비어 있으면 못 불러옴 · 둘만');
+  K.off = [...K.slots]; g.kitPresetSave(1); K.off = [];
+  ok(g.kitPresetLoad(1) && K.off.length === K.slots.length && g.kitPresetLoad(0) && K.off.length === 0 && K.slots.join() === s0.join(), '적은 순서 · 자동/수동을 불러온다');
+}
+
 console.log('\n=== S0 규칙 ===');
 {
   const files = [];

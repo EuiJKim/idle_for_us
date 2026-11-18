@@ -491,6 +491,15 @@ export class Game {
     return { items, got: this.obtain(items, 'gacha') };
   }
   enhance(slot) { const r = GR.enhance(this.S.gear, slot, this.rng, this.S.wallet, this.S.hero.lv); if (r !== null) this.emit("enhance"); if (r) this.dirtyStats = true; return r; }
+  // v579 무공 칸 묶음(둘) — 지금 칸 순서 · 자동/수동을 적어 두고 불러온다(배운 무공만)
+  kitPresetSave(i) { if (i !== 0 && i !== 1) return false; const K = this.hero.kitState(); (this.S.kitPre ??= [null, null])[i] = { slots: [...K.slots], off: [...K.off] }; return true; }
+  kitPresetLoad(i) {
+    const P = this.S.kitPre?.[i]; if (!P) return false;
+    const K = this.hero.kitState(), ok = P.slots.filter((id) => K.lv[id]);
+    K.slots = ok.slice(0, K.slots.length || ok.length); K.off = (P.off || []).filter((id) => K.lv[id]);
+    this.dirtyStats = true; if (this.fight) this.fight.hero.kit = this.hero.battleKit?.() ?? this.fight.hero.kit;
+    return true;
+  }
   // v559 무공 모두 올리기 — 배운 무공 중 가장 낮은 것부터 고르게, 은자가 되는 만큼(상한까지). 무공마다 전 → 후 · 쓴 은자 · 전투력
   kitUpAll(max = 600) {
     const H = this.hero, K = H.kitState(), W = this.S.wallet, ids = Object.keys(K.lv).filter((id) => K.lv[id] > 0);
