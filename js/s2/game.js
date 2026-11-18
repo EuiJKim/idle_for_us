@@ -14,7 +14,7 @@ import { START_PULL_TICKETS, SLOTS } from './tables/gear.js';
 import { START_PULLS } from './tables/s5.js';
 import { DAILY_DUNGEONS, DAILY_RUNS, JOB_DUNGEON } from './tables/content.js';
 import { GUIDE, DAILY_MISSIONS, WEEKLY_MISSIONS, achievements, guideCurrent } from './tables/missions.js';
-import { JOB_ADV } from './tables/skills.js';
+import { JOB_ADV, MASTERY } from './tables/skills.js';
 import { CHBOSS, CB, cbGearGrade, CB_REPEAT, WBF, CB_RAID, raidStars, DEX_REW } from './tables/chboss.js';
 const CB_MANUAL_STONES = 50;   // v546
 const GUILD_CHECKIN = { tix: 2, goldMin: 15 };   // v549 문파 출석
@@ -516,7 +516,7 @@ export class Game {
   }
   // v588 자동 성장(방치) — 받을 보상 받기 · 장비 뽑기권 쓰기 · 최고 장비 끼기 · 무공 모두 올리기 · 모두 강화. 은자로 뽑지는 않는다(뽑기권만)
   autoGrow(o = {}) {
-    const S = this.S, out = { claim: 0, pull: 0, coll: 0, equip: 0, kit: 0, enh: 0, daily: [] };
+    const S = this.S, out = { claim: 0, pull: 0, coll: 0, equip: 0, kit: 0, enh: 0, train: 0, daily: [] };
     // v589 하루 일도 — 출석 · 수련동 모두 소탕 · 원정 받고 다시 보내기(12시간) · 하루 상자(다 했으면)
     if (o.daily !== false) {
       if (this.canAttend() && this.attend()) out.daily.push('출석');
@@ -540,6 +540,11 @@ export class Game {
     if (GR.equipBest(S.gear, S.hero.lv)) { this.dirtyStats = true; this.emit('equip'); out.equip = 1; }
     if (o.kit !== false) { const k = this.kitUpAll(); if (k) out.kit = k.n; }
     if (o.enh !== false) { const e = this.enhanceAll(); if (e) out.enh = e.ok; }
+    // v592 수련 — 배울 수 있는 마스터리 · 경지 돌파(은자가 되는 만큼, 강화 뒤에)
+    if (o.train !== false) {
+      for (const m of MASTERY) if (this.learn(m.id)) out.train++;
+      for (let i = 0; i < 10 && this.realmUp(); i++) out.train++;
+    }
     if (o.daily !== false && this.todayChest().can && this.claimToday()) out.daily.push('하루 상자');   // 받을 것을 다 받은 뒤
     return out;
   }

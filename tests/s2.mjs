@@ -1356,6 +1356,16 @@ console.log('\n=== v591 자동 성장 — 병기 · 동료 · 영물 뽑기권 =
   W['ticket:pal'] = 4; const r2 = g.autoGrow({ coll: false, claim: false, daily: false }); ok(r2.coll === 0 && W['ticket:pal'] === 4, '끄면 쓰지 않음');
 }
 
+console.log('\n=== v592 자동 성장 — 마스터리 · 경지 ===');
+{
+  const T0 = 1.8e12, g = new Game(newGame('sword', T0, 34), T0); g.addExp(EX.cumExp(60)); g.tick(T0);
+  g.S.wallet.gold = 1e13; const m0 = g.S.hero.mastery.done.length, r0 = g.S.realm.lv;
+  const r = g.autoGrow({ claim: false, daily: false });
+  ok(r.train > 0 && (g.S.hero.mastery.done.length > m0 || g.S.realm.lv > r0), '마스터리 · 경지를 올린다', JSON.stringify({ train: r.train, m: [m0, g.S.hero.mastery.done.length], realm: [r0, g.S.realm.lv] }));
+  const g2 = new Game(newGame('sword', T0, 35), T0); g2.addExp(EX.cumExp(60)); g2.tick(T0); g2.S.wallet.gold = 1e13;
+  const r2 = g2.autoGrow({ train: false, claim: false, daily: false }); ok(r2.train === 0 && g2.S.realm.lv === r0, '끄면 안 함');
+}
+
 console.log('\n=== S0 규칙 ===');
 {
   const files = [];
