@@ -277,6 +277,7 @@ async function tab(page, name) {
   await G(p, () => window.__game.enterMap(11));
   await p.click('#panel-close').catch(() => {});
   await sleep(1500);
+  await p.waitForFunction(() => window.__game.mons.some((x) => x.alive && !x.npc), null, { timeout: 20000 });   // v578 몹이 다 죽어 있던 때가 있었다(가끔 실패)
   await G(p, () => { const g = window.__game; const m = g.mons.find((x) => x.alive && !x.npc); m.x = g.heroX + 40; m.y = g.heroY; m.hp = m.maxHp = 1e6; g.mon = m; g.cd.s0 = 0; g.s.autoSkill = false; });
   await p.locator('#skillbar .skill-btn').first().click();
   await sleep(200);

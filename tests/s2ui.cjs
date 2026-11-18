@@ -120,6 +120,13 @@ const ok = (c, m, x = '') => { console.log(`  ${c ? '✓' : '✗ !!'} ${m}${x !=
     await page.evaluate(() => { window.__s2.g.S.newsV = 540; window.__s2.newsCheck(); }); await page.waitForTimeout(1500);
     ok(/새로 생긴 것/.test(await page.textContent('#modal')) && (await page.$$('#modal .news-i')).length >= 5 && await page.evaluate(() => window.__s2.g.S.newsV >= 560), 'v560 옛 판이면 새로 생긴 것 창 · 본 뒤 지금 판으로');
     await page.click('#modal .btn:has-text("확인")'); await page.waitForTimeout(200);
+    // v578 절전 — 오래 손대지 않으면 어둡게 · 누르면 돌아옴(사냥은 그대로)
+    await page.evaluate(() => { const g = window.__s2.g; if (g.bossFight) g.endChallenge(false); window.__s2.saverTest(); }); await page.waitForTimeout(600);
+    const k0 = await page.evaluate(() => window.__s2.g.S.kills);
+    ok(await page.isVisible('#saver'), 'v578 오래 손대지 않으면 절전 화면');
+    await page.waitForTimeout(2500); const k1 = await page.evaluate(() => window.__s2.g.S.kills);
+    await page.mouse.click(5, 200); await page.waitForTimeout(300);
+    ok(!(await page.isVisible('#saver')) && k1 >= k0, 'v578 누르면 돌아옴 · 절전 중에도 사냥', `${k0} → ${k1}`);
     // v544 오늘 할 일 — 임무 → 오늘: 줄 여덟 · 「가기」→ 그 창
     await page.click('#mb .nb[data-tab="town"], .ib[data-tab="town"], [data-tab="town"] >> nth=0'); await page.waitForTimeout(200);
     await page.click('#panel-body .subtabs button:has-text("오늘")'); await page.waitForTimeout(200);
