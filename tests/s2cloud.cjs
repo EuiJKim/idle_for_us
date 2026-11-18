@@ -161,6 +161,16 @@ async function device(b) {
   assert(denied, 'E(문파원 아님): 문파 대화 못 씀');
   const after = await D.page.evaluate(async (c) => { await window.__s2.net.guildLeave(c); return (await window.__s2.net.guildGet(c)).memberIds.length; }, gcode);
   assert(after === 1, 'D: 문파 나가기');
+  // v596 문파 초대 주소 — ?g=코드로 들어오면 가입을 묻고, 들어가기를 누르면 들어간다
+  await D.page.evaluate((c) => { const g = window.__s2.g; g.setGuild(null); if (g.bossFight) g.endChallenge(false); window.__s2.inviteTest(c); }, gcode);
+  await D.page.waitForSelector('#modal:not(.hidden) .btn:has-text("들어가기")', { timeout: 20000 }).catch(() => {});
+  assert(/문파 초대/.test(await D.page.textContent('#modal')), 'D: 초대 주소 → 문파 초대 창');
+  await sleep(400); await D.page.click('#modal .btn:has-text("들어가기")'); await sleep(2500);
+  const inv = await D.page.evaluate(async (c) => ({ id: window.__s2.g.S.guildId, n: (await window.__s2.net.guildGet(c)).memberIds.length }), gcode);
+  assert(inv.id === gcode && inv.n === 2, `D: 초대로 문파 가입 ${JSON.stringify(inv)}`);
+  await D.page.evaluate(async (c) => { await window.__s2.shareGame(c); }, gcode);
+  assert(await D.page.evaluate((c) => window.__s2.shareLast().endsWith('?g=' + c), gcode), 'D: 문파원 부르기 → 초대 주소');
+  await D.page.evaluate(async (c) => { await window.__s2.net.guildLeave(c); window.__s2.g.setGuild(null); }, gcode);
   const errs = [...A.errs, ...B.errs, ...errC, ...D.errs, ...E.errs];
   assert(errs.length === 0, '페이지 오류 없음 ' + errs.join(' | '));
   await b.close();

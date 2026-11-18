@@ -206,11 +206,24 @@ function toast(t) { const d = document.createElement('div'); d.className = 'toas
 // v595 친구에게 알리기 — 손전화면 공유 창(카톡 · 문자 …), 없으면 주소 복사, 그것도 안 되면 주소를 보여 줌
 const shareUrl = () => location.origin + location.pathname.replace(/[^/]*$/, '');
 let shareLast = '';
-async function shareGame() {
-  const url = shareUrl(), title = document.title; shareLast = url;
-  if (navigator.share && !navigator.webdriver) { try { await navigator.share({ title, text: `${title} — 같이 해요`, url }); return; } catch (e) { if (e?.name === 'AbortError') return; } }
-  try { await navigator.clipboard.writeText(url); toast('게임 주소를 복사했어요 — 친구에게 붙여 보내세요'); }
+async function shareGame(code = '') {
+  const url = shareUrl() + (code ? `?g=${code}` : ''), title = document.title; shareLast = url;
+  if (navigator.share && !navigator.webdriver) { try { await navigator.share({ title, text: code ? `${title} — 우리 문파로 와요(코드 ${code})` : `${title} — 같이 해요`, url }); return; } catch (e) { if (e?.name === 'AbortError') return; } }
+  try { await navigator.clipboard.writeText(url); toast(code ? '초대 주소를 복사했어요 — 친구에게 붙여 보내세요' : '게임 주소를 복사했어요 — 친구에게 붙여 보내세요'); }
   catch (e) { pop('친구에게 알리기', `<p class="note">아래 주소를 길게 눌러 복사하세요</p><p style="word-break:break-all;user-select:all">${esc(url)}</p>`); }
+}
+// v596 문파 초대 주소(…/?g=코드) — 그 주소로 들어오면(문파가 없고 서버에 이어졌을 때) 「들어갈까요?」를 한 번 묻는다
+let inviteCode = (() => { try { const c = (new URLSearchParams(location.search).get('g') || '').toUpperCase(); return /^[A-Z2-9]{6}$/.test(c) ? c : ''; } catch (e) { return ''; } })();
+function inviteCheck() {
+  if (!inviteCode) return;
+  const t0 = Date.now(), iv = setInterval(() => {
+    if (!inviteCode || Date.now() - t0 > 180000) { clearInterval(iv); return; }
+    if (!g || !net.online || !$('modal').classList.contains('hidden') || document.querySelector('.gx, .duel') || $('res').classList.contains('open') || g.bossFight || g.dg) return;
+    clearInterval(iv); const c = inviteCode; inviteCode = '';
+    try { history.replaceState(null, '', location.pathname); } catch (e) { /* 주소는 그대로 */ }
+    if (g.S.guildId) { if (g.S.guildId !== c) toast('이미 문파에 들어 있어요 — 초대는 넘겼어요'); return; }
+    pop('문파 초대', `<p class="note">친구가 문파로 불렀어요 — 코드 <b>${esc(c)}</b></p>`, [['나중에', null], ['들어가기', () => { ensureNick(); guildDo(() => net.guildJoin(c, g.S.nick), '문파에 들어갔어요'); }]]);
+  }, 1000);
 }
 function closeModal() { $('modal').classList.add('hidden'); modalOne = null; }
 // v594 알림 창 바깥(어두운 곳)을 누르면 닫힌다 — 단추가 「확인」 하나뿐이면 그 단추를 누른 것과 같게, 여럿이면 그냥 닫기(고르지 않음).
@@ -750,6 +763,7 @@ function paintWin() {
         c0(R('모집', I.open === false ? '닫힘 — 찾기 목록에 안 보여요(코드로는 들어와요)' : '열림 — 찾기 목록에 보여요', [[I.open === false ? '열기' : '닫기', () => { play('click'); set({ open: I.open === false }, I.open === false ? '모집을 열었어요' : '모집을 닫았어요'); }]], '募'));
       }
     }
+    c0(R('문파원 부르기', '초대 주소를 보내요 — 그 주소로 들어오면 바로 문파 가입을 물어요', [['공유', () => { play('click'); shareGame(G.id); }]], '招'));   // v596
     c0(R('코드 알려 주기', `문파원을 부를 때 — ${G.id}`, [['복사', () => { play('click'); navigator.clipboard?.writeText(G.id).then(() => toast('코드를 복사했어요'), () => toast(G.id)); }]], '碼'));
     // v552 문파 수련 — 오늘 할 일을 끝낼수록 막대가 찬다 · 다 차면 모두 보상
     { const TR = guildState.train || { pts: {}, names: {} }, tot = Object.values(TR.pts || {}).reduce((a, b) => a + b, 0), goal = GTRAIN.perMember * G.memberIds.length, GT = g.gtrainState(), mineP = g.gtrainPts();
@@ -2155,6 +2169,7 @@ function boot() {
   paintNav(); paintHud();
   returnQueue();
   setTimeout(newsCheck, 1500);   // v560
+  inviteCheck();   // v596
   wakeSync();   // v586 화면 켜 두기
   last = now(); lastMin = now();
   requestAnimationFrame(frame);
@@ -2204,6 +2219,6 @@ load();
 if (g) boot();
 else pickJob();
 // 시험용 손잡이
-window.__s2 = { get g() { return g; }, agTest: () => { frame.ag = 0; }, saverStart, saverOff, saverOn: () => saverOn, saverAge: (ms) => { if (saverFrom) saverFrom.at -= ms; }, saverSum: () => saverSum, shareLast: () => shareLast, saverAutoTest: (on) => { saverAuto = !!on; }, wake: () => ({ lock: !!wakeLock, want: wakeWant, ok: wakeOK() }), wakeSync, wakeOpt: (on) => { opt.wake = !!on; return wakeSync(); }, saverTest: () => { saverForce = true; lastInput = -1e9; }, newsCheck, guildState, guildLoad, chatSend, save, dayKey, attendPop, freeze: () => { frozen = true; }, net, cloudPush, rankPush, wbPush, wkStr, pvpInbox, pvpFetch, resetNetTimers: () => { pvpAt = 0; inboxAt = 0; },
+window.__s2 = { get g() { return g; }, agTest: () => { frame.ag = 0; }, saverStart, saverOff, saverOn: () => saverOn, saverAge: (ms) => { if (saverFrom) saverFrom.at -= ms; }, saverSum: () => saverSum, inviteTest: (c) => { inviteCode = c; inviteCheck(); }, shareGame, shareLast: () => shareLast, saverAutoTest: (on) => { saverAuto = !!on; }, wake: () => ({ lock: !!wakeLock, want: wakeWant, ok: wakeOK() }), wakeSync, wakeOpt: (on) => { opt.wake = !!on; return wakeSync(); }, saverTest: () => { saverForce = true; lastInput = -1e9; }, newsCheck, guildState, guildLoad, chatSend, save, dayKey, attendPop, freeze: () => { frozen = true; }, net, cloudPush, rankPush, wbPush, wkStr, pvpInbox, pvpFetch, resetNetTimers: () => { pvpAt = 0; inboxAt = 0; },
   // v525 팝업 대신 에뮬레이터용 가짜 Google 토큰으로 잇기 · 겹치면 그 계정으로
   linkTest: async (tok) => { const r = await net.linkGoogle(tok); if (r.conflict) { const d = await net.switchTo(r.cred); if (d) applyCloud(d); return 'switched'; } await cloudPush(true); return 'linked'; } };
