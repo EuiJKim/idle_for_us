@@ -203,12 +203,21 @@ function start(job) { g = new Game(newGame(job, now(), (now() & 0x7fffffff) || 1
 
 // ── 토스트 · 팝업 — 지금 게임과 같은 틀(#toast .toast · #modal .sheet h2 · .btn-row) ──
 function toast(t) { const d = document.createElement('div'); d.className = 'toast'; d.textContent = t; $('toast').append(d); setTimeout(() => d.remove(), 2700); }
-function closeModal() { $('modal').classList.add('hidden'); }
+function closeModal() { $('modal').classList.add('hidden'); modalOne = null; }
+// v594 알림 창 바깥(어두운 곳)을 누르면 닫힌다 — 단추가 「확인」 하나뿐이면 그 단추를 누른 것과 같게, 여럿이면 그냥 닫기(고르지 않음).
+//   창이 뜨자마자(0.3초) 누른 것은 잘못 누름으로 보고 넘긴다
+let modalOne = null, modalAt = 0;
+if (typeof MutationObserver !== 'undefined') new MutationObserver(() => { if (!$('modal').classList.contains('hidden')) modalAt = Date.now(); }).observe($('modal'), { attributes: true, attributeFilter: ['class'] });
+$('modal').addEventListener('click', (e) => {
+  if (e.target !== $('modal') || Date.now() - modalAt < 300) return;
+  const f = modalOne; if (f) f(); else { closeModal(); paintHud(); }
+});
 function pop(title, html, acts = [['확인', null]]) {
   const sh = $('modal').querySelector('.sheet');
   sh.classList.toggle('wide', false); sh.classList.remove('enhs'); sh.innerHTML = `<h2>${esc(title)}</h2><div>${html}</div><div class="btn-row" style="margin-top:12px${acts.length > 3 ? ';display:grid;grid-template-columns:repeat(3,1fr)' : ''}"></div>`;
   const a = sh.querySelector('.btn-row');
   acts.forEach(([label, fn], i) => { const b = document.createElement('button'); b.className = `btn${i === acts.length - 1 ? ' primary' : ''}`; b.textContent = label; b.onclick = () => { closeModal(); fn?.(); paintHud(); paintWin(); }; a.append(b); });
+  modalOne = acts.length === 1 ? () => a.firstChild.click() : null;
   $('modal').classList.remove('hidden');
 }
 
