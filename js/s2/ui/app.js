@@ -542,7 +542,7 @@ function paintWin() {
       const D = CHBOSS[ch], st = Rd.star?.[ch] || 0, best = Rd.best?.[ch];
       const r = R(`<img class="rdimg" src="art/s2/chb/chb${ch}.webp" alt="${esc(D.name)}">${ch}장 · ${esc(D.name)} <span class="rdstar">${'★'.repeat(st)}<i>${'★'.repeat(3 - st)}</i></span>`,
         `Lv ${g.raidLv(ch)} · ${best ? `최고 ${(best / 1000).toFixed(1)}초` : '아직 기록 없음'}${st < 3 ? ` · 다음 별 보상 ${esc(Object.entries(CB_RAID.starRew[st]).map(([k, n]) => `${k === 'item:stone' ? '강화석' : '뽑기권'} ${n}`).join(''))}` : ' · 별 다 받음'}`,
-        [['토벌', act(() => { const ok2 = g.raid(ch); if (ok2) closeWin(); return ok2; }), !g.canRaid(ch)]], '');
+        [['토벌', act(() => { const ok2 = g.raid(ch); if (ok2) closeWin(); return ok2; }), !g.canRaid(ch)], ['연습', act(() => { const ok2 = g.practice(ch); if (ok2) closeWin(); return ok2; }), !!(g.bossFight || g.dg)]], '');   // v583 연습(횟수 · 보상 없음)
       r.classList.add('rdrow'); c0(r);
     }
   } else if (key === 'content:0') {
@@ -1731,7 +1731,7 @@ function frame() {
     else if (f.k === 'realm') addLog(`경지 ${f.lv}`);
     else if (f.k === 'gacha-lv') addLog(`뽑기 레벨 ${f.lv}`);
     else if (f.k === 'tree') { const sk = skillById(f.id); toast(`${sk?.name} 강화 완료`); }
-    else if (f.k === 'challenge') { play('boss'); addLog(f.raid ? `토벌 — ${CHBOSS[f.chb].name} · Lv ${f.idx}` : `${Math.ceil(f.idx / 10)}장 ${((f.idx - 1) % 10) + 1}칸 ${f.chb ? '장 두목' : '두목'} 도전`); if (f.chb) chbIntro(f.chb); }
+    else if (f.k === 'challenge') { play('boss'); addLog(f.practice ? `연습 — ${CHBOSS[f.chb].name}` : f.raid ? `토벌 — ${CHBOSS[f.chb].name} · Lv ${f.idx}` : `${Math.ceil(f.idx / 10)}장 ${((f.idx - 1) % 10) + 1}칸 ${f.chb ? '장 두목' : '두목'} 도전`); if (f.chb) chbIntro(f.chb); }
     else if (f.k === 'raid-end') showRaidResult(f);
     else if (f.k === 'stage-clear' || f.k === 'stage-fail') showResult(f);
     else if (f.k === 'dungeon-start') { closeWin(); play('tense'); if (f.type === 'wboss') wbIntro(); else if (f.type === 'graid') chbIntro(g.graidBoss()); else dgBanner(f.title, g.dgStatus()); addLog(`${f.title} 입장`); }
@@ -1970,11 +1970,11 @@ function showRaidResult(f) {
   const stars = [0, 1, 2].map((i) => `<i class="${i < f.stars ? 'on' : ''} ${i >= f.stars - f.newStars && i < f.stars ? 'new' : ''}" style="--d:${0.3 + i * 0.25}s">★</i>`).join('');
   R.className = `open ${win ? 'win' : 'lose'}`;
   R.innerHTML = `<div class="rp">${win ? '<div class="rays"></div>' : ''}
-      <div class="rsub">장 두목 토벌 · ${f.ch}장 ${esc(f.name)} · Lv ${f.lv}</div>
+      <div class="rsub">${f.practice ? '두목 연습' : '장 두목 토벌'} · ${f.ch}장 ${esc(f.name)} · Lv ${f.lv}</div>
       <div class="rtitle">${win ? 'BOSS DEFEATED' : '토벌 실패'}</div>
       ${win ? `<div class="rdstars">${stars}</div>` : ''}
       <div class="rmeta"><span>걸린 시간 <b>${(f.ms / 1000).toFixed(1)}초</b></span>${win ? `<span>최고 <b>${(f.best / 1000).toFixed(1)}초</b>${f.best === f.ms ? ' <em class="rdnew">새 기록</em>' : ''}</span>` : `<span>두목 남은 체력 <b>${f.bossLeft}%</b></span>`}${f.deaths ? `<span>쓰러짐 <b>${f.deaths}</b></span>` : ''}</div>
-      ${win ? `${f.newStars ? `<div class="rnew">새 별 ${f.newStars}개 — 별 보상</div>` : ''}<div class="rtiles">${tiles}</div>` : '<div class="rtip">토벌은 지금 칸 강함으로 나와요 — 전투력을 올리고 다시</div>'}
+      ${f.practice ? `<div class="rtip">연습이라 보상 · 기록은 없어요${f.perfects ? ` · 완벽 회피 ${f.perfects}번` : ''}</div>` : win ? `${f.newStars ? `<div class="rnew">새 별 ${f.newStars}개 — 별 보상</div>` : ''}<div class="rtiles">${tiles}</div>` : '<div class="rtip">토벌은 지금 칸 강함으로 나와요 — 전투력을 올리고 다시</div>'}
       <div class="racts"><button class="btn" id="rmore">토벌 목록 (${f.left}번 남음)</button><button class="btn primary rgo" id="rout"><span>사냥터로</span><i class="rbar"></i></button></div>
       <label class="rauto"><input type="checkbox" id="rautochk" ${auto ? 'checked' : ''}> 3초 뒤 자동 진행</label></div>`;
   const t0 = now();

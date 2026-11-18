@@ -328,6 +328,14 @@ export class Game {
     this.feed.push({ k: 'challenge', idx: L, chb: ch, raid: 1 });
     return true;
   }
+  // v583 두목 연습 — 깬 장 두목을 횟수 · 보상 없이(손으로 피하기 연습). 그 장 레벨로
+  practice(ch) {
+    if (!this.S.chb?.[ch] || this.bossFight || this.dg) return false;
+    const L = ch * 10;
+    this.bossFight = this.makeBoss(L, true, ch, { raid: 1, practice: 1 });
+    this.feed.push({ k: 'challenge', idx: L, chb: ch, raid: 1, practice: 1 });
+    return true;
+  }
   makeBoss(L, chb, ch, extra = {}) {
     // v532 장 두목(10칸마다): 전용 무대(좁고 한 층) · 체력 ×1.5(막대 세 줄) · 150초 · 국면 · 무력화 · 졸개
     const def = chb
@@ -344,6 +352,12 @@ export class Game {
     return F;
   }
   endRaid(win) {
+    if (this.bossFight?.def.practice) {   // v583 연습 — 결과만(보상 · 기록 없음)
+      const BF = this.bossFight; this.bossFight = null;
+      const bm = BF.mobs.find((m) => m.kind === 'boss');
+      this.feed.push({ k: 'raid-end', practice: 1, win, ch: BF.def.chb, lv: BF.def.lv, name: CHBOSS[BF.def.chb].name, ms: BF.t, deaths: BF.deaths, bossLeft: !win && bm ? Math.ceil((bm.hp / bm.st.hp) * 100) : 0, stars: raidStars(win, BF.t, BF.deaths), newStars: 0, best: 0, rew: {}, left: this.raidLeft(), perfects: BF.perfects || 0 });
+      return;
+    }
     const BF = this.bossFight, ch = BF.def.chb, ms = BF.t, deaths = BF.deaths, R = this.raidState(), W = this.S.wallet;
     this.bossFight = null;
     const bm = BF.mobs.find((m) => m.kind === 'boss'), bossLeft = !win && bm ? Math.ceil((bm.hp / bm.st.hp) * 100) : 0;

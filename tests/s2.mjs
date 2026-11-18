@@ -1313,6 +1313,17 @@ console.log('\n=== v582 탑 연속 오르기 ===');
   n = -100; const r2 = g.towerClimb(5); ok(r2.tries === 5 && !r2.stopped, '최대 층에서 멈춤(다시 누르면 계속)');
 }
 
+console.log('\n=== v583 두목 연습 ===');
+{
+  const T0 = 1.8e12, g = new Game(newGame('sword', T0, 29), T0); g.addExp(EX.cumExp(40)); g.tick(T0);
+  ok(!g.practice(1), '깨지 않은 두목은 연습 못 함');
+  g.S.chb = { 1: 1 }; const w0 = JSON.stringify(g.S.wallet), left0 = g.raidLeft(), T = g.stage(), idx0 = T.idx;
+  ok(g.practice(1) && g.bossFight.def.practice && g.bossFight.def.lv === 10, '연습: 그 장 레벨로');
+  let t = T0; while (g.bossFight) { t += 1000; g.tick(t); g.hunt(1000); }
+  const f = g.feed.filter((x) => x.k === 'raid-end').at(-1);
+  ok(f && f.practice && Object.keys(f.rew).length === 0 && g.raidLeft() === left0 && !g.S.raid?.star?.[1] && T.idx === idx0, '보상 · 토벌 횟수 · 별 · 칸 그대로', JSON.stringify({ win: f?.win }));
+}
+
 console.log('\n=== S0 규칙 ===');
 {
   const files = [];
