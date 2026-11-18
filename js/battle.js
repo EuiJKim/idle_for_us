@@ -4886,7 +4886,7 @@ export function drawFighter(ctx, x, y, look = {}, o = {}) {
   const mBody = look.robeTint ? (look.female ? 'f-body-white' : 'body-white') : bodyKey(look);
   const MG = hk0 && !o.noMerge ? mergedArt(mBody, hk0, look.band, tintHead0, look.robeTint || null) : null;
   if (hk0 && !o.noMerge) { if (MG) DRAW_STAT.merged++; else { DRAW_STAT.parts++; DRAW_STAT.last = `${mBody}--${hk0}`; } }
-  if (hk0 && !MG) { const F0 = (HEAD_FIT[hk0]?.fit) || FIT.head; drawHeadArt(ctx, hk0, { ...F0, y: F0.y + neckDy }, look, HEAD_SPLIT + neckDy, 99); }
+  if (hk0 && !MG) { const F0 = (HEAD_FIT[hk0]?.fit) || FIT.head; drawHeadArt(ctx, hk0, { ...F0, y: F0.y + neckDy }, look, splitOf(hk0) + neckDy, 99); }
   // 상체 — 그림 조각이 있으면 도포·상체·허리띠를 한 장으로 갈음한다
   const artBody = artReady() && !jiang && !look.ghost;
   // 두목 옷: 흰 도포 그림에 그 빛깔을 곱해 입힌다(그림 도포 여섯 빛깔에 없는 색도 그대로 나온다)
@@ -4947,7 +4947,7 @@ export function drawFighter(ctx, x, y, look = {}, o = {}) {
   const backDone = hk && hk === hk0 && !look.ghost;
   if (hk && MG && hk === hk0) {
     // 한 장 그림에 머리까지 다 있다
-  } else if (hk && (backDone ? drawHeadArt(ctx, hk, HF, look, headTop, HEAD_SPLIT + neckDy, tintHead) : hatR ? drawHeadArt(ctx, hk, HF, look, headTop, 99, tintHead) : (tintHead ? putArtBand(ctx, hk, HF, look.band) : putArt(ctx, hk, HF)))) {
+  } else if (hk && (backDone ? drawHeadArt(ctx, hk, HF, look, headTop, splitOf(hk) + neckDy, tintHead) : hatR ? drawHeadArt(ctx, hk, HF, look, headTop, 99, tintHead) : (tintHead ? putArtBand(ctx, hk, HF, look.band) : putArt(ctx, hk, HF)))) {
     // 머리카락까지 한 장
   } else {
   ctx.fillStyle = skin;
@@ -5143,6 +5143,8 @@ function femaleHeadKey(style, hairK, band) {
 // v359 모습 점검(tests/looks.cjs) — 무인을 한 장 그림으로 그렸나, 옛 조각으로 그렸나
 export const DRAW_STAT = { merged: 0, parts: 0, last: '' };
 const HEAD_SPLIT = FIT.head.y - 2;   // v327 이 선 아래 머리 그림은 몸 뒤로
+// v585 머리마다 가르는 줄 — 턱 · 목까지 그린 새 시즌 머리는 턱 아래(목)만 몸 뒤로(얼굴 · 턱은 앞에). 없으면 위 줄
+const splitOf = (hk) => HEAD_FIT[hk]?.split ?? HEAD_SPLIT;
 // v355 도구용 — 조각(머리 뒤쪽 · 도포 · 머리 앞쪽)만 이어 그린다(팔·다리·무기 없이). tools/charv355가 이걸 sunburst에 한 장으로 다시 그리게 넘긴다
 export function drawBodyHeadParts(ctx, look) {
   const hk = headKey(look), bk = bodyKey(look);

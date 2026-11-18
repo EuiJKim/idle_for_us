@@ -447,7 +447,12 @@ function paintWin() {
     const c0 = card('끼고 있는 것', `전투력 ${unit(g.power())}`); c0(wrap);
     const nb = SLOTS.filter((s) => G.bag.some((x) => x.slot === s && (!G.eq[s] || gearScore(x, L) > gearScore(G.eq[s], L)))).length;
     c0(R('최고 장비 모두 끼기', nb ? `${nb}칸을 더 좋은 것으로` : '모두 가장 좋은 것을 끼고 있어요', [['모두 끼기', act(() => { const p0 = g.power(), n = equipBest(G, L); g.dirtyStats = true; g.emit('equip'); if (n) setTimeout(() => toast(`${n}칸 바꿈 · 전투력 ${unit(p0)} → ${unit(g.power())}`), 0); return n > 0; }), !nb]], '裝'));
-    requestAnimationFrame(() => { const x = cvs.getContext('2d'); x.clearRect(0, 0, 240, 300); x.save(); x.translate(0, 10); const gr = x.createRadialGradient(120, 190, 10, 120, 190, 130); gr.addColorStop(0, '#e8c26a44'); gr.addColorStop(1, 'rgba(0,0,0,0)'); x.fillStyle = gr; x.fillRect(0, 0, 240, 300); drawHero(x, 120, 270, g.S.hero.job, g.S.hero.lv, { t: now() / 1000, scale: 2.2, eq: g.S.gear.eq }); x.restore(); });
+    // v585 장비 창 무인 — 한 번만 그리면 머리 · 옷 그림이 아직 안 받아졌을 때 대신 그린 얼굴이 남았다(얼굴이 깨져 보임) → 창이 열려 있는 동안 계속 그린다(초당 20번) · 외형대로
+    { let last = 0; const paint = (ts) => {
+        if (!cvs.isConnected) return;
+        if (ts - last > 50) { last = ts; const x = cvs.getContext('2d'); x.clearRect(0, 0, 240, 300); x.save(); x.translate(0, 10); const gr = x.createRadialGradient(120, 190, 10, 120, 190, 130); gr.addColorStop(0, '#e8c26a44'); gr.addColorStop(1, 'rgba(0,0,0,0)'); x.fillStyle = gr; x.fillRect(0, 0, 240, 300); drawHero(x, 120, 270, g.S.hero.job, g.S.hero.lv, { t: now() / 1000, scale: 2.2, eq: g.lookEq() }); x.restore(); }
+        requestAnimationFrame(paint);
+      }; requestAnimationFrame(paint); }
     const sl = eqSel && SLOTS.includes(eqSel) ? eqSel : null;
     if (sl) {
       const it = G.eq[sl], S2 = G.slots[sl], stt = it ? itemStats(it, S2, L) : {};

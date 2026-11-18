@@ -1,7 +1,7 @@
 // 새 시즌 미리보기 그림 — 지금 게임의 실제 그림(무인 · 몹 · 동물 · 지역 두목)을 그대로 빌려 쓴다.
 // 새 시즌 전용 그림(계획서 §M)이 나오기 전까지의 다리. 사냥터 레벨 → 지금 게임의 같은 레벨대 지역 모습.
 import { drawFighter } from '../../battle.js';
-import { loadArt, registerArt, OUTFIT_BODY, OUTFIT_WEAPON, WEAPON_FIT, HEAD_FIT } from '../../art.js';
+import { loadArt, registerArt, OUTFIT_BODY, OUTFIT_WEAPON, WEAPON_FIT, HEAD_FIT, FIT } from '../../art.js';
 import { HEAD_ANCHOR } from '../../headanchor.js';
 import { drawCreature } from '../../creatures.js';
 import { bossImg } from '../../bossfx.js';
@@ -49,7 +49,7 @@ function shade(hex, k) {
 //   신발: 장화 빛깔 · 망토: 등 뒤 망토 · 허리띠: 띠와 옥 노리개 · 목걸이: 몸 둘레 기운 낟알 · 반지: 발밑 문양 · 무기: 칼빛(진부터 빛남)
 //   가장 높은 등급이 신(5)↑이면 몸 기운
 // v517 장비 모양 조각(art/s2/wear) — 상의는 도포 그림, 모자는 머리(같은 얼굴 + 쓰개), 무기는 손에 쥔 그림. 받기 전에는 v516 빛깔로 그린다
-const WEAR_PAD = 60, WEAR_HC = 140;   // 머리 조각: 위 여유 · 상투 머리(잘라 낸 뒤) 높이 — tools/s2art/wear_fit.py와 같다
+const WEAR_PAD = 60, WEAR_HC = 140, WEAR_BOT = 40, WEAR_SPLIT = 22;   // v585 아래 BOT — 턱 · 목까지 그린 머리(tools/s2art/head_fit2.py)   // 머리 조각: 위 여유 · 상투 머리(잘라 낸 뒤) 높이 — tools/s2art/wear_fit.py와 같다
 const wear = {};
 let wearN = 0;
 export const wearCount = () => wearN;
@@ -66,9 +66,12 @@ function wearHead(g) {
   const key = `head-s2-${g}`;
   return wearImg(`head-${g}`, (im) => {
     // 상투 머리의 자리 값을 위 여유만큼 옮겨 그대로 — 얼굴 · 이마 · 턱이 같은 자리에 온다
-    const f = (v) => (WEAR_PAD + v * WEAR_HC) / (WEAR_PAD + WEAR_HC), A = HEAD_ANCHOR['head-topknot'], T = HEAD_FIT['head-topknot'];
+    // v585 화폭 = 위 PAD + 머리 HC + 아래 BOT(턱 · 목). 자리 값(위에서)은 그만큼 옮기고, 그림은 BOT만큼 내려 그린다 —
+    //   얼굴은 전 자리 그대로 · 턱은 앞에 · 목은 몸(옷깃) 뒤로(HEAD_SPLIT 아래는 몸 뒤에 그린다)
+    const H = WEAR_PAD + WEAR_HC + WEAR_BOT, f = (v) => (WEAR_PAD + v * WEAR_HC) / H, fb = (v) => (WEAR_BOT + v * WEAR_HC) / H;   // fb: 아래에서 잰 값(눈 · 눈썹)
+    const A = HEAD_ANCHOR['head-topknot'], T = HEAD_FIT['head-topknot'], F0 = T.fit || FIT.head;
     HEAD_ANCHOR[key] = { ...A, eyeY: f(A.eyeY), browY: f(A.browY), topY: f(A.topY), jawY: f(A.jawY) };
-    registerArt(key, im, { ...T, crop: 1, brow: f(T.brow), eye: f(T.eye) });
+    registerArt(key, im, { ...T, crop: 1, brow: fb(T.brow), eye: fb(T.eye), fit: { ...F0, y: F0.y + (WEAR_BOT * F0.w) / im.width }, split: F0.y + (WEAR_SPLIT * F0.w) / im.width });   // 턱 아래 WEAR_SPLIT px부터 몸 뒤로
   }) ? key : null;
 }
 const WEAR_W = { sword: 'sword', spear: 'spear', fist: 'fist', mage: 'staff' };   // 궁사 활은 그려 넣는 모양 그대로(빛만)

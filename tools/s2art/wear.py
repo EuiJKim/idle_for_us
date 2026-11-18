@@ -23,8 +23,11 @@ TOPS = [
   "a celestial immortal's raiment: layered white jade-silk robes with platinum cloud and star ornaments, an ornate high collar, short floating ribbons kept inside the canvas.",
 ]
 HEAD = ("The reference is a character's HEAD (same 3/4 view facing right). Redraw EXACTLY the same head — same face, same eyes, same expression, same hair and topknot bun, same skin, "
-        "same size, same position and same framing on the canvas — and only ADD the following headwear on the head. Nothing else changes. No body, no neck below the chin line of the reference. "
-        "Transparent background, no text. Headwear: ")
+        "and only ADD the following headwear on the head. Nothing else changes. No body, no shoulders. "
+        "Transparent background, no text. "
+        # v585 턱이 화폭에 잘리지 않게 — 턱 · 수염 · 목 윗부분까지 다 보이고 아래에 빈 자리(tools/s2art/head_fit2.py로 맞춘다)
+        "IMPORTANT FRAMING: show the COMPLETE head — the whole jaw, the full chin and the full beard tip must be entirely visible, followed by the top of the neck. "
+        "Leave clear empty transparent space below the neck; nothing may be cut off by the bottom edge of the canvas. The head should occupy roughly the upper 75% of the canvas height. Headwear: ")
 HATS = [
   "a plain wooden hairpin pushed through the topknot bun and a thin undyed cloth band around the bun.",
   "a small bronze topknot crown (guan) wrapping the bun, with a bronze hairpin and two short green ribbons.",
