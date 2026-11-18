@@ -549,6 +549,9 @@ function paintWin() {
     // v531 실제 던전 — 「입장」은 직접 싸움(사냥터 대신 던전) · 한 번 깬 던전은 「소탕」(바로 결과)
     const c = card('수련동', `입장권 ${staminaNow(g.S.stamina.daily, now())} · 2시간마다 1`);
     const RW = { gold: '은자', gear: '뽑기권', stone: '강화석', growth: '경험치' };
+    // v581 모두 소탕
+    { const canAny = Object.keys(DAILY_DUNGEONS).some((k) => g.S.dungeons.best?.[k] && !g.canDungeon('daily', k));
+      c(R('모두 소탕', canAny ? '깬 수련동을 입장권이 되는 만큼 차례로 바로 끝내요' : '소탕할 수 있는 던전이 없어요(입장권 · 오늘 횟수 · 처음 깨기)', [['모두 소탕', act(() => { const r = g.sweepAll(); if (r) pop('모두 소탕', `<div class="ea-sum"><span>소탕 <b>${r.n}</b>번</span>${r.fail ? `<span>실패 <b>${r.fail}</b></span>` : ''}</div><div class="td-got">${r.gold ? `<span><i class="coin s"></i>은자 <b>${unit(r.gold)}</b></span>` : ''}${r.exp ? `<span>경험치 <b>${unit(r.exp)}</b></span>` : ''}${r.tix ? `<span><i class="coin t"></i>뽑기권 <b>${r.tix}</b></span>` : ''}${r.stones ? `<span>강화석 <b>${r.stones}</b></span>` : ''}</div>`); return r; }), !canAny]], '掃')); }
     for (const [k, D] of Object.entries(DAILY_DUNGEONS)) {
       const why = g.canDungeon('daily', k), swept = !!g.S.dungeons.best?.[k];
       c(R(D.name, `${DG_GOAL[D.clear]} · ${Math.round(D.timeMs / 1000)}초 · 보상 ${RW[k] || ''} · 오늘 ${g.S.dungeons.runs[k] || 0}/${DAILY_RUNS}${why && g.S.hero.lv < D.unlockLv ? ` · ${why}` : ''}`,

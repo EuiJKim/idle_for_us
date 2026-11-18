@@ -1294,6 +1294,16 @@ console.log('\n=== v580 시간 티켓 바로 쓰기 ===');
   ok(r && r.n === 3 && r.min === 45 && r.gold > 0 && g.S.wallet['ticket:time'] === 0 && EX.cumExp(g.S.hero.lv) + g.S.hero.exp > e0, '있는 만큼만(3장) · 45분 몫 경험치 · 은자');
 }
 
+console.log('\n=== v581 수련동 모두 소탕 ===');
+{
+  const T0 = 1.8e12, g = new Game(newGame('sword', T0, 27), T0); g.addExp(EX.cumExp(60)); g.tick(T0);
+  ok(g.sweepAll() === null, '깬 던전이 없으면 못 함');
+  g.S.dungeons.best = { gold: true, stone: true };
+  const r = g.sweepAll();
+  ok(r && r.n >= 1 && Object.keys(g.S.dungeons.runs).every((k) => ['gold', 'stone'].includes(k)) && g.sweepAll() === null, '깬 던전만 · 입장권 · 횟수가 되는 만큼', JSON.stringify({ n: r?.n, runs: g.S.dungeons.runs }));
+  g.tick(T0 + 86400000); ok(g.S.dungeons.best?.gold && g.S.dungeons.best?.stone && Object.keys(g.S.dungeons.runs).length === 0, '날이 바뀌어도 소탕 열림은 남고 횟수만 새로');
+}
+
 console.log('\n=== S0 규칙 ===');
 {
   const files = [];

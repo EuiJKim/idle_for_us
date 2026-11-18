@@ -449,7 +449,7 @@ export class Game {
     if (RM.realmTick(S.realm, nowMs)) { this.dirtyStats = true; this.emit('realm', { lv: S.realm.lv }); this.feed.push({ k: 'realm', lv: S.realm.lv }); }
     if (RM.journeyTick(S.journey, nowMs, this.rng)) { this.dirtyStats = true; this.feed.push({ k: 'journey', step: S.journey.step }); }
     const d = dayKey(nowMs), w = weekKey(nowMs);
-    if (S.qDay !== d) { S.qDay = d; this.books.daily.reset(DAILY_MISSIONS.map((m) => m.id)); S.dungeons = { day: d, runs: {} }; S.wallet['ticket:exped'] = (S.wallet['ticket:exped'] || 0) + 1; this.emit('login'); }
+    if (S.qDay !== d) { S.qDay = d; this.books.daily.reset(DAILY_MISSIONS.map((m) => m.id)); S.dungeons = { day: d, runs: {}, best: S.dungeons?.best || {} }; /* v581 소탕 열림(best)은 날이 바뀌어도 남긴다 */ S.wallet['ticket:exped'] = (S.wallet['ticket:exped'] || 0) + 1; this.emit('login'); }
     if (S.qWeek !== w) { S.qWeek = w; this.books.weekly.reset(WEEKLY_MISSIONS.map((m) => m.id)); }
     OF.touch(S.offline, nowMs);
   }
@@ -561,6 +561,18 @@ export class Game {
   jobDungeon() { return this.runNow('job'); }
   // ── 콘텐츠 ──
   dailyDungeon(kind) { return this.runNow('daily', kind); }
+  // v581 모두 소탕 — 한 번 깬(소탕 열린) 수련동을 입장권이 되는 만큼 차례로 · 보상 합
+  sweepAll() {
+    const sum = { n: 0, gold: 0, exp: 0, tix: 0, stones: 0, fail: 0 };
+    for (let guard = 0; guard < 40; guard++) {
+      const k = Object.keys(DAILY_DUNGEONS).find((kk) => this.S.dungeons.best?.[kk] && !this.canDungeon('daily', kk));
+      if (!k) break;
+      const r = this.dailyDungeon(k); if (!r) break;
+      sum.n++; if (!r.cleared) sum.fail++;
+      for (const x of ['gold', 'exp', 'tix', 'stones']) sum[x] += r[x] || 0;
+    }
+    return sum.n ? sum : null;
+  }
   towerFight() { return this.runNow('tower'); }
   // ── v531 실제 던전 ── 옆보기 사냥 엔진(SideFight) 위에서 직접 싸운다. 입장 → 목표(처치 · 두목 · 다 잡기 · 버티기) · 제한 시간 → 결과
   //   enterDungeon: 화면에서 직접(사냥터 대신 던전이 그려진다) · runNow: 같은 던전을 바로 끝까지(소탕 · 봇)
