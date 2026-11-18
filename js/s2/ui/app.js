@@ -33,8 +33,8 @@ import { play, unlock, setOpt, bgm } from './sound.js';
 import { PoseAnim, POSES, IDLE, mixPose } from '../../pose.js';
 // 설정(v504) — 이 기기에만(ifu.s2.opt). 소리 · 배경 가락 · 흔들림 · 피해 숫자 · 진동 · 그래픽 · 피해 측정기
 const OPT_KEY = 'ifu.s2.opt';
-const opt = Object.assign({ sfx: true, bgm: true, shake: true, nums: 'all', vib: true, gfx: 'high', dps: false, autoNext: true, saver: true }, (() => { try { return JSON.parse(localStorage.getItem(OPT_KEY) || '{}'); } catch { return {}; } })());
-const saveOpt = () => { try { localStorage.setItem(OPT_KEY, JSON.stringify(opt)); } catch { /* 저장 못 함 */ } setOpt({ sfx: opt.sfx, bgm: opt.bgm }); };
+const opt = Object.assign({ sfx: true, bgm: true, shake: true, nums: 'all', vib: true, gfx: 'high', dps: false, autoNext: true, saver: true, wake: true }, (() => { try { return JSON.parse(localStorage.getItem(OPT_KEY) || '{}'); } catch { return {}; } })());
+const saveOpt = () => { try { localStorage.setItem(OPT_KEY, JSON.stringify(opt)); } catch { /* 저장 못 함 */ } setOpt({ sfx: opt.sfx, bgm: opt.bgm }); if (typeof wakeSync === 'function') wakeSync(); };
 setOpt({ sfx: opt.sfx, bgm: opt.bgm });
 const buzz = (ms) => { if (opt.vib && navigator.vibrate) try { navigator.vibrate(ms); } catch { /* 진동 없음 */ } };
 const dmgLog = [];   // 피해 측정기: [시각, 피해] 최근 10초
@@ -821,7 +821,7 @@ function paintWin() {
     const c0 = card('소리 · 진동');
     c0(tg('효과음', 'sfx', '타격 · 무공 · 처치 · 뽑기 소리', '音'), tg('배경 가락', 'bgm', '장마다 다른 오음계 가락', '樂'), tg('진동', 'vib', '두목 패턴에 맞을 때 · 쓰러질 때(휴대폰)', '震'));
     const c1 = card('화면');
-    c1(tg('화면 흔들림', 'shake', '큰 무공 · 두목 패턴 · 당겨짐', '搖'), tg('피해 측정기', 'dps', '들판 왼쪽 위에 초당 피해 · 분당 처치', '測'), tg('두목전 결과 자동 진행', 'autoNext', '결과 창이 3초 뒤 저절로 닫히고 다음으로', '進'), tg('절전', 'saver', '2분 동안 손대지 않으면 화면을 어둡게 · 덜 그림(사냥은 그대로)', '眠'));   // v578
+    c1(tg('화면 흔들림', 'shake', '큰 무공 · 두목 패턴 · 당겨짐', '搖'), tg('피해 측정기', 'dps', '들판 왼쪽 위에 초당 피해 · 분당 처치', '測'), tg('두목전 결과 자동 진행', 'autoNext', '결과 창이 3초 뒤 저절로 닫히고 다음으로', '進'), tg('절전', 'saver', '2분 동안 손대지 않으면 화면을 어둡게 · 덜 그림(사냥은 그대로)', '眠'), tg('화면 켜 두기(방치)', 'wake', wakeOK() ? '손전화가 저절로 화면을 끄지 않게 — 켜 두면 계속 사냥(절전과 같이 쓰면 배터리 덜 씀)' : '이 브라우저는 지원하지 않아요 — 꺼져도 돌아오면 방치 보상', '燈'));   // v578 · v586
     if (document.documentElement.requestFullscreen) c1(R('전체 화면', document.fullscreenElement ? '켜짐' : '주소창 없이 화면을 다 쓴다(안드로이드 · 컴퓨터)', [[document.fullscreenElement ? '끄기' : '켜기', () => { play('click'); goFull(!document.fullscreenElement); setTimeout(paintWin, 300); }]], '全'));
     c1(R('피해 숫자', { all: '전부', crit: '치명만', off: '끄기' }[opt.nums], [['바꾸기', () => { opt.nums = { all: 'crit', crit: 'off', off: 'all' }[opt.nums]; saveOpt(); paintWin(); }]], '數'));
     c1(R('그래픽', opt.gfx === 'low' ? '낮음(배터리 아낌 · 흙먼지 · 은자 연출 끔)' : '높음', [['바꾸기', () => { opt.gfx = opt.gfx === 'low' ? 'high' : 'low'; saveOpt(); paintWin(); }]], '畵'));
@@ -1196,11 +1196,25 @@ function saverTick(t) {
   if (!g) return;
   if (!saverOn && opt.saver && (!navigator.webdriver || saverForce) && t - lastInput > SAVER_MS && !open && $('modal').classList.contains('hidden') && !g.bossFight && !g.dg) {
     saverOn = true; saverFrom = { kills: g.S.kills || 0, gold: g.S.wallet.gold || 0, lv: g.S.hero.lv, at: t };
-    const o = document.createElement('div'); o.id = 'saver'; o.innerHTML = '<div><b>절전 중</b><span></span><em>누르면 돌아와요</em></div>'; document.body.append(o);
+    const o = document.createElement('div'); o.id = 'saver'; o.innerHTML = `<div><b>절전 중</b><span></span><em>누르면 돌아와요${opt.wake && wakeOK() ? ' · 화면은 켜 둔 채 홀로 사냥' : ''}</em></div>`; document.body.append(o);
   }
+  if (saverOn && (t | 0) % 20000 < 20) { const d = document.querySelector('#saver > div'); if (d) d.style.transform = `translate(${Math.round(Math.sin(t / 37000) * 60)}px, ${Math.round(Math.cos(t / 29000) * 80)}px)`; }   // v586 글자가 천천히 옮겨 다님(화면 자국)
   if (saverOn && (t | 0) % 1000 < 20) { const sp = document.querySelector('#saver span'); if (sp) { const m = Math.floor((t - saverFrom.at) / 60000); sp.innerHTML = `Lv ${g.S.hero.lv}${g.S.hero.lv > saverFrom.lv ? ` (+${g.S.hero.lv - saverFrom.lv})` : ''} · 처치 +${unit((g.S.kills || 0) - saverFrom.kills)} · 은자 +${unit(Math.max(0, (g.S.wallet.gold || 0) - saverFrom.gold))}<br><small>${m}분째 홀로 사냥 중</small>`; } }
 }
 function saverOff() { saverOn = false; saverForce = false; document.querySelector('#saver')?.remove(); }
+// v586 화면 켜 두기(방치) — 손전화가 저절로 화면을 끄면 브라우저가 게임을 멈춘다 → 화면 꺼짐 막기(Screen Wake Lock).
+//   화면이 보이는 동안만 잡고, 앱이 뒤로 가면 브라우저가 풀었다가 돌아오면 다시 잡는다. 못 쓰는 브라우저면 조용히(방치 보상은 그대로).
+let wakeLock = null, wakeWant = false;
+const wakeOK = () => typeof navigator !== 'undefined' && !!navigator.wakeLock;
+async function wakeSync() {
+  wakeWant = !!(opt.wake && g);
+  try {
+    if (wakeWant && !document.hidden && !wakeLock && wakeOK()) { wakeLock = await navigator.wakeLock.request('screen'); wakeLock.addEventListener?.('release', () => { wakeLock = null; }); }
+    else if (!wakeWant && wakeLock) { await wakeLock.release(); wakeLock = null; }
+  } catch (e) { wakeLock = null; }   // 배터리 절약 모드 · 권한 · 지원 안 함
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden) wakeSync(); });
+addEventListener('pointerdown', () => { if (wakeWant && !wakeLock) wakeSync(); }, { passive: true });   // 일부 브라우저는 손댄 뒤에만 허락
 let dashAt = -1e9, dashTrail = [], perfAt = -1e9;   // v546 회피 잔상 · 완벽 회피
 // v564 연속 처치 — 2.5초 안에 이어 잡으면 콤보 · 오른쪽에 「N 연속」 · 10 · 30 · 50 · 100 · 200마다 큰 글자(능력치와 상관없는 연출)
 const COMBO_MS = 2500, COMBO_MILES = [10, 30, 50, 100, 200, 500];
@@ -2095,6 +2109,7 @@ function boot() {
   paintNav(); paintHud();
   returnQueue();
   setTimeout(newsCheck, 1500);   // v560
+  wakeSync();   // v586 화면 켜 두기
   last = now(); lastMin = now();
   requestAnimationFrame(frame);
 }
@@ -2143,6 +2158,6 @@ load();
 if (g) boot();
 else pickJob();
 // 시험용 손잡이
-window.__s2 = { get g() { return g; }, saverTest: () => { saverForce = true; lastInput = -1e9; }, newsCheck, guildState, guildLoad, chatSend, save, dayKey, attendPop, freeze: () => { frozen = true; }, net, cloudPush, rankPush, wbPush, wkStr, pvpInbox, pvpFetch, resetNetTimers: () => { pvpAt = 0; inboxAt = 0; },
+window.__s2 = { get g() { return g; }, wake: () => ({ lock: !!wakeLock, want: wakeWant, ok: wakeOK() }), wakeSync, wakeOpt: (on) => { opt.wake = !!on; return wakeSync(); }, saverTest: () => { saverForce = true; lastInput = -1e9; }, newsCheck, guildState, guildLoad, chatSend, save, dayKey, attendPop, freeze: () => { frozen = true; }, net, cloudPush, rankPush, wbPush, wkStr, pvpInbox, pvpFetch, resetNetTimers: () => { pvpAt = 0; inboxAt = 0; },
   // v525 팝업 대신 에뮬레이터용 가짜 Google 토큰으로 잇기 · 겹치면 그 계정으로
   linkTest: async (tok) => { const r = await net.linkGoogle(tok); if (r.conflict) { const d = await net.switchTo(r.cred); if (d) applyCloud(d); return 'switched'; } await cloudPush(true); return 'linked'; } };

@@ -120,6 +120,12 @@ const ok = (c, m, x = '') => { console.log(`  ${c ? '✓' : '✗ !!'} ${m}${x !=
     await page.evaluate(() => { window.__s2.g.S.newsV = 540; window.__s2.newsCheck(); }); await page.waitForTimeout(1500);
     ok(/새로 생긴 것/.test(await page.textContent('#modal')) && (await page.$$('#modal .news-i')).length >= 5 && await page.evaluate(() => window.__s2.g.S.newsV >= 560), 'v560 옛 판이면 새로 생긴 것 창 · 본 뒤 지금 판으로');
     await page.click('#modal .btn:has-text("확인")'); await page.waitForTimeout(200);
+    // v586 화면 켜 두기 — 지원하는 브라우저면 화면 꺼짐 막기를 잡는다(설정에서 끄면 놓음)
+    { const w = await page.evaluate(async () => {   // 헤드리스는 진짜 잠금을 거절 — 가짜로 바꿔 잡고 놓는지만 본다
+        let rel = 0; Object.defineProperty(navigator, 'wakeLock', { configurable: true, value: { request: async () => ({ release: async () => { rel++; }, addEventListener() {} }) } });
+        await window.__s2.wakeSync(); const a = window.__s2.wake(); await window.__s2.wakeOpt(false); const b = window.__s2.wake(); await window.__s2.wakeOpt(true);
+        return { a, b, rel, c: window.__s2.wake() }; });
+      ok(w.a.lock && w.a.want && !w.b.lock && w.rel === 1 && w.c.lock, 'v586 화면 켜 두기 — 잡고 · 설정에서 끄면 놓고 · 켜면 다시', JSON.stringify(w)); }
     // v578 절전 — 오래 손대지 않으면 어둡게 · 누르면 돌아옴(사냥은 그대로)
     await page.evaluate(() => { const g = window.__s2.g; if (g.bossFight) g.endChallenge(false); window.__s2.saverTest(); }); await page.waitForTimeout(600);
     const k0 = await page.evaluate(() => window.__s2.g.S.kills);

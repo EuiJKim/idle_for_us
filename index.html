@@ -177,7 +177,8 @@
     .pc-i b { display: block; font-size: 17px; } .pc-i > span { display: block; font-size: 12px; color: rgba(255,255,255,.65); margin-bottom: 6px; }
     .pc-g { display: grid; grid-template-columns: auto 1fr; gap: 3px 10px; font-size: 12.5px; } .pc-g span { color: rgba(255,255,255,.55); } .pc-g em { font-style: normal; font-weight: 800; }
     /* v578 절전 */
-    #saver { position: fixed; inset: 0; z-index: 90; background: rgba(0,0,0,.82); display: grid; place-items: center; cursor: pointer; animation: svin .8s ease; }
+    #saver { position: fixed; inset: 0; z-index: 90; background: rgba(0,0,0,.94); display: grid; place-items: center; cursor: pointer; animation: svin .8s ease; }   /* v586 거의 검정(OLED 배터리) */
+    #saver > div { transition: transform 3s ease; }
     #saver > div { text-align: center; } #saver b { display: block; font-size: 22px; color: #fde68a; letter-spacing: .2em; } #saver span { display: block; margin-top: 8px; font-size: 14px; color: rgba(255,255,255,.8); line-height: 1.6; } #saver small { color: rgba(255,255,255,.5); }
     #saver em { display: block; margin-top: 14px; font-style: normal; font-size: 12px; color: rgba(255,255,255,.45); animation: svblink 2.4s ease-in-out infinite; }
     @keyframes svin { from { opacity: 0; } } @keyframes svblink { 50% { opacity: .3; } }
