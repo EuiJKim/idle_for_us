@@ -4820,7 +4820,7 @@ export function drawFighter(ctx, x, y, look = {}, o = {}) {
   // v516 새 시즌 망토 — 어깨에서 등 뒤로 흘러내리고 달리면 뒤로 날린다(다리 · 몸보다 뒤)
   if (look.cape) drawS2Cape(ctx, look.cape, t, !!o.run);
   // 다리
-  const swing = (o.run ? Math.sin(t * 14) * 8 : 0) + (P ? P.crouch * 9 : 0);
+  const swing = (o.run ? Math.sin(t * 14) * 8 : 0) + (P ? P.crouch * 9 + (P.swing || 0) : 0);
   // v323 그림 몸이면 팔·다리도 그림 도포에서 잰 빛깔로 칠한 조각(명암·테두리) — 벡터 막대가 그림 위에 따로 놀던 것
   const artLimb = artReady() && !jiang && !look.ghost;
   const bKey0 = look.robeTint ? (look.female && artImg('f-body-white') ? 'f-body-white' : 'body-white') : bodyKey(look);

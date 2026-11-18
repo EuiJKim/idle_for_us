@@ -88,6 +88,7 @@ export function mixPose(a, b, k) {
     stretch: lerp(a.stretch, b.stretch, k),
     alpha: lerp(a.alpha, b.alpha, k),
     wscale: lerp(a.wscale ?? 1, b.wscale ?? 1, k),
+    swing: lerp(a.swing || 0, b.swing || 0, k),   // 다리 벌림(px) — 달리기 걸음
   };
 }
 

@@ -145,10 +145,12 @@ export function drawMob(cx, x, y, m, z, o = {}) {
   const wind = atk < 0.35 ? -Math.sin((atk / 0.35) * Math.PI / 2) * 0.5 : atk < 0.6 ? -0.5 + 1.5 * Math.sin(((atk - 0.35) / 0.25) * Math.PI / 2) : (1 - (atk - 0.6) / 0.4);
   const lunge = atk > 0 ? wind * 10 * sc : 0;
   const lean = (atk > 0 ? wind * 0.12 : 0) - hurt * 0.18;   // 앞으로 기울기(+) · 맞으면 뒤로(-)
+  // v597 눌림 · 늘어남(발을 축으로) — 맞으면 납작, 칠 때는 움츠렸다가(예비) 내지르며 늘어난다
+  const sqy = 1 - hurt * 0.09 + (atk > 0 ? (wind < 0 ? wind * 0.14 : wind * 0.05) : 0), sqx = 1 + hurt * 0.07 + (atk > 0 && wind < 0 ? -wind * 0.08 : 0);
   // 정예: 발밑 보랏빛 기운이 숨 쉬듯
   if (m.kind === 'elite') { cx.save(); cx.globalAlpha = 0.28 + 0.12 * Math.sin(t * 4); cx.fillStyle = '#a855f7'; cx.beginPath(); cx.ellipse(x, y, 34 * sc, 10 * sc, 0, 0, 7); cx.fill(); cx.restore(); }
   if (src === 'cr') {
-    cx.save(); cx.translate(x + dir * lunge, y); cx.rotate(dir * lean * 0.6); cx.translate(-x, -y);
+    cx.save(); cx.translate(x + dir * lunge, y); cx.rotate(dir * lean * 0.6); cx.scale(sqx, sqy); cx.translate(-x, -y);
     drawCreature(cx, key, x, y, { t, moving: !!o.moving, flip, scale: 0.86 * (CR_SIZE[key] || 1) * sc });   // v506 사람 몹 옆에서 너무 작았다(0.62)
     cx.restore(); return;
   }
@@ -164,11 +166,11 @@ export function drawMob(cx, x, y, m, z, o = {}) {
   const fl = src === 's2' || src === 'chb' ? flip : false;
   // v506 한 장 그림을 허리(위 46%)에서 둘로 — 아래(다리)는 걸음마다 앞뒤로 엇갈려 기울고, 위(몸통 · 무기)는 치거나 맞을 때 허리를 축으로 돈다
   const iw = im.width, ih = im.height, wy = 0.46, cut = ih * wy;
-  const step = o.moving ? Math.sin(t * 11) : 0, legShear = step * 0.2, upRot = (atk > 0 ? wind * 0.32 : 0) - hurt * 0.22;
+  const step = o.moving ? Math.sin(t * 11) : 0, legShear = step * 0.2, upRot = (atk > 0 ? wind * 0.32 : 0) - hurt * 0.22 + (!o.moving && !atk && !hurt ? Math.sin(t * 1.6) * 0.014 : 0);   // v597 서 있을 때 윗몸이 느리게 흔들림
   cx.save();
   cx.translate(x + dir * lunge, y + bob);
   cx.rotate(dir * lean * 0.5);
-  cx.scale(fl ? -1 : 1, 1 + breathe);
+  cx.scale((fl ? -1 : 1) * sqx, (1 + breathe) * sqy);
   // 아래: 허리를 축으로 발이 앞뒤로 쓸린다(밀어 기울이기)
   cx.save(); cx.translate(0, -h * (1 - wy)); cx.transform(1, 0, legShear, 1, 0, 0);
   cx.drawImage(im, 0, cut - 2, iw, ih - cut + 2, -w / 2, -2 * (h / ih), w, h * (1 - wy) + 2 * (h / ih));

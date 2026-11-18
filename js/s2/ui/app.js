@@ -1285,7 +1285,7 @@ const palAtk = [];          // 동료 i → { at, mid } 마지막 공격
 const tells = new Map();    // 두목 id → 예고 { pat, x, y, w, at, dur }
 const dust = [];   // 발밑 흙먼지
 const heroAnim = new PoseAnim();
-let lastAtkPose = 0, lastFreeze = 0, stanceMix = 0;
+let lastAtkPose = 0, lastFreeze = 0, stanceMix = 0, runMix = 0;
 // v507 싸우는 중 겨눔 자세(평타 사이에 차렷으로 서 있지 않게) — 직업마다 무기를 겨눈 채 낮게
 const STANCE = {
   sword: { lean: 0.1, crouch: 0.24, lift: 0, dx: 0, hand: [1.15, 19], blade: -0.3, stretch: 0, alpha: 1, wscale: 1.15 },
@@ -1295,15 +1295,43 @@ const STANCE = {
   mage: { lean: 0.02, crouch: 0.1, lift: 0, dx: 0, hand: [-0.55, 22], blade: -1.0, stretch: 0, alpha: 1, wscale: 1 },
 };
 // 무인 공격 자세(지금 게임 자세 도감) — 평타는 짧게, 무공은 크게. 권사 평타는 정권 · 훅 · 올려치기를 번갈아
+// v597 평타는 직업마다 두세 가지를 번갈아(검: 가로 긋기 · 올려 베기 · 내려 베기) — 예비 동작 → 한 번에 긋기 → 끝동작(조금 더 따라감)까지.
+const WS = 1.7;
+const COMBO = {
+  sword: [
+    [[0, '발도준비'], [0.07, '일섬', 'snap'], [0.17, { ...POSES.일섬, lean: 0.26, dx: 8, hand: [0.45, 25], blade: 0.5 }]],
+    [[0, { lean: 0.18, crouch: 0.42, hand: [1.2, 22], blade: 1.3, wscale: WS }], [0.07, { lean: 0.2, crouch: 0.1, lift: 3, dx: 8, hand: [-1.0, 29], blade: -1.1, stretch: 0.05, wscale: WS }, 'snap'], [0.17, { lean: 0.1, crouch: 0.08, dx: 6, hand: [-1.35, 27], blade: -1.5, wscale: WS }]],
+    [[0, '검거양'], [0.08, '내려베기', 'snap'], [0.18, { ...POSES.내려베기, crouch: 0.52, hand: [1.05, 25], blade: 1.2 }]],
+  ],
+  spear: [
+    [[0, '찌르기준비'], [0.06, '찌르기', 'snap'], [0.16, { ...POSES.찌르기, lean: 0.32, dx: 12, hand: [0.0, 28] }]],
+    [[0, { lean: -0.1, crouch: 0.3, dx: -4, hand: [-1.9, 24], blade: -1.2, wscale: WS }], [0.08, { lean: 0.36, crouch: 0.36, dx: 12, hand: [0.5, 30], blade: 0.35, stretch: 0.06, wscale: WS }, 'snap'], [0.18, { lean: 0.3, crouch: 0.4, dx: 10, hand: [0.8, 27], blade: 0.7, wscale: WS }]],
+  ],
+  fist: [
+    [[0, { lean: -0.06, crouch: 0.3, dx: -3, hand: [2.2, 14], blade: 0, wscale: WS }], [0.05, '정권', 'snap'], [0.14, { ...POSES.정권, lean: 0.3, dx: 9, hand: [-0.05, 28] }]],
+    [[0, { lean: 0.05, crouch: 0.28, hand: [-2.0, 18], blade: 0.6, wscale: WS }], [0.06, '훅', 'snap'], [0.15, { ...POSES.훅, lean: 0.3, hand: [0.2, 24] }]],
+    [[0, { lean: 0.2, crouch: 0.5, hand: [1.3, 16], blade: -1.0, wscale: WS }], [0.06, '올려치기', 'snap'], [0.16, { ...POSES.올려치기, lift: 6, hand: [-1.45, 28] }]],
+  ],
+  bow: [
+    [[0, '투척준비'], [0.08, '투척', 'snap'], [0.16, { lean: 0.1, crouch: 0.14, dx: 2, hand: [-0.5, 26], blade: -0.6, wscale: WS }]],
+  ],
+  mage: [
+    [[0, '펼치기'], [0.08, '휘두르기', 'snap'], [0.17, { ...POSES.휘두르기, lean: 0.18, hand: [0.4, 28], blade: -0.1 }]],
+    [[0, { lean: 0.1, crouch: 0.14, hand: [0.6, 26], blade: 0.3, wscale: WS }], [0.08, { lean: 0.2, crouch: 0.12, dx: 5, hand: [-0.9, 30], blade: -1.2, wscale: WS }, 'snap'], [0.17, { lean: 0.12, crouch: 0.1, dx: 4, hand: [-1.2, 28], blade: -1.45, wscale: WS }]],
+  ],
+};
+// 무공(큰 동작): 크게 모았다가 → 한 번에 → 끝자세로 잠깐 버틴 뒤 거둔다
+const BIG = {
+  sword: [[0, '검거양'], [0.12, '내려베기', 'snap'], [0.26, { ...POSES.내려베기, crouch: 0.55, hand: [1.05, 25], blade: 1.2 }], [0.4, '납도']],
+  spear: [[0, '찌르기준비'], [0.12, '찌르기', 'snap'], [0.28, { ...POSES.찌르기, lean: 0.34, dx: 13, hand: [0.0, 29] }]],
+  fist: [[0, '마보'], [0.12, '쌍장', 'snap'], [0.28, { ...POSES.쌍장, lean: 0.24, dx: 8 }]],
+  bow: [[0, '투척준비'], [0.14, '투척', 'snap'], [0.28, { lean: 0.1, crouch: 0.14, dx: 2, hand: [-0.5, 26], blade: -0.6, wscale: WS }]],
+  mage: [[0, '펼치기'], [0.14, '장타', 'snap'], [0.3, { ...POSES.장타, lean: 0.26, dx: 9 }]],
+};
 function heroAttackPose(job, big) {
-  const K = {
-    sword: big ? [[0, '검거양'], [0.12, '내려베기', 'snap']] : [[0, '발도준비'], [0.07, '일섬', 'snap']],
-    spear: big ? [[0, '찌르기준비'], [0.12, '찌르기', 'snap']] : [[0, '찌르기준비'], [0.06, '찌르기', 'snap']],
-    fist: big ? [[0, '마보'], [0.12, '쌍장', 'snap']] : [[0.05, ['정권', '훅', '올려치기'][fistN++ % 3], 'snap']],
-    bow: [[0, '투척준비'], [big ? 0.14 : 0.08, '투척', 'snap']],
-    mage: big ? [[0, '펼치기'], [0.14, '장타', 'snap']] : [[0, '펼치기'], [0.08, '휘두르기', 'snap']],
-  }[job] || [[0, '발도준비'], [0.07, '일섬', 'snap']];
-  heroAnim.play(K, big ? 0.28 : 0.18);
+  if (big) { heroAnim.play(BIG[job] || BIG.sword, 0.26); return; }
+  const C = COMBO[job] || COMBO.sword;
+  heroAnim.play(C[fistN++ % C.length], 0.2);
 }
 let lookDir = 1, lastPoseT = 0, fistN = 0;
 let lastFight = null, lastDraw = 0, lookAhead = 0, zoomAt = -1e9, levelAt = -1e9, heroAirAt = 0, heroLandAt = -1e9, heroFace = 1, heroTurnFrom = 1, heroTurnAt = -1e9;
@@ -1484,9 +1512,11 @@ function draw() {
   if (F !== lastFight) { if (lastFight) { stageFadeAt = t; const T2 = g.stage(); stageBanner = g.bossFight ? '두목전' : `Stage ${((T2.idx - 1) % 10) + 1}/10`; } lastFight = F; firstSeen.clear(); lastNext.clear(); atkAt.clear(); hpLag.clear(); corpses.length = 0; mobHit.clear(); }   // 싸움이 바뀌면(두목전 · 칸 이동) 몹 번호가 새로 시작
   // 쓰러지는 몹(처치된 뒤 0.5초) — 뒤로 넘어가며 흐려지고 가라앉는다
   for (let i = corpses.length - 1; i >= 0; i--) {
-    const c = corpses[i], a = (t - c.at) / 520; if (a > 1) { corpses.splice(i, 1); continue; }
+    const c = corpses[i], bossC = c.m.kind === 'boss', a = (t - c.at) / (bossC ? 900 : 560); if (a > 1) { corpses.splice(i, 1); continue; }
     const [x, y] = P(c.x, c.y); if (x < -120 || x > W + 120) continue;
-    cx.save(); cx.globalAlpha = 1 - a * a; cx.translate(x, y + a * 6 * k); cx.rotate(-c.dir * Math.min(1, a * 1.8) * 1.2); cx.translate(-x, -y);
+    // v597 맞은 반대쪽으로 튕겨 올랐다가(포물선) 떨어지며 넘어가고, 끝 0.4에서 흐려진다 — 두목은 뜨지 않고 무겁게 무너진다
+    const ce = 1 - (1 - a) * (1 - a), fa = a < 0.6 ? 1 : 1 - ((a - 0.6) / 0.4) ** 2;
+    cx.save(); cx.globalAlpha = fa; cx.translate(x - c.dir * ce * (bossC ? 8 : 30) * k, y - (bossC ? 0 : Math.sin(Math.min(1, a * 1.3) * Math.PI) * 16 * k) + (a > 0.75 ? (a - 0.75) * 24 * k : 0)); cx.rotate(-c.dir * ce * (bossC ? 1.1 : 1.4)); cx.translate(-x, -y);
     drawMob(cx, x, y, c.m, z, { t: ts + c.m.id, flip: c.dir < 0, ch, hurt: 1, scale: sc * (c.m.kind === 'boss' ? 1.3 : 1) });
     cx.restore();
   }
@@ -1503,6 +1533,7 @@ function draw() {
     const mw = m.moving && m.plat >= 0 && !(m.vy);
     cx.save();
     if (sa < 1) { cx.globalAlpha = sa; cx.translate(0, -(1 - sa) * 14 * k); }
+    else { const ls = t - seen - 300; if (ls >= 0 && ls < 170) { const q = Math.sin((ls / 170) * Math.PI) * 0.1; cx.translate(x, y); cx.scale(1 + q * 0.8, 1 - q); cx.translate(-x, -y); } }   // v597 내려앉으며 한 번 납작
     if (mw) { cx.translate(x + kx, y); cx.rotate(Math.sin((ts + m.id) * 11) * 0.05); cx.translate(-(x + kx), -y); }   // 걸음마다 발을 축으로 몸이 좌우로 실린다
     const flash = ha >= 0 && ha < 70;
     if (flash) cx.filter = 'brightness(2.2) saturate(0.4)';
@@ -1604,7 +1635,17 @@ function draw() {
   let pose = heroAnim.sample();
   if (!pose && stanceMix > 0 && H.plat >= 0 && !hw) { const st = STANCE[g.S.hero.job] || STANCE.sword; pose = mixPose(IDLE, { ...st, crouch: st.crouch + Math.sin(ts * 3) * 0.025 }, stanceMix * stanceMix * (3 - 2 * stanceMix)); }
   if (!pose && H.plat < 0) pose = (H.vy || 0) > 0 ? { ...POSES.기모으기, crouch: 0, lift: 2, hand: [-1.1, 22], blade: -1.2, lean: -0.08, wscale: 1 } : { ...POSES.착지, crouch: 0.15, lift: 0, wscale: 1 };   // 오를 때 · 떨어질 때 자세가 다르다
-  else if (!pose && hw) { const ph = Math.sin(ts * 14); pose = { lean: 0.16, crouch: 0.1 + Math.abs(ph) * 0.12, lift: 0, dx: ph * 2, hand: [2.5 - ph * 0.4, 22], blade: -0.6, stretch: 0, alpha: 1, wscale: 1 }; }   // 달리기: 걸음마다 다리 벌어짐 · 팔 흔들기
+  // v597 달리기 — 걸음마다 다리가 벌어졌다 모이고(swing) · 벌어질 때 살짝 뜨고 · 팔과 무기가 걸음에 맞춰 흔들린다. 서고 달리는 사이는 0.12초에 걸쳐 잇는다
+  runMix = Math.max(0, Math.min(1, runMix + (hw ? 1 : -1) * fdt / 120));
+  if (!heroAnim.active && H.plat >= 0) {
+    // 서 있기(겨누지 않을 때) — 숨 쉬며 팔 · 무기가 느리게 흔들린다
+    if (!pose) pose = { ...IDLE, crouch: 0.02 + Math.sin(ts * 2.2) * 0.02, hand: [2.5 + Math.sin(ts * 1.7) * 0.07, 22], blade: -0.6 + Math.sin(ts * 1.7 + 0.8) * 0.06, swing: 0 };
+    if (runMix > 0) {
+      const ph = Math.sin(ts * 14), ab = Math.abs(ph);
+      const run = { lean: 0.2, crouch: 0.06 + (1 - ab) * 0.1, lift: ab * 2.6, dx: 0, hand: [2.5 - ph * 0.75, 22], blade: -0.6 + ph * 0.3, stretch: 0.03, alpha: 1, wscale: 1, swing: ph * 8 };
+      pose = runMix >= 1 ? run : mixPose(pose, run, runMix * runMix * (3 - 2 * runMix));
+    }
+  }
   if (t - pillarAt < 1500) {   // v534 좋은 장비를 주웠을 때 무인 자리에 빛기둥
     const a2 = (t - pillarAt) / 1500, al = a2 < 0.15 ? a2 / 0.15 : 1 - (a2 - 0.15) / 0.85, bw = 46 * k * (1 + a2 * 0.4);
     cx.save(); cx.globalCompositeOperation = 'lighter'; cx.globalAlpha = 0.75 * al;
