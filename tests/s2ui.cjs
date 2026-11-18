@@ -138,6 +138,13 @@ const ok = (c, m, x = '') => { console.log(`  ${c ? '✓' : '✗ !!'} ${m}${x !=
       await page.mouse.click(5, 200); await page.waitForTimeout(1800);
       ok(!(await page.isVisible('#saver')) && !(await page.evaluate(() => window.__s2.saverOn())), 'v587 누르면 돌아옴 · 다시 바로 절전되지 않음');
       await page.evaluate(() => window.__s2.saverAutoTest(false)); }
+    // v590 절전에서 돌아오면 그동안 얻은 것을 한 줄로
+    { await page.evaluate(() => { window.__s2.saverStart(); window.__s2.saverAge(3 * 60000); }); await page.waitForTimeout(300);
+      await page.mouse.click(5, 200); await page.waitForTimeout(400);
+      const sm = await page.evaluate(() => window.__s2.saverSum());
+      ok(/^절전 3분 — /.test(sm) && /처치 \+/.test(sm) && /은자 \+/.test(sm), 'v590 절전 결과 한 줄', sm);
+      await page.evaluate(() => { window.__s2.saverStart(); }); await page.mouse.click(5, 200); await page.waitForTimeout(300);
+      ok((await page.evaluate(() => window.__s2.saverSum())) === sm, 'v590 1분 안 되면 결과 안 띄움'); }
     // v588 자동 성장 — 설정에서 켜면 1분마다(시험은 바로) 뽑기권을 쓰고 기록에 남긴다
     { const keep = await page.evaluate(() => window.__s2.g.S.wallet['ticket:gear'] || 0);
       const t0 = await page.evaluate(() => { const g = window.__s2.g; if (g.bossFight) g.endChallenge(false); g.S.wallet['ticket:gear'] = 12; return g.S.gacha.pulls; });

@@ -1208,7 +1208,16 @@ function saverStart(t = now()) {
   const o = document.createElement('div'); o.id = 'saver'; o.innerHTML = `<div><b>절전 중</b><span>홀로 사냥하는 중…</span><em>누르면 돌아와요${opt.wake && wakeOK() ? ' · 화면은 켜 둔 채 홀로 사냥' : ''}</em></div>`; document.body.append(o);
   save();
 }
-function saverOff() { saverOn = false; saverForce = false; document.querySelector('#saver')?.remove(); }
+// v590 절전에서 돌아오면 그동안 얻은 것을 한 줄로(1분 넘게 쉬었을 때) — 알림 + 왼쪽 기록
+let saverSum = '';
+function saverOff() {
+  const F = saverFrom, was = saverOn; saverOn = false; saverForce = false; document.querySelector('#saver')?.remove();
+  if (was && F && g && now() - F.at >= 60000) {
+    const m = Math.floor((now() - F.at) / 60000), dl = g.S.hero.lv - F.lv;
+    saverSum = `절전 ${m}분 — ${[dl > 0 && `Lv +${dl}`, `처치 +${unit((g.S.kills || 0) - F.kills)}`, `은자 +${unit(Math.max(0, (g.S.wallet.gold || 0) - F.gold))}`].filter(Boolean).join(' · ')}`;
+    toast(saverSum); addLog(saverSum);
+  }
+}
 // v586 화면 켜 두기(방치) — 손전화가 저절로 화면을 끄면 브라우저가 게임을 멈춘다 → 화면 꺼짐 막기(Screen Wake Lock).
 //   화면이 보이는 동안만 잡고, 앱이 뒤로 가면 브라우저가 풀었다가 돌아오면 다시 잡는다. 못 쓰는 브라우저면 조용히(방치 보상은 그대로).
 let wakeLock = null, wakeWant = false;
@@ -2176,6 +2185,6 @@ load();
 if (g) boot();
 else pickJob();
 // 시험용 손잡이
-window.__s2 = { get g() { return g; }, agTest: () => { frame.ag = 0; }, saverStart, saverOff, saverOn: () => saverOn, saverAutoTest: (on) => { saverAuto = !!on; }, wake: () => ({ lock: !!wakeLock, want: wakeWant, ok: wakeOK() }), wakeSync, wakeOpt: (on) => { opt.wake = !!on; return wakeSync(); }, saverTest: () => { saverForce = true; lastInput = -1e9; }, newsCheck, guildState, guildLoad, chatSend, save, dayKey, attendPop, freeze: () => { frozen = true; }, net, cloudPush, rankPush, wbPush, wkStr, pvpInbox, pvpFetch, resetNetTimers: () => { pvpAt = 0; inboxAt = 0; },
+window.__s2 = { get g() { return g; }, agTest: () => { frame.ag = 0; }, saverStart, saverOff, saverOn: () => saverOn, saverAge: (ms) => { if (saverFrom) saverFrom.at -= ms; }, saverSum: () => saverSum, saverAutoTest: (on) => { saverAuto = !!on; }, wake: () => ({ lock: !!wakeLock, want: wakeWant, ok: wakeOK() }), wakeSync, wakeOpt: (on) => { opt.wake = !!on; return wakeSync(); }, saverTest: () => { saverForce = true; lastInput = -1e9; }, newsCheck, guildState, guildLoad, chatSend, save, dayKey, attendPop, freeze: () => { frozen = true; }, net, cloudPush, rankPush, wbPush, wkStr, pvpInbox, pvpFetch, resetNetTimers: () => { pvpAt = 0; inboxAt = 0; },
   // v525 팝업 대신 에뮬레이터용 가짜 Google 토큰으로 잇기 · 겹치면 그 계정으로
   linkTest: async (tok) => { const r = await net.linkGoogle(tok); if (r.conflict) { const d = await net.switchTo(r.cred); if (d) applyCloud(d); return 'switched'; } await cloudPush(true); return 'linked'; } };
