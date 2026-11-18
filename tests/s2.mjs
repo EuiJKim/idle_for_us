@@ -1304,6 +1304,15 @@ console.log('\n=== v581 수련동 모두 소탕 ===');
   g.tick(T0 + 86400000); ok(g.S.dungeons.best?.gold && g.S.dungeons.best?.stone && Object.keys(g.S.dungeons.runs).length === 0, '날이 바뀌어도 소탕 열림은 남고 횟수만 새로');
 }
 
+console.log('\n=== v582 탑 연속 오르기 ===');
+{
+  const T0 = 1.8e12, g = new Game(newGame('sword', T0, 28), T0); g.addExp(EX.cumExp(60)); g.tick(T0);
+  let n = 0; g.towerFight = () => { n++; if (n <= 3) { g.S.tower.best++; return { cleared: true }; } return { cleared: false }; };   // 세 층 이기고 넷째에서 짐
+  const r = g.towerClimb(30);
+  ok(r && r.up === 3 && r.tries === 4 && r.stopped && r.to === 3, '질 때까지 오른다 · 오른 층 · 진 판까지 센다', JSON.stringify(r));
+  n = -100; const r2 = g.towerClimb(5); ok(r2.tries === 5 && !r2.stopped, '최대 층에서 멈춤(다시 누르면 계속)');
+}
+
 console.log('\n=== S0 규칙 ===');
 {
   const files = [];

@@ -559,6 +559,7 @@ function paintWin() {
     }
   } else if (key === 'content:1') {
     const c = card(`무한의 탑 ${g.S.tower.best}층`, '깬 층만큼 영구 보너스');
+    c(R('연속 오르기', '질 때까지(최대 30층) 다음 층을 바로 끝내요', [['오르기', act(() => { const r = g.towerClimb(30); if (r) { play(r.up ? 'clear' : 'fail'); pop('무한의 탑', `<div class="ea-sum"><span>도전 <b>${r.tries}</b>번</span><span>${r.from}층 → <b>${r.to}층</b></span></div><p class="note">${r.up ? `${r.up}층 올랐어요 — 영구 보너스` : '한 층도 못 올랐어요 — 전투력을 올리고 다시'}${r.stopped ? '' : ' · 30층 오름(다시 누르면 계속)'}</p>`); } return r; }), !!g.canDungeon('tower')]], '塔'));
     c(R(`${g.S.tower.best + 1}층`, '적 넷을 60초 안에 모두 · 이기면 한 층 위로', [['도전', () => { play('click'); if (!g.enterDungeon('tower')) toast(g.canDungeon('tower') || '들어갈 수 없어요'); }, !!g.canDungeon('tower')]], '塔'));
   } else if (key === 'content:2') {
     // v580 시간 티켓 바로 쓰기

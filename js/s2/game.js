@@ -574,6 +574,12 @@ export class Game {
     return sum.n ? sum : null;
   }
   towerFight() { return this.runNow('tower'); }
+  // v582 탑 연속 오르기 — 질 때까지(최대 max층) 다음 층을 바로 · 오른 층 수
+  towerClimb(max = 30) {
+    const from = this.S.tower.best; let tries = 0, lastWin = false;
+    for (; tries < max; tries++) { const r = this.towerFight(); if (!r) break; lastWin = !!r.cleared; if (!lastWin) { tries++; break; } }
+    return tries ? { from, to: this.S.tower.best, up: this.S.tower.best - from, tries, stopped: !lastWin } : null;
+  }
   // ── v531 실제 던전 ── 옆보기 사냥 엔진(SideFight) 위에서 직접 싸운다. 입장 → 목표(처치 · 두목 · 다 잡기 · 버티기) · 제한 시간 → 결과
   //   enterDungeon: 화면에서 직접(사냥터 대신 던전이 그려진다) · runNow: 같은 던전을 바로 끝까지(소탕 · 봇)
   // v544 오늘 할 일 — 하루마다 도는 것들의 오늘 진행(n / of) · 열렸는지 · 어디로 갈지(go: 창 키)
