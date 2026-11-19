@@ -76,6 +76,25 @@ const ok = (c, m, x = '') => { console.log(`  ${c ? '✓' : '✗ !!'} ${m}${x !=
       const inside = (a) => a[0] >= 0 && a[1] >= 0 && a[2] <= L.W && a[3] <= L.H;
       ok(L.land && !hit(L.top, L.bar) && !hit(L.bar, L.tabs) && !hit(L.top, L.tabs) && !hit(L.quest, L.top) && !hit(L.me, L.mb) && !hit(L.mb, L.skill) && [L.top, L.bar, L.tabs, L.skill, L.me, L.mb].every(inside), '가로 화면 — 위: 나 · 사냥터 · 아이콘 / 아래: Lv·HP · 메뉴 · 무공 (겹침 없음)', JSON.stringify([L.me, L.mb, L.skill].map((a) => a.map(Math.round))));
     }
+    // v6xx 받을 보상 칸(#rc) — 받을 것이 없으면 숨김 · 둘이면 2 · 「모두 받기」로 받고 숨김 · 길잡이 · 기연 · 다음 칸과 안 겹침
+    { const a0 = await hold();
+      const rcVis = () => page.evaluate(() => { const e = document.getElementById('rc'); return !e.classList.contains('hidden') && e.offsetHeight > 0; });
+      if (await rcVis()) { await page.click('#rc'); await page.click('#modal .btn:has-text("모두 받기")'); await page.waitForTimeout(150); }
+      const z = await page.evaluate(() => { const g = window.__s2.g; return { n: g.books.daily.claimable().length + g.books.weekly.claimable().length + g.books.ach.claimable().length + g.bountyCan() + g.passCan() + g.towerMsCan() + (g.shopFreeCan() ? 1 : 0) + (g.todayChest().can ? 1 : 0) }; });
+      ok(z.n === 0 && !(await rcVis()), 'v6xx 받을 보상 칸 — 받을 것이 없으면 숨김', `남은 ${z.n}`);
+      const tw = await page.evaluate(() => { const g = window.__s2.g, T = g.towerSt(), f0 = g.towerMsState()[0].floor; g.S.shop.bought = {}; T.ms = T.ms.filter((f) => f !== f0); T.best = Math.max(T.best || 0, f0); return { tw: g.towerMsCan(), sh: g.shopFreeCan() }; });
+      const c2 = await until(() => page.evaluate(() => ({ vis: !document.getElementById('rc').classList.contains('hidden'), n: document.getElementById('rc-n').textContent })), (v) => v.vis && v.n === '2', 2500);
+      ok(tw.tw === 1 && tw.sh && c2.vis && c2.n === '2', 'v6xx 받을 보상 칸 — 탑 이정표 · 상점 덤 둘이면 「받을 보상 2」', JSON.stringify(c2));
+      const R = await page.evaluate(() => { const r = (s) => { const e = document.querySelector(s); if (!e || e.classList.contains('hidden') || !e.offsetHeight) return null; const b = e.getBoundingClientRect(); return [b.left, b.top, b.right, b.bottom]; }; return { rc: r('#rc'), o: ['#qc', '#fc', '#nx', '#me', '#tr', '#sk', '#mb', '#tl', '#tc'].map(r).filter(Boolean), W: innerWidth, H: innerHeight }; });
+      const hit2 = (a, c) => a[0] < c[2] - 1 && c[0] < a[2] - 1 && a[1] < c[3] - 1 && c[1] < a[3] - 1;
+      ok(R.rc && !R.o.some((o) => hit2(R.rc, o)) && R.rc[0] >= 0 && R.rc[3] <= Math.max(R.W, R.H), 'v6xx 받을 보상 칸 — 길잡이 · 기연 · 다음 · 위 · 아래 HUD와 안 겹침', JSON.stringify(R.rc?.map(Math.round)));
+      await page.click('#rc'); const rows = await page.$$eval('#modal .rc-r', (a) => a.map((e) => e.textContent));
+      ok(rows.length === 2 && rows.some((t) => /무한 탑/.test(t)) && rows.some((t) => /상점 덤/.test(t)), 'v6xx 받을 보상 창 — 받을 곳마다 한 줄 · 가기', rows.join(' / '));
+      const w0 = await page.evaluate(() => ({ gold: window.__s2.g.S.wallet.gold, tix: window.__s2.g.S.wallet['ticket:gear'] || 0 }));
+      await page.click('#modal .btn:has-text("모두 받기")'); await page.waitForTimeout(150);
+      const af = await page.evaluate(() => { const g = window.__s2.g; return { tw: g.towerMsCan(), sh: g.shopFreeCan(), gold: g.S.wallet.gold, tix: g.S.wallet['ticket:gear'] || 0, toast: document.getElementById('toast').textContent }; });
+      ok(af.tw === 0 && !af.sh && !(await rcVis()) && af.gold >= w0.gold && /보상 \d+개 받음/.test(af.toast), 'v6xx 「모두 받기」 — 받고(은자 안 씀) 칸이 숨는다', af.toast);
+      await free(a0); }
     // 손 조작: 수동으로 바꾸고 ◀ 를 누르고 있으면 왼쪽으로 달린다 · 점프 단추
     await page.click('#au');
     ok(await page.evaluate(() => window.__s2.g.S.auto === false), '자동/수동 단추 — 수동으로');
@@ -455,15 +474,21 @@ const ok = (c, m, x = '') => { console.log(`  ${c ? '✓' : '✗ !!'} ${m}${x !=
       await page.evaluate(() => { const g = window.__s2.g; window.__t = { wallet: JSON.stringify(g.S.wallet), party: JSON.stringify(g.S.party || null) }; g.partyRec().runs = 0; });
       await page.click('#mb .nb[data-tab="dgn"]'); await sub('동행'); await page.waitForSelector('#wb .row .pill');
       const pt = () => page.evaluate(() => { const g = window.__s2.g, rows = [...document.querySelectorAll('#wb .row')], bots = rows.filter((r) => r.querySelector('.pill:not(.pv-real)')?.textContent === '연습');
-        return { bots: bots.length, names: bots.map((r) => r.querySelector('.name').firstChild.textContent.trim()), pw: bots.every((r) => /^전투력 \S+/.test(r.querySelector('.desc')?.textContent || '')), on: document.querySelectorAll('#wb .row.pty-on').length, btn: bots.map((r) => `${r.querySelector('.btn').textContent}${r.querySelector('.btn').disabled ? '(잠김)' : ''}`), head: [...document.querySelectorAll('#wb .card h3')].map((h) => h.textContent), note: [...document.querySelectorAll('#wb .note')].map((n) => n.textContent).join(' / '), left: g.partyState().left, runs: g.partyRec().runs, goOff: !![...document.querySelectorAll('#wb .btn')].find((x) => x.textContent === '출발')?.disabled, modal: !document.getElementById('modal').classList.contains('hidden') }; });
+        return { bots: bots.length, names: bots.map((r) => r.querySelector('.name').firstChild.textContent.trim()), pw: bots.every((r) => /^전투력 \S+/.test(r.querySelector('.desc')?.textContent || '')), on: document.querySelectorAll('#wb .row.pty-on').length, btn: bots.map((r) => `${r.querySelector('.btn').textContent}${r.querySelector('.btn').disabled ? '(잠김)' : ''}`), head: [...document.querySelectorAll('#wb .card h3')].map((h) => h.textContent), note: [...document.querySelectorAll('#wb .note')].map((n) => n.textContent).join(' / '), left: g.partyState().left, tier: g.partyState().tier, runs: g.partyRec().runs, goOff: !![...document.querySelectorAll('#wb .btn')].find((x) => x.textContent === '출발')?.disabled, modal: !document.getElementById('modal').classList.contains('hidden') }; });
       const y0 = await until(pt, (v) => v.bots === 3);
       ok(y0.bots === 3 && y0.pw && /오프라인 — 연습 동행과 함께 가요/.test(y0.note) && y0.btn.join() === '고르기,고르기,고르기' && y0.on === 0, 'v605 동행 — 오프라인이면 연습 동행 셋(「연습」 딱지 · 전투력)', y0.names.join(' · '));
       ok(/오늘 2 \/ 2번 남음/.test(y0.head[0]) && /0 \/ 2명/.test(y0.head[1]) && !y0.goOff, 'v605 동행 — 오늘 남은 횟수 · 고른 수', y0.head.join(' | '));
+      const slot = () => page.evaluate(() => { const q = (s) => [...document.querySelectorAll(s)], img = document.querySelector('#wb .pt-boss img');
+        return { n: q('#wb .pt-slots > .pt-slot').length, empty: q('#wb .pt-slot.pt-empty').map((x) => x.textContent.replace('+', '').trim()), cv: q('#wb .pt-slot canvas').map((c) => +c.dataset.n || 0), names: q('#wb .pt-slot:not(.pt-empty) b').map((b) => b.textContent), pips: q('#wb .pt-pips i.on').length, boss: !!img && /art\/s2\/chb\/chb\d+\.webp$/.test(img.src), tier: document.querySelector('#wb .pt-tier b')?.textContent, raf: window.__s2.ptRaf() }; });
+      const s0 = await slot();
+      ok(s0.n === 3 && s0.empty.join() === '동료 자리,동료 자리' && s0.cv.length === 1 && s0.cv[0] > 0 && s0.names[0] === '나' && s0.pips === 2 && s0.boss && s0.tier === String(y0.tier), 'v6xx 동행 — 두목 그림 · 단계 숫자 · 횟수 점 둘 · 자리 셋(나 + 빈 「동료 자리」 둘)', JSON.stringify(s0));
       const BOT = '#wb .row:has(.pill:text-is("연습"))';
       await page.click(`${BOT} .btn:text-is("고르기") >> nth=0`); await until(pt, (v) => v.on === 1);
       await page.click(`${BOT} .btn:text-is("고르기") >> nth=0`);
       const y1 = await until(pt, (v) => v.on === 2);
       ok(y1.on === 2 && /2 \/ 2명/.test(y1.head[1]) && y1.btn.join() === '빼기,빼기,고르기(잠김)', 'v605 둘을 고르면 표시되고 셋째는 잠긴다', y1.btn.join(' · '));
+      const s1 = await until(slot, (v) => v.cv.length === 3 && v.cv.every((n) => n > 1));
+      ok(s1.empty.length === 0 && s1.names.join() === ['나', ...y0.names.slice(0, 2)].join() && s1.cv.every((n) => n > 1) && s1.raf > 0, 'v6xx 동행 — 고른 둘이 자리에 무인 그림으로(움직임)', s1.names.join(' · '));
       await page.click('#wb .btn:text-is("출발")'); await page.waitForSelector('#modal:not(.hidden) .pty-res');
       const res = await page.evaluate(() => { const m = document.getElementById('modal'), q = (s) => [...m.querySelectorAll(s)]; const cv = m.querySelector('.pty-cv');
         return { title: m.querySelector('h2')?.textContent || '', who: q('.pty-b > span').map((x) => x.firstChild.textContent.trim()), pct: q('.pty-b > b').map((x) => parseFloat(x.textContent)), bars: q('.pty-bar i').map((x) => parseFloat(x.style.width)), t: m.querySelector('.pty-t')?.textContent || '', win: !!m.querySelector('.pty-t.win'), rew: !!m.querySelector('.pty-got'), tip: m.querySelector('.pty-side .note')?.textContent || '', cv: cv ? cv.width : 0 }; });
@@ -475,7 +500,9 @@ const ok = (c, m, x = '') => { console.log(`  ${c ? '✓' : '✗ !!'} ${m}${x !=
       ok(!y2.modal && y2.left === 1 && y2.runs === 1 && /오늘 1 \/ 2번 남음/.test(y2.head[0]), 'v605 싸우면 오늘 횟수가 하나 줄어든다', y2.head[0]);
       for (let i = 0; i < 2; i++) { await page.click(`${BOT} .btn:text-is("빼기") >> nth=0`); await until(pt, (v) => v.on === 1 - i); }   // 고른 것도 풀어 둔다
       await page.evaluate(() => { const g = window.__s2.g, T = window.__t, W = g.S.wallet; g.S.party = JSON.parse(T.party) || undefined; for (const k of Object.keys(W)) delete W[k]; Object.assign(W, JSON.parse(T.wallet)); delete window.__t; });
-      await page.click('#panel-close'); await free(a0); }
+      await page.click('#panel-close');
+      ok(await page.evaluate(() => window.__s2.ptRaf() === 0), 'v6xx 동행 창을 닫으면 자리 그림 멈춤');
+      await free(a0); }
     // v603 · v607 모음 격자 — 병기 · 동료 · 영물: 칸 수 = 표의 가짓수 · 가진 것만 또렷 · 그림이 뜬다
     { const a0 = await hold();
       const tb = await page.evaluate(async () => { const u = (p) => new URL(p, location.href).href, { COLLECT } = await import(u('js/s2/tables/s5.js')), { COLLECTS } = await import(u('js/s2/game.js')); return COLLECTS.map((s) => ({ sys: s, name: COLLECT[s].name, kinds: COLLECT[s].kinds })); });

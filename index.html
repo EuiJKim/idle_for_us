@@ -424,6 +424,27 @@
     .pty-c0 { background: #86efac; } .pty-c1 { background: #7dd3fc; } .pty-c2 { background: #fcd34d; }
     .td-got.pty-got { margin: 10px 0 0; gap: 10px; font-size: 12.5px; justify-content: flex-start; flex-wrap: wrap; align-items: center; }
     html.h500 .pty-cv { height: 120px; }
+    /* v6xx 동행 그림 카드 — 두목 · 단계 · 횟수 점 / 자리 셋 / 큰 출발 / 고를 무인 작은 카드 */
+    .pt-hd { display: grid; grid-template-columns: 92px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 6px; border-radius: 12px; background: linear-gradient(135deg, rgba(163,36,42,.22), rgba(255,255,255,.03)); border: 1px solid rgba(224,106,90,.28); }
+    .pt-boss { position: relative; height: 84px; border-radius: 10px; overflow: hidden; background: radial-gradient(circle at 50% 60%, color-mix(in srgb, var(--bc) 40%, transparent), rgba(0,0,0,.5) 72%); }
+    .pt-boss img { width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 2px 3px rgba(0,0,0,.6)); }
+    .pt-boss span { position: absolute; left: 0; right: 0; bottom: 0; font-size: 10px; font-weight: 800; text-align: center; padding: 1px 0; background: rgba(0,0,0,.62); color: #fde68a; }
+    .pt-info { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+    .pt-tier { display: flex; align-items: baseline; gap: 4px; } .pt-tier b { font-size: 34px; font-weight: 900; line-height: .95; color: var(--gold); font-variant-numeric: tabular-nums; } .pt-tier em { font-style: normal; font-size: 13px; font-weight: 700; color: rgba(255,255,255,.6); } .pt-tier .pill { margin-left: 4px; align-self: center; }
+    .pt-runs { display: flex; align-items: center; gap: 8px; font-size: 11.5px; color: rgba(255,255,255,.7); } .pt-runs b { color: #fff; }
+    .pt-pips { display: inline-flex; gap: 4px; } .pt-pips i { width: 11px; height: 11px; border-radius: 50%; border: 1.5px solid rgba(253,230,138,.6); background: rgba(0,0,0,.4); } .pt-pips i.on { background: #fcd34d; border-color: #fde68a; box-shadow: 0 0 6px rgba(252,211,77,.6); }
+    .pt-rew { display: flex; flex-wrap: wrap; gap: 3px 8px; font-size: 11px; color: rgba(255,255,255,.65); } .pt-rew small { font-size: 10.5px; color: rgba(255,255,255,.5); } .pt-rew b { color: #fde68a; }
+    .pt-nav { display: flex; flex-direction: column; gap: 6px; } .pt-nav .btn { min-width: 44px; min-height: 36px; padding: 0 8px; }
+    .pt-slots { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin: 8px 0; }
+    .pt-slot { font: inherit; color: inherit; display: flex; flex-direction: column; align-items: center; min-width: 0; padding: 2px 4px 6px; border-radius: 12px; background: radial-gradient(ellipse at 50% 78%, rgba(125,211,252,.16), rgba(0,0,0,.25) 72%); border: 1px solid rgba(125,211,252,.3); }
+    button.pt-slot { cursor: pointer; } .pt-slot.pt-me { background: radial-gradient(ellipse at 50% 78%, rgba(134,239,172,.18), rgba(0,0,0,.25) 72%); border-color: rgba(134,239,172,.35); }
+    .pt-slot canvas { width: 70px; height: 80px; }
+    .pt-slot b { font-size: 12px; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .pt-slot small { font-size: 10.5px; color: rgba(255,255,255,.55); white-space: nowrap; }
+    .pt-slot.pt-empty { justify-content: center; gap: 4px; min-height: 112px; background: rgba(0,0,0,.18); border: 1.5px dashed rgba(255,255,255,.22); color: rgba(255,255,255,.45); font-size: 12px; } .pt-empty i { font-style: normal; font-size: 22px; line-height: 1; }
+    .btn.pt-go { display: block; width: 100%; min-height: 46px; font-size: 17px; font-weight: 900; letter-spacing: .2em; margin-bottom: 6px; }
+    #panel .row.pt-cand { padding: 6px 8px; min-height: 0; margin: 4px 0; border-radius: 10px; } #panel .row.pt-cand .desc { font-size: 11px; } #panel .row.pt-cand .btn { min-width: 60px; }
+    html.h420 .pt-hd { grid-template-columns: 72px minmax(0, 1fr) auto; gap: 8px; padding: 4px 6px; } html.h420 .pt-boss { height: 62px; } html.h420 .pt-tier b { font-size: 28px; } html.h420 .pt-info { gap: 2px; } html.h420 .pt-nav { flex-direction: row; } html.h420 .pt-nav .btn { min-height: 44px; }
+    html.h420 .pt-slots { margin: 6px 0; gap: 5px; } html.h420 .pt-slot { flex-direction: row; justify-content: center; gap: 2px 6px; flex-wrap: wrap; padding: 2px 4px 4px; } html.h420 .pt-slot canvas { width: 44px; height: 50px; } html.h420 .pt-slot b, html.h420 .pt-slot small { flex-basis: 100%; text-align: center; line-height: 1.2; } html.h420 .pt-slot.pt-empty { min-height: 84px; flex-direction: column; flex-wrap: nowrap; } html.h420 .btn.pt-go { min-height: 44px; font-size: 16px; }
     .pill.pv-real { background: rgba(8,47,73,.8); border-color: #7dd3fc; color: #e0f2fe; }
     /* v547 서열 · v6xx 모습(rk-) — 갈래는 한 줄 묶음 단추 · 1~3위 단상 · 4위부터 짧은 줄 · 내 줄(목록 밖)은 아래에 붙음 · 주간 보상은 뽑기권 칩 */
     #panel-body .rk-seg { display: flex; width: 100%; box-sizing: border-box; margin: 0 0 8px; padding: 3px; gap: 2px; border-radius: 11px; background: rgba(0,0,0,.38); box-shadow: inset 0 0 0 1px rgba(255,255,255,.07); }
@@ -716,6 +737,16 @@
     .fate-chip.ready { overflow: visible; border-color: rgba(255,213,106,.7); color: #ffe9a8; animation: pts-glow 1.4s ease-in-out infinite; }
     .fate-chip.ready b { color: #ffd56a; } .fate-chip.ready .fate-fill { display: none; }
     .fate-chip.ready::after { content: ''; position: absolute; top: -2px; right: -2px; width: 8px; height: 8px; border-radius: 50%; background: #ef4444; box-shadow: 0 0 0 1.5px rgba(0,0,0,.5); }
+    /* 받을 보상 칸 — 기연 칸 바로 아래(길잡이 · 다음 카드 오른쪽) · 두목전 · 던전엔 숨김 */
+    .rw-chip { position: absolute; z-index: 20; left: calc(var(--sl) + 228px); top: calc(var(--st) + 122px); min-height: 34px; padding: 3px 10px 3px 4px; display: flex; align-items: center; gap: 5px; border-radius: 999px; background: rgba(10,8,6,.62); border: 1px solid rgba(255,213,106,.6); color: #ffe9a8; font: inherit; font-size: 11px; cursor: pointer; }
+    .rw-chip.hidden, body.bossing .rw-chip { display: none; }
+    .rw-chip img { width: 26px; height: 26px; object-fit: contain; }
+    .rw-chip b { min-width: 18px; padding: 0 5px; border-radius: 999px; background: #c0392b; color: #fff; font-size: 11px; font-weight: 800; line-height: 18px; text-align: center; font-variant-numeric: tabular-nums; }
+    html.w800 .rw-chip { left: calc(var(--sl) + 204px); }
+    html.h420 .rw-chip { top: calc(var(--st) + 108px); }
+    .rc-l { display: flex; flex-direction: column; gap: 6px; min-width: min(320px, 70vw); }
+    .rc-r { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 10px; padding: 4px 4px 4px 10px; border-radius: 10px; background: rgba(255,255,255,.05); text-align: left; }
+    .rc-r b { color: var(--gold, #ffd56a); font-variant-numeric: tabular-nums; } .rc-r .btn { min-height: 38px; min-width: 64px; padding: 6px 12px; }
     html.w800 .fate-chip { left: calc(var(--sl) + 204px); } .fate-chip.fate-solo, html.w800 .fate-chip.fate-solo { left: var(--sl); }
     .fate-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 10px; }
     .fate-card { font: inherit; color: #fff; min-height: 132px; padding: 12px 6px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; border-radius: 12px; background: linear-gradient(180deg, #2c2116, #17110b); border: 1px solid rgba(255,213,106,.35); cursor: pointer; }
@@ -1431,6 +1462,7 @@
       </div>
       <button id="qc" class="hidden"></button>
       <button id="fc" class="fate-chip hidden" aria-label="기연"><i>緣</i><span>기연</span><b id="fc-n"></b><em class="fate-fill" id="fc-fill"></em></button>
+      <button id="rc" class="rw-chip hidden" aria-label="받을 보상"><img src="art/s2/ui/chest.webp" alt="" decoding="async"><span>받을 보상</span><b id="rc-n"></b></button>
       <button id="nx" class="hidden"></button>
       <div class="dpsm" id="dpsm"></div>
       <div id="loglines"></div>
