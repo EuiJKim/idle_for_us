@@ -2,6 +2,8 @@
 // 화면은 엔진(js/s2/game.js)만 본다. 시계는 화면 쪽에서만 읽어 엔진에 넘긴다(엔진은 결정론).
 import { Game, newGame, COLLECTS, dayKey, weekKey, STAGE_KILLS, GRAID, graidHp0, GTRAIN, WEEK_REW, WB_COMMUNITY, PARTY, partyLv } from '../game.js';
 import { raidPhase } from '../online/guild.js';
+import { scoreDelta as pvpDelta } from '../online/pvp.js';   // 대결 카드 — 이기면/지면 점수 미리 보기
+import { PVP_TIERS } from '../tables/online.js';
 import { SAVE_KEY } from '../core/save.js';
 import { S2Net } from './net.js';
 import { encodeSave, decodeAny } from '../../savecode.js';
@@ -982,12 +984,28 @@ function paintWin() {
     B.append(note('주간 점수는 칠 때마다 서버 서열(무림 → 서열 → 이번 주 월드보스)에 올라가요.'));
   } else if (key === 'rival:1') {
     const P = g.S.pvp || { score: 1000, used: 0, day: '', log: [] };
-    const used = P.day === String(dayKey(now())) ? P.used : 0;
-    const c0 = card(`대결 점수 ${P.score}`, `오늘 ${used}/5번`);
+    const used = P.day === String(dayKey(now())) ? P.used : 0, TI = duelTier(P.score);
+    // 위 — 내 점수 · 등급 · 다음 등급까지 막대 · 오늘 남은 횟수
+    const c0 = card(`<span>대결 점수 ${P.score} <span class="pill duel-tier">${esc(TI.name)}</span></span>`, `오늘 ${used}/5번 · 남은 ${Math.max(0, 5 - used)}번`);
+    { const hd = document.createElement('div'); hd.className = 'duel-head';
+      hd.innerHTML = `<div class="duel-tp"><i style="width:${Math.round(TI.p * 100)}%"></i></div><span>${TI.next ? `${esc(TI.next)}까지 ${TI.need}점` : '가장 높은 등급'}</span><span class="duel-tries">${[0, 1, 2, 3, 4].map((k) => `<i class="${k < 5 - used ? 'on' : ''}"></i>`).join('')}</span>`;
+      c0(hd); }
     pvpFetch(); pvpInbox();
     if ((g.S.favs || []).length) { const cf = card('즐겨찾기 무인', '정보 · 친선 대결(점수와 상관없이)'); for (const f of g.S.favs) cf(R(esc(f.name), '', [['친선', () => { play('click'); friendly(f.uid); }, !net.online], ['정보', () => { play('click'); playerCard(f.uid); }, !net.online]], '友')); }   // v569
-    g.pvpOpponents().forEach((o, i) => c0(R(`${esc(o.name)} <small>${JOBS[o.f.job].name} Lv ${o.f.lv}</small> ${o.real ? '<span class="pill pv-real">무인</span>' : '<span class="pill">연습</span>'}`, `대결 전투력 ${fmt(o.pw)}${o.real ? ` · 점수 ${o.score}` : ''}`,
-      [['도전', act(() => { const r = g.pvpFight(i); if (r) { if (r.oppUid) net.pvpLog(r.oppUid, { name: g.S.nick, win: r.win, d: r.defD, seed: r.d }).catch(() => {}); rankPush(); closeWin(); duelShow(r); } return r; }), used >= 5], ...(o.real ? [['정보', () => { play('click'); playerCard(o.uid); }]] : [])], `i:duel:${JOBS[o.f.job].name[0]}`)));   // v568 진짜 상대 정보
+    // 상대 카드 — 작은 모습(그 무인의 외형 · 연습 상대는 레벨대로) · 직업 · 레벨 · 전투력 · 쉬움/비슷/어려움 · 이기면/지면 점수
+    const myPw = g.power('pvp'), list = document.createElement('div'); list.className = 'duel-list';
+    g.pvpOpponents().forEach((o, i) => {
+      const [hard, hc] = duelHard(myPw, o.pw), sw = pvpDelta(true, myPw, o.pw).atk, sl = pvpDelta(false, myPw, o.pw).atk;
+      const el = document.createElement('div'); el.className = `duel-opp ${hc}`;
+      el.innerHTML = `<canvas class="duel-cv" width="180" height="200"></canvas><div class="duel-oi"><b>${esc(o.name)}</b><small>${esc(JOBS[o.f.job].name)} · Lv ${o.f.lv}</small>
+        <div class="duel-tags">${o.real ? '<span class="pill pv-real">무인</span>' : '<span class="pill">연습</span>'}<span class="duel-chip ${hc}">${hard}</span></div>
+        <div class="duel-pw">⚔ ${unit(o.pw)}${o.real ? ` <em>${o.score}점</em>` : ''}</div><div class="duel-sd"><span class="w">승 +${sw}</span><span class="l">패 ${sl}</span></div></div>`;
+      const cv = el.querySelector('canvas'); cv._d = { job: o.f.job, lv: o.f.lv, eq: lookEqOf(o.lk, o.f.lv), ph: i * 0.7 };
+      const bt = document.createElement('div'); bt.className = 'duel-bt';
+      [['도전', act(() => duelGo(i)), used >= 5], ...(o.real ? [['정보', () => { play('click'); playerCard(o.uid); }]] : [])].forEach(([lb, fn, dis], k) => { const b = document.createElement('button'); b.className = `btn${k ? '' : ' primary'}`; b.textContent = lb; b.disabled = !!dis; b.onclick = fn; bt.append(b); });   // v568 진짜 상대 정보
+      el.append(bt); list.append(el);
+    });
+    c0(list); duelCvRun();
     if (!g.pvpOpponents().some((o) => o.real)) c0(note(net.online ? '점수가 가까운 무인을 찾는 중 — 없으면 연습 상대와 겨뤄요' : '오프라인 — 연습 상대와 겨뤄요'));
     const log = g.S.pvp?.log || [];
     if (log.length) {
@@ -1734,9 +1752,9 @@ function drawBossFeel(cx, W, Hh, k, t) {
   const wa = (t - bf.whiteAt) / 80;
   if (wa >= 0 && wa < 1) { cx.fillStyle = `rgba(255,255,255,${wa < 0.4 ? 1 : 1 - (wa - 0.4) / 0.6})`; cx.fillRect(0, 0, W, Hh); }
 }
-function drawImpacts(cx, P, k, t) {
-  for (let i = impacts.length - 1; i >= 0; i--) {
-    const it = impacts[i], a = (t - it.at) / (it.crit ? 260 : 170); if (a < 0) continue; if (a >= 1) { impacts.splice(i, 1); continue; }
+function drawImpacts(cx, P, k, t, list = impacts) {   // list — 대결 화면은 제 것으로
+  for (let i = list.length - 1; i >= 0; i--) {
+    const it = list[i], a = (t - it.at) / (it.crit ? 260 : 170); if (a < 0) continue; if (a >= 1) { list.splice(i, 1); continue; }
     const [x, y] = P(it.x, it.y), e = 1 - (1 - a) * (1 - a);
     cx.save(); cx.globalCompositeOperation = 'lighter'; cx.translate(x, y);
     if (it.crit) {
@@ -2677,61 +2695,143 @@ function pwWatch(pw) {
   }
 }
 // v539 대결 화면 — 대결은 능력치로 공정하게 정해지고(엔진) 화면은 그 기록을 그대로 다시 보여 준다.
-//   내 무인(왼쪽) · 상대(오른쪽)가 마주 서서 기록대로 친다 · 위에 두 체력 막대 · 피해 숫자 · 3·2·1 대결! → WIN / LOSE · 누르면 건너뛰기
-function duelShow(r) {
+//   지금 장 배경(어둡게) 위에 내 무인(왼쪽) · 상대(오른쪽) · 위에 이름판 + 체력 막대 · 3·2·1 비무 시작!(0.9초) · 피해 숫자 · 충격 고리 · 막타는 0.4초 느리게
+//   → 결과 카드(승/패 · 점수 · 등급 막대 · 다시/닫기) · 누르면 건너뛰기. 그래픽 낮음이면 3·2·1 · 느린 막타 · 고리 없이
+const lookEqOf = (lk, lv) => Object.fromEntries(SLOTS.map((sl) => [sl, { slot: sl, g: lk && lk[sl] != null ? lk[sl] : Math.min(6, Math.floor((lv || 1) / 25)), up: 0, subs: [] }]));
+const duelHard = (my, op) => { const x = op / Math.max(1, my); return x < 0.9 ? ['쉬움', 'easy'] : x > 1.1 ? ['어려움', 'hard'] : ['비슷', 'even']; };
+function duelTier(sc) {   // 엔진 등급표(하수 → 현경) — 지금 등급 · 다음 등급까지 몇 점 · 막대 비율
+  const i = Math.max(0, PVP_TIERS.filter((t) => sc >= t.min).length - 1), cur = PVP_TIERS[i], nx = PVP_TIERS[i + 1];
+  return { name: cur.name, next: nx ? nx.name : '', need: nx ? nx.min - sc : 0, p: nx ? Math.max(0, Math.min(1, (sc - cur.min) / (nx.min - cur.min))) : 1 };
+}
+// 대결 칸의 작은 모습들 — 창이 열려 있는 동안만 초당 열다섯 번쯤(창을 닫으면 저절로 멈춤)
+let duelCvLoop = 0;
+function duelCvRun() {
+  if (duelCvLoop) return;
+  let last = 0;
+  const step = (ts) => {
+    const cvs = document.querySelectorAll('#wb canvas.duel-cv'); if (!cvs.length) { duelCvLoop = 0; return; }
+    if (ts - last > 66) {
+      last = ts;
+      for (const cv of cvs) { const d = cv._d; if (!d || !JOBS[d.job]) continue; const x = cv.getContext('2d'); x.clearRect(0, 0, cv.width, cv.height); drawHero(x, cv.width / 2, cv.height - 10, d.job, d.lv || 1, { t: (opt.gfx === 'low' ? 0 : ts / 1000) + d.ph, scale: 2.05, eq: d.eq, flip: true }); }
+    }
+    duelCvLoop = requestAnimationFrame(step);
+  };
+  duelCvLoop = requestAnimationFrame(step);
+}
+// 상대 하나와 겨루기(대결 칸 「도전」 · 결과 카드 「다시」)
+function duelGo(i) {
+  const r = g.pvpFight(i);
+  if (r) { if (r.oppUid) net.pvpLog(r.oppUid, { name: g.S.nick, win: r.win, d: r.defD, seed: r.d }).catch(() => {}); rankPush(); closeWin(); duelShow(r, i); }
+  return r;
+}
+function duelShow(r, again = -1) {
   for (const o of document.querySelectorAll('.duel')) o.remove();
-  const ov = document.createElement('div'); ov.className = 'duel';
-  ov.innerHTML = `<canvas></canvas><div class="dl-top"><div class="dl-side me"><b>${esc(JOBS[g.S.hero.job].name)} · 나</b><div class="dl-bar"><i></i></div><small></small></div><div class="dl-vs">VS</div><div class="dl-side op"><b>${esc(r.opp.name)} · ${esc(JOBS[r.opp.job]?.name || '')} Lv ${r.opp.lv}</b><div class="dl-bar"><i></i></div><small></small></div></div><div class="dl-mid"></div><div class="dl-skip">누르면 건너뛰기</div>`;
+  const low = opt.gfx === 'low', me = { name: g.S.nick || '나', job: g.S.hero.job, lv: g.S.hero.lv };
+  const ov = document.createElement('div'); ov.className = `duel${low ? ' duel-low' : ''}`;
+  const plate = (cls, w) => `<div class="dl-side ${cls}"><div class="duel-nm"><b>${esc(w.name)}</b><small>${esc(JOBS[w.job]?.name || '')} · Lv ${w.lv}</small></div><div class="dl-bar"><em></em><i></i></div><small class="duel-hp"></small></div>`;
+  ov.innerHTML = `<canvas></canvas><div class="dl-top">${plate('me', me)}<div class="dl-vs">VS</div>${plate('op', r.opp)}</div><div class="dl-mid"></div><div class="duel-res"></div><div class="dl-skip">누르면 건너뛰기</div>`;
   $('battle').append(ov);
-  const cv = ov.querySelector('canvas'), cx = cv.getContext('2d'), mid = ov.querySelector('.dl-mid');
-  const bars = ov.querySelectorAll('.dl-bar i'), txt = ov.querySelectorAll('.dl-side small');
-  const speed = Math.max(1, r.ms / 9000), lead = 1800, t0 = now();
-  const hp = [r.myHp, r.opp.hp], left = [r.myHp, r.opp.hp], floats = [], atk = [0, 0];
-  const opEq = Object.fromEntries(['weapon', 'hat', 'top', 'bottom', 'glove', 'shoes', 'cape', 'belt', 'neck', 'ring'].map((sl) => [sl, { slot: sl, g: r.opp.lk && r.opp.lk[sl] != null ? r.opp.lk[sl] : Math.min(6, Math.floor(r.opp.lv / 25)), up: 0, subs: [] }]));   // v566 진짜 상대는 그 무인의 외형
-  let i = 0, done = false, endAt = 0;
+  const cv = ov.querySelector('canvas'), cx = cv.getContext('2d'), mid = ov.querySelector('.dl-mid'), res = ov.querySelector('.duel-res');
+  const bars = ov.querySelectorAll('.dl-bar i'), trails = ov.querySelectorAll('.dl-bar em'), txt = ov.querySelectorAll('.duel-hp');
+  const DPR = low ? 1 : Math.min(2, window.devicePixelRatio || 1), speed = Math.max(1, r.ms / 9000), lead = low ? 0 : 900, SLOW = 400, SLOW_X = 0.22;
+  const hp = [r.myHp, r.opp.hp], left = [r.myHp, r.opp.hp], floats = [], imps = [], atk = [-1e9, -1e9], hurt = [-1e9, -1e9];
+  const opEq = lookEqOf(r.opp.lk, r.opp.lv), myEq = g.lookEq(), ch = chapterOf(g.zoneLv()), z = zoneFor(g.zoneLv());
+  // 막타 — 진 쪽 체력이 처음 0이 되는 공격(시간이 다 되면 마지막 공격)
+  let fin = r.log.length - 1;
+  { const L = [...hp]; for (let j = 0; j < r.log.length; j++) { const e = r.log[j]; L[e[1]] -= e[2]; if (L[e[1]] <= 0) { fin = j; break; } } }
+  let i = 0, done = false, t0 = now(), last = t0, debt = 0, vt = 0, pt = 0, slowAt = -1, shakeT = -1e9, shakeA = 0, flashT = -1e9, phase = low ? 'fight' : 'intro', introStep = -1;
+  ov.dataset.phase = phase;
+  const setPhase = (p) => { phase = p; ov.dataset.phase = p; };
   const say = (h, cls) => { mid.className = `dl-mid ${cls || ''}`; mid.innerHTML = h; };
-  say('<b>3</b>'); play('tense');
-  setTimeout(() => !done && say('<b>2</b>'), 600); setTimeout(() => !done && say('<b>1</b>'), 1200); setTimeout(() => { if (!done) { say('<b>대결!</b>', 'go'); play('boss'); } }, 1700); setTimeout(() => { if (!done) say(''); }, 2300);
+  if (!low) { say('<b>3</b>'); play('tense'); }
+  const close = () => { ov.remove(); paintHud(); };
+  const showRes = () => {
+    const P = g.S.pvp || {}, used = P.day === String(dayKey(now())) ? P.used || 0 : 0, can = again >= 0 && !r.friendly && used < 5;
+    const s0 = r.score - (r.d || 0), T0 = duelTier(s0), T1 = duelTier(r.score), up = T1.name !== T0.name;
+    res.className = `duel-res on ${r.win ? 'win' : 'lose'}`;
+    res.innerHTML = `<div class="duel-wl">${r.win ? '승' : '패'}<small>${r.win ? 'WIN' : 'LOSE'}</small></div>
+      <div class="duel-vs">${esc(me.name)} <i>vs</i> ${esc(r.opp.name)}</div>
+      ${r.friendly ? '<div class="duel-dd">친선 대결 — 점수 그대로</div>' : `<div class="duel-dd"><b class="${r.d >= 0 ? 'w' : 'l'}">${r.d >= 0 ? '+' : ''}${r.d}</b> 점수 ${s0} → <b>${r.score}</b></div>`}
+      <div class="duel-tr"><span>${esc(T1.name)}${up ? ` <em>${r.d >= 0 ? '오름!' : '내림'}</em>` : ''}</span><div class="duel-tp"><i style="width:${Math.round((up ? (r.d >= 0 ? 0 : 1) : T0.p) * 100)}%"></i></div><span>${T1.next ? `${esc(T1.next)}까지 ${T1.need}` : '최고 등급'}</span></div>
+      <div class="duel-acts">${can ? `<button class="btn primary duel-again">다시 <small>${5 - used}번 남음</small></button>` : ''}<button class="btn duel-close">닫기</button></div>`;
+    requestAnimationFrame(() => { const b = res.querySelector('.duel-tp i'); if (b) b.style.width = `${Math.round(T1.p * 100)}%`; });
+    res.onclick = (ev) => ev.stopPropagation();
+    res.querySelector('.duel-close').onclick = (ev) => { ev.stopPropagation(); play('click'); close(); };
+    const ag = res.querySelector('.duel-again'); if (ag) ag.onclick = (ev) => { ev.stopPropagation(); play('click'); if (!duelGo(again)) toast('할 수 없어요'); save(); paintHud(); };
+  };
   const finish = () => {
-    if (done) return; done = true;
+    if (done) return; done = true; setPhase('result');
     while (i < r.log.length) { const e = r.log[i++]; left[e[1]] -= e[2]; }
-    endAt = now(); say(`<b>${r.win ? 'WIN' : 'LOSE'}</b><span>${r.friendly ? '친선 대결 — 점수는 그대로' : `점수 ${r.d >= 0 ? '+' : ''}${r.d} → ${r.score} · ${esc(r.tier)}`}</span><em>누르면 닫기</em>`, r.win ? 'win' : 'lose');
+    say(''); showRes();
     play(r.win ? 'clear' : 'fail'); if (r.win) buzz(80);
     addLog(r.friendly ? `친선 대결 ${r.win ? '승리' : '패배'} — ${r.opp.name}` : `대결 ${r.win ? '승리' : '패배'} — ${r.opp.name} · 점수 ${r.d >= 0 ? '+' : ''}${r.d}`);
   };
-  ov.onclick = () => { if (!done) finish(); else { ov.remove(); paintHud(); } };
+  ov.onclick = () => { if (!done) finish(); else close(); };
+  ov._st = () => ({ pt: Math.round(pt), ms: r.ms, phase, el: Math.round(now() - t0), i, n: r.log.length, fin });   // 시험이 보는 진행
   const tick = () => {
     if (!ov.isConnected) return;
-    const W = ov.clientWidth, H = ov.clientHeight; if (cv.width !== W * 2) { cv.width = W * 2; cv.height = H * 2; }
-    cx.setTransform(2, 0, 0, 2, 0, 0); cx.clearRect(0, 0, W, H);
-    const tt = (now() - t0 - lead) * speed;
-    while (!done && i < r.log.length && r.log[i][0] <= tt) {
-      const e = r.log[i++], who = e[1];   // who = 맞는 쪽(0 나 · 1 상대)
-      left[who] -= e[2]; atk[1 - who] = now();
-      floats.push({ who, d: e[2], crit: e[3], big: e[4], at: now() });
-      play(e[4] ? 'skill' : 'hit'); if (e[3] || e[4]) shakeUntil = now() + 120;
+    const n = now(), dt = n - last; last = n;
+    const W = ov.clientWidth, H = ov.clientHeight; if (cv.width !== Math.round(W * DPR) || cv.height !== Math.round(H * DPR)) { cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR); }
+    const gy = H * 0.8, k = Math.min(1.5, H / 330), pos = [W * 0.37, W * 0.63];
+    // 시계 — vt: 그리는 시계(느린 막타에 함께 느려짐) · pt: 기록 시계(대결 ms)
+    const slowing = slowAt >= 0 && n - slowAt < SLOW, rate = slowing ? SLOW_X : 1;
+    debt += dt * (1 - rate); vt = n - t0 - debt;   // 실제 시각에 묶는다(틀이 늦어도 길어지지 않게) — 느린 막타 동안 덜 간 만큼만 빼고
+    if (phase === 'intro') {
+      const el = n - t0, st = el < 220 ? 0 : el < 440 ? 1 : el < 660 ? 2 : 3;
+      if (st !== introStep) { introStep = st; if (st === 1) say('<b>2</b>'); else if (st === 2) say('<b>1</b>'); else if (st === 3) { say('<b>비무 시작!</b>', 'go'); play('boss'); } }
+      if (el >= lead) setPhase('fight');
+    } else if (!done) {
+      if (introStep === 3 && n - t0 > lead + 350) { introStep = 4; say(''); }
+      pt = Math.max(pt, (n - t0 - lead - debt) * speed);
+      while (i < r.log.length && r.log[i][0] <= pt) {
+        const e = r.log[i], who = e[1];   // who = 맞는 쪽(0 나 · 1 상대)
+        left[who] -= e[2]; atk[1 - who] = vt; hurt[who] = vt;
+        const big = i === fin; i++;
+        floats.push({ who, d: e[2], crit: e[3], big: e[4] || big, at: vt });
+        if (!low && imps.length < 24 && (e[3] || e[4] || big)) imps.push({ x: pos[who], y: gy - 55 * k, at: vt, crit: !!(e[3] || big), dir: who ? 1 : -1, seed: (i * 37) % 1000 });
+        play(e[4] ? 'skill' : 'hit');
+        if (opt.shake && (e[3] || e[4] || big)) { shakeT = vt; shakeA = big ? 7 : e[3] ? 4 : 2.5; }
+        if (big) { flashT = vt; if (!low && slowAt < 0) { slowAt = n; setPhase('final'); } vib('crit'); }
+      }
+      const slow2 = slowAt >= 0 && n - slowAt < SLOW;   // 막 느려지기 시작한 틀에서 바로 끝내지 않게
+      if (phase === 'final' && !slow2) setPhase('fight');
+      if (pt > r.ms + 300 && !slow2) finish();
     }
-    if (!done && tt > r.ms + 300) finish();
-    // 바닥 · 두 무인
-    const gy = H * 0.78, k = Math.min(1.5, H / 330);
-    const grd = cx.createLinearGradient(0, gy - 40, 0, H); grd.addColorStop(0, 'rgba(30,20,10,0)'); grd.addColorStop(1, 'rgba(30,20,10,.85)'); cx.fillStyle = grd; cx.fillRect(0, gy - 40, W, H);
-    const pos = [W * 0.36, W * 0.64];
+    // 그리기 — 배경(지금 장 · 어둡게) · 흔들림 · 막타 당김
+    cx.setTransform(DPR, 0, 0, DPR, 0, 0); cx.clearRect(0, 0, W, H);
+    const sa = vt - shakeT, q = opt.shake && sa < 160 ? shakeA * (1 - sa / 160) : 0;
+    const fz = !low && slowAt >= 0 ? Math.max(0, 1 - Math.abs(n - slowAt - SLOW * 0.45) / (SLOW * 0.9)) * 0.1 : 0;   // 막타 — 맞는 쪽으로 살짝 당겼다 풂
+    cx.save();
+    if (q) cx.translate(Math.sin(vt * 0.09) * q, Math.cos(vt * 0.113) * q * 0.7);
+    drawPaintedBack(cx, W, H, ch, 0, z, 0);
+    cx.fillStyle = 'rgba(6,4,2,.58)'; cx.fillRect(-10, -10, W + 20, H + 20);
+    const vg = cx.createRadialGradient(W / 2, gy - 40, 20, W / 2, gy - 40, W * 0.6); vg.addColorStop(0, 'rgba(255,214,140,.10)'); vg.addColorStop(1, 'rgba(0,0,0,.55)'); cx.fillStyle = vg; cx.fillRect(-10, -10, W + 20, H + 20);
+    const grd = cx.createLinearGradient(0, gy - 40, 0, H); grd.addColorStop(0, 'rgba(30,20,10,0)'); grd.addColorStop(1, 'rgba(30,20,10,.9)'); cx.fillStyle = grd; cx.fillRect(-10, gy - 40, W + 20, H);
+    cx.strokeStyle = 'rgba(253,230,138,.18)'; cx.lineWidth = 1; cx.beginPath(); cx.ellipse(W / 2, gy + 2, W * 0.3, 10 * k, 0, 0, 7); cx.stroke();   // 비무대 테두리
+    const tw = fin >= 0 && r.log[fin] ? r.log[fin][1] : 1;
+    if (fz) { const zx = pos[tw], zy = gy - 50 * k, zz = 1 + fz; cx.translate(zx, zy); cx.scale(zz, zz); cx.translate(-zx, -zy); }
     for (const side of [0, 1]) {
-      const a = Math.max(0, 1 - (now() - atk[side]) / 260), lunge = a > 0 ? Math.sin((1 - a) * Math.PI) : 0;
-      const x = pos[side] + (side ? -1 : 1) * lunge * 26 * k, dead = done && ((side === 0 && !r.win) || (side === 1 && r.win));
-      cx.save(); if (dead) { cx.globalAlpha = 0.45; }
-      drawHero(cx, x, gy, side ? r.opp.job : g.S.hero.job, side ? r.opp.lv : g.S.hero.lv, { t: now() / 1000, scale: 1.25 * k, eq: side ? opEq : g.lookEq(), flip: side === 1, lunge: lunge * 0.8 });
+      const a = Math.max(0, 1 - (vt - atk[side]) / 260), lunge = a > 0 ? Math.sin((1 - a) * Math.PI) : 0;
+      const ha = Math.max(0, 1 - (vt - hurt[side]) / 180), dead = done && ((side === 0 && !r.win) || (side === 1 && r.win));
+      const x = pos[side] + (side ? -1 : 1) * lunge * 26 * k - (side ? -1 : 1) * ha * 5 * k;
+      cx.save(); if (dead) cx.globalAlpha = 0.45; else if (ha > 0.6 && !low) cx.filter = 'brightness(1.8) saturate(0.5)';
+      cx.fillStyle = 'rgba(0,0,0,.35)'; cx.beginPath(); cx.ellipse(x, gy + 2, 22 * k, 5 * k, 0, 0, 7); cx.fill();
+      drawHero(cx, x, gy + (dead ? 4 * k : 0), side ? r.opp.job : me.job, side ? r.opp.lv : me.lv, { t: vt / 1000, scale: 1.25 * k, eq: side ? opEq : myEq, flip: side === 1, lunge: lunge * 0.8 });
       cx.restore();
     }
+    if (!low) drawImpacts(cx, (x, y) => [x, y], k, vt, imps);
     // 피해 숫자
     for (let j = floats.length - 1; j >= 0; j--) {
-      const f = floats[j], a = (now() - f.at) / 900; if (a > 1) { floats.splice(j, 1); continue; }
-      const x = pos[f.who] + (f.who ? 1 : -1) * 6, y = gy - 120 * k - a * 40 * k;
-      cx.save(); cx.globalAlpha = 1 - a * a; cx.font = `900 ${(f.big ? 22 : 16) * k * (f.crit ? 1.2 : 1)}px system-ui`; cx.textAlign = 'center'; cx.lineWidth = 4; cx.strokeStyle = '#000';
+      const f = floats[j], a = (vt - f.at) / 900; if (a > 1) { floats.splice(j, 1); continue; }
+      const x = pos[f.who] + (f.who ? 1 : -1) * 6, y = gy - 120 * k - a * 40 * k, pop = a < 0.12 ? 1 + (0.12 - a) * 4 : 1;
+      cx.save(); cx.globalAlpha = 1 - a * a; cx.font = `900 ${(f.big ? 22 : 16) * k * (f.crit ? 1.2 : 1) * pop}px system-ui`; cx.textAlign = 'center'; cx.lineWidth = 4; cx.strokeStyle = '#000';
       cx.fillStyle = f.who ? (f.crit ? '#fde047' : '#fff') : '#fca5a5'; const s2 = unit(f.d); cx.strokeText(s2, x, y); cx.fillText(s2, x, y); cx.restore();
     }
-    for (const side of [0, 1]) { const rr = Math.max(0, left[side] / hp[side]); bars[side].style.width = `${rr * 100}%`; txt[side].textContent = `${unit(Math.max(0, left[side]))} / ${unit(hp[side])}`; }
-    if (!done || now() - endAt < 60000) requestAnimationFrame(tick);
+    cx.restore();
+    const fa = (vt - flashT) / 140; if (!low && fa >= 0 && fa < 1) { cx.fillStyle = `rgba(255,248,225,${(1 - fa) * 0.45})`; cx.fillRect(0, 0, W, H); }   // 막타 번쩍
+    if (phase === 'final') { cx.fillStyle = 'rgba(0,0,0,.28)'; cx.fillRect(0, 0, W, 22 * k); cx.fillRect(0, H - 22 * k, W, 22 * k); }   // 느린 막타 — 위아래 검은 띠
+    for (const side of [0, 1]) { const rr = Math.max(0, left[side] / hp[side]); bars[side].style.width = trails[side].style.width = `${rr * 100}%`; txt[side].textContent = `${unit(Math.max(0, left[side]))} / ${unit(hp[side])}`; }
+    requestAnimationFrame(tick);
   };
   requestAnimationFrame(tick);
 }

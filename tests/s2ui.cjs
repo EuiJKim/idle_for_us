@@ -529,6 +529,22 @@ const ok = (c, m, x = '') => { console.log(`  ${c ? '✓' : '✗ !!'} ${m}${x !=
     ok(await page.isVisible('#wb .td-chest') && /개 더 하면 열려요/.test(await page.textContent('#wb .td-chest')), 'v545 하루 상자(아직 잠김)');
     await page.click('#wb .td-row:has-text("대결") .btn:has-text("가기")'); await page.waitForTimeout(200);
     ok(/대결 점수/.test(await page.textContent('#panel-body')), 'v544 「가기」 → 대결 창');
+    // 대결 칸(duel-) — 상대 카드마다 작은 모습(그려진 캔버스) · 쉬움/비슷/어려움 · 이기면/지면 점수 · 「도전」 → 3·2·1 → 결과 카드 · 횟수 줄어듦 · 「다시」 · 누르면 건너뛰기
+    { await page.waitForTimeout(300);
+      const L = await page.evaluate(() => { const cs = [...document.querySelectorAll('#wb .duel-opp')]; return { n: cs.length, cv: cs.filter((c) => { const v = c.querySelector('canvas.duel-cv'); if (!v) return false; const d = v.getContext('2d').getImageData(0, 0, v.width, v.height).data; for (let i = 3; i < d.length; i += 16) if (d[i]) return true; return false; }).length, chip: cs.every((c) => /^(쉬움|비슷|어려움)$/.test(c.querySelector('.duel-chip')?.textContent || '')), sd: cs.every((c) => /승 \+\d+.*패 -\d+/.test(c.querySelector('.duel-sd')?.textContent || '')), btn: cs.every((c) => c.querySelector('.btn.primary')?.textContent === '도전'), tier: document.querySelector('#wb .duel-tier')?.textContent || '', tries: document.querySelectorAll('#wb .duel-tries i').length }; });
+      ok(L.n === 3 && L.cv === 3 && L.chip && L.sd && L.btn && !!L.tier && L.tries === 5, '대결 칸 — 상대 카드 셋(그려진 모습 · 난이도 칩 · 승/패 점수 · 도전) · 등급 · 남은 횟수 점', JSON.stringify(L));
+      const used = () => page.evaluate(() => { const P = window.__s2.g.S.pvp || {}; return P.day === String(window.__s2.dayKey(Date.now())) ? P.used : 0; });
+      const u0 = await used();
+      await page.click('#wb .duel-opp .btn:has-text("도전") >> nth=0'); await page.waitForTimeout(100);
+      const ph0 = await page.evaluate(() => document.querySelector('.duel')?.dataset.phase);
+      ok(await page.isVisible('.duel') && ph0 === 'intro' && /^[321]$|비무 시작/.test(await page.textContent('.duel .dl-mid')) && (await page.$$('.duel .dl-side .dl-bar i')).length === 2, '「도전」 → 대결 화면: 3·2·1 비무 시작 · 이름판 체력 막대 둘', ph0);
+      const ph1 = await until(() => page.evaluate(() => document.querySelector('.duel')?.dataset.phase), (p) => p === 'result', 20000);
+      ok(ph1 === 'result' && await page.isVisible('.duel .duel-res.on') && /^(승|패)/.test(await page.textContent('.duel .duel-wl')) && /점수 \d+ → \d+/.test(await page.textContent('.duel .duel-dd')) && await page.isVisible('.duel .duel-tp') && await used() === u0 + 1, '끝까지 보면 결과 카드(승/패 · 점수 · 등급 막대) · 오늘 횟수 +1', `${u0} → ${await used()}`);
+      await page.click('.duel .duel-again'); await page.waitForTimeout(150);
+      await page.waitForSelector('.duel[data-phase="intro"], .duel[data-phase="fight"]'); await page.mouse.click(30, Math.round(H / 2)); await page.waitForTimeout(150);
+      ok(await page.evaluate(() => document.querySelector('.duel')?.dataset.phase) === 'result' && await page.isVisible('.duel .duel-res.on') && await used() === u0 + 2, '「다시」 → 한 판 더(횟수 +1) · 누르면 건너뛰기 → 바로 결과 카드');
+      await page.click('.duel .duel-close'); await page.waitForTimeout(150);
+      ok(!(await page.$('.duel')), '「닫기」 → 대결 화면 닫힘'); }
     await page.click('#panel-close').catch(() => {}); await page.waitForTimeout(200);
     // v543 모두 강화 — 장비 → 강화·성혼 「모두 강화」 → 결과 창(칸마다 전 → 후)
     await page.evaluate(() => { const W = window.__s2.g.S.wallet; W.gold = 1e9; W['item:stone'] = 2000; });

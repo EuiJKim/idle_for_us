@@ -342,17 +342,46 @@
     @keyframes rdin { from { opacity: 0; transform: scale(2.2) rotate(-20deg); } to { opacity: 1; transform: none; } }
     @keyframes rdglow { 50% { text-shadow: 0 0 30px #fde047, 0 0 60px #f59e0b; transform: scale(1.15); } }
     /* v539 대결 화면 */
-    .duel { position: fixed; inset: 0; z-index: 85; background: radial-gradient(ellipse at 50% 60%, rgba(40,20,8,.82), rgba(0,0,0,.95)); cursor: pointer; }
+    .duel { position: fixed; inset: 0; z-index: 85; background: #0b0805; cursor: pointer; overflow: hidden; }
     .duel canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
-    .dl-top { position: absolute; left: 50%; top: calc(var(--st, 0px) + 10px); transform: translateX(-50%); width: min(760px, 92%); display: grid; grid-template-columns: 1fr auto 1fr; gap: 10px; align-items: center; }
-    .dl-side b { display: block; font-size: 13px; } .dl-side small { font-size: 11px; color: rgba(255,255,255,.7); font-variant-numeric: tabular-nums; } .dl-side.op { text-align: right; }
-    .dl-bar { height: 12px; border-radius: 999px; background: rgba(0,0,0,.6); border: 1px solid rgba(255,255,255,.25); overflow: hidden; margin: 3px 0; } .dl-bar i { display: block; height: 100%; width: 100%; transition: width .2s; }
+    .dl-top { position: absolute; left: 50%; top: calc(var(--st, 0px) + 8px); transform: translateX(-50%); width: min(760px, 92%); display: grid; grid-template-columns: 1fr auto 1fr; gap: 10px; align-items: center; transition: opacity .25s; }
+    .dl-side { background: linear-gradient(180deg, rgba(0,0,0,.62), rgba(0,0,0,.38)); border: 1px solid rgba(253,230,138,.22); border-radius: 10px; padding: 5px 9px 4px; }
+    .duel-nm { display: flex; align-items: baseline; gap: 6px; white-space: nowrap; overflow: hidden; } .duel-nm b { font-size: 13px; overflow: hidden; text-overflow: ellipsis; } .duel-nm small { font-size: 10.5px; color: rgba(255,255,255,.65); }
+    .dl-side.op .duel-nm { flex-direction: row-reverse; } .dl-side small.duel-hp { display: block; font-size: 10.5px; color: rgba(255,255,255,.7); font-variant-numeric: tabular-nums; } .dl-side.op { text-align: right; }
+    .dl-bar { position: relative; height: 11px; border-radius: 999px; background: rgba(0,0,0,.6); border: 1px solid rgba(255,255,255,.25); overflow: hidden; margin: 3px 0 2px; }
+    .dl-bar i, .dl-bar em { position: absolute; left: 0; top: 0; bottom: 0; display: block; width: 100%; transition: width .15s; } .dl-bar em { background: rgba(255,255,255,.75); transition: width .5s .2s; }
     .dl-side.me .dl-bar i { background: linear-gradient(90deg, #16a34a, #86efac); } .dl-side.op .dl-bar { transform: scaleX(-1); } .dl-side.op .dl-bar i { background: linear-gradient(90deg, #dc2626, #fca5a5); }
-    .dl-vs { font-size: 26px; font-weight: 900; color: #fde68a; text-shadow: 0 0 12px #f59e0b; font-style: italic; }
-    .dl-mid { position: absolute; left: 50%; top: 42%; transform: translate(-50%, -50%); text-align: center; pointer-events: none; text-shadow: 0 3px 12px #000; }
-    .dl-mid b { display: block; font-size: 64px; font-weight: 900; color: #fff; animation: fgpop .35s cubic-bezier(.2,1.6,.4,1); } .dl-mid.go b { color: #fca5a5; } .dl-mid span { font-size: 15px; font-weight: 800; } .dl-mid em { display: block; font-style: normal; font-size: 11px; color: rgba(255,255,255,.55); margin-top: 6px; }
-    .dl-mid.win b { color: #fde68a; text-shadow: 0 0 22px #f59e0b; font-size: 72px; } .dl-mid.lose b { color: #94a3b8; font-size: 64px; }
-    .dl-skip { position: absolute; bottom: 10px; right: 14px; font-size: 11px; color: rgba(255,255,255,.4); }
+    .dl-vs { font-size: 24px; font-weight: 900; color: #fde68a; text-shadow: 0 0 12px #f59e0b; font-style: italic; }
+    .dl-mid { position: absolute; left: 50%; top: 44%; transform: translate(-50%, -50%); text-align: center; pointer-events: none; text-shadow: 0 3px 12px #000; white-space: nowrap; }
+    .dl-mid b { display: block; font-size: 64px; font-weight: 900; color: #fff; animation: fgpop .2s cubic-bezier(.2,1.6,.4,1); } .dl-mid.go b { color: #fde68a; font-size: 46px; letter-spacing: 2px; text-shadow: 0 0 20px #f59e0b, 0 3px 12px #000; }
+    .dl-skip { position: absolute; bottom: 10px; right: 14px; font-size: 11px; color: rgba(255,255,255,.4); } .duel[data-phase="result"] .dl-skip { display: none; }
+    .duel[data-phase="result"] .dl-top { opacity: .55; }
+    /* 결과 카드 */
+    .duel-res { display: none; position: absolute; left: 50%; top: 54%; transform: translate(-50%, -50%); width: min(340px, 86%); padding: 10px 16px 12px; border-radius: 14px; text-align: center; cursor: default;
+      background: linear-gradient(180deg, rgba(28,20,10,.94), rgba(12,9,6,.94)); border: 1px solid rgba(253,230,138,.35); box-shadow: 0 10px 40px rgba(0,0,0,.6); }
+    .duel-res.on { display: block; animation: fgpop .28s cubic-bezier(.2,1.4,.4,1); } .duel-res.lose { border-color: rgba(148,163,184,.35); }
+    .duel-wl { font-size: 54px; line-height: 1; font-weight: 900; color: #fde68a; text-shadow: 0 0 22px #f59e0b; } .duel-res.lose .duel-wl { color: #cbd5e1; text-shadow: 0 0 14px #334155; }
+    .duel-wl small { display: block; font-size: 11px; letter-spacing: 4px; color: rgba(255,255,255,.55); text-shadow: none; margin-top: 2px; }
+    .duel-vs { font-size: 12px; color: rgba(255,255,255,.75); margin: 4px 0 2px; } .duel-vs i { font-style: normal; color: var(--gold); margin: 0 3px; }
+    .duel-dd { font-size: 13px; font-variant-numeric: tabular-nums; } .duel-dd b.w { color: #86efac; font-size: 20px; margin-right: 4px; } .duel-dd b.l { color: #fca5a5; font-size: 20px; margin-right: 4px; }
+    .duel-tr { display: grid; grid-template-columns: auto 1fr auto; gap: 8px; align-items: center; font-size: 11.5px; margin: 6px 0 8px; } .duel-tr em { font-style: normal; color: var(--gold); font-weight: 800; }
+    .duel-tp { height: 7px; border-radius: 999px; background: rgba(255,255,255,.12); overflow: hidden; } .duel-tp i { display: block; height: 100%; background: linear-gradient(90deg, #b45309, #fde68a); transition: width .7s ease-out; }
+    .duel-acts { display: flex; gap: 8px; justify-content: center; } .duel-acts .btn { min-height: 44px; min-width: 110px; padding: 0 14px; font-weight: 800; } .duel-acts .btn small { font-size: 10px; opacity: .75; font-weight: 400; }
+    html.h420 .duel-res { top: 57%; padding: 8px 14px 10px; } html.h420 .duel-wl { font-size: 42px; } html.h420 .dl-mid b { font-size: 52px; } html.h420 .dl-mid.go b { font-size: 38px; }
+    /* 대결 칸 — 머리(등급 막대 · 남은 횟수) · 상대 카드 */
+    .pill.duel-tier { background: rgba(120,53,15,.7); border-color: #fbbf24; color: #fde68a; margin-left: 4px; vertical-align: 2px; }
+    .duel-head { display: grid; grid-template-columns: 1fr auto auto; gap: 10px; align-items: center; font-size: 11.5px; color: var(--muted); margin: 0 2px 8px; }
+    .duel-tries { display: flex; gap: 3px; } .duel-tries i { width: 9px; height: 9px; border-radius: 50%; background: rgba(255,255,255,.14); } .duel-tries i.on { background: var(--gold); box-shadow: 0 0 6px #e8c26a88; }
+    .duel-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+    .duel-opp { position: relative; display: grid; grid-template-columns: 72px 1fr; grid-template-rows: 1fr auto; gap: 2px 8px; padding: 8px; border-radius: 12px; background: rgba(255,255,255,.045); border: 1px solid rgba(255,255,255,.08); }
+    .duel-opp.easy { border-color: rgba(124,196,122,.35); } .duel-opp.hard { border-color: rgba(224,106,90,.45); }
+    .duel-cv { grid-row: 1 / span 2; width: 72px; height: 80px; align-self: center; border-radius: 10px; background: radial-gradient(ellipse at 50% 85%, rgba(253,230,138,.16), rgba(0,0,0,0) 70%); }
+    .duel-oi { min-width: 0; display: flex; flex-direction: column; gap: 2px; } .duel-oi b { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .duel-oi small { font-size: 11px; color: var(--muted); }
+    .duel-tags { display: flex; gap: 4px; flex-wrap: wrap; } .duel-chip { font-size: 10.5px; font-weight: 800; padding: 1px 6px; border-radius: 999px; border: 1px solid; }
+    .duel-chip.easy { color: #bbf7d0; border-color: #4ade80; background: rgba(20,83,45,.55); } .duel-chip.even { color: #fef3c7; border-color: #fbbf24; background: rgba(120,53,15,.5); } .duel-chip.hard { color: #fecaca; border-color: #f87171; background: rgba(127,29,29,.55); }
+    .duel-pw { font-size: 12px; font-weight: 800; color: var(--gold); font-variant-numeric: tabular-nums; } .duel-pw em { font-style: normal; font-weight: 400; color: var(--muted); font-size: 11px; }
+    .duel-sd { display: flex; flex-wrap: wrap; gap: 0 6px; font-size: 10.5px; white-space: nowrap; font-variant-numeric: tabular-nums; } .duel-sd .w { color: #86efac; } .duel-sd .l { color: #fca5a5; }
+    .duel-bt { display: flex; gap: 4px; } .duel-bt .btn { flex: 1; min-height: 44px; padding: 0 8px; }
     /* v538 업적 */
     .achbar { position: relative; height: 14px; margin: 3px 0 2px; border-radius: 999px; background: rgba(0,0,0,.45); overflow: hidden; } .achbar i { display: block; height: 100%; background: linear-gradient(90deg, #b45309, #fde68a); }
     .achbar span { position: absolute; inset: 0; display: grid; place-items: center; font-size: 10px; font-weight: 800; color: #fff; text-shadow: 0 1px 2px #000; font-variant-numeric: tabular-nums; }
