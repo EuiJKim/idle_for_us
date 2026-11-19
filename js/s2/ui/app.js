@@ -7,11 +7,12 @@ import { S2Net } from './net.js';
 import { encodeSave, decodeAny } from '../../savecode.js';
 import { SLOTS, SLOT_NAME, GRADES, gachaExpNeed, gachaWeights, PITY_N, pityGrade } from '../tables/gear.js';
 import { itemStats, gearScore, unequip, equip, equipBest, junkOf, dismantleMany, dismantleItem, newSlot } from '../gear/gear.js';
-import { dismantle as dismantleYield, enhCost, enhOk, starCost } from '../tables/gearstat.js';
+import { dismantle as dismantleYield, enhCost, enhOk, starCost, SHARD_PER_TICKET, gachaCost } from '../tables/gearstat.js';
 import { starOdds, STAR_MAX, PITY_POINTS, BREAK_FROM, PROTECT_FROM, PROTECT_TO, PROTECT_BREAK_COST_X } from '../tables/star.js';
 import { ENH_MAX } from '../tables/gear.js';
 import { drawCreature } from '../../creatures.js';
 import { JOBS } from '../tables/char.js';
+import { SP_KEYS, SP_EACH, SP_CAP } from '../hero/hero.js';
 import { SKILLS, MASTERY } from '../tables/skills.js';
 import { JOB_LV } from '../tables/progress.js';
 import { COLLECT } from '../tables/s5.js';
@@ -244,6 +245,25 @@ function pop(title, html, acts = [['확인', null]]) {
   $('modal').classList.remove('hidden');
 }
 
+// 기연 — 카드 셋 중 하나. 닫아도 같은 카드가 남는다(다시 굴리지 않음)
+const FATE_VIEW = { gold: ['銀', '은자'], exp: ['經', '경험치'], 'ticket:gear': ['裝', '장비 뽑기권'], 'item:stone': ['石', '강화석'], 'ticket:weapon': ['兵', '병기 뽑기권'], 'ticket:pal': ['友', '동료 뽑기권'], 'ticket:relic': ['靈', '영물 뽑기권'], 'ticket:time': ['時', '시간 티켓'] };
+const fateAmt = (c) => (c.k === 'gold' || c.k === 'exp' ? `+${unit(c.n)}` : `× ${c.n}`);
+function fatePop() {
+  const cards = g.fateOpen(); if (!cards) return;
+  save();
+  const sh = $('modal').querySelector('.sheet'), left = g.fateState().ready - 1;
+  sh.classList.remove('wide', 'enhs');
+  sh.innerHTML = `<h2>기연</h2><p class="note">셋 중 하나를 골라요.</p><div class="fate-row">${cards.map((c, i) => { const v = FATE_VIEW[c.k] || ['緣', c.k]; return `<button class="fate-card" data-i="${i}"><i>${v[0]}</i><span>${v[1]}</span><b>${fateAmt(c)}</b></button>`; }).join('')}</div>${left > 0 ? `<div class="fate-left">남은 기연 ${left}번</div>` : ''}`;
+  for (const b of sh.querySelectorAll('.fate-card')) b.onclick = () => {
+    const c = g.fatePick(Number(b.dataset.i)); if (!c) return;
+    buzz(30); save(); toast(`기연 — ${(FATE_VIEW[c.k] || ['', c.k])[1]} ${fateAmt(c)}`);
+    closeModal(); paintHud(); if (open) paintWin();
+    if (g.fateState().ready > 0) fatePop();
+  };
+  modalOne = null;
+  $('modal').classList.remove('hidden');
+}
+
 // ── 창 — 지금 게임과 같은 일곱 창(들판 양옆 단추 · 창 머리 줄) + 설정(⚙). 칸은 붉은 알약(.subtabs .seg.wide) ──
 const TABS = [
   ['char', '캐릭터', [['스탯', 'hero:0'], ['무공', 'hero:1'], ['무공 강화', 'hero:4'], ['마스터리', 'hero:2'], ['전직', 'hero:3'], ['칭호', 'title:0'], ['기록', 'rec:0']]],
@@ -251,7 +271,7 @@ const TABS = [
   ['comp', '동료', [['병기', 'grow:0'], ['동료', 'grow:1'], ['영물', 'grow:2']]],
   ['dgn', '던전', [['수련동', 'content:0'], ['토벌', 'raid:0'], ['무한 탑', 'content:1'], ['원정', 'content:2']]],
   ['map', '지도', [['스테이지', 'content:3'], ['두목 도감', 'dex:0']]],
-  ['town', '임무', [['오늘', 'today:0'], ['출석', 'attend:0'], ['길잡이', 'mission:0'], ['일일', 'mission:1'], ['주간', 'mission:2'], ['업적', 'ach:0'], ['경지', 'grow:3'], ['강호행', 'grow:4']]],
+  ['town', '임무', [['오늘', 'today:0'], ['출석', 'attend:0'], ['길잡이', 'mission:0'], ['일일', 'mission:1'], ['주간', 'mission:2'], ['업적', 'ach:0'], ['경지', 'grow:3'], ['강호행', 'grow:4'], ['상점', 'shop:0']]],
   ['social', '무림', [['서열', 'rank:0'], ['월드보스', 'rival:0'], ['대결', 'rival:1'], ['문파', 'rival:2']]],
   ['opt', '설정', [['설정', 'mission:3']]],
 ];
@@ -354,7 +374,7 @@ function navDots() {
   try { const K = h.kitState(); for (const id of Object.keys(K.lv)) { const sk = skillById(id); if (sk && h.canKitUp(id) && (W.gold || 0) >= kitCost(K.lv[id], sk.tier)[0].n) kitUp++; } } catch { /* 없음 */ }
   const cur = guideCurrent(S.q.guide), canAdv = !!h.canAdvance?.(), tree = g.treePts?.().left || 0, tix = W['ticket:gear'] || 0;
   // v520 빨간 점은 「새로 생긴 할 일」만 — 늘 켜져 있던 것(올릴 무공이 거의 늘 있다)을, 그 창을 한 번 열면 다음 새 일까지 끈다
-  const sig = { char: canAdv || tree > 0 || kitUp ? `${canAdv ? 1 : 0}|${tree}|${kitUp}|${S.hero.adv || 0}` : '', bag: tix >= 10 ? `${Math.floor(tix / 10)}` : '', town: (g.todayChest().can ? 'today' : '') || (cur && S.q.guide[cur.id]?.done ? cur.id : '') || (g.books.ach.claimable().length ? `ach${g.books.ach.claimable().length}` : '') };
+  const sig = { char: canAdv || tree > 0 || kitUp ? `${canAdv ? 1 : 0}|${tree}|${kitUp}|${S.hero.adv || 0}` : '', bag: tix >= 10 ? `${Math.floor(tix / 10)}` : '', town: (g.todayChest().can ? 'today' : '') || (g.shopFreeCan() ? 'shop' : '') || (cur && S.q.guide[cur.id]?.done ? cur.id : '') || (g.books.ach.claimable().length ? `ach${g.books.ach.claimable().length}` : '') };
   if (open && sig[open] !== undefined) dotSeen[open] = sig[open];
   sig.social = socialTodo();   // v554 무림: 받을 것(주간 보상 · 문파 출석 · 토벌 단계 · 수련)
   const on = { char: !!sig.char && sig.char !== dotSeen.char, bag: !!sig.bag && sig.bag !== dotSeen.bag, town: !!sig.town, social: !!sig.social };
@@ -399,6 +419,13 @@ function paintWin() {
     c2(statGrid([['공격', unit(st.atk || 0)], ['체력', unit(st.hp || 0)], ['방어', unit(st.def || 0)], ['치명 확률', pm(st.crit || 0)], ['치명 피해', pm(st.critDmg || 0)], ['보스 피해', pm(st.bossDmg || 0)], ['경험치', `+${pm(st.expP || 0)}`], ['무공 피해', `+${pm(st.skillP || 0)}`]]));
     const c3 = card('최종 피해', '곱으로 붙는 넷');
     c3(statGrid([['최종 피해①', pm(st.final1 || 0)], ['최종 피해②', pm(st.final2 || 0)], ['최종 피해③', pm(st.final3 || 0)], ['최종 피해④', pm(st.final4 || 0)]]));
+    // 스탯 배분 — 레벨마다 1점 · 네 스탯에 손으로(값은 작다 · 되돌리기는 공짜)
+    { const P = g.hero.spState(), free = g.statPts(), used = g.hero.spUsed(), cs = card('스탯 배분', `남은 점수 ${free} · 레벨마다 1점`);
+      const NM = { atk: ['공격', '攻'], hp: ['체력', '體'], def: ['방어', '防'], crit: ['치명 확률', '銳'] };
+      for (const k of SP_KEYS) { const full = P[k] >= SP_CAP, no = !free || full;
+        cs(R(NM[k][0], `${P[k]}/${SP_CAP}점 · +${(P[k] * SP_EACH[k] / 10).toFixed(2)}%${k === 'crit' ? 'p' : ''}${full ? ' · 상한' : ''}`, [['+1', act(() => g.statUp(k, 1)), no], ['+10', act(() => g.statUp(k, 10)), no]], NM[k][1])); }
+      cs(R('고르게 찍기', free ? `남은 ${free}점을 넷에 고르게(공격부터)` : '남은 점수가 없어요', [['고르게 찍기', act(() => { const n = g.statAuto(); if (n) toast(`${n}점 찍음`); return n; }), !free]], '均'));
+      cs(R('되돌리기', used ? `찍은 ${used}점을 모두 돌려받아요 · 공짜` : '찍은 점수가 없어요', [['되돌리기', act(() => { const n = g.statReset(); if (n) toast(`${n}점 돌려받음`); return n; }), !used]], '還')); }
   } else if (key === 'hero:1') {
     // 무공 — 차수별 카드. 공격 · 버프는 칸에 넣고 자동/수동, 상시는 레벨만
     const Hs = g.hero, K = Hs.kitState(), cap = kitCap(g.S.hero.lv);
@@ -457,7 +484,7 @@ function paintWin() {
     for (const m of MASTERY) {
       const done = g.S.hero.mastery.done.includes(m.id), can = g.hero.canLearn(m.id);
       const mn = (id) => MASTERY_NAME[+id.slice(1) - 1] || id;   // v522 m1 같은 id 대신 이름
-      const r = R(`${m.depth}단 · ${mn(m.id)} <small>Lv ${m.lv}${m.need ? ` · ${mn(m.need)} 먼저` : ''}</small>`, `최종 피해① +${m.final1 / 10}%`, done ? [] : [['배우기', act(() => g.learn(m.id)), !can]], done ? '得' : '學');
+      const r = R(`${m.depth}단 · ${mn(m.id)} <small>Lv ${m.lv}${m.need ? ` · ${mn(m.need)} 먼저` : ''}</small>`, `최종 피해① +${m.final1 / 10}%${!done && g.S.hero.lv < m.lv ? ` · ${lvHint(m.lv)}` : ''}`, done ? [] : [['배우기', act(() => g.learn(m.id)), !can]], done ? '得' : '學');
       if (!done && !can) r.style.opacity = '.55';
       c(r);
     }
@@ -466,7 +493,7 @@ function paintWin() {
     const c = card(`${JOBS[g.S.hero.job].name} ${g.S.hero.adv}차`, '전직마다 무공이 열리고 체력이 오른다');
     for (let i = 1; i < JOB_LV.length; i++) {
       const done = g.S.hero.adv >= i;
-      c(R(`${i}차 전직`, done ? '마침' : `Lv ${JOB_LV[i]} · 전직 던전을 깨면`, i === n ? [['도전', () => { play('click'); if (!g.enterDungeon('job')) toast(g.canDungeon('job') || '들어갈 수 없어요'); }, g.S.hero.lv < JOB_LV[i]]] : [], done ? '轉' : String(i)));
+      c(R(`${i}차 전직`, done ? '마침' : `${g.S.hero.lv < JOB_LV[i] ? lvHint(JOB_LV[i]) : `Lv ${JOB_LV[i]}`} · 전직 던전을 깨면`, i === n ? [['도전', () => { play('click'); if (!g.enterDungeon('job')) toast(g.canDungeon('job') || '들어갈 수 없어요'); }, g.S.hero.lv < JOB_LV[i]]] : [], done ? '轉' : String(i)));
     }
   } else if (key === 'gear:0') {
     // 장착 — 가운데 무인 · 양옆 다섯 칸씩 · 칸을 누르면 아래에 자세히
@@ -498,15 +525,30 @@ function paintWin() {
     } else B.append(note('칸을 누르면 옵션 · 강화 · 성혼 · 가방의 다른 장비를 볼 수 있어요.'));
   } else if (key === 'gear:1') {
     const GA = g.S.gacha;
-    const c0 = card(`장비 뽑기 Lv ${GA.lv}`, `경험치 ${GA.exp}/${gachaExpNeed(GA.lv)} · 차면 바로 오름`);
-    const bar = document.createElement('div'); bar.className = 'bar'; bar.innerHTML = `<div style="width:${Math.min(100, (GA.exp / gachaExpNeed(GA.lv)) * 100)}%"></div><span>${GA.exp} / ${gachaExpNeed(GA.lv)}</span>`; c0(bar);
-    c0(statGrid([['뽑기권', `${W['ticket:gear'] || 0}장`], ['정예 대기', `${GA.eliteQ}마리`]]));
-    // v557 천장 · 확률표
-    { const pg = pityGrade(GA.lv), pt = GA.pity || 0, wt = gachaWeights(GA.lv);
-      const pb = document.createElement('div'); pb.className = 'achbar'; pb.innerHTML = `<i style="width:${(pt / PITY_N) * 100}%"></i><span>천장 ${pt} / ${PITY_N} — ${GRADES[pg]}품 이상 확정</span>`; c0(pb);
-      c0(note(`확률(뽑기 Lv ${GA.lv}): ${wt.map((x, i) => (x ? `${GRADES[i]} ${(x / 10).toFixed(1)}%` : '')).filter(Boolean).join(' · ')} · 각 등급 안에서 上 25%`)); }
-    const c1 = card('뽑기', '10번마다 사냥터에 정예');
-    for (const n of [1, 10, 30]) c1(R(`${n}번 뽑기`, (W['ticket:gear'] || 0) >= n ? `뽑기권 ${n}장` : '은자', [['뽑기', act(() => { const r = g.pullGear(n); if (r) showGacha(r); return r; })]], '抽'));
+    // 장비 뽑기 화면 — 위: 지금 뽑기 레벨에서 나오는 가장 높은 등급 장비 그림 · 이름 · 경험치 / 아래: 가진 것 · 등급 확률 · 천장 · 뽑기 셋
+    const need = gachaExpNeed(GA.lv), wt = gachaWeights(GA.lv), pg = pityGrade(GA.lv), pt = GA.pity || 0, tix = W['ticket:gear'] || 0;
+    const top = wt.reduce((m, x, i) => (x ? i : m), 0), sub = top > 0 && wt[top - 1] ? top - 1 : top;
+    const c = document.createElement('div'); c.className = 'card gch'; c.style.setProperty('--gc', GX_COL[top]); B.append(c);
+    const show = [['hat', sub], ['top', top], ['weapon', top], ['ring', top], ['cape', sub]];
+    const hero = document.createElement('div'); hero.className = 'gch-hero';
+    hero.innerHTML = `<div class="gch-show">${show.map(([sl, gr], i) => `<img class="${i === 2 ? 'mid' : i === 1 || i === 3 ? 'in' : ''}" src="${eqIcon(sl, { g: gr })}" alt="${GRADES[gr]}품 ${SLOT_NAME[sl]}" style="--gc:${GX_COL[gr]}">`).join('')}</div>`
+      + `<h3>장비 뽑기 Lv ${GA.lv} <small>경험치 ${GA.exp}/${need} · 차면 바로 오름</small></h3>`
+      + `<div class="bar"><div style="width:${Math.min(100, (GA.exp / need) * 100)}%"></div><span>${GA.exp} / ${need}</span></div>`;
+    const body = document.createElement('div'); body.className = 'gch-body';
+    body.innerHTML = `<div class="gch-stats"><span>뽑기권 <b>${tix}장</b></span><span>정예 대기 <b>${GA.eliteQ}마리</b></span></div>`
+      + `<div class="gch-odds"><em>확률</em>${wt.map((x, i) => (x ? `<span class="g${i}t" style="--gc:${GX_COL[i]}"><b>${GRADES[i]}</b>${(x / 10).toFixed(1)}%</span>` : '')).join('')}<small>각 등급 안에서 上 25%</small></div>`
+      + `<div class="gch-pity"><div class="gch-pl"><span>천장</span><b>${pt} / ${PITY_N}</b><small class="g${pg}t">${GRADES[pg]}품 이상 확정</small></div><div class="achbar"><i style="width:${Math.min(100, (pt / PITY_N) * 100)}%"></i></div></div>`;
+    const tiles = document.createElement('div'); tiles.className = 'gch-tiles';
+    const one = gachaCost(g.S.hero.lv, GA.lv);
+    for (const n of [1, 10, 30]) {   // 뽑기권이 n장 있으면 뽑기권, 모자라면 은자(누르면 하는 일은 그대로)
+      const r = rowEl(`${n}번 뽑기`, tix >= n ? `뽑기권 ${n}장` : costTxt(one.map((x) => ({ k: x.k, n: Math.floor(x.n * n) }))), [['뽑기', act(() => { const r2 = g.pullGear(n); if (r2) showGacha(r2); return r2; })]]);
+      r.classList.add('gch-tile'); if (n === 10) r.classList.add('main');
+      const btn = r.querySelector('.btn'); if (n !== 10) btn.classList.remove('primary');
+      r.onclick = (e) => { if (!e.target.closest('.btn')) btn.click(); };   // 칸 어디를 눌러도 뽑기
+      tiles.append(r);
+    }
+    body.append(tiles, note('10번마다 사냥터에 정예가 한 마리 나와요.'));
+    c.append(hero, body);
   } else if (key === 'gear:2') {
     // v528 가진 재료를 맨 위에 · 칸마다 다음 강화로 무엇이 얼마나 오르는지 · 누르면 강화 창
     const L = g.S.hero.lv, G = g.S.gear;
@@ -542,7 +584,9 @@ function paintWin() {
     const junk = junkOf(G, L, bagJunkG);
     const yld = {}; for (const it of junk) for (const c of dismantleYield(it.g)) yld[c.k] = (yld[c.k] || 0) + c.n;
     c0(R('일괄 분해', junk.length ? `낀 것보다 나쁜 ${junk.length}개(${GRADES[bagJunkG]}품 이하 · 잠금 빼고) → 강화석 ${yld['item:stone'] || 0}` : `낀 것보다 나쁜 장비가 없어요(${GRADES[bagJunkG]}품 이하)`,
-      [['분해', act(() => { const r = dismantleMany(G, junk.map((x) => x.uid), W); if (r.n) setTimeout(() => toast(`${r.n}개 분해 · 강화석 +${r.out['item:stone'] || 0}`), 0); return r.n > 0; }), !junk.length], [`${GRADES[bagJunkG]}품↓`, () => { play('click'); bagJunkG = (bagJunkG + 1) % 7; paintWin(); }]], '分'));
+      [['분해', act(() => { const r = dismantleMany(G, junk.map((x) => x.uid), W); if (r.n) setTimeout(() => toast(`${r.n}개 분해 · 강화석 +${r.out['item:stone'] || 0} · 뽑기 조각 +${r.out['item:shard'] || 0}`), 0); return r.n > 0; }), !junk.length], [`${GRADES[bagJunkG]}품↓`, () => { play('click'); bagJunkG = (bagJunkG + 1) % 7; paintWin(); }]], '分'));
+    { const sh = W['item:shard'] || 0;
+      c0(R(`뽑기 조각 ${sh}개`, `${SHARD_PER_TICKET}개마다 장비 뽑기권 1장 · 분해하면 모여요`, [['바꾸기', act(() => { const r = g.shardExchange(); if (r) setTimeout(() => toast(`장비 뽑기권 +${r.tickets} · 조각 ${r.left}개 남음`), 0); return !!r; }), sh < SHARD_PER_TICKET]], '片')); }
     const list = G.bag.filter((x) => bagF === 'all' || x.slot === bagF).sort(bagSort === 'p' ? (a2, b2) => gearScore(b2, L) - gearScore(a2, L) : bagSort === 's' ? (a2, b2) => SLOTS.indexOf(a2.slot) - SLOTS.indexOf(b2.slot) || b2.g - a2.g : (a2, b2) => b2.g - a2.g || gearScore(b2, L) - gearScore(a2, L));
     if (list.length) { c0(invGrid(list.slice(0, bagMore ? 400 : 60), null, L)); if (list.length > 60 && !bagMore) c0(R(`${list.length - 60}개 더 있어요`, '', [['전부 보기', () => { play('click'); bagMore = true; paintWin(); }]], '…')); }
     else c0(note('가방이 비었어요. 뽑기에서 더 좋은 것은 바로 껴요.'));
@@ -596,7 +640,7 @@ function paintWin() {
       c(R('모두 소탕', canAny ? '깬 수련동을 입장권이 되는 만큼 차례로 바로 끝내요' : '소탕할 수 있는 던전이 없어요(입장권 · 오늘 횟수 · 처음 깨기)', [['모두 소탕', act(() => { const r = g.sweepAll(); if (r) pop('모두 소탕', `<div class="ea-sum"><span>소탕 <b>${r.n}</b>번</span>${r.fail ? `<span>실패 <b>${r.fail}</b></span>` : ''}</div><div class="td-got">${r.gold ? `<span><i class="coin s"></i>은자 <b>${unit(r.gold)}</b></span>` : ''}${r.exp ? `<span>경험치 <b>${unit(r.exp)}</b></span>` : ''}${r.tix ? `<span><i class="coin t"></i>뽑기권 <b>${r.tix}</b></span>` : ''}${r.stones ? `<span>강화석 <b>${r.stones}</b></span>` : ''}</div>`); return r; }), !canAny]], '掃')); }
     for (const [k, D] of Object.entries(DAILY_DUNGEONS)) {
       const why = g.canDungeon('daily', k), swept = !!g.S.dungeons.best?.[k];
-      c(R(D.name, `${DG_GOAL[D.clear]} · ${Math.round(D.timeMs / 1000)}초 · 보상 ${RW[k] || ''} · 오늘 ${g.S.dungeons.runs[k] || 0}/${DAILY_RUNS}${why && g.S.hero.lv < D.unlockLv ? ` · ${why}` : ''}`,
+      c(R(D.name, `${DG_GOAL[D.clear]} · ${Math.round(D.timeMs / 1000)}초 · 보상 ${RW[k] || ''} · 오늘 ${g.S.dungeons.runs[k] || 0}/${DAILY_RUNS}${g.S.hero.lv < D.unlockLv ? ` · ${lvHint(D.unlockLv)}` : ''}`,
         [['입장', () => { play('click'); if (!g.enterDungeon('daily', k)) toast(g.canDungeon('daily', k) || '들어갈 수 없어요'); }, !!why], ...(swept ? [['소탕', act(() => { const r2 = g.dailyDungeon(k); if (r2) toast(r2.cleared ? `소탕 — ${D.name} 클리어` : '소탕 실패'); return r2; }), !!why]] : [])], '洞'));
     }
   } else if (key === 'content:1') {
@@ -838,6 +882,19 @@ function paintWin() {
       if (st.done && !st.got) r.classList.add('can'); if (all) r.style.opacity = '.6';
       c1(r);
     }
+  } else if (key === 'shop:0') {
+    // 상점 — 날마다 은자로 사는 물건(하루 살 수 있는 수 · 자정에 새로) · 맨 위는 값 없는 덤
+    const L = g.shopState(), c = card('오늘의 상점', `자정에 새로 · 은자 ${unit(W.gold || 0)}`);
+    const ic = { free: '덤', gear: '裝', weapon: '兵', pal: '友', relic: '靈', stone: '石', time: '時', exped: '征' };
+    const gv = (give) => Object.entries(give).map(([k, n]) => `${ATTEND_NAME[k] || (k === 'ticket:exped' ? '원정권' : k)} ${n}`).join(' · ');
+    const buy = (x, n) => act(() => { const r = g.shopBuy(x.id, n); if (r) { setTimeout(() => toast(`${gv(r.give)} 받음${r.gold ? ` · 은자 −${unit(r.gold)}` : ''}`), 0); } return r; });
+    for (const x of L) {
+      if (x.id === 'free') { c(R(x.name, x.left ? `${gv(x.give)} · 하루 한 번 그냥 드려요` : '오늘은 받았어요 · 내일 또', [['받기', buy(x, 1), !x.left]], ic.free)); continue; }
+      const most = x.cost > 0 ? Math.min(x.left, Math.floor((W.gold || 0) / x.cost)) : x.left;
+      const btns = [['사기', buy(x, 1), !x.can]]; if (x.limit > 1) btns.push(['모두', buy(x, Math.max(1, most)), most < 2]);
+      c(R(x.name, x.left ? `${gv(x.give)} · 은자 ${unit(x.cost)} · 남은 ${x.left}/${x.limit}` : `오늘은 다 샀어요 · 남은 0/${x.limit}`, btns, ic[x.id] || '·'));
+    }
+    c(note('값은 무인 레벨을 따라 올라요. 다 사도 사냥 두 시간 몫쯤이에요.'));
   } else if (key === 'attend:0') {
     const A = g.attendState(), can = g.canAttend();
     const c = card('출석', `${A.n % ATTEND_DAYS || (A.n ? ATTEND_DAYS : 0)}/${ATTEND_DAYS}일${A.cycle ? ` · ${A.cycle}바퀴 끝` : ''}`);
@@ -1029,7 +1086,7 @@ function itemPop(c, L) {
   const yl = dismantleYield(c.g)[0];
   pop('장비 비교', head + `<div class="cmp">${rows}</div>`, [
     [c.lock ? '잠금 풀기' : '잠그기', () => { c.lock = !c.lock; save(); }],
-    ...(c.lock ? [] : [[`분해(강화석 ${yl.n})`, () => { if (dismantleItem(G, c.uid, g.S.wallet)) { toast(`분해 · 강화석 +${yl.n}`); save(); } }]]),
+    ...(c.lock ? [] : [[`분해(강화석 ${yl.n})`, () => { if (dismantleItem(G, c.uid, g.S.wallet)) { toast(`분해 · 강화석 +${yl.n} · 뽑기 조각 +${1 + c.g}`); save(); } }]]),
     ['장착', () => { if (equip(G, c.uid)) { g.dirtyStats = true; g.emit('equip'); toast(`${SLOT_NAME[c.slot]} 낌`); save(); } }],
   ]);
 }
@@ -1073,10 +1130,40 @@ function levelUpFx(lv) {
   for (const o of document.querySelectorAll('.lvfx')) o.remove();   // 잇따라 오르면 마지막 것만
   const d = document.createElement('div'); d.className = 'lvfx'; d.innerHTML = `<b>LEVEL UP</b><span>Lv.${lv}</span>`; $('battle').append(d); setTimeout(() => d.remove(), 1700);
 }
+// ── 곧 열림 — 레벨로 열리는 것의 차례표(숫자는 표에서 그대로: 수련동 DAILY_DUNGEONS.unlockLv · 전직 JOB_LV · 마스터리 MASTERY 첫 노드) ──
+//   들판 「다음: ○○ · Lv n」 칩(#nx) · 그 레벨에 닿으면 한 번 「○○ 열림!」. 어디까지 알렸는지는 이 기기에만 적는다(세이브에 넣지 않음)
+const UNLOCKS = [
+  ...Object.values(DAILY_DUNGEONS).map((D) => ({ lv: D.unlockLv, name: `수련동 ${D.name}`, short: '수련동', key: 'content:0' })),
+  ...JOB_LV.slice(1).map((lv, i) => ({ lv, name: `${i + 1}차 전직`, short: `${i + 1}차 전직`, key: 'hero:3' })),
+  { lv: Math.min(...MASTERY.map((m) => m.lv)), name: '마스터리', short: '마스터리', key: 'hero:2' },
+].map((u, i) => [u, i]).sort((a, b) => a[0].lv - b[0].lv || a[1] - b[1]).map((x) => x[0]);
+const UNL_KEY = 'ifu.s2.unl';
+const lvHint = (need) => `Lv ${need}부터 · 지금 Lv ${g.S.hero.lv}`;
+let unlSeen = null;
+function paintUnlock() {
+  const L = g.S.hero.lv, nx = $('nx'), n = UNLOCKS.filter((u) => u.lv <= L).length;
+  if (unlSeen == null) { try { const t = localStorage.getItem(UNL_KEY); unlSeen = t == null ? n : +t || 0; } catch { unlSeen = n; } }
+  if (n !== unlSeen) {
+    if (n > unlSeen) toast(`${UNLOCKS.slice(unlSeen, n).slice(-3).map((u) => u.name).join(' · ')} 열림!`);   // 새로 시작해 레벨이 내려갔으면 조용히 맞춘다
+    unlSeen = n; try { localStorage.setItem(UNL_KEY, String(n)); } catch { /* 저장 못 해도 */ }
+  }
+  const next = UNLOCKS[n];
+  nx.classList.toggle('hidden', !next);
+  if (!next) return;
+  const same = UNLOCKS.filter((u) => u.lv === next.lv), prev = n ? UNLOCKS[n - 1].lv : 1;
+  const k = `${n}:${L}:${$('qc').dataset.k || ''}:${$('qc').classList.contains('hidden') ? 0 : 1}`;
+  if (nx.dataset.k === k) return;
+  nx.dataset.k = k; nx.dataset.go = next.key;
+  nx.innerHTML = `<span class="nxt"><em>다음</em>${esc(next.short)}${same.length > 1 ? ` 외 ${same.length - 1}` : ''} · Lv ${next.lv} <small>(지금 Lv ${L})</small></span><i class="nxb"><i style="width:${Math.max(0, Math.min(1, (L - prev) / Math.max(1, next.lv - prev))) * 100}%"></i></i>`;
+  nx.title = `${same.map((u) => u.name).join(' · ')} — Lv ${next.lv}에 열려요`;
+  const qc = $('qc'); nx.style.top = qc.classList.contains('hidden') ? '' : `${qc.offsetTop + qc.offsetHeight + 5}px`;   // 길잡이 카드 바로 아래(카드가 두 줄 · 세 줄이어도)
+}
 function paintHud() {
   const S = g.S, H = S.hero, F = g.ensureFight(), T = g.stage(), z = zoneFor(g.zoneLv());
   if (!$('qc').onclick) {
     $('qc').onclick = onGuide;
+    $('fc').onclick = () => { if (g.fateState().ready > 0) fatePop(); else { const f = g.fateState(); toast(`기연 — 몹을 ${f.need - f.g}마리 더 잡으면 찾아와요`); } };
+    $('nx').onclick = () => { if ($('nx').dataset.go) openKey($('nx').dataset.go); };
     $('dg-leave').onclick = () => { play('click'); if (g.dg && confirm('던전에서 나갈까요? 입장권은 돌려받지 못해요.')) g.leaveDungeon(); };
     $('btn-boss').onclick = () => { play('click'); if (g.challenge()) toast('칸 두목 도전!'); else toast(`몹을 ${STAGE_KILLS}마리 잡으면 도전할 수 있어요`); };
     $('b-opt').onclick = () => { play('click'); openWin('opt', 0); };
@@ -1119,6 +1206,10 @@ function paintHud() {
   qb.classList.toggle('hidden', !cur && !td);
   if (!cur && td) { qb.classList.toggle('ready', !!td.ready); const qk = `td:${td.key}`; if (qb.dataset.k !== qk) { qb.dataset.k = qk; qb.innerHTML = `<div class="qh"><em>${td.ready ? '받기' : '오늘'}</em>오늘 할 일</div><div class="qb">${esc(td.label)}<small>${esc(td.sub)}</small></div>`; } }
   if (cur) { qb.classList.toggle('ready', !!cs?.done); const qk = `${cur.id}:${cs?.p || 0}:${cs?.done ? 1 : 0}`; if (qb.dataset.k !== qk) { qb.dataset.k = qk; qb.innerHTML = `<div class="qh"><em>${cs?.done ? '완료' : '진행'}</em>길잡이 ${cur.id.slice(1)}</div><div class="qb">${esc(guideLabel(cur))}<small>${cs?.done ? '받기 ▶' : `${cs?.p || 0}/${cur.need}`}</small></div>`; } }   // 왼쪽 길잡이 카드: 상태 · 할 일 · 진행
+  { const f = g.fateState(), fb = $('fc'), fk = f.ready > 0 ? `r${f.ready}` : `${Math.floor((f.g / f.need) * 100)}`;   // 기연 칸
+    fb.classList.remove('hidden'); fb.classList.toggle('ready', f.ready > 0); fb.classList.toggle('fate-solo', !cur && !td);
+    if (fb.dataset.k !== fk) { fb.dataset.k = fk; $('fc-n').textContent = f.ready > 0 ? (f.ready > 1 ? `고르기 ${f.ready}` : '고르기') : `${fk}%`; $('fc-fill').style.width = `${f.ready > 0 ? 100 : fk}%`; } }
+  paintUnlock();
   const ready = !boss && !dgs && g.canChallenge();
   $('btn-boss').classList.toggle('hidden', !ready); $('btn-boss').classList.toggle('ready', ready);
   const ch2 = $('contest-hud');
@@ -1161,7 +1252,7 @@ function paintHud() {
     sl.innerHTML = '';
     for (let i = 0; i < SLOT_N; i++) {
       const b = document.createElement('button'); b.className = 'sk'; b.dataset.i = i;
-      b.onpointerdown = (e) => { e.preventDefault(); if (!(g.ensureFight().hero.kit || [])[i]) { openKey(b.classList.contains('locked') ? 'hero:3' : 'hero:1'); return; } g.ensureFight().press({ slot: i }); };   // 빈 칸은 무공 창으로 · 잠긴 칸은 전직 창으로
+      b.onpointerdown = (e) => { e.preventDefault(); if (!(g.ensureFight().hero.kit || [])[i]) { const lt = +b.dataset.lt; if (!b.classList.contains('locked')) openKey('hero:1'); else if (g.S.hero.lv < JOB_LV[lt]) toast(`${lt}차 전직(Lv ${JOB_LV[lt]})을 하면 열려요 · 지금 Lv ${g.S.hero.lv}`); else { toast(`${lt}차 전직 던전을 깨면 열려요`); openKey('hero:3'); } return; } g.ensureFight().press({ slot: i }); };   // 빈 칸은 무공 창으로 · 잠긴 칸은 언제 열리는지 알림(레벨이 됐으면 전직 창으로)
       sl.append(b);
     }
   }
@@ -1174,9 +1265,11 @@ function paintHud() {
     b.classList.toggle('locked', lt != null);
     b.classList.toggle('ready', !!sk && !(Hh.cds && Hh.cds[i] > F.t));
     b.style.borderColor = sk ? sk.col : '';
-    const name = sk ? sk.name.slice(0, 2) : lt != null ? `L${lt}` : '+';
+    const ltTxt = lt == null ? '' : H.lv < JOB_LV[lt] ? `Lv ${JOB_LV[lt]}` : "전직";   // 언제 열리는지: 레벨이 모자라면 그 레벨 · 됐으면 전직
+    if (lt != null) b.dataset.lt = lt; else delete b.dataset.lt;
+    const name = sk ? sk.name.slice(0, 2) : lt != null ? `L${lt}:${ltTxt}` : '+';
     b.classList.toggle('empty', !sk); b.title = sk ? sk.name : lt != null ? `${lt}차 전직(Lv ${JOB_LV[lt]})에 열려요` : '무공 끼우기';
-    if (b.dataset.n !== name) { b.dataset.n = name; b.innerHTML = lt != null ? `<svg class="ic lk" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg><span class="lt">${lt}차</span>` : `<span class="nm" style="color:${sk ? sk.col : ''}">${name}</span><span class="t">${sk ? 'ⅠⅡⅢⅣⅤⅥ'[sk.tier] || '' : ''}</span>${sk && k.auto ? '<i class="ad"></i>' : ''}`; }
+    if (b.dataset.n !== name) { b.dataset.n = name; b.innerHTML = lt != null ? `<svg class="ic lk" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg><span class="lt">${ltTxt}</span>` : `<span class="nm" style="color:${sk ? sk.col : ''}">${name}</span><span class="t">${sk ? 'ⅠⅡⅢⅣⅤⅥ'[sk.tier] || '' : ''}</span>${sk && k.auto ? '<i class="ad"></i>' : ''}`; }
     // 쿨: 이름은 그대로 두고 위에 시계 방향으로 걷히는 그늘 + 남은 초
     let cd = b.querySelector('.cdw');
     const remain = sk && Hh.cds ? Hh.cds[i] - F.t : 0, left = Math.ceil(remain / 1000);
@@ -1388,6 +1481,7 @@ function heroAttackPose(job, big) {
   swing = SWING[job]?.[vi] ? { at: now() + 55, a: SWING[job][vi] } : null;   // 예비 동작 뒤에 긋는다
 }
 let lookDir = 1, lastPoseT = 0, fistN = 0;
+const FIELD_ZOOM = 1.22; let fieldZoom = null;   // 낮은 가로 화면 사냥터 당겨 보기(1 = 그대로)
 let lastFight = null, lastDraw = 0, lookAhead = 0, zoomAt = -1e9, levelAt = -1e9, heroAirAt = 0, heroLandAt = -1e9, heroFace = 1, heroTurnFrom = 1, heroTurnAt = -1e9;
 const coins = [];
 // 피해 숫자 빛깔(위→아래) — 크기마다 한 번만 만든다(매 프레임 새로 만들지 않게)
@@ -1499,7 +1593,13 @@ function draw() {
   // 가까이 당겨 본다: 화면 너비에 약 15미터 — 무인을 가로 · 세로로 따라감(맵은 화면보다 넓고 높다)
   // 세로 화면이면 아래 조작 받침(168px)을 빼고, 가로로 너무 당겨지지 않게 넓게 본다
   const port = Hh > W * 1.1, dock = port ? 150 : 0;   // 아래 창 단추 줄 · 무공 줄
-  const s = port ? Math.max(W / 8500, (Hh - dock) / 13000) : Math.max(W / 15000, Hh / 9000), k = Math.min(1.25, Math.max(0.7, s / 0.05));
+  const s0 = port ? Math.max(W / 8500, (Hh - dock) / 13000) : Math.max(W / 15000, Hh / 9000);
+  // 낮은 가로 화면(폰)에서는 사냥터를 더 당겨 본다 — 무인 · 몹 · 발판이 같은 비율로 커진다(거리는 그대로, 보이는 폭만 줄어듦).
+  // 두목 · 던전은 예고 범위가 넓어 그대로 두고, 오갈 때는 0.3초쯤 걸쳐 부드럽게 바뀐다
+  const zWant = !port && Hh < 450 && !g.bossFight && !g.dg ? FIELD_ZOOM : 1;
+  if (fieldZoom === null) fieldZoom = zWant; else fieldZoom += (zWant - fieldZoom) * (1 - Math.exp(-fdt / 90));
+  if (Math.abs(zWant - fieldZoom) < 0.002) fieldZoom = zWant;
+  const s = s0 * fieldZoom, k = Math.min(1.25, Math.max(0.7, s0 / 0.05)) * fieldZoom;
   const viewW = W / s, viewH = Hh / s;
   const al = Math.max(0, Math.min(1, acc / 50));
   const lx = (o) => (o.px === undefined ? o.x : o.px + (o.x - o.px) * al), ly = (o) => (o.py === undefined ? o.y : o.py + (o.y - o.py) * al);
@@ -1914,6 +2014,7 @@ function frame() {
     else if (f.k === 'advance') toast(`${f.n}차 전직!`);
     else if (f.k === 'boss') addLog('사냥터 두목 처치!');
     else if (f.k === 'retreat') { addLog(`몹이 세서 ${Math.ceil(f.idx / 10)}장 ${((f.idx - 1) % 10) + 1}칸으로 물러났어요 — 더 강해지면 다시 나아가요`); toast('앞 칸으로 물러났어요 — 강해지면 다시 나아가요'); }
+    else if (f.k === 'fate') { if (!opt.autoGrow) toast('기연이 찾아왔어요 — 왼쪽 위 「기연」을 눌러요'); addLog('기연이 찾아왔어요'); }
     else if (f.k === 'sudden') toast(`돌발 미션: 10분 안에 ${f.need}마리`);
     else if (f.k === 'realm') addLog(`경지 ${f.lv}`);
     else if (f.k === 'gacha-lv') addLog(`뽑기 레벨 ${f.lv}`);

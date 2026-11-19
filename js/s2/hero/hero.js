@@ -9,6 +9,11 @@ import { pay } from '../core/cost.js';
 import { KIT, SLOT_N, kitCap, kitCost, skillById, battleKit, treeOf, TREE_GATE, kitPoints, treeResetCost } from '../tables/kit.js';
 
 const MAINS = ['str', 'agi', 'ene', 'wis'];
+// 스탯 배분 — 레벨마다 1점. 한 점의 값(퍼밀)은 아주 작고 스탯마다 상한이 있다(다 찍어도 전투력 +5% 안쪽)
+export const SP_KEYS = ['atk', 'hp', 'def', 'crit'];
+export const SP_STAT = { atk: 'atkP', hp: 'hpP', def: 'defP', crit: 'crit' };
+export const SP_EACH = { atk: 1, hp: 1, def: 1, crit: 0.2 };   // 공격 · 체력 · 방어 +0.1% · 치명 +0.02%p
+export const SP_CAP = 40;                                       // 스탯마다 40점까지
 
 export function newHero(job = 'sword') {
   return {
@@ -19,6 +24,7 @@ export function newHero(job = 'sword') {
     mastery: { done: [], learning: null },        // learning: { id, endMs }
     cleared: [],                                   // 깬 전직 던전
     kit: { lv: {}, slots: [], off: [] },            // v493 무공 세트: 배운 레벨 · 6칸(공격·버프) · 자동 끈 칸
+    sp: { atk: 0, hp: 0, def: 0, crit: 0 },         // 스탯 배분(레벨마다 1점)
   };
 }
 
@@ -42,6 +48,25 @@ export class Hero {
     return ups;
   }
   totalExp() { return cumExp(this.s.lv) + this.s.exp; }
+  // ── 스탯 배분 ── 레벨마다 1점 · 공격 / 체력 / 방어 / 치명에 손으로 찍는다(옛 세이브는 0점부터)
+  spState() { const p = (this.s.sp ??= {}); for (const k of SP_KEYS) p[k] = Math.max(0, Math.min(SP_CAP, Math.floor(p[k] || 0))); return p; }
+  spUsed() { const p = this.spState(); return SP_KEYS.reduce((a, k) => a + p[k], 0); }
+  spFree() { return Math.max(0, this.s.lv - 1 - this.spUsed()); }
+  spUp(key, n = 1) {
+    const p = this.spState(); if (!SP_KEYS.includes(key)) return 0;
+    const add = Math.max(0, Math.min(Math.floor(n) || 0, this.spFree(), SP_CAP - p[key]));
+    p[key] += add; return add;
+  }
+  // 고르게 — 가장 적게 찍은 스탯부터(같으면 공격 → 체력 → 방어 → 치명)
+  spAuto() {
+    const p = this.spState(); let n = 0;
+    for (let left = this.spFree(); left > 0; left--) {
+      const open = SP_KEYS.filter((k) => p[k] < SP_CAP); if (!open.length) break;
+      p[open.reduce((a, b) => (p[b] < p[a] ? b : a))]++; n++;
+    }
+    return n;
+  }
+  spReset() { const p = this.spState(), n = this.spUsed(); for (const k of SP_KEYS) p[k] = 0; return n; }
   // 자동 찍기: 주 스탯에 몰아서 · 고유 스탯은 치명 → 치명 피해 → 보스 피해 순으로 고르게
   autoSpend() {
     const s = this.s;
@@ -175,6 +200,8 @@ export class Hero {
     for (const sk of KIT[s.job] || []) if (sk.kind === 'passive' && K.lv[sk.id]) out.push({ src: sk.name, stats: sk.stats(K.lv[sk.id]) });
     const f1 = MASTERY.filter((n) => s.mastery.done.includes(n.id)).reduce((a, n) => a + n.final1, 0);
     if (f1) out.push({ src: '무공 마스터리', stats: { final1: f1 } });
+    const sp = s.sp;
+    if (sp && SP_KEYS.some((k) => sp[k] > 0)) out.push({ src: '스탯 배분', stats: Object.fromEntries(SP_KEYS.filter((k) => sp[k] > 0).map((k) => [SP_STAT[k], Math.min(SP_CAP, sp[k]) * SP_EACH[k]])) });
     return out;
   }
   stats(extra = []) { return finalize(sumStats([...this.sources(), ...extra])); }

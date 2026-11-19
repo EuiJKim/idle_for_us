@@ -31,6 +31,7 @@ export function play({ days = 7, job = 'sword', seed = 1, active = 120, ad = fal
     const S = g.S;
     for (let i = 0; i < 20 && g.claimGuide(); i++);
     for (const [b, B] of Object.entries(g.books)) for (const id of B.defs.keys()) g.claimMission(b, id);
+    g.shardExchange();
     while ((S.wallet['ticket:gear'] || 0) >= 10) g.pullGear(10);
     while ((S.wallet['ticket:gear'] || 0) >= 1) g.pullGear(1);
     if (GR.equipBest(S.gear, S.hero.lv)) { g.dirtyStats = true; g.emit('equip'); }

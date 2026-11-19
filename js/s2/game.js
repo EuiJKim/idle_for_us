@@ -8,15 +8,25 @@ import { Hero, newHero } from './hero/hero.js';
 import { SideFight, makeSideMap } from './battle/side.js';
 import { makeMob } from './battle/ref.js';
 import { mobExp, KILLS_PER_MIN, STD_ROOM } from './tables/exp.js';
-import { goldPerMob } from './tables/gearstat.js';
+import { goldPerMob, SHARD_PER_TICKET } from './tables/gearstat.js';
 import { LEVEL_MAX, JOB_LV } from './tables/progress.js';
 import { START_PULL_TICKETS, SLOTS } from './tables/gear.js';
 import { START_PULLS } from './tables/s5.js';
 import { DAILY_DUNGEONS, DAILY_RUNS, JOB_DUNGEON } from './tables/content.js';
 import { GUIDE, DAILY_MISSIONS, WEEKLY_MISSIONS, achievements, guideCurrent } from './tables/missions.js';
 import { JOB_ADV, MASTERY } from './tables/skills.js';
+import { SHOP, SHOP_FREE, shopById } from './tables/shop.js';
 import { CHBOSS, CB, cbGearGrade, CB_REPEAT, WBF, CB_RAID, raidStars, DEX_REW } from './tables/chboss.js';
 const CB_MANUAL_STONES = 50;   // v546
+// 기연 — 사냥으로 FATE_NEED마리를 잡을 때마다 한 번, 카드 셋 중 하나를 고른다(안 고른 것은 FATE_CAP번까지 쌓이고 그동안 칸은 멈춘다)
+//   은자 · 경험치는 그 레벨 사냥 FATE_MIN분 몫 · 강화석은 5 + 레벨/10 · w는 나올 무게(셋은 서로 다르게)
+export const FATE_NEED = 300, FATE_CAP = 3, FATE_MIN = 10;
+export const FATE_CARDS = [
+  { k: 'gold', w: 25 }, { k: 'exp', w: 25 },
+  { k: 'ticket:gear', w: 20, n: 2 }, { k: 'item:stone', w: 14 },
+  { k: 'ticket:weapon', w: 4, n: 1 }, { k: 'ticket:pal', w: 4, n: 1 }, { k: 'ticket:relic', w: 4, n: 1 },
+  { k: 'ticket:time', w: 4, n: 1 },
+];
 const GUILD_CHECKIN = { tix: 2, goldMin: 15 };   // v549 문파 출석
 // v550 문파 토벌 — 주마다 장 두목 하나(15명 차례로) · 90초 · 쓰러지지 않음 · 문파원 피해 합으로 단계(체력 ×1.4씩)
 //   1단계 체력 = 그 주 토벌 레벨 기준 무인이 한 번 넣는 피해 × hpX · 단계마다 문파원 각자 보상 한 번(뽑기권 · 은자)
@@ -96,6 +106,7 @@ export class Game {
     this.rng = new Rng(S.rng || S.seed);
     this.hero = new Hero(S.hero);
     this.hero.kitUnlock();   // v493 옛 세이브도 무공 세트를 받는다
+    this.hero.spState();     // 옛 세이브도 스탯 배분 칸을 받는다(0점부터)
     this.books = {
       daily: new QuestBook(DAILY_MISSIONS, S.q.daily),
       weekly: new QuestBook(WEEKLY_MISSIONS, S.q.weekly),
@@ -116,6 +127,11 @@ export class Game {
       ...this.titleSources(),
     ];
   }
+  // 스탯 배분 — 레벨마다 1점. 남은 점수 · 찍기 · 고르게 찍기 · 되돌리기(공짜)
+  statPts() { return this.hero.spFree(); }
+  statUp(key, n = 1) { const r = this.hero.spUp(key, n); if (r) this.dirtyStats = true; return r; }
+  statAuto() { const r = this.hero.spAuto(); if (r) this.dirtyStats = true; return r; }
+  statReset() { const r = this.hero.spReset(); if (r) this.dirtyStats = true; return r; }
   // v537 칭호 수집 효과 — 얻은 칭호 수만큼
   titleSources() { const n = (this.S.titles || []).filter((t) => titleByName(t)).length; return n ? [{ src: 'title', stats: Object.fromEntries(Object.entries(TITLE_EACH).map(([k, v]) => [k, v * n])) }] : []; }
   setTitle(nm) { if (nm && !(this.S.titles || []).includes(nm)) return false; this.S.titleOn = nm || null; return true; }
@@ -424,7 +440,7 @@ export class Game {
     for (const e of F.events) {
       if (e[0] !== 'kill') continue;
       const kind = e[3], L = F.def.lv;
-      n++; S.kills++;
+      n++; S.kills++; this.fateKill(1);
       this.addExp(mobExp(L, kind, S.hero.lv));
       const gp = this.fighter().st.goldP || 0;
       S.wallet.gold += Math.round(goldPerMob(L) * (kind === 'boss' ? 20 : kind === 'elite' ? 5 : 1) * (1000 + gp) / 1000);
@@ -504,6 +520,13 @@ export class Game {
     if (GC.canLevelUp(this.S.gacha) && GC.startLevelUp(this.S.gacha, this.now)) this.feed.push({ k: 'gacha-lv', lv: this.S.gacha.lv });   // v505 바로 오른다
     return { items, got: this.obtain(items, 'gacha') };
   }
+  // 뽑기 조각(분해하면 나옴) → 장비 뽑기권. 모자라면 null
+  shardExchange() {
+    const W = this.S.wallet, n = Math.floor((W['item:shard'] || 0) / SHARD_PER_TICKET);
+    if (n < 1) return null;
+    W['item:shard'] -= n * SHARD_PER_TICKET; W['ticket:gear'] = (W['ticket:gear'] || 0) + n;
+    return { tickets: n, left: W['item:shard'] };
+  }
   enhance(slot) { const r = GR.enhance(this.S.gear, slot, this.rng, this.S.wallet, this.S.hero.lv); if (r !== null) this.emit("enhance"); if (r) this.dirtyStats = true; return r; }
   // v579 무공 칸 묶음(둘) — 지금 칸 순서 · 자동/수동을 적어 두고 불러온다(배운 무공만)
   kitPresetSave(i) { if (i !== 0 && i !== 1) return false; const K = this.hero.kitState(); (this.S.kitPre ??= [null, null])[i] = { slots: [...K.slots], off: [...K.off] }; return true; }
@@ -514,6 +537,39 @@ export class Game {
     this.dirtyStats = true; if (this.fight) this.fight.hero.kit = this.hero.battleKit?.() ?? this.fight.hero.kit;
     return true;
   }
+  // ── 기연 ── 사냥 처치가 칸을 채운다 · 차면 카드 셋 중 하나
+  fate() { const f = (this.S.fate ??= { g: 0, ready: 0, n: 0, cards: null }); f.g ??= 0; f.ready ??= 0; f.n ??= 0; f.cards ??= null; return f; }
+  fateKill(n) {
+    const f = this.fate();
+    if (f.ready >= FATE_CAP) return;
+    f.g += n;
+    while (f.g >= FATE_NEED && f.ready < FATE_CAP) { f.g -= FATE_NEED; f.ready++; this.feed.push({ k: 'fate' }); }
+    if (f.ready >= FATE_CAP) f.g = 0;
+  }
+  fateState() { const f = this.fate(); return { g: f.g, need: FATE_NEED, ready: f.ready, cards: f.cards }; }
+  fateAmount(k) {
+    const L = this.S.hero.lv;
+    if (k === 'gold') return Math.round(FATE_MIN * KILLS_PER_MIN * goldPerMob(L));
+    if (k === 'exp') return Math.round(FATE_MIN * KILLS_PER_MIN * mobExp(L));
+    if (k === 'item:stone') return 5 + Math.floor(L / 10);
+    return FATE_CARDS.find((c) => c.k === k)?.n || 1;
+  }
+  fateOpen() {
+    const f = this.fate();
+    if (f.cards) return f.cards;
+    if (f.ready <= 0) return null;
+    const pool = FATE_CARDS.slice(), cards = [];
+    for (let i = 0; i < 3; i++) { const c = pool.splice(this.rng.pick(pool.map((x) => x.w)), 1)[0]; cards.push({ k: c.k, n: this.fateAmount(c.k) }); }
+    return (f.cards = cards);
+  }
+  fatePick(i) {
+    const f = this.fate(), c = f.cards?.[i];
+    if (!c || f.ready <= 0) return null;
+    if (c.k === 'exp') this.addExp(c.n);
+    else this.S.wallet[c.k] = (this.S.wallet[c.k] || 0) + c.n;
+    f.cards = null; f.ready--; f.n++;
+    return c;
+  }
   // v588 자동 성장(방치) — 받을 보상 받기 · 장비 뽑기권 쓰기 · 최고 장비 끼기 · 무공 모두 올리기 · 모두 강화. 은자로 뽑지는 않는다(뽑기권만)
   autoGrow(o = {}) {
     const S = this.S, out = { claim: 0, pull: 0, coll: 0, equip: 0, kit: 0, enh: 0, train: 0, daily: [] };
@@ -523,12 +579,15 @@ export class Game {
       const sw = this.sweepAll(); if (sw) out.daily.push(`소탕 ${sw.n}`);
       const E = S.exped; if (E.run && this.now >= E.run.endMs && this.claimExped()) out.daily.push('원정 받음');
       if (!E.run && this.startExped(12)) out.daily.push('원정 보냄');
+      if (this.shopFreeCan() && this.shopBuy(SHOP_FREE)) out.daily.push('상점 덤');   // 덤만 — 은자로는 사지 않는다
     }
     if (o.claim !== false) {
       for (let i = 0; i < 30 && this.claimGuide(); i++) out.claim++;
       for (const [b, B] of Object.entries(this.books)) for (const id of B.claimable()) if (this.claimMission(b, id)) out.claim++;
+      for (let i = 0; i < FATE_CAP && this.fateOpen(); i++) if (this.fatePick(0)) out.claim++; else break;   // 기연 — 첫 카드
     }
     if (o.pull !== false) {
+      this.shardExchange();   // 분해로 모인 뽑기 조각부터 뽑기권으로
       for (let i = 0; i < 100 && (S.wallet['ticket:gear'] || 0) >= 10; i++) if (this.pullGear(10, true)) out.pull += 10; else break;
       for (let i = 0; i < 10 && (S.wallet['ticket:gear'] || 0) >= 1; i++) if (this.pullGear(1, true)) out.pull++; else break;
     }
@@ -542,6 +601,7 @@ export class Game {
     if (o.enh !== false) { const e = this.enhanceAll(); if (e) out.enh = e.ok; }
     // v592 수련 — 배울 수 있는 마스터리 · 경지 돌파(은자가 되는 만큼, 강화 뒤에)
     if (o.train !== false) {
+      out.train += this.statAuto();   // 남은 스탯 점수는 고르게
       for (const m of MASTERY) if (this.learn(m.id)) out.train++;
       for (let i = 0; i < 10 && this.realmUp(); i++) out.train++;
     }
@@ -664,6 +724,24 @@ export class Game {
     S.wallet.gold += gold; S.wallet['ticket:gear'] = (S.wallet['ticket:gear'] || 0) + TODAY_CHEST.tix;
     this.emit('today');
     return { gold, tix: TODAY_CHEST.tix };
+  }
+  // ── 상점 ── 날마다 은자로 사는 물건(tables/shop.js) · 하루 살 수 있는 수 · 날이 바뀌면 새로. 덤은 값 없이 하루 한 번
+  shopSt() { const S = this.S, dk = dayKey(this.now); if (!S.shop || S.shop.day !== dk) S.shop = { day: dk, bought: {} }; S.shop.bought ??= {}; return S.shop; }   // 옛 세이브도 여기서 생긴다
+  shopState() {
+    const B = this.shopSt().bought, lv = this.S.hero.lv, gold = this.S.wallet.gold || 0;
+    return SHOP.map((s) => { const cost = s.cost(lv), left = Math.max(0, s.limit - (B[s.id] || 0)); return { id: s.id, name: s.name, give: s.give, cost, limit: s.limit, left, can: left > 0 && gold >= cost }; });
+  }
+  shopFreeCan() { return !(this.shopSt().bought[SHOP_FREE] > 0); }
+  // n개 산다(남은 수 · 은자가 모자라면 하나도 사지 않는다) → 받은 것 { give: { 종류: 양 }, gold: 쓴 은자, n }
+  shopBuy(id, n = 1) {
+    const s = shopById(id), T = this.shopSt(); n = Math.floor(n);
+    if (!s || !(n >= 1) || (T.bought[id] || 0) + n > s.limit) return null;
+    const gold = s.cost(this.S.hero.lv) * n;
+    if (gold > 0 && !pay(this.S.wallet, [{ k: 'gold', n: gold }])) return null;
+    const give = Object.fromEntries(Object.entries(s.give).map(([k, v]) => [k, v * n]));
+    gain(this.S.wallet, Object.entries(give).map(([k, v]) => ({ k, n: v })));
+    T.bought[id] = (T.bought[id] || 0) + n;
+    return { give, gold, n };
   }
   canDungeon(type, kind) {
     const S = this.S;

@@ -55,6 +55,8 @@ export const enhCost = (e, L) => [{ k: 'gold', n: Math.round(goldPerMob(L) * 20 
 export const STAR_GOLD = { base: 500, r: 1.15 };
 export const starCost = (s, L) => [{ k: 'gold', n: Math.round(goldPerMob(L) * STAR_GOLD.base * Math.pow(STAR_GOLD.r, s)) }];
 // 분해: 등급마다 강화석
-export const dismantle = (g) => [{ k: 'item:stone', n: [1, 2, 4, 8, 16, 32, 64][g] }];
+// 분해하면 강화석 + 뽑기 조각(한 개에 1, 등급이 하나 오를 때마다 +1) — 분해는 모두 이 표를 거친다(하나씩 · 일괄 · 주우면 바로)
+export const SHARD_PER_TICKET = 20;   // 뽑기 조각 이만큼 = 장비 뽑기권 1장
+export const dismantle = (g) => [{ k: 'item:stone', n: [1, 2, 4, 8, 16, 32, 64][g] }, { k: 'item:shard', n: 1 + g }];
 // 부옵션 바꾸기 비용(바꾼 횟수 n) — 강화석
 export const subRerollCost = (n) => [{ k: 'item:stone', n: 5 + 3 * Math.min(n, 30) }];

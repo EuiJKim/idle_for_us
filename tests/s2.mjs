@@ -1324,6 +1324,24 @@ console.log('\n=== v583 두목 연습 ===');
   ok(f && f.practice && Object.keys(f.rew).length === 0 && g.raidLeft() === left0 && !g.S.raid?.star?.[1] && T.idx === idx0, '보상 · 토벌 횟수 · 별 · 칸 그대로', JSON.stringify({ win: f?.win }));
 }
 
+console.log('\n=== 분해 → 뽑기 조각 ===');
+{
+  const T0 = 1.8e12, g = new Game(newGame('sword', T0, 77), T0); g.addExp(EX.cumExp(30)); g.tick(T0);
+  const W = g.S.wallet, G = g.S.gear, mk = (gr) => { const it = GR.makeGear(g.rng, 'weapon', gr); G.bag.push(it); return it; };
+  ok((W['item:shard'] || 0) === 0 && g.shardExchange() === null, '옛 저장(조각 없음)은 0 · 모자라면 못 바꿈');
+  const a = mk(0), b = mk(3);
+  ok(GR.dismantleItem(G, a.uid, W) && W['item:shard'] === 1 && GR.dismantleItem(G, b.uid, W) && W['item:shard'] === 5, '하나씩 분해: 한 개에 1 · 등급마다 +1', String(W['item:shard']));
+  const many = [mk(0), mk(1), mk(2)], r = GR.dismantleMany(G, many.map((x) => x.uid), W);
+  ok(r.n === 3 && r.out['item:shard'] === 6 && W['item:shard'] === 11, '일괄 분해도 조각을 준다', JSON.stringify(r.out));
+  G.eq.weapon = GR.makeGear(g.rng, 'weapon', 6); G.autoDis = 1; const sh0 = W['item:shard'];
+  g.obtain([GR.makeGear(g.rng, 'weapon', 0), GR.makeGear(g.rng, 'weapon', 1)]); G.autoDis = -1;
+  ok(W['item:shard'] === sh0 + 3, '주우면 바로 분해도 조각을 준다', String(W['item:shard'] - sh0));
+  W['item:shard'] = 2 * GS.SHARD_PER_TICKET + 3; const t0 = W['ticket:gear'] || 0, x = g.shardExchange();
+  ok(x && x.tickets === 2 && x.left === 3 && W['item:shard'] === 3 && W['ticket:gear'] === t0 + 2, `조각 ${GS.SHARD_PER_TICKET}개 = 장비 뽑기권 1장 · 나머지는 남는다`, JSON.stringify(x));
+  W['item:shard'] = GS.SHARD_PER_TICKET; W['ticket:gear'] = 0; const p0 = g.S.gacha.pulls, ag = g.autoGrow({ claim: false, daily: false });
+  ok(ag.pull >= 1 && g.S.gacha.pulls > p0 && W['item:shard'] < GS.SHARD_PER_TICKET, '자동 성장이 조각을 바꿔 뽑는다');
+}
+
 console.log('\n=== v588 자동 성장 ===');
 {
   const T0 = 1.8e12, g = new Game(newGame('sword', T0, 31), T0); g.addExp(EX.cumExp(40)); g.tick(T0);
@@ -1333,6 +1351,36 @@ console.log('\n=== v588 자동 성장 ===');
   ok(r.enh > 0 && r.kit >= 0 && g.power() > pw0, '최고 장비 · 무공 · 강화로 전투력이 오른다');
   const r2 = g.autoGrow(); ok(r2.pull === 0 && W['ticket:gear'] === 0, '뽑기권이 없으면 뽑지 않음(은자 그대로 쓰지 않음)');
   W['ticket:gear'] = 5; const r3 = g.autoGrow({ pull: false, enh: false, kit: false }); ok(r3.pull === 0 && W['ticket:gear'] === 5, '끈 것은 하지 않음');
+}
+
+console.log('\n=== 스탯 배분 — 레벨마다 1점 ===');
+{
+  const T0 = 1.8e12, g = new Game(newGame('sword', T0, 31), T0);
+  ok(g.statPts() === 0 && g.statUp('atk') === 0, '1레벨은 점수가 없다');
+  g.S.hero.lv = 21; g.hero.autoSpend(); g.dirtyStats = true;
+  ok(g.statPts() === 20, '레벨 − 1 만큼 받는다', g.statPts());
+  const p0 = g.power(), a0 = g.fighter().st.atk;
+  ok(g.statUp('atk', 3) === 3 && g.S.hero.sp.atk === 3 && g.statPts() === 17, '찍으면 남은 점수가 준다');
+  ok(g.fighter().st.atk > a0 && g.power() > p0, '공격이 오른다', `${a0} → ${g.fighter().st.atk}`);
+  ok(g.statUp('luck', 1) === 0 && g.statUp('hp', -5) === 0 && g.statPts() === 17, '없는 스탯 · 음수는 안 된다');
+  ok(g.statUp('hp', 999) === 17 && g.statPts() === 0 && g.statUp('def') === 0, '남은 점수까지만');
+  ok(g.statReset() === 20 && g.statPts() === 20 && g.power() === p0, '되돌리면 처음 전투력', `${p0} / ${g.power()}`);
+  ok(g.statAuto() === 20 && JSON.stringify(g.S.hero.sp) === JSON.stringify({ atk: 5, hp: 5, def: 5, crit: 5 }), '고르게 찍기', JSON.stringify(g.S.hero.sp));
+  g.S.hero.lv = 23; ok(g.statAuto() === 2 && g.S.hero.sp.atk === 6 && g.S.hero.sp.hp === 6 && g.S.hero.sp.def === 5, '고르게는 공격부터', JSON.stringify(g.S.hero.sp));
+  // 상한 · 균형 — 만렙에서 다 찍어도 전투력 +5% 안쪽
+  const m = new Game(newGame('sword', T0, 32), T0); m.S.hero.lv = 150; m.hero.autoSpend();
+  const mp = m.power(), mv = m.power('pvp');
+  ok(m.statUp('atk', 999) === 40 && m.statUp('atk') === 0, '스탯마다 상한 40점', m.S.hero.sp.atk);
+  m.statReset(); m.statAuto();
+  ok(m.statPts() === 0 && m.power() > mp && m.power() <= mp * 1.05 && m.power('pvp') <= mv * 1.05, '다 찍어도 전투력 +5% 안쪽', `${(m.power() / mp).toFixed(4)} / ${(m.power('pvp') / mv).toFixed(4)}`);
+  // 옛 세이브(sp 없음) · 자동 성장
+  const S = newGame('sword', T0, 33); delete S.hero.sp; S.hero.lv = 11;
+  const o = new Game(JSON.parse(JSON.stringify(S)), T0);
+  ok(o.statPts() === 10 && o.S.hero.sp.atk === 0 && o.power() > 0, '옛 세이브는 0점부터', JSON.stringify(o.S.hero.sp));
+  const r = o.autoGrow({ claim: false, daily: false, pull: false, coll: false, kit: false, enh: false });
+  ok(r.train >= 10 && o.statPts() === 0, '자동 성장이 남은 점수를 찍는다', r.train);
+  const o2 = new Game(JSON.parse(JSON.stringify(S)), T0); o2.autoGrow({ train: false, claim: false, daily: false });
+  ok(o2.statPts() === 10, '수련을 끄면 안 찍는다');
 }
 
 console.log('\n=== v589 자동 성장 — 하루 일 ===');
@@ -1345,6 +1393,51 @@ console.log('\n=== v589 자동 성장 — 하루 일 ===');
   const r3 = g.autoGrow({ daily: false }); ok(r3.daily.length === 0, '하루 일을 끄면 안 함');
 }
 
+console.log('\n=== 기연 — 사냥 중 고르는 보상 ===');
+{
+  const { FATE_NEED, FATE_CAP, FATE_MIN, FATE_CARDS } = await import('../js/s2/game.js');
+  const { KILLS_PER_MIN: KPM } = await import('../js/s2/tables/exp.js');
+  const { goldPerMob: GPM } = await import('../js/s2/tables/gearstat.js');
+  const T0 = 1.8e12, mk = (seed) => { const g = new Game(newGame('sword', T0, seed), T0); g.addExp(EX.cumExp(40)); g.tick(T0); return g; };
+  const g = mk(41), f0 = g.fateState();
+  ok(FATE_NEED === 300 && FATE_CAP === 3 && f0.g === 0 && f0.need === 300 && f0.ready === 0 && f0.cards === null, '처음: 칸 0 / 300 · 고를 것 없음');
+  ok(g.fateOpen() === null && g.fatePick(0) === null, '차기 전엔 열리지 않음');
+  let k = 0; for (let i = 0; i < 20; i++) { g.tick(T0 + i * 1000); k += g.hunt(1000); }
+  ok(k > 0 && g.fateState().g === k, '사냥 처치가 칸을 채운다', `처치 ${k}`);
+  g.fateKill(FATE_NEED - k + 7);
+  ok(g.fateState().ready === 1 && g.fateState().g === 7 && g.feed.some((x) => x.k === 'fate'), '300마리 → 기연 1번 · 넘친 처치는 이어짐 · 알림');
+  const cards = g.fateOpen();
+  ok(cards.length === 3 && new Set(cards.map((c) => c.k)).size === 3 && cards.every((c) => c.n > 0 && FATE_CARDS.some((d) => d.k === c.k)), '카드 셋 — 서로 다름', cards.map((c) => `${c.k}×${c.n}`).join(' '));
+  ok(g.fateOpen() === cards && JSON.stringify(Game.load(g.save(), T0).fateState().cards) === JSON.stringify(cards), '다시 열어도 · 저장했다 불러도 같은 카드(다시 굴리지 않음)');
+  { const a = mk(77), b = mk(77); a.fateKill(300); b.fateKill(300); ok(JSON.stringify(a.fateOpen()) === JSON.stringify(b.fateOpen()), '같은 씨앗이면 같은 카드(결정론)'); }
+  // 카드마다 주는 것
+  const L = g.S.hero.lv, W = g.S.wallet, give = (kk) => { g.S.fate.ready = 1; g.S.fate.cards = [{ k: kk, n: g.fateAmount(kk) }, { k: 'gold', n: 1 }, { k: 'exp', n: 1 }]; return g.fatePick(0); };
+  const n0 = g.S.fate.n, gold0 = W.gold, c1 = give('gold');
+  ok(c1.n === Math.round(FATE_MIN * KPM * GPM(L)) && W.gold === gold0 + c1.n && FATE_MIN === 10, '은자 = 그 레벨 사냥 10분 몫', c1.n);
+  ok(g.S.fate.n === n0 + 1 && g.S.fate.cards === null && g.fateState().ready === 0, '고르면 카드가 사라지고 횟수가 준다');
+  const tot = () => EX.cumExp(g.S.hero.lv) + g.S.hero.exp, x0 = tot(), c2 = give('exp');
+  ok(c2.n === Math.round(FATE_MIN * KPM * EX.mobExp(L)) && tot() > x0, '경험치 = 그 레벨 사냥 10분 몫', c2.n);
+  const t0 = W['ticket:gear'] || 0, s0 = W['item:stone'] || 0, tt0 = W['ticket:time'] || 0, p0 = W['ticket:pal'] || 0;
+  give('ticket:gear'); give('item:stone'); give('ticket:time'); give('ticket:pal');
+  ok(W['ticket:gear'] === t0 + 2 && W['item:stone'] === s0 + 5 + Math.floor(g.S.hero.lv / 10) && W['ticket:time'] === tt0 + 1 && W['ticket:pal'] === p0 + 1, '장비 뽑기권 2 · 강화석 5 + 레벨/10 · 시간 티켓 1 · 동료 뽑기권 1');
+  ok(g.fatePick(0) === null, '카드가 없으면 고를 수 없음');
+  // 쌓임 상한
+  g.S.fate.g = 0; g.S.fate.ready = 0; g.fateKill(FATE_NEED * 5 + 20);
+  ok(g.fateState().ready === FATE_CAP && g.fateState().g === 0, '3번까지 쌓이고 그동안 칸은 멈춤', JSON.stringify(g.fateState()));
+  g.fateKill(100); ok(g.fateState().g === 0, '다 쌓였으면 더 잡아도 그대로');
+  g.fateOpen(); g.fatePick(1); g.fateKill(100); ok(g.fateState().ready === 2 && g.fateState().g === 100, '하나 고르면 다시 차오름');
+  // 나오는 무게 · 값이 작다
+  const sum = FATE_CARDS.reduce((a, c) => a + c.w, 0), wOf = (kk) => FATE_CARDS.find((c) => c.k === kk).w;
+  ok(sum === 100 && wOf('ticket:time') <= 5 && ['weapon', 'pal', 'relic'].every((x) => wOf(`ticket:${x}`) < wOf('ticket:gear')), '무게 합 100 · 시간 티켓은 드묾 · 병기/동료/영물은 장비 뽑기권보다 드묾');
+  { const h = mk(5), cnt = {}; for (let i = 0; i < 600; i++) { h.fate().ready = 1; for (const c of h.fateOpen()) cnt[c.k] = (cnt[c.k] || 0) + 1; h.fatePick(0); }
+    ok(cnt.gold > cnt['ticket:gear'] && cnt['ticket:gear'] > cnt['ticket:time'] * 2 && Object.keys(cnt).length === FATE_CARDS.length, '600번: 자주 나오는 순서가 무게대로 · 여덟 가지 모두 나옴', JSON.stringify(cnt)); }
+  // 옛 세이브 · 자동 성장
+  { const o = mk(9); delete o.S.fate; const o2 = Game.load(o.save(), T0); ok(o2.fateState().g === 0 && o2.fateState().ready === 0 && o2.hunt(1000) >= 0, '기연 칸이 없는 옛 세이브도 불러온다'); }
+  { const a = mk(13); a.fateKill(FATE_NEED * 2); const r = a.autoGrow({ daily: false, pull: false, coll: false, kit: false, enh: false, train: false });
+    ok(a.fateState().ready === 0 && a.S.fate.n === 2 && r.claim >= 2, '자동 성장: 쌓인 기연은 첫 카드로 받는다', JSON.stringify(r));
+    a.fateKill(FATE_NEED); a.autoGrow({ claim: false, daily: false }); ok(a.fateState().ready === 1, '보상 받기를 끄면 그대로 둔다'); }
+}
+
 console.log('\n=== v591 자동 성장 — 병기 · 동료 · 영물 뽑기권 ===');
 {
   const T0 = 1.8e12, g = new Game(newGame('sword', T0, 33), T0); g.addExp(EX.cumExp(30)); g.tick(T0);
@@ -1354,6 +1447,38 @@ console.log('\n=== v591 자동 성장 — 병기 · 동료 · 영물 뽑기권 =
   const own1 = Object.values(g.S.colls.weapon.own).reduce((a, o) => a + o.n, 0);
   ok(W['ticket:weapon'] === 0 && W['ticket:pal'] === 0 && own1 > own0 && r.coll === 15, '병기 · 동료 뽑기권을 모두 쓴다', JSON.stringify({ coll: r.coll, own0, own1 }));
   W['ticket:pal'] = 4; const r2 = g.autoGrow({ coll: false, claim: false, daily: false }); ok(r2.coll === 0 && W['ticket:pal'] === 4, '끄면 쓰지 않음');
+}
+
+console.log('\n=== 상점 — 날마다 은자로 사기 ===');
+{
+  const { SHOP } = await import('../js/s2/tables/shop.js');
+  const { goldPerMob: gpm } = await import('../js/s2/tables/gearstat.js');
+  const { dayKey: dkOf } = await import('../js/s2/game.js');
+  const T0 = 1.8e12, DAYMS = 86400e3, g = new Game(newGame('sword', T0, 36), T0); g.addExp(EX.cumExp(40)); g.tick(T0);
+  const W = g.S.wallet, by = (id) => g.shopState().find((x) => x.id === id), lv = g.S.hero.lv;
+  const all = SHOP.reduce((a, s) => a + s.mobs * s.limit, 0);
+  ok(SHOP.length >= 8 && all >= 1620 && all <= 3240 && SHOP.every((s) => s.limit >= 1 && s.cost(lv) === s.mobs * gpm(lv)), '물건 8개쯤 · 다 사면 사냥 한두 시간 몫', `${SHOP.length}개 · ${all}마리 몫`);
+  ok(SHOP.filter((s) => s.mobs === 0).length === 1 && by('free').cost === 0, '값 없는 덤은 하나');
+  W.gold = 0; const t0 = W['ticket:gear'] || 0;
+  ok(!by('gear').can && g.shopBuy('gear') === null && (W['ticket:gear'] || 0) === t0 && W.gold === 0, '은자가 없으면 못 산다');
+  ok(g.shopFreeCan() && !!g.shopBuy('free') && W['ticket:gear'] === t0 + 1 && !g.shopFreeCan() && g.shopBuy('free') === null && W['ticket:gear'] === t0 + 1, '덤은 하루 한 번');
+  const price = by('gear').cost; W.gold = price * 10;
+  const r = g.shopBuy('gear');
+  ok(r && r.gold === price && r.give['ticket:gear'] === 1 && W.gold === price * 9 && W['ticket:gear'] === t0 + 2 && by('gear').left === 4, '사면 은자가 줄고 물건을 받는다', JSON.stringify(r));
+  ok(g.shopBuy('gear', 5) === null && W.gold === price * 9, '남은 수보다 많이는 못 산다(하나도 안 삼)');
+  const r4 = g.shopBuy('gear', 4);
+  ok(r4 && r4.n === 4 && r4.gold === price * 4 && W.gold === price * 5 && by('gear').left === 0 && !by('gear').can && g.shopBuy('gear') === null && W.gold === price * 5, '하루 살 수 있는 수를 넘지 않는다');
+  ok(g.shopBuy('없는것') === null && g.shopBuy('stone', 0) === null && g.shopBuy('stone', -1) === null, '없는 물건 · 0개는 안 됨');
+  const s0 = W['item:stone'] || 0; W.gold = 1e12; g.shopBuy('stone', 3); ok((W['item:stone'] || 0) === s0 + 60, '강화석 꾸러미 3개', `${s0} → ${W['item:stone']}`);
+  const g1 = new Game(JSON.parse(JSON.stringify(g.S)), T0); ok(g1.shopState().find((x) => x.id === 'gear').left === 0 && !g1.shopFreeCan(), '저장했다 불러도 오늘 산 것은 그대로');
+  g.tick(T0 + DAYMS);
+  ok(by('gear').left === 5 && by('gear').can && g.shopFreeCan() && by('stone').left === 3, '다음 날이면 새로');
+  const old = newGame('sword', T0, 37); delete old.shop; const g2 = new Game(old, T0);
+  ok(g2.shopState().length === SHOP.length && g2.shopFreeCan() && g2.S.shop.day === dkOf(T0), '옛 세이브(상점 칸 없음)도 열린다');
+  const g3 = new Game(newGame('sword', T0, 38), T0); g3.tick(T0); g3.S.wallet.gold = 1e12;
+  const a1 = g3.autoGrow({ pull: false, kit: false, enh: false, train: false }), bought = Object.keys(g3.S.shop.bought);
+  ok(a1.daily.includes('상점 덤') && bought.length === 1 && bought[0] === 'free', '자동 성장은 덤만 받는다(은자로 사지 않음)', JSON.stringify(g3.S.shop.bought));
+  ok(!g3.autoGrow({ pull: false, kit: false, enh: false, train: false }).daily.includes('상점 덤'), '덤은 다시 받지 않음');
 }
 
 console.log('\n=== v592 자동 성장 — 마스터리 · 경지 ===');

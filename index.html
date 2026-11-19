@@ -392,7 +392,30 @@
     #qc .qh em { font-style: normal; font-size: 10px; font-weight: 800; padding: 0 6px; border-radius: 4px; background: #3f6b3a; color: #e6ffd8; }
     #qc.ready .qh em { background: #d49a2a; color: #2a1a05; }
     #qc .qb { font-weight: 700; margin-top: 2px; } #qc .qb small { color: var(--gold); margin-left: 4px; }
+    /* 곧 열림 칩 — 길잡이 카드 바로 아래 한 줄(다음에 열리는 것 · 레벨) + 가는 진행 줄 */
+    #nx { position: absolute; z-index: 20; left: var(--sl); top: calc(var(--st) + 82px); width: 220px; padding: 4px 9px 5px; border-radius: 10px; background: rgba(10,8,6,.62); border: 1px solid rgba(255,255,255,.12); color: #fff; font-size: 11px; line-height: 1.3; text-align: left; display: block; }
+    #nx.hidden, body.bossing #nx { display: none; }
+    #nx .nxt { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 700; } #nx .nxt em { font-style: normal; font-size: 10px; font-weight: 800; padding: 0 5px; margin-right: 5px; border-radius: 4px; background: rgba(255,255,255,.14); color: #cbb98f; } #nx .nxt small { font-size: 10px; font-weight: 400; color: #cbb98f; }
+    #nx .nxb { display: block; height: 3px; margin-top: 3px; border-radius: 2px; background: rgba(255,255,255,.14); overflow: hidden; } #nx .nxb i { display: block; height: 100%; background: var(--gold, #ffd56a); border-radius: 2px; }
+    html.w800 #nx { width: 196px; }
+    body:has(#nx:not(.hidden)) .dpsm { top: calc(var(--st) + 172px); }
     #qc.ready { border-color: rgba(255,213,106,.7); animation: pts-glow 1.4s ease-in-out infinite; }
+    /* 기연 — 길잡이 칸 옆 작은 칸(처치로 차오름 · 차면 빛남) · 카드 셋 */
+    .fate-chip { position: absolute; z-index: 20; left: calc(var(--sl) + 228px); top: calc(var(--st) + 82px); min-height: 30px; padding: 4px 10px 4px 6px; display: flex; align-items: center; gap: 5px; border-radius: 999px; background: rgba(10,8,6,.62); border: 1px solid rgba(255,255,255,.12); color: #cbb98f; font-size: 11px; overflow: hidden; }
+    .fate-chip.hidden, body.bossing .fate-chip { display: none; }
+    .fate-chip i { font-style: normal; width: 20px; height: 20px; display: grid; place-items: center; border-radius: 50%; background: #3a2a14; color: #ffd56a; font-size: 12px; font-weight: 800; }
+    .fate-chip b { color: #fff; font-variant-numeric: tabular-nums; }
+    .fate-chip .fate-fill { position: absolute; left: 0; bottom: 0; height: 2px; background: #d49a2a; }
+    .fate-chip.ready { overflow: visible; border-color: rgba(255,213,106,.7); color: #ffe9a8; animation: pts-glow 1.4s ease-in-out infinite; }
+    .fate-chip.ready b { color: #ffd56a; } .fate-chip.ready .fate-fill { display: none; }
+    .fate-chip.ready::after { content: ''; position: absolute; top: -2px; right: -2px; width: 8px; height: 8px; border-radius: 50%; background: #ef4444; box-shadow: 0 0 0 1.5px rgba(0,0,0,.5); }
+    html.w800 .fate-chip { left: calc(var(--sl) + 204px); } .fate-chip.fate-solo, html.w800 .fate-chip.fate-solo { left: var(--sl); }
+    .fate-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 10px; }
+    .fate-card { font: inherit; color: #fff; min-height: 132px; padding: 12px 6px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; border-radius: 12px; background: linear-gradient(180deg, #2c2116, #17110b); border: 1px solid rgba(255,213,106,.35); cursor: pointer; }
+    .fate-card:active { transform: scale(.97); border-color: #ffd56a; }
+    .fate-card i { font-style: normal; width: 46px; height: 46px; display: grid; place-items: center; border-radius: 50%; background: #3a2a14; border: 1px solid rgba(255,213,106,.5); color: #ffd56a; font-size: 24px; font-weight: 800; }
+    .fate-card span { font-size: 13px; font-weight: 700; } .fate-card b { font-size: 15px; color: #fde047; font-variant-numeric: tabular-nums; }
+    .fate-left { margin-top: 8px; text-align: center; font-size: 11px; color: #cbb98f; }
     .dpsm { position: absolute; left: var(--sl); top: calc(var(--st) + 140px); z-index: 10; display: none; background: rgba(10,8,6,.65); border: 1px solid var(--line); border-radius: 8px; padding: 4px 8px; font-size: 11px; line-height: 1.45; }
     .dpsm b { color: var(--accent-2); font-weight: 700; margin-right: 4px; }
     #loglines { position: absolute; z-index: 9; left: var(--sl); bottom: calc(var(--sb) + 64px); font-size: 11px; line-height: 1.4; color: #ffe9a8; text-shadow: 0 1px 2px #000; pointer-events: none; max-width: 36%; }
@@ -476,6 +499,38 @@
     body.land #wb > .card:has(.inv-grid) { column-span: all; display: block; }
     body.land #wb > .eqpage, body.land #wb > .gxb, body.land #wb > .grid, body.land #wb > .inv-grid, body.land #wb > .gear-grid { column-span: all; }
     body.land #modal .sheet { max-width: 520px; max-height: 88vh; overflow: auto; }
+    /* 장비 뽑기 화면(gch-) — 위 그림 띠 · 등급 확률 칩 · 천장 막대 · 뽑기 칸 셋 */
+    body.land #wb > .gch { column-span: all; }
+    .gch-hero { position: relative; border-radius: 12px; padding: 10px 12px 12px; margin-bottom: 10px; overflow: hidden; background: radial-gradient(ellipse 70% 62% at 50% 34%, color-mix(in srgb, var(--gc, #e8c26a) 34%, transparent), transparent 72%), linear-gradient(180deg, rgba(255,255,255,.07), rgba(0,0,0,.28)); box-shadow: inset 0 0 0 1px rgba(255,255,255,.08); }
+    .gch-show { display: flex; justify-content: center; align-items: center; height: 96px; }
+    .gch-show img { width: 44px; height: 44px; margin: 0 -4px; object-fit: contain; opacity: .75; filter: drop-shadow(0 0 6px var(--gc)); }
+    .gch-show img.in { width: 58px; height: 58px; opacity: .92; }
+    .gch-show img.mid { position: relative; z-index: 1; width: 86px; height: 86px; opacity: 1; filter: drop-shadow(0 0 12px var(--gc)); animation: gch-float 3.2s ease-in-out infinite; }
+    @keyframes gch-float { 50% { transform: translateY(-4px); } }
+    @media (prefers-reduced-motion: reduce) { .gch-show img.mid { animation: none; } }
+    #panel .gch .gch-hero h3 { display: block; text-align: center; white-space: normal; font-size: 17px; font-weight: 900; color: var(--gold); margin: 2px 0 6px; text-shadow: 0 1px 3px #000; }
+    #panel .gch .gch-hero h3 small { display: block; font-size: 11px; margin-top: 1px; text-align: center; }
+    .gch-stats { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+    .gch-stats span { flex: 1; white-space: nowrap; text-align: center; padding: 5px 10px; border-radius: 999px; font-size: 12px; color: rgba(255,255,255,.65); background: rgba(255,255,255,.06); }
+    .gch-stats b { color: #fff; margin-left: 4px; font-variant-numeric: tabular-nums; }
+    .gch-odds { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; margin-bottom: 8px; }
+    .gch-odds em { font-style: normal; font-size: 11px; font-weight: 800; color: rgba(255,255,255,.55); margin-right: 1px; }
+    .gch-odds span { display: inline-flex; align-items: baseline; gap: 4px; padding: 3px 8px; border-radius: 999px; font-size: 11.5px; font-weight: 700; white-space: nowrap; font-variant-numeric: tabular-nums; background: color-mix(in srgb, var(--gc) 15%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--gc) 45%, transparent); }
+    .gch-odds span b { font-weight: 900; font-size: 12.5px; }
+    .gch-odds small { flex-basis: 100%; font-size: 10.5px; color: rgba(255,255,255,.45); }
+    .gch-pity { margin-bottom: 10px; }
+    .gch-pl { display: flex; align-items: baseline; gap: 6px; font-size: 12px; color: rgba(255,255,255,.65); }
+    .gch-pl b { color: #fff; font-variant-numeric: tabular-nums; } .gch-pl small { margin-left: auto; font-size: 11px; font-weight: 700; }
+    .gch-pity .achbar { height: 8px; margin: 4px 0 0; }
+    .gch-tiles { display: grid; grid-template-columns: 1fr 1.18fr 1fr; gap: 6px; align-items: stretch; }
+    #panel .gch .row.gch-tile { display: flex; flex-direction: column; align-items: stretch; gap: 4px; margin: 0; padding: 10px 6px 6px; text-align: center; cursor: pointer; min-width: 0; box-shadow: inset 0 0 0 1px rgba(255,255,255,.1); }
+    #panel .gch .row.gch-tile.main { background: linear-gradient(180deg, rgba(246,207,98,.22), rgba(224,165,58,.07)); box-shadow: inset 0 0 0 1.5px rgba(246,207,98,.75), 0 0 14px rgba(232,194,106,.22); }
+    .gch-tile:active { transform: translateY(1px); }
+    .gch-tile .info { flex: 1; min-width: 0; } #panel .gch-tile .name { font-size: 16px; font-weight: 900; color: #fff; white-space: nowrap; } #panel .gch-tile.main .name { font-size: 18px; color: var(--gold); } #panel .gch-tile .desc { font-size: 11.5px; font-weight: 700; color: rgba(255,255,255,.75); overflow-wrap: anywhere; }
+    #panel-body .gch .row.gch-tile .btn { width: 100%; min-width: 0; min-height: 40px; padding: 6px 4px; }
+    .gch .note { margin: 8px 0 0; }
+    html.w640up body.land #wb > .gch { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 12px; align-items: stretch; }
+    html.w640up body.land .gch .gch-hero { margin-bottom: 0; display: flex; flex-direction: column; justify-content: center; }
     /* ── v511 창 — 들판 HUD와 같은 결: 아래 메뉴 바로 위까지 덮는 큰 창 · 왼쪽 아이콘 레일 · 밑줄 칸 · 평평한 카드 · 금빛 주 단추 ── */
     #panel, #panel.full, body.land #panel, body.land #panel.full {
       position: fixed; z-index: 48; left: var(--sl); right: var(--sr); top: var(--st); bottom: calc(var(--sb) + 66px); height: auto; width: auto; max-width: 1120px; margin: 0 auto;
@@ -578,6 +633,8 @@
         <button class="ib" id="b-opt" aria-label="설정"><svg class="ic" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg><span>설정</span></button>
       </div>
       <button id="qc" class="hidden"></button>
+      <button id="fc" class="fate-chip hidden" aria-label="기연"><i>緣</i><span>기연</span><b id="fc-n"></b><em class="fate-fill" id="fc-fill"></em></button>
+      <button id="nx" class="hidden"></button>
       <div class="dpsm" id="dpsm"></div>
       <div id="loglines"></div>
       <button id="btn-boss" class="hidden">두목 도전</button>
