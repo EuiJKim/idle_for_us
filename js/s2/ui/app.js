@@ -31,6 +31,7 @@ import { ATTEND, ATTEND_DAYS, ATTEND_NAME } from '../tables/attend.js';
 import { TITLES, TITLE_EACH, titleByName } from '../tables/titles.js';
 import { play, unlock, setOpt, bgm } from './sound.js';
 import { PoseAnim, POSES, IDLE, mixPose } from '../../pose.js';
+import { collName, collGly } from '../tables/collnames.js';
 // 설정(v504) — 이 기기에만(ifu.s2.opt). 소리 · 배경 가락 · 흔들림 · 피해 숫자 · 진동 · 그래픽 · 피해 측정기
 const OPT_KEY = 'ifu.s2.opt';
 const opt = Object.assign({ sfx: true, bgm: true, shake: true, nums: 'all', vib: true, gfx: 'high', dps: false, autoNext: true, saver: true, wake: true, autoGrow: false, agGold: true }, (() => { try { return JSON.parse(localStorage.getItem(OPT_KEY) || '{}'); } catch { return {}; } })());
@@ -550,15 +551,20 @@ function paintWin() {
     const c0 = card(`${D.name} 뽑기`, `천장 ${C.pity}/200`);
     // v558 병기 · 동료 · 영물 뽑기도 카드 뒤집기(높은 등급은 두근 · 번쩍) — 처음 얻은 것은 「새로」
     const GLY = { weapon: '兵', pal: '伴', relic: '靈' }[sys] || '抽';
-    const pullFx = (n) => { const before = new Set(Object.keys(C.own)); const r = g.pullCollect(sys, n); if (r) showGacha({ items: r, got: [] }, { title: `${D.name} 뽑기`, done: (b) => `가장 좋은 것: ${GRADES[b]} · 새로 ${new Set(r.filter((x) => !before.has(String(x.k))).map((x) => x.k)).size}종`, face: (it) => `<div class="gx-gly g${it.g}t">${GLY}</div><b class="g${it.g}t">${GRADES[it.g]}</b><small>${esc(D.name)} ${it.k}</small>${before.has(String(it.k)) ? '' : '<i>새로</i>'}` }); return r; };
+    const pullFx = (n) => { const before = new Set(Object.keys(C.own)); const r = g.pullCollect(sys, n); if (r) showGacha({ items: r, got: [] }, { title: `${D.name} 뽑기`, done: (b) => `가장 좋은 것: ${GRADES[b]} · 새로 ${new Set(r.filter((x) => !before.has(String(x.k))).map((x) => x.k)).size}종`, face: (it) => `<div class="gx-gly g${it.g}t">${collGly(sys, it.k)}</div><b class="g${it.g}t">${GRADES[it.g]}</b><small>${esc(collName(sys, it.k))}</small>${before.has(String(it.k)) ? '' : '<i>새로</i>'}` }); return r; };
     c0(R(`뽑기권 ${W[`ticket:${sys}`] || 0}장`, '많이 가지면 모은 효과 · 낀 것은 장착 효과', [['1번', act(() => pullFx(1))], ['10번', act(() => pullFx(10))]], '抽'));
-    const c1 = card(`가진 ${D.name} ${Object.keys(C.own).length}`, `장착 ${C.eq.filter((x) => x !== null && x !== undefined).length}/${C.eq.length}`);
-    const grid = document.createElement('div'); grid.className = 'gear-grid';
-    for (const [k, o] of Object.entries(C.own).sort((a, b) => kindGrade(sys, +b[0]) - kindGrade(sys, +a[0]))) {
-      const gr = kindGrade(sys, +k), t2 = document.createElement('div'); t2.className = 'gear-tile'; t2.style.setProperty('--gc', GCOL[gr]);
-      t2.innerHTML = `<small>${GRADES[gr]}품${C.eq.includes(+k) ? ' · 장착' : ''}</small><b>${D.name} ${k}</b><span>Lv ${o.lv || 1} · 각성 ${o.awk} · ×${o.n}</span>`; grid.append(t2);
+    // v603 모음 격자 — 가진 것은 등급 빛깔로, 아직 없는 것도 흐리게 다 보인다(무엇을 모으는지 · 얼마나 모았는지)
+    const nOwn = Object.keys(C.own).length;
+    const c1 = card(`${D.name} 모음 ${nOwn}/${D.kinds}`, `장착 ${C.eq.filter((x) => x !== null && x !== undefined).length}/${C.eq.length}`);
+    const bar = document.createElement('div'); bar.className = 'coll-bar'; bar.innerHTML = `<i style="width:${Math.round((nOwn / D.kinds) * 100)}%"></i>`; c1(bar);
+    const grid = document.createElement('div'); grid.className = 'coll-grid';
+    for (let k = 0; k < D.kinds; k++) {
+      const o = C.own[k], gr = kindGrade(sys, k), t2 = document.createElement('div'); t2.className = `coll-tile${o ? '' : ' no'}${C.eq.includes(k) ? ' on' : ''}`; t2.style.setProperty('--gc', GCOL[gr]);
+      t2.innerHTML = `<em>${o ? collGly(sys, k) : '?'}</em><b>${esc(collName(sys, k))}</b><small>${GRADES[gr]}품${o ? ` · Lv ${o.lv || 1}${o.awk ? ` · 각성 ${o.awk}` : ''}` : ''}</small>${C.eq.includes(k) ? '<u>장착</u>' : ''}`;
+      grid.append(t2);
     }
-    if (grid.children.length) c1(grid); else c1(note('아직 없어요 — 뽑기로 모아요.'));
+    c1(grid);
+    if (!nOwn) c1(note('아직 모은 것이 없어요 — 왼쪽 뽑기로 모아요. 가지기만 해도 효과가 붙고, 좋은 것은 저절로 낍니다.'));
   } else if (key === 'grow:3') {
     const R2 = g.S.realm;
     const c = card(`경지 ${R2.lv}`, '계정 공용 · 공격 · 체력');

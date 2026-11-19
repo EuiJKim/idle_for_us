@@ -141,8 +141,10 @@ const ok = (c, m, x = '') => { console.log(`  ${c ? '✓' : '✗ !!'} ${m}${x !=
     // v602 창 빈 자리 채우기 — 가로 화면이면 카드 둘이 좌우로 나뉜다(전엔 왼쪽에만 쌓임)
     { await page.evaluate(() => { const g = window.__s2.g; if (g.bossFight) g.endChallenge(false); });
       await page.click('.nb[data-tab="comp"]'); await page.waitForTimeout(500);
-      const lay = await page.evaluate(() => ({ wide: document.documentElement.classList.contains('w640up') && document.body.classList.contains('land'), xs: [...document.querySelectorAll('#wb > .card')].map((k) => Math.round(k.getBoundingClientRect().left)) }));
+      const lay = await page.evaluate(() => ({ wide: document.documentElement.classList.contains('w640up') && document.body.classList.contains('land'), xs: [...document.querySelectorAll('#wb > .card')].map((k) => k.offsetLeft) }));   // 돌린 화면(세로 폰)에서도 맞게 배치 좌표로
       ok(!lay.wide || (lay.xs.length >= 2 && lay.xs[1] > lay.xs[0] + 50), 'v602 가로 화면 — 카드 둘이 좌우로', JSON.stringify(lay));
+      const cg = await page.evaluate(() => ({ n: document.querySelectorAll('#wb .coll-tile').length, no: document.querySelectorAll('#wb .coll-tile.no').length, t: document.querySelector('#wb .coll-tile b')?.textContent, own: Object.keys(window.__s2.g.S.colls.weapon.own).length }));
+      ok(cg.n === 20 && cg.no === 20 - cg.own && cg.t === '천뢰신검', 'v603 병기 모음 격자 — 스무 칸 · 없는 것은 흐리게 · 이름', JSON.stringify(cg));
       await page.click('#panel-close'); await page.waitForTimeout(200); }
     // v595 친구에게 알리기 — 설정에서 누르면 게임 주소(폴더까지)를 공유 · 복사
     { await page.evaluate(() => { const g = window.__s2.g; if (g.bossFight) g.endChallenge(false); });

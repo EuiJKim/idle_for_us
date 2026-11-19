@@ -455,6 +455,16 @@
     /* 창: 가로면 가운데에 크게 뜬다 · 카드 두 줄 */
     html.w640up body.land #wb:has(> .card:nth-of-type(2)) { column-count: 2; column-gap: 10px; }   /* v522 카드가 하나뿐이면 한 줄 전체 · v570 실제 가로 640 넘을 때만(좁은 세로 폰에서 두 줄이면 글이 한 자씩 꺾였다) */
     body.land #wb > * { break-inside: avoid; }
+    /* v603 모음 격자(병기 · 동료 · 영물) */
+    .coll-bar { height: 5px; border-radius: 3px; background: rgba(255,255,255,.08); overflow: hidden; margin: 0 0 8px; } .coll-bar i { display: block; height: 100%; background: linear-gradient(90deg, #c9a04a, #f0d48a); }
+    .coll-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); gap: 6px; }
+    .coll-tile { position: relative; display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 6px 3px 5px; border-radius: 10px; background: rgba(255,255,255,.05); border: 1px solid color-mix(in srgb, var(--gc, #888) 55%, transparent); text-align: center; min-width: 0; }
+    .coll-tile em { font-style: normal; font-size: 22px; line-height: 34px; width: 34px; height: 34px; border-radius: 50%; color: var(--gc, #ddd); background: radial-gradient(circle at 50% 35%, color-mix(in srgb, var(--gc, #888) 38%, transparent), rgba(0,0,0,.35)); text-shadow: 0 1px 2px #000; }
+    .coll-tile b { font-size: 10.5px; color: #fff; line-height: 1.2; word-break: keep-all; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .coll-tile small { font-size: 9.5px; color: var(--gc, #aaa); line-height: 1.2; white-space: nowrap; }
+    .coll-tile u { position: absolute; top: 2px; right: 3px; font-size: 8.5px; text-decoration: none; color: #1a1408; background: #e8c26a; border-radius: 6px; padding: 0 4px; font-weight: 800; }
+    .coll-tile.on { box-shadow: 0 0 0 1px #e8c26a inset; }
+    .coll-tile.no { opacity: .42; border-style: dashed; } .coll-tile.no em { color: rgba(255,255,255,.5); background: rgba(255,255,255,.06); } .coll-tile.no b { color: rgba(255,255,255,.7); }
     /* v602 창 빈 자리 채우기 — (1) 카드가 두셋뿐일 때도 두 줄로 나뉘게(줄 수 제한 orphans/widows 때문에 왼쪽에만 쌓였다) (2) 카드가 하나뿐이면 그 안의 줄을 두 줄로 */
     html.w640up body.land #wb { orphans: 1; widows: 1; }
     html.w640up body.land #wb:not(:has(> .card:nth-of-type(2))) > .card:has(> .row:nth-of-type(4)) { display: grid; grid-template-columns: 1fr 1fr; column-gap: 8px; align-items: start; }
