@@ -252,7 +252,7 @@ async function linkGoogle() {
     else if (r.conflict) pop('이미 쓰던 Google 계정이에요', `<p class="note">${esc(r.email)} 계정에 다른 진행이 이어져 있어요. 그 계정으로 바꾸면 그쪽 새 시즌 진행을 받아 와요(이 기기 진행은 저장 코드로 남겨 두세요).</p>`, [['그대로', null], ['그 계정으로', async () => { try { const d = await net.switchTo(r.cred); if (d) applyCloud(d); else { toast('그 계정에는 새 시즌 진행이 없어요 — 지금 진행을 올려요'); cloudPush(true); } } catch (err) { toast(err?.message || '바꾸지 못했어요'); } }]]);
   } catch (err) { toast(err?.code === 'auth/popup-blocked' ? '팝업이 막혔어요 — 다시 눌러 주세요' : err?.code === 'auth/popup-closed-by-user' ? '취소했어요' : (err?.message || '연결하지 못했어요')); }
 }
-function start(job) { g = new Game(newGame(job, now(), (now() & 0x7fffffff) || 1), now()); g.S.newsV = NEWS_V; g.emit('login'); save(); boot(); }   // v560 새로 시작하면 볼 소식 없음
+function start(job) { g = new Game(newGame(job, now(), (now() & 0x7fffffff) || 1), now()); g.S.newsV = NEWS_V; g.emit('login'); save(); firstRun = true; boot(); }   // v614 firstRun — 이 판은 출석 창을 띄우지 않고 길 안내만   // v560 새로 시작하면 볼 소식 없음
 
 // ── 토스트 · 팝업 — 지금 게임과 같은 틀(#toast .toast · #modal .sheet h2 · .btn-row) ──
 function toast(t) { const d = document.createElement('div'); d.className = 'toast'; d.textContent = t; $('toast').append(d); setTimeout(() => d.remove(), 2700); }
@@ -278,7 +278,7 @@ function inviteCheck() {
     pop('문파 초대', `<p class="note">친구가 문파로 불렀어요 — 코드 <b>${esc(c)}</b></p>`, [['나중에', null], ['들어가기', () => { ensureNick(); guildDo(() => net.guildJoin(c, g.S.nick), '문파에 들어갔어요'); }]]);
   }, 1000);
 }
-function closeModal() { $('modal').classList.add('hidden'); $('modal').querySelector('.sheet').classList.remove('rets', 'retsm'); modalOne = null; }
+function closeModal() { $('modal').classList.add('hidden'); $('modal').classList.remove('first'); $('modal').querySelector('.sheet').classList.remove('rets', 'retsm'); modalOne = null; }
 // v594 알림 창 바깥(어두운 곳)을 누르면 닫힌다 — 단추가 「확인」 하나뿐이면 그 단추를 누른 것과 같게, 여럿이면 그냥 닫기(고르지 않음).
 //   창이 뜨자마자(0.3초) 누른 것은 잘못 누름으로 보고 넘긴다
 let modalOne = null, modalAt = 0;
@@ -289,7 +289,7 @@ $('modal').addEventListener('click', (e) => {
 });
 function pop(title, html, acts = [['확인', null]]) {
   const sh = $('modal').querySelector('.sheet');
-  sh.classList.toggle('wide', false); sh.classList.remove('enhs', 'attw', 'rets', 'retsm'); sh.innerHTML = `<h2>${esc(title)}</h2><div>${html}</div><div class="btn-row" style="margin-top:12px${acts.length > 3 ? ';display:grid;grid-template-columns:repeat(3,1fr)' : ''}"></div>`;
+  sh.classList.toggle('wide', false); sh.classList.remove('enhs', 'attw', 'rets', 'retsm', 'jobpick'); sh.innerHTML = `<h2>${esc(title)}</h2><div>${html}</div><div class="btn-row" style="margin-top:12px${acts.length > 3 ? ';display:grid;grid-template-columns:repeat(3,1fr)' : ''}"></div>`;
   const a = sh.querySelector('.btn-row');
   acts.forEach(([label, fn], i) => { const b = document.createElement('button'); b.className = `btn${i === acts.length - 1 ? ' primary' : ''}`; b.textContent = label; b.onclick = () => { closeModal(); fn?.(); paintHud(); paintWin(); }; a.append(b); });
   modalOne = acts.length === 1 ? () => a.firstChild.click() : null;
@@ -442,7 +442,7 @@ function navDots() {
   try { const K = h.kitState(); for (const id of Object.keys(K.lv)) { const sk = skillById(id); if (sk && h.canKitUp(id) && (W.gold || 0) >= kitCost(K.lv[id], sk.tier)[0].n) kitUp++; } } catch { /* 없음 */ }
   const cur = guideCurrent(S.q.guide), canAdv = !!h.canAdvance?.(), tree = g.treePts?.().left || 0, tix = W['ticket:gear'] || 0;
   // v520 빨간 점은 「새로 생긴 할 일」만 — 늘 켜져 있던 것(올릴 무공이 거의 늘 있다)을, 그 창을 한 번 열면 다음 새 일까지 끈다
-  const sig = { char: canAdv || tree > 0 || kitUp ? `${canAdv ? 1 : 0}|${tree}|${kitUp}|${S.hero.adv || 0}` : '', bag: tix >= 10 ? `${Math.floor(tix / 10)}` : '', town: (g.todayChest().can ? 'today' : '') || (g.shopFreeCan() ? 'shop' : '') || (g.passCan() ? 'pass' : '') || (g.bountyCan() ? `bty${g.bountyCan()}` : '') || (cur && S.q.guide[cur.id]?.done ? cur.id : '') || (g.books.ach.claimable().length ? `ach${g.books.ach.claimable().length}` : '') };
+  const sig = { char: canAdv || tree > 0 || kitUp ? `${canAdv ? 1 : 0}|${tree}|${kitUp}|${S.hero.adv || 0}` : '', bag: tix >= 10 ? `${Math.floor(tix / 10)}` : '', town: (g.canAttend() ? 'attend' : '') || (g.todayChest().can ? 'today' : '') || (g.shopFreeCan() ? 'shop' : '') || (g.passCan() ? 'pass' : '') || (g.bountyCan() ? `bty${g.bountyCan()}` : '') || (cur && S.q.guide[cur.id]?.done ? cur.id : '') || (g.books.ach.claimable().length ? `ach${g.books.ach.claimable().length}` : '') };
   if (open && sig[open] !== undefined) dotSeen[open] = sig[open];
   sig.social = socialTodo();   // v554 무림: 받을 것(주간 보상 · 문파 출석 · 토벌 단계 · 수련)
   const on = { char: !!sig.char && sig.char !== dotSeen.char, bag: !!sig.bag && sig.bag !== dotSeen.bag, town: !!sig.town, social: !!sig.social };
@@ -2771,28 +2771,115 @@ function showRaidResult(f) {
 function closeResult() { resTimer = 0; $('res').className = ''; }
 // 돌아왔을 때 대기열 — 방치 보상부터 하나씩
 // v523 무인 고르기 — 직업마다 카드(무기 든 전신 · 이름 · 싸움 방식 · 거리 · 주 능력치). 누르면 시작
+// v614 첫 화면 — 게임 이름 · 한 줄 소개 · 큰 무인 그림 · 역할 꼬리표 · 「추천」 하나(궁사: 다섯 직업 체력 · 방어는 같고 사거리가 가장 길어, 처음 30분 쓰러짐이 가장 적은 쪽)
 const JOB_INFO = {
-  sword: ['곧은 검으로 앞의 적을 벤다', '근접 · 고르게 센 기본형'],
-  spear: ['긴 창으로 멀찍이 찌르고 쓸어낸다', '근접 · 사거리 길고 여럿을 친다'],
-  fist: ['맨주먹 연타로 몰아친다', '근접 · 가장 빠른 연타'],
-  bow: ['멀리서 화살을 쏜다', '원거리 · 안전하게 먼저 친다'],
-  mage: ['지팡이로 기운을 날린다', '원거리 · 넓은 무공'],
+  sword: ['곧은 검으로 앞의 적을 벤다', '근접 · 고르게 센 기본형', '근접 · 균형'],
+  spear: ['긴 창으로 멀찍이 찌르고 쓸어낸다', '근접 · 사거리 길고 여럿을 친다', '근접 · 여럿 베기'],
+  fist: ['맨주먹 연타로 몰아친다', '근접 · 가장 빠른 연타', '근접 · 연타'],
+  bow: ['멀리서 화살을 쏜다', '원거리 · 안전하게 먼저 친다', '원거리 · 선공'],
+  mage: ['지팡이로 기운을 날린다', '원거리 · 넓은 무공', '원거리 · 광역'],
 };
+const JOB_REC = 'bow';
 const STAT_KO = { str: '힘', agi: '민첩', ene: '기운' };
 function pickJob() {
-  const cards = Object.entries(JOBS).map(([k, j]) => `<button class="btn jobcard" data-job="${k}"><canvas width="160" height="200"></canvas><b>${j.name}</b><small>${JOB_INFO[k]?.[0] || ''}</small><em>${JOB_INFO[k]?.[1] || ''} · 주 능력치 ${STAT_KO[j.main] || j.main}</em></button>`).join('');
-  pop('무인 고르기', `<p class="note">직업은 나중에 「설정 → 새로 시작」으로 바꿀 수 있어요. 다른 기기에서 하던 진행이 있으면 <a href="#" id="pj-g" class="pj-g">Google로 이어하기</a></p><div class="jobgrid">${cards}</div>`, []);
-  const sh = $('modal').querySelector('.sheet'); sh.classList.add('wide');
-  for (const b of sh.querySelectorAll('.jobcard')) b.onclick = () => { play('click'); closeModal(); sh.classList.remove('wide', 'enhs'); start(b.dataset.job); };
+  const cards = Object.entries(JOBS).map(([k, j]) => `<button class="btn jobcard${k === JOB_REC ? ' rec' : ''}" data-job="${k}">${k === JOB_REC ? '<i class="jrec">추천</i>' : ''}<canvas width="160" height="200"></canvas><b>${j.name}</b><span class="jtag">${JOB_INFO[k]?.[2] || ''}</span><small>${JOB_INFO[k]?.[0] || ''}</small><em>주 능력치 ${STAT_KO[j.main] || j.main}</em></button>`).join('');
+  pop(document.title || '무인 고르기', `<p class="jp-lead">무인 하나를 골라 강호로 — 싸움은 저절로, 키우기만 하면 돼요</p><div class="jobgrid">${cards}</div><p class="note jp-note">직업은 고른 뒤 바꿀 수 없어요(「설정 → 새로 시작」은 진행을 지워요) · 다른 기기 진행은 <a href="#" id="pj-g" class="pj-g">Google로 이어하기</a></p>`, []);
+  const sh = $('modal').querySelector('.sheet'); sh.classList.add('wide', 'jobpick'); $('modal').classList.add('first');
+  for (const b of sh.querySelectorAll('.jobcard')) b.onclick = () => { play('click'); closeModal(); sh.classList.remove('wide', 'enhs', 'jobpick'); start(b.dataset.job); };
   const pg = sh.querySelector('#pj-g');
   if (pg) pg.onclick = async (e) => { e.preventDefault(); play('click'); try { await net.init(); if (!net.online) { toast('인터넷에 연결되면 다시 눌러 주세요'); return; } const d = await net.switchTo(null); if (d) applyCloud(d); else toast('그 계정에는 새 시즌 진행이 없어요 — 무인을 골라 시작하세요(그 계정에 저장돼요)'); } catch (err) { toast(err?.code === 'auth/popup-closed-by-user' ? '취소했어요' : (err?.message || '이어하지 못했어요')); } };
   const t0 = now();
   const paint = () => {
     if (!sh.querySelector('.jobcard')) return;
-    for (const b of sh.querySelectorAll('.jobcard')) { const c = b.querySelector('canvas'), x = c.getContext('2d'); x.clearRect(0, 0, 160, 200); drawHero(x, 80, 186, b.dataset.job, 1, { t: (now() - t0) / 1000, scale: 1.55 }); }
+    for (const b of sh.querySelectorAll('.jobcard')) { const c = b.querySelector('canvas'), x = c.getContext('2d'); x.clearRect(0, 0, 160, 200); drawHero(x, 80, 194, b.dataset.job, 1, { t: (now() - t0) / 1000, scale: 2.05 }); }
     if (now() - t0 < 60000) requestAnimationFrame(paint);   // 그림이 늦게 오면 받는 대로 · 숨 쉬는 움직임
   };
   paint();
+}
+// v614 첫 판 길 안내 — 무인을 고른 바로 그 판에 세 걸음(들판 · 길잡이 · 장비). 어둡게 깔고 그 자리만 구멍(box-shadow) · 말풍선 · 「다음」/「건너뛰기」 · 밝힌 곳을 눌러도 다음.
+//   끝내거나 건너뛰면 이 기기에 적어(ifu.s2.coach = done) 다시 안 띄운다. 이미 하던 세이브(Lv 2 이상 · 처치 1 이상)로 열면 보이지 않고 끝낸 것으로.
+//   자동 시험(webdriver)에서는 window.__s2coach 가 켜져 있을 때만(다른 시험 흐름을 막지 않게)
+const COACH_KEY = 'ifu.s2.coach';
+let firstRun = false, coachStep = -1;
+const coachDone = () => { try { return localStorage.getItem(COACH_KEY) === 'done'; } catch { return true; } };
+const coachMark = () => { try { localStorage.setItem(COACH_KEY, 'done'); } catch { /* 저장 못 해도 이 판에선 끝 */ } };
+const COACH = [
+  { t: '싸움은 저절로 — 지켜보기만 해도 강해져요', el: () => $('cv'), field: true },
+  { t: '길잡이를 따라가면 보상', el: () => $('qc') },
+  { t: '장비 뽑기로 전투력을 올려요', el: () => document.querySelector('#mb .nb[data-tab="bag"]') },
+];
+const coachAllowed = () => !navigator.webdriver || !!window.__s2coach;
+function coachMaybe() {
+  if (coachDone() || !coachAllowed()) return;
+  if (!firstRun && (g.S.hero.lv > 1 || (g.S.kills || 0) > 0)) { coachMark(); return; }   // 이미 하던 세이브
+  setTimeout(() => { if (coachStep < 0 && !coachDone() && $('modal').classList.contains('hidden') && !open) coachShow(0); }, 700);
+}
+// 화면 위 사각형 — 손전화를 세로로 들어 body가 90° 돌았으면 body 안 좌표로 바꾼다
+function coachRect(st) {
+  const el = st.el(); if (!el || !el.offsetHeight) return null;
+  let r = el.getBoundingClientRect();
+  if (st.field) {   // 들판 — 무인이 서 있는 곳(가로 20~80%는 늘 무인이 있는 띠) · 위 진행 줄 아래부터 발밑까지
+    const tc = $('tc').getBoundingClientRect(), cam = window.__cam, hy = r.top + (cam ? cam[3] : r.height * 0.75);
+    const top = Math.max(tc.bottom + 8, hy - 150), bot = Math.max(top + 60, Math.min(r.bottom - 8, hy + 16));
+    r = { left: r.left + r.width * 0.2, top, right: r.right - r.width * 0.2, bottom: bot };
+  }
+  const B = document.body;
+  if (B.classList.contains('rot')) { const hb = B.offsetHeight; r = { left: r.top, top: hb - r.right, right: r.bottom, bottom: hb - r.left }; }
+  return { l: r.left, t: r.top, w: r.right - r.left, h: r.bottom - r.top };
+}
+function coachShow(i) {
+  let box = document.querySelector('#coach');
+  while (i < COACH.length && !coachRect(COACH[i])) i++;   // 숨은 것(길잡이 다 끝냄 등)은 건너뜀
+  if (i >= COACH.length) { coachEnd(); return; }
+  coachStep = i;
+  if (!box) {
+    box = document.createElement('div'); box.id = 'coach';
+    box.innerHTML = '<div class="co-hole"></div><div class="co-bub"><span class="co-n"></span><p class="co-t"></p><div class="co-acts"><button class="btn co-skip">건너뛰기</button><button class="btn primary co-next">다음</button></div></div>';
+    document.body.append(box);
+    box.querySelector('.co-next').onclick = (e) => { e.stopPropagation(); play('click'); coachShow(coachStep + 1); };
+    box.querySelector('.co-skip').onclick = (e) => { e.stopPropagation(); play('click'); coachEnd(); };
+    box.addEventListener('click', (e) => {   // 밝힌 곳을 누르면 다음 · 어두운 곳은 그냥 막는다
+      if (e.target.closest('.co-bub')) return;
+      const r = box.querySelector('.co-hole').getBoundingClientRect();
+      if (e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom) { play('click'); coachShow(coachStep + 1); }
+    });
+    addEventListener('resize', coachPlace);
+  }
+  box.querySelector('.co-n').textContent = `${i + 1} / ${COACH.length}`;
+  box.querySelector('.co-t').textContent = COACH[i].t;
+  box.dataset.step = String(i + 1);
+  coachPlace();
+  clearInterval(coachShow.iv); if (COACH[i].field) coachShow.iv = setInterval(coachPlace, 400);   // 무인이 발판을 오르내리면 따라감
+}
+function coachPlace() {
+  const box = document.querySelector('#coach'); if (!box || coachStep < 0) return;
+  const r = coachRect(COACH[coachStep]); if (!r) return;
+  const pad = 6, h = box.querySelector('.co-hole'), b = box.querySelector('.co-bub');
+  const H = { l: r.l - pad, t: r.t - pad, w: r.w + pad * 2, h: r.h + pad * 2 };
+  Object.assign(h.style, { left: `${H.l}px`, top: `${H.t}px`, width: `${H.w}px`, height: `${H.h}px` });
+  const VW = box.clientWidth, VH = box.clientHeight, bw = b.offsetWidth, bh = b.offsetHeight, gap = 10;
+  let x, y;
+  if (COACH[coachStep].field && H.t >= bh + gap + 8) { y = H.t - bh - gap; x = H.l + H.w / 2 - bw / 2; }   // 들판 — 구멍 위(무인이 가려지지 않게)
+  else if (COACH[coachStep].field) { const cam = window.__cam, hx = (cam ? cam[2] : 0) + ($('cv').getBoundingClientRect().left); x = hx < H.l + H.w / 2 ? H.l + H.w - bw - 8 : H.l + 8; y = H.t + 8; }   // 위에 자리가 없으면 구멍 안 위쪽 — 무인 반대편
+  else if (VH - (H.t + H.h) >= bh + gap + 8) { y = H.t + H.h + gap; x = H.l + H.w / 2 - bw / 2; }   // 아래
+  else if (H.t >= bh + gap + 8) { y = H.t - bh - gap; x = H.l + H.w / 2 - bw / 2; }   // 위
+  else if (VW - (H.l + H.w) >= bw + gap + 8) { x = H.l + H.w + gap; y = H.t + H.h / 2 - bh / 2; }   // 오른쪽
+  else { x = H.l - bw - gap; y = H.t + H.h / 2 - bh / 2; }   // 왼쪽
+  b.style.left = `${Math.round(Math.max(8, Math.min(VW - bw - 8, x)))}px`; b.style.top = `${Math.round(Math.max(8, Math.min(VH - bh - 8, y)))}px`;
+}
+function coachEnd() { clearInterval(coachShow.iv); coachStep = -1; coachMark(); document.querySelector('#coach')?.remove(); removeEventListener('resize', coachPlace); }
+// v614 처음 몇 걸음(길잡이 1~5) — 20초 동안 아무것도 안 누르면 길잡이 칸이 살짝 빛난다(20초마다). 절전 · 두목전 · 던전 · 창 · 알림 · 그래픽 낮음이면 안 함
+const NUDGE_MS = 20000;
+let nudgeAt = 0;
+function nudgeTick() {
+  const qc = $('qc');
+  if (!g || coachStep >= 0 || opt.gfx === 'low' || saverOn || g.bossFight || g.dg || open || !$('modal').classList.contains('hidden') || qc.classList.contains('hidden')) return false;
+  const cur = guideCurrent(g.S.q.guide), i = cur ? GUIDE.indexOf(cur) : -1;
+  if (i < 0 || i >= 5) return false;
+  const t = Date.now(); if (t - lastInput < NUDGE_MS || t - nudgeAt < NUDGE_MS) return false;
+  nudgeAt = t; qc.classList.remove('nudge'); void qc.offsetWidth; qc.classList.add('nudge');
+  setTimeout(() => qc.classList.remove('nudge'), 2600);
+  return true;
 }
 // v536 출석 — 28칸 달력. 오늘 칸이 두근거리고 「출석」을 누르면 붉은 도장이 쾅 · 보상이 날아오른다
 const attendLabel = (R) => {
@@ -2887,7 +2974,7 @@ function retHero(cv, small) {
 function returnQueue() {
   const p = g.returnCheck(now());
   const q = buildQueue([...(p ? [{ kind: 'offline', p }] : [])]);
-  if (!q.length && g.canAttend()) setTimeout(() => attendPop(), 600);   // v536 방치 보상이 없으면 바로 출석
+  if (!q.length && g.canAttend() && !firstRun) setTimeout(() => attendPop(), 600);   // v536 방치 보상이 없으면 바로 출석 · v616 무인을 막 고른 판은 띄우지 않음(임무 → 출석 · 빨간 점으로)
   if (p && opt.autoGrow && !g.bossFight && !g.dg && !open && now() - (frame.ag || 0) > 60000) agRun(now());   // 돌아오자마자 자동 성장 한 번 — 카드에 함께 보인다
   for (const it of q) if (it.kind === 'offline') {
     const p2 = it.p;
@@ -2921,6 +3008,8 @@ function boot() {
   returnQueue();
   setTimeout(newsCheck, 1500);   // v560
   inviteCheck();   // v596
+  coachMaybe();   // v614 첫 판 길 안내
+  setInterval(nudgeTick, 1000);   // v614 길잡이 살짝 빛남
   wakeSync();   // v586 화면 켜 두기
   last = now(); lastMin = now();
   requestAnimationFrame(frame);
@@ -2970,6 +3059,6 @@ load();
 if (g) boot();
 else pickJob();
 // 시험용 손잡이
-window.__s2 = { get g() { return g; }, followers: () => ({ ...followerN }), agTest: () => { frame.ag = 0; }, saverStart, saverOff, saverOn: () => saverOn, saverAge: (ms) => { if (saverFrom) saverFrom.at -= ms; }, saverSum: () => saverSum, retTest: (ms) => { const O = g.S.offline; O.lastSeen -= ms; O.clockMax -= ms; returnQueue(); }, impacts: () => impacts.length, motion: () => ({ hurt: heroHurtAt, down: heroDownAt, run: runMix, anim: heroAnim.active }), inviteTest: (c) => { inviteCode = c; inviteCheck(); }, shareGame, shareLast: () => shareLast, saverAutoTest: (on) => { saverAuto = !!on; }, wake: () => ({ lock: !!wakeLock, want: wakeWant, ok: wakeOK() }), wakeSync, wakeOpt: (on) => { opt.wake = !!on; return wakeSync(); }, saverTest: () => { saverForce = true; lastInput = -1e9; }, newsCheck, guildState, guildLoad, chatSend, worldSend, worldMsgs: () => worldState.msgs.map((m) => ({ uid: m.uid, nick: m.nick, text: m.text, lv: m.lv, job: m.job })), worldOn: () => !!worldState.unsub, worldReset: () => { worldState.lastAt = 0; worldState.lastText = ''; }, save, dayKey, attendPop, freeze: () => { frozen = true; }, net, cloudPush, rankPush, wbPush, wkStr, pvpInbox, pvpFetch, resetNetTimers: () => { pvpAt = 0; inboxAt = 0; },
+window.__s2 = { get g() { return g; }, followers: () => ({ ...followerN }), agTest: () => { frame.ag = 0; }, saverStart, saverOff, saverOn: () => saverOn, saverAge: (ms) => { if (saverFrom) saverFrom.at -= ms; }, saverSum: () => saverSum, retTest: (ms) => { const O = g.S.offline; O.lastSeen -= ms; O.clockMax -= ms; returnQueue(); }, impacts: () => impacts.length, motion: () => ({ hurt: heroHurtAt, down: heroDownAt, run: runMix, anim: heroAnim.active }), inviteTest: (c) => { inviteCode = c; inviteCheck(); }, shareGame, shareLast: () => shareLast, saverAutoTest: (on) => { saverAuto = !!on; }, wake: () => ({ lock: !!wakeLock, want: wakeWant, ok: wakeOK() }), wakeSync, wakeOpt: (on) => { opt.wake = !!on; return wakeSync(); }, saverTest: () => { saverForce = true; lastInput = -1e9; }, newsCheck, coachStep: () => coachStep, coachRect: () => (coachStep >= 0 ? coachRect(COACH[coachStep]) : null), nudgeTest: () => { lastInput = -1e9; nudgeAt = 0; return nudgeTick(); }, guildState, guildLoad, chatSend, worldSend, worldMsgs: () => worldState.msgs.map((m) => ({ uid: m.uid, nick: m.nick, text: m.text, lv: m.lv, job: m.job })), worldOn: () => !!worldState.unsub, worldReset: () => { worldState.lastAt = 0; worldState.lastText = ''; }, save, dayKey, attendPop, freeze: () => { frozen = true; }, net, cloudPush, rankPush, wbPush, wkStr, pvpInbox, pvpFetch, resetNetTimers: () => { pvpAt = 0; inboxAt = 0; },
   // v525 팝업 대신 에뮬레이터용 가짜 Google 토큰으로 잇기 · 겹치면 그 계정으로
   linkTest: async (tok) => { const r = await net.linkGoogle(tok); if (r.conflict) { const d = await net.switchTo(r.cred); if (d) applyCloud(d); return 'switched'; } await cloudPush(true); return 'linked'; } };

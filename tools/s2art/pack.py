@@ -4,10 +4,26 @@
 #   발판: 투명 여백을 잘라 내고 가로 1024로 → WebP(투명 유지) 품질 85
 #   무공 효과(fx): 검은 바탕 → 가로 768 WebP 품질 80(jobs_s2fx.json)
 #   창 줄 아이콘(ui): 투명 여백을 잘라 96 정사각 WebP 품질 84(jobs_s2ui.json)
+#   사냥터 영물(cr): 투명 여백을 잘라 긴 변 512(작은 것 384) → art/cr/<종>.webp(투명) 품질 84 · js/crbox.js에 넣을 상자를 찍는다
 #   무공 아이콘(skill): 둥근 패(진한 부분)만 잘라 128 정사각 WebP 품질 84(skillicons.py로 잘라 둔 것)
 import sys, os
 from PIL import Image
 src = sys.argv[1]; out = os.path.join(os.path.dirname(__file__), '..', '..', 'art', 's2')
+# 영물 그림 상자: [폭(애완동물 단위 — 여우 55), 발밑 y(나는 것은 위로 음수)] — 높이는 그림 비율로
+CR_FIT = {'sleopard': [66, 3.5], 'gcarp': [58, -10], 'wdeer': [62, 3.5], 'ffox': [56, 3.3], 'goat': [50, 3.5], 'raccoon': [44, 3], 'owl': [40, -16],
+          'weasel': [46, 2.5], 'sparrow': [22, -12], 'squirrel': [30, 2.5], 'rabbit': [30, 2.5], 'frog': [26, 2.5], 'cat': [44, 3], 'chick': [20, 2], 'butterfly': [28, -22]}
+if os.path.isdir(f'{src}/cr'):
+    crd = os.path.join(os.path.dirname(__file__), '..', '..', 'art', 'cr')
+    for f in sorted(os.listdir(f'{src}/cr')):
+        k = f[:-4]
+        if not f.endswith('.png') or k not in CR_FIT: continue
+        im = Image.open(f'{src}/cr/{f}').convert('RGBA'); bb = im.getchannel('A').point(lambda a: 255 if a > 24 else 0).getbbox()
+        if bb: im = im.crop(bb)
+        w, foot = CR_FIT[k]; side = 512 if w >= 36 else 384; r = side / max(im.width, im.height)
+        im = im.resize((round(im.width * r), round(im.height * r)), Image.LANCZOS)
+        im.save(f'{crd}/{k}.webp', 'WEBP', quality=84, method=6)
+        h = w * im.height / im.width
+        print(f'  {k}: [{-w / 2:.1f}, {foot - h:.1f}, {w / 2:.1f}, {foot}],   // {im.width}x{im.height} {os.path.getsize(f"{crd}/{k}.webp") // 1024}KB')
 for kind in ('bg', 'ledge', 'fx', 'mob', 'eq', 'coll', 'ui', 'skill'):
     if not os.path.isdir(f'{src}/{kind}'): continue
     os.makedirs(f'{out}/{kind}', exist_ok=True)

@@ -1,5 +1,5 @@
 // 앱 껍데기를 캐시해 오프라인에서도 열리게 한다. 온라인이면 항상 새 파일을 먼저 받는다.
-const CACHE = 'ifu-v615';
+const CACHE = 'ifu-v616';
 const SHELL = [
   './', 'index.html', 'classic.html', 's2.html', 'install.html', 'icons/qr-install.png', 'css/style.css', 'manifest.webmanifest',
   'js/clock.js', 'js/big.js', 'js/data.js', 'js/battle.js', 'js/net.js', 'js/savecode.js', 'js/art2.js', 'js/headanchor.js', 'js/chars.js', 'js/vault.js', 'js/femhead.js', 'js/fmt.js', 'js/firebase-config.js',
@@ -164,7 +164,7 @@ const SHELL = [
   'art/cr/dragon.webp', 'art/cr/dragon_m.webp', 'art/pfx/dragon.webp',
   'art/cr/eagle.png',
   'art/cr/eel.png',
-  'art/cr/fox.webp', 'art/cr/fox_m.webp', 'art/pfx/fox.webp',
+  'art/cr/fox.webp', 'art/cr/sleopard.webp', 'art/cr/gcarp.webp', 'art/cr/wdeer.webp', 'art/cr/ffox.webp', 'art/cr/goat.webp', 'art/cr/raccoon.webp', 'art/cr/owl.webp', 'art/cr/weasel.webp', 'art/cr/sparrow.webp', 'art/cr/squirrel.webp', 'art/cr/rabbit.webp', 'art/cr/frog.webp', 'art/cr/cat.webp', 'art/cr/chick.webp', 'art/cr/butterfly.webp', 'art/cr/fox_m.webp', 'art/pfx/fox.webp',
   'art/cr/fwolf.png',
   'art/cr/gape.png',
   'art/cr/gull.png',

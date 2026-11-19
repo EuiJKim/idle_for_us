@@ -2,7 +2,7 @@
 // 번호는 collnames.js 차례 그대로(0 = 가장 높은 등급).
 
 // 영물 → 그릴 동물 [모양, 크기(애완동물 기준 1), 떠다님]
-//   모양은 creatures.js CREATURES의 이름 — 그림(art/cr)이 있으면 그림, 없으면 벡터. 아래 RELIC_EXTRA는 여기서 더하는 벡터 모양
+//   모양은 creatures.js CREATURES의 이름 — 그림(art/cr)이 있으면 그림, 없으면 벡터. 아래 RELIC_EXTRA는 여기서 더하는 모양
 export const RELIC_FIELD = [
   ['yellow_m', 0.8, 1],   // 황룡
   ['phoenix_m', 1, 1],    // 봉황
@@ -36,7 +36,8 @@ export const RELIC_FIELD = [
   ['butterfly', 1, 1],    // 나비
 ];
 
-// 그림이 없는 영물 — 이미 있는 몸꼴(네발 · 새)에 빛깔만 바꿔 벡터로 그린다
+// 영물 열다섯 — 그림은 art/cr/<모양>.webp(상자는 js/crbox.js CR_BOX). 아래 벡터 모습은 그림이 오기 전(또는 못 받았을 때)만 쓰고,
+//   몸꼴(네발 · 새 · 용) · 떠다님(fly) · 걸음(gait) · 그림자 폭(len)도 여기서 읽는다
 const SMALLQ = { type: 'quad', legW: 3.2, gait: 12 };
 const SMALLB = { type: 'bird', plumes: 3, legCol: '#44403c' };
 export const RELIC_EXTRA = {

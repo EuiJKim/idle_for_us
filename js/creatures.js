@@ -474,7 +474,9 @@ export function saddleY(kind, t = 0, moving = false) {
 // v350 극의 신수는 크고 세밀하게(960px · webp) — 256색으로 줄이면 깃·비늘·금장식이 뭉개졌다
 // v366 애완동물 열 종도 고해상도 · 신화 등급은 따로 그린 겉모습(<종>_m)
 const PET_IDS = ['crane', 'fox', 'qilin', 'turtle', 'haetae', 'phoenix', 'monkey', 'dragon', 'tiger', 'yellow'];
-const CR_HI = new Set(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', ...PET_IDS, ...PET_IDS.map((k) => `${k}_m`)]);
+// v6xx 사냥터 영물 열다섯(s2/tables/relicfield.js RELIC_EXTRA)도 따로 그린 그림(webp) — 벡터 모습은 그림이 오기 전에만
+const RELIC_IDS = ['sleopard', 'gcarp', 'wdeer', 'ffox', 'goat', 'raccoon', 'owl', 'weasel', 'sparrow', 'squirrel', 'rabbit', 'frog', 'cat', 'chick', 'butterfly'];
+const CR_HI = new Set(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', ...PET_IDS, ...PET_IDS.map((k) => `${k}_m`), ...RELIC_IDS]);
 const crSrc = (kind) => `art/cr/${kind}.${CR_HI.has(kind) ? 'webp' : 'png'}`;
 const crImg = {};
 const crTried = {};

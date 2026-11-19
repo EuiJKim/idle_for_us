@@ -36,8 +36,14 @@ const ok = (c, m, x = '') => { console.log(`  ${c ? '✓' : '✗ !!'} ${m}${x !=
     await page.goto(BASE, { waitUntil: 'domcontentloaded' });
     await page.waitForSelector('#modal:not(.hidden)');
     ok((await page.$$('#modal .btn')).length === 5, '무인 고르기 — 직업 다섯');
+    { const jp = await page.evaluate(() => ({ h: document.querySelector('#modal h2')?.textContent, title: document.title, tags: [...document.querySelectorAll('#modal .jobcard .jtag')].map((x) => x.textContent), rec: [...document.querySelectorAll('#modal .jobcard .jrec')].map((x) => x.closest('.jobcard').dataset.job), note: document.querySelector('#modal .jp-note')?.textContent || '' }));
+      ok(jp.h === jp.title && jp.tags.length === 5 && jp.tags.every((t) => /^(근접|원거리) · \S/.test(t)) && jp.rec.length === 1 && /바꿀 수 없어요/.test(jp.note), 'v614 첫 화면 — 게임 이름 · 역할 꼬리표 다섯 · 추천 하나 · 직업 못 바꿈 안내', `${jp.h} · ${jp.rec} · ${jp.tags.join('/')}`); }
     await page.click('#modal .btn >> nth=0');
-    // v536 처음 들어오면 출석 창 — 출석 → 도장 → 받기 완료
+    // v614 무인을 막 고른 판은 출석 창을 띄우지 않는다(임무 빨간 점 · 출석 칸으로) · 길 안내는 자동 시험에선 안 뜸(아래 따로)
+    await page.waitForTimeout(1500);
+    ok(await page.evaluate(() => document.getElementById('modal').classList.contains('hidden') && !document.querySelector('#coach') && window.__s2.g.canAttend() && document.querySelector('.nb[data-tab="town"]').classList.contains('dot-on')), 'v614 첫 판 — 출석 창 없이 바로 들판 · 임무에 빨간 점');
+    // v536 출석 창 — 출석 → 도장 → 받기 완료(v614 첫 판은 저절로 안 뜨니 직접 연다)
+    await page.evaluate(() => window.__s2.attendPop());
     await page.waitForSelector('#modal:not(.hidden) .attg', { timeout: 4000 });
     ok((await page.$$('#modal .att')).length === 28 && await page.isVisible('#modal .att.today'), 'v536 출석 창: 28칸 · 오늘 칸');
     await page.click('#modal .btn:has-text("출석")'); await page.waitForTimeout(500);
@@ -615,8 +621,7 @@ const ok = (c, m, x = '') => { console.log(`  ${c ? '✓' : '✗ !!'} ${m}${x !=
     const errs = []; page.on('pageerror', (e) => errs.push(e.message));
     await page.goto(BASE, { waitUntil: 'domcontentloaded' });
     await page.waitForSelector('#modal:not(.hidden)'); await page.click('#modal .btn >> nth=0');
-    await page.waitForSelector('#modal:not(.hidden) .attg', { timeout: 4000 }); await page.waitForTimeout(400); await page.click('#modal .btn:has-text("나중에")');
-    await page.waitForSelector('#modal', { state: 'hidden' });
+    await page.waitForSelector('#modal', { state: 'hidden' });   // v614 첫 판은 출석 창이 안 뜬다
     await page.click('#b-opt'); await page.waitForSelector('#wb .row:has(.name:text-is("진동"))');
     const v = await page.evaluate(() => ({ has: typeof navigator.vibrate, rows: [...document.querySelectorAll('#wb .row .name')].map((x) => x.textContent) }));
     ok(v.has === 'undefined' && v.rows.includes('진동') && !v.rows.includes('진동 세기') && v.rows.length >= 8, 'v605 진동이 없는 기기 — 「진동 세기」 줄이 없다', `줄 ${v.rows.length}`);
@@ -624,6 +629,72 @@ const ok = (c, m, x = '') => { console.log(`  ${c ? '✓' : '✗ !!'} ${m}${x !=
     ok(errs.length === 0 && await page.isVisible('#wb .row:has(.name:text-is("진동"))'), 'v605 진동이 없는 기기 — 진동 줄을 눌러도 오류 없음', errs.slice(0, 2).join(' | '));
     await page.evaluate(() => window.__s2.freeze?.());
     await ctx.close();
+  }
+  // v614 첫 판 길 안내 — 자동 시험에선 window.__s2coach 를 켜야 뜬다. 세 걸음을 「다음」으로 · 구멍이 그 대상과 겹치는지 · 다시 열어도 안 뜸 · 하던 세이브엔 안 뜸 · 길잡이 살짝 빛남
+  if (!process.env.ONLY || process.env.ONLY.split(',').includes('coach')) {
+    for (const [W, H] of [[844, 390], [667, 375]]) {
+      console.log(`— 길 안내 ${W}×${H}`);
+      const ctx = await b.newContext({ viewport: { width: W, height: H }, serviceWorkers: 'block' });
+      await ctx.route(/gstatic\.com\/firebasejs/, (r) => r.abort());
+      await ctx.addInitScript(() => { window.__s2coach = true; });
+      const page = await ctx.newPage(); page.setDefaultTimeout(8000);
+      const errs = []; page.on('pageerror', (e) => errs.push(e.message));
+      await page.goto(BASE, { waitUntil: 'domcontentloaded' });
+      await page.waitForSelector('#modal:not(.hidden) .jobcard'); await page.click('#modal .jobcard >> nth=0');
+      await page.waitForSelector('#coach .co-hole', { timeout: 4000 });
+      const TGT = ['#cv', '#qc', '#mb .nb[data-tab="bag"]'], seen = [];
+      for (let i = 0; i < 3; i++) {
+        await page.waitForFunction((n) => document.querySelector('#coach')?.dataset.step === String(n), i + 1);
+        await page.waitForTimeout(350);   // 구멍이 미끄러져 자리 잡기(0.25초)
+        const r = await page.evaluate((sel) => {
+          const R = (e) => { const b = e.getBoundingClientRect(); return [b.left, b.top, b.right, b.bottom]; };
+          const hole = R(document.querySelector('#coach .co-hole')), tg = R(document.querySelector(sel)), bub = R(document.querySelector('#coach .co-bub'));
+          const shadow = getComputedStyle(document.querySelector('#coach .co-hole')).boxShadow;
+          return { hole, tg, bub, shadow, t: document.querySelector('#coach .co-t').textContent, modal: document.getElementById('modal').classList.contains('hidden'), W: innerWidth, H: innerHeight };
+        }, TGT[i]);
+        const ov = (a, c) => Math.max(0, Math.min(a[2], c[2]) - Math.max(a[0], c[0])) * Math.max(0, Math.min(a[3], c[3]) - Math.max(a[1], c[1]));
+        const area = (a) => (a[2] - a[0]) * (a[3] - a[1]);
+        const inV = (a) => a[0] >= -1 && a[1] >= -1 && a[2] <= r.W + 1 && a[3] <= r.H + 1;
+        // 들판은 #cv 안의 일부 · 나머지 둘은 대상 전체를 감싼다
+        const good = i === 0 ? ov(r.hole, r.tg) >= area(r.hole) * 0.95 && area(r.hole) > 0.12 * r.W * r.H : ov(r.hole, r.tg) >= area(r.tg) * 0.95;
+        ok(good && inV(r.hole) && inV(r.bub) && /rgba?\(0, 0, 0/.test(r.shadow) && r.modal, `v614 길 안내 ${i + 1}/3 — 구멍이 대상과 겹침 · 말풍선 화면 안 · 어둡게`, `${r.t} · 구멍 ${r.hole.map(Math.round)} · 대상 ${r.tg.map(Math.round)}`);
+        if (i > 0) ok(ov(r.hole, r.bub) === 0, `v614 길 안내 ${i + 1}/3 — 말풍선이 구멍을 가리지 않음`);
+        seen.push(r.t);
+        await page.click('#coach .co-next');
+      }
+      ok(seen[0].startsWith('싸움은 저절로') && seen[1].startsWith('길잡이') && seen[2].startsWith('장비 뽑기'), 'v614 길 안내 — 들판 · 길잡이 · 장비 순서', seen.join(' / '));
+      await page.waitForTimeout(300);
+      ok(await page.evaluate(() => !document.querySelector('#coach') && localStorage.getItem('ifu.s2.coach') === 'done' && window.__s2.coachStep() === -1), 'v614 길 안내 끝 — 사라지고 이 기기에 적힘');
+      // 길잡이 1~5 — 20초 손대지 않으면 살짝 빛남(시험 손잡이로 시간을 건너뜀)
+      ok(await page.evaluate(() => window.__s2.nudgeTest() && document.getElementById('qc').classList.contains('nudge')), 'v614 길잡이 1~5 — 가만히 있으면 길잡이 칸이 빛남');
+      // 다시 열면 안 뜸(같은 세이브 · 첫 판 아님 — 이때는 출석 창이 뜬다)
+      await page.evaluate(() => { window.__s2.save(); window.__s2.freeze(); });
+      await page.reload({ waitUntil: 'domcontentloaded' }); await page.waitForTimeout(2000);
+      ok(await page.evaluate(() => !document.querySelector('#coach') && !!window.__s2.g), 'v614 다시 열어도 길 안내는 다시 안 뜸');
+      ok(await page.isVisible('#modal .attg'), 'v614 둘째 판부터는 출석 창이 다시 뜬다');
+      // 하던 세이브(처치 1 이상)에 길 안내 기록이 없어도 안 띄우고 끝낸 것으로 적는다
+      await page.evaluate(() => { localStorage.removeItem('ifu.s2.coach'); window.__s2.save(); window.__s2.freeze(); });
+      await page.reload({ waitUntil: 'domcontentloaded' }); await page.waitForTimeout(1800);
+      ok(await page.evaluate(() => !document.querySelector('#coach') && localStorage.getItem('ifu.s2.coach') === 'done'), 'v614 이미 하던 세이브 — 길 안내 없이 끝낸 것으로');
+      ok(errs.length === 0, 'v614 길 안내 — 콘솔 오류 없음', errs.slice(0, 2).join(' | '));
+      await page.evaluate(() => window.__s2.freeze?.());
+      await ctx.close();
+    }
+    // 밝힌 곳(장비 단추)을 눌러도 다음 · 「건너뛰기」는 바로 끝
+    { const ctx = await b.newContext({ viewport: { width: 844, height: 390 }, serviceWorkers: 'block' });
+      await ctx.route(/gstatic\.com\/firebasejs/, (r) => r.abort());
+      await ctx.addInitScript(() => { window.__s2coach = true; });
+      const page = await ctx.newPage(); page.setDefaultTimeout(8000);
+      await page.goto(BASE, { waitUntil: 'domcontentloaded' });
+      await page.waitForSelector('#modal:not(.hidden) .jobcard'); await page.click('#modal .jobcard >> nth=3');
+      await page.waitForSelector('#coach .co-hole', { timeout: 4000 }); await page.waitForTimeout(350);
+      const hc = async () => { const b2 = await page.$eval('#coach .co-hole', (e) => { const r = e.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; }); await page.mouse.click(b2[0], b2[1]); await page.waitForTimeout(350); };
+      await hc();
+      ok(await page.evaluate(() => document.querySelector('#coach')?.dataset.step === '2'), 'v614 밝힌 곳을 누르면 다음 걸음');
+      await page.click('#coach .co-skip');
+      ok(await page.evaluate(() => !document.querySelector('#coach') && localStorage.getItem('ifu.s2.coach') === 'done' && !document.getElementById('panel').classList.contains('open')), 'v614 건너뛰기 — 바로 끝 · 적힘');
+      await page.evaluate(() => window.__s2.freeze?.());
+      await ctx.close(); }
   }
   await b.close();
   console.log(fails ? `\n✗ ${fails}건` : '\n✓ 새 시즌 화면 전부 통과');
