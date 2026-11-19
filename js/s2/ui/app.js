@@ -850,8 +850,8 @@ function paintWin() {
     for (const q of list) { const s = g.books[book].get(q.id); c(R(guideLabel(q), s.got ? '받음' : `${s.p}/${q.need}`, [['받기', act(() => g.claimMission(book, q.id)), !s.done || s.got]], s.got ? '✓' : s.done ? '!' : '·')); }
   } else if (key === 'mission:3') {
     const tg = (label, k, desc, ic) => R(label, desc, [[opt[k] ? '켜짐' : '꺼짐', () => { opt[k] = !opt[k]; saveOpt(); play('click'); if (k === 'bgm') bgm(chapterOf(g.zoneLv())); paintWin(); paintHud(); }]], ic);
-    const c0 = card('소리 · 진동');
-    c0(tg('효과음', 'sfx', '타격 · 무공 · 처치 · 뽑기 소리', '音'), tg('배경 가락', 'bgm', '장마다 다른 오음계 가락', '樂'), tg('진동', 'vib', '두목 패턴에 맞을 때 · 쓰러질 때(휴대폰)', '震'));
+    const c0 = card('진동');
+    c0(tg('진동', 'vib', '두목 패턴에 맞을 때 · 쓰러질 때(휴대폰)', '震'));
     const c1 = card('화면');
     c1(tg('화면 흔들림', 'shake', '큰 무공 · 두목 패턴 · 당겨짐', '搖'), tg('피해 측정기', 'dps', '들판 왼쪽 위에 초당 피해 · 분당 처치', '測'), tg('두목전 결과 자동 진행', 'autoNext', '결과 창이 3초 뒤 저절로 닫히고 다음으로', '進'), tg('절전', 'saver', '2분 동안 손대지 않으면 화면을 어둡게 · 덜 그림(사냥은 그대로)', '眠'), tg('자동 성장(방치)', 'autoGrow', '1분마다 출석 · 수련동 소탕 · 원정 · 하루 상자 · 문파 출석 · 보상 받기 · 뽑기권 쓰기(장비 · 병기 · 동료 · 영물) · 최고 장비 · 무공 · 강화 · 마스터리 · 경지(은자로 뽑지는 않아요)', '育'), ...(opt.autoGrow ? [tg('자동 성장 — 은자 쓰기', 'agGold', '끄면 은자가 드는 무공 올리기 · 강화 · 마스터리 · 경지는 건너뛰어요(보상 · 뽑기권 · 하루 일만)', '銀')] : []), tg('화면 켜 두기(방치)', 'wake', wakeOK() ? '손전화가 저절로 화면을 끄지 않게 — 켜 두면 계속 사냥(절전과 같이 쓰면 배터리 덜 씀)' : '이 브라우저는 지원하지 않아요 — 꺼져도 돌아오면 방치 보상', '燈'));   // v578 · v586
     if (document.documentElement.requestFullscreen) c1(R('전체 화면', document.fullscreenElement ? '켜짐' : '주소창 없이 화면을 다 쓴다(안드로이드 · 컴퓨터)', [[document.fullscreenElement ? '끄기' : '켜기', () => { play('click'); goFull(!document.fullscreenElement); setTimeout(paintWin, 300); }]], '全'));
@@ -1075,7 +1075,6 @@ function paintHud() {
     $('btn-boss').onclick = () => { play('click'); if (g.challenge()) toast('칸 두목 도전!'); else toast(`몹을 ${STAGE_KILLS}마리 잡으면 도전할 수 있어요`); };
     $('b-opt').onclick = () => { play('click'); openWin('opt', 0); };
     $('b-saver').onclick = (e) => { e.stopPropagation(); play('click'); setTimeout(() => saverStart(), 120); };   // v587 절전 단추(누른 손이 바로 깨우지 않게 조금 뒤)
-    $('btn-sound').onclick = () => { opt.sfx = !(opt.sfx || opt.bgm); opt.bgm = opt.sfx; saveOpt(); bgm(chapterOf(g.zoneLv())); toast(opt.sfx ? '소리 켬' : '소리 끔'); paintHud(); };
     for (const b of document.querySelectorAll('.nb[data-tab]')) b.onclick = () => { play('click'); if (open === b.dataset.tab) closeWin(); else openWin(b.dataset.tab); };
     for (const b of document.querySelectorAll('.nb[data-key]')) b.onclick = () => { play('click'); openKey(b.dataset.key); };
     $('panel-close').onclick = closeWin; $('panel-dim').onclick = closeWin; $('panel-grip').onclick = closeWin;
@@ -1093,7 +1092,6 @@ function paintHud() {
   if (lastLv && H.lv > lastLv) levelUpFx(H.lv); lastLv = H.lv;
   $('xp-txt').textContent = `EXP ${xp.toFixed(2)}%`; $('xp-fill').style.width = `${xp}%`;
   $('g-gold').textContent = unit(S.wallet.gold); $('g-tix').textContent = S.wallet['ticket:gear'] || 0;
-  $('btn-sound').classList.toggle('off', !(opt.sfx || opt.bgm));
   // 위 가운데: 장 이름 · 칸 진행(처치 n/20 → 두목 도전) · 두목전이면 두목 체력
   const ch = Math.ceil(T.idx / 10), st = ((T.idx - 1) % 10) + 1, boss = !!g.bossFight, Hh = F.hero;
   $('chap').textContent = `${ch}. ${chapterName(T.idx)}`;

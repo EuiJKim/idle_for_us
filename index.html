@@ -385,7 +385,6 @@
     .ib { position: relative; width: 41px; height: 44px; padding: 3px 0 0; border-radius: 10px; border: 0; background: rgba(0,0,0,.42); color: #fff; display: flex; flex-direction: column; align-items: center; gap: 1px; }
     .ib span { font-size: 10.5px; font-weight: 700; line-height: 1; opacity: .9; }
     .ib.active { background: rgba(212,166,74,.45); }
-    #btn-sound .x { display: none; } #btn-sound.off .x { display: inline; } #btn-sound.off .w { display: none; }
     /* 왼쪽: 길잡이 카드 · 알림 글 */
     #qc { position: absolute; z-index: 20; left: var(--sl); top: calc(var(--st) + 82px); width: 220px; text-align: left; padding: 6px 9px; border-radius: 10px; background: rgba(10,8,6,.62); border: 1px solid rgba(255,255,255,.12); color: #fff; font-size: 12px; line-height: 1.35; }
     #qc.hidden { display: none; }
@@ -561,7 +560,6 @@
         <button class="ib nb" data-tab="map"><svg class="ic" viewBox="0 0 24 24"><path d="M3 6l6-3 6 3 6-3v15l-6 3-6-3-6 3z"/><path d="M9 3v15M15 6v15"/></svg><span>지도</span></button>
         <button class="ib nb" data-tab="town"><svg class="ic" viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h4"/></svg><span>임무</span></button>
         <button class="ib nb" data-tab="social"><svg class="ic" viewBox="0 0 24 24"><path d="M5 21V3"/><path d="M5 4h12l-2.5 4L17 12H5"/></svg><span>무림</span></button>
-        <button class="ib" id="btn-sound" aria-label="소리"><svg class="ic" viewBox="0 0 24 24"><path d="M4 9h4l5-4v14l-5-4H4z"/><path class="w" d="M16.5 9a4 4 0 0 1 0 6"/><path class="x" d="M16 9l5 6M21 9l-5 6"/></svg><span>소리</span></button>
         <button class="ib" id="b-saver" aria-label="절전"><svg class="ic" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/></svg><span>절전</span></button>
         <button class="ib" id="b-opt" aria-label="설정"><svg class="ic" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg><span>설정</span></button>
       </div>

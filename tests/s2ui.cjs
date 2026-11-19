@@ -264,7 +264,7 @@ const ok = (c, m, x = '') => { console.log(`  ${c ? '✓' : '✗ !!'} ${m}${x !=
     ok(!(await page.$('.gx')), '닫기 → 연출 사라짐');
     await page.click('#panel-close');
     ok(!(await page.evaluate(() => document.getElementById('panel').classList.contains('open'))), '창 닫기');
-    await page.click('#b-opt'); ok(/설정/.test(await page.textContent('#panel-title')) && /효과음/.test(await page.textContent('#wb')), '⚙ → 설정 창'); await page.click('#panel-close');
+    await page.click('#b-opt'); ok(/설정/.test(await page.textContent('#panel-title')) && /진동/.test(await page.textContent('#wb')) && !/효과음|배경 가락/.test(await page.textContent('#wb')) && !(await page.$('#btn-sound')), '⚙ → 설정 창(v601 소리 없음)'); await page.click('#panel-close');
     await page.screenshot({ path: path.join(OUT, `s2ui-${W}.png`) });
     // 방치: 마지막 접속을 3시간 전으로 돌려 저장 → 다시 열면 방치 보상 창
     await page.evaluate(() => { const g = window.__s2.g; g.S.offline.lastSeen -= 3 * 3600e3; g.S.offline.clockMax -= 3 * 3600e3; localStorage.setItem('ifu.s2.save', g.save()); window.__s2.freeze(); });
