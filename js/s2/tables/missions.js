@@ -1,5 +1,6 @@
 // 새 시즌(S7) 길잡이 · 일일/주간 미션 · 업적 — 전부 진행 조건 엔진(core/quest.js) 한 벌로(계획서 §C · §H).
 // 사건 종류: kill(n, boss, elite) · level(lv) · gacha(n) · enhance · star(s) · dungeon(kind) · equip · skill · realm(lv) · pull(sys, n) · login · offline · sweep · pvp · wboss
+//   v612: stat(n 찍은 점수) · fate(n 고른 수) · coll(n 모은 가지) · party(n 최고 단계) · pass(n 단 · got 받은 단 수) · shop(n 산 수 · free 오늘 덤) · shard(n 바꾼 뽑기권)
 // 보상은 보상 번호(core/reward.js) — 여기선 사냥 분 상당(huntMin)과 물건 몇 개로 적는다.
 
 // 길잡이 — 한 줄로 이어짐(지금 단계만 진행). v527: 첫 30분(Lv10)에 1~8쯤 · 1차 전직(g9)은 Lv20 다음 · 첫날(Lv30) 안에 g19까지. 정예 잡기는 뽑기 바로 다음(뽑기 10번마다 정예가 나오니까).
@@ -26,6 +27,14 @@ export const GUIDE = [
   { id: 'g19', ev: 'level', cond: 'lv >= 30', need: 1, huntMin: 4 },
   { id: 'g20', ev: 'pull', cond: "sys == 3", add: 'n', need: 10, ui: 'relic', go: 'relic', huntMin: 4 },
   { id: 'g21', ev: 'level', cond: 'lv >= 50', need: 1, huntMin: 6 },
+  // v612 새 기능 둘러보기(전부 처음부터 열려 있다 · 지금 상태로 이미 했으면 받자마자 다음이 끝남 — game.achSync)
+  { id: 'g22', ev: 'stat', cond: 'n >= 1', need: 1, ui: 'stat', go: 'stat', huntMin: 2 },
+  { id: 'g23', ev: 'fate', cond: 'n >= 1', need: 1, ui: 'fate', go: 'fate', huntMin: 2 },
+  { id: 'g24', ev: 'shop', cond: 'free >= 1', need: 1, ui: 'shop', go: 'shop', huntMin: 2 },
+  { id: 'g25', ev: 'shard', add: 'n', need: 1, ui: 'shard', go: 'shard', huntMin: 2 },
+  { id: 'g26', ev: 'party', cond: 'n >= 1', need: 1, ui: 'party', go: 'party', huntMin: 3 },
+  { id: 'g27', ev: 'pass', cond: 'got >= 1', need: 1, ui: 'pass', go: 'pass', huntMin: 3 },
+  { id: 'g28', ev: 'coll', cond: 'n >= 30', need: 1, ui: 'coll', go: 'coll', huntMin: 3 },
 ];
 // 일일 미션(전부 하면 사냥 15분 상당 — tables/content.js DAILY_MISSION_MIN과 같음)
 export const DAILY_MISSIONS = [
@@ -63,13 +72,21 @@ export const ACHIEVE = {
   combo: { steps: [30, 100, 300], best: true, name: (n) => `${n} 연속 처치` },
   revenge: { steps: [1, 10, 30], name: (n) => `대결 복수 ${n}번` },
   friendly: { steps: [5, 30, 100], name: (n) => `친선 대결 ${n}번` },
+  // v612 새 기능 — 최고형은 세이브 상태 그대로(game.achSync가 분마다 · 그 일을 할 때마다 실어 보낸다) · x: 보상 배율(절반)
+  stat: { steps: [10, 30, 60, 100, 149], best: true, x: 0.5, name: (n) => `스탯 ${n}점 찍기` },
+  fate: { steps: [10, 50, 150, 400, 1000], best: true, x: 0.5, name: (n) => `기연 ${n}번 고르기` },
+  coll: { steps: [10, 25, 45, 65, 75], best: true, x: 0.5, name: (n) => `병기 · 동료 · 영물 ${n}가지 모으기` },
+  party: { steps: [3, 8, 15, 25, 40], best: true, x: 0.5, name: (n) => `동행 토벌 ${n}단계 깨기` },
+  pass: { steps: [5, 10, 20, 30], best: true, x: 0.5, name: (n) => `강호 패스 한 시즌 ${n}단` },
+  shop: { steps: [10, 50, 150, 400], add: 'n', x: 0.5, name: (n) => `상점에서 ${n}개 사기` },
+  shard: { steps: [10, 50, 200, 500], add: 'n', x: 0.5, name: (n) => `뽑기 조각으로 뽑기권 ${n}장` },
 };
 export const ACHIEVE_STEPS = Object.fromEntries(Object.entries(ACHIEVE).map(([k, v]) => [k, v.steps]));
 export function achievements() {
   const out = [];
   for (const [ev, A] of Object.entries(ACHIEVE)) A.steps.forEach((need, i) => out.push({ id: `a_${ev}_${i}`, ev, step: i, name: A.name(need),
     add: ev === 'level' || A.best ? null : A.add || null, cond: ev === 'level' ? `lv >= ${need}` : A.best ? `n >= ${need}` : A.cond || null, need: ev === 'level' || A.best ? 1 : need, best: !!A.best,
-    huntMin: 10 * (i + 1), items: { 'ticket:gear': 5 * (i + 1), 'item:stone': 30 * (i + 1) } }));
+    huntMin: Math.round(10 * (i + 1) * (A.x ?? 1)), items: { 'ticket:gear': Math.round(5 * (i + 1) * (A.x ?? 1)), 'item:stone': Math.round(30 * (i + 1) * (A.x ?? 1)) } }));
   return out;
 }
 export const dailyMissionMin = () => DAILY_MISSIONS.reduce((a, m) => a + m.huntMin, 0);

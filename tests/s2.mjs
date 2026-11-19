@@ -1349,8 +1349,8 @@ console.log('\n=== v588 자동 성장 ===');
   const r = g.autoGrow();
   ok(r.pull >= 25 && W['ticket:gear'] === 0 && g.S.gacha.pulls === pulls0 + r.pull, '뽑기권을 모두 쓴다(받은 보상의 뽑기권까지 · 은자로는 안 뽑음)', JSON.stringify(r));
   ok(r.enh > 0 && r.kit >= 0 && g.power() > pw0, '최고 장비 · 무공 · 강화로 전투력이 오른다');
-  const r2 = g.autoGrow(); ok(r2.pull === 0 && W['ticket:gear'] === 0, '뽑기권이 없으면 뽑지 않음(은자 그대로 쓰지 않음)');
-  W['ticket:gear'] = 5; const r3 = g.autoGrow({ pull: false, enh: false, kit: false }); ok(r3.pull === 0 && W['ticket:gear'] === 5, '끈 것은 하지 않음');
+  const r2 = g.autoGrow({ claim: false }); ok(r2.pull === 0 && W['ticket:gear'] === 0, '뽑기권이 없으면 뽑지 않음(은자 그대로 쓰지 않음)');   // v612 첫 번에 찍은 스탯 · 모은 가지 업적이 끝나 있어 받으면 뽑기권이 생긴다 — 받기는 끄고 본다
+  W['ticket:gear'] = 5; const r3 = g.autoGrow({ pull: false, enh: false, kit: false, claim: false }); ok(r3.pull === 0 && W['ticket:gear'] === 5, '끈 것은 하지 않음');
 }
 
 console.log('\n=== 스탯 배분 — 레벨마다 1점 ===');
@@ -1675,6 +1675,91 @@ console.log('\n=== 강호 패스 — 4주 시즌 · 놀면 점수 · 서른 단 
     const t0 = g.S.wallet['ticket:gear'] || 0, on = g.autoGrow({ daily: false, pull: false, coll: false, kit: false, enh: false, train: false, stat: false });
     ok(on.claim >= 1 && g.passCan() === 0 && g.S.wallet['ticket:gear'] === t0 + 2 && g.passState().rewards[0].state === 'got', '자동 성장: 패스 단을 받는다', JSON.stringify(on)); }
   ok(mk().today().length === 9, '오늘 할 일 목록은 그대로(패스는 넣지 않음)');
+}
+
+console.log('\n=== v612 새 기능 업적 · 길잡이(스탯 · 기연 · 모음 · 동행 · 패스 · 상점 · 뽑기 조각) ===');
+{
+  const GM = await import('../js/s2/game.js');
+  const T0 = Date.UTC(2026, 10, 19, 3);
+  const NEW = ['stat', 'fate', 'coll', 'party', 'pass', 'shop', 'shard'];
+  const A = MS.achievements(), OLD = A.filter((a) => !NEW.includes(a.ev)), NA = A.filter((a) => NEW.includes(a.ev));
+  ok(NEW.every((k) => MS.ACHIEVE[k] && MS.ACHIEVE[k].steps.length >= 4 && MS.ACHIEVE[k].steps.length <= 5 && MS.ACHIEVE[k].steps.every((v, i, s) => i === 0 || v > s[i - 1])), '새 업적 일곱 · 단계 넷~다섯 · 오름차순');
+  ok(A.length === 85 && OLD.length === 53 && NA.length === 32, '업적 단계 수 53 → 85(새 32)', `${A.length}`);
+  ok(MS.ACHIEVE.stat.steps.at(-1) === 149 && MS.ACHIEVE.coll.steps.at(-1) === 75 && MS.ACHIEVE.pass.steps.at(-1) === 30, '끝 단계 = 닿을 수 있는 끝(스탯 149 · 모음 75 · 패스 30단)');
+  const mx = (L, f) => Math.max(...L.map(f));
+  ok(mx(NA, (a) => a.huntMin) <= mx(OLD, (a) => a.huntMin) / 2 && mx(NA, (a) => a.items['ticket:gear']) <= 13 && mx(NA, (a) => a.items['item:stone']) <= 75, '새 업적 보상은 옛 것의 절반(한 단계 최대 사냥 25분 · 뽑기권 13 · 강화석 75)', `${mx(NA, (a) => a.huntMin)}분`);
+  ok(OLD.every((a) => a.huntMin === 10 * (a.step + 1) && a.items['ticket:gear'] === 5 * (a.step + 1)), '옛 업적 보상은 그대로');
+  // 길잡이 — g21 뒤에 일곱 · 모두 바로가기 · 바로가기 열쇠가 창에 있다
+  const gi = MS.GUIDE.findIndex((q) => q.id === 'g21'), NG = MS.GUIDE.slice(gi + 1);
+  ok(NG.map((q) => q.id).join() === 'g22,g23,g24,g25,g26,g27,g28' && NG.map((q) => q.ev).join() === 'stat,fate,shop,shard,party,pass,coll', '길잡이 g22~g28: 스탯 → 기연 → 덤 → 조각 → 동행 → 패스 → 모음', NG.map((q) => q.ev).join());
+  const app = fs.readFileSync(new URL('../js/s2/ui/app.js', import.meta.url), 'utf8');
+  const gk = Object.fromEntries([...app.match(/const goKey = \(go\) => \(\{([^}]*)\}/)[1].matchAll(/(\w+): '([a-z]+:\d)'/g)].map((m) => [m[1], m[2]]));
+  const tabKeys = new Set([...app.match(/const TABS = \[([\s\S]*?)\n\];/)[1].matchAll(/'([a-z]+:\d)'/g)].map((m) => m[1]));
+  ok(NG.every((q) => q.go && gk[q.go] && tabKeys.has(gk[q.go])) && MS.GUIDE.filter((q) => q.go).every((q) => tabKeys.has(gk[q.go])), '길잡이 바로가기 열쇠가 모두 창 칸으로 풀린다', NG.map((q) => `${q.go}→${gk[q.go]}`).join(' '));
+  ok(gk.stat === 'hero:0' && gk.shop === 'shop:0' && gk.pass === 'pass:0' && gk.party === 'party:0', '스탯 · 상점 · 패스 · 동행 열쇠');
+  const mk = (seed = 7, L = 40) => { const g = new Game(newGame('sword', T0, seed), T0); g.addExp(EX.cumExp(L)); g.tick(T0); return g; };
+  const B = (g) => g.books.ach, dn = (g, id) => !!B(g).get(id).done;
+  const prefix = (g, ev) => { const L = A.filter((a) => a.ev === ev).map((a) => dn(g, a.id)), k = L.indexOf(false); return k === -1 || L.slice(k).every((x) => !x); };
+  // 스탯
+  { const g = mk(); ok(!dn(g, 'a_stat_0'), '스탯: 찍기 전에는 아님');
+    g.statUp('atk', 9); ok(!dn(g, 'a_stat_0'), '스탯 9점 — 아직'); g.statUp('hp', 1); ok(dn(g, 'a_stat_0') && !dn(g, 'a_stat_1'), '스탯 10점 찍으면 첫 단계');
+    g.statAuto(); ok(g.hero.spUsed() === 39 && dn(g, 'a_stat_1') && !dn(g, 'a_stat_2') && prefix(g, 'stat'), '고르게 찍기로 39점 → 30점 단계까지(차례대로)');
+    const ag = g.autoGrow({ daily: false, pull: false, coll: false, kit: false, enh: false, train: false });
+    ok(B(g).get('a_stat_0').got && B(g).get('a_stat_1').got && ag.claim >= 2, '자동 성장이 받는다', `${ag.claim}`); }
+  // 기연
+  { const g = mk(); for (let i = 0; i < 9; i++) { g.fateKill(GM.FATE_NEED); g.fateOpen(); g.fatePick(1); }
+    ok(g.S.fate.n === 9 && !dn(g, 'a_fate_0'), '기연 9번 — 아직');
+    g.feed.length = 0; g.fateKill(GM.FATE_NEED); g.fateOpen(); g.fatePick(2); ok(dn(g, 'a_fate_0') && !dn(g, 'a_fate_1') && g.feed.some((f) => f.k === 'ach' && f.id === 'a_fate_0'), '기연 10번 고르면 첫 단계 · 알림'); }
+  // 모음
+  { const g = mk(); for (const s of GM.COLLECTS) g.S.wallet[`ticket:${s}`] = 500;
+    let i = 0; while (g.collKinds() < 10 && i++ < 50) g.pullCollect(GM.COLLECTS[i % 3], 1);
+    ok(g.collKinds() >= 10 && dn(g, 'a_coll_0') && dn(g, 'a_coll_1') === g.collKinds() >= 25, '모음 10가지 → 첫 단계', `${g.collKinds()}가지`);
+    for (let j = 0; j < 30; j++) for (const s of GM.COLLECTS) g.pullCollect(s, 10);
+    const k = g.collKinds(); ok(MS.ACHIEVE.coll.steps.every((v, j) => dn(g, `a_coll_${j}`) === k >= v) && g.achBest('coll') === k, '모음 가지 수 = 단계(차례대로) · 창 진행 값', `${k}가지`); }
+  // 동행 토벌
+  { const g = mk(3, 60); g.fighter = () => refPlayer(60, 'sword'); g.S.party = { day: GM.dayKey(T0), runs: 0, best: 2 }; g.minute();
+    ok(!dn(g, 'a_party_0') && g.achBest('party') === 2, '동행 2단계 — 아직');
+    const r = g.partyFight(3, []); ok(r && r.cleared && g.S.party.best === 3 && dn(g, 'a_party_0') && !dn(g, 'a_party_1'), '동행 3단계를 깨면 첫 단계', JSON.stringify(r && r.cleared)); }
+  // 강호 패스(한 시즌 단)
+  { const g = mk(); const P = g.passSt(); P.pts = 495; g.minute(); ok(!dn(g, 'a_pass_0') && g.achBest('pass') === 4, '패스 4단 — 아직');
+    g.books.daily.get('d_kill').done = true; g.claimMission('daily', 'd_kill'); ok(g.passState().tier === 5 && dn(g, 'a_pass_0') && !dn(g, 'a_pass_1'), '임무 받기로 5단 → 첫 단계(단이 오를 때 바로)'); }
+  // 상점
+  { const g = mk(); g.S.wallet.gold = 1e12; g.shopBuy('free'); g.shopBuy('gear', 5); g.shopBuy('stone', 3);
+    ok(B(g).get('a_shop_0').p === 9 && !dn(g, 'a_shop_0'), '상점 9개 — 아직', `${B(g).get('a_shop_0').p}`);
+    g.shopBuy('exped'); ok(dn(g, 'a_shop_0') && B(g).get('a_shop_1').p === 10 && !dn(g, 'a_shop_1'), '10개 사면 첫 단계 · 다음 단계도 10부터');
+    g.minute(); ok(B(g).get('a_shop_1').p === 10, '분마다 맞추기는 산 수를 늘리지 않는다'); }
+  // 뽑기 조각
+  { const g = mk(); g.S.wallet['item:shard'] = GS.SHARD_PER_TICKET * 9; g.shardExchange(); ok(B(g).get('a_shard_0').p === 9 && !dn(g, 'a_shard_0'), '조각 → 뽑기권 9장 — 아직');
+    g.S.wallet['item:shard'] = GS.SHARD_PER_TICKET * 3; g.shardExchange(); ok(dn(g, 'a_shard_0') && B(g).get('a_shard_1').p === 12, '12장 → 첫 단계'); }
+  // 길잡이 g22 ~ g28을 실제로 해 보기
+  { const g = mk(5, 60); g.fighter = () => refPlayer(60, 'sword');
+    for (const q of MS.GUIDE.slice(0, gi + 1)) g.S.q.guide[q.id] = { p: q.need, done: true, got: true };
+    const cur = () => MS.guideCurrent(g.S.q.guide)?.id, done = () => !!g.S.q.guide[cur()]?.done, steps = [];
+    const step = (want, fn) => { const c = cur(), d0 = done(); fn(); const d1 = done(); steps.push(`${c}:${d0 ? 1 : 0}${d1 ? 1 : 0}`); return c === want && !d0 && d1 && !!g.claimGuide(); };
+    g.minute();
+    ok(cur() === 'g22' && !done(), '길잡이 g21 다음은 g22(스탯) · 안 했으면 기다림');
+    ok(step('g22', () => g.statUp('atk', 1)), 'g22 스탯 찍기');
+    ok(step('g23', () => { g.fateKill(GM.FATE_NEED); g.fateOpen(); g.fatePick(0); }), 'g23 기연 고르기');
+    ok(step('g24', () => g.shopBuy('free')), 'g24 상점 덤');
+    ok(step('g25', () => { g.S.wallet['item:shard'] = GS.SHARD_PER_TICKET; g.shardExchange(); }), 'g25 조각 바꾸기');
+    ok(step('g26', () => g.partyFight(1, [])), 'g26 동행 1단계');
+    ok(step('g27', () => { g.passSt().pts = 100; g.passClaim(1); }), 'g27 패스 보상 받기');
+    for (const s of GM.COLLECTS) g.S.wallet[`ticket:${s}`] = 400;
+    ok(step('g28', () => { for (let j = 0; j < 30 && g.collKinds() < 30; j++) for (const s of GM.COLLECTS) g.pullCollect(s, 10); }), 'g28 모음 30가지');
+    ok(cur() === undefined, '길잡이 끝', steps.join(' ')); }
+  // 이미 해 둔 무인 — 길잡이를 받자마자 상태로 끝난 다음 단계가 끝나고 자동 성장이 줄줄이 받는다
+  { const g = mk(6, 60); g.statAuto(); g.S.fate = { n: 12 }; g.S.party = { day: GM.dayKey(T0), runs: 0, best: 9 }; g.passSt().pts = 1000; g.passClaim(1); g.shopBuy('free');
+    for (const q of MS.GUIDE.slice(0, gi + 1)) g.S.q.guide[q.id] = { p: q.need, done: true, got: true };
+    g.S.q.guide.g21 = { p: 1, done: true, got: false };
+    g.claimGuide(); ok(MS.guideCurrent(g.S.q.guide)?.id === 'g22' && g.S.q.guide.g22?.done, '길잡이를 받으면 상태로 이미 한 다음 단계가 바로 끝남');
+    const ag = g.autoGrow({ daily: false, pull: false, coll: false, kit: false, enh: false, train: false });
+    ok(['g22', 'g23', 'g24'].every((id) => g.S.q.guide[id]?.got) && MS.guideCurrent(g.S.q.guide)?.id === 'g25', '자동 성장: g22 · g23 · g24를 받고 g25(조각 — 바꿔야 끝)에서 기다림', `지금 ${MS.guideCurrent(g.S.q.guide)?.id}`);
+    ok(['a_stat_1', 'a_fate_0', 'a_party_1', 'a_pass_1'].every((id) => B(g).get(id).got) && !B(g).get('a_party_2').done && !B(g).get('a_stat_2').done, '자동 성장이 새 업적(스탯 30 · 기연 10 · 동행 8 · 패스 10)을 받는다 — 스탯 59점은 60 단계 아님', `${ag.claim}`); }
+  // 옛 세이브 — 새 칸이 없어도 열리고 · 저장 → 불러오기
+  { const S = newGame('sword', T0, 8); delete S.fate; delete S.party; delete S.pass; delete S.shop; delete S.hero.sp; S.q = { guide: {}, daily: {}, weekly: {}, ach: { a_kill_0: { p: 5, done: false, got: false } } };
+    const g = new Game(S, T0); let err = null; try { g.tick(T0); g.minute(); g.autoGrow(); g.achBest('pass'); } catch (e) { err = e; }
+    const g2 = Game.load(g.save(), T0 + 1000);
+    ok(!err && g2.signed && g2.books.ach.get('a_kill_0').p >= 5 && g2.achBest('fate') === 0 && g2.achBest('party') === 0, '옛 세이브(새 칸 없음)도 돌고 저장 · 불러오기', String(err)); }
 }
 
 console.log('\n=== v609 자동 성장 — 은자 아끼기여도 스탯은 찍는다 ===');

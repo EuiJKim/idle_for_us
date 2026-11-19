@@ -141,8 +141,8 @@ export class Game {
   }
   // 스탯 배분 — 레벨마다 1점. 남은 점수 · 찍기 · 고르게 찍기 · 되돌리기(공짜)
   statPts() { return this.hero.spFree(); }
-  statUp(key, n = 1) { const r = this.hero.spUp(key, n); if (r) this.dirtyStats = true; return r; }
-  statAuto() { const r = this.hero.spAuto(); if (r) this.dirtyStats = true; return r; }
+  statUp(key, n = 1) { const r = this.hero.spUp(key, n); if (r) { this.dirtyStats = true; this.emit('stat', { n: this.hero.spUsed() }); } return r; }
+  statAuto() { const r = this.hero.spAuto(); if (r) { this.dirtyStats = true; this.emit('stat', { n: this.hero.spUsed() }); } return r; }
   statReset() { const r = this.hero.spReset(); if (r) this.dirtyStats = true; return r; }
   // v537 칭호 수집 효과 — 얻은 칭호 수만큼
   titleSources() { const n = (this.S.titles || []).filter((t) => titleByName(t)).length; return n ? [{ src: 'title', stats: Object.fromEntries(Object.entries(TITLE_EACH).map(([k, v]) => [k, v * n])) }] : []; }
@@ -269,7 +269,24 @@ export class Game {
     if (cur.items) gain(this.S.wallet, Object.entries(cur.items).map(([k, n]) => ({ k, n })));
     // 다음 단계가 지금 상태로 이미 끝나 있으면(레벨 등) 바로 끝남 표시
     this.emit('level', { lv: this.S.hero.lv });
+    this.achSync();
     return cur;
+  }
+  // v612 상태로 정해지는 업적 · 길잡이(스탯 · 기연 · 모음 · 동행 · 패스 · 오늘 덤) — 지금 값을 사건으로 실어 보낸다(분마다 · 길잡이 받을 때). 옛 세이브도 이미 한 만큼 바로 오른다
+  collKinds() { return COLLECTS.reduce((a, s) => a + Object.keys(this.S.colls[s]?.own || {}).length, 0); }
+  passTier() { return Math.min(PASS.tiers, Math.floor(this.passSt().pts / PASS.need)); }
+  achSync() {
+    this.emit('stat', { n: this.hero.spUsed() });
+    this.emit('fate', { n: this.fate().n });
+    this.emit('coll', { n: this.collKinds() });
+    this.emit('party', { n: this.partyRec().best });
+    this.emit('pass', { n: this.passTier(), got: this.passSt().got.length });
+    this.emit('shop', { n: 0, free: this.shopFreeCan() ? 0 : 1 });
+  }
+  // 최고형 업적의 지금 값(업적 창 진행 막대)
+  achBest(ev) {
+    return ev === 'combo' ? this.S.comboBest || 0 : ev === 'stat' ? this.hero.spUsed() : ev === 'fate' ? this.fate().n : ev === 'coll' ? this.collKinds()
+      : ev === 'party' ? this.partyRec().best : ev === 'pass' ? this.passTier() : 0;
   }
   claimMission(book, id) {
     const B = this.books[book], d = B.defs.get(id);
@@ -500,7 +517,7 @@ export class Game {
     OF.touch(S.offline, nowMs);
   }
   // 1분마다 돌발 미션 판정(화면이 부른다)
-  minute() { const s = ID.suddenTick(this.S.sudden, this.rng, this.now); if (s) this.feed.push({ k: 'sudden', need: s.need }); return s; }
+  minute() { const s = ID.suddenTick(this.S.sudden, this.rng, this.now); if (s) this.feed.push({ k: 'sudden', need: s.need }); this.achSync(); return s; }
 
   // ── 장비 ──
   // v565 외형 — 부위마다 보일 등급(얻어 본 등급까지) · 비워 두면 낀 장비대로. 능력치와 상관없음
@@ -541,6 +558,7 @@ export class Game {
     const W = this.S.wallet, n = Math.floor((W['item:shard'] || 0) / SHARD_PER_TICKET);
     if (n < 1) return null;
     W['item:shard'] -= n * SHARD_PER_TICKET; W['ticket:gear'] = (W['ticket:gear'] || 0) + n;
+    this.emit('shard', { n });
     return { tickets: n, left: W['item:shard'] };
   }
   enhance(slot) { const r = GR.enhance(this.S.gear, slot, this.rng, this.S.wallet, this.S.hero.lv); if (r !== null) this.emit("enhance"); if (r) this.dirtyStats = true; return r; }
@@ -584,6 +602,7 @@ export class Game {
     if (c.k === 'exp') this.addExp(c.n);
     else this.S.wallet[c.k] = (this.S.wallet[c.k] || 0) + c.n;
     f.cards = null; f.ready--; f.n++;
+    this.emit('fate', { n: f.n });
     return c;
   }
   // v588 자동 성장(방치) — 받을 보상 받기 · 장비 뽑기권 쓰기 · 최고 장비 끼기 · 무공 모두 올리기 · 모두 강화. 은자로 뽑지는 않는다(뽑기권만)
@@ -665,6 +684,7 @@ export class Game {
     if (!got) return null;
     CL.autoAwaken(C); CL.autoEquip(C); this.dirtyStats = true;
     this.emit('pull', { sys: COLLECTS.indexOf(sys) + 1, n });
+    this.emit('coll', { n: this.collKinds() });
     return got;
   }
   // ── 무공 강화 트리 ── 점수는 레벨 · 가장 멀리 간 칸에서
@@ -758,6 +778,7 @@ export class Game {
     const give = Object.fromEntries(Object.entries(s.give).map(([k, v]) => [k, v * n]));
     gain(this.S.wallet, Object.entries(give).map(([k, v]) => ({ k, n: v })));
     T.bought[id] = (T.bought[id] || 0) + n;
+    this.emit('shop', { n, free: T.bought[SHOP_FREE] > 0 ? 1 : 0 });
     return { give, gold, n };
   }
   canDungeon(type, kind) {
@@ -935,6 +956,7 @@ export class Game {
       W['ticket:gear'] = (W['ticket:gear'] || 0) + RW.tix; W['item:stone'] = (W['item:stone'] || 0) + RW.stones;
       if (RW.pal) W['ticket:pal'] = (W['ticket:pal'] || 0) + RW.pal;
       rewards = { tix: RW.tix, stones: RW.stones, pal: RW.pal, first };
+      this.emit('party', { n: P.best });   // v612 업적 · 길잡이
     }
     return { cleared: r.cleared, timeMs: r.timeMs, share, rewards, tier, lv, dmg: r.dmg, hp0: r.hp0, deaths: r.deaths, left: PARTY.runsPerDay - P.runs,
       allies: team.map((a) => ({ name: a.name, job: a.f.job, lv: a.f.lv, lk: a.lk || null })) };
@@ -1010,7 +1032,9 @@ export class Game {
   // 점수 더하기(안에서만 부른다) — 하루 상한 · 시즌 끝(서른 단)까지만 → 실제로 오른 점수
   passAdd(n) {
     const P = this.passSt(), add = Math.max(0, Math.min(Math.floor(n) || 0, PASS.dayCap - P.dayPts, PASS.tiers * PASS.need - P.pts));
+    const t0 = Math.floor(P.pts / PASS.need);
     P.pts += add; P.dayPts += add;
+    if (Math.floor(P.pts / PASS.need) > t0) this.emit('pass', { n: this.passTier(), got: P.got.length });   // v612 단이 오르면 업적
     return add;
   }
   passState() {
@@ -1024,6 +1048,7 @@ export class Game {
     const P = this.passSt(), R = PASS_REWARDS[tier - 1], W = this.S.wallet;
     if (!Number.isInteger(tier) || !R || tier > Math.floor(P.pts / PASS.need) || P.got.includes(tier)) return null;
     P.got.push(tier);
+    this.emit('pass', { n: this.passTier(), got: P.got.length });
     const out = { tier, give: {}, gold: 0 };
     for (const [k, n] of Object.entries(R)) {
       if (k === 'goldMin') { out.gold = Math.round(n * KILLS_PER_MIN * goldPerMob(this.S.hero.lv)); W.gold = (W.gold || 0) + out.gold; }

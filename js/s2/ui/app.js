@@ -67,7 +67,7 @@ const now = () => Date.now();
 const fmt = (n) => { n = Math.floor(n || 0); if (n >= 1e12) return (n / 1e12).toFixed(1) + '조'; if (n >= 1e8) return (n / 1e8).toFixed(1) + '억'; if (n >= 1e4) return (n / 1e4).toFixed(1) + '만'; return String(n); };
 const left = (endMs) => { const s = Math.max(0, Math.ceil((endMs - now()) / 1000)); return s >= 3600 ? `${Math.floor(s / 3600)}시간 ${Math.floor(s % 3600 / 60)}분` : s >= 60 ? `${Math.floor(s / 60)}분 ${s % 60}초` : `${s}초`; };
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-const GUIDE_TEXT = { kill: '몹 잡기', level: '레벨 올리기', equip: '장비 끼기', gacha: '장비 뽑기', skill: '무공 올리기', enhance: '장비 강화', dungeon: '던전 깨기', pull: '뽑기', star: '성혼', offline: '방치 보상 받기', realm: '경지 올리기', login: '접속하기', wboss: '월드보스 도전', pvp: '대결 하기' };   // v522 일일 · 주간 임무에 영문 id가 보이던 것
+const GUIDE_TEXT = { kill: '몹 잡기', level: '레벨 올리기', equip: '장비 끼기', gacha: '장비 뽑기', skill: '무공 올리기', enhance: '장비 강화', dungeon: '던전 깨기', pull: '뽑기', star: '성혼', offline: '방치 보상 받기', realm: '경지 올리기', login: '접속하기', wboss: '월드보스 도전', pvp: '대결 하기', stat: '스탯 점수 찍기', fate: '기연 하나 고르기', shop: '상점에서 덤 받기', shard: '분해 조각을 뽑기권으로', party: '동행 토벌 1단계 깨기', pass: '강호 패스 보상 받기' };   // v522 일일 · 주간 임무에 영문 id가 보이던 것
 const MASTERY_NAME = ['기본기', '호흡법', '보법', '연환', '내공 순환', '신법', '절초', '심법 대성', '신행', '화경', '검기 성강', '등봉조극'];
 const guideLabel = (q) => {
   if (q.ev === 'level') return `Lv ${q.cond.split('>=')[1].trim()} 달성`;
@@ -79,6 +79,7 @@ const guideLabel = (q) => {
   if (q.ev === 'login') return q.need > 1 ? `${q.need}일 접속` : '오늘 접속';
   if (q.ev === 'kill' && !q.cond) return `몹 ${q.need}마리 잡기`;
   if (q.ev === 'gacha') return `장비 뽑기 ${q.need}번`;
+  if (q.ev === 'coll') return `병기 · 동료 · 영물 ${q.cond.split('>=')[1].trim()}가지 모으기`;
   return `${GUIDE_TEXT[q.ev] || q.ev}${q.need > 1 ? ` ${q.need}번` : ''}`;
 };
 
@@ -982,8 +983,8 @@ function paintWin() {
     const c1 = card('목록', '단계를 깨면 다음 단계가 열려요');
     for (const ev of Object.keys(ACHIEVE)) {
       const list = ACH.filter((a) => a.ev === ev), cur = list.find((a) => !B.get(a.id).got) || list.at(-1), st = B.get(cur.id), all = list.every((a) => B.get(a.id).got);
-      const pr = ev === 'level' ? Math.min(1, g.S.hero.lv / +cur.cond.split('>=')[1]) : cur.best ? (st.done ? 1 : Math.min(1, (g.S.comboBest || 0) / +cur.cond.split('>=')[1])) : Math.min(1, (st.p || 0) / cur.need);
-      const progTxt = ev === 'level' ? `Lv ${g.S.hero.lv} / ${cur.cond.split('>=')[1].trim()}` : cur.best ? (st.done ? '달성' : `최고 ${unit(g.S.comboBest || 0)} / ${cur.cond.split('>=')[1].trim()}`) : `${unit(st.p || 0)} / ${unit(cur.need)}`;   // v571 최고형
+      const pr = ev === 'level' ? Math.min(1, g.S.hero.lv / +cur.cond.split('>=')[1]) : cur.best ? (st.done ? 1 : Math.min(1, g.achBest(ev) / +cur.cond.split('>=')[1])) : Math.min(1, (st.p || 0) / cur.need);
+      const progTxt = ev === 'level' ? `Lv ${g.S.hero.lv} / ${cur.cond.split('>=')[1].trim()}` : cur.best ? (st.done ? '달성' : `${ev === 'combo' ? '최고 ' : ''}${unit(g.achBest(ev))} / ${cur.cond.split('>=')[1].trim()}`) : `${unit(st.p || 0)} / ${unit(cur.need)}`;   // v571 최고형
       const r = R(`${esc(cur.name)} <small>${list.filter((a) => B.get(a.id).got).length}/${list.length}단계</small>`,
         all ? '모두 끝냄' : `<div class="achbar"><i style="width:${pr * 100}%"></i><span>${progTxt}</span></div>보상 장비 뽑기권 ${cur.items['ticket:gear']} · 강화석 ${cur.items['item:stone']} · 사냥 ${cur.huntMin}분`,
         all ? [] : [['받기', act(() => g.claimMission('ach', cur.id)), !(st.done && !st.got)]], st.done && !st.got ? '★' : '功');
@@ -1473,9 +1474,10 @@ function onGuide() {
   const cur = guideCurrent(g.S.q.guide), cs = cur && g.S.q.guide[cur.id];
   if (!cur) { const td = todayNext(); if (td) { play('click'); openKey(td.go); } return; }
   if (cs?.done) { const g0 = g.S.wallet.gold, r = g.claimGuide(); if (r) { const dg = g.S.wallet.gold - g0; toast(`길잡이 ${r.id.slice(1)} 보상${dg > 0 ? ` · 은자 +${unit(dg)}` : ''}${r.items ? ' · 물건' : ''}`); play('loot'); coinFly($('qc'), $('g-gold'), 8); } save(); paintHud(); }
+  else if (cur.go === 'fate' && g.fateState().ready > 0) { play('click'); fatePop(); }   // 기연 — 카드가 있으면 바로 고르기(없으면 사냥 칸으로)
   else if (cur.go) openKey(goKey(cur.go));
 }
-const goKey = (go) => ({ gear: 'gear:0', gacha: 'gear:1', skill: 'hero:1', slot: 'gear:2', job: 'hero:3', pal: 'grow:1', weapon: 'grow:0', relic: 'grow:2', daily: 'content:0', realm: 'grow:3', hunt: 'content:3' }[go] || 'mission:0');
+const goKey = (go) => ({ gear: 'gear:0', gacha: 'gear:1', skill: 'hero:1', slot: 'gear:2', job: 'hero:3', pal: 'grow:1', weapon: 'grow:0', relic: 'grow:2', daily: 'content:0', realm: 'grow:3', hunt: 'content:3', stat: 'hero:0', fate: 'content:3', shop: 'shop:0', shard: 'gear:3', party: 'party:0', pass: 'pass:0', coll: 'grow:0' }[go] || 'mission:0');
 
 // ── 옆보기 사냥 화면 ──
 const cv = $('cv'), cx = cv.getContext('2d');
