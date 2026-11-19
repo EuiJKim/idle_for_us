@@ -395,6 +395,37 @@ const ok = (c, m, x = '') => { console.log(`  ${c ? '✓' : '✗ !!'} ${m}${x !=
       await page.evaluate(() => { const g = window.__s2.g, T = window.__t, W = g.S.wallet, D = g.books.daily; delete g.today; g.S.todayGot = T.tg ?? undefined;
         for (const k of Object.keys(D.st)) delete D.st[k]; Object.assign(D.st, JSON.parse(T.daily)); for (const k of Object.keys(W)) delete W[k]; Object.assign(W, JSON.parse(T.wallet)); delete window.__t; });
       await page.click('#panel-close'); await free(a2); }
+    // v6xx 수련동 · 원정 그림 카드 — 카드 넷(장 배경 그림이 뜬다) · Lv 1이면 넷 다 잠김 덮개 · 입장권 큰 숫자 · 원정 출발 → 남은 시간이 1초마다 줄어듦 · 시간이 지나면 받기 · 창을 닫으면 시계 멈춤
+    { const a0 = await hold();
+      await page.evaluate(() => { const g = window.__s2.g; window.__t = { lv: g.S.hero.lv, exp: g.S.hero.exp, exped: JSON.stringify(g.S.exped), wallet: JSON.stringify(g.S.wallet) }; });
+      await page.click('#mb .nb[data-tab="dgn"]'); await sub('수련동'); await page.waitForSelector('#wb .row.dg-card');
+      await page.evaluate(() => { const g = window.__s2.g; g.S.hero.lv = 1; g.S.hero.exp = 0; document.querySelector('#panel-body .subtabs button.on').click(); window.__t.lock = [...document.querySelectorAll('#wb .row.dg-card .dg-lockov')].map((e) => e.textContent); });   // Lv 1로 두고 같은 자리에서 다시 그려 읽음(사냥으로 레벨이 오르기 전에)
+      const d0 = await until(() => page.evaluate(() => { const cs = [...document.querySelectorAll('#wb .row.dg-card')]; cs.forEach((c) => c.querySelector('.dg-bg').loading = 'eager');
+        return { n: cs.length, imgs: cs.filter((c) => { const i = c.querySelector('.dg-bg'); return i.complete && i.naturalWidth > 0; }).length, lock: window.__t.lock, ov: cs.filter((c) => c.classList.contains('dg-lock') && getComputedStyle(c.querySelector('.dg-lockov')).position === 'absolute').length,
+          ent: cs.map((c) => `${c.querySelector('.btn').textContent}${c.querySelector('.btn').disabled ? '(잠김)' : ''}`).join(), tix: document.querySelector('#wb .dg-tix > div > b')?.textContent, rg: document.querySelector('#wb .dg-rg')?.textContent || '', sweep: document.querySelector('#wb .row.dg-sweep .btn')?.textContent, iv: window.__s2.dgIv() }; }), (v) => v.imgs === 4);
+      ok(d0.n === 4 && d0.imgs === 4 && d0.lock.length === 4 && d0.lock[0] === 'Lv 20부터 · 지금 Lv 1' && d0.ov >= 1 && d0.ent === '입장(잠김),입장(잠김),입장(잠김),입장(잠김)', 'v6xx 수련동 카드 넷 — 그림이 뜬다 · Lv 1이면 잠김 덮개 「Lv 20부터 · 지금 Lv 1」', JSON.stringify(d0));
+      ok(/^\d+\/12$/.test(d0.tix) && /2시간마다 1/.test(d0.rg) && d0.sweep === '모두 소탕' && d0.iv, 'v6xx 위에 입장권 큰 숫자 · 2시간마다 1 · 「모두 소탕」 · 창이 열린 동안 시계', `${d0.tix} · ${d0.rg}`);
+      await page.evaluate(() => { const g = window.__s2.g; g.S.hero.lv = window.__t.lv; g.S.hero.exp = window.__t.exp; g.dirtyStats = true; g.S.exped.run = null; g.S.wallet['ticket:exped'] = 1; });
+      await sub('원정'); await page.waitForSelector('#wb .row.dg-tile');
+      const tl = await page.evaluate(() => [...document.querySelectorAll('#wb .row.dg-tile')].map((t) => `${t.dataset.h}:${t.querySelector('.btn').textContent}:${/^\S+$/.test(t.querySelector('.dg-chips span').textContent) ? 'ok' : 'x'}`).join(' '));
+      ok(tl === '4:출발:ok 8:출발:ok 12:출발:ok' && await page.isVisible('#wb .dg-ttcard .btn:text-is("1장")'), 'v6xx 원정 — 4 · 8 · 12시간 칸(받을 은자 · 「출발」) · 시간 티켓 「1장」', tl);
+      await page.click('#wb .row.dg-tile[data-h="8"] .btn');
+      const cd = () => page.evaluate(() => { const t = document.querySelector('#wb .dg-cd')?.textContent || ''; const m = /^(\d+):(\d\d):(\d\d)$/.exec(t); return { t, s: m ? m[1] * 3600 + m[2] * 60 + +m[3] : -1, p: parseFloat(document.querySelector('#wb .dg-scene')?.style.getPropertyValue('--p') || '-1'), claim: [...document.querySelectorAll('#wb .row .btn')].find((b) => b.textContent === '받기')?.disabled ?? null }; });
+      const e0 = await until(cd, (v) => v.s > 0);
+      await page.waitForTimeout(2300);
+      const e1 = await cd();
+      ok(e0.s > 8 * 3600 - 30 && e0.s <= 8 * 3600 && e1.s < e0.s && e1.s >= e0.s - 4 && e0.claim === true, 'v6xx 원정 출발 → 남은 시간(1초마다 줄어듦) · 「받기」는 잠김', `${e0.t} → ${e1.t}`);
+      const g0 = await page.evaluate(() => { const g = window.__s2.g; g.S.exped.run.endMs -= 8 * 3600e3; return g.S.wallet.gold; });   // 8시간이 지난 것처럼
+      const e2 = await until(cd, (v) => v.claim === false);
+      ok(e2.claim === false && /도착/.test(e2.t) && e2.p === 100, 'v6xx 시간이 지나면 저절로 「도착!」 · 막대 끝 · 「받기」 열림', JSON.stringify(e2));
+      await page.click('#wb .btn:text-is("받기")');
+      const g1 = await until(() => page.evaluate(() => ({ run: window.__s2.g.S.exped.run, gold: window.__s2.g.S.wallet.gold, tiles: document.querySelectorAll('#wb .row.dg-tile').length })), (v) => !v.run);
+      ok(!g1.run && g1.gold > g0 && g1.tiles === 3, 'v6xx 「받기」 → 은자 · 다시 고르기 칸', `${g0} → ${g1.gold}`);
+      await page.screenshot({ path: path.join(OUT, `s2-exped-${W}.png`) });
+      await page.click('#panel-close');
+      ok(await page.evaluate(() => window.__s2.dgIv() === 0), 'v6xx 창을 닫으면 시계 멈춤');
+      await page.evaluate(() => { const g = window.__s2.g, T = window.__t, W = g.S.wallet; g.S.exped = JSON.parse(T.exped); for (const k of Object.keys(W)) delete W[k]; Object.assign(W, JSON.parse(T.wallet)); delete window.__t; });
+      await free(a0); }
     // v605 동행 — 던전 → 동행: 오프라인이면 연습 동행 셋(「연습」) · 둘 고르고 「출발」 → 결과 창(셋 · 몫 막대) · 오늘 횟수 하나 줄어듦
     { const a0 = await hold();
       await page.evaluate(() => { const g = window.__s2.g; window.__t = { wallet: JSON.stringify(g.S.wallet), party: JSON.stringify(g.S.party || null) }; g.partyRec().runs = 0; });
@@ -495,6 +526,19 @@ const ok = (c, m, x = '') => { console.log(`  ${c ? '✓' : '✗ !!'} ${m}${x !=
       const ch = await page.evaluate(() => { const i = document.getElementById('wchat-in'), b = document.getElementById('wchat-go'); return { note: document.querySelector('#wchat .note')?.textContent || '', msgs: document.querySelectorAll('#wchat .wc-m').length, off: i.disabled, ph: i.placeholder, go: b.disabled, on: window.__s2.worldOn(), n: window.__s2.worldMsgs().length, head: document.querySelector('#wb .card h3')?.textContent || '' }; });
       ok(/오프라인이에요/.test(ch.note) && ch.msgs === 0 && /전체 대화/.test(ch.head), 'v605 대화(오프라인) — 안내 글', ch.note);
       ok(ch.off && ch.go && ch.ph === '오프라인' && ch.on === false && ch.n === 0, 'v605 대화(오프라인) — 입력 · 보내기 잠김 · 듣는 것 없음', JSON.stringify({ ph: ch.ph, on: ch.on }));
+      await page.click('#panel-close'); await free(a0); }
+    // 문파(오프라인) — 안내 띠(문파 그림 · 오프라인 표시) · 주는 것 다섯 · 큰 타일 셋(만들기 · 들어가기 · 찾기 — 잠김) · 찾기 목록 없음 · 옆으로 넘치지 않음
+    { const a0 = await hold();
+      await page.click('.nb[data-tab="social"]'); await sub('문파'); await page.waitForSelector('#wb.gd-wb .gd-hero');
+      await page.waitForFunction(() => { const i = document.querySelector('.gd-hero-ic img'); return i && i.complete; }, null, { timeout: 4000 }).catch(() => {});
+      const gd = await page.evaluate(() => { const pb = document.getElementById('panel-body'), btns = [...document.querySelectorAll('#wb .gd-tile .btn')], im = document.querySelector('.gd-hero-ic img');
+        return { pic: !!im && im.naturalWidth > 0, st: document.querySelector('.gd-st')?.textContent || '', note: document.querySelector('.gd-hero .note')?.textContent || '', perks: [...document.querySelectorAll('.gd-perk b')].map((b) => b.textContent), perkTix: [...document.querySelectorAll('.gd-perk small')].filter((x) => /뽑기권/.test(x.textContent)).length,
+          tiles: [...document.querySelectorAll('.gd-tile b')].map((b) => b.textContent), labels: btns.map((b) => b.textContent), shut: btns.every((b) => b.disabled), find: !!document.querySelector('#gd-find'), wide: pb.scrollWidth > pb.clientWidth + 1 }; });
+      const sc = await scan();
+      ok(gd.pic && /오프라인/.test(gd.st) && /서버에 있어요/.test(gd.note), '문파(오프라인) — 안내 띠 · 문파 그림 · 오프라인 표시', `${gd.pic} ${gd.st}`);
+      ok(gd.perks.join() === '출석,토벌,수련,대화,문파 Lv' && gd.perkTix >= 4, '문파(오프라인) — 주는 것 다섯(실제 숫자)', gd.perks.join('/'));
+      ok(gd.tiles.join() === '문파 만들기,코드로 들어가기,문파 찾기' && gd.labels.join() === '만들기,들어가기,찾기' && gd.shut && !gd.find, '문파(오프라인) — 큰 타일 셋 · 잠김 · 찾기 목록 없음', gd.labels.join('/'));
+      ok(!gd.wide && sc.txt === '' && sc.bad.length === 0, '문파(오프라인) — 옆으로 넘치지 않음 · 이상한 글자 · 깨진 그림 없음', `${sc.txt} ${sc.bad.join(' ')}`);
       await page.click('#panel-close'); await free(a0); }
     // v594 알림 창 바깥 — 단추가 둘이면 고르지 않고 닫기만 / v605 설정 「진동 세기」는 진동이 되는 기기에서만 · v610 줄 그림 아이콘
     { const a0 = await hold();
@@ -613,6 +657,23 @@ const ok = (c, m, x = '') => { console.log(`  ${c ? '✓' : '✗ !!'} ${m}${x !=
     ok(e1 > e0 && await page.isVisible('#modal .ea-list') && (await page.$$('#modal .ea-r')).length > 0, 'v543 모두 강화 → 결과 창', `${e0} → ${e1}`);
     await page.click('#modal .btn:has-text("확인")'); await page.waitForTimeout(200);
     await page.click('#panel-close').catch(() => {});
+    // 서열(rk-) — 오프라인: 빈 단상(그림자 셋) + 「인터넷에 연결되면 보여요」 · 주간 보상 두 줄(그림 · 뽑기권 칩 · 받기) · 갈래 넷 · 창을 닫으면 작은 무인 그리기 멈춤
+    { await page.evaluate(() => { const g = window.__s2.g; g.pvpMark(); Object.assign(g.S.pvp, { lastWk: 'rk-test', lastBest: 1420, lastGot: null }); });
+      await page.click('.nb[data-tab="social"]'); await sub('서열'); await page.waitForTimeout(400);
+      const rk = await page.evaluate(() => { const W = document.querySelector('#wb'), off = W.querySelector('.rk-list.rk-off'), rows = [...W.querySelectorAll('.row.rk-wk')];
+        return { off: !!off && off.offsetHeight > 0, txt: off?.textContent || '', sil: off ? off.querySelectorAll('.rk-pod .rk-p canvas[data-sil]').length : 0, seg: [...W.querySelectorAll('.rk-seg button')].map((b) => b.textContent).join('/'),
+          names: rows.map((r) => r.querySelector('.name').textContent).join('/'), pics: rows.filter((r) => r.querySelector('.ico.pic img')).length, chips: rows.filter((r) => r.querySelector('.rk-chip img')).length, chip0: rows[0]?.querySelector('.rk-chip')?.textContent || '',
+          btn: rows.map((r) => (r.querySelector('.btn')?.disabled ? 'off' : 'on')).join('/'), wide: W.scrollWidth > W.clientWidth + 1 }; });
+      ok(rk.off && /인터넷에 연결되면 보여요/.test(rk.txt) && rk.sil === 3 && rk.seg === '전투력/레벨/이번 주 월드보스/문파', '서열 오프라인 — 빈 단상(그림자 셋) · 「인터넷에 연결되면 보여요」 · 갈래 넷', `${rk.sil} · ${rk.seg}`);
+      ok(rk.names === '지난주 대결/지난주 월드보스' && rk.pics === 2 && rk.chips === 2 && /× \d+/.test(rk.chip0) && rk.btn === 'on/off' && !rk.wide, '서열 주간 보상 — 그림 · 뽑기권 칩 두 줄 · 대결 받기 켜짐 · 월드보스(오프라인) 꺼짐 · 옆 넘침 없음', `${rk.names} · ${rk.chip0} · ${rk.btn}`);
+      const t0 = await page.evaluate(() => window.__s2.g.S.wallet['ticket:gear'] || 0), tix = Number(/\d+/.exec(rk.chip0)?.[0] || 0);
+      await page.click('#wb .row.rk-wk:has-text("지난주 대결") .btn:has-text("받기")'); await page.waitForTimeout(300);
+      const t1 = await page.evaluate(() => ({ t: window.__s2.g.S.wallet['ticket:gear'] || 0, dis: document.querySelector('#wb .row.rk-wk .btn')?.disabled, chip: document.querySelector('#wb .row.rk-wk .rk-chip')?.textContent }));
+      ok(t1.t === t0 + tix && t1.dis && t1.chip === '—', '서열 주간 보상 「받기」 → 뽑기권 +칩 수 · 단추 꺼짐', `${t0} → ${t1.t} (+${tix})`);
+      await page.waitForTimeout(1300);
+      const fr = () => page.evaluate(() => [...document.querySelectorAll('#wb .rk-pod canvas')].map((c) => +c.dataset.n || 0).reduce((a, b) => a + b, 0));
+      const f0 = await fr(); await page.click('#panel-close'); await page.waitForTimeout(150); const f1 = await fr(); await page.waitForTimeout(1500); const f2 = await fr();
+      ok(f0 > 0 && f2 === f1, '서열 단상 그림 — 창이 열려 있으면 그리고 · 닫으면 멈춤', `${f0} → ${f1} → ${f2}`); }
     // v535 월드보스 — 무림 → 월드보스 「도전」 → 실제 싸움(위에 피해 · 점수 · 남은 시간) → 나가기 → WORLD BOSS 결과
     await page.click('.nb[data-tab="social"]'); await page.waitForTimeout(250);
     await page.evaluate(() => { const g = window.__s2.g; if (g.bossFight) g.endChallenge(false); g.stage().auto = false; window.__s2.g.dirtyStats = true; });   // v558 시험이 길어져 칸 두목 자동 도전이 끼면 「다른 싸움 중」

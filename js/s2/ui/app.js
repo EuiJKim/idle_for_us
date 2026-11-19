@@ -21,11 +21,11 @@ import { SP_KEYS, SP_EACH, SP_CAP } from '../hero/hero.js';
 import { SKILLS, MASTERY } from '../tables/skills.js';
 import { JOB_LV, LEVEL_MAX } from '../tables/progress.js';
 import { COLLECT } from '../tables/s5.js';
-import { DAILY_DUNGEONS, DAILY_RUNS, EXPEDITION, TOWER_MAX, TOWER_BONUS } from '../tables/content.js';
+import { DAILY_DUNGEONS, DAILY_RUNS, EXPEDITION, TOWER_MAX, TOWER_BONUS, STAMINA } from '../tables/content.js';
 import { GUIDE, DAILY_MISSIONS, WEEKLY_MISSIONS, guideCurrent, achievements, ACHIEVE } from '../tables/missions.js';
 const ACH = achievements(), achById = new Map(ACH.map((a) => [a.id, a]));
-import { expToNext, KILLS_PER_MIN } from '../tables/exp.js';
-import { staminaNow } from '../content/idle.js';
+import { expToNext, mobExp, KILLS_PER_MIN } from '../tables/exp.js';
+import { staminaNow, nextRegenMs } from '../content/idle.js';
 import { buildQueue } from '../content/offline.js';
 import { kindGrade } from '../grow/collect.js';
 import { loadLooks, zoneFor, drawHero, drawMob, mobName, mobHeight, preloadMobs, drawPaintedBack, drawPaintedLedge, drawEarth, chbImg, preloadChapter, fxImg, oldImg, tintImg, ULT_ART, SEAL_ART, CUT_ART, BUFF_ART, BOSS_ART, wearCount, filtered } from './look.js';
@@ -72,6 +72,7 @@ import { goldPerMob } from '../tables/gearstat.js';
 const $ = (id) => document.getElementById(id);
 const now = () => Date.now();
 const fmt = (n) => { n = Math.floor(n || 0); if (n >= 1e12) return (n / 1e12).toFixed(1) + '조'; if (n >= 1e8) return (n / 1e8).toFixed(1) + '억'; if (n >= 1e4) return (n / 1e4).toFixed(1) + '만'; return String(n); };
+const hms = (ms) => { const s = Math.max(0, Math.ceil(ms / 1000)); return `${Math.floor(s / 3600)}:${String(Math.floor(s % 3600 / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`; };   // 남은 시간 1:23:45
 const left = (endMs) => { const s = Math.max(0, Math.ceil((endMs - now()) / 1000)); return s >= 3600 ? `${Math.floor(s / 3600)}시간 ${Math.floor(s % 3600 / 60)}분` : s >= 60 ? `${Math.floor(s / 60)}분 ${s % 60}초` : `${s}초`; };
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const GUIDE_TEXT = { kill: '몹 잡기', level: '레벨 올리기', equip: '장비 끼기', gacha: '장비 뽑기', skill: '무공 올리기', enhance: '장비 강화', dungeon: '던전 깨기', pull: '뽑기', star: '성혼', offline: '방치 보상 받기', realm: '경지 올리기', login: '접속하기', wboss: '월드보스 도전', pvp: '대결 하기', stat: '스탯 점수 찍기', fate: '기연 하나 고르기', shop: '상점에서 덤 받기', shard: '분해 조각을 뽑기권으로', party: '동행 토벌 1단계 깨기', pass: '강호 패스 보상 받기' };   // v522 일일 · 주간 임무에 영문 id가 보이던 것
@@ -373,6 +374,8 @@ const ico = (k) => `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true">${ICO
 const keyOf = () => TABS.find((t) => t[0] === open)?.[2][tab]?.[1];
 // 내용 열쇠(예: 'hero:1')로 그 창 · 그 칸 열기
 function openKey(key) { for (const [id, , subs] of TABS) { const i = subs.findIndex((x) => x[1] === key); if (i >= 0) { openWin(id, i); return; } } }
+let dgIv = 0;   // v6xx 수련동 · 원정 — 창이 열려 있는 동안만 1초마다 남은 시간을 고친다(닫으면 멈춤)
+const dgStop = () => { clearInterval(dgIv); dgIv = 0; };
 let open = null, tab = 0, treeSel = null, eqSel = null, lkPrev = {};   // lkPrev: 외형 창에서 눌러 입혀 보는 중인 것(부위 → 등급) · 「이 외형으로」 전에는 보이기만
 let bagF = 'all', bagSort = 'g', bagJunkG = 3, bagMore = false, bagAsk = false;   // v521 가방 보기 · 일괄 분해 한 번 더 묻기
 // 가방 「NEW」 — 가방을 지난번 열었을 때 없던 것(화면만 · 이 기기에만 기억)
@@ -449,7 +452,7 @@ function showGacha(r, opt = {}) {   // v558 opt: { title, face(it) } — 병기 
   ov.onclick = () => { if (done) close(); };
 }
 function openWin(id, t = 0) { open = id; tab = t; document.body.classList.add('winopen'); $('panel').classList.add('open'); $('panel-dim').classList.add('open'); paintWin(); paintNav(); }
-function closeWin() { open = null; lkPrev = {}; bagIn = false; bagAsk = false; worldStop(); document.body.classList.remove('winopen'); $('panel').classList.remove('open'); $('panel-dim').classList.remove('open'); paintNav(); }
+function closeWin() { open = null; lkPrev = {}; bagIn = false; bagAsk = false; worldStop(); dgStop(); document.body.classList.remove('winopen'); $('panel').classList.remove('open'); $('panel-dim').classList.remove('open'); paintNav(); }
 function paintNav() {
   if (!$('ptabs').children.length) for (const [id, name] of MAIN_TABS) { const b = document.createElement('button'); b.dataset.tab = id; b.innerHTML = `${ico(id)}<span>${name}</span>`; b.onclick = () => { play('click'); openWin(id); }; $('ptabs').append(b); }
   for (const b of document.querySelectorAll('.nb[data-tab], #ptabs button[data-tab]')) b.classList.toggle('active', b.dataset.tab === open);
@@ -865,16 +868,36 @@ function paintWin() {
     if (!list.some((x) => x.tag !== '연습')) c1(note(net.online ? '문파원 · 대결에서 만난 무인 · 즐겨찾기 무인이 여기에 나와요' : '오프라인 — 연습 동행과 함께 가요'));
   } else if (key === 'content:0') {
     // v531 실제 던전 — 「입장」은 직접 싸움(사냥터 대신 던전) · 한 번 깬 던전은 「소탕」(바로 결과)
-    const c = card('수련동', `입장권 ${staminaNow(g.S.stamina.daily, now())} · 2시간마다 1`);
-    const RW = { gold: '은자', gear: '뽑기권', stone: '강화석', growth: '경험치' };
+    // v6xx 그림 카드 — 던전마다 장 배경 한 조각 · 보상 칩 · 오늘 횟수 점 · 깬 표시 · 잠김 덮개 / 위: 입장권 큰 숫자 · 다음 한 장까지(1초마다) · 모두 소탕
+    const ST = g.S.stamina.daily, tix = staminaNow(ST, now()), L = g.S.hero.lv;
+    const wrap = document.createElement('div'); wrap.className = `dg${opt.gfx === 'low' ? ' dg-low' : ''}`; add(wrap);
+    const regen = () => { const ms = nextRegenMs(ST, now()); return ms ? `다음 1장 <b>${hms(ms)}</b>` : '가득 찼어요'; };
+    const top = document.createElement('div'); top.className = 'dg-top'; wrap.append(top);
+    top.innerHTML = `<div class="dg-tix"><img src="art/s2/ui/gate.webp" alt="" loading="lazy"><div><small>입장권</small><b>${tix}<em>/${STAMINA.daily.max}</em></b></div><div class="dg-rg"><span class="dg-regen">${regen()}</span><span>2시간마다 1</span></div></div>`;
     // v581 모두 소탕
     { const canAny = Object.keys(DAILY_DUNGEONS).some((k) => g.S.dungeons.best?.[k] && !g.canDungeon('daily', k));
-      c(R('모두 소탕', canAny ? '깬 수련동을 입장권이 되는 만큼 차례로 바로 끝내요' : '소탕할 수 있는 던전이 없어요(입장권 · 오늘 횟수 · 처음 깨기)', [['모두 소탕', act(() => { const r = g.sweepAll(); if (r) pop('모두 소탕', `<div class="ea-sum"><span>소탕 <b>${r.n}</b>번</span>${r.fail ? `<span>실패 <b>${r.fail}</b></span>` : ''}</div><div class="td-got">${r.gold ? `<span><i class="coin s"></i>은자 <b>${unit(r.gold)}</b></span>` : ''}${r.exp ? `<span>경험치 <b>${unit(r.exp)}</b></span>` : ''}${r.tix ? `<span><i class="coin t"></i>뽑기권 <b>${r.tix}</b></span>` : ''}${r.stones ? `<span>강화석 <b>${r.stones}</b></span>` : ''}</div>`); return r; }), !canAny]], '掃')); }
+      const sw = R('모두 소탕', canAny ? '깬 수련동을 입장권이 되는 만큼 차례로 바로 끝내요' : '소탕할 수 있는 던전이 없어요(입장권 · 오늘 횟수 · 처음 깨기)', [['모두 소탕', act(() => { const r = g.sweepAll(); if (r) pop('모두 소탕', `<div class="ea-sum"><span>소탕 <b>${r.n}</b>번</span>${r.fail ? `<span>실패 <b>${r.fail}</b></span>` : ''}</div><div class="td-got">${r.gold ? `<span><i class="coin s"></i>은자 <b>${unit(r.gold)}</b></span>` : ''}${r.exp ? `<span>경험치 <b>${unit(r.exp)}</b></span>` : ''}${r.tix ? `<span><i class="coin t"></i>뽑기권 <b>${r.tix}</b></span>` : ''}${r.stones ? `<span>강화석 <b>${r.stones}</b></span>` : ''}</div>`); return r; }), !canAny]], 'i:sweep:掃');
+      sw.classList.add('dg-sweep'); if (canAny) sw.classList.add('dg-can'); top.append(sw); }
+    const BG = { gold: ['c2', '70% 42%'], gear: ['c5', '60% 32%'], stone: ['c14', '42% 48%'], growth: ['c1', '84% 46%'] }, IC = { gold: 'silver', gear: 'equip', stone: 'enhance', growth: 'training' };
+    const GOAL = { kills: (D) => `${D.need}마리 처치`, boss: () => '두목 처치', wipe: () => '모두 처치', survive: () => '버티기' };
+    const rw = (D) => (D.reward.goldMin ? `은자 ${unit(Math.round(D.reward.goldMin * KILLS_PER_MIN * goldPerMob(L)))}` : D.reward.gearTickets ? `뽑기권 ${D.reward.gearTickets}` : D.reward.stones ? `강화석 ${D.reward.stones}` : `경험치 ${unit(Math.round(D.reward.expMin * KILLS_PER_MIN * mobExp(L, 'mob', L)))}`);
+    const grid = document.createElement('div'); grid.className = 'dg-grid'; wrap.append(grid);
     for (const [k, D] of Object.entries(DAILY_DUNGEONS)) {
-      const why = g.canDungeon('daily', k), swept = !!g.S.dungeons.best?.[k];
-      c(R(D.name, `${DG_GOAL[D.clear]} · ${Math.round(D.timeMs / 1000)}초 · 보상 ${RW[k] || ''} · 오늘 ${g.S.dungeons.runs[k] || 0}/${DAILY_RUNS}${g.S.hero.lv < D.unlockLv ? ` · ${lvHint(D.unlockLv)}` : ''}`,
-        [['입장', () => { play('click'); if (!g.enterDungeon('daily', k)) toast(g.canDungeon('daily', k) || '들어갈 수 없어요'); }, !!why], ...(swept ? [['소탕', act(() => { const r2 = g.dailyDungeon(k); if (r2) toast(r2.cleared ? `소탕 — ${D.name} 클리어` : '소탕 실패'); return r2; }), !!why]] : [])], { gold: 'i:silver:銀', gear: 'i:equip:裝', stone: 'i:enhance:鍊', growth: 'i:training:修' }[k] || '洞'));
+      const why = g.canDungeon('daily', k), swept = !!g.S.dungeons.best?.[k], runs = g.S.dungeons.runs[k] || 0, lock = L < D.unlockLv, [bg, pos] = BG[k] || ['c1', '50% 50%'], ic = IC[k] || 'training';
+      const el = document.createElement('div'); el.className = `row dg-card${lock ? ' dg-lock' : ''}${swept ? ' dg-best' : ''}`; el.dataset.k = k;
+      el.innerHTML = `<div class="dg-pic"><img class="dg-bg" src="art/s2/bg/${bg}.webp" alt="${D.name} 풍경" loading="lazy" decoding="async" style="object-position:${pos}"><img class="dg-ic" src="art/s2/ui/${ic}.webp" alt="" loading="lazy">${swept ? '<i class="dg-clear">깸</i>' : ''}</div>`
+        + `<div class="info"><div class="name">${D.name}</div><div class="desc">${GOAL[D.clear](D)} · ${Math.round(D.timeMs / 1000)}초</div>`
+        + `<div class="dg-chips"><span><img src="art/s2/ui/${ic}.webp" alt="">${rw(D)}</span></div>`
+        + `<div class="dg-runs" title="오늘 ${runs}/${DAILY_RUNS}">${Array.from({ length: DAILY_RUNS }, (_, i) => `<i${i < runs ? ' class="on"' : ''}></i>`).join('')}<small>오늘 ${runs}/${DAILY_RUNS}</small></div>`
+        + `${why && !lock ? `<div class="dg-why">${why}</div>` : ''}</div><div class="dg-acts"></div>`
+        + `${lock ? `<div class="dg-lockov"><img src="art/s2/ui/lock.webp" alt=""><b>Lv ${D.unlockLv}부터</b><span class="dg-sep"> · </span><small>지금 Lv ${L}</small></div>` : ''}`;
+      const acts = el.querySelector('.dg-acts');
+      const btn = (label, fn, dis, pri) => { const b = document.createElement('button'); b.className = `btn${pri ? ' primary' : ''}`; b.textContent = label; b.disabled = !!dis; b.onclick = fn; acts.append(b); };
+      btn('입장', () => { play('click'); if (!g.enterDungeon('daily', k)) toast(g.canDungeon('daily', k) || '들어갈 수 없어요'); }, !!why, true);
+      if (swept) btn('소탕', act(() => { const r2 = g.dailyDungeon(k); if (r2) toast(r2.cleared ? `소탕 — ${D.name} 클리어` : '소탕 실패'); return r2; }), !!why);
+      grid.append(el);
     }
+    dgStop(); dgIv = setInterval(() => { if (!open || !wrap.isConnected) { dgStop(); return; } if (staminaNow(ST, now()) !== tix) { paintWin(); return; } const e = wrap.querySelector('.dg-regen'); if (e) e.innerHTML = regen(); }, 1000);
   } else if (key === 'content:1') {
     // v616 무한 탑 — 왼쪽은 탑(깬 층은 불 켜짐 · 지금 층은 금빛 · 위로 다음 다섯 층 · 10층마다 상자) · 오른쪽은 지금 층 · 영구 보너스 · 도전 · 연속 오르기 · 이정표 상자
     const T = g.towerSt(), best = T.best, top = Math.min(TOWER_MAX, best + 5), MSs = g.towerMsState(), msOf = (f) => MSs.find((m) => m.floor === f);
@@ -901,13 +924,47 @@ function paintWin() {
     for (const m of [...can, ...next]) { const r = R(`${m.floor}층 상자`, rew(m.reward), [[m.state === 'can' ? '받기' : `${m.floor}층부터`, claim(m.floor), m.state !== 'can']], 'i:chest:賞'); r.classList.add('tw-ms', `tw-${m.state}`); r.dataset.f = m.floor; cm(r); }
     if (!can.length && !next.length) cm(note('상자를 모두 받았어요'));
   } else if (key === 'content:2') {
+    // v6xx 원정 — 떠난 원정: 그림 길(무인 그림자가 걷는다) · 남은 시간(1초마다) · 막대 · 받기 / 아니면 4 · 8 · 12시간 고르기(받을 몫 미리) · 옆에 시간 티켓
+    const E = g.S.exped, L = g.S.hero.lv, nT = W['ticket:time'] || 0, low = opt.gfx === 'low';
+    const gain = (h) => { const min = Math.round(h * 60 * EXPEDITION.rate), kills = min * KILLS_PER_MIN; return { min, gold: Math.round(kills * goldPerMob(L)), exp: Math.round(Math.round(kills * mobExp(L)) * (1000 + (st.expP || 0)) / 1000) }; };   // claimExpedition → giveHuntMin 과 같은 셈
+    const wrap = document.createElement('div'); wrap.className = `dg dg-exw${low ? ' dg-low' : ''}`; add(wrap);
+    const mk = (title, sub, cls) => { const c = document.createElement('div'); c.className = `card ${cls}`; c.innerHTML = `<h3>${title}${sub ? ` <small>${sub}</small>` : ''}</h3>`; wrap.append(c); return c; };
+    const ce = mk('원정', `원정권 ${W['ticket:exped'] || 0}장`, 'dg-excard');
+    dgStop();
+    if (E.run) {
+      const run = E.run, dur = run.hours * 3600e3, G = gain(run.hours), done = now() >= run.endMs;
+      const sc = document.createElement('div'); sc.className = `dg-scene${done ? ' dg-done' : ''}`; ce.append(sc);
+      sc.innerHTML = `<img class="dg-bg" src="art/s2/bg/c13.webp" alt="원정 길" loading="lazy" decoding="async"><div class="dg-path"><i class="dg-road"></i><i class="dg-trail"></i><span class="dg-walker"><canvas width="72" height="90" aria-hidden="true"></canvas></span><img class="dg-goal" src="art/s2/ui/chest.webp" alt="" loading="lazy"></div>`
+        + `<div class="dg-cdw"><small>${run.hours}시간 원정</small><b class="dg-cd">${done ? '도착!' : hms(run.endMs - now())}</b></div><div class="dg-bar"><i></i></div>`;
+      const r = R(`원정 ${run.hours}시간`, `<span class="nw">${done ? '끝남 — 받기' : `남은 <span class="dg-left">${left(run.endMs)}</span>`}</span> · <span class="nw">은자 ${unit(G.gold)}</span> · <span class="nw">경험치 ${unit(G.exp)}</span>`, [['받기', act(() => g.claimExped()), !done], ['시간 티켓', act(() => g.timeTicket('exped', 15)), !(nT > 0)]], 'i:exped:征');
+      ce.append(r);
+      const setP = () => sc.style.setProperty('--p', `${Math.max(0, Math.min(100, (1 - (run.endMs - now()) / dur) * 100)).toFixed(2)}%`);
+      const cv = sc.querySelector('canvas'), job = g.S.hero.job, eq = g.lookEq();
+      const draw = (t) => { const x = cv.getContext('2d'); x.clearRect(0, 0, 72, 90); drawHero(x, 36, 86, job, L, { t, run: t > 0, scale: 0.6, eq }); cv.dataset.n = String((+cv.dataset.n || 0) + 1); };
+      setP(); draw(low || done ? 0 : now() / 1000);
+      if (!low && !done) { let last = -1e9; const loop = (ts) => { if (!cv.isConnected || !open) return; if (ts - last > 80) { last = ts; draw(now() / 1000); } requestAnimationFrame(loop); }; requestAnimationFrame(loop); }   // 걷는 몸짓(초당 12번) · 창을 닫으면 멈춤
+      dgIv = setInterval(() => {
+        if (!open || !sc.isConnected) { dgStop(); return; }
+        if (!done && now() >= run.endMs) { paintWin(); return; }
+        if (low || done) draw(0);   // 그림이 늦게 받아져도 채워지게
+        if (done) return;
+        sc.querySelector('.dg-cd').textContent = hms(run.endMs - now()); const lf = r.querySelector('.dg-left'); if (lf) lf.textContent = left(run.endMs); setP();
+      }, 1000);
+    } else {
+      const tiles = document.createElement('div'); tiles.className = 'dg-tiles'; ce.append(tiles);
+      for (const h of EXPEDITION.hours) {
+        const G = gain(h), t = document.createElement('div'); t.className = 'row dg-tile'; t.dataset.h = h;
+        t.innerHTML = `<div class="dg-h"><b>${h}</b><em>시간</em></div><div class="info"><div class="name">${h}시간 원정</div><div class="desc">사냥 ${G.min}분 몫</div><div class="dg-chips"><span><i class="coin s"></i>${unit(G.gold)}</span><span><img src="art/s2/ui/training.webp" alt="">경험치 ${unit(G.exp)}</span></div></div>`;
+        const b = document.createElement('button'); b.className = 'btn primary'; b.textContent = '출발'; b.onclick = act(() => g.startExped(h)); t.append(b);
+        tiles.append(t);
+      }
+      ce.append(note('원정권 1장으로 떠나요 · 날마다 1장'));
+    }
     // v580 시간 티켓 바로 쓰기
-    { const nT = W['ticket:time'] || 0, ct = card('시간 티켓', `${nT}장 · 1장 = 사냥 15분 몫`);
+    const ct = mk('시간 티켓', '1장 = 사냥 15분 몫', 'dg-ttcard');
+    { const tt = document.createElement('div'); tt.className = 'dg-tt'; tt.innerHTML = `<img src="art/s2/ui/time.webp" alt="" loading="lazy"><b>${nT}</b><small>장</small>`; ct.append(tt);
       const use = (n) => act(() => { const r = g.timeHunt(n); if (r) { play('coin'); toast(`시간 티켓 ${r.n}장 — 사냥 ${r.min}분 몫 · 은자 +${unit(r.gold)}${r.lv ? ` · Lv +${r.lv}` : ''}`); } return r; });
-      ct(R('바로 사냥 보상', '경험치 · 은자를 사냥한 만큼 바로 받아요(원정 · 배우기 시간 줄이기에도 써요)', [['1장', use(1), nT < 1], ['모두', use(nT), nT < 1]], '時')); }
-    const E = g.S.exped, c = card('원정', `원정권 ${W['ticket:exped'] || 0}장`);
-    if (E.run) c(R(`원정 ${E.run.hours}시간`, now() >= E.run.endMs ? '끝남 — 받기' : `남은 ${left(E.run.endMs)}`, [['받기', act(() => g.claimExped()), now() < E.run.endMs], ['시간 티켓', act(() => g.timeTicket('exped', 15)), !(W['ticket:time'] > 0)]], '征'));
-    else for (const h of EXPEDITION.hours) c(R(`${h}시간 원정`, '보내 두면 시간만큼 보상', [['출발', act(() => g.startExped(h))]], '征'));
+      ct.append(R('바로 사냥 보상', '경험치 · 은자를 바로(원정 시간 줄이기에도 써요)', [['1장', use(1), nT < 1], ['모두', use(nT), nT < 1]])); }
   } else if (key === 'content:3') {
     const T = g.stage(), c = card(`${Math.ceil(T.idx / 10)}. ${chapterName(T.idx)} · Stage ${((T.idx - 1) % 10) + 1}/10`, `가장 멀리 ${Math.ceil(T.top / 10)}장 ${((T.top - 1) % 10) + 1}칸`);
     c(R('칸 옮기기', '깬 칸 안에서 오갈 수 있음', [['◀ 앞 칸', act(() => { if (g.bossFight || T.idx <= 1) return false; T.idx--; T.kills = 0; return true; })], ['다음 칸 ▶', act(() => { if (g.bossFight || T.idx >= T.top) return false; T.idx++; T.kills = 0; return true; })]], '地'));
@@ -1005,38 +1062,61 @@ function paintWin() {
   } else if (key === 'rank:0') {
     // v547 서열 — 전투력 · 레벨 · 이번 주 월드보스 위 50명 · 내 등수(서버 · 30초마다 새로)
     // v553 주간 보상 — 지난주 월드보스 순위(서버) · 지난주 대결 최고 등급
+    // v6xx 모습(rk-) — 주간 보상은 그림 + 뽑기권 칩 · 1~3위는 단상(작은 무인) · 4위부터 짧은 줄 · 내 줄이 목록 밖이면 아래에 붙어 있다 · 오프라인이면 빈 단상
     { const pr = g.pvpWeekReward(), lastWk = wkStr(Date.now() - 7 * 86400000), wbGot = g.S.wbGot?.[lastWk];
-      const cw = card('주간 보상', '월요일마다 — 지난주 기록으로');
-      cw(R('지난주 대결', pr ? `최고 ${pr.best}점 · ${esc(pr.tier)} — 장비 뽑기권 ${pr.tix}` : '받을 것 없음(지난주 대결 기록이 없거나 받음)', [['받기', act(() => { const r = g.claimPvpWeek(); if (r) { play('rare', 4); toast(`지난주 대결 ${r.tier} — 뽑기권 ${r.tix}`); } return r; }), !pr]], '鬪'));
+      const cw = card('주간 보상', '월요일마다');
+      const chip = (n, got) => `<span class="rk-chip ${got ? 'got' : n ? '' : 'none'}"><img src="art/s2/ui/pullw.webp" alt="장비 뽑기권" loading="lazy" decoding="async"><b>${got ? '받음' : n ? `× ${n}` : '—'}</b></span>`;
+      const wk = (r, n, got) => { r.classList.add('rk-wk'); if (n || got) r.classList.add(got ? 'got' : 'can'); r.querySelector('.btn').insertAdjacentHTML('beforebegin', chip(n, got)); cw(r); };
+      wk(R('지난주 대결', pr ? `최고 ${pr.best}점 · ${esc(pr.tier)}` : '받을 것 없음(기록이 없거나 받음)', [['받기', act(() => { const r = g.claimPvpWeek(); if (r) { play('rare', 4); toast(`지난주 대결 ${r.tier} — 뽑기권 ${r.tix}`); } return r; }), !pr]], 'i:duel:鬪'), pr?.tix || 0, false);
       const wr = guildState.wbLast;
-      cw(R('지난주 월드보스', wbGot ? `${wbGot}위 — 받았어요` : !net.online ? '오프라인' : wr === undefined ? '순위 불러오는 중…' : wr?.me ? `${wr.me}위 — 장비 뽑기권 ${g.wbRankReward(wr.me)}` : '지난주에 치지 않았어요',
-        [['받기', act(() => { const r = g.claimWbWeek(lastWk, wr?.me); if (r) { play('rare', 4); toast(`지난주 월드보스 ${r.rank}위 — 뽑기권 ${r.tix}`); } return r; }), !!wbGot || !wr?.me]], '龍'));
+      wk(R('지난주 월드보스', wbGot ? `${wbGot}위` : !net.online ? '오프라인' : wr === undefined ? '순위 불러오는 중…' : wr?.me ? `${wr.me}위` : '지난주에 치지 않았어요',
+        [['받기', act(() => { const r = g.claimWbWeek(lastWk, wr?.me); if (r) { play('rare', 4); toast(`지난주 월드보스 ${r.rank}위 — 뽑기권 ${r.tix}`); } return r; }), !!wbGot || !wr?.me]], 'i:wboss:龍'), !wbGot && wr?.me ? g.wbRankReward(wr.me) : 0, !!wbGot);
       if (net.online && wr === undefined && !wbGot) { guildState.wbLast = null; net.top('wb', lastWk, 1).then((r) => { guildState.wbLast = r || { me: 0 }; if (open === 'social') paintWin(); }).catch(() => { guildState.wbLast = { me: 0 }; }); }
     }
     const MODES = [['power', '전투력'], ['lv', '레벨'], ['wb', '이번 주 월드보스'], ['guild', '문파']];   // v561 문파 서열
-    const c0 = card('서열', net.online ? `이름 「${esc(g.S.nick || '(아직 없음)')}」 · 설정에서 바꿔요` : '오프라인 — 인터넷에 연결되면 보여요');
-    const seg = document.createElement('div'); seg.className = 'seg rk-seg';
-    for (const [m, nm] of MODES) { const b = document.createElement('button'); b.textContent = nm; b.className = m === rankMode ? 'on' : ''; b.onclick = () => { play('click'); rankMode = m; paintWin(); }; seg.append(b); }
+    const c0 = card('서열', net.online ? `이름 「${esc(g.S.nick || '(아직 없음)')}」 · 설정에서 바꿔요` : '오프라인');
+    const seg = document.createElement('div'); seg.className = 'seg rk-seg'; seg.setAttribute('role', 'tablist');
+    for (const [m, nm] of MODES) { const b = document.createElement('button'); b.textContent = nm; b.className = m === rankMode ? 'on' : ''; b.setAttribute('role', 'tab'); b.setAttribute('aria-selected', String(m === rankMode)); b.onclick = () => { play('click'); rankMode = m; paintWin(); }; seg.append(b); }
     c0(seg);
-    const box = document.createElement('div'); box.className = 'rk-list'; box.innerHTML = '<p class="note">불러오는 중…</p>'; c0(box);
+    // 단상 — 가운데 1위 · 왼쪽 2위 · 오른쪽 3위(놓는 차례는 CSS order) · 무인은 작은 그림(아래 그리기 고리) · 문파는 깃발 그림 · 비면 그림자
+    const SIL = ['sword', 'spear', 'bow'];
+    const fig = (i, x) => (x?.guild ? '<img class="rk-gd" src="art/s2/ui/guild.webp" alt="" loading="lazy" decoding="async">'
+      : `<canvas width="168" height="150" data-i="${i}" data-job="${esc(x?.job && JOBS[x.job] ? x.job : SIL[i])}" data-lv="${x?.lv || 60 - i * 10}"${x?.lk ? ` data-lk="${esc(JSON.stringify(x.lk))}"` : ''}${!x || !x.job || !JOBS[x.job] ? ` data-sil="${x ? 'row' : '1'}"` : ''} aria-hidden="true"></canvas>`);
+    const pod = (top) => `<div class="rk-pod">${[0, 1, 2].map((i) => { const x = top[i];
+      if (!x) return `<div class="rk-p top${i + 1} empty"><div class="rk-fig">${fig(i, null)}</div><div class="rk-ped"><i class="rk-md">${i + 1}</i><span class="rk-nm">—</span></div></div>`;
+      return `<div class="rk-r rk-p top${i + 1}${x.me ? ' me' : ''}"${x.uid ? ` data-uid="${esc(x.uid)}"` : ''}><div class="rk-fig">${fig(i, x)}</div><div class="rk-ped"><i class="rk-md">${i + 1}</i><span class="rk-nm">${esc(x.name)}</span>${x.sub ? `<small>${x.sub}</small>` : ''}<em>${x.val}</em></div></div>`; }).join('')}</div>`;
+    const jobIc = (x) => (x.guild ? '<img class="rk-job" src="art/s2/ui/guild.webp" alt="문파" loading="lazy" decoding="async">' : x.job && JOBS[x.job] ? `<img class="rk-job" src="art/s2/eq/w-${esc(x.job)}-2.webp" alt="${esc(JOBS[x.job].name)}" loading="lazy" decoding="async">` : '<i class="rk-job"></i>');
+    const line = (x, n, pin) => `<div class="rk-r rk-l${x.me ? ' me' : ''}${pin ? ' rk-pin' : ''}"${x.uid ? ` data-uid="${esc(x.uid)}"` : ''}><b>${n}</b>${jobIc(x)}<span>${esc(x.name)}${x.me ? ' <i class="rk-you">나</i>' : ''}${x.sub ? ` <small>${x.sub}</small>` : ''}</span><em>${x.val}</em></div>`;
+    const board = (list, foot, pin) => pod(list.slice(0, 3)) + `<div class="rk-rows">${list.slice(3).map((x, i) => line(x, i + 4)).join('')}</div>` + (foot ? `<div class="rk-me">${foot}</div>` : '') + (pin ? line(pin.x, pin.n, true) : '');
+    const box = document.createElement('div'); box.className = 'rk-list'; c0(box);
+    box.innerHTML = `${pod([])}<p class="note rk-wait">불러오는 중…</p>`;
     if (net.online) {
       rankPush();
       const mode = rankMode, fmtV = (v) => (mode === 'lv' ? `Lv ${v}` : unit(v || 0));
       if (mode === 'guild') {   // v561 문파 서열 — 문파 경험치(출석 · 기부) 순
         net.guildTop(g.S.guildId).then((r) => {
           if (!box.isConnected || rankMode !== 'guild') return;
-          if (!r.rows.length) { box.innerHTML = '<p class="note">아직 문파가 없어요</p>'; return; }
-          box.innerHTML = r.rows.map((x, i) => `<div class="rk-r ${x.id === g.S.guildId ? 'me' : ''} ${i < 3 ? `top${i + 1}` : ''}"><b>${i + 1}</b><span>${esc(x.name || '문파')} <small>${x.n}/10명 · Lv ${1 + Math.floor((x.exp || 0) / 500)}</small></span><em>${unit(x.exp || 0)}</em></div>`).join('')
-            + `<div class="rk-me">${g.S.guildId ? (r.me ? `내 문파 <b>${r.me}위</b>` : '내 문파는 아직 목록에 없어요') : '문파에 들면 함께 올라가요'}</div>`;
-        }).catch((e) => { if (box.isConnected) box.innerHTML = `<p class="note">불러오지 못했어요(${esc(e?.code || '연결')})</p>`; });
+          if (!r.rows.length) { box.innerHTML = `${pod([])}<p class="note rk-wait">아직 문파가 없어요</p>`; return; }
+          const list = r.rows.map((x) => ({ guild: true, me: x.id === g.S.guildId, name: x.name || '문파', sub: `${x.n}/10명 · Lv ${1 + Math.floor((x.exp || 0) / 500)}`, val: unit(x.exp || 0) }));
+          const pin = g.S.guildId && r.me > r.rows.length ? { n: r.me, x: { guild: true, me: true, name: '내 문파', sub: '', val: unit(r.mine || 0) } } : null;
+          box.innerHTML = board(list, g.S.guildId ? (r.me ? (pin ? '' : `내 문파 <b>${r.me}위</b>`) : '내 문파는 아직 목록에 없어요') : '문파에 들면 함께 올라가요', pin);
+        }).catch((e) => { if (box.isConnected) box.innerHTML = `${pod([])}<p class="note rk-wait">불러오지 못했어요(${esc(e?.code || '연결')})</p>`; });
       } else rankLoad(mode).then((r) => {
         if (!box.isConnected || mode !== rankMode) return;
-        if (!r || !r.rows.length) { box.innerHTML = '<p class="note">아직 아무도 없어요 — 처음이 되어 보세요</p>'; return; }
-        box.innerHTML = r.rows.map((x, i) => `<div class="rk-r ${x.uid === net.uid ? 'me' : ''} ${i < 3 ? `top${i + 1}` : ''}" data-uid="${esc(x.uid)}"><b>${i + 1}</b><span>${esc(x.nickname || x.name || '무인')}${x.job ? ` <small>${esc(JOBS[x.job]?.name || '')}${mode !== 'lv' && x.lv ? ` · Lv ${x.lv}` : ''}</small>` : ''}</span><em>${fmtV(x.v)}</em></div>`).join('')
-          + `<div class="rk-me">${r.me ? `<small>줄을 누르면 무인 정보</small> 내 등수 <b>${r.me}위</b>${r.mine != null ? ` · ${fmtV(r.mine)}` : ''}` : mode === 'wb' ? '이번 주 월드보스를 치면 올라가요' : '곧 올라가요(저장할 때)'}</div>`;
-      }).catch((e) => { if (box.isConnected) box.innerHTML = `<p class="note">불러오지 못했어요(${esc(e?.code || '연결')})</p>`; });
+        if (!r || !r.rows.length) { box.innerHTML = `${pod([])}<p class="note rk-wait">아직 아무도 없어요 — 처음이 되어 보세요</p>`; return; }
+        const list = r.rows.map((x) => ({ uid: x.uid, me: x.uid === net.uid, name: x.nickname || x.name || '무인', job: x.job, lv: x.lv, lk: x.lk, sub: x.job ? `${esc(JOBS[x.job]?.name || '')}${mode !== 'lv' && x.lv ? ` · Lv ${x.lv}` : ''}` : '', val: fmtV(x.v) }));
+        const out = r.me > r.rows.length, pin = out ? { n: r.me, x: { uid: net.uid, me: true, name: g.S.nick || '나', job: mode === 'wb' ? null : g.S.hero.job, sub: mode === 'wb' ? '' : `${esc(JOBS[g.S.hero.job]?.name || '')}${mode !== 'lv' ? ` · Lv ${g.S.hero.lv}` : ''}`, val: r.mine != null ? fmtV(r.mine) : '-' } } : null;
+        box.innerHTML = board(list, r.me ? `<small>줄을 누르면 무인 정보</small>${out ? '' : ` 내 등수 <b>${r.me}위</b>${r.mine != null ? ` · ${fmtV(r.mine)}` : ''}`}` : mode === 'wb' ? '이번 주 월드보스를 치면 올라가요' : '곧 올라가요(저장할 때)', pin);
+      }).catch((e) => { if (box.isConnected) box.innerHTML = `${pod([])}<p class="note rk-wait">불러오지 못했어요(${esc(e?.code || '연결')})</p>`; });
       box.onclick = (e) => { const row = e.target.closest('.rk-r[data-uid]'); if (row) { play('click'); playerCard(row.dataset.uid); } };   // v567
-    } else box.innerHTML = '<p class="note">오프라인이에요.</p>';
+    } else { box.classList.add('rk-off'); box.innerHTML = `${pod([])}<p class="rk-offt"><b>오프라인이에요</b><span>인터넷에 연결되면 보여요</span></p>`; }
+    // 작은 무인 그리기 — 초당 15번(그림자만이면 초당 1번 — 그림이 늦게 받아져도 채워지게) · 그래픽 낮음이면 멈춘 모습 · 창을 닫거나 다른 칸으로 가면 멈춤
+    { let last = -1e9; const paint = (ts) => {
+        if (!box.isConnected || !open) return;
+        const cvs = box.querySelectorAll('.rk-pod canvas'), low = opt.gfx === 'low', still = low || [...cvs].every((c) => c.dataset.sil);
+        if (ts - last > (still ? 1000 : 66)) { last = ts; const T = low ? 0 : now() / 1000; for (const cv of cvs) rkDraw(cv, T); }
+        requestAnimationFrame(paint);
+      }; requestAnimationFrame(paint); }
   } else if (key === 'rival:0') {
     // v6xx 월드보스 — 레이드 무대: 큰 그림 · 불티 · 남은 도전 · 이번 주 합 · 한 번 최고 · 공동 토벌 길 · 주간 보상 표
     const Wb = g.S.wb || { used: 0, best: 0, total: 0, day: '' };
@@ -1106,69 +1186,95 @@ function paintWin() {
     }
   } else if (key === 'rival:2') {
     // v549 문파 — 옛 게임과 같은 문파(계정에 하나 · 최대 10명). 만들기 · 코드로 들어가기 · 찾기 · 출석(뽑기권 2 · 은자) · 문파원(서열 프로필)
+    // 문파 화면 다시 — 칸 격자(gd-): 없을 때는 문파가 주는 것 · 큰 타일 셋 / 있을 때는 머리(Lv · 경험치) · 토벌 · 수련 · 문파원 카드 · 대화 · 관리
     if (net.online) guildLoad();
     const G = net.online ? guildState.g : null;
-    if (!net.online) card('문파', '오프라인 — 인터넷에 연결되면 열려요')(note('문파는 서버에 있어요.'));
-    else if (!G) {
-      const c0 = card('문파', guildState.busy ? '불러오는 중…' : '아직 문파가 없어요 — 계정에 하나(옛 게임 문파도 같아요)');
-      c0(R('문파 만들기', '이름 1~16자 · 문주가 돼요', [['만들기', () => { play('click'); const n = (prompt('문파 이름(1~16자)') || '').trim(); if (!n) return; ensureNick(); guildDo(() => net.guildCreate(n.slice(0, 16), g.S.nick), '문파를 만들었어요'); }]], '創'));
-      c0(R('코드로 들어가기', '문파원에게 받은 여섯 자 코드', [['들어가기', () => { play('click'); const c = (prompt('문파 코드(6자)') || '').trim(); if (!c) return; ensureNick(); guildDo(() => net.guildJoin(c, g.S.nick), '문파에 들어갔어요'); }]], '入'));
-      const c1 = card('문파 찾기', '모집 중 · 자리 남은 문파');
-      if (!guildState.list) c1(note('불러오는 중…'));
-      else if (!guildState.list.length) c1(note('지금 모집 중인 문파가 없어요 — 만들어 보세요'));
-      else for (const x of guildState.list.slice(0, 20)) c1(R(`${esc(x.name)} <small>${x.n}/10명</small>`, `${esc(x.intro || '')}${x.minLv ? ` · Lv ${x.minLv}부터` : ''} · 경험치 ${unit(x.exp || 0)}`, [['들어가기', () => { play('click'); ensureNick(); guildDo(() => net.guildJoin(x.id, g.S.nick), '문파에 들어갔어요'); }, g.S.hero.lv < (x.minLv || 0)]], '派'));
+    B.classList.add('gd-wb');
+    const pic = (n) => `<img src="art/s2/ui/${n}.webp" alt="" loading="lazy" decoding="async">`;
+    const box = (cls, html = '') => { const d = document.createElement('div'); d.className = cls; d.innerHTML = html; return d; };
+    const GPER = 500;   // 문파 Lv 하나에 드는 경험치(Game.guildLvOf와 같은 값)
+    if (!G) {
+      const st = !net.online ? ['off', '오프라인 — 인터넷에 연결되면 열려요'] : guildState.busy ? ['wait', '불러오는 중…'] : ['none', '아직 문파가 없어요 — 계정에 하나(옛 게임 문파도 같아요)'];
+      add(box('gd-hero', `<div class="gd-hero-ic">${pic('guild')}</div><div class="gd-hero-t"><h3>문파 <small>최대 10명 · 계정에 하나</small></h3><p>같이 출석하고 · 같이 두목을 깎고 · 같이 수련해요</p><span class="gd-st gd-st-${st[0]}">${st[1]}</span>${net.online ? '' : '<p class="note">문파는 서버에 있어요.</p>'}</div>`));
+      const bLv = [2, 3, 4, 5, 6, 7, 8, 9].filter((l) => Game.guildBonus(l) > Game.guildBonus(l - 1)), tix0 = 2 + Game.guildBonus(1), tix1 = 2 + Game.guildBonus(99);
+      const perks = [
+        ['stamp', '출석', `하루 한 번 · 뽑기권 ${tix0}~${tix1} · 은자 · 문파 경험치 +20`],
+        ['raid', '토벌', `주 ${GRAID.weekTries}번 · ${GRAID.fightMs / 1000}초 · 단계마다 뽑기권 ${GRAID.rew.tix} · 은자`],
+        ['training', '수련', `오늘 할 일 하나 = 1점 · 한 명당 ${GTRAIN.perMember}점 차면 뽑기권 ${GTRAIN.rew.tix} · 은자`],
+        ['letter', '대화', '문파원끼리 실시간 · 토벌 소식도'],
+        ['medal', '문파 Lv', `경험치 ${GPER}마다 Lv +1 · 출석 뽑기권 +1(Lv ${bLv.join(' · ')})`],
+      ];
+      add(box('gd-perks', perks.map(([n, t, d]) => `<div class="gd-perk"><i>${pic(n)}</i><b>${t}</b><small>${d}</small></div>`).join('')));
+      const shut = !net.online || guildState.busy;
+      const tile = (n, name, desc, label, fn) => { const t = box(`gd-tile${shut ? ' off' : ''}`, `<i>${pic(n)}</i><div><b>${name}</b><small>${desc}</small></div>`); const bt = document.createElement('button'); bt.className = 'btn primary'; bt.textContent = label; bt.disabled = shut; bt.onclick = (e) => { e.stopPropagation(); fn(); }; t.append(bt); t.onclick = () => { if (!bt.disabled) fn(); }; return t; };
+      const acts = box('gd-acts');
+      acts.append(tile('guild', '문파 만들기', '이름 1~16자 · 문주가 돼요', '만들기', () => { play('click'); const n = (prompt('문파 이름(1~16자)') || '').trim(); if (!n) return; ensureNick(); guildDo(() => net.guildCreate(n.slice(0, 16), g.S.nick), '문파를 만들었어요'); }),
+        tile('key', '코드로 들어가기', '문파원에게 받은 여섯 자 코드', '들어가기', () => { play('click'); const c = (prompt('문파 코드(6자)') || '').trim(); if (!c) return; ensureNick(); guildDo(() => net.guildJoin(c, g.S.nick), '문파에 들어갔어요'); }),
+        tile('map', '문파 찾기', '모집 중 · 자리 남은 문파', '찾기', () => { play('click'); document.querySelector('#gd-find')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }));
+      add(acts);
+      if (net.online) {
+        const c1 = card('문파 찾기', '모집 중 · 자리 남은 문파'); B.lastElementChild.id = 'gd-find'; B.lastElementChild.classList.add('gd-find');
+        if (!guildState.list) c1(note('불러오는 중…'));
+        else if (!guildState.list.length) c1(note('지금 모집 중인 문파가 없어요 — 만들어 보세요'));
+        else for (const x of guildState.list.slice(0, 20)) c1(R(`${esc(x.name)} <small>${x.n}/10명</small>`, `${esc(x.intro || '')}${x.minLv ? ` · Lv ${x.minLv}부터` : ''} · 경험치 ${unit(x.exp || 0)}`, [['들어가기', () => { play('click'); ensureNick(); guildDo(() => net.guildJoin(x.id, g.S.nick), '문파에 들어갔어요'); }, g.S.hero.lv < (x.minLv || 0)]], '派'));
+      }
     } else {
-    const dk = S2NetDay(), mine = G.checkins?.[net.uid] === dk, glv = Game.guildLvOf(G.exp), gb = Game.guildBonus(glv);
-    const c0 = card(`${esc(G.name)} <small>문파 Lv ${glv}</small>`, `코드 ${G.id} · ${G.memberIds.length}/10명 · 경험치 ${unit(G.exp || 0)}${G.owner === net.uid ? ' · 문주' : ''}`);
-    c0(R('문파 출석', g.S.gChk === dayKey(now()) ? '오늘은 했어요 · 자정에 새로' : `하루 한 번 — 장비 뽑기권 ${2 + gb}${gb ? `(문파 Lv ${glv} +${gb})` : ''} · 은자 · 문파 경험치 +20${mine ? '(문파 쪽은 오늘 이미)' : ''}`,
-      [['출석', () => { play('click'); const r = g.guildCheckin(glv); if (!r) return; save(); play('coin'); toast(`문파 출석 — 뽑기권 ${r.tix} · 은자 ${unit(r.gold)}`); net.guildCheckin(G).then(() => { guildState.at = 0; guildLoad(); }).catch(() => {}); paintWin(); paintHud(); }, g.S.gChk === dayKey(now())]], '印'));
-    // v550 문파 토벌 — 이번 주 두목 · 단계 막대 · 내 도전 · 단계 보상 · 문파원 피해
+    const dk = S2NetDay(), mine = G.checkins?.[net.uid] === dk, glv = Game.guildLvOf(G.exp), gb = Game.guildBonus(glv), I = guildState.info || {};
+    const xpIn = Math.max(0, (G.exp || 0) - (glv - 1) * GPER), isOwner = G.owner === net.uid;
+    // 머리 — 이름 · 문파 Lv · 경험치 막대 · 사람 수 · 내 자리 · 출석
+    const head = box('card gd-head', `<div class="gd-head-top"><i class="gd-head-ic">${pic('guild')}</i><div class="gd-head-t"><div class="gd-head-n"><b>${esc(G.name)}</b><span class="gd-lv">문파 Lv ${glv}</span><span class="pill ${isOwner ? 'pv-real' : ''}">${isOwner ? '문주' : '문파원'}</span></div><div class="achbar gd-xp"><i style="width:${Math.min(100, (xpIn / GPER) * 100)}%"></i><span>Lv ${glv + 1}까지 ${unit(xpIn)} / ${GPER}</span></div><small>코드 ${G.id} · ${G.memberIds.length}/10명 · 경험치 ${unit(G.exp || 0)}${gb ? ` · 출석 뽑기권 +${gb}` : ''}${I.intro ? ` · 「${esc(I.intro)}」` : ''}</small></div></div>`);
+    add(head);
+    const chk = R('문파 출석', g.S.gChk === dayKey(now()) ? '오늘은 했어요 · 자정에 새로' : `하루 한 번 — 장비 뽑기권 ${2 + gb}${gb ? `(문파 Lv ${glv} +${gb})` : ''} · 은자 · 문파 경험치 +20${mine ? '(문파 쪽은 오늘 이미)' : ''}`,
+      [['출석', () => { play('click'); const r = g.guildCheckin(glv); if (!r) return; save(); play('coin'); toast(`문파 출석 — 뽑기권 ${r.tix} · 은자 ${unit(r.gold)}`); net.guildCheckin(G).then(() => { guildState.at = 0; guildLoad(); }).catch(() => {}); paintWin(); paintHud(); }, g.S.gChk === dayKey(now())]], '印');
+    chk.classList.add('gd-chk'); if (g.S.gChk === dayKey(now())) chk.classList.add('done'); head.append(chk);
+    // v550 문파 토벌 — 이번 주 두목 · 남은 체력 막대 · 내 몫 · 도전 · 단계 보상 · 문파원 피해
     { const ch = g.graidBoss(), D = CHBOSS[ch], RD = guildState.raid || { dmg: {}, names: {}, lv: 0 }, tot = Object.values(RD.dmg || {}).reduce((a, b) => a + b, 0);
       const lvR = RD.lv || Math.max(10, Math.floor(g.S.hero.lv / 10) * 10), ph = raidPhase(tot, graidHp0(lvR)), GS2 = g.graidState(), why = g.canDungeon('graid');
-      const cR = card(`문파 토벌 <small>${ch}장 · ${esc(D.name)}</small>`, `이번 주 ${ph.phase}단계 깸 · 토벌 Lv ${lvR} · 월요일에 새 두목`);
-      const top = document.createElement('div'); top.className = 'gr-top'; top.innerHTML = `<img src="art/s2/chb/chb${ch}.webp" alt="${esc(D.name)}"><div><div class="achbar"><i style="width:${Math.min(100, (ph.done / ph.hp) * 100)}%"></i><span>${ph.phase + 1}단계 ${unit(ph.done)} / ${unit(ph.hp)}</span></div><small>문파원이 넣은 피해를 모아 깎아요 · 단계마다 체력 ×1.4 · 단계마다 뽑기권 ${GRAID.rew.tix} · 은자</small></div>`; cR(top);
-      cR(R('도전', `90초 · 쓰러지지 않는 두목에 피해를 넣어요 · 이번 주 ${GS2.used}/${GRAID.weekTries}번`, [['도전', () => { play('click'); if (!g.enterDungeon('graid')) toast(g.canDungeon('graid') || '들어갈 수 없어요'); }, !!why]], '討'));
+      const rk = Object.entries(RD.dmg || {}).sort((a, b) => b[1] - a[1]), myD = RD.dmg?.[net.uid] || 0, myR = rk.findIndex(([id]) => id === net.uid) + 1, left = Math.max(0, ph.hp - ph.done);
+      const cR = card(`문파 토벌 <small>${ch}장 · ${esc(D.name)}</small>`, `${ph.phase}단계 깸 · 토벌 Lv ${lvR}`); B.lastElementChild.classList.add('gd-raid');
+      const top = document.createElement('div'); top.className = 'gr-top gd-boss'; top.innerHTML = `<img src="art/s2/chb/chb${ch}.webp" alt="${esc(D.name)}"><div><div class="gd-ph"><b>${ph.phase + 1}단계</b><small>단계마다 체력 ×1.4 · 월요일에 새 두목</small></div><div class="achbar gd-hp"><i style="width:${Math.min(100, (left / ph.hp) * 100)}%"></i><span>${unit(left)} / ${unit(ph.hp)}</span></div><div class="gd-my">내 몫 <b>${unit(myD)}</b>${myD ? ` · ${myR}위 · ${Math.round((myD / Math.max(1, tot)) * 100)}%` : ' · 아직 안 쳤어요'}</div></div>`; cR(top);
+      cR(R('도전', `${GRAID.fightMs / 1000}초 · 이번 주 ${GS2.used}/${GRAID.weekTries}번`, [['도전', () => { play('click'); if (!g.enterDungeon('graid')) toast(g.canDungeon('graid') || '들어갈 수 없어요'); }, !!why]], '討'));
       const can = ph.phase - GS2.claimed;
-      cR(R('단계 보상', can > 0 ? `${can}단계 받을 수 있어요` : `받은 단계 ${GS2.claimed}`, [['받기', act(() => { const r = g.graidClaim(tot, lvR); if (r) { play('coin'); toast(`문파 토벌 ${r.n}단계 — 뽑기권 ${r.tix} · 은자 ${unit(r.gold)}`); } return r; }), can <= 0]], '賞'));
-      const rk = Object.entries(RD.dmg || {}).sort((a, b) => b[1] - a[1]);
-      if (rk.length) { const box = document.createElement('div'); box.className = 'rk-list'; box.innerHTML = rk.map(([id, v], i) => `<div class="rk-r ${id === net.uid ? 'me' : ''} ${i < 3 ? `top${i + 1}` : ''}" data-uid="${esc(id)}"><b>${i + 1}</b><span>${esc(RD.names?.[id] || '무인')}</span><em>${unit(v)}</em></div>`).join(''); box.onclick = (e) => { const row = e.target.closest('.rk-r[data-uid]'); if (row) { play('click'); playerCard(row.dataset.uid); } }; cR(box); }   // v568
+      cR(R('단계 보상', can > 0 ? `${can}단계 받을 수 있어요` : `받은 단계 ${GS2.claimed} · 단계마다 뽑기권 ${GRAID.rew.tix}`, [['받기', act(() => { const r = g.graidClaim(tot, lvR); if (r) { play('coin'); toast(`문파 토벌 ${r.n}단계 — 뽑기권 ${r.tix} · 은자 ${unit(r.gold)}`); } return r; }), can <= 0]], '賞'));
+      if (rk.length) { const bx = document.createElement('div'); bx.className = 'rk-list gd-rk'; bx.innerHTML = rk.map(([id, v], i) => `<div class="rk-r ${id === net.uid ? 'me' : ''} ${i < 3 ? `top${i + 1}` : ''}" data-uid="${esc(id)}"><b>${i + 1}</b><span>${esc(RD.names?.[id] || '무인')}</span><em>${unit(v)}</em></div>`).join(''); bx.onclick = (e) => { const row = e.target.closest('.rk-r[data-uid]'); if (row) { play('click'); playerCard(row.dataset.uid); } }; cR(bx); }   // v568
     }
-    // v573 문주 설정 — 소개 · 가입 레벨 · 모집
-    { const I = guildState.info || {};
-      if (I.intro) c0(note(`소개: ${I.intro}`));
-      if (G.owner === net.uid) {
-        const set = (o, msg) => { net.guildInfoSet(G, o).then(() => { toast(msg); guildState.at = 0; guildLoad(true); }).catch((e) => toast(e?.code === 'permission-denied' ? '문주만 바꿀 수 있어요' : '바꾸지 못했어요')); };
-        c0(R('문파 소개', I.intro ? esc(I.intro) : '찾기 목록에 보일 한 줄(40자)', [['바꾸기', () => { play('click'); const t = prompt('문파 소개(40자)', I.intro || ''); if (t != null) set({ intro: t.trim().slice(0, 40) }, '소개를 바꿨어요'); }]], '介'));
-        c0(R('가입 레벨', I.minLv ? `Lv ${I.minLv}부터 들어올 수 있어요` : '누구나', [['바꾸기', () => { play('click'); const t = prompt('가입 레벨(0이면 누구나)', String(I.minLv || 0)); if (t != null) set({ minLv: +t || 0 }, '가입 레벨을 바꿨어요'); }]], '級'));
-        c0(R('모집', I.open === false ? '닫힘 — 찾기 목록에 안 보여요(코드로는 들어와요)' : '열림 — 찾기 목록에 보여요', [[I.open === false ? '열기' : '닫기', () => { play('click'); set({ open: I.open === false }, I.open === false ? '모집을 열었어요' : '모집을 닫았어요'); }]], '募'));
-      }
-    }
-    c0(R('문파원 부르기', '초대 주소를 보내요 — 그 주소로 들어오면 바로 문파 가입을 물어요', [['공유', () => { play('click'); shareGame(G.id); }]], '招'));   // v596
-    c0(R('코드 알려 주기', `문파원을 부를 때 — ${G.id}`, [['복사', () => { play('click'); navigator.clipboard?.writeText(G.id).then(() => toast('코드를 복사했어요'), () => toast(G.id)); }]], '碼'));
     // v552 문파 수련 — 오늘 할 일을 끝낼수록 막대가 찬다 · 다 차면 모두 보상
     { const TR = guildState.train || { pts: {}, names: {} }, tot = Object.values(TR.pts || {}).reduce((a, b) => a + b, 0), goal = GTRAIN.perMember * G.memberIds.length, GT = g.gtrainState(), mineP = g.gtrainPts();
-      const cT = card('문파 수련', `이번 주 ${unit(tot)} / ${goal} · 내 몫 ${mineP} · 월요일에 새로`);
-      const bar = document.createElement('div'); bar.className = 'achbar'; bar.innerHTML = `<i style="width:${Math.min(100, (tot / goal) * 100)}%"></i><span>${tot} / ${goal}</span>`; cT(bar);
-      cT(R('수련 보상', GT.got ? '이번 주는 받았어요' : tot >= goal ? '다 찼어요 — 받기!' : `오늘 할 일을 끝낼 때마다 1점(문파원 모두의 합) · 다 차면 뽑기권 ${GTRAIN.rew.tix} · 은자`,
+      const cT = card('문파 수련', `내 몫 ${mineP}점 · 월요일에 새로`); B.lastElementChild.classList.add('gd-train');
+      const bar = document.createElement('div'); bar.className = 'achbar gd-trbar'; bar.innerHTML = `<i style="width:${Math.min(100, (tot / goal) * 100)}%"></i><span>이번 주 ${unit(tot)} / ${goal}</span>`; cT(bar);
+      cT(R('수련 보상', GT.got ? '이번 주는 받았어요' : tot >= goal ? '다 찼어요 — 받기!' : `할 일 하나 = 1점 · 다 차면 뽑기권 ${GTRAIN.rew.tix} · 은자`,
         [['받기', act(() => { const r = g.gtrainClaim(tot, G.memberIds.length); if (r) { play('rare', 4); toast(`문파 수련 — 뽑기권 ${r.tix} · 은자 ${unit(r.gold)}`); } return r; }), GT.got || tot < goal]], '修'));
-      const rk = Object.entries(TR.pts || {}).sort((a, b) => b[1] - a[1]);
-      if (rk.length) cT(note(rk.map(([id, v]) => `${esc(TR.names?.[id] || '무인')} ${v}`).join(' · ')));
+      const rk = Object.entries(TR.pts || {}).sort((a, b) => b[1] - a[1]), mx = Math.max(1, ...rk.map((x) => x[1]));
+      if (rk.length) cT(box('gd-trl', rk.map(([id, v]) => `<div class="${id === net.uid ? 'me' : ''}"><span>${esc(TR.names?.[id] || '무인')}</span><i><u style="width:${(v / mx) * 100}%"></u></i><em>${v}</em></div>`).join('')));
     }
-    const cc = card('문파 대화', '옛 게임 문파와 같은 방 · 최근 30개');
-    { const box = document.createElement('div'); box.id = 'gchat'; box.className = 'gchat'; box.innerHTML = chatHtml(); cc(box);
+    // 문파원 — 카드(직업 · Lv · 전투력 · 오늘 출석) · 누르면 무인 정보(v568)
+    const JC = { sword: '#e8c26a', spear: '#e06a5a', fist: '#7cc47a', bow: '#6aa8e0', mage: '#b27ae0' };
+    const c1 = card('문파원', `오늘 출석 ${G.memberIds.filter((id) => G.checkins?.[id] === dk).length}/${G.memberIds.length}`); B.lastElementChild.classList.add('gd-mems');
+    for (const id of G.memberIds) {
+      const p2 = guildState.prof?.[id] || {}, nm = p2.nickname || G.members?.[id] || '무인', jn = JOBS[p2.job]?.name || '', on = G.checkins?.[id] === dk;
+      const r = document.createElement('div'); r.className = `row pc-open gd-mem${on ? ' on' : ''}`;
+      r.innerHTML = `<i class="gd-av" style="--jc:${JC[p2.job] || '#a8a29e'}">${esc(jn ? jn[0] : nm[0] || '?')}</i><div class="info"><div class="name">${esc(nm)}${id === G.owner ? ' <span class="pill pv-real">문주</span>' : ''}${id === net.uid ? ' <small>(나)</small>' : ''}</div><div class="desc">${p2.lv ? `${esc(jn)} Lv ${p2.lv} · 전투력 ${unit(p2.power || 0)}` : '새 시즌 기록 없음(옛 게임만)'}</div></div><span class="gd-stamp" title="오늘 출석">${on ? '출석' : '—'}</span>`;
+      if (id === net.uid) r.classList.add('gd-me'); r.onclick = (e) => { if (e.target.closest('button')) return; play('click'); playerCard(id); }; c1(r);
+    }
+    const cc = card('문파 대화', '옛 게임 문파와 같은 방 · 최근 30개'); B.lastElementChild.classList.add('gd-chat');
+    { const bx = document.createElement('div'); bx.id = 'gchat'; bx.className = 'gchat'; bx.innerHTML = chatHtml(); cc(bx);
       const fm = document.createElement('div'); fm.className = 'gchat-f'; fm.innerHTML = '<input id="gchat-in" maxlength="200" placeholder="문파원에게 한마디(200자)" autocomplete="off"><button class="btn primary" id="gchat-go">보내기</button>'; cc(fm);
       const gin = fm.querySelector('#gchat-in'); gin.value = guildState.draft || ''; gin.oninput = () => { guildState.draft = gin.value; };   // 문파 자료가 와서 창을 다시 그려도 쓰던 글 그대로
       fm.querySelector('#gchat-go').onclick = () => { play('click'); chatSend(); };
       gin.onkeydown = (e) => { e.stopPropagation(); if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); chatSend(); } };
       if (gFocus) gin.focus({ preventScroll: true });
-      requestAnimationFrame(() => { box.scrollTop = gAt ?? box.scrollHeight; box.dataset.init = 1; chatMarkRead(); }); }
-    const c1 = card('문파원', `오늘 출석 ${G.memberIds.filter((id) => G.checkins?.[id] === dk).length}/${G.memberIds.length}`);
-    for (const id of G.memberIds) {
-      const p2 = guildState.prof?.[id] || {}, nm = p2.nickname || G.members?.[id] || '무인';
-      const r = R(`${esc(nm)}${id === G.owner ? ' <span class="pill pv-real">문주</span>' : ''}${id === net.uid ? ' <small>(나)</small>' : ''}`, p2.lv ? `${esc(JOBS[p2.job]?.name || '')} Lv ${p2.lv} · 전투력 ${unit(p2.power || 0)}` : '새 시즌 기록 없음(옛 게임만)', [], G.checkins?.[id] === dk ? '✓' : '·');
-      if (id === net.uid) r.classList.add('gd-me'); r.classList.add('pc-open'); r.onclick = (e) => { if (e.target.closest('button')) return; play('click'); playerCard(id); }; c1(r);   // v568 누르면 무인 정보
+      requestAnimationFrame(() => { bx.scrollTop = gAt ?? bx.scrollHeight; bx.dataset.init = 1; chatMarkRead(); }); }
+    // 관리 — 부르기 · 코드 · (문주) 소개 · 가입 레벨 · 모집(v573) · 나가기
+    const cM = card('문파 관리', isOwner ? '문주만 바꿀 수 있어요' : `코드 ${G.id}`); B.lastElementChild.classList.add('gd-admin');
+    cM(R('문파원 부르기', '초대 주소를 보내요 — 그 주소로 들어오면 바로 문파 가입을 물어요', [['공유', () => { play('click'); shareGame(G.id); }]], '招'));   // v596
+    cM(R('코드 알려 주기', `문파원을 부를 때 — ${G.id}`, [['복사', () => { play('click'); navigator.clipboard?.writeText(G.id).then(() => toast('코드를 복사했어요'), () => toast(G.id)); }]], '碼'));
+    if (isOwner) {
+      const set = (o, msg) => { net.guildInfoSet(G, o).then(() => { toast(msg); guildState.at = 0; guildLoad(true); }).catch((e) => toast(e?.code === 'permission-denied' ? '문주만 바꿀 수 있어요' : '바꾸지 못했어요')); };
+      cM(R('문파 소개', I.intro ? esc(I.intro) : '찾기 목록에 보일 한 줄(40자)', [['바꾸기', () => { play('click'); const t = prompt('문파 소개(40자)', I.intro || ''); if (t != null) set({ intro: t.trim().slice(0, 40) }, '소개를 바꿨어요'); }]], '介'));
+      cM(R('가입 레벨', I.minLv ? `Lv ${I.minLv}부터 들어올 수 있어요` : '누구나', [['바꾸기', () => { play('click'); const t = prompt('가입 레벨(0이면 누구나)', String(I.minLv || 0)); if (t != null) set({ minLv: +t || 0 }, '가입 레벨을 바꿨어요'); }]], '級'));
+      cM(R('모집', I.open === false ? '닫힘 — 찾기 목록에 안 보여요(코드로는 들어와요)' : '열림 — 찾기 목록에 보여요', [[I.open === false ? '열기' : '닫기', () => { play('click'); set({ open: I.open === false }, I.open === false ? '모집을 열었어요' : '모집을 닫았어요'); }]], '募'));
     }
-    c1(R('문파 나가기', '나가면 다시 코드로 들어와야 해요', [['나가기', () => { play('click'); if (!confirm(`「${G.name}」에서 나갈까요?`)) return; guildDo(() => net.guildLeave(G.id).then(() => null), '문파에서 나왔어요'); }]], '出'));
+    { const lv = R('문파 나가기', '나가면 다시 코드로 들어와야 해요', [['나가기', () => { play('click'); if (!confirm(`「${G.name}」에서 나갈까요?`)) return; guildDo(() => net.guildLeave(G.id).then(() => null), '문파에서 나왔어요'); }]], '出'); lv.classList.add('gd-leave'); cM(lv); }
     }
   } else if (key === 'chat:0') {
     // 전체 대화 — 읽기는 누구나 · 쓰기는 Lv 10부터 · 이름을 누르면 무인 정보
@@ -1449,13 +1555,31 @@ function partyShow(r) {
   addLog(`동행 토벌 ${r.tier}단계 ${r.cleared ? '성공' : '실패'}`);
 }
 // v567 무인 정보 — 서열에서 줄을 누르면: 그 무인의 모습(고른 외형) · 직업 · 레벨 · 전투력 · 대결 점수 · 이번 주 월드보스 · 문파
+// 남의 외형 — 부위마다 보이는 등급(lk)이 있으면 그대로, 없으면 레벨로 어림
+const lookOf = (lk, lv) => Object.fromEntries(SLOTS.map((sl) => [sl, { slot: sl, g: lk?.[sl] ?? Math.min(6, Math.floor((lv || 1) / 25)), up: 0, subs: [] }]));
+// 서열 단상의 작은 무인 하나 — data-job · data-lv · data-lk · data-sil(그림자: 흰 빛 한 겹)
+let rkScratch = null;
+function rkDraw(cv, T) {
+  const x = cv.getContext('2d'), W = cv.width, H = cv.height, d = cv.dataset, i = +d.i || 0, job = JOBS[d.job] ? d.job : 'sword', lv = +d.lv || 1;
+  let lk = null; try { lk = d.lk ? JSON.parse(d.lk) : null; } catch { lk = null; }
+  x.clearRect(0, 0, W, H);
+  const gr = x.createRadialGradient(W / 2, H - 8, 4, W / 2, H - 8, W * 0.46); gr.addColorStop(0, d.sil ? 'rgba(255,255,255,.08)' : ['#fde04766', '#e5e7eb55', '#f0abfc55'][i]); gr.addColorStop(1, 'rgba(0,0,0,0)'); x.fillStyle = gr; x.fillRect(0, 0, W, H);
+  const o = { t: d.sil ? 0 : T + i * 0.45, scale: 1.55, eq: lookOf(lk, lv) };
+  if (d.sil) { const s = (rkScratch ||= document.createElement('canvas')); s.width = W; s.height = H; const sx = s.getContext('2d'); drawHero(sx, W / 2, H - 6, job, lv, o); sx.globalCompositeOperation = 'source-in'; sx.fillStyle = d.sil === 'row' ? ['rgba(253,224,71,.4)', 'rgba(229,231,235,.34)', 'rgba(240,171,252,.34)'][i] : 'rgba(255,255,255,.2)'; sx.fillRect(0, 0, W, H); x.drawImage(s, 0, 0); }
+  else drawHero(x, W / 2, H - 6, job, lv, o);
+  // 가장자리를 흐리게 — 경지 기운(옅은 빛 판)이 작은 칸에서 네모로 잘려 보이지 않게
+  x.save(); x.globalCompositeOperation = 'destination-in';
+  const fx = x.createLinearGradient(0, 0, W, 0); fx.addColorStop(0, 'rgba(0,0,0,0)'); fx.addColorStop(0.24, '#000'); fx.addColorStop(0.76, '#000'); fx.addColorStop(1, 'rgba(0,0,0,0)'); x.fillStyle = fx; x.fillRect(0, 0, W, H);
+  const fy = x.createLinearGradient(0, 0, 0, H); fy.addColorStop(0, 'rgba(0,0,0,0)'); fy.addColorStop(0.1, '#000'); x.fillStyle = fy; x.fillRect(0, 0, W, H); x.restore();
+  d.n =String((+d.n || 0) + 1);
+}
 function playerCard(uid) {
   pop('무인 정보', '<p class="note">불러오는 중…</p>');
   net.playerCard(uid).then((p) => {
     const M = $('modal'); if (!M || M.classList.contains('hidden')) return;
     const body = M.querySelector('.mbody, .body, #modal-body') || M.querySelector('div:last-child');
     if (!p) { toast('기록이 없어요'); closeModal(); return; }
-    const eq = Object.fromEntries(SLOTS.map((sl) => [sl, { slot: sl, g: p.lk?.[sl] ?? Math.min(6, Math.floor((p.lv || 1) / 25)), up: 0, subs: [] }]));
+    const eq = lookOf(p.lk, p.lv);
     const html = `<div class="pc"><canvas width="240" height="260"></canvas><div class="pc-i"><b>${esc(p.nickname || '무인')}${uid === net.uid ? ' <small>(나)</small>' : ''}</b><span>${esc(JOBS[p.job]?.name || '')} · Lv ${p.lv}</span>
       <div class="pc-g"><span>전투력</span><em>${unit(p.power || 0)}</em><span>대결</span><em>${p.pvpScore ?? p.pvp ?? '-'}${p.pvpScore != null ? ` · ${esc(tierName(p.pvpScore))}` : ''}</em><span>월드보스(주)</span><em>${unit(p.wbScore || 0)}</em><span>문파</span><em>${p.guildId ? esc(p.guildId) : '없음'}</em></div></div></div>`;
     closeModal();
@@ -3408,6 +3532,6 @@ load();
 if (g) boot();
 else pickJob();
 // 시험용 손잡이
-window.__s2 = { get g() { return g; }, followers: () => ({ ...followerN }), agTest: () => { frame.ag = 0; }, saverStart, saverOff, saverOn: () => saverOn, saverAge: (ms) => { if (saverFrom) saverFrom.at -= ms; }, saverSum: () => saverSum, retTest: (ms) => { const O = g.S.offline; O.lastSeen -= ms; O.clockMax -= ms; returnQueue(); }, impacts: () => impacts.length, motion: () => ({ hurt: heroHurtAt, down: heroDownAt, run: runMix, anim: heroAnim.active }), inviteTest: (c) => { inviteCode = c; inviteCheck(); }, shareGame, shareLast: () => shareLast, saverAutoTest: (on) => { saverAuto = !!on; }, wake: () => ({ lock: !!wakeLock, want: wakeWant, ok: wakeOK() }), wakeSync, wakeOpt: (on) => { opt.wake = !!on; return wakeSync(); }, saverTest: () => { saverForce = true; lastInput = -1e9; }, newsCheck, coachStep: () => coachStep, coachRect: () => (coachStep >= 0 ? coachRect(COACH[coachStep]) : null), nudgeTest: () => { lastInput = -1e9; nudgeAt = 0; return nudgeTick(); }, guildState, guildLoad, chatSend, worldSend, worldMsgs: () => worldState.msgs.map((m) => ({ uid: m.uid, nick: m.nick, text: m.text, lv: m.lv, job: m.job })), worldOn: () => !!worldState.unsub, worldReset: () => { worldState.lastAt = 0; worldState.lastText = ''; }, save, dayKey, attendPop, freeze: () => { frozen = true; }, net, cloudPush, rankPush, wbPush, wkStr, pvpInbox, pvpFetch, resetNetTimers: () => { pvpAt = 0; inboxAt = 0; },
+window.__s2 = { get g() { return g; }, dgIv: () => dgIv, followers: () => ({ ...followerN }), agTest: () => { frame.ag = 0; }, saverStart, saverOff, saverOn: () => saverOn, saverAge: (ms) => { if (saverFrom) saverFrom.at -= ms; }, saverSum: () => saverSum, retTest: (ms) => { const O = g.S.offline; O.lastSeen -= ms; O.clockMax -= ms; returnQueue(); }, impacts: () => impacts.length, motion: () => ({ hurt: heroHurtAt, down: heroDownAt, run: runMix, anim: heroAnim.active }), inviteTest: (c) => { inviteCode = c; inviteCheck(); }, shareGame, shareLast: () => shareLast, saverAutoTest: (on) => { saverAuto = !!on; }, wake: () => ({ lock: !!wakeLock, want: wakeWant, ok: wakeOK() }), wakeSync, wakeOpt: (on) => { opt.wake = !!on; return wakeSync(); }, saverTest: () => { saverForce = true; lastInput = -1e9; }, newsCheck, coachStep: () => coachStep, coachRect: () => (coachStep >= 0 ? coachRect(COACH[coachStep]) : null), nudgeTest: () => { lastInput = -1e9; nudgeAt = 0; return nudgeTick(); }, guildState, guildLoad, chatSend, worldSend, worldMsgs: () => worldState.msgs.map((m) => ({ uid: m.uid, nick: m.nick, text: m.text, lv: m.lv, job: m.job })), worldOn: () => !!worldState.unsub, worldReset: () => { worldState.lastAt = 0; worldState.lastText = ''; }, save, dayKey, attendPop, freeze: () => { frozen = true; }, net, cloudPush, rankPush, wbPush, wkStr, pvpInbox, pvpFetch, resetNetTimers: () => { pvpAt = 0; inboxAt = 0; },
   // v525 팝업 대신 에뮬레이터용 가짜 Google 토큰으로 잇기 · 겹치면 그 계정으로
   linkTest: async (tok) => { const r = await net.linkGoogle(tok); if (r.conflict) { const d = await net.switchTo(r.cred); if (d) applyCloud(d); return 'switched'; } await cloudPush(true); return 'linked'; } };
