@@ -1540,6 +1540,13 @@ console.log('\n=== 동행 토벌 — 다른 무인의 덱과 함께 두목 ===')
   ok(g.today().length === 9, '오늘 할 일 목록은 그대로(동행 토벌은 넣지 않음)');
 }
 
+console.log('\n=== v607 모음 그림 — 병기 · 동료 · 영물 그림이 다 있다 ===');
+{
+  const { COLLECT } = await import('../js/s2/tables/s5.js'); const { existsSync } = await import('node:fs');
+  const miss = []; for (const [sys, D] of Object.entries(COLLECT)) for (let k = 0; k < D.kinds; k++) if (!existsSync(new URL(`../art/s2/coll/${sys}-${k}.webp`, import.meta.url))) miss.push(`${sys}-${k}`);
+  ok(miss.length === 0, '모음 그림 75장', miss.join(' '));
+}
+
 console.log('\n=== S0 규칙 ===');
 {
   const files = [];

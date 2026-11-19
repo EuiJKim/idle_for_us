@@ -637,7 +637,7 @@ function paintWin() {
     const c0 = card(`${D.name} 뽑기`, `천장 ${C.pity}/200`);
     // v558 병기 · 동료 · 영물 뽑기도 카드 뒤집기(높은 등급은 두근 · 번쩍) — 처음 얻은 것은 「새로」
     const GLY = { weapon: '兵', pal: '伴', relic: '靈' }[sys] || '抽';
-    const pullFx = (n) => { const before = new Set(Object.keys(C.own)); const r = g.pullCollect(sys, n); if (r) showGacha({ items: r, got: [] }, { title: `${D.name} 뽑기`, done: (b) => `가장 좋은 것: ${GRADES[b]} · 새로 ${new Set(r.filter((x) => !before.has(String(x.k))).map((x) => x.k)).size}종`, face: (it) => `<div class="gx-gly g${it.g}t">${collGly(sys, it.k)}</div><b class="g${it.g}t">${GRADES[it.g]}</b><small>${esc(collName(sys, it.k))}</small>${before.has(String(it.k)) ? '' : '<i>새로</i>'}` }); return r; };
+    const pullFx = (n) => { const before = new Set(Object.keys(C.own)); const r = g.pullCollect(sys, n); if (r) showGacha({ items: r, got: [] }, { title: `${D.name} 뽑기`, done: (b) => `가장 좋은 것: ${GRADES[b]} · 새로 ${new Set(r.filter((x) => !before.has(String(x.k))).map((x) => x.k)).size}종`, face: (it) => `<img class="gx-coll" src="art/s2/coll/${sys}-${it.k}.webp" alt=""><b class="g${it.g}t">${GRADES[it.g]}</b><small>${esc(collName(sys, it.k))}</small>${before.has(String(it.k)) ? '' : '<i>새로</i>'}` }); return r; };
     c0(R(`뽑기권 ${W[`ticket:${sys}`] || 0}장`, '많이 가지면 모은 효과 · 낀 것은 장착 효과', [['1번', act(() => pullFx(1))], ['10번', act(() => pullFx(10))]], '抽'));
     // v603 모음 격자 — 가진 것은 등급 빛깔로, 아직 없는 것도 흐리게 다 보인다(무엇을 모으는지 · 얼마나 모았는지)
     const nOwn = Object.keys(C.own).length;
@@ -646,7 +646,7 @@ function paintWin() {
     const grid = document.createElement('div'); grid.className = 'coll-grid';
     for (let k = 0; k < D.kinds; k++) {
       const o = C.own[k], gr = kindGrade(sys, k), t2 = document.createElement('div'); t2.className = `coll-tile${o ? '' : ' no'}${C.eq.includes(k) ? ' on' : ''}`; t2.style.setProperty('--gc', GCOL[gr]);
-      t2.innerHTML = `<em>${o ? collGly(sys, k) : '?'}</em><b>${esc(collName(sys, k))}</b><small>${GRADES[gr]}품${o ? ` · Lv ${o.lv || 1}${o.awk ? ` · 각성 ${o.awk}` : ''}` : ''}</small>${C.eq.includes(k) ? '<u>장착</u>' : ''}`;
+      t2.innerHTML = `<img src="art/s2/coll/${sys}-${k}.webp" alt="" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('em'),{textContent:'${o ? collGly(sys, k) : '?'}'}))"><b>${esc(collName(sys, k))}</b><small>${GRADES[gr]}품${o ? ` · Lv ${o.lv || 1}${o.awk ? ` · 각성 ${o.awk}` : ''}` : ''}</small>${C.eq.includes(k) ? '<u>장착</u>' : ''}`;
       grid.append(t2);
     }
     c1(grid);
