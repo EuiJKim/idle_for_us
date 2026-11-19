@@ -566,12 +566,12 @@ export class Game {
     const f = this.fate();
     if (f.cards) return f.cards;
     if (f.ready <= 0) return null;
-    const pool = FATE_CARDS.slice(), cards = [];
+    const pool = FATE_CARDS.filter((c) => c.k !== 'exp' || this.S.hero.lv < LEVEL_MAX), cards = [];   // 만렙이면 경험치 카드는 빼고(받아도 0)
     for (let i = 0; i < 3; i++) { const c = pool.splice(this.rng.pick(pool.map((x) => x.w)), 1)[0]; cards.push({ k: c.k, n: this.fateAmount(c.k) }); }
     return (f.cards = cards);
   }
   fatePick(i) {
-    const f = this.fate(), c = f.cards?.[i];
+    const f = this.fate(), c = Number.isInteger(i) && Array.isArray(f.cards) ? f.cards[i] : null;   // 번호(0~2)만 — 'length' 같은 이름으로는 못 고른다
     if (!c || f.ready <= 0) return null;
     if (c.k === 'exp') this.addExp(c.n);
     else this.S.wallet[c.k] = (this.S.wallet[c.k] || 0) + c.n;
@@ -912,7 +912,8 @@ export class Game {
   partyFight(tier, allies = []) {
     const P = this.partyRec(); tier = tier | 0;
     if (P.runs >= PARTY.runsPerDay || tier < 1 || tier > P.best + 1 || this.dg || this.bossFight) return null;
-    const team = (Array.isArray(allies) ? allies : []).slice(0, PARTY.allies).map((x) => this.deckClean(x)).filter(Boolean);
+    const team = (Array.isArray(allies) ? allies : []).slice(0, PARTY.allies).map((x) => this.deckClean(x)).filter(Boolean)
+      .filter((a, i, T) => T.findIndex((b) => b.uid === a.uid) === i);   // 같은 무인을 두 번 데려갈 수는 없다
     // 동행은 그 레벨 표준 무공 세트로 친다(덱에는 능력치만 있다)
     const fs = team.map((a) => ({ ...refPlayer(a.f.lv, a.f.job), st: a.f.st }));
     const lv = partyLv(tier), r = runParty({ mobLv: lv, hpX: partyHpX(tier), timeMs: PARTY.timeMs }, this.fighter(), fs, this.rng.u32());

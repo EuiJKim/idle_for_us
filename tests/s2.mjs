@@ -1547,6 +1547,55 @@ console.log('\n=== v607 모음 그림 — 병기 · 동료 · 영물 그림이 �
   ok(miss.length === 0, '모음 그림 75장', miss.join(' '));
 }
 
+console.log('\n=== 새 기능 점검 — 기연 · 동행 · 옛 세이브 · 날 바뀜 ===');
+{
+  const GM = await import('../js/s2/game.js');
+  const T0 = 1.8e12, DAYMS = 24 * 3600e3;
+  const mk = (L, seed = 3) => { const g = new Game(newGame('sword', T0, seed), T0); g.addExp(EX.cumExp(L)); g.tick(T0); return g; };
+  // 기연: 카드는 번호(0~2)로만 고른다 — 배열의 이름('length')으로 고르면 횟수만 날아가고 지갑에 이상한 칸이 생겼다
+  { const g = mk(40); g.fateKill(GM.FATE_NEED); g.fateOpen(); const w0 = JSON.stringify(g.S.wallet);
+    ok(g.fatePick('length') === null && g.fatePick('0') === null && g.fatePick(1.5) === null && g.fatePick(-1) === null && g.fatePick(3) === null, '기연: 번호가 아니면 못 고름');
+    ok(g.fateState().ready === 1 && g.fateState().cards && JSON.stringify(g.S.wallet) === w0 && !('undefined' in g.S.wallet), '기연: 못 고르면 횟수 · 카드 · 지갑 그대로', JSON.stringify(g.S.wallet));
+    ok(g.fatePick(2) && g.fatePick(2) === null && g.fateState().ready === 0, '기연: 한 번 고르면 끝(두 번 못 받음)'); }
+  // 기연: 만렙이면 경험치 카드가 나오지 않는다(받아도 0 — 자동 성장이 첫 카드로 받아 기연을 날렸다)
+  { const g = mk(PR.LEVEL_MAX); let exp = 0; const kinds = new Set();
+    for (let i = 0; i < 200; i++) { g.fate().ready = 1; const c = g.fateOpen(); if (c.some((x) => x.k === 'exp')) exp++; for (const x of c) kinds.add(x.k); g.fatePick(0); }
+    ok(exp === 0 && kinds.size === GM.FATE_CARDS.length - 1, '기연: 만렙에는 경험치 카드 없음 · 나머지 일곱은 그대로', `경험치 ${exp}번 · ${kinds.size}가지`);
+    const h = mk(40); let seen = 0; for (let i = 0; i < 100; i++) { h.fate().ready = 1; if (h.fateOpen().some((x) => x.k === 'exp')) seen++; h.fatePick(1); }
+    ok(seen > 0, '기연: 만렙 전에는 경험치 카드가 나온다', seen); }
+  // 동행 토벌: 같은 무인을 두 번 데려가도 한 명 몫
+  { const pg = () => { const g = mk(40); g.fighter = () => refPlayer(40, 'sword'); g.S.party = { day: GM.dayKey(T0), runs: 0, best: 5 }; return g; };
+    const deck = (uid, job = 'spear') => ({ uid, name: '벗', f: { lv: 40, job, st: { ...refPlayer(40, job).st } } });
+    const one = pg().partyFight(6, [deck('a')]), twice = pg().partyFight(6, [deck('a'), deck('a')]), two = pg().partyFight(6, [deck('a'), deck('b')]);
+    ok(twice.allies.length === 1 && twice.dmg[2] === 0 && JSON.stringify(twice.dmg) === JSON.stringify(one.dmg) && twice.cleared === one.cleared, '동행: 같은 무인 둘 = 한 명', JSON.stringify(twice.dmg));
+    ok(two.allies.length === 2 && two.dmg[2] > 0, '동행: 다른 무인 둘은 둘 다 싸운다', JSON.stringify(two.dmg));
+    // 못 가는 단계 · 싸움 중에는 횟수 · 난수를 쓰지 않는다
+    const g = pg(), r0 = JSON.stringify(g.rng.state());
+    ok([NaN, -1, 0, 7, 1e99, 'x', undefined].every((t) => g.partyFight(t, []) === null) && g.partyState().left === 2 && JSON.stringify(g.rng.state()) === r0, '동행: 못 가는 단계는 횟수 · 난수 그대로');
+    g.fateState(); g.shopState(); g.partyBots(); g.statPts(); g.fateKill(GM.FATE_NEED); g.statAuto(); g.shopBuy('free'); g.shardExchange();
+    ok(JSON.stringify(g.rng.state()) === r0, '기연 칸 · 상점 · 스탯 · 조각은 난수를 쓰지 않는다(열 때 · 싸울 때만)');
+    // 자정(KST) — 23:59에 다 쓰고 00:00에 돌아온다
+    const mid = (GM.dayKey(T0) + 1) * DAYMS - 9 * 3600e3, h = pg(); h.S.wallet.gold = 1e12;
+    h.tick(mid - 1000); h.partyFight(1, []); h.partyFight(1, []); h.shopBuy('stone', 3); h.shopBuy('free');
+    ok(h.partyState().left === 0 && h.shopState().find((x) => x.id === 'stone').left === 0 && !h.shopFreeCan(), '23:59 — 오늘 것을 다 씀');
+    h.tick(mid - 1); ok(h.partyState().left === 0 && !h.shopFreeCan(), '23:59:59.999 — 아직 그대로');
+    h.tick(mid); ok(h.partyState().left === 2 && h.S.party.best === 5 && h.shopFreeCan() && h.shopState().find((x) => x.id === 'stone').left === 3, '00:00 — 새로(최고 단계는 남음)');
+    h.tick(mid + 5000); h.shopBuy('free'); h.tick(mid + 9000); ok(!h.shopFreeCan(), '같은 날 안에서는 다시 열리지 않는다'); }
+  // 옛 세이브(새 칸이 하나도 없음) — 불러와서 모두 써 본다 · 새 칸을 채운 세이브는 그대로 돌아온다
+  { const g = mk(40, 8); g.S.wallet['item:shard'] = 45; g.fateKill(GM.FATE_NEED + 100); const cards = g.fateOpen(); g.shopBuy('free'); g.statUp('crit', 3); g.S.party = { day: GM.dayKey(T0), runs: 1, best: 3 };
+    const b = Game.load(g.save(), T0);
+    ok(b.signed && JSON.stringify(b.fateState().cards) === JSON.stringify(cards) && b.fateState().g === 100 && !b.shopFreeCan() && b.S.hero.sp.crit === 3 && b.partyState().left === 1 && b.partyState().best === 3 && b.S.wallet['item:shard'] === 45 && b.power() === g.power(), '저장 → 불러오기: 기연 카드 · 상점 · 스탯 · 동행 · 조각 그대로');
+    const S = JSON.parse(JSON.stringify(g.S)); delete S.hero.sp; delete S.fate; delete S.shop; delete S.party; delete S.wallet['item:shard'];
+    const o = new Game(S, T0); let err = '';
+    try { o.tick(T0 + 1000); o.hunt(2000); o.autoGrow(); o.statReset(); o.statAuto(); o.fateOpen(); o.fatePick(0); o.shopState(); o.shopBuy('gear'); o.shardExchange(); o.partyBots(); o.partyFight(1, []); Game.load(o.save(), T0 + 2000).autoGrow(); } catch (e) { err = e.message; }
+    ok(!err && o.statPts() === 0 && o.partyState().left === 1 && Number.isFinite(o.power()) && Object.values(o.S.wallet).every((v) => Number.isFinite(v)), '옛 세이브: 새 기능이 모두 돈다 · 지갑에 이상한 값 없음', err); }
+  // 스탯: 치명(0.2‰씩)이 소수여도 전투력 · 서열 칸은 정수 · 되돌렸다 다시 찍어도 레벨 − 1점
+  { const g = mk(21); g.statUp('crit', 3); const p = g.rankProfile();
+    ok(Number.isInteger(g.power()) && Number.isInteger(g.power('pvp')) && Number.isInteger(p.power) && Number.isInteger(p.pvpPower), '스탯: 치명이 소수여도 전투력은 정수');
+    for (let i = 0; i < 5; i++) { g.statReset(); g.statUp('atk', 999); g.statUp('hp', 2.9); g.statAuto(); }
+    ok(g.hero.spUsed() === 20 && g.statPts() === 0, '스탯: 되돌리고 다시 찍어도 레벨 − 1점', JSON.stringify(g.S.hero.sp)); }
+}
+
 console.log('\n=== S0 규칙 ===');
 {
   const files = [];
