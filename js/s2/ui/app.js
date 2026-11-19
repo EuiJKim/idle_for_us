@@ -1328,10 +1328,33 @@ const BIG = {
   bow: [[0, '투척준비'], [0.14, '투척', 'snap'], [0.28, { lean: 0.1, crouch: 0.14, dx: 2, hand: [-0.5, 26], blade: -0.6, wscale: WS }]],
   mage: [[0, '펼치기'], [0.14, '장타', 'snap'], [0.3, { ...POSES.장타, lean: 0.26, dx: 9 }]],
 };
+// v599 평타 궤적 — 무기가 지나간 자리에 초승달 빛(검 · 창 휘두르기 · 권 훅/올려치기) 또는 곧은 줄기(찌르기 · 정권). [시작각, 끝각, 반지름] 또는 ['thrust', 길이]
+const SWING = {
+  sword: [[-1.15, 0.75, 44], [1.1, -1.25, 44], [-1.5, 1.0, 46]],
+  spear: [['thrust', 70], [-1.3, 0.8, 56]],
+  fist: [['thrust', 34], [-1.0, 0.7, 28], [1.2, -1.2, 30]],
+};
+let swing = null;
+function drawSwing(cx, hx, hy, k, face, t) {
+  if (!swing || opt.gfx === 'low') return;
+  const p = (t - swing.at) / 150; if (p < 0) return; if (p >= 1) { swing = null; return; }
+  const [a0, a1, R] = swing.a, head = Math.min(1, p / 0.4), tail = Math.max(0, (p - 0.3) / 0.7), al = (1 - p) * 0.85;
+  cx.save(); cx.translate(hx, hy - 44 * k); cx.scale(face * k, k); cx.globalCompositeOperation = 'lighter'; cx.globalAlpha = al;
+  if (a0 === 'thrust') {
+    const L = a1, x0 = 14 + L * tail, x1 = 14 + L * head, gr = cx.createLinearGradient(x0, 0, x1, 0); gr.addColorStop(0, 'rgba(255,247,214,0)'); gr.addColorStop(1, 'rgba(255,255,255,0.95)');
+    cx.fillStyle = gr; cx.beginPath(); cx.moveTo(x0, 0); cx.lineTo(x1 - 6, -3.2); cx.lineTo(x1, 0); cx.lineTo(x1 - 6, 3.2); cx.closePath(); cx.fill();
+  } else {
+    const s0 = a0 + (a1 - a0) * tail, s1 = a0 + (a1 - a0) * head, ccw = a1 < a0;
+    const gr = cx.createRadialGradient(0, 0, R * 0.7, 0, 0, R * 1.04); gr.addColorStop(0, 'rgba(255,247,214,0)'); gr.addColorStop(0.75, 'rgba(255,250,225,0.9)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+    cx.fillStyle = gr; cx.beginPath(); cx.arc(4, 0, R * 1.04, s0, s1, ccw); cx.arc(4 + (ccw ? 0 : 0) + 5, 0, R * 0.74, s1, s0, !ccw); cx.closePath(); cx.fill();   // 안쪽 호를 조금 앞으로 밀어 끝이 가늘어지는 초승달
+  }
+  cx.restore();
+}
 function heroAttackPose(job, big) {
   if (big) { heroAnim.play(BIG[job] || BIG.sword, 0.26); return; }
-  const C = COMBO[job] || COMBO.sword;
-  heroAnim.play(C[fistN++ % C.length], 0.2);
+  const C = COMBO[job] || COMBO.sword, vi = fistN++ % C.length;
+  heroAnim.play(C[vi], 0.2);
+  swing = SWING[job]?.[vi] ? { at: now() + 55, a: SWING[job][vi] } : null;   // 예비 동작 뒤에 긋는다
 }
 let lookDir = 1, lastPoseT = 0, fistN = 0;
 let lastFight = null, lastDraw = 0, lookAhead = 0, zoomAt = -1e9, levelAt = -1e9, heroAirAt = 0, heroLandAt = -1e9, heroFace = 1, heroTurnFrom = 1, heroTurnAt = -1e9;
@@ -1680,6 +1703,7 @@ function draw() {
   const hflash = t - heroHurtAt < 60 && opt.gfx !== 'low'; if (hflash) cx.filter = 'brightness(1.9) saturate(0.5)';   // v598 맞는 순간 번쩍
   drawHero(cx, hx, hy, g.S.hero.job, g.S.hero.lv, { t: ts, run: heroRun > 0, turn, pose, lunge: pose ? 0 : Math.max(0, 1 - (t - lastHitAt) / 160), scale: sc, eq: g.lookEq() });
   if (hflash) cx.filter = 'none';
+  drawSwing(cx, hx, hy, sc, heroFace, t);   // v599
   cx.restore();
   // 레벨 업: 무인 위로 빛기둥과 고리(0.9초)
   const lu = (t - levelAt) / 900;
