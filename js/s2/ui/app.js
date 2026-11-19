@@ -1285,7 +1285,7 @@ const palAtk = [];          // 동료 i → { at, mid } 마지막 공격
 const tells = new Map();    // 두목 id → 예고 { pat, x, y, w, at, dur }
 const dust = [];   // 발밑 흙먼지
 const heroAnim = new PoseAnim();
-let lastAtkPose = 0, lastFreeze = 0, stanceMix = 0, runMix = 0;
+let lastAtkPose = 0, lastFreeze = 0, stanceMix = 0, runMix = 0, heroHurtAt = -1e9, heroDownAt = -1e9;
 // v507 싸우는 중 겨눔 자세(평타 사이에 차렷으로 서 있지 않게) — 직업마다 무기를 겨눈 채 낮게
 const STANCE = {
   sword: { lean: 0.1, crouch: 0.24, lift: 0, dx: 0, hand: [1.15, 19], blade: -0.3, stretch: 0, alpha: 1, wscale: 1.15 },
@@ -1646,6 +1646,10 @@ function draw() {
       pose = runMix >= 1 ? run : mixPose(pose, run, runMix * runMix * (3 - 2 * runMix));
     }
   }
+  // v598 맞으면 움찔(0.18초 — 뒤로 젖혀지고 살짝 밀림) · 쓰러지면 무릎을 꿇고 칼을 짚는다(1.2초)
+  const hurtF = Math.max(0, 1 - (t - heroHurtAt) / 180), downA = (t - heroDownAt) / 1200;
+  if (downA >= 0 && downA < 1 && H.plat >= 0) { const kq = Math.min(1, downA / 0.2), ke = 1 - (1 - kq) ** 3; pose = mixPose(pose || IDLE, { lean: 0.34, crouch: 0.9, lift: 0, dx: 2, hand: [1.45, 20], blade: 1.57, stretch: 0, alpha: 1, wscale: 1.2, swing: 0 }, ke); }
+  else if (hurtF > 0 && pose) pose = { ...pose, lean: pose.lean - hurtF * 0.16, dx: pose.dx - hurtF * 4, crouch: pose.crouch + hurtF * 0.08 };
   if (t - pillarAt < 1500) {   // v534 좋은 장비를 주웠을 때 무인 자리에 빛기둥
     const a2 = (t - pillarAt) / 1500, al = a2 < 0.15 ? a2 / 0.15 : 1 - (a2 - 0.15) / 0.85, bw = 46 * k * (1 + a2 * 0.4);
     cx.save(); cx.globalCompositeOperation = 'lighter'; cx.globalAlpha = 0.75 * al;
@@ -1673,7 +1677,9 @@ function draw() {
   if (t - dashAt < 300) dashTrail.push({ x: hx, y: hy, at: t });
   dashTrail = dashTrail.filter((d) => t - d.at < 240);
   for (const d of dashTrail) { cx.save(); cx.globalAlpha = 0.35 * (1 - (t - d.at) / 240); cx.filter = 'brightness(1.8) saturate(0.3)'; drawHero(cx, d.x, d.y, g.S.hero.job, g.S.hero.lv, { t: ts, run: true, turn, pose, scale: sc, eq: g.lookEq() }); cx.restore(); }
+  const hflash = t - heroHurtAt < 60 && opt.gfx !== 'low'; if (hflash) cx.filter = 'brightness(1.9) saturate(0.5)';   // v598 맞는 순간 번쩍
   drawHero(cx, hx, hy, g.S.hero.job, g.S.hero.lv, { t: ts, run: heroRun > 0, turn, pose, lunge: pose ? 0 : Math.max(0, 1 - (t - lastHitAt) / 160), scale: sc, eq: g.lookEq() });
+  if (hflash) cx.filter = 'none';
   cx.restore();
   // 레벨 업: 무인 위로 빛기둥과 고리(0.9초)
   const lu = (t - levelAt) / 900;
@@ -1830,10 +1836,10 @@ function frame() {
       else if (e[0] === 'stun') { play('rare', 4); chbBanner('무력화!', `${Math.round(e[3] / 1000)}초 기절 · 받는 피해 ×${CB.stunDmgX}`, 'stun'); }
       else if (e[0] === 'summon') addLog('두목이 졸개를 불렀다');
       else if (e[0] === 'wbw') { if (e[2]) { chbBanner('약점 노출!', `10초 · 받는 피해 ×${WBF.weakX} — 무공을 몰아 쓰세요`, 'stun'); play('rare', 4); shakeUntil = t + 300; } else chbBanner('방어 자세', `받는 피해 ×${WBF.guardX}`, 'rage'); }
-      else if (e[0] === 'hurt') play('hurt');
+      else if (e[0] === 'hurt') { play('hurt'); if (t - heroHurtAt > 260) heroHurtAt = t; }   // v598 맞으면 움찔
       else if (e[0] === 'dash') { dashAt = t; play('swish'); }
       else if (e[0] === 'perfect') { perfAt = t; slowUntil = t + 650; shakeUntil = t + 160; play('rare', 5); buzz([30, 40, 30]); chbBanner('완벽 회피!', `${DASH.buffMs / 1000}초 동안 주는 피해 ×${DASH.buffX}`, 'stun'); addLog('완벽 회피!'); }
-      else if (e[0] === 'die') { play('down'); buzz(200); }
+      else if (e[0] === 'die') { play('down'); buzz(200); heroDownAt = t; }   // v598 쓰러지면 무릎을 꿇는다
       else if (e[0] === 'burst') { tells.delete(e[2]); skillFx.push({ at: t, shape: 'boss', pat: e[3], x: e[4], y: e[5], w: e[6] }); shakeUntil = t + (e[7] ? 420 : 220); if (e[7]) { hurtFlash = t; buzz(60); } play('burst'); }
       else if (e[0] === 'kill') { comboHit(t); if (e[3] === 'boss' && g.lastFight?.def?.chb) { slowUntil = t + 900; shakeUntil = t + 700; chbBanner('BOSS DEFEATED', '', 'win'); } play('kill'); if (killLog.length < 500) killLog.push(t); const m = mobs.get(e[2]); if (m && coins.length < 40) for (let j = 0; j < (m.kind === 'mob' ? 2 : 6); j++) coins.push({ x: m.x, y: m.y + 600, vx: ((j % 3) - 1) * 900 + ((m.id * 7 + j * 13) % 9 - 4) * 120, vy: 5200 + (j % 2) * 1500, at: t, j }); if (m && corpses.length < 30) corpses.push({ m: { id: m.id, kind: m.kind }, x: m.x, y: m.y, dir: m.dir || 1, at: t + 40 }); firstSeen.delete(e[2]); lastNext.delete(e[2]); atkAt.delete(e[2]); hpLag.delete(e[2]); if (m && skillFx.length < 90) skillFx.push({ at: t, shape: 'ring', x: m.x, y: m.y }); }
       if (e[0] === 'cast') { heroAttackPose(g.S.hero.job, true); lastAtkPose = t; play('skill'); lastCastAt = t; const tr = skillById(e[2])?.tier || 0; if (tr >= 3 && t - lastFreeze > 700) { freezeUntil = t + 45; lastFreeze = t; } if (tr >= 4) zoomAt = t; flashSlot(e[2]); }   // 큰 무공은 맞는 순간 0.06초 멈칫
@@ -2260,6 +2266,6 @@ load();
 if (g) boot();
 else pickJob();
 // 시험용 손잡이
-window.__s2 = { get g() { return g; }, agTest: () => { frame.ag = 0; }, saverStart, saverOff, saverOn: () => saverOn, saverAge: (ms) => { if (saverFrom) saverFrom.at -= ms; }, saverSum: () => saverSum, inviteTest: (c) => { inviteCode = c; inviteCheck(); }, shareGame, shareLast: () => shareLast, saverAutoTest: (on) => { saverAuto = !!on; }, wake: () => ({ lock: !!wakeLock, want: wakeWant, ok: wakeOK() }), wakeSync, wakeOpt: (on) => { opt.wake = !!on; return wakeSync(); }, saverTest: () => { saverForce = true; lastInput = -1e9; }, newsCheck, guildState, guildLoad, chatSend, save, dayKey, attendPop, freeze: () => { frozen = true; }, net, cloudPush, rankPush, wbPush, wkStr, pvpInbox, pvpFetch, resetNetTimers: () => { pvpAt = 0; inboxAt = 0; },
+window.__s2 = { get g() { return g; }, agTest: () => { frame.ag = 0; }, saverStart, saverOff, saverOn: () => saverOn, saverAge: (ms) => { if (saverFrom) saverFrom.at -= ms; }, saverSum: () => saverSum, motion: () => ({ hurt: heroHurtAt, down: heroDownAt, run: runMix, anim: heroAnim.active }), inviteTest: (c) => { inviteCode = c; inviteCheck(); }, shareGame, shareLast: () => shareLast, saverAutoTest: (on) => { saverAuto = !!on; }, wake: () => ({ lock: !!wakeLock, want: wakeWant, ok: wakeOK() }), wakeSync, wakeOpt: (on) => { opt.wake = !!on; return wakeSync(); }, saverTest: () => { saverForce = true; lastInput = -1e9; }, newsCheck, guildState, guildLoad, chatSend, save, dayKey, attendPop, freeze: () => { frozen = true; }, net, cloudPush, rankPush, wbPush, wkStr, pvpInbox, pvpFetch, resetNetTimers: () => { pvpAt = 0; inboxAt = 0; },
   // v525 팝업 대신 에뮬레이터용 가짜 Google 토큰으로 잇기 · 겹치면 그 계정으로
   linkTest: async (tok) => { const r = await net.linkGoogle(tok); if (r.conflict) { const d = await net.switchTo(r.cred); if (d) applyCloud(d); return 'switched'; } await cloudPush(true); return 'linked'; } };
