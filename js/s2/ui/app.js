@@ -26,7 +26,7 @@ import { expToNext } from '../tables/exp.js';
 import { staminaNow } from '../content/idle.js';
 import { buildQueue } from '../content/offline.js';
 import { kindGrade } from '../grow/collect.js';
-import { loadLooks, zoneFor, drawHero, drawMob, mobName, mobHeight, preloadMobs, drawPaintedBack, drawPaintedLedge, drawEarth, chbImg, preloadChapter, fxImg, oldImg, tintImg, ULT_ART, SEAL_ART, CUT_ART, BUFF_ART, BOSS_ART, wearCount } from './look.js';
+import { loadLooks, zoneFor, drawHero, drawMob, mobName, mobHeight, preloadMobs, drawPaintedBack, drawPaintedLedge, drawEarth, chbImg, preloadChapter, fxImg, oldImg, tintImg, ULT_ART, SEAL_ART, CUT_ART, BUFF_ART, BOSS_ART, wearCount, filtered } from './look.js';
 import { BOSS_PATS } from '../tables/kit.js';
 import { CHBOSS, CB_PATS, CB, WBF, CB_RAID, DEX_REW } from '../tables/chboss.js';
 import { DASH } from '../battle/side.js';   // v546 회피
@@ -1403,10 +1403,10 @@ function paintUnlock() {
   const next = UNLOCKS[n];
   nx.classList.toggle('hidden', !next);
   if (!next) { $('dpsm').style.top = ''; return; }
+  const k = `${n}:${L}:${$('qc').dataset.k || ''}:${$('qc').classList.contains('hidden') ? 0 : 1}`;
+  if (nx.dataset.k === k) return;   // v614 바뀐 것이 없으면 자리를 재지 않는다(재면 화면 배치를 억지로 다시 계산 — 0.2초마다)
   if (!$('qc').classList.contains('hidden') && !$('qc').offsetHeight) return;   // 길잡이 카드가 가려진 동안(두목전)엔 자리를 잴 수 없다 — 다시 보일 때 맞춘다
   const same = UNLOCKS.filter((u) => u.lv === next.lv), prev = n ? UNLOCKS[n - 1].lv : 1;
-  const k = `${n}:${L}:${$('qc').dataset.k || ''}:${$('qc').classList.contains('hidden') ? 0 : 1}`;
-  if (nx.dataset.k === k) return;
   nx.dataset.k = k; nx.dataset.go = next.key;
   nx.innerHTML = `<span class="nxt"><em>다음</em>${esc(next.short)}${same.length > 1 ? ` 외 ${same.length - 1}` : ''} · Lv ${next.lv} <small>(지금 Lv ${L})</small></span><i class="nxb"><i style="width:${Math.max(0, Math.min(1, (L - prev) / Math.max(1, next.lv - prev))) * 100}%"></i></i>`;
   nx.title = `${same.map((u) => u.name).join(' · ')} — Lv ${next.lv}에 열려요`;
@@ -1661,6 +1661,7 @@ const mobSk = new Map();     // 몹 id → [무공에 맞은 때, 차수](더 �
 const DEBRIS_COL = { mob: ['#2b2520', '#efe6d0', '#8a7f70'], elite: ['#2b2520', '#e9d5ff', '#c4a1ff'], boss: ['#2b2520', '#fde68a', '#f59e0b'] };
 let punch = { at: -1e9, amp: 0, dur: 160 };   // 무공 당김(차수 1~5 → 2~6%) — 예전 4 · 5차 당김(zoomAt)을 이것 하나로
 let vigAt = -1e9, vigLv = 0, vigGr = null, vigKey = '';   // 연속 처치 가장자리 금빛
+const auraGr = { k: '', r: null, l: null }; let hurtGr = null, hurtKey = '';   // v614 칭호 오라 · 맞음 가장자리 그라디언트(한 번 만들어 다시 씀)
 let ghostAt = -1e9, lastCastTier = 0;   // 3차 이상 무공 잔상
 const punchNow = (t) => { const p = (t - punch.at) / punch.dur; return p < 0 || p >= 1 ? 0 : punch.amp * (p < 0.2 ? p / 0.2 : (1 - (p - 0.2) / 0.8) ** 2); };
 function spawnDebris(m, dir, t) {
@@ -2097,9 +2098,8 @@ function draw() {
     // v597 맞은 반대쪽으로 튕겨 올랐다가(포물선) 떨어지며 넘어가고, 끝 0.4에서 흐려진다 — 두목은 뜨지 않고 무겁게 무너진다
     const ce = 1 - (1 - a) * (1 - a), fa = a < 0.6 ? 1 : 1 - ((a - 0.6) / 0.4) ** 2;
     cx.save(); cx.globalAlpha = fa; cx.translate(x - c.dir * ce * (bossC ? 8 : 30) * k, y - (bossC ? 0 : Math.sin(Math.min(1, a * 1.3) * Math.PI) * 16 * k) + (a > 0.75 ? (a - 0.75) * 24 * k : 0)); cx.rotate(-c.dir * ce * (bossC ? 1.1 : 1.4)); cx.translate(-x, -y);
-    const cf = opt.gfx === 'low' ? 99 : t - c.at; if (cf < -12) cx.filter = 'brightness(0) invert(1)'; else if (cf < 50) cx.filter = 'brightness(2.4) saturate(0.3)';   // 막타 — 첫 두 프레임은 새하얗게, 이어 밝게
-    drawMob(cx, x, y, c.m, z, { t: ts + c.m.id, flip: c.dir < 0, ch, hurt: 1, scale: sc * (c.m.kind === 'boss' ? 1.3 : 1) });
-    if (cf < 50) cx.filter = 'none';
+    const cf = opt.gfx === 'low' ? 99 : t - c.at, filt = cf < -12 ? 'brightness(0) invert(1)' : cf < 50 ? 'brightness(2.4) saturate(0.3)' : '';   // 막타 — 첫 두 프레임은 새하얗게, 이어 밝게
+    drawMob(cx, x, y, c.m, z, { t: ts + c.m.id, flip: c.dir < 0, ch, hurt: 1, scale: sc * (c.m.kind === 'boss' ? 1.3 : 1), filt });
     cx.restore();
   }
   // v6xx 따르는 무리 — 동료(사람)는 작은 무인으로 무인 뒤 땅에, 영물(짐승)은 그 뒤 조금 높이(나는 것은 공중에). 몹 · 무인보다 먼저 그려 체력 줄 · 무인을 가리지 않는다
@@ -2120,12 +2120,10 @@ function draw() {
     else { const ls = t - seen - 300; if (ls >= 0 && ls < 170) { const q = Math.sin((ls / 170) * Math.PI) * 0.1; cx.translate(x, y); cx.scale(1 + q * 0.8, 1 - q); cx.translate(-x, -y); } }   // v597 내려앉으며 한 번 납작
     if (mw) { cx.translate(x + kx, y); cx.rotate(Math.sin((ts + m.id) * 11) * 0.05); cx.translate(-(x + kx), -y); }   // 걸음마다 발을 축으로 몸이 좌우로 실린다
     const flash = ha >= 0 && ha < 70;
-    if (flash) cx.filter = 'brightness(2.2) saturate(0.4)';
-    drawMob(cx, x + kx, y, m, z, { t: ts + m.id, flip: m.dir < 0, moving: !!m.moving, ch, atk, hurt, scale: sc * (m.kind === 'boss' ? 1.3 : 1) });
-    if (flash) cx.filter = 'none';
+    drawMob(cx, x + kx, y, m, z, { t: ts + m.id, flip: m.dir < 0, moving: !!m.moving, ch, atk, hurt, scale: sc * (m.kind === 'boss' ? 1.3 : 1), filt: flash ? 'brightness(2.2) saturate(0.4)' : '' });
     // 무력화 · 약점 노출 동안 두목 몸에 흰 금빛 기운이 맥동한다(상태가 끝나면 사라짐)
     const bst = m.kind === 'boss' && opt.gfx !== 'low' && (m.stunUntil > F.t || !!(F.def.wb && F.wbW));
-    if (bst) { cx.globalCompositeOperation = 'lighter'; cx.globalAlpha *= 0.3 + 0.22 * Math.sin(t * 0.012); cx.filter = 'sepia(1) saturate(2.4) brightness(1.5)'; drawMob(cx, x + kx, y, m, z, { t: ts + m.id, flip: m.dir < 0, moving: !!m.moving, ch, atk, hurt, scale: sc * 1.3 }); cx.filter = 'none'; }
+    if (bst) { cx.globalCompositeOperation = 'lighter'; cx.globalAlpha *= 0.3 + 0.22 * Math.sin(t * 0.012); drawMob(cx, x + kx, y, m, z, { t: ts + m.id, flip: m.dir < 0, moving: !!m.moving, ch, atk, hurt, scale: sc * 1.3, filt: 'sepia(1) saturate(2.4) brightness(1.5)' }); }
     cx.restore();
     if (m.kind === 'boss' && opt.gfx !== 'low') {
       const hh = mobHeight(m, ch) * sc * 1.3 * 0.5;
@@ -2253,9 +2251,12 @@ function draw() {
     const col = titleByName(g.S.titleOn)?.col || '#fde68a';
     cx.save(); cx.globalCompositeOperation = 'lighter';
     const pulse = 0.75 + 0.25 * Math.sin(ts * 2.4);
-    const gr = cx.createRadialGradient(hx, hy, 2, hx, hy, 60 * k); gr.addColorStop(0, col); gr.addColorStop(1, 'rgba(0,0,0,0)');
-    cx.globalAlpha = 0.6 * pulse; cx.fillStyle = gr; cx.beginPath(); cx.ellipse(hx, hy, 60 * k, 16 * k, 0, 0, 7); cx.fill();
-    { const cg = cx.createLinearGradient(0, hy - 120 * k, 0, hy); cg.addColorStop(0, 'rgba(0,0,0,0)'); cg.addColorStop(1, col); cx.globalAlpha = 0.16 * pulse; cx.fillStyle = cg; cx.fillRect(hx - 26 * k, hy - 120 * k, 52 * k, 120 * k); }
+    // v614 그라디언트는 빛깔 · 크기가 바뀔 때만 새로(무인 자리로 옮겨 그린다)
+    const ak = `${col}|${k}`; if (auraGr.k !== ak) { auraGr.k = ak; auraGr.r = cx.createRadialGradient(0, 0, 2, 0, 0, 60 * k); auraGr.r.addColorStop(0, col); auraGr.r.addColorStop(1, 'rgba(0,0,0,0)'); auraGr.l = cx.createLinearGradient(0, -120 * k, 0, 0); auraGr.l.addColorStop(0, 'rgba(0,0,0,0)'); auraGr.l.addColorStop(1, col); }
+    cx.translate(hx, hy);
+    cx.globalAlpha = 0.6 * pulse; cx.fillStyle = auraGr.r; cx.beginPath(); cx.ellipse(0, 0, 60 * k, 16 * k, 0, 0, 7); cx.fill();
+    cx.globalAlpha = 0.16 * pulse; cx.fillStyle = auraGr.l; cx.fillRect(-26 * k, -120 * k, 52 * k, 120 * k);
+    cx.translate(-hx, -hy);
     cx.fillStyle = col;
     for (let i = 0; i < 10; i++) {
       const ph = (ts * 0.55 + i / 10) % 1, px = hx + Math.sin(i * 2.1 + ts * 1.7) * 26 * k * (1 - ph * 0.4), py = hy - ph * 125 * k;
@@ -2266,12 +2267,13 @@ function draw() {
   // v546 회피 잔상 — 대시하는 0.3초 동안 지나온 자리에 옅은 그림자
   if (t - dashAt < 300) dashTrail.push({ x: hx, y: hy, at: t });
   dashTrail = dashTrail.filter((d) => t - d.at < 240);
-  for (const d of dashTrail) { cx.save(); cx.globalAlpha = 0.35 * (1 - (t - d.at) / 240); cx.filter = 'brightness(1.8) saturate(0.3)'; drawHero(cx, d.x, d.y, g.S.hero.job, g.S.hero.lv, { t: ts, run: true, turn, pose, scale: sc, eq: g.lookEq() }); cx.restore(); }
+  // v614 filter 건 무인은 작은 판에 그려 filter를 한 번만(선마다 걸면 폰이 뜨거워진다)
+  const heroF = (filt, x, y, o) => { if (filtered(cx, filt, x, y, 150 * sc, 240 * sc, 40 * sc, (c) => drawHero(c, x, y, g.S.hero.job, g.S.hero.lv, o))) return; cx.save(); cx.filter = filt; drawHero(cx, x, y, g.S.hero.job, g.S.hero.lv, o); cx.restore(); };
+  for (const d of dashTrail) { cx.save(); cx.globalAlpha = 0.35 * (1 - (t - d.at) / 240); heroF('brightness(1.8) saturate(0.3)', d.x, d.y, { t: ts, run: true, turn, pose, scale: sc, eq: g.lookEq() }); cx.restore(); }
   // 3차 이상 무공 — 내지르는 0.2초 동안 뒤에서 따라붙는 잔상(3차 2겹 · 4차부터 3겹)
-  if (t - ghostAt < 200 && opt.gfx !== 'low') { const ga = (t - ghostAt) / 200, gn = lastCastTier >= 4 ? 3 : 2; cx.save(); cx.filter = 'brightness(1.8) saturate(0.3)'; for (let i = gn; i >= 1; i--) { cx.globalAlpha = 0.42 * (1 - ga) / i; drawHero(cx, hx - heroFace * i * 15 * k * (1 - ga * ga), hy, g.S.hero.job, g.S.hero.lv, { t: ts, run: false, turn, pose, scale: sc, eq: g.lookEq() }); } cx.restore(); }
-  const hflash = t - heroHurtAt < 60 && opt.gfx !== 'low'; if (hflash) cx.filter = 'brightness(1.9) saturate(0.5)';   // v598 맞는 순간 번쩍
-  drawHero(cx, hx, hy, g.S.hero.job, g.S.hero.lv, { t: ts, run: heroRun > 0, turn, pose, lunge: pose ? 0 : Math.max(0, 1 - (t - lastHitAt) / 160), scale: sc, eq: g.lookEq() });
-  if (hflash) cx.filter = 'none';
+  if (t - ghostAt < 200 && opt.gfx !== 'low') { const ga = (t - ghostAt) / 200, gn = lastCastTier >= 4 ? 3 : 2; cx.save(); for (let i = gn; i >= 1; i--) { cx.globalAlpha = 0.42 * (1 - ga) / i; heroF('brightness(1.8) saturate(0.3)', hx - heroFace * i * 15 * k * (1 - ga * ga), hy, { t: ts, run: false, turn, pose, scale: sc, eq: g.lookEq() }); } cx.restore(); }
+  const hflash = t - heroHurtAt < 60 && opt.gfx !== 'low', heroO = { t: ts, run: heroRun > 0, turn, pose, lunge: pose ? 0 : Math.max(0, 1 - (t - lastHitAt) / 160), scale: sc, eq: g.lookEq() };   // v598 맞는 순간 번쩍
+  if (hflash) heroF('brightness(1.9) saturate(0.5)', hx, hy, heroO); else drawHero(cx, hx, hy, g.S.hero.job, g.S.hero.lv, heroO);
   drawSwing(cx, hx, hy, sc, heroFace, t);   // v599
   cx.restore();
   // 레벨 업: 무인 위로 빛기둥과 고리(0.9초)
@@ -2351,7 +2353,7 @@ function draw() {
     const va = (t - vigAt) / 200; cx.save(); cx.setTransform(dpr, 0, 0, dpr, 0, 0); cx.globalCompositeOperation = 'lighter'; cx.globalAlpha = [0, 0.14, 0.2, 0.27][vigLv] * (va < 0.2 ? va / 0.2 : 1 - (va - 0.2) / 0.8); cx.fillStyle = vigGr; cx.fillRect(0, 0, W, Hh); cx.restore();
   }
   // 두목 패턴에 맞음 — 화면 가장자리 붉게(0.4초)
-  if (t - hurtFlash < 400) { const v = cx.createRadialGradient(W / 2, Hh / 2, Math.min(W, Hh) * 0.3, W / 2, Hh / 2, Math.max(W, Hh) * 0.7); v.addColorStop(0, 'rgba(220,20,20,0)'); v.addColorStop(1, `rgba(220,20,20,${0.45 * (1 - (t - hurtFlash) / 400)})`); cx.fillStyle = v; cx.fillRect(0, 0, W, Hh); }
+  if (t - hurtFlash < 400) { const key = W + 'x' + Hh; if (hurtKey !== key) { hurtKey = key; hurtGr = cx.createRadialGradient(W / 2, Hh / 2, Math.min(W, Hh) * 0.3, W / 2, Hh / 2, Math.max(W, Hh) * 0.7); hurtGr.addColorStop(0, 'rgba(220,20,20,0)'); hurtGr.addColorStop(1, 'rgba(220,20,20,0.45)'); } cx.save(); cx.globalAlpha = 1 - (t - hurtFlash) / 400; cx.fillStyle = hurtGr; cx.fillRect(0, 0, W, Hh); cx.restore(); }   // v614 그라디언트는 화면 크기마다 한 번 · 옅어짐은 globalAlpha로
   // 궁극기 컷인 — 수묵 배경 띠가 비스듬히 지나가며 무공 이름(0.9초)
   if (cutIn) {
     const a = (t - cutIn.at) / 900;

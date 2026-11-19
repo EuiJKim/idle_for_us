@@ -5306,8 +5306,7 @@ function drawForearmArt(ctx, hx, hy, C, cuff, flash, armArt) {
   // v518 새 시즌 장갑 그림 — 소매 끝부터 손목까지 보호대
   if (armArt) { const s0 = len * 0.4, L = len * 0.92 - s0, h = Math.min(11, L * armArt.height / armArt.width * 1.1); ctx.drawImage(armArt, s0, -h / 2, L, h); ctx.restore(); return; }
   // 소매 안에서 나오는 앞팔 — 어깨 쪽이 굵고 손목으로 가늘어진다
-  const g = ctx.createLinearGradient(0, -4.6, 0, 4.8);
-  g.addColorStop(0, C.light); g.addColorStop(0.45, main); g.addColorStop(1, C.dark);
+  const g = cachedGrad(ctx, `arm|${C.light}|${main}|${C.dark}`, () => { const g = ctx.createLinearGradient(0, -4.6, 0, 4.8); g.addColorStop(0, C.light); g.addColorStop(0.45, main); g.addColorStop(1, C.dark); return g; });
   ctx.fillStyle = g; ctx.strokeStyle = LINE; ctx.lineWidth = 1.4; ctx.lineJoin = 'round';
   // 그림 소매가 위팔을 이미 덮고 있다 — 소매 끝(절반 자리)부터 손목까지만 그린다
   const s0 = len * 0.42;
@@ -5317,12 +5316,18 @@ function drawForearmArt(ctx, hx, hy, C, cuff, flash, armArt) {
   ctx.beginPath(); ctx.moveTo(s0 + 1, -4.4); ctx.lineTo(s0 + 1, 4.6); ctx.stroke();
   ctx.restore();
 }
+// 좌표가 고정된(그리는 쪽 변환만 바뀌는) 그라디언트는 빛깔마다 한 번만 만든다 — 매 프레임 새로 만들지 않게(그림판마다 따로)
+const gradCache = new WeakMap();
+function cachedGrad(ctx, key, make) {
+  let m = gradCache.get(ctx); if (!m) gradCache.set(ctx, (m = new Map()));
+  let g = m.get(key); if (!g) { if (m.size > 256) m.clear(); g = make(); m.set(key, g); }
+  return g;
+}
 // 손 — 살빛에 명암, 테두리, 엄지 금. k: 호출 쪽 배율을 되돌리는 값
 function drawHandArt(ctx, x, y, k = 1) {
   ctx.save();
   ctx.translate(x, y); ctx.scale(k, k);
-  const g = ctx.createRadialGradient(-1.2, -1.4, 0.6, 0, 0, 4.6);
-  g.addColorStop(0, '#f7dfc4'); g.addColorStop(1, '#d6a57a');
+  const g = cachedGrad(ctx, 'hand', () => { const g = ctx.createRadialGradient(-1.2, -1.4, 0.6, 0, 0, 4.6); g.addColorStop(0, '#f7dfc4'); g.addColorStop(1, '#d6a57a'); return g; });
   ctx.fillStyle = g; ctx.strokeStyle = LINE; ctx.lineWidth = 1.2;
   ctx.beginPath(); ctx.ellipse(0, 0, 3.9, 3.3, 0.35, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
   ctx.strokeStyle = 'rgba(120,70,40,0.55)'; ctx.lineWidth = 0.9;
@@ -5411,8 +5416,7 @@ function drawLegsArt(ctx, swing, C, boot, flash, legArt, bootArt) {
   if (bootArt) { for (const fx of [-12 - swing, 15 + swing]) { const w = 17, h = w * bootArt.height / bootArt.width; ctx.drawImage(bootArt, fx - w * 0.42, 1.2 - h, w, h); } return; }
   // 장화 — 둥근 앞코, 테두리, 윗면 빛
   for (const [fx, dir] of [[-12 - swing, -1], [15 + swing, 1]]) {
-    const bg = ctx.createLinearGradient(0, -6, 0, 0);
-    bg.addColorStop(0, shade(boot, 0.3)); bg.addColorStop(1, shade(boot, -0.25));
+    const bg = cachedGrad(ctx, `boot|${boot}`, () => { const bg = ctx.createLinearGradient(0, -6, 0, 0); bg.addColorStop(0, shade(boot, 0.3)); bg.addColorStop(1, shade(boot, -0.25)); return bg; });
     ctx.fillStyle = bg; ctx.strokeStyle = LINE; ctx.lineWidth = 1.3;
     ctx.beginPath(); ctx.moveTo(fx - 6, -6); ctx.lineTo(fx + 4, -6); ctx.quadraticCurveTo(fx + 9 * dir + (dir > 0 ? 0 : 4), -6, fx + 7.5 * dir + (dir > 0 ? 0 : -1), -1.5);
     ctx.quadraticCurveTo(fx + 2 * dir, 1.2, fx - 6 * dir, 0.8); ctx.quadraticCurveTo(fx - 8 * dir, -2, fx - 6, -6); ctx.closePath(); ctx.fill(); ctx.stroke();

@@ -148,19 +148,23 @@ export function drawMob(cx, x, y, m, z, o = {}) {
   // v597 눌림 · 늘어남(발을 축으로) — 맞으면 납작, 칠 때는 움츠렸다가(예비) 내지르며 늘어난다
   const sqy = 1 - hurt * 0.09 + (atk > 0 ? (wind < 0 ? wind * 0.14 : wind * 0.05) : 0), sqx = 1 + hurt * 0.07 + (atk > 0 && wind < 0 ? -wind * 0.08 : 0);
   // 정예: 발밑 보랏빛 기운이 숨 쉬듯
-  if (m.kind === 'elite') { cx.save(); cx.globalAlpha = 0.28 + 0.12 * Math.sin(t * 4); cx.fillStyle = '#a855f7'; cx.beginPath(); cx.ellipse(x, y, 34 * sc, 10 * sc, 0, 0, 7); cx.fill(); cx.restore(); }
+  // v614 o.filt: 번쩍임 등 filter — 그림 몹은 filter를 구워 둔 판으로 그린다(그릴 때마다 filter를 걸지 않게). 짐승(선 그림)은 예전처럼 filter
+  const filt = o.filt || '', im = src === 'cr' ? null : artImg(artPath(src, key)), fim = filt && im ? filtImg(im, filt) : null;
+  if (filt && !fim && filtered(cx, filt, x, y, 170 * sc, 280 * sc, 40 * sc, (c) => drawMob(c, x, y, m, z, { ...o, filt: '' }))) return;   // 선 그림 짐승: 한 판에 그려 filter를 한 번만
+  const setF = filt && !fim;
+  if (setF) cx.filter = filt;
+  if (m.kind === 'elite') { cx.save(); if (filt) cx.filter = filt; cx.globalAlpha = 0.28 + 0.12 * Math.sin(t * 4); cx.fillStyle = '#a855f7'; cx.beginPath(); cx.ellipse(x, y, 34 * sc, 10 * sc, 0, 0, 7); cx.fill(); cx.restore(); }
   if (src === 'cr') {
     cx.save(); cx.translate(x + dir * lunge, y); cx.rotate(dir * lean * 0.6); cx.scale(sqx, sqy); cx.translate(-x, -y);
     drawCreature(cx, key, x, y, { t, moving: !!o.moving, flip, scale: 0.86 * (CR_SIZE[key] || 1) * sc });   // v506 사람 몹 옆에서 너무 작았다(0.62)
-    cx.restore(); return;
+    cx.restore(); if (setF) cx.filter = 'none'; return;
   }
-  const im = artImg(artPath(src, key));
   const H0 = src === 'chb' ? (key === 'wb1' ? 230 : 165) : m.kind === 'boss' ? 118 : 100;   // v535 월드보스는 더 크게   // 화면 키(배율 1일 때) · v532 장 두목은 크게
   const h = H0 * sc;
   // 발밑 그림자
-  cx.save(); cx.fillStyle = 'rgba(0,0,0,0.26)'; cx.beginPath(); cx.ellipse(x + dir * lunge * 0.5, y + 1, h * 0.2, h * 0.05, 0, 0, 7); cx.fill(); cx.restore();
-  if (!im) { drawFighter(cx, x, y, {}, { t, scale: sc, flip, run: !!o.moving }); return; }
-  const w = h * im.width / im.height;
+  cx.save(); if (fim && filt.includes('invert')) cx.filter = filt; cx.fillStyle = 'rgba(0,0,0,0.26)'; cx.beginPath(); cx.ellipse(x + dir * lunge * 0.5, y + 1, h * 0.2, h * 0.05, 0, 0, 7); cx.fill(); cx.restore();   // 검은 그림자는 밝히기 · 채도에도 그대로 검다(뒤집기만 다르다)
+  if (!im) { drawFighter(cx, x, y, {}, { t, scale: sc, flip, run: !!o.moving }); if (setF) cx.filter = 'none'; return; }
+  const w = h * im.width / im.height, pic = fim || im;
   const breathe = o.moving ? 0 : Math.sin(t * 2.3) * 0.018, bob = o.moving ? -Math.abs(Math.sin(t * 11)) * 3 * sc : 0;
   // 두목 그림은 앞을 보고 서 있어 뒤집지 않는다(옆으로 뒤집으면 칼 든 손이 바뀌어 어색) — 사람 몹 그림은 오른쪽을 본다
   const fl = src === 's2' || src === 'chb' ? flip : false;
@@ -173,13 +177,14 @@ export function drawMob(cx, x, y, m, z, o = {}) {
   cx.scale((fl ? -1 : 1) * sqx, (1 + breathe) * sqy);
   // 아래: 허리를 축으로 발이 앞뒤로 쓸린다(밀어 기울이기)
   cx.save(); cx.translate(0, -h * (1 - wy)); cx.transform(1, 0, legShear, 1, 0, 0);
-  cx.drawImage(im, 0, cut - 2, iw, ih - cut + 2, -w / 2, -2 * (h / ih), w, h * (1 - wy) + 2 * (h / ih));
+  cx.drawImage(pic, 0, cut - 2, iw, ih - cut + 2, -w / 2, -2 * (h / ih), w, h * (1 - wy) + 2 * (h / ih));
   cx.restore();
   // 위: 허리를 축으로 돈다 · 걸을 때 반 박자씩 오르내림
   cx.save(); cx.translate(0, -h * (1 - wy) - Math.abs(step) * 1.5 * sc); cx.rotate((fl ? -1 : 1) * dir * upRot);
-  cx.drawImage(im, 0, 0, iw, cut + 3, -w / 2, -h * wy, w, h * wy + 3 * (h / ih));
+  cx.drawImage(pic, 0, 0, iw, cut + 3, -w / 2, -h * wy, w, h * wy + 3 * (h / ih));
   cx.restore();
   cx.restore();
+  if (setF) cx.filter = 'none';
 }
 export const mobName = (m, z, ch = 1) => mobLook(ch, m)[0] || '';
 export const mobHeight = (m, ch = 1) => { const [, a] = mobLook(ch, m); const src = a.split(':')[0]; return (src === 'cr' ? 66 * (CR_SIZE[a.split(':')[1]] || 1) : src === 'chb' ? 165 : m.kind === 'boss' ? 118 : 100) * (m.kind === 'elite' ? 1.25 : 1); };
@@ -244,14 +249,50 @@ function earthColor(im) {
 export function drawEarth(cx, W, y, Hb, ch, h) {
   const im = sideImg('ledge', ch), [r, g, b] = im?.earth || [70, 55, 40];
   const top = y + h * 0.25, col = (m, a = 1) => `rgba(${Math.round(r * m)},${Math.round(g * m)},${Math.round(b * m)},${a})`;
-  const gr = cx.createLinearGradient(0, top, 0, Hb); gr.addColorStop(0, col(0.7)); gr.addColorStop(0.35, col(0.45)); gr.addColorStop(1, col(0.22));
-  cx.fillStyle = gr; cx.fillRect(0, top, W, Hb - top);
-  if (im) {   // 바위 결: 발판 그림 몸통을 어둡게 몇 줄
-    cx.save(); cx.globalAlpha = 0.35; cx.filter = 'brightness(0.45)';
-    const k = h / im.height, sy = im.height * Math.min(0.8, (im.surf ?? 0.1) + 0.25), sh = im.height * 0.35, tw = im.width * k, th = sh * k;
-    for (let yy = top + h * 0.35, row = 0; yy < Hb && row < 6; yy += th * 0.9, row++) for (let xx = -((row * tw) / 3) % tw; xx < W; xx += tw - 1) cx.drawImage(im, 0, sy, im.width, sh, xx, yy, tw, th);
+  // v614 그라디언트는 높이가 바뀔 때만 새로(카메라가 위아래로 움직이지 않으면 같은 것)
+  const gk = `${top}|${Hb}|${r}|${g}|${b}`; if (earthGr.k !== gk) { const gr = cx.createLinearGradient(0, top, 0, Hb); gr.addColorStop(0, col(0.7)); gr.addColorStop(0.35, col(0.45)); gr.addColorStop(1, col(0.22)); earthGr.k = gk; earthGr.g = gr; }
+  cx.fillStyle = earthGr.g; cx.fillRect(0, top, W, Hb - top);
+  if (im) {   // 바위 결: 발판 그림 몸통을 어둡게 몇 줄 — v614 어둡게 한 판을 한 번만 구워 둔다(그릴 때마다 filter를 걸면 폰이 뜨거워진다)
+    const dk = darkImg(im);
+    cx.save(); cx.globalAlpha = 0.35; if (!dk) cx.filter = 'brightness(0.45)';
+    const k = h / im.height, sy = im.height * Math.min(0.8, (im.surf ?? 0.1) + 0.25), sh = im.height * 0.35, tw = im.width * k, th = sh * k, src = dk || im;
+    for (let yy = top + h * 0.35, row = 0; yy < Hb && row < 6; yy += th * 0.9, row++) for (let xx = -((row * tw) / 3) % tw; xx < W; xx += tw - 1) cx.drawImage(src, 0, sy, im.width, sh, xx, yy, tw, th);
     cx.restore();
   }
+}
+const earthGr = { k: '', g: null };
+// 그림을 filter 한 번 걸어 구운 판(같은 그림 · 같은 filter면 다시 쓴다)
+const filtCache = new WeakMap();
+export function filtImg(im, f) {
+  if (!im || typeof document === 'undefined') return null;
+  let m = filtCache.get(im); if (!m) filtCache.set(im, (m = {}));
+  if (f in m) return m[f];
+  try {
+    const c = document.createElement('canvas'); c.width = im.width; c.height = im.height;
+    const x = c.getContext('2d'); x.filter = f; x.drawImage(im, 0, 0);
+    if (x.filter !== f) return (m[f] = null);   // filter를 모르는 브라우저 — 그때는 그리는 쪽이 filter를 건다
+    return (m[f] = c);
+  } catch { return (m[f] = null); }
+}
+const darkImg = (im) => filtImg(im, 'brightness(0.45)');
+// v614 선으로 그리는 무인 · 짐승에 filter(번쩍임 · 잔상) — 선마다 filter를 거는 대신 작은 판에 그대로 그려 filter를 한 번만 건다.
+//   (x, y) 둘레 좌우 rx · 위 up · 아래 down(지금 변환 기준)만큼의 판. 화면 밖이거나 판을 못 만들면 false(그리는 쪽이 예전처럼)
+let scr = null, scx = null;
+export function filtered(cx, filt, x, y, rx, up, down, fn) {
+  if (typeof document === 'undefined' || cx.globalCompositeOperation !== 'source-over') return false;   // 겹쳐 그리기(source-over)는 결합 법칙이 서서 판에 먼저 그려도 같다 — 다른 섞기는 예전처럼
+  const T = cx.getTransform(), cs = [[x - rx, y - up], [x + rx, y - up], [x - rx, y + down], [x + rx, y + down]].map(([u, v]) => [T.a * u + T.c * v + T.e, T.b * u + T.d * v + T.f]);
+  const W = cx.canvas.width, H = cx.canvas.height;
+  const x0 = Math.max(0, Math.floor(Math.min(...cs.map((p) => p[0])))), x1 = Math.min(W, Math.ceil(Math.max(...cs.map((p) => p[0]))));
+  const y0 = Math.max(0, Math.floor(Math.min(...cs.map((p) => p[1])))), y1 = Math.min(H, Math.ceil(Math.max(...cs.map((p) => p[1]))));
+  const w = x1 - x0, h = y1 - y0; if (w <= 0 || h <= 0) return true;   // 화면 밖 — 그릴 것 없음
+  if (!scr) { scr = document.createElement('canvas'); scx = scr.getContext('2d'); if (!scx) return false; }
+  if (scr.width < w || scr.height < h) { scr.width = Math.max(scr.width, w); scr.height = Math.max(scr.height, h); }
+  scx.setTransform(1, 0, 0, 1, 0, 0); scx.globalCompositeOperation = 'source-over'; scx.filter = 'none'; scx.clearRect(0, 0, w, h);
+  scx.globalAlpha = cx.globalAlpha;   // 흐림은 선마다(예전과 같게) — 판은 그대로 얹는다
+  scx.setTransform(T.a, T.b, T.c, T.d, T.e - x0, T.f - y0);
+  fn(scx);
+  cx.save(); cx.setTransform(1, 0, 0, 1, 0, 0); cx.globalAlpha = 1; cx.filter = filt; cx.drawImage(scr, 0, 0, w, h, x0, y0, w, h); cx.restore();
+  return true;
 }
 function sideImg(kind, ch) {
   const key = `${kind}${ch}`;

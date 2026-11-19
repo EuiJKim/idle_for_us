@@ -386,6 +386,7 @@ const ok = (c, m, x = '') => { console.log(`  ${c ? '✓' : '✗ !!'} ${m}${x !=
     // v594 알림 창 바깥 — 단추가 둘이면 고르지 않고 닫기만 / v605 설정 「진동 세기」는 진동이 되는 기기에서만 · v610 줄 그림 아이콘
     { const a0 = await hold();
       await page.click('#b-opt'); await page.waitForSelector('#wb .row:has(.name:text-is("진동"))');
+      await page.waitForFunction(() => [...document.querySelectorAll('#wb .ico.pic img')].filter((i) => i.complete && i.naturalWidth > 0).length >= 8, null, { timeout: 8000 }).catch(() => {});   // 그림은 늦게(lazy) 뜬다 — 기다린 뒤 센다
       const sc = await scan();
       ok(sc.txt === '' && sc.bad.length === 0 && sc.up >= 8, 'v610 설정 창 — 이상한 글자 없음 · 줄 그림 아이콘이 뜬다', `그림 ${sc.up}/${sc.n} ${sc.txt} ${sc.bad.join(' ')}`);
       const VR = '#wb .row:has(.name:text-is("진동 세기"))', vib = await page.evaluate(() => typeof navigator.vibrate === 'function');
