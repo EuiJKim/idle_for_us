@@ -455,6 +455,10 @@
     /* 창: 가로면 가운데에 크게 뜬다 · 카드 두 줄 */
     html.w640up body.land #wb:has(> .card:nth-of-type(2)) { column-count: 2; column-gap: 10px; }   /* v522 카드가 하나뿐이면 한 줄 전체 · v570 실제 가로 640 넘을 때만(좁은 세로 폰에서 두 줄이면 글이 한 자씩 꺾였다) */
     body.land #wb > * { break-inside: avoid; }
+    /* v602 창 빈 자리 채우기 — (1) 카드가 두셋뿐일 때도 두 줄로 나뉘게(줄 수 제한 orphans/widows 때문에 왼쪽에만 쌓였다) (2) 카드가 하나뿐이면 그 안의 줄을 두 줄로 */
+    html.w640up body.land #wb { orphans: 1; widows: 1; }
+    html.w640up body.land #wb:not(:has(> .card:nth-of-type(2))) > .card:has(> .row:nth-of-type(4)) { display: grid; grid-template-columns: 1fr 1fr; column-gap: 8px; align-items: start; }
+    html.w640up body.land #wb:not(:has(> .card:nth-of-type(2))) > .card:has(> .row:nth-of-type(4)) > :not(.row) { grid-column: 1 / -1; }
     body.land #wb > .card, body.land #wb > .row { display: inline-block; width: 100%; box-sizing: border-box; }
     #panel .inv-grid { grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); }
     .eqmid { align-self: start; }
