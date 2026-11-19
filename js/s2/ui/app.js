@@ -1844,11 +1844,19 @@ function paintPortrait(H) {
 }
 // v519 레벨업 — 무인 위에 「LEVEL UP」 · 왼쪽 아래 Lv 상자가 번쩍
 let lastLv = 0;
+let lvFxAt = -1e9, lvFxLv = 0, lvFxTm = 0, heroAt = null;   // v624 잇따라 오르면 0.6초에 한 번만(마지막 레벨로)
 function levelUpFx(lv) {
+  const t0 = performance.now();
+  if (t0 - lvFxAt < 600) { lvFxLv = Math.max(lvFxLv, lv); if (!lvFxTm) lvFxTm = setTimeout(() => { lvFxTm = 0; levelUpFx(lvFxLv); }, 600 - (t0 - lvFxAt)); return; }
+  lvFxAt = t0; lvFxLv = lv;
   play('clear');
-  const me = $('me'); me.classList.remove('lvup'); void me.offsetWidth; me.classList.add('lvup');
+  document.documentElement.classList.toggle('hb-low', opt.gfx === 'low');
+  const me = $('me'), ml = $('me-lv');
+  for (const [el, c] of [[me, 'hb-flash'], [ml, 'hb-pop']]) { el.classList.remove(c); void el.offsetWidth; el.classList.add(c); }
+  for (const o of document.querySelectorAll('.hb-fl')) o.remove();
+  if (heroAt) { const f = document.createElement('div'); f.className = 'hb-fl'; f.textContent = `Lv ${lv}!`; f.style.left = `${Math.round(heroAt[0])}px`; f.style.top = `${Math.round(Math.max(40, heroAt[1]))}px`; $('battle').append(f); setTimeout(() => f.remove(), 1200); }
   for (const o of document.querySelectorAll('.lvfx')) o.remove();   // 잇따라 오르면 마지막 것만
-  const d = document.createElement('div'); d.className = 'lvfx'; d.innerHTML = `<b>LEVEL UP</b><span>Lv.${lv}</span>`; $('battle').append(d); setTimeout(() => d.remove(), 1700);
+  const d = document.createElement('div'); d.className = 'lvfx'; d.innerHTML = '<b>LEVEL UP</b>'; $('battle').append(d); setTimeout(() => d.remove(), 1700);   // v624 레벨 숫자는 무인 머리 위 「Lv n!」(.hb-fl)로
 }
 // ── 곧 열림 — 레벨로 열리는 것의 차례표(숫자는 표에서 그대로: 수련동 DAILY_DUNGEONS.unlockLv · 전직 JOB_LV · 마스터리 MASTERY 첫 노드) ──
 //   들판 「다음: ○○ · Lv n」 칩(#nx) · 그 레벨에 닿으면 한 번 「○○ 열림!」. 어디까지 알렸는지는 이 기기에만 적는다(세이브에 넣지 않음)
@@ -1948,6 +1956,7 @@ function paintHud() {
   $('me-lv').textContent = `Lv.${H.lv}`;
   { const up = lastLv && H.lv > lastLv; lastLv = H.lv; if (up) { levelUpFx(H.lv); if (open && keyOf() === 'hero:0') paintWin(); } }   // 스탯 칸을 연 채 레벨이 오르면 남은 점수 · 단추를 바로 맞춘다
   $('xp-txt').textContent = `EXP ${xp.toFixed(2)}%`; $('xp-fill').style.width = `${xp}%`;
+  $('hb-xp-txt').textContent = `${xp.toFixed(2)}%`; $('hb-xp-fill').style.width = `${xp}%`;   // v624 Lv · HP 상자 안 EXP 줄
   $('g-gold').textContent = unit(S.wallet.gold); $('g-tix').textContent = S.wallet['ticket:gear'] || 0;
   // 위 가운데: 장 이름 · 칸 진행(처치 n/20 → 두목 도전) · 두목전이면 두목 체력
   const ch = Math.ceil(T.idx / 10), st = ((T.idx - 1) % 10) + 1, boss = !!g.bossFight, Hh = F.hero;
@@ -1960,7 +1969,8 @@ function paintHud() {
   $('sp-txt').textContent = dgs ? `던전 · ${dgs.title}` : boss ? `Stage ${st}/10 · 두목 ${Math.ceil(spR * 100)}%` : waiting ? `Stage ${st}/10 · 반복 사냥` : `Stage ${st}/10 · ${Math.min(T.kills, STAGE_KILLS)}/${STAGE_KILLS}`;
   // 왼쪽 아래: 무인 체력
   const hpR = Math.max(0, Hh.hp / Hh.st.hp);
-  $('hp-fill').style.width = `${hpR * 100}%`; $('hp-trail').style.width = `${hpR * 100}%`; $('hp-fill').parentNode.classList.toggle('low', hpR < 0.3);
+  $('hp-fill').style.width = `${hpR * 100}%`; $('hp-fill').parentNode.classList.toggle('low', hpR > 0 && hpR < 0.3);   // 흰 줄(#hp-trail)은 heroBarFx가 그린다
+  document.documentElement.classList.toggle('hb-low', opt.gfx === 'low');
   $('hp-txt').textContent = `HP ${unit(Math.max(0, Hh.hp))} / ${unit(Hh.st.hp)}`;
   // 들판: 전투력 · 길잡이 · 칸 진행(두목전이면 두목 체력 · 남은 시간) · 두목 도전
   { const pw = g.power(); $('pw').textContent = unit(pw); pwWatch(pw); }   // v534 전투력이 바뀌면 튀어 오름
@@ -2091,6 +2101,16 @@ let lastCritStop = 0;
 const bossFeel = { F: null, r: 1, trail: 1, hold: 0, dom: false, shakeAt: -1e9, amp: 0, flashAt: -1e9, msAt: -1e9, popAt: -1e9, stFlashAt: -1e9, burstAt: -1e9, whiteAt: -1e9, kill: null, lastR: null, lastF: null };
 const BOSS_MS = [0.75, 0.5, 0.25];
 // 두목 체력 막대(위 가운데 · DOM) — 깎인 몫은 흰 줄로 0.25초 머물다 금빛으로 줄어들고, 맞을 때마다 0.12초 떨린다
+// v624 무인 체력 막대 — 깎인 몫은 흰 줄로 0.4초 머물다 줄어든다(두목 막대와 같은 느낌), 차오르면 바로 맞춘다
+const heroFeel = { r: 1, trail: 1, hold: 0, F: null };
+function heroBarFx(t, fdt, F) {
+  const hf = heroFeel, H = F && F.hero; if (!H) return;
+  const r = Math.max(0, Math.min(1, H.hp / H.st.hp));
+  if (hf.F !== F || r >= hf.trail) { hf.F = F; hf.trail = r; }
+  else if (r < hf.r - 1e-9 && hf.trail - hf.r < 0.004) hf.hold = t + 400;
+  if (t >= hf.hold && hf.trail > r) hf.trail = Math.max(r, hf.trail - Math.max(0.004, (hf.trail - r) * 0.008 * fdt));
+  hf.r = r; $('hp-trail').style.width = `${hf.trail * 100}%`;
+}
 function bossBarFx(t, fdt) {
   const bf = bossFeel, B = g.bossFight, bm = B && B.mobs.find((m) => m.kind === 'boss'), bar = $('contest-bar'), tr = $('contest-trail'), pop = $('contest-pop');
   if (!bm || opt.gfx === 'low') { if (bf.dom) { bf.dom = false; bf.F = null; bar.style.transform = ''; bar.className = ''; tr.style.width = '0'; pop.classList.remove('on'); } return; }
@@ -2666,6 +2686,7 @@ function draw() {
   // 무공 연출 — 모양마다(일직선 검기 · 부채꼴 베기 · 주변 폭발 · 하늘에서 쏟아짐 · 버프 기운)
   const [hx, hy] = P(lx(H), ly(H));
   window.__cam = [camX, camY, hx, hy, t, s, H.plat, H.face || 1];   // 시험용(모션 측정)
+  heroAt = [hx + cv.offsetLeft, hy - 100 * sc + cv.offsetTop];   // v624 레벨 업 「Lv n!」 자리(머리 위)
   for (let i = skillFx.length - 1; i >= 0; i--) {
     const f = skillFx[i], sk = skillById(f.id), col = sk?.col || '#ffe9a8';
     const life = f.shape === 'rain' ? 800 : f.shape === 'circle' ? 560 : f.shape === 'buff' ? 900 : f.shape === 'hit' ? 240 : f.shape === 'ring' ? 380 : f.shape === 'boss' ? 700 : f.shape === 'swing' ? 220 : 440, a = (t - f.at) / life;
@@ -2841,7 +2862,7 @@ function draw() {
     cx.fillStyle = numGrad(f.pal ? 2 : f.crit ? 1 : 0, fs); cx.fillText(txt, 0, 0); cx.restore();
     cx.globalAlpha = 1;
   }
-  drawBossFeel(cx, W, Hh, k, t); bossBarFx(t, fdt);
+  drawBossFeel(cx, W, Hh, k, t); bossBarFx(t, fdt); heroBarFx(t, fdt, F);
   // 연속 처치 10+ — 잡을 때마다 가장자리가 금빛으로 0.2초 숨 쉰다(30 · 50부터 조금 더). 그라디언트는 화면 크기마다 한 번만
   if (t - vigAt < 200 && opt.gfx !== 'low') {
     const key = W + 'x' + Hh; if (vigKey !== key) { vigKey = key; vigGr = cx.createRadialGradient(W / 2, Hh / 2, Math.min(W, Hh) * 0.42, W / 2, Hh / 2, Math.max(W, Hh) * 0.72); vigGr.addColorStop(0, 'rgba(255,200,90,0)'); vigGr.addColorStop(1, 'rgba(255,200,90,1)'); }

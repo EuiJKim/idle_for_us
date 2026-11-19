@@ -53,6 +53,18 @@ const ok = (c, m, x = '') => { console.log(`  ${c ? '✓' : '✗ !!'} ${m}${x !=
     const g0 = await page.evaluate(() => ({ kills: window.__s2.g.S.kills, lv: window.__s2.g.S.hero.lv }));
     ok(g0.kills > 0, '저절로 사냥한다', `처치 ${g0.kills}`);
     ok(/Lv.\d+/.test(await page.textContent('#me-lv')) && /^[\d.,]+[만억]?$/.test(await page.textContent('#pw')) && /HP \S+ \/ \S+/.test(await page.textContent('#hp-txt')) && /EXP [\d.]+%/.test(await page.textContent('#xp-txt')), 'v510 HUD: 위 왼쪽 전투력 · 왼쪽 아래 Lv · HP · 맨 아래 EXP');
+    // v624 Lv · HP 상자 — 안쪽 EXP 줄(엔진 % ±2) · 흰 줄(깎인 몫) · 레벨 업: 숫자 톡 · 상자 번쩍 · 머리 위 「Lv n!」 · 스킬 줄 · 메뉴와 안 겹침
+    { await page.waitForTimeout(300);
+      const hb = await page.evaluate(async () => { const { expToNext } = await import(new URL('js/s2/tables/exp.js', location.href).href), H = window.__s2.g.S.hero, f = document.getElementById('hb-xp-fill');
+        const eng = Math.min(100, H.exp / expToNext(H.lv) * 100), bar = f.offsetWidth / f.parentNode.clientWidth * 100, r = (s) => document.querySelector(s).getBoundingClientRect(), me = r('#me');
+        const hit = (a, c) => a.width && c.width && a.left < c.right && c.left < a.right && a.top < c.bottom && c.top < a.bottom;
+        return { eng, bar, txt: document.getElementById('hb-xp-txt').textContent, trail: !!document.getElementById('hp-trail'), lap: ['#sk', '#mb', '#jp', '#au'].filter((s) => hit(me, r(s))), inView: me.bottom <= innerHeight && me.left >= 0 }; });
+      ok(Math.abs(hb.eng - hb.bar) <= 2 && /^[\d.]+%$/.test(hb.txt) && hb.trail, 'v624 Lv · HP 상자 안 EXP 줄 = 엔진 %(±2) · 흰 줄 있음', `엔진 ${hb.eng.toFixed(2)} · 줄 ${hb.bar.toFixed(2)} · ${hb.txt}`);
+      ok(!hb.lap.length && hb.inView, 'v624 Lv · HP 상자는 무공 줄 · 아래 메뉴와 안 겹친다', hb.lap.join(','));
+      await page.evaluate(() => { window.__s2.g.S.hero.lv += 1; });
+      const lu = await until(() => page.evaluate(() => ({ pop: document.getElementById('me-lv').classList.contains('hb-pop'), flash: document.getElementById('me').classList.contains('hb-flash'), fl: document.querySelector('.hb-fl')?.textContent || '', lv: window.__s2.g.S.hero.lv })), (v) => v.pop && v.fl);
+      ok(lu.pop && lu.flash && lu.fl === `Lv ${lu.lv}!`, 'v624 레벨 업 → 숫자 톡 · 상자 번쩍 · 머리 위 「Lv n!」', JSON.stringify(lu));
+      await page.evaluate(() => { window.__s2.g.S.hero.lv -= 1; }); }
     ok(/길잡이 1/.test(await page.textContent('#qc')) && /진행|완료/.test(await page.textContent('#qc .qh')), '왼쪽 길잡이 카드(상태 · 할 일)');
     ok(!(await page.$$eval('.nb i, .ib i', (a) => a.length)) && (await page.$$('.nb .ic')).length === 5 + 3, '메뉴는 그림 아이콘 + 글(한 글자 한자 없음)');
     // v604 「다음에 열리는 것」 칩(#nx) — 낮은 레벨이면 보이고 「다음 ○○ · Lv n (지금 Lv m)」 · 누르면 그 창
