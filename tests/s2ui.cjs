@@ -260,7 +260,7 @@ const ok = (c, m, x = '') => { console.log(`  ${c ? '✓' : '✗ !!'} ${m}${x !=
       await page.evaluate(() => { const g = window.__s2.g; window.__t = { wallet: JSON.stringify(g.S.wallet), shop: JSON.stringify(g.S.shop || null), guide: JSON.stringify(g.S.q.guide) };
         g.S.shop = null; g.S.wallet.gold = 1e12;
         // 임무 빨간 점의 다른 까닭(하루 상자 · 길잡이 받기 · 업적 받기)은 잠깐 꺼 둔다 — 덤 하나만 남게
-        const tc = g.todayChest.bind(g); g.todayChest = () => ({ ...tc(), can: false }); g.books.ach.claimable = () => [];
+        const tc = g.todayChest.bind(g); g.todayChest = () => ({ ...tc(), can: false }); g.books.ach.claimable = () => []; g.bountyCan = () => 0;   // 현상수배도
         const G = g.S.q.guide; for (const k of Object.keys(G)) { G[k].done = true; G[k].got = true; } for (let i = 1; i <= 40; i++) G[`g${i}`] = { p: 99, done: true, got: true }; });
       await page.click('.nb[data-tab="town"]'); await sub('상점'); await page.waitForSelector('#wb .row:has(.name:text-is("오늘의 덤"))');
       const shop = () => page.evaluate(() => { const g = window.__s2.g, W = g.S.wallet, rows = [...document.querySelectorAll('#wb .row')], row = (n) => rows.find((r) => r.querySelector('.name')?.textContent === n), d = (n) => row(n)?.querySelector('.desc')?.textContent || '', b = (n, i = 0) => row(n)?.querySelectorAll('.btn')[i];
@@ -279,9 +279,39 @@ const ok = (c, m, x = '') => { console.log(`  ${c ? '✓' : '✗ !!'} ${m}${x !=
       await page.click('#wb .row:has(.name:text-is("강화석 꾸러미")) .btn:text-is("모두")');
       const b2 = await until(shop, (v) => v.bought === lim);
       ok(b2.bought === lim && /오늘은 다 샀어요 · 남은 0\/3/.test(b2.st) && b2.stOff && b2.allOff && b2.stone - f1.stone === 20 * lim, 'v604 「모두」 — 남은 것을 다 사면 단추가 잠긴다', b2.st);
-      await page.evaluate(() => { const g = window.__s2.g, T = window.__t, W = g.S.wallet; delete g.todayChest; delete g.books.ach.claimable; g.S.q.guide = JSON.parse(T.guide); g.S.shop = JSON.parse(T.shop) || undefined;
+      await page.evaluate(() => { const g = window.__s2.g, T = window.__t, W = g.S.wallet; delete g.todayChest; delete g.books.ach.claimable; delete g.bountyCan; g.S.q.guide = JSON.parse(T.guide); g.S.shop = JSON.parse(T.shop) || undefined;
         for (const k of Object.keys(W)) delete W[k]; Object.assign(W, JSON.parse(T.wallet)); delete window.__t; });
       await page.click('#panel-close'); await free(a0); }
+    // 현상수배 — 임무 → 현상수배: 카드 셋(그림 · 막대 · 받기) · 하나 끝내면 받기 → 은자가 늘고 「받음」 · 셋 다면 상자 · 빨간 점 · 들판 알림
+    { const a0 = await hold();
+      await page.evaluate(() => { const g = window.__s2.g; window.__t = { wallet: JSON.stringify(g.S.wallet), bounty: JSON.stringify(g.S.bounty || null) }; g.S.bounty = null; });
+      await page.click('.nb[data-tab="town"]'); await sub('현상수배'); await page.waitForSelector('#wb .bty-card');
+      const bt = () => page.evaluate(() => { const g = window.__s2.g, cs = [...document.querySelectorAll('#wb .bty-card')];
+        return { n: cs.length, imgs: cs.filter((c) => { const i = c.querySelector('.bty-pic img'); return i && i.complete && i.naturalWidth > 0; }).length, bars: cs.map((c) => c.querySelector('.bty-bar span')?.textContent), btn: cs.map((c) => `${c.querySelector('.btn').textContent}${c.querySelector('.btn').disabled ? '(잠김)' : ''}`), chest: document.querySelector('#wb .bty-chest')?.className || '', chestTxt: document.querySelector('#wb .bty-chest')?.textContent || '', note: [...document.querySelectorAll('#wb .note')].map((x) => x.textContent).join(' '), gold: g.S.wallet.gold, dot: document.querySelector('.nb[data-tab="town"]').classList.contains('dot-on'), can: g.bountyCan(), toast: document.getElementById('toast')?.textContent || '' }; });
+      const v0 = await until(bt, (v) => v.imgs === 3);
+      ok(v0.n === 3 && v0.imgs === 3 && v0.bars.every((x) => /^\d+ \/ \d+$/.test(x)) && v0.btn.every((x) => x === '받기(잠김)') && /3개 더 끝내면/.test(v0.chestTxt) && /자정/.test(v0.note), '현상수배 — 카드 셋(그림 · 막대) · 받기 잠김 · 상자 · 자정에 새로', JSON.stringify(v0.bars));
+      await page.evaluate(() => { const g = window.__s2.g, x = g.bountySt().list[1]; x.n = x.need - 1; });
+      await page.click('#panel-close'); await free(a0);
+      await page.evaluate(() => { const g = window.__s2.g; for (let i = 0; i < 120 && !g.bountySt().list[1].done; i++) g.hunt(500); });   // 사냥을 몇 초 당겨서(알림은 들판이 feed에서 꺼내 띄운다)
+      const tz = await until(() => page.evaluate(() => ({ done: window.__s2.g.bountySt().list[1].done, n: window.__s2.g.bountySt().list[1].n, k: window.__s2.g.S.kills, open: !!document.querySelector('#panel.open'), t: document.getElementById('toast')?.textContent || '' })), (v) => v.done && /현상수배 완료/.test(v.t), 8000);
+      ok(tz.done && /현상수배 완료/.test(tz.t), '사냥으로 하나 끝나면 들판에 「현상수배 완료!」', JSON.stringify(tz));
+      const a1 = await hold();
+      await page.click('.nb[data-tab="town"]'); await sub('현상수배');
+      const v1 = await until(bt, (v) => v.btn[1] === '받기');
+      ok(v1.btn[1] === '받기' && v1.can >= 1 && await page.evaluate(() => document.querySelector('#ptabs button[data-tab="town"]')?.classList.contains('dot-on')), '끝난 목표는 받기가 열리고 임무에 빨간 점', JSON.stringify(v1.btn));
+      await page.click('#wb .bty-card[data-i="1"] .btn');
+      const v2 = await until(bt, (v) => v.btn[1] === '받음(잠김)');
+      ok(v2.btn[1] === '받음(잠김)' && v2.gold > v1.gold, '받기 → 은자가 늘고 「받음」', `${Math.round(v1.gold)} → ${Math.round(v2.gold)}`);
+      await page.evaluate(() => { const g = window.__s2.g; for (const x of g.bountySt().list) { x.n = x.need; x.done = true; } }); await sub('현상수배');
+      const v3 = await until(bt, (v) => /can/.test(v.chest));
+      ok(/can/.test(v3.chest) && /눌러서 열기/.test(v3.chestTxt), '셋 다 끝내면 상자가 열린다', v3.chestTxt);
+      await page.screenshot({ path: path.join(OUT, `s2-bounty-${W}.png`) });
+      const tk0 = await page.evaluate(() => window.__s2.g.S.wallet['ticket:gear'] || 0);
+      await page.click('#wb .bty-chest');
+      const v4 = await until(bt, (v) => /got/.test(v.chest));
+      ok(/got/.test(v4.chest) && await page.evaluate((t) => (window.__s2.g.S.wallet['ticket:gear'] || 0) - t === 3, tk0), '상자 열기 → 장비 뽑기권 3 · 오늘은 받음', v4.chestTxt);
+      await page.evaluate(() => { const g = window.__s2.g, T = window.__t, W = g.S.wallet; g.S.bounty = JSON.parse(T.bounty) || undefined; for (const k of Object.keys(W)) delete W[k]; Object.assign(W, JSON.parse(T.wallet)); delete window.__t; });
+      await page.click('#panel-close'); await free(a1); }
     // v605 동행 — 던전 → 동행: 오프라인이면 연습 동행 셋(「연습」) · 둘 고르고 「출발」 → 결과 창(셋 · 몫 막대) · 오늘 횟수 하나 줄어듦
     { const a0 = await hold();
       await page.evaluate(() => { const g = window.__s2.g; window.__t = { wallet: JSON.stringify(g.S.wallet), party: JSON.stringify(g.S.party || null) }; g.partyRec().runs = 0; });

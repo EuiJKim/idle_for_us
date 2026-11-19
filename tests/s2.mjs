@@ -1762,6 +1762,71 @@ console.log('\n=== v612 새 기능 업적 · 길잡이(스탯 · 기연 · 모�
     ok(!err && g2.signed && g2.books.ach.get('a_kill_0').p >= 5 && g2.achBest('fate') === 0 && g2.achBest('party') === 0, '옛 세이브(새 칸 없음)도 돌고 저장 · 불러오기', String(err)); }
 }
 
+console.log('\n=== 현상수배 — 날마다 사냥 목표 셋 · 상자 ===');
+{
+  const BT = await import('../js/s2/tables/bounty.js');
+  const DAYMS = 86400e3, T0 = Date.UTC(2026, 10, 19, 3);   // 한국 시각 낮
+  const mk = (seed = 5, top = 1) => { const g = new Game(newGame('sword', T0, seed), T0); g.tick(T0); if (top > 1) { g.addExp(EX.cumExp(Math.min(140, top))); const T = g.stage(); T.idx = top; T.top = top; } return g; };
+  const sig = (g) => JSON.stringify(g.bountySt().list.map((x) => [x.kind, x.target, x.need, x.rew]));
+  // 표
+  ok(BT.BOUNTY_SLOTS.join() === 'stage,kill,boss' && BT.BOUNTY_REW.goldMin === 10 && BT.BOUNTY_CHEST['ticket:gear'] === 3 && BT.BOUNTY_CHEST.coll.length === 3, '표: 셋(칸 · 아무 칸 · 두목) · 은자 10분 몫 · 상자 뽑기권 3 + 모음 뽑기권 하나');
+  ok(Object.values(BT.BOUNTY_T).filter((T) => T.min).every((T) => T.min.every((m) => m >= 10 && m <= 20)) && BT.BOUNTY_T.boss.n.every((n) => n >= 2 && n <= 3), '표: 몹 수는 사냥 10~20분 몫 · 두목 2~3번');
+  // 결정론 — 같은 날 · 같은 씨앗이면 같다 · this.rng를 쓰지 않는다
+  { const a = mk(5, 37), b = mk(5, 37), r0 = JSON.stringify(a.rng.state());
+    ok(sig(a) === sig(b), '같은 날 · 같은 씨앗 → 같은 목록', sig(a));
+    a.bountyState(); a.bountyCan(); ok(JSON.stringify(a.rng.state()) === r0, '목록을 만들어도 게임 난수(this.rng)는 그대로');
+    const sigs = new Set(); for (let s2 = 1; s2 <= 12; s2++) sigs.add(sig(mk(s2, 37))); ok(sigs.size >= 4, '씨앗마다 목록이 다르다', `${sigs.size}/12`);
+    const c = mk(5, 37); c.tick(T0 + DAYMS); ok(sig(c) !== sig(a) || c.bountySt().day === a.bountySt().day + 1, '다음 날 다른 날 목록'); }
+  // 닿을 수 있는 목표 — 가장 멀리 간 칸을 넘지 않는다 · 수는 10~20분 몫
+  { let bad = []; for (let s2 = 1; s2 <= 30; s2++) for (const top of [1, 5, 23, 80, 150]) { const g = mk(s2, top); for (let d = 0; d < 3; d++) { g.tick(T0 + d * DAYMS); for (const x of g.bountySt().list) {
+      const mins = x.kind === 'boss' ? 0 : x.need / EX.KILLS_PER_MIN;
+      if (x.kind === 'stage' && (x.target < 1 || x.target > top || x.target < top - 9)) bad.push(`stage ${x.target}/${top}`);
+      if (x.kind !== 'boss' && (mins < 9.5 || mins > 21)) bad.push(`${x.kind} ${x.need}`);
+      if (x.kind === 'boss' && (x.need < 2 || x.need > 3)) bad.push(`boss ${x.need}`);
+      if (!['ticket:gear', 'item:stone'].includes(x.rew.k) || !(x.rew.n >= 1 && x.rew.n <= 20)) bad.push(JSON.stringify(x.rew)); } } }
+    ok(!bad.length, '목표는 늘 닿는다(칸 ≤ 가장 멀리 간 칸 · 9칸 안 · 몹 수 10~20분 몫)', bad.slice(0, 5).join(' '));
+    const s = mk(3, 23).bountyState().list[0]; ok(s.kind === 'stage' && s.ch === Math.ceil(s.target / 10) && s.mob && /^s2:c/.test(s.art), '칸 목표는 그 장 몹 이름 · 그림', JSON.stringify(s)); }
+  // 진짜 사냥으로 찬다 → 받기 한 번 → 셋 다 끝내면 상자
+  { const g = mk(7, 1), W = g.S.wallet; g.S.wallet['ticket:gear'] = 0;
+    const L0 = g.bountySt().list; const want = L0.map((x) => x.need);
+    let feed = 0, sec = 0; for (let i = 0; i < 3600 && !g.bountySt().list.every((x) => x.done); i++) { g.hunt(1000); sec++; feed += g.feed.splice(0).filter((f) => f.k === 'bounty').length; }
+    const L = g.bountySt().list;
+    ok(L.every((x) => x.done && x.n === x.need), '사냥(g.hunt)으로 셋 다 찬다', JSON.stringify(L.map((x) => [x.kind, x.n, x.need])) + ` · 몹 ${g.S.kills}`);
+    ok(feed === 3, '끝날 때마다 화면 알림 하나(셋)', `${feed}`);
+    ok(sec <= 3600 && g.S.kills <= Math.max(...want) + 300, '장비 없는 Lv1도 한 시간 안에 셋 다(몹 수는 가장 큰 목표 + 두목 몫)', `${(sec / 60).toFixed(1)}분 · 몹 ${g.S.kills}`);
+    const t0 = W['ticket:gear'] || 0, s0 = W['item:stone'] || 0, gold0 = W.gold, r0 = JSON.stringify(g.rng.state()), exp0 = g.S.hero.exp;
+    const c0 = g.bountyClaim(0), gold = Math.round(10 * EX.KILLS_PER_MIN * GS.goldPerMob(g.S.hero.lv));
+    ok(c0 && c0.gold === gold && W.gold === gold0 + gold && (W['ticket:gear'] - t0) + (W['item:stone'] - s0) === L[0].rew.n && g.bountyClaim(0) === null, '받기 — 은자 10분 몫 + 뽑기권 · 강화석 · 한 번만', JSON.stringify(c0));
+    ok([3, -1, 1.5, '1', NaN, undefined].every((i) => g.bountyClaim(i) === null), '없는 번호는 받지 못한다');
+    const t1 = W['ticket:gear']; const ch = g.bountyChest(); const ck = Object.keys(ch.give).find((k) => k !== 'ticket:gear');
+    ok(ch && W['ticket:gear'] === t1 + 3 && ['ticket:weapon', 'ticket:pal', 'ticket:relic'].includes(ck) && g.bountyChest() === null, '셋 다 끝 → 상자(뽑기권 3 + 모음 뽑기권 하나) · 한 번만', JSON.stringify(ch));
+    ok(g.bountyClaim(1) && g.bountyClaim(2) && g.bountyCan() === 0 && JSON.stringify(g.rng.state()) === r0 && g.S.hero.exp === exp0, '나머지 받기 · 받기는 난수 · 경험치를 쓰지 않는다');
+    // 다음 날 새로
+    const mid = (dayKey(T0) + 1) * DAYMS - 9 * 3600e3; g.tick(mid - 1); ok(g.bountySt().list.every((x) => x.got), '23:59:59 — 아직 오늘');
+    g.tick(mid); const N = g.bountyState(); ok(N.day === dayKey(T0) + 1 && N.list.every((x) => x.n === 0 && !x.done && !x.got) && !N.chest.got && !N.chest.can && N.left === 3, '자정에 새 목록'); }
+  // 상자는 셋 다 끝나야
+  { const g = mk(9, 1); g.bountySt().list[0].n = 0; for (let i = 0; i < 60; i++) g.hunt(1000); ok(g.bountyChest() === null && !g.bountyState().chest.can, '셋이 안 끝나면 상자 없음'); }
+  // 칸 목표는 그 칸 앞쪽에서만 센다
+  { const g = mk(11, 40), x = g.bountySt().list[0]; const T = g.stage(); T.idx = Math.max(1, x.target - 1); T.auto = false; g.fight = null; for (let i = 0; i < 30; i++) g.hunt(1000);
+    const y = g.bountySt().list; ok(x.target === 1 || (y[0].n === 0 && y[1].n > 0), '앞 칸(목표보다 낮은 칸)에서는 칸 목표가 안 찬다 · 아무 칸 목표는 찬다', JSON.stringify(y.map((z) => z.n))); }
+  // 칸 두목을 깨면 두목 목표
+  { const g = mk(12, 1), T = g.stage(); T.kills = STAGE_KILLS; g.challenge(); for (let i = 0; i < 200 && g.bossFight; i++) g.hunt(1000);
+    ok(g.stage().idx === 2 && g.bountySt().list[2].n === 1, '칸 두목을 깨면 두목 목표 +1'); }
+  // 자동 성장이 받는다(보상 받기를 끄면 그대로)
+  { const g = mk(13, 1); for (const x of g.bountySt().list) { x.n = x.need; x.done = true; }
+    g.autoGrow({ claim: false, daily: false, pull: false, coll: false, kit: false, enh: false, train: false, stat: false }); ok(g.bountyCan() === 4, '자동 성장: 보상 받기를 끄면 그대로(셋 + 상자)');
+    const t0 = g.S.wallet['ticket:gear'] || 0, r = g.autoGrow({ daily: false, pull: false, coll: false, kit: false, enh: false, train: false, stat: false });
+    const ex = g.bountySt().list.filter((x) => x.rew.k === 'ticket:gear').reduce((a, x) => a + x.rew.n, 0);
+    ok(r.claim >= 4 && g.bountyCan() === 0 && g.S.bounty.chest && g.S.wallet['ticket:gear'] === t0 + ex + 3, '자동 성장: 셋 · 상자를 받는다', JSON.stringify(r)); }
+  // 옛 세이브 · 깨진 칸 · 저장 → 불러오기
+  { const S = newGame('sword', T0, 14); delete S.bounty; const g = new Game(S, T0); let err = '';
+    try { g.tick(T0); g.hunt(3000); g.bountyState(); g.bountyClaim(0); g.bountyChest(); g.autoGrow(); } catch (e) { err = e.message; }
+    ok(!err && g.S.bounty && g.S.bounty.list.length === 3, '옛 세이브: 현상수배 칸이 생긴다', err);
+    g.S.bounty = { day: g.S.bounty.day }; let e2 = ''; try { g.bountyState(); g.hunt(1000); } catch (e) { e2 = e.message; } ok(!e2 && g.S.bounty.list.length === 3, '깨진 칸이면 다시 만든다', e2);
+    const s0 = JSON.stringify(g.S.bounty), b = Game.load(g.save(), g.now); ok(b.signed && JSON.stringify(b.S.bounty) === s0 && JSON.stringify(b.bountySt()) === s0, '저장 → 불러오기(진행 그대로)'); }
+  ok(mk().today().length === 9, '오늘 할 일 목록은 그대로(현상수배는 넣지 않음)');
+}
+
 console.log('\n=== v609 자동 성장 — 은자 아끼기여도 스탯은 찍는다 ===');
 {
   const T0 = 1.8e12, g = new Game(newGame('sword', T0, 41), T0); g.addExp(EX.cumExp(30)); g.tick(T0);

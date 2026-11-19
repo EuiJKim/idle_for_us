@@ -651,6 +651,23 @@
     /* v610 줄 그림 아이콘 — 네모 바탕 없이 그림만 38px(위아래 · 좌우를 2px씩 당겨 줄 높이 · 글 자리는 글자 딱지 때와 같다) */
     #panel .row .ico.pic { width: 38px; height: 38px; margin: -2px; padding: 0; line-height: 0; font-size: 0; border: 0; border-radius: 0; background: none; }
     #panel .row .ico.pic img { display: block; width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 1px 1px rgba(0,0,0,.45)); }
+    /* 현상수배(임무 → 현상수배) — 목표 카드 셋(그림 · 진행 막대 · 현상금 · 받기) · 상자 */
+    .bty-card { display: flex; align-items: center; gap: 10px; padding: 8px 10px; margin: 0 0 6px; border-radius: 12px; background: rgba(0,0,0,.3); border: 1px solid rgba(255,255,255,.08); }
+    .bty-card.can { border-color: var(--gold); background: rgba(212,166,74,.14); }
+    .bty-card.got { opacity: .55; }
+    .bty-pic { position: relative; flex: none; width: 54px; height: 54px; border-radius: 9px; overflow: hidden; background: radial-gradient(circle at 50% 40%, rgba(212,166,74,.22), rgba(0,0,0,.35)); border: 1px solid rgba(212,166,74,.35); }
+    .bty-pic img { width: 100%; height: 100%; object-fit: cover; object-position: 50% 15%; }
+    .bty-pic.ui img { object-fit: contain; padding: 6px; box-sizing: border-box; }
+    .bty-pic i { position: absolute; left: 0; right: 0; bottom: 0; font-style: normal; font-size: 9px; font-weight: 800; text-align: center; line-height: 13px; color: #fde68a; background: rgba(60,10,10,.8); letter-spacing: 1px; }
+    .bty-mid { flex: 1; min-width: 0; }
+    .bty-mid b { display: block; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .bty-mid small { display: block; font-size: 10.5px; color: rgba(255,255,255,.6); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .bty-mid em { display: flex; align-items: center; gap: 3px; flex-wrap: wrap; font-style: normal; font-size: 10.5px; color: rgba(255,255,255,.75); }
+    .bty-mid em img { width: 16px; height: 16px; object-fit: contain; }
+    .bty-bar { position: relative; height: 12px; margin: 3px 0; border-radius: 999px; background: rgba(0,0,0,.45); overflow: hidden; } .bty-bar i { display: block; height: 100%; background: linear-gradient(90deg, #991b1b, #f0cf7a); }
+    .bty-bar span { position: absolute; inset: 0; display: grid; place-items: center; font-size: 9.5px; font-weight: 800; color: #fff; text-shadow: 0 1px 2px #000; font-variant-numeric: tabular-nums; }
+    .bty-card .btn { flex: none; min-height: 44px; min-width: 58px; }
+    .bty-chest img { width: 40px; height: 40px; object-fit: contain; filter: grayscale(.7); } .bty-chest.can img { filter: none; animation: tdshake 1.4s ease-in-out infinite; }
     /* 강호 패스(임무 → 패스) — 머리(단 · 진행 막대 · 모두 받기) · 옆으로 넘기는 서른 칸 · 점수표 */
     body.land #wb > .card:has(.pass-track), body.land #wb > .card:has(.pass-pts) { column-span: all; display: block; }
     .pass-head { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; }

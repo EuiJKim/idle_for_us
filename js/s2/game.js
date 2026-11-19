@@ -17,6 +17,8 @@ import { GUIDE, DAILY_MISSIONS, WEEKLY_MISSIONS, achievements, guideCurrent } fr
 import { JOB_ADV, MASTERY } from './tables/skills.js';
 import { SHOP, SHOP_FREE, shopById } from './tables/shop.js';
 import { PASS, PASS_PTS, PASS_REWARDS } from './tables/pass.js';
+import { BOUNTY_T, BOUNTY_SLOTS, BOUNTY_REW, BOUNTY_CHEST, bountySeed } from './tables/bounty.js';
+import { ROSTER } from './tables/mobs.js';
 import { CHBOSS, CB, cbGearGrade, CB_REPEAT, WBF, CB_RAID, raidStars, DEX_REW } from './tables/chboss.js';
 const CB_MANUAL_STONES = 50;   // v546
 // 기연 — 사냥으로 FATE_NEED마리를 잡을 때마다 한 번, 카드 셋 중 하나를 고른다(안 고른 것은 FATE_CAP번까지 쌓이고 그동안 칸은 멈춘다)
@@ -426,7 +428,7 @@ export class Game {
     if (this.bossFight?.def.raid) return this.endRaid(win);
     const T = this.stage(), L = T.idx, BF = this.bossFight, ms = BF ? BF.t : 0, deaths = BF ? BF.deaths : 0, bm = BF?.mobs.find((m) => m.kind === 'boss'), bossLeft = !win && bm ? Math.ceil((bm.hp / bm.st.hp) * 100) : 0;
     this.bossFight = null;
-    if (win) { T.idx = Math.min(LEVEL_MAX, L + 1); T.top = Math.max(T.top, T.idx); T.kills = 0; T.failIdx = 0; this.emit('dungeon', { stage: L }); }
+    if (win) { T.idx = Math.min(LEVEL_MAX, L + 1); T.top = Math.max(T.top, T.idx); T.kills = 0; T.failIdx = 0; this.emit('dungeon', { stage: L }); this.bountyHit('boss', L, true); }
     else { T.kills = 0; T.failIdx = L; T.failLv = this.S.hero.lv; T.failPw = this.power(); }   // 지면 그 칸 몹을 다시 채운 뒤 재도전(자동이면 더 강해진 뒤)
     // 칸 보상: 은자 · 뽑기권(경험치는 사냥이 정한다 — 곡선 J1). 결과 창이 실제 숫자 · 걸린 시간 · 진 까닭을 보여 준다(v513)
     const gold = win ? Math.round(2 * KILLS_PER_MIN * goldPerMob(L)) : 0, tix = win ? (L % 10 === 0 ? 10 : 1) : 0;
@@ -475,6 +477,7 @@ export class Game {
       if (e[0] !== 'kill') continue;
       const kind = e[3], L = F.def.lv;
       n++; S.kills++; this.fateKill(1);
+      if (!F.def.boss) this.bountyHit(kind, L);   // 현상수배 — 사냥터에서만(두목전 · 토벌 안은 빼고)
       this.addExp(mobExp(L, kind, S.hero.lv));
       const gp = this.fighter().st.goldP || 0;
       S.wallet.gold += Math.round(goldPerMob(L) * (kind === 'boss' ? 20 : kind === 'elite' ? 5 : 1) * (1000 + gp) / 1000);
@@ -622,6 +625,8 @@ export class Game {
       for (const [b, B] of Object.entries(this.books)) for (const id of B.claimable()) if (this.claimMission(b, id)) out.claim++;
       for (let i = 0; i < FATE_CAP && this.fateOpen(); i++) if (this.fatePick(0)) out.claim++; else break;   // 기연 — 첫 카드
       out.claim += this.passClaimAll().length;   // 강호 패스 — 받을 수 있는 단 모두
+      for (let i = 0; i < BOUNTY_SLOTS.length; i++) if (this.bountyClaim(i)) out.claim++;   // 현상수배 — 끝낸 것 · 상자
+      if (this.bountyChest()) out.claim++;
     }
     if (o.pull !== false) {
       this.shardExchange();   // 분해로 모인 뽑기 조각부터 뽑기권으로
@@ -1058,6 +1063,64 @@ export class Game {
     return out;
   }
   passClaimAll() { const out = []; for (let t = 1; t <= PASS.tiers; t++) { const r = this.passClaim(t); if (r) out.push(r); } return out; }
+  // ── 현상수배(날마다 사냥 목표 셋 · tables/bounty.js) ── 그날 처음 볼 때 만든다(옛 세이브도). 난수는 그날 씨앗으로 따로(this.rng는 그대로)
+  bountySt() {
+    const S = this.S, dk = dayKey(this.now);
+    if (S.bounty && S.bounty.day === dk && Array.isArray(S.bounty.list)) return S.bounty;
+    const r = new Rng(bountySeed(dk, S.seed)), top = Math.max(1, Math.min(LEVEL_MAX, this.stage().top || 1)), pick = (a) => a[r.int(a.length)];
+    const list = BOUNTY_SLOTS.map((kind) => {
+      const T = BOUNTY_T[kind];
+      let target = 0, need;
+      if (kind === 'boss') need = pick(T.n);
+      else { need = Math.max(T.unit, Math.round(pick(T.min) * KILLS_PER_MIN / T.unit) * T.unit); if (kind === 'stage') target = Math.max(1, top - r.int(T.back + 1)); }
+      const ex = pick(BOUNTY_REW.extra);
+      return { kind, target, need, n: 0, done: false, got: false, rew: { k: ex.k, n: pick(ex.n) } };
+    });
+    S.bounty = { day: dk, list, chest: false, coll: pick(BOUNTY_CHEST.coll) };
+    return S.bounty;
+  }
+  // 사냥이 부른다 — 몹 하나(종류 · 칸) 또는 칸 두목 깸(stageWin). 끝나는 순간 화면 알림(feed)
+  bountyHit(kind, L, stageWin = false) {
+    const B = this.bountySt();
+    B.list.forEach((x, i) => {
+      if (x.done) return;
+      const hit = x.kind === 'boss' ? (stageWin || kind === 'boss') : !stageWin && (x.kind === 'kill' || L >= x.target);
+      if (!hit) return;
+      x.n = Math.min(x.need, x.n + 1);
+      if (x.n >= x.need) { x.done = true; this.feed.push({ k: 'bounty', i, all: B.list.every((y) => y.done) }); }
+    });
+  }
+  bountyGold() { return Math.round(BOUNTY_REW.goldMin * KILLS_PER_MIN * goldPerMob(this.S.hero.lv)); }
+  bountyState() {
+    const B = this.bountySt(), gold = this.bountyGold(), all = B.list.every((x) => x.done);
+    const list = B.list.map((x, i) => {
+      const o = { i, kind: x.kind, target: x.target, need: x.need, n: x.n, done: x.done, got: x.got, gold, rew: { ...x.rew }, can: x.done && !x.got };
+      if (x.kind === 'stage') { const ch = Math.ceil(x.target / 10), R = ROSTER[ch - 1] || ROSTER[0], m = R.mobs.find((a) => a[1].startsWith('s2:')) || R.mobs[0]; Object.assign(o, { ch, k: ((x.target - 1) % 10) + 1, mob: m[0], art: m[1] }); }
+      else if (x.kind === 'boss') { const ch = Math.max(1, Math.min(ROSTER.length, Math.ceil((this.stage().top || 1) / 10))); Object.assign(o, { ch, mob: ROSTER[ch - 1].boss[0], art: ROSTER[ch - 1].boss[1] }); }
+      return o;
+    });
+    return { day: B.day, list, chest: { got: !!B.chest, can: all && !B.chest, give: { 'ticket:gear': BOUNTY_CHEST['ticket:gear'], [B.coll]: 1 } }, left: B.list.filter((x) => !x.done).length };
+  }
+  bountyCan() { const s = this.bountyState(); return s.list.filter((x) => x.can).length + (s.chest.can ? 1 : 0); }
+  // 하나 받기 → { i, gold, give } (안 끝났거나 받았으면 null)
+  bountyClaim(i) {
+    const B = this.bountySt(), x = Number.isInteger(i) ? B.list[i] : null, W = this.S.wallet;
+    if (!x || !x.done || x.got) return null;
+    x.got = true;
+    const gold = this.bountyGold(), k = x.rew?.k, n = Math.max(0, Math.floor(x.rew?.n) || 0);
+    W.gold = (W.gold || 0) + gold;
+    if (k && n) W[k] = (W[k] || 0) + n;
+    return { i, gold, give: k && n ? { [k]: n } : {} };
+  }
+  // 상자 — 셋 다 끝내면 한 번
+  bountyChest() {
+    const B = this.bountySt(), W = this.S.wallet;
+    if (B.chest || !B.list.every((x) => x.done)) return null;
+    B.chest = true;
+    const give = { 'ticket:gear': BOUNTY_CHEST['ticket:gear'], [BOUNTY_CHEST.coll.includes(B.coll) ? B.coll : 'ticket:weapon']: 1 };
+    for (const [k, n] of Object.entries(give)) W[k] = (W[k] || 0) + n;
+    return { give };
+  }
   // ── v536 출석 ── 하루 한 번(한국 시각 자정에 바뀜) · 28칸 · 다 채우면 처음부터
   attendState() { return (this.S.att ??= { n: 0, last: -1, cycle: 0 }); }
   canAttend() { return this.attendState().last !== dayKey(this.now); }

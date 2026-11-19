@@ -339,7 +339,7 @@ const TABS = [
   ['comp', '동료', [['병기', 'grow:0'], ['동료', 'grow:1'], ['영물', 'grow:2']]],
   ['dgn', '던전', [['수련동', 'content:0'], ['토벌', 'raid:0'], ['무한 탑', 'content:1'], ['원정', 'content:2'], ['동행', 'party:0']]],
   ['map', '지도', [['스테이지', 'content:3'], ['두목 도감', 'dex:0']]],
-  ['town', '임무', [['오늘', 'today:0'], ['출석', 'attend:0'], ['길잡이', 'mission:0'], ['일일', 'mission:1'], ['주간', 'mission:2'], ['업적', 'ach:0'], ['경지', 'grow:3'], ['강호행', 'grow:4'], ['상점', 'shop:0'], ['패스', 'pass:0']]],
+  ['town', '임무', [['오늘', 'today:0'], ['출석', 'attend:0'], ['길잡이', 'mission:0'], ['일일', 'mission:1'], ['주간', 'mission:2'], ['업적', 'ach:0'], ['경지', 'grow:3'], ['강호행', 'grow:4'], ['상점', 'shop:0'], ['패스', 'pass:0'], ['현상수배', 'bounty:0']]],
   ['social', '무림', [['서열', 'rank:0'], ['월드보스', 'rival:0'], ['대결', 'rival:1'], ['문파', 'rival:2'], ['대화', 'chat:0']]],
   ['opt', '설정', [['설정', 'mission:3']]],
 ];
@@ -442,7 +442,7 @@ function navDots() {
   try { const K = h.kitState(); for (const id of Object.keys(K.lv)) { const sk = skillById(id); if (sk && h.canKitUp(id) && (W.gold || 0) >= kitCost(K.lv[id], sk.tier)[0].n) kitUp++; } } catch { /* 없음 */ }
   const cur = guideCurrent(S.q.guide), canAdv = !!h.canAdvance?.(), tree = g.treePts?.().left || 0, tix = W['ticket:gear'] || 0;
   // v520 빨간 점은 「새로 생긴 할 일」만 — 늘 켜져 있던 것(올릴 무공이 거의 늘 있다)을, 그 창을 한 번 열면 다음 새 일까지 끈다
-  const sig = { char: canAdv || tree > 0 || kitUp ? `${canAdv ? 1 : 0}|${tree}|${kitUp}|${S.hero.adv || 0}` : '', bag: tix >= 10 ? `${Math.floor(tix / 10)}` : '', town: (g.todayChest().can ? 'today' : '') || (g.shopFreeCan() ? 'shop' : '') || (g.passCan() ? 'pass' : '') || (cur && S.q.guide[cur.id]?.done ? cur.id : '') || (g.books.ach.claimable().length ? `ach${g.books.ach.claimable().length}` : '') };
+  const sig = { char: canAdv || tree > 0 || kitUp ? `${canAdv ? 1 : 0}|${tree}|${kitUp}|${S.hero.adv || 0}` : '', bag: tix >= 10 ? `${Math.floor(tix / 10)}` : '', town: (g.todayChest().can ? 'today' : '') || (g.shopFreeCan() ? 'shop' : '') || (g.passCan() ? 'pass' : '') || (g.bountyCan() ? `bty${g.bountyCan()}` : '') || (cur && S.q.guide[cur.id]?.done ? cur.id : '') || (g.books.ach.claimable().length ? `ach${g.books.ach.claimable().length}` : '') };
   if (open && sig[open] !== undefined) dotSeen[open] = sig[open];
   sig.social = socialTodo();   // v554 무림: 받을 것(주간 보상 · 문파 출석 · 토벌 단계 · 수련)
   const on = { char: !!sig.char && sig.char !== dotSeen.char, bag: !!sig.bag && sig.bag !== dotSeen.bag, town: !!sig.town, social: !!sig.social };
@@ -1073,6 +1073,26 @@ function paintWin() {
       c(R(x.name, x.left ? `${gv(x.give)} · 은자 ${unit(x.cost)} · 남은 ${x.left}/${x.limit}` : `오늘은 다 샀어요 · 남은 0/${x.limit}`, btns, ic[x.id] || '·'));
     }
     c(note('값은 무인 레벨을 따라 올라요. 다 사도 사냥 두 시간 몫쯤이에요.'));
+  } else if (key === 'bounty:0') {
+    // 현상수배 — 날마다 사냥 목표 셋(진행 막대 · 보상 · 받기) · 셋 다 끝내면 상자 · 자정에 새로
+    const BS = g.bountyState(), gv = (give) => Object.entries(give).map(([k, n]) => `${ATTEND_NAME[k] || k} ${n}`).join(' · ');
+    const c = card('현상수배', BS.left ? `${BS.left}개 남음 · 자정에 새로` : '오늘 셋 다 끝냈어요!');
+    const PIC = { 'ticket:gear': 'pull', 'item:stone': 'stone' };
+    for (const x of BS.list) {
+      const title = x.kind === 'stage' ? `${x.ch}장 ${x.k}칸부터 — ${esc(x.mob)} 무리` : x.kind === 'kill' ? '아무 칸 — 몹 사냥' : '두목 사냥';
+      const how = x.kind === 'stage' ? `${x.ch}장 ${x.k}칸이나 그 다음 칸에서 몹 ${x.need}마리` : x.kind === 'kill' ? `어디서든 몹 ${x.need}마리` : `칸 두목 깨기 · 사냥터 두목 처치 ${x.need}번`;
+      const art = x.art ? `art/s2/mob/${x.art.split(':')[1]}.webp` : 'art/s2/ui/atk.webp';
+      const el = document.createElement('div'); el.className = `bty-card${x.can ? ' can' : ''}${x.got ? ' got' : ''}`; el.dataset.i = String(x.i);
+      el.innerHTML = `<div class="bty-pic${x.art ? '' : ' ui'}"><img alt="${esc(x.mob || '몹')}" loading="lazy" src="${art}"><i>懸賞</i></div><div class="bty-mid"><b>${title}</b><small>${how}</small><div class="bty-bar"><i style="width:${Math.round((x.n / x.need) * 100)}%"></i><span>${x.n} / ${x.need}</span></div><em><img alt="" src="art/s2/ui/silver.webp">은자 ${unit(x.gold)} · <img alt="" src="art/s2/ui/${PIC[x.rew.k] || 'chest'}.webp">${gv({ [x.rew.k]: x.rew.n })}</em></div>`;
+      const b = document.createElement('button'); b.className = 'btn primary'; b.textContent = x.got ? '받음' : '받기'; b.disabled = !x.can;
+      b.onclick = act(() => { const r = g.bountyClaim(x.i); if (r) { play('coin'); setTimeout(() => toast(`현상금 — 은자 ${unit(r.gold)}${Object.keys(r.give).length ? ` · ${gv(r.give)}` : ''}`), 0); } return r; });
+      el.append(b); c(el);
+    }
+    const CH = BS.chest, box = document.createElement('div'); box.className = `bty-chest td-chest ${CH.can ? 'can' : CH.got ? 'got' : ''}`;
+    box.innerHTML = `<img alt="" src="art/s2/ui/chest.webp"><div><b>현상수배 상자</b><small>${CH.got ? '오늘은 받았어요 · 자정에 새로' : CH.can ? '셋 다 끝냈어요 — 눌러서 열기!' : `${BS.left}개 더 끝내면 열려요`}</small><span>${gv(CH.give)}</span></div>`;
+    if (CH.can) box.onclick = act(() => { const r = g.bountyChest(); if (r) { play('rare', 5); buzz(60); setTimeout(() => toast(`현상수배 상자 — ${gv(r.give)}`), 0); } return r; });
+    c(box);
+    c(note('사냥하면 저절로 차요. 목표는 자정(한국 시각)에 새로 나와요 — 안 받은 현상금은 사라져요.'));
   } else if (key === 'pass:0') {
     // 강호 패스 — 4주 시즌 · 놀면 점수 · 100점마다 한 단(값 없이 누구나) · 단 칸을 눌러 받는다
     const P = g.passState(), nCan = P.rewards.filter((x) => x.state === 'can').length, dd = Math.floor(P.endsInMs / 86400000), hh = Math.floor((P.endsInMs % 86400000) / 3600000);
@@ -2464,6 +2484,7 @@ function frame() {
     else if (f.k === 'guide') addLog('길잡이 완료 — 왼쪽 위에서 받기');
     else if (f.k === 'advance') toast(`${f.n}차 전직!`);
     else if (f.k === 'boss') addLog('사냥터 두목 처치!');
+    else if (f.k === 'bounty') { toast(f.all ? '현상수배 완료! — 셋 다 끝, 상자를 열어요' : '현상수배 완료!'); addLog('현상수배 하나 끝 — 임무 창 「현상수배」에서 받기'); navDots(); }
     else if (f.k === 'retreat') { addLog(`몹이 세서 ${Math.ceil(f.idx / 10)}장 ${((f.idx - 1) % 10) + 1}칸으로 물러났어요 — 더 강해지면 다시 나아가요`); toast('앞 칸으로 물러났어요 — 강해지면 다시 나아가요'); }
     else if (f.k === 'fate') { if (!opt.autoGrow) toast('기연이 찾아왔어요 — 왼쪽 위 「기연」을 눌러요'); addLog('기연이 찾아왔어요'); }
     else if (f.k === 'sudden') toast(`돌발 미션: 10분 안에 ${f.need}마리`);
