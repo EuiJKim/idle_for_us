@@ -1379,8 +1379,8 @@ console.log('\n=== 스탯 배분 — 레벨마다 1점 ===');
   ok(o.statPts() === 10 && o.S.hero.sp.atk === 0 && o.power() > 0, '옛 세이브는 0점부터', JSON.stringify(o.S.hero.sp));
   const r = o.autoGrow({ claim: false, daily: false, pull: false, coll: false, kit: false, enh: false });
   ok(r.train >= 10 && o.statPts() === 0, '자동 성장이 남은 점수를 찍는다', r.train);
-  const o2 = new Game(JSON.parse(JSON.stringify(S)), T0); o2.autoGrow({ train: false, claim: false, daily: false });
-  ok(o2.statPts() === 10, '수련을 끄면 안 찍는다');
+  const o2 = new Game(JSON.parse(JSON.stringify(S)), T0); o2.autoGrow({ train: false, stat: false, claim: false, daily: false });
+  ok(o2.statPts() === 10, '스탯 찍기를 끄면 안 찍는다');
 }
 
 console.log('\n=== v589 자동 성장 — 하루 일 ===');
@@ -1488,7 +1488,7 @@ console.log('\n=== v592 자동 성장 — 마스터리 · 경지 ===');
   const r = g.autoGrow({ claim: false, daily: false });
   ok(r.train > 0 && (g.S.hero.mastery.done.length > m0 || g.S.realm.lv > r0), '마스터리 · 경지를 올린다', JSON.stringify({ train: r.train, m: [m0, g.S.hero.mastery.done.length], realm: [r0, g.S.realm.lv] }));
   const g2 = new Game(newGame('sword', T0, 35), T0); g2.addExp(EX.cumExp(60)); g2.tick(T0); g2.S.wallet.gold = 1e13;
-  const r2 = g2.autoGrow({ train: false, claim: false, daily: false }); ok(r2.train === 0 && g2.S.realm.lv === r0, '끄면 안 함');
+  const r2 = g2.autoGrow({ train: false, stat: false, claim: false, daily: false }); ok(r2.train === 0 && g2.S.realm.lv === r0, '끄면 안 함');
 }
 
 console.log('\n=== 동행 토벌 — 다른 무인의 덱과 함께 두목 ===');
@@ -1594,6 +1594,15 @@ console.log('\n=== 새 기능 점검 — 기연 · 동행 · 옛 세이브 · �
     ok(Number.isInteger(g.power()) && Number.isInteger(g.power('pvp')) && Number.isInteger(p.power) && Number.isInteger(p.pvpPower), '스탯: 치명이 소수여도 전투력은 정수');
     for (let i = 0; i < 5; i++) { g.statReset(); g.statUp('atk', 999); g.statUp('hp', 2.9); g.statAuto(); }
     ok(g.hero.spUsed() === 20 && g.statPts() === 0, '스탯: 되돌리고 다시 찍어도 레벨 − 1점', JSON.stringify(g.S.hero.sp)); }
+}
+
+console.log('\n=== v609 자동 성장 — 은자 아끼기여도 스탯은 찍는다 ===');
+{
+  const T0 = 1.8e12, g = new Game(newGame('sword', T0, 41), T0); g.addExp(EX.cumExp(30)); g.tick(T0);
+  const p0 = g.statPts(); const r = g.autoGrow({ kit: false, enh: false, train: false, claim: false, daily: false, pull: false });
+  ok(p0 > 0 && g.statPts() === 0 && r.train === p0, '은자 쓰기를 꺼도 남은 스탯 점수는 찍는다', JSON.stringify({ p0, left: g.statPts(), train: r.train }));
+  const g2 = new Game(newGame('sword', T0, 42), T0); g2.addExp(EX.cumExp(30)); g2.tick(T0); const q0 = g2.statPts(); g2.autoGrow({ stat: false, claim: false, daily: false, pull: false });
+  ok(g2.statPts() === q0, 'stat을 끄면 안 찍는다');
 }
 
 console.log('\n=== S0 규칙 ===');

@@ -608,8 +608,8 @@ export class Game {
     if (o.kit !== false) { const k = this.kitUpAll(); if (k) out.kit = k.n; }
     if (o.enh !== false) { const e = this.enhanceAll(); if (e) out.enh = e.ok; }
     // v592 수련 — 배울 수 있는 마스터리 · 경지 돌파(은자가 되는 만큼, 강화 뒤에)
+    if (o.stat !== false) out.train += this.statAuto();   // 남은 스탯 점수는 고르게(공짜 — v609 은자 아끼기(train 끔)여도 찍는다)
     if (o.train !== false) {
-      out.train += this.statAuto();   // 남은 스탯 점수는 고르게
       for (const m of MASTERY) if (this.learn(m.id)) out.train++;
       for (let i = 0; i < 10 && this.realmUp(); i++) out.train++;
     }

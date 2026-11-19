@@ -295,7 +295,7 @@ function fatePop() {
   sh.classList.remove('wide', 'enhs');
   sh.innerHTML = `<h2>기연</h2><p class="note">셋 중 하나를 골라요.</p><div class="fate-row">${cards.map((c, i) => { const v = FATE_VIEW[c.k] || ['緣', c.k]; return `<button class="fate-card" data-i="${i}"><i>${v[0]}</i><span>${v[1]}</span><b>${fateAmt(c)}</b></button>`; }).join('')}</div>${left > 0 ? `<div class="fate-left">남은 기연 ${left}번</div>` : ''}`;
   for (const b of sh.querySelectorAll('.fate-card')) b.onclick = () => {
-    const c = g.fatePick(Number(b.dataset.i)); if (!c) return;
+    const c = g.fatePick(Number(b.dataset.i)); if (!c) { closeModal(); paintHud(); return; }   // 창이 열린 사이 자동 성장이 먼저 골랐으면 — 눌러도 아무 일 없는 창으로 남지 않게 닫는다
     buzz(30); save(); toast(`기연 — ${(FATE_VIEW[c.k] || ['', c.k])[1]} ${fateAmt(c)}`);
     closeModal(); paintHud(); if (open) paintWin();
     if (g.fateState().ready > 0) fatePop();
@@ -1267,14 +1267,16 @@ function paintUnlock() {
   }
   const next = UNLOCKS[n];
   nx.classList.toggle('hidden', !next);
-  if (!next) return;
+  if (!next) { $('dpsm').style.top = ''; return; }
+  if (!$('qc').classList.contains('hidden') && !$('qc').offsetHeight) return;   // 길잡이 카드가 가려진 동안(두목전)엔 자리를 잴 수 없다 — 다시 보일 때 맞춘다
   const same = UNLOCKS.filter((u) => u.lv === next.lv), prev = n ? UNLOCKS[n - 1].lv : 1;
   const k = `${n}:${L}:${$('qc').dataset.k || ''}:${$('qc').classList.contains('hidden') ? 0 : 1}`;
   if (nx.dataset.k === k) return;
   nx.dataset.k = k; nx.dataset.go = next.key;
   nx.innerHTML = `<span class="nxt"><em>다음</em>${esc(next.short)}${same.length > 1 ? ` 외 ${same.length - 1}` : ''} · Lv ${next.lv} <small>(지금 Lv ${L})</small></span><i class="nxb"><i style="width:${Math.max(0, Math.min(1, (L - prev) / Math.max(1, next.lv - prev))) * 100}%"></i></i>`;
   nx.title = `${same.map((u) => u.name).join(' · ')} — Lv ${next.lv}에 열려요`;
-  const qc = $('qc'); nx.style.top = qc.classList.contains('hidden') ? '' : `${qc.offsetTop + qc.offsetHeight + 5}px`;   // 길잡이 카드 바로 아래(카드가 두 줄 · 세 줄이어도)
+  const qc = $('qc'), qh = qc.classList.contains('hidden'); nx.style.top = qh ? '' : `${qc.offsetTop + qc.offsetHeight + 5}px`;   // 길잡이 카드 바로 아래(카드가 두 줄 · 세 줄이어도)
+  $('dpsm').style.top = qh ? '' : `${qc.offsetTop + qc.offsetHeight + 5 + nx.offsetHeight + 7}px`;   // 피해 측정기도 따라 내린다(길잡이 카드가 두 줄이면 칩과 겹쳤다)
 }
 function paintHud() {
   const S = g.S, H = S.hero, F = g.ensureFight(), T = g.stage(), z = zoneFor(g.zoneLv());
@@ -1300,7 +1302,7 @@ function paintHud() {
   const xp = Math.min(100, (H.exp / expToNext(H.lv)) * 100), jn = JOBS[H.job].name, rk = H.adv ? `${H.adv}차 전직` : '입문';
   $('me-job').textContent = jn; $('me-rank').textContent = rk; $('me-nm').textContent = `${jn} · ${rk}`;
   $('me-lv').textContent = `Lv.${H.lv}`;
-  if (lastLv && H.lv > lastLv) levelUpFx(H.lv); lastLv = H.lv;
+  { const up = lastLv && H.lv > lastLv; lastLv = H.lv; if (up) { levelUpFx(H.lv); if (open && keyOf() === 'hero:0') paintWin(); } }   // 스탯 칸을 연 채 레벨이 오르면 남은 점수 · 단추를 바로 맞춘다
   $('xp-txt').textContent = `EXP ${xp.toFixed(2)}%`; $('xp-fill').style.width = `${xp}%`;
   $('g-gold').textContent = unit(S.wallet.gold); $('g-tix').textContent = S.wallet['ticket:gear'] || 0;
   // 위 가운데: 장 이름 · 칸 진행(처치 n/20 → 두목 도전) · 두목전이면 두목 체력
@@ -1803,7 +1805,8 @@ function draw() {
   const F = held ? KH.F : g.ensureFight(); if (!F) return;
   const W = r.width, Hh = r.height, ts = t / 1000, map = F.def.map;
   const fdt = Math.min(100, Math.max(1, t - (lastDraw || t - 16))); lastDraw = t;
-  const z = zoneFor(g.zoneLv());
+  const zLv = held && F.def.boss && !F.def.raid ? F.def.lv : g.zoneLv();   // 붙잡아 둔 두목전 장면은 그 칸의 배경 · 몹 그림으로(장 두목을 잡으면 칸이 먼저 다음 장으로 넘어가 있다)
+  const z = zoneFor(zLv);
   // 가까이 당겨 본다: 화면 너비에 약 15미터 — 무인을 가로 · 세로로 따라감(맵은 화면보다 넓고 높다)
   // 세로 화면이면 아래 조작 받침(168px)을 빼고, 가로로 너무 당겨지지 않게 넓게 본다
   const port = Hh > W * 1.1, dock = port ? 150 : 0;   // 아래 창 단추 줄 · 무공 줄
@@ -1842,7 +1845,8 @@ function draw() {
   // 차수가 높을수록 크게(1차 2% … 5차 6%) — 빠르게 당겼다(0.2) 느리게 풀린다. 0.16초(4 · 5차 0.24초)
   const zp = punchNow(t);
   if (opt.shake && zp > 0) { const [zx, zy] = P(lx(F.hero), ly(F.hero) + 900), zz = 1 + zp; cx.translate(zx, zy); cx.scale(zz, zz); cx.translate(-zx, -zy); }
-  const ch = chapterOf(g.zoneLv()); preloadChapter(ch); preloadMobs(ch);
+  const ch = chapterOf(zLv); preloadChapter(ch); preloadMobs(ch);
+  if (held) { const c2 = chapterOf(g.zoneLv()); if (c2 !== ch) { preloadChapter(c2); preloadMobs(c2); } }   // 넘어갈 장 그림은 붙잡아 둔 동안 미리 불러 둔다
   drawPaintedBack(cx, W, Hh, ch, camX * s, z, camY * s);
   // 바닥 아래는 어둡게 채우고, 발판은 장마다 그린 그림
   const [, gy] = P(0, 0);

@@ -129,7 +129,7 @@
     #sp-fill { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: linear-gradient(90deg, #d49a2a, #ffd56a); transition: width .25s; }
     #sp.boss #sp-fill { background: linear-gradient(90deg, #7f1d1d, #ef4444); transition: none; }
     #sp-txt { position: absolute; inset: 0; font-size: 11px; font-weight: 800; line-height: 15px; color: #fff; text-shadow: 0 1px 2px #000; font-variant-numeric: tabular-nums; }
-    #btn-boss { position: absolute; z-index: 21; left: 50%; transform: translateX(-50%); top: calc(var(--st) + 46px); padding: 6px 16px; border-radius: 999px; font-weight: 800; font-size: 13px; color: #fff; background: linear-gradient(180deg, #c0392b, #7c1a1f); border: 1px solid #ffb4a8; box-shadow: 0 2px 8px rgba(0,0,0,.5); }
+    #btn-boss { position: absolute; z-index: 21; left: 50%; transform: translateX(-50%); top: calc(var(--st) + 46px); bottom: auto; font-family: inherit; padding: 6px 16px; border-radius: 999px; font-weight: 800; font-size: 13px; color: #fff; background: linear-gradient(180deg, #c0392b, #7c1a1f); border: 1px solid #ffb4a8; box-shadow: 0 2px 8px rgba(0,0,0,.5); }
     #btn-boss.ready { animation: pts-glow 1.4s ease-in-out infinite; }
     /* v519 두목전 — 위 가운데에 큰 두목 막대(이름 · 체력 % · 남은 초) */
     #contest-hud { top: calc(var(--st) + 46px); z-index: 20; width: min(440px, 52vw); padding: 5px 12px 6px; border-radius: 12px; background: rgba(30,6,6,.82); border: 1px solid rgba(248,113,113,.55); text-align: left; font-size: 11.5px; line-height: 1.35; min-width: 0; white-space: normal; }
@@ -505,7 +505,7 @@
     .coll-tile.no img { filter: brightness(0) invert(1) opacity(.16); }   /* 아직 없는 것은 그림자만 */
     .gx-coll { width: 62px; height: 62px; object-fit: contain; filter: drop-shadow(0 2px 4px rgba(0,0,0,.6)); }
     .coll-tile b { font-size: 10.5px; color: #fff; line-height: 1.2; word-break: keep-all; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .coll-tile small { font-size: 9.5px; color: var(--gc, #aaa); line-height: 1.2; white-space: nowrap; }
+    .coll-tile small { font-size: 9.5px; color: var(--gc, #aaa); line-height: 1.2; white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
     .coll-tile u { position: absolute; top: 2px; right: 3px; font-size: 8.5px; text-decoration: none; color: #1a1408; background: #e8c26a; border-radius: 6px; padding: 0 4px; font-weight: 800; }
     .coll-tile.on { box-shadow: 0 0 0 1px #e8c26a inset; }
     .coll-tile.no { opacity: .42; border-style: dashed; } .coll-tile.no em { color: rgba(255,255,255,.5); background: rgba(255,255,255,.06); } .coll-tile.no b { color: rgba(255,255,255,.7); }
