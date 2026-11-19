@@ -30,6 +30,7 @@ import { DASH } from '../battle/side.js';   // v546 회피
 import { uiIcon } from '../tables/uiicons.js';   // v610 창 줄 그림 아이콘
 import { NEWS, NEWS_V, newsSince } from '../tables/news.js';   // v560 업데이트 소식
 import { ATTEND, ATTEND_DAYS, ATTEND_NAME } from '../tables/attend.js';
+import { PASS, PASS_PTS } from '../tables/pass.js';   // 강호 패스
 import { TITLES, TITLE_EACH, titleByName } from '../tables/titles.js';
 import { play, unlock, setOpt, bgm } from './sound.js';
 import { PoseAnim, POSES, IDLE, mixPose } from '../../pose.js';
@@ -316,7 +317,7 @@ const TABS = [
   ['comp', '동료', [['병기', 'grow:0'], ['동료', 'grow:1'], ['영물', 'grow:2']]],
   ['dgn', '던전', [['수련동', 'content:0'], ['토벌', 'raid:0'], ['무한 탑', 'content:1'], ['원정', 'content:2'], ['동행', 'party:0']]],
   ['map', '지도', [['스테이지', 'content:3'], ['두목 도감', 'dex:0']]],
-  ['town', '임무', [['오늘', 'today:0'], ['출석', 'attend:0'], ['길잡이', 'mission:0'], ['일일', 'mission:1'], ['주간', 'mission:2'], ['업적', 'ach:0'], ['경지', 'grow:3'], ['강호행', 'grow:4'], ['상점', 'shop:0']]],
+  ['town', '임무', [['오늘', 'today:0'], ['출석', 'attend:0'], ['길잡이', 'mission:0'], ['일일', 'mission:1'], ['주간', 'mission:2'], ['업적', 'ach:0'], ['경지', 'grow:3'], ['강호행', 'grow:4'], ['상점', 'shop:0'], ['패스', 'pass:0']]],
   ['social', '무림', [['서열', 'rank:0'], ['월드보스', 'rival:0'], ['대결', 'rival:1'], ['문파', 'rival:2'], ['대화', 'chat:0']]],
   ['opt', '설정', [['설정', 'mission:3']]],
 ];
@@ -419,7 +420,7 @@ function navDots() {
   try { const K = h.kitState(); for (const id of Object.keys(K.lv)) { const sk = skillById(id); if (sk && h.canKitUp(id) && (W.gold || 0) >= kitCost(K.lv[id], sk.tier)[0].n) kitUp++; } } catch { /* 없음 */ }
   const cur = guideCurrent(S.q.guide), canAdv = !!h.canAdvance?.(), tree = g.treePts?.().left || 0, tix = W['ticket:gear'] || 0;
   // v520 빨간 점은 「새로 생긴 할 일」만 — 늘 켜져 있던 것(올릴 무공이 거의 늘 있다)을, 그 창을 한 번 열면 다음 새 일까지 끈다
-  const sig = { char: canAdv || tree > 0 || kitUp ? `${canAdv ? 1 : 0}|${tree}|${kitUp}|${S.hero.adv || 0}` : '', bag: tix >= 10 ? `${Math.floor(tix / 10)}` : '', town: (g.todayChest().can ? 'today' : '') || (g.shopFreeCan() ? 'shop' : '') || (cur && S.q.guide[cur.id]?.done ? cur.id : '') || (g.books.ach.claimable().length ? `ach${g.books.ach.claimable().length}` : '') };
+  const sig = { char: canAdv || tree > 0 || kitUp ? `${canAdv ? 1 : 0}|${tree}|${kitUp}|${S.hero.adv || 0}` : '', bag: tix >= 10 ? `${Math.floor(tix / 10)}` : '', town: (g.todayChest().can ? 'today' : '') || (g.shopFreeCan() ? 'shop' : '') || (g.passCan() ? 'pass' : '') || (cur && S.q.guide[cur.id]?.done ? cur.id : '') || (g.books.ach.claimable().length ? `ach${g.books.ach.claimable().length}` : '') };
   if (open && sig[open] !== undefined) dotSeen[open] = sig[open];
   sig.social = socialTodo();   // v554 무림: 받을 것(주간 보상 · 문파 출석 · 토벌 단계 · 수련)
   const on = { char: !!sig.char && sig.char !== dotSeen.char, bag: !!sig.bag && sig.bag !== dotSeen.bag, town: !!sig.town, social: !!sig.social };
@@ -442,6 +443,7 @@ function paintWin() {
   const wFocus = document.activeElement?.id === 'wchat-in', gFocus = document.activeElement?.id === 'gchat-in';
   const chatAt = (id) => { const el = document.querySelector(id); return el && el.dataset.init && el.scrollHeight - el.scrollTop - el.clientHeight >= 40 ? el.scrollTop : null; };   // 대화를 올려 읽던 자리(맨 아래였으면 null) — 창을 다시 그려도 그대로
   const wAt = chatAt('#wchat'), gAt = chatAt('#gchat');
+  const passX = $('panel-body').dataset.key === `${open}:${tab}` ? document.querySelector('#pass-track')?.scrollLeft ?? null : null;   // 패스 줄을 옆으로 넘겨 보던 자리
   const PB = $('panel-body'), keepScroll = PB.dataset.key === `${open}:${tab}` ? PB.scrollTop : 0; PB.innerHTML = ''; PB.dataset.key = `${open}:${tab}`;
   if (M[2].length > 1) {
     const st = document.createElement('div'); st.className = 'subtabs'; const seg = document.createElement('div'); seg.className = 'seg wide';
@@ -1001,6 +1003,35 @@ function paintWin() {
       c(R(x.name, x.left ? `${gv(x.give)} · 은자 ${unit(x.cost)} · 남은 ${x.left}/${x.limit}` : `오늘은 다 샀어요 · 남은 0/${x.limit}`, btns, ic[x.id] || '·'));
     }
     c(note('값은 무인 레벨을 따라 올라요. 다 사도 사냥 두 시간 몫쯤이에요.'));
+  } else if (key === 'pass:0') {
+    // 강호 패스 — 4주 시즌 · 놀면 점수 · 100점마다 한 단(값 없이 누구나) · 단 칸을 눌러 받는다
+    const P = g.passState(), nCan = P.rewards.filter((x) => x.state === 'can').length, dd = Math.floor(P.endsInMs / 86400000), hh = Math.floor((P.endsInMs % 86400000) / 3600000);
+    const PIC = { 'ticket:gear': 'pull', 'ticket:weapon': 'pullw', 'ticket:pal': 'pullp', 'ticket:relic': 'pullr', 'item:stone': 'stone', 'ticket:time': 'time', 'ticket:exped': 'exped', goldMin: 'silver' };
+    const rwName = (rw) => Object.entries(rw).map(([k, n]) => (k === 'goldMin' ? `은자 사냥 ${n}분 몫` : `${ATTEND_NAME[k] || (k === 'ticket:exped' ? '원정권' : k)} ${n}`)).join(' · ');
+    const gotName = (r) => [Object.keys(r.give).length ? rwName(r.give) : '', r.gold ? `은자 ${unit(r.gold)}` : ''].filter(Boolean).join(' · ');
+    const c = card(`강호 패스 ${P.no}시즌`, `${dd ? `${dd}일 ` : ''}${hh}시간 남음`);
+    const head = document.createElement('div'); head.className = 'pass-head';
+    head.innerHTML = `<div class="pass-tier">${P.tier}<small>/${PASS.tiers}단</small></div><div class="pass-prog"><div class="pass-bar"><i style="width:${P.into}%"></i></div><div class="pass-sub"><span>${P.tier >= PASS.tiers ? '끝까지 올랐어요' : `다음 단까지 ${P.into}/${P.need}`}</span><span>오늘 ${P.dayPts}/${P.dayCap}</span></div></div>`;
+    const all = document.createElement('button'); all.className = 'btn primary'; all.textContent = nCan > 1 ? `모두 받기 ${nCan}` : '모두 받기'; all.disabled = !nCan;
+    all.onclick = act(() => { const L = g.passClaimAll(); if (L.length) setTimeout(() => toast(L.length === 1 ? `${L[0].tier}단 — ${gotName(L[0])} 받음` : `패스 ${L.length}단 보상 받음`), 0); return L.length > 0; });
+    head.append(all); c(head);
+    const tr = document.createElement('div'); tr.className = 'pass-track'; tr.id = 'pass-track';
+    for (const x of P.rewards) {
+      const ks = Object.keys(x.reward), big = ks.length > 1, k0 = ks[0], b = document.createElement('button');
+      b.className = `pass-tile ${x.state}${big ? ' big' : ''}${x.tier === P.tier + 1 ? ' next' : ''}`; b.dataset.tier = String(x.tier);
+      b.setAttribute('aria-label', `${x.tier}단 ${rwName(x.reward)}${x.state === 'got' ? ' 받음' : x.state === 'can' ? ' 받기' : ' 잠김'}`);
+      b.innerHTML = `<i class="pass-n">${x.tier}단</i><img alt="" loading="lazy" src="art/s2/ui/${big ? 'chest' : PIC[k0] || 'chest'}.webp"><b>${big ? '큰 상자' : k0 === 'goldMin' ? `${x.reward[k0]}분` : `×${x.reward[k0]}`}</b>`;
+      b.onclick = x.state === 'can' ? act(() => { const r = g.passClaim(x.tier); if (r) setTimeout(() => toast(`${r.tier}단 — ${gotName(r)} 받음`), 0); return r; })
+        : () => { play('click'); toast(x.state === 'got' ? `${x.tier}단 — 받았어요` : `${x.tier}단 — ${rwName(x.reward)} · ${x.tier * P.need}점부터`); };
+      tr.append(b);
+    }
+    c(tr);
+    requestAnimationFrame(() => { if (passX !== null) { tr.scrollLeft = passX; return; } const t = tr.querySelector('.pass-tile.can') || tr.querySelector('.pass-tile.next') || tr.lastElementChild; if (t) tr.scrollLeft = t.offsetLeft - tr.offsetLeft - (tr.clientWidth - t.offsetWidth) / 2; });
+    c(note('시즌이 끝나면 처음부터 다시 — 안 받은 보상은 사라져요.'));
+    const c2 = card('점수 모으기', `하루 ${P.dayCap}점까지 · ${P.need}점마다 한 단`);
+    const pl = document.createElement('div'); pl.className = 'pass-pts';
+    pl.innerHTML = [['일일 임무 받기', PASS_PTS.daily], ['주간 임무 받기', PASS_PTS.weekly], ['출석', PASS_PTS.attend], ['수련동 깨기', PASS_PTS.dungeon], ['스테이지 두목', PASS_PTS.stage], ['월드보스', PASS_PTS.wboss], ['대결', PASS_PTS.duel], ['동행 토벌', PASS_PTS.party]].map(([n, v]) => `<div>${n}<b>+${v}</b></div>`).join('');
+    c2(pl);
   } else if (key === 'attend:0') {
     const A = g.attendState(), can = g.canAttend();
     const c = card('출석', `${A.n % ATTEND_DAYS || (A.n ? ATTEND_DAYS : 0)}/${ATTEND_DAYS}일${A.cycle ? ` · ${A.cycle}바퀴 끝` : ''}`);
@@ -2461,14 +2492,22 @@ function duelShow(r) {
   };
   requestAnimationFrame(tick);
 }
-// v538 업적 달성 — 위 가운데 금빛 띠(트로피 · 이름) · 소리
+// v538 업적 달성 — 맨 위 가운데 금빛 띠(트로피 · 이름) · 소리. 결과 창 · 뽑기 · 대결 화면이 떠 있으면 닫힌 뒤에, 여럿이면 차례로(결과 창 단추를 가렸다)
+const achQ = []; let achBusy = false, achWait = 0;
 function achFx(a) {
   if (!a) return;
-  for (const o of document.querySelectorAll('.achpop')) o.remove();
-  const d = document.createElement('div'); d.className = 'achpop';
-  d.innerHTML = `<i>🏆</i><div><small>업적 달성!</small><b>${esc(a.name)}</b><span>임무 → 업적에서 받기</span></div>`;
-  document.body.append(d); setTimeout(() => d.remove(), 2600); play('rare', 4);
   addLog(`업적 달성 — ${a.name}`);
+  achQ.push(a); if (achQ.length > 3) achQ.shift();
+  setTimeout(achPump, 250);   // 같은 순간에 뜨는 뽑기 · 결과 화면이 먼저 자리 잡게
+}
+function achPump() {
+  if (achBusy || !achQ.length) return;
+  if ($('res').classList.contains('open') || document.querySelector('.gx, .duel')) { if (!achWait) achWait = setTimeout(() => { achWait = 0; achPump(); }, 400); return; }
+  const a = achQ.shift(), ms = achQ.length ? 1500 : 2600; achBusy = true;
+  const d = document.createElement('div'); d.className = 'achpop'; d.style.animationDuration = `${ms}ms`;
+  d.innerHTML = `<i>🏆</i><div><small>업적 달성!</small><b>${esc(a.name)}</b><span>임무 → 업적에서 받기</span></div>`;
+  document.body.append(d); play('rare', 4);
+  setTimeout(() => { d.remove(); achBusy = false; achPump(); }, ms);
 }
 // v534 좋은 장비 줍기 — 오른쪽에 카드가 미끄러져 들어오고, 보품(4) 이상은 무인 자리에 빛기둥 · 소리
 const LOOT_COL = ['#a8a29e', '#7cc47a', '#6aa8e0', '#b27ae0', '#e8c26a', '#e06a5a', '#ffffff'];
@@ -2701,7 +2740,7 @@ function fitLand() {
   B.style.width = rot ? `${H}px` : ''; B.style.height = rot ? `${W}px` : '';
   // 돌린 뒤의 실제 가로 · 세로로 크기 반(media query는 기기 기준이라 돌린 화면에서 뒤바뀐다)
   const ew = rot ? H : W, eh = rot ? W : H, D = document.documentElement.classList;
-  D.toggle('w800', ew <= 800); D.toggle('w720', ew <= 720); D.toggle('w640up', ew >= 640); D.toggle('h500', eh <= 500); D.toggle('h420', eh <= 420);
+  D.toggle('w800', ew <= 800); D.toggle('w720', ew <= 720); D.toggle('w640up', ew >= 640); D.toggle('h500', eh <= 500); D.toggle('h420', eh <= 420); D.toggle('h340', eh <= 340);
 }
 addEventListener('resize', fitLand); addEventListener('orientationchange', () => setTimeout(fitLand, 120));
 fitLand();

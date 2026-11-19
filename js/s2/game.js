@@ -16,6 +16,7 @@ import { DAILY_DUNGEONS, DAILY_RUNS, JOB_DUNGEON } from './tables/content.js';
 import { GUIDE, DAILY_MISSIONS, WEEKLY_MISSIONS, achievements, guideCurrent } from './tables/missions.js';
 import { JOB_ADV, MASTERY } from './tables/skills.js';
 import { SHOP, SHOP_FREE, shopById } from './tables/shop.js';
+import { PASS, PASS_PTS, PASS_REWARDS } from './tables/pass.js';
 import { CHBOSS, CB, cbGearGrade, CB_REPEAT, WBF, CB_RAID, raidStars, DEX_REW } from './tables/chboss.js';
 const CB_MANUAL_STONES = 50;   // v546
 // 기연 — 사냥으로 FATE_NEED마리를 잡을 때마다 한 번, 카드 셋 중 하나를 고른다(안 고른 것은 FATE_CAP번까지 쌓이고 그동안 칸은 멈춘다)
@@ -73,6 +74,9 @@ const DAY = 24 * 3600e3, KST = 9 * 3600e3;
 export const dayKey = (ms) => Math.floor((ms + KST) / DAY);
 // 주 키: 그 주 월요일의 dayKey
 export const weekKey = (ms) => { const d = dayKey(ms); return d - ((d + 3) % 7); };
+// 패스 시즌: 몇째 주((weekKey + 3) / 7)를 4주씩 묶은 번호 · 그 시즌이 끝나는 때(다음 시즌 첫 월요일 한국 시각 자정)
+export const passSeason = (ms) => Math.floor((weekKey(ms) + 3) / 7 / PASS.weeks);
+export const passEndMs = (season) => ((season + 1) * PASS.weeks * 7 - 3) * DAY - KST;
 // 사냥터 두목: 이만큼 잡으면 하나 나온다
 export const BOSS_EVERY = 300;
 // 스테이지: 칸마다 잡을 수 · 칸 두목 제한 시간 · 옆보기 사냥터 몹 수
@@ -252,6 +256,9 @@ export class Game {
     for (const [k, b] of Object.entries(this.books)) { const fin = b.on(ev, v); if (k === 'ach') for (const id of fin) this.feed.push({ k: 'ach', id }); }   // v538 업적 달성 알림
     const cur = guideCurrent(S.q.guide);
     if (cur) { const fin = new QuestBook([cur], S.q.guide).on(ev, { lv: S.hero.lv, job: S.hero.adv, ...v }); if (fin.length) this.feed.push({ k: 'guide', id: cur.id }); }
+    // 강호 패스 점수 — 수련동 깨기 · 스테이지 두목 · 월드보스 · 대결(임무 받기 · 출석 · 동행 토벌은 그 자리에서 바로 — login은 날이 바뀔 때도 와서 출석과 겹친다)
+    const pp = ev === 'dungeon' ? (v.kind ? PASS_PTS.dungeon : v.stage ? PASS_PTS.stage : 0) : ev === 'wboss' ? PASS_PTS.wboss : ev === 'pvp' ? PASS_PTS.duel : 0;
+    if (pp) this.passAdd(pp);
   }
   claimGuide() {
     const cur = guideCurrent(this.S.q.guide);
@@ -270,6 +277,7 @@ export class Game {
     B.claim(id);
     this.giveHuntMin(d.huntMin);
     if (d.items) gain(this.S.wallet, Object.entries(d.items).map(([k, n]) => ({ k, n })));
+    if (book === 'daily' || book === 'weekly') this.passAdd(PASS_PTS[book]);   // 강호 패스 점수
     return true;
   }
   // 「사냥 n분 상당」 보상 → 그 레벨 사냥 벌이(경험치 + 은자)
@@ -593,6 +601,7 @@ export class Game {
       for (let i = 0; i < 30 && this.claimGuide(); i++) out.claim++;
       for (const [b, B] of Object.entries(this.books)) for (const id of B.claimable()) if (this.claimMission(b, id)) out.claim++;
       for (let i = 0; i < FATE_CAP && this.fateOpen(); i++) if (this.fatePick(0)) out.claim++; else break;   // 기연 — 첫 카드
+      out.claim += this.passClaimAll().length;   // 강호 패스 — 받을 수 있는 단 모두
     }
     if (o.pull !== false) {
       this.shardExchange();   // 분해로 모인 뽑기 조각부터 뽑기권으로
@@ -917,7 +926,7 @@ export class Game {
     // 동행은 그 레벨 표준 무공 세트로 친다(덱에는 능력치만 있다)
     const fs = team.map((a) => ({ ...refPlayer(a.f.lv, a.f.job), st: a.f.st }));
     const lv = partyLv(tier), r = runParty({ mobLv: lv, hpX: partyHpX(tier), timeMs: PARTY.timeMs }, this.fighter(), fs, this.rng.u32());
-    P.runs++;
+    P.runs++; this.passAdd(PASS_PTS.party);   // 강호 패스 점수(이기든 지든 한 번)
     const sum = r.dmg.reduce((a, b) => a + b, 0) || 1, share = r.dmg.map((d) => Math.round((d * 1000) / sum) / 10);
     let rewards = null;
     if (r.cleared) {
@@ -989,6 +998,40 @@ export class Game {
     this.emit('pvp');
     return { ...r, d, score: P.score, tier: PV.tierOf(P.score).name, log, opp: { name: opp.name, job: opp.f.job, lv: opp.f.lv, hp: opp.f.st.hp, real: !!opp.real, lk: opp.lk || null }, myHp: me.st.hp, oppUid: opp.uid || null, defD: sd.def };
   }
+  // ── 강호 패스 ── 4주 시즌 · 놀면 점수(하루 150점까지) · 100점마다 한 단 · 서른 단(tables/pass.js). 값 없이 누구나
+  //   시즌이 바뀌면 처음부터(안 받은 보상은 사라진다) · 옛 세이브도 여기서 생긴다
+  passSt() {
+    const S = this.S, se = passSeason(this.now), dk = dayKey(this.now), P = (S.pass ??= { season: se, pts: 0, day: dk, dayPts: 0, got: [] });
+    if (P.season !== se) Object.assign(P, { season: se, pts: 0, day: dk, dayPts: 0, got: [] });
+    if (P.day !== dk) { P.day = dk; P.dayPts = 0; }
+    if (!Array.isArray(P.got)) P.got = [];
+    return P;
+  }
+  // 점수 더하기(안에서만 부른다) — 하루 상한 · 시즌 끝(서른 단)까지만 → 실제로 오른 점수
+  passAdd(n) {
+    const P = this.passSt(), add = Math.max(0, Math.min(Math.floor(n) || 0, PASS.dayCap - P.dayPts, PASS.tiers * PASS.need - P.pts));
+    P.pts += add; P.dayPts += add;
+    return add;
+  }
+  passState() {
+    const P = this.passSt(), tier = Math.min(PASS.tiers, Math.floor(P.pts / PASS.need));
+    return { season: P.season, no: Math.max(1, P.season - PASS.first + 1), endsInMs: Math.max(0, passEndMs(P.season) - this.now), pts: P.pts, tier, need: PASS.need, into: tier >= PASS.tiers ? PASS.need : P.pts % PASS.need,
+      dayPts: P.dayPts, dayCap: PASS.dayCap, rewards: PASS_REWARDS.map((reward, i) => ({ tier: i + 1, reward, state: P.got.includes(i + 1) ? 'got' : i + 1 <= tier ? 'can' : 'lock' })) };
+  }
+  passCan() { return this.passState().rewards.filter((r) => r.state === 'can').length; }
+  // 한 단 받기 → { tier, give: { 종류: 양 }, gold } (아직 못 닿았거나 이미 받았으면 null)
+  passClaim(tier) {
+    const P = this.passSt(), R = PASS_REWARDS[tier - 1], W = this.S.wallet;
+    if (!Number.isInteger(tier) || !R || tier > Math.floor(P.pts / PASS.need) || P.got.includes(tier)) return null;
+    P.got.push(tier);
+    const out = { tier, give: {}, gold: 0 };
+    for (const [k, n] of Object.entries(R)) {
+      if (k === 'goldMin') { out.gold = Math.round(n * KILLS_PER_MIN * goldPerMob(this.S.hero.lv)); W.gold = (W.gold || 0) + out.gold; }
+      else { W[k] = (W[k] || 0) + n; out.give[k] = n; }
+    }
+    return out;
+  }
+  passClaimAll() { const out = []; for (let t = 1; t <= PASS.tiers; t++) { const r = this.passClaim(t); if (r) out.push(r); } return out; }
   // ── v536 출석 ── 하루 한 번(한국 시각 자정에 바뀜) · 28칸 · 다 채우면 처음부터
   attendState() { return (this.S.att ??= { n: 0, last: -1, cycle: 0 }); }
   canAttend() { return this.attendState().last !== dayKey(this.now); }
@@ -1001,7 +1044,7 @@ export class Game {
     for (const [k, n] of Object.entries(R)) if (k.includes(':')) { S.wallet[k] = (S.wallet[k] || 0) + n; got.items[k] = n; }
     if (R.gear) { const it = GR.makeGear(this.rng, SLOTS[this.rng.int(SLOTS.length)], R.gear.g); if (R.gear.up) it.up = 1; got.gear = { g: it.g, up: it.up, slot: it.slot }; this.obtain([it], 'attend'); }
     if (R.title && !(S.titles ??= []).includes(R.title)) { S.titles.push(R.title); got.title = R.title; }
-    this.emit('login');
+    this.emit('login'); this.passAdd(PASS_PTS.attend);   // 강호 패스 점수
     this.feed.push({ k: 'attend', ...got });
     return got;
   }

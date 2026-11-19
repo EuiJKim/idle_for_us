@@ -1596,6 +1596,87 @@ console.log('\n=== 새 기능 점검 — 기연 · 동행 · 옛 세이브 · �
     ok(g.hero.spUsed() === 20 && g.statPts() === 0, '스탯: 되돌리고 다시 찍어도 레벨 − 1점', JSON.stringify(g.S.hero.sp)); }
 }
 
+console.log('\n=== 강호 패스 — 4주 시즌 · 놀면 점수 · 서른 단 ===');
+{
+  const { PASS, PASS_PTS, PASS_REWARDS, passTotal } = await import('../js/s2/tables/pass.js');
+  const { passSeason } = await import('../js/s2/game.js');
+  const DAYMS = 86400e3, T0 = Date.UTC(2026, 10, 19, 3);   // 시즌 첫 주 목요일 낮(한국 시각)
+  const fresh = (seed = 4) => { const g = new Game(newGame('sword', T0, seed), T0); g.tick(T0); return g; };
+  const mk = () => { const g = fresh(); g.addExp(EX.cumExp(40)); g.tick(T0); g.S.wallet['ticket:gear'] = 600; g.S.wallet.gold = 1e12; g.S.wallet['item:stone'] = 1e6; for (let i = 0; i < 60; i++) g.pullGear(10); GR.equipBest(g.S.gear, 40); for (const s of GE.SLOTS) for (let i = 0; i < 14; i++) g.enhance(s); g.dirtyStats = true; return g; };
+  // 표: 서른 단 · 다 받아도 적게
+  const tot = passTotal(), coll = (tot['ticket:weapon'] || 0) + (tot['ticket:pal'] || 0) + (tot['ticket:relic'] || 0);
+  ok(PASS.weeks === 4 && PASS.tiers === 30 && PASS.need === 100 && PASS_REWARDS.length === 30 && PASS_REWARDS.every((r) => Object.values(r).every((n) => Number.isInteger(n) && n > 0)), '표: 서른 단 · 단마다 보상 하나');
+  ok(tot['ticket:gear'] <= 80 && coll <= 12 && tot['ticket:time'] <= 3 && tot.goldMin <= 120, '표: 다 받아도 적다(장비 뽑기권 80 · 모음 뽑기권 12 · 시간 티켓 3 안)', JSON.stringify(tot));
+  ok([5, 15, 25].every((t) => Object.keys(PASS_REWARDS[t - 1]).some((k) => /weapon|pal|relic/.test(k))) && [10, 20].every((t) => PASS_REWARDS[t - 1]['ticket:time'] === 1) && PASS_REWARDS[29]['ticket:gear'] === 10, '표: 다섯째 단은 모음 뽑기권 · 10 · 20단은 시간 티켓 · 30단은 큰 보상');
+  // 점수 — 놀이마다
+  { const g = mk(), p = () => g.passState().pts; let p0 = p();
+    const gotPts = (fn) => { p0 = p(); fn(); return p() - p0; };
+    ok(p0 === 0 && g.passState().tier === 0 && g.passState().rewards.every((r) => r.state === 'lock'), '처음은 0점 · 모두 잠김');
+    g.books.daily.get('d_kill').done = true; g.books.weekly.get('w_pvp').done = true; g.books.ach.get('a_kill_0').done = true;
+    ok(gotPts(() => g.claimMission('daily', 'd_kill')) === PASS_PTS.daily && PASS_PTS.daily === 10, '일일 임무 받기 +10');
+    ok(gotPts(() => g.claimMission('daily', 'd_kill')) === 0, '이미 받은 임무는 점수 없음');
+    ok(gotPts(() => g.claimMission('weekly', 'w_pvp')) === 30, '주간 임무 받기 +30');
+    ok(gotPts(() => g.claimMission('ach', 'a_kill_0')) === 0, '업적 받기는 점수 없음');
+    ok(gotPts(() => g.attend()) === 10 && gotPts(() => g.attend()) === 0, '출석 +10(하루 한 번)');
+    const dr = []; for (const k of Object.keys(CT.DAILY_DUNGEONS)) { let r = null; const d = gotPts(() => { r = g.dailyDungeon(k); }); if (r) dr.push([r.cleared, d]); }
+    ok(dr.some((x) => x[0]) && dr.every((x) => x[1] === (x[0] ? 5 : 0)), '수련동을 깨면 +5(못 깨면 없음)', JSON.stringify(dr));
+    ok(gotPts(() => g.emit('dungeon', { job: 1 })) === 0 && gotPts(() => g.emit('kill', { n: 1, boss: 1 })) === 0 && gotPts(() => g.emit('login')) === 0, '전직 시험 · 사냥 · 날 바뀜은 점수 없음');
+    const T = g.stage(), i0 = T.idx; T.kills = STAGE_KILLS; g.challenge(); const d1 = gotPts(() => { for (let i = 0; i < 200 && g.bossFight; i++) g.hunt(1000); });
+    ok(g.stage().idx === i0 + 1 && d1 === 5, '스테이지 두목을 깨면 +5', `${i0} → ${g.stage().idx} · +${d1}`);
+    ok(gotPts(() => g.runNow('wboss')) === 10, '월드보스 한 번 +10');
+    ok(gotPts(() => g.pvpFight(0)) === 5, '대결 한 번 +5');
+    ok(gotPts(() => g.partyFight(1, [])) === 10 && gotPts(() => g.partyFight(99, [])) === 0, '동행 토벌 한 번 +10(못 가는 단계는 없음)');
+    ok(g.passState().dayPts === p() && p() > 0 && p() <= PASS.dayCap, '오늘 점수 = 모은 점수(첫날)', `${p()}`); }
+  // 하루 상한 · 다음 날 · 단 계산
+  { const g = fresh();
+    ok(g.passAdd(120) === 120 && g.passAdd(100) === 30 && g.passAdd(10) === 0 && g.passState().dayPts === 150 && g.passState().pts === 150, '하루 150점까지');
+    ok(g.passAdd(-5) === 0 && g.passAdd(NaN) === 0 && g.passState().pts === 150, '이상한 값은 0점');
+    const mid = (dayKey(T0) + 1) * DAYMS - 9 * 3600e3;
+    g.tick(mid - 1); ok(g.passAdd(10) === 0, '23:59:59 — 아직 오늘');
+    g.tick(mid); ok(g.passState().dayPts === 0 && g.passState().pts === 150 && g.passAdd(100) === 100, '자정(한국 시각)에 오늘 점수만 새로');
+    const s = g.passState();
+    ok(s.pts === 250 && s.tier === 2 && s.into === 50 && s.need === 100 && s.dayCap === 150 && s.rewards.length === 30 && s.rewards.map((r) => r.state).join(',') === ['can', 'can', ...Array(28).fill('lock')].join(','), '250점 = 2단 · 다음 단까지 50/100');
+    // 받기 — 한 번만 · 잠긴 단은 안 됨
+    const W = g.S.wallet, t0 = W['ticket:gear'] || 0, r0 = JSON.stringify(g.rng.state()), lv0 = g.S.hero.lv, exp0 = g.S.hero.exp;
+    const c1 = g.passClaim(1);
+    ok(c1 && c1.tier === 1 && c1.give['ticket:gear'] === 2 && W['ticket:gear'] === t0 + 2 && g.passClaim(1) === null && W['ticket:gear'] === t0 + 2, '1단 받기 — 한 번만');
+    ok([3, 30, 0, -1, 31, 1.5, '2', NaN, undefined].every((t) => g.passClaim(t) === null) && g.passState().rewards[2].state === 'lock', '잠긴 단 · 없는 단은 받지 못한다');
+    ok(g.passState().rewards[0].state === 'got' && g.passState().rewards[1].state === 'can' && g.passCan() === 1, '받음 · 받을 수 있음 표시');
+    g.tick(mid + DAYMS); g.passAdd(150); const gold0 = W.gold, st0 = W['item:stone'] || 0, all = g.passClaimAll();   // 400점 = 4단
+    const wantGold = Math.round(10 * EX.KILLS_PER_MIN * GS.goldPerMob(g.S.hero.lv));
+    ok(all.map((x) => x.tier).join(',') === '2,3,4' && W['item:stone'] === st0 + 20 && all[1].gold === wantGold && W.gold === gold0 + wantGold && W['ticket:gear'] === t0 + 4, '모두 받기 — 2 · 3 · 4단(강화석 20 · 은자 10분 몫 · 뽑기권 2)', JSON.stringify(all));
+    ok(g.passClaimAll().length === 0 && g.passCan() === 0, '다시 누르면 받을 것이 없다');
+    ok(JSON.stringify(g.rng.state()) === r0 && g.S.hero.lv === lv0 && g.S.hero.exp === exp0, '패스는 난수를 쓰지 않는다 · 경험치를 주지 않는다');
+    // 저장 → 불러오기
+    const b = Game.load(g.save(), g.now), sb = b.passState();
+    ok(b.signed && sb.pts === 400 && sb.tier === 4 && sb.dayPts === 150 && sb.rewards.filter((r) => r.state === 'got').length === 4 && b.passClaim(4) === null && JSON.stringify(b.S.pass) === JSON.stringify(g.S.pass), '저장 → 불러오기(점수 · 받은 단 그대로)'); }
+  // 시즌 — 4주(월요일 한국 시각 자정에 바뀜) · 바뀌면 처음부터
+  { const g = fresh(), s0 = g.passState(), end = T0 + s0.endsInMs;
+    ok(s0.season === passSeason(T0) && s0.no === 1 && new Date(end + 9 * 3600e3).getUTCDay() === 1 && (end + 9 * 3600e3) % DAYMS === 0 && s0.endsInMs > 24 * DAYMS && s0.endsInMs <= 28 * DAYMS, '시즌은 월요일 자정에 끝난다 · 지금은 1시즌', `${(s0.endsInMs / DAYMS).toFixed(2)}일 남음`);
+    ok(passSeason(end - 1) === s0.season && passSeason(end) === s0.season + 1 && passSeason(end + 28 * DAYMS - 1) === s0.season + 1 && passSeason(end + 28 * DAYMS) === s0.season + 2 && passSeason(end - 28 * DAYMS) === s0.season && passSeason(end - 28 * DAYMS - 1) === s0.season - 1, '한 시즌 = 꼭 28일');
+    g.passAdd(150); g.passClaim(1); g.tick(end - 1);
+    ok(g.passState().pts === 150 && g.passState().endsInMs === 1 && g.passState().rewards[0].state === 'got', '끝나기 1ms 전 — 그대로');
+    g.tick(end); const s1 = g.passState();
+    ok(s1.season === s0.season + 1 && s1.no === 2 && s1.pts === 0 && s1.tier === 0 && s1.dayPts === 0 && s1.rewards.every((r) => r.state === 'lock') && s1.endsInMs === 28 * DAYMS, '새 시즌 — 점수 · 받은 단이 처음부터');
+    // 서른 단 끝 — 더 쌓이지 않는다
+    let t = end; for (let d = 0; d < 25; d++) { g.tick(t); g.passAdd(150); t += DAYMS; }
+    const sf = g.passState();
+    ok(sf.pts === 3000 && sf.tier === 30 && sf.into === 100 && g.passAdd(10) === 0 && sf.rewards.every((r) => r.state === 'can'), '3000점 = 서른 단(스무 날) · 더 쌓이지 않는다');
+    const W = g.S.wallet, w0 = { ...W }, all = g.passClaimAll();
+    ok(all.length === 30 && W['ticket:gear'] - (w0['ticket:gear'] || 0) === passTotal()['ticket:gear'] && W['ticket:time'] - (w0['ticket:time'] || 0) === 2 && W['ticket:relic'] - (w0['ticket:relic'] || 0) === 3 && Object.values(W).every((v) => Number.isFinite(v)), '서른 단 모두 받기 = 표의 합', JSON.stringify(passTotal())); }
+  // 옛 세이브(S.pass 없음 · 깨진 칸)
+  { const g = fresh(); delete g.S.pass; const o = new Game(JSON.parse(JSON.stringify(g.S)), T0); let err = '';
+    try { o.tick(T0 + 1000); o.hunt(2000); o.passClaimAll(); o.autoGrow(); } catch (e) { err = e.message; }
+    ok(!err && o.S.pass && o.passState().tier === 0 && Array.isArray(o.S.pass.got), '옛 세이브: 패스 칸이 생긴다', err);
+    o.S.pass = { season: o.S.pass.season, pts: 100, day: o.S.pass.day, dayPts: 0 }; ok(o.passState().rewards[0].state === 'can' && !!o.passClaim(1), '받은 단 칸이 없어도 돈다'); }
+  // 자동 성장 — 받을 단을 받는다(보상 받기를 끄면 그대로)
+  { const g = fresh(); g.passAdd(150); const off = g.autoGrow({ claim: false, daily: false, pull: false, coll: false, kit: false, enh: false, train: false, stat: false });
+    ok(off.claim === 0 && g.passCan() === 1, '자동 성장: 보상 받기를 끄면 그대로');
+    const t0 = g.S.wallet['ticket:gear'] || 0, on = g.autoGrow({ daily: false, pull: false, coll: false, kit: false, enh: false, train: false, stat: false });
+    ok(on.claim >= 1 && g.passCan() === 0 && g.S.wallet['ticket:gear'] === t0 + 2 && g.passState().rewards[0].state === 'got', '자동 성장: 패스 단을 받는다', JSON.stringify(on)); }
+  ok(mk().today().length === 9, '오늘 할 일 목록은 그대로(패스는 넣지 않음)');
+}
+
 console.log('\n=== v609 자동 성장 — 은자 아끼기여도 스탯은 찍는다 ===');
 {
   const T0 = 1.8e12, g = new Game(newGame('sword', T0, 41), T0); g.addExp(EX.cumExp(30)); g.tick(T0);

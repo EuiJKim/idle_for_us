@@ -494,7 +494,7 @@
     html.w800 #qc { width: 196px; }
     html.w800 .ib { width: 38px; } html.w720 .ib { width: 37px; } html.w800 #tr { gap: 3px; } html.w720 .ib span { font-size: 9.5px; }   /* v587 위 아이콘 여섯(절전) — 진행 줄과 겹치지 않게 */
     /* 창: 가로면 가운데에 크게 뜬다 · 카드 두 줄 */
-    html.w640up body.land #wb:has(> .card:nth-of-type(2)) { column-count: 2; column-gap: 10px; }   /* v522 카드가 하나뿐이면 한 줄 전체 · v570 실제 가로 640 넘을 때만(좁은 세로 폰에서 두 줄이면 글이 한 자씩 꺾였다) */
+    html.w640up:not(.w800) body.land #wb:has(> .card:nth-of-type(2)) { column-count: 2; column-gap: 10px; }   /* v522 카드가 하나뿐이면 한 줄 전체 · v570 실제 가로 640 넘을 때만(좁은 세로 폰에서 두 줄이면 글이 한 자씩 꺾였다) · 두 줄은 가로 800 넘을 때만(그 아래에선 줄 글이 단추 옆에서 꺾였다) */
     body.land #wb > * { break-inside: avoid; }
     /* v603 모음 격자(병기 · 동료 · 영물) */
     .coll-bar { height: 5px; border-radius: 3px; background: rgba(255,255,255,.08); overflow: hidden; margin: 0 0 8px; } .coll-bar i { display: block; height: 100%; background: linear-gradient(90deg, #c9a04a, #f0d48a); }
@@ -511,8 +511,8 @@
     .coll-tile.no { opacity: .42; border-style: dashed; } .coll-tile.no em { color: rgba(255,255,255,.5); background: rgba(255,255,255,.06); } .coll-tile.no b { color: rgba(255,255,255,.7); }
     /* v602 창 빈 자리 채우기 — (1) 카드가 두셋뿐일 때도 두 줄로 나뉘게(줄 수 제한 orphans/widows 때문에 왼쪽에만 쌓였다) (2) 카드가 하나뿐이면 그 안의 줄을 두 줄로 */
     html.w640up body.land #wb { orphans: 1; widows: 1; }
-    html.w640up body.land #wb:not(:has(> .card:nth-of-type(2))) > .card:has(> .row:nth-of-type(4)) { display: grid; grid-template-columns: 1fr 1fr; column-gap: 8px; align-items: start; }
-    html.w640up body.land #wb:not(:has(> .card:nth-of-type(2))) > .card:has(> .row:nth-of-type(4)) > :not(.row) { grid-column: 1 / -1; }
+    html.w640up:not(.w800) body.land #wb:not(:has(> .card:nth-of-type(2))) > .card:has(> .row:nth-of-type(4)) { display: grid; grid-template-columns: 1fr 1fr; column-gap: 8px; align-items: start; }
+    html.w640up:not(.w800) body.land #wb:not(:has(> .card:nth-of-type(2))) > .card:has(> .row:nth-of-type(4)) > :not(.row) { grid-column: 1 / -1; }
     body.land #wb > .card, body.land #wb > .row { display: inline-block; width: 100%; box-sizing: border-box; }
     #panel .inv-grid { grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); }
     .eqmid { align-self: start; }
@@ -602,6 +602,32 @@
     /* v610 줄 그림 아이콘 — 네모 바탕 없이 그림만 38px(위아래 · 좌우를 2px씩 당겨 줄 높이 · 글 자리는 글자 딱지 때와 같다) */
     #panel .row .ico.pic { width: 38px; height: 38px; margin: -2px; padding: 0; line-height: 0; font-size: 0; border: 0; border-radius: 0; background: none; }
     #panel .row .ico.pic img { display: block; width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 1px 1px rgba(0,0,0,.45)); }
+    /* 강호 패스(임무 → 패스) — 머리(단 · 진행 막대 · 모두 받기) · 옆으로 넘기는 서른 칸 · 점수표 */
+    body.land #wb > .card:has(.pass-track), body.land #wb > .card:has(.pass-pts) { column-span: all; display: block; }
+    .pass-head { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; }
+    .pass-head .btn { flex: none; min-height: 40px; white-space: nowrap; }
+    .pass-tier { flex: none; font-size: 24px; font-weight: 800; line-height: 1; color: var(--gold); font-variant-numeric: tabular-nums; }
+    .pass-tier small { font-size: 11.5px; font-weight: 700; color: rgba(255,255,255,.55); margin-left: 2px; }
+    .pass-prog { flex: 1; min-width: 0; }
+    .pass-bar { height: 10px; border-radius: 5px; background: rgba(255,255,255,.1); overflow: hidden; }
+    .pass-bar i { display: block; height: 100%; border-radius: 5px; background: linear-gradient(90deg, #b8862e, #f0cf7a); }
+    .pass-sub { display: flex; justify-content: space-between; gap: 8px; margin-top: 4px; font-size: 11.5px; color: rgba(255,255,255,.6); font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .pass-track { display: flex; gap: 6px; overflow-x: auto; overflow-y: hidden; padding: 8px 4px 10px; margin: 0 -4px; overscroll-behavior-x: contain; -webkit-overflow-scrolling: touch; scrollbar-width: thin; }
+    .pass-tile { position: relative; flex: 0 0 60px; height: 82px; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; justify-content: space-between; padding: 5px 2px 6px; margin: 0; border-radius: 10px; border: 1px solid rgba(255,255,255,.1); background: rgba(255,255,255,.045); color: #fff; font: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+    .pass-tile.big { flex-basis: 74px; }
+    .pass-tile .pass-n { font-style: normal; font-size: 10.5px; font-weight: 700; line-height: 1; color: rgba(255,255,255,.6); }
+    .pass-tile img { display: block; width: 36px; height: 36px; object-fit: contain; filter: drop-shadow(0 1px 1px rgba(0,0,0,.45)); }
+    .pass-tile b { font-size: 12px; line-height: 1; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .pass-tile.lock img { opacity: .5; filter: grayscale(.6); } .pass-tile.lock b { color: rgba(255,255,255,.55); }
+    .pass-tile.next { border-color: rgba(255,255,255,.35); }
+    .pass-tile.can { border-color: var(--gold); background: rgba(212,166,74,.18); animation: pass-glow 1.2s ease-in-out infinite alternate; }
+    .pass-tile.can .pass-n { color: var(--gold); }
+    .pass-tile.got img, .pass-tile.got b { opacity: .35; }
+    .pass-tile.got::after { content: '✓'; position: absolute; left: 0; right: 0; top: 24px; text-align: center; font-size: 26px; font-weight: 800; line-height: 1; color: #86efac; text-shadow: 0 1px 3px #000; }
+    @keyframes pass-glow { from { box-shadow: 0 0 2px rgba(240,207,122,.25); } to { box-shadow: 0 0 11px rgba(240,207,122,.8); } }
+    .pass-pts { display: grid; grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: 6px; }
+    .pass-pts div { display: flex; justify-content: space-between; align-items: center; gap: 6px; padding: 7px 10px; border-radius: 9px; background: rgba(255,255,255,.045); font-size: 12.5px; color: rgba(255,255,255,.8); white-space: nowrap; }
+    .pass-pts b { color: var(--gold); font-variant-numeric: tabular-nums; }
     #panel .btn { border-radius: 9px; border: 0; background: rgba(255,255,255,.1); color: #fff; font-weight: 800; box-shadow: none; }
     #panel .btn.primary { background: linear-gradient(180deg, #f6cf62, #e0a53a); color: #2a1a05; box-shadow: 0 2px 0 #9a6a16; }
     #panel .btn:disabled { opacity: .4; box-shadow: none; }
@@ -630,6 +656,78 @@
     body.rot { position: fixed; top: 0; left: 0; transform-origin: 0 0; transform: rotate(90deg) translateY(-100%); }
     /* 돌린 화면에선 vw · vh가 바뀐다(가로 = 기기 세로) */
     html.rot #res .rp { width: min(420px, 86vh); } html.rot .gxg { max-height: 70vw; } html.rot #tc { width: min(300px, 34vh); } html.rot body.land #modal .sheet { max-width: min(520px, 92vh); max-height: 88vw; }
+    /* ── 좁은 화면 다듬기 — 겹침 · 잘림 · 꺾임 손질(h340: 키 340 아래 — 아주 낮은 가로 폰) ── */
+    /* 곧 열림 칩 · 기연 칩 — 누르는 높이 34 · 좁으면 「(지금 Lv n)」은 빼고 가는 진행 줄로만(글이 잘렸다) */
+    #nx { min-height: 34px; } .fate-chip { min-height: 34px; }
+    html.w800 #nx .nxt small { display: none; }
+    /* 키 낮은 화면: 왼쪽 줄(길잡이 · 곧 열림)을 얼굴 상자 바로 아래로 올리고, 피해 측정기는 오른쪽 위 아이콘 아래로 */
+    html.h420 #qc, html.h420 #nx, html.h420 .fate-chip { top: calc(var(--st) + 68px); }
+    html.h420 .dpsm { left: auto; right: var(--sr); top: calc(var(--st) + 52px) !important; }
+    /* 두목 막대는 은자 칸 아래에서 시작(은자가 길면 겹쳤다) */
+    html.h500 #contest-hud { top: calc(var(--st) + 60px); }
+    /* 손 조작 단추(◀ ▼ ▶)가 보이면 알림 글은 그 오른쪽으로 */
+    body:has(#pad:not(.hidden)) #loglines { left: calc(var(--sl) + 198px); max-width: 30%; }
+    html.h340 #loglines div:nth-child(n+2) { display: none; }
+    html.h340 #pad button { height: 40px; }
+    html.h340 body:has(#pad:not(.hidden)) #nx { display: none; }
+    /* 메뉴가 왼쪽 아래로 오는 폭에선 EXP 글을 메뉴 아래로 낮춘다 */
+    html.w720 #xp-txt { bottom: 3px; font-size: 10px; line-height: 1; } body.winopen #xp-txt { display: none; }
+    /* 알림(토스트): 좁으면 왼쪽 칩 · 손 조작 단추를 피해 가운데 오른쪽에, 길면 두 줄 */
+    html.w720 #toast { left: calc(50% + 62px); bottom: calc(var(--sb) + 172px); width: 236px; } html.h340 #toast { bottom: calc(var(--sb) + 132px); }
+    html.w720 #toast .toast { white-space: normal; text-align: center; border-radius: 16px; }
+    /* 장비 줍기 카드가 떠 있는 동안 연속 처치 숫자는 그 왼쪽으로 */
+    body:has(#lootbox > .loot) #combo { right: calc(var(--sr, 12px) + 214px); }
+    body:has(.gx) .pwpop { left: calc(var(--sl, 0px) + 6px); top: auto; bottom: calc(var(--sb, 0px) + 8px); }
+    /* 업적 달성 띠 — 맨 위 가운데 한 줄(결과 창 · 뽑기 화면이 닫힌 뒤에 뜬다) */
+    .achpop { top: calc(var(--st, 0px) + 4px); max-width: 92%; padding: 6px 16px 6px 10px; } body:has(.pwpop) .achpop { top: calc(var(--st, 0px) + 42px); }
+    .achpop b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: min(60vw, 320px); }
+    html.h420 .achpop { gap: 8px; padding: 5px 14px 5px 10px; } html.h420 .achpop i { font-size: 20px; } html.h420 .achpop > div { display: flex; align-items: baseline; gap: 8px; } html.h420 .achpop small, html.h420 .achpop b { display: block; white-space: nowrap; } html.h420 .achpop b { font-size: 14px; } html.h420 .achpop span { display: none; }
+    /* 창: 누르는 높이 34 */
+    #panel-body .seg.wide button, html.h500 #panel-body .seg.wide button { min-height: 34px; }
+    html.h500 #panel-close { width: 34px; height: 34px; }
+    #panel-body .row .btn { min-height: 34px; }
+    #panel-body .chip-row .chip { min-height: 34px; }
+    #panel-body .rk-seg button, #panel-body .lk-seg button { min-height: 34px; min-width: 38px; }
+    #pj-g { display: inline-block; padding: 10px 0; margin: -10px 0; }
+    /* 좁은 폭: 칸 이름 아홉(임무)도 한 줄에 다 보이게 */
+    html.w720 #panel-body .seg.wide { gap: 0; } html.w720 #panel-body .seg.wide button { padding-left: 9px; padding-right: 9px; }
+    /* 줄: 글 자리가 84px보다 좁아지면 단추를 아래 줄 오른쪽으로(이름이 한 자씩 꺾였다) */
+    #panel-body .row:not(.gch-tile) { flex-wrap: wrap; justify-content: flex-end; }
+    #panel-body .row:not(.gch-tile) > .info { flex: 1 1 84px; }
+    /* 모음(병기 · 동료 · 영물): 칸을 넓혀 「범품 · Lv 1 · 각성 1」이 잘리지 않게 · 그림은 칸 너비를 따라 · 넓은 화면은 뽑기 카드를 왼쪽에 좁게 */
+    .coll-grid { grid-template-columns: repeat(auto-fill, minmax(88px, 1fr)); }
+    html:not(.h500) .coll-grid { grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 8px; }
+    .coll-tile img { width: min(72px, 66%); height: auto; aspect-ratio: 1; }
+    .coll-tile em { width: 44px; height: 44px; line-height: 44px; font-size: 26px; }
+    .coll-tile small { white-space: normal; word-break: keep-all; overflow: visible; }
+    html.w640up body.land #wb:has(> .card > .coll-grid) { display: grid; grid-template-columns: minmax(200px, 30%) minmax(0, 1fr); gap: 0 10px; align-items: start; }
+    html.w640up:not(.w800) body.land #wb:has(> .card > .coll-grid) { grid-template-columns: minmax(320px, 34%) minmax(0, 1fr); }
+    /* 장비 뽑기: 키 낮고 좁은 가로(640 아래)에서도 그림 띠 옆에 뽑기 칸 — 한 화면에 */
+    html.h420:not(.w640up) body.land #wb > .gch { display: grid; grid-template-columns: minmax(0, 4fr) minmax(0, 7fr); gap: 10px; align-items: stretch; }
+    html.h420:not(.w640up) body.land .gch .gch-hero { margin-bottom: 0; padding: 8px 8px 10px; display: flex; flex-direction: column; justify-content: center; }
+    html.h420:not(.w640up) .gch-show { height: 64px; } html.h420:not(.w640up) .gch-show img { width: 30px; height: 30px; } html.h420:not(.w640up) .gch-show img.in { width: 40px; height: 40px; } html.h420:not(.w640up) .gch-show img.mid { width: 58px; height: 58px; }
+    html.h420:not(.w640up) #panel .gch .gch-hero h3 { font-size: 15px; }
+    html.h420:not(.w640up) .gch-stats span { padding: 4px 6px; font-size: 11.5px; } html.h420:not(.w640up) .gch-pity { margin-bottom: 8px; }
+    html.h420:not(.w640up) .gch-tiles { gap: 4px; } html.h420:not(.w640up) #panel .gch .row.gch-tile { padding: 8px 4px 5px; }
+    html.h420:not(.w640up) #panel .gch-tile .name { font-size: 13.5px; } html.h420:not(.w640up) #panel .gch-tile.main .name { font-size: 15px; } html.h420:not(.w640up) #panel .gch-tile .desc { font-size: 10.5px; }
+    /* 뽑기 결과: 좁은 폭에서 30장 열 줄이 화면을 넘지 않게 · 키 낮으면 격자 높이를 화면에 맞춤 */
+    html.w720 .gxg.many { grid-template-columns: repeat(10, 46px); gap: 4px; } html.w720 .gxg.many .gc { width: 46px; height: 62px; }
+    html.h420 .gx { padding: 10px; gap: 8px; } html.h420:not(.rot) .gxg { max-height: calc(100vh - 124px); }
+    /* 창(모달): 키 낮은 화면 — 아래 단추 줄은 늘 보이게 붙여 두고, 안쪽 목록 높이를 화면에 맞춤 */
+    html.h420 #modal { padding-top: 8px; padding-bottom: 8px; }
+    html.h500 #modal .sheet > .btn-row:last-child { position: sticky; bottom: -2px; z-index: 2; padding: 6px 0 2px; margin-bottom: -2px; background: linear-gradient(rgba(23,19,14,0), #17130e 7px); }
+    body.land #modal .sheet.enhs { max-height: 96vh; }
+    html.h420:not(.rot) .cmp { max-height: max(64px, calc(88vh - 188px)); }
+    html.h420:not(.rot) .news { max-height: calc(88vh - 152px); }
+    html.h420 .att { min-height: 38px; justify-content: center; } html.h420 .attg { gap: 2px; } html.h420 .att small { position: absolute; left: 3px; top: 1px; font-size: 9px; line-height: 1.1; }
+    html.h340 .att { min-height: 34px; padding: 0 1px 1px; } html.h340 .att img, html.h340 .att .coin { width: 15px; height: 15px; } html.h340 .att .ai { font-size: 13px; line-height: 16px; }
+    html.h340 .jobcard canvas { max-width: 56px; } html.h340 .jobcard { padding: 3px 3px 5px !important; }
+    /* 강화 창: 키 낮으면 「장비 바꾸기 · 해제 · 닫기」를 머리 줄 오른쪽으로 올린다(아래에 붙이면 강화 · 성혼 단추를 가렸다) */
+    html.h420 #modal .sheet.enhs > .btn-row:last-child { position: absolute; top: 8px; right: 12px; bottom: auto; margin: 0 !important; padding: 0; background: none; gap: 5px; }
+    html.h420 #modal .sheet.enhs > .btn-row:last-child .btn { flex: none; min-height: 34px; padding: 4px 10px; font-size: 12px; }
+    html.h420 .enhs .cmp-h { padding-right: 190px; min-height: 36px; }
+    /* 대화 칸 높이: 키 낮은 화면에 맞춤(입력 줄이 창 밖으로 밀렸다) */
+    html.h420:not(.rot) .gchat { max-height: max(96px, calc(100vh - 210px)); }
   </style>
 </head>
 <body>
