@@ -29,6 +29,15 @@ export const STAR_FIELDS = [
 ];
 // 무한 탑 — 층마다 몹 강함 ×1.06 · 층 보상(영구 보너스 작게: 공격%① +1 · 체력% +1 · 10층마다 뽑기권)
 export const TOWER_MAX = 300, TOWER_STEP_X = 1.06, TOWER_BONUS = { atkL1: 1, hpP: 1 };
+// v616 탑 이정표 — 10층마다 처음 깨면 한 번 상자(장비 뽑기권 3 · 강화석 층 + 10) · 50층마다 병기 · 동료 · 영물 뽑기권 1씩 더
+export const TOWER_MS = { every: 10, tix: 3, stoneAdd: 10, big: 50, bigColl: 1 };
+export const towerMsFloors = () => Array.from({ length: Math.floor(TOWER_MAX / TOWER_MS.every) }, (_, i) => (i + 1) * TOWER_MS.every);
+export function towerMsReward(floor) {
+  if (!Number.isInteger(floor) || floor < TOWER_MS.every || floor > TOWER_MAX || floor % TOWER_MS.every) return null;
+  const r = { 'ticket:gear': TOWER_MS.tix, 'item:stone': floor + TOWER_MS.stoneAdd };
+  if (floor % TOWER_MS.big === 0) for (const k of ['ticket:weapon', 'ticket:pal', 'ticket:relic']) r[k] = TOWER_MS.bigColl;
+  return r;
+}
 // 원정 — 티켓(4·8·12시간) · 시간 × 효율 · 하루 티켓 1장
 export const EXPEDITION = { hours: [4, 8, 12], rate: 0.15, ticketsPerDay: 1 };   // 1시간 = 사냥 9분 상당
 // 돌발 미션 — 사냥 중 분당 확률(퍼밀) · 시간 제한 · 보상(사냥 분 상당)

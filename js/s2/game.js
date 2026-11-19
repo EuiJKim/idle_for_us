@@ -12,7 +12,7 @@ import { goldPerMob, SHARD_PER_TICKET } from './tables/gearstat.js';
 import { LEVEL_MAX, JOB_LV } from './tables/progress.js';
 import { START_PULL_TICKETS, SLOTS } from './tables/gear.js';
 import { START_PULLS } from './tables/s5.js';
-import { DAILY_DUNGEONS, DAILY_RUNS, JOB_DUNGEON } from './tables/content.js';
+import { DAILY_DUNGEONS, DAILY_RUNS, JOB_DUNGEON, towerMsFloors, towerMsReward } from './tables/content.js';
 import { GUIDE, DAILY_MISSIONS, WEEKLY_MISSIONS, achievements, guideCurrent } from './tables/missions.js';
 import { JOB_ADV, MASTERY } from './tables/skills.js';
 import { SHOP, SHOP_FREE, shopById } from './tables/shop.js';
@@ -627,6 +627,7 @@ export class Game {
       out.claim += this.passClaimAll().length;   // 강호 패스 — 받을 수 있는 단 모두
       for (let i = 0; i < BOUNTY_SLOTS.length; i++) if (this.bountyClaim(i)) out.claim++;   // 현상수배 — 끝낸 것 · 상자
       if (this.bountyChest()) out.claim++;
+      out.claim += this.towerMsClaimAll().length;   // v616 탑 이정표 상자
     }
     if (o.pull !== false) {
       this.shardExchange();   // 분해로 모인 뽑기 조각부터 뽑기권으로
@@ -725,6 +726,18 @@ export class Game {
     return sum.n ? sum : null;
   }
   towerFight() { return this.runNow('tower'); }
+  // v616 탑 이정표 상자 — 10층마다 처음 깨면 한 번(옛 세이브: 이미 깬 층의 상자도 받을 수 있다). 받은 층은 S.tower.ms
+  towerSt() { const T = (this.S.tower ??= { best: 0 }); if (!Array.isArray(T.ms)) T.ms = []; return T; }
+  towerMsState() { const T = this.towerSt(); return towerMsFloors().map((floor) => ({ floor, reward: towerMsReward(floor), state: T.ms.includes(floor) ? 'got' : floor <= T.best ? 'can' : 'lock' })); }
+  towerMsCan() { const T = this.towerSt(); return towerMsFloors().filter((f) => f <= T.best && !T.ms.includes(f)).length; }
+  towerMsClaim(floor) {
+    const T = this.towerSt(), R = towerMsReward(floor), W = this.S.wallet;
+    if (!R || floor > T.best || T.ms.includes(floor)) return null;
+    T.ms.push(floor);
+    for (const [k, n] of Object.entries(R)) W[k] = (W[k] || 0) + n;
+    return { floor, give: { ...R } };
+  }
+  towerMsClaimAll() { const out = []; const T = this.towerSt(); for (const f of towerMsFloors()) { if (f > T.best) break; const r = this.towerMsClaim(f); if (r) out.push(r); } return out; }
   // v582 탑 연속 오르기 — 질 때까지(최대 max층) 다음 층을 바로 · 오른 층 수
   towerClimb(max = 30) {
     const from = this.S.tower.best; let tries = 0, lastWin = false;
@@ -890,7 +903,7 @@ export class Game {
       if (R.stones) { out.stones = R.stones; S.wallet['item:stone'] = (S.wallet['item:stone'] || 0) + out.stones; }
       (S.dungeons.best ??= {})[d.kind] = true;
       this.emit('dungeon', { kind: 1 });
-    } else if (cleared && d.type === 'tower') { S.tower.best = d.floor; }
+    } else if (cleared && d.type === 'tower') { const T = this.towerSt(); T.best = Math.max(T.best, d.floor); if (towerMsReward(d.floor) && !T.ms.includes(d.floor)) out.chest = d.floor; }
     else if (d.type === 'wboss') {   // 나가도 넣은 만큼은 점수
       const W = S.wb, dmg = Math.round(F.dmgOut * WBF.sideX), score = WB.bossScore(dmg, L);
       W.total += score; W.best = Math.max(W.best, score); out.dmg = dmg; out.score = score; out.best = W.best; out.total = W.total;

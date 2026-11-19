@@ -19,7 +19,7 @@ import { SP_KEYS, SP_EACH, SP_CAP } from '../hero/hero.js';
 import { SKILLS, MASTERY } from '../tables/skills.js';
 import { JOB_LV, LEVEL_MAX } from '../tables/progress.js';
 import { COLLECT } from '../tables/s5.js';
-import { DAILY_DUNGEONS, DAILY_RUNS, EXPEDITION } from '../tables/content.js';
+import { DAILY_DUNGEONS, DAILY_RUNS, EXPEDITION, TOWER_MAX, TOWER_BONUS } from '../tables/content.js';
 import { GUIDE, DAILY_MISSIONS, WEEKLY_MISSIONS, guideCurrent, achievements, ACHIEVE } from '../tables/missions.js';
 const ACH = achievements(), achById = new Map(ACH.map((a) => [a.id, a]));
 import { expToNext } from '../tables/exp.js';
@@ -359,7 +359,7 @@ const ico = (k) => `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true">${ICO
 const keyOf = () => TABS.find((t) => t[0] === open)?.[2][tab]?.[1];
 // 내용 열쇠(예: 'hero:1')로 그 창 · 그 칸 열기
 function openKey(key) { for (const [id, , subs] of TABS) { const i = subs.findIndex((x) => x[1] === key); if (i >= 0) { openWin(id, i); return; } } }
-let open = null, tab = 0, treeSel = null, eqSel = null;
+let open = null, tab = 0, treeSel = null, eqSel = null, lkPrev = {};   // lkPrev: 외형 창에서 눌러 입혀 보는 중인 것(부위 → 등급) · 「이 외형으로」 전에는 보이기만
 let bagF = 'all', bagSort = 'g', bagJunkG = 3, bagMore = false;   // v521 가방 보기
 // 장비 아이콘: 지금 게임 그림(무기 · 방어구 · 장신구 × 등급 6)
 // v515 장비 그림 — 부위 열 × 등급 일곱(무기는 지금 무인 직업 다섯), 빈 칸은 그 부위 범급을 흐리게
@@ -410,7 +410,7 @@ function showGacha(r, opt = {}) {   // v558 opt: { title, face(it) } — 병기 
   ov.onclick = () => { if (done) close(); };
 }
 function openWin(id, t = 0) { open = id; tab = t; document.body.classList.add('winopen'); $('panel').classList.add('open'); $('panel-dim').classList.add('open'); paintWin(); paintNav(); }
-function closeWin() { open = null; worldStop(); document.body.classList.remove('winopen'); $('panel').classList.remove('open'); $('panel-dim').classList.remove('open'); paintNav(); }
+function closeWin() { open = null; lkPrev = {}; worldStop(); document.body.classList.remove('winopen'); $('panel').classList.remove('open'); $('panel-dim').classList.remove('open'); paintNav(); }
 function paintNav() {
   if (!$('ptabs').children.length) for (const [id, name] of MAIN_TABS) { const b = document.createElement('button'); b.dataset.tab = id; b.innerHTML = `${ico(id)}<span>${name}</span>`; b.onclick = () => { play('click'); openWin(id); }; $('ptabs').append(b); }
   for (const b of document.querySelectorAll('.nb[data-tab], #ptabs button[data-tab]')) b.classList.toggle('active', b.dataset.tab === open);
@@ -445,7 +445,7 @@ function navDots() {
   const sig = { char: canAdv || tree > 0 || kitUp ? `${canAdv ? 1 : 0}|${tree}|${kitUp}|${S.hero.adv || 0}` : '', bag: tix >= 10 ? `${Math.floor(tix / 10)}` : '', town: (g.canAttend() ? 'attend' : '') || (g.todayChest().can ? 'today' : '') || (g.shopFreeCan() ? 'shop' : '') || (g.passCan() ? 'pass' : '') || (g.bountyCan() ? `bty${g.bountyCan()}` : '') || (cur && S.q.guide[cur.id]?.done ? cur.id : '') || (g.books.ach.claimable().length ? `ach${g.books.ach.claimable().length}` : '') };
   if (open && sig[open] !== undefined) dotSeen[open] = sig[open];
   sig.social = socialTodo();   // v554 무림: 받을 것(주간 보상 · 문파 출석 · 토벌 단계 · 수련)
-  const on = { char: !!sig.char && sig.char !== dotSeen.char, bag: !!sig.bag && sig.bag !== dotSeen.bag, town: !!sig.town, social: !!sig.social };
+  const on = { char: !!sig.char && sig.char !== dotSeen.char, bag: !!sig.bag && sig.bag !== dotSeen.bag, town: !!sig.town, social: !!sig.social, dgn: g.towerMsCan() > 0 };   // v616 탑 이정표 상자
   for (const b of document.querySelectorAll('.nb[data-tab], #ptabs button[data-tab]')) b.classList.toggle('dot-on', !!on[b.dataset.tab]);
   const ds = JSON.stringify(dotSeen); if (ds !== dotSaved) { dotSaved = ds; try { localStorage.setItem('ifu.s2.dots', ds); } catch { /* 저장 못 해도 */ } }
 }
@@ -479,6 +479,7 @@ function paintWin() {
   const W = g.S.wallet, add = (...e) => B.append(...e);
   const key = keyOf();
   if (key !== 'chat:0') worldStop();
+  if (key !== 'look:0') lkPrev = {};
   const st = g.fighter().st;
   // v508 창 안쪽도 지금 게임 부품으로 — 묶음은 제목 있는 카드(.card h3), 스탯은 두 칸 격자(.stat-grid), 줄은 붓글씨 한 글자(.ico), 장비는 그림 칸(.inv-grid), 수집은 타일(.gear-grid)
   const card = (title, sub = '') => { const c = document.createElement('div'); c.className = 'card'; c.innerHTML = `<h3>${title}${sub ? ` <small>${sub}</small>` : ''}</h3>`; B.append(c); return (...e) => c.append(...e); };
@@ -628,7 +629,7 @@ function paintWin() {
     c0(R('최고 장비 모두 끼기', nb ? `${nb}칸을 더 좋은 것으로` : '모두 가장 좋은 것을 끼고 있어요', [['모두 끼기', act(() => { const p0 = g.power(), n = equipBest(G, L); g.dirtyStats = true; g.emit('equip'); if (n) setTimeout(() => toast(`${n}칸 바꿈 · 전투력 ${unit(p0)} → ${unit(g.power())}`), 0); return n > 0; }), !nb]], '裝'));
     // v585 장비 창 무인 — 한 번만 그리면 머리 · 옷 그림이 아직 안 받아졌을 때 대신 그린 얼굴이 남았다(얼굴이 깨져 보임) → 창이 열려 있는 동안 계속 그린다(초당 20번) · 외형대로
     { let last = 0; const paint = (ts) => {
-        if (!cvs.isConnected) return;
+        if (!cvs.isConnected || !open) return;   // 창을 닫거나 다른 칸으로 가면 멈춤
         if (ts - last > 50) { last = ts; const x = cvs.getContext('2d'); x.clearRect(0, 0, 240, 300); x.save(); x.translate(0, 10); const gr = x.createRadialGradient(120, 190, 10, 120, 190, 130); gr.addColorStop(0, '#e8c26a44'); gr.addColorStop(1, 'rgba(0,0,0,0)'); x.fillStyle = gr; x.fillRect(0, 0, 240, 300); drawHero(x, 120, 270, g.S.hero.job, g.S.hero.lv, { t: now() / 1000, scale: 2.2, eq: g.lookEq() }); x.restore(); }
         requestAnimationFrame(paint);
       }; requestAnimationFrame(paint); }
@@ -801,9 +802,30 @@ function paintWin() {
         [['입장', () => { play('click'); if (!g.enterDungeon('daily', k)) toast(g.canDungeon('daily', k) || '들어갈 수 없어요'); }, !!why], ...(swept ? [['소탕', act(() => { const r2 = g.dailyDungeon(k); if (r2) toast(r2.cleared ? `소탕 — ${D.name} 클리어` : '소탕 실패'); return r2; }), !!why]] : [])], { gold: 'i:silver:銀', gear: 'i:equip:裝', stone: 'i:enhance:鍊', growth: 'i:training:修' }[k] || '洞'));
     }
   } else if (key === 'content:1') {
-    const c = card(`무한의 탑 ${g.S.tower.best}층`, '깬 층만큼 영구 보너스');
-    c(R('연속 오르기', '질 때까지(최대 30층) 다음 층을 바로 끝내요', [['오르기', act(() => { const r = g.towerClimb(30); if (r) { play(r.up ? 'clear' : 'fail'); pop('무한의 탑', `<div class="ea-sum"><span>도전 <b>${r.tries}</b>번</span><span>${r.from}층 → <b>${r.to}층</b></span></div><p class="note">${r.up ? `${r.up}층 올랐어요 — 영구 보너스` : '한 층도 못 올랐어요 — 전투력을 올리고 다시'}${r.stopped ? '' : ' · 30층 오름(다시 누르면 계속)'}</p>`); } return r; }), !!g.canDungeon('tower')]], '塔'));
-    c(R(`${g.S.tower.best + 1}층`, '적 넷을 60초 안에 모두 · 이기면 한 층 위로', [['도전', () => { play('click'); if (!g.enterDungeon('tower')) toast(g.canDungeon('tower') || '들어갈 수 없어요'); }, !!g.canDungeon('tower')]], '塔'));
+    // v616 무한 탑 — 왼쪽은 탑(깬 층은 불 켜짐 · 지금 층은 금빛 · 위로 다음 다섯 층 · 10층마다 상자) · 오른쪽은 지금 층 · 영구 보너스 · 도전 · 연속 오르기 · 이정표 상자
+    const T = g.towerSt(), best = T.best, top = Math.min(TOWER_MAX, best + 5), MSs = g.towerMsState(), msOf = (f) => MSs.find((m) => m.floor === f);
+    const bon = (n) => `+${(Math.min(TOWER_MAX, n) * TOWER_BONUS.atkL1 / 10).toFixed(1)}%`, nextMs = MSs.find((m) => m.floor > best);
+    const fls = [];
+    for (let f = top; f >= Math.max(0, best - 2); f--) {
+      const st = f === best ? 'tw-cur' : f < best ? 'tw-done' : f === best + 1 ? 'tw-next' : 'tw-up', m = msOf(f);
+      fls.push(`<div class="tw-fl ${st}${m ? ` tw-msf tw-${m.state}` : ''}" data-f="${f}" style="--w:${Math.max(62, 100 - (f - Math.max(0, best - 2)) * 5)}%"><i class="tw-roof"></i><div class="tw-body"><b>${f ? `${f}층` : '입구'}</b>${f > best ? '<small>적 4 · 60초</small>' : f === best && f ? '<small>지금</small>' : ''}${m ? `<img src="art/s2/ui/chest.webp" alt="${f}층 상자" loading="lazy">` : ''}</div></div>`);
+    }
+    const tw = document.createElement('div'); tw.className = 'tw'; add(tw);
+    tw.innerHTML = `<div class="tw-tower" aria-label="무한의 탑 ${best}층">${top < TOWER_MAX ? '<div class="tw-mist"></div>' : ''}${fls.join('')}<div class="tw-base"></div></div>
+      <div class="tw-side"><div class="tw-now"><small>무한의 탑</small><b>${best}<em>층</em></b><span>깬 층만큼 영구 보너스</span></div>
+      <div class="tw-bon"><div><span>지금</span><b>공격%① ${bon(best)} · 체력% ${bon(best)}</b></div>${nextMs ? `<div><span>${nextMs.floor}층</span><b>${bon(nextMs.floor)} · 상자</b></div>` : ''}</div></div>`;
+    const side = tw.querySelector('.tw-side');
+    side.append(R('연속 오르기', '질 때까지(최대 30층) 다음 층을 바로 끝내요', [['오르기', act(() => { const r = g.towerClimb(30); if (r) { play(r.up ? 'clear' : 'fail'); const ms = MSs.filter((m) => m.state === 'lock' && m.floor <= r.to).map((m) => m.floor); pop('무한의 탑', `<div class="ea-sum"><span>도전 <b>${r.tries}</b>번</span><span>${r.from}층 → <b>${r.to}층</b></span></div>${r.up ? `<div class="tw-pop"><b>${r.to}층 돌파!</b>${ms.map((f) => `<b>${f}층 상자!</b>`).join('')}</div>` : ''}<p class="note">${r.up ? `${r.up}층 올랐어요 — 영구 보너스${ms.length ? ' · 상자는 아래 이정표에서' : ''}` : '한 층도 못 올랐어요 — 전투력을 올리고 다시'}${r.stopped ? '' : ' · 30층 오름(다시 누르면 계속)'}</p>`); } return r; }), !!g.canDungeon('tower')]], '塔'));
+    if (best < TOWER_MAX) side.append(R(`${best + 1}층`, '적 넷을 60초 안에 모두 · 이기면 한 층 위로', [['도전', () => { play('click'); if (!g.enterDungeon('tower')) toast(g.canDungeon('tower') || '들어갈 수 없어요'); }, !!g.canDungeon('tower')]], '塔'));
+    // 이정표 상자 — 받을 것 · 다음 둘 · 받은 것은 한 줄로
+    const can = MSs.filter((m) => m.state === 'can'), got = MSs.filter((m) => m.state === 'got').length, next = MSs.filter((m) => m.state === 'lock').slice(0, 2);
+    const NM = { 'ticket:gear': '뽑기권', 'item:stone': '강화석', 'ticket:weapon': '병기 뽑기권', 'ticket:pal': '동료 뽑기권', 'ticket:relic': '영물 뽑기권' };
+    const rew = (R2) => Object.entries(R2).map(([k, n]) => `${NM[k] || k} ${n}`).join(' · ');
+    const claim = (f) => act(() => { const r = g.towerMsClaim(f); if (r) { play('coin'); toast(`${f}층 상자 — ${rew(r.give)}`); } return r; });
+    const cm = card('이정표 상자', `10층마다 처음 한 번${got ? ` · 받은 상자 ${got}개` : ''}`);
+    if (can.length > 1) cm(R('모두 받기', `받을 상자 ${can.length}개`, [['모두 받기', act(() => { const rs = g.towerMsClaimAll(); if (rs.length) { play('coin'); toast(`상자 ${rs.length}개 받음`); } return rs.length || null; })]], 'i:chest:賞'));
+    for (const m of [...can, ...next]) { const r = R(`${m.floor}층 상자`, rew(m.reward), [[m.state === 'can' ? '받기' : `${m.floor}층부터`, claim(m.floor), m.state !== 'can']], 'i:chest:賞'); r.classList.add('tw-ms', `tw-${m.state}`); r.dataset.f = m.floor; cm(r); }
+    if (!can.length && !next.length) cm(note('상자를 모두 받았어요'));
   } else if (key === 'content:2') {
     // v580 시간 티켓 바로 쓰기
     { const nT = W['ticket:time'] || 0, ct = card('시간 티켓', `${nT}장 · 1장 = 사냥 15분 몫`);
@@ -838,19 +860,60 @@ function paintWin() {
     c0(note(`가장 최근 대결 열 판 중 이긴 공격 ${wins}번 · 큰 숫자는 업적 마지막 단계까지 세어 「+」면 그 넘어`));
   } else if (key === 'look:0') {
     // v565 외형 — 부위마다 보일 등급(얻어 본 등급까지) · 「장비대로」면 낀 것 그대로. 사냥터 · 얼굴 · 대결에서 보이는 모습만(능력치 그대로)
+    // 왼쪽: 크게 움직이는 무인(누른 칸을 바로 입혀 봄) · 「이 외형으로」로 정함 / 오른쪽: 부위마다 얻어 본 등급 칸 · 아직 못 얻은 등급은 흐린 칸(무엇이 있는지 보이게)
     const sn = g.lookSeen(), L = g.S.look || {};
+    for (const sl of Object.keys(lkPrev)) if (!(lkPrev[sl] <= (sn[sl] ?? -1)) || lkPrev[sl] === L[sl]) delete lkPrev[sl];
     const c0 = card('외형', '사냥터 · 얼굴 · 대결에서 보이는 모습만 바뀌어요(능력치는 낀 장비대로)');
-    if (Object.keys(L).length) c0(R('모두 장비대로', '고른 외형을 모두 풀어요', [['되돌리기', act(() => { for (const sl of Object.keys(L)) g.setLook(sl, null); portraitKey = ''; return true; })]], '原'));
+    const wrap = document.createElement('div'); wrap.className = 'lk-wrap';
+    const list = document.createElement('div'); list.className = 'lk-list';
+    if (Object.keys(L).length) list.append(R('모두 장비대로', '고른 외형을 모두 풀어요', [['되돌리기', act(() => { for (const sl of Object.keys(L)) g.setLook(sl, null); lkPrev = {}; portraitKey = ''; return true; })]], '原'));
+    const stage = document.createElement('div'); stage.className = 'lk-stage';
+    const cvs = document.createElement('canvas'); cvs.width = 240; cvs.height = 300; cvs.className = 'lk-cv'; cvs.setAttribute('aria-label', '외형 미리 보기');
+    const cap = document.createElement('p'); cap.className = 'lk-cap';
+    const acts = document.createElement('div'); acts.className = 'lk-acts';
+    const go = document.createElement('button'); go.className = 'btn primary lk-go'; go.textContent = '이 외형으로';
+    const undo = document.createElement('button'); undo.className = 'btn lk-undo'; undo.textContent = '그만 보기';
+    acts.append(go, undo); stage.append(cvs, cap, acts);
+    const pvEq = () => { const E = { ...g.lookEq() }; for (const [sl, gr] of Object.entries(lkPrev)) E[sl] = { ...(E[sl] || { slot: sl, up: 0, subs: [] }), g: gr }; return E; };
+    const rows = {};
+    const sync = () => {
+      const pv = Object.entries(lkPrev);
+      cap.innerHTML = pv.length ? `미리 보는 중 · ${pv.map(([sl, gr]) => `<span class="g${gr}t">${SLOT_NAME[sl]} ${GRADES[gr]}</span>`).join(' · ')}` : '칸을 누르면 바로 입혀 봐요';
+      go.disabled = undo.disabled = !pv.length;
+      for (const sl of SLOTS) { const r = rows[sl], show = sl in lkPrev ? lkPrev[sl] : L[sl];
+        r.img.src = eqIcon(sl, show != null ? { g: show } : g.S.gear.eq[sl]);
+        for (const t of r.tiles) { const gr = +t.dataset.gr; t.classList.toggle('on', L[sl] === gr); t.classList.toggle('pv', sl in lkPrev && lkPrev[sl] === gr); }
+        r.base.classList.toggle('on', show == null); }
+    };
+    go.onclick = act(() => { let n = 0; for (const [sl, gr] of Object.entries(lkPrev)) if (g.setLook(sl, gr)) n++; lkPrev = {}; portraitKey = ''; if (n) setTimeout(() => toast(`외형을 바꿨어요 · ${n}곳`), 0); return n > 0; });
+    undo.onclick = () => { play('click'); lkPrev = {}; sync(); };
     for (const sl of SLOTS) {
-      const max = sn[sl] ?? -1, cur = L[sl], row = document.createElement('div'); row.className = 'lk-row';
+      const max = sn[sl] ?? -1, cur = L[sl], row = document.createElement('div'); row.className = 'lk-row'; row.dataset.sl = sl;
       row.innerHTML = `<img src="${eqIcon(sl, cur != null ? { g: cur } : g.S.gear.eq[sl])}" alt=""><b>${SLOT_NAME[sl]}</b>`;
       const seg = document.createElement('div'); seg.className = 'seg lk-seg';
-      const add = (label, val, on, cls = '') => { const b = document.createElement('button'); b.textContent = label; b.className = `${on ? 'on' : ''} ${cls}`; b.onclick = () => { play('click'); g.setLook(sl, val); portraitKey = ''; save(); paintWin(); }; seg.append(b); };
-      add('장비대로', null, cur == null);
-      for (let gr = 0; gr <= max; gr++) add(GRADES[gr], gr, cur === gr, `g${gr}t`);
+      const base = document.createElement('button'); base.textContent = '장비대로'; base.className = cur == null ? 'on' : '';
+      base.onclick = () => { play('click'); delete lkPrev[sl]; g.setLook(sl, null); portraitKey = ''; save(); paintWin(); }; seg.append(base);
       if (max < 0) { const sp = document.createElement('small'); sp.textContent = '아직 얻은 것이 없어요'; seg.append(sp); }
-      row.append(seg); c0(row);
+      const tl = document.createElement('div'); tl.className = 'lk-tiles'; const tiles = [];
+      for (let gr = 0; gr < GRADES.length; gr++) {
+        const has = gr <= max, t = document.createElement(has ? 'button' : 'span');
+        t.className = `lk-t${has ? '' : ' no'}`; t.dataset.gr = String(gr); t.style.setProperty('--gc', GX_COL[gr]);
+        t.innerHTML = `<img src="${eqIcon(sl, { g: gr })}" alt="${GRADES[gr]}품 ${SLOT_NAME[sl]}${has ? '' : '(아직 못 얻음)'}" loading="lazy" decoding="async"><small>${GRADES[gr]}</small>`;
+        if (has) { t.onclick = () => { play('click'); if (lkPrev[sl] === gr || L[sl] === gr) delete lkPrev[sl]; else lkPrev[sl] = gr; sync(); }; tiles.push(t); }
+        else t.title = `${GRADES[gr]}품 ${SLOT_NAME[sl]} — 얻으면 고를 수 있어요`;
+        tl.append(t);
+      }
+      rows[sl] = { img: row.querySelector('img'), tiles, base };
+      row.append(seg, tl); list.append(row);
     }
+    wrap.append(stage, list); c0(wrap); sync();
+    // 장비 창과 같은 그리기 — 창이 열려 있는 동안 계속(초당 20번) · 그래픽 낮음이면 멈춘 모습(0.5초마다 · 고르면 바로)
+    { let last = -1e9; const paint = (ts) => {
+        if (!cvs.isConnected || !open) return;   // 창을 닫거나 다른 칸으로 가면 멈춤
+        const low = opt.gfx === 'low', E = pvEq(), sig = SLOTS.map((sl) => (E[sl] ? E[sl].g : '-')).join('');
+        if (ts - last > (low ? 500 : 50) || sig !== cvs.dataset.eq) { last = ts; const x = cvs.getContext('2d'); x.clearRect(0, 0, 240, 300); x.save(); x.translate(0, 10); const gr = x.createRadialGradient(120, 190, 10, 120, 190, 130); gr.addColorStop(0, '#e8c26a44'); gr.addColorStop(1, 'rgba(0,0,0,0)'); x.fillStyle = gr; x.fillRect(0, 0, 240, 300); drawHero(x, 120, 270, g.S.hero.job, g.S.hero.lv, { t: low ? 0 : now() / 1000, scale: 2.2, eq: E }); x.restore(); cvs.dataset.eq = sig; cvs.dataset.n = String((+cvs.dataset.n || 0) + 1); }
+        requestAnimationFrame(paint);
+      }; requestAnimationFrame(paint); }
   } else if (key === 'dex:0') {
     // v555 두목 도감 — 장 두목 15명: 그림 · 칭호 · 패턴 · 깸 · 토벌 별 · 최고 기록 · 손으로 깸 / ★3 수 보상
     const D = g.dex();
@@ -1018,16 +1081,37 @@ function paintWin() {
     requestAnimationFrame(() => { box.scrollTop = wAt ?? box.scrollHeight; box.dataset.init = 1; });
   } else if (key === 'title:0') {
     // v537 칭호 — 얻은 것 · 못 얻은 것(얻는 법) · 수집 효과 · 하나 달기
+    // 칭호마다 카드 — 빛깔 · 작은 무인에 사냥터와 같은 오라(titleAura)를 둘러 미리 보기 · 얻는 법 · 얻음/잠김 · 「달기」
     const own = new Set(g.S.titles || []), n = TITLES.filter((t) => own.has(t.name)).length;
     const c0 = card('칭호 수집 효과', `${n} / ${TITLES.length}개`);
     c0(statGrid(Object.entries(TITLE_EACH).map(([k, v]) => [STATS[k]?.name || k, `+${(v * n / 10).toFixed(0)}% (하나마다 +${v / 10}%)`])));
     c0(R('다는 칭호', g.S.titleOn ? `「${esc(g.S.titleOn)}」 — 사냥터에서 이름 위에` : '없음', g.S.titleOn ? [['떼기', act(() => g.setTitle(null))]] : [], '稱'));
     const c1 = card('칭호', '장 두목 첫 처치 · 출석 28일');
+    const grid = document.createElement('div'); grid.className = 'ttl-grid'; const minis = [];
     for (const t of TITLES) {
       const has = own.has(t.name), on = g.S.titleOn === t.name;
-      const r = R(`<span style="color:${has ? t.col : 'inherit'}">${esc(t.name)}</span>`, has ? (on ? '달고 있음' : '얻음') : `잠김 — ${t.how}`, has ? [[on ? '달고 있음' : '달기', act(() => g.setTitle(t.name)), on]] : [], has ? '稱' : '鎖');
-      if (!has) r.style.opacity = '.5'; c1(r);
+      const el = document.createElement('div'); el.className = `ttl-c${has ? '' : ' no'}${on ? ' on' : ''}`; el.style.setProperty('--tc', t.col); el.dataset.name = t.name;
+      const cv = document.createElement('canvas'); cv.width = 120; cv.height = 150; cv.className = 'ttl-cv'; cv.setAttribute('aria-label', `${t.name} 오라 미리 보기`);
+      const tx = document.createElement('div'); tx.className = 'ttl-t';
+      tx.innerHTML = `<b><i class="ttl-sw"></i><span>${esc(t.name)}</span></b><small>${has ? esc(t.how) : `잠김 — ${esc(t.how)}`}</small><span class="pill ttl-st">${on ? '달고 있음' : has ? '얻음' : '잠김'}</span>`;
+      el.append(cv, tx);
+      if (has) { const bt = document.createElement('button'); bt.className = 'btn primary ttl-go'; bt.textContent = on ? '달고 있음' : '달기'; bt.disabled = on; bt.onclick = act(() => g.setTitle(t.name)); el.append(bt); }
+      grid.append(el); minis.push({ cv, col: t.col, has });
     }
+    c1(grid);
+    // 작은 무인 + 오라 — 보이는 카드만 초당 15번 · 그래픽 낮음이면 멈춘 모습(1초마다 다시 — 그림이 늦게 받아져도 채워지게) · 창을 닫으면 멈춤
+    { const E = g.lookEq(), job = g.S.hero.job, lv = g.S.hero.lv; let last = -1e9;
+      const paint = (ts) => {
+        if (!grid.isConnected || !open) return;   // 창을 닫거나 다른 칸으로 가면 멈춤
+        const low = opt.gfx === 'low';
+        if (ts - last > (low ? 1000 : 66)) { last = ts; const T = low ? 0.4 : now() / 1000, vb = PB.getBoundingClientRect();
+          for (const m of minis) { const r = m.cv.getBoundingClientRect(); if (r.bottom < vb.top || r.top > vb.bottom) continue;
+            const x = m.cv.getContext('2d'); x.clearRect(0, 0, 120, 150);
+            titleAura(x, 60, 140, 1.05, T, m.col);
+            drawHero(x, 60, 140, job, lv, { t: low ? 0 : T, scale: 0.95, eq: E });
+            m.cv.dataset.n = String((+m.cv.dataset.n || 0) + 1); } }
+        requestAnimationFrame(paint);
+      }; requestAnimationFrame(paint); }
   } else if (key === 'today:0') {
     // v544 오늘 할 일 — 하루마다 도는 것을 한곳에서: 진행 막대 · 끝남 ✓ · 「가기」로 그 창
     const T = g.today(), open2 = T.filter((x) => x.open), left = open2.filter((x) => !x.done).length;
@@ -1366,6 +1450,26 @@ const unit = (n) => {   // 큰 수: 만 · 억 · 조 · 경 두 자리까지(�
 };
 const logLines = [];
 function addLog(t) { if (logLines[0] === t) return; logLines.unshift(t); logLines.length = Math.min(logLines.length, 4); }   // v520 같은 줄이 잇따라 쌓이지 않게
+// v562 칭호 오라 — 발밑 빛 · 기둥 · 오르는 불티 열(사냥터 · 칭호 창 미리 보기가 함께 쓴다) · k = 크기 배율 · ts = 초
+// v618 칭호 오라 — 들판과 칭호 창 미리 보기가 함께 쓴다 · 그라디언트는 캔버스 · 빛깔 · 크기마다 한 번만 만들어 무인 자리로 옮겨 그린다(v617)
+const auraCache = new WeakMap();
+function titleAura(cx, hx, hy, k, ts, col) {
+  let A = auraCache.get(cx); if (!A) { A = {}; auraCache.set(cx, A); }
+  const ak = `${col}|${k}`;
+  if (A.k !== ak) { A.k = ak; A.r = cx.createRadialGradient(0, 0, 2, 0, 0, 60 * k); A.r.addColorStop(0, col); A.r.addColorStop(1, 'rgba(0,0,0,0)'); A.l = cx.createLinearGradient(0, -120 * k, 0, 0); A.l.addColorStop(0, 'rgba(0,0,0,0)'); A.l.addColorStop(1, col); }
+  cx.save(); cx.globalCompositeOperation = 'lighter';
+  const pulse = 0.75 + 0.25 * Math.sin(ts * 2.4);
+  cx.translate(hx, hy);
+  cx.globalAlpha = 0.6 * pulse; cx.fillStyle = A.r; cx.beginPath(); cx.ellipse(0, 0, 60 * k, 16 * k, 0, 0, 7); cx.fill();
+  cx.globalAlpha = 0.16 * pulse; cx.fillStyle = A.l; cx.fillRect(-26 * k, -120 * k, 52 * k, 120 * k);
+  cx.translate(-hx, -hy);
+  cx.fillStyle = col;
+  for (let i = 0; i < 10; i++) {
+    const ph = (ts * 0.55 + i / 10) % 1, px = hx + Math.sin(i * 2.1 + ts * 1.7) * 26 * k * (1 - ph * 0.4), py = hy - ph * 125 * k;
+    cx.globalAlpha = (1 - ph) * 0.95 * pulse; cx.beginPath(); cx.arc(px, py, (3.6 - ph * 1.8) * k, 0, 7); cx.fill();
+  }
+  cx.restore();
+}
 let portraitKey = '';
 function paintPortrait(H) {
   const E = g.lookEq(), key = `${H.job}:${H.lv}:${Object.values(E).map((it) => (it ? it.g : '-')).join('')}:${wearCount()}`; if (key === portraitKey) return; portraitKey = key;   // v516 장비가 바뀌면 얼굴도 새로
@@ -1661,7 +1765,7 @@ const mobSk = new Map();     // 몹 id → [무공에 맞은 때, 차수](더 �
 const DEBRIS_COL = { mob: ['#2b2520', '#efe6d0', '#8a7f70'], elite: ['#2b2520', '#e9d5ff', '#c4a1ff'], boss: ['#2b2520', '#fde68a', '#f59e0b'] };
 let punch = { at: -1e9, amp: 0, dur: 160 };   // 무공 당김(차수 1~5 → 2~6%) — 예전 4 · 5차 당김(zoomAt)을 이것 하나로
 let vigAt = -1e9, vigLv = 0, vigGr = null, vigKey = '';   // 연속 처치 가장자리 금빛
-const auraGr = { k: '', r: null, l: null }; let hurtGr = null, hurtKey = '';   // v614 칭호 오라 · 맞음 가장자리 그라디언트(한 번 만들어 다시 씀)
+let hurtGr = null, hurtKey = '';   // v614 칭호 오라 · 맞음 가장자리 그라디언트(한 번 만들어 다시 씀)
 let ghostAt = -1e9, lastCastTier = 0;   // 3차 이상 무공 잔상
 const punchNow = (t) => { const p = (t - punch.at) / punch.dur; return p < 0 || p >= 1 ? 0 : punch.amp * (p < 0.2 ? p / 0.2 : (1 - (p - 0.2) / 0.8) ** 2); };
 function spawnDebris(m, dir, t) {
@@ -2246,24 +2350,8 @@ function draw() {
     cx.globalAlpha = 0.5 * al; cx.fillStyle = '#fff'; cx.fillRect(hx - bw * 0.12, 0, bw * 0.24, hy);
     cx.restore();
   }
-  // v562 칭호 오라 — 단 칭호의 빛깔로 발밑에 은은한 빛 · 위로 오르는 불티 여섯(그래픽 낮음이면 끔)
-  if (g.S.titleOn && opt.gfx !== 'low') {
-    const col = titleByName(g.S.titleOn)?.col || '#fde68a';
-    cx.save(); cx.globalCompositeOperation = 'lighter';
-    const pulse = 0.75 + 0.25 * Math.sin(ts * 2.4);
-    // v614 그라디언트는 빛깔 · 크기가 바뀔 때만 새로(무인 자리로 옮겨 그린다)
-    const ak = `${col}|${k}`; if (auraGr.k !== ak) { auraGr.k = ak; auraGr.r = cx.createRadialGradient(0, 0, 2, 0, 0, 60 * k); auraGr.r.addColorStop(0, col); auraGr.r.addColorStop(1, 'rgba(0,0,0,0)'); auraGr.l = cx.createLinearGradient(0, -120 * k, 0, 0); auraGr.l.addColorStop(0, 'rgba(0,0,0,0)'); auraGr.l.addColorStop(1, col); }
-    cx.translate(hx, hy);
-    cx.globalAlpha = 0.6 * pulse; cx.fillStyle = auraGr.r; cx.beginPath(); cx.ellipse(0, 0, 60 * k, 16 * k, 0, 0, 7); cx.fill();
-    cx.globalAlpha = 0.16 * pulse; cx.fillStyle = auraGr.l; cx.fillRect(-26 * k, -120 * k, 52 * k, 120 * k);
-    cx.translate(-hx, -hy);
-    cx.fillStyle = col;
-    for (let i = 0; i < 10; i++) {
-      const ph = (ts * 0.55 + i / 10) % 1, px = hx + Math.sin(i * 2.1 + ts * 1.7) * 26 * k * (1 - ph * 0.4), py = hy - ph * 125 * k;
-      cx.globalAlpha = (1 - ph) * 0.95 * pulse; cx.beginPath(); cx.arc(px, py, (3.6 - ph * 1.8) * k, 0, 7); cx.fill();
-    }
-    cx.restore();
-  }
+  // v562 칭호 오라 — 단 칭호의 빛깔로 발밑에 은은한 빛 · 위로 오르는 불티(그래픽 낮음이면 끔) · 그리기는 titleAura(칭호 창 미리 보기와 같은 것)
+  if (g.S.titleOn && opt.gfx !== 'low') titleAura(cx, hx, hy, k, ts, titleByName(g.S.titleOn)?.col || '#fde68a');
   // v546 회피 잔상 — 대시하는 0.3초 동안 지나온 자리에 옅은 그림자
   if (t - dashAt < 300) dashTrail.push({ x: hx, y: hy, at: t });
   dashTrail = dashTrail.filter((d) => t - d.at < 240);
@@ -2498,7 +2586,10 @@ function frame() {
     else if (f.k === 'stage-clear' || f.k === 'stage-fail') { const K = bossFeel.kill; if (f.k === 'stage-clear' && K && K.F === g.lastFight && now() - K.at < 200) setTimeout(() => showResult(f), g.lastFight?.def?.chb ? 850 : 600); else showResult(f); }   // 마지막 일격 연출(파편 · 느린 화면)이 보이도록 결과 창은 그 뒤에
     else if (f.k === 'dungeon-start') { closeWin(); play('tense'); if (f.type === 'wboss') wbIntro(); else if (f.type === 'graid') chbIntro(g.graidBoss()); else dgBanner(f.title, g.dgStatus()); addLog(`${f.title} 입장`); }
     else if (f.k === 'dungeon-end') {
-      showDgResult(f); if (f.type === 'wboss') wbPush(f.score);
+      // v616 탑을 깨면 들판에 「n층 돌파!」 · 이정표면 「n층 상자!」 — 결과 창은 그 뒤에
+      if (f.type === 'tower' && f.cleared) { chbBanner(`${f.floor}층 돌파!`, '영구 보너스', 'win'); buzz(40); if (f.chest) setTimeout(() => { chbBanner(`${f.chest}층 상자!`, '이정표 상자', 'win'); play('rare', 4); }, 1000); setTimeout(() => showDgResult(f), f.chest ? 2300 : 1300); }
+      else showDgResult(f);
+      if (f.type === 'wboss') wbPush(f.score);
       if (f.type === 'graid' && net.online && g.S.guildId && f.dmg > 0) { ensureNick(); net.graidHit(g.S.guildId, wkStr(Date.now()), g.S.nick, f.dmg, g.S.hero.lv).then((RD) => { guildState.raid = RD; net.guildSay(g.S.guildId, g.S.nick, `${g.S.nick} — 문파 토벌에 피해 ${unit(f.dmg)}를 보탰어요`, 'system').catch(() => {}); toast(`문파 토벌 — 피해 ${unit(f.dmg)} 보탬`); if (open === 'social') paintWin(); }).catch((e) => { console.warn('[s2net] graid', e?.code || e); toast('문파 토벌 기록을 올리지 못했어요'); }); }   // v550
     }
     else if (f.k === 'loot') lootFx(f);
@@ -2726,14 +2817,15 @@ function showDgResult(f) {
   const tile = (cls, n, label, i) => `<div class="rt" style="--d:${0.35 + i * 0.12}s"><i class="coin ${cls}"></i><b data-n="${n}">0</b><small>${label}</small></div>`;
   const tiles = [f.gold && tile('s', f.gold, '은자', 0), f.exp && tile('x', f.exp, '경험치', 1), f.tix && tile('t', f.tix, '뽑기권', 2), f.stones && tile('st', f.stones, '강화석', 3)].filter(Boolean).join('');
   if (f.type === 'wboss') return showWbResult(f);
-  const extra = f.type === 'tower' && win ? `<div class="rnew">무한의 탑 ${f.floor}층 돌파 — 영구 보너스</div>` : f.type === 'job' && win ? `<div class="rnew">${f.n}차 전직!</div>` : '';
+  const chestCan = f.type === 'tower' && win && f.chest && g.towerMsState().find((m) => m.floor === f.chest)?.state === 'can';
+  const extra = f.type === 'tower' && win ? `<div class="rnew">무한의 탑 ${f.floor}층 돌파 — 영구 보너스</div>${f.chest ? `<div class="rnew">${f.chest}층 상자${chestCan ? '' : ' — 받았어요'}</div>` : ''}` : f.type === 'job' && win ? `<div class="rnew">${f.n}차 전직!</div>` : '';
   R.className = `open ${win ? 'win' : 'lose'}`;
   R.innerHTML = `<div class="rp">${win ? '<div class="rays"></div>' : ''}
       <div class="rsub">${esc(f.title)}</div>
       <div class="rtitle">${win ? 'DUNGEON CLEAR' : f.gaveUp ? '나왔어요' : '던전 실패'}</div>
       <div class="rmeta"><span>걸린 시간 <b>${(f.ms / 1000).toFixed(1)}초</b></span><span>처치 <b>${f.kills}</b></span>${f.deaths ? `<span>쓰러짐 <b>${f.deaths}</b></span>` : ''}</div>
       ${win ? `${extra}<div class="rtiles">${tiles}</div>` : `<div class="rtip">${f.gaveUp ? '입장권은 이미 썼어요.' : '전투력을 올리고 다시 — 장비 강화 · 무공 · 동료'}</div>`}
-      <div class="racts">${win ? '' : '<button class="btn" id="rgrow">강해지기</button>'}<button class="btn primary rgo" id="rout"><span>사냥터로</span><i class="rbar"></i></button></div>
+      <div class="racts">${win ? '' : '<button class="btn" id="rgrow">강해지기</button>'}${chestCan ? '<button class="btn" id="rchest">상자 받기</button>' : ''}<button class="btn primary rgo" id="rout"><span>사냥터로</span><i class="rbar"></i></button></div>
       <label class="rauto"><input type="checkbox" id="rautochk" ${auto ? 'checked' : ''}> 3초 뒤 자동 진행</label></div>`;
   const t0 = now();
   for (const b of R.querySelectorAll('.rt b')) { const n = +b.dataset.n, d = parseFloat(b.parentNode.style.getPropertyValue('--d')) * 1000; const tick = () => { const a = Math.min(1, Math.max(0, (now() - t0 - d) / 500)); b.textContent = unit(Math.round(n * (1 - (1 - a) ** 3))); if (a < 1 && R.classList.contains('open')) requestAnimationFrame(tick); }; tick(); }
@@ -2742,6 +2834,7 @@ function showDgResult(f) {
   $('rautochk').onchange = (e) => { opt.autoNext = e.target.checked; saveOpt(); arm(opt.autoNext); };
   $('rout').onclick = () => { play('click'); closeResult(); };
   if (!win) $('rgrow').onclick = () => { play('click'); closeResult(); openWin('char', 0); };
+  if (chestCan) document.querySelector('#rchest').onclick = (e) => { const r = g.towerMsClaim(f.chest); if (r) { play('coin'); toast(`${f.chest}층 상자 — 뽑기권 ${r.give['ticket:gear']} · 강화석 ${r.give['item:stone']}${r.give['ticket:pal'] ? ' · 병기 · 동료 · 영물 뽑기권 1씩' : ''}`); save(); paintHud(); } e.currentTarget.disabled = true; e.currentTarget.textContent = '받았어요'; };
   addLog(`${f.title} ${win ? '클리어' : '실패'} · ${(f.ms / 1000).toFixed(0)}초`);
 }
 // v541 토벌 결과 — 별이 하나씩 박힌다(새로 딴 별은 번쩍) · 최고 기록 · 보상

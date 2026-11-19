@@ -1866,6 +1866,40 @@ console.log('\n=== v613 두목 도감 — 첫 처치 때 · 드러난 수 ===');
   ok(old.dex().list[1].beat && old.dex().list[1].at === 0 && old.dex().found >= 1, '옛 저장(때 없음)도 읽힌다 — 0');
 }
 
+console.log('\n=== v616 무한 탑 이정표 상자 ===');
+{
+  const CT = await import('../js/s2/tables/content.js');
+  const r10 = CT.towerMsReward(10), r50 = CT.towerMsReward(50);
+  ok(r10['ticket:gear'] === 3 && r10['item:stone'] === 20 && !r10['ticket:pal'] && r50['item:stone'] === 60 && r50['ticket:weapon'] === 1 && r50['ticket:pal'] === 1 && r50['ticket:relic'] === 1, '10층마다 뽑기권 3 · 강화석 층+10 · 50층마다 병기 · 동료 · 영물 뽑기권 1씩', JSON.stringify([r10, r50]));
+  ok(CT.towerMsReward(15) === null && CT.towerMsReward(0) === null && CT.towerMsReward(310) === null && CT.towerMsFloors().length === 30, '10의 배수 · 300층까지만(이정표 30)');
+  const tot = CT.towerMsFloors().filter((f) => f <= 70).reduce((a, f) => a + CT.towerMsReward(f)['item:stone'], 0);
+  ok(tot <= 360, '70층까지 상자 강화석 합은 작다(단련동 사흘치 360 안)', tot);
+  const T0 = 1.8e12, g = new Game(newGame('sword', T0, 31), T0); g.tick(T0);
+  ok(g.towerMsCan() === 0 && g.towerMsClaim(10) === null && g.towerMsState().every((m) => m.state === 'lock'), '처음엔 받을 상자 없음');
+  g.S.tower.best = 24; const W = g.S.wallet, t0 = W['ticket:gear'] || 0, s0 = W['item:stone'] || 0;
+  ok(g.towerMsCan() === 2 && g.towerMsClaim(30) === null && g.towerMsClaim(15) === null, '깬 층까지만 · 10의 배수만');
+  const c = g.towerMsClaim(10);
+  ok(c && c.floor === 10 && W['ticket:gear'] - t0 === 3 && W['item:stone'] - s0 === 20, '10층 상자 → 뽑기권 3 · 강화석 20', JSON.stringify(c));
+  ok(g.towerMsClaim(10) === null && W['ticket:gear'] - t0 === 3 && g.towerMsCan() === 1, '한 번만');
+  ok(g.towerMsState().find((m) => m.floor === 10).state === 'got' && g.towerMsState().find((m) => m.floor === 20).state === 'can' && g.towerMsState().find((m) => m.floor === 30).state === 'lock', '상태: 받음 · 받기 · 잠김');
+  const g2 = Game.load(g.save(), T0); ok(g2.S.tower.ms.join() === '10' && g2.towerMsCan() === 1, '받은 층은 저장된다');
+  // 자동 성장이 받는다
+  const a = new Game(newGame('sword', T0, 32), T0); a.tick(T0); a.S.tower.best = 55;
+  const o = a.autoGrow({ daily: false, pull: false, coll: false, kit: false, enh: false, train: false, stat: false });
+  ok(a.S.tower.ms.slice().sort((x, y) => x - y).join() === '10,20,30,40,50' && a.towerMsCan() === 0 && o.claim >= 5, '자동 성장이 받을 상자를 모두 받는다', `${a.S.tower.ms} · claim ${o.claim}`);
+  ok((a.S.wallet['ticket:pal'] || 0) >= 1 && (a.S.wallet['ticket:relic'] || 0) >= 1, '50층 상자 — 동료 · 영물 뽑기권(뽑기를 끄면 남아 있다)');
+  const a2 = a.autoGrow({ daily: false, pull: false, coll: false, kit: false, enh: false, train: false, stat: false }); ok(a.S.tower.ms.length === 5, '다시 돌려도 두 번 받지 않는다', a2.claim);
+  // 옛 세이브 — tower에 ms가 없다 · tower 자체가 없다
+  const old = new Game(newGame('sword', T0, 33), T0); old.S.tower = { best: 32 }; const o2 = Game.load(old.save(), T0);
+  ok(o2.towerMsCan() === 3 && Array.isArray(o2.S.tower.ms) && o2.towerMsClaim(30) && o2.S.tower.best === 32, '옛 세이브(이정표 칸 없음): 이미 깬 층의 상자도 받을 수 있다');
+  const old2 = new Game(newGame('sword', T0, 34), T0); delete old2.S.tower; ok(old2.towerMsCan() === 0 && old2.towerSt().best === 0, '탑 칸이 아예 없어도 생긴다');
+  // 실제 싸움: 10층을 깨면 결과에 상자 표시(받기 전)
+  const f = new Game(newGame('sword', T0, 35), T0); f.addExp(EX.cumExp(60)); f.tick(T0); f.S.tower.best = 9; const fo = f.fighter.bind(f); f.fighter = () => { const x = fo(); x.st = { ...x.st, atk: x.st.atk * 1000 }; return x; };
+  const fr = f.towerFight();
+  ok(fr.cleared && (fr.chest === 10 && f.S.tower.best === 10 && f.towerMsCan() === 1), '10층을 깨면 결과에 chest: 10 · 받을 상자 하나', JSON.stringify({ c: fr.cleared, chest: fr.chest }));
+  const fr2 = f.towerFight(); ok(fr2.cleared && !fr2.chest && f.S.tower.best === 11, '11층은 상자 없음');
+}
+
 console.log('\n=== S0 규칙 ===');
 {
   const files = [];

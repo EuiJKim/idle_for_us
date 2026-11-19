@@ -318,6 +318,26 @@ const ok = (c, m, x = '') => { console.log(`  ${c ? '✓' : '✗ !!'} ${m}${x !=
       ok(/got/.test(v4.chest) && await page.evaluate((t) => (window.__s2.g.S.wallet['ticket:gear'] || 0) - t === 3, tk0), '상자 열기 → 장비 뽑기권 3 · 오늘은 받음', v4.chestTxt);
       await page.evaluate(() => { const g = window.__s2.g, T = window.__t, W = g.S.wallet; g.S.bounty = JSON.parse(T.bounty) || undefined; for (const k of Object.keys(W)) delete W[k]; Object.assign(W, JSON.parse(T.wallet)); delete window.__t; });
       await page.click('#panel-close'); await free(a1); }
+    // v616 무한 탑 — 던전 → 무한 탑: 탑 그림(지금 층 금빛 · 깬 층 · 위 다섯 층 · 10층마다 상자) · 지금 층 · 단추 둘 · 이정표 상자 받기
+    { const a0 = await hold();
+      await page.evaluate(() => { const g = window.__s2.g; window.__t = { wallet: JSON.stringify(g.S.wallet), tower: JSON.stringify(g.S.tower) }; g.S.tower = { best: 18 }; });
+      await page.click('#mb .nb[data-tab="dgn"]'); await sub('무한 탑'); await page.waitForSelector('#wb .tw-tower .tw-fl');
+      const tw = () => page.evaluate(() => { const g = window.__s2.g, fl = [...document.querySelectorAll('#wb .tw-fl')], cur = document.querySelector('#wb .tw-fl.tw-cur'), tower = { width: document.querySelector('#wb .tw-tower').offsetWidth };   // 돌린 화면(세로 폰)에서도 놓인 너비로
+        return { n: fl.length, top: fl[0]?.dataset.f, cur: cur?.dataset.f, curGlow: cur ? getComputedStyle(cur.querySelector('.tw-body')).boxShadow !== 'none' : false, curW: cur ? cur.querySelector('.tw-body').offsetWidth : 0, towerW: Math.round(tower.width),
+          done: fl.filter((e) => e.classList.contains('tw-done')).length, next: document.querySelector('#wb .tw-fl.tw-next')?.dataset.f, chest: fl.filter((e) => e.querySelector('img')).map((e) => e.dataset.f).join(),
+          big: document.querySelector('#wb .tw-now b')?.textContent, btns: [...document.querySelectorAll('#wb .tw-side .btn')].map((b) => b.textContent).join(','),
+          ms: [...document.querySelectorAll('#wb .row.tw-ms')].map((r) => `${r.dataset.f}:${r.querySelector('.btn').textContent}${r.querySelector('.btn').disabled ? '(잠김)' : ''}`).join(' '),
+          tix: g.S.wallet['ticket:gear'] || 0, got: (g.S.tower.ms || []).join(), dot: document.querySelector('.nb[data-tab="dgn"]').classList.contains('dot-on') }; });
+      const v0 = await until(tw, (v) => v.n === 8);
+      ok(v0.n === 8 && v0.top === '23' && v0.cur === '18' && v0.next === '19' && v0.done === 2 && v0.chest === '20', 'v616 탑 그림 — 위 다섯 층(23층까지) · 지금 18층 · 깬 층 둘 · 20층에 상자', JSON.stringify(v0));
+      ok(v0.curGlow && v0.curW > v0.towerW * 0.6 && /^18층$/.test(v0.big) && v0.btns === '오르기,도전', '지금 층은 금빛(넓게) · 큰 숫자 · 「오르기」 「도전」', `${v0.curW}/${v0.towerW} ${v0.big} ${v0.btns}`);
+      ok(v0.ms === '10:받기 20:20층부터(잠김) 30:30층부터(잠김)' && v0.dot, '이정표 — 10층 받기 · 다음 둘 잠김 · 던전에 빨간 점', `${v0.ms} dot ${v0.dot}`);
+      await page.screenshot({ path: path.join(OUT, `s2-tower-${W}.png`) });
+      await page.click('#wb .row.tw-ms[data-f="10"] .btn');
+      const v1 = await until(tw, (v) => v.got === '10');
+      ok(v1.got === '10' && v1.tix - v0.tix === 3 && /^20:20층부터\(잠김\)/.test(v1.ms) && !v1.dot, '받기 → 뽑기권 +3 · 받은 층 기록 · 빨간 점 꺼짐', `${v1.ms} · ${v0.tix}→${v1.tix}`);
+      await page.evaluate(() => { const g = window.__s2.g, T = window.__t, W = g.S.wallet; g.S.tower = JSON.parse(T.tower); for (const k of Object.keys(W)) delete W[k]; Object.assign(W, JSON.parse(T.wallet)); delete window.__t; });
+      await page.click('#panel-close'); await free(a0); }
     // v605 동행 — 던전 → 동행: 오프라인이면 연습 동행 셋(「연습」) · 둘 고르고 「출발」 → 결과 창(셋 · 몫 막대) · 오늘 횟수 하나 줄어듦
     { const a0 = await hold();
       await page.evaluate(() => { const g = window.__s2.g; window.__t = { wallet: JSON.stringify(g.S.wallet), party: JSON.stringify(g.S.party || null) }; g.partyRec().runs = 0; });
@@ -375,6 +395,42 @@ const ok = (c, m, x = '') => { console.log(`  ${c ? '✓' : '✗ !!'} ${m}${x !=
       await page.waitForTimeout(200);
       const f2 = await page.evaluate(() => { const g = window.__s2.g, n = (a) => a.filter((x) => x !== null && x !== undefined).length; return { ...window.__s2.followers(), p: Math.min(5, n(g.S.colls.pal.eq)), r: Math.min(3, n(g.S.colls.relic.eq)) }; });
       ok(f2.pals <= f2.p && f2.relics <= f2.r, 'v6xx 사냥터 — 되돌리면 장착한 수만큼만', JSON.stringify(f2));
+      await free(a0); }
+    // 외형 창 — 크게 움직이는 미리 보기 · 칸을 누르면 미리 보기만 바뀜 · 「이 외형으로」 → lookEq · 「장비대로」 / 칭호 창 — 카드 · 작은 오라 미리 보기 · 「달기」 · 「떼기」
+    { const a0 = await hold();
+      const keep = await page.evaluate(() => { const g = window.__s2.g, k = JSON.stringify({ sn: g.S.lookSeen || {}, lk: g.S.look || {}, t: g.S.titles || [], on: g.S.titleOn || null }); g.S.lookSeen = { ...g.lookSeen(), hat: Math.max(4, g.lookSeen().hat ?? -1) }; g.S.look = {}; return k; });
+      await page.click('#mb .nb[data-tab="bag"]'); await sub('외형'); await page.waitForSelector('#wb .lk-cv');
+      await until(() => page.evaluate(() => +document.querySelector('#wb .lk-cv')?.dataset.n || 0), (v) => v >= 3);
+      const fr = () => page.evaluate(() => document.querySelector('#wb .lk-cv').toDataURL());
+      const fa = await fr(); await page.waitForTimeout(350); const fb = await fr();
+      const lk0 = await page.evaluate(() => ({ rows: document.querySelectorAll('#wb .lk-row').length, dim: document.querySelectorAll('#wb .lk-t.no').length, base: document.querySelectorAll('#wb .lk-seg button').length, go: document.querySelector('#wb .lk-go')?.disabled }));
+      ok(fa !== fb && lk0.rows === 10 && lk0.base === 10 && lk0.dim > 0 && lk0.go === true, '외형 — 움직이는 큰 미리 보기(두 장면이 다름) · 부위 열 줄 · 「장비대로」 · 못 얻은 등급은 흐린 칸', JSON.stringify(lk0));
+      const gr = await page.evaluate(() => ((window.__s2.g.lookEq().hat?.g ?? -1) === 4 ? 3 : 4));
+      const e0 = await page.evaluate(() => document.querySelector('#wb .lk-cv').dataset.eq);
+      await page.click(`#wb .lk-row[data-sl="hat"] .lk-t[data-gr="${gr}"]`);
+      const e1 = await until(() => page.evaluate(() => ({ eq: document.querySelector('#wb .lk-cv').dataset.eq, real: window.__s2.g.lookEq().hat?.g ?? -1, pv: !!document.querySelector('#wb .lk-t.pv'), go: document.querySelector('#wb .lk-go').disabled })), (v) => v.eq !== e0);
+      ok(e1.eq !== e0 && e1.real !== gr && e1.pv && !e1.go, '외형 — 칸을 누르면 미리 보기가 바로 바뀐다(아직 정하지 않음)', `${e0} → ${e1.eq}`);
+      await page.click('#wb .lk-go');
+      const e2 = await until(() => page.evaluate(() => ({ g: window.__s2.g.lookEq().hat?.g, s: window.__s2.g.S.look?.hat })), (v) => v.g === gr);
+      ok(e2.g === gr && e2.s === gr, '외형 — 「이 외형으로」 → g.lookEq()가 바뀐다', JSON.stringify(e2));
+      await page.click('#wb .lk-row[data-sl="hat"] .lk-seg button:text-is("장비대로")');
+      ok(await until(() => page.evaluate(() => window.__s2.g.S.look?.hat === undefined), (v) => v), '외형 — 「장비대로」로 그 부위를 되돌린다');
+      await page.click('#panel-close');
+      const TN = await page.evaluate(async () => { const { TITLES } = await import(new URL('js/s2/tables/titles.js', location.href).href); const g = window.__s2.g; g.S.titles = [TITLES[0].name, '28일 개근']; g.S.titleOn = null; return TITLES.length; });
+      await page.click('#mb .nb[data-tab="char"]'); await sub('칭호'); await page.waitForSelector('#wb .ttl-c');
+      await until(() => page.evaluate(() => +document.querySelector('#wb .ttl-cv')?.dataset.n || 0), (v) => v >= 3);
+      const ta = await page.evaluate(() => document.querySelector('#wb .ttl-cv').toDataURL()); await page.waitForTimeout(350);
+      const t0 = await page.evaluate(() => ({ n: document.querySelectorAll('#wb .ttl-c').length, no: document.querySelectorAll('#wb .ttl-c.no').length, sw: document.querySelectorAll('#wb .ttl-sw').length, head: [...document.querySelectorAll('#wb .card h3')].map((h) => h.textContent).join(' | '), go: [...document.querySelectorAll('#wb .ttl-go')].map((b) => b.textContent), img: document.querySelector('#wb .ttl-cv').toDataURL() }));
+      ok(t0.n === TN && t0.no === TN - 2 && t0.sw === TN && /칭호 수집 효과/.test(t0.head) && t0.go.length === 2 && t0.go.every((x) => x === '달기') && t0.img !== ta, '칭호 — 카드마다 빛깔 · 움직이는 오라 미리 보기 · 얻은 것만 「달기」', `${t0.n}장 · 잠김 ${t0.no}`);
+      await page.click('#wb .ttl-c[data-name="28일 개근"] .ttl-go');
+      const t1 = await until(() => page.evaluate(() => ({ on: window.__s2.g.S.titleOn, b: document.querySelector('#wb .ttl-c.on .ttl-go')?.textContent, d: document.querySelector('#wb .ttl-c.on .ttl-go')?.disabled })), (v) => v.on === '28일 개근' && v.b === '달고 있음');
+      ok(t1.on === '28일 개근' && t1.b === '달고 있음' && t1.d, '칭호 — 「달기」 → g.S.titleOn · 카드가 「달고 있음」', JSON.stringify(t1));
+      await page.click('#wb .row:has-text("다는 칭호") .btn:text-is("떼기")');
+      ok(await until(() => page.evaluate(() => window.__s2.g.S.titleOn === null), (v) => v), '칭호 — 「떼기」');
+      await page.click('#panel-close'); await page.waitForTimeout(150);
+      const st0 = await page.evaluate(() => [...document.querySelectorAll('.ttl-cv')].map((c) => c.dataset.n).join()); await page.waitForTimeout(400);
+      ok(await page.evaluate((x) => [...document.querySelectorAll('.ttl-cv')].map((c) => c.dataset.n).join() === x, st0), '외형 · 칭호 — 창을 닫으면 미리 보기 그리기가 멈춘다');
+      await page.evaluate((k) => { const g = window.__s2.g, o = JSON.parse(k); g.S.lookSeen = o.sn; g.S.look = o.lk; g.S.titles = o.t; g.S.titleOn = o.on; }, keep);
       await free(a0); }
     // v605 대화 — 무림 → 대화: 오프라인이면 안내 글 · 입력 칸과 「보내기」 잠김 · 듣는 것 없음
     { const a0 = await hold();
