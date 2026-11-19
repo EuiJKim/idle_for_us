@@ -107,6 +107,27 @@ const ok = (c, m, x = '') => { console.log(`  ${c ? '✓' : '✗ !!'} ${m}${x !=
       await page.click('#ep-close'); ok(await page.isHidden('#modal'), '닫기');
       await page.click('#panel-close');
     }
+    // 장비 창 다듬기(gr-) — 가방에 더 좋은 모자를 넣으면 ▲ → 누르면 비교(전투력 +) → 「끼기」 → ▲ 사라짐 · 가방 NEW 점은 한 번 보고 나면 꺼진다
+    { if (await page.evaluate(() => document.getElementById('panel').classList.contains('open'))) await page.click('#panel-close');
+      await page.click('#mb .nb[data-tab="bag"]'); await sub('가방'); await sub('장착');   // 가방을 한 번 열어 「본 것」을 남겨 둔다
+      const U = await page.evaluate(() => { const G = window.__s2.g.S.gear, u = 9e8 + Math.floor(Math.random() * 1e6);
+        G.bag.push({ uid: u, slot: 'hat', g: 6, up: 1, subs: [{ k: 'crit', v: 60 }], rr: 0, lock: false }, { uid: u + 1, slot: 'ring', g: 0, up: 0, subs: [], rr: 0, lock: false }); return u; });
+      await sub('장착');   // 다시 그리기(가방은 아직 안 봄)
+      const HC = '#wb .eqcell:has(img[alt="모자"])';
+      const a0 = await page.evaluate((s) => !!document.querySelector(s)?.querySelector('.gr-up') && document.querySelector(s).classList.contains('gr-has-up'), HC);
+      await page.click(HC); await page.waitForSelector('#wb .gr-cmp');
+      const c1 = await page.evaluate(() => { const p = document.querySelector('#wb .gr-cmp-pw'); return { up: p.classList.contains('up'), t: p.textContent, ups: document.querySelectorAll('#wb .gr-cmp-r em.up').length, pick: !!document.querySelector('#wb .inv-tile.gr-pick') }; });
+      ok(a0 && c1.up && /▲ \+/.test(c1.t) && c1.ups > 0 && c1.pick, '장착 — 가방에 더 좋은 모자 ▲ · 누르면 비교(지금 | 바꾸면 · 전투력 ▲)', `${c1.t} · ▲ ${c1.ups}줄`);
+      await page.click('#wb .gr-cmp-eq');
+      const c2 = await until(() => page.evaluate(({ s, u }) => ({ on: window.__s2.g.S.gear.eq.hat?.uid === u, arrow: !!document.querySelector(s)?.classList.contains('gr-has-up'), cmp: !!document.querySelector('#wb .gr-cmp') }), { s: HC, u: U }), (v) => v.on && !v.arrow);
+      ok(c2.on && !c2.arrow && !c2.cmp, '「끼기」 → 모자가 바뀌고 ▲ · 비교가 사라진다', JSON.stringify(c2));
+      await sub('가방');
+      await page.click('#wb .gr-so:text-is("새로 얻은 순")');
+      const n1 = await page.evaluate((u) => ({ dot: !!document.querySelector(`#wb .inv-tile[data-uid="${u + 1}"] .gr-new`), first: document.querySelector('#wb .inv-tile')?.dataset.uid === String(u + 1), bar: /\d+개 · 강화석 \+\S+ · 조각 \+\S+|없어요/.test(document.querySelector('#wb .gr-dis')?.textContent || '') }), U);
+      await sub('장착'); await sub('가방');
+      const n2 = await page.evaluate((u) => !!document.querySelector(`#wb .inv-tile[data-uid="${u + 1}"]`) && !document.querySelector(`#wb .inv-tile[data-uid="${u + 1}"] .gr-new`), U);
+      ok(n1.dot && n1.first && n1.bar && n2, '가방 — 새로 얻은 반지에 NEW · 「새로 얻은 순」 맨 앞 · 일괄 분해 띠(n개 · 강화석 · 조각) · 다시 열면 NEW 꺼짐', JSON.stringify({ ...n1, gone: n2 }));
+      await page.click('#wb .gr-so:text-is("등급순")'); await page.click('#panel-close'); }
     // v531 실제 던전 — 수련동 「입장」 → 사냥터 대신 던전(위에 목표 · 남은 시간 · 나가기) → 나가기 → 결과 창
     await page.evaluate(() => { const g = window.__s2.g; for (let i = 0; i < 400 && g.S.hero.lv < 35; i++) g.addExp(Math.max(2e4, (window.__s2.need?.(g.S.hero.lv)) || 2e5)); if (g.bossFight) g.endChallenge(false); g.dirtyStats = true; });
     await page.click('#mb .nb[data-tab="dgn"]'); await page.waitForTimeout(200);
@@ -338,6 +359,42 @@ const ok = (c, m, x = '') => { console.log(`  ${c ? '✓' : '✗ !!'} ${m}${x !=
       ok(v1.got === '10' && v1.tix - v0.tix === 3 && /^20:20층부터\(잠김\)/.test(v1.ms) && !v1.dot, '받기 → 뽑기권 +3 · 받은 층 기록 · 빨간 점 꺼짐', `${v1.ms} · ${v0.tix}→${v1.tix}`);
       await page.evaluate(() => { const g = window.__s2.g, T = window.__t, W = g.S.wallet; g.S.tower = JSON.parse(T.tower); for (const k of Object.keys(W)) delete W[k]; Object.assign(W, JSON.parse(T.wallet)); delete window.__t; });
       await page.click('#panel-close'); await free(a0); }
+    // 임무 창 보상 보기(ms-) — 일일 줄마다 진행 막대 · 보상 칩(그림) · 받을 수 있는 줄은 ms-can · 「모두 받기」 → 다 받고 알림(종류마다 합) · 하루 상자 그림 닫힘 → 빛남 → 열림
+    { const a2 = await hold();
+      await page.evaluate(() => { const g = window.__s2.g, D = g.books.daily; window.__t = { wallet: JSON.stringify(g.S.wallet), daily: JSON.stringify(D.st), tg: g.S.todayGot ?? null };
+        for (const id of Object.keys(D.st)) delete D.st[id];
+        for (const id of ['d_kill', 'd_dungeon']) Object.assign(D.get(id), { p: D.defs.get(id).need, done: true, got: false });
+        Object.assign(D.get('d_gacha'), { p: 12, done: false, got: false }); });
+      await page.click('.nb[data-tab="town"]'); await sub('일일'); await page.waitForSelector('#wb .ms-row .ms-chip');
+      for (const c of await page.$$('#wb .ms-chip img')) await c.scrollIntoViewIfNeeded();
+      const ms = () => page.evaluate(() => { const rows = [...document.querySelectorAll('#wb .ms-row')], imgs = [...document.querySelectorAll('#wb .ms-row .ms-chip img')];
+        const r = (t) => rows.find((x) => x.querySelector('.name')?.textContent === t);
+        return { n: rows.length, chips: rows.filter((x) => x.querySelector('.ms-chip')).length, bars: rows.filter((x) => x.querySelector('.ms-bar') || x.querySelector('.ms-ok')).length, imgs: imgs.length, up: imgs.filter((i) => i.complete && i.naturalWidth > 0).length,
+          kill: r('몹 500마리 잡기')?.className || '', killBtn: r('몹 500마리 잡기')?.querySelector('.btn')?.disabled, gacha: r('장비 뽑기 30번')?.className || '', all: !!document.querySelector('#wb .ms-all .btn:not(:disabled)'), allTxt: document.querySelector('#wb .ms-all .btn')?.textContent || '',
+          toast: [...document.querySelectorAll('#toast .toast')].map((x) => x.textContent).join(' | '), can: window.__s2.g.books.daily.claimable().length, sw: document.getElementById('panel-body').scrollWidth - document.getElementById('panel-body').clientWidth }; });
+      const m0 = await until(ms, (v) => v.up === v.imgs && v.imgs > 0);
+      ok(m0.n === 7 && m0.chips === 7 && m0.bars === 7 && m0.up === m0.imgs && m0.up >= 7 && m0.sw <= 1, '임무 창 — 일일 일곱 줄 · 진행 막대 · 보상 칩 그림이 뜬다', JSON.stringify(m0));
+      ok(/ms-can/.test(m0.kill) && m0.killBtn === false && /ms-on/.test(m0.gacha) && !/ms-can/.test(m0.gacha), '받을 수 있는 줄은 ms-can(받기 열림) · 하는 중은 ms-on', `${m0.kill} / ${m0.gacha}`);
+      ok(m0.all && m0.allTxt === '모두 받기', '받을 임무 둘 이상 → 「모두 받기」', m0.allTxt);
+      await page.screenshot({ path: path.join(OUT, `s2-mission-${W}.png`) });
+      await page.click('#wb .ms-all .btn');
+      const m1 = await until(ms, (v) => v.can === 0 && /일일 임무 2개 받음/.test(v.toast));
+      ok(m1.can === 0 && /일일 임무 2개 받음 — 은자 \+/.test(m1.toast) && /시간 티켓 \+4/.test(m1.toast) && /ms-done/.test(m1.kill) && !m1.all, '「모두 받기」 → 둘 다 받음 · 알림(은자 · 시간 티켓 합) · 줄은 끝(ms-done)', m1.toast);
+      // 하루 상자 — 닫힘 → (오늘 할 일을 다 한 셈) 빛남 → 누르면 열림
+      await page.evaluate(() => { window.__s2.g.S.todayGot = null; }); await sub('오늘'); await page.waitForSelector('#wb .td-chest .ms-chest img');
+      const ch = () => page.evaluate(() => { const b = document.querySelector('#wb .td-chest'), im = b?.querySelector('.ms-chest img'); return { st: b?.dataset.st || '', cls: b?.className || '', bar: b?.querySelector('.ms-bar span')?.textContent || '', pic: !!(im && im.complete && im.naturalWidth > 0), modal: !document.getElementById('modal').classList.contains('hidden') }; });
+      const c0 = await until(ch, (v) => v.pic);
+      ok(c0.st === 'closed' && /^\d+ \/ \d+$/.test(c0.bar) && c0.pic, '하루 상자 — 닫힌 상자 그림 · n / m', JSON.stringify(c0));
+      await page.evaluate(() => { const g = window.__s2.g, t = g.today.bind(g); g.today = () => t().map((x) => ({ ...x, done: x.open })); }); await sub('일일'); await sub('오늘');
+      const c1 = await until(ch, (v) => v.st === 'ready');
+      ok(c1.st === 'ready' && /can/.test(c1.cls), '다 하면 상자가 빛난다(열 수 있음)', JSON.stringify(c1));
+      await page.click('#wb .td-chest');
+      const c2 = await until(ch, (v) => v.st === 'opened' && /got/.test(v.cls));
+      ok(c2.st === 'opened' && /got/.test(c2.cls) && c2.modal, '상자를 열면 열린 상자 · 받은 것 창', JSON.stringify(c2));
+      await page.click('#modal .btn >> nth=0').catch(() => {});
+      await page.evaluate(() => { const g = window.__s2.g, T = window.__t, W = g.S.wallet, D = g.books.daily; delete g.today; g.S.todayGot = T.tg ?? undefined;
+        for (const k of Object.keys(D.st)) delete D.st[k]; Object.assign(D.st, JSON.parse(T.daily)); for (const k of Object.keys(W)) delete W[k]; Object.assign(W, JSON.parse(T.wallet)); delete window.__t; });
+      await page.click('#panel-close'); await free(a2); }
     // v605 동행 — 던전 → 동행: 오프라인이면 연습 동행 셋(「연습」) · 둘 고르고 「출발」 → 결과 창(셋 · 몫 막대) · 오늘 횟수 하나 줄어듦
     { const a0 = await hold();
       await page.evaluate(() => { const g = window.__s2.g; window.__t = { wallet: JSON.stringify(g.S.wallet), party: JSON.stringify(g.S.party || null) }; g.partyRec().runs = 0; });
@@ -567,6 +624,21 @@ const ok = (c, m, x = '') => { console.log(`  ${c ? '✓' : '✗ !!'} ${m}${x !=
     page.once('dialog', (d) => d.accept()); await page.click('#dg-leave'); await page.waitForTimeout(400);
     ok(await page.isVisible('#res.open') && /WORLD BOSS|물러났어요/.test(await page.textContent('#res')), 'v535 나가기 → 월드보스 결과(피해 · 점수)');
     await page.click('#rout'); await page.waitForTimeout(200);
+    // 월드보스 무대(wb-) — 큰 그림이 뜬다 · 남은 도전 = 엔진 · 공동 토벌 길(단계 셋) · 주간 보상 표(여섯 칸) · 옆 넘침 없음 → 도전 → 위 띠(시계 고리 · 피해 큰 수) → 끝까지 → 결과 카드(넣은 피해 = 엔진)
+    { await page.click('.nb[data-tab="social"]'); await page.waitForTimeout(200);
+      await page.click('#panel-body .subtabs button:has-text("월드보스")'); await page.waitForSelector('#wb .wb-hero');
+      const wh = await until(() => page.evaluate(() => { const g = window.__s2.g, W = g.S.wb || {}, used = W.day === String(window.__s2.dayKey(g.now)) ? W.used : 0, im = document.querySelector('#wb .wb-hero .wb-art'), wb = document.getElementById('wb'), h = document.querySelector('#wb .wb-hero').getBoundingClientRect(), pb = document.getElementById('panel-body').getBoundingClientRect();
+        return { art: !!im && im.complete && im.naturalWidth > 0, left: +document.querySelector('#wb .wb-tries').dataset.left, on: document.querySelectorAll('#wb .wb-tries i.on').length, want: 3 - used, stg: document.querySelectorAll('#wb .wb-stg').length, tiers: document.querySelectorAll('#wb .wb-tiers > div:not(.wb-th)').length, nums: [...document.querySelectorAll('#wb .wb-nums b')].map((b) => b.textContent), over: wb.scrollWidth - wb.clientWidth, inX: h.left >= pb.left - 1 && h.right <= pb.right + 1, go: !!document.querySelector('#wb .row.wb-go .btn:not(:disabled)') }; }), (v) => v.art);
+      ok(wh.art && wh.left === wh.want && wh.on === wh.want && wh.stg === 3 && wh.tiers === 6 && wh.nums.length === 2 && wh.over <= 0 && wh.inX && wh.go, '월드보스 무대: 그림 · 남은 도전 = 엔진 · 공동 토벌 단계 셋 · 주간 보상 여섯 칸 · 넘침 없음', JSON.stringify(wh));
+      await page.click('#wb .row .btn:has-text("도전")'); await page.waitForTimeout(700);
+      const fh = await page.evaluate(() => ({ dg: window.__s2.g.dg?.type, wbf: document.getElementById('contest-hud').classList.contains('wbf'), sec: +(document.querySelector('#wb-ring b')?.textContent || -1), ring: !!document.querySelector('#wb-ring')?.offsetWidth, dmg: !!document.querySelector('#wb-dmg')?.offsetWidth }));
+      ok(fh.dg === 'wboss' && fh.wbf && fh.ring && fh.dmg && fh.sec > 80 && fh.sec <= 90, '월드보스 위 띠: 90초 시계 고리 · 넣은 피해', JSON.stringify(fh));
+      await page.evaluate(() => { const g = window.__s2.g, d = g.dg; g.huntDungeon(d.limitMs); });   // 남은 시간을 한 번에 — 끝나면 결과
+      await page.waitForSelector('#res.open.wbr', { timeout: 5000 }).catch(() => {}); await page.waitForTimeout(1600);
+      const rr = await page.evaluate(() => { const L = window.__s2.g.lastDg, R = document.querySelector('#res .wb-res'), r = R?.getBoundingClientRect();
+        return { card: !!R, ms: L?.ms, dmg: L?.dmg, shown: document.querySelector('#res .wb-rdmg b')?.textContent, n: +document.querySelector('#res .wb-rdmg b')?.dataset.n, art: !!document.querySelector('#res .wb-rart')?.naturalWidth, rew: document.querySelectorAll('#res .wb-rrew span').length, fit: !!r && r.top >= 0 && r.bottom <= innerHeight + 1 && r.left >= 0 && r.right <= innerWidth + 1, hud: document.getElementById('contest-hud').classList.contains('wbf') }; });
+      ok(rr.card && rr.ms >= 90000 && rr.dmg > 0 && rr.n === rr.dmg && /^[1-9]/.test(rr.shown || '') && rr.art && rr.rew === 3 && rr.fit && !rr.hud, '월드보스 끝까지 → 결과 카드(넣은 피해 = 엔진 · 받는 것 셋 · 화면 안)', JSON.stringify(rr));
+      if (await page.isVisible('#res.open')) await page.click('#rout'); await page.waitForTimeout(200); }
     const navs = await page.$$('.nb[data-tab]');
     ok(navs.length === 7 && (await page.$$('#mb .nb')).length === 5, '아래 메뉴 다섯(캐릭터 · 장비 · 무공 · 동료 · 던전) + 위 아이콘(지도 · 임무 · 무림)');
     await page.click('#mb .nb[data-key]'); ok(/캐릭터/.test(await page.textContent('#panel-title')) && /on/.test(await page.getAttribute('#panel-body .subtabs button >> nth=1', 'class')), '「무공」 → 캐릭터 창 무공 칸'); await page.click('#panel-close');

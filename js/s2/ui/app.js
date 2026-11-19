@@ -24,7 +24,7 @@ import { COLLECT } from '../tables/s5.js';
 import { DAILY_DUNGEONS, DAILY_RUNS, EXPEDITION, TOWER_MAX, TOWER_BONUS } from '../tables/content.js';
 import { GUIDE, DAILY_MISSIONS, WEEKLY_MISSIONS, guideCurrent, achievements, ACHIEVE } from '../tables/missions.js';
 const ACH = achievements(), achById = new Map(ACH.map((a) => [a.id, a]));
-import { expToNext } from '../tables/exp.js';
+import { expToNext, KILLS_PER_MIN } from '../tables/exp.js';
 import { staminaNow } from '../content/idle.js';
 import { buildQueue } from '../content/offline.js';
 import { kindGrade } from '../grow/collect.js';
@@ -36,6 +36,7 @@ import { uiIcon } from '../tables/uiicons.js';   // v610 창 줄 그림 아이�
 import { NEWS, NEWS_V, newsSince } from '../tables/news.js';   // v560 업데이트 소식
 import { ATTEND, ATTEND_DAYS, ATTEND_NAME } from '../tables/attend.js';
 import { PASS, PASS_PTS } from '../tables/pass.js';   // 강호 패스
+import { WBOSS } from '../tables/online.js';   // 월드보스 하루 횟수 · 싸움 시간
 import { TITLES, TITLE_EACH, titleByName } from '../tables/titles.js';
 import { play, unlock, setOpt, bgm } from './sound.js';
 import { PoseAnim, POSES, IDLE, mixPose } from '../../pose.js';
@@ -88,6 +89,17 @@ const guideLabel = (q) => {
   if (q.ev === 'coll') return `병기 · 동료 · 영물 ${q.cond.split('>=')[1].trim()}가지 모으기`;
   return `${GUIDE_TEXT[q.ev] || q.ev}${q.need > 1 ? ` ${q.need}번` : ''}`;
 };
+// 임무 창(길잡이 · 일일 · 주간 · 업적 · 오늘) 보상 칩 — 그림 + 수. hunt = 사냥 n분 몫(은자 · 경험치)
+const MS_PIC = { 'ticket:gear': 'pull', 'ticket:weapon': 'pullw', 'ticket:pal': 'pullp', 'ticket:relic': 'pullr', 'item:stone': 'stone', 'ticket:time': 'time', 'ticket:exped': 'exped', hunt: 'silver', gold: 'silver' };
+const MS_GLY = { 'item:restore': '卷', 'item:heart': '心' };
+const msName = (k) => ({ hunt: '사냥', gold: '은자', 'ticket:exped': '원정권', 'item:heart': '심법 구슬' }[k] || ATTEND_NAME[k] || k);
+const msGold = (min) => Math.round(min * KILLS_PER_MIN * goldPerMob(g?.S.hero.lv || 1));   // 은자만 주는 n분 몫(길잡이 · 하루 상자) → 지금 레벨 은자
+const msRew = (d, huntKey = 'hunt') => { const o = {}; if (d.huntMin) o[huntKey] = d.huntMin; for (const [k, n] of Object.entries(d.items || {})) o[k] = n; return o; };
+const msChips = (rw) => `<span class="ms-rw">${Object.entries(rw).map(([k, n]) => `<span class="ms-chip" data-k="${esc(k)}" title="${esc(k === 'hunt' ? `사냥 ${n}분 몫(은자 · 경험치)` : msName(k))}">${MS_PIC[k] ? `<img alt="${esc(msName(k))}" loading="lazy" src="art/s2/ui/${MS_PIC[k]}.webp">` : `<i>${MS_GLY[k] || '·'}</i>`}<b>${k === 'hunt' ? `${n}분` : k === 'gold' ? unit(msGold(n)) : `×${unit(n)}`}</b></span>`).join('')}</span>`;
+const msBar = (r, txt) => `<div class="achbar ms-bar"><i style="width:${Math.round(Math.max(0, Math.min(1, r)) * 100)}%"></i><span>${txt}</span></div>`;
+// 받기 전후 지갑을 견줘 받은 것을 종류마다 한 줄로(모두 받기 알림)
+const msGot = (w0, w1) => Object.keys(w1).filter((k) => (k === 'gold' || MS_PIC[k] || MS_GLY[k]) && (w1[k] || 0) > (w0[k] || 0)).sort((a, b) => (a === 'gold' ? -1 : b === 'gold' ? 1 : 0))
+  .map((k) => `${msName(k)} +${unit(Math.round((w1[k] || 0) - (w0[k] || 0)))}`).join(' · ');
 
 // ── 불러오기 / 새로 시작 ──
 let g = null;
@@ -362,16 +374,41 @@ const keyOf = () => TABS.find((t) => t[0] === open)?.[2][tab]?.[1];
 // 내용 열쇠(예: 'hero:1')로 그 창 · 그 칸 열기
 function openKey(key) { for (const [id, , subs] of TABS) { const i = subs.findIndex((x) => x[1] === key); if (i >= 0) { openWin(id, i); return; } } }
 let open = null, tab = 0, treeSel = null, eqSel = null, lkPrev = {};   // lkPrev: 외형 창에서 눌러 입혀 보는 중인 것(부위 → 등급) · 「이 외형으로」 전에는 보이기만
-let bagF = 'all', bagSort = 'g', bagJunkG = 3, bagMore = false;   // v521 가방 보기
+let bagF = 'all', bagSort = 'g', bagJunkG = 3, bagMore = false, bagAsk = false;   // v521 가방 보기 · 일괄 분해 한 번 더 묻기
+// 가방 「NEW」 — 가방을 지난번 열었을 때 없던 것(화면만 · 이 기기에만 기억)
+const BAG_SEEN = 'ifu-s2-bagSeen';
+let bagNew = new Set(), bagIn = false;
+function bagMark(G) {
+  let seen = null; try { const s = localStorage.getItem(BAG_SEEN); if (s) seen = new Set(JSON.parse(s)); } catch (e) { seen = null; }
+  if (!bagIn) { bagNew = new Set(); bagIn = true; }
+  if (seen) for (const it of G.bag) if (!seen.has(it.uid)) bagNew.add(it.uid);
+  try { localStorage.setItem(BAG_SEEN, JSON.stringify([...G.bag, ...Object.values(G.eq).filter(Boolean)].map((x) => x.uid))); } catch (e) { /* 저장 못 해도 화면은 그대로 */ }
+}
 // 장비 아이콘: 지금 게임 그림(무기 · 방어구 · 장신구 × 등급 6)
 // v515 장비 그림 — 부위 열 × 등급 일곱(무기는 지금 무인 직업 다섯), 빈 칸은 그 부위 범급을 흐리게
 const eqIcon = (sl, it) => `art/s2/eq/${sl === 'weapon' ? `w-${g?.S?.hero?.job || 'sword'}` : sl}-${it ? Math.min(6, it.g) : 0}.webp`;
+// 가방에서 이 칸에 낀 것보다 좋은 것(가장 좋은 하나) — 「최고 장비 모두 끼기」와 같은 잣대
+function bestFor(sl) {
+  const G = g.S.gear, L = g.S.hero.lv, cur = G.eq[sl], s0 = cur ? gearScore(cur, L) : -Infinity;
+  let best = null, bs = s0;
+  for (const x of G.bag) if (x.slot === sl) { const s = gearScore(x, L); if (s > bs) { bs = s; best = x; } }
+  return best;
+}
+// 이 칸에 it를 끼면 전투력(화면에서만 잠깐 바꿔 셈 · 바로 되돌림)
+function powerWith(sl, it) { const G = g.S.gear, prev = G.eq[sl]; G.eq[sl] = it; try { return g.power(); } finally { G.eq[sl] = prev; } }
+let eqCand = null;   // 장착 창 「가방에서 고르기」에서 고른 후보(uid)
 function eqCell(sl) {
-  const it = g.S.gear.eq[sl], S2 = g.S.gear.slots[sl], b = document.createElement('button');
-  b.className = `eqcell ${it ? 'g' + it.g : 'empty'} ${eqSel === sl ? 'sel' : ''}`;
+  const it = g.S.gear.eq[sl], S2 = g.S.gear.slots[sl], b = document.createElement('button'), best = bestFor(sl);
+  b.className = `eqcell gr-cell ${it ? 'g' + it.g : 'empty'} ${eqSel === sl ? 'sel' : ''}${best ? ' gr-has-up' : ''}`;
   if (it) b.style.setProperty('--gc', GX_COL[it.g]);
-  b.innerHTML = `<img src="${eqIcon(sl, it)}" alt="${SLOT_NAME[sl]}" style="${it ? '' : 'opacity:.25'}"><span class="en">${S2.enh ? '+' + S2.enh : ''}</span><span class="sr">${S2.star ? '★' + S2.star : ''}</span><span class="nm">${SLOT_NAME[sl]}</span>`;
-  b.onclick = () => { play('click'); if (it) enhPop(sl); else { eqSel = eqSel === sl ? null : sl; paintWin(); } };   // v528 낀 장비를 누르면 바로 강화 창
+  b.innerHTML = `<img src="${eqIcon(sl, it)}" alt="${SLOT_NAME[sl]}" style="${it ? '' : 'opacity:.25'}"><span class="en">${S2.enh ? '+' + S2.enh : ''}</span><span class="sr">${S2.star ? '★' + S2.star : ''}</span>${best ? '<i class="gr-up" title="가방에 더 좋은 것">▲</i>' : ''}<span class="nm">${SLOT_NAME[sl]}</span>`;
+  if (best) b.setAttribute('aria-label', `${SLOT_NAME[sl]} — 가방에 더 좋은 것`);
+  // v528 낀 장비를 누르면 바로 강화 창 · ▲(가방에 더 좋은 것)이면 아래에 바로 비교
+  b.onclick = () => {
+    play('click');
+    if (best) { eqSel = sl; eqCand = best.uid; paintWin(); requestAnimationFrame(() => document.querySelector('.gr-cmp')?.scrollIntoView({ block: 'nearest' })); }
+    else if (it) enhPop(sl); else { eqSel = eqSel === sl ? null : sl; eqCand = null; paintWin(); }
+  };
   return b;
 }
 // ── 장비 뽑기 연출(v497) ── 카드가 차례로 뒤집힌다. 보(4)↑는 뒤집기 전에 두근(떨림 · 빛) · 신(5)↑는 화면이 번쩍 · 건너뛰기
@@ -412,7 +449,7 @@ function showGacha(r, opt = {}) {   // v558 opt: { title, face(it) } — 병기 
   ov.onclick = () => { if (done) close(); };
 }
 function openWin(id, t = 0) { open = id; tab = t; document.body.classList.add('winopen'); $('panel').classList.add('open'); $('panel-dim').classList.add('open'); paintWin(); paintNav(); }
-function closeWin() { open = null; lkPrev = {}; worldStop(); document.body.classList.remove('winopen'); $('panel').classList.remove('open'); $('panel-dim').classList.remove('open'); paintNav(); }
+function closeWin() { open = null; lkPrev = {}; bagIn = false; bagAsk = false; worldStop(); document.body.classList.remove('winopen'); $('panel').classList.remove('open'); $('panel-dim').classList.remove('open'); paintNav(); }
 function paintNav() {
   if (!$('ptabs').children.length) for (const [id, name] of MAIN_TABS) { const b = document.createElement('button'); b.dataset.tab = id; b.innerHTML = `${ico(id)}<span>${name}</span>`; b.onclick = () => { play('click'); openWin(id); }; $('ptabs').append(b); }
   for (const b of document.querySelectorAll('.nb[data-tab], #ptabs button[data-tab]')) b.classList.toggle('active', b.dataset.tab === open);
@@ -482,6 +519,8 @@ function paintWin() {
   const key = keyOf();
   if (key !== 'chat:0') worldStop();
   if (key !== 'look:0') lkPrev = {};
+  if (key !== 'gear:3') { bagIn = false; bagAsk = false; }
+  if (key !== 'gear:0') eqCand = null;
   const st = g.fighter().st;
   // v508 창 안쪽도 지금 게임 부품으로 — 묶음은 제목 있는 카드(.card h3), 스탯은 두 칸 격자(.stat-grid), 줄은 붓글씨 한 글자(.ico), 장비는 그림 칸(.inv-grid), 수집은 타일(.gear-grid)
   const card = (title, sub = '') => { const c = document.createElement('div'); c.className = 'card'; c.innerHTML = `<h3>${title}${sub ? ` <small>${sub}</small>` : ''}</h3>`; B.append(c); return (...e) => c.append(...e); };
@@ -490,6 +529,13 @@ function paintWin() {
     if (pic) { const im = new Image(); im.alt = ''; im.loading = 'lazy'; im.decoding = 'sync'; im.onerror = () => { i.classList.remove('pic'); i.textContent = gly; }; im.src = `art/s2/ui/${pic}.webp`; i.classList.add('pic'); i.append(im); } else i.textContent = gly;
     r.prepend(i); } return r; };
   const note = (t) => Object.assign(document.createElement('p'), { className: 'note', textContent: t });
+  // 임무 창 「모두 받기」 줄 — 받을 것 합친 보상 칩 · 받은 뒤 알림(종류마다 합)
+  const msAll = (book, ids, label, what) => {
+    const sum = {}; for (const id of ids) for (const [k, n] of Object.entries(msRew(g.books[book].defs.get(id) || {}))) sum[k] = (sum[k] || 0) + n;
+    const r = R(label, ids.length ? `${ids.length}개${msChips(sum)}` : '아직 없어요', [['모두 받기', act(() => { const w0 = { ...g.S.wallet }; let n = 0; for (const id of g.books[book].claimable()) if (g.claimMission(book, id)) n++;
+      if (n) { play('coin'); const t = msGot(w0, g.S.wallet); setTimeout(() => toast(`${what} ${n}개 받음${t ? ` — ${t}` : ''}`), 0); } return n > 0; }), !ids.length]], 'i:chest:賞');
+    r.classList.add('ms-all'); if (ids.length) r.classList.add('ms-can'); return r;
+  };
   const statGrid = (pairs) => { const d = document.createElement('div'); d.className = 'stat-grid'; d.innerHTML = pairs.map(([n, v]) => `<div>${n}<b>${v}</b></div>`).join(''); return d; };
   const GCOL = ['#a8a29e', '#7cc47a', '#6aa8e0', '#b27ae0', '#e8c26a', '#e06a5a', '#ffffff'];
   const pm = (v) => `${(v / 10).toFixed(1)}%`;
@@ -620,19 +666,24 @@ function paintWin() {
     }
   } else if (key === 'gear:0') {
     // 장착 — 가운데 무인 · 양옆 다섯 칸씩 · 칸을 누르면 아래에 자세히
+    // gr- 칸: 등급 빛 테두리 · +강화(오른쪽 위) · ★성혼(왼쪽 아래) · ▲ 가방에 더 좋은 것 / 가운데: 큰 전투력 · 공격 · 체력 · 방어 · 평균 등급 빛
     const G = g.S.gear, L = g.S.hero.lv, wrap = document.createElement('div'); wrap.className = 'eqwrap';
     const col = (list) => { const c = document.createElement('div'); c.className = 'eqcol'; for (const sl of list) c.append(eqCell(sl)); return c; };
     const mid = document.createElement('div'); mid.className = 'eqmid';
     const cvs = document.createElement('canvas'); cvs.width = 240; cvs.height = 300; mid.append(cvs);
-    const pw = document.createElement('div'); pw.className = 'eqpw'; pw.innerHTML = `전투력 ${unit(g.power())}<small>${JOBS[g.S.hero.job].name} · Lv.${L}</small>`; mid.append(pw);
+    const worn = SLOTS.map((s) => G.eq[s]).filter(Boolean), avgG = worn.length ? Math.round(worn.reduce((a, x) => a + x.g, 0) / worn.length) : 0;
+    const pw = document.createElement('div'); pw.className = 'eqpw gr-pw'; pw.style.setProperty('--gc', GX_COL[avgG]);
+    pw.innerHTML = `<span class="gr-pwl">전투력</span><b class="gr-pwn">${unit(g.power())}</b><span class="gr-brk"><i>공격 ${unit(st.atk || 0)}</i><i>체력 ${unit(st.hp || 0)}</i><i>방어 ${unit(st.def || 0)}</i></span><small>${JOBS[g.S.hero.job].name} · Lv.${L} · 평균 <em class="g${avgG}t">${GRADES[avgG]}품</em></small>`;
+    mid.append(pw);
     wrap.append(col(SLOTS.slice(0, 5)), mid, col(SLOTS.slice(5)));
     const c0 = card('끼고 있는 것', `전투력 ${unit(g.power())}`); c0(wrap);
-    const nb = SLOTS.filter((s) => G.bag.some((x) => x.slot === s && (!G.eq[s] || gearScore(x, L) > gearScore(G.eq[s], L)))).length;
-    c0(R('최고 장비 모두 끼기', nb ? `${nb}칸을 더 좋은 것으로` : '모두 가장 좋은 것을 끼고 있어요', [['모두 끼기', act(() => { const p0 = g.power(), n = equipBest(G, L); g.dirtyStats = true; g.emit('equip'); if (n) setTimeout(() => toast(`${n}칸 바꿈 · 전투력 ${unit(p0)} → ${unit(g.power())}`), 0); return n > 0; }), !nb]], '裝'));
+    const nb = SLOTS.filter((s) => bestFor(s)).length;
+    c0(R('최고 장비 모두 끼기', nb ? `${nb}칸을 더 좋은 것으로 · ▲ 칸을 누르면 비교` : '모두 가장 좋은 것을 끼고 있어요', [['모두 끼기', act(() => { const p0 = g.power(), n = equipBest(G, L); g.dirtyStats = true; g.emit('equip'); eqCand = null; if (n) setTimeout(() => toast(`${n}칸 바꿈 · 전투력 ${unit(p0)} → ${unit(g.power())}`), 0); return n > 0; }), !nb]], '裝'));
     // v585 장비 창 무인 — 한 번만 그리면 머리 · 옷 그림이 아직 안 받아졌을 때 대신 그린 얼굴이 남았다(얼굴이 깨져 보임) → 창이 열려 있는 동안 계속 그린다(초당 20번) · 외형대로
-    { let last = 0; const paint = (ts) => {
+    // 뒤 빛: 낀 장비 평균 등급 빛깔 · 천천히 숨 쉬듯(높은 등급일수록 조금 진하게)
+    { let last = 0; const aura = GX_COL[avgG], aA = Math.round(34 + avgG * 12).toString(16).padStart(2, '0'); const paint = (ts) => {
         if (!cvs.isConnected || !open) return;   // 창을 닫거나 다른 칸으로 가면 멈춤
-        if (ts - last > 50) { last = ts; const x = cvs.getContext('2d'); x.clearRect(0, 0, 240, 300); x.save(); x.translate(0, 10); const gr = x.createRadialGradient(120, 190, 10, 120, 190, 130); gr.addColorStop(0, '#e8c26a44'); gr.addColorStop(1, 'rgba(0,0,0,0)'); x.fillStyle = gr; x.fillRect(0, 0, 240, 300); drawHero(x, 120, 270, g.S.hero.job, g.S.hero.lv, { t: now() / 1000, scale: 2.2, eq: g.lookEq() }); x.restore(); }
+        if (ts - last > 50) { last = ts; const t = now() / 1000, x = cvs.getContext('2d'); x.clearRect(0, 0, 240, 300); x.save(); x.translate(0, 10); const rr = 128 + Math.sin(t * 1.6) * 8, gr = x.createRadialGradient(120, 190, 10, 120, 190, rr); gr.addColorStop(0, aura + aA); gr.addColorStop(0.55, aura + '22'); gr.addColorStop(1, 'rgba(0,0,0,0)'); x.fillStyle = gr; x.fillRect(0, 0, 240, 300); drawHero(x, 120, 270, g.S.hero.job, g.S.hero.lv, { t, scale: 2.2, eq: g.lookEq() }); x.restore(); }
         requestAnimationFrame(paint);
       }; requestAnimationFrame(paint); }
     const sl = eqSel && SLOTS.includes(eqSel) ? eqSel : null;
@@ -642,10 +693,16 @@ function paintWin() {
       if (it) { const box = document.createElement('div'); box.className = 'eqst'; box.innerHTML = statTxt(stt).split(' · ').map((x) => `<span>${x}</span>`).join(''); c1(box); }
       c1(R('칸 강화', `+${S2.enh}`, [['강화', act(() => { const r = g.enhance(sl); if (r !== null) toast(r ? '강화 성공' : '강화 실패'); return r; })]], '强'));
       c1(R('칸 성혼', `★${S2.star}`, [['성혼', act(() => { const r = g.star(sl); if (r) toast({ ok: '성혼 성공', fail: '실패', down: '하락', break: '파괴!' }[r]); return r; }), !!S2.broken]], '魂'));
-      if (it) c1(R('장착 해제', '가방으로', [['해제', act(() => { const r = unequip(G, sl); g.dirtyStats = true; return r; })]], '解'));
-      const cand = G.bag.filter((x) => x.slot === sl).sort((a2, b2) => gearScore(b2, L) - gearScore(a2, L)).slice(0, 8);
-      if (cand.length) { const c2 = card('가방에서 고르기', `${SLOT_NAME[sl]} ${G.bag.filter((x) => x.slot === sl).length}개`); c2(invGrid(cand, it, L)); }
-    } else B.append(note('칸을 누르면 옵션 · 강화 · 성혼 · 가방의 다른 장비를 볼 수 있어요.'));
+      if (it) c1(R('장착 해제', '가방으로', [['해제', act(() => { const r = unequip(G, sl); g.dirtyStats = true; eqCand = null; return r; })]], '解'));
+      const all = G.bag.filter((x) => x.slot === sl).sort((a2, b2) => gearScore(b2, L) - gearScore(a2, L)), cand = all.slice(0, 8);
+      const pick = eqCand !== null ? all.find((x) => x.uid === eqCand) || null : null;
+      if (pick && !cand.includes(pick)) cand.unshift(pick);
+      if (cand.length) {
+        const c2 = card('가방에서 고르기', `${SLOT_NAME[sl]} ${all.length}개 · 누르면 비교`);
+        if (pick) c2(gearCmp(sl, it, pick, L));
+        c2(invGrid(cand, it, L, { sel: pick?.uid, pick: (c) => { eqCand = eqCand === c.uid ? null : c.uid; paintWin(); if (eqCand !== null) requestAnimationFrame(() => document.querySelector('.gr-cmp')?.scrollIntoView({ block: 'nearest' })); } }));
+      }
+    } else B.append(note('칸을 누르면 옵션 · 강화 · 성혼 · 가방의 다른 장비를 볼 수 있어요. ▲ 칸은 가방에 더 좋은 것이 있어요.'));
   } else if (key === 'gear:1') {
     const GA = g.S.gacha;
     // 장비 뽑기 화면 — 위: 지금 뽑기 레벨에서 나오는 가장 높은 등급 장비 그림 · 이름 · 경험치 / 아래: 가진 것 · 등급 확률 · 천장 · 뽑기 셋
@@ -697,22 +754,37 @@ function paintWin() {
     }
   } else if (key === 'gear:3') {
     const G = g.S.gear, L = g.S.hero.lv;
-    const c0 = card(`가방 ${G.bag.length}개`, '누르면 비교 · 장착 · 잠금 · 분해 · ▲ 지금보다 좋음');
-    c0(R('자동 분해', G.autoDis < 0 ? '끔' : `${GRADES[G.autoDis]}품 이하는 주우면 바로 분해`, [['바꾸기', act(() => { G.autoDis = G.autoDis >= 3 ? -1 : G.autoDis + 1; return true; })]], '分'));
-    // v521 부위 고르기 · 정렬 · 일괄 분해
+    bagMark(G);
+    const c0 = card(`가방 ${G.bag.length}개`, `누르면 비교 · 장착 · 잠금 · 분해 · ▲ 지금보다 좋음${bagNew.size ? ` · <span class="gr-newtx">NEW ${bagNew.size}</span>` : ''}`);
+    const rows = document.createElement('div'); rows.className = 'gr-rows'; c0(rows);   // 넓으면 두 줄 나란히
+    rows.append(R('자동 분해', G.autoDis < 0 ? '끔' : `${GRADES[G.autoDis]}품 이하는 주우면 바로 분해`, [['바꾸기', act(() => { G.autoDis = G.autoDis >= 3 ? -1 : G.autoDis + 1; return true; })]], '分'));
+    { const sh = W['item:shard'] || 0;
+      rows.append(R(`뽑기 조각 ${sh}개`, `${SHARD_PER_TICKET}개마다 장비 뽑기권 1장 · 분해하면 모여요`, [['바꾸기', act(() => { const r = g.shardExchange(); if (r) setTimeout(() => toast(`장비 뽑기권 +${r.tickets} · 조각 ${r.left}개 남음`), 0); return !!r; }), sh < SHARD_PER_TICKET]], '片')); }
+    // v521 부위 고르기 · 정렬(gr- 칩 셋: 등급순 · 부위순 · 새로 얻은 순) · 일괄 분해(아래 붙은 띠)
     const chips = document.createElement('div'); chips.className = 'chip-row bagf';
     for (const [k, nm] of [['all', '전부'], ...SLOTS.map((s) => [s, SLOT_NAME[s]])]) { const n = k === 'all' ? G.bag.length : G.bag.filter((x) => x.slot === k).length; if (k !== 'all' && !n) continue; const b = document.createElement('button'); b.className = `chip${bagF === k ? ' on' : ''}`; b.textContent = `${nm} ${n}`; b.onclick = () => { play('click'); bagF = k; paintWin(); }; chips.append(b); }
-    const so = document.createElement('button'); so.className = 'chip sortb'; so.textContent = bagSort === 'g' ? '등급순' : bagSort === 'p' ? '좋은순' : '부위순'; so.onclick = () => { play('click'); bagSort = { g: 'p', p: 's', s: 'g' }[bagSort]; paintWin(); }; chips.append(so);
-    c0(chips);
+    if (!['g', 's', 'n'].includes(bagSort)) bagSort = 'g';
+    const sorts = document.createElement('span'); sorts.className = 'gr-sort'; sorts.innerHTML = '<span class="gr-sortl">정렬</span>';   // 같은 줄 오른쪽(넘치면 다음 줄)
+    for (const [k, nm] of [['g', '등급순'], ['s', '부위순'], ['n', '새로 얻은 순']]) { const b = document.createElement('button'); b.className = `chip gr-so${bagSort === k ? ' on' : ''}`; b.textContent = nm; b.onclick = () => { play('click'); bagSort = k; paintWin(); }; sorts.append(b); }
+    chips.append(sorts); c0(chips);
+    const list = G.bag.filter((x) => bagF === 'all' || x.slot === bagF).sort(bagSort === 'n' ? (a2, b2) => (bagNew.has(b2.uid) - bagNew.has(a2.uid)) || b2.uid - a2.uid : bagSort === 's' ? (a2, b2) => SLOTS.indexOf(a2.slot) - SLOTS.indexOf(b2.slot) || b2.g - a2.g : (a2, b2) => b2.g - a2.g || gearScore(b2, L) - gearScore(a2, L));
+    if (list.length) { c0(invGrid(list.slice(0, bagMore ? 400 : 60), null, L, { nw: bagNew })); if (list.length > 60 && !bagMore) c0(R(`${list.length - 60}개 더 있어요`, '', [['전부 보기', () => { play('click'); bagMore = true; paintWin(); }]], '…')); }
+    else c0(note('가방이 비었어요. 뽑기에서 더 좋은 것은 바로 껴요.'));
+    // 일괄 분해 띠 — 창 아래에 붙어 있다: 몇 개 · 강화석 · 조각을 먼저 보여 주고, 「분해」 → 한 번 더 묻고 → 분해
     const junk = junkOf(G, L, bagJunkG);
     const yld = {}; for (const it of junk) for (const c of dismantleYield(it.g)) yld[c.k] = (yld[c.k] || 0) + c.n;
-    c0(R('일괄 분해', junk.length ? `낀 것보다 나쁜 ${junk.length}개(${GRADES[bagJunkG]}품 이하 · 잠금 빼고) → 강화석 ${yld['item:stone'] || 0}` : `낀 것보다 나쁜 장비가 없어요(${GRADES[bagJunkG]}품 이하)`,
-      [['분해', act(() => { const r = dismantleMany(G, junk.map((x) => x.uid), W); if (r.n) setTimeout(() => toast(`${r.n}개 분해 · 강화석 +${r.out['item:stone'] || 0} · 뽑기 조각 +${r.out['item:shard'] || 0}`), 0); return r.n > 0; }), !junk.length], [`${GRADES[bagJunkG]}품↓`, () => { play('click'); bagJunkG = (bagJunkG + 1) % 7; paintWin(); }]], '分'));
-    { const sh = W['item:shard'] || 0;
-      c0(R(`뽑기 조각 ${sh}개`, `${SHARD_PER_TICKET}개마다 장비 뽑기권 1장 · 분해하면 모여요`, [['바꾸기', act(() => { const r = g.shardExchange(); if (r) setTimeout(() => toast(`장비 뽑기권 +${r.tickets} · 조각 ${r.left}개 남음`), 0); return !!r; }), sh < SHARD_PER_TICKET]], '片')); }
-    const list = G.bag.filter((x) => bagF === 'all' || x.slot === bagF).sort(bagSort === 'p' ? (a2, b2) => gearScore(b2, L) - gearScore(a2, L) : bagSort === 's' ? (a2, b2) => SLOTS.indexOf(a2.slot) - SLOTS.indexOf(b2.slot) || b2.g - a2.g : (a2, b2) => b2.g - a2.g || gearScore(b2, L) - gearScore(a2, L));
-    if (list.length) { c0(invGrid(list.slice(0, bagMore ? 400 : 60), null, L)); if (list.length > 60 && !bagMore) c0(R(`${list.length - 60}개 더 있어요`, '', [['전부 보기', () => { play('click'); bagMore = true; paintWin(); }]], '…')); }
-    else c0(note('가방이 비었어요. 뽑기에서 더 좋은 것은 바로 껴요.'));
+    const sum = `${junk.length}개 · 강화석 +${unit(yld['item:stone'] || 0)} · 조각 +${unit(yld['item:shard'] || 0)}`;
+    if (!junk.length) bagAsk = false;
+    const bar = document.createElement('div'); bar.className = `gr-dis${bagAsk ? ' ask' : ''}`;
+    bar.innerHTML = `<div class="gr-dis-t"><b>${bagAsk ? '정말 분해할까요?' : '일괄 분해'}</b><small>${junk.length ? `${bagAsk ? '' : `낀 것보다 나쁜 ${GRADES[bagJunkG]}품 이하(잠금 빼고) · `}${sum}` : `낀 것보다 나쁜 장비가 없어요(${GRADES[bagJunkG]}품 이하)`}</small></div>`
+      + (bagAsk ? '<button class="btn gr-dis-no">취소</button><button class="btn primary gr-dis-ok">분해</button>'
+        : `<button class="btn gr-dis-g" aria-label="분해할 등급 바꾸기">${GRADES[bagJunkG]}품↓</button><button class="btn primary gr-dis-go" ${junk.length ? '' : 'disabled'}>분해</button>`);
+    const on = (s, f) => { const e = bar.querySelector(s); if (e) e.onclick = f; };
+    on('.gr-dis-g', () => { play('click'); bagJunkG = (bagJunkG + 1) % 7; paintWin(); });
+    on('.gr-dis-go', () => { play('click'); bagAsk = true; paintWin(); });
+    on('.gr-dis-no', () => { play('click'); bagAsk = false; paintWin(); });
+    on('.gr-dis-ok', act(() => { bagAsk = false; const r = dismantleMany(G, junk.map((x) => x.uid), W); if (r.n) setTimeout(() => toast(`${r.n}개 분해 · 강화석 +${r.out['item:stone'] || 0} · 뽑기 조각 +${r.out['item:shard'] || 0}`), 0); return r.n > 0; }));
+    add(bar);
   } else if (key === 'grow:0' || key === 'grow:1' || key === 'grow:2') {
     const sys = COLLECTS[+key.slice(5)], C = g.S.colls[sys], D = COLLECT[sys];
     const c0 = card(`${D.name} 뽑기`, `천장 ${C.pity}/200`);
@@ -966,20 +1038,36 @@ function paintWin() {
       box.onclick = (e) => { const row = e.target.closest('.rk-r[data-uid]'); if (row) { play('click'); playerCard(row.dataset.uid); } };   // v567
     } else box.innerHTML = '<p class="note">오프라인이에요.</p>';
   } else if (key === 'rival:0') {
+    // v6xx 월드보스 — 레이드 무대: 큰 그림 · 불티 · 남은 도전 · 이번 주 합 · 한 번 최고 · 공동 토벌 길 · 주간 보상 표
     const Wb = g.S.wb || { used: 0, best: 0, total: 0, day: '' };
-    const used = Wb.day === String(dayKey(now())) ? Wb.used : 0;
-    const c = card('월드보스', '90초 동안 넣은 피해가 점수');
-    // v535 실제 싸움 — 90초 · 방어 자세(20초 · 피해 ×0.6) ↔ 약점 노출(10초 · ×1.8) · 무력화하면 피해 ×2
-    c(R(`${WBF.name} <small>${WBF.title}</small>`, `오늘 ${used}/3번 · 90초 동안 넣은 피해가 점수 · 약점이 드러난 10초에 무공을 몰아 쓰세요`, [['도전', () => { play('click'); if (!g.enterDungeon('wboss')) toast(g.canDungeon('wboss') || '들어갈 수 없어요'); }, used >= 3 || !!g.canDungeon('wboss')]], '魔'));
-    c(statGrid([['이번 주 점수 합', fmt(Wb.total)], ['한 번 최고', fmt(Wb.best)]]));
-    // v576 무림 공동 토벌 — 이번 주 모든 무인의 점수 합 · 단계 보상
-    { const cc = card('무림 공동 토벌', '이번 주 모든 무인의 점수를 모아요 · 단계마다 각자 한 번');
-      const T = wbComState, got = g.wbCommunityGot(), tot = T?.sum || 0, nextS = WB_COMMUNITY.find((x) => tot < x.at);
-      const bar = document.createElement('div'); bar.className = 'achbar'; const top = nextS ? nextS.at : WB_COMMUNITY.at(-1).at;
-      bar.innerHTML = `<i style="width:${Math.min(100, (tot / top) * 100)}%"></i><span>${T ? `${unit(tot)} / ${unit(top)} · ${T.n}명` : net.online ? '불러오는 중…' : '오프라인'}</span>`; cc(bar);
-      const reach = WB_COMMUNITY.filter((x) => tot >= x.at).length;
-      cc(R('단계 보상', WB_COMMUNITY.map((x, i) => `${unit(x.at)} → 뽑기권 ${x.tix}${i < got ? ' ✓' : ''}`).join(' · '), [['받기', act(() => { const r = g.wbCommunityClaim(tot); if (r) { play('rare', 4); toast(`공동 토벌 ${r.n}단계 — 뽑기권 ${r.tix}`); } return r; }), reach <= got]], '衆'));
+    const used = Wb.day === String(dayKey(now())) ? Wb.used : 0, wkOn = Wb.week == null || Wb.week === g.S.qWeek, left = Math.max(0, WBOSS.tries - used);
+    const wkTot = wkOn ? Wb.total || 0 : 0, wkBest = wkOn ? Wb.best || 0 : 0;
+    const hero = document.createElement('div'); hero.className = `wb-hero${opt.gfx === 'low' ? ' low' : ''}`;
+    hero.innerHTML = `<div class="wb-sky"></div><div class="wb-emb">${Array.from({ length: 14 }, (_, i) => `<i style="--x:${(i * 37) % 100}%;--y:${8 + (i * 53) % 80}%;--t:${3 + (i % 5) * 0.7}s;--dl:${-(i * 0.9).toFixed(1)}s;--s:${2 + (i % 3)}px"></i>`).join('')}</div>
+      <img class="wb-art" src="art/s2/chb/wb1.webp" alt="${esc(WBF.name)}" decoding="async">
+      <div class="wb-info"><small class="wb-tag">WORLD BOSS · ${WBOSS.fightMs / 1000}초</small><h3 class="wb-nm">${esc(WBF.name)}<em>${esc(WBF.title)}</em></h3>
+        <div class="wb-tries" data-left="${left}">${Array.from({ length: WBOSS.tries }, (_, i) => `<i class="${i < left ? 'on' : ''}"></i>`).join('')}<span>오늘 남은 도전 <b>${left}</b>/${WBOSS.tries}</span></div>
+        <div class="wb-nums"><div><small>이번 주 점수 합</small><b>${fmt(wkTot)}</b></div><div><small>한 번 최고</small><b>${fmt(wkBest)}</b></div></div></div>`;
+    const go = rowEl('', `오늘 ${used}/${WBOSS.tries}번 · 약점이 드러난 10초에 무공을 몰아 쓰세요`, [['도전', () => { play('click'); if (!g.enterDungeon('wboss')) toast(g.canDungeon('wboss') || '들어갈 수 없어요'); }, used >= WBOSS.tries || !!g.canDungeon('wboss')]]);
+    go.classList.add('wb-go'); hero.querySelector('.wb-info').append(go); B.append(hero);
+    // v576 무림 공동 토벌 — 이번 주 모든 무인의 점수 합 · 단계 보상(길 위의 표지 · 받을 수 있으면 빛남)
+    { const cc = card('무림 공동 토벌', '단계마다 각자 한 번');
+      const T = wbComState, got = g.wbCommunityGot(), tot = T?.sum || 0, top = WB_COMMUNITY.at(-1).at, reach = WB_COMMUNITY.filter((x) => tot >= x.at).length;
+      const pos = (v) => Math.min(100, Math.sqrt(v / top) * 100);   // 단계가 5만 · 25만 · 100만이라 제곱근 눈금(앞 단계가 한쪽에 몰리지 않게)
+      const tr = document.createElement('div'); tr.className = 'wb-track';
+      tr.innerHTML = `<div class="wb-rail"><i style="width:${pos(tot)}%"></i></div>${WB_COMMUNITY.map((x, i) => `<div class="wb-stg ${i < got ? 'got' : i < reach ? 'can' : ''}${i === WB_COMMUNITY.length - 1 ? ' end' : ''}" style="left:${pos(x.at)}%"><b>${i + 1}</b><span>${unit(x.at)}</span><em>뽑기권 ${x.tix}${i < got ? ' ✓' : ''}</em></div>`).join('')}`;
+      const ts = document.createElement('div'); ts.className = 'wb-tsum'; ts.innerHTML = `이번 주 모든 무인의 점수 합 · ${T ? `<b>${unit(tot)}</b> · ${T.n}명` : net.online ? '불러오는 중…' : '오프라인'}`;
+      cc(ts, tr);
+      cc(R('단계 보상', reach > got ? `${reach - got}단계 받을 수 있어요` : reach >= WB_COMMUNITY.length ? '다 받았어요' : `다음 ${unit(WB_COMMUNITY[reach].at)} → 뽑기권 ${WB_COMMUNITY[reach].tix}`, [['받기', act(() => { const r = g.wbCommunityClaim(tot); if (r) { play('rare', 4); toast(`공동 토벌 ${r.n}단계 — 뽑기권 ${r.tix}`); } return r; }), reach <= got]], '衆'));
       if (net.online && (!T || Date.now() - T.at > 30000)) net.wbTotal(wkStr(Date.now())).then((r) => { wbComState = { ...r, at: Date.now() }; if (open === 'social') paintWin(); }).catch(() => { wbComState = { sum: 0, n: 0, at: Date.now() }; });
+    }
+    // 주간 순위 보상 — 지금 내 자리(알면) · 모르면 친 주엔 적어도 맨 아래 칸
+    { const cw = card('주간 순위 보상', '월요일에 지난주 순위로 · 서열 칸에서 받기');
+      const rk = rankCache[`wb:${wkStr(Date.now())}`]?.r?.me || 0, ti = rk ? WEEK_REW.wb.findIndex(([n]) => rk <= n) : wkTot > 0 ? WEEK_REW.wb.length - 1 : -1;
+      const tb = document.createElement('div'); tb.className = 'wb-tiers';
+      tb.innerHTML = `<div class="wb-th"><span>순위</span><b>뽑기권</b></div>` + WEEK_REW.wb.map(([n, tix], i) => { const lo = i ? WEEK_REW.wb[i - 1][0] + 1 : 1; return `<div class="${i === ti ? 'on' : ''}"><span>${n === Infinity ? `${lo}위~` : lo === n ? `${n}위` : `${lo}–${n}위`}${i === ti ? `<em>${rk ? `지금 ${rk}위` : '적어도'}</em>` : ''}</span><b>${tix}</b></div>`; }).join('');
+      cw(tb);
+      if (net.online && !rankCache[`wb:${wkStr(Date.now())}`]) rankLoad('wb').then((r) => { if (r?.me && open === 'social' && keyOf() === 'rival:0') paintWin(); }).catch(() => {});
     }
     B.append(note('주간 점수는 칠 때마다 서버 서열(무림 → 서열 → 이번 주 월드보스)에 올라가요.'));
   } else if (key === 'rival:1') {
@@ -1135,32 +1223,42 @@ function paintWin() {
     const T = g.today(), open2 = T.filter((x) => x.open), left = open2.filter((x) => !x.done).length;
     const c0 = card('오늘 할 일', left ? `${left}개 남음 · 자정에 새로` : '오늘 할 일을 다 했어요!');
     // v545 하루 상자 — 다 하면 받기(뽑기권 · 은자)
-    const TC = g.todayChest(), box = document.createElement('div'); box.className = `td-chest ${TC.can ? 'can' : TC.got ? 'got' : ''}`;
-    box.innerHTML = `<i>${TC.got ? '📭' : '🎁'}</i><div><b>하루 상자</b><small>${TC.got ? '오늘은 받았어요 · 자정에 새로' : TC.can ? '다 했어요 — 눌러서 열기!' : `${TC.left}개 더 하면 열려요`}</small><span>장비 뽑기권 3 · 은자(사냥 30분 몫)</span></div>`;
-    if (TC.can) box.onclick = () => { const r = g.claimToday(); if (!r) return; save(); play('rare', 5); buzz(60); box.classList.add('open'); setTimeout(() => { pop('하루 상자', `<div class="td-got"><span><i class="coin t"></i>장비 뽑기권 <b>${r.tix}</b></span><span><i class="coin s"></i>은자 <b>${unit(r.gold)}</b></span></div><p class="note">내일 또 — 자정에 새로</p>`); paintWin(); paintHud(); }, 650); };
+    const TC = g.todayChest(), box = document.createElement('div'), nOpen = open2.length, nDone = nOpen - left;
+    box.className = `td-chest ms-tchest ${TC.can ? 'can' : TC.got ? 'got' : 'shut'}`; box.dataset.st = TC.got ? 'opened' : TC.can ? 'ready' : 'closed';   // 상자 그림: 닫힘 · 빛남(열 수 있음) · 열림
+    box.innerHTML = `<i class="ms-chest"><img alt="하루 상자" src="art/s2/ui/chest.webp">${TC.got ? '<em>✓</em>' : ''}</i><div class="ms-tc"><b>하루 상자</b><small>${TC.got ? '오늘은 받았어요 · 자정에 새로' : TC.can ? '다 했어요 — 눌러서 열기!' : `${TC.left}개 더 하면 열려요`}</small>${msBar(nOpen ? nDone / nOpen : 1, `${nDone} / ${nOpen}`)}${msChips({ 'ticket:gear': 3, gold: 30 })}</div>`;
+    if (TC.can) box.onclick = () => { const r = g.claimToday(); if (!r) return; save(); play('rare', 5); buzz(60); box.classList.add('open'); box.dataset.st = 'opened'; setTimeout(() => { pop('하루 상자', `<div class="td-got"><span><i class="coin t"></i>장비 뽑기권 <b>${r.tix}</b></span><span><i class="coin s"></i>은자 <b>${unit(r.gold)}</b></span></div><p class="note">내일 또 — 자정에 새로</p>`); paintWin(); paintHud(); }, 650); };
     c0(box);
     const ic = { attend: '印', daily: '日', dungeon: '洞', raid: '討', wboss: '龍', pvp: '鬪', exped: '征', ach: '功' };
     for (const x of T) {
       const prog = x.of ? `<div class="achbar"><i style="width:${(x.n / x.of) * 100}%"></i><span>${x.n} / ${x.of}</span></div>` : x.n ? `받을 것 ${x.n}개` : '받을 것 없음';
       const r = R(x.name, x.open ? prog : `<span class="dn">${esc(x.why)} 열려요</span>`, x.open && !x.done ? [['가기', () => { play('click'); openKey(x.go); }]] : [], x.done ? '✓' : ic[x.id] || '·');
-      r.classList.add('td-row'); if (x.done) r.classList.add('td-done'); if (!x.open) r.style.opacity = '.5';
+      r.classList.add('td-row', 'ms-row', x.done ? 'ms-done' : 'ms-on'); if (x.done) r.classList.add('td-done'); if (!x.open) r.style.opacity = '.5';
       c0(r);
     }
   } else if (key === 'ach:0') {
     // v538 업적 — 종류마다 지금 단계(진행 막대 · 보상) · 끝난 단계 수 · 모두 받기
     const B = g.books.ach, can = B.claimable();
     const c0 = card('업적', `${ACH.filter((a) => B.get(a.id).got).length} / ${ACH.length} 받음`);
-    c0(R('받을 업적', can.length ? `${can.length}개 — 뽑기권 · 강화석 · 사냥 보상` : '아직 없어요', [['모두 받기', act(() => { let n = 0; for (const id of B.claimable()) if (g.claimMission('ach', id)) n++; if (n) { play('coin'); setTimeout(() => toast(`업적 ${n}개 받음`), 0); } return n > 0; }), !can.length]], '功'));
-    const c1 = card('목록', '단계를 깨면 다음 단계가 열려요');
-    for (const ev of Object.keys(ACHIEVE)) {
-      const list = ACH.filter((a) => a.ev === ev), cur = list.find((a) => !B.get(a.id).got) || list.at(-1), st = B.get(cur.id), all = list.every((a) => B.get(a.id).got);
-      const pr = ev === 'level' ? Math.min(1, g.S.hero.lv / +cur.cond.split('>=')[1]) : cur.best ? (st.done ? 1 : Math.min(1, g.achBest(ev) / +cur.cond.split('>=')[1])) : Math.min(1, (st.p || 0) / cur.need);
-      const progTxt = ev === 'level' ? `Lv ${g.S.hero.lv} / ${cur.cond.split('>=')[1].trim()}` : cur.best ? (st.done ? '달성' : `${ev === 'combo' ? '최고 ' : ''}${unit(g.achBest(ev))} / ${cur.cond.split('>=')[1].trim()}`) : `${unit(st.p || 0)} / ${unit(cur.need)}`;   // v571 최고형
-      const r = R(`${esc(cur.name)} <small>${list.filter((a) => B.get(a.id).got).length}/${list.length}단계</small>`,
-        all ? '모두 끝냄' : `<div class="achbar"><i style="width:${pr * 100}%"></i><span>${progTxt}</span></div>보상 장비 뽑기권 ${cur.items['ticket:gear']} · 강화석 ${cur.items['item:stone']} · 사냥 ${cur.huntMin}분`,
-        all ? [] : [['받기', act(() => g.claimMission('ach', cur.id)), !(st.done && !st.got)]], st.done && !st.got ? '★' : '功');
-      if (st.done && !st.got) r.classList.add('can'); if (all) r.style.opacity = '.6';
-      c1(r);
+    c0(msAll('ach', can, '받을 업적', '업적'));
+    // 종류마다 묶음(작은 제목) · 지금 단계 진행 막대 + 단계 점(●●○○)
+    const CATS = [['사냥 · 두목', ['kill', 'combo', 'chboss', 'raid', 'wboss']], ['성장', ['level', 'stat', 'fate', 'enhance', 'star']], ['뽑기 · 모음', ['gacha', 'pull', 'coll', 'shard', 'shop']], ['하루 · 함께', ['dungeon', 'today', 'party', 'pass', 'guild', 'graid', 'revenge', 'friendly']]];
+    const seen = new Set(CATS.flatMap((x) => x[1])), rest = Object.keys(ACHIEVE).filter((e) => !seen.has(e)); if (rest.length) CATS.push(['그 밖', rest]);
+    for (const [cn, evs0] of CATS) {
+      const evs = evs0.filter((e) => ACHIEVE[e]), all0 = ACH.filter((a) => evs.includes(a.ev)); if (!evs.length) continue;
+      const nCan = all0.filter((a) => B.get(a.id).done && !B.get(a.id).got).length;
+      const c1 = card(cn, `${all0.filter((a) => B.get(a.id).got).length} / ${all0.length}단계${nCan ? ` · 받을 ${nCan}` : ''}`);
+      for (const ev of evs) {
+        const list = ACH.filter((a) => a.ev === ev), cur = list.find((a) => !B.get(a.id).got) || list.at(-1), st = B.get(cur.id), all = list.every((a) => B.get(a.id).got), nGot = list.filter((a) => B.get(a.id).got).length;
+        const pr = ev === 'level' ? Math.min(1, g.S.hero.lv / +cur.cond.split('>=')[1]) : cur.best ? (st.done ? 1 : Math.min(1, g.achBest(ev) / +cur.cond.split('>=')[1])) : Math.min(1, (st.p || 0) / cur.need);
+        const progTxt = ev === 'level' ? `Lv ${g.S.hero.lv} / ${cur.cond.split('>=')[1].trim()}` : cur.best ? (st.done ? '달성' : `${ev === 'combo' ? '최고 ' : ''}${unit(g.achBest(ev))} / ${cur.cond.split('>=')[1].trim()}`) : `${unit(st.p || 0)} / ${unit(cur.need)}`;   // v571 최고형
+        const dots = `<span class="ms-dots" role="img" aria-label="${nGot}/${list.length}단계">${list.map((a) => `<i class="${B.get(a.id).got ? 'on' : B.get(a.id).done ? 'can' : ''}"></i>`).join('')}</span>`;
+        const can1 = st.done && !st.got;
+        const r = R(`${esc(cur.name)} <small>${nGot}/${list.length}단계</small>`,
+          all ? `<div class="ms-prog"><span class="ms-ok">✓ 모두 끝냄</span>${dots}</div>` : `<div class="ms-prog">${msBar(pr, progTxt)}${dots}</div>${msChips(msRew(cur))}`,
+          all ? [] : [['받기', act(() => g.claimMission('ach', cur.id)), !can1]], all ? '✓' : can1 ? 'i:medal:★' : 'i:medal:功');
+        r.classList.add('ms-row', all ? 'ms-done' : can1 ? 'ms-can' : 'ms-on'); if (can1) r.classList.add('can');
+        c1(r);
+      }
     }
   } else if (key === 'shop:0') {
     // 상점 — 날마다 은자로 사는 물건(하루 살 수 있는 수 · 자정에 새로) · 맨 위는 값 없는 덤
@@ -1232,14 +1330,20 @@ function paintWin() {
   } else if (key === 'mission:0') {
     const cur = guideCurrent(g.S.q.guide), c = card('길잡이', cur ? `지금 ${cur.id.slice(1)}번` : '다 끝냄');
     for (const q of GUIDE) {
-      const s = g.S.q.guide[q.id], now2 = cur && q.id === cur.id;
-      const r = R(`${q.id.slice(1)}. ${guideLabel(q)}`, s?.got ? '받음' : s?.done ? '끝 — 받기' : s ? `${s.p}/${q.need}` : '', now2 && s?.done ? [['받기', () => onGuide()]] : [], s?.got ? '✓' : now2 ? 'i:mission:▶' : '·');
-      r.classList.add('quest-row'); if (now2) r.classList.add('now'); c(r);
+      const s = g.S.q.guide[q.id], now2 = cur && q.id === cur.id, can1 = !!(now2 && s?.done && !s?.got), lvT = q.ev === 'level' ? +q.cond.split('>=')[1] : 0;
+      const prog = s?.got ? '<span class="ms-ok">✓ 받음</span>' : now2 ? msBar(can1 ? 1 : lvT ? g.S.hero.lv / lvT : (s?.p || 0) / q.need, can1 ? '끝 — 받기' : lvT ? `Lv ${g.S.hero.lv} / ${lvT}` : `${s?.p || 0} / ${q.need}`) : '';
+      const r = R(`${q.id.slice(1)}. ${guideLabel(q)}`, `${prog}${s?.got ? '' : msChips(msRew(q, 'gold'))}`, can1 ? [['받기', () => onGuide()]] : [], s?.got ? '✓' : now2 ? 'i:mission:▶' : '·');
+      r.classList.add('quest-row', 'ms-row', s?.got ? 'ms-done' : can1 ? 'ms-can' : now2 ? 'ms-on' : 'ms-lock'); if (now2) r.classList.add('now'); c(r);
     }
   } else if (key === 'mission:1' || key === 'mission:2') {
     const book = key === 'mission:1' ? 'daily' : 'weekly', list = key === 'mission:1' ? DAILY_MISSIONS : WEEKLY_MISSIONS;
     const c = card(key === 'mission:1' ? '일일 임무' : '주간 임무', key === 'mission:1' ? '매일 자정에 새로' : '월요일에 새로');
-    for (const q of list) { const s = g.books[book].get(q.id); c(R(guideLabel(q), s.got ? '받음' : `${s.p}/${q.need}`, [['받기', act(() => g.claimMission(book, q.id)), !s.done || s.got]], s.got ? '✓' : `i:mission:${s.done ? '!' : '·'}`)); }
+    const canIds = g.books[book].claimable(); if (canIds.length >= 2) c(msAll(book, canIds, '받을 임무', key === 'mission:1' ? '일일 임무' : '주간 임무'));
+    for (const q of list) {
+      const s = g.books[book].get(q.id), can1 = s.done && !s.got, p = Math.min(s.p || 0, q.need);
+      const r = R(guideLabel(q), `${s.got ? '<span class="ms-ok">✓ 받음</span>' : msBar(p / q.need, `${unit(p)} / ${unit(q.need)}`)}${msChips(msRew(q))}`, [['받기', act(() => g.claimMission(book, q.id)), !s.done || s.got]], s.got ? '✓' : `i:mission:${s.done ? '!' : '·'}`);
+      r.classList.add('ms-row', s.got ? 'ms-done' : can1 ? 'ms-can' : 'ms-on'); if (can1) r.classList.add('can'); c(r);
+    }
   } else if (key === 'mission:3') {
     const tg = (label, k, desc, ic) => R(label, desc, [[opt[k] ? '켜짐' : '꺼짐', () => { opt[k] = !opt[k]; saveOpt(); play('click'); if (k === 'bgm') bgm(chapterOf(g.zoneLv())); paintWin(); paintHud(); }]], ic);
     const c0 = card('진동');
@@ -1445,18 +1549,38 @@ function itemPop(c, L) {
     ['장착', () => { if (equip(G, c.uid)) { g.dirtyStats = true; g.emit('equip'); toast(`${SLOT_NAME[c.slot]} 낌`); save(); } }],
   ]);
 }
-function invGrid(items, cur, L) {
+// o: { pick(c) — 누르면 비교 창 대신 이것 · sel — 고른 uid · nw — 「NEW」 uid 묶음 }
+function invGrid(items, cur, L, o = {}) {
   const G = g.S.gear, GC2 = ['#a8a29e', '#7cc47a', '#6aa8e0', '#b27ae0', '#e8c26a', '#e06a5a', '#ffffff'];
   const grid = document.createElement('div'); grid.className = 'inv-grid';
   for (const c of items) {
-    const now2 = cur !== undefined && cur !== null ? cur : G.eq[c.slot], better = !now2 || gearScore(c, L) > gearScore(now2, L);
-    const b = document.createElement('button'); b.className = `inv-tile${better ? ' up' : ''}`; b.style.setProperty('--gc', GC2[c.g] || '#fff');
-    b.innerHTML = `<img src="${eqIcon(c.slot, c)}" alt="${SLOT_NAME[c.slot]}" style="width:46px;height:46px;object-fit:contain;filter:drop-shadow(0 2px 2px rgba(0,0,0,.6))"><b>${GRADES[c.g]}품${c.up ? '上' : ''}</b><small>${SLOT_NAME[c.slot]}${better ? ' ▲' : ''}</small>`;
+    const now2 = cur !== undefined && cur !== null ? cur : G.eq[c.slot], better = !now2 || gearScore(c, L) > gearScore(now2, L), nw = !!o.nw?.has(c.uid);
+    const b = document.createElement('button'); b.dataset.uid = String(c.uid); b.className = `inv-tile gr-tile g${c.g}${better ? ' up' : ''}${o.sel === c.uid ? ' gr-pick' : ''}`; b.style.setProperty('--gc', GC2[c.g] || '#fff');
+    b.innerHTML = `<img src="${eqIcon(c.slot, c)}" alt="${SLOT_NAME[c.slot]}" loading="lazy" style="width:46px;height:46px;object-fit:contain;filter:drop-shadow(0 2px 2px rgba(0,0,0,.6))"><b>${GRADES[c.g]}품${c.up ? '上' : ''}</b><small>${SLOT_NAME[c.slot]}${better ? ' <em class="gr-tup">▲</em>' : ''}</small>${nw ? '<i class="gr-new" aria-label="새로 얻음">NEW</i>' : ''}`;
     if (c.lock) b.classList.add('locked');
-    b.onclick = () => { play('click'); itemPop(c, L); };   // v521 바로 끼지 않고 비교 창부터
+    b.onclick = () => {
+      play('click');
+      if (nw) { o.nw.delete(c.uid); b.querySelector('.gr-new')?.remove(); }
+      if (o.pick) o.pick(c); else itemPop(c, L);   // v521 바로 끼지 않고 비교 창부터
+    };
     grid.append(b);
   }
   return grid;
+}
+// 장착 창 비교 — 지금 | 바꾸면 · 스탯마다 차이(초록 ▲ · 빨강 ▼) · 전투력 변화 · 「끼기」(칸 강화 · 성혼은 칸에 붙어 그대로)
+function gearCmp(sl, cur, c, L) {
+  const G = g.S.gear, S2 = G.slots[sl], a = cur ? itemStats(cur, S2, L) : {}, b = itemStats(c, S2, L);
+  const keys = [...new Set([...Object.keys(b), ...Object.keys(a)])];
+  const p0 = g.power(), p1 = powerWith(sl, c), dp = Math.round(p1) - Math.round(p0);
+  const side = (it, lab) => `<div class="gr-cmp-it${it ? '' : ' none'}" style="--gc:${it ? GX_COL[it.g] : '#555'}"><img src="${eqIcon(sl, it)}" alt=""><div><small>${lab}</small><b class="${it ? `g${it.g}t` : ''}">${it ? `${GRADES[it.g]}품${it.up ? '上' : ''}` : '비어 있음'}</b></div></div>`;
+  const rows = keys.map((k) => { const x = a[k] || 0, y = b[k] || 0, d = y - x; return `<div class="gr-cmp-r"><span>${STATS[k]?.name || k}</span><b>${x ? fmtStat(k, x) : '–'}</b><b>${y ? fmtStat(k, y) : '–'}</b><em class="${d > 0 ? 'up' : d < 0 ? 'dn' : ''}">${d ? `${d > 0 ? '▲ +' : '▼ −'}${fmtStat(k, Math.abs(d))}` : '='}</em></div>`; }).join('');
+  const d = document.createElement('div'); d.className = 'gr-cmp';
+  d.innerHTML = `<div class="gr-cmp-h">${side(cur, '지금')}<span class="gr-cmp-ar">→</span>${side(c, '바꾸면')}</div>`
+    + `<div class="gr-cmp-rows"><div class="gr-cmp-r hd"><span></span><b>지금</b><b>바꾸면</b><em>차이</em></div>${rows}</div>`
+    + `<div class="gr-cmp-f"><div class="gr-cmp-pw ${dp > 0 ? 'up' : dp < 0 ? 'dn' : ''}"><small>전투력 ${unit(p0)} → ${unit(p1)}</small><b>${dp > 0 ? '▲ +' : dp < 0 ? '▼ −' : ''}${dp ? unit(Math.abs(dp)) : '그대로'}</b></div><button class="btn gr-cmp-more">자세히</button><button class="btn primary gr-cmp-eq">끼기</button></div>`;
+  d.querySelector('.gr-cmp-more').onclick = () => { play('click'); itemPop(c, L); };
+  d.querySelector('.gr-cmp-eq').onclick = act(() => { const r = equip(G, c.uid); if (r) { g.dirtyStats = true; g.emit('equip'); eqCand = null; setTimeout(() => toast(`${SLOT_NAME[sl]} 낌 · 전투력 ${unit(p0)} → ${unit(g.power())}`), 0); } return r; });
+  return d;
 }
 
 // ── 화면 귀퉁이(HUD) ── 단추는 한 번 만들고 글자만 바꾼다(누르는 사이 다시 그려지면 눌림이 사라진다)
@@ -1592,6 +1716,7 @@ function paintHud() {
   const ch2 = $('contest-hud');
   document.body.classList.toggle('indg', !!dgs);
   ch2.classList.toggle('hidden', !boss && !dgs); if (!boss) ch2.classList.remove('chb'); document.body.classList.toggle('bossing', boss || !!dgs); ch2.classList.toggle('dg', !!dgs); $('dg-leave').classList.toggle('hidden', !dgs);   // 두목전엔 길잡이 카드를 숨겨 두목 막대에 눈이 가게   // 두목전일 때만(평소 진행은 위 가운데 막대)
+  wbHud(dgs?.type === 'wboss');
   if (dgs) {
     $('contest-title').textContent = dgs.title;
     $('contest-fill').style.width = `${dgs.p * 100}%`; $('contest-pct').textContent = `${Math.floor(dgs.p * 100)}%`;
@@ -2879,6 +3004,31 @@ function wbIntro() {
   d.innerHTML = `<div class="cb-bg"></div><img src="art/s2/chb/wb1.webp" alt="${esc(WBF.name)}"><div class="cb-t"><small>WORLD BOSS</small><b>${esc(WBF.name)}</b><span>${esc(WBF.title)} · 90초</span></div>`;
   $('battle').append(d); freezeUntil = now() + 1500; setTimeout(() => d.remove(), 2000); play('rare', 6); buzz(160);
 }
+// v6xx 월드보스 위 띠 — 넣은 피해가 굴러 올라가는 큰 수 · 90초 시계 고리(싸움의 제한 시간) · 약점이면 빛남
+const wbHudSt = { on: false, shown: 0, raf: 0 };
+function wbHud(on) {
+  const H = $('contest-hud'); H.classList.toggle('wbf', on);
+  if (!on) { wbHudSt.on = false; return; }
+  if (!document.querySelector('#wb-ring')) {
+    const ring = document.createElement('div'); ring.id = 'wb-ring'; ring.className = 'wb-ring';
+    ring.innerHTML = '<svg viewBox="0 0 40 40"><circle class="wb-rbg" cx="20" cy="20" r="17"/><circle class="wb-rfg" cx="20" cy="20" r="17" pathLength="100"/></svg><b>90</b>';
+    const dm = document.createElement('div'); dm.id = 'wb-dmg'; dm.className = 'wb-dmg'; dm.innerHTML = '<small>넣은 피해</small><b>0</b>';
+    H.prepend(ring); H.querySelector('.ch-h').after(dm);
+  }
+  if (!wbHudSt.on) { wbHudSt.on = true; wbHudSt.shown = 0; cancelAnimationFrame(wbHudSt.raf); wbHudSt.raf = requestAnimationFrame(wbHudTick); }
+}
+function wbHudTick() {
+  const d = g?.dg; if (!wbHudSt.on || !d || d.type !== 'wboss') { wbHudSt.on = false; return; }
+  const F = d.F, dmg = Math.round(F.dmgOut * WBF.sideX), lim = d.limitMs || F.limitMs || WBOSS.fightMs, left = Math.max(0, lim - F.t);
+  const S = wbHudSt; S.shown = opt.gfx === 'low' ? dmg : S.shown + Math.max(1, (dmg - S.shown) * 0.18); if (S.shown > dmg) S.shown = dmg;
+  const ring = document.querySelector('#wb-ring'), dm = document.querySelector('#wb-dmg');
+  if (ring && dm) {
+    ring.querySelector('.wb-rfg').style.strokeDashoffset = String(100 - (left / lim) * 100);
+    ring.querySelector('b').textContent = String(Math.ceil(left / 1000)); ring.classList.toggle('late', left < 10000);
+    dm.querySelector('b').textContent = unit(Math.round(S.shown)); dm.classList.toggle('weak', !!F.wbW);
+  }
+  S.raf = requestAnimationFrame(wbHudTick);
+}
 function chbBanner(big, small, kind) {
   for (const o of document.querySelectorAll('.cbban')) o.remove();
   const d = document.createElement('div'); d.className = `cbban ${kind}`; d.innerHTML = `<b>${esc(big)}</b>${small ? `<span>${esc(small)}</span>` : ''}`;
@@ -2893,19 +3043,23 @@ function dgBanner(title, st) {
 // v531 던전 결과 — 단계 결과 창과 같은 틀(#res)
 const DG_GOAL = { kills: '몰려오는 적을 정해진 수만큼', boss: '두목 처치', wipe: '모든 적 처치', survive: '쓰러지지 않고 버티기' };
 function showWbResult(f) {
+  // v6xx 월드보스 결과 카드 — 붉은 판 · 보스 그림 · 넣은 피해 큰 수 · 점수 · 이번 주 서열(알면) · 받는 것(패스 점수 · 공동 토벌 몫 · 주간 보상 예상)
   const R = $('res'), auto = opt.autoNext; play('clear');
-  const tile = (cls, n, label, i) => `<div class="rt" style="--d:${0.35 + i * 0.12}s"><i class="coin ${cls}"></i><b data-n="${n}">0</b><small>${label}</small></div>`;
-  R.className = 'open win';
-  R.innerHTML = `<div class="rp"><div class="rays"></div>
-      <div class="rsub">월드보스 · ${esc(WBF.name)}</div>
+  const rkKey = `wb:${wkStr(Date.now())}`, rkOf = () => rankCache[rkKey]?.r?.me || 0;
+  const rkTxt = () => { const rk = rkOf(); return rk ? `${rk}위 · 주간 보상 뽑기권 ${g.wbRankReward(rk)}` : net.online ? '불러오는 중…' : '오프라인 — 주간 보상 적어도 뽑기권 ' + WEEK_REW.wb.at(-1)[1]; };
+  R.className = 'open win wbr';
+  R.innerHTML = `<div class="rp wb-res"><div class="wb-rsky"></div><img class="wb-rart" src="art/s2/chb/wb1.webp" alt="${esc(WBF.name)}">
+      <div class="wb-rbody"><div class="rsub">월드보스 · ${esc(WBF.name)}</div>
       <div class="rtitle">${f.gaveUp ? '물러났어요' : 'WORLD BOSS'}</div>
-      <div class="rmeta"><span>싸운 시간 <b>${(f.ms / 1000).toFixed(0)}초</b></span>${f.deaths ? `<span>쓰러짐 <b>${f.deaths}</b></span>` : ''}<span>한 번 최고 <b>${unit(f.best)}</b></span><span>이번 주 합 <b>${unit(f.total)}</b></span></div>
-      <div class="rtiles">${tile('x', f.dmg, '넣은 피해', 0)}${tile('s', f.score, '보스 점수', 1)}</div>
-      ${f.score >= f.best && f.score > 0 ? '<div class="rnew">오늘의 최고 기록!</div>' : ''}
+      <div class="wb-rdmg"><small>넣은 피해</small><b data-n="${f.dmg}">0</b></div>
+      <div class="wb-rgrid"><div><small>보스 점수</small><b>${unit(f.score)}</b></div><div><small>한 번 최고</small><b>${fmt(f.best)}</b></div><div><small>이번 주 합</small><b>${fmt(f.total)}</b></div><div><small>싸운 시간</small><b>${(f.ms / 1000).toFixed(0)}초${f.deaths ? ` · 쓰러짐 ${f.deaths}` : ''}</b></div></div>
+      <div class="wb-rrew"><span>강호 패스 <b>+${PASS_PTS.wboss}</b></span><span>공동 토벌 <b>+${unit(f.score)}</b></span><span>이번 주 서열 <b id="wb-rrk">${rkTxt()}</b></span></div>
+      ${f.score >= f.best && f.score > 0 ? '<div class="rnew">이번 주 최고 기록!</div>' : ''}
       <div class="racts"><button class="btn primary rgo" id="rout"><span>사냥터로</span><i class="rbar"></i></button></div>
-      <label class="rauto"><input type="checkbox" id="rautochk" ${auto ? 'checked' : ''}> 3초 뒤 자동 진행</label></div>`;
-  const t0 = now();
-  for (const b of R.querySelectorAll('.rt b')) { const n = +b.dataset.n, d = parseFloat(b.parentNode.style.getPropertyValue('--d')) * 1000; const tick = () => { const a = Math.min(1, Math.max(0, (now() - t0 - d) / 900)); b.textContent = unit(Math.round(n * (1 - (1 - a) ** 3))); if (a < 1 && R.classList.contains('open')) requestAnimationFrame(tick); }; tick(); }
+      <label class="rauto"><input type="checkbox" id="rautochk" ${auto ? 'checked' : ''}> 3초 뒤 자동 진행</label></div></div>`;
+  const t0 = now(), b = R.querySelector('.wb-rdmg b'), n = f.dmg;
+  const tick = () => { const a = Math.min(1, Math.max(0, (now() - t0 - 250) / 1100)); b.textContent = unit(Math.round(n * (1 - (1 - a) ** 3))); if (a < 1 && R.classList.contains('open')) requestAnimationFrame(tick); }; tick();
+  if (net.online) { delete rankCache[rkKey]; setTimeout(() => rankLoad('wb').then(() => { const e = document.querySelector('#wb-rrk'); if (e) e.textContent = rkTxt(); }).catch(() => { const e = document.querySelector('#wb-rrk'); if (e) e.textContent = '불러오지 못했어요'; }), 1500); }   // 점수가 서버에 올라간 뒤에 센다
   resTimer = auto ? now() + RES_MS + 1500 : 0; R.classList.toggle('timed', auto);
   $('rautochk').onchange = (e) => { opt.autoNext = e.target.checked; saveOpt(); resTimer = opt.autoNext ? now() + RES_MS : 0; };
   $('rout').onclick = () => { play('click'); closeResult(); };
