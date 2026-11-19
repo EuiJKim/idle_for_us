@@ -1491,6 +1491,55 @@ console.log('\n=== v592 자동 성장 — 마스터리 · 경지 ===');
   const r2 = g2.autoGrow({ train: false, claim: false, daily: false }); ok(r2.train === 0 && g2.S.realm.lv === r0, '끄면 안 함');
 }
 
+console.log('\n=== 동행 토벌 — 다른 무인의 덱과 함께 두목 ===');
+{
+  const GM = await import('../js/s2/game.js');
+  const T0 = 1.8e12, DAYMS = 24 * 3600e3;
+  // 그 레벨 기준 무인으로 싸우는 판(장비 없이 레벨만 올린 무인은 기준보다 한참 약하다)
+  const mk = (L, seed = 3, best = 0) => { const g = new Game(newGame('sword', T0, seed), T0); g.addExp(EX.cumExp(L)); g.tick(T0); g.fighter = () => refPlayer(L, 'sword'); g.S.party = { day: GM.dayKey(T0), runs: 0, best }; return g; };
+  const deck = (L, job = 'spear', name = '벗') => ({ uid: `u${L}${job}`, name, f: { lv: L, job, st: { ...refPlayer(L, job).st }, lk: { weapon: 3 } } });
+  ok(GM.PARTY.runsPerDay === 2 && GM.PARTY.allies === 2 && GM.PARTY.timeMs === 60000, '하루 2번 · 동행 둘 · 60초');
+  ok(GM.partyLv(1) === 15 && GM.partyLv(6) === 40 && GM.partyLv(999) === PR.LEVEL_MAX && GM.partyHpX(40) > GM.partyHpX(28), '단계 → 두목 Lv(만렙 뒤로는 체력만)');
+  // 제 단계: 혼자는 못 깨고 둘을 데려가면 깬다
+  const g = mk(40, 3, 5), st0 = g.partyState();
+  ok(st0.left === 2 && st0.best === 5 && st0.tier === 6, '상태: 남은 횟수 · 최고 · 다음 단계', JSON.stringify(st0));
+  const W0 = { ...g.S.wallet };
+  const solo = mk(40, 3, 5).partyFight(6, []);
+  ok(solo && !solo.cleared && solo.rewards === null && solo.share[0] === 100, '제 단계는 혼자서 못 깸 · 보상 없음', JSON.stringify(solo.share));
+  const r = g.partyFight(6, [deck(40, 'spear'), deck(40, 'bow')]);
+  ok(r && r.cleared && r.timeMs < 60000 && r.allies.length === 2, '센 동행 둘과는 깸', `${r.timeMs}ms`);
+  ok(r.share.length === 3 && Math.abs(r.share.reduce((a, b) => a + b, 0) - 100) < 0.5 && r.share.every((x) => x > 0), '피해 몫 셋 · 합 100', JSON.stringify(r.share));
+  ok(r.rewards.first && r.rewards.tix === GM.PARTY.rew.first.tix && g.S.wallet['ticket:gear'] === (W0['ticket:gear'] || 0) + r.rewards.tix && g.S.wallet['item:stone'] === (W0['item:stone'] || 0) + r.rewards.stones && g.S.wallet['ticket:pal'] === (W0['ticket:pal'] || 0) + r.rewards.pal, '처음 깬 보상이 지갑에');
+  ok(g.S.wallet.gold === W0.gold && g.S.hero.lv === 40, '은자 · 경험치는 주지 않음');
+  ok(g.S.party.best === 6 && g.partyState().tier === 7 && g.partyState().left === 1, '최고 단계 +1 · 횟수 하나');
+  // 단계: 최고 + 1까지만 · 깬 단계는 다시(작은 보상)
+  ok(g.partyFight(8, [deck(40)]) === null && g.partyFight(0, []) === null && g.partyState().left === 1, '최고 + 2 단계 · 0 단계는 못 감(횟수 그대로)');
+  const r2 = g.partyFight(3, [deck(40), deck(40, 'bow')]);
+  ok(r2.cleared && !r2.rewards.first && r2.rewards.tix === GM.PARTY.rew.again.tix && r2.rewards.pal === 0 && g.S.party.best === 6, '깬 단계 다시 — 작은 보상 · 최고는 그대로');
+  // 하루 횟수 · 다음 날
+  ok(g.partyState().left === 0 && g.partyFight(3, []) === null, '하루 2번 뒤로는 못 감');
+  g.now = T0 + DAYMS; ok(g.partyState().left === 2 && g.S.party.best === 6, '다음 날 횟수가 돌아옴 · 최고는 남음');
+  // 동행 상한: 한참 위 단계에 만렙 동행 둘 — 동행 하나의 피해는 내 피해를 넘지 못해 업혀 가지 못함
+  const gc = mk(40, 3, 8), rc = gc.partyFight(9, [deck(150, 'spear'), deck(150, 'mage')]);
+  ok(rc && !rc.cleared && rc.dmg[1] <= rc.dmg[0] && rc.dmg[2] <= rc.dmg[0] && rc.dmg[1] > rc.dmg[0] * 0.95, '동행 한 명 ≤ 내 피해의 100%', JSON.stringify(rc.dmg));
+  ok(rc.dmg.reduce((a, b) => a + b, 0) <= rc.dmg[0] * 3 && rc.rewards === null && gc.partyState().left === 1, '셋이 합쳐 내 세 배까지 · 져도 횟수는 하나');
+  // 있을 수 없는 덱은 빠짐 · 셋째부터는 버림
+  const gb = mk(40, 3, 5), bad = deck(40); bad.f.st.atk *= 1e6;
+  const rb = gb.partyFight(6, [bad, { uid: 'x' }, deck(40), deck(40), deck(40)]);
+  ok(rb && rb.allies.length === 0 && rb.share[1] === 0 && !rb.cleared, '있을 수 없는 덱은 동행으로 안 침 · 앞의 둘만 봄', JSON.stringify(rb.share));
+  // 결정론: 같은 씨앗 → 같은 결과 / 연습 동행
+  const a = mk(40, 11, 5).partyFight(6, [deck(40), deck(40, 'bow')]), b = mk(40, 11, 5).partyFight(6, [deck(40), deck(40, 'bow')]);
+  ok(JSON.stringify(a) === JSON.stringify(b), '같은 씨앗 · 같은 동행 → 같은 결과');
+  const bots = g.partyBots();
+  ok(bots.length === 3 && bots.every((o) => o.bot && g.deckClean(o) && o.pw > 0) && JSON.stringify(bots) === JSON.stringify(g.partyBots()), '연습 동행 셋(덱 모양 그대로)');
+  ok(mk(40, 3, 5).partyFight(6, bots.slice(0, 2)).cleared, '연습 동행 둘과도 제 단계를 깸');
+  // 옛 저장(S.party 없음)
+  const go = new Game(newGame('sword', T0, 3), T0); delete go.S.party;
+  const so = go.partyState(); ok(so.left === 2 && so.best === 0 && so.tier === 1 && go.S.party.runs === 0, '옛 저장도 그대로 열림');
+  const g2 = new Game(JSON.parse(JSON.stringify(g.S)), g.now); ok(g2.partyState().best === 6, '저장 → 불러오기');
+  ok(g.today().length === 9, '오늘 할 일 목록은 그대로(동행 토벌은 넣지 않음)');
+}
+
 console.log('\n=== S0 규칙 ===');
 {
   const files = [];

@@ -334,6 +334,38 @@ service cloud.firestore {
         && (!('signed' in d) || d.signed is bool)
         && d.updatedAt == request.time;
     }
+    // 전체 대화(새 시즌) — 자기 이름으로만 한 줄씩 · 고치기 · 지우기 없음
+    //   빠르기 막이: 한 사람 문서 하나, at은 늘 '지금'이고 앞 값보다 3초 넘게 뒤여야 한다(화면은 5초에 하나)
+    match /s2_chatlimit/{uid} {
+      allow read: if signedIn() && request.auth.uid == uid;
+      allow create, update: if signedIn() && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['at'])
+        && request.resource.data.at == request.time
+        && (resource == null || request.time > resource.data.at + duration.value(3, 's'));
+      allow delete: if false;
+    }
+    match /s2_chat/{room}/msgs/{mid} {
+      allow read: if signedIn() && room == 'world';
+      allow create: if signedIn() && room == 'world'
+        && request.resource.data.keys().hasAll(['uid', 'nick', 'text', 'lv', 'job', 'at'])
+        && request.resource.data.keys().hasOnly(['uid', 'nick', 'text', 'lv', 'job', 'at', 'guild'])
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.nick is string
+        && request.resource.data.nick.size() >= 1 && request.resource.data.nick.size() <= 12
+        && request.resource.data.text is string
+        && request.resource.data.text.size() >= 1 && request.resource.data.text.size() <= 80
+        && request.resource.data.lv is int
+        && request.resource.data.lv >= 10 && request.resource.data.lv <= 99999
+        && request.resource.data.job is string && request.resource.data.job.size() <= 16
+        && (!('guild' in request.resource.data) || (request.resource.data.guild is string && request.resource.data.guild.size() <= 16))
+        && request.resource.data.at == request.time
+        // 같은 묶음에서 s2_chatlimit/{uid}.at을 지금으로 바꿔야 한다(그 문서는 3초가 지나야 바뀐다)
+        && getAfter(/databases/$(database)/documents/s2_chatlimit/$(request.auth.uid)).data.at == request.time
+        // 입막음 — 운영자가 막은 동안은 말하지 못한다
+        && (!exists(/databases/$(database)/documents/mutes/$(request.auth.uid))
+          || get(/databases/$(database)/documents/mutes/$(request.auth.uid)).data.until < request.time);
+      allow update, delete: if false;
+    }
     match /s2_players/{uid} {
       allow read: if signedIn();
       allow create: if signedIn() && request.auth.uid == uid && request.resource.data.keys().hasOnly(s2Keys()) && s2Ok();

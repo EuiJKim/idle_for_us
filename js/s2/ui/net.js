@@ -154,6 +154,25 @@ export class S2Net {
   guildChatWatch(gid, cb) {
     return this.fs.onSnapshot(this.guildChatQ(gid), (s) => cb(s.docs.map((d) => ({ id: d.id, ...d.data() })).reverse()), (e) => console.warn('[s2net] chat', e?.code || e));
   }
+  // 전체 대화 — s2_chat/world/msgs/{자동} { uid, nick, text, lv, job, at[, guild] } · 최근 40개를 실시간으로(창이 열린 동안만)
+  //   같은 묶음에서 s2_chatlimit/{uid}.at을 지금으로 바꿔야 쓸 수 있다(규칙: 그 문서는 3초가 지나야 바뀐다)
+  static worldText(t) { return String(t || '').replace(/[\u0000-\u001f\u007f]/g, ' ').trim(); }
+  async worldSay(nick, text, extra = {}) {
+    const t = S2Net.worldText(text); if (!t || t.length > 80 || !this.online) return false;
+    const fs = this.fs, b = fs.writeBatch(this.db), gn = String(extra.guild || '').slice(0, 16);
+    const m = { uid: this.uid, nick: String(nick || '무인').slice(0, 12), text: t, lv: Math.max(1, Math.min(99999, Math.floor(Number(extra.lv) || 1))), job: String(extra.job || '').slice(0, 16), at: fs.serverTimestamp() };
+    if (gn) m.guild = gn;
+    b.set(fs.doc(this.db, 's2_chatlimit', this.uid), { at: fs.serverTimestamp() });
+    b.set(fs.doc(fs.collection(this.db, 's2_chat', 'world', 'msgs')), m);
+    await b.commit();
+    return true;
+  }
+  worldChatQ(n = 40) { const fs = this.fs; return fs.query(fs.collection(this.db, 's2_chat', 'world', 'msgs'), fs.orderBy('at', 'desc'), fs.limit(n)); }
+  async worldChatGet(n = 40) { if (!this.online) return []; const s = await this.fs.getDocs(this.worldChatQ(n)); return s.docs.map((d) => ({ id: d.id, ...d.data() })).reverse(); }
+  worldChatWatch(cb) {
+    if (!this.online) return () => {};
+    return this.fs.onSnapshot(this.worldChatQ(), (s) => cb(s.docs.map((d) => ({ id: d.id, ...d.data() })).reverse()), (e) => console.warn('[s2net] world chat', e?.code || e));
+  }
   // v552 문파 수련 — guilds/{코드}/s2/train { data: JSON{ week, pts{uid}, names{uid} }, at } · 내 점수만 고친다
   async gtrainGet(gid, wk) {
     const s = await this.fs.getDoc(this.fs.doc(this.db, 'guilds', gid, 's2', 'train'));

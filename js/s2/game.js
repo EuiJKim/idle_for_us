@@ -41,6 +41,14 @@ export const WEEK_REW = {
 // v576 무림 공동 토벌 — 이번 주 모든 무인의 월드보스 점수 합이 단계를 넘으면 각자 한 번씩(장비 뽑기권)
 export const WB_COMMUNITY = [{ at: 50000, tix: 3 }, { at: 250000, tix: 5 }, { at: 1000000, tix: 10 }];
 export const graidHp0 = (lv) => Math.round(WB.refTryDmg(Math.max(10, lv)) * GRAID.hpX);
+// 동행 토벌 — 다른 무인의 덱(최대 둘)과 함께 두목 하나 · 하루 runsPerDay번(싸우면 이기든 지든 한 번 — 문파 토벌과 같다) · 60초
+//   단계 n: 두목 Lv 10 + 5n(만렙 뒤로는 체력만 ×1.15씩) · 체력 = 그 레벨 두목 × hpX(기준 무인 혼자서는 시간 안에 못 깨고 셋이면 깬다)
+//   동행 한 명의 피해는 내 무인이 넣은 피해를 넘지 못한다(content/dungeon.js runParty)
+//   보상: 단계를 처음 깨면 first · 깬 단계를 다시 깨면 again · 지면 없음. 경험치 · 은자는 주지 않는다(레벨 곡선 그대로)
+export const PARTY = { runsPerDay: 2, allies: 2, timeMs: 60000, hpX: 3, overX: 1.15,
+  rew: { first: { tix: 4, stones: 30, pal: 1 }, again: { tix: 2, stones: 15, pal: 0 } } };
+export const partyLv = (tier) => Math.min(LEVEL_MAX, 10 + 5 * Math.max(1, tier));
+export const partyHpX = (tier) => PARTY.hpX * Math.pow(PARTY.overX, Math.max(0, 10 + 5 * tier - LEVEL_MAX) / 5);
 const TODAY_CHEST = { tix: 3, goldMin: 30, dungeonRuns: 3 };   // v545 하루 상자
 import { ATTEND, ATTEND_DAYS } from './tables/attend.js';
 import { TITLE_EACH, titleByName } from './tables/titles.js';
@@ -50,7 +58,7 @@ import * as CL from './grow/collect.js';
 import * as RM from './grow/realm.js';
 import * as ID from './content/idle.js';
 import * as OF from './content/offline.js';
-import { runDungeon } from './content/dungeon.js';
+import { runDungeon, runParty } from './content/dungeon.js';
 import { power, stdPower } from './online/power.js';
 import { TABLE_VER } from './tables/version.js';
 import * as WB from './online/wboss.js';
@@ -874,14 +882,52 @@ export class Game {
   wbossFight() { const r = this.runNow('wboss'); return r ? { dmg: r.dmg, score: r.score, deaths: r.deaths } : null; }
   // 대결 상대 셋(미리보기: 내 레벨 근처 기준 무인 — 서버가 붙으면 다른 무인의 방어 덱)
   // v548 진짜 상대 — 서버에서 받은 방어 덱(점수가 가까운 무인) · 있을 수 없는 덱(레벨 · 직업 · 전투력이 표준의 6배 넘음)은 뺀다
+  // 덱 하나 고르기 — 있을 수 없는 덱이면 null · 쓸 것만 남긴 모양({ uid, name, f, score, lk })으로
+  deckClean(x) {
+    const f = x && x.f, st = f && f.st;
+    if (!f || !JOBS[f.job] || !Number.isInteger(f.lv) || f.lv < 1 || f.lv > LEVEL_MAX || !st || !(st.atk > 0) || !(st.hp > 0) || !Object.values(st).every((v) => typeof v === 'number' && Number.isFinite(v))) return null;
+    if (!(power(f, 'pvp') <= stdPower(f.lv, 'pvp', f.job) * POWER_SLACK * 2)) return null;
+    return { uid: String(x.uid), name: String(x.name || '무인').slice(0, 12), f: { lv: f.lv, job: f.job, kind: 'hero', st: f.st }, score: x.score | 0,
+      lk: Object.fromEntries(Object.entries(f.lk || {}).filter(([sl, gr]) => SLOTS.includes(sl) && Number.isInteger(gr) && gr >= 0 && gr <= 6)) };   // v566 외형(있는 칸 · 0~6만)
+  }
   setPvpReal(list) {
-    this.pvpReal = (list || []).filter((x) => {
-      const f = x && x.f, st = f && f.st;
-      if (!f || !JOBS[f.job] || !Number.isInteger(f.lv) || f.lv < 1 || f.lv > LEVEL_MAX || !st || !(st.atk > 0) || !(st.hp > 0) || !Object.values(st).every((v) => typeof v === 'number' && Number.isFinite(v))) return false;
-      return power(f, 'pvp') <= stdPower(f.lv, 'pvp', f.job) * POWER_SLACK * 2;
-    }).slice(0, 3).map((x) => ({ uid: String(x.uid), name: String(x.name || '무인').slice(0, 12), f: { lv: x.f.lv, job: x.f.job, kind: 'hero', st: x.f.st }, score: x.score | 0,
-      lk: Object.fromEntries(Object.entries(x.f.lk || {}).filter(([sl, gr]) => SLOTS.includes(sl) && Number.isInteger(gr) && gr >= 0 && gr <= 6)) }));   // v566 외형(있는 칸 · 0~6만)
+    this.pvpReal = (list || []).map((x) => this.deckClean(x)).filter(Boolean).slice(0, 3);
     return this.pvpReal.length;
+  }
+  // ── 동행 토벌 ── 오늘 남은 횟수 · 깬 최고 단계 · 다음 단계
+  partyRec() { const S = this.S, dk = dayKey(this.now), P = (S.party ??= { day: dk, runs: 0, best: 0 }); if (P.day !== dk) { P.day = dk; P.runs = 0; } return P; }
+  partyState() { const P = this.partyRec(); return { left: Math.max(0, PARTY.runsPerDay - P.runs), best: P.best, tier: P.best + 1 }; }
+  deckPower(d) { return d && d.f ? power(d.f, 'pve') : 0; }   // 덱의 사냥 전투력(화면에 보이는 값)
+  // 연습 동행 셋(서버 없이 · 내 레벨 근처 기준 무인) — 날마다 직업이 돈다
+  partyBots() {
+    const L = this.S.hero.lv, seed = dayKey(this.now);
+    return ['낭인', '협객', '고수'].map((name, i) => {
+      const f = refPlayer(Math.max(1, Math.min(LEVEL_MAX, Math.round(L * (0.95 + 0.05 * i)))), ['sword', 'spear', 'fist', 'bow', 'mage'][(seed + i * 2) % 5] || 'sword');
+      return { uid: `bot${i}`, name, f: { lv: f.lv, job: f.job, kind: 'hero', st: f.st }, pw: power(f, 'pve'), bot: true };
+    });
+  }
+  // 한 번 싸우기 — tier: 1 ~ 최고 + 1 · allies: 덱 0~2개(대결 덱과 같은 모양 { uid, name, f: { lv, job, st, lk } })
+  //   싸우면 이기든 지든 오늘 횟수 하나(문파 토벌처럼 — 져도 얼마나 모자랐는지 보이므로 공짜로 되풀이하지 못하게)
+  //   → { cleared, timeMs, share: [나 %, 동행1 %, 동행2 %], rewards: { tix, stones, pal, first } | null, ... }
+  partyFight(tier, allies = []) {
+    const P = this.partyRec(); tier = tier | 0;
+    if (P.runs >= PARTY.runsPerDay || tier < 1 || tier > P.best + 1 || this.dg || this.bossFight) return null;
+    const team = (Array.isArray(allies) ? allies : []).slice(0, PARTY.allies).map((x) => this.deckClean(x)).filter(Boolean);
+    // 동행은 그 레벨 표준 무공 세트로 친다(덱에는 능력치만 있다)
+    const fs = team.map((a) => ({ ...refPlayer(a.f.lv, a.f.job), st: a.f.st }));
+    const lv = partyLv(tier), r = runParty({ mobLv: lv, hpX: partyHpX(tier), timeMs: PARTY.timeMs }, this.fighter(), fs, this.rng.u32());
+    P.runs++;
+    const sum = r.dmg.reduce((a, b) => a + b, 0) || 1, share = r.dmg.map((d) => Math.round((d * 1000) / sum) / 10);
+    let rewards = null;
+    if (r.cleared) {
+      const first = tier > P.best, RW = first ? PARTY.rew.first : PARTY.rew.again, W = this.S.wallet;
+      if (first) P.best = tier;
+      W['ticket:gear'] = (W['ticket:gear'] || 0) + RW.tix; W['item:stone'] = (W['item:stone'] || 0) + RW.stones;
+      if (RW.pal) W['ticket:pal'] = (W['ticket:pal'] || 0) + RW.pal;
+      rewards = { tix: RW.tix, stones: RW.stones, pal: RW.pal, first };
+    }
+    return { cleared: r.cleared, timeMs: r.timeMs, share, rewards, tier, lv, dmg: r.dmg, hp0: r.hp0, deaths: r.deaths, left: PARTY.runsPerDay - P.runs,
+      allies: team.map((a) => ({ name: a.name, job: a.f.job, lv: a.f.lv, lk: a.lk || null })) };
   }
   // v569 즐겨찾기 무인(최대 20) · 친선 대결(점수 · 횟수와 상관없이 그 덱과 겨뤄 보기 — 기록 남지 않음)
   toggleFav(uid, name) {

@@ -1,6 +1,6 @@
 // 새 시즌 화면 — v524부터 첫 화면(index.html). 옛 게임은 classic.html(세이브는 따로 · ifu.s2.*가 새 시즌).
 // 화면은 엔진(js/s2/game.js)만 본다. 시계는 화면 쪽에서만 읽어 엔진에 넘긴다(엔진은 결정론).
-import { Game, newGame, COLLECTS, dayKey, weekKey, STAGE_KILLS, GRAID, graidHp0, GTRAIN, WEEK_REW, WB_COMMUNITY } from '../game.js';
+import { Game, newGame, COLLECTS, dayKey, weekKey, STAGE_KILLS, GRAID, graidHp0, GTRAIN, WEEK_REW, WB_COMMUNITY, PARTY, partyLv } from '../game.js';
 import { raidPhase } from '../online/guild.js';
 import { SAVE_KEY } from '../core/save.js';
 import { S2Net } from './net.js';
@@ -35,10 +35,22 @@ import { PoseAnim, POSES, IDLE, mixPose } from '../../pose.js';
 import { collName, collGly } from '../tables/collnames.js';
 // 설정(v504) — 이 기기에만(ifu.s2.opt). 소리 · 배경 가락 · 흔들림 · 피해 숫자 · 진동 · 그래픽 · 피해 측정기
 const OPT_KEY = 'ifu.s2.opt';
-const opt = Object.assign({ sfx: true, bgm: true, shake: true, nums: 'all', vib: true, gfx: 'high', dps: false, autoNext: true, saver: true, wake: true, autoGrow: false, agGold: true }, (() => { try { return JSON.parse(localStorage.getItem(OPT_KEY) || '{}'); } catch { return {}; } })());
+const opt = Object.assign({ sfx: true, bgm: true, shake: true, nums: 'all', vib: true, vibK: 1, gfx: 'high', dps: false, autoNext: true, saver: true, wake: true, autoGrow: false, agGold: true }, (() => { try { return JSON.parse(localStorage.getItem(OPT_KEY) || '{}'); } catch { return {}; } })());
 const saveOpt = () => { try { localStorage.setItem(OPT_KEY, JSON.stringify(opt)); } catch { /* 저장 못 함 */ } setOpt({ sfx: opt.sfx, bgm: opt.bgm }); if (typeof wakeSync === 'function') wakeSync(); };
 setOpt({ sfx: opt.sfx, bgm: opt.bgm });
-const buzz = (ms) => { if (opt.vib && navigator.vibrate) try { navigator.vibrate(ms); } catch { /* 진동 없음 */ } };
+// 진동 세기(약하게 · 보통 · 세게) — 울리는 길이만 늘이고 줄인다(무늬 사이 쉬는 틈은 그대로)
+const VIB_K = [0.6, 1, 1.5], VIB_K_NAME = ['약하게', '보통', '세게'];
+const buzz = (ms) => { if (!opt.vib || !navigator.vibrate) return; const k = VIB_K[opt.vibK] ?? 1, sc = (v) => Math.max(1, Math.round(v * k)); try { navigator.vibrate(Array.isArray(ms) ? ms.map((v, i) => (i % 2 ? v : sc(v))) : sc(ms)); } catch { /* 진동 없음 */ } };
+// 진동 무늬 — 소리가 없는 지금 손에 닿는 단 하나의 층. 사냥터에선 1초에 4번을 넘지 않고(crit · elite), 무공 · 두목 것(VIB_HI)은 그 제한을 건너뛰되 서로 0.08초 안에는 겹치지 않는다
+const VIB = { crit: 8, sk3: 12, sk4: [10, 30, 14], sk5: [14, 30, 14, 30, 24], elite: 18, bossMs: [20, 40, 20], bossKill: [30, 50, 30, 50, 60], bossHurt: 60, die: 200 };
+const VIB_HI = new Set(['sk3', 'sk4', 'sk5', 'bossMs', 'bossKill', 'bossHurt', 'die']);
+let vibAt = -1e9, vibHiAt = -1e9, vibBusy = 0;
+function vib(key) {
+  const p = VIB[key]; if (p == null) return; const n = now(), hi = VIB_HI.has(key);
+  if (hi ? n - vibHiAt < 80 : (n - vibAt < 250 || n < vibBusy)) return;   // 보통 것은 큰 무늬가 울리는 동안 끼어들지 않는다(무늬를 끊어 먹지 않게)
+  vibAt = n; if (hi) { vibHiAt = n; vibBusy = n + (Array.isArray(p) ? p.reduce((a, b) => a + b, 0) : p) * 1.5; }
+  buzz(p);
+}
 const dmgLog = [];   // 피해 측정기: [시각, 피해] 최근 10초
 const killLog = [];
 const killRate = () => { const t0 = now() - 60000; while (killLog.length && killLog[0] < t0) killLog.shift(); return killLog.length; };
@@ -76,7 +88,7 @@ function load() {
 let frozen = false;   // 시험용: 저장 멈춤
 function save() { if (frozen) return; try { localStorage.setItem(SAVE_KEY, g.save()); localStorage.setItem(SAVE_KEY + '.at', String(Date.now())); } catch { /* 저장 공간 없음 */ } }
 // v525 계정 · 서버 저장 — 3분마다 · 화면을 떠날 때 올린다(기기를 잃거나 지워도 Google로 되살린다)
-const net = new S2Net((w) => { if (w === 'status' && net.online) cloudCheck(); if (open === 'opt') paintWin(); });
+const net = new S2Net((w) => { if (w === 'status' && net.online) cloudCheck(); if (open === 'opt' || (w === 'status' && open === 'social' && keyOf() === 'chat:0')) paintWin(); });
 let cloudBusy = null;   // 올리는 중인 약속 — 꼭 올려야 할 때(force)는 그것을 기다렸다 다시 올린다
 async function cloudPush(force) {
   if (!g || frozen || !net.online) return false;
@@ -134,6 +146,34 @@ function chatSend() {
   const inp = document.querySelector('#gchat-in'); if (!inp || !g.S.guildId) return;
   const t = inp.value.trim(); if (!t) return; inp.value = ''; ensureNick();
   net.guildSay(g.S.guildId, g.S.nick, t).catch((e) => toast(e?.code === 'permission-denied' ? '보낼 수 없어요(문파원만)' : '보내지 못했어요'));
+}
+// 전체 대화 — 무림 → 대화 칸이 열린 동안만 실시간 구독(닫기 · 다른 칸 · 절전이면 끊는다) · Lv 10부터 쓴다 · 5초에 하나
+const WCHAT = { minLv: 10, gap: 5000, max: 80 };
+const worldState = { msgs: [], unsub: null, lastAt: 0, lastText: '', draft: '' };
+function worldWatch() { if (worldState.unsub || !net.online) return; worldState.unsub = net.worldChatWatch((list) => { worldState.msgs = list; worldPaint(); }); }
+function worldStop() { if (worldState.unsub) { worldState.unsub(); worldState.unsub = null; } }
+function worldHtml() {
+  const L = worldState.msgs;
+  if (!L.length) return `<p class="note">${net.online ? '아직 대화가 없어요 — 첫 인사를 남겨 보세요' : '오프라인이에요 — 연결되면 대화가 보여요.'}</p>`;
+  return L.map((m) => { const t = m.at?.toDate ? m.at.toDate() : null, hm = t ? `${t.getHours()}:${String(t.getMinutes()).padStart(2, '0')}` : '', jn = JOBS[m.job]?.name || '';
+    return `<div class="gc-m wc-m ${m.uid === net.uid ? 'me' : ''}"><b data-uid="${esc(m.uid || '')}"><i>[Lv ${Math.floor(Number(m.lv) || 0)}${jn ? ` ${esc(jn)}` : ''}]</i> ${esc(m.nick || '무인')}${m.guild ? ` <em>${esc(m.guild)}</em>` : ''} :</b><span>${esc(m.text)}</span><small>${hm}</small></div>`; }).join('');
+}
+function worldPaint() { const el = document.querySelector('#wchat'); if (!el) return; const atEnd = el.scrollHeight - el.scrollTop - el.clientHeight < 40; el.innerHTML = worldHtml(); if (atEnd || !el.dataset.init) { el.scrollTop = el.scrollHeight; el.dataset.init = 1; } }
+// 보내기 — 돌려주는 값: true(보냄) · 'off' · 'lv' · 'empty' · 'long' · 'fast' · 'same'(시험에서도 본다)
+function worldSend(text) {
+  const inp = document.querySelector('#wchat-in'), t = S2Net.worldText(text ?? inp?.value ?? '');
+  if (!t) return 'empty';
+  if (!net.online) { toast('오프라인이라 보낼 수 없어요'); return 'off'; }
+  if (g.S.hero.lv < WCHAT.minLv) { toast(`전체 대화는 Lv ${WCHAT.minLv}부터 쓸 수 있어요`); return 'lv'; }
+  if (t.length > WCHAT.max) { toast(`${WCHAT.max}자까지 쓸 수 있어요`); return 'long'; }
+  const left = WCHAT.gap - (Date.now() - worldState.lastAt);
+  if (left > 0) { toast(`${Math.ceil(left / 1000)}초 뒤에 다시 보낼 수 있어요`); return 'fast'; }
+  if (t === worldState.lastText) { toast('같은 말은 이어서 보낼 수 없어요'); return 'same'; }
+  const prevAt = worldState.lastAt, prevText = worldState.lastText;
+  worldState.lastAt = Date.now(); worldState.lastText = t; worldState.draft = ''; if (inp) inp.value = ''; ensureNick();
+  net.worldSay(g.S.nick, t, { lv: g.S.hero.lv, job: g.S.hero.job, guild: g.S.guildId ? guildState.g?.name : '' })
+    .catch((e) => { worldState.lastAt = prevAt; worldState.lastText = prevText; toast(e?.code === 'permission-denied' ? '보낼 수 없어요(잠시 뒤 다시)' : '보내지 못했어요'); });
+  return true;
 }
 function guildLoad(force) {
   if (!net.online || !g || guildState.busy || (!force && Date.now() - guildState.at < 30000 && guildState.for === (g.S.guildId || null))) return;
@@ -269,10 +309,10 @@ const TABS = [
   ['char', '캐릭터', [['스탯', 'hero:0'], ['무공', 'hero:1'], ['무공 강화', 'hero:4'], ['마스터리', 'hero:2'], ['전직', 'hero:3'], ['칭호', 'title:0'], ['기록', 'rec:0']]],
   ['bag', '장비', [['장착', 'gear:0'], ['뽑기', 'gear:1'], ['강화·성혼', 'gear:2'], ['가방', 'gear:3'], ['외형', 'look:0']]],
   ['comp', '동료', [['병기', 'grow:0'], ['동료', 'grow:1'], ['영물', 'grow:2']]],
-  ['dgn', '던전', [['수련동', 'content:0'], ['토벌', 'raid:0'], ['무한 탑', 'content:1'], ['원정', 'content:2']]],
+  ['dgn', '던전', [['수련동', 'content:0'], ['토벌', 'raid:0'], ['무한 탑', 'content:1'], ['원정', 'content:2'], ['동행', 'party:0']]],
   ['map', '지도', [['스테이지', 'content:3'], ['두목 도감', 'dex:0']]],
   ['town', '임무', [['오늘', 'today:0'], ['출석', 'attend:0'], ['길잡이', 'mission:0'], ['일일', 'mission:1'], ['주간', 'mission:2'], ['업적', 'ach:0'], ['경지', 'grow:3'], ['강호행', 'grow:4'], ['상점', 'shop:0']]],
-  ['social', '무림', [['서열', 'rank:0'], ['월드보스', 'rival:0'], ['대결', 'rival:1'], ['문파', 'rival:2']]],
+  ['social', '무림', [['서열', 'rank:0'], ['월드보스', 'rival:0'], ['대결', 'rival:1'], ['문파', 'rival:2'], ['대화', 'chat:0']]],
   ['opt', '설정', [['설정', 'mission:3']]],
 ];
 const MAIN_TABS = TABS.filter((t) => t[0] !== 'opt');
@@ -342,7 +382,7 @@ function showGacha(r, opt = {}) {   // v558 opt: { title, face(it) } — 병기 
   ov.onclick = () => { if (done) close(); };
 }
 function openWin(id, t = 0) { open = id; tab = t; document.body.classList.add('winopen'); $('panel').classList.add('open'); $('panel-dim').classList.add('open'); paintWin(); paintNav(); }
-function closeWin() { open = null; document.body.classList.remove('winopen'); $('panel').classList.remove('open'); $('panel-dim').classList.remove('open'); paintNav(); }
+function closeWin() { open = null; worldStop(); document.body.classList.remove('winopen'); $('panel').classList.remove('open'); $('panel-dim').classList.remove('open'); paintNav(); }
 function paintNav() {
   if (!$('ptabs').children.length) for (const [id, name] of MAIN_TABS) { const b = document.createElement('button'); b.dataset.tab = id; b.innerHTML = `${ico(id)}<span>${name}</span>`; b.onclick = () => { play('click'); openWin(id); }; $('ptabs').append(b); }
   for (const b of document.querySelectorAll('.nb[data-tab], #ptabs button[data-tab]')) b.classList.toggle('active', b.dataset.tab === open);
@@ -394,6 +434,7 @@ function paintWin() {
   const M = TABS.find((m) => m[0] === open);
   $('panel-title').innerHTML = `${ico(M[0])}<span>${M[1]}</span>`;
   $('panel-head').querySelector('.res-row').innerHTML = `<span class="cur-pill"><i class="coin s"></i><b>${unit(g.S.wallet.gold)}</b></span><span class="cur-pill"><i class="coin t"></i><b>${g.S.wallet['ticket:gear'] || 0}</b></span>`;
+  const wFocus = document.activeElement?.id === 'wchat-in';
   const PB = $('panel-body'), keepScroll = PB.dataset.key === `${open}:${tab}` ? PB.scrollTop : 0; PB.innerHTML = ''; PB.dataset.key = `${open}:${tab}`;
   if (M[2].length > 1) {
     const st = document.createElement('div'); st.className = 'subtabs'; const seg = document.createElement('div'); seg.className = 'seg wide';
@@ -404,6 +445,7 @@ function paintWin() {
   requestAnimationFrame(() => { PB.scrollTop = keepScroll; });
   const W = g.S.wallet, add = (...e) => B.append(...e);
   const key = keyOf();
+  if (key !== 'chat:0') worldStop();
   const st = g.fighter().st;
   // v508 창 안쪽도 지금 게임 부품으로 — 묶음은 제목 있는 카드(.card h3), 스탯은 두 칸 격자(.stat-grid), 줄은 붓글씨 한 글자(.ico), 장비는 그림 칸(.inv-grid), 수집은 타일(.gear-grid)
   const card = (title, sub = '') => { const c = document.createElement('div'); c.className = 'card'; c.innerHTML = `<h3>${title}${sub ? ` <small>${sub}</small>` : ''}</h3>`; B.append(c); return (...e) => c.append(...e); };
@@ -631,6 +673,41 @@ function paintWin() {
         [['토벌', act(() => { const ok2 = g.raid(ch); if (ok2) closeWin(); return ok2; }), !g.canRaid(ch)], ['연습', act(() => { const ok2 = g.practice(ch); if (ok2) closeWin(); return ok2; }), !!(g.bossFight || g.dg)]], '');   // v583 연습(횟수 · 보상 없음)
       r.classList.add('rdrow'); c0(r);
     }
+  } else if (key === 'party:0') {
+    // 동행 토벌 — 다른 무인의 덱(문파원 · 대결에서 만난 무인 · 즐겨찾기 · 연습 동행) 둘까지 골라 두목 하나
+    const ps = g.partyState(); partyTier = Math.max(1, Math.min(ps.tier, partyTier || ps.tier));
+    partySel = partySel.filter((u) => partyDecks[u]);
+    const RW = partyTier > ps.best ? PARTY.rew.first : PARTY.rew.again;
+    const c0 = card('동행 토벌', `오늘 ${ps.left} / ${PARTY.runsPerDay}번 남음 · 자정에 다시`);
+    c0(R(`${partyTier}단계 <small>두목 Lv ${partyLv(partyTier)}</small>${partyTier > ps.best ? '' : ' <span class="pill">깬 단계</span>'}`,
+      `최고 ${ps.best}단계 · ${PARTY.timeMs / 1000}초 · ${partyTier > ps.best ? '처음 깨면' : '다시 깨면'} 뽑기권 ${RW.tix} · 강화석 ${RW.stones}${RW.pal ? ` · 동료 뽑기권 ${RW.pal}` : ''}`,
+      [['출발', () => { play('click'); const r = g.partyFight(partyTier, partySel.map((u) => partyDecks[u])); if (!r) { toast(g.partyState().left ? '지금은 갈 수 없어요' : '오늘은 다 했어요'); return; } save(); partyTier = 0; partyShow(r); paintWin(); paintHud(); }, ps.left <= 0 || !!(g.dg || g.bossFight)],
+        ['◀', () => { play('click'); partyTier--; paintWin(); }, partyTier <= 1], ['▶', () => { play('click'); partyTier++; paintWin(); }, partyTier >= ps.tier]], '同'));
+    c0(note('동행은 내가 넣은 피해만큼까지만 거들어요 · 싸우면 이기든 지든 한 번이에요'));
+    const c1 = card('함께 갈 무인', `${partySel.length} / ${PARTY.allies}명 골랐어요`);
+    if (net.online) { pvpFetch(); if (g.S.guildId) guildLoad(); }
+    const seen = new Set([net.uid]), list = [];
+    const push = (uid, name, tag, deck, info) => { if (!uid || seen.has(uid)) return; seen.add(uid); if (deck) partyDecks[uid] = deck; list.push({ uid, name, tag, info }); };
+    if (g.S.guildId && guildState.g) for (const id of guildState.g.memberIds || []) { const p2 = guildState.prof?.[id]; if (p2?.lv && JOBS[p2.job]) push(id, p2.nickname || guildState.g.members?.[id] || '무인', '문파', null, { job: p2.job, lv: p2.lv, pw: p2.power }); }
+    for (const o of g.pvpReal || []) push(o.uid, o.name, '무인', o);
+    for (const f of g.S.favs || []) push(f.uid, f.name, '벗', null);
+    for (const o of g.partyBots()) push(o.uid, o.name, '연습', o);
+    for (const u of partySel) if (!seen.has(u)) push(u, partyDecks[u].name, '무인', partyDecks[u]);
+    const pick = (uid) => {
+      play('click');
+      const i = partySel.indexOf(uid); if (i >= 0) { partySel.splice(i, 1); paintWin(); return; }
+      if (partySel.length >= PARTY.allies) { toast(`${PARTY.allies}명까지 고를 수 있어요`); return; }
+      if (partyDecks[uid]) { partySel.push(uid); paintWin(); return; }
+      net.pvpDeckOf(uid).then((opp) => { const d = opp && g.deckClean(opp); if (!d) { toast('함께 갈 수 없어요(덱 없음)'); return; } partyDecks[uid] = d; if (partySel.length < PARTY.allies && !partySel.includes(uid)) partySel.push(uid); if (keyOf() === 'party:0') paintWin(); }).catch(() => toast('불러오지 못했어요'));
+    };
+    for (const x of list) {
+      const d = partyDecks[x.uid], job = d?.f.job || x.info?.job, lv = d?.f.lv || x.info?.lv, on = partySel.includes(x.uid);
+      const r = R(`${esc(x.name)}${job ? ` <small>${JOBS[job].name} Lv ${lv}</small>` : ''} <span class="pill${x.tag === '연습' ? '' : ' pv-real'}">${x.tag}</span>`,
+        d ? `전투력 ${unit(partyPw(d))}` : x.info?.pw ? `전투력 ${unit(x.info.pw)}` : '고르면 덱을 불러와요',
+        [[on ? '빼기' : '고르기', () => pick(x.uid), !on && (partySel.length >= PARTY.allies || (!d && !net.online))]], job ? JOBS[job].name[0] : '友');
+      if (on) r.classList.add('pty-on'); c1(r);
+    }
+    if (!list.some((x) => x.tag !== '연습')) c1(note(net.online ? '문파원 · 대결에서 만난 무인 · 즐겨찾기 무인이 여기에 나와요' : '오프라인 — 연습 동행과 함께 가요'));
   } else if (key === 'content:0') {
     // v531 실제 던전 — 「입장」은 직접 싸움(사냥터 대신 던전) · 한 번 깬 던전은 「소탕」(바로 결과)
     const c = card('수련동', `입장권 ${staminaNow(g.S.stamina.daily, now())} · 2시간마다 1`);
@@ -838,6 +915,21 @@ function paintWin() {
     }
     c1(R('문파 나가기', '나가면 다시 코드로 들어와야 해요', [['나가기', () => { play('click'); if (!confirm(`「${G.name}」에서 나갈까요?`)) return; guildDo(() => net.guildLeave(G.id).then(() => null), '문파에서 나왔어요'); }]], '出'));
     }
+  } else if (key === 'chat:0') {
+    // 전체 대화 — 읽기는 누구나 · 쓰기는 Lv 10부터 · 이름을 누르면 무인 정보
+    const cw = card('전체 대화', `모든 무인과 한마디 · 최근 40개 · Lv ${WCHAT.minLv}부터 쓸 수 있어요`);
+    const box = document.createElement('div'); box.id = 'wchat'; box.className = 'gchat wchat'; box.innerHTML = worldHtml(); cw(box);
+    box.onclick = (e) => { const n = e.target.closest('b[data-uid]'); if (n?.dataset.uid && net.online) { play('click'); playerCard(n.dataset.uid); } };
+    const can = net.online && g.S.hero.lv >= WCHAT.minLv;
+    const fm = document.createElement('div'); fm.className = 'gchat-f'; fm.innerHTML = `<input id="wchat-in" maxlength="${WCHAT.max}" placeholder="${!net.online ? '오프라인' : can ? `모두에게 한마디(${WCHAT.max}자)` : `Lv ${WCHAT.minLv}부터 쓸 수 있어요`}" autocomplete="off"><button class="btn primary" id="wchat-go">보내기</button>`; cw(fm);
+    const inp = fm.querySelector('#wchat-in'), go = fm.querySelector('#wchat-go');
+    inp.value = worldState.draft; inp.disabled = go.disabled = !can;
+    inp.oninput = () => { worldState.draft = inp.value; };
+    go.onclick = () => { play('click'); worldSend(); };
+    inp.onkeydown = (e) => { e.stopPropagation(); if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); worldSend(); } };
+    if (wFocus && can) inp.focus();
+    worldWatch();
+    requestAnimationFrame(() => { box.scrollTop = box.scrollHeight; box.dataset.init = 1; });
   } else if (key === 'title:0') {
     // v537 칭호 — 얻은 것 · 못 얻은 것(얻는 법) · 수집 효과 · 하나 달기
     const own = new Set(g.S.titles || []), n = TITLES.filter((t) => own.has(t.name)).length;
@@ -914,7 +1006,8 @@ function paintWin() {
   } else if (key === 'mission:3') {
     const tg = (label, k, desc, ic) => R(label, desc, [[opt[k] ? '켜짐' : '꺼짐', () => { opt[k] = !opt[k]; saveOpt(); play('click'); if (k === 'bgm') bgm(chapterOf(g.zoneLv())); paintWin(); paintHud(); }]], ic);
     const c0 = card('진동');
-    c0(tg('진동', 'vib', '두목 패턴에 맞을 때 · 쓰러질 때(휴대폰)', '震'));
+    c0(tg('진동', 'vib', '치명타 · 큰 무공 · 두목 고비 · 맞을 때 · 쓰러질 때(휴대폰)', '震'));
+    if (navigator.vibrate) c0(R('진동 세기', `${VIB_K_NAME[opt.vibK] ?? '보통'} — 울리는 길이 ×${VIB_K[opt.vibK] ?? 1}`, [['바꾸기', () => { opt.vibK = ((opt.vibK ?? 1) + 1) % 3; saveOpt(); play('click'); buzz(VIB.sk4); paintWin(); }]], '强'));
     const c1 = card('화면');
     c1(tg('화면 흔들림', 'shake', '큰 무공 · 두목 패턴 · 당겨짐', '搖'), tg('피해 측정기', 'dps', '들판 왼쪽 위에 초당 피해 · 분당 처치', '測'), tg('두목전 결과 자동 진행', 'autoNext', '결과 창이 3초 뒤 저절로 닫히고 다음으로', '進'), tg('절전', 'saver', '2분 동안 손대지 않으면 화면을 어둡게 · 덜 그림(사냥은 그대로)', '眠'), tg('자동 성장(방치)', 'autoGrow', '1분마다 출석 · 수련동 소탕 · 원정 · 하루 상자 · 문파 출석 · 보상 받기 · 뽑기권 쓰기(장비 · 병기 · 동료 · 영물) · 최고 장비 · 무공 · 강화 · 마스터리 · 경지(은자로 뽑지는 않아요)', '育'), ...(opt.autoGrow ? [tg('자동 성장 — 은자 쓰기', 'agGold', '끄면 은자가 드는 무공 올리기 · 강화 · 마스터리 · 경지는 건너뛰어요(보상 · 뽑기권 · 하루 일만)', '銀')] : []), tg('화면 켜 두기(방치)', 'wake', wakeOK() ? '손전화가 저절로 화면을 끄지 않게 — 켜 두면 계속 사냥(절전과 같이 쓰면 배터리 덜 씀)' : '이 브라우저는 지원하지 않아요 — 꺼져도 돌아오면 방치 보상', '燈'));   // v578 · v586
     if (document.documentElement.requestFullscreen) c1(R('전체 화면', document.fullscreenElement ? '켜짐' : '주소창 없이 화면을 다 쓴다(안드로이드 · 컴퓨터)', [[document.fullscreenElement ? '끄기' : '켜기', () => { play('click'); goFull(!document.fullscreenElement); setTimeout(paintWin, 300); }]], '全'));
@@ -988,6 +1081,31 @@ function forgeFx(kind, sl, rs, before, after, done) {
     else { later(t0 + 120, () => strike(i)); later(t0 + 360, () => show(i)); }
   });
   later(rs.length * per + (many ? 900 : 1400), () => { if (!skipped) { ov.classList.add('done'); later(1300, finish); } });   // 결과를 잠깐 보여 주고 강화 창으로
+}
+// 동행 토벌 — 고른 단계 · 고른 동행(uid) · 받아 둔 덱(uid → 덱)
+let partyTier = 0, partySel = [];
+const partyDecks = {}, partyPwMemo = new Map();
+const partyPw = (d) => { if (d.pw) return d.pw; if (!partyPwMemo.has(d)) partyPwMemo.set(d, g.deckPower(d)); return partyPwMemo.get(d); };
+// 결과 — 세 무인이 나란히(대결 화면처럼 그 무인의 외형으로) · 피해 몫 막대 · 보상
+function partyShow(r) {
+  const who = [{ name: '나', job: g.S.hero.job, lv: g.S.hero.lv, eq: g.lookEq() }, ...r.allies.map((a) => ({ ...a, eq: Object.fromEntries(SLOTS.map((sl) => [sl, { slot: sl, g: a.lk && a.lk[sl] != null ? a.lk[sl] : Math.min(6, Math.floor(a.lv / 25)), up: 0, subs: [] }])) }))];
+  const bars = who.map((w, i) => `<div class="pty-b"><span>${esc(w.name)} <small>${esc(JOBS[w.job]?.name || '')} Lv ${w.lv}</small></span><div class="pty-bar"><i class="pty-c${i}" style="width:${Math.max(1, r.share[i])}%"></i></div><b>${r.share[i].toFixed(1)}%</b></div>`).join('');
+  const RW = r.rewards, left = Math.max(0, 100 - Math.round((r.dmg.reduce((a, b) => a + b, 0) * 100) / r.hp0));
+  const html = `<div class="pty-res"><canvas class="pty-cv" width="${who.length * 150}" height="190" style="aspect-ratio:${who.length * 150}/190"></canvas><div class="pty-side">
+    <div class="pty-t ${r.cleared ? 'win' : 'lose'}">${r.cleared ? '토벌 성공' : '토벌 실패'} <small>${r.cleared ? `${(r.timeMs / 1000).toFixed(1)}초` : `두목 체력 ${left}% 남음`}</small></div>${bars}
+    ${RW ? `<div class="td-got pty-got">${RW.first ? '<span class="pill pv-real">처음</span>' : ''}<span>뽑기권 <b>${RW.tix}</b></span><span>강화석 <b>${RW.stones}</b></span>${RW.pal ? `<span>동료 뽑기권 <b>${RW.pal}</b></span>` : ''}</div>` : `<p class="note">${r.allies.length < PARTY.allies ? '동행을 더 데려가거나 ' : ''}전투력을 올려 다시 가요 · 오늘 ${r.left}번 남음</p>`}</div></div>`;
+  pop(`동행 토벌 · ${r.tier}단계`, html);
+  const sh = $('modal').querySelector('.sheet'); sh.classList.add('wide');
+  const cv = sh.querySelector('.pty-cv'); if (!cv) return;
+  const x = cv.getContext('2d'), t0 = now();
+  const tick = () => {
+    if (!cv.isConnected) return;
+    x.clearRect(0, 0, cv.width, cv.height);
+    who.forEach((w, i) => { if (!JOBS[w.job]) return; x.save(); if (!r.cleared) x.globalAlpha = 0.55; drawHero(x, 75 + i * 150, 178, w.job, w.lv || 1, { t: (now() - t0) / 1000 + i * 0.4, scale: 1.7, eq: w.eq }); x.restore(); });
+    requestAnimationFrame(tick);
+  };
+  tick();
+  addLog(`동행 토벌 ${r.tier}단계 ${r.cleared ? '성공' : '실패'}`);
 }
 // v567 무인 정보 — 서열에서 줄을 누르면: 그 무인의 모습(고른 외형) · 직업 · 레벨 · 전투력 · 대결 점수 · 이번 주 월드보스 · 문파
 function playerCard(uid) {
@@ -1319,7 +1437,61 @@ const mobHit = new Map();   // 몹 id → 맞은 때(번쩍 · 밀림)
 // v600 타격감 1 — 치명타 임팩트: 맞는 자리에 충격 고리 + 튀는 불티, 몹이 더 크게 밀리고 눌림, 짧은 흔들림 · 진동. 두목전 · 던전에선 0.03초 멈칫(사냥터는 사냥 속도가 줄지 않게 멈칫 없음)
 const mobCrit = new Map();   // 몹 id → 치명타 맞은 때
 const impacts = [];          // { x, y, at, crit, dir }
-let lastCritStop = 0, lastCritBuzz = 0;
+let lastCritStop = 0;
+// 두목 타격 — 체력 줄 떨림 · 테두리 번쩍 · 고비(75/50/25%) · 무력화/약점 터짐 · 마지막 일격. 전부 그리기만(엔진은 그대로)
+const bossFeel = { F: null, r: 1, trail: 1, hold: 0, dom: false, shakeAt: -1e9, amp: 0, flashAt: -1e9, msAt: -1e9, popAt: -1e9, stFlashAt: -1e9, burstAt: -1e9, whiteAt: -1e9, kill: null, lastR: null, lastF: null };
+const BOSS_MS = [0.75, 0.5, 0.25];
+// 두목 체력 막대(위 가운데 · DOM) — 깎인 몫은 흰 줄로 0.25초 머물다 금빛으로 줄어들고, 맞을 때마다 0.12초 떨린다
+function bossBarFx(t, fdt) {
+  const bf = bossFeel, B = g.bossFight, bm = B && B.mobs.find((m) => m.kind === 'boss'), bar = $('contest-bar'), tr = $('contest-trail'), pop = $('contest-pop');
+  if (!bm || opt.gfx === 'low') { if (bf.dom) { bf.dom = false; bf.F = null; bar.style.transform = ''; bar.className = ''; tr.style.width = '0'; pop.classList.remove('on'); } return; }
+  const r = Math.max(0, bm.hp / bm.st.hp);
+  if (bf.F !== B) { bf.F = B; bf.r = r; bf.trail = r; bf.hold = 0; }
+  if (!bf.dom) { bf.dom = true; bar.classList.add('bf'); }
+  if (r < bf.r - 1e-9 && t >= bf.hold && bf.trail - bf.r < 0.004) bf.hold = t + 250;   // 새 덩어리가 깎이면 잠깐 머문다(이미 줄어드는 중이면 그대로 이어서)
+  bf.r = r; if (bf.trail < r) bf.trail = r;
+  if (t >= bf.hold && bf.trail > r) bf.trail = Math.max(r, bf.trail - Math.max(0.0002, (bf.trail - r) * 0.008) * fdt);
+  const cb = bm.cb, bars = cb ? CB.bars : 1, cur = Math.max(1, Math.ceil(r * bars - 1e-9)), part = (v) => Math.max(0, Math.min(1, v * bars - (cur - 1)));
+  $('contest-fill').style.width = `${part(r) * 100}%`; tr.style.width = `${part(bf.trail) * 100}%`;
+  bar.classList.toggle('go', t >= bf.hold); bar.classList.toggle('nt', !cb);
+  const sa = t - bf.shakeAt, q = sa >= 0 && sa < 120 && opt.shake ? bf.amp * (1 - sa / 120) : 0;
+  bar.style.transform = q ? `translate(${(Math.sin(sa * 0.16) * q).toFixed(1)}px,${(Math.cos(sa * 0.21) * q * 0.5).toFixed(1)}px)` : '';
+  const fa = t - bf.flashAt; bar.classList.toggle('hitf', fa >= 0 && fa < 150);
+  const pa = t - bf.popAt, on = pa >= 0 && pa < 420; if (pop.classList.contains('on') !== on) { pop.classList.toggle('on', on); if (on) pop.style.left = `${part(r) * 100}%`; }
+}
+// 화면 전체 번쩍 · 가장자리 번쩍 · 마지막 일격 파편(화면 자리 — 싸움이 끝나 맵이 바뀌어도 그 자리에 남는다)
+function drawBossFeel(cx, W, Hh, k, t) {
+  const bf = bossFeel; if (opt.gfx === 'low') { bf.kill = null; return; }
+  const ma = (t - bf.msAt) / 260;
+  if (ma >= 0 && ma < 1) { const v = cx.createRadialGradient(W / 2, Hh / 2, Math.min(W, Hh) * 0.3, W / 2, Hh / 2, Math.max(W, Hh) * 0.58); v.addColorStop(0, 'rgba(255,236,170,0)'); v.addColorStop(1, `rgba(255,236,170,${0.9 * (1 - ma) * (1 - ma)})`); cx.save(); cx.globalCompositeOperation = 'lighter'; cx.fillStyle = v; cx.fillRect(0, 0, W, Hh); cx.restore(); }
+  const sa = (t - bf.stFlashAt) / 120;
+  if (sa >= 0 && sa < 1) { cx.save(); cx.globalCompositeOperation = 'lighter'; cx.fillStyle = `rgba(255,240,196,${0.8 * (1 - sa)})`; cx.fillRect(0, 0, W, Hh); cx.restore(); }
+  const K = bf.kill;
+  if (K) {
+    const a = (t - K.at) / 900;
+    if (a >= 1) bf.kill = null;
+    else if (a >= 0) {
+      const e = 1 - Math.pow(1 - a, 3);
+      cx.save(); cx.translate(K.x, K.y); cx.globalCompositeOperation = 'lighter';
+      // 충격 고리 — 바닥에 납작하게 두 겹 + 몸통 높이에서 둥글게 한 겹
+      for (let j = 0; j < 3; j++) { const aj = Math.min(1, a * (1.5 - j * 0.25)); if (aj >= 1) continue; const ej = 1 - (1 - aj) * (1 - aj); cx.globalAlpha = (1 - aj) * (j ? 0.6 : 0.95); cx.strokeStyle = j === 1 ? '#ffd56a' : '#fff6dc'; cx.lineWidth = (1 - aj) * (j ? 5 : 9) * k + 0.5; cx.beginPath(); if (j === 2) cx.arc(0, -34 * k, (24 + ej * 150) * k, 0, 7); else cx.ellipse(0, 0, (30 + ej * (j ? 230 : 170)) * k, (10 + ej * (j ? 62 : 46)) * k, 0, 0, 7); cx.stroke(); }
+      if (a < 0.22) { const c = 1 - a / 0.22, gr = cx.createRadialGradient(0, -34 * k, 0, 0, -34 * k, 120 * k); gr.addColorStop(0, `rgba(255,255,255,${c})`); gr.addColorStop(1, 'rgba(255,230,160,0)'); cx.globalAlpha = 1; cx.fillStyle = gr; cx.fillRect(-130 * k, -164 * k, 260 * k, 260 * k); }
+      // 빛줄기
+      if (a < 0.6) { cx.lineCap = 'round'; cx.strokeStyle = '#fff3c4'; cx.lineWidth = 2.5 * k; cx.globalAlpha = (1 - a / 0.6) * 0.8;
+        for (let j = 0; j < 14; j++) { const ang = (j / 14) * Math.PI * 2 + (K.seed % 7) * 0.3, r1 = (20 + e * (120 + (j * 37 % 60))) * k, r0 = r1 - (1 - a) * 46 * k; cx.beginPath(); cx.moveTo(Math.cos(ang) * r0, -34 * k + Math.sin(ang) * r0 * 0.7); cx.lineTo(Math.cos(ang) * r1, -34 * k + Math.sin(ang) * r1 * 0.7); cx.stroke(); } }
+      // 파편 — 사방으로 튀어 올랐다 떨어진다(어두운 조각 · 금빛 조각)
+      cx.globalCompositeOperation = 'source-over';
+      for (let j = 0; j < 26; j++) {
+        const s1 = ((K.seed + j * 61) % 97) / 97, s2 = ((K.seed * 3 + j * 29) % 89) / 89, ang = -Math.PI * (0.08 + 0.84 * s1), sp = (150 + s2 * 230) * k, tt = a * 0.9;
+        const px = Math.cos(ang) * sp * tt * 1.5, py = -30 * k + Math.sin(ang) * sp * tt * 1.9 + 560 * k * tt * tt, sz = (6 + ((j * 13) % 8)) * k * (1 - a * 0.4), sh = sz * (0.6 + s2 * 0.6);
+        cx.save(); cx.globalAlpha = a < 0.7 ? 1 : 1 - (a - 0.7) / 0.3; cx.translate(px, Math.min(py, 6 * k)); cx.rotate(a * (6 + j % 5) * (j % 2 ? 1 : -1)); cx.fillStyle = j % 3 === 0 ? '#ffd56a' : j % 3 === 1 ? '#3a2c26' : '#6b5546'; cx.fillRect(-sz / 2, -sh / 2, sz, sh); if (j % 3) { cx.strokeStyle = '#0008'; cx.lineWidth = 1; cx.strokeRect(-sz / 2, -sh / 2, sz, sh); } cx.restore();
+      }
+      cx.restore();
+    }
+  }
+  const wa = (t - bf.whiteAt) / 80;
+  if (wa >= 0 && wa < 1) { cx.fillStyle = `rgba(255,255,255,${wa < 0.4 ? 1 : 1 - (wa - 0.4) / 0.6})`; cx.fillRect(0, 0, W, Hh); }
+}
 function drawImpacts(cx, P, k, t) {
   for (let i = impacts.length - 1; i >= 0; i--) {
     const it = impacts[i], a = (t - it.at) / (it.crit ? 260 : 170); if (a < 0) continue; if (a >= 1) { impacts.splice(i, 1); continue; }
@@ -1586,8 +1758,9 @@ function draw() {
   const r = { width: cv.clientWidth, height: cv.clientHeight }, dpr = opt.gfx === 'low' ? 1 : Math.min(2, window.devicePixelRatio || 1);
   if (opt.gfx === 'low') { dust.length = 0; coins.length = 0; }
   if (cv.width !== Math.round(r.width * dpr)) { cv.width = Math.round(r.width * dpr); cv.height = Math.round(r.height * dpr); }
-  const F = g.ensureFight(); if (!F) return;
-  const W = r.width, Hh = r.height, t = now(), ts = t / 1000, map = F.def.map;
+  const t = now(), KH = bossFeel.kill, held = !!(KH && KH.F && t - KH.at < 560);   // 두목 마지막 일격: 0.56초 동안은 끝난 두목전 장면을 그대로 둔다(바로 사냥터로 넘어가면 쓰러지는 모습 · 파편이 안 보인다) — 엔진은 그대로 다음 싸움을 돈다
+  const F = held ? KH.F : g.ensureFight(); if (!F) return;
+  const W = r.width, Hh = r.height, ts = t / 1000, map = F.def.map;
   const fdt = Math.min(100, Math.max(1, t - (lastDraw || t - 16))); lastDraw = t;
   const z = zoneFor(g.zoneLv());
   // 가까이 당겨 본다: 화면 너비에 약 15미터 — 무인을 가로 · 세로로 따라감(맵은 화면보다 넓고 높다)
@@ -1601,7 +1774,7 @@ function draw() {
   if (Math.abs(zWant - fieldZoom) < 0.002) fieldZoom = zWant;
   const s = s0 * fieldZoom, k = Math.min(1.25, Math.max(0.7, s0 / 0.05)) * fieldZoom;
   const viewW = W / s, viewH = Hh / s;
-  const al = Math.max(0, Math.min(1, acc / 50));
+  const al = held ? 1 : Math.max(0, Math.min(1, acc / 50));
   const lx = (o) => (o.px === undefined ? o.x : o.px + (o.x - o.px) * al), ly = (o) => (o.py === undefined ? o.y : o.py + (o.y - o.py) * al);
   // 보는 쪽을 조금 더 넓게(앞을 내다봄) — 돌아서면 천천히 넘어간다
   // v506 앞을 내다보는 몫은 「걸어가는 쪽」으로만, 천천히(1초) — 제자리에서 몹 따라 돌아설 때마다 화면이 출렁이지 않게
@@ -1693,14 +1866,34 @@ function draw() {
     if (flash) cx.filter = 'brightness(2.2) saturate(0.4)';
     drawMob(cx, x + kx, y, m, z, { t: ts + m.id, flip: m.dir < 0, moving: !!m.moving, ch, atk, hurt, scale: sc * (m.kind === 'boss' ? 1.3 : 1) });
     if (flash) cx.filter = 'none';
+    // 무력화 · 약점 노출 동안 두목 몸에 흰 금빛 기운이 맥동한다(상태가 끝나면 사라짐)
+    const bst = m.kind === 'boss' && opt.gfx !== 'low' && (m.stunUntil > F.t || !!(F.def.wb && F.wbW));
+    if (bst) { cx.globalCompositeOperation = 'lighter'; cx.globalAlpha *= 0.3 + 0.22 * Math.sin(t * 0.012); cx.filter = 'sepia(1) saturate(2.4) brightness(1.5)'; drawMob(cx, x + kx, y, m, z, { t: ts + m.id, flip: m.dir < 0, moving: !!m.moving, ch, atk, hurt, scale: sc * 1.3 }); cx.filter = 'none'; }
     cx.restore();
+    if (m.kind === 'boss' && opt.gfx !== 'low') {
+      const hh = mobHeight(m, ch) * sc * 1.3 * 0.5;
+      if (bst) { const pu = (t % 900) / 900; cx.save(); cx.globalCompositeOperation = 'lighter'; cx.strokeStyle = '#ffe9a8'; cx.globalAlpha = (1 - pu) * 0.7; cx.lineWidth = 2.5 * k; cx.beginPath(); cx.ellipse(x, y, (30 + pu * 46) * k, (9 + pu * 14) * k, 0, 0, 7); cx.stroke(); cx.restore(); }
+      const ba = (t - bossFeel.burstAt) / 380;
+      if (ba >= 0 && ba < 1) {   // 터지는 순간 — 두목에게서 사방으로 빛줄기
+        const e = 1 - Math.pow(1 - ba, 3); cx.save(); cx.globalCompositeOperation = 'lighter'; cx.translate(x, y - hh); cx.lineCap = 'round';
+        for (let j = 0; j < 18; j++) { const ang = (j / 18) * Math.PI * 2 + 0.17, r1 = (26 + e * (150 + (j * 53 % 70))) * k, r0 = Math.max(18 * k, r1 - (1 - ba) * 70 * k); cx.globalAlpha = (1 - ba) * (j % 2 ? 0.95 : 0.6); cx.strokeStyle = j % 2 ? '#ffffff' : '#ffd56a'; cx.lineWidth = (j % 2 ? 3.2 : 2) * k * (1 - ba * 0.5); cx.beginPath(); cx.moveTo(Math.cos(ang) * r0, Math.sin(ang) * r0); cx.lineTo(Math.cos(ang) * r1, Math.sin(ang) * r1); cx.stroke(); }
+        cx.globalAlpha = (1 - ba) * 0.8; cx.strokeStyle = '#fff6dc'; cx.lineWidth = (1 - ba) * 6 * k + 0.5; cx.beginPath(); cx.arc(0, 0, (20 + e * 90) * k, 0, 7); cx.stroke(); cx.restore();
+      }
+    }
     if (mw && m.kind !== 'mob' && t - (m.dustAt || 0) > 260) { m.dustAt = t; dust.push({ x: lx(m) - (m.dir || 1) * 250, y: ly(m), at: t }); }
     const top = (mobHeight(m, ch) + 10) * sc * (m.kind === 'boss' ? 1.3 : 1), bw = (m.kind === 'boss' ? 90 : 34) * k;
     if (m.hp < m.st.hp || m.kind !== 'mob') {
       // 체력 줄: 잃은 몫은 흰 줄로 남았다가 천천히 따라 줄어든다
-      const r = Math.max(0, m.hp / m.st.hp), lag = Math.max(r, (hpLag.get(m.id) ?? 1) - 0.012); hpLag.set(m.id, lag);
-      cx.fillStyle = '#000a'; cx.fillRect(x - bw / 2, y - top, bw, 4); cx.fillStyle = '#fff8'; cx.fillRect(x - bw / 2, y - top, bw * lag, 4);
-      cx.fillStyle = m.kind === 'boss' ? '#f59e0b' : '#e0436a'; cx.fillRect(x - bw / 2, y - top, bw * r, 4);
+      // 깎인 몫은 흰 줄로 0.25초 머물다(그래픽 낮음이면 바로) 금빛으로 바뀌며 따라 줄어든다. 두목 줄은 맞을 때 떨리고 큰 타격엔 테두리가 번쩍
+      const r = Math.max(0, m.hp / m.st.hp), low = opt.gfx === 'low', isB = m.kind === 'boss' && !low;
+      let L = hpLag.get(m.id); if (!L) hpLag.set(m.id, L = { v: 1, r: 1, hold: 0 });
+      if (r < L.r - 1e-9 && t >= L.hold && L.v - L.r < 0.004 && !low) L.hold = t + 250;
+      L.r = r; if (L.v < r) L.v = r; const held = t < L.hold;
+      if (!held) L.v = Math.max(r, L.v - Math.max(0.012, (L.v - r) * 0.1) * (fdt / 16));
+      const sa = isB ? t - bossFeel.shakeAt : -1, q = sa >= 0 && sa < 120 && opt.shake ? bossFeel.amp * (1 - sa / 120) : 0, bx = x - bw / 2 + (q ? Math.sin(sa * 0.16) * q : 0), by = y - top + (q ? Math.cos(sa * 0.21) * q * 0.5 : 0), bh = isB ? 5 : 4;
+      cx.fillStyle = '#000a'; cx.fillRect(bx, by, bw, bh); cx.fillStyle = low ? '#fff8' : held ? '#ffffff' : '#ffd56ad0'; cx.fillRect(bx, by, bw * L.v, bh);
+      cx.fillStyle = m.kind === 'boss' ? '#f59e0b' : '#e0436a'; cx.fillRect(bx, by, bw * r, bh);
+      if (isB) { const fa = (t - bossFeel.flashAt) / 150; if (fa >= 0 && fa < 1) { cx.save(); cx.globalAlpha = 1 - fa; cx.strokeStyle = '#fff'; cx.lineWidth = 2; cx.strokeRect(bx - 1.5, by - 1.5, bw + 3, bh + 3); cx.restore(); } }
     }
     if (m.kind !== 'mob') { const nm = mobName(m, z, ch); cx.font = 'bold 11px system-ui'; cx.textAlign = 'center'; cx.fillStyle = m.kind === 'boss' ? '#fde68a' : '#e9d5ff'; cx.strokeStyle = '#000'; cx.lineWidth = 3; cx.strokeText(nm, x, y - top - 4); cx.fillText(nm, x, y - top - 4); }
   }
@@ -1907,6 +2100,7 @@ function draw() {
     cx.fillStyle = numGrad(f.pal ? 2 : f.crit ? 1 : 0, fs); cx.fillText(txt, 0, 0); cx.restore();
     cx.globalAlpha = 1;
   }
+  drawBossFeel(cx, W, Hh, k, t); bossBarFx(t, fdt);
   // 두목 패턴에 맞음 — 화면 가장자리 붉게(0.4초)
   if (t - hurtFlash < 400) { const v = cx.createRadialGradient(W / 2, Hh / 2, Math.min(W, Hh) * 0.3, W / 2, Hh / 2, Math.max(W, Hh) * 0.7); v.addColorStop(0, 'rgba(220,20,20,0)'); v.addColorStop(1, `rgba(220,20,20,${0.45 * (1 - (t - hurtFlash) / 400)})`); cx.fillStyle = v; cx.fillRect(0, 0, W, Hh); }
   // 궁극기 컷인 — 수묵 배경 띠가 비스듬히 지나가며 무공 이름(0.9초)
@@ -1973,10 +2167,11 @@ function frame() {
           fly += lag;
         } else fly = (e[6] || 0) * 70 + (e[5] === 1 ? 90 : 0);   // 무공 타격은 이펙트가 터지는 때에 맞춰
         mobHit.set(m.id, t + fly);
+        if (m.kind === 'boss' && e[5] !== 2) { const sh = e[3] / Math.max(1, m.st.hp), bf = bossFeel; bf.shakeAt = t + fly; bf.amp = Math.min(5, 1.2 + sh * 90); if (sh >= 0.03 || e[4]) bf.flashAt = t + fly; }   // 두목 체력 줄: 피해 몫만큼 떨리고(최대 5px), 큰 타격(한 번에 3% 이상) · 치명타엔 테두리 번쩍
         if (e[5] !== 2 && opt.gfx !== 'low' && impacts.length < 40 && (e[4] || e[5] === 0)) impacts.push({ x: m.x, y: m.y + 650, at: t + fly, crit: !!e[4], dir: Math.sign(m.x - H0.x) || 1, seed: (m.id * 31 + (e[6] || 0) * 17 + (t | 0)) % 1000 });
         if (e[4] && e[5] !== 2) {
           mobCrit.set(m.id, t + fly);
-          setTimeout(() => { const n2 = now(); shakeUntil = Math.max(shakeUntil, n2 + 110); if (n2 - lastCritBuzz > 400) { lastCritBuzz = n2; buzz(12); } if ((g.bossFight || g.dg) && n2 - lastCritStop > 500) { lastCritStop = n2; freezeUntil = Math.max(freezeUntil, n2 + 30); } }, fly);
+          setTimeout(() => { const n2 = now(); shakeUntil = Math.max(shakeUntil, n2 + 110); vib('crit'); if ((g.bossFight || g.dg) && n2 - lastCritStop > 500) { lastCritStop = n2; freezeUntil = Math.max(freezeUntil, n2 + 30); } }, fly);
         }
         if (e[5] === 0 && t - lastAtkPose > 260) { lastAtkPose = t; heroAttackPose(job, false); }
         if (e[5] !== 2) { if (e[5] === 0 && !shot) play('swish'); setTimeout(() => play('hit', e[4]), fly); }
@@ -1994,18 +2189,32 @@ function frame() {
       else if (e[0] === 'pal') palAtk[e[2]] = { at: t, mid: e[3] };
       else if (e[0] === 'tell') { tells.set(e[2], { pat: e[3], x: e[4], y: e[5], w: e[6], at: t, dur: e[7], safe: e[8] != null ? [e[8], e[9]] : null }); play('tell'); }
       else if (e[0] === 'phase') { shakeUntil = t + 500; play('tense'); chbBanner(e[3] === 2 ? '필살 국면' : '분노', e[3] === 2 ? '붉은 땅 밖 — 빛나는 자리로 피하라!' : '두목이 빨라졌다', e[3] === 2 ? 'ult' : 'rage'); buzz(80); }
-      else if (e[0] === 'stun') { play('rare', 4); chbBanner('무력화!', `${Math.round(e[3] / 1000)}초 기절 · 받는 피해 ×${CB.stunDmgX}`, 'stun'); }
+      else if (e[0] === 'stun') { play('rare', 4); bossFeel.stFlashAt = bossFeel.burstAt = t; shakeUntil = Math.max(shakeUntil, t + 260); chbBanner('무력화!', `${Math.round(e[3] / 1000)}초 기절 · 받는 피해 ×${CB.stunDmgX}`, 'stun'); }
       else if (e[0] === 'summon') addLog('두목이 졸개를 불렀다');
-      else if (e[0] === 'wbw') { if (e[2]) { chbBanner('약점 노출!', `10초 · 받는 피해 ×${WBF.weakX} — 무공을 몰아 쓰세요`, 'stun'); play('rare', 4); shakeUntil = t + 300; } else chbBanner('방어 자세', `받는 피해 ×${WBF.guardX}`, 'rage'); }
+      else if (e[0] === 'wbw') { if (e[2]) { chbBanner('약점 노출!', `10초 · 받는 피해 ×${WBF.weakX} — 무공을 몰아 쓰세요`, 'stun'); play('rare', 4); shakeUntil = Math.max(shakeUntil, t + 300); bossFeel.stFlashAt = bossFeel.burstAt = t; } else chbBanner('방어 자세', `받는 피해 ×${WBF.guardX}`, 'rage'); }
       else if (e[0] === 'hurt') { play('hurt'); if (t - heroHurtAt > 260) heroHurtAt = t; }   // v598 맞으면 움찔
       else if (e[0] === 'dash') { dashAt = t; play('swish'); }
       else if (e[0] === 'perfect') { perfAt = t; slowUntil = t + 650; shakeUntil = t + 160; play('rare', 5); buzz([30, 40, 30]); chbBanner('완벽 회피!', `${DASH.buffMs / 1000}초 동안 주는 피해 ×${DASH.buffX}`, 'stun'); addLog('완벽 회피!'); }
-      else if (e[0] === 'die') { play('down'); buzz(200); heroDownAt = t; }   // v598 쓰러지면 무릎을 꿇는다
-      else if (e[0] === 'burst') { tells.delete(e[2]); skillFx.push({ at: t, shape: 'boss', pat: e[3], x: e[4], y: e[5], w: e[6] }); shakeUntil = t + (e[7] ? 420 : 220); if (e[7]) { hurtFlash = t; buzz(60); } play('burst'); }
-      else if (e[0] === 'kill') { comboHit(t); if (e[3] === 'boss' && g.lastFight?.def?.chb) { slowUntil = t + 900; shakeUntil = t + 700; chbBanner('BOSS DEFEATED', '', 'win'); } play('kill'); if (killLog.length < 500) killLog.push(t); const m = mobs.get(e[2]); if (m && coins.length < 40) for (let j = 0; j < (m.kind === 'mob' ? 2 : 6); j++) coins.push({ x: m.x, y: m.y + 600, vx: ((j % 3) - 1) * 900 + ((m.id * 7 + j * 13) % 9 - 4) * 120, vy: 5200 + (j % 2) * 1500, at: t, j }); if (m && corpses.length < 30) corpses.push({ m: { id: m.id, kind: m.kind }, x: m.x, y: m.y, dir: m.dir || 1, at: t + 40 }); firstSeen.delete(e[2]); lastNext.delete(e[2]); atkAt.delete(e[2]); hpLag.delete(e[2]); if (m && skillFx.length < 90) skillFx.push({ at: t, shape: 'ring', x: m.x, y: m.y }); }
-      if (e[0] === 'cast') { heroAttackPose(g.S.hero.job, true); lastAtkPose = t; play('skill'); lastCastAt = t; const tr = skillById(e[2])?.tier || 0; if (tr >= 3 && t - lastFreeze > 700) { freezeUntil = t + 45; lastFreeze = t; } if (tr >= 4) zoomAt = t; flashSlot(e[2]); }   // 큰 무공은 맞는 순간 0.06초 멈칫
+      else if (e[0] === 'die') { play('down'); vib('die'); heroDownAt = t; }   // v598 쓰러지면 무릎을 꿇는다
+      else if (e[0] === 'burst') { tells.delete(e[2]); skillFx.push({ at: t, shape: 'boss', pat: e[3], x: e[4], y: e[5], w: e[6] }); shakeUntil = t + (e[7] ? 420 : 220); if (e[7]) { hurtFlash = t; vib('bossHurt'); } play('burst'); }
+      else if (e[0] === 'kill') {
+        comboHit(t);
+        if (e[3] === 'boss') {   // 마지막 일격 — 흰 번쩍(0.08초) → 느린 화면(0.5초 · 장 두목은 0.9초, 더하지 않고 긴 쪽) → 파편 · 충격 고리
+          const chb = !!g.lastFight?.def?.chb, bm = mobs.get(e[2]), c = window.__cam;
+          slowUntil = Math.max(slowUntil, t + (chb ? 900 : 500)); shakeUntil = Math.max(shakeUntil, t + (chb ? 700 : 420));
+          if (chb) chbBanner('BOSS DEFEATED', '', 'win');
+          if (opt.gfx !== 'low') { bossFeel.whiteAt = t; if (bm && c) bossFeel.kill = { at: t + 40, F: F0, x: c[2] + (bm.x - F0.hero.x) * c[5], y: c[3] - (bm.y - F0.hero.y) * c[5], seed: (bm.id * 31 + (t | 0)) % 1000 }; }
+          vib('bossKill');
+        } else if (e[3] === 'elite') vib('elite');
+        play('kill'); if (killLog.length < 500) killLog.push(t); const m = mobs.get(e[2]); if (m && coins.length < 40) for (let j = 0; j < (m.kind === 'mob' ? 2 : 6); j++) coins.push({ x: m.x, y: m.y + 600, vx: ((j % 3) - 1) * 900 + ((m.id * 7 + j * 13) % 9 - 4) * 120, vy: 5200 + (j % 2) * 1500, at: t, j }); if (m && corpses.length < 30) corpses.push({ m: { id: m.id, kind: m.kind }, x: m.x, y: m.y, dir: m.dir || 1, at: t + 40 }); firstSeen.delete(e[2]); lastNext.delete(e[2]); atkAt.delete(e[2]); hpLag.delete(e[2]); if (m && skillFx.length < 90) skillFx.push({ at: t, shape: 'ring', x: m.x, y: m.y });
+      }
+      if (e[0] === 'cast') { heroAttackPose(g.S.hero.job, true); lastAtkPose = t; play('skill'); lastCastAt = t; const tr = skillById(e[2])?.tier || 0; if (tr >= 3 && t - lastFreeze > 700) { freezeUntil = t + 45; lastFreeze = t; } if (tr >= 3) vib(`sk${Math.min(5, tr)}`); if (tr >= 4) zoomAt = t; flashSlot(e[2]); }   // 큰 무공은 맞는 순간 0.06초 멈칫
       if (e[0] === 'cast' && skillById(e[2])?.tier === 5) { cutIn = { at: t, id: e[2] }; shakeUntil = t + 450; }
     }
+    // 두목 고비 — 체력이 75 · 50 · 25%를 넘어 내려가는 순간: 가장자리 번쩍 + 흔들림 +0.2초 + 막대 눈금 튐 + 진동
+    { const bf = bossFeel, bm = F0.mobs.find((m) => m.kind === 'boss'), r = bm ? Math.max(0, bm.hp / bm.st.hp) : null;
+      if (bf.lastF === F0 && r !== null && bf.lastR !== null && r > 0 && !saverOn && BOSS_MS.some((th) => bf.lastR > th && r <= th)) { if (opt.gfx !== 'low') { bf.msAt = bf.popAt = t; } shakeUntil = Math.max(shakeUntil, t) + 200; vib('bossMs'); }
+      bf.lastF = F0; bf.lastR = r; }
   }
   if (t - lastMin >= 60000) { lastMin = t; g.minute(); }
   for (const f of g.feed.splice(0)) {
@@ -2021,7 +2230,7 @@ function frame() {
     else if (f.k === 'tree') { const sk = skillById(f.id); toast(`${sk?.name} 강화 완료`); }
     else if (f.k === 'challenge') { play('boss'); addLog(f.practice ? `연습 — ${CHBOSS[f.chb].name}` : f.raid ? `토벌 — ${CHBOSS[f.chb].name} · Lv ${f.idx}` : `${Math.ceil(f.idx / 10)}장 ${((f.idx - 1) % 10) + 1}칸 ${f.chb ? '장 두목' : '두목'} 도전`); if (f.chb) chbIntro(f.chb); }
     else if (f.k === 'raid-end') showRaidResult(f);
-    else if (f.k === 'stage-clear' || f.k === 'stage-fail') showResult(f);
+    else if (f.k === 'stage-clear' || f.k === 'stage-fail') { const K = bossFeel.kill; if (f.k === 'stage-clear' && K && K.F === g.lastFight && now() - K.at < 200) setTimeout(() => showResult(f), g.lastFight?.def?.chb ? 850 : 600); else showResult(f); }   // 마지막 일격 연출(파편 · 느린 화면)이 보이도록 결과 창은 그 뒤에
     else if (f.k === 'dungeon-start') { closeWin(); play('tense'); if (f.type === 'wboss') wbIntro(); else if (f.type === 'graid') chbIntro(g.graidBoss()); else dgBanner(f.title, g.dgStatus()); addLog(`${f.title} 입장`); }
     else if (f.k === 'dungeon-end') {
       showDgResult(f); if (f.type === 'wboss') wbPush(f.score);
@@ -2428,6 +2637,6 @@ load();
 if (g) boot();
 else pickJob();
 // 시험용 손잡이
-window.__s2 = { get g() { return g; }, agTest: () => { frame.ag = 0; }, saverStart, saverOff, saverOn: () => saverOn, saverAge: (ms) => { if (saverFrom) saverFrom.at -= ms; }, saverSum: () => saverSum, impacts: () => impacts.length, motion: () => ({ hurt: heroHurtAt, down: heroDownAt, run: runMix, anim: heroAnim.active }), inviteTest: (c) => { inviteCode = c; inviteCheck(); }, shareGame, shareLast: () => shareLast, saverAutoTest: (on) => { saverAuto = !!on; }, wake: () => ({ lock: !!wakeLock, want: wakeWant, ok: wakeOK() }), wakeSync, wakeOpt: (on) => { opt.wake = !!on; return wakeSync(); }, saverTest: () => { saverForce = true; lastInput = -1e9; }, newsCheck, guildState, guildLoad, chatSend, save, dayKey, attendPop, freeze: () => { frozen = true; }, net, cloudPush, rankPush, wbPush, wkStr, pvpInbox, pvpFetch, resetNetTimers: () => { pvpAt = 0; inboxAt = 0; },
+window.__s2 = { get g() { return g; }, agTest: () => { frame.ag = 0; }, saverStart, saverOff, saverOn: () => saverOn, saverAge: (ms) => { if (saverFrom) saverFrom.at -= ms; }, saverSum: () => saverSum, impacts: () => impacts.length, motion: () => ({ hurt: heroHurtAt, down: heroDownAt, run: runMix, anim: heroAnim.active }), inviteTest: (c) => { inviteCode = c; inviteCheck(); }, shareGame, shareLast: () => shareLast, saverAutoTest: (on) => { saverAuto = !!on; }, wake: () => ({ lock: !!wakeLock, want: wakeWant, ok: wakeOK() }), wakeSync, wakeOpt: (on) => { opt.wake = !!on; return wakeSync(); }, saverTest: () => { saverForce = true; lastInput = -1e9; }, newsCheck, guildState, guildLoad, chatSend, worldSend, worldMsgs: () => worldState.msgs.map((m) => ({ uid: m.uid, nick: m.nick, text: m.text, lv: m.lv, job: m.job })), worldOn: () => !!worldState.unsub, worldReset: () => { worldState.lastAt = 0; worldState.lastText = ''; }, save, dayKey, attendPop, freeze: () => { frozen = true; }, net, cloudPush, rankPush, wbPush, wkStr, pvpInbox, pvpFetch, resetNetTimers: () => { pvpAt = 0; inboxAt = 0; },
   // v525 팝업 대신 에뮬레이터용 가짜 Google 토큰으로 잇기 · 겹치면 그 계정으로
   linkTest: async (tok) => { const r = await net.linkGoogle(tok); if (r.conflict) { const d = await net.switchTo(r.cred); if (d) applyCloud(d); return 'switched'; } await cloudPush(true); return 'linked'; } };

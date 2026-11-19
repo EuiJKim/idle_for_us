@@ -139,6 +139,15 @@
     #contest-title { flex: 1; font-size: 13px; font-weight: 800; color: #fff; } #contest-pct { font-weight: 800; color: #fecaca; font-variant-numeric: tabular-nums; }
     #contest-bar { position: relative; height: 10px; margin: 4px 0 3px; border-radius: 999px; background: rgba(0,0,0,.6); overflow: hidden; border: 1px solid rgba(255,255,255,.15); }
     #contest-fill { position: absolute; left: 0; top: 0; bottom: 0; width: 100%; background: linear-gradient(180deg, #ff6b6b, #b91c1c); transition: width .2s; }
+    #contest-trail { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: #fff; transition: background-color .18s; }
+    #contest-bar.go #contest-trail { background: #ffd56a; }
+    #contest-bar.bf #contest-fill { transition: none; }
+    #contest-bar.hitf { border-color: #fff; box-shadow: 0 0 0 1px #fff, 0 0 10px 2px rgba(255,236,170,.85); }
+    #contest-bar .ntk { display: none; position: absolute; top: 0; bottom: 0; width: 1px; margin-left: -.5px; background: rgba(0,0,0,.55); box-shadow: 1px 0 0 rgba(255,255,255,.22); }
+    #contest-bar.nt .ntk { display: block; }
+    #contest-pop { display: none; position: absolute; top: -1px; bottom: -1px; width: 4px; margin-left: -2px; border-radius: 2px; background: #fff; box-shadow: 0 0 8px 3px #ffe9a8; }
+    #contest-pop.on { display: block; animation: cb-pop .42s ease-out both; }
+    @keyframes cb-pop { 0% { transform: scale(7, 1.6); opacity: 1; } 35% { transform: scale(1.6, 1.3); opacity: 1; } 100% { transform: scale(1, 1); opacity: 0; } }
     #contest-sub { color: rgba(255,255,255,.7); font-size: 11px; }
     body.bossing #qc { display: none; }
     .pj-g { color: var(--gold); font-weight: 800; text-decoration: underline; }
@@ -169,6 +178,7 @@
     /* v551 문파 대화 */
     .gchat { max-height: 210px; overflow-y: auto; display: grid; gap: 4px; padding: 6px; border-radius: 10px; background: rgba(0,0,0,.3); margin-bottom: 6px; overscroll-behavior: contain; }
     .gc-m { display: grid; grid-template-columns: auto 1fr auto; gap: 6px; align-items: baseline; font-size: 13px; } .gc-m b { color: #fde68a; font-size: 12px; } .gc-m.me b { color: #7dd3fc; } .gc-m span { word-break: break-all; } .gc-m small { font-size: 10px; color: rgba(255,255,255,.4); }
+    .wchat { max-height: min(46vh, 320px); min-height: 96px; align-content: start; } .wc-m b { cursor: pointer; white-space: nowrap; } .wc-m b i { font-style: normal; font-weight: 400; color: rgba(255,255,255,.5); } .wc-m b em { font-style: normal; font-weight: 400; font-size: 10.5px; color: rgba(255,255,255,.5); }
     .gc-sys { font-size: 11.5px; color: rgba(255,255,255,.55); text-align: center; }
     .gchat-f { display: flex; gap: 6px; } .gchat-f input { flex: 1; min-width: 0; padding: 8px 10px; border-radius: 9px; border: 1px solid rgba(255,255,255,.25); background: rgba(0,0,0,.45); color: #fff; font: inherit; font-size: 14px; } .gchat-f .btn { min-height: 38px; }
     /* v567 무인 정보 */
@@ -208,6 +218,14 @@
     .gd-me { outline: 1px solid #7dd3fc; }
     /* v548 진짜 대결 상대 */
     .pill { display: inline-block; padding: 0 7px; border-radius: 999px; font-size: 10.5px; font-weight: 800; vertical-align: 1px; background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.25); color: rgba(255,255,255,.75); }
+    .row.pty-on { box-shadow: inset 3px 0 0 #7dd3fc; background: rgba(125,211,252,.08); }
+    .pty-res { display: flex; gap: 14px; align-items: center; } .pty-cv { flex: 0 0 auto; height: 150px; width: auto; max-width: 52%; background: radial-gradient(ellipse at 50% 88%, rgba(253,230,138,.18), rgba(0,0,0,0) 70%); border-radius: 12px; }
+    .pty-side { flex: 1; min-width: 0; } .pty-t { font-size: 20px; font-weight: 900; margin-bottom: 6px; } .pty-t.win { color: #fde68a; } .pty-t.lose { color: #94a3b8; } .pty-t small { font-size: 12px; font-weight: 700; color: rgba(255,255,255,.65); margin-left: 6px; }
+    .pty-b { display: grid; grid-template-columns: minmax(0, 9em) 1fr 3.6em; gap: 8px; align-items: center; font-size: 12px; margin: 4px 0; } .pty-b span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .pty-b small { color: rgba(255,255,255,.55); } .pty-b b { text-align: right; font-variant-numeric: tabular-nums; }
+    .pty-bar { height: 10px; border-radius: 999px; background: rgba(0,0,0,.55); border: 1px solid rgba(255,255,255,.2); overflow: hidden; } .pty-bar i { display: block; height: 100%; border-radius: 999px; }
+    .pty-c0 { background: #86efac; } .pty-c1 { background: #7dd3fc; } .pty-c2 { background: #fcd34d; }
+    .td-got.pty-got { margin: 10px 0 0; gap: 10px; font-size: 12.5px; justify-content: flex-start; flex-wrap: wrap; align-items: center; }
+    html.h500 .pty-cv { height: 120px; }
     .pill.pv-real { background: rgba(8,47,73,.8); border-color: #7dd3fc; color: #e0f2fe; }
     /* v547 서열 */
     .rk-seg { margin: 2px 0 8px; flex-wrap: wrap; } .rk-seg button { white-space: nowrap; } .rk-list { display: grid; gap: 3px; }
@@ -639,7 +657,7 @@
       <div id="loglines"></div>
       <button id="btn-boss" class="hidden">두목 도전</button>
       <div id="lootbox"></div>
-      <div id="contest-hud" class="hidden"><div class="ch-h"><svg class="ic" viewBox="0 0 24 24"><path d="M4 8l4 3 4-6 4 6 4-3-2 11H6z"/></svg><b id="contest-title"></b><span id="contest-pct"></span><button id="dg-leave" class="hidden">나가기</button></div><div id="contest-bar"><i id="contest-fill"></i></div><div id="cb-row"><span id="cb-ph"></span><div id="cb-ggb"><i id="cb-gg"></i></div></div><div id="contest-sub"></div></div>
+      <div id="contest-hud" class="hidden"><div class="ch-h"><svg class="ic" viewBox="0 0 24 24"><path d="M4 8l4 3 4-6 4 6 4-3-2 11H6z"/></svg><b id="contest-title"></b><span id="contest-pct"></span><button id="dg-leave" class="hidden">나가기</button></div><div id="contest-bar"><i id="contest-trail"></i><i id="contest-fill"></i><i class="ntk" style="left:25%"></i><i class="ntk" style="left:50%"></i><i class="ntk" style="left:75%"></i><i id="contest-pop"></i></div><div id="cb-row"><span id="cb-ph"></span><div id="cb-ggb"><i id="cb-gg"></i></div></div><div id="contest-sub"></div></div>
       <div id="me">
         <div class="me-h"><b id="me-lv">Lv.1</b><span id="me-nm">무명</span></div>
         <div class="bar hp"><i id="hp-trail"></i><i id="hp-fill"></i><span id="hp-txt">HP 0 / 0</span></div>

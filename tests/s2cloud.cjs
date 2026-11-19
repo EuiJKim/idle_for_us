@@ -171,6 +171,31 @@ async function device(b) {
   await D.page.evaluate(async (c) => { await window.__s2.shareGame(c); }, gcode);
   assert(await D.page.evaluate((c) => window.__s2.shareLast().endsWith('?g=' + c), gcode), 'D: 문파원 부르기 → 초대 주소');
   await D.page.evaluate(async (c) => { await window.__s2.net.guildLeave(c); window.__s2.g.setGuild(null); }, gcode);
+  // 전체 대화 — D가 대화 칸을 열어 둔 동안 A가 보내면 바로 보인다 · 글은 글자 그대로 · 긴 글 · 빠른 연속 · 낮은 레벨은 막힘 · 남의 이름으로는 못 씀(규칙)
+  await D.page.evaluate(() => { if (document.getElementById('res').classList.contains('open')) document.getElementById('rout')?.click(); if (document.getElementById('panel').classList.contains('open')) document.getElementById('panel-close').click(); }); await sleep(300);
+  await D.page.click('[data-tab="social"] >> nth=0'); await D.page.click('#panel-body .subtabs button:has-text("대화")'); await sleep(1500);
+  assert(await D.page.isVisible('#wchat') && await D.page.isVisible('#wchat-in') && await D.page.evaluate(() => window.__s2.worldOn()), 'D: 무림 → 대화 칸(목록 · 입력 줄 · 실시간 구독)');
+  const WM = `모두 <b>반가워요</b> ${RUN}`;
+  const sent = await A.page.evaluate((t) => { window.__s2.worldReset(); return window.__s2.worldSend(t); }, WM);
+  assert(sent === true, `A: 전체 대화 보내기 ${sent}`);
+  const fast = await A.page.evaluate(() => window.__s2.worldSend('한마디 더'));
+  assert(fast === 'fast', `A: 5초 안에 또 보내면 막힘 ${fast}`);
+  const long = await A.page.evaluate(() => { window.__s2.worldReset(); return window.__s2.worldSend('가'.repeat(81)); });
+  assert(long === 'long', `A: 80자를 넘으면 안 보냄 ${long}`);
+  await sleep(2000);
+  const seen = await D.page.evaluate(([t, ua]) => ({ dom: (document.querySelector('#wchat')?.textContent || '').includes(t), tag: !!document.querySelector('#wchat span b'), msg: window.__s2.worldMsgs().some((m) => m.text === t && m.uid === ua && m.lv >= 10), over: window.__s2.worldMsgs().some((m) => m.text.length > 80) }), [WM, uidA]);
+  assert(seen.dom && seen.msg && !seen.over, `D: A의 말이 실시간으로 보임 ${JSON.stringify(seen)}`);
+  assert(!seen.tag, 'D: 전체 대화 글은 글자 그대로(꺾쇠 안 먹힘)');
+  await D.page.click('#panel-close'); await sleep(300);
+  assert(await D.page.evaluate(() => !window.__s2.worldOn()), 'D: 창을 닫으면 구독 끊김');
+  const lowLv = await E.page.evaluate(() => window.__s2.worldSend('안녕하세요'));
+  assert(lowLv === 'lv', `E(Lv 10 아래): 전체 대화 못 씀 ${lowLv}`);
+  const forged = await E.page.evaluate(async (ua) => {
+    const n = window.__s2.net, fs = n.fs;
+    const tryMsg = async (m) => { const b = fs.writeBatch(n.db); b.set(fs.doc(n.db, 's2_chatlimit', n.uid), { at: fs.serverTimestamp() }); b.set(fs.doc(fs.collection(n.db, 's2_chat', 'world', 'msgs')), { nick: 'E무인', lv: 37, job: '', at: fs.serverTimestamp(), ...m }); try { await b.commit(); return 'ok'; } catch (e) { return e?.code || 'err'; } };
+    return { uid: await tryMsg({ uid: ua, text: '몰래' }), long: await tryMsg({ uid: n.uid, text: '가'.repeat(81) }), key: await tryMsg({ uid: n.uid, text: '몰래', type: 'system' }) };
+  }, uidA);
+  assert(forged.uid === 'permission-denied' && forged.long === 'permission-denied' && forged.key === 'permission-denied', `규칙: 남의 이름 · 긴 글 · 없는 칸은 못 씀 ${JSON.stringify(forged)}`);
   const errs = [...A.errs, ...B.errs, ...errC, ...D.errs, ...E.errs];
   assert(errs.length === 0, '페이지 오류 없음 ' + errs.join(' | '));
   await b.close();
