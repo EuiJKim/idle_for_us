@@ -1605,6 +1605,20 @@ console.log('\n=== v609 자동 성장 — 은자 아끼기여도 스탯은 찍�
   ok(g2.statPts() === q0, 'stat을 끄면 안 찍는다');
 }
 
+console.log('\n=== v610 창 줄 그림 아이콘 ===');
+{
+  const UI = await import('../js/s2/tables/uiicons.js');
+  const miss = UI.UI_ICONS.filter((n) => !fs.existsSync(new URL(`../art/s2/ui/${n}.webp`, import.meta.url)));
+  ok(UI.UI_ICONS.length >= 36 && !miss.length, `그림 아이콘 ${UI.UI_ICONS.length}개가 모두 art/s2/ui에 있다`, miss.join(' '));
+  const bad = Object.entries(UI.GLY_ICON).filter(([, n]) => !UI.UI_ICONS.includes(n)).map(([g2, n]) => `${g2}→${n}`);
+  ok(!bad.length, '글자 → 그림 표는 있는 그림만 가리킨다', bad.join(' '));
+  const used = new Set(Object.values(UI.GLY_ICON)); const app = fs.readFileSync(new URL('../js/s2/ui/app.js', import.meta.url), 'utf8');
+  const direct = [...app.matchAll(/'i:([a-z]+):/g), ...app.matchAll(/`i:([a-z]+):/g)].map((m) => m[1]); for (const n of direct) used.add(n);
+  ok(direct.every((n) => UI.UI_ICONS.includes(n)), '줄에서 바로 고른 그림(i:이름)도 있는 그림이다', direct.filter((n) => !UI.UI_ICONS.includes(n)).join(' '));
+  ok(UI.UI_ICONS.every((n) => used.has(n)), '안 쓰는 그림이 없다', UI.UI_ICONS.filter((n) => !used.has(n)).join(' '));
+  ok(UI.uiIcon('塔')[0] === 'tower' && UI.uiIcon('i:def:防').join() === 'def,防' && UI.uiIcon('✓').join() === ',✓' && UI.uiIcon('i:nope:x').join() === ',x', '글자 → 그림 풀이(없는 그림 · 표에 없는 글자는 글자 그대로)');
+}
+
 console.log('\n=== S0 규칙 ===');
 {
   const files = [];

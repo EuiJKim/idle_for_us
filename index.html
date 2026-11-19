@@ -178,7 +178,7 @@
     /* v551 문파 대화 */
     .gchat { max-height: 210px; overflow-y: auto; display: grid; gap: 4px; padding: 6px; border-radius: 10px; background: rgba(0,0,0,.3); margin-bottom: 6px; overscroll-behavior: contain; }
     .gc-m { display: grid; grid-template-columns: auto 1fr auto; gap: 6px; align-items: baseline; font-size: 13px; } .gc-m b { color: #fde68a; font-size: 12px; } .gc-m.me b { color: #7dd3fc; } .gc-m span { word-break: break-all; } .gc-m small { font-size: 10px; color: rgba(255,255,255,.4); }
-    .wchat { max-height: min(46vh, 320px); min-height: 96px; align-content: start; } .wc-m b { cursor: pointer; white-space: nowrap; } .wc-m b i { font-style: normal; font-weight: 400; color: rgba(255,255,255,.5); } .wc-m b em { font-style: normal; font-weight: 400; font-size: 10.5px; color: rgba(255,255,255,.5); }
+    .wchat { max-height: min(46vh, 320px); min-height: 96px; align-content: start; } .wc-m { display: flex; flex-wrap: wrap; column-gap: 6px; row-gap: 0; } .wc-m span { flex: 1 1 9em; min-width: 0; } .wc-m b { cursor: pointer; white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; } .wc-m b i { font-style: normal; font-weight: 400; color: rgba(255,255,255,.5); } .wc-m b em { font-style: normal; font-weight: 400; font-size: 10.5px; color: rgba(255,255,255,.5); }
     .gc-sys { font-size: 11.5px; color: rgba(255,255,255,.55); text-align: center; }
     .gchat-f { display: flex; gap: 6px; } .gchat-f input { flex: 1; min-width: 0; padding: 8px 10px; border-radius: 9px; border: 1px solid rgba(255,255,255,.25); background: rgba(0,0,0,.45); color: #fff; font: inherit; font-size: 14px; } .gchat-f .btn { min-height: 38px; }
     /* v567 무인 정보 */
@@ -599,6 +599,9 @@
     #panel .row .name { font-family: inherit; font-size: 13.5px; color: #fff; }
     #panel .row .desc { color: rgba(255,255,255,.55); }
     #panel .row .ico { font-family: inherit; font-size: 15px; width: 34px; height: 34px; line-height: 34px; border-radius: 9px; background: rgba(212,166,74,.14); color: var(--gold); }
+    /* v610 줄 그림 아이콘 — 네모 바탕 없이 그림만 38px(위아래 · 좌우를 2px씩 당겨 줄 높이 · 글 자리는 글자 딱지 때와 같다) */
+    #panel .row .ico.pic { width: 38px; height: 38px; margin: -2px; padding: 0; line-height: 0; font-size: 0; border: 0; border-radius: 0; background: none; }
+    #panel .row .ico.pic img { display: block; width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 1px 1px rgba(0,0,0,.45)); }
     #panel .btn { border-radius: 9px; border: 0; background: rgba(255,255,255,.1); color: #fff; font-weight: 800; box-shadow: none; }
     #panel .btn.primary { background: linear-gradient(180deg, #f6cf62, #e0a53a); color: #2a1a05; box-shadow: 0 2px 0 #9a6a16; }
     #panel .btn:disabled { opacity: .4; box-shadow: none; }

@@ -196,6 +196,27 @@ async function device(b) {
     return { uid: await tryMsg({ uid: ua, text: '몰래' }), long: await tryMsg({ uid: n.uid, text: '가'.repeat(81) }), key: await tryMsg({ uid: n.uid, text: '몰래', type: 'system' }) };
   }, uidA);
   assert(forged.uid === 'permission-denied' && forged.long === 'permission-denied' && forged.key === 'permission-denied', `규칙: 남의 이름 · 긴 글 · 없는 칸은 못 씀 ${JSON.stringify(forged)}`);
+  // 서버 화면 점검 — 출석 창을 닫은 뒤 뜨는 알림 창도 안내 글이 보인다(낮은 화면에서 출석 창 꾸밈이 남아 숨던 것)
+  await D.page.evaluate((c) => { if (document.getElementById('panel').classList.contains('open')) document.getElementById('panel-close').click(); window.__s2.inviteTest(c); }, gcode);
+  await D.page.waitForSelector('#modal:not(.hidden) .btn:has-text("들어가기")', { timeout: 20000 }).catch(() => {});
+  assert(await D.page.isVisible('#modal .sheet .note') && !(await D.page.evaluate(() => document.querySelector('#modal .sheet').classList.contains('attw'))), 'D: 문파 초대 창에 안내 글(코드)이 보임');
+  await sleep(400); await D.page.click('#modal .btn:has-text("나중에")'); await sleep(200);
+  // 동행 칸을 열어 둔 채 대결 상대 자료가 오면 다시 열지 않아도 줄이 생긴다
+  await D.page.evaluate((ps) => { const s = window.__s2; s.g.S.pvp.score = ps; s.g.setPvpReal([]); s.resetNetTimers(); }, PS);
+  await D.page.click('[data-tab="dgn"] >> nth=0'); await D.page.click('#panel-body .subtabs button:has-text("동행")');
+  const partyReal = await D.page.waitForSelector('#wb .row .pill.pv-real', { timeout: 10000 }).then(() => true, () => false);
+  assert(partyReal, 'D: 동행 칸 — 자료가 오면 바로 진짜 무인 줄');
+  await D.page.click('#panel-close'); await sleep(200);
+  // 옛 저장이 남은 기기 — 서버 것이 더 새로우면 묻고, 고르기 전에는 서버를 덮지 않는다(열자마자 한 저장이 시각을 지금으로 바꿔 묻지도 않고 덮던 것)
+  await E.page.evaluate(async () => { const s = window.__s2; s.g.S.wallet.gold = 777777; s.save(); await s.cloudPush(true); s.g.S.wallet.gold = 5; s.save(); s.freeze(); localStorage.setItem('ifu.s2.save.at', '1000'); });
+  await E.page.reload({ waitUntil: 'domcontentloaded' });
+  const asked = await E.page.waitForSelector('#modal:not(.hidden) .btn:has-text("서버 것 받기")', { timeout: 30000 }).then(() => true, () => false);
+  assert(asked && /서버에 더 새 진행/.test(await E.page.textContent('#modal')), 'E: 옛 저장으로 열면 「서버에 더 새 진행」을 물음');
+  const held = await E.page.evaluate(async () => { const s = window.__s2; s.save(); const pushed = await s.cloudPush(true); const d = await s.net.fetch(); return { pushed, at: localStorage.getItem('ifu.s2.save.at'), srv: JSON.parse(d.data).body.wallet.gold }; });
+  assert(held.pushed === false && held.at === '1000' && Number(held.srv) >= 777777, `E: 고르기 전에는 서버를 덮지 않음 ${JSON.stringify(held)}`);
+  { const navE = E.page.waitForNavigation({ timeout: 20000 }); await E.page.click('#modal .btn:has-text("서버 것 받기")'); await navE; }
+  await E.page.waitForFunction(() => window.__s2?.g && window.__s2.net?.online, null, { timeout: 20000 });
+  assert(await E.page.evaluate(() => window.__s2.g.S.wallet.gold) >= 777777, 'E: 서버 것 받기 → 서버 진행으로 다시 열림');
   const errs = [...A.errs, ...B.errs, ...errC, ...D.errs, ...E.errs];
   assert(errs.length === 0, '페이지 오류 없음 ' + errs.join(' | '));
   await b.close();
