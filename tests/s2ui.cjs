@@ -327,6 +327,19 @@ const ok = (c, m, x = '') => { console.log(`  ${c ? '✓' : '✗ !!'} ${m}${x !=
         const miss = await page.evaluate(async (L) => { const out = []; await Promise.all(L.map(async (s) => { try { const r = await fetch(s, { cache: 'no-store' }); if (!r.ok || !/image/.test(r.headers.get('content-type') || '')) out.push(s); } catch { out.push(s); } })); return out; }, seen.flatMap((x) => x.src));
         ok(miss.length === 0 && seen.reduce((a, x) => a + x.src.length, 0) === tb.reduce((a, x) => a + x.kinds, 0), 'v607 모음 그림이 표의 가짓수만큼 다 있다', miss.slice(0, 5).join(' ')); }
       await page.click('#panel-close'); await free(a0); }
+    // v6xx 사냥터 따르는 무리 — 동료 다섯은 작은 무인으로 · 영물 셋은 짐승으로 무인 뒤를 따른다(오류 없음 · 그린 수)
+    { const a0 = await hold(), e0 = errs.length;
+      await page.evaluate(() => { const g = window.__s2.g, P = g.S.colls.pal, R = g.S.colls.relic; window.__t = JSON.stringify({ pe: P.eq, po: P.own, re: R.eq, ro: R.own });
+        for (const k of [0, 3, 6, 14, 24]) P.own[k] ??= { n: 0, awk: 0, lv: 1 }; for (const k of [1, 7, 29]) R.own[k] ??= { n: 0, awk: 0, lv: 1 };
+        P.eq = [0, 3, 6, 14, 24]; R.eq = [1, 7, 29]; });
+      await page.waitForTimeout(1000);
+      const fw = await until(() => page.evaluate(() => window.__s2.followers()), (v) => v.pals === 5 && v.relics === 3, 3000);
+      ok(errs.length === e0 && fw.pals === 5 && fw.relics === 3, 'v6xx 사냥터 — 동료 5 · 영물 3이 무인 뒤를 따른다(오류 없음)', `${fw.pals} · ${fw.relics}${errs.length > e0 ? ` · ${errs.slice(e0).join(' ')}` : ''}`);
+      await page.evaluate(() => { const g = window.__s2.g, T = JSON.parse(window.__t), P = g.S.colls.pal, R = g.S.colls.relic; P.eq = T.pe; P.own = T.po; R.eq = T.re; R.own = T.ro; delete window.__t; });
+      await page.waitForTimeout(200);
+      const f2 = await page.evaluate(() => { const g = window.__s2.g, n = (a) => a.filter((x) => x !== null && x !== undefined).length; return { ...window.__s2.followers(), p: Math.min(5, n(g.S.colls.pal.eq)), r: Math.min(3, n(g.S.colls.relic.eq)) }; });
+      ok(f2.pals <= f2.p && f2.relics <= f2.r, 'v6xx 사냥터 — 되돌리면 장착한 수만큼만', JSON.stringify(f2));
+      await free(a0); }
     // v605 대화 — 무림 → 대화: 오프라인이면 안내 글 · 입력 칸과 「보내기」 잠김 · 듣는 것 없음
     { const a0 = await hold();
       await page.click('.nb[data-tab="social"]'); await sub('대화'); await page.waitForSelector('#wchat');
@@ -448,6 +461,26 @@ const ok = (c, m, x = '') => { console.log(`  ${c ? '✓' : '✗ !!'} ${m}${x !=
     const navs = await page.$$('.nb[data-tab]');
     ok(navs.length === 7 && (await page.$$('#mb .nb')).length === 5, '아래 메뉴 다섯(캐릭터 · 장비 · 무공 · 동료 · 던전) + 위 아이콘(지도 · 임무 · 무림)');
     await page.click('#mb .nb[data-key]'); ok(/캐릭터/.test(await page.textContent('#panel-title')) && /on/.test(await page.getAttribute('#panel-body .subtabs button >> nth=1', 'class')), '「무공」 → 캐릭터 창 무공 칸'); await page.click('#panel-close');
+    // 무공 화면(sk-) — 낀 칸 타일 수 = 칸 수 · 무공 아이콘 그림이 뜬다 · 카드 「올리기」 → 카드와 칸 타일의 Lv가 오른다 · 강화 트리(단마다 세로 칸) · 옆 넘침 없음
+    { const id = await page.evaluate(() => { const g = window.__s2.g, K = g.hero.kitState(); g.S.wallet.gold = Math.max(g.S.wallet.gold || 0, 1e8); const s = K.slots[0]; if (s) K.lv[s] = 1; return s; });
+      await page.click('#mb .nb[data-key]'); await page.waitForSelector('#wb .sk-slot');
+      const s = await page.evaluate(async () => {
+        const K = window.__s2.g.hero.kitState(), ims = [...document.querySelectorAll('#wb .sk-slot[data-id] .sk-ic img, #wb .sk-card .sk-ic img')], t = Date.now();
+        while (ims.some((i) => i.isConnected && !i.complete) && Date.now() - t < 3000) await new Promise((r) => setTimeout(r, 50));
+        const wb = document.getElementById('wb');
+        return { tiles: document.querySelectorAll('#wb .sk-slot[data-id]').length, slots: K.slots.length, all: document.querySelectorAll('#wb .sk-slot').length, n: ims.length, up: ims.filter((i) => i.isConnected && i.naturalWidth > 0).length, over: wb.scrollWidth - wb.clientWidth, pre: document.querySelectorAll('#wb .sk-seg button').length, upAll: !!document.querySelector('#wb .row.sk-all .btn') };
+      });
+      ok(s.tiles === s.slots && s.slots > 0 && s.all === 6 && s.pre === 4 && s.upAll, '무공 창: 낀 칸 타일 = 낀 칸 수(여섯 칸 · 묶음 가/나 · 모두 올리기)', JSON.stringify(s));
+      ok(s.n >= s.tiles && s.up === s.n, '무공 창: 무공 아이콘 그림이 뜬다', `${s.up}/${s.n}`);
+      ok(s.over <= 1, '무공 창: 옆으로 넘치지 않는다', s.over);
+      const lvOf = () => page.evaluate((x) => ({ card: document.querySelector(`#wb .sk-card[data-id="${x}"] .sk-lv`)?.textContent, tile: document.querySelector(`#wb .sk-slot[data-id="${x}"] .sk-lv`)?.textContent, eng: window.__s2.g.hero.kitState().lv[x] }), id);
+      const a = await lvOf(); await page.click(`#wb .sk-card[data-id="${id}"] .sk-up`);
+      const c = await until(lvOf, (v) => v.card !== a.card);
+      ok(a.card === 'Lv 1' && c.card === 'Lv 2' && c.tile === 'Lv 2' && c.eng === 2, '무공 창: 카드 「올리기」 → 보이는 Lv가 오른다(카드 · 칸 타일)', `${a.card} → ${c.card} · 칸 ${c.tile}`);
+      await sub('무공 강화');
+      const t = await page.evaluate(() => { const wb = document.getElementById('wb'); return { cols: document.querySelectorAll('#wb .sk-tree .sk-col').length, nodes: document.querySelectorAll('#wb .sk-tree .sk-node .btn').length, pts: /^\d+$/.test(document.querySelector('#wb .sk-pts b')?.textContent || ''), reset: /트리 초기화/.test(document.querySelector('#wb .sk-reset')?.textContent || ''), over: wb.scrollWidth - wb.clientWidth }; });
+      ok(t.cols === 3 && t.nodes >= 4 && t.pts && t.reset && t.over <= 1, '무공 강화 창: 단 셋 · 칸마다 올리기 · 남은 점수 · 트리 초기화 · 넘침 없음', JSON.stringify(t));
+      await page.click('#panel-close'); }
     let tabsSeen = 0; const empty = [], outside = [], picTabs = [], picBad = []; let picN = 0, picUp = 0;
     await page.click('.nb[data-tab] >> nth=0');
     ok((await page.$$('#ptabs button')).length === 7 && await page.evaluate(() => document.getElementById('panel').classList.contains('open')), '아래에서 창이 올라오고 창 머리에 창 줄 일곱');

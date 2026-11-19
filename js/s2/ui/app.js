@@ -10,7 +10,10 @@ import { itemStats, gearScore, unequip, equip, equipBest, junkOf, dismantleMany,
 import { dismantle as dismantleYield, enhCost, enhOk, starCost, SHARD_PER_TICKET, gachaCost } from '../tables/gearstat.js';
 import { starOdds, STAR_MAX, PITY_POINTS, BREAK_FROM, PROTECT_FROM, PROTECT_TO, PROTECT_BREAK_COST_X } from '../tables/star.js';
 import { ENH_MAX } from '../tables/gear.js';
-import { drawCreature } from '../../creatures.js';
+import { drawCreature, CREATURES } from '../../creatures.js';
+import { drawFighter, femaleHeadKey } from '../../battle.js';
+import { hasBodyArt, artReady as artReadyNow } from '../../art.js';
+import { RELIC_FIELD, RELIC_EXTRA, PAL_FIELD } from '../tables/relicfield.js';   // v6xx 사냥터 따르는 무리
 import { JOBS } from '../tables/char.js';
 import { SP_KEYS, SP_EACH, SP_CAP } from '../hero/hero.js';
 import { SKILLS, MASTERY } from '../tables/skills.js';
@@ -428,6 +431,8 @@ function navDots() {
   for (const b of document.querySelectorAll('.nb[data-tab], #ptabs button[data-tab]')) b.classList.toggle('dot-on', !!on[b.dataset.tab]);
   const ds = JSON.stringify(dotSeen); if (ds !== dotSaved) { dotSaved = ds; try { localStorage.setItem('ifu.s2.dots', ds); } catch { /* 저장 못 해도 */ } }
 }
+// 무공 아이콘(art/s2/skill/<id>.webp) — 그림이 안 뜨면 빛깔 동그라미에 첫 글자
+const skIco = (sk) => `<span class="sk-ic" style="--c:${sk.col}"><b>${esc(sk.name[0])}</b><img src="art/s2/skill/${sk.id}.webp" alt="" decoding="async" onerror="this.remove()"></span>`;
 function act(fn) { return () => { play('click'); const r = fn(); if (r === null || r === false) toast('할 수 없어요(재료·조건)'); save(); paintWin(); paintHud(); return r; }; }
 // 한 줄 — 지금 게임의 .row(.info .name · .desc · 단추). 첫 단추는 붉은 주 단추
 function rowEl(k, v, btns = []) {
@@ -482,56 +487,98 @@ function paintWin() {
       cs(R('고르게 찍기', free ? `남은 ${free}점을 넷에 고르게(공격부터)` : '남은 점수가 없어요', [['고르게 찍기', act(() => { const n = g.statAuto(); if (n) toast(`${n}점 찍음`); return n; }), !free]], '均'));
       cs(R('되돌리기', used ? `찍은 ${used}점을 모두 돌려받아요 · 공짜` : '찍은 점수가 없어요', [['되돌리기', act(() => { const n = g.statReset(); if (n) toast(`${n}점 돌려받음`); return n; }), !used]], '還')); }
   } else if (key === 'hero:1') {
-    // 무공 — 차수별 카드. 공격 · 버프는 칸에 넣고 자동/수동, 상시는 레벨만
-    const Hs = g.hero, K = Hs.kitState(), cap = kitCap(g.S.hero.lv);
+    // 무공 — 위에 낀 칸 여섯(그림 · 이름 · Lv · 쿨 · 잠긴 칸은 열리는 조건) · 묶음 가/나 · 모두 올리기 · 차수별 무공 카드
+    const Hs = g.hero, K = Hs.kitState(), cap = kitCap(g.S.hero.lv), H = g.S.hero, BK = Hs.battleKit();
     const KIND = { active: '공격', passive: '상시', buff: '버프' }, SHAPE = { line: '앞 일직선', arc: '앞 부채꼴', circle: '주변', rain: '앞쪽 하늘에서' };
-    B.append(note(`칸 ${K.slots.length}/${SLOT_N} — 자동 사냥이면 칸 순서대로 준비된 무공을 저절로 써요. 무공 레벨 상한 ${cap}(무인 레벨 5마다 1).`));
-    // v579 칸 묶음 — 사냥용 · 두목용처럼 둘을 적어 두고 한 번에
-    { const PR = g.S.kitPre || [null, null], cp = card('무공 칸 묶음', '지금 칸 순서 · 자동/수동을 적어 두고 불러와요');
-      ['가', '나'].forEach((nm, i) => cp(R(`묶음 ${nm}`, PR[i] ? PR[i].slots.map((id) => esc(skillById(id)?.name || id)).join(' · ') || '(빈 칸)' : '비어 있음', [['불러오기', act(() => g.kitPresetLoad(i)), !PR[i]], ['적기', act(() => g.kitPresetSave(i))]], nm))); }
+    const top = document.createElement('div'); top.className = 'sk-top'; add(top);
+    const PR = g.S.kitPre || [null, null];
+    top.innerHTML = `<div class="sk-hd"><div class="sk-ht"><b>장착 무공 <em>${K.slots.length}/${SLOT_N}</em></b><small>자동 사냥이면 칸 순서대로 써요 · 무공 레벨 상한 ${cap}(무인 레벨 5마다 1)</small></div></div>`;
+    // v579 칸 묶음 — 사냥용 · 두목용처럼 둘을 적어 두고 한 번에(가/나 마디 단추)
+    const pre = document.createElement('div'); pre.className = 'sk-pre'; top.querySelector('.sk-hd').append(pre);
+    ['가', '나'].forEach((nm, i) => {
+      const sg = document.createElement('div'); sg.className = 'sk-seg'; sg.title = PR[i] ? PR[i].slots.map((id) => skillById(id)?.name || id).join(' · ') || '(빈 칸)' : '비어 있음';
+      sg.innerHTML = `<span>묶음 ${nm}</span>`;
+      for (const [lb, fn, dis] of [['불러오기', () => g.kitPresetLoad(i), !PR[i]], ['적기', () => g.kitPresetSave(i), false]]) { const bt = document.createElement('button'); bt.textContent = lb; bt.disabled = dis; bt.onclick = act(fn); sg.append(bt); }
+      pre.append(sg);
+    });
+    // 낀 칸 — 빈 칸은 다음 전직에 열리는 차수(필드 무공 줄과 같은 셈)
+    const lockedT = (KIT[H.job] || []).filter((x) => x.kind !== 'passive' && x.tier > (H.adv || 0)).map((x) => x.tier).sort((x, y) => x - y);
+    const slots = document.createElement('div'); slots.className = 'sk-slots'; top.append(slots);
+    for (let i = 0, emptyN = 0; i < SLOT_N; i++) {
+      const id = K.slots[i], sk = id && skillById(id), t = document.createElement('button'); t.className = 'sk-slot';
+      if (sk) {
+        const lv = K.lv[id] || 1, bk = BK[i] || {}; t.dataset.id = id; t.style.setProperty('--c', sk.col);
+        t.innerHTML = `<i class="sk-n">${i + 1}</i>${skIco(sk)}<b>${esc(sk.name)}</b><span class="sk-lv">Lv ${lv}</span><small>쿨 ${((bk.cdMs || sk.cdMs) / 1000).toFixed(1).replace(/\.0$/, '')}초 · ${K.off.includes(id) ? '수동' : '자동'}</small>`;
+        t.title = `${sk.name} — 눌러서 무공 강화`; t.onclick = () => { play('click'); treeSel = id; openKey('hero:4'); };
+      } else {
+        const lt = lockedT[emptyN++]; t.classList.add(lt != null ? 'lock' : 'empty');
+        t.innerHTML = lt != null ? `<i class="sk-n">${i + 1}</i><span class="sk-ic sk-lk"><svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></span><b>${lt}차 전직</b><small>${H.lv < JOB_LV[lt] ? `Lv ${JOB_LV[lt]} 되면` : '전직 던전을 깨면'}</small>`
+          : `<i class="sk-n">${i + 1}</i><span class="sk-ic sk-plus">+</span><b>빈 칸</b><small>아래 무공 「칸에」</small>`;
+        if (lt != null) t.onclick = () => { play('click'); if (H.lv < JOB_LV[lt]) toast(`${lt}차 전직(Lv ${JOB_LV[lt]})을 하면 열려요 · 지금 Lv ${H.lv}`); else openKey('hero:3'); };
+        else t.disabled = true;
+      }
+      slots.append(t);
+    }
     // v559 모두 올리기 — 가장 낮은 무공부터 고르게 · 은자가 되는 만큼
-    { const any = Object.keys(K.lv).some((id) => K.lv[id] > 0 && Hs.canKitUp(id)); const c0 = card('무공 모두 올리기', `은자 ${unit(g.S.wallet.gold || 0)}`);
-      c0(R('모두 올리기', any ? '배운 무공을 가장 낮은 것부터 고르게 — 은자가 되는 만큼 · 상한까지' : '올릴 수 있는 무공이 없어요(은자 · 상한)', [['모두 올리기', act(() => { const r = g.kitUpAll(); if (r) kitAllPop(r); return r; }), !any]], 'i:skill:功')); }
+    { const any = Object.keys(K.lv).some((id) => K.lv[id] > 0 && Hs.canKitUp(id));
+      const r = R('모두 올리기', `${any ? '배운 무공을 가장 낮은 것부터 고르게 — 은자가 되는 만큼 · 상한까지' : '올릴 수 있는 무공이 없어요(은자 · 상한)'} · 은자 ${unit(g.S.wallet.gold || 0)}`, [['모두 올리기', act(() => { const r2 = g.kitUpAll(); if (r2) kitAllPop(r2); return r2; }), !any]], 'i:skill:功');
+      r.classList.add('sk-all'); add(r); }
+    const tiers = document.createElement('div'); tiers.className = 'sk-tiers'; add(tiers);   // 차수 묶음을 옆으로 이어 놓는다(한 차수에 무공이 한둘이라 줄마다 빈자리가 컸다)
     for (let tier = 0; tier <= 5; tier++) {
-      const list = KIT[g.S.hero.job].filter((sk) => sk.tier === tier); if (!list.length) continue;
-      const c = card(`${tier}차 무공`, tier > g.S.hero.adv ? `${tier}차 전직 때 열림` : '');
+      const list = KIT[H.job].filter((sk) => sk.tier === tier); if (!list.length) continue;
+      const shut = tier > H.adv, c = document.createElement('div'); c.className = `sk-tier${shut ? ' shut' : ''}`;
+      c.innerHTML = `<h4>${tier}차 무공${shut ? ` <small>${tier}차 전직 때 열림</small>` : ''}</h4>`;
+      const grid = document.createElement('div'); grid.className = 'sk-grid'; c.style.setProperty('--n', list.length); c.append(grid); tiers.append(c);
       for (const sk of list) {
-        const lv = K.lv[sk.id] || 0, slot = K.slots.indexOf(sk.id), on = !K.off.includes(sk.id);
-        const desc = sk.kind === 'active' ? `${SHAPE[sk.shape]} · 최대 ${sk.maxT}마리 · ${sk.hits}연타 · 한 대 ${(kitCoef(sk, Math.max(1, lv)) / 10).toFixed(0)}% · 쿨 ${sk.cdMs / 1000}초`
-          : sk.kind === 'buff' ? `${sk.durMs / 1000}초 동안 ${statTxt(sk.stats(Math.max(1, lv)))} · 쿨 ${sk.cdMs / 1000}초` : statTxt(sk.stats(Math.max(1, lv)));
-        const btns = lv ? [[lv < cap ? `올리기 ${unit(kitCost(lv, sk.tier)[0].n)}` : '상한', act(() => Hs.kitUp(sk.id, g.S.wallet) && (g.dirtyStats = true, g.emit('skill'), true)), !Hs.canKitUp(sk.id)]] : [];
-        if (lv && sk.kind !== 'passive') {
-          btns.push([slot >= 0 ? `${slot + 1}칸 ▶` : '칸에', act(() => { const i = slot >= 0 ? (slot + 1) % K.slots.length : Math.min(K.slots.length, SLOT_N - 1); const r = Hs.kitSlot(i, sk.id); g.dirtyStats = true; return r; })]);
-          if (slot >= 0) btns.push([on ? '자동' : '수동', act(() => { Hs.kitAuto(sk.id, !on); g.dirtyStats = true; return true; })]);
-        }
-        const r = R(`<span style="color:${sk.col}">${sk.name}</span> <small>${KIND[sk.kind]}${lv ? ` · Lv ${lv}` : ''}</small>`, desc, btns, `i:skill:${sk.name[0]}`);
-        if (!lv) r.style.opacity = '.5';
-        c(r);
+        const lv = K.lv[sk.id] || 0, slot = K.slots.indexOf(sk.id), on = !K.off.includes(sk.id), L1 = Math.max(1, lv);
+        const eff = sk.kind === 'active' ? `${SHAPE[sk.shape]} · ${sk.maxT}마리 · ${sk.hits}연타 · 한 대 ${(kitCoef(sk, L1) / 10).toFixed(0)}%`
+          : sk.kind === 'buff' ? `${sk.durMs / 1000}초 동안 ${statTxt(sk.stats(L1))}` : statTxt(sk.stats(L1));
+        const d = document.createElement('div'); d.className = `sk-card${lv ? '' : ' no'}${slot >= 0 ? ' eq' : ''}`; d.dataset.id = sk.id; d.style.setProperty('--c', sk.col);
+        d.innerHTML = `<div class="sk-ch">${skIco(sk)}<div><b>${esc(sk.name)}</b><span><i class="sk-k ${sk.kind}">${KIND[sk.kind]}</i>${lv ? `<em class="sk-lv">Lv ${lv}</em>` : ''}${sk.cdMs ? `<small>쿨 ${sk.cdMs / 1000}초</small>` : ''}${slot >= 0 ? `<u>${slot + 1}칸</u>` : ''}</span></div></div><p>${eff}</p>`;
+        const bt = document.createElement('div'); bt.className = 'sk-bt'; d.append(bt);
+        const mk = (lb, fn, dis, cls) => { const x = document.createElement('button'); x.className = `btn${cls ? ` ${cls}` : ''}`; x.textContent = lb; x.disabled = !!dis; x.onclick = fn; bt.append(x); return x; };
+        if (lv) {
+          mk(lv < cap ? `올리기 ${unit(kitCost(lv, sk.tier)[0].n)}` : '상한', act(() => Hs.kitUp(sk.id, g.S.wallet) && (g.dirtyStats = true, g.emit('skill'), true)), !Hs.canKitUp(sk.id), 'primary sk-up');
+          if (sk.kind !== 'passive') {
+            mk(slot >= 0 ? `${slot + 1}칸 ▶` : '칸에', act(() => { const i = slot >= 0 ? (slot + 1) % K.slots.length : Math.min(K.slots.length, SLOT_N - 1); const r = Hs.kitSlot(i, sk.id); g.dirtyStats = true; return r; }));
+            if (slot >= 0) mk(on ? '자동' : '수동', act(() => { Hs.kitAuto(sk.id, !on); g.dirtyStats = true; return true; }));
+          }
+        } else { const q = document.createElement('small'); q.className = 'sk-q'; q.textContent = `${tier}차 전직 때 배워요`; bt.append(q); }
+        grid.append(d);
       }
     }
   } else if (key === 'hero:4') {
-    // 무공 강화 트리 — 무공마다 3단(1단 → 5점 → 2단 → 12점 → 3단). 기다림 없음
+    // 무공 강화 트리 — 무공마다 3단(1단 → 5점 → 2단 → 12점 → 3단). 기다림 없음 · 단마다 세로 칸, 칸 사이 가는 줄
     const Hs = g.hero, K = Hs.kitState(), pts = g.treePts();
     const owned = KIT[g.S.hero.job].filter((sk) => K.lv[sk.id] && sk.kind !== 'passive');
     if (!owned.some((sk) => sk.id === treeSel)) treeSel = owned[0]?.id;
-    const c0 = card(`무공 점수 ${pts.left} / ${pts.total}`, '레벨마다 1점 · 10칸마다 3점');
-    c0(R('트리 초기화', `쓴 점수 ${pts.used}점을 돌려받아요 · 은자 ${unit(treeResetCost(pts.used)[0].n)}`, [['초기화', () => pop('트리를 초기화할까요?', `<p>쓴 점수 ${pts.used}점을 돌려받아요.</p><p class="note">은자 ${unit(treeResetCost(pts.used)[0].n)}</p>`, [['아니요', null], ['예', act(() => g.treeReset())]]), !pts.used]], '環'));
-    const chips = document.createElement('div'); chips.className = 'chip-row';
-    for (const sk of owned) { const b = document.createElement('button'); b.className = `chip${sk.id === treeSel ? ' on' : ''}`; b.innerHTML = `<span style="color:${sk.col}">${sk.name}</span>${Hs.treeSpent(sk.id) ? ` · ${Hs.treeSpent(sk.id)}점` : ''}`; b.onclick = () => { play('click'); treeSel = sk.id; paintWin(); }; chips.append(b); }
-    B.append(chips);
+    const hd = document.createElement('div'); hd.className = 'sk-th'; add(hd);
+    hd.innerHTML = `<div class="sk-pts"><b>${pts.left}</b><span>/ ${pts.total}점<small>남은 무공 점수 · 레벨마다 1점 · 10칸마다 3점</small></span></div>`;
+    { const cost = unit(treeResetCost(pts.used)[0].n), rw = document.createElement('div'); rw.className = 'sk-rw'; rw.innerHTML = `<small>쓴 ${pts.used}점 돌려받기 · 은자 ${cost}</small>`;
+      const rb = document.createElement('button'); rb.className = 'btn sk-reset'; rb.textContent = '트리 초기화'; rb.disabled = !pts.used;
+      rb.onclick = () => pop('트리를 초기화할까요?', `<p>쓴 점수 ${pts.used}점을 돌려받아요.</p><p class="note">은자 ${cost}</p>`, [['아니요', null], ['예', act(() => g.treeReset())]]);
+      rw.append(rb); hd.append(rw); }
+    const chips = document.createElement('div'); chips.className = 'sk-pick'; add(chips);
+    for (const sk of owned) { const b = document.createElement('button'); b.className = `chip${sk.id === treeSel ? ' on' : ''}`; b.dataset.id = sk.id; b.style.setProperty('--c', sk.col); b.innerHTML = `${skIco(sk)}<span>${esc(sk.name)}</span>${Hs.treeSpent(sk.id) ? `<em>${Hs.treeSpent(sk.id)}점</em>` : ''}`; b.onclick = () => { play('click'); treeSel = sk.id; paintWin(); }; chips.append(b); }
     const sk = skillById(treeSel);
     if (sk) {
       const spent = Hs.treeSpent(sk.id), nodes = K.tree?.[sk.id] || {};
+      const NIC = { pow: 'atk', cdr: 'time', rng: 'dodge', tgt: 'duel', hit: 'enhance', cri: 'crit', dur: 'moon', amp: 'starsoul', all: 'realm' };
+      const EF = (k2, v) => ({ pow: `위력 +${v / 10}%`, cdr: `쿨 −${v / 10}%`, rng: `범위 +${v / 10}%`, tgt: `대상 +${v}`, hit: `연타 +${v}`, cri: `이 무공 치명 +${v / 10}%`, dur: `지속 +${v / 10}%`, amp: `효과 +${v / 10}%` }[k2]);
+      const tree = document.createElement('div'); tree.className = 'sk-tree'; tree.style.setProperty('--c', sk.col); tree.dataset.id = sk.id; add(tree);
       for (let tier = 0; tier < 3; tier++) {
         const list = treeOf(sk).filter((nd) => nd.tier === tier); if (!list.length) continue;
-        const opened = spent >= TREE_GATE[tier];
-        const c = card(`${tier + 1}단`, opened ? '열림' : `이 무공에 ${TREE_GATE[tier]}점 쓰면 열림(지금 ${spent}점)`);
+        const opened = spent >= TREE_GATE[tier], col = document.createElement('div'); col.className = `sk-col${opened ? ' on' : ''}`;
+        col.innerHTML = `<h4>${tier + 1}단 <small>${opened ? '열림' : `${TREE_GATE[tier]}점 쓰면 열림 · 지금 ${spent}점`}</small></h4>`;
+        const ns = document.createElement('div'); ns.className = 'sk-nodes'; col.append(ns);
         for (const nd of list) {
-          const lv = nodes[nd.n] || 0, eff = Object.entries(nd.eff).map(([k2, v]) => ({ pow: `위력 +${v / 10}%`, cdr: `쿨 −${v / 10}%`, rng: `범위 +${v / 10}%`, tgt: `대상 +${v}`, hit: `연타 +${v}`, cri: `이 무공 치명 +${v / 10}%`, dur: `지속 +${v / 10}%`, amp: `효과 +${v / 10}%` }[k2])).join(' · ');
-          const r = R(`${nd.name} <small>${lv}/${nd.max} · ${nd.pts}점</small>`, `레벨마다 ${eff}`, [[lv >= nd.max ? '끝' : '올리기', act(() => g.treeUp(sk.id, nd.n)), !Hs.canTreeUp(sk.id, nd.n, g.stage().top)]], nd.name[0]);
-          if (!opened) r.style.opacity = '.5';
-          c(r);
+          const lv = nodes[nd.n] || 0, eff = Object.entries(nd.eff).map(([k2, v]) => EF(k2, v)).join(' · ');
+          const n = document.createElement('div'); n.className = `sk-node${lv ? ' got' : ''}${lv >= nd.max ? ' max' : ''}`; n.dataset.n = nd.n;
+          n.innerHTML = `<div class="sk-nh"><span class="sk-nic"><b>${nd.name[0]}</b><img src="art/s2/ui/${NIC[nd.n]}.webp" alt="" decoding="async" onerror="this.remove()"></span><div><b>${nd.name}</b><span class="sk-pp">${lv}/${nd.max}</span></div></div><p>레벨마다 ${eff}</p><i class="sk-bar"><i style="width:${Math.round(lv / nd.max * 100)}%"></i></i>`;
+          const b = document.createElement('button'); b.className = 'btn primary'; b.textContent = lv >= nd.max ? '끝' : `올리기 · ${nd.pts}점`; b.disabled = !Hs.canTreeUp(sk.id, nd.n, g.stage().top); b.onclick = act(() => g.treeUp(sk.id, nd.n)); n.append(b);
+          ns.append(n);
         }
+        tree.append(col);
       }
     } else B.append(note('무공을 하나 이상 배우면 강화할 수 있어요.'));
   } else if (key === 'hero:2') {
@@ -1665,7 +1712,73 @@ function comboTick(t) { const el = $('combo'); if (el && el.classList.contains('
 const pals = [];           // 화면 위 동료(무인 뒤를 따라감)
 const JOB_COL = { sword: '#ffe9a8', spear: '#ffb27a', fist: '#ffd56a', bow: '#b6f0ff', mage: '#d4b8ff' };
 const PAL_COL = ['#7dd3fc', '#86efac', '#fde68a', '#f9a8d4', '#c4b5fd'];
-const PAL_KINDS = ['fox', 'crane', 'monkey', 'tiger', 'turtle', 'deer', 'haetae', 'qilin', 'phoenix', 'dragon'];
+const rels = [];            // 화면 위 영물(무인 뒤를 따라감)
+const palRing = [0, 1, 2, 3, 4].map(() => ({ on: false, x: 0, y: 0, q: 0 }));   // 동료 공격 빛 고리(몹 위에 나중에 그림)
+const followerN = { pals: 0, relics: 0 };   // 시험용 — 이 프레임에 그린 수
+for (const kk in RELIC_EXTRA) CREATURES[kk] ??= RELIC_EXTRA[kk];
+const palLooks = [];
+function palLook(kd) {   // 동료 번호 → 무인 모습(한 번 만들어 둔다)
+  if (palLooks[kd]) return palLooks[kd];
+  const d = PAL_FIELD[kd % PAL_FIELD.length], L = { robe: d.robe, band: d.band, head: d.head || 'topknot' };
+  if (d.hair) L.hair = d.hair;
+  if (!hasBodyArt(d.robe)) L.robeTint = d.robe;
+  if (d.f) { L.female = true; L.fstyle = d.f; L.hairK = d.hk || 'black'; if (artReadyNow()) L.fhead = femaleHeadKey(d.f, L.hairK, d.band); else return L; }   // 그림이 오기 전엔 다시 만든다
+  return (palLooks[kd] = L);
+}
+function followStep(p, wantX, wantY, fdt, face) {   // 고무줄처럼 붙지 않고 달리듯(최고 속도 · 서서히 섬) · 너무 멀면(장면이 바뀜) 바로 그 자리
+  const dx = wantX - p.x;
+  if (Math.abs(dx) > 6000) { p.x = wantX; p.y = wantY; p.v = 0; p.mv = false; p.face = face; return; }
+  p.mv = Math.abs(dx) > 60; p.v += ((Math.abs(dx) > 120 ? Math.sign(dx) * 4800 : dx * 8) - p.v) * Math.min(1, fdt / 160); p.x += p.v * fdt / 1000; p.y += (wantY - p.y) * Math.min(1, fdt / 90);
+  p.face = p.mv ? Math.sign(dx) : face;
+}
+const PAL_GAP = [650, 1060, 1470, 1880, 2290], PAL_BACK = [0, 150, 40, 190, 80];   // 동료 i: 무인 뒤 거리 · 살짝 뒤(높이) — 느슨한 활 모양
+const REL_GAP = [900, 1750, 2600];
+function drawFollowers(cx, F, H, k, sc, t, ts, fdt, W, SX, SY, lx, ly) {
+  followerN.pals = 0; followerN.relics = 0;
+  const low = opt.gfx === 'low', crowd = !!(g.bossFight || g.dg);   // 두목전 · 던전은 예고 범위가 넓어 둘 · 하나만
+  const pe = g.S.colls?.pal?.eq || [], re = g.S.colls?.relic?.eq || [];
+  const maxP = low || crowd ? 2 : 5, maxR = low || crowd ? 1 : 3, face = H.face || 1, hx0 = lx(H), hy0 = ly(H);
+  // 영물 — 뒤 판(땅 위 조금 높이) · 나는 것은 공중에서 떠다님
+  let nr = 0;
+  for (let j = 0; j < re.length && nr < maxR; j++) {
+    const kd = re[j]; if (kd === null || kd === undefined) continue;
+    const R = RELIC_FIELD[kd % RELIC_FIELD.length], fly = R[2], wantX = hx0 - face * REL_GAP[nr], wantY = hy0 + (fly ? 1000 : 260);
+    const p = (rels[nr] ??= { x: wantX, y: wantY, v: 0, mv: false, face, o: { t: 0, moving: false, flip: false, scale: 1 } });
+    followStep(p, wantX, wantY, fdt, face);
+    const px = SX(p.x); nr++;
+    if (px < -90 || px > W + 90) continue;
+    const bob = fly ? Math.sin(ts * 1.7 + j * 2) * 4 * k : p.mv ? -Math.abs(Math.sin(ts * 9 + j)) * 3 * k : 0;
+    const o = p.o; o.t = ts + j * 1.3; o.moving = p.mv; o.flip = p.face < 0; o.scale = 0.95 * k * R[1];
+    drawCreature(cx, R[0], px, SY(p.y) + bob, o); followerN.relics++;
+  }
+  rels.length = nr;
+  // 동료 — 작은 무인(무인의 0.55) · 뒤에 선 것부터
+  let np = 0;
+  for (let i = 0; i < pe.length && np < maxP; i++) if (pe[i] !== null && pe[i] !== undefined) np++;
+  pals.length = np;
+  for (let pass = 0; pass < 2; pass++) {
+    let n = 0;
+    for (let i = 0; i < pe.length && n < np; i++) {
+      const kd = pe[i]; if (kd === null || kd === undefined) continue;
+      const slot = n++; if ((PAL_BACK[slot] > 100 ? 0 : 1) !== pass) continue;   // 뒤에 선 것(높이 큰 것) 먼저
+      const wantX = hx0 - face * PAL_GAP[slot], wantY = hy0 + PAL_BACK[slot];
+      const look = palLook(kd), d = PAL_FIELD[kd % PAL_FIELD.length];
+      const p = (pals[slot] ??= { x: wantX, y: wantY, v: 0, mv: false, face, o: { t: 0, weapon: 'sword', run: false, flip: false, turn: null, lunge: 0, scale: 1, pose: null } });
+      followStep(p, wantX, wantY, fdt, face);
+      // 동료 공격: 표적 쪽으로 튀어 나갔다 돌아옴(0.35초) · 무기를 내지른다 · 표적에 빛 고리
+      const pa = palAtk[slot]; let ox = 0, lunge = 0;
+      if (pa && t - pa.at < 350) { const pt = F.mobs.find((m) => m.id === pa.mid);
+        if (pt) { const q = (t - pa.at) / 350, lg = Math.sin(q * Math.PI), tx = lx(pt); ox = (tx - p.x) * 0.45 * lg; lunge = lg; p.face = Math.sign(tx - p.x) || p.face;
+          if (!low) { const Rg = palRing[slot]; Rg.on = true; Rg.q = q; Rg.x = SX(tx); Rg.y = SY(ly(pt) + 700); } } }
+      const px = SX(p.x + ox), py = SY(p.y);
+      if (px < -60 || px > W + 60) continue;
+      const o = p.o; o.t = ts + slot * 0.7; o.weapon = d.w; o.run = p.mv && !lunge; o.flip = p.face < 0; o.lunge = lunge; o.scale = 0.55 * sc;
+      const hop = p.mv ? -Math.abs(Math.sin(ts * 9 + slot)) * 3 * k : 0;   // 따라 뛸 때 통통
+      drawFighter(cx, px, py + hop, look, o); followerN.pals++;
+      if (!low && t - lastCastAt < 300) { cx.save(); cx.globalCompositeOperation = 'lighter'; cx.globalAlpha = 0.4 * (1 - (t - lastCastAt) / 300); cx.fillStyle = '#ffe9a8'; cx.beginPath(); cx.arc(px, py - 26 * sc, 18 * sc, 0, 7); cx.fill(); cx.restore(); }
+    }
+  }
+}
 let lastCastAt = 0;
 const palAtk = [];          // 동료 i → { at, mid } 마지막 공격
 const tells = new Map();    // 두목 id → 예고 { pat, x, y, w, at, dur }
@@ -1943,6 +2056,8 @@ function draw() {
     if (cf < 50) cx.filter = 'none';
     cx.restore();
   }
+  // v6xx 따르는 무리 — 동료(사람)는 작은 무인으로 무인 뒤 땅에, 영물(짐승)은 그 뒤 조금 높이(나는 것은 공중에). 몹 · 무인보다 먼저 그려 체력 줄 · 무인을 가리지 않는다
+  drawFollowers(cx, F, H, k, sc, t, ts, fdt, W, (x) => (x - camX) * s, (y) => baseY - (y - camY) * s, lx, ly);
   for (const m of F.mobs) {
     const [x, y] = P(lx(m), ly(m)); if (x < -120 || x > W + 120) continue;   // 화면 밖은 안 그린다
     // 나타남: 0.3초 동안 흐릿하게 내려앉음(먼지)
@@ -2033,24 +2148,8 @@ function draw() {
   }
   // 버프 중이면 발밑 기운
   if (H.buffs?.length) { cx.save(); cx.globalAlpha = 0.35 + 0.15 * Math.sin(ts * 6); cx.strokeStyle = skillById(H.buffs[0].id)?.col || '#ffe9a8'; cx.lineWidth = 3 * k; cx.beginPath(); cx.ellipse(hx, hy, 34 * k, 10 * k, 0, 0, 7); cx.stroke(); cx.restore(); }
-  // 동료: 장착한 동료가 무인 뒤를 늦게 따라온다(뛰고 · 무인이 무공을 쓰면 함께 번쩍)
-  const eqPal = (g.S.colls?.pal?.eq || []).filter((x) => x !== null && x !== undefined).slice(0, 4);
-  pals.length = eqPal.length;
-  eqPal.forEach((kd, i) => {
-    const wantX = lx(H) - H.face * (900 + i * 700), wantY = ly(H);
-    const p = (pals[i] ??= { x: wantX, y: wantY, kind: PAL_KINDS[kd % PAL_KINDS.length] }); p.kind = PAL_KINDS[kd % PAL_KINDS.length];
-    const dx = wantX - p.x; p.mv = Math.abs(dx) > 60; p.v = (p.v || 0) + ((Math.abs(dx) > 120 ? Math.sign(dx) * 4800 : dx * 8) - (p.v || 0)) * Math.min(1, fdt / 160); p.x += p.v * fdt / 1000; p.y += (wantY - p.y) * Math.min(1, fdt / 90);   // 고무줄처럼 늘었다 붙지 않고 달리듯(최고 속도 · 서서히 섬) p.face = Math.abs(dx) > 60 ? Math.sign(dx) : H.face;
-    // 동료 공격: 표적 쪽으로 튀어 나갔다 돌아옴(0.35초) + 표적에 빛 고리
-    const pa = palAtk[i], pt = pa && t - pa.at < 350 ? F.mobs.find((m) => m.id === pa.mid) : null;
-    let ox = 0;
-    if (pt) { const q = (t - pa.at) / 350, lg = Math.sin(q * Math.PI); ox = (lx(pt) - p.x) * 0.55 * lg; p.face = Math.sign(lx(pt) - p.x) || p.face;
-      const ring = tintImg('art/fx/fx-burst.png', PAL_COL[i % PAL_COL.length]); const [tx, ty] = P(lx(pt), ly(pt) + 700);
-      if (ring) { const w = 90 * k * (0.6 + q); cx.save(); cx.globalCompositeOperation = 'lighter'; cx.globalAlpha = 1 - q; cx.drawImage(ring, tx - w / 2, ty - w / 2, w, w); cx.restore(); } }
-    const [px, py] = P(p.x + ox, p.y);
-    const hop = p.mv ? -Math.abs(Math.sin(ts * 9 + i)) * 5 * k : Math.sin(ts * 2 + i) * 1.2 * k;   // 따라 뛸 때 통통 · 서 있으면 숨
-    cx.save(); cx.globalAlpha = 0.95; drawCreature(cx, p.kind, px, py + hop, { t: ts + i, moving: p.mv, flip: p.face < 0, scale: 0.55 * k }); cx.restore();
-    if (t - lastCastAt < 300) { cx.save(); cx.globalCompositeOperation = 'lighter'; cx.globalAlpha = 0.5 * (1 - (t - lastCastAt) / 300); cx.fillStyle = '#ffe9a8'; cx.beginPath(); cx.arc(px, py - 20 * k, 26 * k, 0, 7); cx.fill(); cx.restore(); }
-  });
+  // 동료 공격 빛 고리 — 몹 위에(따르는 무리는 몹 뒤에 그렸다)
+  if (opt.gfx !== 'low') for (let i = 0; i < 5; i++) { const R = palRing[i]; if (!R.on) continue; R.on = false; const ring = tintImg('art/fx/fx-burst.png', PAL_COL[i]); if (!ring) continue; const w = 90 * k * (0.6 + R.q); cx.save(); cx.globalCompositeOperation = 'lighter'; cx.globalAlpha = 1 - R.q; cx.drawImage(ring, R.x - w / 2, R.y - w / 2, w, w); cx.restore(); }
   drawImpacts(cx, P, k, t);   // v600
   if (debris.length) drawDebris(cx, P, k, t, fdt);
   const hw = heroRun > 0 && H.plat >= 0;
@@ -2762,6 +2861,6 @@ load();
 if (g) boot();
 else pickJob();
 // 시험용 손잡이
-window.__s2 = { get g() { return g; }, agTest: () => { frame.ag = 0; }, saverStart, saverOff, saverOn: () => saverOn, saverAge: (ms) => { if (saverFrom) saverFrom.at -= ms; }, saverSum: () => saverSum, impacts: () => impacts.length, motion: () => ({ hurt: heroHurtAt, down: heroDownAt, run: runMix, anim: heroAnim.active }), inviteTest: (c) => { inviteCode = c; inviteCheck(); }, shareGame, shareLast: () => shareLast, saverAutoTest: (on) => { saverAuto = !!on; }, wake: () => ({ lock: !!wakeLock, want: wakeWant, ok: wakeOK() }), wakeSync, wakeOpt: (on) => { opt.wake = !!on; return wakeSync(); }, saverTest: () => { saverForce = true; lastInput = -1e9; }, newsCheck, guildState, guildLoad, chatSend, worldSend, worldMsgs: () => worldState.msgs.map((m) => ({ uid: m.uid, nick: m.nick, text: m.text, lv: m.lv, job: m.job })), worldOn: () => !!worldState.unsub, worldReset: () => { worldState.lastAt = 0; worldState.lastText = ''; }, save, dayKey, attendPop, freeze: () => { frozen = true; }, net, cloudPush, rankPush, wbPush, wkStr, pvpInbox, pvpFetch, resetNetTimers: () => { pvpAt = 0; inboxAt = 0; },
+window.__s2 = { get g() { return g; }, followers: () => ({ ...followerN }), agTest: () => { frame.ag = 0; }, saverStart, saverOff, saverOn: () => saverOn, saverAge: (ms) => { if (saverFrom) saverFrom.at -= ms; }, saverSum: () => saverSum, impacts: () => impacts.length, motion: () => ({ hurt: heroHurtAt, down: heroDownAt, run: runMix, anim: heroAnim.active }), inviteTest: (c) => { inviteCode = c; inviteCheck(); }, shareGame, shareLast: () => shareLast, saverAutoTest: (on) => { saverAuto = !!on; }, wake: () => ({ lock: !!wakeLock, want: wakeWant, ok: wakeOK() }), wakeSync, wakeOpt: (on) => { opt.wake = !!on; return wakeSync(); }, saverTest: () => { saverForce = true; lastInput = -1e9; }, newsCheck, guildState, guildLoad, chatSend, worldSend, worldMsgs: () => worldState.msgs.map((m) => ({ uid: m.uid, nick: m.nick, text: m.text, lv: m.lv, job: m.job })), worldOn: () => !!worldState.unsub, worldReset: () => { worldState.lastAt = 0; worldState.lastText = ''; }, save, dayKey, attendPop, freeze: () => { frozen = true; }, net, cloudPush, rankPush, wbPush, wkStr, pvpInbox, pvpFetch, resetNetTimers: () => { pvpAt = 0; inboxAt = 0; },
   // v525 팝업 대신 에뮬레이터용 가짜 Google 토큰으로 잇기 · 겹치면 그 계정으로
   linkTest: async (tok) => { const r = await net.linkGoogle(tok); if (r.conflict) { const d = await net.switchTo(r.cred); if (d) applyCloud(d); return 'switched'; } await cloudPush(true); return 'linked'; } };

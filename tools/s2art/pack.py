@@ -4,10 +4,11 @@
 #   발판: 투명 여백을 잘라 내고 가로 1024로 → WebP(투명 유지) 품질 85
 #   무공 효과(fx): 검은 바탕 → 가로 768 WebP 품질 80(jobs_s2fx.json)
 #   창 줄 아이콘(ui): 투명 여백을 잘라 96 정사각 WebP 품질 84(jobs_s2ui.json)
+#   무공 아이콘(skill): 둥근 패(진한 부분)만 잘라 128 정사각 WebP 품질 84(skillicons.py로 잘라 둔 것)
 import sys, os
 from PIL import Image
 src = sys.argv[1]; out = os.path.join(os.path.dirname(__file__), '..', '..', 'art', 's2')
-for kind in ('bg', 'ledge', 'fx', 'mob', 'eq', 'coll', 'ui'):
+for kind in ('bg', 'ledge', 'fx', 'mob', 'eq', 'coll', 'ui', 'skill'):
     if not os.path.isdir(f'{src}/{kind}'): continue
     os.makedirs(f'{out}/{kind}', exist_ok=True)
     for f in sorted(os.listdir(f'{src}/{kind}')):
@@ -35,6 +36,12 @@ for kind in ('bg', 'ledge', 'fx', 'mob', 'eq', 'coll', 'ui'):
             if bb: im = im.crop(bb)
             sz = max(im.width, im.height); sq = Image.new('RGBA', (sz, sz), (0, 0, 0, 0)); sq.paste(im, ((sz - im.width) // 2, (sz - im.height) // 2))
             sq.resize((96, 96), Image.LANCZOS).save(f'{out}/{kind}/{f[:-4]}.webp', 'WEBP', quality=84, method=6)
+        elif kind == 'skill':
+            # 무공 아이콘: 흐린 빛 번짐은 빼고 둥근 패만(알파 160 넘는 곳) 잘라 정사각 가운데 → 128 WebP(투명)
+            im = im.convert('RGBA'); bb = im.getchannel('A').point(lambda a: 255 if a > 160 else 0).getbbox()
+            if bb: im = im.crop(bb)
+            sz = max(im.width, im.height); sq = Image.new('RGBA', (sz, sz), (0, 0, 0, 0)); sq.paste(im, ((sz - im.width) // 2, (sz - im.height) // 2))
+            sq.resize((128, 128), Image.LANCZOS).save(f'{out}/{kind}/{f[:-4]}.webp', 'WEBP', quality=84, method=6)
         elif kind == 'eq':
             # 장비 그림(v515): 투명 여백을 잘라 정사각으로 가운데 놓고 256 → WebP(투명) 품질 86
             im = im.convert('RGBA'); bb = im.getchannel('A').point(lambda a: 255 if a > 24 else 0).getbbox()

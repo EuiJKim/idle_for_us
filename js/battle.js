@@ -5129,7 +5129,7 @@ export function drawFighter(ctx, x, y, look = {}, o = {}) {
 // ---------- v325 여협 머리 · 얼굴 덧그림 · 기믹(발밑 문양 · 기운 낟알) ----------
 const hairHex = (k) => (CUSTOM_HAIRS.find(([id]) => id === k) || CUSTOM_HAIRS[0])[2];
 // 그림(art/hero2/fh-머리-빛깔)이 있으면 그 열쇠, 없으면 캔버스로 그린 머리를 한 번 굽고 그 열쇠
-function femaleHeadKey(style, hairK, band) {
+export function femaleHeadKey(style, hairK, band) {   // v6xx 사냥터 동료(여협)도 쓴다
   const art = `fh-${style}-${hairK}`;
   if (hasArt(art)) return art;
   const key = `fhv|${style}|${hairK}|${band || ''}`;
