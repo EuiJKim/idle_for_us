@@ -17,7 +17,7 @@ import { RELIC_FIELD, RELIC_EXTRA, PAL_FIELD } from '../tables/relicfield.js';  
 import { JOBS } from '../tables/char.js';
 import { SP_KEYS, SP_EACH, SP_CAP } from '../hero/hero.js';
 import { SKILLS, MASTERY } from '../tables/skills.js';
-import { JOB_LV } from '../tables/progress.js';
+import { JOB_LV, LEVEL_MAX } from '../tables/progress.js';
 import { COLLECT } from '../tables/s5.js';
 import { DAILY_DUNGEONS, DAILY_RUNS, EXPEDITION } from '../tables/content.js';
 import { GUIDE, DAILY_MISSIONS, WEEKLY_MISSIONS, guideCurrent, achievements, ACHIEVE } from '../tables/missions.js';
@@ -59,7 +59,8 @@ function vib(key) {
 const dmgLog = [];   // 피해 측정기: [시각, 피해] 최근 10초
 const killLog = [];
 const killRate = () => { const t0 = now() - 60000; while (killLog.length && killLog[0] < t0) killLog.shift(); return killLog.length; };
-import { chapterOf, chapterName } from '../tables/chapters.js';
+import { chapterOf, chapterName, CHAPTERS } from '../tables/chapters.js';
+import { BOSS_LORE } from '../tables/bosslore.js';   // v613 두목 도감 한 줄
 import { KIT, SLOT_N, kitCap, kitCost, kitCoef, skillById, treeOf, TREE_GATE, treeResetCost } from '../tables/kit.js';
 import { STATS } from '../core/stats.js';
 const statTxt = (o) => Object.entries(o).map(([k2, v]) => `${STATS[k2]?.name || k2} +${STATS[k2]?.kind === 'rate' ? `${(v / 10).toFixed(1)}%` : v}`).join(' · ');
@@ -277,7 +278,7 @@ function inviteCheck() {
     pop('문파 초대', `<p class="note">친구가 문파로 불렀어요 — 코드 <b>${esc(c)}</b></p>`, [['나중에', null], ['들어가기', () => { ensureNick(); guildDo(() => net.guildJoin(c, g.S.nick), '문파에 들어갔어요'); }]]);
   }, 1000);
 }
-function closeModal() { $('modal').classList.add('hidden'); modalOne = null; }
+function closeModal() { $('modal').classList.add('hidden'); $('modal').querySelector('.sheet').classList.remove('rets', 'retsm'); modalOne = null; }
 // v594 알림 창 바깥(어두운 곳)을 누르면 닫힌다 — 단추가 「확인」 하나뿐이면 그 단추를 누른 것과 같게, 여럿이면 그냥 닫기(고르지 않음).
 //   창이 뜨자마자(0.3초) 누른 것은 잘못 누름으로 보고 넘긴다
 let modalOne = null, modalAt = 0;
@@ -288,11 +289,28 @@ $('modal').addEventListener('click', (e) => {
 });
 function pop(title, html, acts = [['확인', null]]) {
   const sh = $('modal').querySelector('.sheet');
-  sh.classList.toggle('wide', false); sh.classList.remove('enhs', 'attw'); sh.innerHTML = `<h2>${esc(title)}</h2><div>${html}</div><div class="btn-row" style="margin-top:12px${acts.length > 3 ? ';display:grid;grid-template-columns:repeat(3,1fr)' : ''}"></div>`;
+  sh.classList.toggle('wide', false); sh.classList.remove('enhs', 'attw', 'rets', 'retsm'); sh.innerHTML = `<h2>${esc(title)}</h2><div>${html}</div><div class="btn-row" style="margin-top:12px${acts.length > 3 ? ';display:grid;grid-template-columns:repeat(3,1fr)' : ''}"></div>`;
   const a = sh.querySelector('.btn-row');
   acts.forEach(([label, fn], i) => { const b = document.createElement('button'); b.className = `btn${i === acts.length - 1 ? ' primary' : ''}`; b.textContent = label; b.onclick = () => { closeModal(); fn?.(); paintHud(); paintWin(); }; a.append(b); });
   modalOne = acts.length === 1 ? () => a.firstChild.click() : null;
   $('modal').classList.remove('hidden');
+}
+
+// v613 두목 도감 — 별(그림) · 날짜 · 자세히 창(장 배경 위 큰 그림 · 수치 · 패턴 · 별 · 토벌 바로 가기)
+const DEX_STAR = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.6l2.9 6 6.6.8-4.9 4.6 1.3 6.5L12 17.3 6.1 20.5l1.3-6.5L2.5 9.4l6.6-.8z"/></svg>';
+const dexStars = (n) => `<span class="dex-st" aria-label="토벌 별 ${n} / 3">${[0, 1, 2].map((i) => `<i class="${i < n ? 'on' : ''}">${DEX_STAR}</i>`).join('')}</span>`;
+const dexDate = (ms) => { const d = new Date(ms); return `${d.getFullYear()}.${d.getMonth() + 1}.${d.getDate()}`; };
+function dexPop(x) {
+  const ch = x.ch, B0 = CHBOSS[ch];
+  const pats = [...x.pats, 'ult'].map((p2) => CB_PATS[p2]).filter(Boolean).map((P) => `<span class="pill">${esc(P.name)}${P.x ? ` ×${P.x}` : ''}</span>`).join('');
+  const stats = [['레벨', `Lv ${g.raidLv(ch)}`], ['체력', `×${CB.hpX} · 막대 ${CB.bars}줄`], ['제한', `${CB.limitMs / 1000}초`], ['처치', x.beat ? `${g.S.chb?.[ch] || 0}번` : '아직']];
+  const html = `<div class="dex-d"><div class="dex-stage" style="background-image:url(art/s2/bg/c${ch}.webp);--bc:${B0.col}"><img src="art/s2/chb/chb${ch}.webp" alt="${esc(x.name)}"></div>
+    <div class="dex-info"><small>${ch}장 ${esc(CHAPTERS[ch - 1])} · ${ch * 10}칸</small><b class="dex-tt">${esc(x.title)}</b><p class="dex-lore">${esc(BOSS_LORE[ch] || '')}</p>
+    <div class="dex-sg">${stats.map(([k, v]) => `<div>${k}<b>${v}</b></div>`).join('')}</div>
+    <div class="dex-pats">${pats}</div>
+    <div class="dex-rec">${dexStars(x.star)}<span>${x.best ? `최고 ${(x.best / 1000).toFixed(1)}초` : '토벌 기록 없음'}${x.at ? ` · 첫 처치 ${dexDate(x.at)}` : ''}${x.manual ? ' · 손으로 피함' : ''}</span></div></div></div>`;
+  pop(`${ch}장 · ${x.name}`, html, x.beat ? [['토벌', () => openWin('dgn', 1)], ['닫기', null]] : [['닫기', null]]);
+  $('modal').querySelector('.sheet').classList.add('wide', 'dexw');
 }
 
 // 기연 — 카드 셋 중 하나. 닫아도 같은 카드가 남는다(다시 굴리지 않음)
@@ -838,10 +856,14 @@ function paintWin() {
     const D = g.dex();
     const c0 = card('두목 도감', `토벌 ★3 ${D.three} / 15 · 깬 두목 ${D.list.filter((x) => x.beat).length} / 15`);
     c0(R('도감 보상', D.next ? `★3 두목 ${D.next.n}명 — 장비 뽑기권 ${D.next.tix}${D.next.title ? ` · 칭호 「${D.next.title}」` : ''} (지금 ${D.three})` : '모두 받았어요', [['받기', act(() => { const r = g.claimDex(); if (r) { play('rare', 5); toast(`두목 도감 — 뽑기권 ${r.tix}${r.title ? ` · 칭호 「${r.title}」` : ''}`); } return r; }), !D.can]], '鑑'));
+    // v613 도감 카드 — 못 만난 두목은 그림자(진짜 그림을 검게) · 만난 두목은 그림 · 이름 · 장 · 별 · 첫 처치 · 한 줄 이야기 · 패턴. 누르면 자세히
     const grid = document.createElement('div'); grid.className = 'dex-grid';
-    grid.innerHTML = D.list.map((x) => x.seen || x.beat
-      ? `<div class="dex-c ${x.beat ? 'beat' : ''}"><img src="art/s2/chb/chb${x.ch}.webp" alt="${esc(x.name)}" loading="lazy"><div><b>${x.ch}장 · ${esc(x.name)}</b><small>${esc(x.title)}</small><span class="rdstar">${'★'.repeat(x.star)}<i>${'★'.repeat(3 - x.star)}</i></span><em>${x.pats.map((p2) => CB_PATS[p2]?.name).join(' · ')} · 필살</em><small>${x.beat ? `깸${x.manual ? ' · 손으로 피함' : ''}${x.best ? ` · 최고 ${(x.best / 1000).toFixed(1)}초` : ''}` : '아직 못 깸'}</small></div></div>`
-      : `<div class="dex-c unk"><div class="dex-q">?</div><div><b>${x.ch}장 · ???</b><small>${x.ch * 10}칸에서 만나요</small></div></div>`).join('');
+    grid.innerHTML = D.list.map((x) => {
+      const ch = x.ch, art = `<div class="dex-art"><img src="art/s2/chb/chb${ch}.webp" alt="${x.seen || x.beat ? esc(x.name) : `${ch}장 두목 그림자`}" loading="lazy" decoding="async"></div>`;
+      if (!(x.seen || x.beat)) return `<button class="dex-c unk" data-ch="${ch}">${art}<div class="dex-t"><b>${ch}장 · ???</b><small>${esc(CHAPTERS[ch - 1])} · ${ch * 10}칸에서 만나요</small></div></button>`;
+      return `<button class="dex-c ${x.beat ? 'beat' : 'seen'}" data-ch="${ch}" style="--bc:${CHBOSS[ch].col}">${art}<div class="dex-t"><b>${esc(x.name)}</b><small>${ch}장 ${esc(CHAPTERS[ch - 1])} · ${esc(x.title)}</small>${dexStars(x.star)}<p class="dex-lore">${esc(BOSS_LORE[ch] || '')}</p><em>${x.pats.map((p2) => CB_PATS[p2]?.name).join(' · ')} · 필살</em><small>${x.beat ? `${x.at ? `첫 처치 ${dexDate(x.at)}` : '깸'}${x.best ? ` · 최고 ${(x.best / 1000).toFixed(1)}초` : ''}` : '아직 못 깸'}</small></div></button>`;
+    }).join('');
+    for (const b of grid.querySelectorAll('.dex-c')) b.onclick = () => { const x = D.list[Number(b.dataset.ch) - 1]; play('click'); if (x.seen || x.beat) dexPop(x); else toast(`${x.ch * 10}칸(${CHAPTERS[x.ch - 1]})에서 만나요`); };
     c0(grid);
   } else if (key === 'rank:0') {
     // v547 서열 — 전투력 · 레벨 · 이번 주 월드보스 위 50명 · 내 등수(서버 · 30초마다 새로)
@@ -1670,7 +1692,7 @@ function saverTick(t) {
 function saverStart(t = now()) {
   if (saverOn || !g) return;
   if (open) closeWin(); if (!$('modal').classList.contains('hidden')) closeModal();
-  saverOn = true; saverFrom = { kills: g.S.kills || 0, gold: g.S.wallet.gold || 0, lv: g.S.hero.lv, exp: g.S.hero.exp, at: t };
+  saverOn = true; saverFrom = { kills: g.S.kills || 0, gold: g.S.wallet.gold || 0, lv: g.S.hero.lv, exp: g.S.hero.exp, at: t, ag: { ...agSum } };
   const o = document.createElement('div'); o.id = 'saver'; o.innerHTML = `<div><b>절전 중</b><span>홀로 사냥하는 중…</span><em>누르면 돌아와요${opt.wake && wakeOK() ? ' · 화면은 켜 둔 채 홀로 사냥' : ''}</em></div>`; document.body.append(o);
   save();
 }
@@ -1681,7 +1703,11 @@ function saverOff() {
   if (was && F && g && now() - F.at >= 60000) {
     const m = Math.floor((now() - F.at) / 60000), dl = g.S.hero.lv - F.lv;
     saverSum = `절전 ${m}분 — ${[dl > 0 && `Lv +${dl}`, `처치 +${unit((g.S.kills || 0) - F.kills)}`, `은자 +${unit(Math.max(0, (g.S.wallet.gold || 0) - F.gold))}`].filter(Boolean).join(' · ')}`;
-    toast(saverSum); addLog(saverSum);
+    addLog(saverSum);
+    // 10분 넘게 절전했으면 작은 돌아옴 카드(아니면 알림 한 줄). 깨운 손가락이 카드 단추를 누르지 않게 조금 뒤에
+    const ms = now() - F.at, rows = [['silver', '은자', Math.max(0, (g.S.wallet.gold || 0) - F.gold)], ['realm', '레벨', Math.max(0, dl)], ['atk', '처치', Math.max(0, (g.S.kills || 0) - F.kills)]], ag = agLine(F.ag);
+    if (ms < 600000) toast(saverSum);
+    else setTimeout(() => { if (!$('modal').classList.contains('hidden') || saverOn || open) { toast(saverSum); return; } retCard('절전 끝', { small: true, ms, sub: '동안 화면을 쉬며 사냥했어요', rows, ag }, [['확인', null]]); }, 350);
   }
 }
 // v586 화면 켜 두기(방치) — 손전화가 저절로 화면을 끄면 브라우저가 게임을 멈춘다 → 화면 꺼짐 막기(Screen Wake Lock).
@@ -2464,17 +2490,19 @@ function frame() {
   if (resTimer && t > resTimer) closeResult();
   comboTick(t);   // v564
   // v588 자동 성장 — 켜 두면 1분마다(두목전 · 던전 · 창이 열려 있을 땐 쉼)
-  if (opt.autoGrow && g && t - (frame.ag || 0) > 60000 && !g.bossFight && !g.dg && !open) {
-    frame.ag = t; const r = g.autoGrow(opt.agGold ? {} : { kit: false, enh: false, train: false });   // v593 은자 아끼기
-    // v589 문파 출석(서버) — 문파에 들었고 오늘 안 했으면
-    if (net.online && g.S.guildId && guildState.g && g.S.gChk !== dayKey(now())) { const G = guildState.g, gr = g.guildCheckin(Game.guildLvOf(G.exp)); if (gr) { r.daily.push('문파 출석'); net.guildCheckin(G).catch(() => {}); } }
-    if (r.daily.length) agSum.daily += r.daily.length;
-    if (r.claim || r.pull || r.coll || r.equip || r.kit || r.enh || r.train || r.daily.length) {
-      agSum.claim += r.claim; agSum.pull += r.pull + r.coll; agSum.kit += r.kit; agSum.enh += r.enh; save();
-      addLog(`자동 성장 — ${[r.daily.length && r.daily.join(' · '), r.claim && `보상 ${r.claim}`, r.pull && `뽑기 ${r.pull}`, r.coll && `병기·동료·영물 ${r.coll}`, r.equip && '장비 바꿈', r.kit && `무공 +${r.kit}`, r.enh && `강화 +${r.enh}`, r.train && `수련 +${r.train}`].filter(Boolean).join(' · ')}`);
-    }
-  }
+  if (opt.autoGrow && g && t - (frame.ag || 0) > 60000 && !g.bossFight && !g.dg && !open) agRun(t);
   if (saverOn) setTimeout(frame, SAVER_TICK); else requestAnimationFrame(frame);   // v587 절전: 초당 4번만(엔진은 50ms 틱으로 따라잡는다 — 한 번에 최대 1초)
+}
+// v588 자동 성장 한 번 — 1분마다(frame) · 돌아왔을 때 카드 앞에서도 한 번(returnQueue)
+function agRun(t) {
+  frame.ag = t; const r = g.autoGrow(opt.agGold ? {} : { kit: false, enh: false, train: false });   // v593 은자 아끼기
+  // v589 문파 출석(서버) — 문파에 들었고 오늘 안 했으면
+  if (net.online && g.S.guildId && guildState.g && g.S.gChk !== dayKey(now())) { const G = guildState.g, gr = g.guildCheckin(Game.guildLvOf(G.exp)); if (gr) { r.daily.push('문파 출석'); net.guildCheckin(G).catch(() => {}); } }
+  if (r.daily.length) agSum.daily += r.daily.length;
+  if (r.claim || r.pull || r.coll || r.equip || r.kit || r.enh || r.train || r.daily.length) {
+    agSum.claim += r.claim; agSum.pull += r.pull + r.coll; agSum.kit += r.kit; agSum.enh += r.enh; save();
+    addLog(`자동 성장 — ${[r.daily.length && r.daily.join(' · '), r.claim && `보상 ${r.claim}`, r.pull && `뽑기 ${r.pull}`, r.coll && `병기·동료·영물 ${r.coll}`, r.equip && '장비 바꿈', r.kit && `무공 +${r.kit}`, r.enh && `강화 +${r.enh}`, r.train && `수련 +${r.train}`].filter(Boolean).join(' · ')}`);
+  }
 }
 // v513 두목전 결과 — 이기면 「STAGE CLEAR」 + 실제 보상 · 걸린 시간 · 다음 칸, 3초 막대가 차면 저절로 다음으로(설정에서 끔)
 //   지면 까닭(시간 초과 · 두목 남은 체력 · 쓰러짐) + 강해지기 · 다시 도전 · 사냥 계속(3초)
@@ -2779,14 +2807,74 @@ function doAttend() {
   setTimeout(() => { play(ATTEND[r.day].big ? 'rare' : 'coin', 5); const parts = [r.gold ? `은자 ${unit(r.gold)}` : '', ...Object.entries(r.items).map(([k, n]) => `${ATTEND_NAME[k] || k} ${n}`), r.gear ? `${GRADES[r.gear.g]}품${r.gear.up ? '上' : ''} ${SLOT_NAME[r.gear.slot]}` : '', r.title ? `칭호 「${r.title}」` : ''].filter(Boolean); toast(`출석 보상 — ${parts.join(' · ')}`); }, 700);
   $('att-ok').onclick = () => { play('click'); closeModal(); sh.classList.remove('wide', 'attw'); if (open) paintWin(); };
 }
+// 돌아왔을 때 카드(ret-) — 비운 시간 · 얻은 것을 크게 세어 올림(0.8초 · 누르면 바로) · 무인이 칼을 들어 올림. 그래픽 낮음이면 움직임 없이
+let retAg = { ...agSum };   // 자리를 비울 때(앱이 뒤로 갈 때)의 자동 성장 합 — 돌아와서 그 뒤로 한 일만 보인다
+const hmm = (ms) => { const m = Math.floor(ms / 60000); return `${Math.floor(m / 60)}:${String(m % 60).padStart(2, '0')}`; };
+function agLine(base) {
+  if (!opt.autoGrow) return '';
+  const d = (k) => Math.max(0, (agSum[k] || 0) - (base?.[k] || 0));
+  return [d('pull') && `뽑기 ${d('pull')}`, d('enh') && `강화 +${d('enh')}`, d('kit') && `무공 +${d('kit')}`, d('claim') && `보상 ${d('claim')}`, d('daily') && `하루 일 ${d('daily')}`].filter(Boolean).join(' · ');
+}
+function lvGain(exp) {   // 받으면 오를 레벨(경험치 덤까지 — 엔진 addExp와 같은 셈)
+  const st = g.fighter().st, n = Math.floor(Math.round(exp * (1000 + (st.expP || 0)) / 1000));
+  let lv = g.S.hero.lv, e = g.S.hero.exp + n, ups = 0;
+  while (lv < LEVEL_MAX && e >= expToNext(lv)) { e -= expToNext(lv); lv++; ups++; }
+  return ups;
+}
+// rows: [[그림, 이름, 수, 앞글자]] — 0인 것은 빼고 보인다
+function retCard(title, o, acts) {
+  const rows = o.rows.filter((r) => r[2] > 0);
+  const tile = ([ic, name, n, pre = '+']) => `<div class="ret-i"><img alt="" src="art/s2/ui/${ic}.webp"><b class="ret-n" data-n="${n}" data-p="${pre}">${pre}${opt.gfx === 'low' ? unit(n) : 0}</b><small>${name}</small></div>`;
+  pop(title, `<div class="ret${o.small ? ' ret-s' : ''}"><canvas class="ret-hero" aria-hidden="true"></canvas><div class="ret-m"><div class="ret-t"><img alt="" src="art/s2/ui/time.webp"><b>${hmm(o.ms)}</b><span>${o.sub}</span></div>${o.bar != null ? `<div class="ret-bar"><i style="width:${o.bar}%"></i></div>` : ''}<div class="ret-g">${rows.map(tile).join('')}</div>${o.ag ? `<div class="ret-ag"><img alt="" src="art/s2/ui/auto.webp"><b>자동 성장</b><span>${o.ag}</span></div>` : ''}${o.note ? `<p class="ret-note">${o.note}</p>` : ''}</div></div>`, acts);
+  const sh = $('modal').querySelector('.sheet'), box = sh.querySelector('.ret');
+  sh.classList.add('rets'); sh.classList.toggle('retsm', !!o.small); box.classList.toggle('ret-still', opt.gfx === 'low');
+  retHero(box.querySelector('.ret-hero'), o.small);
+  retCount(box);
+}
+function retCount(box) {
+  const els = [...box.querySelectorAll('.ret-n')];
+  const fin = () => { stop = true; for (const e of els) e.textContent = e.dataset.p + unit(+e.dataset.n); box.classList.add('ret-done'); };
+  let stop = false;
+  if (opt.gfx === 'low' || !els.length) return fin();
+  const t0 = performance.now(), D = 800;
+  const step = (t) => {
+    if (stop || !box.isConnected) return;
+    const a = Math.min(1, (t - t0) / D), e = 1 - (1 - a) ** 3;
+    for (const el of els) el.textContent = el.dataset.p + unit(Math.round(+el.dataset.n * e));
+    if (a < 1) requestAnimationFrame(step); else fin();
+  };
+  requestAnimationFrame(step);
+  box.addEventListener('pointerdown', fin, { once: true });   // 누르면 바로 다 보임
+}
+function retHero(cv, small) {
+  const D = Math.min(2, window.devicePixelRatio || 1), w = small ? 84 : 110, h = small ? 100 : 132, x = cv.getContext('2d');
+  cv.width = w * D; cv.height = h * D; cv.style.width = `${w}px`; cv.style.height = `${h}px`;
+  const job = g.S.hero.job, lv = g.S.hero.lv, eq = g.lookEq(), to = POSES[job === 'fist' ? '올려치기' : '검거양'], t0 = performance.now(), low = opt.gfx === 'low';
+  const paint = (t) => {
+    const s = (t - t0) / 1000, k = low ? 1 : Math.min(1, s / 0.45), pose = mixPose(POSES.기모으기, to, 1 - (1 - k) ** 3);
+    if (k >= 1 && !low) pose.lift += Math.sin(s * 3) * 1.6;
+    x.setTransform(1, 0, 0, 1, 0, 0); x.clearRect(0, 0, cv.width, cv.height); x.setTransform(D, 0, 0, D, 0, 0);
+    const gr = x.createRadialGradient(w / 2, h * 0.55, 4, w / 2, h * 0.55, w * 0.62); gr.addColorStop(0, `rgba(232,194,106,${0.42 * k})`); gr.addColorStop(1, 'rgba(232,194,106,0)'); x.fillStyle = gr; x.fillRect(0, 0, w, h);
+    if (!low) for (let i = 0; i < 5; i++) { const a = (s * 0.9 + i / 5) % 1, px = w / 2 + Math.sin(i * 2.4) * w * 0.34, py = h * 0.8 - a * h * 0.6; x.globalAlpha = Math.sin(a * Math.PI) * 0.8; x.fillStyle = '#ffe6a0'; x.beginPath(); x.arc(px, py, 1.6, 0, 7); x.fill(); }
+    x.globalAlpha = 1;
+    drawHero(x, w / 2, h - 6, job, lv, { t: s, scale: small ? 0.88 : 1.12, eq, pose });
+  };
+  if (low) { paint(t0); setTimeout(() => cv.isConnected && paint(t0), 400); return; }   // 그림이 늦게 오면 한 번 더
+  const loop = (t) => { if (!cv.isConnected || $('modal').classList.contains('hidden')) return; paint(t); requestAnimationFrame(loop); };
+  requestAnimationFrame(loop);
+}
 function returnQueue() {
   const p = g.returnCheck(now());
   const q = buildQueue([...(p ? [{ kind: 'offline', p }] : [])]);
   if (!q.length && g.canAttend()) setTimeout(() => attendPop(), 600);   // v536 방치 보상이 없으면 바로 출석
+  if (p && opt.autoGrow && !g.bossFight && !g.dg && !open && now() - (frame.ag || 0) > 60000) agRun(now());   // 돌아오자마자 자동 성장 한 번 — 카드에 함께 보인다
   for (const it of q) if (it.kind === 'offline') {
     const p2 = it.p;
-    const mins = Math.floor(p2.ms / 60000), hh = Math.floor(mins / 60), mm = mins % 60;
-    pop('방치 보상', `<div class="offl"><div class="offl-t"><b>${hh ? `${hh}시간 ` : ''}${mm}분</b><span>동안 무인이 홀로 사냥했어요${p2.capped ? ' · 최대 12시간까지 쌓여요' : ''}</span></div><div class="offl-bar"><i style="width:${Math.min(100, (p2.ms / (12 * 3600000)) * 100)}%"></i></div><div class="rtiles offl-r"><div class="rt"><i class="xpico">EXP</i><b>${unit(p2.exp)}</b><small>경험치</small></div><div class="rt"><i class="coin s"></i><b>${unit(p2.gold)}</b><small>은자</small></div></div><p class="note">광고를 보면 두 배(하루 정해진 횟수)</p></div>`, [['받기', () => { g.claimOffline(false); save(); if (g.canAttend()) setTimeout(() => attendPop(), 350); }], ['광고 보고 ×2', () => { const r = g.claimOffline(true); toast(r?.x === 2 ? '×2 받음' : '오늘 광고 ×2는 다 썼어요'); save(); if (g.canAttend()) setTimeout(() => attendPop(), 350); }]]);
+    retCard('돌아오셨군요', { ms: p2.ms, sub: `동안 홀로 사냥했어요${p2.capped ? ' · 최대 12시간' : ''}`, bar: Math.min(100, (p2.ms / (12 * 3600000)) * 100),
+      rows: [['silver', '은자', p2.gold], ['mastery', '경험치', p2.exp], ['realm', '레벨', lvGain(p2.exp)], ['atk', '처치', p2.kills]],
+      ag: agLine(retAg), note: '광고를 보면 두 배(하루 정해진 횟수)' },
+    [['받기', () => { g.claimOffline(false); save(); if (g.canAttend()) setTimeout(() => attendPop(), 350); }], ['광고 보고 ×2', () => { const r = g.claimOffline(true); toast(r?.x === 2 ? '×2 받음' : '오늘 광고 ×2는 다 썼어요'); save(); if (g.canAttend()) setTimeout(() => attendPop(), 350); }]]);
+    retAg = { ...agSum };
   }
 }
 // v560 업데이트 소식 — 들어올 때 다른 창(방치 보상 · 출석)이 다 닫힌 뒤 한 번 · 설정에서 다시
@@ -2816,7 +2904,7 @@ function boot() {
   last = now(); lastMin = now();
   requestAnimationFrame(frame);
 }
-document.addEventListener('visibilitychange', () => { if (!g) return; if (document.hidden) { save(); cloudPush(true); } else { returnQueue(); last = now(); } });
+document.addEventListener('visibilitychange', () => { if (!g) return; if (document.hidden) { save(); cloudPush(true); retAg = { ...agSum }; } else { returnQueue(); last = now(); } });
 window.addEventListener('pagehide', () => g && save());
 // 컴퓨터: ← → 움직이기 · Space/↑ 점프 · ↓ 내려가기 · Shift/E 회피 · Q 무공 · Del 자동
 const keyDir = { ArrowLeft: -1, ArrowRight: 1 };
@@ -2861,6 +2949,6 @@ load();
 if (g) boot();
 else pickJob();
 // 시험용 손잡이
-window.__s2 = { get g() { return g; }, followers: () => ({ ...followerN }), agTest: () => { frame.ag = 0; }, saverStart, saverOff, saverOn: () => saverOn, saverAge: (ms) => { if (saverFrom) saverFrom.at -= ms; }, saverSum: () => saverSum, impacts: () => impacts.length, motion: () => ({ hurt: heroHurtAt, down: heroDownAt, run: runMix, anim: heroAnim.active }), inviteTest: (c) => { inviteCode = c; inviteCheck(); }, shareGame, shareLast: () => shareLast, saverAutoTest: (on) => { saverAuto = !!on; }, wake: () => ({ lock: !!wakeLock, want: wakeWant, ok: wakeOK() }), wakeSync, wakeOpt: (on) => { opt.wake = !!on; return wakeSync(); }, saverTest: () => { saverForce = true; lastInput = -1e9; }, newsCheck, guildState, guildLoad, chatSend, worldSend, worldMsgs: () => worldState.msgs.map((m) => ({ uid: m.uid, nick: m.nick, text: m.text, lv: m.lv, job: m.job })), worldOn: () => !!worldState.unsub, worldReset: () => { worldState.lastAt = 0; worldState.lastText = ''; }, save, dayKey, attendPop, freeze: () => { frozen = true; }, net, cloudPush, rankPush, wbPush, wkStr, pvpInbox, pvpFetch, resetNetTimers: () => { pvpAt = 0; inboxAt = 0; },
+window.__s2 = { get g() { return g; }, followers: () => ({ ...followerN }), agTest: () => { frame.ag = 0; }, saverStart, saverOff, saverOn: () => saverOn, saverAge: (ms) => { if (saverFrom) saverFrom.at -= ms; }, saverSum: () => saverSum, retTest: (ms) => { const O = g.S.offline; O.lastSeen -= ms; O.clockMax -= ms; returnQueue(); }, impacts: () => impacts.length, motion: () => ({ hurt: heroHurtAt, down: heroDownAt, run: runMix, anim: heroAnim.active }), inviteTest: (c) => { inviteCode = c; inviteCheck(); }, shareGame, shareLast: () => shareLast, saverAutoTest: (on) => { saverAuto = !!on; }, wake: () => ({ lock: !!wakeLock, want: wakeWant, ok: wakeOK() }), wakeSync, wakeOpt: (on) => { opt.wake = !!on; return wakeSync(); }, saverTest: () => { saverForce = true; lastInput = -1e9; }, newsCheck, guildState, guildLoad, chatSend, worldSend, worldMsgs: () => worldState.msgs.map((m) => ({ uid: m.uid, nick: m.nick, text: m.text, lv: m.lv, job: m.job })), worldOn: () => !!worldState.unsub, worldReset: () => { worldState.lastAt = 0; worldState.lastText = ''; }, save, dayKey, attendPop, freeze: () => { frozen = true; }, net, cloudPush, rankPush, wbPush, wkStr, pvpInbox, pvpFetch, resetNetTimers: () => { pvpAt = 0; inboxAt = 0; },
   // v525 팝업 대신 에뮬레이터용 가짜 Google 토큰으로 잇기 · 겹치면 그 계정으로
   linkTest: async (tok) => { const r = await net.linkGoogle(tok); if (r.conflict) { const d = await net.switchTo(r.cred); if (d) applyCloud(d); return 'switched'; } await cloudPush(true); return 'linked'; } };

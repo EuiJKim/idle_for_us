@@ -1785,6 +1785,22 @@ console.log('\n=== v610 창 줄 그림 아이콘 ===');
   ok(UI.uiIcon('塔')[0] === 'tower' && UI.uiIcon('i:def:防').join() === 'def,防' && UI.uiIcon('✓').join() === ',✓' && UI.uiIcon('i:nope:x').join() === ',x', '글자 → 그림 풀이(없는 그림 · 표에 없는 글자는 글자 그대로)');
 }
 
+console.log('\n=== v613 두목 도감 — 첫 처치 때 · 드러난 수 ===');
+{
+  const BL = await import('../js/s2/tables/bosslore.js');
+  ok(BL.BOSS_LORE.length === 16 && BL.BOSS_LORE.slice(1).every((t) => typeof t === 'string' && t.length >= 10 && t.length <= 60), '두목 한 줄 이야기 15');
+  const T0 = 1.8e12, g = new Game(newGame('sword', T0, 4), T0); g.addExp(EX.cumExp(18)); g.tick(T0); g.S.wallet['ticket:gear'] = 600; g.S.wallet.gold = 1e12; g.S.wallet['item:stone'] = 1e6;
+  for (let i = 0; i < 60; i++) g.pullGear(10); GR.equipBest(g.S.gear, 18); for (const s of GE.SLOTS) for (let i = 0; i < 14; i++) g.enhance(s); g.dirtyStats = true;
+  const d0 = g.dex(); ok(d0.found === d0.list.filter((x) => x.seen || x.beat).length && d0.list.every((x) => x.at === 0), '처음: 첫 처치 때 없음 · found = 만났거나 깬 수', d0.found);
+  const T = g.stage(); T.idx = 10; T.top = 10; T.kills = STAGE_KILLS; g.challenge(); let t = T0 + 5000; while (g.bossFight) { t += 1000; g.tick(t); g.hunt(1000); }
+  const at1 = g.S.chbAt?.[1], d1 = g.dex();
+  ok(g.S.chb?.[1] && at1 > T0 && d1.list[0].at === at1 && d1.found >= 1, '1장 두목 첫 처치 → 그때(ms)를 적는다', at1 - T0);
+  T.idx = 10; T.kills = STAGE_KILLS; g.challenge(); while (g.bossFight) { t += 1000; g.tick(t); g.hunt(1000); }
+  ok(g.S.chb[1] === 2 && g.S.chbAt[1] === at1, '다시 깨도 첫 처치 때는 그대로');
+  const old = new Game(newGame('sword', T0, 5), T0); old.S.chb = { 2: 1 }; delete old.S.chbAt;
+  ok(old.dex().list[1].beat && old.dex().list[1].at === 0 && old.dex().found >= 1, '옛 저장(때 없음)도 읽힌다 — 0');
+}
+
 console.log('\n=== S0 규칙 ===');
 {
   const files = [];

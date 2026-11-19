@@ -170,11 +170,12 @@ export class Game {
   graidState() { const S = this.S, wk = weekKey(this.now), R = (S.graid ??= { week: wk, used: 0, claimed: 0 }); if (R.week !== wk) Object.assign(R, { week: wk, used: 0, claimed: 0 }); return R; }
   graidBoss() { return 1 + (weekKey(this.now) % 15); }
   // v555 두목 도감 — 두목마다 깸 · 토벌 별 · 최고 기록 · 손으로 깸 / ★3 수 단계 보상
+  //   at: 첫 처치 때(ms · 이 기능 전에 깬 두목은 0) · found: 만났거나 깬 두목 수(도감에 얼굴이 드러난 수)
   dex() {
     const S = this.S, R = S.raid || { star: {}, best: {} };
-    const list = CHBOSS.slice(1).map((D, i) => { const ch = i + 1; return { ch, name: D.name, title: D.title, pats: D.pats, seen: this.stage().top >= ch * 10, beat: !!S.chb?.[ch], star: R.star?.[ch] || 0, best: R.best?.[ch] || 0, manual: !!S.chbMan?.[ch] }; });
+    const list = CHBOSS.slice(1).map((D, i) => { const ch = i + 1; return { ch, name: D.name, title: D.title, pats: D.pats, seen: this.stage().top >= ch * 10, beat: !!S.chb?.[ch], star: R.star?.[ch] || 0, best: R.best?.[ch] || 0, manual: !!S.chbMan?.[ch], at: S.chbAt?.[ch] || 0 }; });
     const three = list.filter((x) => x.star >= 3).length, got = S.dexGot || 0;
-    return { list, three, got, next: DEX_REW[got] || null, can: !!DEX_REW[got] && three >= DEX_REW[got].n };
+    return { list, three, found: list.filter((x) => x.seen || x.beat).length, got, next: DEX_REW[got] || null, can: !!DEX_REW[got] && three >= DEX_REW[got].n };
   }
   claimDex() {
     const d = this.dex(); if (!d.can) return null;
@@ -439,7 +440,7 @@ export class Game {
         rec[ch] = (rec[ch] || 0) + 1;
         // v546 「두목 패턴 자동 피하기」를 끄고 처음 깨면(장마다 한 번) 강화석 더
         if (BF.autoDodge === false && !(this.S.chbMan ??= {})[ch]) { this.S.chbMan[ch] = 1; chb.manual = CB_MANUAL_STONES; this.S.wallet['item:stone'] = (this.S.wallet['item:stone'] || 0) + CB_MANUAL_STONES; }
-        if (first) { this.emit('chboss'); const it = GR.makeGear(this.rng, SLOTS[this.rng.int(SLOTS.length)], cbGearGrade(ch)); chb.gear = { g: it.g, slot: it.slot, up: it.up }; this.obtain([it]); (this.S.titles ??= []).push(`${CHBOSS[ch].name} 격파`); }
+        if (first) { (this.S.chbAt ??= {})[ch] = this.now; this.emit('chboss'); const it = GR.makeGear(this.rng, SLOTS[this.rng.int(SLOTS.length)], cbGearGrade(ch)); chb.gear = { g: it.g, slot: it.slot, up: it.up }; this.obtain([it]); (this.S.titles ??= []).push(`${CHBOSS[ch].name} 격파`); }
         else { const dd = (this.S.chbDay ??= {}), dk = dayKey(this.now); if (dd[ch] !== dk) { dd[ch] = dk; chb.stones = CB_REPEAT.stones; chb.tix2 = CB_REPEAT.tix; this.S.wallet['item:stone'] = (this.S.wallet['item:stone'] || 0) + chb.stones; this.S.wallet['ticket:gear'] = (this.S.wallet['ticket:gear'] || 0) + chb.tix2; } }   // 다시 깬 보상은 장마다 하루 한 번
       }
     }

@@ -503,8 +503,24 @@ const ok = (c, m, x = '') => { console.log(`  ${c ? '✓' : '✗ !!'} ${m}${x !=
     ok(outside.length === 0, '단추가 화면 안', [...new Set(outside)].join(' '));
     ok(picTabs.length >= 20 && picUp >= 80, 'v610 창 줄 그림 아이콘 — 여러 창에서 그림으로 뜬다', `${picTabs.length}칸 · 그림 ${picUp}/${picN}`);
     ok(picBad.length === 0, 'v610 창을 다 훑어도 깨진 그림 없음', picBad.slice(0, 5).join(' '));
+    // v613 두목 도감 — 카드 15장(못 만난 두목은 그림자) · 드러난 수 = 엔진 · 그림이 뜬다 · 누르면 자세히 · 바깥을 누르면 닫힘 · 「도감 보상」 줄은 맨 위
+    { const top0 = await page.evaluate(() => { const g = window.__s2.g, T = g.stage(), t = T.top; T.top = Math.max(t, 52); g.S.chb = { ...(g.S.chb || {}), 1: 1, 2: 1, 3: 1 }; return t; });
+      await page.click('#ptabs button[data-tab="map"]'); await page.click('#panel-body .subtabs button:text-is("두목 도감")'); await page.waitForSelector('#wb .dex-grid');
+      const d = await page.evaluate(() => ({ n: document.querySelectorAll('#wb .dex-c').length, known: document.querySelectorAll('#wb .dex-c:not(.unk)').length, unk: document.querySelectorAll('#wb .dex-c.unk').length, found: window.__s2.g.dex().found,
+        first: document.querySelector('#wb .card .row .name')?.textContent || '', btn: !!document.querySelector('#wb .card .row .btn')?.textContent.includes('받기'), sw: document.getElementById('panel-body').scrollWidth - document.getElementById('panel-body').clientWidth }));
+      ok(d.n === 15 && d.known === d.found && d.found >= 5 && d.unk === 15 - d.found, 'v613 두목 도감: 카드 15장 · 드러난 수 = 엔진', JSON.stringify(d));
+      ok(/도감 보상/.test(d.first) && d.btn && d.sw <= 1, 'v613 「도감 보상」 줄이 맨 위 · 옆으로 넘치지 않음', JSON.stringify(d));
+      for (const c of await page.$$('#wb .dex-c')) await c.scrollIntoViewIfNeeded();
+      const art = await until(() => page.evaluate(() => [...document.querySelectorAll('#wb .dex-c img')].map((im) => im.complete && im.naturalWidth > 0)), (v) => v.every(Boolean));
+      ok(art.length === 15 && art.every(Boolean), 'v613 두목 그림 15장이 뜬다(그림자 포함)', `${art.filter(Boolean).length}/15`);
+      await page.click('#wb .dex-c.beat >> nth=0'); await page.waitForSelector('#modal:not(.hidden) .dex-d');
+      const m = await page.evaluate(() => ({ t: document.querySelector('#modal h2').textContent, lore: document.querySelector('#modal .dex-lore')?.textContent.length || 0, st: document.querySelectorAll('#modal .dex-st i').length, raid: [...document.querySelectorAll('#modal .btn')].some((b) => b.textContent === '토벌') }));
+      ok(/1장 · 녹림대왕/.test(m.t) && m.lore > 5 && m.st === 3 && m.raid, 'v613 깬 두목 카드 → 자세히(이야기 · 별 · 토벌 바로 가기)', JSON.stringify(m));
+      await page.waitForTimeout(400); await page.mouse.click(4, 4); await page.waitForTimeout(200);
+      ok(await page.isHidden('#modal'), 'v613 자세히 창 — 바깥을 누르면 닫힘');
+      await page.evaluate((t) => { window.__s2.g.stage().top = t; }, top0); }
     await page.click('#ptabs button[data-tab="bag"]'); await page.click('#panel-body .subtabs button >> nth=1');
-    const t0 = await page.evaluate(() => window.__s2.g.S.wallet['ticket:gear']);
+    const t0 =await page.evaluate(() => window.__s2.g.S.wallet['ticket:gear']);
     await page.click('#wb .row:has-text("10번 뽑기") .btn');
     const t1 = await page.evaluate(() => window.__s2.g.S.wallet['ticket:gear']);
     ok(t0 - t1 === 10, '장비 10번 뽑기 — 뽑기권 10장', `${t0} → ${t1}`);
@@ -518,6 +534,31 @@ const ok = (c, m, x = '') => { console.log(`  ${c ? '✓' : '✗ !!'} ${m}${x !=
     ok(!(await page.evaluate(() => document.getElementById('panel').classList.contains('open'))), '창 닫기');
     await page.click('#b-opt'); ok(/설정/.test(await page.textContent('#panel-title')) && /진동/.test(await page.textContent('#wb')) && !/효과음|배경 가락/.test(await page.textContent('#wb')) && !(await page.$('#btn-sound')), '⚙ → 설정 창(v601 소리 없음)'); await page.click('#panel-close');
     await page.screenshot({ path: path.join(OUT, `s2ui-${W}.png`) });
+    // 돌아왔을 때 카드(ret-) — 비운 시간 · 은자 세어 올림(누르면 바로) · 받기는 한 번만 · 창이 넘치지 않음 · 10분 넘은 절전은 작은 카드
+    { await page.evaluate(() => { const g = window.__s2.g; if (g.bossFight) g.endChallenge(false); });
+      const retFit = () => page.evaluate(() => { const sh = document.querySelector('#modal .sheet'), bs = [...sh.querySelectorAll('.btn-row .btn')].map((x) => x.getBoundingClientRect()); return sh.scrollHeight <= sh.clientHeight + 1 && bs.length > 0 && bs.every((r) => r.top >= 0 && r.bottom <= innerHeight && r.height > 0); });
+      await page.evaluate(() => window.__s2.retTest(2 * 3600e3 + 5 * 60000)); await page.waitForSelector('#modal:not(.hidden) .ret'); await page.waitForTimeout(1100);
+      const r = await page.evaluate(() => { const n = document.querySelector('.ret-i .ret-n'); return { t: document.querySelector('#modal .sheet h2').textContent, hm: document.querySelector('.ret-t b').textContent, n: +n.dataset.n, txt: n.textContent, done: !!document.querySelector('.ret.ret-done'), pend: window.__s2.g.S.offline.pending?.gold || 0, btns: [...document.querySelectorAll('#modal .btn-row .btn')].map((b) => b.textContent), hero: !!document.querySelector('canvas.ret-hero'), pics: [...document.querySelectorAll('.ret-i img')].map((i) => i.getAttribute('src').split('/').pop()) }; });
+      ok(r.t === '돌아오셨군요' && r.hm === '2:05' && r.n > 0 && r.n === r.pend && r.done && r.txt !== '+0' && r.hero, '돌아옴 카드 — 비운 시간 2:05 · 은자 세어 올림', `${r.hm} ${r.txt}`);
+      ok(r.btns.join('|') === '받기|광고 보고 ×2' && r.pics[0] === 'silver.webp', '돌아옴 카드 — 받기 단추 그대로 · 은자 그림', r.btns.join('|'));
+      ok(await retFit(), `돌아옴 카드 — 넘치지 않고 단추가 화면 안(${W})`);
+      const g0 = await page.evaluate(() => window.__s2.g.S.wallet.gold);
+      await page.click('#modal .btn-row .btn >> nth=0'); await page.waitForTimeout(200);
+      const g1 = await page.evaluate(() => ({ gold: window.__s2.g.S.wallet.gold, pend: window.__s2.g.S.offline.pending, again: window.__s2.g.claimOffline(false), hidden: document.querySelector('#modal').classList.contains('hidden') || !document.querySelector('#modal .ret') }));
+      ok(g1.gold - g0 >= r.pend && g1.pend === null && g1.again === null && g1.hidden, '돌아옴 카드 — 받기는 딱 한 번', `+${g1.gold - g0} / ${r.pend}`);
+      if (!(await page.$('#modal.hidden'))) { await page.evaluate(() => { const b = document.querySelector('#modal .btn:has-text("나중에")') || [...document.querySelectorAll('#modal .btn')].find((x) => /나중에|확인/.test(x.textContent)); b?.click(); }); await page.waitForTimeout(200); }
+      await page.evaluate(() => window.__s2.retTest(30 * 60000)); await page.waitForSelector('#modal:not(.hidden) .ret');
+      await page.click('.ret-t'); const sk = await page.evaluate(() => { const n = document.querySelector('.ret-i .ret-n'); return { done: !!document.querySelector('.ret.ret-done'), txt: n.textContent, hm: document.querySelector('.ret-t b').textContent }; });
+      ok(sk.done && sk.txt !== '+0' && sk.hm === '0:30', '돌아옴 카드 — 누르면 세기를 건너뜀', sk.txt);
+      await page.click('#modal .btn-row .btn >> nth=0'); await page.waitForTimeout(200);
+      if (!(await page.$('#modal.hidden'))) { await page.evaluate(() => [...document.querySelectorAll('#modal .btn')].find((x) => /나중에|확인/.test(x.textContent))?.click()); await page.waitForTimeout(200); }
+      await page.evaluate(() => { window.__s2.saverStart(); window.__s2.saverAge(12 * 60000); }); await page.waitForTimeout(300);
+      await page.mouse.click(5, 200); await page.waitForTimeout(800);
+      const sv = await page.evaluate(() => ({ card: !!document.querySelector('#modal:not(.hidden) .ret.ret-s'), t: document.querySelector('#modal .sheet h2')?.textContent, hm: document.querySelector('.ret-s .ret-t b')?.textContent, sum: window.__s2.saverSum() }));
+      ok(sv.card && sv.t === '절전 끝' && sv.hm === '0:12' && /^절전 12분 — /.test(sv.sum), '절전 10분 넘으면 작은 돌아옴 카드', `${sv.t} ${sv.hm}`);
+      ok(await retFit(), `절전 카드 — 넘치지 않고 단추가 화면 안(${W})`);
+      await page.click('#modal .btn-row .btn >> nth=0'); await page.waitForTimeout(200);
+      ok(!!(await page.$('#modal.hidden')), '절전 카드 — 확인으로 닫힘'); }
     // 방치: 마지막 접속을 3시간 전으로 돌려 저장 → 다시 열면 방치 보상 창
     await page.evaluate(() => { const g = window.__s2.g; g.S.offline.lastSeen -= 3 * 3600e3; g.S.offline.clockMax -= 3 * 3600e3; localStorage.setItem('ifu.s2.save', g.save()); window.__s2.freeze(); });
     await page.close();
@@ -525,7 +566,7 @@ const ok = (c, m, x = '') => { console.log(`  ${c ? '✓' : '✗ !!'} ${m}${x !=
     p2.on('pageerror', (e) => errs.push(e.message));
     await p2.goto(BASE, { waitUntil: 'domcontentloaded' });
     await p2.waitForSelector('#modal:not(.hidden)');
-    ok(/방치 보상/.test(await p2.textContent('#modal .sheet')), '3시간 뒤 다시 열면 방치 보상 창');
+    ok(/돌아오셨군요/.test(await p2.textContent('#modal .sheet')) && /3:00/.test(await p2.textContent('#modal .ret-t')), '3시간 뒤 다시 열면 방치 보상 창(돌아오셨군요 · 3:00)');
     const lv0 = await p2.evaluate(() => window.__s2.g.S.hero.lv);
     await p2.click('#modal .btn >> nth=1');
     const lv1 = await p2.evaluate(() => window.__s2.g.S.hero.lv);

@@ -165,6 +165,31 @@
     .offl { text-align: center; } .offl-t b { display: block; font-size: 28px; font-weight: 900; color: var(--gold); } .offl-t span { font-size: 12.5px; color: rgba(255,255,255,.75); }
     .offl-bar { height: 6px; margin: 8px auto 4px; width: 80%; border-radius: 999px; background: rgba(0,0,0,.5); overflow: hidden; } .offl-bar i { display: block; height: 100%; background: linear-gradient(90deg, #d49a2a, #ffd56a); }
     .offl-r { display: flex; justify-content: center; gap: 10px; margin: 10px 0 4px; } .offl-r .rt { width: 110px; padding: 8px 4px; border-radius: 12px; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.1); display: flex; flex-direction: column; align-items: center; gap: 3px; } .offl-r .rt b { font-size: 17px; font-weight: 900; } .offl-r .rt small { font-size: 11px; color: rgba(255,255,255,.55); } .offl-r .coin { width: 24px; height: 24px; }
+    /* 돌아왔을 때 카드(ret-) — 방치 보상 · 10분 넘은 절전 */
+    #modal .sheet.rets, body.land #modal .sheet.rets { width: min(580px, 94vw); max-width: none; overflow: hidden; } html.rot #modal .sheet.rets, html.rot body.land #modal .sheet.rets { width: min(580px, 94vh); }
+    body.land #modal .sheet.rets.retsm { width: min(440px, 90vw); } html.rot body.land #modal .sheet.rets.retsm { width: min(440px, 90vh); }
+    #modal .sheet.rets h2 { text-align: center; letter-spacing: .04em; }
+    .ret { display: flex; align-items: center; gap: 12px; }
+    .ret-hero { flex: none; border-radius: 14px; background: radial-gradient(circle at 50% 72%, rgba(232,194,106,.14), rgba(0,0,0,.28) 72%); border: 1px solid rgba(232,194,106,.2); }
+    .ret-m { flex: 1; min-width: 0; text-align: center; }
+    .ret-t { display: flex; align-items: center; justify-content: center; gap: 6px; flex-wrap: wrap; } .ret-t img { width: 26px; height: 26px; object-fit: contain; }
+    .ret-t b { font-size: 26px; font-weight: 900; color: var(--gold); font-variant-numeric: tabular-nums; line-height: 1.1; } .ret-t span { font-size: 12px; color: rgba(255,255,255,.75); }
+    .ret-bar { height: 5px; margin: 6px auto 2px; width: 78%; border-radius: 999px; background: rgba(0,0,0,.5); overflow: hidden; } .ret-bar i { display: block; height: 100%; background: linear-gradient(90deg, #d49a2a, #ffd56a); }
+    .ret-g { display: grid; grid-template-columns: repeat(auto-fit, minmax(76px, 1fr)); gap: 7px; margin: 9px 0 3px; }
+    .ret-i { padding: 6px 3px 5px; border-radius: 12px; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.1); display: flex; flex-direction: column; align-items: center; gap: 1px; min-width: 0; animation: ret-in .36s cubic-bezier(.2,1.5,.4,1) both; }
+    .ret-i:nth-child(2) { animation-delay: .07s; } .ret-i:nth-child(3) { animation-delay: .14s; } .ret-i:nth-child(4) { animation-delay: .21s; }
+    .ret-i img { width: 34px; height: 34px; object-fit: contain; filter: drop-shadow(0 2px 3px rgba(0,0,0,.5)); }
+    .ret-i b { font-size: 16px; font-weight: 900; font-variant-numeric: tabular-nums; white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; } .ret-i small { font-size: 10.5px; color: rgba(255,255,255,.55); }
+    .ret-i:first-child b { color: var(--gold); }
+    .ret-done .ret-i b { animation: ret-pop .28s ease-out; }
+    .ret-ag { display: flex; align-items: center; justify-content: center; gap: 5px; margin-top: 5px; font-size: 11.5px; line-height: 1.3; } .ret-ag img { width: 18px; height: 18px; object-fit: contain; } .ret-ag b { color: var(--gold); white-space: nowrap; } .ret-ag span { color: rgba(255,255,255,.75); }
+    .ret-note { margin: 4px 0 0; font-size: 11px; color: rgba(255,255,255,.55); }
+    .ret-s .ret-t b { font-size: 21px; } .ret-s .ret-i img { width: 28px; height: 28px; } .ret-s .ret-g { margin-top: 7px; }
+    .ret-still .ret-i, .ret-still .ret-i b { animation: none !important; }
+    @keyframes ret-in { from { opacity: 0; transform: translateY(8px) scale(.85); } to { opacity: 1; transform: none; } }
+    @keyframes ret-pop { 0% { transform: scale(1); } 45% { transform: scale(1.18); } 100% { transform: scale(1); } }
+    @media (prefers-reduced-motion: reduce) { .ret-i, .ret-i b { animation: none !important; } }
+    html.h420 #modal .sheet.rets h2 { margin: 0 0 2px; font-size: 15px; } html.h420 .ret-t b { font-size: 22px; } html.h420 .ret-g { margin: 6px 0 2px; gap: 6px; } html.h420 .ret-i { padding: 4px 3px; } html.h420 .ret-i img { width: 28px; height: 28px; } html.h420 .ret-note { margin-top: 2px; }
     .xpico { font-style: normal; font-size: 10px; font-weight: 900; color: #1a2e05; background: linear-gradient(180deg, #d9f99d, #84cc16); border-radius: 6px; padding: 4px 5px; }
     /* v521 가방 필터 · 비교 창 */
     .bagf { display: flex; flex-wrap: wrap; gap: 5px; margin: 2px 0 8px; } .bagf .chip { padding: 5px 10px; border-radius: 999px; border: 1px solid rgba(255,255,255,.14); background: rgba(255,255,255,.05); color: rgba(255,255,255,.75); font-size: 12px; font-weight: 700; min-height: 32px; }
@@ -207,11 +232,35 @@
     /* v558 병기 · 동료 · 영물 뽑기 카드 */
     .gx-gly { font-size: 34px; font-weight: 900; line-height: 1.1; text-shadow: 0 0 12px currentColor; }
     /* v555 두목 도감 */
-    .dex-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 6px; }
-    .dex-c { display: flex; gap: 8px; align-items: center; padding: 6px; border-radius: 10px; background: rgba(0,0,0,.3); border: 1px solid rgba(255,255,255,.08); }
-    .dex-c img { width: 58px; height: 58px; object-fit: cover; object-position: 50% 20%; border-radius: 8px; filter: grayscale(.85) brightness(.7); } .dex-c.beat img { filter: none; } .dex-c.beat { border-color: rgba(253,230,138,.35); }
+    /* v613 두목 도감 — 카드 격자(가로 둘~셋) · 못 만난 두목은 그림자 · 누르면 자세히(.dexw) */
+    .dex-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 6px; column-span: all; min-width: 0; }
+    body.land #wb > .card:has(.dex-grid) { column-span: all; display: block; }
+    .dex-c { display: flex; gap: 8px; align-items: flex-start; padding: 6px; border-radius: 10px; background: rgba(0,0,0,.3); border: 1px solid rgba(255,255,255,.08); color: inherit; font: inherit; text-align: left; cursor: pointer; min-width: 0; min-height: 44px; }
+    .dex-c:focus-visible { outline: 2px solid #fde68a; outline-offset: 1px; }
+    .dex-art { flex: none; width: 64px; height: 64px; border-radius: 8px; overflow: hidden; background: radial-gradient(circle at 50% 40%, rgba(255,255,255,.12), rgba(0,0,0,.2) 70%); }
+    .dex-art img { width: 100%; height: 100%; object-fit: cover; object-position: 50% 20%; display: block; }
+    .dex-c.beat { border-color: color-mix(in srgb, var(--bc, #fde68a) 45%, transparent); background: linear-gradient(135deg, color-mix(in srgb, var(--bc, #fde68a) 14%, rgba(0,0,0,.35)), rgba(0,0,0,.35) 60%); }
+    .dex-c.seen .dex-art img { filter: saturate(.7); }
+    .dex-c.unk .dex-art { background: radial-gradient(circle at 50% 45%, rgba(147,197,253,.22), rgba(0,0,0,.3) 65%); }
+    .dex-c.unk .dex-art img { filter: brightness(0) drop-shadow(0 0 4px rgba(191,219,254,.55)); object-fit: contain; }
+    .dex-c.unk { cursor: default; } .dex-c.unk b { color: rgba(255,255,255,.6); }
+    .dex-t { min-width: 0; flex: 1; } .dex-t > * { overflow-wrap: anywhere; } .dex-t > small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .dex-c b { display: block; font-size: 13px; } .dex-c small { display: block; font-size: 10.5px; color: rgba(255,255,255,.6); } .dex-c em { display: block; font-style: normal; font-size: 10.5px; color: #fca5a5; }
-    .dex-c.unk { opacity: .55; } .dex-q { width: 58px; height: 58px; border-radius: 8px; display: grid; place-items: center; font-size: 26px; font-weight: 900; background: rgba(255,255,255,.06); }
+    .dex-lore { margin: 2px 0; font-size: 10.5px; line-height: 1.35; color: rgba(255,248,220,.82); font-style: italic; }
+    .dex-st { display: inline-flex; gap: 1px; vertical-align: middle; } .dex-st i { width: 13px; height: 13px; display: block; } .dex-st svg { width: 100%; height: 100%; fill: rgba(255,255,255,.18); display: block; }
+    .dex-st i.on svg { fill: #fde047; filter: drop-shadow(0 0 2px #f59e0b); }
+    body.land #modal .sheet.dexw { width: min(640px, 92vw); max-width: none; } html.rot body.land #modal .sheet.dexw { width: min(640px, 92vh); max-width: none; }
+    .dex-d { display: flex; gap: 12px; align-items: stretch; text-align: left; }
+    .dex-stage { flex: 0 0 42%; min-height: 190px; border-radius: 12px; background: #111 center / cover no-repeat; position: relative; overflow: hidden; display: grid; place-items: end center; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--bc, #fff) 40%, transparent); }
+    .dex-stage::after { content: ''; position: absolute; inset: 0; background: radial-gradient(ellipse at 50% 60%, color-mix(in srgb, var(--bc, #fff) 25%, transparent), transparent 60%), linear-gradient(transparent 55%, rgba(0,0,0,.55)); pointer-events: none; }
+    .dex-stage img { position: relative; z-index: 1; width: 92%; height: 92%; max-height: 230px; object-fit: contain; object-position: 50% 100%; filter: drop-shadow(0 4px 10px rgba(0,0,0,.6)); }
+    .dex-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+    .dex-info > small { font-size: 11px; color: rgba(255,255,255,.6); } .dex-tt { font-size: 14px; }
+    .dex-info .dex-lore { font-size: 12px; margin: 0; }
+    .dex-sg { display: grid; grid-template-columns: repeat(2, 1fr); gap: 3px 10px; font-size: 11px; color: rgba(255,255,255,.65); } .dex-sg b { margin-left: 6px; color: #fff; font-size: 12px; }
+    .dex-pats { display: flex; flex-wrap: wrap; gap: 4px; } .dex-pats .pill { font-size: 10.5px; }
+    .dex-rec { display: flex; align-items: center; gap: 8px; font-size: 11px; color: rgba(255,255,255,.7); } .dex-rec .dex-st i { width: 18px; height: 18px; }
+    html.h500 .dex-stage { min-height: 150px; } html.h500 .dex-stage img { max-height: 170px; } html.h500 .dex-d { gap: 10px; } html.h500 .dex-info { gap: 3px; }
     /* v550 문파 토벌 */
     .gr-top { display: flex; gap: 10px; align-items: center; margin: 2px 0 6px; } .gr-top img { width: 64px; height: 64px; object-fit: cover; object-position: 50% 20%; border-radius: 10px; border: 1px solid rgba(255,255,255,.2); } .gr-top > div { flex: 1; } .gr-top small { font-size: 10.5px; color: rgba(255,255,255,.6); }
     /* v549 문파 */
