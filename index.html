@@ -797,6 +797,28 @@
     .coll-tile small { font-size: 9.5px; color: var(--gc, #aaa); line-height: 1.2; white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
     .coll-tile u { position: absolute; top: 2px; right: 3px; font-size: 8.5px; text-decoration: none; color: #1a1408; background: #e8c26a; border-radius: 6px; padding: 0 4px; font-weight: 800; }
     .coll-tile.on { box-shadow: 0 0 0 1px #e8c26a inset; }
+    .coll-tile { cursor: pointer; } .coll-tile:active { transform: scale(.96); } .coll-tile:focus-visible { outline: 2px solid #e8c26a; outline-offset: 1px; }
+    /* v620 모음 칸 자세히(cl-) — 왼쪽 큰 그림 · 오른쪽 수치 */
+    #modal .sheet.cl-w, body.land #modal .sheet.cl-w { width: min(600px, 92vw); max-width: none; } html.rot body.land #modal .sheet.cl-w { width: min(600px, 92vh); }
+    #modal .sheet.cl-sm, body.land #modal .sheet.cl-sm { width: min(400px, 88vw); max-width: none; } html.rot body.land #modal .sheet.cl-sm { width: min(400px, 88vh); }
+    .cl-d { display: flex; gap: 12px; align-items: stretch; text-align: left; }
+    .cl-art { flex: 0 0 34%; min-height: 170px; position: relative; display: grid; place-items: center; border-radius: 12px; background: radial-gradient(circle at 50% 45%, color-mix(in srgb, var(--gc) 34%, transparent), rgba(0,0,0,.35) 70%); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--gc) 50%, transparent); }
+    .cl-art img { width: 88%; max-height: 180px; aspect-ratio: 1; object-fit: contain; filter: drop-shadow(0 4px 10px rgba(0,0,0,.6)); }
+    .cl-art u { position: absolute; top: 6px; left: 6px; font-size: 10px; text-decoration: none; color: #1a1408; background: #e8c26a; border-radius: 6px; padding: 1px 6px; font-weight: 800; }
+    .cl-no .cl-art { flex-basis: 40%; min-height: 130px; } .cl-no .cl-art img { max-height: 120px; filter: brightness(0) invert(1) opacity(.18); }
+    .cl-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; justify-content: center; }
+    .cl-info > small { font-size: 11.5px; color: rgba(255,255,255,.65); } .cl-info .note { margin: 0; font-size: 11px; }
+    .cl-get { font-size: 16px; color: #fff; }
+    .cl-lv { display: flex; gap: 14px; align-items: center; font-size: 12px; color: rgba(255,255,255,.7); flex-wrap: wrap; } .cl-lv b { color: #fff; font-size: 15px; }
+    .cl-awk { display: inline-flex; align-items: center; gap: 4px; } .cl-awk b { font-size: 12px !important; margin-left: 2px; }
+    .cl-awk i { width: 9px; height: 9px; border-radius: 50%; border: 1px solid color-mix(in srgb, var(--gc) 70%, #fff 0%); background: rgba(255,255,255,.06); } .cl-awk i.on { background: var(--gc); box-shadow: 0 0 5px var(--gc); }
+    .cl-cp { font-size: 11.5px; color: rgba(255,255,255,.7); } .cl-cp b { color: #fff; }
+    .cl-bar { height: 4px; border-radius: 2px; background: rgba(255,255,255,.1); margin-top: 3px; overflow: hidden; } .cl-bar i { display: block; height: 100%; background: var(--gc); }
+    .cl-ef { display: flex; flex-direction: column; font-size: 11.5px; }
+    .cl-ef > div { display: grid; grid-template-columns: minmax(0, 1fr) 50px 50px 54px; gap: 6px; padding: 3px 0; border-top: 1px solid rgba(255,255,255,.08); align-items: baseline; }
+    .cl-ef > div > :not(:first-child) { text-align: right; font-variant-numeric: tabular-nums; } .cl-ef > div > span:first-child { color: rgba(255,255,255,.8); }
+    .cl-ef .cl-h { border-top: 0; font-size: 10px; color: rgba(255,255,255,.45); padding-top: 0; } .cl-ef b { color: #fff; }
+    html.h420 .cl-art { min-height: 140px; } html.h420 .cl-art img { max-height: 140px; } html.h420 .cl-info { gap: 4px; } html.h420 .cl-no .cl-art { min-height: 110px; }
     .coll-tile.no { opacity: .42; border-style: dashed; } .coll-tile.no em { color: rgba(255,255,255,.5); background: rgba(255,255,255,.06); } .coll-tile.no b { color: rgba(255,255,255,.7); }
     /* v602 창 빈 자리 채우기 — (1) 카드가 두셋뿐일 때도 두 줄로 나뉘게(줄 수 제한 orphans/widows 때문에 왼쪽에만 쌓였다) (2) 카드가 하나뿐이면 그 안의 줄을 두 줄로 */
     html.w640up body.land #wb { orphans: 1; widows: 1; }
@@ -891,6 +913,24 @@
     /* v610 줄 그림 아이콘 — 네모 바탕 없이 그림만 38px(위아래 · 좌우를 2px씩 당겨 줄 높이 · 글 자리는 글자 딱지 때와 같다) */
     #panel .row .ico.pic { width: 38px; height: 38px; margin: -2px; padding: 0; line-height: 0; font-size: 0; border: 0; border-radius: 0; background: none; }
     #panel .row .ico.pic img { display: block; width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 1px 1px rgba(0,0,0,.45)); }
+    /* 설정(op-) — 묶음 머리 · 알약 스위치(켜짐 = 금빛) · 새로 시작은 붉은 줄 · 맨 아래 판 번호 */
+    #panel .op-sec > h3 { display: flex; justify-content: flex-start; align-items: center; gap: 7px; font-size: 12.5px; letter-spacing: .03em; color: var(--gold); margin-bottom: 7px; }
+    #panel .op-sec > h3::before { content: ''; flex: none; width: 3px; height: 12px; border-radius: 2px; background: var(--gold); order: -1; }
+    #panel .op-sec > h3 small { margin-left: auto; font-size: 11px; letter-spacing: 0; }
+    #panel .op-sec .row:last-child { margin-bottom: 0; }
+    #panel-body .row .btn.op-sw { position: relative; min-width: 74px; height: 30px; padding: 0 10px 0 33px; border-radius: 999px; border: 1px solid rgba(255,255,255,.16); background: rgba(255,255,255,.1); box-shadow: none; color: rgba(255,255,255,.6); font-size: 12px; font-weight: 700; text-shadow: none; transition: background .18s, padding .18s, color .18s; }
+    #panel-body .row .btn.op-sw::after { content: ''; position: absolute; inset: -8px -4px; }
+    #panel-body .row .btn.op-sw .op-kn { position: absolute; left: 4px; top: 50%; width: 22px; height: 22px; margin-top: -11px; border-radius: 50%; background: #bdbdbd; box-shadow: 0 1px 2px rgba(0,0,0,.4); transition: left .18s, background .18s; }
+    #panel-body .row .btn.op-sw.on { padding: 0 33px 0 10px; border-color: transparent; background: linear-gradient(180deg, #f6cf62, #e0a53a); color: #2a1a05; }
+    #panel-body .row .btn.op-sw.on .op-kn { left: calc(100% - 26px); background: #fff; }
+    #panel-body .row .btn.op-sw:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+    #panel .row.op-danger { background: rgba(224,90,70,.1); box-shadow: inset 0 0 0 1px rgba(224,90,70,.38); }
+    #panel .row.op-danger .name { color: #ffb4a6; }
+    #panel-body .row.op-danger .btn { background: #b3402f; border-color: #b3402f; color: #fff; box-shadow: none; }
+    #wb > .op-foot { column-span: all; display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 4px 8px; padding: 4px 4px 12px; font-size: 11px; color: rgba(255,255,255,.45); text-align: center; }
+    #wb > .op-foot .op-name { color: rgba(255,255,255,.7); font-weight: 800; }
+    #wb > .op-foot .op-ver { padding: 1px 8px; border-radius: 999px; border: 1px solid rgba(255,255,255,.16); font-variant-numeric: tabular-nums; letter-spacing: .02em; }
+    #wb > .op-foot small { flex-basis: 100%; font-size: 10.5px; }
     /* 현상수배(임무 → 현상수배) — 목표 카드 셋(그림 · 진행 막대 · 현상금 · 받기) · 상자 */
     .bty-card { display: flex; align-items: center; gap: 10px; padding: 8px 10px; margin: 0 0 6px; border-radius: 12px; background: rgba(0,0,0,.3); border: 1px solid rgba(255,255,255,.08); }
     .bty-card.can { border-color: var(--gold); background: rgba(212,166,74,.14); }
@@ -899,6 +939,37 @@
     .bty-pic img { width: 100%; height: 100%; object-fit: cover; object-position: 50% 15%; }
     .bty-pic.ui img { object-fit: contain; padding: 6px; box-sizing: border-box; }
     .bty-pic i { position: absolute; left: 0; right: 0; bottom: 0; font-style: normal; font-size: 9px; font-weight: 800; text-align: center; line-height: 13px; color: #fde68a; background: rgba(60,10,10,.8); letter-spacing: 1px; }
+    /* 상점 진열대(sh-) — 머리(은자 · 자정까지) · 덤 띠 카드 · 물건 카드(큰 그림 · 양 · 값 · 남은 수 점 · 사기/모두) · 품절 도장 · 값이 모자라면 붉게 */
+    .sh-gold { display: inline-flex; align-items: center; gap: 3px; margin-left: 6px; color: var(--gold); font-weight: 800; font-variant-numeric: tabular-nums; }
+    .sh-gold img { width: 15px; height: 15px; object-fit: contain; }
+    .sh-clock { margin-left: 8px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    #panel .card .row.sh-free { gap: 12px; padding: 8px 12px; margin-bottom: 8px; border-radius: 12px; background: linear-gradient(90deg, rgba(212,166,74,.3), rgba(212,166,74,.06) 70%); box-shadow: inset 0 0 0 1px rgba(212,166,74,.55); }
+    #panel .card .row.sh-free .ico.pic { width: 50px; height: 50px; }
+    #panel .card .row.sh-free.can .ico.pic img { animation: tdshake 1.4s ease-in-out infinite; }
+    #panel .card .row.sh-free:not(.can) { background: rgba(255,255,255,.04); box-shadow: none; opacity: .65; }
+    .sh-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(124px, 1fr)); gap: 8px; margin: 0 0 6px; min-width: 0; }
+    #panel .card .sh-grid .row.sh-card { position: relative; display: grid; grid-template-columns: 1fr 1fr; align-items: start; gap: 5px; margin: 0; padding: 8px 8px 8px; min-width: 0; overflow: hidden; text-align: center; border-radius: 12px;
+      background: linear-gradient(180deg, rgba(255,255,255,.07), rgba(0,0,0,.28)); box-shadow: inset 0 0 0 1px rgba(255,255,255,.08); }
+    .sh-card > .ico, .sh-card > .info { grid-column: 1 / -1; min-width: 0; }
+    #panel .row.sh-card .ico.pic { justify-self: center; width: 58px; height: 58px; margin: 0; border-radius: 50%; background: radial-gradient(circle at 50% 55%, rgba(212,166,74,.26), rgba(212,166,74,0) 68%); }
+    #panel .row.sh-card .name { font-size: 13px; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    #panel .row.sh-card .desc { display: flex; flex-direction: column; align-items: center; gap: 2px; margin-top: 2px; }
+    .sh-x { display: none; }
+    .sh-amt { position: absolute; top: 7px; right: 7px; padding: 1px 7px; border-radius: 999px; font-size: 11.5px; font-weight: 900; color: #fde68a; background: rgba(0,0,0,.55); box-shadow: inset 0 0 0 1px rgba(253,230,138,.3); font-variant-numeric: tabular-nums; }
+    .sh-done { font-size: 11px; font-weight: 700; color: rgba(255,255,255,.55); }
+    .sh-price { display: inline-flex; align-items: center; gap: 3px; font-size: 12.5px; font-weight: 800; color: var(--gold); font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .sh-price img { width: 15px; height: 15px; object-fit: contain; flex: none; }
+    .sh-price.sh-short { color: var(--red); } .sh-price.sh-short img { filter: grayscale(.6); opacity: .75; }
+    .sh-left { display: inline-flex; align-items: center; gap: 5px; font-size: 10.5px; }
+    .sh-left em { font-style: normal; color: rgba(255,255,255,.5); font-variant-numeric: tabular-nums; }
+    .sh-pips { display: inline-flex; gap: 3px; }
+    .sh-pips b { width: 7px; height: 7px; border-radius: 50%; background: rgba(255,255,255,.16); }
+    .sh-pips b.on { background: var(--gold); box-shadow: 0 0 4px rgba(212,166,74,.6); }
+    #panel-body .row.sh-card .btn { min-width: 0; margin: 0; padding: 6px 4px; }
+    #panel-body .row.sh-card .btn:first-of-type:last-of-type { grid-column: 1 / -1; }
+    .sh-card.sh-out > .ico { opacity: .4; filter: grayscale(.7); } .sh-card.sh-out .name, .sh-card.sh-out .desc > :not(.sh-amt) { opacity: .45; } .sh-card.sh-out .sh-amt { opacity: .5; }
+    .sh-stamp { position: absolute; left: 50%; top: 22px; transform: translateX(-50%) rotate(-14deg); padding: 1px 10px; border: 2px solid var(--red); border-radius: 6px; color: var(--red); background: rgba(30,8,8,.6);
+      font-size: 18px; font-weight: 900; letter-spacing: 4px; line-height: 1.3; white-space: nowrap; pointer-events: none; box-shadow: 0 0 0 1px rgba(224,106,90,.25), 0 2px 6px rgba(0,0,0,.4); }
     .bty-mid { flex: 1; min-width: 0; }
     .bty-mid b { display: block; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .bty-mid small { display: block; font-size: 10.5px; color: rgba(255,255,255,.6); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

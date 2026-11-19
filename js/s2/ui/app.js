@@ -20,14 +20,14 @@ import { JOBS } from '../tables/char.js';
 import { SP_KEYS, SP_EACH, SP_CAP } from '../hero/hero.js';
 import { SKILLS, MASTERY } from '../tables/skills.js';
 import { JOB_LV, LEVEL_MAX } from '../tables/progress.js';
-import { COLLECT } from '../tables/s5.js';
+import { COLLECT, AWAKE_NEED, AWAKE_MAX, AWAKE_STEP_P, TOTAL_AWAKE_P, TOTAL_AWAKE_CAP, COLLECT_LV_MAX, COLLECT_LV_P, collectLvCost } from '../tables/s5.js';
 import { DAILY_DUNGEONS, DAILY_RUNS, EXPEDITION, TOWER_MAX, TOWER_BONUS, STAMINA } from '../tables/content.js';
 import { GUIDE, DAILY_MISSIONS, WEEKLY_MISSIONS, guideCurrent, achievements, ACHIEVE } from '../tables/missions.js';
 const ACH = achievements(), achById = new Map(ACH.map((a) => [a.id, a]));
 import { expToNext, mobExp, KILLS_PER_MIN } from '../tables/exp.js';
 import { staminaNow, nextRegenMs } from '../content/idle.js';
 import { buildQueue } from '../content/offline.js';
-import { kindGrade } from '../grow/collect.js';
+import { kindGrade, totalAwake } from '../grow/collect.js';
 import { loadLooks, zoneFor, drawHero, drawMob, mobName, mobHeight, preloadMobs, drawPaintedBack, drawPaintedLedge, drawEarth, chbImg, preloadChapter, fxImg, oldImg, tintImg, ULT_ART, SEAL_ART, CUT_ART, BUFF_ART, BOSS_ART, wearCount, filtered } from './look.js';
 import { BOSS_PATS } from '../tables/kit.js';
 import { CHBOSS, CB_PATS, CB, WBF, CB_RAID, DEX_REW } from '../tables/chboss.js';
@@ -63,6 +63,7 @@ const dmgLog = [];   // 피해 측정기: [시각, 피해] 최근 10초
 const killLog = [];
 const killRate = () => { const t0 = now() - 60000; while (killLog.length && killLog[0] < t0) killLog.shift(); return killLog.length; };
 import { chapterOf, chapterName, CHAPTERS } from '../tables/chapters.js';
+import { BUILD } from '../../data.js';   // 설정 맨 아래 판 번호
 import { BOSS_LORE } from '../tables/bosslore.js';   // v613 두목 도감 한 줄
 import { KIT, SLOT_N, kitCap, kitCost, kitCoef, skillById, treeOf, TREE_GATE, treeResetCost } from '../tables/kit.js';
 import { STATS } from '../core/stats.js';
@@ -304,7 +305,7 @@ $('modal').addEventListener('click', (e) => {
 });
 function pop(title, html, acts = [['확인', null]]) {
   const sh = $('modal').querySelector('.sheet');
-  sh.classList.toggle('wide', false); sh.classList.remove('enhs', 'attw', 'rets', 'retsm', 'jobpick'); sh.innerHTML = `<h2>${esc(title)}</h2><div>${html}</div><div class="btn-row" style="margin-top:12px${acts.length > 3 ? ';display:grid;grid-template-columns:repeat(3,1fr)' : ''}"></div>`;
+  sh.classList.toggle('wide', false); sh.classList.remove('enhs', 'attw', 'rets', 'retsm', 'jobpick', 'cl-w', 'cl-sm'); sh.innerHTML = `<h2>${esc(title)}</h2><div>${html}</div><div class="btn-row" style="margin-top:12px${acts.length > 3 ? ';display:grid;grid-template-columns:repeat(3,1fr)' : ''}"></div>`;
   const a = sh.querySelector('.btn-row');
   acts.forEach(([label, fn], i) => { const b = document.createElement('button'); b.className = `btn${i === acts.length - 1 ? ' primary' : ''}`; b.textContent = label; b.onclick = () => { closeModal(); fn?.(); paintHud(); paintWin(); }; a.append(b); });
   modalOne = acts.length === 1 ? () => a.firstChild.click() : null;
@@ -327,6 +328,41 @@ function dexPop(x) {
   pop(`${ch}장 · ${x.name}`, html, x.beat ? [['토벌', () => openWin('dgn', 1)], ['닫기', null]] : [['닫기', null]]);
   $('modal').querySelector('.sheet').classList.add('wide', 'dexw');
 }
+
+// v620 모음 칸 자세히 — 큰 그림 · 등급 · Lv · 각성 점 · 겹친 수 · 보유/장착 효과(지금 → 다음 레벨 · 다음 각성) · 레벨 업
+//   각성과 끼기는 뽑기가 알아서 한다(손으로 하는 것 없음) — 여기서는 보여 주기만
+const CL_STAT = { mainDmg: '주 피해', final4: '최종 피해④', final2: '최종 피해②', hpP: '체력' };
+const CL_GCOL = ['#a8a29e', '#7cc47a', '#6aa8e0', '#b27ae0', '#e8c26a'];
+function collPop(sys, k) {
+  const C = g.S.colls[sys], D = COLLECT[sys], o = C.own[k], gr = kindGrade(sys, k), nm = collName(sys, k), W = g.S.wallet;
+  const src = `art/s2/coll/${sys}-${k}.webp`, gc = CL_GCOL[gr] || '#aaa';
+  if (!o) {
+    pop(nm, `<div class="cl-d cl-no" style="--gc:${gc}"><div class="cl-art"><img src="${src}" alt="${esc(nm)} 그림자"></div>
+      <div class="cl-info"><small>${D.name} · <b class="g${gr}t">${GRADES[gr]}품</b></small><b class="cl-get">뽑기로 얻어요</b>
+      <p class="note">가지기만 해도 ${CL_STAT[D.ownStat]} +${clPm(D.own[gr] * clMul(C))} · 끼면 ${CL_STAT[D.layer]} +${clPm(D.equip[gr] * clMul(C))}</p></div></div>`, [['닫기', null]]);
+    $('modal').querySelector('.sheet').classList.add('cl-sm');
+    return;
+  }
+  const mul = clMul(C), slot = C.eq.indexOf(k), sub = slot > 0 && D.subShare ? D.subShare : 1;
+  const ownV = (awk) => D.own[gr] * (1 + (awk * AWAKE_STEP_P) / 1000) * mul;
+  const eqV = (awk, lv) => D.equip[gr] * (1 + (awk * AWAKE_STEP_P) / 1000) * (1 + (lv * COLLECT_LV_P) / 1000) * mul * sub;
+  const lvMax = o.lv >= COLLECT_LV_MAX, awMax = o.awk >= AWAKE_MAX, need = awMax ? 0 : AWAKE_NEED[o.awk], have = Math.max(0, o.n - 1);
+  const dots = Array.from({ length: AWAKE_MAX }, (_, i) => `<i class="${i < o.awk ? 'on' : ''}"></i>`).join('');
+  const rows = [
+    [`보유 · ${CL_STAT[D.ownStat]}`, ownV(o.awk), null, awMax ? null : ownV(o.awk + 1)],
+    [`장착 · ${CL_STAT[D.layer]}${sub < 1 ? ` (부 칸 ×${Math.round(sub * 100)}%)` : ''}`, eqV(o.awk, o.lv), lvMax ? null : eqV(o.awk, o.lv + 1), awMax ? null : eqV(o.awk + 1, o.lv)],
+  ];
+  const html = `<div class="cl-d" style="--gc:${gc}"><div class="cl-art"><img src="${src}" alt="${esc(nm)}">${slot >= 0 ? `<u>장착 ${slot + 1}번 칸</u>` : ''}</div>
+    <div class="cl-info"><small>${D.name} · <b class="g${gr}t">${GRADES[gr]}품</b></small>
+      <div class="cl-lv"><span>Lv <b>${o.lv}</b>/${COLLECT_LV_MAX}</span><span class="cl-awk" aria-label="각성 ${o.awk} / ${AWAKE_MAX}">각성 ${dots} <b>${o.awk}/${AWAKE_MAX}</b></span></div>
+      <div class="cl-cp">${awMax ? '각성 끝 · 겹친 것 ' + have + '개' : `겹친 것 <b>${have}</b> / 다음 각성 ${need}개`}<div class="cl-bar"><i style="width:${awMax ? 100 : Math.min(100, Math.round((have / need) * 100))}%"></i></div></div>
+      <div class="cl-ef"><div class="cl-h"><span>효과</span><span>지금</span><span>Lv+1</span><span>각성+1</span></div>${rows.map(([l, a, b, c]) => `<div><span>${l}</span><b>${clPm(a)}</b><span>${b == null ? '—' : clPm(b)}</span><span>${c == null ? '—' : clPm(c)}</span></div>`).join('')}</div>
+      <p class="note">${slot >= 0 ? '낀 것' : `안 낌 · 장착 칸 ${C.eq.length}개는 좋은 것부터 저절로 껴요`} · 겹치면 저절로 각성</p></div></div>`;
+  pop(nm, html, [['닫기', null]]);   // 레벨 올리기 재료(정수)를 얻을 곳이 아직 없어 단추는 뺐다 — 보기만
+  const sh = $('modal').querySelector('.sheet'); sh.classList.add('cl-w');
+}
+const clMul = (C) => 1 + Math.min(TOTAL_AWAKE_CAP, totalAwake(C) * TOTAL_AWAKE_P) / 1000;
+const clPm = (v) => `${(v / 10).toFixed(1)}%`;
 
 // 기연 — 카드 셋 중 하나. 닫아도 같은 카드가 남는다(다시 굴리지 않음)
 const FATE_VIEW = { gold: ['銀', '은자'], exp: ['經', '경험치'], 'ticket:gear': ['裝', '장비 뽑기권'], 'item:stone': ['石', '강화석'], 'ticket:weapon': ['兵', '병기 뽑기권'], 'ticket:pal': ['友', '동료 뽑기권'], 'ticket:relic': ['靈', '영물 뽑기권'], 'ticket:time': ['時', '시간 티켓'] };
@@ -452,7 +488,15 @@ function showGacha(r, opt = {}) {   // v558 opt: { title, face(it) } — 병기 
   ov.onclick = () => { if (done) close(); };
 }
 function openWin(id, t = 0) { open = id; tab = t; document.body.classList.add('winopen'); $('panel').classList.add('open'); $('panel-dim').classList.add('open'); paintWin(); paintNav(); }
-function closeWin() { open = null; lkPrev = {}; bagIn = false; bagAsk = false; worldStop(); dgStop(); document.body.classList.remove('winopen'); $('panel').classList.remove('open'); $('panel-dim').classList.remove('open'); paintNav(); }
+// 상점 머리의 자정(한국 시각)까지 남은 시간 — 창이 상점일 때만 1초마다 고치고, 날이 바뀌면 창을 새로 그린다
+let shopClock = 0;
+function shopLeftTxt() { const t = now(), ms = Math.max(0, (dayKey(t) + 1) * 864e5 - 324e5 - t), s = Math.floor(ms / 1000); return `${String(Math.floor(s / 3600)).padStart(2, '0')}:${String(Math.floor((s % 3600) / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')} 남음`; }
+function shopClockOff() { if (shopClock) { clearInterval(shopClock); shopClock = 0; } }
+function shopClockOn() {
+  shopClockOff(); const d0 = dayKey(now());
+  shopClock = setInterval(() => { const el = document.querySelector('#sh-clock'); if (!open || keyOf() !== 'shop:0' || !el) { shopClockOff(); return; } if (dayKey(now()) !== d0) { paintWin(); return; } el.textContent = shopLeftTxt(); }, 1000);
+}
+function closeWin() { shopClockOff(); open = null; lkPrev = {}; bagIn = false; bagAsk = false; worldStop(); dgStop(); document.body.classList.remove('winopen'); $('panel').classList.remove('open'); $('panel-dim').classList.remove('open'); paintNav(); }
 function paintNav() {
   if (!$('ptabs').children.length) for (const [id, name] of MAIN_TABS) { const b = document.createElement('button'); b.dataset.tab = id; b.innerHTML = `${ico(id)}<span>${name}</span>`; b.onclick = () => { play('click'); openWin(id); }; $('ptabs').append(b); }
   for (const b of document.querySelectorAll('.nb[data-tab], #ptabs button[data-tab]')) b.classList.toggle('active', b.dataset.tab === open);
@@ -803,6 +847,7 @@ function paintWin() {
     for (let k = 0; k < D.kinds; k++) {
       const o = C.own[k], gr = kindGrade(sys, k), t2 = document.createElement('div'); t2.className = `coll-tile${o ? '' : ' no'}${C.eq.includes(k) ? ' on' : ''}`; t2.style.setProperty('--gc', GCOL[gr]);
       t2.innerHTML = `<img src="art/s2/coll/${sys}-${k}.webp" alt="" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('em'),{textContent:'${o ? collGly(sys, k) : '?'}'}))"><b>${esc(collName(sys, k))}</b><small>${GRADES[gr]}품${o ? ` · Lv ${o.lv || 1}${o.awk ? ` · 각성 ${o.awk}` : ''}` : ''}</small>${C.eq.includes(k) ? '<u>장착</u>' : ''}`;
+      t2.tabIndex = 0; t2.setAttribute('role', 'button'); t2.onclick = () => { play('click'); collPop(sys, k); }; t2.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); t2.click(); } };   // v620 누르면 자세히
       grid.append(t2);
     }
     c1(grid);
@@ -1367,18 +1412,30 @@ function paintWin() {
       }
     }
   } else if (key === 'shop:0') {
-    // 상점 — 날마다 은자로 사는 물건(하루 살 수 있는 수 · 자정에 새로) · 맨 위는 값 없는 덤
-    const L = g.shopState(), c = card('오늘의 상점', `자정에 새로 · 은자 ${unit(W.gold || 0)}`);
-    const ic = { free: '덤', gear: 'i:pull:裝', weapon: '兵', pal: 'i:pullp:友', relic: '靈', stone: '石', time: '時', exped: '征' };
+    // 상점 — 날마다 은자로 사는 물건(하루 살 수 있는 수 · 자정에 새로) · 맨 위는 값 없는 덤(띠 카드) · 아래는 물건 카드 진열대
+    // 카드마다 .row 그대로(.name · .desc · .btn) — 큰 그림 · 양 · 값(은자 동전 · 모자라면 붉게) · 남은 수 점 · 다 사면 「품절」 도장
+    const L = g.shopState(), gold = W.gold || 0;
+    const c = card('오늘의 상점 · 자정에 새로', `<span class="sh-gold"><img alt="" src="art/s2/ui/silver.webp">${unit(gold)}</span><span class="sh-clock" id="sh-clock">${shopLeftTxt()}</span>`);
+    const ic = { free: 'i:chest:덤', gear: 'i:pull:裝', weapon: 'i:pullw:兵', pal: 'i:pullp:友', relic: 'i:pullr:靈', stone: 'i:stone:石', time: 'i:time:時', exped: 'i:exped:征' };
     const gv = (give) => Object.entries(give).map(([k, n]) => `${ATTEND_NAME[k] || (k === 'ticket:exped' ? '원정권' : k)} ${n}`).join(' · ');
     const buy = (x, n) => act(() => { const r = g.shopBuy(x.id, n); if (r) { setTimeout(() => toast(`${gv(r.give)} 받음${r.gold ? ` · 은자 −${unit(r.gold)}` : ''}`), 0); } return r; });
+    const grid = document.createElement('div'); grid.className = 'sh-grid';
     for (const x of L) {
-      if (x.id === 'free') { c(R(x.name, x.left ? `${gv(x.give)} · 하루 한 번 그냥 드려요` : '오늘은 받았어요 · 내일 또', [['받기', buy(x, 1), !x.left]], ic.free)); continue; }
-      const most = x.cost > 0 ? Math.min(x.left, Math.floor((W.gold || 0) / x.cost)) : x.left;
+      if (x.id === 'free') { const r = R(x.name, x.left ? `${gv(x.give)} · 하루 한 번 그냥 드려요` : '오늘은 받았어요 · 내일 또', [['받기', buy(x, 1), !x.left]], ic.free); r.classList.add('sh-free'); if (x.left) r.classList.add('can'); c(r); continue; }
+      const most = x.cost > 0 ? Math.min(x.left, Math.floor(gold / x.cost)) : x.left, short = x.left > 0 && gold < x.cost;
       const btns = [['사기', buy(x, 1), !x.can]]; if (x.limit > 1) btns.push(['모두', buy(x, Math.max(1, most)), most < 2]);
-      c(R(x.name, x.left ? `${gv(x.give)} · 은자 ${unit(x.cost)} · 남은 ${x.left}/${x.limit}` : `오늘은 다 샀어요 · 남은 0/${x.limit}`, btns, ic[x.id] || '·'));
+      const pips = `<i class="sh-pips" aria-hidden="true">${Array.from({ length: x.limit }, (_, i) => `<b class="${i < x.left ? 'on' : ''}"></b>`).join('')}</i>`;
+      const desc = x.left
+        ? `<span class="sh-amt" title="${gv(x.give)}">×${unit(Object.values(x.give)[0])}</span><span class="sh-x"> · </span><span class="sh-price${short ? ' sh-short' : ''}"><img alt="" src="art/s2/ui/silver.webp">은자 ${unit(x.cost)}</span><span class="sh-x"> · </span><span class="sh-left">${pips}<em>남은 ${x.left}/${x.limit}</em></span>`
+        : `<span class="sh-amt" title="${gv(x.give)}">×${unit(Object.values(x.give)[0])}</span><span class="sh-done">오늘은 다 샀어요</span><span class="sh-x"> · </span><span class="sh-left">${pips}<em>남은 0/${x.limit}</em></span>`;
+      const r = R(x.name, desc, btns, ic[x.id] || '·'); r.classList.add('sh-card'); r.dataset.id = x.id;
+      if (!x.left) { r.classList.add('sh-out'); const st = document.createElement('span'); st.className = 'sh-stamp'; st.textContent = '품절'; r.append(st); }
+      else if (short) r.classList.add('sh-poor');
+      grid.append(r);
     }
+    c(grid);
     c(note('값은 무인 레벨을 따라 올라요. 다 사도 사냥 두 시간 몫쯤이에요.'));
+    shopClockOn();
   } else if (key === 'bounty:0') {
     // 현상수배 — 날마다 사냥 목표 셋(진행 막대 · 보상 · 받기) · 셋 다 끝내면 상자 · 자정에 새로
     const BS = g.bountyState(), gv = (give) => Object.entries(give).map(([k, n]) => `${ATTEND_NAME[k] || k} ${n}`).join(' · ');
@@ -1451,29 +1508,39 @@ function paintWin() {
       r.classList.add('ms-row', s.got ? 'ms-done' : can1 ? 'ms-can' : 'ms-on'); if (can1) r.classList.add('can'); c(r);
     }
   } else if (key === 'mission:3') {
-    const tg = (label, k, desc, ic) => R(label, desc, [[opt[k] ? '켜짐' : '꺼짐', () => { opt[k] = !opt[k]; saveOpt(); play('click'); if (k === 'bgm') bgm(chapterOf(g.zoneLv())); paintWin(); paintHud(); }]], ic);
-    const c0 = card('진동');
+    // 설정 정리(op-) — 묶음 다섯(방치 · 절전 → 화면 → 진동 → 계정 · 저장 → 알림 · 소식) · 켜고 끄는 줄은 알약 스위치(켜짐 = 금빛, 글 「켜짐/꺼짐」은 그대로) · 맨 아래 판 번호
+    const sec = (title, sub, id) => { const c = card(title, sub); const el = B.lastElementChild; el.classList.add('op-sec'); el.dataset.op = id; return c; };
+    const sw = (r, on) => { const b = r.querySelector('.btn'); b.classList.add('op-sw'); b.classList.toggle('on', on); b.setAttribute('role', 'switch'); b.setAttribute('aria-checked', String(on)); const t = b.textContent; b.innerHTML = `<i class="op-kn" aria-hidden="true"></i><span class="op-st">${t}</span>`; r.classList.add('op-tg'); return r; };
+    const tg = (label, k, desc, ic) => sw(R(label, desc, [[opt[k] ? '켜짐' : '꺼짐', () => { opt[k] = !opt[k]; saveOpt(); play('click'); if (k === 'bgm') bgm(chapterOf(g.zoneLv())); paintWin(); paintHud(); }]], ic), !!opt[k]);
+    const cI = sec('방치 · 절전', '', 'idle');
+    cI(tg('자동 성장(방치)', 'autoGrow', '1분마다 출석 · 수련동 소탕 · 원정 · 하루 상자 · 문파 출석 · 보상 받기 · 뽑기권 쓰기(장비 · 병기 · 동료 · 영물) · 최고 장비 · 무공 · 강화 · 마스터리 · 경지(은자로 뽑지는 않아요)', '育'));
+    if (opt.autoGrow) cI(tg('자동 성장 — 은자 쓰기', 'agGold', '끄면 은자가 드는 무공 올리기 · 강화 · 마스터리 · 경지는 건너뛰어요(보상 · 뽑기권 · 하루 일만)', '銀'));
+    cI(tg('절전', 'saver', '2분 동안 손대지 않으면 화면을 어둡게 · 덜 그림(사냥은 그대로)', '眠'), tg('화면 켜 두기(방치)', 'wake', wakeOK() ? '손전화가 저절로 화면을 끄지 않게 — 켜 두면 계속 사냥(절전과 같이 쓰면 배터리 덜 씀)' : '이 브라우저는 지원하지 않아요 — 꺼져도 돌아오면 방치 보상', '燈'));   // v578 · v586
+    const dOn = g.S.dodge !== false;   // v540
+    cI(sw(R('두목 패턴 자동 피하기', dOn ? '자동 전투 때 붉은 범위 밖으로 비켜요' : '붉은 범위는 회피 단추(점프 위 · Shift)로 직접 · 터지기 직전에 피하면 완벽 회피(피해 ×1.3) · 장 두목을 처음 깨면 강화석 +50', [[dOn ? '켜짐' : '꺼짐', () => { g.setDodge(g.S.dodge === false); play('click'); save(); paintWin(); }]], '避'), dOn));
+    const c1 = sec('화면', '', 'screen');
+    c1(R('그래픽', opt.gfx === 'low' ? '낮음(배터리 아낌 · 흙먼지 · 은자 연출 끔)' : '높음', [['바꾸기', () => { opt.gfx = opt.gfx === 'low' ? 'high' : 'low'; saveOpt(); paintWin(); }]], '畵'));
+    c1(R('피해 숫자', { all: '전부', crit: '치명만', off: '끄기' }[opt.nums], [['바꾸기', () => { opt.nums = { all: 'crit', crit: 'off', off: 'all' }[opt.nums]; saveOpt(); paintWin(); }]], '數'));
+    c1(tg('화면 흔들림', 'shake', '큰 무공 · 두목 패턴 · 당겨짐', '搖'), tg('피해 측정기', 'dps', '들판 왼쪽 위에 초당 피해 · 분당 처치', '測'), tg('두목전 결과 자동 진행', 'autoNext', '결과 창이 3초 뒤 저절로 닫히고 다음으로', '進'));
+    if (document.documentElement.requestFullscreen) c1(R('전체 화면', document.fullscreenElement ? '켜짐' : '주소창 없이 화면을 다 쓴다(안드로이드 · 컴퓨터)', [[document.fullscreenElement ? '끄기' : '켜기', () => { play('click'); goFull(!document.fullscreenElement); setTimeout(paintWin, 300); }]], '全'));
+    const c0 = sec('진동', '', 'vib');
     c0(tg('진동', 'vib', '치명타 · 큰 무공 · 두목 고비 · 맞을 때 · 쓰러질 때(휴대폰)', '震'));
     if (navigator.vibrate) c0(R('진동 세기', `${VIB_K_NAME[opt.vibK] ?? '보통'} — 울리는 길이 ×${VIB_K[opt.vibK] ?? 1}`, [['바꾸기', () => { opt.vibK = ((opt.vibK ?? 1) + 1) % 3; saveOpt(); play('click'); buzz(VIB.sk4); paintWin(); }]], 'i:vib:强'));
-    const c1 = card('화면');
-    c1(tg('화면 흔들림', 'shake', '큰 무공 · 두목 패턴 · 당겨짐', '搖'), tg('피해 측정기', 'dps', '들판 왼쪽 위에 초당 피해 · 분당 처치', '測'), tg('두목전 결과 자동 진행', 'autoNext', '결과 창이 3초 뒤 저절로 닫히고 다음으로', '進'), tg('절전', 'saver', '2분 동안 손대지 않으면 화면을 어둡게 · 덜 그림(사냥은 그대로)', '眠'), tg('자동 성장(방치)', 'autoGrow', '1분마다 출석 · 수련동 소탕 · 원정 · 하루 상자 · 문파 출석 · 보상 받기 · 뽑기권 쓰기(장비 · 병기 · 동료 · 영물) · 최고 장비 · 무공 · 강화 · 마스터리 · 경지(은자로 뽑지는 않아요)', '育'), ...(opt.autoGrow ? [tg('자동 성장 — 은자 쓰기', 'agGold', '끄면 은자가 드는 무공 올리기 · 강화 · 마스터리 · 경지는 건너뛰어요(보상 · 뽑기권 · 하루 일만)', '銀')] : []), tg('화면 켜 두기(방치)', 'wake', wakeOK() ? '손전화가 저절로 화면을 끄지 않게 — 켜 두면 계속 사냥(절전과 같이 쓰면 배터리 덜 씀)' : '이 브라우저는 지원하지 않아요 — 꺼져도 돌아오면 방치 보상', '燈'));   // v578 · v586
-    if (document.documentElement.requestFullscreen) c1(R('전체 화면', document.fullscreenElement ? '켜짐' : '주소창 없이 화면을 다 쓴다(안드로이드 · 컴퓨터)', [[document.fullscreenElement ? '끄기' : '켜기', () => { play('click'); goFull(!document.fullscreenElement); setTimeout(paintWin, 300); }]], '全'));
-    c1(R('피해 숫자', { all: '전부', crit: '치명만', off: '끄기' }[opt.nums], [['바꾸기', () => { opt.nums = { all: 'crit', crit: 'off', off: 'all' }[opt.nums]; saveOpt(); paintWin(); }]], '數'));
-    c1(R('그래픽', opt.gfx === 'low' ? '낮음(배터리 아낌 · 흙먼지 · 은자 연출 끔)' : '높음', [['바꾸기', () => { opt.gfx = opt.gfx === 'low' ? 'high' : 'low'; saveOpt(); paintWin(); }]], '畵'));
-    const c4 = card('전투');   // v540
-    c4(R('두목 패턴 자동 피하기', g.S.dodge !== false ? '켜짐 — 자동 전투 때 붉은 범위 밖으로 비켜요' : '꺼짐 — 붉은 범위는 회피 단추(점프 위 · Shift)로 직접 · 터지기 직전에 피하면 완벽 회피(피해 ×1.3) · 장 두목을 처음 깨면 강화석 +50', [[g.S.dodge !== false ? '켜짐' : '꺼짐', () => { g.setDodge(g.S.dodge === false); play('click'); save(); paintWin(); }]], '避'));
-    const c3 = card('계정 · 저장', net.online ? (net.isGoogle() ? `Google · ${esc(net.email())}` : '이 기기만(Google 미연결)') : net.status === 'connecting' ? '연결 중…' : '오프라인 — 이 기기에만 저장');
+    const c3 = sec('계정 · 저장', net.online ? (net.isGoogle() ? `Google · ${esc(net.email())}` : '이 기기만(Google 미연결)') : net.status === 'connecting' ? '연결 중…' : '오프라인 — 이 기기에만 저장', 'acct');
     c3(R('Google 연결', net.isGoogle() ? '연결됨 — 다른 기기에서도 Google로 들어오면 이어서 해요' : '연결해 두면 기기를 바꾸거나 지워도 되살려요', [[net.isGoogle() ? '다른 계정' : '연결', () => { play('click'); if (net.isGoogle()) net.switchTo(null).then((d) => (d ? applyCloud(d) : toast('그 계정에는 새 시즌 진행이 없어요'))).catch((e) => toast(e?.message || '바꾸지 못했어요')); else linkGoogle(); }, !net.online]], 'G'));
-    c3(R('서버에 저장', net.cloudAt ? `마지막 ${new Date(net.cloudAt).toLocaleString()} · 3분마다 저절로` : '3분마다 저절로 올려요', [['지금 저장', act(() => { cloudPush(true).then((ok) => toast(ok ? '서버에 저장했어요' : '저장하지 못했어요(오프라인?)')); return true; }), !net.online]], '雲'));
-    c3(R('친구에게 알리기', '게임 주소를 보내요 — 공유 창이 없으면 주소를 복사', [['공유', () => { play('click'); shareGame(); }]], 'i:letter:友'));   // v595
-    c3(R('업데이트 소식', `새로 생긴 것 — 지금 판 v${NEWS_V}`, [['보기', () => { play('click'); newsPop(NEWS, true); }]], 'i:mission:新'));   // v560
-    c3(R('서열 이름', g.S.nick ? esc(g.S.nick) : '아직 없음 — 서버에 올릴 때 정해져요', [['바꾸기', () => { play('click'); const n = prompt('서열에 보일 이름(1~12자)', g.S.nick || ''); if (n == null) return; if (g.setNick(n)) { save(); rankPush(); toast('이름을 바꿨어요'); } else toast('1~12자로 적어 주세요'); paintWin(); }]], '名'));   // v547
     c3(R('저장 코드', '계정 없이 글자 한 줄로 옮기기', [['복사', () => { play('click'); exportCode(); }], ['붙여넣기', () => { play('click'); importCode(); }]], '碼'));
-    const c2 = card('계정');
-    c2(R(`시간 티켓 ${W['ticket:time'] || 0}장`, '1장 = 15분 · 원정 · 방치에 씀', [], '時'));
-    c2(R('새로 시작', '새 시즌 진행을 지우고 처음부터', [['처음부터', () => pop('새로 시작할까요?', '<p class="note">새 시즌 진행을 지워요(서버 저장도 새 진행으로 덮여요). 옛 게임 진행은 그대로예요. 남겨 두려면 먼저 「저장 코드 → 복사」.</p>', [['아니요', null], ['예', () => { localStorage.removeItem(SAVE_KEY); location.reload(); }]])]], 'i:reset:新'));
-    c2(R('옛 게임(무림방치)', '예전 진행은 그대로 — 따로 열 수 있어요', [['열기', () => { save(); location.href = 'classic.html'; }]], '舊'));
-    B.append(note('새 시즌은 계속 고쳐 가요 — 숫자 · 화면이 바뀔 수 있어요.'));
+    c3(R('서버에 저장', net.cloudAt ? `마지막 ${new Date(net.cloudAt).toLocaleString()} · 3분마다 저절로` : '3분마다 저절로 올려요', [['지금 저장', act(() => { cloudPush(true).then((ok) => toast(ok ? '서버에 저장했어요' : '저장하지 못했어요(오프라인?)')); return true; }), !net.online]], '雲'));
+    c3(R('서열 이름', g.S.nick ? esc(g.S.nick) : '아직 없음 — 서버에 올릴 때 정해져요', [['바꾸기', () => { play('click'); const n = prompt('서열에 보일 이름(1~12자)', g.S.nick || ''); if (n == null) return; if (g.setNick(n)) { save(); rankPush(); toast('이름을 바꿨어요'); } else toast('1~12자로 적어 주세요'); paintWin(); }]], '名'));   // v547
+    c3(R(`시간 티켓 ${W['ticket:time'] || 0}장`, '1장 = 15분 · 원정 · 방치에 씀', [], '時'));
+    const rs = R('새로 시작', '새 시즌 진행을 지우고 처음부터', [['처음부터', () => pop('새로 시작할까요?', '<p class="note">새 시즌 진행을 지워요(서버 저장도 새 진행으로 덮여요). 옛 게임 진행은 그대로예요. 남겨 두려면 먼저 「저장 코드 → 복사」.</p>', [['아니요', null], ['예', () => { localStorage.removeItem(SAVE_KEY); location.reload(); }]])]], 'i:reset:新');
+    rs.classList.add('op-danger'); c3(rs);
+    c3(R('옛 게임(무림방치)', '예전 진행은 그대로 — 따로 열 수 있어요', [['열기', () => { save(); location.href = 'classic.html'; }]], '舊'));
+    const c4 = sec('알림 · 소식', '', 'news');
+    c4(R('업데이트 소식', `새로 생긴 것 — 지금 판 v${NEWS_V}`, [['보기', () => { play('click'); newsPop(NEWS, true); }]], 'i:mission:新'));   // v560
+    c4(R('친구에게 알리기', '게임 주소를 보내요 — 공유 창이 없으면 주소를 복사', [['공유', () => { play('click'); shareGame(); }]], 'i:letter:友'));   // v595
+    const ft = document.createElement('div'); ft.className = 'op-foot';
+    ft.innerHTML = `<b class="op-name">${esc(document.title || '방치형키우기')}</b><span class="op-ver">${esc(BUILD)}</span><small>새 시즌은 계속 고쳐 가요 — 숫자 · 화면이 바뀔 수 있어요.</small>`;
+    B.append(ft);
   }
 }
 // 가방 그림 칸 — 누르면 그 칸에 낌(지금 게임의 .inv-grid · .inv-tile)
