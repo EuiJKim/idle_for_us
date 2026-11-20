@@ -1,7 +1,7 @@
 // 앱 껍데기를 캐시해 오프라인에서도 열리게 한다. 온라인이면 항상 새 파일을 먼저 받는다.
-const CACHE = 'ifu-v628';
+const CACHE = 'ifu-v629';
 const SHELL = [
-  './', 'index.html', 'classic.html', 's2.html', 'install.html', 'icons/qr-install.png', 'css/style.css', 'manifest.webmanifest',
+  './', 'index.html', 'pc.html', 'classic.html', 's2.html', 'install.html', 'icons/qr-install.png', 'css/style.css', 'manifest.webmanifest',
   'js/clock.js', 'js/big.js', 'js/data.js', 'js/battle.js', 'js/net.js', 'js/savecode.js', 'js/art2.js', 'js/headanchor.js', 'js/chars.js', 'js/vault.js', 'js/femhead.js', 'js/fmt.js', 'js/firebase-config.js',
   'js/ui/common.js',
   // v524 새 시즌이 첫 화면 — 코드는 미리 받는다

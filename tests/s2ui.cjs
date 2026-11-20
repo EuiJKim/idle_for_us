@@ -1179,6 +1179,55 @@ const ok = (c, m, x = '') => { console.log(`  ${c ? '✓' : '✗ !!'} ${m}${x !=
       await page.evaluate(() => window.__s2.freeze?.());
       await ctx.close(); }
   }
+  // v629 컴퓨터 화면 고정 — 마우스 기기는 pc.html 틀(가로 · 높이 720 · 폭 16:9~2.17)에 넣어 창 크기에 맞춰 키운다. 자동 시험은 ?pcfix=1 일 때만 틀로 간다
+  if (!process.env.ONLY || process.env.ONLY.split(',').includes('pc')) {
+    for (const [W, H, LW, LH] of [[1920, 950, 1455, 720], [1000, 1150, 1280, 720], [2560, 1000, 1562, 720], [1366, 657, 1366, 657]]) {
+      const ctx = await b.newContext({ viewport: { width: W, height: H }, serviceWorkers: 'block' });
+      await ctx.route(/gstatic\.com\/firebasejs/, (r) => r.abort());
+      const page = await ctx.newPage(); page.setDefaultTimeout(15000);
+      const errs = []; page.on('pageerror', (e) => errs.push(e.message));
+      await page.goto(BASE + '?pcfix=1', { waitUntil: 'domcontentloaded' });
+      await page.waitForURL(/pc\.html\?pcfix=1/).catch(() => {});
+      const fr = page.frameLocator('#pcf');
+      await fr.locator('#modal:not(.hidden) .jobcard').first().waitFor();
+      await fr.locator('#modal .jobcard').first().click();
+      const inner = page.frames().find((f) => f !== page.mainFrame());
+      await inner.waitForFunction(() => window.__s2?.g);
+      await page.waitForTimeout(1200);
+      const o = await page.evaluate(() => { const r = document.getElementById('pcf').getBoundingClientRect(); return { l: r.left, t: r.top, w: r.width, h: r.height, s: window.__pcScale }; });
+      const i = await inner.evaluate(() => { const c = document.getElementById('cv'); return { iw: innerWidth, ih: innerHeight, land: document.body.classList.contains('land') && !document.body.classList.contains('rot'), cw: c.width, ccw: c.clientWidth, s: window.__pcScale }; });
+      const fits = o.l >= -1 && o.t >= -1 && o.l + o.w <= W + 1 && o.t + o.h <= H + 1 && Math.abs(o.l - (W - o.w) / 2) <= 1 && Math.abs(o.t - (H - o.h) / 2) <= 1 && (Math.abs(o.w - W) <= 1 || Math.abs(o.h - H) <= 1);
+      ok(page.url().includes('pc.html') && fits && Math.abs(i.iw - LW) <= 1 && Math.abs(i.ih - LH) <= 1 && i.land, `v629 컴퓨터 ${W}×${H} → 가로 틀 ${LW}×${LH} · 창에 맞춰 ×${o.s.toFixed(2)} · 가운데`, `틀 ${Math.round(o.w)}×${Math.round(o.h)} @${Math.round(o.l)},${Math.round(o.t)} · 안 ${i.iw}×${i.ih}`);
+      ok(Math.abs(i.cw - Math.round(i.ccw * Math.min(2, i.s))) <= 2, `v629 ${W}×${H} 들판 캔버스는 키운 만큼 촘촘히(흐리지 않게)`, `${i.cw} = ${i.ccw} × ${Math.min(2, i.s).toFixed(2)}`);
+      if (W === 1920) {
+        await inner.evaluate(() => window.__s2.g.setAuto(false));
+        const x0 = await inner.evaluate(() => window.__s2.g.ensureFight().hero.x);
+        await page.keyboard.down('ArrowRight'); await page.waitForTimeout(600); await page.keyboard.up('ArrowRight');
+        const x1 = await inner.evaluate(() => window.__s2.g.ensureFight().hero.x);
+        ok(x1 !== x0, 'v629 틀 안에서도 키보드로 움직인다', `${x0} → ${x1}`);
+        await inner.evaluate(() => window.__s2.g.setAuto(true));
+        await fr.locator('#b-opt').click(); await page.waitForTimeout(400);
+        ok(/컴퓨터 화면 고정/.test(await fr.locator('#panel').textContent()), 'v629 설정에 「컴퓨터 화면 고정」');
+      }
+      ok(errs.length === 0, `v629 ${W}×${H} 틀 — 오류 없음`, errs.slice(0, 2).join(' | '));
+      await inner.evaluate(() => window.__s2.freeze?.()).catch(() => {});
+      await ctx.close();
+    }
+    // 손가락 기기는 틀로 가지 않는다 · 끈 사람(ifu-s2-pcfix=0)도 그대로
+    { const ctx = await b.newContext({ viewport: { width: 844, height: 390 }, isMobile: true, hasTouch: true, serviceWorkers: 'block' });
+      await ctx.route(/gstatic\.com\/firebasejs/, (r) => r.abort());
+      const page = await ctx.newPage(); await page.goto(BASE + '?pcfix=1', { waitUntil: 'domcontentloaded' }); await page.waitForTimeout(1200);
+      ok(/index\.html/.test(page.url()) && !(await page.$('#pcf')), 'v629 손가락 기기는 틀 없이 그대로');
+      await page.goto(BASE.replace('index.html', 'pc.html'), { waitUntil: 'domcontentloaded' }); await page.waitForTimeout(1200);
+      ok(/index\.html/.test(page.url()) && !(await page.$('#pcf')), 'v629 손가락 기기로 pc.html 주소를 열어도 틀 없이 게임으로');
+      await ctx.close(); }
+    { const ctx = await b.newContext({ viewport: { width: 1920, height: 950 }, serviceWorkers: 'block' });
+      await ctx.route(/gstatic\.com\/firebasejs/, (r) => r.abort());
+      await ctx.addInitScript(() => { try { localStorage.setItem('ifu-s2-pcfix', '0'); } catch (e) { /* 없음 */ } });
+      const page = await ctx.newPage(); await page.goto(BASE + '?pcfix=1', { waitUntil: 'domcontentloaded' }); await page.waitForTimeout(1200);
+      ok(/index\.html/.test(page.url()) && !(await page.$('#pcf')), 'v629 「컴퓨터 화면 고정」을 끈 사람은 창 전체 그대로');
+      await ctx.close(); }
+  }
   await b.close();
   console.log(fails ? `\n✗ ${fails}건` : '\n✓ 새 시즌 화면 전부 통과');
   process.exit(fails ? 1 : 0);

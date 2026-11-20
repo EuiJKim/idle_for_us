@@ -4,6 +4,20 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <title>방치형키우기</title>
+  <script>
+    // v629 컴퓨터는 가로 화면 고정 — pc.html이 이 게임을 가로 틀(높이 720)에 넣어 창 크기에 맞춰 키운다. 손전화 · 태블릿(손가락) · 이미 틀 안 · 끈 사람은 그대로.
+    //   자동 시험(webdriver)은 ?pcfix=1 일 때만 틀로 간다(다른 시험은 이 화면을 바로 본다)
+    (function () {
+      try {
+        if (window.top !== window) return;
+        var q = location.search, ls = localStorage.getItem('ifu-s2-pcfix');
+        var pc = matchMedia('(pointer: fine)').matches && matchMedia('(hover: hover)').matches && !matchMedia('(pointer: coarse)').matches;
+        if (!pc || ls === '0' || (navigator.webdriver && !/[?&]pcfix=1(&|$)/.test(q))) return;
+        window.stop();
+        location.replace('pc.html' + q + location.hash);
+      } catch (e) { /* 틀 없이 그대로 */ }
+    })();
+  </script>
   <link rel="manifest" href="manifest.webmanifest">
   <meta name="theme-color" content="#120f0b">
   <link rel="icon" href="icons/icon-192.png">

@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>방치형키우기</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="theme-color" content="#120f0b">
+  <link rel="icon" href="icons/icon-192.png">
+  <!-- v629 컴퓨터 화면 고정 — 게임(index.html)을 가로 틀(높이 720 · 폭 1280~1560)에 넣고 창 크기에 맞춰 통째로 키우거나 줄인다.
+       틀 안에서는 화면 크기가 늘 같으니 글 · 단추 · 인물이 창 크기와 상관없이 같은 비율로 보이고, 세로로 긴 창에서도 가로 화면 그대로(남는 곳은 검은 띠). -->
+  <style>
+    html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: #050403; }
+    body { background: radial-gradient(ellipse at 50% 50%, #17120c 0%, #050403 70%); }
+    #pcf { position: absolute; left: 0; top: 0; border: 0; transform-origin: 0 0; background: #120f0b; box-shadow: 0 0 40px rgba(0, 0, 0, .6); }
+  </style>
+</head>
+<body>
+  <iframe id="pcf" title="방치형키우기" allow="fullscreen; clipboard-read; clipboard-write; web-share; screen-wake-lock; autoplay"></iframe>
+  <script>
+    (function () {
+      // 손가락 기기(손전화 · 태블릿)로 이 주소를 열면 틀 없이 게임으로
+      if (matchMedia('(pointer: coarse)').matches) { location.replace('index.html' + location.search + location.hash); return; }
+      var f = document.getElementById('pcf');
+      var LH = 720, MIN_AR = 16 / 9, MAX_AR = 2.17;   // 틀: 높이 720(창이 낮으면 창 높이) · 폭은 16:9 ~ 손전화 가로 비율
+      function fit() {
+        var W = innerWidth, H = innerHeight;
+        var s0 = H >= LH ? H / LH : 1, lh = H / s0;   // 낮은 창(720 미만)은 키우지 않고 그 높이 그대로
+        var lw = Math.max(lh * MIN_AR, Math.min(lh * MAX_AR, W / s0));
+        lw = Math.round(lw); lh = Math.round(lh);
+        var s = Math.min(W / lw, H / lh);
+        f.style.width = lw + 'px'; f.style.height = lh + 'px';
+        f.style.transform = 'translate(' + Math.round((W - lw * s) / 2) + 'px,' + Math.round((H - lh * s) / 2) + 'px) scale(' + s + ')';
+        window.__pcScale = s; window.__pcSize = [lw, lh];
+        try { f.contentWindow.__pcScale = s; } catch (e) { /* 아직 안 열림 */ }
+      }
+      // 게임이 전체 화면을 부탁하면 틀 바깥(이 문서)을 전체 화면으로 — 틀 안을 전체 화면으로 하면 틀 크기가 풀린다
+      addEventListener('message', function (e) {
+        if (e.origin !== location.origin || !e.data || e.data.ifu !== 'full') return;
+        try { if (e.data.on) document.documentElement.requestFullscreen({ navigationUI: 'hide' }).catch(function () {}); else if (document.fullscreenElement) document.exitFullscreen(); } catch (er) { /* 안 되는 브라우저 */ }
+      });
+      addEventListener('resize', fit);
+      document.addEventListener('fullscreenchange', fit);
+      f.addEventListener('load', function () { fit(); try { f.contentWindow.focus(); } catch (e) { f.focus(); } });
+      // 틀 바깥(검은 띠)을 눌러도 게임이 키보드를 받게
+      addEventListener('pointerdown', function (e) { if (e.target !== f) { try { f.contentWindow.focus(); } catch (er) { f.focus(); } } });
+      fit();
+      f.src = 'index.html' + location.search + location.hash;
+    })();
+  </script>
+</body>
+</html>

@@ -31,7 +31,11 @@ import { kindGrade, totalAwake } from '../grow/collect.js';
 import { PULL_P, PULL_PITY, PULL_TEN_FLOOR } from '../tables/option.js';
 import { loadLooks, zoneFor, drawHero, drawMob, mobName, mobHeight, preloadMobs, drawPaintedBack, drawPaintedLedge, drawEarth, chbImg, preloadChapter, fxImg, oldImg, tintImg, ULT_ART, SEAL_ART, CUT_ART, BUFF_ART, BOSS_ART, wearCount, filtered } from './look.js';
 import { BOSS_PATS } from '../tables/kit.js';
-import { ADV_MAX, advOf, advPal, ADV_S, ADV_N } from './advfx.js';   // v628 전직 단계 이펙트 표(평타 · 무공 · 오라가 같이 쓴다)
+import { ADV_MAX, advOf, advPal, ADV_S, ADV_N } from './advfx.js';
+// v629 컴퓨터 화면 고정 — pc.html 틀 안이면 틀 바깥이 이 화면을 통째로 키운다(__pcScale). 캔버스는 그만큼 더 촘촘히 그려 흐려지지 않게
+const pcFramed = (() => { try { return window.top !== window; } catch { return true; } })();
+const pxr = () => (window.devicePixelRatio || 1) * (pcFramed ? window.__pcScale || 1 : 1);
+const fsEl = () => { try { return (pcFramed ? window.top.document : document).fullscreenElement; } catch { return document.fullscreenElement; } };   // v628 전직 단계 이펙트 표(평타 · 무공 · 오라가 같이 쓴다)
 import { CHBOSS, CB_PATS, CB, WBF, CB_RAID, DEX_REW } from '../tables/chboss.js';
 import { DASH } from '../battle/side.js';   // v546 회피
 import { uiIcon } from '../tables/uiicons.js';   // v610 창 줄 그림 아이콘
@@ -1727,7 +1731,9 @@ function paintWin() {
     c1(R('그래픽', opt.gfx === 'low' ? '낮음(배터리 아낌 · 흙먼지 · 은자 연출 끔)' : '높음', [['바꾸기', () => { opt.gfx = opt.gfx === 'low' ? 'high' : 'low'; saveOpt(); paintWin(); }]], '畵'));
     c1(R('피해 숫자', { all: '전부', crit: '치명만', off: '끄기' }[opt.nums], [['바꾸기', () => { opt.nums = { all: 'crit', crit: 'off', off: 'all' }[opt.nums]; saveOpt(); paintWin(); }]], '數'));
     c1(tg('화면 흔들림', 'shake', '큰 무공 · 두목 패턴 · 당겨짐', '搖'), tg('피해 측정기', 'dps', '들판 왼쪽 위에 초당 피해 · 분당 처치', '測'), tg('두목전 결과 자동 진행', 'autoNext', '결과 창이 3초 뒤 저절로 닫히고 다음으로', '進'));
-    if (document.documentElement.requestFullscreen) c1(R('전체 화면', document.fullscreenElement ? '켜짐' : '주소창 없이 화면을 다 쓴다(안드로이드 · 컴퓨터)', [[document.fullscreenElement ? '끄기' : '켜기', () => { play('click'); goFull(!document.fullscreenElement); setTimeout(paintWin, 300); }]], '全'));
+    if (document.documentElement.requestFullscreen) c1(R('전체 화면', fsEl() ? '켜짐' : '주소창 없이 화면을 다 쓴다(안드로이드 · 컴퓨터)', [[fsEl() ? '끄기' : '켜기', () => { play('click'); goFull(!fsEl()); setTimeout(paintWin, 300); }]], '全'));
+    // v629 컴퓨터 화면 고정 — 가로 틀(높이 720)을 창 크기에 맞춰 키움 / 끄면 창 전체를 그대로(예전처럼)
+    if (pcFramed || (matchMedia('(pointer: fine)').matches && matchMedia('(hover: hover)').matches)) c1(R('컴퓨터 화면 고정', pcFramed ? '켜짐 — 가로 화면을 창 크기에 맞춰 키워요' : '꺼짐 — 창 전체를 그대로 써요', [[pcFramed ? '끄기' : '켜기', () => { play('click'); save(); try { localStorage.setItem('ifu-s2-pcfix', pcFramed ? '0' : '1'); } catch { /* 저장 못 하면 이번만 */ } (pcFramed ? window.top : window).location.replace(`${pcFramed ? 'index.html' : 'pc.html'}${location.search}`); }]], '屏'));
     const c0 = sec('진동', '', 'vib');
     c0(tg('진동', 'vib', '치명타 · 큰 무공 · 두목 고비 · 맞을 때 · 쓰러질 때(휴대폰)', '震'));
     if (navigator.vibrate) c0(R('진동 세기', `${VIB_K_NAME[opt.vibK] ?? '보통'} — 울리는 길이 ×${VIB_K[opt.vibK] ?? 1}`, [['바꾸기', () => { opt.vibK = ((opt.vibK ?? 1) + 1) % 3; saveOpt(); play('click'); buzz(VIB.sk4); paintWin(); }]], 'i:vib:强'));
@@ -1739,7 +1745,7 @@ function paintWin() {
     c3(R(`시간 티켓 ${W['ticket:time'] || 0}장`, '1장 = 15분 · 원정 · 방치에 씀', [], '時'));
     const rs = R('새로 시작', '새 시즌 진행을 지우고 처음부터', [['처음부터', () => pop('새로 시작할까요?', '<p class="note">새 시즌 진행을 지워요(서버 저장도 새 진행으로 덮여요). 옛 게임 진행은 그대로예요. 남겨 두려면 먼저 「저장 코드 → 복사」.</p>', [['아니요', null], ['예', () => { localStorage.removeItem(SAVE_KEY); location.reload(); }]])]], 'i:reset:新');
     rs.classList.add('op-danger'); c3(rs);
-    c3(R('옛 게임(무림방치)', '예전 진행은 그대로 — 따로 열 수 있어요', [['열기', () => { save(); location.href = 'classic.html'; }]], '舊'));
+    c3(R('옛 게임(무림방치)', '예전 진행은 그대로 — 따로 열 수 있어요', [['열기', () => { save(); (pcFramed ? window.top : window).location.href = 'classic.html'; }]], '舊'));
     const c4 = sec('알림 · 소식', '', 'news');
     c4(R('업데이트 소식', `새로 생긴 것 — 지금 판 v${NEWS_V}`, [['보기', () => { play('click'); newsPop(NEWS, true); }]], 'i:mission:新'));   // v560
     c4(R('친구에게 알리기', '게임 주소를 보내요 — 공유 창이 없으면 주소를 복사', [['공유', () => { play('click'); shareGame(); }]], 'i:letter:友'));   // v595
@@ -2734,7 +2740,7 @@ function drawSkillFx(cx, f, a, [x, y], Rpx, k, col, tier) {
   cx.restore();
 }
 function draw() {
-  const r = { width: cv.clientWidth, height: cv.clientHeight }, dpr = opt.gfx === 'low' ? 1 : Math.min(2, window.devicePixelRatio || 1);
+  const r = { width: cv.clientWidth, height: cv.clientHeight }, dpr = opt.gfx === 'low' ? 1 : Math.min(2, pxr());
   if (opt.gfx === 'low') { dust.length = 0; coins.length = 0; }
   if (cv.width !== Math.round(r.width * dpr)) { cv.width = Math.round(r.width * dpr); cv.height = Math.round(r.height * dpr); }
   const t = now(), KH = bossFeel.kill, held = !!(KH && KH.F && t - KH.at < 560);   // 두목 마지막 일격: 0.56초 동안은 끝난 두목전 장면을 그대로 둔다(바로 사냥터로 넘어가면 쓰러지는 모습 · 파편이 안 보인다) — 엔진은 그대로 다음 싸움을 돈다
@@ -3341,7 +3347,7 @@ function duelShow(r, again = -1) {
   $('battle').append(ov);
   const cv = ov.querySelector('canvas'), cx = cv.getContext('2d'), mid = ov.querySelector('.dl-mid'), res = ov.querySelector('.duel-res');
   const bars = ov.querySelectorAll('.dl-bar i'), trails = ov.querySelectorAll('.dl-bar em'), txt = ov.querySelectorAll('.duel-hp');
-  const DPR = low ? 1 : Math.min(2, window.devicePixelRatio || 1), speed = Math.max(1, r.ms / 9000), lead = low ? 0 : 900, SLOW = 400, SLOW_X = 0.22;
+  const DPR = low ? 1 : Math.min(2, pxr()), speed = Math.max(1, r.ms / 9000), lead = low ? 0 : 900, SLOW = 400, SLOW_X = 0.22;
   const hp = [r.myHp, r.opp.hp], left = [r.myHp, r.opp.hp], floats = [], imps = [], atk = [-1e9, -1e9], hurt = [-1e9, -1e9];
   const opEq = lookEqOf(r.opp.lk, r.opp.lv), myEq = g.lookEq(), ch = chapterOf(g.zoneLv()), z = zoneFor(g.zoneLv());
   // 막타 — 진 쪽 체력이 처음 0이 되는 공격(시간이 다 되면 마지막 공격)
@@ -3797,7 +3803,7 @@ function retCount(box) {
   box.addEventListener('pointerdown', fin, { once: true });   // 누르면 바로 다 보임
 }
 function retHero(cv, small) {
-  const D = Math.min(2, window.devicePixelRatio || 1), w = small ? 84 : 110, h = small ? 100 : 132, x = cv.getContext('2d');
+  const D = Math.min(2, pxr()), w = small ? 84 : 110, h = small ? 100 : 132, x = cv.getContext('2d');
   cv.width = w * D; cv.height = h * D; cv.style.width = `${w}px`; cv.style.height = `${h}px`;
   const job = g.S.hero.job, lv = g.S.hero.lv, eq = g.lookEq(), to = POSES[job === 'fist' ? '올려치기' : '검거양'], t0 = performance.now(), low = opt.gfx === 'low';
   const paint = (t) => {
@@ -3888,6 +3894,7 @@ fitLand();
 // v519 전체 화면 — 손전화는 첫 터치에 저절로(주소창이 사라져 가로 화면이 더 넓다) · 가로 잠금은 전체 화면이어야 되는 브라우저가 많다
 function goFull(on) {
   try {
+    if (pcFramed) { window.parent.postMessage({ ifu: 'full', on: !!on }, location.origin); return; }   // v629 틀 안: 틀 바깥(pc.html)을 전체 화면으로
     if (!on) { document.exitFullscreen?.(); return; }
     const p = document.documentElement.requestFullscreen?.({ navigationUI: 'hide' });
     (p || Promise.resolve()).then(() => screen.orientation?.lock?.('landscape')).catch(() => {});
