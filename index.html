@@ -89,6 +89,20 @@
     .gc.tense .back { animation: gct .12s linear infinite; box-shadow: 0 0 18px 6px var(--gc); border-color: var(--gc); }
     @keyframes gct { 0% { transform: translate(0, 0) } 25% { transform: translate(-2px, 1px) } 50% { transform: translate(2px, -1px) } 75% { transform: translate(-1px, -1px) } 100% { transform: translate(1px, 1px) } }
     .gxb .btn { min-width: 120px; min-height: 44px; }
+    /* v624 다 뒤집은 뒤 — 등급별 칩 · 새로 n · 진↑ 가장 좋은 것에 「최고」 띠와 도는 빛살 */
+    .gxs { display: flex; flex-wrap: wrap; justify-content: center; gap: 5px; min-height: 0; }
+    .gxs:empty { display: none; }
+    .gxs span { font-size: 12px; font-weight: 700; padding: 2px 9px; border-radius: 999px; border: 1px solid var(--gc, var(--gold)); color: var(--gc, var(--gold)); background: #0008; line-height: 18px; animation: gxsi .25s ease-out both; }
+    .gxs span b { color: #fff; font-weight: 800; } .gxs .gxs-n { --gc: var(--gold); background: #e8c26a22; }
+    @keyframes gxsi { from { opacity: 0; transform: translateY(-4px) } }
+    .gxb { display: flex; gap: 10px; } .gxb .again.hidden { display: none; }
+    @property --gxa { syntax: '<angle>'; inherits: false; initial-value: 0deg; }
+    .gxg { padding: 14px; margin: -14px; }
+    .gc.rays::before { content: ''; position: absolute; inset: -14px; z-index: -1; pointer-events: none; border-radius: 50%; background: repeating-conic-gradient(from var(--gxa), color-mix(in srgb, var(--gc) 75%, transparent) 0deg 10deg, transparent 10deg 30deg); -webkit-mask: radial-gradient(circle, #000 30%, transparent 71%); mask: radial-gradient(circle, #000 30%, transparent 71%); animation: gxr 4s linear infinite; }
+    @keyframes gxr { to { --gxa: 360deg } }
+    @media (prefers-reduced-motion: reduce) { .gc.rays::before, .gxs span { animation: none; } }
+    .gc .gx-rib { position: absolute; left: 50%; top: -11px; transform: translateX(-50%); z-index: 2; font-style: normal; font-size: 10px; font-weight: 900; letter-spacing: 1px; color: #2a1a00; background: linear-gradient(#ffe7a0, #d9a83c); border-radius: 3px; padding: 0 6px; line-height: 15px; box-shadow: 0 1px 4px #000a; white-space: nowrap; }
+    .gc.top .face { border-width: 3px; }
     .eqpage { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; }
     /* (w640up: JS가 돌린 뒤의 실제 가로 · 세로로 붙인다) */ html.w640up .eqpage { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); align-items: start; }
     .eqwrap { display: grid; grid-template-columns: 66px 1fr 66px; gap: 6px; align-items: center; max-width: 460px; margin: 0 auto; }
@@ -749,10 +763,30 @@
     .rc-r b { color: var(--gold, #ffd56a); font-variant-numeric: tabular-nums; } .rc-r .btn { min-height: 38px; min-width: 64px; padding: 6px 12px; }
     html.w800 .fate-chip { left: calc(var(--sl) + 204px); } .fate-chip.fate-solo, html.w800 .fate-chip.fate-solo { left: var(--sl); }
     .fate-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 10px; }
-    .fate-card { font: inherit; color: #fff; min-height: 132px; padding: 12px 6px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; border-radius: 12px; background: linear-gradient(180deg, #2c2116, #17110b); border: 1px solid rgba(255,213,106,.35); cursor: pointer; }
-    .fate-card:active { transform: scale(.97); border-color: #ffd56a; }
-    .fate-card i { font-style: normal; width: 46px; height: 46px; display: grid; place-items: center; border-radius: 50%; background: #3a2a14; border: 1px solid rgba(255,213,106,.5); color: #ffd56a; font-size: 24px; font-weight: 800; }
-    .fate-card span { font-size: 13px; font-weight: 700; } .fate-card b { font-size: 15px; color: #fde047; font-variant-numeric: tabular-nums; }
+    .fate-card { font: inherit; color: #fff; position: relative; min-height: 132px; padding: 0; border: 0; background: none; border-radius: 12px; cursor: pointer; perspective: 700px; transition: transform .25s ease, opacity .25s ease; }
+    .fate-card:active { transform: scale(.97); }
+    .fate-in { position: absolute; inset: 0; transform-style: preserve-3d; transform: rotateY(180deg); }
+    .fate-up .fate-in { transform: none; } .fate-flip .fate-in { transform: none; transition: transform .35s cubic-bezier(.3,.7,.4,1) var(--fd, 0ms); }
+    .fate-back, .fate-face { position: absolute; inset: 0; border-radius: 12px; backface-visibility: hidden; -webkit-backface-visibility: hidden; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+    .fate-back { transform: rotateY(180deg); background: repeating-linear-gradient(45deg, rgba(255,213,106,.06) 0 6px, transparent 6px 12px), linear-gradient(180deg, #3a2a14, #1a120a); border: 1px solid rgba(255,213,106,.45); }
+    .fate-back em { font-style: normal; width: 52px; height: 52px; display: grid; place-items: center; border-radius: 10px; transform: rotate(-6deg); background: radial-gradient(circle at 35% 30%, #ffe9a8, #d49a2a 60%, #8a5a14); color: #4a2a08; font-size: 30px; font-weight: 900; box-shadow: 0 0 0 2px rgba(0,0,0,.35), 0 0 14px rgba(255,200,90,.35); }
+    .fate-face { gap: 5px; padding: 10px 6px; background: linear-gradient(180deg, #2c2116, #17110b); border: 1.5px solid var(--fb); box-shadow: inset 0 0 14px var(--fg); }
+    .fate-tc { --fb: rgba(255,213,106,.6); --fg: rgba(255,200,90,.12); } .fate-tb { --fb: #5c9dff; --fg: rgba(92,157,255,.22); } .fate-tp { --fb: #b884ff; --fg: rgba(184,132,255,.28); }
+    .fate-tb .fate-face { background: linear-gradient(180deg, #1b2336, #0e121c); } .fate-tp .fate-face { background: linear-gradient(180deg, #2a1b3a, #140d1d); }
+    .fate-ic { font-style: normal; width: 54px; height: 54px; display: grid; place-items: center; }
+    .fate-ic img { width: 54px; height: 54px; object-fit: contain; filter: drop-shadow(0 2px 4px rgba(0,0,0,.5)); } .fate-ic img ~ u { display: none; }
+    .fate-ic u { text-decoration: none; width: 46px; height: 46px; display: grid; place-items: center; border-radius: 50%; background: #3a2a14; border: 1px solid rgba(255,213,106,.5); color: #ffd56a; font-size: 24px; font-weight: 800; }
+    .fate-face span { font-size: 12px; font-weight: 700; color: #e8dcc0; } .fate-face b { font-size: 20px; font-weight: 800; color: #fde047; font-variant-numeric: tabular-nums; line-height: 1.1; }
+    .fate-tb .fate-face b { color: #a9cbff; } .fate-tp .fate-face b { color: #dcc0ff; }
+    .fate-deal .fate-card { animation: fate-deal .3s cubic-bezier(.2,.8,.3,1) var(--fd, 0ms) both; }
+    @keyframes fate-deal { from { opacity: 0; transform: translateY(-40px) rotate(-8deg) scale(.8); } to { opacity: 1; transform: none; } }
+    .fate-picked .fate-card { pointer-events: none; } .fate-picked .fate-card:not(.fate-sel) { opacity: .2; transform: scale(.94); }
+    .fate-sel { z-index: 2; transform: translateY(-10px) scale(1.06); } .fate-sel .fate-face { box-shadow: inset 0 0 18px var(--fg), 0 0 22px var(--fb), 0 0 4px #fff; }
+    .fate-fx { position: absolute; left: 50%; top: 45%; width: 0; height: 0; pointer-events: none; }
+    .fate-fx i { position: absolute; left: -4px; top: -4px; width: 8px; height: 8px; border-radius: 50%; background: #fff4c2; box-shadow: 0 0 8px 2px #ffd56a; animation: fate-spark .48s ease-out forwards; }
+    @keyframes fate-spark { to { transform: translate(var(--x), var(--y)) scale(.3); opacity: 0; } }
+    .fate-low .fate-card, .fate-low .fate-in { animation: none !important; transition: none !important; }
+    @media (prefers-reduced-motion: reduce) { .fate-card, .fate-in { animation: none !important; transition: none !important; } }
     .fate-left { margin-top: 8px; text-align: center; font-size: 11px; color: #cbb98f; }
     .dpsm { position: absolute; left: var(--sl); top: calc(var(--st) + 140px); z-index: 10; display: none; background: rgba(10,8,6,.65); border: 1px solid var(--line); border-radius: 8px; padding: 4px 8px; font-size: 11px; line-height: 1.45; }
     .dpsm b { color: var(--accent-2); font-weight: 700; margin-right: 4px; }
@@ -1246,7 +1280,7 @@
     html.h420:not(.w640up) #panel .gch-tile .name { font-size: 13.5px; } html.h420:not(.w640up) #panel .gch-tile.main .name { font-size: 15px; } html.h420:not(.w640up) #panel .gch-tile .desc { font-size: 10.5px; }
     /* 뽑기 결과: 좁은 폭에서 30장 열 줄이 화면을 넘지 않게 · 키 낮으면 격자 높이를 화면에 맞춤 */
     html.w720 .gxg.many { grid-template-columns: repeat(10, 46px); gap: 4px; } html.w720 .gxg.many .gc { width: 46px; height: 62px; }
-    html.h420 .gx { padding: 10px; gap: 8px; } html.h420:not(.rot) .gxg { max-height: calc(100vh - 124px); }
+    html.h420 .gx { padding: 10px; gap: 8px; } html.h420:not(.rot) .gxg { max-height: calc(100vh - 140px); } html.h420 .gxs span { font-size: 11px; line-height: 16px; padding: 1px 8px; }
     /* 창(모달): 키 낮은 화면 — 아래 단추 줄은 늘 보이게 붙여 두고, 안쪽 목록 높이를 화면에 맞춤 */
     html.h420 #modal { padding-top: 8px; padding-bottom: 8px; }
     html.h500 #modal .sheet > .btn-row:last-child { position: sticky; bottom: -2px; z-index: 2; padding: 6px 0 2px; margin-bottom: -2px; background: linear-gradient(rgba(23,19,14,0), #17130e 7px); }

@@ -368,17 +368,37 @@ const clPm = (v) => `${(v / 10).toFixed(1)}%`;
 // 기연 — 카드 셋 중 하나. 닫아도 같은 카드가 남는다(다시 굴리지 않음)
 const FATE_VIEW = { gold: ['銀', '은자'], exp: ['經', '경험치'], 'ticket:gear': ['裝', '장비 뽑기권'], 'item:stone': ['石', '강화석'], 'ticket:weapon': ['兵', '병기 뽑기권'], 'ticket:pal': ['友', '동료 뽑기권'], 'ticket:relic': ['靈', '영물 뽑기권'], 'ticket:time': ['時', '시간 티켓'] };
 const fateAmt = (c) => (c.k === 'gold' || c.k === 'exp' ? `+${unit(c.n)}` : `× ${c.n}`);
+// 카드 앞면 그림(art/s2/ui) · 테두리 등급(흔함 금빛 · 뽑기권 · 강화석 파랑 · 드문 것(무게 4) 보라)
+const FATE_PIC = { gold: 'silver', exp: 'mastery', 'ticket:gear': 'pull', 'item:stone': 'stone', 'ticket:weapon': 'pullw', 'ticket:pal': 'pullp', 'ticket:relic': 'pullr', 'ticket:time': 'time' };
+const fateTier = (k) => (k === 'gold' || k === 'exp' ? 'c' : k === 'ticket:gear' || k === 'item:stone' ? 'b' : 'p');
 function fatePop() {
   const cards = g.fateOpen(); if (!cards) return;
   save();
-  const sh = $('modal').querySelector('.sheet'), left = g.fateState().ready - 1;
+  const sh = $('modal').querySelector('.sheet'), left = g.fateState().ready - 1, low = opt.gfx === 'low';
   sh.classList.remove('wide', 'enhs');
-  sh.innerHTML = `<h2>기연</h2><p class="note">셋 중 하나를 골라요.</p><div class="fate-row">${cards.map((c, i) => { const v = FATE_VIEW[c.k] || ['緣', c.k]; return `<button class="fate-card" data-i="${i}"><i>${v[0]}</i><span>${v[1]}</span><b>${fateAmt(c)}</b></button>`; }).join('')}</div>${left > 0 ? `<div class="fate-left">남은 기연 ${left}번</div>` : ''}`;
+  sh.innerHTML = `<h2>기연</h2><p class="note">셋 중 하나를 골라요.</p><div class="fate-row${low ? ' fate-up fate-low' : ' fate-deal'}">${cards.map((c, i) => { const v = FATE_VIEW[c.k] || ['緣', c.k], pic = FATE_PIC[c.k]; return `<button class="fate-card fate-t${fateTier(c.k)}" data-i="${i}" style="--fd:${i * 120}ms" aria-label="${esc(`${v[1]} ${fateAmt(c)}`)}"><span class="fate-in"><span class="fate-back" aria-hidden="true"><em>緣</em></span><span class="fate-face"><i class="fate-ic">${pic ? `<img src="art/s2/ui/${pic}.webp" alt="" decoding="async" onerror="this.remove()">` : ''}<u>${v[0]}</u></i><span>${v[1]}</span><b>${fateAmt(c)}</b></span></span></button>`; }).join('')}</div>${left > 0 ? `<div class="fate-left">남은 기연 ${left}번</div>` : ''}`;
+  const row = sh.querySelector('.fate-row');
+  let busy = false, tUp = 0;
+  const faceUp = () => { clearTimeout(tUp); row.classList.remove('fate-deal'); row.classList.add('fate-up'); };   // 돌리는 중에 누르면 바로 앞면으로
+  if (!low) tUp = setTimeout(() => { row.classList.add('fate-flip'); tUp = setTimeout(faceUp, 2 * 120 + 360); }, 2 * 120 + 300);   // 깔기(120ms씩) → 뒤집기(0.35초씩)
+  row.addEventListener('pointerdown', (e) => { if (!row.classList.contains('fate-up')) { faceUp(); if (e.target.closest('.fate-card')) row.dataset.skip = '1'; } }, true);
   for (const b of sh.querySelectorAll('.fate-card')) b.onclick = () => {
+    if (busy) return;
+    if (row.dataset.skip) { delete row.dataset.skip; return; }   // 앞면으로 넘기려고 누른 것 — 고르지는 않는다
+    if (!row.classList.contains('fate-up')) { faceUp(); return; }
     const c = g.fatePick(Number(b.dataset.i)); if (!c) { closeModal(); paintHud(); return; }   // 창이 열린 사이 자동 성장이 먼저 골랐으면 — 눌러도 아무 일 없는 창으로 남지 않게 닫는다
-    buzz(30); save(); toast(`기연 — ${(FATE_VIEW[c.k] || ['', c.k])[1]} ${fateAmt(c)}`);
-    closeModal(); paintHud(); if (open) paintWin();
-    if (g.fateState().ready > 0) fatePop();
+    busy = true; buzz(30); save();
+    const done = () => {
+      toast(`기연 — ${(FATE_VIEW[c.k] || ['', c.k])[1]} ${fateAmt(c)}`);
+      if (row.isConnected) closeModal(); paintHud(); if (open) paintWin();
+      if (g.fateState().ready > 0) fatePop();
+    };
+    if (low) { done(); return; }
+    row.classList.add('fate-picked'); b.classList.add('fate-sel');
+    const fx = document.createElement('span'); fx.className = 'fate-fx';
+    for (let k = 0; k < 12; k++) { const sp = document.createElement('i'), a = (k / 12) * Math.PI * 2 + Math.random() * 0.4, d = 70 + Math.random() * 40; sp.style.cssText = `--x:${Math.cos(a) * d}px;--y:${Math.sin(a) * d}px`; fx.append(sp); }
+    b.append(fx);
+    setTimeout(done, 480);
   };
   modalOne = null;
   $('modal').classList.remove('hidden');
@@ -453,12 +473,19 @@ function eqCell(sl) {
 }
 // ── 장비 뽑기 연출(v497) ── 카드가 차례로 뒤집힌다. 보(4)↑는 뒤집기 전에 두근(떨림 · 빛) · 신(5)↑는 화면이 번쩍 · 건너뛰기
 const GX_COL = ['#9ca3af', '#7cc47a', '#6aa8e0', '#b27ae0', '#e8c26a', '#e06a5a', '#ffffff'];
+const optGfx = () => opt.gfx;   // showGacha 안에서는 opt가 인자라 설정은 이걸로
+// 장비 뽑기 n번 — 연출 창의 「한 번 더」도 같은 길로(뽑기권 n장 또는 은자)
+function gearPull(n) {
+  const r2 = g.pullGear(n);
+  if (r2) showGacha(r2, { again: act(() => gearPull(n)), can: () => { const W = g.S.wallet; return (W['ticket:gear'] || 0) >= n || gachaCost(g.S.hero.lv, g.S.gacha.lv).every((x) => (W[x.k] || 0) >= Math.floor(x.n * n)); } });
+  return r2;
+}
 function showGacha(r, opt = {}) {   // v558 opt: { title, face(it) } — 병기 · 동료 · 영물 뽑기도 같은 카드 뒤집기
   const prev = document.querySelector('.gx'); if (prev) prev.parentNode.removeChild(prev);
   const ov = document.createElement('div'); ov.className = 'gx';
   const close = () => { if (ov.parentNode) ov.parentNode.removeChild(ov); };
   const best = Math.max(...r.items.map((i) => i.g));
-  ov.innerHTML = `<div class="gxt">${opt.title || '장비 뽑기'} ${r.items.length}번</div><div class="gxg ${r.items.length > 10 ? 'many' : ''}"></div><div class="gxb"><button class="btn skip">건너뛰기</button></div>`;
+  ov.innerHTML = `<div class="gxt">${opt.title || '장비 뽑기'} ${r.items.length}번</div><div class="gxs"></div><div class="gxg ${r.items.length > 10 ? 'many' : ''}"></div><div class="gxb"><button class="btn skip">건너뛰기</button>${opt.again ? '<button class="btn primary again hidden">한 번 더</button>' : ''}</div>`;
   const grid = ov.querySelector('.gxg'), eqd = new Set(r.got.filter((x) => x.equipped).map((x) => x.it?.uid));
   const cards = r.items.map((it) => {
     const c = document.createElement('div'); c.className = `gc g${it.g}`; c.style.setProperty('--gc', GX_COL[it.g] || '#fff');
@@ -473,6 +500,13 @@ function showGacha(r, opt = {}) {   // v558 opt: { title, face(it) } — 병기 
     if (done) return; done = true; clearTimeout(timer);
     cards.forEach((c) => { c.classList.remove('tense'); c.classList.add('open'); });
     if (best >= 5) flash(best);
+    // v624 다 뒤집으면 — 등급별 장수 칩 · 새로 n · 진(3)↑ 가장 좋은 것에 「최고」 띠와 도는 빛살(그래픽 낮음이면 빛살 없음)
+    const cnt = []; r.items.forEach((it) => { cnt[it.g] = (cnt[it.g] || 0) + 1; });
+    const nNew = opt.fresh ? new Set(r.items.filter(opt.fresh).map((it) => it.k)).size : 0, nEq = r.got.filter((x) => x.equipped).length;
+    ov.querySelector('.gxs').innerHTML = cnt.map((n, gr) => (n ? `<span class="gxs-c" data-g="${gr}" data-n="${n}" style="--gc:${GX_COL[gr]}">${GRADES[gr]} <b>${n}</b></span>` : '')).join('')
+      + (opt.fresh ? `<span class="gxs-n">새로 <b>${nNew}</b></span>` : nEq ? `<span class="gxs-n">장착 <b>${nEq}</b></span>` : '');
+    if (best >= 3) cards.forEach((c, k) => { if (r.items[k].g === best) { c.classList.add('top'); if (optGfx() !== 'low') c.classList.add('rays'); c.insertAdjacentHTML('beforeend', '<em class="gx-rib">최고</em>'); } });
+    const ag = ov.querySelector('.again'); if (ag) { ag.classList.remove('hidden'); ag.disabled = !!opt.can && !opt.can(); }
     ov.querySelector('.skip').textContent = '닫기';
     ov.querySelector('.gxt').textContent = opt.done ? opt.done(best) : r.got.some((x) => x.equipped) ? '더 좋은 것은 바로 장착했어요' : `가장 좋은 것: ${GRADES[best]}`;
   };
@@ -486,7 +520,8 @@ function showGacha(r, opt = {}) {   // v558 opt: { title, face(it) } — 병기 
   };
   timer = setTimeout(next, 250);
   ov.querySelector('.skip').onclick = (e) => { e.stopPropagation(); if (done) close(); else finish(); };
-  ov.onclick = () => { if (done) close(); };
+  const ag = ov.querySelector('.again'); if (ag) ag.onclick = (e) => { e.stopPropagation(); if (done && !ag.disabled) opt.again(); };   // 같은 뽑기를 한 번 더(새 창으로 바뀐다)
+  ov.onclick = () => { if (done) close(); else finish(); };   // 뒤집는 중에 아무 데나 누르면 한꺼번에
 }
 function openWin(id, t = 0) { open = id; tab = t; document.body.classList.add('winopen'); $('panel').classList.add('open'); $('panel-dim').classList.add('open'); paintWin(); paintNav(); }
 // 상점 머리의 자정(한국 시각)까지 남은 시간 — 창이 상점일 때만 1초마다 고치고, 날이 바뀌면 창을 새로 그린다
@@ -769,7 +804,7 @@ function paintWin() {
     const tiles = document.createElement('div'); tiles.className = 'gch-tiles';
     const one = gachaCost(g.S.hero.lv, GA.lv);
     for (const n of [1, 10, 30]) {   // 뽑기권이 n장 있으면 뽑기권, 모자라면 은자(누르면 하는 일은 그대로)
-      const r = rowEl(`${n}번 뽑기`, tix >= n ? `뽑기권 ${n}장` : costTxt(one.map((x) => ({ k: x.k, n: Math.floor(x.n * n) }))), [['뽑기', act(() => { const r2 = g.pullGear(n); if (r2) showGacha(r2); return r2; })]]);
+      const r = rowEl(`${n}번 뽑기`, tix >= n ? `뽑기권 ${n}장` : costTxt(one.map((x) => ({ k: x.k, n: Math.floor(x.n * n) }))), [['뽑기', act(() => gearPull(n))]]);
       r.classList.add('gch-tile'); if (n === 10) r.classList.add('main');
       const btn = r.querySelector('.btn'); if (n !== 10) btn.classList.remove('primary');
       r.onclick = (e) => { if (!e.target.closest('.btn')) btn.click(); };   // 칸 어디를 눌러도 뽑기
@@ -838,7 +873,7 @@ function paintWin() {
     const c0 = card(`${D.name} 뽑기`, `천장 ${C.pity}/200`);
     // v558 병기 · 동료 · 영물 뽑기도 카드 뒤집기(높은 등급은 두근 · 번쩍) — 처음 얻은 것은 「새로」
     const GLY = { weapon: '兵', pal: '伴', relic: '靈' }[sys] || '抽';   // v610 줄 그림도 이 글자로 고른다
-    const pullFx = (n) => { const before = new Set(Object.keys(C.own)); const r = g.pullCollect(sys, n); if (r) showGacha({ items: r, got: [] }, { title: `${D.name} 뽑기`, done: (b) => `가장 좋은 것: ${GRADES[b]} · 새로 ${new Set(r.filter((x) => !before.has(String(x.k))).map((x) => x.k)).size}종`, face: (it) => `<img class="gx-coll" src="art/s2/coll/${sys}-${it.k}.webp" alt=""><b class="g${it.g}t">${GRADES[it.g]}</b><small>${esc(collName(sys, it.k))}</small>${before.has(String(it.k)) ? '' : '<i>새로</i>'}` }); return r; };
+    const pullFx = (n) => { const before = new Set(Object.keys(C.own)); const r = g.pullCollect(sys, n); if (r) showGacha({ items: r, got: [] }, { title: `${D.name} 뽑기`, again: act(() => pullFx(n)), can: () => (g.S.wallet[`ticket:${sys}`] || 0) >= n, fresh: (it) => !before.has(String(it.k)), done: (b) => `가장 좋은 것: ${GRADES[b]} · 새로 ${new Set(r.filter((x) => !before.has(String(x.k))).map((x) => x.k)).size}종`, face: (it) => `<img class="gx-coll" src="art/s2/coll/${sys}-${it.k}.webp" alt=""><b class="g${it.g}t">${GRADES[it.g]}</b><small>${esc(collName(sys, it.k))}</small>${before.has(String(it.k)) ? '' : '<i>새로</i>'}` }); return r; };
     c0(R(`뽑기권 ${W[`ticket:${sys}`] || 0}장`, '많이 가지면 모은 효과 · 낀 것은 장착 효과', [['1번', act(() => pullFx(1))], ['10번', act(() => pullFx(10))]], GLY));
     // v603 모음 격자 — 가진 것은 등급 빛깔로, 아직 없는 것도 흐리게 다 보인다(무엇을 모으는지 · 얼마나 모았는지)
     const nOwn = Object.keys(C.own).length;
@@ -3693,6 +3728,6 @@ load();
 if (g) boot();
 else pickJob();
 // 시험용 손잡이
-window.__s2 = { get g() { return g; }, dgIv: () => dgIv, ptRaf: () => ptRaf, followers: () => ({ ...followerN }), agTest: () => { frame.ag = 0; }, saverStart, saverOff, saverOn: () => saverOn, saverAge: (ms) => { if (saverFrom) saverFrom.at -= ms; }, saverSum: () => saverSum, retTest: (ms) => { const O = g.S.offline; O.lastSeen -= ms; O.clockMax -= ms; returnQueue(); }, impacts: () => impacts.length, motion: () => ({ hurt: heroHurtAt, down: heroDownAt, run: runMix, anim: heroAnim.active }), inviteTest: (c) => { inviteCode = c; inviteCheck(); }, shareGame, shareLast: () => shareLast, saverAutoTest: (on) => { saverAuto = !!on; }, wake: () => ({ lock: !!wakeLock, want: wakeWant, ok: wakeOK() }), wakeSync, wakeOpt: (on) => { opt.wake = !!on; return wakeSync(); }, saverTest: () => { saverForce = true; lastInput = -1e9; }, newsCheck, coachStep: () => coachStep, coachRect: () => (coachStep >= 0 ? coachRect(COACH[coachStep]) : null), nudgeTest: () => { lastInput = -1e9; nudgeAt = 0; return nudgeTick(); }, guildState, guildLoad, chatSend, worldSend, worldMsgs: () => worldState.msgs.map((m) => ({ uid: m.uid, nick: m.nick, text: m.text, lv: m.lv, job: m.job })), worldOn: () => !!worldState.unsub, worldReset: () => { worldState.lastAt = 0; worldState.lastText = ''; }, save, dayKey, attendPop, freeze: () => { frozen = true; }, net, cloudPush, rankPush, wbPush, wkStr, pvpInbox, pvpFetch, resetNetTimers: () => { pvpAt = 0; inboxAt = 0; },
+window.__s2 = { get g() { return g; }, lowGfx: () => opt.gfx === 'low', dgIv: () => dgIv, ptRaf: () => ptRaf, followers: () => ({ ...followerN }), agTest: () => { frame.ag = 0; }, saverStart, saverOff, saverOn: () => saverOn, saverAge: (ms) => { if (saverFrom) saverFrom.at -= ms; }, saverSum: () => saverSum, retTest: (ms) => { const O = g.S.offline; O.lastSeen -= ms; O.clockMax -= ms; returnQueue(); }, impacts: () => impacts.length, motion: () => ({ hurt: heroHurtAt, down: heroDownAt, run: runMix, anim: heroAnim.active }), inviteTest: (c) => { inviteCode = c; inviteCheck(); }, shareGame, shareLast: () => shareLast, saverAutoTest: (on) => { saverAuto = !!on; }, wake: () => ({ lock: !!wakeLock, want: wakeWant, ok: wakeOK() }), wakeSync, wakeOpt: (on) => { opt.wake = !!on; return wakeSync(); }, saverTest: () => { saverForce = true; lastInput = -1e9; }, newsCheck, coachStep: () => coachStep, coachRect: () => (coachStep >= 0 ? coachRect(COACH[coachStep]) : null), nudgeTest: () => { lastInput = -1e9; nudgeAt = 0; return nudgeTick(); }, guildState, guildLoad, chatSend, worldSend, worldMsgs: () => worldState.msgs.map((m) => ({ uid: m.uid, nick: m.nick, text: m.text, lv: m.lv, job: m.job })), worldOn: () => !!worldState.unsub, worldReset: () => { worldState.lastAt = 0; worldState.lastText = ''; }, save, dayKey, attendPop, freeze: () => { frozen = true; }, net, cloudPush, rankPush, wbPush, wkStr, pvpInbox, pvpFetch, resetNetTimers: () => { pvpAt = 0; inboxAt = 0; },
   // v525 팝업 대신 에뮬레이터용 가짜 Google 토큰으로 잇기 · 겹치면 그 계정으로
   linkTest: async (tok) => { const r = await net.linkGoogle(tok); if (r.conflict) { const d = await net.switchTo(r.cred); if (d) applyCloud(d); return 'switched'; } await cloudPush(true); return 'linked'; } };

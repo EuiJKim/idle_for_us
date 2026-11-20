@@ -251,10 +251,18 @@ const ok = (c, m, x = '') => { console.log(`  ${c ? '✓' : '✗ !!'} ${m}${x !=
       await page.click('#fc'); await page.waitForSelector('#modal:not(.hidden) .fate-card');
       const c4 = await chip();
       ok(!c3.modal && c3.ready === 1 && c3.on && c4.cards.join('|') === c2.cards.join('|'), 'v604 닫았다 다시 열어도 같은 카드(다시 굴리지 않음)', c4.cards.join(' | '));
+      // v6xx 기연 카드 — 뒷면(緣)으로 깔리고 뒤집힘 · 앞면 그림이 뜬다 · 깔리는 중에 누르면 고르지 않고 바로 앞면
+      { const fv = () => page.evaluate(() => { const r = document.querySelector('#modal .fate-row'); return { deal: r.classList.contains('fate-deal'), up: r.classList.contains('fate-up'), backs: r.querySelectorAll('.fate-back em').length, imgs: [...r.querySelectorAll('.fate-ic img')].map((im) => im.complete && im.naturalWidth > 0), tiers: [...r.querySelectorAll('.fate-card')].map((b) => [...b.classList].find((c) => /^fate-t[cbp]$/.test(c))), ready: window.__s2.g.fateState().ready, modal: !document.getElementById('modal').classList.contains('hidden') }; });
+        const f0 = await fv();
+        await page.evaluate(() => { const b = document.querySelectorAll('#modal .fate-card')[1]; b.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })); b.click(); });   // 깔리는 중(0.9초 안)에 바로 — 손가락 탭과 같은 순서
+        const f1 = await fv();
+        ok(f0.deal && !f0.up && f0.backs === 3 && f1.up && !f1.deal && f1.ready === 1 && f1.modal, 'v6xx 기연 카드 — 뒷면으로 깔림 · 깔리는 중에 누르면 고르지 않고 앞면으로', JSON.stringify({ f0: [f0.deal, f0.up, f0.backs], f1: [f1.up, f1.ready, f1.modal] }));
+        const f2 = await until(fv, (v) => v.imgs.length === 3 && v.imgs.every(Boolean));
+        ok(f2.imgs.length === 3 && f2.imgs.every(Boolean) && f2.tiers.every(Boolean), 'v6xx 기연 카드 앞면 그림 셋이 뜬다 · 등급 테두리', JSON.stringify({ imgs: f2.imgs, tiers: f2.tiers })); }
       // 고르기 — 경험치가 아닌 카드(지갑으로 바로 셀 수 있는 것)
       const pick = async () => {
         const p = await page.evaluate(() => { const g = window.__s2.g, cs = g.fateState().cards, i = cs.findIndex((c) => c.k !== 'exp'); return { i, k: cs[i].k, n: cs[i].n, w: g.S.wallet[cs[i].k] || 0 }; });
-        await page.click(`#modal .fate-card >> nth=${p.i}`);
+        await page.waitForSelector('#modal .fate-row.fate-up'); await page.click(`#modal .fate-card >> nth=${p.i}`);
         return { ...p, toast: await until(() => page.evaluate(() => [...document.querySelectorAll('#toast .toast')].map((x) => x.textContent).filter((x) => x.startsWith('기연 — ')).pop() || ''), (v) => !!v, 2000), w1: await page.evaluate((k) => window.__s2.g.S.wallet[k] || 0, p.k) };
       };
       const p1 = await pick(); got.push(p1);
@@ -869,6 +877,23 @@ const ok = (c, m, x = '') => { console.log(`  ${c ? '✓' : '✗ !!'} ${m}${x !=
     ok((await page.$$('.gx .gc.open')).length === 10, '건너뛰기 → 전부 뒤집힘');
     await page.click('.gx .skip');
     ok(!(await page.$('.gx')), '닫기 → 연출 사라짐');
+    // v624 뽑기 결과 — 뒤집는 중 아무 데나 누르면 한꺼번에 · 등급 칩 합 = 뽑은 수 · 진↑가 있으면 「최고」 띠 · 빛살 · 「한 번 더」 → 같은 뽑기 다시(뽑기권 또 10장)
+    { await page.evaluate(() => { window.__s2.g.S.wallet['ticket:gear'] = Math.max(20, window.__s2.g.S.wallet['ticket:gear'] || 0); });
+      const k0 = await page.evaluate(() => window.__s2.g.S.wallet['ticket:gear']);
+      await page.click('#wb .row:has-text("10번 뽑기") .btn'); await page.waitForSelector('.gx');
+      await page.mouse.click(8, 8); await page.waitForTimeout(150);
+      const gs = () => page.evaluate(() => { const q = (s) => [...document.querySelectorAll(s)], gOf = (c) => +c.className.match(/\bg(\d)\b/)[1], gr = q('.gx .gc').map(gOf), best = Math.max(...gr), lowGfx = !!window.__s2.lowGfx?.();
+        const b = document.querySelector('.gx .gxb').getBoundingClientRect(), t = document.querySelector('.gx .gxt').getBoundingClientRect();
+        return { n: gr.length, open: q('.gx .gc.open').length, sum: q('.gx .gxs-c').reduce((a, c) => a + +c.dataset.n, 0), chips: q('.gx .gxs span').map((x) => x.textContent).join(' · '), best, top: q('.gx .gc.top').map(gOf), rays: q('.gx .gc.rays').length, rib: q('.gx .gc .gx-rib').length, lowGfx, again: !!document.querySelector('.gx .again:not(.hidden):not(:disabled)'), skip: document.querySelector('.gx .skip')?.textContent, tk: window.__s2.g.S.wallet['ticket:gear'], fit: t.top >= 0 && b.bottom <= innerHeight }; });
+      const a = await gs();
+      const topOk = (v) => (v.best >= 3 ? v.top.length >= 1 && v.top.every((x) => x === v.best) && v.rib === v.top.length && (v.lowGfx ? v.rays === 0 : v.rays === v.top.length) : v.top.length === 0 && v.rays === 0 && v.rib === 0);
+      ok(a.open === 10 && a.skip === '닫기' && a.sum === 10 && a.again && a.fit, `v624 뽑기 결과 — 아무 데나 누르면 한꺼번에 · 등급 칩 합 10 · 「한 번 더」 · 화면 안(${W})`, a.chips);
+      ok(topOk(a), 'v624 뽑기 결과 — 진↑가 있으면 가장 좋은 것에만 「최고」 띠 · 빛살(없으면 없음)', JSON.stringify({ best: a.best, top: a.top, rays: a.rays }));
+      await page.click('.gx .again'); await page.waitForTimeout(100);
+      ok(k0 - a.tk === 10 && (await page.evaluate(() => window.__s2.g.S.wallet['ticket:gear'])) === a.tk - 10 && (await page.$$('.gx .gc')).length === 10 && (await page.$$('.gx .gc.open')).length < 10, 'v624 「한 번 더」 → 같은 10번 뽑기 다시(뽑기권 또 10장 · 새 카드)', `${k0} → ${a.tk} → ${a.tk - 10}`);
+      await page.click('.gx .skip'); await page.waitForTimeout(150); const b = await gs(); ok(b.sum === 10 && topOk(b), 'v624 다시 뽑은 결과도 칩 합 10 · 최고 표시 맞음', b.chips);
+      await page.screenshot({ path: path.join(OUT, `gx-sum-${W}.png`) });
+      await page.click('.gx .skip'); ok(!(await page.$('.gx')), 'v624 닫기 → 연출 사라짐'); }
     await page.click('#panel-close');
     ok(!(await page.evaluate(() => document.getElementById('panel').classList.contains('open'))), '창 닫기');
     await page.click('#b-opt'); ok(/설정/.test(await page.textContent('#panel-title')) && /진동/.test(await page.textContent('#wb')) && !/효과음|배경 가락/.test(await page.textContent('#wb')) && !(await page.$('#btn-sound')), '⚙ → 설정 창(v601 소리 없음)'); await page.click('#panel-close');
