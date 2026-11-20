@@ -187,6 +187,19 @@ const ok = (c, m, x = '') => { console.log(`  ${c ? '✓' : '✗ !!'} ${m}${x !=
     await page.click('#mb .nb[data-tab="dgn"]'); await page.waitForTimeout(200);
     await page.click('#panel-body .subtabs button:has-text("토벌")'); await page.waitForTimeout(200);
     ok(/오늘 2 \/ 2번/.test(await page.textContent('#panel-body')) && await page.isVisible('#wb .rdrow'), 'v541 토벌 목록(남은 횟수 · 깬 두목)');
+    { // 토벌 화면(rd-) — 남은 횟수 점 = 엔진 · 별 칩 셋 · 깬 두목 수만큼 카드 · 그림이 뜬다 · 별 셋이면 금테(색칠한 별 셋)
+      const r0 = await page.evaluate(() => JSON.stringify(window.__s2.g.S.raid ?? null));
+      await page.evaluate(() => { const g = window.__s2.g; g.S.raid ??= { star: {}, best: {} }; g.S.raid.star = { ...(g.S.raid.star || {}), 1: 3 }; });
+      await page.click('#panel-body .subtabs button:has-text("수련동")'); await page.waitForTimeout(150);
+      await page.click('#panel-body .subtabs button:has-text("토벌")'); await page.waitForTimeout(200);
+      const im = await until(() => page.evaluate(() => [...document.querySelectorAll('#wb .rd-card .rdimg')].map((i) => i.complete && i.naturalWidth > 0)), (v) => v.length && v.every(Boolean));
+      const rd = await page.evaluate(() => { const g = window.__s2.g, q = (s) => document.querySelectorAll(s); const g1 = document.querySelector('#wb .rd-card.rd-gold');
+        return { pips: q('#wb .rd-pips i').length, on: q('#wb .rd-pips i.on').length, left: g.raidLeft(), chips: q('#wb .rd-chip').length, cards: q('#wb .rd-card').length, beat: Object.keys(g.S.chb || {}).filter((c) => +c >= 1 && +c <= 15).length,
+          gold: q('#wb .rd-gold').length, goldSt: g1 ? g1.querySelectorAll('.rd-st i.on').length : 0, btns: q('#wb .rd-card .rd-btns .btn').length, empty: q('#wb .rd-empty').length, over: document.querySelector('#wb').scrollWidth - document.querySelector('#wb').clientWidth }; });
+      ok(rd.pips === 2 && rd.on === rd.left && rd.chips === 3 && rd.cards === rd.beat && rd.cards >= 1 && im.every(Boolean) && rd.gold === 1 && rd.goldSt === 3 && rd.btns === rd.cards * 2 && !rd.empty && rd.over <= 0, '토벌 화면: 횟수 점 · 별 칩 셋 · 깬 두목 카드(그림) · 별 셋 금테', JSON.stringify(rd));
+      await page.evaluate((s) => { const g = window.__s2.g, v = JSON.parse(s); if (v) g.S.raid = v; else delete g.S.raid; }, r0);
+      await page.click('#panel-body .subtabs button:has-text("수련동")'); await page.waitForTimeout(150);
+      await page.click('#panel-body .subtabs button:has-text("토벌")'); await page.waitForTimeout(200); }
     await page.click('#wb .rdrow .btn:has-text("토벌")'); await page.waitForTimeout(400);
     ok(await page.evaluate(() => !!window.__s2.g.bossFight?.def.raid) && await page.isVisible('.chbin'), 'v541 토벌 시작 — 등장 컷');
     await page.evaluate(() => { window.__s2.g.endChallenge(true); });
@@ -488,6 +501,25 @@ const ok = (c, m, x = '') => { console.log(`  ${c ? '✓' : '✗ !!'} ${m}${x !=
       await page.click('#panel-close');
       ok(await page.evaluate(() => window.__s2.dgIv() === 0), 'v6xx 창을 닫으면 시계 멈춤');
       await page.evaluate(() => { const g = window.__s2.g, T = window.__t, W = g.S.wallet; g.S.exped = JSON.parse(T.exped); for (const k of Object.keys(W)) delete W[k]; Object.assign(W, JSON.parse(T.wallet)); delete window.__t; });
+      await free(a0); }
+    // 경지 · 강호행 그림 — 둥근 눈금(가운데 경지) · 10레벨 표 열 개(심법 셋) · 다음 값 · 올리면 금빛 물결 / 굽은 길 일곱 칸 · 지금 두목 칸 빛남 · 두목 그림 · Lv(엔진 셈) · 열기 값
+    { const a0 = await hold();
+      await page.evaluate(() => { const g = window.__s2.g; window.__t = { realm: JSON.stringify(g.S.realm), journey: JSON.stringify(g.S.journey), wallet: JSON.stringify(g.S.wallet) }; g.S.realm.lv = 23; g.S.wallet.gold = 1e12; g.S.journey.step = 4; g.S.journey.cleared = 6; });
+      await page.click('.nb[data-tab="town"]'); await sub('경지'); await page.waitForSelector('#wb .rl-gauge');
+      const rl = () => page.evaluate(() => ({ lv: document.querySelector('#wb .rl-lv')?.textContent, mk: document.querySelectorAll('#wb .rl-mk').length, on: document.querySelectorAll('#wb .rl-mk.on').length, heart: document.querySelectorAll('#wb .rl-mk.rl-heart').length, p: document.querySelector('#wb .rl-gauge')?.style.getPropertyValue('--p'), cost: document.querySelector('#wb .rl-cost b')?.textContent || '', gain: [...document.querySelectorAll('#wb .rl-gain b')].map((x) => x.textContent).join(' '), rip: document.querySelectorAll('#wb .rl-ripple').length, eng: window.__s2.g.S.realm.lv, low: window.__s2.lowGfx() }));
+      const r0 = await rl();
+      ok(r0.lv === '23' && r0.mk === 10 && r0.on === 2 && r0.heart === 3 && r0.p === '100.0%' && /^\S+$/.test(r0.cost) && r0.gain === '공격 +0.7% 체력 +0.8%' && r0.rip === 0, '경지 — 둥근 눈금(가운데 23) · 10레벨 표 열 개(둘 켜짐 · 심법 셋) · 다음 값 · 한 단계마다 공격 +0.7% 체력 +0.8%', JSON.stringify(r0));
+      await page.click('#wb .row:has(.name:text-is("경지 올리기")) .btn:text-is("올리기")');
+      const r1 = await until(rl, (v) => v.lv === '24');
+      ok(r1.lv === '24' && r1.eng === 24 && (r1.low ? r1.rip === 0 : r1.rip === 2), '경지 올리기 → 24 · 금빛 물결(낮은 그래픽이면 없음)', JSON.stringify({ lv: r1.lv, rip: r1.rip }));
+      await sub('강호행'); await page.waitForSelector('#wb .rl-path .rl-node');
+      const j0 = await until(() => page.evaluate(() => { const im = document.querySelector('#wb .rl-boss img'); if (im) im.loading = 'eager'; return { n: document.querySelectorAll('#wb .rl-node').length, cur: [...document.querySelectorAll('#wb .rl-node.rl-cur')].map((x) => x.dataset.n), won: document.querySelectorAll('#wb .rl-node.rl-won').length, img: !!im && im.complete && im.naturalWidth > 0, blv: document.querySelector('#wb .rl-blv')?.textContent, open: document.querySelector('#wb .rl-open b')?.textContent, btn: ['도전', '열기'].map((t) => [...document.querySelectorAll('#wb .row .btn')].some((b) => b.textContent === t)) }; }), (v) => v.img);
+      ok(j0.n === 7 && j0.cur.join() === '7' && j0.won === 2 && j0.img && j0.blv === `Lv ${Math.round(40 + 6 * 1.8)}` && j0.open === '5만' && j0.btn.every(Boolean), '강호행 — 굽은 길 일곱 칸 · 7단계 두목 칸 빛남 · 두목 그림 · Lv 51 · 열기 5만 · 「도전」「열기」', JSON.stringify(j0));
+      await page.click('#wb .row:has(.name:text-is("다음 단계 열기")) .btn');
+      const j1 = await until(() => page.evaluate(() => ({ step: window.__s2.g.S.journey.step, done: document.querySelectorAll('#wb .rl-node.rl-done').length })), (v) => v.step === 5);
+      ok(j1.step === 5 && j1.done === 1, '다음 단계 열기 → 5단계 · 길 칸이 열림으로', JSON.stringify(j1));
+      await page.click('#panel-close');
+      await page.evaluate(() => { const g = window.__s2.g, T = window.__t, W = g.S.wallet; g.S.realm = JSON.parse(T.realm); g.S.journey = JSON.parse(T.journey); for (const k of Object.keys(W)) delete W[k]; Object.assign(W, JSON.parse(T.wallet)); g.dirtyStats = true; delete window.__t; });
       await free(a0); }
     // v605 동행 — 던전 → 동행: 오프라인이면 연습 동행 셋(「연습」) · 둘 고르고 「출발」 → 결과 창(셋 · 몫 막대) · 오늘 횟수 하나 줄어듦
     { const a0 = await hold();
@@ -827,7 +859,18 @@ const ok = (c, m, x = '') => { console.log(`  ${c ? '✓' : '✗ !!'} ${m}${x !=
       await sub('무공 강화');
       const t = await page.evaluate(() => { const wb = document.getElementById('wb'); return { cols: document.querySelectorAll('#wb .sk-tree .sk-col').length, nodes: document.querySelectorAll('#wb .sk-tree .sk-node .btn').length, pts: /^\d+$/.test(document.querySelector('#wb .sk-pts b')?.textContent || ''), reset: /트리 초기화/.test(document.querySelector('#wb .sk-reset')?.textContent || ''), over: wb.scrollWidth - wb.clientWidth }; });
       ok(t.cols === 3 && t.nodes >= 4 && t.pts && t.reset && t.over <= 1, '무공 강화 창: 단 셋 · 칸마다 올리기 · 남은 점수 · 트리 초기화 · 넘침 없음', JSON.stringify(t));
-      await page.click('#panel-close'); }
+      // 전직 사다리(jb-) — 차수 카드 다섯 · 마친 차수 = 금빛 도장 수 = 엔진 · 다음 차수에 「도전」 또는 「Lv n부터」 · 왼쪽 무인이 그려진다 · 넘침 없음
+      await sub('전직');
+      const jb = await until(() => page.evaluate(() => { const H = window.__s2.g.S.hero, v = document.querySelector('#wb canvas.jb-cv'), wb = document.getElementById('wb'); let drawn = false; if (v) { const d = v.getContext('2d').getImageData(0, 0, v.width, v.height).data; for (let i = 3; i < d.length; i += 16) if (d[i] > 200) { drawn = true; break; } }
+        const nx = document.querySelector('#wb .jb-next');
+        return { n: document.querySelectorAll('#wb .jb-t').length, seals: document.querySelectorAll('#wb .jb-t .jb-seal').length, adv: H.adv, nm: [...document.querySelectorAll('#wb .jb-nm')].map((e) => e.textContent).join(','), nextN: nx ? +nx.dataset.n : 0, go: nx ? (nx.querySelector('.btn')?.textContent || nx.querySelector('.jb-hint')?.textContent || '') : '', lv: H.lv, drawn, over: wb.scrollWidth - wb.clientWidth }; }), (v) => v.drawn);
+      ok(jb.n === 5 && jb.seals === jb.adv && /^1차 전직,2차 전직/.test(jb.nm) && jb.nextN === jb.adv + 1 && (jb.go === '도전' || jb.go === `Lv ${[1, 20, 50, 80, 100, 120][jb.nextN]}부터 · 지금 Lv ${jb.lv}`) && jb.drawn && jb.over <= 1, '전직 창: 차수 카드 다섯 · 도장 수 = 엔진 차수 · 다음 차수에 도전/레벨 안내 · 무인 그림 · 넘침 없음', JSON.stringify(jb));
+      await page.click('#panel-close');
+      await page.evaluate(() => window.__s2.g.feed.push({ k: 'advance', n: 1 }));
+      const bn = await until(() => page.evaluate(() => document.querySelector('.jb-ban b')?.textContent || ''), (v) => !!v);
+      ok(/^1차 전직 — \S+$/.test(bn), '전직 순간 — 화면 가득 「1차 전직 — 이름」', bn);
+      await page.click('.jb-ban'); await page.waitForTimeout(50);
+      ok(!(await page.$('.jb-ban')), '전직 띠는 누르면 바로 닫힌다'); }
     let tabsSeen = 0; const empty = [], outside = [], picTabs = [], picBad = []; let picN = 0, picUp = 0;
     await page.click('.nb[data-tab] >> nth=0');
     ok((await page.$$('#ptabs button')).length === 7 && await page.evaluate(() => document.getElementById('panel').classList.contains('open')), '아래에서 창이 올라오고 창 머리에 창 줄 일곱');
@@ -842,7 +885,7 @@ const ok = (c, m, x = '') => { console.log(`  ${c ? '✓' : '✗ !!'} ${m}${x !=
         const sc = await scan();   // v610 이상한 글자([object Object]도) · 줄 그림 아이콘
         if (sc.txt) empty.push(`${name}:글자(${sc.txt})`);
         picN += sc.n; picUp += sc.up; if (sc.up) picTabs.push(name); for (const x of sc.bad) picBad.push(`${name}:${x}`);
-        for (const bt of await page.$$('#wb button:not(#pass-track button)')) {   /* v611 패스 줄은 옆으로 넘기는 줄이라 화면 밖 칸이 있다 */  const r = await bt.boundingBox(); if (r && (W < H ? r.y < 0 || r.y + r.height > H + 1 : r.x < 0 || r.x + r.width > W + 1)) outside.push(name); /* 돌린 화면이면 게임의 가로 = 기기의 세로 */ }
+        for (const bt of await page.$$('#wb button:not(#pass-track button):not(.mp-ch)')) {   /* v611 패스 줄 · v6xx 지도 장 카드 띠는 옆으로 넘기는 줄이라 화면 밖 칸이 있다 */  const r = await bt.boundingBox(); if (r && (W < H ? r.y < 0 || r.y + r.height > H + 1 : r.x < 0 || r.x + r.width > W + 1)) outside.push(name); /* 돌린 화면이면 게임의 가로 = 기기의 세로 */ }
       }
     }
     ok(tabsSeen >= 24, '창 탭 전부 열어 봄', tabsSeen);
@@ -866,6 +909,23 @@ const ok = (c, m, x = '') => { console.log(`  ${c ? '✓' : '✗ !!'} ${m}${x !=
       await page.waitForTimeout(400); await page.mouse.click(4, 4); await page.waitForTimeout(200);
       ok(await page.isHidden('#modal'), 'v613 자세히 창 — 바깥을 누르면 닫힘');
       await page.evaluate((t) => { window.__s2.g.stage().top = t; }, top0); }
+    // v6xx 지도 → 스테이지 — 칸 길 10칸(두목 칸 · 지금 칸 · 깬 칸) · 장 카드 15장(배경 · 두목 · 진행 줄 · 잠김) · 지금 장이 띠 안에 보임 · 연 장을 누르면 그 장으로 · 「다음 칸 ▶」
+    { const a0 = await hold(), s0 = await page.evaluate(() => { const T = window.__s2.g.stage(), r = { top: T.top, idx: T.idx }; T.top = 57; T.idx = 54; T.kills = 0; return r; });
+      await page.click('#ptabs button[data-tab="map"]'); await sub('스테이지'); await page.waitForSelector('#wb .mp-strip .mp-ch.cur'); await page.waitForTimeout(250);
+      const m = await page.evaluate(() => { const s = document.querySelector('#wb .mp-strip'), c = s.querySelector('.mp-ch.cur'), sr = s.getBoundingClientRect(), cr = c.getBoundingClientRect();
+        return { ch: s.querySelectorAll('.mp-ch').length, lock: s.querySelectorAll('.mp-ch.lock').length, cur: c.dataset.ch, inView: cr.left >= sr.left - 1 && cr.right <= sr.right + 1, prog: c.querySelector('.mp-p small')?.textContent,
+          n: document.querySelectorAll('#wb .mp-n').length, now: document.querySelectorAll('#wb .mp-n.now').length, clr: document.querySelectorAll('#wb .mp-n.clr').length, boss: !!document.querySelector('#wb .mp-n.boss:last-child img'),
+          btns: [...document.querySelectorAll('#wb .mp-track .btn')].map((b) => b.textContent), auto: /두목 자동 도전/.test(document.getElementById('wb').textContent), sw: document.getElementById('panel-body').scrollWidth - document.getElementById('panel-body').clientWidth }; });
+      ok(m.ch === 15 && m.lock === 9 && m.cur === '6' && m.inView && m.prog === '10칸 중 6' && m.n === 10 && m.now === 1 && m.clr === 6 && m.boss && m.btns.join() === '◀ 앞 칸,다음 칸 ▶' && m.auto && m.sw <= 1, 'v6xx 지도: 칸 길 10칸 · 장 카드 15장(잠김 9) · 지금 장이 보임', JSON.stringify(m));
+      for (const c of await page.$$('#wb .mp-ch')) await c.scrollIntoViewIfNeeded();
+      const im = await until(() => page.evaluate(() => [...document.querySelectorAll('#wb .mp-strip img, #wb .mp-n img')].map((i) => i.complete && i.naturalWidth > 0)), (v) => v.every(Boolean));
+      ok(im.length === 31 && im.every(Boolean), 'v6xx 지도: 장 배경 · 두목 그림이 뜬다', `${im.filter(Boolean).length}/${im.length}`);
+      await page.click('#wb .mp-ch[data-ch="5"]'); await page.waitForTimeout(150);
+      const i1 = await page.evaluate(() => window.__s2.g.stage().idx);
+      await page.click('#wb .mp-track .btn:has-text("다음 칸")'); await page.waitForTimeout(150);
+      const i2 = await page.evaluate(() => ({ idx: window.__s2.g.stage().idx, cur: document.querySelector('#wb .mp-ch.cur')?.dataset.ch, lockOff: document.querySelector('#wb .mp-ch[data-ch="9"]').disabled }));
+      ok(i1 === 50 && i2.idx === 51 && i2.cur === '6' && i2.lockOff, 'v6xx 지도: 5장 카드 → 5장 끝 칸 · 「다음 칸 ▶」 → 6장 1칸 · 잠긴 장은 못 누름', `${i1} → ${JSON.stringify(i2)}`);
+      await page.evaluate((r) => { const T = window.__s2.g.stage(); T.top = r.top; T.idx = r.idx; T.kills = 0; }, s0); await free(a0); }
     await page.click('#ptabs button[data-tab="bag"]'); await page.click('#panel-body .subtabs button >> nth=1');
     const t0 =await page.evaluate(() => window.__s2.g.S.wallet['ticket:gear']);
     await page.click('#wb .row:has-text("10번 뽑기") .btn');

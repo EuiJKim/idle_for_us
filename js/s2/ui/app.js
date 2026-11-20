@@ -18,9 +18,9 @@ import { hasBodyArt, artReady as artReadyNow } from '../../art.js';
 import { RELIC_FIELD, RELIC_EXTRA, PAL_FIELD } from '../tables/relicfield.js';   // v6xx 사냥터 따르는 무리
 import { JOBS } from '../tables/char.js';
 import { SP_KEYS, SP_EACH, SP_CAP } from '../hero/hero.js';
-import { SKILLS, MASTERY } from '../tables/skills.js';
+import { SKILLS, MASTERY, JOB_ADV } from '../tables/skills.js';
 import { JOB_LV, LEVEL_MAX } from '../tables/progress.js';
-import { COLLECT, AWAKE_NEED, AWAKE_MAX, AWAKE_STEP_P, TOTAL_AWAKE_P, TOTAL_AWAKE_CAP, COLLECT_LV_MAX, COLLECT_LV_P, collectLvCost } from '../tables/s5.js';
+import { COLLECT, AWAKE_NEED, AWAKE_MAX, AWAKE_STEP_P, TOTAL_AWAKE_P, TOTAL_AWAKE_CAP, COLLECT_LV_MAX, COLLECT_LV_P, collectLvCost, REALM_MAX, REALM_ATK_P, REALM_HP_P, realmCost, heartLines, JOURNEY_MAX, JOURNEY_STEP_P, journeyCost } from '../tables/s5.js';
 import { DAILY_DUNGEONS, DAILY_RUNS, EXPEDITION, TOWER_MAX, TOWER_BONUS, STAMINA } from '../tables/content.js';
 import { GUIDE, DAILY_MISSIONS, WEEKLY_MISSIONS, guideCurrent, achievements, ACHIEVE } from '../tables/missions.js';
 const ACH = achievements(), achById = new Map(ACH.map((a) => [a.id, a]));
@@ -573,6 +573,8 @@ function navDots() {
 }
 // 무공 아이콘(art/s2/skill/<id>.webp) — 그림이 안 뜨면 빛깔 동그라미에 첫 글자
 const skIco = (sk) => `<span class="sk-ic" style="--c:${sk.col}"><b>${esc(sk.name[0])}</b><img src="art/s2/skill/${sk.id}.webp" alt="" decoding="async" onerror="this.remove()"></span>`;
+let mpScroll = { ch: 0, x: 0 };   // v6xx 지도 장 카드 띠 — 다시 그려도 넘긴 자리 그대로 · 장이 바뀌면 지금 장으로
+let rlBurst = 0;   // 경지를 막 올린 때 — 다음 그리기에서 금빛 물결 한 번
 function act(fn) { return () => { play('click'); const r = fn(); if (r === null || r === false) toast('할 수 없어요(재료·조건)'); save(); paintWin(); paintHud(); return r; }; }
 // 한 줄 — 지금 게임의 .row(.info .name · .desc · 단추). 첫 단추는 붉은 주 단추
 function rowEl(k, v, btns = []) {
@@ -741,12 +743,35 @@ function paintWin() {
       c(r);
     }
   } else if (key === 'hero:3') {
-    const n = g.S.hero.adv + 1;
-    const c = card(`${JOBS[g.S.hero.job].name} ${g.S.hero.adv}차`, '전직마다 무공이 열리고 체력이 오른다');
+    // 전직 사다리(jb-) — 왼쪽 큰 무인(지금 모습) · 오른쪽 다섯 차수 카드(이름 · 레벨 문 · 여는 무공 · 공격/체력 보너스) · 마친 차수는 금빛 도장
+    const H = g.S.hero, n = H.adv + 1, low = opt.gfx === 'low';
+    const wrap = document.createElement('div'); wrap.className = `jb${low ? ' jb-low' : ''}`; add(wrap);
+    const side = document.createElement('div'); side.className = 'jb-side';
+    const cvs = document.createElement('canvas'); cvs.className = 'jb-cv'; cvs.width = 220; cvs.height = 280;
+    const sumP = JOB_ADV.slice(1, H.adv + 1).reduce((a, x) => a + x.atkP, 0);
+    side.innerHTML = `<div class="jb-me"><small>${JOBS[H.job].name} · Lv ${H.lv}</small><b>${H.adv ? `${H.adv}차 ${esc(jbTitle(H.job, H.adv))}` : '아직 전직 전'}</b><span>${sumP ? `전직 보너스 공격 · 체력 +${sumP / 10}%` : '1차 전직부터 무공과 보너스가 붙어요'}</span></div>`;
+    side.prepend(cvs); wrap.append(side);
+    const lad = document.createElement('div'); lad.className = 'jb-lad'; wrap.append(lad);
     for (let i = 1; i < JOB_LV.length; i++) {
-      const done = g.S.hero.adv >= i;
-      c(R(`${i}차 전직`, done ? '마침' : `${g.S.hero.lv < JOB_LV[i] ? lvHint(JOB_LV[i]) : `Lv ${JOB_LV[i]}`} · 전직 던전을 깨면`, i === n ? [['도전', () => { play('click'); if (!g.enterDungeon('job')) toast(g.canDungeon('job') || '들어갈 수 없어요'); }, g.S.hero.lv < JOB_LV[i]]] : [], `i:job:${done ? '轉' : i}`));
+      const done = H.adv >= i, next = i === n, sks = (KIT[H.job] || []).filter((x) => x.tier === i);
+      const el = document.createElement('div'); el.className = `jb-t${done ? ' jb-done' : ''}${i === H.adv ? ' jb-cur' : ''}${next ? ' jb-next' : ''}`; el.dataset.n = String(i);
+      el.innerHTML = `<span class="jb-no"><b>${i}</b>차</span><div class="jb-tx"><h4><span class="jb-nm">${i}차 전직</span> <em>${esc(jbTitle(H.job, i))}</em> <small>Lv ${JOB_LV[i]}</small></h4><p>${sks.length ? `무공 ${sks.map((x) => esc(x.name)).join(' · ')}` : '무공 없음'} · 공격 · 체력 +${JOB_ADV[i].atkP / 10}%</p></div>`;
+      const end = document.createElement('div'); end.className = 'jb-end'; el.append(end);
+      if (done) end.innerHTML = '<span class="jb-seal">轉</span>';
+      else if (next && H.lv < JOB_LV[i]) end.innerHTML = `<small class="jb-hint">${lvHint(JOB_LV[i])}</small>`;
+      else if (next) { const b = document.createElement('button'); b.className = 'btn primary'; b.textContent = '도전'; b.onclick = () => { play('click'); if (!g.enterDungeon('job')) toast(g.canDungeon('job') || '들어갈 수 없어요'); }; end.append(b); }
+      else end.innerHTML = `<small class="jb-hint">${i - 1}차 다음</small>`;
+      lad.append(el);
     }
+    // 무인 — 창이 열려 있는 동안만 그린다(닫거나 다른 칸이면 멈춤) · 낮은 그래픽은 숨쉬기 없이 그림이 받아질 때까지 몇 번만
+    { let last = 0, k = 0; const paint = (ts) => {
+        if (!cvs.isConnected || !open) return;
+        if (ts - last > (low ? 400 : 50)) { last = ts; k++; const t = low ? 0 : now() / 1000, x = cvs.getContext('2d'); x.clearRect(0, 0, 220, 280);
+          const gr = x.createRadialGradient(110, 190, 8, 110, 190, 120 + (low ? 0 : Math.sin(t * 1.5) * 8)); gr.addColorStop(0, H.adv ? '#e8c26a55' : '#ffffff22'); gr.addColorStop(1, 'rgba(0,0,0,0)'); x.fillStyle = gr; x.fillRect(0, 0, 220, 280);
+          drawHero(x, 110, 262, H.job, H.lv, { t, scale: 2.1, eq: g.lookEq() }); }
+        if (low && k >= 8) return;
+        requestAnimationFrame(paint);
+      }; requestAnimationFrame(paint); }
   } else if (key === 'gear:0') {
     // 장착 — 가운데 무인 · 양옆 다섯 칸씩 · 칸을 누르면 아래에 자세히
     // gr- 칸: 등급 빛 테두리 · +강화(오른쪽 위) · ★성혼(왼쪽 아래) · ▲ 가방에 더 좋은 것 / 가운데: 큰 전투력 · 공격 · 체력 · 방어 · 평균 등급 빛
@@ -889,27 +914,70 @@ function paintWin() {
     c1(grid);
     if (!nOwn) c1(note('아직 모은 것이 없어요 — 왼쪽 뽑기로 모아요. 가지기만 해도 효과가 붙고, 좋은 것은 저절로 낍니다.'));
   } else if (key === 'grow:3') {
-    const R2 = g.S.realm;
-    const c = card(`경지 ${R2.lv}`, '계정 공용 · 공격 · 체력');
-    c(R('경지 올리기', '값을 내면 바로 오름', [['올리기', act(() => g.realmUp())]], '境'));
+    // 경지 — 둥근 돌파 눈금(모은 은자 / 다음 값) · 가운데 큰 경지 · 한 단계마다 오르는 값 · 10레벨마다 표(심법 줄 1~3) · 올리면 금빛 물결
+    const R2 = g.S.realm, lv = R2.lv, mx = lv >= REALM_MAX, cost = mx ? 0 : realmCost(lv, goldPerMob(g.S.hero.lv))[0].n, gold = W.gold || 0, fill = mx ? 1 : Math.min(1, gold / Math.max(1, cost)), low = opt.gfx === 'low', pc = (v) => `${(v / 10).toFixed(1).replace(/\.0$/, '')}%`;
+    const c = card(`경지 ${lv}`, '계정 공용 · 공격 · 체력');
+    const gz = document.createElement('div'); gz.className = `rl-realm${low ? ' rl-low' : ''}${fill >= 1 && !mx ? ' rl-ready' : ''}`;
+    const burst = !low && performance.now() - rlBurst < 900; rlBurst = 0;
+    gz.innerHTML = `<div class="rl-gauge${burst ? ' rl-burst' : ''}" style="--p:${(fill * 100).toFixed(1)}%" role="img" aria-label="경지 ${lv} · 다음까지 은자 ${Math.round(fill * 100)}%"><div class="rl-core"><small>경지</small><b class="rl-lv">${lv}</b><em>${mx ? '끝' : `/ ${REALM_MAX}`}</em></div>${burst ? '<i class="rl-ripple"></i><i class="rl-ripple rl-r2"></i>' : ''}</div>`
+      + `<div class="rl-side"><div class="rl-cost">${mx ? '<span>끝까지 올랐어요</span>' : `<small>다음 경지 값</small><span><i class="coin s"></i><b>${unit(cost)}</b></span><small class="rl-have">가진 은자 ${unit(gold)} · ${Math.round(fill * 100)}%</small>`}</div>`
+      + `<div class="rl-gain"><span>한 단계마다</span><b>공격 +${pc(REALM_ATK_P)}</b><b>체력 +${pc(REALM_HP_P)}</b></div><div class="rl-tot">지금 공격 +${pc(lv * REALM_ATK_P)} · 체력 +${pc(lv * REALM_HP_P)}</div></div>`;
+    c(gz);
+    const ms = document.createElement('div'); ms.className = 'rl-ms';
+    for (let m = 10; m <= REALM_MAX; m += 10) { const hl = m <= 30, t = document.createElement('span'); t.className = `rl-mk${lv >= m ? ' on' : ''}${hl ? ' rl-heart' : ''}`; t.innerHTML = `<b>${m}</b>${hl ? `<small>심법 ${m / 10}</small>` : ''}`; t.title = hl ? `경지 ${m} — 심법 줄 ${m / 10}칸 열림` : `경지 ${m}`; ms.append(t); }
+    c(ms);
+    c(R('경지 올리기', mx ? '끝까지 올랐어요' : `값을 내면 바로 오름 · 심법 줄 ${heartLines(lv)}/3 열림`, [['올리기', act(() => { const ok = g.realmUp(); if (ok) rlBurst = performance.now(); return ok; }), mx]], '境'));
   } else if (key === 'grow:4') {
-    const J = g.S.journey;
+    // 강호행 — 굽은 길 위 단계 칸(연 칸 · 이긴 칸 · 지금 두목 빛남 · 잠김) · 다음 두목(Lv = 엔진 셈) · 열기 값과 얻는 것
+    const J = g.S.journey, low = opt.gfx === 'low', bossLv = Math.max(1, Math.round(40 + J.cleared * 1.8)), endJ = J.step >= JOURNEY_MAX, oc = endJ ? 0 : journeyCost(J.step)[0].n;
     const c = card(`강호행 ${J.step}단계`, `이긴 두목 ${J.cleared}`);
+    const N = 7, from = Math.max(0, Math.min(JOURNEY_MAX - N, J.cleared - 2)), pts = [];
+    const path = document.createElement('div'); path.className = `rl-path${low ? ' rl-low' : ''}`;
+    let nodes = '';
+    for (let i = 0; i < N; i++) {
+      const n = from + i + 1, x = 7 + i * (86 / (N - 1)), y = 50 + (i % 2 ? -22 : 22); pts.push(`${x},${y}`);
+      const stt = n <= J.step ? 'done' : n <= J.cleared ? 'won' : n === J.cleared + 1 ? 'cur' : 'lock';
+      nodes += `<span class="rl-node rl-${stt}" data-n="${n}" style="left:${x}%;top:${y}%"><b>${n}</b></span>`;
+    }
+    path.innerHTML = `<svg class="rl-road" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><polyline points="${pts.join(' ')}"/></svg>${nodes}`;
+    c(path);
+    const bs = document.createElement('div'); bs.className = 'rl-boss';
+    bs.innerHTML = `<img src="art/s2/chb/chb${(J.cleared % 15) + 1}.webp" alt="${J.cleared + 1}단계 두목" loading="lazy" decoding="async" onerror="this.remove()"><div class="rl-binfo"><small>다음 두목</small><b>${J.cleared + 1}단계 두목</b><span class="rl-blv">Lv ${bossLv}</span><small>내 Lv ${g.S.hero.lv} · 60초 안에</small></div>`
+      + `<div class="rl-open"><small>단계 열기</small>${endJ ? '<span>끝까지 열었어요</span>' : `<span><i class="coin s"></i><b>${unit(oc)}</b></span><em>최종 피해③ +${(JOURNEY_STEP_P / 10).toFixed(1)}% · 축복 · 옵션 2줄</em>`}</div>`;
+    c(bs);
     c(R(`${J.cleared + 1}단계 두목`, '이기면 다음 단계를 열 수 있음', [['도전', act(() => { const r = g.journeyFight(); toast(r.cleared ? '이겼다' : '졌다'); return r; })]], '鬪'));
     c(R('다음 단계 열기', '최종 피해③ · 축복 · 옵션 2줄 — 바로 열림', [['열기', act(() => g.journeyOpen()), J.cleared <= J.step]], '開'));
   } else if (key === 'raid:0') {
     // v541 장 두목 토벌 — 깬 장 두목을 지금 칸 강함으로 다시(하루 2번 함께) · 빨리 깨면 별 · 별마다 처음 한 번 보상
     const left = g.raidLeft(), done = Object.keys(g.S.chb || {}).map(Number).filter((c) => CHBOSS[c]).sort((a, b) => b - a), Rd = g.S.raid || { star: {}, best: {} };
     const c0 = card('장 두목 토벌', `오늘 ${left} / ${CB_RAID.perDay}번 남음 · 자정에 다시`);
-    c0(R('별 받기', `★1 깸 · ★2 ${CB_RAID.starMs[0] / 1000}초 안 · ★3 ${CB_RAID.starMs[1] / 1000}초 안 · 안 쓰러짐<br>별 보상(두목마다 처음 한 번): ★1 뽑기권 5 · ★2 강화석 30 · ★3 뽑기권 10<br>깰 때마다: 뽑기권 ${CB_RAID.tix} · 강화석 ${CB_RAID.stones} · 처치 은자 · 경험치`, [], '討'));
-    if (!done.length) c0(R('아직 깬 장 두목이 없어요', '10칸마다 나오는 장 두목을 깨면 여기서 다시 칠 수 있어요', [], '·'));
+    // v6xx 토벌 화면(rd-) — 위: 오늘 남은 횟수 점 · 별 규칙 칩 셋 / 아래: 깬 두목 카드 격자(그림 · 별 · 최고 기록 · Lv · 토벌 · 연습) · 별 셋은 금테
+    const rwTx = (o) => Object.entries(o).map(([k, n]) => `${k === 'item:stone' ? '강화석' : '뽑기권'} ${n}`).join(' · ');
+    const hd = document.createElement('div'); hd.className = 'rd-hd';
+    hd.innerHTML = `<div class="rd-left"><span class="rd-pips" aria-label="오늘 ${left}번 남음">${Array.from({ length: CB_RAID.perDay }, (_, i) => `<i class="${i < left ? 'on' : ''}"></i>`).join('')}</span><small>오늘 남은 토벌</small></div>`
+      + `<div class="rd-rules" aria-label="별 받기">${[['깸', 1], [`${CB_RAID.starMs[0] / 1000}초 안`, 2], [`${CB_RAID.starMs[1] / 1000}초 안 · 안 쓰러짐`, 3]].map(([t, n]) => `<div class="rd-chip"><b>${'★'.repeat(n)}</b><span>${t}</span><em>${rwTx(CB_RAID.starRew[n - 1])}</em></div>`).join('')}</div>`
+      + `<p class="rd-note">별 받기: 두목마다 별 보상은 처음 한 번 · 깰 때마다 뽑기권 ${CB_RAID.tix} · 강화석 ${CB_RAID.stones} · 처치 은자 · 경험치</p>`;
+    c0(hd);
+    if (!done.length) {
+      const em = document.createElement('div'); em.className = 'rd-empty';
+      em.innerHTML = '<img src="art/s2/chb/chb1.webp" alt="" aria-hidden="true" loading="lazy" decoding="async"><div><b>아직 깬 장 두목이 없어요</b><span>10칸마다 나오는 장 두목을 깨면 여기서 다시 칠 수 있어요</span></div>';
+      c0(em);
+    }
+    const grid = document.createElement('div'); grid.className = 'rd-grid';
     for (const ch of done) {
       const D = CHBOSS[ch], st = Rd.star?.[ch] || 0, best = Rd.best?.[ch];
-      const r = R(`<img class="rdimg" src="art/s2/chb/chb${ch}.webp" alt="${esc(D.name)}">${ch}장 · ${esc(D.name)} <span class="rdstar">${'★'.repeat(st)}<i>${'★'.repeat(3 - st)}</i></span>`,
-        `Lv ${g.raidLv(ch)} · ${best ? `최고 ${(best / 1000).toFixed(1)}초` : '아직 기록 없음'}${st < 3 ? ` · 다음 별 보상 ${esc(Object.entries(CB_RAID.starRew[st]).map(([k, n]) => `${k === 'item:stone' ? '강화석' : '뽑기권'} ${n}`).join(''))}` : ' · 별 다 받음'}`,
-        [['토벌', act(() => { const ok2 = g.raid(ch); if (ok2) closeWin(); return ok2; }), !g.canRaid(ch)], ['연습', act(() => { const ok2 = g.practice(ch); if (ok2) closeWin(); return ok2; }), !!(g.bossFight || g.dg)]], '');   // v583 연습(횟수 · 보상 없음)
-      r.classList.add('rdrow'); c0(r);
+      const el = document.createElement('div'); el.className = `rdrow rd-card${st >= 3 ? ' rd-gold' : ''}`; el.style.setProperty('--bc', D.col);
+      el.innerHTML = `<div class="rd-art"><img class="rdimg" src="art/s2/chb/chb${ch}.webp" alt="${esc(D.name)}" loading="lazy" decoding="async"><span class="rd-ch">${ch}장</span><span class="rd-lv">Lv ${g.raidLv(ch)}</span></div>`
+        + `<div class="rd-info"><b>${esc(D.name)}</b><span class="rd-st" aria-label="별 ${st}개">${[0, 1, 2].map((i) => `<i class="${i < st ? 'on' : ''}">★</i>`).join('')}</span>`
+        + `<small>${best ? `최고 ${(best / 1000).toFixed(1)}초` : '아직 기록 없음'}</small><small class="rd-next">${st < 3 ? `다음 별 ${esc(rwTx(CB_RAID.starRew[st]))}` : '별 다 받음'}</small></div>`;
+      const bs = document.createElement('div'); bs.className = 'rd-btns';
+      for (const [t, fn, off, cls] of [['토벌', () => g.raid(ch), !g.canRaid(ch), 'btn primary'], ['연습', () => g.practice(ch), !!(g.bossFight || g.dg), 'btn']]) {   // v583 연습(횟수 · 보상 없음)
+        const bt = document.createElement('button'); bt.className = cls; bt.textContent = t; bt.disabled = off;
+        bt.onclick = act(() => { const ok2 = fn(); if (ok2) closeWin(); return ok2; }); bs.append(bt);
+      }
+      el.append(bs); grid.append(el);
     }
+    if (done.length) c0(grid);
   } else if (key === 'party:0') {
     // 동행 토벌 — 다른 무인의 덱(문파원 · 대결에서 만난 무인 · 즐겨찾기 · 연습 동행) 둘까지 골라 두목 하나
     const ps = g.partyState(); partyTier = Math.max(1, Math.min(ps.tier, partyTier || ps.tier));
@@ -1067,11 +1135,37 @@ function paintWin() {
       const use = (n) => act(() => { const r = g.timeHunt(n); if (r) { play('coin'); toast(`시간 티켓 ${r.n}장 — 사냥 ${r.min}분 몫 · 은자 +${unit(r.gold)}${r.lv ? ` · Lv +${r.lv}` : ''}`); } return r; });
       ct.append(R('바로 사냥 보상', '경험치 · 은자를 바로(원정 시간 줄이기에도 써요)', [['1장', use(1), nT < 1], ['모두', use(nT), nT < 1]])); }
   } else if (key === 'content:3') {
-    const T = g.stage(), c = card(`${Math.ceil(T.idx / 10)}. ${chapterName(T.idx)} · Stage ${((T.idx - 1) % 10) + 1}/10`, `가장 멀리 ${Math.ceil(T.top / 10)}장 ${((T.top - 1) % 10) + 1}칸`);
-    c(R('칸 옮기기', '깬 칸 안에서 오갈 수 있음', [['◀ 앞 칸', act(() => { if (g.bossFight || T.idx <= 1) return false; T.idx--; T.kills = 0; return true; })], ['다음 칸 ▶', act(() => { if (g.bossFight || T.idx >= T.top) return false; T.idx++; T.kills = 0; return true; })]], '地'));
+    // v6xx 지도 — 위: 지금 장의 칸 길(10칸 · 10칸째 두목 · 지금 칸 빛남 · 깬 칸 밝음) · 아래: 장 카드 15장(옆으로 넘김 · 지금 장으로 저절로)
+    const T = g.stage(), cur = Math.ceil(T.idx / 10), topCh = Math.ceil(T.top / 10), st = ((T.idx - 1) % 10) + 1;
+    const c = card(`${cur}. ${chapterName(T.idx)} · Stage ${st}/10`, `가장 멀리 ${topCh}장 ${((T.top - 1) % 10) + 1}칸`);
+    const trk = document.createElement('div'); trk.className = 'mp-track';
+    const mvBtn = (label, fn, dis) => { const b = document.createElement('button'); b.className = 'btn mp-mv'; b.textContent = label; b.disabled = !!dis; b.onclick = fn; return b; };
+    const nodes = document.createElement('div'); nodes.className = 'mp-nodes'; nodes.style.setProperty('--bc', CHBOSS[cur]?.col || '#f87171');
+    for (let n = 1; n <= 10; n++) { const i = (cur - 1) * 10 + n, d = document.createElement('span');
+      d.className = `mp-n${n === 10 ? ' boss' : ''}${i < T.top ? ' clr' : ''}${i === T.idx ? ' now' : ''}${i > T.top ? ' lock' : ''}`;
+      d.innerHTML = n === 10 ? `<img src="art/s2/chb/chb${cur}.webp" alt="${esc(CHBOSS[cur]?.name || '두목')}" loading="lazy" decoding="async">` : `<b>${n}</b>`; nodes.append(d); }
+    trk.append(mvBtn('◀ 앞 칸', act(() => { if (g.bossFight || T.idx <= 1) return false; T.idx--; T.kills = 0; return true; }), T.idx <= 1), nodes,
+      mvBtn('다음 칸 ▶', act(() => { if (g.bossFight || T.idx >= T.top) return false; T.idx++; T.kills = 0; return true; }), T.idx >= T.top));
+    c(trk);
     c(R('두목 자동 도전', T.auto ? '켬 — 칸 몹을 다 잡으면 저절로' : '끔 — 들판의 「두목 도전」으로', [['바꾸기', act(() => { T.auto = !T.auto; return true; })]], '自'));
-    const c2 = card('장 목록', '15장 · 장마다 10칸');
-    for (let ch = 1; ch <= 15; ch++) { const first = (ch - 1) * 10 + 1, opened = T.top >= first; const r = R(`${ch}. ${chapterName(first)}`, opened ? (Math.ceil(T.top / 10) > ch ? '다 깸' : `${((T.top - 1) % 10) + 1}/10칸`) : '잠김', opened ? [['가기', act(() => { if (g.bossFight) return false; T.idx = Math.min(T.top, ch * 10); T.kills = 0; return true; })]] : [], String(ch)); if (!opened) r.style.opacity = '.45'; c2(r); }
+    const c2 = card('장 목록', '15장 · 장마다 10칸 · 연 장을 누르면 가기');
+    const strip = document.createElement('div'); strip.className = 'mp-strip';
+    for (let ch = 1; ch <= 15; ch++) {
+      const first = (ch - 1) * 10 + 1, opened = T.top >= first, done = topCh > ch;
+      const prog = done ? 10 : opened ? (T.top - 1) % 10 : 0;   // 깬 칸 수(맨 끝 칸은 아직 안 깸)
+      const el = document.createElement('button'); el.type = 'button'; el.className = `mp-ch${ch === cur ? ' cur' : ''}${opened ? '' : ' lock'}${done ? ' done' : ''}`; el.dataset.ch = ch;
+      el.disabled = !opened; el.setAttribute('aria-label', `${ch}장 ${chapterName(first)}${opened ? '' : ' · 잠김'}`);
+      el.innerHTML = `<img class="mp-bg" src="art/s2/bg/c${ch}.webp" alt="" loading="lazy" decoding="async"><img class="mp-boss" src="art/s2/chb/chb${ch}.webp" alt="${opened ? esc(CHBOSS[ch]?.name || '') : ''}" loading="lazy" decoding="async">`
+        + `<span class="mp-t"><i>${ch}장</i><b>${esc(chapterName(first))}</b></span>`
+        + (opened ? `<span class="mp-p"><small>${done ? '다 깸' : `10칸 중 ${prog}`}</small><span class="mp-bar"><i style="width:${prog * 10}%"></i></span></span><span class="mp-go">${ch === cur ? '지금' : '가기'}</span>` : `<span class="mp-lk" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M7 10V7a5 5 0 0 1 10 0v3h1a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1zm2 0h6V7a3 3 0 0 0-6 0z"/></svg>잠김</span>`);
+      if (opened) el.onclick = act(() => { if (g.bossFight) return false; T.idx = Math.min(T.top, ch * 10); T.kills = 0; return true; });
+      strip.append(el);
+    }
+    strip.addEventListener('scroll', () => { mpScroll.x = strip.scrollLeft; }, { passive: true });
+    c2(strip);
+    requestAnimationFrame(() => { if (!strip.isConnected) return;
+      if (mpScroll.ch !== cur) { mpScroll.ch = cur; const e = strip.querySelector('.mp-ch.cur'); if (e) strip.scrollLeft = Math.max(0, e.offsetLeft - (strip.clientWidth - e.offsetWidth) / 2); mpScroll.x = strip.scrollLeft; }
+      else strip.scrollLeft = mpScroll.x; });
   } else if (key === 'rec:0') {
     // v572 무인 기록 — 이제까지 한 것(업적 마지막 단계의 진행 수 = 처음부터 센 수) · 최고 기록 · 지금 상태
     const S = g.S, B = g.books.ach, cnt = (ev) => { const st = ACHIEVE[ev]?.steps; if (!st) return 0; const s2 = B.get(`a_${ev}_${st.length - 1}`); return s2.done ? st.at(-1) : s2.p || 0; };
@@ -3035,7 +3129,7 @@ function frame() {
   for (const f of g.feed.splice(0)) {
     if (f.k === 'level') { play('level'); levelAt = now(); addLog(`레벨 업 — Lv ${f.lv}`); }   // v520 알림 대신 무인 위 LEVEL UP(v519)
     else if (f.k === 'guide') addLog('길잡이 완료 — 왼쪽 위에서 받기');
-    else if (f.k === 'advance') toast(`${f.n}차 전직!`);
+    else if (f.k === 'advance') { jbBanner(f.n); addLog(`${f.n}차 전직 — ${jbTitle(g.S.hero.job, f.n)}`); }
     else if (f.k === 'boss') addLog('사냥터 두목 처치!');
     else if (f.k === 'bounty') { toast(f.all ? '현상수배 완료! — 셋 다 끝, 상자를 열어요' : '현상수배 완료!'); addLog('현상수배 하나 끝 — 임무 창 「현상수배」에서 받기'); navDots(); }
     else if (f.k === 'retreat') { addLog(`몹이 세서 ${Math.ceil(f.idx / 10)}장 ${((f.idx - 1) % 10) + 1}칸으로 물러났어요 — 더 강해지면 다시 나아가요`); toast('앞 칸으로 물러났어요 — 강해지면 다시 나아가요'); }
@@ -3348,6 +3442,16 @@ function wbHudTick() {
     dm.querySelector('b').textContent = unit(Math.round(S.shown)); dm.classList.toggle('weak', !!F.wbW);
   }
   S.raf = requestAnimationFrame(wbHudTick);
+}
+// 전직 이름 — 무리마다 차수 이름(화면에만 쓰는 이름)
+const JB_TITLE = { sword: ['검사', '검협', '검호', '검성', '검신'], spear: ['창객', '창협', '창호', '창성', '창신'], fist: ['권객', '권협', '권호', '권성', '권신'], bow: ['궁객', '궁협', '궁호', '신궁', '궁신'], mage: ['방사', '도사', '진인', '선인', '천존'] };
+const jbTitle = (job, n) => (JB_TITLE[job] || [])[n - 1] || `${n}차`;
+// 전직 순간 — 화면 가득 「n차 전직 — 이름」 + 빛 터짐(1.6초 · 누르면 바로 닫힘 · 낮은 그래픽은 움직임 없이)
+function jbBanner(n) {
+  for (const o of document.querySelectorAll('.jb-ban')) o.remove();
+  const d = document.createElement('div'); d.className = `jb-ban${opt.gfx === 'low' ? ' jb-low' : ''}`;
+  d.innerHTML = `<i class="jb-burst"></i><small>JOB ADVANCE</small><b>${n}차 전직 — ${esc(jbTitle(g.S.hero.job, n))}</b><span>${esc(JOBS[g.S.hero.job].name)} · 공격 · 체력 +${JOB_ADV[n].atkP / 10}% · 새 무공이 열렸어요</span>`;
+  const off = () => d.remove(); d.onpointerdown = (e) => { e.preventDefault(); e.stopPropagation(); }; d.onclick = (e) => { e.preventDefault(); e.stopPropagation(); off(); }; $('battle').append(d);   // 누른 손이 아래 결과 창 단추로 새지 않게(누름은 막고 뗄 때 닫기) setTimeout(off, 1600); buzz([30, 40, 60]);
 }
 function chbBanner(big, small, kind) {
   for (const o of document.querySelectorAll('.cbban')) o.remove();
