@@ -3459,7 +3459,7 @@ function achFx(a) {
 }
 function achPump() {
   if (achBusy || !achQ.length) return;
-  if ($('res').classList.contains('open') || document.querySelector('.gx, .duel')) { if (!achWait) achWait = setTimeout(() => { achWait = 0; achPump(); }, 400); return; }
+  if ($('res').classList.contains('open') || document.querySelector('.gx, .duel') || document.body.classList.contains('bossing')) { if (!achWait) achWait = setTimeout(() => { achWait = 0; achPump(); }, 400); return; }
   const a = achQ.shift(), ms = achQ.length ? 1500 : 2600; achBusy = true;
   const d = document.createElement('div'); d.className = 'achpop'; d.style.animationDuration = `${ms}ms`;
   d.innerHTML = `<i>🏆</i><div><small>업적 달성!</small><b>${esc(a.name)}</b><span>임무 → 업적에서 받기</span></div>`;
@@ -3911,3 +3911,4 @@ else pickJob();
 window.__s2 = { get g() { return g; }, lowGfx: () => opt.gfx === 'low', dgIv: () => dgIv, ptRaf: () => ptRaf, followers: () => ({ ...followerN }), agTest: () => { frame.ag = 0; }, saverStart, saverOff, saverOn: () => saverOn, saverAge: (ms) => { if (saverFrom) saverFrom.at -= ms; }, saverSum: () => saverSum, retTest: (ms) => { const O = g.S.offline; O.lastSeen -= ms; O.clockMax -= ms; returnQueue(); }, impacts: () => impacts.length, motion: () => ({ hurt: heroHurtAt, down: heroDownAt, run: runMix, anim: heroAnim.active }), inviteTest: (c) => { inviteCode = c; inviteCheck(); }, shareGame, shareLast: () => shareLast, saverAutoTest: (on) => { saverAuto = !!on; }, wake: () => ({ lock: !!wakeLock, want: wakeWant, ok: wakeOK() }), wakeSync, wakeOpt: (on) => { opt.wake = !!on; return wakeSync(); }, saverTest: () => { saverForce = true; lastInput = -1e9; }, newsCheck, coachStep: () => coachStep, coachRect: () => (coachStep >= 0 ? coachRect(COACH[coachStep]) : null), nudgeTest: () => { lastInput = -1e9; nudgeAt = 0; return nudgeTick(); }, guildState, guildLoad, chatSend, worldSend, worldMsgs: () => worldState.msgs.map((m) => ({ uid: m.uid, nick: m.nick, text: m.text, lv: m.lv, job: m.job })), worldOn: () => !!worldState.unsub, worldReset: () => { worldState.lastAt = 0; worldState.lastText = ''; }, save, dayKey, attendPop, freeze: () => { frozen = true; }, net, cloudPush, rankPush, wbPush, wkStr, pvpInbox, pvpFetch, resetNetTimers: () => { pvpAt = 0; inboxAt = 0; },
   // v525 팝업 대신 에뮬레이터용 가짜 Google 토큰으로 잇기 · 겹치면 그 계정으로
   linkTest: async (tok) => { const r = await net.linkGoogle(tok); if (r.conflict) { const d = await net.switchTo(r.cred); if (d) applyCloud(d); return 'switched'; } await cloudPush(true); return 'linked'; } };
+Object.assign(window.__s2, { toast });   // v630 시험용 — 알림을 바로 띄워 결과 창 단추와 겹치는지 본다

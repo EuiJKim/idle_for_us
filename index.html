@@ -1751,6 +1751,22 @@
     #panel .ma-link.ma-on::before { background: linear-gradient(90deg, #f3d488, #c99a3c); box-shadow: 0 0 6px rgba(246,207,98,.6); }
     html.w800 #panel .ma-path { --gap: 12px; } html.w800 #panel .ma-node { padding: 6px 6px 7px; } html.w800 #panel .ma-ic { width: 26px; height: 26px; } html.w800 #panel .ma-h b { font-size: 12px; }
     html.w800 #panel .st-pw b { font-size: 26px; } html.w800 #panel .rc-grid { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); }
+    /* v630 들판 HUD 겹침 고침
+       · 알림 줄(길잡이 완료 · 업적 달성 …)은 Lv · HP 상자 위로 — 둘째 줄이 상자 뒤로 숨던 것
+       · 업적 알림은 오른쪽 위 메뉴 아래(알림 자리 — 그 아래 좋은 장비 카드) — 가운데 사냥터 이름 · Stage 줄을 가리던 것. 두목전 · 던전 중에는 끝난 뒤에(화면.js)
+       · 좁은 화면(폭 800 이하): 두목 도전 단추는 기연 · 받을 보상 칸 아래 줄로 — 기연 칸과 겹치던 것 · 전투력 오름 알림은 작게 — 사냥터 이름을 가리던 것 */
+    #loglines { bottom: calc(var(--sb) + 78px); }
+    html.w720 #loglines { bottom: calc(var(--sb) + 130px); }
+    .achpop, body:has(.pwpop) .achpop { left: auto; right: var(--sr, 10px); top: calc(var(--st, 0px) + 58px); max-width: min(48%, 330px); transform: none; animation-name: achpop2; }
+    html.w720 .achpop { max-width: min(44%, 300px); }
+    html.rot .achpop { right: 10px; }
+    @keyframes achpop2 { 0% { opacity: 0; transform: translateX(18px) scale(.94); } 10% { opacity: 1; transform: translateX(0) scale(1.03); } 18% { transform: none; } 85% { opacity: 1; } 100% { opacity: 0; transform: translateY(-8px); } }
+    .achpop b { max-width: min(34vw, 240px); }
+    html.w800 #btn-boss { left: calc(var(--sl) + 204px); transform: none; top: calc(var(--st) + 146px); }
+    .pwpop { left: calc(var(--sl, 0px) + 62px); top: calc(var(--st, 0px) + 2px); }
+    html.w800 .pwpop { padding: 2px 8px; gap: 4px; } html.w800 .pwpop small { display: none; } html.w800 .pwpop b { font-size: 14px; } html.w800 .pwpop em { font-size: 11px; } html.w720 .pwpop em { display: none; }
+    /* 결과 창(STAGE CLEAR …)이 떠 있는 동안 알림은 맨 위로 — 「다음 스테이지」 단추를 가리던 것(결과 창 뒤는 어둡게 덮여 있다) */
+    body:has(#res.open) #toast, html.w720 body:has(#res.open) #toast, html.h340 body:has(#res.open) #toast { top: calc(var(--st, 0px) + 4px); bottom: auto; left: 50%; }
   </style>
 </head>
 <body>

@@ -1179,6 +1179,44 @@ const ok = (c, m, x = '') => { console.log(`  ${c ? '✓' : '✗ !!'} ${m}${x !=
       await page.evaluate(() => window.__s2.freeze?.());
       await ctx.close(); }
   }
+  // v630 들판 HUD 겹침 — 알림 줄 ↔ Lv · HP 상자 · 업적 알림 ↔ 사냥터 이름 · Stage 줄 · 두목 도전 ↔ 기연 · 받을 보상 · 전투력 알림 ↔ 사냥터 이름 · 결과 창 단추 ↔ 알림
+  if (!process.env.ONLY || process.env.ONLY.split(',').includes('hud')) {
+    const box = (sel) => { const e = document.querySelector(sel); if (!e) return null; const r = e.getBoundingClientRect(), cs = getComputedStyle(e); return r.width > 2 && r.height > 2 && cs.display !== 'none' && cs.visibility !== 'hidden' ? [r.left, r.top, r.right, r.bottom] : null; };
+    for (const [W, H] of [[844, 390], [740, 360], [667, 375], [568, 320]]) {
+      const ctx = await b.newContext({ viewport: { width: W, height: H }, serviceWorkers: 'block' });
+      await ctx.route(/gstatic\.com\/firebasejs/, (r) => r.abort());
+      const page = await ctx.newPage(); page.setDefaultTimeout(15000);
+      const errs = []; page.on('pageerror', (e) => errs.push(e.message));
+      await page.goto(BASE, { waitUntil: 'domcontentloaded' });
+      await page.waitForSelector('#modal:not(.hidden) .jobcard'); await page.click('#modal .jobcard >> nth=0');
+      await page.waitForTimeout(700);
+      for (let i = 0; i < 3; i++) { if (await page.isVisible('#modal:not(.hidden)')) { const att = await page.$('#modal .btn:has-text("출석")'); if (att) { await att.click(); await page.waitForTimeout(400); const okb = await page.$('#att-ok'); if (okb) await okb.click(); } else { const x = await page.$('#modal .btn'); if (x) await x.click(); } await page.waitForTimeout(300); } }
+      await page.evaluate(() => { const g = window.__s2.g; g.S.hero.lv = 60; g.S.hero.adv = 2; g.dirtyStats = true; g.S.auto = { ...(g.S.auto || {}) }; g.canChallenge = () => true; g.autoReady = () => false; });
+      await page.waitForTimeout(800);
+      await page.evaluate(() => { const g = window.__s2.g; g.emit('kill', { n: 5000 }); g.S.hero.lv += 1; g.dirtyStats = true; });
+      await page.waitForTimeout(700);
+      const R = await page.evaluate((bx) => { const box = eval(bx); const L = document.getElementById('loglines'); return { me: box('#me'), log: L && L.textContent.trim() ? box('#loglines') : null, tc: box('#tc'), tr: box('#tr'), ach: box('.achpop'), boss: box('#btn-boss'), fc: box('#fc'), rc: box('#rc'), pw: box('.pwpop') }; }, `(${box})`);
+      const hit = (a, c) => !!(a && c && Math.min(a[2], c[2]) - Math.max(a[0], c[0]) > 2 && Math.min(a[3], c[3]) - Math.max(a[1], c[1]) > 2);
+      ok(!R.log || R.log[3] <= R.me[1] + 1, `v630 ${W}×${H} 알림 줄이 Lv · HP 상자 위에(겹치지 않음)`, R.log ? `줄 아래 ${Math.round(R.log[3])} · 상자 위 ${Math.round(R.me[1])}` : '줄 없음');
+      ok(!hit(R.ach, R.tc) && !hit(R.ach, R.tr), `v630 ${W}×${H} 업적 알림이 사냥터 이름 · Stage 줄 · 오른쪽 위 단추를 가리지 않음`, R.ach ? R.ach.map(Math.round).join(',') : '알림 없음');
+      ok(!hit(R.boss, R.fc) && !hit(R.boss, R.rc) && !hit(R.boss, R.tc), `v630 ${W}×${H} 두목 도전 단추가 기연 · 받을 보상 · Stage 줄과 겹치지 않음`, R.boss ? R.boss.map(Math.round).join(',') : '단추 없음');
+      ok(!hit(R.pw, R.tc), `v630 ${W}×${H} 전투력 알림이 사냥터 이름 · Stage 줄을 가리지 않음`, R.pw ? R.pw.map(Math.round).join(',') : '알림 없음');
+      if (W === 844 || W === 667) {
+        // 결과 창 — 알림이 「다음 스테이지」 단추를 가리지 않는다
+        await page.evaluate(() => { const g = window.__s2.g; delete g.autoReady; g.challenge(); });
+        await page.waitForSelector('#res.open', { timeout: 30000 }).catch(() => {});
+        if (await page.isVisible('#res.open')) {
+          await page.evaluate(() => window.__s2.toast('현상수배 완료! 알림 시험'));
+          await page.waitForTimeout(350);
+          const T = await page.evaluate(() => { const t = document.querySelector('#toast .toast')?.getBoundingClientRect(); const bs = [...document.querySelectorAll('#res .rp button, #res .rp label')].map((b) => b.getBoundingClientRect()).filter((r) => r.width > 2); return { t: t && [t.left, t.top, t.right, t.bottom], bs: bs.map((r) => [r.left, r.top, r.right, r.bottom]) }; });
+          ok(T.t && T.bs.length && !T.bs.some((r) => hit(T.t, r)), `v630 ${W}×${H} 결과 창이 떠 있을 때 알림이 단추를 가리지 않음`, T.t ? T.t.map(Math.round).join(',') : '알림 없음');
+        } else ok(false, `v630 ${W}×${H} 결과 창이 떠야 한다(두목 도전)`);
+      }
+      ok(errs.length === 0, `v630 ${W}×${H} HUD — 오류 없음`, errs.slice(0, 2).join(' | '));
+      await page.evaluate(() => window.__s2.freeze?.());
+      await ctx.close();
+    }
+  }
   // v629 컴퓨터 화면 고정 — 마우스 기기는 pc.html 틀(가로 · 높이 720 · 폭 16:9~2.17)에 넣어 창 크기에 맞춰 키운다. 자동 시험은 ?pcfix=1 일 때만 틀로 간다
   if (!process.env.ONLY || process.env.ONLY.split(',').includes('pc')) {
     for (const [W, H, LW, LH] of [[1920, 950, 1455, 720], [1000, 1150, 1280, 720], [2560, 1000, 1562, 720], [1366, 657, 1366, 657]]) {
