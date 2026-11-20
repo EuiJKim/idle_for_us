@@ -315,6 +315,44 @@ const ok = (c, m, x = '') => { console.log(`  ${c ? '✓' : '✗ !!'} ${m}${x !=
       ok(sync(s3) && s3.used === 0 && s3.free === s3.lv - 1 && s3.sum === 0 && /^0\/40점 · \+0\.00%/.test(s3.atk) && s3.backOff && !s3.autoOff, 'v604 「되돌리기」 → 모두 돌려받음', `남은 ${s3.free}`);
       await page.evaluate((s) => { const g = window.__s2.g; Object.assign(g.hero.spState(), JSON.parse(s)); g.dirtyStats = true; }, sv);
       await page.click('#panel-close'); await free(a0); }
+    // v6xx 캐릭터 화면 — 스탯(st-: 전투력 띠 · 능력치 네 칸 그림 · 최종 피해 네 칸과 출처 · 작은 모습은 창을 닫으면 멈춤) · 기록(rc-: 묶음 · 그림 칸 · 시작한 날) · 마스터리(ma-: 단마다 노드 · 선 · 「배우기」 → 익힘)
+    { const a0 = await hold();
+      const pics = (sel) => page.evaluate(async (s) => { const ims = [...document.querySelectorAll(s)], t = Date.now(); while (ims.some((i) => !i.complete) && Date.now() - t < 3000) await new Promise((r) => setTimeout(r, 50)); return { n: ims.length, up: ims.filter((i) => i.complete && i.naturalWidth > 0).length }; }, sel);
+      const over = () => page.evaluate(() => { const pb = document.getElementById('panel-body'); return pb.scrollWidth - pb.clientWidth; });
+      await page.click('#mb .nb[data-tab="char"]'); await sub('스탯'); await page.waitForSelector('#wb .st-hero canvas');
+      const s0 = await page.evaluate(() => ({ heads: [...document.querySelectorAll('#wb .card h3')].map((h) => h.firstChild.textContent.trim()), pw: document.querySelector('#wb .st-pw b')?.textContent || '', split: [...document.querySelectorAll('#wb .st-split span')].map((x) => x.textContent), hunt: document.querySelector('#wb .st-split b')?.textContent || '',
+        tiles: [...document.querySelectorAll('#wb .st-tiles:not(.st-fin) .st-t')].map((t) => t.dataset.k).join(), fin: [...document.querySelectorAll('#wb .st-fin .st-f')].map((t) => t.dataset.k).join(), why: [...document.querySelectorAll('#wb .st-fin .st-w')].map((x) => x.textContent) }));
+      const sp = await pics('#wb .st-ic img');
+      ok(['전투력', '능력치', '최종 피해', '스탯 배분'].every((h) => s0.heads.includes(h)) && !!s0.pw && s0.pw === s0.hunt && s0.split.join() === '사냥,대결', 'v6xx 스탯 — 전투력 띠(큰 수 = 사냥 · 대결) · 능력치 · 최종 피해 · 스탯 배분 카드', `${s0.pw} · ${s0.heads.join('/')}`);
+      ok(s0.tiles === 'atk,hp,def,crit' && sp.n === 4 && sp.up === 4 && s0.fin === 'final1,final2,final3,final4' && s0.why.length === 4 && /마스터리/.test(s0.why[0]) && /영물/.test(s0.why[1]) && /강호행/.test(s0.why[2]) && /동료/.test(s0.why[3]) && (await over()) <= 1, 'v6xx 스탯 — 능력치 네 칸 그림이 뜬다 · 최종 피해 ①~④ 칸마다 출처 한 줄 · 넘침 없음', `${sp.up}/${sp.n} · ${s0.why.join(' | ')}`);
+      const cvN = () => page.evaluate(() => +(document.querySelector('.st-cv')?.dataset.n || 0));
+      const n1 = await until(cvN, (v) => v >= 2);
+      await page.click('#panel-close'); await page.waitForTimeout(250);
+      const n2 = await cvN(); await page.waitForTimeout(600); const n3 = await cvN();
+      ok(n1 >= 2 && n2 === n3, 'v6xx 스탯 — 작은 모습이 그려지고 창을 닫으면 멈춤', `${n1} → 닫음 ${n2}/${n3}`);
+      // 기록 — 묶음 넷 · 열여덟 칸(그림) · 시작한 날
+      await page.click('#mb .nb[data-tab="char"]'); await sub('기록'); await page.waitForSelector('#wb .rc-t');
+      const r0 = await page.evaluate(() => { const c = window.__s2.g.S.created, d = new Date(c); return { cards: [...document.querySelectorAll('#wb .rc-card h3')].map((h) => h.firstChild.textContent.trim()).join('/'), tiles: document.querySelectorAll('#wb .rc-t').length, big: [...document.querySelectorAll('#wb .rc-t b')].filter((b) => b.textContent.trim()).length, since: document.querySelector('#wb .rc-since')?.textContent || '', day: `${d.getFullYear()}.${d.getMonth() + 1}.${d.getDate()} 시작` }; });
+      const rp = await pics('#wb .rc-ic img');
+      ok(r0.cards === '무인 기록/전투/뽑기 · 강화/모음' && r0.tiles === 18 && r0.big === 18 && rp.n === 18 && rp.up === 18 && (await over()) <= 1, 'v6xx 기록 — 묶음 넷 · 칸 열여덟(그림 · 큰 숫자) · 넘침 없음', `${r0.cards} · 그림 ${rp.up}/${rp.n}`);
+      ok(r0.since.startsWith(r0.day) && /· \d+일째$/.test(r0.since), 'v6xx 기록 — 세이브를 시작한 날 · 며칠째', r0.since);
+      // 마스터리 — 노드 = 표 · 단 머리 · 「먼저」 선 · 배울 수 있는 노드 「배우기」 → 익힘(✓) · 다음 노드로 가는 선이 금빛
+      await sub('마스터리'); await page.waitForSelector('#wb .ma-node');
+      const sv = await page.evaluate(() => { const g = window.__s2.g, H = g.S.hero, s = JSON.stringify({ done: H.mastery.done, lv: H.lv, gold: g.S.wallet.gold || 0 }); H.mastery.done = []; H.lv = Math.max(H.lv, 30); g.S.wallet.gold = Math.max(g.S.wallet.gold || 0, 1e7); document.querySelector('#panel-body .subtabs button.on').click(); return s; });
+      const mz = () => page.evaluate(async () => { const u = (p) => new URL(p, location.href).href, { MASTERY } = await import(u('js/s2/tables/skills.js')), q = (s) => [...document.querySelectorAll(s)];
+        return { nodes: q('#wb .ma-node').length, want: MASTERY.length, heads: q('#wb .ma-dh').length, deep: Math.max(...MASTERY.map((m) => m.depth)), links: q('#wb .ma-node.ma-link').length, needs: MASTERY.filter((m) => m.need).length, can: q('#wb .ma-node.ma-can').map((n) => n.dataset.id), canBtn: q('#wb .ma-node.ma-can .ma-btn').map((b) => b.textContent),
+          lock: q('#wb .ma-node.ma-lock em').map((e) => e.textContent), done: q('#wb .ma-node.ma-done').map((n) => n.dataset.id), on: q('#wb .ma-node.ma-on').map((n) => n.dataset.id), eng: window.__s2.g.S.hero.mastery.done.slice(), lv: window.__s2.g.S.hero.lv }; });
+      const m0 = await until(mz, (v) => v.done.length === 0 && v.can.length > 0);
+      const mp = await pics('#wb .ma-ic img');
+      ok(m0.nodes === m0.want && m0.heads === m0.deep && m0.links === m0.needs && m0.done.length === 0 && m0.can.length >= 1 && m0.canBtn.every((t) => t === '배우기') && m0.lock.length === m0.want - m0.can.length && m0.lock.every((t) => /^Lv \d+부터 · 지금 Lv \d+$|먼저$/.test(t)) && mp.up === mp.n && mp.n === m0.want && (await over()) <= 1,
+        'v6xx 마스터리 — 노드 = 표 · 단 머리 · 「먼저」 선 · 배울 수 있는 것만 「배우기」 · 잠김은 Lv n부터 · 지금 Lv m', `노드 ${m0.nodes} · 선 ${m0.links} · 배울 ${m0.can.join()} · ${m0.lock[m0.lock.length - 1]}`);
+      const id = m0.can[0];
+      await page.click(`#wb .ma-node[data-id="${id}"] .ma-btn`);
+      const m1 = await until(mz, (v) => v.done.includes(id));
+      const kid = await page.evaluate(async (x) => { const { MASTERY } = await import(new URL('js/s2/tables/skills.js', location.href).href); return MASTERY.find((m) => m.need === x)?.id || ''; }, id);
+      ok(m1.done.includes(id) && m1.eng.includes(id) && !m1.can.includes(id) && (!kid || m1.on.includes(kid)) && /✓/.test(await page.textContent(`#wb .ma-node[data-id="${id}"]`)), 'v6xx 마스터리 — 「배우기」 → 그 노드 익힘(✓) · 다음 노드로 가는 선이 켜짐', `${id} → ${kid} · ${m1.on.join()}`);
+      await page.evaluate((s) => { const g = window.__s2.g, H = g.S.hero, o = JSON.parse(s); H.mastery.done = o.done; H.lv = o.lv; g.S.wallet.gold = o.gold; g.dirtyStats = true; }, sv);
+      await page.click('#panel-close'); await free(a0); }
     // v604 장비 뽑기 화면 — 등급 확률 칩(합 100%) · 천장 막대 · 뽑기 칸 셋 / 가방 → 뽑기 조각 45개 「바꾸기」 → 뽑기권 2장 · 5개 남음
     { const a0 = await hold();
       await page.click('#mb .nb[data-tab="bag"]'); await sub('뽑기'); await page.waitForSelector('#wb .gch-tile');
@@ -595,6 +633,34 @@ const ok = (c, m, x = '') => { console.log(`  ${c ? '✓' : '✗ !!'} ${m}${x !=
       await page.click('#modal .btn:has-text("닫기")'); await until(cs, (v) => !v.vis);
       await page.evaluate(() => { const P = window.__s2.g.S.colls.pal, T = JSON.parse(window.__t); P.eq = T.eq; P.own = T.own; delete window.__t; });
       await page.click('#panel-close'); await free(a0); }
+    // v6xx 병기 · 동료 · 영물 뽑기 깃발(cg-) — 맨 위 등급 그림 셋이 뜬다 · 천장 글 = 엔진(지금 / PULL_PITY · 맨 위 등급 확정) · 확률 칩 = PULL_P · 모음 효과 합 · 「10번」 칸은 10장으로 10번
+    { const a0 = await hold();
+      const tb = await page.evaluate(async () => { const u = (p) => new URL(p, location.href).href, O = await import(u('js/s2/tables/option.js')), { COLLECTS } = await import(u('js/s2/game.js')), { GRADES } = await import(u('js/s2/tables/gear.js'));
+        return { sys: COLLECTS, nm: COLLECTS.map((s) => ({ weapon: '병기', pal: '동료', relic: '영물' })[s] || s), pity: O.PULL_PITY, odds: O.PULL_P.map((x, i) => `${GRADES[i]}${+(x / 10).toFixed(1)}%`), top: GRADES[O.PULL_P.length - 1] }; });
+      await page.evaluate(() => { const g = window.__s2.g, W = g.S.wallet, R = g.S.colls.relic; window.__t = JSON.stringify({ w: W['ticket:relic'] || 0, pity: R.pity, own: R.own, eq: R.eq }); W['ticket:relic'] = 12; R.pity = 57; R.own = { 0: { n: 1, awk: 2, lv: 1 }, 20: { n: 1, awk: 0, lv: 1 } }; });
+      const want = await page.evaluate(async () => { const u = (p) => new URL(p, location.href).href, T = await import(u('js/s2/tables/s5.js')), { kindGrade, totalAwake } = await import(u('js/s2/grow/collect.js')), R = window.__s2.g.S.colls.relic, D = T.COLLECT.relic;   // 자세히 창과 같은 셈
+        const v = Object.entries(R.own).reduce((a, [k, o]) => a + D.own[kindGrade('relic', +k)] * (1 + (o.awk * T.AWAKE_STEP_P) / 1000), 0) * (1 + Math.min(T.TOTAL_AWAKE_CAP, totalAwake(R) * T.TOTAL_AWAKE_P) / 1000); return `+${(v / 10).toFixed(1)}%`; });
+      const cgs = (sys) => page.evaluate((sys) => { const c = document.querySelector('#wb > .card.cg'), C = window.__s2.g.S.colls[sys], ims = [...(c?.querySelectorAll('.cg-show img') || [])], pb = document.querySelector('#panel-body');
+        return { first: document.querySelector('#wb > .card') === c, imgs: ims.map((m) => m.complete && m.naturalWidth > 0), src: ims.map((m) => m.getAttribute('src')).sort().join(), t: c?.querySelector('h3')?.textContent || '', pl: (c?.querySelector('.cg-pl')?.textContent || '').replace(/\s+/g, ''), bar: parseFloat(c?.querySelector('.cg-pity .achbar i')?.style.width), pity: C.pity,
+          odds: [...(c?.querySelectorAll('.cg-odds span') || [])].map((s) => s.textContent).join(), tix: (c?.querySelector('.cg-tix')?.textContent || '').replace(/\s+/g, ''), w: window.__s2.g.S.wallet[`ticket:${sys}`] || 0, sum: c?.querySelector('.cg-sum')?.textContent || '', btns: [...(c?.querySelectorAll('.row.cg-tile .btn') || [])].map((b) => b.textContent).join(), main: c?.querySelector('.row.cg-tile.main .btn.primary')?.textContent || '', ov: pb.scrollWidth - pb.clientWidth }; }, sys);
+      await page.click('#mb .nb[data-tab="comp"]');
+      for (const [i, sys] of tb.sys.entries()) {
+        await page.click(`#panel-body .subtabs button >> nth=${i}`);
+        const cg = await until(() => cgs(sys), (v) => v.imgs.length === 3 && v.imgs.every(Boolean));
+        ok(cg.first && cg.imgs.length === 3 && cg.imgs.every(Boolean) && cg.src === [0, 1, 2].map((k) => `art/s2/coll/${sys}-${k}.webp`).join() && cg.ov <= 0, `v6xx ${tb.nm[i]} 뽑기 깃발 — 맨 위 등급 그림 셋이 뜬다 · 옆으로 넘치지 않음`, `${cg.src} · 넘침 ${cg.ov}`);
+        ok(cg.pl === `천장${cg.pity}/${tb.pity}${tb.top}품확정` && Math.abs(cg.bar - Math.min(100, (cg.pity / tb.pity) * 100)) < 0.01 && cg.odds === tb.odds.join() && cg.tix === `뽑기권${cg.w}장` && cg.btns === '1번,10번' && cg.main === '10번' && /뽑기$/.test(cg.t), `v6xx ${tb.nm[i]} 뽑기 깃발 — 천장 글 = 엔진 · 확률 칩 · 뽑기권 · 1번 / 10번(10번이 주 단추)`, `${cg.t} · ${cg.pl} · ${cg.odds} · ${cg.tix}`);
+        if (sys === 'relic') ok(cg.sum === `모음 효과 합 체력 ${want}` && cg.pl === `천장57/${tb.pity}${tb.top}품확정`, 'v6xx 영물 — 모음 효과 합 = 자세히 창과 같은 셈 · 천장 57', `${cg.sum} · 기대 ${want}`);
+      }
+      await page.click('#wb .row .btn:has-text("10번")');
+      await until(() => page.evaluate(() => document.querySelectorAll('.gx .gc').length), (v) => v === 10);
+      const p1 = await page.evaluate(() => ({ w: window.__s2.g.S.wallet['ticket:relic'], n: document.querySelectorAll('.gx .gc').length, t: document.querySelector('.gx .gxt')?.textContent || '' }));
+      ok(p1.w === 2 && p1.n === 10 && /영물 뽑기 10번/.test(p1.t), 'v6xx 영물 깃발 「10번」 → 뽑기권 10장 · 카드 열 장', JSON.stringify(p1));
+      await page.click('.gx .skip'); await page.waitForTimeout(200); await page.click('.gx .skip').catch(() => {}); await page.waitForTimeout(200);
+      const p2 = await until(() => cgs('relic'), (v) => v.tix === '뽑기권2장');
+      ok(p2.tix === '뽑기권2장' && p2.pl === `천장${p2.pity}/${tb.pity}${tb.top}품확정` && p2.pity !== 57, 'v6xx 뽑은 뒤 깃발 — 뽑기권 · 천장이 엔진대로 바뀜', `${p2.tix} · ${p2.pl}`);
+      await page.evaluate(() => { const g = window.__s2.g, R = g.S.colls.relic, T = JSON.parse(window.__t); g.S.wallet['ticket:relic'] = T.w; R.pity = T.pity; R.own = T.own; R.eq = T.eq; delete window.__t; });
+      if (await page.isVisible('.gx')) await page.click('.gx .skip').catch(() => {});
+      await page.click('#panel-close').catch(() => {}); await free(a0); }
     // v6xx 사냥터 따르는 무리 — 동료 다섯은 작은 무인으로 · 영물 셋은 짐승으로 무인 뒤를 따른다(오류 없음 · 그린 수)
     { const a0 = await hold(), e0 = errs.length;
       await page.evaluate(() => { const g = window.__s2.g, P = g.S.colls.pal, R = g.S.colls.relic; window.__t = JSON.stringify({ pe: P.eq, po: P.own, re: R.eq, ro: R.own });
@@ -794,6 +860,35 @@ const ok = (c, m, x = '') => { console.log(`  ${c ? '✓' : '✗ !!'} ${m}${x !=
     ok(e1 > e0 && await page.isVisible('#modal .ea-list') && (await page.$$('#modal .ea-r')).length > 0, 'v543 모두 강화 → 결과 창', `${e0} → ${e1}`);
     await page.click('#modal .btn:has-text("확인")'); await page.waitForTimeout(200);
     await page.click('#panel-close').catch(() => {});
+    // v626 강화·성혼(en-) — 칸 카드 수 = 칸 수 · 그림이 뜬다 · 열면 성공 고리(%) · 강화하면 보이는 단계가 오른다 · 파괴된 칸은 「복구」 · 옆 넘침 없음
+    { const sl = await page.evaluate(() => { const g = window.__s2.g, G = g.S.gear, W = g.S.wallet; W.gold = 1e9; W['item:stone'] = 2000; if (!Object.keys(G.slots).some((s) => G.eq[s])) g.pullGear(10);
+        const s = Object.keys(G.slots).find((k) => G.eq[k]); Object.assign(G.slots[s], { enh: 0, broken: 0 }); return s; });
+      await page.click('#mb .nb[data-tab="bag"]'); await page.waitForTimeout(200);
+      await sub('강화·성혼'); await page.waitForTimeout(300);
+      const en = await page.evaluate(async () => { const g = window.__s2.g, W = document.querySelector('#wb'), imgs = [...W.querySelectorAll('.en-card .en-ic img, .en-mat img')];
+        await Promise.all(imgs.map((i) => (i.complete ? 0 : new Promise((r) => { i.onload = i.onerror = r; setTimeout(r, 3000); }))));
+        return { cards: W.querySelectorAll('.en-card').length, slots: Object.keys(g.S.gear.slots).length, mats: W.querySelectorAll('.en-mat').length, imgs: imgs.length, bad: imgs.filter((i) => !i.naturalWidth).map((i) => i.src.split('/').pop()),
+          all: !!W.querySelector('.row.en-all .btn'), open: [...W.querySelectorAll('.en-card > .btn')].filter((b) => b.textContent === '열기').length, over: Math.max(W.scrollWidth - W.clientWidth, document.documentElement.scrollWidth - innerWidth) }; });
+      ok(en.cards === en.slots && en.mats === 3 && en.imgs === en.slots + 3 && !en.bad.length && en.all && en.open === en.slots && en.over <= 1, 'v626 강화·성혼 칸 카드: 칸 수만큼 · 장비 · 재료 그림이 뜬다 · 「모두 강화」 · 칸마다 「열기」 · 넘침 없음', JSON.stringify(en));
+      await page.click(`#wb .en-card[data-slot="${sl}"] > .btn`); await page.waitForSelector('#modal:not(.hidden) .en-ring');
+      const m0 = await page.evaluate(() => { const M = document.querySelector('#modal .sheet'), im = M.querySelector('.en-big img'); return { ring: M.querySelector('.en-ring b')?.textContent || '', lv: M.querySelector('.en-nums .en-cur')?.textContent || '', img: !!im && im.complete && im.naturalWidth > 0, over: M.scrollWidth - M.clientWidth }; });
+      ok(/^\d+(\.\d)?%$/.test(m0.ring) && m0.lv === '+0' && m0.img && m0.over <= 1, 'v626 칸 「열기」 → 강화 창: 큰 그림 · 성공 고리 % · 지금 +0', JSON.stringify(m0));
+      await page.click('#ep-e1'); await page.waitForTimeout(150);
+      const skipEn = () => page.evaluate(() => document.querySelector('#modal .forge')?.click());
+      await skipEn(); await page.waitForTimeout(120); await skipEn(); await page.waitForTimeout(60);
+      const m1 = await page.evaluate(() => ({ lv: document.querySelector('#modal .en-nums .en-cur')?.textContent || '', fl: !!document.querySelector('#modal .en-big.en-fl') }));
+      ok(m1.lv === '+1' && m1.fl, 'v626 강화(성공 100%) → 창의 단계가 +1로 · 큰 그림 금빛 번쩍', JSON.stringify(m1));
+      await page.click('#ep-close'); await page.waitForTimeout(150);
+      ok(await page.evaluate((s) => document.querySelector(`#wb .en-card[data-slot="${s}"] .en-lv`)?.textContent, sl) === '+1', 'v626 칸 카드도 +1로');
+      await page.evaluate((s) => { const g = window.__s2.g; Object.assign(g.S.gear.slots[s], { broken: 16, star: 0 }); g.S.wallet['item:restore'] = 1; }, sl);
+      await sub('장착'); await sub('강화·성혼');
+      ok(await page.isVisible(`#wb .en-card.en-brk[data-slot="${sl}"] .en-bk`), 'v626 파괴된 칸 카드에 「파괴」 덮개');
+      await page.click(`#wb .en-card[data-slot="${sl}"] > .btn`); await page.waitForSelector('#modal:not(.hidden) #ep-rs');
+      await page.click('#ep-rs'); await page.waitForTimeout(150);
+      const rs = await page.evaluate((s) => { const g = window.__s2.g, S = g.S.gear.slots[s]; return { broken: S.broken, star: S.star, left: g.S.wallet['item:restore'] || 0, txt: document.querySelector('#modal .en-nums .en-scur')?.textContent || '', btn: !!document.querySelector('#modal #ep-rs') }; }, sl);
+      ok(!rs.broken && rs.star === 13 && rs.left === 0 && rs.txt === '★13' && !rs.btn, 'v626 「복구」 → 복구 주문서 1장 · ★13으로 되살아남', JSON.stringify(rs));
+      await page.click('#ep-close'); await page.waitForTimeout(150);
+      await page.click('#panel-close').catch(() => {}); }
     // 서열(rk-) — 오프라인: 빈 단상(그림자 셋) + 「인터넷에 연결되면 보여요」 · 주간 보상 두 줄(그림 · 뽑기권 칩 · 받기) · 갈래 넷 · 창을 닫으면 작은 무인 그리기 멈춤
     { await page.evaluate(() => { const g = window.__s2.g; g.pvpMark(); Object.assign(g.S.pvp, { lastWk: 'rk-test', lastBest: 1420, lastGot: null }); });
       await page.click('.nb[data-tab="social"]'); await sub('서열'); await page.waitForTimeout(400);

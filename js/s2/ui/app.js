@@ -8,7 +8,7 @@ import { SAVE_KEY } from '../core/save.js';
 import { S2Net } from './net.js';
 import { encodeSave, decodeAny } from '../../savecode.js';
 import { SLOTS, SLOT_NAME, GRADES, gachaExpNeed, gachaWeights, PITY_N, pityGrade } from '../tables/gear.js';
-import { itemStats, gearScore, unequip, equip, equipBest, junkOf, dismantleMany, dismantleItem, newSlot } from '../gear/gear.js';
+import { itemStats, gearScore, unequip, equip, equipBest, junkOf, dismantleMany, dismantleItem, newSlot, restoreSlot } from '../gear/gear.js';
 import { dismantle as dismantleYield, enhCost, enhOk, starCost, SHARD_PER_TICKET, gachaCost } from '../tables/gearstat.js';
 import { starOdds, STAR_MAX, PITY_POINTS, BREAK_FROM, PROTECT_FROM, PROTECT_TO, PROTECT_BREAK_COST_X } from '../tables/star.js';
 import { ENH_MAX } from '../tables/gear.js';
@@ -18,7 +18,7 @@ import { hasBodyArt, artReady as artReadyNow } from '../../art.js';
 import { RELIC_FIELD, RELIC_EXTRA, PAL_FIELD } from '../tables/relicfield.js';   // v6xx 사냥터 따르는 무리
 import { JOBS } from '../tables/char.js';
 import { SP_KEYS, SP_EACH, SP_CAP } from '../hero/hero.js';
-import { SKILLS, MASTERY, JOB_ADV } from '../tables/skills.js';
+import { SKILLS, MASTERY, JOB_ADV, masteryCost } from '../tables/skills.js';
 import { JOB_LV, LEVEL_MAX } from '../tables/progress.js';
 import { COLLECT, AWAKE_NEED, AWAKE_MAX, AWAKE_STEP_P, TOTAL_AWAKE_P, TOTAL_AWAKE_CAP, COLLECT_LV_MAX, COLLECT_LV_P, collectLvCost, REALM_MAX, REALM_ATK_P, REALM_HP_P, realmCost, heartLines, JOURNEY_MAX, JOURNEY_STEP_P, journeyCost } from '../tables/s5.js';
 import { DAILY_DUNGEONS, DAILY_RUNS, EXPEDITION, TOWER_MAX, TOWER_BONUS, STAMINA } from '../tables/content.js';
@@ -28,6 +28,7 @@ import { expToNext, mobExp, KILLS_PER_MIN } from '../tables/exp.js';
 import { staminaNow, nextRegenMs } from '../content/idle.js';
 import { buildQueue } from '../content/offline.js';
 import { kindGrade, totalAwake } from '../grow/collect.js';
+import { PULL_P, PULL_PITY, PULL_TEN_FLOOR } from '../tables/option.js';
 import { loadLooks, zoneFor, drawHero, drawMob, mobName, mobHeight, preloadMobs, drawPaintedBack, drawPaintedLedge, drawEarth, chbImg, preloadChapter, fxImg, oldImg, tintImg, ULT_ART, SEAL_ART, CUT_ART, BUFF_ART, BOSS_ART, wearCount, filtered } from './look.js';
 import { BOSS_PATS } from '../tables/kit.js';
 import { CHBOSS, CB_PATS, CB, WBF, CB_RAID, DEX_REW } from '../tables/chboss.js';
@@ -625,12 +626,30 @@ function paintWin() {
   const GCOL = ['#a8a29e', '#7cc47a', '#6aa8e0', '#b27ae0', '#e8c26a', '#e06a5a', '#ffffff'];
   const pm = (v) => `${(v / 10).toFixed(1)}%`;
   if (key === 'hero:0') {
-    const c1 = card('전투력', JOBS[g.S.hero.job].name + (g.S.hero.adv ? ` ${g.S.hero.adv}차` : ''));
-    c1(statGrid([['사냥', unit(g.power())], ['대결', unit(g.power('pvp'))]]));
+    // v6xx 스탯(st-) — 전투력 띠(작은 모습 · 큰 수 · 사냥/대결) · 능력치 네 칸(그림) · 최종 피해 네 칸(어디서 오는지) · 아래 스탯 배분은 그대로
+    const H0 = g.S.hero, c1 = card('전투력', JOBS[H0.job].name + (H0.adv ? ` ${H0.adv}차` : ''));
+    const hb = document.createElement('div'); hb.className = 'st-hero';
+    hb.innerHTML = `<canvas class="st-cv" width="132" height="156"></canvas><div class="st-pw"><b>${unit(g.power())}</b><small>${esc(JOBS[H0.job].name)} · Lv ${H0.lv}${H0.adv ? ` · ${H0.adv}차 전직` : ''}</small></div><div class="st-split"><div><span>사냥</span><b>${unit(g.power())}</b></div><div><span>대결</span><b>${unit(g.power('pvp'))}</b></div></div>`;
+    c1(hb); hb.parentNode.classList.add('st-card', 'st-top');
+    { const cv = hb.querySelector('canvas'); let last = -1e9; const paint = (ts) => {
+        if (!cv.isConnected || !open) return;   // 창을 닫거나 다른 칸으로 가면 멈춤
+        const low = opt.gfx === 'low';
+        if (ts - last > (low ? 500 : 66)) { last = ts; const x = cv.getContext('2d'); x.clearRect(0, 0, 132, 156); const gr = x.createRadialGradient(66, 104, 6, 66, 104, 72); gr.addColorStop(0, '#e8c26a44'); gr.addColorStop(1, 'rgba(0,0,0,0)'); x.fillStyle = gr; x.fillRect(0, 0, 132, 156); drawHero(x, 66, 150, H0.job, H0.lv, { t: low ? 0 : now() / 1000, scale: 1.1, eq: g.lookEq() }); cv.dataset.n = String((+cv.dataset.n || 0) + 1); }
+        requestAnimationFrame(paint);
+      }; requestAnimationFrame(paint); }
+    const stIc = (n) => `<span class="ico pic st-ic"><img src="art/s2/ui/${n}.webp" alt="" decoding="async" onerror="this.parentNode.classList.remove('pic');this.remove()"></span>`;
     const c2 = card('능력치');
-    c2(statGrid([['공격', unit(st.atk || 0)], ['체력', unit(st.hp || 0)], ['방어', unit(st.def || 0)], ['치명 확률', pm(st.crit || 0)], ['치명 피해', pm(st.critDmg || 0)], ['보스 피해', pm(st.bossDmg || 0)], ['경험치', `+${pm(st.expP || 0)}`], ['무공 피해', `+${pm(st.skillP || 0)}`]]));
+    const t2 = document.createElement('div'); t2.className = 'st-tiles';
+    t2.innerHTML = [['atk', '공격', unit(st.atk || 0)], ['hp', '체력', unit(st.hp || 0)], ['def', '방어', unit(st.def || 0)], ['crit', '치명 확률', pm(st.crit || 0)]].map(([ic, n, v]) => `<div class="st-t" data-k="${ic}">${stIc(ic)}<span class="st-l">${n}</span><b>${v}</b></div>`).join('');
+    const mo = document.createElement('div'); mo.className = 'st-more';
+    mo.innerHTML = [['치명 피해', pm(st.critDmg || 0)], ['보스 피해', pm(st.bossDmg || 0)], ['경험치', `+${pm(st.expP || 0)}`], ['무공 피해', `+${pm(st.skillP || 0)}`]].map(([n, v]) => `<span>${n} <b>${v}</b></span>`).join('');
+    c2(t2, mo); t2.parentNode.classList.add('st-card');
+    // 최종 피해 — 넷이 곱으로(battle/damage.js ⑩) · 어디서 오는지는 표 그대로(core/stats.js LAYER_OWNER · 5차 상시 무공 · tables/s5.js)
     const c3 = card('최종 피해', '곱으로 붙는 넷');
-    c3(statGrid([['최종 피해①', pm(st.final1 || 0)], ['최종 피해②', pm(st.final2 || 0)], ['최종 피해③', pm(st.final3 || 0)], ['최종 피해④', pm(st.final4 || 0)]]));
+    const FD = [['final1', '마스터리 · 5차 상시 무공'], ['final2', `낀 영물 ${COLLECT.relic.slots}칸`], ['final3', `강호행 단계마다 +${pm(JOURNEY_STEP_P)} · 옵션 줄`], ['final4', `낀 동료 ${COLLECT.pal.slots}칸 · 둘째 칸부터 ${Math.round(COLLECT.pal.subShare * 100)}%`]];
+    const t3 = document.createElement('div'); t3.className = 'st-tiles st-fin';
+    t3.innerHTML = FD.map(([k, why], i) => `<div class="st-t st-f${st[k] ? '' : ' zero'}" data-k="${k}"><span class="st-l">최종 피해${'①②③④'[i]}</span><b>${pm(st[k] || 0)}</b><small class="st-w">${why}</small></div>`).join('');
+    c3(t3); t3.parentNode.classList.add('st-card');
     // 스탯 배분 — 레벨마다 1점 · 네 스탯에 손으로(값은 작다 · 되돌리기는 공짜)
     { const P = g.hero.spState(), free = g.statPts(), used = g.hero.spUsed(), cs = card('스탯 배분', `남은 점수 ${free} · 레벨마다 1점`);
       const NM = { atk: ['공격', '攻'], hp: ['체력', '體'], def: ['방어', 'i:def:防'], crit: ['치명 확률', '銳'] };
@@ -734,14 +753,24 @@ function paintWin() {
       }
     } else B.append(note('무공을 하나 이상 배우면 강화할 수 있어요.'));
   } else if (key === 'hero:2') {
-    const c = card('마스터리', '최종 피해① · 값을 내면 바로 익힘');
+    // v6xx 마스터리(ma-) — 단마다 한 칸(1단 → 2단 → …) · 「먼저」인 앞 단 노드와 선으로 · 익힘 ✓ / 배울 수 있음(금빛 · 「배우기」) / 잠김(Lv n부터 · 앞 노드 먼저)
+    const c = card('마스터리', '최종 피해① · 값을 내면 바로 익힘'), H0 = g.S.hero, got = new Set(H0.mastery.done);
+    const mn = (id) => MASTERY_NAME[+id.slice(1) - 1] || id;   // v522 m1 같은 id 대신 이름
+    const byId = new Map(MASTERY.map((m) => [m.id, m])), D = Math.max(...MASTERY.map((m) => m.depth)), lane = {}, taken = {};
+    for (const m of [...MASTERY].sort((a, b) => a.depth - b.depth)) { let l = m.need && lane[m.need] != null ? lane[m.need] : 0; const T = (taken[m.depth] ??= new Set()); while (T.has(l)) l++; T.add(l); lane[m.id] = l; }   // 줄: 먼저 배울 노드와 같은 줄
+    const path = document.createElement('div'); path.className = 'ma-path'; path.style.setProperty('--cols', D);
+    path.innerHTML = Array.from({ length: D }, (_, i) => `<div class="ma-dh" style="grid-column:${i + 1}">${i + 1}단${i < D - 1 ? ' <i>→</i>' : ''}</div>`).join('');
     for (const m of MASTERY) {
-      const done = g.S.hero.mastery.done.includes(m.id), can = g.hero.canLearn(m.id);
-      const mn = (id) => MASTERY_NAME[+id.slice(1) - 1] || id;   // v522 m1 같은 id 대신 이름
-      const r = R(`${m.depth}단 · ${mn(m.id)} <small>Lv ${m.lv}${m.need ? ` · ${mn(m.need)} 먼저` : ''}</small>`, `최종 피해① +${m.final1 / 10}%${!done && g.S.hero.lv < m.lv ? ` · ${lvHint(m.lv)}` : ''}`, done ? [] : [['배우기', act(() => g.learn(m.id)), !can]], done ? '得' : '學');
-      if (!done && !can) r.style.opacity = '.55';
-      c(r);
+      const ok = got.has(m.id), can = g.hero.canLearn(m.id), pre = m.need && byId.get(m.need), link = !!pre && pre.depth === m.depth - 1 && lane[pre.id] === lane[m.id], cost = masteryCost(m)[0]?.n || 0;
+      const n = document.createElement('div'); n.className = `ma-node ${ok ? 'ma-done' : can ? 'ma-can' : 'ma-lock'}${link ? ` ma-link${got.has(m.need) ? ' ma-on' : ''}` : ''}`; n.dataset.id = m.id;
+      n.style.gridColumn = String(m.depth); n.style.gridRow = String(lane[m.id] + 2);
+      const why = ok ? '<em class="ma-ok">✓ 익힘</em>' : can ? `<em class="ma-cost${(g.S.wallet.gold || 0) < cost ? ' short' : ''}">은자 ${unit(cost)}</em>` : H0.lv < m.lv ? `<em class="ma-why">${lvHint(m.lv)}</em>` : pre && !got.has(pre.id) ? `<em class="ma-why">${mn(pre.id)} 먼저</em>` : '<em class="ma-why">잠김</em>';
+      n.innerHTML = `<div class="ma-h"><span class="ico pic ma-ic"><img src="art/s2/ui/mastery.webp" alt="" decoding="async" onerror="this.parentNode.classList.remove('pic');this.remove()"></span><div><b>${mn(m.id)}</b><small>Lv ${m.lv}${pre && !link ? ` · ${mn(pre.id)} 먼저` : ''}</small></div></div><p>최종 피해① +${m.final1 / 10}%</p>${why}`;
+      if (!ok && can) { const bt = document.createElement('button'); bt.className = 'btn primary ma-btn'; bt.textContent = '배우기'; bt.onclick = act(() => g.learn(m.id)); n.append(bt); }
+      path.append(n);
     }
+    c(path);
+    { const n = MASTERY.filter((m) => got.has(m.id)), f1 = n.reduce((a, m) => a + m.final1, 0); c(note(`익힌 노드 ${n.length} / ${MASTERY.length} · 최종 피해① +${f1 / 10}% · 선은 「먼저 배울 노드」`)); }
   } else if (key === 'hero:3') {
     // 전직 사다리(jb-) — 왼쪽 큰 무인(지금 모습) · 오른쪽 다섯 차수 카드(이름 · 레벨 문 · 여는 무공 · 공격/체력 보너스) · 마친 차수는 금빛 도장
     const H = g.S.hero, n = H.adv + 1, low = opt.gfx === 'low';
@@ -840,25 +869,32 @@ function paintWin() {
   } else if (key === 'gear:2') {
     // v528 가진 재료를 맨 위에 · 칸마다 다음 강화로 무엇이 얼마나 오르는지 · 누르면 강화 창
     const L = g.S.hero.lv, G = g.S.gear;
+    // v626 en- 재료 칩 셋(그림) · 「모두 강화」 줄 · 칸 카드 격자(장비 그림 · +강화 · ★ · 다음 강화 확률 · 비용 · 파괴 표시)
     const c0 = card('가진 재료', '강화 = 은자 + 강화석 · 성혼 = 은자');
-    c0(statGrid([['은자', unit(W.gold || 0)], ['강화석', unit(W['item:stone'] || 0)], ['복구 주문서', `${W['item:restore'] || 0}장`]]));
+    const mats = document.createElement('div'); mats.className = 'en-mats';
+    mats.innerHTML = [['silver', '은자', unit(W.gold || 0)], ['stone', '강화석', unit(W['item:stone'] || 0)], ['reset', '복구 주문서', `${W['item:restore'] || 0}장`]]
+      .map(([ic, nm, v]) => `<div class="en-mat"><img src="art/s2/ui/${ic}.webp" alt=""><span>${nm}</span><b>${v}</b></div>`).join('');
+    c0(mats);
     c0(note('강화석은 장비 분해(가방 · 일괄 분해)와 수련동 「단련동」에서 얻어요.'));
     // v543 모두 강화 — 낮은 칸부터 고르게 · 재료가 되는 만큼 · 결과 창(칸마다 전 → 후 · 성공/실패 · 쓴 재료 · 전투력)
     const lo = SLOTS.reduce((a, b) => (G.slots[b].enh < G.slots[a].enh ? b : a)), loCost = enhCost(G.slots[lo].enh, L);
-    c0(R('모두 강화', have(loCost) ? `가장 낮은 칸부터 고르게 · 재료가 되는 만큼<br>다음: ${SLOT_NAME[lo]} +${G.slots[lo].enh} — ${costTxt(loCost)}` : `재료가 모자라요 — ${SLOT_NAME[lo]} +${G.slots[lo].enh}에 ${costTxt(loCost)}`,
-      [['모두 강화', act(() => { const r = g.enhanceAll(); if (r) enhAllPop(r); return r; }), !have(loCost)]], '鍊'));
+    const ra = R('모두 강화', have(loCost) ? `가장 낮은 칸부터 고르게 · 재료가 되는 만큼<br>다음: ${SLOT_NAME[lo]} +${G.slots[lo].enh} — ${costTxt(loCost)}` : `재료가 모자라요 — ${SLOT_NAME[lo]} +${G.slots[lo].enh}에 ${costTxt(loCost)}`,
+      [['모두 강화', act(() => { const r = g.enhanceAll(); if (r) enhAllPop(r); return r; }), !have(loCost)]], '鍊');
+    ra.classList.add('en-all'); c0(ra);
     const c = card('칸 강화 · 성혼', '칸에 붙는다 — 장비를 바꿔도 남음 · 누르면 강화 창');
+    const grid = document.createElement('div'); grid.className = 'en-grid'; c(grid);
     for (const sl of SLOTS) {
-      const S2 = G.slots[sl], it = G.eq[sl];
-      const gain = it && S2.enh < ENH_MAX ? diffTxt(itemStats(it, S2, L), itemStats(it, { ...S2, enh: S2.enh + 1 }, L)) : '';
-      const cost = S2.enh < ENH_MAX ? enhCost(S2.enh, L) : [], can = cost.length && have(cost);
-      const r = rowEl(`${SLOT_NAME[sl]} <small>+${S2.enh} · ★${S2.star}${S2.broken ? ' 파괴' : ''}</small>`,
-        S2.enh >= ENH_MAX ? '강화 끝(+20)' : `${gain ? `<span class="up">+${S2.enh + 1}: ${gain}</span><br>` : ''}${costTxt(cost)}`,
-        [['열기', () => { play('click'); enhPop(sl); }]]);
-      if (can) r.classList.add('can');
-      const ic = document.createElement('img'); ic.className = 'ico'; ic.src = eqIcon(sl, it); ic.alt = ''; ic.style.cssText = 'width:40px;height:40px;object-fit:contain;background:none'; r.prepend(ic);
-      r.style.cursor = 'pointer'; r.onclick = (e) => { if (e.target.closest('button')) return; play('click'); enhPop(sl); };
-      c(r);
+      const S2 = G.slots[sl], it = G.eq[sl], eMax = S2.enh >= ENH_MAX;
+      const cost = eMax ? [] : enhCost(S2.enh, L), can = cost.length && have(cost);
+      const d = document.createElement('div'); d.className = `en-card${it ? ` g${it.g}` : ' empty'}${can ? ' can' : ''}${S2.broken ? ' en-brk' : ''}`; d.dataset.slot = sl;
+      if (it) d.style.setProperty('--gc', GX_COL[it.g]);
+      d.innerHTML = `<div class="en-ic"><img src="${eqIcon(sl, it)}" alt="${SLOT_NAME[sl]}">${S2.broken ? '<i class="en-bk">파괴</i>' : ''}</div>
+        <span class="en-nm">${SLOT_NAME[sl]}${it ? ` <small class="g${it.g}t">${GRADES[it.g]}품${it.up ? '上' : ''}</small>` : ' <small>비어 있음</small>'}</span><b class="en-lv">+${S2.enh}</b>
+        <div class="en-st">${S2.broken ? `<span class="en-bkt">★${S2.broken} 파괴</span>` : starPips(S2.star)}</div>
+        <div class="en-nx">${S2.broken ? '<span class="en-bkt">복구 주문서로 되살릴 수 있어요</span>' : ''}${eMax ? '<span>강화 끝(+20)</span>' : `<span>+${S2.enh + 1} · 성공 <b>${pctTxt(enhOk(S2.enh))}</b></span><span>${costTxt(cost)}</span>`}</div>`;
+      const b = document.createElement('button'); b.className = 'btn primary'; b.textContent = '열기'; b.onclick = () => { play('click'); enhPop(sl); }; d.append(b);
+      d.onclick = (e) => { if (e.target.closest('button')) return; play('click'); enhPop(sl); };
+      grid.append(d);
     }
   } else if (key === 'gear:3') {
     const G = g.S.gear, L = g.S.hero.lv;
@@ -895,11 +931,26 @@ function paintWin() {
     add(bar);
   } else if (key === 'grow:0' || key === 'grow:1' || key === 'grow:2') {
     const sys = COLLECTS[+key.slice(5)], C = g.S.colls[sys], D = COLLECT[sys];
-    const c0 = card(`${D.name} 뽑기`, `천장 ${C.pity}/200`);
     // v558 병기 · 동료 · 영물 뽑기도 카드 뒤집기(높은 등급은 두근 · 번쩍) — 처음 얻은 것은 「새로」
-    const GLY = { weapon: '兵', pal: '伴', relic: '靈' }[sys] || '抽';   // v610 줄 그림도 이 글자로 고른다
     const pullFx = (n) => { const before = new Set(Object.keys(C.own)); const r = g.pullCollect(sys, n); if (r) showGacha({ items: r, got: [] }, { title: `${D.name} 뽑기`, again: act(() => pullFx(n)), can: () => (g.S.wallet[`ticket:${sys}`] || 0) >= n, fresh: (it) => !before.has(String(it.k)), done: (b) => `가장 좋은 것: ${GRADES[b]} · 새로 ${new Set(r.filter((x) => !before.has(String(x.k))).map((x) => x.k)).size}종`, face: (it) => `<img class="gx-coll" src="art/s2/coll/${sys}-${it.k}.webp" alt=""><b class="g${it.g}t">${GRADES[it.g]}</b><small>${esc(collName(sys, it.k))}</small>${before.has(String(it.k)) ? '' : '<i>새로</i>'}` }); return r; };
-    c0(R(`뽑기권 ${W[`ticket:${sys}`] || 0}장`, '많이 가지면 모은 효과 · 낀 것은 장착 효과', [['1번', act(() => pullFx(1))], ['10번', act(() => pullFx(10))]], GLY));
+    // v6xx 뽑기 깃발(cg-) — 맨 위 등급 그림 셋(0~2번) · 뽑기권 · 모음 효과 합 · 천장 막대 · 등급 확률 · 1번 / 10번 칸(칸 어디를 눌러도 뽑기)
+    const tix = W[`ticket:${sys}`] || 0, TOP = PULL_P.length - 1, show = [1, 0, 2].map((k) => [k, kindGrade(sys, k)]);
+    const ownSum = Object.entries(C.own).reduce((a, [k, o]) => a + D.own[kindGrade(sys, +k)] * (1 + (o.awk * AWAKE_STEP_P) / 1000), 0) * clMul(C);   // 자세히 창 「보유」 값의 합
+    const c0 = document.createElement('div'); c0.className = 'card cg'; c0.style.setProperty('--gc', GCOL[kindGrade(sys, 0)]); B.append(c0);
+    c0.innerHTML = `<div class="cg-hero"><div class="cg-show">${show.map(([k, gr]) => `<img class="${k ? 's' : 'm'}" src="art/s2/coll/${sys}-${k}.webp" alt="${GRADES[gr]}품 ${esc(collName(sys, k))}" decoding="async" style="--gc:${GCOL[gr]}">`).join('')}</div>`
+      + `<div class="cg-head"><h3>${D.name} 뽑기</h3><span class="cg-tix">뽑기권 <b>${tix}장</b></span></div></div>`
+      + `<p class="cg-sum">모음 효과 합 <b>${CL_STAT[D.ownStat]} +${clPm(ownSum)}</b></p>`
+      + `<div class="cg-pity"><div class="cg-pl"><span>천장</span><b>${C.pity} / ${PULL_PITY}</b><small class="g${TOP}t">${GRADES[TOP]}품 확정</small></div><div class="achbar"><i style="width:${Math.min(100, (C.pity / PULL_PITY) * 100)}%"></i></div></div>`
+      + `<div class="cg-odds"><em>확률</em>${PULL_P.map((x, i) => `<span class="g${i}t" style="--gc:${GCOL[i]}"><b>${GRADES[i]}</b>${+(x / 10).toFixed(1)}%</span>`).join('')}</div>`;
+    const tiles = document.createElement('div'); tiles.className = 'cg-tiles';
+    for (const n of [1, 10]) {   // 누르면 하는 일 · 단추 글은 그대로(1번 · 10번) — 뽑기권이 모자라면 장 수만 붉게
+      const r = rowEl(`뽑기권 ${n}장`, n >= 10 ? `${GRADES[PULL_TEN_FLOOR]}품 이상 하나` : '', [[`${n}번`, act(() => pullFx(n))]]);
+      r.classList.add('cg-tile'); if (n === 10) r.classList.add('main'); if (tix < n) r.classList.add('short');
+      const btn = r.querySelector('.btn'); if (n !== 10) btn.classList.remove('primary');
+      r.onclick = (e) => { if (!e.target.closest('.btn')) btn.click(); };
+      tiles.append(r);
+    }
+    c0.append(tiles);
     // v603 모음 격자 — 가진 것은 등급 빛깔로, 아직 없는 것도 흐리게 다 보인다(무엇을 모으는지 · 얼마나 모았는지)
     const nOwn = Object.keys(C.own).length;
     const c1 = card(`${D.name} 모음 ${nOwn}/${D.kinds}`, `장착 ${C.eq.filter((x) => x !== null && x !== undefined).length}/${C.eq.length}`);
@@ -1171,19 +1222,22 @@ function paintWin() {
     const S = g.S, B = g.books.ach, cnt = (ev) => { const st = ACHIEVE[ev]?.steps; if (!st) return 0; const s2 = B.get(`a_${ev}_${st.length - 1}`); return s2.done ? st.at(-1) : s2.p || 0; };
     const plus = (ev) => { const st = ACHIEVE[ev]?.steps; return st && B.get(`a_${ev}_${st.length - 1}`).done ? '+' : ''; };
     const T = g.stage(), P = S.pvp || {}, wins = (P.log || []).filter((l) => !l.def && l.win).length;
-    const items = [
-      ['무인', `${esc(JOBS[S.hero.job].name)} · Lv ${S.hero.lv} · ${S.hero.adv ? `${S.hero.adv}차 전직` : '입문'}`],
-      ['전투력', unit(g.power())], ['가장 멀리', `${Math.ceil(T.top / 10)}장 ${((T.top - 1) % 10) + 1}칸`],
-      ['잡은 몹', unit(S.kills || 0)], ['최고 연속 처치', `${S.comboBest || 0}`],
-      ['장 두목 처치', `${Object.keys(S.chb || {}).length} / 15`], ['토벌 ★3', `${g.dex().three} / 15`],
-      ['장비 뽑기', `${unit(S.gacha?.pulls || 0)}번`], ['강화', `${unit(cnt('enhance'))}${plus('enhance')}번`], ['성혼', `${unit(cnt('star'))}${plus('star')}번`],
-      ['던전 클리어', `${unit(cnt('dungeon'))}${plus('dungeon')}번`], ['월드보스', `${unit(cnt('wboss'))}${plus('wboss')}번`], ['장 두목 토벌', `${unit(cnt('raid'))}${plus('raid')}번`],
-      ['대결 점수', `${P.score ?? 1000}`], ['오늘 할 일 다 함', `${unit(cnt('today'))}${plus('today')}번`], ['문파 토벌', `${unit(cnt('graid'))}${plus('graid')}번`],
-      ['칭호', `${(S.titles || []).length}개`], ['업적', `${ACH.filter((a) => B.get(a.id).got).length} / ${ACH.length}`],
+    // v6xx 기록(rc-) — 묶음 카드(진행 · 전투 · 뽑기 · 강화 · 모음) · 칸마다 그림 · 큰 숫자 · 세이브를 시작한 날
+    const n2 = (ev) => `${unit(cnt(ev))}${plus(ev)}`;
+    const GRP = [
+      ['무인 기록', [['job', '무인', `Lv ${S.hero.lv}`, `${esc(JOBS[S.hero.job].name)} · ${S.hero.adv ? `${S.hero.adv}차 전직` : '입문'}`], ['atk', '전투력', unit(g.power())], ['map', '가장 멀리', `${Math.ceil(T.top / 10)}장 ${((T.top - 1) % 10) + 1}칸`], ['dex', '장 두목 처치', `${Object.keys(S.chb || {}).length}`, '/ 15']]],
+      ['전투', [['sweep', '잡은 몹', unit(S.kills || 0)], ['meter', '최고 연속 처치', `${S.comboBest || 0}`], ['gate', '던전 클리어', n2('dungeon'), '번'], ['raid', '장 두목 토벌', n2('raid'), '번'], ['stamp', '토벌 ★3', `${g.dex().three}`, '/ 15'], ['wboss', '월드보스', n2('wboss'), '번'], ['duel', '대결 점수', `${P.score ?? 1000}`, `최근 열 판 중 이긴 공격 ${wins}번`], ['guild', '문파 토벌', n2('graid'), '번']]],
+      ['뽑기 · 강화', [['pull', '장비 뽑기', unit(S.gacha?.pulls || 0), '번'], ['enhance', '강화', n2('enhance'), '번'], ['starsoul', '성혼', n2('star'), '번']]],
+      ['모음', [['title', '칭호', `${(S.titles || []).length}`, '개'], ['medal', '업적', `${ACH.filter((a) => B.get(a.id).got).length}`, `/ ${ACH.length}`], ['mission', '오늘 할 일 다 함', n2('today'), '번']]],
     ];
-    const c0 = card('무인 기록', '처음부터 이제까지');
-    c0(statGrid(items));
-    c0(note(`가장 최근 대결 열 판 중 이긴 공격 ${wins}번 · 큰 숫자는 업적 마지막 단계까지 세어 「+」면 그 넘어`));
+    const since = S.created > 1e12 ? `${dexDate(S.created)} 시작 · ${Math.max(1, Math.floor((now() - S.created) / 86400000) + 1)}일째` : '';
+    for (const [i, [title, list]] of GRP.entries()) {
+      const c0 = card(title, i ? `${list.length}칸` : '처음부터 이제까지'), grid = document.createElement('div'); grid.className = 'rc-grid';
+      if (!i && since) { const d = document.createElement('div'); d.className = 'rc-since'; d.textContent = since; c0(d); }
+      grid.innerHTML = list.map(([ic, k, v, sub = '']) => `<div class="rc-t" data-k="${ic}"><span class="ico pic rc-ic"><img src="art/s2/ui/${ic}.webp" alt="" decoding="async" onerror="this.parentNode.classList.remove('pic');this.remove()"></span><span class="rc-lb">${k}</span><b>${v}${sub && sub.length <= 4 ? ` <small>${sub}</small>` : ''}</b>${sub.length > 4 ? `<small class="rc-s">${sub}</small>` : ''}</div>`).join('');
+      c0(grid); grid.parentNode.classList.add('rc-card');
+      if (i === GRP.length - 1) c0(note('큰 숫자는 업적 마지막 단계까지 세어 「+」면 그 넘어'));
+    }
   } else if (key === 'look:0') {
     // v565 외형 — 부위마다 보일 등급(얻어 본 등급까지) · 「장비대로」면 낀 것 그대로. 사냥터 · 얼굴 · 대결에서 보이는 모습만(능력치 그대로)
     // 왼쪽: 크게 움직이는 무인(누른 칸을 바로 입혀 봄) · 「이 외형으로」로 정함 / 오른쪽: 부위마다 얻어 본 등급 칸 · 아직 못 얻은 등급은 흐린 칸(무엇이 있는지 보이게)
@@ -1704,9 +1758,14 @@ function diffTxt(a, b) { return Object.keys(b).filter((k) => (b[k] || 0) !== (a[
 function statRows(a, b) {
   return Object.keys({ ...a, ...b }).map((k) => { const d = (b[k] || 0) - (a[k] || 0); return `<div class="cmp-r"><span>${STATS[k]?.name || k}</span><b>${fmtStat(k, a[k] || 0)}</b><em class="${d > 0 ? 'up' : ''}">${d > 0 ? `→ ${fmtStat(k, b[k])}` : '–'}</em></div>`; }).join('');
 }
+const COST_ICO = { gold: 'silver', 'item:stone': 'stone', 'item:restore': 'reset' };   // v626 재료 그림(art/s2/ui)
 function needRows(cost) {
-  return `<div class="need">${cost.map((c2) => { const h = g.S.wallet[c2.k] || 0; return `<div class="need-r ${h >= c2.n ? 'ok' : 'no'}"><span>${COST_NAME[c2.k] || c2.k}</span><b>${unit(c2.n)}</b><small>가진 것 ${unit(h)}</small></div>`; }).join('')}</div>`;
+  return `<div class="need">${cost.map((c2) => { const h = g.S.wallet[c2.k] || 0; return `<div class="need-r ${h >= c2.n ? 'ok' : 'no'}"><span>${COST_ICO[c2.k] ? `<img src="art/s2/ui/${COST_ICO[c2.k]}.webp" alt="">` : ''}${COST_NAME[c2.k] || c2.k}</span><b>${unit(c2.n)}</b><small>가진 것 ${unit(h)}</small></div>`; }).join('')}</div>`;
 }
+const pctTxt = (pm) => `${(pm / 10).toFixed(pm % 10 ? 1 : 0)}%`;
+// v626 ★ — 열까지는 작은 별(한 줄 다섯) · 넘으면 숫자
+const starPips = (n) => (n > 10 ? `<span class="en-sn">★${n}</span>` : n > 0 ? `<span class="en-pips" aria-label="★${n}">${[Math.min(5, n), Math.max(0, n - 5)].filter(Boolean).map((k) => `<i>${'★'.repeat(k)}</i>`).join('')}</span>` : '<span class="en-s0">★0</span>');
+const enRing = (pm, cls = '') => `<div class="en-ring ${cls}" style="--p:${(pm / 10).toFixed(1)}"><b>${pctTxt(pm)}</b><small>성공</small></div>`;
 let enhProt = false;
 // v531 대장간 연출 — 결과는 먼저 정해 두고(엔진), 화면은 망치질 · 숨 고르기 · 터짐으로 보여 준다. 누르면 건너뜀.
 //   kind 'enh' | 'star' · rs: 결과 목록(여러 번이면 차례로) · after: 끝나고
@@ -1834,7 +1893,7 @@ function enhAllPop(r) {
   play(r.per.length ? 'rare' : 'fail', 3); if (r.per.length) buzz(40);
   addLog(`모두 강화 — 성공 ${r.ok} · 실패 ${r.fail} · 강화석 ${unit(r.stones)}`);
 }
-function enhPop(sl) {
+function enhPop(sl, fx) {
   const G = g.S.gear, L = g.S.hero.lv, it = G.eq[sl], S2 = G.slots[sl], sh = $('modal').querySelector('.sheet');
   if (!it) { closeModal(); eqSel = sl; openWin('bag', 0); return; }
   sh.classList.add('wide', 'enhs');
@@ -1846,29 +1905,35 @@ function enhPop(sl) {
   const sMax = S2.star >= STAR_MAX || S2.broken, prot = enhProt && S2.star >= PROTECT_FROM && S2.star <= PROTECT_TO;
   const sBase = sMax ? [] : starCost(S2.star, L), sCost = prot ? sBase.map((c2) => ({ k: c2.k, n: c2.n * (1 + PROTECT_BREAK_COST_X) })) : sBase;
   const od = sMax ? null : starOdds(S2.star), sAfter = sMax ? now0 : itemStats(it, { ...S2, star: S2.star + 1 }, L);
-  const pct = (pm) => `${(pm / 10).toFixed(pm % 10 ? 1 : 0)}%`;
+  const pct = pctTxt;
+  // v627 파괴된 칸 복구(복구 주문서 1장 · 엔진 restoreSlot 그대로) — 되살아나는 ★는 사본으로 미리 계산
+  const RS_COST = [{ k: 'item:restore', n: 1 }], rsTo = S2.broken ? (() => { const t = { slots: { [sl]: { ...S2 } } }; restoreSlot(t, sl, { 'item:restore': 1 }); return t.slots[sl].star; })() : 0;
+  // v626 en- 큰 그림(등급 테) · 지금 → 다음(+강화 · ★) · 칸마다 성공 고리 · 재료 칩(그림)
   sh.innerHTML = `<h2>장비 강화</h2>
-    <div class="cmp-h"><img src="${eqIcon(sl, it)}" alt="${SLOT_NAME[sl]}"><div><b class="g${it.g}t">${GRADES[it.g]}품${it.up ? '上' : ''} ${SLOT_NAME[sl]}</b><small>칸 강화 <i class="hl">+${S2.enh}</i>/${ENH_MAX} · 성혼 <i class="hl">★${S2.star}</i>${S2.broken ? ' (파괴 — 복구 필요)' : ''} · 전투력 ${unit(g.power())}</small></div></div>
+    <div class="en-hero"><div class="en-big g${it.g}" style="--gc:${GX_COL[it.g]}"><img src="${eqIcon(sl, it)}" alt="${SLOT_NAME[sl]}">${S2.broken ? '<i class="en-bk">파괴</i>' : ''}</div>
+      <div class="en-hi"><div class="en-hn"><b class="g${it.g}t">${GRADES[it.g]}품${it.up ? '上' : ''} ${SLOT_NAME[sl]}</b><small>${S2.broken ? '파괴 — 복구 필요 · ' : ''}전투력 ${unit(g.power())}</small></div>
+        <div class="en-nums"><span><small>강화</small><b class="en-cur">+${S2.enh}</b>${eMax ? '<em>끝</em>' : `<i>→</i><b class="up">+${S2.enh + 1}</b>`}</span><span><small>성혼</small><b class="en-scur${S2.broken ? ' dn' : ''}">★${S2.broken ? `${S2.broken} 파괴` : S2.star}</b>${sMax ? '' : `<i>→</i><b class="up">★${S2.star + 1}</b>`}</span></div></div></div>
     <div class="enh2">
-      <section><h3>강화 <span>${eMax ? '끝' : `+${S2.enh} → +${S2.enh + 1} · 성공 ${pct(eOk)}`}</span></h3>
+      <section><div class="en-sh"><h3>강화 <span>${eMax ? '끝' : `+${S2.enh} → +${S2.enh + 1} · 성공 ${pct(eOk)}`}</span></h3>${eMax ? '' : enRing(eOk)}</div>
         <div class="cmp">${statRows(now0, eAfter)}</div>
         ${eMax ? '<p class="note">강화를 끝까지 했어요.</p>' : `<div class="need-h">필요한 것 / 가진 것</div>${needRows(eCost)}<p class="note">실패해도 단계는 그대로 · 재료만 들어요.</p>`}
         <div class="btn-row"><button class="btn primary" id="ep-e1" ${eMax || !have(eCost) ? 'disabled' : ''}>강화</button><button class="btn" id="ep-e5" ${eMax || !have(eCost) ? 'disabled' : ''}>5번 강화</button></div>
       </section>
-      <section><h3>성혼 <span>${sMax ? (S2.broken ? '파괴됨' : '끝') : `★${S2.star} → ★${S2.star + 1} · 성공 ${pct(od.ok)}${od.down ? ` · 하락 ${pct(od.down)}` : ''}${od.brk ? ` · 파괴 ${pct(od.brk)}` : ''}`}</span></h3>
+      <section><div class="en-sh"><h3>성혼 <span>${sMax ? (S2.broken ? '파괴됨' : '끝') : `★${S2.star} → ★${S2.star + 1} · 성공 ${pct(od.ok)}${od.down ? ` · 하락 ${pct(od.down)}` : ''}${od.brk ? ` · 파괴 ${pct(od.brk)}` : ''}`}</span></h3>${sMax ? '' : enRing(od.ok, 'st')}</div>
         <div class="cmp">${statRows(now0, sAfter)}</div>
         ${sMax ? '' : `<div class="need-h">필요한 것 / 가진 것</div>${needRows(sCost)}<p class="note">실패가 쌓이면 다음 한 번은 성공(${S2.pity || 0}/${PITY_POINTS}).${S2.star >= PROTECT_FROM && S2.star <= PROTECT_TO ? ` <label class="prot"><input type="checkbox" id="ep-prot" ${enhProt ? 'checked' : ''}> 파괴 방지(은자 ×${1 + PROTECT_BREAK_COST_X})</label>` : S2.star < BREAK_FROM ? ' 15성부터 파괴될 수 있어요.' : ''}</p>`}
-        <div class="btn-row"><button class="btn primary" id="ep-s1" ${sMax || !have(sCost) ? 'disabled' : ''}>성혼</button></div>
+        ${S2.broken ? `<div class="need-h">복구 — 필요한 것 / 가진 것</div>${needRows(RS_COST)}<p class="note">되살리면 ★${rsTo}부터 다시 성혼할 수 있어요.</p>` : ''}
+        <div class="btn-row">${S2.broken ? `<button class="btn primary" id="ep-rs" ${have(RS_COST) ? '' : 'disabled'}>복구</button>` : ''}<button class="btn${S2.broken ? '' : ' primary'}" id="ep-s1" ${sMax || !have(sCost) ? 'disabled' : ''}>성혼</button></div>
       </section>
     </div>
     <div class="btn-row" style="margin-top:10px"><button class="btn" id="ep-swap">장비 바꾸기</button><button class="btn" id="ep-off">해제</button><button class="btn primary" id="ep-close">닫기</button></div>`;
-  const again = () => { save(); paintHud(); if (open) paintWin(); enhPop(sl); };
+  const again = (r) => { save(); paintHud(); if (open) paintWin(); enhPop(sl, r); };
   const doEnh = (n) => {
     const before = { ...G.slots[sl] }, p0 = itemStats(it, G.slots[sl], L), rs = [];
     for (let i = 0; i < n; i++) { const r = g.enhance(sl); if (r === null) break; rs.push(r); if (G.slots[sl].enh >= ENH_MAX) break; }
     if (!rs.length) { toast('재료가 모자라요'); return; }
     save(); paintHud();
-    forgeFx('enh', sl, rs, before, () => diffTxt(p0, itemStats(it, G.slots[sl], L)) || '', again);
+    forgeFx('enh', sl, rs, before, () => diffTxt(p0, itemStats(it, G.slots[sl], L)) || '', () => again(G.slots[sl].enh > before.enh ? 'ok' : 'no'));
   };
   $('ep-e1').onclick = () => doEnh(1);
   $('ep-e5').onclick = () => doEnh(5);
@@ -1876,10 +1941,13 @@ function enhPop(sl) {
     const before = { ...G.slots[sl] }, p0 = itemStats(it, G.slots[sl], L), r = g.star(sl, { noBreak: prot });
     if (!r) { toast('재료가 모자라요'); return; }
     save(); paintHud();
-    forgeFx('star', sl, [r], before, () => diffTxt(p0, itemStats(it, G.slots[sl], L)) || '', again);
+    forgeFx('star', sl, [r], before, () => diffTxt(p0, itemStats(it, G.slots[sl], L)) || '', () => again(r === 'ok' ? 'ok' : 'no'));
     if (r === 'break') setTimeout(() => toast('파괴! 복구 주문서로 되살릴 수 있어요'), 1300);
   };
   const pr = $('ep-prot'); if (pr) pr.onchange = (e) => { enhProt = e.target.checked; enhPop(sl); };
+  const rb = sh.querySelector('#ep-rs'); if (rb) rb.onclick = () => { if (!restoreSlot(G, sl, g.S.wallet)) { toast('복구 주문서가 없어요'); return; } g.dirtyStats = true; play('clear'); toast(`복구 · ★${G.slots[sl].star}`); again('ok'); };
+  // 끝난 뒤 큰 그림: 성공이면 금빛 번쩍 · 실패면 짧게 흔들림(그래픽 낮음이면 없음 · 흔들림은 설정 따름)
+  if (fx && opt.gfx !== 'low' && (fx === 'ok' || opt.shake)) { const bg = sh.querySelector('.en-big'); if (bg) { bg.classList.add(fx === 'ok' ? 'en-fl' : 'en-sk'); setTimeout(() => bg.classList.remove('en-fl', 'en-sk'), 700); } }
   $('ep-swap').onclick = () => { play('click'); closeModal(); sh.classList.remove('wide', 'enhs'); eqSel = sl; openWin('bag', 0); };
   $('ep-off').onclick = () => { play('click'); unequip(G, sl); g.dirtyStats = true; g.emit('equip'); closeModal(); sh.classList.remove('wide', 'enhs'); save(); paintHud(); if (open) paintWin(); };
   $('ep-close').onclick = () => { play('click'); closeModal(); sh.classList.remove('wide', 'enhs'); if (open) paintWin(); };
