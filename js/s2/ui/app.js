@@ -31,6 +31,7 @@ import { kindGrade, totalAwake } from '../grow/collect.js';
 import { PULL_P, PULL_PITY, PULL_TEN_FLOOR } from '../tables/option.js';
 import { loadLooks, zoneFor, drawHero, drawMob, mobName, mobHeight, preloadMobs, drawPaintedBack, drawPaintedLedge, drawEarth, chbImg, preloadChapter, fxImg, oldImg, tintImg, ULT_ART, SEAL_ART, CUT_ART, BUFF_ART, BOSS_ART, wearCount, filtered } from './look.js';
 import { BOSS_PATS } from '../tables/kit.js';
+import { ADV_MAX, advOf, advPal, ADV_S, ADV_N } from './advfx.js';   // v628 전직 단계 이펙트 표(평타 · 무공 · 오라가 같이 쓴다)
 import { CHBOSS, CB_PATS, CB, WBF, CB_RAID, DEX_REW } from '../tables/chboss.js';
 import { DASH } from '../battle/side.js';   // v546 회피
 import { uiIcon } from '../tables/uiicons.js';   // v610 창 줄 그림 아이콘
