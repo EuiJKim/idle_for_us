@@ -15,6 +15,10 @@ export const MAIN_HITS = 4;          // 주력 무공은 앞쪽 여러 마리(�
 const DT = TICK_MS / 1000;
 // v546 회피(대시) — 누르면 0.25초에 3미터 · 0.4초 무적 · 1.8초마다. 붉은 범위가 터지기 0.45초 안에 범위 안에서 빠져나가면 「완벽 회피」 → 4초 동안 주는 피해 ×1.3
 export const DASH = { ms: 250, dist: 3000, invMs: 400, cdMs: 1800, perfectMs: 450, buffMs: 4000, buffX: 1.3 };
+// v632 자동 움직임 — 표적 값 = 닿는 데 걸릴 시간 어림(ms): 달리기 + 층 오르기 · 내리기 + 뒤돌기 − 무리 · 화난 몹.
+//   다시 보기 reMs마다 · 지금 표적보다 switchMs 넘게 나을 때만 바꾼다(가다 말고 바꾸지 않게) · 포기 = giveBase + 어림 × giveX(최대 giveMax)
+//   같은 발판 먼 표적(dashGap 넘게)은 일반 사냥에서만 회피로 좁힌다(두목 · 던전에선 회피를 아껴 둔다)
+export const AUTO = { upMs: 2800, downMs: 1450, gapMs: 900, turnMs: 900, packR: 2500, packMs: 200, packMax: 3, angryMs: 250, reMs: 500, switchMs: 1200, giveBase: 2500, giveX: 1.6, giveMax: 9000, dashGap: 7000, upKeep: 1500 };
 
 // 맵 하나: 너비 w · 발판 줄(바닥 + 위층 2~3단) · 몹 자리(발판마다)
 export function makeSideMap(seed, { w = 26000, tiers = 3, gap = 2300 } = {}) {
@@ -87,16 +91,59 @@ export class SideFight {
     return best;
   }
   // 자동: 표적 고르기 — 같은 층 가까운 몹을 먼저(층이 다르면 거리 더 침)
+  //   v632 거리(mm) 대신 걸리는 시간(ms) — 층 오르기 · 뒤돌기는 비싸고 · 무리 속 몹 · 다가오는 몹은 싸다(두목은 늘 먼저)
   pickTarget() {
-    const H = this.hero;
     let best = null, bc = Infinity;
     for (const m of this.mobs) {
       if (m.skipUntil > this.t) continue;
-      // v512 다른 층 몹은 9미터만큼 더 멀게 친다 — 같은 발판에 몹이 있으면 거기부터(1초마다 층을 오르내리던 것)
-      const dyc = Math.abs(m.y - H.y), c = Math.abs(m.x - H.x) + (dyc > 300 ? dyc * 3 + 9000 : 0) + (m.kind === 'boss' ? -100000 : 0);
+      const c = this.autoCost(m);
       if (c < bc) { bc = c; best = m; }
     }
     return best;
+  }
+  // 닿는 데 걸릴 시간 어림(ms) — bare: 무리 · 화난 몹 · 뒤돌기 빼고(포기 시간 재기용)
+  autoCost(m, bare = false) {
+    const H = this.hero, A = AUTO, J = JOBS[H.job], dx = m.x - H.x, dy = m.y - H.y, adx = Math.abs(dx);
+    const gap = this.def.map.plats[1]?.y || 2300, n = Math.round(Math.abs(dy) / gap);
+    let c = (Math.max(0, adx - J.range * 0.8) * 1000) / RUN;
+    if (dy > 300) c += n * A.upMs; else if (dy < -300) c += n * A.downMs;
+    else if (H.plat > 0 && m.plat !== H.plat && adx > J.range) c += A.gapMs;   // 같은 높이 다른 발판(틈을 건너야)
+    if (bare) return c;
+    if (adx > J.range && Math.sign(dx) === -(H.face || 1)) c += A.turnMs;
+    let pk = 0;
+    for (const o of this.mobs) if (o !== m && o.plat === m.plat && Math.abs(o.x - m.x) <= A.packR && ++pk >= A.packMax) break;
+    c -= pk * A.packMs + (m.angry ? A.angryMs : 0);
+    return c + (m.kind === 'boss' ? -1e6 : 0);
+  }
+  // 자동 표적: 고르기 · 붙들기(hysteresis) · 포기 — 반환은 지금 표적
+  autoTarget(tgt) {
+    const H = this.hero, A = AUTO, J = JOBS[H.job];
+    const near = (m) => Math.abs(m.y - H.y) <= SAME_Y && Math.abs(m.x - H.x) <= J.range;
+    if (tgt && this.t - H.chaseAt > (H.chaseMax || 4000)) { tgt.skipUntil = this.t + 8000; tgt = null; H.target = -1; this.giveUps = (this.giveUps || 0) + 1; }
+    // 쫓는 중(사거리 밖)이면 reMs마다 다시 본다 — 훨씬 나은 몹(지나치는 몹 · 가까이 솟은 몹)이 있으면 바꾼다
+    if (tgt && !near(tgt) && this.t >= (H.reAt || 0)) {
+      H.reAt = this.t + A.reMs;
+      const b = this.pickTarget();
+      if (b && b !== tgt && (near(b) || this.autoCost(b) < this.autoCost(tgt) - A.switchMs)) tgt = b, this.setTarget(b);
+    }
+    if (!tgt) { tgt = this.pickTarget(); if (!tgt) { for (const m of this.mobs) m.skipUntil = 0; tgt = this.pickTarget(); } this.setTarget(tgt); }
+    return tgt;
+  }
+  // 같은 발판 먼 표적 쪽으로 이미 다 달리고 있으면 회피로 좁힌다 — 일반 사냥만(두목 · 던전 · 두목 몹이 있으면 회피를 아낀다)
+  autoDash(tgt, dir) {
+    const H = this.hero, d = this.def;
+    if (AUTO.dashGap <= 0 || d.boss || d.dungeon || d.wb || H.plat < 0 || tgt.plat !== H.plat || this.t < (H.dashReady || 0) || this.t < (H.lockUntil || 0) || H.hopUntil > this.t) return false;
+    if (Math.sign(tgt.x - H.x) !== dir || Math.abs(tgt.x - H.x) < AUTO.dashGap || (H.spd || 0) < 1000 || this.mobs.some((m) => m.kind === 'boss')) return false;
+    this.wantDash = false;
+    H.dashDir = dir; H.face = dir; H.dashAt = this.t; H.dashX0 = H.x; H.dashUntil = this.t + DASH.ms; H.invUntil = this.t + DASH.invMs; H.dashReady = this.t + DASH.cdMs;
+    this.events.push(['dash', this.t, dir]);
+    this.autoDashes = (this.autoDashes || 0) + 1;
+    return true;
+  }
+  setTarget(m) {
+    const H = this.hero, A = AUTO;
+    H.target = m ? m.id : -1; H.chaseAt = this.t; H.reAt = this.t + A.reMs; H.upPlat = -1;
+    H.chaseMax = m ? Math.min(A.giveMax, Math.round(A.giveBase + this.autoCost(m, true) * A.giveX)) : 4000;
   }
   step() {
     this.t += TICK_MS;
@@ -119,9 +166,8 @@ export class SideFight {
     }
     let tgt = this.mobs.find((m) => m.id === H.target);
     if (this.auto && dir === 0) {
-      // 4초 안에 닿지 못하면(다른 층 · 길 없음) 잠깐 제쳐 두고 다른 몹
-      if (tgt && this.t - H.chaseAt > 4000) { tgt.skipUntil = this.t + 8000; tgt = null; H.target = -1; }
-      if (!tgt) { tgt = this.pickTarget(); if (!tgt) { for (const m of this.mobs) m.skipUntil = 0; tgt = this.pickTarget(); } H.target = tgt ? tgt.id : -1; H.chaseAt = this.t; }
+      // 닿을 만한 시간(v632 거리에 맞춰 · 예전엔 늘 4초) 안에 닿지 못하면(길 없음) 잠깐 제쳐 두고 다른 몹
+      tgt = this.autoTarget(tgt);
       if (tgt) {
         const dy = tgt.y - H.y, dx = tgt.x - H.x;
         // 같은 층: 사거리 90% 밖이면 다가가기 시작해 60% 안까지 들어가서 선다(경계에서 가다 서다 떨지 않게) — v628 원거리는 RANGED.stand(72%)에서
@@ -134,7 +180,12 @@ export class SideFight {
           // 위로: 지금 자리 위에 오를 발판이 있으면 뛰고, 없으면 표적 쪽으로 걸어간다
           // 위로: 뛰어 닿는 발판(한 층 위) 중 표적에 가장 가까운 것 아래로 가서 뛴다
           const ups = map.plats.filter((p) => p.y > H.y && p.y - H.y <= 2700);
-          const best = ups.reduce((a, p) => { const cx = Math.max(p.x0 + 400, Math.min(p.x1 - 400, tgt.x)); const c = Math.abs(cx - tgt.x) + Math.abs(cx - H.x) * 0.5; return !a || c < a.c ? { p, cx, c } : a; }, null);
+          const upC = (p) => { const cx = Math.max(p.x0 + 400, Math.min(p.x1 - 400, tgt.x)); return { p, cx, c: Math.abs(cx - tgt.x) + Math.abs(cx - H.x) * 0.5 }; };
+          let best = ups.reduce((a, p) => { const o = upC(p); return !a || o.c < a.c ? o : a; }, null);
+          // v632 오를 발판은 한 번 고르면 붙든다 — 몹이 서성이며 표적 x가 흔들려도 두 발판 사이를 오가지 않게
+          const keep = ups.find((p) => map.plats.indexOf(p) === H.upPlat);
+          if (keep && best && keep !== best.p) { const k = upC(keep); if (k.c < best.c + AUTO.upKeep) best = k; }
+          if (best) H.upPlat = map.plats.indexOf(best.p);
           if (best && H.x >= best.p.x0 + 200 && H.x <= best.p.x1 - 200) jump = true;
           else if (best) dir = Math.sign(best.cx - H.x) || 1;
           else dir = Math.sign(dx) || 1;
@@ -155,6 +206,7 @@ export class SideFight {
       }
       // v628 원거리: 화난 몹이 붙으면 뒤로 뛴다 — 두목 패턴 피하기가 먼저(피하는 틱에는 안 뛰고, 뛰던 것도 멈춘다)
       if (rg) { if (dodge) H.hopUntil = 0; else this.rgHop(map); }
+      if (!dodge && tgt && dir) this.autoDash(tgt, dir);
     } else if (!this.auto && (!tgt || Math.abs(tgt.y - H.y) > SAME_Y || Math.abs(tgt.x - H.x) > J.range)) {
       // 수동: 사거리 안 같은 층 몹만 표적
       tgt = this.mobs.filter((m) => Math.abs(m.y - H.y) <= SAME_Y && Math.abs(m.x - H.x) <= J.range).sort((a, b) => Math.abs(a.x - H.x) - Math.abs(b.x - H.x))[0] || null;
@@ -197,6 +249,7 @@ export class SideFight {
         if (this.t >= H.nextAtk) { this.strike(tgt, SKILL_BASE); H.nextAtk = this.t + J.baseMs; H.act = 'atk'; H.lockUntil = this.t + 140; }
       }
     }
+    this.kitPend();   // v632 무공 변형 — 나눠 친 연타
     // 버프가 끝나면 원래 스탯으로
     if (H.buffs?.length && H.buffs.some((b) => b.until <= this.t)) { H.buffs = H.buffs.filter((b) => b.until > this.t); this.restat(); }
     // ── 동료(v497) ── 무인이 싸우는 중이면 쿨마다 무인의 표적 쪽 가까운 몹을 친다
@@ -329,23 +382,57 @@ export class SideFight {
     if (k.kind === 'buff') {
       (H.buffs ??= []).push({ until: this.t + k.durMs, stats: k.buff, id: k.id });
       this.restat();
-      this.events.push(['buff', this.t, k.id]);
+      this.events.push(k.vr ? ['buff', this.t, k.id, k.fx] : ['buff', this.t, k.id]);
       return true;
     }
-    const R = J.range * k.range, face = H.face;
-    const inShape = (m) => {
-      if (Math.abs(m.y - H.y) > SAME_Y + (k.shape === 'circle' ? 600 : 0)) return false;
-      const dx = m.x - H.x;
-      if (k.shape === 'circle') return Math.abs(dx) <= R;
-      return dx * face >= -300 && Math.abs(dx) <= R;
-    };
-    const ts = this.mobs.filter(inShape).sort((a, b) => Math.abs(a.x - H.x) - Math.abs(b.x - H.x)).slice(0, k.maxT);
-    this.events.push(['cast', this.t, k.id, face, H.x, H.y, k.shape, R]);
+    const R = J.range * k.range, face = H.face, fx = k.vr ? k.fx : null;
+    const ts = this.kitTargets(k, R, face, tgt);
+    this.events.push(fx ? ['cast', this.t, k.id, face, H.x, H.y, k.shape, R, fx, tgt ? tgt.x : H.x] : ['cast', this.t, k.id, face, H.x, H.y, k.shape, R]);   // v632 변형이면 [8] 그 움직임 · [9] 표적 자리
     if (J.range >= RANGED.minRange) this.rgShape = k.shape;   // v628 화살로 날아가는 무공인지(밀림이 닿는 때)
-    const sk = { coef: k.coef, base: false };
-    const att = k.crit ? { ...H, st: { ...H.st, crit: (H.st.crit || 0) + k.crit } } : null;   // 트리 극의: 이 무공만 치명 ↑
-    for (let h = 0; h < k.hits; h++) for (const m of ts) if (m.hp > 0) this.strike(m, sk, h, att);
+    if (fx === 'pull') this.kitPull(ts, R);
+    // v632 연속 회전 · 두 번 내림 — 연타를 나눠 뒤에 다시 고른 대상에게(새로 다가온 몹도)
+    const waves = fx === 'spin' ? 4 : fx === 'wave' ? 2 : 1, gap = fx === 'spin' ? 300 : 700;
+    const per = (w) => Math.floor(k.hits / waves) + (w < k.hits % waves ? 1 : 0);
+    this.kitHit(k, ts, per(0), 0);
+    for (let w = 1, h0 = per(0); w < waves; h0 += per(w), w++) if (per(w)) (this.kq ??= []).push({ at: this.t + w * gap, k, n: per(w), h0, R });
     return true;
+  }
+  // v632 무공이 닿는 몹 — 모양 · 변형대로(fork 위 · 아래 층까지 · twin 앞뒤 · pull 둘레 +30% · back 두목 먼저 · focus 표적 둘레)
+  kitTargets(k, R, face, tgt) {
+    const H = this.hero, fx = k.vr ? k.fx : null, Rs = fx === 'pull' ? R + Math.min(R * 0.3, 1500) : R;   // 끌어당김은 둘레 +30%(1.5m까지)
+    const dyMax = SAME_Y + (k.shape === 'circle' ? 600 : 0) + (fx === 'fork' ? 2700 : 0);
+    const inShape = (m) => {
+      if (Math.abs(m.y - H.y) > dyMax) return false;
+      const dx = m.x - H.x;
+      if (k.shape === 'circle' || fx === 'twin') return Math.abs(dx) <= Rs;
+      return dx * face >= -300 && Math.abs(dx) <= Rs;
+    };
+    const near = (m) => Math.abs(m.x - H.x) + (fx === 'fork' ? Math.abs(m.y - H.y) * 0.5 : 0);
+    let sortBy = (a, b) => near(a) - near(b);
+    if (fx === 'back') { const P = { boss: 0, elite: 1 }; sortBy = (a, b) => (P[a.kind] ?? 2) - (P[b.kind] ?? 2) || near(a) - near(b); }
+    if (fx === 'focus' && tgt) { const c = tgt.x; sortBy = (a, b) => (b === tgt) - (a === tgt) || Math.abs(a.x - c) - Math.abs(b.x - c); }
+    return this.mobs.filter(inShape).sort(sortBy).slice(0, k.maxT);
+  }
+  kitHit(k, ts, n, h0) {
+    const H = this.hero, sk = { coef: k.coef, base: false };
+    if (k.p0 && k.hits > k.p0.hits) sk.gg = Math.round(CB.ggPerHit * k.p0.hits / k.hits);   // 연타를 늘린 변형도 무력화 게이지는 한 번 쓸 때 그대로
+    const att = k.crit ? { ...H, st: { ...H.st, crit: (H.st.crit || 0) + k.crit } } : null;   // 트리 극의: 이 무공만 치명 ↑
+    for (let h = 0; h < n; h++) for (const m of ts) if (m.hp > 0) this.strike(m, sk, h0 + h, att);
+  }
+  // 끌어당김 — 같은 발판의 졸개 · 정예를 무인 둘레(사거리 35%)까지 밀림으로 끌어온다(두목은 버틴다)
+  kitPull(ts, R) {
+    const H = this.hero, keep = Math.round(R * 0.35);
+    for (const m of ts) { if (m.kind === 'boss') continue; const dx = m.x - H.x, ad = Math.abs(dx); if (ad > keep) m.kbX = (m.kbX || 0) - Math.sign(dx) * (ad - keep); }
+  }
+  // 나눠 친 연타(spin · wave) — 때가 되면 그때 무인 자리 · 바라보는 쪽으로 다시 골라 친다
+  kitPend() {
+    if (!this.kq?.length) return;
+    const H = this.hero;
+    this.kq = this.kq.filter((q) => {
+      if (this.t < q.at) return true;
+      if (H.hp > 0) this.kitHit(q.k, this.kitTargets(q.k, q.R, H.face, this.mobs.find((m) => m.id === H.target)), q.n, q.h0);
+      return false;
+    });
   }
   // 버프를 스탯에 얹는다(기본 스탯은 H.st0에 남겨 둠)
   restat() {
@@ -363,7 +450,7 @@ export class SideFight {
     m.hp -= r.dmg; m.angry = true; this.dmgOut += r.dmg; if (r.crit) this.crits++;
     const cb = m.cb;
     if (cb && m.hp > 0) {
-      if (!skill.base && !skill.pal && !(m.stunUntil > this.t)) { cb.gg += CB.ggPerHit; if (cb.gg >= 1000) { cb.gg = 0; m.stunUntil = this.t + CB.stunMs; m.pat = null; this.events.push(['stun', this.t, m.id, CB.stunMs]); } }
+      if (!skill.base && !skill.pal && !(m.stunUntil > this.t)) { cb.gg += skill.gg ?? CB.ggPerHit; if (cb.gg >= 1000) { cb.gg = 0; m.stunUntil = this.t + CB.stunMs; m.pat = null; this.events.push(['stun', this.t, m.id, CB.stunMs]); } }
       const ratio = m.hp / m.st.hp, ph = ratio <= CB.phase[1] ? 2 : ratio <= CB.phase[0] ? 1 : 0;
       if (ph > cb.phase) { cb.phase = ph; m.nextPat = Math.min(m.nextPat ?? this.t, this.t + 900); if (ph === 2) m.nextUlt = this.t + 1200; this.events.push(['phase', this.t, m.id, ph]); }
     }

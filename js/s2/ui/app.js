@@ -76,7 +76,7 @@ const killRate = () => { const t0 = now() - 60000; while (killLog.length && kill
 import { chapterOf, chapterName, CHAPTERS } from '../tables/chapters.js';
 import { BUILD } from '../../data.js';   // 설정 맨 아래 판 번호
 import { BOSS_LORE } from '../tables/bosslore.js';   // v613 두목 도감 한 줄
-import { KIT, SLOT_N, kitCap, kitCost, kitCoef, skillById, treeOf, TREE_GATE, treeResetCost } from '../tables/kit.js';
+import { KIT, SLOT_N, kitCap, kitCost, kitCoef, skillById, treeOf, TREE_GATE, treeResetCost, varsOf, VAR_GATE } from '../tables/kit.js';
 import { STATS } from '../core/stats.js';
 const statTxt = (o) => Object.entries(o).map(([k2, v]) => `${STATS[k2]?.name || k2} +${STATS[k2]?.kind === 'rate' ? `${(v / 10).toFixed(1)}%` : v}`).join(' · ');
 import { goldPerMob } from '../tables/gearstat.js';
@@ -653,6 +653,84 @@ function rowEl(k, v, btns = []) {
   btns.forEach(([label, fn, dis], i) => { const b = document.createElement('button'); b.className = `btn${i === 0 ? ' primary' : ''}`; b.textContent = label; b.disabled = !!dis; b.onclick = fn; r.append(b); });
   return r;
 }
+// ── v632 무공 변형(tv) ── 무공 강화 4단: 그 무공에 VAR_GATE점 넘게 쓰면 변형 둘 중 하나를 고른다(점수 안 듦 · 바꾸려면 트리 초기화)
+//   카드마다 움직이는 작은 그림(무인 · 몹 · 그 변형이 하는 일)을 되풀이해 보여 준다 — 빛깔은 그 무공 차수 빛깔(advPal)
+function tvRow(sk, spent) {
+  const Hs = g.hero, K = Hs.kitState(), cur = K.var?.[sk.id] || null, open = spent >= VAR_GATE, vs = varsOf(sk), p = sk2Pal(sk);
+  const w = document.createElement('div'); w.className = `tv-row${open ? ' on' : ''}`; w.dataset.id = sk.id; w.style.setProperty('--c', p.c); w.style.setProperty('--g', p.glow);
+  w.innerHTML = `<h4>4단 · 변형 <small>${cur ? '고름 · 바꾸려면 트리 초기화' : open ? '하나만 고른다 · 점수는 안 든다' : `${VAR_GATE}점 쓰면 열림 · 지금 ${spent}점`}</small></h4>`;
+  const row = document.createElement('div'); row.className = 'tv-cards'; w.append(row);
+  for (const v of vs) {
+    const on = cur === v.v, c = document.createElement('div'); c.className = `tv-card${on ? ' on' : ''}${cur && !on ? ' off' : ''}`; c.dataset.v = v.v;
+    c.innerHTML = `<canvas class="tv-cv" width="264" height="120" data-v="${v.v}" data-sh="${sk.kind === 'buff' ? 'buff' : sk.shape}" data-c="${p.c}" data-c2="${p.c2}" data-g="${p.glow}" aria-hidden="true"></canvas><div class="tv-tx"><div class="tv-h"><b>${esc(v.name)}</b><em class="tv-tag">${v.tag} 쪽</em></div><p>${esc(v.desc)}</p></div>`;
+    const b = document.createElement('button'); b.className = 'btn primary';
+    b.textContent = on ? '고름' : '고르기'; b.disabled = on || !Hs.canTreeVar(sk.id, v.v);
+    b.onclick = act(() => { const r = g.treeVar(sk.id, v.v); if (r) toast(`${sk.name} — ${v.name}`); return r; });
+    c.append(b); row.append(c);
+  }
+  tvKick();
+  return w;
+}
+let tvRaf = 0;
+function tvKick() { if (!tvRaf) tvRaf = requestAnimationFrame(tvLoop); }
+function tvLoop(ts) {
+  tvRaf = 0;
+  const cvs = document.querySelectorAll('canvas.tv-cv'); if (!cvs.length) return;
+  for (const c of cvs) tvDraw(c, ts / 1000);
+  tvRaf = requestAnimationFrame(tvLoop);
+}
+// 미리 보기 한 장 — 1.8초마다 되풀이 · 바닥 둘(위층 · 아래층) · 왼쪽에 무인 · 오른쪽에 몹 · 두목은 큰 점
+function tvDraw(c, ts) {
+  const x = c.getContext('2d'), W = c.width, H = c.height, v = c.dataset.v, sh = c.dataset.sh, col = c.dataset.c, c2 = c.dataset.c2, gl = c.dataset.g;
+  const per = v === 'spin' || v === 'wave' || v === 'calm' ? 2.4 : 1.8, q = (ts % per) / per, e = (u) => 1 - (1 - Math.max(0, Math.min(1, u))) ** 2;
+  x.clearRect(0, 0, W, H);
+  const gy = 92, hx = v === 'pull' || v === 'spin' ? W / 2 : 42, up = 44, dn = 112;
+  x.fillStyle = 'rgba(255,255,255,.12)'; x.fillRect(0, gy, W, 2);
+  if (v === 'fork') { x.fillRect(110, up, 140, 2); x.fillRect(118, dn + 6, 132, 2); }
+  const mob = (mx, my, r = 6, boss = false, hit = 0) => { x.fillStyle = hit > 0 ? '#ffffff' : boss ? '#e05a4a' : '#9a8f86'; x.globalAlpha = 1; x.beginPath(); x.arc(mx, my - r, r, 0, 7); x.fill(); if (boss) { x.strokeStyle = '#fde68a'; x.lineWidth = 1.5; x.stroke(); } };
+  const glow = (gx, gy2, r, a) => { x.save(); x.globalCompositeOperation = 'lighter'; x.globalAlpha = a; const gr = x.createRadialGradient(gx, gy2, 0, gx, gy2, r); gr.addColorStop(0, gl); gr.addColorStop(1, 'rgba(0,0,0,0)'); x.fillStyle = gr; x.fillRect(gx - r, gy2 - r, r * 2, r * 2); x.restore(); };
+  const stroke = (w, a, cc = c2) => { x.globalAlpha = a; x.strokeStyle = cc; x.lineWidth = w; x.lineCap = 'round'; };
+  // 무인
+  x.globalAlpha = 1; x.fillStyle = '#f3efe4'; x.beginPath(); x.arc(hx, gy - 22, 6, 0, 7); x.fill(); x.fillRect(hx - 4, gy - 16, 8, 16);
+  const hy = gy - 12;
+  if (v === 'fork' || v === 'back') {
+    const L = v === 'back' ? 170 : 200, out = e(q / 0.4), back = v === 'back' ? e((q - 0.45) / 0.35) : 0;
+    const rays = v === 'fork' ? [[up - hy - 4, 0], [0, 1], [dn - hy + 2, 2]] : [[0, 1]];
+    for (const [dy] of rays) { const ex = hx + L * out - L * back * out, ey = hy + dy * out * (1 - back); stroke(5, 0.35 * (1 - q), gl); x.beginPath(); x.moveTo(hx, hy); x.lineTo(ex, ey); x.stroke(); stroke(2, 0.9 * (1 - q * 0.6)); x.stroke(); glow(ex, ey, 14, 0.8 * (1 - q)); }
+    if (v === 'fork') { mob(150, up); mob(190, up); mob(130, gy); mob(170, gy); mob(150, dn + 6); mob(200, dn + 6); }
+    else { mob(120, gy); mob(160, gy, 10, true, q > 0.3 && q < 0.4 || q > 0.62 && q < 0.72 ? 1 : 0); mob(200, gy); }
+  } else if (v === 'wide' || v === 'twin') {
+    const R = v === 'wide' ? 92 : 64, sweep = (u, f) => { const a0 = -1.3, a1 = 1.0, s = e(u), ang = a0 + (a1 - a0) * s; if (u <= 0 || u >= 1.2) return; x.save(); x.translate(hx, hy); x.scale(f, 1); stroke(v === 'wide' ? 12 : 6, 0.4 * (1.2 - u), gl); x.beginPath(); x.arc(0, 0, R, Math.max(a0, ang - (v === 'wide' ? 1.6 : 1.0)), ang); x.stroke(); stroke(2.4, 0.9 * (1.2 - u)); x.stroke(); x.restore(); };
+    sweep(q / 0.4, 1); if (v === 'twin') sweep((q - 0.42) / 0.4, -1);
+    if (v === 'wide') { mob(90, gy); mob(115, gy); mob(130, gy - 40); mob(105, gy - 62); } else { mob(88, gy, 10, true); mob(8, gy); }
+  } else if (v === 'pull' || v === 'spin') {
+    const cx0 = W / 2, R = 80;
+    if (v === 'pull') {
+      const k1 = e(q / 0.45), mx = (d) => cx0 + d * (1 - 0.7 * k1);
+      for (const d of [-110, -70, 75, 118]) mob(mx(d), gy, 6, false, q > 0.5 && q < 0.6 ? 1 : 0);
+      if (q < 0.5) { stroke(2, 0.8 * (1 - q / 0.5)); x.beginPath(); x.ellipse(cx0, gy, R * 1.4 * (1 - 0.6 * k1), 12, 0, 0, 7); x.stroke(); for (const s of [-1, 1]) { const ax = cx0 + s * R * 1.25 * (1 - 0.6 * k1); x.beginPath(); x.moveTo(ax, gy - 22); x.lineTo(ax - s * 9, gy - 14); x.lineTo(ax, gy - 6); x.stroke(); } }
+      if (q >= 0.45) { const u = (q - 0.45) / 0.55; stroke(3, 0.9 * (1 - u)); x.beginPath(); x.ellipse(cx0, gy, R * (0.2 + 0.8 * e(u)), 12 * (0.2 + 0.8 * e(u)), 0, 0, 7); x.stroke(); glow(cx0, gy - 12, 46, 0.7 * (1 - u)); }
+    } else {
+      for (let j = 0; j < 4; j++) { const u = (q - j * 0.2) / 0.24; if (u < 0 || u > 1) continue; const th = u * Math.PI * 2; stroke(3, 0.9 * (1 - u)); x.beginPath(); x.ellipse(cx0, gy - 12, 50, 16, 0, th, th + 2.2); x.stroke(); glow(cx0 + Math.cos(th + 2.2) * 50, gy - 12 + Math.sin(th + 2.2) * 16, 12, 0.8); }
+      mob(cx0 + 40, gy, 10, true, ((q * 5) % 1) < 0.2 && q < 0.85 ? 1 : 0);
+    }
+  } else if (v === 'wave' || v === 'focus') {
+    const drops = v === 'wave' ? [0.12, 0.3, 0.48, 0.66, 0.84] : [0.5, 0.53, 0.47, 0.51, 0.49];
+    const waves = v === 'wave' ? [0, 0.42] : [0];
+    for (const w0 of waves) drops.forEach((d, j) => {
+      const u = (q - w0 - j * 0.05) / 0.16, lx = 70 + d * 180; if (u < 0) return;
+      if (u < 1) { const py = gy - 80 * (1 - u * u); stroke(3, 0.9); x.beginPath(); x.moveTo(lx + 6 * (1 - u), py - 18); x.lineTo(lx, py); x.stroke(); }
+      else if (u < 2.5) { stroke(1.6, 0.7 * (1 - (u - 1) / 1.5)); x.beginPath(); x.ellipse(lx, gy, 4 + 10 * (u - 1), 3 + 2 * (u - 1), 0, 0, 7); x.stroke(); }
+    });
+    if (v === 'wave') { mob(110, gy); mob(160, gy); mob(205, gy); mob(250 - 60 * e((q - 0.2) / 0.3), gy, 6, false); } else { mob(160, gy, 10, true, q > 0.2 && q < 0.6 && ((q * 12) % 1) < 0.4 ? 1 : 0); mob(215, gy); }
+  } else {   // buff — burst 크고 빠르게 확 / calm 작고 오래 은은하게
+    const burst = v === 'burst', on = burst ? q < 0.35 : q < 0.9, u = burst ? q / 0.35 : q / 0.9;
+    if (on) { glow(hx, gy - 18, (burst ? 54 : 34) * (burst ? 0.6 + 0.6 * e(u) : 1), (burst ? 0.95 : 0.45) * (burst ? 1 - u * 0.5 : 0.7 + 0.3 * Math.sin(u * 12))); stroke(burst ? 3 : 1.6, burst ? 0.9 * (1 - u) : 0.6); x.beginPath(); x.ellipse(hx, gy, (burst ? 20 + 30 * e(u) : 28), burst ? 6 + 8 * e(u) : 8, 0, 0, 7); x.stroke(); }
+    x.globalAlpha = 1; x.fillStyle = 'rgba(255,255,255,.14)'; x.fillRect(90, 30, 160, 8); x.fillStyle = col; x.fillRect(90, 30, 160 * (burst ? 0.5 : 1) * (on ? 1 - u : 0), 8);   // 지속 막대(짧게 / 길게)
+    x.fillStyle = col; const hgt = burst ? 46 : 18; x.fillRect(110, 76 - hgt, 26, hgt); x.fillStyle = 'rgba(255,255,255,.5)'; x.font = '700 11px system-ui'; x.fillText('효과', 108, 90 - 2); x.fillText('지속', 160, 50);
+  }
+  x.globalAlpha = 1;
+}
 function paintWin() {
   if (!open) return;
   const M = TABS.find((m) => m[0] === open);
@@ -821,6 +899,7 @@ function paintWin() {
         }
         tree.append(col);
       }
+      add(tvRow(sk, spent));   // v632 4단 · 변형
     } else B.append(note('무공을 하나 이상 배우면 강화할 수 있어요.'));
   } else if (key === 'hero:2') {
     // v6xx 마스터리(ma-) — 단마다 한 칸(1단 → 2단 → …) · 「먼저」인 앞 단 노드와 선으로 · 익힘 ✓ / 배울 수 있음(금빛 · 「배우기」) / 잠김(Lv n부터 · 앞 노드 먼저)
@@ -3551,7 +3630,9 @@ function sk2Dot(col) {   // 둥근 빛 한 점(가운데 col → 둘레 투명)
 const sk2Rune = (ch, col) => auSp(`rn|${ch}|${col}`, 40, 40, (x) => { x.font = '900 27px serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.shadowColor = col; x.shadowBlur = 9; x.fillStyle = col; x.fillText(ch, 20, 21); x.shadowBlur = 0; x.globalAlpha = 0.75; x.fillStyle = '#ffffff'; x.fillText(ch, 20, 21); return true; });
 const sk2Pal = (sk) => advPal(sk?.id ? sk.id.split('_')[0] : g.S.hero.job, sk?.tier || 0);
 const sk2Col = (id) => { const sk = skillById(id); return sk ? sk2Pal(sk).c : '#ffe9a8'; };
-const sk2Life = (f) => { const n = skillById(f.id)?.tier || 0; return SK2_PRE[n] + SK2_REL[n] + SK2_POST[n]; };
+const sk2Life = (f) => { const n = skillById(f.id)?.tier || 0; return SK2_PRE[n] + SK2_REL[n] + SK2_POST[n] + sk2VarMs(f.vr, n); };
+// v632 변형이 더 그리는 때(ms) — 엔진에서 뒤에 오는 연타(spin 0.3초 × 3 · wave 0.7초)와 맞춘다 · back · twin은 두 번째 지나감
+const sk2VarMs = (vr, n) => (vr === 'spin' ? 900 : vr === 'wave' ? 700 : vr === 'back' || vr === 'twin' ? Math.round(SK2_REL[n] * 0.5) : vr === 'calm' ? SK2_POST[n] : 0);
 const sk2E = (u) => 1 - (1 - u) * (1 - u);
 const sk2RainX = (j, seed) => 0.12 + 0.9 * j / (SK2_RN - 1) + ((((seed * 7 + j * 13) % 9) - 4) * 0.008);   // 떨어지는 자리(사거리 몫) — 가까운 데서 먼 데로
 const sk2RainFall = (job) => (job === 'mage' ? 70 : 170);
@@ -3591,6 +3672,7 @@ function sk2Cast(e, t) {
   const sk = skillById(e[2]); if (!sk) return;
   sk2CastN++;
   sk2Cur = { tier: sk.tier, shape: e[6], x: e[4], R: e[7] || 2000, hits: sk.hits || 1, job: sk.id.split('_')[0], seed: (t | 0) % 997 };
+  if (e[8] === 'focus') { sk2Cur.x = e[9] - e[3] * SK2_FOC * 0.57; sk2Cur.R = SK2_FOC; }   // v632 한 점에 모음 — 표적 둘레 1.2m에 떨어진다
   const q = shocks[shocks.length - 1];
   if (q && q.at === t + 60 && q.col === sk.col) { q.col = sk2Pal(sk).glow; q.at = t + SK2_PRE[sk.tier]; }
 }
@@ -3792,12 +3874,51 @@ function sk2Fx(cx, f, ms, [wx, wy], [hx, hy], Rpx, k, tier) {
   const im = sh === 'rain' ? null : fxImg(job, sh), pic = im && (sk2Recol(im, `${job}_${sh}`, p.c) || im);
   if (n >= 2 || buff) sk2Seal(cx, T, x, y, k, n, p, job, Bv);
   if (ms < T.pre) sk2Gather(cx, buff ? x : hx, buff ? y : hy, k, B, ms / T.pre, p, n, face, seed);
+  if (f.vr && sk2Var(cx, f, T, x, y, Rpx, k, n, p, pic, adv, B, Bv, face, seed, job, wx, hx, hy)) return true;   // v632 무공 변형
   if (sh === 'line') sk2Line(cx, T, x, y, Rpx, k, n, p, pic, adv, B, Bv, face, seed, job);
   else if (sh === 'arc') sk2Arc(cx, T, x, y, Rpx, k, n, p, pic, adv, B, face, seed);
   else if (sh === 'circle') sk2Circle(cx, T, x, y, Rpx, k, n, p, pic, adv, B, Bv, face, seed, job);
   else if (sh === 'rain') sk2Rain(cx, T, x, y, Rpx, k, n, p, adv, B, face, seed, job);
   else sk2Buff(cx, T, x, y, k, n, p, pic, adv, B, seed);
   return true;
+}
+// ── v632 무공 변형 그림 — 같은 무공 그림(sk2Line · Arc · Circle · Rain · Buff)을 변형대로 겹치고 · 돌리고 · 늦춰 그린다(빛깔 · PRE/REL/POST는 그대로)
+//   fork 세 줄기(위 · 아래로 비스듬히 · 가늘게) · back 끝에서 되돌아오는 두 번째 줄기 · wide 넓은 부채 셋 겹 · twin 뒤로 한 번 더 · pull 조여 드는 고리와 화살표 → 터짐
+//   spin 0.3초마다 네 번 돈다(두 번째부터는 지금 무인 자리 — 엔진도 그때 무인 둘레를 다시 고른다) · wave 0.7초 뒤 한 번 더 · focus 표적 둘레 1.2m에 몰아 떨어짐 + 표적 고리 · burst 크고 빠르게 · calm 작고 오래 남는 고리
+const SK2_FOC = 1200, sk2VarSeen = [];   // 시험용 — 그린 변형 { vr, at }
+const sk2Shift = (T, d) => { const ms = T.ms - d, o = { ...T, ms }; o.r = (ms - T.pre) / T.rel; o.o = (ms - T.pre - T.rel) / T.post; return o; };
+function sk2Var(cx, f, T, x, y, Rpx, k, n, p, pic, adv, B, Bv, face, seed, job, wx, hx, hy) {
+  const vr = f.vr; let drew = true;
+  if (!sk2VarSeen.some((q) => q.at === f.at)) { sk2VarSeen.push({ vr, at: f.at, id: f.id }); if (sk2VarSeen.length > 12) sk2VarSeen.shift(); }
+  const rot = (a, ox, oy, fn) => { cx.save(); cx.translate(ox, oy); cx.rotate(a); cx.translate(-ox, -oy); fn(); cx.restore(); };
+  if (vr === 'fork') for (const a of [-0.3, 0, 0.3]) rot(a * face, x, y - 34 * k, () => sk2Line(cx, T, x, y, Rpx * (a ? 0.92 : 1), k, n, p, pic, adv, B * 0.75, Bv * 0.55, face, seed + (a > 0 ? 3 : a < 0 ? 7 : 0), job));
+  else if (vr === 'back') { sk2Line(cx, T, x, y, Rpx, k, n, p, pic, adv, B, Bv, face, seed, job); const T2 = sk2Shift(T, SK2_REL[n] * 0.5); if (T2.ms > T2.pre) sk2Line(cx, T2, x + face * (Rpx * 1.1 + 16 * k), y, Rpx, k, n, p, pic, adv, B * 0.9, Bv * 0.85, -face, seed + 5, job); }
+  else if (vr === 'wide') { for (const a of [-0.32, 0.32]) rot(a * face, x, y - 34 * k, () => sk2Arc(cx, sk2Shift(T, 40), x, y, Rpx * 0.9, k, n, p, pic, adv, B * 0.8, face, seed + 1)); sk2Arc(cx, T, x, y, Rpx, k, n, p, pic, adv, B * 1.1, face, seed); }
+  else if (vr === 'twin') { sk2Arc(cx, T, x, y, Rpx, k, n, p, pic, adv, B, face, seed); const T2 = sk2Shift(T, SK2_REL[n] * 0.5); if (T2.ms > 0) sk2Arc(cx, T2, x, y, Rpx, k, n, p, pic, adv, B, -face, seed + 9); }
+  else if (vr === 'pull') { sk2Pull(cx, T, x, y, Rpx, k, p); sk2Circle(cx, sk2Shift(T, SK2_REL[n] * 0.2), x, y, Rpx, k, n, p, pic, adv, B, Bv, face, seed, job); }
+  else if (vr === 'spin') { for (let j = 3; j >= 0; j--) { const Tj = sk2Shift(T, j * 300); if (Tj.ms >= 0) sk2Circle(cx, Tj, j ? hx : x, j ? hy : y, Rpx * (1 - j * 0.06), k, j ? Math.min(n, 4) : n, p, pic, adv, B, Bv, j % 2 ? -face : face, seed + j * 11, job); } }
+  else if (vr === 'wave') { sk2Rain(cx, T, x, y, Rpx, k, n, p, adv, B, face, seed, job); const T2 = sk2Shift(T, 700); if (T2.ms >= 0) sk2Rain(cx, T2, x, y, Rpx, k, n, p, adv, B, face, seed + 13, job); }
+  else if (vr === 'focus') {
+    const pmm = Rpx / Math.max(1, f.R || 2000), tx = isFinite(f.tx) ? wx + (f.tx - f.x) * pmm : x + face * Rpx * 0.5, Rf = SK2_FOC * pmm, x0 = tx - face * Rf * 0.57;
+    const a = T.ms < T.pre ? T.ms / T.pre : T.o > 0 ? Math.max(0, 1 - T.o) : 1;   // 표적 고리 — 모일 때 조여 들고 끝나면 사라진다
+    cx.save(); cx.globalCompositeOperation = 'lighter'; cx.globalAlpha = 0.7 * a; cx.strokeStyle = p.c2; cx.lineWidth = 2 * k; cx.beginPath(); const rr = (Rf * 0.6) * (1.6 - 0.6 * Math.min(1, T.ms / (T.pre + 120))); cx.ellipse(tx, y, rr, rr * 0.28, 0, 0, 7); cx.stroke(); cx.restore();
+    sk2Rain(cx, T, x0, y, Rf, k, n, p, adv, B, face, seed, job); sk2Rain(cx, sk2Shift(T, 90), x0, y, Rf, k, n, p, adv, B * 0.85, -face, seed + 3, job);
+  }
+  else if (vr === 'burst') sk2Buff(cx, sk2Shift({ ...T, ms: T.ms * 1.35 }, 0), x, y, k, n, p, pic, adv, B * 1.3, seed);
+  else if (vr === 'calm') { sk2Buff(cx, T, x, y, k, n, p, pic, adv, B * 0.85, seed); const q = T.ms / (T.pre + T.rel + T.post * 2); if (q < 1) { cx.save(); cx.globalCompositeOperation = 'lighter'; cx.globalAlpha = 0.5 * Math.sin(q * Math.PI); cx.strokeStyle = p.glow; cx.lineWidth = 2.4 * k; cx.beginPath(); const R = (40 + 50 * q) * k * B; cx.ellipse(x, y, R, R * 0.3, 0, 0, 7); cx.stroke(); cx.restore(); } }
+  else drew = false;
+  return drew;
+}
+// 끌어당김 — 둘레 1.3배에서 조여 드는 고리 + 안쪽을 가리키는 꺾쇠(기 모음 ~ 터지기 전)
+function sk2Pull(cx, T, x, y, Rpx, k, p) {
+  const end = T.pre + T.rel * 0.3, q = T.ms / end; if (q >= 1) return;
+  const R = Rpx * (1.3 - 0.95 * sk2E(q)), a = q < 0.15 ? q / 0.15 : 1 - (q - 0.15) / 0.85 * 0.6;
+  cx.save(); cx.globalCompositeOperation = 'lighter'; cx.lineCap = 'round'; cx.lineJoin = 'round';
+  cx.globalAlpha = 0.75 * a; cx.strokeStyle = p.c2; cx.lineWidth = 2.2 * k; cx.beginPath(); cx.ellipse(x, y, R, R * 0.27, 0, 0, 7); cx.stroke();
+  cx.globalAlpha = 0.4 * a; cx.strokeStyle = p.glow; cx.lineWidth = 7 * k; cx.stroke();
+  cx.globalAlpha = 0.85 * a; cx.strokeStyle = p.c2; cx.lineWidth = 2.6 * k; cx.beginPath();
+  for (const s of [-1, 1]) for (let j = 0; j < 2; j++) { const ax = x + s * (R * (0.98 - j * 0.16)), ay = y - 22 * k, w = 9 * k; cx.moveTo(ax, ay - w); cx.lineTo(ax - s * w, ay); cx.lineTo(ax, ay + w); }
+  cx.stroke(); cx.restore();
 }
 // ── v628 무인 오라(au) — 전직 차수만큼 겹이 는다 · 무인 뒤 · 무인 크기를 따른다 ──
 //   1 발밑 빛 · 2 + 오르는 빛 알갱이 · 3 + 몸을 감아 오르는 기운 띠 둘 · 4 + 불꽃 같은 기운(금빛) · 5 + 등 뒤에 천천히 도는 빛 진 · 가끔 작은 번개(직업 신빛)
@@ -4056,6 +4177,26 @@ function rgMobFx(cx, F, m, x, y, z, ts, ch, atk, hurt, sc) {
     }
   }
 }
+// v632 자동 사냥 — 멀리 있는 몹을 새로 고르면 그 발밑에 옅은 꺾쇠가 0.9초 떴다 사라진다(어디로 가는지 보이게).
+//   바로 앞 몹 · 수동 · 그래픽 낮음 · 절전이면 안 그림. amSt: 시험 손잡이(고른 수 · 그린 수 · 돌아섬)
+let amT = { id: -1, at: -1e9, far: false }, amFace = 0;
+const amSt = { picks: 0, marks: 0, turns: 0, dashes: 0 };
+function amMark(cx, F, P, lx, ly, k, t) {
+  const H = F.hero;
+  if ((H.face || 1) !== amFace) { if (amFace) amSt.turns++; amFace = H.face || 1; }
+  if (H.target !== amT.id) {
+    const m0 = F.mobs.find((o) => o.id === H.target);
+    amT = { id: H.target, at: t, far: !!m0 && (Math.abs(m0.x - H.x) > JOBS[H.job].range * 1.2 || Math.abs(m0.y - H.y) > 500) };
+    if (m0) { amSt.picks++; if (amT.far && F.auto && opt.gfx !== 'low' && !saverOn) amSt.marks++; }
+  }
+  if (!F.auto || !amT.far || opt.gfx === 'low' || saverOn) return;
+  const a = (t - amT.at) / 900; if (a < 0 || a >= 1) return;
+  const m = F.mobs.find((o) => o.id === amT.id); if (!m) return;
+  const [x, y] = P(lx(m), ly(m)), w = 30 * k * (1.3 - 0.3 * Math.min(1, a * 4)), h = w * 0.32;
+  cx.save(); cx.globalAlpha = 0.6 * (a < 0.15 ? a / 0.15 : (1 - a) / 0.85); cx.strokeStyle = '#fde68a'; cx.lineWidth = 2 * k; cx.lineCap = 'round';
+  for (const s0 of [0.12, 1.12]) { cx.beginPath(); cx.ellipse(x, y, w, h, 0, Math.PI * s0, Math.PI * (s0 + 0.76)); cx.stroke(); }
+  cx.restore();
+}
 // 원거리면 카메라가 표적 쪽을 내다본다(뒤로 뛰면 걷는 방향이 반대라 화면이 표적 반대쪽으로 쏠리던 것)
 function rgLookDir(F, d) {
   if (!rgRanged(F)) return d;
@@ -4186,6 +4327,7 @@ function draw() {
   klCorpses(cx, P, s, k, t, W, Hh, z, ch, sc, ts, F);   // v628 날려보내기(두목 · 그래픽 낮음은 예전처럼 넘어지며 흐려짐)
   // v6xx 따르는 무리 — 동료(사람)는 작은 무인으로 무인 뒤 땅에, 영물(짐승)은 그 뒤 조금 높이(나는 것은 공중에). 몹 · 무인보다 먼저 그려 체력 줄 · 무인을 가리지 않는다
   drawFollowers(cx, F, H, k, sc, t, ts, fdt, W, (x) => (x - camX) * s, (y) => baseY - (y - camY) * s, lx, ly);
+  amMark(cx, F, P, lx, ly, k, t);   // v632 자동 표적 꺾쇠(몹 발밑 · 몹보다 먼저)
   for (const m of F.mobs) {
     const [x, y] = P(lx(m), ly(m)); if (x < -120 || x > W + 120) continue;   // 화면 밖은 안 그린다
     // 나타남: 0.3초 동안 흐릿하게 내려앉음(먼지)
@@ -4507,8 +4649,8 @@ function frame() {
         if (mf) { mf.d += e[3]; mf.hits = (mf.hits || 1) + 1; mf.txt = null; mf.at = Math.max(mf.at, t + fly - 60); continue; }
         if (floats.length < 60) floats.push({ x: m.x, y: m.y, d: e[3], crit: e[4], pal: e[5] === 2, at: t + fly, row: (n + (recentRows.get(m.id)?.t > t - 500 ? recentRows.get(m.id).n : 0)) % 6, mid: m.id, drift: ((m.id + n) % 3) - 1 }); const rr = recentRows.get(m.id); recentRows.set(m.id, { t, n: (rr && rr.t > t - 500 ? rr.n : 0) + 1 });
       }
-      else if (e[0] === 'cast') { castShape = e[6]; castCol = sk2Col(e[2]); castTier = skillById(e[2])?.tier || 1; skRings = 0; skillFx.push({ at: t, id: e[2], face: e[3], x: e[4], y: e[5], shape: e[6], R: e[7], hero: 1 }); }   // v628 쓴 순간부터 — 기 모음(PRE) 뒤에 터진다(sk2Fx)
-      else if (e[0] === 'buff') { skillFx.push({ at: t, id: e[2], shape: 'buff', hero: 1 }); play('loot'); }
+      else if (e[0] === 'cast') { castShape = e[6]; castCol = sk2Col(e[2]); castTier = skillById(e[2])?.tier || 1; skRings = 0; skillFx.push({ at: t, id: e[2], face: e[3], x: e[4], y: e[5], shape: e[6], R: e[7], hero: 1, vr: e[8], tx: e[9] }); }   // v628 쓴 순간부터 — 기 모음(PRE) 뒤에 터진다(sk2Fx)
+      else if (e[0] === 'buff') { skillFx.push({ at: t, id: e[2], shape: 'buff', hero: 1, vr: e[3] }); play('loot'); }
       else if (e[0] === 'pal') palAtk[e[2]] = { at: t, mid: e[3] };
       else if (e[0] === 'tell') { tells.set(e[2], { pat: e[3], x: e[4], y: e[5], w: e[6], at: t, dur: e[7], safe: e[8] != null ? [e[8], e[9]] : null }); play('tell'); }
       else if (e[0] === 'phase') { shakeUntil = t + 500; play('tense'); chbBanner(e[3] === 2 ? '필살 국면' : '분노', e[3] === 2 ? '붉은 땅 밖 — 빛나는 자리로 피하라!' : '두목이 빨라졌다', e[3] === 2 ? 'ult' : 'rage'); buzz(80); }
@@ -4516,7 +4658,7 @@ function frame() {
       else if (e[0] === 'summon') addLog('두목이 졸개를 불렀다');
       else if (e[0] === 'wbw') { if (e[2]) { chbBanner('약점 노출!', `10초 · 받는 피해 ×${WBF.weakX} — 무공을 몰아 쓰세요`, 'stun'); play('rare', 4); shakeUntil = Math.max(shakeUntil, t + 300); bossFeel.stFlashAt = bossFeel.burstAt = t; } else chbBanner('방어 자세', `받는 피해 ×${WBF.guardX}`, 'rage'); }
       else if (e[0] === 'hurt') { play('hurt'); if (t - heroHurtAt > 260) heroHurtAt = t; }   // v598 맞으면 움찔
-      else if (e[0] === 'dash') { dashAt = t; play('swish'); }
+      else if (e[0] === 'dash') { dashAt = t; play('swish'); if (F0.auto && !g.bossFight && !g.dg) amSt.dashes++; }
       else if (e[0] === 'hop') rgOnHop(F0, e);   // v628
       else if (e[0] === 'perfect') { perfAt = t; slowUntil = t + 650; shakeUntil = t + 160; play('rare', 5); buzz([30, 40, 30]); chbBanner('완벽 회피!', `${DASH.buffMs / 1000}초 동안 주는 피해 ×${DASH.buffX}`, 'stun'); addLog('완벽 회피!'); }
       else if (e[0] === 'die') { play('down'); vib('die'); heroDownAt = t; }   // v598 쓰러지면 무릎을 꿇는다
@@ -5272,6 +5414,7 @@ Object.assign(window.__s2, { baTier: () => baLast, baLive: () => baFx.length, ba
 // v628 처치 손맛 시험 손잡이 — 살아 있는 주검 수 · 마지막 외침 글 · 마지막 처치(몫 · 넘친 피해 · 전직 차수) · 날고 있는 주검 · 큰 처치 수 · 경험치 구슬 수 · 셈(최고 주검 수 · 날기 시작 · 구슬 — true면 0으로)
 Object.assign(window.__s2, { klLive: () => corpses.length, klLast: () => klLastTxt, klInfo: () => (klLast ? { ...klLast } : null), klFly: () => corpses.filter((c) => c.L && c.L.T && klClock - c.L.at >= 0 && klClock - c.L.at < c.L.T).length, klBig: () => klBigN, klMotes: () => klMo.length, klStat: (reset) => { const r = { ...klStat }; if (reset) { klStat.peak = corpses.length; klStat.launched = 0; klStat.motes = 0; klStat.calls = 0; } return r; } });
 // v628 무공 · 오라 시험 손잡이 — skTier: 마지막에 그린 무공(차수 · 빛깔 · 크기 · 불티) · auTier: 이 프레임 오라 차수(끔이면 0) · auLive: 오라 겹 · 전직 순간 · 붙잡은 결과 창
-Object.assign(window.__s2, { skTier: () => ({ adv: g ? advOf(g.S) : 0, last: sk2Last && { ...sk2Last }, cur: sk2Cur && { ...sk2Cur }, casts: sk2CastN, pre: SK2_PRE, rel: SK2_REL, post: SK2_POST, hits: sk2HitLog.slice() }), auTier: () => auNow.tier, auLive: () => ({ ...auNow, I: Math.round(auNow.I * 100) / 100, trans: auTr ? { n: auTr.n, ms: Math.round(now() - auTr.at), low: auTr.low } : null, held: !!auHeld, skip: !!document.querySelector('#au-skip') }) });
+Object.assign(window.__s2, { skTier: () => ({ adv: g ? advOf(g.S) : 0, last: sk2Last && { ...sk2Last }, cur: sk2Cur && { ...sk2Cur }, casts: sk2CastN, pre: SK2_PRE, rel: SK2_REL, post: SK2_POST, hits: sk2HitLog.slice() }), skVar: () => sk2VarSeen.slice(), auTier: () => auNow.tier, auLive: () => ({ ...auNow, I: Math.round(auNow.I * 100) / 100, trans: auTr ? { n: auTr.n, ms: Math.round(now() - auTr.at), low: auTr.low } : null, held: !!auHeld, skip: !!document.querySelector('#au-skip') }) });
 Object.assign(window.__s2, { poLast: () => ({ n: poLog.n, id: poLog.id, tier: poLog.tier, phase: poPhase(poCur), seen: poLog.seen.slice(), why: poLog.why, off: poOffNow.slice(), cut: !!poCutS, cam: !!poCamS, ghosts: poGh.length }) });   // v628 무공 동작(r13-pose) — 마지막 무공 · 지금 단계(pre → rel → post → idle) · 몸을 옮긴 몫(px)
+Object.assign(window.__s2, { amState: () => ({ ...amSt, auto: !!g?.ensureFight().auto }) });   // v632 자동 움직임 시험 손잡이
 Object.assign(window.__s2, { rgState: () => ({ ...rgSt, adv: g ? advOf(g.S) : 0, cfg: RG_T[rgSt.tier], ranged: !!g && rgRanged(g.ensureFight()), hopping: !!rgPh, ph: rgPh ? (rgPh.w !== null ? 'w' : rgPh.p !== null ? 'p' : 'l') : '', p: rgPh?.p ?? null, flip: !!rgPh?.flip, fx: rgFx.length, gh: rgGh.length }) });   // v628 원거리 시험 손잡이

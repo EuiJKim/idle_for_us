@@ -1866,6 +1866,52 @@ console.log('\n=== v613 두목 도감 — 첫 처치 때 · 드러난 수 ===');
   ok(old.dex().list[1].beat && old.dex().list[1].at === 0 && old.dex().found >= 1, '옛 저장(때 없음)도 읽힌다 — 0');
 }
 
+console.log('\n=== v632 자동 움직임(표적 값 · 붙들기 · 포기 시간 · 회피로 좁히기) ===');
+{
+  const SD = await import('../js/s2/battle/side.js'), { JOBS } = await import('../js/s2/tables/char.js');
+  const room = (L, ms = 1060) => ({ lv: L, map: makeSideMap(ms), fams: { a: { mobs: [{ lv: L, kind: 'mob', w: 1 }], keep: 18, coolMs: 1000 } } });
+  // 3분 자동 사냥을 재며 — 돌아섬 · 가던 길 뒤집기 · 포기 · 몹이 있는데 할 일 없이 섬(무공 쓰는 제자리 빼고) · 분당 처치
+  const watch = (job, L, ms = 1060, seed = 7, min = 3) => {
+    const F = new SideFight(room(L, ms), refPlayer(L, job), seed), H = F.hero, J = JOBS[job];
+    let turns = 0, rev = 0, idle = 0, face = H.face, md0 = 0;
+    for (let i = 0; i < min * 1200; i++) {
+      const x0 = H.x, y0 = H.y; F.step();
+      if (H.face !== face) { turns++; face = H.face; }
+      const md = Math.sign(H.x - x0); if (md && md0 && md !== md0 && H.act !== 'hop') rev++; if (md) md0 = md;
+      if (H.x === x0 && H.y === y0 && H.plat >= 0 && F.t >= (H.lockUntil || 0) && F.mobs.length && !F.mobs.some((m) => Math.abs(m.y - H.y) <= SD.SAME_Y && Math.abs(m.x - H.x) <= J.range)) idle++;
+    }
+    return { kpm: F.kills / min, turns: turns / min, rev: rev / min, give: (F.giveUps || 0) / min, idleS: (idle * 0.05) / min, hops: F.hops || 0, dashes: F.autoDashes || 0, dg: F.digest() };
+  };
+  const R = ['sword', 'spear', 'fist', 'bow', 'mage'].flatMap((job) => [1, 60, 150].map((L) => ({ job, L, ...watch(job, L) })));
+  const avg = (k) => R.reduce((a, r) => a + r[k], 0) / R.length;
+  console.log('    ' + R.map((r) => `${r.job}${r.L} ${r.kpm.toFixed(0)}/${r.turns.toFixed(0)}/${r.rev.toFixed(0)}`).join(' · '));
+  // 예전(v631, 같은 재기 · 3맵 5분 평균): 돌아섬 24.6 · 뒤집기 20.8 · 포기 0.84 · 분당 처치 29.2
+  ok(avg('turns') <= 18 && avg('rev') <= 15, '자동: 분당 돌아섬 18번 · 가던 길 뒤집기 15번 아래(다섯 직업 × Lv 1 · 60 · 150 평균, 예전 24.6 · 20.8)', `돌아섬 ${avg('turns').toFixed(1)} · 뒤집기 ${avg('rev').toFixed(1)}`);
+  ok(avg('give') <= 0.2 && R.every((r) => r.give <= 0.7), '자동: 쫓다 포기는 거의 없다(분당 0.2 아래 · 예전 0.84 — 먼 표적은 닿을 만한 시간을 준다)', avg('give').toFixed(2));
+  ok(R.every((r) => r.idleS <= 0.5), '자동: 몹이 있는데 할 일 없이 서 있는 시간 — 분당 0.5초 아래(무공 쓰는 제자리 빼고)', Math.max(...R.map((r) => r.idleS)).toFixed(2));
+  ok(avg('kpm') >= 26 && avg('kpm') <= 32.5, '자동: 분당 처치 평균은 예전(29.2)에서 조금만 — 26~32.5', avg('kpm').toFixed(1));
+  ok(R.filter((r) => r.job === 'bow' || r.job === 'mage').every((r) => r.hops > 0), '자동: 원거리는 붙으면 여전히 뒤로 뛴다(v628)', R.filter((r) => r.job === 'bow' || r.job === 'mage').map((r) => r.hops).join(','));
+  ok(R.some((r) => r.dashes > 0), '자동: 같은 발판 먼 표적은 회피로 좁힌다(일반 사냥)', R.map((r) => r.dashes).join(','));
+  ok(watch('sword', 60, 1030, 3, 1).dg === watch('sword', 60, 1030, 3, 1).dg && watch('bow', 60, 1030, 3, 1).dg === watch('bow', 60, 1030, 3, 1).dg, '자동 움직임도 같은 씨앗 = 같은 결과(근접 · 원거리)');
+  // 지나치지 않기: 먼 몹을 쫓는 중에 같은 층 사거리 안에 몹이 들어오면 0.6초 안에 그 몹으로
+  const F = new SideFight(room(60), refPlayer(60, 'sword'), 5); F.famState.a.keep = 0;
+  F.mobs = []; F.spawn('a', { p: 0, x: F.hero.x + 15000 }); const far = F.mobs[0];
+  F.run(1000);
+  ok(F.hero.target === far.id && F.hero.chaseMax > 4000, '먼 표적(15m)은 포기 시간이 4초보다 길다', F.hero.chaseMax);
+  F.spawn('a', { p: 0, x: F.hero.x + 900 }); const nearM = F.mobs[1]; nearM.x = F.hero.x + 900; F.run(600);
+  ok(F.hero.target === nearM.id, '쫓는 길에 사거리 안으로 들어온 몹부터 친다');
+  // 붙들기: 조금 더 가까운 몹이 생겨도(1.2초 넘게 낫지 않으면) 가던 표적 그대로
+  const G = new SideFight(room(60), refPlayer(60, 'sword'), 5); G.famState.a.keep = 0;
+  G.mobs = []; G.spawn('a', { p: 0, x: G.hero.x + 9000 }); const a1 = G.mobs[0]; a1.x = G.hero.x + 9000; G.run(300);
+  G.spawn('a', { p: 0, x: G.hero.x + 7000 }); G.mobs[1].x = G.hero.x - 2500; const b1 = G.mobs[1]; ok(G.autoCost(b1) < G.autoCost(a1), "(붙들기 확인: 뒤 몹이 조금 더 싸다)"); G.run(1500);
+  ok(G.hero.target === a1.id, '조금 더 가까운 몹이 뒤에 생겨도 가던 표적을 붙든다(뒤돌아 오가지 않게)');
+  // 두목 · 던전에선 저절로 회피를 쓰지 않는다 · 수동도
+  const B = new SideFight({ ...room(60), boss: true }, refPlayer(60, 'sword'), 5); B.famState.a.keep = 0; B.mobs = []; B.spawn('a', { p: 0, x: B.hero.x + 15000 }); B.run(4000);
+  const M = new SideFight(room(60), refPlayer(60, 'sword'), 5, { auto: false }); M.run(4000);
+  const N = new SideFight(room(60), refPlayer(60, 'sword'), 5); N.famState.a.keep = 0; N.mobs = []; N.spawn('a', { p: 0, x: N.hero.x + 15000 }); N.run(4000);
+  ok(!B.events.some((e) => e[0] === 'dash') && !M.events.some((e) => e[0] === 'dash') && N.events.some((e) => e[0] === 'dash'), '두목전 · 수동에선 저절로 회피 안 씀(일반 사냥만)', `${B.autoDashes || 0} · ${M.autoDashes || 0} · ${N.autoDashes || 0}`);
+}
+
 console.log('\n=== v616 무한 탑 이정표 상자 ===');
 {
   const CT = await import('../js/s2/tables/content.js');
@@ -1938,8 +1984,8 @@ console.log('\n=== v628 원거리(궁사 · 술사) — 뒤로 뛰기 · 화살 
   const rb = rate('bow'), rm = rate('mage');
   ok(Math.abs(rb.x - 1) <= 0.05 && Math.abs(rm.x - 1) <= 0.05 && rb.h < 0.8 && rm.h < 0.9, '같은 조건 분당 처치 그대로(±5%) · 받는 피해 ↓ — Lv45 · 90 씨앗 셋', `궁사 처치 ×${rb.x.toFixed(3)} 피해 ×${rb.h.toFixed(2)} · 술사 처치 ×${rm.x.toFixed(3)} 피해 ×${rm.h.toFixed(2)}`);
   // 근접 셋은 그대로 — 켜든 끄든 같은 사건 흐름(난수 · 위치 하나도 안 바뀜)
-  //   지문은 v627 엔진(원거리 손대기 전)으로 잰 값 — 근접 싸움을 일부러 바꾸면 여기도 새로 잰다
-  const GOLD = { 'sword:30:2': 'a6779798:57:390725', 'sword:90:5': '12314fd7:55:15862336', 'spear:30:2': '3a31a25d:60:408093', 'spear:90:5': 'e289bc92:56:15944020', 'fist:30:2': '213aaef8:58:436482', 'fist:90:5': '1231ed6:52:15319935' };
+  //   지문은 v627 엔진(원거리 손대기 전)으로 잰 값 — 근접 싸움을 일부러 바꾸면 여기도 새로 잰다(v632 자동 움직임으로 새로 잼)
+  const GOLD = { 'sword:30:2': '4ff6c032:59:420108', 'sword:90:5': '77566043:56:15877089', 'spear:30:2': '1684c9a:57:391263', 'spear:90:5': '9ebf9ab:56:16138927', 'fist:30:2': '2c48a84c:56:430104', 'fist:90:5': '4baf9544:56:16390233' };
   const dg = (job, L, sd) => new SideFight(sideRoom(L, sd, { n: 18, coolMs: 1000 }), refPlayer(L, job), sd).run(120000).digest();
   const mel = ['sword', 'spear', 'fist'].flatMap((j) => [[30, 2], [90, 5]].map(([L, sd]) => [`${j}:${L}:${sd}`, dg(j, L, sd), off(() => dg(j, L, sd))]));
   ok(mel.every(([k, a, b]) => a === b && a === GOLD[k]), '근접(검객 · 창수 · 권사)은 그대로 — v627 엔진과 같은 사건 흐름 · 켜든 끄든 같음', mel.filter(([k, a, b]) => a !== b || a !== GOLD[k]).map((x) => `${x[0]} ${x[1]}`).join(' '));
@@ -2066,6 +2112,94 @@ console.log('\n=== v631 장비 — 자동 장착은 종합(전투력 × 보스 �
     const st = MATS['item:stone'].src.map((x) => x.t).join('/');
     ok(MATS['item:stone'].src.length >= 8 && /분해/.test(st) && /단련동/.test(st) && /상점/.test(st) && MATS['item:restore'].src.some((x) => /출석/.test(x.t)) && MATS['item:restore'].src.some((x) => /임무/.test(x.t)), '강화석 · 복구 주문서 얻는 곳(분해 · 단련동 · 상점 … / 출석 · 일일 임무)', st);
     ok(/40개/.test(MATS['item:stone'].src.find((x) => /단련동/.test(x.t)).d) && /1~64개/.test(MATS['item:stone'].src[0].d), '숫자는 엔진 표 그대로(단련동 40 · 분해 1~64)'); }
+}
+
+console.log('\n=== v632 무공 변형(4단) ===');
+{
+  const FA = 2;   // battle/ref.js FARM_AOE — 표준 예산이 보는 사냥 몰린 수
+  // 표: 모양마다 둘(무리 쪽 · 두목 쪽) · 다섯 직업 · 레벨 1/30 — 몰린 수 1 · FARM_AOE에서 1.05배 이하 · 어딘가는 손해(또는 사거리 ↓)
+  const rows = [], bad = [];
+  for (const job of Object.keys(KT.KIT)) for (const sk of KT.KIT[job]) {
+    const vs = KT.varsOf(sk); if (sk.kind === 'passive') { if (vs.length) bad.push(`${sk.id} 상시인데 변형`); continue; }
+    if (vs.length !== 2 || vs.map((v) => v.tag).sort().join() !== '두목,무리') bad.push(`${sk.id} 변형 ${vs.map((v) => v.v)}`);
+    for (const lv of [1, 30]) {
+      const b = KT.battleKit([{ ...sk, lv }])[0];
+      for (const v of vs) {
+        const k = KT.battleKit([{ ...sk, lv, vr: v.v }])[0], r = (a) => KT.varBudget(k, a) / KT.varBudget(b, a);
+        const worse = [1, 2, 3, 5, 8, 12, 20, 30].some((a) => r(a) < 0.97) || (k.range || 0) < (b.range || 0) || (k.kind === 'buff' && (k.durMs < b.durMs || Object.values(k.buff).reduce((x, y) => x + y, 0) < Object.values(b.buff).reduce((x, y) => x + y, 0)));   // 버프: 짧아지거나 · 약해지거나
+        if (k.vr !== v.v || r(1) > 1.05 || r(FA) > 1.05 || !worse) bad.push(`${sk.id}/${v.v} lv${lv} ×${r(1).toFixed(3)}/${r(FA).toFixed(3)}`);
+        if (job === 'sword' && lv === 30) rows.push(`${sk.id}:${v.v} 대상 ${b.maxT}→${k.maxT} 연타 ${b.hits}→${k.hits} 계수 ${b.coef}→${k.coef}${k.kind === 'buff' ? ` 지속 ${b.durMs}→${k.durMs}` : ''}`);
+      }
+    }
+  }
+  ok(!bad.length, '변형 표 — 공격 모양 넷 · 버프마다 둘(무리 · 두목 쪽) · 몰린 수 1 · FARM_AOE에서 1.05배 이하 · 공짜로 좋은 것 없음', bad.slice(0, 4).join(' | ') || rows.slice(0, 4).join(' · '));
+  // 고르기 — 그 무공에 15점 넘게 써야 · 하나만 · 점수 안 듦 · 초기화하면 풀림 · 저장 · 불러오기
+  const T0 = 1.8e12, g = new Game(newGame('sword', T0, 5), T0); g.addExp(EX.cumExp(80)); g.tick(T0);
+  g.S.hero.adv = 2; g.hero.kitUnlock(); g.S.wallet.gold = 1e9;
+  const H = g.hero, id = 'sword_0';
+  const early = H.canTreeVar(id, 'fork'), K = H.kitState();
+  for (const nd of KT.treeOf(KT.skillById(id))) while (H.treeSpent(id) < KT.VAR_GATE && g.treeUp(id, nd.n));
+  const p0 = g.treePts().used, sp = H.treeSpent(id);
+  const picked = g.treeVar(id, 'fork'), again = g.treeVar(id, 'back'), wrong = g.treeVar('sword_1', 'fork');
+  const bk = g.hero.battleKit().find((k) => k.id === id);
+  ok(!early && sp >= KT.VAR_GATE && picked && !again && !wrong && K.var[id] === 'fork' && g.treePts().used === p0 && bk.vr === 'fork' && bk.fx === 'fork' && bk.maxT === 3,
+    `4단은 그 무공에 ${KT.VAR_GATE}점 넘게 써야 열림 · 하나만(다시 고르기 · 다른 모양 변형은 안 됨) · 점수 안 듦 · 전투 무공에 실림`, JSON.stringify({ early, sp, picked, again, wrong, maxT: bk.maxT, coef: bk.coef }));
+  const txt = g.save(), g2 = Game.load(txt, T0 + 1000);
+  ok(g2.signed && g2.hero.kitState().var?.[id] === 'fork' && g2.hero.battleKit().find((k) => k.id === id).vr === 'fork', '고른 변형은 저장 · 불러오기에 남는다');
+  const old = JSON.parse(JSON.stringify(g.S)); delete old.hero.kit.var; const g3 = new Game(old, T0);
+  ok(g3.hero.treeVarOf(id) === null && g3.hero.battleKit().every((k) => !k.vr) && typeof g3.hero.varSt() === 'object', '예전 세이브(변형 칸 없음)는 변형 없이 · 칸은 쓸 때 생김');
+  const pw0 = g.power(), w0 = g.S.wallet.gold, rs = g.treeReset();
+  ok(rs && !Object.keys(K.var || {}).length && g.S.wallet.gold < w0 && H.canTreeVar(id, 'back') === false && g.hero.battleKit().every((k) => !k.vr), '트리 초기화(값은 예전 그대로)하면 변형도 풀린다 · 다시 15점 써야 고름');
+  for (const nd of KT.treeOf(KT.skillById(id))) while (H.treeSpent(id) < KT.VAR_GATE && g.treeUp(id, nd.n));
+  const pwA = g.power(); g.treeVar(id, 'back'); g.dirtyStats = true; const pwB = g.power();
+  ok(g.hero.battleKit().find((k) => k.id === id).vr === 'back' && pwA === pwB, '초기화 뒤 다른 변형을 고를 수 있다 · 전투력은 변형과 무관(오르내리지 않음)', `${pw0} · ${pwA} → ${pwB}`);
+  // 움직임 — 대상 고르기(kitTargets) · 끌어당김(kbX) · 나눠 친 연타(kitPend)
+  const p = refPlayer(130, 'sword'), F = new SideFight(sideRoom(130, 1, { n: 0 }), p, 1), Hh = F.hero;
+  const mob = (i, x, y, kind = 'mob') => ({ id: 900 + i, x, y, kind, plat: 0, hp: 1e12, st: { hp: 1e12 } });
+  Hh.x = 10000; Hh.y = 0; Hh.face = 1;
+  const kOf = (sid, v) => KT.varApply(KT.battleKit([{ ...KT.skillById(sid), lv: 30 }])[0], v), base = (sid) => KT.battleKit([{ ...KT.skillById(sid), lv: 30 }])[0];
+  F.mobs = [mob(1, 11000, 0), mob(2, 12000, 2300), mob(3, 12500, 4600), mob(4, 8800, 0), mob(5, 13000, 0, 'boss')];
+  const ids = (k, R, t) => F.kitTargets(k, R, 1, t).map((m) => m.id - 900).join('');
+  const lb = base('sword_7'), lf = kOf('sword_7', 'fork'), lk = kOf('sword_7', 'back'), R7 = 5000;
+  const tB = ids(lb, R7), tF = ids(lf, R7), tK = ids(lk, R7);
+  const ab = base('sword_1'), aw = kOf('sword_1', 'twin'), tA = ids(ab, 3000), tW = ids(aw, 3000);
+  const fc = kOf('sword_5', 'focus'), tFo = ids(fc, 6000, F.mobs[4]);
+  ok(!tB.includes('2') && tF.includes('2') && !tF.includes('3') && tK[0] === '5' && !tA.includes('4') && tW.includes('4') && tFo[0] === '5',
+    'fork 한 층 위까지(두 층 위는 아님) · back 두목 먼저 · twin 뒤도 · focus 표적 먼저', JSON.stringify({ tB, tF, tK, tA, tW, tFo }));
+  F.mobs = [mob(1, 10500, 0), mob(2, 13500, 0), mob(3, 6800, 0, 'boss'), mob(4, 14500, 0)];
+  const cb = base('sword_3'), cp = kOf('sword_3', 'pull'), Rc = 3000, inB = F.kitTargets(cb, Rc, 1).length, inP = F.kitTargets(cp, Rc, 1);
+  F.kitPull(inP, Rc);
+  const kb = Object.fromEntries(F.mobs.map((m) => [m.id - 900, m.kbX || 0]));
+  ok(inB === 1 && inP.length === 3 && kb[2] < 0 && kb[1] === 0 && !kb[3] && !kb[4] && 13500 + kb[2] === 10000 + Math.round(Rc * 0.35),
+    'pull 둘레 +30%(1.5m까지)에서 골라 무인 둘레(사거리 35%)까지 끌어당김 · 두목은 버팀 · 밖은 그대로', JSON.stringify({ inB, inP: inP.length, kb }));
+  // spin · wave — 실제 싸움에서 연타가 0.3초 × 3 · 0.7초 뒤에 다시 나온다(그때 고른 대상에게)
+  const waveHits = (sid, v) => {
+    const pp = { ...refPlayer(130, 'sword'), kit: [kOf(sid, v)] }, G = new SideFight(sideRoom(130, 2, { n: 18, coolMs: 1000 }), pp, 3);
+    let c = null; const ts = new Set();
+    for (let i = 0; i < 4000; i++) { G.step(); for (const e of G.events) { if (!c && e[0] === 'cast' && e[8] === v) c = e[1]; if (c && e[0] === 'hit' && e[5] === 1 && e[1] - c <= 1000) ts.add(e[1] - c); } G.events = []; if (c && G.t - c > 1000) break; }
+    return [...ts].sort((a, b) => a - b).join(',');
+  };
+  const sw = waveHits('sword_3', 'spin'), wv = waveHits('sword_5', 'wave');
+  ok(sw === '0,300,600,900' && wv === '0,700', 'spin 네 번(0 · 0.3 · 0.6 · 0.9초) · wave 두 번(0 · 0.7초) — 엔진 연타 때', `spin ${sw} · wave ${wv}`);
+  // 결정론 · 사건 — 같은 씨앗 같은 결과 · 변형은 cast [8]에 · 변형 없으면 예전 사건 그대로(위 근접 지문)
+  const pv = { ...p, kit: p.kit.map((k) => { const v = KT.varsOf(KT.skillById(k.id))[0]; return v ? KT.varApply(k, v.v) : k; }) };
+  const d1 = new SideFight(sideRoom(130, 4, { n: 18, coolMs: 1000 }), pv, 9).run(60000), d2 = new SideFight(sideRoom(130, 4, { n: 18, coolMs: 1000 }), pv, 9).run(60000);
+  const tags = new Set(d1.events.filter((e) => e[0] === 'cast' || e[0] === 'buff').map((e) => (e[0] === 'cast' ? e[8] : e[3])));
+  ok(d1.digest() === d2.digest() && ['fork', 'pull', 'wave', 'burst'].every((v) => tags.has(v)) && d1.hero.kit.every((k) => k.kind === 'passive' || k.vr), '변형 싸움도 같은 씨앗 → 같은 사건 · cast[8] / buff[3]에 변형', `${d1.digest()} · ${[...tags].join(',')}`);
+  // 실제 싸움 예산 — 표준 무인 · 무리 방(18마리 · 3분) 처치 · 두목 허수아비(체력 ×1000 · 공격 0 · 2분) 피해. 씨앗 셋
+  const bossRoom = (L, sd) => ({ lv: L, map: makeSideMap(sd), fams: { a: { mobs: [{ lv: L, kind: 'mob', w: 1 }], keep: 0, coolMs: 1000 }, b: { mobs: [{ lv: L, kind: 'boss', w: 1 }], keep: 1, coolMs: 500 } } });
+  const dummy = (pp, L, sd) => { const G = new SideFight(bossRoom(L, sd), pp, sd); const s0 = G.spawn.bind(G); G.spawn = (f, s) => { s0(f, s); const m = G.mobs[G.mobs.length - 1]; m.st = { ...m.st, hp: m.st.hp * 1000, atk: 0 }; m.hp = m.st.hp; }; G.run(1000); for (const m of G.mobs) { m.angry = true; m.nextPat = 1e12; } return G.run(120000).dmgOut; };
+  const withTag = (pp, tag) => ({ ...pp, kit: pp.kit.map((k) => { const v = KT.varsOf(KT.skillById(k.id)).find((x) => x.tag === tag); return v ? KT.varApply(k, v.v) : k; }) });
+  const out = [], fails = [];
+  for (const [job, L] of [['sword', 60], ['sword', 130], ['bow', 130], ['mage', 130]]) {
+    const p1 = refPlayer(L, job), r = {};
+    for (const [nm, pp] of [['none', p1], ['pack', withTag(p1, '무리')], ['boss', withTag(p1, '두목')]]) { let k = 0, d = 0; for (let sd = 1; sd <= 3; sd++) { k += new SideFight(sideRoom(L, sd, { n: 18, coolMs: 1000 }), pp, sd * 7 + 1).run(180000).kills; d += dummy(pp, L, sd * 5 + 2); } r[nm] = { k, d }; }
+    const x = (nm, f) => r[nm][f] / r.none[f], s = `${job}${L} 무리쪽 처치×${x('pack', 'k').toFixed(2)} 두목×${x('pack', 'd').toFixed(2)} · 두목쪽 처치×${x('boss', 'k').toFixed(2)} 두목×${x('boss', 'd').toFixed(2)}`;
+    out.push(s);
+    if (x('boss', 'd') > 1.07 || x('pack', 'k') > 1.12 || x('pack', 'd') > 0.9 || x('boss', 'k') > 1.08 || x('pack', 'k') < 0.85) fails.push(s);
+  }
+  ok(!fails.length, '실제 싸움 — 두목 쪽은 두목에 +7% 안 · 무리 쪽은 두목에 −10% 넘게 손해 · 사냥 처치는 −15%~+12% 안(무리 쪽) · 두목 쪽 +8% 안', (fails.length ? fails : out).join(' | '));
+  console.log('    ' + out.join('\n    '));
 }
 
 console.log('\n=== S0 규칙 ===');

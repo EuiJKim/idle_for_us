@@ -1316,6 +1316,33 @@ const ok = (c, m, x = '') => { console.log(`  ${c ? '✓' : '✗ !!'} ${m}${x !=
     await page.evaluate(() => window.__s2.freeze?.());
     await ctx.close();
   }
+  // v632 자동 움직임 — 검객 · 궁사(844×390 · 667×375): 20초 홀로 사냥 · 처치가 오르고 · 돌아섬이 적고(20초에 12번 아래) · 먼 표적 꺾쇠가 뜨고 · 그래픽 낮음이면 안 뜸 · 콘솔 오류 0
+  if (!process.env.ONLY || process.env.ONLY.split(',').includes('auto')) {
+    console.log('— v632 자동 움직임');
+    for (const [job, W, H, low] of [['sword', 844, 390, false], ['bow', 667, 375, false], ['sword', 844, 390, true]]) {
+      const ctx = await b.newContext({ viewport: { width: W, height: H }, deviceScaleFactor: 2, serviceWorkers: 'block' });
+      await ctx.route(/gstatic\.com\/firebasejs/, (r) => r.abort());
+      await ctx.addInitScript((lo) => { try { localStorage.setItem('ifu.s2.opt', JSON.stringify({ sfx: false, bgm: false, saver: false, vib: false, ...(lo ? { gfx: 'low' } : {}) })); } catch { /* 저장 못 함 */ } }, low);
+      const page = await ctx.newPage(); page.setDefaultTimeout(8000);
+      const errs = []; page.on('pageerror', (e) => errs.push(e.message)); page.on('console', (m) => { if (m.type() === 'error' && !/Failed to load|ERR_FAILED/.test(m.text())) errs.push(m.text()); });
+      await page.goto(BASE, { waitUntil: 'domcontentloaded' });
+      await page.waitForSelector('#modal:not(.hidden) .jobcard'); await page.click(`#modal .jobcard[data-job="${job}"]`);
+      await page.waitForSelector('#modal', { state: 'hidden' });
+      const st0 = await page.evaluate(() => { const g = window.__s2.g, T = g.stage(); T.auto = false; if (g.bossFight) g.endChallenge(false); window.__s2.freeze(); const F = g.ensureFight(); return { ...window.__s2.amState(), kills: F.kills }; });   // 첫 칸 그대로(두목 도전은 끔)
+      await page.waitForTimeout(low ? 8000 : 20000);
+      const st = await page.evaluate(() => ({ ...window.__s2.amState(), kills: window.__s2.g.ensureFight().kills, low: window.__s2.lowGfx() }));
+      const turns = st.turns - st0.turns, kills = st.kills - st0.kills, tag = `${job} ${W}×${H}${low ? ' 그래픽 낮음' : ''}`;
+      if (!low) {
+        await page.screenshot({ path: path.join(OUT, `am-${job}-${W}.png`) });
+        ok(st.auto && kills >= 4 && st.picks - st0.picks >= 4, `v632 자동 움직임 ${tag} — 20초 홀로 사냥 · 처치 오름`, `처치 ${kills} · 표적 ${st.picks - st0.picks}`);
+        ok(turns <= 12, `v632 자동 움직임 ${tag} — 20초에 돌아섬 12번 아래`, turns);
+        ok(st.marks > st0.marks, `v632 자동 움직임 ${tag} — 먼 표적을 고르면 발밑 꺾쇠`, `${st.marks - st0.marks} · 회피로 좁힘 ${st.dashes - st0.dashes}`);
+      } else ok(st.low && st.picks > st0.picks && st.marks === st0.marks, `v632 자동 움직임 ${tag} — 꺾쇠 안 그림(사냥은 그대로)`, `표적 ${st.picks - st0.picks} · 꺾쇠 ${st.marks - st0.marks}`);
+      ok(errs.length === 0, `v632 자동 움직임 ${tag} — 콘솔 오류 없음`, errs.slice(0, 2).join(' | '));
+      await page.evaluate(() => window.__s2.freeze?.());
+      await ctx.close();
+    }
+  }
   // v614 첫 판 길 안내 — 자동 시험에선 window.__s2coach 를 켜야 뜬다. 세 걸음을 「다음」으로 · 구멍이 그 대상과 겹치는지 · 다시 열어도 안 뜸 · 하던 세이브엔 안 뜸 · 길잡이 살짝 빛남
   if (!process.env.ONLY || process.env.ONLY.split(',').includes('coach')) {
     for (const [W, H] of [[844, 390], [667, 375]]) {
@@ -1537,6 +1564,38 @@ const ok = (c, m, x = '') => { console.log(`  ${c ? '✓' : '✗ !!'} ${m}${x !=
     ok(!lw2.trans && !lw2.ban && lc.casts >= c0 + 2 && lc.last?.sparks === 0, 'v628 그래픽 낮음 — 넘김 · 무공은 덧그림 없이(불티 0)', JSON.stringify({ casts: lc.casts - c0, last: lc.last }));
     if (lowOn) await gfx();
     ok(errs.length === 0, 'v628 무공 · 오라 — 콘솔 오류 없음', errs.slice(0, 3).join(' | '));
+    await page.evaluate(() => window.__s2.freeze?.());
+    await ctx.close();
+  }
+  // v632 무공 변형 — 무공 강화 4단: 15점 쓰면 카드 둘(움직이는 그림 · 무리/두목 쪽) · 고르기 → 빛남 · 저장(다시 열어도) · 사냥터에서 그 변형 그림(skVar) · 콘솔 오류 0
+  if (!process.env.ONLY || process.env.ONLY.split(',').some((x) => x === '844' || x === 'tv')) {
+    console.log('— v632 무공 변형');
+    const ctx = await b.newContext({ viewport: { width: 844, height: 390 }, serviceWorkers: 'block' });
+    await ctx.route(/gstatic\.com\/firebasejs/, (r) => r.abort());
+    const page = await ctx.newPage(); page.setDefaultTimeout(8000);
+    const errs = []; page.on('pageerror', (e) => errs.push(e.message)); page.on('console', (m) => { if (m.type() === 'error' && !/Failed to load|ERR_FAILED/.test(m.text())) errs.push(m.text()); });
+    const until = async (fn, pred, ms = 5000) => { const t = Date.now(); for (;;) { const v = await fn(); if (pred(v) || Date.now() - t > ms) return v; await page.waitForTimeout(80); } };
+    await page.goto(BASE, { waitUntil: 'domcontentloaded' });
+    await page.waitForSelector('#modal:not(.hidden) .jobcard'); await page.click('#modal .jobcard[data-job="sword"]');
+    await page.waitForSelector('#modal', { state: 'hidden' }); await page.waitForTimeout(600);
+    // Lv140 · 5차 · 천지일검(sword_7)에만 점수 16
+    await page.evaluate(async () => { const { treeOf, skillById } = await import(new URL('js/s2/tables/kit.js', location.href).href), g = window.__s2.g; g.S.hero.lv = 140; g.S.hero.adv = 5; g.hero.kitUnlock(); g.dirtyStats = true; for (const nd of treeOf(skillById('sword_7'))) while (g.hero.treeSpent('sword_7') < 16 && g.treeUp('sword_7', nd.n)); });
+    const openTree = async () => { await page.click('#mb .nb[data-key]'); await page.waitForSelector('#wb .sk-slot'); await page.click('#panel-body .subtabs button:text-is("무공 강화")'); await page.waitForSelector('#wb .sk-tree'); await page.click('#wb .sk-pick .chip[data-id="sword_7"]'); await page.waitForSelector('#wb .tv-row[data-id="sword_7"]'); };
+    await openTree();
+    const cv = () => page.evaluate(() => [...document.querySelectorAll('#wb .tv-cv')].map((c) => { const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; let h = 0; for (let i = 3; i < d.length; i += 4 * 7) h = (h * 31 + d[i]) >>> 0; return h; }));
+    const c1 = await cv(); await page.waitForTimeout(350); const c2 = await cv();
+    const t0 = await page.evaluate(() => { const row = document.querySelector('#wb .tv-row'), cards = [...row.querySelectorAll('.tv-card')], wb = document.getElementById('wb'); return { on: row.classList.contains('on'), n: cards.length, vs: cards.map((c) => c.dataset.v).join(), tags: cards.map((c) => c.querySelector('.tv-tag').textContent).join(), btn: cards.map((c) => !c.querySelector('.btn').disabled).join(), over: wb.scrollWidth - wb.clientWidth }; });
+    ok(t0.on && t0.n === 2 && t0.vs === 'fork,back' && t0.tags === '무리 쪽,두목 쪽' && t0.btn === 'true,true' && c1.length === 2 && c1.some((h, i) => h !== c2[i]) && t0.over <= 1, 'v632 무공 강화 4단 — 카드 둘(세 갈래 · 되돌아옴) · 움직이는 그림 · 고르기 · 넘침 없음', JSON.stringify({ ...t0, anim: c1.map((h, i) => h !== c2[i]) }));
+    await page.click('#wb .tv-card[data-v="fork"] .btn'); await page.waitForTimeout(300);
+    const t1 = await page.evaluate(() => { const K = window.__s2.g.hero.kitState(), on = document.querySelector('#wb .tv-card.on'); return { v: K.var?.sword_7, on: on?.dataset.v, glow: on ? getComputedStyle(on).boxShadow !== 'none' : false, other: document.querySelector('#wb .tv-card[data-v="back"] .btn').disabled, txt: document.querySelector('#wb .tv-card.on .btn').textContent, kit: window.__s2.g.hero.battleKit().find((k) => k.id === 'sword_7').vr }; });
+    ok(t1.v === 'fork' && t1.on === 'fork' && t1.glow && t1.other && t1.txt === '고름' && t1.kit === 'fork', 'v632 고르면 그 카드가 빛나고(고름) · 다른 쪽은 막힘 · 전투 무공에 실림', JSON.stringify(t1));
+    const sv = await page.evaluate(async () => { window.__s2.save(); const { Game } = await import(new URL('js/s2/game.js', location.href).href), g2 = Game.load(window.__s2.g.save(), Date.now()); return { v: g2.hero.kitState().var?.sword_7 || null, kit: g2.hero.battleKit().find((k) => k.id === 'sword_7').vr }; });
+    ok(sv.v === 'fork' && sv.kit === 'fork', 'v632 고른 변형은 세이브에 남는다(불러와도 세 갈래)', JSON.stringify(sv));
+    // 사냥터 — 천지일검만 자동으로: 쓸 때 세 갈래 그림(skVar) · cast 사건 [8]
+    await page.evaluate(() => { document.querySelector('#panel-close')?.click(); const g = window.__s2.g, K = g.hero.kitState(); K.off = K.slots.filter((x) => x !== 'sword_7'); g.dirtyStats = true; });
+    const fv = await until(() => page.evaluate(() => window.__s2.skVar()), (v) => v.some((q) => q.vr === 'fork' && q.id === 'sword_7'), 15000);
+    ok(fv.some((q) => q.vr === 'fork' && q.id === 'sword_7'), 'v632 사냥터 — 고른 변형이 무공 그림에 보인다(세 갈래)', JSON.stringify(fv.slice(-3)));
+    ok(errs.length === 0, 'v632 무공 변형 — 콘솔 오류 없음', errs.slice(0, 3).join(' | '));
     await page.evaluate(() => window.__s2.freeze?.());
     await ctx.close();
   }

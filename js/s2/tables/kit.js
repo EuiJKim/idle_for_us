@@ -39,15 +39,16 @@ export function stdKit(L, job, adv) {
   const acts = kitOpen(job, adv).filter((s) => s.kind !== 'passive').sort((a, b) => b.tier - a.tier).slice(0, SLOT_N);
   return acts.map((s) => ({ ...s, lv }));
 }
-// 전투에 넘길 모양 — { id, kind, shape, range, maxT, hits, coef(레벨 반영), cdMs, durMs, buff:{…} }
-// s.tree: 그 무공 강화 트리 노드 레벨(있으면 반영)
+// 전투에 넘길 모양 — { id, kind, shape, range, maxT, hits, coef(레벨 반영), cdMs, durMs, buff:{…}, vr(변형) }
+// s.tree: 그 무공 강화 트리 노드 레벨(있으면 반영) · s.vr: 고른 변형(v632 — 숫자는 varApply, 움직임은 battle/side.js castKit)
 export function battleKit(list) {
   return list.map((s) => {
     const e = treeEff(s, s.tree);
     const buff = s.kind === 'buff' ? Object.fromEntries(Object.entries(s.stats(s.lv)).map(([k, v]) => [k, Math.round(v * (1000 + (e.amp || 0)) / 1000)])) : null;
-    return { id: s.id, kind: s.kind, shape: s.shape, range: s.range ? s.range * (1000 + (e.rng || 0)) / 1000 : s.range, maxT: (s.maxT || 0) + (e.tgt || 0), hits: (s.hits || 0) + (e.hit || 0),
+    const k = { id: s.id, kind: s.kind, shape: s.shape, range: s.range ? s.range * (1000 + (e.rng || 0)) / 1000 : s.range, maxT: (s.maxT || 0) + (e.tgt || 0), hits: (s.hits || 0) + (e.hit || 0),
       coef: s.coef ? Math.round(kitCoef(s, s.lv) * (1000 + (e.pow || 0)) / 1000) : 0, cdMs: Math.round(s.cdMs * (1000 - Math.min(400, e.cdr || 0)) / 1000),
       durMs: s.durMs ? Math.round(s.durMs * (1000 + (e.dur || 0)) / 1000) : s.durMs, buff, crit: e.cri || 0, auto: s.auto !== false };
+    return s.vr ? varApply(k, s.vr) : k;
   });
 }
 
@@ -80,6 +81,55 @@ export function treeEff(sk, nodes = {}) {
   for (const nd of treeOf(sk)) { const lv = nodes[nd.n] || 0; if (lv) for (const [k, v] of Object.entries(nd.eff)) e[k] = (e[k] || 0) + v * lv; }
   return e;
 }
+
+// ── 무공 변형(v632) ── 그 무공에 VAR_GATE점 넘게 쓰면 4단이 열려 변형 하나를 고른다(점수는 안 든다 · 바꾸려면 트리 초기화).
+// 모양마다 둘 — 무리 쪽(대상 ↑ · 한 대 ↓) / 두목 쪽(연타 ↑ · 대상 ↓). 예산(시험: varBudget · 실제 싸움):
+//   표준 예산(battle/ref.js kitDps)이 보는 몰린 수 1(두목) · FARM_AOE(사냥)에서 한 번 쓸 때 「연타 × 계수 × min(대상, 몰린 수)」이 변형 없는 것의 1.05배 이하.
+//   무리 쪽은 실제 사냥터에서 더 많이 맞혀(위 · 아래 층 · 끌어당김 · 넓은 범위 · 다시 고름) 갚고, 두목 쪽은 한 마리에 +5% · 몰리면 손해(넘친 연타).
+// 움직임(fx): fork 위 · 아래 층까지 세 갈래 · back 두목 · 정예 먼저 · twin 앞뒤 · pull 끌어당김 · spin 여러 번 나눠 돎 · wave 두 번 내림 · focus 표적에 모음
+// 기본값: 고르지 않음 — 자동 성장(game.js autoGrow)도 봇(tools/s2sim/play.mjs)도 고르지 않는다(사람이 고르는 갈림길 · 되돌리면 은자). 봇은 TVAR=pack|boss로 시험만.
+export const VAR_GATE = 15;
+const VX = 1.03, pw = (k, x) => Math.max(1, Math.floor(k.coef * x));   // 두목 쪽 연타 2배 × VX/2 · 내림 — 예산을 넘지 않게(무력화 · 치명이 붙어 실제론 조금 더)
+export const TREE_VAR = {
+  line: [
+    { v: 'fork', name: '세 갈래', tag: '무리', desc: '세 줄기로 갈라져 위 · 아래 층까지 · 대상 2배+1 · 한 대 약하게',
+      f: (k) => ({ maxT: k.maxT * 2 + 1, coef: pw(k, k.maxT <= 1 ? 0.43 : 0.5), fx: 'fork' }) },
+    { v: 'back', name: '되돌아옴', tag: '두목', desc: '나갔다 돌아오며 두 번 · 두목 · 정예 먼저 · 대상 절반 · 사거리 −15%',
+      f: (k) => ({ hits: k.hits * 2, maxT: Math.ceil(k.maxT / 2), coef: pw(k, VX / 2), range: k.range * 0.85, fx: 'back' }) },
+  ],
+  arc: [
+    { v: 'wide', name: '넓은 부채', tag: '무리', desc: '부채가 넓어져 범위 +35% · 대상 +2 · 한 대 약하게',
+      f: (k) => ({ maxT: k.maxT + 2, range: k.range * 1.35, coef: pw(k, 0.8), fx: 'wide' }) },
+    { v: 'twin', name: '두 번 베기', tag: '두목', desc: '앞으로 한 번 · 돌아서 뒤로 한 번 · 연타 2배 · 대상 절반',
+      f: (k) => ({ hits: k.hits * 2, maxT: Math.ceil(k.maxT / 2), coef: pw(k, VX / 2), fx: 'twin' }) },
+  ],
+  circle: [
+    { v: 'pull', name: '끌어당김', tag: '무리', desc: '조금 더 먼 몹까지 끌어당겨 친다 · 대상 1.5배 · 한 대 약하게',
+      f: (k) => ({ maxT: Math.ceil(k.maxT * 1.5), coef: pw(k, 0.7), fx: 'pull' }) },
+    { v: 'spin', name: '연속 회전', tag: '두목', desc: '1.2초 동안 네 번 돌며 친다(다가온 몹도) · 연타 2배 · 대상 40%',
+      f: (k) => ({ hits: k.hits * 2, maxT: Math.max(1, Math.round(k.maxT * 0.4)), coef: pw(k, VX / 2), fx: 'spin' }) },
+  ],
+  rain: [
+    { v: 'wave', name: '두 번 내림', tag: '무리', desc: '0.7초 뒤 한 번 더 쏟아진다(새로 온 몹도) · 대상 1.5배 · 한 대 약하게',
+      f: (k) => ({ maxT: Math.ceil(k.maxT * 1.5), coef: pw(k, 0.85), fx: 'wave' }) },
+    { v: 'focus', name: '한 점에 모음', tag: '두목', desc: '표적 둘레에 몰아 떨어진다 · 연타 2배 · 대상 1/4',
+      f: (k) => ({ hits: k.hits * 2, maxT: Math.max(1, Math.ceil(k.maxT / 4)), coef: pw(k, VX / 2), fx: 'focus' }) },
+  ],
+  buff: [
+    { v: 'burst', name: '짧고 세게', tag: '두목', desc: '지속 절반 · 효과 2배',
+      f: (k) => ({ durMs: Math.round(k.durMs / 2), buff: Object.fromEntries(Object.entries(k.buff).map(([s, v]) => [s, Math.floor(v * 2)])), fx: 'burst' }) },
+    { v: 'calm', name: '길고 은은하게', tag: '무리', desc: '지속 2배(쿨을 넘지 않음) · 효과 절반',
+      f: (k) => ({ durMs: Math.min(Math.round(k.durMs * 2), k.cdMs - 1000), buff: Object.fromEntries(Object.entries(k.buff).map(([s, v]) => [s, Math.floor(v / 2)])), fx: 'calm' }) },
+  ],
+};
+export const varsOf = (sk) => (!sk ? [] : sk.kind === 'buff' ? TREE_VAR.buff : sk.kind === 'active' ? TREE_VAR[sk.shape] || [] : []);
+export const varOf = (sk, v) => varsOf(sk).find((x) => x.v === v) || null;
+export function varApply(k, v) {
+  const d = varOf(skillById(k.id) || k, v); if (!d) return k;
+  return { ...k, ...d.f(k), vr: v, p0: { coef: k.coef, hits: k.hits, maxT: k.maxT, durMs: k.durMs, buff: k.buff } };   // p0: 변형 전(전투력은 이것으로 — 고른다고 전투력이 오르내리지 않게)
+}
+// 한 번 쓸 때 몫(몰린 수 aoe) — 공격: 연타 × 계수 × min(대상, aoe) · 버프: 효과 합 × 지속
+export const varBudget = (k, aoe = 1) => (k.kind === 'buff' ? Object.values(k.buff || {}).reduce((a, b) => a + b, 0) * k.durMs : k.hits * k.coef * Math.min(k.maxT, aoe));
 
 // ── 동료 공격(v497) ── 장착한 동료(등급 0~4)가 쿨마다 무인의 표적(가까운 2마리)을 친다. 계수는 무인 공격력 기준(퍼밀)
 export const PAL_ATK = { cdMs: 3200, maxT: 2, range: 2.4, coef: [260, 340, 450, 600, 800] };

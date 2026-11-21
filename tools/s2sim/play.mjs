@@ -7,7 +7,9 @@ const { Game, newGame, COLLECTS } = await import(root + 'game.js');
 const GR = await import(root + 'gear/gear.js');
 const { PROGRESS } = await import(root + 'tables/progress.js');
 const { SLOTS } = await import(root + 'tables/gear.js');
-const { treeOf, skillById } = await import(root + 'tables/kit.js');
+const { treeOf, skillById, varsOf } = await import(root + 'tables/kit.js');
+// v632 무공 변형 — 봇은 기본으로 고르지 않는다(자동 성장도 안 고름 · 곡선 그대로). TVAR=pack(무리 쪽) / boss(두목 쪽)면 열리는 대로 그쪽을 고른다
+const TVAR = { pack: '무리', boss: '두목' }[process.env.TVAR] || null;
 const { MASTERY } = await import(root + 'tables/skills.js');
 const { DAILY_DUNGEONS } = await import(root + 'tables/content.js');
 const { KILLS_PER_MIN: KPM } = await import(root + 'tables/exp.js');
@@ -46,6 +48,7 @@ export function play({ days = 7, job = 'sword', seed = 1, active = 120, ad = fal
     for (const id of Object.keys(K.lv)) for (let i = 0; i < 30 && g.hero.kitUp(id, S.wallet); i++) g.dirtyStats = true;
     for (const m of MASTERY) g.learn(m.id);
     for (const id of K.slots) for (const nd of treeOf(skillById(id))) while (g.treeUp(id, nd.n));
+    if (TVAR) for (const id of K.slots) { const v = varsOf(skillById(id)).find((x) => x.tag === TVAR); if (v) g.treeVar(id, v.v); }
     for (let i = 0; i < 10 && g.realmUp(); i++);
     if (S.journey.cleared <= S.journey.step) g.journeyFight();
     g.journeyOpen();

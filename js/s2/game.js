@@ -753,6 +753,7 @@ export class Game {
   treeUp(id, n) { const r = this.hero.treeUp(id, n, this.now, this.stage().top); if (r) { this.dirtyStats = true; this.emit('skill'); } return r; }
   treeReset() { const r = this.hero.treeReset(this.S.wallet, this.stage().top); if (r) this.dirtyStats = true; return r; }
   treePts() { return this.hero.treePts(this.stage().top); }
+  treeVar(id, v) { const r = this.hero.treeVar(id, v); if (r) { this.dirtyStats = true; this.emit('skill'); } return r; }   // v632 무공 변형 고르기
   // ── 경지 · 강호행 ──
   realmUp() { const ok = RM.realmStart(this.S.realm, this.now, this.S.wallet, goldPerMob(this.S.hero.lv)); if (ok) { this.dirtyStats = true; this.emit('realm', { lv: this.S.realm.lv }); this.feed.push({ k: 'realm', lv: this.S.realm.lv }); } return ok; }
   journeyFight() {

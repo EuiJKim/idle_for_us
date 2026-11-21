@@ -23,7 +23,7 @@ export const FARM_AOE = 2;
 export function kitDps(p, mob, aoe = 1) {
   if (!p.kit) return expected(p, mob, SKILL_MAIN) * (1000 / SKILL_MAIN.cdMs);
   let d = 0;
-  for (const k of p.kit) if (k.kind === 'active') d += expected(p, mob, { coef: k.coef * k.hits }) * (1000 / k.cdMs) * Math.min(k.maxT, aoe);
+  for (const k0 of p.kit) { const k = k0.p0 || k0; if (k0.kind === 'active') d += expected(p, mob, { coef: k.coef * k.hits }) * (1000 / k0.cdMs) * Math.min(k.maxT, aoe); }   // v632 변형은 전투력에 넣지 않는다(p0)
   // 동료 공격(v497) — 무인 공격력으로 계수만큼
   for (const pl of p.pals || []) d += expected(p, mob, { coef: PAL_ATK.coef[pl.g] || PAL_ATK.coef[0] }) * (1000 / PAL_ATK.cdMs) * Math.min(PAL_ATK.maxT, aoe);
   return d;

@@ -6,7 +6,7 @@ import { JOBS, baseAtk, baseHp, baseDef, MAIN_TO_ATK, MAIN_TO_HP, SUB_TO_HP } fr
 import { SKILLS, skillCap, skillCost, MASTERY, masteryCost, JOB_ADV, UNIQUE_EVERY, UNIQUE_STATS } from '../tables/skills.js';
 import { sumStats, finalize } from '../core/stats.js';
 import { pay } from '../core/cost.js';
-import { KIT, SLOT_N, kitCap, kitCost, skillById, battleKit, treeOf, TREE_GATE, kitPoints, treeResetCost } from '../tables/kit.js';
+import { KIT, SLOT_N, kitCap, kitCost, skillById, battleKit, treeOf, TREE_GATE, kitPoints, treeResetCost, varsOf, VAR_GATE } from '../tables/kit.js';
 
 const MAINS = ['str', 'agi', 'ene', 'wis'];
 // 스탯 배분 — 레벨마다 1점. 한 점의 값(퍼밀)은 아주 작고 스탯마다 상한이 있다(다 찍어도 전투력 +5% 안쪽)
@@ -113,7 +113,7 @@ export class Hero {
   kitAuto(id, on) { const K = this.kitState(); K.off = K.off.filter((x) => x !== id); if (!on) K.off.push(id); }
   battleKit() {
     const K = this.kitState();
-    return battleKit(K.slots.map((id) => ({ ...skillById(id), lv: K.lv[id] || 1, auto: !K.off.includes(id), tree: K.tree?.[id] })));
+    return battleKit(K.slots.map((id) => ({ ...skillById(id), lv: K.lv[id] || 1, auto: !K.off.includes(id), tree: K.tree?.[id], vr: this.treeVarOf(id) })));
   }
   // ── v494 무공 강화 트리 ── 점수(레벨 · 칸 진행) · 노드 올리기 · 3단은 배우는 시간 · 초기화
   treePts(stageTop = 1) {
@@ -137,6 +137,15 @@ export class Hero {
     ((K.tree ??= {})[id] ??= {})[n] = (K.tree[id][n] || 0) + 1;
     return true;
   }
+  // v632 무공 변형 — 그 무공에 VAR_GATE점 넘게 쓰면 하나 고른다(점수 안 듦) · 이미 골랐으면 트리 초기화 뒤에만 바꾼다
+  varSt() { return (this.kitState().var ??= {}); }
+  treeVarOf(id) { const v = this.kitState().var?.[id]; return v && this.treeSpent(id) >= VAR_GATE && varsOf(skillById(id)).some((x) => x.v === v) ? v : null; }
+  canTreeVar(id, v) {
+    const K = this.kitState(), sk = skillById(id);
+    if (!sk || !K.lv[id] || !varsOf(sk).some((x) => x.v === v)) return false;
+    return !K.var?.[id] && this.treeSpent(id) >= VAR_GATE;
+  }
+  treeVar(id, v) { if (!this.canTreeVar(id, v)) return false; this.varSt()[id] = v; return true; }
   // 예전 세이브에 남은 「배우는 중」은 바로 끝낸다(v505 — 기다리는 시간 없음)
   treeTick() {
     const K = this.kitState(), L = K.learning;
@@ -147,7 +156,7 @@ export class Hero {
   treeReset(wallet, stageTop = 1) {
     const K = this.kitState(), used = this.treePts(stageTop).used;
     if (!used || K.learning || !pay(wallet, treeResetCost(used))) return false;
-    K.tree = {};
+    K.tree = {}; if (K.var) K.var = {};
     return true;
   }
   // 무공 레벨업(은자)
