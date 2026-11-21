@@ -34,8 +34,8 @@ export function play({ days = 7, job = 'sword', seed = 1, active = 120, ad = fal
     g.shardExchange();
     while ((S.wallet['ticket:gear'] || 0) >= 10) g.pullGear(10);
     while ((S.wallet['ticket:gear'] || 0) >= 1) g.pullGear(1);
-    if (GR.equipBest(S.gear, S.hero.lv)) { g.dirtyStats = true; g.emit('equip'); }
-    const junk = GR.junkOf(S.gear, S.hero.lv); if (junk.length) GR.dismantleMany(S.gear, junk.map((x) => x.uid), S.wallet);
+    g.equipBest();   // v631 게임과 같은 잣대(실제 전투력)
+    const junk = g.gearJunk(); if (junk.length) GR.dismantleMany(S.gear, junk.map((x) => x.uid), S.wallet);
     for (const sys of COLLECTS) while ((S.wallet[`ticket:${sys}`] || 0) >= 1) g.pullCollect(sys, 1);
     // 강화 · 성혼: 가장 낮은 칸부터, 돈이 되는 만큼
     for (let k = 0; k < 200; k++) { const s = SLOTS.reduce((a, b) => (S.gear.slots[b].enh < S.gear.slots[a].enh ? b : a)); if (g.enhance(s) === null) break; }

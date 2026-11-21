@@ -900,7 +900,7 @@ const ok = (c, m, x = '') => { console.log(`  ${c ? '✓' : '✗ !!'} ${m}${x !=
         await Promise.all(imgs.map((i) => (i.complete ? 0 : new Promise((r) => { i.onload = i.onerror = r; setTimeout(r, 3000); }))));
         return { cards: W.querySelectorAll('.en-card').length, slots: Object.keys(g.S.gear.slots).length, mats: W.querySelectorAll('.en-mat').length, imgs: imgs.length, bad: imgs.filter((i) => !i.naturalWidth).map((i) => i.src.split('/').pop()),
           all: !!W.querySelector('.row.en-all .btn'), open: [...W.querySelectorAll('.en-card > .btn')].filter((b) => b.textContent === '열기').length, over: Math.max(W.scrollWidth - W.clientWidth, document.documentElement.scrollWidth - innerWidth) }; });
-      ok(en.cards === en.slots && en.mats === 3 && en.imgs === en.slots + 3 && !en.bad.length && en.all && en.open === en.slots && en.over <= 1, 'v626 강화·성혼 칸 카드: 칸 수만큼 · 장비 · 재료 그림이 뜬다 · 「모두 강화」 · 칸마다 「열기」 · 넘침 없음', JSON.stringify(en));
+      ok(en.cards === en.slots && en.mats === 4 && en.imgs === en.slots + 4 && !en.bad.length && en.all && en.open === en.slots && en.over <= 1, 'v626 강화·성혼 칸 카드: 칸 수만큼 · 장비 · 재료 그림이 뜬다 · 「모두 강화」 · 칸마다 「열기」 · 넘침 없음', JSON.stringify(en));
       await page.click(`#wb .en-card[data-slot="${sl}"] > .btn`); await page.waitForSelector('#modal:not(.hidden) .en-ring');
       const m0 = await page.evaluate(() => { const M = document.querySelector('#modal .sheet'), im = M.querySelector('.en-big img'); return { ring: M.querySelector('.en-ring b')?.textContent || '', lv: M.querySelector('.en-nums .en-cur')?.textContent || '', img: !!im && im.complete && im.naturalWidth > 0, over: M.scrollWidth - M.clientWidth }; });
       ok(/^\d+(\.\d)?%$/.test(m0.ring) && m0.lv === '+0' && m0.img && m0.over <= 1, 'v626 칸 「열기」 → 강화 창: 큰 그림 · 성공 고리 % · 지금 +0', JSON.stringify(m0));
@@ -920,6 +920,62 @@ const ok = (c, m, x = '') => { console.log(`  ${c ? '✓' : '✗ !!'} ${m}${x !=
       ok(!rs.broken && rs.star === 13 && rs.left === 0 && rs.txt === '★13' && !rs.btn, 'v626 「복구」 → 복구 주문서 1장 · ★13으로 되살아남', JSON.stringify(rs));
       await page.click('#ep-close'); await page.waitForTimeout(150);
       await page.click('#panel-close').catch(() => {}); }
+    // v631 장비 — 재료 창(얻는 곳 · 가기 · 부족) · 끼면 전투력 차이 배지 · 좋은 순 · 저절로 낀 것 알림 · 장착 창 NEW · 뽑기 결과 장착 표시
+    { await page.click('#panel-close').catch(() => {});
+      await page.evaluate(() => { const g = window.__s2.g, W = g.S.wallet; W.gold = 1e9; W['item:stone'] = 5; if (g.bossFight) g.endChallenge(false); g.stage().auto = false; if (!Object.values(g.S.gear.eq).some(Boolean)) g.pullGear(10); g.feed.length = 0; });
+      await page.click('#mb .nb[data-tab="bag"]'); await page.waitForTimeout(200); await sub('강화·성혼');
+      const m0 = await page.evaluate(() => [...document.querySelectorAll('#wb .gq-mat')].map((b) => b.dataset.gqmat).join(','));
+      await page.click('#wb .gq-mat[data-gqmat="item:stone"]'); await page.waitForSelector('#modal:not(.hidden) .gq-src');
+      const mp = await page.evaluate(() => { const M = document.querySelector('#modal .sheet'); return { head: M.querySelector('.gq-mh b')?.textContent || '', have: M.querySelector('.gq-mh small')?.textContent || '', n: M.querySelectorAll('.gq-sr').length, go: M.querySelectorAll('.gq-sr .gq-go').length, t: [...M.querySelectorAll('.gq-sr > span b')].map((b) => b.textContent).join('/'), over: M.scrollWidth - M.clientWidth }; });
+      ok(m0 === 'gold,item:stone,item:restore,item:shard' && /^강화석 — 장비 강화/.test(mp.head) && mp.have === '가진 5개' && mp.n >= 8 && mp.go === mp.n && /분해/.test(mp.t) && /단련동/.test(mp.t) && mp.over <= 1, 'v631 재료 칩 넷 → 강화석 창: 무엇에 쓰나 · 가진 수 · 얻는 곳마다 「가기」', `${m0} · ${mp.head} · ${mp.have} · ${mp.t}`);
+      await page.click('#modal .gq-sr:has-text("장비 분해") .gq-go');
+      const k1 = await until(() => page.evaluate(() => ({ key: document.getElementById('panel-body').dataset.key, modal: !document.getElementById('modal').classList.contains('hidden') })), (v) => v.key === 'bag:3' && !v.modal);
+      ok(k1.key === 'bag:3' && !k1.modal, 'v631 「가기」 → 그 창(장비 분해 → 가방)', JSON.stringify(k1));
+      await sub('강화·성혼'); await page.click('#wb .en-card > .btn >> nth=0'); await page.waitForSelector('#modal:not(.hidden) .en-ring');
+      const nr = await page.evaluate(() => { const r = document.querySelector('#modal .need-r.no[data-gqmat="item:stone"]'); return r ? r.textContent : ''; });
+      await page.click('#modal .need-r[data-gqmat="item:stone"]'); await page.waitForSelector('#modal:not(.hidden) .gq-mh');
+      const sh = await page.evaluate(() => ({ s: document.querySelector('#modal .gq-short')?.textContent || '', back: [...document.querySelectorAll('#modal .btn-row .btn')].some((b) => b.textContent === '돌아가기') }));
+      ok(/부족 \d+/.test(nr) && /^부족 — \d+개 더 필요$/.test(sh.s) && sh.back, 'v631 강화 창 재료 줄 — 모자라면 「부족 n」 · 누르면 재료 창(부족 — n개 더) · 「돌아가기」', `${nr} · ${sh.s}`);
+      await page.evaluate(() => [...document.querySelectorAll('#modal .btn-row .btn')].find((b) => b.textContent === '돌아가기').click());
+      ok(await page.isVisible('#modal:not(.hidden) .en-ring'), 'v631 「돌아가기」 → 강화 창으로');
+      await page.click('#ep-close'); await page.waitForTimeout(150);
+      // 가방 — 끼면 전투력 차이(▲ 초록 · ▼ 빨강) · 좋은 순 맨 앞 = 가장 센 것 · 부위를 고르면 낀 것은 「장착 중」
+      const U = await page.evaluate(() => { const G = window.__s2.g.S.gear, u = 9.5e8 + Math.floor(Math.random() * 1e6);
+        G.bag.push({ uid: u, slot: 'shoes', g: 6, up: 1, subs: [{ k: 'atkL1', v: 80 }, { k: 'crit', v: 40 }], rr: 0, lock: false }, { uid: u + 1, slot: 'shoes', g: 0, up: 0, subs: [], rr: 0, lock: false }); return u; });
+      await sub('가방'); await page.click('#wb .gr-so:text-is("좋은 순")'); await page.waitForTimeout(150);
+      const bg = await page.evaluate((u) => { const t = (x) => document.querySelector(`#wb .inv-tile[data-uid="${x}"]`); return { up: t(u)?.querySelector('.gq-dp.up')?.textContent || '', dn: t(u + 1)?.querySelector('.gq-dp')?.className || '', first: document.querySelector('#wb .inv-tile')?.dataset.uid === String(u), all: document.querySelectorAll('#wb .inv-tile').length, badge: document.querySelectorAll('#wb .inv-tile .gq-dp, #wb .inv-tile .gq-on').length, gp: window.__s2.g.gearPw(window.__s2.g.S.gear.bag.find((x) => x.uid === u)) - window.__s2.g.gearVal() }; }, U);
+      ok(/^▲ \+\S+$/.test(bg.up) && /gq-dp (dn|eq)/.test(bg.dn) && bg.first && bg.badge === bg.all && bg.gp > 0, 'v631 가방 — 칸마다 종합 차이 배지(▲ 초록 · ▼ 빨강) · 「좋은 순」 맨 앞이 가장 센 것', `${bg.up} · ${bg.dn} · 배지 ${bg.badge}/${bg.all}`);
+      await page.click('#wb .chip:has-text("신발")'); await page.waitForTimeout(150);
+      const on = await page.evaluate(() => { const t = document.querySelector('#wb .inv-tile'); return { on: t?.querySelector('.gq-on')?.textContent || '', eq: window.__s2.g.S.gear.eq.shoes?.uid, uid: t?.dataset.uid }; });
+      ok(!on.eq || (on.on === '장착 중' && String(on.eq) === on.uid), 'v631 부위를 고르면 낀 것이 맨 앞 「장착 중」', JSON.stringify(on));
+      await page.click('#wb .chip:has-text("전부")'); await page.click('#wb .gr-so:text-is("등급순")');
+      // ▲ 칸(가방에 더 좋은 것) — 비교 창 맨 위에 전투력 차이
+      await sub('장착');
+      const cs = '#wb .eqcell:has(img[alt="신발"])';
+      ok(await page.evaluate((s) => document.querySelector(s)?.classList.contains('gr-has-up'), cs), 'v631 ▲ 표시는 같은 잣대(실제 전투력)');
+      await page.click(cs); await page.waitForSelector('#wb .gr-cmp .gq-top');
+      const tp = await page.evaluate(() => { const t = document.querySelector('#wb .gr-cmp > .gq-top'); return { first: document.querySelector('#wb .gr-cmp').firstElementChild === t, up: t.classList.contains('up'), t: t.textContent }; });
+      ok(tp.first && tp.up && /바꾸면 더 세져요종합 = 전투력 × 보스 피해종합 ▲ \+\S+/.test(tp.t), 'v631 비교 창 맨 위 — 「바꾸면 더 세져요 · 종합 ▲ +n」(종합 = 전투력 × 보스 피해)', tp.t);
+      await page.click('#panel-close'); await page.waitForTimeout(200);
+      // 저절로 장착 — 들판 오른쪽 알림 · 장착 창 칸 NEW · 「새로 낀 장비」(전 → 새) · 떠나면 꺼짐
+      const nt = await page.evaluate(async () => { const g = window.__s2.g, GR = await import(new URL('js/s2/gear/gear.js', location.href).href), G = g.S.gear;
+        G.bag.push(...['ring'].filter((s) => G.eq[s]).map((s) => G.eq[s])); G.eq.ring = null; delete g.S.gearNew; g.dirtyStats = true;
+        const it = GR.makeGear(g.rng, 'ring', 2); g.obtain([it], 'drop'); return { on: G.eq.ring === it, nw: !!g.gearNews().ring }; });
+      const nc = await until(() => page.evaluate(() => [...document.querySelectorAll('#lootbox .gq-eqn')].map((c) => c.textContent).find((t) => /반지/.test(t)) || ''), (v) => !!v, 3000);   // 같은 때 다른 칸도 바뀌면 한 장에 묶인다
+      ok(nt.on && nt.nw && (/새 장비 장착반지 · \S+품.*▲종합 \+\S+/.test(nc) || /새 장비 \d칸 장착.*반지.*▲종합 \+\S+/.test(nc)), 'v631 저절로 장착 → 들판 오른쪽 알림 「새 장비 장착 — 반지 · ○품 ▲종합 +n」', nc);
+      const lb = await page.evaluate(() => { const r = document.querySelector('#lootbox').getBoundingClientRect(), s = document.querySelector('#stage-bar, #sp, #contest-hud')?.getBoundingClientRect(); return { right: innerWidth - r.right, top: r.top }; });
+      if (W > H) ok(lb.right < 60 && lb.top > 40, 'v631 알림은 오른쪽 알림 칸(위 메뉴 아래)', JSON.stringify(lb));
+      await page.click('#mb .nb[data-tab="bag"]'); await page.waitForTimeout(250);
+      const nw = await page.evaluate(() => ({ cell: !!document.querySelector('#wb .eqcell:has(img[alt="반지"]) .gq-new'), list: document.querySelector('#wb .gq-news')?.textContent || '', left: Object.keys(window.__s2.g.S.gearNew || {}).length }));
+      ok(nw.cell && /새로 낀 장비/.test(nw.list) && /반지빈 칸 → \S+품/.test(nw.list) && nw.left === 0, 'v631 장비 창 — 반지 칸 NEW · 「새로 낀 장비」 전 → 새 · 엔진 표시는 본 것으로', nw.list);
+      await sub('가방'); await sub('장착');
+      ok(await page.evaluate(() => !document.querySelector('#wb .gq-new') && !document.querySelector('#wb .gq-news')), 'v631 다른 칸에 갔다 오면 NEW · 바뀐 것 꺼짐');
+      // 뽑기 결과 — 낀 것은 「장착」 · 모두 전투력 차이 배지
+      await page.evaluate(() => { const g = window.__s2.g, G = g.S.gear; for (const s of Object.keys(G.eq)) { if (G.eq[s]) G.bag.push(G.eq[s]); G.eq[s] = null; } g.S.wallet['ticket:gear'] = (g.S.wallet['ticket:gear'] || 0) + 10; g.dirtyStats = true; });   // 뒤 시험이 쓸 뽑기권은 그대로 남긴다
+      await sub('뽑기'); await page.click('#wb .gch-tile.main .btn'); await page.waitForSelector('.gx'); await page.click('.gx .skip'); await page.waitForTimeout(250);
+      const gx = await page.evaluate(() => ({ eq: [...document.querySelectorAll('.gx .gc .face i')].filter((i) => i.textContent === '장착').length, dp: document.querySelectorAll('.gx .gc .gq-dp').length, up: document.querySelectorAll('.gx .gc .gq-dp.up').length, n: document.querySelectorAll('.gx .gc').length }));
+      ok(gx.eq > 0 && gx.dp === gx.n && gx.up >= gx.eq, 'v631 뽑기 결과 — 낀 것 「장착」 · 카드마다 전투력 차이', JSON.stringify(gx));
+      await page.click('.gx .skip'); await page.click('#panel-close').catch(() => {}); }
     // 서열(rk-) — 오프라인: 빈 단상(그림자 셋) + 「인터넷에 연결되면 보여요」 · 주간 보상 두 줄(그림 · 뽑기권 칩 · 받기) · 갈래 넷 · 창을 닫으면 작은 무인 그리기 멈춤
     { await page.evaluate(() => { const g = window.__s2.g; g.pvpMark(); Object.assign(g.S.pvp, { lastWk: 'rk-test', lastBest: 1420, lastGot: null }); });
       await page.click('.nb[data-tab="social"]'); await sub('서열'); await page.waitForTimeout(400);

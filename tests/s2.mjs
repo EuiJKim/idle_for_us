@@ -2012,6 +2012,62 @@ console.log('\n=== v628 원거리(궁사 · 술사) — 뒤로 뛰기 · 화살 
     ok(!go(low, 300), '레벨보다 낮은 칸이면 처치가 느려도 물러나지 않는다'); }
 }
 
+console.log('\n=== v631 장비 — 자동 장착은 종합(전투력 × 보스 피해) · 새로 낀 것 · 재료 안내 ===');
+{
+  const { MATS } = await import('../js/s2/tables/matinfo.js'), { GEAR_BOSS } = await import('../js/s2/game.js');
+  const T0 = 1.8e12, mk = (seed, lv = 80) => { const g = new Game(newGame('sword', T0, seed), T0); g.addExp(EX.cumExp(lv)); g.tick(T0); return g; };
+  // 예전 점수(gearScore)는 보스 피해를 크게 쳐서 사냥 전투력이 내려가는 망토로 바꿨다 — 이제는 안 바꾼다
+  { const g = mk(3), G = g.S.gear;
+    const cur = { uid: 7e8, slot: 'cape', g: 0, up: 0, subs: [{ k: 'atkL1', v: 14 }], rr: 0, lock: false };
+    const it = { uid: 7e8 + 1, slot: 'cape', g: 0, up: 0, subs: [{ k: 'critDmg', v: 18 }, { k: 'bossDmg', v: 16 }, { k: 'bossDmg', v: 22 }], rr: 0, lock: false };
+    G.eq.cape = cur;
+    const oldSays = GR.gearScore(it, 80) > GR.gearScore(cur, 80), pw = [g.gearPw(cur), g.gearPw(it)];
+    const got = g.obtain([it]);
+    ok(oldSays && !!got.length === pw[1] > pw[0] && (G.eq.cape === it) === pw[1] > pw[0], '보스 피해 망토 — 끼는지는 예전 점수가 아니라 종합으로 정한다', `점수 ${GR.gearScore(cur, 80).toFixed(0)}→${GR.gearScore(it, 80).toFixed(0)} · 종합 ${pw[0]}→${pw[1]} · ${got.length ? '낌' : '가방'}`);
+    // 종합 = 사냥 전투력 × (1 + w × 보스 피해‰) — 보스 피해만 다른 두 반지: 전투력은 같고 종합은 보스 피해 쪽이 높다
+    const b0 = { uid: 7e8 + 5, slot: 'ring', g: 2, up: 0, subs: [], rr: 0, lock: false }, b1 = { ...b0, uid: 7e8 + 6, subs: [{ k: 'bossDmg', v: 40 }] };
+    const pp = [b0, b1].map((x) => { const pv = G.eq.ring; G.eq.ring = x; try { return g.power(); } finally { G.eq.ring = pv; } });
+    ok(GEAR_BOSS.w > 0 && pp[0] === pp[1] && g.gearPw(b1) > g.gearPw(b0), `종합은 보스 피해를 센다(w ${GEAR_BOSS.w}) — 전투력 같음 · 종합 ↑`, `전투력 ${pp.join('/')} · 종합 ${g.gearPw(b0)}→${g.gearPw(b1)}`);
+    // 예전 점수가 무시하던 몹 피해 반지 → 전투력이 오르면 낀다 · 오른 만큼(dp) · 알림 · NEW 표시
+    const r0 = { uid: 7e8 + 2, slot: 'ring', g: 0, up: 0, subs: [{ k: 'defP', v: 17 }, { k: 'bossDmg', v: 13 }, { k: 'critDmg', v: 32 }, { k: 'atkL1', v: 16 }], rr: 0, lock: false };
+    const r1 = { uid: 7e8 + 3, slot: 'ring', g: 1, up: 0, subs: [{ k: 'mobDmg', v: 29 }, { k: 'mobDmg', v: 16 }, { k: 'mobDmg', v: 29 }], rr: 0, lock: false };
+    G.eq.ring = r0; g.feed.length = 0; delete g.S.gearNew;
+    const p0 = g.gearVal(), miss = GR.gearScore(r1, 80) <= GR.gearScore(r0, 80), g2 = g.obtain([r1]), p1 = g.gearVal();
+    const fe = g.feed.find((f) => f.k === 'gear-eq'), nw = g.gearNews().ring;
+    ok(miss && G.eq.ring === r1 && p1 > p0 && g2[0]?.equipped && g2[0].dp === p1 - p0, '예전 점수로는 놓치던 몹 피해 반지 → 종합이 오르니 낀다 · 오른 만큼을 돌려줌', `${p0} → ${p1} · dp ${g2[0]?.dp}`);
+    ok(fe && fe.slot === 'ring' && fe.dp === p1 - p0 && fe.fg === 0 && nw && nw.g === 1 && nw.fg === 0 && nw.dp === p1 - p0, '새로 낀 것: 알림(gear-eq · 칸 · 전 등급 · 전투력) · 칸에 NEW 기록(전 → 새)', JSON.stringify({ fe, nw })); }
+  // 뽑기를 많이 해도: 줍는 판단마다 전투력이 내려가지 않고 · 모두 끼기 뒤 가방에 더 센 것이 남지 않는다 · ▲(일괄 분해 대상 아님)과 같은 잣대
+  for (const job of ['sword', 'bow']) {
+    const g = new Game(newGame(job, T0, 11), T0); g.addExp(EX.cumExp(60)); g.tick(T0); g.S.wallet['ticket:gear'] = 300; g.S.wallet.gold = 1e12; g.S.wallet['item:stone'] = 1e6;
+    for (const s of GE.SLOTS) for (let i = 0; i < 6; i++) g.enhance(s);
+    let down = 0, n = 0;
+    for (let i = 0; i < 30; i++) { const a = g.gearVal(); g.pullGear(10, true); const b = g.gearVal(); n++; if (b < a) down++; }
+    const nb = g.equipBest(); const G = g.S.gear;
+    const left = GE.SLOTS.filter((sl) => G.bag.some((x) => x.slot === sl && g.gearPw(x, sl) > g.gearVal())).length;
+    const junk = g.gearJunk(), junkOk = junk.every((x) => g.gearPw(x, x.slot) <= g.gearVal()), keep = G.bag.filter((x) => !junk.includes(x) && !x.lock);
+    ok(!down && !left && junkOk && keep.every((x) => g.gearPw(x, x.slot) > g.gearVal() || !G.eq[x.slot]), `${job} 뽑기 300번 — 줍기로 종합이 내려간 적 없음 · 모두 끼기 뒤 더 센 것 없음 · 분해 대상은 모두 낀 것보다 약함`, `줍기 ${n}번 · 내려감 ${down} · 끼기 ${nb}칸 · 남은 칸 ${left} · 분해 대상 ${junk.length}`);
+  }
+  // 모두 끼기 — 바뀐 칸마다 NEW(전 → 새 · 전투력 합) · 두 번 바뀌면 처음 것 → 마지막 것
+  { const g = mk(5), G = g.S.gear; delete g.S.gearNew;
+    const a = { uid: 7e8 + 10, slot: 'hat', g: 1, up: 0, subs: [], rr: 0, lock: false }, b = { uid: 7e8 + 11, slot: 'hat', g: 3, up: 0, subs: [], rr: 0, lock: false }, c = { uid: 7e8 + 12, slot: 'hat', g: 5, up: 1, subs: [], rr: 0, lock: false };
+    G.eq.hat = a; G.bag.push(b);
+    const p0 = g.gearVal(); g.feed.length = 0; const n1 = g.equipBest('best'), p1 = g.gearVal();
+    G.bag.push(c); const n2 = g.equipBest('best'), p2 = g.gearVal(), N = g.gearNews().hat;
+    ok(n1 === 1 && n2 === 1 && G.eq.hat === c && N.fg === 1 && N.g === 5 && N.up === 1 && N.dp === p2 - p0 && g.feed.filter((f) => f.k === 'gear-eq' && f.src === 'best').length === 2, '모두 끼기 → NEW(처음 것 → 마지막 것 · 전투력 합) · 알림 둘', JSON.stringify({ N, p: [p0, p1, p2] }));
+    ok(g.equipBest() === 0, '더 좋은 것이 없으면 0칸'); }
+  // 옛 세이브(gearNew 없음)도 · 결정론(같은 씨앗이면 같은 장비)
+  { const g = mk(6); delete g.S.gearNew; const o = Game.load(g.save(), T0); ok(o.gearNews() && typeof o.gearNews() === 'object' && o.S.gearNew === o.gearNews(), '옛 세이브 — 새로 낀 것 칸이 저절로 생긴다');
+    const run = () => { const x = mk(9, 40); x.S.wallet['ticket:gear'] = 100; for (let i = 0; i < 10; i++) x.pullGear(10, true); x.equipBest(); return JSON.stringify(Object.values(x.S.gear.eq).map((it) => it && [it.slot, it.g, it.up, it.subs])); };
+    ok(run() === run(), '같은 씨앗 → 같은 장착(결정론)'); }
+  // 재료 안내 — 강화 · 성혼 · 복구 · 부옵션 · 분해에 드는 재료가 모두 있고 · 얻는 곳마다 창 열쇠
+  { const used = new Set([...GS.enhCost(3, 50), ...GS.starCost(3, 50), ...GS.subRerollCost(0), ...GS.dismantle(3), { k: 'item:restore' }].map((c) => c.k));
+    const miss = [...used].filter((k) => !MATS[k]), bad = Object.entries(MATS).flatMap(([k, M]) => (!M.name || !M.icon || !M.use || !M.src.length ? [k] : M.src.filter((x) => !x.t || !x.d || !/^[a-z]+:\d$/.test(x.go)).map((x) => `${k}/${x.t}`)));
+    ok(!miss.length && !bad.length, '재료 안내 — 강화 · 성혼 · 복구 · 부옵션 · 분해 재료가 다 있다 · 얻는 곳마다 이름 · 한 줄 · 창 열쇠', `${[...used].join(',')} · 없음 ${miss} · 틀림 ${bad}`);
+    const st = MATS['item:stone'].src.map((x) => x.t).join('/');
+    ok(MATS['item:stone'].src.length >= 8 && /분해/.test(st) && /단련동/.test(st) && /상점/.test(st) && MATS['item:restore'].src.some((x) => /출석/.test(x.t)) && MATS['item:restore'].src.some((x) => /임무/.test(x.t)), '강화석 · 복구 주문서 얻는 곳(분해 · 단련동 · 상점 … / 출석 · 일일 임무)', st);
+    ok(/40개/.test(MATS['item:stone'].src.find((x) => /단련동/.test(x.t)).d) && /1~64개/.test(MATS['item:stone'].src[0].d), '숫자는 엔진 표 그대로(단련동 40 · 분해 1~64)'); }
+}
+
 console.log('\n=== S0 규칙 ===');
 {
   const files = [];

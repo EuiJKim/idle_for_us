@@ -21,6 +21,8 @@ import { BOUNTY_T, BOUNTY_SLOTS, BOUNTY_REW, BOUNTY_CHEST, bountySeed } from './
 import { ROSTER } from './tables/mobs.js';
 import { CHBOSS, CB, cbGearGrade, CB_REPEAT, WBF, CB_RAID, raidStars, DEX_REW } from './tables/chboss.js';
 const CB_MANUAL_STONES = 50;   // v546
+// v632 장비 비교 「종합」의 보스 피해 무게(Game.gearVal) — 봇의 장 두목 패배가 예전(점수 비교) 수준이 되게 맞춘 값
+export const GEAR_BOSS = { w: 1 };
 // 기연 — 사냥으로 FATE_NEED마리를 잡을 때마다 한 번, 카드 셋 중 하나를 고른다(안 고른 것은 FATE_CAP번까지 쌓이고 그동안 칸은 멈춘다)
 //   은자 · 경험치는 그 레벨 사냥 FATE_MIN분 몫 · 강화석은 5 + 레벨/10 · w는 나올 무게(셋은 서로 다르게)
 export const FATE_NEED = 300, FATE_CAP = 3, FATE_MIN = 10;
@@ -554,10 +556,51 @@ export class Game {
     const o = { ...E }; for (const [sl, gr] of Object.entries(L)) o[sl] = { ...(E[sl] || { slot: sl, up: 0, subs: [] }), g: gr };
     return o;
   }
+  // v631 장비 비교는 실제 전투력으로 — 그 칸에 it를 끼면(null이면 빈 칸) 전투력(셈만 하고 바로 되돌림 · 칸 강화 · 성혼 · 세트까지 그대로)
+  //   v632 「종합」 = 사냥 전투력 × (1 + w × 보스 피해‰/1000) — 전투력은 보스 피해를 안 세서, 그것만 보면 장 두목에 약한 장비를 골랐다
+  gearVal() { const f = this.fighter(); return Math.round(power(f, 'pve') * (1 + (GEAR_BOSS.w * (f.st.bossDmg || 0)) / 1000)); }
+  gearPw(it, sl = it?.slot) { const G = this.S.gear, prev = G.eq[sl]; G.eq[sl] = it || null; try { return this.gearVal(); } finally { G.eq[sl] = prev; } }
+  // it가 cur보다 나을 수 없음(등급이 높지 않고 스탯이 모두 같거나 낮음) — 전투력을 셀 필요 없이 거른다
+  gearDom(it, cur) {
+    if (!cur || it.g > cur.g) return false;
+    const S2 = this.S.gear.slots[it.slot], L = this.S.hero.lv, a = GR.itemStats(it, S2, L), b = GR.itemStats(cur, S2, L);
+    for (const k of Object.keys(a)) if ((a[k] || 0) > (b[k] || 0)) return false;
+    return true;
+  }
+  // it를 끼면 지금 그 칸보다 전투력이 얼마나 바뀌나(낀 것이면 0)
+  gearDelta(it) { const cur = this.S.gear.eq[it.slot]; if (cur === it) return 0; return this.gearPw(it, it.slot) - this.gearPw(cur, it.slot); }
+  gearBetter(it, cur) { return !this.gearDom(it, cur) && this.gearPw(it, it.slot) > this.gearPw(cur, it.slot); }
+  // v631 새로 낀 장비(저절로 · 모두 끼기) — 칸마다 { g, up, fg, fup(전 것 · 없으면 -1), dp } · 장비 창에서 보면 화면이 지운다
+  gearNews() { return (this.S.gearNew ??= {}); }
+  gearNewMark(slot, to, from, dp, src) {
+    const N = this.gearNews(), o = N[slot];
+    N[slot] = { g: to.g, up: to.up ? 1 : 0, fg: o ? o.fg : from ? from.g : -1, fup: o ? o.fup : from?.up ? 1 : 0, dp: Math.round((o ? o.dp : 0) + dp) };
+    this.feed.push({ k: 'gear-eq', slot, g: to.g, up: to.up ? 1 : 0, fg: from ? from.g : -1, dp: Math.round(dp), src });
+  }
+  // v631 최고 장비 모두 끼기 — 칸마다 가방에서 실제 전투력이 가장 높은 것(바뀐 칸 수)
+  equipBest(src = 'best') {
+    const G = this.S.gear, log = [];
+    const o = { log, score: (it, sl) => (it && G.eq[sl] && it !== G.eq[sl] && this.gearDom(it, G.eq[sl]) ? -Infinity : this.gearPw(it, sl)) };
+    let n = 0;
+    for (let i = 0; i < 3; i++) { const k = GR.equipBest(G, this.S.hero.lv, o); n += k; if (!k) break; }   // 세트가 바뀌면 다른 칸 답도 바뀐다 — 한두 번 더
+    if (!n) return 0;
+    this.dirtyStats = true; this.emit('equip');
+    for (const x of log) this.gearNewMark(x.slot, x.to, x.from, x.dv, src);
+    return n;
+  }
+  // v631 일괄 분해 대상 — 낀 것보다 세지 않은 것(실제 전투력)
+  gearJunk(maxG = 6) { return GR.junkOf(this.S.gear, this.S.hero.lv, maxG, (it, cur) => this.gearBetter(it, cur)); }
   obtain(items, src = 'drop') {
     { const sn = (this.S.lookSeen ??= {}); for (const it of items) if (it && it.slot && it.g > (sn[it.slot] ?? -1)) sn[it.slot] = it.g; }   // v565
-    const got = GR.obtain(this.S.gear, items, this.S.hero.lv, this.S.wallet);
+    const dps = new Map();
+    const got = GR.obtain(this.S.gear, items, this.S.hero.lv, this.S.wallet, (it, cur) => {
+      if (this.gearDom(it, cur)) return false;
+      const d = this.gearPw(it, it.slot) - this.gearPw(cur, it.slot);
+      if (d > 0) dps.set(it, d);
+      return d > 0;
+    });
     if (got.some((g) => g.equipped)) { this.dirtyStats = true; this.emit('equip'); }
+    for (const x of got) if (x.equipped) { x.dp = Math.round(dps.get(x.it) ?? (this.gearPw(x.it) - this.gearPw(null, x.it.slot))); this.gearNewMark(x.it.slot, x.it, x.from, x.dp, src); }
     // v534 좋은 장비를 주우면 알림(뽑기는 제 연출이 있다) — 진품(3) 이상 · 낀 것인지
     if (src !== 'gacha') for (const it of items) if (it.g >= 3) this.feed.push({ k: 'loot', g: it.g, up: it.up, slot: it.slot, equipped: got.some((x) => x.it === it && x.equipped) });
     return got;
@@ -651,7 +694,7 @@ export class Game {
       for (let i = 0; i < 100 && (S.wallet[`ticket:${sys}`] || 0) >= 10; i++) if (this.pullCollect(sys, 10)) out.coll += 10; else break;
       for (let i = 0; i < 10 && (S.wallet[`ticket:${sys}`] || 0) >= 1; i++) if (this.pullCollect(sys, 1)) out.coll++; else break;
     }
-    if (GR.equipBest(S.gear, S.hero.lv)) { this.dirtyStats = true; this.emit('equip'); out.equip = 1; }
+    if (this.equipBest('auto')) out.equip = 1;   // v631 실제 전투력으로
     if (o.kit !== false) { const k = this.kitUpAll(); if (k) out.kit = k.n; }
     if (o.enh !== false) { const e = this.enhanceAll(); if (e) out.enh = e.ok; }
     // v592 수련 — 배울 수 있는 마스터리 · 경지 돌파(은자가 되는 만큼, 강화 뒤에)

@@ -8,7 +8,8 @@ import { SAVE_KEY } from '../core/save.js';
 import { S2Net } from './net.js';
 import { encodeSave, decodeAny } from '../../savecode.js';
 import { SLOTS, SLOT_NAME, GRADES, gachaExpNeed, gachaWeights, PITY_N, pityGrade } from '../tables/gear.js';
-import { itemStats, gearScore, unequip, equip, equipBest, junkOf, dismantleMany, dismantleItem, newSlot, restoreSlot } from '../gear/gear.js';
+import { itemStats, unequip, equip, dismantleMany, dismantleItem, newSlot, restoreSlot } from '../gear/gear.js';
+import { MATS } from '../tables/matinfo.js';   // v631 재료 안내
 import { dismantle as dismantleYield, enhCost, enhOk, starCost, SHARD_PER_TICKET, gachaCost } from '../tables/gearstat.js';
 import { starOdds, STAR_MAX, PITY_POINTS, BREAK_FROM, PROTECT_FROM, PROTECT_TO, PROTECT_BREAK_COST_X } from '../tables/star.js';
 import { ENH_MAX } from '../tables/gear.js';
@@ -456,12 +457,71 @@ function bagMark(G) {
 // 장비 아이콘: 지금 게임 그림(무기 · 방어구 · 장신구 × 등급 6)
 // v515 장비 그림 — 부위 열 × 등급 일곱(무기는 지금 무인 직업 다섯), 빈 칸은 그 부위 범급을 흐리게
 const eqIcon = (sl, it) => `art/s2/eq/${sl === 'weapon' ? `w-${g?.S?.hero?.job || 'sword'}` : sl}-${it ? Math.min(6, it.g) : 0}.webp`;
-// 가방에서 이 칸에 낀 것보다 좋은 것(가장 좋은 하나) — 「최고 장비 모두 끼기」와 같은 잣대
+// 가방에서 이 칸에 낀 것보다 좋은 것(가장 좋은 하나) — 「최고 장비 모두 끼기」와 같은 잣대(v631 실제 전투력)
 function bestFor(sl) {
-  const G = g.S.gear, L = g.S.hero.lv, cur = G.eq[sl], s0 = cur ? gearScore(cur, L) : -Infinity;
-  let best = null, bs = s0;
-  for (const x of G.bag) if (x.slot === sl) { const s = gearScore(x, L); if (s > bs) { bs = s; best = x; } }
+  let best = null, bd = 0;
+  for (const x of g.S.gear.bag) if (x.slot === sl) { const d = gqDp(x); if (d > bd) { bd = d; best = x; } }
   return best;
+}
+// v631 장비 — 끼면 「종합」(v632 전투력 × 보스 피해 · 엔진 gearVal)이 얼마나 바뀌나(엔진 gearPw · 한 번 그리는 동안은 다시 안 셈 · 그릴 때마다 gqReset)
+let gqC = null, gqShown = null, gqEnhSl = null;   // gqShown: 장비 창에서 보여 주는 「새로 낀 것」(창을 떠나면 지움) · gqEnhSl: 재료 창 「돌아가기」로 열 강화 칸
+const gqReset = () => { gqC = null; };
+function gqDp(it) {
+  if (!it || g.S.gear.eq[it.slot] === it) return 0;
+  if (!gqC) gqC = { base: g.gearVal(), m: new Map() };
+  let v = gqC.m.get(it.uid);
+  if (v === undefined) { v = Math.round(g.gearPw(it, it.slot) - gqC.base); gqC.m.set(it.uid, v); }
+  return v;
+}
+const gqDpTx = (d) => (d > 0 ? `<em class="gq-dp up">▲ +${unit(d)}</em>` : d < 0 ? `<em class="gq-dp dn">▼ −${unit(-d)}</em>` : '<em class="gq-dp eq">= 같음</em>');
+const gqNm = (gr, up) => (gr >= 0 ? `${GRADES[gr]}품${up ? '上' : ''}` : '빈 칸');
+// v631 재료 창 — 무엇에 쓰나 · 가진 것 · (need가 있으면) 부족한 만큼 · 얻는 곳마다 「가기」
+const gqAmt = (k, n) => (k === 'item:restore' ? `${unit(n)}장` : k === 'gold' ? unit(n) : `${unit(n)}개`);
+function gqMatPop(k, need = 0, back = null) {
+  const M = MATS[k]; if (!M) return;
+  const h = g.S.wallet[k] || 0, short = need > h ? need - h : 0;
+  const html = `<div class="gq-mh"><img src="art/s2/ui/${M.icon}.webp" alt=""><div><b>${esc(M.name)} — ${esc(M.use)}</b><small>가진 ${gqAmt(k, h)}</small>${need ? `<small class="${short ? 'gq-short' : 'gq-ok'}">${short ? `부족 — ${gqAmt(k, short)} 더 필요` : `필요 ${gqAmt(k, need)} · 넉넉해요`}</small>` : ''}</div></div>`
+    + `<div class="gq-src"><div class="gq-st">얻는 곳</div>${M.src.map((x, i) => `<div class="gq-sr"><span><b>${esc(x.t)}</b><small>${esc(x.d)}</small></span><button class="btn gq-go" data-i="${i}">가기</button></div>`).join('')}</div>`;
+  pop('재료', html, back ? [['돌아가기', back], ['닫기', null]] : [['닫기', null]]);
+  for (const b of $('modal').querySelectorAll('.gq-go')) b.onclick = () => { play('click'); closeModal(); openKey(M.src[+b.dataset.i].go); };
+}
+// 재료 칩(data-gqmat · data-gqneed)은 어디서 눌러도 재료 창 — 강화 창 안이면 「돌아가기」로 그 창
+document.addEventListener('click', (e) => {
+  const t = e.target.closest?.('[data-gqmat]'); if (!t || !g) return;
+  e.stopPropagation(); play('click');
+  const sl = gqEnhSl, back = t.closest('.sheet.enhs') && sl ? () => enhPop(sl) : null;
+  gqMatPop(t.dataset.gqmat, +(t.dataset.gqneed || 0), back);
+}, true);
+// v631 저절로 낀 장비 알림 — 들판 오른쪽 알림 칸(#lootbox) · 한 번에 여럿이면 하나로 묶음 · 뽑기 연출 중이면 그 창이 보여 준다
+let gqPend = new Map(), gqTm = 0;
+function gqEqFeed(f) {
+  const o = gqPend.get(f.slot);
+  gqPend.set(f.slot, { ...f, fg: o ? o.fg : f.fg, dp: (o ? o.dp : 0) + f.dp });
+  if (!gqTm) gqTm = setTimeout(gqEqFlush, 0);
+}
+function gqEqFlush() {
+  gqTm = 0; const L = [...gqPend.values()]; gqPend = new Map();
+  if (!L.length) return;
+  const sum = L.reduce((a, x) => a + x.dp, 0);
+  addLog(`새 장비 장착 — ${L.map((x) => `${SLOT_NAME[x.slot]} ${gqNm(x.g, x.up)}`).join(' · ')}${sum > 0 ? ` · 종합 +${unit(sum)}` : ''}`);
+  if (document.querySelector('.gx')) return;
+  const box = $('lootbox'), top = L.reduce((a, x) => (x.g > a.g ? x : a));
+  const d = document.createElement('div'); d.className = `loot g${top.g} gq-eqn`; d.style.setProperty('--c', LOOT_COL[top.g] || '#fff');
+  d.innerHTML = `<img src="${eqIcon(top.slot, { g: top.g, up: top.up, slot: top.slot })}" alt=""><div><b>${L.length > 1 ? `새 장비 ${L.length}칸 장착` : '새 장비 장착'}</b><small>${L.length > 1 ? L.slice(0, 3).map((x) => SLOT_NAME[x.slot]).join(' · ') + (L.length > 3 ? ' …' : '') : `${SLOT_NAME[top.slot]} · ${gqNm(top.g, top.up)}`}${sum > 0 ? ` <em>▲종합 +${unit(sum)}</em>` : ''}</small></div>`;
+  box.prepend(d); while (box.children.length > 3) box.lastChild.remove();
+  setTimeout(() => d.classList.add('out'), 3000); setTimeout(() => d.remove(), 3500);
+}
+// v631 장비 창 「새로 낀 장비」 — 저절로 · 모두 끼기로 바뀐 칸(전 → 새 · 전투력). 처음 보는 순간 엔진 표시는 지우고, 이 창을 떠날 때까지 보여 준다
+function gqNewTake() {
+  const N = g.gearNews(), ks = Object.keys(N);
+  if (ks.length) { gqShown ??= {}; for (const sl of ks) { const o = gqShown[sl], n = N[sl]; gqShown[sl] = o ? { ...n, fg: o.fg, fup: o.fup, dp: o.dp + n.dp } : { ...n }; delete N[sl]; } save(); navDots(); }
+}
+function gqNewCard(c0) {
+  const L = gqShown ? SLOTS.filter((sl) => gqShown[sl]) : [];
+  if (!L.length) return;
+  const box = document.createElement('div'); box.className = 'gq-news';
+  box.innerHTML = `<div class="gq-nh">새로 낀 장비 <small>${L.length}칸</small></div>` + L.map((sl) => { const x = gqShown[sl]; return `<div class="gq-nr" data-slot="${sl}"><span>${SLOT_NAME[sl]}</span><b><i class="g${Math.max(0, x.fg)}t">${gqNm(x.fg, x.fup)}</i> → <i class="g${x.g}t">${gqNm(x.g, x.up)}</i></b>${x.dp ? gqDpTx(x.dp) : ''}</div>`; }).join('');
+  c0(box);
 }
 // 이 칸에 it를 끼면 전투력(화면에서만 잠깐 바꿔 셈 · 바로 되돌림)
 function powerWith(sl, it) { const G = g.S.gear, prev = G.eq[sl]; G.eq[sl] = it; try { return g.power(); } finally { G.eq[sl] = prev; } }
@@ -470,7 +530,7 @@ function eqCell(sl) {
   const it = g.S.gear.eq[sl], S2 = g.S.gear.slots[sl], b = document.createElement('button'), best = bestFor(sl);
   b.className = `eqcell gr-cell ${it ? 'g' + it.g : 'empty'} ${eqSel === sl ? 'sel' : ''}${best ? ' gr-has-up' : ''}`;
   if (it) b.style.setProperty('--gc', GX_COL[it.g]);
-  b.innerHTML = `<img src="${eqIcon(sl, it)}" alt="${SLOT_NAME[sl]}" style="${it ? '' : 'opacity:.25'}"><span class="en">${S2.enh ? '+' + S2.enh : ''}</span><span class="sr">${S2.star ? '★' + S2.star : ''}</span>${best ? '<i class="gr-up" title="가방에 더 좋은 것">▲</i>' : ''}<span class="nm">${SLOT_NAME[sl]}</span>`;
+  b.innerHTML = `<img src="${eqIcon(sl, it)}" alt="${SLOT_NAME[sl]}" style="${it ? '' : 'opacity:.25'}"><span class="en">${S2.enh ? '+' + S2.enh : ''}</span><span class="sr">${S2.star ? '★' + S2.star : ''}</span>${best ? '<i class="gr-up" title="가방에 더 좋은 것">▲</i>' : ''}${gqShown?.[sl] ? '<i class="gq-new">NEW</i>' : ''}<span class="nm">${SLOT_NAME[sl]}</span>`;
   if (best) b.setAttribute('aria-label', `${SLOT_NAME[sl]} — 가방에 더 좋은 것`);
   // v528 낀 장비를 누르면 바로 강화 창 · ▲(가방에 더 좋은 것)이면 아래에 바로 비교
   b.onclick = () => {
@@ -496,9 +556,10 @@ function showGacha(r, opt = {}) {   // v558 opt: { title, face(it) } — 병기 
   const best = Math.max(...r.items.map((i) => i.g));
   ov.innerHTML = `<div class="gxt">${opt.title || '장비 뽑기'} ${r.items.length}번</div><div class="gxs"></div><div class="gxg ${r.items.length > 10 ? 'many' : ''}"></div><div class="gxb"><button class="btn skip">건너뛰기</button>${opt.again ? '<button class="btn primary again hidden">한 번 더</button>' : ''}</div>`;
   const grid = ov.querySelector('.gxg'), eqd = new Set(r.got.filter((x) => x.equipped).map((x) => x.it?.uid));
+  const eqDp = new Map(r.got.filter((x) => x.equipped).map((x) => [x.it?.uid, x.dp || 0])); gqReset();   // v631 낀 것은 낄 때 오른 만큼 · 아닌 것은 지금 낀 것과 견줌
   const cards = r.items.map((it) => {
     const c = document.createElement('div'); c.className = `gc g${it.g}`; c.style.setProperty('--gc', GX_COL[it.g] || '#fff');
-    c.innerHTML = `<div class="back"></div><div class="face">${opt.face ? opt.face(it) : `<img src="${eqIcon(it.slot, it)}" alt="${SLOT_NAME[it.slot]}"><b class="g${it.g}t">${GRADES[it.g]}</b><small>${SLOT_NAME[it.slot]}</small>${eqd.has(it.uid) ? '<i>장착</i>' : ''}`}</div>`;
+    c.innerHTML = `<div class="back"></div><div class="face">${opt.face ? opt.face(it) : `<img src="${eqIcon(it.slot, it)}" alt="${SLOT_NAME[it.slot]}"><b class="g${it.g}t">${GRADES[it.g]}</b><small>${SLOT_NAME[it.slot]}</small>${eqd.has(it.uid) ? `<i>장착</i>${gqDpTx(eqDp.get(it.uid) || 0)}` : it.slot && g.S.gear.eq[it.slot] !== it ? gqDpTx(gqDp(it)) : ''}`}</div>`;
     grid.append(c); return c;
   });
   document.body.append(ov);
@@ -541,7 +602,7 @@ function shopClockOn() {
   shopClockOff(); const d0 = dayKey(now());
   shopClock = setInterval(() => { const el = document.querySelector('#sh-clock'); if (!open || keyOf() !== 'shop:0' || !el) { shopClockOff(); return; } if (dayKey(now()) !== d0) { paintWin(); return; } el.textContent = shopLeftTxt(); }, 1000);
 }
-function closeWin() { shopClockOff(); open = null; lkPrev = {}; bagIn = false; bagAsk = false; worldStop(); dgStop(); ptStop(); document.body.classList.remove('winopen'); $('panel').classList.remove('open'); $('panel-dim').classList.remove('open'); paintNav(); }
+function closeWin() { shopClockOff(); open = null; gqShown = null; lkPrev = {}; bagIn = false; bagAsk = false; worldStop(); dgStop(); ptStop(); document.body.classList.remove('winopen'); $('panel').classList.remove('open'); $('panel-dim').classList.remove('open'); paintNav(); }
 function paintNav() {
   if (!$('ptabs').children.length) for (const [id, name] of MAIN_TABS) { const b = document.createElement('button'); b.dataset.tab = id; b.innerHTML = `${ico(id)}<span>${name}</span>`; b.onclick = () => { play('click'); openWin(id); }; $('ptabs').append(b); }
   for (const b of document.querySelectorAll('.nb[data-tab], #ptabs button[data-tab]')) b.classList.toggle('active', b.dataset.tab === open);
@@ -576,7 +637,7 @@ function navDots() {
   const sig = { char: canAdv || tree > 0 || kitUp ? `${canAdv ? 1 : 0}|${tree}|${kitUp}|${S.hero.adv || 0}` : '', bag: tix >= 10 ? `${Math.floor(tix / 10)}` : '', town: (g.canAttend() ? 'attend' : '') || (g.todayChest().can ? 'today' : '') || (g.shopFreeCan() ? 'shop' : '') || (g.passCan() ? 'pass' : '') || (g.bountyCan() ? `bty${g.bountyCan()}` : '') || (cur && S.q.guide[cur.id]?.done ? cur.id : '') || (g.books.ach.claimable().length ? `ach${g.books.ach.claimable().length}` : '') };
   if (open && sig[open] !== undefined) dotSeen[open] = sig[open];
   sig.social = socialTodo();   // v554 무림: 받을 것(주간 보상 · 문파 출석 · 토벌 단계 · 수련)
-  const on = { char: !!sig.char && sig.char !== dotSeen.char, bag: !!sig.bag && sig.bag !== dotSeen.bag, town: !!sig.town, social: !!sig.social, dgn: g.towerMsCan() > 0 };   // v616 탑 이정표 상자
+  const on = { char: !!sig.char && sig.char !== dotSeen.char, bag: (!!sig.bag && sig.bag !== dotSeen.bag) || !!Object.keys(S.gearNew || {}).length, town: !!sig.town, social: !!sig.social, dgn: g.towerMsCan() > 0 };   // v616 탑 이정표 상자
   for (const b of document.querySelectorAll('.nb[data-tab], #ptabs button[data-tab]')) b.classList.toggle('dot-on', !!on[b.dataset.tab]);
   const ds = JSON.stringify(dotSeen); if (ds !== dotSaved) { dotSaved = ds; try { localStorage.setItem('ifu.s2.dots', ds); } catch { /* 저장 못 해도 */ } }
 }
@@ -614,7 +675,8 @@ function paintWin() {
   if (key !== 'chat:0') worldStop();
   if (key !== 'look:0') lkPrev = {};
   if (key !== 'gear:3') { bagIn = false; bagAsk = false; }
-  if (key !== 'gear:0') eqCand = null;
+  if (key !== 'gear:0') { eqCand = null; gqShown = null; }
+  gqReset();   // v631 전투력 차이는 그릴 때마다 새로
   const st = g.fighter().st;
   // v508 창 안쪽도 지금 게임 부품으로 — 묶음은 제목 있는 카드(.card h3), 스탯은 두 칸 격자(.stat-grid), 줄은 붓글씨 한 글자(.ico), 장비는 그림 칸(.inv-grid), 수집은 타일(.gear-grid)
   const card = (title, sub = '') => { const c = document.createElement('div'); c.className = 'card'; c.innerHTML = `<h3>${title}${sub ? ` <small>${sub}</small>` : ''}</h3>`; B.append(c); return (...e) => c.append(...e); };
@@ -819,6 +881,7 @@ function paintWin() {
     // 장착 — 가운데 무인 · 양옆 다섯 칸씩 · 칸을 누르면 아래에 자세히
     // gr- 칸: 등급 빛 테두리 · +강화(오른쪽 위) · ★성혼(왼쪽 아래) · ▲ 가방에 더 좋은 것 / 가운데: 큰 전투력 · 공격 · 체력 · 방어 · 평균 등급 빛
     const G = g.S.gear, L = g.S.hero.lv, wrap = document.createElement('div'); wrap.className = 'eqwrap';
+    gqNewTake();   // v631 저절로 낀 칸 → NEW
     const col = (list) => { const c = document.createElement('div'); c.className = 'eqcol'; for (const sl of list) c.append(eqCell(sl)); return c; };
     const mid = document.createElement('div'); mid.className = 'eqmid';
     const cvs = document.createElement('canvas'); cvs.width = 240; cvs.height = 300; mid.append(cvs);
@@ -829,7 +892,8 @@ function paintWin() {
     wrap.append(col(SLOTS.slice(0, 5)), mid, col(SLOTS.slice(5)));
     const c0 = card('끼고 있는 것', `전투력 ${unit(g.power())}`); c0(wrap);
     const nb = SLOTS.filter((s) => bestFor(s)).length;
-    c0(R('최고 장비 모두 끼기', nb ? `${nb}칸을 더 좋은 것으로 · ▲ 칸을 누르면 비교` : '모두 가장 좋은 것을 끼고 있어요', [['모두 끼기', act(() => { const p0 = g.power(), n = equipBest(G, L); g.dirtyStats = true; g.emit('equip'); eqCand = null; if (n) setTimeout(() => toast(`${n}칸 바꿈 · 전투력 ${unit(p0)} → ${unit(g.power())}`), 0); return n > 0; }), !nb]], '裝'));
+    c0(R('최고 장비 모두 끼기', nb ? `${nb}칸을 더 좋은 것으로 · ▲ 칸을 누르면 비교` : '모두 가장 좋은 것을 끼고 있어요', [['모두 끼기', act(() => { const p0 = g.power(), n = g.equipBest('best'); eqCand = null; if (n) setTimeout(() => toast(`${n}칸 바꿈 · 전투력 ${unit(p0)} → ${unit(g.power())}`), 0); return n > 0; }), !nb]], '裝'));
+    gqNewCard(c0);   // v631 새로 낀 것(전 → 새 · 전투력) — 이 창을 떠나면 사라짐
     // v585 장비 창 무인 — 한 번만 그리면 머리 · 옷 그림이 아직 안 받아졌을 때 대신 그린 얼굴이 남았다(얼굴이 깨져 보임) → 창이 열려 있는 동안 계속 그린다(초당 20번) · 외형대로
     // 뒤 빛: 낀 장비 평균 등급 빛깔 · 천천히 숨 쉬듯(높은 등급일수록 조금 진하게)
     { let last = 0; const aura = GX_COL[avgG], aA = Math.round(34 + avgG * 12).toString(16).padStart(2, '0'); const paint = (ts) => {
@@ -845,13 +909,13 @@ function paintWin() {
       c1(R('칸 강화', `+${S2.enh}`, [['강화', act(() => { const r = g.enhance(sl); if (r !== null) toast(r ? '강화 성공' : '강화 실패'); return r; })]], '强'));
       c1(R('칸 성혼', `★${S2.star}`, [['성혼', act(() => { const r = g.star(sl); if (r) toast({ ok: '성혼 성공', fail: '실패', down: '하락', break: '파괴!' }[r]); return r; }), !!S2.broken]], '魂'));
       if (it) c1(R('장착 해제', '가방으로', [['해제', act(() => { const r = unequip(G, sl); g.dirtyStats = true; eqCand = null; return r; })]], '解'));
-      const all = G.bag.filter((x) => x.slot === sl).sort((a2, b2) => gearScore(b2, L) - gearScore(a2, L)), cand = all.slice(0, 8);
+      const all = G.bag.filter((x) => x.slot === sl).sort((a2, b2) => gqDp(b2) - gqDp(a2)), cand = all.slice(0, 8);
       const pick = eqCand !== null ? all.find((x) => x.uid === eqCand) || null : null;
       if (pick && !cand.includes(pick)) cand.unshift(pick);
       if (cand.length) {
         const c2 = card('가방에서 고르기', `${SLOT_NAME[sl]} ${all.length}개 · 누르면 비교`);
         if (pick) c2(gearCmp(sl, it, pick, L));
-        c2(invGrid(cand, it, L, { sel: pick?.uid, pick: (c) => { eqCand = eqCand === c.uid ? null : c.uid; paintWin(); if (eqCand !== null) requestAnimationFrame(() => document.querySelector('.gr-cmp')?.scrollIntoView({ block: 'nearest' })); } }));
+        c2(invGrid(it ? [it, ...cand] : cand, it, L, { sel: pick?.uid, pick: (c) => { eqCand = eqCand === c.uid ? null : c.uid; paintWin(); if (eqCand !== null) requestAnimationFrame(() => document.querySelector('.gr-cmp')?.scrollIntoView({ block: 'nearest' })); } }));
       }
     } else B.append(note('칸을 누르면 옵션 · 강화 · 성혼 · 가방의 다른 장비를 볼 수 있어요. ▲ 칸은 가방에 더 좋은 것이 있어요.'));
   } else if (key === 'gear:1') {
@@ -884,12 +948,11 @@ function paintWin() {
     // v528 가진 재료를 맨 위에 · 칸마다 다음 강화로 무엇이 얼마나 오르는지 · 누르면 강화 창
     const L = g.S.hero.lv, G = g.S.gear;
     // v626 en- 재료 칩 셋(그림) · 「모두 강화」 줄 · 칸 카드 격자(장비 그림 · +강화 · ★ · 다음 강화 확률 · 비용 · 파괴 표시)
-    const c0 = card('가진 재료', '강화 = 은자 + 강화석 · 성혼 = 은자');
-    const mats = document.createElement('div'); mats.className = 'en-mats';
-    mats.innerHTML = [['silver', '은자', unit(W.gold || 0)], ['stone', '강화석', unit(W['item:stone'] || 0)], ['reset', '복구 주문서', `${W['item:restore'] || 0}장`]]
-      .map(([ic, nm, v]) => `<div class="en-mat"><img src="art/s2/ui/${ic}.webp" alt=""><span>${nm}</span><b>${v}</b></div>`).join('');
+    const c0 = card('재료', '강화 = 은자 + 강화석 · 성혼 = 은자 · 누르면 얻는 곳');
+    const mats = document.createElement('div'); mats.className = 'en-mats gq4';   // v631 재료 넷 · 누르면 재료 창(얻는 곳 · 가기)
+    mats.innerHTML = Object.entries(MATS).map(([k, M]) => `<button class="en-mat gq-mat" data-gqmat="${k}"><img src="art/s2/ui/${M.icon}.webp" alt=""><span>${M.name}</span><b>${gqAmt(k, W[k] || 0)}</b></button>`).join('');
     c0(mats);
-    c0(note('강화석은 장비 분해(가방 · 일괄 분해)와 수련동 「단련동」에서 얻어요.'));
+    c0(note('재료를 누르면 어디서 얻는지 나와요.'));
     // v543 모두 강화 — 낮은 칸부터 고르게 · 재료가 되는 만큼 · 결과 창(칸마다 전 → 후 · 성공/실패 · 쓴 재료 · 전투력)
     const lo = SLOTS.reduce((a, b) => (G.slots[b].enh < G.slots[a].enh ? b : a)), loCost = enhCost(G.slots[lo].enh, L);
     const ra = R('모두 강화', have(loCost) ? `가장 낮은 칸부터 고르게 · 재료가 되는 만큼<br>다음: ${SLOT_NAME[lo]} +${G.slots[lo].enh} — ${costTxt(loCost)}` : `재료가 모자라요 — ${SLOT_NAME[lo]} +${G.slots[lo].enh}에 ${costTxt(loCost)}`,
@@ -913,7 +976,7 @@ function paintWin() {
   } else if (key === 'gear:3') {
     const G = g.S.gear, L = g.S.hero.lv;
     bagMark(G);
-    const c0 = card(`가방 ${G.bag.length}개`, `누르면 비교 · 장착 · 잠금 · 분해 · ▲ 지금보다 좋음${bagNew.size ? ` · <span class="gr-newtx">NEW ${bagNew.size}</span>` : ''}`);
+    const c0 = card(`가방 ${G.bag.length}개`, `누르면 비교 · 장착 · 잠금 · 분해 · ▲▼ 끼면 종합(전투력 × 보스 피해) 차이${bagNew.size ? ` · <span class="gr-newtx">NEW ${bagNew.size}</span>` : ''}`);
     const rows = document.createElement('div'); rows.className = 'gr-rows'; c0(rows);   // 넓으면 두 줄 나란히
     rows.append(R('자동 분해', G.autoDis < 0 ? '끔' : `${GRADES[G.autoDis]}품 이하는 주우면 바로 분해`, [['바꾸기', act(() => { G.autoDis = G.autoDis >= 3 ? -1 : G.autoDis + 1; return true; })]], '分'));
     { const sh = W['item:shard'] || 0;
@@ -921,17 +984,18 @@ function paintWin() {
     // v521 부위 고르기 · 정렬(gr- 칩 셋: 등급순 · 부위순 · 새로 얻은 순) · 일괄 분해(아래 붙은 띠)
     const chips = document.createElement('div'); chips.className = 'chip-row bagf';
     for (const [k, nm] of [['all', '전부'], ...SLOTS.map((s) => [s, SLOT_NAME[s]])]) { const n = k === 'all' ? G.bag.length : G.bag.filter((x) => x.slot === k).length; if (k !== 'all' && !n) continue; const b = document.createElement('button'); b.className = `chip${bagF === k ? ' on' : ''}`; b.textContent = `${nm} ${n}`; b.onclick = () => { play('click'); bagF = k; paintWin(); }; chips.append(b); }
-    if (!['g', 's', 'n'].includes(bagSort)) bagSort = 'g';
+    if (!['g', 's', 'n', 'd'].includes(bagSort)) bagSort = 'g';
     const sorts = document.createElement('span'); sorts.className = 'gr-sort'; sorts.innerHTML = '<span class="gr-sortl">정렬</span>';   // 같은 줄 오른쪽(넘치면 다음 줄)
-    for (const [k, nm] of [['g', '등급순'], ['s', '부위순'], ['n', '새로 얻은 순']]) { const b = document.createElement('button'); b.className = `chip gr-so${bagSort === k ? ' on' : ''}`; b.textContent = nm; b.onclick = () => { play('click'); bagSort = k; paintWin(); }; sorts.append(b); }
+    for (const [k, nm] of [['g', '등급순'], ['d', '좋은 순'], ['s', '부위순'], ['n', '새로 얻은 순']]) { const b = document.createElement('button'); b.className = `chip gr-so${bagSort === k ? ' on' : ''}`; b.textContent = nm; b.onclick = () => { play('click'); bagSort = k; paintWin(); }; sorts.append(b); }
     chips.append(sorts); c0(chips);
-    const list = G.bag.filter((x) => bagF === 'all' || x.slot === bagF).sort(bagSort === 'n' ? (a2, b2) => (bagNew.has(b2.uid) - bagNew.has(a2.uid)) || b2.uid - a2.uid : bagSort === 's' ? (a2, b2) => SLOTS.indexOf(a2.slot) - SLOTS.indexOf(b2.slot) || b2.g - a2.g : (a2, b2) => b2.g - a2.g || gearScore(b2, L) - gearScore(a2, L));
-    if (list.length) { c0(invGrid(list.slice(0, bagMore ? 400 : 60), null, L, { nw: bagNew })); if (list.length > 60 && !bagMore) c0(R(`${list.length - 60}개 더 있어요`, '', [['전부 보기', () => { play('click'); bagMore = true; paintWin(); }]], '…')); }
+    const list = G.bag.filter((x) => bagF === 'all' || x.slot === bagF).sort(bagSort === 'n' ? (a2, b2) => (bagNew.has(b2.uid) - bagNew.has(a2.uid)) || b2.uid - a2.uid : bagSort === 's' ? (a2, b2) => SLOTS.indexOf(a2.slot) - SLOTS.indexOf(b2.slot) || b2.g - a2.g : bagSort === 'd' ? (a2, b2) => gqDp(b2) - gqDp(a2) || b2.g - a2.g : (a2, b2) => b2.g - a2.g || gqDp(b2) - gqDp(a2));
+    const eqT = bagF !== 'all' && G.eq[bagF] ? [G.eq[bagF]] : [];   // v631 부위를 고르면 낀 것도 맨 앞에(「장착 중」)
+    if (list.length) { c0(invGrid([...eqT, ...list.slice(0, bagMore ? 400 : 60)], null, L, { nw: bagNew })); if (list.length > 60 && !bagMore) c0(R(`${list.length - 60}개 더 있어요`, '', [['전부 보기', () => { play('click'); bagMore = true; paintWin(); }]], '…')); }
     else c0(note('가방이 비었어요. 뽑기에서 더 좋은 것은 바로 껴요.'));
     // 일괄 분해 띠 — 창 아래에 붙어 있다: 몇 개 · 강화석 · 조각을 먼저 보여 주고, 「분해」 → 한 번 더 묻고 → 분해
-    const junk = junkOf(G, L, bagJunkG);
+    const junk = g.gearJunk(bagJunkG);
     const yld = {}; for (const it of junk) for (const c of dismantleYield(it.g)) yld[c.k] = (yld[c.k] || 0) + c.n;
-    const sum = `${junk.length}개 · 강화석 +${unit(yld['item:stone'] || 0)} · 조각 +${unit(yld['item:shard'] || 0)}`;
+    const sum = `${junk.length}개 · <span class="gq-ml" data-gqmat="item:stone">강화석 +${unit(yld['item:stone'] || 0)}</span> · <span class="gq-ml" data-gqmat="item:shard">조각 +${unit(yld['item:shard'] || 0)}</span>`;
     if (!junk.length) bagAsk = false;
     const bar = document.createElement('div'); bar.className = `gr-dis${bagAsk ? ' ask' : ''}`;
     bar.innerHTML = `<div class="gr-dis-t"><b>${bagAsk ? '정말 분해할까요?' : '일괄 분해'}</b><small>${junk.length ? `${bagAsk ? '' : `낀 것보다 나쁜 ${GRADES[bagJunkG]}품 이하(잠금 빼고) · `}${sum}` : `낀 것보다 나쁜 장비가 없어요(${GRADES[bagJunkG]}품 이하)`}</small></div>`
@@ -1776,7 +1840,7 @@ function statRows(a, b) {
 }
 const COST_ICO = { gold: 'silver', 'item:stone': 'stone', 'item:restore': 'reset' };   // v626 재료 그림(art/s2/ui)
 function needRows(cost) {
-  return `<div class="need">${cost.map((c2) => { const h = g.S.wallet[c2.k] || 0; return `<div class="need-r ${h >= c2.n ? 'ok' : 'no'}"><span>${COST_ICO[c2.k] ? `<img src="art/s2/ui/${COST_ICO[c2.k]}.webp" alt="">` : ''}${COST_NAME[c2.k] || c2.k}</span><b>${unit(c2.n)}</b><small>가진 것 ${unit(h)}</small></div>`; }).join('')}</div>`;
+  return `<div class="need">${cost.map((c2) => { const h = g.S.wallet[c2.k] || 0; return `<div class="need-r ${h >= c2.n ? 'ok' : 'no'}" data-gqmat="${c2.k}" data-gqneed="${c2.n}" role="button" tabindex="0"><span>${COST_ICO[c2.k] ? `<img src="art/s2/ui/${COST_ICO[c2.k]}.webp" alt="">` : ''}${COST_NAME[c2.k] || c2.k}</span><b>${unit(c2.n)}</b><small>가진 것 ${unit(h)}${h < c2.n ? ` · 부족 ${unit(c2.n - h)}` : ''}</small></div>`; }).join('')}</div>`;
 }
 const pctTxt = (pm) => `${(pm / 10).toFixed(pm % 10 ? 1 : 0)}%`;
 // v626 ★ — 열까지는 작은 별(한 줄 다섯) · 넘으면 숫자
@@ -1912,7 +1976,7 @@ function enhAllPop(r) {
 function enhPop(sl, fx) {
   const G = g.S.gear, L = g.S.hero.lv, it = G.eq[sl], S2 = G.slots[sl], sh = $('modal').querySelector('.sheet');
   if (!it) { closeModal(); eqSel = sl; openWin('bag', 0); return; }
-  sh.classList.add('wide', 'enhs');
+  sh.classList.add('wide', 'enhs'); gqEnhSl = sl;
   const now0 = itemStats(it, S2, L);
   // 강화
   const eMax = S2.enh >= ENH_MAX, eCost = eMax ? [] : enhCost(S2.enh, L), eOk = eMax ? 0 : enhOk(S2.enh);
@@ -1974,8 +2038,9 @@ function itemPop(c, L) {
   const keys = [...new Set([...Object.keys(a), ...Object.keys(b)])];
   const fmt = (k, v) => (STATS[k]?.kind === 'rate' ? `${(v / 10).toFixed(1)}%` : unit(v));
   const rows = keys.map((k) => { const d = (a[k] || 0) - (b[k] || 0); return `<div class="cmp-r"><span>${STATS[k]?.name || k}</span><b>${fmt(k, a[k] || 0)}</b><em class="${d > 0 ? 'up' : d < 0 ? 'dn' : ''}">${d ? (d > 0 ? '▲ ' : '▼ ') + fmt(k, Math.abs(d)) : '–'}</em></div>`; }).join('');
-  const sc = gearScore(c, L), sc0 = cur ? gearScore(cur, L) : 0;
-  const head = `<div class="cmp-h"><img src="${eqIcon(c.slot, c)}" alt=""><div><b class="g${c.g}t">${GRADES[c.g]}품${c.up ? '上' : ''} ${SLOT_NAME[c.slot]}</b><small>${cur ? `지금: ${GRADES[cur.g]}품${cur.up ? '上' : ''}` : '지금 비어 있음'} · ${sc >= sc0 ? '<span class="up">더 좋음</span>' : '<span class="dn">지금 것이 더 좋음</span>'}</small></div></div>`;
+  gqReset(); const dp = gqDp(c);   // v631 실제 전투력 차이
+  const head = `<div class="gq-top ${dp > 0 ? 'up' : dp < 0 ? 'dn' : ''}"><b>${dp > 0 ? '끼면 더 세져요' : dp < 0 ? '끼면 약해져요' : '끼어도 그대로'}<small>종합 = 전투력 × 보스 피해</small></b><span>종합 ${dp > 0 ? `▲ +${unit(dp)}` : dp < 0 ? `▼ −${unit(-dp)}` : '±0'}</span></div>`
+    + `<div class="cmp-h"><img src="${eqIcon(c.slot, c)}" alt=""><div><b class="g${c.g}t">${GRADES[c.g]}품${c.up ? '上' : ''} ${SLOT_NAME[c.slot]}</b><small>${cur ? `지금: ${GRADES[cur.g]}품${cur.up ? '上' : ''}` : '지금 비어 있음'} · ${dp > 0 ? '<span class="up">더 좋음</span>' : dp < 0 ? '<span class="dn">지금 것이 더 좋음</span>' : '같음'}</small></div></div>`;
   const yl = dismantleYield(c.g)[0];
   pop('장비 비교', head + `<div class="cmp">${rows}</div>`, [
     [c.lock ? '잠금 풀기' : '잠그기', () => { c.lock = !c.lock; save(); }],
@@ -1988,12 +2053,14 @@ function invGrid(items, cur, L, o = {}) {
   const G = g.S.gear, GC2 = ['#a8a29e', '#7cc47a', '#6aa8e0', '#b27ae0', '#e8c26a', '#e06a5a', '#ffffff'];
   const grid = document.createElement('div'); grid.className = 'inv-grid';
   for (const c of items) {
-    const now2 = cur !== undefined && cur !== null ? cur : G.eq[c.slot], better = !now2 || gearScore(c, L) > gearScore(now2, L), nw = !!o.nw?.has(c.uid);
+    const on = G.eq[c.slot] === c, dp = on ? 0 : gqDp(c), better = dp > 0, nw = !!o.nw?.has(c.uid);   // v631 실제 전투력 · 낀 것은 「장착 중」
     const b = document.createElement('button'); b.dataset.uid = String(c.uid); b.className = `inv-tile gr-tile g${c.g}${better ? ' up' : ''}${o.sel === c.uid ? ' gr-pick' : ''}`; b.style.setProperty('--gc', GC2[c.g] || '#fff');
-    b.innerHTML = `<img src="${eqIcon(c.slot, c)}" alt="${SLOT_NAME[c.slot]}" loading="lazy" style="width:46px;height:46px;object-fit:contain;filter:drop-shadow(0 2px 2px rgba(0,0,0,.6))"><b>${GRADES[c.g]}품${c.up ? '上' : ''}</b><small>${SLOT_NAME[c.slot]}${better ? ' <em class="gr-tup">▲</em>' : ''}</small>${nw ? '<i class="gr-new" aria-label="새로 얻음">NEW</i>' : ''}`;
+    b.innerHTML = `<img src="${eqIcon(c.slot, c)}" alt="${SLOT_NAME[c.slot]}" loading="lazy" style="width:46px;height:46px;object-fit:contain;filter:drop-shadow(0 2px 2px rgba(0,0,0,.6))"><b>${GRADES[c.g]}품${c.up ? '上' : ''}</b><small>${SLOT_NAME[c.slot]}${better ? ' <em class="gr-tup">▲</em>' : ''}</small>${on ? '<i class="gq-on">장착 중</i>' : gqDpTx(dp)}${nw ? '<i class="gr-new" aria-label="새로 얻음">NEW</i>' : ''}`;
     if (c.lock) b.classList.add('locked');
+    if (on) b.classList.add('gq-eqd');
     b.onclick = () => {
       play('click');
+      if (on) { enhPop(c.slot); return; }
       if (nw) { o.nw.delete(c.uid); b.querySelector('.gr-new')?.remove(); }
       if (o.pick) o.pick(c); else itemPop(c, L);   // v521 바로 끼지 않고 비교 창부터
     };
@@ -2005,13 +2072,14 @@ function invGrid(items, cur, L, o = {}) {
 function gearCmp(sl, cur, c, L) {
   const G = g.S.gear, S2 = G.slots[sl], a = cur ? itemStats(cur, S2, L) : {}, b = itemStats(c, S2, L);
   const keys = [...new Set([...Object.keys(b), ...Object.keys(a)])];
-  const p0 = g.power(), p1 = powerWith(sl, c), dp = Math.round(p1) - Math.round(p0);
+  const p0 = g.power(), p1 = powerWith(sl, c), dp = g.gearPw(c, sl) - g.gearVal(), pd = Math.round(p1) - Math.round(p0);   // v632 위 띠는 종합(전투력 × 보스 피해) · 아래는 전투력 그대로
   const side = (it, lab) => `<div class="gr-cmp-it${it ? '' : ' none'}" style="--gc:${it ? GX_COL[it.g] : '#555'}"><img src="${eqIcon(sl, it)}" alt=""><div><small>${lab}</small><b class="${it ? `g${it.g}t` : ''}">${it ? `${GRADES[it.g]}품${it.up ? '上' : ''}` : '비어 있음'}</b></div></div>`;
   const rows = keys.map((k) => { const x = a[k] || 0, y = b[k] || 0, d = y - x; return `<div class="gr-cmp-r"><span>${STATS[k]?.name || k}</span><b>${x ? fmtStat(k, x) : '–'}</b><b>${y ? fmtStat(k, y) : '–'}</b><em class="${d > 0 ? 'up' : d < 0 ? 'dn' : ''}">${d ? `${d > 0 ? '▲ +' : '▼ −'}${fmtStat(k, Math.abs(d))}` : '='}</em></div>`; }).join('');
   const d = document.createElement('div'); d.className = 'gr-cmp';
-  d.innerHTML = `<div class="gr-cmp-h">${side(cur, '지금')}<span class="gr-cmp-ar">→</span>${side(c, '바꾸면')}</div>`
+  d.innerHTML = `<div class="gq-top ${dp > 0 ? 'up' : dp < 0 ? 'dn' : ''}"><b>${dp > 0 ? '바꾸면 더 세져요' : dp < 0 ? '바꾸면 약해져요' : '바꿔도 그대로'}<small>종합 = 전투력 × 보스 피해</small></b><span>종합 ${dp > 0 ? `▲ +${unit(dp)}` : dp < 0 ? `▼ −${unit(-dp)}` : '±0'}</span></div>`
+    + `<div class="gr-cmp-h">${side(cur, '지금')}<span class="gr-cmp-ar">→</span>${side(c, '바꾸면')}</div>`
     + `<div class="gr-cmp-rows"><div class="gr-cmp-r hd"><span></span><b>지금</b><b>바꾸면</b><em>차이</em></div>${rows}</div>`
-    + `<div class="gr-cmp-f"><div class="gr-cmp-pw ${dp > 0 ? 'up' : dp < 0 ? 'dn' : ''}"><small>전투력 ${unit(p0)} → ${unit(p1)}</small><b>${dp > 0 ? '▲ +' : dp < 0 ? '▼ −' : ''}${dp ? unit(Math.abs(dp)) : '그대로'}</b></div><button class="btn gr-cmp-more">자세히</button><button class="btn primary gr-cmp-eq">끼기</button></div>`;
+    + `<div class="gr-cmp-f"><div class="gr-cmp-pw ${pd > 0 ? 'up' : pd < 0 ? 'dn' : ''}"><small>전투력 ${unit(p0)} → ${unit(p1)}</small><b>${pd > 0 ? '▲ +' : pd < 0 ? '▼ −' : ''}${pd ? unit(Math.abs(pd)) : '그대로'}</b></div><button class="btn gr-cmp-more">자세히</button><button class="btn primary gr-cmp-eq">끼기</button></div>`;
   d.querySelector('.gr-cmp-more').onclick = () => { play('click'); itemPop(c, L); };
   d.querySelector('.gr-cmp-eq').onclick = act(() => { const r = equip(G, c.uid); if (r) { g.dirtyStats = true; g.emit('equip'); eqCand = null; setTimeout(() => toast(`${SLOT_NAME[sl]} 낌 · 전투력 ${unit(p0)} → ${unit(g.power())}`), 0); } return r; });
   return d;
@@ -4506,6 +4574,7 @@ function frame() {
       if (f.type === 'graid' && net.online && g.S.guildId && f.dmg > 0) { ensureNick(); net.graidHit(g.S.guildId, wkStr(Date.now()), g.S.nick, f.dmg, g.S.hero.lv).then((RD) => { guildState.raid = RD; net.guildSay(g.S.guildId, g.S.nick, `${g.S.nick} — 문파 토벌에 피해 ${unit(f.dmg)}를 보탰어요`, 'system').catch(() => {}); toast(`문파 토벌 — 피해 ${unit(f.dmg)} 보탬`); if (open === 'social') paintWin(); }).catch((e) => { console.warn('[s2net] graid', e?.code || e); toast('문파 토벌 기록을 올리지 못했어요'); }); }   // v550
     }
     else if (f.k === 'loot') lootFx(f);
+    else if (f.k === 'gear-eq') gqEqFeed(f);   // v631
     else if (f.k === 'ach') achFx(achById.get(f.id));
   }
   // v578 절전 — 2분 동안 손대지 않으면 어둡게 · 다섯 번에 한 번만 그림(엔진은 그대로) · 누르면 돌아옴
@@ -4752,7 +4821,8 @@ const LOOT_COL = ['#a8a29e', '#7cc47a', '#6aa8e0', '#b27ae0', '#e8c26a', '#e06a5
 function lootFx(f) {
   const box = $('lootbox');
   const d = document.createElement('div'); d.className = `loot g${f.g}`; d.style.setProperty('--c', LOOT_COL[f.g] || '#fff');
-  d.innerHTML = `<img src="${eqIcon(f.slot, { g: f.g, up: f.up, slot: f.slot })}" alt=""><div><b>${GRADES[f.g]}품${f.up ? '上' : ''} ${SLOT_NAME[f.slot]}</b><small>${f.equipped ? '획득 · 바로 낌!' : '획득 · 가방으로'}</small></div>`;
+  const pq = f.equipped ? gqPend.get(f.slot) : null; if (pq) gqPend.delete(f.slot);   // v631 같은 칸 장착 알림은 이 카드에 합침
+  d.innerHTML = `<img src="${eqIcon(f.slot, { g: f.g, up: f.up, slot: f.slot })}" alt=""><div><b>${GRADES[f.g]}품${f.up ? '上' : ''} ${SLOT_NAME[f.slot]}</b><small>${f.equipped ? `획득 · 바로 낌!${pq && pq.dp > 0 ? ` <em>▲종합 +${unit(pq.dp)}</em>` : ''}` : '획득 · 가방으로'}</small></div>`;
   box.prepend(d); while (box.children.length > 3) box.lastChild.remove();
   setTimeout(() => d.classList.add('out'), 2600); setTimeout(() => d.remove(), 3100);
   if (f.g >= 4) { pillarAt = now(); pillarCol = LOOT_COL[f.g]; play('rare', f.g); buzz(60); }

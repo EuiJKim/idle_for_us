@@ -175,6 +175,36 @@
     .gr-tile.gr-pick { box-shadow: 0 0 0 2px var(--gold), 0 0 10px #e8c26a88; }
     .gr-tile .gr-new { top: 3px; right: 3px; background: #dc2626; color: #fff; font-size: 8.5px; padding: 2px 4px; border-radius: 6px; letter-spacing: .3px; box-shadow: 0 0 0 1.5px rgba(0,0,0,.5); }
     .gr-newtx { color: #f87171; font-weight: 800; }
+    /* v631 장비 — 끼면 전투력 차이(▲ 초록 · ▼ 빨강 · = 같음) · 장착 중 · NEW 칸 · 새로 낀 장비 · 재료 창 */
+    .gq-dp { display: block; font-style: normal; font-size: 10.5px; font-weight: 900; line-height: 1.2; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .gq-dp.up { color: #4ade80; } .gq-dp.dn { color: #f87171; } .gq-dp.eq { color: rgba(255,255,255,.45); font-weight: 700; }
+    .gc .face .gq-dp { font-size: 10px; margin-top: 1px; } .gc .face:has(.gq-dp) img { width: 60%; } .gc .face:has(.gq-dp) small { line-height: 1.15; }
+    .inv-tile .gq-on { position: absolute; top: 3px; left: 3px; font-style: normal; font-size: 8.5px; font-weight: 900; background: var(--gold); color: #000; padding: 2px 4px; border-radius: 6px; }
+    .inv-tile.gq-eqd { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--gold) 70%, transparent); }
+    .gr-cell .gq-new { position: absolute; top: 2px; left: 50%; transform: translateX(-50%); font-style: normal; font-size: 8.5px; font-weight: 900; line-height: 1; background: #dc2626; color: #fff; padding: 2px 4px; border-radius: 6px; box-shadow: 0 0 0 1.5px rgba(0,0,0,.5); }
+    .gq-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 10px; margin-bottom: 6px; border-radius: 10px; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.1); }
+    .gq-top b { font-size: 13px; } .gq-top b small { display: block; font-size: 10.5px; font-weight: 500; color: rgba(255,255,255,.55); } .gq-top span { font-size: 15px; font-weight: 900; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .gq-top.up { background: rgba(74,222,128,.12); border-color: rgba(74,222,128,.45); } .gq-top.up span { color: #4ade80; }
+    .gq-top.dn { background: rgba(248,113,113,.1); border-color: rgba(248,113,113,.4); } .gq-top.dn span { color: #f87171; }
+    .gq-news { margin-top: 6px; padding: 6px 8px; border-radius: 10px; background: rgba(220,38,38,.08); border: 1px solid rgba(248,113,113,.35); }
+    .gq-nh { font-size: 12px; font-weight: 800; color: #fca5a5; margin-bottom: 3px; } .gq-nh small { color: rgba(255,255,255,.55); font-weight: 600; }
+    .gq-nr { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; align-items: center; gap: 6px; font-size: 12px; padding: 2px 0; }
+    .gq-nr > span { color: rgba(255,255,255,.65); } .gq-nr b { font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .gq-nr b i { font-style: normal; }
+    .en-mats.gq4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    @media (max-width: 760px) { .en-mats.gq4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }   /* 좁은 가로 화면은 둘씩 두 줄(숫자가 잘리지 않게) */
+    button.gq-mat { font: inherit; color: inherit; text-align: left; cursor: pointer; min-height: 44px; }
+    button.gq-mat:active { transform: scale(.97); } button.gq-mat:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+    .gq-ml { cursor: pointer; padding: 1px 5px; border-radius: 6px; background: rgba(255,255,255,.08); text-decoration: underline dotted rgba(255,255,255,.4); text-underline-offset: 2px; }
+    .need-r[data-gqmat] { cursor: pointer; } .need-r[data-gqmat] > span::after, button.gq-mat > span::after { content: ' ›'; color: rgba(255,255,255,.45); } .need-r[data-gqmat]:active { filter: brightness(1.2); }
+    .gq-mh { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; } .gq-mh img { width: 44px; height: 44px; object-fit: contain; flex: none; filter: drop-shadow(0 2px 3px rgba(0,0,0,.6)); }
+    .gq-mh b { display: block; font-size: 14px; } .gq-mh small { display: block; font-size: 12px; color: rgba(255,255,255,.7); }
+    .gq-mh .gq-short { color: #f87171; font-weight: 800; } .gq-mh .gq-ok { color: #86efac; }
+    .gq-src { max-height: 46vh; overflow-y: auto; } html.rot .gq-src { max-height: 46vw; }
+    .gq-st { font-size: 11.5px; color: rgba(255,255,255,.55); margin-bottom: 4px; }
+    .gq-sr { display: flex; align-items: center; gap: 8px; padding: 4px 0; border-top: 1px solid rgba(255,255,255,.07); }
+    .gq-sr > span { flex: 1; min-width: 0; } .gq-sr b { display: block; font-size: 13px; } .gq-sr small { display: block; font-size: 11px; color: rgba(255,255,255,.6); }
+    .gq-sr .btn { min-height: 36px; min-width: 56px; padding: 0 10px; }
+    .gq-eqn small em, .loot small em { font-style: normal; color: #4ade80; font-weight: 800; }
     .gr-sort { display: inline-flex; align-items: center; gap: 5px; margin-left: auto; padding-left: 6px; border-left: 1px solid rgba(255,255,255,.1); } .gr-sort .gr-so.on { background: rgba(212,166,74,.25); border-color: var(--gold); color: #fff; }
     .gr-rows { display: grid; gap: 0 8px; } html.w640up:not(.w800) .gr-rows { grid-template-columns: 1fr 1fr; align-items: start; } .gr-sortl { font-size: 11px; color: rgba(255,255,255,.5); margin-right: 2px; }
     /* 일괄 분해 띠 — 창 아래에 붙어 있다 */

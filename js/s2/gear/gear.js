@@ -61,14 +61,15 @@ export function gearScore(it, heroLv) {
   return (st.atk || 0) * 4 + (st.hp || 0) * 0.5 + (st.def || 0) * 1.5 + ((st.atkL1 || 0) + (st.critDmg || 0) / 2 + (st.bossDmg || 0) / 2 + (st.crit || 0) * 2) * 30;
 }
 // 가방에 넣고, 더 좋으면 장착(자동) · 자동 분해(등급 autoDis 이하)
-export function obtain(G, items, heroLv, wallet) {
+//   v631 better(it, cur): 「it를 끼면 cur보다 세다」 — 게임은 실제 전투력으로 넘긴다(Game.gearBetter). 없으면 예전 점수(gearScore)
+export function obtain(G, items, heroLv, wallet, better = null) {
   const got = [];
   for (const it of items) {
     const cur = G.eq[it.slot];
-    if (!cur || gearScore(it, heroLv) > gearScore(cur, heroLv)) {
+    if (!cur || (better ? better(it, cur) : gearScore(it, heroLv) > gearScore(cur, heroLv))) {
       if (cur) G.bag.push(cur);
       G.eq[it.slot] = it;
-      got.push({ it, equipped: true });
+      got.push({ it, equipped: true, from: cur || null });
     } else G.bag.push(it);
   }
   // 자동 분해
@@ -88,8 +89,19 @@ export function dismantleItem(G, uid, wallet) {
   return true;
 }
 // v521 일괄 장착 — 부위마다 가방에서 지금보다 점수 높은 것으로(바뀐 칸 수)
-export function equipBest(G, heroLv) {
+//   v631 o.score(it, slot): 그 칸에 it를 끼면 값(높을수록 좋음 · 게임은 실제 전투력) — 칸마다 가장 높은 하나만 낀다 · o.log에 [{ slot, from, to, dv(값 차이) }]
+export function equipBest(G, heroLv, o = null) {
   let n = 0;
+  if (o && o.score) {
+    for (const sl of SLOTS) {
+      const cur = G.eq[sl], cand = G.bag.filter((x) => x.slot === sl);
+      if (!cand.length) continue;
+      const s0 = o.score(cur, sl); let best = null, bs = s0;
+      for (const it of cand) { const v = o.score(it, sl); if (v > bs) { bs = v; best = it; } }
+      if (best && equip(G, best.uid)) { n++; if (o.log) o.log.push({ slot: sl, from: cur || null, to: best, dv: bs - s0 }); }
+    }
+    return n;
+  }
   for (const it of [...G.bag].sort((a, b) => gearScore(b, heroLv) - gearScore(a, heroLv))) {
     const cur = G.eq[it.slot];
     if (!cur || gearScore(it, heroLv) > gearScore(cur, heroLv)) { if (equip(G, it.uid)) n++; }
@@ -97,8 +109,9 @@ export function equipBest(G, heroLv) {
   return n;
 }
 // v521 일괄 분해 대상 — 잠금 아님 · 낀 것보다 점수가 낮음 · (maxG가 있으면) 그 등급 이하
-export function junkOf(G, heroLv, maxG = 6) {
-  return G.bag.filter((it) => !it.lock && it.g <= maxG && G.eq[it.slot] && gearScore(it, heroLv) <= gearScore(G.eq[it.slot], heroLv));
+//   v631 better(it, cur)를 넘기면 그것으로(낀 것보다 세지 않은 것)
+export function junkOf(G, heroLv, maxG = 6, better = null) {
+  return G.bag.filter((it) => !it.lock && it.g <= maxG && G.eq[it.slot] && (better ? !better(it, G.eq[it.slot]) : gearScore(it, heroLv) <= gearScore(G.eq[it.slot], heroLv)));
 }
 export function dismantleMany(G, uids, wallet) {
   const set = new Set(uids), out = {}; let n = 0;
