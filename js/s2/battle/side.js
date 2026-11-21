@@ -9,6 +9,7 @@ import { JOBS, RANGED } from '../tables/char.js';
 import { BASE_REGEN_P } from '../tables/economy.js';
 import { PAL_ATK, BOSS_PATS, BOSS_PAT_EVERY, skillById } from '../tables/kit.js';
 import { CB_PATS, CB, WBF } from '../tables/chboss.js';
+import { KILL_HEAL_CAP } from '../tables/traits.js';
 
 export const RUN = 4200, MOB_RUN = 1600, GRAV = 22000, JUMP_V = 11000, SAME_Y = 500;   // mm/s · mm/s² · mm
 export const MAIN_HITS = 4;          // 주력 무공은 앞쪽 여러 마리(장르 공통 — 한 번에 쓸어 담는 맛)
@@ -246,7 +247,7 @@ export class SideFight {
       // v507 표적이 거의 겹쳐 있으면(0.2m 안) 돌아서지 않는다 — 1분에 40번 넘게 좌우로 뒤집히던 것
       if (Math.abs(tgt.x - H.x) > 200) H.face = Math.sign(tgt.x - H.x) || H.face;
       if (!this.castKit(tgt, J)) {
-        if (this.t >= H.nextAtk) { this.strike(tgt, SKILL_BASE); H.nextAtk = this.t + J.baseMs; H.act = 'atk'; H.lockUntil = this.t + 140; }
+        if (this.t >= H.nextAtk) { this.strike(tgt, SKILL_BASE); this.splashHit(tgt, J); H.nextAtk = this.t + J.baseMs; H.act = 'atk'; H.lockUntil = this.t + 140; }
       }
     }
     this.kitPend();   // v632 무공 변형 — 나눠 친 연타
@@ -450,7 +451,7 @@ export class SideFight {
     m.hp -= r.dmg; m.angry = true; this.dmgOut += r.dmg; if (r.crit) this.crits++;
     const cb = m.cb;
     if (cb && m.hp > 0) {
-      if (!skill.base && !skill.pal && !(m.stunUntil > this.t)) { cb.gg += skill.gg ?? CB.ggPerHit; if (cb.gg >= 1000) { cb.gg = 0; m.stunUntil = this.t + CB.stunMs; m.pat = null; this.events.push(['stun', this.t, m.id, CB.stunMs]); } }
+      if (!skill.base && !skill.pal && !(m.stunUntil > this.t)) { cb.gg += this.stunAdd(skill.gg ?? CB.ggPerHit); if (cb.gg >= 1000) { cb.gg = 0; m.stunUntil = this.t + CB.stunMs; m.pat = null; this.events.push(['stun', this.t, m.id, CB.stunMs]); } }
       const ratio = m.hp / m.st.hp, ph = ratio <= CB.phase[1] ? 2 : ratio <= CB.phase[0] ? 1 : 0;
       if (ph > cb.phase) { cb.phase = ph; m.nextPat = Math.min(m.nextPat ?? this.t, this.t + 900); if (ph === 2) m.nextUlt = this.t + 1200; this.events.push(['phase', this.t, m.id, ph]); }
     }
@@ -458,11 +459,21 @@ export class SideFight {
     if (m.hp <= 0) {
       this.kills++; this.killsBy[m.kind] = (this.killsBy[m.kind] || 0) + 1;
       this.events.push(['kill', this.t, m.id, m.kind, this.t - m.bornAt]);
+      this.killHeal();   // v635 기질
       this.mobs = this.mobs.filter((x) => x !== m);
       if (this.hero.target === m.id) this.hero.target = -1;
     }
     if (m.hp > 0 && !skill.pal && JOBS[this.hero.job].range >= RANGED.minRange) this.rgPush(m, skill, hitNo);   // v628
   }
+  // ── v635 고유 기질(tables/traits.js) — 평타가 옆 적 하나 더(splash 퍼밀 피해) · 무력화 게이지 + · 처치마다 체력 회복 ──
+  splashHit(tgt, J) {
+    const H = this.hero, sp = H.st.splash || 0;
+    if (sp <= 0) return;
+    const m = this.mobs.filter((x) => x !== tgt && x.hp > 0 && Math.abs(x.y - H.y) <= SAME_Y && Math.abs(x.x - tgt.x) <= J.range).sort((a, b) => Math.abs(a.x - tgt.x) - Math.abs(b.x - tgt.x))[0];
+    if (m) this.strike(m, { ...SKILL_BASE, coef: Math.round(SKILL_BASE.coef * sp / 1000) }, 1);
+  }
+  stunAdd(n) { return Math.round(n * (1000 + (this.hero.st.stunGg || 0)) / 1000); }
+  killHeal() { const H = this.hero, p = Math.min(KILL_HEAL_CAP, H.st.killHeal || 0); if (p > 0 && H.hp > 0 && H.hp < H.st.hp) H.hp = Math.min(H.st.hp, H.hp + Math.floor((H.st.hp * p) / 1000)); }
   // ── v628 원거리(궁사 · 술사) — 뒤로 뛰기 · 화살 밀어내기 · 기탄 느려짐(숫자: tables/char.js RANGED) ──
   // 뛰기(자동만): 같은 발판의 화난 몹이 near 안 · 발판 위 · 평타 · 무공 · 회피 중 아님 · 쿨 끝 → 몹 반대쪽으로 dist(무인은 몹을 본 채).
   //   내려설 자리가 발판 끝에서 margin 안쪽이고, 뛰고 나면 화난 몹과 gain 넘게 벌어질 때만(몰렸으면 안 뜀) · 두목 붉은 범위 안으로는 안 뜀

@@ -625,6 +625,10 @@
     .ms-chip img { width: 18px; height: 18px; object-fit: contain; filter: drop-shadow(0 1px 1px rgba(0,0,0,.5)); }
     #panel .ms-chip b, .ms-chip b { color: #fde68a; }
     .ms-chip i { font-style: normal; width: 18px; text-align: center; font-size: 11px; color: #fde68a; } .ms-chip b { font-weight: 800; font-variant-numeric: tabular-nums; }
+    /* v635 우편함(ml-) — 언제 온 것 · 남은 날(이틀 이하 붉게) · 빈 함 */
+    .ml-when { font-size: 11px; color: var(--muted); } .ml-when em { font-style: normal; } .ml-when em.ml-soon { color: #f87171; font-weight: 800; }
+    .ml-empty { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 18px 0 10px; color: var(--muted); }
+    .ml-empty img { width: 64px; height: 64px; object-fit: contain; opacity: .35; filter: grayscale(.6); } .ml-empty b { font-size: 13px; font-weight: 700; }
     .ms-bar { max-width: 260px; } .ms-ok { display: inline-block; color: #86efac; font-weight: 800; font-size: 11px; }
     .ms-prog { display: flex; align-items: center; gap: 6px; max-width: 320px; } .ms-prog .achbar { flex: 1 1 auto; min-width: 0; }
     .ms-dots { display: inline-flex; gap: 3px; flex: none; } .ms-dots i { width: 7px; height: 7px; border-radius: 50%; border: 1px solid rgba(253,230,138,.55); box-sizing: border-box; }
@@ -1138,6 +1142,31 @@
     .cl-ef > div > :not(:first-child) { text-align: right; font-variant-numeric: tabular-nums; } .cl-ef > div > span:first-child { color: rgba(255,255,255,.8); }
     .cl-ef .cl-h { border-top: 0; font-size: 10px; color: rgba(255,255,255,.45); padding-top: 0; } .cl-ef b { color: #fff; }
     html.h420 .cl-art { min-height: 140px; } html.h420 .cl-art img { max-height: 140px; } html.h420 .cl-info { gap: 4px; } html.h420 .cl-no .cl-art { min-height: 110px; }
+    /* v635 고유 기질 — 칸 한 줄 · 자세히 줄 · 장착 칸 줄(추천 자동 / 직접 고름) · 칸 고르기 */
+    .coll-tile .tr-t { font-style: normal; font-size: 9px; line-height: 1.2; color: #e8d6a8; white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+    .coll-tile.no .tr-t { color: rgba(232,214,168,.7); }
+    .cl-tr { display: grid; grid-template-columns: minmax(0, 1fr) 50px 50px 54px; gap: 6px; padding: 3px 6px; margin-top: -3px; border-radius: 8px; background: rgba(232,194,106,.09); border: 1px solid rgba(232,194,106,.28); font-size: 11.5px; align-items: center; }
+    .cl-tr > :not(:first-child) { text-align: right; font-variant-numeric: tabular-nums; } .cl-tr > b { color: #f3dc9c; }
+    .cl-tr > span:first-child { display: block; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .cl-tr > span:first-child b { color: #f3dc9c; font-size: 11.5px; } .cl-tr > span:first-child small { margin-left: 5px; font-size: 10px; color: rgba(255,255,255,.6); }
+    .cl-tr1 { margin: 0; font-size: 11px; color: rgba(255,255,255,.8); } .cl-tr1 b { color: #f3dc9c; } .cl-tr1 small { color: rgba(255,255,255,.5); }
+    .tr-eq { display: flex; flex-direction: column; gap: 6px; margin: 2px 0 8px; }
+    .tr-mode { display: flex; gap: 4px; align-self: flex-start; padding: 2px; border-radius: 999px; background: rgba(0,0,0,.3); border: 1px solid rgba(255,255,255,.1); }
+    .tr-mode button { min-height: 30px; padding: 0 12px; border: 0; border-radius: 999px; background: transparent; color: rgba(255,255,255,.65); font: inherit; font-size: 11.5px; font-weight: 700; cursor: pointer; }
+    .tr-mode button.on { background: #e8c26a; color: #1a1408; }
+    .tr-slots { display: grid; grid-template-columns: repeat(auto-fill, minmax(116px, 1fr)); gap: 4px; }
+    .tr-sl { position: relative; display: flex; align-items: center; gap: 4px; min-height: 44px; padding: 3px 5px; border-radius: 9px; border: 1px solid color-mix(in srgb, var(--gc, #888) 60%, transparent); background: rgba(255,255,255,.05); color: #fff; font: inherit; text-align: left; cursor: pointer; min-width: 0; }
+    .tr-sl img { width: 26px; height: 26px; object-fit: contain; flex: none; }
+    .tr-sl em { width: 26px; height: 26px; flex: none; display: grid; place-items: center; font-style: normal; color: rgba(255,255,255,.4); border: 1px dashed rgba(255,255,255,.25); border-radius: 50%; }
+    .tr-sl span { display: flex; flex-direction: column; min-width: 0; } .tr-sl b { font-size: 10.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .tr-sl small { font-size: 9.5px; color: #e8d6a8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .tr-sl u { position: absolute; top: 1px; right: 3px; font-size: 8.5px; text-decoration: none; color: rgba(255,255,255,.55); }
+    .tr-sl.empty { border-style: dashed; } .tr-sl.empty small { color: rgba(255,255,255,.5); }
+    .tr-sl:focus-visible, .tr-mode button:focus-visible, .tr-pk:focus-visible { outline: 2px solid #e8c26a; outline-offset: 1px; }
+    .tr-pn { margin: 0 0 6px; font-size: 11.5px; }
+    .tr-pks { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 4px; text-align: left; }
+    .tr-pk { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; gap: 6px; align-items: center; min-height: 44px; padding: 4px 10px; border-radius: 9px; border: 1px solid rgba(255,255,255,.12); background: rgba(255,255,255,.05); color: #fff; font: inherit; font-size: 12px; text-align: left; cursor: pointer; }
+    .tr-pk em { font-style: normal; color: #e8c26a; font-weight: 800; } .tr-pk span { display: flex; flex-direction: column; min-width: 0; } .tr-pk small { font-size: 10px; color: #e8d6a8; } .tr-pk .tr-em { color: rgba(255,255,255,.5); }
+    .tr-pk b { font-size: 11.5px; color: rgba(255,255,255,.7); white-space: nowrap; } .tr-pk b.up { color: #7cd67a; } .tr-pk b.dn { color: #e07a6a; }
+    .tr-pk.on { opacity: .55; cursor: default; } .tr-pk:not(.on):active { transform: scale(.98); }
     .coll-tile.no { opacity: .42; border-style: dashed; } .coll-tile.no em { color: rgba(255,255,255,.5); background: rgba(255,255,255,.06); } .coll-tile.no b { color: rgba(255,255,255,.7); }
     /* v602 창 빈 자리 채우기 — (1) 카드가 두셋뿐일 때도 두 줄로 나뉘게(줄 수 제한 orphans/widows 때문에 왼쪽에만 쌓였다) (2) 카드가 하나뿐이면 그 안의 줄을 두 줄로 */
     html.w640up body.land #wb { orphans: 1; widows: 1; }
@@ -1319,6 +1348,10 @@
     .sh-price { display: inline-flex; align-items: center; gap: 3px; font-size: 12.5px; font-weight: 800; color: var(--gold); font-variant-numeric: tabular-nums; white-space: nowrap; }
     .sh-price img { width: 15px; height: 15px; object-fit: contain; flex: none; }
     .sh-price.sh-short { color: var(--red); } .sh-price.sh-short img { filter: grayscale(.6); opacity: .75; }
+    /* v635 교환소 — 재화 셋(그림 · 이름 · 가진 수) 알약 */
+    #panel-body .ex-seg button { display: inline-flex; align-items: center; justify-content: center; gap: 4px; }
+    #panel-body .ex-seg button img { width: 18px; height: 18px; object-fit: contain; flex: none; }
+    #panel-body .ex-seg button b { font-variant-numeric: tabular-nums; font-weight: 900; opacity: .9; }
     .sh-left { display: inline-flex; align-items: center; gap: 5px; font-size: 10.5px; }
     .sh-left em { font-style: normal; color: rgba(255,255,255,.5); font-variant-numeric: tabular-nums; }
     .sh-pips { display: inline-flex; gap: 3px; }

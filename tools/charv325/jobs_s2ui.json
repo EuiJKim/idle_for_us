@@ -258,5 +258,20 @@
   "name": "lantern",
   "prompt": "Single game menu icon for a Korean wuxia (martial arts fantasy) idle RPG. Hand-painted, crisp clean silhouette, soft studio rim light, fully transparent background, no text, no letters, no numbers, no calligraphy, no border, no frame. 3/4 view, one object or emblem centered and filling about 85% of a square frame, no character, only the object. It will be shown very small (36 pixels): bold chunky shape, thick forms, strong light-dark contrast, few large details, no tiny ornaments, no thin lines. Warm palette of gold, jade green, crimson and dark lacquer wood, with a thin soft light outline so it reads on a dark background. Object: a glowing red paper lantern with a gold cap and tassel, warm light.",
   "q": "medium"
+ },
+ {
+  "name": "fame",
+  "prompt": "Single game menu icon for a Korean wuxia (martial arts fantasy) idle RPG. Hand-painted, crisp clean silhouette, soft studio rim light, fully transparent background, no text, no letters, no numbers, no calligraphy, no border, no frame. 3/4 view, one object or emblem centered and filling about 85% of a square frame, no character, only the object. It will be shown very small (36 pixels): bold chunky shape, thick forms, strong light-dark contrast, few large details, no tiny ornaments, no thin lines. Warm palette of gold, jade green, crimson and dark lacquer wood, with a thin soft light outline so it reads on a dark background. Object: a round bright gold medallion token with a wreath of leaves around a blank centre, hanging from a short blue ribbon, shiny.",
+  "q": "medium"
+ },
+ {
+  "name": "merit",
+  "prompt": "Single game menu icon for a Korean wuxia (martial arts fantasy) idle RPG. Hand-painted, crisp clean silhouette, soft studio rim light, fully transparent background, no text, no letters, no numbers, no calligraphy, no border, no frame. 3/4 view, one object or emblem centered and filling about 85% of a square frame, no character, only the object. It will be shown very small (36 pixels): bold chunky shape, thick forms, strong light-dark contrast, few large details, no tiny ornaments, no thin lines. Warm palette of gold, jade green, crimson and dark lacquer wood, with a thin soft light outline so it reads on a dark background. Object: a rectangular jade green token plaque with a gold rim and a small crimson banner-flag emblem in the centre, red tassel at the bottom.",
+  "q": "medium"
+ },
+ {
+  "name": "blood",
+  "prompt": "Single game menu icon for a Korean wuxia (martial arts fantasy) idle RPG. Hand-painted, crisp clean silhouette, soft studio rim light, fully transparent background, no text, no letters, no numbers, no calligraphy, no border, no frame. 3/4 view, one object or emblem centered and filling about 85% of a square frame, no character, only the object. It will be shown very small (36 pixels): bold chunky shape, thick forms, strong light-dark contrast, few large details, no tiny ornaments, no thin lines. Warm palette of gold, jade green, crimson and dark lacquer wood, with a thin soft light outline so it reads on a dark background. Object: a hexagonal dark iron battle token with a crimson enamel centre showing a small dragon claw mark, glowing red edge.",
+  "q": "medium"
  }
 ]

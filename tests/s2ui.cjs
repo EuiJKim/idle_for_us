@@ -454,6 +454,37 @@ const ok = (c, m, x = '') => { console.log(`  ${c ? '✓' : '✗ !!'} ${m}${x !=
       const ck = await page.evaluate(() => new Promise((r) => { const t0 = document.querySelector('#sh-clock')?.textContent ?? ''; setTimeout(() => r([t0, document.querySelector('#sh-clock')?.textContent ?? '']), 1600); }));
       ok(ck[0] === ck[1], '창을 닫으면 상점 시계도 멈춘다(더 고치지 않음)', ck.join(' → '));
       await free(a0); }
+    // v635 교환소(ex-) — 임무 → 교환소: 재화 알약 셋(그림 · 가진 수) · 버는 곳 줄(가기) · 물건 카드(그림 · 재화 값 · 이번 주 점) · 바꾸면 재화가 줄고 뽑기권이 는다 · 모자라면 값이 붉게 · 문파 없으면 공적 안내 · 넘침 없음
+    { const a0 = await hold();
+      console.log('— v635 교환소');
+      await page.evaluate(() => { const g = window.__s2.g; window.__t = { wallet: JSON.stringify(g.S.wallet), ex: JSON.stringify(g.S.ex || null), gid: g.S.guildId || null }; g.S.ex = null; g.S.guildId = null; Object.assign(g.S.wallet, { 'coin:fame': 100, 'coin:merit': 0, 'coin:blood': 0 }); });
+      await page.click('.nb[data-tab="town"]'); await sub('교환소'); await page.waitForSelector('#wb .ex-grid .row.sh-card');
+      const ex = () => page.evaluate(() => { const g = window.__s2.g, W = g.S.wallet, PB = document.getElementById('panel-body'), seg = [...document.querySelectorAll('#wb .ex-seg button')], cards = [...document.querySelectorAll('#wb .ex-grid .row.sh-card')], card = (n) => cards.find((r) => r.querySelector('.name')?.textContent === n);
+        const gr = card('장비 뽑기권'), earn = [...document.querySelectorAll('#wb .row')].find((r) => /버는 곳$/.test(r.querySelector('.name')?.textContent || ''));
+        return { seg: seg.map((b) => b.textContent.trim()), on: document.querySelector('#wb .ex-seg button.on')?.dataset.cur || '', segImg: seg.filter((b) => { const i = b.querySelector('img'); return i && i.complete && i.naturalWidth > 0; }).length,
+          n: cards.length, pics: cards.filter((r) => r.querySelector('.ico.pic img')).length, gr: gr?.querySelector('.desc')?.textContent || '', grOff: !!gr?.querySelector('.btn')?.disabled, priceImg: !!cards[0]?.querySelector('.sh-price img'),
+          short: cards.filter((r) => r.querySelector('.sh-price.sh-short')).length, earn: earn?.querySelector('.desc')?.textContent || '', earnName: earn?.querySelector('.name')?.textContent || '', clock: document.querySelector('#ex-clock')?.textContent || '',
+          fame: W['coin:fame'] || 0, tk: W['ticket:gear'] || 0, key: PB.dataset.key, sw: PB.scrollWidth - PB.clientWidth, txt: (/undefined|NaN|null|\[object Object\]/.exec(document.getElementById('wb').textContent) || [''])[0] }; });
+      const e0 = await until(ex, (v) => v.segImg === 3);
+      ok(e0.seg.length === 3 && /^명성 100$/.test(e0.seg[0]) && /^공적 0$/.test(e0.seg[1]) && /^혈전패 0$/.test(e0.seg[2]) && e0.on === 'fame' && e0.segImg === 3, `v635 교환소 — 재화 알약 셋(그림 · 가진 수) · 처음은 명성 @${W}`, e0.seg.join(' / '));
+      ok(e0.n === 4 && e0.pics === 4 && e0.priceImg && /명성 40/.test(e0.gr) && /이번 주 5\/5/.test(e0.gr) && /^\d+일 \d+시간 남음$|^\d+시간 \d+분 남음$/.test(e0.clock) && e0.sw <= 1 && !e0.txt, 'v635 명성 진열대 — 카드 넷(그림 · 명성 값 · 이번 주 점) · 월요일까지 시계 · 넘침 없음', `${e0.gr} · ${e0.clock} · sw ${e0.sw}`);
+      ok(e0.earnName === '명성 버는 곳' && /대결 이기면 12 · 지면 5/.test(e0.earn), 'v635 버는 곳 줄 — 대결 이기면 12 · 지면 5', e0.earn);
+      await page.click('#wb .ex-grid .row:has(.name:text-is("장비 뽑기권")) .btn:text-is("바꾸기")');
+      const e1 = await until(ex, (v) => v.fame === 60);
+      ok(e1.fame === 60 && e1.tk - e0.tk === 1 && /이번 주 4\/5/.test(e1.gr) && /^명성 60$/.test(e1.seg[0]), 'v635 바꾸기 — 명성 −40 · 장비 뽑기권 +1 · 이번 주 4/5 · 알약 수도 줄어든다', `${e0.fame} → ${e1.fame} · ${e1.gr}`);
+      await page.click('#wb .ex-seg button[data-cur="blood"]');
+      const e2 = await until(ex, (v) => v.on === 'blood');
+      ok(e2.on === 'blood' && e2.n === 5 && e2.short === 5 && e2.grOff && /월드보스 한 번 8/.test(e2.earn), 'v635 혈전패 — 카드 다섯 · 없으면 값이 붉고 단추 잠김 · 버는 곳(월드보스 한 번 8)', e2.earn);
+      await page.click('#wb .ex-seg button[data-cur="merit"]');
+      const e3 = await until(ex, (v) => v.on === 'merit');
+      ok(e3.on === 'merit' && e3.n === 5 && /문파에 들면/.test(e3.earn), 'v635 공적 — 문파가 없으면 「문파에 들면 모여요」', e3.earn);
+      await page.click('#wb .row:has(.name:text-is("공적 버는 곳")) .btn:text-is("가기")');
+      const e4 = await until(ex, (v) => v.key === 'social:3');
+      ok(e4.key === 'social:3', 'v635 「가기」 → 무림 · 문파', e4.key);
+      await page.evaluate(() => { const g = window.__s2.g, T = window.__t, W = g.S.wallet; g.S.ex = JSON.parse(T.ex) || undefined; g.S.guildId = T.gid; for (const k of Object.keys(W)) delete W[k]; Object.assign(W, JSON.parse(T.wallet)); delete window.__t; });
+      await page.click('#panel-close');
+      ok(await page.evaluate(() => !document.querySelector('#ex-clock')), 'v635 창을 닫으면 교환소 시계도 없다');
+      await free(a0); }
     // 현상수배 — 임무 → 현상수배: 카드 셋(그림 · 막대 · 받기) · 하나 끝내면 받기 → 은자가 늘고 「받음」 · 셋 다면 상자 · 빨간 점 · 들판 알림
     { const a0 = await hold();
       await page.evaluate(() => { const g = window.__s2.g; window.__t = { wallet: JSON.stringify(g.S.wallet), bounty: JSON.stringify(g.S.bounty || null) }; g.S.bounty = null; });
@@ -484,6 +515,44 @@ const ok = (c, m, x = '') => { console.log(`  ${c ? '✓' : '✗ !!'} ${m}${x !=
       ok(/got/.test(v4.chest) && await page.evaluate((t) => (window.__s2.g.S.wallet['ticket:gear'] || 0) - t === 3, tk0), '상자 열기 → 장비 뽑기권 3 · 오늘은 받음', v4.chestTxt);
       await page.evaluate(() => { const g = window.__s2.g, T = window.__t, W = g.S.wallet; g.S.bounty = JSON.parse(T.bounty) || undefined; for (const k of Object.keys(W)) delete W[k]; Object.assign(W, JSON.parse(T.wallet)); delete window.__t; });
       await page.click('#panel-close'); await free(a1); }
+    // v635 우편 — 임무 → 우편: 환영 선물 · 놓친 보상(곧 사라짐 붉게) · 받기 → 지갑 · 모두 받기 → 빈 함 · 빨간 점 · 받을 보상 칸
+    { const a0 = await hold();
+      await page.evaluate(() => { const g = window.__s2.g; window.__t = { wallet: JSON.stringify(g.S.wallet), mail: JSON.stringify(g.S.mail || null) }; g.S.mail = undefined;
+        const m = g.mailPush('missed', '어제 일일 임무 — 못 받은 보상 2개', { exp: 1234, gold: 5678, 'ticket:time': 4 }); m.at = g.now - 12.5 * 86400000; m.exp = g.now + 1.5 * 86400000; });
+      await page.click('.nb[data-tab="town"]');
+      const tabs = await page.evaluate(() => [...document.querySelectorAll('#panel-body .subtabs button')].slice(0, 3).map((b) => b.textContent).join(','));
+      ok(tabs === '오늘,우편,출석', 'v635 우편 — 임무 칸: 오늘 다음 우편', tabs);
+      await sub('우편'); await page.waitForSelector('#wb .row.ml-row');
+      const ml = () => page.evaluate(() => { const g = window.__s2.g, rs = [...document.querySelectorAll('#wb .row.ml-row')], W = g.S.wallet;
+        return { n: rs.length, head: document.querySelector('#wb .card h3')?.textContent || '', all: !!document.querySelector('#wb .row.ml-all'), names: rs.map((r) => r.querySelector('.name').textContent), when: rs.map((r) => r.querySelector('.ml-when')?.textContent || ''),
+          soon: rs.map((r) => !!r.querySelector('.ml-soon')), chips: rs.map((r) => r.querySelectorAll('.ms-chip').length), gold: rs.map((r) => r.querySelector('.ms-chip[data-k="gold"] b')?.textContent || ''),
+          icons: rs.filter((r) => r.querySelector('.ico img')).length, empty: document.querySelector('#wb .ml-empty')?.textContent || '', emptyImg: !!document.querySelector('#wb .ml-empty img'),
+          tk: W['ticket:gear'] || 0, st: W['item:stone'] || 0, can: g.mailCan(), dot: !!document.querySelector('.nb[data-tab="town"]')?.classList.contains('dot-on'), rc: !document.getElementById('rc').classList.contains('hidden'),
+          toast: document.getElementById('toast')?.textContent || '', bad: (/undefined|NaN|null|\[object Object\]/.exec(document.getElementById('wb').textContent) || [''])[0] }; });
+      const v0 = await until(ml, (v) => v.n === 2 && v.icons === 2);
+      ok(v0.n === 2 && v0.all && /받을 우편 2/.test(v0.head) && /14일/.test(v0.head) && v0.names[0] === '어제 일일 임무 — 못 받은 보상 2개' && v0.names[1] === '우편함이 생겼어요' && v0.icons === 2 && !v0.bad, '우편 — 두 통(나중 것부터) · 모두 받기 줄 · 편지 그림', JSON.stringify(v0));
+      ok(/^오늘 · 14일 남음$/.test(v0.when[1]) && /^12일 전 · 2일 남음$/.test(v0.when[0]) && !v0.soon[1] && v0.soon[0] && v0.chips[1] === 2 && v0.chips[0] === 3 && v0.gold[0] === '5678', '우편 — 언제 · 남은 날(이틀 이하 붉게) · 보상 칩(은자 그대로)', JSON.stringify([v0.when, v0.soon, v0.chips, v0.gold]));
+      ok(v0.dot && v0.rc, '우편이 있으면 임무에 빨간 점 · 받을 보상 칸', `${v0.dot} ${v0.rc}`);
+      await page.screenshot({ path: path.join(OUT, `s2-mail-${W}.png`) });
+      await page.click('#wb .row.ml-row:has(.name:text-is("우편함이 생겼어요")) .btn');
+      const v1 = await until(ml, (v) => v.n === 1);
+      ok(v1.n === 1 && v1.tk === v0.tk + 5 && v1.st === v0.st + 30 && /우편 받음/.test(v1.toast) && /장비 뽑기권 \+5/.test(v1.toast), '받기 → 장비 뽑기권 5 · 강화석 30 · 알림', `${v0.tk}→${v1.tk} · ${v1.toast}`);
+      await page.click('#wb .row.ml-all .btn');
+      const v2 = await until(ml, (v) => v.n === 0 && !!v.empty);
+      ok(v2.n === 0 && !v2.all && /우편이 없어요/.test(v2.empty) && v2.emptyImg && v2.can === 0 && /받을 우편 0/.test(v2.head) && /우편 1통 받음 — 은자 \+5678 · 시간 티켓 \+4 · 경험치 \+1234/.test(v2.toast), '모두 받기 → 빈 함(흐린 편지) · 알림에 경험치', `${v2.empty} · ${v2.toast}`);
+      await page.screenshot({ path: path.join(OUT, `s2-mail-empty-${W}.png`) });
+      // 받을 보상 → 모두 받기도 우편을 받는다
+      await page.evaluate(() => { window.__s2.g.mailPush('gift', '시험 선물', { 'item:stone': 7 }); });
+      await page.click('#panel-close'); await page.waitForTimeout(1100);
+      await page.click('#rc'); await page.waitForSelector('#modal:not(.hidden) .rc-r');
+      const rc = await page.evaluate(() => [...document.querySelectorAll('#modal .rc-r span')].map((x) => x.textContent));
+      const s0 = await page.evaluate(() => window.__s2.g.S.wallet['item:stone'] || 0);
+      await page.click('#modal .btn:text-is("모두 받기")'); await page.waitForTimeout(200);
+      const s1 = await page.evaluate(() => ({ st: window.__s2.g.S.wallet['item:stone'] || 0, can: window.__s2.g.mailCan() }));
+      ok(rc.includes('우편') && s1.can === 0 && s1.st >= s0 + 7, '받을 보상 칸에 「우편」 · 모두 받기가 우편도 받는다', `${rc.join(',')} · 돌 ${s0}→${s1.st}`);
+      if (await page.isVisible('#modal:not(.hidden)')) await page.click('#modal .btn:text-is("닫기")').catch(() => {});
+      await page.evaluate(() => { const g = window.__s2.g, T = window.__t, Wl = g.S.wallet; g.S.mail = JSON.parse(T.mail) || undefined; for (const k of Object.keys(Wl)) delete Wl[k]; Object.assign(Wl, JSON.parse(T.wallet)); delete window.__t; });
+      await free(a0); }
     // v616 무한 탑 — 던전 → 무한 탑: 탑 그림(지금 층 금빛 · 깬 층 · 위 다섯 층 · 10층마다 상자) · 지금 층 · 단추 둘 · 이정표 상자 받기
     { const a0 = await hold();
       await page.evaluate(() => { const g = window.__s2.g; window.__t = { wallet: JSON.stringify(g.S.wallet), tower: JSON.stringify(g.S.tower) }; g.S.tower = { best: 18 }; });
@@ -840,7 +909,7 @@ const ok = (c, m, x = '') => { console.log(`  ${c ? '✓' : '✗ !!'} ${m}${x !=
       await page.click('#wb .row:has-text("자동 성장") .btn'); await page.waitForTimeout(200); await page.click('#panel-close');
       for (let k = 0; k < 6; k++) { await page.evaluate(() => { const g = window.__s2.g; if (g.bossFight) g.endChallenge(false); window.__s2.agTest(); }); await page.waitForTimeout(800); if ((await page.evaluate(() => window.__s2.g.S.gacha.pulls)) > t0) break; }   // 두목전과 겹치면 다시
       const t1 = await page.evaluate(() => ({ p: window.__s2.g.S.gacha.pulls, w: window.__s2.g.S.wallet['ticket:gear'], b: !!window.__s2.g.bossFight, d: !!window.__s2.g.dg, m: !document.querySelector('#modal').classList.contains('hidden'), o: JSON.parse(localStorage.getItem(Object.keys(localStorage).find((k) => /opt/i.test(k))) || '{}').autoGrow }));
-      ok(t1.p >= t0 + 12 && t1.w === 0, 'v588 자동 성장 켜면 뽑기권을 쓴다(받은 보상 몫까지)', JSON.stringify({ t0, t1 }));
+      ok(t1.p >= t0 + 12 && t1.w < 10, 'v588 자동 성장 켜면 뽑기권을 쓴다(받은 보상 몫까지 · v635 같은 차례에 받은 봇짐 · 우편 몫 몇 장은 다음 차례에)', JSON.stringify({ t0, t1 }));
       await page.click('#b-opt'); await page.waitForTimeout(200); await page.click('#wb .row:has-text("자동 성장") .btn'); await page.waitForTimeout(200); await page.click('#panel-close');
       await page.evaluate((k) => { window.__s2.g.S.wallet['ticket:gear'] = k; }, keep); }   // 뒤 시험(뽑기권 10장)이 쓰게 되돌림
     // v578 절전 — 오래 손대지 않으면 어둡게 · 누르면 돌아옴(사냥은 그대로)
@@ -1016,8 +1085,8 @@ const ok = (c, m, x = '') => { console.log(`  ${c ? '✓' : '✗ !!'} ${m}${x !=
       await page.evaluate(() => { const g = window.__s2.g, d = g.dg; g.huntDungeon(d.limitMs); });   // 남은 시간을 한 번에 — 끝나면 결과
       await page.waitForSelector('#res.open.wbr', { timeout: 5000 }).catch(() => {}); await page.waitForTimeout(1600);
       const rr = await page.evaluate(() => { const L = window.__s2.g.lastDg, R = document.querySelector('#res .wb-res'), r = R?.getBoundingClientRect();
-        return { card: !!R, ms: L?.ms, dmg: L?.dmg, shown: document.querySelector('#res .wb-rdmg b')?.textContent, n: +document.querySelector('#res .wb-rdmg b')?.dataset.n, art: !!document.querySelector('#res .wb-rart')?.naturalWidth, rew: document.querySelectorAll('#res .wb-rrew span').length, fit: !!r && r.top >= 0 && r.bottom <= innerHeight + 1 && r.left >= 0 && r.right <= innerWidth + 1, hud: document.getElementById('contest-hud').classList.contains('wbf') }; });
-      ok(rr.card && rr.ms >= 90000 && rr.dmg > 0 && rr.n === rr.dmg && /^[1-9]/.test(rr.shown || '') && rr.art && rr.rew === 3 && rr.fit && !rr.hud, '월드보스 끝까지 → 결과 카드(넣은 피해 = 엔진 · 받는 것 셋 · 화면 안)', JSON.stringify(rr));
+        return { card: !!R, ms: L?.ms, dmg: L?.dmg, shown: document.querySelector('#res .wb-rdmg b')?.textContent, n: +document.querySelector('#res .wb-rdmg b')?.dataset.n, art: !!document.querySelector('#res .wb-rart')?.naturalWidth, rew: document.querySelectorAll('#res .wb-rrew span').length, blood: [...document.querySelectorAll('#res .wb-rrew span')].some((x) => /^혈전패 \+8$/.test(x.textContent)), fit: !!r && r.top >= 0 && r.bottom <= innerHeight + 1 && r.left >= 0 && r.right <= innerWidth + 1, hud: document.getElementById('contest-hud').classList.contains('wbf') }; });
+      ok(rr.card && rr.ms >= 90000 && rr.dmg > 0 && rr.n === rr.dmg && /^[1-9]/.test(rr.shown || '') && rr.art && rr.rew === 4 && rr.blood && rr.fit && !rr.hud, '월드보스 끝까지 → 결과 카드(넣은 피해 = 엔진 · 받는 것 넷(v635 혈전패 +8) · 화면 안)', JSON.stringify(rr));
       if (await page.isVisible('#res.open')) await page.click('#rout'); await page.waitForTimeout(200); }
     const navs = await page.$$('.nb[data-tab]');
     ok(navs.length === 7 && (await page.$$('#mb .nb')).length === 5, '아래 메뉴 다섯(캐릭터 · 장비 · 무공 · 동료 · 던전) + 위 아이콘(지도 · 임무 · 무림)');
@@ -1336,6 +1405,7 @@ const ok = (c, m, x = '') => { console.log(`  ${c ? '✓' : '✗ !!'} ${m}${x !=
         await page.screenshot({ path: path.join(OUT, `am-${job}-${W}.png`) });
         ok(st.auto && kills >= 4 && st.picks - st0.picks >= 4, `v632 자동 움직임 ${tag} — 20초 홀로 사냥 · 처치 오름`, `처치 ${kills} · 표적 ${st.picks - st0.picks}`);
         ok(turns <= 12, `v632 자동 움직임 ${tag} — 20초에 돌아섬 12번 아래`, turns);
+        for (let w = 0; w < 15 && st.marks <= st0.marks; w++) { await page.waitForTimeout(1000); Object.assign(st, await page.evaluate(() => window.__s2.amState())); }   // 먼 표적은 몹 자리에 따라 늦게 온다 — 15초 더 기다려 본다
         ok(st.marks > st0.marks, `v632 자동 움직임 ${tag} — 먼 표적을 고르면 발밑 꺾쇠`, `${st.marks - st0.marks} · 회피로 좁힘 ${st.dashes - st0.dashes}`);
       } else ok(st.low && st.picks > st0.picks && st.marks === st0.marks, `v632 자동 움직임 ${tag} — 꺾쇠 안 그림(사냥은 그대로)`, `표적 ${st.picks - st0.picks} · 꺾쇠 ${st.marks - st0.marks}`);
       ok(errs.length === 0, `v632 자동 움직임 ${tag} — 콘솔 오류 없음`, errs.slice(0, 2).join(' | '));
@@ -1807,6 +1877,48 @@ const ok = (c, m, x = '') => { console.log(`  ${c ? '✓' : '✗ !!'} ${m}${x !=
       ok(await page.evaluate(() => /(빼면|끼면) [▲▼±]/.test(document.querySelector('#modal .rl2-cl')?.textContent || '')), `v634 ${VW} 동료 자세히 — 빼면 · 끼면 전투력`);
       ok(errs.length === 0, `v634 ${VW} 뜻대로 굴리기 — 콘솔 오류 없음`, errs.slice(0, 3).join(' | '));
       await page.evaluate(() => window.__s2.freeze?.());
+      await ctx.close();
+    }
+  }
+  // v635 기질 — 병기 · 동료 · 영물 고유 기질(칸 · 자세히 · 장착 칸 줄) · 추천 자동 / 직접 고름 · 칸 고르기(끼면 전투력)
+  if (!process.env.ONLY || process.env.ONLY.split(',').includes('trait')) {
+    for (const [W, H] of [[844, 390], [667, 375]]) {
+      const ctx = await b.newContext({ viewport: { width: W, height: H }, deviceScaleFactor: 2, serviceWorkers: 'block' });
+      await ctx.route(/gstatic\.com\/firebasejs/, (r) => r.abort());
+      const page = await ctx.newPage(); page.setDefaultTimeout(10000);
+      const errs = []; page.on('pageerror', (e) => errs.push(e.message)); page.on('console', (m) => { if (m.type() === 'error' && !/Failed to load|ERR_FAILED/.test(m.text())) errs.push(m.text()); });
+      const until = async (fn, pred, ms = 5000) => { const t = Date.now(); for (;;) { const v = await fn(); if (pred(v) || Date.now() - t > ms) return v; await page.waitForTimeout(80); } };
+      await page.goto(BASE, { waitUntil: 'domcontentloaded' });
+      await page.waitForSelector('#modal:not(.hidden)'); await page.click('#modal .btn >> nth=0');
+      await page.waitForTimeout(700);
+      if (await page.isVisible('#modal .btn:has-text("출석")')) { await page.click('#modal .btn:has-text("출석")'); await page.click('#att-ok'); }
+      await page.evaluate(() => { const g = window.__s2.g; g.S.hero.lv = 60; for (const s of ['weapon', 'pal', 'relic']) { g.S.wallet[`ticket:${s}`] = 300; g.pullCollect(s, 300); } g.dirtyStats = true; document.getElementById('modal').classList.add('hidden'); });
+      await page.click('#mb .nb[data-tab="comp"]'); await page.click('#panel-body .subtabs button >> nth=1');
+      const st = () => page.evaluate(() => { const P = window.__s2.g.S.colls.pal, wb = document.getElementById('wb'), tiles = [...wb.querySelectorAll('.coll-tile')];
+        return { slots: wb.querySelectorAll('.tr-sl').length, on: wb.querySelector('.tr-mode button.on')?.textContent || '', man: !!P.man, eq: P.eq.slice(), tt: tiles.filter((t) => /[+−]\d+\.\d%$/.test(t.querySelector('.tr-t')?.textContent || '')).length, n: tiles.length,
+          sl: [...wb.querySelectorAll('.tr-sl small')].map((x) => x.textContent), over: wb.scrollWidth - wb.clientWidth, txt: (/undefined|NaN|null|\[object Object\]/.exec(wb.textContent) || [''])[0] }; });
+      const s0 = await until(st, (v) => v.slots === 5);
+      ok(s0.slots === 5 && s0.on === '추천 자동' && !s0.man && s0.tt === s0.n && s0.n === 25 && s0.sl.every((x) => /[+−]\d+\.\d%$/.test(x)) && s0.over <= 1 && !s0.txt, `v635 기질 ${W} — 동료 칸 25개마다 기질 · 장착 칸 줄 5 · 추천 자동`, JSON.stringify({ ...s0, eq: undefined, sl: s0.sl.slice(0, 2) }));
+      // 안 낀 것 자세히 → 기질 줄 · 끼기 → 칸 고르기(5칸 · 전투력) → 2번 칸
+      const k = await page.evaluate(() => { const P = window.__s2.g.S.colls.pal; return Object.keys(P.own).map(Number).find((x) => !P.eq.includes(x)); });
+      await page.click(`#wb .coll-tile >> nth=${k}`);
+      const pp = await until(() => page.evaluate(() => { const sh = document.querySelector('#modal .sheet'); return { vis: !document.getElementById('modal').classList.contains('hidden'), tr: sh.querySelector('.cl-tr')?.textContent || '', nt: sh.querySelector('.cl-info .note')?.textContent || '', ef: sh.querySelectorAll('.cl-ef > div:not(.cl-h)').length, btns: [...sh.querySelectorAll('.btn-row .btn')].map((x) => x.textContent), sc: sh.scrollHeight - sh.clientHeight }; }), (v) => v.vis);
+      ok(pp.vis && /^기질 · /.test(pp.tr) && /기질은 낄 때만/.test(pp.nt) && pp.ef === 2 && pp.btns.join() === '끼기,닫기' && pp.sc <= 1, `v635 기질 ${W} — 자세히: 기질 줄(지금 · Lv+1 · 각성+1) · 끼기 · 넘침 없음`, JSON.stringify(pp));
+      await page.click('#modal .btn:has-text("끼기")');
+      const pk = await until(() => page.evaluate(() => { const sh = document.querySelector('#modal .sheet'); return { n: sh.querySelectorAll('.tr-pk').length, pw: [...sh.querySelectorAll('.tr-pk b')].filter((b) => /^전투력 (그대로|[+−]\S+)$/.test(b.textContent)).length, sc: sh.scrollHeight - sh.clientHeight, h: sh.querySelector('h2')?.textContent || '' }; }), (v) => v.n === 5);
+      ok(pk.n === 5 && pk.pw === 5 && pk.sc <= 1 && /어느 칸에\?$/.test(pk.h), `v635 기질 ${W} — 칸 고르기: 5칸 · 칸마다 바꾸면 전투력 · 넘침 없음`, JSON.stringify(pk));
+      await page.click('#modal .tr-pk >> nth=1');
+      const s1 = await until(st, (v) => v.man);
+      ok(s1.man && s1.eq[1] === k && s1.on === '직접 고름' && !errs.length, `v635 기질 ${W} — 2번 칸에 낌 → 직접 고름`, JSON.stringify({ eq: s1.eq, k, on: s1.on }));
+      await page.evaluate(() => { const g = window.__s2.g; g.S.wallet['ticket:pal'] = 30; g.pullCollect('pal', 30); });
+      const s2 = await st(); ok(s2.eq[1] === k, `v635 기질 ${W} — 직접 고름이면 뽑아도 그대로`);
+      await page.click('#wb .tr-mode button:text-is("추천 자동")');
+      const s3 = await until(st, (v) => !v.man);
+      ok(!s3.man && s3.on === '추천 자동' && s3.eq.every((x) => x != null), `v635 기질 ${W} — 추천 자동으로 되돌림`, JSON.stringify(s3.eq));
+      if (W === 844) await page.screenshot({ path: path.join(OUT, 'v635-trait-844.png') });
+      await page.click('#panel-body .subtabs button >> nth=0');
+      const w0 = await until(() => page.evaluate(() => document.querySelectorAll('#wb .tr-sl').length), (v) => v === 1);
+      ok(w0 === 1 && !errs.length, `v635 기질 ${W} — 병기 장착 칸 하나 · 콘솔 오류 없음`, errs.slice(0, 3).join(' | '));
       await ctx.close();
     }
   }

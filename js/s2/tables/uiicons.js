@@ -9,6 +9,7 @@ export const UI_ICONS = [
   'atk', 'hp', 'def', 'crit', 'scale', 'lock', 'reset', 'skill', 'mastery', 'job', 'title',
   'equip', 'enhance', 'starsoul', 'dismantle', 'shard', 'bag',
   'shake', 'meter', 'dodge', 'cloud', 'key', 'vib', 'screen', 'moon', 'lantern',
+  'fame', 'merit', 'blood',   // v635 교환소 재화
 ];
 export const GLY_ICON = {
   // 뽑기 · 가게
@@ -28,6 +29,8 @@ export const GLY_ICON = {
   '裝': 'equip', '强': 'enhance', '鍊': 'enhance', '魂': 'starsoul', '分': 'dismantle', '片': 'shard', '解': 'bag', '…': 'bag',
   // 설정
   '震': 'vib', '搖': 'shake', '測': 'meter', '避': 'dodge', '雲': 'cloud', '碼': 'key', '全': 'screen', '畵': 'screen', '眠': 'moon', '燈': 'lantern',
+  // v635 교환소 재화 — 명성 · 공적 · 혈전패
+  '譽': 'fame', '勳': 'merit', '血': 'blood',
 };
 // 줄 글자 → [그림 이름('' = 그림 없음), 대신 보일 글자]
 export function uiIcon(gly) {

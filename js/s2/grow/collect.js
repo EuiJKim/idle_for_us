@@ -3,6 +3,7 @@
 import { PULL_P, PULL_PITY, PULL_TEN_FLOOR } from '../tables/option.js';
 import { COLLECT, AWAKE_NEED, AWAKE_MAX, AWAKE_STEP_P, TOTAL_AWAKE_P, TOTAL_AWAKE_CAP, COLLECT_LV_MAX, COLLECT_LV_P, collectLvCost } from '../tables/s5.js';
 import { pay } from '../core/cost.js';
+import { TRAIT, TRAIT_GX, TRAIT_AWK_P, TRAIT_LV_P, TRAIT_SYS_P, traitOf } from '../tables/traits.js';
 
 // 종류 번호 → 등급(고정): 종류를 등급별로 나눠 둔다(보 1/10 · 진 2/10 · 정 2/10 · 양 2/10 · 범 3/10)
 export function kindGrade(sys, i) {
@@ -69,3 +70,38 @@ export function collectSources(C) {
   st[D.ownStat] = (st[D.ownStat] || 0) + Math.round(own * mul);
   return [{ src: D.name, stats: st }];
 }
+
+// ── v635 고유 기질(tables/traits.js) — 낄 때만 · 칸 몫 · 「추천 자동」(장착 값 + 기질 무게) · 손으로 끼기(C.man이면 뽑아도 그대로) ──
+export function traitVal(C, k, slot = 0) {
+  const t = TRAIT[traitOf(C.sys, k)], o = C.own[k];
+  if (!t || !o) return 0;
+  const sub = slot > 0 && COLLECT[C.sys].subShare ? COLLECT[C.sys].subShare : 1;
+  return Math.round(t.v * TRAIT_GX[kindGrade(C.sys, k)] / 1000 * (1 + (o.awk * TRAIT_AWK_P) / 1000) * (1 + ((o.lv - 1) * TRAIT_LV_P) / 1000) * TRAIT_SYS_P[C.sys] / 1000 * sub);
+}
+export function traitSources(C) {
+  const st = {};
+  C.eq.forEach((k, i) => { if (k == null) return; const t = TRAIT[traitOf(C.sys, k)], v = traitVal(C, k, i); if (t && v) st[t.stat] = (st[t.stat] || 0) + v; });
+  return Object.keys(st).length ? [{ src: `${COLLECT[C.sys].name} 기질`, stats: st }] : [];
+}
+// 섞은 값(주 칸 기준) — 장착 층 값 + 기질 × 무게
+export function blendVal(C, k) {
+  const o = C.own[k]; if (!o) return -1;
+  const D = COLLECT[C.sys], t = TRAIT[traitOf(C.sys, k)];
+  return D.equip[kindGrade(C.sys, k)] * (1 + (o.awk * AWAKE_STEP_P) / 1000) * (1 + (o.lv * COLLECT_LV_P) / 1000) + (t ? traitVal(C, k, 0) * t.w : 0);
+}
+export function autoEquipBest(C) {
+  const order = Object.keys(C.own).map(Number).sort((a, b) => blendVal(C, b) - blendVal(C, a) || a - b);
+  C.eq = C.eq.map((_, i) => order[i] ?? null);
+}
+export const isManual = (C) => !!C.man;
+// 칸 slot에 k를 낀다(다른 칸에 있으면 자리를 바꾼다) · k=null이면 뺀다 → 직접 고름으로
+export function equipAt(C, slot, k) {
+  if (slot < 0 || slot >= C.eq.length || (k != null && !C.own[k])) return false;
+  const at = k == null ? -1 : C.eq.indexOf(k);
+  if (at === slot) return false;
+  if (at >= 0) C.eq[at] = C.eq[slot];
+  C.eq[slot] = k;
+  C.man = true;
+  return true;
+}
+export function setAutoEquip(C, on) { if (on) { delete C.man; autoEquipBest(C); } else C.man = true; return true; }

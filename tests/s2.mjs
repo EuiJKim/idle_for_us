@@ -1860,6 +1860,61 @@ console.log('\n=== v634 강함 진맥 — 표준 무인 층별 견줌 ===');
   const g3 = mk(1, 1); ok(PZ.pulse(g3).rows.every((r) => r.k !== 'adv' && r.k !== 'mastery'), 'Lv 1 — 아직 없는 층(전직 · 마스터리)은 줄이 없다');
 }
 
+console.log('\n=== v635 병기 · 동료 · 영물 고유 기질 · 손으로 끼기 ===');
+{
+  const TR = await import('../js/s2/tables/traits.js'), GM = await import('../js/s2/game.js');
+  const T0 = 1.8e12;
+  // 표: 종류마다 기질 하나 · 있는 스탯 · 모든 기질이 어딘가에 쓰인다
+  const bad = GM.COLLECTS.flatMap((s) => Array.from({ length: S5T.COLLECT[s].kinds }, (_, k) => [s, k]).filter(([s2, k]) => !TR.TRAIT[TR.traitOf(s2, k)]));
+  ok(!bad.length && GM.COLLECTS.every((s) => TR.TRAIT_OF[s].length === S5T.COLLECT[s].kinds), '종류마다 기질 하나(20 · 25 · 30)', JSON.stringify(bad));
+  ok(Object.values(TR.TRAIT).every((t) => SS.STATS[t.stat]) && Object.keys(TR.TRAIT).every((id) => GM.COLLECTS.some((s) => TR.TRAIT_OF[s].includes(id))), '기질 스탯은 STATS에 있고 14가지가 모두 쓰인다');
+  // 값: 등급 · 각성 · 레벨 · 칸 몫
+  const C = CL.newCollect('weapon'); C.own[0] = { n: 1, awk: 0, lv: 1 }; C.own[19] = { n: 1, awk: 0, lv: 1 };
+  ok(CL.traitVal(C, 0) === 150 && CL.traitVal(C, 19) === 35, '보품 천뢰신검 무력화 +15% · 범품 새총 은자 +3.5%', `${CL.traitVal(C, 0)} ${CL.traitVal(C, 19)}`);
+  C.own[0].awk = 5; C.own[0].lv = 30; ok(CL.traitVal(C, 0) === Math.round(150 * 1.5 * 1.29), '각성 5 · Lv30 → ×1.5 × 1.29', CL.traitVal(C, 0));
+  const P2 = CL.newCollect('pal'); P2.own[0] = { n: 1, awk: 0, lv: 1 }; ok(CL.traitVal(P2, 0, 0) === 90 && CL.traitVal(P2, 0, 1) === 31, '동료 주 칸 100% · 부 칸 35%(90 → 31)');
+  const R2 = CL.newCollect('relic'); R2.own[0] = { n: 1, awk: 0, lv: 1 }; ok(CL.traitVal(R2, 0) === 30, '영물은 60%(칸 셋)');
+  ok(CL.traitSources(C).length === 0, '안 끼면 기질 없음(보유 효과만)');
+  C.eq[0] = 0; ok(CL.traitSources(C)[0].stats.stunGg === CL.traitVal(C, 0), '끼면 그 스탯으로');
+  // 끝까지 키워도 작게
+  const maxOne = (s) => Math.round(Math.max(...Object.values(TR.TRAIT).map((t) => t.v)) * 1.5 * 1.29 * TR.TRAIT_SYS_P[s] / 1000);
+  ok(maxOne('weapon') <= 500 && TR.TRAIT.crit.v * 1.5 * 1.29 * (1 + 0.35 * 4) <= 120 && TR.TRAIT.boss.v * 1.5 * 1.29 <= 100, '끝까지 키워도: 두목 피해 한 칸 ≤ 10% · 동료 치명 5칸 ≤ 12%', `${maxOne('weapon')}`);
+  // 게임: 뽑으면 추천 자동(섞은 값) · 손으로 끼면 뽑아도 그대로 · 추천 자동으로 되돌리기
+  const g = new Game(newGame('sword', T0, 77), T0); g.addExp(EX.cumExp(40)); g.tick(T0);
+  g.S.wallet['ticket:pal'] = 200; g.pullCollect('pal', 100); const P = g.S.colls.pal;
+  const bv = P.eq.map((k) => CL.blendVal(P, k));
+  ok(!CL.isManual(P) && bv.every((v, i) => i === 0 || v <= bv[i - 1]) && Object.keys(P.own).every((k) => P.eq.includes(+k) || CL.blendVal(P, +k) <= Math.min(...bv)), '추천 자동: 섞은 값(장착 값 + 기질 무게) 큰 차례', JSON.stringify(bv.map(Math.round)));
+  const out = Object.keys(P.own).map(Number).find((k) => !P.eq.includes(k)), main0 = P.eq[0];
+  const eqSnap = JSON.stringify(P.eq), pv = g.collPreview('pal', 0, out);
+  ok(pv.pw0 === g.power() && pv.pw1 > 0 && !CL.isManual(P) && JSON.stringify(P.eq) === eqSnap, '미리 보기는 상태를 바꾸지 않는다', JSON.stringify(pv));
+  ok(g.collEquip('pal', 0, out) && P.eq[0] === out && CL.isManual(P) && g.power() === pv.pw1, '손으로 끼기 → 직접 고름 · 미리 본 전투력 그대로');
+  const sw = P.eq[2]; ok(g.collEquip('pal', 0, sw) && P.eq[0] === sw && P.eq[2] === out, '이미 낀 것을 다른 칸에 → 자리 바꿈');
+  g.pullCollect('pal', 100); ok(P.eq[0] === sw && P.eq[2] === out, '직접 고름이면 뽑아도 낀 것 그대로');
+  ok(g.collEquip('pal', 4, null) && P.eq[4] === null && !g.collEquip('pal', 9, out) && !g.collEquip('pal', 0, 999), '빼기 · 없는 칸/없는 것은 안 됨');
+  g.collAuto('pal', true); ok(!CL.isManual(P) && P.eq.every((k) => k != null) && CL.blendVal(P, P.eq[0]) >= CL.blendVal(P, main0), '추천 자동으로 되돌리면 다시 좋은 것부터');
+  // 무공 쿨 기질 → 무공 쿨이 준다(상한 30%)
+  { const f0 = g.hero.fighter(g.sources(), g.palList()), f1 = g.traitKit({ ...f0, st: { ...f0.st, cdr: 100 } }), f2 = g.traitKit({ ...f0, st: { ...f0.st, cdr: 900 } });
+    const k0 = f0.kit.find((k) => k.cdMs), i = f0.kit.indexOf(k0);
+    ok(k0 && f1.kit[i].cdMs === Math.round(k0.cdMs * 0.9) && f2.kit[i].cdMs === Math.round(k0.cdMs * 0.7), '무공 쿨 −10% · 상한 −30%', `${k0?.cdMs} → ${f1.kit[i]?.cdMs} / ${f2.kit[i]?.cdMs}`); }
+  // 싸움: 평타 옆 하나 더 · 처치 회복 · 무력화 게이지
+  { const run = (st) => { const H = refPlayer(60, 'sword'); H.kit = []; Object.assign(H.st, st); const F = new SideFight(sideRoom(60, 4), H, 5); F.run(30000); return F; };
+    const a = run({}), b = run({ splash: 300 });
+    const side = (F) => F.events.filter((e) => e[0] === 'hit' && e[5] === 0 && e[6] === 1).length;
+    ok(side(a) === 0 && side(b) > 10 && b.dmgOut > a.dmgOut, '평타가 옆 적 하나 더(30% 피해 · 무공 없이 평타만)', `${side(a)} → ${side(b)} · 피해 ${a.dmgOut} → ${b.dmgOut}`);
+    const F = run({ killHeal: 50, stunGg: 500 }); F.hero.hp = 100; F.killHeal(); ok(F.hero.hp === 100 + Math.floor(F.hero.st.hp * 0.05), '처치마다 체력 5% 회복');
+    F.hero.st.killHeal = 900; F.hero.hp = 1; F.killHeal(); ok(F.hero.hp === 1 + Math.floor(F.hero.st.hp * TR.KILL_HEAL_CAP / 1000), '처치 회복 상한 10%');
+    ok(F.stunAdd(100) === 150 && a.stunAdd(100) === 100, '무력화 게이지 +50%'); }
+  // 크기: 키운 상태에서 기질을 빼면 전투력이 얼마나 주나(작게)
+  { const h = new Game(newGame('sword', T0, 78), T0); h.addExp(EX.cumExp(60)); h.tick(T0);
+    for (const s of GM.COLLECTS) { h.S.wallet[`ticket:${s}`] = 400; h.pullCollect(s, 400); }
+    const p1 = h.power(), src0 = h.sources; h.sources = () => src0.call(h).filter((x) => !/기질$/.test(x.src)); const p0 = h.power(); h.sources = src0;
+    ok(p1 > p0 && p1 / p0 < 1.12, '뽑기 400번씩 · 자동 — 기질이 더하는 전투력 < 12%', `${p0} → ${p1} (+${((p1 / p0 - 1) * 100).toFixed(1)}%)`); }
+  // 옛 세이브 · 저장 → 불러오기(직접 고름 그대로)
+  { const h = new Game(newGame('sword', T0, 79), T0); h.S.wallet['ticket:relic'] = 30; h.pullCollect('relic', 30); const R = h.S.colls.relic, k = Object.keys(R.own).map(Number).find((x) => !R.eq.includes(x)) ?? R.eq[2];
+    h.collEquip('relic', 1, k); const b = Game.load(h.save(), h.now); ok(b.S.colls.relic.man === true && b.S.colls.relic.eq[1] === k, '저장 → 불러오기: 직접 고름 · 낀 것 그대로');
+    const old = new Game(newGame('sword', T0, 80), T0); let err = ''; try { old.pullCollect('weapon', 5); old.power(); old.hunt(2000); } catch (e) { err = e.message; } ok(!err && !CL.isManual(old.S.colls.weapon), '옛 세이브(man 없음) = 추천 자동', err); }
+}
+
 console.log('\n=== v610 창 줄 그림 아이콘 ===');
 {
   const UI = await import('../js/s2/tables/uiicons.js');
@@ -1940,6 +1995,56 @@ console.log('\n=== v634 차림 셋 — 장비 · 무공 · 동료를 한 벌로 
   const g3 = mk(74), P3 = g3.S.colls.pal; g3.outfitSave(0); const w1 = P3.eq[1]; g3.S.outfit.sets[0].coll.pal = [999, w1, w1, null, null]; g3.outfitLoad(0);
   const nn = P3.eq.filter((k) => k != null);
   ok(P3.eq.every((k) => k == null || P3.own[k]) && new Set(nn).size === nn.length && P3.eq[1] === w1 && nn.length === Math.min(5, Object.keys(P3.own).length), '동료: 없는 것 · 겹친 것은 빼고 좋은 것부터 채움', P3.eq.join());
+}
+
+console.log('\n=== v635 교환소 — 명성 · 공적 · 혈전패 ===');
+{
+  const XT = await import('../js/s2/tables/exchange.js');
+  const T0 = 1.8e12, g = new Game(newGame('sword', T0, 11), T0); g.addExp(EX.cumExp(30)); g.tick(T0);
+  const coin = (c) => g.S.wallet[XT.EX_CUR[c].key] || 0;
+  ok(XT.EX_IDS.join() === 'fame,merit,blood' && XT.EX_IDS.every((c) => XT.EXCHANGE[c].length >= 4 && XT.EXCHANGE[c].every((x) => x.price > 0 && x.limit >= 1 && Object.keys(x.give).every((k) => XT.EX_GIVE_NAME[k]))), '재화 셋 · 진열대마다 넷 이상 · 값 · 주간 한도 · 이름');
+  ok(XT.EX_EARN.fame.week.length === ON.PVP_TIERS.length, '명성 주간 보상은 대결 등급 수만큼', XT.EX_EARN.fame.week.length);
+  // 처음: 재화 0 · S.ex 없음(옛 세이브와 같음) → 상태를 물으면 생긴다
+  ok(!g.S.ex && XT.EX_IDS.every((c) => g.exCoin(c) === 0) && g.exState('fame').every((x) => !x.can && x.left === x.limit) && g.S.ex?.wk === weekKey(g.now), '처음 0 · 상태를 물으면 이번 주 기록이 생긴다');
+  // 대결 — 이기면 12 · 지면 5
+  const r = [0, 1, 2, 0, 1].map((i) => g.pvpFight(i)), fame = r.reduce((a, x) => a + (x.win ? XT.EX_EARN.fame.win : XT.EX_EARN.fame.lose), 0);
+  ok(r.every(Boolean) && r.every((x) => x.fame === (x.win ? 12 : 5)) && coin('fame') === fame, '대결 한 판마다 명성(이김 12 · 짐 5)', `${r.filter((x) => x.win).length}승 · 명성 ${coin('fame')}`);
+  const fr = g.pvpFriendly({ uid: 'B', name: '벗', score: 1000, f: JSON.parse(g.pvpDeck()) }); ok(coin('fame') === fame, '친선 대결은 명성 없음', fr ? 'ok' : 'null');
+  // 월드보스 — 한 번에 8
+  const w = [1, 2, 3].map(() => g.wbossFight());
+  ok(w.every(Boolean) && coin('blood') === 3 * XT.EX_EARN.blood.try && g.lastDg.blood === XT.EX_EARN.blood.try, '월드보스 한 번마다 혈전패 8', coin('blood'));
+  const b0 = coin('blood'), wr = g.claimWbWeek(5, 2); ok(wr && wr.blood === 45 && coin('blood') === b0 + 45 && g.claimWbWeek(5, 2) === null, '지난주 월드보스 2위 → 혈전패 45 · 한 번', wr?.blood);
+  ok(g.exWbRank(1) === 60 && g.exWbRank(100) === 15 && g.exWbRank(9999) === 10 && g.exWbRank(0) === 0, '순위 → 혈전패(1위 60 · 100위 15 · 그 밖 10)');
+  const b1 = coin('blood'), cr = g.wbCommunityClaim(300000); ok(cr && cr.n === 2 && cr.blood === 20 && coin('blood') === b1 + 20 && g.wbCommunityClaim(300000) === null, '공동 토벌 두 단계 → 혈전패 20', cr?.blood);
+  // 문파 — 출석 15 · 토벌 단계마다 10 · 수련 40 (문파가 없으면 없음)
+  ok(g.guildCheckin() === null && coin('merit') === 0, '문파가 없으면 공적 없음');
+  g.setGuild('ABC234'); const gc = g.guildCheckin(); ok(gc && gc.merit === 15 && coin('merit') === 15, '문파 출석 → 공적 15');
+  const gr = g.graidClaim(1e15, 30); ok(gr && gr.merit === gr.n * 10 && coin('merit') === 15 + gr.merit, '문파 토벌 단계 보상 → 단계마다 공적 10', `${gr?.n}단계`);
+  const m1 = coin('merit'), gt = g.gtrainClaim(999, 1); ok(gt && gt.merit === 40 && coin('merit') === m1 + 40, '문파 수련 보상 → 공적 40');
+  // 지난주 대결 등급 보상 → 명성
+  g.S.pvp.lastWk = weekKey(g.now) - 7; g.S.pvp.lastBest = 99999; g.S.pvp.lastGot = null; const f0 = coin('fame'), pw = g.claimPvpWeek();
+  ok(pw && pw.fame === XT.EX_EARN.fame.week.at(-1) && coin('fame') === f0 + pw.fame, '지난주 대결 최고 등급 → 명성 60', pw?.fame);
+  // 바꾸기 — 값 · 한도 · 모자라면 아무것도 안 바뀜 · 난수를 쓰지 않는다
+  const rs = JSON.stringify(g.rng), t0 = g.S.wallet['ticket:gear'] || 0, fh = coin('fame');
+  const b = g.exBuy('fame', 'gear', 2); ok(b && b.paid === 80 && coin('fame') === fh - 80 && g.S.wallet['ticket:gear'] === t0 + 2 && JSON.stringify(g.rng) === rs, '명성 80 → 장비 뽑기권 2 · 난수 그대로');
+  ok(g.exBuy('fame', 'gear', 4) === null && g.exState('fame').find((x) => x.id === 'gear').left === 3, '주간 한도를 넘으면 하나도 안 바꿈(남은 3)');
+  ok(g.exBuy('fame', 'nope') === null && g.exBuy('nope', 'gear') === null && g.exBuy('fame', 'gear', 0) === null && g.exBuy('fame', 'gear', NaN) === null, '없는 것 · 0개 · NaN은 거절');
+  g.S.wallet['coin:blood'] = 10; const w1 = JSON.stringify(g.S.wallet);
+  ok(g.exBuy('blood', 'restore') === null && JSON.stringify(g.S.wallet) === w1 && !g.exState('blood').find((x) => x.id === 'restore').can, '혈전패가 모자라면 아무것도 안 바뀜');
+  g.S.wallet['coin:merit'] = 1000; const h0 = g.S.wallet['item:heart'] || 0, mb = g.exBuy('merit', 'heart', 5);
+  ok(mb && g.S.wallet['item:heart'] === h0 + 10 && g.exBuy('merit', 'heart') === null, '공적 → 심법 구슬 2 × 5 · 다 바꾸면 품절');
+  // 주가 바뀌면 한도는 새로 · 재화는 넘어간다
+  const keep = coin('merit'); g.tick(g.now + 7 * 86400e3);
+  ok(g.exState('merit').find((x) => x.id === 'heart').left === 5 && coin('merit') === keep && g.S.ex.wk === weekKey(g.now), '다음 주: 한도 새로 · 남은 공적 그대로', keep);
+  // 저장 → 불러오기(서명) · 옛 세이브(ex 없음)
+  const L2 = Game.load(g.save(), g.now); ok(L2.signed && L2.exCoin('merit') === keep && L2.exState('merit')[0].left === L2.exState('merit')[0].limit, '저장 → 불러오기: 재화 · 이번 주 기록');
+  const old = new Game(newGame('bow', T0, 3), T0); delete old.S.ex; ok(old.exState('blood').length === XT.EXCHANGE.blood.length && old.exCoin('blood') === 0, '옛 세이브도 읽힌다');
+  // 크기: 세 진열대를 한 주에 다 사도 장비 뽑기권으로 치면 열 장 남짓(하루 상점 5장 × 7일보다 훨씬 작다)
+  const tixAll = XT.EX_IDS.reduce((a, c) => a + XT.EXCHANGE[c].reduce((s, x) => s + (x.give['ticket:gear'] || 0) * x.limit, 0), 0);
+  const weekFame = 35 * XT.EX_EARN.fame.win + XT.EX_EARN.fame.week.at(-1), weekBlood = 21 * XT.EX_EARN.blood.try + 60 + 3 * XT.EX_EARN.blood.community;
+  ok(tixAll <= 12 && weekFame <= 500 && weekBlood <= 300, '한 주 최대: 장비 뽑기권 12장 이하 · 명성 500 · 혈전패 300 이하', `뽑기권 ${tixAll} · 명성 ${weekFame} · 혈전패 ${weekBlood}`);
+  // 자동 성장은 교환소에서 사지 않는다(고르는 것은 사람)
+  const g3 = new Game(newGame('sword', T0, 12), T0); g3.addExp(EX.cumExp(30)); g3.tick(T0); g3.S.wallet['coin:fame'] = 999; g3.autoGrow(); ok(g3.S.wallet['coin:fame'] === 999, '자동 성장은 재화를 쓰지 않는다');
 }
 
 console.log('\n=== v613 두목 도감 — 첫 처치 때 · 드러난 수 ===');
@@ -2406,6 +2511,67 @@ console.log('\n=== v634 단약(무료 시간 버프) · 성장 봇짐(레벨 상
     ok(b.lvBoxCan() === 0 && b.S.lvBox.got.length === 4 && o.claim >= 3, '자동 성장이 남은 봇짐을 받는다', o.claim);
     const old = mk(53, 42); delete old.S.lvBox; const ol = Game.load(old.save(), T0);
     ok(ol.lvBoxCan() === 8 && Array.isArray(ol.S.lvBox.got) && ol.lvBoxClaimAll().length === 8, '옛 세이브(봇짐 칸 없음) Lv42: 이미 지난 8개를 받을 수 있다'); }
+}
+
+console.log('\n=== v635 전서구 함(우편) — 선물 · 놓친 임무 · 현상수배 · 대결 주간 · 기한 · 개수 ===');
+{
+  const GM = await import('../js/s2/game.js'), ML = await import('../js/s2/tables/mail.js');
+  const DAYMS = 24 * 3600e3, T0 = (GM.weekKey(1.8e12) + 7) * DAYMS - 9 * 3600e3 + 10 * 3600e3;   // 어느 월요일 10시(한국 시각)
+  const mk = (seed = 5) => { const g = new Game(newGame('sword', T0, seed), T0); g.addExp(EX.cumExp(30)); g.tick(T0); return g; };
+  const sumOf = (g, book, ids) => { const o = {}; for (const id of ids) for (const [k, n] of Object.entries(g.missionRew(book, id))) o[k] = (o[k] || 0) + n; return o; };
+  const same = (a, b) => JSON.stringify(Object.entries(a).sort()) === JSON.stringify(Object.entries(b).sort());
+  // 선물 — 한 번만(저장 · 불러오기 뒤에도) · 옛 세이브도 받는다
+  { const g = mk(), L = g.mailList();
+    ok(L.length === 1 && L[0].kind === 'gift' && same(L[0].rew, ML.MAIL_GIFTS[0].rew) && L[0].exp - L[0].at === 14 * DAYMS, '우편: 새 세이브에 환영 선물 한 통(14일)', JSON.stringify(L[0]));
+    const w0 = { ...g.S.wallet }, r = g.mailClaim(L[0].id);
+    ok(r && g.S.wallet['ticket:gear'] === w0['ticket:gear'] + 5 && g.S.wallet['item:stone'] === (w0['item:stone'] || 0) + 30 && g.mailCan() === 0, '우편: 받으면 지갑에 들어가고 지워진다');
+    ok(g.mailClaim(L[0].id) === null && g.mailClaimAll() === null, '우편: 두 번 못 받음');
+    const b = Game.load(g.save(), T0 + 1000); ok(b.signed && b.mailCan() === 0, '우편: 받은 선물은 불러와도 다시 오지 않는다');
+    const S = JSON.parse(JSON.stringify(g.S)); delete S.mail; const o = new Game(S, T0);
+    ok(o.mailCan() === 1 && o.mailList()[0].title === ML.MAIL_GIFTS[0].title, '우편: 우편함 없는 옛 세이브도 선물을 받는다');
+    const c = Game.load(mk().save(), T0); ok(c.mailCan() === 1, '우편: 안 받은 선물은 불러와도 한 통 그대로'); }
+  // 못 받은 일일 · 주간 임무 → 날 · 주가 바뀔 때 한 통씩(claimMission과 같은 셈)
+  { const g = mk(); g.mailClaimAll(); g.emit('kill', { n: 600 }); for (let i = 0; i < 5; i++) g.emit('login');
+    const dIds = g.books.daily.claimable(), wIds = g.books.weekly.claimable(), dSum = sumOf(g, 'daily', dIds), wSum = sumOf(g, 'weekly', wIds);
+    ok(dIds.includes('d_kill') && dIds.includes('d_login') && wIds.includes('w_login'), '우편: 끝내고 안 받은 임무 준비', `${dIds} · ${wIds}`);
+    // 같은 때 손으로 받았다면 — 은자 · 아이템이 셈과 같다
+    { const h = Game.load(g.save(), g.now), w0 = { ...h.S.wallet }; for (const id of dIds) h.claimMission('daily', id);
+      ok(h.S.wallet.gold - w0.gold === dSum.gold && Object.entries(dSum).filter(([k]) => k !== 'gold' && k !== 'exp').every(([k, n]) => h.S.wallet[k] - (w0[k] || 0) === n), 'missionRew = claimMission이 주는 은자 · 아이템', JSON.stringify(dSum)); }
+    g.tick(T0 + 7 * DAYMS);   // 다음 주 월요일 — 날도 주도 바뀐다
+    const L = g.mailList(), md = L.find((m) => m.title === ML.MAIL_TXT.daily(dIds.length)), mw = L.find((m) => m.title === ML.MAIL_TXT.weekly(wIds.length));
+    ok(L.length === 2 && md && mw && same(md.rew, dSum) && same(mw.rew, wSum), '우편: 일일 · 주간 한 통씩 · 보상 = 그때 받았을 것', JSON.stringify(L.map((m) => m.rew)));
+    ok(mw.rew['ticket:weapon'] === 5 && mw.rew.exp > 0 && mw.rew.gold > 0 && g.books.daily.claimable().every((id) => id === 'd_login'), '우편: 주간은 병기 뽑기권 5 · 경험치 · 은자 / 임무는 새로');
+    const e0 = g.S.hero.exp, lv0 = g.S.hero.lv, w0 = { ...g.S.wallet }, all = g.mailClaimAll();
+    ok(all && all.n === 2 && all.rew.gold === dSum.gold + wSum.gold && g.S.wallet.gold - w0.gold === all.rew.gold && (g.S.hero.lv > lv0 || g.S.hero.exp > e0) && g.mailCan() === 0, '우편: 모두 받기 = 합(경험치도 들어간다)', JSON.stringify(all));
+    g.tick(T0 + 8 * DAYMS); ok(g.mailList().length === 1 && g.mailList()[0].rew.gold === g.missionRew('daily', 'd_login').gold, '우편: 다음 날 — 오늘 접속(받지 않음) 한 통'); }
+  // 현상수배 — 끝내고 안 받은 것 · 상자 → 다음 날 한 통
+  { const g = mk(); g.mailClaimAll(); const B = g.bountySt(); for (const x of B.list) { x.n = x.need; x.done = true; } g.bountyClaim(0);
+    const exp = {}; const add = (k, n) => { exp[k] = (exp[k] || 0) + n; };
+    for (const x of B.list.slice(1)) { add('gold', g.bountyGold()); add(x.rew.k, x.rew.n); } for (const [k, n] of Object.entries(g.bountyChestGive(B))) add(k, n);
+    g.tick(T0 + DAYMS); g.bountySt(); const m = g.mailList().find((x) => x.title === ML.MAIL_TXT.bounty(3));
+    ok(m && same(m.rew, exp), '우편: 현상수배 남은 둘 + 상자 → 한 통(같은 셈)', JSON.stringify(m?.rew));
+    g.mailClaimAll(); g.tick(T0 + 2 * DAYMS); g.bountySt(); ok(!g.mailList().some((x) => x.title.includes('현상수배')), '우편: 아무것도 안 끝낸 날은 현상수배 우편 없음'); }
+  // 대결 주간 — 지난주 보상을 안 받은 채 한 주가 더 지나면(덮어쓰기 전) 우편으로
+  { const g = mk(), wk = GM.weekKey(T0); g.mailClaimAll();
+    g.S.pvp = { score: 1000, day: '', used: 0, log: [], wk: wk - 7, wkBest: 1100, lastWk: wk - 14, lastBest: 1500 };
+    const want = g.pvpTierRew(1500); g.pvpMark(); const m = g.mailList()[0];
+    ok(m && m.kind === 'week' && m.rew['ticket:gear'] === want.tix && m.title === ML.MAIL_TXT.pvp(want.tier), '우편: 못 받은 지난 대결 주간 → 우편', JSON.stringify(m));
+    const r = g.claimPvpWeek(); ok(r && r.wk === wk - 7 && r.tix === g.pvpTierRew(1100).tix && g.mailCan() === 1, '우편: 바로 지난주 것은 대결 창에서 그대로 받는다');
+    g.mailClaimAll(); g.S.pvp.wk = wk - 7; g.pvpMark(); ok(g.mailCan() === 0, '우편: 받은 주는 다시 오지 않는다'); }
+  // 기한 · 개수 · 자동 성장
+  { const g = mk(); const id = g.mailList()[0].id;
+    g.now = T0 + 14 * DAYMS; ok(g.mailCan() === 1, '우편: 14일째까지는 남는다');
+    g.now = T0 + 14 * DAYMS + 1; ok(g.mailCan() === 0 && g.mailClaim(id) === null, '우편: 14일이 지나면 사라진다(보상도)');
+    g.now = T0; for (let i = 0; i < 70; i++) g.mailPush('gift', `t${i}`, { gold: 1 });
+    const L = g.mailList(); ok(L.length === ML.MAIL_MAX && L[0].title === 't69' && L[L.length - 1].title === 't10', '우편: 60통까지 — 오래된 것부터 버린다', `${L.length} · ${L[L.length - 1].title}`);
+    ok(g.mailPush('gift', '빈', { gold: 0 }) === null && g.mailCan() === 60, '우편: 빈 보상은 보내지 않는다');
+    const h = mk(); h.S.wallet['ticket:gear'] = 0; const n0 = h.mailCan(); h.autoGrow(); ok(n0 === 1 && h.mailCan() === 1, '우편: 자동 성장은 우편을 받지 않는다'); }
+  // 결정론 — 우편은 난수를 쓰지 않는다 · 같은 세이브는 같은 우편
+  { const a = mk(7), b = mk(7), r0 = JSON.stringify(a.rng.state()); a.mailList(); a.mailClaimAll(); a.mailMissed('daily'); a.mailBounty(a.bountySt());
+    ok(JSON.stringify(a.rng.state()) === r0, '우편: 난수를 쓰지 않는다');
+    for (const x of [a, b]) { x.emit('kill', { n: 600 }); x.tick(T0 + DAYMS); }
+    ok(JSON.stringify(a.S.mail.list.slice(-1)) === JSON.stringify(b.S.mail.list.slice(-1)), '우편: 같은 놀이는 같은 우편');
+    const src = fs.readFileSync(new URL('../js/s2/tables/mail.js', import.meta.url), 'utf8'); ok(!/Math\.random|Date\.now/.test(src), '우편 표: Math.random · Date.now 없음'); }
 }
 
 console.log('\n=== S0 규칙 ===');

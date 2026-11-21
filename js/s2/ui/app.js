@@ -30,7 +30,8 @@ const ACH = achievements(), achById = new Map(ACH.map((a) => [a.id, a]));
 import { expToNext, mobExp, KILLS_PER_MIN } from '../tables/exp.js';
 import { staminaNow, nextRegenMs } from '../content/idle.js';
 import { buildQueue } from '../content/offline.js';
-import { kindGrade, totalAwake } from '../grow/collect.js';
+import { kindGrade, totalAwake, traitVal, isManual } from '../grow/collect.js';
+import { TRAIT, TRAIT_GX, TRAIT_SYS_P, traitOf } from '../tables/traits.js';
 import { PULL_P, PULL_PITY, PULL_TEN_FLOOR } from '../tables/option.js';
 import { loadLooks, zoneFor, drawHero, drawMob, mobName, mobHeight, preloadMobs, drawPaintedBack, drawPaintedLedge, drawEarth, chbImg, preloadChapter, fxImg, oldImg, tintImg, ULT_ART, SEAL_ART, CUT_ART, BUFF_ART, BOSS_ART, wearCount, filtered } from './look.js';
 import { BOSS_PATS } from '../tables/kit.js';
@@ -46,6 +47,7 @@ import { mobLook } from '../tables/mobs.js';   // v628 서리 — 그림 몹인�
 import { uiIcon } from '../tables/uiicons.js';   // v610 창 줄 그림 아이콘
 import { NEWS, NEWS_V, newsSince } from '../tables/news.js';   // v560 업데이트 소식
 import { ATTEND, ATTEND_DAYS, ATTEND_NAME } from '../tables/attend.js';
+import { EX_CUR, EX_IDS, EX_EARN, EX_GIVE_NAME } from '../tables/exchange.js';   // v635 교환소
 import { PASS, PASS_PTS } from '../tables/pass.js';
 import { SHOP_FREE } from '../tables/shop.js';   // 받을 보상 칸 — 상점 덤(값 없음)   // 강호 패스
 import { WBOSS } from '../tables/online.js';   // 월드보스 하루 횟수 · 싸움 시간
@@ -107,11 +109,11 @@ const guideLabel = (q) => {
 };
 // 임무 창(길잡이 · 일일 · 주간 · 업적 · 오늘) 보상 칩 — 그림 + 수. hunt = 사냥 n분 몫(은자 · 경험치)
 const MS_PIC = { 'ticket:gear': 'pull', 'ticket:weapon': 'pullw', 'ticket:pal': 'pullp', 'ticket:relic': 'pullr', 'item:stone': 'stone', 'ticket:time': 'time', 'ticket:exped': 'exped', hunt: 'silver', gold: 'silver' };
-const MS_GLY = { 'item:restore': '卷', 'item:heart': '心' };
-const msName = (k) => ({ hunt: '사냥', gold: '은자', 'ticket:exped': '원정권', 'item:heart': '심법 구슬' }[k] || ATTEND_NAME[k] || k);
+const MS_GLY = { 'item:restore': '卷', 'item:heart': '心', exp: '經' };
+const msName = (k) => ({ hunt: '사냥', gold: '은자', exp: '경험치', 'ticket:exped': '원정권', 'item:heart': '심법 구슬' }[k] || ATTEND_NAME[k] || k);
 const msGold = (min) => Math.round(min * KILLS_PER_MIN * goldPerMob(g?.S.hero.lv || 1));   // 은자만 주는 n분 몫(길잡이 · 하루 상자) → 지금 레벨 은자
 const msRew = (d, huntKey = 'hunt') => { const o = {}; if (d.huntMin) o[huntKey] = d.huntMin; for (const [k, n] of Object.entries(d.items || {})) o[k] = n; return o; };
-const msChips = (rw) => `<span class="ms-rw">${Object.entries(rw).map(([k, n]) => `<span class="ms-chip" data-k="${esc(k)}" title="${esc(k === 'hunt' ? `사냥 ${n}분 몫(은자 · 경험치)` : msName(k))}">${MS_PIC[k] ? `<img alt="${esc(msName(k))}" loading="lazy" src="art/s2/ui/${MS_PIC[k]}.webp">` : `<i>${MS_GLY[k] || '·'}</i>`}<b>${k === 'hunt' ? `${n}분` : k === 'gold' ? unit(msGold(n)) : `×${unit(n)}`}</b></span>`).join('')}</span>`;
+const msChips = (rw, raw = false) => `<span class="ms-rw">${Object.entries(rw).map(([k, n]) => `<span class="ms-chip" data-k="${esc(k)}" title="${esc(k === 'hunt' ? `사냥 ${n}분 몫(은자 · 경험치)` : msName(k))}">${MS_PIC[k] ? `<img alt="${esc(msName(k))}" loading="lazy" src="art/s2/ui/${MS_PIC[k]}.webp">` : `<i>${MS_GLY[k] || '·'}</i>`}<b>${k === 'hunt' ? `${n}분` : k === 'gold' ? unit(raw ? n : msGold(n)) : k === 'exp' ? unit(n) : `×${unit(n)}`}</b></span>`).join('')}</span>`;
 const msBar = (r, txt) => `<div class="achbar ms-bar"><i style="width:${Math.round(Math.max(0, Math.min(1, r)) * 100)}%"></i><span>${txt}</span></div>`;
 // 받기 전후 지갑을 견줘 받은 것을 종류마다 한 줄로(모두 받기 알림)
 const msGot = (w0, w1) => Object.keys(w1).filter((k) => (k === 'gold' || MS_PIC[k] || MS_GLY[k]) && (w1[k] || 0) > (w0[k] || 0)).sort((a, b) => (a === 'gold' ? -1 : b === 'gold' ? 1 : 0))
@@ -353,7 +355,7 @@ function collPop(sys, k) {
   if (!o) {
     pop(nm, `<div class="cl-d cl-no" style="--gc:${gc}"><div class="cl-art"><img src="${src}" alt="${esc(nm)} 그림자"></div>
       <div class="cl-info"><small>${D.name} · <b class="g${gr}t">${GRADES[gr]}품</b></small><b class="cl-get">뽑기로 얻어요</b>
-      <p class="note">가지기만 해도 ${CL_STAT[D.ownStat]} +${clPm(D.own[gr] * clMul(C))} · 끼면 ${CL_STAT[D.layer]} +${clPm(D.equip[gr] * clMul(C))}</p></div></div>`, [['닫기', null]]);
+      <p class="note">가지기만 해도 ${CL_STAT[D.ownStat]} +${clPm(D.own[gr] * clMul(C))} · 끼면 ${CL_STAT[D.layer]} +${clPm(D.equip[gr] * clMul(C))}</p>${trLine(sys, k, trBase(sys, k), '끼면')}</div></div>`, [['닫기', null]]);
     $('modal').querySelector('.sheet').classList.add('cl-sm');
     return;
   }
@@ -371,13 +373,46 @@ function collPop(sys, k) {
       <div class="cl-lv"><span>Lv <b>${o.lv}</b>/${COLLECT_LV_MAX}</span><span class="cl-awk" aria-label="각성 ${o.awk} / ${AWAKE_MAX}">각성 ${dots} <b>${o.awk}/${AWAKE_MAX}</b></span></div>
       <div class="cl-cp">${awMax ? '각성 끝 · 겹친 것 ' + have + '개' : `겹친 것 <b>${have}</b> / 다음 각성 ${need}개`}<div class="cl-bar"><i style="width:${awMax ? 100 : Math.min(100, Math.round((have / need) * 100))}%"></i></div></div>
       <div class="cl-ef"><div class="cl-h"><span>효과</span><span>지금</span><span>Lv+1</span><span>각성+1</span></div>${rows.map(([l, a, b, c]) => `<div><span>${l}</span><b>${clPm(a)}</b><span>${b == null ? '—' : clPm(b)}</span><span>${c == null ? '—' : clPm(c)}</span></div>`).join('')}</div>
-      <p class="note">${slot >= 0 ? '낀 것' : `안 낌 · 장착 칸 ${C.eq.length}개는 좋은 것부터 저절로 껴요`} · 겹치면 저절로 각성</p></div></div>`;
-  pop(nm, html, [['닫기', null]]);   // 레벨 올리기 재료(정수)를 얻을 곳이 아직 없어 단추는 뺐다 — 보기만
+      ${trRow(C, k, slot)}
+      <p class="note">${slot >= 0 ? '낀 것 · 기질 켜짐' : `안 낌(기질은 낄 때만) · ${isManual(C) ? '직접 고름 — 끼기로 칸을 골라요' : `추천 자동`}`} · 겹치면 저절로 각성</p></div></div>`;
+  pop(nm, html, slot >= 0 ? [['칸 옮기기', () => trPick(sys, k)], ['빼기', act(() => { const r = g.collEquip(sys, slot, null); if (r) toast(`${nm} 뺌 · 직접 고름`); return r; })], ['닫기', null]] : [['끼기', () => trPick(sys, k)], ['닫기', null]]);   // 레벨 올리기 재료(정수)를 얻을 곳이 아직 없어 단추는 뺐다
   rl2CollPv(sys, k);   // v634 끼면 · 빼면 전투력
   const sh = $('modal').querySelector('.sheet'); sh.classList.add('cl-w');
 }
 const clMul = (C) => 1 + Math.min(TOTAL_AWAKE_CAP, totalAwake(C) * TOTAL_AWAKE_P) / 1000;
 const clPm = (v) => `${(v / 10).toFixed(1)}%`;
+// v635 고유 기질 — 글 · 자세히 줄 · 칸 고르기(끼면 전투력 미리 보기) · 장착 칸 줄(추천 자동 / 직접 고름)
+const TR_SHORT = { boss: '두목 피해', mob: '몹 피해', crit: '치명', critDmg: '치명 피해', skill: '무공 피해', basic: '평타 피해', cdr: '무공 쿨', heal: '처치 회복', gold: '은자', exp: '경험치', guard: '받는 피해', pierce: '관통', stun: '무력화', splash: '평타 옆' };
+const trBase = (sys, k) => Math.round(TRAIT[traitOf(sys, k)].v * TRAIT_GX[kindGrade(sys, k)] / 1000 * TRAIT_SYS_P[sys] / 1000);
+const trSign = (sys, k, v) => `${TRAIT[traitOf(sys, k)].neg ? '−' : '+'}${clPm(v)}`;
+const trShort = (sys, k, v) => `${TR_SHORT[traitOf(sys, k)]} ${trSign(sys, k, v)}`;
+const trLine = (sys, k, v, pre) => { const t = TRAIT[traitOf(sys, k)]; return `<p class="cl-tr1"><b>${esc(t.name)}</b> ${esc(t.txt)} ${trSign(sys, k, v)} <small>${pre} · 낄 때만</small></p>`; };
+function trRow(C, k, slot) {
+  const sys = C.sys, o = C.own[k], t = TRAIT[traitOf(sys, k)], sl = Math.max(0, slot), at = (awk, lv) => { const o0 = { ...o }; Object.assign(o, { awk, lv }); const v = traitVal(C, k, sl); Object.assign(o, o0); return v; };
+  return `<div class="cl-tr"><span><b>기질 · ${esc(t.name)}</b><small>${esc(t.txt)}</small></span><b>${trSign(sys, k, at(o.awk, o.lv))}</b><span>${o.lv >= COLLECT_LV_MAX ? '—' : trSign(sys, k, at(o.awk, o.lv + 1))}</span><span>${o.awk >= AWAKE_MAX ? '—' : trSign(sys, k, at(o.awk + 1, o.lv))}</span></div>`;
+}
+const pwTxt = (d) => (d === 0 ? '전투력 그대로' : `전투력 ${d > 0 ? '+' : '−'}${unit(Math.abs(d))}`);
+// 칸 고르기 — 칸마다 지금 낀 것 · 바꾸면 전투력(엔진 power를 가상으로) · 누르면 그 칸에(직접 고름으로)
+function trPick(sys, k) {
+  const C = g.S.colls[sys], D = COLLECT[sys], nm = collName(sys, k), cur = C.eq.indexOf(k);
+  const rows = C.eq.map((x, i) => {
+    const pv = i === cur ? null : g.collPreview(sys, i, k), d = pv ? pv.pw1 - pv.pw0 : 0;
+    const who = x == null ? '<span class="tr-em">비었음</span>' : `<span>${esc(collName(sys, x))}<small>${trShort(sys, x, traitVal(C, x, i))}</small></span>`;
+    return `<button class="tr-pk${i === cur ? ' on' : ''}" data-i="${i}"${i === cur ? ' disabled' : ''}><em>${i + 1}${D.subShare ? (i ? ' 부' : ' 주') : ''}</em>${who}<b class="${d > 0 ? 'up' : d < 0 ? 'dn' : ''}">${i === cur ? '여기 있음' : pwTxt(d)}</b></button>`;
+  }).join('');
+  pop(`${nm} — 어느 칸에?`, `<p class="note tr-pn">${trShort(sys, k, traitVal(C, k, 0))}${D.subShare ? ` · 부 칸 ${Math.round(D.subShare * 100)}%` : ''} · 고르면 직접 고름</p><div class="tr-pks">${rows}</div>`, [['닫기', null]]);
+  $('modal').querySelector('.sheet').classList.add('wide');
+  for (const b of $('modal').querySelectorAll('.tr-pk:not([disabled])')) b.onclick = () => { closeModal(); act(() => { const r = g.collEquip(sys, +b.dataset.i, k); if (r) toast(`${nm} → ${+b.dataset.i + 1}번 칸`); return r; })(); };
+}
+// 장착 칸 줄 — 모음 카드 맨 위
+function trStrip(sys) {
+  const C = g.S.colls[sys], D = COLLECT[sys], auto = !isManual(C), el = document.createElement('div'); el.className = 'tr-eq';
+  el.innerHTML = `<div class="tr-mode" role="group" aria-label="장착 방식"><button class="${auto ? 'on' : ''}" data-m="1" aria-pressed="${auto}">추천 자동</button><button class="${auto ? '' : 'on'}" data-m="0" aria-pressed="${!auto}">직접 고름</button></div>`
+    + `<div class="tr-slots">${C.eq.map((x, i) => `<button class="tr-sl${x == null ? ' empty' : ''}" data-i="${i}" style="--gc:${x == null ? '#666' : CL_GCOL[kindGrade(sys, x)]}">${x == null ? '<em>+</em>' : `<img src="art/s2/coll/${sys}-${x}.webp" alt="" decoding="async">`}<span><b>${x == null ? '비었음' : esc(collName(sys, x))}</b><small>${x == null ? '아래에서 골라 끼기' : trShort(sys, x, traitVal(C, x, i))}</small></span>${D.subShare ? `<u>${i ? '부' : '주'}</u>` : ''}</button>`).join('')}</div>`;
+  for (const b of el.querySelectorAll('.tr-mode button')) b.onclick = act(() => { const on = b.dataset.m === '1'; if (on === !isManual(C)) return true; g.collAuto(sys, on); toast(on ? '추천 자동 — 좋은 것부터 다시 꼈어요' : '직접 고름 — 뽑아도 낀 것을 그대로 둬요'); return true; });
+  for (const b of el.querySelectorAll('.tr-sl')) b.onclick = () => { play('click'); const x = C.eq[+b.dataset.i]; if (x == null) toast('아래 모음에서 골라 「끼기」'); else collPop(sys, x); };
+  return el;
+}
 
 // 기연 — 카드 셋 중 하나. 닫아도 같은 카드가 남는다(다시 굴리지 않음)
 const FATE_VIEW = { gold: ['銀', '은자'], exp: ['經', '경험치'], 'ticket:gear': ['裝', '장비 뽑기권'], 'item:stone': ['石', '강화석'], 'ticket:weapon': ['兵', '병기 뽑기권'], 'ticket:pal': ['友', '동료 뽑기권'], 'ticket:relic': ['靈', '영물 뽑기권'], 'ticket:time': ['時', '시간 티켓'] };
@@ -425,7 +460,7 @@ const TABS = [
   ['comp', '동료', [['병기', 'grow:0'], ['동료', 'grow:1'], ['영물', 'grow:2']]],
   ['dgn', '던전', [['수련동', 'content:0'], ['토벌', 'raid:0'], ['무한 탑', 'content:1'], ['원정', 'content:2'], ['동행', 'party:0']]],
   ['map', '지도', [['스테이지', 'content:3'], ['두목 도감', 'dex:0']]],
-  ['town', '임무', [['오늘', 'today:0'], ['출석', 'attend:0'], ['길잡이', 'mission:0'], ['일일', 'mission:1'], ['주간', 'mission:2'], ['업적', 'ach:0'], ['경지', 'grow:3'], ['강호행', 'grow:4'], ['상점', 'shop:0'], ['패스', 'pass:0'], ['현상수배', 'bounty:0']]],
+  ['town', '임무', [['오늘', 'today:0'], ['우편', 'mail:0'], ['출석', 'attend:0'], ['길잡이', 'mission:0'], ['일일', 'mission:1'], ['주간', 'mission:2'], ['업적', 'ach:0'], ['경지', 'grow:3'], ['강호행', 'grow:4'], ['상점', 'shop:0'], ['교환소', 'shop:1'], ['패스', 'pass:0'], ['현상수배', 'bounty:0']]],
   ['social', '무림', [['서열', 'rank:0'], ['월드보스', 'rival:0'], ['대결', 'rival:1'], ['문파', 'rival:2'], ['대화', 'chat:0']]],
   ['opt', '설정', [['설정', 'mission:3']]],
 ];
@@ -606,7 +641,15 @@ function shopClockOn() {
   shopClockOff(); const d0 = dayKey(now());
   shopClock = setInterval(() => { const el = document.querySelector('#sh-clock'); if (!open || keyOf() !== 'shop:0' || !el) { shopClockOff(); return; } if (dayKey(now()) !== d0) { paintWin(); return; } el.textContent = shopLeftTxt(); }, 1000);
 }
-function closeWin() { shopClockOff(); open = null; gqShown = null; lkPrev = {}; bagIn = false; bagAsk = false; worldStop(); dgStop(); ptStop(); document.body.classList.remove('winopen'); $('panel').classList.remove('open'); $('panel-dim').classList.remove('open'); paintNav(); }
+// v635 교환소 — 지금 보는 재화 · 다음 월요일 0시(한국 시각)까지 남은 시간(창이 교환소일 때만 30초마다 · 주가 바뀌면 다시 그림)
+let exCur = 'fame', exClock = 0;
+function exLeftTxt() { const t = now(), ms = Math.max(0, (weekKey(t) + 7) * 864e5 - 324e5 - t), m = Math.floor(ms / 60000), d = Math.floor(m / 1440), h = Math.floor((m % 1440) / 60); return d ? `${d}일 ${h}시간 남음` : `${h}시간 ${m % 60}분 남음`; }
+function exClockOff() { if (exClock) { clearInterval(exClock); exClock = 0; } }
+function exClockOn() {
+  exClockOff(); const w0 = weekKey(now());
+  exClock = setInterval(() => { const el = document.querySelector('#ex-clock'); if (!open || keyOf() !== 'shop:1' || !el) { exClockOff(); return; } if (weekKey(now()) !== w0) { paintWin(); return; } el.textContent = exLeftTxt(); }, 30000);
+}
+function closeWin() { shopClockOff(); exClockOff(); open = null; gqShown = null; lkPrev = {}; bagIn = false; bagAsk = false; worldStop(); dgStop(); ptStop(); document.body.classList.remove('winopen'); $('panel').classList.remove('open'); $('panel-dim').classList.remove('open'); paintNav(); }
 function paintNav() {
   if (!$('ptabs').children.length) for (const [id, name] of MAIN_TABS) { const b = document.createElement('button'); b.dataset.tab = id; b.innerHTML = `${ico(id)}<span>${name}</span>`; b.onclick = () => { play('click'); openWin(id); }; $('ptabs').append(b); }
   for (const b of document.querySelectorAll('.nb[data-tab], #ptabs button[data-tab]')) b.classList.toggle('active', b.dataset.tab === open);
@@ -638,7 +681,7 @@ function navDots() {
   try { const K = h.kitState(); for (const id of Object.keys(K.lv)) { const sk = skillById(id); if (sk && h.canKitUp(id) && (W.gold || 0) >= kitCost(K.lv[id], sk.tier)[0].n) kitUp++; } } catch { /* 없음 */ }
   const cur = guideCurrent(S.q.guide), canAdv = !!h.canAdvance?.(), tree = g.treePts?.().left || 0, tix = W['ticket:gear'] || 0;
   // v520 빨간 점은 「새로 생긴 할 일」만 — 늘 켜져 있던 것(올릴 무공이 거의 늘 있다)을, 그 창을 한 번 열면 다음 새 일까지 끈다
-  const sig = { char: canAdv || tree > 0 || kitUp ? `${canAdv ? 1 : 0}|${tree}|${kitUp}|${S.hero.adv || 0}` : '', bag: tix >= 10 ? `${Math.floor(tix / 10)}` : '', town: (g.canAttend() ? 'attend' : '') || (g.todayChest().can ? 'today' : '') || (g.shopFreeCan() ? 'shop' : '') || (g.passCan() ? 'pass' : '') || (g.bountyCan() ? `bty${g.bountyCan()}` : '') || (cur && S.q.guide[cur.id]?.done ? cur.id : '') || (g.books.ach.claimable().length ? `ach${g.books.ach.claimable().length}` : '') };
+  const sig = { char: canAdv || tree > 0 || kitUp ? `${canAdv ? 1 : 0}|${tree}|${kitUp}|${S.hero.adv || 0}` : '', bag: tix >= 10 ? `${Math.floor(tix / 10)}` : '', town: (g.canAttend() ? 'attend' : '') || (g.mailCan() ? `mail${g.mailCan()}` : '') || (g.todayChest().can ? 'today' : '') || (g.shopFreeCan() ? 'shop' : '') || (g.passCan() ? 'pass' : '') || (g.bountyCan() ? `bty${g.bountyCan()}` : '') || (cur && S.q.guide[cur.id]?.done ? cur.id : '') || (g.books.ach.claimable().length ? `ach${g.books.ach.claimable().length}` : '') };
   if (open && sig[open] !== undefined) dotSeen[open] = sig[open];
   sig.social = socialTodo();   // v554 무림: 받을 것(주간 보상 · 문파 출석 · 토벌 단계 · 수련)
   const on = { char: !!sig.char && sig.char !== dotSeen.char, bag: (!!sig.bag && sig.bag !== dotSeen.bag) || !!Object.keys(S.gearNew || {}).length, town: !!sig.town, social: !!sig.social, dgn: g.towerMsCan() > 0 };   // v616 탑 이정표 상자
@@ -1267,10 +1310,11 @@ function paintWin() {
     const nOwn = Object.keys(C.own).length;
     const c1 = card(`${D.name} 모음 ${nOwn}/${D.kinds}`, `장착 ${C.eq.filter((x) => x !== null && x !== undefined).length}/${C.eq.length}`);
     const bar = document.createElement('div'); bar.className = 'coll-bar'; bar.innerHTML = `<i style="width:${Math.round((nOwn / D.kinds) * 100)}%"></i>`; c1(bar);
+    if (nOwn) c1(trStrip(sys));   // v635 장착 칸 · 추천 자동 / 직접 고름
     const grid = document.createElement('div'); grid.className = 'coll-grid';
     for (let k = 0; k < D.kinds; k++) {
       const o = C.own[k], gr = kindGrade(sys, k), t2 = document.createElement('div'); t2.className = `coll-tile${o ? '' : ' no'}${C.eq.includes(k) ? ' on' : ''}`; t2.style.setProperty('--gc', GCOL[gr]);
-      t2.innerHTML = `<img src="art/s2/coll/${sys}-${k}.webp" alt="" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('em'),{textContent:'${o ? collGly(sys, k) : '?'}'}))"><b>${esc(collName(sys, k))}</b><small>${GRADES[gr]}품${o ? ` · Lv ${o.lv || 1}${o.awk ? ` · 각성 ${o.awk}` : ''}` : ''}</small>${C.eq.includes(k) ? '<u>장착</u>' : ''}`;
+      t2.innerHTML = `<img src="art/s2/coll/${sys}-${k}.webp" alt="" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('em'),{textContent:'${o ? collGly(sys, k) : '?'}'}))"><b>${esc(collName(sys, k))}</b><small>${GRADES[gr]}품${o ? ` · Lv ${o.lv || 1}${o.awk ? ` · 각성 ${o.awk}` : ''}` : ''}</small><i class="tr-t">${trShort(sys, k, o ? traitVal(C, k, 0) : trBase(sys, k))}</i>${C.eq.includes(k) ? '<u>장착</u>' : ''}`;
       t2.tabIndex = 0; t2.setAttribute('role', 'button'); t2.onclick = () => { play('click'); collPop(sys, k); }; t2.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); t2.click(); } };   // v620 누르면 자세히
       grid.append(t2);
     }
@@ -1630,10 +1674,10 @@ function paintWin() {
       const cw = card('주간 보상', '월요일마다');
       const chip = (n, got) => `<span class="rk-chip ${got ? 'got' : n ? '' : 'none'}"><img src="art/s2/ui/pullw.webp" alt="장비 뽑기권" loading="lazy" decoding="async"><b>${got ? '받음' : n ? `× ${n}` : '—'}</b></span>`;
       const wk = (r, n, got) => { r.classList.add('rk-wk'); if (n || got) r.classList.add(got ? 'got' : 'can'); r.querySelector('.btn').insertAdjacentHTML('beforebegin', chip(n, got)); cw(r); };
-      wk(R('지난주 대결', pr ? `최고 ${pr.best}점 · ${esc(pr.tier)}` : '받을 것 없음(기록이 없거나 받음)', [['받기', act(() => { const r = g.claimPvpWeek(); if (r) { play('rare', 4); toast(`지난주 대결 ${r.tier} — 뽑기권 ${r.tix}`); } return r; }), !pr]], 'i:duel:鬪'), pr?.tix || 0, false);
+      wk(R('지난주 대결', pr ? `최고 ${pr.best}점 · ${esc(pr.tier)}` : '받을 것 없음(기록이 없거나 받음)', [['받기', act(() => { const r = g.claimPvpWeek(); if (r) { play('rare', 4); toast(`지난주 대결 ${r.tier} — 뽑기권 ${r.tix}${r.fame ? ` · 명성 ${r.fame}` : ''}`); } return r; }), !pr]], 'i:duel:鬪'), pr?.tix || 0, false);
       const wr = guildState.wbLast;
       wk(R('지난주 월드보스', wbGot ? `${wbGot}위` : !net.online ? '오프라인' : wr === undefined ? '순위 불러오는 중…' : wr?.me ? `${wr.me}위` : '지난주에 치지 않았어요',
-        [['받기', act(() => { const r = g.claimWbWeek(lastWk, wr?.me); if (r) { play('rare', 4); toast(`지난주 월드보스 ${r.rank}위 — 뽑기권 ${r.tix}`); } return r; }), !!wbGot || !wr?.me]], 'i:wboss:龍'), !wbGot && wr?.me ? g.wbRankReward(wr.me) : 0, !!wbGot);
+        [['받기', act(() => { const r = g.claimWbWeek(lastWk, wr?.me); if (r) { play('rare', 4); toast(`지난주 월드보스 ${r.rank}위 — 뽑기권 ${r.tix}${r.blood ? ` · 혈전패 ${r.blood}` : ''}`); } return r; }), !!wbGot || !wr?.me]], 'i:wboss:龍'), !wbGot && wr?.me ? g.wbRankReward(wr.me) : 0, !!wbGot);
       if (net.online && wr === undefined && !wbGot) { guildState.wbLast = null; net.top('wb', lastWk, 1).then((r) => { guildState.wbLast = r || { me: 0 }; if (open === 'social') paintWin(); }).catch(() => { guildState.wbLast = { me: 0 }; }); }
     }
     const MODES = [['power', '전투력'], ['lv', '레벨'], ['wb', '이번 주 월드보스'], ['guild', '문파']];   // v561 문파 서열
@@ -1701,7 +1745,7 @@ function paintWin() {
       tr.innerHTML = `<div class="wb-rail"><i style="width:${pos(tot)}%"></i></div>${WB_COMMUNITY.map((x, i) => `<div class="wb-stg ${i < got ? 'got' : i < reach ? 'can' : ''}${i === WB_COMMUNITY.length - 1 ? ' end' : ''}" style="left:${pos(x.at)}%"><b>${i + 1}</b><span>${unit(x.at)}</span><em>뽑기권 ${x.tix}${i < got ? ' ✓' : ''}</em></div>`).join('')}`;
       const ts = document.createElement('div'); ts.className = 'wb-tsum'; ts.innerHTML = `이번 주 모든 무인의 점수 합 · ${T ? `<b>${unit(tot)}</b> · ${T.n}명` : net.online ? '불러오는 중…' : '오프라인'}`;
       cc(ts, tr);
-      cc(R('단계 보상', reach > got ? `${reach - got}단계 받을 수 있어요` : reach >= WB_COMMUNITY.length ? '다 받았어요' : `다음 ${unit(WB_COMMUNITY[reach].at)} → 뽑기권 ${WB_COMMUNITY[reach].tix}`, [['받기', act(() => { const r = g.wbCommunityClaim(tot); if (r) { play('rare', 4); toast(`공동 토벌 ${r.n}단계 — 뽑기권 ${r.tix}`); } return r; }), reach <= got]], '衆'));
+      cc(R('단계 보상', reach > got ? `${reach - got}단계 받을 수 있어요` : reach >= WB_COMMUNITY.length ? '다 받았어요' : `다음 ${unit(WB_COMMUNITY[reach].at)} → 뽑기권 ${WB_COMMUNITY[reach].tix}`, [['받기', act(() => { const r = g.wbCommunityClaim(tot); if (r) { play('rare', 4); toast(`공동 토벌 ${r.n}단계 — 뽑기권 ${r.tix}${r.blood ? ` · 혈전패 ${r.blood}` : ''}`); } return r; }), reach <= got]], '衆'));
       if (net.online && (!T || Date.now() - T.at > 30000)) net.wbTotal(wkStr(Date.now())).then((r) => { wbComState = { ...r, at: Date.now() }; if (open === 'social') paintWin(); }).catch(() => { wbComState = { sum: 0, n: 0, at: Date.now() }; });
     }
     // 주간 순위 보상 — 지금 내 자리(알면) · 모르면 친 주엔 적어도 맨 아래 칸
@@ -1788,7 +1832,7 @@ function paintWin() {
     const head = box('card gd-head', `<div class="gd-head-top"><i class="gd-head-ic">${pic('guild')}</i><div class="gd-head-t"><div class="gd-head-n"><b>${esc(G.name)}</b><span class="gd-lv">문파 Lv ${glv}</span><span class="pill ${isOwner ? 'pv-real' : ''}">${isOwner ? '문주' : '문파원'}</span></div><div class="achbar gd-xp"><i style="width:${Math.min(100, (xpIn / GPER) * 100)}%"></i><span>Lv ${glv + 1}까지 ${unit(xpIn)} / ${GPER}</span></div><small>코드 ${G.id} · ${G.memberIds.length}/10명 · 경험치 ${unit(G.exp || 0)}${gb ? ` · 출석 뽑기권 +${gb}` : ''}${I.intro ? ` · 「${esc(I.intro)}」` : ''}</small></div></div>`);
     add(head);
     const chk = R('문파 출석', g.S.gChk === dayKey(now()) ? '오늘은 했어요 · 자정에 새로' : `하루 한 번 — 장비 뽑기권 ${2 + gb}${gb ? `(문파 Lv ${glv} +${gb})` : ''} · 은자 · 문파 경험치 +20${mine ? '(문파 쪽은 오늘 이미)' : ''}`,
-      [['출석', () => { play('click'); const r = g.guildCheckin(glv); if (!r) return; save(); play('coin'); toast(`문파 출석 — 뽑기권 ${r.tix} · 은자 ${unit(r.gold)}`); net.guildCheckin(G).then(() => { guildState.at = 0; guildLoad(); }).catch(() => {}); paintWin(); paintHud(); }, g.S.gChk === dayKey(now())]], '印');
+      [['출석', () => { play('click'); const r = g.guildCheckin(glv); if (!r) return; save(); play('coin'); toast(`문파 출석 — 뽑기권 ${r.tix} · 은자 ${unit(r.gold)}${r.merit ? ` · 공적 ${r.merit}` : ''}`); net.guildCheckin(G).then(() => { guildState.at = 0; guildLoad(); }).catch(() => {}); paintWin(); paintHud(); }, g.S.gChk === dayKey(now())]], '印');
     chk.classList.add('gd-chk'); if (g.S.gChk === dayKey(now())) chk.classList.add('done'); head.append(chk);
     // v550 문파 토벌 — 이번 주 두목 · 남은 체력 막대 · 내 몫 · 도전 · 단계 보상 · 문파원 피해
     { const ch = g.graidBoss(), D = CHBOSS[ch], RD = guildState.raid || { dmg: {}, names: {}, lv: 0 }, tot = Object.values(RD.dmg || {}).reduce((a, b) => a + b, 0);
@@ -1798,7 +1842,7 @@ function paintWin() {
       const top = document.createElement('div'); top.className = 'gr-top gd-boss'; top.innerHTML = `<img src="art/s2/chb/chb${ch}.webp" alt="${esc(D.name)}"><div><div class="gd-ph"><b>${ph.phase + 1}단계</b><small>단계마다 체력 ×1.4 · 월요일에 새 두목</small></div><div class="achbar gd-hp"><i style="width:${Math.min(100, (left / ph.hp) * 100)}%"></i><span>${unit(left)} / ${unit(ph.hp)}</span></div><div class="gd-my">내 몫 <b>${unit(myD)}</b>${myD ? ` · ${myR}위 · ${Math.round((myD / Math.max(1, tot)) * 100)}%` : ' · 아직 안 쳤어요'}</div></div>`; cR(top);
       cR(R('도전', `${GRAID.fightMs / 1000}초 · 이번 주 ${GS2.used}/${GRAID.weekTries}번`, [['도전', () => { play('click'); if (!g.enterDungeon('graid')) toast(g.canDungeon('graid') || '들어갈 수 없어요'); }, !!why]], '討'));
       const can = ph.phase - GS2.claimed;
-      cR(R('단계 보상', can > 0 ? `${can}단계 받을 수 있어요` : `받은 단계 ${GS2.claimed} · 단계마다 뽑기권 ${GRAID.rew.tix}`, [['받기', act(() => { const r = g.graidClaim(tot, lvR); if (r) { play('coin'); toast(`문파 토벌 ${r.n}단계 — 뽑기권 ${r.tix} · 은자 ${unit(r.gold)}`); } return r; }), can <= 0]], '賞'));
+      cR(R('단계 보상', can > 0 ? `${can}단계 받을 수 있어요` : `받은 단계 ${GS2.claimed} · 단계마다 뽑기권 ${GRAID.rew.tix}`, [['받기', act(() => { const r = g.graidClaim(tot, lvR); if (r) { play('coin'); toast(`문파 토벌 ${r.n}단계 — 뽑기권 ${r.tix} · 은자 ${unit(r.gold)}${r.merit ? ` · 공적 ${r.merit}` : ''}`); } return r; }), can <= 0]], '賞'));
       if (rk.length) { const bx = document.createElement('div'); bx.className = 'rk-list gd-rk'; bx.innerHTML = rk.map(([id, v], i) => `<div class="rk-r ${id === net.uid ? 'me' : ''} ${i < 3 ? `top${i + 1}` : ''}" data-uid="${esc(id)}"><b>${i + 1}</b><span>${esc(RD.names?.[id] || '무인')}</span><em>${unit(v)}</em></div>`).join(''); bx.onclick = (e) => { const row = e.target.closest('.rk-r[data-uid]'); if (row) { play('click'); playerCard(row.dataset.uid); } }; cR(bx); }   // v568
     }
     // v552 문파 수련 — 오늘 할 일을 끝낼수록 막대가 찬다 · 다 차면 모두 보상
@@ -1806,7 +1850,7 @@ function paintWin() {
       const cT = card('문파 수련', `내 몫 ${mineP}점 · 월요일에 새로`); B.lastElementChild.classList.add('gd-train');
       const bar = document.createElement('div'); bar.className = 'achbar gd-trbar'; bar.innerHTML = `<i style="width:${Math.min(100, (tot / goal) * 100)}%"></i><span>이번 주 ${unit(tot)} / ${goal}</span>`; cT(bar);
       cT(R('수련 보상', GT.got ? '이번 주는 받았어요' : tot >= goal ? '다 찼어요 — 받기!' : `할 일 하나 = 1점 · 다 차면 뽑기권 ${GTRAIN.rew.tix} · 은자`,
-        [['받기', act(() => { const r = g.gtrainClaim(tot, G.memberIds.length); if (r) { play('rare', 4); toast(`문파 수련 — 뽑기권 ${r.tix} · 은자 ${unit(r.gold)}`); } return r; }), GT.got || tot < goal]], '修'));
+        [['받기', act(() => { const r = g.gtrainClaim(tot, G.memberIds.length); if (r) { play('rare', 4); toast(`문파 수련 — 뽑기권 ${r.tix} · 은자 ${unit(r.gold)}${r.merit ? ` · 공적 ${r.merit}` : ''}`); } return r; }), GT.got || tot < goal]], '修'));
       const rk = Object.entries(TR.pts || {}).sort((a, b) => b[1] - a[1]), mx = Math.max(1, ...rk.map((x) => x[1]));
       if (rk.length) cT(box('gd-trl', rk.map(([id, v]) => `<div class="${id === net.uid ? 'me' : ''}"><span>${esc(TR.names?.[id] || '무인')}</span><i><u style="width:${(v / mx) * 100}%"></u></i><em>${v}</em></div>`).join('')));
     }
@@ -1954,6 +1998,57 @@ function paintWin() {
     c(grid);
     c(note('값은 무인 레벨을 따라 올라요. 다 사도 사냥 두 시간 몫쯤이에요.'));
     shopClockOn();
+  } else if (key === 'mail:0') {
+    // v635 전서구 함(ml-) — 놓친 임무 · 현상수배 · 대결 주간 · 선물 · 14일 지나면 사라진다
+    const ML = g.mailList(), DAYM = 86400000, c = card('우편함', `받을 우편 ${ML.length} · 14일 지나면 사라져요`);
+    const take = (fn, what) => { const w0 = { ...g.S.wallet }, r = fn(); if (!r) return false; play('coin');
+      const t = [msGot(w0, g.S.wallet), r.rew.exp ? `경험치 +${unit(r.rew.exp)}` : ''].filter(Boolean).join(' · '); setTimeout(() => toast(`${what(r)} 받음${t ? ` — ${t}` : ''}`), 0); return true; };
+    if (ML.length) {
+      const sum = {}; for (const m of ML) for (const [k, n] of Object.entries(m.rew)) sum[k] = (sum[k] || 0) + n;
+      const r = R('모두 받기', `${ML.length}통${msChips(sum, true)}`, [['모두 받기', act(() => take(() => g.mailClaimAll(), (x) => `우편 ${x.n}통`))]], 'i:chest:賞');
+      r.classList.add('ms-all', 'ms-can', 'ml-all'); c(r);
+    }
+    for (const m of ML) {
+      const ago = Math.max(0, Math.floor((g.now - m.at) / DAYM)), left = Math.max(1, Math.ceil((m.exp - g.now) / DAYM));
+      const r = R(esc(m.title), `<span class="ml-when">${ago ? `${ago}일 전` : '오늘'} · <em class="${left <= 2 ? 'ml-soon' : ''}">${left}일 남음</em></span>${msChips(m.rew, true)}`, [['받기', act(() => take(() => g.mailClaim(m.id), () => '우편'))]], 'i:letter:郵');
+      r.classList.add('ml-row'); r.dataset.id = String(m.id); c(r);
+    }
+    if (!ML.length) { const e = document.createElement('div'); e.className = 'ml-empty'; e.innerHTML = '<img alt="" src="art/s2/ui/letter.webp"><b>우편이 없어요</b>'; c(e); }
+    c(note('못 받은 일일 · 주간 임무와 현상수배, 지난 대결 주간 보상, 선물이 여기로 와요.'));
+  } else if (key === 'shop:1') {
+    // v635 교환소(ex-) — 명성(대결) · 공적(문파) · 혈전패(월드보스)로 바꾸기 · 물건마다 주간 한도(월요일에 새로) · 남은 재화는 넘어간다
+    //   위: 세 재화 칸(누르면 그 재화 진열대) · 가운데: 버는 곳 한 줄(가기) · 아래: 상점과 같은 물건 카드(값은 그 재화 그림)
+    const C = EX_CUR[exCur] ? exCur : (exCur = 'fame'), CU = EX_CUR[C], have = g.exCoin(C), L = g.exState(C);
+    const c = card('교환소 · 월요일에 새로', `<span class="sh-clock" id="ex-clock">${exLeftTxt()}</span>`);
+    const seg = document.createElement('div'); seg.className = 'seg rk-seg ex-seg'; seg.setAttribute('role', 'tablist');
+    for (const id of EX_IDS) { const X = EX_CUR[id], b = document.createElement('button'); b.className = id === C ? 'on' : ''; b.dataset.cur = id; b.setAttribute('role', 'tab'); b.setAttribute('aria-selected', String(id === C));
+      b.innerHTML = `<img alt="" src="art/s2/ui/${X.icon}.webp">${X.name} <b>${unit(g.exCoin(id))}</b>`; b.onclick = () => { play('click'); exCur = id; paintWin(); }; seg.append(b); }
+    c(seg);
+    const E = EX_EARN[C], how = C === 'fame' ? `대결 이기면 ${E.win} · 지면 ${E.lose} · 지난주 등급 보상 때 ${E.week[0]}~${E.week.at(-1)}`
+      : C === 'merit' ? `문파 출석 ${E.checkin} · 토벌 한 번 ${E.graidTry} · 토벌 단계마다 ${E.graidPhase} · 수련 보상 ${E.gtrain}`
+      : `월드보스 한 번 ${E.try} · 공동 토벌 단계마다 ${E.community} · 지난주 순위 보상 때 ${E.week.at(-1)[1]}~${E.week[0][1]}`;
+    const meNo = C === 'merit' && !g.S.guildId;
+    c(R(`${CU.name} 버는 곳`, meNo ? '문파에 들면 모여요 · 무림 → 문파' : how, [['가기', () => { play('click'); openKey(CU.go); }]], CU.gly));
+    const gv = (give) => Object.entries(give).map(([k, n]) => `${EX_GIVE_NAME[k] || k} ${n}`).join(' · ');
+    const buy = (x, n) => act(() => { const r = g.exBuy(C, x.id, n); if (r) { play('coin'); setTimeout(() => toast(`${gv(r.give)} 받음 · ${CU.name} −${unit(r.paid)}`), 0); } return r; });
+    const EXI = { 'ticket:gear': 'i:pull:裝', 'ticket:weapon': 'i:pullw:兵', 'ticket:pal': 'i:pullp:友', 'ticket:relic': 'i:pullr:靈', 'ticket:time': 'i:time:時', 'ticket:exped': 'i:exped:征', 'item:stone': 'i:stone:石', 'item:restore': 'i:reset:卷', 'item:shard': 'i:shard:片', 'item:heart': 'i:realm:心' };
+    const grid = document.createElement('div'); grid.className = 'sh-grid ex-grid';
+    for (const x of L) {
+      const most = Math.min(x.left, Math.floor(have / x.price)), short = x.left > 0 && have < x.price;
+      const btns = [['바꾸기', buy(x, 1), !x.can]]; if (x.limit > 1) btns.push(['모두', buy(x, Math.max(1, most)), most < 2]);
+      const pips = `<i class="sh-pips" aria-hidden="true">${Array.from({ length: x.limit }, (_, i) => `<b class="${i < x.left ? 'on' : ''}"></b>`).join('')}</i>`;
+      const amt = `<span class="sh-amt" title="${gv(x.give)}">×${unit(Object.values(x.give)[0])}</span><span class="sh-x"> · </span>`;
+      const desc = x.left
+        ? `${amt}<span class="sh-price${short ? ' sh-short' : ''}"><img alt="" src="art/s2/ui/${CU.icon}.webp">${CU.name} ${unit(x.price)}</span><span class="sh-x"> · </span><span class="sh-left">${pips}<em>이번 주 ${x.left}/${x.limit}</em></span>`
+        : `${amt}<span class="sh-done">다 바꿨어요</span><span class="sh-x"> · </span><span class="sh-left">${pips}<em>이번 주 0/${x.limit}</em></span>`;
+      const r = R(x.name, desc, btns, EXI[Object.keys(x.give)[0]] || '·'); r.classList.add('sh-card'); r.dataset.id = x.id;
+      if (!x.left) { r.classList.add('sh-out'); const sp = document.createElement('span'); sp.className = 'sh-stamp'; sp.textContent = '품절'; r.append(sp); }
+      else if (short) r.classList.add('sh-poor');
+      grid.append(r);
+    }
+    c(grid);
+    c(note(`${CU.name}은 ${CU.from}에서 모여요. 쓰지 않은 것은 다음 주로 넘어가요.`));
+    exClockOn();
   } else if (key === 'bounty:0') {
     // 현상수배 — 날마다 사냥 목표 셋(진행 막대 · 보상 · 받기) · 셋 다 끝내면 상자 · 자정에 새로
     const BS = g.bountyState(), gv = (give) => Object.entries(give).map(([k, n]) => `${ATTEND_NAME[k] || k} ${n}`).join(' · ');
@@ -2421,6 +2516,7 @@ function rcList() {
     ['성장 봇짐', g.lvBoxCan(), 'lvbox:0'],   // v634
     ['상점 덤', g.shopFreeCan() ? 1 : 0, 'shop:0'],
     ['하루 상자', g.todayChest().can ? 1 : 0, 'today:0'],
+    ['우편', g.mailCan(), 'mail:0'],
   ].filter((x) => x[1] > 0);
 }
 let rcAt = 0;
@@ -2442,6 +2538,7 @@ function rcClaimAll() {
     n += g.lvBoxClaimAll().length;   // v634 성장 봇짐
     if (g.shopFreeCan() && g.shopBuy(SHOP_FREE)) n++;   // 덤만 — 은자로는 사지 않는다
     if (g.todayChest().can && g.claimToday()) n++;
+    n += g.mailClaimAll()?.n || 0;   // v635 우편도(자동 성장은 받지 않는다)
   }
   if (n) { play('coin'); const t = msGot(w0, g.S.wallet); toast(`보상 ${n}개 받음${t ? ` — ${t}` : ''}`); } else toast('받을 보상이 없어요');
   save(); paintHud(); paintRc(true); paintWin(); return n;
@@ -5076,7 +5173,7 @@ function duelShow(r, again = -1) {
     res.className = `duel-res on ${r.win ? 'win' : 'lose'}`;
     res.innerHTML = `<div class="duel-wl">${r.win ? '승' : '패'}<small>${r.win ? 'WIN' : 'LOSE'}</small></div>
       <div class="duel-vs">${esc(me.name)} <i>vs</i> ${esc(r.opp.name)}</div>
-      ${r.friendly ? '<div class="duel-dd">친선 대결 — 점수 그대로</div>' : `<div class="duel-dd"><b class="${r.d >= 0 ? 'w' : 'l'}">${r.d >= 0 ? '+' : ''}${r.d}</b> 점수 ${s0} → <b>${r.score}</b></div>`}
+      ${r.friendly ? '<div class="duel-dd">친선 대결 — 점수 그대로</div>' : `<div class="duel-dd"><b class="${r.d >= 0 ? 'w' : 'l'}">${r.d >= 0 ? '+' : ''}${r.d}</b> 점수 ${s0} → <b>${r.score}</b>${r.fame ? ` · 명성 <b class="w">+${r.fame}</b>` : ''}</div>`}
       <div class="duel-tr"><span>${esc(T1.name)}${up ? ` <em>${r.d >= 0 ? '오름!' : '내림'}</em>` : ''}</span><div class="duel-tp"><i style="width:${Math.round((up ? (r.d >= 0 ? 0 : 1) : T0.p) * 100)}%"></i></div><span>${T1.next ? `${esc(T1.next)}까지 ${T1.need}` : '최고 등급'}</span></div>
       <div class="duel-acts">${can ? `<button class="btn primary duel-again">다시 <small>${5 - used}번 남음</small></button>` : ''}<button class="btn duel-close">닫기</button></div>`;
     requestAnimationFrame(() => { const b = res.querySelector('.duel-tp i'); if (b) b.style.width = `${Math.round(T1.p * 100)}%`; });
@@ -5268,7 +5365,7 @@ function showWbResult(f) {
       <div class="rtitle">${f.gaveUp ? '물러났어요' : 'WORLD BOSS'}</div>
       <div class="wb-rdmg"><small>넣은 피해</small><b data-n="${f.dmg}">0</b></div>
       <div class="wb-rgrid"><div><small>보스 점수</small><b>${unit(f.score)}</b></div><div><small>한 번 최고</small><b>${fmt(f.best)}</b></div><div><small>이번 주 합</small><b>${fmt(f.total)}</b></div><div><small>싸운 시간</small><b>${(f.ms / 1000).toFixed(0)}초${f.deaths ? ` · 쓰러짐 ${f.deaths}` : ''}</b></div></div>
-      <div class="wb-rrew"><span>강호 패스 <b>+${PASS_PTS.wboss}</b></span><span>공동 토벌 <b>+${unit(f.score)}</b></span><span>이번 주 서열 <b id="wb-rrk">${rkTxt()}</b></span></div>
+      <div class="wb-rrew"><span>강호 패스 <b>+${PASS_PTS.wboss}</b></span><span>공동 토벌 <b>+${unit(f.score)}</b></span><span>이번 주 서열 <b id="wb-rrk">${rkTxt()}</b></span>${f.blood ? `<span>혈전패 <b>+${f.blood}</b></span>` : ''}</div>
       ${f.score >= f.best && f.score > 0 ? '<div class="rnew">이번 주 최고 기록!</div>' : ''}
       <div class="racts"><button class="btn primary rgo" id="rout"><span>사냥터로</span><i class="rbar"></i></button></div>
       <label class="rauto"><input type="checkbox" id="rautochk" ${auto ? 'checked' : ''}> 3초 뒤 자동 진행</label></div></div>`;
@@ -5293,7 +5390,7 @@ function showDgResult(f) {
   R.innerHTML = `<div class="rp">${win ? '<div class="rays"></div>' : ''}
       <div class="rsub">${esc(f.title)}</div>
       <div class="rtitle">${win ? 'DUNGEON CLEAR' : f.gaveUp ? '나왔어요' : '던전 실패'}</div>
-      <div class="rmeta"><span>걸린 시간 <b>${(f.ms / 1000).toFixed(1)}초</b></span><span>처치 <b>${f.kills}</b></span>${f.deaths ? `<span>쓰러짐 <b>${f.deaths}</b></span>` : ''}</div>
+      <div class="rmeta"><span>걸린 시간 <b>${(f.ms / 1000).toFixed(1)}초</b></span><span>처치 <b>${f.kills}</b></span>${f.deaths ? `<span>쓰러짐 <b>${f.deaths}</b></span>` : ''}${f.merit ? `<span>공적 <b>+${f.merit}</b></span>` : ''}</div>
       ${win ? `${extra}<div class="rtiles">${tiles}</div>` : `<div class="rtip">${f.gaveUp ? '입장권은 이미 썼어요.' : '전투력을 올리고 다시 — 장비 강화 · 무공 · 동료'}</div>`}
       <div class="racts">${win ? '' : '<button class="btn" id="rgrow">강해지기</button>'}${chestCan ? '<button class="btn" id="rchest">상자 받기</button>' : ''}<button class="btn primary rgo" id="rout"><span>사냥터로</span><i class="rbar"></i></button></div>
       <label class="rauto"><input type="checkbox" id="rautochk" ${auto ? 'checked' : ''}> 3초 뒤 자동 진행</label></div>`;

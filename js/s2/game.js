@@ -12,10 +12,12 @@ import { goldPerMob, SHARD_PER_TICKET } from './tables/gearstat.js';
 import { LEVEL_MAX, JOB_LV } from './tables/progress.js';
 import { START_PULL_TICKETS, SLOTS } from './tables/gear.js';
 import { START_PULLS } from './tables/s5.js';
+import { CDR_CAP } from './tables/traits.js';
 import { DAILY_DUNGEONS, DAILY_RUNS, JOB_DUNGEON, towerMsFloors, towerMsReward } from './tables/content.js';
 import { GUIDE, DAILY_MISSIONS, WEEKLY_MISSIONS, achievements, guideCurrent } from './tables/missions.js';
 import { JOB_ADV, MASTERY } from './tables/skills.js';
 import { SHOP, SHOP_FREE, shopById } from './tables/shop.js';
+import { EXCHANGE, EX_CUR, EX_EARN, exItem } from './tables/exchange.js';   // v635 교환소
 import { PASS, PASS_PTS, PASS_REWARDS } from './tables/pass.js';
 import { BOUNTY_T, BOUNTY_SLOTS, BOUNTY_REW, BOUNTY_CHEST, bountySeed } from './tables/bounty.js';
 import { ROSTER } from './tables/mobs.js';
@@ -76,6 +78,7 @@ export function lvBoxReward(lv) {
   return { give: r, gear: big ? lvBoxGearGrade(lv) : -1 };
 }
 import { ATTEND, ATTEND_DAYS } from './tables/attend.js';
+import { MAIL_KEEP, MAIL_MAX, MAIL_GIFTS, MAIL_TXT } from './tables/mail.js';
 import { TITLE_EACH, titleByName } from './tables/titles.js';
 import * as GR from './gear/gear.js';
 import * as GC from './gear/gacha.js';
@@ -159,6 +162,7 @@ export class Game {
     return [
       ...GR.gearSources(S.gear, L),
       ...COLLECTS.flatMap((s) => CL.collectSources(S.colls[s])),
+      ...COLLECTS.flatMap((s) => CL.traitSources(S.colls[s])),   // v635 고유 기질(낄 때만)
       ...RM.realmSources(S.realm), ...RM.journeySources(S.journey), ...RM.cosmeticSources(S.cosmetics),
       ...ID.towerSources(S.tower.best),
       ...this.titleSources(),
@@ -174,7 +178,7 @@ export class Game {
   setTitle(nm) { if (nm && !(this.S.titles || []).includes(nm)) return false; this.S.titleOn = nm || null; return true; }
   // 장착한 동료(등급) — 전투에서 따로 친다(v497)
   palList() { const C = this.S.colls.pal; return C.eq.filter((k) => k !== null && k !== undefined).map((k) => ({ g: CL.kindGrade('pal', k), k })); }
-  fighter(bf = true) { return this.hero.fighter(bf ? [...this.sources(), ...this.bfSources()] : this.sources(), this.palList()); }   // v634 bf: 단약 효과까지(전투 · 벌이)
+  fighter(bf = true) { return this.traitKit(this.hero.fighter(bf ? [...this.sources(), ...this.bfSources()] : this.sources(), this.palList())); }   // v634 bf: 단약 효과까지(전투 · 벌이) · v635 기질(쿨)
   power(mode = 'pve') { return power(this.fighter(false), mode); }
   // v547 서열에 올리는 한 줄(규칙 s2_players 칸과 같다 — rank.js PROFILE_KEYS) · 이름은 1~12자
   // v549 문파 — 들어간 문파(코드) · 문파 출석 보상(하루 한 번 · 뽑기권 · 은자). 문파 문서는 서버(옛 게임과 같은 문파 — 계정에 하나)
@@ -189,7 +193,7 @@ export class Game {
     const gold = Math.round(GUILD_CHECKIN.goldMin * KILLS_PER_MIN * goldPerMob(S.hero.lv)), tix = GUILD_CHECKIN.tix + Game.guildBonus(glv);
     S.wallet.gold += gold; S.wallet['ticket:gear'] = (S.wallet['ticket:gear'] || 0) + tix;
     this.emit('guild');
-    return { gold, tix };
+    return { gold, tix, merit: this.exEarn('merit', EX_EARN.merit.checkin) };
   }
   // v550 문파 토벌 — 이번 주 내 도전 수 · 받은 단계 · 이번 주 두목(장 두목 15명 차례)
   graidState() { const S = this.S, wk = weekKey(this.now), R = (S.graid ??= { week: wk, used: 0, claimed: 0 }); if (R.week !== wk) Object.assign(R, { week: wk, used: 0, claimed: 0 }); return R; }
@@ -212,27 +216,27 @@ export class Game {
   // v553 대결 주간 최고 — 점수가 바뀔 때마다 이번 주 최고를 적어 두고, 주가 바뀌면 지난주 것으로 넘긴다
   pvpMark() {
     const P = (this.S.pvp ??= { score: PVP.start, day: '', used: 0, log: [] }), wk = weekKey(this.now);
-    if (P.wk !== wk) { if (P.wk != null && P.wkBest != null) { P.lastWk = P.wk; P.lastBest = P.wkBest; } P.wk = wk; P.wkBest = P.score; }
+    if (P.wk !== wk) { if (P.wk != null && P.wkBest != null) { this.mailPvp(P); P.lastWk = P.wk; P.lastBest = P.wkBest; } P.wk = wk; P.wkBest = P.score; }
     P.wkBest = Math.max(P.wkBest, P.score);
   }
   pvpWeekReward() {
     const P = this.S.pvp; this.pvpMark();
     if (!P || P.lastWk == null || P.lastGot === P.lastWk) return null;
-    const ti = PVP_TIERS.filter((t) => P.lastBest >= t.min).length - 1, tix = WEEK_REW.pvp[Math.max(0, ti)];
-    return { wk: P.lastWk, tier: PVP_TIERS[Math.max(0, ti)].name, best: P.lastBest, tix };
+    return { ...this.pvpTierRew(P.lastBest), wk: P.lastWk, best: P.lastBest, fame: EX_EARN.fame.week[Math.max(0, PVP_TIERS.filter((t) => P.lastBest >= t.min).length - 1)] || 0 };
   }
+  pvpTierRew(best) { const ti = Math.max(0, PVP_TIERS.filter((t) => best >= t.min).length - 1); return { tier: PVP_TIERS[ti].name, tix: WEEK_REW.pvp[ti] }; }
   claimPvpWeek() {
     const r = this.pvpWeekReward(); if (!r) return null;
-    this.S.pvp.lastGot = r.wk; this.S.wallet['ticket:gear'] = (this.S.wallet['ticket:gear'] || 0) + r.tix;
+    this.S.pvp.lastGot = r.wk; this.S.wallet['ticket:gear'] = (this.S.wallet['ticket:gear'] || 0) + r.tix; this.exEarn('fame', r.fame);
     return r;
   }
   // v576 공동 토벌 보상 — 이번 주 합(서버) · 단계마다 한 번
   wbCommunityClaim(total) {
     const S = this.S, wk = weekKey(this.now), C = (S.wbCom ??= { wk, got: 0 }); if (C.wk !== wk) Object.assign(C, { wk, got: 0 });
     const reach = WB_COMMUNITY.filter((x) => total >= x.at).length; if (reach <= C.got) return null;
-    const tix = WB_COMMUNITY.slice(C.got, reach).reduce((a, x) => a + x.tix, 0); C.got = reach;
+    const tix = WB_COMMUNITY.slice(C.got, reach).reduce((a, x) => a + x.tix, 0), got0 = C.got; C.got = reach;
     S.wallet['ticket:gear'] = (S.wallet['ticket:gear'] || 0) + tix;
-    return { n: reach, tix };
+    return { n: reach, tix, blood: this.exEarn('blood', (reach - got0) * EX_EARN.blood.community) };
   }
   wbCommunityGot() { const C = this.S.wbCom; return C && C.wk === weekKey(this.now) ? C.got : 0; }
   // 지난주 월드보스 순위(서버가 센 것) → 뽑기권 · 그 주에 한 번
@@ -243,7 +247,7 @@ export class Game {
     const tix = this.wbRankReward(rank); got[wk] = rank;
     for (const k of Object.keys(got)) if (Object.keys(got).length > 8 && k !== String(wk)) delete got[k];   // 오래된 것 정리
     S.wallet['ticket:gear'] = (S.wallet['ticket:gear'] || 0) + tix;
-    return { wk, rank, tix };
+    return { wk, rank, tix, blood: this.exEarn('blood', this.exWbRank(rank)) };
   }
   // v552 문파 수련 — 이번 주 내 점수(날마다 끝낸 오늘 할 일 개수의 합) · 목표를 채운 주에 보상 한 번
   gtrainState() { const S = this.S, wk = weekKey(this.now), T = (S.gtrain ??= { week: wk, days: {}, got: false }); if (T.week !== wk) Object.assign(T, { week: wk, days: {}, got: false }); return T; }
@@ -258,7 +262,7 @@ export class Game {
     T.got = true;
     const gold = Math.round(GTRAIN.rew.goldMin * KILLS_PER_MIN * goldPerMob(this.S.hero.lv)), tix = GTRAIN.rew.tix;
     this.S.wallet.gold += gold; this.S.wallet['ticket:gear'] = (this.S.wallet['ticket:gear'] || 0) + tix;
-    return { gold, tix };
+    return { gold, tix, merit: this.exEarn('merit', EX_EARN.merit.gtrain) };
   }
   // 문파 피해 합(서버) → 단계 · 받은 것보다 높은 단계마다 보상
   graidClaim(total, lv) {
@@ -268,7 +272,7 @@ export class Game {
     R.claimed = ph;
     const gold = Math.round(n * GRAID.rew.goldMin * KILLS_PER_MIN * goldPerMob(this.S.hero.lv)), tix = n * GRAID.rew.tix;
     this.S.wallet.gold += gold; this.S.wallet['ticket:gear'] = (this.S.wallet['ticket:gear'] || 0) + tix;
-    return { n, phase: ph, gold, tix };
+    return { n, phase: ph, gold, tix, merit: this.exEarn('merit', n * EX_EARN.merit.graidPhase) };
   }
   setNick(name) { const n = String(name || '').replace(/[\u0000-\u001f<>]/g, '').trim().slice(0, 12); if (!n) return false; this.S.nick = n; return true; }
   rankProfile() {
@@ -317,18 +321,18 @@ export class Game {
   claimMission(book, id) {
     const B = this.books[book], d = B.defs.get(id);
     if (!d || !B.st[id]?.done || B.st[id]?.got) return false;
+    const r = this.missionRew(book, id);   // v635 우편(놓친 임무)도 같은 셈
     B.claim(id);
-    this.giveHuntMin(d.huntMin);
+    this.addExp(r.exp); this.S.wallet.gold += r.gold;
     if (d.items) gain(this.S.wallet, Object.entries(d.items).map(([k, n]) => ({ k, n })));
     if (book === 'daily' || book === 'weekly') this.passAdd(PASS_PTS[book]);   // 강호 패스 점수
     return true;
   }
   // 「사냥 n분 상당」 보상 → 그 레벨 사냥 벌이(경험치 + 은자)
-  giveHuntMin(min) {
-    const L = this.S.hero.lv, kills = min * KILLS_PER_MIN;
-    this.addExp(Math.round(kills * mobExp(L)));
-    this.S.wallet.gold += Math.round(kills * goldPerMob(L));
-  }
+  giveHuntMin(min) { const r = this.huntRew(min); this.addExp(r.exp); this.S.wallet.gold += r.gold; }
+  huntRew(min) { const L = this.S.hero.lv, kills = min * KILLS_PER_MIN; return { exp: Math.round(kills * mobExp(L)), gold: Math.round(kills * goldPerMob(L)) }; }
+  // v635 임무 하나의 보상(지금 레벨 · 주지 않고 셈만) → { exp, gold, ...items } · 경험치는 addExp 앞 값(받을 때 경험치 %가 붙는다)
+  missionRew(book, id) { const d = this.books[book]?.defs.get(id); return d ? { ...this.huntRew(d.huntMin), ...(d.items || {}) } : {}; }
   addExp(n) {
     const before = this.S.hero.lv;
     const st = this.fighter().st;
@@ -554,8 +558,8 @@ export class Game {
     if (RM.realmTick(S.realm, nowMs)) { this.dirtyStats = true; this.emit('realm', { lv: S.realm.lv }); this.feed.push({ k: 'realm', lv: S.realm.lv }); }
     if (RM.journeyTick(S.journey, nowMs, this.rng)) { this.dirtyStats = true; this.feed.push({ k: 'journey', step: S.journey.step }); }
     const d = dayKey(nowMs), w = weekKey(nowMs);
-    if (S.qDay !== d) { S.qDay = d; this.books.daily.reset(DAILY_MISSIONS.map((m) => m.id)); S.dungeons = { day: d, runs: {}, best: S.dungeons?.best || {} }; /* v581 소탕 열림(best)은 날이 바뀌어도 남긴다 */ S.wallet['ticket:exped'] = (S.wallet['ticket:exped'] || 0) + 1; this.emit('login'); }
-    if (S.qWeek !== w) { S.qWeek = w; this.books.weekly.reset(WEEKLY_MISSIONS.map((m) => m.id)); }
+    if (S.qDay !== d) { this.mailMissed('daily'); S.qDay = d; this.books.daily.reset(DAILY_MISSIONS.map((m) => m.id)); S.dungeons = { day: d, runs: {}, best: S.dungeons?.best || {} }; /* v581 소탕 열림(best)은 날이 바뀌어도 남긴다 */ S.wallet['ticket:exped'] = (S.wallet['ticket:exped'] || 0) + 1; this.emit('login'); }
+    if (S.qWeek !== w) { this.mailMissed('weekly'); S.qWeek = w; this.books.weekly.reset(WEEKLY_MISSIONS.map((m) => m.id)); }
     OF.touch(S.offline, nowMs);
     this.bfTick();   // v634 단약이 끝나면 싸움 스탯을 다시
   }
@@ -684,6 +688,7 @@ export class Game {
       const used = new Set(), eq = C.eq.map((_, i) => { const k = want[i]; if (k == null || !C.own[k] || used.has(k)) return null; used.add(k); return k; });
       const rest = Object.keys(C.own).map(Number).filter((k) => !used.has(k)).sort((a, b) => CL.kindGrade(sys, b) - CL.kindGrade(sys, a) || C.own[b].awk - C.own[a].awk || C.own[b].lv - C.own[a].lv);
       C.eq = eq.map((k) => k ?? rest.shift() ?? null);   // 빈 칸은 좋은 것부터
+      C.man = true;   // v635 차림으로 입은 동료 · 영물 · 병기는 「직접 고름」 — 다음 뽑기의 추천 자동이 덮어쓰지 않게
     }
     this.dirtyStats = true;
     return miss;
@@ -836,10 +841,20 @@ export class Game {
   pullCollect(sys, n) {
     const C = this.S.colls[sys], got = CL.pullCollect(C, n, this.rng, this.S.wallet);
     if (!got) return null;
-    CL.autoAwaken(C); CL.autoEquip(C); this.dirtyStats = true;
+    CL.autoAwaken(C); if (!CL.isManual(C)) CL.autoEquipBest(C); this.dirtyStats = true;   // v635 직접 고름이면 낀 것 그대로
     this.emit('pull', { sys: COLLECTS.indexOf(sys) + 1, n });
     this.emit('coll', { n: this.collKinds() });
     return got;
+  }
+  // v635 고유 기질 — 무공 쿨(cdr)은 무공 쿨에 바로 · 손으로 끼기/빼기 · 추천 자동 · 끼면 전투력 미리 보기
+  traitKit(f) { const c = Math.min(CDR_CAP, f.st.cdr || 0); if (c > 0) f.kit = f.kit.map((k) => (k.cdMs ? { ...k, cdMs: Math.round(k.cdMs * (1000 - c) / 1000) } : k)); return f; }
+  collEquip(sys, slot, k) { const C = this.S.colls[sys]; if (!C || !CL.equipAt(C, slot, k)) return false; this.dirtyStats = true; return true; }
+  collAuto(sys, on) { const C = this.S.colls[sys]; if (!C) return false; CL.setAutoEquip(C, on); this.dirtyStats = true; return true; }
+  collPreview(sys, slot, k) {
+    const C = this.S.colls[sys], eq0 = [...C.eq], man0 = C.man, pw0 = this.power();
+    if (!CL.equipAt(C, slot, k)) return { pw0, pw1: pw0, same: true };
+    const pw1 = this.power(); C.eq = eq0; if (man0) C.man = man0; else delete C.man;
+    return { pw0, pw1 };
   }
   // ── 무공 강화 트리 ── 점수는 레벨 · 가장 멀리 간 칸에서
   treeUp(id, n) { const r = this.hero.treeUp(id, n, this.now, this.stage().top); if (r) { this.dirtyStats = true; this.emit('skill'); } return r; }
@@ -947,6 +962,26 @@ export class Game {
     T.bought[id] = (T.bought[id] || 0) + n;
     this.emit('shop', { n, free: T.bought[SHOP_FREE] > 0 ? 1 : 0 });
     return { give, gold, n };
+  }
+  // ── v635 교환소 ── 명성(대결) · 공적(문파) · 혈전패(월드보스)로 바꾸기(tables/exchange.js) · 물건마다 주간 한도 · 재화는 넘어간다
+  exSt() { const S = this.S, wk = weekKey(this.now); if (!S.ex || S.ex.wk !== wk) S.ex = { wk, bought: {} }; S.ex.bought ??= {}; return S.ex; }   // 옛 세이브도 여기서 생긴다
+  exCoin(cur) { const c = EX_CUR[cur]; return c ? Math.max(0, this.S.wallet[c.key] || 0) : 0; }
+  exEarn(cur, n) { const c = EX_CUR[cur]; n = Math.max(0, Math.floor(n || 0)); if (!c || !n) return 0; this.S.wallet[c.key] = (this.S.wallet[c.key] || 0) + n; return n; }
+  exWbRank(rank) { return rank > 0 ? EX_EARN.blood.week.find(([n]) => rank <= n)[1] : 0; }
+  exState(cur) {
+    const B = this.exSt().bought, have = this.exCoin(cur);
+    return (EXCHANGE[cur] || []).map((x) => { const left = Math.max(0, x.limit - (B[`${cur}:${x.id}`] || 0)); return { id: x.id, name: x.name, give: x.give, price: x.price, limit: x.limit, left, can: left > 0 && have >= x.price }; });
+  }
+  // n개 바꾼다(한도 · 재화가 모자라면 하나도 안 바꾼다) → { give, paid, n }
+  exBuy(cur, id, n = 1) {
+    const x = exItem(cur, id), c = EX_CUR[cur], T = this.exSt(), k = `${cur}:${id}`; n = Math.floor(n);
+    if (!x || !c || !(n >= 1) || (T.bought[k] || 0) + n > x.limit) return null;
+    const paid = x.price * n;
+    if (!pay(this.S.wallet, [{ k: c.key, n: paid }])) return null;
+    const give = Object.fromEntries(Object.entries(x.give).map(([g, v]) => [g, v * n]));
+    gain(this.S.wallet, Object.entries(give).map(([g, v]) => ({ k: g, n: v })));
+    T.bought[k] = (T.bought[k] || 0) + n;
+    return { give, paid, n };
   }
   canDungeon(type, kind) {
     const S = this.S;
@@ -1056,9 +1091,10 @@ export class Game {
     else if (d.type === 'wboss') {   // 나가도 넣은 만큼은 점수
       const W = S.wb, dmg = Math.round(F.dmgOut * WBF.sideX), score = WB.bossScore(dmg, L);
       W.total += score; W.best = Math.max(W.best, score); out.dmg = dmg; out.score = score; out.best = W.best; out.total = W.total;
+      out.blood = this.exEarn('blood', EX_EARN.blood.try);   // v635 혈전패
       this.emit('wboss');
     }
-    else if (d.type === 'graid') { out.dmg = Math.round(F.dmgOut * WBF.sideX); out.ch = d.ch; this.emit('graid'); }   // v550 나가도 넣은 만큼
+    else if (d.type === 'graid') { out.dmg = Math.round(F.dmgOut * WBF.sideX); out.ch = d.ch; out.merit = this.exEarn('merit', EX_EARN.merit.graidTry); this.emit('graid'); }   // v550 나가도 넣은 만큼
     else if (cleared && d.type === 'job') { this.hero.clearDungeon(JOB_ADV[d.n].dungeon); this.hero.advance(); this.emit('dungeon', { job: d.n }); this.feed.push({ k: 'advance', n: d.n }); }
     const res = { k: 'dungeon-end', type: d.type, kind: d.kind, title: d.title, cleared, gaveUp, ms: F.t, kills: F.kills, deaths: F.deaths, floor: d.floor, n: d.n, ...out };
     this.feed.push(res); this.lastDg = res;
@@ -1186,7 +1222,8 @@ export class Game {
     P.score = Math.max(0, P.score + d); this.pvpMark();
     P.log = [{ name: opp.name, win: r.win, d }, ...P.log].slice(0, 10);
     this.emit('pvp');
-    return { ...r, d, score: P.score, tier: PV.tierOf(P.score).name, log, opp: { name: opp.name, job: opp.f.job, lv: opp.f.lv, hp: opp.f.st.hp, real: !!opp.real, lk: opp.lk || null }, myHp: me.st.hp, oppUid: opp.uid || null, defD: sd.def };
+    const fame = this.exEarn('fame', r.win ? EX_EARN.fame.win : EX_EARN.fame.lose);   // v635 명성
+    return { ...r, d, fame, score: P.score, tier: PV.tierOf(P.score).name, log, opp: { name: opp.name, job: opp.f.job, lv: opp.f.lv, hp: opp.f.st.hp, real: !!opp.real, lk: opp.lk || null }, myHp: me.st.hp, oppUid: opp.uid || null, defD: sd.def };
   }
   // ── 강호 패스 ── 4주 시즌 · 놀면 점수(하루 150점까지) · 100점마다 한 단 · 서른 단(tables/pass.js). 값 없이 누구나
   //   시즌이 바뀌면 처음부터(안 받은 보상은 사라진다) · 옛 세이브도 여기서 생긴다
@@ -1229,6 +1266,7 @@ export class Game {
   bountySt() {
     const S = this.S, dk = dayKey(this.now);
     if (S.bounty && S.bounty.day === dk && Array.isArray(S.bounty.list)) return S.bounty;
+    if (S.bounty && Array.isArray(S.bounty.list)) this.mailBounty(S.bounty);   // v635 어제 끝내고 안 받은 것 → 우편
     const r = new Rng(bountySeed(dk, S.seed)), top = Math.max(1, Math.min(LEVEL_MAX, this.stage().top || 1)), pick = (a) => a[r.int(a.length)];
     const list = BOUNTY_SLOTS.map((kind) => {
       const T = BOUNTY_T[kind];
@@ -1279,10 +1317,11 @@ export class Game {
     const B = this.bountySt(), W = this.S.wallet;
     if (B.chest || !B.list.every((x) => x.done)) return null;
     B.chest = true;
-    const give = { 'ticket:gear': BOUNTY_CHEST['ticket:gear'], [BOUNTY_CHEST.coll.includes(B.coll) ? B.coll : 'ticket:weapon']: 1 };
+    const give = this.bountyChestGive(B);
     for (const [k, n] of Object.entries(give)) W[k] = (W[k] || 0) + n;
     return { give };
   }
+  bountyChestGive(B) { return { 'ticket:gear': BOUNTY_CHEST['ticket:gear'], [BOUNTY_CHEST.coll.includes(B.coll) ? B.coll : 'ticket:weapon']: 1 }; }
   // ── v536 출석 ── 하루 한 번(한국 시각 자정에 바뀜) · 28칸 · 다 채우면 처음부터
   attendState() { return (this.S.att ??= { n: 0, last: -1, cycle: 0 }); }
   canAttend() { return this.attendState().last !== dayKey(this.now); }
@@ -1377,6 +1416,55 @@ export class Game {
   wishUndo(r) { const ok = WI.wishUndo(this.S, r); if (ok) this.dirtyStats = true; return ok; }
   wishLock(id, i) { return WI.wishLock(this.S, id, i); }
   powerIf(fn, mode = 'pve') { const G2 = new Game(structuredClone(this.S), this.now); G2.emit = () => {}; G2.rng = new Rng(this.rng.state()); let ok; try { ok = fn(G2); } catch { return null; } if (ok === false) return null; const p0 = Math.round(this.power(mode)), p1 = Math.round(G2.power(mode)); return { p0, p1, d: p1 - p0 }; }
+  // ── v635 전서구 함(우편 · tables/mail.js) ── { id, at, kind, title, rew: { 지갑 키 | exp: n }, exp: 사라지는 때 }
+  //   옛 세이브도 여기서 생긴다 · 선물은 id마다 한 번 · 기한 지난 것은 볼 때 지운다(보상도 사라진다)
+  mailSt() {
+    const M = (this.S.mail ??= { list: [], n: 0, gifts: {} }); M.list ??= []; M.gifts ??= {}; M.n ||= 0;
+    for (const G of MAIL_GIFTS) if (!M.gifts[G.id]) { M.gifts[G.id] = 1; this.mailAdd(M, 'gift', G.title, G.rew); }
+    if (M.list.some((m) => this.now > m.exp)) M.list = M.list.filter((m) => this.now <= m.exp);
+    return M;
+  }
+  mailAdd(M, kind, title, rew) {
+    const r = {}; for (const [k, n] of Object.entries(rew || {})) { const v = Math.floor(n) || 0; if (v > 0) r[k] = v; }
+    if (!Object.keys(r).length) return null;
+    const m = { id: ++M.n, at: this.now, kind, title, rew: r, exp: this.now + MAIL_KEEP };
+    M.list.push(m); if (M.list.length > MAIL_MAX) M.list.splice(0, M.list.length - MAIL_MAX);   // 오래된 것부터
+    return m;
+  }
+  mailPush(kind, title, rew) { return this.mailAdd(this.mailSt(), kind, title, rew); }
+  mailList() { return this.mailSt().list.slice().reverse(); }   // 새것부터
+  mailCan() { return this.mailSt().list.length; }
+  mailClaim(id) {
+    const M = this.mailSt(), i = M.list.findIndex((m) => m.id === id); if (i < 0) return null;
+    const [m] = M.list.splice(i, 1), W = this.S.wallet;
+    for (const [k, n] of Object.entries(m.rew)) if (k === 'exp') this.addExp(n); else W[k] = (W[k] || 0) + n;
+    return { rew: { ...m.rew } };
+  }
+  mailClaimAll() {
+    const ids = this.mailSt().list.map((m) => m.id); if (!ids.length) return null;
+    const rew = {}; let n = 0;
+    for (const id of ids) { const r = this.mailClaim(id); if (!r) continue; n++; for (const [k, v] of Object.entries(r.rew)) rew[k] = (rew[k] || 0) + v; }
+    return n ? { n, rew } : null;
+  }
+  // 날 · 주가 바뀌기 바로 전(tick) — 끝내고 안 받은 임무를 claimMission과 같은 셈으로 한 통에(강호 패스 점수는 빼고)
+  mailMissed(book) {
+    const ids = this.books[book].claimable(); if (!ids.length) return null;
+    const sum = {}; for (const id of ids) for (const [k, n] of Object.entries(this.missionRew(book, id))) sum[k] = (sum[k] || 0) + n;
+    return this.mailPush('missed', MAIL_TXT[book](ids.length), sum);
+  }
+  // 현상수배 — 날이 바뀌어 새 목표를 만들기 바로 전(bountySt) · bountyClaim · bountyChest와 같은 셈
+  mailBounty(B) {
+    const sum = {}, add = (k, n) => { if (k && n > 0) sum[k] = (sum[k] || 0) + n; }; let n = 0;
+    for (const x of B.list) if (x.done && !x.got) { n++; add('gold', this.bountyGold()); add(x.rew?.k, Math.max(0, Math.floor(x.rew?.n) || 0)); }
+    if (!B.chest && B.list.length && B.list.every((x) => x.done)) { n++; for (const [k, v] of Object.entries(this.bountyChestGive(B))) add(k, v); }
+    return n ? this.mailPush('missed', MAIL_TXT.bounty(n), sum) : null;
+  }
+  // 대결 주간 — 지난주 보상을 안 받은 채 한 주가 더 지나 덮어쓰기 바로 전(pvpMark)
+  mailPvp(P) {
+    if (P.lastWk == null || P.lastGot === P.lastWk) return null;
+    const r = this.pvpTierRew(P.lastBest); P.lastGot = P.lastWk;
+    return this.mailPush('week', MAIL_TXT.pvp(r.tier), { 'ticket:gear': r.tix });
+  }
   // ── 저장 ──
   save() { this.S.rng = this.rng.state(); return pack(this.S, this.now); }
   static load(text, nowMs) {

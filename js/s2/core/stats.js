@@ -27,6 +27,8 @@ export const STATS = {
   // 유틸
   leech: { name: '흡혈', kind: 'rate' }, cdr: { name: '쿨 감소', kind: 'rate' }, mpCost: { name: '내공 소모 감소', kind: 'rate' }, regen: { name: '체력 회복', kind: 'flat' },
   expP: { name: '경험치', kind: 'rate' }, goldP: { name: '은자', kind: 'rate' }, dropP: { name: '아이템 드롭', kind: 'rate' },
+  // v635 고유 기질(전투 side.js에서 씀) — 처치마다 체력 회복 · 두목 무력화 게이지 · 평타 옆 대상 피해
+  killHeal: { name: '처치 회복', kind: 'rate' }, stunGg: { name: '무력화 게이지', kind: 'rate' }, splash: { name: '평타 옆 대상', kind: 'rate' },
 };
 // 오행(金木水火土) — 약점(주는 쪽) · 강인(받는 쪽)
 export const ELEMS = ['metal', 'wood', 'water', 'fire', 'earth'];

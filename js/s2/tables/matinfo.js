@@ -3,6 +3,7 @@
 import { DAILY_DUNGEONS, DAILY_RUNS, TOWER_MS } from './content.js';
 import { dismantle, SHARD_PER_TICKET } from './gearstat.js';
 import { SHOP } from './shop.js';
+import { EXCHANGE, EX_CUR } from './exchange.js';
 import { BOUNTY_REW } from './bounty.js';
 import { CB_REPEAT, CB_RAID } from './chboss.js';
 import { ATTEND } from './attend.js';
@@ -15,6 +16,8 @@ const shopStone = SHOP.find((s) => s.id === 'stone');
 const dis = (i) => dismantle(i)[0].n, stoneBox = (DAILY_DUNGEONS.stone || {}).reward?.stones || 0;
 const starMis = DAILY_MISSIONS.find((m) => m.items && m.items['item:restore']);
 const rsDays = dayOf('item:restore');
+// v635 교환소 — 그 재료를 파는 진열대(재화 이름 · 값 · 주간 한도)
+const exOf = (k) => Object.entries(EXCHANGE).flatMap(([c, L]) => L.filter((x) => x.give[k]).map((x) => ({ t: `교환소 · ${EX_CUR[c].name}`, d: `${EX_CUR[c].name} ${x.price}에 ${x.give[k]}${k === 'item:restore' ? '장' : '개'} · 주 ${x.limit}번`, go: 'shop:1' })));
 const bountyStone = BOUNTY_REW.extra.find((x) => x.k === 'item:stone')?.n || [0, 0];
 const raidStone = (CB_RAID.starRew || []).reduce((a, r) => a + (r['item:stone'] || 0), 0);
 
@@ -45,9 +48,11 @@ export const MATS = {
   'item:restore': { name: '복구 주문서', icon: 'reset', use: '파괴된 칸을 되살려요(성혼)', src: [
     ...(starMis ? [{ t: '일일 임무', d: `성혼 ${starMis.need}번 하면 ${starMis.items['item:restore']}장`, go: 'mission:1' }] : []),
     ...(rsDays.length ? [{ t: '출석', d: `${rsDays.join(' · ')}일째`, go: 'attend:0' }] : []),
+    ...exOf('item:restore'),
   ] },
   'item:shard': { name: '뽑기 조각', icon: 'shard', use: `${SHARD_PER_TICKET}개 = 장비 뽑기권 1장`, src: [
     { t: '장비 분해', d: `하나에 1~${dismantle(6)[1].n}개(등급이 높을수록)`, go: 'gear:3' },
+    ...exOf('item:shard'),
   ] },
 };
 export const MAT_KEYS = Object.keys(MATS);

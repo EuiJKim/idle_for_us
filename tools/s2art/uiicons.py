@@ -71,6 +71,10 @@ ICON = {
   'screen':   "a small three-panel folding screen painted with a simple mountain and red sun, no writing",
   'moon':     "a fat yellow crescent moon with one small star and a wisp of cloud",
   'lantern':  "a glowing red paper lantern with a gold cap and tassel, warm light",
+  # v635 교환소 재화(명성 · 공적 · 혈전패)
+  'fame':     "a round bright gold medallion token with a wreath of leaves around a blank centre, hanging from a short blue ribbon, shiny",
+  'merit':    "a rectangular jade green token plaque with a gold rim and a small crimson banner-flag emblem in the centre, red tassel at the bottom",
+  'blood':    "a hexagonal dark iron battle token with a crimson enamel centre showing a small dragon claw mark, glowing red edge",
 }
 
 jobs = [{'name': k, 'prompt': f"{ITEM} Object: {d}.", 'q': 'medium'} for k, d in ICON.items()]
