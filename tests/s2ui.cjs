@@ -238,6 +238,37 @@ const ok = (c, m, x = '') => { console.log(`  ${c ? '✓' : '✗ !!'} ${m}${x !=
       await page.mouse.click(5, 200); await page.waitForTimeout(1800);
       ok(!(await page.isVisible('#saver')) && !(await page.evaluate(() => window.__s2.saverOn())), 'v587 누르면 돌아옴 · 다시 바로 절전되지 않음');
       await page.evaluate(() => window.__s2.saverAutoTest(false)); }
+    // v628 처치 — 약해진 무리(여섯)에 넓은 무공(이 싸움에만 칸 하나 더 · 세이브 무공은 그대로) → 여섯이 날아가고 「일망타진 ×6」 외침 · 큰 처치 멈칫
+    //   전직 0 → 5차로 바꾸면(그리기만) 손잡이가 그 차수를 알림 · 한꺼번에 40마리 → 주검은 30을 넘지 않음 · 콘솔 오류 0 · 칸 처치 수 · 기연은 되돌림
+    { const a0 = await hold(), e0 = errs.length;
+      const sv = await page.evaluate(() => { const g = window.__s2.g, T = g.stage(); return { adv: g.S.hero.adv | 0, kills: T.kills, ksb: g.S.killsSinceBoss, fate: JSON.stringify(g.fate()), big: window.__s2.klBig() }; });
+      const burst = (adv, n = 6, maxT = 6) => page.evaluate(([adv, n, maxT]) => {
+        const g = window.__s2.g, F = g.ensureFight(), H = F.hero; g.S.hero.adv = adv;
+        H.y = 0; H.vy = 0; H.plat = 0; H.drop = -1; H.target = -1; F.mobs.length = 0;
+        for (let j = 0; j < n; j++) F.spawn('a', F.def.map.spots[j % F.def.map.spots.length]);
+        F.mobs.forEach((m, i) => { m.x = H.x + (H.face || 1) * (240 + (i % 8) * 110); m.y = 0; m.plat = 0; m.hp = 1; });
+        window.__klKit0 ??= H.kit; H.kit = [...(window.__klKit0 || []), { id: `${g.S.hero.job}_3`, kind: 'active', shape: 'circle', range: 1.4, maxT, hits: 1, coef: 900, cdMs: 9000, auto: true, crit: 0 }];
+        H.cds = H.kit.map(() => 0); H.gcd = 0; F.press({ slot: H.kit.length - 1 }); window.__s2.klStat(true);
+      }, [adv, n, maxT]);
+      // 셈(klStat)으로 본다 — 바쁜 기계에서 화면이 잠깐 멈춰도(주검은 1초 남짓 산다) 놓치지 않게
+      const info = () => page.evaluate(() => ({ i: window.__s2.klInfo(), call: window.__s2.klLast(), live: window.__s2.klLive(), big: window.__s2.klBig(), st: window.__s2.klStat() }));
+      await burst(0);
+      const k0 = await until(info, (v) => v.i?.adv === 0 && v.i?.cls === 2 && v.st.launched >= 6 && v.st.calls > 0, 4000);
+      ok(k0.i?.adv === 0 && k0.i?.cls === 2 && k0.st.launched >= 6 && k0.st.calls > 0 && /^일망타진 ×([6-9]|\d\d)$/.test(k0.call) && k0.st.peak >= 6 && k0.st.peak <= 30, 'v628 처치 — 넓은 무공으로 여섯 → 날려보내기(2차 무공 몫) · 「일망타진 ×6」 외침 · 0차', JSON.stringify(k0));
+      await page.waitForTimeout(1000);
+      await page.evaluate(() => { window.__s2.g.S.hero.adv = 5; });   // 전직 차수를 먼저 올리고 전직 순간(느린 화면)이 끝난 뒤에 — 큰 처치 멈칫은 느린 화면과 겹치지 않는다
+      await page.waitForTimeout(400); await until(() => page.evaluate(() => !document.querySelector('#au-skip, .jb-ban')), (v) => v, 6000); await page.waitForTimeout(800);
+      const b5 = (await info()).big; await burst(5);
+      const k5 = await until(info, (v) => v.i?.adv === 5 && v.st.launched >= 6 && v.st.calls > 0 && v.big > b5, 4000);
+      ok(k5.i?.adv === 5 && k5.st.launched >= 6 && k5.st.calls > 0 && k5.big > b5 && k5.st.motes >= 6, 'v628 처치 — 5차로 바꾸면 손잡이가 5차 · 날려보내기 · 외침 · 큰 처치 멈칫 · 경험치 구슬', JSON.stringify(k5));
+      await page.waitForTimeout(1000);
+      await burst(5, 40, 40);   // 한 무공에 마흔
+      const c1 = await until(info, (v) => v.st.launched >= 20 && /일망타진 ×\d\d/.test(v.call), 4000);
+      ok(c1.st.peak <= 30 && c1.st.peak >= 25 && c1.live <= 30 && /일망타진 ×\d\d/.test(c1.call), 'v628 처치 — 한꺼번에 40마리여도 주검은 30을 넘지 않음', JSON.stringify({ peak: c1.st.peak, live: c1.live, call: c1.call }));
+      await page.evaluate((sv) => { const g = window.__s2.g, T = g.stage(), H = g.ensureFight().hero; g.S.hero.adv = sv.adv; T.kills = sv.kills; g.S.killsSinceBoss = sv.ksb; Object.assign(g.fate(), JSON.parse(sv.fate)); if (window.__klKit0) { H.kit = window.__klKit0; H.cds = undefined; delete window.__klKit0; } }, sv);
+      await page.waitForTimeout(1200);
+      ok(errs.length === e0 && await page.evaluate(() => window.__s2.klLive() <= 30), 'v628 처치 — 콘솔 오류 없음', errs.slice(e0).join(' | '));
+      await free(a0); }
     // v602 창 빈 자리 채우기 — 가로 화면이면 카드 둘이 좌우로 나뉜다(전엔 왼쪽에만 쌓임)
     { await page.evaluate(() => { const g = window.__s2.g; if (g.bossFight) g.endChallenge(false); });
       await page.click('.nb[data-tab="comp"]'); await page.waitForTimeout(500);
@@ -1093,6 +1124,88 @@ const ok = (c, m, x = '') => { console.log(`  ${c ? '✓' : '✗ !!'} ${m}${x !=
     ok(errs.length === 0, '콘솔 오류 없음', errs.slice(0, 3).join(' | '));
     ok(badArt.length === 0, 'v610 못 불러온 그림 없음(줄 아이콘 · 모음 · 장비)', [...new Set(badArt)].slice(0, 5).join(' '));
     await ctx.close();
+    // v628 무공 동작(r13-pose) — 직업마다 새 판: 0차에 0차 무공 · 5차로 올려 다른 무공 둘(5차 궁극기 포함). poLast()가 그 무공 · 차수를 알리고 단계가 pre → rel → post → idle,
+    //   끝나면 몸을 옮긴 몫 0(엔진 자리) · 5차는 컷인 · 그래픽 낮음이면 잔상 없이 끝까지 · 콘솔 오류 0. 몹은 질기게(체력 ×300) 무인 앞에 모으고,
+    //   수동(자동 사냥 끔 — 무인이 저절로 걷거나 돌아서지 않게)에서 무공 칸을 눌러 쓴다(자동 사냥이면 큰 동작 뒤 다음 몹으로 걸어가며 끝동작을 놓는 게 맞는 동작이라 시험이 흔들린다)
+    if (W === 844) {
+      const PICK = { sword: [2, 5], spear: [3, 5], fist: [4, 5], bow: [3, 5], mage: [2, 5] };
+      for (const job of Object.keys(PICK).concat('sword-low')) {
+        const low = job === 'sword-low', jb = low ? 'sword' : job;
+        const c2 = await b.newContext({ viewport: { width: 844, height: 390 }, serviceWorkers: 'block' });
+        await c2.route(/gstatic\.com\/firebasejs/, (r) => r.abort());
+        if (low) await c2.addInitScript(() => { try { localStorage.setItem('ifu.s2.opt', JSON.stringify({ gfx: 'low' })); } catch {} });
+        const p2 = await c2.newPage(); p2.setDefaultTimeout(8000);
+        const e2 = []; p2.on('pageerror', (e) => e2.push(e.message)); p2.on('console', (m) => { if (m.type() === 'error' && !/Failed to load|ERR_FAILED/.test(m.text())) e2.push(m.text()); });
+        await p2.goto(BASE, { waitUntil: 'domcontentloaded' });
+        await p2.waitForSelector('#modal:not(.hidden) .jobcard'); await p2.click(`#modal .jobcard[data-job="${jb}"]`);
+        await p2.waitForSelector('#modal', { state: 'hidden' });
+        // 몹은 늘 무인 앞쪽에(새로 나온 몹이 뒤에 있으면 수동에서도 그쪽으로 돌아선다) · 수동으로 바꾼 뒤 무인이 멈출 때까지 조금 기다린다
+        await p2.evaluate(() => { const g = window.__s2.g, h0 = g.hunt.bind(g); g.S.hero.lv = 150; g.dirtyStats = true; window.__s2.freeze(); g.setAuto(false);
+          g.hunt = (ms) => { const F = g.ensureFight(), H = F?.hero, f = (window.__pf ??= H?.face || 1); for (const m of F?.mobs || []) { if (!m.__tk) { m.__tk = 1; m.st = { ...m.st, hp: m.st.hp * 300 }; m.hp = m.st.hp; } if (H && m.kind !== 'boss' && ((m.x - H.x) * f < 400 || Math.abs(m.y - H.y) > 300)) { m.x = H.x + f * (900 + (m.id % 5) * 220); m.y = H.y; m.plat = H.plat; m.px = m.x; m.py = m.y; } } return h0(ms); }; });
+        await p2.waitForTimeout(1200);
+        const cast = (adv, tier) => p2.evaluate(async ([adv, tier, job]) => {
+          const g = window.__s2.g; g.S.hero.adv = adv; g.hero.kitUnlock?.();
+          const { KIT } = await import(new URL('js/s2/tables/kit.js', location.href).href), sk = KIT[job].find((k) => k.tier === tier && k.kind === 'active');
+          const K = g.hero.kitState(); K.lv[sk.id] = Math.max(1, K.lv[sk.id] || 1); K.slots = [sk.id]; K.off = []; g.dirtyStats = true; g.stage().kills = 0;
+          const F = g.ensureFight(), H = F.hero, f = window.__pf || H.face || 1, d0 = job === 'bow' || job === 'mage' ? 2600 : 700; let i = 0;
+          for (const m of F.mobs) { if (m.kind === 'boss') continue; m.x = H.x + f * (d0 + (i % 5) * 260); m.y = H.y; m.plat = H.plat; m.px = m.x; m.py = m.y; i++; }
+          H.cds = undefined; H.kit = g.hero.battleKit(); F.press({ slot: 0 });
+          return sk.id;
+        }, [adv, tier, jb]);
+        const watch = async (id, n0) => { const t0 = Date.now(); let r = null, cut = false, gh = 0; while (Date.now() - t0 < 9000) { const p = await p2.evaluate(() => window.__s2.poLast()); if (p.id === id && p.n > n0) { r = p; cut = cut || p.cut; gh = Math.max(gh, p.ghosts); if (p.phase === 'idle' && p.seen.length > 1) break; } await p2.waitForTimeout(25); } return r && { ...r, cut, gh }; };
+        const steps = low ? [[5, 5]] : [[0, 0], [5, PICK[job][0]], [5, PICK[job][1]]];
+        for (const [adv, tier] of steps) {
+          const n0 = await p2.evaluate(() => window.__s2.poLast().n), id = await cast(adv, tier), r = await watch(id, n0), s = r ? r.seen : [];   // 새로 쓴 것만(새 판은 첫 무공을 이미 저절로 썼다)
+          ok(!!r && r.tier === tier && s[0] === 'pre' && s.includes('rel') && s.includes('post') && s[s.length - 1] === 'idle' && r.off[0] === 0 && r.off[1] === 0 && (tier < 5 || r.cut) && (!low || r.gh === 0),
+            `v628 무공 동작 ${job} ${adv}차 · ${id}(${tier}차) — 단계 pre → rel → post → idle · 끝나면 엔진 자리${tier === 5 ? ' · 컷인' : ''}${low ? ' · 그래픽 낮음 잔상 없음' : ''}`, r ? JSON.stringify({ seen: s, why: r.why, off: r.off, cut: r.cut, gh: r.gh }) : '안 씀');
+        }
+        ok(e2.length === 0, `v628 무공 동작 ${job} — 콘솔 오류 없음`, e2.slice(0, 2).join(' | '));
+        await p2.evaluate(() => window.__s2.freeze?.());
+        await c2.close();
+      }
+    }
+  }
+  // v628 평타 — 직업마다 새 판 · 0차 → 5차: 평타가 나가고 baTier()가 그 차수 · 10초 동안 살아 있는 이펙트가 상한(baCap) 아래 · 근접 5차는 기(氣)가 날아감 · 궁 · 술 5차는 차수 화살 · 기탄 · 그래픽 낮음이면 0차 모양 · 콘솔 오류 0
+  if (!process.env.ONLY || process.env.ONLY.split(',').includes('ba')) {
+    console.log('— v628 평타');
+    const baPage = async (job, low) => {
+      const ctx = await b.newContext({ viewport: { width: 844, height: 390 }, serviceWorkers: 'block' });
+      await ctx.route(/gstatic\.com\/firebasejs/, (r) => r.abort());
+      if (low) await ctx.addInitScript(() => { try { localStorage.setItem('ifu.s2.opt', JSON.stringify({ gfx: 'low' })); } catch { /* 없음 */ } });
+      const page = await ctx.newPage(); page.setDefaultTimeout(8000);
+      const errs = []; page.on('pageerror', (e) => errs.push(e.message)); page.on('console', (m) => { if (m.type() === 'error' && !/Failed to load|ERR_FAILED/.test(m.text())) errs.push(m.text()); });
+      await page.goto(BASE, { waitUntil: 'domcontentloaded' });
+      await page.waitForSelector('#modal:not(.hidden) .jobcard'); await page.click(`#modal .jobcard[data-job="${job}"]`);
+      await page.waitForSelector('#modal', { state: 'hidden' });   // 첫 판은 출석 창이 안 뜬다
+      await page.evaluate(() => { window.__s2.freeze(); const g = window.__s2.g, T = g.stage(); T.auto = false; });
+      return { ctx, page, errs };
+    };
+    // 차수를 바꾸고 → 새 평타가 나갈 때까지 → secs초 동안 살아 있는 수 · 날아가는 기 · 차수 화살 수의 가장 큰 값을 잰다(무공은 잠시 막아 평타만)
+    const baRun = (page, adv, secs) => page.evaluate(([adv, secs]) => new Promise((res) => {
+      const s2 = window.__s2, g = s2.g, a0 = s2.baAt(), t0 = performance.now(); g.S.hero.adv = adv;
+      let hits = 0, tiers = new Set(), live = 0, waves = 0, shots = 0, last = null;
+      const f = () => {
+        const F = g.ensureFight(); if (F && F.hero) F.hero.gcd = Math.max(F.hero.gcd || 0, F.t + 2000);
+        const ev = g.lastEvents; if (ev !== last) { last = ev; for (const e of ev || []) if (e[0] === 'hit' && e[5] === 0) hits++; }
+        if (s2.baAt() !== a0) tiers.add(s2.baTier());
+        live = Math.max(live, s2.baLive()); waves = Math.max(waves, s2.baWaves()); shots = Math.max(shots, s2.baShots());
+        if (performance.now() - t0 < secs * 1000) requestAnimationFrame(f); else res({ hits, tiers: [...tiers], live, waves, shots, cap: s2.baCap(), end: s2.baLive() });
+      };
+      requestAnimationFrame(f);
+    }), [adv, secs]);
+    for (const job of ['sword', 'spear', 'fist', 'bow', 'mage']) {
+      const { ctx, page, errs } = await baPage(job, false);
+      const r0 = await baRun(page, 0, 4), r5 = await baRun(page, 5, 10);
+      const melee = job !== 'bow' && job !== 'mage';
+      ok(r0.hits >= 2 && r0.tiers.length === 1 && r0.tiers[0] === 0 && r0.live === 0, `v628 평타 ${job} 0차 — 평타가 나가고 baTier 0 · 새 이펙트 없음(예전 그대로)`, JSON.stringify(r0));
+      ok(r5.hits >= 5 && r5.tiers.length === 1 && r5.tiers[0] === 5 && r5.live > 0 && r5.live <= r5.cap && (melee ? r5.waves > 0 : r5.shots > 0), `v628 평타 ${job} 5차 — baTier 5 · 10초 내내 살아 있는 이펙트 ≤ ${r5.cap} · ${melee ? '기가 날아감' : '차수 화살 · 기탄'}`, JSON.stringify(r5));
+      ok(errs.length === 0, `v628 평타 ${job} — 콘솔 오류 없음`, errs.slice(0, 2).join(' | '));
+      await ctx.close();
+    }
+    { const { ctx, page, errs } = await baPage('sword', true);   // 그래픽 낮음 — 5차여도 0차 모양(새 이펙트 0)
+      const rl = await baRun(page, 5, 4);
+      ok(rl.hits >= 2 && rl.tiers.length === 1 && rl.tiers[0] === 0 && rl.live === 0 && errs.length === 0 && await page.evaluate(() => window.__s2.lowGfx()), 'v628 평타 — 그래픽 낮음이면 5차여도 0차 모양', JSON.stringify(rl));
+      await ctx.close(); }
   }
   // v605 진동이 없는 기기 — 설정에 「진동」 줄은 있어도 「진동 세기」 줄은 없다
   if (!process.env.ONLY || process.env.ONLY.split(',').includes('novib')) {
@@ -1110,6 +1223,40 @@ const ok = (c, m, x = '') => { console.log(`  ${c ? '✓' : '✗ !!'} ${m}${x !=
     ok(v.has === 'undefined' && v.rows.includes('진동') && !v.rows.includes('진동 세기') && v.rows.length >= 8, 'v605 진동이 없는 기기 — 「진동 세기」 줄이 없다', `줄 ${v.rows.length}`);
     await page.click('#wb .row:has(.name:text-is("진동")) .btn'); await page.waitForTimeout(300);   // 진동이 없어도 눌러서 오류가 나지 않는다
     ok(errs.length === 0 && await page.isVisible('#wb .row:has(.name:text-is("진동"))'), 'v605 진동이 없는 기기 — 진동 줄을 눌러도 오류 없음', errs.slice(0, 2).join(' | '));
+    await page.evaluate(() => window.__s2.freeze?.());
+    await ctx.close();
+  }
+  // v628 원거리 — 궁사(844×390): 화난 몹이 붙으면 몇 초 안에 뒤로 뛴다 · 표적과 화면 거리 · 화살 밀림 · 전직 0→5를 바꾸면 손잡이가 그 단계로 그린다고 알림 · 4차+ 공중제비 · 콘솔 오류 0
+  if (!process.env.ONLY || process.env.ONLY.split(',').includes('range')) {
+    console.log('— v628 원거리');
+    const ctx = await b.newContext({ viewport: { width: 844, height: 390 }, serviceWorkers: 'block' });
+    await ctx.route(/gstatic\.com\/firebasejs/, (r) => r.abort());
+    await ctx.addInitScript(() => { try { localStorage.setItem('ifu.s2.opt', JSON.stringify({ sfx: false, bgm: false, saver: false, vib: false })); } catch { /* 저장 못 함 */ } });
+    const page = await ctx.newPage(); page.setDefaultTimeout(8000);
+    const errs = []; page.on('pageerror', (e) => errs.push(e.message)); page.on('console', (m) => { if (m.type() === 'error' && !/Failed to load|ERR_FAILED/.test(m.text())) errs.push(m.text()); });
+    const until = async (fn, pred, ms = 5000) => { const t = Date.now(); for (;;) { const v = await fn(); if (pred(v) || Date.now() - t > ms) return v; await page.waitForTimeout(100); } };
+    const rs = () => page.evaluate(() => window.__s2.rgState());
+    await page.goto(BASE, { waitUntil: 'domcontentloaded' });
+    await page.waitForSelector('#modal:not(.hidden) .jobcard'); await page.click('#modal .jobcard[data-job="bow"]');
+    await page.waitForSelector('#modal', { state: 'hidden' });
+    await page.evaluate(async () => { const g = window.__s2.g, { expToNext } = await import(new URL('js/s2/tables/exp.js', location.href).href); for (let i = 0; i < 400 && g.S.hero.lv < 60; i++) g.addExp(expToNext(g.S.hero.lv) - g.S.hero.exp + 1); const T = g.stage(); T.idx = T.top = 62; T.kills = 0; T.auto = false; g.dirtyStats = true; if (g.bossFight) g.endChallenge(false); window.__s2.freeze(); });
+    const h = await until(rs, (v) => v.hops >= 2 && v.thunks > 0, 20000);
+    ok(h.ranged && h.hops >= 2 && h.last && Math.abs(h.last.dir) === 1 && h.last.len >= 900 && h.last.job === 'bow', 'v628 원거리 — 궁사: 화난 몹이 붙으면 20초 안에 뒤로 뛴다(엔진 hop → 화면)', JSON.stringify({ hops: h.hops, last: h.last }));
+    ok(h.thunks > 0, 'v628 원거리 — 화살이 몹을 민다(닿을 때 탁 불꽃)', h.thunks);
+    const ds = []; for (let i = 0; i < 14; i++) { await page.waitForTimeout(350); const v = (await rs()).dpx; if (v != null) ds.push(v); }
+    ds.sort((a, b2) => a - b2); const med = ds[ds.length >> 1];
+    ok(ds.length >= 6 && med > 120, 'v628 원거리 — 표적과 화면 거리(가운데 값) 120px 넘게', ds.map(Math.round).join(','));
+    const tiers = [];
+    for (let a = 0; a <= 5; a++) { await page.evaluate((n) => { window.__s2.g.S.hero.adv = n; }, a); const v = await until(rs, (x) => x.tier === a, 3000); tiers.push({ a, tier: v.tier, adv: v.adv, gh: v.cfg.ghosts }); }
+    ok(tiers.every((x) => x.tier === x.a && x.adv === x.a) && tiers[5].gh > tiers[0].gh, 'v628 원거리 — 전직 0→5로 바꾸면 손잡이가 그 단계로 그린다고 알림(잔상 수가 는다)', tiers.map((x) => `${x.a}:${x.tier}/${x.gh}`).join(' '));
+    // 5차에서 뛰는 순간을 확실히 — 무인을 바닥 가운데에, 화난 몹 하나를 1m 앞에(맵 끝 · 짧은 발판에 몰려 있으면 안 뛰니까)
+    let f = await rs(); const g0 = f.ghosts;
+    for (let i = 0; i < 4 && !(f.flips > 0); i++) {
+      await page.evaluate(() => { const g = window.__s2.g, F = g.ensureFight(), H = F.hero, m = F.mobs.find((x) => x.kind === 'mob'); if (!m) return; H.x = Math.round(F.def.map.w / 2); H.y = 0; H.vy = 0; H.plat = 0; H.hopReady = 0; H.lockUntil = 0; m.plat = 0; m.y = 0; m.x = H.x + 1000; m.angry = true; });
+      f = await until(rs, (x) => x.flips > 0, 3000);
+    }
+    ok(f.flips > 0 && f.ghosts > g0, 'v628 원거리 — 4차+ 궁사는 뒤로 공중제비 · 잔상', `공중제비 ${f.flips} · 잔상 ${g0} → ${f.ghosts}`);
+    ok(errs.length === 0, 'v628 원거리 — 콘솔 오류 없음', errs.slice(0, 2).join(' | '));
     await page.evaluate(() => window.__s2.freeze?.());
     await ctx.close();
   }
@@ -1265,6 +1412,77 @@ const ok = (c, m, x = '') => { console.log(`  ${c ? '✓' : '✗ !!'} ${m}${x !=
       const page = await ctx.newPage(); await page.goto(BASE + '?pcfix=1', { waitUntil: 'domcontentloaded' }); await page.waitForTimeout(1200);
       ok(/index\.html/.test(page.url()) && !(await page.$('#pcf')), 'v629 「컴퓨터 화면 고정」을 끈 사람은 창 전체 그대로');
       await ctx.close(); }
+  }
+  // v628 무공 · 오라 — 전직 0 → 5차: 오라 차수가 따라온다 · 차수가 오르면 전직 순간(덮개 → 띠 + 한 줄 · 누르면 넘김) · 전직 던전 결과 창은 붙잡았다가 넘기면 바로
+  //   · 무공(차수마다 PRE · REL · POST — 수명이 차수만큼 길다) · 맞는 때는 PRE 뒤 · 전직 창 빛깔 동그라미 여섯 · 줄을 누르면 미리 보기 · 콘솔 오류 0
+  if (!process.env.ONLY || process.env.ONLY.split(',').some((x) => x === '844' || x === 'sk2')) {
+    console.log('— v628 무공 · 오라');
+    const ctx = await b.newContext({ viewport: { width: 844, height: 390 }, serviceWorkers: 'block' });
+    await ctx.route(/gstatic\.com\/firebasejs/, (r) => r.abort());
+    const page = await ctx.newPage(); page.setDefaultTimeout(8000);
+    const errs = []; page.on('pageerror', (e) => errs.push(e.message)); page.on('console', (m) => { if (m.type() === 'error' && !/Failed to load|ERR_FAILED/.test(m.text())) errs.push(m.text()); });
+    const until = async (fn, pred, ms = 5000) => { const t = Date.now(); for (;;) { const v = await fn(); if (pred(v) || Date.now() - t > ms) return v; await page.waitForTimeout(80); } };
+    await page.goto(BASE, { waitUntil: 'domcontentloaded' });
+    await page.waitForSelector('#modal:not(.hidden) .jobcard'); await page.click('#modal .jobcard[data-job="sword"]');
+    await page.waitForSelector('#modal', { state: 'hidden' });
+    await page.waitForTimeout(800);
+    const live = () => page.evaluate(() => ({ tier: window.__s2.auTier(), ...window.__s2.auLive(), adv: window.__s2.g.S.hero.adv, ban: document.querySelector('.jb-ban')?.textContent || '' }));
+    ok((await live()).tier === 0, 'v628 0차 — 오라 없음', JSON.stringify(await live()));
+    const seen = [];
+    for (let n = 1; n <= 5; n++) {
+      await page.evaluate((x) => { window.__s2.g.S.hero.adv = x; }, n);
+      const a = await until(live, (v) => !!v.trans);
+      if (n === 3) {   // 한 번은 띠까지 본다 — 「3차 전직 — 이름」 + 「평타 · 무공 빛깔이 바뀌었어요」
+        const bn = await until(live, (v) => !!v.ban, 3000);
+        ok(a.trans?.n === 3 && a.skip && /^JOB ADVANCE3차 전직 — \S+/.test(bn.ban) && /평타 · 무공 빛깔이 바뀌었어요/.test(bn.ban), 'v628 전직 순간 — 덮개 → 띠(새 차수 · 빛깔이 바뀌었다는 한 줄)', bn.ban);
+      }
+      await page.mouse.click(422, 200);   // 누르면 넘김(덮개든 띠든)
+      const b2 = await until(live, (v) => !v.trans && !v.skip && !v.ban && v.tier === n);
+      seen.push(`${n}:${b2.tier}/${b2.parts}`);
+      ok(a.trans?.n === n && !b2.trans && !b2.skip && !b2.ban && b2.tier === n && b2.parts >= n, `v628 ${n}차 — 전직 순간이 돌고 누르면 넘어감 · 오라 ${n}차`, JSON.stringify({ a: a.trans, tier: b2.tier, parts: b2.parts }));
+    }
+    // 전직 던전 결과 창 — 전직 순간 동안은 붙잡았다가, 넘기면 바로 열린다
+    await page.evaluate(() => window.__s2.g.feed.push({ k: 'advance', n: 5 }, { k: 'dungeon-end', type: 'job', cleared: true, n: 5, title: '5차 전직', ms: 30000, kills: 12, deaths: 0, gold: 100, exp: 0, tix: 0, stones: 0 }));
+    const hd = await until(() => page.evaluate(() => ({ held: window.__s2.auLive().held, res: document.getElementById('res').classList.contains('open') })), (v) => v.held);
+    ok(hd.held && !hd.res, 'v628 전직 던전 결과 창은 전직 순간 동안 붙잡힌다', JSON.stringify(hd));
+    await page.mouse.click(422, 200);
+    const rs = await until(() => page.evaluate(() => ({ res: document.getElementById('res').classList.contains('open'), t: document.querySelector('#res .rnew')?.textContent || '', skip: !!document.querySelector('#au-skip') })), (v) => v.res);
+    ok(rs.res && /5차 전직/.test(rs.t) && !rs.skip, 'v628 넘기면 결과 창이 바로(덮개 없이 누를 수 있다)', JSON.stringify(rs));
+    if (rs.res) { await page.click('#rout'); await page.waitForTimeout(150); }
+    // 무공 — 5차 무공 세트로 사냥: 쓴 무공 · 맞는 때(PRE 뒤) · 수명(PRE + REL + POST)
+    await page.evaluate(() => { const g = window.__s2.g; g.S.hero.lv = 120; g.hero.kitUnlock(); g.dirtyStats = true; });
+    const sk = await until(() => page.evaluate(() => window.__s2.skTier()), (v) => v.casts >= 3 && v.hits.length >= 3, 15000);
+    const L = sk.last, lifeOk = !!L && L.life === sk.pre[L.tier] + sk.rel[L.tier] + sk.post[L.tier];
+    const late = sk.hits.filter((h) => h.ms < sk.pre[h.tier]);
+    ok(sk.casts >= 3 && !!L && L.adv === 5 && L.sparks === 12 && L.size > 1 && lifeOk, 'v628 5차 무공 — 차수 빛깔 · 전직만큼 크게 · 불티 12 · 수명 = PRE + REL + POST', JSON.stringify({ casts: sk.casts, last: L }));
+    ok(sk.hits.length >= 3 && !late.length, 'v628 무공 숫자 · 번쩍은 기 모음(PRE) 뒤 — 그림이 닿는 때', JSON.stringify(sk.hits.slice(-5)));
+    // 전직 창 — 지금 빛깔 + 차수 다섯 = 동그라미 여섯 · 빛깔은 advPal · 줄을 누르면 왼쪽 무인이 그 차수 오라(미리 보기)
+    await page.click('#mb .nb[data-key]'); await page.waitForSelector('#wb .sk-slot');
+    await page.click('#panel-body .subtabs button:text-is("전직")'); await page.waitForSelector('#wb .jb-t .au-sw');
+    const sw = await page.evaluate(async () => { const { advPal } = await import(new URL('js/s2/ui/advfx.js', location.href).href), H = window.__s2.g.S.hero, all = [...document.querySelectorAll('#wb .au-sw')];
+      const rung = [...document.querySelectorAll('#wb .jb-t .au-sw')].map((e) => e.style.getPropertyValue('--c').trim());
+      return { n: all.length, rung, want: [1, 2, 3, 4, 5].map((i) => advPal(H.job, i).c), now: document.querySelector('#wb .au-now .au-sw')?.style.getPropertyValue('--c').trim(), nowWant: advPal(H.job, H.adv).c, over: document.getElementById('wb').scrollWidth - document.getElementById('wb').clientWidth }; });
+    ok(sw.n === 6 && sw.rung.join() === sw.want.join() && sw.now === sw.nowWant && sw.over <= 1, 'v628 전직 창 — 빛깔 동그라미 여섯(지금 + 차수 다섯) · advPal 빛깔 · 넘침 없음', JSON.stringify(sw));
+    await page.click('#wb .jb-t[data-n="2"] .jb-tx');
+    const pv = await page.evaluate(() => ({ cap: document.querySelector('#wb .au-cap')?.textContent, pv: [...document.querySelectorAll('#wb .jb-t.au-pv')].map((e) => e.dataset.n).join() }));
+    ok(pv.cap === '2차 빛깔 미리 보기' && pv.pv === '2', 'v628 전직 창 — 줄을 누르면 그 차수 빛깔 미리 보기', JSON.stringify(pv));
+    await page.click('#panel-close');
+    // 그래픽 낮음 — 오라 끔(0) · 전직 순간은 띠만(바로) · 누르면 넘김 · 무공은 선 하나씩(오류 없이)
+    const gfx = async () => { await page.click('#b-opt'); await page.click('#wb .row:has(.name:text-is("그래픽")) .btn'); const low = await page.evaluate(() => window.__s2.lowGfx()); await page.click('#panel-close'); return low; };
+    const lowOn = await gfx();
+    await page.evaluate(() => { window.__s2.g.S.hero.adv = 4; }); await page.waitForTimeout(200);
+    await page.evaluate(() => window.__s2.g.feed.push({ k: 'advance', n: 5 }));
+    const lw = await until(live, (v) => !!v.trans && !!v.ban);
+    ok(lowOn && lw.trans?.low && /5차 전직/.test(lw.ban) && lw.tier === 0, 'v628 그래픽 낮음 — 오라 끔 · 전직 순간은 띠만', JSON.stringify({ low: lowOn, trans: lw.trans, tier: lw.tier }));
+    await page.mouse.click(422, 200);
+    const lw2 = await until(live, (v) => !v.trans && !v.skip && !v.ban);
+    const c0 = (await page.evaluate(() => window.__s2.skTier())).casts;
+    const lc = await until(() => page.evaluate(() => window.__s2.skTier()), (v) => v.casts >= c0 + 2, 12000);
+    ok(!lw2.trans && !lw2.ban && lc.casts >= c0 + 2 && lc.last?.sparks === 0, 'v628 그래픽 낮음 — 넘김 · 무공은 덧그림 없이(불티 0)', JSON.stringify({ casts: lc.casts - c0, last: lc.last }));
+    if (lowOn) await gfx();
+    ok(errs.length === 0, 'v628 무공 · 오라 — 콘솔 오류 없음', errs.slice(0, 3).join(' | '));
+    await page.evaluate(() => window.__s2.freeze?.());
+    await ctx.close();
   }
   await b.close();
   console.log(fails ? `\n✗ ${fails}건` : '\n✓ 새 시즌 화면 전부 통과');

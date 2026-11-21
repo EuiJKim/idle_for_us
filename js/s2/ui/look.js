@@ -121,7 +121,7 @@ export function gearLook(lv, eq, job) {
 }
 export function drawHero(cx, x, y, job, lv, o = {}) {
   const GL = gearLook(lv, o.eq, job);
-  drawFighter(cx, x, y, GL.look, { ...GL.o,  t: o.t || 0, weapon: WEAPON[job] || 'sword', run: !!o.run && !o.pose, flip: !!o.flip, turn: o.turn, lunge: o.lunge || 0, scale: o.scale || 1, pose: o.pose || null });
+  drawFighter(cx, x, y, GL.look, { ...GL.o,  t: o.t || 0, weapon: WEAPON[job] || 'sword', run: !!o.run && !o.pose, flip: !!o.flip, turn: o.turn, lunge: o.lunge || 0, scale: o.scale || 1, pose: o.pose || null, wfx: o.wfx || null });   // v628 wfx: 무기를 그린 자리에서 부르는 덧그림(전직 무기 빛)
 }
 // 몹 — 엔진 몹 하나 → 그 지역 몹 그림 하나(id로 고정)
 // ── 몹 그리기(v501) — 장마다 몹 표(tables/mobs.js)의 그림. 한 장짜리 그림을 몸짓으로 살린다

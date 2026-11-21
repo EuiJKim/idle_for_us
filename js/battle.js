@@ -5029,6 +5029,7 @@ export function drawFighter(ctx, x, y, look = {}, o = {}) {
     // 초식 자세의 칼 키우기(wscale)는 벡터 몫 — 그림 무기는 제 길이가 있다(살짝만)
     if (P.wscale && P.wscale !== 1) { const k = useArt2 ? 1 + (P.wscale - 1) * 0.25 : P.wscale; ctx.scale(k, k); }
     if (!o.noWeapon && !(useArt2 && putWeapon(ctx, wk2))) drawWeapon(ctx, weapon, o, t, 0);
+    if (o.wfx && !o.noWeapon) o.wfx(ctx, weapon, t);   // v628 무기 빛 덧그림(손 = 0,0 · 날 = -y) — 새 시즌 무인 전직
     if (artLimb && !(useArt2 && weaponBare(wk2))) { ctx.rotate(-pRot); drawHandArt(ctx, 0, 0, 1); }
     ctx.restore();
     drawOrbit(true);
@@ -5087,14 +5088,15 @@ export function drawFighter(ctx, x, y, look = {}, o = {}) {
   }
   if (weapon === 'bow' && !jiang) {
     // v533 궁사 — 앞손을 가슴 앞으로 내밀어 활을 세워 든다(전엔 칼 자세 그대로라 활이 허리에 눕고 줌손이 몸 뒤에 있었다)
-    const bl = P ? 0.7 : (lunge || 0), pull = Math.min(1, bl * 1.4);   // 쏘는 자세면 시위를 당긴 채
-    const hx = 16 + pull * 2, hy = 19 + Math.sin(t * 2.2) * 0.6 + (o.run ? Math.sin(t * 14) * 0.8 : 0);
+    const bl = P ? (P.pull ?? 0.7) : (lunge || 0), pull = Math.min(1, bl * 1.4), aim = (P && P.aim) || 0;   // 쏘는 자세면 시위를 당긴 채 · v628 새 시즌 무공 자세는 시위(pull)와 겨눔(aim 라디안: -는 하늘 · +는 땅)을 정한다 — 없으면 예전 그대로
+    const hx0 = 16 + pull * 2, ca = Math.cos(aim), sa = Math.sin(aim), hx = hx0 * ca - 19 * sa, hy = hx0 * sa + 19 * ca + Math.sin(t * 2.2) * 0.6 + (o.run ? Math.sin(t * 14) * 0.8 : 0);   // 겨누면 팔 · 활이 어깨를 축으로 함께 돈다
     if (artLimb) drawForearmArt(ctx, hx, hy, LC, look.cuff || look.band, o.flash, look.s2arm);
     else { ctx.lineCap = 'round'; ctx.strokeStyle = '#1a1410'; ctx.lineWidth = 9; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(hx * 0.86, hy * 0.86); ctx.stroke(); ctx.strokeStyle = shade(robeNow, -0.08); ctx.lineWidth = 6.5; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(hx * 0.86, hy * 0.86); ctx.stroke(); }
-    ctx.translate(hx, hy); ctx.rotate(BOW_ROT);
+    ctx.translate(hx, hy); ctx.rotate(BOW_ROT + aim);
     if (o.glow) { ctx.shadowColor = o.glowCol || o.blade || '#fde68a'; ctx.shadowBlur = o.glowCol ? 14 : 10; }
     if (!o.noWeapon) drawWeapon(ctx, 'bow', o, t, bl);
     ctx.shadowBlur = 0;
+    if (o.wfx && !o.noWeapon) o.wfx(ctx, 'bow', t);   // v628 무기 빛 덧그림(활대 = x축)
     ctx.rotate(-BOW_ROT);
     if (artLimb) drawHandArt(ctx, 0, 0, 1); else { ctx.fillStyle = skin; circle(ctx, 0, 0, 3.6); }
     ctx.restore();
@@ -5119,6 +5121,7 @@ export function drawFighter(ctx, x, y, look = {}, o = {}) {
   const art = !o.noWeapon && useArt && putWeapon(ctx, wk);
   if (!art && !o.noWeapon) drawWeapon(ctx, weapon, o, t, lunge);
   if (o.bladeFx && !o.noWeapon) drawBladeFx(ctx, o, t, art ? -1 : 1);
+  if (o.wfx && !o.noWeapon) o.wfx(ctx, weapon, t);   // v628 무기 빛 덧그림
   if (artLimb && !(art && weaponBare(wk))) { ctx.rotate(-(ang + Math.PI / 2)); drawHandArt(ctx, 0, 0, 1); }
   ctx.restore();
 

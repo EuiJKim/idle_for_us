@@ -334,6 +334,17 @@
     #combo i { display: block; height: 3px; margin-top: 3px; border-radius: 2px; background: #fde68a; transform-origin: right; animation: cmbar var(--cm, 2500ms) linear forwards; }
     #combo.warm b { color: #fde68a; } #combo.hot b { color: #fb923c; text-shadow: 0 2px 0 #000, 0 0 18px #f97316; font-size: 40px; }
     @keyframes cmpop { from { transform: scale(1.35); } to { transform: none; } } @keyframes cmbar { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+    /* v628 처치 손맛 — 연속 처치 외침(무인 뒤쪽 머리 곁 · 0.9초 · 「n연살」 · 다섯부터 「일망타진 ×n」 · 둘레 빛은 전직 빛깔 · 그래픽 낮음은 글만) */
+    .kl-call { position: absolute; z-index: 23; pointer-events: none; transform: translate(var(--kl-ax, -50%), -100%); white-space: nowrap; line-height: 1; font-style: italic; font-weight: 900; color: #fff; text-shadow: 0 2px 0 #000, 0 0 3px #000, 0 0 12px var(--kl-gl, #fde68a); animation: kl-call .9s ease-out forwards; }
+    .kl-call .kl-t { display: inline-flex; align-items: baseline; gap: 1px; transform-origin: 50% 80%; animation: kl-pop .22s ease-out; }
+    .kl-call b { font-size: 26px; } .kl-call em { font-style: italic; font-size: 15px; color: #fde68a; letter-spacing: .04em; }
+    .kl-call.kl-big b { font-size: 28px; color: #fde68a; text-shadow: 0 2px 0 #000, 0 0 3px #000, 0 0 14px #f59e0b, 0 0 24px var(--kl-gl, #f59e0b); } .kl-call.kl-big em { font-size: 16px; color: #fff; margin-right: 4px; }
+    .kl-call i { position: absolute; left: 50%; top: 50%; width: 14px; height: 2px; margin: -1px 0 0 -7px; border-radius: 2px; background: linear-gradient(90deg, rgba(255,246,196,0), #fff6c4); opacity: 0; animation: kl-sp .42s ease-out forwards; }
+    @keyframes kl-call { 0% { opacity: 0; } 10% { opacity: 1; } 72% { opacity: 1; transform: translate(var(--kl-ax, -50%), -100%); } 100% { opacity: 0; transform: translate(var(--kl-ax, -50%), calc(-100% - 14px)); } }
+    @keyframes kl-pop { 0% { transform: scale(.55); } 55% { transform: scale(1.2); } 100% { transform: scale(1); } }
+    @keyframes kl-sp { 0% { opacity: 1; transform: rotate(var(--r)) translateX(10px) scaleX(.5); } 100% { opacity: 0; transform: rotate(var(--r)) translateX(42px) scaleX(1); } }
+    .kl-call.kl-low, .kl-call.kl-low .kl-t { animation: none; }
+    @media (prefers-reduced-motion: reduce) { .kl-call, .kl-call .kl-t { animation: none; } .kl-call i { display: none; } }
     /* v560 업데이트 소식 */
     .news { display: grid; gap: 6px; max-height: 52vh; overflow-y: auto; } .news-i { padding: 6px 10px; border-radius: 9px; background: rgba(0,0,0,.3); } .news-i b { display: block; color: #fde68a; font-size: 13.5px; } .news-i span { display: block; font-size: 12px; color: rgba(255,255,255,.75); }
     /* v558 병기 · 동료 · 영물 뽑기 카드 */
@@ -758,6 +769,22 @@
     .jb-ban.jb-low { animation: none; } .jb-ban.jb-low .jb-burst { animation: none; transform: translate(-50%, -50%) scale(.6); }
     @keyframes jbin { 0% { opacity: 0; } 10% { opacity: 1; } 80% { opacity: 1; } 100% { opacity: 0; } }
     @keyframes jbburst { 0% { transform: translate(-50%, -50%) scale(.1); opacity: 1; } 100% { transform: translate(-50%, -50%) scale(1); opacity: 0; } }
+    /* v628 무인 오라 · 전직 순간(au-) — 전직 창 차수 빛깔 동그라미 · 미리 보기 · 넘기기 덮개 · 띠 한 줄(새 빛깔) */
+    .au-sw { flex: none; display: inline-block; width: 20px; height: 20px; border-radius: 50%; vertical-align: middle; background: radial-gradient(circle, var(--c2) 0 20%, var(--c) 46%, color-mix(in srgb, var(--g) 40%, transparent) 66%, transparent 74%); box-shadow: 0 0 0 1.5px var(--c), 0 0 9px var(--g); }
+    .au-sw.au-t0 { box-shadow: 0 0 0 1.5px #ffffff66, 0 0 5px #ffffff44; }
+    .au-sw.au-t4, .au-sw.au-t5 { box-shadow: 0 0 0 1.5px var(--c), 0 0 10px var(--g), 0 0 20px var(--g); }
+    .au-sw.au-t5 { position: relative; } .au-sw.au-t5::after { content: ''; position: absolute; inset: -4px; border-radius: 50%; border: 1.5px dashed var(--c2); animation: ausw 7s linear infinite; }
+    @keyframes ausw { to { transform: rotate(360deg); } }
+    .jb-low .au-sw::after { animation: none; }
+    .au-now { display: flex; align-items: center; justify-content: center; gap: 6px; margin-top: 4px; font-style: normal; } .au-now .au-sw { width: 16px; height: 16px; } .au-cap { font-style: normal; font-size: 11px; color: rgba(255,255,255,.72); }
+    .jb-t { cursor: pointer; } .jb-t.au-pv { box-shadow: 0 0 0 1.5px var(--gold), 0 0 12px #e8c26a55; }
+    .au-skip { position: absolute; inset: 0; z-index: 69; cursor: pointer; }
+    .au-skip span { position: absolute; right: calc(var(--sr, 0px) + 16px); top: calc(var(--st, 0px) + 58px); font-size: 11px; color: rgba(255,255,255,.75); text-shadow: 0 1px 3px #000; }
+    .jb-ban .au-ln { position: relative; display: block; margin-top: 6px; font-style: normal; font-size: 12.5px; font-weight: 800; color: var(--au-c2, #fde68a); text-shadow: 0 0 8px var(--au-g, #f59e0b); }
+    .jb-ban.au-on { background: radial-gradient(ellipse at center, rgba(16,12,6,.66), rgba(0,0,0,.42) 72%); }
+    .jb-ban.au-on b { text-shadow: 0 0 18px var(--au-g), 0 0 40px var(--au-c); }
+    .jb-ban.au-on .jb-burst { background: radial-gradient(circle, #fff8 0, color-mix(in srgb, var(--au-c) 45%, transparent) 12%, color-mix(in srgb, var(--au-g) 18%, transparent) 32%, transparent 60%); }
+    @media (prefers-reduced-motion: reduce) { .au-sw.au-t5::after { animation: none; } }
     .cbfirst { display: flex; gap: 10px; align-items: center; justify-content: center; margin: 4px 0; } .cbfirst img { height: 64px; filter: drop-shadow(0 0 8px #facc15); } .cbfirst small { display: block; font-size: 11px; color: var(--gold); } .cbfirst b { display: block; font-size: 16px; } .cbfirst span { font-size: 12px; }
     /* v531 실제 던전 · 대장간 연출 */
     body.indg #cv { filter: saturate(.72) brightness(.82) hue-rotate(-12deg); }

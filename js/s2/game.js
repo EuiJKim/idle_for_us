@@ -69,7 +69,7 @@ import * as GD from './online/guild.js';
 import * as PV from './online/pvp.js';
 import { refPlayer } from './battle/ref.js';
 import { PVP, WBOSS, POWER_SLACK, PVP_TIERS } from './tables/online.js';
-import { JOBS } from './tables/char.js';
+import { JOBS, RANGED } from './tables/char.js';
 
 export const COLLECTS = ['weapon', 'pal', 'relic'];
 const DAY = 24 * 3600e3, KST = 9 * 3600e3;
@@ -490,7 +490,8 @@ export class Game {
     // v527 물러나기 — 칸이 레벨보다 앞서 몹에게 계속 쓰러지면 앞 칸에서 사냥. 다시 그 칸으로(앞 칸 두목 도전)는 더 강해진 뒤
     if (!F.def.boss) {
       if (T.dnIdx !== T.idx) { T.dnIdx = T.idx; T.dn = 0; }
-      const d = F.deaths - (F.dSeen ?? 0); F.dSeen = F.deaths;
+      let d = F.deaths - (F.dSeen ?? 0); F.dSeen = F.deaths;
+      if (JOBS[S.hero.job].range >= RANGED.minRange && S.auto !== false && T.auto) d += this.rgSlow(T, ms, n);   // v628 원거리는 「처치가 느림」도 센다
       if (d > 0 && S.auto !== false && T.auto) {
         T.dn = (T.dn || 0) + d;
         if (T.dn >= RETREAT_DEATHS && T.idx > 1) {
@@ -505,6 +506,17 @@ export class Game {
     F.events = [];
     if (F.def.boss && (F.killsBy.boss || F.t >= F.limitMs)) this.endChallenge(!!F.killsBy.boss);
     return n;
+  }
+  // v628 원거리(궁사 · 술사)는 거리를 벌려 싸워 잘 쓰러지지 않는다 — 그러면 자동 물러나기(한 칸에서 쓰러짐 RETREAT_DEATHS번)가 거의 안 일어나
+  //   너무 앞선 칸에 눌러앉아 처치가 느려진다(봇: 분당 처치 −30%). 그래서 「칸이 레벨보다 앞서고 처치가 느림」도 쓰러짐 하나로 센다:
+  //   그 칸 사냥 RANGED.retreat.winMs마다 그동안 처치가 kills마리 아래면 1. 근접은 부르지 않는다(예전 그대로) · 세이브 칸 T.rg*는 여기서 생긴다
+  rgSlow(T, ms, n) {
+    if (T.rgIdx !== T.idx) { T.rgIdx = T.idx; T.rgMs = 0; T.rgK = 0; }
+    T.rgMs = (T.rgMs || 0) + ms; T.rgK = (T.rgK || 0) + n;
+    if (T.rgMs < RANGED.retreat.winMs) return 0;
+    const slow = T.rgK < RANGED.retreat.kills && T.idx > this.S.hero.lv ? 1 : 0;
+    T.rgMs = 0; T.rgK = 0;
+    return slow;
   }
   // ── 시간이 흐름(타이머 · 날 바뀜) ──
   tick(nowMs) {

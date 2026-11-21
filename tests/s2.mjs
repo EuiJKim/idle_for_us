@@ -1900,6 +1900,118 @@ console.log('\n=== v616 무한 탑 이정표 상자 ===');
   const fr2 = f.towerFight(); ok(fr2.cleared && !fr2.chest && f.S.tower.best === 11, '11층은 상자 없음');
 }
 
+console.log('\n=== v628 원거리(궁사 · 술사) — 뒤로 뛰기 · 화살 밀어내기 · 기탄 느려짐 · 물러나기 ===');
+{
+  const R = CH.RANGED, mr0 = R.minRange;
+  const off = (fn) => { R.minRange = Infinity; try { return fn(); } finally { R.minRange = mr0; } };   // 끔 = 예전 엔진 그대로
+  // 자동 사냥 3분 — 표적 거리 · 뛰기(발판 안에서만) · 몹은 늘 발판 안(밀려도) · 밀림 · 느려짐
+  const hunt3 = (job, L, seed) => {
+    const F = new SideFight(sideRoom(L, seed, { n: 18, coolMs: 1000 }), refPlayer(L, job), seed * 13 + 5), map = F.def.map;
+    const s = { n: 0, sum: 0, in24: 0, lt15: 0, hops: 0, badHop: 0, badMob: 0, kb: 0, slow: 0 };
+    while (F.t < 180000) {
+      const H = F.hero, p0 = H.plat;
+      F.step();
+      for (const e of F.events) if (e[0] === 'hop') { s.hops++; const p = map.plats[H.plat], land = H.hopX0 + H.hopDir * H.hopLen; const eg = Math.min(R.hop.edge, Math.round(map.w * R.hop.edgeX)); if (H.plat !== p0 || land < p.x0 + R.hop.margin || land > p.x1 - R.hop.margin || land < eg || land > map.w - eg || H.hopLen < R.hop.min) s.badHop++; }
+      F.events.length = 0;
+      if (F.t > (H.hopAt ?? -1) && F.t < (H.hopUntil || 0) + 50) { const p = map.plats[H.plat]; if (!p || H.x < p.x0 || H.x > p.x1) s.badHop++; }
+      for (const m of F.mobs) { const p = map.plats[m.plat]; if (m.x < p.x0 + 200 || m.x > p.x1 - 200) s.badMob++; if (m.kbHit === F.t) s.kb++; if (m.slowUntil > F.t && F.t >= m.slowAt) s.slow++; }
+      const tg = F.mobs.find((m) => m.id === H.target);
+      if (tg && Math.abs(tg.y - H.y) <= SAME_Y_T && H.plat >= 0) { const d = Math.abs(tg.x - H.x); s.n++; s.sum += d; if (d >= 2000 && d <= 4000) s.in24++; if (d < 1500) s.lt15++; }
+    }
+    return { F, ...s, avg: s.sum / s.n, p24: s.in24 / s.n, p15: s.lt15 / s.n };
+  };
+  const SAME_Y_T = 500;
+  const B0 = off(() => [1, 2].map((sd) => hunt3('bow', 60, sd))), B1 = [1, 2].map((sd) => hunt3('bow', 60, sd));
+  const mean = (a, k) => a.reduce((x, r) => x + r[k], 0) / a.length, pc = (v) => `${(v * 100).toFixed(0)}%`;
+  const b0 = { avg: mean(B0, 'avg'), p24: mean(B0, 'p24'), p15: mean(B0, 'p15') }, b1 = { avg: mean(B1, 'avg'), p24: mean(B1, 'p24'), p15: mean(B1, 'p15') };
+  ok(b1.avg >= b0.avg + 500 && b1.p24 >= b0.p24 * 1.6 && b1.p15 <= b0.p15 * 0.6, '궁사 자동 사냥 3분(Lv60 · 씨앗 둘): 표적과 평균 거리 · 2~4m · 1.5m 안 — 예전 → 지금',
+    `평균 ${(b0.avg / 1000).toFixed(2)}m → ${(b1.avg / 1000).toFixed(2)}m · 2~4m ${pc(b0.p24)} → ${pc(b1.p24)} · 1.5m 안 ${pc(b0.p15)} → ${pc(b1.p15)}`);
+  const M0s = off(() => [1, 2].map((sd) => hunt3('mage', 60, sd))), M1s = [1, 2].map((sd) => hunt3('mage', 60, sd)), M1 = M1s[0];
+  const m0 = { avg: mean(M0s, 'avg'), p24: mean(M0s, 'p24'), p15: mean(M0s, 'p15') }, m1 = { avg: mean(M1s, 'avg'), p24: mean(M1s, 'p24'), p15: mean(M1s, 'p15') };
+  ok(m1.p24 >= m0.p24 * 1.6 && m1.p15 <= m0.p15 * 0.7, '술사도 멀리서(Lv60 · 씨앗 둘) — 2~4m가 늘고 1.5m 안이 준다(평균은 4m 밖 시간도 줄어 비슷)', `평균 ${(m0.avg / 1000).toFixed(2)}m → ${(m1.avg / 1000).toFixed(2)}m · 2~4m ${pc(m0.p24)} → ${pc(m1.p24)} · 1.5m 안 ${pc(m0.p15)} → ${pc(m1.p15)}`);
+  const all = [...B1, ...M1s];
+  ok(B1.every((r) => r.hops >= 10) && M1s.every((r) => r.hops >= 10) && B0.every((r) => r.hops === 0) && M0s.every((r) => r.hops === 0), '뒤로 뛰기가 일어난다(3분에 10번 넘게) · 끄면 없음', `궁사 ${B1.map((r) => r.hops).join('/')} · 술사 ${M1s.map((r) => r.hops).join('/')}`);
+  ok(all.every((r) => r.badHop === 0), '뛰기는 늘 발판 안 — 내려설 자리는 발판 끝에서 0.3m 안쪽 · 뛰는 동안 발판을 벗어나지 않음', all.map((r) => r.badHop).join(','));
+  ok(all.every((r) => r.badMob === 0) && B1.every((r) => r.kb > 50) && M1s.every((r) => r.slow > 50 && r.kb === 0) && B1.every((r) => r.slow === 0), '밀려도 몹은 제 발판 안 · 궁사는 밀고 술사는 느리게(서로 섞이지 않음)', `밀림 ${B1.map((r) => r.kb).join('/')} · 느려진 틱 ${M1.slow}`);
+  // 같은 레벨 기준 무인 — 분당 처치는 그대로(±5%) · 받는 피해는 줄어듦
+  const rate = (job) => { let k0 = 0, k1 = 0, d0 = 0, d1 = 0; for (const L of [45, 90]) for (let sd = 1; sd <= 3; sd++) { const a = off(() => new SideFight(sideRoom(L, sd, { n: 18, coolMs: 1000 }), refPlayer(L, job), sd * 13 + 5).run(180000)), b = new SideFight(sideRoom(L, sd, { n: 18, coolMs: 1000 }), refPlayer(L, job), sd * 13 + 5).run(180000); k0 += a.kills; k1 += b.kills; d0 += a.dmgIn; d1 += b.dmgIn; } return { x: k1 / k0, h: d1 / d0 }; };
+  const rb = rate('bow'), rm = rate('mage');
+  ok(Math.abs(rb.x - 1) <= 0.05 && Math.abs(rm.x - 1) <= 0.05 && rb.h < 0.8 && rm.h < 0.9, '같은 조건 분당 처치 그대로(±5%) · 받는 피해 ↓ — Lv45 · 90 씨앗 셋', `궁사 처치 ×${rb.x.toFixed(3)} 피해 ×${rb.h.toFixed(2)} · 술사 처치 ×${rm.x.toFixed(3)} 피해 ×${rm.h.toFixed(2)}`);
+  // 근접 셋은 그대로 — 켜든 끄든 같은 사건 흐름(난수 · 위치 하나도 안 바뀜)
+  //   지문은 v627 엔진(원거리 손대기 전)으로 잰 값 — 근접 싸움을 일부러 바꾸면 여기도 새로 잰다
+  const GOLD = { 'sword:30:2': 'a6779798:57:390725', 'sword:90:5': '12314fd7:55:15862336', 'spear:30:2': '3a31a25d:60:408093', 'spear:90:5': 'e289bc92:56:15944020', 'fist:30:2': '213aaef8:58:436482', 'fist:90:5': '1231ed6:52:15319935' };
+  const dg = (job, L, sd) => new SideFight(sideRoom(L, sd, { n: 18, coolMs: 1000 }), refPlayer(L, job), sd).run(120000).digest();
+  const mel = ['sword', 'spear', 'fist'].flatMap((j) => [[30, 2], [90, 5]].map(([L, sd]) => [`${j}:${L}:${sd}`, dg(j, L, sd), off(() => dg(j, L, sd))]));
+  ok(mel.every(([k, a, b]) => a === b && a === GOLD[k]), '근접(검객 · 창수 · 권사)은 그대로 — v627 엔진과 같은 사건 흐름 · 켜든 끄든 같음', mel.filter(([k, a, b]) => a !== b || a !== GOLD[k]).map((x) => `${x[0]} ${x[1]}`).join(' '));
+  { const T0 = 1.8e12, play = () => { const g = new Game(newGame('sword', T0, 31), T0); g.tick(T0); let t = T0; for (let i = 0; i < 240; i++) { t += 1000; g.tick(t); g.hunt(1000); } return g.save(); };
+    ok(play() === off(play), '근접 게임(사냥 · 칸 두목 · 물러나기 4분)도 세이브까지 그대로'); }
+  // 결정론 — 같은 씨앗이면 뛰기 · 밀림 · 느려짐까지 같다
+  for (const job of ['bow', 'mage']) { const a = new SideFight(sideRoom(60, 3, { n: 18, coolMs: 1000 }), refPlayer(60, job), 9).run(120000), b = new SideFight(sideRoom(60, 3, { n: 18, coolMs: 1000 }), refPlayer(60, job), 9).run(120000);
+    ok(a.digest() === b.digest() && a.hops > 0 && a.events.some((e) => e[0] === 'hop') && Number.isInteger(a.hero.x) && a.mobs.every((m) => Number.isInteger(m.x)), `${job === 'bow' ? '궁사' : '술사'}: 같은 씨앗 → 같은 결과(뛰기 포함) · 위치는 mm 정수`, a.digest()); }
+  // 밀림 — 일반 250 · 정예 반 · 두목은 안 밀림 · 화살이 닿는 때부터 미끄러지고 그동안 멈칫 · 발판 끝에서 멈춤
+  { const F = new SideFight(sideRoom(60, 4), refPlayer(60, 'bow'), 5, { auto: false }), g0 = F.def.map.plats[0];
+    F.mobs = []; F.famState.a.keep = 0; F.hero.x = 6000; F.hero.y = 0; F.hero.plat = 0;
+    F.spawn('a', { p: 0, x: 9000 }); F.spawn('e', { p: 0, x: 9500 }); F.spawn('b', { p: 0, x: 10000 });
+    const [mo, el, bo] = F.mobs; for (const m of F.mobs) { m.x = { mob: 9000, elite: 9500, boss: 10000 }[m.kind]; m.angry = true; }
+    for (const m of F.mobs) m.hp = m.st.hp = 1e12;
+    F.strike(mo, SKILL_BASE); F.strike(el, SKILL_BASE); F.strike(bo, SKILL_BASE);
+    F.hero.x = 500;   // 손 조작이어도 사거리 안 몹은 저절로 친다 — 더 맞지 않게 멀리
+    ok(mo.kbN === R.kb.base && el.kbN === Math.round(R.kb.base * R.kb.eliteX) && bo.kbX === undefined && bo.kbN === undefined && mo.kbAt > F.t, '궁사 평타: 일반 250 · 정예 반 · 두목은 안 밀림 · 화살이 닿는 때(조금 뒤)부터', `일반 ${mo.kbN} · 정예 ${el.kbN} · 닿기까지 ${mo.kbAt - F.t}ms`);
+    let xs = null, stag = true; while (F.t < mo.kbAt || mo.kbX) { if (F.t + 50 === mo.kbAt) xs = mo.x; F.step(); if (F.t >= mo.kbAt && mo.moving) stag = false; }
+    ok(xs !== null && mo.x - xs === R.kb.base && stag && mo.kbX === 0, '밀린 거리만큼 무인 반대쪽으로 미끄러진다 · 그동안 걷지 않는다', `${mo.x - xs}mm`);
+    const F2 = new SideFight(sideRoom(60, 4), refPlayer(60, 'bow'), 5, { auto: false }); F2.mobs = []; F2.famState.a.keep = 0; F2.hero.x = 20000; F2.hero.y = 0; F2.hero.plat = 0;
+    F2.spawn('a', { p: 0, x: 25000 }); const m2 = F2.mobs[0]; m2.x = g0.x1 - 260; m2.angry = true; m2.hp = m2.st.hp = 1e12;
+    F2.strike(m2, { coef: 1, base: false }, 0); F2.strike(m2, { coef: 1, base: false }, 1); F2.hero.x = 9000;
+    while (F2.t + 50 < m2.stagUntil) F2.step();   // 멈칫이 끝나기 전까지(끝나면 다시 걸어온다)
+    ok(m2.x === g0.x1 - 200 && m2.kbN === R.kb.skill && m2.kbX === 0, '무공(한 번 쓸 때 몹마다 첫 대만 400) · 발판 끝에 닿으면 거기서 멈춘다', `x ${m2.x} / 끝 ${g0.x1 - 200}`);
+    // 두목전(자동 · 30초) — 화살을 많이 맞아도 두목은 밀리지 않는다
+    const B = new SideFight(sideRoom(60, 4), refPlayer(60, 'bow'), 6); B.mobs = []; B.famState.a.keep = 0; B.spawn('b', B.def.map.spots[0]); const bb = B.mobs[0]; bb.hp = bb.st.hp = 1e12;
+    let bh = 0; for (let i = 0; i < 600; i++) { B.step(); bh += B.events.filter((e) => e[0] === 'hit' && e[2] === bb.id && e[5] !== 2).length; B.events = []; }
+    ok(bh > 30 && bb.kbX === undefined && bb.kbHit === undefined, '두목전 30초 — 두목은 여러 번 맞아도 밀리지 않는다', `맞음 ${bh}번`); }
+  // 술사 기탄 — 닿으면 걸음 ×0.6 · 두목은 아님
+  { const F = new SideFight(sideRoom(60, 4), refPlayer(60, 'mage'), 5, { auto: false }); F.mobs = []; F.famState.a.keep = 0; F.hero.x = 6000; F.hero.y = 0; F.hero.plat = 0;
+    F.spawn('a', { p: 0, x: 9000 }); F.spawn('b', { p: 0, x: 12000 }); const [m, b] = F.mobs; m.x = 9000; m.angry = true; b.angry = true; m.hp = m.st.hp = b.hp = b.st.hp = 1e12;
+    F.strike(m, SKILL_BASE); F.strike(b, SKILL_BASE); F.hero.x = 500;   // 더 맞지 않게 사거리 밖으로
+    while (F.t < m.slowAt) F.step();
+    m.spd = 1000; m.chase = true; const x0 = m.x; F.step(); const slowStep = x0 - m.x;
+    while (F.t < m.slowUntil) F.step(); m.spd = 1000; m.chase = true; m.nextAtk = F.t + 9999; const x1 = m.x; F.step(); const fullStep = x1 - m.x;
+    ok(m.slowUntil - m.slowAt === R.slow.ms && slowStep === Math.round(fullStep * R.slow.x) && fullStep > 0 && b.slowUntil === undefined && m.kbX === undefined, '술사 평타 기탄: 맞은 몹 걸음 ×0.6(0.8초) · 밀지는 않음 · 두목은 그대로', `걸음 ${slowStep}mm / 보통 ${fullStep}mm`); }
+  // 수동이면 뛰지 않는다 · 두목 패턴 피하기가 먼저 · 붉은 범위 안으로는 안 뜀
+  { const mk = (auto) => { const F = new SideFight(sideRoom(60, 4), refPlayer(60, 'bow'), 7, { auto }); F.mobs = []; F.famState.a.keep = 0; F.hero.x = 9000; F.hero.y = 0; F.hero.plat = 0; F.spawn('a', { p: 0, x: 10000 }); const m = F.mobs[0]; m.x = 10000; m.angry = true; m.hp = m.st.hp = 1e12; m.nextAtk = 1e12; return F; };
+    const hopsIn = (F, n) => { let h = 0; for (let i = 0; i < n; i++) { F.step(); for (const e of F.events) if (e[0] === 'hop') h++; F.events = []; } return h; };
+    const A = mk(true), M = mk(false);
+    const xw = (hopsIn(A, 3), A.hero.x);   // 웅크림(0.1초) 동안은 제자리
+    ok(xw === 9000 && hopsIn(A, 6) === 0 && A.hero.x === 9000 - R.hop.dist && A.hops === 1 && A.hero.face === 1 && hopsIn(M, 40) === 0, '자동이면 웅크렸다(0.1초) 붙은 몹 반대쪽으로 2.2m 뛴다(몹을 본 채 · 0.28초) · 수동이면 안 뜀', `자동 ${A.hero.x - 9000}mm`);
+    const T = mk(true); T.spawn('b', { p: 0, x: 20000 }); const bs = T.mobs.find((x) => x.kind === 'boss'); bs.nextPat = 1e12;
+    bs.pat = { id: 'taiji', at: T.t, end: T.t + 5000, x: 9000 - 2200, y: 0, w: 2400, dmgX: 1, shape: 'circle', safe: null };
+    ok(hopsIn(T, 6) === 0, '내려설 자리가 두목 붉은 범위 안이면 안 뜀');
+    bs.pat = { id: 'taiji', at: T.t, end: T.t + 5000, x: T.hero.x, y: 0, w: 2400, dmgX: 1, shape: 'circle', safe: null };
+    ok(hopsIn(T, 1) === 0 && T.hero.x !== 9000, '무인이 붉은 범위 안이면 피하기가 먼저(뛰지 않고 비킨다)', `${T.hero.x - 9000}mm`); }
+  // 몰리면 안 뜀(발판 끝) · 자리가 모자라면 짧게(0.9m 이상)
+  { const F = new SideFight(sideRoom(60, 4), refPlayer(60, 'bow'), 7); F.mobs = []; F.famState.a.keep = 0; F.hero.x = R.hop.edge + 500; F.hero.y = 0; F.hero.plat = 0; F.spawn('a', { p: 0, x: R.hop.edge + 1500 }); const m = F.mobs[0]; m.x = R.hop.edge + 1500; m.angry = true; m.hp = m.st.hp = 1e12;
+    let h = 0; for (let i = 0; i < 10; i++) { F.step(); h += F.events.filter((e) => e[0] === 'hop').length; F.events = []; }
+    const G = new SideFight(sideRoom(60, 4), refPlayer(60, 'bow'), 7); G.mobs = []; G.famState.a.keep = 0; const eg = R.hop.edge; G.hero.x = eg + 1700; G.hero.y = 0; G.hero.plat = 0; G.spawn('a', { p: 0, x: eg + 2700 }); const m2 = G.mobs[0]; m2.x = eg + 2700; m2.angry = true; m2.hp = m2.st.hp = 1e12;
+    for (let i = 0; i < 10; i++) G.step();
+    ok(h === 0 && G.hops === 1 && G.hero.hopLen === 1700 && G.hero.x === R.hop.edge, '발판 · 맵 끝에 몰리면 안 뜀 · 자리가 모자라면 짧게(맵 끝에선 5m 앞까지 — 맵 끝에 붙으면 무인이 HP 상자 · 무공 칸 밑에 깔린다)', `짧게 ${G.hero.hopLen}mm → x ${G.hero.x}`); }
+  // 뛰는 도중 저장 → 불러와도 이어서 사냥(싸움은 저장하지 않고 새로 연다)
+  { const T0 = 1.8e12, g = new Game(newGame('bow', T0, 21), T0); g.addExp(EX.cumExp(40)); g.tick(T0); const T = g.stage(); T.idx = T.top = 40; T.auto = false;
+    let t = T0, mid = false;
+    for (let i = 0; i < 6000 && !mid; i++) { t += 50; g.tick(t); g.hunt(50); const F = g.fight, H = F.hero; mid = F.t > (H.hopAt ?? -1) && F.t < (H.hopUntil || 0); }
+    const txt = g.save(), g2 = Game.load(txt, t), k0 = g2.S.kills, S2 = g2.S.stage;
+    for (let i = 0; i < 90; i++) { t += 1000; g2.tick(t); g2.hunt(1000); }
+    const F2 = g2.fight;
+    ok(mid && g2.signed && S2.idx === 40 && g2.S.kills > k0 && F2.hops > 0 && Number.isInteger(F2.hero.x) && F2.hero.plat >= -1, 'v628 뛰는 도중 저장 → 불러오면 새 싸움으로 이어서 사냥(뛰기도 다시)', `처치 +${g2.S.kills - k0} · 뛰기 ${F2.hops}`); }
+  // 자동 물러나기(game.js rgSlow) — 원거리는 칸이 레벨보다 앞선 채 처치가 느리면 쓰러지지 않아도 물러난다 · 근접 · 낮은 칸은 아님
+  { const T0 = 1.8e12, mk = (job, lv, idx, stx) => { const g = new Game(newGame(job, T0, 41), T0); if (lv > 1) g.addExp(EX.cumExp(lv)); g.tick(T0); const T = g.stage(); T.idx = idx; T.top = idx; T.kills = 0; T.auto = true; const fo = g.fighter.bind(g); g.fighter = () => { const x = fo(); x.st = { ...x.st, hp: x.st.hp * 1e4, ...stx(x.st) }; return x; }; g.dirtyStats = true; return g; };
+    const go = (g, sec) => { let t = T0, ret = null; for (let i = 0; i < sec && !ret; i++) { t += 1000; g.tick(t); g.hunt(1000); ret = g.feed.find((f) => f.k === 'retreat') || null; g.feed.length = 0; if (g.bossFight) g.endChallenge(false); } return ret; };
+    const bw = mk('bow', 20, 40, () => ({})), rb2 = go(bw, 400);
+    ok(rb2 && rb2.from === 40 && bw.stage().idx === 39 && bw.fight.deaths === 0, '궁사: 앞선 칸(Lv20 · 40칸)에서 처치가 느리면 쓰러지지 않아도 물러난다(40초 창 셋)', rb2 ? `${rb2.from} → ${rb2.idx}` : '안 물러남');
+    const sw = mk('sword', 20, 40, () => ({}));
+    ok(!go(sw, 400) && sw.stage().rgMs === undefined, '근접은 예전대로 — 쓰러지지 않으면 안 물러난다(새 칸 없음)');
+    const low = mk('bow', 60, 30, (st) => ({ atk: Math.max(1, Math.round(st.atk * 0.02)) }));
+    ok(!go(low, 300), '레벨보다 낮은 칸이면 처치가 느려도 물러나지 않는다'); }
+}
+
 console.log('\n=== S0 규칙 ===');
 {
   const files = [];

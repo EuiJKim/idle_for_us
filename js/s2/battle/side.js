@@ -5,7 +5,7 @@ import { Rng } from '../core/rng.js';
 import { TICK_MS } from '../core/clock.js';
 import { hit } from './damage.js';
 import { makeMob, SKILL_BASE, SKILL_MAIN } from './ref.js';
-import { JOBS } from '../tables/char.js';
+import { JOBS, RANGED } from '../tables/char.js';
 import { BASE_REGEN_P } from '../tables/economy.js';
 import { PAL_ATK, BOSS_PATS, BOSS_PAT_EVERY, skillById } from '../tables/kit.js';
 import { CB_PATS, CB, WBF } from '../tables/chboss.js';
@@ -100,7 +100,7 @@ export class SideFight {
   }
   step() {
     this.t += TICK_MS;
-    const H = this.hero, J = JOBS[H.job], map = this.def.map;
+    const H = this.hero, J = JOBS[H.job], map = this.def.map, rg = J.range >= RANGED.minRange;   // v628 원거리(궁사 · 술사)
     if (this.def.wb) { const w = this.wbWeak(); if (w !== !!this.wbW) { this.wbW = w; this.events.push(['wbw', this.t, w ? 1 : 0]); } }   // v535 월드보스 자세가 바뀜
     // 화면이 틱 사이를 이어 그리도록 직전 자리를 남긴다(엔진 결과에는 영향 없음)
     H.px = H.x; H.py = H.y;
@@ -124,10 +124,10 @@ export class SideFight {
       if (!tgt) { tgt = this.pickTarget(); if (!tgt) { for (const m of this.mobs) m.skipUntil = 0; tgt = this.pickTarget(); } H.target = tgt ? tgt.id : -1; H.chaseAt = this.t; }
       if (tgt) {
         const dy = tgt.y - H.y, dx = tgt.x - H.x;
-        // 같은 층: 사거리 90% 밖이면 다가가기 시작해 60% 안까지 들어가서 선다(경계에서 가다 서다 떨지 않게)
+        // 같은 층: 사거리 90% 밖이면 다가가기 시작해 60% 안까지 들어가서 선다(경계에서 가다 서다 떨지 않게) — v628 원거리는 RANGED.stand(72%)에서
         if (Math.abs(dy) <= SAME_Y) {
           if (Math.abs(dx) > J.range * 0.9) H.closing = true;
-          if (H.closing && Math.abs(dx) <= J.range * 0.6) H.closing = false;
+          if (H.closing && Math.abs(dx) <= J.range * (rg ? RANGED.stand : 0.6)) H.closing = false;
           if (H.closing) dir = Math.sign(dx);
         }
         else if (dy > 0 && H.plat >= 0) {
@@ -153,6 +153,8 @@ export class SideFight {
         H.closing = false; jump = false; down = false;
         break;
       }
+      // v628 원거리: 화난 몹이 붙으면 뒤로 뛴다 — 두목 패턴 피하기가 먼저(피하는 틱에는 안 뛰고, 뛰던 것도 멈춘다)
+      if (rg) { if (dodge) H.hopUntil = 0; else this.rgHop(map); }
     } else if (!this.auto && (!tgt || Math.abs(tgt.y - H.y) > SAME_Y || Math.abs(tgt.x - H.x) > J.range)) {
       // 수동: 사거리 안 같은 층 몹만 표적
       tgt = this.mobs.filter((m) => Math.abs(m.y - H.y) <= SAME_Y && Math.abs(m.x - H.x) <= J.range).sort((a, b) => Math.abs(a.x - H.x) - Math.abs(b.x - H.x))[0] || null;
@@ -161,11 +163,16 @@ export class SideFight {
     H.act = '';
     // v507 치는 동안은 제자리(무공 0.26~0.51초 · 평타 0.14초) — 이펙트가 터지는데 몸이 딴 데로 달려가지 않게. 두목 패턴 피하기 · 점프는 예외
     if (this.t < (H.lockUntil || 0) && !dodge) { dir = 0; if (this.auto) jump = false; }
+    // v628 뒤로 뛰는 동안(ms)은 달리기 · 점프 · 내려가기 없이 뛰는 길만 간다 — 회피를 누르면 뛰기는 멈춘다
+    if (rg && H.hopUntil && H.dashAt === this.t) H.hopUntil = 0;
+    const hop = rg && H.hopUntil > 0 && this.t > H.hopAt && this.t < H.hopUntil + TICK_MS;
+    if (hop) { dir = 0; jump = false; down = false; }
     // v507 달리기는 0.14초에 걸쳐 빨라지고 0.1초에 걸쳐 멈춘다(뚝 떠나고 뚝 서지 않게)
     if (dir) { if (H.mdir !== dir) { H.spd = H.mdir === -dir ? 200 : (H.spd || 0); H.mdir = dir; } H.spd = Math.min(1000, (H.spd || 0) + 360); H.face = dir; }
     else H.spd = Math.max(0, (H.spd || 0) - 500);
     if (H.spd > 0 && H.mdir) { H.x = Math.max(200, Math.min(map.w - 200, H.x + Math.round((H.mdir * RUN * DT * H.spd) / 1000))); H.act = 'run'; }
     if (this.t < (H.dashUntil || 0) + TICK_MS && this.t > (H.dashAt ?? -1)) { H.x = Math.max(200, Math.min(map.w - 200, H.x + H.dashDir * Math.round((DASH.dist * TICK_MS) / DASH.ms))); H.act = 'dash'; }   // v546
+    if (hop) { H.x = Math.max(200, Math.min(map.w - 200, H.hopX0 + H.hopDir * Math.round(H.hopLen * Math.max(0, Math.min(1, (this.t - H.hopAt - RANGED.hop.wind) / RANGED.hop.ms))))); H.act = 'hop'; }   // v628 웅크렸다(wind) 뛴다 · 무적 없음
     if (H.plat >= 0) {
       const p = map.plats[H.plat];
       if (jump) { H.vy = JUMP_V; H.drop = H.plat; H.plat = -1; H.act = 'jump'; }
@@ -246,6 +253,11 @@ export class SideFight {
     for (const m of this.mobs) {
       const p = map.plats[m.plat];
       if (m.stunUntil > this.t) { m.spd = 0; m.moving = false; continue; }   // v532 기절
+      // v628 궁사 화살에 밀림 — 화살이 닿는 때(kbAt)부터 발판 안에서 미끄러지고, 그때부터 stagMs 동안은 걷지도 치지도 못한다
+      if (m.kbAt !== undefined && this.t >= m.kbAt) {
+        if (m.kbX) { const st = Math.abs(m.kbX) <= 40 ? m.kbX : Math.round(m.kbX * 0.55); m.x += st; m.kbX -= st; if (m.x < p.x0 + 200) { m.x = p.x0 + 200; m.kbX = 0; } else if (m.x > p.x1 - 200) { m.x = p.x1 - 200; m.kbX = 0; } }
+        if (this.t < m.stagUntil) { m.spd = 0; m.moving = false; continue; }
+      }
       const same = Math.abs(m.y - H.y) <= SAME_Y, adx = Math.abs(H.x - m.x);
       // 화난 몹: 같은 층이면 붙어 친다 — 서는 거리는 몹마다 조금씩 달라(450~930mm) 한 자리에 겹쳐 서지 않는다(v501)
       //   (서는 거리 + 300 넘게 벌어져야 다시 쫓음 — 경계 떨림 없음)
@@ -269,7 +281,9 @@ export class SideFight {
       m.spd = Math.max(0, Math.min(1000, (m.spd || 0) + (walk ? 250 : -340)));
       m.moving = m.spd > 0;
       if (m.spd > 0) {
-        m.x += Math.round((m.dir * MOB_RUN * DT * (m.kind === 'boss' ? (m.cb?.phase ? 0.9 : 0.6) : 1) * m.spd) / 1000);
+        let v = m.dir * MOB_RUN * DT * (m.kind === 'boss' ? (m.cb?.phase ? 0.9 : 0.6) : 1) * m.spd;
+        if (m.slowUntil > this.t && this.t >= m.slowAt) v *= RANGED.slow.x;   // v628 술사 기탄에 느려짐
+        m.x += Math.round(v / 1000);
         if (m.x < p.x0 + 200) { m.x = p.x0 + 200; m.dir = 1; } else if (m.x > p.x1 - 200) { m.x = p.x1 - 200; m.dir = -1; }
       }
       if (walk) { /* 걷는 중 */ } else if (m.angry && same && adx <= reach + 100 && this.t >= m.nextAtk && H.plat >= 0) {
@@ -327,6 +341,7 @@ export class SideFight {
     };
     const ts = this.mobs.filter(inShape).sort((a, b) => Math.abs(a.x - H.x) - Math.abs(b.x - H.x)).slice(0, k.maxT);
     this.events.push(['cast', this.t, k.id, face, H.x, H.y, k.shape, R]);
+    if (J.range >= RANGED.minRange) this.rgShape = k.shape;   // v628 화살로 날아가는 무공인지(밀림이 닿는 때)
     const sk = { coef: k.coef, base: false };
     const att = k.crit ? { ...H, st: { ...H.st, crit: (H.st.crit || 0) + k.crit } } : null;   // 트리 극의: 이 무공만 치명 ↑
     for (let h = 0; h < k.hits; h++) for (const m of ts) if (m.hp > 0) this.strike(m, sk, h, att);
@@ -359,7 +374,58 @@ export class SideFight {
       this.mobs = this.mobs.filter((x) => x !== m);
       if (this.hero.target === m.id) this.hero.target = -1;
     }
+    if (m.hp > 0 && !skill.pal && JOBS[this.hero.job].range >= RANGED.minRange) this.rgPush(m, skill, hitNo);   // v628
   }
+  // ── v628 원거리(궁사 · 술사) — 뒤로 뛰기 · 화살 밀어내기 · 기탄 느려짐(숫자: tables/char.js RANGED) ──
+  // 뛰기(자동만): 같은 발판의 화난 몹이 near 안 · 발판 위 · 평타 · 무공 · 회피 중 아님 · 쿨 끝 → 몹 반대쪽으로 dist(무인은 몹을 본 채).
+  //   내려설 자리가 발판 끝에서 margin 안쪽이고, 뛰고 나면 화난 몹과 gain 넘게 벌어질 때만(몰렸으면 안 뜀) · 두목 붉은 범위 안으로는 안 뜀
+  rgHop(map) {
+    const H = this.hero, R = RANGED.hop;
+    if (H.plat < 0 || this.t < (H.lockUntil || 0) || this.t < (H.hopReady || 0) || this.t < (H.dashUntil || 0)) return false;
+    let nd = Infinity, nx = 0;
+    for (const m of this.mobs) if (m.angry && m.plat === H.plat) { const d = Math.abs(m.x - H.x); if (d < nd) { nd = d; nx = m.x; } }
+    if (nd >= R.near) return false;
+    const dir = Math.sign(H.x - nx) || -(H.face || 1), p = map.plats[H.plat];
+    const edge = Math.min(R.edge, Math.round(map.w * R.edgeX)), lo = Math.max(p.x0 + R.margin, edge), hi = Math.min(p.x1 - R.margin, map.w - edge);
+    if (lo > hi) return false;   // 맵 끝 가까이의 짧은 발판 — 내려설 자리가 없다
+    const land = Math.max(lo, Math.min(hi, H.x + dir * R.dist)), len = (land - H.x) * dir;
+    if (len < R.min) return false;   // 몰렸다
+    let after = Infinity;
+    for (const m of this.mobs) if (m.angry && m.plat === H.plat) after = Math.min(after, Math.abs(m.x - land));
+    if (after < nd + R.gain || this.rgInTell(land)) return false;
+    H.hopAt = this.t; H.hopX0 = H.x; H.hopDir = dir; H.hopLen = len; H.hopUntil = this.t + R.wind + R.ms; H.hopReady = this.t + R.cdMs;
+    H.face = -dir; H.spd = 0; H.closing = false;
+    this.hops = (this.hops || 0) + 1;
+    this.events.push(['hop', this.t, dir]);
+    return true;
+  }
+  // 그 자리가 지금 두목 패턴의 붉은 범위 안인가(필살은 안전 지대 밖이면 안)
+  rgInTell(x) {
+    for (const m of this.mobs) {
+      const q = m.pat; if (!q || this.t > q.end || q.shape === 'summon') continue;
+      if (q.shape === 'ult') { if (!(x >= q.safe[0] + 300 && x <= q.safe[1] - 300)) return true; continue; }
+      if (Math.abs(this.hero.y - q.y) <= SAME_Y + 600 && Math.abs(x - q.x) <= q.w / 2 + 250) return true;
+    }
+    return false;
+  }
+  // 맞은 몹(살아 있으면): 궁사 — 평타 · 무공(한 번 쓸 때 몹마다 첫 대만)이 무인 반대쪽으로 민다(정예 반 · 두목 안 밀림) / 술사 — 평타 기탄이 걸음을 늦춘다(두목 빼고)
+  rgPush(m, skill, hitNo) {
+    const H = this.hero, adx = Math.abs(m.x - H.x);
+    if (H.job === 'bow') {
+      if (m.kind === 'boss' || (!skill.base && hitNo > 0)) return;
+      const K = RANGED.kb, d = Math.round((skill.base ? K.base : K.skill) * (m.kind === 'elite' ? K.eliteX : 1));
+      const at = this.t + this.rgFly(adx, skill.base || this.rgShape === 'line' || this.rgShape === 'arc' ? K.v : 0);
+      if (!(m.kbX || m.stagUntil > this.t)) m.kbAt = at;   // 새로 밀림: 화살이 닿는 때부터(밀리는 중이면 이어서 더 민다)
+      m.kbX = Math.max(-2 * K.skill, Math.min(2 * K.skill, (m.kbX || 0) + (Math.sign(m.x - H.x) || H.face || 1) * d));
+      m.stagUntil = Math.max(m.stagUntil || 0, at + K.stagMs); m.kbHit = this.t; m.kbN = d;
+      m.chase = true;   // 밀려난 뒤 다시 다가온다(치지도 쫓지도 않는 틈에 서 있지 않게)
+    } else if (H.job === 'mage' && skill.base && m.kind !== 'boss') {
+      const S = RANGED.slow, at = this.t + this.rgFly(adx, S.v);
+      if (m.slowUntil > this.t) m.slowUntil = Math.max(m.slowUntil, at + S.ms); else { m.slowAt = at; m.slowUntil = at + S.ms; }
+    }
+  }
+  // 화살 · 기탄이 닿기까지(ms, 50ms 단위) — 화면이 날려 보내는 빠르기(mm/ms)와 같게. v 없음: 날아가지 않는 무공(0.1초)
+  rgFly(adx, v) { return v ? Math.min(250, Math.ceil(Math.max(80, (adx - 350) / v) / TICK_MS) * TICK_MS) : 100; }
   wbWeak() { return this.t % WBF.cycleMs >= WBF.guardMs; }
   run(ms) { const end = this.t + ms; while (this.t < end) this.step(); return this; }
   digest() {
