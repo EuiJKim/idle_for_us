@@ -1836,6 +1836,30 @@ console.log('\n=== v609 자동 성장 — 은자 아끼기여도 스탯은 찍�
   ok(g2.statPts() === q0, 'stat을 끄면 안 찍는다');
 }
 
+console.log('\n=== v634 강함 진맥 — 표준 무인 층별 견줌 ===');
+{
+  const PZ = await import('../js/s2/grow/pulse.js'), { STD_SRC } = await import('../js/s2/tables/stdsrc.js'), { buildStdSrc } = await import('../js/s2/sim/std.js');
+  ok(JSON.stringify(buildStdSrc()) === JSON.stringify(STD_SRC), '층별 출처 표가 시뮬과 같다(바꾸면 node tools/s2sim/std.mjs)');
+  ok(STD_SRC.length === STD.length && STD_SRC.slice(1).every((r) => r.gear && r.pal), '층별 출처 — 레벨마다 한 줄(장비 · 동료 늘 있음)');
+  const T0 = 1.8e12, mk = (L, idx, seed = 51) => { const g = new Game(newGame('sword', T0, seed), T0); if (L > 1) g.addExp(EX.cumExp(L)); g.tick(T0); const T = g.stage(); T.idx = T.top = idx; return g; };
+  const g = mk(45, 45), s0 = JSON.stringify(g.S), p0 = PZ.pulse(g);
+  ok(JSON.stringify(g.S) === s0 && JSON.stringify(PZ.pulse(g)) === JSON.stringify(p0), '계산만 한다(세이브 그대로 · 두 번 불러도 같다)');
+  const by = (p) => Object.fromEntries(p.rows.map((r) => [r.k, r.pct]));
+  const b0 = by(p0);
+  ok(p0.L === 45 && ['level', 'gear', 'kit', 'mastery', 'adv', 'stat', 'weapon', 'pal', 'relic', 'realm'].every((k) => k in b0), 'Lv 45 — 층 줄(레벨 · 장비 · 무공 · 마스터리 · 전직 · 스탯 · 병기 · 동료 · 영물 · 경지)', JSON.stringify(b0));
+  ok(b0.level === 100 && b0.gear === 0 && b0.pal === 0 && p0.low && p0.low.pct === 0, '빈손 — 장비 · 동료 0% · 가장 뒤처진 것 0%', JSON.stringify(p0.low));
+  for (let i = 0; i < 30; i++) g.autoGrow({});
+  const p1 = PZ.pulse(g), b1 = by(p1);
+  ok(b1.gear > 30 && b1.pal > 30 && b1.kit === 100 && b1.stat === 100, '자동 성장 뒤 — 장비 · 동료가 오르고 무공 · 스탯은 꽉 참', JSON.stringify(b1));
+  ok(p1.low && p1.rows.every((r) => r.pct >= p1.low.pct) && p1.low.pct < PZ.PULSE_OK && typeof p1.low.go === 'string' && /^[a-z]+:\d$/.test(p1.low.go), '가장 뒤처진 것 = 가장 낮은 줄 · 가는 칸', `${p1.low.name} ${p1.low.pct}% → ${p1.low.go}`);
+  const g2 = mk(30, 60); ok(by(PZ.pulse(g2)).level === 50, '레벨 — 무인 Lv 30 · 스테이지 60이면 50%');
+  // 표준 무인 자신과 견주면 전투력 층은 100%
+  const sd = PZ.stdHero(80, 'sword'), fake = { S: { hero: sd.hero.s, gear: { slots: {}, eq: {} } }, hero: sd.hero, zoneLv: () => 80, sources: () => sd.src.map((x) => ({ src: { gear: '장비:weapon', weapon: '병기', pal: '동료', relic: '영물', realm: '경지', journey: '강호행', look: '꾸미기' }[x.layer], stats: x.stats })), palList: () => sd.pals };
+  const pf = by(PZ.pulse(fake));
+  ok(['gear', 'weapon', 'pal', 'relic', 'realm', 'journey', 'level', 'kit', 'mastery', 'adv'].every((k) => pf[k] === 100), '표준 무인 자신 — 층마다 100%', JSON.stringify(pf));
+  const g3 = mk(1, 1); ok(PZ.pulse(g3).rows.every((r) => r.k !== 'adv' && r.k !== 'mastery'), 'Lv 1 — 아직 없는 층(전직 · 마스터리)은 줄이 없다');
+}
+
 console.log('\n=== v610 창 줄 그림 아이콘 ===');
 {
   const UI = await import('../js/s2/tables/uiicons.js');
@@ -1848,6 +1872,74 @@ console.log('\n=== v610 창 줄 그림 아이콘 ===');
   ok(direct.every((n) => UI.UI_ICONS.includes(n)), '줄에서 바로 고른 그림(i:이름)도 있는 그림이다', direct.filter((n) => !UI.UI_ICONS.includes(n)).join(' '));
   ok(UI.UI_ICONS.every((n) => used.has(n)), '안 쓰는 그림이 없다', UI.UI_ICONS.filter((n) => !used.has(n)).join(' '));
   ok(UI.uiIcon('塔')[0] === 'tower' && UI.uiIcon('i:def:防').join() === 'def,防' && UI.uiIcon('✓').join() === ',✓' && UI.uiIcon('i:nope:x').join() === ',x', '글자 → 그림 풀이(없는 그림 · 표에 없는 글자는 글자 그대로)');
+}
+
+console.log('\n=== v634 차림 셋 — 장비 · 무공 · 동료를 한 벌로 · 두목 싸움 저절로 갈아입기 ===');
+{
+  const T0 = 1.8e12, mk = (seed) => { const g = new Game(newGame('sword', T0, seed), T0); g.addExp(EX.cumExp(30)); g.tick(T0); g.S.wallet['ticket:gear'] = 300; g.S.wallet['ticket:pal'] = 30; g.S.wallet['ticket:relic'] = 30; g.S.hero.adv = 2; g.hero.kitUnlock();
+    for (let i = 0; i < 30; i++) g.pullGear(10); g.pullCollect('pal', 30); g.pullCollect('relic', 30); return g; };
+  const g = mk(71), G = g.S.gear, O = g.outfitSt(), uidOf = () => GE.SLOTS.map((s) => G.eq[s]?.uid ?? null).join();
+  ok(O.sets.length === 3 && O.sets.every((x) => x === null) && O.names.join() === '차림 1,차림 2,차림 3' && O.hunt === -1 && O.boss === -1 && O.cur === -1 && !g.outfitHold(), '처음: 빈 칸 셋 · 걸린 것 없음 · 입은 것 없음');
+  ok(!g.outfitLoad(0) && !g.outfitSave(3) && !g.outfitSave(-1) && !g.outfitName(0, '   ') && !g.outfitUse('hunt', 0) && !g.outfitUse('x', -1), '빈 칸 입기 · 없는 칸 · 빈 이름 · 빈 차림 걸기는 안 된다');
+  // 차림 1 = 지금(최고) · 차림 2 = 가방의 다른 장비 + 무공 칸 순서 바꿈 + 동료 다른 줄
+  const best = uidOf(), K = g.hero.kitState();
+  ok(g.outfitSave(0) && G.presets[0] && G.presets[0].weapon === G.eq.weapon?.uid && g.S.outfit.cur === 0 && g.outfitHold(), '적기: 장비는 gear.js 프리셋 칸에도 · 입은 차림이 된다');
+  const alt = {}; for (const s of GE.SLOTS) { const it = G.bag.find((x) => x.slot === s); if (it) { alt[s] = it.uid; GR.equip(G, it.uid); } }
+  const ks0 = [...K.slots]; K.slots = [...K.slots].reverse(); K.off = K.slots.slice(0, 1);
+  const P = g.S.colls.pal, pal0 = [...P.eq], own = Object.keys(P.own).map(Number), palAlt = own.filter((k) => !pal0.includes(k)).slice(0, 2); P.eq = [palAlt[0] ?? null, ...pal0.slice(1)];
+  g.outfitSave(1); g.outfitName(1, '  벌이   차림 길게 쓴 이름 ');
+  ok(g.S.outfit.names[1] === '벌이 차림 길게' && Object.keys(alt).length >= 5 && ks0.length >= 2 && palAlt.length >= 1, '이름: 공백 정리 · 8자까지', `${g.S.outfit.names[1]} alt ${Object.keys(alt).length} kit ${ks0.length} pal ${palAlt.length}`);
+  const pw1 = g.power(); let r = g.outfitLoad(0);
+  ok(r && r.miss === 0 && uidOf() === best && K.slots.join() === ks0.join() && K.off.length === 0 && P.eq.join() === pal0.join() && g.S.outfit.cur === 0, '차림 1 입기: 장비 · 무공 칸 · 자동/수동 · 동료 모두 그대로', JSON.stringify(r));
+  ok(g.power() !== pw1 && g.dirtyStats, '입으면 전투력이 다시 셈해진다');
+  r = g.outfitLoad(1);
+  ok(r.miss === 0 && GE.SLOTS.every((s) => !alt[s] || G.eq[s]?.uid === alt[s]) && K.slots.join() === [...ks0].reverse().join() && K.off.length === 1 && P.eq[0] === (palAlt[0] ?? null), '차림 2 입기');
+  // 지운(분해한) 장비 — 건너뛰고 지금 것을 둔다
+  g.outfitLoad(0); const gone = GE.SLOTS.find((s) => alt[s]); const nb = G.bag.length; G.bag = G.bag.filter((x) => x.uid !== alt[gone]);
+  const keep = G.eq[gone].uid; r = g.outfitLoad(1);
+  ok(nb - G.bag.length >= 1 && r.miss === 1 && G.eq[gone].uid === keep && GE.SLOTS.filter((s) => s !== gone && alt[s]).every((s) => G.eq[s].uid === alt[s]), '없어진 장비 하나: 그 칸만 그대로(miss 1)', JSON.stringify(r));
+  // 일괄 분해 후보에서 차림 장비는 빠진다
+  const uids = g.outfitUids(); ok(uids.size >= 10 && g.gearJunk(6).every((it) => !uids.has(it.uid)), '일괄 분해 후보에 차림 장비는 없다', uids.size);
+  // 입고 있으면 저절로 끼기 쉼 — 벗으면 다시
+  const AG = { daily: false, claim: false, pull: false, coll: false, kit: false, enh: false, train: false, stat: false };
+  g.outfitLoad(1); const before = uidOf(); g.autoGrow(AG);
+  ok(uidOf() === before, '차림을 입고 있으면 자동 성장이 장비를 바꾸지 않는다');
+  const strong = GR.makeGear(new Rng(5), gone, 6); g.obtain([strong]);
+  ok(G.eq[gone] !== strong && G.bag.includes(strong), '입고 있으면 주운 장비도 가방으로(빈 칸만 채움)');
+  ok(g.outfitOff() && !g.outfitHold() && !g.outfitOff(), '벗기');
+  g.autoGrow(AG); ok(uidOf() !== before, '벗으면 다시 저절로 낀다');
+  // 두목 차림 — 칸 두목 들어갈 때 갈아입고 끝나면 사냥 차림으로
+  g.outfitSave(0); g.outfitOff(); ok(g.outfitUse('hunt', 0) && g.outfitUse('boss', 1) && g.S.outfit.cur === 0, '걸기: 사냥 1 · 두목 2(사냥을 걸면 바로 입음)');
+  const huntU = uidOf(), T = g.stage(); T.kills = STAGE_KILLS; g.ensureFight();
+  ok(g.challenge() && g.S.outfit.cur === 1 && GE.SLOTS.every((s) => !alt[s] || s === gone || G.eq[s].uid === alt[s]) && !!g.S.outfit.ret, '칸 두목 도전 → 두목 차림');
+  ok(g.bossFight.hero.st.atk === g.fighter().st.atk, '두목 싸움은 두목 차림 스탯으로');
+  ok(g.outfitLoad(0) === null, '두목 싸움 중에는 손으로 못 갈아입는다');
+  let t = T0; while (g.bossFight && t < T0 + 400e3) { t += 1000; g.tick(t); g.hunt(1000); }
+  ok(!g.bossFight && g.S.outfit.cur === 0 && uidOf() === huntU && !g.S.outfit.ret, '끝나면 사냥 차림으로');
+  // 탑(화면 없이) — 들어갈 때 두목 · 끝나면 사냥
+  let seen = -1; const ap = g.outfitApply.bind(g); g.outfitApply = (p2) => { if (g.S.outfit.ret && g.dg == null && seen < 0) seen = 1; return ap(p2); };
+  const tr = g.towerFight(); delete g.outfitApply;
+  ok(tr && seen === 1 && g.S.outfit.cur === 0 && uidOf() === huntU && !g.S.outfit.ret, '무한 탑: 두목 차림으로 싸우고 사냥으로 돌아온다');
+  // 사냥 차림이 없으면 들어가기 전 그대로
+  g.outfitUse('hunt', -1); g.outfitOff(); g.equipBest(); const freeU = uidOf(); g.towerFight();
+  ok(uidOf() === freeU && g.S.outfit.cur === -1 && !g.S.outfit.ret, '사냥 차림이 없으면 들어가기 전 차림으로(벗은 채)');
+  // 저장 → 불러오기 · 싸움 도중 저장(ret 남음)도 다음 사냥에서 되돌린다
+  T.kills = STAGE_KILLS; g.challenge(); const s0 = JSON.stringify({ ...g.S.outfit, ret: null }); const b = Game.load(g.save(), g.now);
+  ok(b.signed && b.S.outfit.ret && JSON.stringify({ ...b.S.outfit, ret: null }) === s0, '저장 → 불러오기(차림 그대로)');
+  b.stage().kills = 0; b.tick(g.now + 1000); b.hunt(1000);
+  ok(!b.S.outfit.ret && b.S.outfit.cur === -1 && GE.SLOTS.map((s) => b.S.gear.eq[s]?.uid ?? null).join() === freeU, '싸움 도중 저장한 세이브: 다음 사냥에서 되돌린다');
+  // 옛 세이브 · 깨진 칸
+  { const S = newGame('sword', T0, 72); delete S.outfit; const g2 = new Game(S, T0); let err = ''; try { g2.tick(T0); g2.hunt(2000); g2.autoGrow(); g2.towerFight(); } catch (e) { err = e.message; }
+    ok(!err && !g2.S.outfit, '옛 세이브: 차림을 안 쓰면 칸도 안 생긴다', err);
+    g2.S.outfit = { sets: [null], names: 5, hunt: 7, boss: 'x', cur: 2 }; const O2 = g2.outfitSt();
+    ok(O2.sets.length === 3 && O2.names.length === 3 && O2.hunt === -1 && O2.boss === -1 && O2.cur === -1, '깨진 칸이면 고친다', JSON.stringify(O2)); }
+  // 결정론 — 같은 씨앗 · 같은 조작이면 같은 결과
+  const run = () => { const h = mk(73); h.outfitSave(0); h.outfitOff(); h.outfitUse('boss', 0); for (let i = 0; i < 3; i++) h.towerFight(); return JSON.stringify([h.S.tower.best, h.S.outfit.cur, h.S.outfit.ret, h.S.outfit.sets[0].kit, h.S.outfit.sets[0].coll, GE.SLOTS.map((s) => h.S.gear.eq[s]?.g), h.power()]); };   // uid는 모듈 셈(실행마다 다름)이라 빼고
+  ok(run() === run(), '결정론');
+  // 동료 — 없는 것 · 겹친 것은 빼고 좋은 것부터 채운다
+  const g3 = mk(74), P3 = g3.S.colls.pal; g3.outfitSave(0); const w1 = P3.eq[1]; g3.S.outfit.sets[0].coll.pal = [999, w1, w1, null, null]; g3.outfitLoad(0);
+  const nn = P3.eq.filter((k) => k != null);
+  ok(P3.eq.every((k) => k == null || P3.own[k]) && new Set(nn).size === nn.length && P3.eq[1] === w1 && nn.length === Math.min(5, Object.keys(P3.own).length), '동료: 없는 것 · 겹친 것은 빼고 좋은 것부터 채움', P3.eq.join());
 }
 
 console.log('\n=== v613 두목 도감 — 첫 처치 때 · 드러난 수 ===');
@@ -1910,6 +2002,53 @@ console.log('\n=== v632 자동 움직임(표적 값 · 붙들기 · 포기 시�
   const M = new SideFight(room(60), refPlayer(60, 'sword'), 5, { auto: false }); M.run(4000);
   const N = new SideFight(room(60), refPlayer(60, 'sword'), 5); N.famState.a.keep = 0; N.mobs = []; N.spawn('a', { p: 0, x: N.hero.x + 15000 }); N.run(4000);
   ok(!B.events.some((e) => e[0] === 'dash') && !M.events.some((e) => e[0] === 'dash') && N.events.some((e) => e[0] === 'dash'), '두목전 · 수동에선 저절로 회피 안 씀(일반 사냥만)', `${B.autoDashes || 0} · ${M.autoDashes || 0} · ${N.autoDashes || 0}`);
+}
+
+console.log('\n=== v634 뜻대로 굴리기 · 전투력 미리보기 ===');
+{
+  const WI = await import('../js/s2/core/wish.js');
+  const T0 = 1.8e12, mk = (seed = 41) => { const g = new Game(newGame('sword', T0, seed), T0); g.tick(T0); g.addExp(5e6); return g; };
+  const g = mk(), W = g.S.wallet;
+  ok(g.wishTarget('heart') === null && !g.wishList().length && g.wishRoll('heart', { g: 2 }, 10) === null, '경지 10 전에는 심법 줄이 없어 굴릴 수 없다');
+  g.S.realm.lv = 30; W['item:heart'] = 40;
+  ok(g.wishList().join() === 'heart' && g.wishTarget('heart').lines.length === 3, '경지 30 → 심법 3줄이 대상');
+  const want = { keys: ['bossDmg'], g: 2, n: 1 }, r = g.wishRoll('heart', want, 30);
+  ok(r.why === 'hit' && r.n >= 1 && r.spent === r.n && W['item:heart'] === 40 - r.spent && r.spent <= 30, '멈출 때까지 굴리기 — 맞으면 멈추고 쓴 만큼만 구슬이 빠진다', `${r.n}번`);
+  ok(WI.wishMet(g.wishTarget('heart').lines, want) && r.now.some((l) => l.k === 'bossDmg' && l.g >= 2), '멈춘 줄에 바라는 스탯 · 등급이 있다');
+  const g2 = mk(); g2.S.realm.lv = 30; g2.S.wallet['item:heart'] = 40; const r2 = g2.wishRoll('heart', want, 30);
+  ok(JSON.stringify(r2) === JSON.stringify(r), '같은 씨앗 = 같은 굴림(결정적)');
+  const before = JSON.stringify(g.S.realm.heart.lines);
+  ok(g.wishUndo(r) && JSON.stringify(g.S.realm.heart.lines.map((l) => l && l.k)) === JSON.stringify(r.old.map((l) => l && l.k)) && !g.wishUndo(r), '되돌리기 — 이전 줄로 한 번만(구슬은 안 돌아옴)', before.length);
+  // 한도: 나올 수 없는 바람 → 한도에서 멈춤
+  W['item:heart'] = 40; const rb = g.wishRoll('heart', { keys: ['-'], g: 9, n: 1 }, 5);
+  ok(rb.why === 'budget' && rb.n === 5 && rb.spent === 5 && W['item:heart'] === 35, '쓸 한도(구슬 5)에 닿으면 멈춤', rb.why);
+  // 잠금: 잠근 줄 그대로 · 값은 ×2
+  g.wishLock('heart', 0); const l0 = JSON.stringify(g.S.realm.heart.lines[0]), rl = g.wishRoll('heart', { keys: ['-'], g: 9, n: 1 }, 6);
+  ok(rl.n === 3 && rl.spent === 6 && JSON.stringify(g.S.realm.heart.lines[0]) === l0, '잠근 줄은 그대로 · 잠금 1줄이면 한 번 구슬 2', `${rl.n}번 ${rl.spent}`);
+  g.wishLock('heart', 1); g.wishLock('heart', 2);
+  ok(g.wishRoll('heart', { keys: ['-'], g: 9, n: 1 }, 99).why === 'locked', '다 잠그면 굴리지 않는다');
+  W['item:heart'] = 0; g.wishLock('heart', 2);
+  ok(g.wishRoll('heart', { keys: ['-'], g: 9, n: 1 }, 99).why === 'short', '구슬이 없으면 멈춤(아무것도 안 빠짐)');
+  ok(g.wishRoll('heart', { keys: [], g: 0, n: 1 }, 99).why === 'already', '이미 맞으면 굴리지 않는다');
+  // 강호행 단계 줄
+  const J = g.S.journey; J.opts.push([{ g: 0, k: 'hpP', v: 5 }, { g: 0, k: 'final3', v: 2 }]); J.step = 1; W['item:heart'] = 20;
+  const rj = g.wishRoll('jour:0', { keys: ['final3'], g: 2, n: 1 }, 20);
+  ok(rj && rj.spent <= 20 && (rj.why === 'hit' ? J.opts[0].some((l) => l.k === 'final3' && l.g >= 2) : rj.why === 'budget'), '강호행 단계 옵션 2줄도 같은 부품(구슬 1)', `${rj.why} ${rj.n}`);
+  // 장비 부옵션
+  const it = GR.makeGear(g.rng, 'ring', 4); while (it.subs.length < 3) it.subs.push({ k: 'crit', v: 5 }); g.S.gear.bag.push(it); W['item:stone'] = 1000;
+  const SP = GS.SUB_POOL.find((p) => p.k === 'crit'), X = GS.SUB_TIER_X(GR.gearTier(it));
+  ok(WI.subGrade(it, { k: 'crit', v: Math.round(SP.v[0] * X) }) === 0 && WI.subGrade(it, { k: 'crit', v: Math.round(SP.v[1] * X) }) === 3, '부옵션 등급 — 범위 맨 아래 일반 · 맨 위 전설');
+  g.wishLock(`sub:${it.uid}`, 1); const k1 = JSON.stringify(it.subs[1]), rs = g.wishRoll(`sub:${it.uid}`, { keys: ['-'], g: 9, n: 1 }, 20);
+  ok(rs.n === 2 && rs.spent === 5 + 8 && W['item:stone'] === 987 && it.rr === 2 && JSON.stringify(it.subs[1]) === k1, '부옵션 — 잠근 줄 그대로 · 강화석 5 → 8(바꾼 수만큼 ↑) · 한도 20에서 멈춤', `${rs.n} ${rs.spent}`);
+  ok(g.wishUndo(rs) && JSON.stringify(it.subs) === JSON.stringify(rs.old.map((s) => ({ k: s.k, v: s.v }))), '부옵션 되돌리기');
+  // 전투력 미리보기 — 복사본에만 · 실제로 해 본 것과 같은 값
+  const s0 = JSON.stringify(g.S), free = g.statPts(), pv = g.powerIf((G) => G.statUp('atk', 10));
+  ok(free > 0 && pv && pv.d > 0 && JSON.stringify(g.S) === s0, '미리보기는 이 게임을 바꾸지 않는다', `${pv?.p0} → ${pv?.p1}`);
+  g.statUp('atk', 10); ok(Math.round(g.power()) === pv.p1, '미리본 값 = 실제로 찍은 뒤 전투력', `${pv.p1} · ${Math.round(g.power())}`);
+  ok(g.powerIf(() => false) === null && g.powerIf(() => { throw new Error('x'); }) === null, '못 하는 일은 미리보기 없음');
+  // 옛 세이브: 새 칸 없이도 읽힌다
+  const old = mk(); old.S.realm.lv = 12; delete old.S.journey.wlk;
+  ok(old.wishTarget('heart').lines.length === 1 && old.wishList().length === 1, '옛 세이브도 그대로(잠금 칸은 쓸 때 만든다)');
 }
 
 console.log('\n=== v616 무한 탑 이정표 상자 ===');
@@ -2200,6 +2339,73 @@ console.log('\n=== v632 무공 변형(4단) ===');
   }
   ok(!fails.length, '실제 싸움 — 두목 쪽은 두목에 +7% 안 · 무리 쪽은 두목에 −10% 넘게 손해 · 사냥 처치는 −15%~+12% 안(무리 쪽) · 두목 쪽 +8% 안', (fails.length ? fails : out).join(' | '));
   console.log('    ' + out.join('\n    '));
+}
+
+console.log('\n=== v634 단약(무료 시간 버프) · 성장 봇짐(레벨 상자) ===');
+{
+  const { DANYAK, LVBOX, lvBoxReward, lvBoxLevels } = await import('../js/s2/game.js');
+  const T0 = 1.8e12, MIN = 60e3, mk = (seed, lv = 30) => { const g = new Game(newGame('sword', T0, seed), T0); g.tick(T0); if (lv > 1) g.addExp(EX.cumExp(lv)); g.tick(T0); return g; };
+  // ── 단약 ──
+  ok(DANYAK.uses === 3 && DANYAK.ms === 30 * MIN && DANYAK.list.map((d) => d.id).join() === 'exp,gold,atk', '단약 셋(경험치 · 은자 · 공격) · 하루 3번 · 30분');
+  const g = mk(41), st0 = g.bfState();
+  ok(!('bf' in newGame('sword', T0, 1)) && st0.every((s) => !s.on && s.uses === 3) && g.bfSources().length === 0, '새 판: 세이브 칸은 처음 쓸 때 생김 · 셋 다 꺼짐 · 3번씩');
+  const pw0 = g.power(), x0 = g.fighter().st;
+  const e1 = g.bfEat('exp'), s1 = g.bfState().find((s) => s.id === 'exp');
+  ok(e1 && e1.endMs === T0 + 30 * MIN && s1.on && s1.leftMs === 30 * MIN && s1.uses === 2, '먹으면 30분 · 남은 수 2', JSON.stringify(e1));
+  ok(g.fighter().st.expP - (x0.expP || 0) === 500 && (g.fighter(false).st.expP || 0) === (x0.expP || 0) && g.power() === pw0, '청심단 — 경험치 +50%(싸움 스탯) · 전투력 숫자는 그대로', `${g.power()} / ${pw0}`);
+  const e2 = g.bfEat('exp');
+  ok(e2 && e2.endMs === T0 + 60 * MIN && g.bfState()[0].uses === 1, '같은 단약을 또 먹으면 끝나는 때에 30분을 더한다(60분)');
+  ok(g.bfEat('exp') && g.bfEat('exp') === null && g.bfState()[0].uses === 0 && g.bfLeftMs('exp') === 90 * MIN, '하루 3번까지(네 번째는 안 됨)');
+  ok(g.bfEat('nope') === null, '없는 단약은 안 됨');
+  // 경험치 · 은자 · 공격이 실제 파이프라인에 붙는다
+  { const a = mk(42), b = mk(42); a.bfEat('exp'); const ea0 = EX.cumExp(a.S.hero.lv) + a.S.hero.exp, eb0 = EX.cumExp(b.S.hero.lv) + b.S.hero.exp; a.addExp(100000); b.addExp(100000);
+    const da = EX.cumExp(a.S.hero.lv) + a.S.hero.exp - ea0, db = EX.cumExp(b.S.hero.lv) + b.S.hero.exp - eb0;
+    ok(Math.abs(da / db - 1.5) < 0.01, '청심단 — 같은 경험치가 1.5배로 들어간다(addExp)', `${da} / ${db}`); }
+  { const a = mk(43), b = mk(43); a.bfEat('gold'); const ga = a.S.wallet.gold, gb = b.S.wallet.gold; a.hunt(60000); b.hunt(60000);
+    const ra = (a.S.wallet.gold - ga) / Math.max(1, b.S.wallet.gold - gb);
+    ok(a.S.kills === b.S.kills && a.S.kills > 5 && ra > 1.4 && ra < 1.6, '재물부 — 사냥 1분 은자 약 1.5배(처치는 같다)', `${ra.toFixed(3)} · 처치 ${a.S.kills}`); }
+  { const a = mk(44), b = mk(44), pa = a.power(); a.bfEat('atk');
+    ok(a.fighter().st.final5 - (b.fighter().st.final5 || 0) === 100 && a.power() === pa, '혈기단 — 최종 피해⑤ +10%(싸움에만) · 전투력 그대로');
+    a.stage().idx = b.stage().idx = 40; a.hunt(60000); b.hunt(60000);
+    ok(a.S.kills >= b.S.kills, '혈기단 — 같은 칸 1분 처치가 줄지 않는다', `${a.S.kills} / ${b.S.kills}`); }
+  // 방치 보상엔 안 붙는다
+  { const a = mk(45), b = mk(45); a.bfEat('exp'); a.S.bf.end.exp = T0 + 10 * 3600e3; const t1 = T0 + 3 * 3600e3;
+    for (const x of [a, b]) { x.returnCheck(t1); x.tick(t1); x.claimOffline(); }
+    ok(a.S.hero.lv === b.S.hero.lv && a.S.hero.exp === b.S.hero.exp && a.bfOff === false, '방치 보상(claimOffline)엔 단약 경험치가 붙지 않는다', `${a.S.hero.exp} / ${b.S.hero.exp}`); }
+  // 끝나면 꺼짐 · 날이 바뀌면 수만 다시 3
+  { const a = mk(46); a.bfEat('atk'); a.ensureFight(); a.tick(T0 + 10 * MIN); a.dirtyStats = false;
+    a.tick(T0 + 31 * MIN); ok(a.bfSources().length === 0 && a.dirtyStats === true && !a.bfState()[2].on, '30분이 지나면 꺼지고 싸움 스탯을 다시 셈(dirtyStats)');
+    a.bfEat('atk'); a.bfEat('atk'); ok(a.bfState()[2].uses === 0, '오늘 다 씀');
+    const nd = T0 + 24 * 3600e3; a.tick(nd); ok(a.bfState()[2].uses === 3 && a.bfState()[0].uses === 3, '다음 날 — 다시 3번씩'); }
+  // 모두 먹기 — 꺼진 것만
+  { const a = mk(47); a.bfEat('gold'); const r = a.bfEatAll();
+    ok(r.map((x) => x.id).join() === 'exp,atk' && a.bfState().every((s) => s.on) && a.bfState()[1].uses === 2 && a.bfLeftMs('gold') === 30 * MIN, '모두 먹기 — 꺼진 것만 하나씩(켜진 재물부는 늘이지 않음)');
+    ok(a.bfEatAll().length === 0, '다 켜져 있으면 모두 먹기는 아무것도 안 함'); }
+  // 자동 성장 — 기본은 안 먹는다 · buff: true일 때만
+  { const a = mk(48), off = { daily: false, claim: false, pull: false, coll: false, kit: false, enh: false, train: false, stat: false };
+    const o1 = a.autoGrow(off); ok(!o1.buff && a.bfState().every((s) => !s.on && s.uses === 3), '자동 성장(기본) — 단약은 먹지 않는다(고르는 건 무인)');
+    const o2 = a.autoGrow({ ...off, buff: true }); ok(o2.buff === 3 && a.bfState().every((s) => s.on && s.uses === 2), '단약 자동(buff: true) — 꺼진 셋을 먹는다', o2.buff);
+    ok(a.autoGrow({ ...off, buff: true }).buff === 0, '켜져 있는 동안은 또 먹지 않는다');
+    const l = Game.load(a.save(), T0 + 5 * MIN); ok(l.bfState().every((s) => s.on && s.uses === 2) && l.bfLeftMs('exp') === 25 * MIN, '세이브에 남는다(불러온 뒤 남은 25분)'); }
+  // ── 성장 봇짐 ──
+  const r5 = lvBoxReward(5), r10 = lvBoxReward(10), r50 = lvBoxReward(50), r150 = lvBoxReward(150);
+  ok(r5.give['ticket:gear'] === LVBOX.small.tix && r5.gear === -1 && !r5.give['ticket:pal'] && r10.give['ticket:gear'] === LVBOX.large.tix && r10.gear >= 0 && r50.give['ticket:pal'] === 1 && r50.give['ticket:weapon'] === 1 && r50.give['ticket:relic'] === 1 && r150.gear <= 4,
+    '5레벨 작은 봇짐(뽑기권 · 강화석) · 10레벨 큰 봇짐(+확정 장비) · 50레벨마다 병기 · 동료 · 영물 뽑기권 1씩', JSON.stringify([r5, r10, r50]));
+  ok(lvBoxReward(7) === null && lvBoxReward(0) === null && lvBoxReward(155) === null && lvBoxLevels().length === 30, '5의 배수 · Lv150까지(봇짐 30)');
+  { const upTo = (L) => lvBoxLevels().filter((v) => v <= L).map(lvBoxReward), sum = (L, k) => upTo(L).reduce((a, r) => a + (r.give[k] || 0), 0);
+    ok(sum(50, 'ticket:gear') <= 25 && sum(50, 'item:stone') <= 250 && sum(150, 'ticket:gear') <= 70, '봇짐은 작다 — Lv50까지 뽑기권 25 · 강화석 250 안 · 끝까지 뽑기권 70 안', `${sum(50, 'ticket:gear')} · ${sum(50, 'item:stone')} · ${sum(150, 'ticket:gear')}`); }
+  { const a = mk(51, 1); ok(a.lvBoxCan() === 0 && a.lvBoxNext() === 5 && a.lvBoxClaim(5) === null && a.lvBoxState().every((x) => x.state === 'lock'), 'Lv1: 받을 봇짐 없음 · 다음은 Lv5');
+    const b = mk(52, 23), W = b.S.wallet, t0 = W['ticket:gear'] || 0, s0 = W['item:stone'] || 0;
+    ok(b.lvBoxCan() === 4 && b.lvBoxNext() === 25 && b.lvBoxClaim(25) === null && b.lvBoxClaim(12) === null, 'Lv23: 5 · 10 · 15 · 20 받기 · 25는 아직', b.lvBoxCan());
+    const c = b.lvBoxClaim(10);
+    ok(c && c.lv === 10 && W['ticket:gear'] - t0 === r10.give['ticket:gear'] && W['item:stone'] - s0 === r10.give['item:stone'] && c.gear && c.gear.g === r10.gear, 'Lv10 봇짐 → 뽑기권 · 강화석 · 장비 한 점', JSON.stringify(c));
+    ok(b.lvBoxClaim(10) === null && b.lvBoxCan() === 3, '한 번만');
+    const S = b.lvBoxState(); ok(S.find((x) => x.lv === 10).state === 'got' && S.find((x) => x.lv === 5).state === 'can' && S.find((x) => x.lv === 25).state === 'lock', '상태: 받음 · 받기 · 잠김');
+    const l = Game.load(b.save(), T0); ok(l.S.lvBox.got.join() === '10' && l.lvBoxCan() === 3, '받은 봇짐은 저장된다');
+    const o = b.autoGrow({ daily: false, pull: false, coll: false, kit: false, enh: false, train: false, stat: false });
+    ok(b.lvBoxCan() === 0 && b.S.lvBox.got.length === 4 && o.claim >= 3, '자동 성장이 남은 봇짐을 받는다', o.claim);
+    const old = mk(53, 42); delete old.S.lvBox; const ol = Game.load(old.save(), T0);
+    ok(ol.lvBoxCan() === 8 && Array.isArray(ol.S.lvBox.got) && ol.lvBoxClaimAll().length === 8, '옛 세이브(봇짐 칸 없음) Lv42: 이미 지난 8개를 받을 수 있다'); }
 }
 
 console.log('\n=== S0 규칙 ===');

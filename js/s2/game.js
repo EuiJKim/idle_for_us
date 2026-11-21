@@ -23,6 +23,7 @@ import { CHBOSS, CB, cbGearGrade, CB_REPEAT, WBF, CB_RAID, raidStars, DEX_REW } 
 const CB_MANUAL_STONES = 50;   // v546
 // v632 장비 비교 「종합」의 보스 피해 무게(Game.gearVal) — 봇의 장 두목 패배가 예전(점수 비교) 수준이 되게 맞춘 값
 export const GEAR_BOSS = { w: 1 };
+export const OUTFIT_N = 3;   // v634 차림 칸 수
 // 기연 — 사냥으로 FATE_NEED마리를 잡을 때마다 한 번, 카드 셋 중 하나를 고른다(안 고른 것은 FATE_CAP번까지 쌓이고 그동안 칸은 멈춘다)
 //   은자 · 경험치는 그 레벨 사냥 FATE_MIN분 몫 · 강화석은 5 + 레벨/10 · w는 나올 무게(셋은 서로 다르게)
 export const FATE_NEED = 300, FATE_CAP = 3, FATE_MIN = 10;
@@ -55,12 +56,32 @@ export const PARTY = { runsPerDay: 2, allies: 2, timeMs: 60000, hpX: 3, overX: 1
 export const partyLv = (tier) => Math.min(LEVEL_MAX, 10 + 5 * Math.max(1, tier));
 export const partyHpX = (tier) => PARTY.hpX * Math.pow(PARTY.overX, Math.max(0, 10 + 5 * tier - LEVEL_MAX) / 5);
 const TODAY_CHEST = { tix: 3, goldMin: 30, dungeonRuns: 3 };   // v545 하루 상자
+// v634 단약 — 하루 uses번씩 무료 · 하나에 ms(30분) · 같은 단약을 또 먹으면 남은 시간에 더한다(다른 단약끼리는 따로 돈다)
+//   효과는 전투 · 경험치 · 은자 계산에 그대로(fighter) · 전투력(power)과 방어 덱에는 넣지 않는다 · 방치 보상(claimOffline)에도 안 붙는다
+export const DANYAK = { uses: 3, ms: 30 * 60e3, list: [
+  { id: 'exp', name: '청심단', what: '경험치 +50%', stats: { expP: 500 } },
+  { id: 'gold', name: '재물부', what: '은자 +50%', stats: { goldP: 500 } },
+  { id: 'atk', name: '혈기단', what: '공격 +10%', stats: { final5: 100 } },
+] };
+// v634 성장 봇짐 — 5레벨마다 작은 상자(뽑기권 · 강화석) · 10레벨마다 큰 상자(더 많이 + 확정 장비 한 점) · 50레벨마다 병기 · 동료 · 영물 뽑기권 1씩
+//   받은 레벨은 S.lvBox.got · 옛 세이브는 이미 지난 레벨의 봇짐도 받을 수 있다
+export const LVBOX = { every: 5, big: 10, coll: 50, small: { tix: 1, stoneAdd: 5 }, large: { tix: 3, stoneAdd: 10 } };
+export const lvBoxLevels = () => Array.from({ length: Math.floor(LEVEL_MAX / LVBOX.every) }, (_, i) => (i + 1) * LVBOX.every);
+export const lvBoxGearGrade = (lv) => Math.min(4, Math.floor(lv / 30));
+export function lvBoxReward(lv) {
+  if (!Number.isInteger(lv) || lv < LVBOX.every || lv > LEVEL_MAX || lv % LVBOX.every) return null;
+  const big = lv % LVBOX.big === 0, R = big ? LVBOX.large : LVBOX.small;
+  const r = { 'ticket:gear': R.tix, 'item:stone': Math.round(lv / 2) + R.stoneAdd };
+  if (lv % LVBOX.coll === 0) for (const k of ['ticket:weapon', 'ticket:pal', 'ticket:relic']) r[k] = 1;
+  return { give: r, gear: big ? lvBoxGearGrade(lv) : -1 };
+}
 import { ATTEND, ATTEND_DAYS } from './tables/attend.js';
 import { TITLE_EACH, titleByName } from './tables/titles.js';
 import * as GR from './gear/gear.js';
 import * as GC from './gear/gacha.js';
 import * as CL from './grow/collect.js';
 import * as RM from './grow/realm.js';
+import * as WI from './core/wish.js';   // v634 뜻대로 굴리기
 import * as ID from './content/idle.js';
 import * as OF from './content/offline.js';
 import { runDungeon, runParty } from './content/dungeon.js';
@@ -153,8 +174,8 @@ export class Game {
   setTitle(nm) { if (nm && !(this.S.titles || []).includes(nm)) return false; this.S.titleOn = nm || null; return true; }
   // 장착한 동료(등급) — 전투에서 따로 친다(v497)
   palList() { const C = this.S.colls.pal; return C.eq.filter((k) => k !== null && k !== undefined).map((k) => ({ g: CL.kindGrade('pal', k), k })); }
-  fighter() { return this.hero.fighter(this.sources(), this.palList()); }
-  power(mode = 'pve') { return power(this.fighter(), mode); }
+  fighter(bf = true) { return this.hero.fighter(bf ? [...this.sources(), ...this.bfSources()] : this.sources(), this.palList()); }   // v634 bf: 단약 효과까지(전투 · 벌이)
+  power(mode = 'pve') { return power(this.fighter(false), mode); }
   // v547 서열에 올리는 한 줄(규칙 s2_players 칸과 같다 — rank.js PROFILE_KEYS) · 이름은 1~12자
   // v549 문파 — 들어간 문파(코드) · 문파 출석 보상(하루 한 번 · 뽑기권 · 은자). 문파 문서는 서버(옛 게임과 같은 문파 — 계정에 하나)
   setGuild(id) { this.S.guildId = id ? String(id).slice(0, 8) : null; return true; }
@@ -251,7 +272,7 @@ export class Game {
   }
   setNick(name) { const n = String(name || '').replace(/[\u0000-\u001f<>]/g, '').trim().slice(0, 12); if (!n) return false; this.S.nick = n; return true; }
   rankProfile() {
-    const S = this.S, f = this.fighter();
+    const S = this.S, f = this.fighter(false);
     return { season: 's2', nickname: S.nick || '무인', lv: S.hero.lv, job: String(S.hero.job).slice(0, 16), power: Math.round(power(f, 'pve')), pvpPower: Math.round(power(f, 'pvp')),
       ...(S.guildId ? { guildId: S.guildId } : {}), pvpScore: Math.max(0, Math.min(99999, Math.round(S.pvp?.score ?? 1000))), wbScore: Math.max(0, Math.round(S.wb?.week === S.qWeek ? S.wb.total || 0 : 0)), tv: String(TABLE_VER).slice(0, 16), signed: true };
   }
@@ -334,6 +355,7 @@ export class Game {
   ensureFight() {
     if (this.dg) return this.dg.F;   // v531 실제 던전 안
     if (this.bossFight) return this.bossFight;
+    this.outfitBack();   // v634 두목 싸움 뒤 차림 되돌리기(옛 세이브 · 싸움 도중 저장도)
     const L = this.zoneLv();
     if (!this.fight || this.fight.def.lv !== L) {
       this.fight = new SideFight(this.room(), this.fighter(), this.rng.u32(), { auto: this.S.auto !== false, autoDodge: this.S.dodge !== false });
@@ -391,6 +413,7 @@ export class Game {
     return true;
   }
   makeBoss(L, chb, ch, extra = {}) {
+    this.outfitGo();   // v634 두목 차림
     // v532 장 두목(10칸마다): 전용 무대(좁고 한 층) · 체력 ×1.5(막대 세 줄) · 150초 · 국면 · 무력화 · 졸개
     const def = chb
       ? { lv: L, boss: true, chb: ch, map: makeSideMap(9000 + ch, CB.arena), fams: { b: { mobs: [{ lv: L, kind: 'boss', w: 1 }], keep: 0, coolMs: 1e12 }, a: { mobs: [{ lv: L, kind: 'mob', w: 1 }], keep: 0, coolMs: 1e12 } } }
@@ -427,6 +450,7 @@ export class Game {
     this.feed.push({ k: 'raid-end', win, ch, lv: BF.def.lv, name: CHBOSS[ch].name, ms, deaths, bossLeft, stars, newStars: Math.max(0, stars - had), best: R.best[ch] || 0, rew, left: this.raidLeft() });
   }
   endChallenge(win) {
+    this.outfitBack();   // v634 진 뒤 전투력(failPw)도 사냥 차림으로
     if (this.bossFight?.def.raid) return this.endRaid(win);
     const T = this.stage(), L = T.idx, BF = this.bossFight, ms = BF ? BF.t : 0, deaths = BF ? BF.deaths : 0, bm = BF?.mobs.find((m) => m.kind === 'boss'), bossLeft = !win && bm ? Math.ceil((bm.hp / bm.st.hp) * 100) : 0;
     this.bossFight = null;
@@ -533,6 +557,7 @@ export class Game {
     if (S.qDay !== d) { S.qDay = d; this.books.daily.reset(DAILY_MISSIONS.map((m) => m.id)); S.dungeons = { day: d, runs: {}, best: S.dungeons?.best || {} }; /* v581 소탕 열림(best)은 날이 바뀌어도 남긴다 */ S.wallet['ticket:exped'] = (S.wallet['ticket:exped'] || 0) + 1; this.emit('login'); }
     if (S.qWeek !== w) { S.qWeek = w; this.books.weekly.reset(WEEKLY_MISSIONS.map((m) => m.id)); }
     OF.touch(S.offline, nowMs);
+    this.bfTick();   // v634 단약이 끝나면 싸움 스탯을 다시
   }
   // 1분마다 돌발 미션 판정(화면이 부른다)
   minute() { const s = ID.suddenTick(this.S.sudden, this.rng, this.now); if (s) this.feed.push({ k: 'sudden', need: s.need }); this.achSync(); return s; }
@@ -558,7 +583,7 @@ export class Game {
   }
   // v631 장비 비교는 실제 전투력으로 — 그 칸에 it를 끼면(null이면 빈 칸) 전투력(셈만 하고 바로 되돌림 · 칸 강화 · 성혼 · 세트까지 그대로)
   //   v632 「종합」 = 사냥 전투력 × (1 + w × 보스 피해‰/1000) — 전투력은 보스 피해를 안 세서, 그것만 보면 장 두목에 약한 장비를 골랐다
-  gearVal() { const f = this.fighter(); return Math.round(power(f, 'pve') * (1 + (GEAR_BOSS.w * (f.st.bossDmg || 0)) / 1000)); }
+  gearVal() { const f = this.fighter(false); return Math.round(power(f, 'pve') * (1 + (GEAR_BOSS.w * (f.st.bossDmg || 0)) / 1000)); }
   gearPw(it, sl = it?.slot) { const G = this.S.gear, prev = G.eq[sl]; G.eq[sl] = it || null; try { return this.gearVal(); } finally { G.eq[sl] = prev; } }
   // it가 cur보다 나을 수 없음(등급이 높지 않고 스탯이 모두 같거나 낮음) — 전투력을 셀 필요 없이 거른다
   gearDom(it, cur) {
@@ -589,12 +614,12 @@ export class Game {
     return n;
   }
   // v631 일괄 분해 대상 — 낀 것보다 세지 않은 것(실제 전투력)
-  gearJunk(maxG = 6) { return GR.junkOf(this.S.gear, this.S.hero.lv, maxG, (it, cur) => this.gearBetter(it, cur)); }
+  gearJunk(maxG = 6) { const keep = this.outfitUids(); return GR.junkOf(this.S.gear, this.S.hero.lv, maxG, (it, cur) => this.gearBetter(it, cur)).filter((it) => !keep.has(it.uid)); }   // v634 차림에 적힌 것은 빼고
   obtain(items, src = 'drop') {
     { const sn = (this.S.lookSeen ??= {}); for (const it of items) if (it && it.slot && it.g > (sn[it.slot] ?? -1)) sn[it.slot] = it.g; }   // v565
     const dps = new Map();
     const got = GR.obtain(this.S.gear, items, this.S.hero.lv, this.S.wallet, (it, cur) => {
-      if (this.gearDom(it, cur)) return false;
+      if (this.gearDom(it, cur) || this.outfitHold()) return false;   // v634 차림을 입고 있으면 빈 칸만
       const d = this.gearPw(it, it.slot) - this.gearPw(cur, it.slot);
       if (d > 0) dps.set(it, d);
       return d > 0;
@@ -629,6 +654,71 @@ export class Game {
     K.slots = ok.slice(0, K.slots.length || ok.length); K.off = (P.off || []).filter((id) => K.lv[id]);
     this.dirtyStats = true; if (this.fight) this.fight.hero.kit = this.hero.battleKit?.() ?? this.fight.hero.kit;
     return true;
+  }
+  // ── v634 차림(셋) ── 장비(uid · gear.js 프리셋 칸과 같이 적음) · 무공 칸 · 자동/수동 · 병기 · 동료 · 영물을 한 벌로 적고 갈아입는다
+  //   hunt/boss: 사냥 · 두목 싸움(칸 두목 · 토벌 · 탑 · 월드보스 · 문파 토벌 · 전직)에 걸어 둔 차림(-1 = 없음) — 두목 싸움이 끝나면 되돌린다(ret)
+  //   cur: 입은 차림(-1 = 없음) — 입고 있으면 장비 저절로 끼기(주운 것 · 자동 성장)를 쉰다(빈 칸만 채움). 「벗기」로 다시
+  outfitSt() {
+    const O = (this.S.outfit ??= {});
+    if (!Array.isArray(O.sets) || O.sets.length !== OUTFIT_N) O.sets = Array.from({ length: OUTFIT_N }, (_, i) => O.sets?.[i] ?? null);
+    if (!Array.isArray(O.names) || O.names.length !== OUTFIT_N) O.names = Array.from({ length: OUTFIT_N }, (_, i) => O.names?.[i] || `차림 ${i + 1}`);
+    for (const k of ['hunt', 'boss', 'cur']) if (!Number.isInteger(O[k]) || O[k] < -1 || O[k] >= OUTFIT_N || (O[k] >= 0 && !O.sets[O[k]])) O[k] = -1;
+    O.ret ??= null;
+    return O;
+  }
+  outfitSnap() {
+    const K = this.hero.kitState();
+    return { gear: Object.fromEntries(SLOTS.map((s) => [s, this.S.gear.eq[s]?.uid ?? null])), kit: { slots: [...K.slots], off: [...K.off] }, coll: Object.fromEntries(COLLECTS.map((s) => [s, [...this.S.colls[s].eq]])) };
+  }
+  // 한 벌 입기 — 없어진 장비(분해 등) · 안 배운 무공 · 없는 동료는 건너뛰고 지금 것을 둔다 · 건너뛴 장비 수
+  outfitApply(P) {
+    const G = this.S.gear, K = this.hero.kitState(); let miss = 0;
+    for (const s of SLOTS) {
+      const uid = P.gear?.[s]; if (uid == null || G.eq[s]?.uid === uid) continue;
+      const it = G.bag.find((x) => x.uid === uid);
+      if (it && it.slot === s) GR.equip(G, uid); else miss++;
+    }
+    if (P.kit) { const sl = (P.kit.slots || []).filter((id) => K.lv[id]); if (sl.length) { K.slots = sl; K.off = (P.kit.off || []).filter((id) => K.lv[id]); } }
+    for (const sys of COLLECTS) {
+      const C = this.S.colls[sys], want = P.coll?.[sys]; if (!Array.isArray(want)) continue;
+      const used = new Set(), eq = C.eq.map((_, i) => { const k = want[i]; if (k == null || !C.own[k] || used.has(k)) return null; used.add(k); return k; });
+      const rest = Object.keys(C.own).map(Number).filter((k) => !used.has(k)).sort((a, b) => CL.kindGrade(sys, b) - CL.kindGrade(sys, a) || C.own[b].awk - C.own[a].awk || C.own[b].lv - C.own[a].lv);
+      C.eq = eq.map((k) => k ?? rest.shift() ?? null);   // 빈 칸은 좋은 것부터
+    }
+    this.dirtyStats = true;
+    return miss;
+  }
+  outfitSave(i) {
+    const O = this.outfitSt(); if (!(i >= 0 && i < OUTFIT_N)) return false;
+    GR.savePreset(this.S.gear, i); const p = this.outfitSnap(); p.gear = { ...this.S.gear.presets[i] };
+    O.sets[i] = p; O.cur = i; return true;
+  }
+  outfitLoad(i) {
+    const O = this.outfitSt(); if (!(i >= 0 && i < OUTFIT_N) || !O.sets[i] || this.bossFight || this.dg) return null;
+    const miss = this.outfitApply(O.sets[i]); O.cur = i; O.ret = null;
+    return { miss };
+  }
+  outfitOff() { const O = this.outfitSt(); if (O.cur < 0) return false; O.cur = -1; return true; }
+  outfitName(i, s) { const O = this.outfitSt(), t = String(s ?? '').replace(/\s+/g, ' ').trim().slice(0, 8); if (!(i >= 0 && i < OUTFIT_N) || !t) return false; O.names[i] = t; return true; }
+  // 걸기 — k 'hunt' | 'boss' · i -1이면 풀기. 사냥 차림을 걸면 (싸움 밖이면) 바로 입는다
+  outfitUse(k, i) {
+    const O = this.outfitSt(); if ((k !== 'hunt' && k !== 'boss') || !Number.isInteger(i) || i < -1 || i >= OUTFIT_N || (i >= 0 && !O.sets[i])) return false;
+    O[k] = i; if (k === 'hunt' && i >= 0 && !this.bossFight && !this.dg) this.outfitLoad(i);
+    return true;
+  }
+  outfitHold() { const O = this.S.outfit; return !!O && Number.isInteger(O.cur) && O.cur >= 0 && !!O.sets?.[O.cur]; }
+  outfitUids() { const u = new Set(); for (const p of this.S.outfit?.sets || []) for (const v of Object.values(p?.gear || {})) if (v != null) u.add(v); return u; }
+  // 두목 싸움 들어갈 때(makeBoss · enterDungeon) — 두목 차림이 걸려 있으면 지금 것을 적어 두고 갈아입는다
+  outfitGo() {
+    const O = this.S.outfit; if (!O || !(O.boss >= 0) || !O.sets?.[O.boss]) return;
+    if (!O.ret) O.ret = { snap: this.outfitSnap(), cur: O.cur };
+    this.outfitApply(O.sets[O.boss]); O.cur = O.boss;
+  }
+  // 두목 싸움이 끝나면 — 사냥 차림이 걸려 있으면 그것, 아니면 들어가기 전 그대로
+  outfitBack() {
+    const O = this.S.outfit; if (!O?.ret) return;
+    const R = O.ret; O.ret = null;
+    if (O.hunt >= 0 && O.sets[O.hunt]) { this.outfitApply(O.sets[O.hunt]); O.cur = O.hunt; } else { this.outfitApply(R.snap); O.cur = R.cur ?? -1; }
   }
   // ── 기연 ── 사냥 처치가 칸을 채운다 · 차면 카드 셋 중 하나
   fate() { const f = (this.S.fate ??= { g: 0, ready: 0, n: 0, cards: null }); f.g ??= 0; f.ready ??= 0; f.n ??= 0; f.cards ??= null; return f; }
@@ -683,6 +773,7 @@ export class Game {
       for (let i = 0; i < BOUNTY_SLOTS.length; i++) if (this.bountyClaim(i)) out.claim++;   // 현상수배 — 끝낸 것 · 상자
       if (this.bountyChest()) out.claim++;
       out.claim += this.towerMsClaimAll().length;   // v616 탑 이정표 상자
+      out.claim += this.lvBoxClaimAll().length;   // v634 성장 봇짐
     }
     if (o.pull !== false) {
       this.shardExchange();   // 분해로 모인 뽑기 조각부터 뽑기권으로
@@ -694,7 +785,8 @@ export class Game {
       for (let i = 0; i < 100 && (S.wallet[`ticket:${sys}`] || 0) >= 10; i++) if (this.pullCollect(sys, 10)) out.coll += 10; else break;
       for (let i = 0; i < 10 && (S.wallet[`ticket:${sys}`] || 0) >= 1; i++) if (this.pullCollect(sys, 1)) out.coll++; else break;
     }
-    if (this.equipBest('auto')) out.equip = 1;   // v631 실제 전투력으로
+    if (o.buff === true) out.buff = this.bfEatAll().length;   // v634 단약 자동(설정에서 켤 때만 · 기본은 먹지 않는다)
+    if (!this.outfitHold() && this.equipBest('auto')) out.equip = 1;   // v634 차림을 입고 있으면 쉰다   // v631 실제 전투력으로
     if (o.kit !== false) { const k = this.kitUpAll(); if (k) out.kit = k.n; }
     if (o.enh !== false) { const e = this.enhanceAll(); if (e) out.enh = e.ok; }
     // v592 수련 — 배울 수 있는 마스터리 · 경지 돌파(은자가 되는 만큼, 강화 뒤에)
@@ -879,6 +971,7 @@ export class Game {
   }
   enterDungeon(type, kind) {
     if (this.canDungeon(type, kind)) return false;
+    if (type !== 'daily') this.outfitGo();   // v634 탑 · 월드보스 · 문파 토벌 · 전직은 두목 차림
     const S = this.S, L = S.hero.lv, D = type === 'daily' ? DAILY_DUNGEONS[kind] : null;
     if (type === 'daily') { ID.useStamina(S.stamina.daily, this.now); S.dungeons.runs[kind] = (S.dungeons.runs[kind] || 0) + 1; }
     if (type === 'graid') this.graidState().used++;
@@ -950,7 +1043,7 @@ export class Game {
   leaveDungeon() { if (!this.dg) return false; this.endDungeon(false, true); return true; }
   endDungeon(cleared, gaveUp = false) {
     const d = this.dg, S = this.S, F = d.F, L = S.hero.lv, out = { gold: 0, exp: 0, tix: 0, stones: 0 };
-    this.dg = null; this.dirtyStats = true;
+    this.dg = null; this.dirtyStats = true; this.outfitBack();   // v634
     if (cleared && d.type === 'daily') {
       const R = DAILY_DUNGEONS[d.kind].reward;
       if (R.expMin) { out.exp = Math.round(R.expMin * KILLS_PER_MIN * mobExp(L, 'mob', L)); this.addExp(out.exp); }
@@ -1063,7 +1156,7 @@ export class Game {
   }
   // 내 방어 덱 — 대결이 쓰는 것만(레벨 · 직업 · 능력치)
   pvpDeck() {   // v566 외형(부위마다 보이는 등급)도 — 상대 화면에 내 모습으로
-    const f = this.fighter(), E = this.lookEq(), lk = {}; for (const sl of SLOTS) if (E[sl]) lk[sl] = E[sl].g;
+    const f = this.fighter(false), E = this.lookEq(), lk = {}; for (const sl of SLOTS) if (E[sl]) lk[sl] = E[sl].g;
     return JSON.stringify({ lv: f.lv, job: f.job, st: f.st, lk });
   }
   // 받은 공격 기록 — 내 점수에 더하고 「지난 대결」에 방어로
@@ -1215,7 +1308,7 @@ export class Game {
   claimOffline(withAd = false) {
     const r = OF.claimOffline(this.S.offline, String(dayKey(this.now)), withAd);
     if (!r) return null;
-    this.addExp(r.exp); this.S.wallet.gold += r.gold;
+    this.bfOff = true; try { this.addExp(r.exp); } finally { this.bfOff = false; } this.S.wallet.gold += r.gold;   // v634 방치 보상엔 단약 없음
     this.emit('offline');
     return r;
   }
@@ -1231,6 +1324,59 @@ export class Game {
     const T = { realm: S.realm.wait, mastery: S.hero.mastery.learning, tree: S.hero.kit?.learning, gacha: S.gacha.wait, journey: S.journey.wait, exped: S.exped.run }[which];
     return OF.useTimeTicket(T, S.wallet, minutes);
   }
+  // ── v634 단약(무료 시간 버프) ── S.bf = { day, used: { id: 오늘 먹은 수 }, end: { id: 끝나는 ms } } — 날이 바뀌면 먹은 수만 0으로(돌던 시간은 그대로)
+  bfSt() {
+    const B = (this.S.bf ??= { day: -1, used: {}, end: {} }), dk = dayKey(this.now);
+    B.used ??= {}; B.end ??= {};
+    if (B.day !== dk) { B.day = dk; B.used = {}; }
+    return B;
+  }
+  bfLeftMs(id) { return Math.max(0, (this.bfSt().end[id] || 0) - this.now); }
+  bfState() {
+    const B = this.bfSt();
+    return DANYAK.list.map((d) => { const leftMs = this.bfLeftMs(d.id); return { id: d.id, name: d.name, what: d.what, leftMs, on: leftMs > 0, uses: Math.max(0, DANYAK.uses - (B.used[d.id] || 0)), of: DANYAK.uses }; });
+  }
+  // 먹기 — 오늘 남은 수가 있으면 30분(켜져 있으면 끝나는 때에 30분 더) → { id, endMs, uses }
+  bfEat(id) {
+    const d = DANYAK.list.find((x) => x.id === id), B = this.bfSt();
+    if (!d || (B.used[id] || 0) >= DANYAK.uses) return null;
+    B.used[id] = (B.used[id] || 0) + 1;
+    B.end[id] = Math.max(this.now, B.end[id] || 0) + DANYAK.ms;
+    this.dirtyStats = true; this.bfKey = null;
+    return { id, endMs: B.end[id], uses: DANYAK.uses - B.used[id] };
+  }
+  // 모두 먹기 — 꺼져 있고 오늘 남은 것만 하나씩(켜진 것은 늘이지 않는다)
+  bfEatAll() { const out = []; for (const s of this.bfState()) if (!s.on && s.uses > 0) { const r = this.bfEat(s.id); if (r) out.push(r); } return out; }
+  bfSources() {
+    if (this.bfOff || !this.S.bf) return [];
+    const E = this.S.bf.end || {}, st = {};
+    for (const d of DANYAK.list) if ((E[d.id] || 0) > this.now) for (const [k, v] of Object.entries(d.stats)) st[k] = (st[k] || 0) + v;
+    return Object.keys(st).length ? [{ src: 'danyak', stats: st }] : [];
+  }
+  // 켜지고 꺼짐이 바뀌면 싸움 스탯을 다시(tick에서)
+  bfTick() { if (!this.S.bf) return; const k = DANYAK.list.map((d) => ((this.S.bf.end?.[d.id] || 0) > this.now ? 1 : 0)).join(''); if (k !== this.bfKey) { if (this.bfKey != null) this.dirtyStats = true; this.bfKey = k; } }
+  // ── v634 성장 봇짐(레벨 상자) ──
+  lvBoxSt() { const B = (this.S.lvBox ??= { got: [] }); if (!Array.isArray(B.got)) B.got = []; return B; }
+  lvBoxState() { const B = this.lvBoxSt(), L = this.S.hero.lv; return lvBoxLevels().map((lv) => ({ lv, ...lvBoxReward(lv), state: B.got.includes(lv) ? 'got' : lv <= L ? 'can' : 'lock' })); }
+  lvBoxCan() { const B = this.lvBoxSt(), L = this.S.hero.lv; return lvBoxLevels().filter((lv) => lv <= L && !B.got.includes(lv)).length; }
+  lvBoxNext() { const L = this.S.hero.lv; return lvBoxLevels().find((lv) => lv > L) || 0; }
+  lvBoxClaim(lv) {
+    const B = this.lvBoxSt(), R = lvBoxReward(lv), W = this.S.wallet;
+    if (!R || lv > this.S.hero.lv || B.got.includes(lv)) return null;
+    B.got.push(lv);
+    for (const [k, n] of Object.entries(R.give)) W[k] = (W[k] || 0) + n;
+    let gear = null;
+    if (R.gear >= 0) { const it = GR.makeGear(this.rng, SLOTS[this.rng.int(SLOTS.length)], R.gear); gear = { g: it.g, up: it.up, slot: it.slot }; this.obtain([it], 'lvbox'); }
+    return { lv, give: { ...R.give }, gear };
+  }
+  lvBoxClaimAll() { const out = [], L = this.S.hero.lv; for (const lv of lvBoxLevels()) { if (lv > L) break; const r = this.lvBoxClaim(lv); if (r) out.push(r); } return out; }
+  // v634 뜻대로 굴리기(core/wish.js) · 전투력 미리보기 — 복사한 게임에 fn을 해 보고 전투력만 잰다(이 게임은 그대로)
+  wishList() { return WI.wishList(this.S); }
+  wishTarget(id) { return WI.wishTarget(this.S, id); }
+  wishRoll(id, want, budget) { const r = WI.wishRun(this.S, this.rng, id, want, budget); if (r?.n) this.dirtyStats = true; return r; }
+  wishUndo(r) { const ok = WI.wishUndo(this.S, r); if (ok) this.dirtyStats = true; return ok; }
+  wishLock(id, i) { return WI.wishLock(this.S, id, i); }
+  powerIf(fn, mode = 'pve') { const G2 = new Game(structuredClone(this.S), this.now); G2.emit = () => {}; G2.rng = new Rng(this.rng.state()); let ok; try { ok = fn(G2); } catch { return null; } if (ok === false) return null; const p0 = Math.round(this.power(mode)), p1 = Math.round(G2.power(mode)); return { p0, p1, d: p1 - p0 }; }
   // ── 저장 ──
   save() { this.S.rng = this.rng.state(); return pack(this.S, this.now); }
   static load(text, nowMs) {

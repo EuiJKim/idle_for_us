@@ -8,6 +8,7 @@ import { cumExp } from '../tables/exp.js';
 import { JOB_LV, LEVEL_MAX } from '../tables/progress.js';
 import { MASTERY } from '../tables/skills.js';
 import { levelAtDay } from './progress.js';
+import { stdLayerOf } from '../grow/pulse.js';
 
 const KEEP = ['atk', 'hp', 'def', 'skillP', 'atkL1', 'atkL2', 'mainDmg', 'final1', 'final2', 'final3', 'final4', 'final5', 'crit', 'critDmg', 'bossDmg', 'mobDmg', 'pierce', 'takenDownP'];
 export const DAYS = 365;
@@ -38,6 +39,25 @@ export function buildStd(seed = 3) {
     // 장비를 바꾸며 공격·체력을 맞바꾸는 작은 굴곡은 걷어낸다(기준 곡선은 레벨이 오를수록 줄지 않게)
     const prev = rows[L - 1];
     rows.push(Object.fromEntries(KEEP.map((s) => [s, Math.max(st[s] || 0, prev ? prev[s] : 0)])));
+  }
+  return rows;
+}
+// v634 강함 진맥 — 기준 무인이 레벨 L에 가진 층별 출처 스탯(장비 · 병기 · 동료 · 영물 · 경지 · 강호행 · 꾸미기). buildStd와 같은 날을 쓴다
+export function buildStdSrc(seed = 3) {
+  const gearBy = [], s5By = [];
+  simGear(DAYS, { seed, onDay: (d, L, G) => { gearBy[d] = gearSources(G, L).map((x) => ({ src: x.src, stats: { ...x.stats } })); } });
+  simS5(DAYS, { seed, onDay: (d, L, f) => { s5By[d] = f().map((x) => ({ src: x.src, stats: { ...x.stats } })); } });
+  const L1 = Math.floor(levelAtDay(1)), rows = [null];
+  for (let L = 1; L <= LEVEL_MAX; L++) {
+    let d = 1;
+    while (d < DAYS && Math.floor(levelAtDay(d)) < L) d++;
+    const k = L < L1 ? L / L1 : 1, row = {};
+    for (const x of [...gearBy[d], ...s5By[d]]) {
+      const ly = stdLayerOf(x.src); if (!ly) continue;
+      const o = (row[ly] ??= {});
+      for (const [s, v] of Object.entries(x.stats)) { const n = Math.round(v * k); if (n) o[s] = (o[s] || 0) + n; }
+    }
+    rows.push(row);
   }
   return rows;
 }

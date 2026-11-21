@@ -940,7 +940,7 @@ const ok = (c, m, x = '') => { console.log(`  ${c ? '✓' : '✗ !!'} ${m}${x !=
       ok(await page.isVisible('#modal:not(.hidden) .en-ring'), 'v631 「돌아가기」 → 강화 창으로');
       await page.click('#ep-close'); await page.waitForTimeout(150);
       // 가방 — 끼면 전투력 차이(▲ 초록 · ▼ 빨강) · 좋은 순 맨 앞 = 가장 센 것 · 부위를 고르면 낀 것은 「장착 중」
-      const U = await page.evaluate(() => { const G = window.__s2.g.S.gear, u = 9.5e8 + Math.floor(Math.random() * 1e6);
+      const U = await page.evaluate(() => { const G = window.__s2.g.S.gear, u = 9.5e8 + Math.floor(Math.random() * 1e6); G.bag.splice(40);   // v634 가방이 60칸을 넘으면 맨 뒤(범품)가 안 보여 — 줄여 두고 본다
         G.bag.push({ uid: u, slot: 'shoes', g: 6, up: 1, subs: [{ k: 'atkL1', v: 80 }, { k: 'crit', v: 40 }], rr: 0, lock: false }, { uid: u + 1, slot: 'shoes', g: 0, up: 0, subs: [], rr: 0, lock: false }); return u; });
       await sub('가방'); await page.click('#wb .gr-so:text-is("좋은 순")'); await page.waitForTimeout(150);
       const bg = await page.evaluate((u) => { const t = (x) => document.querySelector(`#wb .inv-tile[data-uid="${x}"]`); return { up: t(u)?.querySelector('.gq-dp.up')?.textContent || '', dn: t(u + 1)?.querySelector('.gq-dp')?.className || '', first: document.querySelector('#wb .inv-tile')?.dataset.uid === String(u), all: document.querySelectorAll('#wb .inv-tile').length, badge: document.querySelectorAll('#wb .inv-tile .gq-dp, #wb .inv-tile .gq-on').length, gp: window.__s2.g.gearPw(window.__s2.g.S.gear.bag.find((x) => x.uid === u)) - window.__s2.g.gearVal() }; }, U);
@@ -1598,6 +1598,217 @@ const ok = (c, m, x = '') => { console.log(`  ${c ? '✓' : '✗ !!'} ${m}${x !=
     ok(errs.length === 0, 'v632 무공 변형 — 콘솔 오류 없음', errs.slice(0, 3).join(' | '));
     await page.evaluate(() => window.__s2.freeze?.());
     await ctx.close();
+  }
+  // v634 강함 진맥 · 기능 열림 띠 — 자동 시험에선 window.__s2feat 을 켜야 띠가 뜬다. 띠 · 구멍(그 창 단추) · 가 보기 → 그 칸 · 한 번만 · 두목전 중엔 기다림 /
+  //   캐릭터 → 스탯 「강함 진맥」 층 막대 · 가장 뒤처진 줄 「여기부터」 · 가기 / 두목에게 지면 결과 창에 「가장 뒤처진 것」 · 가기
+  if (!process.env.ONLY || process.env.ONLY.split(',').some((x) => x === '844' || x === 'dg2')) {
+    for (const [W, H] of [[844, 390], [667, 375]]) {
+      console.log(`— v634 강함 진맥 · 기능 열림 ${W}×${H}`);
+      const ctx = await b.newContext({ viewport: { width: W, height: H }, serviceWorkers: 'block' });
+      await ctx.route(/gstatic\.com\/firebasejs/, (r) => r.abort());
+      await ctx.addInitScript(() => { window.__s2feat = true; });
+      const page = await ctx.newPage(); page.setDefaultTimeout(8000);
+      const errs = []; page.on('pageerror', (e) => errs.push(e.message)); page.on('console', (m) => { if (m.type() === 'error' && !/Failed to load|ERR_FAILED/.test(m.text())) errs.push(m.text()); });
+      await page.goto(BASE, { waitUntil: 'domcontentloaded' });
+      await page.waitForSelector('#modal:not(.hidden) .jobcard'); await page.click('#modal .jobcard[data-job="sword"]');
+      await page.waitForSelector('#modal', { state: 'hidden' }); await page.waitForTimeout(400);
+      const until = async (fn, pred, ms = 5000) => { const t = Date.now(); for (;;) { const v = await fn(); if (pred(v) || Date.now() - t > ms) return v; await page.waitForTimeout(100); } };
+      const lvTo = (L) => page.evaluate(async (L) => { const { cumExp } = await import(new URL('js/s2/tables/exp.js', location.href).href), g = window.__s2.g; g.addExp(cumExp(L) - cumExp(g.S.hero.lv) - g.S.hero.exp + 1); }, L);
+      // 처음 켤 때 이미 지난 것(Lv 9 — 원정)은 조용히 본 것으로 → Lv 12 무한 탑만 뜬다
+      await lvTo(9);   // 레벨을 먼저 올리고 · 지운 뒤 바로 같은 자리에서 한 번 돈다(1초 타이머가 사이에 끼지 않게)
+      const f0 = await page.evaluate(() => { window.__s2pz.featReset(); localStorage.removeItem('ifu.s2.feat'); return window.__s2pz.featTick(); });
+      await lvTo(12);
+      const f1 = await until(() => page.evaluate(() => (window.__s2pz.featTick(), document.querySelector('#feat')?.dataset.id || null)), (v) => !!v);
+      await page.waitForTimeout(200);
+      const r1 = await page.evaluate(() => { const R = (e) => { const b = e.getBoundingClientRect(); return [b.left, b.top, b.right, b.bottom]; }; return { hole: R(document.querySelector('#feat .co-hole')), tg: R(document.querySelector('.nb[data-tab="dgn"]')), bub: R(document.querySelector('#feat .co-bub')), ban: document.querySelector('#feat .ft-ban').textContent, W: innerWidth, H: innerHeight, seen: JSON.parse(localStorage.getItem('ifu.s2.feat') || '[]') }; });
+      const ov = (a, c) => Math.max(0, Math.min(a[2], c[2]) - Math.max(a[0], c[0])) * Math.max(0, Math.min(a[3], c[3]) - Math.max(a[1], c[1])), area = (a) => (a[2] - a[0]) * (a[3] - a[1]), inV = (a) => a[0] >= -1 && a[1] >= -1 && a[2] <= r1.W + 1 && a[3] <= r1.H + 1;
+      ok(f0 === false && f1 === 'tower' && /무한 탑/.test(r1.ban) && ov(r1.hole, r1.tg) >= area(r1.tg) * 0.95 && inV(r1.bub) && ov(r1.hole, r1.bub) === 0 && r1.seen.includes('exped') && r1.seen.includes('tower'), 'v634 기능 열림 — 지난 것은 조용히 · Lv 12 「무한 탑」 띠 · 구멍이 던전 단추 · 말풍선 화면 안', JSON.stringify({ f0, f1, ban: r1.ban, hole: r1.hole.map(Math.round), tg: r1.tg.map(Math.round) }));
+      await page.click('#feat .co-next'); await page.waitForTimeout(400);
+      const r2 = await page.evaluate(() => ({ feat: !!document.querySelector('#feat'), sub: document.querySelector('#panel-body .subtabs button.on')?.textContent, again: window.__s2pz.featTick() }));
+      ok(!r2.feat && r2.sub === '무한 탑' && r2.again === false, 'v634 가 보기 → 무한 탑 칸 · 띠 사라짐 · 다시 안 뜸', JSON.stringify(r2));
+      await page.click('#panel-close');
+      // 두목전 중에는 기다렸다가 끝나면
+      await page.evaluate(() => { const g = window.__s2.g; g.stage().kills = 20; g.stage().auto = false; g.challenge(); });
+      await lvTo(20);
+      const r3 = await page.evaluate(() => ({ boss: !!window.__s2.g.bossFight, t: window.__s2pz.featTick(), feat: !!document.querySelector('#feat') }));
+      await page.evaluate(() => { const g = window.__s2.g; if (g.bossFight) g.endChallenge(false); });
+      await page.waitForSelector('#res.open');
+      const r4 = await page.evaluate(() => ({ t: window.__s2pz.featTick(), tip: document.querySelector('#res .rtip')?.textContent || '', btn: !!document.querySelector('#res #rpz'), low: window.__s2pz.pulseLow() }));
+      ok(r3.boss && r3.t === false && !r3.feat && r4.t === false, 'v634 두목전 · 결과 창 동안엔 띠를 띄우지 않는다', JSON.stringify({ r3, t4: r4.t }));
+      ok(r4.btn && /가장 뒤처진 것/.test(r4.tip) && r4.low && r4.tip.includes(r4.low.name), 'v634 두목에게 지면 결과 창 — 가장 뒤처진 것 한 줄 · 가기', r4.tip);
+      const rb = await page.evaluate(() => { const R = (e) => { const b = e.getBoundingClientRect(); return [b.left, b.top, b.right, b.bottom]; }; return { rp: R(document.querySelector('#res .rp')), go: R(document.querySelector('#rpz')), W: innerWidth, H: innerHeight }; });
+      ok(rb.rp[1] >= 0 && rb.rp[3] <= rb.H && rb.go[3] <= rb.rp[3] && rb.go[3] - rb.go[1] >= 36, 'v634 결과 창이 화면 안 · 가기 단추 크기', JSON.stringify(rb));
+      await page.click('#rpz'); await page.waitForTimeout(400);
+      const want = { 'hero:0': '스탯', 'hero:1': '무공', 'hero:2': '마스터리', 'hero:3': '전직', 'gear:0': '장착', 'gear:2': '강화·성혼', 'grow:0': '병기', 'grow:1': '동료', 'grow:2': '영물', 'grow:3': '경지', 'grow:4': '강호행', 'content:0': '수련동' };
+      const r5 = await page.evaluate(() => ({ res: document.getElementById('res').classList.contains('open'), sub: document.querySelector('#panel-body .subtabs button.on')?.textContent }));
+      ok(!r5.res && r5.sub === want[r4.low.go], 'v634 결과 창 「가기」 → 그 칸', `${r4.low.go} → ${r5.sub}`);
+      await page.click('#panel-close').catch(() => {});
+      // 강함 진맥 카드 — 자동 성장 몇 번 뒤(Lv 45 · 스테이지 45)
+      await page.evaluate(async () => { const { cumExp } = await import(new URL('js/s2/tables/exp.js', location.href).href), g = window.__s2.g; g.addExp(cumExp(45) - cumExp(g.S.hero.lv) - g.S.hero.exp + 1); for (let i = 0; i < 10; i++) g.autoGrow({}); const T = g.stage(); T.idx = T.top = 45; T.kills = 0; T.auto = false; localStorage.setItem('ifu.s2.feat', JSON.stringify(['exped', 'tower', 'dg', 'adv1', 'adv2', 'adv3', 'adv4', 'adv5', 'mastery', 'realm', 'party', 'pvp'])); window.__s2pz.featReset(); });
+      await page.click('#mb .nb[data-tab="char"]'); await page.waitForSelector('#wb .pz');
+      const r6 = await page.evaluate(() => { const rows = [...document.querySelectorAll('#wb .pz-row')], low = document.querySelector('#wb .pz-row.low'), wb = document.getElementById('wb'), P = window.__s2pz.pulse(); return { n: rows.length, ks: rows.map((r) => r.dataset.k).join(), low: low?.dataset.k, tag: low?.querySelector('.pz-tag')?.textContent, go: !!low?.querySelector('.pz-go'), plow: P.low?.k, pgo: P.low?.go, bars: rows.every((r) => r.querySelector('.pz-bar i')), over: wb.scrollWidth - wb.clientWidth, top: document.querySelector('#wb .pz-top')?.textContent }; });
+      ok(r6.n >= 9 && r6.bars && r6.low === r6.plow && r6.tag === '여기부터' && r6.go && r6.over <= 1, 'v634 강함 진맥 카드 — 층 막대 · 가장 뒤처진 줄 「여기부터」 · 가기 · 넘침 없음', JSON.stringify(r6));
+      await page.locator('#wb .pz-go').scrollIntoViewIfNeeded(); await page.click('#wb .pz-go'); await page.waitForTimeout(300);
+      const r7 = await page.evaluate(() => document.querySelector('#panel-body .subtabs button.on')?.textContent);
+      ok(r7 === want[r6.pgo], 'v634 강함 진맥 「가기」 → 그 칸', `${r6.pgo} → ${r7}`);
+      ok(errs.length === 0, 'v634 강함 진맥 · 기능 열림 — 콘솔 오류 없음', errs.slice(0, 3).join(' | '));
+      await page.evaluate(() => window.__s2.freeze?.());
+      await ctx.close();
+    }
+  }
+  // v634 단약 · 성장 봇짐 — 들판 단약 칩(링 셋 · 다른 칩과 안 겹침) · 먹기 · 모두 먹기 · EXP 줄 끝 봇짐(수 · 받기 · 모두 받기) · 받을 보상 칸 · 설정 「단약 자동」 · 콘솔 오류 0
+  for (const [W, H] of [[844, 390], [667, 375]]) {
+    if (process.env.ONLY && !process.env.ONLY.split(',').includes(String(W))) continue;
+    console.log(`— v634 단약 · 성장 봇짐 ${W}×${H}`);
+    const ctx = await b.newContext({ viewport: { width: W, height: H }, serviceWorkers: 'block' });
+    await ctx.route(/gstatic\.com\/firebasejs/, (r) => r.abort());
+    const page = await ctx.newPage(); page.setDefaultTimeout(8000);
+    const errs = []; page.on('pageerror', (e) => errs.push(e.message)); page.on('console', (m) => { if (m.type() === 'error' && !/Failed to load|ERR_FAILED/.test(m.text())) errs.push(m.text()); });
+    await page.goto(BASE, { waitUntil: 'domcontentloaded' });
+    await page.waitForSelector('#modal:not(.hidden) .jobcard'); await page.click('#modal .jobcard[data-job="sword"]');
+    await page.waitForSelector('#modal', { state: 'hidden' }); await page.waitForTimeout(1500);
+    const lay = () => page.evaluate(() => { const r = (s) => { const e = document.querySelector(s); if (!e || e.classList.contains('hidden') || !e.offsetParent) return null; return e.getBoundingClientRect(); };
+      const hit = (a, c) => a && c && a.left < c.right - 1 && c.left < a.right - 1 && a.top < c.bottom - 1 && c.top < a.bottom - 1;
+      const bf = r('#bf'), lv = r('#lvb'), others = ['#qc', '#fc', '#rc', '#nx', '#tc', '#me', '#mb', '#tr', '#sk', '#tl', '#btn-boss'];
+      return { bf: !!bf, lv: !!lv, rings: document.querySelectorAll('#bf .bf-r').length, hitBf: others.filter((s) => hit(bf, r(s))), hitLv: others.filter((s) => s !== '#me' && hit(lv, r(s))), inBf: bf ? bf.right <= innerWidth && bf.bottom <= innerHeight : false, inLv: lv ? lv.right <= innerWidth && lv.bottom <= innerHeight : false, lvN: document.querySelector('#lvb-n')?.textContent, lvCan: document.querySelector('#lvb')?.classList.contains('can') }; });
+    const l0 = await lay();
+    ok(l0.bf && l0.rings === 3 && !l0.hitBf.length && l0.inBf && l0.lv && !l0.hitLv.length && l0.inLv && l0.lvN === 'Lv5' && !l0.lvCan, `v634 ${W} 들판 — 단약 칩(링 셋) · EXP 줄 끝 봇짐(다음 Lv5) · 다른 칸과 안 겹침`, JSON.stringify(l0));
+    // 받을 보상 칩이 숨으면 단약 칩이 그 자리로 · 그래도 안 겹침
+    await page.evaluate(() => { document.querySelector('#rc').classList.add('hidden'); }); const l0b = await lay();
+    ok(!l0b.hitBf.length && l0b.inBf, `v634 ${W} 받을 보상 칩이 없을 때도 안 겹침`, JSON.stringify(l0b.hitBf));
+    await page.click('#bf'); await page.waitForSelector('#modal:not(.hidden) .bf-row');
+    const p0 = await page.evaluate(() => ({ n: document.querySelectorAll('#modal .bf-row').length, names: [...document.querySelectorAll('#modal .bf-row b')].map((x) => x.textContent).join('/'), btn: [...document.querySelectorAll('#modal .bf-row .btn')].map((x) => x.textContent).join() }));
+    ok(p0.n === 3 && /청심단/.test(p0.names) && /재물부/.test(p0.names) && /혈기단/.test(p0.names) && p0.btn === '먹기,먹기,먹기', `v634 ${W} 단약 창 — 셋 · 먹기`, JSON.stringify(p0));
+    await page.click('#modal .bf-row[data-id="exp"] .btn'); await page.waitForTimeout(250);
+    const p1 = await page.evaluate(() => ({ on: window.__s2.g.bfState()[0].on, btn: document.querySelector('#modal .bf-row[data-id="exp"] .btn')?.textContent, sm: document.querySelector('#modal .bf-row[data-id="exp"] small')?.textContent, ring: document.querySelector('#bf .bf-r[data-id="exp"]').classList.contains('on'), u: document.querySelector('#bf .bf-r[data-id="exp"] u').textContent }));
+    ok(p1.on && p1.btn === '+30분' && /30분 남음 · 오늘 2\/3번/.test(p1.sm) && p1.ring && p1.u === '30', `v634 ${W} 청심단 먹기 → 링 켜짐(30분) · 창은 +30분`, JSON.stringify(p1));
+    await page.click('#modal .btn-row .btn:has-text("모두 먹기")'); await page.waitForTimeout(250);
+    const p2 = await page.evaluate(() => ({ st: window.__s2.g.bfState().map((s) => `${s.on ? 1 : 0}${s.uses}`).join(), on: document.querySelectorAll('#bf .bf-r.on').length, pw: window.__s2.g.power() }));
+    ok(p2.st === '12,12,12' && p2.on === 3, `v634 ${W} 모두 먹기 — 꺼진 둘만 먹음 · 링 셋 다 켜짐`, JSON.stringify(p2));
+    // 성장 봇짐 — Lv23으로 → 받을 4 · 창 · 하나 받기 · 받을 보상 칸에도 · 모두 받기
+    await page.evaluate(async () => { const { cumExp } = await import(new URL('js/s2/tables/exp.js', location.href).href), g = window.__s2.g; g.addExp(cumExp(23) - cumExp(g.S.hero.lv) - g.S.hero.exp + 1); window.__s2.paintLvb(true); });
+    const l1 = await lay();
+    ok(l1.lvCan && l1.lvN === '4' && !l1.hitLv.length, `v634 ${W} Lv23 — 봇짐 4 · 반짝`, JSON.stringify(l1));
+    await page.click('#lvb'); await page.waitForSelector('#modal:not(.hidden) .lvbx');
+    const q0 = await page.evaluate(() => ({ can: document.querySelectorAll('#modal .lvbx.can').length, btn: document.querySelectorAll('#modal .lvbx.can .btn').length, big: [...document.querySelectorAll('#modal .lvbx.big b')].map((x) => x.textContent).slice(0, 2).join('/'), txt: (/undefined|NaN|null/.exec(document.querySelector('#modal').textContent) || [''])[0], over: (() => { const m = document.querySelector('#modal .sheet').getBoundingClientRect(); return m.bottom <= innerHeight + 1 && m.right <= innerWidth + 1; })() }));
+    ok(q0.can === 4 && q0.btn === 4 && /Lv 10 큰 봇짐/.test(q0.big) && !q0.txt && q0.over, `v634 ${W} 봇짐 창 — 받기 4 · 큰 봇짐 · 화면 안`, JSON.stringify(q0));
+    const t0 = await page.evaluate(() => window.__s2.g.S.wallet['ticket:gear'] || 0);
+    await page.click('#modal .lvbx.can .btn >> nth=0'); await page.waitForTimeout(250);
+    const q1 = await page.evaluate(() => ({ can: window.__s2.g.lvBoxCan(), got: window.__s2.g.S.lvBox.got.join(), t: window.__s2.g.S.wallet['ticket:gear'] || 0, rc: document.querySelector('#modal .lvbx.can') ? document.querySelectorAll('#modal .lvbx.can').length : 0 }));
+    ok(q1.can === 3 && q1.got === '5' && q1.t === t0 + 1 && q1.rc === 3, `v634 ${W} 하나 받기 — Lv5 봇짐(뽑기권 +1) · 창이 다시 그려짐`, JSON.stringify(q1));
+    await page.click('#modal .btn-row .btn:has-text("닫기")');
+    const rc = await page.evaluate(() => { document.querySelector('#rc').click(); return [...document.querySelectorAll('#modal .rc-r span')].map((x) => x.textContent); });
+    ok(rc.includes('성장 봇짐'), `v634 ${W} 받을 보상 칸에 「성장 봇짐」`, rc.join(','));
+    await page.click('#modal .btn-row .btn:has-text("모두 받기")'); await page.waitForTimeout(300);
+    const q2 = await page.evaluate(() => { window.__s2.paintLvb(true); return { can: window.__s2.g.lvBoxCan(), n: document.querySelector('#lvb-n').textContent, c: document.querySelector('#lvb').classList.contains('can') }; });
+    ok(q2.can === 0 && q2.n === 'Lv25' && !q2.c, `v634 ${W} 모두 받기(받을 보상) — 봇짐도 받음 · 다음 Lv25`, JSON.stringify(q2));
+    // 설정 — 자동 성장을 켜면 「단약 자동」 줄
+    await page.evaluate(() => { window.__s2.opt.autoGrow = true; }); await page.click('#b-opt'); await page.waitForSelector('#wb .row');
+    const sw = await page.evaluate(() => [...document.querySelectorAll('#wb .row')].some((r) => /단약 자동/.test(r.textContent) && /꺼짐/.test(r.textContent)));
+    ok(sw, `v634 ${W} 설정 — 「단약 자동」(기본 꺼짐)`);
+    await page.evaluate(() => { window.__s2.opt.autoGrow = false; });
+    await page.screenshot({ path: path.join(OUT, `s2-v634-${W}.png`) });
+    ok(errs.length === 0, `v634 ${W} 단약 · 성장 봇짐 — 콘솔 오류 없음`, errs.slice(0, 3).join(' | '));
+    await page.evaluate(() => window.__s2.freeze?.());
+    await ctx.close();
+  }
+  // v634 차림 — 장비 · 캐릭터 창에 칸 셋(입기 · 적기) · 벗기 · 고치기(이름 · 사냥/두목) · 넘침 없음 · 단추 높이 33px+(창 배율) · 칸 두목 들어가면 두목 차림 · 콘솔 오류 0
+  for (const [W, H] of [[844, 390], [667, 375]]) {
+    if (process.env.ONLY && !process.env.ONLY.split(',').some((x) => x === String(W) || x === 'of')) continue;
+    console.log(`— v634 차림 ${W}`);
+    const ctx = await b.newContext({ viewport: { width: W, height: H }, serviceWorkers: 'block' });
+    await ctx.route(/gstatic\.com\/firebasejs/, (r) => r.abort());
+    const page = await ctx.newPage(); page.setDefaultTimeout(8000);
+    const errs = []; page.on('pageerror', (e) => errs.push(e.message)); page.on('console', (m) => { if (m.type() === 'error' && !/Failed to load|ERR_FAILED/.test(m.text())) errs.push(m.text()); });
+    await page.goto(BASE, { waitUntil: 'domcontentloaded' });
+    await page.waitForSelector('#modal:not(.hidden) .jobcard'); await page.click('#modal .jobcard[data-job="sword"]');
+    await page.waitForSelector('#modal', { state: 'hidden' }); await page.waitForTimeout(600);
+    await page.evaluate(() => { const g = window.__s2.g; g.addExp(1e7); g.S.wallet['ticket:gear'] = 200; for (let i = 0; i < 20; i++) g.pullGear(10); g.feed = []; });
+    const look = () => page.evaluate(() => { const c = document.querySelector('#of-card'), pb = document.querySelector('#panel-body'); if (!c) return null; const segs = [...c.querySelectorAll('.of-seg')];
+      const btns = [...c.querySelectorAll('button')].map((x) => x.getBoundingClientRect()), r = c.getBoundingClientRect();
+      return { n: segs.length, names: segs.map((s) => s.querySelector('b').textContent).join('|'), on: segs.findIndex((s) => s.classList.contains('on')), dis: segs.map((s) => s.querySelector('button').disabled).join(), sub: c.querySelector('.of-sub').textContent,
+        over: pb.scrollWidth - pb.clientWidth, out: btns.filter((q) => q.left < r.left - 1 || q.right > r.right + 1).length, minH: Math.min(...btns.map((q) => q.height)) }; });
+    await page.click('#ptabs button[data-tab="bag"]').catch(() => page.evaluate(() => document.querySelector('.nb[data-tab="bag"]')?.click()));
+    await page.waitForSelector('#of-card');
+    const a0 = await look();
+    ok(a0 && a0.n === 3 && a0.names === '차림 1|차림 2|차림 3' && a0.on === -1 && a0.dis === 'true,true,true' && a0.over <= 1 && a0.out === 0 && a0.minH >= 33, `v634 차림 ${W} — 장비 창: 빈 칸 셋(입기 막힘) · 넘침 없음 · 단추 높이 33px+(창 배율)`, JSON.stringify(a0));
+    await page.click('#of-card .of-seg[data-i="0"] button:text-is("적기")'); await page.waitForTimeout(200);
+    const a1 = await look(); const s1 = await page.evaluate(() => { const O = window.__s2.g.S.outfit; return { cur: O.cur, has: !!O.sets[0], hold: window.__s2.g.outfitHold() }; });
+    ok(s1.cur === 0 && s1.has && s1.hold && a1.on === 0 && /입는 중/.test(a1.sub), `v634 차림 ${W} — 적기 → 그 칸을 입은 차림(빛남 · 입는 중)`, JSON.stringify({ ...s1, sub: a1.sub }));
+    // 둘째 칸: 무기를 가방 것으로 바꾸고 적기 → 첫째 입기로 돌아옴
+    const w0 = await page.evaluate(() => { const g = window.__s2.g, G = g.S.gear, it = G.bag.find((x) => x.slot === 'weapon'); const w = G.eq.weapon.uid; if (it) { G.bag.splice(G.bag.indexOf(it), 1); G.bag.push(G.eq.weapon); G.eq.weapon = it; g.dirtyStats = true; } return w; });
+    await page.click('#of-card .of-seg[data-i="1"] button:text-is("적기")'); await page.waitForTimeout(200);
+    await page.click('#of-card .of-seg[data-i="0"] button:text-is("입기")'); await page.waitForTimeout(250);
+    const s2 = await page.evaluate(() => ({ w: window.__s2.g.S.gear.eq.weapon.uid, cur: window.__s2.g.S.outfit.cur, toast: [...document.querySelectorAll('#toast .toast')].map((t) => t.textContent).join('|') }));
+    ok(s2.w === w0 && s2.cur === 0 && /입음 · 전투력/.test(s2.toast), `v634 차림 ${W} — 입기 → 그 장비로 · 전투력 알림`, JSON.stringify(s2));
+    // 고치기 — 이름 · 사냥/두목
+    await page.click('#of-card button:text-is("고치기")'); await page.waitForSelector('#modal:not(.hidden) .of-pop');
+    const pp = await page.evaluate(() => { const sh = document.querySelector('#modal .sheet'), r = sh.getBoundingClientRect(); return { in: r.top >= 0 && r.bottom <= innerHeight + 1, nm: sh.querySelectorAll('.of-nm').length, hunt: sh.querySelectorAll('#of-hunt option').length }; });
+    ok(pp.in && pp.nm === 3 && pp.hunt === 3, `v634 차림 ${W} — 고치기 창(이름 셋 · 걸기 고르기 · 화면 안)`, JSON.stringify(pp));
+    await page.fill('#modal .of-nm[data-i="1"]', '두목'); await page.selectOption('#of-boss', '1'); await page.click('#modal .btn:text-is("고치기")'); await page.waitForTimeout(250);
+    const a2 = await look(), s3 = await page.evaluate(() => { const O = window.__s2.g.S.outfit; return { boss: O.boss, hunt: O.hunt, n: O.names[1] }; });
+    ok(s3.boss === 1 && s3.hunt === -1 && s3.n === '두목' && a2.names === '차림 1|두목|차림 3' && /두목/.test(await page.evaluate(() => document.querySelector('#of-card .of-seg[data-i="1"] em')?.textContent || '')), `v634 차림 ${W} — 이름 · 두목 차림 걸기`, JSON.stringify({ ...s3, names: a2.names }));
+    // 칸 두목 — 들어가면 두목 차림(무기 바뀜) · 끝나면 되돌아옴
+    const bf = await page.evaluate(() => { const g = window.__s2.g, T = g.stage(); T.kills = 999; const ok1 = g.challenge(); const w = g.S.gear.eq.weapon.uid, cur = g.S.outfit.cur; g.endChallenge(false); return { ok1, w, cur, back: g.S.gear.eq.weapon.uid, cur2: g.S.outfit.cur }; });
+    ok(bf.ok1 && bf.cur === 1 && bf.w !== w0 && bf.back === w0 && bf.cur2 === 0, `v634 차림 ${W} — 칸 두목: 두목 차림 → 끝나면 전 차림`, JSON.stringify(bf));
+    await page.evaluate(() => { const m = document.querySelector('#modal'); if (m && !m.classList.contains('hidden')) m.classList.add('hidden'); });
+    // 벗기 · 캐릭터 창에도
+    await page.click('#ptabs button[data-tab="char"]'); await page.waitForSelector('#of-card');
+    await page.click('#of-card button:text-is("벗기")'); await page.waitForTimeout(200);
+    const a3 = await look();
+    ok(a3 && a3.on === -1 && !/입는 중/.test(a3.sub) && a3.over <= 1 && a3.out === 0 && !(await page.evaluate(() => window.__s2.g.outfitHold())), `v634 차림 ${W} — 캐릭터 창에도 · 벗기 → 저절로 끼기 다시`, JSON.stringify(a3));
+    ok(errs.length === 0, `v634 차림 ${W} — 콘솔 오류 없음`, errs.slice(0, 3).join(' | '));
+    await page.evaluate(() => window.__s2.freeze?.());
+    await ctx.close();
+  }
+  // v634 뜻대로 굴리기 · 전투력 미리보기 — 844×390 · 667×375: 경지 심법 카드 → 뜻대로 창(줄 잠금 · 스탯 칩 · 등급 · 한도) → 멈출 때까지 → 이전 | 지금 · 전투력 · 되돌리기
+  //   강호행 단계 줄 · 낀 장비 강화 창의 「부옵션」 단추 · 스탯 · 마스터리 · 무공 · 동료 자세히에 전투력 ▲▼ · 창이 화면 안 · 콘솔 오류 0
+  if (!process.env.ONLY || process.env.ONLY.split(',').some((x) => x === '844' || x === 'rl2')) {
+    console.log('— v634 뜻대로 굴리기 · 전투력 미리보기');
+    for (const [VW, VH] of [[844, 390], [667, 375]]) {
+      const ctx = await b.newContext({ viewport: { width: VW, height: VH }, serviceWorkers: 'block' });
+      await ctx.route(/gstatic\.com\/firebasejs/, (r) => r.abort());
+      const page = await ctx.newPage(); const errs = [];
+      page.on('pageerror', (e) => errs.push(e.message)); page.on('console', (m) => { if (m.type() === 'error' && !/Failed to load|ERR_FAILED/.test(m.text())) errs.push(m.text()); });
+      await page.goto(BASE, { waitUntil: 'domcontentloaded' });
+      await page.waitForSelector('#modal:not(.hidden) .jobcard'); await page.click('#modal .jobcard[data-job="sword"]');
+      await page.waitForSelector('#modal', { state: 'hidden' }); await page.waitForTimeout(500);
+      await page.evaluate(async () => { const g = window.__s2.g, GR = await import(new URL('js/s2/gear/gear.js', location.href).href); g.addExp(5e7); g.S.realm.lv = 30; Object.assign(g.S.wallet, { 'item:heart': 40, 'item:stone': 3000, gold: 1e9 });
+        g.S.journey.opts.push([{ g: 1, k: 'hpP', v: 11 }, { g: 0, k: 'final3', v: 2 }]); g.S.journey.step = 1; g.S.journey.cleared = 1;
+        const it = GR.makeGear(g.rng, 'ring', 4); while (it.subs.length < 3) it.subs.push({ k: 'crit', v: 9 }); g.S.gear.bag.push(it); GR.equip(g.S.gear, it.uid); g.dirtyStats = true; document.querySelector('#modal:not(.hidden) .btn')?.click(); });
+      await page.evaluate(() => window.__s2.openKey('grow:3')); await page.waitForTimeout(300);
+      const h0 = await page.evaluate(() => ({ n: document.querySelectorAll('#wb .rl2-card .rl2-ln').length, row: [...document.querySelectorAll('#wb .row .name')].some((n) => n.textContent === '뜻대로 굴리기') }));
+      ok(h0.n === 3 && h0.row, `v634 ${VW} 경지 창 — 심법 3줄 · 「뜻대로 굴리기」 줄`, JSON.stringify(h0));
+      await page.click('#wb .row:has-text("뜻대로 굴리기") .btn'); await page.waitForSelector('#modal:not(.hidden) .rl2');
+      ok(await page.evaluate(() => document.querySelector('#modal .rl2-lb').disabled), `v634 ${VW} 빈 줄은 잠글 수 없다`);
+      await page.click('#modal .btn:has-text("한 번")'); await page.waitForSelector('#modal:not(.hidden) .rl2-res'); await page.click('#modal .btn:has-text("또 굴리기")'); await page.waitForSelector('#modal:not(.hidden) .rl2-lb:not([disabled])');
+      await page.click('#modal .rl2-lb >> nth=0'); await page.click('#modal .rl2-ch[data-k="bossDmg"]'); await page.click('#modal .rl2-seg[data-s="b"] button >> nth=2');
+      const p1 = await page.evaluate(() => { const sh = document.querySelector('#modal .sheet'), r = sh.getBoundingClientRect(), g = window.__s2.g; return { lk: g.S.realm.heart.lock.join(), on: document.querySelector('#modal .rl2-ch.on')?.dataset.k, inV: r.left >= 0 && r.right <= innerWidth + 1 && r.top >= 0 && r.bottom <= innerHeight + 1, wide: sh.scrollWidth > sh.clientWidth + 1, btn: [...sh.querySelectorAll('.btn-row .btn')].map((x) => x.textContent).join('/') }; });
+      ok(p1.lk === '0' && p1.on === 'bossDmg' && p1.inV && !p1.wide && p1.btn === '닫기/한 번/멈출 때까지 굴리기', `v634 ${VW} 뜻대로 창 — 줄 잠금 · 스탯 칩 · 창이 화면 안 · 옆으로 안 넘침`, JSON.stringify(p1));
+      const l0 = await page.evaluate(() => JSON.stringify(window.__s2.g.S.realm.heart.lines[0]));
+      await page.click('#modal .btn:has-text("멈출 때까지")'); await page.waitForSelector('#modal:not(.hidden) .rl2-res');
+      const r1 = await page.evaluate(() => { const g = window.__s2.g, cols = [...document.querySelectorAll('#modal .rl2-col')]; return { head: document.querySelector('#modal .rl2-hd b')?.textContent, cols: cols.map((c) => c.querySelectorAll('.rl2-ln').length).join(), pw: document.querySelector('#modal .rl2-pw .rl2-pv')?.textContent, orb: g.S.wallet['item:heart'], l0: JSON.stringify(g.S.realm.heart.lines[0]), lines: JSON.stringify(g.S.realm.heart.lines) }; });
+      ok(/찾았다|한도까지/.test(r1.head) && r1.cols === '3,3' && /[▲▼±]/.test(r1.pw) && r1.orb < 39 && r1.orb >= 9 && r1.l0 === l0, `v634 ${VW} 멈출 때까지 — 결과(이전 | 지금 · 전투력) · 구슬 한도 30 안 · 잠근 줄 그대로`, `${r1.head} · ${r1.pw} · 구슬 ${r1.orb}`);
+      await page.click('#modal .btn:has-text("되돌리기")'); await page.waitForTimeout(200);
+      const u1 = await page.evaluate(() => JSON.stringify(window.__s2.g.S.realm.heart.lines));
+      ok(u1 !== r1.lines && JSON.parse(u1)[0] && JSON.stringify(JSON.parse(u1)[0]) === l0, `v634 ${VW} 되돌리기 — 이전 줄로`);
+      await page.evaluate(() => window.__s2.openKey('grow:4')); await page.waitForTimeout(300);
+      ok(await page.evaluate(() => document.querySelectorAll('#wb .rl2-jb').length === 1), `v634 ${VW} 강호행 — 연 단계의 옵션 줄 칸`);
+      await page.evaluate(() => window.__s2.openKey('gear:0')); await page.waitForTimeout(300);
+      await page.evaluate(() => [...document.querySelectorAll('#wb .eqcell')].find((c) => c.querySelector('.nm')?.textContent === '반지')?.click()); await page.waitForTimeout(300);
+      const e1 = await page.evaluate(() => { const b2 = document.querySelector('#modal:not(.hidden) .rl2-eb'), r = b2?.getBoundingClientRect(), s = document.querySelector('#ep-s1')?.getBoundingClientRect(); return { has: !!b2, h: b2 ? b2.offsetHeight : 0, same: !!(b2 && b2.offsetTop === document.querySelector("#ep-s1")?.offsetTop) }; });
+      ok(e1.has && e1.same && e1.h >= 40 && e1.h <= 70, `v634 ${VW} 낀 장비 강화 창 — 성혼 옆 「부옵션」 단추(한 줄)`, JSON.stringify(e1));
+      if (e1.has) { await page.click('#modal .rl2-eb'); await page.waitForTimeout(200); ok(await page.evaluate(() => document.querySelectorAll('#modal .rl2-lb').length === 3), `v634 ${VW} 부옵션 뜻대로 창 — 3줄`); await page.click('#modal .btn:has-text("닫기")'); }
+      const pv = {};
+      for (const k of ['hero:0', 'hero:1', 'hero:2', 'hero:4']) { await page.evaluate((k2) => window.__s2.openKey(k2), k); await page.waitForTimeout(250); pv[k] = await page.evaluate(() => [...document.querySelectorAll('#wb .rl2-pvt')].filter((x) => /전투력|점|올리면|칸에/.test(x.textContent) && /[▲▼±]/.test(x.textContent)).length); }
+      ok(pv['hero:0'] >= 4 && pv['hero:1'] >= 1 && pv['hero:2'] >= 1 && pv['hero:4'] >= 1, `v634 ${VW} 전투력 미리보기 — 스탯 · 무공 · 마스터리 · 무공 강화`, JSON.stringify(pv));
+      await page.evaluate(() => { const g = window.__s2.g; g.S.wallet['ticket:pal'] = 30; g.pullCollect('pal', 30); window.__s2.openKey('grow:1'); });
+      await page.waitForTimeout(250); await page.click('#wb .coll-tile:not(.no) >> nth=0'); await page.waitForTimeout(200);
+      ok(await page.evaluate(() => /(빼면|끼면) [▲▼±]/.test(document.querySelector('#modal .rl2-cl')?.textContent || '')), `v634 ${VW} 동료 자세히 — 빼면 · 끼면 전투력`);
+      ok(errs.length === 0, `v634 ${VW} 뜻대로 굴리기 — 콘솔 오류 없음`, errs.slice(0, 3).join(' | '));
+      await page.evaluate(() => window.__s2.freeze?.());
+      await ctx.close();
+    }
   }
   await b.close();
   console.log(fails ? `\n✗ ${fails}건` : '\n✓ 새 시즌 화면 전부 통과');
