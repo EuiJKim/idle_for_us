@@ -771,38 +771,75 @@ function paintNav() {
   for (const b of document.querySelectorAll('.nb[data-tab], #ptabs button[data-tab]')) b.classList.toggle('active', b.dataset.tab === open);
   navDots();
 }
-// 빨간 점 — 지금 누를 게 있는 창(캐릭터: 전직 · 무공 점수 · 올릴 수 있는 무공 / 가방: 뽑기권 10장↑ / 마을: 길잡이 받기)
+// v636 점 셋(rd2) — 창 단추 · 창 왼쪽 줄 · 칸(sub-tab)이 같은 규칙: 받을 것 = 빨강(red) · 할 수 있는 것 = 금빛(gold) · 새 것 = 파랑 작게(new)
+//   칸마다 정하고(dotSubs) 창은 그 칸들 가운데 가장 센 것(빨강 > 금빛 > 파랑). 「.dot-on」은 점이 있다는 뜻 그대로, 빛깔은 data-dot
+//   금빛은 늘 켜져 있기 쉬워(올릴 무공 · 스탯 점수) 그 칸을 한 번 보면 다음 새 일까지 끈다(v520 규칙을 칸마다) · 빨강은 받을 때까지 그대로
 const dotSeen = (() => { try { return JSON.parse(localStorage.getItem('ifu.s2.dots') || '{}'); } catch { return {}; } })();
 let dotSaved = '';
-// v554 무림에 받을 것이 있으면 이름표(빨간 점) — 서버에서 불러 둔 것만 본다(없으면 조용히)
-function socialTodo() {
-  if (!g) return '';
-  const out = [];
-  if (g.pvpWeekReward()) out.push('pvp');
+const DOT_RANK = { new: 1, gold: 2, red: 3 };
+// 무림에 받을 것 — 서버에서 불러 둔 것만 본다(없으면 조용히) · v554 주간 보상 · v577 공동 토벌 단계 · 문파 출석 · 토벌 단계 · 수련 · v574 안 읽은 문파 대화(새 것)
+function socialDots(put) {
+  if (g.pvpWeekReward()) put('rival:1', 'red');
   const lastWk = wkStr(Date.now() - 7 * 86400000), wr = guildState.wbLast;
-  if (wr?.me && !g.S.wbGot?.[lastWk]) out.push('wb');
-  if (wbComState && WB_COMMUNITY.filter((x) => (wbComState.sum || 0) >= x.at).length > g.wbCommunityGot()) out.push('wbcom');   // v577 공동 토벌 단계 보상
+  if (wr?.me && !g.S.wbGot?.[lastWk]) put('rival:0', 'red');
+  if (wbComState && WB_COMMUNITY.filter((x) => (wbComState.sum || 0) >= x.at).length > g.wbCommunityGot()) put('rival:0', 'red');
   const G = guildState.g;
   if (g.S.guildId && G) {
-    if (g.S.gChk !== dayKey(now())) out.push('gchk');
-    if (chatLast() > chatRead()) out.push('chat');   // v574 안 읽은 문파 대화
-    const RD = guildState.raid; if (RD) { const tot = Object.values(RD.dmg || {}).reduce((a, b) => a + b, 0), lvR = RD.lv || Math.max(10, Math.floor(g.S.hero.lv / 10) * 10); if (raidPhase(tot, graidHp0(lvR)).phase > g.graidState().claimed) out.push('raid'); }
-    const TR = guildState.train; if (TR && !g.gtrainState().got && Object.values(TR.pts || {}).reduce((a, b) => a + b, 0) >= GTRAIN.perMember * G.memberIds.length) out.push('train');
-    out.push(...gdTodo());   // v635 겨루기 지난주 보상 · 도와줄 품앗이
+    if (gdTodo().length) put('rival:2', 'red');   // v635 겨루기 지난주 보상 · 도와줄 품앗이
+    if (g.S.gChk !== dayKey(now())) put('rival:2', 'red');
+    if (chatLast() > chatRead()) put('rival:2', 'new');
+    const RD = guildState.raid; if (RD) { const tot = Object.values(RD.dmg || {}).reduce((a, b) => a + b, 0), lvR = RD.lv || Math.max(10, Math.floor(g.S.hero.lv / 10) * 10); if (raidPhase(tot, graidHp0(lvR)).phase > g.graidState().claimed) put('rival:2', 'red'); }
+    const TR = guildState.train; if (TR && !g.gtrainState().got && Object.values(TR.pts || {}).reduce((a, b) => a + b, 0) >= GTRAIN.perMember * G.memberIds.length) put('rival:2', 'red');
   }
-  return out.join(',');
 }
-function navDots() {
-  const S = g.S, h = g.hero, W = S.wallet;
+function dotSubs() {
+  const S = g.S, h = g.hero, W = S.wallet, D = {}, cur = keyOf();
+  const put = (key, lv, sig) => {
+    if (lv === 'gold' && sig !== undefined) { if (open && cur === key) dotSeen[key] = sig; if (dotSeen[key] === sig) return; }   // 본 금빛은 끔
+    if ((DOT_RANK[lv] || 0) > (DOT_RANK[D[key]] || 0)) D[key] = lv;
+  };
+  // 캐릭터 — 스탯 점수 · 올릴 수 있는 무공 · 무공 강화 점수 · 전직(할 수 있는 것)
+  const pts = g.statPts?.() || 0; if (pts > 0) put('hero:0', 'gold', `${pts}`);
   let kitUp = 0;
   try { const K = h.kitState(); for (const id of Object.keys(K.lv)) { const sk = skillById(id); if (sk && h.canKitUp(id) && (W.gold || 0) >= kitCost(K.lv[id], sk.tier)[0].n) kitUp++; } } catch { /* 없음 */ }
-  const cur = guideCurrent(S.q.guide), canAdv = !!h.canAdvance?.(), tree = g.treePts?.().left || 0, tix = W['ticket:gear'] || 0;
-  // v520 빨간 점은 「새로 생긴 할 일」만 — 늘 켜져 있던 것(올릴 무공이 거의 늘 있다)을, 그 창을 한 번 열면 다음 새 일까지 끈다
-  const sig = { char: canAdv || tree > 0 || kitUp ? `${canAdv ? 1 : 0}|${tree}|${kitUp}|${S.hero.adv || 0}` : '', bag: tix >= 10 ? `${Math.floor(tix / 10)}` : '', town: (g.canAttend() ? 'attend' : '') || (g.mailCan() ? `mail${g.mailCan()}` : '') || (g.todayChest().can ? 'today' : '') || (g.shopFreeCan() ? 'shop' : '') || (g.passCan() ? 'pass' : '') || (g.bountyCan() ? `bty${g.bountyCan()}` : '') || (cur && S.q.guide[cur.id]?.done ? cur.id : '') || (g.books.ach.claimable().length ? `ach${g.books.ach.claimable().length}` : '') };
-  if (open && sig[open] !== undefined) dotSeen[open] = sig[open];
-  sig.social = socialTodo();   // v554 무림: 받을 것(주간 보상 · 문파 출석 · 토벌 단계 · 수련)
-  const on = { char: !!sig.char && sig.char !== dotSeen.char, bag: (!!sig.bag && sig.bag !== dotSeen.bag) || !!Object.keys(S.gearNew || {}).length, town: !!sig.town, social: !!sig.social, dgn: g.towerMsCan() > 0, map: g.mxCan() > 0 };   // v636 요괴록 별   // v616 탑 이정표 상자
-  for (const b of document.querySelectorAll('.nb[data-tab], #ptabs button[data-tab]')) b.classList.toggle('dot-on', !!on[b.dataset.tab]);
+  if (kitUp) put('hero:1', 'gold', `${kitUp}`);
+  const tree = g.treePts?.().left || 0; if (tree > 0) put('hero:4', 'gold', `${tree}`);
+  if (h.canAdvance?.()) put('hero:3', 'gold', `${S.hero.adv || 0}`);
+  // 장비 — 뽑기권 10장↑(할 수 있는 것) · 저절로 새로 낀 장비(새 것)
+  const tix = W['ticket:gear'] || 0; if (tix >= 10) put('gear:1', 'gold', `${Math.floor(tix / 10)}`);
+  if (Object.keys(S.gearNew || {}).length) put('gear:0', 'new');
+  // 던전 — 탑 이정표 상자 · 도착한 원정(받을 것) · 들어갈 수 있는 수련동 · 보낼 수 있는 원정(할 수 있는 것)
+  if (g.towerMsCan() > 0) put('content:1', 'red');
+  const I = g.idleState(), dk = dayKey(now());
+  if (I.run?.done) put('content:2', 'red'); else if (I.canSend) put('content:2', 'gold', `${dk}`);
+  const dgN = Object.keys(DAILY_DUNGEONS).filter((k) => !g.canDungeon('daily', k)).length; if (dgN) put('content:0', 'gold', `${dk}|${dgN}`);
+  // 임무 — 받을 것은 모두 빨강
+  if (g.canAttend()) put('attend:0', 'red');
+  if (g.todayChest().can) put('today:0', 'red');
+  if (g.shopFreeCan()) put('shop:0', 'red');
+  if (g.passCan()) put('pass:0', 'red');
+  if (g.bountyCan()) put('bounty:0', 'red');
+  const gc = guideCurrent(S.q.guide); if (gc && S.q.guide[gc.id]?.done) put('mission:0', 'red');
+  if (g.books.daily.claimable().length) put('mission:1', 'red');
+  if (g.books.weekly.claimable().length) put('mission:2', 'red');
+  if (g.books.ach.claimable().length) put('ach:0', 'red');
+  if (g.mailCan?.()) put('mail:0', 'red'); if (g.festCan?.()) put('fest:0', 'red'); if (g.mxCan?.()) put('mx:0', 'red');   // v637 우편 · 축제 임무 · 요괴록 별
+  socialDots(put);
+  return D;
+}
+const dotWin = (D, id) => { let best = ''; for (const [, k] of TABS.find((t) => t[0] === id)?.[2] || []) if ((DOT_RANK[D[k]] || 0) > (DOT_RANK[best] || 0)) best = D[k]; return best; };
+const DOT_TIP = { red: '받을 것이 있어요', gold: '할 수 있는 것이 있어요', new: '새것이 있어요' };
+function dotSet(b, lv) {
+  b.classList.toggle('dot-on', !!lv);
+  if (lv) { if (b.dataset.dot !== lv) b.dataset.dot = lv; } else if (b.dataset.dot) delete b.dataset.dot;
+}
+function navDots() {
+  if (!g) return;
+  const D = dotSubs();
+  for (const b of document.querySelectorAll('.nb[data-tab], #ptabs button[data-tab]')) dotSet(b, dotWin(D, b.dataset.tab));
+  for (const b of document.querySelectorAll('.nb[data-key]')) dotSet(b, D[b.dataset.key] || '');   // 아래 「무공」 단추 = 무공 칸
+  const M = open && TABS.find((t) => t[0] === open);
+  if (M) for (const b of document.querySelectorAll('#panel-body .subtabs button[data-key]')) { const lv = D[M[2][+b.dataset.key]?.[1]] || ''; dotSet(b, lv); b.title = lv ? DOT_TIP[lv] : ''; }
   const ds = JSON.stringify(dotSeen); if (ds !== dotSaved) { dotSaved = ds; try { localStorage.setItem('ifu.s2.dots', ds); } catch { /* 저장 못 해도 */ } }
 }
 // 무공 아이콘(art/s2/skill/<id>.webp) — 그림이 안 뜨면 빛깔 동그라미에 첫 글자
@@ -1055,7 +1092,7 @@ function paintWin() {
   if (M[2].length > 1) {
     const st = document.createElement('div'); st.className = 'subtabs'; const seg = document.createElement('div'); seg.className = 'seg wide';
     M[2].forEach(([n], i) => { const b = document.createElement('button'); b.dataset.key = String(i); b.textContent = n; b.className = i === tab ? 'on' : ''; b.onclick = () => { play('click'); tab = i; paintWin(); paintNav(); }; seg.append(b); });
-    st.append(seg); PB.append(st);
+    st.append(seg); PB.append(st); navDots();   // v636 칸 점
   }
   const B = document.createElement('div'); B.id = 'wb'; PB.append(B);
   requestAnimationFrame(() => { PB.scrollTop = keepScroll; });
@@ -2741,6 +2778,46 @@ function bfEatAllUi() {
   if (rs.length) { play('coin'); buzz(20); toast(`단약 ${rs.length}개 — ${rs.map((r) => DANYAK.list.find((x) => x.id === r.id).what).join(' · ')} · 30분`); } else toast('지금 먹을 단약이 없어요');
   save(); paintBf(true); return rs.length;
 }
+// ── v636 방치 쌓임(rd2) — 위 가운데 진행 줄 아래 작은 칩: 원정이 얼마나 찼는지 · 남은 시간 / 도착(빨강 · 누르면 받기) / 보낼 수 있음(금빛) / 아니면 자리 비움 몫(한 번에 최대 12시간) · 누르면 설명 창 ──
+const idlHm = (ms) => { const m = Math.ceil(ms / 60000); return m >= 60 ? `${Math.floor(m / 60)}:${String(m % 60).padStart(2, '0')}` : `${m}분`; };
+const idlClock = (ms) => { const d = new Date(Date.now() + ms); return `${d.getDate() !== new Date().getDate() ? '내일 ' : ''}${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`; };
+let idlAt = 0;
+function paintIdl(force) {
+  const el = $('idl'), t = Date.now();
+  if (!force && t - idlAt < 1000) return; idlAt = t;
+  if (!el.onclick) el.onclick = () => { play('click'); idlTap(); };
+  const I = g.idleState(), R = I.run, busy = !!(g.bossFight || g.dg);
+  el.classList.toggle('hidden', busy);
+  const st = R ? (R.done ? 'red' : 'run') : I.canSend ? 'can' : 'off';
+  const tx = st === 'red' ? '원정 도착 · 받기' : st === 'run' ? `원정 ${idlHm(R.leftMs)}` : st === 'can' ? '원정 보내기' : `방치 최대 ${Math.floor(I.capMs / 3600e3)}시간`;
+  const p = st === 'red' ? 1 : st === 'run' ? R.p : st === 'can' ? 0 : I.capMs / (I.capH * 3600e3);
+  if (el.dataset.st !== st) { el.dataset.st = st; el.classList.toggle('red', st === 'red'); el.classList.toggle('can', st === 'can'); $('idl-i').textContent = st === 'off' ? '休' : '征'; }
+  if ($('idl-t').textContent !== tx) $('idl-t').textContent = tx;
+  $('idl-f').style.width = `${(p * 100).toFixed(1)}%`;
+  el.setAttribute('aria-label', st === 'red' ? '원정 도착 — 눌러서 받기' : st === 'run' ? `원정 ${R.hours}시간 — ${idlHm(R.leftMs)} 남음` : st === 'can' ? '원정을 보낼 수 있어요' : `방치 — 자리를 비우면 최대 ${I.capH}시간까지 쌓여요`);
+}
+function idlClaim() {
+  const L0 = g.S.hero.lv, g0 = g.S.wallet.gold || 0, r = g.claimExped();
+  if (!r) { toast('아직 도착 전이에요'); return null; }
+  play('coin'); buzz(20); const dl = g.S.hero.lv - L0;
+  toast(`원정 도착 — 사냥 ${r.huntMin}분 몫 · 은자 +${unit(Math.max(0, (g.S.wallet.gold || 0) - g0))}${dl > 0 ? ` · Lv +${dl}` : ''}`);
+  save(); paintIdl(true); paintHud(); if (open) paintWin(); return r;
+}
+function idlTap() { const R = g.idleState().run; if (R?.done) idlClaim(); else idlPop(); }
+function idlPop() {
+  const I = g.idleState(), R = I.run, L = g.S.hero.lv, H = 3600e3;
+  const gain = (h) => { const min = Math.round(h * 60 * EXPEDITION.rate); return { min, gold: Math.round(min * KILLS_PER_MIN * goldPerMob(L)) }; };
+  const bar = (p, cls = '') => `<b class="idl-pb${cls}"><u style="width:${(Math.max(0, Math.min(1, p)) * 100).toFixed(1)}%"></u></b>`;
+  const ex = R ? `<div class="idl-r${R.done ? ' red' : ''}"><div><b>원정 ${R.hours}시간</b><small>${R.done ? '도착 — 받을 수 있어요' : `${idlHm(R.leftMs)} 남음 · ${idlClock(R.leftMs)}에 도착`} · 사냥 ${gain(R.hours).min}분 몫(은자 약 ${unit(gain(R.hours).gold)})</small></div>${bar(R.p)}</div>`
+    : `<div class="idl-r${I.canSend ? ' can' : ''}"><div><b>원정</b><small>${I.canSend ? `원정권 ${I.tix}장 — 보내면 몇 시간 뒤 사냥 몫을 들고 와요 · 12시간이면 사냥 ${gain(12).min}분 몫` : '원정권이 없어요 — 날마다 1장'}</small></div>${bar(0)}</div>`;
+  const off = `<div class="idl-r"><div><b>자리 비움</b><small>자리를 비우면 사냥의 ${Math.round(I.rate * 100)}%가 쌓여요 · 한 번에 최대 ${I.capH}시간 · 지금 떠나면 ${idlClock(I.capMs)}에 가득<br>이번 주 남은 ${Math.floor(I.weekLeftMs / H)}시간 / ${I.weekH}시간 · 광고 ×2 오늘 ${I.adLeft}번</small></div>${bar(I.capMs / (I.capH * H))}</div>`;
+  const note = `<p class="bf-note">${opt.autoGrow ? '자동 성장이 켜져 있어 원정은 저절로 받고 12시간으로 다시 보내요' : '자동 성장을 켜면 원정을 저절로 받고 다시 보내요'}</p>`;
+  const acts = [['닫기', null]];
+  if (R?.done) acts.push(['받기', idlClaim]);
+  else if (I.canSend) acts.push(['원정 창', () => openKey('content:2')], ['12시간 보내기', () => { if (g.startExped(12)) { toast(`원정 12시간 — ${idlClock(12 * H)}에 도착`); save(); } paintIdl(true); }]);
+  else acts.push(['원정 창', () => openKey('content:2')]);
+  pop('방치 쌓임', `<div class="idl-l">${ex}${off}</div>${note}`, acts);
+}
 // ── v634 성장 봇짐 — Lv · HP 상자 EXP 줄 끝 상자(받을 수 · 없으면 다음 레벨) · 누르면 봇짐 창 ──
 let lvbAt = 0, lvbSeen = -1;
 const lvbRew = (x) => [`뽑기권 ${x.give['ticket:gear']}`, `강화석 ${x.give['item:stone']}`, x.gear >= 0 && `${GRADES[x.gear]}품 장비`, x.give['ticket:pal'] && '병기 · 동료 · 영물 뽑기권 1씩'].filter(Boolean);
@@ -2895,6 +2972,7 @@ function paintHud() {
   paintRc();
   paintEv();   // v636 축제 칩
   paintBf(); paintLvb();   // v634 단약 · 성장 봇짐
+  paintIdl();   // v636 방치 쌓임
   paintUnlock();
   const ready = !boss && !dgs && g.canChallenge();
   $('btn-boss').classList.toggle('hidden', !ready); $('btn-boss').classList.toggle('ready', ready);
@@ -4090,7 +4168,7 @@ function drawSkillFx(cx, f, a, [x, y], Rpx, k, col, tier) {
   const ease = 1 - Math.pow(1 - a, 3), fade = a < 0.7 ? 1 : (1 - a) / 0.3, big = 1 + tier * 0.12;
   const job = f.job || g.S.hero.job;
   // 발밑 진(2차 이상 무공 · 버프) — 납작하게 돌며 사라진다
-  if ((tier >= 2 || f.shape === 'buff') && f.shape !== 'hit' && f.shape !== 'ring' && a < 0.85) {
+  if ((tier >= 2 || f.shape === 'buff') && f.shape !== 'hit' && f.shape !== 'ring' && a < 0.85 && !f.noSeal) {
     const seal = oldImg(SEAL_ART[job]);
     if (seal) { const w = (110 + tier * 14) * k * (0.7 + 0.3 * ease), hx = f.hx ?? x, hy = f.hy ?? y; cx.save(); cx.globalAlpha = (1 - a / 0.85) * 0.8; cx.translate(hx, hy); cx.scale(1, 0.32); cx.rotate(a * 2.4); cx.drawImage(seal, -w / 2, -w / 2, w, w); cx.restore(); }
   }
@@ -4433,7 +4511,13 @@ function sk2Fx(cx, f, ms, [wx, wy], [hx, hy], Rpx, k, tier) {
   else if (sh === 'circle') sk2Circle(cx, T, x, y, Rpx, k, n, p, pic, adv, B, Bv, face, seed, job);
   else if (sh === 'rain') sk2Rain(cx, T, x, y, Rpx, k, n, p, adv, B, face, seed, job);
   else sk2Buff(cx, T, x, y, k, n, p, pic, adv, B, seed);
+  sk2Paint(cx, f, T, x, y, Rpx, k, n, Bv, p);
   return true;
+}
+// v637 그린 무공 그림(art/s2/fx · 5차 궁극 그림)을 다시 크게 · 밝게 — v631에서 물들여 작고 흐리게 바뀌었던 것을 되돌리고, 움직임(sk2) 위에 겹친다. 터질 때(PRE 뒤)부터 REL + POST 절반 동안
+function sk2Paint(cx, f, T, x, y, Rpx, k, n, Bv, p) {
+  const a = (T.ms - T.pre) / (T.rel + T.post * 0.5); if (a < 0 || a >= 1) return;
+  drawSkillFx(cx, { ...f, job: String(f.id).split('_')[0], noSeal: 1 }, a, [x, y], Rpx * Bv, k, p.c, n);
 }
 // ── v632 무공 변형 그림 — 같은 무공 그림(sk2Line · Arc · Circle · Rain · Buff)을 변형대로 겹치고 · 돌리고 · 늦춰 그린다(빛깔 · PRE/REL/POST는 그대로)
 //   fork 세 줄기(위 · 아래로 비스듬히 · 가늘게) · back 끝에서 되돌아오는 두 번째 줄기 · wide 넓은 부채 셋 겹 · twin 뒤로 한 번 더 · pull 조여 드는 고리와 화살표 → 터짐
@@ -6061,6 +6145,7 @@ window.__s2 = { get g() { return g; }, lowGfx: () => opt.gfx === 'low', dgIv: ()
   linkTest: async (tok) => { const r = await net.linkGoogle(tok); if (r.conflict) { const d = await net.switchTo(r.cred); if (d) applyCloud(d); return 'switched'; } await cloudPush(true); return 'linked'; } };
 Object.assign(window.__s2, { toast });   // v630 시험용 — 알림을 바로 띄워 결과 창 단추와 겹치는지 본다
 Object.assign(window.__s2, { bfPop, lvbPop, paintBf, paintLvb, opt });   // v634 단약 · 성장 봇짐 시험 손잡이
+Object.assign(window.__s2, { idlPop, paintIdl, navDots });   // v636 방치 쌓임 · 점 셋 시험 손잡이
 Object.assign(window.__s2, { rl2Open, openKey });   // v634 시험용 — 뜻대로 굴리기 창 · 창 바로 열기
 Object.assign(window.__s2, { baTier: () => baLast, baLive: () => baFx.length, baCap: () => BA_CAP, baAt: () => baLastAt, baShots: () => shots.filter((q) => q.ba).length, baWaves: () => baFx.filter((f) => f.k === 'wv').length });   // v628 평타 진화 시험 손잡이(r13-basic)
 // v628 처치 손맛 시험 손잡이 — 살아 있는 주검 수 · 마지막 외침 글 · 마지막 처치(몫 · 넘친 피해 · 전직 차수) · 날고 있는 주검 · 큰 처치 수 · 경험치 구슬 수 · 셈(최고 주검 수 · 날기 시작 · 구슬 — true면 0으로)

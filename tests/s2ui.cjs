@@ -408,7 +408,7 @@ const ok = (c, m, x = '') => { console.log(`  ${c ? '✓' : '✗ !!'} ${m}${x !=
       await page.evaluate(() => { const g = window.__s2.g; window.__t = { wallet: JSON.stringify(g.S.wallet), shop: JSON.stringify(g.S.shop || null), guide: JSON.stringify(g.S.q.guide) };
         g.S.shop = null; g.S.wallet.gold = 1e12;
         // 임무 빨간 점의 다른 까닭(하루 상자 · 길잡이 받기 · 업적 받기)은 잠깐 꺼 둔다 — 덤 하나만 남게
-        const tc = g.todayChest.bind(g); g.todayChest = () => ({ ...tc(), can: false }); g.books.ach.claimable = () => []; g.bountyCan = () => 0;   // 현상수배도
+        const tc = g.todayChest.bind(g); g.todayChest = () => ({ ...tc(), can: false }); g.books.ach.claimable = () => []; g.bountyCan = () => 0;   // 현상수배도 g.mailCan = () => 0; g.festCan = () => 0; g.mxCan = () => 0; g.books.daily.claimable = () => []; g.books.weekly.claimable = () => []; g.canAttend = () => false; g.passCan = () => 0;   // v637 우편 · 축제 · 요괴록 · 임무 점도
         const G = g.S.q.guide; for (const k of Object.keys(G)) { G[k].done = true; G[k].got = true; } for (let i = 1; i <= 40; i++) G[`g${i}`] = { p: 99, done: true, got: true }; });
       await page.click('.nb[data-tab="town"]'); await sub('상점'); await page.waitForSelector('#wb .row:has(.name:text-is("오늘의 덤"))');
       const shop = () => page.evaluate(() => { const g = window.__s2.g, W = g.S.wallet, rows = [...document.querySelectorAll('#wb .row')], row = (n) => rows.find((r) => r.querySelector('.name')?.textContent === n), d = (n) => row(n)?.querySelector('.desc')?.textContent || '', b = (n, i = 0) => row(n)?.querySelectorAll('.btn')[i];
@@ -419,7 +419,8 @@ const ok = (c, m, x = '') => { console.log(`  ${c ? '✓' : '✗ !!'} ${m}${x !=
       await page.click('#wb .row:has(.name:text-is("오늘의 덤")) .btn');
       const f1 = await until(shop, (v) => v.freeOff && !v.dot);
       ok(f1.freeOff && !f1.can && /오늘은 받았어요/.test(f1.free) && f1.tk - f0.tk === 1 && await page.evaluate(() => window.__s2.g.shopBuy('free') === null), 'v604 덤 받기 — 뽑기권 1장 · 하루 한 번(다시는 못 받음)', f1.free);
-      ok(!f1.dot && !f1.dot2, 'v604 덤을 받으면 임무 빨간 점이 꺼진다');
+      { const ds = await page.evaluate(() => [...document.querySelectorAll('#panel-body .seg.wide button.dot-on')].map((x) => x.textContent));   // v637 점이 칸마다 — 덤을 받으면 「상점」 칸 점이 꺼지고, 임무 창 점은 다른 칸(축제 등) 때문에만 남는다
+        ok(!ds.includes('상점') && (!f1.dot || ds.length > 0), 'v604 덤을 받으면 상점 칸 빨간 점이 꺼진다(임무 창 점은 다른 칸 몫만)', JSON.stringify(ds)); }
       const lim = +(/남은 (\d+)\/(\d+)/.exec(f1.st) || [])[2];
       await page.click('#wb .row:has(.name:text-is("강화석 꾸러미")) .btn:text-is("사기")');
       const b1 = await until(shop, (v) => v.bought === 1 && v.st.includes(`남은 ${lim - 1}/${lim}`));
@@ -562,7 +563,7 @@ const ok = (c, m, x = '') => { console.log(`  ${c ? '✓' : '✗ !!'} ${m}${x !=
           done: fl.filter((e) => e.classList.contains('tw-done')).length, next: document.querySelector('#wb .tw-fl.tw-next')?.dataset.f, chest: fl.filter((e) => e.querySelector('img')).map((e) => e.dataset.f).join(),
           big: document.querySelector('#wb .tw-now b')?.textContent, btns: [...document.querySelectorAll('#wb .tw-side .btn')].map((b) => b.textContent).join(','),
           ms: [...document.querySelectorAll('#wb .row.tw-ms')].map((r) => `${r.dataset.f}:${r.querySelector('.btn').textContent}${r.querySelector('.btn').disabled ? '(잠김)' : ''}`).join(' '),
-          tix: g.S.wallet['ticket:gear'] || 0, got: (g.S.tower.ms || []).join(), dot: document.querySelector('.nb[data-tab="dgn"]').classList.contains('dot-on') }; });
+          tix: g.S.wallet['ticket:gear'] || 0, got: (g.S.tower.ms || []).join(), dot: document.querySelector('.nb[data-tab="dgn"]').dataset.dot === 'red' }; });   // v636 빨강 = 받을 것(금빛 · 파랑은 다른 점)
       const v0 = await until(tw, (v) => v.n === 8);
       ok(v0.n === 8 && v0.top === '23' && v0.cur === '18' && v0.next === '19' && v0.done === 2 && v0.chest === '20', 'v616 탑 그림 — 위 다섯 층(23층까지) · 지금 18층 · 깬 층 둘 · 20층에 상자', JSON.stringify(v0));
       ok(v0.curGlow && v0.curW > v0.towerW * 0.6 && /^18층$/.test(v0.big) && v0.btns === '오르기,도전', '지금 층은 금빛(넓게) · 큰 숫자 · 「오르기」 「도전」', `${v0.curW}/${v0.towerW} ${v0.big} ${v0.btns}`);
@@ -2127,6 +2128,67 @@ const ok = (c, m, x = '') => { console.log(`  ${c ? '✓' : '✗ !!'} ${m}${x !=
         await page.click('#rout'); await page.waitForTimeout(300);
       }
       ok(errs.length === 0, `v636 ${VW} 강호 축제 — 콘솔 오류 없음`, errs.slice(0, 3).join(' | '));
+      await page.evaluate(() => window.__s2.freeze?.());
+      await ctx.close();
+    }
+  }
+  if (!process.env.ONLY || process.env.ONLY.split(',').some((x) => x === '844' || x === 'rd2')) {
+    console.log('— v636 점 셋 · 방치 쌓임');
+    for (const [VW, VH] of [[844, 390], [667, 375]]) {
+      const ctx = await b.newContext({ viewport: { width: VW, height: VH }, serviceWorkers: 'block' });
+      await ctx.route(/gstatic\.com\/firebasejs/, (r) => r.abort());
+      const page = await ctx.newPage(); const errs = [];
+      page.on('pageerror', (e) => errs.push(e.message)); page.on('console', (m) => { if (m.type() === 'error' && !/Failed to load|ERR_FAILED/.test(m.text())) errs.push(m.text()); });
+      await page.goto(BASE, { waitUntil: 'domcontentloaded' });
+      await page.waitForSelector('#modal:not(.hidden) .jobcard'); await page.click('#modal .jobcard[data-job="sword"]');
+      await page.waitForSelector('#modal', { state: 'hidden' }); await page.waitForTimeout(500);
+      const dot = (sel) => page.evaluate((s) => { const e = document.querySelector(s); return e ? (e.classList.contains('dot-on') ? e.dataset.dot || 'red?' : '') : 'none'; }, sel);
+      // 점 셋 — 출석(받을 것) 빨강 · 뽑기권 10장(할 수 있는 것) 금빛 · 새로 낀 장비(새 것) 파랑
+      await page.evaluate(() => { const g = window.__s2.g; g.S.wallet['ticket:gear'] = 30; g.S.gearNew = { ring: { g: 2, up: 0, fg: -1, fup: 0, dp: 5 } }; g.S.wallet['ticket:exped'] = 0; window.__s2.navDots(); });
+      const d0 = { town: await dot('.nb[data-tab="town"]'), bag: await dot('.nb[data-tab="bag"]'), comp: await dot('.nb[data-tab="comp"]') };
+      ok(d0.town === 'red' && d0.bag === 'gold' && d0.comp === '', `v636 ${VW} 창 단추 점 — 임무 빨강(출석) · 장비 금빛(금빛 > 파랑) · 동료 없음`, JSON.stringify(d0));
+      await page.evaluate(() => { window.__s2.g.S.wallet['ticket:gear'] = 3; window.__s2.navDots(); });
+      ok(await dot('.nb[data-tab="bag"]') === 'new', `v636 ${VW} 뽑기권이 적으면 → 장비는 파랑(새로 낀 장비)`);
+      await page.evaluate(() => { window.__s2.g.S.wallet['ticket:gear'] = 30; window.__s2.navDots(); });
+      await page.evaluate(() => { window.__s2.g.S.gearNew = { ring: { g: 2, up: 0, fg: -1, fup: 0, dp: 5 } }; window.__s2.openKey('gear:1'); }); await page.waitForTimeout(250);
+      const s1 = await page.evaluate(() => [...document.querySelectorAll('#panel-body .subtabs button')].map((x) => `${x.textContent}:${x.classList.contains('dot-on') ? x.dataset.dot : ''}`).join(','));
+      ok(/장착:new/.test(s1) && /뽑기:,/.test(s1), `v636 ${VW} 칸 점 — 장착 파랑(새로 낀 장비) · 지금 보는 뽑기 칸 금빛은 꺼짐`, s1);
+      ok(await page.evaluate(() => document.querySelector('#ptabs button[data-tab="bag"]').dataset.dot) === 'new', `v636 ${VW} 창 왼쪽 줄 — 장비는 남은 파랑`);
+      await page.evaluate(() => window.__s2.openKey('gear:0')); await page.waitForTimeout(300);
+      ok(await dot('#ptabs button[data-tab="bag"]') === '' && await dot('.nb[data-tab="bag"]') === '', `v636 ${VW} 장착 칸을 보면 파랑도 꺼짐 → 장비 점 없음`);
+      await page.evaluate(() => window.__s2.openKey('attend:0')); await page.waitForTimeout(250);
+      const s2 = await page.evaluate(() => { const b2 = [...document.querySelectorAll('#panel-body .subtabs button')].find((x) => x.textContent === '출석'), r = b2.getBoundingClientRect(), a = getComputedStyle(b2, '::after'); return { dot: b2.dataset.dot, on: b2.classList.contains('dot-on'), bg: a.backgroundColor, w: a.width, tip: b2.title }; });
+      ok(s2.on && s2.dot === 'red' && s2.bg === 'rgb(239, 68, 68)' && s2.w === '7px' && /받을/.test(s2.tip), `v636 ${VW} 출석 칸 빨강(보고 있어도 받을 때까지)`, JSON.stringify(s2));
+      const gc = await page.evaluate(() => { const nb = document.querySelector('.nb[data-tab="char"]'); nb.dataset.dot = 'gold'; nb.classList.add('dot-on'); const c = getComputedStyle(nb, '::after').backgroundColor; nb.dataset.dot = 'new'; const n = getComputedStyle(nb, '::after'); const r = [c, n.backgroundColor, n.width]; window.__s2.navDots(); return r; });
+      ok(gc[0] === 'rgb(245, 197, 66)' && gc[1] === 'rgb(96, 165, 250)' && gc[2] === '6px', `v636 ${VW} 빛깔 — 금빛 · 파랑(작게)`, gc.join(' / '));
+      await page.click('#panel-close'); await page.waitForTimeout(300);
+      // 방치 쌓임 칩 — 원정권 없음: 자리 비움 최대 12시간 / 보낼 수 있음: 금빛 / 가는 중: 남은 시간 / 도착: 빨강 · 누르면 받기
+      const hud = () => page.evaluate(() => { const e = document.querySelector('#idl'), r = e.getBoundingClientRect(), R = (s) => [...document.querySelectorAll(s)].filter((x) => x.offsetParent).map((x) => x.getBoundingClientRect());
+        const hit = (a, c) => a.width && c.width && a.left < c.right - 0.5 && c.left < a.right - 0.5 && a.top < c.bottom - 0.5 && c.top < a.bottom - 0.5;
+        const others = ['#tr .ib', '#sp', '#chap-row', '#fc', '#rc', '#bf', '#qc', '#nx', '#tl', '#me', '#lvb', '#btn-boss'].flatMap((s) => R(s).map((x) => [s, x]));
+        const bb = document.getElementById('btn-boss'), bh = bb.classList.contains('hidden'); bb.classList.remove('hidden');   // 두목 도전 단추가 떠 있을 때도(넓은 화면은 진행 줄 바로 아래)
+        const r2 = e.getBoundingClientRect(), b2 = bb.getBoundingClientRect(), bossHit = hit(r2, b2); bb.classList.toggle('hidden', bh);
+        return { vis: !!e.offsetParent, t: e.textContent, cls: e.className, over: [...others.filter(([, x]) => hit(r, x)).map(([s]) => s), ...(bossHit ? ['#btn-boss(보임)'] : [])], inV: r.left >= 0 && r.right <= innerWidth && r.top >= 0 && r2.bottom <= innerHeight, h: r.height }; });
+      await page.evaluate(() => window.__s2.paintIdl(true));
+      const h0 = await hud();
+      ok(h0.vis && /^休방치 최대 12시간$/.test(h0.t) && !h0.over.length && h0.inV, `v636 ${VW} 방치 칩 — 진행 줄 아래 · 겹침 없음 · 자리 비움 최대 12시간`, JSON.stringify(h0));
+      await page.evaluate(() => { window.__s2.g.S.wallet['ticket:exped'] = 1; window.__s2.paintIdl(true); });
+      const h1 = await hud(); ok(/can/.test(h1.cls) && /원정 보내기/.test(h1.t) && !h1.over.length, `v636 ${VW} 원정권 있음 → 금빛 「원정 보내기」`, JSON.stringify(h1));
+      await page.click('#idl'); await page.waitForSelector('#modal:not(.hidden) .idl-l');
+      const p0 = await page.evaluate(() => ({ rows: document.querySelectorAll('#modal .idl-r').length, txt: document.querySelector('#modal .idl-l').textContent, btn: [...document.querySelectorAll('#modal .btn-row .btn')].map((x) => x.textContent).join('/') }));
+      ok(p0.rows === 2 && /최대 12시간/.test(p0.txt) && /이번 주 남은 84시간/.test(p0.txt) && p0.btn === '닫기/원정 창/12시간 보내기', `v636 ${VW} 누르면 설명 창 — 원정 · 자리 비움 · 보내기`, JSON.stringify(p0));
+      await page.click('#modal .btn:has-text("12시간 보내기")'); await page.waitForTimeout(300);
+      const h2 = await hud(); const run = await page.evaluate(() => window.__s2.g.S.exped.run?.hours);
+      ok(run === 12 && /^征원정 1[12]:\d\d$/.test(h2.t) && !/can|red/.test(h2.cls) && !h2.over.length, `v636 ${VW} 보내면 「원정 남은 시간」`, `${run} ${JSON.stringify(h2)}`);
+      await page.evaluate(() => { const g = window.__s2.g; g.S.exped.run.endMs = g.now - 1000; window.__s2.paintIdl(true); window.__s2.navDots(); });
+      const h3 = await hud(); ok(/red/.test(h3.cls) && /원정 도착/.test(h3.t) && await dot('.nb[data-tab="dgn"]') === 'red' && !h3.over.length, `v636 ${VW} 도착 → 칩 빨강 · 던전 단추 빨강`, JSON.stringify(h3));
+      await page.screenshot({ path: path.join(OUT, `s2-rd2-${VW}.png`) });
+      const g0 = await page.evaluate(() => window.__s2.g.S.wallet.gold);
+      await page.click('#idl'); await page.waitForTimeout(300);
+      const c1 = await page.evaluate(() => ({ run: window.__s2.g.S.exped.run, gold: window.__s2.g.S.wallet.gold, toast: document.getElementById('toast')?.textContent || '', modal: !document.getElementById('modal').classList.contains('hidden') }));
+      ok(c1.run === null && c1.gold > g0 && /원정 도착/.test(c1.toast) && !c1.modal, `v636 ${VW} 빨강 칩을 누르면 바로 받기`, JSON.stringify(c1));
+      await page.evaluate(() => { window.__s2.g.bossFight = window.__s2.g.bossFight; });
+      ok(errs.length === 0, `v636 ${VW} 점 셋 · 방치 쌓임 — 콘솔 오류 없음`, errs.slice(0, 3).join(' | '));
       await page.evaluate(() => window.__s2.freeze?.());
       await ctx.close();
     }

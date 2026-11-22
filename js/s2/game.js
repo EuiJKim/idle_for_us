@@ -90,6 +90,7 @@ import * as RM from './grow/realm.js';
 import * as WI from './core/wish.js';   // v634 뜻대로 굴리기
 import * as ID from './content/idle.js';
 import * as OF from './content/offline.js';
+import { OFFLINE_CAP_H, OFFLINE_WEEK_CAP_H, OFFLINE_AD_PER_DAY } from './tables/economy.js';   // v636 방치 쌓임(rd2)
 import { runDungeon, runParty } from './content/dungeon.js';
 import { power, stdPower } from './online/power.js';
 import { TABLE_VER } from './tables/version.js';
@@ -1583,6 +1584,16 @@ export class Game {
     W['ticket:time'] -= k; const lv0 = this.S.hero.lv, g0 = W.gold || 0, x0 = this.S.hero.exp;
     this.giveHuntMin(15 * k);
     return { n: k, min: 15 * k, gold: (W.gold || 0) - g0, lv: this.S.hero.lv - lv0 };
+  }
+  // v636 방치 쌓임(rd2) — HUD 칩 · 창이 읽기만 하는 모음(바꾸는 것 없음 · 세이브 필드 없음)
+  //   원정: 떠난 것(남은 ms · 찬 몫 p · 도착) / 보낼 수 있음(원정권) · 자리 비움: 한 번에 OFFLINE_CAP_H · 이번 주 남은 몫 · 광고 ×2 오늘 남은 수
+  idleState() {
+    const S = this.S, t = this.now, E = S.exped || {}, O = S.offline || {}, H = 3600e3;
+    const used = O.week === String(weekKey(t)) ? O.weekUsedMs || 0 : 0, weekLeftMs = Math.max(0, OFFLINE_WEEK_CAP_H * H - used);
+    const R = E.run, run = R ? { hours: R.hours, endMs: R.endMs, leftMs: Math.max(0, R.endMs - t), p: Math.max(0, Math.min(1, 1 - (R.endMs - t) / (R.hours * H))), done: t >= R.endMs } : null;
+    const tix = S.wallet['ticket:exped'] || 0;
+    return { run, tix, canSend: !R && tix > 0, rate: OF.OFF_RATE, capMs: Math.min(OFFLINE_CAP_H * H, weekLeftMs), capH: OFFLINE_CAP_H, weekLeftMs, weekH: OFFLINE_WEEK_CAP_H,
+      adLeft: O.adDay === String(dayKey(t)) ? Math.max(0, OFFLINE_AD_PER_DAY - (O.adUsed || 0)) : OFFLINE_AD_PER_DAY };
   }
   timeTicket(which, minutes) {
     const S = this.S;

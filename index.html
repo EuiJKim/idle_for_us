@@ -2077,6 +2077,30 @@
     #panel .ev-cal > div .ev-pic { grid-row: span 2; } #panel .ev-cal b { font-size: 12.5px; } #panel .ev-cal small { font-size: 11px; color: var(--mute); }
     #panel .ev-cal > div.on { border-color: var(--ec); background: color-mix(in srgb, var(--ec) 12%, rgba(0,0,0,.3)); }
     .ev-res .ev-grade { color: var(--ec); font-size: 1.25em; }
+    /* v636 점 셋(rd2) — 받을 것 빨강 · 할 수 있는 것 금빛 · 새 것 파랑 작게 · 창 단추 · 창 왼쪽 줄 · 칸(sub-tab) 같은 규칙(.dot-on = 점 있음 · 빛깔은 data-dot) */
+    #panel-body .seg.wide button { position: relative; }
+    #panel-body .seg.wide button.dot-on::after { content: ''; position: absolute; top: 6px; right: 3px; width: 7px; height: 7px; border-radius: 50%; background: #ef4444; box-shadow: 0 0 0 1.5px rgba(0,0,0,.5); }
+    .nb[data-dot="gold"]::after, #ptabs button[data-dot="gold"]::after, #panel-body .seg.wide button[data-dot="gold"]::after { background: #f5c542; }
+    .nb[data-dot="new"]::after, #ptabs button[data-dot="new"]::after, #panel-body .seg.wide button[data-dot="new"]::after { background: #60a5fa; width: 6px; height: 6px; margin: 1px 1px 0 0; }
+    html.h500 #panel-body .seg.wide button.dot-on::after { top: 4px; }
+    /* v636 방치 쌓임(rd2) — 위 가운데 진행 줄 아래 작은 칩(원정 찬 몫 · 남은 시간 / 도착 / 보내기 / 자리 비움 최대) */
+    .idl { pointer-events: auto; position: absolute; left: 50%; top: calc(100% + 4px); transform: translateX(-50%); display: flex; align-items: center; gap: 5px; width: max-content; max-width: 60vw; height: 22px; padding: 0 8px 0 3px; border-radius: 999px; background: rgba(10,8,6,.62); border: 1px solid rgba(255,255,255,.16); color: #e8dcc0; font: inherit; font-size: 10.5px; font-weight: 700; cursor: pointer; }
+    .idl::before { content: ''; position: absolute; inset: -9px -4px -3px; }   /* 누르는 자리를 44px 가까이 */
+    .idl.hidden, body.bossing .idl { display: none; }
+    .idl i { flex: none; font-style: normal; width: 16px; height: 16px; display: grid; place-items: center; border-radius: 50%; background: #23331f; color: #b7e4a0; font-size: 10px; }
+    .idl span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; text-shadow: 0 1px 2px #000; }
+    .idl-b, .idl-pb { flex: none; display: block; width: 38px; height: 4px; border-radius: 2px; background: rgba(255,255,255,.15); overflow: hidden; }
+    .idl-b u, .idl-pb u { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #6fb36a, #c8e6a0); text-decoration: none; }
+    .idl.can { border-color: rgba(245,197,66,.7); color: #ffe9a8; } .idl.can i { background: #4a3812; color: #f5c542; }
+    .idl.red { border-color: rgba(239,68,68,.85); color: #fff; animation: pts-glow 1.4s ease-in-out infinite; } .idl.red i { background: #5a1a14; color: #ffd0c8; } .idl.red .idl-b u { background: linear-gradient(90deg, #d49a2a, #ffd56a); }
+    .idl.red::after { content: ''; position: absolute; top: -2px; right: -2px; width: 8px; height: 8px; border-radius: 50%; background: #ef4444; box-shadow: 0 0 0 1.5px rgba(0,0,0,.5); }
+    .idl:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+    html.w720 .idl { font-size: 10px; } html.w720 .idl-b { width: 28px; }
+    html:not(.w800) body:has(#btn-boss:not(.hidden)) .idl { top: calc(100% + 42px); }   /* 넓은 화면은 두목 도전 단추가 진행 줄 바로 아래 — 칩은 그 아래로 · 칩은 #tc 밖으로 떠 있어(absolute) 진행 줄 상자 크기는 그대로 */
+    .idl-l { display: flex; flex-direction: column; gap: 8px; }
+    .idl-r { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 10px; background: #0005; border: 1px solid rgba(255,255,255,.1); }
+    .idl-r > div { flex: 1; min-width: 0; } .idl-r b { display: block; font-size: 13px; } .idl-r small { color: var(--mute); font-size: 11.5px; line-height: 1.45; }
+    .idl-r .idl-pb { width: 64px; height: 6px; } .idl-r.red { border-color: rgba(239,68,68,.6); } .idl-r.can { border-color: rgba(245,197,66,.55); }
   </style>
 </head>
 <body>
@@ -2095,6 +2119,7 @@
       <div id="tc">
         <div id="chap-row"><svg class="ic" viewBox="0 0 24 24"><path d="M12 21s-6-6-6-11a6 6 0 0 1 12 0c0 5-6 11-6 11z"/><circle cx="12" cy="10" r="2"/></svg><span id="chap">1. 죽림</span></div>
         <div id="sp"><div id="sp-fill"></div><span id="sp-txt">Stage 1/10</span></div>
+        <button id="idl" class="idl hidden" aria-label="방치 쌓임"><i id="idl-i">休</i><span id="idl-t"></span><b class="idl-b"><u id="idl-f"></u></b></button>
       </div>
       <div id="tr">
         <button class="ib nb" data-tab="map"><svg class="ic" viewBox="0 0 24 24"><path d="M3 6l6-3 6 3 6-3v15l-6 3-6-3-6 3z"/><path d="M9 3v15M15 6v15"/></svg><span>지도</span></button>

@@ -1915,6 +1915,28 @@ console.log('\n=== v635 병기 · 동료 · 영물 고유 기질 · 손으로 �
     const old = new Game(newGame('sword', T0, 80), T0); let err = ''; try { old.pullCollect('weapon', 5); old.power(); old.hunt(2000); } catch (e) { err = e.message; } ok(!err && !CL.isManual(old.S.colls.weapon), '옛 세이브(man 없음) = 추천 자동', err); }
 }
 
+console.log('\n=== v636 방치 쌓임 — 읽기 전용 모음(idleState) ===');
+{
+  const T0 = 1.8e12, H = 3600e3, g = new Game(newGame('sword', T0, 41), T0); g.tick(T0);
+  const s0 = JSON.stringify(g.S);
+  const I0 = g.idleState();
+  ok(I0.run === null && I0.tix >= 1 && I0.canSend && I0.capH === EC.OFFLINE_CAP_H && I0.capMs === EC.OFFLINE_CAP_H * H && I0.weekLeftMs === EC.OFFLINE_WEEK_CAP_H * H && I0.adLeft === EC.OFFLINE_AD_PER_DAY && I0.rate > 0 && I0.rate < 1, '처음: 원정 없음 · 보낼 수 있음 · 자리 비움 12시간 · 주 84시간 · 광고 셋', JSON.stringify(I0));
+  ok(JSON.stringify(g.S) === s0, '읽기만 한다(세이브가 그대로)');
+  ok(g.startExped(4), '원정 4시간 보냄');
+  g.now = T0 + H; const I1 = g.idleState();
+  ok(I1.run && I1.run.hours === 4 && I1.run.leftMs === 3 * H && Math.abs(I1.run.p - 0.25) < 1e-9 && !I1.run.done && !I1.canSend, '1시간 뒤: 남은 3시간 · 25% · 아직', JSON.stringify(I1.run));
+  g.now = T0 + 5 * H; const I2 = g.idleState();
+  ok(I2.run.done && I2.run.leftMs === 0 && I2.run.p === 1, '4시간 넘으면 도착 · 100%');
+  const r = g.claimExped(); ok(r && g.idleState().run === null, '받으면 원정 없음');
+  // 이번 주에 자리 비움을 80시간 썼으면 한 번에 4시간만
+  const O = g.S.offline; O.week = String(weekKey(g.now)); O.weekUsedMs = 80 * H;
+  ok(g.idleState().capMs === 4 * H && g.idleState().weekLeftMs === 4 * H, '주 몫이 4시간 남으면 한 번에 4시간', g.idleState().capMs / H);
+  O.week = 'old'; ok(g.idleState().capMs === 12 * H, '지난주 몫은 세지 않는다');
+  O.adDay = String(dayKey(g.now)); O.adUsed = 2; ok(g.idleState().adLeft === 1, '광고 ×2 오늘 남은 수');
+  // 옛 세이브(원정 · 자리 비움 칸 없음)도 읽힌다
+  const old = new Game(newGame('sword', T0, 42), T0); delete old.S.exped.run; old.S.wallet['ticket:exped'] = 0;
+  const I3 = Game.load(old.save(), T0).idleState(); ok(I3.run === null && !I3.canSend && I3.capMs === 12 * H, '원정권 없으면 보낼 수 없음 · 옛 세이브 그대로');
+}
 console.log('\n=== v610 창 줄 그림 아이콘 ===');
 {
   const UI = await import('../js/s2/tables/uiicons.js');
