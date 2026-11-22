@@ -447,6 +447,7 @@ export class SideFight {
     const r = hit(att || this.hero, m, skill, this.rng);
     if (m.stunUntil > this.t) r.dmg = Math.round(r.dmg * CB.stunDmgX);   // v532 기절한 두목은 피해 ×2
     if (m.cb?.wb) r.dmg = Math.round(r.dmg * (this.wbWeak() ? WBF.weakX : WBF.guardX));
+    if (!att && this.dmgX) r.dmg = Math.round(r.dmg * this.dmgX);   // v636 기세동 기세(무인 피해 배율 · 동료 공격은 att가 있어 빠진다)
     if (!att && !skill.pal && this.t < (this.hero.perfUntil || 0)) r.dmg = Math.round(r.dmg * DASH.buffX);   // v546 완벽 회피 뒤 4초   // v535 월드보스: 방어 자세 ×0.6 · 약점 ×1.8
     m.hp -= r.dmg; m.angry = true; this.dmgOut += r.dmg; if (r.crit) this.crits++;
     const cb = m.cb;

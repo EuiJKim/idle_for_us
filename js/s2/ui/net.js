@@ -1,6 +1,7 @@
 // v525 새 시즌 계정 · 서버 저장 — 옛 게임과 같은 Firebase 계정(익명 → Google 잇기)을 쓰고, 새 시즌 진행은 saves/{uid}/s2/main 한 곳에.
 //   옛 게임의 진행(saves/{uid})과 따로라 섞이지 않는다. 오프라인 · 막힘이면 조용히 기기에만 둔다.
 import { firebaseConfig, FIREBASE_SDK_VERSION } from '../../firebase-config.js';
+import { newResDoc, resTick, resDonate, helpPrune, askHelp, giveHelp, newWarDoc, warRoll } from '../online/guild.js';
 
 const CDN = `https://www.gstatic.com/firebasejs/${FIREBASE_SDK_VERSION}`;
 
@@ -205,6 +206,51 @@ export class S2Net {
       tx.set(ref, { data: JSON.stringify(R), at: fs.serverTimestamp() });
       return R;
     });
+  }
+  // v635 연공실 · 품앗이 · 겨루기 — guilds/{코드}/s2/research · help · war { data: JSON, at }(규칙: 문파원만 · 20000자)
+  s2doc(gid, k) { return this.fs.doc(this.db, 'guilds', gid, 's2', k); }
+  static s2parse(s) { try { return s.exists() ? JSON.parse(s.data().data) : null; } catch { return null; } }
+  async s2tx(gid, k, fn) {   // 읽고 → fn(문서)이 true면 쓴다 → 문서
+    const fs = this.fs, ref = this.s2doc(gid, k);
+    return fs.runTransaction(this.db, async (tx) => {
+      const D0 = S2Net.s2parse(await tx.get(ref)), r = fn(D0);
+      if (r.write) tx.set(ref, { data: JSON.stringify(r.doc), at: fs.serverTimestamp() });
+      return r;
+    });
+  }
+  async gresGet(gid) {   // 연구가 끝났으면 그 자리에서 Lv +1(다음 막대가 차 있으면 시작)
+    return (await this.s2tx(gid, 'research', (D) => { const doc = D || newResDoc(), was = JSON.stringify(doc); resTick(doc, Date.now()); return { doc, write: !!D && JSON.stringify(doc) !== was }; })).doc;
+  }
+  async gresDonate(g, k, nick) {
+    const r = await this.s2tx(g.id, 'research', (D) => { const doc = D || newResDoc(); const ok = resDonate(doc, k, this.uid, nick, Date.now()); return { doc, ok, write: ok }; });
+    if (r.ok) this.fs.updateDoc(this.fs.doc(this.db, 'guilds', g.id), { exp: this.fs.increment(5) }).then(() => this.guildPublish({ ...g, exp: (g.exp || 0) + 5 })).catch(() => {});   // 바치면 문파 경험치 +5
+    return r;
+  }
+  async ghelpGet(gid) { return S2Net.s2parse(await this.fs.getDoc(this.s2doc(gid, 'help'))) || { helps: {}, giveCount: {} }; }
+  async ghelpAsk(gid, req, kname, nick) {   // 내 요청은 하나 — 전 것은 지운다
+    return (await this.s2tx(gid, 'help', (D) => {
+      const doc = helpPrune(D || {}, Date.now(), S2Net.kstDay());
+      for (const [id, h] of Object.entries(doc.helps)) if (h.owner === this.uid) delete doc.helps[id];
+      askHelp(doc, req.id, this.uid, { endMs: req.end0, end0: req.end0 });
+      Object.assign(doc.helps[req.id], { k: req.k, name: String(kname).slice(0, 16), nick: String(nick || '무인').slice(0, 12), names: {}, at: Date.now() });
+      return { doc, write: true };
+    })).doc;
+  }
+  async ghelpGive(gid, reqId, nick, memberIds) {
+    return this.s2tx(gid, 'help', (D) => {
+      const doc = helpPrune(D || {}, Date.now(), S2Net.kstDay()), h = doc.helps[reqId];
+      const ok = !!h && giveHelp({ ...doc, members: memberIds }, reqId, this.uid, Date.now(), S2Net.kstDay());
+      if (ok) h.names = { ...(h.names || {}), [this.uid]: String(nick || '무인').slice(0, 12) };
+      return { doc, ok, write: ok };
+    });
+  }
+  async gwarSet(gid, wk, nick, pts, n) {   // 주가 바뀌었으면 지난주 마감 · 내 점수(줄이지 않음) · 문파원 수
+    return (await this.s2tx(gid, 'war', (D) => {
+      const doc = D || newWarDoc(wk), rolled = warRoll(doc, wk, gid), p = Math.max(0, Math.min(5000, pts | 0)), nm = String(nick || '무인').slice(0, 12);
+      const ch = rolled || !D || (doc.pts[this.uid] || 0) < p || doc.names[this.uid] !== nm || doc.n !== n;
+      if (ch) { doc.pts[this.uid] = Math.max(doc.pts[this.uid] || 0, p); doc.names[this.uid] = nm; doc.n = Math.max(1, Math.min(10, n | 0)); }
+      return { doc, write: ch };
+    })).doc;
   }
   async guildProfiles(ids) {
     const fs = this.fs;

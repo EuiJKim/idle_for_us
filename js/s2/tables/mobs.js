@@ -29,3 +29,12 @@ export function mobLook(ch, m) {
   if (m.kind === 'elite') return R.elite;
   return R.mobs[(m.id * 7 + 3) % R.mobs.length];
 }
+// v636 요괴록(몹 도감) — 장마다 여섯 칸: 일반 몹 넷(0~3) · 정예(4) · 칸 두목(5). 사냥터 · 칸 두목전에서 잡은 수를 센다(방치 보상 · 던전 · 장 두목은 안 셈)
+//   별: 처치 수가 steps를 넘을 때마다 하나(일반 100 · 1,000 · 10,000 / 정예 · 칸 두목 10 · 100 · 1,000) · 받은(새긴) 별마다 each(‰)
+//   한 장 여섯 칸을 모두 ★3으로 새기면 그 장 칭호(칭호 수집 효과도 하나 더)
+export const MX = { slots: 6, steps: { mob: [100, 1000, 10000], elite: [10, 100, 1000], boss: [10, 100, 1000] }, each: { mobDmg: 1, goldP: 1 } };
+export const mxKind = (slot) => (slot === 5 ? 'boss' : slot === 4 ? 'elite' : 'mob');
+// 몹 하나(kind · id) → 그 장 칸 번호 — mobLook과 같은 셈(같은 몹은 같은 칸)
+export const mxSlot = (ch, kind, id) => (kind === 'boss' ? 5 : kind === 'elite' ? 4 : (id * 7 + 3) % ROSTER[Math.max(0, Math.min(ROSTER.length - 1, ch - 1))].mobs.length);
+export const mxEntry = (ch, slot) => { const R = ROSTER[ch - 1]; return slot === 5 ? R.boss : slot === 4 ? R.elite : R.mobs[slot]; };
+export const mxTitle = (ch) => `${ch}장 요괴록`;

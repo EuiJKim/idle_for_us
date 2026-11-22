@@ -55,3 +55,73 @@ export function trainProgress(G) {
 // 7창 세트 — 콘텐츠마다 같은 창 이름(화면이 이 목록으로 창을 만든다)
 export const CONTENTS = ['raid', 'war', 'train'];
 export const windowsOf = (content) => WINDOW_SET.map((w) => `${content}.${w}`);
+
+// ── v635 연공실 · 품앗이 · 겨루기 — 서버 문서 guilds/{코드}/s2/research · help · war(문파원 누구나 JSON 한 칸). 여기는 셈만(결정적) ──
+// 연공실: 문파원이 은자를 바쳐 막대를 채우면 연구가 시작되고(한 번에 하나), 대기 시간(3~21시간)이 지나면 Lv +1 → 문파원 모두에게 늘 붙는다
+export const GRES = [
+  { k: 'gold', name: '재물 비결', what: '은자', stat: 'goldP', per: 10 },
+  { k: 'exp', name: '깨달음 비결', what: '경험치', stat: 'expP', per: 10 },
+  { k: 'atk', name: '연공 비결', what: '공격', stat: 'atkP', per: 5 },
+  { k: 'idle', name: '좌공 비결', what: '방치 보상', stat: null, per: 10 },
+];
+export const GRES_DAY = 3;                         // 한 사람이 하루 바치는 횟수
+export const GRES_GOLD_MIN = 10;                   // 한 번 = 사냥 10분 몫 은자
+export const gresNeed = (lv) => 5 + 3 * lv;        // 그 레벨을 올리는 막대(바치기 수) — 0→1은 5, 9→10은 32
+export const newResDoc = () => ({ lv: {}, pts: {}, run: null, by: {}, names: {} });
+export const resTarget = (D, k) => (D.lv[k] || 0) + (D.run?.k === k ? 1 : 0);   // 지금 막대가 채우는 레벨
+export const resCan = (D, k) => { const t = resTarget(D, k); return t < GUILD.research.maxLv && (D.pts[k] || 0) < gresNeed(t); };
+export function resTick(D, nowMs) {
+  const done = [];
+  if (D.run && nowMs >= D.run.endMs) { D.lv[D.run.k] = (D.lv[D.run.k] || 0) + 1; done.push(D.run.k); D.run = null; }
+  if (!D.run) for (const r of GRES) {
+    const lv = D.lv[r.k] || 0;
+    if (lv < GUILD.research.maxLv && (D.pts[r.k] || 0) >= gresNeed(lv)) { D.pts[r.k] -= gresNeed(lv); D.run = { k: r.k, endMs: nowMs + GUILD.research.waitH(lv + 1) * 3600e3 }; break; }
+  }
+  return done;
+}
+export function resDonate(D, k, uid, nick, nowMs) {
+  if (!GRES.some((r) => r.k === k)) return false;
+  resTick(D, nowMs);
+  if (!resCan(D, k)) return false;
+  D.pts[k] = (D.pts[k] || 0) + 1; D.by[uid] = (D.by[uid] || 0) + 1; D.names[uid] = String(nick || '무인').slice(0, 12);
+  resTick(D, nowMs);
+  return true;
+}
+// 레벨 → 붙는 값(‰) · 방치 보상은 idle 하나로
+export function resStats(lv = {}) {
+  const st = {}; let idle = 0;
+  for (const r of GRES) { const n = Math.max(0, Math.min(GUILD.research.maxLv, lv[r.k] | 0)) * r.per; if (!n) continue; if (r.stat) st[r.stat] = n; else idle = n; }
+  return { st, idle };
+}
+// 품앗이: 요청 하나 = { owner, timer: { endMs, end0 }, by, k, nick, names, at } — 당김 셈은 위 giveHelp 그대로. 끝났거나 이틀 지난 것은 치운다
+export function helpPrune(H, nowMs, day) {
+  H.helps ??= {}; H.giveCount ??= {};
+  for (const [id, h] of Object.entries(H.helps)) if (!h?.timer || h.timer.endMs <= nowMs || nowMs - (h.at || 0) > 2 * 86400e3) delete H.helps[id];
+  for (const k of Object.keys(H.giveCount)) if (!k.endsWith(`:${day}`)) delete H.giveCount[k];
+  return H;
+}
+export const helpCut = (h) => Math.max(0, (h?.timer?.end0 || 0) - (h?.timer?.endMs || 0));
+// 겨루기: 이번 주 문파원 점수 합 vs 같은 주 맞수 문파(문파 코드 · 주로 정해진다 — 누가 봐도 같은 값)
+export const GWAR = { train: 10, raid: 20, help: 5, don: 5, rew: { win: { tix: 4, goldMin: 20 }, draw: { tix: 3, goldMin: 15 }, lose: { tix: 2, goldMin: 10 } } };
+const RIVALS = ['흑풍채', '백운문', '적하방', '청림각', '은월루', '철검장', '비연곡', '금사방', '현무관', '청하파', '낙성대', '홍엽문'];
+const hash = (s) => { let h = 2166136261; for (const c of String(s)) { h ^= c.charCodeAt(0); h = Math.imul(h, 16777619) >>> 0; } return h >>> 0; };
+export function rival(gid, week, n) {
+  const h = hash(`${gid}|${week}`), per = 260 + ((h >>> 8) % 240);
+  return { name: RIVALS[h % RIVALS.length], final: Math.round(per * Math.max(1, Math.min(10, n | 0))) };
+}
+// 그 주가 흐른 만큼(0~1) 맞수 점수가 오른다 — 앞쪽이 조금 빠르게
+export const rivalNow = (R, frac) => Math.round(R.final * Math.pow(Math.max(0, Math.min(1, frac)), 0.85));
+export const newWarDoc = (week) => ({ week, n: 1, pts: {}, names: {}, last: null, rec: { w: 0, d: 0, l: 0, pts: 0 } });
+// 주가 바뀌었으면 지난주를 마감(last) · 전적(rec)에 더하고 새 주로 — 아무도 점수를 안 냈으면 판이 없던 것으로
+export function warRoll(W, week, gid) {
+  W.rec ??= { w: 0, d: 0, l: 0, pts: 0 }; W.pts ??= {}; W.names ??= {};
+  if (!W.week || W.week === week) { W.week = week; return false; }
+  const us = Object.values(W.pts).reduce((a, b) => a + b, 0), R = rival(gid, W.week, W.n || 1);
+  if (us > 0) {
+    const [a] = warResult(us, R.final), res = us === R.final ? 'draw' : us > R.final ? 'win' : 'lose';
+    W.last = { week: W.week, us, them: R.final, name: R.name, res, pts: { ...W.pts }, names: { ...W.names } };
+    W.rec[res === 'win' ? 'w' : res === 'draw' ? 'd' : 'l']++; W.rec.pts += a;
+  }
+  Object.assign(W, { week, pts: {}, names: {} });
+  return true;
+}

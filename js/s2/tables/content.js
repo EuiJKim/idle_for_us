@@ -19,7 +19,16 @@ export const DAILY_DUNGEONS = {
   gear: { name: '병장고', clear: 'boss', timeMs: 120000, reward: { gearTickets: 6 }, unlockLv: 25 },
   stone: { name: '단련동', clear: 'survive', timeMs: 60000, reward: { stones: 40 }, unlockLv: 30 },
   growth: { name: '수련장', clear: 'wipe', timeMs: 90000, reward: { expMin: 15 }, unlockLv: 35 },
+  surge: { name: '기세동', clear: 'score', timeMs: 60000, reward: { surge: 1 }, unlockLv: 40 },   // v636 보상은 별 따라(SURGE)
 };
+// v636 기세동 — 앞 30초는 몹 사냥(잡을 때마다 기세 1단 · 단마다 피해 +per‰ · cap단까지) → 몹이 물러나고 두목(남은 30초)
+//   두목을 몇 초 만에 잡았나 = 별(starMs 안이면 3 · 2 · 1별) · 보상은 별마다 은자(사냥 분 상당) + 심법 구슬(경지 심법 굴리기 재료)
+export const SURGE = {
+  phaseMs: 30000, per: 20, cap: 50, keep: 22, coolMs: 400, bossHpX: 0.5,
+  starMs: [5000, 12000, 30000],             // 3별 · 2별 · 1별
+  goldMin: [10, 15, 20], heart: [1, 1, 2],  // 1별 · 2별 · 3별
+};
+export const surgeStar = (ms) => (ms == null ? 0 : SURGE.starMs.findIndex((t) => ms <= t) < 0 ? 0 : 3 - SURGE.starMs.findIndex((t) => ms <= t));
 export const DAILY_RUNS = 3;
 // 전직 던전 — 차수마다(레벨은 progress.js JOB_LV) · 두목 처치 · 보스 체력 배율
 export const JOB_DUNGEON = [null, { hpX: 0.6 }, { hpX: 0.8 }, { hpX: 1 }, { hpX: 1.2 }, { hpX: 1.4 }];

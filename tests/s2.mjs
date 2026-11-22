@@ -518,7 +518,7 @@ console.log('\n=== S6 콘텐츠 보상 = 경험치 곡선 가정 ===');
 {
   const m = CT.dailyContentMin();
   ok(Math.abs(m - (EX.DAY_MIN - EX.DAY1_MIN)) <= 5, '수련장 + 원정 + 돌발 미션 + 일일 미션 = 하루 +138 사냥분(±5) — 곡선 가정과 같다', m.toFixed(1));
-  ok(Object.values(CT.DAILY_DUNGEONS).every((d) => CT.CLEAR.includes(d.clear)) && CT.JOB_DUNGEON.length === PR.JOB_LV.length, '수련동 4종 · 전직 던전 차수마다');
+  ok(Object.values(CT.DAILY_DUNGEONS).every((d) => CT.CLEAR.includes(d.clear)) && CT.JOB_DUNGEON.length === PR.JOB_LV.length, '수련동 5종 · 전직 던전 차수마다');
 }
 
 console.log('\n=== S7 방치 · 대기열 · 시간 티켓 · 길잡이 · 미션 ===');
@@ -960,7 +960,7 @@ console.log('\n=== v536 출석 ===');
 console.log('\n=== v537 칭호 ===');
 {
   const TT = await import('../js/s2/tables/titles.js');
-  ok(TT.TITLES.length === 17 && new Set(TT.TITLES.map((t) => t.name)).size === 17, '칭호 17(장 두목 15 · 28일 개근 · v555 두목 도감 완성)');
+  ok(TT.TITLES.filter((t) => !/^mx\d+$/.test(t.id)).length === 17 && new Set(TT.TITLES.map((t) => t.name)).size === TT.TITLES.length, '칭호 17(장 두목 15 · 28일 개근 · v555 두목 도감 완성) + v636 요괴록 15 · 이름은 서로 다르다');
   const T0 = 1.8e12, g = new Game(newGame('sword', T0, 3), T0); g.addExp(EX.cumExp(60)); const p0 = g.power();   // Lv1은 공격이 작아 2%가 반올림에 묻힌다
   g.S.titles = ['녹림대왕 격파', '28일 개근', '없는 칭호']; g.dirtyStats = true;
   const st = g.fighter().st;
@@ -2047,6 +2047,46 @@ console.log('\n=== v635 교환소 — 명성 · 공적 · 혈전패 ===');
   const g3 = new Game(newGame('sword', T0, 12), T0); g3.addExp(EX.cumExp(30)); g3.tick(T0); g3.S.wallet['coin:fame'] = 999; g3.autoGrow(); ok(g3.S.wallet['coin:fame'] === 999, '자동 성장은 재화를 쓰지 않는다');
 }
 
+console.log('\n=== v636 기세동 — 기세 쌓기 · 두목 시간 별 ===');
+{
+  const T0 = 1.9e12, SG = CT.SURGE, D = CT.DAILY_DUNGEONS.surge;
+  ok(D && D.clear === 'score' && CT.CLEAR.includes(D.clear) && D.unlockLv >= 35 && D.timeMs === SG.phaseMs * 2, '표: 기세동 — 30초 사냥 + 30초 두목 · Lv 40', JSON.stringify(D));
+  { const [a3, a2, a1] = SG.starMs; ok(a3 < a2 && a2 < a1 && a1 === SG.phaseMs && [[0, 3], [a3, 3], [a3 + 1, 2], [a2, 2], [a2 + 1, 1], [a1, 1], [a1 + 1, 0], [null, 0]].every(([ms, n]) => CT.surgeStar(ms) === n), `별: ${a3 / 1000}초 ★3 · ${a2 / 1000}초 ★2 · 30초 ★1 · 그 밖 0`); }
+  ok(SG.cap * SG.per === 1000 && SG.goldMin[2] <= CT.DAILY_DUNGEONS.gold.reward.goldMin && SG.heart.every((h, i) => h >= 1 && h <= 2 && (!i || h >= SG.heart[i - 1])), '기세 끝 = 피해 +100% · 보상은 은자굴 이하 + 심법 구슬 1~2');
+  const mk = (seed = 3, L = 45) => { const g = new Game(newGame('sword', T0, seed), T0); g.addExp(EX.cumExp(L)); g.tick(T0); g.fighter = () => refPlayer(L, 'sword'); return g; };
+  { const g = mk(); g.S.hero.lv = 30; ok(g.canDungeon('daily', 'surge') === `Lv ${D.unlockLv}부터`, 'Lv 40 전에는 잠김'); }
+  // 한 판 — 앞 30초 기세가 처치 수만큼 쌓이고(끝 cap) · 피해 배율에 얹힌다 · 30초에 몹이 물러나고 두목
+  { const g = mk(); const S0 = JSON.stringify(g.S.surge ?? null);
+    ok(S0 === 'null', '옛 세이브: 기세동 기록 칸은 처음 깰 때 생긴다');
+    ok(g.enterDungeon('daily', 'surge') && g.dg.sg && g.dg.sg.phase === 0, '입장 — 기세 0단');
+    const F = g.dg.F; let maxDiff = 0, sawMeter = null;
+    while (g.dg && g.dg.sg.phase === 0) { g.huntDungeon(500); if (!g.dg) break; const G = g.dg.sg; maxDiff = Math.max(maxDiff, Math.abs(G.stack - Math.min(SG.cap, F.kills))); sawMeter = g.dgStatus().sg; }
+    ok(maxDiff === 0 && sawMeter && sawMeter.cap === SG.cap && sawMeter.dmgP === sawMeter.stack * SG.per / 10, '기세 = 처치 수(끝 50단) · 들판 막대 값', JSON.stringify(sawMeter));
+    ok(g.dg && g.dg.sg.at >= SG.phaseMs && g.dg.sg.at < SG.phaseMs + 100 && F.mobs.length === 1 && F.mobs[0].kind === 'boss' && Math.abs(F.dmgX - (1 + g.dg.sg.stack * SG.per / 1000)) < 1e-9, '30초 — 몹이 물러나고 두목 하나 · 피해 배율 = 1 + 단 × 2%', `${g.dg?.sg.at} ${F.mobs.length} ${F.dmgX}`);
+    const st = g.dg.sg.stack, gold0 = g.S.wallet.gold, h0 = g.S.wallet['item:heart'] || 0;
+    while (g.dg) g.huntDungeon(1000);
+    const r = g.lastDg, star = CT.surgeStar(r.bossMs);
+    ok(r.cleared && r.star === star && star >= 1 && r.stack === st, '두목을 잡으면 클리어 · 두목 시간으로 별', `${r.bossMs}ms ★${r.star} 기세 ${r.stack}`);
+    ok(r.gold === g.S.wallet.gold - gold0 && r.gold > 0 && r.heart === SG.heart[star - 1] && (g.S.wallet['item:heart'] || 0) - h0 === r.heart, '보상: 별 따라 은자 · 심법 구슬', `은자 ${r.gold} 구슬 ${r.heart}`);
+    ok(g.S.surge.best === r.bossMs && g.S.surge.star === star && r.record === 1 && g.S.dungeons.best.surge, '최고 기록 · 소탕 열림');
+    // 소탕(화면 없이) — 같은 엔진으로 끝까지 · 모두 소탕에 심법 구슬 합
+    const sw = g.dailyDungeon('surge'); ok(sw && typeof sw.star === 'number' && sw.bossMs > 0, '소탕도 실제로 싸운다', JSON.stringify({ c: sw?.cleared, s: sw?.star, ms: sw?.bossMs }));
+    const sa = g.sweepAll(); ok(!sa || sa.heart >= 0, '모두 소탕 합에 심법 구슬 칸');
+    const b = Game.load(g.save(), g.now); ok(b.signed && b.S.surge.best === g.S.surge.best, '저장 → 불러오기'); }
+  // 기세가 실제로 피해를 올린다 — 같은 씨앗 · 기세를 0으로 막으면 두목이 더 오래
+  { const run = (noStack) => { const g = mk(9); g.enterDungeon('daily', 'surge'); if (noStack) { g.dg.sg.stack = 0; const st0 = g.sgStep.bind(g); g.sgStep = () => { const F = g.dg.F, k = F.kills; F.kills = 0; st0(); F.kills = k; }; } while (g.dg) g.huntDungeon(1000); return g.lastDg; };
+    const a = run(false), z = run(true);
+    ok(a.stack > 0 && z.stack === 0 && (z.cleared ? z.bossMs : 1e9) > a.bossMs, '기세 없이 두목은 더 오래(기세 효과)', `기세 ${a.stack}: ${a.bossMs}ms · 0단: ${z.cleared ? z.bossMs : '못 잡음'}`); }
+  // 못 잡으면 실패 · 보상 없음 / 나가기
+  { const g = mk(4); g.enterDungeon('daily', 'surge'); g.dg.F.dmgX = 0; const st0 = g.sgStep.bind(g); g.sgStep = () => { st0(); g.dg.F.dmgX = 1e-9; };
+    const gold0 = g.S.wallet.gold; while (g.dg) g.huntDungeon(1000); const r = g.lastDg;
+    ok(!r.cleared && r.ms >= D.timeMs && g.S.wallet.gold === gold0 && !r.heart && !g.S.dungeons.best?.surge, '60초 안에 못 잡으면 실패 · 보상 없음', `${r.ms}`);
+    g.enterDungeon('daily', 'surge'); ok(g.leaveDungeon() && g.lastDg.gaveUp && !g.lastDg.cleared, '나가기'); }
+  // 결정론
+  { const run = () => { const g = mk(11); const r = g.dailyDungeon('surge'); return JSON.stringify([r.cleared, r.ms, r.bossMs, r.stack, r.star, r.gold, r.heart]); };
+    ok(run() === run(), '결정론'); }
+}
+
 console.log('\n=== v613 두목 도감 — 첫 처치 때 · 드러난 수 ===');
 {
   const BL = await import('../js/s2/tables/bosslore.js');
@@ -2154,6 +2194,106 @@ console.log('\n=== v634 뜻대로 굴리기 · 전투력 미리보기 ===');
   // 옛 세이브: 새 칸 없이도 읽힌다
   const old = mk(); old.S.realm.lv = 12; delete old.S.journey.wlk;
   ok(old.wishTarget('heart').lines.length === 1 && old.wishList().length === 1, '옛 세이브도 그대로(잠금 칸은 쓸 때 만든다)');
+}
+
+console.log('\n=== v635 문파 연공실 · 품앗이 · 겨루기 ===');
+{
+  const GDm = await import('../js/s2/online/guild.js'), ONm = await import('../js/s2/tables/online.js'), GU2 = ONm.GUILD;
+  // 연공실 문서 — 막대 5번이면 연구 시작(3시간) · 연구 중 막대는 그다음 레벨 몫 · 끝나면 Lv +1
+  const D = GDm.newResDoc(), t0 = 1.8e12;
+  for (let i = 0; i < 4; i++) GDm.resDonate(D, 'gold', 'u1', '갑', t0);
+  ok(!D.run && D.pts.gold === 4 && GDm.resDonate(D, 'gold', 'u2', '을', t0) && D.run?.k === 'gold' && D.run.endMs === t0 + GU2.research.waitH(1) * 3600e3 && D.pts.gold === 0, 'gd 연공실: 막대 5 → 연구 시작(3시간) · 막대 비움');
+  for (let i = 0; i < 8; i++) GDm.resDonate(D, 'gold', 'u1', '갑', t0);
+  ok(D.pts.gold === 8 && !GDm.resCan(D, 'gold') && !GDm.resDonate(D, 'gold', 'u1', '갑', t0) && GDm.resDonate(D, 'exp', 'u1', '갑', t0) && D.by.u1 === 13, 'gd 연공실: 연구 중엔 그다음 막대(8)까지만 · 다른 연구는 따로');
+  GDm.resTick(D, t0 + 3 * 3600e3 - 1); const lv0 = D.lv.gold || 0; GDm.resTick(D, t0 + 3 * 3600e3);
+  ok(lv0 === 0 && D.lv.gold === 1 && D.run?.k === 'gold' && D.run.endMs === t0 + 3 * 3600e3 + GU2.research.waitH(2) * 3600e3 && D.pts.gold === 0, 'gd 연공실: 대기 끝 → Lv 1 · 찬 막대는 바로 다음 연구(5시간)');
+  const RS = GDm.resStats({ gold: 3, exp: 1, atk: 2, idle: 5 });
+  ok(RS.st.goldP === 30 && RS.st.expP === 10 && RS.st.atkP === 10 && RS.idle === 50 && GDm.resStats({ gold: 99 }).st.goldP === 100, 'gd 연공실 값: 은자·경험치 Lv당 1% · 공격 0.5% · 방치 1% · Lv 10까지', JSON.stringify(RS));
+  ok([0, 9].map(GDm.gresNeed).join() === '5,32' && GU2.research.waitH(10) === 21, 'gd 연공실 막대 5~32 · 대기 3~21시간');
+  // 엔진 — 그 문파에 있을 때만 붙는다 · 저장에 남는다 · 옛 저장(칸 없음)도 된다
+  const T0 = 1.8e12, g = new Game(newGame('sword', T0, 4), T0); g.addExp(EX.cumExp(40)); g.tick(T0);
+  ok(g.gresSources().length === 0 && g.gresIdle() === 0 && g.gresPay() === null, 'gd 문파가 없으면 연구도 바치기도 없음');
+  g.setGuild('ABC234'); const p0 = g.power(), gp0 = g.fighter().st.goldP || 0;
+  ok(g.gresSet('ABC234', { gold: 3, exp: 1, atk: 2, idle: 5, bad: 9 }) && !g.gresSet('ABC234', { gold: 3, exp: 1, atk: 2, idle: 5 }), 'gd 연구 레벨 받기(같으면 안 바뀜)');
+  g.dirtyStats = true; const p1 = g.power(), gp1 = g.fighter().st.goldP || 0;
+  ok(p1 > p0 && p1 < p0 * 1.02 && gp1 - gp0 === 30 && g.gresIdle() === 50, 'gd 연구가 몸에 붙음(공격 +1% · 은자 +3%)', `${Math.round(p0)} → ${Math.round(p1)}`);
+  g.setGuild('ZZZ999'); ok(g.gresSources().length === 0 && g.gresIdle() === 0, 'gd 다른 문파로 가면 안 붙음'); g.setGuild('ABC234');
+  { const g2 = Game.load(g.save(), T0); ok(g2.gresIdle() === 50 && g2.gresSources()[0]?.stats.goldP === 30, 'gd 연구 레벨은 저장에 남는다'); }
+  { const S = JSON.parse(JSON.stringify(g.S)); delete S.gres; delete S.ghelp; delete S.gwar; const g3 = new Game(S, T0); ok(g3.gresIdle() === 0 && g3.gresLeft() === 3 && g3.helpGiveLeft() === 10 && g3.gwarPts() >= 0, 'gd 옛 저장(칸 없음)도 그대로'); }
+  // 방치 보상 +5%
+  { const mk = (lvs) => { const x = new Game(newGame('sword', T0, 4), T0); x.addExp(EX.cumExp(40)); x.setGuild('ABC234'); x.gresSet('ABC234', lvs); x.tick(T0); return x.returnCheck(T0 + 2 * 3600e3); };
+    const a = mk({}), b = mk({ idle: 5 }); ok(b.gres === 50 && b.exp === Math.round(a.exp * 1.05) && b.gold === Math.round(a.gold * 1.05), 'gd 좌공 비결 — 방치 보상 +5%', `${a.exp} → ${b.exp}`); }
+  // 바치기 — 하루 3번 · 은자 사냥 10분 몫 · 되돌림 · 다음 날 새로
+  g.S.wallet.gold = 1e9; const c = g.gresCost(), w0 = g.S.wallet.gold;
+  const d1 = g.gresPay(); g.gresPay(); g.gresPay();
+  ok(d1.gold === c && g.S.wallet.gold === w0 - 3 * c && g.gresLeft() === 0 && g.gresPay() === null && g.gwarSt().don === 3, 'gd 바치기 하루 3번 · 한 번 = 사냥 10분 몫 은자', String(c));
+  g.gresRefund(d1); ok(g.gresLeft() === 1 && g.S.wallet.gold === w0 - 2 * c && g.gwarSt().don === 2, 'gd 서버가 안 받으면 되돌림');
+  g.tick(T0 + 86400e3); ok(g.gresLeft() === 3, 'gd 다음 날 다시 3번');
+  // 품앗이 — 원정 12시간 → 요청(하나만) → 문파원 도움(서버 셈) → 내 대기에 한 번만 · 최대 10번 몫
+  const t1 = g.now; g.S.wallet['ticket:exped'] = 2; ok(g.startExped(12) && g.helpable().some((x) => x.k === 'exped'), 'gd 품앗이: 원정이 당길 수 있는 대기로 보임');
+  const q = g.helpAsk('exped'), end0 = g.S.exped.run.endMs;
+  ok(q && q.end0 === end0 && g.helpAsk('exped') === null && g.helpReq() === q, 'gd 품앗이: 요청은 한 번에 하나');
+  const H = GDm.helpPrune({}, t1, 'd'); GDm.askHelp(H, q.id, 'me', { endMs: q.end0, end0: q.end0 });
+  ok(GDm.giveHelp({ ...H, members: ['me', 'u1'] }, q.id, 'u1', t1, 'd') && GDm.helpCut(H.helps[q.id]) === Math.round(12 * 3600e3 * 0.01) && H.giveCount['u1:d'] === 1, 'gd 품앗이: 서버 셈 — 12시간의 1%(7분 12초)');
+  const cut = GDm.helpCut(H.helps[q.id]);
+  ok(g.helpSync(cut) === cut && g.S.exped.run.endMs === end0 - cut && g.helpSync(cut) === 0, 'gd 품앗이: 내 대기에 한 번만 넣음');
+  const cap = GU2.help.maxHelps * Math.round(12 * 3600e3 * 0.01);
+  ok(g.helpSync(1e12) === cap - cut && g.S.exped.run.endMs === end0 - cap, 'gd 품앗이: 한 요청 최대 10번 몫까지만', `${cap / 60000}분`);
+  g.S.exped.run.endMs = g.now - 1; ok(g.helpReq() === null && g.ghelpSt().req === null, 'gd 품앗이: 대기가 끝나면 요청도 치움');
+  ok(GDm.helpPrune(H, t1 + 13 * 3600e3, 'e') && !Object.keys(H.helps).length && !Object.keys(H.giveCount).length, 'gd 품앗이: 끝난 요청 · 지난 날 횟수는 서버 문서에서 치움');
+  const gw0 = g.S.wallet.gold; let n = 0; while (g.helpGave()) n++;
+  ok(n === 10 && g.S.wallet.gold > gw0 && g.helpGiveLeft() === 0 && g.gwarSt().help === 10, 'gd 품앗이: 하루 10번 도와줌 · 은자 조금', String((g.S.wallet.gold - gw0) / 10));
+  // 겨루기 — 맞수는 문파 코드 · 주로 정해진다 · 지난주 마감 · 보상 한 번
+  const R1 = GDm.rival('ABC234', '2026-11-16', 2), R2 = GDm.rival('ABC234', '2026-11-16', 2), R3 = GDm.rival('ABC234', '2026-11-23', 2);
+  ok(R1.name === R2.name && R1.final === R2.final && R1.final >= 520 && R1.final < 1000 && (R3.name !== R1.name || R3.final !== R1.final), 'gd 겨루기: 맞수는 같은 문파·같은 주면 늘 같음(사람 둘 520~998)', `${R1.name} ${R1.final} / ${R3.name} ${R3.final}`);
+  ok(GDm.rivalNow(R1, 0) === 0 && GDm.rivalNow(R1, 1) === R1.final && GDm.rivalNow(R1, 0.5) > R1.final / 2, 'gd 겨루기: 맞수 점수는 주 내내 오른다');
+  const Wd = GDm.newWarDoc('2026-11-16'); Wd.n = 2; Wd.pts = { me: 900, u1: 400 };
+  ok(!GDm.warRoll(Wd, '2026-11-16', 'ABC234') && GDm.warRoll(Wd, '2026-11-23', 'ABC234') && Wd.last.res === 'win' && Wd.last.us === 1300 && Wd.last.them === R1.final && Wd.rec.w === 1 && Wd.rec.pts === 3 && Wd.week === '2026-11-23' && !Object.keys(Wd.pts).length, 'gd 겨루기: 주가 바뀌면 지난주 마감 · 이기면 승점 3');
+  GDm.warRoll(Wd, '2026-11-30', 'ABC234'); ok(Wd.last.week === '2026-11-16' && Wd.rec.w + Wd.rec.d + Wd.rec.l === 1, 'gd 겨루기: 아무도 점수를 안 낸 주는 판이 없음');
+  const tx0 = g.S.wallet['ticket:gear'] || 0, cl = g.gwarClaim(Wd.last, 'me');
+  ok(cl?.tix === 4 && g.S.wallet['ticket:gear'] === tx0 + 4 && g.gwarClaim(Wd.last, 'me') === null && g.gwarClaim({ ...Wd.last, week: 'x', pts: {} }, 'me') === null, 'gd 겨루기 보상: 이기면 뽑기권 4 · 한 번 · 점수 안 낸 사람은 없음');
+  ok(g.gwarClaim({ week: 'y', res: 'lose', pts: { me: 5 } }, 'me')?.tix === 2, 'gd 겨루기 보상: 져도 낸 사람은 뽑기권 2');
+  const W2 = g.gwarSt(); ok(g.gwarPts() === g.gtrainPts() * 10 + g.graidState().used * 20 + W2.help * 5 + W2.don * 5 && g.gwarPts() >= 60, 'gd 겨루기 내 점수 = 수련×10 + 토벌×20 + 돕기×5 + 바치기×5', g.gwarPts());
+  g.tick(T0 + 8 * 86400e3); ok(g.gwarSt().help === 0 && g.gwarSt().don === 0 && g.gwarSt().got === 'y', 'gd 겨루기: 다음 주 내 몫 새로(받은 표시는 남음)');
+}
+
+console.log('\n=== v636 요괴록(몹 도감) ===');
+{
+  const MB = await import('../js/s2/tables/mobs.js'), TT = await import('../js/s2/tables/titles.js');
+  ok(MB.ROSTER.length === 15 && MB.MX.slots === 6 && MB.MX.steps.mob.join() === '100,1000,10000' && MB.MX.steps.elite.join() === '10,100,1000' && MB.MX.steps.boss.join() === '10,100,1000', '장 15 × 칸 여섯(일반 넷 · 정예 · 칸 두목) · 별 셋(일반 100/1,000/10,000 · 정예 · 두목 10/100/1,000)');
+  // 칸 번호는 그림(mobLook)과 같은 셈
+  let same = true; for (let ch = 1; ch <= 15; ch++) for (let id = 1; id <= 12; id++) for (const kind of ['mob', 'elite', 'boss']) if (MB.mxEntry(ch, MB.mxSlot(ch, kind, id))[0] !== MB.mobLook(ch, { id, kind })[0]) same = false;
+  ok(same, '칸 번호 → 이름이 사냥터 몹 그림 이름과 같다');
+  ok(TT.TITLES.filter((t) => /^mx\d+$/.test(t.id)).length === 15 && TT.titleByName(MB.mxTitle(3))?.id === 'mx3', '장마다 요괴록 칭호(15)');
+  const T0 = 1.8e12, g = new Game(newGame('sword', T0, 41), T0); g.tick(T0);
+  ok(g.mxCan() === 0 && g.mxGotStars() === 0 && g.mxSources().length === 0 && g.mxList().filter((c) => c.seen).length === 1, '처음엔 별 없음 · 1장만 보인다');
+  // 사냥터에서 잡으면 센다(그 장 칸)
+  const k0 = g.S.kills; let now = T0; for (let i = 0; i < 120; i++) { now += 1000; g.tick(now); g.hunt(1000); }
+  const sum = Object.values(g.mxSt().k).reduce((a, b) => a + b, 0), ks = Object.keys(g.mxSt().k).map(Number);
+  ok(sum > 0 && sum === g.S.kills - k0 && ks.every((id) => id >= 10 && id % 10 < 6 && Math.floor(id / 10) <= Math.ceil(g.stage().top / 10)), '사냥터 처치 = 요괴록 처치 수 합 · 간 장의 칸으로', `${sum} · ${g.S.kills - k0} · ${ks}`);
+  // 별 닿음 → 받기 → 효과
+  const X = g.mxSt(); for (const id of Object.keys(X.k)) delete X.k[id];
+  X.k[10] = 99; X.k[11] = 1000; X.k[14] = 10; X.k[35] = 1000;
+  ok(g.mxCan() === 2 + 1 + 3 && g.mxClaim(10) === null, '닿은 별 수만큼 받을 수 있다(99마리는 아직)', g.mxCan());
+  const W0 = JSON.stringify(g.S.wallet), p0 = g.fighter().st.mobDmg || 0, r = g.mxClaim(11);
+  ok(r && r.add === 2 && r.star === 2 && !r.title && g.mxClaim(11) === null && JSON.stringify(g.S.wallet) === W0, '칸 하나 — 닿은 별 모두 새김(지갑은 그대로) · 두 번은 없음');
+  ok((g.fighter().st.mobDmg || 0) - p0 === 2 * MB.MX.each.mobDmg && g.mxSources()[0].stats.goldP === 2, '새긴 별마다 일반 몹 피해 · 은자 +0.1%');
+  ok(g.mxClaimAll().length === 2 && g.mxGotStars() === 2 + 1 + 3 && g.mxCan() === 0, '모두 받기');
+  // 한 장 여섯 칸 ★3 → 칭호
+  for (let s = 0; s < 6; s++) X.k[20 + s] = s < 4 ? 10000 : 1000;
+  const t0 = (g.S.titles || []).length, rs = g.mxClaimAll(), tt = rs.find((x) => x.title);
+  ok(tt && tt.title === '2장 요괴록' && g.S.titles.length === t0 + 1 && g.titleSources()[0].stats.atkP === 10 * g.S.titles.length && g.mxList()[1].full, '2장 여섯 칸 ★3 → 「2장 요괴록」 칭호(칭호 수집 효과도)');
+  // 장 두목 무대 · 토벌은 세지 않는다
+  ok(g.mxHunt({ def: { lv: 10, chb: 1 } }) === null && g.mxHunt({ def: { lv: 10, boss: true, raid: 1 } }) === null && g.mxHunt({ def: { lv: 15, boss: true } })?.ch === 2, '장 두목 · 토벌은 빼고 칸 두목전은 센다');
+  // 저장 · 옛 세이브
+  const g2 = Game.load(g.save(), now); ok(g2.mxGotStars() === g.mxGotStars() && g2.mxSt().k[11] === 1000, '처치 수 · 새긴 별은 저장된다');
+  const o = new Game(newGame('sword', T0, 42), T0); delete o.S.mx; ok(o.mxCan() === 0 && o.mxList().length === 15 && o.S.mx && !o.mxSources().length, '옛 세이브(칸 없음)도 그대로');
+  // 자동 성장이 받는다
+  o.mxSt().k[12] = 150; o.mxSt().k[15] = 12;
+  const out = o.autoGrow({ daily: false, pull: false, coll: false, kit: false, enh: false, train: false, stat: false });
+  ok(o.mxCan() === 0 && o.mxGotStars() === 2 && out.claim >= 2, '자동 성장이 요괴록 별을 받는다', out.claim);
+  // 균형 — 별 270개 전부 = 일반 몹 피해 · 은자 +27%(별 하나 0.1%)
+  ok(15 * 6 * 3 * MB.MX.each.mobDmg === 270 && MB.MX.each.goldP === 1, '모두 모아도 일반 몹 피해 · 은자 +27%(별 하나 0.1%)');
 }
 
 console.log('\n=== v616 무한 탑 이정표 상자 ===');
@@ -2572,6 +2712,76 @@ console.log('\n=== v635 전서구 함(우편) — 선물 · 놓친 임무 · 현
     for (const x of [a, b]) { x.emit('kill', { n: 600 }); x.tick(T0 + DAYMS); }
     ok(JSON.stringify(a.S.mail.list.slice(-1)) === JSON.stringify(b.S.mail.list.slice(-1)), '우편: 같은 놀이는 같은 우편');
     const src = fs.readFileSync(new URL('../js/s2/tables/mail.js', import.meta.url), 'utf8'); ok(!/Math\.random|Date\.now/.test(src), '우편 표: Math.random · Date.now 없음'); }
+}
+
+console.log('\n=== v636 강호 축제 — 달력 · 축제 물건 · 임무 · 교환소 · 축제 두목 · 주말 대란 ===');
+{
+  const FT = await import('../js/s2/tables/fest.js'), { FEST, FESTS, festAt, festWeekend, dkMs, FEST_SHOP, FEST_DAILY, FEST_TOTAL, FEST_BOSS, festGrade } = FT;
+  const DAYMS = 86400e3, SAT = Date.UTC(2026, 10, 21, 3), MON = Date.UTC(2026, 10, 23, 3);   // 한국 낮 12시
+  const mk = (t, seed = 1, lv = 0) => { const a = new Game(newGame('sword', t, seed), t); if (lv) { a.S.hero.lv = lv; a.dirtyStats = true; } return a; };
+  // 달력 — 날마다 축제 중이거나 다음 축제까지 남은 날이 있다 · 21일 중 14일 · 네 축제가 차례로 · 주말은 토 · 일(한국 시각)
+  { let onN = 0, gap = 0, rot = true; const d0 = dayKey(SAT);
+    for (let d = d0 - 400; d < d0 + 400; d++) { const A = festAt(d); if (A.on) onN++; else if (!(A.nextDk > d && A.nextDk - d <= FEST.len - FEST.on)) gap++; if (A.day < 0 || A.day >= FEST.len) gap++;
+      if (A.day === 0 && FESTS.indexOf(festAt(d - 1).next) !== FESTS.indexOf(A.fest)) rot = false; }
+    ok(gap === 0 && Math.abs(onN / 800 - FEST.on / FEST.len) < 0.02 && rot, '달력 — 늘 축제 중이거나 다음 축제까지 7일 안 · 21일 중 14일 · 네 축제가 차례로', `${onN}/800`);
+    let wk = true; for (let i = 0; i < 14; i++) { const t = SAT + i * DAYMS, w = new Date(t + 9 * 3600e3).getUTCDay(); if (festWeekend(dayKey(t)) !== (w === 0 || w === 6)) wk = false; }
+    ok(wk && festWeekend(dayKey(SAT)) && !festWeekend(dayKey(MON)), '주말 대란 = 토 · 일(한국 시각)');
+    ok(festAt(dayKey(SAT)).on && festAt(dayKey(SAT)).fest.id === 'lantern', '2026-11-21: 등불 축제 중'); }
+  // 옛 세이브 — fest 칸이 없어도 열린다 · 처음 부를 때 생긴다
+  { const a = mk(SAT, 61); delete a.S.fest; const l = Game.load(a.save(), SAT);
+    ok(!l.S.fest && l.festInfo().on && l.S.fest && l.S.fest.fc === 0 && l.festCan() === 0, '옛 세이브(축제 칸 없음) — 처음 부를 때 생긴다'); }
+  // 사냥 축제 물건 — 같은 씨앗이면 같은 수(무작위 없음) · 하루 상한 · 주말 +20%
+  const huntMin = (a, t, min) => { for (let m = 0; m < min; m++) { a.tick(t + m * 60e3); a.hunt(60e3); } };
+  { const a = mk(MON, 62, 30), b = mk(MON, 62, 30); let pts = 0; const fk = a.festKill.bind(a); a.festKill = (kind) => { pts += kind === 'boss' ? 20 : kind === 'elite' ? 5 : 1; return fk(kind); };
+    huntMin(a, MON, 20); huntMin(b, MON, 20);
+    const k = a.S.kills, fc = a.festSt().fc;
+    ok(fc === b.festSt().fc && fc === Math.floor(pts / FEST.dropPer) && fc > 0, `사냥 — 몹 ${FEST.dropPer}마리 몫(정예 5 · 두목 20)마다 축제 물건 하나 · 같은 씨앗 같은 수`, `처치 ${k} · 몫 ${pts} · 물건 ${fc}`);
+    const m2 = mk(MON, 69, 30), w = mk(SAT, 69, 30); let pm = 0, pw = 0; for (const [x, f] of [[m2, (v) => { pm += v; }], [w, (v) => { pw += v; }]]) { const fk2 = x.festKill.bind(x); x.festKill = (kind) => { f(kind === 'boss' ? 20 : kind === 'elite' ? 5 : 1); return fk2(kind); }; }
+    huntMin(m2, MON, 50); huntMin(w, SAT, 50); const r = (w.festSt().fc / pw) / (m2.festSt().fc / pm);
+    ok(w.festSt().fc < FEST.dayCap && Math.abs(w.festSt().fc - Math.floor(pw * 1.2 / FEST.dropPer)) <= 1 && r > 1.1 && r < 1.3, '주말 대란 — 축제 물건 +20%', `${r.toFixed(3)} · ${m2.festSt().fc} / ${w.festSt().fc}`);
+    const c = mk(MON, 63, 30); huntMin(c, MON, 150); ok(c.festSt().fc === FEST.dayCap && c.festSt().hn === FEST.dayCap, `하루 상한 ${FEST.dayCap}개`, `${c.festSt().fc} · 처치 ${c.S.kills}`);
+    c.tick(MON + DAYMS); ok(c.festSt().hn === 0 && c.festSt().fc === FEST.dayCap, '다음 날 — 오늘 상한은 다시 0 · 모은 물건은 그대로'); }
+  // 주말 대란 은자 +10% — 같은 처치면 은자가 1.1배
+  { const a = mk(SAT, 64, 30), b = mk(MON, 64, 30); for (const x of [a, b]) Object.assign(x.stage(), { idx: 30, top: 30 }); ok(a.festGoldP() === FEST.wkGold && b.festGoldP() === 0, '대란 은자 ‰ — 토요일 100 · 월요일 0');
+    const g0 = a.S.wallet.gold, g1 = b.S.wallet.gold; huntMin(a, SAT, 5); huntMin(b, MON, 5);
+    const pa = (a.S.wallet.gold - g0) / a.S.kills, pb = (b.S.wallet.gold - g1) / b.S.kills; ok(pa / pb > 1.08 && pa / pb < 1.12, '몹 하나 은자 — 주말 ≈ ×1.1', (pa / pb).toFixed(3)); }
+  // 쉬는 주 — 물건이 안 떨어지고 두목은 닫힘 · 교환소는 열림 · 다음 축제가 열리면 물건 · 교환 수가 새로
+  { const A0 = festAt(dayKey(SAT)), rest = dkMs(A0.endDk) + 3 * 3600e3, a = mk(SAT, 65, 30);
+    a.festSt().fc = 500; a.festBuy('gear', 2); a.tick(rest); const fc0 = a.festSt().fc, L0 = FEST_SHOP[0].limit, C0 = FEST_SHOP[0].cost; huntMin(a, rest, 10);
+    ok(!a.festInfo().on && a.festSt().fc === fc0 && a.canDungeon('fest') === '축제 때만 나와요' && a.festShopState()[0].left === L0 - 2 && a.festBuy('gear') && a.festSt().fc === fc0 - C0, '쉬는 주 — 물건 안 떨어짐 · 두목 닫힘 · 교환소 열림(산 수 이어짐)');
+    a.tick(dkMs(A0.nextDk) + 3600e3); ok(a.festInfo().on && a.festInfo().fest.id === A0.next.id && a.festSt().fc === 0 && a.festShopState()[0].left === L0, '다음 축제 — 새 물건 · 교환 수 새로', a.festInfo().fest.name); }
+  // 교환소 — 값 · 한 축제 살 수 · 모자라면 안 됨
+  { const a = mk(SAT, 66, 30), W = a.S.wallet; ok(a.festBuy('gear') === null, '물건이 없으면 못 산다');
+    const SG = FEST_SHOP.find((x) => x.id === 'gear'), SW = FEST_SHOP.find((x) => x.id === 'weapon');
+    a.festSt().fc = 10000; const t0 = W['ticket:gear'] || 0, r = a.festBuy('gear', SG.limit);
+    ok(r && W['ticket:gear'] - t0 === SG.limit && a.festSt().fc === 10000 - SG.cost * SG.limit && a.festBuy('gear') === null, `장비 뽑기권 ${SG.limit}장까지(${SG.cost}개씩)`);
+    ok(a.festBuy('weapon', SW.limit + 1) === null && a.festBuy('weapon', SW.limit) && a.festBuy('nope') === null && a.festBuy('stone', 0) === null, '살 수를 넘기거나 없는 물건 · 0개는 안 됨');
+    const tot = FEST_SHOP.reduce((s, x) => { for (const [k, n] of Object.entries(x.give)) s[k] = (s[k] || 0) + n * x.limit; return s; }, {}), cost = FEST_SHOP.reduce((s, x) => s + x.cost * x.limit, 0);
+    ok(tot['ticket:gear'] <= 12 && tot['ticket:weapon'] <= 1 && tot['ticket:pal'] <= 1 && tot['ticket:relic'] <= 1 && tot['item:stone'] <= 160 && (tot['ticket:time'] || 0) <= 1, '교환소를 다 사도 작다 — 축제(3주)마다 장비 뽑기권 12 · 병기 · 동료 · 영물 1씩 · 강화석 160 · 시간 티켓 1', JSON.stringify(tot) + ` · ${cost}개`);
+    const l = Game.load(a.save(), SAT); ok(l.festShopState().find((x) => x.id === 'gear').left === 0 && l.festSt().fc === a.festSt().fc, '산 수 · 물건은 저장된다'); }
+  // 축제 두목 — 하루 한 번 · 쓰러지지 않음 · 점수 · 등급 보상 · 내일 다시
+  { const a = mk(SAT, 67, 40), fc0 = a.festSt().fc; ok(a.canDungeon('fest') === '', '축제 중 — 두목 열림');
+    const r = a.runNow('fest');
+    ok(r && r.cleared && r.dmg > 0 && r.score > 0 && FEST_BOSS.grades.some((x) => x.g === r.grade) && a.festSt().fc - fc0 === r.fc && r.fc === festGrade(r.dmg / a.festBossRef(40)).fc, '두목 — 60초 · 넣은 피해 = 점수 · 등급마다 축제 물건', `피해 ${r.dmg} · 점수 ${r.score} · ${r.grade} · +${r.fc}`);
+    ok(r.ms >= FEST_BOSS.ms && a.festSt().best === r.score && a.festSt().bestG === r.grade, '시간 끝까지 싸움 · 최고 점수 기록');
+    ok(a.canDungeon('fest') === '오늘은 다 했어요' && a.runNow('fest') === null, '하루 한 번');
+    a.tick(SAT + DAYMS); ok(a.canDungeon('fest') === '' && a.festInfo().bossLeft === 1, '다음 날 다시');
+    ok(festGrade(0).g === 'C' && festGrade(1).g === 'B' && festGrade(99).g === 'SS' && FEST_BOSS.grades.every((x) => x.fc <= 30 && (x.tix || 0) <= 1), '등급 C~SS · 보상은 축제 물건 30개 · 뽑기권 1장 안'); }
+  // 축제 임무 — 엔진 사건으로 오른다 · 받으면 축제 물건 · 날마다 새로 · 자동 성장이 받는다
+  { const a = mk(MON, 68, 30); a.emit('login'); huntMin(a, MON, 15); const B = a.festBk();
+    ok(B.fd.get('fd1').done && a.festCan() >= 1, '몹 300마리 → 일일 축제 임무 끝', `${a.S.kills}`);
+    ok(B.ft.get('ft3').p === Math.min(5000, a.S.kills) && B.ft.get('ft4').p === a.festSt().got, '축제 내내 임무 — 처치 · 사냥으로 얻은 물건 수가 그대로 쌓인다');
+    const fc0 = a.festSt().fc, r = a.festClaim('fd', 'fd1'); ok(r && a.festSt().fc - fc0 === FEST_DAILY[0].rew.fc && a.festClaim('fd', 'fd1') === null, `받기 — 축제 물건 ${FEST_DAILY[0].rew.fc} · 한 번만`);
+    a.runNow('fest'); ok(B.fd.get('fd3').done && B.ft.get('ft2').p === 1, '두목 도전 → 일일 · 축제 내내 임무');
+    const o = a.autoGrow({ daily: false, pull: false, coll: false, kit: false, enh: false, train: false, stat: false }); ok(a.festCan() === 0 && o.claim >= 1, '자동 성장이 축제 임무를 받는다', o.claim);
+    a.tick(MON + DAYMS); ok(!a.festBk().fd.get('fd1').done && a.festBk().fd.get('fd1').p === 0 && a.festBk().ft.get('ft3').p > 0, '다음 날 — 일일은 새로 · 축제 내내는 그대로');
+    a.attend(); ok(a.festBk().ft.get('ft1').p === 2, '접속 날 수 — 하루 한 번(출석과 날 바뀜이 겹쳐도)', a.festBk().ft.get('ft1').p);
+    const dSum = FEST_DAILY.reduce((s, x) => s + x.rew.fc, 0), tSum = FEST_TOTAL.reduce((s, x) => s + (x.rew['ticket:gear'] || 0), 0);
+    const earn = FEST.on * (FEST.dayCap + dSum + FEST_BOSS.grades[2].fc) + FEST_TOTAL.reduce((s, x) => s + x.rew.fc, 0), cost = FEST_SHOP.reduce((s, x) => s + x.cost * x.limit, 0);
+    ok(dSum <= 40 && tSum <= 3, '임무 보상은 작다 — 일일 합 40개 안 · 축제 내내 뽑기권 3장 안', `${dSum} · ${tSum}`);
+    ok(earn >= cost * 0.9 && earn <= cost * 1.3, '교환소를 다 사려면 축제 14일을 꽉 채워야 한다(하루 상한 · 임무 · 두목 A)', `벌이 ${earn} · 값 ${cost}`); }
+  // 결정론 — js/s2 안에서 Math.random · Date.now를 쓰지 않는다(축제 표 · 엔진)
+  { const src = fs.readFileSync(new URL('../js/s2/tables/fest.js', import.meta.url), 'utf8'); ok(!/Math\.random|Date\.now/.test(src), '축제 표에 Math.random · Date.now 없음'); }
 }
 
 console.log('\n=== S0 규칙 ===');

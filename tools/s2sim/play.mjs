@@ -57,6 +57,7 @@ export function play({ days = 7, job = 'sword', seed = 1, active = 120, ad = fal
     g.towerFight();   // v531 한 번씩(실제 던전 엔진이라 오래 걸린다)
     if (!OLD) g.towerMsClaimAll();   // v616 탑 이정표 상자
     if (!OLD) g.lvBoxClaimAll();   // v634 성장 봇짐
+    if (!OLD && !process.env.NOMX) g.mxClaimAll();   // v636 요괴록 별
     if (S.exped.run && now >= S.exped.run.endMs) g.claimExped();
     if (!S.exped.run) g.startExped(12);
     g.wbossFight(); for (let i = 0; i < 5; i++) g.pvpFight(0);

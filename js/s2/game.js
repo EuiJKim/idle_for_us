@@ -13,14 +13,16 @@ import { LEVEL_MAX, JOB_LV } from './tables/progress.js';
 import { START_PULL_TICKETS, SLOTS } from './tables/gear.js';
 import { START_PULLS } from './tables/s5.js';
 import { CDR_CAP } from './tables/traits.js';
-import { DAILY_DUNGEONS, DAILY_RUNS, JOB_DUNGEON, towerMsFloors, towerMsReward } from './tables/content.js';
+import { DAILY_DUNGEONS, DAILY_RUNS, JOB_DUNGEON, towerMsFloors, towerMsReward, SURGE, surgeStar } from './tables/content.js';
 import { GUIDE, DAILY_MISSIONS, WEEKLY_MISSIONS, achievements, guideCurrent } from './tables/missions.js';
 import { JOB_ADV, MASTERY } from './tables/skills.js';
 import { SHOP, SHOP_FREE, shopById } from './tables/shop.js';
 import { EXCHANGE, EX_CUR, EX_EARN, exItem } from './tables/exchange.js';   // v635 교환소
 import { PASS, PASS_PTS, PASS_REWARDS } from './tables/pass.js';
 import { BOUNTY_T, BOUNTY_SLOTS, BOUNTY_REW, BOUNTY_CHEST, bountySeed } from './tables/bounty.js';
-import { ROSTER } from './tables/mobs.js';
+import { ROSTER, MX, mxKind, mxSlot, mxEntry, mxTitle } from './tables/mobs.js';
+import { chapterOf } from './tables/chapters.js';
+import { FEST, festAt, festWeekend, dkMs, FEST_BOSS, festGrade, festBooks, FEST_SHOP, festShopById } from './tables/fest.js';   // v636 강호 축제
 import { CHBOSS, CB, cbGearGrade, CB_REPEAT, WBF, CB_RAID, raidStars, DEX_REW } from './tables/chboss.js';
 const CB_MANUAL_STONES = 50;   // v546
 // v632 장비 비교 「종합」의 보스 피해 무게(Game.gearVal) — 봇의 장 두목 패배가 예전(점수 비교) 수준이 되게 맞춘 값
@@ -41,6 +43,7 @@ const GUILD_CHECKIN = { tix: 2, goldMin: 15 };   // v549 문파 출석
 export const GRAID = { weekTries: 7, fightMs: 90000, hpX: 3, rew: { tix: 2, goldMin: 10 } };
 // v552 문파 수련 — 오늘 할 일을 끝낸 개수(문파 출석 빼고 · 하루 최대 8)가 내 수련 점수 · 문파원 합이 목표(문파원 수 × perMember)를 채우면 각자 한 번 보상
 export const GTRAIN = { perMember: 25, rew: { tix: 5, goldMin: 30 } };
+const GHELP_GOLD_MIN = 3;   // v635 품앗이 — 남을 한 번 도우면 사냥 3분 몫 은자(하루 10번)
 // v553 주간 보상 — 지난주 대결 최고 등급 · 지난주 월드보스 순위(서버). 월요일부터 한 번씩
 export const WEEK_REW = {
   pvp: [2, 4, 6, 9, 12, 16, 20],                       // 등급(하수 → 현경)마다 장비 뽑기권
@@ -94,7 +97,7 @@ import * as WB from './online/wboss.js';
 import * as GD from './online/guild.js';
 import * as PV from './online/pvp.js';
 import { refPlayer } from './battle/ref.js';
-import { PVP, WBOSS, POWER_SLACK, PVP_TIERS } from './tables/online.js';
+import { PVP, WBOSS, POWER_SLACK, PVP_TIERS, GUILD } from './tables/online.js';
 import { JOBS, RANGED } from './tables/char.js';
 
 export const COLLECTS = ['weapon', 'pal', 'relic'];
@@ -166,6 +169,8 @@ export class Game {
       ...RM.realmSources(S.realm), ...RM.journeySources(S.journey), ...RM.cosmeticSources(S.cosmetics),
       ...ID.towerSources(S.tower.best),
       ...this.titleSources(),
+      ...this.gresSources(),   // v635 연공실
+      ...this.mxSources(),   // v636 요괴록
     ];
   }
   // 스탯 배분 — 레벨마다 1점. 남은 점수 · 찍기 · 고르게 찍기 · 되돌리기(공짜)
@@ -213,6 +218,39 @@ export class Game {
     if (r.title) (this.S.titles ??= []).includes(r.title) || this.S.titles.push(r.title);
     return r;
   }
+  // ── v636 요괴록(몹 도감) ── S.mx = { k: { 칸id: 처치 수 }, got: { 칸id: 새긴 별 } } · 칸id = 장 × 10 + 칸(0~5) · 옛 세이브는 처음 볼 때 빈 것으로
+  mxSt() { const X = (this.S.mx ??= { k: {}, got: {} }); X.k ??= {}; X.got ??= {}; return X; }
+  // 이 싸움에서 잡은 몹을 셀지 — 사냥터(현상 · 돌발 그대로) · 칸 두목전. 장 두목 무대 · 토벌 · 연습 · 던전은 빼고
+  mxHunt(F) { const d = F.def; if (d.chb || d.raid || d.practice || this.dg) return null; const ch = chapterOf(d.lv); return ROSTER[ch - 1] ? { ch, base: ch * 10, k: this.mxSt().k } : null; }
+  static mxStars(kind, n) { return MX.steps[kind].filter((x) => n >= x).length; }
+  // 장마다 여섯 칸 — 이름 · 그림 · 처치 수 · 닿은 별 · 새긴 별 · 다음 별까지 · 만난 장(가장 멀리 간 칸이 그 장에 닿았는지)
+  mxList() {
+    const X = this.mxSt(), top = this.stage().top;
+    return ROSTER.map((_, i) => {
+      const ch = i + 1, cells = Array.from({ length: MX.slots }, (_, slot) => {
+        const id = ch * 10 + slot, kind = mxKind(slot), n = X.k[id] || 0, star = Game.mxStars(kind, n), got = Math.min(star, X.got[id] || 0), [name, art] = mxEntry(ch, slot);
+        return { id, ch, slot, kind, name, art, n, star, got, next: MX.steps[kind][star] || 0 };
+      });
+      const full = cells.every((c) => c.got >= 3);
+      return { ch, seen: top > (ch - 1) * 10 || cells.some((c) => c.n > 0), cells, full, title: mxTitle(ch), stars: cells.reduce((a, c) => a + c.got, 0) };
+    });
+  }
+  mxGotStars() { return Object.values(this.mxSt().got).reduce((a, b) => a + (b || 0), 0); }
+  mxCan() { const X = this.mxSt(); let c = 0; for (const [id, n] of Object.entries(X.k)) { const s = Game.mxStars(mxKind(id % 10), n); c += Math.max(0, s - (X.got[id] || 0)); } return c; }
+  // 칸 하나의 닿은 별을 모두 새긴다 → 새긴 별 수(없으면 null) · 그 장이 모두 ★3이면 칭호
+  mxClaim(id) {
+    id = Number(id); const X = this.mxSt(), slot = id % 10, ch = Math.floor(id / 10);
+    if (!ROSTER[ch - 1] || slot >= MX.slots) return null;
+    const s = Game.mxStars(mxKind(slot), X.k[id] || 0), add = s - (X.got[id] || 0);
+    if (add <= 0) return null;
+    X.got[id] = s; this.dirtyStats = true;
+    let title = null;
+    if (Array.from({ length: MX.slots }, (_, k) => X.got[ch * 10 + k] || 0).every((v) => v >= 3)) { const t = mxTitle(ch); if (!(this.S.titles ??= []).includes(t)) { this.S.titles.push(t); title = t; } }
+    return { id, ch, slot, add, star: s, title };
+  }
+  mxClaimAll() { const out = []; for (const id of Object.keys(this.mxSt().k)) { const r = this.mxClaim(id); if (r) out.push(r); } return out; }
+  // 새긴 별마다 상시 효과(일반 몹 피해 · 은자 ‰)
+  mxSources() { const n = this.mxGotStars(); return n ? [{ src: '요괴록', stats: Object.fromEntries(Object.entries(MX.each).map(([k, v]) => [k, v * n])) }] : []; }
   // v553 대결 주간 최고 — 점수가 바뀔 때마다 이번 주 최고를 적어 두고, 주가 바뀌면 지난주 것으로 넘긴다
   pvpMark() {
     const P = (this.S.pvp ??= { score: PVP.start, day: '', used: 0, log: [] }), wk = weekKey(this.now);
@@ -274,6 +312,73 @@ export class Game {
     this.S.wallet.gold += gold; this.S.wallet['ticket:gear'] = (this.S.wallet['ticket:gear'] || 0) + tix;
     return { n, phase: ph, gold, tix, merit: this.exEarn('merit', n * EX_EARN.merit.graidPhase) };
   }
+  // ── v635 연공실 · 품앗이 · 겨루기(문파 문서는 서버 — 여기는 내 몫 · 받은 레벨 · 보상) ──
+  //   S.gres { gid, lv{} } 서버에서 받은 연구 레벨(그 문파에 있을 때만 붙는다) · S.ghelp { req, day, gave } · S.gwar { week, help, don, got }
+  gresSt() { return (this.S.gres ??= { gid: null, lv: {}, day: -1, don: 0 }); }
+  gresSet(gid, lv) {
+    const R = this.gresSt(), clean = Object.fromEntries(GD.GRES.map((r) => [r.k, Math.max(0, Math.min(GUILD.research.maxLv, (lv?.[r.k] | 0)))]));
+    if (R.gid === gid && GD.GRES.every((r) => (R.lv[r.k] | 0) === clean[r.k])) return false;
+    R.gid = gid || null; R.lv = clean; this.dirtyStats = true; return true;
+  }
+  gresOn() { const R = this.S.gres; return R && R.gid && R.gid === this.S.guildId ? R.lv : {}; }
+  gresSources() { const { st } = GD.resStats(this.gresOn()); return Object.keys(st).length ? [{ src: 'guild', stats: st }] : []; }
+  gresIdle() { return GD.resStats(this.gresOn()).idle; }
+  gresCost() { return Math.round(GD.GRES_GOLD_MIN * KILLS_PER_MIN * goldPerMob(this.S.hero.lv)); }
+  gresLeft() { const R = this.gresSt(), d = dayKey(this.now); return R.day === d ? Math.max(0, GD.GRES_DAY - R.don) : GD.GRES_DAY; }
+  // 바치기 — 은자를 내고 오늘 횟수 하나 · 겨루기 점수(서버 막대는 화면이 올린다 · 실패하면 gresRefund)
+  gresPay() {
+    const R = this.gresSt(), d = dayKey(this.now), cost = this.gresCost();
+    if (!this.S.guildId || this.gresLeft() <= 0 || (this.S.wallet.gold || 0) < cost) return null;
+    if (R.day !== d) { R.day = d; R.don = 0; }
+    R.don++; this.S.wallet.gold -= cost; this.gwarSt().don++;
+    return { gold: cost, left: this.gresLeft() };
+  }
+  gresRefund(r) { if (!r) return; const R = this.gresSt(); R.don = Math.max(0, R.don - 1); this.S.wallet.gold += r.gold; const W = this.gwarSt(); W.don = Math.max(0, W.don - 1); }
+  // 품앗이 — 당길 수 있는 내 대기(시간 티켓과 같은 다섯 칸)
+  static HELP_KINDS = [['realm', '경지 대기'], ['mastery', '마스터리 배우기'], ['tree', '무공 강화 배우기'], ['gacha', '뽑기 레벨 대기'], ['exped', '원정']];
+  helpTimer(k) { const S = this.S; return { realm: S.realm.wait, mastery: S.hero.mastery.learning, tree: S.hero.kit?.learning, gacha: S.gacha.wait, exped: S.exped.run }[k] || null; }
+  helpable() { return Game.HELP_KINDS.map(([k, name]) => { const T = this.helpTimer(k); return T && T.endMs > this.now + 60000 ? { k, name, left: T.endMs - this.now } : null; }).filter(Boolean); }
+  ghelpSt() { const H = (this.S.ghelp ??= { req: null, day: -1, gave: 0 }), d = dayKey(this.now); if (H.day !== d) { H.day = d; H.gave = 0; } return H; }
+  // 지금 걸린 내 요청(대기가 끝났거나 바뀌었으면 치운다)
+  helpReq() {
+    const H = this.ghelpSt(), q = H.req; if (!q) return null;
+    const T = this.helpTimer(q.k);
+    if (!T || T.endMs <= this.now || T.endMs > q.end0 - q.cut || q.gid !== this.S.guildId) { H.req = null; return null; }
+    return q;
+  }
+  helpAsk(k) {
+    const H = this.ghelpSt(), T = this.helpTimer(k);
+    if (!this.S.guildId || this.helpReq() || !T || T.endMs <= this.now + 60000) return null;
+    H.req = { id: `${k}${Math.floor(this.now / 1000).toString(36)}`, k, gid: this.S.guildId, end0: T.endMs, at: this.now, cut: 0 };
+    return H.req;
+  }
+  // 서버가 센 당김 합(ms) → 내 대기에 아직 안 넣은 만큼만 넣는다(한 요청 최대 = 도움 10번 × 3분 또는 남은 시간 1%)
+  helpSync(cutMs) {
+    const q = this.helpReq(); if (!q) return 0;
+    const cap = GUILD.help.maxHelps * Math.max(GUILD.help.minMs, Math.round(((q.end0 - q.at) * GUILD.help.perHelpP) / 1000));
+    const d = Math.min(Math.max(0, Math.floor(Number(cutMs) || 0)), cap) - q.cut; if (d <= 0) return 0;
+    this.helpTimer(q.k).endMs -= d; q.cut += d;
+    return d;
+  }
+  helpGiveLeft() { return Math.max(0, GUILD.help.perDayGive - this.ghelpSt().gave); }
+  // 남을 도왔다(서버가 받아 줬을 때) — 은자 조금 · 겨루기 점수
+  helpGave() {
+    const H = this.ghelpSt(); if (!this.S.guildId || H.gave >= GUILD.help.perDayGive) return null;
+    H.gave++; this.gwarSt().help++;
+    const gold = Math.round(GHELP_GOLD_MIN * KILLS_PER_MIN * goldPerMob(this.S.hero.lv)); this.S.wallet.gold += gold;
+    return { gold, left: this.helpGiveLeft() };
+  }
+  // 겨루기 — 이번 주 내 점수(수련 · 토벌 도전 · 돕기 · 바치기) · 지난주 판 보상(그 주에 점수를 낸 사람만 · 한 번)
+  gwarSt() { const S = this.S, wk = weekKey(this.now), W = (S.gwar ??= { week: wk, help: 0, don: 0, got: '' }); if (W.week !== wk) Object.assign(W, { week: wk, help: 0, don: 0 }); return W; }
+  gwarPts() { const W = this.gwarSt(), X = GD.GWAR; return this.gtrainPts() * X.train + this.graidState().used * X.raid + W.help * X.help + W.don * X.don; }
+  gwarClaim(last, uid) {
+    const W = this.gwarSt();
+    if (!this.S.guildId || !last || !GD.GWAR.rew[last.res] || !(last.pts?.[uid] > 0) || W.got === last.week) return null;
+    W.got = last.week;
+    const R = GD.GWAR.rew[last.res], gold = Math.round(R.goldMin * KILLS_PER_MIN * goldPerMob(this.S.hero.lv));
+    this.S.wallet.gold += gold; this.S.wallet['ticket:gear'] = (this.S.wallet['ticket:gear'] || 0) + R.tix;
+    return { res: last.res, tix: R.tix, gold };
+  }
   setNick(name) { const n = String(name || '').replace(/[\u0000-\u001f<>]/g, '').trim().slice(0, 12); if (!n) return false; this.S.nick = n; return true; }
   rankProfile() {
     const S = this.S, f = this.fighter(false);
@@ -289,6 +394,7 @@ export class Game {
     // 강호 패스 점수 — 수련동 깨기 · 스테이지 두목 · 월드보스 · 대결(임무 받기 · 출석 · 동행 토벌은 그 자리에서 바로 — login은 날이 바뀔 때도 와서 출석과 겹친다)
     const pp = ev === 'dungeon' ? (v.kind ? PASS_PTS.dungeon : v.stage ? PASS_PTS.stage : 0) : ev === 'wboss' ? PASS_PTS.wboss : ev === 'pvp' ? PASS_PTS.duel : 0;
     if (pp) this.passAdd(pp);
+    this.festOn(ev, v);   // v636 축제 임무
   }
   claimGuide() {
     const cur = guideCurrent(this.S.q.guide);
@@ -503,14 +609,17 @@ export class Game {
       if (F.def.boss && (F.killsBy.boss || F.t >= F.limitMs)) break;
     }
     let n = 0;
+    const mxc = this.mxHunt(F);   // v636 요괴록 — 셀 싸움이면 그 장 칸 수
     for (const e of F.events) {
       if (e[0] !== 'kill') continue;
       const kind = e[3], L = F.def.lv;
       n++; S.kills++; this.fateKill(1);
+      if (mxc) { const id = mxc.base + mxSlot(mxc.ch, kind, e[2]); mxc.k[id] = (mxc.k[id] || 0) + 1; }
       if (!F.def.boss) this.bountyHit(kind, L);   // 현상수배 — 사냥터에서만(두목전 · 토벌 안은 빼고)
       this.addExp(mobExp(L, kind, S.hero.lv));
-      const gp = this.fighter().st.goldP || 0;
+      const gp = (this.fighter().st.goldP || 0) + this.festGoldP();   // v636 주말 대란 은자
       S.wallet.gold += Math.round(goldPerMob(L) * (kind === 'boss' ? 20 : kind === 'elite' ? 5 : 1) * (1000 + gp) / 1000);
+      this.festKill(kind);   // v636 축제 물건
       if (kind === 'elite') { S.gacha.eliteQ = Math.max(0, S.gacha.eliteQ - 1); this.obtain(GC.eliteDrop(S.gacha, this.rng)); this.emit('kill', { n: 1, elite: 1 }); }
       else if (kind === 'boss') { if (!F.def.boss) S.killsSinceBoss = 0; this.emit('kill', { n: 1, boss: 1 }); if (!F.def.boss) this.feed.push({ k: 'boss' }); }
       else { S.killsSinceBoss++; if (!F.def.raid) T.kills = Math.min(STAGE_KILLS, T.kills + 1); this.emit('kill', { n: 1 }); }
@@ -779,6 +888,8 @@ export class Game {
       if (this.bountyChest()) out.claim++;
       out.claim += this.towerMsClaimAll().length;   // v616 탑 이정표 상자
       out.claim += this.lvBoxClaimAll().length;   // v634 성장 봇짐
+      out.claim += this.mxClaimAll().length;   // v636 요괴록 별
+      out.claim += this.festClaimAll().length;   // v636 축제 임무
     }
     if (o.pull !== false) {
       this.shardExchange();   // 분해로 모인 뽑기 조각부터 뽑기권으로
@@ -878,13 +989,13 @@ export class Game {
   dailyDungeon(kind) { return this.runNow('daily', kind); }
   // v581 모두 소탕 — 한 번 깬(소탕 열린) 수련동을 입장권이 되는 만큼 차례로 · 보상 합
   sweepAll() {
-    const sum = { n: 0, gold: 0, exp: 0, tix: 0, stones: 0, fail: 0 };
+    const sum = { n: 0, gold: 0, exp: 0, tix: 0, stones: 0, heart: 0, fail: 0 };
     for (let guard = 0; guard < 40; guard++) {
       const k = Object.keys(DAILY_DUNGEONS).find((kk) => this.S.dungeons.best?.[kk] && !this.canDungeon('daily', kk));
       if (!k) break;
       const r = this.dailyDungeon(k); if (!r) break;
       sum.n++; if (!r.cleared) sum.fail++;
-      for (const x of ['gold', 'exp', 'tix', 'stones']) sum[x] += r[x] || 0;
+      for (const x of ['gold', 'exp', 'tix', 'stones', 'heart']) sum[x] += r[x] || 0;
     }
     return sum.n ? sum : null;
   }
@@ -983,6 +1094,74 @@ export class Game {
     T.bought[k] = (T.bought[k] || 0) + n;
     return { give, paid, n };
   }
+  // ── v636 강호 축제(tables/fest.js) ── 날짜로 도는 축제 · 사냥 축제 물건 · 축제 임무(날마다 · 축제 내내) · 교환소 · 축제 두목(하루 한 번 · 점수)
+  //   S.fest는 여기서 생긴다(옛 세이브도) · 축제 칸(slot)이 바뀌면 새로(물건 · 임무 · 교환 수 · 두목 기록은 그 축제 것만)
+  festSt() {
+    const S = this.S, dk = dayKey(this.now), A = festAt(dk);
+    let F = S.fest;
+    if (!F || F.slot !== A.slot) F = S.fest = { slot: A.slot, fc: 0, got: 0, acc: 0, hd: dk, hn: 0, buy: {}, qd: {}, qt: {}, qDay: dk, lday: -1, bDay: -1, bN: 0, best: 0, bestG: '' };
+    if (F.qDay !== dk) { F.qDay = dk; F.qd = {}; }
+    if (F.hd !== dk) { F.hd = dk; F.hn = 0; }
+    return F;
+  }
+  // 지금 축제 — 이름 · 축제 중인지 · 끝나는 때(축제 중) 또는 다음 축제가 열리는 때(쉬는 주) · 주말 대란
+  festInfo() {
+    const dk = dayKey(this.now), A = festAt(dk), F = this.festSt();
+    return { ...A, dk, weekend: festWeekend(dk), leftMs: Math.max(0, dkMs(A.on ? A.endDk : A.nextDk) - this.now), nextMs: Math.max(0, dkMs(A.nextDk) - this.now),
+      fc: F.fc, got: F.got, huntToday: F.hn, huntCap: FEST.dayCap, bossLeft: A.on && F.bDay !== dk ? 1 : 0, best: F.best, bestG: F.bestG, bossN: F.bN };
+  }
+  festGoldP() { return festWeekend(dayKey(this.now)) ? FEST.wkGold : 0; }   // 주말 대란 — 사냥 은자 ‰
+  festBk() { const F = this.festSt(), C = this._fbk; if (!C || C.qd !== F.qd || C.qt !== F.qt) this._fbk = { qd: F.qd, qt: F.qt, ...festBooks(F) }; return this._fbk; }
+  // 엔진 사건 → 축제 임무(축제 중에만) · login은 하루 한 번만 fday로
+  festOn(ev, v = {}) {
+    const dk = dayKey(this.now); if (!festAt(dk).on) return;
+    if (ev === 'login') { const F = this.festSt(); if (F.lday === dk) return; F.lday = dk; ev = 'fday'; }
+    const B = this.festBk(); B.fd.on(ev, v); B.ft.on(ev, v);
+  }
+  // 사냥 처치 → 축제 물건(몹 FEST.dropPer마리 몫마다 하나 · 하루 FEST.dayCap개까지 · 주말 +20%) — 쌓는 수(acc)로 정해진다(무작위 없음)
+  festKill(kind) {
+    const dk = dayKey(this.now); if (!festAt(dk).on) return;
+    const F = this.festSt(); if (F.hn >= FEST.dayCap) return;
+    F.acc += (kind === 'boss' ? 20 : kind === 'elite' ? 5 : 1) * (1000 + (festWeekend(dk) ? FEST.wkDrop : 0));
+    const per = FEST.dropPer * 1000; let n = 0;
+    while (F.acc >= per && F.hn < FEST.dayCap) { F.acc -= per; F.hn++; n++; }
+    if (F.hn >= FEST.dayCap) F.acc = 0;
+    if (n) { F.fc += n; F.got += n; this.festOn('fget', { n }); }
+  }
+  festGive(rew) { const F = this.festSt(), W = this.S.wallet; for (const [k, n] of Object.entries(rew)) { if (k === 'fc') F.fc += n; else W[k] = (W[k] || 0) + n; } }
+  festCan() { const B = this.festBk(); return B.fd.claimable().length + B.ft.claimable().length; }
+  festClaim(book, id) {
+    const B = this.festBk()[book], d = B?.defs.get(id); if (!d) return null;
+    const s = B.get(id); if (!s.done || s.got) return null;
+    B.claim(id); this.festGive(d.rew);
+    return { book, id, give: { ...d.rew } };
+  }
+  festClaimAll() { const out = []; for (const b of ['fd', 'ft']) for (const id of this.festBk()[b].claimable()) { const r = this.festClaim(b, id); if (r) out.push(r); } return out; }
+  // 교환소 — 축제 한 칸 동안 살 수 있는 수(쉬는 주에도 열림)
+  festShopState() { const F = this.festSt(); return FEST_SHOP.map((s) => { const left = Math.max(0, s.limit - (F.buy[s.id] || 0)); return { ...s, left, can: left > 0 && F.fc >= s.cost }; }); }
+  festBuy(id, n = 1) {
+    const s = festShopById(id), F = this.festSt(); n = Math.floor(n);
+    if (!s || !(n >= 1) || (F.buy[id] || 0) + n > s.limit || F.fc < s.cost * n) return null;
+    F.fc -= s.cost * n; F.buy[id] = (F.buy[id] || 0) + n;
+    const give = Object.fromEntries(Object.entries(s.give).map(([k, v]) => [k, v * n])); this.festGive(give);
+    return { id, n, give, cost: s.cost * n };
+  }
+  // 축제 두목 — 하루 한 번 · FEST_BOSS.ms · 쓰러지지 않는 두목(장 두목 무늬를 빌림) · 넣은 피해 = 점수(월드보스와 같은 셈) · 등급마다 축제 물건
+  festBossWhy() { const dk = dayKey(this.now); if (!festAt(dk).on) return '축제 때만 나와요'; return this.festSt().bDay === dk ? '오늘은 다 했어요' : ''; }
+  festBossDef(L) {
+    const A = festAt(dayKey(this.now)), D = A.fest, mob = (lv, k) => ({ lv, kind: k, w: 1 });
+    return { title: `축제 두목 · ${D.boss}`, clear: 'timeoutWin', limitMs: FEST_BOSS.ms, boss: true, map: makeSideMap(9300 + D.ch, CB.arena),
+      fams: { b: { mobs: [mob(L, 'boss')], keep: 0, coolMs: 1e12 }, a: { mobs: [mob(L, 'mob')], keep: 0, coolMs: 1e12 } } };
+  }
+  festBossMobs(F) { const D = festAt(dayKey(this.now)).fest; for (const m of F.mobs) { m.hp = 1e15; m.st = { ...m.st, hp: 1e15 }; m.cb = { ch: D.ch, pats: CHBOSS[D.ch].pats, phase: 1, gg: 0 }; m.name = D.boss; } }
+  festBossRef(L) { return WB.refTryDmg(L) * FEST_BOSS.ms / WBOSS.fightMs; }   // 기준 무인이 60초에 넣는 피해
+  festBossEnd(F, L) {
+    const S = this.festSt(), dmg = Math.round(F.dmgOut * WBF.sideX), score = WB.bossScore(dmg, L), G = festGrade(dmg / this.festBossRef(L));
+    const give = { fc: G.fc, ...(G.tix ? { 'ticket:gear': G.tix } : {}) }; this.festGive(give);
+    const nb = score > S.best; if (nb) { S.best = score; S.bestG = G.g; }
+    this.festOn('fboss');
+    return { dmg, score, grade: G.g, fc: G.fc, tix: G.tix || 0, best: S.best, newBest: nb, fest: festAt(dayKey(this.now)).fest.id };
+  }
   canDungeon(type, kind) {
     const S = this.S;
     if (this.dg || this.bossFight) return '다른 싸움 중이에요';
@@ -1001,6 +1180,7 @@ export class Game {
     } else if (type === 'graid') {
       if (!S.guildId) return '문파에 들면';
       if (this.graidState().used >= GRAID.weekTries) return '이번 주는 다 했어요';
+    } else if (type === 'fest') { const w = this.festBossWhy(); if (w) return w;   // v636 축제 두목
     } else if (type !== 'tower') return '없는 던전이에요';
     return '';
   }
@@ -1010,6 +1190,7 @@ export class Game {
     const S = this.S, L = S.hero.lv, D = type === 'daily' ? DAILY_DUNGEONS[kind] : null;
     if (type === 'daily') { ID.useStamina(S.stamina.daily, this.now); S.dungeons.runs[kind] = (S.dungeons.runs[kind] || 0) + 1; }
     if (type === 'graid') this.graidState().used++;
+    if (type === 'fest') { const FS = this.festSt(); FS.bDay = dayKey(this.now); FS.bN++; }   // v636
     if (type === 'wboss') { const W = (S.wb ??= { day: '', used: 0, best: 0, week: 0, total: 0 }); if (W.week !== S.qWeek) { W.week = S.qWeek; W.total = 0; W.best = 0; } WB.useTry(W, String(dayKey(this.now))); }
     const mob = (lv, kind2 = 'mob', w = 1) => ({ lv, kind: kind2, w });
     let title, clear, need = 0, limitMs, map, fams, hpX = 1, wipeN = 0, boss = false, extra = {};
@@ -1019,6 +1200,7 @@ export class Game {
       if (clear === 'kills') { need = X.need; map = makeSideMap(7000 + L, { w: 16000, tiers: 2 }); fams = { a: { mobs: [mob(L)], keep: X.keep, coolMs: X.coolMs } }; }
       else if (clear === 'boss') { need = 1; boss = true; hpX = X.hpX; map = makeSideMap(7100 + L, { w: 14000, tiers: 1 }); fams = { a: { mobs: [mob(L)], keep: X.adds, coolMs: 4000 }, b: { mobs: [mob(L, 'boss')], keep: 0, coolMs: 1e12 } }; }
       else if (clear === 'survive') { map = makeSideMap(7200 + L, { w: 12000, tiers: 2 }); fams = { a: { mobs: [mob(L + X.lvUp, 'mob', X.mobW), mob(L, 'elite', X.eliteW)], keep: X.keep, coolMs: X.coolMs } }; }
+      else if (clear === 'score') { ({ map, fams } = this.sgSetup(L)); extra.sg = { phase: 0, stack: 0, at: 0, bossMs: null }; }   // v636 기세동
       else { wipeN = need = X.n; map = makeSideMap(7300 + L, { w: 18000, tiers: 2 }); fams = { a: { mobs: [mob(L)], keep: X.n, coolMs: 1e12 } }; }
     } else if (type === 'wboss') {   // v535 월드보스 — 쓰러지지 않는 거대 두목 · 90초 동안 넣은 피해 = 점수
       title = `월드보스 · ${WBF.name}`; clear = 'timeoutWin'; limitMs = WBOSS.fightMs; boss = true;
@@ -1026,6 +1208,7 @@ export class Game {
     } else if (type === 'graid') {   // v550 문파 토벌
       const ch = this.graidBoss(); title = `문파 토벌 · ${CHBOSS[ch].name}`; clear = 'timeoutWin'; limitMs = GRAID.fightMs; boss = true; extra.ch = ch;
       map = makeSideMap(9200 + ch, CB.arena); fams = { b: { mobs: [mob(L, 'boss')], keep: 0, coolMs: 1e12 }, a: { mobs: [mob(L)], keep: 0, coolMs: 1e12 } };
+    } else if (type === 'fest') { ({ title, clear, limitMs, boss, map, fams } = this.festBossDef(L));   // v636 축제 두목
     } else if (type === 'tower') {
       const f = S.tower.best + 1;
       title = `무한의 탑 ${f}층`; clear = 'wipe'; limitMs = 60000; wipeN = need = 4; hpX = ID.towerX(f); extra.floor = f;
@@ -1040,6 +1223,7 @@ export class Game {
     if (wipeN) F.famState.a.keep = 0;   // 다 잡기: 처음 자리 몹만 · 다시 나오지 않음
     if (hpX !== 1) for (const m of F.mobs) { m.hp = Math.round(m.hp * hpX); m.st = { ...m.st, hp: m.hp }; }
     if (type === 'graid') for (const m of F.mobs) { m.hp = 1e15; m.st = { ...m.st, hp: 1e15 }; const D = CHBOSS[extra.ch]; m.cb = { ch: extra.ch, pats: D.pats, phase: 1, gg: 0 }; m.name = D.name; }
+    if (type === 'fest') this.festBossMobs(F);   // v636
     if (type === 'wboss') for (const m of F.mobs) { m.hp = 1e15; m.st = { ...m.st, hp: 1e15 }; m.cb = { ch: 0, wb: true, pats: WBF.pats, phase: 1, gg: 0 }; m.name = WBF.name; }
     F.limitMs = limitMs;
     this.dg = { type, kind, title, clear, need, limitMs, F, ...extra };
@@ -1054,13 +1238,15 @@ export class Game {
     else if (d.clear === 'boss') { const b = F.mobs.find((m) => m.kind === 'boss'); const r = b ? b.hp / b.st.hp : 0; p = 1 - r; label = `두목 체력 ${Math.ceil(r * 100)}%`; }
     else if (d.clear === 'wipe') { p = 1 - F.mobs.length / d.need; label = `남은 적 ${F.mobs.length} / ${d.need}`; }
     else if (d.clear === 'timeoutWin') { p = F.t / d.limitMs; const dmg = Math.round(F.dmgOut * WBF.sideX); label = d.type === 'graid' ? `피해 ${dmg}` : `피해 ${dmg} · 점수 ${WB.bossScore(dmg, this.S.hero.lv)}`; }
+    else if (d.sg) ({ p, label } = this.sgLabel(d));   // v636 기세동
     else { p = F.t / d.limitMs; label = F.deaths ? '쓰러짐 — 실패' : `쓰러지지 말고 버티기 · ${Math.ceil(left / 1000)}초`; }
-    return { title: d.title, type: d.type, kind: d.kind, clear: d.clear, p: Math.max(0, Math.min(1, p)), label, leftMs: left };
+    return { title: d.title, type: d.type, kind: d.kind, clear: d.clear, p: Math.max(0, Math.min(1, p)), label, leftMs: left, ...(d.sg ? { sg: this.sgView(d) } : {}) };
   }
   dgCheck() {
     const d = this.dg, F = d.F;
     if (d.clear === 'kills' && F.kills >= d.need) return true;
     if (d.clear === 'boss' && F.killsBy.boss) return true;
+    if (d.clear === 'score' && d.sg?.phase === 1 && F.killsBy.boss) return true;   // v636 기세동 두목
     if (d.clear === 'wipe' && F.mobs.length === 0) return true;
     if (d.clear === 'survive' && F.deaths > 0) return false;
     if (F.t >= d.limitMs) return d.clear === 'survive' || d.clear === 'timeoutWin';
@@ -1069,7 +1255,7 @@ export class Game {
   huntDungeon(ms) {
     const F = this.dg.F, end = F.t + ms;
     let r = null;
-    while (F.t < end) { F.step(); r = this.dgCheck(); if (r !== null) break; }
+    while (F.t < end) { F.step(); if (this.dg.sg) this.sgStep(); r = this.dgCheck(); if (r !== null) break; }
     this.lastEvents = F.events; this.lastFight = F; F.events = [];
     if (r !== null) this.endDungeon(r);
     return 0;
@@ -1079,12 +1265,14 @@ export class Game {
   endDungeon(cleared, gaveUp = false) {
     const d = this.dg, S = this.S, F = d.F, L = S.hero.lv, out = { gold: 0, exp: 0, tix: 0, stones: 0 };
     this.dg = null; this.dirtyStats = true; this.outfitBack();   // v634
+    if (d.sg) Object.assign(out, { stack: d.sg.stack, bossMs: d.sg.phase ? F.t - d.sg.at : null, star: 0 });   // v636 기세동(못 잡아도 기록은 보여 준다)
     if (cleared && d.type === 'daily') {
       const R = DAILY_DUNGEONS[d.kind].reward;
       if (R.expMin) { out.exp = Math.round(R.expMin * KILLS_PER_MIN * mobExp(L, 'mob', L)); this.addExp(out.exp); }
       if (R.goldMin) { out.gold = Math.round(R.goldMin * KILLS_PER_MIN * goldPerMob(L)); S.wallet.gold += out.gold; }
       if (R.gearTickets) { out.tix = R.gearTickets; S.wallet['ticket:gear'] = (S.wallet['ticket:gear'] || 0) + out.tix; }
       if (R.stones) { out.stones = R.stones; S.wallet['item:stone'] = (S.wallet['item:stone'] || 0) + out.stones; }
+      if (R.surge) this.sgEnd(d, out);   // v636 기세동 — 별 따라
       (S.dungeons.best ??= {})[d.kind] = true;
       this.emit('dungeon', { kind: 1 });
     } else if (cleared && d.type === 'tower') { const T = this.towerSt(); T.best = Math.max(T.best, d.floor); if (towerMsReward(d.floor) && !T.ms.includes(d.floor)) out.chest = d.floor; }
@@ -1095,10 +1283,47 @@ export class Game {
       this.emit('wboss');
     }
     else if (d.type === 'graid') { out.dmg = Math.round(F.dmgOut * WBF.sideX); out.ch = d.ch; out.merit = this.exEarn('merit', EX_EARN.merit.graidTry); this.emit('graid'); }   // v550 나가도 넣은 만큼
+    else if (d.type === 'graid') { out.dmg = Math.round(F.dmgOut * WBF.sideX); out.ch = d.ch; this.emit('graid'); }   // v550 나가도 넣은 만큼
+    else if (d.type === 'fest') Object.assign(out, this.festBossEnd(F, L));   // v636 나가도 넣은 만큼
     else if (cleared && d.type === 'job') { this.hero.clearDungeon(JOB_ADV[d.n].dungeon); this.hero.advance(); this.emit('dungeon', { job: d.n }); this.feed.push({ k: 'advance', n: d.n }); }
     const res = { k: 'dungeon-end', type: d.type, kind: d.kind, title: d.title, cleared, gaveUp, ms: F.t, kills: F.kills, deaths: F.deaths, floor: d.floor, n: d.n, ...out };
     this.feed.push(res); this.lastDg = res;
     return res;
+  }
+  // ── v636 기세동 ── 앞 30초 몹(처치마다 기세 1단 · 단마다 피해 +SURGE.per‰) → 몹이 물러나고 두목 · 두목을 잡은 시간 = 별
+  //   기세는 SideFight.dmgX(무인 피해 배율)로만 얹는다 · 최고 기록은 S.surge(처음 열 때 생김)
+  surgeSt() { return (this.S.surge ??= { best: 0, star: 0 }); }
+  sgSetup(L) {
+    const map = makeSideMap(7600 + L, { w: 16000, tiers: 2 });
+    return { map, fams: { a: { mobs: [{ lv: L, kind: 'mob', w: 1 }], keep: SURGE.keep, coolMs: SURGE.coolMs }, b: { mobs: [{ lv: L, kind: 'boss', w: 1 }], keep: 0, coolMs: 1e12 } } };
+  }
+  sgStep() {
+    const d = this.dg, F = d.F, G = d.sg;
+    if (G.phase !== 0) return;
+    G.stack = Math.min(SURGE.cap, F.kills); F.dmgX = 1 + (G.stack * SURGE.per) / 1000;
+    if (F.t < SURGE.phaseMs) return;
+    G.phase = 1; G.at = F.t;
+    F.mobs = F.mobs.filter((m) => m.fam !== 'a'); F.famState.a.keep = 0; F.hero.target = -1;
+    const H = F.hero, P = F.def.map.plats[Math.max(0, H.plat)] || F.def.map.plats[0];
+    F.spawn('b', { p: Math.max(0, H.plat), x: Math.min(P.x1 - 600, H.x + 1800) });
+    const b = F.mobs[F.mobs.length - 1]; if (SURGE.bossHpX !== 1) { b.hp = Math.round(b.hp * SURGE.bossHpX); b.st = { ...b.st, hp: b.hp }; }
+    F.events.push(['sg-boss', F.t, b.id]);
+  }
+  sgView(d) { const G = d.sg, F = d.F; return { phase: G.phase, stack: G.stack, cap: SURGE.cap, dmgP: (G.stack * SURGE.per) / 10, leftMs: G.phase ? Math.max(0, d.limitMs - F.t) : Math.max(0, SURGE.phaseMs - F.t), bossMs: G.phase ? F.t - G.at : 0 }; }
+  sgLabel(d) {
+    const G = d.sg, F = d.F;
+    if (!G.phase) return { p: F.t / SURGE.phaseMs, label: `몹을 잡아 기세 쌓기 · ${G.stack}단` };
+    const b = F.mobs.find((m) => m.kind === 'boss'), r = b ? b.hp / b.st.hp : 0;
+    return { p: 1 - r, label: `두목 ${Math.ceil(r * 100)}% · ${((F.t - G.at) / 1000).toFixed(1)}초` };
+  }
+  sgEnd(d, out) {
+    const S = this.S, L = S.hero.lv, ms = d.F.t - d.sg.at, star = surgeStar(ms), T = this.surgeSt();
+    out.star = star;
+    if (!star) return;
+    out.gold = Math.round(SURGE.goldMin[star - 1] * KILLS_PER_MIN * goldPerMob(L)); S.wallet.gold += out.gold;
+    out.heart = SURGE.heart[star - 1]; S.wallet['item:heart'] = (S.wallet['item:heart'] || 0) + out.heart;
+    if (!T.best || ms < T.best) { T.best = ms; out.record = 1; }
+    T.star = Math.max(T.star, star);
   }
   // 같은 던전을 화면 없이 끝까지(소탕 · 봇)
   runNow(type, kind) {
@@ -1342,6 +1567,7 @@ export class Game {
   returnCheck(nowMs) {
     const p = OF.checkReturn(this.S.offline, nowMs, String(weekKey(nowMs)), this.S.hero.lv, this.S.hero.exp);
     this.now = nowMs;
+    const gi = p ? this.gresIdle() : 0; if (gi) { p.gres = gi; p.exp = Math.round((p.exp * (1000 + gi)) / 1000); p.gold = Math.round((p.gold * (1000 + gi)) / 1000); }   // v635 연공실 좌공 비결
     return p;
   }
   claimOffline(withAd = false) {
