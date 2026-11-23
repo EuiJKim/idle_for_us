@@ -2279,6 +2279,25 @@ console.log('\n=== v635 문파 연공실 · 품앗이 · 겨루기 ===');
   g.tick(T0 + 8 * 86400e3); ok(g.gwarSt().help === 0 && g.gwarSt().don === 0 && g.gwarSt().got === 'y', 'gd 겨루기: 다음 주 내 몫 새로(받은 표시는 남음)');
 }
 
+console.log('\n=== v642 전직 갈래 ===');
+{
+  const SK = await import('../js/s2/tables/skills.js');
+  ok(['sword', 'spear', 'fist', 'bow', 'mage'].every((j) => SK.JOB_PATH[j].length === 2 && new Set(SK.JOB_PATH[j].map((p) => p.id)).size === 2 && SK.JOB_PATH[j].every((p) => p.name && Object.keys(p.stats).length >= 2)) && SK.PATH_ADV === 3, '직업마다 갈래 둘 · 3차 전직부터');
+  const T0 = 1.8e12, g = new Game(newGame('sword', T0, 13), T0); g.tick(T0); g.S.hero.lv = 85; g.S.hero.adv = 2; g.dirtyStats = true;
+  ok(!g.pathState().open && g.pathPick('swift') === null && !g.hero.sources().some((x) => /^갈래/.test(x.src)), '2차까지는 못 고른다');
+  g.S.hero.adv = 3; g.dirtyStats = true; const P0 = g.pathState(), pw0 = g.power(), gold0 = (g.S.wallet.gold = 1e9);
+  ok(P0.open && !P0.cur && P0.cost === 0 && P0.list.length === 2, '3차 — 열림 · 아직 안 고름 · 처음은 공짜');
+  const r1 = g.pathPick('swift');
+  ok(r1 && r1.cost === 0 && g.S.wallet.gold === gold0 && g.pathState().cur === 'swift' && g.hero.sources().some((x) => x.src === '갈래 · 쾌검' && x.stats.baseP === 150) && g.power() > pw0, '고르면 출처 「갈래 · 쾌검」 · 전투력 오름', `${pw0} → ${g.power()}`);
+  ok(g.pathPick('swift') === null && g.pathPick('nope') === null && g.pathPick('rapid') === null, '같은 갈래 · 없는 갈래 · 남의 직업 갈래는 안 됨');
+  const c = g.pathState().cost; ok(c > 0, '바꾸기는 은자', c);
+  g.S.wallet.gold = c - 1; ok(g.pathPick('heavy') === null && g.pathState().cur === 'swift', '은자가 모자라면 못 바꾼다');
+  g.S.wallet.gold = c; const r2 = g.pathPick('heavy');
+  ok(r2 && r2.cost === c && g.S.wallet.gold === 0 && g.pathState().cur === 'heavy' && g.hero.sources().filter((x) => /^갈래/.test(x.src)).length === 1, '바꾸면 은자가 빠지고 갈래는 하나만');
+  const g2 = new Game(newGame('mage', T0, 14), T0); g2.tick(T0); g2.S.hero.lv = 85; g2.S.hero.adv = 3; g2.dirtyStats = true; g2.autoGrow();
+  ok(g2.pathState().cur === 'frost', '자동 성장 — 안 골랐으면 둘째를 고른다(공짜)');
+  g2.S.hero.path = 'zzz'; g2.dirtyStats = true; ok(g2.pathState().cur === null && Number.isFinite(g2.power()), '모르는 값은 안 고른 것으로');
+}
 console.log('\n=== v641 지킬 옵션 · 칠파 회전 ===');
 {
   const GR2 = await import('../js/s2/gear/gear.js'), GD2 = await import('../js/s2/online/guild.js');

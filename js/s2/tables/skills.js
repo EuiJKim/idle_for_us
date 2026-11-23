@@ -41,3 +41,14 @@ export const JOB_ADV = [
 // 고유 스탯 — 스탯 50점마다 1점, 치명·치명 피해·보스 피해 중 하나에 넣는다(한 점에 얼마)
 export const UNIQUE_EVERY = 50;
 export const UNIQUE_STATS = { crit: 4, critDmg: 15, bossDmg: 10 };
+
+// v642 전직 갈래 — 3차 전직부터 직업마다 두 갈래 가운데 하나(값은 퍼밀 · 첫 고르기는 공짜 · 바꾸기는 은자 사냥 PATH_SWAP_MIN분 몫)
+export const PATH_ADV = 3, PATH_SWAP_MIN = 30;
+export const JOB_PATH = {
+  sword: [{ id: 'swift', name: '쾌검', txt: '빠르고 날카로운 검 — 평타와 치명', stats: { baseP: 150, crit: 40 } }, { id: 'heavy', name: '중검', txt: '무겁게 내리치는 검 — 무공과 두목', stats: { skillP: 120, bossDmg: 80 } }],
+  spear: [{ id: 'sweep', name: '선풍창', txt: '휩쓰는 창 — 몹 무리', stats: { mobDmg: 150, baseP: 60 } }, { id: 'pierce', name: '관일창', txt: '꿰뚫는 창 — 두목과 관통', stats: { bossDmg: 120, pierce: 80 } }],
+  fist: [{ id: 'iron', name: '금강권', txt: '무너지지 않는 몸 — 버티기', stats: { takenDownP: 80, hpP: 100 } }, { id: 'break', name: '파천권', txt: '한 방의 주먹 — 치명 피해', stats: { critDmg: 250, baseP: 100 } }],
+  bow: [{ id: 'rapid', name: '속사', txt: '쉴 새 없는 화살 — 평타와 치명', stats: { baseP: 180, crit: 30 } }, { id: 'snipe', name: '저격', txt: '한 발의 화살 — 두목과 치명 피해', stats: { bossDmg: 120, critDmg: 200 } }],
+  mage: [{ id: 'thunder', name: '뇌법', txt: '벼락의 술법 — 무공과 쿨', stats: { skillP: 150, cdr: 50 } }, { id: 'frost', name: '빙법', txt: '얼음의 술법 — 몹 무리와 보호', stats: { mobDmg: 120, takenDownP: 60 } }],
+};
+export const pathOf = (job, id) => (JOB_PATH[job] || []).find((p) => p.id === id) || null;

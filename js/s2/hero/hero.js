@@ -3,7 +3,7 @@
 import { cumExp, expToNext } from '../tables/exp.js';
 import { LEVEL_MAX, JOB_LV } from '../tables/progress.js';
 import { JOBS, baseAtk, baseHp, baseDef, MAIN_TO_ATK, MAIN_TO_HP, SUB_TO_HP } from '../tables/char.js';
-import { SKILLS, skillCap, skillCost, MASTERY, masteryCost, JOB_ADV, UNIQUE_EVERY, UNIQUE_STATS } from '../tables/skills.js';
+import { SKILLS, skillCap, skillCost, MASTERY, masteryCost, JOB_ADV, UNIQUE_EVERY, UNIQUE_STATS, PATH_ADV, pathOf } from '../tables/skills.js';
 import { sumStats, finalize } from '../core/stats.js';
 import { pay } from '../core/cost.js';
 import { KIT, SLOT_N, kitCap, kitCost, skillById, battleKit, treeOf, TREE_GATE, kitPoints, treeResetCost, varsOf, VAR_GATE } from '../tables/kit.js';
@@ -234,6 +234,7 @@ export class Hero {
     if (f1) out.push({ src: '무공 마스터리', stats: { final1: f1 } });
     const sp = s.sp;
     if (sp && SP_KEYS.some((k) => sp[k] > 0)) out.push({ src: '스탯 배분', stats: Object.fromEntries(SP_KEYS.filter((k) => sp[k] > 0).map((k) => [SP_STAT[k], Math.min(SP_CAP, sp[k]) * SP_EACH[k]])) });
+    { const P = s.adv >= PATH_ADV ? pathOf(s.job, s.path) : null; if (P) out.push({ src: `갈래 · ${P.name}`, stats: { ...P.stats } }); }   // v642 전직 갈래(3차부터)
     const sp2 = s.sp2;
     if (sp2 && SP2_KEYS.some((k) => sp2[k] > 0)) out.push({ src: '내공 단계', stats: Object.fromEntries(SP2_KEYS.filter((k) => sp2[k] > 0).map((k) => [k, Math.min(SP2_CAP, sp2[k]) * SP2_EACH[k]])) });
     return out;

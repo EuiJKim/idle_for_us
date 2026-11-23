@@ -2328,6 +2328,35 @@ const ok = (c, m, x = '') => { console.log(`  ${c ? '✓' : '✗ !!'} ${m}${x !=
       await ctx.close();
     }
   }
+  if (!process.env.ONLY || process.env.ONLY.split(',').some((x) => x === '844' || x === 'p642')) {
+    console.log('— v642 전직 갈래');
+    for (const [VW, VH] of [[844, 390], [667, 375]]) {
+      const ctx = await b.newContext({ viewport: { width: VW, height: VH }, serviceWorkers: 'block' });
+      await ctx.route(/gstatic\.com\/firebasejs/, (r) => r.abort());
+      const page = await ctx.newPage(); const errs = [];
+      page.on('pageerror', (e) => errs.push(e.message)); page.on('console', (m) => { if (m.type() === 'error' && !/Failed to load|ERR_FAILED/.test(m.text())) errs.push(m.text()); });
+      await page.goto(BASE, { waitUntil: 'domcontentloaded' });
+      await page.waitForSelector('#modal:not(.hidden) .jobcard'); await page.click('#modal .jobcard[data-job="bow"]');
+      await page.waitForSelector('#modal', { state: 'hidden' }); await page.waitForTimeout(500);
+      await page.evaluate(() => { window.__s2.openKey('hero:3'); }); await page.waitForSelector('#wb .pt-grid');
+      const p0 = await page.evaluate(() => ({ lock: document.querySelector('#wb .pt-grid').classList.contains('lock'), n: document.querySelectorAll('#wb .pt-card').length, go: document.querySelectorAll('#wb .pt-go').length }));
+      ok(p0.lock && p0.n === 2 && p0.go === 0, `v642 ${VW} 3차 전에는 갈래 둘이 흐리게 · 단추 없음`, JSON.stringify(p0));
+      await page.evaluate(() => { const g = window.__s2.g; g.S.hero.lv = 85; g.S.hero.adv = 3; g.S.wallet.gold = 1e9; g.dirtyStats = true; window.__s2.navDots(); window.__s2.openKey('hero:3'); }); await page.waitForSelector('#wb .pt-go');
+      const p1 = await page.evaluate(() => { const bs = [...document.querySelectorAll('#wb .pt-go')], pb = document.getElementById('panel-body').getBoundingClientRect(); return { n: bs.length, txt: bs.map((x) => x.textContent), h: Math.min(...bs.map((x) => x.getBoundingClientRect().height)), names: [...document.querySelectorAll('#wb .pt-h b')].map((x) => x.textContent), dot: document.querySelector('.nb[data-tab="char"], #ptabs button[data-tab="char"]')?.dataset.dot || '', over: [...document.querySelectorAll('#wb .pt-card')].filter((c) => c.getBoundingClientRect().right > pb.right + 1 || c.scrollWidth > c.clientWidth + 1).length }; });
+      ok(p1.n === 2 && p1.txt.every((t) => t === '이 갈래로') && p1.h >= 34 && p1.names.join() === '속사,저격' && !p1.over, `v642 ${VW} 3차 — 「이 갈래로」 둘 · 넘침 없음`, JSON.stringify(p1));
+      await page.click('#wb .pt-card[data-id="snipe"] .pt-go'); await page.waitForTimeout(300);
+      const p2 = await page.evaluate(() => ({ cur: window.__s2.g.pathState().cur, on: document.querySelector('#wb .pt-card.on')?.dataset.id, other: document.querySelector('#wb .pt-card[data-id="rapid"] .pt-go')?.textContent || '', gold: window.__s2.g.S.wallet.gold }));
+      ok(p2.cur === 'snipe' && p2.on === 'snipe' && /^바꾸기/.test(p2.other) && p2.gold >= 1e9, `v642 ${VW} 고르면 「지금 갈래」 · 다른 쪽은 「바꾸기 · 은자」 · 처음은 공짜`, JSON.stringify(p2));
+      await page.evaluate(() => document.querySelector('#wb .pt-grid').scrollIntoView({ block: 'center' })); await page.waitForTimeout(200);
+      await page.screenshot({ path: path.join(OUT, `s2-path-${VW}.png`) });
+      await page.click('#wb .pt-card[data-id="rapid"] .pt-go'); await page.waitForTimeout(300);
+      const p3 = await page.evaluate(() => ({ cur: window.__s2.g.pathState().cur, gold: window.__s2.g.S.wallet.gold }));
+      ok(p3.cur === 'rapid' && p3.gold < p2.gold, `v642 ${VW} 바꾸면 은자가 빠진다`, JSON.stringify(p3));
+      ok(errs.length === 0, `v642 ${VW} 전직 갈래 — 콘솔 오류 없음`, errs.slice(0, 3).join(' | '));
+      await page.evaluate(() => window.__s2.freeze?.());
+      await ctx.close();
+    }
+  }
   await b.close();
   console.log(fails ? `\n✗ ${fails}건` : '\n✓ 새 시즌 화면 전부 통과');
   process.exit(fails ? 1 : 0);

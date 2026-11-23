@@ -16,7 +16,7 @@ import { CDR_CAP, KILL_HEAL_CAP } from './tables/traits.js';
 import { SUB_POOL } from './tables/gearstat.js';
 import { DAILY_DUNGEONS, DAILY_RUNS, JOB_DUNGEON, towerMsFloors, towerMsReward, SURGE, surgeStar } from './tables/content.js';
 import { GUIDE, DAILY_MISSIONS, WEEKLY_MISSIONS, achievements, guideCurrent } from './tables/missions.js';
-import { JOB_ADV, MASTERY } from './tables/skills.js';
+import { JOB_ADV, MASTERY, PATH_ADV, PATH_SWAP_MIN, JOB_PATH, pathOf } from './tables/skills.js';
 import { SHOP, SHOP_FREE, shopById } from './tables/shop.js';
 import { EXCHANGE, EX_CUR, EX_EARN, exItem } from './tables/exchange.js';   // v635 교환소
 import { PASS, PASS_PTS, PASS_REWARDS } from './tables/pass.js';
@@ -411,6 +411,15 @@ export class Game {
     const T = GD.leagueTable(gid, last.week, last.n || 1, last.us, 1), R = GD.GLEAGUE.rew[T.rank - 1]; if (!R) return null;
     W.lgot = last.week; this.S.wallet['ticket:gear'] = (this.S.wallet['ticket:gear'] || 0) + R.tix;
     return { rank: T.rank, tix: R.tix, merit: this.exEarn('merit', R.merit) };
+  }
+  // v642 전직 갈래 — 3차 전직부터 둘 가운데 하나 · 첫 고르기 공짜 · 바꾸기는 은자(사냥 30분 몫)
+  pathState() { const H = this.S.hero, cur = H.adv >= PATH_ADV ? pathOf(H.job, H.path) : null; return { open: H.adv >= PATH_ADV, cur: cur?.id || null, list: JOB_PATH[H.job] || [], cost: cur ? Math.round(PATH_SWAP_MIN * KILLS_PER_MIN * goldPerMob(H.lv)) : 0 }; }
+  pathPick(id) {
+    const H = this.S.hero, P = this.pathState(), to = pathOf(H.job, id);
+    if (!P.open || !to || P.cur === id || this.bossFight) return null;
+    if (P.cost > (this.S.wallet.gold || 0)) return null;
+    this.S.wallet.gold -= P.cost; H.path = id; this.dirtyStats = true;
+    return { id, name: to.name, cost: P.cost };
   }
   // v641 지킬 옵션 — 켜면 그 부옵션이 붙은 장비는 자동 · 일괄 분해에서 빠진다
   gearKeepSub(k) { const G = this.S.gear, L = (G.keepSub ??= []), i = L.indexOf(k); if (i >= 0) L.splice(i, 1); else if (SUB_POOL.some((s) => s.k === k)) L.push(k); else return null; return L.includes(k); }
@@ -941,7 +950,8 @@ export class Game {
     if (o.kit !== false) { const k = this.kitUpAll(); if (k) out.kit = k.n; }
     if (o.enh !== false) { const e = this.enhanceAll(); if (e) out.enh = e.ok; }
     // v592 수련 — 배울 수 있는 마스터리 · 경지 돌파(은자가 되는 만큼, 강화 뒤에)
-    if (o.stat !== false) { out.train += this.statAuto(); this.stat2Auto(); }   // 남은 스탯 점수는 고르게(공짜 — v609 은자 아끼기(train 끔)여도 찍는다)
+    if (o.stat !== false) { out.train += this.statAuto(); this.stat2Auto(); }
+    { const P = this.pathState(); if (P.open && !P.cur && P.list[1]) this.pathPick(P.list[1].id); }   // v642 갈래를 안 골랐으면 둘째를 — 공짜   // 남은 스탯 점수는 고르게(공짜 — v609 은자 아끼기(train 끔)여도 찍는다)
     if (o.train !== false) {
       for (const m of MASTERY) if (this.learn(m.id)) out.train++;
       for (let i = 0; i < 10 && this.realmUp(); i++) out.train++;

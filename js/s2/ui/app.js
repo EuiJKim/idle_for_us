@@ -814,6 +814,7 @@ function dotSubs() {
   if (kitUp) put('hero:1', 'gold', `${kitUp}`);
   const tree = g.treePts?.().left || 0; if (tree > 0) put('hero:4', 'gold', `${tree}`);
   if (h.canAdvance?.()) put('hero:3', 'gold', `${S.hero.adv || 0}`);
+  { const P = g.pathState?.(); if (P && P.open && !P.cur) put('hero:3', 'gold', 'path'); }   // v642 갈래를 아직 안 골랐다
   // 장비 — 뽑기권 10장↑(할 수 있는 것) · 저절로 새로 낀 장비(새 것)
   const tix = W['ticket:gear'] || 0; if (tix >= 10) put('gear:1', 'gold', `${Math.floor(tix / 10)}`);
   if (Object.keys(S.gearNew || {}).length) put('gear:0', 'new');
@@ -1314,6 +1315,14 @@ function paintWin() {
       else end.innerHTML = `<small class="jb-hint">${i - 1}차 다음</small>`;
       lad.append(el);
     }
+    // v642 전직 갈래 — 3차 전직부터 둘 가운데 하나(첫 고르기 공짜 · 바꾸기는 은자)
+    { const P = g.pathState(), PS = { baseP: '평타 피해', crit: '치명 확률', skillP: '무공 피해', bossDmg: '두목 피해', mobDmg: '몹 피해', pierce: '관통', takenDownP: '받는 피해 감소', hpP: '체력', critDmg: '치명 피해', cdr: '무공 쿨 감소' };
+      const cp = card('전직 갈래', P.open ? (P.cur ? `바꾸기 은자 ${unit(P.cost)}` : '하나를 골라요 — 처음은 공짜') : `${JOB_LV[3]}레벨 3차 전직부터`), pg = document.createElement('div'); pg.className = `pt-grid${P.open ? '' : ' lock'}`;
+      for (const X of P.list) { const on = P.cur === X.id, d = document.createElement('div'); d.className = `pt-card${on ? ' on' : ''}`; d.dataset.id = X.id;
+        d.innerHTML = `<div class="pt-h"><b>${X.name}</b>${on ? '<em>지금 갈래</em>' : ''}</div><p>${X.txt}</p><div class="pt-s">${Object.entries(X.stats).map(([k, v]) => `<span>${PS[k]} <b>${k === 'cdr' || k === 'takenDownP' ? '' : '+'}${v / 10}%${k === 'crit' ? 'p' : ''}</b></span>`).join('')}</div>`;
+        if (P.open && !on) { const b = document.createElement('button'); b.className = `btn${P.cur ? '' : ' primary'} pt-go`; b.textContent = P.cur ? `바꾸기 · ${unit(P.cost)}` : '이 갈래로'; b.disabled = P.cost > (W.gold || 0); b.onclick = act(() => { const r = g.pathPick(X.id); if (r) { play('rare', 3); toast(`갈래 — ${r.name}${r.cost ? ` · 은자 −${unit(r.cost)}` : ''}`); } else toast(g.bossFight ? '두목전 중에는 바꿀 수 없어요' : '은자가 모자라요'); return r; }); d.append(b); }
+        pg.append(d); }
+      cp(pg); }
     // 무인 — 창이 열려 있는 동안만 그린다(닫거나 다른 칸이면 멈춤) · 낮은 그래픽은 숨쉬기 없이 그림이 받아질 때까지 몇 번만
     { let last = 0, k = 0, run = true; const paint = (ts) => {
         if (!cvs.isConnected || !open) { run = false; return; }

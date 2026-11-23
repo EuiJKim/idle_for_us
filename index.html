@@ -2031,6 +2031,14 @@
     #loglines div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     #panel .dg-ttcard .row .info:first-child { flex-basis: 100%; }
     .coll-tile .tr-t, .rl-mk small { font-size: 10px; } .coll-tile u, .tr-sl u { font-size: 9.5px; }
+    /* v642 전직 갈래 카드 */
+    .pt-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; } .pt-grid.lock { opacity: .5; }
+    .pt-card { display: flex; flex-direction: column; gap: 5px; padding: 10px 12px; border-radius: 12px; background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.09); min-width: 0; }
+    .pt-card.on { border-color: rgba(232,200,122,.75); background: linear-gradient(180deg, rgba(232,200,122,.15), rgba(232,200,122,.04)); }
+    .pt-h { display: flex; justify-content: space-between; align-items: baseline; gap: 6px; } .pt-h b { font-family: var(--serif); font-size: 16px; color: #f3e3b4; } .pt-h em { font-style: normal; font-size: 10.5px; font-weight: 800; color: #1a1408; background: #e8c26a; border-radius: 999px; padding: 1px 7px; white-space: nowrap; }
+    .pt-card p { margin: 0; font-size: 11.5px; line-height: 1.35; color: rgba(255,255,255,.65); }
+    .pt-s { display: flex; flex-wrap: wrap; gap: 4px 6px; } .pt-s span { font-size: 11px; padding: 2px 7px; border-radius: 999px; background: rgba(255,255,255,.06); white-space: nowrap; } .pt-s b { color: #4ade80; }
+    #panel-body .pt-card .btn { margin-top: auto; min-height: 36px; }
     /* v641 가방 옵션 칩 · 칠파 회전 표 */
     .bago .chip.keep::after { content: ' 🔒'; font-size: 10px; } .bago .bago-keep { margin-left: auto; border-style: dashed; } .bago .bago-keep.on { border-style: solid; border-color: #4ade80; color: #bbf7d0; background: rgba(20,83,45,.5); }
     .gd-lgt { display: flex; flex-direction: column; gap: 4px; }
