@@ -2279,6 +2279,31 @@ console.log('\n=== v635 문파 연공실 · 품앗이 · 겨루기 ===');
   g.tick(T0 + 8 * 86400e3); ok(g.gwarSt().help === 0 && g.gwarSt().don === 0 && g.gwarSt().got === 'y', 'gd 겨루기: 다음 주 내 몫 새로(받은 표시는 남음)');
 }
 
+console.log('\n=== v640 병법 상극 · 실제 적용값 ===');
+{
+  const ON = await import('../js/s2/tables/online.js'), PV2 = await import('../js/s2/online/pvp.js'), CH = await import('../js/s2/tables/char.js'), TR = await import('../js/s2/tables/traits.js');
+  const jobs = ['sword', 'spear', 'fist', 'bow', 'mage'];
+  ok(jobs.every((j) => jobs.includes(ON.PVP_COUNTER[j]) && ON.PVP_COUNTER[j] !== j) && new Set(jobs.map((j) => ON.PVP_COUNTER[j])).size === 5, '상극 고리 — 다섯 직업이 하나씩 누르고 하나씩 눌린다');
+  ok(ON.pvpEdge('sword', 'spear') === 1 && ON.pvpEdge('spear', 'sword') === -1 && ON.pvpEdge('sword', 'sword') === 0 && ON.pvpEdge('sword', 'fist') === 0, '유리 1 · 불리 −1 · 그 밖 0');
+  const A = refPlayer(100), mk = (j) => ({ ...A, job: j }), W = (a, d) => { let w = 0; for (let s = 1; s <= 200; s++) w += PV2.duel(mk(a), mk(d), s).win ? 1 : 0; return w; };
+  const even = W('sword', 'sword'), up = W('sword', 'spear'), dn = W('spear', 'sword'), none = W('sword', 'fist');
+  ok(up > even + 20 && dn < even - 20, `같은 힘이면 누르는 쪽이 더 이긴다(200판)`, `같은 직업 ${even} · 유리 ${up} · 불리 ${dn} · 무관 ${none}`);
+  const strong = { ...mk('spear'), st: { ...A.st, atk: A.st.atk * 2, hp: A.st.hp * 2 } }; let sw = 0; for (let s = 1; s <= 40; s++) sw += PV2.duel(strong, mk('sword'), s).win ? 1 : 0;
+  ok(sw >= 38, '상극은 작다 — 두 배 센 쪽은 불리해도 이긴다', sw);
+  const l1 = [], l2 = []; PV2.duel(mk('sword'), mk('spear'), 5, l1); PV2.duel(mk('sword'), mk('spear'), 5, l2);
+  ok(JSON.stringify(l1) === JSON.stringify(l2) && l1.length > 0, '상극이 있어도 결정론');
+  // 실제 적용값
+  const T0 = 1.8e12, g = new Game(newGame('sword', T0, 9), T0); g.tick(T0); g.S.hero.lv = 40; g.statAuto(); g.dirtyStats = true;
+  const R = Object.fromEntries(g.statReal().map((r) => [r.k, r])), st = g.fighter(false).st;
+  ok(g.statReal().length === 7 && R.crit.real === Math.min(1000, CH.BASE_CRIT + (st.crit || 0)) && R.crit.real > R.crit.shown, '치명 확률 — 기본 5%를 더한 값', `${R.crit.shown} → ${R.crit.real}`);
+  ok(R.critDmg.real === 1000 + CH.BASE_CRIT_DMG + (st.critDmg || 0) && R.critDmg.mul, '치명 한 대 = ×(1 + 기본 50% + 표기)');
+  const k = CH.defK(40); ok(R.def.real === Math.round(1000 * st.def / (k + st.def)) && R.def.real > 0 && R.def.real < 1000, '방어 → 받는 피해 감소(같은 레벨)', `${st.def} → ${R.def.real / 10}%`);
+  const fin = ['final1', 'final2', 'final3', 'final4', 'final5'].reduce((a, n) => a * (1000 + (st[n] || 0)) / 1000, 1);
+  ok(R.final.real === Math.round(fin * 1000), '최종 피해 합은 곱');
+  ok(!R.cdr.capped && !R.killHeal.capped && R.cdr.cap === TR.CDR_CAP && R.killHeal.cap === TR.KILL_HEAL_CAP && R.takenDownP.cap === CH.TAKEN_DOWN_CAP, '상한 값 — 쿨 30% · 처치 회복 10% · 받는 피해 감소 70%');
+  g.S.hero.sp2 = { cdr: 8 }; const C = g.S.colls.relic; for (const kk of [2, 13, 23]) C.own[kk] = { lv: 30, awk: 5, n: 0 }; g.collAuto('relic', true); g.dirtyStats = true;
+  const g3 = g.statReal().find((r) => r.k === 'cdr'); ok(g3.shown > 0 && g3.real === Math.min(TR.CDR_CAP, g3.shown), '쿨 감소 표기 → 실제(상한까지)', `${g3.shown} → ${g3.real}`);
+}
 console.log('\n=== v639 영물 공명 · 내공 단계 ===');
 {
   const TR = await import('../js/s2/tables/traits.js'), CL2 = await import('../js/s2/grow/collect.js'), HH = await import('../js/s2/hero/hero.js');

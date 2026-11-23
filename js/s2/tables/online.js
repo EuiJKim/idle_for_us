@@ -16,6 +16,10 @@ export const WB_PHASE_REWARD_MIN = 6;        // 사냥 분 상당(계획서 하�
 
 // 대결: 하루 공격 5번 · 점수식 · 티어
 export const PVP = { triesPerDay: 5, start: 1000, win: 20, lose: 12, defWin: 3, defLose: 8, gapK: 0.5, gapMax: 12, fightMs: 60000 };
+// v640 병법 상극 — 검 → 창 → 권 → 궁 → 술 → 검(앞이 뒤를 누른다). 누르는 쪽이 주는 피해 +8%(대결에서만)
+export const PVP_COUNTER = { sword: 'spear', spear: 'fist', fist: 'bow', bow: 'mage', mage: 'sword' };
+export const PVP_COUNTER_P = 80;
+export const pvpEdge = (a, d) => (PVP_COUNTER[a] === d ? 1 : PVP_COUNTER[d] === a ? -1 : 0);   // 1 유리 · −1 불리 · 0 없음
 export const PVP_TIERS = [
   { min: 0, name: '하수' }, { min: 1100, name: '중수' }, { min: 1250, name: '고수' }, { min: 1400, name: '절정' },
   { min: 1600, name: '초절정' }, { min: 1850, name: '화경' }, { min: 2150, name: '현경' },

@@ -5,7 +5,7 @@ import { raidPhase } from '../online/guild.js';
 import { GRES, GRES_DAY, gresNeed, resTarget, resCan, resStats, helpCut, GWAR, rival, rivalNow } from '../online/guild.js';   // v635 연공실 · 품앗이 · 겨루기
 import { GUILD } from '../tables/online.js';
 import { scoreDelta as pvpDelta } from '../online/pvp.js';   // 대결 카드 — 이기면/지면 점수 미리 보기
-import { PVP_TIERS } from '../tables/online.js';
+import { PVP_TIERS, pvpEdge, PVP_COUNTER, PVP_COUNTER_P } from '../tables/online.js';
 import { SAVE_KEY } from '../core/save.js';
 import { S2Net } from './net.js';
 import { encodeSave, decodeAny } from '../../savecode.js';
@@ -1148,6 +1148,10 @@ function paintWin() {
     const t3 = document.createElement('div'); t3.className = 'st-tiles st-fin';
     t3.innerHTML = FD.map(([k, why], i) => `<div class="st-t st-f${st[k] ? '' : ' zero'}" data-k="${k}"><span class="st-l">최종 피해${'①②③④'[i]}</span><b>${pm(st[k] || 0)}</b><small class="st-w">${why}</small></div>`).join('');
     c3(t3); t3.parentNode.classList.add('st-card');
+    // v640 실제 적용값 — 표기값과 싸움에서 쓰이는 값이 다른 것(상한 · 기본값 · 곱)
+    { const c4 = card('실제 적용값', '창에 보이는 수 → 싸움에서 쓰이는 수'), tb = document.createElement('div'); tb.className = 'sr-list';
+      tb.innerHTML = g.statReal().map((r) => `<div class="sr-row${r.capped ? ' cap' : ''}" data-k="${r.k}"><b>${r.name}</b><span class="sr-v"><i>${r.flat ? unit(r.shown) : pm(r.shown)}</i><u>→</u><em>${r.mul ? `×${(r.real / 1000).toFixed(2)}` : `${r.neg && r.real > 0 ? "−" : ""}${pm(r.real)}`}</em>${r.capped ? '<s>상한</s>' : ''}</span><small>${r.note}</small></div>`).join('');
+      c4(tb); }
     // 스탯 배분 — 레벨마다 1점 · 네 스탯에 손으로(값은 작다 · 되돌리기는 공짜)
     { const P = g.hero.spState(), free = g.statPts(), used = g.hero.spUsed(), cs = card('스탯 배분', `남은 점수 ${free} · 레벨마다 1점`);
       const NM = { atk: ['공격', '攻'], hp: ['체력', '體'], def: ['방어', 'i:def:防'], crit: ['치명 확률', '銳'] };
@@ -1948,10 +1952,10 @@ function paintWin() {
     // 상대 카드 — 작은 모습(그 무인의 외형 · 연습 상대는 레벨대로) · 직업 · 레벨 · 전투력 · 쉬움/비슷/어려움 · 이기면/지면 점수
     const myPw = g.power('pvp'), list = document.createElement('div'); list.className = 'duel-list';
     g.pvpOpponents().forEach((o, i) => {
-      const [hard, hc] = duelHard(myPw, o.pw), sw = pvpDelta(true, myPw, o.pw).atk, sl = pvpDelta(false, myPw, o.pw).atk;
+      const edge = pvpEdge(g.S.hero.job, o.f.job), [hard, hc] = duelHard(myPw, o.pw), sw = pvpDelta(true, myPw, o.pw).atk, sl = pvpDelta(false, myPw, o.pw).atk;
       const el = document.createElement('div'); el.className = `duel-opp ${hc}`;
       el.innerHTML = `<canvas class="duel-cv" width="180" height="200"></canvas><div class="duel-oi"><b>${esc(o.name)}</b><small>${esc(JOBS[o.f.job].name)} · Lv ${o.f.lv}</small>
-        <div class="duel-tags">${o.real ? '<span class="pill pv-real">무인</span>' : '<span class="pill">연습</span>'}<span class="duel-chip ${hc}">${hard}</span></div>
+        <div class="duel-tags">${o.real ? '<span class="pill pv-real">무인</span>' : '<span class="pill">연습</span>'}<span class="duel-chip ${hc}">${hard}</span>${edge ? `<span class="duel-chip ${edge > 0 ? 'easy' : 'hard'} duel-edge">상성 ${edge > 0 ? '유리' : '불리'}</span>` : ''}</div>
         <div class="duel-pw">⚔ ${unit(o.pw)}${o.real ? ` <em>${o.score}점</em>` : ''}</div><div class="duel-sd"><span class="w">승 +${sw}</span><span class="l">패 ${sl}</span></div></div>`;
       const cv = el.querySelector('canvas'); cv._d = { job: o.f.job, lv: o.f.lv, eq: lookEqOf(o.lk, o.f.lv), ph: i * 0.7 };
       const bt = document.createElement('div'); bt.className = 'duel-bt';
@@ -1959,6 +1963,7 @@ function paintWin() {
       el.append(bt); list.append(el);
     });
     c0(list); duelCvRun();
+    c0(note(`병법 상극 — ${['sword', 'spear', 'fist', 'bow', 'mage'].map((j) => JOBS[j].name).join(' → ')} → ${JOBS.sword.name} · 누르는 쪽이 주는 피해 +${PVP_COUNTER_P / 10}% · 나(${JOBS[g.S.hero.job].name})는 ${JOBS[PVP_COUNTER[g.S.hero.job]].name}에게 유리`));
     if (!g.pvpOpponents().some((o) => o.real)) c0(note(net.online ? '점수가 가까운 무인을 찾는 중 — 없으면 연습 상대와 겨뤄요' : '오프라인 — 연습 상대와 겨뤄요'));
     const log = g.S.pvp?.log || [];
     if (log.length) {

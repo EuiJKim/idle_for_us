@@ -2267,6 +2267,32 @@ const ok = (c, m, x = '') => { console.log(`  ${c ? '✓' : '✗ !!'} ${m}${x !=
       await ctx.close();
     }
   }
+  if (!process.env.ONLY || process.env.ONLY.split(',').some((x) => x === '844' || x === 'p640')) {
+    console.log('— v640 병법 상극 · 실제 적용값');
+    for (const [VW, VH] of [[844, 390], [667, 375]]) {
+      const ctx = await b.newContext({ viewport: { width: VW, height: VH }, serviceWorkers: 'block' });
+      await ctx.route(/gstatic\.com\/firebasejs/, (r) => r.abort());
+      const page = await ctx.newPage(); const errs = [];
+      page.on('pageerror', (e) => errs.push(e.message)); page.on('console', (m) => { if (m.type() === 'error' && !/Failed to load|ERR_FAILED/.test(m.text())) errs.push(m.text()); });
+      await page.goto(BASE, { waitUntil: 'domcontentloaded' });
+      await page.waitForSelector('#modal:not(.hidden) .jobcard'); await page.click('#modal .jobcard[data-job="sword"]');
+      await page.waitForSelector('#modal', { state: 'hidden' }); await page.waitForTimeout(500);
+      await page.evaluate(() => { const g = window.__s2.g; g.S.hero.lv = 40; g.dirtyStats = true; window.__s2.openKey('hero:0'); });
+      await page.waitForSelector('#wb .sr-list .sr-row');
+      const a1 = await page.evaluate(() => { const rows = [...document.querySelectorAll('#wb .sr-row')], pb = document.getElementById('panel-body').getBoundingClientRect(), c = rows.find((r) => r.dataset.k === 'crit'); return { n: rows.length, crit: c.querySelector('.sr-v').textContent, over: rows.filter((r) => r.getBoundingClientRect().right > pb.right + 1 || r.scrollWidth > r.clientWidth + 1).length, fs: Math.min(...rows.map((r) => parseFloat(getComputedStyle(r.querySelector('small')).fontSize))) }; });
+      ok(a1.n === 7 && /→/.test(a1.crit) && !a1.over && a1.fs >= 10, `v640 ${VW} 실제 적용값 표 — 일곱 줄 · 표기 → 실제 · 넘침 없음`, JSON.stringify(a1));
+      await page.evaluate(() => document.querySelector('#wb .sr-list').scrollIntoView({ block: 'center' })); await page.waitForTimeout(200);
+      await page.screenshot({ path: path.join(OUT, `s2-real-${VW}.png`) });
+      await page.evaluate(() => window.__s2.openKey('rival:1')); await page.waitForSelector('#wb .duel-opp');
+      const a2 = await page.evaluate(async () => { const { pvpEdge } = await import(new URL('js/s2/tables/online.js', location.href).href); const g = window.__s2.g, me = g.S.hero.job, ops = g.pvpOpponents(), cards = [...document.querySelectorAll('#wb .duel-opp')];
+        return { want: ops.map((o) => pvpEdge(me, o.f.job)), got: cards.map((c) => { const e = c.querySelector('.duel-edge'); return e ? (/유리/.test(e.textContent) ? 1 : -1) : 0; }), note: [...document.querySelectorAll('#wb .note, #wb p')].some((n) => /병법 상극/.test(n.textContent)), over: cards.filter((c) => c.scrollWidth > c.clientWidth + 1).length }; });
+      ok(a2.want.join() === a2.got.join() && a2.note && !a2.over, `v640 ${VW} 대결 상대 카드 — 상성 칩이 직업대로 · 설명 한 줄`, JSON.stringify(a2));
+      await page.screenshot({ path: path.join(OUT, `s2-edge-${VW}.png`) });
+      ok(errs.length === 0, `v640 ${VW} 상극 · 실제 적용값 — 콘솔 오류 없음`, errs.slice(0, 3).join(' | '));
+      await page.evaluate(() => window.__s2.freeze?.());
+      await ctx.close();
+    }
+  }
   await b.close();
   console.log(fails ? `\n✗ ${fails}건` : '\n✓ 새 시즌 화면 전부 통과');
   process.exit(fails ? 1 : 0);

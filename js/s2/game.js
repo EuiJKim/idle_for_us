@@ -12,7 +12,7 @@ import { goldPerMob, SHARD_PER_TICKET } from './tables/gearstat.js';
 import { LEVEL_MAX, JOB_LV } from './tables/progress.js';
 import { START_PULL_TICKETS, SLOTS } from './tables/gear.js';
 import { START_PULLS } from './tables/s5.js';
-import { CDR_CAP } from './tables/traits.js';
+import { CDR_CAP, KILL_HEAL_CAP } from './tables/traits.js';
 import { DAILY_DUNGEONS, DAILY_RUNS, JOB_DUNGEON, towerMsFloors, towerMsReward, SURGE, surgeStar } from './tables/content.js';
 import { GUIDE, DAILY_MISSIONS, WEEKLY_MISSIONS, achievements, guideCurrent } from './tables/missions.js';
 import { JOB_ADV, MASTERY } from './tables/skills.js';
@@ -99,7 +99,7 @@ import * as GD from './online/guild.js';
 import * as PV from './online/pvp.js';
 import { refPlayer } from './battle/ref.js';
 import { PVP, WBOSS, POWER_SLACK, PVP_TIERS, GUILD } from './tables/online.js';
-import { JOBS, RANGED } from './tables/char.js';
+import { JOBS, RANGED, defK, BASE_CRIT, BASE_CRIT_DMG, TAKEN_DOWN_CAP } from './tables/char.js';
 
 export const COLLECTS = ['weapon', 'pal', 'relic'];
 const DAY = 24 * 3600e3, KST = 9 * 3600e3;
@@ -184,6 +184,21 @@ export class Game {
   stat2Pts() { return this.hero.sp2Free(); }
   stat2Up(key, n = 1) { const r = this.hero.sp2Up(key, n); if (r) this.dirtyStats = true; return r; }
   stat2Auto() { const r = this.hero.sp2Auto(); if (r) this.dirtyStats = true; return r; }
+  // v640 표기값 → 실제 적용값 — 상한 · 기본값 · 곱셈 때문에 창에 보이는 수와 싸움에서 쓰이는 수가 다른 것들(battle/damage.js · side.js와 같은 셈)
+  statReal() {
+    const f = this.fighter(false), st = f.st, v = (k) => st[k] || 0, L = this.S.hero.lv, k = defK(L);
+    const cp = Math.max(0, Math.min(1000, BASE_CRIT + v('crit')));
+    const fin = ['final1', 'final2', 'final3', 'final4', 'final5'].reduce((a, n) => a * (1000 + v(n)) / 1000, 1);
+    return [
+      { k: 'crit', name: '치명 확률', shown: v('crit'), real: cp, cap: 1000, capped: BASE_CRIT + v('crit') > 1000, note: `기본 ${BASE_CRIT / 10}% + 표기 · 100%까지` },
+      { k: 'critDmg', name: '치명 한 대', shown: v('critDmg'), real: 1000 + BASE_CRIT_DMG + v('critDmg'), mul: true, note: `평소 피해 × (1 + 기본 ${BASE_CRIT_DMG / 10}% + 표기)` },
+      { k: 'def', name: '방어 → 받는 피해', shown: v('def'), flat: true, real: Math.round(1000 * v('def') / (k + v('def'))), neg: true, note: `같은 레벨 적 기준 · 방어 ÷ (방어 + ${k}) · 상대 관통만큼 줄어요` },
+      { k: 'takenDownP', name: '받는 피해 감소', shown: v('takenDownP'), real: Math.min(TAKEN_DOWN_CAP, v('takenDownP')), cap: TAKEN_DOWN_CAP, capped: v('takenDownP') > TAKEN_DOWN_CAP, neg: true, note: `${TAKEN_DOWN_CAP / 10}%까지 · 방어 뒤에 한 번 더 곱` },
+      { k: 'cdr', name: '무공 쿨 감소', shown: v('cdr'), real: Math.min(CDR_CAP, v('cdr')), cap: CDR_CAP, capped: v('cdr') > CDR_CAP, neg: true, note: `${CDR_CAP / 10}%까지` },
+      { k: 'killHeal', name: '처치 회복', shown: v('killHeal'), real: Math.min(KILL_HEAL_CAP, v('killHeal')), cap: KILL_HEAL_CAP, capped: v('killHeal') > KILL_HEAL_CAP, note: `처치마다 최대 체력의 ${KILL_HEAL_CAP / 10}%까지` },
+      { k: 'final', name: '최종 피해 합', shown: ['final1', 'final2', 'final3', 'final4', 'final5'].reduce((a, n) => a + v(n), 0), real: Math.round(fin * 1000), mul: true, note: '①~④는 더하지 않고 서로 곱해요' },
+    ];
+  }
   // v639 영물 공명
   resoState() { const C = this.S.colls.relic; return { on: CL.resoActive(C).map((R) => R.id) }; }
   resoEquip(id) { const C = this.S.colls.relic; if (!CL.resoEquip(C, id)) return false; this.dirtyStats = true; return true; }

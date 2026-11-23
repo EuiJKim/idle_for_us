@@ -4,7 +4,7 @@ import { SKILL_BASE, SKILL_MAIN } from '../battle/ref.js';
 import { JOBS } from '../tables/char.js';
 import { Rng } from '../core/rng.js';
 import { hash64, canon } from '../core/save.js';
-import { PVP, PVP_TIERS, PVP_MATCH } from '../tables/online.js';
+import { PVP, PVP_TIERS, PVP_MATCH, PVP_COUNTER_P, pvpEdge } from '../tables/online.js';
 import { power } from './power.js';
 
 // 방어 덱 = 그때 스탯 묶음 사진 + 무공 순서. 지문(hash)으로 손댄 것을 알아본다
@@ -19,13 +19,15 @@ export function duel(A, D, seed, log = null) {   // v539 log(배열)를 주면 �
   const rng = new Rng(seed);
   const side = (f) => ({ f: { lv: f.lv, job: f.job, kind: 'hero', st: f.st }, hp: f.st.hp, nb: 0, nm: SKILL_MAIN.cdMs / 2, ms: (JOBS[f.job] || JOBS.sword).baseMs });
   const a = side(A), d = side(D);
+  a.up = pvpEdge(A.job, D.job) > 0 ? PVP_COUNTER_P : 0; d.up = pvpEdge(D.job, A.job) > 0 ? PVP_COUNTER_P : 0;   // v640 병법 상극 — 누르는 쪽 피해 +8%
+  const cm = (me, r) => { if (me.up) r.dmg = Math.floor(r.dmg * (1000 + me.up) / 1000); return r; };
   let t = 0;
   // 같은 순간의 공격은 함께 계산한 뒤 한꺼번에 깎는다(먼저 치는 쪽이 유리하지 않게)
   for (; t < PVP.fightMs && a.hp > 0 && d.hp > 0; t += 50) {
     const dmg = [0, 0];
     [[a, d, 1], [d, a, 0]].forEach(([me, op, k]) => {
-      if (t >= me.nb) { const r = hit(me.f, op.f, SKILL_BASE, rng); dmg[k] += r.dmg; me.nb = t + me.ms; if (log) log.push([t, k ? 1 : 0, r.dmg, r.crit ? 1 : 0, 0]); }
-      if (t >= me.nm) { const r = hit(me.f, op.f, SKILL_MAIN, rng); dmg[k] += r.dmg; me.nm = t + SKILL_MAIN.cdMs; if (log) log.push([t, k ? 1 : 0, r.dmg, r.crit ? 1 : 0, 1]); }
+      if (t >= me.nb) { const r = cm(me, hit(me.f, op.f, SKILL_BASE, rng)); dmg[k] += r.dmg; me.nb = t + me.ms; if (log) log.push([t, k ? 1 : 0, r.dmg, r.crit ? 1 : 0, 0]); }
+      if (t >= me.nm) { const r = cm(me, hit(me.f, op.f, SKILL_MAIN, rng)); dmg[k] += r.dmg; me.nm = t + SKILL_MAIN.cdMs; if (log) log.push([t, k ? 1 : 0, r.dmg, r.crit ? 1 : 0, 1]); }
     });
     d.hp -= dmg[1]; a.hp -= dmg[0];
   }
