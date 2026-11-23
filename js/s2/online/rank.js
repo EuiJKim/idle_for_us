@@ -2,7 +2,7 @@
 // 점검 작업(Actions)이 서버 세이브 + 입력 기록으로 **같은 엔진을 돌려** 서열 값을 다시 계산한다.
 import { unpack } from '../core/save.js';
 import { LEVEL_MAX } from '../tables/progress.js';
-import { POWER_SLACK, COLL, SEASON } from '../tables/online.js';
+import { RANK_POWER_SLACK, COLL, SEASON } from '../tables/online.js';
 import { power, stdPower } from './power.js';
 import { replay } from '../battle/room.js';
 import { Hero } from '../hero/hero.js';
@@ -18,7 +18,7 @@ export function buildProfile(f, extra = {}) {
 export function checkProfile(p) {
   const why = [];
   if (!(p.lv >= 1 && p.lv <= LEVEL_MAX && Number.isInteger(p.lv))) why.push(`레벨 ${p.lv}`);
-  else if (p.power > stdPower(p.lv) * POWER_SLACK) why.push(`전투력 ${p.power} > 표준×${POWER_SLACK}`);
+  else if (p.power > stdPower(p.lv) * RANK_POWER_SLACK) why.push(`전투력 ${p.power} > 표준×${RANK_POWER_SLACK}`);
   if (p.signed === false) why.push('세이브 서명 불일치');
   return why;
 }

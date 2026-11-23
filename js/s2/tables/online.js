@@ -18,7 +18,10 @@ export const WB_PHASE_REWARD_MIN = 6;        // 사냥 분 상당(계획서 하�
 export const PVP = { triesPerDay: 5, start: 1000, win: 20, lose: 12, defWin: 3, defLose: 8, gapK: 0.5, gapMax: 12, fightMs: 60000 };
 // v640 병법 상극 — 검 → 창 → 권 → 궁 → 술 → 검(앞이 뒤를 누른다). 누르는 쪽이 주는 피해 +8%(대결에서만)
 export const PVP_COUNTER = { sword: 'spear', spear: 'fist', fist: 'bow', bow: 'mage', mage: 'sword' };
-export const PVP_COUNTER_P = 80;
+export const PVP_COUNTER_P = 50;   // v643 +8% → +5%(평타 맞춤 뒤 같은 힘 유리 쪽 약 70%)
+// v643 대결 평타 맞춤 — 대결엔 직업 무공 세트가 없어 평타 빠르기(권사 0.7초 ~ 술사 1.1초)가 승패를 갈랐다(같은 레벨 표준끼리 권사 74~94%).
+//   대결 안에서는 평타 간격을 직업 없이 PVP_BASE_MS로 — 초당 평타 피해가 같다(간격만 맞추고 한 대 피해를 줄이면 60초 안 평타 횟수 끝수 차 0.5%로도 승패가 갈렸다)
+export const PVP_BASE_MS = 1000;
 export const pvpEdge = (a, d) => (PVP_COUNTER[a] === d ? 1 : PVP_COUNTER[d] === a ? -1 : 0);   // 1 유리 · −1 불리 · 0 없음
 export const PVP_TIERS = [
   { min: 0, name: '하수' }, { min: 1100, name: '중수' }, { min: 1250, name: '고수' }, { min: 1400, name: '절정' },
@@ -39,4 +42,6 @@ export const GUILD = {
 // 서열·검사
 export const SEASON = 's2';
 export const COLL = { players: 's2_players', wboss: 's2_wboss', pvp: 's2_pvp', guilds: 's2_guilds', fame: 'fame' };
-export const POWER_SLACK = 3;   // 표준 무인 전투력의 몇 배까지를 「있을 수 있음」으로
+export const POWER_SLACK = 3;   // 표준 무인 전투력의 몇 배까지를 「있을 수 있음」으로(방어 덱 대결 전투력 — ×2 해서 씀)
+// v643 서열 점검 상한 — 꽉 채운 봇(하루 6시간 · 광고)이 3일째 Lv 48에 표준의 ×3.5(손 성장까지)라 ×3이면 정상 무인이 걸렸다. 운 · 앞으로의 성장 몫까지 ×6
+export const RANK_POWER_SLACK = 6;

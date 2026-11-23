@@ -2,12 +2,11 @@
 import { expected } from '../battle/damage.js';
 import { makeMob, refPlayer, SKILL_BASE, kitDps } from '../battle/ref.js';
 import { JOBS } from '../tables/char.js';
-import { POWER_W, POWER_K } from '../tables/online.js';
+import { POWER_W, POWER_K, PVP_BASE_MS } from '../tables/online.js';
 
 // f가 상대 d를 칠 때 초당 기대 피해(평타 + 주력 무공)
-export function dpsVs(f, d) {
-  const J = JOBS[f.job] || JOBS.sword;
-  return expected(f, d, SKILL_BASE) * (1000 / J.baseMs) + kitDps(f, d);
+export function dpsVs(f, d, baseMs = (JOBS[f.job] || JOBS.sword).baseMs) {   // v643 대결 전투력은 대결과 같은 평타 간격(PVP_BASE_MS)
+  return expected(f, d, SKILL_BASE) * (1000 / baseMs) + kitDps(f, d);
 }
 // 유효 체력: 같은 공격을 받을 때 기준 무인보다 몇 배 버티나 × 기준 체력
 export function ehpVs(f, attacker) {
@@ -19,6 +18,6 @@ export function power(f, mode = 'pve') {
   const L = f.lv || 1;
   const foe = mode === 'pve' ? makeMob(L, 'mob') : refPlayer(L, f.job);
   const probe = mode === 'pve' ? { ...foe, st: { ...foe.st, atk: 1000 } } : foe;
-  return Math.round(POWER_K * Math.pow(dpsVs(f, foe), W.dps) * Math.pow(ehpVs(f, probe), W.ehp));
+  return Math.round(POWER_K * Math.pow(mode === 'pvp' ? dpsVs(f, foe, PVP_BASE_MS) : dpsVs(f, foe), W.dps) * Math.pow(ehpVs(f, probe), W.ehp));
 }
 export const stdPower = (L, mode = 'pve', job = 'sword') => power(refPlayer(L, job), mode);

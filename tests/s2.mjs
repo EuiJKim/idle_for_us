@@ -643,7 +643,7 @@ console.log('\n=== S8 전투력 · 월드보스 · 대결 · 문파 · 서열 ==
   ok(GU.CONTENTS.every((c) => GU.windowsOf(c).length === 7), '문파 콘텐츠 셋 다 같은 7창 세트');
   // 서열 · 재현 검증 · 명예의 전당
   const p = RK.buildProfile(refPlayer(100), { nickname: '무인' });
-  ok(RK.checkProfile(p).length === 0 && RK.checkProfile({ ...p, power: p.power * 10 }).length === 1 && RK.checkProfile({ ...p, lv: 151 }).length === 1, '서열 값 점검: 표준의 3배 넘는 전투력 · 없는 레벨은 걸림');
+  ok(RK.checkProfile(p).length === 0 && RK.checkProfile({ ...p, power: p.power * 10 }).length === 1 && RK.checkProfile({ ...p, lv: 151 }).length === 1, '서열 값 점검: 표준의 6배 넘는 전투력 · 없는 레벨은 걸림');
   const body = { lv: 100, job: 'sword' }, text = SV.pack(body, 1);
   const fo = (b) => refPlayer(b.lv, b.job);
   ok(RK.verifySave(text, p, fo).length === 0, '세이브로 다시 계산 = 올린 값');
@@ -2279,6 +2279,15 @@ console.log('\n=== v635 문파 연공실 · 품앗이 · 겨루기 ===');
   g.tick(T0 + 8 * 86400e3); ok(g.gwarSt().help === 0 && g.gwarSt().don === 0 && g.gwarSt().got === 'y', 'gd 겨루기: 다음 주 내 몫 새로(받은 표시는 남음)');
 }
 
+console.log('\n=== v643 서열 점검 상한 — 꽉 채운 무인도 걸리지 않게 ===');
+{
+  const ON2 = await import('../js/s2/tables/online.js'), PW = await import('../js/s2/online/power.js'), { play: botPlay } = await import('../tools/s2sim/play.mjs');
+  // 하루 6시간 · 광고(꽉 채운 쪽) 3일 — 표준 대비가 가장 높은 때(Lv 48 · ×3.5) · 손으로 하는 성장(스탯 · 내공 · 갈래 · 공명)까지 · 운 몫 ×1.5를 얹어도 상한 아래
+  const { g: bg } = botPlay({ days: 3, job: 'fist', seed: 1, active: 360, ad: true, marks: [] });
+  bg.statAuto(); bg.stat2Auto(); bg.collAuto('relic', true); bg.dirtyStats = true;
+  const r = bg.power() / PW.stdPower(bg.S.hero.lv);
+  ok(r * 1.5 < ON2.RANK_POWER_SLACK && RK.checkProfile({ lv: bg.S.hero.lv, power: Math.round(bg.power()) }).length === 0, `꽉 채운 권사 3일 — 표준의 ×${r.toFixed(2)} · 운 몫 ×1.5를 얹어도 서열 점검 상한(×${ON2.RANK_POWER_SLACK}) 아래`);
+}
 console.log('\n=== v642 전직 갈래 ===');
 {
   const SK = await import('../js/s2/tables/skills.js');
@@ -2334,7 +2343,12 @@ console.log('\n=== v640 병법 상극 · 실제 적용값 ===');
   ok(ON.pvpEdge('sword', 'spear') === 1 && ON.pvpEdge('spear', 'sword') === -1 && ON.pvpEdge('sword', 'sword') === 0 && ON.pvpEdge('sword', 'fist') === 0, '유리 1 · 불리 −1 · 그 밖 0');
   const A = refPlayer(100), mk = (j) => ({ ...A, job: j }), W = (a, d) => { let w = 0; for (let s = 1; s <= 200; s++) w += PV2.duel(mk(a), mk(d), s).win ? 1 : 0; return w; };
   const even = W('sword', 'sword'), up = W('sword', 'spear'), dn = W('spear', 'sword'), none = W('sword', 'fist');
-  ok(up > even + 20 && dn < even - 20, `같은 힘이면 누르는 쪽이 더 이긴다(200판)`, `같은 직업 ${even} · 유리 ${up} · 불리 ${dn} · 무관 ${none}`);
+  ok(up > even + 10 && dn < up - 15, `같은 힘이면 누르는 쪽이 더 이긴다(200판)`, `같은 직업 ${even} · 유리 ${up} · 불리 ${dn} · 무관 ${none}`);
+  // v643 직업 5×5 — 같은 레벨 표준 무인끼리: 상극 없는 짝은 반쯤(평타 간격이 직업 없이 같다) · 누르는 짝은 55~72%
+  { const { refPlayer: RP } = await import('../js/s2/battle/ref.js'), M = {}, bad = [];
+    for (const L of [40, 100]) for (const a of jobs) for (const d of jobs) { let w = 0; for (let s = 1; s <= 100; s++) w += PV2.duel(RP(L, a), RP(L, d), s).win ? 1 : 0; const e = ON.pvpEdge(a, d); M[`${L}${a}>${d}`] = w; if (e > 0 ? w < 55 || w > 72 : e < 0 ? w > 55 : w < 38 || w > 62) bad.push(`Lv${L} ${a}→${d} ${w}%`); }
+    ok(bad.length === 0, '직업 5×5 대결 — 상극 없는 짝 38~62% · 누르는 짝 55~72% · 눌리는 짝 55% 아래', bad.join(' · ') || `Lv40 검→창 ${M['40sword>spear']}% · 창→검 ${M['40spear>sword']}% · 검→권 ${M['40sword>fist']}%`); }
+  { const PW = await import('../js/s2/online/power.js'); ok(new Set(jobs.map((j) => PW.stdPower(70, 'pvp', j))).size === 1, '같은 레벨 표준 무인의 대결 전투력은 직업 없이 같다(평타 간격 맞춤)'); }
   const strong = { ...mk('spear'), st: { ...A.st, atk: A.st.atk * 2, hp: A.st.hp * 2 } }; let sw = 0; for (let s = 1; s <= 40; s++) sw += PV2.duel(strong, mk('sword'), s).win ? 1 : 0;
   ok(sw >= 38, '상극은 작다 — 두 배 센 쪽은 불리해도 이긴다', sw);
   const l1 = [], l2 = []; PV2.duel(mk('sword'), mk('spear'), 5, l1); PV2.duel(mk('sword'), mk('spear'), 5, l2);

@@ -1,10 +1,9 @@
 // 새 시즌(S8) 대결 — 비동기 방어 덱 · 결정론 대결 · 점수식 · 티어 · 짝 찾기.
 import { hit } from '../battle/damage.js';
 import { SKILL_BASE, SKILL_MAIN } from '../battle/ref.js';
-import { JOBS } from '../tables/char.js';
 import { Rng } from '../core/rng.js';
 import { hash64, canon } from '../core/save.js';
-import { PVP, PVP_TIERS, PVP_MATCH, PVP_COUNTER_P, pvpEdge } from '../tables/online.js';
+import { PVP, PVP_TIERS, PVP_MATCH, PVP_COUNTER_P, PVP_BASE_MS, pvpEdge } from '../tables/online.js';
 import { power } from './power.js';
 
 // 방어 덱 = 그때 스탯 묶음 사진 + 무공 순서. 지문(hash)으로 손댄 것을 알아본다
@@ -17,7 +16,7 @@ export const deckOk = (d) => d && d.h === hash64(canon({ lv: d.lv, job: d.job, s
 // 대결 한 판(결정론): 둘 다 평타 + 주력 무공(쿨마다). 시간 끝나면 남은 체력 비율이 큰 쪽
 export function duel(A, D, seed, log = null) {   // v539 log(배열)를 주면 주고받은 공격을 적는다 — 화면이 그대로 다시 보여 준다(결과는 같다)
   const rng = new Rng(seed);
-  const side = (f) => ({ f: { lv: f.lv, job: f.job, kind: 'hero', st: f.st }, hp: f.st.hp, nb: 0, nm: SKILL_MAIN.cdMs / 2, ms: (JOBS[f.job] || JOBS.sword).baseMs });
+  const side = (f) => ({ f: { lv: f.lv, job: f.job, kind: 'hero', st: f.st }, hp: f.st.hp, nb: 0, nm: SKILL_MAIN.cdMs / 2, ms: PVP_BASE_MS });   // v643 대결 평타 간격은 직업 없이 같게(아래 PVP_BASE_MS)
   const a = side(A), d = side(D);
   a.up = pvpEdge(A.job, D.job) > 0 ? PVP_COUNTER_P : 0; d.up = pvpEdge(D.job, A.job) > 0 ? PVP_COUNTER_P : 0;   // v640 병법 상극 — 누르는 쪽 피해 +8%
   const cm = (me, r) => { if (me.up) r.dmg = Math.floor(r.dmg * (1000 + me.up) / 1000); return r; };

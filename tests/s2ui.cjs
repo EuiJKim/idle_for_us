@@ -1011,6 +1011,8 @@ const ok = (c, m, x = '') => { console.log(`  ${c ? '✓' : '✗ !!'} ${m}${x !=
       await page.click('#ep-close'); await page.waitForTimeout(150);
       // 가방 — 끼면 전투력 차이(▲ 초록 · ▼ 빨강) · 좋은 순 맨 앞 = 가장 센 것 · 부위를 고르면 낀 것은 「장착 중」
       const U = await page.evaluate(() => { const G = window.__s2.g.S.gear, u = 9.5e8 + Math.floor(Math.random() * 1e6); G.bag.splice(40);   // v634 가방이 60칸을 넘으면 맨 뒤(범품)가 안 보여 — 줄여 두고 본다
+        // v643 신발 칸이 비어 있으면 범품도 「▲」(낀 것보다 좋음)라 가끔 걸렸다 — 양품 신발을 끼워 두고 본다
+        { const S2 = window.__s2.g, cur = G.eq.shoes; if (!cur || S2.gearPw(cur) < S2.gearPw({ uid: 1, slot: 'shoes', g: 1, up: 0, subs: [{ k: 'hpP', v: 10 }], rr: 0, lock: false })) { G.eq.shoes = { uid: u + 2, slot: 'shoes', g: 1, up: 0, subs: [{ k: 'hpP', v: 10 }], rr: 0, lock: false }; S2.dirtyStats = true; } }
         G.bag.push({ uid: u, slot: 'shoes', g: 6, up: 1, subs: [{ k: 'atkL1', v: 80 }, { k: 'crit', v: 40 }], rr: 0, lock: false }, { uid: u + 1, slot: 'shoes', g: 0, up: 0, subs: [], rr: 0, lock: false }); return u; });
       await sub('가방'); await page.click('#wb .gr-so:text-is("좋은 순")'); await page.waitForTimeout(150);
       const bg = await page.evaluate((u) => { const t = (x) => document.querySelector(`#wb .inv-tile[data-uid="${x}"]`); return { up: t(u)?.querySelector('.gq-dp.up')?.textContent || '', dn: t(u + 1)?.querySelector('.gq-dp')?.className || '', first: document.querySelector('#wb .inv-tile')?.dataset.uid === String(u), all: document.querySelectorAll('#wb .inv-tile').length, badge: document.querySelectorAll('#wb .inv-tile .gq-dp, #wb .inv-tile .gq-on').length, gp: window.__s2.g.gearPw(window.__s2.g.S.gear.bag.find((x) => x.uid === u)) - window.__s2.g.gearVal() }; }, U);

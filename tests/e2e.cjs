@@ -205,13 +205,14 @@ async function tab(page, name) {
   await p.click('#panel .subtabs button[data-key="gear"]');
   await p.locator('#panel .gear-tile:has-text("무기")').click();
   await p.waitForSelector('#modal h2');
-  const plus0 = await G(p, () => window.__game.s.equip.weapon.plus);
+  // v643 강화할 그 무기를 붙잡아 둔다 — 창을 열어 둔 동안에도 사냥이 이어져 더 좋은 무기를 저절로 끼면 칸의 무기가 바뀌어(+0) 가끔 걸렸다
+  const plus0 = await G(p, () => { const it = window.__game.s.equip.weapon; it.epity = 1; window.__e2eW = it; return it.plus; });
   // v152: 강화는 연출(+1~3은 1초쯤) 뒤에 결과가 나온다
   await p.click('#modal .item-tab:has-text("강화")');
   await p.click('#modal .enh-go');
   await p.waitForSelector('#modal .enh-anim');
   await p.waitForSelector('#modal .enh-anim.result', { timeout: 5000 });
-  assert(await G(p, () => window.__game.s.equip.weapon.plus) > plus0, '무기 강화 +1 (연출 뒤 결과)');
+  assert(await G(p, () => window.__e2eW.plus) > plus0, '무기 강화 +1 (연출 뒤 결과)');
   // 떨어질 수 있는 강화(+8부터)는 먼저 묻는다 (v192: +7까지는 실패해도 그대로라 묻지 않는다)
   // v261: 강화 상한이 레벨에 묶였다(+8은 Lv30 · +11은 Lv65부터)
   await G(p, () => { const g = window.__game; g.s.level = Math.max(g.s.level, 70); g.s.equip.weapon.plus = 8; });
