@@ -2016,6 +2016,21 @@
     html.w800 #btn-boss { left: calc(var(--sl) + 204px); transform: none; top: calc(var(--st) + 146px); }
     .pwpop { left: calc(var(--sl, 0px) + 62px); top: calc(var(--st, 0px) + 2px); }
     html.w800 .pwpop { padding: 2px 8px; gap: 4px; } html.w800 .pwpop small { display: none; } html.w800 .pwpop b { font-size: 14px; } html.w800 .pwpop em { font-size: 11px; } html.w720 .pwpop em { display: none; }
+    /* v638 다듬기
+       · 창이 열려 있을 때 알림(업적 달성 · 새 장비 장착 · 한 줄 알림)이 창 내용 · 단추(모두 받기 · 바꾸기 …)를 가리던 것 → 창 머리 줄의 빈 자리(제목과 은자 사이)로 작게, 한 줄 알림은 창 아래 끝으로
+       · 들판 왼쪽 아래 기록 줄은 한 줄씩(길면 …) — 네댓 줄로 접혀 사냥터를 덮던 것
+       · 원정 칸 시간 티켓 단추(1장 · 모두)가 21px로 눌려 글이 세로로 서던 것 · 9px 아래 작은 글(기질 · 쿨) 10px로 */
+    body.winopen .achpop, body.winopen:has(.pwpop) .achpop { left: auto; right: calc(var(--sr, 0px) + 196px); top: calc(var(--st, 0px) + 12px) !important; max-width: 190px; padding: 3px 12px 3px 8px; gap: 6px; transform: none; animation-name: achpop2; z-index: 70; }
+    body.winopen .achpop i { font-size: 18px; } body.winopen .achpop small, body.winopen .achpop span { display: none; } body.winopen .achpop b { display: block; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 150px; }
+    body.winopen .pwpop { left: calc(var(--sl, 0px) + 128px); top: calc(var(--st, 0px) + 14px); padding: 2px 8px; gap: 4px; } body.winopen .pwpop small { display: none; } body.winopen .pwpop b { font-size: 14px; } body.winopen .pwpop em { font-size: 11px; }
+    body.winopen #lootbox { top: calc(var(--st, 0px) + 10px) !important; right: auto; left: calc(var(--sl, 0px) + 268px); z-index: 70; }
+    body.winopen #lootbox .loot { min-width: 0; max-width: 170px; padding: 3px 10px 3px 4px; gap: 6px; } body.winopen #lootbox .loot img { width: 28px; height: 28px; } body.winopen #lootbox .loot b { font-size: 12px; white-space: nowrap; } body.winopen #lootbox .loot small, body.winopen #lootbox .loot ~ .loot { display: none; }
+    html.w720 body.winopen #lootbox { display: none; }
+    body.winopen:not(.pc-wide):has(#panel.open) #toast, html.w720 body.winopen:not(.pc-wide):has(#panel.open) #toast, html.h340 body.winopen:not(.pc-wide):has(#panel.open) #toast { top: auto; bottom: calc(var(--sb) + 12px); left: 50%; }
+    .sk-ch small { font-size: 10px; }
+    #loglines div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    #panel .dg-ttcard .row .info:first-child { flex-basis: 100%; }
+    .coll-tile .tr-t, .rl-mk small { font-size: 10px; } .coll-tile u, .tr-sl u { font-size: 9.5px; }
     /* 결과 창(STAGE CLEAR …)이 떠 있는 동안 알림은 맨 위로 — 「다음 스테이지」 단추를 가리던 것(결과 창 뒤는 어둡게 덮여 있다) */
     body:has(#res.open) #toast, html.w720 body:has(#res.open) #toast, html.h340 body:has(#res.open) #toast { top: calc(var(--st, 0px) + 4px); bottom: auto; left: 50%; }
     /* v634 뜻대로 굴리기(rl2) · 전투력 미리보기 — 창은 .rl2를 담은 알림 창만 넓게 */

@@ -644,7 +644,7 @@ const ok = (c, m, x = '') => { console.log(`  ${c ? '✓' : '✗ !!'} ${m}${x !=
     // 경지 · 강호행 그림 — 둥근 눈금(가운데 경지) · 10레벨 표 열 개(심법 셋) · 다음 값 · 올리면 금빛 물결 / 굽은 길 일곱 칸 · 지금 두목 칸 빛남 · 두목 그림 · Lv(엔진 셈) · 열기 값
     { const a0 = await hold();
       await page.evaluate(() => { const g = window.__s2.g; window.__t = { realm: JSON.stringify(g.S.realm), journey: JSON.stringify(g.S.journey), wallet: JSON.stringify(g.S.wallet) }; g.S.realm.lv = 23; g.S.wallet.gold = 1e12; g.S.journey.step = 4; g.S.journey.cleared = 6; });
-      await page.click('.nb[data-tab="town"]'); await sub('경지'); await page.waitForSelector('#wb .rl-gauge');
+      await page.click('.nb[data-tab="char"]'); await sub('경지'); await page.waitForSelector('#wb .rl-gauge');
       const rl = () => page.evaluate(() => ({ lv: document.querySelector('#wb .rl-lv')?.textContent, mk: document.querySelectorAll('#wb .rl-mk').length, on: document.querySelectorAll('#wb .rl-mk.on').length, heart: document.querySelectorAll('#wb .rl-mk.rl-heart').length, p: document.querySelector('#wb .rl-gauge')?.style.getPropertyValue('--p'), cost: document.querySelector('#wb .rl-cost b')?.textContent || '', gain: [...document.querySelectorAll('#wb .rl-gain b')].map((x) => x.textContent).join(' '), rip: document.querySelectorAll('#wb .rl-ripple').length, eng: window.__s2.g.S.realm.lv, low: window.__s2.lowGfx() }));
       const r0 = await rl();
       ok(r0.lv === '23' && r0.mk === 10 && r0.on === 2 && r0.heart === 3 && r0.p === '100.0%' && /^\S+$/.test(r0.cost) && r0.gain === '공격 +0.7% 체력 +0.8%' && r0.rip === 0, '경지 — 둥근 눈금(가운데 23) · 10레벨 표 열 개(둘 켜짐 · 심법 셋) · 다음 값 · 한 단계마다 공격 +0.7% 체력 +0.8%', JSON.stringify(r0));
@@ -2189,6 +2189,48 @@ const ok = (c, m, x = '') => { console.log(`  ${c ? '✓' : '✗ !!'} ${m}${x !=
       ok(c1.run === null && c1.gold > g0 && /원정 도착/.test(c1.toast) && !c1.modal, `v636 ${VW} 빨강 칩을 누르면 바로 받기`, JSON.stringify(c1));
       await page.evaluate(() => { window.__s2.g.bossFight = window.__s2.g.bossFight; });
       ok(errs.length === 0, `v636 ${VW} 점 셋 · 방치 쌓임 — 콘솔 오류 없음`, errs.slice(0, 3).join(' | '));
+      await page.evaluate(() => window.__s2.freeze?.());
+      await ctx.close();
+    }
+  }
+  if (!process.env.ONLY || process.env.ONLY.split(',').some((x) => x === '844' || x === 'p638')) {
+    console.log('— v638 다듬기(창 묶음 · 창 위 알림 · 무공 그림 크기)');
+    for (const [VW, VH] of [[844, 390], [667, 375]]) {
+      const ctx = await b.newContext({ viewport: { width: VW, height: VH }, serviceWorkers: 'block' });
+      await ctx.route(/gstatic\.com\/firebasejs/, (r) => r.abort());
+      const page = await ctx.newPage(); const errs = [];
+      page.on('pageerror', (e) => errs.push(e.message)); page.on('console', (m) => { if (m.type() === 'error' && !/Failed to load|ERR_FAILED/.test(m.text())) errs.push(m.text()); });
+      await page.goto(BASE, { waitUntil: 'domcontentloaded' });
+      await page.waitForSelector('#modal:not(.hidden) .jobcard'); await page.click('#modal .jobcard[data-job="sword"]');
+      await page.waitForSelector('#modal', { state: 'hidden' }); await page.waitForTimeout(500);
+      await page.evaluate(() => { const g = window.__s2.g; g.S.hero.lv = 60; g.dirtyStats = true; window.__s2.openKey('grow:3'); });
+      await page.waitForTimeout(300);
+      const t1 = await page.evaluate(() => ({ title: document.getElementById('panel-title').textContent, subs: [...document.querySelectorAll('#panel-body .subtabs button')].map((x) => x.textContent.trim()), on: document.querySelector('#panel-body .subtabs button.on')?.textContent.trim() }));
+      ok(/캐릭터/.test(t1.title) && t1.on === '경지' && t1.subs.includes('강호행'), `v638 ${VW} 경지 · 강호행은 캐릭터 창`, JSON.stringify(t1));
+      await page.evaluate(() => window.__s2.openKey('bounty:0')); await page.waitForTimeout(300);
+      const t2 = await page.evaluate(() => { const st = document.querySelector('#panel-body .subtabs'), bs = [...st.querySelectorAll('button')]; return { n: bs.length, has: bs.some((x) => /경지|강호행/.test(x.textContent)), sw: st.scrollWidth, cw: st.clientWidth }; });
+      ok(t2.n === 12 && !t2.has && (VW < 800 || t2.sw <= t2.cw + 1), `v638 ${VW} 임무 창 칸 12개 · 844에서는 한 줄에 다 보임`, JSON.stringify(t2));
+      // 창 위 알림 — 창 머리 줄 안(칸 줄 위)에만
+      const t3 = await page.evaluate(async () => {
+        const d = document.createElement('div'); d.className = 'achpop'; d.style.animationDuration = '5000ms'; d.innerHTML = '<i>🏆</i><div><small>업적 달성!</small><b>장비 뽑기 100번</b><span>임무 → 업적에서 받기</span></div>'; document.body.append(d);
+        window.__s2.toast('시험 알림'); await new Promise((r) => setTimeout(r, 900));
+        const st = document.querySelector('#panel-body .subtabs').getBoundingClientRect(), a = d.getBoundingClientRect(), cl = document.getElementById('panel-close').getBoundingClientRect(), t = document.getElementById('toast').getBoundingClientRect();
+        const r = { ab: Math.round(a.bottom), st: Math.round(st.top), ar: Math.round(a.right), cl: Math.round(cl.left), tt: Math.round(t.bottom), H: innerHeight }; d.remove(); return r;
+      });
+      ok(t3.ab <= t3.st + 1 && t3.ar <= t3.cl && t3.tt >= t3.H - 40, `v638 ${VW} 창이 열려 있으면 업적 알림은 머리 줄 · 한 줄 알림은 아래 끝`, JSON.stringify(t3));
+      // 창이 열려 있고 자동 진행이면 결과 창 대신 한 줄
+      const t4 = await page.evaluate(async () => { window.__s2.opt.autoNext = true; window.__s2.showResult({ k: 'stage-clear', idx: 1, next: 2, ms: 1200, gold: 100, tix: 0 }); await new Promise((r) => setTimeout(r, 100)); return { res: document.getElementById('res').classList.contains('open'), toast: document.getElementById('toast').textContent }; });
+      ok(!t4.res && /1장 1칸 클리어/.test(t4.toast), `v638 ${VW} 창을 보는 중에는 STAGE CLEAR 창 대신 한 줄`, JSON.stringify(t4));
+      await page.click('#panel-close'); await page.waitForTimeout(200);
+      const t5 = await page.evaluate(async () => { window.__s2.showResult({ k: 'stage-clear', idx: 1, next: 2, ms: 1200, gold: 100, tix: 0 }); await new Promise((r) => setTimeout(r, 100)); const o = document.getElementById('res').classList.contains('open'); document.getElementById('rout')?.click(); return o; });
+      ok(t5, `v638 ${VW} 창이 닫혀 있으면 결과 창 그대로`);
+      // 무공 그림 — 범위가 아무리 넓어도 화면 절반쯤까지
+      const t6 = await page.evaluate(() => { const S = window.__s2; return { big: S.skPaintTest(5, 2000, 'circle'), small: S.skPaintTest(1, 60, 'arc') }; });
+      ok(t6.big && t6.big.R < 2000 && t6.big.R * 2.2 * 1.6 <= 844 * 0.5 + 1 && t6.small.R === 60, `v638 ${VW} 무공 그림 너비 — 넓은 범위는 화면 절반까지 · 좁은 것은 그대로`, JSON.stringify(t6));
+      // 들판 기록 줄 — 한 줄씩
+      const t7 = await page.evaluate(() => { const L = document.getElementById('loglines'); L.innerHTML = '<div>' + '새 장비 장착 — 반지 양품 · 모자 범품 · 상의 범품 · 무기 정품上 · 목걸이 정품 · 장갑 정품 · 신발 범품'.repeat(2) + '</div>'; const d = L.firstChild; return { h: d.getBoundingClientRect().height, lh: parseFloat(getComputedStyle(d).lineHeight) || 16 }; });
+      ok(t7.h <= t7.lh * 1.5, `v638 ${VW} 들판 기록 줄은 한 줄(길면 …)`, JSON.stringify(t7));
+      ok(errs.length === 0, `v638 ${VW} 다듬기 — 콘솔 오류 없음`, errs.slice(0, 3).join(' | '));
       await page.evaluate(() => window.__s2.freeze?.());
       await ctx.close();
     }

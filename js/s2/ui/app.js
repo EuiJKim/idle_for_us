@@ -571,12 +571,12 @@ function fatePop() {
 
 // ── 창 — 지금 게임과 같은 일곱 창(들판 양옆 단추 · 창 머리 줄) + 설정(⚙). 칸은 붉은 알약(.subtabs .seg.wide) ──
 const TABS = [
-  ['char', '캐릭터', [['스탯', 'hero:0'], ['무공', 'hero:1'], ['무공 강화', 'hero:4'], ['마스터리', 'hero:2'], ['전직', 'hero:3'], ['칭호', 'title:0'], ['기록', 'rec:0']]],
+  ['char', '캐릭터', [['스탯', 'hero:0'], ['무공', 'hero:1'], ['무공 강화', 'hero:4'], ['마스터리', 'hero:2'], ['전직', 'hero:3'], ['경지', 'grow:3'], ['강호행', 'grow:4'], ['칭호', 'title:0'], ['기록', 'rec:0']]],
   ['bag', '장비', [['장착', 'gear:0'], ['뽑기', 'gear:1'], ['강화·성혼', 'gear:2'], ['가방', 'gear:3'], ['외형', 'look:0']]],
   ['comp', '동료', [['병기', 'grow:0'], ['동료', 'grow:1'], ['영물', 'grow:2']]],
   ['dgn', '던전', [['수련동', 'content:0'], ['토벌', 'raid:0'], ['무한 탑', 'content:1'], ['원정', 'content:2'], ['동행', 'party:0']]],
   ['map', '지도', [['스테이지', 'content:3'], ['두목 도감', 'dex:0'], ['요괴록', 'mx:0']]],
-  ['town', '임무', [['오늘', 'today:0'], ['우편', 'mail:0'], ['출석', 'attend:0'], ['길잡이', 'mission:0'], ['일일', 'mission:1'], ['주간', 'mission:2'], ['업적', 'ach:0'], ['경지', 'grow:3'], ['강호행', 'grow:4'], ['상점', 'shop:0'], ['교환소', 'shop:1'], ['패스', 'pass:0'], ['축제', 'fest:0'], ['현상수배', 'bounty:0']]],
+  ['town', '임무', [['오늘', 'today:0'], ['우편', 'mail:0'], ['출석', 'attend:0'], ['길잡이', 'mission:0'], ['일일', 'mission:1'], ['주간', 'mission:2'], ['업적', 'ach:0'], ['상점', 'shop:0'], ['교환소', 'shop:1'], ['패스', 'pass:0'], ['축제', 'fest:0'], ['현상수배', 'bounty:0']]],
   ['social', '무림', [['서열', 'rank:0'], ['월드보스', 'rival:0'], ['대결', 'rival:1'], ['문파', 'rival:2'], ['대화', 'chat:0']]],
   ['opt', '설정', [['설정', 'mission:3']]],
 ];
@@ -4137,7 +4137,7 @@ const mobPrev = new Map();
 // 그린 무공 효과 — 모양마다 놓는 자리 · 크기 · 움직임
 function drawFxImage(cx, im, f, a, ease, fade, x, y, Rpx, k, big) {
   const ar = im.height / im.width;
-  cx.save(); cx.globalCompositeOperation = 'lighter'; cx.globalAlpha = Math.max(0, fade);
+  cx.save(); cx.globalCompositeOperation = f.soft ? 'screen' : 'lighter'; cx.globalAlpha = Math.max(0, fade) * (f.soft || 1);
   if (f.shape === 'line') {
     const w = Rpx * (0.35 + 0.75 * ease), h = Math.max(70 * k, w * ar * 0.55) * big;
     cx.translate(x, y - 34 * k); cx.scale(f.face, 1); cx.drawImage(im, -w * 0.08, -h / 2, w * 1.08, h);
@@ -4175,7 +4175,7 @@ function drawSkillFx(cx, f, a, [x, y], Rpx, k, col, tier) {
   // 5차 궁극기 — 지금 게임의 큰 이펙트를 앞쪽에 크게(검비 · 화염 기둥 · 장풍 · 얼음 · 벼락)
   if (tier === 5 && f.shape !== 'hit' && f.shape !== 'buff') {
     const u = oldImg(ULT_ART[job]);
-    if (u) { const w = Rpx * 1.3 * (0.6 + 0.4 * ease); cx.save(); cx.globalCompositeOperation = 'lighter'; cx.globalAlpha = Math.max(0, fade) * 0.95; cx.drawImage(u, x + f.face * Rpx * 0.45 - w / 2, y - w * 0.82, w, w); cx.restore(); }
+    if (u) { const w = Rpx * 1.3 * (0.6 + 0.4 * ease); cx.save(); cx.globalCompositeOperation = f.soft ? 'screen' : 'lighter'; cx.globalAlpha = Math.max(0, fade) * 0.95 * (f.soft || 1); cx.drawImage(u, x + f.face * Rpx * 0.45 - w / 2, y - w * 0.82, w, w); cx.restore(); }
   }
   // 처치 고리(흰 고리를 직업 빛깔로)
   if (f.shape === 'ring') { const r = tintImg('art/fx/fx-ring.png', col); if (r) { const w = 90 * k * (0.4 + ease); cx.save(); cx.globalCompositeOperation = 'lighter'; cx.globalAlpha = 1 - a; cx.translate(x, y - 2 * k); cx.scale(1, 0.4); cx.drawImage(r, -w / 2, -w / 2, w, w); cx.restore(); } return; }
@@ -4515,9 +4515,14 @@ function sk2Fx(cx, f, ms, [wx, wy], [hx, hy], Rpx, k, tier) {
   return true;
 }
 // v637 그린 무공 그림(art/s2/fx · 5차 궁극 그림)을 다시 크게 · 밝게 — v631에서 물들여 작고 흐리게 바뀌었던 것을 되돌리고, 움직임(sk2) 위에 겹친다. 터질 때(PRE 뒤)부터 REL + POST 절반 동안
+let sk2PaintLast = null;
 function sk2Paint(cx, f, T, x, y, Rpx, k, n, Bv, p) {
   const a = (T.ms - T.pre) / (T.rel + T.post * 0.5); if (a < 0 || a >= 1) return;
-  drawSkillFx(cx, { ...f, job: String(f.id).split('_')[0], noSeal: 1 }, a, [x, y], Rpx * Bv, k, p.c, n);
+  // v638 고차 무공은 범위가 넓어 그림이 화면을 다 덮고 하얗게 날아갔다 — 그림 너비를 화면의 절반쯤까지로 묶고(무공 차수가 높을수록 조금 더), 더하기 빛 대신 screen으로 겹쳐 그림 결이 보이게
+  const W = cx.canvas.clientWidth || 844, big = 1 + n * 0.12, sh = f.shape;
+  const cap = W * (0.34 + n * 0.03) / (sh === 'circle' ? 2.2 * big : sh === 'arc' ? 1.15 * big : 1.1);
+  sk2PaintLast = { R: Math.min(Rpx * Bv, cap), cap, W, n };
+  drawSkillFx(cx, { ...f, job: String(f.id).split('_')[0], noSeal: 1, soft: n >= 4 ? 0.7 : n >= 2 ? 0.8 : 0.9 }, a, [x, y], Math.min(Rpx * Bv, cap), k, p.c, n);
 }
 // ── v632 무공 변형 그림 — 같은 무공 그림(sk2Line · Arc · Circle · Rain · Buff)을 변형대로 겹치고 · 돌리고 · 늦춰 그린다(빛깔 · PRE/REL/POST는 그대로)
 //   fork 세 줄기(위 · 아래로 비스듬히 · 가늘게) · back 끝에서 되돌아오는 두 번째 줄기 · wide 넓은 부채 셋 겹 · twin 뒤로 한 번 더 · pull 조여 드는 고리와 화살표 → 터짐
@@ -5387,6 +5392,9 @@ function agRun(t) {
 const RES_MS = 3000;
 function showResult(f) {
   const ch = Math.ceil(f.idx / 10), st = ((f.idx - 1) % 10) + 1, win = f.k === 'stage-clear', auto = opt.autoNext;
+  if (win && auto && !f.chb?.first && document.body.classList.contains('winopen')) {   // v638 창을 보는 중이면 결과 창이 창을 덮지 않게 — 한 줄 알림만(자동 진행일 때 · 첫 장 두목 처치는 그대로 보여 줌)
+    toast(`${ch}장 ${st}칸 클리어 — 은자 +${unit(f.gold)}`); addLog(`${ch}장 ${st}칸 클리어 · ${(f.ms / 1000).toFixed(1)}초`); return;
+  }
   play(win ? 'clear' : 'fail'); bgm(chapterOf(g.zoneLv()));
   const sec = (f.ms / 1000).toFixed(1), nch = Math.ceil(f.next / 10), nst = ((f.next - 1) % 10) + 1, newCh = win && nch !== ch;
   const tile = (cls, n, label, i) => `<div class="rt" style="--d:${0.35 + i * 0.12}s"><i class="coin ${cls}"></i><b data-n="${n}">0</b><small>${label}</small></div>`;
@@ -5883,7 +5891,7 @@ const FEAT = [
   { id: 'dg', lv: Math.min(...Object.values(DAILY_DUNGEONS).map((D) => D.unlockLv)), name: '수련동', t: '하루 세 번 — 은자 · 장비 · 강화석 · 경험치 · 기세 던전', key: 'content:0', tab: 'dgn', gate: true },
   ...JOB_LV.slice(1).map((lv, i) => ({ id: `adv${i + 1}`, lv, name: `${i + 1}차 전직`, t: '전직 던전을 깨면 새 무공 칸이 열려요', key: 'hero:3', tab: 'char', gate: true })),
   { id: 'mastery', lv: Math.min(...MASTERY.map((m) => m.lv)), name: '마스터리', t: '은자로 익히면 최종 피해가 붙어요', key: 'hero:2', tab: 'char', gate: true },
-  { id: 'realm', lv: 22, name: '경지', t: '은자로 올리는 영구 공격 · 체력', key: 'grow:3', tab: 'town' },
+  { id: 'realm', lv: 22, name: '경지', t: '은자로 올리는 영구 공격 · 체력', key: 'grow:3', tab: 'char' },
   { id: 'party', lv: 28, name: '동행 토벌', t: '다른 무인 둘과 함께 두목 하나', key: 'party:0', tab: 'dgn' },
   { id: 'pvp', lv: 32, name: '대결', t: '다른 무인의 덱과 겨뤄 점수를 올려요', key: 'rival:1', tab: 'social' },
 ].sort((a, b) => a.lv - b.lv);
@@ -6146,7 +6154,8 @@ window.__s2 = { get g() { return g; }, lowGfx: () => opt.gfx === 'low', dgIv: ()
 Object.assign(window.__s2, { toast });   // v630 시험용 — 알림을 바로 띄워 결과 창 단추와 겹치는지 본다
 Object.assign(window.__s2, { bfPop, lvbPop, paintBf, paintLvb, opt });   // v634 단약 · 성장 봇짐 시험 손잡이
 Object.assign(window.__s2, { idlPop, paintIdl, navDots });   // v636 방치 쌓임 · 점 셋 시험 손잡이
-Object.assign(window.__s2, { rl2Open, openKey });   // v634 시험용 — 뜻대로 굴리기 창 · 창 바로 열기
+Object.assign(window.__s2, { rl2Open, openKey });
+Object.assign(window.__s2, { showResult, skPaint: () => sk2PaintLast, skPaintTest: (n, R, sh) => { const c = document.createElement('canvas'); c.width = 844; c.height = 390; Object.defineProperty(c, 'clientWidth', { value: 844 }); sk2Paint(c.getContext('2d'), { id: 'sword_9', shape: sh, face: 1, at: 0 }, { ms: SK2_PRE[n] + 10, pre: SK2_PRE[n], rel: SK2_REL[n], post: SK2_POST[n] }, 400, 300, R, 1, n, 1, advPal('sword', n)); return sk2PaintLast; } });   // v638 시험 손잡이   // v634 시험용 — 뜻대로 굴리기 창 · 창 바로 열기
 Object.assign(window.__s2, { baTier: () => baLast, baLive: () => baFx.length, baCap: () => BA_CAP, baAt: () => baLastAt, baShots: () => shots.filter((q) => q.ba).length, baWaves: () => baFx.filter((f) => f.k === 'wv').length });   // v628 평타 진화 시험 손잡이(r13-basic)
 // v628 처치 손맛 시험 손잡이 — 살아 있는 주검 수 · 마지막 외침 글 · 마지막 처치(몫 · 넘친 피해 · 전직 차수) · 날고 있는 주검 · 큰 처치 수 · 경험치 구슬 수 · 셈(최고 주검 수 · 날기 시작 · 구슬 — true면 0으로)
 Object.assign(window.__s2, { klLive: () => corpses.length, klLast: () => klLastTxt, klInfo: () => (klLast ? { ...klLast } : null), klFly: () => corpses.filter((c) => c.L && c.L.T && klClock - c.L.at >= 0 && klClock - c.L.at < c.L.T).length, klBig: () => klBigN, klMotes: () => klMo.length, klStat: (reset) => { const r = { ...klStat }; if (reset) { klStat.peak = corpses.length; klStat.launched = 0; klStat.motes = 0; klStat.calls = 0; } return r; } });
