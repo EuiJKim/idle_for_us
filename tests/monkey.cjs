@@ -17,7 +17,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const seeded = (s) => () => ((s = (s * 1103515245 + 12345) % 2147483648) / 2147483648);
 
 // 누르지 않는 것 — 계정·기기·되돌릴 수 없는 것 · 밖으로 나가는 것
-const SKIP = /로그아웃|나가기\b.*로그|지우기|삭제|처음부터|새로 시작|전체 화면|전체화면|설치|Google|구글|저장 코드|코드로|불러오|내려받|받기 \(|신고|무인 바꾸기|캐릭터 바꾸기|무인 고르기|체험|다른 기기|복사|공유|서버에서 받|서버 세이브|되돌리기 \(|직업 바꾸기|운영자/;
+const SKIP = /로그아웃|나가기\b.*로그|지우기|삭제|처음부터|새로 시작|전체 화면|전체화면|설치|Google|구글|저장 코드|코드로|불러오|내려받|받기 \(|신고|무인 바꾸기|캐릭터 바꾸기|무인 고르기|체험|다른 기기|복사|공유|서버에서 받|서버 세이브|되돌리기 \(|직업 바꾸기|운영자|새 무인 만들기|새 시즌으로/;   // v645 새 무인 만들기(새 판 직업 고르기로 넘어가 더 누를 것이 없음) · 새 시즌으로(옛 게임을 떠남) — 「앱이 사라짐」으로 걸렸다. 줄 이름(ctx)도 거른다(「무인 바꾸기 — 고르기」). 무인 칸은 e2e가 본다
 const NOISE = /Failed to load resource|ERR_FAILED|ERR_ABORTED|Could not reach Cloud Firestore backend|firebase|net::/i;
 const BADTXT = /\bundefined\b|\bNaN\b|\[object Object\]|Infinity/;
 
@@ -78,7 +78,8 @@ const CANDS = () => {
     if (!top || !(top === el || el.contains(top) || top.contains(el))) continue;
     const t = (el.getAttribute('aria-label') || el.textContent || el.id || el.className || '').replace(/\s+/g, ' ').trim().slice(0, 40);
     const where = el.closest('#modal') ? 'modal' : el.closest('#panel') ? 'panel' : el.closest('#tabs') ? 'tabs' : 'hud';
-    out.push({ i, x, y, t, where });
+    const ctx = (el.closest('.row')?.querySelector('.name')?.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 30);   // v645 줄 이름(「새 시즌으로」 · 「무인 바꾸기」 …)
+    out.push({ i, x, y, t, where, ctx });
   }
   return out;
 };
@@ -136,7 +137,7 @@ async function run(browser, prof, r) {
         await page.evaluate(([y0, d]) => { const el = document.querySelector('#panel-head') || document.body; const mk = (t, x) => new TouchEvent(t, { bubbles: true, cancelable: true, touches: t === 'touchend' ? [] : [new Touch({ identifier: 1, target: el, clientX: x, clientY: y0 })], changedTouches: [new Touch({ identifier: 1, target: el, clientX: x, clientY: y0 })] }); el.dispatchEvent(mk('touchstart', 195)); el.dispatchEvent(mk('touchmove', 195 + d * 120)); el.dispatchEvent(mk('touchend', 195 + d * 120)); }, [y, dir]).catch(() => {});
         did = `쓸기 ${dir > 0 ? '→' : '←'}`;
       } else {
-        const cands = (await page.evaluate(CANDS)).filter((c) => !SKIP.test(c.t));
+        const cands = (await page.evaluate(CANDS)).filter((c) => !SKIP.test(c.t) && !SKIP.test(c.ctx));
         if (cands.length) {
           // 창(panel·modal) 안을 더 자주 — 아래 창 단추만 누르면 깊이 못 들어간다
           const w = cands.map((c) => (c.where === 'modal' ? 4 : c.where === 'panel' ? 3 : c.where === 'tabs' ? 1 : 0.6));
@@ -157,9 +158,10 @@ async function run(browser, prof, r) {
       lastInv = Date.now();
       const bad = await page.evaluate(BADSCAN, BADTXT.source).catch(() => []);
       for (const b of bad) await report('깨진 글', b);
-      const inv = await page.evaluate(async (w) => { eval(w); const { broken } = await import('/tests/inv.mjs'); return broken(window.__game, window.__monkeyWatch); }, watch).catch((e) => [`불변식 못 봄: ${e.message}`]);
+      // v645 무인 바꾸기 등으로 다시 불러오는 중이면 앱이 돌아올 때까지(8초) 기다렸다가 본다 — 불러오는 사이를 「앱이 사라짐」 · 「불변식 못 봄」으로 잡았다
+      const alive = await page.waitForFunction(() => !!document.querySelector('#tabs') && !!window.__game?.s?.job, null, { timeout: 8000 }).then(() => true).catch(() => false);
+      const inv = alive ? await page.evaluate(async (w) => { eval(w); const { broken } = await import('/tests/inv.mjs'); return broken(window.__game, window.__monkeyWatch); }, watch).catch((e) => [`불변식 못 봄: ${e.message}`]) : [];
       for (const b of inv) await report('불변식', b);
-      const alive = await page.evaluate(() => !!document.querySelector('#tabs') && !!window.__game?.s?.job).catch(() => false);
       if (!alive) { await report('앱이 사라짐', '#tabs 또는 game 없음'); break; }
       // 돈이 바닥나면 다시 채워 계속 누를 거리를 만든다(늦은 무인만)
       if (prof === 'late') await page.evaluate(() => { const s = window.__game.s; if (s.gold < 1e9) s.gold = 1e12; if ((s.mats.ore || 0) < 1e4) s.mats.ore = 1e6; }).catch(() => {});

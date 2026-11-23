@@ -107,15 +107,16 @@ const tryWrite = (page, fn, v = {}) => G(page, async ([src, v]) => {
     assert(k1 === false, '첫 몫은 쓰러뜨리지 못함');
     const k2 = await G(A.page, ([x, m]) => window.__net.commitWraid(x, m, true), [id, maxHp]);
     assert(k2 === true, '마무리 일격 → 쓰러짐');
-    const after = await G(A.page, async (x) => { const s = await window.__net.fs.getDoc(window.__net.ref('wraid', x)); return s.data(); }, id);
-    assert(after.total === after.maxHp && after.killer === A.uid && after.killedAt, '합계 = 체력 · 마무리한 사람 · 쓰러진 시각');
+    // v645 서버에서 읽는다 — 앱이 같은 문서를 듣고 있어 getDoc이 거래가 닿기 전 캐시를 돌려줄 때가 있었다(2/60번)
+    const after = await G(A.page, async (x) => { const s = await window.__net.fs.getDocFromServer(window.__net.ref('wraid', x)); const d = s.data(); return { ...d, killedAt: d.killedAt ? String(d.killedAt.toMillis?.() ?? d.killedAt) : null }; }, id);
+    assert(after.total === after.maxHp && after.killer === A.uid && after.killedAt, `합계 = 체력 · 마무리한 사람 · 쓰러진 시각 (${after.total}/${after.maxHp} · ${after.killer === A.uid ? '갑돌' : after.killer} · ${after.killedAt})`);
 
     console.log('— 늦은 한 몫: 표시가 있는 을순만');
     const kb = await G(B.page, ([x]) => window.__net.commitWraid(x, 777), [id]);
     assert(kb === false, '쓰러진 뒤라 마무리는 아님');
     const kc = await G(C.page, ([x]) => window.__net.commitWraid(x, 777), [id]);
     assert(kc === false, '병철도 마무리 아님');
-    const late = await G(A.page, async (x) => { const s = await window.__net.fs.getDoc(window.__net.ref('wraid', x)); return s.data().damage; }, id);
+    const late = await G(A.page, async (x) => { const s = await window.__net.fs.getDocFromServer(window.__net.ref('wraid', x)); return s.data().damage; }, id);
     assert(late[B.uid] === 777, `을순의 늦은 한 몫이 들어감 (${late[B.uid]})`);
     assert(!(late[C.uid] > 0), '표시 없는 병철 몫은 안 들어감');
     const sneak = await tryWrite(C.page, async (net, v) => { await net.fs.updateDoc(net.ref('wraid', v.id), { ['damage.' + net.uid]: 100, ['names.' + net.uid]: '병철' }); }, { id });
@@ -124,7 +125,7 @@ const tryWrite = (page, fn, v = {}) => G(page, async ([src, v]) => {
     assert(greedy === 'denied', `규칙: 이미 받은 늦은 몫을 크게 고치기는 막힘 (${greedy})`);
 
     console.log('— 받기: 순위대로 한 번씩');
-    const getR = (p, x) => G(p, async (i) => { const s = await window.__net.fs.getDoc(window.__net.ref('wraid', i)); return { id: s.id, ...s.data() }; }, x);
+    const getR = (p, x) => G(p, async (i) => { const s = await window.__net.fs.getDocFromServer(window.__net.ref('wraid', i)); return { id: s.id, ...s.data() }; }, x);
     const cA = await G(A.page, async (i) => { const n = window.__net; const s = await n.fs.getDoc(n.ref('wraid', i)); const o = await n.claimWraid({ id: s.id, ...s.data() }, true); return o && { rank: o.rank }; }, id);
     assert(cA?.rank === 1, `갑돌 1위로 받음 (${cA?.rank})`);
     // v437 캐릭터를 바꿨으면(이 캐릭터가 친 판이 아니면) 저절로 받지 않는다 — 계정 보상을 엉뚱한 캐릭터가 가져가지 않게

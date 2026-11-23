@@ -322,7 +322,9 @@ async function tab(page, name) {
     await G(p, () => { const g = window.__game; for (let i = 0; i < 3; i++) g.emit('kill', { mat: { boss: '시험의 증표', name: '현철', n: 12, markN: 1 } }); g.emit('shards', { pet: 4, mount: 2 }); });
     await p.waitForSelector('#loot-tally:not(.hidden)', { timeout: 5000 });
     const t = await p.$eval('#loot-tally', (e) => e.textContent);
-    assert(/두목 ×3/.test(t) && /현철 ×36/.test(t) && /포획 조각 ×4/.test(t), `두목·재료가 알림 대신 '이름 ×수'로 쌓인다 (${t})`);
+    // v645 그 사이 실제 사냥에서 나온 두목 · 현철도 함께 쌓인다(같은 모음) — 보낸 수 「이상」이면 된다(정확히 3 · 36을 바라 가끔 걸렸다)
+    const nOf = (re) => Number(re.exec(t)?.[1] || 0);
+    assert(nOf(/두목 ×(\d+)/) >= 3 && nOf(/현철 ×(\d+)/) >= 36 && nOf(/포획 조각 ×(\d+)/) >= 4, `두목·재료가 알림 대신 '이름 ×수'로 쌓인다 (${t})`);
     await shot(p, '07c-tally.png');
     // v329 절전 화면도 이름별로 모은다 — 두목 셋이면 '현철 ×36' 한 줄(전엔 '현철 12'가 세 줄)
     await G(p, () => { window.__test_saver(true); const g = window.__game; for (let i = 0; i < 3; i++) g.emit('kill', { mat: { boss: '시험의 증표', name: '현철', n: 12, markN: 1 } }); });
@@ -444,7 +446,8 @@ async function tab(page, name) {
   console.log('# 마을에서만 \'사냥하러 가기\' (v341)');
   {
     if (await p.isVisible('#panel-close')) { await p.click('#panel-close'); await sleep(250); }
-    await G(p, () => window.__game.goTown(false)); await sleep(500);
+    await G(p, () => window.__game.goTown(false));
+    await p.waitForSelector('#go-hunt', { state: 'visible', timeout: 5000 }).catch(() => {});   // v645 고정 0.5초 대신 나타날 때까지(바쁜 기계에서 화면 고침이 늦어 걸렸다)
     assert(await p.isVisible('#go-hunt'), '마을에 있으면 들판에 사냥하러 가기 단추');
     await p.click('#go-hunt'); await sleep(500);
     assert(await G(p, () => !window.__game.map.town), '누르면 사냥터로');
