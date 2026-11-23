@@ -22,7 +22,7 @@ import { drawFighter, femaleHeadKey } from '../../battle.js';
 import { hasBodyArt, artReady as artReadyNow } from '../../art.js';
 import { RELIC_FIELD, RELIC_EXTRA, PAL_FIELD } from '../tables/relicfield.js';   // v6xx 사냥터 따르는 무리
 import { JOBS } from '../tables/char.js';
-import { SP_KEYS, SP_EACH, SP_CAP } from '../hero/hero.js';
+import { SP_KEYS, SP_EACH, SP_CAP, SP2_KEYS, SP2_EACH, SP2_CAP, SP2_EVERY } from '../hero/hero.js';
 import { SKILLS, MASTERY, JOB_ADV, masteryCost } from '../tables/skills.js';
 import { JOB_LV, LEVEL_MAX } from '../tables/progress.js';
 import { COLLECT, AWAKE_NEED, AWAKE_MAX, AWAKE_STEP_P, TOTAL_AWAKE_P, TOTAL_AWAKE_CAP, COLLECT_LV_MAX, COLLECT_LV_P, collectLvCost, REALM_MAX, REALM_ATK_P, REALM_HP_P, realmCost, heartLines, JOURNEY_MAX, JOURNEY_STEP_P, journeyCost } from '../tables/s5.js';
@@ -32,8 +32,8 @@ const ACH = achievements(), achById = new Map(ACH.map((a) => [a.id, a]));
 import { expToNext, mobExp, KILLS_PER_MIN } from '../tables/exp.js';
 import { staminaNow, nextRegenMs } from '../content/idle.js';
 import { buildQueue } from '../content/offline.js';
-import { kindGrade, totalAwake, traitVal, isManual } from '../grow/collect.js';
-import { TRAIT, TRAIT_GX, TRAIT_SYS_P, traitOf } from '../tables/traits.js';
+import { kindGrade, totalAwake, traitVal, isManual, resoActive } from '../grow/collect.js';
+import { TRAIT, TRAIT_GX, TRAIT_SYS_P, traitOf, RESO, RESO_NEED } from '../tables/traits.js';
 import { PULL_P, PULL_PITY, PULL_TEN_FLOOR } from '../tables/option.js';
 import { loadLooks, zoneFor, drawHero, drawMob, mobName, mobHeight, preloadMobs, drawPaintedBack, drawPaintedLedge, drawEarth, chbImg, preloadChapter, fxImg, oldImg, tintImg, ULT_ART, SEAL_ART, CUT_ART, BUFF_ART, BOSS_ART, wearCount, filtered } from './look.js';
 import { BOSS_PATS } from '../tables/kit.js';
@@ -799,7 +799,7 @@ function dotSubs() {
     if ((DOT_RANK[lv] || 0) > (DOT_RANK[D[key]] || 0)) D[key] = lv;
   };
   // 캐릭터 — 스탯 점수 · 올릴 수 있는 무공 · 무공 강화 점수 · 전직(할 수 있는 것)
-  const pts = g.statPts?.() || 0; if (pts > 0) put('hero:0', 'gold', `${pts}`);
+  const pts = (g.statPts?.() || 0) + (g.stat2Pts?.() || 0); if (pts > 0) put('hero:0', 'gold', `${pts}`);
   let kitUp = 0;
   try { const K = h.kitState(); for (const id of Object.keys(K.lv)) { const sk = skillById(id); if (sk && h.canKitUp(id) && (W.gold || 0) >= kitCost(K.lv[id], sk.tier)[0].n) kitUp++; } } catch { /* 없음 */ }
   if (kitUp) put('hero:1', 'gold', `${kitUp}`);
@@ -1154,7 +1154,14 @@ function paintWin() {
       for (const k of SP_KEYS) { const full = P[k] >= SP_CAP, no = !free || full;
         cs(R(NM[k][0], `${P[k]}/${SP_CAP}점 · +${(P[k] * SP_EACH[k] / 10).toFixed(2)}%${k === 'crit' ? 'p' : ''}${full ? ' · 상한' : ''}`, [['+1', act(() => g.statUp(k, 1)), no], ['+10', act(() => g.statUp(k, 10)), no]], NM[k][1])); }
       cs(R('고르게 찍기', free ? `남은 ${free}점을 넷에 고르게(공격부터)` : '남은 점수가 없어요', [['고르게 찍기', act(() => { const n = g.statAuto(); if (n) toast(`${n}점 찍음`); return n; }), !free]], '均'));
-      cs(R('되돌리기', used ? `찍은 ${used}점을 모두 돌려받아요 · 공짜` : '찍은 점수가 없어요', [['되돌리기', act(() => { const n = g.statReset(); if (n) toast(`${n}점 돌려받음`); return n; }), !used]], '還')); }
+      cs(R('되돌리기', used ? `찍은 ${used}점을 모두 돌려받아요 · 공짜` : '찍은 점수가 없어요', [['되돌리기', act(() => { const n = g.statReset(); if (n) toast(`${n}점 돌려받음`); return n; }), !used]], '還'));
+      // v639 내공 단계 — 스탯 10점마다 1단 · 단마다 특수점 1(2차 스탯)
+      const Q = g.hero.sp2State(), dan = g.hero.sp2Total(), f2 = g.stat2Pts(), c2 = card(`내공 ${dan}단`, f2 ? `남은 특수점 ${f2}` : `다음 단까지 스탯 ${SP2_EVERY - (used % SP2_EVERY)}점`);
+      c2(note(`스탯을 ${SP2_EVERY}점 찍을 때마다 1단 — 단마다 특수점 1 · 스탯을 되돌리면 함께 돌아와요`));
+      const N2 = { bossDmg: ['두목 피해', '魁'], critDmg: ['치명 피해', '銳'], skillP: ['무공 피해', '武'], cdr: ['무공 쿨 감소', '息'], goldP: ['은자 획득', '財'] };
+      for (const k of SP2_KEYS) { const full = Q[k] >= SP2_CAP, no = !f2 || full;
+        const r2 = R(N2[k][0], `${Q[k]}/${SP2_CAP}점 · ${k === 'cdr' ? '−' : '+'}${(Q[k] * SP2_EACH[k] / 10).toFixed(1)}%${full ? ' · 상한' : ''} · 한 점 ${SP2_EACH[k] / 10}%`, [['+1', act(() => g.stat2Up(k, 1)), no]], N2[k][1]); r2.classList.add('sp2-row'); c2(r2); }
+      c2(R('고르게 찍기', f2 ? `남은 ${f2}점을 두목 피해 · 치명 피해 · 무공 피해에 고르게` : '남은 특수점이 없어요', [['고르게 찍기', act(() => { const n = g.stat2Auto(); if (n) toast(`특수점 ${n}점 찍음`); return n; }), !f2]], '均')); }
   } else if (key === 'hero:1') {
     // 무공 — 위에 낀 칸 여섯(그림 · 이름 · Lv · 쿨 · 잠긴 칸은 열리는 조건) · 묶음 가/나 · 모두 올리기 · 차수별 무공 카드
     const Hs = g.hero, K = Hs.kitState(), cap = kitCap(g.S.hero.lv), H = g.S.hero, BK = Hs.battleKit();
@@ -1473,6 +1480,21 @@ function paintWin() {
       grid.append(t2);
     }
     c1(grid);
+    if (sys === 'relic') {   // v639 영물 공명 — 같은 무리 셋을 함께 끼면 켜진다
+      const on = new Set(resoActive(C).map((x) => x.id)), RS = { bossDmg: '두목 피해', skillP: '무공 피해', critDmg: '치명 피해', goldP: '은자', expP: '경험치', crit: '치명 확률', mobDmg: '몹 피해' };
+      const cr = card('영물 공명', on.size ? `켜짐 — ${RESO.filter((x) => on.has(x.id)).map((x) => x.name).join(' · ')}` : `같은 무리 ${RESO_NEED}마리를 함께 끼면 켜져요`);
+      const rg = document.createElement('div'); rg.className = 'rs-grid';
+      for (const X of RESO) {
+        const have = X.ks.filter((k) => C.own[k]).length, eqn = X.ks.filter((k) => C.eq.includes(k)).length, isOn = on.has(X.id), can = have >= RESO_NEED && !isOn;
+        const d = document.createElement('div'); d.className = `rs-card${isOn ? ' on' : ''}${have ? '' : ' no'}`; d.dataset.id = X.id;
+        d.innerHTML = `<div class="rs-h"><b>${X.name}</b><em>${Object.entries(X.stats).map(([k, v]) => `${RS[k]} +${v / 10}%${k === 'crit' ? 'p' : ''}`).join(' · ')}</em></div>`
+          + `<div class="rs-m">${X.ks.map((k) => `<span class="${C.eq.includes(k) ? 'eq' : C.own[k] ? 'own' : ''}" style="--gc:${GCOL[kindGrade(sys, k)]}"><img src="art/s2/coll/${sys}-${k}.webp" alt="" loading="lazy"><i>${esc(collName(sys, k))}</i></span>`).join('')}</div>`
+          + `<div class="rs-f"><small>${isOn ? '공명 켜짐' : `낀 것 ${eqn}/${RESO_NEED} · 가진 것 ${have}/${X.ks.length}${X.ks.length > RESO_NEED ? ` (아무 ${RESO_NEED})` : ''}`}</small>${can ? '<button class="btn rs-go">이 무리로 끼기</button>' : ''}</div>`;
+        const b = d.querySelector('.rs-go'); if (b) b.onclick = act(() => { const r = g.resoEquip(X.id); if (r) toast(`${X.name} 공명 — 직접 고름으로 바뀌었어요`); return r; });
+        rg.append(d);
+      }
+      cr(rg);
+    }
     if (!nOwn) c1(note('아직 모은 것이 없어요 — 왼쪽 뽑기로 모아요. 가지기만 해도 효과가 붙고, 좋은 것은 저절로 낍니다.'));
   } else if (key === 'grow:3') {
     // 경지 — 둥근 돌파 눈금(모은 은자 / 다음 값) · 가운데 큰 경지 · 한 단계마다 오르는 값 · 10레벨마다 표(심법 줄 1~3) · 올리면 금빛 물결

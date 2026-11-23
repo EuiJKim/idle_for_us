@@ -2235,6 +2235,38 @@ const ok = (c, m, x = '') => { console.log(`  ${c ? '✓' : '✗ !!'} ${m}${x !=
       await ctx.close();
     }
   }
+  if (!process.env.ONLY || process.env.ONLY.split(',').some((x) => x === '844' || x === 'p639')) {
+    console.log('— v639 영물 공명 · 내공 단계');
+    for (const [VW, VH] of [[844, 390], [667, 375]]) {
+      const ctx = await b.newContext({ viewport: { width: VW, height: VH }, serviceWorkers: 'block' });
+      await ctx.route(/gstatic\.com\/firebasejs/, (r) => r.abort());
+      const page = await ctx.newPage(); const errs = [];
+      page.on('pageerror', (e) => errs.push(e.message)); page.on('console', (m) => { if (m.type() === 'error' && !/Failed to load|ERR_FAILED/.test(m.text())) errs.push(m.text()); });
+      await page.goto(BASE, { waitUntil: 'domcontentloaded' });
+      await page.waitForSelector('#modal:not(.hidden) .jobcard'); await page.click('#modal .jobcard[data-job="sword"]');
+      await page.waitForSelector('#modal', { state: 'hidden' }); await page.waitForTimeout(500);
+      await page.evaluate(() => { const g = window.__s2.g, C = g.S.colls.relic; g.S.hero.lv = 36; for (const k of [0, 1, 3, 21, 22, 29]) C.own[k] = { lv: 1, awk: 0, n: 0 }; g.collAuto('relic', true); g.dirtyStats = true; window.__s2.openKey('grow:2'); });
+      await page.waitForSelector('#wb .rs-grid .rs-card');
+      const r1 = await page.evaluate(() => { const cs = [...document.querySelectorAll('#wb .rs-card')], t = cs.find((c) => c.dataset.id === 'tteul'), pb = document.getElementById('panel-body').getBoundingClientRect(); return { n: cs.length, on: cs.filter((c) => c.classList.contains('on')).length, go: !!t.querySelector('.rs-go'), goH: t.querySelector('.rs-go')?.getBoundingClientRect().height, own: t.querySelectorAll('.rs-m .own').length, over: cs.filter((c) => c.getBoundingClientRect().right > pb.right + 1).length, sw: document.documentElement.scrollWidth > innerWidth }; });
+      ok(r1.n === 9 && r1.on === 0 && r1.go && r1.goH >= 30 && r1.own === 3 && !r1.over && !r1.sw, `v639 ${VW} 공명 카드 아홉 · 셋을 가진 무리에 「이 무리로 끼기」 · 넘침 없음`, JSON.stringify(r1));
+      await page.evaluate(() => document.querySelector('#wb .rs-card[data-id="tteul"] .rs-go').click()); await page.waitForTimeout(300);
+      const r2 = await page.evaluate(() => { const t = document.querySelector('#wb .rs-card[data-id="tteul"]'); return { on: t.classList.contains('on'), eq: t.querySelectorAll('.rs-m .eq').length, st: window.__s2.g.resoState().on, txt: t.querySelector('.rs-f small').textContent, go: !!t.querySelector('.rs-go') }; });
+      ok(r2.on && r2.eq === 3 && r2.st.join() === 'tteul' && /켜짐/.test(r2.txt) && !r2.go, `v639 ${VW} 누르면 공명이 켜진다`, JSON.stringify(r2));
+      await page.screenshot({ path: path.join(OUT, `s2-reso-${VW}.png`) });
+      // 내공 단계
+      await page.evaluate(() => { window.__s2.g.statAuto(); window.__s2.navDots(); window.__s2.openKey('hero:0'); }); await page.waitForSelector('#wb .sp2-row');
+      const s1 = await page.evaluate(() => { const g = window.__s2.g, rows = [...document.querySelectorAll('#wb .sp2-row')], b = rows[0].querySelector('.btn'); return { n: rows.length, pts: g.stat2Pts(), dan: g.hero.sp2Total(), dis: b.disabled, h: b.getBoundingClientRect().height, head: rows[0].closest('.card').querySelector('h3')?.textContent || '' }; });
+      ok(s1.n === 5 && s1.pts === 3 && s1.dan === 3 && !s1.dis && s1.h >= 32 && /내공 3단/.test(s1.head), `v639 ${VW} 내공 단계 카드 — 3단 · 특수점 3 · 줄 다섯`, JSON.stringify(s1));
+      const pw0 = await page.evaluate(() => window.__s2.g.power());
+      await page.evaluate(() => document.querySelector('#wb .sp2-row .btn').click()); await page.waitForTimeout(250);
+      const s2 = await page.evaluate(() => ({ pts: window.__s2.g.stat2Pts(), v: window.__s2.g.hero.sp2State().bossDmg, pw: window.__s2.g.power(), txt: document.querySelector('#wb .sp2-row .desc')?.textContent || '' }));
+      ok(s2.pts === 2 && s2.v === 1 && s2.pw >= pw0 && /1\/8점/.test(s2.txt), `v639 ${VW} +1 → 두목 피해 1점`, JSON.stringify(s2));
+      await page.screenshot({ path: path.join(OUT, `s2-sp2-${VW}.png`) });
+      ok(errs.length === 0, `v639 ${VW} 공명 · 내공 단계 — 콘솔 오류 없음`, errs.slice(0, 3).join(' | '));
+      await page.evaluate(() => window.__s2.freeze?.());
+      await ctx.close();
+    }
+  }
   await b.close();
   console.log(fails ? `\n✗ ${fails}건` : '\n✓ 새 시즌 화면 전부 통과');
   process.exit(fails ? 1 : 0);

@@ -14,6 +14,10 @@ export const SP_KEYS = ['atk', 'hp', 'def', 'crit'];
 export const SP_STAT = { atk: 'atkP', hp: 'hpP', def: 'defP', crit: 'crit' };
 export const SP_EACH = { atk: 1, hp: 1, def: 1, crit: 0.2 };   // 공격 · 체력 · 방어 +0.1% · 치명 +0.02%p
 export const SP_CAP = 40;                                       // 스탯마다 40점까지
+// v639 내공 단계 — 스탯을 10점 찍을 때마다 1단 · 단마다 특수점 1 · 2차 스탯에 찍는다(되돌리기는 스탯과 함께)
+export const SP2_EVERY = 10, SP2_CAP = 8;
+export const SP2_KEYS = ['bossDmg', 'critDmg', 'skillP', 'cdr', 'goldP'];
+export const SP2_EACH = { bossDmg: 12, critDmg: 15, skillP: 12, cdr: 5, goldP: 20 };   // 퍼밀 — 두목 피해 +1.2% · 치명 피해 +1.5% · 무공 피해 +1.2% · 무공 쿨 −0.5% · 은자 +2%
 
 export function newHero(job = 'sword') {
   return {
@@ -66,7 +70,26 @@ export class Hero {
     }
     return n;
   }
-  spReset() { const p = this.spState(), n = this.spUsed(); for (const k of SP_KEYS) p[k] = 0; return n; }
+  spReset() { const p = this.spState(), n = this.spUsed(); for (const k of SP_KEYS) p[k] = 0; const q = this.sp2State(); for (const k of SP2_KEYS) q[k] = 0; return n; }
+  // v639 내공 단계
+  sp2State() { const p = (this.s.sp2 ??= {}); for (const k of SP2_KEYS) p[k] = Math.max(0, Math.min(SP2_CAP, Math.floor(p[k] || 0))); return p; }
+  sp2Total() { return Math.floor(this.spUsed() / SP2_EVERY); }
+  sp2Used() { const p = this.sp2State(); return SP2_KEYS.reduce((a, k) => a + p[k], 0); }
+  sp2Free() { return Math.max(0, this.sp2Total() - this.sp2Used()); }
+  sp2Up(key, n = 1) {
+    const p = this.sp2State(); if (!SP2_KEYS.includes(key)) return 0;
+    const add = Math.max(0, Math.min(Math.floor(n) || 0, this.sp2Free(), SP2_CAP - p[key]));
+    p[key] += add; return add;
+  }
+  // 고르게 — 싸움 쪽 셋(두목 피해 → 치명 피해 → 무공 피해)부터 적게 찍은 것에, 다 차면 나머지
+  sp2Auto() {
+    const p = this.sp2State(); let n = 0;
+    for (let left = this.sp2Free(); left > 0; left--) {
+      let open = SP2_KEYS.slice(0, 3).filter((k) => p[k] < SP2_CAP); if (!open.length) open = SP2_KEYS.filter((k) => p[k] < SP2_CAP); if (!open.length) break;
+      p[open.reduce((a, b) => (p[b] < p[a] ? b : a))]++; n++;
+    }
+    return n;
+  }
   // 자동 찍기: 주 스탯에 몰아서 · 고유 스탯은 치명 → 치명 피해 → 보스 피해 순으로 고르게
   autoSpend() {
     const s = this.s;
@@ -211,6 +234,8 @@ export class Hero {
     if (f1) out.push({ src: '무공 마스터리', stats: { final1: f1 } });
     const sp = s.sp;
     if (sp && SP_KEYS.some((k) => sp[k] > 0)) out.push({ src: '스탯 배분', stats: Object.fromEntries(SP_KEYS.filter((k) => sp[k] > 0).map((k) => [SP_STAT[k], Math.min(SP_CAP, sp[k]) * SP_EACH[k]])) });
+    const sp2 = s.sp2;
+    if (sp2 && SP2_KEYS.some((k) => sp2[k] > 0)) out.push({ src: '내공 단계', stats: Object.fromEntries(SP2_KEYS.filter((k) => sp2[k] > 0).map((k) => [k, Math.min(SP2_CAP, sp2[k]) * SP2_EACH[k]])) });
     return out;
   }
   stats(extra = []) { return finalize(sumStats([...this.sources(), ...extra])); }

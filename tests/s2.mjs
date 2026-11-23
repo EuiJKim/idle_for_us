@@ -2279,6 +2279,43 @@ console.log('\n=== v635 문파 연공실 · 품앗이 · 겨루기 ===');
   g.tick(T0 + 8 * 86400e3); ok(g.gwarSt().help === 0 && g.gwarSt().don === 0 && g.gwarSt().got === 'y', 'gd 겨루기: 다음 주 내 몫 새로(받은 표시는 남음)');
 }
 
+console.log('\n=== v639 영물 공명 · 내공 단계 ===');
+{
+  const TR = await import('../js/s2/tables/traits.js'), CL2 = await import('../js/s2/grow/collect.js'), HH = await import('../js/s2/hero/hero.js');
+  const all = TR.RESO.flatMap((R) => R.ks);
+  ok(new Set(all).size === 30 && all.length === 30 && TR.RESO.every((R) => R.ks.length >= TR.RESO_NEED && Object.keys(R.stats).every((k) => TR.RESO_W[k] > 0)), '공명 무리 아홉 — 영물 30종이 하나씩 · 무리마다 셋 이상 · 값마다 무게');
+  const T0 = 1.8e12, g = new Game(newGame('sword', T0, 7), T0); g.tick(T0);
+  const C = g.S.colls.relic, own = (ks) => { for (const k of ks) C.own[k] = { lv: 1, awk: 0, n: 0 }; };
+  ok(g.resoState().on.length === 0 && CL2.resoSources(C).length === 0, '처음엔 공명 없음');
+  own([21, 22, 29]); g.collAuto('relic', true);
+  ok(g.resoState().on.join() === 'tteul' && C.eq.slice().sort((a, b) => a - b).join() === '21,22,29' && g.sources().some((x) => x.src === '영물 공명' && x.stats.mobDmg === 40), '같은 무리 셋을 끼면 공명 — 몹 피해 +4%');
+  const pw1 = g.power(); g.collEquip('relic', 0, null);
+  ok(g.resoState().on.length === 0 && g.power() < pw1, '하나 빼면 꺼진다 · 전투력이 내려간다');
+  g.collAuto('relic', true);
+  // 추천 자동 — 조금 센 하나 때문에 공명을 깨지 않는다 · 훨씬 센 셋이면 공명을 버린다
+  own([20]); g.collAuto('relic', true);
+  ok(g.resoState().on.join() === 'tteul', '추천 자동: 같은 등급 하나가 더 있어도 공명을 지킨다', JSON.stringify(C.eq));
+  own([0, 1, 3]); g.collAuto('relic', true);
+  ok(g.resoState().on.length === 0 && C.eq.slice().sort((a, b) => a - b).join() === '0,1,3', '추천 자동: 훨씬 센 셋(보 · 보 · 진)이면 공명보다 그쪽', JSON.stringify(C.eq));
+  ok(g.resoEquip('tteul') && g.resoState().on.join() === 'tteul' && CL2.isManual(C), '「이 무리로 끼기」 → 공명 · 직접 고름');
+  ok(!g.resoEquip('samryeong') && !g.resoEquip('nope'), '셋이 안 되는 무리 · 없는 무리는 못 낀다');
+  own([4, 5, 6]); ok(g.resoEquip('sasin') && g.resoState().on.join() === 'sasin' && C.eq.length === 3, '넷짜리 무리는 그중 센 셋');
+  // 내공 단계
+  const g2 = new Game(newGame('sword', T0, 8), T0); g2.tick(T0);
+  ok(g2.stat2Pts() === 0 && g2.hero.sp2Total() === 0 && g2.stat2Up('bossDmg') === 0, '처음엔 0단 · 특수점 없음');
+  g2.S.hero.lv = 36; g2.statAuto();
+  ok(g2.hero.spUsed() === 35 && g2.hero.sp2Total() === 3 && g2.stat2Pts() === 3, `스탯 ${HH.SP2_EVERY}점마다 1단 — 35점 → 3단 · 특수점 3`);
+  const p0 = g2.power();
+  ok(g2.stat2Up('bossDmg') === 1 && g2.stat2Up('nope') === 0 && g2.stat2Pts() === 2 && g2.hero.sources().some((x) => x.src === '내공 단계' && x.stats.bossDmg === HH.SP2_EACH.bossDmg), '특수점 찍기 → 출처 「내공 단계」');
+  ok(g2.stat2Auto() === 2 && g2.stat2Pts() === 0 && g2.hero.sp2State().critDmg === 1 && g2.hero.sp2State().skillP === 1 && g2.stat2Up('critDmg') === 0, '고르게 — 두목 피해 · 치명 피해 · 무공 피해에 · 남은 점이 없으면 못 찍는다');
+  ok(g2.power() > p0, '전투력이 오른다', `${p0} → ${g2.power()}`);
+  g2.S.hero.sp2.cdr = 99; ok(g2.hero.sp2State().cdr === HH.SP2_CAP, `스탯마다 ${HH.SP2_CAP}점까지`); g2.S.hero.sp2.cdr = 0;
+  g2.statReset();
+  ok(g2.hero.sp2Used() === 0 && g2.hero.sp2Total() === 0 && g2.stat2Pts() === 0 && !g2.hero.sources().some((x) => x.src === '내공 단계'), '스탯을 되돌리면 특수점도 함께');
+  const r = g2.autoGrow(); ok(g2.statPts() === 0 && g2.stat2Pts() === 0 && g2.hero.sp2Used() === 3, '자동 성장이 스탯과 특수점을 찍는다', JSON.stringify(r));
+  // 옛 저장(sp2 없음)
+  delete g2.S.hero.sp2; ok(g2.hero.sp2Used() === 0 && g2.stat2Pts() === 3 && Number.isFinite(g2.power()), '옛 저장(sp2 없음)도 그대로');
+}
 console.log('\n=== v636 요괴록(몹 도감) ===');
 {
   const MB = await import('../js/s2/tables/mobs.js'), TT = await import('../js/s2/tables/titles.js');

@@ -34,3 +34,19 @@ export const TRAIT_OF = {
     'crit', 'basic', 'gold', 'cdr', 'skill', 'guard', 'critDmg', 'mob', 'exp', 'stun'],
 };
 export const traitOf = (sys, k) => TRAIT_OF[sys]?.[k] || null;
+
+// v639 영물 공명 — 같은 무리 영물 셋을 함께 끼면 켜진다(영물 칸 3). ks: 무리(종류 번호 · 넷이면 그중 셋) · stats: 퍼밀
+//   값은 기질 하나쯤(높은 등급 무리일수록 큼) — 「가장 센 셋」 대신 무리를 맞출 까닭이 되되, 전투력은 몇 %를 넘지 않게.
+export const RESO_NEED = 3;
+export const RESO = [
+  { id: 'samryeong', name: '삼령', ks: [0, 1, 2], stats: { bossDmg: 60 } },
+  { id: 'sasin', name: '사신수', ks: [3, 4, 5, 6], stats: { skillP: 50 } },
+  { id: 'yeongsu', name: '영수', ks: [7, 8, 9], stats: { critDmg: 80 } },
+  { id: 'mulga', name: '물가', ks: [10, 14, 24, 25], stats: { goldP: 80 } },
+  { id: 'sup', name: '숲', ks: [11, 15, 19, 23], stats: { expP: 50 } },
+  { id: 'haneul', name: '불과 하늘', ks: [12, 13, 16], stats: { skillP: 35 } },
+  { id: 'bam', name: '밤', ks: [17, 18, 20], stats: { crit: 20 } },
+  { id: 'tteul', name: '뜰', ks: [21, 22, 29], stats: { mobDmg: 40 } },
+  { id: 'beot', name: '벗', ks: [26, 27, 28], stats: { goldP: 40, expP: 30 } },
+];
+export const RESO_W = { bossDmg: 0.5, skillP: 0.6, critDmg: 0.35, goldP: 0.3, expP: 0.5, crit: 1.2, mobDmg: 0.6 };   // 추천 자동이 볼 무게(기질 무게와 같다)

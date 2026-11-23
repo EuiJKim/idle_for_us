@@ -2031,6 +2031,17 @@
     #loglines div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     #panel .dg-ttcard .row .info:first-child { flex-basis: 100%; }
     .coll-tile .tr-t, .rl-mk small { font-size: 10px; } .coll-tile u, .tr-sl u { font-size: 9.5px; }
+    /* v639 영물 공명 카드 · 내공 단계 */
+    .rs-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 8px; }
+    .rs-card { padding: 8px 10px; border-radius: 12px; background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.08); display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+    .rs-card.on { border-color: rgba(232,200,122,.7); background: linear-gradient(180deg, rgba(232,200,122,.14), rgba(232,200,122,.04)); box-shadow: 0 0 12px rgba(232,200,122,.18); }
+    .rs-card.no { opacity: .55; }
+    .rs-h { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; } .rs-h b { font-family: var(--serif); font-size: 14px; color: #f3e3b4; white-space: nowrap; } .rs-h em { font-style: normal; font-size: 11.5px; font-weight: 800; color: #4ade80; text-align: right; }
+    .rs-m { display: flex; gap: 6px; } .rs-m span { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 3px 2px; border-radius: 8px; border: 1px solid rgba(255,255,255,.08); opacity: .4; filter: grayscale(1); }
+    .rs-m span.own { opacity: .85; filter: none; border-color: color-mix(in srgb, var(--gc) 45%, transparent); } .rs-m span.eq { opacity: 1; filter: none; border-color: var(--gc); background: color-mix(in srgb, var(--gc) 14%, transparent); }
+    .rs-m img { width: 34px; height: 34px; object-fit: contain; } .rs-m i { font-style: normal; font-size: 10px; color: rgba(255,255,255,.8); white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+    .rs-f { display: flex; justify-content: space-between; align-items: center; gap: 8px; min-height: 30px; } .rs-f small { font-size: 10.5px; color: rgba(255,255,255,.6); } .rs-card.on .rs-f small { color: #f3d98a; font-weight: 800; }
+    #panel-body .rs-f .btn { min-width: 0; min-height: 32px; padding: 5px 10px; font-size: 12px; }
     /* 결과 창(STAGE CLEAR …)이 떠 있는 동안 알림은 맨 위로 — 「다음 스테이지」 단추를 가리던 것(결과 창 뒤는 어둡게 덮여 있다) */
     body:has(#res.open) #toast, html.w720 body:has(#res.open) #toast, html.h340 body:has(#res.open) #toast { top: calc(var(--st, 0px) + 4px); bottom: auto; left: 50%; }
     /* v634 뜻대로 굴리기(rl2) · 전투력 미리보기 — 창은 .rl2를 담은 알림 창만 넓게 */

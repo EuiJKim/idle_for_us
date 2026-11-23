@@ -3,7 +3,7 @@
 import { PULL_P, PULL_PITY, PULL_TEN_FLOOR } from '../tables/option.js';
 import { COLLECT, AWAKE_NEED, AWAKE_MAX, AWAKE_STEP_P, TOTAL_AWAKE_P, TOTAL_AWAKE_CAP, COLLECT_LV_MAX, COLLECT_LV_P, collectLvCost } from '../tables/s5.js';
 import { pay } from '../core/cost.js';
-import { TRAIT, TRAIT_GX, TRAIT_AWK_P, TRAIT_LV_P, TRAIT_SYS_P, traitOf } from '../tables/traits.js';
+import { TRAIT, TRAIT_GX, TRAIT_AWK_P, TRAIT_LV_P, TRAIT_SYS_P, traitOf, RESO, RESO_NEED, RESO_W } from '../tables/traits.js';
 
 // 종류 번호 → 등급(고정): 종류를 등급별로 나눠 둔다(보 1/10 · 진 2/10 · 정 2/10 · 양 2/10 · 범 3/10)
 export function kindGrade(sys, i) {
@@ -91,7 +91,29 @@ export function blendVal(C, k) {
 }
 export function autoEquipBest(C) {
   const order = Object.keys(C.own).map(Number).sort((a, b) => blendVal(C, b) - blendVal(C, a) || a - b);
-  C.eq = C.eq.map((_, i) => order[i] ?? null);
+  let best = order.slice(0, C.eq.length);
+  if (C.sys === 'relic') {   // v639 공명 — 가장 센 셋과, 맞출 수 있는 무리마다 가장 센 셋(+ 공명 값)을 견주어 큰 쪽
+    const sum = (ks) => ks.reduce((a, k) => a + blendVal(C, k), 0) + resoOf(ks).reduce((a, R) => a + resoWeight(R), 0);
+    let bs = sum(best);
+    for (const R of RESO) { const m = order.filter((k) => R.ks.includes(k)).slice(0, RESO_NEED); if (m.length < RESO_NEED) continue; const sc = sum(m); if (sc > bs) { bs = sc; best = m; } }
+  }
+  C.eq = C.eq.map((_, i) => best[i] ?? null);
+}
+// ── v639 영물 공명 — 같은 무리 셋을 함께 끼면 켜진다 ──
+export const resoOf = (ks) => RESO.filter((R) => R.ks.filter((k) => ks.includes(k)).length >= RESO_NEED);
+export const resoWeight = (R) => Object.entries(R.stats).reduce((a, [k, v]) => a + v * (RESO_W[k] || 0.5), 0);
+export const resoActive = (C) => (C.sys === 'relic' ? resoOf(C.eq.filter((k) => k != null)) : []);
+export function resoSources(C) {
+  const st = {};
+  for (const R of resoActive(C)) for (const [k, v] of Object.entries(R.stats)) st[k] = (st[k] || 0) + v;
+  return Object.keys(st).length ? [{ src: '영물 공명', stats: st }] : [];
+}
+// 무리를 손으로 끼기 — 가진 것 가운데 센 셋(직접 고름이 된다)
+export function resoEquip(C, id) {
+  const R = RESO.find((x) => x.id === id); if (!R || C.sys !== 'relic') return false;
+  const m = R.ks.filter((k) => C.own[k]).sort((a, b) => blendVal(C, b) - blendVal(C, a) || a - b).slice(0, RESO_NEED);
+  if (m.length < RESO_NEED) return false;
+  C.eq = C.eq.map((_, i) => m[i] ?? null); C.man = true; return true;
 }
 export const isManual = (C) => !!C.man;
 // 칸 slot에 k를 낀다(다른 칸에 있으면 자리를 바꾼다) · k=null이면 뺀다 → 직접 고름으로

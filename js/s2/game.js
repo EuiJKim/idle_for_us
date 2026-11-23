@@ -167,6 +167,7 @@ export class Game {
       ...GR.gearSources(S.gear, L),
       ...COLLECTS.flatMap((s) => CL.collectSources(S.colls[s])),
       ...COLLECTS.flatMap((s) => CL.traitSources(S.colls[s])),   // v635 고유 기질(낄 때만)
+      ...CL.resoSources(S.colls.relic),   // v639 영물 공명
       ...RM.realmSources(S.realm), ...RM.journeySources(S.journey), ...RM.cosmeticSources(S.cosmetics),
       ...ID.towerSources(S.tower.best),
       ...this.titleSources(),
@@ -179,6 +180,13 @@ export class Game {
   statUp(key, n = 1) { const r = this.hero.spUp(key, n); if (r) { this.dirtyStats = true; this.emit('stat', { n: this.hero.spUsed() }); } return r; }
   statAuto() { const r = this.hero.spAuto(); if (r) { this.dirtyStats = true; this.emit('stat', { n: this.hero.spUsed() }); } return r; }
   statReset() { const r = this.hero.spReset(); if (r) this.dirtyStats = true; return r; }
+  // v639 내공 단계 — 스탯 10점마다 1단 · 특수점
+  stat2Pts() { return this.hero.sp2Free(); }
+  stat2Up(key, n = 1) { const r = this.hero.sp2Up(key, n); if (r) this.dirtyStats = true; return r; }
+  stat2Auto() { const r = this.hero.sp2Auto(); if (r) this.dirtyStats = true; return r; }
+  // v639 영물 공명
+  resoState() { const C = this.S.colls.relic; return { on: CL.resoActive(C).map((R) => R.id) }; }
+  resoEquip(id) { const C = this.S.colls.relic; if (!CL.resoEquip(C, id)) return false; this.dirtyStats = true; return true; }
   // v537 칭호 수집 효과 — 얻은 칭호 수만큼
   titleSources() { const n = (this.S.titles || []).filter((t) => titleByName(t)).length; return n ? [{ src: 'title', stats: Object.fromEntries(Object.entries(TITLE_EACH).map(([k, v]) => [k, v * n])) }] : []; }
   setTitle(nm) { if (nm && !(this.S.titles || []).includes(nm)) return false; this.S.titleOn = nm || null; return true; }
@@ -907,7 +915,7 @@ export class Game {
     if (o.kit !== false) { const k = this.kitUpAll(); if (k) out.kit = k.n; }
     if (o.enh !== false) { const e = this.enhanceAll(); if (e) out.enh = e.ok; }
     // v592 수련 — 배울 수 있는 마스터리 · 경지 돌파(은자가 되는 만큼, 강화 뒤에)
-    if (o.stat !== false) out.train += this.statAuto();   // 남은 스탯 점수는 고르게(공짜 — v609 은자 아끼기(train 끔)여도 찍는다)
+    if (o.stat !== false) { out.train += this.statAuto(); this.stat2Auto(); }   // 남은 스탯 점수는 고르게(공짜 — v609 은자 아끼기(train 끔)여도 찍는다)
     if (o.train !== false) {
       for (const m of MASTERY) if (this.learn(m.id)) out.train++;
       for (let i = 0; i < 10 && this.realmUp(); i++) out.train++;
