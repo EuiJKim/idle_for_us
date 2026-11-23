@@ -109,6 +109,22 @@ export function rival(gid, week, n) {
   const h = hash(`${gid}|${week}`), per = 260 + ((h >>> 8) % 240);
   return { name: RIVALS[h % RIVALS.length], final: Math.round(per * Math.max(1, Math.min(10, n | 0))) };
 }
+// v641 칠파 회전 — 우리 문파 + 그 주의 여섯 문파(첫째는 겨루기 맞수 그대로)가 한 조. 점수는 겨루기 점수 그대로 · 월요일에 순위대로 보상
+export const GLEAGUE = { size: 7, rew: [{ tix: 5, merit: 60 }, { tix: 4, merit: 45 }, { tix: 3, merit: 35 }, { tix: 3, merit: 25 }, { tix: 2, merit: 20 }, { tix: 2, merit: 15 }, { tix: 1, merit: 10 }] };
+export function leagueFoes(gid, week, n) {
+  const out = [rival(gid, week, n)], used = new Set([out[0].name]), m = Math.max(1, Math.min(10, n | 0));
+  for (let i = 1; i < GLEAGUE.size - 1; i++) {
+    const h = hash(`${gid}|${week}|L${i}`); let j = h % RIVALS.length; while (used.has(RIVALS[j])) j = (j + 1) % RIVALS.length;
+    used.add(RIVALS[j]); out.push({ name: RIVALS[j], final: Math.round((120 + ((h >>> 8) % 440)) * m) });
+  }
+  return out;
+}
+export function leagueTable(gid, week, n, us, frac = 1) {
+  const rows = leagueFoes(gid, week, n).map((f) => ({ name: f.name, pts: frac >= 1 ? f.final : rivalNow(f, frac) }));
+  rows.push({ me: true, pts: Math.max(0, Math.round(us || 0)) });
+  rows.sort((a, b) => b.pts - a.pts || (a.me ? -1 : b.me ? 1 : 0));
+  return { rows, rank: rows.findIndex((r) => r.me) + 1 };
+}
 // 그 주가 흐른 만큼(0~1) 맞수 점수가 오른다 — 앞쪽이 조금 빠르게
 export const rivalNow = (R, frac) => Math.round(R.final * Math.pow(Math.max(0, Math.min(1, frac)), 0.85));
 export const newWarDoc = (week) => ({ week, n: 1, pts: {}, names: {}, last: null, rec: { w: 0, d: 0, l: 0, pts: 0 } });
@@ -119,7 +135,7 @@ export function warRoll(W, week, gid) {
   const us = Object.values(W.pts).reduce((a, b) => a + b, 0), R = rival(gid, W.week, W.n || 1);
   if (us > 0) {
     const [a] = warResult(us, R.final), res = us === R.final ? 'draw' : us > R.final ? 'win' : 'lose';
-    W.last = { week: W.week, us, them: R.final, name: R.name, res, pts: { ...W.pts }, names: { ...W.names } };
+    W.last = { week: W.week, n: W.n || 1, us, them: R.final, name: R.name, res, pts: { ...W.pts }, names: { ...W.names } };
     W.rec[res === 'win' ? 'w' : res === 'draw' ? 'd' : 'l']++; W.rec.pts += a;
   }
   Object.assign(W, { week, pts: {}, names: {} });

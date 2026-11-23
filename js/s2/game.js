@@ -13,6 +13,7 @@ import { LEVEL_MAX, JOB_LV } from './tables/progress.js';
 import { START_PULL_TICKETS, SLOTS } from './tables/gear.js';
 import { START_PULLS } from './tables/s5.js';
 import { CDR_CAP, KILL_HEAL_CAP } from './tables/traits.js';
+import { SUB_POOL } from './tables/gearstat.js';
 import { DAILY_DUNGEONS, DAILY_RUNS, JOB_DUNGEON, towerMsFloors, towerMsReward, SURGE, surgeStar } from './tables/content.js';
 import { GUIDE, DAILY_MISSIONS, WEEKLY_MISSIONS, achievements, guideCurrent } from './tables/missions.js';
 import { JOB_ADV, MASTERY } from './tables/skills.js';
@@ -403,6 +404,16 @@ export class Game {
     this.S.wallet.gold += gold; this.S.wallet['ticket:gear'] = (this.S.wallet['ticket:gear'] || 0) + R.tix;
     return { res: last.res, tix: R.tix, gold };
   }
+  // v641 칠파 회전 — 지난주 순위 보상(그 주에 점수를 낸 사람 · 한 번)
+  gleagueClaim(last, uid) {
+    const W = this.gwarSt(), gid = this.S.guildId;
+    if (!gid || !last || !last.week || !(last.pts?.[uid] > 0) || W.lgot === last.week) return null;
+    const T = GD.leagueTable(gid, last.week, last.n || 1, last.us, 1), R = GD.GLEAGUE.rew[T.rank - 1]; if (!R) return null;
+    W.lgot = last.week; this.S.wallet['ticket:gear'] = (this.S.wallet['ticket:gear'] || 0) + R.tix;
+    return { rank: T.rank, tix: R.tix, merit: this.exEarn('merit', R.merit) };
+  }
+  // v641 지킬 옵션 — 켜면 그 부옵션이 붙은 장비는 자동 · 일괄 분해에서 빠진다
+  gearKeepSub(k) { const G = this.S.gear, L = (G.keepSub ??= []), i = L.indexOf(k); if (i >= 0) L.splice(i, 1); else if (SUB_POOL.some((s) => s.k === k)) L.push(k); else return null; return L.includes(k); }
   setNick(name) { const n = String(name || '').replace(/[\u0000-\u001f<>]/g, '').trim().slice(0, 12); if (!n) return false; this.S.nick = n; return true; }
   rankProfile() {
     const S = this.S, f = this.fighter(false);

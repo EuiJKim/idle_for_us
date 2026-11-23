@@ -75,7 +75,7 @@ export function obtain(G, items, heroLv, wallet, better = null) {
   // 자동 분해
   if (G.autoDis >= 0) {
     const keep = [], mats = [];
-    for (const it of G.bag) { if (!it.lock && it.g <= G.autoDis) mats.push(...dismantle(it.g)); else keep.push(it); }
+    for (const it of G.bag) { if (!it.lock && it.g <= G.autoDis && !keepsSub(G, it)) mats.push(...dismantle(it.g)); else keep.push(it); }
     G.bag = keep;
     if (wallet && mats.length) for (const c of merge(mats)) wallet[c.k] = (wallet[c.k] || 0) + c.n;
   }
@@ -110,8 +110,10 @@ export function equipBest(G, heroLv, o = null) {
 }
 // v521 일괄 분해 대상 — 잠금 아님 · 낀 것보다 점수가 낮음 · (maxG가 있으면) 그 등급 이하
 //   v631 better(it, cur)를 넘기면 그것으로(낀 것보다 세지 않은 것)
+// v641 지킬 옵션 — 이 부옵션이 붙은 것은 자동 분해 · 일괄 분해에서 뺀다(G.keepSub: 부옵션 열쇠 목록)
+export const keepsSub = (G, it) => !!(G.keepSub && G.keepSub.length && it.subs && it.subs.some((s) => G.keepSub.includes(s.k)));
 export function junkOf(G, heroLv, maxG = 6, better = null) {
-  return G.bag.filter((it) => !it.lock && it.g <= maxG && G.eq[it.slot] && (better ? !better(it, G.eq[it.slot]) : gearScore(it, heroLv) <= gearScore(G.eq[it.slot], heroLv)));
+  return G.bag.filter((it) => !it.lock && !keepsSub(G, it) && it.g <= maxG && G.eq[it.slot] && (better ? !better(it, G.eq[it.slot]) : gearScore(it, heroLv) <= gearScore(G.eq[it.slot], heroLv)));
 }
 export function dismantleMany(G, uids, wallet) {
   const set = new Set(uids), out = {}; let n = 0;

@@ -2279,6 +2279,34 @@ console.log('\n=== v635 문파 연공실 · 품앗이 · 겨루기 ===');
   g.tick(T0 + 8 * 86400e3); ok(g.gwarSt().help === 0 && g.gwarSt().don === 0 && g.gwarSt().got === 'y', 'gd 겨루기: 다음 주 내 몫 새로(받은 표시는 남음)');
 }
 
+console.log('\n=== v641 지킬 옵션 · 칠파 회전 ===');
+{
+  const GR2 = await import('../js/s2/gear/gear.js'), GD2 = await import('../js/s2/online/guild.js');
+  const T0 = 1.8e12, g = new Game(newGame('sword', T0, 11), T0); g.tick(T0);
+  const G = g.S.gear; let u = 8e6; const mk = (subs, gr = 0) => ({ uid: ++u, slot: 'ring', g: gr, up: 0, subs, rr: 0, lock: false });
+  g.obtain([mk([{ k: 'atkL1', v: 20 }], 3)]);
+  ok(G.eq.ring && !G.keepSub, '처음엔 지킬 옵션 없음');
+  G.bag.push(mk([{ k: 'goldP', v: 20 }]), mk([{ k: 'hpP', v: 10 }]));
+  ok(g.gearJunk(6).length === 2, '낀 것보다 약한 둘은 일괄 분해 대상');
+  ok(g.gearKeepSub('goldP') === true && g.gearKeepSub('nope') === null && G.keepSub.join() === 'goldP', '지킬 옵션 켜기 · 없는 옵션은 안 됨');
+  ok(g.gearJunk(6).length === 1 && g.gearJunk(6)[0].subs[0].k === 'hpP', '지킬 옵션이 붙은 것은 일괄 분해에서 빠진다');
+  G.autoDis = 3; g.obtain([mk([{ k: 'goldP', v: 11 }]), mk([{ k: 'defP', v: 11 }])]);
+  ok(G.bag.filter((x) => x.subs.some((s2) => s2.k === 'goldP')).length === 2 && !G.bag.some((x) => x.subs.some((s2) => s2.k === 'defP' || s2.k === 'hpP')), '자동 분해 — 지킬 옵션은 남고 나머지는 분해');
+  ok(g.gearKeepSub('goldP') === false && G.keepSub.length === 0 && g.gearJunk(6).length === 2, '끄면 다시 분해 대상');
+  // 칠파 회전
+  const F = GD2.leagueFoes('K7Q2MX', '2026-W47', 3), F2 = GD2.leagueFoes('K7Q2MX', '2026-W47', 3);
+  ok(F.length === 6 && new Set(F.map((x) => x.name)).size === 6 && JSON.stringify(F) === JSON.stringify(F2) && F[0].name === GD2.rival('K7Q2MX', '2026-W47', 3).name && F[0].final === GD2.rival('K7Q2MX', '2026-W47', 3).final, '여섯 문파 — 이름이 다 다르고 · 같은 문파 · 같은 주면 같은 값 · 첫째는 겨루기 맞수');
+  ok(JSON.stringify(GD2.leagueFoes('K7Q2MX', '2026-W48', 3)) !== JSON.stringify(F), '주가 바뀌면 조가 바뀐다');
+  const top = GD2.leagueTable('K7Q2MX', '2026-W47', 3, 1e9), bot = GD2.leagueTable('K7Q2MX', '2026-W47', 3, 0), mid = GD2.leagueTable('K7Q2MX', '2026-W47', 3, 0, 0);
+  ok(top.rank === 1 && bot.rank === 7 && top.rows.length === 7 && mid.rank === 1 && mid.rows.every((r) => r.pts === 0), '순위 1~7 · 주 처음엔 모두 0(같으면 우리가 앞)');
+  ok(GD2.GLEAGUE.rew.length === 7 && GD2.GLEAGUE.rew.every((r, i, a) => !i || (r.tix <= a[i - 1].tix && r.merit < a[i - 1].merit)), '보상은 순위대로 내려간다');
+  const W = GD2.newWarDoc('2026-W47'); W.n = 3; W.pts = { me: 500, x: 900 }; GD2.warRoll(W, '2026-W48', 'K7Q2MX');
+  ok(W.last && W.last.n === 3 && W.last.us === 1400, '주 마감 기록에 문파원 수(n)');
+  g.S.guildId = 'K7Q2MX'; const t0 = g.S.wallet['ticket:gear'] || 0, m0 = g.S.wallet['coin:merit'] || 0, rk = GD2.leagueTable('K7Q2MX', W.last.week, 3, 1400).rank, z = g.gleagueClaim(W.last, 'me');
+  ok(z && z.rank === rk && (g.S.wallet['ticket:gear'] || 0) === t0 + GD2.GLEAGUE.rew[rk - 1].tix && (g.S.wallet['coin:merit'] || 0) > m0, '지난주 순위 보상 — 뽑기권 · 공적', JSON.stringify(z));
+  ok(g.gleagueClaim(W.last, 'me') === null && g.gleagueClaim(W.last, 'nobody') === null, '한 번만 · 점수를 안 낸 사람은 없음');
+  g.S.gwar.lgot = ''; g.S.guildId = null; ok(g.gleagueClaim(W.last, 'me') === null, '문파가 없으면 없음');
+}
 console.log('\n=== v640 병법 상극 · 실제 적용값 ===');
 {
   const ON = await import('../js/s2/tables/online.js'), PV2 = await import('../js/s2/online/pvp.js'), CH = await import('../js/s2/tables/char.js'), TR = await import('../js/s2/tables/traits.js');

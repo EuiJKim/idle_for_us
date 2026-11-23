@@ -2068,7 +2068,14 @@ const ok = (c, m, x = '') => { console.log(`  ${c ? '✓' : '✗ !!'} ${m}${x !=
       await page.click('#wb .gd-war-last .row .btn'); await page.waitForTimeout(250);
       const w1 = await page.evaluate(() => ({ tix: window.__s2.g.S.wallet['ticket:gear'] || 0, dis: document.querySelector('#wb .gd-war-last .row .btn')?.disabled, dot: !!document.querySelector('#wb .gd-seg button[data-gd="war"].dot-on') }));
       const v3 = await view();
-      ok(Number(w0.us) >= 820 && w0.them && w0.ways === 4 && /이김/.test(w0.last) && w1.tix === w0.tix + 4 && w1.dis && !w1.dot && !v3.wide && !v3.txt, `v635 guild ${W} — 겨루기: 맞섬 · 얻는 법 넷 · 지난주 이김 → 뽑기권 4 한 번`, JSON.stringify({ ...w0, tix: w1.tix - w0.tix }));
+      ok(Number(w0.us) >= 820 && w0.them && w0.ways === 4 && /이김/.test(w0.last) && w1.tix === w0.tix + 4 && w1.dis && w1.dot && !v3.wide && !v3.txt, `v635 guild ${W} — 겨루기: 맞섬 · 얻는 법 넷 · 지난주 이김 → 뽑기권 4 한 번`, JSON.stringify({ ...w0, tix: w1.tix - w0.tix }));
+      // v641 칠파 회전 — 일곱 줄 · 우리 문파 줄 · 지난주 순위 보상 한 번 → 점 꺼짐
+      const q0 = await page.evaluate(async () => { const { leagueTable, GLEAGUE } = await import(new URL('js/s2/online/guild.js', location.href).href); const S = window.__s2, L = S.guildState.war.last, T = leagueTable('K7Q2MX', L.week, L.n || 1, L.us, 1), rows = [...document.querySelectorAll('#wb .gd-lgt > div')], pb = document.getElementById('panel-body').getBoundingClientRect();
+        return { n: rows.length, me: rows.filter((r) => r.classList.contains('me')).length, meName: document.querySelector('#wb .gd-lgt .me span')?.textContent, rank: T.rank, rw: GLEAGUE.rew[T.rank - 1], last: document.querySelector('#wb .gd-lg-last .name')?.textContent, tix: S.g.S.wallet['ticket:gear'] || 0, merit: S.g.S.wallet['coin:merit'] || 0, over: rows.filter((r) => r.getBoundingClientRect().right > pb.right + 1).length }; });
+      await page.click('#wb .gd-lg-last .btn'); await page.waitForTimeout(250);
+      const q1 = await page.evaluate(() => ({ tix: window.__s2.g.S.wallet['ticket:gear'] || 0, merit: window.__s2.g.S.wallet['coin:merit'] || 0, dis: document.querySelector('#wb .gd-lg-last .btn')?.disabled, dot: !!document.querySelector('#wb .gd-seg button[data-gd="war"].dot-on') }));
+      ok(q0.n === 7 && q0.me === 1 && q0.meName === '청운검문' && new RegExp(`${q0.rank}위`).test(q0.last) && q1.tix === q0.tix + q0.rw.tix && q1.merit > q0.merit && q1.dis && !q1.dot && !q0.over, `v641 guild ${W} — 칠파 회전: 일곱 문파 · 지난주 순위 보상 한 번 · 점 꺼짐`, JSON.stringify({ ...q0, got: q1.tix - q0.tix, merit: q1.merit - q0.merit }));
+      await page.screenshot({ path: path.join(OUT, `s2-league-${W}.png`) });
       ok(errs.length === 0, `v635 guild ${W} — 콘솔 오류 없음`, errs.slice(0, 3).join(' | '));
       await page.evaluate(() => window.__s2.freeze?.());
       await ctx.close();
@@ -2289,6 +2296,34 @@ const ok = (c, m, x = '') => { console.log(`  ${c ? '✓' : '✗ !!'} ${m}${x !=
       ok(a2.want.join() === a2.got.join() && a2.note && !a2.over, `v640 ${VW} 대결 상대 카드 — 상성 칩이 직업대로 · 설명 한 줄`, JSON.stringify(a2));
       await page.screenshot({ path: path.join(OUT, `s2-edge-${VW}.png`) });
       ok(errs.length === 0, `v640 ${VW} 상극 · 실제 적용값 — 콘솔 오류 없음`, errs.slice(0, 3).join(' | '));
+      await page.evaluate(() => window.__s2.freeze?.());
+      await ctx.close();
+    }
+  }
+  if (!process.env.ONLY || process.env.ONLY.split(',').some((x) => x === '844' || x === 'p641')) {
+    console.log('— v641 가방 옵션 거르기 · 분해 안 함');
+    for (const [VW, VH] of [[844, 390], [667, 375]]) {
+      const ctx = await b.newContext({ viewport: { width: VW, height: VH }, serviceWorkers: 'block' });
+      await ctx.route(/gstatic\.com\/firebasejs/, (r) => r.abort());
+      const page = await ctx.newPage(); const errs = [];
+      page.on('pageerror', (e) => errs.push(e.message)); page.on('console', (m) => { if (m.type() === 'error' && !/Failed to load|ERR_FAILED/.test(m.text())) errs.push(m.text()); });
+      await page.goto(BASE, { waitUntil: 'domcontentloaded' });
+      await page.waitForSelector('#modal:not(.hidden) .jobcard'); await page.click('#modal .jobcard[data-job="sword"]');
+      await page.waitForSelector('#modal', { state: 'hidden' }); await page.waitForTimeout(500);
+      await page.evaluate(() => { const g = window.__s2.g, G = g.S.gear; g.S.wallet['ticket:gear'] = 60; g.pullGear?.(30) || g.pull?.(30); let u = 9e6; const mk = (slot, subs) => ({ uid: ++u, slot, g: 0, up: 0, subs, rr: 0, lock: false }); G.bag.push(mk('ring', [{ k: 'goldP', v: 20 }]), mk('ring', [{ k: 'goldP', v: 12 }, { k: 'crit', v: 6 }]), mk('ring', [{ k: 'hpP', v: 12 }])); window.__s2.openKey('gear:3'); });
+      await page.waitForSelector('#wb .bago .chip');
+      const b0 = await page.evaluate(() => { const g = window.__s2.g, G = g.S.gear, n = (k) => G.bag.filter((x) => x.subs.some((s) => s.k === k)).length, c = document.querySelector('#wb .bago .chip[data-opt="goldP"]'); return { chip: c?.textContent, n: n('goldP'), all: G.bag.length, keepBtn: !!document.querySelector('#wb .bago-keep'), h: c?.getBoundingClientRect().height, junk: g.gearJunk(6).filter((x) => x.subs.some((s) => s.k === 'goldP')).length }; });
+      ok(b0.chip === `은자 ${b0.n}` && b0.n >= 2 && !b0.keepBtn && b0.h >= 26 && b0.junk >= 2, `v641 ${VW} 가방 옵션 칩 — 은자 옵션 수 · 고르기 전에는 「분해 안 함」 없음`, JSON.stringify(b0));
+      await page.click('#wb .bago .chip[data-opt="goldP"]'); await page.waitForTimeout(250);
+      const b1 = await page.evaluate(() => ({ tiles: document.querySelectorAll('#wb .inv-tile').length, on: document.querySelector('#wb .bago .chip[data-opt="goldP"]').classList.contains('on'), keepBtn: document.querySelector('#wb .bago-keep')?.textContent, wide: document.documentElement.scrollWidth > innerWidth }));
+      ok(b1.tiles === b0.n && b1.on && b1.keepBtn === '분해 안 함' && !b1.wide, `v641 ${VW} 고르면 그 옵션 붙은 것만 · 「분해 안 함」 단추`, JSON.stringify(b1));
+      await page.click('#wb .bago-keep'); await page.waitForTimeout(250);
+      const b2 = await page.evaluate(() => { const g = window.__s2.g, G = g.S.gear; const before = G.bag.filter((x) => x.subs.some((s) => s.k === 'goldP')).length; const junk = g.gearJunk(6).filter((x) => x.subs.some((s) => s.k === 'goldP')).length; G.autoDis = 3; g.obtain([{ uid: 9e6 + 50, slot: 'ring', g: 0, up: 0, subs: [{ k: 'goldP', v: 15 }], rr: 0, lock: false }, { uid: 9e6 + 51, slot: 'ring', g: 0, up: 0, subs: [{ k: 'defP', v: 15 }], rr: 0, lock: false }]); G.autoDis = -1;
+        return { keep: G.keepSub, junk, before, after: G.bag.filter((x) => x.subs.some((s) => s.k === 'goldP')).length, def: G.bag.some((x) => x.uid === 9e6 + 51), btn: document.querySelector('#wb .bago-keep')?.textContent, lock: document.querySelector('#wb .bago .chip[data-opt="goldP"]').classList.contains('keep') }; });
+      ok(b2.keep.join() === 'goldP' && b2.junk === 0 && b2.after >= b2.before && !b2.def && /✓/.test(b2.btn) && b2.lock, `v641 ${VW} 「분해 안 함」 — 일괄 분해 대상에서 빠지고 자동 분해에도 남는다(다른 옵션은 분해)`, JSON.stringify(b2));
+      await page.evaluate(() => window.__s2.openKey('gear:3')); await page.waitForTimeout(200);
+      await page.screenshot({ path: path.join(OUT, `s2-bagopt-${VW}.png`) });
+      ok(errs.length === 0, `v641 ${VW} 가방 옵션 — 콘솔 오류 없음`, errs.slice(0, 3).join(' | '));
       await page.evaluate(() => window.__s2.freeze?.());
       await ctx.close();
     }

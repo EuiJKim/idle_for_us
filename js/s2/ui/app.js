@@ -2,7 +2,7 @@
 // 화면은 엔진(js/s2/game.js)만 본다. 시계는 화면 쪽에서만 읽어 엔진에 넘긴다(엔진은 결정론).
 import { Game, newGame, COLLECTS, dayKey, weekKey, STAGE_KILLS, GRAID, graidHp0, GTRAIN, WEEK_REW, WB_COMMUNITY, PARTY, partyLv } from '../game.js';
 import { raidPhase } from '../online/guild.js';
-import { GRES, GRES_DAY, gresNeed, resTarget, resCan, resStats, helpCut, GWAR, rival, rivalNow } from '../online/guild.js';   // v635 연공실 · 품앗이 · 겨루기
+import { GRES, GRES_DAY, gresNeed, resTarget, resCan, resStats, helpCut, GWAR, rival, rivalNow, GLEAGUE, leagueTable } from '../online/guild.js';   // v635 연공실 · 품앗이 · 겨루기
 import { GUILD } from '../tables/online.js';
 import { scoreDelta as pvpDelta } from '../online/pvp.js';   // 대결 카드 — 이기면/지면 점수 미리 보기
 import { PVP_TIERS, pvpEdge, PVP_COUNTER, PVP_COUNTER_P } from '../tables/online.js';
@@ -265,7 +265,7 @@ function gdHelpSync() {
   return d;
 }
 const gdOthers = () => Object.entries(guildState.help?.helps || {}).filter(([, h]) => h.owner !== net.uid && h.timer?.endMs > Date.now());
-const gdWarCan = () => !!(guildState.war?.last && g.S.guildId && guildState.war.last.pts?.[net.uid] > 0 && GWAR.rew[guildState.war.last.res] && g.gwarSt().got !== guildState.war.last.week);
+const gdWarCan = () => !!(guildState.war?.last && g.S.guildId && guildState.war.last.pts?.[net.uid] > 0 && (GWAR.rew[guildState.war.last.res] && g.gwarSt().got !== guildState.war.last.week || g.gwarSt().lgot !== guildState.war.last.week));   // v641 칠파 회전 보상도
 const gdHelpCan = () => g.helpGiveLeft() > 0 && gdOthers().some(([, h]) => !h.by?.includes(net.uid) && (h.by?.length || 0) < GUILD.help.maxHelps);
 function gdTodo() { const o = []; if (gdWarCan()) o.push('gwar'); if (gdHelpCan()) o.push('ghelp'); return o; }
 function gdSeg() {
@@ -351,6 +351,13 @@ function gdView(tab, G, h) {
     const r = R(`${RES[L.res] || '—'} <small>${unit(L.us)} : ${unit(L.them)} · ${esc(L.name)}</small>`, got ? '받았어요' : mineL > 0 ? `내 몫 ${unit(mineL)}점 — 뽑기권 ${rw.tix} · 은자` : '지난주에 점수를 안 내서 보상이 없어요',
       [['받기', act(() => { const z = g.gwarClaim(L, net.uid); if (z) { play('rare', 3); toast(`겨루기 ${RES[z.res]} — 뽑기권 ${z.tix} · 은자 ${unit(z.gold)}`); } return z; }), got || !(mineL > 0)]], 'i:duel:鬪'); r.classList.add(`gd-war-${L.res}`); cB(r); }
   else cB(note('지난 판이 없어요 — 이번 주가 첫 판이에요'));
+  // v641 칠파 회전 — 일곱 문파 주간 순위(점수는 겨루기 점수 그대로)
+  { const T = leagueTable(G.id, wk, G.memberIds.length, us, frac), top = Math.max(1, ...T.rows.map((r) => r.pts));
+    const cL = card('칠파 회전', `이번 주 ${T.rank}위 / ${GLEAGUE.size} · 판정까지 ${gdMin(endIn)}`); B.lastElementChild.classList.add('gd-lg');
+    cL(box('gd-lgt', T.rows.map((r, i) => `<div class="${r.me ? 'me' : ''}"><b>${i + 1}</b><span>${esc(r.me ? G.name : r.name)}</span><i><u style="width:${(r.pts / top) * 100}%"></u></i><em>${unit(r.pts)}</em><small>뽑기권 ${GLEAGUE.rew[i].tix} · 공적 ${GLEAGUE.rew[i].merit}</small></div>`).join('')));
+    if (L) { const TL = leagueTable(G.id, L.week, L.n || 1, L.us, 1), gotL = g.gwarSt().lgot === L.week, mineL = L.pts?.[net.uid] || 0, rw = GLEAGUE.rew[TL.rank - 1];
+      const r = R(`지난주 ${TL.rank}위`, gotL ? '받았어요' : mineL > 0 ? `뽑기권 ${rw.tix} · 공적 ${rw.merit}` : '지난주에 점수를 안 내서 보상이 없어요', [['받기', act(() => { const z = g.gleagueClaim(L, net.uid); if (z) { play('rare', 3); toast(`칠파 회전 ${z.rank}위 — 뽑기권 ${z.tix} · 공적 ${z.merit}`); } return z; }), gotL || !(mineL > 0)]], 'i:guild:派'); r.classList.add('gd-lg-last'); cL(r); }
+    cL(note('여섯 문파 점수는 주 내내 오르고 월요일에 견줘요 · 순위 보상은 그 주에 점수를 낸 사람만')); }
   cB(note(`이기면 뽑기권 ${GWAR.rew.win.tix} · 비기면 ${GWAR.rew.draw.tix} · 지면 ${GWAR.rew.lose.tix}(그 주에 점수를 낸 사람) · 승점은 이기면 ${GUILD.war.winPts} · 비기면 ${GUILD.war.drawPts}`));
 }
 function guildDo(fn, msg) {
@@ -599,6 +606,8 @@ function openKey(key) { if (key === 'lvbox:0') { lvbPop(); return; } for (const 
 let dgIv = 0;   // v6xx 수련동 · 원정 — 창이 열려 있는 동안만 1초마다 남은 시간을 고친다(닫으면 멈춤)
 const dgStop = () => { clearInterval(dgIv); dgIv = 0; };
 let open = null, tab = 0, treeSel = null, eqSel = null, lkPrev = {};   // lkPrev: 외형 창에서 눌러 입혀 보는 중인 것(부위 → 등급) · 「이 외형으로」 전에는 보이기만
+let bagOpt = '';   // v641 가방 옵션 거르기(부옵션 열쇠 · '' 전부)
+const SUBN = { atkL1: '공격', hpP: '체력', defP: '방어', crit: '치명', critDmg: '치명 피해', bossDmg: '두목 피해', mobDmg: '몹 피해', pierce: '관통', goldP: '은자', expP: '경험치' };
 let bagF = 'all', bagSort = 'g', bagJunkG = 3, bagMore = false, bagAsk = false;   // v521 가방 보기 · 일괄 분해 한 번 더 묻기
 // 가방 「NEW」 — 가방을 지난번 열었을 때 없던 것(화면만 · 이 기기에만 기억)
 const BAG_SEEN = 'ifu-s2-bagSeen';
@@ -1430,7 +1439,14 @@ function paintWin() {
     const sorts = document.createElement('span'); sorts.className = 'gr-sort'; sorts.innerHTML = '<span class="gr-sortl">정렬</span>';   // 같은 줄 오른쪽(넘치면 다음 줄)
     for (const [k, nm] of [['g', '등급순'], ['d', '좋은 순'], ['s', '부위순'], ['n', '새로 얻은 순']]) { const b = document.createElement('button'); b.className = `chip gr-so${bagSort === k ? ' on' : ''}`; b.textContent = nm; b.onclick = () => { play('click'); bagSort = k; paintWin(); }; sorts.append(b); }
     chips.append(sorts); c0(chips);
-    const list = G.bag.filter((x) => bagF === 'all' || x.slot === bagF).sort(bagSort === 'n' ? (a2, b2) => (bagNew.has(b2.uid) - bagNew.has(a2.uid)) || b2.uid - a2.uid : bagSort === 's' ? (a2, b2) => SLOTS.indexOf(a2.slot) - SLOTS.indexOf(b2.slot) || b2.g - a2.g : bagSort === 'd' ? (a2, b2) => gqDp(b2) - gqDp(a2) || b2.g - a2.g : (a2, b2) => b2.g - a2.g || gqDp(b2) - gqDp(a2));
+    // v641 옵션 거르기 — 가방에 있는 부옵션마다 칩 · 고르면 그 옵션 붙은 것만 · 「분해 안 함」을 켜면 자동 · 일괄 분해에서 빠진다
+    { const has = (k) => G.bag.filter((x) => (bagF === 'all' || x.slot === bagF) && x.subs?.some((s) => s.k === k)).length, keep = G.keepSub || [];
+      if (bagOpt && !SUBN[bagOpt]) bagOpt = '';
+      const oc = document.createElement('div'); oc.className = 'chip-row bagf bago'; oc.innerHTML = '<span class="gr-sortl">옵션</span>';
+      for (const [k, nm] of [['', '전부'], ...Object.entries(SUBN)]) { const n = k ? has(k) : 0; if (k && !n && bagOpt !== k && !keep.includes(k)) continue; const b = document.createElement('button'); b.className = `chip${bagOpt === k ? ' on' : ''}${keep.includes(k) ? ' keep' : ''}`; b.dataset.opt = k; b.textContent = k ? `${nm} ${n}` : nm; b.onclick = () => { play('click'); bagOpt = k; paintWin(); }; oc.append(b); }
+      if (bagOpt) { const on = keep.includes(bagOpt), b = document.createElement('button'); b.className = `chip bago-keep${on ? ' on' : ''}`; b.textContent = on ? '분해 안 함 ✓' : '분해 안 함'; b.title = '이 옵션이 붙은 장비는 자동 분해 · 일괄 분해에서 빼요'; b.onclick = act(() => { const r = g.gearKeepSub(bagOpt); toast(r ? `${SUBN[bagOpt]} 옵션 장비는 분해하지 않아요` : `${SUBN[bagOpt]} 옵션 지키기 끔`); return true; }); oc.append(b); }
+      c0(oc); }
+    const list = G.bag.filter((x) => (bagF === 'all' || x.slot === bagF) && (!bagOpt || x.subs?.some((s) => s.k === bagOpt))).sort(bagSort === 'n' ? (a2, b2) => (bagNew.has(b2.uid) - bagNew.has(a2.uid)) || b2.uid - a2.uid : bagSort === 's' ? (a2, b2) => SLOTS.indexOf(a2.slot) - SLOTS.indexOf(b2.slot) || b2.g - a2.g : bagSort === 'd' ? (a2, b2) => gqDp(b2) - gqDp(a2) || b2.g - a2.g : (a2, b2) => b2.g - a2.g || gqDp(b2) - gqDp(a2));
     const eqT = bagF !== 'all' && G.eq[bagF] ? [G.eq[bagF]] : [];   // v631 부위를 고르면 낀 것도 맨 앞에(「장착 중」)
     if (list.length) { c0(invGrid([...eqT, ...list.slice(0, bagMore ? 400 : 60)], null, L, { nw: bagNew })); if (list.length > 60 && !bagMore) c0(R(`${list.length - 60}개 더 있어요`, '', [['전부 보기', () => { play('click'); bagMore = true; paintWin(); }]], '…')); }
     else c0(note('가방이 비었어요. 뽑기에서 더 좋은 것은 바로 껴요.'));
@@ -5406,7 +5422,7 @@ function agRun(t) {
   frame.ag = t; const r = g.autoGrow({ ...(opt.agGold ? {} : { kit: false, enh: false, train: false }), buff: !!opt.bfAuto });   // v634 단약 자동은 설정을 켤 때만
   if (r.buff) { addLog(`자동 성장 — 단약 ${r.buff}개 먹음`); paintBf(true); }   // v593 은자 아끼기
   // v589 문파 출석(서버) — 문파에 들었고 오늘 안 했으면
-  if (net.online && g.S.guildId && guildState.war?.last) { const wr = g.gwarClaim(guildState.war.last, net.uid); if (wr) r.daily.push(`겨루기 보상 뽑기권 ${wr.tix}`); }   // v635
+  if (net.online && g.S.guildId && guildState.war?.last) { const wr = g.gwarClaim(guildState.war.last, net.uid); if (wr) r.daily.push(`겨루기 보상 뽑기권 ${wr.tix}`); const lr = g.gleagueClaim(guildState.war.last, net.uid); if (lr) r.daily.push(`칠파 회전 ${lr.rank}위 뽑기권 ${lr.tix}`); }   // v635
   if (net.online && g.S.guildId && guildState.g && g.S.gChk !== dayKey(now())) { const G = guildState.g, gr = g.guildCheckin(Game.guildLvOf(G.exp)); if (gr) { r.daily.push('문파 출석'); net.guildCheckin(G).catch(() => {}); } }
   if (r.daily.length) agSum.daily += r.daily.length;
   if (r.claim || r.pull || r.coll || r.equip || r.kit || r.enh || r.train || r.daily.length) {
