@@ -2279,6 +2279,21 @@ console.log('\n=== v635 문파 연공실 · 품앗이 · 겨루기 ===');
   g.tick(T0 + 8 * 86400e3); ok(g.gwarSt().help === 0 && g.gwarSt().don === 0 && g.gwarSt().got === 'y', 'gd 겨루기: 다음 주 내 몫 새로(받은 표시는 남음)');
 }
 
+console.log('\n=== v644 자동 사냥 끼임 없음 — 장마다 3분 ===');
+{
+  // 움직임만 보려고 무인을 아주 세게(공격 · 체력 ×200) — 장마다 지형 · 발판이 달라도 처치가 20초 넘게 멈추지 않는다(끼이면 처치가 멈춘다)
+  const bad = [], worst = {};
+  for (const job of ['sword', 'bow']) for (let ch = 1; ch <= 15; ch++) {
+    const T0 = 1.8e12, g = new Game(newGame(job, T0, 100 + ch), T0); g.tick(T0);
+    const idx = (ch - 1) * 10 + 3, T = g.stage(); g.S.hero.lv = Math.min(150, idx + 8); g.S.hero.adv = Math.min(5, Math.floor(idx / 25)); T.idx = T.top = idx; T.auto = false;
+    const s0 = g.sources.bind(g); g.sources = () => [...s0(), { src: '시험', stats: { atkP: 200000, hpP: 200000 } }]; g.dirtyStats = true; g.fight = null;
+    let k0 = g.S.kills, last = 0, gap = 0;
+    for (let t = 0; t < 180000; t += 250) { g.hunt(250); if (g.S.kills !== k0) { k0 = g.S.kills; last = t; } gap = Math.max(gap, t - last); }
+    worst[job] = Math.max(worst[job] || 0, gap);
+    if (gap > 20000 || g.S.kills < 20) bad.push(`${job} ${ch}장 틈 ${(gap / 1000).toFixed(1)}s · 처치 ${g.S.kills}`);
+  }
+  ok(bad.length === 0, '장 1~15 · 검객 · 궁사 — 자동 사냥 3분 동안 처치가 20초 넘게 멈추지 않음', bad.join(' · ') || `가장 긴 틈 검 ${(worst.sword / 1000).toFixed(1)}s · 궁 ${(worst.bow / 1000).toFixed(1)}s`);
+}
 console.log('\n=== v643 서열 점검 상한 — 꽉 채운 무인도 걸리지 않게 ===');
 {
   const ON2 = await import('../js/s2/tables/online.js'), PW = await import('../js/s2/online/power.js'), { play: botPlay } = await import('../tools/s2sim/play.mjs');

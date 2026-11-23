@@ -102,7 +102,7 @@ try {
     if (skip(d.id)) continue;
     seen++;
     const L = s2lv.get(d.id) || (await db.doc(`${ON.COLL.players}/${d.id}`).get()).data()?.lv || 1;
-    const cap = WB2.bossScore(WB2.refTryDmg(L) * ON.POWER_SLACK * 1.5, L);
+    const cap = WB2.bossScore(WB2.refTryDmg(L) * (ON.RANK_POWER_SLACK || ON.POWER_SLACK) * 1.5, L);   // v644 서열 상한(×6)과 같은 여유 — ×3이면 꽉 채운 무인(단약까지 표준의 4배 남짓)이 걸렸다
     if (d.data().best > cap) note(d.id, [`새 시즌 월드보스: 한 번 ${d.data().best} > 상한 ${cap}`], { lv: L });
   }
 } catch { /* 새 시즌 전 — 문서·색인 없음 */ }

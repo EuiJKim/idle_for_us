@@ -410,7 +410,13 @@ async function linkGoogle() {
 function start(job) { g = new Game(newGame(job, now(), (now() & 0x7fffffff) || 1), now()); g.S.newsV = NEWS_V; g.emit('login'); save(); firstRun = true; boot(); }   // v614 firstRun — 이 판은 출석 창을 띄우지 않고 길 안내만   // v560 새로 시작하면 볼 소식 없음
 
 // ── 토스트 · 팝업 — 지금 게임과 같은 틀(#toast .toast · #modal .sheet h2 · .btn-row) ──
-function toast(t) { const d = document.createElement('div'); d.className = 'toast'; d.textContent = t; $('toast').append(d); setTimeout(() => d.remove(), 2700); }
+// v644 같은 머리(숫자 · 「—」 앞)의 알림은 쌓지 않고 바꿔 쓴다 — 레벨이 여러 번 오르면 「성장 봇짐이 생겼어요 — 받을 것 n개」가 겹겹이 쌓였다
+const toastKey = (t) => String(t).split(/[—·(\d]/)[0].trim();
+function toast(t) {
+  const k = toastKey(t), box = $('toast');
+  if (k.length >= 4) for (const o of box.children) if (o.dataset.k === k) { o.textContent = t; clearTimeout(o._t); o._t = setTimeout(() => o.remove(), 2700); return; }
+  const d = document.createElement('div'); d.className = 'toast'; d.dataset.k = k; d.textContent = t; box.append(d); d._t = setTimeout(() => d.remove(), 2700);
+}
 // v595 친구에게 알리기 — 손전화면 공유 창(카톡 · 문자 …), 없으면 주소 복사, 그것도 안 되면 주소를 보여 줌
 const shareUrl = () => location.origin + location.pathname.replace(/[^/]*$/, '');
 let shareLast = '';
@@ -1103,6 +1109,10 @@ function paintWin() {
     const st = document.createElement('div'); st.className = 'subtabs'; const seg = document.createElement('div'); seg.className = 'seg wide';
     M[2].forEach(([n], i) => { const b = document.createElement('button'); b.dataset.key = String(i); b.textContent = n; b.className = i === tab ? 'on' : ''; b.onclick = () => { play('click'); tab = i; paintWin(); paintNav(); }; seg.append(b); });
     st.append(seg); PB.append(st); navDots();   // v636 칸 점
+    // v644 좁은 화면에서 칸 줄이 넘치면 — 열린 칸이 보이게 밀어 두고 · 양끝에 더 있으면 흐리게
+    const segMore = () => { const o = seg.scrollWidth - seg.clientWidth; seg.classList.toggle('more-l', o > 2 && seg.scrollLeft > 2); seg.classList.toggle('more-r', o > 2 && seg.scrollLeft < o - 2); };
+    seg.addEventListener('scroll', segMore, { passive: true });
+    requestAnimationFrame(() => { const on = seg.querySelector('button.on'); if (on && seg.scrollWidth > seg.clientWidth + 2) seg.scrollLeft = Math.max(0, on.offsetLeft - (seg.clientWidth - on.offsetWidth) / 2); segMore(); });
   }
   const B = document.createElement('div'); B.id = 'wb'; PB.append(B);
   requestAnimationFrame(() => { PB.scrollTop = keepScroll; });
@@ -1460,7 +1470,7 @@ function paintWin() {
     if (list.length) { c0(invGrid([...eqT, ...list.slice(0, bagMore ? 400 : 60)], null, L, { nw: bagNew })); if (list.length > 60 && !bagMore) c0(R(`${list.length - 60}개 더 있어요`, '', [['전부 보기', () => { play('click'); bagMore = true; paintWin(); }]], '…')); }
     else c0(note('가방이 비었어요. 뽑기에서 더 좋은 것은 바로 껴요.'));
     // 일괄 분해 띠 — 창 아래에 붙어 있다: 몇 개 · 강화석 · 조각을 먼저 보여 주고, 「분해」 → 한 번 더 묻고 → 분해
-    const junk = g.gearJunk(bagJunkG);
+    const junk = g.gearJunk(bagJunkG, gqDp);   // v644 칸 배지와 같은 셈을 나눠 씀(장비마다 한 번)
     const yld = {}; for (const it of junk) for (const c of dismantleYield(it.g)) yld[c.k] = (yld[c.k] || 0) + c.n;
     const sum = `${junk.length}개 · <span class="gq-ml" data-gqmat="item:stone">강화석 +${unit(yld['item:stone'] || 0)}</span> · <span class="gq-ml" data-gqmat="item:shard">조각 +${unit(yld['item:shard'] || 0)}</span>`;
     if (!junk.length) bagAsk = false;
@@ -5941,11 +5951,17 @@ const FEAT = [
   { id: 'exped', lv: 8, name: '원정', t: '원정권으로 떠나면 몇 시간 뒤 사냥 보상을 들고 와요', key: 'content:2', tab: 'dgn' },
   { id: 'tower', lv: 12, name: '무한 탑', t: '층을 오를수록 영구 보너스 · 10층마다 상자', key: 'content:1', tab: 'dgn' },
   { id: 'dg', lv: Math.min(...Object.values(DAILY_DUNGEONS).map((D) => D.unlockLv)), name: '수련동', t: '하루 세 번 — 은자 · 장비 · 강화석 · 경험치 · 기세 던전', key: 'content:0', tab: 'dgn', gate: true },
-  ...JOB_LV.slice(1).map((lv, i) => ({ id: `adv${i + 1}`, lv, name: `${i + 1}차 전직`, t: '전직 던전을 깨면 새 무공 칸이 열려요', key: 'hero:3', tab: 'char', gate: true })),
-  { id: 'mastery', lv: Math.min(...MASTERY.map((m) => m.lv)), name: '마스터리', t: '은자로 익히면 최종 피해가 붙어요', key: 'hero:2', tab: 'char', gate: true },
+  ...JOB_LV.slice(1).map((lv, i) => ({ id: `adv${i + 1}`, lv, name: `${i + 1}차 전직`, t: i + 1 === 3 ? '전직 던전을 깨면 새 무공 칸 · 전직 갈래(둘 가운데 하나)도 골라요' : '전직 던전을 깨면 새 무공 칸이 열려요', key: 'hero:3', tab: 'char', gate: true, ...(i + 1 === 3 ? { at: '.pt-grid' } : {}) })),
+  { id: 'mastery', lv: Math.max(21, Math.min(...MASTERY.map((m) => m.lv))), name: '마스터리',   // v644 Lv 20에 띠 셋(1차 전직 · 수련동 · 마스터리)이 몰려 — 한 레벨 뒤로
+    t: '은자로 익히면 최종 피해가 붙어요', key: 'hero:2', tab: 'char' },   // 열린 때(Lv 20)가 아니라 「이제 가 볼 곳」으로
   { id: 'realm', lv: 22, name: '경지', t: '은자로 올리는 영구 공격 · 체력', key: 'grow:3', tab: 'char' },
   { id: 'party', lv: 28, name: '동행 토벌', t: '다른 무인 둘과 함께 두목 하나', key: 'party:0', tab: 'dgn' },
   { id: 'pvp', lv: 32, name: '대결', t: '다른 무인의 덱과 겨뤄 점수를 올려요', key: 'rival:1', tab: 'social' },
+  // v644 v634~v642에 새로 생긴 것 — 소개가 없어 창 깊숙이 묻혀 있었다(at: 열고 나서 그 카드까지 내려 줌)
+  { id: 'sp2', lv: 14, name: '내공 단계', t: `스탯을 ${SP2_EVERY}점 찍을 때마다 1단 — 특수점으로 두목 · 치명 피해 · 무공`, key: 'hero:0', tab: 'char', at: '.sp2-row' },
+  { id: 'mx', lv: 16, name: '요괴록', t: '사냥한 몹이 쌓이면 별 — 별마다 몹 피해 · 은자', key: 'mx:0', tab: 'map' },
+  { id: 'reso', lv: 26, name: '영물 공명', t: `같은 무리 영물 ${RESO_NEED}마리를 함께 끼면 공명 효과`, key: 'grow:2', tab: 'comp', at: '.rs-grid' },
+  { id: 'ex', lv: 34, name: '교환소', t: '대결 명성 · 문파 공적 · 월드보스 혈전패로 고르는 상점', key: 'shop:1', tab: 'town' },
 ].sort((a, b) => a.lv - b.lv);
 const featAllowed = () => !navigator.webdriver || !!window.__s2feat;
 let featSeen = null, featCur = null;
@@ -5975,7 +5991,7 @@ function featShow(f) {
   const box = document.createElement('div'); box.id = 'feat'; box.dataset.id = f.id;
   box.innerHTML = `<div class="ft-ban"><small>${f.gate ? '새로 열림' : '이제 가 볼 곳'}</small><b>${esc(f.name)}</b></div><div class="co-hole"></div><div class="co-bub"><span class="co-n">Lv ${f.lv}</span><p class="co-t">${esc(f.t)}</p><div class="co-acts"><button class="btn co-skip">닫기</button><button class="btn primary co-next">가 보기</button></div></div>`;
   document.body.append(box);
-  const go = (e) => { e?.stopPropagation(); play('click'); featEnd(); openKey(f.key); };
+  const go = (e) => { e?.stopPropagation(); play('click'); featEnd(); openKey(f.key); if (f.at) featScroll(f.at); };
   box.querySelector('.co-next').onclick = go;
   box.querySelector('.co-skip').onclick = (e) => { e.stopPropagation(); play('click'); featEnd(); };
   box.addEventListener('click', (e) => {   // 밝힌 단추를 누르면 그 창 · 어두운 곳은 닫기
@@ -5985,6 +6001,11 @@ function featShow(f) {
   });
   addEventListener('resize', featPlace);
   featPlace(); buzz(30);
+}
+// v644 그 카드까지 내려 준다(창이 그려진 다음 틀에서 · 카드 머리가 칸 줄 바로 아래로)
+function featScroll(sel) {   // 창이 곧바로 한 번 더 그려지면(1초 시계 · 점) 맨 위로 돌아가므로 — 잠깐 뒤에 두 번 더 맞춘다(이미 그 자리면 그대로)
+  const go1 = () => { const el = document.querySelector(`#panel-body ${sel}`), pb = $('panel-body'); if (!el || !pb) return; const c = el.closest('.card') || el, st = pb.querySelector('.subtabs'); pb.scrollTop += c.getBoundingClientRect().top - pb.getBoundingClientRect().top - (st ? st.getBoundingClientRect().height : 0) - 6; };
+  requestAnimationFrame(go1); setTimeout(go1, 160); setTimeout(go1, 420);
 }
 function featPlace() { const box = document.querySelector('#feat'); if (box && featCur) coachPut(box, { el: () => featEl(featCur) }); }
 function featEnd() { featCur = null; document.querySelector('#feat')?.remove(); removeEventListener('resize', featPlace); }
@@ -6006,7 +6027,7 @@ function pulseTip() {
   return pulseLow ? `<span class="rpz">가장 뒤처진 것 <b>${esc(pulseLow.name)}</b> · 기준의 ${pulsePct(pulseLow.pct)} <button class="btn rpz-go" id="rpz">가기</button></span>` : '전투력을 올려 보세요 — 장비 뽑기 · 무공 강화 · 동료';
 }
 function pulseTipWire() { const b = document.querySelector('#rpz'), L = pulseLow; if (b && L) b.onclick = () => { play('click'); closeResult(); openKey(L.go); }; }
-window.__s2pz = { featTick, featCur: () => featCur, featReset: () => { featSeen = null; featEnd(); }, pulse: () => pulse(g), pulseLow: () => pulseLow };   // v634 시험 손잡이
+window.__s2pz = { featTick, featScroll, featList: () => FEAT.map((f) => ({ id: f.id, lv: f.lv, key: f.key, tab: f.tab, at: f.at || '' })), featCur: () => featCur, featReset: () => { featSeen = null; featEnd(); }, pulse: () => pulse(g), pulseLow: () => pulseLow };   // v634 시험 손잡이
 // v614 처음 몇 걸음(길잡이 1~5) — 20초 동안 아무것도 안 누르면 길잡이 칸이 살짝 빛난다(20초마다). 절전 · 두목전 · 던전 · 창 · 알림 · 그래픽 낮음이면 안 함
 const NUDGE_MS = 20000;
 let nudgeAt = 0;

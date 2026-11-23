@@ -771,7 +771,10 @@ export class Game {
     return n;
   }
   // v631 일괄 분해 대상 — 낀 것보다 세지 않은 것(실제 전투력)
-  gearJunk(maxG = 6) { const keep = this.outfitUids(); return GR.junkOf(this.S.gear, this.S.hero.lv, maxG, (it, cur) => this.gearBetter(it, cur)).filter((it) => !keep.has(it.uid)); }   // v634 차림에 적힌 것은 빼고
+  gearJunk(maxG = 6, dOf = null) {   // v644 낀 것의 값은 한 번만 센다(칸마다 같은 값 — gearPw(cur) = gearVal()) · dOf(it): 화면이 이미 센 「끼면 차이」(가방 칸 배지와 같은 값)
+    const keep = this.outfitUids(), base = dOf ? 0 : this.gearVal();
+    return GR.junkOf(this.S.gear, this.S.hero.lv, maxG, (it, cur) => !this.gearDom(it, cur) && (dOf ? dOf(it) > 0 : this.gearPw(it, it.slot) > base)).filter((it) => !keep.has(it.uid));
+  }   // v634 차림에 적힌 것은 빼고
   obtain(items, src = 'drop') {
     { const sn = (this.S.lookSeen ??= {}); for (const it of items) if (it && it.slot && it.g > (sn[it.slot] ?? -1)) sn[it.slot] = it.g; }   // v565
     const dps = new Map();

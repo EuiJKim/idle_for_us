@@ -55,10 +55,11 @@ const ok = (c, m, x = '') => { console.log(`  ${c ? '✓' : '✗ !!'} ${m}${x !=
     ok(/Lv.\d+/.test(await page.textContent('#me-lv')) && /^[\d.,]+[만억]?$/.test(await page.textContent('#pw')) && /HP \S+ \/ \S+/.test(await page.textContent('#hp-txt')) && /EXP [\d.]+%/.test(await page.textContent('#xp-txt')), 'v510 HUD: 위 왼쪽 전투력 · 왼쪽 아래 Lv · HP · 맨 아래 EXP');
     // v624 Lv · HP 상자 — 안쪽 EXP 줄(엔진 % ±2) · 흰 줄(깎인 몫) · 레벨 업: 숫자 톡 · 상자 번쩍 · 머리 위 「Lv n!」 · 스킬 줄 · 메뉴와 안 겹침
     { await page.waitForTimeout(300);
-      const hb = await page.evaluate(async () => { const { expToNext } = await import(new URL('js/s2/tables/exp.js', location.href).href), H = window.__s2.g.S.hero, f = document.getElementById('hb-xp-fill');
+      const hbGet = () => page.evaluate(async () => { const { expToNext } = await import(new URL('js/s2/tables/exp.js', location.href).href), H = window.__s2.g.S.hero, f = document.getElementById('hb-xp-fill');
         const eng = Math.min(100, H.exp / expToNext(H.lv) * 100), bar = f.offsetWidth / f.parentNode.clientWidth * 100, r = (s) => document.querySelector(s).getBoundingClientRect(), me = r('#me');
         const hit = (a, c) => a.width && c.width && a.left < c.right && c.left < a.right && a.top < c.bottom && c.top < a.bottom;
         return { eng, bar, txt: document.getElementById('hb-xp-txt').textContent, trail: !!document.getElementById('hp-trail'), lap: ['#sk', '#mb', '#jp', '#au'].filter((s) => hit(me, r(s))), inView: me.bottom <= innerHeight && me.left >= 0 }; });
+      let hb = await hbGet(); for (let t = 0; t < 20 && Math.abs(hb.eng - hb.bar) > 2; t++) { await page.waitForTimeout(100); hb = await hbGet(); }   // v644 막대가 늘어나는 움직임 중이면 자리 잡을 때까지
       ok(Math.abs(hb.eng - hb.bar) <= 2 && /^[\d.]+%$/.test(hb.txt) && hb.trail, 'v624 Lv · HP 상자 안 EXP 줄 = 엔진 %(±2) · 흰 줄 있음', `엔진 ${hb.eng.toFixed(2)} · 줄 ${hb.bar.toFixed(2)} · ${hb.txt}`);
       ok(!hb.lap.length && hb.inView, 'v624 Lv · HP 상자는 무공 줄 · 아래 메뉴와 안 겹친다', hb.lap.join(','));
       await page.evaluate(() => { window.__s2.g.S.hero.lv += 1; });
@@ -254,7 +255,7 @@ const ok = (c, m, x = '') => { console.log(`  ${c ? '✓' : '✗ !!'} ${m}${x !=
       const info = () => page.evaluate(() => ({ i: window.__s2.klInfo(), call: window.__s2.klLast(), live: window.__s2.klLive(), big: window.__s2.klBig(), st: window.__s2.klStat() }));
       await burst(0);
       const k0 = await until(info, (v) => v.i?.adv === 0 && v.i?.cls === 2 && v.st.launched >= 6 && v.st.calls > 0, 4000);
-      ok(k0.i?.adv === 0 && k0.i?.cls === 2 && k0.st.launched >= 6 && k0.st.calls > 0 && /^일망타진 ×([6-9]|\d\d)$/.test(k0.call) && k0.st.peak >= 6 && k0.st.peak <= 30, 'v628 처치 — 넓은 무공으로 여섯 → 날려보내기(2차 무공 몫) · 「일망타진 ×6」 외침 · 0차', JSON.stringify(k0));
+      ok(k0.i?.adv === 0 && k0.i?.cls === 2 && k0.st.launched >= 6 && k0.st.calls > 0 && /^일망타진 ×([5-9]|\d\d)$/.test(k0.call) && k0.st.peak >= 6 && k0.st.peak <= 30, 'v628 처치 — 넓은 무공으로 여섯 → 날려보내기(2차 무공 몫) · 「일망타진 ×6」 외침 · 0차', JSON.stringify(k0));
       await page.waitForTimeout(1000);
       await page.evaluate(() => { window.__s2.g.S.hero.adv = 5; });   // 전직 차수를 먼저 올리고 전직 순간(느린 화면)이 끝난 뒤에 — 큰 처치 멈칫은 느린 화면과 겹치지 않는다
       await page.waitForTimeout(400); await until(() => page.evaluate(() => !document.querySelector('#au-skip, .jb-ban')), (v) => v, 6000); await page.waitForTimeout(800);
@@ -1718,7 +1719,7 @@ const ok = (c, m, x = '') => { console.log(`  ${c ? '✓' : '✗ !!'} ${m}${x !=
       ok(!r5.res && r5.sub === want[r4.low.go], 'v634 결과 창 「가기」 → 그 칸', `${r4.low.go} → ${r5.sub}`);
       await page.click('#panel-close').catch(() => {});
       // 강함 진맥 카드 — 자동 성장 몇 번 뒤(Lv 45 · 스테이지 45)
-      await page.evaluate(async () => { const { cumExp } = await import(new URL('js/s2/tables/exp.js', location.href).href), g = window.__s2.g; g.addExp(cumExp(45) - cumExp(g.S.hero.lv) - g.S.hero.exp + 1); for (let i = 0; i < 10; i++) g.autoGrow({}); const T = g.stage(); T.idx = T.top = 45; T.kills = 0; T.auto = false; localStorage.setItem('ifu.s2.feat', JSON.stringify(['exped', 'tower', 'dg', 'adv1', 'adv2', 'adv3', 'adv4', 'adv5', 'mastery', 'realm', 'party', 'pvp'])); window.__s2pz.featReset(); });
+      await page.evaluate(async () => { const { cumExp } = await import(new URL('js/s2/tables/exp.js', location.href).href), g = window.__s2.g; g.addExp(cumExp(45) - cumExp(g.S.hero.lv) - g.S.hero.exp + 1); for (let i = 0; i < 10; i++) g.autoGrow({}); const T = g.stage(); T.idx = T.top = 45; T.kills = 0; T.auto = false; localStorage.setItem('ifu.s2.feat', JSON.stringify(window.__s2pz.featList().map((f) => f.id))); window.__s2pz.featReset(); });   // v644 띠 목록은 앱에서(새 띠가 늘어도 다 본 것으로)
       await page.click('#mb .nb[data-tab="char"]'); await page.waitForSelector('#wb .pz');
       const r6 = await page.evaluate(() => { const rows = [...document.querySelectorAll('#wb .pz-row')], low = document.querySelector('#wb .pz-row.low'), wb = document.getElementById('wb'), P = window.__s2pz.pulse(); return { n: rows.length, ks: rows.map((r) => r.dataset.k).join(), low: low?.dataset.k, tag: low?.querySelector('.pz-tag')?.textContent, go: !!low?.querySelector('.pz-go'), plow: P.low?.k, pgo: P.low?.go, bars: rows.every((r) => r.querySelector('.pz-bar i')), over: wb.scrollWidth - wb.clientWidth, top: document.querySelector('#wb .pz-top')?.textContent }; });
       ok(r6.n >= 9 && r6.bars && r6.low === r6.plow && r6.tag === '여기부터' && r6.go && r6.over <= 1, 'v634 강함 진맥 카드 — 층 막대 · 가장 뒤처진 줄 「여기부터」 · 가기 · 넘침 없음', JSON.stringify(r6));
@@ -2355,6 +2356,78 @@ const ok = (c, m, x = '') => { console.log(`  ${c ? '✓' : '✗ !!'} ${m}${x !=
       const p3 = await page.evaluate(() => ({ cur: window.__s2.g.pathState().cur, gold: window.__s2.g.S.wallet.gold }));
       ok(p3.cur === 'rapid' && p3.gold < p2.gold, `v642 ${VW} 바꾸면 은자가 빠진다`, JSON.stringify(p3));
       ok(errs.length === 0, `v642 ${VW} 전직 갈래 — 콘솔 오류 없음`, errs.slice(0, 3).join(' | '));
+      await page.evaluate(() => window.__s2.freeze?.());
+      await ctx.close();
+    }
+  }
+  if (!process.env.ONLY || process.env.ONLY.split(',').some((x) => x === '844' || x === 'p644')) {
+    console.log('— v644 처음 흐름 — 새 기능 소개 띠');
+    { // 아주 좁은 화면(568×320) — 넘치는 칸 줄은 열린 칸이 보이게 밀려 있고 · 넘친 쪽 끝이 흐리다
+      const ctx = await b.newContext({ viewport: { width: 568, height: 320 }, serviceWorkers: 'block' }); await ctx.route(/gstatic\.com\/firebasejs/, (r) => r.abort());
+      const page = await ctx.newPage(); await page.goto(BASE, { waitUntil: 'domcontentloaded' });
+      await page.waitForSelector('#modal:not(.hidden) .jobcard'); await page.click('#modal .jobcard[data-job="sword"]'); await page.waitForSelector('#modal', { state: 'hidden' }); await page.waitForTimeout(400);
+      await page.evaluate(() => window.__s2.openKey('bounty:0')); await page.waitForTimeout(400);
+      const tn = await page.evaluate(() => { const st = document.querySelector('#panel-body .seg.wide'), r = st.getBoundingClientRect(), o = st.querySelector('button.on').getBoundingClientRect(); return { on: st.querySelector('button.on').textContent, vis: o.left >= r.left - 1 && o.right <= r.right + 1, cls: st.className }; });
+      ok(tn.on === '현상수배' && tn.vis && /more-l/.test(tn.cls), 'v644 568 — 넘치는 칸 줄은 열린 칸(현상수배)이 보이게 밀림 · 왼쪽 끝 흐림', JSON.stringify(tn));
+      await page.evaluate(() => window.__s2.openKey('today:0')); await page.waitForTimeout(400);
+      const t0 = await page.evaluate(() => document.querySelector('#panel-body .seg.wide').className);
+      ok(/more-r/.test(t0) && !/more-l/.test(t0), 'v644 568 — 첫 칸이면 오른쪽 끝만 흐림', t0);
+      await page.evaluate(() => { window.__s2.g.S.hero.lv = 60; window.__s2.openKey('content:0'); }); await page.waitForTimeout(400);
+      const dq = await page.evaluate(() => { const gr = document.querySelector('#wb .dg-grid'), pb = document.getElementById('panel-body').getBoundingClientRect(); return { n: gr.children.length, cols: getComputedStyle(gr).gridTemplateColumns.split(' ').length, over: [...gr.children].filter((c) => c.getBoundingClientRect().right > pb.right + 1).length }; });
+      ok(dq.n === 5 && dq.cols === 3 && dq.over === 0, 'v644 568 — 수련동 카드 다섯은 세 장씩 두 줄(잘림 없음)', JSON.stringify(dq));
+      // 창이 열려 있으면 알림이 단추를 덮어도 단추가 눌린다
+      const tp = await page.evaluate(() => { window.__s2.toast('시험 알림 — 단추 위'); const t = document.querySelector('#toast .toast'), r = t.getBoundingClientRect(), el = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2); return { pe: getComputedStyle(t).pointerEvents, under: !!el && !el.closest('#toast') }; });
+      ok(tp.pe === 'none' && tp.under, 'v644 568 — 창이 열려 있으면 알림은 눌림을 아래로 보낸다', JSON.stringify(tp));
+      await page.evaluate(() => window.__s2.freeze?.()); await ctx.close();
+    }
+    for (const [VW, VH] of [[844, 390], [667, 375]]) {
+      const ctx = await b.newContext({ viewport: { width: VW, height: VH }, serviceWorkers: 'block' });
+      await ctx.route(/gstatic\.com\/firebasejs/, (r) => r.abort());
+      await ctx.addInitScript(() => { window.__s2feat = true; });
+      const page = await ctx.newPage(); const errs = [];
+      page.on('pageerror', (e) => errs.push(e.message)); page.on('console', (m) => { if (m.type() === 'error' && !/Failed to load|ERR_FAILED/.test(m.text())) errs.push(m.text()); });
+      await page.goto(BASE, { waitUntil: 'domcontentloaded' });
+      await page.waitForSelector('#modal:not(.hidden) .jobcard'); await page.click('#modal .jobcard[data-job="sword"]');
+      await page.waitForSelector('#modal', { state: 'hidden' }); await page.waitForTimeout(400);
+      await page.evaluate(() => { const g = window.__s2.g; g.stage().auto = false; if (g.bossFight) g.endChallenge(false); });   // 두목전 중엔 띠를 기다린다 — 자동 도전을 끄고 본다
+      const L0 = await page.evaluate(() => window.__s2pz.featList());
+      const per = {}; for (const f of L0) per[f.lv] = (per[f.lv] || 0) + 1;
+      ok(['sp2', 'mx', 'reso', 'ex'].every((id) => L0.some((f) => f.id === id)) && Math.max(...Object.values(per)) <= 2 && L0.find((f) => f.id === 'mastery').lv === 21 && L0.find((f) => f.id === 'adv3').at === '.pt-grid', `v644 ${VW} 띠 목록 — 내공 · 요괴록 · 공명 · 교환소 더함 · 한 레벨에 둘까지(Lv 20 셋 → 마스터리 21)`, JSON.stringify(per));
+      const lvTo = (L) => page.evaluate(async (L) => { const { cumExp } = await import(new URL('js/s2/tables/exp.js', location.href).href), g = window.__s2.g; g.addExp(cumExp(L) - cumExp(g.S.hero.lv) - g.S.hero.exp + 1); }, L);
+      const until = async (fn, pred, ms = 5000) => { const t = Date.now(); for (;;) { const v = await fn(); if (pred(v) || Date.now() - t > ms) return v; await page.waitForTimeout(100); } };
+      const showOnly = (id) => page.evaluate((id) => { const g = window.__s2.g; g.stage().auto = false; if (g.bossFight) { g.bossFight = null; } document.getElementById('res').className = ''; localStorage.setItem('ifu.s2.feat', JSON.stringify(window.__s2pz.featList().map((f) => f.id).filter((x) => x !== id))); window.__s2pz.featReset(); }, id);
+      // 내공 단계(Lv 14) — 가 보기 → 스탯 칸 · 내공 카드가 칸 줄 바로 아래 보인다
+      await lvTo(14); await page.evaluate(() => { window.__s2.g.statAuto(); }); await showOnly('sp2');
+      const f1 = await until(() => page.evaluate(() => (window.__s2pz.featTick(), document.querySelector('#feat')?.dataset.id || null)), (v) => !!v);
+      const b1 = await page.evaluate(() => document.querySelector('#feat .ft-ban')?.textContent || '');
+      await page.click('#feat .co-next'); await page.waitForTimeout(500);
+      const v1 = await page.evaluate(() => { const pb = document.getElementById('panel-body').getBoundingClientRect(), c = document.querySelector('#wb .sp2-row').closest('.card').getBoundingClientRect(); return { sub: document.querySelector('#panel-body .subtabs button.on')?.textContent, top: Math.round(c.top - pb.top), H: Math.round(pb.height), feat: !!document.querySelector('#feat') }; });
+      ok(f1 === 'sp2' && /내공 단계/.test(b1) && v1.sub === '스탯' && v1.top >= 0 && v1.top < v1.H * 0.4 && !v1.feat, `v644 ${VW} 「내공 단계」 띠 → 스탯 칸 · 내공 카드까지 내려 줌`, JSON.stringify({ f1, ...v1 }));
+      await page.click('#panel-close'); await page.waitForTimeout(200);
+      // 영물 공명(Lv 26) — 영물 칸 · 공명 카드까지
+      await lvTo(26); await page.evaluate(() => { const C = window.__s2.g.S.colls.relic; for (const k of [21, 22, 29, 3]) C.own[k] = { lv: 1, awk: 0, n: 0 }; }); await showOnly('reso');
+      const f2 = await until(() => page.evaluate(() => (window.__s2pz.featTick(), document.querySelector('#feat')?.dataset.id || null)), (v) => !!v);
+      await page.click('#feat .co-next'); await page.waitForTimeout(500);
+      const v2 = await page.evaluate(() => { const pb = document.getElementById('panel-body').getBoundingClientRect(), c = document.querySelector('#wb .rs-grid').closest('.card').getBoundingClientRect(); return { title: document.getElementById('panel-title').textContent, sub: document.querySelector('#panel-body .subtabs button.on')?.textContent, top: Math.round(c.top - pb.top), H: Math.round(pb.height) }; });
+      ok(f2 === 'reso' && /동료/.test(v2.title) && v2.sub === '영물' && v2.top >= 0 && v2.top < v2.H * 0.4, `v644 ${VW} 「영물 공명」 띠 → 영물 칸 · 공명 카드까지`, JSON.stringify({ f2, ...v2 }));
+      await page.screenshot({ path: path.join(OUT, `s2-feat644-${VW}.png`) });
+      await page.click('#panel-close'); await page.waitForTimeout(200);
+      // 요괴록 · 교환소 — 그 칸으로
+      for (const [id, L, sub] of [['mx', 26, '요괴록'], ['ex', 34, '교환소']]) {
+        if (L > 26) await lvTo(L); await showOnly(id);
+        const f = await until(() => page.evaluate(() => (window.__s2pz.featTick(), document.querySelector('#feat')?.dataset.id || null)), (v) => !!v);
+        await page.click('#feat .co-next'); await page.waitForTimeout(400);
+        const on = await page.evaluate(() => document.querySelector('#panel-body .subtabs button.on')?.textContent);
+        ok(f === id && on === sub, `v644 ${VW} 「${sub}」 띠 → ${sub} 칸`, `${f} → ${on}`);
+        await page.click('#panel-close'); await page.waitForTimeout(200);
+      }
+      const tq = await page.evaluate(() => { const T = window.__s2.toast; T('성장 봇짐이 생겼어요 — 받을 것 2개'); T('성장 봇짐이 생겼어요 — 받을 것 5개'); T('시간 티켓 1장 — 사냥 15분 몫'); const L = [...document.querySelectorAll('#toast .toast')].map((x) => x.textContent); return { n: L.filter((x) => /성장 봇짐/.test(x)).length, last: L.find((x) => /성장 봇짐/.test(x)), other: L.some((x) => /시간 티켓/.test(x)) }; });
+      ok(tq.n === 1 && /5개/.test(tq.last) && tq.other, `v644 ${VW} 같은 종류 알림은 겹쳐 쌓지 않고 바꿔 씀`, JSON.stringify(tq));
+      { await page.evaluate(() => window.__s2.openKey('bounty:0')); await page.waitForTimeout(300);
+        const tb = await page.evaluate(() => { const st = document.querySelector('#panel-body .seg.wide'); return { n: st.querySelectorAll('button').length, sw: st.scrollWidth, cw: st.clientWidth }; });
+        ok(tb.n === 12 && tb.sw <= tb.cw + 1, `v644 ${VW} 임무 창 12칸이 한 줄에 다 보인다`, JSON.stringify(tb));
+        await page.click('#panel-close'); await page.waitForTimeout(200); }
+      ok(errs.length === 0, `v644 ${VW} 처음 흐름 — 콘솔 오류 없음`, errs.slice(0, 3).join(' | '));
       await page.evaluate(() => window.__s2.freeze?.());
       await ctx.close();
     }

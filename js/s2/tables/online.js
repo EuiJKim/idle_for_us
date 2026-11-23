@@ -18,7 +18,7 @@ export const WB_PHASE_REWARD_MIN = 6;        // 사냥 분 상당(계획서 하�
 export const PVP = { triesPerDay: 5, start: 1000, win: 20, lose: 12, defWin: 3, defLose: 8, gapK: 0.5, gapMax: 12, fightMs: 60000 };
 // v640 병법 상극 — 검 → 창 → 권 → 궁 → 술 → 검(앞이 뒤를 누른다). 누르는 쪽이 주는 피해 +8%(대결에서만)
 export const PVP_COUNTER = { sword: 'spear', spear: 'fist', fist: 'bow', bow: 'mage', mage: 'sword' };
-export const PVP_COUNTER_P = 50;   // v643 +8% → +5%(평타 맞춤 뒤 같은 힘 유리 쪽 약 70%)
+export const PVP_COUNTER_P = 50;   // v643 +8% → +5%(평타 맞춤 뒤 같은 레벨 표준끼리 누르는 쪽 58~61%)
 // v643 대결 평타 맞춤 — 대결엔 직업 무공 세트가 없어 평타 빠르기(권사 0.7초 ~ 술사 1.1초)가 승패를 갈랐다(같은 레벨 표준끼리 권사 74~94%).
 //   대결 안에서는 평타 간격을 직업 없이 PVP_BASE_MS로 — 초당 평타 피해가 같다(간격만 맞추고 한 대 피해를 줄이면 60초 안 평타 횟수 끝수 차 0.5%로도 승패가 갈렸다)
 export const PVP_BASE_MS = 1000;
