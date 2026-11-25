@@ -14,4 +14,17 @@ export const ADV_PAL = {
 };
 export const ADV_S = [1, 1.08, 1.18, 1.3, 1.45, 1.62];
 export const ADV_N = [0, 2, 4, 6, 9, 12];
-export const advPal = (job, adv) => (ADV_PAL[job] || ADV_PAL.sword)[Math.max(0, Math.min(ADV_MAX, adv | 0))];
+const advPal0 = (job, adv) => (ADV_PAL[job] || ADV_PAL.sword)[Math.max(0, Math.min(ADV_MAX, adv | 0))];
+// v646 전직 갈래 빛깔 — 3차에 고른 갈래마다 무공 · 평타 빛을 그 갈래 쪽으로 섞는다(그림은 그대로 · 빛깔만 · 같은 직업 두 갈래가 서로 다르게)
+export const PATH_COL = { swift: '#5eead4', heavy: '#f59e0b', sweep: '#fb923c', pierce: '#e2e8f0', iron: '#facc15', break: '#ef4444', rapid: '#4ade80', snipe: '#c084fc', thunder: '#818cf8', frost: '#7dd3fc' };
+let pathTint = null; const tintCache = new Map();
+export const setPathTint = (id) => { pathTint = PATH_COL[id] ? id : null; };
+export const pathTintOf = () => pathTint;
+const hx = (c) => [1, 3, 5].map((i) => parseInt(c.slice(i, i + 2), 16)), toHx = (a) => '#' + a.map((v) => Math.round(Math.max(0, Math.min(255, v))).toString(16).padStart(2, '0')).join('');
+const mixC = (a, b, t) => { const A = hx(a), B = hx(b); return toHx(A.map((v, i) => v + (B[i] - v) * t)); };
+export const advPal = (job, adv) => {
+  const p = advPal0(job, adv); if (!pathTint) return p;
+  const k = `${job}|${adv | 0}|${pathTint}`; let q = tintCache.get(k);
+  if (!q) { const c = PATH_COL[pathTint]; q = { c: mixC(p.c, c, 0.55), c2: mixC(p.c2, c, 0.25), glow: mixC(p.glow, c, 0.65) }; tintCache.set(k, q); }
+  return q;
+};

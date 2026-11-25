@@ -99,7 +99,7 @@ import * as WB from './online/wboss.js';
 import * as GD from './online/guild.js';
 import * as PV from './online/pvp.js';
 import { refPlayer } from './battle/ref.js';
-import { PVP, WBOSS, POWER_SLACK, PVP_TIERS, GUILD } from './tables/online.js';
+import { PVP, WBOSS, POWER_SLACK, PVP_TIERS, GUILD, TOGETHER } from './tables/online.js';
 import { JOBS, RANGED, defK, BASE_CRIT, BASE_CRIT_DMG, TAKEN_DOWN_CAP } from './tables/char.js';
 
 export const COLLECTS = ['weapon', 'pal', 'relic'];
@@ -1671,13 +1671,20 @@ export class Game {
   // 모두 먹기 — 꺼져 있고 오늘 남은 것만 하나씩(켜진 것은 늘이지 않는다)
   bfEatAll() { const out = []; for (const s of this.bfState()) if (!s.on && s.uses > 0) { const r = this.bfEat(s.id); if (r) out.push(r); } return out; }
   bfSources() {
-    if (this.bfOff || !this.S.bf) return [];
+    if (this.bfOff) return [];
+    const out = [];
+    if (this.togOn()) out.push({ src: '함께', stats: { goldP: TOGETHER.p, expP: TOGETHER.p } });   // v646 문파원과 같은 때
+    if (!this.S.bf) return out;
     const E = this.S.bf.end || {}, st = {};
     for (const d of DANYAK.list) if ((E[d.id] || 0) > this.now) for (const [k, v] of Object.entries(d.stats)) st[k] = (st[k] || 0) + v;
-    return Object.keys(st).length ? [{ src: 'danyak', stats: st }] : [];
+    return Object.keys(st).length ? [...out, { src: 'danyak', stats: st }] : out;
   }
+  // v646 함께 — 화면이 문파 품앗이 문서에서 「지금 접속 중인 다른 문파원」을 찾으면 그때부터 ttl 동안(사냥만 · 방치 보상엔 안 붙음)
+  togSet(names, at = this.now) { const n = (names || []).map((x) => String(x || '무인').slice(0, 12)).slice(0, 3); if (!n.length) return false; this.S.tog = { until: at + TOGETHER.ttlMs, n }; return true; }
+  togOn() { return !!this.S.tog && this.S.tog.until > this.now; }
+  togInfo() { return this.togOn() ? { names: this.S.tog.n, leftMs: this.S.tog.until - this.now, p: TOGETHER.p } : null; }
   // 켜지고 꺼짐이 바뀌면 싸움 스탯을 다시(tick에서)
-  bfTick() { if (!this.S.bf) return; const k = DANYAK.list.map((d) => ((this.S.bf.end?.[d.id] || 0) > this.now ? 1 : 0)).join(''); if (k !== this.bfKey) { if (this.bfKey != null) this.dirtyStats = true; this.bfKey = k; } }
+  bfTick() { const k = (this.S.bf ? DANYAK.list.map((d) => ((this.S.bf.end?.[d.id] || 0) > this.now ? 1 : 0)).join('') : '') + (this.togOn() ? 't' : ''); if (k !== this.bfKey) { if (this.bfKey != null) this.dirtyStats = true; this.bfKey = k; } }
   // ── v634 성장 봇짐(레벨 상자) ──
   lvBoxSt() { const B = (this.S.lvBox ??= { got: [] }); if (!Array.isArray(B.got)) B.got = []; return B; }
   lvBoxState() { const B = this.lvBoxSt(), L = this.S.hero.lv; return lvBoxLevels().map((lv) => ({ lv, ...lvBoxReward(lv), state: B.got.includes(lv) ? 'got' : lv <= L ? 'can' : 'lock' })); }

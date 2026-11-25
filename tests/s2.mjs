@@ -2279,6 +2279,18 @@ console.log('\n=== v635 문파 연공실 · 품앗이 · 겨루기 ===');
   g.tick(T0 + 8 * 86400e3); ok(g.gwarSt().help === 0 && g.gwarSt().don === 0 && g.gwarSt().got === 'y', 'gd 겨루기: 다음 주 내 몫 새로(받은 표시는 남음)');
 }
 
+console.log('\n=== v646 함께 ===');
+{
+  const ON3 = await import('../js/s2/tables/online.js');
+  const T0 = 1.8e12, g = new Game(newGame('sword', T0, 21), T0); g.tick(T0); g.S.hero.lv = 30; g.dirtyStats = true;
+  ok(!g.togOn() && g.togInfo() === null && !g.togSet([]) && !g.fighter().st.goldP, '처음엔 함께 아님 · 이름 없으면 못 켬');
+  const f0 = g.fighter(); ok(g.togSet(['청운', '매화검', '셋', '넷']) && g.togOn() && g.togInfo().names.length === 3, '켜면 ttl 동안 · 이름은 셋까지');
+  g.dirtyStats = true; const f1 = g.fighter();
+  ok((f1.st.goldP || 0) - (f0.st.goldP || 0) === ON3.TOGETHER.p && (f1.st.expP || 0) - (f0.st.expP || 0) === ON3.TOGETHER.p && !g.fighter(false).st.goldP === !f0.st.goldP, `사냥 은자 · 경험치 +${ON3.TOGETHER.p / 10}%(전투력 셈 · 방치에는 안 붙음)`);
+  g.tick(T0 + ON3.TOGETHER.ttlMs + 1); g.bfTick();
+  ok(!g.togOn() && g.dirtyStats, 'ttl이 지나면 꺼지고 스탯을 다시 센다');
+  const s2 = Game.load(g.save(), T0 + 1); ok(s2 && Number.isFinite(s2.power()), '저장 · 불러오기(옛 저장엔 tog 없음)');
+}
 console.log('\n=== v644 자동 사냥 끼임 없음 — 장마다 3분 ===');
 {
   // 움직임만 보려고 무인을 아주 세게(공격 · 체력 ×200) — 장마다 지형 · 발판이 달라도 처치가 20초 넘게 멈추지 않는다(끼이면 처치가 멈춘다)
@@ -2312,7 +2324,7 @@ console.log('\n=== v642 전직 갈래 ===');
   g.S.hero.adv = 3; g.dirtyStats = true; const P0 = g.pathState(), pw0 = g.power(), gold0 = (g.S.wallet.gold = 1e9);
   ok(P0.open && !P0.cur && P0.cost === 0 && P0.list.length === 2, '3차 — 열림 · 아직 안 고름 · 처음은 공짜');
   const r1 = g.pathPick('swift');
-  ok(r1 && r1.cost === 0 && g.S.wallet.gold === gold0 && g.pathState().cur === 'swift' && g.hero.sources().some((x) => x.src === '갈래 · 쾌검' && x.stats.baseP === 150) && g.power() > pw0, '고르면 출처 「갈래 · 쾌검」 · 전투력 오름', `${pw0} → ${g.power()}`);
+  ok(r1 && r1.cost === 0 && g.S.wallet.gold === gold0 && g.pathState().cur === 'swift' && g.hero.sources().some((x) => x.src === '갈래 · 쾌검' && x.stats.baseP === 240) && g.power() > pw0, '고르면 출처 「갈래 · 쾌검」 · 전투력 오름', `${pw0} → ${g.power()}`);
   ok(g.pathPick('swift') === null && g.pathPick('nope') === null && g.pathPick('rapid') === null, '같은 갈래 · 없는 갈래 · 남의 직업 갈래는 안 됨');
   const c = g.pathState().cost; ok(c > 0, '바꾸기는 은자', c);
   g.S.wallet.gold = c - 1; ok(g.pathPick('heavy') === null && g.pathState().cur === 'swift', '은자가 모자라면 못 바꾼다');

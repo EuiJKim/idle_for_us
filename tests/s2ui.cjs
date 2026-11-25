@@ -2458,6 +2458,40 @@ const tixGot = (pg, name) => pg.evaluate((n) => { delete window.__s2.g[n]; retur
       await ctx.close();
     }
   }
+  if (!process.env.ONLY || process.env.ONLY.split(',').some((x) => x === '844' || x === 'p646')) {
+    console.log('— v646 함께 · 주간 목표 · 갈래 빛깔');
+    for (const [VW, VH] of [[844, 390], [667, 375]]) {
+      const ctx = await b.newContext({ viewport: { width: VW, height: VH }, serviceWorkers: 'block' });
+      await ctx.route(/gstatic\.com\/firebasejs/, (r) => r.abort());
+      const page = await ctx.newPage(); const errs = [];
+      page.on('pageerror', (e) => errs.push(e.message)); page.on('console', (m) => { if (m.type() === 'error' && !/Failed to load|ERR_FAILED/.test(m.text())) errs.push(m.text()); });
+      await page.goto(BASE, { waitUntil: 'domcontentloaded' });
+      await page.waitForSelector('#modal:not(.hidden) .jobcard'); await page.click('#modal .jobcard[data-job="sword"]');
+      await page.waitForSelector('#modal', { state: 'hidden' }); await page.waitForTimeout(500);
+      // 함께 — 서버(품앗이 문서)를 흉내: 다른 문파원 하나가 1분 전에 접속 표시
+      await page.evaluate(() => { const S = window.__s2, net = S.net, g = S.g; g.stage().auto = false; g.S.guildId = 'K7Q2MX'; g.S.nick = '나'; net.status = 'online'; net.uid = 'me'; Object.defineProperty(net, 'online', { get: () => true, configurable: true }); window.__seenCalls = 0; net.gseen = async () => { window.__seenCalls++; return [{ uid: 'u2', at: Date.now() - 60000, n: '매화검' }, { uid: 'u3', at: Date.now() - 3 * 3600e3, n: '옛사람' }]; }; S.togBeat(true); });
+      await page.waitForFunction(() => !document.getElementById('tg').classList.contains('hidden'), null, { timeout: 4000 }).catch(() => {});
+      const t1 = await page.evaluate(() => { const el = document.getElementById('tg'), r = el.getBoundingClientRect(), ev = document.getElementById('ev').getBoundingClientRect(), I = window.__s2.g.togInfo(); return { vis: !el.classList.contains('hidden'), txt: el.textContent, names: I?.names, calls: window.__seenCalls, gold: window.__s2.g.fighter().st.goldP || 0, under: r.top >= ev.bottom - 1 && Math.abs(r.right - ev.right) < 2, inV: r.right <= innerWidth && r.bottom <= innerHeight }; });
+      ok(t1.vis && /매화검/.test(t1.txt) && /\+10%/.test(t1.txt) && t1.names.join() === '매화검' && t1.calls === 1 && t1.gold >= 100 && t1.under && t1.inV, `v646 ${VW} 함께 — 다른 문파원이 접속해 있으면 칩(축제 칩 아래) · 은자 · 경험치 +10% · 오래된 표시는 빼고`, JSON.stringify(t1));
+      await page.evaluate(() => window.__s2.togBeat(false)); const c2 = await page.evaluate(() => window.__seenCalls);
+      ok(c2 === 1, `v646 ${VW} 표시는 3분마다(곧바로 또 보내지 않음)`, c2);
+      await page.screenshot({ path: path.join(OUT, `s2-tg-${VW}.png`) });
+      // 주간 목표 — 다음 열림이 5레벨 넘게 남으면 주간 임무 가운데 가장 가까운 것
+      await page.evaluate(() => { const g = window.__s2.g; g.S.hero.lv = 60; const B = g.books.weekly; for (const id of B.defs.keys()) B.st[id] = { p: 0, done: false, got: false }; const ids = [...B.defs.keys()]; B.st[ids[1]].p = Math.max(1, Math.floor(B.defs.get(ids[1]).need / 2)); });
+      await page.waitForFunction(() => document.getElementById('nx')?.classList.contains('wk'), null, { timeout: 4000 }).catch(() => {});
+      const w1 = await page.evaluate(() => { const nx = document.getElementById('nx'), G = window.__s2.weekGoal(); return { wk: nx.classList.contains('wk'), txt: nx.textContent, go: nx.dataset.go, id: G?.id, vis: !nx.classList.contains('hidden') }; });
+      ok(w1.wk && w1.vis && /주간/.test(w1.txt) && /\d+\/\d+/.test(w1.txt) && w1.go === 'mission:2', `v646 ${VW} 주간 목표 한 줄 — 가장 가까운 주간 임무 · 진행 수`, JSON.stringify(w1));
+      await page.click('#nx'); await page.waitForTimeout(300);
+      ok(await page.evaluate(() => document.querySelector('#panel-body .subtabs button.on')?.textContent === '주간'), `v646 ${VW} 누르면 주간 임무 칸`);
+      await page.click('#panel-close'); await page.waitForTimeout(200);
+      // 갈래 빛깔 — 3차 · 갈래를 고르면 무공 빛깔이 갈래 쪽으로(두 갈래가 서로 다르게)
+      const pc = await page.evaluate(async () => { const g = window.__s2.g, A = await import(new URL('js/s2/ui/advfx.js', location.href).href); const c0 = A.advPal('sword', 3).c; g.S.hero.lv = 85; g.S.hero.adv = 3; g.S.wallet.gold = 1e9; g.pathPick('swift'); await new Promise((r) => setTimeout(r, 300)); const c1 = A.advPal('sword', 3).c, t1 = A.pathTintOf(); g.pathPick('heavy'); await new Promise((r) => setTimeout(r, 300)); const c2 = A.advPal('sword', 3).c; g.S.hero.adv = 2; await new Promise((r) => setTimeout(r, 300)); return { c0, c1, c2, t1, t3: A.pathTintOf(), c3: A.advPal('sword', 3).c }; });
+      ok(pc.t1 === 'swift' && pc.c1 !== pc.c0 && pc.c2 !== pc.c1 && pc.t3 === null && pc.c3 === pc.c0, `v646 ${VW} 갈래 빛깔 — 쾌검 · 중검이 서로 다르게 · 3차 전이면 원래대로`, JSON.stringify(pc));
+      ok(errs.length === 0, `v646 ${VW} 콘솔 오류 없음`, errs.slice(0, 3).join(' | '));
+      await page.evaluate(() => window.__s2.freeze?.());
+      await ctx.close();
+    }
+  }
   await b.close();
   console.log(fails ? `\n✗ ${fails}건` : '\n✓ 새 시즌 화면 전부 통과');
   process.exit(fails ? 1 : 0);

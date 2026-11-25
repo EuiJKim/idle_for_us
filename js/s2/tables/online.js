@@ -31,6 +31,8 @@ export const PVP_MATCH = { range: 120, widen: 80, maxTries: 4 };
 
 // 문파: 콘텐츠 3개를 같은 7창 세트로
 export const WINDOW_SET = ['enter', 'info', 'reward', 'rank', 'log', 'shop', 'result'];
+// v646 함께 — 문파원이 같은 때 접속해 있으면(품앗이 문서의 「접속 중」 표시 · 3분마다) 사냥 은자 · 경험치 +p(퍼밀) · 표시는 ttl 동안 살아 있다
+export const TOGETHER = { p: 100, beatMs: 180000, ttlMs: 360000, keepMs: 3600000 };
 export const GUILD = {
   baseMembers: 20, membersPerHall: 2, hallMax: 10,
   research: { maxLv: 10, waitH: (lv) => Math.min(24, lv * 2 + 1) },   // 1~21시간(최대 24)

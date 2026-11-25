@@ -226,6 +226,12 @@ export class S2Net {
     if (r.ok) this.fs.updateDoc(this.fs.doc(this.db, 'guilds', g.id), { exp: this.fs.increment(5) }).then(() => this.guildPublish({ ...g, exp: (g.exp || 0) + 5 })).catch(() => {});   // 바치면 문파 경험치 +5
     return r;
   }
+  // v646 함께 — 품앗이 문서에 「접속 중」 표시(seen{uid: { at, n }}) · 한 시간 지난 표시는 치운다 · 다른 문파원 표시를 돌려준다
+  async gseen(gid, nick, keepMs = 3600000) {
+    const now = Date.now();
+    const r = await this.s2tx(gid, 'help', (D) => { const doc = D || { helps: {}, giveCount: {} }; const S = (doc.seen ??= {}); for (const [u, x] of Object.entries(S)) if (!x || now - (x.at || 0) > keepMs) delete S[u]; S[this.uid] = { at: now, n: String(nick || '무인').slice(0, 12) }; return { doc, write: true }; });
+    return Object.entries(r.doc.seen || {}).filter(([u]) => u !== this.uid).map(([u, x]) => ({ uid: u, at: x.at, n: x.n }));
+  }
   async ghelpGet(gid) { return S2Net.s2parse(await this.fs.getDoc(this.s2doc(gid, 'help'))) || { helps: {}, giveCount: {} }; }
   async ghelpAsk(gid, req, kname, nick) {   // 내 요청은 하나 — 전 것은 지운다
     return (await this.s2tx(gid, 'help', (D) => {

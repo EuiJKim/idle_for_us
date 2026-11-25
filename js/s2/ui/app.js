@@ -3,7 +3,7 @@
 import { Game, newGame, COLLECTS, dayKey, weekKey, STAGE_KILLS, GRAID, graidHp0, GTRAIN, WEEK_REW, WB_COMMUNITY, PARTY, partyLv } from '../game.js';
 import { raidPhase } from '../online/guild.js';
 import { GRES, GRES_DAY, gresNeed, resTarget, resCan, resStats, helpCut, GWAR, rival, rivalNow, GLEAGUE, leagueTable } from '../online/guild.js';   // v635 연공실 · 품앗이 · 겨루기
-import { GUILD } from '../tables/online.js';
+import { GUILD, TOGETHER } from '../tables/online.js';
 import { scoreDelta as pvpDelta } from '../online/pvp.js';   // 대결 카드 — 이기면/지면 점수 미리 보기
 import { PVP_TIERS, pvpEdge, PVP_COUNTER, PVP_COUNTER_P } from '../tables/online.js';
 import { SAVE_KEY } from '../core/save.js';
@@ -37,7 +37,7 @@ import { TRAIT, TRAIT_GX, TRAIT_SYS_P, traitOf, RESO, RESO_NEED } from '../table
 import { PULL_P, PULL_PITY, PULL_TEN_FLOOR } from '../tables/option.js';
 import { loadLooks, zoneFor, drawHero, drawMob, mobName, mobHeight, preloadMobs, drawPaintedBack, drawPaintedLedge, drawEarth, chbImg, preloadChapter, fxImg, oldImg, tintImg, ULT_ART, SEAL_ART, CUT_ART, BUFF_ART, BOSS_ART, wearCount, filtered } from './look.js';
 import { BOSS_PATS } from '../tables/kit.js';
-import { ADV_MAX, advOf, advPal, ADV_S, ADV_N } from './advfx.js';
+import { ADV_MAX, advOf, advPal, ADV_S, ADV_N, setPathTint, pathTintOf } from './advfx.js';
 // v629 컴퓨터 화면 고정 — pc.html 틀 안이면 틀 바깥이 이 화면을 통째로 키운다(__pcScale). 캔버스는 그만큼 더 촘촘히 그려 흐려지지 않게
 const pcFramed = (() => { try { return window.top !== window; } catch { return true; } })();
 const pxr = () => (window.devicePixelRatio || 1) * (pcFramed ? window.__pcScale || 1 : 1);
@@ -2714,18 +2714,57 @@ function paintUnlock() {
     if (n > unlSeen && !featAllowed()) toast(`${UNLOCKS.slice(unlSeen, n).slice(-3).map((u) => u.name).join(' · ')} 열림!`);   // 새로 시작해 레벨이 내려갔으면 조용히 맞춘다
     unlSeen = n; try { localStorage.setItem(UNL_KEY, String(n)); } catch { /* 저장 못 해도 */ }
   }
-  const next = UNLOCKS[n];
-  nx.classList.toggle('hidden', !next);
-  if (!next) { $('dpsm').style.top = ''; return; }
-  const k = `${n}:${L}:${$('qc').dataset.k || ''}:${$('qc').classList.contains('hidden') ? 0 : 1}`;
+  const next0 = UNLOCKS[n], wk = weekGoal(), useWk = !!wk && (!next0 || (L >= 20 && next0.lv - L >= 5)), next = useWk ? null : next0;   // v646 Lv 20부터 다음 열림이 멀거나(5레벨+) 다 열렸으면 이번 주 목표(처음엔 다음 열림이 먼저)
+  nx.classList.toggle('hidden', !next && !useWk);
+  if (!next && !useWk) { $('dpsm').style.top = ''; return; }
+  const k = `${n}:${L}:${$('qc').dataset.k || ''}:${$('qc').classList.contains('hidden') ? 0 : 1}:${useWk ? `${wk.id}|${wk.p}|${wk.can}` : ''}`;
   if (nx.dataset.k === k) return;   // v614 바뀐 것이 없으면 자리를 재지 않는다(재면 화면 배치를 억지로 다시 계산 — 0.2초마다)
   if (!$('qc').classList.contains('hidden') && !$('qc').offsetHeight) return;   // 길잡이 카드가 가려진 동안(두목전)엔 자리를 잴 수 없다 — 다시 보일 때 맞춘다
+  nx.dataset.k = k;
+  if (useWk) {
+    nx.dataset.go = 'mission:2'; nx.classList.add('wk');
+    nx.innerHTML = `<span class="nxt"><em>주간</em>${wk.can ? `받을 주간 임무 ${wk.can}개` : `${esc(wk.name)} ${unit(wk.p)}/${unit(wk.need)}`}</span><i class="nxb"><i style="width:${wk.can ? 100 : Math.round((wk.p / wk.need) * 100)}%"></i></i>`;
+    nx.title = '이번 주 임무 — 누르면 주간 임무 칸';
+  } else {
+  nx.classList.remove('wk');
   const same = UNLOCKS.filter((u) => u.lv === next.lv), prev = n ? UNLOCKS[n - 1].lv : 1;
-  nx.dataset.k = k; nx.dataset.go = next.key;
+  nx.dataset.go = next.key;
   nx.innerHTML = `<span class="nxt"><em>다음</em>${esc(next.short)}${same.length > 1 ? ` 외 ${same.length - 1}` : ''} · Lv ${next.lv} <small>(지금 Lv ${L})</small></span><i class="nxb"><i style="width:${Math.max(0, Math.min(1, (L - prev) / Math.max(1, next.lv - prev))) * 100}%"></i></i>`;
   nx.title = `${same.map((u) => u.name).join(' · ')} — Lv ${next.lv}에 열려요`;
+  }
   const qc = $('qc'), qh = qc.classList.contains('hidden'); nx.style.top = qh ? '' : `${qc.offsetTop + qc.offsetHeight + 5}px`;   // 길잡이 카드 바로 아래(카드가 두 줄 · 세 줄이어도)
   $('dpsm').style.top = qh ? '' : `${qc.offsetTop + qc.offsetHeight + 5 + nx.offsetHeight + 7}px`;   // 피해 측정기도 따라 내린다(길잡이 카드가 두 줄이면 칩과 겹쳤다)
+}
+// v646 주간 목표 한 줄 — 받을 주간 임무가 있으면 그것 · 아니면 아직 못 한 것 가운데 가장 가까운 것(진행 비율이 큰 것)
+function weekGoal() {
+  const B = g.books.weekly, can = B.claimable().length;
+  if (can) return { id: 'can', p: 0, need: 1, can, name: '' };
+  let best = null;
+  for (const q of WEEKLY_MISSIONS) { const s = B.get(q.id); if (s.done || s.got) continue; const p = Math.min(s.p || 0, q.need), r = p / q.need; if (!best || r > best.r) best = { id: q.id, p, need: q.need, r, can: 0, name: guideLabel(q) }; }
+  return best;
+}
+// ── v646 함께 — 문파에 들었고 접속 중이면 3분마다 품앗이 문서에 「접속 중」 표시를 남기고, 6분 안에 남긴 다른 문파원이 있으면 함께(사냥 은자 · 경험치 +10%) ──
+let togAt = 0, togBusy = false;
+function togBeat(force) {
+  const t = Date.now();
+  if (togBusy || !g || !net.online || !g.S.guildId || document.visibilityState === 'hidden' || (!force && t - togAt < TOGETHER.beatMs)) return;
+  togAt = t; togBusy = true;
+  net.gseen(g.S.guildId, g.S.nick || '무인', TOGETHER.keepMs).then((L) => {
+    const on = L.filter((x) => Date.now() - (x.at || 0) < TOGETHER.ttlMs).sort((a, b) => b.at - a.at);
+    if (on.length) { const was = g.togOn(); g.togSet(on.map((x) => x.n), now()); g.dirtyStats = true; if (!was) { addLog(`함께 — ${on.map((x) => x.n).join(' · ')} · 사냥 은자 · 경험치 +${TOGETHER.p / 10}%`); toast(`${on[0].n}${on.length > 1 ? ` 외 ${on.length - 1}` : ''}와 함께 — 사냥 은자 · 경험치 +${TOGETHER.p / 10}%`); } }
+    paintTg(true);
+  }).catch(() => {}).finally(() => { togBusy = false; });
+}
+let tgAt = 0;
+function paintTg(force) {
+  const el = $('tg'), t = Date.now(); if (!el) return;
+  if (!force && t - tgAt < 1000) return; tgAt = t;
+  const I = g.togInfo();
+  el.classList.toggle('hidden', !I || !!g.bossFight || !!g.dg);
+  if (!I) return;
+  if (!el.onclick) el.onclick = () => { play('click'); const J = g.togInfo(); toast(J ? `${J.names.join(' · ')}와 함께 — 사냥 은자 · 경험치 +${J.p / 10}% · 둘 다 접속해 있으면 이어져요` : '함께하던 문파원이 나갔어요'); };
+  const txt = `${I.names[0]}${I.names.length > 1 ? ` 외 ${I.names.length - 1}` : ''}`; if (el.dataset.k === txt) return; el.dataset.k = txt;
+  el.innerHTML = `<i>伴</i><span>${esc(txt)}</span><em>+${I.p / 10}%</em>`; el.setAttribute('aria-label', `함께 — ${txt} · 사냥 은자 · 경험치 +${I.p / 10}%`);
 }
 // ── v636 요괴록(mx-) ── 지도 창 셋째 칸: 장 고르기(별 수 · 받을 별 점) · 여섯 칸(그림 · 이름 · 처치 수 · 별 · 다음 별까지 · 새기기) · 장 칭호
 let mxCh = 0;   // 보고 있는 장(0 = 지금 사냥하는 장)
@@ -2946,6 +2985,7 @@ function festPane(card, R, note) {
 // 들판 축제 칩 — 1초에 한 번 · 두목전 · 던전엔 숨김(CSS body.bossing)
 let evAt = 0;
 function paintEv(force) {
+  togBeat(); paintTg();   // v646 함께(1초마다 그리기 · 3분마다 표시)
   const el = $('ev'), t = Date.now();
   if (!force && t - evAt < 1000) return; evAt = t;
   if (!el.onclick) el.onclick = () => { play('click'); openKey('fest:0'); };
@@ -5307,6 +5347,7 @@ function frame() {
   if (t < freezeUntil) { last = t; } else acc = Math.min(1000, acc + (t - last) * (t < slowUntil ? 0.22 : 1)); last = t;   // v532 장 두목 마지막 일격은 느린 화면   // 멈칫 동안은 엔진 시간을 쌓지 않는다
   const dt = acc - (acc % 50); acc -= dt;   // 엔진은 50ms 틱 — 남는 몫은 다음 프레임으로
   g.tick(t);
+  { const pt = g.S.hero.adv >= 3 ? g.S.hero.path || null : null; if (pt !== pathTintOf()) setPathTint(pt); }   // v646 갈래 빛깔
   if (dt > 0) {
     const F0 = g.ensureFight();
     const mobs = new Map(F0.mobs.map((m) => [m.id, m]));
@@ -6228,6 +6269,7 @@ Object.assign(window.__s2, { toast });   // v630 시험용 — 알림을 바로 
 Object.assign(window.__s2, { bfPop, lvbPop, paintBf, paintLvb, opt });   // v634 단약 · 성장 봇짐 시험 손잡이
 Object.assign(window.__s2, { idlPop, paintIdl, navDots });   // v636 방치 쌓임 · 점 셋 시험 손잡이
 Object.assign(window.__s2, { rl2Open, openKey });
+Object.assign(window.__s2, { togBeat, paintTg, weekGoal });   // v646 시험 손잡이
 Object.assign(window.__s2, { showResult, skPaint: () => sk2PaintLast, skPaintTest: (n, R, sh) => { const c = document.createElement('canvas'); c.width = 844; c.height = 390; Object.defineProperty(c, 'clientWidth', { value: 844 }); sk2Paint(c.getContext('2d'), { id: 'sword_9', shape: sh, face: 1, at: 0 }, { ms: SK2_PRE[n] + 10, pre: SK2_PRE[n], rel: SK2_REL[n], post: SK2_POST[n] }, 400, 300, R, 1, n, 1, advPal('sword', n)); return sk2PaintLast; } });   // v638 시험 손잡이   // v634 시험용 — 뜻대로 굴리기 창 · 창 바로 열기
 Object.assign(window.__s2, { baTier: () => baLast, baLive: () => baFx.length, baCap: () => BA_CAP, baAt: () => baLastAt, baShots: () => shots.filter((q) => q.ba).length, baWaves: () => baFx.filter((f) => f.k === 'wv').length });   // v628 평타 진화 시험 손잡이(r13-basic)
 // v628 처치 손맛 시험 손잡이 — 살아 있는 주검 수 · 마지막 외침 글 · 마지막 처치(몫 · 넘친 피해 · 전직 차수) · 날고 있는 주검 · 큰 처치 수 · 경험치 구슬 수 · 셈(최고 주검 수 · 날기 시작 · 구슬 — true면 0으로)
