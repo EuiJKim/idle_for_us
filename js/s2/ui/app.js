@@ -800,7 +800,8 @@ function socialDots(put) {
   if (wbComState && WB_COMMUNITY.filter((x) => (wbComState.sum || 0) >= x.at).length > g.wbCommunityGot()) put('rival:0', 'red');
   const G = guildState.g;
   if (g.S.guildId && G) {
-    if (gdTodo().length) put('rival:2', 'red');   // v635 겨루기 지난주 보상 · 도와줄 품앗이
+    if (gdTodo().length) put('rival:2', 'red');
+    if (g.togCan?.()) put('rival:2', 'red');   // v647 함께 이정표   // v635 겨루기 지난주 보상 · 도와줄 품앗이
     if (g.S.gChk !== dayKey(now())) put('rival:2', 'red');
     if (chatLast() > chatRead()) put('rival:2', 'new');
     const RD = guildState.raid; if (RD) { const tot = Object.values(RD.dmg || {}).reduce((a, b) => a + b, 0), lvR = RD.lv || Math.max(10, Math.floor(g.S.hero.lv / 10) * 10); if (raidPhase(tot, graidHp0(lvR)).phase > g.graidState().claimed) put('rival:2', 'red'); }
@@ -2759,12 +2760,30 @@ let tgAt = 0;
 function paintTg(force) {
   const el = $('tg'), t = Date.now(); if (!el) return;
   if (!force && t - tgAt < 1000) return; tgAt = t;
-  const I = g.togInfo();
-  el.classList.toggle('hidden', !I || !!g.bossFight || !!g.dg);
-  if (!I) return;
-  if (!el.onclick) el.onclick = () => { play('click'); const J = g.togInfo(); toast(J ? `${J.names.join(' · ')}와 함께 — 사냥 은자 · 경험치 +${J.p / 10}% · 둘 다 접속해 있으면 이어져요` : '함께하던 문파원이 나갔어요'); };
-  const txt = `${I.names[0]}${I.names.length > 1 ? ` 외 ${I.names.length - 1}` : ''}`; if (el.dataset.k === txt) return; el.dataset.k = txt;
-  el.innerHTML = `<i>伴</i><span>${esc(txt)}</span><em>+${I.p / 10}%</em>`; el.setAttribute('aria-label', `함께 — ${txt} · 사냥 은자 · 경험치 +${I.p / 10}%`);
+  const I = g.togInfo(), W = g.togWkState(), can = g.togCan();
+  el.classList.toggle('hidden', (!I && !(g.S.guildId && (W.min > 0 || can))) || !!g.bossFight || !!g.dg);
+  if (!el.onclick) el.onclick = () => { play('click'); togPop(); };
+  const txt = I ? `${I.names[0]}${I.names.length > 1 ? ` 외 ${I.names.length - 1}` : ''}` : `이번 주 ${W.min}분`, k = `${txt}|${!!I}|${can}`; if (el.dataset.k === k) return; el.dataset.k = k;
+  el.classList.toggle('off', !I); el.classList.toggle('dot', can > 0);
+  el.innerHTML = `<i>伴</i><span>${esc(txt)}</span>${I ? `<em>+${I.p / 10}%</em>` : ''}`; el.setAttribute('aria-label', I ? `함께 — ${txt} · 사냥 은자 · 경험치 +${I.p / 10}%` : `함께 — ${txt}${can ? ` · 받을 것 ${can}` : ''}`);
+}
+// v647 오늘의 요약 — 날이 바뀐 뒤 처음 들어오면 어제와 견준 한 장(돌아오셨군요 · 다른 창이 다 닫힌 뒤)
+let sumAt = 0;
+const sumAllowed = () => !navigator.webdriver || !!window.__s2sum;
+function daySumTick() {
+  const t = Date.now(); if (t - sumAt < 2000) return; sumAt = t;
+  if (!g || !sumAllowed() || open || g.bossFight || g.dg || !$('modal').classList.contains('hidden') || $('res').classList.contains('open') || document.querySelector('.gx, .duel, #feat') || coachStep >= 0) return;
+  const D = g.daySumTake(); if (!D) return;
+  const a = D.from, b = D.to, pwP = a.pw ? Math.round(((b.pw - a.pw) / a.pw) * 1000) / 10 : 0, row = (n, x, y, z) => `<div class="ds-r"><span>${n}</span><b>${x}</b><u>→</u><b>${y}</b>${z ? `<em>${z}</em>` : ''}</div>`;
+  pop('오늘의 요약', `<p class="ds-h">지난 접속 날과 견줘 이만큼 강해졌어요</p><div class="ds-l">${row('레벨', `Lv ${a.lv}`, `Lv ${b.lv}`, b.lv > a.lv ? `+${b.lv - a.lv}` : '')}${row('전투력', unit(a.pw), unit(b.pw), pwP > 0 ? `+${pwP}%` : '')}${row('가장 먼 칸', `${Math.ceil(a.top / 10)}장 ${((a.top - 1) % 10) + 1}칸`, `${Math.ceil(b.top / 10)}장 ${((b.top - 1) % 10) + 1}칸`, b.top > a.top ? `+${b.top - a.top}칸` : '')}${row('처치', unit(a.kills), unit(b.kills), b.kills > a.kills ? `+${unit(b.kills - a.kills)}` : '')}</div>`);
+  save();
+}
+// v647 함께 창 — 지금 함께 · 이번 주 함께한 시간 막대 · 이정표 받기(1 · 3 · 6시간)
+function togPop() {
+  const I = g.togInfo(), W = g.togWkState(), top = W.steps.at(-1).min;
+  const rows = W.steps.map((s) => `<div class="tgp-r${s.got ? ' got' : s.can ? ' can' : ''}"><b>${s.min / 60}시간</b><span>장비 뽑기권 ${s.tix}</span><button class="btn${s.can ? ' primary' : ''}" data-i="${s.i}" ${s.can ? '' : 'disabled'}>${s.got ? '받음' : '받기'}</button></div>`).join('');
+  pop('함께', `<p class="tgp-now">${I ? `지금 <b>${esc(I.names.join(' · '))}</b>와 함께 — 사냥 은자 · 경험치 +${I.p / 10}%` : '함께 접속한 문파원이 없어요 — 같은 문파원이 접속해 있으면 저절로 켜져요'}</p><div class="tgp-bar"><i style="width:${Math.min(100, (W.min / top) * 100)}%"></i></div><p class="tgp-min">이번 주 함께한 시간 <b>${Math.floor(W.min / 60)}시간 ${W.min % 60}분</b> · 월요일에 새로</p><div class="tgp-l">${rows}</div>`);
+  for (const b of $('modal').querySelectorAll('.tgp-r .btn')) b.onclick = () => { const r = g.togClaim(+b.dataset.i); if (r) { play('coin'); toast(`함께 ${TOGETHER.wk[r.i].min / 60}시간 — 장비 뽑기권 +${r.tix}`); save(); navDots(); togPop(); paintTg(true); } };
 }
 // ── v636 요괴록(mx-) ── 지도 창 셋째 칸: 장 고르기(별 수 · 받을 별 점) · 여섯 칸(그림 · 이름 · 처치 수 · 별 · 다음 별까지 · 새기기) · 장 칭호
 let mxCh = 0;   // 보고 있는 장(0 = 지금 사냥하는 장)
@@ -2985,7 +3004,7 @@ function festPane(card, R, note) {
 // 들판 축제 칩 — 1초에 한 번 · 두목전 · 던전엔 숨김(CSS body.bossing)
 let evAt = 0;
 function paintEv(force) {
-  togBeat(); paintTg();   // v646 함께(1초마다 그리기 · 3분마다 표시)
+  togBeat(); paintTg(); daySumTick();   // v646 함께(1초마다 그리기 · 3분마다 표시) · v647 오늘의 요약
   const el = $('ev'), t = Date.now();
   if (!force && t - evAt < 1000) return; evAt = t;
   if (!el.onclick) el.onclick = () => { play('click'); openKey('fest:0'); };
@@ -5508,6 +5527,7 @@ function showResult(f) {
         <div class="rsub">${ch}장 ${esc(chapterName(f.idx))} · Stage ${st}/10</div>
         <div class="rtitle">${f.chb ? 'BOSS DEFEATED' : 'STAGE CLEAR'}</div>
         <div class="rmeta"><span>걸린 시간 <b>${sec}초</b></span>${f.deaths ? `<span>쓰러짐 <b>${f.deaths}</b></span>` : ''}</div>
+        ${f.clean ? `<div class="rnew rclean">무상처 — 두목 패턴 ${f.clean.pats}번을 직접 모두 피함 · 은자 +${unit(f.clean.gold)}${f.clean.stones ? ` · 강화석 +${f.clean.stones}` : ''}</div>` : ''}
         ${f.chb?.first ? `<div class="rnew cbfirst"><img src="art/s2/chb/chb${f.chb.ch}.webp" alt=""><div><small>첫 처치 · 칭호</small><b>「${esc(f.chb.name)} 격파」</b><span class="g${f.chb.gear?.g}t">확정 장비 — ${GRADES[f.chb.gear?.g] || ''}품${f.chb.gear?.up ? '上' : ''} ${SLOT_NAME[f.chb.gear?.slot] || ''}</span></div></div>` : ''}
         <div class="rtiles">${tile('s', f.gold, '은자', 0)}${tile('t', f.tix + (f.chb?.tix2 || 0), '뽑기권', 1)}${f.chb?.stones || f.chb?.manual ? tile('st', (f.chb.stones || 0) + (f.chb.manual || 0), '강화석', 2) : ''}</div>${f.chb?.manual ? `<div class="rnew">자동 피하기 없이 첫 처치 — 강화석 +${f.chb.manual}</div>` : ''}
         <div class="rnext">${newCh ? `<em>새 장</em> ${nch}장 ${esc(chapterName(f.next))}` : `다음 · Stage ${nst}/10`}</div>
@@ -6269,7 +6289,7 @@ Object.assign(window.__s2, { toast });   // v630 시험용 — 알림을 바로 
 Object.assign(window.__s2, { bfPop, lvbPop, paintBf, paintLvb, opt });   // v634 단약 · 성장 봇짐 시험 손잡이
 Object.assign(window.__s2, { idlPop, paintIdl, navDots });   // v636 방치 쌓임 · 점 셋 시험 손잡이
 Object.assign(window.__s2, { rl2Open, openKey });
-Object.assign(window.__s2, { togBeat, paintTg, weekGoal });   // v646 시험 손잡이
+Object.assign(window.__s2, { togBeat, paintTg, weekGoal, togPop, daySumTick: () => { sumAt = 0; daySumTick(); } });   // v646 시험 손잡이
 Object.assign(window.__s2, { showResult, skPaint: () => sk2PaintLast, skPaintTest: (n, R, sh) => { const c = document.createElement('canvas'); c.width = 844; c.height = 390; Object.defineProperty(c, 'clientWidth', { value: 844 }); sk2Paint(c.getContext('2d'), { id: 'sword_9', shape: sh, face: 1, at: 0 }, { ms: SK2_PRE[n] + 10, pre: SK2_PRE[n], rel: SK2_REL[n], post: SK2_POST[n] }, 400, 300, R, 1, n, 1, advPal('sword', n)); return sk2PaintLast; } });   // v638 시험 손잡이   // v634 시험용 — 뜻대로 굴리기 창 · 창 바로 열기
 Object.assign(window.__s2, { baTier: () => baLast, baLive: () => baFx.length, baCap: () => BA_CAP, baAt: () => baLastAt, baShots: () => shots.filter((q) => q.ba).length, baWaves: () => baFx.filter((f) => f.k === 'wv').length });   // v628 평타 진화 시험 손잡이(r13-basic)
 // v628 처치 손맛 시험 손잡이 — 살아 있는 주검 수 · 마지막 외침 글 · 마지막 처치(몫 · 넘친 피해 · 전직 차수) · 날고 있는 주검 · 큰 처치 수 · 경험치 구슬 수 · 셈(최고 주검 수 · 날기 시작 · 구슬 — true면 0으로)

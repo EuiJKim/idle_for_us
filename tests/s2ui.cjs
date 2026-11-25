@@ -2492,6 +2492,43 @@ const tixGot = (pg, name) => pg.evaluate((n) => { delete window.__s2.g[n]; retur
       await ctx.close();
     }
   }
+  if (!process.env.ONLY || process.env.ONLY.split(',').some((x) => x === '844' || x === 'p647')) {
+    console.log('— v647 함께한 시간 · 오늘의 요약 · 무상처');
+    for (const [VW, VH] of [[844, 390], [667, 375]]) {
+      const ctx = await b.newContext({ viewport: { width: VW, height: VH }, serviceWorkers: 'block' });
+      await ctx.route(/gstatic\.com\/firebasejs/, (r) => r.abort());
+      await ctx.addInitScript(() => { window.__s2sum = true; });
+      const page = await ctx.newPage(); const errs = [];
+      page.on('pageerror', (e) => errs.push(e.message)); page.on('console', (m) => { if (m.type() === 'error' && !/Failed to load|ERR_FAILED/.test(m.text())) errs.push(m.text()); });
+      await page.goto(BASE, { waitUntil: 'domcontentloaded' });
+      await page.waitForSelector('#modal:not(.hidden) .jobcard'); await page.click('#modal .jobcard[data-job="sword"]');
+      await page.waitForSelector('#modal', { state: 'hidden' }); await page.waitForTimeout(500);
+      // 함께 창 — 이번 주 70분 · 첫 이정표 받기
+      await page.evaluate(() => { const g = window.__s2.g; g.stage().auto = false; g.S.guildId = 'K7Q2MX'; g.togWk().ms = 70 * 60000; window.__s2.paintTg(true); window.__s2.togPop(); });
+      await page.waitForSelector('#modal:not(.hidden) .tgp-r');
+      const p1 = await page.evaluate(() => { const rs = [...document.querySelectorAll('#modal .tgp-r')]; return { n: rs.length, can: rs.filter((r) => r.classList.contains('can')).length, min: document.querySelector('#modal .tgp-min')?.textContent, chip: document.getElementById('tg').textContent, dot: document.getElementById('tg').classList.contains('dot'), off: document.getElementById('tg').classList.contains('off') }; });
+      ok(p1.n === 3 && p1.can === 1 && /1시간 10분/.test(p1.min) && /이번 주 70분/.test(p1.chip) && p1.dot && p1.off, `v647 ${VW} 함께 창 — 이정표 셋 · 1시간 받기 · 칩(꺼짐 · 점)`, JSON.stringify(p1));
+      const t0 = await page.evaluate(() => window.__s2.g.S.wallet['ticket:gear'] || 0);
+      await page.click('#modal .tgp-r.can .btn'); await page.waitForTimeout(300);
+      const p2 = await page.evaluate(() => ({ t: window.__s2.g.S.wallet['ticket:gear'] || 0, got: document.querySelectorAll('#modal .tgp-r.got').length, dot: document.getElementById('tg').classList.contains('dot') }));
+      ok(p2.t >= t0 + 2 && p2.got === 1 && !p2.dot, `v647 ${VW} 받으면 뽑기권 · 받음 · 점 꺼짐`, JSON.stringify(p2));
+      await page.screenshot({ path: path.join(OUT, `s2-tgp-${VW}.png`) });
+      await page.click('#modal .btn:has-text("확인")').catch(() => {}); await page.waitForTimeout(200);
+      // 오늘의 요약 — 날이 바뀌었다고 치고
+      await page.evaluate(() => { const g = window.__s2.g; g.S.daySum = { from: { day: 1, lv: 1, pw: 100, kills: 10, top: 1 }, to: { day: 2, lv: 12, pw: 900, kills: 410, top: 13 } }; window.__s2.daySumTick(); });
+      await page.waitForSelector('#modal:not(.hidden) .ds-r', { timeout: 4000 }).catch(() => {});
+      const d1 = await page.evaluate(() => { const rs = [...document.querySelectorAll('#modal .ds-r')], sh = document.querySelector('#modal .sheet')?.getBoundingClientRect(); return { n: rs.length, t: rs.map((r) => r.textContent).join('|'), left: window.__s2.g.S.daySum ? 1 : 0, inV: !!sh && sh.bottom <= innerHeight + 1 && sh.right <= innerWidth + 1 }; });
+      ok(d1.n === 4 && /Lv 1→Lv 12\+11/.test(d1.t) && /\+800%/.test(d1.t) && /2장 3칸/.test(d1.t) && !d1.left && d1.inV, `v647 ${VW} 오늘의 요약 — 레벨 · 전투력 · 칸 · 처치 · 한 번만 · 화면 안`, JSON.stringify(d1));
+      await page.screenshot({ path: path.join(OUT, `s2-daysum-${VW}.png`) });
+      await page.click('#modal .btn:has-text("확인")').catch(() => {}); await page.waitForTimeout(200);
+      // 결과 창 — 무상처 한 줄
+      const rc = await page.evaluate(async () => { window.__s2.showResult({ k: 'stage-clear', idx: 3, next: 4, ms: 9000, gold: 300, tix: 1, clean: { pats: 3, gold: 100, stones: 0 } }); await new Promise((r) => setTimeout(r, 200)); const t = document.querySelector('#res .rclean')?.textContent || ''; document.getElementById('rout')?.click(); return t; });
+      ok(/무상처/.test(rc) && /3번/.test(rc) && /\+100/.test(rc), `v647 ${VW} 결과 창 — 무상처 한 줄`, rc);
+      ok(errs.length === 0, `v647 ${VW} 콘솔 오류 없음`, errs.slice(0, 3).join(' | '));
+      await page.evaluate(() => window.__s2.freeze?.());
+      await ctx.close();
+    }
+  }
   await b.close();
   console.log(fails ? `\n✗ ${fails}건` : '\n✓ 새 시즌 화면 전부 통과');
   process.exit(fails ? 1 : 0);

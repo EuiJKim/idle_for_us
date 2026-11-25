@@ -2114,6 +2114,17 @@
     .tg-chip.hidden, body.bossing .tg-chip { display: none; }
     body:has(#tg:not(.hidden)):not(.bossing) #lootbox { top: calc(var(--st, 0px) + 124px); }
     #nx.wk .nxt em { background: #2563eb; }
+    /* v647 함께 칩(꺼짐 · 받을 것) · 함께 창 · 오늘의 요약 · 무상처 */
+    .tg-chip.off { border-color: rgba(255,255,255,.18); color: #d6cdb8; font-weight: 400; } .tg-chip.off i { background: #3f3f46; }
+    .tg-chip.dot::after { content: ''; position: absolute; top: -2px; right: -2px; width: 8px; height: 8px; border-radius: 50%; background: #ef4444; box-shadow: 0 0 0 1.5px rgba(0,0,0,.5); }
+    .tgp-now { margin: 0 0 8px; font-size: 13px; } .tgp-min { margin: 6px 0 8px; font-size: 12px; color: rgba(255,255,255,.7); }
+    .tgp-bar { height: 8px; border-radius: 4px; background: rgba(255,255,255,.1); overflow: hidden; } .tgp-bar i { display: block; height: 100%; background: linear-gradient(90deg, #15803d, #4ade80); }
+    .tgp-l { display: flex; flex-direction: column; gap: 6px; } .tgp-r { display: flex; align-items: center; gap: 10px; padding: 6px 10px; border-radius: 10px; background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.08); }
+    .tgp-r b { min-width: 52px; } .tgp-r span { flex: 1; font-size: 12.5px; color: rgba(255,255,255,.8); } .tgp-r.can { border-color: rgba(250,204,21,.6); } .tgp-r.got { opacity: .55; } .tgp-r .btn { min-height: 34px; }
+    .ds-h { margin: 0 0 8px; font-size: 12.5px; color: rgba(255,255,255,.7); } .ds-l { display: flex; flex-direction: column; gap: 5px; }
+    .ds-r { display: grid; grid-template-columns: 74px auto 16px auto 1fr; align-items: baseline; gap: 6px; padding: 6px 10px; border-radius: 10px; background: rgba(255,255,255,.05); }
+    .ds-r span { font-size: 12px; color: rgba(255,255,255,.6); } .ds-r b { font-size: 14px; } .ds-r u { text-decoration: none; color: rgba(255,255,255,.4); } .ds-r em { font-style: normal; text-align: right; font-weight: 800; color: #4ade80; }
+    #res .rclean { color: #86efac; border-color: rgba(134,239,172,.5); }
     .ev-chip.off { color: #cbb98f; font-weight: 400; border-color: rgba(255,255,255,.14); }
     .ev-chip.off .ev-pic { filter: grayscale(.7); opacity: .75; }
     .ev-chip em { font-style: normal; font-size: 10px; font-weight: 800; padding: 0 5px; border-radius: 4px; background: #b91c1c; color: #fff; line-height: 16px; }

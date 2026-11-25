@@ -294,6 +294,7 @@ export class SideFight {
         const inZ = (x) => (q.shape === 'ult' ? !(x >= q.safe[0] && x <= q.safe[1]) : Math.abs(x - q.x) <= q.w / 2 && Math.abs(H.y - q.y) <= SAME_Y + 600);
         const inside = inZ(H.x), inv = this.t < (H.invUntil || 0);
         this.events.push(['burst', this.t, m.id, q.id, q.x, q.y, q.w, inside && !inv ? 1 : 0]);
+        this.pats = (this.pats || 0) + 1; if (inside && !inv) this.patHits = (this.patHits || 0) + 1;   // v647 무상처 — 터진 패턴 수 · 맞은 수
         // v546 완벽 회피 — 범위 안에서 터지기 직전(0.45초 안)에 회피를 눌러 맞지 않음
         if (H.dashAt != null && this.t - H.dashAt <= DASH.perfectMs && inZ(H.dashX0) && (!inside || inv)) { H.perfUntil = this.t + DASH.buffMs; this.perfects = (this.perfects || 0) + 1; this.events.push(['perfect', this.t, m.id]); }
         if (inside && !inv) {

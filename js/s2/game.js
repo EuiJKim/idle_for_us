@@ -100,6 +100,7 @@ import * as GD from './online/guild.js';
 import * as PV from './online/pvp.js';
 import { refPlayer } from './battle/ref.js';
 import { PVP, WBOSS, POWER_SLACK, PVP_TIERS, GUILD, TOGETHER } from './tables/online.js';
+export const CLEAN = { minPats: 2, goldP: 500, chbStones: 2 };   // v647 무상처
 import { JOBS, RANGED, defK, BASE_CRIT, BASE_CRIT_DMG, TAKEN_DOWN_CAP } from './tables/char.js';
 
 export const COLLECTS = ['weapon', 'pal', 'relic'];
@@ -611,7 +612,11 @@ export class Game {
     if (win) { T.idx = Math.min(LEVEL_MAX, L + 1); T.top = Math.max(T.top, T.idx); T.kills = 0; T.failIdx = 0; this.emit('dungeon', { stage: L }); this.bountyHit('boss', L, true); }
     else { T.kills = 0; T.failIdx = L; T.failLv = this.S.hero.lv; T.failPw = this.power(); }   // 지면 그 칸 몹을 다시 채운 뒤 재도전(자동이면 더 강해진 뒤)
     // 칸 보상: 은자 · 뽑기권(경험치는 사냥이 정한다 — 곡선 J1). 결과 창이 실제 숫자 · 걸린 시간 · 진 까닭을 보여 준다(v513)
-    const gold = win ? Math.round(2 * KILLS_PER_MIN * goldPerMob(L)) : 0, tix = win ? (L % 10 === 0 ? 10 : 1) : 0;
+    const gold0 = win ? Math.round(2 * KILLS_PER_MIN * goldPerMob(L)) : 0, tix = win ? (L % 10 === 0 ? 10 : 1) : 0;
+    // v647 무상처 — 「두목 패턴 자동 피하기」를 끄고(직접) 두목 패턴을 둘 이상 모두 피해 이기면 은자 +50%(장 두목은 강화석 +2). 자동 피하기로는 안 붙는다(봇 곡선이 2레벨 빨라졌다)
+    const clean = win && BF && BF.autoDodge === false && (BF.pats || 0) >= CLEAN.minPats && !BF.patHits ? { pats: BF.pats, gold: Math.round(gold0 * CLEAN.goldP / 1000), stones: BF.def.chb ? CLEAN.chbStones : 0 } : null;
+    const gold = gold0 + (clean ? clean.gold : 0);
+    if (clean) { this.S.wallet['item:stone'] = (this.S.wallet['item:stone'] || 0) + clean.stones; this.S.cleanN = (this.S.cleanN || 0) + 1; }
     if (win) { this.S.wallet.gold += gold; this.S.wallet['ticket:gear'] = (this.S.wallet['ticket:gear'] || 0) + tix; }
     // v532 장 두목 — 첫 처치: 그 장 확정 장비 + 칭호 · 다시: 강화석 · 뽑기권
     let chb = null;
@@ -626,7 +631,7 @@ export class Game {
         else { const dd = (this.S.chbDay ??= {}), dk = dayKey(this.now); if (dd[ch] !== dk) { dd[ch] = dk; chb.stones = CB_REPEAT.stones; chb.tix2 = CB_REPEAT.tix; this.S.wallet['item:stone'] = (this.S.wallet['item:stone'] || 0) + chb.stones; this.S.wallet['ticket:gear'] = (this.S.wallet['ticket:gear'] || 0) + chb.tix2; } }   // 다시 깬 보상은 장마다 하루 한 번
       }
     }
-    this.feed.push({ k: win ? 'stage-clear' : 'stage-fail', idx: L, rewardMin: win ? 2 : 0, gold, tix, ms, deaths, bossLeft, next: T.idx, limitMs: BF?.limitMs || 0, chb });
+    this.feed.push({ k: win ? 'stage-clear' : 'stage-fail', idx: L, rewardMin: win ? 2 : 0, gold, tix, ms, deaths, bossLeft, next: T.idx, limitMs: BF?.limitMs || 0, chb, clean });
   }
   // 손 조작 — 방향(누르는 동안) · 점프 · 내려가기 · 무공 · 자동 켜고 끄기(세이브에 남음)
   hold(dir) { this.ensureFight().press({ dir }); }
@@ -704,7 +709,9 @@ export class Game {
   // ── 시간이 흐름(타이머 · 날 바뀜) ──
   tick(nowMs) {
     const S = this.S;
+    if (this.togOn() && nowMs > this.now) this.togAdd(Math.min(60000, nowMs - this.now));   // v647 함께한 시간(접속해 있는 동안만 · 한 번에 1분까지)
     this.now = nowMs;
+    this.daySnapTick();   // v647 오늘의 요약
     if (this.hero.tickMastery(nowMs)) { this.dirtyStats = true; this.feed.push({ k: 'mastery' }); }
     const tl = this.hero.treeTick(nowMs); if (tl) { this.dirtyStats = true; this.feed.push({ k: 'tree', id: tl.id, n: tl.n }); }
     if (GC.tickGacha(S.gacha, nowMs)) this.feed.push({ k: 'gacha-lv', lv: S.gacha.lv });
@@ -1682,6 +1689,21 @@ export class Game {
   // v646 함께 — 화면이 문파 품앗이 문서에서 「지금 접속 중인 다른 문파원」을 찾으면 그때부터 ttl 동안(사냥만 · 방치 보상엔 안 붙음)
   togSet(names, at = this.now) { const n = (names || []).map((x) => String(x || '무인').slice(0, 12)).slice(0, 3); if (!n.length) return false; this.S.tog = { until: at + TOGETHER.ttlMs, n }; return true; }
   togOn() { return !!this.S.tog && this.S.tog.until > this.now; }
+  // v647 이번 주 함께한 시간 · 이정표(1 · 3 · 6시간 → 뽑기권)
+  togWk() { const wk = weekKey(this.now), W = (this.S.togWk ??= { wk, ms: 0, got: [] }); if (W.wk !== wk) Object.assign(W, { wk, ms: 0, got: [] }); return W; }
+  togAdd(ms) { this.togWk().ms += Math.max(0, ms); }
+  togWkState() { const W = this.togWk(), min = Math.floor(W.ms / 60000); return { min, steps: TOGETHER.wk.map((s, i) => ({ ...s, i, got: W.got.includes(i), can: min >= s.min && !W.got.includes(i) })) }; }
+  togClaim(i) { const W = this.togWk(), s = TOGETHER.wk[i]; if (!s || W.got.includes(i) || Math.floor(W.ms / 60000) < s.min) return null; W.got.push(i); this.S.wallet['ticket:gear'] = (this.S.wallet['ticket:gear'] || 0) + s.tix; return { i, tix: s.tix }; }
+  togCan() { return this.togWkState().steps.filter((s) => s.can).length; }
+  // v647 오늘의 요약 — 날이 바뀐 뒤 처음 tick에서 어제 사진과 견준 한 장(화면이 한 번 가져간다)
+  daySnapTick() {
+    const dk = dayKey(this.now), P = this.S.daySnap;
+    if (P && P.day === dk) return;
+    const cur = { day: dk, lv: this.S.hero.lv, pw: Math.round(this.power()), kills: this.S.kills || 0, top: this.stage().top || 0, gold: this.S.wallet.gold || 0 };
+    if (P && P.day < dk) this.S.daySum = { from: P, to: cur };
+    this.S.daySnap = cur;
+  }
+  daySumTake() { const D = this.S.daySum; if (!D) return null; delete this.S.daySum; return D; }
   togInfo() { return this.togOn() ? { names: this.S.tog.n, leftMs: this.S.tog.until - this.now, p: TOGETHER.p } : null; }
   // 켜지고 꺼짐이 바뀌면 싸움 스탯을 다시(tick에서)
   bfTick() { const k = (this.S.bf ? DANYAK.list.map((d) => ((this.S.bf.end?.[d.id] || 0) > this.now ? 1 : 0)).join('') : '') + (this.togOn() ? 't' : ''); if (k !== this.bfKey) { if (this.bfKey != null) this.dirtyStats = true; this.bfKey = k; } }

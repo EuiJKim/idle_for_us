@@ -2279,6 +2279,29 @@ console.log('\n=== v635 문파 연공실 · 품앗이 · 겨루기 ===');
   g.tick(T0 + 8 * 86400e3); ok(g.gwarSt().help === 0 && g.gwarSt().don === 0 && g.gwarSt().got === 'y', 'gd 겨루기: 다음 주 내 몫 새로(받은 표시는 남음)');
 }
 
+console.log('\n=== v647 함께한 시간 · 오늘의 요약 · 무상처 ===');
+{
+  const ON4 = await import('../js/s2/tables/online.js'), GM = await import('../js/s2/game.js');
+  const T0 = 1.8e12, g = new Game(newGame('sword', T0, 41), T0); g.tick(T0);
+  ok(g.togWkState().min === 0 && g.togCan() === 0 && g.togClaim(0) === null, '처음엔 함께한 시간 0 · 받을 것 없음');
+  g.togSet(['청운'], T0); let t = T0; for (let i = 0; i < 70; i++) { t += 60000; if (!g.togOn()) g.togSet(['청운'], g.now); g.tick(t); }
+  const W = g.togWkState(); ok(W.min >= 60 && W.min <= 71 && g.togCan() === 1, '함께인 동안만 분이 쌓인다 · 1시간이면 첫 이정표', W.min);
+  const t0 = g.S.wallet['ticket:gear'] || 0, r = g.togClaim(0);
+  ok(r && r.tix === ON4.TOGETHER.wk[0].tix && (g.S.wallet['ticket:gear'] || 0) === t0 + r.tix && g.togClaim(0) === null && g.togClaim(1) === null, '받기 — 뽑기권 · 한 번만 · 아직 안 된 것은 못 받음');
+  g.S.tog = null; const m0 = g.togWkState().min; g.tick(t + 600000); ok(g.togWkState().min === m0, '함께가 아니면 안 쌓인다');
+  g.tick(t + 8 * 86400e3); ok(g.togWkState().min === 0 && g.togWkState().steps.every((x) => !x.got), '주가 바뀌면 새로');
+  // 오늘의 요약
+  const g2 = new Game(newGame('sword', T0, 42), T0); g2.tick(T0);
+  ok(g2.daySumTake() === null && g2.S.daySnap?.lv === 1, '첫날은 사진만 · 요약 없음');
+  g2.S.hero.lv = 12; g2.dirtyStats = true; g2.tick(T0 + 86400e3);
+  const D = g2.daySumTake(); ok(D && D.from.lv === 1 && D.to.lv === 12 && D.to.pw > D.from.pw && g2.daySumTake() === null, '날이 바뀌면 어제와 견준 요약 한 번', JSON.stringify(D && { a: D.from.lv, b: D.to.lv }));
+  // 무상처 — 직접 피하기로 패턴 둘 이상 모두 피하면
+  const g3 = new Game(newGame('sword', T0, 43), T0); g3.tick(T0); g3.S.hero.lv = 30; g3.dirtyStats = true; const T = g3.stage(); T.idx = T.top = 9; T.kills = 20; T.auto = false;
+  const fire = (auto, pats, hits) => { g3.S.dodge = auto; g3.challenge(); const BF = g3.bossFight; BF.pats = pats; BF.patHits = hits; const g0 = g3.S.wallet.gold; g3.feed.length = 0; g3.endChallenge(true); const f = g3.feed.find((x) => x.k === 'stage-clear'); T.idx = 9; T.kills = 20; return { f, d: g3.S.wallet.gold - g0 }; };
+  const a1 = fire(false, 3, 0), a2 = fire(true, 3, 0), a3 = fire(false, 3, 1), a4 = fire(false, 1, 0);
+  ok(a1.f.clean && a1.f.clean.pats === 3 && a1.f.clean.gold === Math.round((a1.d - a1.f.clean.gold) * GM.CLEAN.goldP / 1000) && a1.d === a1.f.gold, '직접 피하기 · 패턴 셋 모두 피함 → 무상처 은자 +50%', JSON.stringify(a1.f.clean));
+  ok(!a2.f.clean && !a3.f.clean && !a4.f.clean, '자동 피하기 · 한 번 맞음 · 패턴 하나뿐이면 없음');
+}
 console.log('\n=== v646 함께 ===');
 {
   const ON3 = await import('../js/s2/tables/online.js');
